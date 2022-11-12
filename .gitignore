@@ -1,3 +1,4 @@
 *.iso
 isodir
 sysroot
+.vscode/
