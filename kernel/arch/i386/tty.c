@@ -29,7 +29,7 @@ void terminal_clear(void)
 			terminal_putentryat(' ', terminal_color, x, y);
 }
 
-void terminal_initialize(void)
+void terminal_initialize()
 {
 	terminal_row = 0;
 	terminal_col = 0;
