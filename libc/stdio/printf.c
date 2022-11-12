@@ -1,6 +1,7 @@
 #include <limits.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -13,7 +14,7 @@ static bool print(const char* data, size_t len)
 	return true;
 }
 
-static bool print_int(int value, int* out_len)
+static bool print_int(int value, size_t* out_len)
 {
 	if (value == -2147483648)
 	{
@@ -52,6 +53,37 @@ static bool print_int(int value, int* out_len)
 		return false;
 
 	*out_len = len;
+	return true;
+}
+
+static char bits_to_hex(unsigned char bits)
+{
+	if (bits < 10)
+		return bits + '0';
+	return bits - 10 + 'a';
+}
+
+static bool print_ptr(void* ptr, size_t* out_len)
+{
+	ptrdiff_t addr = (ptrdiff_t)ptr;
+
+	char buffer[2 + sizeof(ptrdiff_t) * 2];
+	buffer[0] = '0';
+	buffer[1] = 'x';
+
+	size_t bytes = sizeof(ptrdiff_t);
+
+	for (size_t i = 1; i <= bytes; i++)
+	{
+		unsigned char byte = (addr >> ((bytes - i) * 8)) & 0xff;
+		buffer[i * 2 + 0] = bits_to_hex(byte >> 4);
+		buffer[i * 2 + 1] = bits_to_hex(byte & 0b1111);
+	}
+
+	if (!print(buffer, 2 + bytes * 2))
+		return false;
+
+	*out_len = 2 + bytes * 2;
 	return true;
 }
 
@@ -107,8 +139,17 @@ int printf(const char* restrict format, ...)
 		{
 			format++;
 			int value = va_arg(args, int);
-			int len;
+			size_t len;
 			if (!print_int(value, &len))
+				return -1;
+			written += len;
+		}
+		else if (*format == 'p')
+		{
+			format++;
+			void* const ptr = va_arg(args, void*);
+			size_t len;
+			if (!print_ptr(ptr, &len))
 				return -1;
 			written += len;
 		}
