@@ -2,13 +2,9 @@
 
 #include <sys/cdefs.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+__BEGIN_DECLS
 
 __attribute__((__noreturn__))
 void abort(void);
 
-#ifdef __cplusplus
-}
-#endif
+__END_DECLS

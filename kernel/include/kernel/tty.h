@@ -1,16 +1,13 @@
 #pragma once
 
 #include <stddef.h>
+#include <sys/cdefs.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+__BEGIN_DECLS
 
-void terminal_initialize(void);
+void terminal_initialize();
 void terminal_putchar(char c);
 void terminal_write(const char* data, size_t size);
 void terminal_writestring(const char* data);
 
-#ifdef __cplusplus
-}
-#endif
+__END_DECLS

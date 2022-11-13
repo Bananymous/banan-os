@@ -7,6 +7,9 @@
 extern "C"
 void kernel_main()
 {
+	asm volatile("cli");
+
+
 	terminal_initialize();
 
 	printf("Hello from the kernel!\n");

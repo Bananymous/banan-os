@@ -1,26 +1,25 @@
 #include <limits.h>
 #include <stdarg.h>
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 
 static bool print(const char* data, size_t len)
 {
-	const unsigned char* bytes = (const unsigned char*)data;
+	const unsigned char* bytes = reinterpret_cast<const unsigned char*>(data);
 	for(size_t i = 0; i < len; i++)
 		if (putchar(bytes[i]) == EOF)
 			return false;
 	return true;
 }
 
-static bool print_int(int value, size_t* out_len)
+static bool print_int(int value, size_t& out_len)
 {
 	if (value == -2147483648)
 	{
 		if (!print("-2147483648", 11))
 			return false;
-		*out_len = 11;
+		out_len = 11;
 		return true;
 	}
 
@@ -52,7 +51,7 @@ static bool print_int(int value, size_t* out_len)
 	if (!print(ptr, len))
 		return false;
 
-	*out_len = len;
+	out_len = len;
 	return true;
 }
 
@@ -63,9 +62,9 @@ static char bits_to_hex(unsigned char bits)
 	return bits - 10 + 'a';
 }
 
-static bool print_ptr(void* ptr, size_t* out_len)
+static bool print_ptr(void* ptr, size_t& out_len)
 {
-	ptrdiff_t addr = (ptrdiff_t)ptr;
+	ptrdiff_t addr = reinterpret_cast<ptrdiff_t>(ptr);
 
 	char buffer[2 + sizeof(ptrdiff_t) * 2];
 	buffer[0] = '0';
@@ -83,11 +82,11 @@ static bool print_ptr(void* ptr, size_t* out_len)
 	if (!print(buffer, 2 + bytes * 2))
 		return false;
 
-	*out_len = 2 + bytes * 2;
+	out_len = 2 + bytes * 2;
 	return true;
 }
 
-int printf(const char* restrict format, ...)
+int printf(const char* __restrict format, ...)
 {
 	va_list args;
 	va_start(args, format);
@@ -140,7 +139,7 @@ int printf(const char* restrict format, ...)
 			format++;
 			int value = va_arg(args, int);
 			size_t len;
-			if (!print_int(value, &len))
+			if (!print_int(value, len))
 				return -1;
 			written += len;
 		}
@@ -149,7 +148,7 @@ int printf(const char* restrict format, ...)
 			format++;
 			void* const ptr = va_arg(args, void*);
 			size_t len;
-			if (!print_ptr(ptr, &len))
+			if (!print_ptr(ptr, len))
 				return -1;
 			written += len;
 		}

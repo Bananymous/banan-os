@@ -2,8 +2,8 @@
 
 void* memmove(void* destp, const void* srcp, size_t n)
 {
-	unsigned char* dest = (unsigned char*)destp;
-	const unsigned char* src = (const unsigned char*)srcp;
+	unsigned char* dest = static_cast<unsigned char*>(destp);
+	const unsigned char* src = static_cast<const unsigned char*>(srcp);
 
 	if (dest < src)
 	{

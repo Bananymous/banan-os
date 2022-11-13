@@ -49,25 +49,22 @@ $(ARCHDIR)/crtend.o \
 $(ARCHDIR)/crtn.o \
  
 .PHONY: all clean install install-headers install-kernel
-.SUFFIXES: .o .c .cpp .S
+.SUFFIXES: .o .cpp .S
  
 all: banan-os.kernel
  
 banan-os.kernel: $(OBJS) $(ARCHDIR)/linker.ld
-	$(CC) -T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS) $(LINK_LIST)
+	$(CXX) -T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS) $(CPPFLAGS) $(LINK_LIST)
 	grub-file --is-x86-multiboot banan-os.kernel
  
 $(ARCHDIR)/crtbegin.o $(ARCHDIR)/crtend.o:
-	OBJ=`$(CC) $(CFLAGS) $(LDFLAGS) -print-file-name=$(@F)` && cp "$$OBJ" $@
- 
-.c.o:
-	$(CC) -MD -c $< -o $@ -std=gnu11 $(CFLAGS) $(CPPFLAGS)
+	OBJ=`$(CXX) $(CFLAGS) $(LDFLAGS) -print-file-name=$(@F)` && cp "$$OBJ" $@
  
 .cpp.o:
 	$(CXX) -MD -c $< -o $@ $(CFLAGS) $(CPPFLAGS)
  
 .S.o:
-	$(CC) -MD -c $< -o $@ $(CFLAGS) $(CPPFLAGS)
+	$(CXX) -MD -c $< -o $@ $(CFLAGS) $(CPPFLAGS)
  
 clean:
 	rm -f banan-os.kernel

@@ -2,12 +2,11 @@
 
 #include "vga.h"
 
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
-static const size_t VGA_WIDTH = 80;
-static const size_t VGA_HEIGHT = 25;
+static constexpr size_t VGA_WIDTH = 80;
+static constexpr size_t VGA_HEIGHT = 25;
 static uint16_t* const VGA_MEMORY = (uint16_t*)0xC03FF000;
 
 static size_t terminal_row;
@@ -21,7 +20,7 @@ void terminal_putentryat(unsigned char c, uint8_t color, size_t x, size_t y)
 	terminal_buffer[index] = vga_entry(c, color);
 }
 
-void terminal_clear(void)
+void terminal_clear()
 {
 	for (size_t y = 0; y < VGA_HEIGHT; y++)
 		for (size_t x = 0; x < VGA_WIDTH; x++)

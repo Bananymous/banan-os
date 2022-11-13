@@ -1,6 +1,6 @@
 #include <string.h>
 
-char* strcpy(char* restrict dest, const char* restrict src)
+char* strcpy(char* __restrict dest, const char* __restrict src)
 {
 	size_t i;
 	for (i = 0; src[i]; i++)

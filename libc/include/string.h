@@ -3,9 +3,7 @@
 #include <stddef.h>
 #include <sys/cdefs.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+__BEGIN_DECLS
 
 int memcmp(const void*, const void*, size_t);
 void* memcpy(void* __restrict, const void* __restrict, size_t);
@@ -16,6 +14,4 @@ size_t strlen(const char*);
 char* strcpy(char* __restrict, const char* __restrict);
 char* strncpy(char* __restrict, const char* __restrict, size_t);
 
-#ifdef __cplusplus
-}
-#endif
+__END_DECLS
