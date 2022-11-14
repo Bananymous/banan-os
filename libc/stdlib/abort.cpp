@@ -1,12 +1,15 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+#if defined(__is_libk)
+#include <kernel/panic.h>
+#endif
+
 __attribute__((__noreturn__))
 void abort(void)
 {
 #if defined(__is_libk)
-	printf("Kernel panic: abort()\n");
-	asm volatile("hlt");
+	Kernel::panic("abort()");
 #else
 	printf("abort()\n");
 #endif
