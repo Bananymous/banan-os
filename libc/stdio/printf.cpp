@@ -2,6 +2,7 @@
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <string.h>
 
 static bool print(const char* data, size_t len)
@@ -13,42 +14,38 @@ static bool print(const char* data, size_t len)
 	return true;
 }
 
-static bool print_int(int value, size_t& out_len)
+template<typename T>
+static bool print_integer(T value, size_t& out_len)
 {
-	if (value == -2147483648)
-	{
-		if (!print("-2147483648", 11))
-			return false;
-		out_len = 11;
-		return true;
-	}
-
-	// Enough for any (32-bit) integer value
-	char buffer[11];
-	char* ptr = buffer + sizeof(buffer);
+	char buffer[32] {};
 	int len = 0;
 	bool sign = false;
 
 	if (value < 0)
 	{
 		sign = true;
-		value = -value;
+		buffer[len++] = ((value % 10 + 10) % 10) + '0';
+		value = -(value / 10);
 	}
 
 	while (value)
 	{
-		*(--ptr) = (value % 10) + '0';
+		buffer[len++] = (value % 10) + '0';
 		value /= 10;
-		len++;
 	}
-
 	if (sign)
+		buffer[len++] = '-';
+	if (len == 0)
+		buffer[len++] = '0';
+
+	for (int i = 0; i < len / 2; i++)
 	{
-		*(--ptr) = '-';
-		len++;
+		char temp = buffer[i];
+		buffer[i] = buffer[len - i - 1];
+		buffer[len - i - 1] = temp;
 	}
 
-	if (!print(ptr, len))
+	if (!print(buffer, len))
 		return false;
 
 	out_len = len;
@@ -139,7 +136,16 @@ int printf(const char* __restrict format, ...)
 			format++;
 			int value = va_arg(args, int);
 			size_t len;
-			if (!print_int(value, len))
+			if (!print_integer<int>(value, len))
+				return -1;
+			written += len;
+		}
+		else if (*format == 'u')
+		{
+			format++;
+			unsigned int value = va_arg(args, unsigned int);
+			size_t len;
+			if (!print_integer<unsigned int>(value, len))
 				return -1;
 			written += len;
 		}
