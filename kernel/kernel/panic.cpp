@@ -1,5 +1,5 @@
 #include <kernel/panic.h>
-#include <kernel/tty.h>
+#include <kernel/kprint.h>
 
 namespace Kernel
 {
@@ -7,8 +7,7 @@ namespace Kernel
 	__attribute__((__noreturn__))
 	void panic(const char* message)
 	{
-		terminal_writestring("Kernel panic: ");
-		terminal_writestring(message);
+		kprint("Kernel panic: {}", message);
 		asm volatile("hlt");
 		__builtin_unreachable();
 	}

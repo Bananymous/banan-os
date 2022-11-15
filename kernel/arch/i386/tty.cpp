@@ -1,13 +1,16 @@
+#include <kernel/multiboot.h>
+#include <kernel/panic.h>
 #include <kernel/tty.h>
 
 #include "vga.h"
 
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
-static constexpr size_t VGA_WIDTH = 80;
-static constexpr size_t VGA_HEIGHT = 25;
-static uint16_t* const VGA_MEMORY = (uint16_t*)0xB8000;
+static size_t VGA_WIDTH;
+static size_t VGA_HEIGHT;
+static uint16_t* VGA_MEMORY;
 
 static size_t terminal_row;
 static size_t terminal_col;
@@ -29,11 +32,29 @@ void terminal_clear()
 
 void terminal_initialize()
 {
+	if (s_multiboot_info->flags & (1 << 12))
+	{
+		const framebuffer_info_t& fb = s_multiboot_info->framebuffer;
+		VGA_WIDTH	= fb.width;
+		VGA_HEIGHT 	= fb.height;
+		VGA_MEMORY	= (uint16_t*)fb.addr;
+	}
+	else
+	{
+		VGA_WIDTH	= 80;
+		VGA_HEIGHT	= 25;
+		VGA_MEMORY	= (uint16_t*)0xB8000;
+	}
+
 	terminal_row = 0;
 	terminal_col = 0;
 	terminal_color = vga_entry_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
 	terminal_buffer = VGA_MEMORY;
 	terminal_clear();
+
+	if (s_multiboot_info->flags & (1 << 12))
+		if (s_multiboot_info->framebuffer.type != 2)
+			Kernel::panic("Invalid framebuffer_type in multiboot info");
 }
 
 void terminal_setcolor(uint8_t color)
@@ -118,8 +139,5 @@ void terminal_write(const char* data, size_t size)
 
 void terminal_writestring(const char* data)
 {
-	size_t len = 0;
-	while (data[len])
-		len++;
-	terminal_write(data, len);
+	terminal_write(data, strlen(data));
 }

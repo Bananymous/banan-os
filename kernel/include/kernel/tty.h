@@ -3,7 +3,6 @@
 #include <stddef.h>
 #include <sys/cdefs.h>
 
-
 void terminal_initialize();
 void terminal_putchar(char c);
 void terminal_write(const char* data, size_t size);

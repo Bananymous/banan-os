@@ -31,7 +31,7 @@ KERNEL_OBJS=\
 $(KERNEL_ARCH_OBJS) \
 kernel/kernel.o \
 kernel/panic.o \
-kernel/ssp.o \
+kernel/SSP.o \
  
 OBJS=\
 $(ARCHDIR)/crti.o \
@@ -59,7 +59,7 @@ banan-os.kernel: $(OBJS) $(ARCHDIR)/linker.ld
 	grub-file --is-x86-multiboot banan-os.kernel
  
 $(ARCHDIR)/crtbegin.o $(ARCHDIR)/crtend.o:
-	OBJ=`$(CXX) $(CFLAGS) $(LDFLAGS) -print-file-name=$(@F)` && cp "$$OBJ" $@
+	OBJ=`$(CXX) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) -print-file-name=$(@F)` && cp "$$OBJ" $@
  
 .cpp.o:
 	$(CXX) -MD -c $< -o $@ $(CFLAGS) $(CPPFLAGS)

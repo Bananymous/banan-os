@@ -14,4 +14,6 @@ size_t strlen(const char*);
 char* strcpy(char* __restrict, const char* __restrict);
 char* strncpy(char* __restrict, const char* __restrict, size_t);
 
+char* strstr(const char*, const char*);
+
 __END_DECLS

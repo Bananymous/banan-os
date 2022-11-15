@@ -9,10 +9,14 @@
 #endif
  
 uintptr_t __stack_chk_guard = STACK_CHK_GUARD;
- 
+
+__BEGIN_DECLS
+
 __attribute__((noreturn))
 void __stack_chk_fail(void)
 {
 	printf("Stack smashing detected\n");
 	abort();
 }
+
+__END_DECLS

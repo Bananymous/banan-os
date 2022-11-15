@@ -33,6 +33,7 @@ static bool print_integer(T value, size_t& out_len)
 		buffer[len++] = (value % 10) + '0';
 		value /= 10;
 	}
+
 	if (sign)
 		buffer[len++] = '-';
 	if (len == 0)
@@ -52,34 +53,39 @@ static bool print_integer(T value, size_t& out_len)
 	return true;
 }
 
-static char bits_to_hex(unsigned char bits)
+static char bits_to_hex(int bits, bool upper_case)
 {
 	if (bits < 10)
 		return bits + '0';
-	return bits - 10 + 'a';
+	return bits - 10 + (upper_case ? 'A' : 'a');
 }
 
-static bool print_ptr(void* ptr, size_t& out_len)
+template<typename T>
+static bool print_hex(T value, bool upper_case, size_t& out_len)
 {
-	ptrdiff_t addr = reinterpret_cast<ptrdiff_t>(ptr);
+	char buffer[16] {};
+	int len = 0;
 
-	char buffer[2 + sizeof(ptrdiff_t) * 2];
-	buffer[0] = '0';
-	buffer[1] = 'x';
-
-	size_t bytes = sizeof(ptrdiff_t);
-
-	for (size_t i = 1; i <= bytes; i++)
+	while (value)
 	{
-		unsigned char byte = (addr >> ((bytes - i) * 8)) & 0xff;
-		buffer[i * 2 + 0] = bits_to_hex(byte >> 4);
-		buffer[i * 2 + 1] = bits_to_hex(byte & 0b1111);
+		buffer[len++] = bits_to_hex(value & 0xF, upper_case);
+		value >>= 4;
 	}
 
-	if (!print(buffer, 2 + bytes * 2))
+	if (len == 0)
+		buffer[len++] = '0';
+
+	for (int i = 0; i < len / 2; i++)
+	{
+		char temp = buffer[i];
+		buffer[i] = buffer[len - i - 1];
+		buffer[len - i - 1] = temp;
+	}
+
+	if (!print(buffer, len))
 		return false;
 
-	out_len = 2 + bytes * 2;
+	out_len = len;
 	return true;
 }
 
@@ -149,12 +155,21 @@ int printf(const char* __restrict format, ...)
 				return -1;
 			written += len;
 		}
+		else if (*format == 'x' || *format == 'X')
+		{
+			format++;
+			unsigned int value = va_arg(args, unsigned int);
+			size_t len;
+			if (!print_hex<unsigned int>(value, *(format - 1) == 'X', len))
+				return -1;
+			written += len;
+		}
 		else if (*format == 'p')
 		{
 			format++;
-			void* const ptr = va_arg(args, void*);
+			void* ptr = va_arg(args, void*);
 			size_t len;
-			if (!print_ptr(ptr, len))
+			if (!print("0x", 2) || !print_hex<ptrdiff_t>((ptrdiff_t)ptr, false, len))
 				return -1;
 			written += len;
 		}
