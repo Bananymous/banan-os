@@ -56,6 +56,28 @@ void terminal_clear_line(size_t line)
 		terminal_putentryat(' ', terminal_color, x, line);
 }
 
+
+static inline void outb(uint16_t port, uint8_t value)
+{
+    asm volatile ("outb %0, %1" : : "a" (value), "Nd" (port));
+}
+static void terminal_update_cursor()
+{
+	uint16_t pos = terminal_row * VGA_WIDTH + terminal_col;
+ 
+	outb(0x3D4, 0x0F);
+	outb(0x3D5, (uint8_t) (pos & 0xFF));
+	outb(0x3D4, 0x0E);
+	outb(0x3D5, (uint8_t) ((pos >> 8) & 0xFF));
+}
+
+void terminal_set_cursor_pos(int x, int y)
+{
+	terminal_row = y;
+	terminal_col = x;
+	terminal_update_cursor();
+}
+
 void terminal_putchar(char c)
 {
 	if (c == '\n')
@@ -84,6 +106,8 @@ void terminal_putchar(char c)
 		terminal_col = 0;
 		terminal_row = VGA_HEIGHT - 1;
 	}
+
+	terminal_update_cursor();
 }
 
 void terminal_write(const char* data, size_t size)
