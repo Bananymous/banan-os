@@ -22,8 +22,8 @@ static void kprint_signed(T value)
 	if (value < 0)
 	{
 		sign = true;
-		*(--ptr) = ((value % 10 + 10) % 10) + '0';
-		value /= 10;
+		*(--ptr) = ((10 - (value % 10)) % 10) + '0';
+		value = -(value / 10);
 	}
 
 	while (value)
