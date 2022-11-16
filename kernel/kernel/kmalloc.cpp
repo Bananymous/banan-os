@@ -4,7 +4,6 @@
 #include <kernel/kprint.h>
 
 #include <stdint.h>
-#include <string.h>
 
 #define MB (1 << 20)
 
@@ -45,8 +44,6 @@ void kmalloc_initialize()
 
 	if (!valid)
 		Kernel::panic("Could not find enough space for kmalloc");
-
-	memset(s_kmalloc_info.base_addr, 0, s_kmalloc_info.total_size);
 
 	s_kmalloc_info.used = 0;
 }
