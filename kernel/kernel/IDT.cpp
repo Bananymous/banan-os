@@ -13,15 +13,15 @@ static IDTR				s_idtr;
 static GateDescriptor*	s_idt;
 
 
-#define INTERRUPT_HANDLER(i, msg)													\
-	static void interrupt ## i ()													\
-	{																				\
-		uint32_t cr0, cr2, cr3, cr4;												\
-		asm volatile("movl %%cr0, %%eax":"=a"(cr0)); 								\
-		asm volatile("movl %%cr2, %%eax":"=a"(cr2)); 								\
-		asm volatile("movl %%cr3, %%eax":"=a"(cr3)); 								\
-		asm volatile("movl %%cr4, %%eax":"=a"(cr4)); 								\
-		Kernel::panic(msg ", CR0={} CR2={} CR3={} CR4={}\n", cr0, cr2, cr3, cr4);	\
+#define INTERRUPT_HANDLER(i, msg)												\
+	static void interrupt ## i ()												\
+	{																			\
+		uint32_t cr0, cr2, cr3, cr4;											\
+		asm volatile("movl %%cr0, %%eax":"=a"(cr0)); 							\
+		asm volatile("movl %%cr2, %%eax":"=a"(cr2)); 							\
+		asm volatile("movl %%cr3, %%eax":"=a"(cr3)); 							\
+		asm volatile("movl %%cr4, %%eax":"=a"(cr4)); 							\
+		Kernel::panic(msg ", CR0={} CR2={} CR3={} CR4={}", cr0, cr2, cr3, cr4);	\
 	}
 
 INTERRUPT_HANDLER(0x00, "Divide error")
