@@ -29,6 +29,8 @@ LIBS:=$(LIBS) $(KERNEL_ARCH_LIBS)
  
 KERNEL_OBJS=\
 $(KERNEL_ARCH_OBJS) \
+kernel/GDT.o \
+kernel/IDT.o \
 kernel/kernel.o \
 kernel/kmalloc.o \
 kernel/SSP.o \
