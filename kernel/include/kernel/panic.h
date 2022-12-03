@@ -12,7 +12,7 @@ namespace Kernel
 		kprint("Kernel panic: ");
 		kprint(message, args...);
 		kprint("\n");
-		asm volatile("hlt");
+		asm volatile("cli; hlt");
 		__builtin_unreachable();
 	}
 
