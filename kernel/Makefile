@@ -13,8 +13,8 @@ EXEC_PREFIX?=$(PREFIX)
 BOOTDIR?=$(EXEC_PREFIX)/boot
 INCLUDEDIR?=$(PREFIX)/include
  
-CFLAGS:=$(CFLAGS) -fstack-protector -ffreestanding -Wall -Wextra -Wno-unused-function
-CPPFLAGS:=$(CPPFLAGS) -D__is_kernel -Iinclude
+CFLAGS:=$(CFLAGS) -D__is_kernel -Iinclude -fstack-protector -ffreestanding -Wall -Wextra -Wno-unused-function
+CPPFLAGS:=$(CPPFLAGS)
 LDFLAGS:=$(LDFLAGS)
 LIBS:=$(LIBS) -nostdlib -lk -lgcc
  
@@ -26,6 +26,8 @@ CFLAGS:=$(CFLAGS) $(KERNEL_ARCH_CFLAGS)
 CPPFLAGS:=$(CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS)
 LDFLAGS:=$(LDFLAGS) $(KERNEL_ARCH_LDFLAGS)
 LIBS:=$(LIBS) $(KERNEL_ARCH_LIBS)
+
+BUILDDIR=$(abspath build)
  
 KERNEL_OBJS=\
 $(KERNEL_ARCH_OBJS) \
@@ -51,29 +53,31 @@ $(LIBS) \
 $(ARCHDIR)/crtend.o \
 $(ARCHDIR)/crtn.o \
  
-.PHONY: all clean install install-headers install-kernel
+.PHONY: all always clean install install-headers install-kernel
 .SUFFIXES: .o .cpp .S
  
 all: banan-os.kernel
  
-banan-os.kernel: $(OBJS) $(ARCHDIR)/linker.ld
-	$(CXX) -T $(ARCHDIR)/linker.ld -o $@ $(CFLAGS) $(CPPFLAGS) $(LINK_LIST)
-	grub-file --is-x86-multiboot banan-os.kernel
+banan-os.kernel: always $(OBJS) $(ARCHDIR)/linker.ld
+	cd $(BUILDDIR) && $(CC) -T ../$(ARCHDIR)/linker.ld -o banan-os.kernel $(CFLAGS) $(LINK_LIST)
+	cd $(BUILDDIR) && grub-file --is-x86-multiboot banan-os.kernel
  
 $(ARCHDIR)/crtbegin.o $(ARCHDIR)/crtend.o:
-	OBJ=`$(CXX) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) -print-file-name=$(@F)` && cp "$$OBJ" $@
- 
+	OBJ=`$(CC) $(CFLAGS) $(LDFLAGS) -print-file-name=$(@F)` && cp "$$OBJ" $(BUILDDIR)/$@
+
 .cpp.o:
-	$(CXX) -MD -c $< -o $@ $(CFLAGS) $(CPPFLAGS)
+	$(CXX) -MD -c $< -o $(BUILDDIR)/$@ $(CFLAGS) $(CPPFLAGS)
  
 .S.o:
-	$(CXX) -MD -c $< -o $@ $(CFLAGS) $(CPPFLAGS)
+	$(CC) -MD -c $< -o $(BUILDDIR)/$@ $(CFLAGS)
  
+always:
+	mkdir -p $(BUILDDIR)/arch/i386
+	mkdir -p $(BUILDDIR)/kernel
+
 clean:
-	rm -f banan-os.kernel
-	rm -f $(OBJS) *.o */*.o */*/*.o
-	rm -f $(OBJS:.o=.d) *.d */*.d */*/*.d
- 
+	rm -rf $(BUILDDIR)
+
 install: install-headers install-kernel
  
 install-headers:
@@ -82,6 +86,6 @@ install-headers:
  
 install-kernel: banan-os.kernel
 	mkdir -p $(DESTDIR)$(BOOTDIR)
-	cp banan-os.kernel $(DESTDIR)$(BOOTDIR)
+	cp $(BUILDDIR)/banan-os.kernel $(DESTDIR)$(BOOTDIR)
  
 -include $(OBJS:.o=.d)
