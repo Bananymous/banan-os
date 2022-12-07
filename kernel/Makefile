@@ -14,7 +14,7 @@ BOOTDIR?=$(EXEC_PREFIX)/boot
 INCLUDEDIR?=$(PREFIX)/include
  
 CFLAGS:=$(CFLAGS) -D__is_kernel -Iinclude -fstack-protector -ffreestanding -Wall -Wextra -Wno-unused-function
-CPPFLAGS:=$(CPPFLAGS)
+CPPFLAGS:=$(CPPFLAGS) -fno-rtti -fno-exceptions
 LDFLAGS:=$(LDFLAGS)
 LIBS:=$(LIBS) -nostdlib -lk -lgcc
  
@@ -32,9 +32,14 @@ BUILDDIR=$(abspath build)
 KERNEL_OBJS=\
 $(KERNEL_ARCH_OBJS) \
 kernel/GDT.o \
+kernel/GDT_asm.o \
 kernel/IDT.o \
+kernel/IDT_asm.o \
 kernel/kernel.o \
 kernel/kmalloc.o \
+kernel/PIC.o \
+kernel/PIT.o \
+kernel/PS2.o \
 kernel/SSP.o \
  
 OBJS=\
@@ -59,12 +64,12 @@ $(ARCHDIR)/crtn.o \
 all: banan-os.kernel
  
 banan-os.kernel: always $(OBJS) $(ARCHDIR)/linker.ld
-	cd $(BUILDDIR) && $(CC) -T ../$(ARCHDIR)/linker.ld -o banan-os.kernel $(CFLAGS) $(LINK_LIST)
+	cd $(BUILDDIR) && $(CXX) -T ../$(ARCHDIR)/linker.ld -o banan-os.kernel $(CFLAGS) $(CPPFLAGS) $(LINK_LIST)
 	cd $(BUILDDIR) && grub-file --is-x86-multiboot banan-os.kernel
  
 $(ARCHDIR)/crtbegin.o $(ARCHDIR)/crtend.o:
 	OBJ=`$(CC) $(CFLAGS) $(LDFLAGS) -print-file-name=$(@F)` && cp "$$OBJ" $(BUILDDIR)/$@
-
+ 
 .cpp.o:
 	$(CXX) -MD -c $< -o $(BUILDDIR)/$@ $(CFLAGS) $(CPPFLAGS)
  

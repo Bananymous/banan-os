@@ -1,3 +1,4 @@
+#include <kernel/IO.h>
 #include <kernel/multiboot.h>
 #include <kernel/panic.h>
 #include <kernel/tty.h>
@@ -77,19 +78,13 @@ void terminal_clear_line(size_t line)
 		terminal_putentryat(' ', terminal_color, x, line);
 }
 
-
-static inline void outb(uint16_t port, uint8_t value)
-{
-    asm volatile ("outb %0, %1" : : "a" (value), "Nd" (port));
-}
 static void terminal_update_cursor()
 {
 	uint16_t pos = terminal_row * VGA_WIDTH + terminal_col;
- 
-	outb(0x3D4, 0x0F);
-	outb(0x3D5, (uint8_t) (pos & 0xFF));
-	outb(0x3D4, 0x0E);
-	outb(0x3D5, (uint8_t) ((pos >> 8) & 0xFF));
+	IO::outb(0x3D4, 0x0F);
+	IO::outb(0x3D5, (uint8_t) (pos & 0xFF));
+	IO::outb(0x3D4, 0x0E);
+	IO::outb(0x3D5, (uint8_t) ((pos >> 8) & 0xFF));
 }
 
 void terminal_set_cursor_pos(int x, int y)

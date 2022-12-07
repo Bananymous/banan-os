@@ -10,37 +10,34 @@ struct GDTR
 static GDTR					s_gdtr;
 static SegmentDesriptor*	s_gdt;
 
-void write_gdt_entry_raw(uint8_t index, uint32_t low, uint32_t high)
+extern "C" void load_gdt(void* gdt_ptr);
+
+void write_gdt_entry_raw(uint8_t segment, uint32_t low, uint32_t high)
 {
+	uint8_t index = segment >> 3;
 	s_gdt[index].low = low;
 	s_gdt[index].high = high;
 }
 
-void write_gdt_entry(uint8_t index, SegmentDesriptor descriptor)
+void write_gdt_entry(uint8_t segment, SegmentDesriptor descriptor)
 {
-	write_gdt_entry_raw(index, descriptor.low, descriptor.high);
-}
-
-static void flush_gdt()
-{
-	asm volatile("lgdt %0"::"m"(s_gdtr));
+	write_gdt_entry_raw(segment, descriptor.low, descriptor.high);
 }
 
 void gdt_initialize()
 {
-	constexpr size_t gdt_size = 256;
+	constexpr uint8_t GDT_SIZE = 5;
 
-	s_gdt = new SegmentDesriptor[gdt_size];
-	
+	s_gdt = new SegmentDesriptor[GDT_SIZE];
+
 	s_gdtr.address = s_gdt;
-	s_gdtr.size = gdt_size * 8 - 1;
+	s_gdtr.size = GDT_SIZE * 8 - 1;
 
-	uint8_t index = 0;
-	write_gdt_entry(index++, { 0, 0x0000, 0x00, 0x0 }); // null
-	write_gdt_entry(index++, { 0, 0xFFFF, 0x9A, 0xC }); // kernel code
-	write_gdt_entry(index++, { 0, 0xFFFF, 0x92, 0xC }); // kernel data
-	write_gdt_entry(index++, { 0, 0xFFFF, 0xFA, 0xC }); // user code
-	write_gdt_entry(index++, { 0, 0xFFFF, 0xF2, 0xC }); // user data
+	write_gdt_entry(0x00, { 0, 0x00000, 0x00, 0x0 }); // null
+	write_gdt_entry(0x08, { 0, 0xFFFFF, 0x9A, 0xC }); // kernel code
+	write_gdt_entry(0x10, { 0, 0xFFFFF, 0x92, 0xC }); // kernel data
+	write_gdt_entry(0x18, { 0, 0xFFFFF, 0xFA, 0xC }); // user code
+	write_gdt_entry(0x20, { 0, 0xFFFFF, 0xF2, 0xC }); // user data
 	
-	flush_gdt();
+	load_gdt(&s_gdtr);
 }
