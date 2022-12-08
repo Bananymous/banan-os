@@ -7,19 +7,31 @@
 
 #define MB (1 << 20)
 
-struct kmalloc_info_t
+struct kmalloc_node
 {
-	static constexpr size_t total_size	= 1 * MB;
-	void*	base_addr = (void*)0x00200000;
-	size_t	used;
+	uint8_t* addr = nullptr;
+	size_t	 size : sizeof(size_t) * 8 - 1;
+	size_t   free : 1;
 };
-static kmalloc_info_t s_kmalloc_info;
+static kmalloc_node* s_kmalloc_node_head = nullptr;
+static size_t s_kmalloc_node_count;
+
+static uint8_t* const s_kmalloc_node_base = (uint8_t*)0x00200000;
+static constexpr size_t s_kmalloc_max_nodes = 1000;
+
+static uint8_t* const s_kmalloc_base = s_kmalloc_node_base + s_kmalloc_max_nodes * sizeof(kmalloc_node);
+static constexpr size_t s_kmalloc_size = 1 * MB;
+static uint8_t* const s_kmalloc_end = s_kmalloc_base + s_kmalloc_size;
+
+static size_t s_kmalloc_available = 0;
+static size_t s_kmalloc_allocated = 0;
 
 void kmalloc_initialize()
 {
 	if (!(s_multiboot_info->flags & (1 << 6)))
 		Kernel::panic("Bootloader didn't give a memory map");
 
+	// Validate kmalloc memory
 	bool valid = false;
 	for (size_t i = 0; i < s_multiboot_info->mmap_length;)
 	{
@@ -27,10 +39,10 @@ void kmalloc_initialize()
 
 		if (mmmt->type == 1)
 		{
-			char*	ptr1	= (char*)mmmt->base_addr;
-			char*	ptr2	= (char*)s_kmalloc_info.base_addr;
-			size_t	len1	= mmmt->length;
-			size_t	len2	= s_kmalloc_info.total_size;
+			uint8_t*	ptr1 = (uint8_t*)mmmt->base_addr;
+			uint8_t*	ptr2 = (uint8_t*)s_kmalloc_base;
+			size_t		len1 = mmmt->length;
+			size_t		len2 = s_kmalloc_size;
 
 			if (ptr1 <= ptr2 && ptr1 + len1 >= ptr2 + len2)
 			{
@@ -45,20 +57,148 @@ void kmalloc_initialize()
 	if (!valid)
 		Kernel::panic("Could not find enough space for kmalloc");
 
-	s_kmalloc_info.used = 0;
+	s_kmalloc_node_count = 1;
+	s_kmalloc_node_head = (kmalloc_node*)s_kmalloc_node_base;
+
+	s_kmalloc_allocated = 0;
+	s_kmalloc_available = s_kmalloc_size;
+
+	kmalloc_node& head = s_kmalloc_node_head[0];
+	head.addr = s_kmalloc_base;
+	head.size = s_kmalloc_size;
+	head.free = true;
+}
+
+void kmalloc_dump_nodes()
+{
+	for (size_t i = 0; i < s_kmalloc_node_count; i++)
+	{
+		kmalloc_node& node = s_kmalloc_node_head[i];
+		if (i < 10) kprint(" ");
+		kprint(" ({}) {}, node at {}, free: {}, size: {}\n", i, (void*)&node, (void*)node.addr, node.free, node.size);
+	}
 }
 
 void* kmalloc(size_t size)
 {
-	if (s_kmalloc_info.total_size - s_kmalloc_info.used < size)
-		Kernel::panic("Out of kernel memory");
+	// Search for node with free memory and big enough size
+	size_t valid_node_index = -1;
+	for (size_t i = 0; i < s_kmalloc_node_count; i++)
+	{
+		kmalloc_node& current = s_kmalloc_node_head[i];
+		if (current.free && current.size >= size)
+		{
+			valid_node_index = i;
+			break;
+		}
+	}
 
-	char* result = (char*)s_kmalloc_info.base_addr + s_kmalloc_info.used;
-	s_kmalloc_info.used += size;
-	return (void*)result;
+	if (valid_node_index == size_t(-1))
+	{
+		kprint("Could not allocate {} bytes\n", size);
+		return nullptr;
+	}
+
+	kmalloc_node& valid_node = s_kmalloc_node_head[valid_node_index];
+
+	// If node's size happens to match requested size,
+	// just flip free bit and return the address
+	if (valid_node.size == size)
+	{
+		valid_node.free = false;
+		return valid_node.addr;
+	}
+
+	if (s_kmalloc_node_count == s_kmalloc_max_nodes)
+	{
+		kprint("Out of kmalloc nodes\n");
+		return nullptr;
+	}
+
+	// Shift every node after valid_node one place to right
+	for (size_t i = s_kmalloc_node_count - 1; i > valid_node_index; i--)
+		s_kmalloc_node_head[i + 1] = s_kmalloc_node_head[i];
+
+	// Create new node after the valid node
+	s_kmalloc_node_count++;
+	kmalloc_node& new_node = s_kmalloc_node_head[valid_node_index + 1];
+	new_node.addr = valid_node.addr + size;
+	new_node.size = valid_node.size - size;
+	new_node.free = true;
+	
+	// Update the valid node
+	valid_node.size = size;
+	valid_node.free = false;
+
+	s_kmalloc_allocated += size;
+	s_kmalloc_available -= size;
+
+	return valid_node.addr;
 }
 
-void kfree(void*)
+void kfree(void* addr)
 {
+	// TODO: use binary search etc.
 
+	size_t node_index = -1;
+	for (size_t i = 0; i < s_kmalloc_node_count; i++)
+	{
+		if (s_kmalloc_node_head[i].addr == addr)
+		{
+			node_index = i;
+			break;
+		}
+	}
+
+	if (node_index == size_t(-1))
+	{
+		kprint("Attempting to free unallocated pointer {}\n", addr);
+		return;
+	}
+
+
+	// Mark this node as free
+	kmalloc_node* node = &s_kmalloc_node_head[node_index];
+	node->free = true;
+
+	size_t size = node->size;
+
+	// If node before this node is free, merge them
+	if (node_index > 0)
+	{
+		kmalloc_node& prev = s_kmalloc_node_head[node_index - 1];
+
+		if (prev.free)
+		{
+			prev.size += node->size;
+
+			s_kmalloc_node_count--;
+			for (size_t i = node_index; i < s_kmalloc_node_count; i++)
+				s_kmalloc_node_head[i] = s_kmalloc_node_head[i + 1];
+
+			node_index--;
+			node = &s_kmalloc_node_head[node_index];
+		}
+	}
+
+	// If node after this node is free, merge them
+	if (node_index < s_kmalloc_node_count - 1)
+	{
+		kmalloc_node& next = s_kmalloc_node_head[node_index + 1];
+
+		if (next.free)
+		{
+			node->size += next.size;
+
+			s_kmalloc_node_count--;
+			for (size_t i = node_index; i < s_kmalloc_node_count; i++)
+				s_kmalloc_node_head[i + 1] = s_kmalloc_node_head[i + 2];
+
+			node_index--;
+			node = &s_kmalloc_node_head[node_index];
+		}
+	}
+
+	s_kmalloc_allocated -= size;
+	s_kmalloc_available += size;
 }
