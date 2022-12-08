@@ -32,10 +32,10 @@ BUILDDIR=$(abspath build)
 KERNEL_OBJS=\
 $(KERNEL_ARCH_OBJS) \
 kernel/kernel.o \
+kernel/Keyboard.o \
 kernel/kmalloc.o \
 kernel/PIC.o \
 kernel/PIT.o \
-kernel/PS2.o \
 kernel/SSP.o \
  
 OBJS=\

@@ -1,11 +1,11 @@
 #include <kernel/GDT.h>
 #include <kernel/IDT.h>
+#include <kernel/Keyboard.h>
 #include <kernel/kmalloc.h>
 #include <kernel/multiboot.h>
 #include <kernel/panic.h>
 #include <kernel/PIC.h>
 #include <kernel/PIT.h>
-#include <kernel/PS2.h>
 #include <kernel/tty.h>
 #include <kernel/kprint.h>
 #include <kernel/IO.h>
@@ -17,6 +17,16 @@
 #define ENABLE_INTERRUPTS() asm volatile("sti")
 
 multiboot_info_t* s_multiboot_info;
+
+void on_key_press(Keyboard::Key key, uint8_t modifiers, bool pressed)
+{
+	if (pressed)
+	{
+		char ascii = Keyboard::key_to_ascii(key, modifiers);
+		if (ascii)
+			kprint("{}", ascii);
+	}
+}
 
 extern "C"
 void kernel_main(multiboot_info_t* mbi, uint32_t magic)
@@ -37,7 +47,7 @@ void kernel_main(multiboot_info_t* mbi, uint32_t magic)
 	IDT::initialize();
 
 	PIT::initialize();
-	PS2::initialize();
+	Keyboard::initialize(on_key_press);
 
 	kprint("Hello from the kernel!\n");
 
