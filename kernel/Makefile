@@ -31,10 +31,6 @@ BUILDDIR=$(abspath build)
  
 KERNEL_OBJS=\
 $(KERNEL_ARCH_OBJS) \
-kernel/GDT.o \
-kernel/GDT_asm.o \
-kernel/IDT.o \
-kernel/IDT_asm.o \
 kernel/kernel.o \
 kernel/kmalloc.o \
 kernel/PIC.o \
