@@ -5,7 +5,6 @@
 #include <stdint.h>
 #include <string.h>
 
-
 template<typename T>
 static void kprint_signed(T value)
 {
@@ -58,6 +57,26 @@ static void kprint_unsigned(T value)
 	terminal_write(ptr, sizeof(buffer) - (ptr - buffer));
 }
 
+template<typename T>
+static void kprint_floating(T value, int percision)
+{
+	uint64_t int_part = (uint64_t)value;
+	T frac_part = value - (T)int_part;
+
+	kprint_signed(int_part);
+
+	terminal_write(".", 1);
+
+	while (percision > 0)
+	{
+		frac_part *= 10;
+		if (percision == 1)
+			frac_part += 0.5;
+		char digit = (uint8_t)frac_part % 10 + '0';
+		terminal_write(&digit, 1);
+		percision--;
+	}
+}
 
 template<typename T>
 static void kprint_val(T)
@@ -93,6 +112,10 @@ template<> void kprint_val(unsigned short     int value)	{ kprint_unsigned(value
 template<> void kprint_val(unsigned           int value)	{ kprint_unsigned(value); }
 template<> void kprint_val(unsigned long      int value)	{ kprint_unsigned(value); }
 template<> void kprint_val(unsigned long long int value)	{ kprint_unsigned(value); }
+
+template<> void kprint_val(float value)						{ kprint_floating(value, 3); }
+template<> void kprint_val(double value)					{ kprint_floating(value, 3); }
+template<> void kprint_val(long double value)				{ kprint_floating(value, 3); }
 
 template<> void kprint_val(         char value)				{ terminal_putchar(value); }
 template<> void kprint_val(signed   char value)				{ kprint_signed(value); }
