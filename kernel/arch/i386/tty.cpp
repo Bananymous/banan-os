@@ -96,6 +96,9 @@ void terminal_set_cursor_pos(int x, int y)
 
 void terminal_putchar(char c)
 {
+	if (c == '\t')
+		c = ' ';
+
 	if (c == '\n')
 	{
 		terminal_col = 0;
