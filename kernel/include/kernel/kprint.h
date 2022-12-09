@@ -1,6 +1,12 @@
 #pragma once
 
+#include <kernel/Printer.h>
 #include <kernel/tty.h>
+
+#define kprint		Printer::print<TTY::putchar>
+#define kprintln	Printer::println<TTY::putchar>
+
+#if 0
 
 #include <stdint.h>
 #include <string.h>
@@ -67,6 +73,8 @@ static void kprint_floating(T value, int percision)
 
 	terminal_write(".", 1);
 
+
+
 	while (percision > 0)
 	{
 		frac_part *= 10;
@@ -79,10 +87,7 @@ static void kprint_floating(T value, int percision)
 }
 
 template<typename T>
-static void kprint_val(T)
-{
-	terminal_writestring("<unknown type>");
-}
+static void kprint_val(T);
 
 static void kprint(const char* format)
 {
@@ -95,7 +100,7 @@ static void kprint(const char* format, Arg arg, Args... args)
 	const char* next = strstr(format, "{}");
 	if (next == NULL)
 	{
-		terminal_writestring(format);
+		terminal_write(format, strlen(format));
 		return;
 	}
 	terminal_write(format, next - format);
@@ -124,8 +129,6 @@ template<> void kprint_val(unsigned char value)				{ kprint_unsigned(value); }
 template<> void kprint_val(const char* value)				{ terminal_writestring(value); }
 template<> void kprint_val(char*       value)				{ terminal_writestring(value); }
 
-
-
 static char bits_to_hex(uint8_t val)
 {
 	val = val & 0xF;
@@ -137,37 +140,9 @@ static char bits_to_hex(uint8_t val)
 template<> void kprint_val(void* value)
 {
 	terminal_write("0x", 2);
-
-	if constexpr(sizeof(void*) == sizeof(uint32_t))
-	{
-		uint32_t addr = (uint32_t)value;
-		terminal_putchar(bits_to_hex(addr >> 28));
-		terminal_putchar(bits_to_hex(addr >> 24));
-		terminal_putchar(bits_to_hex(addr >> 20));
-		terminal_putchar(bits_to_hex(addr >> 16));
-		terminal_putchar(bits_to_hex(addr >> 12));
-		terminal_putchar(bits_to_hex(addr >>  8));
-		terminal_putchar(bits_to_hex(addr >>  4));
-		terminal_putchar(bits_to_hex(addr >>  0));
-	}
-	else
-	{
-		uint64_t addr = (uint64_t)value;
-		terminal_putchar(bits_to_hex(addr >> 60));
-		terminal_putchar(bits_to_hex(addr >> 56));
-		terminal_putchar(bits_to_hex(addr >> 52));
-		terminal_putchar(bits_to_hex(addr >> 48));
-		terminal_putchar(bits_to_hex(addr >> 44));
-		terminal_putchar(bits_to_hex(addr >> 40));
-		terminal_putchar(bits_to_hex(addr >> 36));
-		terminal_putchar(bits_to_hex(addr >> 32));
-		terminal_putchar(bits_to_hex(addr >> 28));
-		terminal_putchar(bits_to_hex(addr >> 24));
-		terminal_putchar(bits_to_hex(addr >> 20));
-		terminal_putchar(bits_to_hex(addr >> 16));
-		terminal_putchar(bits_to_hex(addr >> 12));
-		terminal_putchar(bits_to_hex(addr >>  8));
-		terminal_putchar(bits_to_hex(addr >>  4));
-		terminal_putchar(bits_to_hex(addr >>  0));
-	}
+	uint32_t addr = (uint32_t)value;
+	for (int i = sizeof(void*) * 8 - 4; i >= 0; i -= 4)
+		terminal_putchar(bits_to_hex(addr >> i));
 }
+
+#endif
