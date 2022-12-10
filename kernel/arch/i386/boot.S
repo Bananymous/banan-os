@@ -1,9 +1,10 @@
 # Declare constants for the multiboot header
-.set ALIGN,			1<<0					# align loaded modules on page boundaries
-.set MEMINFO,		1<<1					# provide memory map
-.set MB_FLAGS,		ALIGN | MEMINFO			# this is the Multiboot 'flag' field
-.set MB_MAGIC,		0x1BADB002				# 'magic number' lets bootloader find the header
-.set MB_CHECKSUM,	-(MB_MAGIC + MB_FLAGS)	#checksum of above, to prove we are multiboot
+.set ALIGN,			1<<0						# align loaded modules on page boundaries
+.set MEMINFO,		1<<1						# provide memory map
+.set VIDEOINFO,		1<<2						# provide video info
+.set MB_FLAGS,		ALIGN | MEMINFO | VIDEOINFO # this is the Multiboot 'flag' field
+.set MB_MAGIC,		0x1BADB002					# 'magic number' lets bootloader find the header
+.set MB_CHECKSUM,	-(MB_MAGIC + MB_FLAGS)		#checksum of above, to prove we are multiboot
 
 # Multiboot header
 .section .multiboot
@@ -11,6 +12,15 @@
 	.long MB_MAGIC
 	.long MB_FLAGS
 	.long MB_CHECKSUM
+	.skip 4
+	.skip 4
+	.skip 4
+	.skip 4
+	.skip 4
+	.long 1
+	.long 80
+	.long 25
+	.long 0
 
  # Create stack
 .section .bss
