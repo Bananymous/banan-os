@@ -22,9 +22,19 @@ enum vga_color
 	VGA_COLOR_WHITE = 15,
 };
  
+static inline uint8_t vga_set_foreground(enum vga_color fg, uint8_t color)
+{
+	return (color & 0xf0) | fg;
+}
+
+static inline uint8_t vga_set_background(enum vga_color bg, uint8_t color)
+{
+	return (bg << 4) | (color & 0x0f);
+}
+
 static inline uint8_t vga_entry_color(enum vga_color fg, enum vga_color bg)
 {
-	return fg | bg << 4;
+	return (bg << 4) | fg;
 }
  
 static inline uint16_t vga_entry(unsigned char uc, uint8_t color)

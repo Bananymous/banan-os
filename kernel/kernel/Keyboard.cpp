@@ -228,6 +228,10 @@ namespace Keyboard
 		s_key_callback = callback;
 		IDT::register_irq_handler(KEYBOARD_IRQ, irq_handler);
 		PIC::unmask(KEYBOARD_IRQ);
+
+		kb_command(0xED, 0b111);
+		IO::io_wait();
+		while (kb_try_read(tmp));
 	}
 
 	char key_to_ascii(Key key, uint8_t modifiers)
