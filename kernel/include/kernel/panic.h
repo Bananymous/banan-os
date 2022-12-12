@@ -9,9 +9,9 @@ namespace Kernel
 	__attribute__((__noreturn__))
 	static void panic(const char* message, Args... args)
 	{
-		kprint("Kernel panic: ");
+		kprint("\e[31mKernel panic: ");
 		kprint(message, args...);
-		kprint("\n");
+		kprint("\e[m\n");
 		asm volatile("cli; hlt");
 		__builtin_unreachable();
 	}
