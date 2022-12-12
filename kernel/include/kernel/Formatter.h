@@ -34,6 +34,7 @@ namespace Formatter
 	{
 		int base		= 10;
 		int percision	= 3;
+		int fill		= 0;
 		bool upper		= false;
 	};
 	
@@ -72,7 +73,6 @@ namespace Formatter
 		PUTC_LIKE('\n');
 	}
 
-
 	template<void(*PUTC_LIKE)(char), typename Arg>
 	size_t print_argument(const char* format, Arg argument)
 	{
@@ -86,6 +86,17 @@ namespace Formatter
 		{
 			if (!format[i] || format[i] == '}')
 				break;
+
+			if ('0' <= format[i] && format[i] <= '9')
+			{
+				int fill = 0;
+				while ('0' <= format[i] && format[i] <= '9')
+				{
+					fill = (fill * 10) + (format[i] - '0');
+					i++;
+				}
+				value_format.fill = fill;
+			}
 
 			switch (format[i])
 			{
@@ -142,7 +153,11 @@ namespace Formatter
 	void print_integer(T value, const ValueFormat& format)
 	{
 		if (value == 0)
-			return PUTC_LIKE('0');
+		{
+			for (int i = 0; i < format.fill || i < 1; i++)
+				PUTC_LIKE('0');
+			return;
+		}
 
 		bool sign = false;
 
@@ -164,6 +179,9 @@ namespace Formatter
 			*(--ptr) = value_to_base_char(value % format.base, format.base, format.upper);
 			value /= format.base;
 		}
+
+		while (ptr >= buffer + sizeof(buffer) - format.fill)
+			*(--ptr) = '0';
 
 		if (sign)
 			*(--ptr) = '-';
