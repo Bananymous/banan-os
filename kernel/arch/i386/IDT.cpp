@@ -75,7 +75,7 @@ void handle_irq()
 {
     uint16_t isr = PIC::get_isr();
     if (!isr) {
-        kprint("Spurious IRQ\n");
+        //kprint("Spurious IRQ\n");
         return;
     }
 
@@ -153,8 +153,8 @@ namespace IDT
 		REGISTER_HANDLER(0x0f);
 		REGISTER_HANDLER(0x10);
 
-		for (uint8_t i = 0; i < sizeof(s_irq_handlers) / sizeof(*s_irq_handlers); i++)
-			s_irq_handlers[i] = nullptr;
+		for (uint8_t i = 0; i < 16; i++)
+			register_irq_handler(i, nullptr);
 
 		flush_idt();
 	}
