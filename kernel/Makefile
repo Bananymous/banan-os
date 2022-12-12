@@ -29,31 +29,32 @@ LIBS:=$(LIBS) $(KERNEL_ARCH_LIBS)
 
 BUILDDIR=$(abspath build)
  
-KERNEL_OBJS=\
-$(KERNEL_ARCH_OBJS) \
-kernel/kernel.o \
-kernel/Keyboard.o \
-kernel/kmalloc.o \
-kernel/PIC.o \
-kernel/PIT.o \
-kernel/Serial.o \
-kernel/SSP.o \
+KERNEL_OBJS=			\
+$(KERNEL_ARCH_OBJS)		\
+kernel/kernel.o			\
+kernel/Keyboard.o		\
+kernel/kmalloc.o		\
+kernel/PIC.o			\
+kernel/PIT.o			\
+kernel/Serial.o			\
+kernel/SSP.o			\
+icxxabi.o				\
  
-OBJS=\
-$(ARCHDIR)/crti.o \
-$(ARCHDIR)/crtbegin.o \
-$(KERNEL_OBJS) \
-$(ARCHDIR)/crtend.o \
-$(ARCHDIR)/crtn.o \
+OBJS=					\
+$(ARCHDIR)/crti.o		\
+$(ARCHDIR)/crtbegin.o	\
+$(KERNEL_OBJS)			\
+$(ARCHDIR)/crtend.o		\
+$(ARCHDIR)/crtn.o		\
  
-LINK_LIST=\
-$(LDFLAGS) \
-$(ARCHDIR)/crti.o \
-$(ARCHDIR)/crtbegin.o \
-$(KERNEL_OBJS) \
-$(LIBS) \
-$(ARCHDIR)/crtend.o \
-$(ARCHDIR)/crtn.o \
+LINK_LIST=				\
+$(LDFLAGS)				\
+$(ARCHDIR)/crti.o		\
+$(ARCHDIR)/crtbegin.o	\
+$(KERNEL_OBJS)			\
+$(LIBS)					\
+$(ARCHDIR)/crtend.o		\
+$(ARCHDIR)/crtn.o		\
  
 .PHONY: all always clean install install-headers install-kernel
 .SUFFIXES: .o .cpp .S
