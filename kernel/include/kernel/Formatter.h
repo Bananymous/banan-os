@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-namespace Printer
+namespace Formatter
 {
 
 	struct ValueFormat;
@@ -15,7 +15,7 @@ namespace Printer
 	static void print(const char* format, Arg arg, Args... args);
 
 	template<void(*PUTC_LIKE)(char), typename... Args>
-	static void println(const char* format, Args... args);
+	static void println(const char* format = "", Args... args);
 
 	template<void(*PUTC_LIKE)(char), typename T>
 	static size_t print_argument(const char* format, T arg);
@@ -226,6 +226,8 @@ namespace Printer
 	template<void(*PUTC_LIKE)(char)> void print_value(char					value, const ValueFormat&)			{ PUTC_LIKE(value); }
 	template<void(*PUTC_LIKE)(char)> void print_value(signed char			value, const ValueFormat& format)	{ print_integer<PUTC_LIKE>(value, format); }
 	template<void(*PUTC_LIKE)(char)> void print_value(unsigned char			value, const ValueFormat& format)	{ print_integer<PUTC_LIKE>(value, format); }
+
+	template<void(*PUTC_LIKE)(char)> void print_value(bool					value, const ValueFormat& format)	{ print<PUTC_LIKE>(value ? "true" : "false"); }
 
 	template<void(*PUTC_LIKE)(char), typename T> void print_value(T*		value, const ValueFormat& format)	{ print_pointer<PUTC_LIKE>((void*)value, format); }
 	template<void(*PUTC_LIKE)(char)> void print_value(const char*			value, const ValueFormat&)			{ print<PUTC_LIKE>(value);}
