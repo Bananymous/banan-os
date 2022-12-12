@@ -137,6 +137,9 @@ void* kmalloc(size_t size)
 
 void kfree(void* addr)
 {
+	if (addr == nullptr)
+		return;
+
 	// TODO: use binary search etc.
 
 	size_t node_index = -1;
