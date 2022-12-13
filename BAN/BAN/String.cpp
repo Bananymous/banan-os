@@ -134,6 +134,20 @@ namespace BAN
 		return memcmp(m_data, other.m_data, m_size) == 0;
 	}
 
+	bool String::operator==(StringView other) const
+	{
+		if (m_size != other.Size())
+			return false;
+		return memcmp(m_data, other.Data(), m_size) == 0;
+	}
+
+	bool String::operator==(const char* other) const
+	{
+		if (m_size != strlen(other))
+			return false;
+		return memcmp(m_data, other, m_size) == 0;
+	}
+
 	ErrorOr<void> String::Resize(size_type size, char ch)
 	{
 		if (size < m_size)

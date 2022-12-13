@@ -37,6 +37,8 @@ namespace BAN
 		char& operator[](size_type);
 
 		bool operator==(const String&) const;
+		bool operator==(StringView) const;
+		bool operator==(const char*) const;
 
 		ErrorOr<void> Resize(size_type, char = '\0');
 		ErrorOr<void> Reserve(size_type);

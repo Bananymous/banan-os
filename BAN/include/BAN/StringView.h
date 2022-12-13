@@ -18,7 +18,9 @@ namespace BAN
 
 		char operator[](size_type) const;
 
-		bool operator==(const StringView&) const;
+		bool operator==(const String&) const;
+		bool operator==(StringView) const;
+		bool operator==(const char*) const;
 
 		StringView Substring(size_type, size_type = -1) const;
 

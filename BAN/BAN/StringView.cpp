@@ -29,11 +29,25 @@ namespace BAN
 		return m_data[index];
 	}
 
-	bool StringView::operator==(const StringView& other) const
+	bool StringView::operator==(const String& other) const
+	{
+		if (m_size != other.Size())
+			return false;
+		return memcmp(m_data, other.Data(), m_size) == 0;
+	}
+
+	bool StringView::operator==(StringView other) const
 	{
 		if (m_size != other.m_size)
 			return false;
 		return memcmp(m_data, other.m_data, m_size) == 0;
+	}
+
+	bool StringView::operator==(const char* other) const
+	{
+		if (m_size != strlen(other))
+			return false;
+		return memcmp(m_data, other, m_size) == 0;
 	}
 
 	StringView StringView::Substring(size_type index, size_type len) const
