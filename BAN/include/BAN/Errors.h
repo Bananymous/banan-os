@@ -71,7 +71,7 @@ private:
 namespace BAN::Formatter
 {
 	template<void(*PUTC_LIKE)(char)>
-	void print_argument_impl(const Error& error, const ValueFormat& format)
+	void print_argument_impl(const Error& error, const ValueFormat&)
 	{
 		if (error.GetErrorCode() == 0xFF)
 			print<PUTC_LIKE>(error.GetMessage());

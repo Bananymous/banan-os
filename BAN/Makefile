@@ -13,10 +13,10 @@ EXEC_PREFIX?=$(PREFIX)
 INCLUDEDIR?=$(PREFIX)/include
 LIBDIR?=$(EXEC_PREFIX)/lib
  
-CFLAGS:=$(CFLAGS) -D__is_ban -Iinclude -ffreestanding -Wall -Wextra
+CFLAGS:=$(CFLAGS) -Iinclude -ffreestanding -Wall -Wextra
 CPPFLAGS:=$(CPPFLAGS)
-LIBK_CFLAGS:=$(CFLAGS) -D__is_kernel
-LIBK_CPPFLAGS:=$(CPPFLAGS)
+LIBBANK_CFLAGS:=$(CFLAGS) -D__is_kernel -Iinclude -ffreestanding -Wall -Wextra
+LIBBANK_CPPFLAGS:=$(CPPFLAGS) -fno-rtti -fno-exceptions
  
 ARCHDIR=arch/$(HOSTARCH)
  
@@ -24,13 +24,14 @@ include $(ARCHDIR)/make.config
  
 CFLAGS:=$(CFLAGS) $(ARCH_CFLAGS)
 CPPFLAGS:=$(CPPFLAGS) $(ARCH_CPPFLAGS)
-BANK_CFLAGS:=$(BANK_CFLAGS) $(KERNEL_ARCH_CFLAGS)
-BANK_CPPFLAGS:=$(BANK_CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS)
+LIBBANK_CFLAGS:=$(LIBBANK_CFLAGS) $(KERNEL_ARCH_CFLAGS)
+LIBBANK_CPPFLAGS:=$(LIBBANK_CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS)
  
 BUILDDIR=$(abspath build)
  
-FREEOBJS=\
-$(ARCH_FREEOBJS) \
+FREEOBJS=			\
+$(ARCH_FREEOBJS)	\
+BAN/String.o		\
  
 HOSTEDOBJS=\
 $(ARCH_HOSTEDOBJS) \
@@ -39,7 +40,7 @@ OBJS=\
 $(FREEOBJS) \
 $(HOSTEDOBJS) \
  
-BANK_OBJS=$(FREEOBJS:.o=.bank.o)
+LIBBANK_OBJS=$(FREEOBJS:.o=.bank.o)
  
 BINARIES=libbank.a
  
@@ -51,8 +52,8 @@ all: $(BINARIES)
 libban.a: always $(OBJS)
 	cd $(BUILDDIR) && $(AR) rcs $@ $(OBJS)
  
-libbank.a: always $(LIBK_OBJS)
-	cd $(BUILDDIR) && $(AR) rcs $@ $(LIBK_OBJS)
+libbank.a: always $(LIBBANK_OBJS)
+	cd $(BUILDDIR) && $(AR) rcs $@ $(LIBBANK_OBJS)
  
 .cpp.o:
 	$(CXX) -MD -c $< -o $(BUILDDIR)/$@ $(CFLAGS) $(CPPFLAGS)
@@ -61,16 +62,16 @@ libbank.a: always $(LIBK_OBJS)
 	$(CXX) -MD -c $< -o $(BUILDDIR)/$@ $(CFLAGS) $(CPPFLAGS)
  
 .cpp.bank.o:
-	$(CXX) -MD -c $< -o $(BUILDDIR)/$@ $(LIBK_CFLAGS) $(LIBK_CPPFLAGS)
+	$(CXX) -MD -c $< -o $(BUILDDIR)/$@ $(LIBBANK_CFLAGS) $(LIBBANK_CPPFLAGS)
  
 .S.bank.o:
-	$(CXX) -MD -c $< -o $(BUILDDIR)/$@ $(LIBK_CFLAGS) $(LIBK_CPPFLAGS)
+	$(CXX) -MD -c $< -o $(BUILDDIR)/$@ $(LIBBANK_CFLAGS) $(LIBBANK_CPPFLAGS)
  
 clean:
 	rm -rf $(BUILDDIR)
  
 always:
-	mkdir -p $(BUILDDIR)
+	mkdir -p $(BUILDDIR)/BAN
  
 install: install-headers install-libs
  
@@ -83,4 +84,4 @@ install-libs: $(BINARIES)
 	cp $(BUILDDIR)/$(BINARIES) $(DESTDIR)$(LIBDIR)
  
 -include $(OBJS:.o=.d)
--include $(LIBK_OBJS:.o=.d)
+-include $(LIBBANK_OBJS:.o=.d)
