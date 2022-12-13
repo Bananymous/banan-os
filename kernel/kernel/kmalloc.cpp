@@ -73,8 +73,7 @@ void kmalloc_dump_nodes()
 	for (size_t i = 0; i < s_kmalloc_node_count; i++)
 	{
 		kmalloc_node& node = s_kmalloc_node_head[i];
-		if (i < 10) dprint(" ");
-		dprintln(" ({}) {}, node at {}, free: {}, size: {}", i, (void*)&node, (void*)node.addr, node.free, node.size);
+		dprintln(" ({3}) {}, node at {}, free: {}, size: {}", i, (void*)&node, (void*)node.addr, node.free, node.size);
 	}
 }
 

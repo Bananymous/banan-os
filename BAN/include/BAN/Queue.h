@@ -1,9 +1,8 @@
 #pragma once
 
 #include <BAN/Errors.h>
-#include <kernel/kmalloc.h>
 
-#if defined(__is_bank)
+#if defined(__is_kernel)
 	#include <kernel/kmalloc.h>
 #else
 	#include <stdlib.h>
@@ -21,12 +20,12 @@ namespace BAN
 	class Queue
 	{
 	private:
-	#if defined(__is_bank)
-		using allocator = kmalloc;
-		using deallocator = kfree;
+	#if defined(__is_kernel)
+		static constexpr auto& allocator = kmalloc;
+		static constexpr auto& deallocator = kfree;
 	#else
-		using allocator = malloc;
-		using deallocator = free;
+		static constexpr auto& allocator = malloc;
+		static constexpr auto& deallocator = free;
 	#endif
 
 
@@ -59,13 +58,13 @@ namespace BAN
 	template<typename T>
 	Queue<T>::~Queue()
 	{
-		deallocator(m_data);
+		Queue<T>::deallocator(m_data);
 	}
 
 	template<typename T>
 	ErrorOr<void> Queue<T>::Push(const T& value)
 	{
-		VerifyCapacity(m_size + 1);
+		TRY(VerifyCapacity(m_size + 1));
 		m_data[m_size++] = value;
 		return {};
 	}
@@ -110,16 +109,18 @@ namespace BAN
 		if (m_capacity > size)
 			return {};
 
-		size_type new_cap = MAX(m_capacity * 1.5f, m_capacity + 1) * sizeof(T);
-		void* new_data = allocator(new_cap);
+		size_type new_cap = MAX(m_capacity * 1.5f, m_capacity + 1);
+		void* new_data = Queue<T>::allocator(new_cap * sizeof(T));
 		if (new_data == nullptr)
-			return Error { .message = "Queue: out of memory", .error_code = ErrorCode::OutOfMemory };
+			return Error::FromString("Queue: out of memory");
 
 		memcpy(new_data, m_data, m_size * sizeof(T));
-		deallocator(m_data);
+		Queue<T>::deallocator(m_data);
 
 		m_data = (T*)new_data;
 		m_capacity = new_cap;
+
+		return {};
 	}
 
 }

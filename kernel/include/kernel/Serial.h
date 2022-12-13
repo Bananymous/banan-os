@@ -1,9 +1,27 @@
 #pragma once
 
 #include <BAN/Formatter.h>
+#include <kernel/PIT.h>
 
-#define dprint		BAN::Formatter::print<Serial::serial_putc>
-#define dprintln	BAN::Formatter::println<Serial::serial_putc>
+#define dprintln(...)																										\
+	do {																													\
+		BAN::Formatter::print<Serial::serial_putc>("[{5.3}] {}({}):  ", (float)PIT::ms_since_boot(), __FILE__, __LINE__);	\
+		BAN::Formatter::println<Serial::serial_putc>(__VA_ARGS__);															\
+	} while(false)
+
+#define dwarnln(...)											\
+	do {														\
+		BAN::Formatter::print<Serial::serial_putc>("\e[33m");	\
+		dprintln(__VA_ARGS__);									\
+		BAN::Formatter::print<Serial::serial_putc>("\e[m");		\
+	} while(false)
+
+#define derrorln(...)											\
+	do {														\
+		BAN::Formatter::print<Serial::serial_putc>("\e[31m");	\
+		dprintln(__VA_ARGS__);									\
+		BAN::Formatter::print<Serial::serial_putc>("\e[m");		\
+	} while(false)
 
 namespace Serial
 {

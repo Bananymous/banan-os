@@ -15,7 +15,7 @@ LIBDIR?=$(EXEC_PREFIX)/lib
  
 CFLAGS:=$(CFLAGS) -D__is_ban -Iinclude -ffreestanding -Wall -Wextra
 CPPFLAGS:=$(CPPFLAGS)
-LIBK_CFLAGS:=$(CFLAGS) -D__is_bank
+LIBK_CFLAGS:=$(CFLAGS) -D__is_kernel
 LIBK_CPPFLAGS:=$(CPPFLAGS)
  
 ARCHDIR=arch/$(HOSTARCH)
@@ -41,17 +41,17 @@ $(HOSTEDOBJS) \
  
 BANK_OBJS=$(FREEOBJS:.o=.bank.o)
  
-BINARIES=bank.a
+BINARIES=libbank.a
  
 .PHONY: all always clean install install-headers install-libs
 .SUFFIXES: .o .bank.o .cpp .S
  
 all: $(BINARIES)
  
-ban.a: always $(OBJS)
+libban.a: always $(OBJS)
 	cd $(BUILDDIR) && $(AR) rcs $@ $(OBJS)
  
-bank.a: always $(LIBK_OBJS)
+libbank.a: always $(LIBK_OBJS)
 	cd $(BUILDDIR) && $(AR) rcs $@ $(LIBK_OBJS)
  
 .cpp.o:

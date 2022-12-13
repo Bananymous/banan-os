@@ -1,10 +1,10 @@
+#include <BAN/Queue.h>
 #include <kernel/IDT.h>
 #include <kernel/IO.h>
 #include <kernel/Keyboard.h>
 #include <kernel/kprint.h>
 #include <kernel/PIC.h>
 #include <kernel/PIT.h>
-#include <kernel/Queue.h>
 #include <kernel/Serial.h>
 
 #include <kernel/KeyboardLayout/FI.h>
@@ -61,7 +61,7 @@
 namespace Keyboard
 {
 
-	static bool		s_keyboard_state[0xFF]	= {};
+	static bool s_keyboard_state[0xFF] = {};
 
 	struct Command
 	{
@@ -73,10 +73,10 @@ namespace Keyboard
 		uint8_t _ack		= 0;
 		bool	_done		= false;
 	};
-	static Queue<Command>	s_keyboard_command_queue;
-	static uint8_t			s_keyboard_command_extra = 0x00;
+	static BAN::Queue<Command>	s_keyboard_command_queue;
+	static uint8_t				s_keyboard_command_extra = 0x00;
 
-	static Queue<KeyEvent> s_key_event_queue;
+	static BAN::Queue<KeyEvent> s_key_event_queue;
 	static uint8_t s_keyboard_key_buffer[10] = {};
 	static uint8_t s_keyboard_key_buffer_size = 0;
 
@@ -290,8 +290,8 @@ namespace Keyboard
 		if (key != Key::INVALID)
 		{
 			auto error_or = s_key_event_queue.Push({ .key = key, .modifiers = modifiers, .pressed = pressed });
-			if (error_or.HasError())
-				dprintln("PS/2 Keyboard: {}", error_or.GetError().message);
+			if (error_or.IsError())
+				dwarnln("{}", error_or.GetError());
 		}
 		s_keyboard_key_buffer_size -= index + 1;
 		memmove(s_keyboard_key_buffer, s_keyboard_key_buffer + index, s_keyboard_key_buffer_size);
@@ -384,7 +384,7 @@ namespace Keyboard
 		i8042_controller_command(I8042_TEST_CONTROLLER);
 		if (wait_and_read() != I8042_TEST_CONTROLLER_PASS)
 		{
-			kprintln("\e[33mERROR: PS/2 controller self test failed\e[m");
+			derrorln("PS/2 controller self test failed");
 			return false;
 		}
 
@@ -394,7 +394,7 @@ namespace Keyboard
 		i8042_controller_command(I8042_TEST_FIRST_PORT);
 		if (wait_and_read() != I8042_TEST_FIRST_PORT_PASS)
 		{
-			kprintln("\e[33mERROR: PS/2 first port test failed\e[m");
+			derrorln("PS/2 first port test failed");
 			return false;
 		}
 

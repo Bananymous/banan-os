@@ -2,14 +2,16 @@
 
 #include <BAN/Formatter.h>
 
-#if defined(__is_bank)
+#include <string.h>
+
+#if defined(__is_kernel)
 	#include <kernel/panic.h>
-	#define MUST(error)	{ decltype(error) e = error; if (e.HasError()) { Kernel::panic("{}", e.GetError()); } }
+	#define MUST(error)	({ auto e = error; if (e.IsError()) Kernel::panic("{}", e.GetError()); })
 #else
 	#error "NOT IMPLEMENTED"
 #endif
 
-#define TRY(error)	{ decltype(error) e = error; if (e.HasError()) return e; }
+#define TRY(error) ({ auto e = error; if (e.IsError()) return e; e.Value(); })
 
 
 class Error
@@ -59,6 +61,7 @@ public:
 
 	bool IsError() const			{ return m_error; }
 	const Error& GetError() const	{ return *m_error; }
+	void Value()					{ }
 
 private:
 	Error*	m_error;

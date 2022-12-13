@@ -1,6 +1,7 @@
+#include <kernel/panic.h>
+
 #include <stdint.h>
 #include <stdlib.h>
-#include <stdio.h>
  
 #if UINT32_MAX == UINTPTR_MAX
 #define STACK_CHK_GUARD 0xe2dee396
@@ -15,7 +16,7 @@ __BEGIN_DECLS
 __attribute__((noreturn))
 void __stack_chk_fail(void)
 {
-	printf("Stack smashing detected\n");
+	Kernel::panic("Stack smashing detected");
 	abort();
 }
 
