@@ -30,6 +30,11 @@ namespace BAN
 		const T& operator[](size_type) const;
 		T& operator[](size_type);
 
+		const T& Back() const;
+		T& Back();
+		const T& Front() const;
+		T& Front();
+
 		ErrorOr<void> Resize(size_type);
 		ErrorOr<void> Reserve(size_type);
 
@@ -103,6 +108,33 @@ namespace BAN
 	{
 		assert(index < m_size);
 		return m_data[index];
+	}
+
+	template<typename T>
+	const T& Vector<T>::Back() const
+	{
+		assert(m_size > 0);
+		return m_data[m_size - 1];
+	}
+
+	template<typename T>
+	T& Vector<T>::Back()
+	{
+		assert(m_size > 0);
+		return m_data[m_size - 1];
+	}
+
+	template<typename T>
+	const T& Vector<T>::Front() const
+	{
+		assert(m_size > 0);
+		return m_data[0];
+	}
+	template<typename T>
+	T& Vector<T>::Front()
+	{
+		assert(m_size > 0);
+		return m_data[0];
 	}
 
 	template<typename T>
