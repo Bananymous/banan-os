@@ -1,4 +1,4 @@
-#pragma
+#pragma once
 
 #include <BAN/Errors.h>
 #include <BAN/Memory.h>
