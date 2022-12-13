@@ -62,7 +62,8 @@ void kernel_main(multiboot_info_t* mbi, uint32_t magic)
 	IDT::initialize();
 
 	PIT::initialize();
-	Keyboard::initialize(on_key_press);
+	if (!Keyboard::initialize(on_key_press))
+		return;
 
 	auto time = RTC::GetCurrentTime();
 	kprintln("Today is {2}:{2}:{2} {2}.{2}.{4}", time.hour, time.minute, time.second, time.day, time.month, time.year);
@@ -71,8 +72,9 @@ void kernel_main(multiboot_info_t* mbi, uint32_t magic)
 
 	ENABLE_INTERRUPTS();
 
+
 	for (;;)
 	{
-		asm("hlt");
+		Keyboard::update_keyboard();
 	}
 }

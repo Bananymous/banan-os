@@ -18,18 +18,30 @@ namespace Keyboard
 		Dollar, Pound, Euro, Currency, Enter, Space, Tab, Backspace, LessThan, MoreThan, Tick, BackTick, Section, Half, At, Pipe,
 		End, Home, Insert, Delete, Super, PageUp, PageDown, PrintScreen, Left, Right, Up, Down,
 
-		LeftShift, RightShift, CapsLock, Ctrl, Alt, NumLock, Escape,
+		LeftShift, RightShift, CapsLock, LeftCtrl, RightCtrl, LeftAlt, RightAlt, NumLock, ScrollLock, Escape,
 
 		Numpad0, Numpad1, Numpad2, Numpad3, Numpad4, Numpad5, Numpad6, Numpad7, Numpad8, Numpad9,
-		NumpadComma, NumpadPlus, NumpadMult, NumpadDiv, NumpadMinus,
+		NumpadSep, NumpadPlus, NumpadMult, NumpadDiv, NumpadMinus, NumpadEnter,
+
+		Mute, VolumeDown, VolumeUp, Calculator, PlayPause, Stop, PreviousTrack, NextTrack,
 
 		F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12,
 
 		Count
 	};
 
-	void initialize(void (*callback)(Key, uint8_t, bool));
+	struct KeyEvent
+	{
+		Key		key;
+		uint8_t	modifiers;
+		bool	pressed;
+	};
 
-	char key_to_ascii(Key, uint8_t);
+	bool initialize(void (*callback)(KeyEvent));
+	void update_keyboard();
+
+	char key_event_to_ascii(KeyEvent);
+
+	void led_disco();
 
 }
