@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-namespace Formatter
+namespace BAN::Formatter
 {
 
 	struct ValueFormat;

@@ -1,5 +1,5 @@
-SYSTEM_HEADER_PROJECTS="libc kernel"
-PROJECTS="libc kernel"
+SYSTEM_HEADER_PROJECTS="libc BAN kernel"
+PROJECTS="libc BAN kernel"
  
 export MAKE=${MAKE:-make}
 export HOST=${HOST:-$(./default-host.sh)}
