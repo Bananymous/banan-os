@@ -38,6 +38,7 @@ kernel/PIC.o			\
 kernel/PIT.o			\
 kernel/RTC.o			\
 kernel/Serial.o			\
+kernel/Shell.o			\
 kernel/SSP.o			\
 icxxabi.o				\
  

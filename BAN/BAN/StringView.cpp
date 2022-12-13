@@ -45,9 +45,7 @@ namespace BAN
 
 	bool StringView::operator==(const char* other) const
 	{
-		if (m_size != strlen(other))
-			return false;
-		return memcmp(m_data, other, m_size) == 0;
+		return memcmp(m_data, other, m_size + 1) == 0;
 	}
 
 	StringView StringView::Substring(size_type index, size_type len) const

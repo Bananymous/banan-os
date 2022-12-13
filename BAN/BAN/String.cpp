@@ -4,8 +4,6 @@
 #include <BAN/String.h>
 #include <BAN/StringView.h>
 
-#include <kernel/Serial.h>
-
 #include <assert.h>
 #include <string.h>
 #include <sys/param.h>
@@ -143,9 +141,7 @@ namespace BAN
 
 	bool String::operator==(const char* other) const
 	{
-		if (m_size != strlen(other))
-			return false;
-		return memcmp(m_data, other, m_size) == 0;
+		return memcmp(m_data, other, m_size + 1) == 0;
 	}
 
 	ErrorOr<void> String::Resize(size_type size, char ch)
