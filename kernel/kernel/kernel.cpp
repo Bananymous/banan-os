@@ -103,7 +103,7 @@ void kernel_main(multiboot_info_t* mbi, uint32_t magic)
 		return;
 
 	auto time = RTC::GetCurrentTime();
-	kprintln("Today is {2}:{2}:{2} {2}.{2}.{4}", time.hour, time.minute, time.second, time.day, time.month, time.year);
+	kprintln("Today is {}", time);
 
 	kprintln("Hello from the kernel!");
 

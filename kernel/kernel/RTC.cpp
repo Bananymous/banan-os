@@ -33,7 +33,7 @@ namespace RTC
 		return IO::inb(CMOS_DATA);
 	}
 
-	static void get_time(Time& out)
+	static void get_time(BAN::Time& out)
 	{
 		out.second	= get_rtc_register(CMOS_REGISTER_SECOND);
 		out.minute	= get_rtc_register(CMOS_REGISTER_MINUTE);
@@ -43,10 +43,10 @@ namespace RTC
 		out.year	= get_rtc_register(CMOS_REGISTER_YEAR);
 	}
 
-	Time GetCurrentTime()
+	BAN::Time GetCurrentTime()
 	{
-		Time last_time	= {};
-		Time time		= {};
+		BAN::Time last_time	= {};
+		BAN::Time time		= {};
 
 		while (get_update_in_progress())
 			continue;
@@ -54,7 +54,7 @@ namespace RTC
 		get_time(time);
 		last_time.second = time.second + 1;
 
-		while (memcmp(&last_time, &time, sizeof(Time)))
+		while (memcmp(&last_time, &time, sizeof(BAN::Time)))
 		{
 			last_time = time;
 			get_time(time);
