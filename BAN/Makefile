@@ -32,6 +32,7 @@ BUILDDIR=$(abspath build)
 FREEOBJS=			\
 $(ARCH_FREEOBJS)	\
 BAN/String.o		\
+BAN/StringView.o	\
  
 HOSTEDOBJS=\
 $(ARCH_HOSTEDOBJS) \

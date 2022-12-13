@@ -1,5 +1,10 @@
+#include <BAN/Errors.h>
 #include <BAN/Memory.h>
+#include <BAN/Move.h>
 #include <BAN/String.h>
+#include <BAN/StringView.h>
+
+#include <kernel/Serial.h>
 
 #include <assert.h>
 #include <string.h>
@@ -10,23 +15,47 @@ namespace BAN
 
 	String::String()
 	{
-		MUST(EnsureCapasity(1));
-		m_data[0] = '\0';
-		m_size = 0;
+		MUST(copy_impl("", 0));
 	}
 
-	String::String(const char* string)
+	String::String(const String& other)
 	{
-		size_type len = strlen(string);
-		MUST(EnsureCapasity(len + 1));
-		memcpy(m_data, string, len);
-		m_data[len] = '\0';
-		m_size = len;
+		MUST(copy_impl(other.Data(), other.Size()));
+	}
+
+	String::String(String&& other)
+	{
+		move_impl(Move(other));
+	}
+
+	String::String(const StringView& other)
+	{
+		MUST(copy_impl(other.Data(), other.Size()));
+	}
+
+	String::String(const char* data, size_type len)
+	{
+		if (len == size_type(-1))
+			len = strlen(data);
+		MUST(copy_impl(data, len));
 	}
 
 	String::~String()
 	{
 		BAN::deallocator(m_data);
+	}
+
+	String& String::operator=(const String& other)
+	{
+		copy_impl(other.Data(), other.Size());
+		return *this;
+	}
+
+	String& String::operator=(String&& other)
+	{
+		BAN::deallocator(m_data);
+		move_impl(Move(other));
+		return *this;
 	}
 
 	ErrorOr<void> String::PushBack(char ch)
@@ -80,6 +109,12 @@ namespace BAN
 		m_size--;
 	}
 	
+	void String::Clear()
+	{
+		m_data[0] = '\0';
+		m_size = 0;
+	}
+
 	char String::operator[](size_type index) const
 	{
 		assert(index < m_size);
@@ -90,6 +125,13 @@ namespace BAN
 	{
 		assert(index < m_size);
 		return m_data[index];
+	}
+
+	bool String::operator==(const String& other) const
+	{
+		if (m_size != other.m_size)
+			return false;
+		return memcmp(m_data, other.m_data, m_size) == 0;
 	}
 
 	ErrorOr<void> String::Resize(size_type size, char ch)
@@ -113,8 +155,13 @@ namespace BAN
 
 	ErrorOr<void> String::Reserve(size_type size)
 	{
-		TRY(EnsureCapasity(size + 1));
+		TRY(EnsureCapasity(size));
 		return {};
+	}
+
+	StringView String::SV() const
+	{
+		return StringView(*this);
 	}
 
 	bool String::Empty() const
@@ -150,6 +197,26 @@ namespace BAN
 		m_data = (char*)new_data;
 		m_capasity = new_cap;
 		return {};
+	}
+
+	ErrorOr<void> String::copy_impl(const char* data, size_type len)
+	{
+		TRY(EnsureCapasity(len + 1));
+		memcpy(m_data, data, len);
+		m_data[len] = '\0';
+		m_size = len;
+		return {};
+	}
+
+	void String::move_impl(String&& other)
+	{
+		m_data		= other.m_data;
+		m_size		= other.m_size;
+		m_capasity	= other.m_capasity;
+
+		other.m_data = nullptr;
+		other.m_size = 0;
+		other.m_capasity = 0;
 	}
 
 }
