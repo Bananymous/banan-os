@@ -12,13 +12,13 @@ namespace BAN::Formatter
 	static void print(const char* format);
 
 	template<void(*PUTC_LIKE)(char), typename Arg, typename... Args>
-	static void print(const char* format, Arg arg, Args... args);
+	static void print(const char* format, const Arg& arg, const Args&... args);
 
 	template<void(*PUTC_LIKE)(char), typename... Args>
-	static void println(const char* format = "", Args... args);
+	static void println(const char* format = "", const Args&... args);
 
 	template<void(*PUTC_LIKE)(char), typename T>
-	static size_t print_argument(const char* format, T arg);
+	static size_t print_argument(const char* format, const T& arg);
 
 	template<void(*PUTC_LIKE)(char), typename T>
 	static void print_argument_impl(T value, const ValueFormat& format);
@@ -49,7 +49,7 @@ namespace BAN::Formatter
 	}
 
 	template<void(*PUTC_LIKE)(char), typename Arg, typename... Args>
-	void print(const char* format, Arg arg, Args... args)
+	void print(const char* format, const Arg& arg, const Args&... args)
 	{
 		while (*format && *format != '{')
 		{
@@ -67,14 +67,14 @@ namespace BAN::Formatter
 	}
 
 	template<void(*PUTC_LIKE)(char), typename... Args>
-	void println(const char* format, Args... args)
+	void println(const char* format, const Args&... args)
 	{
 		print<PUTC_LIKE>(format, args...);
 		PUTC_LIKE('\n');
 	}
 
 	template<void(*PUTC_LIKE)(char), typename Arg>
-	size_t print_argument(const char* format, Arg argument)
+	size_t print_argument(const char* format, const Arg& argument)
 	{
 		ValueFormat value_format;
 
