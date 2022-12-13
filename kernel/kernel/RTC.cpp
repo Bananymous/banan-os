@@ -35,12 +35,13 @@ namespace RTC
 
 	static void get_time(BAN::Time& out)
 	{
-		out.second	= get_rtc_register(CMOS_REGISTER_SECOND);
-		out.minute	= get_rtc_register(CMOS_REGISTER_MINUTE);
-		out.hour	= get_rtc_register(CMOS_REGISTER_HOUR);
-		out.day		= get_rtc_register(CMOS_REGISTER_DAY);
-		out.month	= get_rtc_register(CMOS_REGISTER_MONTH);
-		out.year	= get_rtc_register(CMOS_REGISTER_YEAR);
+		out.second		= get_rtc_register(CMOS_REGISTER_SECOND);
+		out.minute		= get_rtc_register(CMOS_REGISTER_MINUTE);
+		out.hour		= get_rtc_register(CMOS_REGISTER_HOUR);
+		out.week_day	= get_rtc_register(CMOS_REGISTER_WEEK_DAY);
+		out.day			= get_rtc_register(CMOS_REGISTER_DAY);
+		out.month		= get_rtc_register(CMOS_REGISTER_MONTH);
+		out.year		= get_rtc_register(CMOS_REGISTER_YEAR);
 	}
 
 	BAN::Time GetCurrentTime()
@@ -65,12 +66,13 @@ namespace RTC
 		// Convert BCD to binary values if necessary
 		if (!(regB & 0x04))
 		{
-            time.second	=  (time.second	& 0x0F) + ((time.second	/ 16) * 10);
-            time.minute	=  (time.minute	& 0x0F) + ((time.minute	/ 16) * 10);
-            time.hour	= ((time.hour	& 0x0F) + (((time.hour & 0x70) / 16) * 10) ) | (time.hour & 0x80);
-            time.day	=  (time.day	& 0x0F) + ((time.day	/ 16) * 10);
-            time.month	=  (time.month	& 0x0F) + ((time.month	/ 16) * 10);
-            time.year	=  (time.year	& 0x0F) + ((time.year	/ 16) * 10);
+            time.second		=  (time.second		& 0x0F) + ((time.second		/ 16) * 10);
+            time.minute		=  (time.minute		& 0x0F) + ((time.minute		/ 16) * 10);
+            time.hour		= ((time.hour		& 0x0F) + (((time.hour & 0x70) / 16) * 10) ) | (time.hour & 0x80);
+            time.week_day	=  (time.week_day	& 0x0F) + ((time.week_day	/ 16) * 10);
+            time.day		=  (time.day		& 0x0F) + ((time.day		/ 16) * 10);
+            time.month		=  (time.month		& 0x0F) + ((time.month		/ 16) * 10);
+            time.year		=  (time.year		& 0x0F) + ((time.year		/ 16) * 10);
 		}
 
 		// Convert 12 hour clock to 24 hour clock if necessary
