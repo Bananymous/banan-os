@@ -17,7 +17,7 @@ namespace BAN
 		using size_type = size_t;
 
 	public:
-		String() = default;
+		String();
 		String(const char*);
 		~String();
 
@@ -35,6 +35,7 @@ namespace BAN
 		ErrorOr<void> Resize(size_type, char = '\0');
 		ErrorOr<void> Reserve(size_type);
 
+		bool Empty() const;
 		size_type Size() const;
 		size_type Capasity() const;
 
@@ -48,6 +49,13 @@ namespace BAN
 		size_type	m_capasity	= 0;
 		size_type	m_size		= 0;	
 	};
+
+	String::String()
+	{
+		MUST(EnsureCapasity(1));
+		m_data[0] = '\0';
+		m_size = 0;
+	}
 
 	String::String(const char* string)
 	{
@@ -149,6 +157,11 @@ namespace BAN
 	{
 		TRY(EnsureCapasity(size + 1));
 		return {};
+	}
+
+	bool String::Empty() const
+	{
+		return m_size == 0;
 	}
 
 	String::size_type String::Size() const
