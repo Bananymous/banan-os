@@ -37,8 +37,10 @@ namespace Keyboard
 		bool	pressed;
 	};
 
-	bool initialize(void (*callback)(KeyEvent));
+	bool initialize();
 	void update_keyboard();
+
+	void register_key_event_callback(void(*callback)(KeyEvent));
 
 	char key_event_to_ascii(KeyEvent);
 

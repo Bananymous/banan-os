@@ -83,7 +83,7 @@ namespace Keyboard
 	static uint8_t s_led_states	= 0b000;
 	static uint8_t s_modifiers	= 0x00;
 
-	static void (*s_key_callback)(KeyEvent) = nullptr;
+	static void (*s_key_event_callback)(KeyEvent) = nullptr;
 
 	static char s_key_to_char[]
 	{
@@ -185,7 +185,8 @@ namespace Keyboard
 
 		while (!s_key_event_queue.Empty())
 		{
-			s_key_callback(s_key_event_queue.Front());
+			if (s_key_event_callback)
+				s_key_event_callback(s_key_event_queue.Front());
 			s_key_event_queue.Pop();
 		}
 	}
@@ -354,7 +355,7 @@ namespace Keyboard
 		}
 	}
 
-	bool initialize(void (*callback)(KeyEvent))
+	bool initialize()
 	{
 		// https://wiki.osdev.org/%228042%22_PS/2_Controller
 
@@ -424,11 +425,15 @@ namespace Keyboard
 		}));
 
 		// Register callback and IRQ
-		s_key_callback = callback;
 		IDT::register_irq_handler(KEYBOARD_IRQ, keyboard_irq_handler);
 		PIC::unmask(KEYBOARD_IRQ);
 
 		return true;
+	}
+
+	void register_key_event_callback(void(*callback)(KeyEvent))
+	{
+		s_key_event_callback = callback;
 	}
 
 	char key_event_to_ascii(KeyEvent event)
