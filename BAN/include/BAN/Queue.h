@@ -1,12 +1,7 @@
 #pragma once
 
 #include <BAN/Errors.h>
-
-#if defined(__is_kernel)
-	#include <kernel/kmalloc.h>
-#else
-	#include <stdlib.h>
-#endif
+#include <BAN/Memory.h>
 
 #include <assert.h>
 #include <stdint.h>
@@ -19,16 +14,6 @@ namespace BAN
 	template<typename T>
 	class Queue
 	{
-	private:
-	#if defined(__is_kernel)
-		static constexpr auto& allocator = kmalloc;
-		static constexpr auto& deallocator = kfree;
-	#else
-		static constexpr auto& allocator = malloc;
-		static constexpr auto& deallocator = free;
-	#endif
-
-
 	public:
 		using size_type = uint32_t;
 		using value_type = T;
@@ -58,7 +43,9 @@ namespace BAN
 	template<typename T>
 	Queue<T>::~Queue()
 	{
-		Queue<T>::deallocator(m_data);
+		for (size_type i = 0; i < m_size; i++)
+			m_data[i].~T();
+		BAN::deallocator(m_data);
 	}
 
 	template<typename T>
@@ -110,12 +97,12 @@ namespace BAN
 			return {};
 
 		size_type new_cap = MAX(m_capacity * 1.5f, m_capacity + 1);
-		void* new_data = Queue<T>::allocator(new_cap * sizeof(T));
+		void* new_data = BAN::allocator(new_cap * sizeof(T));
 		if (new_data == nullptr)
-			return Error::FromString("Queue: out of memory");
+			return Error::FromString("Queue: Could not allocate memory");
 
 		memcpy(new_data, m_data, m_size * sizeof(T));
-		Queue<T>::deallocator(m_data);
+		BAN::deallocator(m_data);
 
 		m_data = (T*)new_data;
 		m_capacity = new_cap;
