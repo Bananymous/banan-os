@@ -1,7 +1,9 @@
 #include <BAN/StringView.h>
 #include <BAN/Vector.h>
+#include <kernel/CPUID.h>
 #include <kernel/IO.h>
 #include <kernel/Keyboard.h>
+#include <kernel/PIT.h>
 #include <kernel/RTC.h>
 #include <kernel/Shell.h>
 #include <kernel/tty.h>
@@ -39,9 +41,8 @@ namespace Kernel
 		}
 	}
 
-	void Shell::ProcessCommand(BAN::StringView command)
+	void Shell::ProcessCommand(const BAN::Vector<BAN::StringView>& arguments)
 	{
-		auto arguments = command.Split(' ');
 		if (arguments.Empty())
 			return;
 
@@ -81,6 +82,78 @@ namespace Kernel
 			return;
 		}
 
+		if (arguments.Front() == "time")
+		{
+			auto new_args = arguments;
+			new_args.Remove(0);
+			auto start = PIT::ms_since_boot();
+			ProcessCommand(new_args);
+			auto duration = PIT::ms_since_boot() - start;
+			kprintln("took {} ms", duration);
+			return;
+		}
+
+		if (arguments.Front() == "cpuinfo")
+		{
+			if (arguments.Size() != 1)
+			{
+				kprintln("'cpuinfo' does not support command line arguments");
+				return;	
+			}
+			if (!CPUID::IsAvailable())
+			{
+				kprintln("'cpuid' instruction not available");
+				return;
+			}
+
+			uint32_t ecx, edx;
+			auto vendor = CPUID::GetVendor();
+			CPUID::GetFeatures(ecx, edx);
+
+			kprintln("Vendor: '{}'", vendor);
+			bool first = true;
+			for (int i = 0; i < 32; i++)
+				if (ecx & ((uint32_t)1 << i))
+					kprint("{}{}", first ? (first = false, "") : ", ", CPUID::FeatStringECX((uint32_t)1 << i));
+			for (int i = 0; i < 32; i++)
+				if (edx & ((uint32_t)1 << i))
+					kprint("{}{}", first ? (first = false, "") : ", ", CPUID::FeatStringEDX((uint32_t)1 << i));
+			if (!first)
+				kprintln();
+			
+			return;
+		}
+
+		if (arguments.Front() == "random")
+		{
+			if (arguments.Size() != 1)
+			{
+				kprintln("'random' does not support command line arguments");
+				return;	
+			}
+			if (!CPUID::IsAvailable())
+			{
+				kprintln("'cpuid' instruction not available");
+				return;
+			}
+			uint32_t ecx, edx;
+			CPUID::GetFeatures(ecx, edx);
+			if (!(ecx & CPUID::Features::ECX_RDRND))
+			{
+				kprintln("cpu does not support RDRAND instruction");
+				return;
+			}
+
+			for (int i = 0; i < 10; i++)
+			{
+				uint32_t random;
+				asm volatile("rdrand %0" : "=r"(random));
+				kprintln("  0x{8H}", random);
+			}
+
+			return;
+		}
+
 		if (arguments.Front() == "reboot")
 		{
 			if (arguments.Size() != 1)
@@ -103,7 +176,7 @@ namespace Kernel
 	{
 		if (!event.pressed)
 			return;
-		
+
 		switch (event.key)
 		{
 			case Keyboard::Key::Backspace:
@@ -120,7 +193,7 @@ namespace Kernel
 			case Keyboard::Key::NumpadEnter:
 			{
 				kprint("\n");
-				ProcessCommand(m_buffer);
+				ProcessCommand(m_buffer.SV().Split(' '));
 				m_buffer.Clear();
 				PrintPrompt();
 				break;

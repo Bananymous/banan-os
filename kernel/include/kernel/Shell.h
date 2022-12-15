@@ -18,7 +18,7 @@ namespace Kernel
 	private:
 		Shell();
 		void PrintPrompt();
-		void ProcessCommand(BAN::StringView);
+		void ProcessCommand(const BAN::Vector<BAN::StringView>&);
 		void KeyEventCallback(Keyboard::KeyEvent);
 
 	private:
