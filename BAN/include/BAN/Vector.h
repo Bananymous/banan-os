@@ -19,6 +19,7 @@ namespace BAN
 
 	public:
 		Vector() = default;
+		Vector(const Vector<T>&);
 		~Vector();
 
 		ErrorOr<void> PushBack(const T&);
@@ -50,6 +51,15 @@ namespace BAN
 		size_type	m_capasity	= 0;
 		size_type	m_size		= 0;	
 	};
+
+	template<typename T>
+	Vector<T>::Vector(const Vector<T>& other)
+	{
+		MUST(EnsureCapasity(other.m_size));
+		for (size_type i = 0; i < other.m_size; i++)
+			m_data[i] = other[i];
+		m_size = other.m_size;
+	}
 
 	template<typename T>
 	Vector<T>::~Vector()
