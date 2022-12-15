@@ -1,12 +1,9 @@
 #include <kernel/IO.h>
-#include <kernel/multiboot.h>
 #include <kernel/panic.h>
 #include <kernel/Serial.h>
 #include <kernel/tty.h>
+#include <kernel/VESA.h>
 
-#include "vga.h"
-
-#include <stdint.h>
 #include <string.h>
 
 #define BEL	0x07
@@ -21,90 +18,48 @@
 
 namespace TTY
 {
-
-	static size_t VGA_WIDTH;
-	static size_t VGA_HEIGHT;
-	static uint16_t* VGA_MEMORY = nullptr;
-
-	static size_t terminal_row;
-	static size_t terminal_col;
-	static uint8_t terminal_color;
-	static uint16_t* terminal_buffer = nullptr;
+	
+	static uint32_t		terminal_height	= 0;
+	static uint32_t		terminal_width	= 0;
+	static uint32_t		terminal_row	= 0;
+	static uint32_t		terminal_col	= 0;
+	static VESA::Color	terminal_fg		= VESA::Color::WHITE;
+	static VESA::Color	terminal_bg		= VESA::Color::BLACK;
 
 	static char s_ansi_escape_mode		= '\0';
 	static int s_ansi_escape_index		= 0;
 	static int s_ansi_escape_nums[2]	= { -1, -1 };
 
+	template<typename T> inline constexpr T max(T a, T b)			{ return a > b ? a : b; }
+	template<typename T> inline constexpr T min(T a, T b)			{ return a < b ? a : b; }
+	template<typename T> inline constexpr T clamp(T x, T a, T b)	{ return x < a ? a : x > b ? b : x; }
 
-	inline constexpr int max(int a, int b) { return a > b ? a : b; }
-	inline constexpr int min(int a, int b) { return a < b ? a : b; }
-	inline constexpr int clamp(int x, int a, int b) { return x < a ? a : x > b ? b : x; }
-
-	void putentryat(unsigned char c, uint8_t color, size_t x, size_t y)
+	void initialize()
 	{
-		const size_t index = y * VGA_WIDTH + x;
-		terminal_buffer[index] = vga_entry(c, color);
+		terminal_width = VESA::GetWidth();
+		terminal_height = VESA::GetHeight();
 	}
 
 	void clear()
 	{
-		for (size_t y = 0; y < VGA_HEIGHT; y++)
-			for (size_t x = 0; x < VGA_WIDTH; x++)
-				putentryat(' ', terminal_color, x, y);
+		VESA::Clear(VESA::Color::BLACK);
 	}
 
-	void initialize()
+	void setcolor(VESA::Color fg, VESA::Color bg)
 	{
-		if (s_multiboot_info->flags & (1 << 12))
-		{
-			const framebuffer_info_t& fb = s_multiboot_info->framebuffer;
-			VGA_WIDTH	= fb.width;
-			VGA_HEIGHT 	= fb.height;
-			VGA_MEMORY	= (uint16_t*)fb.addr;
-
-			dprintln("width: {}, height: {}, bpp: {}, pitch: {}", fb.width, fb.height, fb.bpp, fb.pitch);
-		}
-		else
-		{
-			VGA_WIDTH	= 80;
-			VGA_HEIGHT	= 25;
-			VGA_MEMORY	= (uint16_t*)0xB8000;
-		}
-
-		terminal_row = 0;
-		terminal_col = 0;
-		terminal_color = vga_entry_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
-		terminal_buffer = VGA_MEMORY;
-		clear();
-
-		if (s_multiboot_info->flags & (1 << 12))
-			if (s_multiboot_info->framebuffer.type != 2)
-				dprintln("Invalid framebuffer_type in multiboot info");
-	}
-
-	void setcolor(uint8_t color)
-	{
-		terminal_color = color;
-	}
-
-	void scroll_line(size_t line)
-	{
-		for (size_t x = 0; x < VGA_WIDTH; x++)
-		{
-			const size_t index = line * VGA_WIDTH + x;
-			terminal_buffer[index - VGA_WIDTH] = terminal_buffer[index];
-		}
+		terminal_fg = fg;
+		terminal_bg = bg;
 	}
 
 	void clear_line(size_t line)
 	{
-		for (size_t x = 0; x < VGA_WIDTH; x++)
-			putentryat(' ', terminal_color, x, line);
+		for (size_t x = 0; x < terminal_width; x++)
+			VESA::PutEntryAt(' ', x, line, terminal_fg, terminal_bg);
 	}
 
 	static void update_cursor()
 	{
-		uint16_t pos = terminal_row * VGA_WIDTH + terminal_col;
+		uint16_t pos = terminal_row * terminal_width + terminal_col;
 		IO::outb(0x3D4, 0x0F);
 		IO::outb(0x3D5, (uint8_t) (pos & 0xFF));
 		IO::outb(0x3D4, 0x0E);
@@ -130,59 +85,29 @@ namespace TTY
 	{
 		switch (s_ansi_escape_nums[0])
 		{
-			case -1: case 0:
-				terminal_color = vga_entry_color(VGA_COLOR_WHITE, VGA_COLOR_BLACK);
+			case -1:
+			case 0:
+				terminal_fg = VESA::Color::WHITE;
+				terminal_bg = VESA::Color::BLACK;
 				break;
 
-			case 30:
-				terminal_color = vga_set_foreground(VGA_COLOR_BLACK, terminal_color);
-				break;
-			case 31:
-				terminal_color = vga_set_foreground(VGA_COLOR_LIGHT_RED, terminal_color);
-				break;
-			case 32:
-				terminal_color = vga_set_foreground(VGA_COLOR_LIGHT_GREEN, terminal_color);
-				break;
-			case 33:
-				terminal_color = vga_set_foreground(VGA_COLOR_LIGHT_BROWN, terminal_color);
-				break;
-			case 34:
-				terminal_color = vga_set_foreground(VGA_COLOR_LIGHT_BLUE, terminal_color);
-				break;
-			case 35:
-				terminal_color = vga_set_foreground(VGA_COLOR_LIGHT_MAGENTA, terminal_color);
-				break;
-			case 36:
-				terminal_color = vga_set_foreground(VGA_COLOR_LIGHT_CYAN, terminal_color);
-				break;
-			case 37:
-				terminal_color = vga_set_foreground(VGA_COLOR_LIGHT_GREY, terminal_color);
-				break;
+			case 30: terminal_fg = VESA::Color::BLACK;			break;
+			case 31: terminal_fg = VESA::Color::LIGHT_RED;		break;
+			case 32: terminal_fg = VESA::Color::LIGHT_GREEN;	break;
+			case 33: terminal_fg = VESA::Color::LIGHT_BROWN;	break;
+			case 34: terminal_fg = VESA::Color::LIGHT_BLUE;		break;
+			case 35: terminal_fg = VESA::Color::LIGHT_MAGENTA;	break;
+			case 36: terminal_fg = VESA::Color::LIGHT_CYAN;		break;
+			case 37: terminal_fg = VESA::Color::LIGHT_GREY;		break;
 
-			case 40:
-				terminal_color = vga_set_background(VGA_COLOR_BLACK, terminal_color);
-				break;
-			case 41:
-				terminal_color = vga_set_background(VGA_COLOR_LIGHT_RED, terminal_color);
-				break;
-			case 42:
-				terminal_color = vga_set_background(VGA_COLOR_LIGHT_GREEN, terminal_color);
-				break;
-			case 43:
-				terminal_color = vga_set_background(VGA_COLOR_LIGHT_BROWN, terminal_color);
-				break;
-			case 44:
-				terminal_color = vga_set_background(VGA_COLOR_LIGHT_BLUE, terminal_color);
-				break;
-			case 45:
-				terminal_color = vga_set_background(VGA_COLOR_LIGHT_MAGENTA, terminal_color);
-				break;
-			case 46:
-				terminal_color = vga_set_background(VGA_COLOR_LIGHT_CYAN, terminal_color);
-				break;
-			case 47:
-				terminal_color = vga_set_background(VGA_COLOR_LIGHT_GREY, terminal_color);
-				break;
+			case 40: terminal_bg = VESA::Color::BLACK;			break;
+			case 41: terminal_bg = VESA::Color::LIGHT_RED;		break;
+			case 42: terminal_bg = VESA::Color::LIGHT_GREEN;	break;
+			case 43: terminal_bg = VESA::Color::LIGHT_BROWN;	break;
+			case 44: terminal_bg = VESA::Color::LIGHT_BLUE;		break;
+			case 45: terminal_bg = VESA::Color::LIGHT_MAGENTA;	break;
+			case 46: terminal_bg = VESA::Color::LIGHT_CYAN;		break;
+			case 47: terminal_bg = VESA::Color::LIGHT_GREY;		break;
 		}
 	}
 
@@ -217,47 +142,47 @@ namespace TTY
 					case 'A': // Cursor Up
 						if (s_ansi_escape_nums[0] == -1)
 							s_ansi_escape_nums[0] = 1;
-						terminal_row = max(terminal_row - s_ansi_escape_nums[0], 0);
+						terminal_row = max<int32_t>(terminal_row - s_ansi_escape_nums[0], 0);
 						return reset_ansi_escape();
 					case 'B': // Curson Down
 						if (s_ansi_escape_nums[0] == -1)
 							s_ansi_escape_nums[0] = 1;
-						terminal_row = min(terminal_row + s_ansi_escape_nums[0], VGA_HEIGHT - 1);
+						terminal_row = min<int32_t>(terminal_row + s_ansi_escape_nums[0], terminal_height - 1);
 						return reset_ansi_escape();
 					case 'C': // Cursor Forward
 						if (s_ansi_escape_nums[0] == -1)
 							s_ansi_escape_nums[0] = 1;
-						terminal_col = min(terminal_col + s_ansi_escape_nums[0], VGA_WIDTH - 1);
+						terminal_col = min<int32_t>(terminal_col + s_ansi_escape_nums[0], terminal_width - 1);
 						return reset_ansi_escape();
 					case 'D': // Cursor Back
 						if (s_ansi_escape_nums[0] == -1)
 							s_ansi_escape_nums[0] = 1;
-						terminal_col = max(terminal_col - s_ansi_escape_nums[0], 0);
+						terminal_col = max<int32_t>(terminal_col - s_ansi_escape_nums[0], 0);
 						return reset_ansi_escape();
 					case 'E': // Cursor Next Line
 						if (s_ansi_escape_nums[0] == -1)
 							s_ansi_escape_nums[0] = 1;
-						terminal_row = min(terminal_row + s_ansi_escape_nums[0], VGA_HEIGHT - 1);
+						terminal_row = min<int32_t>(terminal_row + s_ansi_escape_nums[0], terminal_height - 1);
 						terminal_col = 0;
 						return reset_ansi_escape();
 					case 'F': // Cursor Previous Line
 						if (s_ansi_escape_nums[0] == -1)
 							s_ansi_escape_nums[0] = 1;
-						terminal_row = max(terminal_row - s_ansi_escape_nums[0], 0);
+						terminal_row = max<int32_t>(terminal_row - s_ansi_escape_nums[0], 0);
 						terminal_col = 0;
 						return reset_ansi_escape();
 					case 'G': // Cursor Horizontal Absolute
 						if (s_ansi_escape_nums[0] == -1)
 							s_ansi_escape_nums[0] = 1;
-						terminal_col = clamp(s_ansi_escape_nums[0] - 1, 0, VGA_WIDTH - 1);
+						terminal_col = clamp<int32_t>(s_ansi_escape_nums[0] - 1, 0, terminal_width - 1);
 						return reset_ansi_escape();
 					case 'H': // Cursor Position
 						if (s_ansi_escape_nums[0] == -1)
 							s_ansi_escape_nums[0] = 1;
 						if (s_ansi_escape_nums[1] == -1)
 							s_ansi_escape_nums[1] = 1;
-						terminal_row = clamp(s_ansi_escape_nums[0] - 1, 0, VGA_HEIGHT - 1);
-						terminal_col = clamp(s_ansi_escape_nums[1] - 1, 0, VGA_WIDTH - 1);
+						terminal_row = clamp<int32_t>(s_ansi_escape_nums[0] - 1, 0, terminal_height - 1);
+						terminal_col = clamp<int32_t>(s_ansi_escape_nums[1] - 1, 0, terminal_width - 1);
 						return reset_ansi_escape();
 					case 'J': // Erase in Display
 						dprintln("Unsupported ANSI CSI character J");
@@ -266,16 +191,16 @@ namespace TTY
 						switch (s_ansi_escape_nums[0])
 						{
 							case -1: case 0:
-								for (size_t i = terminal_col; i < VGA_WIDTH; i++)
-									putentryat(' ', terminal_color, i, terminal_row);
+								for (size_t i = terminal_col; i < terminal_width; i++)
+									VESA::PutEntryAt(' ', i, terminal_row, terminal_fg, terminal_bg);
 								break;
 							case 1:
 								for (size_t i = 0; i <= terminal_col; i++)
-									putentryat(' ', terminal_color, i, terminal_row);
+									VESA::PutEntryAt(' ', i, terminal_row, terminal_fg, terminal_bg);
 								break;
 							case 2:
-								for (size_t i = 0; i < VGA_WIDTH; i++)
-									putentryat(' ', terminal_color, i, terminal_row);
+								for (size_t i = 0; i < terminal_width; i++)
+									VESA::PutEntryAt(' ', i, terminal_row, terminal_fg, terminal_bg);
 								break;
 						}
 						return reset_ansi_escape();
@@ -305,9 +230,6 @@ namespace TTY
 
 	void putchar(char c)
 	{
-		if (VGA_MEMORY == nullptr)
-			return;
-
 		if (s_ansi_escape_mode)
 			return handle_ansi_escape(c);
 
@@ -339,22 +261,22 @@ namespace TTY
 				s_ansi_escape_mode = '\1';
 				break;
 			default:
-				putentryat(c, terminal_color, terminal_col, terminal_row);
+				VESA::PutEntryAt(c, terminal_col, terminal_row, terminal_fg, terminal_bg);
 				terminal_col++;
 				break;
 		}
 
-		if (terminal_col >= VGA_WIDTH)
+		if (terminal_col >= terminal_width)
 		{
 			terminal_col = 0;
 			terminal_row++;
 		}
 
-		while (terminal_row >= VGA_HEIGHT)
+		while (terminal_row >= terminal_height)
 		{
-			for (size_t line = 1; line < VGA_HEIGHT; line++)
-				scroll_line(line);
-			clear_line(VGA_HEIGHT - 1);
+			for (size_t line = 1; line < terminal_height; line++)
+				VESA::ScrollLine(line);
+			clear_line(terminal_height - 1);
 
 			terminal_col = 0;
 			terminal_row--;

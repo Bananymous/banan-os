@@ -12,6 +12,7 @@
 #include <kernel/Serial.h>
 #include <kernel/Shell.h>
 #include <kernel/tty.h>
+#include <kernel/VESA.h>
 
 #define DISABLE_INTERRUPTS() asm volatile("cli")
 #define ENABLE_INTERRUPTS() asm volatile("sti")
@@ -23,14 +24,24 @@ void kernel_main(multiboot_info_t* mbi, uint32_t magic)
 {
 	DISABLE_INTERRUPTS();
 
+	Serial::initialize();
+	if (magic != 0x2BADB002)
+	{
+		dprintln("Invalid multiboot magic number");
+		return;
+	}
+
 	s_multiboot_info = mbi;
 
-	if (magic != 0x2BADB002)
+	if (!VESA::Initialize())
+	{
+		dprintln("Could not initialize VESA");
 		return;
-
-	Serial::initialize();
+	}
 	TTY::initialize();
-	
+
+	dprintln("{}", mbi->framebuffer.type);
+
 	kmalloc_initialize();
 
 	PIC::initialize();
