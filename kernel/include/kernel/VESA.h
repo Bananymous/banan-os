@@ -5,7 +5,7 @@
 namespace VESA
 {
 
-	enum Color : uint8_t
+	enum class Color : uint8_t
 	{
 		BLACK = 0,
 		BLUE = 1,
@@ -13,24 +13,24 @@ namespace VESA
 		CYAN = 3,
 		RED = 4,
 		MAGENTA = 5,
-		BROWN = 6,
-		LIGHT_GREY = 7,
-		DARK_GREY = 8,
-		LIGHT_BLUE = 9,
-		LIGHT_GREEN = 10,
-		LIGHT_CYAN = 11,
-		LIGHT_RED = 12,
-		LIGHT_MAGENTA = 13,
-		LIGHT_BROWN = 14,
-		WHITE = 15,
+		YELLOW = 6,
+		WHITE = 7,
+		BRIGHT_BLACK = 8,
+		BRIGHT_BLUE = 9,
+		BRIGHT_GREEN = 10,
+		BRIGHT_CYAN = 11,
+		BRIGHT_RED = 12,
+		BRIGHT_MAGENTA = 13,
+		BRIGHT_YELLOW = 14,
+		BRIGHT_WHITE = 15,
 	};
 
 	bool Initialize();
-	void PutEntryAt(char, uint32_t, uint32_t, Color, Color);
+	void PutEntryAt(uint8_t, uint32_t, uint32_t, Color, Color);
 	void Clear(Color);
 	void ScrollLine(uint32_t line);
 
-	uint32_t GetWidth();
-	uint32_t GetHeight();
+	uint32_t GetTerminalWidth();
+	uint32_t GetTerminalHeight();
 
 }

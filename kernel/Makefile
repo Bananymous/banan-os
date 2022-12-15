@@ -60,7 +60,7 @@ $(ARCHDIR)/crtend.o		\
 $(ARCHDIR)/crtn.o		\
  
 .PHONY: all always clean install install-headers install-kernel
-.SUFFIXES: .o .cpp .S
+.SUFFIXES: .o .c .cpp .S
  
 all: banan-os.kernel
  
@@ -70,6 +70,9 @@ banan-os.kernel: always $(OBJS) $(ARCHDIR)/linker.ld
  
 $(ARCHDIR)/crtbegin.o $(ARCHDIR)/crtend.o:
 	OBJ=`$(CC) $(CFLAGS) $(LDFLAGS) -print-file-name=$(@F)` && cp "$$OBJ" $(BUILDDIR)/$@
+ 
+.c.o:
+	$(CC) -MD -c $< -o $(BUILDDIR)/$@ $(CFLAGS)
  
 .cpp.o:
 	$(CXX) -MD -c $< -o $(BUILDDIR)/$@ $(CFLAGS) $(CPPFLAGS)

@@ -23,7 +23,7 @@ namespace TTY
 	static uint32_t		terminal_width	= 0;
 	static uint32_t		terminal_row	= 0;
 	static uint32_t		terminal_col	= 0;
-	static VESA::Color	terminal_fg		= VESA::Color::WHITE;
+	static VESA::Color	terminal_fg		= VESA::Color::BRIGHT_WHITE;
 	static VESA::Color	terminal_bg		= VESA::Color::BLACK;
 
 	static char s_ansi_escape_mode		= '\0';
@@ -36,8 +36,8 @@ namespace TTY
 
 	void initialize()
 	{
-		terminal_width = VESA::GetWidth();
-		terminal_height = VESA::GetHeight();
+		terminal_width = VESA::GetTerminalWidth();
+		terminal_height = VESA::GetTerminalHeight();
 	}
 
 	void clear()
@@ -87,27 +87,27 @@ namespace TTY
 		{
 			case -1:
 			case 0:
-				terminal_fg = VESA::Color::WHITE;
+				terminal_fg = VESA::Color::BRIGHT_WHITE;
 				terminal_bg = VESA::Color::BLACK;
 				break;
 
-			case 30: terminal_fg = VESA::Color::BLACK;			break;
-			case 31: terminal_fg = VESA::Color::LIGHT_RED;		break;
-			case 32: terminal_fg = VESA::Color::LIGHT_GREEN;	break;
-			case 33: terminal_fg = VESA::Color::LIGHT_BROWN;	break;
-			case 34: terminal_fg = VESA::Color::LIGHT_BLUE;		break;
-			case 35: terminal_fg = VESA::Color::LIGHT_MAGENTA;	break;
-			case 36: terminal_fg = VESA::Color::LIGHT_CYAN;		break;
-			case 37: terminal_fg = VESA::Color::LIGHT_GREY;		break;
+			case 30: terminal_fg = VESA::Color::BRIGHT_BLACK;	break;
+			case 31: terminal_fg = VESA::Color::BRIGHT_RED;		break;
+			case 32: terminal_fg = VESA::Color::BRIGHT_GREEN;	break;
+			case 33: terminal_fg = VESA::Color::BRIGHT_YELLOW;	break;
+			case 34: terminal_fg = VESA::Color::BRIGHT_BLUE;	break;
+			case 35: terminal_fg = VESA::Color::BRIGHT_MAGENTA;	break;
+			case 36: terminal_fg = VESA::Color::BRIGHT_CYAN;	break;
+			case 37: terminal_fg = VESA::Color::BRIGHT_WHITE;	break;
 
-			case 40: terminal_bg = VESA::Color::BLACK;			break;
-			case 41: terminal_bg = VESA::Color::LIGHT_RED;		break;
-			case 42: terminal_bg = VESA::Color::LIGHT_GREEN;	break;
-			case 43: terminal_bg = VESA::Color::LIGHT_BROWN;	break;
-			case 44: terminal_bg = VESA::Color::LIGHT_BLUE;		break;
-			case 45: terminal_bg = VESA::Color::LIGHT_MAGENTA;	break;
-			case 46: terminal_bg = VESA::Color::LIGHT_CYAN;		break;
-			case 47: terminal_bg = VESA::Color::LIGHT_GREY;		break;
+			case 40: terminal_bg = VESA::Color::BRIGHT_BLACK;	break;
+			case 41: terminal_bg = VESA::Color::BRIGHT_RED;		break;
+			case 42: terminal_bg = VESA::Color::BRIGHT_GREEN;	break;
+			case 43: terminal_bg = VESA::Color::BRIGHT_YELLOW;	break;
+			case 44: terminal_bg = VESA::Color::BRIGHT_BLUE;	break;
+			case 45: terminal_bg = VESA::Color::BRIGHT_MAGENTA;	break;
+			case 46: terminal_bg = VESA::Color::BRIGHT_CYAN;	break;
+			case 47: terminal_bg = VESA::Color::BRIGHT_WHITE;	break;
 		}
 	}
 
