@@ -173,42 +173,32 @@ namespace Kernel
 		kprintln("unrecognized command '{}'", arguments.Front());
 	}
 
-	static uint8_t GetLastLength(const BAN::String& string)
+	static bool IsSingleUnicode(BAN::StringView sv)
 	{
-		if (string.Empty())
-			return 0;
-		
-		if (!(string[string.Size() - 1] & 0x80))
-			return 1;
-		
-		if (string.Size() < 2)
-			return 1;
+		if (sv.Size() == 2 && ((uint8_t)sv[0] >> 5) != 0b110)
+			return false;
+		if (sv.Size() == 3 && ((uint8_t)sv[0] >> 4) != 0b1110)
+			return false;
+		if (sv.Size() == 4 && ((uint8_t)sv[0] >> 3) != 0b11110)
+			return false;
+		for (uint32_t i = 1; i < sv.Size(); i++)
+			if (((uint8_t)sv[i] >> 6) != 0b10)
+				return false;
+		return true;
+	}
 
-		if (((uint8_t)string[string.Size() - 2] >> 5) == 0b110 &&
-			((uint8_t)string[string.Size() - 1] >> 6) == 0b10)
+	static uint32_t GetLastLength(BAN::StringView sv)
+	{
+		if (sv.Size() < 2)
+			return sv.Size();
+
+		for (uint32_t len = 2; len <= 4; len++)
 		{
-			return 2;
-		}
+			if (sv.Size() < len)
+				return 1;
 
-		if (string.Size() < 3)
-			return 1;
-
-		if (((uint8_t)string[string.Size() - 3] >> 4) == 0b1110 &&
-			((uint8_t)string[string.Size() - 2] >> 6) == 0b10 &&
-			((uint8_t)string[string.Size() - 1] >> 6) == 0b10)
-		{
-			return 3;
-		}
-
-		if (string.Size() < 4)
-			return 1;
-
-		if ((string[string.Size() - 4] >> 3) == 0b11110 &&
-			(string[string.Size() - 3] >> 6) == 0b10 &&
-			(string[string.Size() - 2] >> 6) == 0b10 &&
-			(string[string.Size() - 1] >> 6) == 0b10)
-		{
-			return 3;
+			if (IsSingleUnicode(sv.Substring(sv.Size() - len)))
+				return len;
 		}
 
 		return 1;
@@ -227,8 +217,8 @@ namespace Kernel
 				{
 					kprint("\b \b", 3);
 					
-					uint8_t last_len = GetLastLength(m_buffer);
-					for (uint8_t i = 0; i < last_len; i++)
+					uint32_t last_len = GetLastLength(m_buffer);
+					for (uint32_t i = 0; i < last_len; i++)
 						m_buffer.PopBack();
 				}
 				break;
