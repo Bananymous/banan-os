@@ -85,30 +85,53 @@ namespace Keyboard
 
 	static void (*s_key_event_callback)(KeyEvent) = nullptr;
 
-	static char s_key_to_char[]
+	static const char* s_key_to_utf8_lower[]
 	{
-		'\0', '\0',
-		'0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-		'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
-		'A', 'A', 'O',
+		nullptr, nullptr,
+		"0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+		"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z",
+		"å", "ä", "ö",
 
-		',', ':', '.', ';', '-', '_', '\'', '*', '^', '~',
-		'!', '?', '"', '#', '%', '&', '/', '\\', '+', '=',
-		'(', ')', '[', ']', '{', '}',
-		'$', '\0', '\0', '\0', '\n', ' ', '\t', '\b', '<', '>', '\0', '`', '\0', '\0', '@', '|',
-		'\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0',
+		",", ":", ".", ";", "-", "_", "'", "*", "^", "~",
+		"!", "?", "\"", "#", "%", "&", "/", "\\", "+", "=",
+		"(", ")", "[", "]", "{", "}",
+		"$", "£", "€", "¤", "\n", " ", "\t", nullptr, "<", ">", "´", "`", "§", "½", "@", "|",
+		nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
 
-		'\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0',
+		nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
 
-		'0', '1', '2', '3', '4', '5', '6', '7', '8', '9',
-		',', '+', '*', '/', '-', '\n',
+		"0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+		",", "+", "*", "/", "-", "\n",
 
-		'\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0',
+		nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
  
-
-		'\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0', '\0',
+		nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
 	};
-	static_assert(sizeof(s_key_to_char) == static_cast<int>(Key::Count));
+	static_assert(sizeof(s_key_to_utf8_lower) == static_cast<int>(Key::Count) * sizeof(*s_key_to_utf8_lower));
+
+	static const char* s_key_to_utf8_upper[]
+	{
+		nullptr, nullptr,
+		"0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+		"A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
+		"Å", "Ä", "Ö",
+
+		",", ":", ".", ";", "-", "_", "'", "*", "^", "~",
+		"!", "?", "\"", "#", "%", "&", "/", "\\", "+", "=",
+		"(", ")", "[", "]", "{", "}",
+		"$", "£", "€", "¤", "\n", " ", "\t", nullptr, "<", ">", "´", "`", "§", "½", "@", "|",
+		nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+
+		nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+
+		"0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+		",", "+", "*", "/", "-", "\n",
+
+		nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+ 
+		nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+	};
+	static_assert(sizeof(s_key_to_utf8_upper) == static_cast<int>(Key::Count) * sizeof(*s_key_to_utf8_upper));
 
 	static uint8_t wait_and_read()
 	{
@@ -436,15 +459,13 @@ namespace Keyboard
 		s_key_event_callback = callback;
 	}
 
-	char key_event_to_ascii(KeyEvent event)
+	const char* key_event_to_utf8(KeyEvent event)
 	{
-		char res = s_key_to_char[static_cast<uint8_t>(event.key)];
-
-		if (!(event.modifiers & (MOD_SHIFT | MOD_CAPS)))
-			if (res >= 'A' && res <= 'Z')
-				res = res - 'A' + 'a';
-
-		return res;
+		bool shift = event.modifiers & MOD_SHIFT;
+		bool caps = event.modifiers & MOD_CAPS;
+		if (shift ^ caps)
+			return s_key_to_utf8_upper[static_cast<uint8_t>(event.key)];
+		return s_key_to_utf8_lower[static_cast<uint8_t>(event.key)];
 	}
 
 	void led_disco()

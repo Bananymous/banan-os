@@ -21,15 +21,15 @@ namespace VESA
 	static uint32_t	s_height	= 0;
 	static uint8_t	s_mode		= 0;
 
-	static void GraphicsPutCharAt(uint8_t ch, uint32_t x, uint32_t y, Color fg, Color bg);
+	static void GraphicsPutCharAt(uint16_t ch, uint32_t x, uint32_t y, Color fg, Color bg);
 	static void GraphicsClear(Color color);
 	static void GraphicsScrollLine(uint32_t line);
 
-	static void TextPutCharAt(uint8_t c, uint32_t x, uint32_t y, Color fg, Color bg);
+	static void TextPutCharAt(uint16_t ch, uint32_t x, uint32_t y, Color fg, Color bg);
 	static void TextClear(Color color);
 	static void TextScrollLine(uint32_t line);
 
-	void PutEntryAt(uint8_t ch, uint32_t x, uint32_t y, Color fg, Color bg)
+	void PutEntryAt(uint16_t ch, uint32_t x, uint32_t y, Color fg, Color bg)
 	{
 		if (x >= s_width)
 			return;
@@ -138,27 +138,32 @@ namespace VESA
 		0x00'FF'FF'FF,
 	};
 
-	static void GraphicsPutPixelAt(uint32_t offset, uint32_t color)
+	static void GraphicsSetPixel(uint32_t* address, uint32_t color)
 	{
-		uint32_t* pixel = (uint32_t*)((uint8_t*)s_addr + offset);
 		switch (s_bpp)
 		{
 			case 24:
-				*pixel = (*pixel & 0xFF000000) | color;
+				*address = (*address & 0xFF000000) | (color & 0x00FFFFFF);
 				break;
 			case 32:
-				*pixel = color;
+				*address = color;
 				break;
 		}
 	}
 
-	static void GraphicsPutPixelAt(uint32_t x, uint32_t y, uint32_t color)
+	static uint32_t GraphicsGetPixel(uint32_t* address)
 	{
-		uint32_t offset = y * s_pitch + (x * (s_bpp / 8));
-		GraphicsPutPixelAt(offset, color);
-	}	
+		switch (s_bpp)
+		{
+			case 24:
+				return *address & 0x00FFFFFF;
+			case 32:
+				return *address;
+		}
+		return 0;
+	}
 
-	static void GraphicsPutCharAt(uint8_t ch, uint32_t x, uint32_t y, Color fg, Color bg)
+	static void GraphicsPutCharAt(uint16_t ch, uint32_t x, uint32_t y, Color fg, Color bg)
 	{
 		// find correct bitmap
 		uint32_t index = 0;
@@ -176,24 +181,62 @@ namespace VESA
 		uint32_t u32_fg = s_graphics_colors[(uint8_t)fg];
 		uint32_t u32_bg = s_graphics_colors[(uint8_t)bg];
 
-		for (uint32_t cy = 0; cy < font.Height; cy++)
-			if (y * font.Height + cy < s_height)
-				for (uint32_t cx = 0; cx < font.Width; cx++)
-					if (x * font.Width + cx < s_width)
-						GraphicsPutPixelAt(x * font.Width + cx, y * font.Height + cy, glyph[cy] & (1 << (font.Width - cx - 1)) ? u32_fg : u32_bg);
+		uint32_t fx = x * font.Width;
+		uint32_t fy = y * font.Height;
+
+		uint32_t row_addr = (uint32_t)s_addr + (fy * s_pitch) + (fx * (s_bpp / 8));
+		for (uint32_t gy = 0; gy < font.Height; gy++)
+		{
+			if (fy + gy >= s_height) break;
+			uint32_t pixel_addr = row_addr;
+			for (uint32_t gx = 0; gx < font.Width; gx++)
+			{
+				if (fx + gx >= s_width) break;
+				GraphicsSetPixel((uint32_t*)pixel_addr, (glyph[gy] & (1 << (font.Width - gx - 1))) ? u32_fg : u32_bg);
+				pixel_addr += s_bpp / 8;
+			}
+			row_addr += s_pitch;
+		}
 	}
 
 	static void GraphicsClear(Color color)
 	{
 		uint32_t u32_color = s_graphics_colors[(uint8_t)color];
+		uint32_t row_addr = (uint32_t)s_addr;
+
 		for (uint32_t y = 0; y < s_height; y++)
+		{
+			uint32_t pixel_addr = row_addr;
 			for (uint32_t x = 0; x < s_width; x++)
-				GraphicsPutPixelAt(x, y, u32_color);
+			{
+				GraphicsSetPixel((uint32_t*)pixel_addr, u32_color);
+				pixel_addr += s_bpp / 8;
+			}
+			row_addr += s_pitch;
+		}
 	}
 
 	static void GraphicsScrollLine(uint32_t line)
 	{
-		(void)line;
+		if (line >= s_height / font.Height)
+			return;
+
+		uint32_t row_out = (uint32_t)s_addr + (line - 1) * font.Height * s_pitch;
+		uint32_t row_in  = (uint32_t)s_addr + (line - 0) * font.Height * s_pitch;
+
+		for (uint32_t y = 0; y < font.Height; y++)
+		{
+			uint32_t pixel_out = row_out;
+			uint32_t pixel_in  = row_in;
+			for (uint32_t x = 0; x < s_width; x++)
+			{
+				GraphicsSetPixel((uint32_t*)pixel_out, GraphicsGetPixel((uint32_t*)pixel_in));
+				pixel_out += s_bpp / 8;
+				pixel_in  += s_bpp / 8;
+			}
+			row_out += s_pitch;
+			row_in  += s_pitch;
+		}
 	}
 
 
@@ -210,7 +253,7 @@ namespace VESA
 		return ((uint16_t)color << 8) | ch;
 	}
 
-	static void TextPutCharAt(uint8_t ch, uint32_t x, uint32_t y, Color fg, Color bg)
+	static void TextPutCharAt(uint16_t ch, uint32_t x, uint32_t y, Color fg, Color bg)
 	{
 		uint32_t index = y * s_width + x;
 		((uint16_t*)s_addr)[index] = TextEntry(ch, TextColor(fg, bg));

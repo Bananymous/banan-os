@@ -42,7 +42,7 @@ namespace Keyboard
 
 	void register_key_event_callback(void(*callback)(KeyEvent));
 
-	char key_event_to_ascii(KeyEvent);
+	const char* key_event_to_utf8(KeyEvent);
 
 	void led_disco();
 

@@ -6,6 +6,7 @@
 #include <kernel/PIT.h>
 #include <kernel/RTC.h>
 #include <kernel/Shell.h>
+#include <kernel/Serial.h>
 #include <kernel/tty.h>
 
 namespace Kernel
@@ -172,6 +173,47 @@ namespace Kernel
 		kprintln("unrecognized command '{}'", arguments.Front());
 	}
 
+	static uint8_t GetLastLength(const BAN::String& string)
+	{
+		if (string.Empty())
+			return 0;
+		
+		if (!(string[string.Size() - 1] & 0x80))
+			return 1;
+		
+		if (string.Size() < 2)
+			return 1;
+
+		if (((uint8_t)string[string.Size() - 2] >> 5) == 0b110 &&
+			((uint8_t)string[string.Size() - 1] >> 6) == 0b10)
+		{
+			return 2;
+		}
+
+		if (string.Size() < 3)
+			return 1;
+
+		if (((uint8_t)string[string.Size() - 3] >> 4) == 0b1110 &&
+			((uint8_t)string[string.Size() - 2] >> 6) == 0b10 &&
+			((uint8_t)string[string.Size() - 1] >> 6) == 0b10)
+		{
+			return 3;
+		}
+
+		if (string.Size() < 4)
+			return 1;
+
+		if ((string[string.Size() - 4] >> 3) == 0b11110 &&
+			(string[string.Size() - 3] >> 6) == 0b10 &&
+			(string[string.Size() - 2] >> 6) == 0b10 &&
+			(string[string.Size() - 1] >> 6) == 0b10)
+		{
+			return 3;
+		}
+
+		return 1;
+	}
+
 	void Shell::KeyEventCallback(Keyboard::KeyEvent event)
 	{
 		if (!event.pressed)
@@ -184,7 +226,10 @@ namespace Kernel
 				if (!m_buffer.Empty())
 				{
 					kprint("\b \b", 3);
-					m_buffer.PopBack();
+					
+					uint8_t last_len = GetLastLength(m_buffer);
+					for (uint8_t i = 0; i < last_len; i++)
+						m_buffer.PopBack();
 				}
 				break;
 			}
@@ -200,21 +245,19 @@ namespace Kernel
 			}
 
 			case Keyboard::Key::Tab:
-				event.key = Keyboard::Key::Space;
-				// fall through
+				break;
 			
 			default:
 			{
-				char ascii = Keyboard::key_event_to_ascii(event);
-				if (ascii)
+				const char* utf8 = Keyboard::key_event_to_utf8(event);
+				if (utf8)
 				{
-					kprint("{}", ascii);
-					m_buffer.PushBack(ascii);
+					kprint("{}", utf8);
+					m_buffer.Append(utf8);
 				}
 				break;
 			}
 		}
 	}
-
 
 }
