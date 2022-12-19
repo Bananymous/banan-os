@@ -12,11 +12,7 @@
 	.long MB_MAGIC
 	.long MB_FLAGS
 	.long MB_CHECKSUM
-	.skip 4
-	.skip 4
-	.skip 4
-	.skip 4
-	.skip 4
+	.skip 20
 
 	.long 0
 	.long 800

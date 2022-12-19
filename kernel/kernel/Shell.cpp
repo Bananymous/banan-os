@@ -234,6 +234,10 @@ namespace Kernel
 				break;
 			}
 
+			case Keyboard::Key::Escape:
+				kprintln("time since boot {} ms", PIT::ms_since_boot());
+				break;
+
 			case Keyboard::Key::Tab:
 				break;
 			
