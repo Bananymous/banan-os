@@ -1,7 +1,7 @@
 #include <kernel/IDT.h>
 #include <kernel/IO.h>
 #include <kernel/kprint.h>
-#include <kernel/PIC.h>
+#include <kernel/APIC.h>
 
 #define IRQ_TIMER			0
 
@@ -28,7 +28,7 @@ namespace PIT
 
 	void clock_handle()
 	{
-		PIT::s_system_time++;
+		s_system_time++;
 	}
 
 	uint64_t ms_since_boot()
@@ -47,7 +47,7 @@ namespace PIT
 
 		IDT::register_irq_handler(IRQ_TIMER, clock_handle);
 
-		PIC::unmask(IRQ_TIMER);
+		APIC::EnableIRQ(IRQ_TIMER);
 	}
 
 }

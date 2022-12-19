@@ -1,3 +1,4 @@
+#include <kernel/APIC.h>
 #include <kernel/GDT.h>
 #include <kernel/IDT.h>
 #include <kernel/IO.h>
@@ -40,11 +41,9 @@ void kernel_main(multiboot_info_t* mbi, uint32_t magic)
 	}
 	TTY::initialize();
 
-	dprintln("{}", mbi->framebuffer.type);
-
 	kmalloc_initialize();
 
-	PIC::initialize();
+	APIC::Initialize();
 	gdt_initialize();
 	IDT::initialize();
 
@@ -52,11 +51,12 @@ void kernel_main(multiboot_info_t* mbi, uint32_t magic)
 	if (!Keyboard::initialize())
 		return;
 
-	kprintln("Hello from the kernel!");
-
 	ENABLE_INTERRUPTS();
 
+	kprintln("Hello from the kernel!");
+
 	auto& shell = Kernel::Shell::Get();
+
 	shell.Run();
 
 	for (;;)

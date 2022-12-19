@@ -1,9 +1,9 @@
 #include <BAN/Queue.h>
+#include <kernel/APIC.h>
 #include <kernel/IDT.h>
 #include <kernel/IO.h>
 #include <kernel/Keyboard.h>
 #include <kernel/kprint.h>
-#include <kernel/PIC.h>
 #include <kernel/PIT.h>
 #include <kernel/Serial.h>
 
@@ -449,7 +449,7 @@ namespace Keyboard
 
 		// Register callback and IRQ
 		IDT::register_irq_handler(KEYBOARD_IRQ, keyboard_irq_handler);
-		PIC::unmask(KEYBOARD_IRQ);
+		APIC::EnableIRQ(KEYBOARD_IRQ);
 
 		return true;
 	}

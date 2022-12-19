@@ -5,11 +5,12 @@
 namespace PIC
 {
 
-	void initialize();
-	void eoi(uint8_t);
-	void unmask(uint8_t);
-	void mask(uint8_t);
+	void Remap();
+	void MaskAll();
+	void EOI(uint8_t);
+	void Unmask(uint8_t);
+	void Mask(uint8_t);
 
-	uint16_t get_isr();
+	uint16_t GetISR();
 
 }

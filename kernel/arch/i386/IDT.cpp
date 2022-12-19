@@ -1,8 +1,9 @@
+#include <kernel/APIC.h>
 #include <kernel/IDT.h>
 #include <kernel/kmalloc.h>
 #include <kernel/panic.h>
-#include <kernel/PIC.h>
 #include <kernel/kprint.h>
+#include <kernel/Serial.h>
 
 union GateDescriptor
 {
@@ -33,12 +34,9 @@ struct IDTR
 } __attribute((packed));
 
 static IDTR				s_idtr;
-static GateDescriptor*	s_idt;
+static GateDescriptor	s_idt[0x100];
 
-static void (*s_irq_handlers[16])();
-
-extern "C" void handle_irq();
-extern "C" void handle_irq_common();
+static void (*s_irq_handlers[0xFF])() { nullptr };
 
 #define INTERRUPT_HANDLER(i, msg)												\
 	static void interrupt ## i ()												\
@@ -119,21 +117,17 @@ namespace IDT
 
 	void register_irq_handler(uint8_t irq, void (*f)())
 	{
-		s_irq_handlers[irq] = f;
+		s_irq_handlers[IRQ_VECTOR_BASE + irq] = f;
 		register_interrupt_handler(IRQ_VECTOR_BASE + irq, handle_irq_common);
 	}
 
 	void initialize()
 	{
-		constexpr size_t idt_size = 256;
-
-		s_idt = new GateDescriptor[idt_size];
-
 		s_idtr.offset = s_idt;
-		s_idtr.size = idt_size * 8;
+		s_idtr.size = sizeof(s_idt);
 
-		for (uint8_t i = 0xff; i > 0x10; i--)
-			register_interrupt_handler(i, unimplemented_trap);
+		for (uint8_t i = 0xFF; i > IRQ_VECTOR_BASE; i--)
+			register_irq_handler(i, nullptr);
 
 		REGISTER_HANDLER(0x00);
 		REGISTER_HANDLER(0x01);
@@ -145,16 +139,28 @@ namespace IDT
 		REGISTER_HANDLER(0x07);
 		REGISTER_HANDLER(0x08);
 		REGISTER_HANDLER(0x09);
-		REGISTER_HANDLER(0x0a);
-		REGISTER_HANDLER(0x0b);
-		REGISTER_HANDLER(0x0c);
-		REGISTER_HANDLER(0x0d);
-		REGISTER_HANDLER(0x0e);
-		REGISTER_HANDLER(0x0f);
+		REGISTER_HANDLER(0x0A);
+		REGISTER_HANDLER(0x0B);
+		REGISTER_HANDLER(0x0C);
+		REGISTER_HANDLER(0x0D);
+		REGISTER_HANDLER(0x0E);
+		REGISTER_HANDLER(0x0F);
 		REGISTER_HANDLER(0x10);
-
-		for (uint8_t i = 0; i < 16; i++)
-			register_irq_handler(i, nullptr);
+		REGISTER_HANDLER(0x11);
+		REGISTER_HANDLER(0x12);
+		REGISTER_HANDLER(0x13);
+		REGISTER_HANDLER(0x14);
+		REGISTER_HANDLER(0x15);
+		REGISTER_HANDLER(0x16);
+		REGISTER_HANDLER(0x17);
+		REGISTER_HANDLER(0x18);
+		REGISTER_HANDLER(0x19);
+		REGISTER_HANDLER(0x1A);
+		REGISTER_HANDLER(0x1B);
+		REGISTER_HANDLER(0x1C);
+		REGISTER_HANDLER(0x1D);
+		REGISTER_HANDLER(0x1E);
+		REGISTER_HANDLER(0x1F);
 
 		flush_idt();
 	}

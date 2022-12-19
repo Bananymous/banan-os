@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 
-constexpr uint8_t IRQ_VECTOR_BASE = 0x50;
+constexpr uint8_t IRQ_VECTOR_BASE = 0x20;
 
 namespace IDT
 {
