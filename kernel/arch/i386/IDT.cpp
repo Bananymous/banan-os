@@ -49,51 +49,93 @@ static void (*s_irq_handlers[0xFF])() { nullptr };
 		Kernel::panic(msg ", CR0={} CR2={} CR3={} CR4={}", cr0, cr2, cr3, cr4);	\
 	}
 
-INTERRUPT_HANDLER(0x00, "Divide error")
-INTERRUPT_HANDLER(0x01, "Debug exception")
-INTERRUPT_HANDLER(0x02, "Unknown error")
+INTERRUPT_HANDLER(0x00, "Division Error")
+INTERRUPT_HANDLER(0x01, "Debug")
+INTERRUPT_HANDLER(0x02, "Non-maskable Interrupt")
 INTERRUPT_HANDLER(0x03, "Breakpoint")
 INTERRUPT_HANDLER(0x04, "Overflow")
-INTERRUPT_HANDLER(0x05, "Bounds check")
-INTERRUPT_HANDLER(0x06, "Invalid opcode")
-INTERRUPT_HANDLER(0x07, "Coprocessor not available")
-INTERRUPT_HANDLER(0x08, "Double fault")
-INTERRUPT_HANDLER(0x09, "Coprocessor segment overrun")
-INTERRUPT_HANDLER(0x0a, "Invalid TSS")
-INTERRUPT_HANDLER(0x0b, "Segment not present")
-INTERRUPT_HANDLER(0x0c, "Stack exception")
-INTERRUPT_HANDLER(0x0d, "General protection fault")
-INTERRUPT_HANDLER(0x0e, "Page fault")
-INTERRUPT_HANDLER(0x0f, "Unknown error")
-INTERRUPT_HANDLER(0x10, "Coprocessor error")
+INTERRUPT_HANDLER(0x05, "Bound Range Exception")
+INTERRUPT_HANDLER(0x06, "Invalid Opcode")
+INTERRUPT_HANDLER(0x07, "Device Not Available")
+INTERRUPT_HANDLER(0x08, "Double Fault")
+INTERRUPT_HANDLER(0x09, "Coprocessor Segment Overrun")
+INTERRUPT_HANDLER(0x0A, "Invalid TSS")
+INTERRUPT_HANDLER(0x0B, "Segment Not Present")
+INTERRUPT_HANDLER(0x0C, "Stack-Segment Fault")
+INTERRUPT_HANDLER(0x0D, "Stack-Segment Fault")
+INTERRUPT_HANDLER(0x0E, "Page Fault")
+INTERRUPT_HANDLER(0x0F, "Unknown Exception 0x0F")
+INTERRUPT_HANDLER(0x10, "x87 Floating-Point Exception")
+INTERRUPT_HANDLER(0x11, "Alignment Check")
+INTERRUPT_HANDLER(0x12, "Machine Check")
+INTERRUPT_HANDLER(0x13, "SIMD Floating-Point Exception")
+INTERRUPT_HANDLER(0x14, "Virtualization Exception")
+INTERRUPT_HANDLER(0x15, "Control Protection Exception")
+INTERRUPT_HANDLER(0x16, "Unknown Exception 0x16")
+INTERRUPT_HANDLER(0x17, "Unknown Exception 0x17")
+INTERRUPT_HANDLER(0x18, "Unknown Exception 0x18")
+INTERRUPT_HANDLER(0x19, "Unknown Exception 0x19")
+INTERRUPT_HANDLER(0x1A, "Unknown Exception 0x1A")
+INTERRUPT_HANDLER(0x1B, "Unknown Exception 0x1B")
+INTERRUPT_HANDLER(0x1C, "Hypervisor Injection Exception")
+INTERRUPT_HANDLER(0x1D, "VMM Communication Exception")
+INTERRUPT_HANDLER(0x1E, "Security Exception")
+INTERRUPT_HANDLER(0x1F, "Unkown Exception 0x1F")
+
 
 #define REGISTER_HANDLER(i) register_interrupt_handler(i, interrupt ## i)
 
-void handle_irq()
+extern "C" void handle_irq()
 {
-    uint16_t isr = PIC::get_isr();
-    if (!isr) {
-        //kprint("Spurious IRQ\n");
-        return;
-    }
+	uint32_t isr[8];
+	APIC::GetISR(isr);
 
-    uint8_t irq = 0;
-    for (uint8_t i = 0; i < 16; ++i) {
-        if (i == 2)
-            continue;
-        if (isr & (1 << i)) {
-            irq = i;
-            break;
-        }
-    }
+	uint8_t irq = 0;
+	for (uint8_t i = 0; i < 8; i++)
+	{
+		for (uint8_t j = 0; j < 32; j++)
+		{
+			if (isr[i] & ((uint32_t)1 << j))
+			{
+				irq = 32 * i + j;
+				goto found;
+			}
+		}
+	}
+
+found:
+	if (irq == 0)
+	{
+		dprintln("Spurious irq");
+		return;	
+	}
 
     if (s_irq_handlers[irq])
         s_irq_handlers[irq]();
 	else
-		kprint("no handler for irq {}\n", irq);
+		Kernel::panic("no handler for irq 0x{2H}\n", irq);
 
-    PIC::eoi(irq);
+	APIC::EOI();
 }
+
+extern "C" void handle_irq_common();
+asm(
+".globl handle_irq_common;"
+"handle_irq_common:"
+	"pusha;"
+	"pushw %ds;"
+	"pushw %es;"
+	"pushw %ss;"
+	"pushw %ss;"
+	"popw %ds;"
+	"popw %es;"
+	"call handle_irq;"
+	"popw %es;"
+	"popw %ds;"
+	"popa;"
+	"iret;"
+);
+
 
 namespace IDT
 {
