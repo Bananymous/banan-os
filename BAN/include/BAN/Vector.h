@@ -28,6 +28,8 @@ namespace BAN
 		void PopBack();
 		void Remove(size_type);
 
+		bool Has(const T&) const;
+
 		const T& operator[](size_type) const;
 		T& operator[](size_type);
 
@@ -104,6 +106,15 @@ namespace BAN
 		m_data[index].~T();
 		memmove(m_data + index, m_data + index + 1, (m_size - index - 1) * sizeof(T));
 		m_size--;
+	}
+
+	template<typename T>
+	bool Vector<T>::Has(const T& other) const
+	{
+		for (size_type i = 0; i < m_size; i++)
+			if (m_data[i] == other)
+				return true;
+		return false;
 	}
 	
 	template<typename T>
