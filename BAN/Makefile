@@ -16,7 +16,7 @@ LIBDIR?=$(EXEC_PREFIX)/lib
 CFLAGS:=$(CFLAGS) -Iinclude -ffreestanding -Wall -Wextra
 CPPFLAGS:=$(CPPFLAGS)
 LIBBANK_CFLAGS:=$(CFLAGS) -D__is_kernel -Iinclude -ffreestanding -Wall -Wextra
-LIBBANK_CPPFLAGS:=$(CPPFLAGS) -fno-rtti -fno-exceptions
+LIBBANK_CPPFLAGS:=$(CPPFLAGS) -fno-rtti -fno-exceptions -fno-threadsafe-statics
  
 ARCHDIR=arch/$(HOSTARCH)
  

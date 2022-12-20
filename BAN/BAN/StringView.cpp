@@ -64,12 +64,19 @@ namespace BAN
 
 	ErrorOr<Vector<StringView>> StringView::Split(char delim, bool allow_empties)
 	{
+		// FIXME: Won't work while multithreading
+		static char s_delim = delim;
+		return Split([](char c){ return c == s_delim; }, allow_empties);
+	}
+
+	ErrorOr<Vector<StringView>> StringView::Split(bool(*comp)(char), bool allow_empties)
+	{
 		size_type count = 0;
 		{
 			size_type start = 0;
 			for (size_type i = 0; i < m_size; i++)
 			{
-				if (m_data[i] == delim)
+				if (comp(m_data[i]))
 				{
 					if (allow_empties || start != i)
 						count++;
@@ -86,7 +93,7 @@ namespace BAN
 		size_type start = 0;
 		for (size_type i = 0; i < m_size; i++)
 		{
-			if (m_data[i] == delim)
+			if (comp(m_data[i]))
 			{
 				if (allow_empties || start != i)
 					result.PushBack(this->Substring(start, i - start));
