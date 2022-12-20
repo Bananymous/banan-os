@@ -141,9 +141,9 @@ namespace BAN
 
 	bool String::operator==(const char* other) const
 	{
-		if (m_size != strlen(other))
+		if (memcmp(m_data, other, m_size))
 			return false;
-		return memcmp(m_data, other, m_size) == 0;
+		return other[m_size] == '\0';
 	}
 
 	ErrorOr<void> String::Resize(size_type size, char ch)
