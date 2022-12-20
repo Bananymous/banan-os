@@ -10,10 +10,19 @@
 #include <stdint.h>
 #include <string.h>
 
+#define DEGUB_PRINT 0
+
+#define IA32_APIC_BASE 0x1B
+#define IA32_APIC_BASE_ENABLE (1 << 11)
+
 namespace APIC
 {
 
 	static bool s_using_fallback_pic = false;
+
+	static uint8_t s_processor_ids[0x100]	{ };
+	static uint8_t s_lapic_ids[0x100]		{ };
+	static uint8_t s_lapic_count	= 0;
 
 	static uint32_t s_local_apic	= 0;
 	static uint32_t s_io_apic		= 0;
@@ -78,24 +87,49 @@ namespace APIC
 		{
 			struct
 			{
-				uint8_t processor_id;
+				uint8_t acpi_processor_id;
 				uint8_t apic_id;
 				uint32_t flags;
-			} __attribute__((packed)) lapic;
+			} __attribute__((packed)) entry0;
 			struct
 			{
 				uint8_t ioapic_id;
 				uint8_t reserved;
 				uint32_t ioapic_address;
 				uint32_t gsi_base;
-			} __attribute__((packed)) ioapic;
+			} __attribute__((packed)) entry1;
 			struct
 			{
 				uint8_t bus_source;
 				uint8_t irq_source;
 				uint32_t gsi;
 				uint16_t flags;
-			} __attribute__((packed)) interrupt_source_override;	
+			} __attribute__((packed)) entry2;
+			struct
+			{
+				uint8_t nmi_source;
+				uint8_t reserved;
+				uint16_t flags;
+				uint32_t gsi;
+			} __attribute__((packed)) entry3;
+			struct
+			{
+				uint8_t acpi_processor_id;
+				uint16_t flags;
+				uint8_t lint;
+			} __attribute__((packed)) entry4;
+			struct
+			{
+				uint16_t reserved;
+				uint64_t address;
+			} __attribute__((packed)) entry5;
+			struct
+			{
+				uint16_t reserved;
+				uint32_t local_x2acpi_id;
+				uint32_t flags;
+				uint32_t acpi_id;
+			} __attribute__((packed)) entry9;
 		};
 	} __attribute__((packed));
 	
@@ -126,6 +160,7 @@ namespace APIC
 	static void WriteLocalAPIC(uint32_t offset, uint32_t value);
 	static uint32_t ReadIOAPIC(uint8_t reg);
 	static void WriteIOAPIC(uint8_t reg, uint32_t value);
+	static void SetMSR(uint32_t msr, uint32_t lo, uint32_t hi);
 
 
 	static bool IsRSDP(RSDPDescriptor* rsdp)
@@ -172,13 +207,14 @@ namespace APIC
 		return sum == 0;
 	}
 
-	template<typename SDT>
-	static void GetAPIC(SDT* root)
+	static void ParseMADT(RSDPDescriptor* rsdp)
 	{
-		uint32_t sdt_entry_count = (root->header.length - sizeof(root->header)) / sizeof(*(root->sdt_pointer));
+		RSDT* root = (RSDT*)(rsdp->revision == 2 ? ((RSDPDescriptor20*)rsdp)->xsdt_address : rsdp->rsdt_address);
+		uint32_t sdt_entry_count = (root->header.length - sizeof(root->header)) / (rsdp->revision == 2 ? 8 : 4);
+
 		for (uint32_t i = 0; i < sdt_entry_count; i++)
 		{
-			ACPISDTHeader* header = (ACPISDTHeader*)root->sdt_pointer[i];
+			ACPISDTHeader* header = (ACPISDTHeader*)(rsdp->revision == 2 ? ((uint64_t*)root->sdt_pointer)[i] : root->sdt_pointer[i]);
 			if (!IsValidACPISDTHeader(header))
 				continue;
 			if (memcmp(header->signature, "APIC", 4) == 0)
@@ -189,22 +225,76 @@ namespace APIC
 				while (entry_addr < (uint32_t)madt + madt->header.length)
 				{
 					MADTEntry* entry = (MADTEntry*)entry_addr;
-
 					switch (entry->type)
 					{
 						case 0:
-							//s_processor_id = entry->lapic.processor_id;
-							kprintln("Processor {} ({})", entry->lapic.processor_id, entry->lapic.apic_id);
+							s_processor_ids[s_lapic_count] = entry->entry0.acpi_processor_id;
+							s_lapic_ids[s_lapic_count] = entry->entry0.apic_id;
+							s_lapic_count++;
+#if DEBUG_PRINT
+							//kprintln("Entry0, processor id {}, apic id {}, flags 0b{32b}",
+							//	entry->entry0.acpi_processor_id,
+							//	entry->entry0.apic_id,
+							//	entry->entry0.flags
+							//);
+#endif
 							break;
 						case 1:
 							if (s_io_apic == 0)
-								s_io_apic = entry->ioapic.ioapic_address;
-							kprintln("IOAPIC #{}", entry->ioapic.ioapic_id);
-							kprintln("  addr:     {}", (void*)entry->ioapic.ioapic_address);
-							kprintln("  gsi base: {} ({})", entry->ioapic.gsi_base, (uint8_t)((ReadIOAPIC(0x01) >> 16) + 1));
+								s_io_apic = entry->entry1.ioapic_address;
+#if DEBUG_PRINT
+							kprintln("Entry1, io apic id {}, io apic address 0x{4H}, gsi base {}",
+								entry->entry1.ioapic_id,
+								entry->entry1.ioapic_address,
+								entry->entry1.gsi_base
+							);
+#endif
 							break;
 						case 2:
-							s_overrides[entry->interrupt_source_override.irq_source] = entry->interrupt_source_override.gsi;
+							s_overrides[entry->entry2.irq_source] = entry->entry2.gsi;
+#if DEBUG_PRINT
+							kprintln("Entry2, bus source {}, irq source {}, gsi {}, flags 0b{16b}",
+								entry->entry2.bus_source,
+								entry->entry2.irq_source,
+								entry->entry2.gsi,
+								entry->entry2.flags
+							);
+#endif
+							break;
+						case 3:
+#if DEBUG_PRINT
+							kprintln("Entry3, nmi source {}, flags 0b{16b}, gsi {}",
+								entry->entry3.nmi_source,
+								entry->entry3.flags,
+								entry->entry3.gsi
+							);
+#endif
+							break;
+						case 4:
+#if DEBUG_PRINT
+							kprintln("Entry4, acpi processor id 0x{2H}, flags 0b{16b}, lint{}",
+								entry->entry4.acpi_processor_id,
+								entry->entry4.flags,
+								entry->entry4.lint
+							);
+#endif
+							break;
+						case 5:
+							s_local_apic = entry->entry5.address;
+#if DEBUG_PRINT
+							kprintln("Entry5, address 0x{4H}",
+								entry->entry5.address
+							);
+#endif
+							break;
+						case 9:
+#if DEBUG_PRINT
+							kprintln("Entry9, x2 acpi id {}, flags 0b{32b}, acpi id {}",
+								entry->entry9.local_x2acpi_id,
+								entry->entry9.flags,
+								entry->entry9.acpi_id
+							);
+#endif
 							break;
 						default:
 							break;
@@ -214,7 +304,6 @@ namespace APIC
 			}
 		}
 	}
-
 
 	static uint32_t ReadLocalAPIC(uint32_t offset)
 	{
@@ -241,6 +330,11 @@ namespace APIC
 		volatile uint32_t* ioapic = (volatile uint32_t*)s_io_apic;
 		ioapic[0] = reg;
 		ioapic[4] = value;
+	}
+
+	static void SetMSR(uint32_t msr, uint32_t lo, uint32_t hi)
+	{
+		asm volatile("wrmsr" : : "a"(lo), "d"(hi), "c"(msr));
 	}
 
 	static bool InitializeAPIC()
@@ -271,19 +365,14 @@ namespace APIC
 			return false;
 		}
 
-		if (rsdp->revision == 2)
-		{
-			GetAPIC<XSDT>((XSDT*)((RSDPDescriptor20*)rsdp)->xsdt_address);
-		}
-		else
-		{
-			GetAPIC<RSDT>((RSDT*)rsdp->rsdt_address);
-		}
+		ParseMADT(rsdp);
 
 		if (s_local_apic == 0 || s_io_apic == 0)
 			return false;
 
 		// Enable Local APIC
+		SetMSR(IA32_APIC_BASE, (s_local_apic & 0xFFFFF000) | IA32_APIC_BASE_ENABLE, 0);
+
 		uint32_t sipi = ReadLocalAPIC(0xF0);
 		WriteIOAPIC(0xF0, sipi | 0x1FF);
 
@@ -339,9 +428,7 @@ namespace APIC
 
 		redir.vector = IRQ_VECTOR_BASE + irq;
 		redir.mask = 0;
-		redir.destination = ReadLocalAPIC(0x20);
-
-		kprintln("register irq {2} -> {2} @ apic {}", irq, gsi, redir.destination);
+		redir.destination = s_lapic_ids[0];
 
 		WriteIOAPIC(0x10 + gsi * 2,     redir.lo_dword);
 		WriteIOAPIC(0x10 + gsi * 2 + 1, redir.hi_dword);
