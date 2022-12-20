@@ -40,6 +40,7 @@ class ErrorOr
 public:
 	ErrorOr(const T& value)		: m_has_error(false)	{ m_data = (void*)new T(value); }
 	ErrorOr(const Error& error) : m_has_error(true)		{ m_data = (void*)new Error(error); }
+	template<typename S> ErrorOr(const ErrorOr<S>& other) : ErrorOr(other.GetError()) {}
 	~ErrorOr()											{ IsError() ? (delete reinterpret_cast<Error*>(m_data)) : (delete reinterpret_cast<T*>(m_data)); }
 
 	bool IsError() const			{ return m_has_error; }

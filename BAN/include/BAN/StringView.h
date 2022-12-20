@@ -24,7 +24,7 @@ namespace BAN
 
 		StringView Substring(size_type, size_type = -1) const;
 
-		Vector<StringView> Split(char, bool = false);
+		ErrorOr<Vector<StringView>> Split(char, bool = false);
 
 		size_type Count(char) const;
 

@@ -228,7 +228,7 @@ namespace Kernel
 			case Keyboard::Key::NumpadEnter:
 			{
 				kprint("\n");
-				ProcessCommand(m_buffer.SV().Split(' '));
+				ProcessCommand(MUST(m_buffer.SV().Split(' ')));
 				m_buffer.Clear();
 				PrintPrompt();
 				break;

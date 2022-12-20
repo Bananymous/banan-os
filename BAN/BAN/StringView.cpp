@@ -62,9 +62,27 @@ namespace BAN
 		return result;
 	}
 
-	Vector<StringView> StringView::Split(char delim, bool allow_empties)
+	ErrorOr<Vector<StringView>> StringView::Split(char delim, bool allow_empties)
 	{
+		size_type count = 0;
+		{
+			size_type start = 0;
+			for (size_type i = 0; i < m_size; i++)
+			{
+				if (m_data[i] == delim)
+				{
+					if (allow_empties || start != i)
+						count++;
+					start = i + 1;
+				}
+			}
+			if (start != m_size)
+				count++;
+		}
+
 		Vector<StringView> result;
+		TRY(result.Reserve(count));
+
 		size_type start = 0;
 		for (size_type i = 0; i < m_size; i++)
 		{
