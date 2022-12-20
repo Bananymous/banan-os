@@ -11,5 +11,8 @@ cat > isodir/boot/grub/grub.cfg << EOF
 menuentry "banan-os" {
 	multiboot /boot/banan-os.kernel
 }
+menuentry "banan-os (no apic)" {
+	multiboot /boot/banan-os.kernel noapic
+}
 EOF
 grub-mkrescue -o banan-os.iso isodir

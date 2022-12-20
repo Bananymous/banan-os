@@ -379,7 +379,7 @@ namespace APIC
 		return true;
 	}
 
-	void Initialize()
+	void Initialize(bool force_pic)
 	{
 		for (uint32_t i = 0x00; i <= 0xFF; i++)
 			s_overrides[i] = i;
@@ -387,7 +387,12 @@ namespace APIC
 		PIC::MaskAll();
 		PIC::Remap();
 
-		if (!InitializeAPIC())
+		if (force_pic)
+		{
+			kprintln("Using PIC instead of APIC");
+			s_using_fallback_pic = true;
+		}
+		else if (!InitializeAPIC())
 		{
 			kprintln("Could not initialize APIC. Using PIC as fallback");
 			s_using_fallback_pic = true;

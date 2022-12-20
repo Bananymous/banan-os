@@ -1,3 +1,5 @@
+#include <BAN/StringView.h>
+#include <BAN/Vector.h>
 #include <kernel/APIC.h>
 #include <kernel/GDT.h>
 #include <kernel/IDT.h>
@@ -18,10 +20,26 @@
 #define DISABLE_INTERRUPTS() asm volatile("cli")
 #define ENABLE_INTERRUPTS() asm volatile("sti")
 
+
 multiboot_info_t* s_multiboot_info;
 
-extern "C"
-void kernel_main(multiboot_info_t* mbi, uint32_t magic)
+using namespace BAN;
+
+struct ParsedCommandLine
+{
+	bool force_pic = false;
+};
+
+ParsedCommandLine ParseCommandLine(const char* command_line)
+{
+	auto args = MUST(StringView(command_line).Split([](char c) { return c == ' ' || c == '\t'; }));
+	
+	ParsedCommandLine result;
+	result.force_pic = args.Has("noapic");
+	return result;
+}
+
+extern "C" void kernel_main(multiboot_info_t* mbi, uint32_t magic)
 {
 	DISABLE_INTERRUPTS();
 
@@ -43,7 +61,12 @@ void kernel_main(multiboot_info_t* mbi, uint32_t magic)
 
 	kmalloc_initialize();
 
-	APIC::Initialize();
+
+	ParsedCommandLine cmdline;
+	if (mbi->flags & 0x02)
+		cmdline = ParseCommandLine((const char*)mbi->cmdline);
+
+	APIC::Initialize(cmdline.force_pic);
 	gdt_initialize();
 	IDT::initialize();
 
