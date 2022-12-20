@@ -25,10 +25,11 @@ namespace VESA
 		BRIGHT_WHITE = 15,
 	};
 
-	bool Initialize();
+	bool PreInitialize();
+	void Initialize();
 	void PutEntryAt(uint16_t, uint32_t, uint32_t, Color, Color);
 	void Clear(Color);
-	void ScrollLine(uint32_t line);
+	void Scroll();
 
 	uint32_t GetTerminalWidth();
 	uint32_t GetTerminalHeight();

@@ -325,8 +325,7 @@ namespace TTY
 
 		while (terminal_row >= terminal_height)
 		{
-			for (size_t line = 1; line < terminal_height; line++)
-				VESA::ScrollLine(line);
+			VESA::Scroll();
 			clear_line(terminal_height - 1);
 
 			terminal_col = 0;

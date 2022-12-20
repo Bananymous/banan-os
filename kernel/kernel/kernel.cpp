@@ -33,7 +33,7 @@ struct ParsedCommandLine
 ParsedCommandLine ParseCommandLine(const char* command_line)
 {
 	auto args = MUST(StringView(command_line).Split([](char c) { return c == ' ' || c == '\t'; }));
-	
+
 	ParsedCommandLine result;
 	result.force_pic = args.Has("noapic");
 	return result;
@@ -52,7 +52,7 @@ extern "C" void kernel_main(multiboot_info_t* mbi, uint32_t magic)
 
 	s_multiboot_info = mbi;
 
-	if (!VESA::Initialize())
+	if (!VESA::PreInitialize())
 	{
 		dprintln("Could not initialize VESA");
 		return;
@@ -61,6 +61,7 @@ extern "C" void kernel_main(multiboot_info_t* mbi, uint32_t magic)
 
 	kmalloc_initialize();
 
+	VESA::Initialize();
 
 	ParsedCommandLine cmdline;
 	if (mbi->flags & 0x02)

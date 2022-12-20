@@ -1,8 +1,12 @@
+#include <kernel/kmalloc.h>
 #include <kernel/multiboot.h>
+#include <kernel/panic.h>
 #include <kernel/Serial.h>
 #include <kernel/VESA.h>
 
 #include "font.h"
+
+#include <string.h>
 
 #define MULTIBOOT_FLAGS_FRAMEBUFFER (1 << 12)
 #define MULTIBOOT_FRAMEBUFFER_TYPE_GRAPHICS 1
@@ -14,6 +18,7 @@ extern const struct bitmap_font font;
 
 namespace VESA
 {
+	static void*	s_buffer	= nullptr;
 	static void*	s_addr		= nullptr;
 	static uint8_t	s_bpp		= 0;
 	static uint32_t s_pitch		= 0;
@@ -23,11 +28,11 @@ namespace VESA
 
 	static void GraphicsPutCharAt(uint16_t ch, uint32_t x, uint32_t y, Color fg, Color bg);
 	static void GraphicsClear(Color color);
-	static void GraphicsScrollLine(uint32_t line);
+	static void GraphicsScroll();
 
 	static void TextPutCharAt(uint16_t ch, uint32_t x, uint32_t y, Color fg, Color bg);
 	static void TextClear(Color color);
-	static void TextScrollLine(uint32_t line);
+	static void TextScroll();
 
 	void PutEntryAt(uint16_t ch, uint32_t x, uint32_t y, Color fg, Color bg)
 	{
@@ -49,14 +54,12 @@ namespace VESA
 			return TextClear(color);
 	}
 
-	void ScrollLine(uint32_t line)
+	void Scroll()
 	{
-		if (line == 0 || line >= s_height)
-			return;
 		if (s_mode == MULTIBOOT_FRAMEBUFFER_TYPE_GRAPHICS)
-			return GraphicsScrollLine(line);
+			return GraphicsScroll();
 		if (s_mode == MULTIBOOT_FRAMEBUFFER_TYPE_TEXT)
-			return TextScrollLine(line);
+			return TextScroll();
 	}
 
 	uint32_t GetTerminalWidth()
@@ -77,7 +80,7 @@ namespace VESA
 		return 0;
 	}
 
-	bool Initialize()
+	bool PreInitialize()
 	{
 		if (!(s_multiboot_info->flags & MULTIBOOT_FLAGS_FRAMEBUFFER))
 			return false;
@@ -114,6 +117,18 @@ namespace VESA
 		return false;
 	}
 
+	void Initialize()
+	{
+		if (s_mode == MULTIBOOT_FRAMEBUFFER_TYPE_GRAPHICS)
+		{
+			s_buffer = kmalloc_eternal(s_height * s_pitch);
+			if (s_buffer == nullptr)
+				kprintln("Could not allocate a buffer for VESA");
+			else
+				memcpy(s_buffer, s_addr, s_height * s_pitch);
+		}
+	}
+
 
 
 
@@ -138,29 +153,37 @@ namespace VESA
 		0x00'FF'FF'FF,
 	};
 
-	static void GraphicsSetPixel(uint32_t* address, uint32_t color)
+	static void GraphicsSetPixel(uint32_t offset, uint32_t color)
 	{
-		switch (s_bpp)
+		uint32_t* address = (uint32_t*)((uint32_t)s_addr + offset);
+		
+		if (s_buffer)
 		{
-			case 24:
-				*address = (*address & 0xFF000000) | (color & 0x00FFFFFF);
-				break;
-			case 32:
-				*address = color;
-				break;
+			uint32_t* buffer = (uint32_t*)((uint32_t)s_buffer + offset);
+			switch (s_bpp)
+			{
+				case 24:
+					*buffer = (*buffer & 0xFF000000) | (color & 0x00FFFFFF);
+					*address = *buffer;
+					break;
+				case 32:
+					*buffer = color;
+					*address = color;
+					break;
+			}
 		}
-	}
-
-	static uint32_t GraphicsGetPixel(uint32_t* address)
-	{
-		switch (s_bpp)
+		else
 		{
-			case 24:
-				return *address & 0x00FFFFFF;
-			case 32:
-				return *address;
+			switch (s_bpp)
+			{
+				case 24:
+					*address = (*address & 0xFF000000) | (color & 0x00FFFFFF);
+					break;
+				case 32:
+					*address = color;
+					break;
+			}
 		}
-		return 0;
 	}
 
 	static void GraphicsPutCharAt(uint16_t ch, uint32_t x, uint32_t y, Color fg, Color bg)
@@ -184,58 +207,90 @@ namespace VESA
 		uint32_t fx = x * font.Width;
 		uint32_t fy = y * font.Height;
 
-		uint32_t row_addr = (uint32_t)s_addr + (fy * s_pitch) + (fx * (s_bpp / 8));
+		uint32_t row_offset = (fy * s_pitch) + (fx * (s_bpp / 8));
 		for (uint32_t gy = 0; gy < font.Height; gy++)
 		{
 			if (fy + gy >= s_height) break;
-			uint32_t pixel_addr = row_addr;
+			uint32_t pixel_offset = row_offset;
 			for (uint32_t gx = 0; gx < font.Width; gx++)
 			{
 				if (fx + gx >= s_width) break;
-				GraphicsSetPixel((uint32_t*)pixel_addr, (glyph[gy] & (1 << (font.Width - gx - 1))) ? u32_fg : u32_bg);
-				pixel_addr += s_bpp / 8;
+				GraphicsSetPixel(pixel_offset, (glyph[gy] & (1 << (font.Width - gx - 1))) ? u32_fg : u32_bg);
+				pixel_offset += s_bpp / 8;
 			}
-			row_addr += s_pitch;
+			row_offset += s_pitch;
 		}
 	}
 
 	static void GraphicsClear(Color color)
 	{
 		uint32_t u32_color = s_graphics_colors[(uint8_t)color];
-		uint32_t row_addr = (uint32_t)s_addr;
 
+		if (s_bpp == 32)
+		{
+			uint32_t bytes_per_row = s_pitch / (s_bpp / 8);
+			for (uint32_t y = 0; y < s_height; y++)
+				for (uint32_t x = 0; x < s_width; x++)
+					((uint32_t*)s_addr)[y * bytes_per_row + x] = u32_color;
+			if (s_buffer)
+				for (uint32_t y = 0; y < s_height; y++)
+					for (uint32_t x = 0; x < s_width; x++)
+						((uint32_t*)s_buffer)[y * bytes_per_row + x] = u32_color;
+			return;
+		}
+
+		uint32_t row_offset = 0;
 		for (uint32_t y = 0; y < s_height; y++)
 		{
-			uint32_t pixel_addr = row_addr;
+			uint32_t pixel_offset = row_offset;
 			for (uint32_t x = 0; x < s_width; x++)
 			{
-				GraphicsSetPixel((uint32_t*)pixel_addr, u32_color);
-				pixel_addr += s_bpp / 8;
+				GraphicsSetPixel(pixel_offset, u32_color);
+				pixel_offset += s_bpp / 8;
 			}
-			row_addr += s_pitch;
+			row_offset += s_pitch;
 		}
 	}
 
-	static void GraphicsScrollLine(uint32_t line)
+	static void GraphicsScroll()
 	{
-		if (line >= s_height / font.Height)
-			return;
-
-		uint32_t row_out = (uint32_t)s_addr + (line - 1) * font.Height * s_pitch;
-		uint32_t row_in  = (uint32_t)s_addr + (line - 0) * font.Height * s_pitch;
-
-		for (uint32_t y = 0; y < font.Height; y++)
+		if (s_bpp == 32)
 		{
-			uint32_t pixel_out = row_out;
-			uint32_t pixel_in  = row_in;
-			for (uint32_t x = 0; x < s_width; x++)
+			uint32_t bytes_per_row = s_pitch / (s_bpp / 8);
+			for (uint32_t y = 0; y < s_height - font.Height; y++)
 			{
-				GraphicsSetPixel((uint32_t*)pixel_out, GraphicsGetPixel((uint32_t*)pixel_in));
-				pixel_out += s_bpp / 8;
-				pixel_in  += s_bpp / 8;
+				for (uint32_t x = 0; x < s_width; x++)
+				{
+					if (s_buffer)
+					{
+						((uint32_t*)s_buffer)[y * bytes_per_row + x] = ((uint32_t*)s_buffer)[(y + font.Height) * bytes_per_row + x];
+						((uint32_t*)s_addr  )[y * bytes_per_row + x] = ((uint32_t*)s_buffer)[(y + font.Height) * bytes_per_row + x];
+					}
+					else
+					{
+						((uint32_t*)s_addr  )[y * bytes_per_row + x] = ((uint32_t*)s_addr  )[(y + font.Height) * bytes_per_row + x];
+					}
+				}
 			}
-			row_out += s_pitch;
-			row_in  += s_pitch;
+			return;
+		}
+
+		uint32_t row_offset_out = 0;
+		uint32_t row_offset_in  = font.Height * s_pitch;
+
+		for (uint32_t y = 0; y < s_height - 1; y++)
+		{
+			if (s_buffer)
+			{
+				memcpy((void*)((uint32_t)s_buffer + row_offset_out), (void*)((uint32_t)s_buffer + row_offset_in), s_width * s_bpp);
+				memcpy((void*)((uint32_t)s_addr   + row_offset_out), (void*)((uint32_t)s_buffer + row_offset_in), s_width * s_bpp);
+			}
+			else
+			{
+				memcpy((void*)((uint32_t)s_addr   + row_offset_out), (void*)((uint32_t)s_addr + row_offset_in), s_width * s_bpp);
+			}
+			row_offset_out += s_pitch;
+			row_offset_in  += s_pitch;
 		}
 	}
 
@@ -266,13 +321,16 @@ namespace VESA
 				TextPutCharAt(' ', x, y, Color::BRIGHT_WHITE, color);
 	}
 
-	static void TextScrollLine(uint32_t line)
+	static void TextScroll()
 	{
-		for (uint32_t x = 0; x < s_width; x++)
+		for (uint32_t y = 1; y < s_height; y++)
 		{
-			uint32_t index1 = (line - 0) * s_width + x;
-			uint32_t index2 = (line - 1) * s_width + x;
-			((uint16_t*)s_addr)[index2] = ((uint16_t*)s_addr)[index1];
+			for (uint32_t x = 0; x < s_width; x++)
+			{
+				uint32_t index1 = (y - 0) * s_width + x;
+				uint32_t index2 = (y - 1) * s_width + x;
+				((uint16_t*)s_addr)[index2] = ((uint16_t*)s_addr)[index1];
+			}
 		}
 	}
 

@@ -7,6 +7,10 @@
 
 #define MB (1 << 20)
 
+
+/*
+	#### KMALLOC ################
+*/
 struct kmalloc_node
 {
 	uint8_t* addr = nullptr;
@@ -25,6 +29,17 @@ static uint8_t* const s_kmalloc_end = s_kmalloc_base + s_kmalloc_size;
 
 static size_t s_kmalloc_available = 0;
 static size_t s_kmalloc_allocated = 0;
+/*
+	#### KMALLOC ETERNAL ########
+*/
+static uint8_t* s_kmalloc_eternal_ptr = nullptr;
+
+static uint8_t* const s_kmalloc_eternal_base = s_kmalloc_end;
+static constexpr size_t s_kmalloc_eternal_size = 2 * MB;
+static uint8_t* const s_kmalloc_eternal_end = s_kmalloc_eternal_base + s_kmalloc_eternal_size;
+/*
+	#############################
+*/
 
 void kmalloc_initialize()
 {
@@ -39,7 +54,7 @@ void kmalloc_initialize()
 
 		if (mmmt->type == 1)
 		{
-			if (mmmt->base_addr <= (uint64_t)s_kmalloc_base && (uint64_t)s_kmalloc_end <= mmmt->base_addr + mmmt->length)
+			if (mmmt->base_addr <= (uint64_t)s_kmalloc_base && (uint64_t)s_kmalloc_eternal_end <= mmmt->base_addr + mmmt->length)
 			{
 				dprintln("Total usable RAM: {} MB", (float)mmmt->length / MB);
 				valid = true;
@@ -51,7 +66,7 @@ void kmalloc_initialize()
 	}
 
 	if (!valid)
-		Kernel::panic("Kmalloc: Could not find 1 MB of memory");
+		Kernel::panic("Kmalloc: Could not find {} MB of memory", (double)(s_kmalloc_eternal_end - s_kmalloc_base));
 
 	s_kmalloc_node_count = 1;
 	s_kmalloc_node_head = (kmalloc_node*)s_kmalloc_node_base;
@@ -63,6 +78,8 @@ void kmalloc_initialize()
 	head.addr = s_kmalloc_base;
 	head.size = s_kmalloc_size;
 	head.free = true;
+
+	s_kmalloc_eternal_ptr = s_kmalloc_eternal_base;
 }
 
 void kmalloc_dump_nodes()
@@ -75,6 +92,19 @@ void kmalloc_dump_nodes()
 		kmalloc_node& node = s_kmalloc_node_head[i];
 		dprintln(" ({3}) {}, node at {}, free: {}, size: {}", i, (void*)&node, (void*)node.addr, node.free, node.size);
 	}
+}
+
+void* kmalloc_eternal(size_t size)
+{
+	if (s_kmalloc_eternal_ptr + size > s_kmalloc_eternal_end)
+	{
+		dprintln("\e[33mKmalloc eternal: Could not allocate {} bytes\e[0m", size);
+		return nullptr;
+	}
+	
+	void* result = (void*)s_kmalloc_eternal_ptr;
+	s_kmalloc_eternal_ptr += size;
+	return result;
 }
 
 void* kmalloc(size_t size)
