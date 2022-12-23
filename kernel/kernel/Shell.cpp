@@ -7,7 +7,7 @@
 #include <kernel/RTC.h>
 #include <kernel/Shell.h>
 #include <kernel/Serial.h>
-#include <kernel/tty.h>
+#include <kernel/TTY.h>
 
 namespace Kernel
 {
@@ -30,6 +30,11 @@ namespace Kernel
 	void Shell::PrintPrompt()
 	{
 		kprint("\e[32muser\e[m# ");
+	}
+
+	void Shell::SetTTY(TTY* tty)
+	{
+		m_tty = tty;
 	}
 
 	void Shell::Run()
@@ -78,8 +83,8 @@ namespace Kernel
 				kprintln("'clear' does not support command line arguments");
 				return;	
 			}
-			TTY::clear();
-			TTY::set_cursor_pos(0, 0);
+			m_tty->Clear();
+			m_tty->SetCursorPos(0, 0);
 			return;
 		}
 

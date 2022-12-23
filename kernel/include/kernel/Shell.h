@@ -2,6 +2,7 @@
 
 #include <BAN/String.h>
 #include <kernel/Keyboard.h>
+#include <kernel/TTY.h>
 
 namespace Kernel
 {
@@ -13,6 +14,8 @@ namespace Kernel
 
 		static Shell& Get();
 
+		void SetTTY(TTY* tty);
+
 		void Run();
 
 	private:
@@ -22,7 +25,8 @@ namespace Kernel
 		void KeyEventCallback(Keyboard::KeyEvent);
 
 	private:
-		BAN::String m_buffer;
+		TTY*		m_tty;
+		BAN::String	m_buffer;
 	};
 
 }

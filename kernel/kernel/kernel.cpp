@@ -14,7 +14,7 @@
 #include <kernel/RTC.h>
 #include <kernel/Serial.h>
 #include <kernel/Shell.h>
-#include <kernel/tty.h>
+#include <kernel/TTY.h>
 #include <kernel/VESA.h>
 
 #define DISABLE_INTERRUPTS() asm volatile("cli")
@@ -52,16 +52,14 @@ extern "C" void kernel_main(multiboot_info_t* mbi, uint32_t magic)
 
 	s_multiboot_info = mbi;
 
-	if (!VESA::PreInitialize())
+	if (!VESA::Initialize())
 	{
 		dprintln("Could not initialize VESA");
 		return;
 	}
-	TTY::initialize();
-
 	kmalloc_initialize();
 
-	VESA::Initialize();
+	TTY* tty1 = new TTY;
 
 	ParsedCommandLine cmdline;
 	if (mbi->flags & 0x02)
@@ -80,7 +78,7 @@ extern "C" void kernel_main(multiboot_info_t* mbi, uint32_t magic)
 	kprintln("Hello from the kernel!");
 
 	auto& shell = Kernel::Shell::Get();
-
+	shell.SetTTY(tty1);
 	shell.Run();
 
 	for (;;)

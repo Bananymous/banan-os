@@ -80,7 +80,7 @@ namespace VESA
 		return 0;
 	}
 
-	bool PreInitialize()
+	bool Initialize()
 	{
 		if (!(s_multiboot_info->flags & MULTIBOOT_FLAGS_FRAMEBUFFER))
 			return false;
@@ -101,14 +101,12 @@ namespace VESA
 				return false;
 			}
 
-			dprintln("VESA in Graphics mode {}x{} ({} bpp)", s_width, s_height, s_bpp);
 			GraphicsClear(Color::BLACK);
 			return true;
 		}
 		
 		if (s_mode == MULTIBOOT_FRAMEBUFFER_TYPE_TEXT)
 		{
-			dprintln("VESA in Text mode {}x{}", s_width, s_height);
 			TextClear(Color::BLACK);
 			return true;
 		}
@@ -116,22 +114,6 @@ namespace VESA
 		dprintln("Unsupported type for VESA framebuffer");
 		return false;
 	}
-
-	void Initialize()
-	{
-		if (s_mode == MULTIBOOT_FRAMEBUFFER_TYPE_GRAPHICS)
-		{
-			s_buffer = kmalloc_eternal(s_height * s_pitch);
-			if (s_buffer == nullptr)
-				kprintln("Could not allocate a buffer for VESA");
-			else
-				memcpy(s_buffer, s_addr, s_height * s_pitch);
-		}
-	}
-
-
-
-
 
 	static uint32_t s_graphics_colors[]
 	{
@@ -228,7 +210,7 @@ namespace VESA
 
 		if (s_bpp == 32)
 		{
-			uint32_t bytes_per_row = s_pitch / (s_bpp / 8);
+			uint32_t bytes_per_row = s_pitch / 4;
 			for (uint32_t y = 0; y < s_height; y++)
 				for (uint32_t x = 0; x < s_width; x++)
 					((uint32_t*)s_addr)[y * bytes_per_row + x] = u32_color;
@@ -256,7 +238,7 @@ namespace VESA
 	{
 		if (s_bpp == 32)
 		{
-			uint32_t bytes_per_row = s_pitch / (s_bpp / 8);
+			uint32_t bytes_per_row = s_pitch / 4;
 			for (uint32_t y = 0; y < s_height - font.Height; y++)
 			{
 				for (uint32_t x = 0; x < s_width; x++)
