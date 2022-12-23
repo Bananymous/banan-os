@@ -38,50 +38,80 @@ static GateDescriptor	s_idt[0x100];
 
 static void (*s_irq_handlers[0xFF])() { nullptr };
 
-#define INTERRUPT_HANDLER(i, msg)												\
+#define INTERRUPT_HANDLER____(i, msg)											\
 	static void interrupt ## i ()												\
 	{																			\
+		uint32_t eax, ebx, ecx, edx;											\
+		uint32_t esp, ebp;														\
 		uint32_t cr0, cr2, cr3, cr4;											\
+		asm volatile("":"=a"(eax),"=b"(ebx),"=c"(ecx),"=d"(edx));				\
+		asm volatile("movl %%esp, %%eax":"=a"(esp));							\
+		asm volatile("movl %%ebp, %%eax":"=a"(esp));							\
 		asm volatile("movl %%cr0, %%eax":"=a"(cr0)); 							\
 		asm volatile("movl %%cr2, %%eax":"=a"(cr2)); 							\
 		asm volatile("movl %%cr3, %%eax":"=a"(cr3)); 							\
 		asm volatile("movl %%cr4, %%eax":"=a"(cr4)); 							\
-		Kernel::panic(msg ", CR0={} CR2={} CR3={} CR4={}", cr0, cr2, cr3, cr4);	\
+		kprintln("\n\e[31mRegister dump (hex)");								\
+		kprintln("eax={8H}, ebx={8H}, ecx={8H}, edx={8H}", eax, ebx, ecx, edx);	\
+		kprintln("esp={8H}, ebp={8H}", esp, ebp);								\
+		kprintln("CR0={8H} CR2={8H} CR3={8H} CR4={8H}", cr0, cr2, cr3, cr4);	\
+		Kernel::panic(msg);														\
 	}
 
-INTERRUPT_HANDLER(0x00, "Division Error")
-INTERRUPT_HANDLER(0x01, "Debug")
-INTERRUPT_HANDLER(0x02, "Non-maskable Interrupt")
-INTERRUPT_HANDLER(0x03, "Breakpoint")
-INTERRUPT_HANDLER(0x04, "Overflow")
-INTERRUPT_HANDLER(0x05, "Bound Range Exception")
-INTERRUPT_HANDLER(0x06, "Invalid Opcode")
-INTERRUPT_HANDLER(0x07, "Device Not Available")
-INTERRUPT_HANDLER(0x08, "Double Fault")
-INTERRUPT_HANDLER(0x09, "Coprocessor Segment Overrun")
-INTERRUPT_HANDLER(0x0A, "Invalid TSS")
-INTERRUPT_HANDLER(0x0B, "Segment Not Present")
-INTERRUPT_HANDLER(0x0C, "Stack-Segment Fault")
-INTERRUPT_HANDLER(0x0D, "Stack-Segment Fault")
-INTERRUPT_HANDLER(0x0E, "Page Fault")
-INTERRUPT_HANDLER(0x0F, "Unknown Exception 0x0F")
-INTERRUPT_HANDLER(0x10, "x87 Floating-Point Exception")
-INTERRUPT_HANDLER(0x11, "Alignment Check")
-INTERRUPT_HANDLER(0x12, "Machine Check")
-INTERRUPT_HANDLER(0x13, "SIMD Floating-Point Exception")
-INTERRUPT_HANDLER(0x14, "Virtualization Exception")
-INTERRUPT_HANDLER(0x15, "Control Protection Exception")
-INTERRUPT_HANDLER(0x16, "Unknown Exception 0x16")
-INTERRUPT_HANDLER(0x17, "Unknown Exception 0x17")
-INTERRUPT_HANDLER(0x18, "Unknown Exception 0x18")
-INTERRUPT_HANDLER(0x19, "Unknown Exception 0x19")
-INTERRUPT_HANDLER(0x1A, "Unknown Exception 0x1A")
-INTERRUPT_HANDLER(0x1B, "Unknown Exception 0x1B")
-INTERRUPT_HANDLER(0x1C, "Hypervisor Injection Exception")
-INTERRUPT_HANDLER(0x1D, "VMM Communication Exception")
-INTERRUPT_HANDLER(0x1E, "Security Exception")
-INTERRUPT_HANDLER(0x1F, "Unkown Exception 0x1F")
+#define INTERRUPT_HANDLER_ERR(i, msg)											\
+	static void interrupt ## i ()												\
+	{																			\
+		uint32_t eax, ebx, ecx, edx;											\
+		uint32_t esp, ebp;														\
+		uint32_t cr0, cr2, cr3, cr4;											\
+		uint32_t error_code;													\
+		asm volatile("":"=a"(eax),"=b"(ebx),"=c"(ecx),"=d"(edx));				\
+		asm volatile("movl %%esp, %%eax":"=a"(esp));							\
+		asm volatile("movl %%ebp, %%eax":"=a"(esp));							\
+		asm volatile("movl %%cr0, %%eax":"=a"(cr0)); 							\
+		asm volatile("movl %%cr2, %%eax":"=a"(cr2)); 							\
+		asm volatile("movl %%cr3, %%eax":"=a"(cr3)); 							\
+		asm volatile("movl %%cr4, %%eax":"=a"(cr4)); 							\
+		asm volatile("popl %%eax":"=a"(error_code));							\
+		kprintln("\n\e[31mRegister dump (hex)");								\
+		kprintln("eax={8H}, ebx={8H}, ecx={8H}, edx={8H}", eax, ebx, ecx, edx);	\
+		kprintln("esp={8H}, ebp={8H}", esp, ebp);								\
+		kprintln("CR0={8H} CR2={8H} CR3={8H} CR4={8H}", cr0, cr2, cr3, cr4);	\
+		Kernel::panic(msg " (error: {})", error_code);							\
+	}
 
+INTERRUPT_HANDLER____(0x00, "Division Error")
+INTERRUPT_HANDLER____(0x01, "Debug")
+INTERRUPT_HANDLER____(0x02, "Non-maskable Interrupt")
+INTERRUPT_HANDLER____(0x03, "Breakpoint")
+INTERRUPT_HANDLER____(0x04, "Overflow")
+INTERRUPT_HANDLER____(0x05, "Bound Range Exception")
+INTERRUPT_HANDLER____(0x06, "Invalid Opcode")
+INTERRUPT_HANDLER____(0x07, "Device Not Available")
+INTERRUPT_HANDLER_ERR(0x08, "Double Fault")
+INTERRUPT_HANDLER____(0x09, "Coprocessor Segment Overrun")
+INTERRUPT_HANDLER_ERR(0x0A, "Invalid TSS")
+INTERRUPT_HANDLER_ERR(0x0B, "Segment Not Present")
+INTERRUPT_HANDLER_ERR(0x0C, "Stack-Segment Fault")
+INTERRUPT_HANDLER_ERR(0x0D, "General Protection Fault")
+INTERRUPT_HANDLER_ERR(0x0E, "Page Fault")
+INTERRUPT_HANDLER____(0x0F, "Unknown Exception 0x0F")
+INTERRUPT_HANDLER____(0x10, "x87 Floating-Point Exception")
+INTERRUPT_HANDLER_ERR(0x11, "Alignment Check")
+INTERRUPT_HANDLER____(0x12, "Machine Check")
+INTERRUPT_HANDLER____(0x13, "SIMD Floating-Point Exception")
+INTERRUPT_HANDLER____(0x14, "Virtualization Exception")
+INTERRUPT_HANDLER_ERR(0x15, "Control Protection Exception")
+INTERRUPT_HANDLER____(0x16, "Unknown Exception 0x16")
+INTERRUPT_HANDLER____(0x17, "Unknown Exception 0x17")
+INTERRUPT_HANDLER____(0x18, "Unknown Exception 0x18")
+INTERRUPT_HANDLER____(0x19, "Unknown Exception 0x19")
+INTERRUPT_HANDLER____(0x1A, "Unknown Exception 0x1A")
+INTERRUPT_HANDLER____(0x1B, "Unknown Exception 0x1B")
+INTERRUPT_HANDLER____(0x1C, "Hypervisor Injection Exception")
+INTERRUPT_HANDLER_ERR(0x1D, "VMM Communication Exception")
+INTERRUPT_HANDLER_ERR(0x1E, "Security Exception")
+INTERRUPT_HANDLER____(0x1F, "Unkown Exception 0x1F")
 
 #define REGISTER_HANDLER(i) register_interrupt_handler(i, interrupt ## i)
 
