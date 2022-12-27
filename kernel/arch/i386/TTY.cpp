@@ -36,12 +36,8 @@ TTY::TTY()
 
 void TTY::Clear()
 {
-	for (uint32_t i = 0; i < m_width * m_height; i++)
-	{
-		m_buffer[i].foreground = m_foreground;
-		m_buffer[i].background = m_background;
-		m_buffer[i].character = ' ';
-	}
+	for (size_t i = 0; i < m_width * m_height; i++)
+		m_buffer[i] = { .foreground = m_foreground, .background = m_background, .character = ' ' };
 	VESA::Clear(m_background);
 }
 
@@ -248,6 +244,15 @@ void TTY::HandleAnsiEscape(uint16_t ch)
 	}
 }
 
+void TTY::PutCharAt(uint16_t ch, size_t x, size_t y)
+{
+	auto& cell = m_buffer[y * m_width + x];
+	cell.character = ch;
+	cell.foreground = m_foreground;
+	cell.background = m_background;
+	VESA::PutEntryAt(ch, x, y, m_foreground, m_background);
+}
+
 void TTY::PutChar(char ch)
 {
 	uint16_t cp = handle_unicode(ch);
@@ -285,7 +290,7 @@ void TTY::PutChar(char ch)
 			m_ansi_state.mode = '\1';
 			break;
 		default:
-			VESA::PutEntryAt(cp, m_column, m_row, m_foreground, m_background);
+			PutCharAt(cp, m_column, m_row);
 			m_column++;
 			break;
 	}
@@ -298,9 +303,18 @@ void TTY::PutChar(char ch)
 
 	while (m_row >= m_height)
 	{
-		VESA::Scroll();
+		// Shift buffer one line up
+		for (size_t y = 1; y < m_height; y++)
+			for (size_t x = 0; x < m_width; x++)
+				m_buffer[(y - 1) * m_width + x] = m_buffer[y * m_width + x];
+		// Clear last line in buffer
 		for (size_t x = 0; x < m_width; x++)
-			VESA::PutEntryAt(' ', x, m_height - 1, m_foreground, m_background);
+			m_buffer[(m_height - 1) * m_width + x] = { .foreground = m_foreground, .background = m_background, .character = ' ' };
+
+		// Render the whole buffer to the screen
+		for (size_t y = 0; y < m_height; y++)
+			for (size_t x = 0; x < m_width; x++)
+				RenderFromBuffer(x, y);
 
 		m_column = 0;
 		m_row--;
@@ -332,6 +346,31 @@ void TTY::PutCharCurrent(char ch)
 	}
 	else
 	{
+		static size_t x = 0;
+		static size_t y = 0;
 
+		switch (ch)
+		{
+		case '\n':
+			x = 0;
+			y++;
+			break;
+		default:
+			VESA::PutEntryAt(ch, x, y, VESA::Color::BRIGHT_WHITE, VESA::Color::BLACK);
+			break;
+		}
+
+		if (++x == VESA::GetTerminalWidth())
+		{
+			x = 0;
+			y++;
+		}
+
+		if (y == VESA::GetTerminalHeight())
+		{
+			x = 0;
+			y = 0;
+			VESA::Clear(VESA::Color::BLACK);
+		}
 	}
 }

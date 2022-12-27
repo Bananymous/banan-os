@@ -18,7 +18,7 @@ extern const struct bitmap_font font;
 
 namespace VESA
 {
-	static void*	s_buffer	= nullptr;
+
 	static void*	s_addr		= nullptr;
 	static uint8_t	s_bpp		= 0;
 	static uint32_t s_pitch		= 0;
@@ -28,11 +28,9 @@ namespace VESA
 
 	static void GraphicsPutCharAt(uint16_t ch, uint32_t x, uint32_t y, Color fg, Color bg);
 	static void GraphicsClear(Color color);
-	static void GraphicsScroll();
 
 	static void TextPutCharAt(uint16_t ch, uint32_t x, uint32_t y, Color fg, Color bg);
 	static void TextClear(Color color);
-	static void TextScroll();
 
 	void PutEntryAt(uint16_t ch, uint32_t x, uint32_t y, Color fg, Color bg)
 	{
@@ -52,14 +50,6 @@ namespace VESA
 			return GraphicsClear(color);
 		if (s_mode == MULTIBOOT_FRAMEBUFFER_TYPE_TEXT)
 			return TextClear(color);
-	}
-
-	void Scroll()
-	{
-		if (s_mode == MULTIBOOT_FRAMEBUFFER_TYPE_GRAPHICS)
-			return GraphicsScroll();
-		if (s_mode == MULTIBOOT_FRAMEBUFFER_TYPE_TEXT)
-			return TextScroll();
 	}
 
 	uint32_t GetTerminalWidth()
@@ -138,33 +128,14 @@ namespace VESA
 	static void GraphicsSetPixel(uint32_t offset, uint32_t color)
 	{
 		uint32_t* address = (uint32_t*)((uint32_t)s_addr + offset);
-		
-		if (s_buffer)
+		switch (s_bpp)
 		{
-			uint32_t* buffer = (uint32_t*)((uint32_t)s_buffer + offset);
-			switch (s_bpp)
-			{
-				case 24:
-					*buffer = (*buffer & 0xFF000000) | (color & 0x00FFFFFF);
-					*address = *buffer;
-					break;
-				case 32:
-					*buffer = color;
-					*address = color;
-					break;
-			}
-		}
-		else
-		{
-			switch (s_bpp)
-			{
-				case 24:
-					*address = (*address & 0xFF000000) | (color & 0x00FFFFFF);
-					break;
-				case 32:
-					*address = color;
-					break;
-			}
+			case 24:
+				*address = (*address & 0xFF000000) | (color & 0x00FFFFFF);
+				break;
+			case 32:
+				*address = color;
+				break;
 		}
 	}
 
@@ -214,10 +185,6 @@ namespace VESA
 			for (uint32_t y = 0; y < s_height; y++)
 				for (uint32_t x = 0; x < s_width; x++)
 					((uint32_t*)s_addr)[y * bytes_per_row + x] = u32_color;
-			if (s_buffer)
-				for (uint32_t y = 0; y < s_height; y++)
-					for (uint32_t x = 0; x < s_width; x++)
-						((uint32_t*)s_buffer)[y * bytes_per_row + x] = u32_color;
 			return;
 		}
 
@@ -233,52 +200,6 @@ namespace VESA
 			row_offset += s_pitch;
 		}
 	}
-
-	static void GraphicsScroll()
-	{
-		if (s_bpp == 32)
-		{
-			uint32_t bytes_per_row = s_pitch / 4;
-			for (uint32_t y = 0; y < s_height - font.Height; y++)
-			{
-				for (uint32_t x = 0; x < s_width; x++)
-				{
-					if (s_buffer)
-					{
-						((uint32_t*)s_buffer)[y * bytes_per_row + x] = ((uint32_t*)s_buffer)[(y + font.Height) * bytes_per_row + x];
-						((uint32_t*)s_addr  )[y * bytes_per_row + x] = ((uint32_t*)s_buffer)[(y + font.Height) * bytes_per_row + x];
-					}
-					else
-					{
-						((uint32_t*)s_addr  )[y * bytes_per_row + x] = ((uint32_t*)s_addr  )[(y + font.Height) * bytes_per_row + x];
-					}
-				}
-			}
-			return;
-		}
-
-		uint32_t row_offset_out = 0;
-		uint32_t row_offset_in  = font.Height * s_pitch;
-
-		for (uint32_t y = 0; y < s_height - 1; y++)
-		{
-			if (s_buffer)
-			{
-				memcpy((void*)((uint32_t)s_buffer + row_offset_out), (void*)((uint32_t)s_buffer + row_offset_in), s_width * s_bpp);
-				memcpy((void*)((uint32_t)s_addr   + row_offset_out), (void*)((uint32_t)s_buffer + row_offset_in), s_width * s_bpp);
-			}
-			else
-			{
-				memcpy((void*)((uint32_t)s_addr   + row_offset_out), (void*)((uint32_t)s_addr + row_offset_in), s_width * s_bpp);
-			}
-			row_offset_out += s_pitch;
-			row_offset_in  += s_pitch;
-		}
-	}
-
-
-
-
 
 	static inline uint8_t TextColor(Color fg, Color bg)
 	{
@@ -301,19 +222,6 @@ namespace VESA
 		for (uint32_t y = 0; y < s_height; y++)
 			for (uint32_t x = 0; x < s_width; x++)
 				TextPutCharAt(' ', x, y, Color::BRIGHT_WHITE, color);
-	}
-
-	static void TextScroll()
-	{
-		for (uint32_t y = 1; y < s_height; y++)
-		{
-			for (uint32_t x = 0; x < s_width; x++)
-			{
-				uint32_t index1 = (y - 0) * s_width + x;
-				uint32_t index2 = (y - 1) * s_width + x;
-				((uint16_t*)s_addr)[index2] = ((uint16_t*)s_addr)[index1];
-			}
-		}
 	}
 
 }

@@ -19,13 +19,19 @@ private:
 	void ResetAnsiEscape();
 	void HandleAnsiSGR();
 	void HandleAnsiEscape(uint16_t ch);
+	void PutCharAt(uint16_t ch, size_t x, size_t y);
+	inline void RenderFromBuffer(size_t x, size_t y)
+	{
+		const auto& cell = m_buffer[y * m_width + x];
+		VESA::PutEntryAt(cell.character, x, y, cell.foreground, cell.background);
+	}
 
 private:
 	struct Cell
 	{
 		VESA::Color foreground = VESA::Color::BRIGHT_WHITE;
 		VESA::Color background = VESA::Color::BLACK;
-		uint8_t		character = ' ';
+		uint16_t	character = ' ';
 	};
 
 	struct AnsiState
@@ -39,7 +45,7 @@ private:
 	uint32_t	m_height		{ 0 };
 	uint32_t	m_row			{ 0 };
 	uint32_t	m_column		{ 0 };
-	VESA::Color	m_foreground	{ VESA::Color::BRIGHT_WHITE};
+	VESA::Color	m_foreground	{ VESA::Color::BRIGHT_WHITE };
 	VESA::Color	m_background	{ VESA::Color::BLACK };
 	Cell*		m_buffer		{ nullptr };
 	AnsiState	m_ansi_state;

@@ -28,7 +28,6 @@ namespace VESA
 	bool Initialize();
 	void PutEntryAt(uint16_t, uint32_t, uint32_t, Color, Color);
 	void Clear(Color);
-	void Scroll();
 
 	uint32_t GetTerminalWidth();
 	uint32_t GetTerminalHeight();
