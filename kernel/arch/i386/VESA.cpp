@@ -173,11 +173,9 @@ namespace VESA
 		uint32_t row_offset = (fy * s_pitch) + (fx * (s_bpp / 8));
 		for (uint32_t gy = 0; gy < font.Height; gy++)
 		{
-			if (fy + gy >= s_height) break;
 			uint32_t pixel_offset = row_offset;
 			for (uint32_t gx = 0; gx < font.Width; gx++)
 			{
-				if (fx + gx >= s_width) break;
 				GraphicsSetPixel(pixel_offset, (glyph[gy] & (1 << (font.Width - gx - 1))) ? u32_fg : u32_bg);
 				pixel_offset += s_bpp / 8;
 			}
