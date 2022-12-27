@@ -20,6 +20,9 @@ namespace BAN
 		String(const char*, size_type = -1);
 		~String();
 
+		template<typename... Args>
+		static String Formatted(const char* format, const Args&... args);
+
 		String& operator=(const String&);
 		String& operator=(String&&);
 
@@ -62,6 +65,14 @@ namespace BAN
 		size_type	m_capasity	= 0;
 		size_type	m_size		= 0;	
 	};
+
+	template<typename... Args>
+	String String::Formatted(const char* format, const Args&... args)
+	{
+		String result;
+		BAN::Formatter::print([&](char c){ result.PushBack(c); }, format, args...);
+		return result;
+	}
 
 }
 
