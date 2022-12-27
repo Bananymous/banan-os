@@ -26,48 +26,38 @@ namespace VESA
 	static uint32_t	s_height	= 0;
 	static uint8_t	s_mode		= 0;
 
+	static uint32_t s_terminal_width  = 0;
+	static uint32_t s_terminal_height = 0;
+
+	static void (*PutCharAtImpl)(uint16_t, uint32_t, uint32_t, Color, Color) = nullptr;
+	static void (*ClearImpl)(Color) = nullptr;
+
 	static void GraphicsPutCharAt(uint16_t ch, uint32_t x, uint32_t y, Color fg, Color bg);
 	static void GraphicsClear(Color color);
 
 	static void TextPutCharAt(uint16_t ch, uint32_t x, uint32_t y, Color fg, Color bg);
 	static void TextClear(Color color);
 
-	void PutEntryAt(uint16_t ch, uint32_t x, uint32_t y, Color fg, Color bg)
+	void PutCharAt(uint16_t ch, uint32_t x, uint32_t y, Color fg, Color bg)
 	{
-		if (x >= s_width)
+		if (x >= s_width || y >= s_height)
 			return;
-		if (y >= s_height)
-			return;
-		if (s_mode == MULTIBOOT_FRAMEBUFFER_TYPE_GRAPHICS)
-			return GraphicsPutCharAt(ch, x, y, fg, bg);
-		if (s_mode == MULTIBOOT_FRAMEBUFFER_TYPE_TEXT)
-			return TextPutCharAt(ch, x, y, fg, bg);
+		PutCharAtImpl(ch, x, y, fg, bg);
 	}
 
 	void Clear(Color color)
 	{
-		if (s_mode == MULTIBOOT_FRAMEBUFFER_TYPE_GRAPHICS)
-			return GraphicsClear(color);
-		if (s_mode == MULTIBOOT_FRAMEBUFFER_TYPE_TEXT)
-			return TextClear(color);
+		ClearImpl(color);
 	}
 
 	uint32_t GetTerminalWidth()
 	{
-		if (s_mode == MULTIBOOT_FRAMEBUFFER_TYPE_GRAPHICS)
-			return s_width / font.Width;
-		if (s_mode == MULTIBOOT_FRAMEBUFFER_TYPE_TEXT)
-			return s_width;
-		return 0;
+		return s_terminal_width;
 	}
 
 	uint32_t GetTerminalHeight()
 	{
-		if (s_mode == MULTIBOOT_FRAMEBUFFER_TYPE_GRAPHICS)
-			return s_height / font.Height;
-		if (s_mode == MULTIBOOT_FRAMEBUFFER_TYPE_TEXT)
-			return s_height;
-		return 0;
+		return s_terminal_height;
 	}
 
 	bool Initialize()
@@ -91,18 +81,26 @@ namespace VESA
 				return false;
 			}
 
-			GraphicsClear(Color::BLACK);
-			return true;
+			PutCharAtImpl = GraphicsPutCharAt;
+			ClearImpl = GraphicsClear;
+			s_terminal_width = s_width / font.Width;
+			s_terminal_height = s_height / font.Height;
 		}
-		
-		if (s_mode == MULTIBOOT_FRAMEBUFFER_TYPE_TEXT)
+		else if (s_mode == MULTIBOOT_FRAMEBUFFER_TYPE_TEXT)
 		{
-			TextClear(Color::BLACK);
-			return true;
+			PutCharAtImpl = TextPutCharAt;
+			ClearImpl = TextClear;
+			s_terminal_width = s_width;
+			s_terminal_height = s_height;
 		}
-		
-		dprintln("Unsupported type for VESA framebuffer");
-		return false;
+		else
+		{
+			dprintln("Unsupported type for VESA framebuffer");
+			return false;
+		}
+
+		ClearImpl(Color::BLACK);
+		return true;
 	}
 
 	static uint32_t s_graphics_colors[]

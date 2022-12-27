@@ -23,7 +23,7 @@ private:
 	inline void RenderFromBuffer(size_t x, size_t y)
 	{
 		const auto& cell = m_buffer[y * m_width + x];
-		VESA::PutEntryAt(cell.character, x, y, cell.foreground, cell.background);
+		VESA::PutCharAt(cell.character, x, y, cell.foreground, cell.background);
 	}
 
 private:

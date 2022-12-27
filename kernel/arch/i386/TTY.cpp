@@ -250,7 +250,7 @@ void TTY::PutCharAt(uint16_t ch, size_t x, size_t y)
 	cell.character = ch;
 	cell.foreground = m_foreground;
 	cell.background = m_background;
-	VESA::PutEntryAt(ch, x, y, m_foreground, m_background);
+	VESA::PutCharAt(ch, x, y, m_foreground, m_background);
 }
 
 void TTY::PutChar(char ch)
@@ -356,7 +356,7 @@ void TTY::PutCharCurrent(char ch)
 			y++;
 			break;
 		default:
-			VESA::PutEntryAt(ch, x, y, VESA::Color::BRIGHT_WHITE, VESA::Color::BLACK);
+			VESA::PutCharAt(ch, x, y, VESA::Color::BRIGHT_WHITE, VESA::Color::BLACK);
 			break;
 		}
 
