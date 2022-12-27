@@ -5,22 +5,22 @@
 
 #define dprintln(...)																												\
 	do {																															\
-		BAN::Formatter::print<Serial::serial_putc>("[{5.3}] {}({}):  ", (float)PIT::ms_since_boot() / 1000.0f, __FILE__, __LINE__);	\
-		BAN::Formatter::println<Serial::serial_putc>(__VA_ARGS__);																	\
+		BAN::Formatter::print(Serial::serial_putc, "[{5.3}] {}({}):  ", (float)PIT::ms_since_boot() / 1000.0f, __FILE__, __LINE__);	\
+		BAN::Formatter::println(Serial::serial_putc, __VA_ARGS__);																	\
 	} while(false)
 
 #define dwarnln(...)											\
 	do {														\
-		BAN::Formatter::print<Serial::serial_putc>("\e[33m");	\
+		BAN::Formatter::print(Serial::serial_putc, "\e[33m");	\
 		dprintln(__VA_ARGS__);									\
-		BAN::Formatter::print<Serial::serial_putc>("\e[m");		\
+		BAN::Formatter::print(Serial::serial_putc, "\e[m");		\
 	} while(false)
 
 #define derrorln(...)											\
 	do {														\
-		BAN::Formatter::print<Serial::serial_putc>("\e[31m");	\
+		BAN::Formatter::print(Serial::serial_putc, "\e[31m");	\
 		dprintln(__VA_ARGS__);									\
-		BAN::Formatter::print<Serial::serial_putc>("\e[m");		\
+		BAN::Formatter::print(Serial::serial_putc, "\e[m");		\
 	} while(false)
 
 namespace Serial

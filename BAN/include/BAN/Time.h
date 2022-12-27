@@ -23,11 +23,12 @@ namespace BAN
 namespace BAN::Formatter
 {
 
-	template<void(*PUTC_LIKE)(char)> void print_argument_impl(const Time& time, const ValueFormat&)
+	template<typename F>
+	void print_argument_impl(F putc, const Time& time, const ValueFormat&)
 	{
 		constexpr const char* week_days[]	{ "", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
 		constexpr const char* months[]		{ "", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
-		print<PUTC_LIKE>("{} {} {} {2}:{2}:{2} GMT+0 {4}", week_days[time.week_day], months[time.month], time.day, time.hour, time.minute, time.second, time.year);
+		print(putc, "{} {} {} {2}:{2}:{2} GMT+0 {4}", week_days[time.week_day], months[time.month], time.day, time.hour, time.minute, time.second, time.year);
 	}
 
 }

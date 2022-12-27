@@ -44,10 +44,11 @@ namespace BAN
 namespace BAN::Formatter
 {
 
-	template<void(*PUTC_LIKE)(char)> void print_argument_impl(const StringView& sv, const ValueFormat&)
+	template<typename F>
+	void print_argument_impl(F putc, const StringView& sv, const ValueFormat&)
 	{
 		for (StringView::size_type i = 0; i < sv.Size(); i++)
-			PUTC_LIKE(sv[i]);
+			putc(sv[i]);
 	}
 
 }

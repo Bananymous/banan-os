@@ -72,7 +72,7 @@ namespace Kernel
 				for (size_t i = 2; i < arguments.Size(); i++)
 					kprint(" {}", arguments[i]);
 			}
-			kprintln();
+			kprintln("");
 			return;
 		}
 
@@ -125,7 +125,7 @@ namespace Kernel
 				if (edx & ((uint32_t)1 << i))
 					kprint("{}{}", first ? (first = false, "") : ", ", CPUID::FeatStringEDX((uint32_t)1 << i));
 			if (!first)
-				kprintln();
+				kprintln("");
 			
 			return;
 		}

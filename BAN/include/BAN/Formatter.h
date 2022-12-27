@@ -8,20 +8,20 @@ namespace BAN::Formatter
 
 	struct ValueFormat;
 
-	template<void(*PUTC_LIKE)(char)>
-	static void print(const char* format);
+	template<typename F>
+	static void print(F putc, const char* format);
 
-	template<void(*PUTC_LIKE)(char), typename Arg, typename... Args>
-	static void print(const char* format, const Arg& arg, const Args&... args);
+	template<typename F, typename Arg, typename... Args>
+	static void print(F putc, const char* format, const Arg& arg, const Args&... args);
 
-	template<void(*PUTC_LIKE)(char), typename... Args>
-	static void println(const char* format = "", const Args&... args);
+	template<typename F, typename... Args>
+	static void println(F putc, const char* format = "", const Args&... args);
 
-	template<void(*PUTC_LIKE)(char), typename T>
-	static size_t print_argument(const char* format, const T& arg);
+	template<typename F, typename T>
+	static size_t print_argument(F putc, const char* format, const T& arg);
 
-	template<void(*PUTC_LIKE)(char), typename T>
-	static void print_argument_impl(T value, const ValueFormat& format);
+	template<typename F, typename T>
+	static void print_argument_impl(F putc, T value, const ValueFormat& format);
 
 
 	/*
@@ -38,43 +38,43 @@ namespace BAN::Formatter
 		bool upper		= false;
 	};
 	
-	template<void(*PUTC_LIKE)(char)>
-	void print(const char* format)
+	template<typename F>
+	void print(F putc, const char* format)
 	{
 		while (*format)
 		{
-			PUTC_LIKE(*format);
-			format++;	
+			putc(*format);
+			format++;
 		}
 	}
 
-	template<void(*PUTC_LIKE)(char), typename Arg, typename... Args>
-	void print(const char* format, const Arg& arg, const Args&... args)
+	template<typename F, typename Arg, typename... Args>
+	void print(F putc, const char* format, const Arg& arg, const Args&... args)
 	{
 		while (*format && *format != '{')
 		{
-			PUTC_LIKE(*format);
+			putc(*format);
 			format++;
 		}
 
 		if (*format == '{')
 		{
-			size_t arg_len = print_argument<PUTC_LIKE>(format, arg);
+			size_t arg_len = print_argument(putc, format, arg);
 			if (arg_len == size_t(-1))
-				return print<PUTC_LIKE>(format);
-			print<PUTC_LIKE>(format + arg_len, args...);
+				return print(putc, format);
+			print(putc, format + arg_len, args...);
 		}
 	}
 
-	template<void(*PUTC_LIKE)(char), typename... Args>
-	void println(const char* format, const Args&... args)
+	template<typename F, typename... Args>
+	void println(F putc, const char* format, const Args&... args)
 	{
-		print<PUTC_LIKE>(format, args...);
-		PUTC_LIKE('\n');
+		print(putc, format, args...);
+		putc('\n');
 	}
 
-	template<void(*PUTC_LIKE)(char), typename Arg>
-	size_t print_argument(const char* format, const Arg& argument)
+	template<typename F, typename Arg>
+	size_t print_argument(F putc, const char* format, const Arg& argument)
 	{
 		ValueFormat value_format;
 
@@ -131,7 +131,7 @@ namespace BAN::Formatter
 		if (format[i] != '}')
 			return size_t(-1);
 
-		print_argument_impl<PUTC_LIKE>(argument, value_format);
+		print_argument_impl(putc, argument, value_format);
 
 		return i + 1;
 	}
@@ -149,13 +149,13 @@ namespace BAN::Formatter
 		return '?';
 	}
 
-	template<void(*PUTC_LIKE)(char), typename T>
-	void print_integer(T value, const ValueFormat& format)
+	template<typename F, typename T>
+	void print_integer(F putc, T value, const ValueFormat& format)
 	{
 		if (value == 0)
 		{
 			for (int i = 0; i < format.fill || i < 1; i++)
-				PUTC_LIKE('0');
+				putc('0');
 			return;
 		}
 
@@ -186,21 +186,21 @@ namespace BAN::Formatter
 		if (sign)
 			*(--ptr) = '-';
 		
-		print<PUTC_LIKE>(ptr);
+		print(putc, ptr);
 	}
 
-	template<void(*PUTC_LIKE)(char), typename T>
-	void print_floating(T value, const ValueFormat& format)
+	template<typename F, typename T>
+	void print_floating(F putc, T value, const ValueFormat& format)
 	{
 		int64_t int_part = (int64_t)value;
 		T frac_part = value - (T)int_part;
 		if (frac_part < 0)
 			frac_part = -frac_part;
 
-		print_integer<PUTC_LIKE>(int_part, format);
+		print_integer(putc, int_part, format);
 		
 		if (format.percision > 0)
-			PUTC_LIKE('.');
+			putc('.');
 		
 		for (int i = 0; i < format.percision; i++)
 		{
@@ -208,17 +208,17 @@ namespace BAN::Formatter
 			if (i == format.percision - 1)
 				frac_part += 0.5;
 
-			PUTC_LIKE(value_to_base_char((uint8_t)frac_part % format.base, format.base, format.upper));
+			putc(value_to_base_char((uint8_t)frac_part % format.base, format.base, format.upper));
 		}
 	}
 
-	template<void(*PUTC_LIKE)(char)>
-	void print_pointer(void* ptr, const ValueFormat& format)
+	template<typename F>
+	void print_pointer(F putc, void* ptr, const ValueFormat& format)
 	{
 		uintptr_t value = (uintptr_t)ptr;
-		print<PUTC_LIKE>("0x");
+		print(putc, "0x");
 		for (int i = sizeof(void*) * 8 - 4; i >= 0; i -= 4)
-			PUTC_LIKE(value_to_base_char((value >> i) & 0xF, 16, format.upper));
+			putc(value_to_base_char((value >> i) & 0xF, 16, format.upper));
 	}
 
 	/*
@@ -227,27 +227,27 @@ namespace BAN::Formatter
 
 	*/
 
-	template<void(*PUTC_LIKE)(char)> void print_argument_impl(short					value, const ValueFormat& format)	{ print_integer<PUTC_LIKE>(value, format); }
-	template<void(*PUTC_LIKE)(char)> void print_argument_impl(int					value, const ValueFormat& format)	{ print_integer<PUTC_LIKE>(value, format); }
-	template<void(*PUTC_LIKE)(char)> void print_argument_impl(long					value, const ValueFormat& format)	{ print_integer<PUTC_LIKE>(value, format); }
-	template<void(*PUTC_LIKE)(char)> void print_argument_impl(long long				value, const ValueFormat& format)	{ print_integer<PUTC_LIKE>(value, format); }
+	template<typename F> void print_argument_impl(F putc, short					value, const ValueFormat& format)	{ print_integer(putc, value, format); }
+	template<typename F> void print_argument_impl(F putc, int					value, const ValueFormat& format)	{ print_integer(putc, value, format); }
+	template<typename F> void print_argument_impl(F putc, long					value, const ValueFormat& format)	{ print_integer(putc, value, format); }
+	template<typename F> void print_argument_impl(F putc, long long				value, const ValueFormat& format)	{ print_integer(putc, value, format); }
 
-	template<void(*PUTC_LIKE)(char)> void print_argument_impl(unsigned short		value, const ValueFormat& format)	{ print_integer<PUTC_LIKE>(value, format); }
-	template<void(*PUTC_LIKE)(char)> void print_argument_impl(unsigned int			value, const ValueFormat& format)	{ print_integer<PUTC_LIKE>(value, format); }
-	template<void(*PUTC_LIKE)(char)> void print_argument_impl(unsigned long			value, const ValueFormat& format)	{ print_integer<PUTC_LIKE>(value, format); }
-	template<void(*PUTC_LIKE)(char)> void print_argument_impl(unsigned long long	value, const ValueFormat& format)	{ print_integer<PUTC_LIKE>(value, format); }
+	template<typename F> void print_argument_impl(F putc, unsigned short		value, const ValueFormat& format)	{ print_integer(putc, value, format); }
+	template<typename F> void print_argument_impl(F putc, unsigned int			value, const ValueFormat& format)	{ print_integer(putc, value, format); }
+	template<typename F> void print_argument_impl(F putc, unsigned long			value, const ValueFormat& format)	{ print_integer(putc, value, format); }
+	template<typename F> void print_argument_impl(F putc, unsigned long long	value, const ValueFormat& format)	{ print_integer(putc, value, format); }
 
-	template<void(*PUTC_LIKE)(char)> void print_argument_impl(float					value, const ValueFormat& format)	{ print_floating<PUTC_LIKE>(value, format); }
-	template<void(*PUTC_LIKE)(char)> void print_argument_impl(double				value, const ValueFormat& format)	{ print_floating<PUTC_LIKE>(value, format); }
-	template<void(*PUTC_LIKE)(char)> void print_argument_impl(long double			value, const ValueFormat& format)	{ print_floating<PUTC_LIKE>(value, format); }
+	template<typename F> void print_argument_impl(F putc, float					value, const ValueFormat& format)	{ print_floating(putc, value, format); }
+	template<typename F> void print_argument_impl(F putc, double				value, const ValueFormat& format)	{ print_floating(putc, value, format); }
+	template<typename F> void print_argument_impl(F putc, long double			value, const ValueFormat& format)	{ print_floating(putc, value, format); }
 	
-	template<void(*PUTC_LIKE)(char)> void print_argument_impl(char					value, const ValueFormat&)			{ PUTC_LIKE(value); }
-	template<void(*PUTC_LIKE)(char)> void print_argument_impl(signed char			value, const ValueFormat& format)	{ print_integer<PUTC_LIKE>(value, format); }
-	template<void(*PUTC_LIKE)(char)> void print_argument_impl(unsigned char			value, const ValueFormat& format)	{ print_integer<PUTC_LIKE>(value, format); }
+	template<typename F> void print_argument_impl(F putc, char					value, const ValueFormat&)			{ putc(value); }
+	template<typename F> void print_argument_impl(F putc, signed char			value, const ValueFormat& format)	{ print_integer(putc, value, format); }
+	template<typename F> void print_argument_impl(F putc, unsigned char			value, const ValueFormat& format)	{ print_integer(putc, value, format); }
 
-	template<void(*PUTC_LIKE)(char)> void print_argument_impl(bool					value, const ValueFormat& format)	{ print<PUTC_LIKE>(value ? "true" : "false"); }
+	template<typename F> void print_argument_impl(F putc, bool					value, const ValueFormat& format)	{ print(putc, value ? "true" : "false"); }
 
-	template<void(*PUTC_LIKE)(char), typename T> void print_argument_impl(T*		value, const ValueFormat& format)	{ print_pointer<PUTC_LIKE>((void*)value, format); }
-	template<void(*PUTC_LIKE)(char)> void print_argument_impl(const char*			value, const ValueFormat&)			{ print<PUTC_LIKE>(value);}
+	template<typename F, typename T> void print_argument_impl(F putc, T*		value, const ValueFormat& format)	{ print_pointer(putc, (void*)value, format); }
+	template<typename F> void print_argument_impl(F putc, const char*			value, const ValueFormat&)			{ print(putc, value);}
 
 }
