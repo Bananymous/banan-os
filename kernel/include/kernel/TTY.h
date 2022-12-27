@@ -11,7 +11,7 @@ public:
 	void PutChar(char ch);
 	void Write(const char* data, size_t size);
 	void WriteString(const char* data);
-	void SetCursorPos(int x, int y);
+	void SetCursorPosition(uint32_t x, uint32_t y);
 
 	static void PutCharCurrent(char ch);
 

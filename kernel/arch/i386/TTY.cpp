@@ -1,4 +1,3 @@
-#include <kernel/IO.h>
 #include <kernel/kmalloc.h>
 #include <kernel/panic.h>
 #include <kernel/Serial.h>
@@ -41,19 +40,14 @@ void TTY::Clear()
 	VESA::Clear(m_background);
 }
 
-static void update_cursor(uint16_t pos)
+void TTY::SetCursorPosition(uint32_t x, uint32_t y)
 {
-	IO::outb(0x3D4, 0x0F);
-	IO::outb(0x3D5, (uint8_t) (pos & 0xFF));
-	IO::outb(0x3D4, 0x0E);
-	IO::outb(0x3D5, (uint8_t) ((pos >> 8) & 0xFF));
-}
-
-void TTY::SetCursorPos(int x, int y)
-{
-	m_row = y;
-	m_column = x;
-	update_cursor(m_row * m_width + m_column);
+	static uint32_t last_x = 0;
+	static uint32_t last_y = 0;
+	RenderFromBuffer(last_x, last_y); // Hacky way to clear previous cursor in graphics mode :D
+	VESA::SetCursorPosition(x, y, VESA::Color::BRIGHT_WHITE);
+	last_x = m_column = x;
+	last_y = m_row = y;
 }
 
 static uint16_t handle_unicode(uint8_t ch)
@@ -318,7 +312,7 @@ void TTY::PutChar(char ch)
 		m_row--;
 	}
 
-	update_cursor(m_row * m_width + m_column);
+	SetCursorPosition(m_column, m_row);
 }
 
 void TTY::Write(const char* data, size_t size)

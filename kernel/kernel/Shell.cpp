@@ -84,7 +84,7 @@ namespace Kernel
 				return;	
 			}
 			m_tty->Clear();
-			m_tty->SetCursorPos(0, 0);
+			m_tty->SetCursorPosition(0, 0);
 			return;
 		}
 

@@ -1,3 +1,4 @@
+#include <kernel/IO.h>
 #include <kernel/kmalloc.h>
 #include <kernel/multiboot.h>
 #include <kernel/panic.h>
@@ -31,12 +32,15 @@ namespace VESA
 
 	static void (*PutCharAtImpl)(uint16_t, uint32_t, uint32_t, Color, Color) = nullptr;
 	static void (*ClearImpl)(Color) = nullptr;
+	static void (*SetCursorPositionImpl)(uint32_t, uint32_t, Color) = nullptr;
 
 	static void GraphicsPutCharAt(uint16_t ch, uint32_t x, uint32_t y, Color fg, Color bg);
 	static void GraphicsClear(Color color);
+	static void GraphicsSetCursorPosition(uint32_t x, uint32_t y, Color fg);
 
 	static void TextPutCharAt(uint16_t ch, uint32_t x, uint32_t y, Color fg, Color bg);
 	static void TextClear(Color color);
+	static void TextSetCursorPosition(uint32_t x, uint32_t y, Color fg);
 
 	void PutCharAt(uint16_t ch, uint32_t x, uint32_t y, Color fg, Color bg)
 	{
@@ -48,6 +52,11 @@ namespace VESA
 	void Clear(Color color)
 	{
 		ClearImpl(color);
+	}
+
+	void SetCursorPosition(uint32_t x, uint32_t y, Color fg)
+	{
+		SetCursorPositionImpl(x, y, fg);
 	}
 
 	uint32_t GetTerminalWidth()
@@ -83,6 +92,7 @@ namespace VESA
 
 			PutCharAtImpl = GraphicsPutCharAt;
 			ClearImpl = GraphicsClear;
+			SetCursorPositionImpl = GraphicsSetCursorPosition;
 			s_terminal_width = s_width / font.Width;
 			s_terminal_height = s_height / font.Height;
 		}
@@ -90,6 +100,7 @@ namespace VESA
 		{
 			PutCharAtImpl = TextPutCharAt;
 			ClearImpl = TextClear;
+			SetCursorPositionImpl = TextSetCursorPosition;
 			s_terminal_width = s_width;
 			s_terminal_height = s_height;
 		}
@@ -99,6 +110,7 @@ namespace VESA
 			return false;
 		}
 
+		SetCursorPositionImpl(0, 0, Color::BRIGHT_WHITE);
 		ClearImpl(Color::BLACK);
 		return true;
 	}
@@ -199,6 +211,49 @@ namespace VESA
 		}
 	}
 
+	static void GraphicsSetCursorPosition(uint32_t x, uint32_t y, Color fg)
+	{
+		if (font.Width == 8 && font.Height == 16)
+		{
+			uint8_t cursor[] = {
+				________,
+				________,
+				________,
+				________,
+				________,
+				________,
+				________,
+				________,
+				________,
+				________,
+				________,
+				________,
+				________,
+				XXXXXXXX,
+				XXXXXXXX,
+				________,
+			};
+
+			uint32_t u32_fg = s_graphics_colors[(uint8_t)fg];
+
+			uint32_t fx = x * font.Width;
+			uint32_t fy = y * font.Height;
+
+			uint32_t row_offset = (fy * s_pitch) + (fx * (s_bpp / 8));
+			for (uint32_t gy = 0; gy < font.Height; gy++)
+			{
+				uint32_t pixel_offset = row_offset;
+				for (uint32_t gx = 0; gx < font.Width; gx++)
+				{
+					if (cursor[gy] & (1 << (font.Width - gx - 1)))
+						GraphicsSetPixel(pixel_offset, u32_fg);
+					pixel_offset += s_bpp / 8;
+				}
+				row_offset += s_pitch;
+			}
+		}
+	}
+
 	static inline uint8_t TextColor(Color fg, Color bg)
 	{
 		return (((uint8_t)bg & 0x0F) << 4) | ((uint8_t)fg & 0x0F);
@@ -220,6 +275,15 @@ namespace VESA
 		for (uint32_t y = 0; y < s_height; y++)
 			for (uint32_t x = 0; x < s_width; x++)
 				TextPutCharAt(' ', x, y, Color::BRIGHT_WHITE, color);
+	}
+
+	static void TextSetCursorPosition(uint32_t x, uint32_t y, Color)
+	{
+		uint16_t position = y * s_width + x;
+		IO::outb(0x3D4, 0x0F);
+		IO::outb(0x3D5, (uint8_t) (position & 0xFF));
+		IO::outb(0x3D4, 0x0E);
+		IO::outb(0x3D5, (uint8_t) ((position >> 8) & 0xFF));
 	}
 
 }
