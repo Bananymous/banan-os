@@ -303,10 +303,8 @@ void TTY::PutChar(char ch)
 
 	while (m_row >= m_height)
 	{
-		// Shift buffer one line up
-		for (size_t y = 1; y < m_height; y++)
-			for (size_t x = 0; x < m_width; x++)
-				m_buffer[(y - 1) * m_width + x] = m_buffer[y * m_width + x];
+		memmove(m_buffer, m_buffer + m_width, m_width * (m_height - 1) * sizeof(Cell));
+
 		// Clear last line in buffer
 		for (size_t x = 0; x < m_width; x++)
 			m_buffer[(m_height - 1) * m_width + x] = { .foreground = m_foreground, .background = m_background, .character = ' ' };
