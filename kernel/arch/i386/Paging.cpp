@@ -28,46 +28,39 @@ namespace Paging
 		);
 	}
 
-	void MapFramebuffer(uint32_t address)
+	static void MapPDE(uint32_t address, uint32_t* pt)
 	{
+		if ((address & 0xffc00000) != address)
+			Kernel::panic("Trying to map non 4 MiB aligned address");
+
 		uint32_t pd_index = address >> 22;
 
 		if (!(s_page_directory[pd_index] & (1 << 0)))
 		{
+			// Identity map the whole page table
 			for (uint32_t i = 0; i < 1024; i++)
-				s_page_table_framebuffer[i] = address | (i << 12) | 0x03;
-			s_page_directory[pd_index] = (uint32_t)s_page_table_framebuffer | 0x03;
+				pt[i] = address | (i << 12) | 0x03;
+			// Set the pde to point to page table
+			s_page_directory[pd_index] = (uint32_t)pt | 0x03;
+			// Flush TLB
 			for (uint32_t i = 0; i < 1024; i++)
 				asm volatile("invlpg (%0)" :: "r" (address | (i << 12)) : "memory");
 		}
+	}
+
+	void MapFramebuffer(uint32_t address)
+	{
+		MapPDE(address, s_page_table_framebuffer);
 	}
 
 	void MapRSDP(uint32_t address)
 	{
-		uint32_t pd_index = address >> 22;
-
-		if (!(s_page_directory[pd_index] & (1 << 0)))
-		{
-			for (uint32_t i = 0; i < 1024; i++)
-				s_page_table_rsdp[i] = address | (i << 12) | 0x03;
-			s_page_directory[pd_index] = (uint32_t)s_page_table_rsdp | 0x03;
-			for (uint32_t i = 0; i < 1024; i++)
-				asm volatile("invlpg (%0)" :: "r" (address | (i << 12)) : "memory");
-		}
+		MapPDE(address, s_page_table_rsdp);
 	}
 
 	void MapAPIC(uint32_t address)
 	{
-		uint32_t pd_index = address >> 22;
-
-		if (!(s_page_directory[pd_index] & (1 << 0)))
-		{
-			for (uint32_t i = 0; i < 1024; i++)
-				s_page_table_apic[i] = address | (i << 12) | 0x03;
-			s_page_directory[pd_index] = (uint32_t)s_page_table_apic | 0x03;
-			for (uint32_t i = 0; i < 1024; i++)
-				asm volatile("invlpg (%0)" :: "r" (address | (i << 12)) : "memory");
-		}
+		MapPDE(address, s_page_table_apic);
 	}
 
 }
