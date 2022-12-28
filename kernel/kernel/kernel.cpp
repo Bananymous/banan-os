@@ -1,5 +1,3 @@
-#include <BAN/StringView.h>
-#include <BAN/Vector.h>
 #include <kernel/APIC.h>
 #include <kernel/GDT.h>
 #include <kernel/IDT.h>
@@ -33,10 +31,23 @@ struct ParsedCommandLine
 
 ParsedCommandLine ParseCommandLine(const char* command_line)
 {
-	auto args = MUST(StringView(command_line).Split([](char c) { return c == ' ' || c == '\t'; }));
-
 	ParsedCommandLine result;
-	result.force_pic = args.Has("noapic");
+
+	const char* start = command_line;
+	while (true)
+	{
+		if (!*command_line || *command_line == ' ' || *command_line == '\t')
+		{
+			if (command_line - start == 6 && memcmp(start, "noapic", 6) == 0)
+				result.force_pic = true;
+
+			if (!*command_line)
+				break;
+			start = command_line + 1;
+		}
+		command_line++;
+	}
+
 	return result;
 }
 
