@@ -120,6 +120,7 @@ namespace Kernel
 			CPUID::GetFeatures(ecx, edx);
 
 			TTY_PRINTLN("Vendor: '{}'", vendor);
+			TTY_PRINTLN("64-bit: {}", CPUID::Is64Bit());
 			bool first = true;
 			for (int i = 0; i < 32; i++)
 				if (ecx & ((uint32_t)1 << i))

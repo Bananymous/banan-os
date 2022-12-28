@@ -46,4 +46,18 @@ namespace CPUID
 		edx = buffer[3];
 	}
 
+	bool Is64Bit()
+	{
+		if (!IsAvailable())
+			return false;
+		
+		uint32_t buffer[4] {};
+		get_cpuid(0x80000000, buffer);
+		if (buffer[0] < 0x80000001)
+			return false;
+
+		get_cpuid(0x80000001, buffer);
+		return buffer[3] & (1 << 29);
+	}
+
 }
