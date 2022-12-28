@@ -18,35 +18,37 @@ struct kmalloc_node
 	size_t	 	size : sizeof(size_t) * 8 - 1;
 	size_t   	free : 1;
 };
-static kmalloc_node*		s_kmalloc_node_head = nullptr;
-static size_t				s_kmalloc_node_count;
+static kmalloc_node*	s_kmalloc_node_head = nullptr;
+static size_t			s_kmalloc_node_count;
 
-static constexpr uintptr_t	s_kmalloc_node_base = 0x00200000;
-static constexpr size_t		s_kmalloc_max_nodes = 1000;
+static uintptr_t		s_kmalloc_node_base = 0x00200000;
+static size_t			s_kmalloc_max_nodes = 1000;
 
-static constexpr uintptr_t	s_kmalloc_base = s_kmalloc_node_base + s_kmalloc_max_nodes * sizeof(kmalloc_node);
-static constexpr size_t		s_kmalloc_size = 1 * MB;
-static constexpr uintptr_t	s_kmalloc_end = s_kmalloc_base + s_kmalloc_size;
+static uintptr_t		s_kmalloc_base = s_kmalloc_node_base + s_kmalloc_max_nodes * sizeof(kmalloc_node);
+static size_t			s_kmalloc_size = 1 * MB;
+static uintptr_t		s_kmalloc_end = s_kmalloc_base + s_kmalloc_size;
 
-static size_t				s_kmalloc_available = 0;
-static size_t				s_kmalloc_allocated = 0;
+static size_t			s_kmalloc_available = 0;
+static size_t			s_kmalloc_allocated = 0;
 
 /*
 	#### KMALLOC ETERNAL ########
 */
-static uintptr_t			s_kmalloc_eternal_ptr = 0;
+static uintptr_t		s_kmalloc_eternal_ptr = 0;
 
-static constexpr uintptr_t	s_kmalloc_eternal_base = s_kmalloc_end;
-static constexpr size_t		s_kmalloc_eternal_size = 2 * MB;
-static constexpr uintptr_t	s_kmalloc_eternal_end = s_kmalloc_eternal_base + s_kmalloc_eternal_size;
+static uintptr_t		s_kmalloc_eternal_base = s_kmalloc_end;
+static size_t			s_kmalloc_eternal_size = 1 * MB;
+static uintptr_t		s_kmalloc_eternal_end = s_kmalloc_eternal_base + s_kmalloc_eternal_size;
 /*
 	#############################
 */
 
+static bool s_initialized = false;
+
 void kmalloc_initialize()
 {
 	if (!(s_multiboot_info->flags & (1 << 6)))
-		Kernel::panic("Kmalloc: Bootloader didn't give a memory map");
+		Kernel::panic("Kmalloc: Bootloader didn't provide a memory map");
 
 	// Validate kmalloc memory
 	bool valid = false;
@@ -68,9 +70,7 @@ void kmalloc_initialize()
 	}
 
 	if (!valid)
-		Kernel::panic("Kmalloc: Could not find {} MB of memory", (double)(s_kmalloc_eternal_end - s_kmalloc_base));
-
-	dprintln("Aligining everything to {} byte boundaries", ALIGN);
+		Kernel::panic("Kmalloc: Could not find {} MB of memory", (double)(s_kmalloc_eternal_end - s_kmalloc_node_base));
 
 	s_kmalloc_node_count = 1;
 	s_kmalloc_node_head = (kmalloc_node*)s_kmalloc_node_base;
@@ -84,10 +84,13 @@ void kmalloc_initialize()
 	head.free = true;
 
 	s_kmalloc_eternal_ptr = s_kmalloc_eternal_base;
+
+	s_initialized = true;
 }
 
 void kmalloc_dump_nodes()
 {
+	if (!s_initialized) Kernel::panic("kmalloc not initialized!");
 	dprintln("Kmalloc memory available {} MB", (float)s_kmalloc_available / MB);
 	dprintln("Kmalloc memory allocated {} MB", (float)s_kmalloc_allocated / MB);
 	dprintln("Using {}/{} nodes", s_kmalloc_node_count, s_kmalloc_max_nodes);
@@ -100,6 +103,8 @@ void kmalloc_dump_nodes()
 
 void* kmalloc_eternal(size_t size)
 {
+	if (!s_initialized) Kernel::panic("kmalloc not initialized!");
+
 	if (size % ALIGN)
 		size += ALIGN - (size % ALIGN);
 
@@ -119,6 +124,8 @@ void* kmalloc_eternal(size_t size)
 
 void* kmalloc(size_t size)
 {
+	if (!s_initialized) Kernel::panic("kmalloc not initialized!");
+
 	if (size % ALIGN)
 		size += ALIGN - (size % ALIGN);
 
@@ -183,6 +190,8 @@ void* kmalloc(size_t size)
 
 void kfree(void* addr)
 {
+	if (!s_initialized) Kernel::panic("kmalloc not initialized!");
+
 	if (addr == nullptr)
 		return;
 

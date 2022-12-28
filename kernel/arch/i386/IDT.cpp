@@ -1,6 +1,5 @@
 #include <kernel/APIC.h>
 #include <kernel/IDT.h>
-#include <kernel/kmalloc.h>
 #include <kernel/panic.h>
 #include <kernel/kprint.h>
 #include <kernel/Serial.h>

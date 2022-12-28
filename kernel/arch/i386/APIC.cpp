@@ -373,8 +373,8 @@ namespace APIC
 		// Enable Local APIC
 		SetMSR(IA32_APIC_BASE, (s_local_apic & 0xFFFFF000) | IA32_APIC_BASE_ENABLE, 0);
 
-		uint32_t sipi = ReadLocalAPIC(0xF0);
-		WriteIOAPIC(0xF0, sipi | 0x1FF);
+		uint32_t sivr = ReadLocalAPIC(0xF0);
+		WriteLocalAPIC(0xF0, sivr | 0x1FF);
 
 		return true;
 	}

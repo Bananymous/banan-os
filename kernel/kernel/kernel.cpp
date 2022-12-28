@@ -57,9 +57,6 @@ extern "C" void kernel_main(multiboot_info_t* mbi, uint32_t magic)
 		dprintln("Could not initialize VESA");
 		return;
 	}
-	kmalloc_initialize();
-
-	TTY* tty1 = new TTY;
 
 	ParsedCommandLine cmdline;
 	if (mbi->flags & 0x02)
@@ -70,6 +67,11 @@ extern "C" void kernel_main(multiboot_info_t* mbi, uint32_t magic)
 	IDT::initialize();
 
 	PIT::initialize();
+	kmalloc_initialize();
+
+	TTY* tty1 = new TTY;
+	tty1->SetCursorPosition(0, 2);
+
 	if (!Keyboard::initialize())
 		return;
 

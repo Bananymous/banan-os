@@ -20,12 +20,12 @@ extern const struct bitmap_font font;
 namespace VESA
 {
 
-	static void*	s_addr		= nullptr;
-	static uint8_t	s_bpp		= 0;
-	static uint32_t s_pitch		= 0;
-	static uint32_t	s_width		= 0;
-	static uint32_t	s_height	= 0;
-	static uint8_t	s_mode		= 0;
+	static uintptr_t	s_addr		= 0;
+	static uint8_t		s_bpp		= 0;
+	static uint32_t 	s_pitch		= 0;
+	static uint32_t		s_width		= 0;
+	static uint32_t		s_height	= 0;
+	static uint8_t		s_mode		= 0;
 
 	static uint32_t s_terminal_width  = 0;
 	static uint32_t s_terminal_height = 0;
@@ -73,9 +73,9 @@ namespace VESA
 	{
 		if (!(s_multiboot_info->flags & MULTIBOOT_FLAGS_FRAMEBUFFER))
 			return false;
-		
+
 		auto& framebuffer = s_multiboot_info->framebuffer;
-		s_addr		= (void*)framebuffer.addr;
+		s_addr		= framebuffer.addr;
 		s_bpp		= framebuffer.bpp;
 		s_pitch		= framebuffer.pitch;
 		s_width		= framebuffer.width;
@@ -90,6 +90,7 @@ namespace VESA
 				return false;
 			}
 
+			dprintln("Graphics Mode {}x{} ({} bpp)", s_width, s_height, s_bpp);
 			PutCharAtImpl = GraphicsPutCharAt;
 			ClearImpl = GraphicsClear;
 			SetCursorPositionImpl = GraphicsSetCursorPosition;
@@ -98,6 +99,7 @@ namespace VESA
 		}
 		else if (s_mode == MULTIBOOT_FRAMEBUFFER_TYPE_TEXT)
 		{
+			dprintln("Text Mode {}x{}", s_width, s_height);
 			PutCharAtImpl = TextPutCharAt;
 			ClearImpl = TextClear;
 			SetCursorPositionImpl = TextSetCursorPosition;
@@ -137,7 +139,7 @@ namespace VESA
 
 	static void GraphicsSetPixel(uint32_t offset, uint32_t color)
 	{
-		uint32_t* address = (uint32_t*)((uint32_t)s_addr + offset);
+		uint32_t* address = (uint32_t*)(s_addr + offset);
 		switch (s_bpp)
 		{
 			case 24:
@@ -264,7 +266,7 @@ namespace VESA
 
 	static void TextPutCharAt(uint16_t ch, uint32_t x, uint32_t y, Color fg, Color bg)
 	{
-		uint32_t index = y * s_width + x;
+		uint32_t index = y * s_pitch + x;
 		((uint16_t*)s_addr)[index] = TextEntry(ch, TextColor(fg, bg));
 	}
 
