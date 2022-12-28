@@ -8,6 +8,7 @@
 #include <kernel/kmalloc.h>
 #include <kernel/kprint.h>
 #include <kernel/multiboot.h>
+#include <kernel/Paging.h>
 #include <kernel/panic.h>
 #include <kernel/PIC.h>
 #include <kernel/PIT.h>
@@ -49,6 +50,8 @@ extern "C" void kernel_main(multiboot_info_t* mbi, uint32_t magic)
 		dprintln("Invalid multiboot magic number");
 		return;
 	}
+
+	Paging::Initialize();
 
 	s_multiboot_info = mbi;
 

@@ -1,6 +1,7 @@
 #include <kernel/IO.h>
 #include <kernel/kmalloc.h>
 #include <kernel/multiboot.h>
+#include <kernel/Paging.h>
 #include <kernel/panic.h>
 #include <kernel/Serial.h>
 #include <kernel/VESA.h>
@@ -81,6 +82,8 @@ namespace VESA
 		s_width		= framebuffer.width;
 		s_height	= framebuffer.height;
 		s_mode		= framebuffer.type;
+
+		Paging::MapFramebuffer(framebuffer.addr & 0xFFC00000);
 
 		if (s_mode == MULTIBOOT_FRAMEBUFFER_TYPE_GRAPHICS)
 		{
