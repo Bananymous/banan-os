@@ -1,6 +1,8 @@
+#include <BAN/Math.h>
 #include <BAN/StringView.h>
 #include <BAN/Vector.h>
 #include <kernel/CPUID.h>
+#include <kernel/font.h>
 #include <kernel/Input.h>
 #include <kernel/IO.h>
 #include <kernel/PIT.h>
@@ -9,13 +11,33 @@
 #include <kernel/Shell.h>
 #include <kernel/TTY.h>
 
-#define TTY_PRINT(...) BAN::Formatter::print([this](char c) { m_tty->PutChar(c); }, __VA_ARGS__)
-#define TTY_PRINTLN(...) BAN::Formatter::println([this](char c) { m_tty->PutChar(c); }, __VA_ARGS__)
+#define TTY_PRINT(...) Formatter::print([this](char c) { m_tty->PutChar(c); }, __VA_ARGS__)
+#define TTY_PRINTLN(...) Formatter::println([this](char c) { m_tty->PutChar(c); }, __VA_ARGS__)
 
 namespace Kernel
 {
+	using namespace BAN;
 
 	static Shell* s_instance = nullptr;
+
+	static uint8_t s_pointer[] {
+		________,
+		________,
+		________,
+		________,
+		________,
+		X_______,
+		XX______,
+		XXX_____,
+		XXXX____,
+		XXXXX___,
+		XXXXXX__,
+		XXXXXXX_,
+		XXXXXXXX,
+		XXX_____,
+		XX______,
+		X_______,
+	};
 
 	Shell& Shell::Get()
 	{
@@ -27,6 +49,7 @@ namespace Kernel
 	Shell::Shell()
 	{
 		Input::register_key_event_callback([](Input::KeyEvent event) { Shell::Get().KeyEventCallback(event); });
+		Input::register_mouse_move_event_callback([](Input::MouseMoveEvent event) { Shell::Get().MouseMoveEventCallback(event); });
 		m_buffer.Reserve(128);
 	}
 
@@ -50,12 +73,13 @@ namespace Kernel
 		}
 	}
 
-	void Shell::ProcessCommand(const BAN::Vector<BAN::StringView>& arguments)
+	void Shell::ProcessCommand(const Vector<StringView>& arguments)
 	{
 		if (arguments.Empty())
-			return;
+		{
 
-		if (arguments.Front() == "date")
+		}
+		else if (arguments.Front() == "date")
 		{
 			if (arguments.Size() != 1)
 			{
@@ -64,10 +88,8 @@ namespace Kernel
 			}
 			auto time = RTC::GetCurrentTime();
 			TTY_PRINTLN("{}", time);
-			return;
 		}
-		
-		if (arguments.Front() == "echo")
+		else if (arguments.Front() == "echo")
 		{
 			if (arguments.Size() > 1)
 			{
@@ -76,10 +98,8 @@ namespace Kernel
 					TTY_PRINT(" {}", arguments[i]);
 			}
 			TTY_PRINTLN("");
-			return;
 		}
-
-		if (arguments.Front() == "clear")
+		else if (arguments.Front() == "clear")
 		{
 			if (arguments.Size() != 1)
 			{
@@ -88,10 +108,8 @@ namespace Kernel
 			}
 			m_tty->Clear();
 			m_tty->SetCursorPosition(0, 0);
-			return;
 		}
-
-		if (arguments.Front() == "time")
+		else if (arguments.Front() == "time")
 		{
 			auto new_args = arguments;
 			new_args.Remove(0);
@@ -99,10 +117,8 @@ namespace Kernel
 			ProcessCommand(new_args);
 			auto duration = PIT::ms_since_boot() - start;
 			TTY_PRINTLN("took {} ms", duration);
-			return;
 		}
-
-		if (arguments.Front() == "cpuinfo")
+		else if (arguments.Front() == "cpuinfo")
 		{
 			if (arguments.Size() != 1)
 			{
@@ -130,11 +146,8 @@ namespace Kernel
 					TTY_PRINT("{}{}", first ? (first = false, "") : ", ", CPUID::FeatStringEDX((uint32_t)1 << i));
 			if (!first)
 				TTY_PRINTLN("");
-			
-			return;
 		}
-
-		if (arguments.Front() == "random")
+		else if (arguments.Front() == "random")
 		{
 			if (arguments.Size() != 1)
 			{
@@ -160,11 +173,8 @@ namespace Kernel
 				asm volatile("rdrand %0" : "=r"(random));
 				TTY_PRINTLN("  0x{8H}", random);
 			}
-
-			return;
 		}
-
-		if (arguments.Front() == "reboot")
+		else if (arguments.Front() == "reboot")
 		{
 			if (arguments.Size() != 1)
 			{
@@ -176,13 +186,15 @@ namespace Kernel
 				good = IO::inb(0x64);
 			IO::outb(0x64, 0xFE);
 			asm volatile("cli; hlt");
-			return;
+		}
+		else
+		{
+			TTY_PRINTLN("unrecognized command '{}'", arguments.Front());
 		}
 
-		TTY_PRINTLN("unrecognized command '{}'", arguments.Front());
 	}
 
-	static bool IsSingleUnicode(BAN::StringView sv)
+	static bool IsSingleUnicode(StringView sv)
 	{
 		if (sv.Size() == 2 && ((uint8_t)sv[0] >> 5) != 0b110)
 			return false;
@@ -196,7 +208,7 @@ namespace Kernel
 		return true;
 	}
 
-	static uint32_t GetLastLength(BAN::StringView sv)
+	static uint32_t GetLastLength(StringView sv)
 	{
 		if (sv.Size() < 2)
 			return sv.Size();
@@ -261,6 +273,18 @@ namespace Kernel
 				break;
 			}
 		}
+
+		if (m_mouse_pos.exists)
+			VESA::PutBitmapAt(s_pointer, m_mouse_pos.x, m_mouse_pos.y, VESA::Color::BRIGHT_WHITE);
+	}
+
+	void Shell::MouseMoveEventCallback(Input::MouseMoveEvent event)
+	{
+		m_mouse_pos.exists = true;
+		m_tty->RenderFromBuffer(m_mouse_pos.x, m_mouse_pos.y);
+		m_mouse_pos.x = clamp<int32_t>(m_mouse_pos.x + event.dx, 0, m_tty->Width() - 1);
+		m_mouse_pos.y = clamp<int32_t>(m_mouse_pos.y - event.dy, 0, m_tty->Height() - 1);
+		VESA::PutBitmapAt(s_pointer, m_mouse_pos.x, m_mouse_pos.y, VESA::Color::BRIGHT_WHITE);
 	}
 
 }

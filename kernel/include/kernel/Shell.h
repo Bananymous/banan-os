@@ -23,10 +23,18 @@ namespace Kernel
 		void PrintPrompt();
 		void ProcessCommand(const BAN::Vector<BAN::StringView>&);
 		void KeyEventCallback(Input::KeyEvent);
+		void MouseMoveEventCallback(Input::MouseMoveEvent);
 
 	private:
 		TTY*		m_tty;
 		BAN::String	m_buffer;
+
+		struct
+		{
+			bool	exists = false;
+			int32_t x = 0;
+			int32_t y = 0;
+		} m_mouse_pos;
 	};
 
 }
