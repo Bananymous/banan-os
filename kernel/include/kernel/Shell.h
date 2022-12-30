@@ -1,7 +1,7 @@
 #pragma once
 
 #include <BAN/String.h>
-#include <kernel/Keyboard.h>
+#include <kernel/Input.h>
 #include <kernel/TTY.h>
 
 namespace Kernel
@@ -22,7 +22,7 @@ namespace Kernel
 		Shell();
 		void PrintPrompt();
 		void ProcessCommand(const BAN::Vector<BAN::StringView>&);
-		void KeyEventCallback(Keyboard::KeyEvent);
+		void KeyEventCallback(Input::KeyEvent);
 
 	private:
 		TTY*		m_tty;

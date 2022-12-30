@@ -406,10 +406,10 @@ namespace APIC
 		}
 	}
 
-	void EOI()
+	void EOI(uint8_t irq)
 	{
 		if (s_using_fallback_pic)
-			return PIC::EOI(0);
+			return PIC::EOI(irq);
 		WriteLocalAPIC(0xB0, 0);
 	}
 

@@ -144,7 +144,7 @@ found:
 	else
 		Kernel::panic("no handler for irq 0x{2H}\n", irq);
 
-	APIC::EOI();
+	APIC::EOI(irq);
 }
 
 extern "C" void handle_irq_common();

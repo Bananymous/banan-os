@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 
-namespace Keyboard
+namespace Input
 {
 
 	enum class Key : uint8_t
@@ -37,13 +37,30 @@ namespace Keyboard
 		bool	pressed;
 	};
 
-	bool initialize();
-	void update_keyboard();
+	enum class MouseButton
+	{
+		Left, Right, Middle,
+	};
+	struct MouseButtonEvent
+	{
+		MouseButton button;
+	};
 
-	void register_key_event_callback(void(*callback)(KeyEvent));
+	struct MouseMoveEvent
+	{
+		int16_t dx;
+		int16_t dy;
+	};
+	
+
+	bool initialize();
+	void update();
+	bool is_key_down(Key);
+
+	void register_key_event_callback(void (*callback)(KeyEvent));
+	void register_mouse_button_event_callback(void (*callback)(MouseButtonEvent));
+	void register_mouse_move_event_callback(void (*callback)(MouseMoveEvent));
 
 	const char* key_event_to_utf8(KeyEvent);
-
-	void led_disco();
 
 }

@@ -1,8 +1,8 @@
 #include <kernel/APIC.h>
 #include <kernel/GDT.h>
 #include <kernel/IDT.h>
+#include <kernel/Input.h>
 #include <kernel/IO.h>
-#include <kernel/Keyboard.h>
 #include <kernel/kmalloc.h>
 #include <kernel/kprint.h>
 #include <kernel/multiboot.h>
@@ -86,7 +86,7 @@ extern "C" void kernel_main(multiboot_info_t* mbi, uint32_t magic)
 	TTY* tty1 = new TTY;
 	tty1->SetCursorPosition(0, 2);
 
-	if (!Keyboard::initialize())
+	if (!Input::initialize())
 		return;
 
 	ENABLE_INTERRUPTS();

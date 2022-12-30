@@ -1,12 +1,12 @@
 #include <BAN/StringView.h>
 #include <BAN/Vector.h>
 #include <kernel/CPUID.h>
+#include <kernel/Input.h>
 #include <kernel/IO.h>
-#include <kernel/Keyboard.h>
 #include <kernel/PIT.h>
 #include <kernel/RTC.h>
-#include <kernel/Shell.h>
 #include <kernel/Serial.h>
+#include <kernel/Shell.h>
 #include <kernel/TTY.h>
 
 #define TTY_PRINT(...) BAN::Formatter::print([this](char c) { m_tty->PutChar(c); }, __VA_ARGS__)
@@ -26,7 +26,7 @@ namespace Kernel
 
 	Shell::Shell()
 	{
-		Keyboard::register_key_event_callback([](Keyboard::KeyEvent event) { Shell::Get().KeyEventCallback(event); });
+		Input::register_key_event_callback([](Input::KeyEvent event) { Shell::Get().KeyEventCallback(event); });
 		m_buffer.Reserve(128);
 	}
 
@@ -46,7 +46,7 @@ namespace Kernel
 		for (;;)
 		{
 			asm volatile("hlt");
-			Keyboard::update_keyboard();
+			Input::update();
 		}
 	}
 
@@ -213,14 +213,14 @@ namespace Kernel
 		return 1;
 	}
 
-	void Shell::KeyEventCallback(Keyboard::KeyEvent event)
+	void Shell::KeyEventCallback(Input::KeyEvent event)
 	{
 		if (!event.pressed)
 			return;
 
 		switch (event.key)
 		{
-			case Keyboard::Key::Backspace:
+			case Input::Key::Backspace:
 			{
 				if (!m_buffer.Empty())
 				{
@@ -233,8 +233,8 @@ namespace Kernel
 				break;
 			}
 
-			case Keyboard::Key::Enter:
-			case Keyboard::Key::NumpadEnter:
+			case Input::Key::Enter:
+			case Input::Key::NumpadEnter:
 			{
 				TTY_PRINT("\n");
 				ProcessCommand(MUST(m_buffer.SV().Split(' ')));
@@ -243,16 +243,16 @@ namespace Kernel
 				break;
 			}
 
-			case Keyboard::Key::Escape:
+			case Input::Key::Escape:
 				TTY_PRINTLN("time since boot {} ms", PIT::ms_since_boot());
 				break;
 
-			case Keyboard::Key::Tab:
+			case Input::Key::Tab:
 				break;
 			
 			default:
 			{
-				const char* utf8 = Keyboard::key_event_to_utf8(event);
+				const char* utf8 = Input::key_event_to_utf8(event);
 				if (utf8)
 				{
 					TTY_PRINT("{}", utf8);

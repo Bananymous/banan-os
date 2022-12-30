@@ -1,8 +1,8 @@
 #pragma once
 
-#include <kernel/Keyboard.h>
+#include <kernel/Input.h>
 
-namespace Keyboard
+namespace Input
 {
 
 	constexpr Key scan_code_to_key_extended[0xFF]
