@@ -1,3 +1,4 @@
+#include <kernel/font.h>
 #include <kernel/IO.h>
 #include <kernel/kmalloc.h>
 #include <kernel/multiboot.h>
@@ -5,8 +6,6 @@
 #include <kernel/panic.h>
 #include <kernel/Serial.h>
 #include <kernel/VESA.h>
-
-#include "font.h"
 
 #include <string.h>
 
@@ -35,6 +34,8 @@ namespace VESA
 	static void (*ClearImpl)(Color) = nullptr;
 	static void (*SetCursorPositionImpl)(uint32_t, uint32_t, Color) = nullptr;
 
+	static void GraphicsPutBitmapAt(const uint8_t* bitmap, uint32_t x, uint32_t y, Color fg);
+	static void GraphicsPutBitmapAt(const uint8_t* bitmap, uint32_t x, uint32_t y, Color fg, Color bg);
 	static void GraphicsPutCharAt(uint16_t ch, uint32_t x, uint32_t y, Color fg, Color bg);
 	static void GraphicsClear(Color color);
 	static void GraphicsSetCursorPosition(uint32_t x, uint32_t y, Color fg);
@@ -42,6 +43,17 @@ namespace VESA
 	static void TextPutCharAt(uint16_t ch, uint32_t x, uint32_t y, Color fg, Color bg);
 	static void TextClear(Color color);
 	static void TextSetCursorPosition(uint32_t x, uint32_t y, Color fg);
+
+	void PutBitmapAt(const uint8_t* bitmap, uint32_t x, uint32_t y, Color fg)
+	{
+		if (s_mode == MULTIBOOT_FRAMEBUFFER_TYPE_GRAPHICS)
+			GraphicsPutBitmapAt(bitmap, x, y, fg);
+	}
+	void PutBitmapAt(const uint8_t* bitmap, uint32_t x, uint32_t y, Color fg, Color bg)
+	{
+		if (s_mode == MULTIBOOT_FRAMEBUFFER_TYPE_GRAPHICS)
+			GraphicsPutBitmapAt(bitmap, x, y, fg, bg);
+	}
 
 	void PutCharAt(uint16_t ch, uint32_t x, uint32_t y, Color fg, Color bg)
 	{
@@ -154,6 +166,48 @@ namespace VESA
 		}
 	}
 
+	static void GraphicsPutBitmapAt(const uint8_t* bitmap, uint32_t x, uint32_t y, Color fg)
+	{
+		uint32_t u32_fg = s_graphics_colors[(uint8_t)fg];
+
+		uint32_t fx = x * font.Width;
+		uint32_t fy = y * font.Height;
+
+		uint32_t row_offset = (fy * s_pitch) + (fx * (s_bpp / 8));
+		for (uint32_t gy = 0; gy < font.Height; gy++)
+		{
+			uint32_t pixel_offset = row_offset;
+			for (uint32_t gx = 0; gx < font.Width; gx++)
+			{
+				if (bitmap[gy] & (1 << (font.Width - gx - 1)))
+					GraphicsSetPixel(pixel_offset, u32_fg);
+				pixel_offset += s_bpp / 8;
+			}
+			row_offset += s_pitch;
+		}
+	}
+
+	static void GraphicsPutBitmapAt(const uint8_t* bitmap, uint32_t x, uint32_t y, Color fg, Color bg)
+	{
+		uint32_t u32_fg = s_graphics_colors[(uint8_t)fg];
+		uint32_t u32_bg = s_graphics_colors[(uint8_t)bg];
+
+		uint32_t fx = x * font.Width;
+		uint32_t fy = y * font.Height;
+
+		uint32_t row_offset = (fy * s_pitch) + (fx * (s_bpp / 8));
+		for (uint32_t gy = 0; gy < font.Height; gy++)
+		{
+			uint32_t pixel_offset = row_offset;
+			for (uint32_t gx = 0; gx < font.Width; gx++)
+			{
+				GraphicsSetPixel(pixel_offset, (bitmap[gy] & (1 << (font.Width - gx - 1))) ? u32_fg : u32_bg);
+				pixel_offset += s_bpp / 8;
+			}
+			row_offset += s_pitch;
+		}
+	}
+
 	static void GraphicsPutCharAt(uint16_t ch, uint32_t x, uint32_t y, Color fg, Color bg)
 	{
 		// find correct bitmap
@@ -167,25 +221,9 @@ namespace VESA
 			}
 		}
 
-		const unsigned char* glyph = font.Bitmap + index * font.Height;
+		const uint8_t* glyph = font.Bitmap + index * font.Height;
 
-		uint32_t u32_fg = s_graphics_colors[(uint8_t)fg];
-		uint32_t u32_bg = s_graphics_colors[(uint8_t)bg];
-
-		uint32_t fx = x * font.Width;
-		uint32_t fy = y * font.Height;
-
-		uint32_t row_offset = (fy * s_pitch) + (fx * (s_bpp / 8));
-		for (uint32_t gy = 0; gy < font.Height; gy++)
-		{
-			uint32_t pixel_offset = row_offset;
-			for (uint32_t gx = 0; gx < font.Width; gx++)
-			{
-				GraphicsSetPixel(pixel_offset, (glyph[gy] & (1 << (font.Width - gx - 1))) ? u32_fg : u32_bg);
-				pixel_offset += s_bpp / 8;
-			}
-			row_offset += s_pitch;
-		}
+		GraphicsPutBitmapAt(glyph, x, y, fg, bg);
 	}
 
 	static void GraphicsClear(Color color)
@@ -237,23 +275,7 @@ namespace VESA
 				________,
 			};
 
-			uint32_t u32_fg = s_graphics_colors[(uint8_t)fg];
-
-			uint32_t fx = x * font.Width;
-			uint32_t fy = y * font.Height;
-
-			uint32_t row_offset = (fy * s_pitch) + (fx * (s_bpp / 8));
-			for (uint32_t gy = 0; gy < font.Height; gy++)
-			{
-				uint32_t pixel_offset = row_offset;
-				for (uint32_t gx = 0; gx < font.Width; gx++)
-				{
-					if (cursor[gy] & (1 << (font.Width - gx - 1)))
-						GraphicsSetPixel(pixel_offset, u32_fg);
-					pixel_offset += s_bpp / 8;
-				}
-				row_offset += s_pitch;
-			}
+			GraphicsPutBitmapAt(cursor, x, y, fg);
 		}
 	}
 

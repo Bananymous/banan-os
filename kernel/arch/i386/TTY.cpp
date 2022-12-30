@@ -241,6 +241,8 @@ void TTY::HandleAnsiEscape(uint16_t ch)
 
 void TTY::RenderFromBuffer(uint32_t x, uint32_t y)
 {
+	if (x >= m_width || y >= m_height)
+		Kernel::panic("invalid render from buffer, {} {}", x, y);
 	const auto& cell = m_buffer[y * m_width + x];
 	VESA::PutCharAt(cell.character, x, y, cell.foreground, cell.background);
 }

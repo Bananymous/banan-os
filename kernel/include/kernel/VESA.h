@@ -26,6 +26,8 @@ namespace VESA
 	};
 
 	bool Initialize();
+	void PutBitmapAt(const uint8_t*, uint32_t, uint32_t, Color);
+	void PutBitmapAt(const uint8_t*, uint32_t, uint32_t, Color, Color);
 	void PutCharAt(uint16_t, uint32_t, uint32_t, Color, Color);
 	void Clear(Color);
 	void SetCursorPosition(uint32_t, uint32_t, Color);
