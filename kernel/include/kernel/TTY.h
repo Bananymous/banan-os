@@ -13,18 +13,19 @@ public:
 	void WriteString(const char* data);
 	void SetCursorPosition(uint32_t x, uint32_t y);
 
+	uint32_t Height() const { return m_height; }
+	uint32_t Width() const { return m_width; }
+
+	void RenderFromBuffer(uint32_t x, uint32_t y);
+
+	// for kprint
 	static void PutCharCurrent(char ch);
 
 private:
 	void ResetAnsiEscape();
 	void HandleAnsiSGR();
 	void HandleAnsiEscape(uint16_t ch);
-	void PutCharAt(uint16_t ch, size_t x, size_t y);
-	inline void RenderFromBuffer(size_t x, size_t y)
-	{
-		const auto& cell = m_buffer[y * m_width + x];
-		VESA::PutCharAt(cell.character, x, y, cell.foreground, cell.background);
-	}
+	void PutCharAt(uint16_t ch, uint32_t x, uint32_t y);
 
 private:
 	struct Cell

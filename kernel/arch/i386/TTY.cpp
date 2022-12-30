@@ -35,7 +35,7 @@ TTY::TTY()
 
 void TTY::Clear()
 {
-	for (size_t i = 0; i < m_width * m_height; i++)
+	for (uint32_t i = 0; i < m_width * m_height; i++)
 		m_buffer[i] = { .foreground = m_foreground, .background = m_background, .character = ' ' };
 	VESA::Clear(m_background);
 }
@@ -239,7 +239,13 @@ void TTY::HandleAnsiEscape(uint16_t ch)
 	}
 }
 
-void TTY::PutCharAt(uint16_t ch, size_t x, size_t y)
+void TTY::RenderFromBuffer(uint32_t x, uint32_t y)
+{
+	const auto& cell = m_buffer[y * m_width + x];
+	VESA::PutCharAt(cell.character, x, y, cell.foreground, cell.background);
+}
+
+void TTY::PutCharAt(uint16_t ch, uint32_t x, uint32_t y)
 {
 	auto& cell = m_buffer[y * m_width + x];
 	cell.character = ch;
@@ -301,12 +307,12 @@ void TTY::PutChar(char ch)
 		memmove(m_buffer, m_buffer + m_width, m_width * (m_height - 1) * sizeof(Cell));
 
 		// Clear last line in buffer
-		for (size_t x = 0; x < m_width; x++)
+		for (uint32_t x = 0; x < m_width; x++)
 			m_buffer[(m_height - 1) * m_width + x] = { .foreground = m_foreground, .background = m_background, .character = ' ' };
 
 		// Render the whole buffer to the screen
-		for (size_t y = 0; y < m_height; y++)
-			for (size_t x = 0; x < m_width; x++)
+		for (uint32_t y = 0; y < m_height; y++)
+			for (uint32_t x = 0; x < m_width; x++)
 				RenderFromBuffer(x, y);
 
 		m_column = 0;
@@ -339,8 +345,8 @@ void TTY::PutCharCurrent(char ch)
 	}
 	else
 	{
-		static size_t x = 0;
-		static size_t y = 0;
+		static uint32_t x = 0;
+		static uint32_t y = 0;
 
 		switch (ch)
 		{
