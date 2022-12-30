@@ -1,4 +1,5 @@
 #include <BAN/Errors.h>
+#include <BAN/Math.h>
 #include <BAN/Memory.h>
 #include <BAN/Move.h>
 #include <BAN/String.h>
@@ -6,7 +7,6 @@
 
 #include <assert.h>
 #include <string.h>
-#include <sys/param.h>
 
 namespace BAN
 {
@@ -200,7 +200,7 @@ namespace BAN
 	{
 		if (m_capasity >= size)
 			return {};
-		size_type new_cap = MAX(size, m_capasity * 1.5f);
+		size_type new_cap = BAN::max<size_type>(size, m_capasity * 1.5f);
 		void* new_data = BAN::allocator(new_cap);
 		if (new_data == nullptr)
 			return Error::FromString("String: Could not allocate memory");
