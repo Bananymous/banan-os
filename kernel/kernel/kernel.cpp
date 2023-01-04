@@ -80,14 +80,14 @@ extern "C" void kernel_main(multiboot_info_t* mbi, uint32_t magic)
 	gdt_initialize();
 	IDT::initialize();
 
-	PIT::initialize();
 	kmalloc_initialize();
+
+	PIT::initialize();
+	if (!Input::initialize())
+		return;
 
 	TTY* tty1 = new TTY;
 	tty1->SetCursorPosition(0, 2);
-
-	if (!Input::initialize())
-		return;
 
 	ENABLE_INTERRUPTS();
 
