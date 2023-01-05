@@ -98,7 +98,7 @@ namespace VESA
 		s_height	= framebuffer.height;
 		s_mode		= framebuffer.type;
 
-		Paging::MapPage(framebuffer.addr);
+		Paging::MapPages(s_addr, s_pitch * s_height);
 
 		if (s_mode == MULTIBOOT_FRAMEBUFFER_TYPE_GRAPHICS)
 		{

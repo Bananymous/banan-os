@@ -85,4 +85,11 @@ namespace Paging
 		asm volatile("invlpg (%0)" :: "r"(address) : "memory");
 	}
 
+	void MapPages(uintptr_t address, size_t size)
+	{
+		address = (address >> 21) << 21;
+		for (size_t offset = 0; offset < size; offset += 1 << 21)
+			MapPage(address + offset);
+	}
+
 }
