@@ -1,66 +1,88 @@
+#include <kernel/CPUID.h>
 #include <kernel/Paging.h>
 #include <kernel/panic.h>
+
+#include <string.h>
+
+#define PRESENT		(1 << 0)
+#define READ_WRITE	(1 << 1)
+#define PAGE_SIZE	(1 << 7)
 
 namespace Paging
 {
 
-	static uint32_t s_page_directory[1024] __attribute__((aligned(4096)));
-	static uint32_t s_page_table[1024] __attribute__((aligned(4096)));
-	static uint32_t s_page_table_framebuffer[1024] __attribute__((aligned(4096)));
-	static uint32_t s_page_table_rsdp[1024] __attribute__((aligned(4096)));
-	static uint32_t s_page_table_apic[1024] __attribute__((aligned(4096)));
+	static uint64_t s_page_directory_pointer_table[4]	__attribute__((aligned(0x20)));
+	static uint64_t s_page_directory[4 * 512]			__attribute__((aligned(4096)));
+
+	static bool HasRequirements()
+	{
+		uint32_t ecx, edx;
+		CPUID::GetFeatures(ecx, edx);
+		if (!(edx & CPUID::Features::EDX_PAE))
+		{
+			derrorln("PAE not supported, halting");
+			return false;
+		}
+
+		return true;
+	}
 
 	void Initialize()
 	{
-		for (uint32_t i = 0; i < 1024; i++)
-			s_page_directory[i] = 0x00000002;
+		if (!HasRequirements())
+			asm volatile("hlt");
 
-		for (uint32_t i = 0; i < 1024; i++)
-			s_page_table[i] = (i << 12) | 0x03;
-		s_page_directory[0] = (uint32_t)s_page_table | 0x03;
+		// Identity map first 2 (2 MiB) pages
+		memset(s_page_directory, 0x00, sizeof(s_page_directory));
+		s_page_directory[0] = (0x00 << 21) | PAGE_SIZE | READ_WRITE | PRESENT;
+		s_page_directory[1] = (0x01 << 21) | PAGE_SIZE | READ_WRITE | PRESENT;
+
+		// Initialize PDPTEs
+		for (int i = 0; i < 4; i++)
+			s_page_directory_pointer_table[i] = (uint64_t)(&s_page_directory[512 * i]) | PRESENT;
 
 		asm volatile(
-			"movl %%eax, %%cr3;"
+			// Enable PAE
+			"movl %%cr4, %%eax;"
+			"orl $0x20, %%eax;"
+			"movl %%eax, %%cr4;"
+
+			// Load PDPT address to cr3
+			"movl %0, %%cr3;"
+			
+			// Enable paging
 			"movl %%cr0, %%eax;"
-			"orl $0x80000001, %%eax;"
+			"orl $0x80000000, %%eax;"
 			"movl %%eax, %%cr0;"
-			:: "a"(s_page_directory)
+
+			:: "r" (s_page_directory_pointer_table)
+			: "eax"
 		);
+
+		dprintln("Paging enabled");
 	}
 
-	static void MapPDE(uint32_t address, uint32_t* pt)
+	void MapPage(uintptr_t address)
 	{
-		if ((address & 0xffc00000) != address)
-			Kernel::panic("Trying to map non 4 MiB aligned address");
-
-		uint32_t pd_index = address >> 22;
-
-		if (!(s_page_directory[pd_index] & (1 << 0)))
+		if (address != ((address >> 21) << 21))
 		{
-			// Identity map the whole page table
-			for (uint32_t i = 0; i < 1024; i++)
-				pt[i] = address | (i << 12) | 0x03;
-			// Set the pde to point to page table
-			s_page_directory[pd_index] = (uint32_t)pt | 0x03;
-			// Flush TLB
-			for (uint32_t i = 0; i < 1024; i++)
-				asm volatile("invlpg (%0)" :: "r" (address | (i << 12)) : "memory");
+			dprintln("aligning 0x{8H} to 2 MiB boundary -> 0x{8H}", address, (address >> 21) << 21);
+			address = (address >> 21) << 21;
 		}
-	}
 
-	void MapFramebuffer(uint32_t address)
-	{
-		MapPDE(address, s_page_table_framebuffer);
-	}
+		uint32_t pde = address >> 21;
 
-	void MapRSDP(uint32_t address)
-	{
-		MapPDE(address, s_page_table_rsdp);
-	}
+		dprintln("mapping pde {} (0x{8H} - 0x{8H})", pde, pde << 21, ((pde + 1) << 21) - 1);
 
-	void MapAPIC(uint32_t address)
-	{
-		MapPDE(address, s_page_table_apic);
+		if (s_page_directory[pde] & PRESENT)
+		{
+			dprintln("page already mapped");
+			return;
+		}
+
+		// Map and flush the given address
+		s_page_directory[pde] = address | PAGE_SIZE | READ_WRITE | PRESENT;
+		asm volatile("invlpg (%0)" :: "r"(address) : "memory");
 	}
 
 }

@@ -211,7 +211,7 @@ namespace APIC
 	static void ParseMADT(RSDPDescriptor* rsdp)
 	{
 		RSDT* root = (RSDT*)(rsdp->revision == 2 ? ((RSDPDescriptor20*)rsdp)->xsdt_address : rsdp->rsdt_address);
-		Paging::MapRSDP((uint32_t)root & 0xFFC00000);
+		Paging::MapPage((uint32_t)root);
 		uint32_t sdt_entry_count = (root->header.length - sizeof(root->header)) / (rsdp->revision == 2 ? 8 : 4);
 
 		for (uint32_t i = 0; i < sdt_entry_count; i++)
@@ -372,10 +372,8 @@ namespace APIC
 		if (s_local_apic == 0 || s_io_apic == 0)
 			return false;
 
-		if ((s_io_apic & 0xFFC00000) != (s_local_apic & 0xFFC00000))
-			Kernel::panic("lapic and ioapic are not in the same 4 MiB are");
-		
-		Paging::MapAPIC(s_io_apic & 0xFFC00000);
+		Paging::MapPage(s_io_apic);
+		Paging::MapPage(s_local_apic);
 
 		// Enable Local APIC
 		SetMSR(IA32_APIC_BASE, (s_local_apic & 0xFFFFF000) | IA32_APIC_BASE_ENABLE, 0);
