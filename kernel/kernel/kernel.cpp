@@ -67,10 +67,7 @@ extern "C" void kernel_main(multiboot_info_t* mbi, uint32_t magic)
 	s_multiboot_info = mbi;
 
 	if (!VESA::Initialize())
-	{
-		dprintln("Could not initialize VESA");
 		return;
-	}
 
 	ParsedCommandLine cmdline;
 	if (mbi->flags & 0x02)

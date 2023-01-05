@@ -85,7 +85,10 @@ namespace VESA
 	bool Initialize()
 	{
 		if (!(s_multiboot_info->flags & MULTIBOOT_FLAGS_FRAMEBUFFER))
+		{
+			derrorln("bootloader did not provide a memory map");
 			return false;
+		}
 
 		auto& framebuffer = s_multiboot_info->framebuffer;
 		s_addr		= framebuffer.addr;
@@ -101,7 +104,7 @@ namespace VESA
 		{
 			if (s_bpp != 24 && s_bpp != 32)
 			{
-				dprintln("Unsupported bpp {}", s_bpp);
+				derrorln("Unsupported bpp {}", s_bpp);
 				return false;
 			}
 
@@ -123,7 +126,7 @@ namespace VESA
 		}
 		else
 		{
-			dprintln("Unsupported type for VESA framebuffer");
+			derrorln("Unsupported type for VESA framebuffer");
 			return false;
 		}
 
@@ -291,7 +294,7 @@ namespace VESA
 
 	static void TextPutCharAt(uint16_t ch, uint32_t x, uint32_t y, Color fg, Color bg)
 	{
-		uint32_t index = y * s_pitch + x;
+		uint32_t index = y * s_width + x;
 		((uint16_t*)s_addr)[index] = TextEntry(ch, TextColor(fg, bg));
 	}
 
