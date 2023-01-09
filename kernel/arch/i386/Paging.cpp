@@ -1,6 +1,6 @@
 #include <kernel/CPUID.h>
 #include <kernel/Paging.h>
-#include <kernel/panic.h>
+#include <kernel/Panic.h>
 
 #include <string.h>
 
@@ -58,8 +58,6 @@ namespace Paging
 			:: "r" (s_page_directory_pointer_table)
 			: "eax"
 		);
-
-		dprintln("Paging enabled");
 	}
 
 	void MapPage(uintptr_t address)

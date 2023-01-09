@@ -307,7 +307,7 @@ namespace Input
 		}
 		else
 		{
-			Kernel::panic("Unknown target");
+			Kernel::Panic("Unknown target");
 		}
 	}
 
@@ -317,20 +317,20 @@ namespace Input
 		{
 			auto& command = s_command_queue.Front();
 			if (command.target != TARGET_KEYBOARD && command.target != TARGET_MOUSE)
-				Kernel::panic("Undefined target for command 0x{2H}", command.command);
+				Kernel::Panic("Undefined target for command 0x{2H}", command.command);
 
 			if (command._sent == 0 && command._ack == 0)
 			{
 				command._sent++;
 				if (!i8042_command(command.target, command.command))
-					Kernel::panic("PS/2 command oof {}, 0x{2H}", command.target, command.command);
+					Kernel::Panic("PS/2 command oof {}, 0x{2H}", command.target, command.command);
 			}
 
 			if (command._sent == 1 && command._ack == 1 && command.has_data)
 			{
 				command._sent++;
 				if (!i8042_command(command.target, command.data))
-					Kernel::panic("PS/2 data oof {}, 0x{2H}", command.target, command.data);
+					Kernel::Panic("PS/2 data oof {}, 0x{2H}", command.target, command.data);
 			}
 			
 			if (command._sent > 0 && PIT::ms_since_boot() > s_command_sent + 1000)
@@ -349,14 +349,14 @@ namespace Input
 					{
 						case I8042_KB_RESET:
 							if (s_command_response[0] != I8042_KB_SELF_TEST_PASS)
-								Kernel::panic("PS/2 Keyboard self test failed");
+								Kernel::Panic("PS/2 Keyboard self test failed");
 							break;
 						case I8042_KB_SET_SCAN_CODE_SET:
 							break;
 						case I8042_KB_SET_LEDS:
 							break;
 						default:
-							Kernel::panic("PS/2 Keyboard unhandled command");
+							Kernel::Panic("PS/2 Keyboard unhandled command");
 					}
 				}
 				else if (command.target == TARGET_MOUSE)
@@ -365,16 +365,16 @@ namespace Input
 					{
 						case I8042_MOUSE_RESET:
 							if (s_command_response[0] != I8042_MOUSE_SELF_TEST_PASS)
-								Kernel::panic("PS/2 Mouse self test failed");
+								Kernel::Panic("PS/2 Mouse self test failed");
 							if (s_command_response[1] != 0x00)
-								Kernel::panic("PS/2 Mouse invalid byte sent after self test");
+								Kernel::Panic("PS/2 Mouse invalid byte sent after self test");
 							break;
 						case I8042_MOUSE_ENABLE:
 							break;
 						case I8042_MOUSE_DISABLE:
 							break;
 						default:
-							Kernel::panic("PS/2 Mouse unhandled command");
+							Kernel::Panic("PS/2 Mouse unhandled command");
 					}
 				}
 

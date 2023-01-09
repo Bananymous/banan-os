@@ -4,7 +4,7 @@
 #include <kernel/IO.h>
 #include <kernel/kprint.h>
 #include <kernel/Paging.h>
-#include <kernel/panic.h>
+#include <kernel/Panic.h>
 #include <kernel/PIC.h>
 #include <kernel/Serial.h>
 

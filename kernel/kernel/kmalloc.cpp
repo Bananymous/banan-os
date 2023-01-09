@@ -1,6 +1,6 @@
 #include <kernel/multiboot.h>
 #include <kernel/kmalloc.h>
-#include <kernel/panic.h>
+#include <kernel/Panic.h>
 #include <kernel/Serial.h>
 
 #include <stdint.h>
@@ -48,7 +48,7 @@ static bool s_initialized = false;
 void kmalloc_initialize()
 {
 	if (!(s_multiboot_info->flags & (1 << 6)))
-		Kernel::panic("Kmalloc: Bootloader didn't provide a memory map");
+		Kernel::Panic("Kmalloc: Bootloader didn't provide a memory map");
 
 	// Validate kmalloc memory
 	bool valid = false;
@@ -70,7 +70,7 @@ void kmalloc_initialize()
 	}
 
 	if (!valid)
-		Kernel::panic("Kmalloc: Could not find {} MB of memory", (double)(s_kmalloc_eternal_end - s_kmalloc_node_base));
+		Kernel::Panic("Kmalloc: Could not find {} MB of memory", (double)(s_kmalloc_eternal_end - s_kmalloc_node_base));
 
 	s_kmalloc_node_count = 1;
 	s_kmalloc_node_head = (kmalloc_node*)s_kmalloc_node_base;
@@ -90,7 +90,9 @@ void kmalloc_initialize()
 
 void kmalloc_dump_nodes()
 {
-	if (!s_initialized) Kernel::panic("kmalloc not initialized!");
+	if (!s_initialized)
+		Kernel::Panic("kmalloc not initialized!");
+	
 	dprintln("Kmalloc memory available {} MB", (float)s_kmalloc_available / MB);
 	dprintln("Kmalloc memory allocated {} MB", (float)s_kmalloc_allocated / MB);
 	dprintln("Using {}/{} nodes", s_kmalloc_node_count, s_kmalloc_max_nodes);
@@ -103,13 +105,14 @@ void kmalloc_dump_nodes()
 
 void* kmalloc_eternal(size_t size)
 {
-	if (!s_initialized) Kernel::panic("kmalloc not initialized!");
+	if (!s_initialized)
+		Kernel::Panic("kmalloc not initialized!");
 
 	if (size % ALIGN)
 		size += ALIGN - (size % ALIGN);
 
 	if (s_kmalloc_eternal_ptr % ALIGN)
-		Kernel::panic("Unaligned ptr in kmalloc_eternal");
+		Kernel::Panic("Unaligned ptr in kmalloc_eternal");
 
 	if (s_kmalloc_eternal_ptr + size > s_kmalloc_eternal_end)
 	{
@@ -124,7 +127,8 @@ void* kmalloc_eternal(size_t size)
 
 void* kmalloc(size_t size)
 {
-	if (!s_initialized) Kernel::panic("kmalloc not initialized!");
+	if (!s_initialized)
+		Kernel::Panic("kmalloc not initialized!");
 
 	if (size % ALIGN)
 		size += ALIGN - (size % ALIGN);
@@ -155,7 +159,7 @@ void* kmalloc(size_t size)
 	{
 		valid_node.free = false;
 		if (valid_node.addr % ALIGN)
-			Kernel::panic("Unaligned ptr in kmalloc");
+			Kernel::Panic("Unaligned ptr in kmalloc");
 		return (void*)valid_node.addr;
 	}
 
@@ -184,13 +188,13 @@ void* kmalloc(size_t size)
 	s_kmalloc_available -= size;
 
 	if (valid_node.addr % ALIGN)
-		Kernel::panic("Unaligned ptr in kmalloc");
+		Kernel::Panic("Unaligned ptr in kmalloc");
 	return (void*)valid_node.addr;
 }
 
 void kfree(void* addr)
 {
-	if (!s_initialized) Kernel::panic("kmalloc not initialized!");
+	if (!s_initialized) Kernel::Panic("kmalloc not initialized!");
 
 	if (addr == nullptr)
 		return;

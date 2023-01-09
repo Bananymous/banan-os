@@ -1,4 +1,4 @@
-#include <kernel/panic.h>
+#include <kernel/Panic.h>
 
 #include <stdint.h>
 #include <stdlib.h>
@@ -16,7 +16,7 @@ __BEGIN_DECLS
 __attribute__((noreturn))
 void __stack_chk_fail(void)
 {
-	Kernel::panic("Stack smashing detected");
+	Kernel::Panic("Stack smashing detected");
 	abort();
 }
 

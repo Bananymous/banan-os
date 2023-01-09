@@ -5,8 +5,8 @@
 #include <string.h>
 
 #if defined(__is_kernel)
-	#include <kernel/panic.h>
-	#define MUST(error)	({ auto e = error; if (e.IsError()) Kernel::panic("{}", e.GetError()); e.Value(); })
+	#include <kernel/Panic.h>
+	#define MUST(error)	({ auto e = error; if (e.IsError()) Kernel::Panic("{}", e.GetError()); e.Value(); })
 #else
 	#error "NOT IMPLEMENTED"
 #endif

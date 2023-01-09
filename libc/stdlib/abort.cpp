@@ -2,14 +2,14 @@
 #include <stdio.h>
 
 #if defined(__is_libk)
-#include <kernel/panic.h>
+#include <kernel/Panic.h>
 #endif
 
 __attribute__((__noreturn__))
 void abort(void)
 {
 #if defined(__is_libk)
-	Kernel::panic("abort()");
+	Kernel::Panic("abort()");
 #else
 	printf("abort()\n");
 #endif

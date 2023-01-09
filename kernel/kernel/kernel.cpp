@@ -2,12 +2,10 @@
 #include <kernel/GDT.h>
 #include <kernel/IDT.h>
 #include <kernel/Input.h>
-#include <kernel/IO.h>
 #include <kernel/kmalloc.h>
 #include <kernel/kprint.h>
 #include <kernel/multiboot.h>
 #include <kernel/Paging.h>
-#include <kernel/panic.h>
 #include <kernel/PIC.h>
 #include <kernel/PIT.h>
 #include <kernel/RTC.h>
@@ -62,7 +60,14 @@ extern "C" void kernel_main(multiboot_info_t* mbi, uint32_t magic)
 		return;
 	}
 
+
+	dprintln("hello from 64 bit protected mode!");
+
 	Paging::Initialize();
+
+	dprintln("paging enabled");
+
+	return;
 
 	s_multiboot_info = mbi;
 

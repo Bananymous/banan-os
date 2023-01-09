@@ -1,6 +1,6 @@
 #include <kernel/APIC.h>
 #include <kernel/IDT.h>
-#include <kernel/panic.h>
+#include <kernel/Panic.h>
 #include <kernel/kprint.h>
 #include <kernel/Serial.h>
 
@@ -54,7 +54,7 @@ static void (*s_irq_handlers[0xFF])() { nullptr };
 		kprintln("eax=0x{8H}, ebx=0x{8H}, ecx=0x{8H}, edx=0x{8H}", eax, ebx, ecx, edx);	\
 		kprintln("esp=0x{8H}, ebp=0x{8H}", esp, ebp);									\
 		kprintln("CR0=0x{8H} CR2=0x{8H} CR3=0x{8H} CR4=0x{8H}", cr0, cr2, cr3, cr4);	\
-		Kernel::panic(msg);																\
+		Kernel::Panic(msg);																\
 	}
 
 #define INTERRUPT_HANDLER_ERR(i, msg)													\
@@ -76,7 +76,7 @@ static void (*s_irq_handlers[0xFF])() { nullptr };
 		kprintln("eax=0x{8H}, ebx=0x{8H}, ecx=0x{8H}, edx=0x{8H}", eax, ebx, ecx, edx);	\
 		kprintln("esp=0x{8H}, ebp=0x{8H}", esp, ebp);									\
 		kprintln("CR0=0x{8H} CR2=0x{8H} CR3=0x{8H} CR4=0x{8H}", cr0, cr2, cr3, cr4);	\
-		Kernel::panic(msg " (error code: 0x{8H})", error_code);							\
+		Kernel::Panic(msg " (error code: 0x{8H})", error_code);							\
 	}
 
 INTERRUPT_HANDLER____(0x00, "Division Error")
@@ -142,7 +142,7 @@ found:
     if (s_irq_handlers[irq])
         s_irq_handlers[irq]();
 	else
-		Kernel::panic("no handler for irq 0x{2H}\n", irq);
+		Kernel::Panic("no handler for irq 0x{2H}\n", irq);
 
 	APIC::EOI(irq);
 }
@@ -176,7 +176,7 @@ namespace IDT
 
 	static void unimplemented_trap()
 	{
-		Kernel::panic("Unhandeled IRQ");
+		Kernel::Panic("Unhandeled IRQ");
 	}
 
 	static void register_interrupt_handler(uint8_t index, void (*f)())

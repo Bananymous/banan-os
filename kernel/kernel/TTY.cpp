@@ -1,5 +1,5 @@
 #include <kernel/kmalloc.h>
-#include <kernel/panic.h>
+#include <kernel/Panic.h>
 #include <kernel/Serial.h>
 #include <kernel/TTY.h>
 #include <kernel/VESA.h>
@@ -242,7 +242,7 @@ void TTY::HandleAnsiEscape(uint16_t ch)
 void TTY::RenderFromBuffer(uint32_t x, uint32_t y)
 {
 	if (x >= m_width || y >= m_height)
-		Kernel::panic("invalid render from buffer, {} {}", x, y);
+		Kernel::Panic("invalid render from buffer, {} {}", x, y);
 	const auto& cell = m_buffer[y * m_width + x];
 	VESA::PutCharAt(cell.character, x, y, cell.foreground, cell.background);
 }

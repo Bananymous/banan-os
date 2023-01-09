@@ -32,6 +32,7 @@ BUILDDIR=$(abspath build)
 KERNEL_OBJS=			\
 $(KERNEL_ARCH_OBJS)		\
 kernel/build_libc.o		\
+kernel/font.o			\
 kernel/Input.o			\
 kernel/kernel.o			\
 kernel/kmalloc.o		\
@@ -41,6 +42,7 @@ kernel/RTC.o			\
 kernel/Serial.o			\
 kernel/Shell.o			\
 kernel/SSP.o			\
+kernel/TTY.o			\
 icxxabi.o				\
  
 OBJS=					\
@@ -81,7 +83,7 @@ $(ARCHDIR)/crtbegin.o $(ARCHDIR)/crtend.o:
 	$(CC) -MD -c $< -o $(BUILDDIR)/$@ $(CFLAGS)
  
 always:
-	mkdir -p $(BUILDDIR)/arch/i386
+	mkdir -p $(BUILDDIR)/$(ARCHDIR)
 	mkdir -p $(BUILDDIR)/kernel
 
 clean:

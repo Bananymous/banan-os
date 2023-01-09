@@ -3,7 +3,7 @@
 #include <kernel/kmalloc.h>
 #include <kernel/multiboot.h>
 #include <kernel/Paging.h>
-#include <kernel/panic.h>
+#include <kernel/Panic.h>
 #include <kernel/Serial.h>
 #include <kernel/VESA.h>
 
@@ -26,6 +26,7 @@ namespace VESA
 	static uint32_t		s_width		= 0;
 	static uint32_t		s_height	= 0;
 	static uint8_t		s_mode		= 0;
+	static bool			s_initialized = false;
 
 	static uint32_t s_terminal_width  = 0;
 	static uint32_t s_terminal_height = 0;
@@ -82,6 +83,11 @@ namespace VESA
 		return s_terminal_height;
 	}
 
+	bool IsInitialized()
+	{
+		return s_initialized;
+	}
+
 	bool Initialize()
 	{
 		if (!(s_multiboot_info->flags & MULTIBOOT_FLAGS_FRAMEBUFFER))
@@ -132,6 +138,7 @@ namespace VESA
 
 		SetCursorPositionImpl(0, 0, Color::BRIGHT_WHITE);
 		ClearImpl(Color::BLACK);
+		s_initialized = true;
 		return true;
 	}
 
