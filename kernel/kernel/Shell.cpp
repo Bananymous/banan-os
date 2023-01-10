@@ -282,8 +282,8 @@ namespace Kernel
 	{
 		m_mouse_pos.exists = true;
 		m_tty->RenderFromBuffer(m_mouse_pos.x, m_mouse_pos.y);
-		m_mouse_pos.x = clamp<int32_t>(m_mouse_pos.x + event.dx, 0, m_tty->Width() - 1);
-		m_mouse_pos.y = clamp<int32_t>(m_mouse_pos.y - event.dy, 0, m_tty->Height() - 1);
+		m_mouse_pos.x = Math::clamp<int32_t>(m_mouse_pos.x + event.dx, 0, m_tty->Width() - 1);
+		m_mouse_pos.y = Math::clamp<int32_t>(m_mouse_pos.y - event.dy, 0, m_tty->Height() - 1);
 		VESA::PutBitmapAt(s_pointer, m_mouse_pos.x, m_mouse_pos.y, VESA::Color::BRIGHT_WHITE);
 	}
 

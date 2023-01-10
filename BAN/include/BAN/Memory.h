@@ -9,11 +9,11 @@
 namespace BAN
 {
 	#if defined(__is_kernel)
-		static constexpr auto& allocator = kmalloc;
-		static constexpr auto& deallocator = kfree;
+		static constexpr void*(&allocator)(size_t) = kmalloc;
+		static constexpr void(&deallocator)(void*) = kfree;
 	#else
-		static constexpr auto& allocator = malloc;
-		static constexpr auto& deallocator = free;
+		static constexpr void*(&allocator)(size_t) = malloc;
+		static constexpr void(&deallocator)(void*) = free;
 	#endif
 
 	template<typename T>

@@ -1,6 +1,6 @@
 #pragma once
 
-namespace BAN
+namespace BAN::Math
 {
 
 	template<typename T>
@@ -19,6 +19,25 @@ namespace BAN
 	T clamp(T x, T min, T max)
 	{
 		return x < min ? min : x > max ? max : x;
+	}
+
+	template<typename T>
+	T gcd(T a, T b)
+	{
+		T t;
+		while (b)
+		{
+			t = b;
+			b = a % b;
+			a = t;
+		}
+		return a;
+	}
+
+	template<typename T>
+	T lcm(T a, T b)
+	{
+		return a / gcd(a, b) * b;
 	}
 
 }

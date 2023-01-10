@@ -113,7 +113,6 @@ _start:
 	orl $0x80000000, %ecx
 	movl %ecx, %cr0
 
-	xchgw %bx, %bx
 	# call global constuctors
 	call _init
 
@@ -121,6 +120,7 @@ _start:
 	call kernel_main
 
 system_halt:
+	xchgw %bx, %bx
 	cli
 1:	hlt
 	jmp 1b

@@ -1,6 +1,7 @@
 #pragma once
 
-#include <assert.h>
+#include <BAN/Errors.h>
+
 #include <stddef.h>
 
 namespace BAN

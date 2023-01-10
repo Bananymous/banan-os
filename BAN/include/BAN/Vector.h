@@ -4,7 +4,6 @@
 #include <BAN/Math.h>
 #include <BAN/Memory.h>
 
-#include <assert.h>
 #include <string.h>
 
 namespace BAN
@@ -208,7 +207,7 @@ namespace BAN
 	{
 		if (m_capasity >= size)
 			return {};
-		size_type new_cap = BAN::max<size_type>(size, m_capasity * 1.5f);
+		size_type new_cap = BAN::Math::max<size_type>(size, m_capasity * 1.5f);
 		void* new_data = BAN::allocator(new_cap * sizeof(T));
 		if (new_data == nullptr)
 			return Error::FromString("Vector: Could not allocate memory");

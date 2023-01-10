@@ -4,7 +4,6 @@
 #include <BAN/Math.h>
 #include <BAN/Memory.h>
 
-#include <assert.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -96,7 +95,7 @@ namespace BAN
 		if (m_capacity > size)
 			return {};
 
-		size_type new_cap = BAN::max<size_type>(m_capacity * 1.5f, m_capacity + 1);
+		size_type new_cap = BAN::Math::max<size_type>(m_capacity * 1.5f, m_capacity + 1);
 		void* new_data = BAN::allocator(new_cap * sizeof(T));
 		if (new_data == nullptr)
 			return Error::FromString("Queue: Could not allocate memory");
