@@ -60,7 +60,7 @@ void kmalloc_initialize()
 		{
 			if (mmmt->base_addr <= s_kmalloc_base && s_kmalloc_eternal_end <= mmmt->base_addr + mmmt->length)
 			{
-				dprintln("Total usable RAM: {} MB", (float)mmmt->length / MB);
+				dprintln("Total usable RAM: {}.{} MB", mmmt->length / MB, mmmt->length % MB);
 				valid = true;
 				break;
 			}
@@ -70,7 +70,12 @@ void kmalloc_initialize()
 	}
 
 	if (!valid)
-		Kernel::Panic("Kmalloc: Could not find {} MB of memory", (double)(s_kmalloc_eternal_end - s_kmalloc_node_base));
+	{
+		Kernel::Panic("Kmalloc: Could not find {}.{} MB of memory",
+			(s_kmalloc_eternal_end - s_kmalloc_node_base) / MB,
+			(s_kmalloc_eternal_end - s_kmalloc_node_base) % MB
+		);
+	}
 
 	s_kmalloc_node_count = 1;
 	s_kmalloc_node_head = (kmalloc_node*)s_kmalloc_node_base;
@@ -93,8 +98,8 @@ void kmalloc_dump_nodes()
 	if (!s_initialized)
 		Kernel::Panic("kmalloc not initialized!");
 	
-	dprintln("Kmalloc memory available {} MB", (float)s_kmalloc_available / MB);
-	dprintln("Kmalloc memory allocated {} MB", (float)s_kmalloc_allocated / MB);
+	dprintln("Kmalloc memory available {}.{} MB", s_kmalloc_available / MB, s_kmalloc_available % MB);
+	dprintln("Kmalloc memory allocated {}.{} MB", s_kmalloc_allocated / MB, s_kmalloc_allocated % MB);
 	dprintln("Using {}/{} nodes", s_kmalloc_node_count, s_kmalloc_max_nodes);
 	for (size_t i = 0; i < s_kmalloc_node_count; i++)
 	{

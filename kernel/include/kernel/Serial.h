@@ -3,10 +3,10 @@
 #include <BAN/Formatter.h>
 #include <kernel/PIT.h>
 
-#define dprintln(...)																												\
-	do {																															\
-		BAN::Formatter::print(Serial::serial_putc, "[{5.3}] {}({}):  ", (float)PIT::ms_since_boot() / 1000.0f, __FILE__, __LINE__);	\
-		BAN::Formatter::println(Serial::serial_putc, __VA_ARGS__);																	\
+#define dprintln(...)																																		\
+	do {																																					\
+		BAN::Formatter::print(Serial::serial_putc, "[{5}.{3}] {}({}):  ", PIT::ms_since_boot() / 1000, PIT::ms_since_boot() % 1000, __FILE__, __LINE__);	\
+		BAN::Formatter::println(Serial::serial_putc, __VA_ARGS__);																							\
 	} while(false)
 
 #define dwarnln(...)											\
