@@ -6,7 +6,8 @@
 #define dprintln(...)																																		\
 	do {																																					\
 		BAN::Formatter::print(Serial::serial_putc, "[{5}.{3}] {}({}):  ", PIT::ms_since_boot() / 1000, PIT::ms_since_boot() % 1000, __FILE__, __LINE__);	\
-		BAN::Formatter::println(Serial::serial_putc, __VA_ARGS__);																							\
+		BAN::Formatter::print(Serial::serial_putc, __VA_ARGS__);																							\
+		BAN::Formatter::print(Serial::serial_putc, "\r\n");																									\
 	} while(false)
 
 #define dwarnln(...)											\
