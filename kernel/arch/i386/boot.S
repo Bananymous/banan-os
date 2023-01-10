@@ -42,8 +42,6 @@
 	boot_page_directory1:
 		.skip 512 * 8
 
-	
-
 .section .text, "a"
 
 .global g_multiboot_info
@@ -83,7 +81,6 @@ _start:
 	movl $stack_top, %esp
 	movl %eax, g_multiboot_magic
 	movl %ebx, g_multiboot_info
-
 
 	# Copy kernel command line to known location
 	movl %ebx, %esi

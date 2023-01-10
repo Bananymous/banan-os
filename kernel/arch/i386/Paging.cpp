@@ -32,6 +32,13 @@ namespace Paging
 		if (!HasRequirements())
 			asm volatile("hlt");
 
+		// Disable paging
+		asm volatile(
+			"movl %cr0, %ebx;"
+			"andl $0x7fffffff, %ebx;"
+			"movl %ebx, %cr0;"
+		);
+
 		// Identity map first 2 (2 MiB) pages
 		memset(s_page_directory, 0x00, sizeof(s_page_directory));
 		s_page_directory[0] = (0x00 << 21) | PAGE_SIZE | READ_WRITE | PRESENT;
