@@ -10,6 +10,7 @@ namespace BAN
 {
 	#if defined(__is_kernel)
 		static constexpr void*(&allocator)(size_t) = kmalloc;
+		static constexpr void*(&allocator_align)(size_t, size_t) = kmalloc;
 		static constexpr void(&deallocator)(void*) = kfree;
 	#else
 		static constexpr void*(&allocator)(size_t) = malloc;
@@ -36,11 +37,3 @@ namespace BAN
 	};
 
 }
-
-inline void* operator new(size_t size)		{ return BAN::allocator(size); }
-inline void* operator new[](size_t size)	{ return BAN::allocator(size); }
-
-inline void operator delete(void* addr)				{ BAN::deallocator(addr); }
-inline void operator delete[](void* addr)			{ BAN::deallocator(addr); }
-inline void operator delete(void* addr, size_t)		{ BAN::deallocator(addr); }
-inline void operator delete[](void* addr, size_t)	{ BAN::deallocator(addr); }
