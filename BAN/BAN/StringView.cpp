@@ -25,7 +25,7 @@ namespace BAN
 
 	char StringView::operator[](size_type index) const
 	{
-		assert(index < m_size);
+		ASSERT(index < m_size);
 		return m_data[index];
 	}
 
@@ -52,10 +52,10 @@ namespace BAN
 
 	StringView StringView::Substring(size_type index, size_type len) const
 	{
-		assert(index <= m_size);
+		ASSERT(index <= m_size);
 		if (len == size_type(-1))
 			len = m_size - index;
-		assert(len <= m_size - index); // weird order to avoid overflow
+		ASSERT(len <= m_size - index); // weird order to avoid overflow
 		StringView result;
 		result.m_data = m_data + index;
 		result.m_size = len;

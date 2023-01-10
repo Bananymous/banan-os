@@ -83,7 +83,7 @@ namespace BAN
 	template<typename T>
 	ErrorOr<void> Vector<T>::Insert(const T& value, size_type index)
 	{
-		assert(index <= m_size);
+		ASSERT(index <= m_size);
 		TRY(EnsureCapasity(m_size + 1));
 		memmove(m_data + index + 1, m_data + index, (m_size - index) * sizeof(T));
 		m_data[index] = value;
@@ -94,7 +94,7 @@ namespace BAN
 	template<typename T>
 	void Vector<T>::PopBack()
 	{
-		assert(m_size > 0);
+		ASSERT(m_size > 0);
 		m_data[m_size - 1].~T();
 		m_size--;
 	}
@@ -102,7 +102,7 @@ namespace BAN
 	template<typename T>
 	void Vector<T>::Remove(size_type index)
 	{
-		assert(index < m_size);
+		ASSERT(index < m_size);
 		m_data[index].~T();
 		memmove(m_data + index, m_data + index + 1, (m_size - index - 1) * sizeof(T));
 		m_size--;
@@ -120,41 +120,41 @@ namespace BAN
 	template<typename T>
 	const T& Vector<T>::operator[](size_type index) const
 	{
-		assert(index < m_size);
+		ASSERT(index < m_size);
 		return m_data[index];
 	}
 
 	template<typename T>
 	T& Vector<T>::operator[](size_type index)
 	{
-		assert(index < m_size);
+		ASSERT(index < m_size);
 		return m_data[index];
 	}
 
 	template<typename T>
 	const T& Vector<T>::Back() const
 	{
-		assert(m_size > 0);
+		ASSERT(m_size > 0);
 		return m_data[m_size - 1];
 	}
 
 	template<typename T>
 	T& Vector<T>::Back()
 	{
-		assert(m_size > 0);
+		ASSERT(m_size > 0);
 		return m_data[m_size - 1];
 	}
 
 	template<typename T>
 	const T& Vector<T>::Front() const
 	{
-		assert(m_size > 0);
+		ASSERT(m_size > 0);
 		return m_data[0];
 	}
 	template<typename T>
 	T& Vector<T>::Front()
 	{
-		assert(m_size > 0);
+		ASSERT(m_size > 0);
 		return m_data[0];
 	}
 

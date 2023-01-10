@@ -59,7 +59,7 @@ namespace BAN
 	template<typename T>
 	void Queue<T>::Pop()
 	{
-		assert(m_size > 0);
+		ASSERT(m_size > 0);
 		m_data->~T();
 		memmove(m_data, m_data + 1, sizeof(T) * (--m_size));
 	}
@@ -79,14 +79,14 @@ namespace BAN
 	template<typename T>
 	const T& Queue<T>::Front() const
 	{
-		assert(m_size > 0);
+		ASSERT(m_size > 0);
 		return *m_data;
 	}
 
 	template<typename T>
 	T& Queue<T>::Front()
 	{
-		assert(m_size > 0);
+		ASSERT(m_size > 0);
 		return *m_data;
 	}
 

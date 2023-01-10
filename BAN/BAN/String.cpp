@@ -67,7 +67,7 @@ namespace BAN
 
 	ErrorOr<void> String::Insert(char ch, size_type index)
 	{
-		assert(index <= m_size);
+		ASSERT(index <= m_size);
 		TRY(EnsureCapasity(m_size + 2));
 		memmove(m_data + index + 1, m_data + index, m_size - index);
 		m_data[index]		= ch;
@@ -94,14 +94,14 @@ namespace BAN
 
 	void String::PopBack()
 	{
-		assert(m_size > 0);
+		ASSERT(m_size > 0);
 		m_data[m_size - 1] = '\0';
 		m_size--;
 	}
 
 	void String::Remove(size_type index)
 	{
-		assert(index < m_size);
+		ASSERT(index < m_size);
 		memmove(m_data + index, m_data + index + 1, m_size - index - 1);
 		m_data[m_size - 1] = '\0';
 		m_size--;
@@ -115,13 +115,13 @@ namespace BAN
 
 	char String::operator[](size_type index) const
 	{
-		assert(index < m_size);
+		ASSERT(index < m_size);
 		return m_data[index];
 	}
 
 	char& String::operator[](size_type index)
 	{
-		assert(index < m_size);
+		ASSERT(index < m_size);
 		return m_data[index];
 	}
 
