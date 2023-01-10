@@ -1,59 +1,70 @@
-#include <kernel/multiboot.h>
+#include <BAN/Errors.h>
+#include <BAN/Math.h>
 #include <kernel/kmalloc.h>
-#include <kernel/Panic.h>
-#include <kernel/Serial.h>
+#include <kernel/multiboot.h>
 
 #include <stdint.h>
 
 #define MB (1 << 20)
 
-#define ALIGN (alignof(max_align_t))
+/*
+
+Kmalloc holds a bitmap of free/allocated chunks
+
+When allocating n chunks, kmalloc will put the number of chunks
+to address, and return pointer to the byte after the stored size
+
+*/
+
+static constexpr uintptr_t	s_kmalloc_base	= 0x00200000;
+static constexpr size_t		s_kmalloc_size	= 1 * MB;
+static constexpr uintptr_t	s_kmalloc_end	= s_kmalloc_base + s_kmalloc_size;
+
+static constexpr uintptr_t	s_kmalloc_eternal_base	= s_kmalloc_end;
+static constexpr size_t		s_kmalloc_eternal_size	= 1 * MB;
+static constexpr uintptr_t	s_kmalloc_eternal_end	= s_kmalloc_eternal_base + s_kmalloc_eternal_size;
+
+static constexpr size_t		s_kmalloc_default_align		= alignof(max_align_t);
+static constexpr size_t		s_kmalloc_chunk_size		= s_kmalloc_default_align;
+static constexpr size_t		s_kmalloc_chunks_per_size	= sizeof(size_t) * 8 / s_kmalloc_chunk_size;
+static constexpr size_t		s_kmalloc_total_chunks		= s_kmalloc_size / s_kmalloc_chunk_size;
+static			 uint8_t	s_kmalloc_bitmap[s_kmalloc_total_chunks / 8] { 0 };
 
 extern "C" uintptr_t g_kernel_end;
 
-/*
-	#### KMALLOC ################
-*/
-struct kmalloc_node
+static bool is_kmalloc_chunk_used(size_t index)
 {
-	uintptr_t	addr;
-	size_t	 	size : sizeof(size_t) * 8 - 1;
-	size_t   	free : 1;
-};
-static kmalloc_node*	s_kmalloc_node_head = nullptr;
-static size_t			s_kmalloc_node_count;
+	ASSERT(index < s_kmalloc_total_chunks);
+	return s_kmalloc_bitmap[index / 8] & (1 << (index % 8));
+}
 
-static uintptr_t		s_kmalloc_node_base = 0x00200000;
-static size_t			s_kmalloc_max_nodes = 1000;
+static uintptr_t chunk_address(size_t index)
+{
+	ASSERT(index < s_kmalloc_total_chunks);
+	return s_kmalloc_base + s_kmalloc_chunk_size * index;
+}
 
-static uintptr_t		s_kmalloc_base = s_kmalloc_node_base + s_kmalloc_max_nodes * sizeof(kmalloc_node);
-static size_t			s_kmalloc_size = 1 * MB;
-static uintptr_t		s_kmalloc_end = s_kmalloc_base + s_kmalloc_size;
-
-static size_t			s_kmalloc_available = 0;
-static size_t			s_kmalloc_allocated = 0;
-
-/*
-	#### KMALLOC ETERNAL ########
-*/
-static uintptr_t		s_kmalloc_eternal_ptr = 0;
-
-static uintptr_t		s_kmalloc_eternal_base = s_kmalloc_end;
-static size_t			s_kmalloc_eternal_size = 1 * MB;
-static uintptr_t		s_kmalloc_eternal_end = s_kmalloc_eternal_base + s_kmalloc_eternal_size;
-/*
-	#############################
-*/
-
-static bool s_initialized = false;
+static void free_chunks(size_t start)
+{
+	ASSERT(s_kmalloc_chunks_per_size <= start && start < s_kmalloc_total_chunks);
+	start -= s_kmalloc_chunks_per_size;
+	size_t size = *(size_t*)chunk_address(start);
+	for (size_t i = 0; i < size; i++)
+		s_kmalloc_bitmap[(start + i) / 8] &= ~(1 << ((start + i) % 8));
+}
 
 void kmalloc_initialize()
 {
 	if (!(g_multiboot_info->flags & (1 << 6)))
 		Kernel::Panic("Kmalloc: Bootloader didn't provide a memory map");
 
-	if (g_kernel_end > s_kmalloc_node_base)
+	if (g_kernel_end > s_kmalloc_base)
 		Kernel::Panic("Kmalloc: Kernel end is over kmalloc base");
+
+	dprintln("initializing kmalloc");
+
+	dprintln("kmalloc         {} -> {}", (void*)s_kmalloc_base, (void*)s_kmalloc_end);
+	dprintln("kmalloc eternal {} -> {}", (void*)s_kmalloc_eternal_base, (void*)s_kmalloc_eternal_end);
 
 	// Validate kmalloc memory
 	bool valid = false;
@@ -77,198 +88,80 @@ void kmalloc_initialize()
 	if (!valid)
 	{
 		Kernel::Panic("Kmalloc: Could not find {}.{} MB of memory",
-			(s_kmalloc_eternal_end - s_kmalloc_node_base) / MB,
-			(s_kmalloc_eternal_end - s_kmalloc_node_base) % MB
+			(s_kmalloc_eternal_end - s_kmalloc_base) / MB,
+			(s_kmalloc_eternal_end - s_kmalloc_base) % MB
 		);
 	}
-
-	s_kmalloc_node_count = 1;
-	s_kmalloc_node_head = (kmalloc_node*)s_kmalloc_node_base;
-
-	s_kmalloc_allocated = 0;
-	s_kmalloc_available = s_kmalloc_size;
-
-	kmalloc_node& head = s_kmalloc_node_head[0];
-	head.addr = s_kmalloc_base;
-	head.size = s_kmalloc_size;
-	head.free = true;
-
-	s_kmalloc_eternal_ptr = s_kmalloc_eternal_base;
-
-	s_initialized = true;
 }
 
 void kmalloc_dump_nodes()
 {
-	if (!s_initialized)
-		Kernel::Panic("kmalloc not initialized!");
-	
-	dprintln("Kmalloc memory available {}.{} MB", s_kmalloc_available / MB, s_kmalloc_available % MB);
-	dprintln("Kmalloc memory allocated {}.{} MB", s_kmalloc_allocated / MB, s_kmalloc_allocated % MB);
-	dprintln("Using {}/{} nodes", s_kmalloc_node_count, s_kmalloc_max_nodes);
-	for (size_t i = 0; i < s_kmalloc_node_count; i++)
-	{
-		kmalloc_node& node = s_kmalloc_node_head[i];
-		dprintln(" ({3}) {}, node at {}, free: {}, size: {}", i, (void*)&node, (void*)node.addr, node.free, node.size);
-	}
-}
-
-void* kmalloc_eternal(size_t size)
-{
-	if (!s_initialized)
-		Kernel::Panic("kmalloc not initialized!");
-
-	if (size % ALIGN)
-		size += ALIGN - (size % ALIGN);
-
-	if (s_kmalloc_eternal_ptr % ALIGN)
-		Kernel::Panic("Unaligned ptr in kmalloc_eternal");
-
-	if (s_kmalloc_eternal_ptr + size > s_kmalloc_eternal_end)
-	{
-		dprintln("\e[33mKmalloc eternal: Could not allocate {} bytes\e[0m", size);
-		return nullptr;
-	}
-	
-	void* result = (void*)s_kmalloc_eternal_ptr;
-	s_kmalloc_eternal_ptr += size;
-	return result;
+	dprintln("kmalloc dump: {8b}{8b}{8b}{8b}{8b}{8b}{8b}{8b}",
+		s_kmalloc_bitmap[7], s_kmalloc_bitmap[6], s_kmalloc_bitmap[5], s_kmalloc_bitmap[4],
+		s_kmalloc_bitmap[3], s_kmalloc_bitmap[2], s_kmalloc_bitmap[1], s_kmalloc_bitmap[0]
+	);
 }
 
 void* kmalloc(size_t size)
 {
-	if (!s_initialized)
-		Kernel::Panic("kmalloc not initialized!");
-
-	if (size % ALIGN)
-		size += ALIGN - (size % ALIGN);
-
-	// Search for node with free memory and big enough size
-	size_t valid_node_index = -1;
-	for (size_t i = 0; i < s_kmalloc_node_count; i++)
-	{
-		kmalloc_node& current = s_kmalloc_node_head[i];
-		if (current.free && current.size >= size)
-		{
-			valid_node_index = i;
-			break;
-		}
-	}
-
-	if (valid_node_index == size_t(-1))
-	{
-		dprintln("\e[33mKmalloc: Could not allocate {} bytes\e[0m", size);
-		return nullptr;
-	}
-
-	kmalloc_node& valid_node = s_kmalloc_node_head[valid_node_index];
-
-	// If node's size happens to match requested size,
-	// just flip free bit and return the address
-	if (valid_node.size == size)
-	{
-		valid_node.free = false;
-		if (valid_node.addr % ALIGN)
-			Kernel::Panic("Unaligned ptr in kmalloc");
-		return (void*)valid_node.addr;
-	}
-
-	if (s_kmalloc_node_count == s_kmalloc_max_nodes)
-	{
-		dprintln("\e[33mKmalloc: Out of kmalloc nodes\e[0m");
-		return nullptr;
-	}
-
-	// Shift every node after valid_node one place to right
-	for (size_t i = s_kmalloc_node_count - 1; i > valid_node_index; i--)
-		s_kmalloc_node_head[i + 1] = s_kmalloc_node_head[i];
-
-	// Create new node after the valid node
-	s_kmalloc_node_count++;
-	kmalloc_node& new_node = s_kmalloc_node_head[valid_node_index + 1];
-	new_node.addr = valid_node.addr + size;
-	new_node.size = valid_node.size - size;
-	new_node.free = true;
-	
-	// Update the valid node
-	valid_node.size = size;
-	valid_node.free = false;
-
-	s_kmalloc_allocated += size;
-	s_kmalloc_available -= size;
-
-	if (valid_node.addr % ALIGN)
-		Kernel::Panic("Unaligned ptr in kmalloc");
-	return (void*)valid_node.addr;
+	return kmalloc(size, s_kmalloc_default_align);
 }
 
-void kfree(void* addr)
+void* kmalloc(size_t size, size_t align)
 {
-	if (!s_initialized) Kernel::Panic("kmalloc not initialized!");
+	if (size == 0)
+		return nullptr;
 
-	if (addr == nullptr)
+	if (align == 0)
+		align = s_kmalloc_chunk_size;
+	
+	if (align < s_kmalloc_chunk_size || align % s_kmalloc_chunk_size)
+	{
+		size_t new_align = BAN::Math::lcm(align, s_kmalloc_chunk_size);
+		dwarnln("kmalloc asked to align to {}, aliging to {} instead", align, new_align);
+		align = new_align;
+	}
+
+	size_t needed_chunks = (size - 1) / s_kmalloc_chunk_size + 1 + s_kmalloc_chunks_per_size;
+	for (size_t i = 0; i < s_kmalloc_total_chunks - needed_chunks; i++)
+	{
+		if (chunk_address(i + s_kmalloc_chunks_per_size) % align)
+			continue;
+
+		bool free = true;
+		for (size_t j = 0; j < needed_chunks; j++)
+		{
+			if (is_kmalloc_chunk_used(i + j))
+			{
+				free = false;
+				i += j;
+				break;
+			}
+		}
+		if (free)
+		{
+			*(size_t*)chunk_address(i) = needed_chunks;
+			for (size_t j = 0; j < needed_chunks; j++)
+				s_kmalloc_bitmap[(i + j) / 8] |= (1 << ((i + j) % 8));
+			return (void*)chunk_address(i + s_kmalloc_chunks_per_size);
+		}
+	}
+
+	dwarnln("Could not allocate {} bytes", size);
+	return nullptr;
+}
+
+void kfree(void* address)
+{
+	if (!address)
 		return;
+	ASSERT(((uintptr_t)address % s_kmalloc_chunk_size) == 0);
+	ASSERT(s_kmalloc_base <= (uintptr_t)address && (uintptr_t)address < s_kmalloc_end);
 
-	// TODO: use binary search etc.
+	size_t first_chunk = ((uintptr_t)address - s_kmalloc_base) / s_kmalloc_chunk_size - s_kmalloc_chunks_per_size;
+	ASSERT(is_kmalloc_chunk_used(first_chunk));
 
-	size_t node_index = -1;
-	for (size_t i = 0; i < s_kmalloc_node_count; i++)
-	{
-		if (s_kmalloc_node_head[i].addr == (uintptr_t)addr)
-		{
-			node_index = i;
-			break;
-		}
-	}
-
-	if (node_index == size_t(-1))
-	{
-		dprintln("\e[33mKmalloc: Attempting to free unallocated pointer {}\e[0m", addr);
-		return;
-	}
-
-	// Mark this node as free
-	kmalloc_node* node = &s_kmalloc_node_head[node_index];
-	node->free = true;
-
-	size_t size = node->size;
-
-	// If node before this node is free, merge them
-	if (node_index > 0)
-	{
-		kmalloc_node& prev = s_kmalloc_node_head[node_index - 1];
-
-		if (prev.free)
-		{
-			prev.size += node->size;
-
-			s_kmalloc_node_count--;
-			for (size_t i = node_index; i < s_kmalloc_node_count; i++)
-				s_kmalloc_node_head[i] = s_kmalloc_node_head[i + 1];
-
-			node_index--;
-			node = &s_kmalloc_node_head[node_index];
-		}
-	}
-
-	// If node after this node is free, merge them
-	if (node_index < s_kmalloc_node_count - 1)
-	{
-		kmalloc_node& next = s_kmalloc_node_head[node_index + 1];
-
-		if (next.free)
-		{
-			node->size += next.size;
-
-			s_kmalloc_node_count--;
-			for (size_t i = node_index; i < s_kmalloc_node_count; i++)
-				s_kmalloc_node_head[i + 1] = s_kmalloc_node_head[i + 2];
-
-			node_index--;
-			node = &s_kmalloc_node_head[node_index];
-		}
-	}
-
-	s_kmalloc_allocated -= size;
-	s_kmalloc_available += size;
+	size_t size = *(size_t*)chunk_address(first_chunk);
+	for (size_t i = 0; i < size; i++)
+		s_kmalloc_bitmap[(first_chunk + i) / 8] &= ~(1 << ((first_chunk + i) % 8));
 }
