@@ -4,6 +4,7 @@
 #include <kernel/Input.h>
 #include <kernel/kmalloc.h>
 #include <kernel/kprint.h>
+#include <kernel/MMU.h>
 #include <kernel/multiboot.h>
 #include <kernel/Paging.h>
 #include <kernel/PIC.h>
@@ -17,8 +18,7 @@
 #define DISABLE_INTERRUPTS() asm volatile("cli")
 #define ENABLE_INTERRUPTS() asm volatile("sti")
 
-
-multiboot_info_t* s_multiboot_info;
+extern "C" const char g_kernel_cmdline[];
 
 using namespace BAN;
 

@@ -9,6 +9,8 @@
 
 #define ALIGN (alignof(max_align_t))
 
+extern "C" uintptr_t g_kernel_end;
+
 /*
 	#### KMALLOC ################
 */
@@ -47,14 +49,17 @@ static bool s_initialized = false;
 
 void kmalloc_initialize()
 {
-	if (!(s_multiboot_info->flags & (1 << 6)))
+	if (!(g_multiboot_info->flags & (1 << 6)))
 		Kernel::Panic("Kmalloc: Bootloader didn't provide a memory map");
+
+	if (g_kernel_end > s_kmalloc_node_base)
+		Kernel::Panic("Kmalloc: Kernel end is over kmalloc base");
 
 	// Validate kmalloc memory
 	bool valid = false;
-	for (size_t i = 0; i < s_multiboot_info->mmap_length;)
+	for (size_t i = 0; i < g_multiboot_info->mmap_length;)
 	{
-		multiboot_memory_map_t* mmmt = (multiboot_memory_map_t*)(s_multiboot_info->mmap_addr + i);
+		multiboot_memory_map_t* mmmt = (multiboot_memory_map_t*)(g_multiboot_info->mmap_addr + i);
 
 		if (mmmt->type == 1)
 		{

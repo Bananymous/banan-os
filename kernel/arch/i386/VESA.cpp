@@ -90,13 +90,13 @@ namespace VESA
 
 	bool Initialize()
 	{
-		if (!(s_multiboot_info->flags & MULTIBOOT_FLAGS_FRAMEBUFFER))
+		if (!(g_multiboot_info->flags & MULTIBOOT_FLAGS_FRAMEBUFFER))
 		{
 			derrorln("bootloader did not provide a memory map");
 			return false;
 		}
 
-		auto& framebuffer = s_multiboot_info->framebuffer;
+		auto& framebuffer = g_multiboot_info->framebuffer;
 		s_addr		= framebuffer.addr;
 		s_bpp		= framebuffer.bpp;
 		s_pitch		= framebuffer.pitch;

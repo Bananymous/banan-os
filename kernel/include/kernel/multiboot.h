@@ -48,4 +48,5 @@ struct multiboot_info_t
 	framebuffer_info_t framebuffer;
 } __attribute__((packed));
 
-extern multiboot_info_t* s_multiboot_info;
+extern "C" multiboot_info_t*	g_multiboot_info;
+extern "C" uint32_t				g_multiboot_magic;

@@ -1,3 +1,4 @@
+#include <BAN/Memory.h>
 #include <kernel/kmalloc.h>
 #include <kernel/Panic.h>
 #include <kernel/Serial.h>
