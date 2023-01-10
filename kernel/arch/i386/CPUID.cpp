@@ -12,24 +12,6 @@ namespace CPUID
 		asm volatile ("cpuid": "=a"(out[0]), "=b"(out[0]), "=d"(out[1]), "=c"(out[2]) : "a"(code));
 	}
 
-	bool IsAvailable()
-	{
-		uint32_t res;
-		asm volatile(
-			"pushfl;"
-			"pushfl;"
-			"popl %0;"
-			"xorl %1, %0;"
-			"pushl %0;"
-			"popfl;"
-			"pushfl;"
-			"popl %0;"
-			"popfl;"
-			: "=r"(res)
-			: "i" (0x00200000));
-		return res != 0;
-	}
-
 	const char* GetVendor()
 	{
 		static char vendor[13] {};
@@ -48,9 +30,6 @@ namespace CPUID
 
 	bool Is64Bit()
 	{
-		if (!IsAvailable())
-			return false;
-		
 		uint32_t buffer[4] {};
 		get_cpuid(0x80000000, buffer);
 		if (buffer[0] < 0x80000001)

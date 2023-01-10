@@ -1,3 +1,4 @@
+#include <BAN/Memory.h>
 #include <kernel/APIC.h>
 #include <kernel/GDT.h>
 #include <kernel/IDT.h>

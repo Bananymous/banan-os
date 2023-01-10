@@ -148,7 +148,6 @@ namespace CPUID
 		}
 	}
 
-	bool IsAvailable();
 	const char* GetVendor();
 	void GetFeatures(uint32_t& ecx, uint32_t& edx);
 	bool Is64Bit();

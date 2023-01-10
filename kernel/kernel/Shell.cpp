@@ -125,11 +125,6 @@ namespace Kernel
 				TTY_PRINTLN("'cpuinfo' does not support command line arguments");
 				return;	
 			}
-			if (!CPUID::IsAvailable())
-			{
-				TTY_PRINTLN("'cpuid' instruction not available");
-				return;
-			}
 
 			uint32_t ecx, edx;
 			auto vendor = CPUID::GetVendor();
@@ -153,11 +148,6 @@ namespace Kernel
 			{
 				TTY_PRINTLN("'random' does not support command line arguments");
 				return;	
-			}
-			if (!CPUID::IsAvailable())
-			{
-				TTY_PRINTLN("'cpuid' instruction not available");
-				return;
 			}
 			uint32_t ecx, edx;
 			CPUID::GetFeatures(ecx, edx);

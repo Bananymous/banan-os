@@ -341,12 +341,6 @@ namespace APIC
 
 	static bool InitializeAPIC()
 	{
-		if (!CPUID::IsAvailable())
-		{
-			kprintln("CPUID not available");
-			return false;
-		}
-
 		uint32_t ecx, edx;
 		CPUID::GetFeatures(ecx, edx);
 		if (!(edx & CPUID::Features::EDX_APIC))
