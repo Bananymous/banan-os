@@ -49,24 +49,25 @@ public:
 	T& Value()						{ return *reinterpret_cast<T*>(m_data); }
 
 private:
-	bool	m_has_error;
-	void*	m_data;
+	bool	m_has_error	= false;
+	void*	m_data		= nullptr;
 };
 
 template<>
 class ErrorOr<void>
 {
 public:
-	ErrorOr() : m_error(nullptr)	{ }
-	ErrorOr(const Error& error)		{ m_error = new Error(error); }
-	~ErrorOr()						{ delete m_error; }
+	ErrorOr()										{ }
+	ErrorOr(const Error& error) : m_error(error)	{ }
+	~ErrorOr()										{ }
 
-	bool IsError() const			{ return m_error; }
-	const Error& GetError() const	{ return *m_error; }
+	bool IsError() const			{ return m_has_error; }
+	const Error& GetError() const	{ return m_error; }
 	void Value()					{ }
 
 private:
-	Error*	m_error;
+	Error m_error;
+	bool m_has_error = false;
 };
 
 
