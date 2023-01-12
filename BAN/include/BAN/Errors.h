@@ -7,7 +7,7 @@
 #if defined(__is_kernel)
 	#include <kernel/Panic.h>
 	#define MUST(error)	({ auto e = error; if (e.IsError()) Kernel::Panic("{}", e.GetError()); e.Value(); })
-	#define ASSERT(cond) do { if (!(cond)) Kernel::Panic("ASSERT() failed"); } while(false)
+	#define ASSERT(cond) do { if (!(cond)) Kernel::Panic("ASSERT("#cond") failed"); } while(false)
 #else
 	#error "NOT IMPLEMENTED"
 #endif
