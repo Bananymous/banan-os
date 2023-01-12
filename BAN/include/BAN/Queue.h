@@ -31,7 +31,7 @@ namespace BAN
 		T& Front();
 
 	private:
-		[[nodiscard]] ErrorOr<void> VerifyCapacity(size_type size);
+		[[nodiscard]] ErrorOr<void> EnsureCapacity(size_type size);
 
 	private:
 		T*			m_data		= nullptr;
@@ -50,7 +50,7 @@ namespace BAN
 	template<typename T>
 	ErrorOr<void> Queue<T>::Push(const T& value)
 	{
-		TRY(VerifyCapacity(m_size + 1));
+		TRY(EnsureCapacity(m_size + 1));
 		m_data[m_size++] = value;
 		return {};
 	}
@@ -90,19 +90,17 @@ namespace BAN
 	}
 
 	template<typename T>
-	ErrorOr<void> Queue<T>::VerifyCapacity(size_type size)
+	ErrorOr<void> Queue<T>::EnsureCapacity(size_type size)
 	{
 		if (m_capacity > size)
 			return {};
-
 		size_type new_cap = BAN::Math::max<size_type>(size, m_capacity * 3 / 2);
 		void* new_data = BAN::allocator(new_cap * sizeof(T));
 		if (new_data == nullptr)
 			return Error::FromString("Queue: Could not allocate memory");
-
-		memcpy(new_data, m_data, m_size * sizeof(T));
+		if (m_data)
+			memcpy(new_data, m_data, m_size * sizeof(T));
 		BAN::deallocator(m_data);
-
 		m_data = (T*)new_data;
 		m_capacity = new_cap;
 

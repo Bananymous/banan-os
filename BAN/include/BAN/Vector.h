@@ -211,7 +211,8 @@ namespace BAN
 		void* new_data = BAN::allocator(new_cap * sizeof(T));
 		if (new_data == nullptr)
 			return Error::FromString("Vector: Could not allocate memory");
-		memcpy(new_data, m_data, m_size * sizeof(T));
+		if (m_data)
+			memcpy(new_data, m_data, m_size * sizeof(T));
 		BAN::deallocator(m_data);
 		m_data = (T*)new_data;
 		m_capasity = new_cap;

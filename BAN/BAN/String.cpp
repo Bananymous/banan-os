@@ -214,7 +214,8 @@ namespace BAN
 		void* new_data = BAN::allocator(new_cap);
 		if (new_data == nullptr)
 			return Error::FromString("String: Could not allocate memory");
-		memcpy(new_data, m_data, m_size + 1);
+		if (m_data)
+			memcpy(new_data, m_data, m_size + 1);
 		BAN::deallocator(m_data);
 		m_data = (char*)new_data;
 		m_capasity = new_cap;
