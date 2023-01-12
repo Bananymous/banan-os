@@ -5,7 +5,7 @@
 
 #include <string.h>
 
-#define MMU_DEBUG_PRINT 1
+#define MMU_DEBUG_PRINT 0
 
 #define PRESENT (1 << 0)
 #define READ_WRITE (1 << 1)
