@@ -61,8 +61,6 @@ void kmalloc_initialize()
 	if (g_kernel_end > s_kmalloc_base)
 		Kernel::Panic("Kmalloc: Kernel end is over kmalloc base");
 
-	dprintln("initializing kmalloc");
-
 	dprintln("kmalloc         {} -> {}", (void*)s_kmalloc_base, (void*)s_kmalloc_end);
 	dprintln("kmalloc eternal {} -> {}", (void*)s_kmalloc_eternal_base, (void*)s_kmalloc_eternal_end);
 
