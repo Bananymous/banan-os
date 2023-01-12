@@ -174,11 +174,6 @@ namespace IDT
 		asm volatile("lidt %0"::"m"(s_idtr));
 	}
 
-	static void unimplemented_trap()
-	{
-		Kernel::Panic("Unhandeled IRQ");
-	}
-
 	static void register_interrupt_handler(uint8_t index, void (*f)())
 	{
 		s_idt[index].low = 0x00080000 | ((uint32_t)(f) & 0x0000ffff);
