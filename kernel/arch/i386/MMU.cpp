@@ -5,6 +5,8 @@
 
 #include <string.h>
 
+#define MMU_DEBUG_PRINT 1
+
 #define PRESENT (1 << 0)
 #define READ_WRITE (1 << 1)
 
@@ -41,7 +43,7 @@ MMU::MMU()
 	ASSERT(m_page_descriptor_pointer_table);
 	ASSERT(((uintptr_t)m_page_descriptor_pointer_table % 32) == 0);
 
-	// create and zero out all page directories
+	// allocate all page directories
 	for (int i = 0; i < 4; i++)
 	{
 		uint64_t* page_directory = allocate_page_aligned_page();
@@ -70,11 +72,13 @@ MMU::MMU()
 
 void MMU::AllocatePage(uintptr_t address)
 {
+#if MMU_DEBUG_PRINT
+	dprintln("AllocatePage(0x{8H})", address & PAGE_MASK);
+#endif
+
 	uint32_t pdpte = (address & 0xC0000000) >> 30;
 	uint32_t pde   = (address & 0x3FE00000) >> 21;
 	uint32_t pte   = (address & 0x001FF000) >> 12;
-
-	ASSERT(pdpte < 4);
 
 	uint64_t* page_directory = (uint64_t*)(m_page_descriptor_pointer_table[pdpte] & PAGE_MASK);
 	if (!(page_directory[pde] & PRESENT))
@@ -99,6 +103,10 @@ void MMU::AllocateRange(uintptr_t address, ptrdiff_t size)
 
 void MMU::UnAllocatePage(uintptr_t address)
 {
+#if MMU_DEBUG_PRINT
+	dprintln("UnAllocatePage(0x{8H})", address & PAGE_MASK);
+#endif
+
 	uint32_t pdpte = (address & 0xC0000000) >> 30;
 	uint32_t pde   = (address & 0x3FE00000) >> 21;
 	uint32_t pte   = (address & 0x001FF000) >> 12;
