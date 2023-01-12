@@ -11,7 +11,7 @@
 #include <stdint.h>
 #include <string.h>
 
-#define DEGUB_PRINT 0
+#define APIC_DEBUG_PRINT 0
 
 #define IA32_APIC_BASE 0x1B
 #define IA32_APIC_BASE_ENABLE (1 << 11)
@@ -233,18 +233,18 @@ namespace APIC
 							s_processor_ids[s_lapic_count] = entry->entry0.acpi_processor_id;
 							s_lapic_ids[s_lapic_count] = entry->entry0.apic_id;
 							s_lapic_count++;
-#if DEBUG_PRINT
-							//kprintln("Entry0, processor id {}, apic id {}, flags 0b{32b}",
-							//	entry->entry0.acpi_processor_id,
-							//	entry->entry0.apic_id,
-							//	entry->entry0.flags
-							//);
+#if APIC_DEBUG_PRINT >= 2
+							kprintln("Entry0, processor id {}, apic id {}, flags 0b{32b}",
+								entry->entry0.acpi_processor_id,
+								entry->entry0.apic_id,
+								entry->entry0.flags
+							);
 #endif
 							break;
 						case 1:
 							if (s_io_apic == 0)
 								s_io_apic = entry->entry1.ioapic_address;
-#if DEBUG_PRINT
+#if APIC_DEBUG_PRINT
 							kprintln("Entry1, io apic id {}, io apic address 0x{4H}, gsi base {}",
 								entry->entry1.ioapic_id,
 								entry->entry1.ioapic_address,
@@ -254,7 +254,7 @@ namespace APIC
 							break;
 						case 2:
 							s_overrides[entry->entry2.irq_source] = entry->entry2.gsi;
-#if DEBUG_PRINT
+#if APIC_DEBUG_PRINT
 							kprintln("Entry2, bus source {}, irq source {}, gsi {}, flags 0b{16b}",
 								entry->entry2.bus_source,
 								entry->entry2.irq_source,
@@ -264,7 +264,7 @@ namespace APIC
 #endif
 							break;
 						case 3:
-#if DEBUG_PRINT
+#if APIC_DEBUG_PRINT
 							kprintln("Entry3, nmi source {}, flags 0b{16b}, gsi {}",
 								entry->entry3.nmi_source,
 								entry->entry3.flags,
@@ -273,7 +273,7 @@ namespace APIC
 #endif
 							break;
 						case 4:
-#if DEBUG_PRINT
+#if APIC_DEBUG_PRINT
 							kprintln("Entry4, acpi processor id 0x{2H}, flags 0b{16b}, lint{}",
 								entry->entry4.acpi_processor_id,
 								entry->entry4.flags,
@@ -283,14 +283,14 @@ namespace APIC
 							break;
 						case 5:
 							s_local_apic = entry->entry5.address;
-#if DEBUG_PRINT
+#if APIC_DEBUG_PRINT
 							kprintln("Entry5, address 0x{4H}",
 								entry->entry5.address
 							);
 #endif
 							break;
 						case 9:
-#if DEBUG_PRINT
+#if APIC_DEBUG_PRINT
 							kprintln("Entry9, x2 acpi id {}, flags 0b{32b}, acpi id {}",
 								entry->entry9.local_x2acpi_id,
 								entry->entry9.flags,
