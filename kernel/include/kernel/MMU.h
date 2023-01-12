@@ -11,7 +11,10 @@ public:
 
 	void AllocatePage(uintptr_t);
 	void AllocateRange(uintptr_t, ptrdiff_t);
-	
+
+	void UnAllocatePage(uintptr_t);
+	void UnAllocateRange(uintptr_t, ptrdiff_t);
+
 private:
 	MMU();
 

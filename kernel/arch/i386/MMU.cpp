@@ -96,3 +96,30 @@ void MMU::AllocateRange(uintptr_t address, ptrdiff_t size)
 	for (uintptr_t page = s_page; page <= e_page; page += PAGE_SIZE)
 		AllocatePage(page);
 }
+
+void MMU::UnAllocatePage(uintptr_t address)
+{
+	uint32_t pdpte = (address & 0xC0000000) >> 30;
+	uint32_t pde   = (address & 0x3FE00000) >> 21;
+	uint32_t pte   = (address & 0x001FF000) >> 12;
+
+	uint64_t* page_directory = (uint64_t*)(m_page_descriptor_pointer_table[pdpte] & PAGE_MASK);
+	ASSERT(page_directory[pde] & PRESENT);
+
+	uint64_t* page_table = (uint64_t*)(page_directory[pde] & PAGE_MASK);
+	ASSERT(page_table[pte] & PRESENT);
+
+	page_table[pte] = 0;
+
+	// TODO: Unallocate the page table if this was the only allocated page
+
+	asm volatile("invlpg (%0)" :: "r"(address & PAGE_MASK) : "memory");
+}
+
+void MMU::UnAllocateRange(uintptr_t address, ptrdiff_t size)
+{
+	uintptr_t s_page = address & PAGE_MASK;
+	uintptr_t e_page = (address + size - 1) & PAGE_MASK;
+	for (uintptr_t page = s_page; page <= e_page; page += PAGE_SIZE)
+		UnAllocatePage(page);
+}
