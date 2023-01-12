@@ -215,6 +215,8 @@ namespace BAN
 			memcpy(new_data, m_data, m_size * sizeof(T));
 		BAN::deallocator(m_data);
 		m_data = (T*)new_data;
+		for (size_type i = m_capasity; i < new_cap; i++)
+			m_data[i] = T();
 		m_capasity = new_cap;
 		return {};
 	}
