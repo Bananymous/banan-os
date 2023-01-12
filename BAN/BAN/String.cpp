@@ -199,7 +199,7 @@ namespace BAN
 	{
 		if (m_capasity >= size)
 			return {};
-		size_type new_cap = BAN::Math::max<size_type>(size, m_capasity * 1.5f);
+		size_type new_cap = BAN::Math::max<size_type>(size, m_capasity * 3 / 2);
 		void* new_data = BAN::allocator(new_cap);
 		if (new_data == nullptr)
 			return Error::FromString("String: Could not allocate memory");
