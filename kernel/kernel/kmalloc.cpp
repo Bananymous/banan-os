@@ -44,15 +44,6 @@ static uintptr_t chunk_address(size_t index)
 	return s_kmalloc_base + s_kmalloc_chunk_size * index;
 }
 
-static void free_chunks(size_t start)
-{
-	ASSERT(s_kmalloc_chunks_per_size <= start && start < s_kmalloc_total_chunks);
-	start -= s_kmalloc_chunks_per_size;
-	size_t size = *(size_t*)chunk_address(start);
-	for (size_t i = 0; i < size; i++)
-		s_kmalloc_bitmap[(start + i) / 8] &= ~(1 << ((start + i) % 8));
-}
-
 void kmalloc_initialize()
 {
 	if (!(g_multiboot_info->flags & (1 << 6)))
