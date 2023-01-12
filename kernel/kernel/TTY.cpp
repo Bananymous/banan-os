@@ -1,6 +1,4 @@
-#include <BAN/Memory.h>
-#include <kernel/kmalloc.h>
-#include <kernel/Panic.h>
+#include <BAN/Errors.h>
 #include <kernel/Serial.h>
 #include <kernel/TTY.h>
 #include <kernel/VESA.h>
@@ -242,14 +240,14 @@ void TTY::HandleAnsiEscape(uint16_t ch)
 
 void TTY::RenderFromBuffer(uint32_t x, uint32_t y)
 {
-	if (x >= m_width || y >= m_height)
-		Kernel::Panic("invalid render from buffer, {} {}", x, y);
+	ASSERT(x < m_width && y < m_height);
 	const auto& cell = m_buffer[y * m_width + x];
 	VESA::PutCharAt(cell.character, x, y, cell.foreground, cell.background);
 }
 
 void TTY::PutCharAt(uint16_t ch, uint32_t x, uint32_t y)
 {
+	ASSERT(x < m_width && y < m_height);
 	auto& cell = m_buffer[y * m_width + x];
 	cell.character = ch;
 	cell.foreground = m_foreground;
@@ -342,38 +340,6 @@ void TTY::WriteString(const char* data)
 
 void TTY::PutCharCurrent(char ch)
 {
-	if (s_tty)
-	{
-		s_tty->PutChar(ch);
-	}
-	else
-	{
-		static uint32_t x = 0;
-		static uint32_t y = 0;
-
-		switch (ch)
-		{
-		case '\n':
-			x = 0;
-			y++;
-			break;
-		default:
-			VESA::PutCharAt(ch, x, y, VESA::Color::BRIGHT_WHITE, VESA::Color::BLACK);
-			x++;
-			break;
-		}
-
-		if (x == VESA::GetTerminalWidth())
-		{
-			x = 0;
-			y++;
-		}
-
-		if (y == VESA::GetTerminalHeight())
-		{
-			x = 0;
-			y = 0;
-			VESA::Clear(VESA::Color::BLACK);
-		}
-	}
+	ASSERT(s_tty);
+	s_tty->PutChar(ch);
 }
