@@ -13,7 +13,7 @@ EXEC_PREFIX?=$(PREFIX)
 INCLUDEDIR?=$(PREFIX)/include
 LIBDIR?=$(EXEC_PREFIX)/lib
  
-CFLAGS:=$(CFLAGS) -Iinclude -ffreestanding -Wall -Wextra
+CFLAGS:=$(CFLAGS) -Iinclude -ffreestanding -Wall -Wextra -Werror=return-type
 CPPFLAGS:=$(CPPFLAGS)
 LIBBANK_CFLAGS:=$(CFLAGS) -D__is_kernel -Iinclude -ffreestanding -Wall -Wextra
 LIBBANK_CPPFLAGS:=$(CPPFLAGS) -fno-rtti -fno-exceptions -fno-threadsafe-statics
