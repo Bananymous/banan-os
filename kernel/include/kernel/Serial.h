@@ -24,6 +24,8 @@
 		BAN::Formatter::print(Serial::serial_putc, "\e[m");		\
 	} while(false)
 
+#define BOCHS_BREAK() asm volatile("xchgw %bx, %bx")
+
 namespace Serial
 {
 
