@@ -21,8 +21,8 @@ namespace BAN
 		Vector(const Vector<T>&);
 		~Vector();
 
-		ErrorOr<void> PushBack(const T&);
-		ErrorOr<void> Insert(const T&, size_type);
+		[[nodiscard]] ErrorOr<void> PushBack(const T&);
+		[[nodiscard]] ErrorOr<void> Insert(const T&, size_type);
 		
 		void PopBack();
 		void Remove(size_type);
@@ -37,15 +37,15 @@ namespace BAN
 		const T& Front() const;
 		T& Front();
 
-		ErrorOr<void> Resize(size_type);
-		ErrorOr<void> Reserve(size_type);
+		[[nodiscard]] ErrorOr<void> Resize(size_type);
+		[[nodiscard]] ErrorOr<void> Reserve(size_type);
 
 		bool Empty() const;
 		size_type Size() const;
 		size_type Capasity() const;
 
 	private:
-		ErrorOr<void> EnsureCapasity(size_type);
+		[[nodiscard]] ErrorOr<void> EnsureCapasity(size_type);
 
 	private:
 		T*			m_data		= nullptr;

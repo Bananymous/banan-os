@@ -24,8 +24,8 @@ namespace BAN
 
 		StringView Substring(size_type, size_type = -1) const;
 
-		ErrorOr<Vector<StringView>> Split(char, bool = false);
-		ErrorOr<Vector<StringView>> Split(bool(*comp)(char), bool = false);
+		[[nodiscard]] ErrorOr<Vector<StringView>> Split(char, bool = false);
+		[[nodiscard]] ErrorOr<Vector<StringView>> Split(bool(*comp)(char), bool = false);
 
 		size_type Count(char) const;
 
@@ -40,6 +40,8 @@ namespace BAN
 	};
 
 }
+
+inline BAN::StringView operator""_sv(const char* str, BAN::StringView::size_type len) { return BAN::StringView(str, len); }
 
 namespace BAN::Formatter
 {

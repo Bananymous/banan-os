@@ -16,8 +16,7 @@ namespace BAN
 		String();
 		String(const String&);
 		String(String&&);
-		String(const StringView&);
-		String(const char*, size_type = -1);
+		String(StringView);
 		~String();
 
 		template<typename... Args>
@@ -26,13 +25,15 @@ namespace BAN
 		String& operator=(const String&);
 		String& operator=(String&&);
 
-		ErrorOr<void> PushBack(char);
-		ErrorOr<void> Insert(char, size_type);
-		ErrorOr<void> Append(const char*);
-		ErrorOr<void> Append(const String&);
+		[[nodiscard]] ErrorOr<void> PushBack(char);
+		[[nodiscard]] ErrorOr<void> Insert(char, size_type);
+		[[nodiscard]] ErrorOr<void> Insert(StringView, size_type);
+		[[nodiscard]] ErrorOr<void> Append(StringView);
+		[[nodiscard]] ErrorOr<void> Append(const String&);
 		
 		void PopBack();
 		void Remove(size_type);
+		void Erase(size_type, size_type);
 
 		void Clear();
 
@@ -43,8 +44,8 @@ namespace BAN
 		bool operator==(StringView) const;
 		bool operator==(const char*) const;
 
-		ErrorOr<void> Resize(size_type, char = '\0');
-		ErrorOr<void> Reserve(size_type);
+		[[nodiscard]] ErrorOr<void> Resize(size_type, char = '\0');
+		[[nodiscard]] ErrorOr<void> Reserve(size_type);
 
 		StringView SV() const;
 
@@ -55,9 +56,9 @@ namespace BAN
 		const char* Data() const;
 
 	private:
-		ErrorOr<void> EnsureCapasity(size_type);
+		[[nodiscard]] ErrorOr<void> EnsureCapasity(size_type);
 
-		ErrorOr<void> copy_impl(const char*, size_type);
+		[[nodiscard]] ErrorOr<void> copy_impl(StringView);
 		void move_impl(String&&);
 
 	private:

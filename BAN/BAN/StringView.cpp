@@ -95,12 +95,12 @@ namespace BAN
 			if (comp(m_data[i]))
 			{
 				if (allow_empties || start != i)
-					result.PushBack(this->Substring(start, i - start));
+					TRY(result.PushBack(this->Substring(start, i - start)));
 				start = i + 1;
 			}
 		}
 		if (start != m_size)
-			result.PushBack(this->Substring(start));
+			TRY(result.PushBack(this->Substring(start)));
 		return result;
 	}
 

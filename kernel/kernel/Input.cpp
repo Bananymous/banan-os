@@ -288,9 +288,9 @@ namespace Input
 						bool right  = s_mouse_data_buffer[0] & (1 << 1);
 						bool middle = s_mouse_data_buffer[0] & (1 << 2);
 
-						if (left)	s_mouse_button_event_queue.Push({ .button = MouseButton::Left });
-						if (right)	s_mouse_button_event_queue.Push({ .button = MouseButton::Right });
-						if (middle)	s_mouse_button_event_queue.Push({ .button = MouseButton::Middle });
+						if (left)	MUST(s_mouse_button_event_queue.Push({ .button = MouseButton::Left }));
+						if (right)	MUST(s_mouse_button_event_queue.Push({ .button = MouseButton::Right }));
+						if (middle)	MUST(s_mouse_button_event_queue.Push({ .button = MouseButton::Middle }));
 					}
 
 					if (s_mouse_data_buffer[1] || s_mouse_data_buffer[2])
@@ -298,7 +298,7 @@ namespace Input
 						int16_t rel_x = (int16_t)s_mouse_data_buffer[1] - ((s_mouse_data_buffer[0] << 4) & 0x100);
 						int16_t rel_y = (int16_t)s_mouse_data_buffer[2] - ((s_mouse_data_buffer[0] << 3) & 0x100);
 
-						s_mouse_move_event_queue.Push({ .dx = rel_x, .dy = rel_y }); 
+						MUST(s_mouse_move_event_queue.Push({ .dx = rel_x, .dy = rel_y }));
 					}		
 
 					s_mouse_data_buffer_index = 0;
@@ -487,12 +487,12 @@ namespace Input
 
 		if (update_leds)
 		{
-			s_command_queue.Push({
+			MUST(s_command_queue.Push({
 				.target = TARGET_KEYBOARD,
 				.command = I8042_KB_SET_LEDS,
 				.data = s_led_states,
 				.has_data = true,
-			});
+			}));
 		}
 
 		uint8_t modifiers = 0;

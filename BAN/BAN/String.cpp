@@ -12,12 +12,12 @@ namespace BAN
 
 	String::String()
 	{
-		MUST(copy_impl("", 0));
+		MUST(copy_impl(""_sv));
 	}
 
 	String::String(const String& other)
 	{
-		MUST(copy_impl(other.Data(), other.Size()));
+		MUST(copy_impl(other.SV()));
 	}
 
 	String::String(String&& other)
@@ -25,16 +25,9 @@ namespace BAN
 		move_impl(Move(other));
 	}
 
-	String::String(const StringView& other)
+	String::String(StringView other)
 	{
-		MUST(copy_impl(other.Data(), other.Size()));
-	}
-
-	String::String(const char* data, size_type len)
-	{
-		if (len == size_type(-1))
-			len = strlen(data);
-		MUST(copy_impl(data, len));
+		MUST(copy_impl(other));
 	}
 
 	String::~String()
@@ -44,7 +37,7 @@ namespace BAN
 
 	String& String::operator=(const String& other)
 	{
-		copy_impl(other.Data(), other.Size());
+		MUST(copy_impl(other.SV()));
 		return *this;
 	}
 
@@ -58,58 +51,75 @@ namespace BAN
 	ErrorOr<void> String::PushBack(char ch)
 	{
 		TRY(EnsureCapasity(m_size + 2));
-		m_data[m_size]		= ch;
-		m_data[m_size + 1]	= '\0';
+		m_data[m_size] = ch;
 		m_size++;
+		m_data[m_size] = '\0';
 		return {};
 	}
 
 	ErrorOr<void> String::Insert(char ch, size_type index)
 	{
 		ASSERT(index <= m_size);
-		TRY(EnsureCapasity(m_size + 2));
+		TRY(EnsureCapasity(m_size + 1 + 1));
 		memmove(m_data + index + 1, m_data + index, m_size - index);
-		m_data[index]		= ch;
-		m_data[m_size + 1]	= '\0';
-		m_size++;
+		m_data[index] = ch;
+		m_size += 1;
+		m_data[m_size] = '\0';
 		return {};
 	}
 
-	ErrorOr<void> String::Append(const char* string)
+	ErrorOr<void> String::Insert(StringView other, size_type index)
 	{
-		size_t len = strlen(string);
-		TRY(EnsureCapasity(m_size + len + 1));
-		memcpy(m_data + m_size, string, len);
-		m_data[m_size + len] = '\0';
-		m_size += len;
+		dprintln("insert '{}' to '{}' at index {}", other, *this, index);
+
+		ASSERT(index <= m_size);
+		TRY(EnsureCapasity(m_size + other.Size() + 1));
+		memmove(m_data + index + other.Size(), m_data + index, m_size - index);
+		memcpy(m_data + index, other.Data(), other.Size());
+		m_size += other.Size();
+		m_data[m_size] = '\0';
+		return {};
+	}
+
+	ErrorOr<void> String::Append(StringView other)
+	{
+		TRY(EnsureCapasity(m_size + other.Size() + 1));
+		memcpy(m_data + m_size, other.Data(), other.Size());
+		m_size += other.Size();
+		m_data[m_size] = '\0';
 		return {};
 	}
 
 	ErrorOr<void> String::Append(const String& string)
 	{
-		TRY(Append(string.Data()));
+		TRY(Append(string.SV()));
 		return {};
 	}
 
 	void String::PopBack()
 	{
 		ASSERT(m_size > 0);
-		m_data[m_size - 1] = '\0';
 		m_size--;
+		m_data[m_size] = '\0';
 	}
 
 	void String::Remove(size_type index)
 	{
-		ASSERT(index < m_size);
-		memmove(m_data + index, m_data + index + 1, m_size - index - 1);
-		m_data[m_size - 1] = '\0';
-		m_size--;
+		Erase(index,  1);
+	}
+
+	void String::Erase(size_type index, size_type count)
+	{
+		ASSERT(index + count <= m_size);
+		memmove(m_data + index, m_data + index + count, m_size - index - count);
+		m_size -= count;
+		m_data[m_size] = '\0';
 	}
 	
 	void String::Clear()
 	{
-		m_data[0] = '\0';
 		m_size = 0;
+		m_data[0] = '\0';
 	}
 
 	char String::operator[](size_type index) const
@@ -140,9 +150,10 @@ namespace BAN
 
 	bool String::operator==(const char* other) const
 	{
-		if (memcmp(m_data, other, m_size))
-			return false;
-		return other[m_size] == '\0';
+		for (size_type i = 0; i <= m_size; i++)
+			if (m_data[i] != other[i])
+				return false;
+		return true;
 	}
 
 	ErrorOr<void> String::Resize(size_type size, char ch)
@@ -210,12 +221,12 @@ namespace BAN
 		return {};
 	}
 
-	ErrorOr<void> String::copy_impl(const char* data, size_type len)
+	ErrorOr<void> String::copy_impl(StringView other)
 	{
-		TRY(EnsureCapasity(len + 1));
-		memcpy(m_data, data, len);
-		m_data[len] = '\0';
-		m_size = len;
+		TRY(EnsureCapasity(other.Size() + 1));
+		memcpy(m_data, other.Data(), other.Size());
+		m_size = other.Size();
+		m_data[m_size] = '\0';
 		return {};
 	}
 

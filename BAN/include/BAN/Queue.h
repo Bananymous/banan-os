@@ -21,7 +21,7 @@ namespace BAN
 		Queue() = default;
 		~Queue();
 
-		ErrorOr<void> Push(const T& value);
+		[[nodiscard]] ErrorOr<void> Push(const T& value);
 		void Pop();
 
 		bool Empty() const;
@@ -31,7 +31,7 @@ namespace BAN
 		T& Front();
 
 	private:
-		ErrorOr<void> VerifyCapacity(size_type size);
+		[[nodiscard]] ErrorOr<void> VerifyCapacity(size_type size);
 
 	private:
 		T*			m_data		= nullptr;
