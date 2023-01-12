@@ -48,6 +48,12 @@ namespace BAN
 		return *this;
 	}
 
+	String& String::operator=(StringView other)
+	{
+		MUST(copy_impl(other));
+		return *this;
+	}
+
 	ErrorOr<void> String::PushBack(char ch)
 	{
 		TRY(EnsureCapasity(m_size + 2));
@@ -70,8 +76,6 @@ namespace BAN
 
 	ErrorOr<void> String::Insert(StringView other, size_type index)
 	{
-		dprintln("insert '{}' to '{}' at index {}", other, *this, index);
-
 		ASSERT(index <= m_size);
 		TRY(EnsureCapasity(m_size + other.Size() + 1));
 		memmove(m_data + index + other.Size(), m_data + index, m_size - index);

@@ -24,6 +24,7 @@ namespace BAN
 
 		String& operator=(const String&);
 		String& operator=(String&&);
+		String& operator=(StringView);
 
 		[[nodiscard]] ErrorOr<void> PushBack(char);
 		[[nodiscard]] ErrorOr<void> Insert(char, size_type);
