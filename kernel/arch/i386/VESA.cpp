@@ -1,8 +1,8 @@
 #include <kernel/font.h>
 #include <kernel/IO.h>
 #include <kernel/kmalloc.h>
+#include <kernel/MMU.h>
 #include <kernel/multiboot.h>
-#include <kernel/Paging.h>
 #include <kernel/Panic.h>
 #include <kernel/Serial.h>
 #include <kernel/VESA.h>
@@ -104,7 +104,7 @@ namespace VESA
 		s_height	= framebuffer.height;
 		s_mode		= framebuffer.type;
 
-		Paging::MapPages(s_addr, s_pitch * s_height);
+		MMU::Get().AllocateRange(s_addr, s_pitch * s_height);
 
 		if (s_mode == MULTIBOOT_FRAMEBUFFER_TYPE_GRAPHICS)
 		{

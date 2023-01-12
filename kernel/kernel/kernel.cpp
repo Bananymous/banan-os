@@ -7,7 +7,6 @@
 #include <kernel/kprint.h>
 #include <kernel/MMU.h>
 #include <kernel/multiboot.h>
-#include <kernel/Paging.h>
 #include <kernel/PIC.h>
 #include <kernel/PIT.h>
 #include <kernel/RTC.h>
@@ -28,69 +27,65 @@ struct ParsedCommandLine
 	bool force_pic = false;
 };
 
-ParsedCommandLine ParseCommandLine(const char* command_line)
+ParsedCommandLine ParseCommandLine()
 {
 	ParsedCommandLine result;
 
-	const char* start = command_line;
+	if (!(g_multiboot_info->flags & 0x02))
+		return result;
+
+	const char* start = g_kernel_cmdline;
+	const char* current = g_kernel_cmdline;
 	while (true)
 	{
-		if (!*command_line || *command_line == ' ' || *command_line == '\t')
+		if (!*current || *current == ' ' || *current == '\t')
 		{
-			if (command_line - start == 6 && memcmp(start, "noapic", 6) == 0)
+			if (current - start == 6 && memcmp(start, "noapic", 6) == 0)
 				result.force_pic = true;
 
-			if (!*command_line)
+			if (!*current)
 				break;
-			start = command_line + 1;
+			start = current + 1;
 		}
-		command_line++;
+		current++;
 	}
 
 	return result;
 }
 
-extern "C" void kernel_main(multiboot_info_t* mbi, uint32_t magic)
+extern "C" void kernel_main()
 {
 	DISABLE_INTERRUPTS();
 
 	Serial::initialize();
-	if (magic != 0x2BADB002)
+	if (g_multiboot_magic != 0x2BADB002)
 	{
 		dprintln("Invalid multiboot magic number");
 		return;
 	}
 
+	auto cmdline = ParseCommandLine();
 
-	dprintln("hello from 64 bit protected mode!");
+	kmalloc_initialize();
+	dprintln("kmalloc initialized");
 
-	Paging::Initialize();
+	MMU::Intialize();
+	dprintln("MMU initialized");
 
-	dprintln("paging enabled");
-
-	return;
-
-	s_multiboot_info = mbi;
+	APIC::Initialize(cmdline.force_pic);
+	dprintln("APIX initialized");
+	gdt_initialize();
+	dprintln("GDT initialized");
+	IDT::initialize();
+	dprintln("IDT initialized");
 
 	if (!VESA::Initialize())
 		return;
-
-	ParsedCommandLine cmdline;
-	if (mbi->flags & 0x02)
-		cmdline = ParseCommandLine((const char*)mbi->cmdline);
-
-	APIC::Initialize(cmdline.force_pic);
-	gdt_initialize();
-	IDT::initialize();
-
-	kmalloc_initialize();
-
+	TTY* tty1 = new TTY;
+	
 	PIT::initialize();
 	if (!Input::initialize())
 		return;
-
-	TTY* tty1 = new TTY;
-	tty1->SetCursorPosition(0, 2);
 
 	ENABLE_INTERRUPTS();
 
