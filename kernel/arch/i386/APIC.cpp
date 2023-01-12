@@ -2,9 +2,7 @@
 #include <kernel/CPUID.h>
 #include <kernel/IDT.h>
 #include <kernel/IO.h>
-#include <kernel/kprint.h>
 #include <kernel/MMU.h>
-#include <kernel/Panic.h>
 #include <kernel/PIC.h>
 #include <kernel/Serial.h>
 
@@ -234,7 +232,7 @@ namespace APIC
 							s_lapic_ids[s_lapic_count] = entry->entry0.apic_id;
 							s_lapic_count++;
 #if APIC_DEBUG_PRINT >= 2
-							kprintln("Entry0, processor id {}, apic id {}, flags 0b{32b}",
+							dprintln("Entry0, processor id {}, apic id {}, flags 0b{32b}",
 								entry->entry0.acpi_processor_id,
 								entry->entry0.apic_id,
 								entry->entry0.flags
@@ -245,7 +243,7 @@ namespace APIC
 							if (s_io_apic == 0)
 								s_io_apic = entry->entry1.ioapic_address;
 #if APIC_DEBUG_PRINT
-							kprintln("Entry1, io apic id {}, io apic address 0x{4H}, gsi base {}",
+							dprintln("Entry1, io apic id {}, io apic address 0x{4H}, gsi base {}",
 								entry->entry1.ioapic_id,
 								entry->entry1.ioapic_address,
 								entry->entry1.gsi_base
@@ -255,7 +253,7 @@ namespace APIC
 						case 2:
 							s_overrides[entry->entry2.irq_source] = entry->entry2.gsi;
 #if APIC_DEBUG_PRINT
-							kprintln("Entry2, bus source {}, irq source {}, gsi {}, flags 0b{16b}",
+							dprintln("Entry2, bus source {}, irq source {}, gsi {}, flags 0b{16b}",
 								entry->entry2.bus_source,
 								entry->entry2.irq_source,
 								entry->entry2.gsi,
@@ -265,7 +263,7 @@ namespace APIC
 							break;
 						case 3:
 #if APIC_DEBUG_PRINT
-							kprintln("Entry3, nmi source {}, flags 0b{16b}, gsi {}",
+							dprintln("Entry3, nmi source {}, flags 0b{16b}, gsi {}",
 								entry->entry3.nmi_source,
 								entry->entry3.flags,
 								entry->entry3.gsi
@@ -274,7 +272,7 @@ namespace APIC
 							break;
 						case 4:
 #if APIC_DEBUG_PRINT
-							kprintln("Entry4, acpi processor id 0x{2H}, flags 0b{16b}, lint{}",
+							dprintln("Entry4, acpi processor id 0x{2H}, flags 0b{16b}, lint{}",
 								entry->entry4.acpi_processor_id,
 								entry->entry4.flags,
 								entry->entry4.lint
@@ -284,14 +282,14 @@ namespace APIC
 						case 5:
 							s_local_apic = entry->entry5.address;
 #if APIC_DEBUG_PRINT
-							kprintln("Entry5, address 0x{4H}",
+							dprintln("Entry5, address 0x{4H}",
 								entry->entry5.address
 							);
 #endif
 							break;
 						case 9:
 #if APIC_DEBUG_PRINT
-							kprintln("Entry9, x2 acpi id {}, flags 0b{32b}, acpi id {}",
+							dprintln("Entry9, x2 acpi id {}, flags 0b{32b}, acpi id {}",
 								entry->entry9.local_x2acpi_id,
 								entry->entry9.flags,
 								entry->entry9.acpi_id
@@ -346,19 +344,19 @@ namespace APIC
 		CPUID::GetFeatures(ecx, edx);
 		if (!(edx & CPUID::Features::EDX_APIC))
 		{
-			kprintln("Local APIC not available");
+			dprintln("Local APIC not available");
 			return false;
 		}
 		if (!(edx & CPUID::Features::EDX_MSR))
 		{
-			kprintln("MSR not available");
+			dprintln("MSR not available");
 			return false;
 		}
 
 		RSDPDescriptor* rsdp = LocateRSDP();
 		if (rsdp == nullptr)
 		{
-			kprintln("Could not locate RSDP");
+			dprintln("Could not locate RSDP");
 			return false;
 		}
 
@@ -389,12 +387,12 @@ namespace APIC
 
 		if (force_pic)
 		{
-			kprintln("Using PIC instead of APIC");
+			dprintln("Using PIC instead of APIC");
 			s_using_fallback_pic = true;
 		}
 		else if (!InitializeAPIC())
 		{
-			kprintln("Could not initialize APIC. Using PIC as fallback");
+			dprintln("Could not initialize APIC. Using PIC as fallback");
 			s_using_fallback_pic = true;
 		}
 	}
