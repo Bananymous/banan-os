@@ -44,7 +44,7 @@ namespace BAN
 	{
 		for (size_type i = 0; i < m_size; i++)
 			m_data[i].~T();
-		BAN::deallocator(m_data);
+		delete[] m_data;
 	}
 
 	template<typename T>
@@ -95,15 +95,13 @@ namespace BAN
 		if (m_capacity > size)
 			return {};
 		size_type new_cap = BAN::Math::max<size_type>(size, m_capacity * 3 / 2);
-		void* new_data = BAN::allocator(new_cap * sizeof(T));
+		T* new_data = new T[new_cap];
 		if (new_data == nullptr)
 			return Error::FromString("Queue: Could not allocate memory");
 		if (m_data)
 			memcpy(new_data, m_data, m_size * sizeof(T));
-		BAN::deallocator(m_data);
-		m_data = (T*)new_data;
-		for (size_type i = m_capacity; i < new_cap; i++)
-			m_data[i] = T();
+		delete[] m_data;
+		m_data = new_data;
 		m_capacity = new_cap;
 		return {};
 	}
