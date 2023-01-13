@@ -30,6 +30,12 @@ static constexpr size_t		s_kmalloc_chunks_per_size	= sizeof(size_t) * 8 / s_kmal
 static constexpr size_t		s_kmalloc_total_chunks		= s_kmalloc_size / s_kmalloc_chunk_size;
 static			 uint8_t	s_kmalloc_bitmap[s_kmalloc_total_chunks / 8] { 0 };
 
+static			size_t		s_kmalloc_free = s_kmalloc_size;
+static			size_t		s_kmalloc_used = 0;
+
+static			size_t		s_kmalloc_eternal_free = s_kmalloc_eternal_size;
+static			size_t		s_kmalloc_eternal_used = 0;
+
 extern "C" uintptr_t g_kernel_end;
 
 static bool is_kmalloc_chunk_used(size_t index)
@@ -51,9 +57,6 @@ void kmalloc_initialize()
 
 	if (g_kernel_end > s_kmalloc_base)
 		Kernel::Panic("Kmalloc: Kernel end is over kmalloc base");
-
-	dprintln("kmalloc         {} -> {}", (void*)s_kmalloc_base, (void*)s_kmalloc_end);
-	dprintln("kmalloc eternal {} -> {}", (void*)s_kmalloc_eternal_base, (void*)s_kmalloc_eternal_end);
 
 	// Validate kmalloc memory
 	bool valid = false;
@@ -83,12 +86,15 @@ void kmalloc_initialize()
 	}
 }
 
-void kmalloc_dump_nodes()
+void kmalloc_dump_info()
 {
-	dprintln("kmalloc dump: {8b}{8b}{8b}{8b}{8b}{8b}{8b}{8b}",
-		s_kmalloc_bitmap[7], s_kmalloc_bitmap[6], s_kmalloc_bitmap[5], s_kmalloc_bitmap[4],
-		s_kmalloc_bitmap[3], s_kmalloc_bitmap[2], s_kmalloc_bitmap[1], s_kmalloc_bitmap[0]
-	);
+	kprintln("kmalloc: {}->{}", (void*)s_kmalloc_base, (void*)s_kmalloc_end);
+	kprintln("  used: {}", s_kmalloc_used);
+	kprintln("  free: {}", s_kmalloc_free);
+
+	kprintln("kmalloc eternal: {}->{}", (void*)s_kmalloc_eternal_base, (void*)s_kmalloc_eternal_end);
+	kprintln("  used: {}", s_kmalloc_eternal_used);
+	kprintln("  free: {}", s_kmalloc_eternal_free);
 }
 
 void* kmalloc(size_t size)
@@ -132,6 +138,8 @@ void* kmalloc(size_t size, size_t align)
 			*(size_t*)chunk_address(i) = needed_chunks;
 			for (size_t j = 0; j < needed_chunks; j++)
 				s_kmalloc_bitmap[(i + j) / 8] |= (1 << ((i + j) % 8));
+			s_kmalloc_used += needed_chunks * s_kmalloc_chunk_size;
+			s_kmalloc_free -= needed_chunks * s_kmalloc_chunk_size;
 			return (void*)chunk_address(i + s_kmalloc_chunks_per_size);
 		}
 	}
@@ -153,4 +161,6 @@ void kfree(void* address)
 	size_t size = *(size_t*)chunk_address(first_chunk);
 	for (size_t i = 0; i < size; i++)
 		s_kmalloc_bitmap[(first_chunk + i) / 8] &= ~(1 << ((first_chunk + i) % 8));
+	s_kmalloc_used -= size * s_kmalloc_chunk_size;
+	s_kmalloc_free += size * s_kmalloc_chunk_size;
 }
