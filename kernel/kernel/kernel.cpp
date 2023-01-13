@@ -63,29 +63,33 @@ extern "C" void kernel_main()
 		dprintln("Invalid multiboot magic number");
 		return;
 	}
+	dprintln("Serial output initialized");
 
 	auto cmdline = ParseCommandLine();
 
 	kmalloc_initialize();
 	dprintln("kmalloc initialized");
 
-	MMU::Intialize();
-	dprintln("MMU initialized");
-
-	APIC::Initialize(cmdline.force_pic);
-	dprintln("APIX initialized");
 	gdt_initialize();
 	dprintln("GDT initialized");
 	IDT::initialize();
 	dprintln("IDT initialized");
 
+	MMU::Intialize();
+	dprintln("MMU initialized");
+
 	if (!VESA::Initialize())
 		return;
+	dprintln("VESA initialized");
 	TTY* tty1 = new TTY;
 	
+	APIC::Initialize(cmdline.force_pic);
+	dprintln("APIC initialized");
 	PIT::initialize();
+	dprintln("PIT initialized");
 	if (!Input::initialize())
 		return;
+	dprintln("8042 initialized");
 
 	ENABLE_INTERRUPTS();
 

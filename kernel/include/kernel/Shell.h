@@ -1,6 +1,7 @@
 #pragma once
 
 #include <BAN/String.h>
+#include <BAN/Vector.h>
 #include <kernel/Input.h>
 #include <kernel/TTY.h>
 
@@ -15,19 +16,30 @@ namespace Kernel
 		static Shell& Get();
 
 		void SetTTY(TTY* tty);
+		void SetPrompt(BAN::StringView);
 
 		void Run();
 
 	private:
 		Shell();
-		void PrintPrompt();
+		void ReRenderBuffer() const;
 		void ProcessCommand(const BAN::Vector<BAN::StringView>&);
 		void KeyEventCallback(Input::KeyEvent);
 		void MouseMoveEventCallback(Input::MouseMoveEvent);
 
 	private:
-		TTY*		m_tty;
-		BAN::String	m_buffer;
+		TTY*						m_tty;
+		BAN::Vector<BAN::String>	m_old_buffer;
+		BAN::Vector<BAN::String>	m_buffer;
+		BAN::String					m_prompt;
+		uint32_t					m_prompt_length = 0;
+		
+		struct
+		{
+			uint32_t line = 0;
+			uint32_t col = 0;
+			uint32_t index = 0;
+		} m_cursor_pos;
 
 		struct
 		{

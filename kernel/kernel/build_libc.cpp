@@ -2,5 +2,7 @@
 
 void foo()
 {
-	strlen("");
+	strlen(nullptr);
+	strncpy(nullptr, nullptr, 0);
+	memcpy(nullptr, nullptr, 0);
 }

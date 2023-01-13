@@ -50,12 +50,32 @@ namespace Kernel
 	{
 		Input::register_key_event_callback([](Input::KeyEvent event) { Shell::Get().KeyEventCallback(event); });
 		Input::register_mouse_move_event_callback([](Input::MouseMoveEvent event) { Shell::Get().MouseMoveEventCallback(event); });
-		m_buffer.Reserve(128);
+		SetPrompt("\\[\e[32m\\]user\\[\e[m\\]# "_sv);
+		MUST(m_buffer.PushBack(""_sv));
 	}
 
-	void Shell::PrintPrompt()
+	void Shell::SetPrompt(StringView prompt)
 	{
-		TTY_PRINT("\e[32muser\e[m# ");
+		m_prompt_length = 0;
+		m_prompt = String();
+
+		bool skipping = false;
+		for (size_t i = 0; i < prompt.Size(); i++)
+		{
+			if (i < prompt.Size() - 1 && prompt[i] == '\\')
+			{
+				if (prompt[i + 1] == '[')
+					skipping = true;
+				if (prompt[i + 1] == ']')
+					skipping = false;
+				i++;
+				continue;
+			}
+			
+			MUST(m_prompt.PushBack(prompt[i]));
+			if (!skipping)
+				m_prompt_length++;
+		}
 	}
 
 	void Shell::SetTTY(TTY* tty)
@@ -65,7 +85,8 @@ namespace Kernel
 
 	void Shell::Run()
 	{
-		PrintPrompt();
+		ASSERT(m_tty);
+		TTY_PRINT("{}", m_prompt);
 		for (;;)
 		{
 			asm volatile("hlt");
@@ -184,35 +205,39 @@ namespace Kernel
 
 	}
 
-	static bool IsSingleUnicode(StringView sv)
+	void Shell::ReRenderBuffer() const
 	{
-		if (sv.Size() == 2 && ((uint8_t)sv[0] >> 5) != 0b110)
-			return false;
-		if (sv.Size() == 3 && ((uint8_t)sv[0] >> 4) != 0b1110)
-			return false;
-		if (sv.Size() == 4 && ((uint8_t)sv[0] >> 3) != 0b11110)
-			return false;
-		for (uint32_t i = 1; i < sv.Size(); i++)
-			if (((uint8_t)sv[i] >> 6) != 0b10)
-				return false;
-		return true;
+		TTY_PRINT("\e[{}G{}\e[K", m_prompt_length + 1, m_buffer[m_cursor_pos.line]);
 	}
 
 	static uint32_t GetLastLength(StringView sv)
 	{
-		if (sv.Size() < 2)
-			return sv.Size();
+		if (sv.Size() >= 2 && ((uint8_t)sv[sv.Size() - 2] >> 5) == 0b110)	return 2;
+		if (sv.Size() >= 3 && ((uint8_t)sv[sv.Size() - 3] >> 4) == 0b1110)	return 3;
+		if (sv.Size() >= 4 && ((uint8_t)sv[sv.Size() - 4] >> 3) == 0b11110)	return 4;
+		return Math::min<uint32_t>(sv.Size(), 1);
+	}
 
-		for (uint32_t len = 2; len <= 4; len++)
+	static uint32_t GetNextLength(StringView sv)
+	{
+		if (sv.Size() >= 2 && ((uint8_t)sv[0] >> 5) == 0b110)	return 2;
+		if (sv.Size() >= 3 && ((uint8_t)sv[0] >> 4) == 0b1110)	return 3;
+		if (sv.Size() >= 4 && ((uint8_t)sv[0] >> 3) == 0b11110)	return 4;
+		return Math::min<uint32_t>(sv.Size(), 1);
+	}
+
+	static uint32_t GetUnicodeCharacterCount(StringView sv)
+	{
+		uint32_t len = 0;
+		for (uint32_t i = 0; i < sv.Size(); i++)
 		{
-			if (sv.Size() < len)
-				return 1;
-
-			if (IsSingleUnicode(sv.Substring(sv.Size() - len)))
-				return len;
+			uint8_t ch = sv[i];
+			if ((ch >> 5) == 0b110)		i += 1;
+			if ((ch >> 4) == 0b1110)	i += 2;
+			if ((ch >> 3) == 0b11110)	i += 3;
+			len++;
 		}
-
-		return 1;
+		return len;
 	}
 
 	void Shell::KeyEventCallback(Input::KeyEvent event)
@@ -220,28 +245,38 @@ namespace Kernel
 		if (!event.pressed)
 			return;
 
+		String& current_buffer = m_buffer[m_cursor_pos.line];
+
 		switch (event.key)
 		{
 			case Input::Key::Backspace:
-			{
-				if (!m_buffer.Empty())
+				if (m_cursor_pos.col > 0)
 				{
-					TTY_PRINT("\b \b", 3);
+					TTY_PRINT("\e[D{} ", current_buffer.SV().Substring(m_cursor_pos.index));
 					
-					uint32_t last_len = GetLastLength(m_buffer);
-					for (uint32_t i = 0; i < last_len; i++)
-						m_buffer.PopBack();
+					uint32_t len = GetLastLength(current_buffer.SV().Substring(0, m_cursor_pos.index));
+					m_cursor_pos.index -= len;
+					current_buffer.Erase(m_cursor_pos.index, len);
+					m_cursor_pos.col--;
 				}
 				break;
-			}
 
 			case Input::Key::Enter:
 			case Input::Key::NumpadEnter:
 			{
-				TTY_PRINT("\n");
-				ProcessCommand(MUST(m_buffer.SV().Split(' ')));
-				m_buffer.Clear();
-				PrintPrompt();
+				TTY_PRINTLN("");
+				auto arguments = MUST(current_buffer.SV().Split(' '));
+				if (!arguments.Empty())
+				{
+					ProcessCommand(arguments);
+					MUST(m_old_buffer.PushBack(current_buffer));
+					m_buffer = m_old_buffer;
+					MUST(m_buffer.PushBack(""_sv));
+					m_cursor_pos.line = m_buffer.Size() - 1;
+				}
+				m_cursor_pos.col = 0;
+				m_cursor_pos.index = 0;
+				TTY_PRINT("{}", m_prompt);
 				break;
 			}
 
@@ -252,17 +287,61 @@ namespace Kernel
 			case Input::Key::Tab:
 				break;
 			
+			case Input::Key::Left:
+				if (m_cursor_pos.index > 0)
+				{					
+					uint32_t len = GetLastLength(current_buffer.SV().Substring(0, m_cursor_pos.index));
+					m_cursor_pos.index -= len;
+					m_cursor_pos.col--;
+				}
+				break;
+
+			case Input::Key::Right:
+				if (m_cursor_pos.index < current_buffer.Size())
+				{
+					uint32_t len = GetNextLength(current_buffer.SV().Substring(m_cursor_pos.index));
+					m_cursor_pos.index += len;
+					m_cursor_pos.col++;
+				}
+				break;
+
+			case Input::Key::Up:
+				if (m_cursor_pos.line > 0)
+				{
+					const auto& new_buffer = m_buffer[m_cursor_pos.line - 1];
+					m_cursor_pos.line--;
+					m_cursor_pos.index = new_buffer.Size();
+					m_cursor_pos.col = GetUnicodeCharacterCount(new_buffer);
+					ReRenderBuffer();
+				}
+				break;
+
+			case Input::Key::Down:
+				if (m_cursor_pos.line < m_buffer.Size() - 1)
+				{
+					const auto& new_buffer = m_buffer[m_cursor_pos.line + 1];
+					m_cursor_pos.line++;
+					m_cursor_pos.index = new_buffer.Size();
+					m_cursor_pos.col = GetUnicodeCharacterCount(new_buffer);
+					ReRenderBuffer();
+				}
+				break;
+
 			default:
 			{
 				const char* utf8 = Input::key_event_to_utf8(event);
 				if (utf8)
 				{
-					TTY_PRINT("{}", utf8);
-					m_buffer.Append(utf8);
+					TTY_PRINT("{}{}", utf8, current_buffer.SV().Substring(m_cursor_pos.index));
+					MUST(current_buffer.Insert(utf8, m_cursor_pos.index));
+					m_cursor_pos.index += strlen(utf8);
+					m_cursor_pos.col++;
 				}
 				break;
 			}
 		}
+
+		TTY_PRINT("\e[{}G", m_prompt_length + m_cursor_pos.col + 1);
 
 		if (m_mouse_pos.exists)
 			VESA::PutBitmapAt(s_pointer, m_mouse_pos.x, m_mouse_pos.y, VESA::Color::BRIGHT_WHITE);
