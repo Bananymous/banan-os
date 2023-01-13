@@ -33,7 +33,6 @@ FREEOBJS=			\
 $(ARCH_FREEOBJS)	\
 BAN/String.o		\
 BAN/StringView.o	\
-BAN/Memory.o		\
  
 HOSTEDOBJS=\
 $(ARCH_HOSTEDOBJS) \
