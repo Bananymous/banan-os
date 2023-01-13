@@ -7,6 +7,49 @@
 namespace BAN
 {
 
+	template<typename T>
+	class Vector;
+
+	template<typename T>
+	class VectorIterator
+	{
+	public:
+		VectorIterator() = default;
+		VectorIterator(const VectorIterator& other) : m_data(other.m_data) { }
+		VectorIterator& operator=(const VectorIterator& other) { m_data = other.m_data; return *this; }
+		VectorIterator& operator++() { m_data++; return *this; }
+		T& operator*() { return *m_data; }
+		const T& operator*() const { return *m_data; }
+		T* operator->() { return m_data; }
+		const T* operator->() const { return m_data; }
+		bool operator==(const VectorIterator<T>& other) const { return !(*this != other); }
+		bool operator!=(const VectorIterator<T>& other) const { return m_data != other.m_data; }
+	private:
+		VectorIterator(T* data) : m_data(data) { }
+	private:
+		T* m_data = nullptr;
+		friend class Vector<T>;
+	};
+
+	template<typename T>
+	class VectorConstIterator
+	{
+	public:
+		VectorConstIterator() = default;
+		VectorConstIterator(const VectorConstIterator& other) : m_data(other.m_data) { }
+		VectorConstIterator& operator=(const VectorConstIterator& other) { m_data = other.m_data; return *this; }
+		VectorConstIterator& operator++() { m_data++; return *this; }
+		const T& operator*() const { return *m_data; }
+		const T* operator->() const { return m_data; }
+		bool operator==(const VectorConstIterator<T>& other) const { return !(*this != other); }
+		bool operator!=(const VectorConstIterator<T>& other) const { return m_data != other.m_data; }
+	private:
+		VectorConstIterator(T* data) : m_data(data) { }
+	private:
+		const T* m_data = nullptr;
+		friend class Vector<T>;
+	};
+
 	// T must be move assignable, move constructable (and copy constructable for some functions)
 	template<typename T>
 	class Vector
@@ -14,6 +57,8 @@ namespace BAN
 	public:
 		using size_type = size_t;
 		using value_type = T;
+		using iterator = VectorIterator<T>;
+		using const_iterator = VectorConstIterator<T>;
 
 	public:
 		Vector() = default;
@@ -29,6 +74,11 @@ namespace BAN
 		[[nodiscard]] ErrorOr<void> Insert(T&&, size_type);
 		[[nodiscard]] ErrorOr<void> Insert(const T&, size_type);
 		
+		iterator begin();
+		iterator end();
+		const_iterator begin() const;
+		const_iterator end() const;
+
 		void PopBack();
 		void Remove(size_type);
 		void Clear();
@@ -147,6 +197,30 @@ namespace BAN
 	ErrorOr<void> Vector<T>::Insert(const T& value, size_type index)
 	{
 		return Insert(Move(T(value)), index);
+	}
+
+	template<typename T>
+	typename Vector<T>::iterator Vector<T>::begin()
+	{
+		return VectorIterator<T>(Address(0));
+	}
+
+	template<typename T>
+	typename Vector<T>::iterator Vector<T>::end()
+	{
+		return VectorIterator<T>(Address(m_size));
+	}
+
+	template<typename T>
+	typename Vector<T>::const_iterator Vector<T>::begin() const
+	{
+		return VectorConstIterator<T>(Address(0));
+	}
+
+	template<typename T>
+	typename Vector<T>::const_iterator Vector<T>::end() const
+	{
+		return VectorConstIterator<T>(Address(m_size));
 	}
 
 	template<typename T>
