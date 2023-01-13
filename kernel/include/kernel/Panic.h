@@ -2,7 +2,7 @@
 
 #include <kernel/kprint.h>
 #include <kernel/Serial.h>
-#include <kernel/VESA.h>
+#include <kernel/TTY.h>
 
 #define Panic(...) PanicImpl(__FILE__, __LINE__, __VA_ARGS__)
 
@@ -13,7 +13,7 @@ namespace Kernel
 	__attribute__((__noreturn__))
 	static void PanicImpl(const char* file, int line, const char* message, Args... args)
 	{
-		if (VESA::IsInitialized())
+		if (TTY::IsInitialized())
 		{
 			kprint("\e[31mKernel panic at {}:{}\n", file, line);
 			kprint(message, args...);

@@ -20,6 +20,7 @@ public:
 
 	// for kprint
 	static void PutCharCurrent(char ch);
+	static bool IsInitialized();
 
 private:
 	void ResetAnsiEscape();

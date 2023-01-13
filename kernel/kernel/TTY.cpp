@@ -351,3 +351,8 @@ void TTY::PutCharCurrent(char ch)
 	ASSERT(s_tty);
 	s_tty->PutChar(ch);
 }
+
+bool TTY::IsInitialized()
+{
+	return s_tty != nullptr;
+}
