@@ -212,7 +212,11 @@ void TTY::HandleAnsiEscape(uint16_t ch)
 					dprintln("Unsupported ANSI CSI character J");
 					return ResetAnsiEscape();
 				case 'K': // Erase in Line
-					dprintln("Unsupported ANSI CSI character K");
+					if (m_ansi_state.nums[0] == -1 || m_ansi_state.nums[0] == 0)
+						for (uint32_t i = m_column; i < m_width; i++)
+							PutCharAt(' ', i, m_row);
+					else
+						dprintln("Unsupported ANSI CSI character K");
 					return ResetAnsiEscape();
 				case 'S': // Scroll Up
 					dprintln("Unsupported ANSI CSI character S");
@@ -262,7 +266,11 @@ void TTY::PutChar(char ch)
 		return;
 
 	if (m_ansi_state.mode != 0)
-		return HandleAnsiEscape(cp);
+	{
+		HandleAnsiEscape(cp);
+		SetCursorPosition(m_column, m_row);
+		return;
+	}
 
 	// https://en.wikipedia.org/wiki/ANSI_escape_code
 	switch (cp)
