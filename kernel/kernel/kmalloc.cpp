@@ -98,7 +98,7 @@ void* kmalloc(size_t size)
 
 void* kmalloc(size_t size, size_t align)
 {
-	if (size == 0)
+	if (size == 0 || size >= s_kmalloc_size)
 		return nullptr;
 
 	if (align == 0)
