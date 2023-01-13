@@ -1,6 +1,7 @@
 #pragma once
 
 #include <BAN/Formatter.h>
+#include <BAN/Memory.h>
 
 #include <string.h>
 
