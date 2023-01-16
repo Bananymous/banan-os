@@ -95,8 +95,7 @@ extern "C" void kernel_main()
 
 	kprintln("Hello from the kernel!");
 
-	auto& shell = Kernel::Shell::Get();
-	shell.SetTTY(tty1);
+	Kernel::Shell shell(tty1);
 	shell.Run();
 
 	for (;;)

@@ -11,17 +11,12 @@ namespace Kernel
 	class Shell
 	{
 	public:
+		Shell(TTY*);
 		Shell(const Shell&) = delete;
-
-		static Shell& Get();
-
-		void SetTTY(TTY* tty);
 		void SetPrompt(BAN::StringView);
-
 		void Run();
 
 	private:
-		Shell();
 		void ReRenderBuffer() const;
 		void ProcessCommand(const BAN::Vector<BAN::StringView>&);
 		void KeyEventCallback(Input::KeyEvent);

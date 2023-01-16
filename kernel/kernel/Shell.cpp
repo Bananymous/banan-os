@@ -18,7 +18,7 @@ namespace Kernel
 {
 	using namespace BAN;
 
-	static Shell* s_instance = nullptr;
+	static auto s_default_prompt = "\\[\e[32m\\]user\\[\e[m\\]# "_sv;
 
 	static uint8_t s_pointer[] {
 		________,
@@ -39,18 +39,12 @@ namespace Kernel
 		X_______,
 	};
 
-	Shell& Shell::Get()
+	Shell::Shell(TTY* tty)
+		: m_tty(tty)
 	{
-		if (!s_instance)
-			s_instance = new Shell();
-		return *s_instance;
-	}
-
-	Shell::Shell()
-	{
-		SetPrompt("\\[\e[32m\\]user\\[\e[m\\]# "_sv);
 		Input::register_key_event_callback({ &Shell::KeyEventCallback, this });
 		Input::register_mouse_move_event_callback({ &Shell::MouseMoveEventCallback, this });
+		SetPrompt(s_default_prompt);
 		MUST(m_buffer.PushBack(""_sv));
 	}
 
@@ -78,14 +72,8 @@ namespace Kernel
 		}
 	}
 
-	void Shell::SetTTY(TTY* tty)
-	{
-		m_tty = tty;
-	}
-
 	void Shell::Run()
 	{
-		ASSERT(m_tty);
 		TTY_PRINT("{}", m_prompt);
 		for (;;)
 		{
