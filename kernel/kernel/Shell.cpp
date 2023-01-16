@@ -127,6 +127,15 @@ namespace Kernel
 			auto duration = PIT::ms_since_boot() - start;
 			TTY_PRINTLN("took {} ms", duration);
 		}
+		else if (arguments.Front() == "memory")
+		{
+			if (arguments.Size() != 1)
+			{
+				TTY_PRINTLN("'memory' does not support command line arguments");
+				return;	
+			}
+			kmalloc_dump_info();
+		}
 		else if (arguments.Front() == "cpuinfo")
 		{
 			if (arguments.Size() != 1)
@@ -260,6 +269,7 @@ namespace Kernel
 					MUST(m_old_buffer.PushBack(current_buffer));
 					m_buffer = m_old_buffer;
 					MUST(m_buffer.PushBack(""_sv));
+					MUST(m_buffer.Back().Reserve(128));
 					m_cursor_pos.line = m_buffer.Size() - 1;
 				}
 				m_cursor_pos.col = 0;
