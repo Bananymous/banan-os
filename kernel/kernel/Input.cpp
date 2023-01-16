@@ -106,9 +106,9 @@ namespace Input
 	static uint8_t s_led_states	= 0b000;
 	static uint8_t s_modifiers	= 0x00;
 
-	static void (*s_key_event_callback)(KeyEvent) = nullptr;
-	static void (*s_mouse_button_event_callback)(MouseButtonEvent) = nullptr;
-	static void (*s_mouse_move_event_callback)(MouseMoveEvent) = nullptr;
+	static BAN::Function<void(KeyEvent)> s_key_event_callback;
+	static BAN::Function<void(MouseButtonEvent)> s_mouse_button_event_callback;
+	static BAN::Function<void(MouseMoveEvent)> s_mouse_move_event_callback;
 
 	static const char* s_key_to_utf8_lower[]
 	{
@@ -385,21 +385,21 @@ namespace Input
 
 		while (!s_key_event_queue.Empty())
 		{
-			if (s_key_event_callback)
+			if (s_key_event_callback.HasFunction())
 				s_key_event_callback(s_key_event_queue.Front());
 			s_key_event_queue.Pop();
 		}
 
 		while (!s_mouse_button_event_queue.Empty())
 		{
-			if (s_mouse_button_event_callback)
+			if (s_mouse_button_event_callback.HasFunction())
 				s_mouse_button_event_callback(s_mouse_button_event_queue.Front());
 			s_mouse_button_event_queue.Pop();
 		}
 
 		while (!s_mouse_move_event_queue.Empty())
 		{
-			if (s_mouse_move_event_callback)
+			if (s_mouse_move_event_callback.HasFunction())
 				s_mouse_move_event_callback(s_mouse_move_event_queue.Front());
 			s_mouse_move_event_queue.Pop();
 		}
@@ -663,17 +663,17 @@ namespace Input
 		return true;
 	}
 
-	void register_key_event_callback(void (*callback)(KeyEvent))
+	void register_key_event_callback(const BAN::Function<void(KeyEvent)>& callback)
 	{
 		s_key_event_callback = callback;
 	}
 
-	void register_mouse_button_event_callback(void (*callback)(MouseButtonEvent))
+	void register_mouse_button_event_callback(const BAN::Function<void(MouseButtonEvent)>& callback)
 	{
 		s_mouse_button_event_callback = callback;
 	}
 
-	void register_mouse_move_event_callback(void (*callback)(MouseMoveEvent))
+	void register_mouse_move_event_callback(const BAN::Function<void(MouseMoveEvent)>& callback)
 	{
 		s_mouse_move_event_callback = callback;
 	}

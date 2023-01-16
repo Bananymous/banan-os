@@ -1,5 +1,6 @@
 #pragma once
 
+#include <BAN/Function.h>
 #include <stdint.h>
 
 namespace Input
@@ -57,9 +58,9 @@ namespace Input
 	void update();
 	bool is_key_down(Key);
 
-	void register_key_event_callback(void (*callback)(KeyEvent));
-	void register_mouse_button_event_callback(void (*callback)(MouseButtonEvent));
-	void register_mouse_move_event_callback(void (*callback)(MouseMoveEvent));
+	void register_key_event_callback(const BAN::Function<void(KeyEvent)>&);
+	void register_mouse_button_event_callback(const BAN::Function<void(MouseButtonEvent)>&);
+	void register_mouse_move_event_callback(const BAN::Function<void(MouseMoveEvent)>&);
 
 	const char* key_event_to_utf8(KeyEvent);
 

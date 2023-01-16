@@ -48,9 +48,9 @@ namespace Kernel
 
 	Shell::Shell()
 	{
-		Input::register_key_event_callback([](Input::KeyEvent event) { Shell::Get().KeyEventCallback(event); });
-		Input::register_mouse_move_event_callback([](Input::MouseMoveEvent event) { Shell::Get().MouseMoveEventCallback(event); });
 		SetPrompt("\\[\e[32m\\]user\\[\e[m\\]# "_sv);
+		Input::register_key_event_callback({ &Shell::KeyEventCallback, this });
+		Input::register_mouse_move_event_callback({ &Shell::MouseMoveEventCallback, this });
 		MUST(m_buffer.PushBack(""_sv));
 	}
 
