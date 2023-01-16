@@ -27,6 +27,9 @@ namespace BAN
 		[[nodiscard]] ErrorOr<Vector<StringView>> Split(char, bool = false);
 		[[nodiscard]] ErrorOr<Vector<StringView>> Split(bool(*comp)(char), bool = false);
 
+		char Back() const;
+		char Front() const;
+
 		size_type Count(char) const;
 
 		bool Empty() const;

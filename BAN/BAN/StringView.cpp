@@ -104,6 +104,18 @@ namespace BAN
 		return result;
 	}
 
+	char StringView::Back() const
+	{
+		ASSERT(m_size > 0);
+		return m_data[m_size - 1];
+	}
+
+	char StringView::Front() const
+	{
+		ASSERT(m_size > 0);
+		return m_data[0];
+	}
+
 	StringView::size_type StringView::Count(char ch) const
 	{
 		size_type result = 0;
