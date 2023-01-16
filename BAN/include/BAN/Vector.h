@@ -101,7 +101,8 @@ namespace BAN
 		size_type Capacity() const;
 
 	private:
-		T* Address(size_type, uint8_t* = nullptr) const;
+		const T* AddressOf(size_type, uint8_t* = nullptr) const;
+		T* AddressOf(size_type, uint8_t* = nullptr);
 		[[nodiscard]] ErrorOr<void> EnsureCapasity(size_type);
 
 	private:
@@ -127,7 +128,7 @@ namespace BAN
 	{
 		MUST(EnsureCapasity(other.m_size));
 		for (size_type i = 0; i < other.m_size; i++)
-			new (Address(i)) T(other[i]);
+			new (AddressOf(i)) T(other[i]);
 		m_size = other.m_size;
 	}
 
@@ -157,7 +158,7 @@ namespace BAN
 		Clear();
 		MUST(EnsureCapasity(other.Size()));
 		for (size_type i = 0; i < other.Size(); i++)
-			new (Address(i)) T(other[i]);
+			new (AddressOf(i)) T(other[i]);
 		m_size = other.m_size;
 		return *this;
 	}
@@ -166,7 +167,7 @@ namespace BAN
 	ErrorOr<void> Vector<T>::PushBack(T&& value)
 	{
 		TRY(EnsureCapasity(m_size + 1));
-		new (Address(m_size)) T(Move(value));
+		new (AddressOf(m_size)) T(Move(value));
 		m_size++;
 		return {};
 	}
@@ -184,11 +185,11 @@ namespace BAN
 		TRY(EnsureCapasity(m_size + 1));
 		if (index < m_size)
 		{
-			new (Address(m_size)) T(Move(*Address(m_size - 1)));
+			new (AddressOf(m_size)) T(Move(*AddressOf(m_size - 1)));
 			for (size_type i = m_size - 1; i > index; i--)
-				*Address(i) = Move(*Address(i - 1));
+				*AddressOf(i) = Move(*AddressOf(i - 1));
 		}
-		*Address(index) = Move(value);
+		*AddressOf(index) = Move(value);
 		m_size++;
 		return {};
 	}
@@ -202,32 +203,32 @@ namespace BAN
 	template<typename T>
 	typename Vector<T>::iterator Vector<T>::begin()
 	{
-		return VectorIterator<T>(Address(0));
+		return VectorIterator<T>(AddressOf(0));
 	}
 
 	template<typename T>
 	typename Vector<T>::iterator Vector<T>::end()
 	{
-		return VectorIterator<T>(Address(m_size));
+		return VectorIterator<T>(AddressOf(m_size));
 	}
 
 	template<typename T>
 	typename Vector<T>::const_iterator Vector<T>::begin() const
 	{
-		return VectorConstIterator<T>(Address(0));
+		return VectorConstIterator<T>(AddressOf(0));
 	}
 
 	template<typename T>
 	typename Vector<T>::const_iterator Vector<T>::end() const
 	{
-		return VectorConstIterator<T>(Address(m_size));
+		return VectorConstIterator<T>(AddressOf(m_size));
 	}
 
 	template<typename T>
 	void Vector<T>::PopBack()
 	{
 		ASSERT(m_size > 0);
-		Address(m_size - 1)->~T();
+		AddressOf(m_size - 1)->~T();
 		m_size--;
 	}
 
@@ -236,8 +237,8 @@ namespace BAN
 	{
 		ASSERT(index < m_size);
 		for (size_type i = index; i < m_size - 1; i++)
-			*Address(i) = Move(*Address(i + 1));
-		Address(m_size - 1)->~T();
+			*AddressOf(i) = Move(*AddressOf(i + 1));
+		AddressOf(m_size - 1)->~T();
 		m_size--;
 	}
 
@@ -245,7 +246,7 @@ namespace BAN
 	void Vector<T>::Clear()
 	{
 		for (size_type i = 0; i < m_size; i++)
-			Address(i)->~T();
+			AddressOf(i)->~T();
 		BAN::deallocator(m_data);
 		m_data = nullptr;
 		m_capacity = 0;
@@ -256,7 +257,7 @@ namespace BAN
 	bool Vector<T>::Has(const T& other) const
 	{
 		for (size_type i = 0; i < m_size; i++)
-			if (*Address(i) == other)
+			if (*AddressOf(i) == other)
 				return true;
 		return false;
 	}
@@ -265,41 +266,41 @@ namespace BAN
 	const T& Vector<T>::operator[](size_type index) const
 	{
 		ASSERT(index < m_size);
-		return *Address(index);
+		return *AddressOf(index);
 	}
 
 	template<typename T>
 	T& Vector<T>::operator[](size_type index)
 	{
 		ASSERT(index < m_size);
-		return *Address(index);
+		return *AddressOf(index);
 	}
 
 	template<typename T>
 	const T& Vector<T>::Back() const
 	{
 		ASSERT(m_size > 0);
-		return *Address(m_size - 1);
+		return *AddressOf(m_size - 1);
 	}
 
 	template<typename T>
 	T& Vector<T>::Back()
 	{
 		ASSERT(m_size > 0);
-		return *Address(m_size - 1);
+		return *AddressOf(m_size - 1);
 	}
 
 	template<typename T>
 	const T& Vector<T>::Front() const
 	{
 		ASSERT(m_size > 0);
-		return *Address(0);
+		return *AddressOf(0);
 	}
 	template<typename T>
 	T& Vector<T>::Front()
 	{
 		ASSERT(m_size > 0);
-		return *Address(0);
+		return *AddressOf(0);
 	}
 
 	template<typename T>
@@ -308,10 +309,10 @@ namespace BAN
 		TRY(EnsureCapasity(size));
 		if (size < m_size)
 			for (size_type i = size; i < m_size; i++)
-				Address(i)->~T();
+				AddressOf(i)->~T();
 		if (size > m_size)
 			for (size_type i = m_size; i < size; i++)
-				new (Address(i)) T();
+				new (AddressOf(i)) T();
 		m_size = size;
 		return {};
 	}
@@ -352,8 +353,8 @@ namespace BAN
 			return Error::FromString("Vector: Could not allocate memory");
 		for (size_type i = 0; i < m_size; i++)
 		{
-			new (Address(i, new_data)) T(Move(*Address(i)));
-			Address(i)->~T();
+			new (AddressOf(i, new_data)) T(Move(*AddressOf(i)));
+			AddressOf(i)->~T();
 		}
 		BAN::deallocator(m_data);
 		m_data = new_data;
@@ -362,7 +363,15 @@ namespace BAN
 	}
 
 	template<typename T>
-	T* Vector<T>::Address(size_type index, uint8_t* base) const
+	const T* Vector<T>::AddressOf(size_type index, uint8_t* base) const
+	{
+		if (base == nullptr)
+			base = m_data;
+		return (T*)(base + index * sizeof(T));
+	}
+
+	template<typename T>
+	T* Vector<T>::AddressOf(size_type index, uint8_t* base)
 	{
 		if (base == nullptr)
 			base = m_data;

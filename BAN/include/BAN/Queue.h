@@ -37,7 +37,8 @@ namespace BAN
 
 	private:
 		[[nodiscard]] ErrorOr<void> EnsureCapacity(size_type size);
-		T* Address(size_type, uint8_t* = nullptr) const;
+		const T* AddressOf(size_type, uint8_t* = nullptr) const;
+		T* AddressOf(size_type, uint8_t* = nullptr);
 
 	private:
 		uint8_t*	m_data		= nullptr;
@@ -62,7 +63,7 @@ namespace BAN
 	{
 		MUST(EnsureCapacity(other.Size()));
 		for (size_type i = 0; i < other.Size(); i++)
-			new (Address(i)) T(*Address(i, other.m_data));
+			new (AddressOf(i)) T(*AddressOf(i, other.m_data));
 		m_size = other.m_size;
 	}
 
@@ -94,7 +95,7 @@ namespace BAN
 		Clear();
 		MUST(EnsureCapacity(other.Size()));
 		for (size_type i = 0; i < other.Size(); i++)
-			new (Address(i)) T(*Address(i, other.m_data));
+			new (AddressOf(i)) T(*AddressOf(i, other.m_data));
 		m_size = other.m_size;
 		return *this;
 	}
@@ -103,7 +104,7 @@ namespace BAN
 	ErrorOr<void> Queue<T>::Push(T&& value)
 	{
 		TRY(EnsureCapacity(m_size + 1));
-		new (Address(m_size)) T(Move(value));
+		new (AddressOf(m_size)) T(Move(value));
 		m_size++;
 		return {};
 	}
@@ -119,8 +120,8 @@ namespace BAN
 	{
 		ASSERT(m_size > 0);
 		for (size_type i = 0; i < m_size - 1; i++)
-			*Address(i) = Move(*Address(i + 1));
-		Address(m_size - 1)->~T();
+			*AddressOf(i) = Move(*AddressOf(i + 1));
+		AddressOf(m_size - 1)->~T();
 		m_size--;
 	}
 
@@ -128,7 +129,7 @@ namespace BAN
 	void Queue<T>::Clear()
 	{
 		for (size_type i = 0; i < m_size; i++)
-			Address(i)->~T();
+			AddressOf(i)->~T();
 		BAN::deallocator(m_data);
 		m_data = nullptr;
 		m_capacity = 0;
@@ -151,14 +152,14 @@ namespace BAN
 	const T& Queue<T>::Front() const
 	{
 		ASSERT(m_size > 0);
-		return *Address(0);
+		return *AddressOf(0);
 	}
 
 	template<typename T>
 	T& Queue<T>::Front()
 	{
 		ASSERT(m_size > 0);
-		return *Address(0);
+		return *AddressOf(0);
 	}
 
 	template<typename T>
@@ -172,8 +173,8 @@ namespace BAN
 			return Error::FromString("Queue: Could not allocate memory");
 		for (size_type i = 0; i < m_size; i++)
 		{
-			new (Address(i, new_data)) T(Move(*Address(i)));
-			Address(i)->~T();
+			new (AddressOf(i, new_data)) T(Move(*AddressOf(i)));
+			AddressOf(i)->~T();
 		}
 		BAN::deallocator(m_data);
 		m_data = new_data;
@@ -182,7 +183,15 @@ namespace BAN
 	}
 
 	template<typename T>
-	T* Queue<T>::Address(size_type index, uint8_t* base) const
+	const T* Queue<T>::AddressOf(size_type index, uint8_t* base) const
+	{
+		if (base == nullptr)
+			base = m_data;
+		return (T*)(base + index * sizeof(T));
+	}
+
+	template<typename T>
+	T* Queue<T>::AddressOf(size_type index, uint8_t* base)
 	{
 		if (base == nullptr)
 			base = m_data;
