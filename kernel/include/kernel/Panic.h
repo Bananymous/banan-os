@@ -13,16 +13,13 @@ namespace Kernel
 	__attribute__((__noreturn__))
 	static void PanicImpl(const char* file, int line, const char* message, Args... args)
 	{
+		derrorln("Kernel panic at {}:{}", file, line);
+		derrorln(message, args...);
 		if (TTY::IsInitialized())
 		{
 			kprint("\e[31mKernel panic at {}:{}\n", file, line);
 			kprint(message, args...);
 			kprint("\e[m\n");
-		}
-		else
-		{
-			derrorln("Kernel panic at {}:{}", file, line);
-			derrorln(message, args...);
 		}
 		asm volatile("cli; hlt");
 		__builtin_unreachable();
