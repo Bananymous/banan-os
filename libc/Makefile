@@ -31,6 +31,7 @@ BUILDDIR=$(abspath build)
  
 FREEOBJS=\
 $(ARCH_FREEOBJS) \
+ctype.o \
 stdio/printf.o \
 stdio/putchar.o \
 stdio/puts.o \
