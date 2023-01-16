@@ -18,7 +18,8 @@ namespace Kernel
 
 	private:
 		void ReRenderBuffer() const;
-		void ProcessCommand(const BAN::Vector<BAN::StringView>&);
+		BAN::Vector<BAN::String> ParseArguments(BAN::StringView) const;
+		void ProcessCommand(const BAN::Vector<BAN::String>&);
 		void KeyEventCallback(Input::KeyEvent);
 		void MouseMoveEventCallback(Input::MouseMoveEvent);
 

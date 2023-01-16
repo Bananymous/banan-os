@@ -11,6 +11,8 @@
 #include <kernel/Shell.h>
 #include <kernel/TTY.h>
 
+#include <ctype.h>
+
 #define TTY_PRINT(...) Formatter::print([this](char c) { m_tty->PutChar(c); }, __VA_ARGS__)
 #define TTY_PRINTLN(...) Formatter::println([this](char c) { m_tty->PutChar(c); }, __VA_ARGS__)
 
@@ -82,7 +84,80 @@ namespace Kernel
 		}
 	}
 
-	void Shell::ProcessCommand(const Vector<StringView>& arguments)
+	Vector<String> Shell::ParseArguments(StringView command) const
+	{
+		Vector<String> result;
+
+		while (!command.Empty())
+		{
+			while (!command.Empty() && isspace(command.Front()))
+				command = command.Substring(1);
+			
+			if (command.Empty())
+				break;
+
+			MUST(result.PushBack(""_sv));
+
+			char quoted = '\0';
+			bool escape = false;
+			while (!command.Empty())
+			{
+				char ch = command.Front();
+				switch (ch)
+				{
+					case '"':
+					case '\'':
+						if (!quoted)
+							quoted = ch;
+						else if (ch == quoted)
+							quoted = '\0';
+						else
+							goto default_case;
+						break;
+					case '\\':
+						if (escape)
+							goto default_case;
+						escape = true;
+						break;
+					default:
+default_case:
+						if (isspace(ch) && !quoted && !escape)
+							goto argument_done;
+						if (quoted && escape)
+						{
+							switch (ch)
+							{
+								case 'f':  MUST(result.Back().PushBack('\f')); break;
+								case 'n':  MUST(result.Back().PushBack('\n')); break;
+								case 'r':  MUST(result.Back().PushBack('\r')); break;
+								case 't':  MUST(result.Back().PushBack('\t')); break;
+								case 'v':  MUST(result.Back().PushBack('\v')); break;
+								case '"':  MUST(result.Back().PushBack('"'));  break;
+								case '\'': MUST(result.Back().PushBack('\'')); break;
+								case '\\': MUST(result.Back().PushBack('\\')); break;
+								default:
+									char buffer[3] { '\\', ch, '\0' };
+									MUST(result.Back().Append(buffer));
+									break;
+							}
+						}
+						else
+						{
+							MUST(result.Back().PushBack(ch));
+						}
+						escape = false;
+						break;
+				}
+				command = command.Substring(1);
+			}
+argument_done:
+			continue;
+		}
+
+		return result;
+	}
+
+	void Shell::ProcessCommand(const Vector<String>& arguments)
 	{
 		if (arguments.Empty())
 		{
@@ -262,7 +337,7 @@ namespace Kernel
 			case Input::Key::NumpadEnter:
 			{
 				TTY_PRINTLN("");
-				auto arguments = MUST(current_buffer.SV().Split(' '));
+				auto arguments = ParseArguments(current_buffer.SV());
 				if (!arguments.Empty())
 				{
 					ProcessCommand(arguments);
