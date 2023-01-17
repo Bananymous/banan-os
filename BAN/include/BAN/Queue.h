@@ -26,6 +26,8 @@ namespace BAN
 
 		[[nodiscard]] ErrorOr<void> Push(T&&);
 		[[nodiscard]] ErrorOr<void> Push(const T&);
+		template<typename... Args>
+		[[nodiscard]] ErrorOr<void> Emplace(Args...);
 
 		void Pop();
 		void Clear();
@@ -114,6 +116,16 @@ namespace BAN
 	ErrorOr<void> Queue<T>::Push(const T& value)
 	{
 		return Push(Move(T(value)));
+	}
+
+	template<typename T>
+	template<typename... Args>
+	ErrorOr<void> Queue<T>::Emplace(Args... args)
+	{
+		TRY(EnsureCapacity(m_size + 1));
+		new (AddressOf(m_size)) T(Forward<Args>(args)...);
+		m_size++;
+		return {};
 	}
 
 	template<typename T>
