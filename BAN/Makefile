@@ -31,6 +31,7 @@ BUILDDIR=$(abspath build)
  
 FREEOBJS=			\
 $(ARCH_FREEOBJS)	\
+BAN/Memory.o		\
 BAN/String.o		\
 BAN/StringView.o	\
  

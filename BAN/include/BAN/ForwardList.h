@@ -1,14 +1,17 @@
 #pragma once
 
-template<typename T> class ErrorOr;
+#include <stddef.h>
 
 namespace BAN
 {
 
+	
+	template<typename, size_t> class Array;
+	template<typename> class ErrorOr;
+	template<typename> class Function;
+	template<typename> class Queue;
 	class String;
 	class StringView;
-	
-	template<typename T> class Vector;
-	template<typename T> class Queue;
+	template<typename> class Vector;
 
 }

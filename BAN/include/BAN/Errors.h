@@ -1,7 +1,6 @@
 #pragma once
 
 #include <BAN/Formatter.h>
-#include <BAN/Memory.h>
 
 #include <string.h>
 
@@ -15,62 +14,65 @@
 
 #define TRY(error) ({ auto e = error; if (e.IsError()) return e; e.Value(); })
 
-
-class Error
+namespace BAN
 {
-public:
-	static Error FromString(const char* message)
+
+	class Error
 	{
-		Error result;
-		strncpy(result.m_message, message, sizeof(m_message));
-		result.m_message[sizeof(result.m_message) - 1] = '\0';
-		result.m_error_code = 0xFF;
-		return result;
-	}
+	public:
+		static Error FromString(const char* message)
+		{
+			Error result;
+			strncpy(result.m_message, message, sizeof(m_message));
+			result.m_message[sizeof(result.m_message) - 1] = '\0';
+			result.m_error_code = 0xFF;
+			return result;
+		}
 
-	uint8_t GetErrorCode() const { return m_error_code; }
-	const char* GetMessage() const { return m_message; }
+		uint8_t GetErrorCode() const { return m_error_code; }
+		const char* GetMessage() const { return m_message; }
 
-private:
-	char m_message[128];
-	uint8_t m_error_code;
-};
+	private:
+		char m_message[128];
+		uint8_t m_error_code;
+	};
 
-template<typename T>
-class ErrorOr
-{
-public:
-	ErrorOr(const T& value)		: m_has_error(false)	{ m_data = (void*)new T(value); }
-	ErrorOr(const Error& error) : m_has_error(true)		{ m_data = (void*)new Error(error); }
-	template<typename S> ErrorOr(const ErrorOr<S>& other) : ErrorOr(other.GetError()) {}
-	~ErrorOr()											{ IsError() ? (delete reinterpret_cast<Error*>(m_data)) : (delete reinterpret_cast<T*>(m_data)); }
+	template<typename T>
+	class ErrorOr
+	{
+	public:
+		ErrorOr(const T& value)		: m_has_error(false)	{ m_data = (void*)new T(value); }
+		ErrorOr(const Error& error) : m_has_error(true)		{ m_data = (void*)new Error(error); }
+		template<typename S> ErrorOr(const ErrorOr<S>& other) : ErrorOr(other.GetError()) {}
+		~ErrorOr()											{ IsError() ? (delete reinterpret_cast<Error*>(m_data)) : (delete reinterpret_cast<T*>(m_data)); }
 
-	bool IsError() const			{ return m_has_error; }
-	const Error& GetError() const	{ return *reinterpret_cast<Error*>(m_data); }
-	T& Value()						{ return *reinterpret_cast<T*>(m_data); }
+		bool IsError() const			{ return m_has_error; }
+		const Error& GetError() const	{ return *reinterpret_cast<Error*>(m_data); }
+		T& Value()						{ return *reinterpret_cast<T*>(m_data); }
 
-private:
-	bool	m_has_error	= false;
-	void*	m_data		= nullptr;
-};
+	private:
+		bool	m_has_error	= false;
+		void*	m_data		= nullptr;
+	};
 
-template<>
-class ErrorOr<void>
-{
-public:
-	ErrorOr()										{ }
-	ErrorOr(const Error& error) : m_error(error)	{ }
-	~ErrorOr()										{ }
+	template<>
+	class ErrorOr<void>
+	{
+	public:
+		ErrorOr()										{ }
+		ErrorOr(const Error& error) : m_error(error)	{ }
+		~ErrorOr()										{ }
 
-	bool IsError() const			{ return m_has_error; }
-	const Error& GetError() const	{ return m_error; }
-	void Value()					{ }
+		bool IsError() const			{ return m_has_error; }
+		const Error& GetError() const	{ return m_error; }
+		void Value()					{ }
 
-private:
-	Error m_error;
-	bool m_has_error = false;
-};
+	private:
+		Error m_error;
+		bool m_has_error = false;
+	};
 
+}
 
 namespace BAN::Formatter
 {

@@ -1,6 +1,5 @@
 #pragma once
 
-#include <BAN/Errors.h>
 #include <BAN/ForwardList.h>
 #include <BAN/Formatter.h>
 
