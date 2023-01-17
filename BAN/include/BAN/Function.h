@@ -1,6 +1,7 @@
 #pragma once
 
 #include <BAN/Errors.h>
+#include <BAN/Move.h>
 
 namespace BAN
 {
@@ -30,13 +31,13 @@ namespace BAN
 			new (m_storage) CallableMemberConst<Own>(function, owner);
 		}
 
-		Ret operator()(const Args&... args)
+		Ret operator()(Args... args)
 		{
-			ASSERT(HasFunction());
-			return ((CallableBase*)m_storage)->call(args...);
+			ASSERT(*this);
+			return reinterpret_cast<CallableBase*>(m_storage)->call(Forward<Args>(args)...);
 		}
 
-		bool HasFunction() const
+		operator bool() const
 		{
 			for (size_t i = 0; i < m_size; i++)
 				if (m_storage[i])
@@ -48,7 +49,7 @@ namespace BAN
 		struct CallableBase
 		{
 			virtual ~CallableBase() {}
-			virtual Ret call(const Args&...) = 0;
+			virtual Ret call(Args...) = 0;
 		};
 
 		struct CallablePointer : public CallableBase
@@ -57,9 +58,9 @@ namespace BAN
 				: m_function(function)
 			{ }
 
-			virtual Ret call(const Args&... args) override
+			virtual Ret call(Args... args) override
 			{
-				return m_function(args...);
+				return m_function(Forward<Args>(args)...);
 			}
 
 		private:
@@ -74,9 +75,9 @@ namespace BAN
 				, m_function(function)
 			{ }
 
-			virtual Ret call(const Args&... args) override
+			virtual Ret call(Args... args) override
 			{
-				return (m_owner->*m_function)(args...);
+				return (m_owner->*m_function)(Forward<Args>(args)...);
 			}
 
 		private:
@@ -92,9 +93,9 @@ namespace BAN
 				, m_function(function)
 			{ }
 
-			virtual Ret call(const Args&... args) override
+			virtual Ret call(Args... args) override
 			{
-				return (m_owner->*m_function)(args...);
+				return (m_owner->*m_function)(Forward<Args>(args)...);
 			}
 
 		private:

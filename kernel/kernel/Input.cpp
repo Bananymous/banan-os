@@ -385,21 +385,21 @@ namespace Input
 
 		while (!s_key_event_queue.Empty())
 		{
-			if (s_key_event_callback.HasFunction())
+			if (s_key_event_callback)
 				s_key_event_callback(s_key_event_queue.Front());
 			s_key_event_queue.Pop();
 		}
 
 		while (!s_mouse_button_event_queue.Empty())
 		{
-			if (s_mouse_button_event_callback.HasFunction())
+			if (s_mouse_button_event_callback)
 				s_mouse_button_event_callback(s_mouse_button_event_queue.Front());
 			s_mouse_button_event_queue.Pop();
 		}
 
 		while (!s_mouse_move_event_queue.Empty())
 		{
-			if (s_mouse_move_event_callback.HasFunction())
+			if (s_mouse_move_event_callback)
 				s_mouse_move_event_callback(s_mouse_move_event_queue.Front());
 			s_mouse_move_event_queue.Pop();
 		}
