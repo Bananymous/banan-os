@@ -72,8 +72,12 @@ namespace BAN
 
 		[[nodiscard]] ErrorOr<void> PushBack(T&&);
 		[[nodiscard]] ErrorOr<void> PushBack(const T&);
-		[[nodiscard]] ErrorOr<void> Insert(T&&, size_type);
-		[[nodiscard]] ErrorOr<void> Insert(const T&, size_type);
+		template<typename... Args>
+		[[nodiscard]] ErrorOr<void> EmplaceBack(Args...);
+		template<typename... Args>
+		[[nodiscard]] ErrorOr<void> Emplace(size_type, Args...);
+		[[nodiscard]] ErrorOr<void> Insert(size_type, T&&);
+		[[nodiscard]] ErrorOr<void> Insert(size_type, const T&);
 		
 		iterator begin();
 		iterator end();
@@ -180,7 +184,18 @@ namespace BAN
 	}
 
 	template<typename T>
-	ErrorOr<void> Vector<T>::Insert(T&& value, size_type index)
+	template<typename... Args>
+	ErrorOr<void> Vector<T>::EmplaceBack(Args... args)
+	{
+		TRY(EnsureCapasity(m_size + 1));
+		new (AddressOf(m_size)) T(Forward<Args>(args)...);
+		m_size++;
+		return {};
+	}
+
+	template<typename T>
+	template<typename... Args>
+	ErrorOr<void> Vector<T>::Emplace(size_type index, Args... args)
 	{
 		ASSERT(index <= m_size);
 		TRY(EnsureCapasity(m_size + 1));
@@ -189,14 +204,38 @@ namespace BAN
 			new (AddressOf(m_size)) T(Move(*AddressOf(m_size - 1)));
 			for (size_type i = m_size - 1; i > index; i--)
 				*AddressOf(i) = Move(*AddressOf(i - 1));
+			*AddressOf(index) = Move(T(Forward<Args>(args)...));
 		}
-		*AddressOf(index) = Move(value);
+		else
+		{
+			new (AddressOf(m_size)) T(Forward<Args>(args)...);
+		}
 		m_size++;
 		return {};
 	}
 
 	template<typename T>
-	ErrorOr<void> Vector<T>::Insert(const T& value, size_type index)
+	ErrorOr<void> Vector<T>::Insert(size_type index, T&& value)
+	{
+		ASSERT(index <= m_size);
+		TRY(EnsureCapasity(m_size + 1));
+		if (index < m_size)
+		{
+			new (AddressOf(m_size)) T(Move(*AddressOf(m_size - 1)));
+			for (size_type i = m_size - 1; i > index; i--)
+				*AddressOf(i) = Move(*AddressOf(i - 1));
+			*AddressOf(index) = Move(value);
+		}
+		else
+		{
+			new (AddressOf(m_size)) T(Move(value));
+		}
+		m_size++;
+		return {};
+	}
+
+	template<typename T>
+	ErrorOr<void> Vector<T>::Insert(size_type index, const T& value)
 	{
 		return Insert(Move(T(value)), index);
 	}
