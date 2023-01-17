@@ -1,6 +1,6 @@
 #pragma once
 
-#include <BAN/Forward.h>
+#include <BAN/ForwardList.h>
 #include <BAN/Formatter.h>
 
 namespace BAN
