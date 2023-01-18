@@ -40,8 +40,8 @@ namespace BAN
 
 	private:
 		[[nodiscard]] ErrorOr<void> EnsureCapacity(size_type size);
-		const T* AddressOf(size_type, uint8_t* = nullptr) const;
-		T* AddressOf(size_type, uint8_t* = nullptr);
+		const T* AddressOf(size_type, void* = nullptr) const;
+		T* AddressOf(size_type, void* = nullptr);
 
 	private:
 		uint8_t*	m_data		= nullptr;
@@ -196,19 +196,19 @@ namespace BAN
 	}
 
 	template<typename T>
-	const T* Queue<T>::AddressOf(size_type index, uint8_t* base) const
+	const T* Queue<T>::AddressOf(size_type index, void* base) const
 	{
 		if (base == nullptr)
 			base = m_data;
-		return (T*)(base + index * sizeof(T));
+		return (T*)base + index;
 	}
 
 	template<typename T>
-	T* Queue<T>::AddressOf(size_type index, uint8_t* base)
+	T* Queue<T>::AddressOf(size_type index, void* base)
 	{
 		if (base == nullptr)
 			base = m_data;
-		return (T*)(base + index * sizeof(T));
+		return (T*)base + index;
 	}
 
 }
