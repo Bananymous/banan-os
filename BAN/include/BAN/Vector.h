@@ -106,9 +106,9 @@ namespace BAN
 		size_type Capacity() const;
 
 	private:
-		const T* AddressOf(size_type, uint8_t* = nullptr) const;
-		T* AddressOf(size_type, uint8_t* = nullptr);
 		[[nodiscard]] ErrorOr<void> EnsureCapasity(size_type);
+		const T* AddressOf(size_type, void* = nullptr) const;
+		T* AddressOf(size_type, void* = nullptr);
 
 	private:
 		uint8_t*	m_data		= nullptr;
@@ -155,6 +155,8 @@ namespace BAN
 		other.m_data = nullptr;
 		other.m_capacity = 0;
 		other.m_size = 0;
+
+		return *this;
 	}
 
 	template<typename T>
@@ -403,19 +405,19 @@ namespace BAN
 	}
 
 	template<typename T>
-	const T* Vector<T>::AddressOf(size_type index, uint8_t* base) const
+	const T* Vector<T>::AddressOf(size_type index, void* base) const
 	{
 		if (base == nullptr)
 			base = m_data;
-		return (T*)(base + index * sizeof(T));
+		return (T*)base + index;
 	}
 
 	template<typename T>
-	T* Vector<T>::AddressOf(size_type index, uint8_t* base)
+	T* Vector<T>::AddressOf(size_type index, void* base)
 	{
 		if (base == nullptr)
 			base = m_data;
-		return (T*)(base + index * sizeof(T));
+		return (T*)base + index;
 	}
 
 }
