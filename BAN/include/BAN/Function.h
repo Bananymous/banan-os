@@ -30,6 +30,12 @@ namespace BAN
 			static_assert(sizeof(CallableMemberConst<Own>) <= m_size);
 			new (m_storage) CallableMemberConst<Own>(function, owner);
 		}
+		template<typename Lambda>
+		Function(Lambda lambda)
+		{
+			static_assert(sizeof(CallableLambda<Lambda>) <= m_size);
+			new (m_storage) CallableLambda<Lambda>(lambda);
+		}
 
 		Ret operator()(Args... args)
 		{
@@ -101,6 +107,22 @@ namespace BAN
 		private:
 			const Own* m_owner = nullptr;
 			Ret(Own::*m_function)(Args...) const = nullptr;
+		};
+
+		template<typename Lambda>
+		struct CallableLambda : public CallableBase
+		{
+			CallableLambda(Lambda lambda)
+				: m_lambda(lambda)
+			{ }
+
+			virtual Ret call(Args... args) override
+			{
+				return m_lambda(Forward<Args>(args)...);
+			}
+
+		private:
+			Lambda m_lambda;
 		};
 
 	private:
