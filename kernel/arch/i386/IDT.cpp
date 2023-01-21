@@ -35,7 +35,7 @@ struct IDTR
 static IDTR				s_idtr;
 static GateDescriptor	s_idt[0x100];
 
-static void (*s_irq_handlers[0xFF])() { nullptr };
+static void (*s_irq_handlers[0x100])() { nullptr };
 
 #define INTERRUPT_HANDLER____(i, msg)													\
 	static void interrupt ## i ()														\
@@ -53,7 +53,7 @@ static void (*s_irq_handlers[0xFF])() { nullptr };
 		Kernel::Panic("Register dump\r\n"												\
 			"eax=0x{8H}, ebx=0x{8H}, ecx=0x{8H}, edx=0x{8H}\r\n" 						\
 			"esp=0x{8H}, ebp=0x{8H}\r\n" 												\
-			"CR0=0x{8H} CR2=0x{8H} CR3=0x{8H} CR4=0x{8H}\r\n", 							\
+			"CR0=0x{8H}, CR2=0x{8H}, CR3=0x{8H}, CR4=0x{8H}\r\n", 						\
 			msg,																		\
 			eax, ebx, ecx, edx, esp, ebp, cr0, cr2, cr3, cr4);							\
 	}
@@ -76,7 +76,7 @@ static void (*s_irq_handlers[0xFF])() { nullptr };
 		Kernel::Panic("Register dump\r\n"												\
 			"eax=0x{8H}, ebx=0x{8H}, ecx=0x{8H}, edx=0x{8H}\r\n" 						\
 			"esp=0x{8H}, ebp=0x{8H}\r\n" 												\
-			"CR0=0x{8H} CR2=0x{8H} CR3=0x{8H} CR4=0x{8H}\r\n" 							\
+			"CR0=0x{8H}, CR2=0x{8H}, CR3=0x{8H}, CR4=0x{8H}\r\n" 						\
 			msg " (error code: 0x{8H})",												\
 			eax, ebx, ecx, edx, esp, ebp, cr0, cr2, cr3, cr4, error_code);				\
 	}
@@ -192,7 +192,7 @@ namespace IDT
 	void initialize()
 	{
 		s_idtr.offset = s_idt;
-		s_idtr.size = sizeof(s_idt);
+		s_idtr.size = sizeof(s_idt) - 1;
 
 		for (uint8_t i = 0xFF; i > IRQ_VECTOR_BASE; i--)
 			register_irq_handler(i, nullptr);
