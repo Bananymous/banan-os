@@ -55,8 +55,8 @@ void kmalloc_initialize()
 	if (!(g_multiboot_info->flags & (1 << 6)))
 		Kernel::Panic("Kmalloc: Bootloader didn't provide a memory map");
 
-	if (g_kernel_end > s_kmalloc_base)
-		Kernel::Panic("Kmalloc: Kernel end ({}) is over kmalloc base ({})", (void*)g_kernel_end, (void*)s_kmalloc_base);
+	if ((uintptr_t)&g_kernel_end > s_kmalloc_base)
+		Kernel::Panic("Kmalloc: Kernel end ({}) is over kmalloc base ({})", &g_kernel_end, (void*)s_kmalloc_base);
 
 	// Validate kmalloc memory
 	bool valid = false;
