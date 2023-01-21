@@ -61,18 +61,53 @@ has_cpuid:
 	popl %eax
 	xorl (%esp), %eax
 	popfl
-	andl $0x00200000, %eax
+	testl $0x00200000, %eax
 	ret
 
 has_pae:
-	call has_cpuid
-	cmpl $0, %eax
-	jz .exit
 	movl $0, %eax
 	cpuid
-	movl %edx, %eax
-	andl $0x40, %eax # PAE is bit 6 in edx
+	testl $(1 << 6), %edx
+	ret
+
+has_sse:
+	movl $1, %eax
+	cpuid
+	testl $(1 << 25), %edx
+	ret
+
+check_requirements:
+	call has_cpuid
+	jz .exit
+	call has_pae
+	jz .exit
+	call has_sse
+	jz .exit
+	ret
 .exit:
+	jmp system_halt
+
+copy_kernel_commandline:
+	pushl %esi
+	pushl %edi
+	movl g_multiboot_info, %esi
+	addl $16, %esi
+	movl (%esi), %esi
+	movl $1024, %ecx
+	movl $g_kernel_cmdline, %edi
+	rep movsl
+	popl %edi
+	popl %esi
+	ret
+
+enable_sse:
+	movl %cr0, %eax
+	andw $0xFFFB, %ax
+	orw $0x0002, %ax
+	movl %eax, %cr0
+	movl %cr4, %eax
+	orw $0x0600, %ax
+	movl %eax, %cr4
 	ret
 
 .global _start
@@ -84,16 +119,9 @@ _start:
 	movl %ebx, g_multiboot_info
 
 	# Copy kernel command line to known location
-	movl %ebx, %esi
-	addl $16, %esi
-	movl (%esi), %esi
-	movl $1024, %ecx
-	movl $g_kernel_cmdline, %edi
-	rep movsl
-
-	call has_pae
-	cmpl $0, %eax
-	jz system_halt
+	call copy_kernel_commandline
+	call check_requirements
+	call enable_sse
 
 	# identity map first 4 MiB
 	movl $(0x00000000           + 0x83), boot_page_directory1 + 0
