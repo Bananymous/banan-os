@@ -179,13 +179,13 @@ namespace IDT
 	{
 		s_idt[index].low = 0x00080000 | ((uint32_t)(f) & 0x0000ffff);
 		s_idt[index].high = ((uint32_t)(f) & 0xffff0000) | 0x8e00;
-		flush_idt();
 	}
 
 	void register_irq_handler(uint8_t irq, void (*f)())
 	{
 		s_irq_handlers[IRQ_VECTOR_BASE + irq] = f;
 		register_interrupt_handler(IRQ_VECTOR_BASE + irq, handle_irq_common);
+		flush_idt();
 	}
 
 	void initialize()
