@@ -50,11 +50,10 @@ static void (*s_irq_handlers[0x100])() { nullptr };
 		asm volatile("movl %%cr2, %%eax":"=a"(cr2)); 									\
 		asm volatile("movl %%cr3, %%eax":"=a"(cr3)); 									\
 		asm volatile("movl %%cr4, %%eax":"=a"(cr4)); 									\
-		Kernel::Panic("Register dump\r\n"												\
+		Kernel::Panic(msg "\r\nRegister dump\r\n"										\
 			"eax=0x{8H}, ebx=0x{8H}, ecx=0x{8H}, edx=0x{8H}\r\n" 						\
 			"esp=0x{8H}, ebp=0x{8H}\r\n" 												\
 			"CR0=0x{8H}, CR2=0x{8H}, CR3=0x{8H}, CR4=0x{8H}\r\n", 						\
-			msg,																		\
 			eax, ebx, ecx, edx, esp, ebp, cr0, cr2, cr3, cr4);							\
 	}
 
@@ -73,11 +72,11 @@ static void (*s_irq_handlers[0x100])() { nullptr };
 		asm volatile("movl %%cr3, %%eax":"=a"(cr3)); 									\
 		asm volatile("movl %%cr4, %%eax":"=a"(cr4)); 									\
 		asm volatile("popl %%eax":"=a"(error_code));									\
-		Kernel::Panic("Register dump\r\n"												\
+		Kernel::Panic(msg " (error code: 0x{8H})\r\n"									\
+			"Register dump\r\n"															\
 			"eax=0x{8H}, ebx=0x{8H}, ecx=0x{8H}, edx=0x{8H}\r\n" 						\
 			"esp=0x{8H}, ebp=0x{8H}\r\n" 												\
-			"CR0=0x{8H}, CR2=0x{8H}, CR3=0x{8H}, CR4=0x{8H}\r\n" 						\
-			msg " (error code: 0x{8H})",												\
+			"CR0=0x{8H}, CR2=0x{8H}, CR3=0x{8H}, CR4=0x{8H}\r\n", 						\
 			eax, ebx, ecx, edx, esp, ebp, cr0, cr2, cr3, cr4, error_code);				\
 	}
 
