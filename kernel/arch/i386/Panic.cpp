@@ -13,10 +13,10 @@ namespace Kernel
 
 		stackframe* frame;
 		asm volatile("movl %%ebp, %0" : "=r"(frame));
-		BAN::Formatter::println(Serial::serial_putc, "\e[36mStack trace:");
+		BAN::Formatter::print(Serial::serial_putc, "\e[36mStack trace:\r\n");
 		while (frame)
 		{
-			BAN::Formatter::println(Serial::serial_putc, "    {}", (void*)frame->eip);
+			BAN::Formatter::print(Serial::serial_putc, "    {}\r\n", (void*)frame->eip);
 			frame = frame->ebp;
 		}
 	}
