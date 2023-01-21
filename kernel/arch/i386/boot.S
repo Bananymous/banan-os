@@ -32,7 +32,8 @@
 	# Reserve memory for paging structures,
 	# we will identity map first 4 MiB
 
-	# 0 MiB -> 2 MiB: kernel
+	# 0 MiB -> 1 MiB: bootloader stuff
+	# 1 MiB -> 2 MiB: kernel
 	# 2 MiB -> 3 MiB: kmalloc
 	# 3 MiB -> 4 Mib: kmalloc_eternal
 	.align 32
@@ -116,9 +117,12 @@ _start:
 	# call global constuctors
 	call _init
 
-	# call to the kernel itself
+	# call to the kernel itself (clear ebp for stacktrace)
 	xorl %ebp, %ebp
 	call kernel_main
+
+	# call global destructors
+	call _fini
 
 system_halt:
 	xchgw %bx, %bx
