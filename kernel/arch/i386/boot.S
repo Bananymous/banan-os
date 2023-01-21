@@ -29,6 +29,13 @@
 	g_kernel_cmdline:
 		.skip 4096
 
+	.global g_gdtr
+	g_gdtr:
+		.skip 2 + 4
+	.global g_gdt
+	g_gdt:
+		.skip 5 * 8
+
 	# Reserve memory for paging structures,
 	# we will identity map first 4 MiB
 
@@ -110,19 +117,7 @@ enable_sse:
 	movl %eax, %cr4
 	ret
 
-.global _start
-.type _start, @function
-_start:
-	# Initialize stack and multiboot info
-	movl $stack_top, %esp
-	movl %eax, g_multiboot_magic
-	movl %ebx, g_multiboot_info
-
-	# Copy kernel command line to known location
-	call copy_kernel_commandline
-	call check_requirements
-	call enable_sse
-
+initialize_paging:
 	# identity map first 4 MiB
 	movl $(0x00000000           + 0x83), boot_page_directory1 + 0
 	movl $(0x00200000           + 0x83), boot_page_directory1 + 8
@@ -142,14 +137,55 @@ _start:
 	orl $0x80000000, %ecx
 	movl %ecx, %cr0
 
-	# call global constuctors
+	ret
+
+initialize_gdt:
+	# setup gdt
+	movw $(5 * 8 - 1),	g_gdtr
+	movl $(g_gdt),		g_gdtr + 2
+	movl $(0x0000FFFF), g_gdt + 0x08
+	movl $(0x00CF9A00), g_gdt + 0x08 + 4
+	movl $(0x0000FFFF), g_gdt + 0x10
+	movl $(0x00CF9200), g_gdt + 0x10 + 4
+	movl $(0x0000FFFF), g_gdt + 0x18
+	movl $(0x00CFFA00), g_gdt + 0x18 + 4
+	movl $(0x0000FFFF), g_gdt + 0x20
+	movl $(0x00CFF200), g_gdt + 0x20 + 4
+	lgdt g_gdtr
+
+	# flush gdt
+	movw $0x10, %ax
+	movw %ax, %ds
+	movw %ax, %es
+	movw %ax, %fs
+	movw %ax, %gs
+	movw %ax, %ss
+	jmp $0x08, $flush
+flush:
+	ret
+
+
+.global _start
+.type _start, @function
+_start:
+	# Initialize stack and multiboot info
+	movl $stack_top, %esp
+	movl %eax, g_multiboot_magic
+	movl %ebx, g_multiboot_info
+
+	call copy_kernel_commandline
+	call check_requirements
+	call enable_sse
+
+	call initialize_paging
+	call initialize_gdt
+
 	call _init
 
 	# call to the kernel itself (clear ebp for stacktrace)
 	xorl %ebp, %ebp
 	call kernel_main
 
-	# call global destructors
 	call _fini
 
 system_halt:

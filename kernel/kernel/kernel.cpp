@@ -70,8 +70,6 @@ extern "C" void kernel_main()
 	kmalloc_initialize();
 	dprintln("kmalloc initialized");
 
-	GDT::initialize();
-	dprintln("GDT initialized");
 	IDT::initialize();
 	dprintln("IDT initialized");
 
