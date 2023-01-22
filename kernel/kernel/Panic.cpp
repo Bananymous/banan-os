@@ -8,7 +8,7 @@ namespace Kernel
 		struct stackframe
 		{
 			stackframe* ebp;
-			uint64_t eip;
+			uintptr_t eip;
 		};
 
 		stackframe* frame = (stackframe*)__builtin_frame_address(0);
