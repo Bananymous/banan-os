@@ -30,11 +30,11 @@ MMU& MMU::Get()
 
 static uint64_t* allocate_page_aligned_page()
 {
-	uint64_t* page_directory = (uint64_t*)kmalloc(PAGE_SIZE, PAGE_SIZE);
-	ASSERT(page_directory);
-	ASSERT(((uintptr_t)page_directory % PAGE_SIZE) == 0);
-	memset(page_directory, 0, PAGE_SIZE);
-	return page_directory;
+	uint64_t* page = (uint64_t*)kmalloc(PAGE_SIZE, PAGE_SIZE);
+	ASSERT(page);
+	ASSERT(((uintptr_t)page % PAGE_SIZE) == 0);
+	memset(page, 0, PAGE_SIZE);
+	return page;
 }
 
 MMU::MMU()
