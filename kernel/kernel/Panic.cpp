@@ -8,11 +8,10 @@ namespace Kernel
 		struct stackframe
 		{
 			stackframe* ebp;
-			uint32_t eip;
+			uint64_t eip;
 		};
 
-		stackframe* frame;
-		asm volatile("movl %%ebp, %0" : "=r"(frame));
+		stackframe* frame = (stackframe*)__builtin_frame_address(0);
 		BAN::Formatter::print(Serial::serial_putc, "\e[36mStack trace:\r\n");
 		while (frame)
 		{
