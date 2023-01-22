@@ -1,8 +1,7 @@
 #include <kernel/APIC.h>
 #include <kernel/IDT.h>
+#include <kernel/kmalloc.h>
 #include <kernel/Panic.h>
-#include <kernel/kprint.h>
-#include <kernel/Serial.h>
 
 #define INTERRUPT_HANDLER____(i, msg)													\
 	static void interrupt ## i ()														\
@@ -71,9 +70,9 @@ namespace IDT
 	} __attribute((packed));
 
 	static IDTR				s_idtr;
-	static GateDescriptor	s_idt[0x100];
+	static GateDescriptor*	s_idt;
 
-	static void (*s_irq_handlers[0x100])() { nullptr };
+	static void (**s_irq_handlers)();
 
 	INTERRUPT_HANDLER____(0x00, "Division Error")
 	INTERRUPT_HANDLER____(0x01, "Debug")
@@ -184,8 +183,14 @@ namespace IDT
 
 	void initialize()
 	{
+		s_idt = (GateDescriptor*)kmalloc_eternal(0x100 * sizeof(GateDescriptor));
+		s_irq_handlers = (void(**)())kmalloc_eternal(0x100 * sizeof(void(*)()));
+
+		for (uint32_t i = 0; i < 0x100; i++)
+			s_irq_handlers[i] = nullptr;
+
 		s_idtr.offset = s_idt;
-		s_idtr.size = sizeof(s_idt) - 1;
+		s_idtr.size = 0x100 * sizeof(GateDescriptor) - 1;
 
 		for (uint8_t i = 0xFF; i > IRQ_VECTOR_BASE; i--)
 			register_irq_handler(i, nullptr);
