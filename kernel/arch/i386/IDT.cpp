@@ -4,39 +4,6 @@
 #include <kernel/kprint.h>
 #include <kernel/Serial.h>
 
-union GateDescriptor
-{
-	struct
-	{
-		uint16_t	offset_lo;
-		uint16_t	selector;
-		uint8_t		reserved;
-		uint8_t		type		: 4;
-		uint8_t		zero		: 1;
-		uint8_t		dpl			: 2;
-		uint8_t		present		: 1;
-		uint16_t	offset_hi;
-	};
-
-	struct
-	{
-		uint32_t low;
-		uint32_t high;
-	};
-	
-} __attribute__((packed));
-
-struct IDTR
-{
-	uint16_t size;
-	void* offset;
-} __attribute((packed));
-
-static IDTR				s_idtr;
-static GateDescriptor	s_idt[0x100];
-
-static void (*s_irq_handlers[0x100])() { nullptr };
-
 #define INTERRUPT_HANDLER____(i, msg)													\
 	static void interrupt ## i ()														\
 	{																					\
@@ -80,95 +47,117 @@ static void (*s_irq_handlers[0x100])() { nullptr };
 			eax, ebx, ecx, edx, esp, ebp, cr0, cr2, cr3, cr4, error_code);				\
 	}
 
-INTERRUPT_HANDLER____(0x00, "Division Error")
-INTERRUPT_HANDLER____(0x01, "Debug")
-INTERRUPT_HANDLER____(0x02, "Non-maskable Interrupt")
-INTERRUPT_HANDLER____(0x03, "Breakpoint")
-INTERRUPT_HANDLER____(0x04, "Overflow")
-INTERRUPT_HANDLER____(0x05, "Bound Range Exception")
-INTERRUPT_HANDLER____(0x06, "Invalid Opcode")
-INTERRUPT_HANDLER____(0x07, "Device Not Available")
-INTERRUPT_HANDLER_ERR(0x08, "Double Fault")
-INTERRUPT_HANDLER____(0x09, "Coprocessor Segment Overrun")
-INTERRUPT_HANDLER_ERR(0x0A, "Invalid TSS")
-INTERRUPT_HANDLER_ERR(0x0B, "Segment Not Present")
-INTERRUPT_HANDLER_ERR(0x0C, "Stack-Segment Fault")
-INTERRUPT_HANDLER_ERR(0x0D, "General Protection Fault")
-INTERRUPT_HANDLER_ERR(0x0E, "Page Fault")
-INTERRUPT_HANDLER____(0x0F, "Unknown Exception 0x0F")
-INTERRUPT_HANDLER____(0x10, "x87 Floating-Point Exception")
-INTERRUPT_HANDLER_ERR(0x11, "Alignment Check")
-INTERRUPT_HANDLER____(0x12, "Machine Check")
-INTERRUPT_HANDLER____(0x13, "SIMD Floating-Point Exception")
-INTERRUPT_HANDLER____(0x14, "Virtualization Exception")
-INTERRUPT_HANDLER_ERR(0x15, "Control Protection Exception")
-INTERRUPT_HANDLER____(0x16, "Unknown Exception 0x16")
-INTERRUPT_HANDLER____(0x17, "Unknown Exception 0x17")
-INTERRUPT_HANDLER____(0x18, "Unknown Exception 0x18")
-INTERRUPT_HANDLER____(0x19, "Unknown Exception 0x19")
-INTERRUPT_HANDLER____(0x1A, "Unknown Exception 0x1A")
-INTERRUPT_HANDLER____(0x1B, "Unknown Exception 0x1B")
-INTERRUPT_HANDLER____(0x1C, "Hypervisor Injection Exception")
-INTERRUPT_HANDLER_ERR(0x1D, "VMM Communication Exception")
-INTERRUPT_HANDLER_ERR(0x1E, "Security Exception")
-INTERRUPT_HANDLER____(0x1F, "Unkown Exception 0x1F")
-
 #define REGISTER_HANDLER(i) register_interrupt_handler(i, interrupt ## i)
-
-extern "C" void handle_irq()
-{
-	uint32_t isr[8];
-	APIC::GetISR(isr);
-
-	uint8_t irq = 0;
-	for (uint8_t i = 0; i < 8; i++)
-	{
-		for (uint8_t j = 0; j < 32; j++)
-		{
-			if (isr[i] & ((uint32_t)1 << j))
-			{
-				irq = 32 * i + j;
-				goto found;
-			}
-		}
-	}
-
-found:
-	if (irq == 0)
-	{
-		dprintln("Spurious irq");
-		return;	
-	}
-
-    if (s_irq_handlers[irq])
-        s_irq_handlers[irq]();
-	else
-		Kernel::Panic("no handler for irq 0x{2H}\n", irq);
-
-	APIC::EOI(irq);
-}
-
-extern "C" void handle_irq_common();
-asm(
-".globl handle_irq_common;"
-"handle_irq_common:"
-	"pusha;"
-	"pushw %ds;"
-	"pushw %es;"
-	"pushw %ss;"
-	"pushw %ss;"
-	"popw %ds;"
-	"popw %es;"
-	"call handle_irq;"
-	"popw %es;"
-	"popw %ds;"
-	"popa;"
-	"iret;"
-);
-
 
 namespace IDT
 {
+
+	struct GateDescriptor
+	{
+		uint16_t offset1;
+		uint16_t selector;
+		uint8_t reserved;
+		uint8_t gate_type	: 4;
+		uint8_t zero		: 1;
+		uint8_t DPL			: 2;
+		uint8_t present		: 1;
+		uint16_t offset2;
+	} __attribute__((packed));
+
+	struct IDTR
+	{
+		uint16_t size;
+		void* offset;
+	} __attribute((packed));
+
+	static IDTR				s_idtr;
+	static GateDescriptor	s_idt[0x100];
+
+	static void (*s_irq_handlers[0x100])() { nullptr };
+
+	INTERRUPT_HANDLER____(0x00, "Division Error")
+	INTERRUPT_HANDLER____(0x01, "Debug")
+	INTERRUPT_HANDLER____(0x02, "Non-maskable Interrupt")
+	INTERRUPT_HANDLER____(0x03, "Breakpoint")
+	INTERRUPT_HANDLER____(0x04, "Overflow")
+	INTERRUPT_HANDLER____(0x05, "Bound Range Exception")
+	INTERRUPT_HANDLER____(0x06, "Invalid Opcode")
+	INTERRUPT_HANDLER____(0x07, "Device Not Available")
+	INTERRUPT_HANDLER_ERR(0x08, "Double Fault")
+	INTERRUPT_HANDLER____(0x09, "Coprocessor Segment Overrun")
+	INTERRUPT_HANDLER_ERR(0x0A, "Invalid TSS")
+	INTERRUPT_HANDLER_ERR(0x0B, "Segment Not Present")
+	INTERRUPT_HANDLER_ERR(0x0C, "Stack-Segment Fault")
+	INTERRUPT_HANDLER_ERR(0x0D, "General Protection Fault")
+	INTERRUPT_HANDLER_ERR(0x0E, "Page Fault")
+	INTERRUPT_HANDLER____(0x0F, "Unknown Exception 0x0F")
+	INTERRUPT_HANDLER____(0x10, "x87 Floating-Point Exception")
+	INTERRUPT_HANDLER_ERR(0x11, "Alignment Check")
+	INTERRUPT_HANDLER____(0x12, "Machine Check")
+	INTERRUPT_HANDLER____(0x13, "SIMD Floating-Point Exception")
+	INTERRUPT_HANDLER____(0x14, "Virtualization Exception")
+	INTERRUPT_HANDLER_ERR(0x15, "Control Protection Exception")
+	INTERRUPT_HANDLER____(0x16, "Unknown Exception 0x16")
+	INTERRUPT_HANDLER____(0x17, "Unknown Exception 0x17")
+	INTERRUPT_HANDLER____(0x18, "Unknown Exception 0x18")
+	INTERRUPT_HANDLER____(0x19, "Unknown Exception 0x19")
+	INTERRUPT_HANDLER____(0x1A, "Unknown Exception 0x1A")
+	INTERRUPT_HANDLER____(0x1B, "Unknown Exception 0x1B")
+	INTERRUPT_HANDLER____(0x1C, "Hypervisor Injection Exception")
+	INTERRUPT_HANDLER_ERR(0x1D, "VMM Communication Exception")
+	INTERRUPT_HANDLER_ERR(0x1E, "Security Exception")
+	INTERRUPT_HANDLER____(0x1F, "Unkown Exception 0x1F")
+
+	extern "C" void handle_irq()
+	{
+		uint32_t isr[8];
+		APIC::GetISR(isr);
+
+		uint8_t irq = 0;
+		for (uint8_t i = 0; i < 8; i++)
+		{
+			for (uint8_t j = 0; j < 32; j++)
+			{
+				if (isr[i] & ((uint32_t)1 << j))
+				{
+					irq = 32 * i + j;
+					goto found;
+				}
+			}
+		}
+
+	found:
+		if (irq == 0)
+		{
+			dprintln("Spurious irq");
+			return;	
+		}
+
+		if (s_irq_handlers[irq])
+			s_irq_handlers[irq]();
+		else
+			Kernel::Panic("no handler for irq 0x{2H}\n", irq);
+
+		APIC::EOI(irq);
+	}
+
+	extern "C" void handle_irq_common();
+	asm(
+	".globl handle_irq_common;"
+	"handle_irq_common:"
+		"pusha;"
+		"pushw %ds;"
+		"pushw %es;"
+		"pushw %ss;"
+		"pushw %ss;"
+		"popw %ds;"
+		"popw %es;"
+		"call handle_irq;"
+		"popw %es;"
+		"popw %ds;"
+		"popa;"
+		"iret;"
+	);
 
 	static void flush_idt()
 	{
@@ -177,8 +166,13 @@ namespace IDT
 
 	static void register_interrupt_handler(uint8_t index, void (*f)())
 	{
-		s_idt[index].low = 0x00080000 | ((uint32_t)(f) & 0x0000ffff);
-		s_idt[index].high = ((uint32_t)(f) & 0xffff0000) | 0x8e00;
+		GateDescriptor& descriptor = s_idt[index];
+		descriptor.offset1 = (uint32_t)f & 0xFFFF;
+		descriptor.selector = 0x08;
+		descriptor.gate_type = 0xE;
+		descriptor.DPL = 0;
+		descriptor.present = 1;
+		descriptor.offset2 = (uint32_t)f >> 16;
 	}
 
 	void register_irq_handler(uint8_t irq, void (*f)())
