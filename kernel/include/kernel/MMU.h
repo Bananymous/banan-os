@@ -19,5 +19,5 @@ private:
 	MMU();
 
 private:
-	uint64_t* m_page_descriptor_pointer_table;
+	uint64_t* m_highest_paging_struct;
 };

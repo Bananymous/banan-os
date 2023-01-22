@@ -39,19 +39,19 @@ static uint64_t* allocate_page_aligned_page()
 
 MMU::MMU()
 {
-	m_page_descriptor_pointer_table = (uint64_t*)kmalloc(sizeof(uint64_t) * 4, 32);
-	ASSERT(m_page_descriptor_pointer_table);
-	ASSERT(((uintptr_t)m_page_descriptor_pointer_table % 32) == 0);
+	m_highest_paging_struct = (uint64_t*)kmalloc(sizeof(uint64_t) * 4, 32);
+	ASSERT(m_highest_paging_struct);
+	ASSERT(((uintptr_t)m_highest_paging_struct % 32) == 0);
 
 	// allocate all page directories
 	for (int i = 0; i < 4; i++)
 	{
 		uint64_t* page_directory = allocate_page_aligned_page();
-		m_page_descriptor_pointer_table[i] = (uint64_t)page_directory | PRESENT;
+		m_highest_paging_struct[i] = (uint64_t)page_directory | PRESENT;
 	}
 
 	// create and identity map first 4 MiB
-	uint64_t* page_directory1 = (uint64_t*)(m_page_descriptor_pointer_table[0] & PAGE_MASK);
+	uint64_t* page_directory1 = (uint64_t*)(m_highest_paging_struct[0] & PAGE_MASK);
 	for (uint64_t i = 0; i < 2; i++)
 	{
 		uint64_t* page_table = allocate_page_aligned_page();
@@ -67,7 +67,7 @@ MMU::MMU()
 	page_table1[0] = 0;
 
 	// reload this new pdpt
-	asm volatile("movl %0, %%cr3" :: "r"(m_page_descriptor_pointer_table));
+	asm volatile("movl %0, %%cr3" :: "r"(m_highest_paging_struct));
 }
 
 void MMU::AllocatePage(uintptr_t address)
@@ -80,7 +80,7 @@ void MMU::AllocatePage(uintptr_t address)
 	uint32_t pde   = (address & 0x3FE00000) >> 21;
 	uint32_t pte   = (address & 0x001FF000) >> 12;
 
-	uint64_t* page_directory = (uint64_t*)(m_page_descriptor_pointer_table[pdpte] & PAGE_MASK);
+	uint64_t* page_directory = (uint64_t*)(m_highest_paging_struct[pdpte] & PAGE_MASK);
 	if (!(page_directory[pde] & PRESENT))
 	{
 		uint64_t* page_table = allocate_page_aligned_page();
@@ -111,7 +111,7 @@ void MMU::UnAllocatePage(uintptr_t address)
 	uint32_t pde   = (address & 0x3FE00000) >> 21;
 	uint32_t pte   = (address & 0x001FF000) >> 12;
 
-	uint64_t* page_directory = (uint64_t*)(m_page_descriptor_pointer_table[pdpte] & PAGE_MASK);
+	uint64_t* page_directory = (uint64_t*)(m_highest_paging_struct[pdpte] & PAGE_MASK);
 	ASSERT(page_directory[pde] & PRESENT);
 
 	uint64_t* page_table = (uint64_t*)(page_directory[pde] & PAGE_MASK);
