@@ -13,7 +13,7 @@
 #include <kernel/Serial.h>
 #include <kernel/Shell.h>
 #include <kernel/TTY.h>
-#include <kernel/VESA.h>
+#include <kernel/VesaTerminalDriver.h>
 
 #define DISABLE_INTERRUPTS() asm volatile("cli")
 #define ENABLE_INTERRUPTS() asm volatile("sti")
@@ -76,10 +76,10 @@ extern "C" void kernel_main()
 	MMU::Intialize();
 	dprintln("MMU initialized");
 
-	if (!VESA::Initialize())
-		return;
+	TerminalDriver* terminal_driver = VesaTerminalDriver::Create();
+	ASSERT(terminal_driver);
 	dprintln("VESA initialized");
-	TTY* tty1 = new TTY;
+	TTY* tty1 = new TTY(terminal_driver);
 	
 	APIC::Initialize(cmdline.force_pic);
 	dprintln("APIC initialized");

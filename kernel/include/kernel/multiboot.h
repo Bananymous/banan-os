@@ -2,6 +2,11 @@
 
 #include <stdint.h>
 
+#define MULTIBOOT_FLAGS_FRAMEBUFFER (1 << 12)
+
+#define MULTIBOOT_FRAMEBUFFER_TYPE_GRAPHICS 1
+#define MULTIBOOT_FRAMEBUFFER_TYPE_TEXT 2
+
 struct framebuffer_info_t
 {
 	uint64_t addr;
