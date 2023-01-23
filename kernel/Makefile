@@ -32,6 +32,7 @@ BUILDDIR=$(abspath build)
 KERNEL_OBJS=				\
 $(KERNEL_ARCH_OBJS)			\
 kernel/build_libc.o			\
+kernel/CPUID.o				\
 kernel/font.o				\
 kernel/Input.o				\
 kernel/kernel.o				\
