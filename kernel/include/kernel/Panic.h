@@ -24,7 +24,9 @@ namespace Kernel
 			kprint(message, args...);
 			kprint("\e[m\n");
 		}
-		asm volatile("cli; hlt");
+		asm volatile("cli");
+		for (;;)
+			asm volatile("hlt");
 		__builtin_unreachable();
 	}
 
