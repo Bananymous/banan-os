@@ -1,5 +1,6 @@
-#include <kernel/APIC.h>
+#include <BAN/Errors.h>
 #include <kernel/IDT.h>
+#include <kernel/InterruptController.h>
 #include <kernel/kmalloc.h>
 #include <kernel/Panic.h>
 
@@ -70,7 +71,7 @@ namespace IDT
 	} __attribute((packed));
 
 	static IDTR				s_idtr;
-	static GateDescriptor*	s_idt;
+	static GateDescriptor*	s_idt = nullptr;
 
 	static void (**s_irq_handlers)();
 
@@ -110,7 +111,7 @@ namespace IDT
 	extern "C" void handle_irq()
 	{
 		uint32_t isr[8];
-		APIC::GetISR(isr);
+		InterruptController::Get().GetISR(isr);
 
 		uint8_t irq = 0;
 		for (uint8_t i = 0; i < 8; i++)
@@ -137,7 +138,7 @@ namespace IDT
 		else
 			Kernel::Panic("no handler for irq 0x{2H}\n", irq);
 
-		APIC::EOI(irq);
+		InterruptController::Get().EOI(irq);
 	}
 
 	extern "C" void handle_irq_common();
@@ -192,7 +193,7 @@ namespace IDT
 		s_idtr.offset = s_idt;
 		s_idtr.size = 0x100 * sizeof(GateDescriptor) - 1;
 
-		for (uint8_t i = 0xFF; i > IRQ_VECTOR_BASE; i--)
+		for (uint8_t i = 0x00; i <= 0xFF - IRQ_VECTOR_BASE; i++)
 			register_irq_handler(i, nullptr);
 
 		REGISTER_HANDLER(0x00);

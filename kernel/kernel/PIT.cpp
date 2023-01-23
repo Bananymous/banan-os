@@ -1,7 +1,7 @@
 #include <kernel/IDT.h>
+#include <kernel/InterruptController.h>
 #include <kernel/IO.h>
 #include <kernel/kprint.h>
-#include <kernel/APIC.h>
 
 #define IRQ_TIMER			0
 
@@ -47,7 +47,7 @@ namespace PIT
 
 		IDT::register_irq_handler(IRQ_TIMER, clock_handle);
 
-		APIC::EnableIRQ(IRQ_TIMER);
+		InterruptController::Get().EnableIrq(IRQ_TIMER);
 	}
 
 }

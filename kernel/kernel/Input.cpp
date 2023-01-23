@@ -1,7 +1,7 @@
 #include <BAN/Queue.h>
-#include <kernel/APIC.h>
 #include <kernel/IDT.h>
 #include <kernel/Input.h>
+#include <kernel/InterruptController.h>
 #include <kernel/IO.h>
 #include <kernel/kprint.h>
 #include <kernel/PIT.h>
@@ -540,7 +540,7 @@ namespace Input
 	{
 		// Register callback and IRQ
 		IDT::register_irq_handler(KEYBOARD_IRQ, keyboard_irq_handler);
-		APIC::EnableIRQ(KEYBOARD_IRQ);
+		InterruptController::Get().EnableIrq(KEYBOARD_IRQ);
 		i8042_controller_command(I8042_ENABLE_FIRST_PORT);
 
 		MUST(s_command_queue.Push({
@@ -570,7 +570,7 @@ namespace Input
 	{
 		// Register callback and IRQ
 		IDT::register_irq_handler(MOUSE_IRQ, mouse_irq_handler);
-		APIC::EnableIRQ(MOUSE_IRQ);
+		InterruptController::Get().EnableIrq(MOUSE_IRQ);
 		i8042_controller_command(I8042_ENABLE_SECOND_PORT);
 
 		MUST(s_command_queue.Push({

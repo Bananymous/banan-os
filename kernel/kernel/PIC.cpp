@@ -2,6 +2,8 @@
 #include <kernel/IDT.h>
 #include <kernel/IO.h>
 
+#include <string.h>
+
 #define PIC1			0x20		/* IO base address for master PIC */
 #define PIC2			0xA0		/* IO base address for slave PIC */
 #define PIC1_COMMAND	PIC1
@@ -23,92 +25,86 @@
 #define ICW4_BUF_MASTER	0x0C		/* Buffered mode/master */
 #define ICW4_SFNM		0x10		/* Special fully nested (not) */
 
-
-namespace PIC
+PIC* PIC::Create()
 {
+	MaskAll();
+	Remap();
+	return new PIC;
+}
 
-	void Remap()
+void PIC::Remap()
+{
+	uint8_t a1 = IO::inb(PIC1_DATA);
+	uint8_t a2 = IO::inb(PIC2_DATA);
+
+	// Start the initialization sequence (in cascade mode)
+	IO::outb(PIC1_COMMAND, ICW1_INIT | ICW1_ICW4);
+	IO::io_wait();
+	IO::outb(PIC2_COMMAND, ICW1_INIT | ICW1_ICW4);
+	IO::io_wait();
+
+	// ICW2
+	IO::outb(PIC1_DATA, IRQ_VECTOR_BASE);
+	IO::io_wait();
+	IO::outb(PIC2_DATA, IRQ_VECTOR_BASE + 0x08);
+	IO::io_wait();
+
+	// ICW3
+	IO::outb(PIC1_DATA, 4);
+	IO::io_wait();
+	IO::outb(PIC2_DATA, 2);
+	IO::io_wait();
+
+	// ICW4
+	IO::outb(PIC1_DATA, ICW4_8086);
+	IO::io_wait();
+	IO::outb(PIC2_DATA, ICW4_8086);
+	IO::io_wait();
+
+	// Restore original masks
+	IO::outb(PIC1_DATA, a1);
+	IO::outb(PIC2_DATA, a2);
+}
+
+void PIC::MaskAll()
+{
+	IO::outb(PIC1_DATA, 0xFF);
+	IO::outb(PIC2_DATA, 0xFF);
+}
+
+void PIC::EOI(uint8_t irq)
+{
+	if (irq >= 8)
+		IO::outb(PIC2_COMMAND, PIC_EOI);
+	IO::outb(PIC1_COMMAND, PIC_EOI);
+}
+
+void PIC::EnableIrq(uint8_t irq)
+{
+	uint16_t port;
+	uint8_t value;
+
+	if(irq < 8)
 	{
-		uint8_t a1 = IO::inb(PIC1_DATA);
-		uint8_t a2 = IO::inb(PIC2_DATA);
-
-		// Start the initialization sequence (in cascade mode)
-		IO::outb(PIC1_COMMAND, ICW1_INIT | ICW1_ICW4);
-		IO::io_wait();
-		IO::outb(PIC2_COMMAND, ICW1_INIT | ICW1_ICW4);
-		IO::io_wait();
-
-		// ICW2
-		IO::outb(PIC1_DATA, IRQ_VECTOR_BASE);
-		IO::io_wait();
-		IO::outb(PIC2_DATA, IRQ_VECTOR_BASE + 0x08);
-		IO::io_wait();
-
-		// ICW3
-		IO::outb(PIC1_DATA, 4);
-		IO::io_wait();
-		IO::outb(PIC2_DATA, 2);
-		IO::io_wait();
-	
-		// ICW4
-		IO::outb(PIC1_DATA, ICW4_8086);
-		IO::io_wait();
-		IO::outb(PIC2_DATA, ICW4_8086);
-		IO::io_wait();
-	
-		// Restore original masks
-		IO::outb(PIC1_DATA, a1);
-		IO::outb(PIC2_DATA, a2);
+		port = PIC1_DATA;
 	}
-
-	void MaskAll()
+	else
 	{
-		IO::outb(PIC1_DATA, 0xff);
-		IO::outb(PIC2_DATA, 0xff);
+		port = PIC2_DATA;
+		irq -= 8;
 	}
+	value = IO::inb(port) & ~(1 << irq);
+	IO::outb(port, value);
+}
 
-	void EOI(uint8_t irq)
-	{
-		if (irq >= 8)
-			IO::outb(PIC2_COMMAND, PIC_EOI);
-		IO::outb(PIC1_COMMAND, PIC_EOI);
-	}
+void PIC::GetISR(uint32_t out[8])
+{
+	memset(out, 0, 8 * sizeof(uint32_t));
+	IO::outb(PIC1_COMMAND, 0x0b);
+	IO::outb(PIC2_COMMAND, 0x0b);
+	uint16_t isr0 = IO::inb(PIC1_COMMAND);
+	uint16_t isr1 = IO::inb(PIC2_COMMAND);
 
-	void Mask(uint8_t irq) {
-		uint16_t port;
-		uint8_t value;
-	
-		if(irq < 8) {
-			port = PIC1_DATA;
-		} else {
-			port = PIC2_DATA;
-			irq -= 8;
-		}
-		value = IO::inb(port) | (1 << irq);
-		IO::outb(port, value);        
-	}
-	
-	void Unmask(uint8_t irq) {
-		uint16_t port;
-		uint8_t value;
-	
-		if(irq < 8) {
-			port = PIC1_DATA;
-		} else {
-			port = PIC2_DATA;
-			irq -= 8;
-		}
-		value = IO::inb(port) & ~(1 << irq);
-		IO::outb(port, value);        
-	}
-
-	uint16_t GetISR()
-	{
-		IO::outb(PIC1_COMMAND, 0x0b);
-		IO::outb(PIC2_COMMAND, 0x0b);
-		uint8_t isr0 = IO::inb(PIC1_COMMAND);
-		uint8_t isr1 = IO::inb(PIC2_COMMAND);
-		return (isr1 << 8) | isr0;
-	}
-
+	uintptr_t addr = (uintptr_t)out + IRQ_VECTOR_BASE / 8;
+	*(uint16_t*)addr = (isr1 << 8) | isr0;
 }

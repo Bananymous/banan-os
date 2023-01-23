@@ -1,15 +1,12 @@
-#include <BAN/Memory.h>
-#include <kernel/APIC.h>
-#include <kernel/GDT.h>
 #include <kernel/IDT.h>
 #include <kernel/Input.h>
+#include <kernel/InterruptController.h>
 #include <kernel/kmalloc.h>
 #include <kernel/kprint.h>
 #include <kernel/MMU.h>
 #include <kernel/multiboot.h>
 #include <kernel/PIC.h>
 #include <kernel/PIT.h>
-#include <kernel/RTC.h>
 #include <kernel/Serial.h>
 #include <kernel/Shell.h>
 #include <kernel/TTY.h>
@@ -81,8 +78,9 @@ extern "C" void kernel_main()
 	dprintln("VESA initialized");
 	TTY* tty1 = new TTY(terminal_driver);
 	
-	APIC::Initialize(cmdline.force_pic);
-	dprintln("APIC initialized");
+	InterruptController::Initialize(cmdline.force_pic);
+	dprintln("Interrupt controller initialized");
+	
 	PIT::initialize();
 	dprintln("PIT initialized");
 	if (!Input::initialize())

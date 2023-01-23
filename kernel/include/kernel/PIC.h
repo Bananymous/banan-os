@@ -1,16 +1,18 @@
 #pragma once
 
-#include <stdint.h>
+#include <kernel/InterruptController.h>
 
-namespace PIC
+class PIC final : public InterruptController
 {
+public:
+	virtual void EOI(uint8_t) override;
+	virtual void EnableIrq(uint8_t) override;
+	virtual void GetISR(uint32_t[8]) override;
 
-	void Remap();
-	void MaskAll();
-	void EOI(uint8_t);
-	void Unmask(uint8_t);
-	void Mask(uint8_t);
+	static void Remap();
+	static void MaskAll();
 
-	uint16_t GetISR();
-
-}
+private:
+	static PIC* Create();
+	friend class InterruptController;
+};
