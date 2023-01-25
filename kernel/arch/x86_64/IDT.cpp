@@ -30,7 +30,7 @@ namespace IDT
 	static IDTR				s_idtr;
 	static GateDescriptor*	s_idt = nullptr;
 
-	static void (*s_irq_handlers[0x10])() { nullptr };
+	static void(*s_irq_handlers[0x10])() { nullptr };
 
 	static const char* isr_exceptions[] =
 	{
@@ -95,7 +95,19 @@ namespace IDT
 		if (s_irq_handlers[irq])
 			s_irq_handlers[irq]();
 		else
+		{
+			uint32_t isr_byte = irq / 32;
+			uint32_t isr_bit  = irq % 32;
+
+			uint32_t isr[8];
+			InterruptController::Get().GetISR(isr);
+			if (!(isr[isr_byte] & (1 << isr_bit)))
+			{
+				dprintln("spurious irq 0x{2H}", irq);
+				return;
+			}
 			dprintln("no handler for irq 0x{2H}\n", irq);
+		}
 
 		InterruptController::Get().EOI(irq);
 	}
@@ -105,7 +117,7 @@ namespace IDT
 		asm volatile("lidt %0"::"m"(s_idtr));
 	}
 
-	static void register_interrupt_handler(uint8_t index, void (*f)())
+	static void register_interrupt_handler(uint8_t index, void(*f)())
 	{
 		GateDescriptor& descriptor = s_idt[index];
 		descriptor.offset1 = (uint16_t)((uint64_t)f >> 0);
@@ -117,7 +129,7 @@ namespace IDT
 		descriptor.flags = 0x8E;
 	}
 
-	void register_irq_handler(uint8_t irq, void (*f)())
+	void register_irq_handler(uint8_t irq, void(*f)())
 	{
 		s_irq_handlers[irq] = f;
 	}

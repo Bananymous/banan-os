@@ -74,7 +74,7 @@ namespace IDT
 	static IDTR				s_idtr;
 	static GateDescriptor*	s_idt = nullptr;
 
-	static void (**s_irq_handlers)();
+	static void(**s_irq_handlers)();
 
 	INTERRUPT_HANDLER____(0x00, "Division Error")
 	INTERRUPT_HANDLER____(0x01, "Debug")
@@ -137,7 +137,19 @@ namespace IDT
 		if (s_irq_handlers[irq])
 			s_irq_handlers[irq]();
 		else
-			Kernel::Panic("no handler for irq 0x{2H}\n", irq);
+		{
+			uint32_t isr_byte = irq / 32;
+			uint32_t isr_bit  = irq % 32;
+
+			uint32_t isr[8];
+			InterruptController::Get().GetISR(isr);
+			if (!(isr[isr_byte] & (1 << isr_bit)))
+			{
+				dprintln("spurious irq 0x{2H}", irq);
+				return;
+			}
+			dprintln("no handler for irq 0x{2H}\n", irq);
+		}
 
 		InterruptController::Get().EOI(irq);
 	}
@@ -165,7 +177,7 @@ namespace IDT
 		asm volatile("lidt %0"::"m"(s_idtr));
 	}
 
-	static void register_interrupt_handler(uint8_t index, void (*f)())
+	static void register_interrupt_handler(uint8_t index, void(*f)())
 	{
 		GateDescriptor& descriptor = s_idt[index];
 		descriptor.offset1 = (uint32_t)f & 0xFFFF;
@@ -176,7 +188,7 @@ namespace IDT
 		descriptor.offset2 = (uint32_t)f >> 16;
 	}
 
-	void register_irq_handler(uint8_t irq, void (*f)())
+	void register_irq_handler(uint8_t irq, void(*f)())
 	{
 		s_irq_handlers[IRQ_VECTOR_BASE + irq] = f;
 		register_interrupt_handler(IRQ_VECTOR_BASE + irq, handle_irq_common);
