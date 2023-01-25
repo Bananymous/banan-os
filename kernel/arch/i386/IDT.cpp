@@ -56,9 +56,10 @@ namespace IDT
 	{
 		uint16_t offset1;
 		uint16_t selector;
-		uint8_t reserved;
-		uint8_t gate_type	: 4;
-		uint8_t zero		: 1;
+		uint8_t reserved	: 5;
+		uint8_t zero1		: 3;
+		uint8_t type		: 4;
+		uint8_t zero2		: 1;
 		uint8_t DPL			: 2;
 		uint8_t present		: 1;
 		uint16_t offset2;
@@ -169,7 +170,7 @@ namespace IDT
 		GateDescriptor& descriptor = s_idt[index];
 		descriptor.offset1 = (uint32_t)f & 0xFFFF;
 		descriptor.selector = 0x08;
-		descriptor.gate_type = 0xE;
+		descriptor.type = 0xE;
 		descriptor.DPL = 0;
 		descriptor.present = 1;
 		descriptor.offset2 = (uint32_t)f >> 16;
@@ -184,14 +185,16 @@ namespace IDT
 
 	void initialize()
 	{
-		s_idt = (GateDescriptor*)kmalloc_eternal(0x100 * sizeof(GateDescriptor));
-		s_irq_handlers = (void(**)())kmalloc_eternal(0x100 * sizeof(void(*)()));
+		constexpr size_t idt_size = 0x100 * sizeof(GateDescriptor);
 
-		for (uint32_t i = 0; i < 0x100; i++)
-			s_irq_handlers[i] = nullptr;
+		s_idt = (GateDescriptor*)kmalloc_eternal(idt_size);
+		memset(s_idt, 0x00, idt_size);
+
+		s_irq_handlers = (void(**)())kmalloc_eternal(0x100 * sizeof(void(*)()));
+		memset(s_irq_handlers, 0x00, 0x100 * sizeof(void(*)()));
 
 		s_idtr.offset = s_idt;
-		s_idtr.size = 0x100 * sizeof(GateDescriptor) - 1;
+		s_idtr.size = idt_size - 1;
 
 		for (uint8_t i = 0x00; i <= 0xFF - IRQ_VECTOR_BASE; i++)
 			register_irq_handler(i, nullptr);
