@@ -22,7 +22,8 @@ using namespace BAN;
 
 struct ParsedCommandLine
 {
-	bool force_pic = false;
+	bool force_pic		= false;
+	bool disable_serial	= false;
 };
 
 ParsedCommandLine ParseCommandLine()
@@ -41,6 +42,9 @@ ParsedCommandLine ParseCommandLine()
 			if (current - start == 6 && memcmp(start, "noapic", 6) == 0)
 				result.force_pic = true;
 
+			if (current - start == 8 && memcmp(start, "noserial", 8) == 0)
+				result.disable_serial = true;
+
 			if (!*current)
 				break;
 			start = current + 1;
@@ -55,15 +59,16 @@ extern "C" void kernel_main()
 {
 	DISABLE_INTERRUPTS();
 
-	Serial::initialize();
+	auto cmdline = ParseCommandLine();
+
+	if (!cmdline.disable_serial)
+		Serial::Initialize();
 	if (g_multiboot_magic != 0x2BADB002)
 	{
 		dprintln("Invalid multiboot magic number");
 		return;
 	}
 	dprintln("Serial output initialized");
-
-	auto cmdline = ParseCommandLine();
 
 	kmalloc_initialize();
 	dprintln("kmalloc initialized");
