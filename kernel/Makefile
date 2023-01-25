@@ -40,7 +40,6 @@ kernel/Input.o					\
 kernel/InterruptController.o	\
 kernel/kernel.o					\
 kernel/kmalloc.o				\
-kernel/Panic.o					\
 kernel/PIC.o					\
 kernel/PIT.o					\
 kernel/RTC.o					\

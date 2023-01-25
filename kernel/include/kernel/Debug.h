@@ -28,5 +28,6 @@
 
 namespace Debug
 {
+	void DumpStackTrace();
 	void putchar(char);
 }
