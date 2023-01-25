@@ -34,6 +34,7 @@ $(KERNEL_ARCH_OBJS)				\
 kernel/APIC.o					\
 kernel/build_libc.o				\
 kernel/CPUID.o					\
+kernel/Debug.o					\
 kernel/font.o					\
 kernel/Input.o					\
 kernel/InterruptController.o	\

@@ -2,14 +2,11 @@
 #include <BAN/StringView.h>
 #include <BAN/Vector.h>
 #include <kernel/CPUID.h>
-#include <kernel/font.h>
 #include <kernel/Input.h>
 #include <kernel/IO.h>
 #include <kernel/PIT.h>
 #include <kernel/RTC.h>
-#include <kernel/Serial.h>
 #include <kernel/Shell.h>
-#include <kernel/TTY.h>
 
 #include <ctype.h>
 

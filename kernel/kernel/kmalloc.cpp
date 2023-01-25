@@ -1,6 +1,7 @@
 #include <BAN/Errors.h>
 #include <BAN/Math.h>
 #include <kernel/kmalloc.h>
+#include <kernel/kprint.h>
 #include <kernel/multiboot.h>
 
 #include <stdint.h>

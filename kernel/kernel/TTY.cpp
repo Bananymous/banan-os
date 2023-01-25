@@ -1,5 +1,5 @@
 #include <BAN/Errors.h>
-#include <kernel/Serial.h>
+#include <kernel/Debug.h>
 #include <kernel/TTY.h>
 
 #include <string.h>

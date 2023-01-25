@@ -1,7 +1,7 @@
 #include <BAN/Errors.h>
+#include <kernel/Debug.h>
 #include <kernel/MMU.h>
 #include <kernel/multiboot.h>
-#include <kernel/Serial.h>
 #include <kernel/VesaTerminalDriver.h>
 
 extern const struct bitmap_font font;

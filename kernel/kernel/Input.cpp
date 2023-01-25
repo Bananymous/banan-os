@@ -1,11 +1,11 @@
 #include <BAN/Queue.h>
+#include <kernel/Debug.h>
 #include <kernel/IDT.h>
 #include <kernel/Input.h>
 #include <kernel/InterruptController.h>
 #include <kernel/IO.h>
 #include <kernel/kprint.h>
 #include <kernel/PIT.h>
-#include <kernel/Serial.h>
 
 #include <kernel/KeyboardLayout/FI.h>
 

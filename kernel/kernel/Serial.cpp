@@ -1,5 +1,5 @@
+#include <BAN/Errors.h>
 #include <kernel/IO.h>
-#include <kernel/Serial.h>
 
 #define COM1_PORT 0x3f8
 
@@ -8,7 +8,7 @@ namespace Serial
 
 	static bool s_initialized = false;
 
-	void initialize()
+	void Initialize()
 	{
 		IO::outb(COM1_PORT + 1, 0x00);    // Disable all interrupts
 		IO::outb(COM1_PORT + 3, 0x80);    // Enable DLAB (set baud rate divisor)
@@ -30,14 +30,18 @@ namespace Serial
 		s_initialized = true;
 	}
 
-	int is_transmit_empty() {
+	bool IsInitialized()
+	{
+		return s_initialized;
+	}
+
+	static int is_transmit_empty() {
 		return IO::inb(COM1_PORT + 5) & 0x20;
 	}
  
-	void serial_putc(char c)
+	void putchar(char c)
 	{
-		if (!s_initialized)
-			return;
+		ASSERT(s_initialized);
 		while (is_transmit_empty() == 0);
 		IO::outb(COM1_PORT, c);
 	}

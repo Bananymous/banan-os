@@ -12,10 +12,10 @@ namespace Kernel
 		};
 
 		stackframe* frame = (stackframe*)__builtin_frame_address(0);
-		BAN::Formatter::print(Serial::serial_putc, "\e[36mStack trace:\r\n");
+		BAN::Formatter::print(Debug::putchar, "\e[36mStack trace:\r\n");
 		while (frame)
 		{
-			BAN::Formatter::print(Serial::serial_putc, "    {}\r\n", (void*)frame->eip);
+			BAN::Formatter::print(Debug::putchar, "    {}\r\n", (void*)frame->eip);
 			frame = frame->ebp;
 		}
 	}

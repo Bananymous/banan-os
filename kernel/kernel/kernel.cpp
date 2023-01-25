@@ -1,3 +1,4 @@
+#include <kernel/Debug.h>
 #include <kernel/IDT.h>
 #include <kernel/Input.h>
 #include <kernel/InterruptController.h>

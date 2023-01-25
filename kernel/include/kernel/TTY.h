@@ -1,7 +1,6 @@
 #pragma once
 
 #include <kernel/TerminalDriver.h>
-#include <kernel/Serial.h>
 
 class TTY
 {

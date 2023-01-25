@@ -1,10 +1,9 @@
 #include <BAN/ScopeGuard.h>
+#include <kernel/Debug.h>
 #include <kernel/APIC.h>
 #include <kernel/CPUID.h>
 #include <kernel/IDT.h>
-#include <kernel/IO.h>
 #include <kernel/MMU.h>
-#include <kernel/Serial.h>
 
 #include <string.h>
 
