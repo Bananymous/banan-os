@@ -72,13 +72,13 @@ namespace IDT
 	{
 		uint64_t rax, rbx, rcx, rdx, rsp, rbp;
 		uint64_t cr0, cr2, cr3, cr4;
-		asm volatile("":"=a"(rax),"=b"(rbx),"=c"(rcx),"=d"(rdx));
-		asm volatile("movq %%rsp, %%rax":"=a"(rsp));
-		asm volatile("movq %%rbp, %%rax":"=a"(rbp));
-		asm volatile("movq %%cr0, %%rax":"=a"(cr0));
-		asm volatile("movq %%cr2, %%rax":"=a"(cr2));
-		asm volatile("movq %%cr3, %%rax":"=a"(cr3));
-		asm volatile("movq %%cr4, %%rax":"=a"(cr4));
+		asm volatile("" : "=a"(rax), "=b"(rbx), "=c"(rcx), "=d"(rdx));
+		asm volatile("movq %%rsp, %0" : "=r"(rsp));
+		asm volatile("movq %%rbp, %0" : "=r"(rbp));
+		asm volatile("movq %%cr0, %0" : "=r"(cr0));
+		asm volatile("movq %%cr2, %0" : "=r"(cr2));
+		asm volatile("movq %%cr3, %0" : "=r"(cr3));
+		asm volatile("movq %%cr4, %0" : "=r"(cr4));
 
 		Kernel::Panic(
 			"{} (error code: 0x{16H})\r\n"
