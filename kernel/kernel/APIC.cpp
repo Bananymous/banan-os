@@ -14,6 +14,8 @@
 #define IOAPIC_MAX_REDIRS	0x01
 #define IOAPIC_REDIRS		0x10
 
+#define DEBUG_PRINT_PROCESSORS 0
+
 // https://uefi.org/specs/ACPI/6.5/05_ACPI_Software_Programming_Model.html#multiple-apic-description-table-madt-format
 
 static constexpr uint32_t RSPD_SIZE		= 20;
@@ -287,6 +289,15 @@ APIC* APIC::Create()
 	// Mask all interrupts
 	uint32_t sivr = apic->ReadFromLocalAPIC(LAPIC_SIV_REG);
 	apic->WriteToLocalAPIC(LAPIC_SIV_REG, sivr | 0x1FF);
+
+#if DEBUG_PRINT_PROCESSORS
+	for (auto& processor : apic->m_processors)
+	{
+		dprintln("Processor{}", processor.processor_id);
+		dprintln("  lapic id: {}", processor.apic_id);
+		dprintln("  status:   {}", (processor.flags & Processor::Flags::Enabled) ? "enabled" : (processor.flags & Processor::Flags::OnlineCapable) ? "can be enabled" : "disabled");
+	}
+#endif
 
 	return apic;
 }
