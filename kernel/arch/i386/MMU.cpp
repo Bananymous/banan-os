@@ -112,10 +112,12 @@ void MMU::UnAllocatePage(uintptr_t address)
 	uint32_t pte   = (address & 0x001FF000) >> 12;
 
 	uint64_t* page_directory = (uint64_t*)(m_highest_paging_struct[pdpte] & PAGE_MASK);
-	ASSERT(page_directory[pde] & PRESENT);
+	if (!(page_directory[pde] & PRESENT))
+		return;
 
 	uint64_t* page_table = (uint64_t*)(page_directory[pde] & PAGE_MASK);
-	ASSERT(page_table[pte] & PRESENT);
+	if (!(page_table[pte] & PRESENT))
+		return;
 
 	page_table[pte] = 0;
 

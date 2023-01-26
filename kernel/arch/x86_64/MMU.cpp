@@ -97,9 +97,10 @@ void MMU::AllocatePage(uintptr_t address)
 
 	uint64_t* pt = (uint64_t*)(pd[pde] & PAGE_MASK);
 	if (!(pt[pte] & PRESENT))
+	{
 		pt[pte] = address | READ_WRITE | PRESENT;
-
-	asm volatile("invlpg (%0)" :: "r"(address) : "memory");
+		asm volatile("invlpg (%0)" :: "r"(address) : "memory");
+	}
 }
 
 void MMU::AllocateRange(uintptr_t address, ptrdiff_t size)
@@ -122,16 +123,20 @@ void MMU::UnAllocatePage(uintptr_t address)
 	uint64_t pte   = (address >> 12) & 0x1FF;
 	
 	uint64_t* pml4 = m_highest_paging_struct;
-	ASSERT(pml4[pml4e] & PRESENT);
+	if (!(pml4[pml4e] & PRESENT))
+		return;
 
 	uint64_t* pdpt = (uint64_t*)(pml4[pml4e] & PAGE_MASK);
-	ASSERT(pdpt[pdpte] & PRESENT);
+	if (!(pdpt[pdpte] & PRESENT))
+		return;
 
 	uint64_t* pd = (uint64_t*)(pdpt[pdpte] & PAGE_MASK);
-	ASSERT(pd[pde] & PRESENT);
+	if (!(pd[pde] & PRESENT))
+		return;
 
 	uint64_t* pt = (uint64_t*)(pd[pde] & PAGE_MASK);
-	ASSERT(pt[pte] & PRESENT);
+	if (!(pt[pte] & PRESENT))
+		return;
 
 	pt[pte] = 0;
 
