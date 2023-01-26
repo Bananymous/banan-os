@@ -10,6 +10,19 @@
 .set PG_READ_WRITE,	1<<1
 .set PG_PAGE_SIZE,	1<<7
 
+# GDT access byte
+.set GDT_A_A,	1<<40
+.set GDT_A_RW,	1<<41
+.set GDT_A_DC,	1<<42
+.set GDT_A_E,	1<<43
+.set GDT_A_S,	1<<44
+.set GDT_A_DPL,	1<<45
+.set GDT_A_P,	1<<47
+# GDT flags
+.set GDT_F_L,	1<<53
+.set GDT_F_DB,	1<<54
+.set GDT_F_G,	1<<55
+
 .code32
 
 # Multiboot header
@@ -60,8 +73,11 @@ g_multiboot_magic:
 	.skip 8
 
 boot_gdt:
-	.quad 0										// null
-	.quad (1<<53) | (1<<47) | (1<<44) | (1<<43)	// kernel code P,S,E,L (present, code/data, executable, long mode)
+	.quad 0																														# null descriptor
+	.quad (GDT_F_G |            GDT_F_L ) | (GDT_A_P | (0 * GDT_A_DPL) | GDT_A_S | GDT_A_E | GDT_A_RW) | (0xF << 48 | 0xFFFF)	# kernel code
+	.quad (GDT_F_G | GDT_F_DB           ) | (GDT_A_P | (0 * GDT_A_DPL) | GDT_A_S           | GDT_A_RW) | (0xF << 48 | 0xFFFF)	# kernel data
+	.quad (GDT_F_G |            GDT_F_L ) | (GDT_A_P | (3 * GDT_A_DPL) | GDT_A_S | GDT_A_E | GDT_A_RW) | (0xF << 48 | 0xFFFF)	# userspace code
+	.quad (GDT_F_G | GDT_F_DB           ) | (GDT_A_P | (3 * GDT_A_DPL) | GDT_A_S           | GDT_A_RW) | (0xF << 48 | 0xFFFF)	# userspace data
 boot_gdtr:
 	.short . - boot_gdt - 1
 	.quad boot_gdt
