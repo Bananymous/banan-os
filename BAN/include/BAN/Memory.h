@@ -1,10 +1,17 @@
 #pragma once
 
+
+#include <BAN/Errors.h>
+#include <BAN/Move.h>
+#include <BAN/NoCopyMove.h>
+
 #if defined(__is_kernel)
 	#include <kernel/kmalloc.h>
 #else
 	#include <stdlib.h>
 #endif
+
+#include <stdint.h>
 
 namespace BAN
 {
@@ -18,22 +25,134 @@ namespace BAN
 	#endif
 
 	template<typename T>
-	class OwnPtr
+	class Unique
 	{
+		BAN_NON_COPYABLE(Unique<T>);
+
 	public:
 		template<typename... Args>
-		OwnPtr(const Args&... args)
+		Unique(const Args&... args)
 		{
 			m_pointer = new T(args...);
 		}
 
-		~OwnPtr()
+		~Unique()
 		{
 			delete m_pointer;
 		}
 
+		operator bool() const
+		{
+			return m_pointer;
+		}
+
 	private:
 		T* m_pointer = nullptr;
+	};
+
+	template<typename T>
+	class RefCounted
+	{
+	public:
+		RefCounted() { }
+		RefCounted(T* pointer)
+		{
+			if (pointer)
+			{
+				m_pointer = pointer;
+				m_count = new int32_t(1);
+				ASSERT(m_count);
+			}
+		}
+		RefCounted(const RefCounted<T>& other)
+		{
+			*this = other;
+		}
+		RefCounted(RefCounted<T>&& other)
+		{
+			*this = Move(other);
+		}
+		~RefCounted()
+		{
+			Reset();
+		}
+		
+		template<typename... Args>
+		static RefCounted<T> Create(Args... args)
+		{
+			return RefCounted<T>(new T(Forward<Args>(args)...), new int32_t(1));
+		}
+
+		RefCounted<T>& operator=(const RefCounted<T>& other)
+		{
+			Reset();
+			if (other)
+			{
+				m_pointer = other.m_pointer;
+				m_count = other.m_count;
+				(*m_count)++;
+			}
+			return *this;
+		}
+		
+		RefCounted<T>& operator=(RefCounted<T>&& other)
+		{
+			Reset();
+			m_pointer = other.m_pointer;
+			m_count = other.m_count;
+			other.m_pointer = nullptr;
+			other.m_count = nullptr;
+			if (!(*this))
+				Reset();
+			return *this;
+		}
+
+		T& operator*() { return *m_pointer;}
+		const T& operator*() const { return *m_pointer;}
+
+		T* operator->() { return m_pointer; }
+		const T* operator->() const { return m_pointer; }
+
+		void Reset()
+		{
+			ASSERT(!m_count == !m_pointer);
+			if (!m_count)
+				return;
+			(*m_count)--;
+			if (*m_count == 0)
+			{
+				delete m_count;
+				delete m_pointer;
+			}
+			m_count = nullptr;
+			m_pointer = nullptr;
+		}
+
+		operator bool() const
+		{
+			ASSERT(!m_count == !m_pointer);
+			return m_count && *m_count > 0;
+		}
+
+		bool operator==(const RefCounted<T>& other) const
+		{
+			if (m_pointer != other.m_pointer)
+				return false;
+			ASSERT(m_count == other.m_count);
+			return !m_count || *m_count > 0;
+		}
+	
+	private:
+		RefCounted(T* pointer, int32_t* count)
+			: m_pointer(pointer)
+			, m_count(count)
+		{
+			ASSERT(!pointer == !count);
+		}
+
+	private:
+		T*			m_pointer = nullptr;
+		int32_t*	m_count = nullptr;
 	};
 
 }
