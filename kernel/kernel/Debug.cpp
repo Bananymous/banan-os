@@ -9,16 +9,29 @@ namespace Debug
 	{
 		struct stackframe
 		{
-			stackframe* ebp;
-			uintptr_t eip;
+			stackframe* rbp;
+			uintptr_t rip;
 		};
 
 		stackframe* frame = (stackframe*)__builtin_frame_address(0);
+		if (!frame)
+		{
+			dprintln("Could not get frame address");
+			return;
+		}
+		uintptr_t first_rip = frame->rip;
+
 		BAN::Formatter::print(Debug::putchar, "\e[36mStack trace:\r\n");
 		while (frame)
 		{
-			BAN::Formatter::print(Debug::putchar, "    {}\r\n", (void*)frame->eip);
-			frame = frame->ebp;
+			BAN::Formatter::print(Debug::putchar, "    {}\r\n", (void*)frame->rip);
+			frame = frame->rbp;
+
+			if (frame && frame->rip == first_rip)
+			{
+				derrorln("looping kernel panic :(");
+				return;
+			}
 		}
 	}
 
