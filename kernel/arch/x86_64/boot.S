@@ -73,11 +73,8 @@ g_multiboot_magic:
 	.skip 8
 
 boot_gdt:
-	.quad 0																														# null descriptor
-	.quad (GDT_F_G |            GDT_F_L ) | (GDT_A_P | (0 * GDT_A_DPL) | GDT_A_S | GDT_A_E | GDT_A_RW) | (0xF << 48 | 0xFFFF)	# kernel code
-	.quad (GDT_F_G | GDT_F_DB           ) | (GDT_A_P | (0 * GDT_A_DPL) | GDT_A_S           | GDT_A_RW) | (0xF << 48 | 0xFFFF)	# kernel data
-	.quad (GDT_F_G |            GDT_F_L ) | (GDT_A_P | (3 * GDT_A_DPL) | GDT_A_S | GDT_A_E | GDT_A_RW) | (0xF << 48 | 0xFFFF)	# userspace code
-	.quad (GDT_F_G | GDT_F_DB           ) | (GDT_A_P | (3 * GDT_A_DPL) | GDT_A_S           | GDT_A_RW) | (0xF << 48 | 0xFFFF)	# userspace data
+	.quad 0																											# null descriptor
+	.quad (GDT_F_G | GDT_F_L ) | (GDT_A_P | (0 * GDT_A_DPL) | GDT_A_S | GDT_A_E | GDT_A_RW) | (0xF << 48 | 0xFFFF)	# kernel code
 boot_gdtr:
 	.short . - boot_gdt - 1
 	.quad boot_gdt
