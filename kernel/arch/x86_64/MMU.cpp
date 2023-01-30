@@ -63,6 +63,32 @@ MMU::MMU()
 	asm volatile("movq %0, %%cr3" :: "r"(m_highest_paging_struct));
 }
 
+MMU::~MMU()
+{
+	uint64_t* pml4 = m_highest_paging_struct;
+	for (uint32_t pml4e = 0; pml4e < 512; pml4e++)
+	{
+		if (!(pml4[pml4e] & PRESENT))
+			continue;
+		uint64_t* pdpt = (uint64_t*)(pml4[pml4e] & PAGE_MASK);
+		for (uint32_t pdpte = 0; pdpte < 512; pdpte++)
+		{
+			if (!(pdpt[pdpte] & PRESENT))
+				continue;
+			uint64_t* pd = (uint64_t*)(pdpt[pdpte] & PAGE_MASK);
+			for (uint32_t pde = 0; pde < 512; pde++)
+			{
+				if (!(pd[pde] & PRESENT))
+					continue;
+				kfree((void*)(pd[pde] & PAGE_MASK));
+			}
+			kfree(pd);
+		}
+		kfree(pdpt);
+	}
+	kfree(pml4);
+}
+
 void MMU::AllocatePage(uintptr_t address)
 {
 	ASSERT((address >> 48) == 0);
