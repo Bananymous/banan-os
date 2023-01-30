@@ -358,8 +358,11 @@ void APIC::EnableIrq(uint8_t irq)
 	ioapic->Write(IOAPIC_REDIRS + gsi * 2 + 1,	redir.hi_dword);
 }
 
-void APIC::GetISR(uint32_t out[8])
+bool APIC::IsInService(uint8_t irq)
 {
-	for (uint32_t i = 0; i < 8; i++)
-		out[i] = ReadFromLocalAPIC(LAPIC_IS_REG + i * 0x10);
+	uint32_t dword = (irq + IRQ_VECTOR_BASE) / 32;
+	uint32_t bit = (irq + IRQ_VECTOR_BASE) % 32;
+
+	uint32_t isr = ReadFromLocalAPIC(LAPIC_IS_REG + dword * 0x10);
+	return isr & (1 << bit);
 }

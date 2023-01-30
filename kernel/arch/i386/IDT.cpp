@@ -111,23 +111,16 @@ namespace IDT
 
 	extern "C" void handle_irq()
 	{
-		uint32_t isr[8];
-		InterruptController::Get().GetISR(isr);
-
 		uint8_t irq = 0;
-		for (uint8_t i = 0; i < 8; i++)
+		for (uint32_t i = 0; i <= 0xFF; i++)
 		{
-			for (uint8_t j = 0; j < 32; j++)
+			if (InterruptController::Get().IsInService(i))
 			{
-				if (isr[i] & ((uint32_t)1 << j))
-				{
-					irq = 32 * i + j;
-					goto found;
-				}
+				irq = i;
+				break;
 			}
 		}
 
-	found:
 		if (irq == 0)
 		{
 			dprintln("Spurious irq");
@@ -137,19 +130,7 @@ namespace IDT
 		if (s_irq_handlers[irq])
 			s_irq_handlers[irq]();
 		else
-		{
-			uint32_t isr_byte = irq / 32;
-			uint32_t isr_bit  = irq % 32;
-
-			uint32_t isr[8];
-			InterruptController::Get().GetISR(isr);
-			if (!(isr[isr_byte] & (1 << isr_bit)))
-			{
-				dprintln("spurious irq 0x{2H}", irq);
-				return;
-			}
 			dprintln("no handler for irq 0x{2H}\n", irq);
-		}
 
 		InterruptController::Get().EOI(irq);
 	}

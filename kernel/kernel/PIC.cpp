@@ -98,14 +98,12 @@ void PIC::EnableIrq(uint8_t irq)
 	IO::outb(port, value);
 }
 
-void PIC::GetISR(uint32_t out[8])
+bool PIC::IsInService(uint8_t irq)
 {
-	memset(out, 0, 8 * sizeof(uint32_t));
-	IO::outb(PIC1_COMMAND, PIC_READ_ISR);
-	IO::outb(PIC2_COMMAND, PIC_READ_ISR);
-	uint16_t isr0 = IO::inb(PIC1_COMMAND);
-	uint16_t isr1 = IO::inb(PIC2_COMMAND);
+	uint16_t port = irq < 8 ? PIC1_COMMAND : PIC2_COMMAND;
+	uint8_t  bit  = irq < 8 ? irq : irq - 8;
 
-	uintptr_t addr = (uintptr_t)out + IRQ_VECTOR_BASE / 8;
-	*(uint16_t*)addr = (isr1 << 8) | isr0;
+	IO::outb(port, PIC_READ_ISR);
+	uint16_t isr = IO::inb(port);
+	return isr & (1 << bit);
 }

@@ -8,7 +8,7 @@ class APIC final : public InterruptController
 public:
 	virtual void EOI(uint8_t) override;
 	virtual void EnableIrq(uint8_t) override;
-	virtual void GetISR(uint32_t[8]) override;
+	virtual bool IsInService(uint8_t) override;
 
 private:
 	uint32_t ReadFromLocalAPIC(ptrdiff_t);

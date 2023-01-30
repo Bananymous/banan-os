@@ -36,16 +36,28 @@
 
 isr_stub:
 	pushaq
-	movq 120(%rsp), %rdi
-	movq 128(%rsp), %rsi
+
+	movq     %cr0,  %rax; pushq %rax
+	movq     %cr2,  %rax; pushq %rax
+	movq     %cr3,  %rax; pushq %rax
+	movq     %cr4,  %rax; pushq %rax
+	movq 184(%rsp), %rax; pushq %rax
+	movq 176(%rsp), %rax; pushq %rax
+	movq 208(%rsp), %rax; pushq %rax
+
+	movq 176(%rsp), %rdi
+	movq 184(%rsp), %rsi
+	movq %rsp, %rdx
+
 	call cpp_isr_handler
+	addq $56, %rsp
 	popaq
 	addq $16, %rsp
 	iretq
 
 irq_stub:
 	pushaq
-	movq 120(%rsp), %rdi
+	movq 0x78(%rsp), %rdi	# irq number
 	call cpp_irq_handler
 	popaq
 	addq $16, %rsp
