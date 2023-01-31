@@ -45,6 +45,7 @@ kernel/PIT.o					\
 kernel/RTC.o					\
 kernel/Serial.o					\
 kernel/Shell.o					\
+kernel/SpinLock.o				\
 kernel/SSP.o					\
 kernel/TTY.o					\
 kernel/VesaTerminalDriver.o		\
