@@ -10,6 +10,7 @@
 #include <kernel/PIT.h>
 #include <kernel/Serial.h>
 #include <kernel/Shell.h>
+#include <kernel/Scheduler.h>
 #include <kernel/TTY.h>
 #include <kernel/VesaTerminalDriver.h>
 
@@ -55,8 +56,12 @@ ParsedCommandLine ParseCommandLine()
 	return result;
 }
 
+static TTY* tty1 = nullptr;
+
 extern "C" void kernel_main()
 {
+	using namespace Kernel;
+
 	DISABLE_INTERRUPTS();
 
 	auto cmdline = ParseCommandLine();
@@ -82,26 +87,29 @@ extern "C" void kernel_main()
 	TerminalDriver* terminal_driver = VesaTerminalDriver::Create();
 	ASSERT(terminal_driver);
 	dprintln("VESA initialized");
-	TTY* tty1 = new TTY(terminal_driver);
+	tty1 = new TTY(terminal_driver);
 	
 	InterruptController::Initialize(cmdline.force_pic);
 	dprintln("Interrupt controller initialized");
-	
+
 	PIT::initialize();
 	dprintln("PIT initialized");
 	if (!Input::initialize())
 		return;
 	dprintln("8042 initialized");
 
-	ENABLE_INTERRUPTS();
-
-	kprintln("Hello from the kernel!");
-
-	Kernel::Shell shell(tty1);
-	shell.Run();
-
-	for (;;)
-	{
-		asm("hlt");
-	}
+	Scheduler::Initialize();
+	Scheduler& scheduler = Scheduler::Get();
+	scheduler.AddThread([](){ Shell(tty1).Run(); });
+	scheduler.AddThread(
+		[]()
+		{
+			uint64_t start = PIT::ms_since_boot();
+			while (PIT::ms_since_boot() < start + 3000)
+				continue;
+			kprintln("\nHello!");
+		}
+	);
+	scheduler.Start();
+	ASSERT(false);
 }

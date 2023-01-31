@@ -1,6 +1,7 @@
 #pragma once
 
 #include <kernel/TerminalDriver.h>
+#include <kernel/SpinLock.h>
 
 class TTY
 {
@@ -51,4 +52,5 @@ private:
 	Cell*					m_buffer		{ nullptr };
 	AnsiState				m_ansi_state;
 	TerminalDriver*			m_terminal_driver { nullptr };
+	Kernel::SpinLock		m_lock;
 };

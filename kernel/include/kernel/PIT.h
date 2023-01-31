@@ -2,6 +2,8 @@
 
 #include <stdint.h>
 
+#define PIT_IRQ 0
+
 namespace PIT
 {
 

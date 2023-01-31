@@ -2,8 +2,7 @@
 #include <kernel/InterruptController.h>
 #include <kernel/IO.h>
 #include <kernel/kprint.h>
-
-#define IRQ_TIMER			0
+#include <kernel/Scheduler.h>
 
 #define TIMER0_CTL			0x40
 #define TIMER1_CTL			0x41
@@ -26,9 +25,10 @@ namespace PIT
 {
 	static uint64_t s_system_time = 0;
 
-	void clock_handle()
+	void irq_handler()
 	{
 		s_system_time++;
+		Kernel::Scheduler::Get().Switch();
 	}
 
 	uint64_t ms_since_boot()
@@ -45,9 +45,9 @@ namespace PIT
 		IO::outb(TIMER0_CTL, (timer_reload >> 0) & 0xff);
 		IO::outb(TIMER0_CTL, (timer_reload >> 8) & 0xff);
 
-		IDT::register_irq_handler(IRQ_TIMER, clock_handle);
+		IDT::register_irq_handler(PIT_IRQ, irq_handler);
 
-		InterruptController::Get().EnableIrq(IRQ_TIMER);
+		InterruptController::Get().EnableIrq(PIT_IRQ);
 	}
 
 }

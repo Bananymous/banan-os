@@ -43,10 +43,12 @@ kernel/kmalloc.o				\
 kernel/PIC.o					\
 kernel/PIT.o					\
 kernel/RTC.o					\
+kernel/Scheduler.o				\
 kernel/Serial.o					\
 kernel/Shell.o					\
 kernel/SpinLock.o				\
 kernel/SSP.o					\
+kernel/Thread.o					\
 kernel/TTY.o					\
 kernel/VesaTerminalDriver.o		\
 icxxabi.o						\

@@ -1,5 +1,7 @@
 #include <BAN/Errors.h>
+#include <BAN/ScopeGuard.h>
 #include <kernel/Debug.h>
+#include <kernel/LockGuard.h>
 #include <kernel/TTY.h>
 
 #include <string.h>
@@ -261,6 +263,8 @@ void TTY::PutCharAt(uint16_t ch, uint32_t x, uint32_t y)
 
 void TTY::PutChar(char ch)
 {
+	Kernel::LockGuard guard(m_lock);
+	
 	uint16_t cp = handle_unicode(ch);
 	if (cp == 0xFFFF)
 		return;
