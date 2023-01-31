@@ -2,6 +2,7 @@
 
 #include <BAN/Errors.h>
 #include <BAN/Move.h>
+#include <BAN/Memory.h>
 
 namespace BAN
 {
