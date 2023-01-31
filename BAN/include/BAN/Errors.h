@@ -12,7 +12,7 @@
 	#error "NOT IMPLEMENTED"
 #endif
 
-#define TRY(error) ({ auto e = error; if (e.IsError()) return e; e.Value(); })
+#define TRY(error) ({ auto e = error; if (e.IsError()) return e.GetError(); e.Value(); })
 
 namespace BAN
 {
