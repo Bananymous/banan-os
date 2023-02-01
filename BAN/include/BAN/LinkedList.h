@@ -33,9 +33,9 @@ namespace BAN
 		[[nodiscard]] ErrorOr<void> insert(const_iterator, const T&);
 		[[nodiscard]] ErrorOr<void> insert(const_iterator, T&&);
 		template<typename... Args>
-		[[nodiscard]] ErrorOr<void> emplace_back(Args...);
+		[[nodiscard]] ErrorOr<void> emplace_back(Args&&...);
 		template<typename... Args>
-		[[nodiscard]] ErrorOr<void> emplace(const_iterator, Args...);
+		[[nodiscard]] ErrorOr<void> emplace(const_iterator, Args&&...);
 
 		void pop_back();
 		void remove(const_iterator);
@@ -204,14 +204,14 @@ namespace BAN
 
 	template<typename T>
 	template<typename... Args>
-	ErrorOr<void> LinkedList<T>::emplace_back(Args... args)
+	ErrorOr<void> LinkedList<T>::emplace_back(Args&&... args)
 	{
 		return emplace(end(), forward<Args>(args)...);
 	}
 
 	template<typename T>
 	template<typename... Args>
-	ErrorOr<void> LinkedList<T>::emplace(const_iterator iter, Args... args)
+	ErrorOr<void> LinkedList<T>::emplace(const_iterator iter, Args&&... args)
 	{
 		Node* next = iter.m_past_end ? nullptr : iter.m_current;
 		Node* prev = next ? next->prev : m_last;

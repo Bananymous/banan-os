@@ -73,9 +73,9 @@ namespace BAN
 		[[nodiscard]] ErrorOr<void> push_back(T&&);
 		[[nodiscard]] ErrorOr<void> push_back(const T&);
 		template<typename... Args>
-		[[nodiscard]] ErrorOr<void> emplace_back(Args...);
+		[[nodiscard]] ErrorOr<void> emplace_back(Args&&...);
 		template<typename... Args>
-		[[nodiscard]] ErrorOr<void> emplace(size_type, Args...);
+		[[nodiscard]] ErrorOr<void> emplace(size_type, Args&&...);
 		[[nodiscard]] ErrorOr<void> insert(size_type, T&&);
 		[[nodiscard]] ErrorOr<void> insert(size_type, const T&);
 		
@@ -187,7 +187,7 @@ namespace BAN
 
 	template<typename T>
 	template<typename... Args>
-	ErrorOr<void> Vector<T>::emplace_back(Args... args)
+	ErrorOr<void> Vector<T>::emplace_back(Args&&... args)
 	{
 		TRY(ensure_capacity(m_size + 1));
 		new (address_of(m_size)) T(forward<Args>(args)...);
@@ -197,7 +197,7 @@ namespace BAN
 
 	template<typename T>
 	template<typename... Args>
-	ErrorOr<void> Vector<T>::emplace(size_type index, Args... args)
+	ErrorOr<void> Vector<T>::emplace(size_type index, Args&&... args)
 	{
 		ASSERT(index <= m_size);
 		TRY(ensure_capacity(m_size + 1));
