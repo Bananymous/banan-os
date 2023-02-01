@@ -13,7 +13,7 @@ namespace BAN
 	class Function<Ret(Args...)>
 	{
 	public:
-		Function() {}
+		Function() = default;
 		Function(Ret(*function)(Args...))
 		{
 			static_assert(sizeof(CallablePointer) <= m_size);
@@ -38,6 +38,11 @@ namespace BAN
 			new (m_storage) CallableLambda<Lambda>(lambda);
 		}
 
+		~Function()
+		{
+			clear();
+		}
+
 		Ret operator()(Args... args)
 		{
 			ASSERT(*this);
@@ -52,6 +57,13 @@ namespace BAN
 			return false;
 		}
 		
+		void clear()
+		{
+			if (*this)
+				reinterpret_cast<CallableBase*>(m_storage)->~CallableBase();
+			memset(m_storage, 0, m_size);
+		}
+
 	private:
 		struct CallableBase
 		{
