@@ -6,21 +6,21 @@ namespace BAN
 {
 
 	template<typename T>
-	constexpr typename RemoveReference<T>::type&& Move(T&& arg)
+	constexpr remove_reference_t<T>&& Move(T&& arg)
 	{
-		return static_cast<typename RemoveReference<T>::type&&>(arg);
+		return static_cast<remove_reference_t<T>&&>(arg);
 	}
 
 	template<typename T>
-	constexpr T&& Forward(typename RemoveReference<T>::type& arg)
+	constexpr T&& Forward(remove_reference_t<T>& arg)
 	{
 		return static_cast<T&&>(arg);
 	}
 
 	template<typename T>
-	constexpr T&& Forward(typename RemoveReference<T>::type&& arg)
+	constexpr T&& Forward(remove_reference_t<T>&& arg)
 	{
-		static_assert(!IsLValueReference<T>::value);
+		static_assert(!is_lvalue_reference_v<T>);
 		return static_cast<T&&>(arg);
 	}
 
