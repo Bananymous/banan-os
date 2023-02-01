@@ -70,45 +70,45 @@ namespace BAN
 		Vector<T>& operator=(Vector<T>&&);
 		Vector<T>& operator=(const Vector<T>&);
 
-		[[nodiscard]] ErrorOr<void> PushBack(T&&);
-		[[nodiscard]] ErrorOr<void> PushBack(const T&);
+		[[nodiscard]] ErrorOr<void> push_back(T&&);
+		[[nodiscard]] ErrorOr<void> push_back(const T&);
 		template<typename... Args>
-		[[nodiscard]] ErrorOr<void> EmplaceBack(Args...);
+		[[nodiscard]] ErrorOr<void> emplace_back(Args...);
 		template<typename... Args>
-		[[nodiscard]] ErrorOr<void> Emplace(size_type, Args...);
-		[[nodiscard]] ErrorOr<void> Insert(size_type, T&&);
-		[[nodiscard]] ErrorOr<void> Insert(size_type, const T&);
+		[[nodiscard]] ErrorOr<void> emplace(size_type, Args...);
+		[[nodiscard]] ErrorOr<void> insert(size_type, T&&);
+		[[nodiscard]] ErrorOr<void> insert(size_type, const T&);
 		
 		iterator begin();
 		iterator end();
 		const_iterator begin() const;
 		const_iterator end() const;
 
-		void PopBack();
-		void Remove(size_type);
-		void Clear();
+		void pop_back();
+		void remove(size_type);
+		void clear();
 
-		bool Has(const T&) const;
+		bool has(const T&) const;
 
 		const T& operator[](size_type) const;
 		T& operator[](size_type);
 
-		const T& Back() const;
-		T& Back();
-		const T& Front() const;
-		T& Front();
+		const T& back() const;
+		T& back();
+		const T& front() const;
+		T& front();
 
-		[[nodiscard]] ErrorOr<void> Resize(size_type);
-		[[nodiscard]] ErrorOr<void> Reserve(size_type);
+		[[nodiscard]] ErrorOr<void> resize(size_type);
+		[[nodiscard]] ErrorOr<void> reserve(size_type);
 
-		bool Empty() const;
-		size_type Size() const;
-		size_type Capacity() const;
+		bool empty() const;
+		size_type size() const;
+		size_type capacity() const;
 
 	private:
-		[[nodiscard]] ErrorOr<void> EnsureCapasity(size_type);
-		const T* AddressOf(size_type, void* = nullptr) const;
-		T* AddressOf(size_type, void* = nullptr);
+		[[nodiscard]] ErrorOr<void> ensure_capacity(size_type);
+		const T* address_of(size_type, void* = nullptr) const;
+		T* address_of(size_type, void* = nullptr);
 
 	private:
 		uint8_t*	m_data		= nullptr;
@@ -131,22 +131,22 @@ namespace BAN
 	template<typename T>
 	Vector<T>::Vector(const Vector<T>& other)
 	{
-		MUST(EnsureCapasity(other.m_size));
+		MUST(ensure_capacity(other.m_size));
 		for (size_type i = 0; i < other.m_size; i++)
-			new (AddressOf(i)) T(other[i]);
+			new (address_of(i)) T(other[i]);
 		m_size = other.m_size;
 	}
 
 	template<typename T>
 	Vector<T>::~Vector()
 	{
-		Clear();
+		clear();
 	}
 
 	template<typename T>
 	Vector<T>& Vector<T>::operator=(Vector<T>&& other)
 	{
-		Clear();
+		clear();
 
 		m_data = other.m_data;
 		m_capacity = other.m_capacity;
@@ -162,133 +162,133 @@ namespace BAN
 	template<typename T>
 	Vector<T>& Vector<T>::operator=(const Vector<T>& other)
 	{
-		Clear();
-		MUST(EnsureCapasity(other.Size()));
-		for (size_type i = 0; i < other.Size(); i++)
-			new (AddressOf(i)) T(other[i]);
+		clear();
+		MUST(ensure_capacity(other.size()));
+		for (size_type i = 0; i < other.size(); i++)
+			new (address_of(i)) T(other[i]);
 		m_size = other.m_size;
 		return *this;
 	}
 
 	template<typename T>
-	ErrorOr<void> Vector<T>::PushBack(T&& value)
+	ErrorOr<void> Vector<T>::push_back(T&& value)
 	{
-		TRY(EnsureCapasity(m_size + 1));
-		new (AddressOf(m_size)) T(Move(value));
+		TRY(ensure_capacity(m_size + 1));
+		new (address_of(m_size)) T(move(value));
 		m_size++;
 		return {};
 	}
 
 	template<typename T>
-	ErrorOr<void> Vector<T>::PushBack(const T& value)
+	ErrorOr<void> Vector<T>::push_back(const T& value)
 	{
-		return PushBack(Move(T(value)));
+		return push_back(move(T(value)));
 	}
 
 	template<typename T>
 	template<typename... Args>
-	ErrorOr<void> Vector<T>::EmplaceBack(Args... args)
+	ErrorOr<void> Vector<T>::emplace_back(Args... args)
 	{
-		TRY(EnsureCapasity(m_size + 1));
-		new (AddressOf(m_size)) T(Forward<Args>(args)...);
+		TRY(ensure_capacity(m_size + 1));
+		new (address_of(m_size)) T(forward<Args>(args)...);
 		m_size++;
 		return {};
 	}
 
 	template<typename T>
 	template<typename... Args>
-	ErrorOr<void> Vector<T>::Emplace(size_type index, Args... args)
+	ErrorOr<void> Vector<T>::emplace(size_type index, Args... args)
 	{
 		ASSERT(index <= m_size);
-		TRY(EnsureCapasity(m_size + 1));
+		TRY(ensure_capacity(m_size + 1));
 		if (index < m_size)
 		{
-			new (AddressOf(m_size)) T(Move(*AddressOf(m_size - 1)));
+			new (address_of(m_size)) T(move(*address_of(m_size - 1)));
 			for (size_type i = m_size - 1; i > index; i--)
-				*AddressOf(i) = Move(*AddressOf(i - 1));
-			*AddressOf(index) = Move(T(Forward<Args>(args)...));
+				*address_of(i) = move(*address_of(i - 1));
+			*address_of(index) = move(T(forward<Args>(args)...));
 		}
 		else
 		{
-			new (AddressOf(m_size)) T(Forward<Args>(args)...);
+			new (address_of(m_size)) T(forward<Args>(args)...);
 		}
 		m_size++;
 		return {};
 	}
 
 	template<typename T>
-	ErrorOr<void> Vector<T>::Insert(size_type index, T&& value)
+	ErrorOr<void> Vector<T>::insert(size_type index, T&& value)
 	{
 		ASSERT(index <= m_size);
-		TRY(EnsureCapasity(m_size + 1));
+		TRY(ensure_capacity(m_size + 1));
 		if (index < m_size)
 		{
-			new (AddressOf(m_size)) T(Move(*AddressOf(m_size - 1)));
+			new (address_of(m_size)) T(move(*address_of(m_size - 1)));
 			for (size_type i = m_size - 1; i > index; i--)
-				*AddressOf(i) = Move(*AddressOf(i - 1));
-			*AddressOf(index) = Move(value);
+				*address_of(i) = move(*address_of(i - 1));
+			*address_of(index) = move(value);
 		}
 		else
 		{
-			new (AddressOf(m_size)) T(Move(value));
+			new (address_of(m_size)) T(move(value));
 		}
 		m_size++;
 		return {};
 	}
 
 	template<typename T>
-	ErrorOr<void> Vector<T>::Insert(size_type index, const T& value)
+	ErrorOr<void> Vector<T>::insert(size_type index, const T& value)
 	{
-		return Insert(Move(T(value)), index);
+		return insert(move(T(value)), index);
 	}
 
 	template<typename T>
 	typename Vector<T>::iterator Vector<T>::begin()
 	{
-		return VectorIterator<T>(AddressOf(0));
+		return VectorIterator<T>(address_of(0));
 	}
 
 	template<typename T>
 	typename Vector<T>::iterator Vector<T>::end()
 	{
-		return VectorIterator<T>(AddressOf(m_size));
+		return VectorIterator<T>(address_of(m_size));
 	}
 
 	template<typename T>
 	typename Vector<T>::const_iterator Vector<T>::begin() const
 	{
-		return VectorConstIterator<T>(AddressOf(0));
+		return VectorConstIterator<T>(address_of(0));
 	}
 
 	template<typename T>
 	typename Vector<T>::const_iterator Vector<T>::end() const
 	{
-		return VectorConstIterator<T>(AddressOf(m_size));
+		return VectorConstIterator<T>(address_of(m_size));
 	}
 
 	template<typename T>
-	void Vector<T>::PopBack()
+	void Vector<T>::pop_back()
 	{
 		ASSERT(m_size > 0);
-		AddressOf(m_size - 1)->~T();
+		address_of(m_size - 1)->~T();
 		m_size--;
 	}
 
 	template<typename T>
-	void Vector<T>::Remove(size_type index)
+	void Vector<T>::remove(size_type index)
 	{
 		ASSERT(index < m_size);
 		for (size_type i = index; i < m_size - 1; i++)
-			*AddressOf(i) = Move(*AddressOf(i + 1));
-		AddressOf(m_size - 1)->~T();
+			*address_of(i) = move(*address_of(i + 1));
+		address_of(m_size - 1)->~T();
 		m_size--;
 	}
 
 	template<typename T>
-	void Vector<T>::Clear()
+	void Vector<T>::clear()
 	{
 		for (size_type i = 0; i < m_size; i++)
-			AddressOf(i)->~T();
+			address_of(i)->~T();
 		BAN::deallocator(m_data);
 		m_data = nullptr;
 		m_capacity = 0;
@@ -296,10 +296,10 @@ namespace BAN
 	}
 
 	template<typename T>
-	bool Vector<T>::Has(const T& other) const
+	bool Vector<T>::has(const T& other) const
 	{
 		for (size_type i = 0; i < m_size; i++)
-			if (*AddressOf(i) == other)
+			if (*address_of(i) == other)
 				return true;
 		return false;
 	}
@@ -308,95 +308,95 @@ namespace BAN
 	const T& Vector<T>::operator[](size_type index) const
 	{
 		ASSERT(index < m_size);
-		return *AddressOf(index);
+		return *address_of(index);
 	}
 
 	template<typename T>
 	T& Vector<T>::operator[](size_type index)
 	{
 		ASSERT(index < m_size);
-		return *AddressOf(index);
+		return *address_of(index);
 	}
 
 	template<typename T>
-	const T& Vector<T>::Back() const
+	const T& Vector<T>::back() const
 	{
 		ASSERT(m_size > 0);
-		return *AddressOf(m_size - 1);
+		return *address_of(m_size - 1);
 	}
 
 	template<typename T>
-	T& Vector<T>::Back()
+	T& Vector<T>::back()
 	{
 		ASSERT(m_size > 0);
-		return *AddressOf(m_size - 1);
+		return *address_of(m_size - 1);
 	}
 
 	template<typename T>
-	const T& Vector<T>::Front() const
+	const T& Vector<T>::front() const
 	{
 		ASSERT(m_size > 0);
-		return *AddressOf(0);
+		return *address_of(0);
 	}
 	template<typename T>
-	T& Vector<T>::Front()
+	T& Vector<T>::front()
 	{
 		ASSERT(m_size > 0);
-		return *AddressOf(0);
+		return *address_of(0);
 	}
 
 	template<typename T>
-	ErrorOr<void> Vector<T>::Resize(size_type size)
+	ErrorOr<void> Vector<T>::resize(size_type size)
 	{
-		TRY(EnsureCapasity(size));
+		TRY(ensure_capacity(size));
 		if (size < m_size)
 			for (size_type i = size; i < m_size; i++)
-				AddressOf(i)->~T();
+				address_of(i)->~T();
 		if (size > m_size)
 			for (size_type i = m_size; i < size; i++)
-				new (AddressOf(i)) T();
+				new (address_of(i)) T();
 		m_size = size;
 		return {};
 	}
 
 	template<typename T>
-	ErrorOr<void> Vector<T>::Reserve(size_type size)
+	ErrorOr<void> Vector<T>::reserve(size_type size)
 	{
-		TRY(EnsureCapasity(size));
+		TRY(ensure_capacity(size));
 		return {};
 	}
 
 	template<typename T>
-	bool Vector<T>::Empty() const
+	bool Vector<T>::empty() const
 	{
 		return m_size == 0;
 	}
 
 	template<typename T>
-	typename Vector<T>::size_type Vector<T>::Size() const
+	typename Vector<T>::size_type Vector<T>::size() const
 	{
 		return m_size;
 	}
 
 	template<typename T>
-	typename Vector<T>::size_type Vector<T>::Capacity() const
+	typename Vector<T>::size_type Vector<T>::capacity() const
 	{
 		return m_capacity;
 	}
 
 	template<typename T>
-	ErrorOr<void> Vector<T>::EnsureCapasity(size_type size)
+	ErrorOr<void> Vector<T>::ensure_capacity(size_type size)
 	{
 		if (m_capacity >= size)
 			return {};
 		size_type new_cap = BAN::Math::max<size_type>(size, m_capacity * 3 / 2);
 		uint8_t* new_data = (uint8_t*)BAN::allocator(new_cap * sizeof(T));
 		if (new_data == nullptr)
-			return Error::FromString("Vector: Could not allocate memory");
+			return Error::from_string("Vector: Could not allocate memory");
 		for (size_type i = 0; i < m_size; i++)
 		{
-			new (AddressOf(i, new_data)) T(Move(*AddressOf(i)));
-			AddressOf(i)->~T();
+			new (address_of(i, new_data)) T(move(*address_of(i)));
+			address_of(i)->~T();
 		}
 		BAN::deallocator(m_data);
 		m_data = new_data;
@@ -405,7 +405,7 @@ namespace BAN
 	}
 
 	template<typename T>
-	const T* Vector<T>::AddressOf(size_type index, void* base) const
+	const T* Vector<T>::address_of(size_type index, void* base) const
 	{
 		if (base == nullptr)
 			base = m_data;
@@ -413,7 +413,7 @@ namespace BAN
 	}
 
 	template<typename T>
-	T* Vector<T>::AddressOf(size_type index, void* base)
+	T* Vector<T>::address_of(size_type index, void* base)
 	{
 		if (base == nullptr)
 			base = m_data;

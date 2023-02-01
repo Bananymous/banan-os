@@ -56,8 +56,6 @@ ParsedCommandLine ParseCommandLine()
 	return result;
 }
 
-static TTY* tty1 = nullptr;
-
 extern "C" void kernel_main()
 {
 	using namespace Kernel;
@@ -67,7 +65,7 @@ extern "C" void kernel_main()
 	auto cmdline = ParseCommandLine();
 
 	if (!cmdline.disable_serial)
-		Serial::Initialize();
+		Serial::initialize();
 	if (g_multiboot_magic != 0x2BADB002)
 	{
 		dprintln("Invalid multiboot magic number");
@@ -81,15 +79,15 @@ extern "C" void kernel_main()
 	IDT::initialize();
 	dprintln("IDT initialized");
 
-	MMU::Intialize();
+	MMU::intialize();
 	dprintln("MMU initialized");
 
-	TerminalDriver* terminal_driver = VesaTerminalDriver::Create();
+	TerminalDriver* terminal_driver = VesaTerminalDriver::create();
 	ASSERT(terminal_driver);
 	dprintln("VESA initialized");
-	tty1 = new TTY(terminal_driver);
+	TTY* tty1 = new TTY(terminal_driver);
 	
-	InterruptController::Initialize(cmdline.force_pic);
+	InterruptController::initialize(cmdline.force_pic);
 	dprintln("Interrupt controller initialized");
 
 	PIT::initialize();

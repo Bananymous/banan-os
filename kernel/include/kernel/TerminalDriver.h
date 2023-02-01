@@ -22,13 +22,13 @@ public:
 public:
 	virtual ~TerminalDriver() {}
 
-	virtual uint32_t Width() const = 0;
-	virtual uint32_t Height() const = 0;
+	virtual uint32_t width() const = 0;
+	virtual uint32_t height() const = 0;
 
-	virtual void PutCharAt(uint16_t, uint32_t, uint32_t, Color, Color) = 0;
-	virtual void Clear(Color) = 0;
+	virtual void putchar_at(uint16_t, uint32_t, uint32_t, Color, Color) = 0;
+	virtual void clear(Color) = 0;
 
-	virtual void SetCursorPosition(uint32_t, uint32_t) = 0;
+	virtual void set_cursor_position(uint32_t, uint32_t) = 0;
 };
 
 namespace TerminalColor

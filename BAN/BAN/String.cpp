@@ -17,12 +17,12 @@ namespace BAN
 
 	String::String(const String& other)
 	{
-		MUST(copy_impl(other.SV()));
+		MUST(copy_impl(other.sv()));
 	}
 
 	String::String(String&& other)
 	{
-		move_impl(Move(other));
+		move_impl(move(other));
 	}
 
 	String::String(StringView other)
@@ -37,14 +37,14 @@ namespace BAN
 
 	String& String::operator=(const String& other)
 	{
-		MUST(copy_impl(other.SV()));
+		MUST(copy_impl(other.sv()));
 		return *this;
 	}
 
 	String& String::operator=(String&& other)
 	{
 		BAN::deallocator(m_data);
-		move_impl(Move(other));
+		move_impl(move(other));
 		return *this;
 	}
 
@@ -54,19 +54,19 @@ namespace BAN
 		return *this;
 	}
 
-	ErrorOr<void> String::PushBack(char ch)
+	ErrorOr<void> String::push_back(char ch)
 	{
-		TRY(EnsureCapasity(m_size + 2));
+		TRY(ensure_capacity(m_size + 2));
 		m_data[m_size] = ch;
 		m_size++;
 		m_data[m_size] = '\0';
 		return {};
 	}
 
-	ErrorOr<void> String::Insert(char ch, size_type index)
+	ErrorOr<void> String::insert(char ch, size_type index)
 	{
 		ASSERT(index <= m_size);
-		TRY(EnsureCapasity(m_size + 1 + 1));
+		TRY(ensure_capacity(m_size + 1 + 1));
 		memmove(m_data + index + 1, m_data + index, m_size - index);
 		m_data[index] = ch;
 		m_size += 1;
@@ -74,45 +74,45 @@ namespace BAN
 		return {};
 	}
 
-	ErrorOr<void> String::Insert(StringView other, size_type index)
+	ErrorOr<void> String::insert(StringView other, size_type index)
 	{
 		ASSERT(index <= m_size);
-		TRY(EnsureCapasity(m_size + other.Size() + 1));
-		memmove(m_data + index + other.Size(), m_data + index, m_size - index);
-		memcpy(m_data + index, other.Data(), other.Size());
-		m_size += other.Size();
+		TRY(ensure_capacity(m_size + other.size() + 1));
+		memmove(m_data + index + other.size(), m_data + index, m_size - index);
+		memcpy(m_data + index, other.data(), other.size());
+		m_size += other.size();
 		m_data[m_size] = '\0';
 		return {};
 	}
 
-	ErrorOr<void> String::Append(StringView other)
+	ErrorOr<void> String::append(StringView other)
 	{
-		TRY(EnsureCapasity(m_size + other.Size() + 1));
-		memcpy(m_data + m_size, other.Data(), other.Size());
-		m_size += other.Size();
+		TRY(ensure_capacity(m_size + other.size() + 1));
+		memcpy(m_data + m_size, other.data(), other.size());
+		m_size += other.size();
 		m_data[m_size] = '\0';
 		return {};
 	}
 
-	ErrorOr<void> String::Append(const String& string)
+	ErrorOr<void> String::append(const String& string)
 	{
-		TRY(Append(string.SV()));
+		TRY(append(string.sv()));
 		return {};
 	}
 
-	void String::PopBack()
+	void String::pop_back()
 	{
 		ASSERT(m_size > 0);
 		m_size--;
 		m_data[m_size] = '\0';
 	}
 
-	void String::Remove(size_type index)
+	void String::remove(size_type index)
 	{
-		Erase(index,  1);
+		erase(index,  1);
 	}
 
-	void String::Erase(size_type index, size_type count)
+	void String::erase(size_type index, size_type count)
 	{
 		ASSERT(index + count <= m_size);
 		memmove(m_data + index, m_data + index + count, m_size - index - count);
@@ -120,7 +120,7 @@ namespace BAN
 		m_data[m_size] = '\0';
 	}
 	
-	void String::Clear()
+	void String::clear()
 	{
 		m_size = 0;
 		m_data[0] = '\0';
@@ -147,9 +147,9 @@ namespace BAN
 
 	bool String::operator==(StringView other) const
 	{
-		if (m_size != other.Size())
+		if (m_size != other.size())
 			return false;
-		return memcmp(m_data, other.Data(), m_size) == 0;
+		return memcmp(m_data, other.data(), m_size) == 0;
 	}
 
 	bool String::operator==(const char* other) const
@@ -160,7 +160,7 @@ namespace BAN
 		return true;
 	}
 
-	ErrorOr<void> String::Resize(size_type size, char ch)
+	ErrorOr<void> String::resize(size_type size, char ch)
 	{
 		if (size < m_size)
 		{
@@ -169,7 +169,7 @@ namespace BAN
 		}
 		else if (size > m_size)
 		{
-			TRY(EnsureCapasity(size + 1));
+			TRY(ensure_capacity(size + 1));
 			for (size_type i = m_size; i < size; i++)
 				m_data[i] = ch;
 			m_data[size] = '\0';
@@ -179,58 +179,58 @@ namespace BAN
 		return {};
 	}
 
-	ErrorOr<void> String::Reserve(size_type size)
+	ErrorOr<void> String::reserve(size_type size)
 	{
-		TRY(EnsureCapasity(size));
+		TRY(ensure_capacity(size));
 		return {};
 	}
 
-	StringView String::SV() const
+	StringView String::sv() const
 	{
 		return StringView(*this);
 	}
 
-	bool String::Empty() const
+	bool String::empty() const
 	{
 		return m_size == 0;
 	}
 
-	String::size_type String::Size() const
+	String::size_type String::size() const
 	{
 		return m_size;
 	}
 
-	String::size_type String::Capasity() const
+	String::size_type String::capacity() const
 	{
-		return m_capasity;
+		return m_capacity;
 	}
 
-	const char* String::Data() const
+	const char* String::data() const
 	{
 		return m_data;
 	}
 
-	ErrorOr<void> String::EnsureCapasity(size_type size)
+	ErrorOr<void> String::ensure_capacity(size_type size)
 	{
-		if (m_capasity >= size)
+		if (m_capacity >= size)
 			return {};
-		size_type new_cap = BAN::Math::max<size_type>(size, m_capasity * 3 / 2);
+		size_type new_cap = BAN::Math::max<size_type>(size, m_capacity * 3 / 2);
 		void* new_data = BAN::allocator(new_cap);
 		if (new_data == nullptr)
-			return Error::FromString("String: Could not allocate memory");
+			return Error::from_string("String: Could not allocate memory");
 		if (m_data)
 			memcpy(new_data, m_data, m_size + 1);
 		BAN::deallocator(m_data);
 		m_data = (char*)new_data;
-		m_capasity = new_cap;
+		m_capacity = new_cap;
 		return {};
 	}
 
 	ErrorOr<void> String::copy_impl(StringView other)
 	{
-		TRY(EnsureCapasity(other.Size() + 1));
-		memcpy(m_data, other.Data(), other.Size());
-		m_size = other.Size();
+		TRY(ensure_capacity(other.size() + 1));
+		memcpy(m_data, other.data(), other.size());
+		m_size = other.size();
 		m_data[m_size] = '\0';
 		return {};
 	}
@@ -239,11 +239,11 @@ namespace BAN
 	{
 		m_data		= other.m_data;
 		m_size		= other.m_size;
-		m_capasity	= other.m_capasity;
+		m_capacity	= other.m_capacity;
 
 		other.m_data = nullptr;
 		other.m_size = 0;
-		other.m_capasity = 0;
+		other.m_capacity = 0;
 	}
 
 }

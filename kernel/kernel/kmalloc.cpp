@@ -55,10 +55,10 @@ static uintptr_t chunk_address(size_t index)
 void kmalloc_initialize()
 {
 	if (!(g_multiboot_info->flags & (1 << 6)))
-		Kernel::Panic("Kmalloc: Bootloader didn't provide a memory map");
+		Kernel::panic("Kmalloc: Bootloader didn't provide a memory map");
 
 	if ((uintptr_t)&g_kernel_end > s_kmalloc_base)
-		Kernel::Panic("Kmalloc: Kernel end ({}) is over kmalloc base ({})", &g_kernel_end, (void*)s_kmalloc_base);
+		Kernel::panic("Kmalloc: Kernel end ({}) is over kmalloc base ({})", &g_kernel_end, (void*)s_kmalloc_base);
 
 	// Validate kmalloc memory
 	bool valid = false;
@@ -81,7 +81,7 @@ void kmalloc_initialize()
 
 	if (!valid)
 	{
-		Kernel::Panic("Kmalloc: Could not find {}.{} MB of memory",
+		Kernel::panic("Kmalloc: Could not find {}.{} MB of memory",
 			(s_kmalloc_eternal_end - s_kmalloc_base) / MB,
 			(s_kmalloc_eternal_end - s_kmalloc_base) % MB
 		);

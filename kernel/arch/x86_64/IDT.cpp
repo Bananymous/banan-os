@@ -97,7 +97,7 @@ namespace IDT
 
 	extern "C" void cpp_isr_handler(uint64_t isr, uint64_t error, const Registers* regs)
 	{
-		Kernel::Panic(
+		Kernel::panic(
 			"{} (error code: 0x{16H})\r\n"
 			"Register dump\r\n"
 			"rax=0x{16H}, rbx=0x{16H}, rcx=0x{16H}, rdx=0x{16H}\r\n"
@@ -118,7 +118,7 @@ namespace IDT
 			s_irq_handlers[irq]();
 		else
 		{
-			if (!InterruptController::Get().IsInService(irq))
+			if (!InterruptController::get().is_in_service(irq))
 			{
 				dprintln("spurious irq 0x{2H}", irq);
 				return;
@@ -126,7 +126,7 @@ namespace IDT
 			dprintln("no handler for irq 0x{2H}\n", irq);
 		}
 
-		InterruptController::Get().EOI(irq);
+		InterruptController::get().eoi(irq);
 	}
 
 	static void flush_idt()

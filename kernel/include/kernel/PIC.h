@@ -5,14 +5,14 @@
 class PIC final : public InterruptController
 {
 public:
-	virtual void EOI(uint8_t) override;
-	virtual void EnableIrq(uint8_t) override;
-	virtual bool IsInService(uint8_t) override;
+	virtual void eoi(uint8_t) override;
+	virtual void enable_irq(uint8_t) override;
+	virtual bool is_in_service(uint8_t) override;
 
-	static void Remap();
-	static void MaskAll();
+	static void remap();
+	static void mask_all();
 
 private:
-	static PIC* Create();
+	static PIC* create();
 	friend class InterruptController;
 };

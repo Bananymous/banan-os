@@ -1,5 +1,6 @@
 #pragma once
 
+#include <BAN/Function.h>
 #include <BAN/LinkedList.h>
 #include <kernel/Thread.h>
 

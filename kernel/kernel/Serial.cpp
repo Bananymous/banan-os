@@ -8,7 +8,7 @@ namespace Serial
 
 	static bool s_initialized = false;
 
-	void Initialize()
+	void initialize()
 	{
 		IO::outb(COM1_PORT + 1, 0x00);    // Disable all interrupts
 		IO::outb(COM1_PORT + 3, 0x80);    // Enable DLAB (set baud rate divisor)
@@ -30,7 +30,7 @@ namespace Serial
 		s_initialized = true;
 	}
 
-	bool IsInitialized()
+	bool is_initialized()
 	{
 		return s_initialized;
 	}

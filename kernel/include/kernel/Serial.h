@@ -3,8 +3,8 @@
 namespace Serial
 {
 
-	void Initialize();
-	bool IsInitialized();
+	void initialize();
+	bool is_initialized();
 
 	void putchar(char);
 

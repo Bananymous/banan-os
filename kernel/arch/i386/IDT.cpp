@@ -17,7 +17,7 @@
 		asm volatile("movl %%cr2, %%eax":"=a"(cr2)); 									\
 		asm volatile("movl %%cr3, %%eax":"=a"(cr3)); 									\
 		asm volatile("movl %%cr4, %%eax":"=a"(cr4)); 									\
-		Kernel::Panic(msg "\r\nRegister dump\r\n"										\
+		Kernel::panic(msg "\r\nRegister dump\r\n"										\
 			"eax=0x{8H}, ebx=0x{8H}, ecx=0x{8H}, edx=0x{8H}\r\n" 						\
 			"esp=0x{8H}, ebp=0x{8H}\r\n" 												\
 			"CR0=0x{8H}, CR2=0x{8H}, CR3=0x{8H}, CR4=0x{8H}\r\n", 						\
@@ -39,7 +39,7 @@
 		asm volatile("movl %%cr3, %%eax":"=a"(cr3)); 									\
 		asm volatile("movl %%cr4, %%eax":"=a"(cr4)); 									\
 		asm volatile("popl %%eax":"=a"(error_code));									\
-		Kernel::Panic(msg " (error code: 0x{8H})\r\n"									\
+		Kernel::panic(msg " (error code: 0x{8H})\r\n"									\
 			"Register dump\r\n"															\
 			"eax=0x{8H}, ebx=0x{8H}, ecx=0x{8H}, edx=0x{8H}\r\n" 						\
 			"esp=0x{8H}, ebp=0x{8H}\r\n" 												\
@@ -114,7 +114,7 @@ namespace IDT
 		uint8_t irq = 0;
 		for (uint32_t i = 0; i <= 0xFF; i++)
 		{
-			if (InterruptController::Get().IsInService(i))
+			if (InterruptController::get().is_in_service(i))
 			{
 				irq = i;
 				break;
@@ -132,7 +132,7 @@ namespace IDT
 		else
 			dprintln("no handler for irq 0x{2H}\n", irq);
 
-		InterruptController::Get().EOI(irq);
+		InterruptController::get().eoi(irq);
 	}
 
 	extern "C" void handle_irq_common();

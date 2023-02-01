@@ -25,8 +25,8 @@ static TTY* s_tty = nullptr;
 TTY::TTY(TerminalDriver* driver)
 	: m_terminal_driver(driver)
 {
-	m_width = m_terminal_driver->Width();
-	m_height = m_terminal_driver->Height();
+	m_width = m_terminal_driver->width();
+	m_height = m_terminal_driver->height();
 	
 	m_buffer = new Cell[m_width * m_height];
 
@@ -34,20 +34,20 @@ TTY::TTY(TerminalDriver* driver)
 		s_tty = this;
 }
 
-void TTY::Clear()
+void TTY::clear()
 {
 	for (uint32_t i = 0; i < m_width * m_height; i++)
 		m_buffer[i] = { .foreground = m_foreground, .background = m_background, .character = ' ' };
-	m_terminal_driver->Clear(m_background);
+	m_terminal_driver->clear(m_background);
 }
 
-void TTY::SetCursorPosition(uint32_t x, uint32_t y)
+void TTY::set_cursor_position(uint32_t x, uint32_t y)
 {
 	static uint32_t last_x = -1;
 	static uint32_t last_y = -1;
 	if (last_x != uint32_t(-1) && last_y != uint32_t(-1))
-		RenderFromBuffer(last_x, last_y); // Hacky way to clear previous cursor in graphics mode :D
-	m_terminal_driver->SetCursorPosition(x, y);
+		render_from_buffer(last_x, last_y); // Hacky way to clear previous cursor in graphics mode :D
+	m_terminal_driver->set_cursor_position(x, y);
 	last_x = m_column = x;
 	last_y = m_row = y;
 }
@@ -99,7 +99,7 @@ static uint16_t handle_unicode(uint8_t ch)
 	return ch & 0x7F;
 }
 
-void TTY::ResetAnsiEscape()
+void TTY::reset_ansi_escape()
 {
 	m_ansi_state.mode = '\0';
 	m_ansi_state.index = 0;
@@ -107,7 +107,7 @@ void TTY::ResetAnsiEscape()
 	m_ansi_state.nums[1] = -1;
 }
 
-void TTY::HandleAnsiSGR()
+void TTY::handle_ansi_sgr()
 {
 	switch (m_ansi_state.nums[0])
 	{
@@ -137,7 +137,7 @@ void TTY::HandleAnsiSGR()
 	}
 }
 
-void TTY::HandleAnsiEscape(uint16_t ch)
+void TTY::handle_ansi_escape(uint16_t ch)
 {
 	switch (m_ansi_state.mode)
 	{
@@ -148,7 +148,7 @@ void TTY::HandleAnsiEscape(uint16_t ch)
 				m_ansi_state.mode = CSI;
 				return;
 			}
-			return ResetAnsiEscape();
+			return reset_ansi_escape();
 		}
 
 		case CSI:
@@ -169,39 +169,39 @@ void TTY::HandleAnsiEscape(uint16_t ch)
 					if (m_ansi_state.nums[0] == -1)
 						m_ansi_state.nums[0] = 1;
 					m_row = max<int32_t>(m_row - m_ansi_state.nums[0], 0);
-					return ResetAnsiEscape();
+					return reset_ansi_escape();
 				case 'B': // Curson Down
 					if (m_ansi_state.nums[0] == -1)
 						m_ansi_state.nums[0] = 1;
 					m_row = min<int32_t>(m_row + m_ansi_state.nums[0], m_height - 1);
-					return ResetAnsiEscape();
+					return reset_ansi_escape();
 				case 'C': // Cursor Forward
 					if (m_ansi_state.nums[0] == -1)
 						m_ansi_state.nums[0] = 1;
 					m_column = min<int32_t>(m_column + m_ansi_state.nums[0], m_width - 1);
-					return ResetAnsiEscape();
+					return reset_ansi_escape();
 				case 'D': // Cursor Back
 					if (m_ansi_state.nums[0] == -1)
 						m_ansi_state.nums[0] = 1;
 					m_column = max<int32_t>(m_column - m_ansi_state.nums[0], 0);
-					return ResetAnsiEscape();
+					return reset_ansi_escape();
 				case 'E': // Cursor Next Line
 					if (m_ansi_state.nums[0] == -1)
 						m_ansi_state.nums[0] = 1;
 					m_row = min<int32_t>(m_row + m_ansi_state.nums[0], m_height - 1);
 					m_column = 0;
-					return ResetAnsiEscape();
+					return reset_ansi_escape();
 				case 'F': // Cursor Previous Line
 					if (m_ansi_state.nums[0] == -1)
 						m_ansi_state.nums[0] = 1;
 					m_row = max<int32_t>(m_row - m_ansi_state.nums[0], 0);
 					m_column = 0;
-					return ResetAnsiEscape();
+					return reset_ansi_escape();
 				case 'G': // Cursor Horizontal Absolute
 					if (m_ansi_state.nums[0] == -1)
 						m_ansi_state.nums[0] = 1;
 					m_column = clamp<int32_t>(m_ansi_state.nums[0] - 1, 0, m_width - 1);
-					return ResetAnsiEscape();
+					return reset_ansi_escape();
 				case 'H': // Cursor Position
 					if (m_ansi_state.nums[0] == -1)
 						m_ansi_state.nums[0] = 1;
@@ -209,59 +209,59 @@ void TTY::HandleAnsiEscape(uint16_t ch)
 						m_ansi_state.nums[1] = 1;
 					m_row = clamp<int32_t>(m_ansi_state.nums[0] - 1, 0, m_height - 1);
 					m_column = clamp<int32_t>(m_ansi_state.nums[1] - 1, 0, m_width - 1);
-					return ResetAnsiEscape();
+					return reset_ansi_escape();
 				case 'J': // Erase in Display
 					dprintln("Unsupported ANSI CSI character J");
-					return ResetAnsiEscape();
+					return reset_ansi_escape();
 				case 'K': // Erase in Line
 					if (m_ansi_state.nums[0] == -1 || m_ansi_state.nums[0] == 0)
 						for (uint32_t i = m_column; i < m_width; i++)
-							PutCharAt(' ', i, m_row);
+							putchar_at(' ', i, m_row);
 					else
 						dprintln("Unsupported ANSI CSI character K");
-					return ResetAnsiEscape();
+					return reset_ansi_escape();
 				case 'S': // Scroll Up
 					dprintln("Unsupported ANSI CSI character S");
-					return ResetAnsiEscape();
+					return reset_ansi_escape();
 				case 'T': // Scroll Down
 					dprintln("Unsupported ANSI CSI character T");
-					return ResetAnsiEscape();
+					return reset_ansi_escape();
 				case 'f': // Horizontal Vertical Position
 					dprintln("Unsupported ANSI CSI character f");
-					return ResetAnsiEscape();
+					return reset_ansi_escape();
 				case 'm':
-					HandleAnsiSGR();
-					return ResetAnsiEscape();
+					handle_ansi_sgr();
+					return reset_ansi_escape();
 				default:
 					dprintln("Unsupported ANSI CSI character {}", ch);
-					return ResetAnsiEscape();
+					return reset_ansi_escape();
 			}
 		}
 
 		default:
 			dprintln("Unsupported ANSI mode");
-			return ResetAnsiEscape();
+			return reset_ansi_escape();
 	}
 }
 
-void TTY::RenderFromBuffer(uint32_t x, uint32_t y)
+void TTY::render_from_buffer(uint32_t x, uint32_t y)
 {
 	ASSERT(x < m_width && y < m_height);
 	const auto& cell = m_buffer[y * m_width + x];
-	m_terminal_driver->PutCharAt(cell.character, x, y, cell.foreground, cell.background);
+	m_terminal_driver->putchar_at(cell.character, x, y, cell.foreground, cell.background);
 }
 
-void TTY::PutCharAt(uint16_t ch, uint32_t x, uint32_t y)
+void TTY::putchar_at(uint16_t ch, uint32_t x, uint32_t y)
 {
 	ASSERT(x < m_width && y < m_height);
 	auto& cell = m_buffer[y * m_width + x];
 	cell.character = ch;
 	cell.foreground = m_foreground;
 	cell.background = m_background;
-	m_terminal_driver->PutCharAt(ch, x, y, m_foreground, m_background);
+	m_terminal_driver->putchar_at(ch, x, y, m_foreground, m_background);
 }
 
-void TTY::PutChar(char ch)
+void TTY::putchar(char ch)
 {
 	Kernel::LockGuard guard(m_lock);
 	
@@ -271,8 +271,8 @@ void TTY::PutChar(char ch)
 
 	if (m_ansi_state.mode != 0)
 	{
-		HandleAnsiEscape(cp);
-		SetCursorPosition(m_column, m_row);
+		handle_ansi_escape(cp);
+		set_cursor_position(m_column, m_row);
 		return;
 	}
 
@@ -304,7 +304,7 @@ void TTY::PutChar(char ch)
 			m_ansi_state.mode = '\1';
 			break;
 		default:
-			PutCharAt(cp, m_column, m_row);
+			putchar_at(cp, m_column, m_row);
 			m_column++;
 			break;
 	}
@@ -326,37 +326,37 @@ void TTY::PutChar(char ch)
 		// Render the whole buffer to the screen
 		for (uint32_t y = 0; y < m_height; y++)
 			for (uint32_t x = 0; x < m_width; x++)
-				RenderFromBuffer(x, y);
+				render_from_buffer(x, y);
 
 		m_column = 0;
 		m_row--;
 	}
 
-	SetCursorPosition(m_column, m_row);
+	set_cursor_position(m_column, m_row);
 }
 
-void TTY::Write(const char* data, size_t size)
+void TTY::write(const char* data, size_t size)
 {
 	for (size_t i = 0; i < size; i++)
-		PutChar(data[i]);
+		putchar(data[i]);
 }
 
-void TTY::WriteString(const char* data)
+void TTY::write_string(const char* data)
 {
 	while (*data)
 	{
-		PutChar(*data);
+		putchar(*data);
 		data++;
 	}
 }
 
-void TTY::PutCharCurrent(char ch)
+void TTY::putchar_current(char ch)
 {
 	ASSERT(s_tty);
-	s_tty->PutChar(ch);
+	s_tty->putchar(ch);
 }
 
-bool TTY::IsInitialized()
+bool TTY::is_initialized()
 {
 	return s_tty != nullptr;
 }

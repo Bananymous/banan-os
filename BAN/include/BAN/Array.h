@@ -21,12 +21,12 @@ namespace BAN
 		const T& operator[](size_type) const;
 		T& operator[](size_type);
 
-		const T& Back() const;
-		T& Back();
-		const T& Front() const;
-		T& Front();
+		const T& back() const;
+		T& back();
+		const T& front() const;
+		T& front();
 
-		constexpr size_type Size() const;
+		constexpr size_type size() const;
 
 	private:
 		T m_data[S];
@@ -61,35 +61,35 @@ namespace BAN
 	}
 
 	template<typename T, size_t S>
-	const T& Array<T, S>::Back() const
+	const T& Array<T, S>::back() const
 	{
 		ASSERT(S != 0);
 		return m_data[S - 1];
 	}
 
 	template<typename T, size_t S>
-	T& Array<T, S>::Back()
+	T& Array<T, S>::back()
 	{
 		ASSERT(S != 0);
 		return m_data[S - 1];
 	}
 
 	template<typename T, size_t S>
-	const T& Array<T, S>::Front() const
+	const T& Array<T, S>::front() const
 	{
 		ASSERT(S != 0);
 		return m_data[0];
 	}
 
 	template<typename T, size_t S>
-	T& Array<T, S>::Front()
+	T& Array<T, S>::front()
 	{
 		ASSERT(S != 0);
 		return m_data[0];
 	}
 
 	template<typename T, size_t S>
-	constexpr typename Array<T, S>::size_type Array<T, S>::Size() const
+	constexpr typename Array<T, S>::size_type Array<T, S>::size() const
 	{
 		return S;
 	}

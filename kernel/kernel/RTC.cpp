@@ -44,7 +44,7 @@ namespace RTC
 		out.year		= get_rtc_register(CMOS_REGISTER_YEAR);
 	}
 
-	BAN::Time GetCurrentTime()
+	BAN::Time get_current_time()
 	{
 		BAN::Time last_time	= {};
 		BAN::Time time		= {};

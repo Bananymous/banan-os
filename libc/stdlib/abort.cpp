@@ -9,7 +9,7 @@ __attribute__((__noreturn__))
 void abort(void)
 {
 #if defined(__is_libk)
-	Kernel::Panic("abort()");
+	Kernel::panic("abort()");
 #else
 	printf("abort()\n");
 #endif

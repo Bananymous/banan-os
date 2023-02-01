@@ -5,23 +5,23 @@
 
 static InterruptController* s_instance = nullptr;
 
-InterruptController& InterruptController::Get()
+InterruptController& InterruptController::get()
 {
 	ASSERT(s_instance);
 	return *s_instance;
 }
 
-void InterruptController::Initialize(bool force_pic)
+void InterruptController::initialize(bool force_pic)
 {
 	ASSERT(s_instance == nullptr);
 
-	PIC::MaskAll();
-	PIC::Remap();
+	PIC::mask_all();
+	PIC::remap();
 
 	if (!force_pic)
-		s_instance = APIC::Create();
+		s_instance = APIC::create();
 	if (s_instance)
 		return;
 	dprintln("Using PIC instead of APIC");
-	s_instance = PIC::Create();
+	s_instance = PIC::create();
 }

@@ -110,7 +110,7 @@ union RedirectionEntry
 	};
 };
 
-static bool IsRSDP(uintptr_t rsdp_addr)
+static bool is_rsdp(uintptr_t rsdp_addr)
 {
 	const RSDP* rsdp = (const RSDP*)rsdp_addr;
 
@@ -137,16 +137,16 @@ static bool IsRSDP(uintptr_t rsdp_addr)
 	return true;
 }
 
-static uintptr_t LocateRSDP()
+static uintptr_t locate_rsdp()
 {
 	// Look in main BIOS area below 1 MB
 	for (uintptr_t addr = 0x000E0000; addr < 0x000FFFFF; addr += 16)
-		if (IsRSDP(addr))
+		if (is_rsdp(addr))
 			return addr;
 	return 0;
 }
 
-static bool IsValidSDTHeader(const SDTHeader* header)
+static bool is_valid_std_header(const SDTHeader* header)
 {
 	uint8_t sum = 0;
 	for (uint32_t i = 0; i < header->length; i++)
@@ -154,7 +154,7 @@ static bool IsValidSDTHeader(const SDTHeader* header)
 	return sum == 0;
 }
 
-uintptr_t LocateMADT(uintptr_t rsdp_addr)
+uintptr_t locate_madt(uintptr_t rsdp_addr)
 {
 	uintptr_t entry_address_base	= 0;
 	uintptr_t entry_address_mask	= 0;
@@ -165,70 +165,70 @@ uintptr_t LocateMADT(uintptr_t rsdp_addr)
 	if (rsdp->revision == 2)
 	{
 		uintptr_t xsdt_addr = rsdp->v2_xsdt_address;
-		MMU::Get().AllocatePage(xsdt_addr);
+		MMU::get().allocate_page(xsdt_addr);
 		entry_address_base = xsdt_addr + sizeof(SDTHeader);
 		entry_address_mask = (uintptr_t)0xFFFFFFFFFFFFFFFF;
 		entry_count = (((const SDTHeader*)xsdt_addr)->length - sizeof(SDTHeader)) / 8;
 		entry_pointer_size = 8;
-		MMU::Get().UnAllocatePage(xsdt_addr);
+		MMU::get().unallocate_page(xsdt_addr);
 	}
 	else
 	{
 		uintptr_t rsdt_addr = rsdp->rsdt_address;
-		MMU::Get().AllocatePage(rsdt_addr);
+		MMU::get().allocate_page(rsdt_addr);
 		entry_address_base = rsdt_addr + sizeof(SDTHeader);
 		entry_address_mask = 0xFFFFFFFF;
 		entry_count = (((const SDTHeader*)rsdt_addr)->length - sizeof(SDTHeader)) / 4;
 		entry_pointer_size = 4;
-		MMU::Get().UnAllocatePage(rsdt_addr);
+		MMU::get().unallocate_page(rsdt_addr);
 	}
 
 	for (uint32_t i = 0; i < entry_count; i++)
 	{
 		uintptr_t entry_addr_ptr = entry_address_base + i * entry_pointer_size;
-		MMU::Get().AllocatePage(entry_addr_ptr);
+		MMU::get().allocate_page(entry_addr_ptr);
 
 		uintptr_t entry_addr = *(uintptr_t*)entry_addr_ptr & entry_address_mask;
-		MMU::Get().AllocatePage(entry_addr);
+		MMU::get().allocate_page(entry_addr);
 
 		BAN::ScopeGuard _([&]() {
-			MMU::Get().UnAllocatePage(entry_addr);
-			MMU::Get().UnAllocatePage(entry_addr_ptr);
+			MMU::get().unallocate_page(entry_addr);
+			MMU::get().unallocate_page(entry_addr_ptr);
 		});
 
 		const SDTHeader* entry = (const SDTHeader*)entry_addr;
-		if (memcmp(entry->signature, "APIC", 4) == 0 && IsValidSDTHeader(entry))
+		if (memcmp(entry->signature, "APIC", 4) == 0 && is_valid_std_header(entry))
 			return entry_addr;
 	}
 
 	return 0;
 }
 
-APIC* APIC::Create()
+APIC* APIC::create()
 {
 	uint32_t ecx, edx;
-	CPUID::GetFeatures(ecx, edx);
+	CPUID::get_features(ecx, edx);
 	if (!(edx & CPUID::Features::EDX_APIC))
 	{
 		dprintln("Local APIC is not available");
 		return nullptr;
 	}
 
-	uintptr_t rsdp_addr = LocateRSDP();
+	uintptr_t rsdp_addr = locate_rsdp();
 	if (!rsdp_addr)
 	{
 		dprintln("Could not locate RSDP");
 		return nullptr;
 	}
 
-	uintptr_t madt_addr = LocateMADT(rsdp_addr);
+	uintptr_t madt_addr = locate_madt(rsdp_addr);
 	if (!madt_addr)
 	{
 		dprintln("Could not find MADT in RSDP");
 		return nullptr;
 	}
 
-	MMU::Get().AllocatePage(madt_addr);
+	MMU::get().allocate_page(madt_addr);
 
 	const MADT* madt = (const MADT*)madt_addr;
 
@@ -248,7 +248,7 @@ APIC* APIC::Create()
 				processor.processor_id	= entry->entry0.acpi_processor_id;
 				processor.apic_id		= entry->entry0.apic_id;
 				processor.flags			= entry->entry0.flags & 0x03;
-				MUST(apic->m_processors.PushBack(processor));
+				MUST(apic->m_processors.push_back(processor));
 				break;
 			case 1:
 				IOAPIC ioapic;
@@ -256,7 +256,7 @@ APIC* APIC::Create()
 				ioapic.address		= entry->entry1.ioapic_address;
 				ioapic.gsi_base		= entry->entry1.gsi_base;
 				ioapic.max_redirs	= 0;
-				MUST(apic->m_io_apics.PushBack(ioapic));
+				MUST(apic->m_io_apics.push_back(ioapic));
 				break;
 			case 2:
 				apic->m_irq_overrides[entry->entry2.irq_source] = entry->entry2.gsi;
@@ -270,25 +270,25 @@ APIC* APIC::Create()
 		}
 		madt_entry_addr += entry->length;
 	}
-	MMU::Get().UnAllocatePage((uintptr_t)madt);
+	MMU::get().unallocate_page((uintptr_t)madt);
 
-	if (apic->m_local_apic == 0 || apic->m_io_apics.Empty())
+	if (apic->m_local_apic == 0 || apic->m_io_apics.empty())
 	{
 		dprintln("MADT did not provide necessary information");
 		delete apic;
 		return nullptr;
 	}
 
-	MMU::Get().AllocatePage(apic->m_local_apic);
+	MMU::get().allocate_page(apic->m_local_apic);
 	for (auto& io_apic : apic->m_io_apics)
 	{
-		MMU::Get().AllocatePage(io_apic.address);
-		io_apic.max_redirs = io_apic.Read(IOAPIC_MAX_REDIRS);
+		MMU::get().allocate_page(io_apic.address);
+		io_apic.max_redirs = io_apic.read(IOAPIC_MAX_REDIRS);
 	}
 
 	// Mask all interrupts
-	uint32_t sivr = apic->ReadFromLocalAPIC(LAPIC_SIV_REG);
-	apic->WriteToLocalAPIC(LAPIC_SIV_REG, sivr | 0x1FF);
+	uint32_t sivr = apic->read_from_local_apic(LAPIC_SIV_REG);
+	apic->write_to_local_apic(LAPIC_SIV_REG, sivr | 0x1FF);
 
 #if DEBUG_PRINT_PROCESSORS
 	for (auto& processor : apic->m_processors)
@@ -302,36 +302,36 @@ APIC* APIC::Create()
 	return apic;
 }
 
-uint32_t APIC::ReadFromLocalAPIC(ptrdiff_t offset)
+uint32_t APIC::read_from_local_apic(ptrdiff_t offset)
 {
 	return *(uint32_t*)(m_local_apic + offset);
 }
 
-void APIC::WriteToLocalAPIC(ptrdiff_t offset, uint32_t data)
+void APIC::write_to_local_apic(ptrdiff_t offset, uint32_t data)
 {
 	*(uint32_t*)(m_local_apic + offset) = data;
 }
 
-uint32_t APIC::IOAPIC::Read(uint8_t offset)
+uint32_t APIC::IOAPIC::read(uint8_t offset)
 {
 	volatile uint32_t* ioapic = (volatile uint32_t*)address;
 	ioapic[0] = offset;
 	return ioapic[4];
 }
 
-void APIC::IOAPIC::Write(uint8_t offset, uint32_t data)
+void APIC::IOAPIC::write(uint8_t offset, uint32_t data)
 {
 	volatile uint32_t* ioapic = (volatile uint32_t*)address;
 	ioapic[0] = offset;
 	ioapic[4] = data;
 }
 
-void APIC::EOI(uint8_t)
+void APIC::eoi(uint8_t)
 {
-	WriteToLocalAPIC(LAPIC_EIO_REG, 0);	
+	write_to_local_apic(LAPIC_EIO_REG, 0);	
 }
 
-void APIC::EnableIrq(uint8_t irq)
+void APIC::enable_irq(uint8_t irq)
 {
 	uint32_t gsi = m_irq_overrides[irq];
 
@@ -347,22 +347,22 @@ void APIC::EnableIrq(uint8_t irq)
 	ASSERT(ioapic);
 
 	RedirectionEntry redir;
-	redir.lo_dword = ioapic->Read(IOAPIC_REDIRS + gsi * 2);
-	redir.hi_dword = ioapic->Read(IOAPIC_REDIRS + gsi * 2 + 1);
+	redir.lo_dword = ioapic->read(IOAPIC_REDIRS + gsi * 2);
+	redir.hi_dword = ioapic->read(IOAPIC_REDIRS + gsi * 2 + 1);
 
 	redir.vector = IRQ_VECTOR_BASE + irq;
 	redir.mask = 0;
-	redir.destination = m_processors.Front().apic_id;
+	redir.destination = m_processors.front().apic_id;
 
-	ioapic->Write(IOAPIC_REDIRS + gsi * 2,		redir.lo_dword);
-	ioapic->Write(IOAPIC_REDIRS + gsi * 2 + 1,	redir.hi_dword);
+	ioapic->write(IOAPIC_REDIRS + gsi * 2,		redir.lo_dword);
+	ioapic->write(IOAPIC_REDIRS + gsi * 2 + 1,	redir.hi_dword);
 }
 
-bool APIC::IsInService(uint8_t irq)
+bool APIC::is_in_service(uint8_t irq)
 {
 	uint32_t dword = (irq + IRQ_VECTOR_BASE) / 32;
 	uint32_t bit = (irq + IRQ_VECTOR_BASE) % 32;
 
-	uint32_t isr = ReadFromLocalAPIC(LAPIC_IS_REG + dword * 0x10);
+	uint32_t isr = read_from_local_apic(LAPIC_IS_REG + dword * 0x10);
 	return isr & (1 << bit);
 }

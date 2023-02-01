@@ -5,6 +5,6 @@
 namespace RTC
 {
 
-	BAN::Time GetCurrentTime();
+	BAN::Time get_current_time();
 
 }

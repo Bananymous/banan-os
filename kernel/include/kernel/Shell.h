@@ -13,14 +13,14 @@ namespace Kernel
 	public:
 		Shell(TTY*);
 		Shell(const Shell&) = delete;
-		void SetPrompt(BAN::StringView);
-		void Run();
+		void set_prompt(BAN::StringView);
+		void run();
 
 	private:
-		void ReRenderBuffer() const;
-		BAN::Vector<BAN::String> ParseArguments(BAN::StringView) const;
-		void ProcessCommand(const BAN::Vector<BAN::String>&);
-		void KeyEventCallback(Input::KeyEvent);
+		void rerender_buffer() const;
+		BAN::Vector<BAN::String> parse_arguments(BAN::StringView) const;
+		void process_command(const BAN::Vector<BAN::String>&);
+		void key_event_callback(Input::KeyEvent);
 
 	private:
 		TTY*						m_tty;

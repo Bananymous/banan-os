@@ -22,20 +22,20 @@ namespace BAN
 		bool operator==(StringView) const;
 		bool operator==(const char*) const;
 
-		StringView Substring(size_type, size_type = -1) const;
+		StringView substring(size_type, size_type = -1) const;
 
-		[[nodiscard]] ErrorOr<Vector<StringView>> Split(char, bool = false);
-		[[nodiscard]] ErrorOr<Vector<StringView>> Split(bool(*comp)(char), bool = false);
+		[[nodiscard]] ErrorOr<Vector<StringView>> split(char, bool = false);
+		[[nodiscard]] ErrorOr<Vector<StringView>> split(bool(*comp)(char), bool = false);
 
-		char Back() const;
-		char Front() const;
+		char back() const;
+		char front() const;
 
-		size_type Count(char) const;
+		size_type count(char) const;
 
-		bool Empty() const;
-		size_type Size() const;
+		bool empty() const;
+		size_type size() const;
 		
-		const char* Data() const;
+		const char* data() const;
 
 	private:
 		const char*	m_data = nullptr;
@@ -52,7 +52,7 @@ namespace BAN::Formatter
 	template<typename F>
 	void print_argument_impl(F putc, const StringView& sv, const ValueFormat&)
 	{
-		for (StringView::size_type i = 0; i < sv.Size(); i++)
+		for (StringView::size_type i = 0; i < sv.size(); i++)
 			putc(sv[i]);
 	}
 

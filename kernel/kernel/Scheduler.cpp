@@ -20,40 +20,38 @@ namespace Kernel
 #endif
 	);
 
-	void Scheduler::Initialize()
+	void Scheduler::initialize()
 	{
 		ASSERT(!s_instance);
 		s_instance = new Scheduler();
 	}
 
-	Scheduler& Scheduler::Get()
+	Scheduler& Scheduler::get()
 	{
 		ASSERT(s_instance);
 		return *s_instance;
 	}
 
-	const Thread& Scheduler::CurrentThread() const
+	const Thread& Scheduler::current_thread() const
 	{
 		return *m_current_iterator;
 	}
 
-	void Scheduler::AddThread(void(*thread)())
-	{
-		MUST(m_threads.EmplaceBack(thread));
-		if (!m_current_iterator)
-			m_current_iterator = m_threads.begin();
-	}
+	//void Scheduler::AddThread(const BAN::Function<void()>& function)
+	//{
+	//	MUST(m_threads.EmplaceBack(function));
+	//}
 
-	void Scheduler::Switch()
+	void Scheduler::switch_thread()
 	{
 		static uint8_t cnt = 0;
 		if (cnt++ % ms_between_switch)
 			return;
 
-		ASSERT(InterruptController::Get().IsInService(PIT_IRQ));
+		ASSERT(InterruptController::get().is_in_service(PIT_IRQ));
 
-		ASSERT(m_threads.Size() > 0);
-		if (m_threads.Size() == 1)
+		ASSERT(m_threads.size() > 0);
+		if (m_threads.size() == 1)
 			return;
 
 		ASSERT(m_current_iterator);
@@ -69,7 +67,7 @@ namespace Kernel
 		{
 			// NOTE: this does not invalidate the next/next_iterator
 			//       since we are working with linked list
-			m_threads.Remove(m_current_iterator);
+			m_threads.remove(m_current_iterator);
 			m_current_iterator = decltype(m_threads)::iterator();
 		}
 
@@ -127,10 +125,11 @@ namespace Kernel
 		ASSERT(false);
 	}
 
-	void Scheduler::Start()
+	void Scheduler::start()
 	{
-		ASSERT(m_threads.Size() > 0);
-		ASSERT(m_current_iterator);
+		ASSERT(m_threads.size() > 0);
+
+		m_current_iterator = m_threads.begin();
 
 		Thread& current = *m_current_iterator;
 		ASSERT(current.state() == Thread::State::NotStarted);

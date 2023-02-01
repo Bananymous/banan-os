@@ -9,7 +9,7 @@
 int putchar(int c)
 {
 #if defined(__is_libk)
-	Kernel::Panic("Please use kprint() instead of stdio");
+	Kernel::panic("Please use kprint() instead of stdio");
 #else
 	abort();
 #endif

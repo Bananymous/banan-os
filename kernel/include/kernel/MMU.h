@@ -6,17 +6,17 @@
 class MMU
 {
 public:
-	static void Intialize();
-	static MMU& Get();
+	static void intialize();
+	static MMU& get();
 
 	MMU();
 	~MMU();
 
-	void AllocatePage(uintptr_t);
-	void AllocateRange(uintptr_t, ptrdiff_t);
+	void allocate_page(uintptr_t);
+	void allocate_range(uintptr_t, ptrdiff_t);
 
-	void UnAllocatePage(uintptr_t);
-	void UnAllocateRange(uintptr_t, ptrdiff_t);
+	void unallocate_page(uintptr_t);
+	void unallocate_range(uintptr_t, ptrdiff_t);
 
 private:
 	uint64_t* m_highest_paging_struct;

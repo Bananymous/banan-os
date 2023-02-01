@@ -28,7 +28,7 @@ namespace PIT
 	void irq_handler()
 	{
 		s_system_time++;
-		Kernel::Scheduler::Get().Switch();
+		Kernel::Scheduler::get().switch_thread();
 	}
 
 	uint64_t ms_since_boot()
@@ -47,7 +47,7 @@ namespace PIT
 
 		IDT::register_irq_handler(PIT_IRQ, irq_handler);
 
-		InterruptController::Get().EnableIrq(PIT_IRQ);
+		InterruptController::get().enable_irq(PIT_IRQ);
 	}
 
 }

@@ -6,16 +6,16 @@
 class APIC final : public InterruptController
 {
 public:
-	virtual void EOI(uint8_t) override;
-	virtual void EnableIrq(uint8_t) override;
-	virtual bool IsInService(uint8_t) override;
+	virtual void eoi(uint8_t) override;
+	virtual void enable_irq(uint8_t) override;
+	virtual bool is_in_service(uint8_t) override;
 
 private:
-	uint32_t ReadFromLocalAPIC(ptrdiff_t);
-	void WriteToLocalAPIC(ptrdiff_t, uint32_t);
+	uint32_t read_from_local_apic(ptrdiff_t);
+	void write_to_local_apic(ptrdiff_t, uint32_t);
 
 private:
-	static APIC* Create();
+	static APIC* create();
 	friend class InterruptController;
 
 private:
@@ -38,8 +38,8 @@ private:
 		uint32_t gsi_base;
 		uint8_t max_redirs;
 
-		uint32_t Read(uint8_t offset);
-		void Write(uint8_t offset, uint32_t data);
+		uint32_t read(uint8_t offset);
+		void write(uint8_t offset, uint32_t data);
 	};
 
 private:

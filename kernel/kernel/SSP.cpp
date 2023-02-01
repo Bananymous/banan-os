@@ -16,7 +16,7 @@ __BEGIN_DECLS
 __attribute__((noreturn))
 void __stack_chk_fail(void)
 {
-	Kernel::Panic("Stack smashing detected");
+	Kernel::panic("Stack smashing detected");
 	abort();
 }
 

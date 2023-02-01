@@ -12,7 +12,7 @@ namespace CPUID
 		asm volatile ("cpuid": "=a"(out[0]), "=b"(out[0]), "=d"(out[1]), "=c"(out[2]) : "a"(code));
 	}
 
-	const char* GetVendor()
+	const char* get_vendor()
 	{
 		static char vendor[13] {};
 		get_cpuid_string(0x00, (uint32_t*)vendor);
@@ -20,7 +20,7 @@ namespace CPUID
 		return vendor;
 	}
 
-	void GetFeatures(uint32_t& ecx, uint32_t& edx)
+	void get_features(uint32_t& ecx, uint32_t& edx)
 	{
 		uint32_t buffer[4] {};
 		get_cpuid(0x01, buffer);
@@ -28,7 +28,7 @@ namespace CPUID
 		edx = buffer[3];
 	}
 
-	bool Is64Bit()
+	bool is_64_bit()
 	{
 		uint32_t buffer[4] {};
 		get_cpuid(0x80000000, buffer);
@@ -39,7 +39,7 @@ namespace CPUID
 		return buffer[3] & (1 << 29);
 	}
 
-	const char* FeatStringECX(uint32_t feat)
+	const char* feature_string_ecx(uint32_t feat)
 	{
 		switch (feat)
 		{
@@ -78,7 +78,7 @@ namespace CPUID
 		}
 	}
 
-	const char* FeatStringEDX(uint32_t feat)
+	const char* feature_string_edx(uint32_t feat)
 	{
 		switch (feat)
 		{

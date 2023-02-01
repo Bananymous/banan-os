@@ -41,7 +41,7 @@ namespace BAN
 		Ret operator()(Args... args)
 		{
 			ASSERT(*this);
-			return reinterpret_cast<CallableBase*>(m_storage)->call(Forward<Args>(args)...);
+			return reinterpret_cast<CallableBase*>(m_storage)->call(forward<Args>(args)...);
 		}
 
 		operator bool() const
@@ -67,7 +67,7 @@ namespace BAN
 
 			virtual Ret call(Args... args) override
 			{
-				return m_function(Forward<Args>(args)...);
+				return m_function(forward<Args>(args)...);
 			}
 
 		private:
@@ -84,7 +84,7 @@ namespace BAN
 
 			virtual Ret call(Args... args) override
 			{
-				return (m_owner->*m_function)(Forward<Args>(args)...);
+				return (m_owner->*m_function)(forward<Args>(args)...);
 			}
 
 		private:
@@ -102,7 +102,7 @@ namespace BAN
 
 			virtual Ret call(Args... args) override
 			{
-				return (m_owner->*m_function)(Forward<Args>(args)...);
+				return (m_owner->*m_function)(forward<Args>(args)...);
 			}
 
 		private:
@@ -119,7 +119,7 @@ namespace BAN
 
 			virtual Ret call(Args... args) override
 			{
-				return m_lambda(Forward<Args>(args)...);
+				return m_lambda(forward<Args>(args)...);
 			}
 
 		private:

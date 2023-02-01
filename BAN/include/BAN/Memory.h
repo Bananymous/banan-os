@@ -70,22 +70,22 @@ namespace BAN
 		}
 		RefCounted(RefCounted<T>&& other)
 		{
-			*this = Move(other);
+			*this = move(other);
 		}
 		~RefCounted()
 		{
-			Reset();
+			reset();
 		}
 		
 		template<typename... Args>
-		static RefCounted<T> Create(Args... args)
+		static RefCounted<T> create(Args... args)
 		{
-			return RefCounted<T>(new T(Forward<Args>(args)...), new int32_t(1));
+			return RefCounted<T>(new T(forward<Args>(args)...), new int32_t(1));
 		}
 
 		RefCounted<T>& operator=(const RefCounted<T>& other)
 		{
-			Reset();
+			reset();
 			if (other)
 			{
 				m_pointer = other.m_pointer;
@@ -97,13 +97,13 @@ namespace BAN
 		
 		RefCounted<T>& operator=(RefCounted<T>&& other)
 		{
-			Reset();
+			reset();
 			m_pointer = other.m_pointer;
 			m_count = other.m_count;
 			other.m_pointer = nullptr;
 			other.m_count = nullptr;
 			if (!(*this))
-				Reset();
+				reset();
 			return *this;
 		}
 
@@ -113,7 +113,7 @@ namespace BAN
 		T* operator->() { return m_pointer; }
 		const T* operator->() const { return m_pointer; }
 
-		void Reset()
+		void reset()
 		{
 			ASSERT(!m_count == !m_pointer);
 			if (!m_count)

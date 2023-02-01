@@ -11,7 +11,7 @@ namespace BAN
 	{ }
 
 	StringView::StringView(const String& other)
-		: StringView(other.Data(), other.Size())
+		: StringView(other.data(), other.size())
 	{ }
 
 	StringView::StringView(const char* string, size_type len)
@@ -30,9 +30,9 @@ namespace BAN
 
 	bool StringView::operator==(const String& other) const
 	{
-		if (m_size != other.Size())
+		if (m_size != other.size())
 			return false;
-		return memcmp(m_data, other.Data(), m_size) == 0;
+		return memcmp(m_data, other.data(), m_size) == 0;
 	}
 
 	bool StringView::operator==(StringView other) const
@@ -49,7 +49,7 @@ namespace BAN
 		return other[m_size] == '\0';
 	}
 
-	StringView StringView::Substring(size_type index, size_type len) const
+	StringView StringView::substring(size_type index, size_type len) const
 	{
 		ASSERT(index <= m_size);
 		if (len == size_type(-1))
@@ -61,14 +61,14 @@ namespace BAN
 		return result;
 	}
 
-	ErrorOr<Vector<StringView>> StringView::Split(char delim, bool allow_empties)
+	ErrorOr<Vector<StringView>> StringView::split(char delim, bool allow_empties)
 	{
 		// FIXME: Won't work while multithreading
 		static char s_delim = delim;
-		return Split([](char c){ return c == s_delim; }, allow_empties);
+		return split([](char c){ return c == s_delim; }, allow_empties);
 	}
 
-	ErrorOr<Vector<StringView>> StringView::Split(bool(*comp)(char), bool allow_empties)
+	ErrorOr<Vector<StringView>> StringView::split(bool(*comp)(char), bool allow_empties)
 	{
 		size_type count = 0;
 		{
@@ -87,7 +87,7 @@ namespace BAN
 		}
 
 		Vector<StringView> result;
-		TRY(result.Reserve(count));
+		TRY(result.reserve(count));
 
 		size_type start = 0;
 		for (size_type i = 0; i < m_size; i++)
@@ -95,28 +95,28 @@ namespace BAN
 			if (comp(m_data[i]))
 			{
 				if (allow_empties || start != i)
-					TRY(result.PushBack(this->Substring(start, i - start)));
+					TRY(result.push_back(this->substring(start, i - start)));
 				start = i + 1;
 			}
 		}
 		if (start != m_size)
-			TRY(result.PushBack(this->Substring(start)));
+			TRY(result.push_back(this->substring(start)));
 		return result;
 	}
 
-	char StringView::Back() const
+	char StringView::back() const
 	{
 		ASSERT(m_size > 0);
 		return m_data[m_size - 1];
 	}
 
-	char StringView::Front() const
+	char StringView::front() const
 	{
 		ASSERT(m_size > 0);
 		return m_data[0];
 	}
 
-	StringView::size_type StringView::Count(char ch) const
+	StringView::size_type StringView::count(char ch) const
 	{
 		size_type result = 0;
 		for (size_type i = 0; i < m_size; i++)
@@ -125,17 +125,17 @@ namespace BAN
 		return result;
 	}
 
-	bool StringView::Empty() const
+	bool StringView::empty() const
 	{
 		return m_size == 0;
 	}
 
-	StringView::size_type StringView::Size() const
+	StringView::size_type StringView::size() const
 	{
 		return m_size;
 	}
 	
-	const char* StringView::Data() const
+	const char* StringView::data() const
 	{
 		return m_data;
 	}

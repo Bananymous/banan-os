@@ -28,6 +28,6 @@
 
 namespace Debug
 {
-	void DumpStackTrace();
+	void dump_stack_trace();
 	void putchar(char);
 }

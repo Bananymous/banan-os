@@ -5,7 +5,7 @@
 namespace Debug
 {
 
-	void DumpStackTrace()
+	void dump_stack_trace()
 	{
 		struct stackframe
 		{
@@ -37,10 +37,10 @@ namespace Debug
 
 	void putchar(char ch)
 	{
-		if (Serial::IsInitialized())
+		if (Serial::is_initialized())
 			return Serial::putchar(ch);
-		if (TTY::IsInitialized())
-			return TTY::PutCharCurrent(ch);
+		if (TTY::is_initialized())
+			return TTY::putchar_current(ch);
 	}
 
 }

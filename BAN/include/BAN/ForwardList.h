@@ -13,5 +13,6 @@ namespace BAN
 	class String;
 	class StringView;
 	template<typename> class Vector;
+	template<typename> class LinkedList;
 
 }
