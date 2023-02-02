@@ -64,6 +64,8 @@ namespace BAN
 			memset(m_storage, 0, m_size);
 		}
 
+		static constexpr size_t size() { return m_size; }
+
 	private:
 		struct CallableBase
 		{
