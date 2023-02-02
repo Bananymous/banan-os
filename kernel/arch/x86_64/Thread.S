@@ -4,11 +4,6 @@ read_rip:
 	popq %rax
 	jmp *%rax
 
-.global get_thread_at_exit
-get_thread_at_exit:
-	movq 8(%rdi), %rax
-	ret
-
 exit_thread_trampoline:
 	movq 8(%rsp), %rdi
 	ret
