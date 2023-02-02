@@ -13,16 +13,26 @@ namespace Kernel
 		BAN_NON_MOVABLE(Scheduler);
 		
 	public:
-		static void Initialize();
-		static Scheduler& Get();
+		static void initialize();
+		static Scheduler& get();
 
-		const Thread& CurrentThread() const;
+		const Thread& current_thread() const;
 
-		void AddThread(void(*)());
-		void Switch();
-		void Start();
+		template<typename... Args>
+		void add_thread(const BAN::Function<void(Args...)>& func, Args... args)
+		{
+			uintptr_t flags;
+			asm volatile("pushf; pop %0" : "=r"(flags));
+			asm volatile("cli");
+			MUST(m_threads.emplace_back(func, BAN::forward<Args>(args)...));
+			if (flags & (1 << 9))
+				asm volatile("sti");
+		}
 
-		static constexpr size_t ms_between_switch = 4;
+		void switch_thread();
+		void start();
+
+		static constexpr size_t ms_between_switch = 1;
 
 	private:
 		Scheduler() {}
