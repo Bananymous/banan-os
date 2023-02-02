@@ -182,29 +182,29 @@ argument_done:
 		}
 		else if (arguments.front() == "thread")
 		{
-			if (arguments.size() != 1)
-			{
-				TTY_PRINTLN("'thread' does not support command line arguments");
-				return;	
-			}
-			//Scheduler::Get().AddThread(
-			//	[this, arguments]()
-			//	{
-			//		auto start = PIT::ms_since_boot();
-			//		while (PIT::ms_since_boot() < start + 5000);
-			//		auto copy = arguments;
-			//		copy.remove(0);
-			//		ProcessCommand(copy);
-			//	}
-			//);
-			Scheduler::get().add_thread(BAN::Function<void()>(
-				[this]()
+			static SpinLock s_thread_spinlock;
+
+			// NOTE: This is a workaround to pass values as copies to threads.
+			//       I have only implemented passing integer and pointers.
+			//       We don't continue execution until the thread has unlocked
+			//       the spinlock.
+			s_thread_spinlock.lock();
+			Scheduler::get().add_thread(Function<void(const Vector<String>*)>(
+				[this] (const Vector<String>* args_ptr)
 				{
+					auto args = *args_ptr;
+					s_thread_spinlock.unlock();
+
+					args.remove(0);
+
 					auto start = PIT::ms_since_boot();
-					while (PIT::ms_since_boot() < start + 3000);
-					TTY_PRINTLN("hello");
+					while (PIT::ms_since_boot() < start + 5000);
+
+					process_command(args);
 				}
-			));
+			), &arguments);
+
+			while (s_thread_spinlock.is_locked());
 		}
 		else if (arguments.front() == "memory")
 		{
