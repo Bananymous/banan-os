@@ -74,7 +74,7 @@ namespace IDT
 	static IDTR				s_idtr;
 	static GateDescriptor*	s_idt = nullptr;
 
-	static void(**s_irq_handlers)();
+	static void(*s_irq_handlers[16])() { nullptr };
 
 	INTERRUPT_HANDLER____(0x00, "Division Error")
 	INTERRUPT_HANDLER____(0x01, "Debug")
@@ -111,22 +111,19 @@ namespace IDT
 
 	extern "C" void handle_irq()
 	{
-		uint8_t irq = 0;
-		for (uint32_t i = 0; i <= 0xFF; i++)
+		uint8_t irq;
+		for (uint32_t i = 0; i < 16; i++)
 		{
 			if (InterruptController::get().is_in_service(i))
 			{
 				irq = i;
-				break;
+				goto found;
 			}
 		}
 
-		if (irq == 0)
-		{
-			dprintln("Spurious irq");
-			return;	
-		}
-
+		dprintln("Spurious irq");
+		return;	
+found:
 		if (s_irq_handlers[irq])
 			s_irq_handlers[irq]();
 		else
@@ -171,7 +168,7 @@ namespace IDT
 
 	void register_irq_handler(uint8_t irq, void(*f)())
 	{
-		s_irq_handlers[IRQ_VECTOR_BASE + irq] = f;
+		s_irq_handlers[irq] = f;
 		register_interrupt_handler(IRQ_VECTOR_BASE + irq, handle_irq_common);
 		flush_idt();
 	}
@@ -183,14 +180,8 @@ namespace IDT
 		s_idt = (GateDescriptor*)kmalloc_eternal(idt_size);
 		memset(s_idt, 0x00, idt_size);
 
-		s_irq_handlers = (void(**)())kmalloc_eternal(0x100 * sizeof(void(*)()));
-		memset(s_irq_handlers, 0x00, 0x100 * sizeof(void(*)()));
-
 		s_idtr.offset = s_idt;
 		s_idtr.size = idt_size - 1;
-
-		for (uint8_t i = 0x00; i <= 0xFF - IRQ_VECTOR_BASE; i++)
-			register_irq_handler(i, nullptr);
 
 		REGISTER_HANDLER(0x00);
 		REGISTER_HANDLER(0x01);
