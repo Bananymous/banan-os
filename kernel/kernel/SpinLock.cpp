@@ -16,4 +16,9 @@ namespace Kernel
 		spinlock_unlock_asm(&m_lock);
 	}
 
+	bool SpinLock::is_locked() const
+	{
+		return m_lock;
+	}
+
 }

@@ -14,7 +14,8 @@ namespace Kernel
 		SpinLock() = default;
 		void lock();
 		void unlock();
-	
+		bool is_locked() const;
+
 	private:
 		int m_lock = 0;
 	};
