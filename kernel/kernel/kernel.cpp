@@ -96,18 +96,9 @@ extern "C" void kernel_main()
 		return;
 	dprintln("8042 initialized");
 
-	Scheduler::Initialize();
-	Scheduler& scheduler = Scheduler::Get();
-	scheduler.AddThread([](){ Shell(tty1).Run(); });
-	scheduler.AddThread(
-		[]()
-		{
-			uint64_t start = PIT::ms_since_boot();
-			while (PIT::ms_since_boot() < start + 3000)
-				continue;
-			kprintln("\nHello!");
-		}
-	);
-	scheduler.Start();
+	Scheduler::initialize();
+	Scheduler& scheduler = Scheduler::get();
+	scheduler.add_thread(BAN::Function<void()>([tty1] { Shell(tty1).run(); }));
+	scheduler.start();
 	ASSERT(false);
 }
