@@ -1,7 +1,6 @@
 #pragma once
 
 #include <kernel/Debug.h>
-#include <kernel/kprint.h>
 
 #define panic(...) detail::panic_impl(__FILE__, __LINE__, __VA_ARGS__)
 
