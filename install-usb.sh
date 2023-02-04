@@ -1,6 +1,8 @@
 #!/bin/sh
 set -e
-. ./iso.sh
- 
-sudo su -c "cat banan-os.iso > /dev/sda"
- 
+. ./disk.sh
+
+SIZE=$(stat banan-os.img | grep -oP '\d+' | head -n 1)
+
+echo Writing $SIZE bytes
+sudo dd if=banan-os.img of=/dev/sda status=progress

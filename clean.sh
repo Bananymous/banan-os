@@ -8,4 +8,4 @@ done
  
 rm -rf sysroot
 rm -rf isodir
-rm -rf banan-os.iso
+rm -rf banan-os.img
