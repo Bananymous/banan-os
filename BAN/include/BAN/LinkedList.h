@@ -7,26 +7,26 @@
 namespace BAN
 {
 
-	template<typename T>
+	template<typename T, bool CONST>
 	class LinkedListIterator;
-	template<typename T>
-	class LinkedListConstIterator;
 	
 	template<typename T>
 	class LinkedList
 	{
-		BAN_NON_COPYABLE(LinkedList<T>);
-		BAN_NON_MOVABLE(LinkedList<T>);
-
 	public:
 		using size_type = size_t;
 		using value_type = T;
-		using iterator = LinkedListIterator<T>;
-		using const_iterator = LinkedListConstIterator<T>;
+		using iterator = LinkedListIterator<T, false>;
+		using const_iterator = LinkedListIterator<T, true>;
 
 	public:
 		LinkedList() = default;
-		~LinkedList();
+		LinkedList(const LinkedList<T>& other)	{ *this = other; }
+		LinkedList(LinkedList<T>&& other)		{ *this = move(other); }
+		~LinkedList()							{ clear(); }
+
+		LinkedList<T>& operator=(const LinkedList<T>&);
+		LinkedList<T>& operator=(LinkedList<T>&&);
 
 		[[nodiscard]] ErrorOr<void> push_back(const T&);
 		[[nodiscard]] ErrorOr<void> push_back(T&&);
@@ -41,8 +41,8 @@ namespace BAN
 		void remove(const_iterator);
 		void clear();
 
-		iterator begin()				{ return iterator(m_data, false); }
-		const_iterator begin() const	{ return const_iterator(m_data, false); }
+		iterator begin()				{ return iterator(m_data, empty()); }
+		const_iterator begin() const	{ return const_iterator(m_data, empty()); }
 		iterator end()					{ return iterator(m_last, true); }
 		const_iterator end() const		{ return const_iterator(m_last, true); }
 
@@ -68,11 +68,11 @@ namespace BAN
 		Node* m_last = nullptr;
 		size_type m_size = 0;
 
-		friend class LinkedListIterator<T>;
-		friend class LinkedListConstIterator<T>;
+		friend class LinkedListIterator<T, true>;
+		friend class LinkedListIterator<T, false>;
 	};
 
-	template<typename T>
+	template<typename T, bool CONST>
 	class LinkedListIterator
 	{
 	public:
@@ -80,111 +80,77 @@ namespace BAN
 
 	public:
 		LinkedListIterator() = default;
-		LinkedListIterator(const LinkedListIterator<T>& other) : m_current(other.m_current), m_past_end(other.m_past_end) {}
-		LinkedListIterator<T>& operator++()
-		{
-			ASSERT(m_current);
-			ASSERT(m_current->next || !m_past_end);
-			if (m_current->next)
-				m_current = m_current->next;
-			else
-				m_past_end = true;
-			return *this;
-		}
-		LinkedListIterator<T>& operator--()
-		{
-			ASSERT(m_current);
-			ASSERT(m_current->prev || m_past_end);
-			if (m_past_end)
-				m_past_end = false;
-			else
-				m_current = m_current->prev;
-			return *this;
-		}
-		LinkedListIterator<T> operator++(int)						{ auto temp = *this; ++(*this); return temp; }
-		LinkedListIterator<T> operator--(int)						{ auto temp = *this; --(*this); return temp; }
-		T& operator*()												{ ASSERT(m_current); return m_current->value; }
-		const T& operator*() const									{ ASSERT(m_current); return m_current->value; }
-		bool operator==(const LinkedListIterator<T>& other) const	{ return m_current && m_current == other.m_current && m_past_end == other.m_past_end; }
-		bool operator!=(const LinkedListIterator<T>& other) const	{ return !(*this == other); }
-		operator bool() const										{ return m_current; }
+		template<bool C>
+		LinkedListIterator(const LinkedListIterator<T, C>&, enable_if_t<C == CONST || !C>* = 0);
+
+		LinkedListIterator<T, CONST>& operator++();
+		LinkedListIterator<T, CONST>& operator--();
+		LinkedListIterator<T, CONST> operator++(int);
+		LinkedListIterator<T, CONST> operator--(int);
+
+		template<bool ENABLE = !CONST>
+		enable_if_t<ENABLE, T&> operator*();
+		const T& operator*() const;
+
+		template<bool ENABLE = !CONST>
+		enable_if_t<ENABLE, T*> operator->();
+		const T* operator->() const;
+
+		bool operator==(const LinkedListIterator<T, CONST>&) const;
+		bool operator!=(const LinkedListIterator<T, CONST>&) const;
+		operator bool() const;
+
 	private:
-		LinkedListIterator(typename LinkedList<T>::Node* node, bool past_end) : m_current(node), m_past_end(past_end) { }
+		LinkedListIterator(typename LinkedList<T>::Node*, bool);
+
 	private:
 		typename LinkedList<T>::Node* m_current = nullptr;
 		bool m_past_end = false;
 
 		friend class LinkedList<T>;
-		friend class LinkedListConstIterator<T>;
+		friend class LinkedListIterator<T, !CONST>;
 	};
 
-	template<typename T>
-	class LinkedListConstIterator
-	{
-	public:
-		using value_type = T;
 
-	public:
-		LinkedListConstIterator() = default;
-		LinkedListConstIterator(const LinkedListIterator<T>& other)			: m_current(other.m_current), m_past_end(other.m_past_end) {}
-		LinkedListConstIterator(const LinkedListConstIterator<T>& other)	: m_current(other.m_current), m_past_end(other.m_past_end) {}
-		LinkedListConstIterator<T>& operator++()
-		{
-			ASSERT(m_current);
-			ASSERT(m_current->next || !m_past_end);
-			if (m_current->next)
-				m_current = m_current->next;
-			else
-				m_past_end = true;
-			return *this;
-		}
-		LinkedListConstIterator<T>& operator--()
-		{
-			ASSERT(m_current);
-			ASSERT(m_current->prev || m_past_end);
-			if (m_past_end)
-				m_past_end = false;
-			else
-				m_current = m_current->prev;
-			return *this;
-		}
-		LinkedListConstIterator<T> operator++(int)						{ auto temp = *this; ++(*this); return temp; }
-		LinkedListConstIterator<T> operator--(int)						{ auto temp = *this; --(*this); return temp; }
-		const T& operator*() const										{ ASSERT(m_current); return m_current->value; }
-		bool operator==(const LinkedListConstIterator<T>& other) const	{ return m_current && m_current == other.m_current && m_past_end == other.m_past_end; }
-		bool operator!=(const LinkedListConstIterator<T>& other) const	{ return !(*this == other); }
-		operator bool() const											{ return m_current; }
-	private:
-		LinkedListConstIterator(typename LinkedList<T>::Node* node, bool past_end) : m_current(node), m_past_end(past_end) {}
-	private:
-		typename LinkedList<T>::Node* m_current = nullptr;
-		bool m_past_end = false;
-
-		friend class LinkedList<T>;
-	};
 
 	template<typename T>
-	LinkedList<T>::~LinkedList()
+	LinkedList<T>& LinkedList<T>::operator=(const LinkedList<T>& other)
 	{
 		clear();
+		for (const T& elem : other)
+			MUST(push_back(elem));
+		return *this;
+	}
+
+	template<typename T>
+	LinkedList<T>& LinkedList<T>::operator=(LinkedList<T>&& other)
+	{
+		clear();
+		m_data = other.m_data;
+		m_last = other.m_last;
+		m_size = other.m_size;
+		other.m_data = nullptr;
+		other.m_last = nullptr;
+		other.m_size = 0;
+		return *this;
 	}
 
 	template<typename T>
 	ErrorOr<void> LinkedList<T>::push_back(const T& value)
 	{
-		return push_back(Move(T(value)));
+		return push_back(move(T(value)));
 	}
 
 	template<typename T>
 	ErrorOr<void> LinkedList<T>::push_back(T&& value)
 	{
-		return insert(end(), Move(value));
+		return insert(end(), move(value));
 	}
 
 	template<typename T>
 	ErrorOr<void> LinkedList<T>::insert(const_iterator iter, const T& value)
 	{
-		return insert(iter, Move(T(value)));
+		return insert(iter, move(T(value)));
 	}
 
 	template<typename T>
@@ -234,7 +200,7 @@ namespace BAN
 	template<typename T>
 	void LinkedList<T>::remove(const_iterator iter)
 	{
-		ASSERT(m_size > 0);
+		ASSERT(!empty() && iter);
 		Node* node = iter.m_current;
 		Node* prev = node->prev;
 		Node* next = node->next;
@@ -264,28 +230,28 @@ namespace BAN
 	template<typename T>
 	const T& LinkedList<T>::back() const
 	{
-		ASSERT(m_size > 0);
+		ASSERT(!empty());
 		return *const_iterator(m_last);
 	}
 
 	template<typename T>
 	T& LinkedList<T>::back()
 	{
-		ASSERT(m_size > 0);
+		ASSERT(!empty());
 		return *iterator(m_last);
 	}
 
 	template<typename T>
 	const T& LinkedList<T>::front() const
 	{
-		ASSERT(m_size > 0);
+		ASSERT(!empty());
 		return *const_iterator(m_data);
 	}
 
 	template<typename T>
 	T& LinkedList<T>::front()
 	{
-		ASSERT(m_size > 0);
+		ASSERT(!empty());
 		return *iterator(m_data);
 	}
 
@@ -308,6 +274,113 @@ namespace BAN
 		if (node == nullptr)
 			return Error::from_string("LinkedList: Could not allocate memory");	
 		return node;
+	}
+
+
+
+	template<typename T, bool CONST>
+	template<bool C>
+	LinkedListIterator<T, CONST>::LinkedListIterator(const LinkedListIterator<T, C>& other, enable_if_t<C == CONST || !C>*)
+		: m_current(other.m_current)
+		, m_past_end(other.m_past_end)
+	{
+	}
+
+	template<typename T, bool CONST>
+	LinkedListIterator<T, CONST>::LinkedListIterator(typename LinkedList<T>::Node* node, bool past_end)
+		: m_current(node),
+		m_past_end(past_end)
+	{
+	}
+
+	template<typename T, bool CONST>
+	LinkedListIterator<T, CONST>& LinkedListIterator<T, CONST>::operator++()
+	{
+		ASSERT(m_current);
+		ASSERT(m_current->next || !m_past_end);
+		if (m_current->next)
+			m_current = m_current->next;
+		else
+			m_past_end = true;
+		return *this;
+	}
+
+	template<typename T, bool CONST>
+	LinkedListIterator<T, CONST>& LinkedListIterator<T, CONST>::operator--()
+	{
+		ASSERT(m_current);
+		ASSERT(m_current->prev || m_past_end);
+		if (m_past_end)
+			m_past_end = false;
+		else
+			m_current = m_current->prev;
+		return *this;
+	}
+
+	template<typename T, bool CONST>
+	LinkedListIterator<T, CONST> LinkedListIterator<T, CONST>::operator++(int)
+	{
+		auto temp = *this;
+		++(*this);
+		return temp;
+	}
+
+	template<typename T, bool CONST>
+	LinkedListIterator<T, CONST> LinkedListIterator<T, CONST>::operator--(int)
+	{
+		auto temp = *this;
+		--(*this);
+		return temp;
+	}
+
+	template<typename T, bool CONST>
+	template<bool ENABLE>
+	enable_if_t<ENABLE, T&> LinkedListIterator<T, CONST>::operator*()
+	{
+		ASSERT(m_current);
+		return m_current->value;
+	}
+
+	template<typename T, bool CONST>
+	const T& LinkedListIterator<T, CONST>::operator*() const
+	{
+		ASSERT(m_current);
+		return m_current->value;
+	}
+
+	template<typename T, bool CONST>
+	template<bool ENABLE>
+	enable_if_t<ENABLE, T*> LinkedListIterator<T, CONST>::operator->()
+	{
+		ASSERT(m_current);
+		return &m_current->value;
+	}
+
+	template<typename T, bool CONST>
+	const T* LinkedListIterator<T, CONST>::operator->() const
+	{
+		ASSERT(m_current);
+		return &m_current->value;
+	}
+	
+	template<typename T, bool CONST>
+	bool LinkedListIterator<T, CONST>::operator==(const LinkedListIterator<T, CONST>& other) const
+	{
+		if (m_current != other.m_current)
+			return false;
+		return m_past_end == other.m_past_end;
+	}
+
+	template<typename T, bool CONST>
+	bool LinkedListIterator<T, CONST>::operator!=(const LinkedListIterator<T, CONST>& other) const
+	{
+		return !(*this == other);
+	}
+
+	template<typename T, bool CONST>
+	LinkedListIterator<T, CONST>::operator bool() const
+	{
+		return m_current;
 	}
 
 }
