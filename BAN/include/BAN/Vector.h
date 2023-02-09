@@ -39,10 +39,10 @@ namespace BAN
 		[[nodiscard]] ErrorOr<void> insert(size_type, T&&);
 		[[nodiscard]] ErrorOr<void> insert(size_type, const T&);
 		
-		iterator begin()				{ return iterator(address_of(0)); }
-		const_iterator begin() const	{ return const_iterator(address_of(0)); }
-		iterator end()					{ return iterator(address_of(m_size)); }
-		const_iterator end() const		{ return const_iterator(address_of(m_size)); }
+		iterator begin()				{ return iterator      (m_data); }
+		const_iterator begin() const	{ return const_iterator(m_data); }
+		iterator end()					{ return iterator      (m_data + m_size); }
+		const_iterator end() const		{ return const_iterator(m_data + m_size); }
 
 		void pop_back();
 		void remove(size_type);
@@ -67,11 +67,9 @@ namespace BAN
 
 	private:
 		[[nodiscard]] ErrorOr<void> ensure_capacity(size_type);
-		const T* address_of(size_type, void* = nullptr) const;
-		T* address_of(size_type, void* = nullptr);
 
 	private:
-		uint8_t*	m_data		= nullptr;
+		T*			m_data		= nullptr;
 		size_type	m_capacity	= 0;
 		size_type	m_size		= 0;	
 	};
@@ -136,7 +134,7 @@ namespace BAN
 	{
 		MUST(ensure_capacity(other.m_size));
 		for (size_type i = 0; i < other.m_size; i++)
-			new (address_of(i)) T(other[i]);
+			new (m_data + i) T(other.m_data[i]);
 		m_size = other.m_size;
 	}
 
@@ -168,7 +166,7 @@ namespace BAN
 		clear();
 		MUST(ensure_capacity(other.size()));
 		for (size_type i = 0; i < other.size(); i++)
-			new (address_of(i)) T(other[i]);
+			new (m_data + i) T(other[i]);
 		m_size = other.m_size;
 		return *this;
 	}
@@ -177,7 +175,7 @@ namespace BAN
 	ErrorOr<void> Vector<T>::push_back(T&& value)
 	{
 		TRY(ensure_capacity(m_size + 1));
-		new (address_of(m_size)) T(move(value));
+		new (m_data + m_size) T(move(value));
 		m_size++;
 		return {};
 	}
@@ -193,7 +191,7 @@ namespace BAN
 	ErrorOr<void> Vector<T>::emplace_back(Args&&... args)
 	{
 		TRY(ensure_capacity(m_size + 1));
-		new (address_of(m_size)) T(forward<Args>(args)...);
+		new (m_data + m_size) T(forward<Args>(args)...);
 		m_size++;
 		return {};
 	}
@@ -206,14 +204,14 @@ namespace BAN
 		TRY(ensure_capacity(m_size + 1));
 		if (index < m_size)
 		{
-			new (address_of(m_size)) T(move(*address_of(m_size - 1)));
+			new (m_data + m_size) T(move(m_data[m_size - 1]));
 			for (size_type i = m_size - 1; i > index; i--)
-				*address_of(i) = move(*address_of(i - 1));
-			*address_of(index) = move(T(forward<Args>(args)...));
+				m_data[i] = move(m_data[i - 1]);
+			m_data[index] = move(T(forward<Args>(args)...));
 		}
 		else
 		{
-			new (address_of(m_size)) T(forward<Args>(args)...);
+			new (m_data + m_size) T(forward<Args>(args)...);
 		}
 		m_size++;
 		return {};
@@ -226,14 +224,14 @@ namespace BAN
 		TRY(ensure_capacity(m_size + 1));
 		if (index < m_size)
 		{
-			new (address_of(m_size)) T(move(*address_of(m_size - 1)));
+			new (m_data + m_size) T(move(m_data[m_size - 1]));
 			for (size_type i = m_size - 1; i > index; i--)
-				*address_of(i) = move(*address_of(i - 1));
-			*address_of(index) = move(value);
+				m_data[i] = move(m_data[i - 1]);
+			m_data[index] = move(value);
 		}
 		else
 		{
-			new (address_of(m_size)) T(move(value));
+			new (m_data + m_size) T(move(value));
 		}
 		m_size++;
 		return {};
@@ -249,7 +247,7 @@ namespace BAN
 	void Vector<T>::pop_back()
 	{
 		ASSERT(m_size > 0);
-		address_of(m_size - 1)->~T();
+		m_data[m_size - 1].~T();
 		m_size--;
 	}
 
@@ -258,8 +256,8 @@ namespace BAN
 	{
 		ASSERT(index < m_size);
 		for (size_type i = index; i < m_size - 1; i++)
-			*address_of(i) = move(*address_of(i + 1));
-		address_of(m_size - 1)->~T();
+			m_data[i] = move(m_data[i + 1]);
+		m_data[m_size - 1].~T();
 		m_size--;
 	}
 
@@ -267,7 +265,7 @@ namespace BAN
 	void Vector<T>::clear()
 	{
 		for (size_type i = 0; i < m_size; i++)
-			address_of(i)->~T();
+			m_data[i].~T();
 		BAN::deallocator(m_data);
 		m_data = nullptr;
 		m_capacity = 0;
@@ -278,7 +276,7 @@ namespace BAN
 	bool Vector<T>::contains(const T& other) const
 	{
 		for (size_type i = 0; i < m_size; i++)
-			if (*address_of(i) == other)
+			if (m_data[i] == other)
 				return true;
 		return false;
 	}
@@ -287,41 +285,41 @@ namespace BAN
 	const T& Vector<T>::operator[](size_type index) const
 	{
 		ASSERT(index < m_size);
-		return *address_of(index);
+		return m_data[index];
 	}
 
 	template<typename T>
 	T& Vector<T>::operator[](size_type index)
 	{
 		ASSERT(index < m_size);
-		return *address_of(index);
+		return m_data[index];
 	}
 
 	template<typename T>
 	const T& Vector<T>::back() const
 	{
 		ASSERT(m_size > 0);
-		return *address_of(m_size - 1);
+		return m_data[m_size - 1];
 	}
 
 	template<typename T>
 	T& Vector<T>::back()
 	{
 		ASSERT(m_size > 0);
-		return *address_of(m_size - 1);
+		return m_data[m_size - 1];
 	}
 
 	template<typename T>
 	const T& Vector<T>::front() const
 	{
 		ASSERT(m_size > 0);
-		return *address_of(0);
+		return m_data[0];
 	}
 	template<typename T>
 	T& Vector<T>::front()
 	{
 		ASSERT(m_size > 0);
-		return *address_of(0);
+		return m_data[0];
 	}
 
 	template<typename T>
@@ -330,10 +328,10 @@ namespace BAN
 		TRY(ensure_capacity(size));
 		if (size < m_size)
 			for (size_type i = size; i < m_size; i++)
-				address_of(i)->~T();
+				m_data[i].~T();
 		if (size > m_size)
 			for (size_type i = m_size; i < size; i++)
-				new (address_of(i)) T();
+				new (m_data + i) T();
 		m_size = size;
 		return {};
 	}
@@ -369,34 +367,18 @@ namespace BAN
 		if (m_capacity >= size)
 			return {};
 		size_type new_cap = BAN::Math::max<size_type>(size, m_capacity * 3 / 2);
-		uint8_t* new_data = (uint8_t*)BAN::allocator(new_cap * sizeof(T));
+		T* new_data = (T*)BAN::allocator(new_cap * sizeof(T));
 		if (new_data == nullptr)
 			return Error::from_string("Vector: Could not allocate memory");
 		for (size_type i = 0; i < m_size; i++)
 		{
-			new (address_of(i, new_data)) T(move(*address_of(i)));
-			address_of(i)->~T();
+			new (new_data + i) T(move(m_data[i]));
+			m_data[i].~T();
 		}
 		BAN::deallocator(m_data);
 		m_data = new_data;
 		m_capacity = new_cap;
 		return {};
-	}
-
-	template<typename T>
-	const T* Vector<T>::address_of(size_type index, void* base) const
-	{
-		if (base == nullptr)
-			base = m_data;
-		return (T*)base + index;
-	}
-
-	template<typename T>
-	T* Vector<T>::address_of(size_type index, void* base)
-	{
-		if (base == nullptr)
-			base = m_data;
-		return (T*)base + index;
 	}
 
 }

@@ -40,11 +40,9 @@ namespace BAN
 
 	private:
 		[[nodiscard]] ErrorOr<void> ensure_capacity(size_type size);
-		const T* address_of(size_type, void* = nullptr) const;
-		T* address_of(size_type, void* = nullptr);
 
 	private:
-		uint8_t*	m_data		= nullptr;
+		T*			m_data		= nullptr;
 		size_type	m_capacity	= 0;
 		size_type	m_size		= 0;
 	};
@@ -66,7 +64,7 @@ namespace BAN
 	{
 		MUST(ensure_capacity(other.size()));
 		for (size_type i = 0; i < other.size(); i++)
-			new (address_of(i)) T(*address_of(i, other.m_data));
+			new (m_data + i) T(other.m_data[i]);
 		m_size = other.m_size;
 	}
 
@@ -98,7 +96,7 @@ namespace BAN
 		clear();
 		MUST(ensure_capacity(other.size()));
 		for (size_type i = 0; i < other.size(); i++)
-			new (address_of(i)) T(*address_of(i, other.m_data));
+			new (m_data + i) T(other.m_data[i]);
 		m_size = other.m_size;
 		return *this;
 	}
@@ -107,7 +105,7 @@ namespace BAN
 	ErrorOr<void> Queue<T>::push(T&& value)
 	{
 		TRY(ensure_capacity(m_size + 1));
-		new (address_of(m_size)) T(move(value));
+		new (m_data + m_size) T(move(value));
 		m_size++;
 		return {};
 	}
@@ -123,7 +121,7 @@ namespace BAN
 	ErrorOr<void> Queue<T>::emplace(Args&&... args)
 	{
 		TRY(ensure_capacity(m_size + 1));
-		new (address_of(m_size)) T(forward<Args>(args)...);
+		new (m_data + m_size) T(forward<Args>(args)...);
 		m_size++;
 		return {};
 	}
@@ -133,8 +131,8 @@ namespace BAN
 	{
 		ASSERT(m_size > 0);
 		for (size_type i = 0; i < m_size - 1; i++)
-			*address_of(i) = move(*address_of(i + 1));
-		address_of(m_size - 1)->~T();
+			m_data[i] = move(m_data[i + 1]);
+		m_data[m_size - 1].~T();
 		m_size--;
 	}
 
@@ -142,7 +140,7 @@ namespace BAN
 	void Queue<T>::clear()
 	{
 		for (size_type i = 0; i < m_size; i++)
-			address_of(i)->~T();
+			m_data[i].~T();
 		BAN::deallocator(m_data);
 		m_data = nullptr;
 		m_capacity = 0;
@@ -165,14 +163,14 @@ namespace BAN
 	const T& Queue<T>::front() const
 	{
 		ASSERT(m_size > 0);
-		return *address_of(0);
+		return m_data[0];
 	}
 
 	template<typename T>
 	T& Queue<T>::front()
 	{
 		ASSERT(m_size > 0);
-		return *address_of(0);
+		return m_data[0];
 	}
 
 	template<typename T>
@@ -181,34 +179,18 @@ namespace BAN
 		if (m_capacity > size)
 			return {};
 		size_type new_cap = BAN::Math::max<size_type>(size, m_capacity * 3 / 2);
-		uint8_t* new_data = (uint8_t*)BAN::allocator(new_cap * sizeof(T));
+		T* new_data = (T*)BAN::allocator(new_cap * sizeof(T));
 		if (new_data == nullptr)
 			return Error::from_string("Queue: Could not allocate memory");
 		for (size_type i = 0; i < m_size; i++)
 		{
-			new (address_of(i, new_data)) T(move(*address_of(i)));
-			address_of(i)->~T();
+			new (new_data + i) T(move(m_data[i]));
+			m_data[i].~T();
 		}
 		BAN::deallocator(m_data);
 		m_data = new_data;
 		m_capacity = new_cap;
 		return {};
-	}
-
-	template<typename T>
-	const T* Queue<T>::address_of(size_type index, void* base) const
-	{
-		if (base == nullptr)
-			base = m_data;
-		return (T*)base + index;
-	}
-
-	template<typename T>
-	T* Queue<T>::address_of(size_type index, void* base)
-	{
-		if (base == nullptr)
-			base = m_data;
-		return (T*)base + index;
 	}
 
 }
