@@ -27,7 +27,7 @@ namespace BAN
 	template<typename T>
 	class Unique
 	{
-		BAN_NON_COPYABLE(Unique<T>);
+		BAN_NON_COPYABLE(Unique);
 
 	public:
 		template<typename... Args>

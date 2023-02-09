@@ -8,8 +8,8 @@ namespace Kernel
 	template<typename Lock>
 	class LockGuard
 	{
-		BAN_NON_COPYABLE(LockGuard<Lock>);
-		BAN_NON_MOVABLE(LockGuard<Lock>);
+		BAN_NON_COPYABLE(LockGuard);
+		BAN_NON_MOVABLE(LockGuard);
 
 	public:
 		LockGuard(Lock& lock)

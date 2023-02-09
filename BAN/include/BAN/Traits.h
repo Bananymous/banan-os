@@ -27,29 +27,18 @@ namespace BAN
 	template<typename T> struct is_lvalue_reference<T&>	{ static constexpr bool value = true; };
 	template<typename T> inline constexpr bool is_lvalue_reference_v = is_lvalue_reference<T>::value;
 
-	template<typename T> struct is_integral { static constexpr bool value = 
-		is_same_v<remove_const_and_reference_t<T>, bool>
-		|| is_same_v<remove_const_and_reference_t<T>, char>
-		|| is_same_v<remove_const_and_reference_t<T>, short>
-		|| is_same_v<remove_const_and_reference_t<T>, int>
-		|| is_same_v<remove_const_and_reference_t<T>, long>
-		|| is_same_v<remove_const_and_reference_t<T>, long long>
-		|| is_same_v<remove_const_and_reference_t<T>, signed char>
-		|| is_same_v<remove_const_and_reference_t<T>, signed short>
-		|| is_same_v<remove_const_and_reference_t<T>, signed int>
-		|| is_same_v<remove_const_and_reference_t<T>, signed long>
-		|| is_same_v<remove_const_and_reference_t<T>, signed long long>
-		|| is_same_v<remove_const_and_reference_t<T>, unsigned char>
-		|| is_same_v<remove_const_and_reference_t<T>, unsigned short>
-		|| is_same_v<remove_const_and_reference_t<T>, unsigned int>
-		|| is_same_v<remove_const_and_reference_t<T>, unsigned long>
-		|| is_same_v<remove_const_and_reference_t<T>, unsigned long long>;
-	};
+	template<bool B, typename T> struct maybe_const { using type = T; };
+	template<typename T> struct maybe_const<true, T> { using type = const T; };
+	template<bool B, typename T> using maybe_const_t = typename maybe_const<B, T>::type;
+
+	template<typename T> struct is_integral { static constexpr bool value = requires (T t, T* p, void (*f)(T)) { reinterpret_cast<T>(t); f(0); p + t; }; };
 	template<typename T> inline constexpr bool is_integral_v = is_integral<T>::value;
-	
+	template<typename T> concept integral = is_integral_v<T>;
+
 	template<typename T> struct is_pointer		{ static constexpr bool value = false; };
 	template<typename T> struct is_pointer<T*>	{ static constexpr bool value = true; };
 	template<typename T> inline constexpr bool is_pointer_v = is_pointer<T>::value;
+	template<typename T> concept pointer = is_pointer_v<T>;
 
 	template<typename T> struct less	{ constexpr bool operator()(const T& lhs, const T& rhs) const { return lhs < rhs; } };
 	template<typename T> struct equal	{ constexpr bool operator()(const T& lhs, const T& rhs) const { return lhs == rhs; } };
