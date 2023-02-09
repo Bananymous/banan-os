@@ -81,6 +81,7 @@ namespace BAN
 	{
 	public:
 		using value_type = T;
+		using data_type = maybe_const_t<CONST, T>;
 
 	public:
 		VectorIterator() = default;
@@ -107,10 +108,10 @@ namespace BAN
 		bool operator!=(const VectorIterator<T, CONST>& other) const { return !(*this == other); }
 
 	private:
-		VectorIterator(T* data) : m_data(data) { }
+		VectorIterator(data_type* data) : m_data(data) { }
 
 	private:
-		T* m_data = nullptr;
+		data_type* m_data = nullptr;
 
 		friend class Vector<T>;
 		friend class VectorIterator<T, !CONST>;
