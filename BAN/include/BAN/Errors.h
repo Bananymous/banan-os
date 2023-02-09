@@ -59,9 +59,9 @@ namespace BAN
 	class ErrorOr<void>
 	{
 	public:
-		ErrorOr()										{ }
-		ErrorOr(const Error& error) : m_error(error)	{ }
-		~ErrorOr()										{ }
+		ErrorOr()														{ }
+		ErrorOr(const Error& error) : m_error(error), m_has_error(true)	{ }
+		~ErrorOr()														{ }
 
 		bool is_error() const			{ return m_has_error; }
 		const Error& get_error() const	{ return m_error; }
