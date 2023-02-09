@@ -30,15 +30,15 @@ namespace BAN
 
 		[[nodiscard]] ErrorOr<void> push_back(const T&);
 		[[nodiscard]] ErrorOr<void> push_back(T&&);
-		[[nodiscard]] ErrorOr<void> insert(const_iterator, const T&);
-		[[nodiscard]] ErrorOr<void> insert(const_iterator, T&&);
+		[[nodiscard]] ErrorOr<void> insert(iterator, const T&);
+		[[nodiscard]] ErrorOr<void> insert(iterator, T&&);
 		template<typename... Args>
 		[[nodiscard]] ErrorOr<void> emplace_back(Args&&...);
 		template<typename... Args>
-		[[nodiscard]] ErrorOr<void> emplace(const_iterator, Args&&...);
+		[[nodiscard]] ErrorOr<void> emplace(iterator, Args&&...);
 
 		void pop_back();
-		void remove(const_iterator);
+		void remove(iterator);
 		void clear();
 
 		iterator begin()				{ return iterator(m_data, empty()); }
@@ -50,6 +50,8 @@ namespace BAN
 		T& back();
 		const T& front() const;
 		T& front();
+
+		bool contains(const T&) const;
 
 		size_type size() const;
 		bool empty() const;
@@ -77,6 +79,7 @@ namespace BAN
 	{
 	public:
 		using value_type = T;
+		using data_type = maybe_const_t<CONST, typename LinkedList<T>::Node>;
 
 	public:
 		LinkedListIterator() = default;
@@ -101,10 +104,10 @@ namespace BAN
 		operator bool() const;
 
 	private:
-		LinkedListIterator(typename LinkedList<T>::Node*, bool);
+		LinkedListIterator(data_type*, bool);
 
 	private:
-		typename LinkedList<T>::Node* m_current = nullptr;
+		data_type* m_current = nullptr;
 		bool m_past_end = false;
 
 		friend class LinkedList<T>;
@@ -148,13 +151,13 @@ namespace BAN
 	}
 
 	template<typename T>
-	ErrorOr<void> LinkedList<T>::insert(const_iterator iter, const T& value)
+	ErrorOr<void> LinkedList<T>::insert(iterator iter, const T& value)
 	{
 		return insert(iter, move(T(value)));
 	}
 
 	template<typename T>
-	ErrorOr<void> LinkedList<T>::insert(const_iterator iter, T&& value)
+	ErrorOr<void> LinkedList<T>::insert(iterator iter, T&& value)
 	{
 		Node* next = iter.m_past_end ? nullptr : iter.m_current;
 		Node* prev = next ? next->prev : m_last;
@@ -177,7 +180,7 @@ namespace BAN
 
 	template<typename T>
 	template<typename... Args>
-	ErrorOr<void> LinkedList<T>::emplace(const_iterator iter, Args&&... args)
+	ErrorOr<void> LinkedList<T>::emplace(iterator iter, Args&&... args)
 	{
 		Node* next = iter.m_past_end ? nullptr : iter.m_current;
 		Node* prev = next ? next->prev : m_last;
@@ -198,7 +201,7 @@ namespace BAN
 	}
 
 	template<typename T>
-	void LinkedList<T>::remove(const_iterator iter)
+	void LinkedList<T>::remove(iterator iter)
 	{
 		ASSERT(!empty() && iter);
 		Node* node = iter.m_current;
@@ -256,6 +259,19 @@ namespace BAN
 	}
 
 	template<typename T>
+	bool LinkedList<T>::contains(const T& value) const
+	{
+		if (empty()) return false;
+		for (Node* node = m_data;; node = node->next)
+		{
+			if (node->value == value)
+				return true;
+			if (node == m_last)
+				return false;
+		}
+	}
+
+	template<typename T>
 	typename LinkedList<T>::size_type LinkedList<T>::size() const
 	{
 		return m_size;
@@ -287,9 +303,9 @@ namespace BAN
 	}
 
 	template<typename T, bool CONST>
-	LinkedListIterator<T, CONST>::LinkedListIterator(typename LinkedList<T>::Node* node, bool past_end)
-		: m_current(node),
-		m_past_end(past_end)
+	LinkedListIterator<T, CONST>::LinkedListIterator(data_type* node, bool past_end)
+		: m_current(node)
+		, m_past_end(past_end)
 	{
 	}
 
