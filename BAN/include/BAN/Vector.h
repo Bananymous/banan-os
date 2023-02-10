@@ -25,6 +25,7 @@ namespace BAN
 		Vector() = default;
 		Vector(Vector<T>&&);
 		Vector(const Vector<T>&);
+		Vector(size_type, const T& = T());
 		~Vector();
 
 		Vector<T>& operator=(Vector<T>&&);
@@ -105,6 +106,8 @@ namespace BAN
 		bool operator==(const VectorIterator<T, CONST>& other) const { return m_data == other.m_data; }
 		bool operator!=(const VectorIterator<T, CONST>& other) const { return !(*this == other); }
 
+		operator bool() const { return m_data; }
+
 	private:
 		VectorIterator(data_type* data) : m_data(data) { }
 
@@ -136,6 +139,15 @@ namespace BAN
 		for (size_type i = 0; i < other.m_size; i++)
 			new (m_data + i) T(other.m_data[i]);
 		m_size = other.m_size;
+	}
+
+	template<typename T>
+	Vector<T>::Vector(size_type size, const T& value)
+	{
+		MUST(ensure_capacity(size));
+		for (size_type i = 0; i < size; i++)
+			new (m_data + i) T(value);
+		m_size = size;
 	}
 
 	template<typename T>
@@ -379,6 +391,23 @@ namespace BAN
 		m_data = new_data;
 		m_capacity = new_cap;
 		return {};
+	}
+
+}
+
+namespace BAN::Formatter
+{
+
+	template<typename F, typename T>
+	void print_argument_impl(F putc, const Vector<T>& vector, const ValueFormat& format)
+	{
+		putc('[');
+		for (typename Vector<T>::size_type i = 0; i < vector.size(); i++)
+		{
+			if (i != 0) putc(',');
+			print_argument_impl(putc, vector[i], format);
+		}
+		putc(']');
 	}
 
 }
