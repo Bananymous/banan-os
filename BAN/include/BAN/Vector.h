@@ -49,6 +49,9 @@ namespace BAN
 		void remove(size_type);
 		void clear();
 
+		T* data() { return m_data; }
+		const T* data() const { return m_data; }
+
 		bool contains(const T&) const;
 
 		const T& operator[](size_type) const;
