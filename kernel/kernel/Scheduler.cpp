@@ -85,7 +85,6 @@ namespace Kernel
 		else if (next.state() == Thread::State::Paused)
 		{
 			next.set_state(Thread::State::Running);
-			BOCHS_BREAK();
 			continue_thread(next.rsp(), next.rbp(), next.rip());
 		}
 		
