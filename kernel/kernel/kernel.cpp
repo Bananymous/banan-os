@@ -1,4 +1,5 @@
 #include <kernel/Debug.h>
+#include <kernel/DiskIO.h>
 #include <kernel/IDT.h>
 #include <kernel/Input.h>
 #include <kernel/InterruptController.h>
@@ -8,9 +9,9 @@
 #include <kernel/multiboot.h>
 #include <kernel/PIC.h>
 #include <kernel/PIT.h>
+#include <kernel/Scheduler.h>
 #include <kernel/Serial.h>
 #include <kernel/Shell.h>
-#include <kernel/Scheduler.h>
 #include <kernel/TTY.h>
 #include <kernel/VesaTerminalDriver.h>
 
@@ -18,8 +19,6 @@
 #define ENABLE_INTERRUPTS() asm volatile("sti")
 
 extern "C" const char g_kernel_cmdline[];
-
-using namespace BAN;
 
 struct ParsedCommandLine
 {
@@ -98,6 +97,7 @@ extern "C" void kernel_main()
 
 	Scheduler::initialize();
 	Scheduler& scheduler = Scheduler::get();
+	scheduler.add_thread(BAN::Function<void()>([] { DiskIO::initialize(); }));
 	scheduler.add_thread(BAN::Function<void()>([tty1] { Shell(tty1).run(); }));
 	scheduler.start();
 	ASSERT(false);
