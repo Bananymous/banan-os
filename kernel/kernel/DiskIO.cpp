@@ -114,76 +114,69 @@ namespace Kernel
 		return result;
 	}
 
-	static bool is_valid_gpt_header(const GPTHeader& header)
+	static bool is_valid_gpt_header(const GPTHeader& header, uint32_t sector_size)
 	{
 		if (memcmp(header.signature, "EFI PART", 8) != 0)
 			return false;
 		if (header.revision != 0x00010000)
 			return false;
-		if (header.size < 92 || header.size > 512)
+		if (header.size < 92 || header.size > sector_size)
 			return false;
 		if (header.my_lba != 1)
 			return false;
 		return true;
 	}
 
-	static bool is_valid_gpt_crc32(const GPTHeader& header, const uint8_t* lba1, const uint8_t* entry_array)
+	static bool is_valid_gpt_crc32(const GPTHeader& header, BAN::Vector<uint8_t> lba1, const BAN::Vector<uint8_t>& entry_array)
 	{
-		uint8_t lba1_copy[512];
-		memcpy(lba1_copy, lba1, 512);
-		memset(lba1_copy + 16, 0, 4);
-		if (header.crc32 != crc32_checksum(lba1_copy, header.size))
+		memset(lba1.data() + 16, 0, 4);
+		if (header.crc32 != crc32_checksum(lba1.data(), header.size))
 			return false;
-		if (header.partition_entry_array_crc32 != crc32_checksum(entry_array, header.partition_entry_count * header.partition_entry_size))
+		if (header.partition_entry_array_crc32 != crc32_checksum(entry_array.data(), header.partition_entry_count * header.partition_entry_size))
 			return false;
 		return true;
 	}
 
-	static GPTHeader parse_gpt_header(const uint8_t* lba1)
+	static GPTHeader parse_gpt_header(const BAN::Vector<uint8_t> lba1)
 	{
 		GPTHeader header;
 		memset(&header, 0, sizeof(header));
 
-		memcpy(header.signature, lba1, 8);
-		memcpy(header.guid, lba1 + 56, 16);
-		header.revision						= little_endian_to_host<uint32_t>(lba1 + 8);
-		header.size							= little_endian_to_host<uint32_t>(lba1 + 12);
-		header.crc32						= little_endian_to_host<uint32_t>(lba1 + 16);
-		header.my_lba						= little_endian_to_host<uint64_t>(lba1 + 24);
-		header.first_lba					= little_endian_to_host<uint64_t>(lba1 + 40);
-		header.last_lba						= little_endian_to_host<uint64_t>(lba1 + 48);
-		header.partition_entry_lba			= little_endian_to_host<uint64_t>(lba1 + 72);
-		header.partition_entry_count		= little_endian_to_host<uint32_t>(lba1 + 80);
-		header.partition_entry_size			= little_endian_to_host<uint32_t>(lba1 + 84);
-		header.partition_entry_array_crc32	= little_endian_to_host<uint32_t>(lba1 + 88);
+		memcpy(header.signature, lba1.data(), 8);
+		memcpy(header.guid, lba1.data() + 56, 16);
+		header.revision						= little_endian_to_host<uint32_t>(lba1.data() + 8);
+		header.size							= little_endian_to_host<uint32_t>(lba1.data() + 12);
+		header.crc32						= little_endian_to_host<uint32_t>(lba1.data() + 16);
+		header.my_lba						= little_endian_to_host<uint64_t>(lba1.data() + 24);
+		header.first_lba					= little_endian_to_host<uint64_t>(lba1.data() + 40);
+		header.last_lba						= little_endian_to_host<uint64_t>(lba1.data() + 48);
+		header.partition_entry_lba			= little_endian_to_host<uint64_t>(lba1.data() + 72);
+		header.partition_entry_count		= little_endian_to_host<uint32_t>(lba1.data() + 80);
+		header.partition_entry_size			= little_endian_to_host<uint32_t>(lba1.data() + 84);
+		header.partition_entry_array_crc32	= little_endian_to_host<uint32_t>(lba1.data() + 88);
 		return header;
 	}
 
 	bool DiskDevice::initialize_partitions()
 	{
-		uint8_t lba1[512];
-		if (!read(1, 1, lba1))
+		BAN::Vector<uint8_t> lba1(sector_size());
+		if (!read(1, 1, lba1.data()))
 			return false;
 
 		GPTHeader header = parse_gpt_header(lba1);
-		if (!is_valid_gpt_header(header))
+		if (!is_valid_gpt_header(header, sector_size()))
 		{
 			dprintln("invalid gpt header");
 			return false;
 		}
 
-		uint8_t* entry_array = nullptr;
+		BAN::Vector<uint8_t> entry_array;
 		{
 			uint32_t bytes = header.partition_entry_count * header.partition_entry_size;
-			uint32_t sectors = (bytes + 511) / 512;
-			entry_array = (uint8_t*)kmalloc(sectors * 512);
-			if (entry_array == nullptr)
+			uint32_t sectors = (bytes + sector_size() - 1) / sector_size();
+			MUST(entry_array.resize(sectors * sector_size()));
+			if (!read(header.partition_entry_lba, sectors, entry_array.data()))
 				return false;
-			if (!read(header.partition_entry_lba, sectors, entry_array))
-			{
-				kfree(entry_array);
-				return false;
-			}
 		}
 
 		if (!is_valid_gpt_crc32(header, lba1, entry_array))
@@ -194,7 +187,7 @@ namespace Kernel
 
 		for (uint32_t i = 0; i < header.partition_entry_count; i++)
 		{
-			uint8_t* partition_data = entry_array + header.partition_entry_size * i;
+			uint8_t* partition_data = entry_array.data() + header.partition_entry_size * i;
 
 			Partition partition;
 			memcpy(partition.type_guid, partition_data,      16);

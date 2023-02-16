@@ -38,7 +38,9 @@ namespace Kernel
 			: ATADevice(io_base, ctl_base, slave_bit)
 		{}
 
+		virtual uint32_t sector_size() const override { return m_sector_words * 2; }
 		virtual const char* type() const override { return "PATA"; }
+
 		virtual bool read(uint32_t lba, uint32_t sector_count, uint8_t* buffer) override;
 
 	protected:
@@ -52,6 +54,7 @@ namespace Kernel
 
 	private:
 		bool m_lba_48 = false;
+		uint32_t m_sector_words = 256;
 	};
 	
 

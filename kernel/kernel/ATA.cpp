@@ -125,7 +125,19 @@ namespace Kernel
 		uint16_t response[256];
 		for (int i = 0; i < 256; i++)
 			response[i] = IO::inw(io_base() + ATA_IO_PORT_DATA);
+		
 		m_lba_48 = response[83] & (1 << 10);
+
+		if (!(response[106] & (1 << 15))
+			&& (response[106] & (1 << 14))
+			&& (response[106] & (1 << 12)))
+		{
+			m_sector_words = ((uint32_t)response[117] << 16) | response[118];
+			dprintln("using {} sector size", m_sector_words * 2);
+		}
+
+
+
 
 		return true;
 	}
@@ -158,7 +170,7 @@ namespace Kernel
 		// 7. Send the "READ SECTORS" command (0x20) to port 0x1F7: outb(0x1F7, 0x20)
 		IO::outb(io_base() + ATA_IO_PORT_COMMAND, ATA_COMMAND_READ_SECTORS);
 
-		memset(buffer, 0, sector_count * 256 * sizeof(uint16_t));
+		memset(buffer, 0, sector_count * m_sector_words * sizeof(uint16_t));
 		for (int i = 0; i < sector_count; i++)
 		{
 			// 8. Wait for an IRQ or poll.
@@ -167,11 +179,11 @@ namespace Kernel
 			
 			// 9. Transfer 256 16-bit values, a uint16_t at a time, into your buffer from I/O port 0x1F0.
 			//    (In assembler, REP INSW works well for this.)
-			for (int j = 0; j < 256; j++)
+			for (size_t j = 0; j < m_sector_words; j++)
 			{
 				uint16_t word = IO::inw(io_base() + ATA_IO_PORT_DATA);
-				buffer[i * 512 + j * 2 + 0] = word & 0xFF;
-				buffer[i * 512 + j * 2 + 1] = word >>   8;
+				buffer[(i * m_sector_words + j) * 2 + 0] = word & 0xFF;
+				buffer[(i * m_sector_words + j) * 2 + 1] = word >>   8;
 			}
 
 			// 10. Then loop back to waiting for the next IRQ (or poll again -- see next note) for each successive sector.
