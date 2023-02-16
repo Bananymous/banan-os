@@ -50,4 +50,11 @@ namespace PIT
 		InterruptController::get().enable_irq(PIT_IRQ);
 	}
 
+	void sleep(uint64_t ms)
+	{
+		uint64_t end = s_system_time + ms;
+		while (s_system_time < end)
+			asm volatile("hlt");
+	}
+
 }
