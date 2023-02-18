@@ -1,5 +1,7 @@
 #pragma once
 
+#include <BAN/Traits.h>
+
 namespace BAN::Math
 {
 
@@ -21,7 +23,7 @@ namespace BAN::Math
 		return x < min ? min : x > max ? max : x;
 	}
 
-	template<typename T>
+	template<integral T>
 	T gcd(T a, T b)
 	{
 		T t;
@@ -34,10 +36,16 @@ namespace BAN::Math
 		return a;
 	}
 
-	template<typename T>
+	template<integral T>
 	T lcm(T a, T b)
 	{
 		return a / gcd(a, b) * b;
+	}
+
+	template<integral T>
+	T div_round_up(T a, T b)
+	{
+		return (a + b - 1) / b;
 	}
 
 }
