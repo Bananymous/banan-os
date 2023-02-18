@@ -2,7 +2,7 @@
 set -e
 . ./disk.sh
 
-SIZE=$(stat banan-os.img | grep -oP '\d+' | head -n 1)
+SIZE=$(stat -c '%s' banan-os.img | numfmt --to=iec)
 
-echo Writing $SIZE bytes
+echo Writing ${SIZE}B
 sudo dd if=banan-os.img of=/dev/sda status=progress
