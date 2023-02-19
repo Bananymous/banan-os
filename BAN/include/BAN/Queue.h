@@ -24,10 +24,10 @@ namespace BAN
 		Queue<T>& operator=(Queue<T>&&);
 		Queue<T>& operator=(const Queue<T>&);
 
-		[[nodiscard]] ErrorOr<void> push(T&&);
-		[[nodiscard]] ErrorOr<void> push(const T&);
+		ErrorOr<void> push(T&&);
+		ErrorOr<void> push(const T&);
 		template<typename... Args>
-		[[nodiscard]] ErrorOr<void> emplace(Args&&...);
+		ErrorOr<void> emplace(Args&&...);
 
 		void pop();
 		void clear();
@@ -39,7 +39,7 @@ namespace BAN
 		T& front();
 
 	private:
-		[[nodiscard]] ErrorOr<void> ensure_capacity(size_type size);
+		ErrorOr<void> ensure_capacity(size_type size);
 
 	private:
 		T*			m_data		= nullptr;

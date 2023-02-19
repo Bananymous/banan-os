@@ -31,14 +31,14 @@ namespace BAN
 		Vector<T>& operator=(Vector<T>&&);
 		Vector<T>& operator=(const Vector<T>&);
 
-		[[nodiscard]] ErrorOr<void> push_back(T&&);
-		[[nodiscard]] ErrorOr<void> push_back(const T&);
+		ErrorOr<void> push_back(T&&);
+		ErrorOr<void> push_back(const T&);
 		template<typename... Args>
-		[[nodiscard]] ErrorOr<void> emplace_back(Args&&...);
+		ErrorOr<void> emplace_back(Args&&...);
 		template<typename... Args>
-		[[nodiscard]] ErrorOr<void> emplace(size_type, Args&&...);
-		[[nodiscard]] ErrorOr<void> insert(size_type, T&&);
-		[[nodiscard]] ErrorOr<void> insert(size_type, const T&);
+		ErrorOr<void> emplace(size_type, Args&&...);
+		ErrorOr<void> insert(size_type, T&&);
+		ErrorOr<void> insert(size_type, const T&);
 		
 		iterator begin()				{ return iterator      (m_data); }
 		const_iterator begin() const	{ return const_iterator(m_data); }
@@ -62,15 +62,15 @@ namespace BAN
 		const T& front() const;
 		T& front();
 
-		[[nodiscard]] ErrorOr<void> resize(size_type);
-		[[nodiscard]] ErrorOr<void> reserve(size_type);
+		ErrorOr<void> resize(size_type);
+		ErrorOr<void> reserve(size_type);
 
 		bool empty() const;
 		size_type size() const;
 		size_type capacity() const;
 
 	private:
-		[[nodiscard]] ErrorOr<void> ensure_capacity(size_type);
+		ErrorOr<void> ensure_capacity(size_type);
 
 	private:
 		T*			m_data		= nullptr;

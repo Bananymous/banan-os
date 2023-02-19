@@ -25,11 +25,11 @@ namespace BAN
 		String& operator=(String&&);
 		String& operator=(StringView);
 
-		[[nodiscard]] ErrorOr<void> push_back(char);
-		[[nodiscard]] ErrorOr<void> insert(char, size_type);
-		[[nodiscard]] ErrorOr<void> insert(StringView, size_type);
-		[[nodiscard]] ErrorOr<void> append(StringView);
-		[[nodiscard]] ErrorOr<void> append(const String&);
+		ErrorOr<void> push_back(char);
+		ErrorOr<void> insert(char, size_type);
+		ErrorOr<void> insert(StringView, size_type);
+		ErrorOr<void> append(StringView);
+		ErrorOr<void> append(const String&);
 		
 		void pop_back();
 		void remove(size_type);
@@ -44,8 +44,8 @@ namespace BAN
 		bool operator==(StringView) const;
 		bool operator==(const char*) const;
 
-		[[nodiscard]] ErrorOr<void> resize(size_type, char = '\0');
-		[[nodiscard]] ErrorOr<void> reserve(size_type);
+		ErrorOr<void> resize(size_type, char = '\0');
+		ErrorOr<void> reserve(size_type);
 
 		StringView sv() const;
 
@@ -56,9 +56,9 @@ namespace BAN
 		const char* data() const;
 
 	private:
-		[[nodiscard]] ErrorOr<void> ensure_capacity(size_type);
+		ErrorOr<void> ensure_capacity(size_type);
 
-		[[nodiscard]] ErrorOr<void> copy_impl(StringView);
+		ErrorOr<void> copy_impl(StringView);
 		void move_impl(String&&);
 
 	private:

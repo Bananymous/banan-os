@@ -38,7 +38,7 @@ namespace BAN
 	};
 
 	template<typename T>
-	class ErrorOr
+	class [[nodiscard]] ErrorOr
 	{
 	public:
 		ErrorOr(const T& value)		: m_has_error(false)	{ m_data = (void*)new T(value); }
@@ -56,7 +56,7 @@ namespace BAN
 	};
 
 	template<>
-	class ErrorOr<void>
+	class [[nodiscard]] ErrorOr<void>
 	{
 	public:
 		ErrorOr()														{ }

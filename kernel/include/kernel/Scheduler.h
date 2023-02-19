@@ -19,7 +19,7 @@ namespace Kernel
 		const Thread& current_thread() const;
 
 		template<typename... Args>
-		[[nodiscard]] BAN::ErrorOr<void> add_thread(const BAN::Function<void(Args...)>& func, Args... args)
+		BAN::ErrorOr<void> add_thread(const BAN::Function<void(Args...)>& func, Args... args)
 		{
 			uintptr_t flags;
 			asm volatile("pushf; pop %0" : "=r"(flags));

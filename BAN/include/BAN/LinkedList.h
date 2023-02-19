@@ -28,14 +28,14 @@ namespace BAN
 		LinkedList<T>& operator=(const LinkedList<T>&);
 		LinkedList<T>& operator=(LinkedList<T>&&);
 
-		[[nodiscard]] ErrorOr<void> push_back(const T&);
-		[[nodiscard]] ErrorOr<void> push_back(T&&);
-		[[nodiscard]] ErrorOr<void> insert(iterator, const T&);
-		[[nodiscard]] ErrorOr<void> insert(iterator, T&&);
+		ErrorOr<void> push_back(const T&);
+		ErrorOr<void> push_back(T&&);
+		ErrorOr<void> insert(iterator, const T&);
+		ErrorOr<void> insert(iterator, T&&);
 		template<typename... Args>
-		[[nodiscard]] ErrorOr<void> emplace_back(Args&&...);
+		ErrorOr<void> emplace_back(Args&&...);
 		template<typename... Args>
-		[[nodiscard]] ErrorOr<void> emplace(iterator, Args&&...);
+		ErrorOr<void> emplace(iterator, Args&&...);
 
 		void pop_back();
 		void remove(iterator);
@@ -64,7 +64,7 @@ namespace BAN
 			Node* prev;
 		};
 
-		[[nodiscard]] ErrorOr<Node*> allocate_node() const;
+		ErrorOr<Node*> allocate_node() const;
 
 		Node* m_data = nullptr;
 		Node* m_last = nullptr;

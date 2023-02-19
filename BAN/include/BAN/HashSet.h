@@ -28,8 +28,8 @@ namespace BAN
 		HashSet<T, HASH>& operator=(const HashSet<T, HASH>&);
 		HashSet<T, HASH>& operator=(HashSet<T, HASH>&&);
 
-		[[nodiscard]] ErrorOr<void> insert(const T&);
-		[[nodiscard]] ErrorOr<void> insert(T&&);
+		ErrorOr<void> insert(const T&);
+		ErrorOr<void> insert(T&&);
 		void remove(const T&);
 		void clear();
 
@@ -42,7 +42,7 @@ namespace BAN
 		bool empty() const;
 
 	private:
-		[[nodiscard]] ErrorOr<void> rebucket(size_type);
+		ErrorOr<void> rebucket(size_type);
 		Vector<T>& get_bucket(const T&);
 		const Vector<T>& get_bucket(const T&) const;
 
