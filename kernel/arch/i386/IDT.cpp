@@ -129,7 +129,9 @@ found:
 		else
 			dprintln("no handler for irq 0x{2H}\n", irq);
 
-		InterruptController::get().eoi(irq);
+		// NOTE: Scheduler sends PIT eoi's
+		if (irq != PIT_IRQ)
+			InterruptController::get().eoi(irq);
 	}
 
 	extern "C" void handle_irq_common();

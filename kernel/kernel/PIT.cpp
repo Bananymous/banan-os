@@ -28,7 +28,7 @@ namespace PIT
 	void irq_handler()
 	{
 		s_system_time++;
-		Kernel::Scheduler::get().switch_thread();
+		Kernel::Scheduler::get().reschedule();
 	}
 
 	uint64_t ms_since_boot()
@@ -54,7 +54,7 @@ namespace PIT
 	{
 		uint64_t end = s_system_time + ms;
 		while (s_system_time < end)
-			asm volatile("hlt");
+			Kernel::Scheduler::get().set_current_thread_sleeping();
 	}
 
 }

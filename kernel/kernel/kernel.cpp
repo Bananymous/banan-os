@@ -97,8 +97,8 @@ extern "C" void kernel_main()
 
 	Scheduler::initialize();
 	Scheduler& scheduler = Scheduler::get();
-	scheduler.add_thread(BAN::Function<void()>([] { DiskIO::initialize(); }));
-	scheduler.add_thread(BAN::Function<void()>([tty1] { Shell(tty1).run(); }));
+	MUST(scheduler.add_thread(BAN::Function<void()>([] { DiskIO::initialize(); })));
+	MUST(scheduler.add_thread(BAN::Function<void()>([tty1] { Shell(tty1).run(); })));
 	scheduler.start();
 	ASSERT(false);
 }

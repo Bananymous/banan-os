@@ -126,7 +126,9 @@ namespace IDT
 			dprintln("no handler for irq 0x{2H}\n", irq);
 		}
 
-		InterruptController::get().eoi(irq);
+		// NOTE: Scheduler sends PIT eoi's
+		if (irq != PIT_IRQ)
+			InterruptController::get().eoi(irq);
 	}
 
 	static void flush_idt()

@@ -10,9 +10,9 @@
 namespace Kernel
 {
 
-	static uint32_t s_next_id = 1;
+	static uint32_t s_next_id = 0;
 
-	static constexpr size_t thread_stack_size = PAGE_SIZE;
+	static constexpr size_t thread_stack_size = 16384;
 
 	template<size_t size, typename T>
 	static void write_to_stack(uintptr_t& rsp, const T& value)
@@ -27,8 +27,7 @@ namespace Kernel
 		m_stack_base = kmalloc(thread_stack_size, PAGE_SIZE);
 		ASSERT(m_stack_base);
 	
-		m_rbp = (uintptr_t)m_stack_base + thread_stack_size;
-		m_rsp = m_rbp;
+		m_rsp = (uintptr_t)m_stack_base + thread_stack_size;
 		m_rip = rip;
 		m_args[1] = arg1;
 		m_args[2] = arg2;
@@ -54,8 +53,10 @@ namespace Kernel
 
 	void Thread::on_exit()
 	{
+		asm volatile("cli");
 		m_state = State::Done;
-		for (;;) asm volatile("hlt");
+		Scheduler::get().switch_thread();
+		ASSERT(false);
 	}
 
 }
