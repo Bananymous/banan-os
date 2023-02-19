@@ -38,6 +38,8 @@ kernel/CPUID.o					\
 kernel/Debug.o					\
 kernel/DiskIO.o					\
 kernel/font.o					\
+kernel/FS/Ext2.o				\
+kernel/FS/VirtualFileSystem.o	\
 kernel/Input.o					\
 kernel/InterruptController.o	\
 kernel/kernel.o					\
@@ -95,6 +97,7 @@ $(ARCHDIR)/crtbegin.o $(ARCHDIR)/crtend.o:
 always:
 	mkdir -p $(BUILDDIR)/$(ARCHDIR)
 	mkdir -p $(BUILDDIR)/kernel
+	mkdir -p $(BUILDDIR)/kernel/FS
 
 clean:
 	rm -rf $(BUILDDIR)

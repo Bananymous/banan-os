@@ -1,7 +1,11 @@
 #include <BAN/ScopeGuard.h>
 #include <BAN/StringView.h>
 #include <kernel/ATA.h>
+#include <kernel/FS/Ext2.h>
+#include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/DiskIO.h>
+
+#include <kernel/kprint.h>
 
 #define ATA_DEVICE_PRIMARY		0x1F0
 #define ATA_DEVICE_SECONDARY	0x170
@@ -19,7 +23,7 @@ namespace Kernel
 		uint64_t my_lba;
 		uint64_t first_lba;
 		uint64_t last_lba;
-		uint8_t guid[16];
+		GUID     guid;
 		uint64_t partition_entry_lba;
 		uint32_t partition_entry_count;
 		uint32_t partition_entry_size;
@@ -114,6 +118,25 @@ namespace Kernel
 		return result;
 	}
 
+	template<typename T>
+	static T big_endian_to_host(const uint8_t* data)
+	{
+		T result = 0;
+		for (size_t i = 0; i < sizeof(T); i++)
+			result |= data[i] << (8 * (sizeof(T) - i - 1));
+		return result;
+	}
+
+	static GUID parse_guid(const uint8_t* guid)
+	{
+		GUID result;
+		result.data1 = big_endian_to_host<uint32_t>(guid + 0);
+		result.data2 = big_endian_to_host<uint16_t>(guid + 4);
+		result.data3 = big_endian_to_host<uint16_t>(guid + 6);
+		memcpy(result.data4, guid + 8, 8);
+		return result;
+	}
+
 	static bool is_valid_gpt_header(const GPTHeader& header, uint32_t sector_size)
 	{
 		if (memcmp(header.signature, "EFI PART", 8) != 0)
@@ -137,19 +160,19 @@ namespace Kernel
 		return true;
 	}
 
-	static GPTHeader parse_gpt_header(const BAN::Vector<uint8_t> lba1)
+	static GPTHeader parse_gpt_header(const BAN::Vector<uint8_t>& lba1)
 	{
 		GPTHeader header;
 		memset(&header, 0, sizeof(header));
 
 		memcpy(header.signature, lba1.data(), 8);
-		memcpy(header.guid, lba1.data() + 56, 16);
 		header.revision						= little_endian_to_host<uint32_t>(lba1.data() + 8);
 		header.size							= little_endian_to_host<uint32_t>(lba1.data() + 12);
 		header.crc32						= little_endian_to_host<uint32_t>(lba1.data() + 16);
 		header.my_lba						= little_endian_to_host<uint64_t>(lba1.data() + 24);
 		header.first_lba					= little_endian_to_host<uint64_t>(lba1.data() + 40);
 		header.last_lba						= little_endian_to_host<uint64_t>(lba1.data() + 48);
+		header.guid							= parse_guid(lba1.data() + 56);
 		header.partition_entry_lba			= little_endian_to_host<uint64_t>(lba1.data() + 72);
 		header.partition_entry_count		= little_endian_to_host<uint32_t>(lba1.data() + 80);
 		header.partition_entry_size			= little_endian_to_host<uint32_t>(lba1.data() + 84);
@@ -160,7 +183,7 @@ namespace Kernel
 	bool DiskDevice::initialize_partitions()
 	{
 		BAN::Vector<uint8_t> lba1(sector_size());
-		if (!read(1, 1, lba1.data()))
+		if (!read_sectors(1, 1, lba1.data()))
 			return false;
 
 		GPTHeader header = parse_gpt_header(lba1);
@@ -170,14 +193,13 @@ namespace Kernel
 			return false;
 		}
 
-		BAN::Vector<uint8_t> entry_array;
-		{
-			uint32_t bytes = header.partition_entry_count * header.partition_entry_size;
-			uint32_t sectors = (bytes + sector_size() - 1) / sector_size();
-			MUST(entry_array.resize(sectors * sector_size()));
-			if (!read(header.partition_entry_lba, sectors, entry_array.data()))
-				return false;
-		}
+		uint32_t size = header.partition_entry_count * header.partition_entry_size;
+		if (uint32_t remainder = size % sector_size())
+			size += sector_size() - remainder;
+
+		BAN::Vector<uint8_t> entry_array(size);
+		if (!read_sectors(header.partition_entry_lba, size / sector_size(), entry_array.data()))
+			return false;
 
 		if (!is_valid_gpt_crc32(header, lba1, entry_array))
 		{
@@ -188,31 +210,15 @@ namespace Kernel
 		for (uint32_t i = 0; i < header.partition_entry_count; i++)
 		{
 			uint8_t* partition_data = entry_array.data() + header.partition_entry_size * i;
-
-			Partition partition;
-			memcpy(partition.type_guid, partition_data,      16);
-			memcpy(partition.guid,      partition_data + 16, 16);
-			memcpy(partition.name,      partition_data + 56, 72);
-			partition.start_lba		= little_endian_to_host<uint64_t>(partition_data + 32);
-			partition.end_lba		= little_endian_to_host<uint64_t>(partition_data + 40);
-			partition.attributes	= little_endian_to_host<uint64_t>(partition_data + 48);
-
-			MUST(m_partitions.push_back(partition));
-		}
-
-		for (const Partition& partition : m_partitions)
-		{
-			uint8_t zero[16] = {};
-			if (memcmp(partition.type_guid, zero, 16) == 0)
-				continue;
-
-			dprintln("partition:");
-			dprintln("    type  {16H}{16H}", *(uint64_t*)partition.type_guid, *(uint64_t*)(partition.type_guid + 1));
-			dprintln("    guid  {16H}{16H}", *(uint64_t*)partition.guid,      *(uint64_t*)(partition.guid      + 1));
-			dprintln("    start {16H}",      partition.start_lba);
-			dprintln("    end   {16H}",      partition.end_lba);
-			dprintln("    attr  {16H}",      partition.attributes);
-			dprintln("    name  {}",         partition.name);
+			MUST(m_partitions.emplace_back(
+				*this, 
+				parse_guid(partition_data + 0),
+				parse_guid(partition_data + 16),
+				little_endian_to_host<uint64_t>(partition_data + 32),
+				little_endian_to_host<uint64_t>(partition_data + 40),
+				little_endian_to_host<uint64_t>(partition_data + 48),
+				(const char*)(partition_data + 56)
+			));
 		}
 
 		return true;
@@ -224,6 +230,24 @@ namespace Kernel
 	{
 		ASSERT(s_instance == nullptr);
 		s_instance = new DiskIO();
+
+#if 1
+		for (DiskDevice* device : s_instance->m_devices)
+		{
+			for (auto& partition : device->partitions())
+			{
+				if (!partition.is_used())
+					continue;
+				
+				if (memcmp(&partition.type(), "\x0F\xC6\x3D\xAF\x84\x83\x47\x72\x8E\x79\x3D\x69\xD8\x47\x7D\xE4", 16) == 0)
+				{
+					auto ext2fs = MUST(Ext2FS::create(partition));
+					VirtualFileSystem::initialize(ext2fs->root_inode());
+				}
+			}
+		}
+#endif
+
 		return true;
 	}
 
@@ -235,27 +259,46 @@ namespace Kernel
 
 	DiskIO::DiskIO()
 	{
-		auto add_ata_device = [this](uint16_t io_base, uint16_t ctl_base, uint8_t slave_bit)
+		try_add_device(ATADevice::create(ATA_DEVICE_PRIMARY,   ATA_DEVICE_PRIMARY   + 0x206, 0));
+		try_add_device(ATADevice::create(ATA_DEVICE_PRIMARY,   ATA_DEVICE_PRIMARY   + 0x206, ATA_DEVICE_SLAVE_BIT));
+		try_add_device(ATADevice::create(ATA_DEVICE_SECONDARY, ATA_DEVICE_SECONDARY + 0x206, 0));
+		try_add_device(ATADevice::create(ATA_DEVICE_SECONDARY, ATA_DEVICE_SECONDARY + 0x206, ATA_DEVICE_SLAVE_BIT));
+	}
+
+	void DiskIO::try_add_device(DiskDevice* device)
+	{
+		if (!device)
+			return;
+		if (!device->initialize())
 		{
-			DiskDevice* device = ATADevice::create(io_base, ctl_base, slave_bit);
-			if (!device)
-				return;
-			if (!device->initialize())
-			{
-				delete device;
-				return;
-			}
-			if (!device->initialize_partitions())
-			{
-				delete device;
-				return;
-			}
-			MUST(m_devices.push_back(device));
-		};
-		add_ata_device(ATA_DEVICE_PRIMARY,   ATA_DEVICE_PRIMARY   + 0x206, 0);
-		add_ata_device(ATA_DEVICE_PRIMARY,   ATA_DEVICE_PRIMARY   + 0x206, ATA_DEVICE_SLAVE_BIT);
-		add_ata_device(ATA_DEVICE_SECONDARY, ATA_DEVICE_SECONDARY + 0x206, 0);
-		add_ata_device(ATA_DEVICE_SECONDARY, ATA_DEVICE_SECONDARY + 0x206, ATA_DEVICE_SLAVE_BIT);
+			delete device;
+			return;
+		}
+		if (!device->initialize_partitions())
+		{
+			delete device;
+			return;
+		}
+		MUST(m_devices.push_back(device));
+	}
+
+
+	DiskDevice::Partition::Partition(DiskDevice& device, const GUID& type, const GUID& guid, uint64_t start, uint64_t end, uint64_t attr, const char* name)
+		: m_device(device)
+		, m_type(type)
+		, m_guid(guid)
+		, m_lba_start(start)
+		, m_lba_end(end)
+		, m_attributes(attr)
+	{
+		memcpy(m_name, name, sizeof(m_name));
+	}
+
+	bool DiskDevice::Partition::read_sectors(uint32_t lba, uint32_t sector_count, uint8_t* buffer)
+	{
+		const uint32_t sectors_in_partition = m_lba_end - m_lba_start;
+		ASSERT(lba + sector_count < sectors_in_partition);
+		return m_device.read_sectors(m_lba_start + lba, sector_count, buffer);
 	}
 
 }

@@ -136,13 +136,10 @@ namespace Kernel
 			dprintln("using {} sector size", m_sector_words * 2);
 		}
 
-
-
-
 		return true;
 	}
 
-	bool PATADevice::read(uint32_t lba, uint32_t sector_count, uint8_t* buffer)
+	bool PATADevice::read_sectors(uint32_t lba, uint32_t sector_count, uint8_t* buffer)
 	{
 		return read_lba28(lba, sector_count, buffer);
 	}

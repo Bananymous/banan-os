@@ -41,7 +41,7 @@ namespace Kernel
 		virtual uint32_t sector_size() const override { return m_sector_words * 2; }
 		virtual const char* type() const override { return "PATA"; }
 
-		virtual bool read(uint32_t lba, uint32_t sector_count, uint8_t* buffer) override;
+		virtual bool read_sectors(uint32_t lba, uint32_t sector_count, uint8_t* buffer) override;
 
 	protected:
 		virtual bool initialize() override;
