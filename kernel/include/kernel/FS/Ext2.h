@@ -122,12 +122,11 @@ namespace Kernel
 	class Ext2Inode : public Inode
 	{
 	public:
-		virtual bool is_directory() const override;
-		virtual bool is_regular_file() const override;
-
 		virtual uint16_t uid() const override { return m_inode.uid; }
 		virtual uint16_t gid() const override { return m_inode.gid; }
 		virtual uint32_t size() const override { return m_inode.size; }
+
+		virtual Mode mode() const override { return { .mode = m_inode.mode }; }
 
 		virtual BAN::StringView name() const override { return m_name; }
 

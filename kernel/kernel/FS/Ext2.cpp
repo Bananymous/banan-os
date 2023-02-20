@@ -4,7 +4,7 @@
 
 #include <kernel/kprint.h>
 
-#define EXT2_DEBUG_PRINT 1
+#define EXT2_DEBUG_PRINT 0
 
 namespace Kernel
 {
@@ -88,7 +88,7 @@ namespace Kernel
 		enum InodeMode
 		{
 			// -- file format --
-			IFSOKC = 0xC000,
+			IFSOCK = 0xC000,
 			IFLNK = 0xA000,
 			IFREG = 0x8000,
 			IFBLK = 0x6000,
@@ -136,16 +136,6 @@ namespace Kernel
 			RESERVED_FL		= 0x80000000,
 		};
 
-	}
-
-	bool Ext2Inode::is_directory() const
-	{
-		return m_inode.mode & Ext2::Enum::IFDIR;
-	}
-
-	bool Ext2Inode::is_regular_file() const
-	{
-		return m_inode.mode & Ext2::Enum::IFREG;
 	}
 	
 	BAN::ErrorOr<void> Ext2Inode::for_each_block(BAN::Function<BAN::ErrorOr<bool>(const BAN::Vector<uint8_t>&)>& func)
@@ -237,7 +227,7 @@ namespace Kernel
 
 	BAN::ErrorOr<BAN::Vector<uint8_t>> Ext2Inode::read_all()
 	{
-		if (is_directory())
+		if (ifdir())
 			return BAN::Error::from_string("Inode is a directory");
 
 		BAN::Vector<uint8_t> data_buffer;
@@ -265,7 +255,7 @@ namespace Kernel
 
 	BAN::ErrorOr<BAN::RefCounted<Inode>> Ext2Inode::directory_find(BAN::StringView file_name)
 	{
-		if (!is_directory())
+		if (!ifdir())
 			return BAN::Error::from_string("Inode is not a directory");
 
 		BAN::RefCounted<Inode> result;
@@ -298,7 +288,7 @@ namespace Kernel
 
 	BAN::ErrorOr<BAN::Vector<BAN::RefCounted<Inode>>> Ext2Inode::directory_inodes()
 	{
-		if (!is_directory())
+		if (!ifdir())
 			return BAN::Error::from_string("Inode is not a directory");
 
 		BAN::Vector<BAN::RefCounted<Inode>> inodes;

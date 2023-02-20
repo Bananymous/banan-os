@@ -271,7 +271,7 @@ argument_done:
 			path = path.substring(1);
 
 			auto directory = VirtualFileSystem::get().root_inode();
-			ASSERT(directory->is_directory());
+			ASSERT(directory->ifdir());
 
 			if (arguments.size() == 2)
 			{
@@ -282,7 +282,7 @@ argument_done:
 					if (inode_or_error.is_error())
 						return TTY_PRINTLN("{}", inode_or_error.get_error().get_message());
 					directory = inode_or_error.value();
-					if (!directory->is_directory())
+					if (!directory->ifdir())
 						return TTY_PRINTLN("expected argument to be path to directory");
 				}
 			}
@@ -292,13 +292,29 @@ argument_done:
 				return TTY_PRINTLN("{}", inodes_or_error.get_error().get_message());
 			auto& inodes = inodes_or_error.value();
 
+			auto mode_string = [](Inode::Mode mode)
+			{
+				static char buffer[11] {};
+				buffer[0] = mode.IFDIR ? 'd' : '-';
+				buffer[1] = mode.IRUSR ? 'r' : '-';
+				buffer[2] = mode.IWUSR ? 'w' : '-';
+				buffer[3] = mode.IXUSR ? 'x' : '-';
+				buffer[4] = mode.IRGRP ? 'r' : '-';
+				buffer[5] = mode.IWGRP ? 'w' : '-';
+				buffer[6] = mode.IXGRP ? 'x' : '-';
+				buffer[7] = mode.IROTH ? 'r' : '-';
+				buffer[8] = mode.IWOTH ? 'w' : '-';
+				buffer[9] = mode.IXOTH ? 'x' : '-';
+				return (const char*)buffer;
+			};
+
 			TTY_PRINTLN("/{}", path);
 			for (auto& inode : inodes)
-				if (inode->is_directory())
-					TTY_PRINTLN("  {7} \e[34m{}\e[m", inode->size(), inode->name());
+				if (inode->ifdir())
+					TTY_PRINTLN("  {} {7} \e[34m{}\e[m", mode_string(inode->mode()), inode->size(), inode->name());
 			for (auto& inode : inodes)
-				if (!inode->is_directory())
-					TTY_PRINTLN("  {7} {}", inode->size(), inode->name());
+				if (!inode->ifdir())
+					TTY_PRINTLN("  {} {7} {}", mode_string(inode->mode()), inode->size(), inode->name());
 		}
 		else if (arguments.front() == "cat")
 		{
