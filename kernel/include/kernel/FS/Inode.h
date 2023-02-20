@@ -20,9 +20,9 @@ namespace Kernel
 
 		virtual BAN::StringView name() const = 0;
 
-		virtual BAN::ErrorOr<BAN::Vector<uint8_t>> read_all() const = 0;
-		virtual BAN::ErrorOr<BAN::Vector<BAN::RefCounted<Inode>>> directory_inodes() const = 0;
-		virtual BAN::ErrorOr<BAN::RefCounted<Inode>> directory_find(BAN::StringView) const = 0;
+		virtual BAN::ErrorOr<BAN::Vector<uint8_t>> read_all() = 0;
+		virtual BAN::ErrorOr<BAN::Vector<BAN::RefCounted<Inode>>> directory_inodes() = 0;
+		virtual BAN::ErrorOr<BAN::RefCounted<Inode>> directory_find(BAN::StringView) = 0;
 	};
 
 }

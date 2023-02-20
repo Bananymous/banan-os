@@ -148,86 +148,182 @@ namespace Kernel
 		return m_inode.mode & Ext2::Enum::IFREG;
 	}
 	
-	BAN::ErrorOr<BAN::Vector<uint8_t>> Ext2Inode::read_all() const
+	BAN::ErrorOr<void> Ext2Inode::for_each_block(BAN::Function<BAN::ErrorOr<bool>(const BAN::Vector<uint8_t>&)>& func)
 	{
-		return BAN::Error::from_string("not implemented");
+		uint32_t data_blocks_left = m_inode.blocks / (2 << m_fs->superblock().log_block_size);
+		uint32_t block_array_block_count = (1024 << m_fs->superblock().log_block_size) / sizeof(uint32_t);
+
+		// Direct blocks
+		for (uint32_t i = 0; i < 12; i++)
+		{
+			if (m_inode.block[i] == 0)
+				continue;
+
+			auto block_data = TRY(m_fs->read_block(m_inode.block[i]));
+			if (!TRY(func(block_data)))
+				return {};
+			if (--data_blocks_left == 0)
+				return {};
+		}
+
+		// Singly indirect block
+		if (m_inode.block[12])
+		{
+			auto block_array = TRY(m_fs->read_block(m_inode.block[12]));
+			for (uint32_t i = 0; i < block_array_block_count; i++)
+			{
+				uint32_t block = ((uint32_t*)block_array.data())[i];
+				if (block == 0)
+					continue;
+				auto block_data = TRY(m_fs->read_block(block));
+				if (!TRY(func(block_data)))
+					return {};
+				if (--data_blocks_left == 0)
+					return {};
+			}
+		}
+
+		// Doubly indirect blocks
+		if (m_inode.block[13])
+		{
+			auto singly_indirect_array = TRY(m_fs->read_block(m_inode.block[13]));
+			for (uint32_t i = 0; i < block_array_block_count; i++)
+			{
+				uint32_t singly_indirect_block = ((uint32_t*)singly_indirect_array.data())[i];
+				auto block_array = TRY(m_fs->read_block(singly_indirect_block));
+				for (uint32_t j = 0; j < block_array_block_count; j++)
+				{
+					uint32_t block = ((uint32_t*)block_array.data())[j];
+					if (block == 0)
+						continue;
+					auto block_data = TRY(m_fs->read_block(block));
+					if (!TRY(func(block_data)))
+						return {};
+					if (--data_blocks_left == 0)
+						return {};
+				}
+			}
+		}
+
+		// Triply indirect blocks
+		if (m_inode.block[14])
+		{
+			auto doubly_indirect_array = TRY(m_fs->read_block(m_inode.block[14]));
+			for (uint32_t i = 0; i < block_array_block_count; i++)
+			{
+				uint32_t doubly_indirect_block = ((uint32_t*)doubly_indirect_array.data())[i];
+				auto singly_indirect_array = TRY(m_fs->read_block(doubly_indirect_block));
+				for (uint32_t j = 0; j < block_array_block_count; j++)
+				{
+					uint32_t singly_indirect_block = ((uint32_t*)singly_indirect_array.data())[j];
+					auto block_array = TRY(m_fs->read_block(singly_indirect_block));
+					for (uint32_t k = 0; k < block_array_block_count; k++)
+					{
+						uint32_t block = ((uint32_t*)block_array.data())[k];
+						if (block == 0)
+							continue;
+						auto block_data = TRY(m_fs->read_block(block));
+						if (!TRY(func(block_data)))
+							return {};
+						if (--data_blocks_left == 0)
+							return {};
+					}
+				}
+			}
+		}
+
+		return BAN::Error::from_string("Inode did not contain enough blocks");
 	}
 
-	BAN::ErrorOr<BAN::RefCounted<Inode>> Ext2Inode::directory_find(BAN::StringView name) const
+	BAN::ErrorOr<BAN::Vector<uint8_t>> Ext2Inode::read_all()
+	{
+		if (is_directory())
+			return BAN::Error::from_string("Inode is a directory");
+
+		BAN::Vector<uint8_t> data_buffer;
+		TRY(data_buffer.resize(m_inode.size));
+
+		uint32_t bytes_done = 0;
+		uint32_t bytes_left = m_inode.size;
+
+		BAN::Function<BAN::ErrorOr<bool>(const BAN::Vector<uint8_t>&)> read_func(
+			[&](const BAN::Vector<uint8_t>& block_data)
+			{
+				uint32_t to_copy = BAN::Math::min<uint32_t>(block_data.size(), bytes_left);
+				memcpy(data_buffer.data() + bytes_done, block_data.data(), to_copy);
+				bytes_done += to_copy;
+				bytes_left -= to_copy;
+				return bytes_left > 0;
+			}
+		);
+
+		TRY(for_each_block(read_func));
+		ASSERT(bytes_left == 0);
+
+		return data_buffer;
+	}
+
+	BAN::ErrorOr<BAN::RefCounted<Inode>> Ext2Inode::directory_find(BAN::StringView file_name)
 	{
 		if (!is_directory())
 			return BAN::Error::from_string("Inode is not a directory");
 
-		uint32_t data_block_count = m_inode.blocks / (2 << m_fs->superblock().log_block_size);
-		uint32_t data_blocks_found = 0;
-
-		for (uint32_t data_block = 0; data_block < 12 && data_blocks_found < data_block_count; data_block++)
-		{
-			if (m_inode.block[0] == 0)
-				continue;
-			data_blocks_found++;
-
-			auto inode_data = TRY(m_fs->read_block(m_inode.block[data_block]));
-			uintptr_t inode_data_end = (uintptr_t)inode_data.data() + inode_data.size();
-			
-			uintptr_t entry_addr = (uintptr_t)inode_data.data();
-			while (entry_addr < inode_data_end)
+		BAN::RefCounted<Inode> result;
+		BAN::Function<BAN::ErrorOr<bool>(const BAN::Vector<uint8_t>&)> function(
+			[&](const BAN::Vector<uint8_t>& block_data) -> BAN::ErrorOr<bool>
 			{
-				Ext2::LinkedDirectoryEntry* entry = (Ext2::LinkedDirectoryEntry*)entry_addr;
-				
-				BAN::StringView entry_name = BAN::StringView(entry->name, entry->name_len);
-				if (entry->inode && name == entry_name)
+				uintptr_t block_data_end = (uintptr_t)block_data.data() + block_data.size();
+				uintptr_t entry_addr = (uintptr_t)block_data.data();
+				while (entry_addr < block_data_end)
 				{
-					Ext2::Inode asked_inode = TRY(m_fs->read_inode(entry->inode));
-					return BAN::RefCounted<Inode>(new Ext2Inode(m_fs, BAN::move(asked_inode), entry_name));
+					Ext2::LinkedDirectoryEntry* entry = (Ext2::LinkedDirectoryEntry*)entry_addr;
+					BAN::StringView entry_name = BAN::StringView(entry->name, entry->name_len);
+					if (entry->inode && file_name == entry_name)
+					{
+						Ext2::Inode asked_inode = TRY(m_fs->read_inode(entry->inode));
+						result = BAN::RefCounted<Inode>(new Ext2Inode(m_fs, BAN::move(asked_inode), entry_name));
+						return false;
+					}
+					entry_addr += entry->rec_len;
 				}
-
-				entry_addr += entry->rec_len;
+				return true;
 			}
-		}
+		);
 
+		TRY(for_each_block(function));
+		if (result)
+			return result;
 		return BAN::Error::from_string("Could not find the asked inode");
 	}
 
-	BAN::ErrorOr<BAN::Vector<BAN::RefCounted<Inode>>> Ext2Inode::directory_inodes() const
+	BAN::ErrorOr<BAN::Vector<BAN::RefCounted<Inode>>> Ext2Inode::directory_inodes()
 	{
 		if (!is_directory())
 			return BAN::Error::from_string("Inode is not a directory");
 
-		uint32_t data_block_count = m_inode.blocks / (2 << m_fs->superblock().log_block_size);
-		uint32_t data_blocks_found = 0;
-
 		BAN::Vector<BAN::RefCounted<Inode>> inodes;
-
-		// FIXME: implement indirect pointers
-		for (uint32_t data_block = 0; data_block < 12 && data_blocks_found < data_block_count; data_block++)
-		{
-			if (m_inode.block[0] == 0)
-				continue;
-			data_blocks_found++;
-
-			auto inode_data = TRY(m_fs->read_block(m_inode.block[data_block]));
-			uintptr_t inode_data_end = (uintptr_t)inode_data.data() + inode_data.size();
-			
-			uintptr_t entry_addr = (uintptr_t)inode_data.data();
-			while (entry_addr < inode_data_end)
+		BAN::Function<BAN::ErrorOr<bool>(const BAN::Vector<uint8_t>&)> function(
+			[&](const BAN::Vector<uint8_t>& block_data) -> BAN::ErrorOr<bool>
 			{
-				Ext2::LinkedDirectoryEntry* entry = (Ext2::LinkedDirectoryEntry*)entry_addr;
-				
-				if (entry->inode)
+				uintptr_t block_data_end = (uintptr_t)block_data.data() + block_data.size();
+				uintptr_t entry_addr = (uintptr_t)block_data.data();
+				while (entry_addr < block_data_end)
 				{
-					BAN::StringView entry_name = BAN::StringView(entry->name, entry->name_len);
-					Ext2::Inode current_inode = TRY(m_fs->read_inode(entry->inode));
-					auto ref_counted_inode = BAN::RefCounted<Inode>(new Ext2Inode(m_fs, BAN::move(current_inode), entry_name));
-					TRY(inodes.push_back(BAN::move(ref_counted_inode)));
+					Ext2::LinkedDirectoryEntry* entry = (Ext2::LinkedDirectoryEntry*)entry_addr;
+					if (entry->inode)
+					{
+						BAN::StringView entry_name = BAN::StringView(entry->name, entry->name_len);
+						Ext2::Inode current_inode = TRY(m_fs->read_inode(entry->inode));
+						auto ref_counted_inode = BAN::RefCounted<Inode>(new Ext2Inode(m_fs, BAN::move(current_inode), entry_name));
+						TRY(inodes.push_back(BAN::move(ref_counted_inode)));
+					}
+					entry_addr += entry->rec_len;
 				}
-
-				entry_addr += entry->rec_len;
+				return true;
 			}
-		}
+		);
 
-		// FIXME: for now we can just assert that we found everything in direct pointers
-		ASSERT(data_blocks_found == data_block_count);
+		TRY(for_each_block(function));
 
 		return inodes;
 	}
