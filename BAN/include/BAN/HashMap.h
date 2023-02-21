@@ -86,6 +86,7 @@ namespace BAN
 	{
 		clear();
 		m_buckets = other.m_buckets;
+		m_size = other.m_size;
 		return *this;
 	}
 
