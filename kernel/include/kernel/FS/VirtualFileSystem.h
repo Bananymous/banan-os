@@ -14,6 +14,8 @@ namespace Kernel
 
 		virtual const BAN::RefCounted<Inode> root_inode() const override { return m_root_inode; }
 
+		BAN::ErrorOr<BAN::RefCounted<Inode>> from_absolute_path(BAN::StringView);
+
 	private:
 		VirtualFileSystem(BAN::RefCounted<Inode> root_inode)
 			: m_root_inode(root_inode)

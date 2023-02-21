@@ -1,18 +1,18 @@
 #pragma once
 
 #include <BAN/Formatter.h>
+#include <BAN/Variant.h>
 
 #include <string.h>
 
 #if defined(__is_kernel)
 	#include <kernel/Panic.h>
-	#define MUST(error)	({ auto e = error; if (e.is_error()) Kernel::panic("{}", e.get_error()); e.value(); })
-	#define ASSERT(cond) do { if (!(cond)) Kernel::panic("ASSERT("#cond") failed"); } while(false)
+	#define MUST(expr)	({ auto e = expr; if (e.is_error()) Kernel::panic("{}", e.error()); e.release_value(); })
 #else
 	#error "NOT IMPLEMENTED"
 #endif
 
-#define TRY(error) ({ auto e = error; if (e.is_error()) return e.get_error(); e.value(); })
+#define TRY(expr) ({ auto e = expr; if (e.is_error()) return e.error(); e.release_value(); })
 
 namespace BAN
 {
@@ -22,6 +22,7 @@ namespace BAN
 	public:
 		static Error from_string(const char* message)
 		{
+			static_assert(sizeof(message) < 128);
 			Error result;
 			strncpy(result.m_message, message, sizeof(m_message));
 			result.m_message[sizeof(result.m_message) - 1] = '\0';
@@ -41,34 +42,66 @@ namespace BAN
 	class [[nodiscard]] ErrorOr
 	{
 	public:
-		ErrorOr(const T& value)		: m_has_error(false)	{ m_data = (void*)new T(value); }
-		ErrorOr(const Error& error) : m_has_error(true)		{ m_data = (void*)new Error(error); }
-		template<typename S> ErrorOr(const ErrorOr<S>& other) : ErrorOr(other.get_error()) {}
-		~ErrorOr()											{ is_error() ? (delete reinterpret_cast<Error*>(m_data)) : (delete reinterpret_cast<T*>(m_data)); }
+		ErrorOr(const T& value)
+			: m_data(value)
+		{}
+		ErrorOr(T&& value)
+			: m_data(move(value))
+		{}
+		ErrorOr(const Error& error)
+			: m_data(error)
+		{}
+		ErrorOr(Error&& error)
+			: m_data(move(error))
+		{}
+		template<typename U>
+		ErrorOr(const ErrorOr<U>& other)
+			: m_data(other.m_data)
+		{}
+		template<typename U>
+		ErrorOr(ErrorOr<U>&& other)
+			: m_data(move(other.m_data))
+		{}
+		template<typename U>
+		ErrorOr<T>& operator=(const ErrorOr<U>& other)
+		{
+			m_data = other.m_data;
+			return *this;
+		}
+		template<typename U>
+		ErrorOr<T>& operator=(ErrorOr<U>&& other)
+		{
+			m_data = move(other.m_data);
+			return *this;
+		}
 
-		bool is_error() const			{ return m_has_error; }
-		const Error& get_error() const	{ return *reinterpret_cast<Error*>(m_data); }
-		T& value()						{ return *reinterpret_cast<T*>(m_data); }
+		bool is_error() const			{ return m_data.template is<Error>(); }
+		const Error& error() const		{ return m_data.template get<Error>(); }
+		Error& error()					{ return m_data.template get<Error>(); }
+		const T& value() const			{ return m_data.template get<T>(); }
+		T& value()						{ return m_data.template get<T>(); }
+		T release_value()				{ return move(value()); m_data.clear(); }
 
 	private:
-		bool	m_has_error	= false;
-		void*	m_data		= nullptr;
+		Variant<Error, T> m_data;
 	};
 
 	template<>
 	class [[nodiscard]] ErrorOr<void>
 	{
 	public:
-		ErrorOr()														{ }
-		ErrorOr(const Error& error) : m_error(error), m_has_error(true)	{ }
-		~ErrorOr()														{ }
+		ErrorOr()														{}
+		ErrorOr(const Error& error) : m_data(error), m_has_error(true)	{}
+		ErrorOr(Error&& error) : m_data(move(error)), m_has_error(true)	{}
 
 		bool is_error() const			{ return m_has_error; }
-		const Error& get_error() const	{ return m_error; }
+		Error& error()					{ return m_data; }
+		const Error& error() const		{ return m_data; }
 		void value()					{ }
+		void release_value()			{ m_data = Error(); }
 
 	private:
-		Error m_error;
+		Error m_data;
 		bool m_has_error = false;
 	};
 

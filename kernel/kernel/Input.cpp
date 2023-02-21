@@ -512,7 +512,7 @@ namespace Input
 		{
 			auto error_or = s_key_event_queue.push({ .key = key, .modifiers = modifiers, .pressed = pressed });
 			if (error_or.is_error())
-				dwarnln("{}", error_or.get_error());
+				dwarnln("{}", error_or.error());
 		}
 		s_keyboard_key_buffer_size -= index + 1;
 		memmove(s_keyboard_key_buffer, s_keyboard_key_buffer + index, s_keyboard_key_buffer_size);

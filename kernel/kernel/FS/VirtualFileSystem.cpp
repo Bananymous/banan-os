@@ -1,3 +1,5 @@
+#include <BAN/StringView.h>
+#include <BAN/Vector.h>
 #include <kernel/FS/VirtualFileSystem.h>
 
 namespace Kernel
@@ -21,6 +23,20 @@ namespace Kernel
 	bool VirtualFileSystem::is_initialized()
 	{
 		return s_instance != nullptr;
+	}
+
+	BAN::ErrorOr<BAN::RefCounted<Inode>> VirtualFileSystem::from_absolute_path(BAN::StringView path)
+	{
+		if (path.front() != '/')
+			return BAN::Error::from_string("Path must be an absolute path");
+
+		auto inode = root_inode();
+		auto path_parts = TRY(path.split('/'));
+		
+		for (BAN::StringView part : path_parts)
+			inode = TRY(inode->directory_find(part));
+		
+		return inode;
 	}
 
 }

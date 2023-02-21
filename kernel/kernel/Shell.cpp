@@ -268,28 +268,16 @@ argument_done:
 			BAN::StringView path = (arguments.size() == 2) ? arguments[1].sv() : "/";
 			if (path.front() != '/')
 				return TTY_PRINTLN("ls currently works only with absolute paths");
-			path = path.substring(1);
 
-			auto directory = VirtualFileSystem::get().root_inode();
+			auto directory_or_error = VirtualFileSystem::get().from_absolute_path(path);
+			if (directory_or_error.is_error())
+				return TTY_PRINTLN("{}", directory_or_error.error());
+			auto directory = directory_or_error.release_value();
 			ASSERT(directory->ifdir());
-
-			if (arguments.size() == 2)
-			{
-				auto path_parts = MUST(arguments[1].sv().split('/'));
-				for (auto part : path_parts)
-				{
-					auto inode_or_error = directory->directory_find(part);
-					if (inode_or_error.is_error())
-						return TTY_PRINTLN("{}", inode_or_error.get_error().get_message());
-					directory = inode_or_error.value();
-					if (!directory->ifdir())
-						return TTY_PRINTLN("expected argument to be path to directory");
-				}
-			}
 
 			auto inodes_or_error = directory->directory_inodes();
 			if (inodes_or_error.is_error())
-				return TTY_PRINTLN("{}", inodes_or_error.get_error().get_message());
+				return TTY_PRINTLN("{}", inodes_or_error.error());
 			auto& inodes = inodes_or_error.value();
 
 			auto mode_string = [](Inode::Mode mode)
@@ -324,22 +312,16 @@ argument_done:
 			if (arguments.size() > 2)
 				return TTY_PRINTLN("usage: 'cat path'");
 			
-			auto file = VirtualFileSystem::get().root_inode();
-
-			auto path_parts = MUST(arguments[1].sv().split('/'));
-			for (auto part : path_parts)
-			{
-				auto inode_or_error = file->directory_find(part);
-				if (inode_or_error.is_error())
-					return TTY_PRINTLN("{}", inode_or_error.get_error().get_message());
-				file = inode_or_error.value();
-			}
+			auto file_or_error = VirtualFileSystem::get().from_absolute_path(arguments[1]);
+			if (file_or_error.is_error())
+				return TTY_PRINTLN("{}", file_or_error.error());
+			auto file = file_or_error.release_value();
 
 			auto data_or_error = file->read_all();
 			if (data_or_error.is_error())
-				return TTY_PRINTLN("{}", data_or_error.get_error().get_message());
+				return TTY_PRINTLN("{}", data_or_error.error());
+			auto data = data_or_error.release_value();
 
-			auto& data = data_or_error.value();
 			TTY_PRINTLN("{}", BAN::StringView((const char*)data.data(), data.size()));
 		}
 		else
