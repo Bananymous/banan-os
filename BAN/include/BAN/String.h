@@ -30,7 +30,7 @@ namespace BAN
 		ErrorOr<void> insert(StringView, size_type);
 		ErrorOr<void> append(StringView);
 		ErrorOr<void> append(const String&);
-		
+
 		void pop_back();
 		void remove(size_type);
 		void erase(size_type, size_type);
@@ -46,6 +46,7 @@ namespace BAN
 
 		ErrorOr<void> resize(size_type, char = '\0');
 		ErrorOr<void> reserve(size_type);
+		ErrorOr<void> shrink_to_fit();
 
 		StringView sv() const;
 

@@ -33,6 +33,8 @@ namespace BAN
 		void remove(const T&);
 		void clear();
 
+		ErrorOr<void> reserve(size_type);
+
 		const_iterator begin() const { return const_iterator(this, m_buckets.begin()); }
 		const_iterator end() const   { return const_iterator(this, m_buckets.end()); }
 
@@ -161,6 +163,13 @@ namespace BAN
 	}
 
 	template<typename T, typename HASH>
+	ErrorOr<void> HashSet<T, HASH>::reserve(size_type size)
+	{
+		TRY(rebucket(size));
+		return {};
+	}
+
+	template<typename T, typename HASH>
 	bool HashSet<T, HASH>::contains(const T& key) const
 	{
 		if (empty()) return false;
@@ -185,7 +194,7 @@ namespace BAN
 		if (m_buckets.size() >= bucket_count)
 			return {};
 
-		size_type new_bucket_count = BAN::Math::max<size_type>(bucket_count, m_buckets.size() * 3 / 2);
+		size_type new_bucket_count = BAN::Math::max<size_type>(bucket_count, m_buckets.size() * 2);
 		Vector<Vector<T>> new_buckets;
 		if (new_buckets.resize(new_bucket_count).is_error())
 			return Error::from_string("HashSet: Could not allocate memory");

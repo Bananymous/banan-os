@@ -64,6 +64,7 @@ namespace BAN
 
 		ErrorOr<void> resize(size_type);
 		ErrorOr<void> reserve(size_type);
+		ErrorOr<void> shrink_to_fit();
 
 		bool empty() const;
 		size_type size() const;
@@ -330,6 +331,7 @@ namespace BAN
 		ASSERT(m_size > 0);
 		return m_data[0];
 	}
+
 	template<typename T>
 	T& Vector<T>::front()
 	{
@@ -359,6 +361,20 @@ namespace BAN
 	}
 
 	template<typename T>
+	ErrorOr<void> Vector<T>::shrink_to_fit()
+	{
+		size_type temp = m_capacity;
+		m_capacity = 0;
+		auto error_or = ensure_capacity(m_size);
+		if (error_or.is_error())
+		{
+			m_capacity = temp;
+			return error_or;
+		}
+		return {};
+	}
+
+	template<typename T>
 	bool Vector<T>::empty() const
 	{
 		return m_size == 0;
@@ -381,7 +397,7 @@ namespace BAN
 	{
 		if (m_capacity >= size)
 			return {};
-		size_type new_cap = BAN::Math::max<size_type>(size, m_capacity * 3 / 2);
+		size_type new_cap = BAN::Math::max<size_type>(size, m_capacity * 2);
 		T* new_data = (T*)BAN::allocator(new_cap * sizeof(T));
 		if (new_data == nullptr)
 			return Error::from_string("Vector: Could not allocate memory");

@@ -185,6 +185,19 @@ namespace BAN
 		return {};
 	}
 
+	ErrorOr<void> String::shrink_to_fit()
+	{
+		size_type temp = m_capacity;
+		m_capacity = 0;
+		auto error_or = ensure_capacity(m_size);
+		if (error_or.is_error())
+		{
+			m_capacity = temp;
+			return error_or;
+		}
+		return {};
+	}
+
 	StringView String::sv() const
 	{
 		return StringView(*this);
@@ -214,7 +227,7 @@ namespace BAN
 	{
 		if (m_capacity >= size)
 			return {};
-		size_type new_cap = BAN::Math::max<size_type>(size, m_capacity * 3 / 2);
+		size_type new_cap = BAN::Math::max<size_type>(size, m_capacity * 2);
 		void* new_data = BAN::allocator(new_cap);
 		if (new_data == nullptr)
 			return Error::from_string("String: Could not allocate memory");

@@ -29,6 +29,9 @@ namespace BAN
 		template<typename... Args>
 		ErrorOr<void> emplace(Args&&...);
 
+		ErrorOr<void> reserve(size_type);
+		ErrorOr<void> shrink_to_fit();
+
 		void pop();
 		void clear();
 
@@ -127,6 +130,27 @@ namespace BAN
 	}
 
 	template<typename T>
+	ErrorOr<void> Queue<T>::reserve(size_type size)
+	{
+		TRY(ensure_capacity(size));
+		return {};
+	}
+
+	template<typename T>
+	ErrorOr<void> Queue<T>::shrink_to_fit()
+	{
+		size_type temp = m_capacity;
+		m_capacity = 0;
+		auto error_or = ensure_capacity(m_size);
+		if (error_or.is_error())
+		{
+			m_capacity = temp;
+			return error_or;
+		}
+		return {};
+	}
+
+	template<typename T>
 	void Queue<T>::pop()
 	{
 		ASSERT(m_size > 0);
@@ -178,7 +202,7 @@ namespace BAN
 	{
 		if (m_capacity > size)
 			return {};
-		size_type new_cap = BAN::Math::max<size_type>(size, m_capacity * 3 / 2);
+		size_type new_cap = BAN::Math::max<size_type>(size, m_capacity * 2);
 		T* new_data = (T*)BAN::allocator(new_cap * sizeof(T));
 		if (new_data == nullptr)
 			return Error::from_string("Queue: Could not allocate memory");

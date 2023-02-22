@@ -1,7 +1,6 @@
 #pragma once
 
 #include <BAN/Hash.h>
-#include <BAN/LinkedList.h>
 #include <BAN/Vector.h>
 
 namespace BAN
@@ -29,6 +28,8 @@ namespace BAN
 		template<typename... Args>
 		ErrorOr<void> emplace(const Key&, Args&&...);
 
+		ErrorOr<void> reserve(size_type);
+
 		void remove(const Key&);
 		void clear();
 
@@ -55,11 +56,11 @@ namespace BAN
 
 	private:
 		ErrorOr<void> rebucket(size_type);
-		LinkedList<Entry>& get_bucket(const Key&);
-		const LinkedList<Entry>& get_bucket(const Key&) const;
+		Vector<Entry>& get_bucket(const Key&);
+		const Vector<Entry>& get_bucket(const Key&) const;
 		
 	private:
-		Vector<LinkedList<Entry>> m_buckets;
+		Vector<Vector<Entry>> m_buckets;
 		size_type m_size = 0;
 	};
 
@@ -123,6 +124,13 @@ namespace BAN
 		if (result.is_error())
 			return Error::from_string("HashMap: Could not allocate memory");
 		m_size++;
+		return {};
+	}
+
+	template<typename Key, typename T, typename HASH>
+	ErrorOr<void> HashMap<Key, T, HASH>::reserve(size_type size)
+	{
+		TRY(rebucket(size));
 		return {};
 	}
 
@@ -200,8 +208,8 @@ namespace BAN
 		if (m_buckets.size() >= bucket_count)
 			return {};
 
-		size_type new_bucket_count = BAN::Math::max<size_type>(bucket_count, m_buckets.size() * 3 / 2);
-		Vector<LinkedList<Entry>> new_buckets;
+		size_type new_bucket_count = BAN::Math::max<size_type>(bucket_count, m_buckets.size() * 2);
+		Vector<Vector<Entry>> new_buckets;
 		if (new_buckets.resize(new_bucket_count).is_error())
 			return Error::from_string("HashMap: Could not allocate memory");
 		
@@ -222,7 +230,7 @@ namespace BAN
 	}
 
 	template<typename Key, typename T, typename HASH>
-	LinkedList<typename HashMap<Key, T, HASH>::Entry>& HashMap<Key, T, HASH>::get_bucket(const Key& key)
+	Vector<typename HashMap<Key, T, HASH>::Entry>& HashMap<Key, T, HASH>::get_bucket(const Key& key)
 	{
 		ASSERT(!m_buckets.empty());
 		auto index = HASH()(key) % m_buckets.size();
@@ -230,7 +238,7 @@ namespace BAN
 	}
 
 	template<typename Key, typename T, typename HASH>
-	const LinkedList<typename HashMap<Key, T, HASH>::Entry>& HashMap<Key, T, HASH>::get_bucket(const Key& key) const
+	const Vector<typename HashMap<Key, T, HASH>::Entry>& HashMap<Key, T, HASH>::get_bucket(const Key& key) const
 	{
 		ASSERT(!m_buckets.empty());
 		auto index = HASH()(key) % m_buckets.size();
