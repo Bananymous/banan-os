@@ -1,6 +1,7 @@
 #pragma once
 
 #include <BAN/Hash.h>
+#include <BAN/LinkedList.h>
 #include <BAN/Vector.h>
 
 namespace BAN
@@ -56,11 +57,11 @@ namespace BAN
 
 	private:
 		ErrorOr<void> rebucket(size_type);
-		Vector<Entry>& get_bucket(const Key&);
-		const Vector<Entry>& get_bucket(const Key&) const;
+		LinkedList<Entry>& get_bucket(const Key&);
+		const LinkedList<Entry>& get_bucket(const Key&) const;
 		
 	private:
-		Vector<Vector<Entry>> m_buckets;
+		Vector<LinkedList<Entry>> m_buckets;
 		size_type m_size = 0;
 	};
 
@@ -209,7 +210,7 @@ namespace BAN
 			return {};
 
 		size_type new_bucket_count = BAN::Math::max<size_type>(bucket_count, m_buckets.size() * 2);
-		Vector<Vector<Entry>> new_buckets;
+		Vector<LinkedList<Entry>> new_buckets;
 		if (new_buckets.resize(new_bucket_count).is_error())
 			return Error::from_string("HashMap: Could not allocate memory");
 		
@@ -230,7 +231,7 @@ namespace BAN
 	}
 
 	template<typename Key, typename T, typename HASH>
-	Vector<typename HashMap<Key, T, HASH>::Entry>& HashMap<Key, T, HASH>::get_bucket(const Key& key)
+	LinkedList<typename HashMap<Key, T, HASH>::Entry>& HashMap<Key, T, HASH>::get_bucket(const Key& key)
 	{
 		ASSERT(!m_buckets.empty());
 		auto index = HASH()(key) % m_buckets.size();
@@ -238,7 +239,7 @@ namespace BAN
 	}
 
 	template<typename Key, typename T, typename HASH>
-	const Vector<typename HashMap<Key, T, HASH>::Entry>& HashMap<Key, T, HASH>::get_bucket(const Key& key) const
+	const LinkedList<typename HashMap<Key, T, HASH>::Entry>& HashMap<Key, T, HASH>::get_bucket(const Key& key) const
 	{
 		ASSERT(!m_buckets.empty());
 		auto index = HASH()(key) % m_buckets.size();
