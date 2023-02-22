@@ -180,6 +180,7 @@ found:
 		constexpr size_t idt_size = 0x100 * sizeof(GateDescriptor);
 
 		s_idt = (GateDescriptor*)kmalloc(idt_size);
+		ASSERT(s_idt);
 		memset(s_idt, 0x00, idt_size);
 
 		s_idtr.offset = s_idt;

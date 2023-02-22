@@ -206,6 +206,7 @@ namespace IDT
 	void initialize()
 	{
 		s_idt = (GateDescriptor*)kmalloc(0x100 * sizeof(GateDescriptor));
+		ASSERT(s_idt);
 		memset(s_idt, 0x00, 0x100 * sizeof(GateDescriptor));
 
 		s_idtr.offset = (uint64_t)s_idt;
