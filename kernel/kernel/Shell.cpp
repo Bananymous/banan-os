@@ -154,7 +154,7 @@ argument_done:
 		{
 			if (arguments.size() > 1)
 			{
-				return TTY_PRINT("{}", arguments[1]);
+				TTY_PRINT("{}", arguments[1]);
 				for (size_t i = 2; i < arguments.size(); i++)
 					TTY_PRINT(" {}", arguments[i]);
 			}
@@ -296,7 +296,7 @@ argument_done:
 				return (const char*)buffer;
 			};
 
-			TTY_PRINTLN("/{}", path);
+			TTY_PRINTLN("{}", path);
 			for (auto& inode : inodes)
 				if (inode->ifdir())
 					TTY_PRINTLN("  {} {7} \e[34m{}\e[m", mode_string(inode->mode()), inode->size(), inode->name());
@@ -309,7 +309,7 @@ argument_done:
 			if (!VirtualFileSystem::is_initialized())
 				return TTY_PRINTLN("VFS not initialized :(");
 
-			if (arguments.size() > 2)
+			if (arguments.size() != 2)
 				return TTY_PRINTLN("usage: 'cat path'");
 			
 			auto file_or_error = VirtualFileSystem::get().from_absolute_path(arguments[1]);
