@@ -22,7 +22,7 @@ public:
 	};
 
 public:
-	TerminalDriver(const Kernel::Font& font) : m_font(font) {}
+	TerminalDriver() : m_font(MUST(Kernel::Font::prefs())) {}
 	virtual ~TerminalDriver() {}
 	virtual uint32_t width() const = 0;
 	virtual uint32_t height() const = 0;

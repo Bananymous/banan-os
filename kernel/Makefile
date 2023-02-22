@@ -31,6 +31,7 @@ BUILDDIR=$(abspath build)
  
 KERNEL_OBJS=					\
 $(KERNEL_ARCH_OBJS)				\
+font/prefs.o					\
 kernel/APIC.o					\
 kernel/ATA.o					\
 kernel/build_libc.o				\
@@ -74,7 +75,7 @@ $(ARCHDIR)/crtend.o		\
 $(ARCHDIR)/crtn.o		\
  
 .PHONY: all always clean install install-headers install-kernel
-.SUFFIXES: .o .c .cpp .S
+.SUFFIXES: .o .c .cpp .S .psf
  
 all: banan-os.kernel
  
@@ -94,10 +95,14 @@ $(ARCHDIR)/crtbegin.o $(ARCHDIR)/crtend.o:
 .S.o:
 	$(CC) -MD -c $< -o $(BUILDDIR)/$@ $(CFLAGS)
  
+.psf.o:
+	objcopy -O elf64-x86-64 -B i386 -I binary $< $(BUILDDIR)/$@
+
 always:
 	mkdir -p $(BUILDDIR)/$(ARCHDIR)
 	mkdir -p $(BUILDDIR)/kernel
 	mkdir -p $(BUILDDIR)/kernel/FS
+	mkdir -p $(BUILDDIR)/font
 
 clean:
 	rm -rf $(BUILDDIR)

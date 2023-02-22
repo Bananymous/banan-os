@@ -10,6 +10,7 @@ namespace Kernel
 	{
 	public:
 		static BAN::ErrorOr<Font> load(BAN::StringView);
+		static BAN::ErrorOr<Font> prefs();
 
 		uint32_t width() const { return m_width; }
 		uint32_t height() const { return m_height; }

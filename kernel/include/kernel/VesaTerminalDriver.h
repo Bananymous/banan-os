@@ -5,7 +5,7 @@
 class VesaTerminalDriver final : public TerminalDriver
 {
 public:
-	static VesaTerminalDriver* create(const Kernel::Font&);
+	static VesaTerminalDriver* create();
 	~VesaTerminalDriver();
 
 	virtual uint32_t width() const override { return m_width / font().width(); }
@@ -17,9 +17,8 @@ public:
 	virtual void set_cursor_position(uint32_t, uint32_t) override;
 
 private:
-	VesaTerminalDriver(uint32_t width, uint32_t height, uint32_t pitch, uint8_t bpp, uintptr_t address, const Kernel::Font& font)
-		: TerminalDriver(font)
-		, m_width(width)
+	VesaTerminalDriver(uint32_t width, uint32_t height, uint32_t pitch, uint8_t bpp, uintptr_t address)
+		: m_width(width)
 		, m_height(height)
 		, m_pitch(pitch)
 		, m_bpp(bpp)

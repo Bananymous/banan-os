@@ -4,7 +4,7 @@
 #include <kernel/multiboot.h>
 #include <kernel/VesaTerminalDriver.h>
 
-VesaTerminalDriver* VesaTerminalDriver::create(const Kernel::Font& font)
+VesaTerminalDriver* VesaTerminalDriver::create()
 {
 	if (!(g_multiboot_info->flags & MULTIBOOT_FLAGS_FRAMEBUFFER))
 	{
@@ -41,8 +41,7 @@ VesaTerminalDriver* VesaTerminalDriver::create(const Kernel::Font& font)
 		framebuffer.height,
 		framebuffer.pitch,
 		framebuffer.bpp,
-		framebuffer.addr,
-		font
+		framebuffer.addr
 	);
 	driver->set_cursor_position(0, 0);
 	driver->clear(TerminalColor::BLACK);

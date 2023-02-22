@@ -81,10 +81,10 @@ extern "C" void kernel_main()
 	MMU::intialize();
 	dprintln("MMU initialized");
 
-	//TerminalDriver* terminal_driver = VesaTerminalDriver::create();
-	//ASSERT(terminal_driver);
-	//dprintln("VESA initialized");
-	//TTY* tty1 = new TTY(terminal_driver);
+	TerminalDriver* terminal_driver = VesaTerminalDriver::create();
+	ASSERT(terminal_driver);
+	dprintln("VESA initialized");
+	TTY* tty1 = new TTY(terminal_driver);
 	
 	InterruptController::initialize(cmdline.force_pic);
 	dprintln("Interrupt controller initialized");
@@ -99,15 +99,24 @@ extern "C" void kernel_main()
 	Scheduler::initialize();
 	Scheduler& scheduler = Scheduler::get();
 	MUST(scheduler.add_thread(BAN::Function<void()>(
-		[]
+		[terminal_driver]
 		{
 			DiskIO::initialize();
 			dprintln("Disk IO initialized");
 
-			auto font = MUST(Font::load("/usr/share/fonts/zap-ext-vga16.psf"));
-			dprintln("Font loaded");
-
-			Shell(new TTY(VesaTerminalDriver::create(font))).run();
+			auto font_or_error = Font::load("/usr/share/fonts/zap-ext-vga16.psf");
+			if (font_or_error.is_error())
+				dprintln("{}", font_or_error.error());
+			else
+				terminal_driver->set_font(font_or_error.release_value());
+		}
+	)));
+	MUST(scheduler.add_thread(BAN::Function<void()>(
+		[tty1]
+		{
+			Shell* shell = new Shell(tty1);
+			ASSERT(shell);
+			shell->run();
 		}
 	)));
 	scheduler.start();
