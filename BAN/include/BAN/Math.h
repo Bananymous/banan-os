@@ -2,6 +2,7 @@
 
 #include <BAN/Traits.h>
 
+#include <stddef.h>
 #include <stdint.h>
 
 namespace BAN::Math
@@ -48,6 +49,15 @@ namespace BAN::Math
 	inline constexpr T div_round_up(T a, T b)
 	{
 		return (a + b - 1) / b;
+	}
+
+	template<integral T>
+	inline constexpr T little_endian_to_host(const uint8_t* bytes)
+	{
+		T result = 0;
+		for (size_t i = 0; i < sizeof(T); i++)
+			result |= (T)bytes[i] << (i * 8);
+		return result;
 	}
 
 }
