@@ -76,29 +76,40 @@ extern "C" void kernel_main()
 	dprintln("kmalloc initialized");
 
 	IDT::initialize();
-	dprintln("IDT initialized");
+	dprintln("IDT initialized");	
 
 	MMU::intialize();
 	dprintln("MMU initialized");
 
-	TerminalDriver* terminal_driver = VesaTerminalDriver::create();
-	ASSERT(terminal_driver);
-	dprintln("VESA initialized");
-	TTY* tty1 = new TTY(terminal_driver);
+	//TerminalDriver* terminal_driver = VesaTerminalDriver::create();
+	//ASSERT(terminal_driver);
+	//dprintln("VESA initialized");
+	//TTY* tty1 = new TTY(terminal_driver);
 	
 	InterruptController::initialize(cmdline.force_pic);
 	dprintln("Interrupt controller initialized");
 
 	PIT::initialize();
 	dprintln("PIT initialized");
+
 	if (!Input::initialize())
 		return;
 	dprintln("8042 initialized");
 
 	Scheduler::initialize();
 	Scheduler& scheduler = Scheduler::get();
-	MUST(scheduler.add_thread(BAN::Function<void()>([] { DiskIO::initialize(); })));
-	MUST(scheduler.add_thread(BAN::Function<void()>([tty1] { Shell(tty1).run(); })));
+	MUST(scheduler.add_thread(BAN::Function<void()>(
+		[]
+		{
+			DiskIO::initialize();
+			dprintln("Disk IO initialized");
+
+			auto font = MUST(Font::load("/usr/share/fonts/zap-ext-vga16.psf"));
+			dprintln("Font loaded");
+
+			Shell(new TTY(VesaTerminalDriver::create(font))).run();
+		}
+	)));
 	scheduler.start();
 	ASSERT(false);
 }

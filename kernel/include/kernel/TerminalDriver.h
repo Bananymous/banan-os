@@ -1,5 +1,7 @@
 #pragma once
 
+#include <kernel/Font.h>
+
 #include <stdint.h>
 
 class TerminalDriver
@@ -20,8 +22,8 @@ public:
 	};
 
 public:
+	TerminalDriver(const Kernel::Font& font) : m_font(font) {}
 	virtual ~TerminalDriver() {}
-
 	virtual uint32_t width() const = 0;
 	virtual uint32_t height() const = 0;
 
@@ -29,6 +31,12 @@ public:
 	virtual void clear(Color) = 0;
 
 	virtual void set_cursor_position(uint32_t, uint32_t) = 0;
+
+	void set_font(const Kernel::Font& font) { m_font = font; };
+	const Kernel::Font& font() const { return m_font; }
+
+private:
+	Kernel::Font m_font;
 };
 
 namespace TerminalColor

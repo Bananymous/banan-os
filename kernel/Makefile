@@ -37,7 +37,7 @@ kernel/build_libc.o				\
 kernel/CPUID.o					\
 kernel/Debug.o					\
 kernel/DiskIO.o					\
-kernel/font.o					\
+kernel/Font.o					\
 kernel/FS/Ext2.o				\
 kernel/FS/VirtualFileSystem.o	\
 kernel/Input.o					\

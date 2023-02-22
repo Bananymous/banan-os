@@ -12,6 +12,7 @@ public:
 	void write(const char* data, size_t size);
 	void write_string(const char* data);
 	void set_cursor_position(uint32_t x, uint32_t y);
+	void set_font(const Kernel::Font&);
 
 	uint32_t height() const { return m_height; }
 	uint32_t width() const { return m_width; }

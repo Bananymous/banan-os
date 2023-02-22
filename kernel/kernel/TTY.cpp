@@ -52,6 +52,14 @@ void TTY::set_cursor_position(uint32_t x, uint32_t y)
 	last_y = m_row = y;
 }
 
+void TTY::set_font(const Kernel::Font& font)
+{
+	m_terminal_driver->set_font(font);
+	for (uint32_t y = 0; y < m_height; y++)
+		for (uint32_t x = 0; x < m_width; x++)
+			render_from_buffer(x, y);
+}
+
 static uint16_t handle_unicode(uint8_t ch)
 {
 	static uint8_t	unicode_left = 0;

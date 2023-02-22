@@ -324,6 +324,21 @@ argument_done:
 
 			TTY_PRINTLN("{}", BAN::StringView((const char*)data.data(), data.size()));
 		}
+		else if (arguments.front() == "loadfont")
+		{
+			if (!VirtualFileSystem::is_initialized())
+				return TTY_PRINTLN("VFS not initialized :(");
+
+			if (arguments.size() != 2)
+				return TTY_PRINTLN("usage: 'loadfont font_path'");
+
+			auto font_or_error = Font::load(arguments[1]);
+			if (font_or_error.is_error())
+				return TTY_PRINTLN("{}", font_or_error.error());
+			auto font = font_or_error.release_value();
+
+			m_tty->set_font(font);
+		}
 		else
 		{
 			TTY_PRINTLN("unrecognized command '{}'", arguments.front());

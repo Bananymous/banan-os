@@ -37,7 +37,9 @@ sudo mkfs.ext2 $PARTITION2
 
 sudo mount $PARTITION2 $MOUNT_DIR
 
-sudo cp -r sysroot/* ${MOUNT_DIR}/
+sudo cp -r ${SYSROOT}/* ${MOUNT_DIR}/
+sudo mkdir -p ${MOUNT_DIR}/usr/share/
+sudo cp -r fonts ${MOUNT_DIR}/usr/share/
 
 sudo grub-install --no-floppy --target=i386-pc --modules="normal ext2 multiboot" --boot-directory=${MOUNT_DIR}/boot $LOOP_DEV
 

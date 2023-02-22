@@ -4,9 +4,7 @@
 #include <kernel/multiboot.h>
 #include <kernel/VesaTerminalDriver.h>
 
-extern const struct bitmap_font font;
-
-VesaTerminalDriver* VesaTerminalDriver::create()
+VesaTerminalDriver* VesaTerminalDriver::create(const Kernel::Font& font)
 {
 	if (!(g_multiboot_info->flags & MULTIBOOT_FLAGS_FRAMEBUFFER))
 	{
@@ -73,29 +71,19 @@ void VesaTerminalDriver::set_pixel(uint32_t offset, Color color)
 
 void VesaTerminalDriver::putchar_at(uint16_t ch, uint32_t x, uint32_t y, Color fg, Color bg)
 {
-	uint32_t glyph_index = 0;
-	for (uint32_t i = 0; i < m_font.Chars; i++)
-	{
-		if (m_font.Index[i] == ch)
-		{
-			glyph_index = i;
-			break;
-		}
-	}
+	const uint8_t* glyph = font().has_glyph(ch) ? font().glyph(ch) : font().glyph('?');
 
-	const uint8_t* glyph = m_font.Bitmap + glyph_index * m_font.Height;
-
-	x *= m_font.Width;
-	y *= m_font.Height;
+	x *= font().width();
+	y *= font().height();
 
 	uint32_t row_offset = y * m_pitch + x * m_bpp / 8;
-	for (uint32_t dy = 0; dy < m_font.Height && y + dy < m_height; dy++)
+	for (uint32_t dy = 0; dy < font().height() && y + dy < m_height; dy++)
 	{
 		uint32_t pixel_offset = row_offset;
-		for (uint32_t dx = 0; dx < m_font.Width && x + dx < m_width; dx++)
+		for (uint32_t dx = 0; dx < font().width() && x + dx < m_width; dx++)
 		{
-			uint8_t bitmask = 1 << (font.Width - dx - 1);
-			set_pixel(pixel_offset, glyph[dy] & bitmask ? fg : bg);
+			uint8_t bitmask = 1 << (font().width() - dx - 1);
+			set_pixel(pixel_offset, glyph[dy * font().pitch()] & bitmask ? fg : bg);
 			pixel_offset += m_bpp / 8;
 		}
 		row_offset += m_pitch;
@@ -128,38 +116,19 @@ void VesaTerminalDriver::clear(Color color)
 
 void VesaTerminalDriver::set_cursor_position(uint32_t x, uint32_t y)
 {
-	ASSERT(m_font.Height == 16 && m_font.Width == 8);
-	constexpr uint8_t cursor[] = {
-		________,
-		________,
-		________,
-		________,
-		________,
-		________,
-		________,
-		________,
-		________,
-		________,
-		________,
-		________,
-		________,
-		XXXXXXXX,
-		XXXXXXXX,
-		________,
-	};
+	uint32_t cursor_h = font().height() / 8;
+	uint32_t cursor_top = font().height() * 13 / 16;
 
-	x *= m_font.Width;
-	y *= m_font.Height;
+	x *= font().width();
+	y *= font().height();
 
-	uint32_t row_offset = y * m_pitch + x * m_bpp / 8;
-	for (uint32_t dy = 0; dy < m_font.Height && y + dy < m_height; dy++)
+	uint32_t row_offset = (y + cursor_top) * m_pitch + x * m_bpp / 8;
+	for (uint32_t dy = 0; dy < cursor_h; dy++)
 	{
 		uint32_t pixel_offset = row_offset;
-		for (uint32_t dx = 0; dx < m_font.Width && x + dx < m_width; dx++)
+		for (uint32_t dx = 0; dx < font().width(); dx++)
 		{
-			uint8_t bitmask = 1 << (font.Width - dx - 1);
-			if (cursor[dy] & bitmask)
-				set_pixel(pixel_offset, s_cursor_color);
+			set_pixel(pixel_offset, s_cursor_color);
 			pixel_offset += m_bpp / 8;
 		}
 		row_offset += m_pitch;
