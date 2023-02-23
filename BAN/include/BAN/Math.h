@@ -60,4 +60,13 @@ namespace BAN::Math
 		return result;
 	}
 
+	template<integral T>
+	inline constexpr T big_endian_to_host(const uint8_t* bytes)
+	{
+		T result = 0;
+		for (size_t i = 0; i < sizeof(T); i++)
+			result |= (T)bytes[i] << (8 * (sizeof(T) - i - 1));
+		return result;
+	}
+
 }
