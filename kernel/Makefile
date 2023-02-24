@@ -96,7 +96,7 @@ $(ARCHDIR)/crtbegin.o $(ARCHDIR)/crtend.o:
 	$(CC) -MD -c $< -o $(BUILDDIR)/$@ $(CFLAGS)
  
 .psf.o:
-	objcopy -O elf64-x86-64 -B i386 -I binary $< $(BUILDDIR)/$@
+	objcopy -O $(ELF_FORMAT) -B i386 -I binary $< $(BUILDDIR)/$@
 
 always:
 	mkdir -p $(BUILDDIR)/$(ARCHDIR)
