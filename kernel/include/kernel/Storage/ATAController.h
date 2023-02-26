@@ -1,6 +1,7 @@
 #pragma once
 
 #include <BAN/Errors.h>
+#include <kernel/SpinLock.h>
 #include <kernel/Storage/StorageController.h>
 
 namespace Kernel
@@ -33,6 +34,7 @@ namespace Kernel
 		char model[41];
 
 		ATABus* bus;
+		SpinLock m_lock;
 
 		friend class ATAController;
 	};

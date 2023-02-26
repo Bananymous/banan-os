@@ -106,15 +106,12 @@ extern "C" void kernel_main()
 	MUST(scheduler.add_thread(BAN::Function<void()>(
 		[terminal_driver]
 		{
-			//PCI::get().initialize_controllers();
-
-			//StorageDeviceManager::initialize();
 			if (auto error = VirtualFileSystem::initialize(); error.is_error())
 			{
 				derrorln("{}", error.error());
 				return;
 			}
-			
+
 			auto font_or_error = Font::load("/usr/share/fonts/zap-ext-vga16.psf");
 			if (font_or_error.is_error())
 				dprintln("{}", font_or_error.error());
