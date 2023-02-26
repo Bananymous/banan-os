@@ -8,7 +8,7 @@ MOUNT_DIR=/mnt
 
 dd if=/dev/zero of=$DISK_NAME bs=512 count=$[$DISK_SIZE / 512]
 
-sed -e 's/\s*\([\+0-9a-zA-Z]*\).*/\1/' << EOF | fdisk $DISK_NAME
+sed -e 's/\s*\([-\+[:alnum:]]*\).*/\1/' << EOF | fdisk $DISK_NAME
   g     # gpt
   n     # new partition
   1     # partition number 1
@@ -24,6 +24,11 @@ sed -e 's/\s*\([\+0-9a-zA-Z]*\).*/\1/' << EOF | fdisk $DISK_NAME
   t     # set type
   2     # ... of partition 2
   20    # Linux filesystem
+  x		# expert menu
+  n		# partition name
+  2		# ... of partition 2
+  banan-root
+  r		# back to main menu
   w     # write changes
 EOF
 
