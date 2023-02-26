@@ -12,7 +12,7 @@
 	#error "NOT IMPLEMENTED"
 #endif
 
-#define TRY(expr) ({ auto e = expr; if (e.is_error()) return e.error(); e.release_value(); })
+#define TRY(expr) ({ auto e = expr; if (e.is_error()) return e.release_error(); e.release_value(); })
 
 namespace BAN
 {
@@ -54,32 +54,14 @@ namespace BAN
 		ErrorOr(Error&& error)
 			: m_data(move(error))
 		{}
-		template<typename U>
-		ErrorOr(const ErrorOr<U>& other)
-			: m_data(other.m_data)
-		{}
-		template<typename U>
-		ErrorOr(ErrorOr<U>&& other)
-			: m_data(move(other.m_data))
-		{}
-		template<typename U>
-		ErrorOr<T>& operator=(const ErrorOr<U>& other)
-		{
-			m_data = other.m_data;
-			return *this;
-		}
-		template<typename U>
-		ErrorOr<T>& operator=(ErrorOr<U>&& other)
-		{
-			m_data = move(other.m_data);
-			return *this;
-		}
 
 		bool is_error() const			{ return m_data.template is<Error>(); }
 		const Error& error() const		{ return m_data.template get<Error>(); }
 		Error& error()					{ return m_data.template get<Error>(); }
 		const T& value() const			{ return m_data.template get<T>(); }
 		T& value()						{ return m_data.template get<T>(); }
+
+		Error release_error()				{ return move(error()); m_data.clear(); }
 		T release_value()				{ return move(value()); m_data.clear(); }
 
 	private:
@@ -98,6 +80,8 @@ namespace BAN
 		Error& error()					{ return m_data; }
 		const Error& error() const		{ return m_data; }
 		void value()					{ }
+
+		Error release_error()			{ return move(m_data); m_data = Error(); }
 		void release_value()			{ m_data = Error(); }
 
 	private:
