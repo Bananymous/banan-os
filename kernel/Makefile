@@ -33,11 +33,9 @@ KERNEL_OBJS=					\
 $(KERNEL_ARCH_OBJS)				\
 font/prefs.o					\
 kernel/APIC.o					\
-kernel/ATA.o					\
 kernel/build_libc.o				\
 kernel/CPUID.o					\
 kernel/Debug.o					\
-kernel/DiskIO.o					\
 kernel/Font.o					\
 kernel/FS/Ext2.o				\
 kernel/FS/VirtualFileSystem.o	\
@@ -54,6 +52,8 @@ kernel/Serial.o					\
 kernel/Shell.o					\
 kernel/SpinLock.o				\
 kernel/SSP.o					\
+kernel/Storage/ATAController.o	\
+kernel/Storage/StorageDevice.o	\
 kernel/Thread.o					\
 kernel/TTY.o					\
 kernel/VesaTerminalDriver.o		\
@@ -103,6 +103,7 @@ always:
 	mkdir -p $(BUILDDIR)/$(ARCHDIR)
 	mkdir -p $(BUILDDIR)/kernel
 	mkdir -p $(BUILDDIR)/kernel/FS
+	mkdir -p $(BUILDDIR)/kernel/Storage
 	mkdir -p $(BUILDDIR)/font
 
 clean:

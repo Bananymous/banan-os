@@ -318,7 +318,7 @@ namespace Kernel
 		return inodes;
 	}
 
-	BAN::ErrorOr<Ext2FS*> Ext2FS::create(DiskDevice::Partition& partition)
+	BAN::ErrorOr<Ext2FS*> Ext2FS::create(StorageDevice::Partition& partition)
 	{
 		Ext2FS* ext2fs = new Ext2FS(partition);
 		if (ext2fs == nullptr)
@@ -344,8 +344,7 @@ namespace Kernel
 			uint32_t lba = 1024 / sector_size;
 			uint32_t sector_count = 1024 / sector_size;
 
-			if (!m_partition.read_sectors(lba, sector_count, superblock_buffer))
-				return BAN::Error::from_string("Could not read from partition");
+			TRY(m_partition.read_sectors(lba, sector_count, superblock_buffer));
 
 			memcpy(&m_superblock, superblock_buffer, sizeof(Ext2::Superblock));
 		}
@@ -398,13 +397,11 @@ namespace Kernel
 			return BAN::Error::from_string("Could not allocate memory for block group descriptor table");
 		BAN::ScopeGuard _([block_group_descriptor_table_buffer] { kfree(block_group_descriptor_table_buffer); });
 
-		if (!m_partition.read_sectors(
+		TRY(m_partition.read_sectors(
 			block_group_descriptor_table_block * sectors_per_block,
 			block_group_descriptor_table_sector_count,
 			block_group_descriptor_table_buffer
-		))
-			return BAN::Error::from_string("Could not read from partition");
-
+		));
 		TRY(m_block_group_descriptors.resize(number_of_block_groups));
 
 		for (uint32_t i = 0; i < number_of_block_groups; i++)
@@ -464,8 +461,7 @@ namespace Kernel
 		BAN::Vector<uint8_t> block_buffer;
 		TRY(block_buffer.resize(block_size));
 
-		if (!m_partition.read_sectors(block * sectors_per_block, sectors_per_block, block_buffer.data()))
-			return BAN::Error::from_string("Could not read from partition");
+		TRY(m_partition.read_sectors(block * sectors_per_block, sectors_per_block, block_buffer.data()));
 		
 		return block_buffer;
 	}

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <kernel/FS/FileSystem.h>
+#include <kernel/Storage/StorageController.h>
 
 namespace Kernel
 {
@@ -8,7 +9,7 @@ namespace Kernel
 	class VirtualFileSystem : public FileSystem
 	{
 	public:
-		static void initialize(BAN::RefCounted<Inode> root_inode);
+		static BAN::ErrorOr<void> initialize();
 		static VirtualFileSystem& get();
 		static bool is_initialized();
 
@@ -17,12 +18,13 @@ namespace Kernel
 		BAN::ErrorOr<BAN::RefCounted<Inode>> from_absolute_path(BAN::StringView);
 
 	private:
-		VirtualFileSystem(BAN::RefCounted<Inode> root_inode)
-			: m_root_inode(root_inode)
-		{}
+		VirtualFileSystem() = default;
+		BAN::ErrorOr<void> initialize_impl();
 
 	private:
 		BAN::RefCounted<Inode> m_root_inode;
+
+		BAN::Vector<StorageController*> m_storage_controllers;
 	};
 
 }

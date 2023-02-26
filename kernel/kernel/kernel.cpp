@@ -1,5 +1,5 @@
 #include <kernel/Debug.h>
-#include <kernel/DiskIO.h>
+#include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/IDT.h>
 #include <kernel/Input.h>
 #include <kernel/InterruptController.h>
@@ -7,6 +7,7 @@
 #include <kernel/kprint.h>
 #include <kernel/MMU.h>
 #include <kernel/multiboot.h>
+#include <kernel/PCI.h>
 #include <kernel/PIC.h>
 #include <kernel/PIT.h>
 #include <kernel/Scheduler.h>
@@ -92,18 +93,28 @@ extern "C" void kernel_main()
 	PIT::initialize();
 	dprintln("PIT initialized");
 
+	if (!PCI::initialize())
+		Kernel::panic("Could not initialize PCI");
+	dprintln("PCI initialized");
+
 	if (!Input::initialize())
-		return;
-	dprintln("8042 initialized");
+		dprintln("Could not initialize input drivers");
+	dprintln("Input initialized");
 
 	Scheduler::initialize();
 	Scheduler& scheduler = Scheduler::get();
 	MUST(scheduler.add_thread(BAN::Function<void()>(
 		[terminal_driver]
 		{
-			DiskIO::initialize();
-			dprintln("Disk IO initialized");
+			//PCI::get().initialize_controllers();
 
+			//StorageDeviceManager::initialize();
+			if (auto error = VirtualFileSystem::initialize(); error.is_error())
+			{
+				derrorln("{}", error.error());
+				return;
+			}
+			
 			auto font_or_error = Font::load("/usr/share/fonts/zap-ext-vga16.psf");
 			if (font_or_error.is_error())
 				dprintln("{}", font_or_error.error());

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <BAN/String.h>
-#include <kernel/DiskIO.h>
+#include <kernel/Storage/StorageDevice.h>
 #include <kernel/FS/FileSystem.h>
 
 namespace Kernel
@@ -156,12 +156,12 @@ namespace Kernel
 	class Ext2FS : public FileSystem
 	{
 	public:	
-		static BAN::ErrorOr<Ext2FS*> create(DiskDevice::Partition&);
+		static BAN::ErrorOr<Ext2FS*> create(StorageDevice::Partition&);
 
 		virtual const BAN::RefCounted<Inode> root_inode() const override { return m_root_inode; }
 
 	private:
-		Ext2FS(DiskDevice::Partition& partition)
+		Ext2FS(StorageDevice::Partition& partition)
 			: m_partition(partition)
 		{}
 
@@ -177,7 +177,7 @@ namespace Kernel
 		const Ext2::Inode& ext2_root_inode() const;
 
 	private:
-		DiskDevice::Partition& m_partition;
+		StorageDevice::Partition& m_partition;
 
 		BAN::RefCounted<Inode> m_root_inode;
 
