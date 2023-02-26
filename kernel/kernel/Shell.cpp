@@ -59,7 +59,7 @@ namespace Kernel
 		TTY_PRINT("{}", m_prompt);
 		for (;;)
 		{
-			asm volatile("hlt");
+			Scheduler::get().set_current_thread_sleeping();
 			Input::update();
 		}
 	}
@@ -273,7 +273,9 @@ argument_done:
 			if (directory_or_error.is_error())
 				return TTY_PRINTLN("{}", directory_or_error.error());
 			auto directory = directory_or_error.release_value();
-			ASSERT(directory->ifdir());
+
+			if (!directory->ifdir())
+				return TTY_PRINTLN("Given path does not point to a directory");
 
 			auto inodes_or_error = directory->directory_inodes();
 			if (inodes_or_error.is_error())
