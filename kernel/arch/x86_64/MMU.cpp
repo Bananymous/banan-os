@@ -2,15 +2,12 @@
 #include <kernel/kmalloc.h>
 #include <kernel/MMU.h>
 
-#define PRESENT (1 << 0)
-#define READ_WRITE (1 << 1)
-
 #define PAGE_SIZE 0x1000
 #define PAGE_MASK ~(PAGE_SIZE - 1)
 
 #define CLEANUP_STRUCTURE(s)			\
 	for (uint64_t i = 0; i < 512; i++)	\
-		if (s[i] & PRESENT)				\
+		if (s[i] & Flags::Present)		\
 			goto cleanup_done;			\
 	kfree(s)
 
@@ -42,17 +39,17 @@ MMU::MMU()
 	m_highest_paging_struct = allocate_page_aligned_page();
 	
 	uint64_t* pdpt = allocate_page_aligned_page();
-	m_highest_paging_struct[0] = (uint64_t)pdpt | READ_WRITE | PRESENT;
+	m_highest_paging_struct[0] = (uint64_t)pdpt | Flags::ReadWrite | Flags::Present;
 
 	uint64_t* pd = allocate_page_aligned_page();
-	pdpt[0] = (uint64_t)pd | READ_WRITE | PRESENT;
+	pdpt[0] = (uint64_t)pd | Flags::ReadWrite | Flags::Present;
 
 	for (uint32_t i = 0; i < 2; i++)
 	{
 		uint64_t* pt = allocate_page_aligned_page();
 		for (uint64_t j = 0; j < 512; j++)
-			pt[j] = (i << 21) | (j << 12) | READ_WRITE | PRESENT;
-		pd[i] = (uint64_t)pt | READ_WRITE | PRESENT;
+			pt[j] = (i << 21) | (j << 12) | Flags::ReadWrite | Flags::Present;
+		pd[i] = (uint64_t)pt | Flags::ReadWrite | Flags::Present;
 	}
 
 	// Unmap 0 -> 4 KiB
@@ -68,17 +65,17 @@ MMU::~MMU()
 	uint64_t* pml4 = m_highest_paging_struct;
 	for (uint32_t pml4e = 0; pml4e < 512; pml4e++)
 	{
-		if (!(pml4[pml4e] & PRESENT))
+		if (!(pml4[pml4e] & Flags::Present))
 			continue;
 		uint64_t* pdpt = (uint64_t*)(pml4[pml4e] & PAGE_MASK);
 		for (uint32_t pdpte = 0; pdpte < 512; pdpte++)
 		{
-			if (!(pdpt[pdpte] & PRESENT))
+			if (!(pdpt[pdpte] & Flags::Present))
 				continue;
 			uint64_t* pd = (uint64_t*)(pdpt[pdpte] & PAGE_MASK);
 			for (uint32_t pde = 0; pde < 512; pde++)
 			{
-				if (!(pd[pde] & PRESENT))
+				if (!(pd[pde] & Flags::Present))
 					continue;
 				kfree((void*)(pd[pde] & PAGE_MASK));
 			}
@@ -89,9 +86,12 @@ MMU::~MMU()
 	kfree(pml4);
 }
 
-void MMU::allocate_page(uintptr_t address)
+void MMU::allocate_page(uintptr_t address, uint8_t flags)
 {
 	ASSERT((address >> 48) == 0);
+
+	ASSERT(flags & Flags::Present);
+	bool should_invalidate = false;
 
 	address &= PAGE_MASK;
 
@@ -101,40 +101,49 @@ void MMU::allocate_page(uintptr_t address)
 	uint64_t pte   = (address >> 12) & 0x1FF;
 
 	uint64_t* pml4 = m_highest_paging_struct;
-	if (!(pml4[pml4e] & PRESENT))
+	if ((pml4[pml4e] & flags) != flags)
 	{
-		uint64_t* pdpt = allocate_page_aligned_page();
-		pml4[pml4e] = (uint64_t)pdpt | READ_WRITE | PRESENT;
+		if (!(pml4[pml4e] & Flags::Present))
+			pml4[pml4e] = (uint64_t)allocate_page_aligned_page();
+		pml4[pml4e] = (pml4[pml4e] & PAGE_MASK) | flags;
+		should_invalidate = true;
 	}
 
 	uint64_t* pdpt = (uint64_t*)(pml4[pml4e] & PAGE_MASK);
-	if (!(pdpt[pdpte] & PRESENT))
+	if ((pdpt[pdpte] & flags) != flags)
 	{
-		uint64_t* pd = allocate_page_aligned_page();
-		pdpt[pdpte] = (uint64_t)pd | READ_WRITE | PRESENT;
+		if (!(pdpt[pdpte] & Flags::Present))
+			pdpt[pdpte] = (uint64_t)allocate_page_aligned_page();
+		pdpt[pdpte] = (pdpt[pdpte] & PAGE_MASK) | flags;
+		should_invalidate = true; 
 	}
 
 	uint64_t* pd = (uint64_t*)(pdpt[pdpte] & PAGE_MASK);
-	if (!(pd[pde] & PRESENT))
+	if ((pd[pde] & flags) != flags)
 	{
-		uint64_t* pt = allocate_page_aligned_page();
-		pd[pde] = (uint64_t)pt | READ_WRITE | PRESENT;
+		if (!(pd[pde] & Flags::Present))
+			pd[pde] = (uint64_t)allocate_page_aligned_page();
+		pd[pde] = (pd[pde] & PAGE_MASK) | flags;
+		should_invalidate = true;
 	}
 
 	uint64_t* pt = (uint64_t*)(pd[pde] & PAGE_MASK);
-	if (!(pt[pte] & PRESENT))
+	if ((pt[pte] & flags) != flags)
 	{
-		pt[pte] = address | READ_WRITE | PRESENT;
-		asm volatile("invlpg (%0)" :: "r"(address) : "memory");
+		pt[pte] = address | flags;
+		should_invalidate = true;
 	}
+
+	if (should_invalidate)
+		asm volatile("invlpg (%0)" :: "r"(address) : "memory");
 }
 
-void MMU::allocate_range(uintptr_t address, ptrdiff_t size)
+void MMU::allocate_range(uintptr_t address, ptrdiff_t size, uint8_t flags)
 {
 	uintptr_t s_page = address & PAGE_MASK;
 	uintptr_t e_page = (address + size - 1) & PAGE_MASK;
 	for (uintptr_t page = s_page; page <= e_page; page += PAGE_SIZE)
-		allocate_page(page);
+		allocate_page(page, flags);
 }
 
 void MMU::unallocate_page(uintptr_t address)
@@ -149,19 +158,19 @@ void MMU::unallocate_page(uintptr_t address)
 	uint64_t pte   = (address >> 12) & 0x1FF;
 	
 	uint64_t* pml4 = m_highest_paging_struct;
-	if (!(pml4[pml4e] & PRESENT))
+	if (!(pml4[pml4e] & Flags::Present))
 		return;
 
 	uint64_t* pdpt = (uint64_t*)(pml4[pml4e] & PAGE_MASK);
-	if (!(pdpt[pdpte] & PRESENT))
+	if (!(pdpt[pdpte] & Flags::Present))
 		return;
 
 	uint64_t* pd = (uint64_t*)(pdpt[pdpte] & PAGE_MASK);
-	if (!(pd[pde] & PRESENT))
+	if (!(pd[pde] & Flags::Present))
 		return;
 
 	uint64_t* pt = (uint64_t*)(pd[pde] & PAGE_MASK);
-	if (!(pt[pte] & PRESENT))
+	if (!(pt[pte] & Flags::Present))
 		return;
 
 	pt[pte] = 0;

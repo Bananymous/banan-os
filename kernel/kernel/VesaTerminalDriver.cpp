@@ -34,7 +34,7 @@ VesaTerminalDriver* VesaTerminalDriver::create()
 		return nullptr;
 	}
 
-	MMU::get().allocate_range(framebuffer.addr, framebuffer.pitch * framebuffer.height);
+	MMU::get().allocate_range(framebuffer.addr, framebuffer.pitch * framebuffer.height, MMU::Flags::UserSupervisor | MMU::Flags::ReadWrite | MMU::Flags::Present);
 
 	auto* driver = new VesaTerminalDriver(
 		framebuffer.width,

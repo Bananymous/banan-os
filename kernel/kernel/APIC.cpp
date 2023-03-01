@@ -165,7 +165,7 @@ uintptr_t locate_madt(uintptr_t rsdp_addr)
 	if (rsdp->revision == 2)
 	{
 		uintptr_t xsdt_addr = rsdp->v2_xsdt_address;
-		MMU::get().allocate_page(xsdt_addr);
+		MMU::get().allocate_page(xsdt_addr, MMU::Flags::ReadWrite | MMU::Flags::Present);
 		entry_address_base = xsdt_addr + sizeof(SDTHeader);
 		entry_address_mask = (uintptr_t)0xFFFFFFFFFFFFFFFF;
 		entry_count = (((const SDTHeader*)xsdt_addr)->length - sizeof(SDTHeader)) / 8;
@@ -175,7 +175,7 @@ uintptr_t locate_madt(uintptr_t rsdp_addr)
 	else
 	{
 		uintptr_t rsdt_addr = rsdp->rsdt_address;
-		MMU::get().allocate_page(rsdt_addr);
+		MMU::get().allocate_page(rsdt_addr, MMU::Flags::ReadWrite | MMU::Flags::Present);
 		entry_address_base = rsdt_addr + sizeof(SDTHeader);
 		entry_address_mask = 0xFFFFFFFF;
 		entry_count = (((const SDTHeader*)rsdt_addr)->length - sizeof(SDTHeader)) / 4;
@@ -186,10 +186,10 @@ uintptr_t locate_madt(uintptr_t rsdp_addr)
 	for (uint32_t i = 0; i < entry_count; i++)
 	{
 		uintptr_t entry_addr_ptr = entry_address_base + i * entry_pointer_size;
-		MMU::get().allocate_page(entry_addr_ptr);
+		MMU::get().allocate_page(entry_addr_ptr, MMU::Flags::ReadWrite | MMU::Flags::Present);
 
 		uintptr_t entry_addr = *(uintptr_t*)entry_addr_ptr & entry_address_mask;
-		MMU::get().allocate_page(entry_addr);
+		MMU::get().allocate_page(entry_addr, MMU::Flags::ReadWrite | MMU::Flags::Present);
 
 		BAN::ScopeGuard _([&]() {
 			MMU::get().unallocate_page(entry_addr);
@@ -228,7 +228,7 @@ APIC* APIC::create()
 		return nullptr;
 	}
 
-	MMU::get().allocate_page(madt_addr);
+	MMU::get().allocate_page(madt_addr, MMU::Flags::ReadWrite | MMU::Flags::Present);
 
 	const MADT* madt = (const MADT*)madt_addr;
 
@@ -279,10 +279,10 @@ APIC* APIC::create()
 		return nullptr;
 	}
 
-	MMU::get().allocate_page(apic->m_local_apic);
+	MMU::get().allocate_page(apic->m_local_apic, MMU::Flags::ReadWrite | MMU::Flags::Present);
 	for (auto& io_apic : apic->m_io_apics)
 	{
-		MMU::get().allocate_page(io_apic.address);
+		MMU::get().allocate_page(io_apic.address, MMU::Flags::ReadWrite | MMU::Flags::Present);
 		io_apic.max_redirs = io_apic.read(IOAPIC_MAX_REDIRS);
 	}
 
