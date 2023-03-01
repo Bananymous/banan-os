@@ -180,21 +180,18 @@ argument_done:
 		{
 			static SpinLock s_thread_spinlock;
 
-			// NOTE: This is a workaround to pass values as copies to threads.
-			//       I have only implemented passing integer and pointers.
-			//       We don't continue execution until the thread has unlocked
-			//       the spinlock.
 			s_thread_spinlock.lock();
-			MUST(Scheduler::get().add_thread(Function<void(const Vector<String>*)>(
-				[this] (const Vector<String>* args_ptr)
+
+			MUST(Scheduler::get().add_thread(Function<void()>(
+				[this, &arguments]
 				{
-					auto args = *args_ptr;
-					s_thread_spinlock.unlock();
+					auto args = arguments;
 					args.remove(0);
+					s_thread_spinlock.unlock();
 					PIT::sleep(5000);
 					process_command(args);
 				}
-			), &arguments));
+			)));
 
 			while (s_thread_spinlock.is_locked());
 		}

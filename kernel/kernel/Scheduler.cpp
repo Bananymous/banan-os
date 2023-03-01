@@ -7,7 +7,7 @@ namespace Kernel
 
 	static Scheduler* s_instance = nullptr;
 
-	extern "C" void start_thread(uintptr_t arg0, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t rsp, uintptr_t rip);
+	extern "C" void start_thread(const BAN::Function<void()>* function, uintptr_t rsp, uintptr_t rip);
 	extern "C" void continue_thread(uintptr_t rsp, uintptr_t rip);
 	extern "C" uintptr_t read_rip();
 
@@ -28,6 +28,18 @@ namespace Kernel
 	const Thread& Scheduler::current_thread() const
 	{
 		return *m_current_iterator;
+	}
+
+
+	BAN::ErrorOr<void> Scheduler::add_thread(const BAN::Function<void()>& function)
+	{
+		uintptr_t flags;
+		asm volatile("pushf; pop %0" : "=r"(flags));
+		asm volatile("cli");
+		TRY(m_threads.emplace_back(function));
+		if (flags & (1 << 9))
+			asm volatile("sti");
+		return {};
 	}
 
 	void Scheduler::reschedule()
@@ -62,9 +74,6 @@ namespace Kernel
 		
 		Thread& current = *m_current_iterator;
 
-		//if (m_threads.size() == 2 && current.id() != 0 && current.state() == Thread::State::Running)
-		//	return;
-
 		if (current.state() == Thread::State::Done)
 		{
 			m_threads.remove(m_current_iterator);
@@ -91,7 +100,7 @@ namespace Kernel
 		{
 			case Thread::State::NotStarted:
 				next.set_state(Thread::State::Running);
-				start_thread(next.args()[0], next.args()[1], next.args()[2], next.args()[3], next.rsp(), next.rip());
+				start_thread(next.function(), next.rsp(), next.rip());
 				break;
 			case Thread::State::Paused:
 				next.set_state(Thread::State::Running);
@@ -123,8 +132,7 @@ namespace Kernel
 		ASSERT(current.state() == Thread::State::NotStarted);
 		current.set_state(Thread::State::Running);
 
-		const uintptr_t* args = current.args();
-		start_thread(args[0], args[1], args[2], args[3], current.rsp(), current.rip());
+		start_thread(current.function(), current.rsp(), current.rip());
 
 		ASSERT(false);
 	}

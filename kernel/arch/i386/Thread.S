@@ -5,23 +5,18 @@ read_rip:
 	jmp *%eax
 
 exit_thread_trampoline:
-	addl $16, %esp
-	popl %eax
-	pushl $0x696969
-	pushl %eax
+	addl $4, %esp
+	pushl (%esp)
 	ret
 
-# void start_thread(uint32_t arg0, uint32_t arg1, uint32_t arg2, uint32_t arg3, uint32_t rsp, uint32_t rip)
+# void start_thread(uint32_t function, uint32_t esp, uint32_t eip)
 .global start_thread
 start_thread:
-	movl %esp, %eax
-	movl 24(%eax), %ecx
-	movl 20(%eax), %esp
+	movl 4(%esp), %eax
+	movl 12(%esp), %ecx
+	movl 8(%esp), %esp
 
-	pushl 16(%eax)
-	pushl 12(%eax)
-	pushl 8(%eax)
-	pushl 4(%eax)
+	pushl %eax
 	pushl $exit_thread_trampoline
 
 	movl $0, %ebp

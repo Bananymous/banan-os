@@ -17,18 +17,8 @@ namespace Kernel
 		static Scheduler& get();
 
 		const Thread& current_thread() const;
-
-		template<typename... Args>
-		BAN::ErrorOr<void> add_thread(const BAN::Function<void(Args...)>& func, Args... args)
-		{
-			uintptr_t flags;
-			asm volatile("pushf; pop %0" : "=r"(flags));
-			asm volatile("cli");
-			TRY(m_threads.emplace_back(func, BAN::forward<Args>(args)...));
-			if (flags & (1 << 9))
-				asm volatile("sti");
-			return {};
-		}
+		
+		BAN::ErrorOr<void> add_thread(const BAN::Function<void()>& function);
 
 		void reschedule();
 		void set_current_thread_sleeping();
