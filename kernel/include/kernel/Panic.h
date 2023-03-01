@@ -13,10 +13,10 @@ namespace Kernel
 		__attribute__((__noreturn__))
 		static void panic_impl(const char* file, int line, const char* message, Args... args)
 		{
+			asm volatile("cli");
 			derrorln("Kernel panic at {}:{}", file, line);
 			derrorln(message, args...);
 			Debug::dump_stack_trace();
-			asm volatile("cli");
 			for (;;)
 				asm volatile("hlt");
 			__builtin_unreachable();
