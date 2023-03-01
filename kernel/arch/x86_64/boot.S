@@ -43,7 +43,7 @@
 	# 0 MiB -> 1 MiB: bootloader stuff
 	# 1 MiB -> 2 MiB: kernel
 	# 2 MiB -> 3 MiB: kmalloc
-	# 3 MiB -> 4 MiB: kmalloc_eternal
+	# 3 MiB -> 4 MiB: kmalloc_fixed
 	.align 4096
 	boot_pml4:
 		.skip 512 * 8
@@ -52,14 +52,14 @@
 	boot_pd1:
 		.skip 512 * 8
 
-.section .text, "a"
-
 .global g_multiboot_info
 g_multiboot_info:
 	.skip 8
 .global g_multiboot_magic
 g_multiboot_magic:
 	.skip 8
+
+.section .text, "a"
 
 boot_gdt:
 	.quad 0x0000000000000000 # null descriptor

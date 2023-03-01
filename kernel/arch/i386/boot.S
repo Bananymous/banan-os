@@ -20,37 +20,27 @@
 	.long 32
 
 .section .bss, "aw", @nobits
- 	# Create stack
-	stack_bottom:
-		.skip 16384
-	stack_top:
-	
-	.global g_kernel_cmdline
-	g_kernel_cmdline:
-		.skip 4096
+# Create stack
+.global g_boot_stack_bottom
+g_boot_stack_bottom:
+	.skip 16384
+.global g_boot_stack_top
+g_boot_stack_top:
 
-	.global g_gdtr
-	g_gdtr:
-		.skip 2 + 4
-	.global g_gdt
-	g_gdt:
-		.skip 5 * 8
+# 0 MiB -> 1 MiB: bootloader stuff
+# 1 MiB -> 2 MiB: kernel
+# 2 MiB -> 3 MiB: kmalloc
+# 3 MiB -> 4 Mib: kmalloc_fixed
+.align 32
+boot_page_directory_pointer_table:
+	.skip 4 * 8
+.align 4096
+boot_page_directory1:
+	.skip 512 * 8
 
-	# Reserve memory for paging structures,
-	# we will identity map first 4 MiB
-
-	# 0 MiB -> 1 MiB: bootloader stuff
-	# 1 MiB -> 2 MiB: kernel
-	# 2 MiB -> 3 MiB: kmalloc
-	# 3 MiB -> 4 Mib: kmalloc_eternal
-	.align 32
-	boot_page_directory_pointer_table:
-		.skip 4 * 8
-	.align 4096
-	boot_page_directory1:
-		.skip 512 * 8
-
-.section .text, "a"
+.global g_kernel_cmdline
+g_kernel_cmdline:
+	.skip 4096
 
 .global g_multiboot_info
 g_multiboot_info:
@@ -58,6 +48,16 @@ g_multiboot_info:
 .global g_multiboot_magic
 g_multiboot_magic:
 	.skip 4
+
+.section .text, "a"
+
+boot_gdt:
+	.quad 0x0000000000000000 # null
+	.quad 0x00CF9A000000FFFF # kernel code
+	.quad 0x00CF92000000FFFF # kernel data
+boot_gdtr:
+	.short . - boot_gdt - 1
+	.long boot_gdt
 
 has_cpuid:
 	pushfl
@@ -140,18 +140,7 @@ initialize_paging:
 	ret
 
 initialize_gdt:
-	# setup gdt
-	movw $(5 * 8 - 1),	g_gdtr
-	movl $(g_gdt),		g_gdtr + 2
-	movl $(0x0000FFFF), g_gdt + 0x08
-	movl $(0x00CF9A00), g_gdt + 0x08 + 4
-	movl $(0x0000FFFF), g_gdt + 0x10
-	movl $(0x00CF9200), g_gdt + 0x10 + 4
-	movl $(0x0000FFFF), g_gdt + 0x18
-	movl $(0x00CFFA00), g_gdt + 0x18 + 4
-	movl $(0x0000FFFF), g_gdt + 0x20
-	movl $(0x00CFF200), g_gdt + 0x20 + 4
-	lgdt g_gdtr
+	lgdt boot_gdtr
 
 	# flush gdt
 	movw $0x10, %ax
@@ -164,12 +153,11 @@ initialize_gdt:
 flush:
 	ret
 
-
 .global _start
 .type _start, @function
 _start:
 	# Initialize stack and multiboot info
-	movl $stack_top, %esp
+	movl $g_boot_stack_top, %esp
 	movl %eax, g_multiboot_magic
 	movl %ebx, g_multiboot_info
 

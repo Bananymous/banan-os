@@ -1,5 +1,6 @@
 #include <kernel/Debug.h>
 #include <kernel/FS/VirtualFileSystem.h>
+#include <kernel/GDT.h>
 #include <kernel/IDT.h>
 #include <kernel/Input.h>
 #include <kernel/InterruptController.h>
@@ -75,6 +76,9 @@ extern "C" void kernel_main()
 
 	kmalloc_initialize();
 	dprintln("kmalloc initialized");
+
+	GDT::initialize();
+	dprintln("GDT initialized");
 
 	IDT::initialize();
 	dprintln("IDT initialized");	
