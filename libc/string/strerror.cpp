@@ -5,28 +5,38 @@ int errno = 0;
 
 char* strerror(int error)
 {
+	static char buffer[100];
+	buffer[0] = 0;
+
 	switch (error)
 	{
 	case ENOMEM:
-		return "Cannot allocate memory";
-	case EINVAL:
-		return "Invalid argument";
-	case EISDIR:
-		return "Is a directory";
-	case ENOTDIR:
-		return "Not a directory";
-	case ENOENT:
-		return "No such file or directory";
-	case EIO:
-		return "Input/output error";
-	default:
+		strcpy(buffer, "Cannot allocate memory");
 		break;
+	case EINVAL:
+		strcpy(buffer, "Invalid argument");
+		break;
+	case EISDIR:
+		strcpy(buffer, "Is a directory");
+		break;
+	case ENOTDIR:
+		strcpy(buffer, "Not a directory");
+		break;
+	case ENOENT:
+		strcpy(buffer, "No such file or directory");
+		break;
+	case EIO:
+		strcpy(buffer, "Input/output error");
+		break;
+	default:
+		{
+			// FIXME: sprintf
+			//sprintf(buffer, "Unknown error %d", error);
+			strcpy(buffer, "Unknown error");
+			errno = EINVAL;
+			break;
+		}
 	}
 
-	// FIXME: sprintf
-	//static char buffer[26];
-	//sprintf(buffer, "Unknown error %d", error);
-	//return buffer;
-	errno = EINVAL;
-	return "Unknown error";
+	return buffer;
 }
