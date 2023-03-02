@@ -54,16 +54,7 @@ namespace BAN
 	class RefCounted
 	{
 	public:
-		RefCounted() { }
-		RefCounted(T* pointer)
-		{
-			if (pointer)
-			{
-				m_pointer = pointer;
-				m_count = new int32_t(1);
-				ASSERT(m_count);
-			}
-		}
+		RefCounted() = default;
 		RefCounted(const RefCounted<T>& other)
 		{
 			*this = other;
@@ -74,18 +65,33 @@ namespace BAN
 		}
 		~RefCounted()
 		{
-			reset();
+			clear();
 		}
 		
-		template<typename... Args>
-		static RefCounted<T> create(Args... args)
+		template<typename U>
+		static ErrorOr<RefCounted<T>> adopt(U* data)
 		{
-			return RefCounted<T>(new T(forward<Args>(args)...), new int32_t(1));
+			uint32_t* count = new uint32_t(1);
+			if (!count)
+				return Error::from_string("RefCounted: Could not allocate memory");
+			return RefCounted<T>((T*)data, count);
+		}
+
+		template<typename... Args>
+		static ErrorOr<RefCounted<T>> create(Args... args)
+		{
+			uint32_t* count = new uint32_t(1);
+			if (!count)
+				return Error::from_string("RefCounted: Could not allocate memory");
+			T* data = new T(forward<Args>(args)...);
+			if (!data)
+				return Error::from_string("RefCounted: Could not allocate memory");
+			return RefCounted<T>(data, count);
 		}
 
 		RefCounted<T>& operator=(const RefCounted<T>& other)
 		{
-			reset();
+			clear();
 			if (other)
 			{
 				m_pointer = other.m_pointer;
@@ -97,53 +103,53 @@ namespace BAN
 		
 		RefCounted<T>& operator=(RefCounted<T>&& other)
 		{
-			reset();
-			m_pointer = other.m_pointer;
-			m_count = other.m_count;
-			other.m_pointer = nullptr;
-			other.m_count = nullptr;
-			if (!(*this))
-				reset();
+			clear();
+			if (other)
+			{
+				m_pointer = other.m_pointer;
+				m_count = other.m_count;
+				other.m_pointer = nullptr;
+				other.m_count = nullptr;
+			}
 			return *this;
 		}
 
-		T& operator*() { return *m_pointer;}
-		const T& operator*() const { return *m_pointer;}
+		T* ptr() { return m_pointer; }
+		const T* ptr() const { return m_pointer; }
 
-		T* operator->() { return m_pointer; }
-		const T* operator->() const { return m_pointer; }
+		T& operator*() { return *ptr();}
+		const T& operator*() const { return *ptr();}
 
-		void reset()
+		T* operator->() { return ptr(); }
+		const T* operator->() const { return ptr(); }
+
+		void clear()
 		{
-			ASSERT(!m_count == !m_pointer);
-			if (!m_count)
+			if (!*this)
 				return;
+
 			(*m_count)--;
 			if (*m_count == 0)
 			{
-				delete m_count;
 				delete m_pointer;
+				delete m_count;
 			}
-			m_count = nullptr;
+
 			m_pointer = nullptr;
+			m_count = nullptr;
 		}
 
 		operator bool() const
 		{
-			ASSERT(!m_count == !m_pointer);
-			return m_count && *m_count > 0;
-		}
-
-		bool operator==(const RefCounted<T>& other) const
-		{
-			if (m_pointer != other.m_pointer)
+			if (!m_count && !m_pointer)
 				return false;
-			ASSERT(m_count == other.m_count);
-			return !m_count || *m_count > 0;
+			ASSERT(m_count && m_pointer);
+			ASSERT(*m_count > 0);
+			return true;
 		}
 	
 	private:
-		RefCounted(T* pointer, int32_t* count)
+		RefCounted(T* pointer, uint32_t* count)
 			: m_pointer(pointer)
 			, m_count(count)
 		{
@@ -152,7 +158,7 @@ namespace BAN
 
 	private:
 		T*			m_pointer = nullptr;
-		int32_t*	m_count = nullptr;
+		uint32_t*	m_count = nullptr;
 	};
 
 }

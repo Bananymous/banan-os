@@ -270,8 +270,10 @@ namespace Kernel
 					BAN::StringView entry_name = BAN::StringView(entry->name, entry->name_len);
 					if (entry->inode && file_name == entry_name)
 					{
-						Ext2::Inode asked_inode = TRY(m_fs->read_inode(entry->inode));
-						result = BAN::RefCounted<Inode>(new Ext2Inode(m_fs, BAN::move(asked_inode), entry_name));
+						Ext2Inode* inode = new Ext2Inode(m_fs, TRY(m_fs->read_inode(entry->inode)), entry_name);
+						if (inode == nullptr)
+							return BAN::Error::from_string("Could not allocate Ext2Inode");
+						result = TRY(BAN::RefCounted<Inode>::adopt(inode));
 						return false;
 					}
 					entry_addr += entry->rec_len;
@@ -304,8 +306,11 @@ namespace Kernel
 					{
 						BAN::StringView entry_name = BAN::StringView(entry->name, entry->name_len);
 						Ext2::Inode current_inode = TRY(m_fs->read_inode(entry->inode));
-						auto ref_counted_inode = BAN::RefCounted<Inode>(new Ext2Inode(m_fs, BAN::move(current_inode), entry_name));
-						TRY(inodes.push_back(BAN::move(ref_counted_inode)));
+
+						Ext2Inode* inode = new Ext2Inode(m_fs, BAN::move(current_inode), entry_name);
+						if (inode == nullptr)
+							return BAN::Error::from_string("Could not allocate memory for Ext2Inode");
+						TRY(inodes.push_back(TRY(BAN::RefCounted<Inode>::adopt(inode))));
 					}
 					entry_addr += entry->rec_len;
 				}
@@ -423,7 +428,12 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Ext2FS::initialize_root_inode()
 	{
-		m_root_inode = BAN::RefCounted<Inode>(new Ext2Inode(this, TRY(read_inode(Ext2::Enum::ROOT_INO)), ""));
+
+		Ext2Inode* root_inode = new Ext2Inode(this, TRY(read_inode(Ext2::Enum::ROOT_INO)), "");
+		if (root_inode == nullptr)
+			return BAN::Error::from_string("Could not allocate Ext2Inode");
+		m_root_inode = TRY(BAN::RefCounted<Inode>::adopt(root_inode));
+		
 #if EXT2_DEBUG_PRINT
 		dprintln("root inode:");
 		dprintln("  created  {}", ext2_root_inode().ctime);
