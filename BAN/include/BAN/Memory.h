@@ -17,7 +17,6 @@ namespace BAN
 {
 	#if defined(__is_kernel)
 		static constexpr void*(&allocator)(size_t) = kmalloc;
-		static constexpr void*(&allocator_align)(size_t, size_t) = kmalloc;
 		static constexpr void(&deallocator)(void*) = kfree;
 	#else
 		static constexpr void*(&allocator)(size_t) = malloc;
