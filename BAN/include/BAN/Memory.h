@@ -73,7 +73,7 @@ namespace BAN
 		{
 			uint32_t* count = new uint32_t(1);
 			if (!count)
-				return Error::from_string("RefCounted: Could not allocate memory");
+				return Error::from_errno(ENOMEM);
 			return RefCounted<T>((T*)data, count);
 		}
 
@@ -82,10 +82,10 @@ namespace BAN
 		{
 			uint32_t* count = new uint32_t(1);
 			if (!count)
-				return Error::from_string("RefCounted: Could not allocate memory");
+				return Error::from_errno(ENOMEM);
 			T* data = new T(forward<Args>(args)...);
 			if (!data)
-				return Error::from_string("RefCounted: Could not allocate memory");
+				return Error::from_errno(ENOMEM);
 			return RefCounted<T>(data, count);
 		}
 

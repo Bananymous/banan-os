@@ -228,7 +228,7 @@ namespace Kernel
 	BAN::ErrorOr<BAN::Vector<uint8_t>> Ext2Inode::read_all()
 	{
 		if (ifdir())
-			return BAN::Error::from_string("Inode is a directory");
+			return BAN::Error::from_errno(EISDIR);
 
 		BAN::Vector<uint8_t> data_buffer;
 		TRY(data_buffer.resize(m_inode.size));
@@ -256,7 +256,7 @@ namespace Kernel
 	BAN::ErrorOr<BAN::RefCounted<Inode>> Ext2Inode::directory_find(BAN::StringView file_name)
 	{
 		if (!ifdir())
-			return BAN::Error::from_string("Inode is not a directory");
+			return BAN::Error::from_errno(ENOTDIR);
 
 		BAN::RefCounted<Inode> result;
 		BAN::Function<BAN::ErrorOr<bool>(const BAN::Vector<uint8_t>&)> function(
@@ -272,7 +272,7 @@ namespace Kernel
 					{
 						Ext2Inode* inode = new Ext2Inode(m_fs, TRY(m_fs->read_inode(entry->inode)), entry_name);
 						if (inode == nullptr)
-							return BAN::Error::from_string("Could not allocate Ext2Inode");
+							return BAN::Error::from_errno(ENOMEM);
 						result = TRY(BAN::RefCounted<Inode>::adopt(inode));
 						return false;
 					}
@@ -285,13 +285,13 @@ namespace Kernel
 		TRY(for_each_block(function));
 		if (result)
 			return result;
-		return BAN::Error::from_string("Could not find the asked inode");
+		return BAN::Error::from_errno(ENOENT);
 	}
 
 	BAN::ErrorOr<BAN::Vector<BAN::RefCounted<Inode>>> Ext2Inode::directory_inodes()
 	{
 		if (!ifdir())
-			return BAN::Error::from_string("Inode is not a directory");
+			return BAN::Error::from_errno(ENOTDIR);
 
 		BAN::Vector<BAN::RefCounted<Inode>> inodes;
 		BAN::Function<BAN::ErrorOr<bool>(const BAN::Vector<uint8_t>&)> function(
@@ -309,7 +309,7 @@ namespace Kernel
 
 						Ext2Inode* inode = new Ext2Inode(m_fs, BAN::move(current_inode), entry_name);
 						if (inode == nullptr)
-							return BAN::Error::from_string("Could not allocate memory for Ext2Inode");
+							return BAN::Error::from_errno(ENOMEM);
 						TRY(inodes.push_back(TRY(BAN::RefCounted<Inode>::adopt(inode))));
 					}
 					entry_addr += entry->rec_len;
@@ -327,7 +327,7 @@ namespace Kernel
 	{
 		Ext2FS* ext2fs = new Ext2FS(partition);
 		if (ext2fs == nullptr)
-			return BAN::Error::from_string("Could not allocate Ext2FS");
+			return BAN::Error::from_errno(ENOMEM);
 		TRY(ext2fs->initialize_superblock());
 		TRY(ext2fs->initialize_block_group_descriptors());
 		TRY(ext2fs->initialize_root_inode());
@@ -343,7 +343,7 @@ namespace Kernel
 		{
 			uint8_t* superblock_buffer = (uint8_t*)kmalloc(1024);
 			if (superblock_buffer == nullptr)
-				return BAN::Error::from_string("Could not allocate memory for superblocks");
+				BAN::Error::from_errno(ENOMEM);
 			BAN::ScopeGuard _([superblock_buffer] { kfree(superblock_buffer); });
 
 			uint32_t lba = 1024 / sector_size;
@@ -399,7 +399,7 @@ namespace Kernel
 
 		uint8_t* block_group_descriptor_table_buffer = (uint8_t*)kmalloc(block_group_descriptor_table_sector_count * sector_size);
 		if (block_group_descriptor_table_buffer == nullptr)
-			return BAN::Error::from_string("Could not allocate memory for block group descriptor table");
+			return BAN::Error::from_errno(ENOMEM);
 		BAN::ScopeGuard _([block_group_descriptor_table_buffer] { kfree(block_group_descriptor_table_buffer); });
 
 		TRY(m_partition.read_sectors(
@@ -428,12 +428,11 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Ext2FS::initialize_root_inode()
 	{
-
 		Ext2Inode* root_inode = new Ext2Inode(this, TRY(read_inode(Ext2::Enum::ROOT_INO)), "");
 		if (root_inode == nullptr)
-			return BAN::Error::from_string("Could not allocate Ext2Inode");
+			return BAN::Error::from_errno(ENOMEM);
 		m_root_inode = TRY(BAN::RefCounted<Inode>::adopt(root_inode));
-		
+
 #if EXT2_DEBUG_PRINT
 		dprintln("root inode:");
 		dprintln("  created  {}", ext2_root_inode().ctime);

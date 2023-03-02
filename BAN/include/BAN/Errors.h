@@ -3,6 +3,7 @@
 #include <BAN/Formatter.h>
 #include <BAN/Variant.h>
 
+#include <errno.h>
 #include <string.h>
 
 #if defined(__is_kernel)
@@ -27,6 +28,14 @@ namespace BAN
 			strncpy(result.m_message, message, sizeof(m_message));
 			result.m_message[sizeof(result.m_message) - 1] = '\0';
 			result.m_error_code = 0xFF;
+			return result;
+		}
+		static Error from_errno(int error)
+		{
+			Error result;
+			strncpy(result.m_message, strerror(error), sizeof(m_message));
+			result.m_message[sizeof(result.m_message) - 1] = '\0';
+			result.m_error_code = error;
 			return result;
 		}
 

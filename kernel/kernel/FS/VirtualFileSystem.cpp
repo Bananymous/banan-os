@@ -15,7 +15,7 @@ namespace Kernel
 		ASSERT(s_instance == nullptr);
 		s_instance = new VirtualFileSystem();
 		if (s_instance == nullptr)
-			return BAN::Error::from_string("Could not allocate the Virtual File System");
+			return BAN::Error::from_errno(ENOMEM);
 		return s_instance->initialize_impl();
 	}
 	

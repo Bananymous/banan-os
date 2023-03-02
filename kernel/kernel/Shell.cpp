@@ -271,9 +271,6 @@ argument_done:
 				return TTY_PRINTLN("{}", directory_or_error.error());
 			auto directory = directory_or_error.release_value();
 
-			if (!directory->ifdir())
-				return TTY_PRINTLN("Given path does not point to a directory");
-
 			auto inodes_or_error = directory->directory_inodes();
 			if (inodes_or_error.is_error())
 				return TTY_PRINTLN("{}", inodes_or_error.error());

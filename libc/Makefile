@@ -41,9 +41,10 @@ string/memcpy.o \
 string/memmove.o \
 string/memset.o \
 string/strcmp.o \
-string/strncmp.o \
 string/strcpy.o \
+string/strerror.o \
 string/strlen.o \
+string/strncmp.o \
 string/strncpy.o \
 string/strstr.o \
  

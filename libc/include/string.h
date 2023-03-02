@@ -19,4 +19,6 @@ char* strncpy(char* __restrict, const char* __restrict, size_t);
 
 char* strstr(const char*, const char*);
 
+char* strerror(int);
+
 __END_DECLS

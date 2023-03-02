@@ -400,7 +400,7 @@ namespace BAN
 		size_type new_cap = BAN::Math::max<size_type>(size, m_capacity * 2);
 		T* new_data = (T*)BAN::allocator(new_cap * sizeof(T));
 		if (new_data == nullptr)
-			return Error::from_string("Vector: Could not allocate memory");
+			return Error::from_errno(ENOMEM);
 		for (size_type i = 0; i < m_size; i++)
 		{
 			new (new_data + i) T(move(m_data[i]));

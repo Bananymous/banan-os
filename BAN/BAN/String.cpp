@@ -230,7 +230,7 @@ namespace BAN
 		size_type new_cap = BAN::Math::max<size_type>(size, m_capacity * 2);
 		void* new_data = BAN::allocator(new_cap);
 		if (new_data == nullptr)
-			return Error::from_string("String: Could not allocate memory");
+			return Error::from_errno(ENOMEM);
 		if (m_data)
 			memcpy(new_data, m_data, m_size + 1);
 		BAN::deallocator(m_data);

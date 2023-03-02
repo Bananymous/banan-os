@@ -123,7 +123,7 @@ namespace BAN
 		auto& bucket = get_bucket(key);
 		auto result = bucket.emplace_back(key, forward<Args>(args)...);
 		if (result.is_error())
-			return Error::from_string("HashMap: Could not allocate memory");
+			return Error::from_errno(ENOMEM);
 		m_size++;
 		return {};
 	}
@@ -212,7 +212,7 @@ namespace BAN
 		size_type new_bucket_count = BAN::Math::max<size_type>(bucket_count, m_buckets.size() * 2);
 		Vector<LinkedList<Entry>> new_buckets;
 		if (new_buckets.resize(new_bucket_count).is_error())
-			return Error::from_string("HashMap: Could not allocate memory");
+			return Error::from_errno(ENOMEM);
 		
 		// NOTE: We have to copy the old entries to the new entries and not move
 		//       since we might run out of memory half way through.
@@ -222,7 +222,7 @@ namespace BAN
 			{
 				size_type bucket_index = HASH()(entry.key) % new_buckets.size();
 				if (new_buckets[bucket_index].push_back(entry).is_error())
-					return Error::from_string("HashMap: Could not allocate memory");
+					return Error::from_errno(ENOMEM);
 			}
 		}
 

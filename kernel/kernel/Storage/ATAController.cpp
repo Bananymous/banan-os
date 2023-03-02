@@ -54,7 +54,7 @@ namespace Kernel
 	{
 		ATAController* controller = new ATAController(device);
 		if (controller == nullptr)
-			return BAN::Error::from_string("Could not allocate memory for ATAController");
+			return BAN::Error::from_errno(ENOMEM);
 		TRY(controller->initialize());
 		return controller;
 	}
@@ -256,7 +256,7 @@ namespace Kernel
 			if (status & ATA_STATUS_ERR)
 				return error();
 			if (status & ATA_STATUS_DF)
-				return BAN::Error::from_string("Device fault");
+				return BAN::Error::from_errno(EIO);
 			status = read(ATA_PORT_STATUS);
 		}
 

@@ -197,7 +197,7 @@ namespace BAN
 		size_type new_bucket_count = BAN::Math::max<size_type>(bucket_count, m_buckets.size() * 2);
 		Vector<Vector<T>> new_buckets;
 		if (new_buckets.resize(new_bucket_count).is_error())
-			return Error::from_string("HashSet: Could not allocate memory");
+			return Error::from_errno(ENOMEM);
 		
 		// NOTE: We have to copy the old keys to the new keys and not move
 		//       since we might run out of memory half way through.
@@ -207,7 +207,7 @@ namespace BAN
 			{
 				size_type bucket_index = HASH()(key) % new_buckets.size();
 				if (new_buckets[bucket_index].push_back(key).is_error())
-					return Error::from_string("HashSet: Could not allocate memory");
+					return Error::from_errno(ENOMEM);
 			}
 		}
 
