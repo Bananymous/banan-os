@@ -298,6 +298,13 @@ void* kmalloc(size_t size)
 	return res;
 }
 
+static bool is_power_of_two(size_t value)
+{
+	if (value == 0)
+		return false;
+	return (value & (value - 1)) == 0;
+}
+
 void* kmalloc(size_t size, size_t align)
 {
 	kmalloc_info& info = s_kmalloc_info;
@@ -306,13 +313,7 @@ void* kmalloc(size_t size, size_t align)
 		return nullptr;
 
 	ASSERT(align);
-	
-	if (align % s_kmalloc_min_align)
-	{
-		size_t new_align = BAN::Math::lcm(align, s_kmalloc_min_align);
-		dwarnln("Asked to align to {}, aliging to {} instead", align, new_align);
-		align = new_align;
-	}
+	ASSERT(is_power_of_two(align));
 
 	// if the size fits into fixed node, we will try to use that since it is faster
 	if (align == s_kmalloc_min_align && size < sizeof(kmalloc_fixed_info::node::data))
