@@ -10,7 +10,7 @@
 	#include <kernel/Panic.h>
 	#define MUST(expr)	({ auto e = expr; if (e.is_error()) Kernel::panic("{}", e.error()); e.release_value(); })
 #else
-	#error "NOT IMPLEMENTED"
+	#define MUST(expr)	({ auto e = expr; assert(!e.is_error()); e.release_value(); })
 #endif
 
 #define TRY(expr) ({ auto e = expr; if (e.is_error()) return e.release_error(); e.release_value(); })

@@ -5,5 +5,7 @@
 	#define ASSERT(cond) do { if (!(cond)) Kernel::panic("ASSERT("#cond") failed"); } while(false)
 	#define ASSERT_NOT_REACHED() Kernel::panic("ASSERT_NOT_REACHED() failed")
 #else
-	#error "NOT IMPLEMENTED"
+	#include <assert.h>
+	#define ASSERT(cond) assert((cond) && "ASSERT("#cond") failed")
+	#define ASSERT_NOT_REACHED() assert(false && "ASSERT_NOT_REACHED() failed")
 #endif
