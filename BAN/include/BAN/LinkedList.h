@@ -234,28 +234,28 @@ namespace BAN
 	const T& LinkedList<T>::back() const
 	{
 		ASSERT(!empty());
-		return *const_iterator(m_last);
+		return *const_iterator(m_last, false);
 	}
 
 	template<typename T>
 	T& LinkedList<T>::back()
 	{
 		ASSERT(!empty());
-		return *iterator(m_last);
+		return *iterator(m_last, false);
 	}
 
 	template<typename T>
 	const T& LinkedList<T>::front() const
 	{
 		ASSERT(!empty());
-		return *const_iterator(m_data);
+		return *const_iterator(m_data, false);
 	}
 
 	template<typename T>
 	T& LinkedList<T>::front()
 	{
 		ASSERT(!empty());
-		return *iterator(m_data);
+		return *iterator(m_data, false);
 	}
 
 	template<typename T>
