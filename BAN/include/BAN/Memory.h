@@ -84,7 +84,10 @@ namespace BAN
 				return Error::from_errno(ENOMEM);
 			T* data = new T(forward<Args>(args)...);
 			if (!data)
+			{
+				delete count;
 				return Error::from_errno(ENOMEM);
+			}
 			return RefCounted<T>(data, count);
 		}
 
