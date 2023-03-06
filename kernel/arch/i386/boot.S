@@ -49,7 +49,7 @@ g_multiboot_info:
 g_multiboot_magic:
 	.skip 4
 
-.section .text, "a"
+.section .text
 
 boot_gdt:
 	.quad 0x0000000000000000 # null
