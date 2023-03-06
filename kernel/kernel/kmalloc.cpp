@@ -65,7 +65,7 @@ private:
 static_assert(sizeof(kmalloc_node) == s_kmalloc_min_align);
 struct kmalloc_info
 {
-	static constexpr uintptr_t	base = 0x00200000;
+	static constexpr uintptr_t	base = 0x00400000;
 	static constexpr size_t		size = 1 * MB;
 	static constexpr uintptr_t	end = base + size;
 
@@ -313,11 +313,10 @@ void* kmalloc(size_t size, size_t align)
 	if (size == 0 || size >= info.size)
 		return nullptr;
 
-	ASSERT(align);
 	ASSERT(is_power_of_two(align));
 
 	// if the size fits into fixed node, we will try to use that since it is faster
-	if (align == s_kmalloc_min_align && size < sizeof(kmalloc_fixed_info::node::data))
+	if (align == s_kmalloc_min_align && size <= sizeof(kmalloc_fixed_info::node::data))
 		if (void* result = kmalloc_fixed())
 			return result;
 

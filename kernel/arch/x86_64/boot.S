@@ -41,9 +41,9 @@
 	# we will identity map first 4 MiB
 
 	# 0 MiB -> 1 MiB: bootloader stuff
-	# 1 MiB -> 2 MiB: kernel
-	# 2 MiB -> 3 MiB: kmalloc
-	# 3 MiB -> 4 MiB: kmalloc_fixed
+	# 1 MiB -> 4 MiB: kernel
+	# 4 MiB -> 5 MiB: kmalloc
+	# 5 MiB -> 6 MiB: kmalloc_fixed
 	.align 4096
 	boot_pml4:
 		.skip 512 * 8
@@ -127,9 +127,10 @@ enable_sse:
 	ret
 
 initialize_paging:
-	# identity map first 4 MiB
+	# identity map first 6 MiB
 	movl $(0x00000000 + PG_PAGE_SIZE + PG_READ_WRITE + PG_PRESENT), boot_pd1 + 0
 	movl $(0x00200000 + PG_PAGE_SIZE + PG_READ_WRITE + PG_PRESENT), boot_pd1 + 8
+	movl $(0x00400000 + PG_PAGE_SIZE + PG_READ_WRITE + PG_PRESENT), boot_pd1 + 16
 
 	# set pdpte1 and pml4e1
 	movl $(boot_pd1   + PG_READ_WRITE + PG_PRESENT), boot_pdpt1	

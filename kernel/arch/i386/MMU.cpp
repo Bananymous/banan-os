@@ -47,9 +47,9 @@ MMU::MMU()
 		m_highest_paging_struct[i] = (uint64_t)page_directory | Flags::Present;
 	}
 
-	// create and identity map first 4 MiB
+	// create and identity map first 6 MiB
 	uint64_t* page_directory1 = (uint64_t*)(m_highest_paging_struct[0] & PAGE_MASK);
-	for (uint64_t i = 0; i < 2; i++)
+	for (uint64_t i = 0; i < 3; i++)
 	{
 		uint64_t* page_table = allocate_page_aligned_page();
 		for (uint64_t j = 0; j < 512; j++)

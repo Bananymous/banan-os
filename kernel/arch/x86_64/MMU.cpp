@@ -35,7 +35,7 @@ static uint64_t* allocate_page_aligned_page()
 
 MMU::MMU()
 {
-	// Identity map from 4 KiB -> 4 MiB
+	// Identity map from 4 KiB -> 6 MiB
 	m_highest_paging_struct = allocate_page_aligned_page();
 	
 	uint64_t* pdpt = allocate_page_aligned_page();
@@ -44,7 +44,7 @@ MMU::MMU()
 	uint64_t* pd = allocate_page_aligned_page();
 	pdpt[0] = (uint64_t)pd | Flags::ReadWrite | Flags::Present;
 
-	for (uint32_t i = 0; i < 2; i++)
+	for (uint32_t i = 0; i < 3; i++)
 	{
 		uint64_t* pt = allocate_page_aligned_page();
 		for (uint64_t j = 0; j < 512; j++)

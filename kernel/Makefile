@@ -27,6 +27,10 @@ CPPFLAGS:=$(CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS)
 LDFLAGS:=$(LDFLAGS) $(KERNEL_ARCH_LDFLAGS)
 LIBS:=$(LIBS) $(KERNEL_ARCH_LIBS)
 
+ifeq ($(UBSAN), 1)
+CFLAGS:=$(CFLAGS) -fsanitize=undefined
+endif
+
 BUILDDIR=$(abspath build)
  
 KERNEL_OBJS=					\
@@ -58,6 +62,7 @@ kernel/Thread.o					\
 kernel/TTY.o					\
 kernel/VesaTerminalDriver.o		\
 icxxabi.o						\
+ubsan.o							\
  
 OBJS=					\
 $(ARCHDIR)/crti.o		\

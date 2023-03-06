@@ -118,9 +118,10 @@ enable_sse:
 	ret
 
 initialize_paging:
-	# identity map first 4 MiB
+	# identity map first 6 MiB
 	movl $(0x00000000           + 0x83), boot_page_directory1 + 0
 	movl $(0x00200000           + 0x83), boot_page_directory1 + 8
+	movl $(0x00400000           + 0x83), boot_page_directory1 + 16
 	movl $(boot_page_directory1 + 0x01), boot_page_directory_pointer_table
 
 	# enable PAE
