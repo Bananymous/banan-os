@@ -104,9 +104,10 @@ extern "C" void kernel_main()
 		dprintln("Could not initialize input drivers");
 	dprintln("Input initialized");
 
-	Scheduler::initialize();
+	MUST(Scheduler::initialize());
 	Scheduler& scheduler = Scheduler::get();
-	MUST(scheduler.add_thread(BAN::Function<void()>(
+	#if 1
+	MUST(scheduler.add_thread(MUST(Thread::create(
 		[terminal_driver]
 		{
 			if (auto error = VirtualFileSystem::initialize(); error.is_error())
@@ -121,15 +122,16 @@ extern "C" void kernel_main()
 			else
 				terminal_driver->set_font(font_or_error.release_value());
 		}
-	)));
-	MUST(scheduler.add_thread(BAN::Function<void()>(
+	))));
+	#endif
+	MUST(scheduler.add_thread(MUST(Thread::create(
 		[tty1]
 		{
 			Shell* shell = new Shell(tty1);
 			ASSERT(shell);
 			shell->run();
 		}
-	)));
+	))));
 	scheduler.start();
 	ASSERT(false);
 }

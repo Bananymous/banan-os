@@ -23,6 +23,7 @@
 
 namespace PIT
 {
+
 	static uint64_t s_system_time = 0;
 
 	void irq_handler()
@@ -52,9 +53,9 @@ namespace PIT
 
 	void sleep(uint64_t ms)
 	{
-		uint64_t end = s_system_time + ms;
-		while (s_system_time < end)
-			Kernel::Scheduler::get().set_current_thread_sleeping();
+		if (ms == 0)
+			return;
+		Kernel::Scheduler::get().set_current_thread_sleeping(ms);
 	}
 
 }

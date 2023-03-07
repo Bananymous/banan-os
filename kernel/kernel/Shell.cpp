@@ -59,7 +59,8 @@ namespace Kernel
 		TTY_PRINT("{}", m_prompt);
 		for (;;)
 		{
-			Scheduler::get().set_current_thread_sleeping();
+			//PIT::sleep(1); // sleep until next reschedule
+			asm volatile("hlt");
 			Input::update();
 		}
 	}
@@ -182,7 +183,7 @@ argument_done:
 
 			s_thread_spinlock.lock();
 
-			MUST(Scheduler::get().add_thread(Function<void()>(
+			MUST(Scheduler::get().add_thread(MUST(Thread::create(
 				[this, &arguments]
 				{
 					auto args = arguments;
@@ -191,7 +192,7 @@ argument_done:
 					PIT::sleep(5000);
 					process_command(args);
 				}
-			)));
+			))));
 
 			while (s_thread_spinlock.is_locked());
 		}

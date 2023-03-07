@@ -1,22 +1,42 @@
 #include <kernel/Arch.h>
+#include <kernel/Attributes.h>
 #include <kernel/InterruptController.h>
 #include <kernel/Scheduler.h>
 
+#include <kernel/PCI.h>
+
+#define DISABLE_INTERRUPTS() asm volatile("cli")
+#define ENABLE_INTERRUPTS() asm volatile("sti")
+
+#if 1
+	#define VERIFY_CLI() ASSERT(interrupts_disabled())
+#else
+	#define VERIFY_CLI()
+#endif
+
 namespace Kernel
 {
-
-	static Scheduler* s_instance = nullptr;
 
 	extern "C" void start_thread(const BAN::Function<void()>* function, uintptr_t rsp, uintptr_t rip);
 	extern "C" void continue_thread(uintptr_t rsp, uintptr_t rip);
 	extern "C" uintptr_t read_rip();
 
-	void Scheduler::initialize()
+	static Scheduler* s_instance = nullptr;
+
+	static bool interrupts_disabled()
 	{
-		ASSERT(!s_instance);
+		uintptr_t flags;
+		asm volatile("pushf; pop %0" : "=r"(flags));
+		return !(flags & (1 << 9));
+	}
+
+	BAN::ErrorOr<void> Scheduler::initialize()
+	{
+		ASSERT(s_instance == nullptr);
 		s_instance = new Scheduler();
 		ASSERT(s_instance);
-		MUST(s_instance->add_thread(BAN::Function<void()>([] { for(;;) asm volatile("hlt"); })));
+		s_instance->m_idle_thread = TRY(Thread::create([] { for (;;) asm volatile("hlt"); }));
+		return {};
 	}
 
 	Scheduler& Scheduler::get()
@@ -25,21 +45,18 @@ namespace Kernel
 		return *s_instance;
 	}
 
-	const Thread& Scheduler::current_thread() const
+	void Scheduler::start()
 	{
-		return *m_current_iterator;
+		VERIFY_CLI();
+		ASSERT(!m_active_threads.empty());
+		m_current_thread = m_active_threads.begin();
+		execute_current_thread();
+		ASSERT_NOT_REACHED();
 	}
 
-
-	BAN::ErrorOr<void> Scheduler::add_thread(const BAN::Function<void()>& function)
+	BAN::RefCounted<Thread> Scheduler::current_thread()
 	{
-		uintptr_t flags;
-		asm volatile("pushf; pop %0" : "=r"(flags));
-		asm volatile("cli");
-		TRY(m_threads.emplace_back(function));
-		if (flags & (1 << 9))
-			asm volatile("sti");
-		return {};
+		return m_current_thread ? m_current_thread->thread : m_idle_thread;
 	}
 
 	void Scheduler::reschedule()
@@ -47,94 +64,151 @@ namespace Kernel
 		ASSERT(InterruptController::get().is_in_service(PIT_IRQ));
 		InterruptController::get().eoi(PIT_IRQ);
 
-		uint64_t current_time = PIT::ms_since_boot();
-		if (m_last_reschedule + ms_between_switch > current_time)
+		if (PIT::ms_since_boot() <= m_last_reschedule)
 			return;
-		m_last_reschedule = current_time;
+		m_last_reschedule = PIT::ms_since_boot();
+		
+		if (!m_sleeping_threads.empty())
+			m_sleeping_threads.front().wake_delta--;
+		wake_threads();
 
-		for (Thread& thread : m_threads)
-			if (thread.state() == Thread::State::Sleeping)
-				thread.set_state(Thread::State::Paused);
-
-		switch_thread();
+		if (save_current_thread())
+			return;
+		get_next_thread();
+		execute_current_thread();
+		ASSERT_NOT_REACHED();
 	}
 
-	void Scheduler::switch_thread()
+	void Scheduler::wake_threads()
 	{
+		VERIFY_CLI();
+
+		while (!m_sleeping_threads.empty() && m_sleeping_threads.front().wake_delta == 0)
+		{
+			auto thread = m_sleeping_threads.front().thread;
+			m_sleeping_threads.remove(m_sleeping_threads.begin());
+
+			// This should work as we released enough memory from sleeping thread
+			static_assert(sizeof(ActiveThread) == sizeof(SleepingThread));
+			MUST(m_active_threads.push_back({ thread, 0 }));
+		}
+	}
+
+	BAN::ErrorOr<void> Scheduler::add_thread(BAN::RefCounted<Thread> thread)
+	{
+		if (interrupts_disabled())
+		{
+			TRY(m_active_threads.push_back({ thread, 0 }));
+		}
+		else
+		{
+			DISABLE_INTERRUPTS();
+			TRY(m_active_threads.push_back({ thread, 0 }));
+			ENABLE_INTERRUPTS();
+		}
+		return {};
+	}
+
+	void Scheduler::get_next_thread()
+	{
+		VERIFY_CLI();
+
+		if (m_active_threads.empty())
+		{
+			m_current_thread = {};
+			return;
+		}
+
+		if (!m_current_thread || ++m_current_thread == m_active_threads.end())
+			m_current_thread = m_active_threads.begin();
+	}
+
+	// NOTE: this is declared always inline, so we don't corrupt the stack
+	//       after getting the rsp
+	ALWAYS_INLINE bool Scheduler::save_current_thread()
+	{
+		VERIFY_CLI();
+
 		uintptr_t rsp, rip;
 		push_callee_saved();
 		if (!(rip = read_rip()))
 		{
 			pop_callee_saved();
-			return;
+			return true;
 		}
 		read_rsp(rsp);
 
-		ASSERT(m_threads.size() > 1);
-		
-		Thread& current = *m_current_iterator;
+		auto current = current_thread();
+		current->set_rip(rip);
+		current->set_rsp(rsp);
+		return false;
+	}
 
-		if (current.state() == Thread::State::Done)
+	void Scheduler::execute_current_thread()
+	{
+		VERIFY_CLI();
+
+		auto current = current_thread();
+
+		if (current->started())
 		{
-			m_threads.remove(m_current_iterator);
-			m_current_iterator = m_threads.begin();
+			continue_thread(current->rsp(), current->rip());
 		}
 		else
 		{
-			current.set_rsp(rsp);
-			current.set_rip(rip);
-			if (current.state() != Thread::State::Sleeping)
-				current.set_state(Thread::State::Paused);
+			current->set_started();
+			start_thread(current->function(), current->rsp(), current->rip());
 		}
 
-		auto next_iterator = m_current_iterator;
-		if (++next_iterator == m_threads.end())
-			next_iterator = ++m_threads.begin();
-		if (next_iterator->state() == Thread::State::Sleeping)
-			next_iterator = m_threads.begin();
-		Thread& next = *next_iterator;
+		ASSERT_NOT_REACHED();
+	}
 
-		m_current_iterator = next_iterator;
+	void Scheduler::set_current_thread_sleeping(uint64_t wake_delta)
+	{
+		DISABLE_INTERRUPTS();
 
-		switch (next.state())
+		ASSERT(m_current_thread);
+
+		auto current = m_current_thread->thread;
+
+		auto temp = m_current_thread;
+		if (save_current_thread())
+			return;
+		get_next_thread();
+		m_active_threads.remove(temp);
+
+		auto it = m_sleeping_threads.begin();
+
+		for (; it != m_sleeping_threads.end(); it++)
 		{
-			case Thread::State::NotStarted:
-				next.set_state(Thread::State::Running);
-				start_thread(next.function(), next.rsp(), next.rip());
+			if (wake_delta <= it->wake_delta)
 				break;
-			case Thread::State::Paused:
-				next.set_state(Thread::State::Running);
-				continue_thread(next.rsp(), next.rip());
-				break;
-			case Thread::State::Sleeping:	ASSERT(false);
-			case Thread::State::Running:	ASSERT(false);
-			case Thread::State::Done:		ASSERT(false);
+			wake_delta -= it->wake_delta;
 		}
-		
-		ASSERT(false);
+
+		if (it != m_sleeping_threads.end())
+			it->wake_delta -= wake_delta;
+
+		// This should work as we released enough memory from active thread
+		static_assert(sizeof(ActiveThread) == sizeof(SleepingThread));
+		MUST(m_sleeping_threads.insert(it, { current, wake_delta }));
+
+		execute_current_thread();
+		ASSERT_NOT_REACHED();
 	}
+
+	void Scheduler::set_current_thread_done()
+	{
+		DISABLE_INTERRUPTS();
+
+		ASSERT(m_current_thread);
+
+		auto temp = m_current_thread;
+		get_next_thread();
+		m_active_threads.remove(temp);
 	
-	void Scheduler::set_current_thread_sleeping()
-	{
-		asm volatile("cli");
-		m_current_iterator->set_state(Thread::State::Sleeping);
-		switch_thread();
-		asm volatile("sti");
-	}
-
-	void Scheduler::start()
-	{
-		ASSERT(m_threads.size() > 1);
-
-		m_current_iterator = m_threads.begin();
-
-		Thread& current = *m_current_iterator;
-		ASSERT(current.state() == Thread::State::NotStarted);
-		current.set_state(Thread::State::Running);
-
-		start_thread(current.function(), current.rsp(), current.rip());
-
-		ASSERT(false);
+		execute_current_thread();
+		ASSERT_NOT_REACHED();
 	}
 
 }

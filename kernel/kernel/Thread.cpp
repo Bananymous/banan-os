@@ -21,6 +21,12 @@ namespace Kernel
 		memcpy((void*)rsp, (void*)&value, size);
 	}
 
+
+	BAN::ErrorOr<BAN::RefCounted<Thread>> Thread::create(const BAN::Function<void()>& function)
+	{
+		return BAN::RefCounted<Thread>::create(function);
+	}
+
 	Thread::Thread(const BAN::Function<void()>& function)
 		: m_tid(s_next_tid++)
 		, m_function(function)
@@ -46,10 +52,8 @@ namespace Kernel
 
 	void Thread::on_exit()
 	{
-		asm volatile("cli");
-		m_state = State::Done;
-		Scheduler::get().switch_thread();
-		ASSERT(false);
+		Scheduler::get().set_current_thread_done();
+		ASSERT_NOT_REACHED();
 	}
 
 }

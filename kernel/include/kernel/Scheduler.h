@@ -1,7 +1,7 @@
 #pragma once
 
-#include <BAN/Function.h>
 #include <BAN/LinkedList.h>
+#include <BAN/Memory.h>
 #include <kernel/Thread.h>
 
 namespace Kernel
@@ -9,33 +9,48 @@ namespace Kernel
 
 	class Scheduler
 	{
-		BAN_NON_COPYABLE(Scheduler);
-		BAN_NON_MOVABLE(Scheduler);
-		
 	public:
-		static void initialize();
+		static BAN::ErrorOr<void> initialize();
 		static Scheduler& get();
 
-		const Thread& current_thread() const;
-		
-		BAN::ErrorOr<void> add_thread(const BAN::Function<void()>& function);
-
-		void reschedule();
-		void set_current_thread_sleeping();
 		void start();
+		void reschedule();
 
-		static constexpr size_t ms_between_switch = 4;
+		BAN::ErrorOr<void> add_thread(BAN::RefCounted<Thread>);
+
+		void set_current_thread_sleeping(uint64_t);
+		[[noreturn]] void set_current_thread_done();
 
 	private:
-		Scheduler() {}
-		void switch_thread();
+		Scheduler() = default;
+
+		BAN::RefCounted<Thread> current_thread();
+
+		void wake_threads();
+		[[nodiscard]] bool save_current_thread();
+		void get_next_thread();
+		[[noreturn]] void execute_current_thread();
 
 	private:
-		BAN::LinkedList<Thread>				m_threads;
-		BAN::LinkedList<Thread>::iterator	m_current_iterator;
-		uint64_t							m_last_reschedule = 0;
+		struct ActiveThread
+		{
+			BAN::RefCounted<Thread> thread;
+			uint64_t padding;
+		};
 
-		friend class Thread;
+		struct SleepingThread
+		{
+			BAN::RefCounted<Thread> thread;
+			uint64_t wake_delta;
+		};
+
+		BAN::RefCounted<Thread> m_idle_thread;
+		BAN::LinkedList<ActiveThread> m_active_threads;
+		BAN::LinkedList<SleepingThread> m_sleeping_threads;
+
+		BAN::LinkedList<ActiveThread>::iterator m_current_thread;
+
+		uint64_t m_last_reschedule = 0;
 	};
 
 }
