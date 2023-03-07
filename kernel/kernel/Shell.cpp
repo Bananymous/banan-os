@@ -59,8 +59,7 @@ namespace Kernel
 		TTY_PRINT("{}", m_prompt);
 		for (;;)
 		{
-			//PIT::sleep(1); // sleep until next reschedule
-			asm volatile("hlt");
+			PIT::sleep(1); // sleep until next reschedule
 			Input::update();
 		}
 	}

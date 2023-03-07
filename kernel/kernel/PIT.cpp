@@ -24,11 +24,11 @@
 namespace PIT
 {
 
-	static uint64_t s_system_time = 0;
+	static volatile uint64_t s_system_time = 0;
 
 	void irq_handler()
 	{
-		s_system_time++;
+		s_system_time = s_system_time + 1;
 		Kernel::Scheduler::get().reschedule();
 	}
 
@@ -55,7 +55,10 @@ namespace PIT
 	{
 		if (ms == 0)
 			return;
-		Kernel::Scheduler::get().set_current_thread_sleeping(ms);
+		uint64_t wake_time = s_system_time + ms;
+		Kernel::Scheduler::get().set_current_thread_sleeping(wake_time);
+		if (s_system_time < wake_time)
+			dwarnln("sleep woke {} ms too soon", wake_time - s_system_time);
 	}
 
 }

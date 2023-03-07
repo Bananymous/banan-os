@@ -54,9 +54,9 @@ namespace Kernel
 		ASSERT_NOT_REACHED();
 	}
 
-	BAN::RefCounted<Thread> Scheduler::current_thread()
+	Thread& Scheduler::current_thread()
 	{
-		return m_current_thread ? m_current_thread->thread : m_idle_thread;
+		return m_current_thread ? *m_current_thread->thread : *m_idle_thread;
 	}
 
 	void Scheduler::reschedule()
@@ -68,13 +68,11 @@ namespace Kernel
 			return;
 		m_last_reschedule = PIT::ms_since_boot();
 		
-		if (!m_sleeping_threads.empty())
-			m_sleeping_threads.front().wake_delta--;
 		wake_threads();
 
 		if (save_current_thread())
 			return;
-		get_next_thread();
+		advance_current_thread();
 		execute_current_thread();
 		ASSERT_NOT_REACHED();
 	}
@@ -83,7 +81,8 @@ namespace Kernel
 	{
 		VERIFY_CLI();
 
-		while (!m_sleeping_threads.empty() && m_sleeping_threads.front().wake_delta == 0)
+		uint64_t current_time = PIT::ms_since_boot();
+		while (!m_sleeping_threads.empty() && m_sleeping_threads.front().wake_time <= current_time)
 		{
 			auto thread = m_sleeping_threads.front().thread;
 			m_sleeping_threads.remove(m_sleeping_threads.begin());
@@ -109,7 +108,7 @@ namespace Kernel
 		return {};
 	}
 
-	void Scheduler::get_next_thread()
+	void Scheduler::advance_current_thread()
 	{
 		VERIFY_CLI();
 
@@ -118,9 +117,27 @@ namespace Kernel
 			m_current_thread = {};
 			return;
 		}
-
 		if (!m_current_thread || ++m_current_thread == m_active_threads.end())
 			m_current_thread = m_active_threads.begin();
+	}
+
+	void Scheduler::remove_and_advance_current_thread()
+	{
+		VERIFY_CLI();
+
+		ASSERT(m_current_thread);
+
+		if (m_active_threads.size() == 1)
+		{
+			m_active_threads.remove(m_current_thread);
+			m_current_thread = {};
+		}
+		else
+		{
+			auto temp = m_current_thread;
+			advance_current_thread();
+			m_active_threads.remove(temp);
+		}
 	}
 
 	// NOTE: this is declared always inline, so we don't corrupt the stack
@@ -138,75 +155,67 @@ namespace Kernel
 		}
 		read_rsp(rsp);
 
-		auto current = current_thread();
-		current->set_rip(rip);
-		current->set_rsp(rsp);
+		auto& current = current_thread();
+		current.set_rip(rip);
+		current.set_rsp(rsp);
 		return false;
 	}
 
 	void Scheduler::execute_current_thread()
 	{
 		VERIFY_CLI();
+		
+		auto& current = current_thread();
 
-		auto current = current_thread();
-
-		if (current->started())
+		if (current.started())
 		{
-			continue_thread(current->rsp(), current->rip());
+			continue_thread(current.rsp(), current.rip());
 		}
 		else
 		{
-			current->set_started();
-			start_thread(current->function(), current->rsp(), current->rip());
+			current.set_started();
+			start_thread(current.function(), current.rsp(), current.rip());
 		}
 
 		ASSERT_NOT_REACHED();
 	}
 
-	void Scheduler::set_current_thread_sleeping(uint64_t wake_delta)
+#pragma GCC push_options
+#pragma GCC optimize("O0")
+	void Scheduler::set_current_thread_sleeping(uint64_t wake_time)
 	{
 		DISABLE_INTERRUPTS();
 
 		ASSERT(m_current_thread);
 
-		auto current = m_current_thread->thread;
+		auto sleeping = m_current_thread->thread;
 
-		auto temp = m_current_thread;
 		if (save_current_thread())
 			return;
-		get_next_thread();
-		m_active_threads.remove(temp);
+		remove_and_advance_current_thread();
 
 		auto it = m_sleeping_threads.begin();
-
 		for (; it != m_sleeping_threads.end(); it++)
-		{
-			if (wake_delta <= it->wake_delta)
+			if (wake_time <= it->wake_time)
 				break;
-			wake_delta -= it->wake_delta;
-		}
-
-		if (it != m_sleeping_threads.end())
-			it->wake_delta -= wake_delta;
 
 		// This should work as we released enough memory from active thread
 		static_assert(sizeof(ActiveThread) == sizeof(SleepingThread));
-		MUST(m_sleeping_threads.insert(it, { current, wake_delta }));
+		MUST(m_sleeping_threads.emplace(it, sleeping, wake_time));
+		sleeping.clear();
 
 		execute_current_thread();
 		ASSERT_NOT_REACHED();
 	}
+#pragma GCC pop_options
 
 	void Scheduler::set_current_thread_done()
 	{
 		DISABLE_INTERRUPTS();
 
 		ASSERT(m_current_thread);
+		remove_and_advance_current_thread();
 
-		auto temp = m_current_thread;
-		get_next_thread();
-		m_active_threads.remove(temp);
-	
 		execute_current_thread();
 		ASSERT_NOT_REACHED();
 	}
