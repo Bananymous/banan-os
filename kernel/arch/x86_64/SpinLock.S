@@ -13,5 +13,5 @@ spinlock_lock_asm:
 
 .global spinlock_unlock_asm
 spinlock_unlock_asm:
-	movq $0, (%rdi)
+	movl $0, (%rdi)
 	ret
