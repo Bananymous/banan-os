@@ -236,6 +236,7 @@ static void* kmalloc_impl(size_t size, size_t align)
 	Kernel::LockGuard guard(s_general_lock);
 
 	ASSERT(align % s_kmalloc_min_align == 0);
+	ASSERT(size % s_kmalloc_min_align == 0);
 
 	auto& info = s_kmalloc_info;
 
@@ -320,6 +321,8 @@ void* kmalloc(size_t size, size_t align)
 		if (void* result = kmalloc_fixed())
 			return result;
 
+	if (ptrdiff_t rem = size % s_kmalloc_min_align)
+		size += s_kmalloc_min_align - rem;
 	return kmalloc_impl(size, align);
 }
 
