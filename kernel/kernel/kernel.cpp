@@ -86,6 +86,9 @@ extern "C" void kernel_main()
 	MMU::intialize();
 	dprintln("MMU initialized");
 
+	PCI::initialize();
+	dprintln("PCI initialized");
+
 	TerminalDriver* terminal_driver = VesaTerminalDriver::create();
 	ASSERT(terminal_driver);
 	dprintln("VESA initialized");
@@ -96,10 +99,6 @@ extern "C" void kernel_main()
 
 	PIT::initialize();
 	dprintln("PIT initialized");
-
-	if (!PCI::initialize())
-		Kernel::panic("Could not initialize PCI");
-	dprintln("PCI initialized");
 
 	if (!Input::initialize())
 		dprintln("Could not initialize input drivers");

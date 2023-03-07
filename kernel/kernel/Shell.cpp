@@ -254,6 +254,13 @@ argument_done:
 			IO::outb(0x64, 0xFE);
 			asm volatile("cli; hlt");
 		}
+		else if (arguments.front() == "lspci")
+		{
+			if (arguments.size() != 1)
+				return TTY_PRINTLN("'lspci' does not support command line arguments");
+			for (auto& device : PCI::get().devices())
+				TTY_PRINTLN("{2H}:{2H}.{2H} {2H}", device.bus(), device.dev(), device.func(), device.class_code());
+		}
 		else if (arguments.front() == "ls")
 		{
 			if (!VirtualFileSystem::is_initialized())

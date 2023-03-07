@@ -8,22 +8,35 @@ namespace Kernel
 	class PCIDevice
 	{
 	public:
-		const uint8_t bus;
-		const uint8_t dev;
-		const uint8_t func;
-
-		const uint8_t class_code;
-		const uint8_t subclass;
+		PCIDevice(uint8_t, uint8_t, uint8_t);
 
 		uint32_t read_dword(uint8_t) const;
 		uint16_t read_word(uint8_t) const;
 		uint8_t  read_byte(uint8_t) const;
+
+		uint8_t bus() const { return m_bus; }
+		uint8_t dev() const { return m_dev; }
+		uint8_t func() const { return m_func; }
+
+		uint8_t class_code() const { return m_class_code; }
+		uint8_t subclass() const { return m_subclass; }
+
+	private:
+		uint8_t m_bus;
+		uint8_t m_dev;
+		uint8_t m_func;
+
+		uint8_t m_class_code;
+		uint8_t m_subclass;
 	};
 
 	class PCI
 	{
+		BAN_NON_COPYABLE(PCI);
+		BAN_NON_MOVABLE(PCI);
+
 	public:
-		static bool initialize();
+		static void initialize();
 		static PCI& get();
 		
 		const BAN::Vector<PCIDevice>& devices() const { return m_devices; }

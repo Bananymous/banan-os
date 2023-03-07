@@ -35,10 +35,10 @@ namespace Kernel
 		// Initialize all storage controllers
 		for (auto& device : PCI::get().devices())
 		{
-			if (device.class_code != 0x01)
+			if (device.class_code() != 0x01)
 				continue;
 			
-			switch (device.subclass)
+			switch (device.subclass())
 			{
 				case 0x0:
 					dwarnln("unsupported SCSI Bus Controller");
