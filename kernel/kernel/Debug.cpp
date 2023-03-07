@@ -33,6 +33,7 @@ namespace Debug
 				return;
 			}
 		}
+		BAN::Formatter::print(Debug::putchar, "\e[m");
 	}
 
 	void putchar(char ch)
