@@ -24,7 +24,7 @@ namespace BAN::Formatter
 {
 
 	template<typename F>
-	void print_argument_impl(F putc, const Time& time, const ValueFormat&)
+	void print_argument(F putc, const Time& time, const ValueFormat&)
 	{
 		constexpr const char* week_days[]	{ "", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
 		constexpr const char* months[]		{ "", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };

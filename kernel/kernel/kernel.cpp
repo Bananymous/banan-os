@@ -54,6 +54,27 @@ ParsedCommandLine ParseCommandLine()
 	return result;
 }
 
+struct Test
+{
+	Test()							{ dprintln("construct (default)"); }
+	Test(const Test&)				{ dprintln("construct (copy)"); }
+	Test(Test&&)					{ dprintln("construct (move)"); }
+	~Test()							{ dprintln("destruct"); }
+	Test& operator=(const Test&)	{ dprintln("assign (copy)"); return *this; }
+	Test& operator=(Test&&)			{ dprintln("assign (move)"); return *this; }
+};
+
+namespace BAN::Formatter
+{
+
+	template<typename F>
+	void print_argument(F putc, const Test& test, const ValueFormat& format)
+	{
+		print_argument(putc, &test, format);
+	}
+
+}
+
 extern "C" void kernel_main()
 {
 	using namespace Kernel;

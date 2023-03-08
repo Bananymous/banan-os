@@ -50,7 +50,7 @@ namespace BAN::Formatter
 {
 
 	template<typename F>
-	void print_argument_impl(F putc, const StringView& sv, const ValueFormat&)
+	void print_argument(F putc, const StringView& sv, const ValueFormat&)
 	{
 		for (StringView::size_type i = 0; i < sv.size(); i++)
 			putc(sv[i]);

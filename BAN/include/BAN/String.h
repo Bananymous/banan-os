@@ -82,7 +82,7 @@ namespace BAN::Formatter
 {
 
 	template<typename F>
-	void print_argument_impl(F putc, const String& string, const ValueFormat&)
+	void print_argument(F putc, const String& string, const ValueFormat&)
 	{
 		for (String::size_type i = 0; i < string.size(); i++)
 			putc(string[i]);

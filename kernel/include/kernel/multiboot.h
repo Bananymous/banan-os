@@ -16,7 +16,7 @@ struct framebuffer_info_t
 	uint8_t  bpp;
 	uint8_t  type;
 	uint8_t  color_info[6];
-} __attribute__((packed));
+};
 
 struct multiboot_memory_map_t
 {
@@ -51,7 +51,7 @@ struct multiboot_info_t
 	uint16_t vbe_interface_off;
 	uint16_t vbe_interface_len;
 	framebuffer_info_t framebuffer;
-} __attribute__((packed));
+};
 
 extern "C" multiboot_info_t*	g_multiboot_info;
 extern "C" uint32_t				g_multiboot_magic;

@@ -115,7 +115,7 @@ namespace BAN
 namespace BAN::Formatter
 {
 	template<typename F>
-	void print_argument_impl(F putc, const Error& error, const ValueFormat&)
+	void print_argument(F putc, const Error& error, const ValueFormat&)
 	{
 		if (error.get_error_code() == 0xFF)
 			print(putc, error.get_message());

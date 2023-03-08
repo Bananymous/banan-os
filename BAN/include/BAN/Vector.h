@@ -418,13 +418,13 @@ namespace BAN::Formatter
 {
 
 	template<typename F, typename T>
-	void print_argument_impl(F putc, const Vector<T>& vector, const ValueFormat& format)
+	void print_argument(F putc, const Vector<T>& vector, const ValueFormat& format)
 	{
 		putc('[');
 		for (typename Vector<T>::size_type i = 0; i < vector.size(); i++)
 		{
 			if (i != 0) putc(',');
-			print_argument_impl(putc, vector[i], format);
+			print_argument(putc, vector[i], format);
 		}
 		putc(']');
 	}
