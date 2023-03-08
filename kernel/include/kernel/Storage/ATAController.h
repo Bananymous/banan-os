@@ -8,6 +8,7 @@ namespace Kernel
 {
 
 	struct ATABus;
+	class ATAController;
 
 	class ATADevice : public StorageDevice
 	{
@@ -34,7 +35,7 @@ namespace Kernel
 		char model[41];
 
 		ATABus* bus;
-		SpinLock m_lock;
+		ATAController* controller;
 
 		friend class ATAController;
 	};
@@ -61,9 +62,14 @@ namespace Kernel
 		ATAController(const PCIDevice& device) : m_pci_device(device) {}
 		BAN::ErrorOr<void> initialize();
 
+		BAN::ErrorOr<void> read(ATADevice*, uint64_t, uint8_t, uint8_t*);
+
 	private:
+		SpinLock m_lock;
 		ATABus m_buses[2];
 		const PCIDevice& m_pci_device;
+
+		friend class ATADevice;
 	};
 
 }

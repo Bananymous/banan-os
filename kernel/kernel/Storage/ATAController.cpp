@@ -91,6 +91,7 @@ namespace Kernel
 				device.type = ATADevice::Type::Unknown;
 				device.slave_bit = device_index << 4;
 				device.bus = &bus;
+				device.controller = this;
 
 				bus.write(ATA_PORT_DRIVE_SELECT, 0xA0 | device.slave_bit);
 				PIT::sleep(1);
@@ -183,9 +184,9 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<void> ATADevice::read_sectors(uint64_t lba, uint8_t sector_count, uint8_t* buffer)
+	BAN::ErrorOr<void> ATAController::read(ATADevice* device, uint64_t lba, uint8_t sector_count, uint8_t* buffer)
 	{
-		if (lba + sector_count > lba_count)
+		if (lba + sector_count > device->lba_count)
 			return BAN::Error::from_string("Attempted to read outside of the device boundaries");
 
 		LockGuard _(m_lock);
@@ -193,17 +194,17 @@ namespace Kernel
 		if (lba < (1 << 28))
 		{
 			// LBA28
-			bus->write(ATA_PORT_DRIVE_SELECT, 0xE0 | slave_bit | ((lba >> 24) & 0x0F));
-			bus->write(ATA_PORT_SECTOR_COUNT, sector_count);
-			bus->write(ATA_PORT_LBA0, (uint8_t)(lba >>  0));
-			bus->write(ATA_PORT_LBA1, (uint8_t)(lba >>  8));
-			bus->write(ATA_PORT_LBA2, (uint8_t)(lba >> 16));
-			bus->write(ATA_PORT_COMMAND, ATA_COMMAND_READ_SECTORS);
+			device->bus->write(ATA_PORT_DRIVE_SELECT, 0xE0 | device->slave_bit | ((lba >> 24) & 0x0F));
+			device->bus->write(ATA_PORT_SECTOR_COUNT, sector_count);
+			device->bus->write(ATA_PORT_LBA0, (uint8_t)(lba >>  0));
+			device->bus->write(ATA_PORT_LBA1, (uint8_t)(lba >>  8));
+			device->bus->write(ATA_PORT_LBA2, (uint8_t)(lba >> 16));
+			device->bus->write(ATA_PORT_COMMAND, ATA_COMMAND_READ_SECTORS);
 
 			for (uint32_t sector = 0; sector < sector_count; sector++)
 			{
-				TRY(bus->wait(true));
-				bus->read_buffer(ATA_PORT_DATA, (uint16_t*)buffer + sector * sector_words, sector_words);
+				TRY(device->bus->wait(true));
+				device->bus->read_buffer(ATA_PORT_DATA, (uint16_t*)buffer + sector * device->sector_words, device->sector_words);
 			}
 		}
 		else
@@ -212,6 +213,12 @@ namespace Kernel
 			ASSERT(false);
 		}
 
+		return {};
+	}
+
+	BAN::ErrorOr<void> ATADevice::read_sectors(uint64_t lba, uint8_t sector_count, uint8_t* buffer)
+	{
+		TRY(controller->read(this, lba, sector_count, buffer));
 		return {};
 	}
 
