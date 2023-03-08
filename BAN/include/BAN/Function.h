@@ -142,7 +142,7 @@ namespace BAN
 
 	private:
 		static constexpr size_t m_size = sizeof(void*) * 4;
-		alignas(max_align_t) uint8_t m_storage[m_size] { 0 };
+		alignas(CallableBase) uint8_t m_storage[m_size] { 0 };
 	};
 
 }
