@@ -28,18 +28,21 @@ namespace Kernel
 
 		void wake_threads();
 		[[nodiscard]] bool save_current_thread();
-		void get_next_thread();
+		void remove_and_advance_current_thread();
+		void advance_current_thread();
 		[[noreturn]] void execute_current_thread();
 
 	private:
 		struct ActiveThread
 		{
+			ActiveThread(const BAN::RefPtr<Thread>& thread) : thread(thread) {}
 			BAN::RefPtr<Thread> thread;
 			uint64_t padding = 0;
 		};
 
 		struct SleepingThread
 		{
+			SleepingThread(const BAN::RefPtr<Thread>& thread, uint64_t wake_time) : thread(thread), wake_time(wake_time) {}
 			BAN::RefPtr<Thread> thread;
 			uint64_t wake_time;
 		};

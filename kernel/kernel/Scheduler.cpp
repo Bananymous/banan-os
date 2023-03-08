@@ -53,6 +53,7 @@ namespace Kernel
 
 	void Scheduler::reschedule()
 	{
+		VERIFY_CLI();
 		ASSERT(InterruptController::get().is_in_service(PIT_IRQ));
 		InterruptController::get().eoi(PIT_IRQ);
 
@@ -81,23 +82,17 @@ namespace Kernel
 
 			// This should work as we released enough memory from sleeping thread
 			static_assert(sizeof(ActiveThread) == sizeof(SleepingThread));
-			MUST(m_active_threads.push_back({ thread, 0 }));
+			MUST(m_active_threads.emplace_back(thread));
+			thread.clear();
 		}
 	}
 
-	BAN::ErrorOr<void> Scheduler::add_thread(BAN::RefCounted<Thread> thread)
+	BAN::ErrorOr<void> Scheduler::add_thread(BAN::RefPtr<Thread> thread)
 	{
-		if (interrupts_disabled())
-		{
-			TRY(m_active_threads.push_back({ thread, 0 }));
-		}
-		else
-		{
-			DISABLE_INTERRUPTS();
-			TRY(m_active_threads.push_back({ thread, 0 }));
-			ENABLE_INTERRUPTS();
-		}
-		return {};
+		auto flags = disable_interrupts_and_get_flags();
+		BAN::ErrorOr<void> result = m_active_threads.emplace_back(thread);
+		restore_flags(flags);
+		return result;
 	}
 
 	void Scheduler::advance_current_thread()
@@ -176,6 +171,7 @@ namespace Kernel
 #pragma GCC optimize("O0")
 	void Scheduler::set_current_thread_sleeping(uint64_t wake_time)
 	{
+		VERIFY_STI();
 		DISABLE_INTERRUPTS();
 
 		ASSERT(m_current_thread);
@@ -183,7 +179,10 @@ namespace Kernel
 		auto sleeping = m_current_thread->thread;
 
 		if (save_current_thread())
+		{
+			ENABLE_INTERRUPTS();
 			return;
+		}
 		remove_and_advance_current_thread();
 
 		auto it = m_sleeping_threads.begin();
@@ -203,6 +202,7 @@ namespace Kernel
 
 	void Scheduler::set_current_thread_done()
 	{
+		VERIFY_STI();
 		DISABLE_INTERRUPTS();
 
 		ASSERT(m_current_thread);
