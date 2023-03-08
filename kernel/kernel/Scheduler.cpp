@@ -46,9 +46,9 @@ namespace Kernel
 		ASSERT_NOT_REACHED();
 	}
 
-	Thread& Scheduler::current_thread()
+	BAN::RefPtr<Thread> Scheduler::current_thread()
 	{
-		return m_current_thread ? *m_current_thread->thread : *m_idle_thread;
+		return m_current_thread ? m_current_thread->thread : m_idle_thread;
 	}
 
 	void Scheduler::reschedule()
@@ -147,9 +147,9 @@ namespace Kernel
 		}
 		read_rsp(rsp);
 
-		auto& current = current_thread();
-		current.set_rip(rip);
-		current.set_rsp(rsp);
+		auto current = current_thread();
+		current->set_rip(rip);
+		current->set_rsp(rsp);
 		return false;
 	}
 
@@ -157,7 +157,7 @@ namespace Kernel
 	{
 		VERIFY_CLI();
 		
-		auto& current = current_thread();
+		auto& current = *current_thread();
 
 		if (current.started())
 		{

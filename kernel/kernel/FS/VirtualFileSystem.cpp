@@ -112,7 +112,7 @@ namespace Kernel
 		return BAN::Error::from_string("Could not locate root partition");
 	}
 
-	BAN::ErrorOr<BAN::RefCounted<Inode>> VirtualFileSystem::from_absolute_path(BAN::StringView path)
+	BAN::ErrorOr<BAN::RefPtr<Inode>> VirtualFileSystem::from_absolute_path(BAN::StringView path)
 	{
 		if (path.front() != '/')
 			return BAN::Error::from_string("Path must be an absolute path");

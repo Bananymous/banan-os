@@ -182,7 +182,7 @@ argument_done:
 
 			s_thread_spinlock.lock();
 
-			MUST(Scheduler::get().add_thread(MUST(Thread::create(
+			auto thread_or_error = Thread::create(
 				[this, &arguments]
 				{
 					auto args = arguments;
@@ -191,7 +191,11 @@ argument_done:
 					PIT::sleep(5000);
 					process_command(args);
 				}
-			))));
+			);
+			if (thread_or_error.is_error())
+				return TTY_PRINTLN("{}", thread_or_error.error());
+
+			MUST(Scheduler::get().add_thread(thread));
 
 			while (s_thread_spinlock.is_locked());
 		}

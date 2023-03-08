@@ -13,16 +13,16 @@ namespace Kernel
 		static VirtualFileSystem& get();
 		static bool is_initialized();
 
-		virtual const BAN::RefCounted<Inode> root_inode() const override { return m_root_inode; }
+		virtual const BAN::RefPtr<Inode> root_inode() const override { return m_root_inode; }
 
-		BAN::ErrorOr<BAN::RefCounted<Inode>> from_absolute_path(BAN::StringView);
+		BAN::ErrorOr<BAN::RefPtr<Inode>> from_absolute_path(BAN::StringView);
 
 	private:
 		VirtualFileSystem() = default;
 		BAN::ErrorOr<void> initialize_impl();
 
 	private:
-		BAN::RefCounted<Inode> m_root_inode;
+		BAN::RefPtr<Inode> m_root_inode;
 
 		BAN::Vector<StorageController*> m_storage_controllers;
 	};

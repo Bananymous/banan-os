@@ -16,7 +16,7 @@ namespace Kernel
 		void start();
 		void reschedule();
 
-		BAN::ErrorOr<void> add_thread(BAN::RefCounted<Thread>);
+		BAN::ErrorOr<void> add_thread(BAN::RefPtr<Thread>);
 
 		void set_current_thread_sleeping(uint64_t);
 		[[noreturn]] void set_current_thread_done();
@@ -24,7 +24,7 @@ namespace Kernel
 	private:
 		Scheduler() = default;
 
-		BAN::RefCounted<Thread> current_thread();
+		BAN::RefPtr<Thread> current_thread();
 
 		void wake_threads();
 		[[nodiscard]] bool save_current_thread();
@@ -34,17 +34,17 @@ namespace Kernel
 	private:
 		struct ActiveThread
 		{
-			BAN::RefCounted<Thread> thread;
-			uint64_t padding;
+			BAN::RefPtr<Thread> thread;
+			uint64_t padding = 0;
 		};
 
 		struct SleepingThread
 		{
-			BAN::RefCounted<Thread> thread;
-			uint64_t wake_delta;
+			BAN::RefPtr<Thread> thread;
+			uint64_t wake_time;
 		};
 
-		BAN::RefCounted<Thread> m_idle_thread;
+		BAN::RefPtr<Thread> m_idle_thread;
 		BAN::LinkedList<ActiveThread> m_active_threads;
 		BAN::LinkedList<SleepingThread> m_sleeping_threads;
 

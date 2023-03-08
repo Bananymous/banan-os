@@ -22,9 +22,9 @@ namespace Kernel
 	}
 
 
-	BAN::ErrorOr<BAN::RefCounted<Thread>> Thread::create(const BAN::Function<void()>& function)
+	BAN::ErrorOr<BAN::RefPtr<Thread>> Thread::create(const BAN::Function<void()>& function)
 	{
-		return BAN::RefCounted<Thread>::create(function);
+		return BAN::RefPtr<Thread>::create(function);
 	}
 
 	Thread::Thread(const BAN::Function<void()>& function)

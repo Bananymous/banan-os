@@ -253,12 +253,12 @@ namespace Kernel
 		return data_buffer;
 	}
 
-	BAN::ErrorOr<BAN::RefCounted<Inode>> Ext2Inode::directory_find(BAN::StringView file_name)
+	BAN::ErrorOr<BAN::RefPtr<Inode>> Ext2Inode::directory_find(BAN::StringView file_name)
 	{
 		if (!ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
 
-		BAN::RefCounted<Inode> result;
+		BAN::RefPtr<Inode> result;
 		BAN::Function<BAN::ErrorOr<bool>(const BAN::Vector<uint8_t>&)> function(
 			[&](const BAN::Vector<uint8_t>& block_data) -> BAN::ErrorOr<bool>
 			{
@@ -273,7 +273,7 @@ namespace Kernel
 						Ext2Inode* inode = new Ext2Inode(m_fs, TRY(m_fs->read_inode(entry->inode)), entry_name);
 						if (inode == nullptr)
 							return BAN::Error::from_errno(ENOMEM);
-						result = TRY(BAN::RefCounted<Inode>::adopt(inode));
+						result = BAN::RefPtr<Inode>::adopt(inode);
 						return false;
 					}
 					entry_addr += entry->rec_len;
@@ -288,12 +288,12 @@ namespace Kernel
 		return BAN::Error::from_errno(ENOENT);
 	}
 
-	BAN::ErrorOr<BAN::Vector<BAN::RefCounted<Inode>>> Ext2Inode::directory_inodes()
+	BAN::ErrorOr<BAN::Vector<BAN::RefPtr<Inode>>> Ext2Inode::directory_inodes()
 	{
 		if (!ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
 
-		BAN::Vector<BAN::RefCounted<Inode>> inodes;
+		BAN::Vector<BAN::RefPtr<Inode>> inodes;
 		BAN::Function<BAN::ErrorOr<bool>(const BAN::Vector<uint8_t>&)> function(
 			[&](const BAN::Vector<uint8_t>& block_data) -> BAN::ErrorOr<bool>
 			{
@@ -310,7 +310,7 @@ namespace Kernel
 						Ext2Inode* inode = new Ext2Inode(m_fs, BAN::move(current_inode), entry_name);
 						if (inode == nullptr)
 							return BAN::Error::from_errno(ENOMEM);
-						TRY(inodes.push_back(TRY(BAN::RefCounted<Inode>::adopt(inode))));
+						TRY(inodes.push_back(BAN::RefPtr<Inode>::adopt(inode)));
 					}
 					entry_addr += entry->rec_len;
 				}
@@ -431,7 +431,7 @@ namespace Kernel
 		Ext2Inode* root_inode = new Ext2Inode(this, TRY(read_inode(Ext2::Enum::ROOT_INO)), "");
 		if (root_inode == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
-		m_root_inode = TRY(BAN::RefCounted<Inode>::adopt(root_inode));
+		m_root_inode = BAN::RefPtr<Inode>::adopt(root_inode);
 
 #if EXT2_DEBUG_PRINT
 		dprintln("root inode:");

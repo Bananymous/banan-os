@@ -131,8 +131,8 @@ namespace Kernel
 		virtual BAN::StringView name() const override { return m_name; }
 
 		virtual BAN::ErrorOr<BAN::Vector<uint8_t>> read_all() override;
-		virtual BAN::ErrorOr<BAN::Vector<BAN::RefCounted<Inode>>> directory_inodes() override;
-		virtual BAN::ErrorOr<BAN::RefCounted<Inode>> directory_find(BAN::StringView) override;
+		virtual BAN::ErrorOr<BAN::Vector<BAN::RefPtr<Inode>>> directory_inodes() override;
+		virtual BAN::ErrorOr<BAN::RefPtr<Inode>> directory_find(BAN::StringView) override;
 
 	private:
 		BAN::ErrorOr<void> for_each_block(BAN::Function<BAN::ErrorOr<bool>(const BAN::Vector<uint8_t>&)>&);
@@ -158,7 +158,7 @@ namespace Kernel
 	public:	
 		static BAN::ErrorOr<Ext2FS*> create(StorageDevice::Partition&);
 
-		virtual const BAN::RefCounted<Inode> root_inode() const override { return m_root_inode; }
+		virtual const BAN::RefPtr<Inode> root_inode() const override { return m_root_inode; }
 
 	private:
 		Ext2FS(StorageDevice::Partition& partition)
@@ -179,7 +179,7 @@ namespace Kernel
 	private:
 		StorageDevice::Partition& m_partition;
 
-		BAN::RefCounted<Inode> m_root_inode;
+		BAN::RefPtr<Inode> m_root_inode;
 
 		Ext2::Superblock m_superblock;
 		BAN::Vector<Ext2::BlockGroupDescriptor> m_block_group_descriptors;

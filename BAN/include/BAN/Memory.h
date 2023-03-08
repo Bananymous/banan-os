@@ -24,143 +24,107 @@ namespace BAN
 	#endif
 
 	template<typename T>
-	class Unique
+	class RefCounted
 	{
-		BAN_NON_COPYABLE(Unique);
+		BAN_NON_COPYABLE(RefCounted);
+		BAN_NON_MOVABLE(RefCounted);
 
 	public:
-		template<typename... Args>
-		Unique(const Args&... args)
+		uint32_t ref_count() const
 		{
-			m_pointer = new T(args...);
+			return m_ref_count;
 		}
 
-		~Unique()
+		void ref() const
 		{
-			delete m_pointer;
+			ASSERT(m_ref_count > 0);
+			m_ref_count++;
 		}
 
-		operator bool() const
+		void unref() const
 		{
-			return m_pointer;
+			ASSERT(m_ref_count > 0);
+			m_ref_count--;
+			if (m_ref_count == 0)
+				delete (const T*)this;
 		}
+
+	protected:
+		RefCounted() = default;
+		~RefCounted() { ASSERT(m_ref_count == 0); }
 
 	private:
-		T* m_pointer = nullptr;
+		mutable uint32_t m_ref_count = 1;
 	};
 
 	template<typename T>
-	class RefCounted
+	class RefPtr
 	{
 	public:
-		RefCounted() = default;
-		RefCounted(const RefCounted<T>& other)
-		{
-			*this = other;
-		}
-		RefCounted(RefCounted<T>&& other)
-		{
-			*this = move(other);
-		}
-		~RefCounted()
-		{
-			clear();
-		}
-		
+		RefPtr() = default;
+		~RefPtr() { clear(); }
+
 		template<typename U>
-		static ErrorOr<RefCounted<T>> adopt(U* data)
+		static RefPtr adopt(U* pointer)
 		{
-			uint32_t* count = new uint32_t(1);
-			if (!count)
-				return Error::from_errno(ENOMEM);
-			return RefCounted<T>((T*)data, count);
+			return RefPtr(pointer);
 		}
 
 		template<typename... Args>
-		static ErrorOr<RefCounted<T>> create(Args... args)
+		static ErrorOr<RefPtr> create(Args&&... args)
 		{
-			uint32_t* count = new uint32_t(1);
-			if (!count)
+			T* pointer = new T(forward<Args>(args)...);
+			if (pointer == nullptr)
 				return Error::from_errno(ENOMEM);
-			T* data = new T(forward<Args>(args)...);
-			if (!data)
-			{
-				delete count;
-				return Error::from_errno(ENOMEM);
-			}
-			return RefCounted<T>(data, count);
+			return RefPtr(pointer);
 		}
 
-		RefCounted<T>& operator=(const RefCounted<T>& other)
+		RefPtr(const RefPtr& other) { *this = other; }
+		RefPtr(RefPtr&& other) { *this = move(other); }
+
+		RefPtr& operator=(const RefPtr& other)
 		{
 			clear();
-			if (other)
-			{
-				m_pointer = other.m_pointer;
-				m_count = other.m_count;
-				(*m_count)++;
-			}
-			return *this;
-		}
-		
-		RefCounted<T>& operator=(RefCounted<T>&& other)
-		{
-			clear();
-			if (other)
-			{
-				m_pointer = other.m_pointer;
-				m_count = other.m_count;
-				other.m_pointer = nullptr;
-				other.m_count = nullptr;
-			}
+			m_pointer = other.m_pointer;
+			if (m_pointer)
+				m_pointer->ref();
 			return *this;
 		}
 
-		T* ptr() { return m_pointer; }
-		const T* ptr() const { return m_pointer; }
+		RefPtr& operator=(RefPtr&& other)
+		{
+			clear();
+			m_pointer = other.m_pointer;
+			other.m_pointer = nullptr;
+			return *this;
+		}
 
-		T& operator*() { return *ptr();}
-		const T& operator*() const { return *ptr();}
+		T* ptr() { ASSERT(!empty()); return m_pointer; }
+		const T* ptr() const { ASSERT(!empty()); return m_pointer; }
+
+		T& operator*() { return *ptr(); }
+		const T& operator*() const { return *ptr(); }
 
 		T* operator->() { return ptr(); }
 		const T* operator->() const { return ptr(); }
 
+		bool empty() const { return m_pointer == nullptr; }
+		operator bool() const { return m_pointer; }
+
 		void clear()
 		{
-			if (!*this)
-				return;
-
-			(*m_count)--;
-			if (*m_count == 0)
-			{
-				delete m_pointer;
-				delete m_count;
-			}
-
+			if (m_pointer)
+				m_pointer->unref();
 			m_pointer = nullptr;
-			m_count = nullptr;
 		}
 
-		operator bool() const
-		{
-			if (!m_count && !m_pointer)
-				return false;
-			ASSERT(m_count && m_pointer);
-			ASSERT(*m_count > 0);
-			return true;
-		}
-	
 	private:
-		RefCounted(T* pointer, uint32_t* count)
+		RefPtr(T* pointer)
 			: m_pointer(pointer)
-			, m_count(count)
-		{
-			ASSERT(!pointer == !count);
-		}
+		{}
 
 	private:
-		T*			m_pointer = nullptr;
-		uint32_t*	m_count = nullptr;
+		T* m_pointer = nullptr;
 	};
 
 }

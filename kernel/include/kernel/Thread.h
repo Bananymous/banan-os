@@ -6,13 +6,10 @@
 namespace Kernel
 {
 
-	class Thread
+	class Thread : public BAN::RefCounted<Thread>
 	{
-		BAN_NON_COPYABLE(Thread);
-		BAN_NON_MOVABLE(Thread);
-
 	public:
-		static BAN::ErrorOr<BAN::RefCounted<Thread>> create(const BAN::Function<void()>&);
+		static BAN::ErrorOr<BAN::RefPtr<Thread>> create(const BAN::Function<void()>&);
 		~Thread();
 
 		uint32_t tid() const { return m_tid; }
@@ -40,7 +37,7 @@ namespace Kernel
 		
 		BAN::Function<void()> m_function;
 
-		friend class BAN::RefCounted<Thread>;
+		friend class BAN::RefPtr<Thread>;
 	};
 
 }
