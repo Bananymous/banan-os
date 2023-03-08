@@ -193,7 +193,7 @@ namespace Kernel
 
 		GPTHeader header = parse_gpt_header(lba1);
 		if (!is_valid_gpt_header(header, sector_size()))
-			return BAN::Error::from_string("Invalid GPT header");
+			return BAN::Error::from_c_string("Invalid GPT header");
 
 		uint32_t size = header.partition_entry_count * header.partition_entry_size;
 		if (uint32_t remainder = size % sector_size())
@@ -203,7 +203,7 @@ namespace Kernel
 		TRY(read_sectors(header.partition_entry_lba, size / sector_size(), entry_array.data()));
 
 		if (!is_valid_gpt_crc32(header, lba1, entry_array))
-			return BAN::Error::from_string("Invalid crc3 in the GPT header");
+			return BAN::Error::from_c_string("Invalid crc3 in the GPT header");
 
 		for (uint32_t i = 0; i < header.partition_entry_count; i++)
 		{
@@ -241,7 +241,7 @@ namespace Kernel
 	{
 		const uint32_t sectors_in_partition = m_lba_end - m_lba_start;
 		if (lba + sector_count > sectors_in_partition)
-			return BAN::Error::from_string("Attempted to read outside of the partition boundaries");
+			return BAN::Error::from_c_string("Attempted to read outside of the partition boundaries");
 		TRY(m_device.read_sectors(m_lba_start + lba, sector_count, buffer));
 		return {};
 	}

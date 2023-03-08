@@ -19,7 +19,7 @@ namespace Kernel
 	private:
 		void rerender_buffer() const;
 		BAN::Vector<BAN::String> parse_arguments(BAN::StringView) const;
-		void process_command(const BAN::Vector<BAN::String>&);
+		BAN::ErrorOr<void> process_command(const BAN::Vector<BAN::String>&);
 		void key_event_callback(Input::KeyEvent);
 
 	private:

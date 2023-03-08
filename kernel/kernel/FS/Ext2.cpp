@@ -222,7 +222,7 @@ namespace Kernel
 			}
 		}
 
-		return BAN::Error::from_string("Inode did not contain enough blocks");
+		return BAN::Error::from_c_string("Inode did not contain enough blocks");
 	}
 
 	BAN::ErrorOr<BAN::Vector<uint8_t>> Ext2Inode::read_all()
@@ -355,7 +355,7 @@ namespace Kernel
 		}
 
 		if (m_superblock.magic != 0xEF53)
-			return BAN::Error::from_string("Not a ext2 filesystem");
+			return BAN::Error::from_c_string("Not a ext2 filesystem");
 
 		if (m_superblock.rev_level < 1)
 		{
@@ -392,7 +392,7 @@ namespace Kernel
 		uint32_t number_of_block_groups       = BAN::Math::div_round_up(m_superblock.inodes_count, m_superblock.inodes_per_group);
 		uint32_t number_of_block_groups_check = BAN::Math::div_round_up(m_superblock.blocks_count, m_superblock.blocks_per_group);
 		if (number_of_block_groups != number_of_block_groups_check)
-			return BAN::Error::from_string("Ambiguous number of blocks");
+			return BAN::Error::from_c_string("Ambiguous number of blocks");
 
 		uint32_t block_group_descriptor_table_block = m_superblock.first_data_block + 1;
 		uint32_t block_group_descriptor_table_sector_count = BAN::Math::div_round_up(32u * number_of_block_groups, sector_size);

@@ -26,14 +26,14 @@ namespace Kernel
 	BAN::ErrorOr<Font> Font::load(BAN::StringView path)
 	{
 		if (!VirtualFileSystem::is_initialized())
-			return BAN::Error::from_string("Virtual Filesystem is not initialized");
+			return BAN::Error::from_c_string("Virtual Filesystem is not initialized");
 
 		auto inode = TRY(VirtualFileSystem::get().from_absolute_path(path));
 
 		auto file_data = TRY(inode->read_all());
 
 		if (file_data.size() < 4)
-			return BAN::Error::from_string("Font file is too small");
+			return BAN::Error::from_c_string("Font file is too small");
 
 		if (file_data[0] == 0x36 && file_data[1] == 0x04)
 			return TRY(parse_psf1(file_data));
@@ -41,14 +41,14 @@ namespace Kernel
 		if (file_data[0] == 0x72 && file_data[1] == 0xB5 && file_data[2] == 0x4A && file_data[3] == 0x86)
 			return TRY(parse_psf2(file_data));
 
-		return BAN::Error::from_string("Unsupported font format");
+		return BAN::Error::from_c_string("Unsupported font format");
 	}
 
 
 	BAN::ErrorOr<Font> Font::parse_psf1(const BAN::Vector<uint8_t>& font_data)
 	{
 		if (font_data.size() < 4)
-			return BAN::Error::from_string("Font file is too small");
+			return BAN::Error::from_c_string("Font file is too small");
 
 		struct PSF1Header
 		{
@@ -63,7 +63,7 @@ namespace Kernel
 		uint32_t glyph_data_size = glyph_size * glyph_count;
 
 		if (font_data.size() < sizeof(PSF1Header) + glyph_data_size)
-			return BAN::Error::from_string("Font file is too small");
+			return BAN::Error::from_c_string("Font file is too small");
 
 		BAN::Vector<uint8_t> glyph_data;
 		TRY(glyph_data.resize(glyph_data_size));
@@ -109,7 +109,7 @@ namespace Kernel
 			}
 
 			if (glyph_index != glyph_count)
-				return BAN::Error::from_string("Font did not contain unicode entry for all glyphs");
+				return BAN::Error::from_c_string("Font did not contain unicode entry for all glyphs");
 		}
 		else
 		{
@@ -146,7 +146,7 @@ namespace Kernel
 		};
 
 		if (font_data.size() < sizeof(PSF2Header))
-			return BAN::Error::from_string("Font file is too small");
+			return BAN::Error::from_c_string("Font file is too small");
 
 		PSF2Header header;
 		header.magic		= BAN::Math::little_endian_to_host<uint32_t>(font_data.data() + 0);
@@ -161,7 +161,7 @@ namespace Kernel
 		uint32_t glyph_data_size = header.glyph_count * header.glyph_size;
 
 		if (font_data.size() < glyph_data_size + header.header_size)
-			return BAN::Error::from_string("Font file is too small");
+			return BAN::Error::from_c_string("Font file is too small");
 
 		BAN::Vector<uint8_t> glyph_data;
 		TRY(glyph_data.resize(glyph_data_size));
@@ -207,7 +207,7 @@ namespace Kernel
 				}
 			}
 			if (glyph_index != header.glyph_count)
-				return BAN::Error::from_string("Font did not contain unicode entry for all glyphs");
+				return BAN::Error::from_c_string("Font did not contain unicode entry for all glyphs");
 		}
 		else
 		{

@@ -109,13 +109,13 @@ namespace Kernel
 
 		if (m_root_inode)
 			return {};
-		return BAN::Error::from_string("Could not locate root partition");
+		return BAN::Error::from_c_string("Could not locate root partition");
 	}
 
 	BAN::ErrorOr<BAN::RefPtr<Inode>> VirtualFileSystem::from_absolute_path(BAN::StringView path)
 	{
 		if (path.front() != '/')
-			return BAN::Error::from_string("Path must be an absolute path");
+			return BAN::Error::from_c_string("Path must be an absolute path");
 
 		auto inode = root_inode();
 		auto path_parts = TRY(path.split('/'));
