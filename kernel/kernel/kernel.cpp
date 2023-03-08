@@ -103,7 +103,6 @@ extern "C" void kernel_main()
 
 	MUST(Scheduler::initialize());
 	Scheduler& scheduler = Scheduler::get();
-	#if 1
 	MUST(scheduler.add_thread(MUST(Thread::create(
 		[terminal_driver]
 		{
@@ -120,7 +119,6 @@ extern "C" void kernel_main()
 				terminal_driver->set_font(font_or_error.release_value());
 		}
 	))));
-	#endif
 	MUST(scheduler.add_thread(MUST(Thread::create(
 		[tty1]
 		{

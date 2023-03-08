@@ -47,6 +47,7 @@ namespace Kernel
 
 	Thread::~Thread()
 	{
+		dprintln("thread {} destruct", tid());
 		kfree(m_stack_base);
 	}
 

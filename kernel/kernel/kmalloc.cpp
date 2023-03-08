@@ -1,20 +1,12 @@
 #include <BAN/Errors.h>
-#include <BAN/Math.h>
+#include <kernel/CriticalScope.h>
 #include <kernel/kmalloc.h>
 #include <kernel/kprint.h>
 #include <kernel/multiboot.h>
 
-#include <kernel/SpinLock.h>
-#include <kernel/LockGuard.h>
-
-#include <stdint.h>
-
 #define MB (1 << 20)
 
 static constexpr size_t s_kmalloc_min_align = alignof(max_align_t);
-
-static Kernel::SpinLock s_general_lock;
-static Kernel::SpinLock s_fixed_lock;
 
 struct kmalloc_node
 {
@@ -192,8 +184,6 @@ void kmalloc_dump_info()
 
 static void* kmalloc_fixed()
 {
-	Kernel::LockGuard guard(s_fixed_lock);
-
 	auto& info = s_kmalloc_fixed_info;
 
 	if (!info.free_list_head)
@@ -233,8 +223,6 @@ static void* kmalloc_fixed()
 
 static void* kmalloc_impl(size_t size, size_t align)
 {
-	Kernel::LockGuard guard(s_general_lock);
-
 	ASSERT(align % s_kmalloc_min_align == 0);
 	ASSERT(size % s_kmalloc_min_align == 0);
 
@@ -309,12 +297,15 @@ static constexpr bool is_power_of_two(size_t value)
 
 void* kmalloc(size_t size, size_t align)
 {
+
 	const kmalloc_info& info = s_kmalloc_info;
 
 	if (size == 0 || size >= info.size)
 		return nullptr;
 
 	ASSERT(is_power_of_two(align));
+	
+	Kernel::CriticalScope critical;
 
 	// if the size fits into fixed node, we will try to use that since it is faster
 	if (align == s_kmalloc_min_align && size <= sizeof(kmalloc_fixed_info::node::data))
@@ -334,10 +325,10 @@ void kfree(void* address)
 	uintptr_t address_uint = (uintptr_t)address;
 	ASSERT(address_uint % s_kmalloc_min_align == 0);
 
+	Kernel::CriticalScope critical;
+
 	if (s_kmalloc_fixed_info.base <= address_uint && address_uint < s_kmalloc_fixed_info.end)
 	{
-		Kernel::LockGuard guard(s_fixed_lock);
-
 		auto& info = s_kmalloc_fixed_info;
 		ASSERT(info.used_list_head);
 
@@ -369,8 +360,6 @@ void kfree(void* address)
 	}
 	else if (s_kmalloc_info.base <= address_uint && address_uint < s_kmalloc_info.end)
 	{
-		Kernel::LockGuard guard(s_general_lock);
-
 		auto& info = s_kmalloc_info;
 		
 		auto* node = info.from_address(address);

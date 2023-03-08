@@ -1,9 +1,8 @@
 #include <kernel/Arch.h>
 #include <kernel/Attributes.h>
+#include <kernel/CriticalScope.h>
 #include <kernel/InterruptController.h>
 #include <kernel/Scheduler.h>
-
-#include <kernel/PCI.h>
 
 #if 1
 	#define VERIFY_STI() ASSERT(interrupts_enabled())
@@ -89,10 +88,9 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Scheduler::add_thread(BAN::RefPtr<Thread> thread)
 	{
-		auto flags = disable_interrupts_and_get_flags();
-		BAN::ErrorOr<void> result = m_active_threads.emplace_back(thread);
-		restore_flags(flags);
-		return result;
+		Kernel::CriticalScope critical;
+		TRY(m_active_threads.emplace_back(thread));
+		return {};
 	}
 
 	void Scheduler::advance_current_thread()

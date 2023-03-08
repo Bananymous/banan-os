@@ -195,7 +195,7 @@ argument_done:
 			if (thread_or_error.is_error())
 				return TTY_PRINTLN("{}", thread_or_error.error());
 
-			MUST(Scheduler::get().add_thread(thread));
+			MUST(Scheduler::get().add_thread(thread_or_error.release_value()));
 
 			while (s_thread_spinlock.is_locked());
 		}

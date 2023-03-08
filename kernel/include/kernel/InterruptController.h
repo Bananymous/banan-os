@@ -18,6 +18,4 @@ public:
 	static InterruptController& get();
 };
 
-uintptr_t disable_interrupts_and_get_flags();
-void restore_flags(uintptr_t);
 bool interrupts_enabled();
