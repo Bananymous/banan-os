@@ -1,6 +1,7 @@
 #pragma once
 
 #include <BAN/String.h>
+#include <BAN/StringView.h>
 #include <kernel/Storage/StorageDevice.h>
 #include <kernel/FS/FileSystem.h>
 
