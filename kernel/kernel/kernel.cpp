@@ -17,9 +17,6 @@
 #include <kernel/TTY.h>
 #include <kernel/VesaTerminalDriver.h>
 
-#define DISABLE_INTERRUPTS() asm volatile("cli")
-#define ENABLE_INTERRUPTS() asm volatile("sti")
-
 extern "C" const char g_kernel_cmdline[];
 
 struct ParsedCommandLine

@@ -5,12 +5,11 @@
 
 #include <kernel/PCI.h>
 
-#define DISABLE_INTERRUPTS() asm volatile("cli")
-#define ENABLE_INTERRUPTS() asm volatile("sti")
-
 #if 1
-	#define VERIFY_CLI() ASSERT(interrupts_disabled())
+	#define VERIFY_STI() ASSERT(interrupts_enabled())
+	#define VERIFY_CLI() ASSERT(!interrupts_enabled())
 #else
+	#define VERIFY_STI()
 	#define VERIFY_CLI()
 #endif
 
@@ -22,13 +21,6 @@ namespace Kernel
 	extern "C" uintptr_t read_rip();
 
 	static Scheduler* s_instance = nullptr;
-
-	static bool interrupts_disabled()
-	{
-		uintptr_t flags;
-		asm volatile("pushf; pop %0" : "=r"(flags));
-		return !(flags & (1 << 9));
-	}
 
 	BAN::ErrorOr<void> Scheduler::initialize()
 	{

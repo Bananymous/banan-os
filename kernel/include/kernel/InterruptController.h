@@ -2,6 +2,9 @@
 
 #include <stdint.h>
 
+#define DISABLE_INTERRUPTS() asm volatile("cli")
+#define ENABLE_INTERRUPTS() asm volatile("sti")
+
 class InterruptController
 {
 public:
@@ -14,3 +17,7 @@ public:
 	static void initialize(bool force_pic);
 	static InterruptController& get();
 };
+
+uintptr_t disable_interrupts_and_get_flags();
+void restore_flags(uintptr_t);
+bool interrupts_enabled();
