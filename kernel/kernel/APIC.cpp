@@ -185,11 +185,13 @@ uintptr_t locate_madt(uintptr_t rsdp_addr)
 		uintptr_t entry_addr_ptr = entry_address_base + i * entry_pointer_size;
 		MMU::get().allocate_page(entry_addr_ptr, MMU::Flags::ReadWrite | MMU::Flags::Present);
 
+		union dummy { uint32_t addr32; uint64_t addr64; } __attribute__((aligned(1), packed));
+
 		uintptr_t entry_addr;		
 		if (entry_pointer_size == 4)
-			entry_addr = *(uint32_t*)entry_addr_ptr;
+			entry_addr = ((dummy*)entry_addr_ptr)->addr32;
 		else
-			entry_addr = *(uint64_t*)entry_addr_ptr;
+			entry_addr = ((dummy*)entry_addr_ptr)->addr64;
 
 		MMU::get().allocate_page(entry_addr, MMU::Flags::ReadWrite | MMU::Flags::Present);
 
