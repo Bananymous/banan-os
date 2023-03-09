@@ -21,33 +21,34 @@ namespace Kernel
 		memcpy((void*)rsp, (void*)&value, size);
 	}
 
-
-	BAN::ErrorOr<BAN::RefPtr<Thread>> Thread::create(const BAN::Function<void()>& function)
+	BAN::ErrorOr<BAN::RefPtr<Thread>> Thread::create(entry_t entry, void* data)
 	{
-		return BAN::RefPtr<Thread>::create(function);
+		auto thread = TRY(BAN::RefPtr<Thread>::create());
+		TRY(thread->initialize(entry, data));
+		return thread;
 	}
 
-	Thread::Thread(const BAN::Function<void()>& function)
+	Thread::Thread()
 		: m_tid(s_next_tid++)
-		, m_function(function)
+	{}
+
+	BAN::ErrorOr<void> Thread::initialize(entry_t entry, void* data)
 	{
 		m_stack_base = kmalloc(thread_stack_size, PAGE_SIZE);
-		ASSERT(m_stack_base);
-
+		if (m_stack_base == nullptr)
+			return BAN::Error::from_errno(ENOMEM);
 		m_rsp = (uintptr_t)m_stack_base + thread_stack_size;
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wpmf-conversions"
-		m_rip = (uintptr_t)(void*)&BAN::Function<void()>::operator();
-#pragma GCC diagnostic pop
+		m_rip = (uintptr_t)entry;
 
 		write_to_stack<sizeof(void*)>(m_rsp, this);
 		write_to_stack<sizeof(void*)>(m_rsp, &Thread::on_exit);
+		write_to_stack<sizeof(void*)>(m_rsp, data);
+
+		return {};
 	}
 
 	Thread::~Thread()
 	{
-		dprintln("thread {} destruct", tid());
 		kfree(m_stack_base);
 	}
 

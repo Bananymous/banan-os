@@ -15,7 +15,7 @@
 namespace Kernel
 {
 
-	extern "C" void start_thread(const BAN::Function<void()>* function, uintptr_t rsp, uintptr_t rip);
+	extern "C" void start_thread(uintptr_t rsp, uintptr_t rip);
 	extern "C" void continue_thread(uintptr_t rsp, uintptr_t rip);
 	extern "C" uintptr_t read_rip();
 
@@ -26,7 +26,7 @@ namespace Kernel
 		ASSERT(s_instance == nullptr);
 		s_instance = new Scheduler();
 		ASSERT(s_instance);
-		s_instance->m_idle_thread = TRY(Thread::create([] { for (;;) asm volatile("hlt"); }));
+		s_instance->m_idle_thread = TRY(Thread::create([](void*) { for (;;) asm volatile("hlt"); }));
 		return {};
 	}
 
@@ -159,7 +159,7 @@ namespace Kernel
 		else
 		{
 			current.set_started();
-			start_thread(current.function(), current.rsp(), current.rip());
+			start_thread(current.rsp(), current.rip());
 		}
 
 		ASSERT_NOT_REACHED();

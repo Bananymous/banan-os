@@ -125,7 +125,7 @@ extern "C" void kernel_main()
 	MUST(Scheduler::initialize());
 	Scheduler& scheduler = Scheduler::get();
 	MUST(scheduler.add_thread(MUST(Thread::create(
-		[terminal_driver]
+		[](void* terminal_driver)
 		{
 			MUST(VirtualFileSystem::initialize());
 
@@ -133,16 +133,16 @@ extern "C" void kernel_main()
 			if (font_or_error.is_error())
 				dprintln("{}", font_or_error.error());
 			else
-				terminal_driver->set_font(font_or_error.release_value());
-		}
+				((TerminalDriver*)terminal_driver)->set_font(font_or_error.release_value());
+		}, terminal_driver
 	))));
 	MUST(scheduler.add_thread(MUST(Thread::create(
-		[tty1]
+		[](void* tty)
 		{
-			Shell* shell = new Shell(tty1);
+			Shell* shell = new Shell((TTY*)tty);
 			ASSERT(shell);
 			shell->run();
-		}
+		}, tty1
 	))));
 	scheduler.start();
 	ASSERT(false);

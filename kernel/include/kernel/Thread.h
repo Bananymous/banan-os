@@ -9,7 +9,10 @@ namespace Kernel
 	class Thread : public BAN::RefCounted<Thread>
 	{
 	public:
-		static BAN::ErrorOr<BAN::RefPtr<Thread>> create(const BAN::Function<void()>&);
+		using entry_t = void(*)(void*);
+
+	public:
+		static BAN::ErrorOr<BAN::RefPtr<Thread>> create(entry_t, void* = nullptr);
 		~Thread();
 
 		uint32_t tid() const { return m_tid; }
@@ -22,10 +25,9 @@ namespace Kernel
 		void set_started() { m_started = true; }
 		bool started() const { return m_started; }
 
-		const BAN::Function<void()>* function() const { return &m_function; }
-
 	private:
-		Thread(const BAN::Function<void()>&);
+		Thread();
+		BAN::ErrorOr<void> initialize(entry_t, void*);
 		void on_exit();
 		
 	private:
@@ -34,8 +36,6 @@ namespace Kernel
 		uintptr_t		m_rsp			= 0;
 		const uint32_t	m_tid			= 0;
 		bool			m_started		= false;
-		
-		BAN::Function<void()> m_function;
 
 		friend class BAN::RefPtr<Thread>;
 	};

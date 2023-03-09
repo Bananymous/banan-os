@@ -178,24 +178,32 @@ argument_done:
 		}
 		else if (arguments.front() == "thread")
 		{
-			static SpinLock s_thread_spinlock;
+			struct thread_data_t
+			{
+				Shell* shell;
+				SpinLock& lock;
+				const Vector<String>& arguments;
+			};
+			
+			auto function = [](void* data)
+			{
+				thread_data_t* thread_data = (thread_data_t*)data;
+				Shell* shell = thread_data->shell;
+				auto args = thread_data->arguments;
+				thread_data->lock.unlock();
 
-			s_thread_spinlock.lock();
+				args.remove(0);
+				PIT::sleep(5000);
 
-			auto thread = TRY(Thread::create(
-				[this, &arguments]
-				{
-					auto args = arguments;
-					args.remove(0);
-					s_thread_spinlock.unlock();
-					PIT::sleep(5000);
-					if (auto res = process_command(args); res.is_error())
-						TTY_PRINTLN("{}", res.error());
-				}
-			));
-			TRY(Scheduler::get().add_thread(thread));
+				if (auto res = shell->process_command(args); res.is_error())
+					Formatter::println([&](char c) { shell->m_tty->putchar(c); }, "{}", res.error());
+			};
 
-			while (s_thread_spinlock.is_locked());
+			SpinLock spinlock;
+			thread_data_t thread_data = { this, spinlock, arguments };
+			spinlock.lock();
+			TRY(Scheduler::get().add_thread(TRY(Thread::create(function, &thread_data))));
+			while (spinlock.is_locked());
 		}
 		else if (arguments.front() == "memory")
 		{

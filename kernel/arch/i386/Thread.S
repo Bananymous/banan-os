@@ -9,18 +9,13 @@ exit_thread_trampoline:
 	pushl (%esp)
 	ret
 
-# void start_thread(uint32_t function, uint32_t esp, uint32_t eip)
+# void start_thread(uint32_t esp, uint32_t eip)
 .global start_thread
 start_thread:
-	movl 4(%esp), %eax
-	movl 12(%esp), %ecx
-	movl 8(%esp), %esp
-
-	pushl %eax
-	pushl $exit_thread_trampoline
-
+	movl 8(%esp), %ecx
+	movl 4(%esp), %esp
 	movl $0, %ebp
-
+	pushl $exit_thread_trampoline
 	sti
 	jmp *%ecx
 
