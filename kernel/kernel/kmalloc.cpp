@@ -304,6 +304,8 @@ void* kmalloc(size_t size, size_t align)
 		return nullptr;
 
 	ASSERT(is_power_of_two(align));
+	if (align < s_kmalloc_min_align)
+		align = s_kmalloc_min_align;
 	
 	Kernel::CriticalScope critical;
 
