@@ -16,7 +16,15 @@ namespace Kernel
 		s_instance = new VirtualFileSystem();
 		if (s_instance == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
-		return s_instance->initialize_impl();
+
+		if (auto res = s_instance->initialize_impl(); res.is_error())
+		{
+			delete s_instance;
+			s_instance = nullptr;
+			return res;
+		}
+
+		return {};
 	}
 	
 	VirtualFileSystem& VirtualFileSystem::get()
