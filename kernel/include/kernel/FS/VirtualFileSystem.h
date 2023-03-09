@@ -11,7 +11,7 @@ namespace Kernel
 	public:
 		static BAN::ErrorOr<void> initialize();
 		static VirtualFileSystem& get();
-		static bool is_initialized();
+		virtual ~VirtualFileSystem() {};
 
 		virtual const BAN::RefPtr<Inode> root_inode() const override { return m_root_inode; }
 

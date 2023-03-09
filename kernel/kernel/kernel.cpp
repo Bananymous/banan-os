@@ -127,11 +127,7 @@ extern "C" void kernel_main()
 	MUST(scheduler.add_thread(MUST(Thread::create(
 		[terminal_driver]
 		{
-			if (auto error = VirtualFileSystem::initialize(); error.is_error())
-			{
-				derrorln("{}", error.error());
-				return;
-			}
+			MUST(VirtualFileSystem::initialize());
 
 			auto font_or_error = Font::load("/usr/share/fonts/zap-ext-vga16.psf");
 			if (font_or_error.is_error())

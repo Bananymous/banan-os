@@ -33,11 +33,6 @@ namespace Kernel
 		return *s_instance;
 	}
 
-	bool VirtualFileSystem::is_initialized()
-	{
-		return s_instance != nullptr;
-	}
-
 	BAN::ErrorOr<void> VirtualFileSystem::initialize_impl()
 	{
 		// Initialize all storage controllers
@@ -115,9 +110,9 @@ namespace Kernel
 			}
 		}
 
-		if (m_root_inode)
-			return {};
-		return BAN::Error::from_c_string("Could not locate root partition");
+		if (m_root_inode.empty())
+			derrorln("Could not locate root partition");
+		return {};
 	}
 
 	BAN::ErrorOr<BAN::RefPtr<Inode>> VirtualFileSystem::from_absolute_path(BAN::StringView path)
@@ -126,6 +121,9 @@ namespace Kernel
 			return BAN::Error::from_c_string("Path must be an absolute path");
 
 		auto inode = root_inode();
+		if (!inode)
+			return BAN::Error::from_c_string("No root inode available");
+
 		auto path_parts = TRY(path.split('/'));
 		
 		for (BAN::StringView part : path_parts)

@@ -265,9 +265,6 @@ argument_done:
 		}
 		else if (arguments.front() == "ls")
 		{
-			if (!VirtualFileSystem::is_initialized())
-				return BAN::Error::from_c_string("VFS not initialized :(");
-
 			if (arguments.size() > 2)
 				return BAN::Error::from_c_string("usage: 'ls [path]'");
 
@@ -304,9 +301,6 @@ argument_done:
 		}
 		else if (arguments.front() == "cat")
 		{
-			if (!VirtualFileSystem::is_initialized())
-				return BAN::Error::from_c_string("VFS not initialized :(");
-
 			if (arguments.size() != 2)
 				return BAN::Error::from_c_string("usage: 'cat path'");
 			
@@ -316,9 +310,6 @@ argument_done:
 		}
 		else if (arguments.front() == "loadfont")
 		{
-			if (!VirtualFileSystem::is_initialized())
-				return BAN::Error::from_c_string("VFS not initialized :(");
-
 			if (arguments.size() != 2)
 				return BAN::Error::from_c_string("usage: 'loadfont font_path'");
 

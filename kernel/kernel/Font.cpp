@@ -25,9 +25,6 @@ namespace Kernel
 
 	BAN::ErrorOr<Font> Font::load(BAN::StringView path)
 	{
-		if (!VirtualFileSystem::is_initialized())
-			return BAN::Error::from_c_string("Virtual Filesystem is not initialized");
-
 		auto inode = TRY(VirtualFileSystem::get().from_absolute_path(path));
 
 		auto file_data = TRY(inode->read_all());
