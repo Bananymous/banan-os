@@ -34,6 +34,23 @@
 	popq %rax
 .endm
 
+.macro popaq_no_rax
+	popq %r15
+	popq %r14
+	popq %r13
+	popq %r12
+	popq %r11
+	popq %r10
+	popq %r9
+	popq %r8
+	popq %rsi
+	popq %rdi
+	popq %rbp
+	popq %rdx
+	popq %rcx
+	popq %rbx
+.endm
+
 isr_stub:
 	pushaq
 
@@ -138,3 +155,15 @@ irq 12
 irq 13
 irq 14
 irq 15
+
+.global syscall_asm
+syscall_asm:
+	cli
+	pushaq
+	movq %rax, %rdi
+	movq %rbx, %rsi
+	xchgq %rcx, %rdx
+	call cpp_syscall_handler
+	popaq_no_rax
+	addq $8, %rsp
+	iretq

@@ -26,11 +26,11 @@ CFLAGS:=$(CFLAGS) $(KERNEL_ARCH_CFLAGS)
 CPPFLAGS:=$(CPPFLAGS) $(KERNEL_ARCH_CPPFLAGS)
 LDFLAGS:=$(LDFLAGS) $(KERNEL_ARCH_LDFLAGS)
 LIBS:=$(LIBS) $(KERNEL_ARCH_LIBS)
-
+ 
 ifeq ($(UBSAN), 1)
 CFLAGS:=$(CFLAGS) -fsanitize=undefined
 endif
-
+ 
 BUILDDIR=$(abspath build)
  
 KERNEL_OBJS=					\
@@ -58,9 +58,11 @@ kernel/SpinLock.o				\
 kernel/SSP.o					\
 kernel/Storage/ATAController.o	\
 kernel/Storage/StorageDevice.o	\
+kernel/Syscall.o				\
 kernel/Thread.o					\
 kernel/TTY.o					\
 kernel/VesaTerminalDriver.o		\
+userspace/userspace.o			\
 icxxabi.o						\
 ubsan.o							\
  
@@ -109,6 +111,7 @@ always:
 	mkdir -p $(BUILDDIR)/kernel
 	mkdir -p $(BUILDDIR)/kernel/FS
 	mkdir -p $(BUILDDIR)/kernel/Storage
+	mkdir -p $(BUILDDIR)/userspace
 	mkdir -p $(BUILDDIR)/font
 
 clean:

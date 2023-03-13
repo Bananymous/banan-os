@@ -148,6 +148,12 @@ namespace IDT
 		descriptor.flags = 0x8E;
 	}
 
+	static void register_syscall_handler(uint8_t index, void(*handler)())
+	{
+		register_interrupt_handler(index, handler);
+		s_idt[index].flags = 0xEE;
+	}
+
 	void register_irq_handler(uint8_t irq, void(*handler)())
 	{
 		s_irq_handlers[irq] = handler;
@@ -202,6 +208,8 @@ namespace IDT
 	extern "C" void irq13();
 	extern "C" void irq14();
 	extern "C" void irq15();
+
+	extern "C" void syscall_asm();
 
 	void initialize()
 	{
@@ -261,6 +269,8 @@ namespace IDT
 		REGISTER_IRQ_HANDLER(13);
 		REGISTER_IRQ_HANDLER(14);
 		REGISTER_IRQ_HANDLER(15);
+
+		register_syscall_handler(0x80, syscall_asm);
 
 		flush_idt();
 	}

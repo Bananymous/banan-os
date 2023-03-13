@@ -11,7 +11,9 @@ SECTIONS
 	}
 	.rodata BLOCK(4K) : ALIGN(4K)
 	{
-		*(.rodata)
+		g_rodata_start = .;
+		*(.rodata.*)
+		g_rodata_end = .;
 	}
 	.data BLOCK(4K) : ALIGN(4K)
 	{
@@ -22,6 +24,15 @@ SECTIONS
 		*(COMMON)
 		*(.bss)
 	}
-
 	g_kernel_end = .;
+
+	. = 0x00A00000;
+
+	g_userspace_start = .;
+	.userspace BLOCK(4K) : ALIGN(4K)
+	{
+		*(.userspace)
+	}
+	g_userspace_end = .;
+
 }
