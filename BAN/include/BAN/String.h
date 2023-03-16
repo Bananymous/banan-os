@@ -2,6 +2,7 @@
 
 #include <BAN/ForwardList.h>
 #include <BAN/Formatter.h>
+#include <BAN/Hash.h>
 
 namespace BAN
 {
@@ -75,6 +76,25 @@ namespace BAN
 		BAN::Formatter::print([&](char c){ result.push_back(c); }, format, args...);
 		return result;
 	}
+
+	template<>
+	struct hash<String>
+	{
+		hash_t operator()(const String& string) const
+		{
+			constexpr hash_t FNV_offset_basis = 0x811c9dc5;
+			constexpr hash_t FNV_prime = 0x01000193;
+
+			hash_t hash = FNV_offset_basis;
+			for (String::size_type i = 0; i < string.size(); i++)
+			{
+				hash *= FNV_prime;
+				hash ^= (uint8_t)string[i];
+			}
+
+			return hash;
+		}
+	};
 
 }
 
