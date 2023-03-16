@@ -31,6 +31,9 @@ char* strerror(int error)
 	case ENOTSUP:
 		strcpy(buffer, "Operation not supported");
 		break;
+	case EBADF:
+		strcpy(buffer, "Bad file descriptor");
+		break;
 	default:
 		{
 			// FIXME: sprintf

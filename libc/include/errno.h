@@ -9,6 +9,7 @@
 #define ENOENT 5
 #define EIO 6
 #define ENOTSUP 7
+#define EBADF 8
 
 __BEGIN_DECLS
 
