@@ -8,6 +8,7 @@
 #define EISDIR 4
 #define ENOENT 5
 #define EIO 6
+#define ENOTSUP 7
 
 __BEGIN_DECLS
 

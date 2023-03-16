@@ -28,6 +28,9 @@ char* strerror(int error)
 	case EIO:
 		strcpy(buffer, "Input/output error");
 		break;
+	case ENOTSUP:
+		strcpy(buffer, "Operation not supported");
+		break;
 	default:
 		{
 			// FIXME: sprintf
