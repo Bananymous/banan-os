@@ -20,14 +20,14 @@ namespace Kernel
 {
 	using namespace BAN;
 
-	static auto s_default_prompt = "\\[\e[32m\\]user\\[\e[m\\]# "_sv;
+	static auto s_default_prompt = "\\[\e[32m\\]user\\[\e[m\\]# "sv;
 
 	Shell::Shell(TTY* tty)
 		: m_tty(tty)
 	{
 		Input::register_key_event_callback({ &Shell::key_event_callback, this });
 		set_prompt(s_default_prompt);
-		MUST(m_buffer.push_back(""_sv));
+		MUST(m_buffer.push_back(""sv));
 	}
 
 	void Shell::set_prompt(StringView prompt)
@@ -76,7 +76,7 @@ namespace Kernel
 			if (command.empty())
 				break;
 
-			MUST(result.push_back(""_sv));
+			MUST(result.push_back(""sv));
 
 			char quoted = '\0';
 			bool escape = false;
@@ -399,7 +399,7 @@ argument_done:
 						TTY_PRINTLN("{}", res.error());
 					MUST(m_old_buffer.push_back(current_buffer));
 					m_buffer = m_old_buffer;
-					MUST(m_buffer.push_back(""_sv));
+					MUST(m_buffer.push_back(""sv));
 					m_cursor_pos.line = m_buffer.size() - 1;
 				}
 				m_cursor_pos.col = 0;

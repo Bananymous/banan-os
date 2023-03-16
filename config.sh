@@ -16,9 +16,9 @@ export LIBDIR=$EXEC_PREFIX/lib
 export INCLUDEDIR=$PREFIX/include
  
 export CFLAGS='-O2 -g'
-export CPPFLAGS='--std=c++20'
+export CPPFLAGS='--std=c++20 -Wno-literal-suffix'
  
-export UBSAN=1
+export UBSAN=0
 
 # Configure the cross-compiler to use the desired system root.
 export SYSROOT="$(pwd)/sysroot"

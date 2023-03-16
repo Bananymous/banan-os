@@ -44,7 +44,7 @@ namespace BAN
 
 }
 
-inline BAN::StringView operator""_sv(const char* str, BAN::StringView::size_type len) { return BAN::StringView(str, len); }
+inline BAN::StringView operator""sv(const char* str, BAN::StringView::size_type len) { return BAN::StringView(str, len); }
 
 namespace BAN::Formatter
 {

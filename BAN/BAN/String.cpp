@@ -12,7 +12,7 @@ namespace BAN
 
 	String::String()
 	{
-		MUST(copy_impl(""_sv));
+		MUST(copy_impl(""sv));
 	}
 
 	String::String(const String& other)

@@ -91,7 +91,7 @@ namespace Kernel
 				
 				for (auto& partition : device->partitions())
 				{
-					if (partition.name() == "banan-root"_sv)
+					if (partition.name() == "banan-root"sv)
 					{
 						if (m_root_inode)
 							dwarnln("multiple root partitions found");
