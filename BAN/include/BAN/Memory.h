@@ -62,12 +62,21 @@ namespace BAN
 	{
 	public:
 		RefPtr() = default;
+		RefPtr(T* pointer)
+		{
+			m_pointer = pointer;
+			if (m_pointer)
+				m_pointer->ref();
+		}
+
 		~RefPtr() { clear(); }
 
 		template<typename U>
 		static RefPtr adopt(U* pointer)
 		{
-			return RefPtr(pointer);
+			RefPtr ptr;
+			ptr.m_pointer = pointer;
+			return ptr;
 		}
 
 		template<typename... Args>
@@ -76,7 +85,7 @@ namespace BAN
 			T* pointer = new T(forward<Args>(args)...);
 			if (pointer == nullptr)
 				return Error::from_errno(ENOMEM);
-			return RefPtr(pointer);
+			return adopt(pointer);
 		}
 
 		RefPtr(const RefPtr& other) { *this = other; }
@@ -117,11 +126,6 @@ namespace BAN
 				m_pointer->unref();
 			m_pointer = nullptr;
 		}
-
-	private:
-		RefPtr(T* pointer)
-			: m_pointer(pointer)
-		{}
 
 	private:
 		T* m_pointer = nullptr;

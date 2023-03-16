@@ -50,6 +50,7 @@ kernel/kmalloc.o				\
 kernel/PCI.o					\
 kernel/PIC.o					\
 kernel/PIT.o					\
+kernel/Process.o				\
 kernel/RTC.o					\
 kernel/Scheduler.o				\
 kernel/Serial.o					\

@@ -2,6 +2,7 @@
 #include <kernel/Attributes.h>
 #include <kernel/CriticalScope.h>
 #include <kernel/InterruptController.h>
+#include <kernel/Process.h>
 #include <kernel/Scheduler.h>
 
 #if 1

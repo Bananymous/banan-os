@@ -21,10 +21,10 @@ namespace Kernel
 		void set_current_thread_sleeping(uint64_t);
 		[[noreturn]] void set_current_thread_done();
 
+		BAN::RefPtr<Thread> current_thread();
+
 	private:
 		Scheduler() = default;
-
-		BAN::RefPtr<Thread> current_thread();
 
 		void wake_threads();
 		[[nodiscard]] bool save_current_thread();

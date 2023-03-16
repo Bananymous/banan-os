@@ -5,8 +5,8 @@
 #include <kernel/Input.h>
 #include <kernel/IO.h>
 #include <kernel/PIT.h>
+#include <kernel/Process.h>
 #include <kernel/RTC.h>
-#include <kernel/Scheduler.h>
 #include <kernel/Shell.h>
 
 #include <kernel/FS/VirtualFileSystem.h>
@@ -202,7 +202,7 @@ argument_done:
 			SpinLock spinlock;
 			thread_data_t thread_data = { this, spinlock, arguments };
 			spinlock.lock();
-			TRY(Scheduler::get().add_thread(TRY(Thread::create(function, &thread_data))));
+			TRY(Process::current()->add_thread(function, &thread_data));
 			while (spinlock.is_locked());
 		}
 		else if (arguments.front() == "memory")

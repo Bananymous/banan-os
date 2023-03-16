@@ -1,7 +1,7 @@
 #include <BAN/Errors.h>
-#include <kernel/Arch.h>
 #include <kernel/InterruptController.h>
 #include <kernel/kmalloc.h>
+#include <kernel/Process.h>
 #include <kernel/Scheduler.h>
 #include <kernel/Thread.h>
 
@@ -9,8 +9,6 @@
 
 namespace Kernel
 {
-
-	static uint32_t s_next_tid = 0;
 
 	static constexpr size_t thread_stack_size = 16384;
 
@@ -21,16 +19,27 @@ namespace Kernel
 		memcpy((void*)rsp, (void*)&value, size);
 	}
 
-	BAN::ErrorOr<BAN::RefPtr<Thread>> Thread::create(entry_t entry, void* data)
+	BAN::ErrorOr<BAN::RefPtr<Thread>> Thread::create(entry_t entry, void* data, BAN::RefPtr<Process> process)
 	{
-		auto thread = TRY(BAN::RefPtr<Thread>::create());
+		static pid_t next_tid = 1;
+		auto thread = TRY(BAN::RefPtr<Thread>::create(next_tid++, process));
 		TRY(thread->initialize(entry, data));
 		return thread;
 	}
 
-	Thread::Thread()
-		: m_tid(s_next_tid++)
+	Thread::Thread(pid_t tid, BAN::RefPtr<Process> process)
+		: m_tid(tid), m_process(process)
 	{}
+
+	BAN::RefPtr<Thread> Thread::current()
+	{
+		return Scheduler::get().current_thread();
+	}
+
+	BAN::RefPtr<Process> Thread::process()
+	{
+		return m_process;
+	}
 
 	BAN::ErrorOr<void> Thread::initialize(entry_t entry, void* data)
 	{
@@ -54,6 +63,8 @@ namespace Kernel
 
 	void Thread::on_exit()
 	{
+		if (m_process)
+			m_process->on_thread_exit(*this);
 		Scheduler::get().set_current_thread_done();
 		ASSERT_NOT_REACHED();
 	}

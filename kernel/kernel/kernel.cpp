@@ -12,6 +12,7 @@
 #include <kernel/PCI.h>
 #include <kernel/PIC.h>
 #include <kernel/PIT.h>
+#include <kernel/Process.h>
 #include <kernel/Scheduler.h>
 #include <kernel/Serial.h>
 #include <kernel/Shell.h>
@@ -85,6 +86,8 @@ extern "C" uintptr_t g_userspace_end;
 
 extern void userspace_entry();
 
+void init2(void*);
+
 extern "C" void kernel_main()
 {
 	using namespace Kernel;
@@ -121,6 +124,7 @@ extern "C" void kernel_main()
 	ASSERT(terminal_driver);
 	dprintln("VESA initialized");
 	TTY* tty1 = new TTY(terminal_driver);
+	ASSERT(tty1);
 	
 	InterruptController::initialize(cmdline.force_pic);
 	dprintln("Interrupt controller initialized");
@@ -134,7 +138,7 @@ extern "C" void kernel_main()
 
 	MUST(Scheduler::initialize());
 	Scheduler& scheduler = Scheduler::get();
-#if 1
+#if 0 
 	MUST(scheduler.add_thread(MUST(Thread::create(
 		[] (void*)
 		{
@@ -178,27 +182,32 @@ extern "C" void kernel_main()
 		}
 	))));
 #else
-	MUST(scheduler.add_thread(MUST(Thread::create(
-		[](void* terminal_driver)
-		{
-			MUST(VirtualFileSystem::initialize());
-
-			auto font_or_error = Font::load("/usr/share/fonts/zap-ext-vga16.psf");
-			if (font_or_error.is_error())
-				dprintln("{}", font_or_error.error());
-			else
-				((TerminalDriver*)terminal_driver)->set_font(font_or_error.release_value());
-		}, terminal_driver
-	))));
-	MUST(scheduler.add_thread(MUST(Thread::create(
-		[](void* tty)
-		{
-			Shell* shell = new Shell((TTY*)tty);
-			ASSERT(shell);
-			shell->run();
-		}, tty1
-	))));
+	MUST(scheduler.add_thread(MUST(Thread::create(init2, tty1, nullptr))));
 #endif
 	scheduler.start();
 	ASSERT(false);
+}
+
+void init2(void* tty1_ptr)
+{
+	using namespace Kernel;
+
+	TTY* tty1 = (TTY*)tty1_ptr;
+
+	MUST(VirtualFileSystem::initialize());
+
+	auto font_or_error = Font::load("/usr/share/fonts/zap-ext-vga16.psf");
+	if (font_or_error.is_error())
+		dprintln("{}", font_or_error.error());
+	else
+		tty1->set_font(font_or_error.release_value());
+
+	MUST(Process::create_kernel(
+		[](void* tty1) 
+		{
+			Shell* shell = new Shell((TTY*)tty1);
+			ASSERT(shell);
+			shell->run();
+		}, tty1
+	));
 }
