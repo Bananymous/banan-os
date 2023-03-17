@@ -103,7 +103,7 @@ namespace Kernel
 							else
 								// FIXME: We leave a dangling pointer to ext2fs. This might be okay since
 								//        root fs sould probably be always mounted
-								TRY(m_open_inodes.insert("/"sv, ext2fs_or_error.release_value()->root_inode()));
+								m_root_inode = ext2fs_or_error.value()->root_inode();
 						}
 					}
 				}
@@ -115,40 +115,52 @@ namespace Kernel
 		return {};
 	}
 
-	const BAN::RefPtr<Inode> VirtualFileSystem::root_inode() const
-	{
-		if (!m_open_inodes.contains("/"sv))
-			return nullptr;
-		return m_open_inodes["/"sv];
-	}
-
-	void VirtualFileSystem::close_inode(BAN::StringView path)
-	{
-		ASSERT(m_open_inodes.contains(path));
-
-		// Delete the cached inode, if we are the only one holding a reference to it
-		if (m_open_inodes[path]->ref_count() == 1)
-			m_open_inodes.remove(path);
-	}
-
-	BAN::ErrorOr<BAN::RefPtr<Inode>> VirtualFileSystem::from_absolute_path(BAN::StringView path)
+	BAN::ErrorOr<VirtualFileSystem::File> VirtualFileSystem::file_from_absolute_path(BAN::StringView path)
 	{
 		ASSERT(path.front() == '/');
-		
-		if (m_open_inodes.contains(path))
-			return m_open_inodes[path];
 
 		auto inode = root_inode();
 		if (!inode)
 			return BAN::Error::from_c_string("No root inode available");
 
 		auto path_parts = TRY(path.split('/'));
-		for (BAN::StringView part : path_parts)
-			inode = TRY(inode->directory_find(part));
-		
-		TRY(m_open_inodes.insert(path, inode));
 
-		return inode;
+		for (size_t i = 0; i < path_parts.size();)
+		{
+			if (path_parts[i] == "."sv)
+			{
+				path_parts.remove(i);
+			}
+			else if (path_parts[i] == ".."sv)
+			{
+				inode = TRY(inode->directory_find(path_parts[i]));
+				path_parts.remove(i);
+				if (i > 0)
+				{
+					path_parts.remove(i - 1);
+					i--;
+				}
+			}
+			else
+			{
+				inode = TRY(inode->directory_find(path_parts[i]));
+				i++;
+			}
+		}
+
+		File file;
+		file.inode = inode;
+
+		for (const auto& part : path_parts)
+		{
+			TRY(file.canonical_path.push_back('/'));
+			TRY(file.canonical_path.append(part));
+		}
+
+		if (file.canonical_path.empty())
+			TRY(file.canonical_path.push_back('/'));
+
+		return file;
 	}
 
 }

@@ -13,7 +13,7 @@ namespace Kernel
 	public:
 		Shell(TTY*);
 		Shell(const Shell&) = delete;
-		void set_prompt(BAN::StringView);
+		BAN::ErrorOr<void> set_prompt(BAN::StringView);
 		void run();
 
 	private:
@@ -21,11 +21,13 @@ namespace Kernel
 		BAN::Vector<BAN::String> parse_arguments(BAN::StringView) const;
 		BAN::ErrorOr<void> process_command(const BAN::Vector<BAN::String>&);
 		void key_event_callback(Input::KeyEvent);
+		BAN::ErrorOr<void> update_prompt();
 
 	private:
 		TTY*						m_tty;
 		BAN::Vector<BAN::String>	m_old_buffer;
 		BAN::Vector<BAN::String>	m_buffer;
+		BAN::String					m_prompt_string;
 		BAN::String					m_prompt;
 		uint32_t					m_prompt_length = 0;
 		

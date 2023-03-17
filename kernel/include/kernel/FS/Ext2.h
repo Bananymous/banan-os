@@ -131,12 +131,13 @@ namespace Kernel
 
 		virtual BAN::StringView name() const override { return m_name; }
 
-		virtual BAN::ErrorOr<BAN::Vector<uint8_t>> read_all() override;
+		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t) override;
 		virtual BAN::ErrorOr<BAN::Vector<BAN::RefPtr<Inode>>> directory_inodes() override;
 		virtual BAN::ErrorOr<BAN::RefPtr<Inode>> directory_find(BAN::StringView) override;
 
 	private:
-		BAN::ErrorOr<void> for_each_block(BAN::Function<BAN::ErrorOr<bool>(const BAN::Vector<uint8_t>&)>&);
+		using block_callback_t = BAN::ErrorOr<bool>(*)(const BAN::Vector<uint8_t>&, void*);
+		BAN::ErrorOr<void> for_each_block(block_callback_t, void*);
 
 	private:
 		Ext2Inode() {}

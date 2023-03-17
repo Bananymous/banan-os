@@ -36,6 +36,8 @@ namespace Kernel
 		};
 
 	public:
+		virtual ~Inode() {}
+
 		bool ifdir() const { return mode().IFDIR; }
 		bool ifreg() const { return mode().IFREG; }
 
@@ -47,7 +49,7 @@ namespace Kernel
 
 		virtual BAN::StringView name() const = 0;
 
-		virtual BAN::ErrorOr<BAN::Vector<uint8_t>> read_all() = 0;
+		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t) = 0;
 		virtual BAN::ErrorOr<BAN::Vector<BAN::RefPtr<Inode>>> directory_inodes() = 0;
 		virtual BAN::ErrorOr<BAN::RefPtr<Inode>> directory_find(BAN::StringView) = 0;
 	};

@@ -138,7 +138,7 @@ namespace Kernel
 
 	}
 	
-	BAN::ErrorOr<void> Ext2Inode::for_each_block(BAN::Function<BAN::ErrorOr<bool>(const BAN::Vector<uint8_t>&)>& func)
+	BAN::ErrorOr<void> Ext2Inode::for_each_block(block_callback_t callback, void* callback_data)
 	{
 		uint32_t data_blocks_left = m_inode.blocks / (2 << m_fs->superblock().log_block_size);
 		uint32_t block_array_block_count = (1024 << m_fs->superblock().log_block_size) / sizeof(uint32_t);
@@ -150,7 +150,7 @@ namespace Kernel
 				continue;
 
 			auto block_data = TRY(m_fs->read_block(m_inode.block[i]));
-			if (!TRY(func(block_data)))
+			if (!TRY(callback(block_data, callback_data)))
 				return {};
 			if (--data_blocks_left == 0)
 				return {};
@@ -166,7 +166,7 @@ namespace Kernel
 				if (block == 0)
 					continue;
 				auto block_data = TRY(m_fs->read_block(block));
-				if (!TRY(func(block_data)))
+				if (!TRY(callback(block_data, callback_data)))
 					return {};
 				if (--data_blocks_left == 0)
 					return {};
@@ -187,7 +187,7 @@ namespace Kernel
 					if (block == 0)
 						continue;
 					auto block_data = TRY(m_fs->read_block(block));
-					if (!TRY(func(block_data)))
+					if (!TRY(callback(block_data, callback_data)))
 						return {};
 					if (--data_blocks_left == 0)
 						return {};
@@ -213,7 +213,7 @@ namespace Kernel
 						if (block == 0)
 							continue;
 						auto block_data = TRY(m_fs->read_block(block));
-						if (!TRY(func(block_data)))
+						if (!TRY(callback(block_data, callback_data)))
 							return {};
 						if (--data_blocks_left == 0)
 							return {};
@@ -225,32 +225,63 @@ namespace Kernel
 		return BAN::Error::from_c_string("Inode did not contain enough blocks");
 	}
 
-	BAN::ErrorOr<BAN::Vector<uint8_t>> Ext2Inode::read_all()
+	BAN::ErrorOr<size_t> Ext2Inode::read(size_t offset, void* buffer, size_t count)
 	{
 		if (ifdir())
 			return BAN::Error::from_errno(EISDIR);
 
-		BAN::Vector<uint8_t> data_buffer;
-		TRY(data_buffer.resize(m_inode.size));
+		struct read_info
+		{
+			size_t file_current_offset;
+			size_t file_start_offset;
+			size_t file_bytes_left;
+			uint8_t* out_byte_buffer;
+			size_t out_bytes_read;
+			size_t out_byte_buffer_size;
+		};
 
-		uint32_t bytes_done = 0;
-		uint32_t bytes_left = m_inode.size;
+		read_info info;
+		info.file_current_offset	= 0;
+		info.file_start_offset		= offset;
+		info.file_bytes_left		= m_inode.size;
+		info.out_byte_buffer		= (uint8_t*)buffer;
+		info.out_bytes_read			= 0;
+		info.out_byte_buffer_size	= count;
 
-		BAN::Function<BAN::ErrorOr<bool>(const BAN::Vector<uint8_t>&)> read_func(
-			[&](const BAN::Vector<uint8_t>& block_data)
+		block_callback_t read_func = 
+			[](const BAN::Vector<uint8_t>& block_data, void* info_) -> BAN::ErrorOr<bool>
 			{
-				uint32_t to_copy = BAN::Math::min<uint32_t>(block_data.size(), bytes_left);
-				memcpy(data_buffer.data() + bytes_done, block_data.data(), to_copy);
-				bytes_done += to_copy;
-				bytes_left -= to_copy;
-				return bytes_left > 0;
-			}
-		);
+				read_info& info = *(read_info*)info_;
 
-		TRY(for_each_block(read_func));
-		ASSERT(bytes_left == 0);
+				size_t block_size = BAN::Math::min<size_t>(block_data.size(), info.file_bytes_left);
 
-		return data_buffer;
+				// Skip blocks before 'offset'
+				if (info.file_current_offset + block_size <= info.file_start_offset)
+				{
+					info.file_current_offset += block_size;
+					info.file_bytes_left -= block_size;
+					return info.file_bytes_left > 0;
+				}
+
+				size_t read_offset = 0;
+				if (info.file_current_offset < info.file_start_offset)
+					read_offset = info.file_start_offset - info.file_current_offset;
+
+				size_t to_read = BAN::Math::min<size_t>(block_size - read_offset, info.out_byte_buffer_size - info.out_bytes_read);
+				memcpy(info.out_byte_buffer + info.out_bytes_read, block_data.data() + read_offset, to_read);
+
+				info.out_bytes_read += to_read;
+				if (info.out_bytes_read >= info.out_byte_buffer_size)
+					return false;
+
+				info.file_current_offset += block_size;
+				info.file_bytes_left -= block_size;
+				return info.file_bytes_left > 0;
+			};
+
+		TRY(for_each_block(read_func, &info));
+
+		return info.out_bytes_read;
 	}
 
 	BAN::ErrorOr<BAN::RefPtr<Inode>> Ext2Inode::directory_find(BAN::StringView file_name)
@@ -258,33 +289,45 @@ namespace Kernel
 		if (!ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
 
-		BAN::RefPtr<Inode> result;
-		BAN::Function<BAN::ErrorOr<bool>(const BAN::Vector<uint8_t>&)> function(
-			[&](const BAN::Vector<uint8_t>& block_data) -> BAN::ErrorOr<bool>
+		struct search_info
+		{
+			BAN::StringView file_name;
+			BAN::RefPtr<Inode> result;
+			Ext2FS* fs;
+		};
+
+		search_info info;
+		info.file_name = file_name;
+		info.result = {};
+		info.fs = m_fs;
+
+		block_callback_t function =
+			[](const BAN::Vector<uint8_t>& block_data, void* info_) -> BAN::ErrorOr<bool>
 			{
+				search_info& info = *(search_info*)info_;
+
 				uintptr_t block_data_end = (uintptr_t)block_data.data() + block_data.size();
 				uintptr_t entry_addr = (uintptr_t)block_data.data();
 				while (entry_addr < block_data_end)
 				{
 					Ext2::LinkedDirectoryEntry* entry = (Ext2::LinkedDirectoryEntry*)entry_addr;
 					BAN::StringView entry_name = BAN::StringView(entry->name, entry->name_len);
-					if (entry->inode && file_name == entry_name)
+					if (entry->inode && info.file_name == entry_name)
 					{
-						Ext2Inode* inode = new Ext2Inode(m_fs, TRY(m_fs->read_inode(entry->inode)), entry_name);
+						Ext2Inode* inode = new Ext2Inode(info.fs, TRY(info.fs->read_inode(entry->inode)), entry_name);
 						if (inode == nullptr)
 							return BAN::Error::from_errno(ENOMEM);
-						result = BAN::RefPtr<Inode>::adopt(inode);
+						info.result = BAN::RefPtr<Inode>::adopt(inode);
 						return false;
 					}
 					entry_addr += entry->rec_len;
 				}
 				return true;
-			}
-		);
+			};
 
-		TRY(for_each_block(function));
-		if (result)
-			return result;
+		TRY(for_each_block(function, &info));
+		if (info.result)
+			return info.result;
 		return BAN::Error::from_errno(ENOENT);
 	}
 
@@ -293,10 +336,21 @@ namespace Kernel
 		if (!ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
 
-		BAN::Vector<BAN::RefPtr<Inode>> inodes;
-		BAN::Function<BAN::ErrorOr<bool>(const BAN::Vector<uint8_t>&)> function(
-			[&](const BAN::Vector<uint8_t>& block_data) -> BAN::ErrorOr<bool>
+		struct directory_info
+		{
+			BAN::Vector<BAN::RefPtr<Inode>> inodes;
+			Ext2FS* fs;
+		};
+
+		directory_info info;
+		info.inodes = {};
+		info.fs = m_fs;
+
+		block_callback_t function =
+			[](const BAN::Vector<uint8_t>& block_data, void* info_) -> BAN::ErrorOr<bool>
 			{
+				directory_info& info = *(directory_info*)info_;
+
 				uintptr_t block_data_end = (uintptr_t)block_data.data() + block_data.size();
 				uintptr_t entry_addr = (uintptr_t)block_data.data();
 				while (entry_addr < block_data_end)
@@ -305,22 +359,21 @@ namespace Kernel
 					if (entry->inode)
 					{
 						BAN::StringView entry_name = BAN::StringView(entry->name, entry->name_len);
-						Ext2::Inode current_inode = TRY(m_fs->read_inode(entry->inode));
+						Ext2::Inode current_inode = TRY(info.fs->read_inode(entry->inode));
 
-						Ext2Inode* inode = new Ext2Inode(m_fs, BAN::move(current_inode), entry_name);
+						Ext2Inode* inode = new Ext2Inode(info.fs, BAN::move(current_inode), entry_name);
 						if (inode == nullptr)
 							return BAN::Error::from_errno(ENOMEM);
-						TRY(inodes.push_back(BAN::RefPtr<Inode>::adopt(inode)));
+						TRY(info.inodes.push_back(BAN::RefPtr<Inode>::adopt(inode)));
 					}
 					entry_addr += entry->rec_len;
 				}
 				return true;
-			}
-		);
+			};
 
-		TRY(for_each_block(function));
+		TRY(for_each_block(function, &info));
 
-		return inodes;
+		return info.inodes;
 	}
 
 	BAN::ErrorOr<Ext2FS*> Ext2FS::create(StorageDevice::Partition& partition)

@@ -196,12 +196,6 @@ void init2(void* tty1_ptr)
 
 	MUST(VirtualFileSystem::initialize());
 
-	auto font_or_error = Font::load("/usr/share/fonts/zap-ext-vga16.psf");
-	if (font_or_error.is_error())
-		dprintln("{}", font_or_error.error());
-	else
-		tty1->set_font(font_or_error.release_value());
-
 	MUST(Process::create_kernel(
 		[](void* tty1) 
 		{

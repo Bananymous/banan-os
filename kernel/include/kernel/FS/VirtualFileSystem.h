@@ -15,19 +15,22 @@ namespace Kernel
 		static VirtualFileSystem& get();
 		virtual ~VirtualFileSystem() {};
 
-		virtual const BAN::RefPtr<Inode> root_inode() const override;
+		virtual const BAN::RefPtr<Inode> root_inode() const override  { return m_root_inode; }
 
-		void close_inode(BAN::StringView);
-
-		BAN::ErrorOr<BAN::RefPtr<Inode>> from_absolute_path(BAN::StringView);
+		struct File
+		{
+			BAN::RefPtr<Inode> inode;
+			BAN::String canonical_path;
+		};
+		BAN::ErrorOr<File> file_from_absolute_path(BAN::StringView);
 
 	private:
 		VirtualFileSystem() = default;
 		BAN::ErrorOr<void> initialize_impl();
 
 	private:
-		BAN::HashMap<BAN::String, BAN::RefPtr<Inode>>	m_open_inodes;
-		BAN::Vector<StorageController*>					m_storage_controllers;
+		BAN::RefPtr<Inode>				m_root_inode;
+		BAN::Vector<StorageController*>	m_storage_controllers;
 	};
 
 }
