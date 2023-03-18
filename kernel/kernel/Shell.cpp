@@ -14,12 +14,11 @@
 #include <fcntl.h>
 #include <ctype.h>
 
-#define TTY_PRINT(...) Formatter::print([this](char c) { m_tty->putchar(c); }, __VA_ARGS__)
-#define TTY_PRINTLN(...) Formatter::println([this](char c) { m_tty->putchar(c); }, __VA_ARGS__)
+#define TTY_PRINT(...) BAN::Formatter::print([this](char c) { m_tty->putchar(c); }, __VA_ARGS__)
+#define TTY_PRINTLN(...) BAN::Formatter::println([this](char c) { m_tty->putchar(c); }, __VA_ARGS__)
 
 namespace Kernel
 {
-	using namespace BAN;
 
 	static auto s_default_prompt = "\\[\e[32m\\]user\\[\e[m\\]:\\[\e[34m\\]\\w\\[\e[m\\]# "sv;
 
@@ -31,7 +30,7 @@ namespace Kernel
 		MUST(m_buffer.push_back(""sv));
 	}
 
-	BAN::ErrorOr<void> Shell::set_prompt(StringView prompt)
+	BAN::ErrorOr<void> Shell::set_prompt(BAN::StringView prompt)
 	{
 		m_prompt_string = prompt;
 		TRY(update_prompt());
@@ -41,7 +40,7 @@ namespace Kernel
 	BAN::ErrorOr<void> Shell::update_prompt()
 	{
 		m_prompt_length = 0;
-		m_prompt = String();
+		m_prompt.clear();
 
 		bool skipping = false;
 		for (size_t i = 0; i < m_prompt_string.size(); i++)
@@ -89,9 +88,9 @@ namespace Kernel
 		}
 	}
 
-	Vector<String> Shell::parse_arguments(StringView command) const
+	BAN::Vector<BAN::String> Shell::parse_arguments(BAN::StringView command) const
 	{
-		Vector<String> result;
+		BAN::Vector<BAN::String> result;
 
 		while (!command.empty())
 		{
@@ -162,7 +161,9 @@ argument_done:
 		return result;
 	}
 
-	BAN::ErrorOr<void> Shell::process_command(const Vector<String>& arguments)
+	extern uint32_t crc32_table[256];
+
+	BAN::ErrorOr<void> Shell::process_command(const BAN::Vector<BAN::String>& arguments)
 	{
 		if (arguments.empty())
 		{
@@ -207,7 +208,7 @@ argument_done:
 			{
 				Shell* shell;
 				SpinLock& lock;
-				const Vector<String>& arguments;
+				const BAN::Vector<BAN::String>& arguments;
 			};
 			
 			auto function = [](void* data)
@@ -221,7 +222,7 @@ argument_done:
 				PIT::sleep(5000);
 
 				if (auto res = shell->process_command(args); res.is_error())
-					Formatter::println([&](char c) { shell->m_tty->putchar(c); }, "{}", res.error());
+					BAN::Formatter::println([&](char c) { shell->m_tty->putchar(c); }, "{}", res.error());
 			};
 
 			SpinLock spinlock;
@@ -358,6 +359,37 @@ argument_done:
 			TRY(Process::current()->set_working_directory(path));
 			TRY(update_prompt());
 		}
+		else if (arguments.front() == "cksum")
+		{
+			if (arguments.size() < 2)
+				return BAN::Error::from_c_string("usage 'cksum paths...'");
+
+			uint8_t buffer[1024];
+			for (size_t i = 1; i < arguments.size(); i++)
+			{
+				int fd = TRY(Process::current()->open(arguments[i], O_RDONLY));
+				BAN::ScopeGuard _([fd] { MUST(Process::current()->close(fd)); });
+
+				uint32_t crc32 = 0;
+				uint32_t total_read = 0;
+
+				while (true)
+				{
+					size_t n_read = TRY(Process::current()->read(fd, buffer, sizeof(buffer)));
+					if (n_read == 0)
+						break;
+					for (size_t j = 0; j < n_read; j++)
+        				crc32 = (crc32 << 8) ^ crc32_table[((crc32 >> 24) ^ buffer[j]) & 0xFF];
+					total_read += n_read;
+				}
+
+				for (uint32_t length = total_read; length; length >>= 8)
+					crc32 = (crc32 << 8) ^ crc32_table[((crc32 >> 24) ^ length) & 0xFF];
+				crc32 = ~crc32 & 0xFFFFFFFF;
+
+				TTY_PRINTLN("{} {} {}", crc32, total_read, arguments[i]);
+			}
+		}
 		else if (arguments.front() == "loadfont")
 		{
 			if (arguments.size() != 2)
@@ -379,23 +411,23 @@ argument_done:
 		TTY_PRINT("\e[{}G{}\e[K", m_prompt_length + 1, m_buffer[m_cursor_pos.line]);
 	}
 
-	static uint32_t get_last_length(StringView sv)
+	static uint32_t get_last_length(BAN::StringView sv)
 	{
 		if (sv.size() >= 2 && ((uint8_t)sv[sv.size() - 2] >> 5) == 0b110)	return 2;
 		if (sv.size() >= 3 && ((uint8_t)sv[sv.size() - 3] >> 4) == 0b1110)	return 3;
 		if (sv.size() >= 4 && ((uint8_t)sv[sv.size() - 4] >> 3) == 0b11110)	return 4;
-		return Math::min<uint32_t>(sv.size(), 1);
+		return BAN::Math::min<uint32_t>(sv.size(), 1);
 	}
 
-	static uint32_t get_next_length(StringView sv)
+	static uint32_t get_next_length(BAN::StringView sv)
 	{
 		if (sv.size() >= 2 && ((uint8_t)sv[0] >> 5) == 0b110)	return 2;
 		if (sv.size() >= 3 && ((uint8_t)sv[0] >> 4) == 0b1110)	return 3;
 		if (sv.size() >= 4 && ((uint8_t)sv[0] >> 3) == 0b11110)	return 4;
-		return Math::min<uint32_t>(sv.size(), 1);
+		return BAN::Math::min<uint32_t>(sv.size(), 1);
 	}
 
-	static uint32_t get_unicode_character_count(StringView sv)
+	static uint32_t get_unicode_character_count(BAN::StringView sv)
 	{
 		uint32_t len = 0;
 		for (uint32_t i = 0; i < sv.size(); i++)
@@ -414,7 +446,7 @@ argument_done:
 		if (!event.pressed)
 			return;
 
-		String& current_buffer = m_buffer[m_cursor_pos.line];
+		BAN::String& current_buffer = m_buffer[m_cursor_pos.line];
 
 		switch (event.key)
 		{
@@ -496,6 +528,14 @@ argument_done:
 					rerender_buffer();
 				}
 				break;
+
+			case Input::Key::A:
+				if (event.modifiers & 2)
+				{
+					m_cursor_pos.col = m_cursor_pos.index = 0;
+					break;
+				}
+				// fall through
 
 			default:
 			{
