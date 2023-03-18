@@ -137,92 +137,90 @@ namespace Kernel
 		};
 
 	}
+
+	BAN::ErrorOr<uint32_t> Ext2Inode::data_block_index(uint32_t asked_data_block)
+	{
+		uint32_t data_blocks_count = m_inode.blocks / (2 << m_fs->superblock().log_block_size);
+		uint32_t blocks_per_array = (1024 << m_fs->superblock().log_block_size) / sizeof(uint32_t);
+
+		if (asked_data_block >= data_blocks_count)
+			return BAN::Error::from_c_string("Ext2: no such block");
+
+		// Direct block
+		if (asked_data_block < 12)
+		{
+			uint32_t block = m_inode.block[asked_data_block];
+			if (block == 0)
+				return BAN::Error::from_errno(EIO);
+			return block;
+		}
+
+		asked_data_block -= 12;
+
+		// Singly indirect block
+		if (asked_data_block < blocks_per_array)
+		{
+			if (m_inode.block[12] == 0)
+				return BAN::Error::from_errno(EIO);
+			auto block_array = TRY(m_fs->read_block(m_inode.block[12]));
+			uint32_t block = ((uint32_t*)block_array.data())[asked_data_block];
+			if (block == 0)
+				return BAN::Error::from_errno(EIO);
+			return block;
+		}
+
+		asked_data_block -= blocks_per_array;
+
+		// Doubly indirect blocks
+		if (asked_data_block < blocks_per_array * blocks_per_array)
+		{
+			auto singly_indirect_array = TRY(m_fs->read_block(m_inode.block[13]));
+			uint32_t direct_block = ((uint32_t*)singly_indirect_array.data())[asked_data_block / blocks_per_array];
+			if (direct_block == 0)
+				return BAN::Error::from_errno(EIO);
+			auto block_array = TRY(m_fs->read_block(direct_block));
+			uint32_t block = ((uint32_t*)block_array.data())[asked_data_block % blocks_per_array];
+			if (block == 0)
+				return BAN::Error::from_errno(EIO);
+			return block;
+		}
+
+		asked_data_block -= blocks_per_array * blocks_per_array;
+
+		// Triply indirect blocks
+		if (asked_data_block < blocks_per_array * blocks_per_array * blocks_per_array)
+		{
+			auto doubly_indirect_array = TRY(m_fs->read_block(m_inode.block[14]));
+			uint32_t singly_indirect_block = ((uint32_t*)doubly_indirect_array.data())[asked_data_block / (blocks_per_array * blocks_per_array)];
+			if (singly_indirect_block == 0)
+				return BAN::Error::from_errno(EIO);
+			auto singly_indirect_array = TRY(m_fs->read_block(singly_indirect_block));
+			uint32_t direct_block = ((uint32_t*)singly_indirect_array.data())[(asked_data_block / blocks_per_array) % blocks_per_array];
+			if (direct_block == 0)
+				return BAN::Error::from_errno(EIO);
+			auto block_array = TRY(m_fs->read_block(direct_block));
+			uint32_t block = ((uint32_t*)block_array.data())[asked_data_block % blocks_per_array];
+			if (block == 0)
+				return BAN::Error::from_errno(EIO);
+			return block;
+		}
+
+		ASSERT(false);
+	}
 	
 	BAN::ErrorOr<void> Ext2Inode::for_each_block(block_callback_t callback, void* callback_data)
 	{
-		uint32_t data_blocks_left = m_inode.blocks / (2 << m_fs->superblock().log_block_size);
-		uint32_t block_array_block_count = (1024 << m_fs->superblock().log_block_size) / sizeof(uint32_t);
-
-		// Direct blocks
-		for (uint32_t i = 0; i < 12; i++)
+		uint32_t data_block_count = m_inode.blocks / (2 << m_fs->superblock().log_block_size);
+		
+		for (uint32_t i = 0; i < data_block_count; i++)
 		{
-			if (m_inode.block[i] == 0)
-				continue;
-
-			auto block_data = TRY(m_fs->read_block(m_inode.block[i]));
+			uint32_t data_block_index = TRY(this->data_block_index(i));
+			auto block_data = TRY(m_fs->read_block(data_block_index));
 			if (!TRY(callback(block_data, callback_data)))
 				return {};
-			if (--data_blocks_left == 0)
-				return {};
 		}
 
-		// Singly indirect block
-		if (m_inode.block[12])
-		{
-			auto block_array = TRY(m_fs->read_block(m_inode.block[12]));
-			for (uint32_t i = 0; i < block_array_block_count; i++)
-			{
-				uint32_t block = ((uint32_t*)block_array.data())[i];
-				if (block == 0)
-					continue;
-				auto block_data = TRY(m_fs->read_block(block));
-				if (!TRY(callback(block_data, callback_data)))
-					return {};
-				if (--data_blocks_left == 0)
-					return {};
-			}
-		}
-
-		// Doubly indirect blocks
-		if (m_inode.block[13])
-		{
-			auto singly_indirect_array = TRY(m_fs->read_block(m_inode.block[13]));
-			for (uint32_t i = 0; i < block_array_block_count; i++)
-			{
-				uint32_t singly_indirect_block = ((uint32_t*)singly_indirect_array.data())[i];
-				auto block_array = TRY(m_fs->read_block(singly_indirect_block));
-				for (uint32_t j = 0; j < block_array_block_count; j++)
-				{
-					uint32_t block = ((uint32_t*)block_array.data())[j];
-					if (block == 0)
-						continue;
-					auto block_data = TRY(m_fs->read_block(block));
-					if (!TRY(callback(block_data, callback_data)))
-						return {};
-					if (--data_blocks_left == 0)
-						return {};
-				}
-			}
-		}
-
-		// Triply indirect blocks
-		if (m_inode.block[14])
-		{
-			auto doubly_indirect_array = TRY(m_fs->read_block(m_inode.block[14]));
-			for (uint32_t i = 0; i < block_array_block_count; i++)
-			{
-				uint32_t doubly_indirect_block = ((uint32_t*)doubly_indirect_array.data())[i];
-				auto singly_indirect_array = TRY(m_fs->read_block(doubly_indirect_block));
-				for (uint32_t j = 0; j < block_array_block_count; j++)
-				{
-					uint32_t singly_indirect_block = ((uint32_t*)singly_indirect_array.data())[j];
-					auto block_array = TRY(m_fs->read_block(singly_indirect_block));
-					for (uint32_t k = 0; k < block_array_block_count; k++)
-					{
-						uint32_t block = ((uint32_t*)block_array.data())[k];
-						if (block == 0)
-							continue;
-						auto block_data = TRY(m_fs->read_block(block));
-						if (!TRY(callback(block_data, callback_data)))
-							return {};
-						if (--data_blocks_left == 0)
-							return {};
-					}
-				}
-			}
-		}
-
-		return BAN::Error::from_c_string("Inode did not contain enough blocks");
+		return {};
 	}
 
 	BAN::ErrorOr<size_t> Ext2Inode::read(size_t offset, void* buffer, size_t count)
@@ -230,58 +228,32 @@ namespace Kernel
 		if (ifdir())
 			return BAN::Error::from_errno(EISDIR);
 
-		struct read_info
+		if (offset >= m_inode.size)
+			return 0;
+		if (offset + count > m_inode.size)
+			count = m_inode.size - offset;
+
+		const uint32_t block_size = 1024 << m_fs->superblock().log_block_size;
+
+		ASSERT(offset % block_size == 0);
+
+		const uint32_t first_block = offset / block_size;
+		const uint32_t last_block = BAN::Math::div_round_up<uint32_t>(offset + count, block_size);
+
+		size_t n_read = 0;
+
+		for (uint32_t block = first_block; block < last_block; block++)
 		{
-			size_t file_current_offset;
-			size_t file_start_offset;
-			size_t file_bytes_left;
-			uint8_t* out_byte_buffer;
-			size_t out_bytes_read;
-			size_t out_byte_buffer_size;
-		};
+			uint32_t data_block = TRY(data_block_index(block));
+			auto block_data = TRY(m_fs->read_block(data_block));
 
-		read_info info;
-		info.file_current_offset	= 0;
-		info.file_start_offset		= offset;
-		info.file_bytes_left		= m_inode.size;
-		info.out_byte_buffer		= (uint8_t*)buffer;
-		info.out_bytes_read			= 0;
-		info.out_byte_buffer_size	= count;
+			uint32_t to_copy = BAN::Math::min<uint32_t>(block_data.size(), count - n_read);
 
-		block_callback_t read_func = 
-			[](const BAN::Vector<uint8_t>& block_data, void* info_) -> BAN::ErrorOr<bool>
-			{
-				read_info& info = *(read_info*)info_;
+			memcpy((uint8_t*)buffer + n_read, block_data.data(), to_copy);
+			n_read += to_copy;
+		}
 
-				size_t block_size = BAN::Math::min<size_t>(block_data.size(), info.file_bytes_left);
-
-				// Skip blocks before 'offset'
-				if (info.file_current_offset + block_size <= info.file_start_offset)
-				{
-					info.file_current_offset += block_size;
-					info.file_bytes_left -= block_size;
-					return info.file_bytes_left > 0;
-				}
-
-				size_t read_offset = 0;
-				if (info.file_current_offset < info.file_start_offset)
-					read_offset = info.file_start_offset - info.file_current_offset;
-
-				size_t to_read = BAN::Math::min<size_t>(block_size - read_offset, info.out_byte_buffer_size - info.out_bytes_read);
-				memcpy(info.out_byte_buffer + info.out_bytes_read, block_data.data() + read_offset, to_read);
-
-				info.out_bytes_read += to_read;
-				if (info.out_bytes_read >= info.out_byte_buffer_size)
-					return false;
-
-				info.file_current_offset += block_size;
-				info.file_bytes_left -= block_size;
-				return info.file_bytes_left > 0;
-			};
-
-		TRY(for_each_block(read_func, &info));
-
-		return info.out_bytes_read;
+		return count;
 	}
 
 	BAN::ErrorOr<BAN::RefPtr<Inode>> Ext2Inode::directory_find(BAN::StringView file_name)
@@ -524,13 +496,13 @@ namespace Kernel
 		TRY(block_buffer.resize(block_size));
 
 		TRY(m_partition.read_sectors(block * sectors_per_block, sectors_per_block, block_buffer.data()));
-		
+
 		return block_buffer;
 	}
 
 	const Ext2::Inode& Ext2FS::ext2_root_inode() const
 	{
-		return reinterpret_cast<const Ext2Inode*>(m_root_inode.operator->())->m_inode;
+		return reinterpret_cast<const Ext2Inode*>(m_root_inode.ptr())->m_inode;
 	}
 
 }

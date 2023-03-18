@@ -136,6 +136,8 @@ namespace Kernel
 		virtual BAN::ErrorOr<BAN::RefPtr<Inode>> directory_find(BAN::StringView) override;
 
 	private:
+		BAN::ErrorOr<uint32_t> data_block_index(uint32_t);
+
 		using block_callback_t = BAN::ErrorOr<bool>(*)(const BAN::Vector<uint8_t>&, void*);
 		BAN::ErrorOr<void> for_each_block(block_callback_t, void*);
 
