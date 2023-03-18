@@ -7,4 +7,5 @@ qemu-system-$(./target-triplet-to-arch.sh $HOST)		\
 	-smp 2												\
 	-drive format=raw,media=disk,file=banan-os.img		\
 	-serial stdio										\
+	-accel kvm											\
  
