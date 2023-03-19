@@ -9,7 +9,7 @@ namespace Kernel
 	class FileSystem
 	{
 	public:
-		virtual const BAN::RefPtr<Inode> root_inode() const = 0;
+		virtual BAN::RefPtr<Inode> root_inode() = 0;
 	};
 
 }

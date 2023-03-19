@@ -115,6 +115,32 @@ namespace Kernel
 		return {};
 	}
 
+	BAN::ErrorOr<void> VirtualFileSystem::mount_test()
+	{
+		auto mount = TRY(root_inode()->directory_find("mnt"sv));
+		if (!mount->ifdir())
+			return BAN::Error::from_errno(ENOTDIR);
+		if (TRY(mount->directory_inodes()).size() > 2)
+			return BAN::Error::from_errno(ENOTEMPTY);
+
+		for (auto* controller : m_storage_controllers)
+		{
+			for (auto* device : controller->devices())
+			{
+				for (auto& partition : device->partitions())
+				{
+					if (partition.name() == "mount-test"sv)
+					{
+						auto ext2fs = TRY(Ext2FS::create(partition));
+						TRY(m_mount_points.push_back({ mount, ext2fs }));
+						return {};
+					}
+				}
+			}
+		}
+		return {};
+	}
+
 	BAN::ErrorOr<VirtualFileSystem::File> VirtualFileSystem::file_from_absolute_path(BAN::StringView path)
 	{
 		ASSERT(path.front() == '/');
@@ -143,7 +169,7 @@ namespace Kernel
 			}
 			else
 			{
-				inode = TRY(inode->directory_find(path_parts[i]));
+				inode = TRY(inode->directory_find(path_parts[i]));	
 				i++;
 			}
 		}
