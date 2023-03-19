@@ -135,26 +135,34 @@ namespace Kernel
 		virtual BAN::ErrorOr<BAN::Vector<BAN::RefPtr<Inode>>> directory_inodes() override;
 		virtual BAN::ErrorOr<BAN::RefPtr<Inode>> directory_find(BAN::StringView) override;
 
+		virtual Type type() const override { return Type::Ext2; }
+		virtual bool operator==(const Inode& other) const override;
+
 	private:
 		BAN::ErrorOr<uint32_t> data_block_index(uint32_t);
 
 		using block_callback_t = BAN::ErrorOr<bool>(*)(const BAN::Vector<uint8_t>&, void*);
 		BAN::ErrorOr<void> for_each_block(block_callback_t, void*);
 
+		uint32_t index() const { return m_index; }
+
 	private:
-		Ext2Inode() {}
-		Ext2Inode(Ext2FS* fs, Ext2::Inode inode, BAN::StringView name)
+		Ext2Inode(Ext2FS& fs, Ext2::Inode inode, BAN::StringView name, uint32_t index)
 			: m_fs(fs)
 			, m_inode(inode) 
 			, m_name(name)
+			, m_index(index)
 		{}
+		static BAN::ErrorOr<BAN::RefPtr<Inode>> create(Ext2FS&, uint32_t, BAN::StringView);
 
 	private:
-		Ext2FS* m_fs = nullptr;
+		Ext2FS& m_fs;
 		Ext2::Inode m_inode;
 		BAN::String m_name;
+		uint32_t m_index;
 
 		friend class Ext2FS;
+		friend class BAN::RefPtr<Ext2Inode>;
 	};
 
 	class Ext2FS : public FileSystem
