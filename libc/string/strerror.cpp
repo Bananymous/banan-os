@@ -34,6 +34,9 @@ char* strerror(int error)
 	case EBADF:
 		strcpy(buffer, "Bad file descriptor");
 		break;
+	case EEXISTS:
+		strcpy(buffer, "File exists");
+		break;
 	default:
 		{
 			// FIXME: sprintf
