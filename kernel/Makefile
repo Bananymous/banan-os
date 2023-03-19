@@ -42,6 +42,7 @@ kernel/CPUID.o					\
 kernel/Debug.o					\
 kernel/Font.o					\
 kernel/FS/Ext2.o				\
+kernel/FS/Inode.o				\
 kernel/FS/VirtualFileSystem.o	\
 kernel/Input.o					\
 kernel/InterruptController.o	\

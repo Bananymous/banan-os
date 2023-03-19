@@ -132,11 +132,13 @@ namespace Kernel
 		virtual BAN::StringView name() const override { return m_name; }
 
 		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t) override;
-		virtual BAN::ErrorOr<BAN::Vector<BAN::RefPtr<Inode>>> directory_inodes() override;
-		virtual BAN::ErrorOr<BAN::RefPtr<Inode>> directory_find(BAN::StringView) override;
 
 		virtual Type type() const override { return Type::Ext2; }
 		virtual bool operator==(const Inode& other) const override;
+
+	protected:
+		virtual BAN::ErrorOr<BAN::Vector<BAN::RefPtr<Inode>>> directory_inodes_impl() override;
+		virtual BAN::ErrorOr<BAN::RefPtr<Inode>> directory_find_impl(BAN::StringView) override;
 
 	private:
 		BAN::ErrorOr<uint32_t> data_block_index(uint32_t);
@@ -170,7 +172,7 @@ namespace Kernel
 	public:	
 		static BAN::ErrorOr<Ext2FS*> create(StorageDevice::Partition&);
 
-		virtual const BAN::RefPtr<Inode> root_inode() const override { return m_root_inode; }
+		virtual BAN::RefPtr<Inode> root_inode() override { return m_root_inode; }
 
 	private:
 		Ext2FS(StorageDevice::Partition& partition)

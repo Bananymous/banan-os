@@ -1,9 +1,8 @@
 #pragma once
 
-#include <BAN/ForwardList.h>
 #include <BAN/Memory.h>
-
-#include <stdint.h>
+#include <BAN/String.h>
+#include <BAN/Vector.h>
 
 namespace Kernel
 {
@@ -37,7 +36,6 @@ namespace Kernel
 
 		enum class Type
 		{
-			General,
 			Ext2,
 		};
 
@@ -55,12 +53,17 @@ namespace Kernel
 
 		virtual BAN::StringView name() const = 0;
 
-		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t) = 0;
-		virtual BAN::ErrorOr<BAN::Vector<BAN::RefPtr<Inode>>> directory_inodes() = 0;
-		virtual BAN::ErrorOr<BAN::RefPtr<Inode>> directory_find(BAN::StringView) = 0;
+		BAN::ErrorOr<BAN::Vector<BAN::RefPtr<Inode>>> directory_inodes();
+		BAN::ErrorOr<BAN::RefPtr<Inode>> directory_find(BAN::StringView);
 
-		virtual Type type() const { return Type::General; }
+		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t) = 0;
+
+		virtual Type type() const = 0;
 		virtual bool operator==(const Inode&) const = 0;
+
+	protected:
+		virtual BAN::ErrorOr<BAN::Vector<BAN::RefPtr<Inode>>> directory_inodes_impl() = 0;
+		virtual BAN::ErrorOr<BAN::RefPtr<Inode>> directory_find_impl(BAN::StringView) = 0;
 	};
 
 }

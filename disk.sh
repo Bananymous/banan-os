@@ -14,6 +14,10 @@ sed -e 's/\s*\([-\+[:alnum:]]*\).*/\1/' << EOF | fdisk $DISK_NAME
   1     # partition number 1
         # default (from the beginning of the disk)
   +1MiB # bios boot partiton size
+  n		# new partition
+  3		# partition number 3
+		# default (right after bios boot partition)
+  +10Mib# partition size
   n     # new partition
   2     # partition number 2
         # default (right after bios boot partition)
@@ -26,6 +30,9 @@ sed -e 's/\s*\([-\+[:alnum:]]*\).*/\1/' << EOF | fdisk $DISK_NAME
   20    # Linux filesystem
   x		# expert menu
   n		# partition name
+  3		# ... of partition 3
+  mount-test
+  n		# partition name
   2		# ... of partition 2
   banan-root
   r		# back to main menu
@@ -37,6 +44,7 @@ sudo partprobe $LOOP_DEV
 
 PARTITION1=${LOOP_DEV}p1
 PARTITION2=${LOOP_DEV}p2
+PARTITION3=${LOOP_DEV}p3
 
 sudo mkfs.ext2 $PARTITION2
 
@@ -64,4 +72,10 @@ menuentry "banan-os (no apic, no serial)" {
 ' | sudo tee ${MOUNT_DIR}/boot/grub/grub.cfg
 
 sudo umount $MOUNT_DIR
+
+sudo mkfs.ext2 $PARTITION3
+sudo mount $PARTITION3 $MOUNT_DIR
+echo 'hello' | sudo tee ${MOUNT_DIR}/hello.txt
+sudo umount $MOUNT_DIR
+
 sudo losetup -d $LOOP_DEV

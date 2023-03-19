@@ -195,6 +195,8 @@ void init2(void* tty1_ptr)
 	TTY* tty1 = (TTY*)tty1_ptr;
 
 	MUST(VirtualFileSystem::initialize());
+	if (auto res = VirtualFileSystem::get().mount_test(); res.is_error())
+		dwarnln("{}", res.error());
 
 	MUST(Process::create_kernel(
 		[](void* tty1) 
