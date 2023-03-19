@@ -37,6 +37,9 @@ char* strerror(int error)
 	case EEXISTS:
 		strcpy(buffer, "File exists");
 		break;
+	case ENOTEMPTY:
+		strcpy(buffer, "Directory not empty");
+		break;
 	default:
 		{
 			// FIXME: sprintf
