@@ -2,8 +2,6 @@
 #include <BAN/StringView.h>
 #include <kernel/FS/Ext2.h>
 
-#include <kernel/kprint.h>
-
 #define EXT2_DEBUG_PRINT 0
 
 namespace Kernel
@@ -138,10 +136,19 @@ namespace Kernel
 
 	}
 
+	BAN::ErrorOr<BAN::RefPtr<Inode>> Ext2Inode::create(Ext2FS& fs, uint32_t inode, BAN::StringView name)
+	{
+		Ext2::Inode ext2_inode = TRY(fs.read_inode(inode));
+		Ext2Inode* result = new Ext2Inode(fs, ext2_inode, name, inode);
+		if (result == nullptr)
+			return BAN::Error::from_errno(ENOMEM);
+		return BAN::RefPtr<Inode>::adopt(result);
+	}
+
 	BAN::ErrorOr<uint32_t> Ext2Inode::data_block_index(uint32_t asked_data_block)
 	{
-		uint32_t data_blocks_count = m_inode.blocks / (2 << m_fs->superblock().log_block_size);
-		uint32_t blocks_per_array = (1024 << m_fs->superblock().log_block_size) / sizeof(uint32_t);
+		uint32_t data_blocks_count = m_inode.blocks / (2 << m_fs.superblock().log_block_size);
+		uint32_t blocks_per_array = (1024 << m_fs.superblock().log_block_size) / sizeof(uint32_t);
 
 		if (asked_data_block >= data_blocks_count)
 			return BAN::Error::from_c_string("Ext2: no such block");
@@ -162,7 +169,7 @@ namespace Kernel
 		{
 			if (m_inode.block[12] == 0)
 				return BAN::Error::from_errno(EIO);
-			auto block_array = TRY(m_fs->read_block(m_inode.block[12]));
+			auto block_array = TRY(m_fs.read_block(m_inode.block[12]));
 			uint32_t block = ((uint32_t*)block_array.data())[asked_data_block];
 			if (block == 0)
 				return BAN::Error::from_errno(EIO);
@@ -174,11 +181,11 @@ namespace Kernel
 		// Doubly indirect blocks
 		if (asked_data_block < blocks_per_array * blocks_per_array)
 		{
-			auto singly_indirect_array = TRY(m_fs->read_block(m_inode.block[13]));
+			auto singly_indirect_array = TRY(m_fs.read_block(m_inode.block[13]));
 			uint32_t direct_block = ((uint32_t*)singly_indirect_array.data())[asked_data_block / blocks_per_array];
 			if (direct_block == 0)
 				return BAN::Error::from_errno(EIO);
-			auto block_array = TRY(m_fs->read_block(direct_block));
+			auto block_array = TRY(m_fs.read_block(direct_block));
 			uint32_t block = ((uint32_t*)block_array.data())[asked_data_block % blocks_per_array];
 			if (block == 0)
 				return BAN::Error::from_errno(EIO);
@@ -190,15 +197,15 @@ namespace Kernel
 		// Triply indirect blocks
 		if (asked_data_block < blocks_per_array * blocks_per_array * blocks_per_array)
 		{
-			auto doubly_indirect_array = TRY(m_fs->read_block(m_inode.block[14]));
+			auto doubly_indirect_array = TRY(m_fs.read_block(m_inode.block[14]));
 			uint32_t singly_indirect_block = ((uint32_t*)doubly_indirect_array.data())[asked_data_block / (blocks_per_array * blocks_per_array)];
 			if (singly_indirect_block == 0)
 				return BAN::Error::from_errno(EIO);
-			auto singly_indirect_array = TRY(m_fs->read_block(singly_indirect_block));
+			auto singly_indirect_array = TRY(m_fs.read_block(singly_indirect_block));
 			uint32_t direct_block = ((uint32_t*)singly_indirect_array.data())[(asked_data_block / blocks_per_array) % blocks_per_array];
 			if (direct_block == 0)
 				return BAN::Error::from_errno(EIO);
-			auto block_array = TRY(m_fs->read_block(direct_block));
+			auto block_array = TRY(m_fs.read_block(direct_block));
 			uint32_t block = ((uint32_t*)block_array.data())[asked_data_block % blocks_per_array];
 			if (block == 0)
 				return BAN::Error::from_errno(EIO);
@@ -210,12 +217,12 @@ namespace Kernel
 	
 	BAN::ErrorOr<void> Ext2Inode::for_each_block(block_callback_t callback, void* callback_data)
 	{
-		uint32_t data_block_count = m_inode.blocks / (2 << m_fs->superblock().log_block_size);
+		uint32_t data_block_count = m_inode.blocks / (2 << m_fs.superblock().log_block_size);
 		
 		for (uint32_t i = 0; i < data_block_count; i++)
 		{
 			uint32_t data_block_index = TRY(this->data_block_index(i));
-			auto block_data = TRY(m_fs->read_block(data_block_index));
+			auto block_data = TRY(m_fs.read_block(data_block_index));
 			if (!TRY(callback(block_data, callback_data)))
 				return {};
 		}
@@ -233,7 +240,7 @@ namespace Kernel
 		if (offset + count > m_inode.size)
 			count = m_inode.size - offset;
 
-		const uint32_t block_size = 1024 << m_fs->superblock().log_block_size;
+		const uint32_t block_size = 1024 << m_fs.superblock().log_block_size;
 
 		ASSERT(offset % block_size == 0);
 
@@ -245,7 +252,7 @@ namespace Kernel
 		for (uint32_t block = first_block; block < last_block; block++)
 		{
 			uint32_t data_block = TRY(data_block_index(block));
-			auto block_data = TRY(m_fs->read_block(data_block));
+			auto block_data = TRY(m_fs.read_block(data_block));
 
 			uint32_t to_copy = BAN::Math::min<uint32_t>(block_data.size(), count - n_read);
 
@@ -271,7 +278,7 @@ namespace Kernel
 		search_info info;
 		info.file_name = file_name;
 		info.result = {};
-		info.fs = m_fs;
+		info.fs = &m_fs;
 
 		block_callback_t function =
 			[](const BAN::Vector<uint8_t>& block_data, void* info_) -> BAN::ErrorOr<bool>
@@ -286,10 +293,7 @@ namespace Kernel
 					BAN::StringView entry_name = BAN::StringView(entry->name, entry->name_len);
 					if (entry->inode && info.file_name == entry_name)
 					{
-						Ext2Inode* inode = new Ext2Inode(info.fs, TRY(info.fs->read_inode(entry->inode)), entry_name);
-						if (inode == nullptr)
-							return BAN::Error::from_errno(ENOMEM);
-						info.result = BAN::RefPtr<Inode>::adopt(inode);
+						info.result = TRY(Ext2Inode::create(*info.fs, entry->inode, entry_name));
 						return false;
 					}
 					entry_addr += entry->rec_len;
@@ -316,7 +320,7 @@ namespace Kernel
 
 		directory_info info;
 		info.inodes = {};
-		info.fs = m_fs;
+		info.fs = &m_fs;
 
 		block_callback_t function =
 			[](const BAN::Vector<uint8_t>& block_data, void* info_) -> BAN::ErrorOr<bool>
@@ -330,13 +334,9 @@ namespace Kernel
 					Ext2::LinkedDirectoryEntry* entry = (Ext2::LinkedDirectoryEntry*)entry_addr;
 					if (entry->inode)
 					{
-						BAN::StringView entry_name = BAN::StringView(entry->name, entry->name_len);
-						Ext2::Inode current_inode = TRY(info.fs->read_inode(entry->inode));
-
-						Ext2Inode* inode = new Ext2Inode(info.fs, BAN::move(current_inode), entry_name);
-						if (inode == nullptr)
-							return BAN::Error::from_errno(ENOMEM);
-						TRY(info.inodes.push_back(BAN::RefPtr<Inode>::adopt(inode)));
+						auto entry_name = BAN::StringView(entry->name, entry->name_len);
+						auto inode = TRY(Ext2Inode::create(*info.fs, entry->inode, entry_name));
+						TRY(info.inodes.push_back(inode));
 					}
 					entry_addr += entry->rec_len;
 				}
@@ -346,6 +346,17 @@ namespace Kernel
 		TRY(for_each_block(function, &info));
 
 		return info.inodes;
+	}
+
+	bool Ext2Inode::operator==(const Inode& other) const
+	{
+		if (type() != other.type())
+			return false;
+		
+		Ext2Inode& ext2_other = (Ext2Inode&)other;
+		if (&m_fs != &ext2_other.m_fs)
+			return false;
+		return index() == ext2_other.index();
 	}
 
 	BAN::ErrorOr<Ext2FS*> Ext2FS::create(StorageDevice::Partition& partition)
@@ -453,10 +464,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Ext2FS::initialize_root_inode()
 	{
-		Ext2Inode* root_inode = new Ext2Inode(this, TRY(read_inode(Ext2::Enum::ROOT_INO)), "");
-		if (root_inode == nullptr)
-			return BAN::Error::from_errno(ENOMEM);
-		m_root_inode = BAN::RefPtr<Inode>::adopt(root_inode);
+		m_root_inode = TRY(Ext2Inode::create(*this, Ext2::Enum::ROOT_INO, ""));
 
 #if EXT2_DEBUG_PRINT
 		dprintln("root inode:");

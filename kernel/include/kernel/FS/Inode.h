@@ -35,6 +35,12 @@ namespace Kernel
 			uint16_t mode;
 		};
 
+		enum class Type
+		{
+			General,
+			Ext2,
+		};
+
 	public:
 		virtual ~Inode() {}
 
@@ -52,6 +58,9 @@ namespace Kernel
 		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t) = 0;
 		virtual BAN::ErrorOr<BAN::Vector<BAN::RefPtr<Inode>>> directory_inodes() = 0;
 		virtual BAN::ErrorOr<BAN::RefPtr<Inode>> directory_find(BAN::StringView) = 0;
+
+		virtual Type type() const { return Type::General; }
+		virtual bool operator==(const Inode&) const = 0;
 	};
 
 }
