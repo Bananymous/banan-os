@@ -10,6 +10,7 @@
 #define EIO 6
 #define ENOTSUP 7
 #define EBADF 8
+#define EEXISTS 9
 
 __BEGIN_DECLS
 
