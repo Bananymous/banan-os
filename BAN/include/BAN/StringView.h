@@ -2,6 +2,7 @@
 
 #include <BAN/ForwardList.h>
 #include <BAN/Formatter.h>
+#include <BAN/Iterators.h>
 
 namespace BAN
 {
@@ -10,11 +11,15 @@ namespace BAN
 	{
 	public:
 		using size_type = size_t;
+		using const_iterator = ConstIteratorSimple<char, StringView>;
 
 	public:
 		StringView();
 		StringView(const String&);
 		StringView(const char*, size_type = -1);
+
+		const_iterator begin() const { return const_iterator(m_data); }
+		const_iterator end() const { return const_iterator(m_data + m_size); }
 
 		char operator[](size_type) const;
 

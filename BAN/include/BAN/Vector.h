@@ -1,15 +1,13 @@
 #pragma once
 
 #include <BAN/Errors.h>
+#include <BAN/Iterators.h>
 #include <BAN/Math.h>
 #include <BAN/Memory.h>
 #include <BAN/Move.h>
 
 namespace BAN
 {
-
-	template<typename T, bool CONST>
-	class VectorIterator;
 
 	// T must be move assignable, move constructable (and copy constructable for some functions)
 	template<typename T>
@@ -18,8 +16,8 @@ namespace BAN
 	public:
 		using size_type = size_t;
 		using value_type = T;
-		using iterator = VectorIterator<T, false>;
-		using const_iterator = VectorIterator<T, true>;
+		using iterator = IteratorSimple<T, Vector>;
+		using const_iterator = ConstIteratorSimple<T, Vector>;
 
 	public:
 		Vector() = default;
@@ -40,10 +38,10 @@ namespace BAN
 		ErrorOr<void> insert(size_type, T&&);
 		ErrorOr<void> insert(size_type, const T&);
 		
-		iterator begin()				{ return iterator      (m_data); }
-		const_iterator begin() const	{ return const_iterator(m_data); }
-		iterator end()					{ return iterator      (m_data + m_size); }
-		const_iterator end() const		{ return const_iterator(m_data + m_size); }
+		iterator begin() { return iterator(m_data); }
+		iterator end() { return iterator(m_data + m_size); }
+		const_iterator begin() const { return const_iterator(m_data); }
+		const_iterator end() const { return const_iterator(m_data + m_size); }
 
 		void pop_back();
 		void remove(size_type);
@@ -76,53 +74,8 @@ namespace BAN
 	private:
 		T*			m_data		= nullptr;
 		size_type	m_capacity	= 0;
-		size_type	m_size		= 0;	
+		size_type	m_size		= 0;
 	};
-
-	template<typename T, bool CONST>
-	class VectorIterator
-	{
-	public:
-		using value_type = T;
-		using data_type = maybe_const_t<CONST, T>;
-
-	public:
-		VectorIterator() = default;
-		template<bool C>
-		VectorIterator(const VectorIterator<T, C>& other, enable_if_t<C == CONST || !C>)
-			: m_data(other.m_data)
-		{
-		}
-		
-		VectorIterator<T, CONST>& operator++()		{ m_data++; return *this; }
-		VectorIterator<T, CONST>& operator--()		{ m_data--; return *this; }
-		VectorIterator<T, CONST> operator++(int)	{ auto temp = *this; ++(*this); return temp; }
-		VectorIterator<T, CONST> operator--(int)	{ auto temp = *this; --(*this); return temp; }
-
-		template<bool ENABLE = !CONST>
-		enable_if_t<ENABLE, T&> operator*()		{ ASSERT(m_data); return *m_data; }
-		const T& operator*() const				{ ASSERT(m_data); return *m_data; }
-
-		template<bool ENABLE = !CONST>
-		enable_if_t<ENABLE, T*> operator->()	{ ASSERT(m_data); return m_data; }
-		const T* operator->() const				{ ASSERT(m_data); return m_data; }
-
-		bool operator==(const VectorIterator<T, CONST>& other) const { return m_data == other.m_data; }
-		bool operator!=(const VectorIterator<T, CONST>& other) const { return !(*this == other); }
-
-		operator bool() const { return m_data; }
-
-	private:
-		VectorIterator(data_type* data) : m_data(data) { }
-
-	private:
-		data_type* m_data = nullptr;
-
-		friend class Vector<T>;
-		friend class VectorIterator<T, !CONST>;
-	};
-
-
 
 	template<typename T>
 	Vector<T>::Vector(Vector<T>&& other)

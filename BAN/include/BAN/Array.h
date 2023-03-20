@@ -1,6 +1,7 @@
 #pragma once
 
 #include <BAN/Errors.h>
+#include <BAN/Iterators.h>
 
 #include <stddef.h>
 
@@ -13,10 +14,17 @@ namespace BAN
 	public:
 		using size_type = decltype(S);
 		using value_type = T;
+		using iterator = IteratorSimple<T, Array>;
+		using const_iterator = ConstIteratorSimple<T, Array>;
 
 	public:
 		Array();
 		Array(const T&);
+
+		iterator begin() { return iterator(m_data); }
+		iterator end() { return iterator(m_data + size()); }
+		const_iterator begin() const { return const_iterator(m_data); }
+		const_iterator end() const { return const_iterator(m_data + size()); }
 
 		const T& operator[](size_type) const;
 		T& operator[](size_type);

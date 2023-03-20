@@ -1,6 +1,7 @@
 #pragma once
 
 #include <BAN/Errors.h>
+#include <BAN/Iterators.h>
 #include <BAN/Math.h>
 #include <BAN/Memory.h>
 #include <BAN/Move.h>
@@ -14,6 +15,8 @@ namespace BAN
 	public:
 		using size_type = size_t;
 		using value_type = T;
+		using iterator = IteratorSimple<T, Queue>;
+		using const_iterator = ConstIteratorSimple<T, Queue>;
 
 	public:
 		Queue() = default;
@@ -31,6 +34,11 @@ namespace BAN
 
 		ErrorOr<void> reserve(size_type);
 		ErrorOr<void> shrink_to_fit();
+
+		iterator begin() { return iterator(m_data); }
+		iterator end() { return iterator(m_data + m_size); }
+		const_iterator begin() const { return const_iterator(m_data); }
+		const_iterator end() const { return const_iterator(m_data + m_size); }
 
 		void pop();
 		void clear();
