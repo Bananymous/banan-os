@@ -2,6 +2,7 @@
 
 #include <BAN/Errors.h>
 #include <BAN/Iterators.h>
+#include <BAN/Span.h>
 
 #include <stddef.h>
 
@@ -33,6 +34,9 @@ namespace BAN
 		T& back();
 		const T& front() const;
 		T& front();
+
+		Span<T> span() { return Span(m_data, size()); }
+		const Span<T> span() const { return Span(m_data, size()); }
 
 		constexpr size_type size() const;
 
