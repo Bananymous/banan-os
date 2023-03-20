@@ -11,19 +11,17 @@
 
 #define PSF2_HAS_UNICODE_TABLE	0x00000001
 
-extern char _binary_font_prefs_psf_start;
-extern char _binary_font_prefs_psf_end;
+extern uint8_t _binary_font_prefs_psf_start[];
+extern uint8_t _binary_font_prefs_psf_end[];
 
 namespace Kernel
 {
 
 	BAN::ErrorOr<Font> Font::prefs()
 	{
-		size_t font_data_size = &_binary_font_prefs_psf_end - &_binary_font_prefs_psf_start;
-		BAN::Vector<uint8_t> font_data;
-		TRY(font_data.resize(font_data_size));
-		memcpy(font_data.data(), &_binary_font_prefs_psf_start, font_data_size);
-		return parse_psf1(font_data.span());
+		size_t font_data_size = _binary_font_prefs_psf_end - _binary_font_prefs_psf_start;
+		BAN::Span<uint8_t> font_data(_binary_font_prefs_psf_start, font_data_size);
+		return parse_psf1(font_data);
 	}
 
 	BAN::ErrorOr<Font> Font::load(BAN::StringView path)
