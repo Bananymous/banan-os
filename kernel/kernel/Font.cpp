@@ -1,3 +1,4 @@
+#include <BAN/Endianness.h>
 #include <BAN/ScopeGuard.h>
 #include <BAN/UTF8.h>
 #include <kernel/Font.h>
@@ -5,11 +6,21 @@
 
 #include <fcntl.h>
 
-#define PSF1_MODE_512			0x01
-#define PSF1_MODE_HASTAB		0x02
-#define PSF1_MODE_SEQ			0x02
+#define PSF1_MAGIC0				0x36
+#define PSF1_MAGIC1				0x04
+#define PSF1_MODE512			0x01
+#define PSF1_MODEHASTAB			0x02
+#define PSF1_MODEHASSEQ			0x04
+#define PSF1_STARTSEQ			0xFFFE
+#define PSF1_SEPARATOR			0xFFFF
 
-#define PSF2_HAS_UNICODE_TABLE	0x00000001
+#define PSF2_MAGIC0				0x72
+#define PSF2_MAGIC1				0xB5
+#define PSF2_MAGIC2				0x4A
+#define PSF2_MAGIC3				0x86
+#define PSF2_HAS_UNICODE_TABLE	0x01
+#define PSF2_STARTSEQ			0xFE
+#define PSF2_SEPARATOR			0xFF
 
 extern uint8_t _binary_font_prefs_psf_start[];
 extern uint8_t _binary_font_prefs_psf_end[];
@@ -37,10 +48,10 @@ namespace Kernel
 		if (file_data.size() < 4)
 			return BAN::Error::from_c_string("Font file is too small");
 
-		if (file_data[0] == 0x36 && file_data[1] == 0x04)
+		if (file_data[0] == PSF1_MAGIC0 && file_data[1] == PSF1_MAGIC1)
 			return TRY(parse_psf1(file_data.span()));
 
-		if (file_data[0] == 0x72 && file_data[1] == 0xB5 && file_data[2] == 0x4A && file_data[3] == 0x86)
+		if (file_data[0] == PSF2_MAGIC0 && file_data[1] == PSF2_MAGIC1 && file_data[2] == PSF2_MAGIC2 && file_data[3] == PSF2_MAGIC3)
 			return TRY(parse_psf2(file_data.span()));
 
 		return BAN::Error::from_c_string("Unsupported font format");
@@ -54,14 +65,14 @@ namespace Kernel
 
 		struct PSF1Header
 		{
-			uint16_t magic;
+			uint8_t magic[2];
 			uint8_t mode;
 			uint8_t char_size;
 		};
-		auto* header = (const PSF1Header*)(font_data.data());
+		const PSF1Header& header = *(const PSF1Header*)font_data.data();
 		
-		uint32_t glyph_count = header->mode & PSF1_MODE_512 ? 512 : 256;
-		uint32_t glyph_size = header->char_size;
+		uint32_t glyph_count = header.mode & PSF1_MODE512 ? 512 : 256;
+		uint32_t glyph_size = header.char_size;
 		uint32_t glyph_data_size = glyph_size * glyph_count;
 
 		if (font_data.size() < sizeof(PSF1Header) + glyph_data_size)
@@ -77,7 +88,7 @@ namespace Kernel
 		bool codepoint_redef = false;
 		bool codepoint_sequence = false;
 
-		if (header->magic & (PSF1_MODE_HASTAB | PSF1_MODE_SEQ))
+		if (header.mode & (PSF1_MODEHASTAB | PSF1_MODEHASSEQ))
 		{
 			uint32_t current_index = sizeof(PSF1Header) + glyph_data_size;
 
@@ -88,12 +99,12 @@ namespace Kernel
 				uint16_t hi = font_data[current_index + 1];
 				uint16_t codepoint = (hi << 8) | lo;
 
-				if (codepoint == 0xFFFE)
+				if (codepoint == PSF1_STARTSEQ)
 				{
 					codepoint_sequence = true;
 					break;
 				}
-				else if (codepoint == 0xFFFF)
+				else if (codepoint == PSF1_SEPARATOR)
 				{
 					glyph_index++;
 				}
@@ -123,7 +134,7 @@ namespace Kernel
 		result.m_glyph_offsets = BAN::move(glyph_offsets);
 		result.m_glyph_data = BAN::move(glyph_data);
 		result.m_width = 8;
-		result.m_height = header->char_size;
+		result.m_height = header.char_size;
 		result.m_pitch = 1;
 		return result;
 	}
@@ -132,28 +143,20 @@ namespace Kernel
 	{
 		struct PSF2Header
 		{
-			uint32_t magic;
-			uint32_t version;
-			uint32_t header_size;
-			uint32_t flags;
-			uint32_t glyph_count;
-			uint32_t glyph_size;
-			uint32_t height;
-			uint32_t width;
+			uint8_t magic[4];
+			BAN::LittleEndian<uint32_t> version;
+			BAN::LittleEndian<uint32_t> header_size;
+			BAN::LittleEndian<uint32_t> flags;
+			BAN::LittleEndian<uint32_t> glyph_count;
+			BAN::LittleEndian<uint32_t> glyph_size;
+			BAN::LittleEndian<uint32_t> height;
+			BAN::LittleEndian<uint32_t> width;
 		};
 
 		if (font_data.size() < sizeof(PSF2Header))
 			return BAN::Error::from_c_string("Font file is too small");
 
-		PSF2Header header;
-		header.magic		= BAN::Math::little_endian_to_host<uint32_t>(font_data.data() + 0);
-		header.version		= BAN::Math::little_endian_to_host<uint32_t>(font_data.data() + 4);
-		header.header_size	= BAN::Math::little_endian_to_host<uint32_t>(font_data.data() + 8);
-		header.flags		= BAN::Math::little_endian_to_host<uint32_t>(font_data.data() + 12);
-		header.glyph_count	= BAN::Math::little_endian_to_host<uint32_t>(font_data.data() + 16);
-		header.glyph_size	= BAN::Math::little_endian_to_host<uint32_t>(font_data.data() + 20);
-		header.height		= BAN::Math::little_endian_to_host<uint32_t>(font_data.data() + 24);
-		header.width		= BAN::Math::little_endian_to_host<uint32_t>(font_data.data() + 28);
+		const PSF2Header& header = *(const PSF2Header*)font_data.data();
 
 		uint32_t glyph_data_size = header.glyph_count * header.glyph_size;
 
@@ -180,12 +183,12 @@ namespace Kernel
 			{
 				uint8_t byte = font_data[i];
 
-				if (byte == 0xFE)
+				if (byte == PSF2_STARTSEQ)
 				{
 					codepoint_sequence = true;
 					break;
 				}
-				else if (byte == 0xFF)
+				else if (byte == PSF2_SEPARATOR)
 				{
 					if (byte_index)
 					{
@@ -198,6 +201,7 @@ namespace Kernel
 				{
 					ASSERT(byte_index < 4);
 					bytes[byte_index++] = byte;
+
 					uint32_t len = BAN::utf8_byte_length(bytes[0]);
 
 					if (len == 0)
@@ -228,7 +232,7 @@ namespace Kernel
 		if (invalid_utf)
 			dwarnln("Font contains invalid UTF-8 codepoint(s)");
 		if (codepoint_redef)
-			dwarnln("Font contsins multiple definitions for same codepoint(s)");
+			dwarnln("Font contains multiple definitions for same codepoint(s)");
 		if (codepoint_sequence)
 			dwarnln("Font contains codepoint sequences (not supported)");
 
