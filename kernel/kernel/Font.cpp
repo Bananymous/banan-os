@@ -73,17 +73,16 @@ namespace Kernel
 		TRY(glyph_data.resize(glyph_data_size));
 		memcpy(glyph_data.data(), font_data.data() + sizeof(PSF1Header), glyph_data_size);
 
-		BAN::HashMap<uint16_t, uint32_t> glyph_offsets;
+		BAN::HashMap<uint32_t, uint32_t> glyph_offsets;
 		TRY(glyph_offsets.reserve(glyph_count));
 
-		bool unsupported_utf = false;
 		bool codepoint_redef = false;
+		bool codepoint_sequence = false;
 
 		if (header->magic & (PSF1_MODE_HASTAB | PSF1_MODE_SEQ))
 		{
 			uint32_t current_index = sizeof(PSF1Header) + glyph_data_size;
 
-			bool in_sequence = false;
 			uint32_t glyph_index = 0;
 			while (current_index < font_data.size())
 			{
@@ -91,17 +90,16 @@ namespace Kernel
 				uint16_t hi = font_data[current_index + 1];
 				uint16_t codepoint = (hi << 8) | lo;
 
-				if (codepoint == 0xFFFF)
+				if (codepoint == 0xFFFE)
+				{
+					codepoint_sequence = true;
+					break;
+				}
+				else if (codepoint == 0xFFFF)
 				{
 					glyph_index++;
-					in_sequence = false;
 				}
-				else if (codepoint == 0xFFFE)
-				{
-					in_sequence = true;
-					unsupported_utf = true;
-				}
-				else if (!in_sequence)
+				else
 				{
 					if (glyph_offsets.contains(codepoint))
 						codepoint_redef = true;
@@ -111,9 +109,6 @@ namespace Kernel
 
 				current_index += 2;
 			}
-
-			if (glyph_index != glyph_count)
-				return BAN::Error::from_c_string("Font did not contain unicode entry for all glyphs");
 		}
 		else
 		{
@@ -121,10 +116,10 @@ namespace Kernel
 				TRY(glyph_offsets.insert(i, i * glyph_size));
 		}
 
-		if (unsupported_utf)
-			dwarnln("Font contains invalid/unsupported UTF-8 codepoint(s)");
 		if (codepoint_redef)
 			dwarnln("Font contsins multiple definitions for same codepoint(s)");
+		if (codepoint_sequence)
+			dwarnln("Font contains codepoint sequences (not supported)");
 
 		Font result;
 		result.m_glyph_offsets = BAN::move(glyph_offsets);
@@ -171,11 +166,12 @@ namespace Kernel
 		TRY(glyph_data.resize(glyph_data_size));
 		memcpy(glyph_data.data(), font_data.data() + header.header_size, glyph_data_size);
 
-		BAN::HashMap<uint16_t, uint32_t> glyph_offsets;
+		BAN::HashMap<uint32_t, uint32_t> glyph_offsets;
 		TRY(glyph_offsets.reserve(400));
 
-		bool unsupported_utf = false;
+		bool invalid_utf = false;
 		bool codepoint_redef = false;
+		bool codepoint_sequence = false;
 
 		uint8_t bytes[4] {};
 		uint32_t byte_index = 0;
@@ -186,32 +182,44 @@ namespace Kernel
 			{
 				uint8_t byte = font_data[i];
 
-				if ((byte >> 1) == 0x7F)
+				if (byte == 0xFE)
 				{
-					if (byte_index <= 4)
+					codepoint_sequence = true;
+					break;
+				}
+				else if (byte == 0xFF)
+				{
+					if (byte_index)
 					{
-						uint16_t codepoint = BAN::utf8_to_codepoint(bytes, byte_index);
-						if (codepoint == 0xFFFF)
-							unsupported_utf = true;
+						invalid_utf = true;
+						byte_index = 0;
+					}
+					glyph_index++;
+				}
+				else
+				{
+					ASSERT(byte_index < 4);
+					bytes[byte_index++] = byte;
+					uint32_t len = BAN::utf8_byte_length(bytes[0]);
+
+					if (len == 0)
+					{
+						invalid_utf = true;
+						byte_index = 0;
+					}
+					else if (len == byte_index)
+					{
+						uint32_t codepoint = BAN::utf8_to_codepoint(bytes);
+						if (codepoint == BAN::UTF8::invalid)
+							invalid_utf = true;
 						else if (glyph_offsets.contains(codepoint))
 							codepoint_redef = true;
 						else
 							TRY(glyph_offsets.insert(codepoint, glyph_index * header.glyph_size));
+						byte_index = 0;
 					}
-					byte_index = 0;
-					if (byte == 0xFF)
-						glyph_index++;
-				}
-				else
-				{
-					if (byte_index < 4)
-						bytes[byte_index++] = byte;
-					else
-						unsupported_utf = true;
 				}
 			}
-			if (glyph_index != header.glyph_count)
-				return BAN::Error::from_c_string("Font did not contain unicode entry for all glyphs");
 		}
 		else
 		{
@@ -219,18 +227,12 @@ namespace Kernel
 				TRY(glyph_offsets.insert(i, i * header.glyph_size));	
 		}
 
-		// Manually add space (empty) character if it is not present
-		if (!glyph_offsets.contains(' '))
-		{
-			TRY(glyph_data.resize(glyph_data_size + header.glyph_size));
-			memset(glyph_data.data() + glyph_data_size, 0, header.glyph_size);
-			TRY(glyph_offsets.insert(' ', glyph_data_size));
-		}
-
-		if (unsupported_utf)
-			dwarnln("Font contains invalid/unsupported UTF-8 codepoint(s)");
+		if (invalid_utf)
+			dwarnln("Font contains invalid UTF-8 codepoint(s)");
 		if (codepoint_redef)
 			dwarnln("Font contsins multiple definitions for same codepoint(s)");
+		if (codepoint_sequence)
+			dwarnln("Font contains codepoint sequences (not supported)");
 
 		Font result;
 		result.m_glyph_offsets = BAN::move(glyph_offsets);
@@ -241,12 +243,12 @@ namespace Kernel
 		return result;
 	}
 	
-	bool Font::has_glyph(uint16_t codepoint) const
+	bool Font::has_glyph(uint32_t codepoint) const
 	{
 		return m_glyph_offsets.contains(codepoint);
 	}
 
-	const uint8_t* Font::glyph(uint16_t codepoint) const
+	const uint8_t* Font::glyph(uint32_t codepoint) const
 	{
 		return m_glyph_data.data() + m_glyph_offsets[codepoint];
 	}
