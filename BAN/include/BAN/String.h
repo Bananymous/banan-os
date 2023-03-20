@@ -3,6 +3,7 @@
 #include <BAN/ForwardList.h>
 #include <BAN/Formatter.h>
 #include <BAN/Hash.h>
+#include <BAN/Iterators.h>
 
 namespace BAN
 {
@@ -11,6 +12,8 @@ namespace BAN
 	{
 	public:
 		using size_type = size_t;
+		using iterator = IteratorSimple<char, String>;
+		using const_iterator = ConstIteratorSimple<char, String>;
 
 	public:
 		String();
@@ -37,6 +40,11 @@ namespace BAN
 		void erase(size_type, size_type);
 
 		void clear();
+
+		const_iterator begin() const { return const_iterator(m_data); }
+		iterator begin() { return iterator(m_data); }
+		const_iterator end() const { return const_iterator(m_data + m_size); }
+		iterator end() { return iterator(m_data + m_size); }
 
 		char operator[](size_type) const;
 		char& operator[](size_type);
