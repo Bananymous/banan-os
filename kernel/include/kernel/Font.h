@@ -1,6 +1,7 @@
 #pragma once
 
 #include <BAN/HashMap.h>
+#include <BAN/Span.h>
 #include <BAN/StringView.h>
 
 namespace Kernel
@@ -20,8 +21,8 @@ namespace Kernel
 		const uint8_t* glyph(uint16_t) const;
 
 	private:
-		static BAN::ErrorOr<Font> parse_psf1(const BAN::Vector<uint8_t>&);
-		static BAN::ErrorOr<Font> parse_psf2(const BAN::Vector<uint8_t>&);
+		static BAN::ErrorOr<Font> parse_psf1(const BAN::Span<uint8_t>);
+		static BAN::ErrorOr<Font> parse_psf2(const BAN::Span<uint8_t>);
 
 	private:
 		BAN::HashMap<uint16_t, uint32_t> m_glyph_offsets;
