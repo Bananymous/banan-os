@@ -1,5 +1,5 @@
-#include <BAN/UTF8.h>
 #include <BAN/ScopeGuard.h>
+#include <BAN/UTF8.h>
 #include <kernel/Font.h>
 #include <kernel/Process.h>
 
@@ -23,7 +23,7 @@ namespace Kernel
 		BAN::Vector<uint8_t> font_data;
 		TRY(font_data.resize(font_data_size));
 		memcpy(font_data.data(), &_binary_font_prefs_psf_start, font_data_size);
-		return parse_psf1(font_data);
+		return parse_psf1(font_data.span());
 	}
 
 	BAN::ErrorOr<Font> Font::load(BAN::StringView path)
@@ -40,16 +40,16 @@ namespace Kernel
 			return BAN::Error::from_c_string("Font file is too small");
 
 		if (file_data[0] == 0x36 && file_data[1] == 0x04)
-			return TRY(parse_psf1(file_data));
+			return TRY(parse_psf1(file_data.span()));
 
 		if (file_data[0] == 0x72 && file_data[1] == 0xB5 && file_data[2] == 0x4A && file_data[3] == 0x86)
-			return TRY(parse_psf2(file_data));
+			return TRY(parse_psf2(file_data.span()));
 
 		return BAN::Error::from_c_string("Unsupported font format");
 	}
 
 
-	BAN::ErrorOr<Font> Font::parse_psf1(const BAN::Vector<uint8_t>& font_data)
+	BAN::ErrorOr<Font> Font::parse_psf1(const BAN::Span<uint8_t> font_data)
 	{
 		if (font_data.size() < 4)
 			return BAN::Error::from_c_string("Font file is too small");
@@ -135,7 +135,7 @@ namespace Kernel
 		return result;
 	}
 
-	BAN::ErrorOr<Font> Font::parse_psf2(const BAN::Vector<uint8_t>& font_data)
+	BAN::ErrorOr<Font> Font::parse_psf2(const BAN::Span<uint8_t> font_data)
 	{
 		struct PSF2Header
 		{
