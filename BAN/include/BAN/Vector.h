@@ -5,6 +5,7 @@
 #include <BAN/Math.h>
 #include <BAN/Memory.h>
 #include <BAN/Move.h>
+#include <BAN/Span.h>
 
 namespace BAN
 {
@@ -51,6 +52,9 @@ namespace BAN
 		const T* data() const { return m_data; }
 
 		bool contains(const T&) const;
+
+		Span<T> span() { return Span(m_data, m_size); }
+		const Span<T> span() const { return Span(m_data, m_size); }
 
 		const T& operator[](size_type) const;
 		T& operator[](size_type);
