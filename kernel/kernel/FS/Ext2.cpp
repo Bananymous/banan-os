@@ -217,6 +217,8 @@ namespace Kernel
 	
 	BAN::ErrorOr<size_t> Ext2Inode::read(size_t offset, void* buffer, size_t count)
 	{
+		// FIXME: update atime if needed
+
 		if (ifdir())
 			return BAN::Error::from_errno(EISDIR);
 
@@ -231,7 +233,7 @@ namespace Kernel
 		const uint32_t last_block = BAN::Math::div_round_up<uint32_t>(offset + count, block_size);
 
 		size_t n_read = 0;
-		
+
 		for (uint32_t block = first_block; block < last_block; block++)
 		{
 			uint32_t block_index = TRY(data_block_index(block));
@@ -257,15 +259,9 @@ namespace Kernel
 
 		for (uint32_t i = 0; i < data_block_count; i++)
 		{
-			auto data_block_index_or_error = data_block_index(i);
-			if (data_block_index_or_error.is_error())
-			{
-				dprintln("{}", data_block_index_or_error.error());
-				continue;
-			}
+			uint32_t block_index = TRY(data_block_index(i));
+			auto block_data = TRY(m_fs.read_block(block_index));
 
-			auto block_data = TRY(m_fs.read_block(data_block_index_or_error.value()));
-			
 			const uint8_t* block_data_end = block_data.data() + block_data.size();
 			const uint8_t* entry_addr = block_data.data();
 
@@ -293,14 +289,8 @@ namespace Kernel
 
 		for (uint32_t i = 0; i < data_block_count; i++)
 		{
-			auto data_block_index_or_error = data_block_index(i);
-			if (data_block_index_or_error.is_error())
-			{
-				dprintln("{}", data_block_index_or_error.error());
-				continue;	
-			}
-
-			auto block_data = TRY(m_fs.read_block(data_block_index_or_error.value()));
+			uint32_t block_index = TRY(data_block_index(i));
+			auto block_data = TRY(m_fs.read_block(block_index));
 			
 			const uint8_t* block_data_end = block_data.data() + block_data.size();
 			const uint8_t* entry_addr = block_data.data();
