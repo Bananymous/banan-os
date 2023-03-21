@@ -215,21 +215,6 @@ namespace Kernel
 		ASSERT(false);
 	}
 	
-	BAN::ErrorOr<void> Ext2Inode::for_each_block(block_callback_t callback, void* callback_data)
-	{
-		uint32_t data_block_count = m_inode.blocks / (2 << m_fs.superblock().log_block_size);
-		
-		for (uint32_t i = 0; i < data_block_count; i++)
-		{
-			uint32_t data_block_index = TRY(this->data_block_index(i));
-			auto block_data = TRY(m_fs.read_block(data_block_index));
-			if (!TRY(callback(block_data, callback_data)))
-				return {};
-		}
-
-		return {};
-	}
-
 	BAN::ErrorOr<size_t> Ext2Inode::read(size_t offset, void* buffer, size_t count)
 	{
 		if (ifdir())
@@ -268,42 +253,32 @@ namespace Kernel
 		if (!ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
 
-		struct search_info
+		uint32_t data_block_count = m_inode.blocks / (2 << m_fs.superblock().log_block_size);
+
+		for (uint32_t i = 0; i < data_block_count; i++)
 		{
-			BAN::StringView file_name;
-			BAN::RefPtr<Inode> result;
-			Ext2FS* fs;
-		};
-
-		search_info info;
-		info.file_name = file_name;
-		info.result = {};
-		info.fs = &m_fs;
-
-		block_callback_t function =
-			[](const BAN::Vector<uint8_t>& block_data, void* info_) -> BAN::ErrorOr<bool>
+			auto data_block_index_or_error = data_block_index(i);
+			if (data_block_index_or_error.is_error())
 			{
-				search_info& info = *(search_info*)info_;
+				dprintln("{}", data_block_index_or_error.error());
+				continue;
+			}
 
-				uintptr_t block_data_end = (uintptr_t)block_data.data() + block_data.size();
-				uintptr_t entry_addr = (uintptr_t)block_data.data();
-				while (entry_addr < block_data_end)
-				{
-					Ext2::LinkedDirectoryEntry* entry = (Ext2::LinkedDirectoryEntry*)entry_addr;
-					BAN::StringView entry_name = BAN::StringView(entry->name, entry->name_len);
-					if (entry->inode && info.file_name == entry_name)
-					{
-						info.result = TRY(Ext2Inode::create(*info.fs, entry->inode, entry_name));
-						return false;
-					}
-					entry_addr += entry->rec_len;
-				}
-				return true;
-			};
+			auto block_data = TRY(m_fs.read_block(data_block_index_or_error.value()));
+			
+			const uint8_t* block_data_end = block_data.data() + block_data.size();
+			const uint8_t* entry_addr = block_data.data();
 
-		TRY(for_each_block(function, &info));
-		if (info.result)
-			return info.result;
+			while (entry_addr < block_data_end)
+			{
+				const auto& entry = *(const Ext2::LinkedDirectoryEntry*)entry_addr;
+				BAN::StringView entry_name(entry.name, entry.name_len);
+				if (entry.inode && entry_name == file_name)
+					return TRY(Ext2Inode::create(m_fs, entry.inode, entry.name));
+				entry_addr += entry.rec_len;
+			}
+		}
+
 		return BAN::Error::from_errno(ENOENT);
 	}
 
@@ -327,18 +302,18 @@ namespace Kernel
 
 			auto block_data = TRY(m_fs.read_block(data_block_index_or_error.value()));
 			
-			uint8_t* block_data_end = block_data.data() + block_data.size();
-			uint8_t* entry_addr = block_data.data();
+			const uint8_t* block_data_end = block_data.data() + block_data.size();
+			const uint8_t* entry_addr = block_data.data();
 			while (entry_addr < block_data_end)
 			{
-				Ext2::LinkedDirectoryEntry* entry = (Ext2::LinkedDirectoryEntry*)entry_addr;
-				if (entry->inode)
+				const auto& entry = *(const Ext2::LinkedDirectoryEntry*)entry_addr;
+				if (entry.inode)
 				{
-					auto entry_name = BAN::StringView(entry->name, entry->name_len);
-					auto inode = TRY(Ext2Inode::create(m_fs, entry->inode, entry_name));
+					BAN::StringView entry_name(entry.name, entry.name_len);
+					auto inode = TRY(Ext2Inode::create(m_fs, entry.inode, entry_name));
 					TRY(inodes.push_back(inode));
 				}
-				entry_addr += entry->rec_len;
+				entry_addr += entry.rec_len;
 			}
 		}
 
@@ -350,7 +325,7 @@ namespace Kernel
 		if (type() != other.type())
 			return false;
 		
-		Ext2Inode& ext2_other = (Ext2Inode&)other;
+		const auto& ext2_other = (const Ext2Inode&)other;
 		if (&m_fs != &ext2_other.m_fs)
 			return false;
 		return index() == ext2_other.index();
