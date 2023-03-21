@@ -142,7 +142,7 @@ namespace Kernel
 
 	private:
 		BAN::ErrorOr<uint32_t> data_block_index(uint32_t);
-		
+
 		uint32_t index() const { return m_index; }
 
 	private:
@@ -184,8 +184,6 @@ namespace Kernel
 		BAN::ErrorOr<BAN::Vector<uint8_t>> read_block(uint32_t);
 
 		const Ext2::Superblock& superblock() const { return m_superblock; }
-
-		const Ext2::Inode& ext2_root_inode() const;
 
 	private:
 		StorageDevice::Partition& m_partition;
