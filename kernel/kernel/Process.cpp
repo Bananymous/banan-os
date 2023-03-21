@@ -108,6 +108,8 @@ namespace Kernel
 
 	BAN::ErrorOr<size_t> Process::OpenFileDescription::read(void* buffer, size_t count)
 	{
+		if (!(flags & O_RDONLY))
+			return BAN::Error::from_errno(EBADF);
 		size_t n_read = TRY(inode->read(offset, buffer, count));
 		offset += n_read;
 		return n_read;
