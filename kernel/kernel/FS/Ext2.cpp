@@ -227,25 +227,25 @@ namespace Kernel
 
 		const uint32_t block_size = 1024 << m_fs.superblock().log_block_size;
 
-		ASSERT(offset % block_size == 0);
-
 		const uint32_t first_block = offset / block_size;
 		const uint32_t last_block = BAN::Math::div_round_up<uint32_t>(offset + count, block_size);
 
 		size_t n_read = 0;
-
+		
 		for (uint32_t block = first_block; block < last_block; block++)
 		{
-			uint32_t data_block = TRY(data_block_index(block));
-			auto block_data = TRY(m_fs.read_block(data_block));
+			uint32_t block_index = TRY(data_block_index(block));
+			auto block_data = TRY(m_fs.read_block(block_index));
+			ASSERT(block_data.size() == block_size);
 
-			uint32_t to_copy = BAN::Math::min<uint32_t>(block_data.size(), count - n_read);
+			uint32_t copy_offset = (offset + n_read) % block_size;
+			uint32_t to_copy = BAN::Math::min<uint32_t>(block_size - copy_offset, count - n_read);
+			memcpy((uint8_t*)buffer + n_read, block_data.data() + copy_offset, to_copy);
 
-			memcpy((uint8_t*)buffer + n_read, block_data.data(), to_copy);
 			n_read += to_copy;
 		}
 
-		return count;
+		return n_read;
 	}
 
 	BAN::ErrorOr<BAN::RefPtr<Inode>> Ext2Inode::directory_find_impl(BAN::StringView file_name)
