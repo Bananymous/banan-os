@@ -480,9 +480,4 @@ namespace Kernel
 		return block_buffer;
 	}
 
-	const Ext2::Inode& Ext2FS::ext2_root_inode() const
-	{
-		return reinterpret_cast<const Ext2Inode*>(m_root_inode.ptr())->m_inode;
-	}
-
 }
