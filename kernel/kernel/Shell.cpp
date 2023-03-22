@@ -606,7 +606,7 @@ argument_done:
 			}
 		}
 
-		TTY_PRINT("\e[{}G", m_prompt_length + m_cursor_pos.col + 1);
+		TTY_PRINT("\e[{}G", (m_prompt_length + m_cursor_pos.col) % m_tty->width() + 1);
 	}
 
 }
