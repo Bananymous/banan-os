@@ -2,6 +2,8 @@
 
 #include <BAN/NoCopyMove.h>
 
+#include <sys/types.h>
+
 namespace Kernel
 {
 
@@ -18,6 +20,23 @@ namespace Kernel
 
 	private:
 		int m_lock = 0;
+	};
+
+	class RecursiveSpinLock
+	{
+		BAN_NON_COPYABLE(RecursiveSpinLock);
+		BAN_NON_MOVABLE(RecursiveSpinLock);
+
+	public:
+		RecursiveSpinLock() = default;
+		void lock();
+		void unlock();
+		bool is_locked() const;
+
+	private:
+		pid_t m_locker = 0;
+		uint32_t m_lock_depth = 0;
+		SpinLock m_lock;
 	};
 
 }
