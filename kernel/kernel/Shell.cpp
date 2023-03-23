@@ -364,19 +364,19 @@ argument_done:
 			auto& directory = Process::current()->inode_for_fd(fd);
 			auto inodes = TRY(directory.directory_inodes());
 
-			auto mode_string = [](Inode::Mode mode)
+			auto mode_string = [](mode_t mode)
 			{
 				static char buffer[11] {};
-				buffer[0] = mode.IFDIR ? 'd' : '-';
-				buffer[1] = mode.IRUSR ? 'r' : '-';
-				buffer[2] = mode.IWUSR ? 'w' : '-';
-				buffer[3] = mode.IXUSR ? 'x' : '-';
-				buffer[4] = mode.IRGRP ? 'r' : '-';
-				buffer[5] = mode.IWGRP ? 'w' : '-';
-				buffer[6] = mode.IXGRP ? 'x' : '-';
-				buffer[7] = mode.IROTH ? 'r' : '-';
-				buffer[8] = mode.IWOTH ? 'w' : '-';
-				buffer[9] = mode.IXOTH ? 'x' : '-';
+				buffer[0] = (mode & Inode::Mode::IFDIR) ? 'd' : '-';
+				buffer[1] = (mode & Inode::Mode::IRUSR) ? 'r' : '-';
+				buffer[2] = (mode & Inode::Mode::IWUSR) ? 'w' : '-';
+				buffer[3] = (mode & Inode::Mode::IXUSR) ? 'x' : '-';
+				buffer[4] = (mode & Inode::Mode::IRGRP) ? 'r' : '-';
+				buffer[5] = (mode & Inode::Mode::IWGRP) ? 'w' : '-';
+				buffer[6] = (mode & Inode::Mode::IXGRP) ? 'x' : '-';
+				buffer[7] = (mode & Inode::Mode::IROTH) ? 'r' : '-';
+				buffer[8] = (mode & Inode::Mode::IWOTH) ? 'w' : '-';
+				buffer[9] = (mode & Inode::Mode::IXOTH) ? 'x' : '-';
 				return (const char*)buffer;
 			};
 
@@ -412,6 +412,12 @@ argument_done:
 			BAN::StringView path = arguments.size() == 2 ? arguments[1].sv() : "/"sv;
 			TRY(Process::current()->set_working_directory(path));
 			TRY(update_prompt());
+		}
+		else if (arguments.front() == "touch")
+		{
+			if (arguments.size() != 2)
+				return BAN::Error::from_c_string("usage 'touch path'");
+			TRY(Process::current()->creat(arguments[1], 0));
 		}
 		else if (arguments.front() == "cksum")
 		{
