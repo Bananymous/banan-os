@@ -243,10 +243,7 @@ namespace BAN::Formatter
 
 	template<typename F> void print_argument(F putc, char			value, const ValueFormat&)	{ putc(value); }
 	template<typename F> void print_argument(F putc, bool			value, const ValueFormat&)	{ print(putc, value ? "true" : "false"); }
-	template<typename F> void print_argument(F putc, const char*	value, const ValueFormat&)	{ print(putc, value);}
+	template<typename F> void print_argument(F putc, const char*	value, const ValueFormat&)	{ print(putc, value); }
+	template<typename F> void print_argument(F putc, char*			value, const ValueFormat&)	{ print(putc, value); }
 	
-	//template<typename F> void print_argument(F putc, signed char			value, const ValueFormat& format)	{ detail::print_integer(putc, value, format); }
-	//template<typename F> void print_argument(F putc, unsigned char			value, const ValueFormat& format)	{ detail::print_integer(putc, value, format); }
-	//template<typename F, typename T> void print_argument(F putc, T*			value, const ValueFormat& format)	{ detail::print_pointer(putc, (void*)value, format); }
-
 }
