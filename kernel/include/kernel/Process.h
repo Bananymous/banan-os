@@ -4,6 +4,7 @@
 #include <BAN/StringView.h>
 #include <BAN/Vector.h>
 #include <kernel/FS/Inode.h>
+#include <kernel/SpinLock.h>
 #include <kernel/Thread.h>
 
 namespace Kernel
@@ -59,6 +60,8 @@ namespace Kernel
 		BAN::ErrorOr<int> get_free_fd();
 
 		BAN::Vector<OpenFileDescription> m_open_files;
+
+		mutable SpinLock m_lock;
 
 		pid_t m_pid = 0;
 		BAN::String m_working_directory;

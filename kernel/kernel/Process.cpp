@@ -1,7 +1,8 @@
 #include <BAN/StringView.h>
+#include <kernel/FS/VirtualFileSystem.h>
+#include <kernel/LockGuard.h>
 #include <kernel/Process.h>
 #include <kernel/Scheduler.h>
-#include <kernel/FS/VirtualFileSystem.h>
 
 #include <fcntl.h>
 
@@ -37,6 +38,8 @@ namespace Kernel
 
 	BAN::ErrorOr<int> Process::open(BAN::StringView path, int flags)
 	{
+		LockGuard _(m_lock);
+
 		if (flags != O_RDONLY)
 			return BAN::Error::from_errno(ENOTSUP);
 
@@ -56,6 +59,8 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Process::close(int fd)
 	{
+		LockGuard _(m_lock);
+
 		TRY(validate_fd(fd));
 		auto& open_file_description = this->open_file_description(fd);
 		open_file_description.inode = nullptr;
@@ -64,6 +69,8 @@ namespace Kernel
 
 	BAN::ErrorOr<size_t> Process::read(int fd, void* buffer, size_t count)
 	{
+		LockGuard _(m_lock);
+
 		TRY(validate_fd(fd));
 		auto& open_file_description = this->open_file_description(fd);
 		if (open_file_description.offset >= open_file_description.inode->size())
@@ -74,6 +81,8 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Process::creat(BAN::StringView path, mode_t mode)
 	{
+		LockGuard _(m_lock);
+
 		auto absolute_path = TRY(absolute_path_of(path));
 		while (absolute_path.sv().back() != '/')
 			absolute_path.pop_back();
@@ -86,12 +95,16 @@ namespace Kernel
 
 	Inode& Process::inode_for_fd(int fd)
 	{
+		LockGuard _(m_lock);
+
 		MUST(validate_fd(fd));
 		return *open_file_description(fd).inode;
 	}
 
 	BAN::ErrorOr<void> Process::set_working_directory(BAN::StringView path)
 	{
+		LockGuard _(m_lock);
+
 		BAN::String absolute_path = TRY(absolute_path_of(path));
 
 		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(absolute_path));

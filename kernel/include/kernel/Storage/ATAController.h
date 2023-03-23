@@ -1,7 +1,6 @@
 #pragma once
 
 #include <BAN/Errors.h>
-#include <kernel/SpinLock.h>
 #include <kernel/Storage/StorageController.h>
 
 namespace Kernel
@@ -68,7 +67,6 @@ namespace Kernel
 		BAN::ErrorOr<void> write(ATADevice*, uint64_t, uint8_t, const uint8_t*);
 
 	private:
-		SpinLock m_lock;
 		ATABus m_buses[2];
 		const PCIDevice& m_pci_device;
 

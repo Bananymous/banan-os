@@ -1,5 +1,4 @@
 #include <kernel/IO.h>
-#include <kernel/LockGuard.h>
 #include <kernel/Storage/ATAController.h>
 
 #define ATA_PRIMARY  	0
@@ -191,8 +190,6 @@ namespace Kernel
 		if (lba + sector_count > device->lba_count)
 			return BAN::Error::from_c_string("Attempted to read outside of the device boundaries");
 
-		LockGuard _(m_lock);
-
 		if (lba < (1 << 28))
 		{
 			// LBA28
@@ -223,8 +220,6 @@ namespace Kernel
 		if (lba + sector_count > device->lba_count)
 			return BAN::Error::from_c_string("Attempted to read outside of the device boundaries");
 
-		LockGuard _(m_lock);
-
 		if (lba < (1 << 28))
 		{
 			// LBA28
@@ -247,8 +242,8 @@ namespace Kernel
 			ASSERT(false);
 		}
 
-		device->bus->write(ATA_PORT_COMMAND, ATA_COMMAND_CACHE_FLUSH);
 		TRY(device->bus->wait(false));
+		device->bus->write(ATA_PORT_COMMAND, ATA_COMMAND_CACHE_FLUSH);
 
 		return {};
 	}
