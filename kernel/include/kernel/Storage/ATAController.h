@@ -14,6 +14,7 @@ namespace Kernel
 	{
 	public:
 		virtual BAN::ErrorOr<void> read_sectors(uint64_t, uint8_t, uint8_t*) override;
+		virtual BAN::ErrorOr<void> write_sectors(uint64_t, uint8_t, const uint8_t*) override;
 		virtual uint32_t sector_size() const override { return sector_words * 2; }
 		virtual uint64_t total_size() const override { return lba_count * sector_size(); }
 
@@ -49,6 +50,7 @@ namespace Kernel
 		uint8_t read(uint16_t);
 		void read_buffer(uint16_t, uint16_t*, size_t);
 		void write(uint16_t, uint8_t);
+		void write_buffer(uint16_t, const uint16_t*, size_t);
 		BAN::ErrorOr<void> wait(bool);
 		BAN::Error error();
 	};
@@ -63,6 +65,7 @@ namespace Kernel
 		BAN::ErrorOr<void> initialize();
 
 		BAN::ErrorOr<void> read(ATADevice*, uint64_t, uint8_t, uint8_t*);
+		BAN::ErrorOr<void> write(ATADevice*, uint64_t, uint8_t, const uint8_t*);
 
 	private:
 		SpinLock m_lock;

@@ -167,6 +167,7 @@ namespace Kernel
 		for (uint32_t i = 0; i < header.partition_entry_count; i++)
 		{
 			const PartitionEntry& entry = *(const PartitionEntry*)(entry_array.data() + header.partition_entry_size * i);
+			ASSERT((uintptr_t)&entry % 2 == 0);
 
 			char utf8_name[36 * 4 + 1];
 			BAN::UTF8::from_codepoints(entry.partition_name, 36, utf8_name);
@@ -202,6 +203,15 @@ namespace Kernel
 		if (lba + sector_count > sectors_in_partition)
 			return BAN::Error::from_c_string("Attempted to read outside of the partition boundaries");
 		TRY(m_device.read_sectors(m_lba_start + lba, sector_count, buffer));
+		return {};
+	}
+
+	BAN::ErrorOr<void> StorageDevice::Partition::write_sectors(uint64_t lba, uint8_t sector_count, const uint8_t* buffer)
+	{
+		const uint32_t sectors_in_partition = m_lba_end - m_lba_start;
+		if (lba + sector_count > sectors_in_partition)
+			return BAN::Error::from_c_string("Attempted to read outside of the partition boundaries");
+		TRY(m_device.write_sectors(m_lba_start + lba, sector_count, buffer));
 		return {};
 	}
 
