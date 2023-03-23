@@ -32,7 +32,7 @@ namespace Kernel
 		BAN::ErrorOr<size_t> read(int, void*, size_t);
 		BAN::ErrorOr<void> creat(BAN::StringView, mode_t);
 
-		BAN::StringView working_directory() const { return m_working_directory; }
+		BAN::String working_directory() const;
 		BAN::ErrorOr<void> set_working_directory(BAN::StringView);
 
 		Inode& inode_for_fd(int);
@@ -63,7 +63,7 @@ namespace Kernel
 
 		mutable RecursiveSpinLock m_lock;
 
-		pid_t m_pid = 0;
+		const pid_t m_pid = 0;
 		BAN::String m_working_directory;
 		BAN::Vector<BAN::RefPtr<Thread>> m_threads;
 

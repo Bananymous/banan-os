@@ -356,7 +356,7 @@ argument_done:
 			if (arguments.size() > 2)
 				return BAN::Error::from_c_string("usage: 'ls [path]'");
 
-			BAN::StringView path = (arguments.size() == 2) ? arguments[1].sv() : Process::current()->working_directory();
+			BAN::String path = (arguments.size() == 2) ? arguments[1] : Process::current()->working_directory();
 
 			int fd = TRY(Process::current()->open(path, O_RDONLY));
 			BAN::ScopeGuard _([fd] { MUST(Process::current()->close(fd)); });
