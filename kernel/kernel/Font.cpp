@@ -202,7 +202,7 @@ namespace Kernel
 					ASSERT(byte_index < 4);
 					bytes[byte_index++] = byte;
 
-					uint32_t len = BAN::utf8_byte_length(bytes[0]);
+					uint32_t len = BAN::UTF8::byte_length(bytes[0]);
 
 					if (len == 0)
 					{
@@ -211,7 +211,7 @@ namespace Kernel
 					}
 					else if (len == byte_index)
 					{
-						uint32_t codepoint = BAN::utf8_to_codepoint(bytes);
+						uint32_t codepoint = BAN::UTF8::to_codepoint(bytes);
 						if (codepoint == BAN::UTF8::invalid)
 							invalid_utf = true;
 						else if (glyph_offsets.contains(codepoint))

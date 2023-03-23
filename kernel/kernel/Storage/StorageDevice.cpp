@@ -1,5 +1,7 @@
+#include <BAN/Endianness.h>
 #include <BAN/ScopeGuard.h>
 #include <BAN/StringView.h>
+#include <BAN/UTF8.h>
 #include <kernel/FS/Ext2.h>
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/PCI.h>
@@ -14,21 +16,33 @@ namespace Kernel
 
 	struct GPTHeader
 	{
-		char signature[8];
-		uint32_t revision;
-		uint32_t size;
-		uint32_t crc32;
-		uint64_t my_lba;
-		uint64_t first_lba;
-		uint64_t last_lba;
-		GUID     guid;
-		uint64_t partition_entry_lba;
-		uint32_t partition_entry_count;
-		uint32_t partition_entry_size;
-		uint32_t partition_entry_array_crc32;
+		char						signature[8];
+		BAN::LittleEndian<uint32_t> revision;
+		BAN::LittleEndian<uint32_t> size;
+		BAN::LittleEndian<uint32_t> crc32;
+		BAN::LittleEndian<uint32_t> reserved;
+		BAN::LittleEndian<uint64_t> my_lba;
+		BAN::LittleEndian<uint64_t> alternate_lba;
+		BAN::LittleEndian<uint64_t> first_usable_lba;
+		BAN::LittleEndian<uint64_t> last_usable_lba;
+		GUID						disk_guid;
+		BAN::LittleEndian<uint64_t> partition_entry_lba;
+		BAN::LittleEndian<uint32_t> partition_entry_count;
+		BAN::LittleEndian<uint32_t> partition_entry_size;
+		BAN::LittleEndian<uint32_t> partition_entry_array_crc32;
 	};
 
-	uint32_t crc32_table[256] =
+	struct PartitionEntry
+	{
+		GUID partition_type_guid;
+		GUID unique_partition_guid;
+		BAN::LittleEndian<uint64_t> starting_lba;
+		BAN::LittleEndian<uint64_t> ending_lba;
+		BAN::LittleEndian<uint64_t> attributes;
+		BAN::LittleEndian<uint16_t> partition_name[36];
+	} __attribute__((packed));
+
+	static uint32_t crc32_table[256] =
 	{
 		0x00000000, 0x77073096, 0xEE0E612C, 0x990951BA,
 		0x076DC419, 0x706AF48F, 0xE963A535, 0x9E6495A3,
@@ -107,16 +121,6 @@ namespace Kernel
 		return crc32 ^ 0xFFFFFFFF;
 	}
 
-	static GUID parse_guid(const uint8_t* guid)
-	{
-		GUID result;
-		result.data1 = BAN::Math::big_endian_to_host<uint32_t>(guid + 0);
-		result.data2 = BAN::Math::big_endian_to_host<uint16_t>(guid + 4);
-		result.data3 = BAN::Math::big_endian_to_host<uint16_t>(guid + 6);
-		memcpy(result.data4, guid + 8, 8);
-		return result;
-	}
-
 	static bool is_valid_gpt_header(const GPTHeader& header, uint32_t sector_size)
 	{
 		if (memcmp(header.signature, "EFI PART", 8) != 0)
@@ -140,58 +144,12 @@ namespace Kernel
 		return true;
 	}
 
-	static GPTHeader parse_gpt_header(const BAN::Vector<uint8_t>& lba1)
-	{
-		GPTHeader header;
-		memset(&header, 0, sizeof(header));
-
-		memcpy(header.signature, lba1.data(), 8);
-		header.revision						= BAN::Math::little_endian_to_host<uint32_t>(lba1.data() + 8);
-		header.size							= BAN::Math::little_endian_to_host<uint32_t>(lba1.data() + 12);
-		header.crc32						= BAN::Math::little_endian_to_host<uint32_t>(lba1.data() + 16);
-		header.my_lba						= BAN::Math::little_endian_to_host<uint64_t>(lba1.data() + 24);
-		header.first_lba					= BAN::Math::little_endian_to_host<uint64_t>(lba1.data() + 40);
-		header.last_lba						= BAN::Math::little_endian_to_host<uint64_t>(lba1.data() + 48);
-		header.guid							= parse_guid(lba1.data() + 56);
-		header.partition_entry_lba			= BAN::Math::little_endian_to_host<uint64_t>(lba1.data() + 72);
-		header.partition_entry_count		= BAN::Math::little_endian_to_host<uint32_t>(lba1.data() + 80);
-		header.partition_entry_size			= BAN::Math::little_endian_to_host<uint32_t>(lba1.data() + 84);
-		header.partition_entry_array_crc32	= BAN::Math::little_endian_to_host<uint32_t>(lba1.data() + 88);
-		return header;
-	}
-
-	static void utf8_encode(const uint16_t* codepoints, size_t count, char* out)
-	{
-		uint32_t len = 0;
-		while (*codepoints && count--)
-		{
-			uint16_t cp = *codepoints;
-			if (cp < 128)
-			{
-				out[len++] = cp & 0x7F;
-			}
-			else if (cp < 2048)
-			{
-				out[len++] = 0xC0 | ((cp >> 0x6) & 0x1F);
-				out[len++] = 0x80 | (cp & 0x3F);
-			}
-			else
-			{
-				out[len++] = 0xE0 | ((cp >> 0xC) & 0x0F);
-				out[len++] = 0x80 | ((cp >> 0x6) & 0x3F);
-				out[len++] = 0x80 | (cp & 0x3F);
-			}
-			codepoints++;
-		}
-		out[len] = 0;
-	}
-
 	BAN::ErrorOr<void> StorageDevice::initialize_partitions()
 	{
 		BAN::Vector<uint8_t> lba1(sector_size());
 		TRY(read_sectors(1, 1, lba1.data()));
 
-		GPTHeader header = parse_gpt_header(lba1);
+		const GPTHeader& header = *(const GPTHeader*)lba1.data();
 		if (!is_valid_gpt_header(header, sector_size()))
 			return BAN::Error::from_c_string("Invalid GPT header");
 
@@ -199,7 +157,8 @@ namespace Kernel
 		if (uint32_t remainder = size % sector_size())
 			size += sector_size() - remainder;
 
-		BAN::Vector<uint8_t> entry_array(size);
+		BAN::Vector<uint8_t> entry_array;
+		TRY(entry_array.resize(size));
 		TRY(read_sectors(header.partition_entry_lba, size / sector_size(), entry_array.data()));
 
 		if (!is_valid_gpt_crc32(header, lba1, entry_array))
@@ -207,18 +166,18 @@ namespace Kernel
 
 		for (uint32_t i = 0; i < header.partition_entry_count; i++)
 		{
-			uint8_t* partition_data = entry_array.data() + header.partition_entry_size * i;
+			const PartitionEntry& entry = *(const PartitionEntry*)(entry_array.data() + header.partition_entry_size * i);
 
-			char utf8_name[36 * 3 + 1]; // 36 16-bit codepoints + nullbyte
-			utf8_encode((uint16_t*)(partition_data + 56), header.partition_entry_size - 56, utf8_name);
+			char utf8_name[36 * 4 + 1];
+			BAN::UTF8::from_codepoints(entry.partition_name, 36, utf8_name);
 
 			MUST(m_partitions.emplace_back(
 				*this, 
-				parse_guid(partition_data + 0),
-				parse_guid(partition_data + 16),
-				BAN::Math::little_endian_to_host<uint64_t>(partition_data + 32),
-				BAN::Math::little_endian_to_host<uint64_t>(partition_data + 40),
-				BAN::Math::little_endian_to_host<uint64_t>(partition_data + 48),
+				entry.partition_type_guid,
+				entry.unique_partition_guid,
+				entry.starting_lba,
+				entry.ending_lba,
+				entry.attributes,
 				utf8_name
 			));
 		}
