@@ -21,7 +21,7 @@ namespace Kernel
 	BAN::ErrorOr<void> Process::add_thread(entry_t entry, void* data)
 	{
 		LockGuard _(m_lock);
-		
+
 		auto thread = TRY(Thread::create(entry, data, this));
 		TRY(m_threads.push_back(thread));
 		if (auto res = Scheduler::get().add_thread(thread); res.is_error())
@@ -102,6 +102,12 @@ namespace Kernel
 
 		MUST(validate_fd(fd));
 		return *open_file_description(fd).inode;
+	}
+
+	BAN::String Process::working_directory() const
+	{
+		LockGuard _(m_lock);
+		return m_working_directory;
 	}
 
 	BAN::ErrorOr<void> Process::set_working_directory(BAN::StringView path)
