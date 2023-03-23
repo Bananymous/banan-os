@@ -3,15 +3,12 @@
 #include <stddef.h>
 #include <stdint.h>
 
-namespace BAN
+namespace BAN::UTF8
 {
 
-	namespace UTF8
-	{
-		static constexpr uint32_t invalid = 0xFFFFFFFF;
-	}
+	static constexpr uint32_t invalid = 0xFFFFFFFF;
 
-	static constexpr uint32_t utf8_byte_length(uint8_t first_byte)
+	constexpr uint32_t byte_length(uint8_t first_byte)
 	{
 		if ((first_byte & 0x80) == 0x00)
 			return 1;
@@ -24,9 +21,9 @@ namespace BAN
 		return 0;
 	}
 
-	static constexpr uint32_t utf8_to_codepoint(uint8_t* bytes)
+	constexpr uint32_t to_codepoint(uint8_t* bytes)
 	{
-		uint32_t length = utf8_byte_length(bytes[0]);
+		uint32_t length = byte_length(bytes[0]);
 
 		for (uint32_t i = 1; i < length; i++)
 			if ((bytes[i] & 0xC0) != 0x80)
@@ -41,6 +38,44 @@ namespace BAN
 		}
 
 		return UTF8::invalid;
+	}
+
+	template<typename T>
+	constexpr bool from_codepoints(const T* codepoints, size_t count, char* out)
+	{
+		uint8_t* ptr = (uint8_t*)out;
+
+		for (size_t i = 0; i < count; i++)
+		{
+			if (codepoints[i] < 0x80)
+			{
+				*ptr++ = codepoints[i];
+			}
+			else if (codepoints[i] < 0x800)
+			{
+				*ptr++ = 0xC0 | ((codepoints[i] >> 6) & 0x1F);
+				*ptr++ = 0x80 | ((codepoints[i] >> 0) & 0x3F);
+			}
+			else if (codepoints[i] < 0x10000)
+			{
+				*ptr++ = 0xE0 | ((codepoints[i] >> 12) & 0x0F);
+				*ptr++ = 0x80 | ((codepoints[i] >>  6) & 0x3F);
+				*ptr++ = 0x80 | ((codepoints[i] >>  0) & 0x3F);
+			}
+			else if (codepoints[i] < 0x110000)
+			{
+				*ptr++ = 0xF0 | ((codepoints[i] >> 18) & 0x07);
+				*ptr++ = 0x80 | ((codepoints[i] >> 12) & 0x3F);
+				*ptr++ = 0x80 | ((codepoints[i] >>  6) & 0x3F);
+				*ptr++ = 0x80 | ((codepoints[i] >>  0) & 0x3F);
+			}
+			else
+			{
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 }

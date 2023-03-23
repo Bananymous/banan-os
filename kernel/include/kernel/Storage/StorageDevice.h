@@ -38,7 +38,7 @@ namespace Kernel
 			const uint64_t m_lba_start;
 			const uint64_t m_lba_end;
 			const uint64_t m_attributes;
-			char m_name[36 * 3 + 1];
+			char m_name[36 * 4 + 1];
 		};
 
 	public:
