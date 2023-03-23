@@ -81,6 +81,8 @@ namespace Kernel
 			uint16_t free_blocks_count;
 			uint16_t free_inodes_count;
 			uint16_t used_dirs_count;
+			uint8_t __padding[2];
+			uint8_t __reserved[12];
 		};
 
 		struct Inode
@@ -121,15 +123,17 @@ namespace Kernel
 	class Ext2Inode : public Inode
 	{
 	public:
-		virtual uint16_t uid() const override { return m_inode.uid; }
-		virtual uint16_t gid() const override { return m_inode.gid; }
-		virtual uint32_t size() const override { return m_inode.size; }
+		virtual uid_t uid() const override { return m_inode.uid; }
+		virtual gid_t gid() const override { return m_inode.gid; }
+		virtual size_t size() const override { return m_inode.size; }
 
-		virtual Mode mode() const override { return { .mode = m_inode.mode }; }
+		virtual mode_t mode() const override { return m_inode.mode; }
 
 		virtual BAN::StringView name() const override { return m_name; }
 
 		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t) override;
+
+		virtual BAN::ErrorOr<void> create_file(BAN::StringView, mode_t) override;
 
 		virtual Type type() const override { return Type::Ext2; }
 		virtual bool operator==(const Inode& other) const override;
@@ -177,13 +181,22 @@ namespace Kernel
 		BAN::ErrorOr<void> initialize_superblock();
 		BAN::ErrorOr<void> initialize_root_inode();
 
-		BAN::ErrorOr<Ext2::Inode> read_inode(uint32_t);
+		BAN::ErrorOr<uint32_t> create_inode(const Ext2::Inode&);
+		BAN::ErrorOr<void> delete_inode(uint32_t);
+		BAN::ErrorOr<void> resize_inode(uint32_t, size_t);
+
 		BAN::ErrorOr<BAN::Vector<uint8_t>> read_block(uint32_t);
 		BAN::ErrorOr<void> write_block(uint32_t, BAN::Span<const uint8_t>);
 
-		BAN::ErrorOr<Ext2::BlockGroupDescriptor> read_block_group_descriptor(uint32_t);
-
 		const Ext2::Superblock& superblock() const { return m_superblock; }
+
+		struct BlockLocation
+		{
+			uint32_t block;
+			uint32_t offset;
+		};
+		BAN::ErrorOr<BlockLocation> locate_inode(uint32_t);
+		BlockLocation locate_block_group_descriptior(uint32_t);
 
 		uint32_t block_size() const { return 1024 << superblock().log_block_size; }
 

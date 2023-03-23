@@ -72,6 +72,18 @@ namespace Kernel
 		return n_read;
 	}
 
+	BAN::ErrorOr<void> Process::creat(BAN::StringView path, mode_t mode)
+	{
+		auto absolute_path = TRY(absolute_path_of(path));
+		while (absolute_path.sv().back() != '/')
+			absolute_path.pop_back();
+		auto parent_inode = TRY(VirtualFileSystem::get().file_from_absolute_path(absolute_path));
+		if (path.count('/') > 0)
+			return BAN::Error::from_c_string("You can only create files to current working directory");
+		TRY(parent_inode.inode->create_file(path, mode));
+		return {};
+	}
+
 	Inode& Process::inode_for_fd(int fd)
 	{
 		MUST(validate_fd(fd));

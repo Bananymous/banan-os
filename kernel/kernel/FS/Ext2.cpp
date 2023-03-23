@@ -1,8 +1,10 @@
 #include <BAN/ScopeGuard.h>
 #include <BAN/StringView.h>
 #include <kernel/FS/Ext2.h>
+#include <kernel/RTC.h>
 
 #define EXT2_DEBUG_PRINT 0
+#define VERIFY_INODE_EXISTANCE 1
 
 namespace Kernel
 {
@@ -134,12 +136,26 @@ namespace Kernel
 			RESERVED_FL		= 0x80000000,
 		};
 
+		enum FileType
+		{
+			UNKNOWN = 0,
+			REG_FILE = 1,
+			DIR = 2,
+			CHRDEV = 3,
+			BLKDEV = 4,
+			FIFO = 5,
+			SOCK = 6,
+			SYMLINK = 7,
+		};
+
 	}
 
-	BAN::ErrorOr<BAN::RefPtr<Inode>> Ext2Inode::create(Ext2FS& fs, uint32_t inode, BAN::StringView name)
+	BAN::ErrorOr<BAN::RefPtr<Inode>> Ext2Inode::create(Ext2FS& fs, uint32_t inode_inode, BAN::StringView name)
 	{
-		Ext2::Inode ext2_inode = TRY(fs.read_inode(inode));
-		Ext2Inode* result = new Ext2Inode(fs, ext2_inode, name, inode);
+		auto inode_location = TRY(fs.locate_inode(inode_inode));
+		auto inode_buffer = TRY(fs.read_block(inode_location.block));
+		auto& inode = *(Ext2::Inode*)(inode_buffer.data() + inode_location.offset);
+		Ext2Inode* result = new Ext2Inode(fs, inode, name, inode_inode);
 		if (result == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
 		return BAN::RefPtr<Inode>::adopt(result);
@@ -250,6 +266,87 @@ namespace Kernel
 		return n_read;
 	}
 
+	BAN::ErrorOr<void> Ext2Inode::create_file(BAN::StringView name, mode_t mode)
+	{
+		if (!ifdir())
+			return BAN::Error::from_errno(ENOTDIR);
+
+		if (name.size() > 255)
+			return BAN::Error::from_errno(ENAMETOOLONG);
+
+		auto error_or = directory_find_impl(name);
+		if (!error_or.is_error())
+			return BAN::Error::from_errno(EEXISTS);
+		if (error_or.error().get_error_code() != ENOENT)
+			return error_or.error();
+
+		uint64_t current_time = RTC::get_unix_time();
+
+		Ext2::Inode ext2_inode;
+		ext2_inode.mode			= mode;
+		ext2_inode.uid			= 0;
+		ext2_inode.size			= 0;
+		ext2_inode.atime 		= current_time;
+		ext2_inode.ctime 		= current_time;
+		ext2_inode.mtime 		= current_time;
+		ext2_inode.dtime 		= current_time;
+		ext2_inode.gid			= 0;
+		ext2_inode.links_count	= 1;
+		ext2_inode.blocks		= 0;
+		ext2_inode.flags		= 0;
+		ext2_inode.osd1			= 0;
+		memset(ext2_inode.block, 0, sizeof(ext2_inode.block));
+		ext2_inode.generation	= 0;
+		ext2_inode.file_acl		= 0;
+		ext2_inode.dir_acl		= 0;
+		ext2_inode.faddr		= 0;
+		memset(ext2_inode.osd2, 0, sizeof(ext2_inode.osd2));
+
+		uint32_t inode_index = TRY(m_fs.create_inode(ext2_inode));
+
+		// Insert inode to this directory
+		uint32_t data_block_count = m_inode.blocks / (2 << m_fs.superblock().log_block_size);
+		uint32_t block_index = TRY(data_block_index(data_block_count - 1));
+		auto block_data = TRY(m_fs.read_block(block_index));
+
+		const uint8_t* block_data_end = block_data.data() + block_data.size();
+		const uint8_t* entry_addr = block_data.data();
+
+		uint32_t needed_entry_len = sizeof(Ext2::LinkedDirectoryEntry) + name.size();
+
+		bool insered = false;
+		while (entry_addr < block_data_end)
+		{
+			auto& entry = *(Ext2::LinkedDirectoryEntry*)entry_addr;
+
+			if (needed_entry_len <= entry.rec_len - entry.name_len - sizeof(Ext2::LinkedDirectoryEntry))
+			{
+				entry.rec_len = sizeof(Ext2::LinkedDirectoryEntry) + entry.name_len;
+				if (uint32_t rem = entry.rec_len % 4)
+					entry.rec_len += 4 - rem;
+
+				auto& new_entry = *(Ext2::LinkedDirectoryEntry*)(entry_addr + entry.rec_len);
+				new_entry.inode = inode_index;
+				new_entry.rec_len = block_data_end - (uint8_t*)&new_entry;
+				new_entry.name_len = name.size();
+				new_entry.file_type = Ext2::Enum::REG_FILE;
+				memcpy(new_entry.name, name.data(), name.size());
+
+				TRY(m_fs.write_block(block_index, block_data.span()));
+
+				insered = true;
+				break;
+			}
+			entry_addr += entry.rec_len;
+		}
+
+		// FIXME: If an entry cannot completely fit in one block, it must be pushed to the
+		//        next data block and the rec_len of the previous entry properly adjusted.
+		ASSERT(insered);
+
+		return {};
+	}
+
 	BAN::ErrorOr<BAN::RefPtr<Inode>> Ext2Inode::directory_find_impl(BAN::StringView file_name)
 	{
 		if (!ifdir())
@@ -350,7 +447,7 @@ namespace Kernel
 		}
 
 		if (m_superblock.magic != 0xEF53)
-			return BAN::Error::from_c_string("Not a ext2 filesystem");
+			return BAN::Error::from_c_string("Not an ext2 filesystem");
 
 		if (m_superblock.rev_level < 1)
 		{
@@ -358,6 +455,11 @@ namespace Kernel
 			m_superblock.first_ino = 11;
 			m_superblock.inode_size = 128;
 		}
+
+		uint32_t number_of_block_groups       = BAN::Math::div_round_up(superblock().inodes_count, superblock().inodes_per_group);
+		uint32_t number_of_block_groups_check = BAN::Math::div_round_up(superblock().blocks_count, superblock().blocks_per_group);
+		if (number_of_block_groups != number_of_block_groups_check)
+			return BAN::Error::from_c_string("Ambiguous number of block groups");
 
 		ASSERT(!(m_superblock.feature_incompat & Ext2::Enum::FEATURE_INCOMPAT_COMPRESSION));
 		//ASSERT(!(m_superblock.feature_incompat & Ext2::Enum::FEATURE_INCOMPAT_FILETYPE));
@@ -390,38 +492,39 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<uint32_t> Ext2FS::find_free_inode_index()
+	BAN::ErrorOr<uint32_t> Ext2FS::create_inode(const Ext2::Inode& ext2_inode)
 	{
-		ASSERT(false);
-		return 0;
-	}
+		ASSERT(ext2_inode.size == 0);
 
-	BAN::ErrorOr<Ext2::Inode> Ext2FS::read_inode(uint32_t inode_index)
-	{
-		if (inode_index >= superblock().inodes_count)
-			return BAN::Error::from_format("Asked to read inode {}, but only {} exist in the filesystem", inode_index, superblock().inodes_count);
+		uint32_t number_of_block_groups = BAN::Math::div_round_up(superblock().inodes_count, superblock().inodes_per_group);
+		for (uint32_t group = 0; group < number_of_block_groups; group++)
+		{
+			auto bgd_location = this->locate_block_group_descriptior(group);
+			auto bgd_buffer = TRY(this->read_block(bgd_location.block));
 
-		uint32_t block_size = this->block_size();
+			auto& bgd = *(Ext2::BlockGroupDescriptor*)(bgd_buffer.data() + bgd_location.offset);
+			if (bgd.free_inodes_count == 0)
+				continue;
 
-		uint32_t inode_block_group = (inode_index - 1) / superblock().inodes_per_group;
-		uint32_t local_inode_index = (inode_index - 1) % superblock().inodes_per_group;
+			auto inode_bitmap = TRY(read_block(bgd.inode_bitmap));
+			for (uint32_t inode_offset = 0; inode_offset < superblock().inodes_per_group; inode_offset++)
+			{
+				uint32_t byte = inode_offset / 8;
+				uint32_t bit  = inode_offset % 8;
+				if ((inode_bitmap[byte] & (1 << bit)) == 0)
+				{
+					inode_bitmap[byte] |= (1 << bit);
+					TRY(write_block(bgd.inode_bitmap, inode_bitmap.span()));
 
-		uint32_t inode_table_byte_offset = (local_inode_index * superblock().inode_size);
+					bgd.free_inodes_count--;
+					TRY(write_block(bgd_location.block, bgd_buffer.span()));
 
-		auto block_group_descriptor = TRY(read_block_group_descriptor(inode_block_group));
+					return group * superblock().inodes_per_group + inode_offset + 1;
+				}
+			}
+		}
 
-		uint32_t inode_block = block_group_descriptor.inode_table + inode_table_byte_offset / block_size;
-		auto inode_block_buffer = TRY(read_block(inode_block));
-
-		Ext2::Inode ext2_inode;
-		memcpy(&ext2_inode, inode_block_buffer.data() + inode_table_byte_offset % block_size, sizeof(Ext2::Inode));
-		return ext2_inode;
-	}
-
-	BAN::ErrorOr<void> Ext2FS::write_inode(uint32_t inode_index, const Ext2::Inode& ext2_inode)
-	{
-		ASSERT(false);
-		return {};
+		return BAN::Error::from_c_string("No free inodes available in the whole filesystem");
 	}
 
 	BAN::ErrorOr<BAN::Vector<uint8_t>> Ext2FS::read_block(uint32_t block)
@@ -439,40 +542,60 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Ext2FS::write_block(uint32_t block, BAN::Span<const uint8_t> data)
 	{
-		const uint32_t sector_size = m_partition.device().sector_size();
-		const uint32_t block_size = 1024 << m_superblock.log_block_size;
-		ASSERT(block_size % sector_size == 0);
-		ASSERT(data.size() <= block_size);
-		const uint32_t sectors_per_block = block_size / sector_size;
+		uint32_t sector_size = m_partition.device().sector_size();
+		uint32_t block_size = this->block_size();
+		uint32_t sectors_per_block = block_size / sector_size;
 
+		ASSERT(data.size() <= block_size);
 		TRY(m_partition.write_sectors(block * sectors_per_block, sectors_per_block, data.data()));
 
 		return {};
 	}
 
-	BAN::ErrorOr<Ext2::BlockGroupDescriptor> Ext2FS::read_block_group_descriptor(uint32_t index)
-	{	
+	BAN::ErrorOr<Ext2FS::BlockLocation> Ext2FS::locate_inode(uint32_t inode_index)
+	{
+		if (inode_index >= superblock().inodes_count)
+			return BAN::Error::from_format("Asked to read inode {}, but only {} exist in the filesystem", inode_index, superblock().inodes_count);
+
 		uint32_t block_size = this->block_size();
 
-		uint32_t number_of_block_groups       = BAN::Math::div_round_up(superblock().inodes_count, superblock().inodes_per_group);
-		uint32_t number_of_block_groups_check = BAN::Math::div_round_up(superblock().blocks_count, superblock().blocks_per_group);
-		if (number_of_block_groups != number_of_block_groups_check)
-			return BAN::Error::from_c_string("Ambiguous number of block groups");
-		
-		ASSERT(index < number_of_block_groups);
+		uint32_t inode_block_group = (inode_index - 1) / superblock().inodes_per_group;
+		uint32_t local_inode_index = (inode_index - 1) % superblock().inodes_per_group;
 
-		// NOTE: We use 32 because we cannot use the sizeof(Ext2::BlockGroupDescriptor) since I have
-		//       left out 14 bytes of padding/reserved memory from the end of the structure
-		uint32_t block_group_descriptor_byte_offset = 32u * index;
+		uint32_t inode_table_byte_offset = (local_inode_index * superblock().inode_size);
 
-		uint32_t block_group_descriptor_block = superblock().first_data_block + block_group_descriptor_byte_offset / block_size + 1;
+		auto bgd_location = locate_block_group_descriptior(inode_block_group);
+		auto bgd_buffer = TRY(read_block(bgd_location.block));
+		auto& bgd = *(Ext2::BlockGroupDescriptor*)(bgd_buffer.data() + bgd_location.offset);
 
-		auto block_data = TRY(read_block(block_group_descriptor_block));
+#if VERIFY_INODE_EXISTANCE
+		ASSERT(superblock().inodes_per_group <= block_size * 8);
+		auto inode_bitmap = TRY(read_block(bgd.inode_bitmap));
+		uint32_t byte = local_inode_index / 8;
+		uint32_t bit  = local_inode_index % 8;
+		ASSERT(inode_bitmap[byte] & (1 << bit));
+#endif
 
-		Ext2::BlockGroupDescriptor result;
-		memcpy(&result, block_data.data() + block_group_descriptor_byte_offset % block_size, sizeof(Ext2::BlockGroupDescriptor));
+		BlockLocation location;
+		location.block = bgd.inode_table + inode_table_byte_offset / block_size;
+		location.offset = inode_table_byte_offset % block_size;
+		return location;
+	}
 
-		return result;
+	Ext2FS::BlockLocation Ext2FS::locate_block_group_descriptior(uint32_t group_index)
+	{
+		uint32_t block_size = this->block_size();
+
+		uint32_t block_group_count = BAN::Math::div_round_up(superblock().inodes_count, superblock().inodes_per_group);
+		ASSERT(group_index < block_group_count);
+
+		uint32_t bgd_byte_offset = sizeof(Ext2::BlockGroupDescriptor) * group_index;
+		uint32_t bgd_table_block = superblock().first_data_block + (bgd_byte_offset / block_size) + 1;
+
+		BlockLocation location;
+		location.block  = bgd_table_block + (bgd_byte_offset / block_size);
+		location.offset =					(bgd_byte_offset % block_size);
+		return location;
 	}
 
 }

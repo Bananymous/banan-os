@@ -29,6 +29,7 @@ namespace Kernel
 		BAN::ErrorOr<int> open(BAN::StringView, int);
 		BAN::ErrorOr<void> close(int);
 		BAN::ErrorOr<size_t> read(int, void*, size_t);
+		BAN::ErrorOr<void> creat(BAN::StringView, mode_t);
 
 		BAN::StringView working_directory() const { return m_working_directory; }
 		BAN::ErrorOr<void> set_working_directory(BAN::StringView);
