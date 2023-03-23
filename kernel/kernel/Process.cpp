@@ -20,6 +20,8 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Process::add_thread(entry_t entry, void* data)
 	{
+		LockGuard _(m_lock);
+		
 		auto thread = TRY(Thread::create(entry, data, this));
 		TRY(m_threads.push_back(thread));
 		if (auto res = Scheduler::get().add_thread(thread); res.is_error())
@@ -33,6 +35,7 @@ namespace Kernel
 
 	void Process::on_thread_exit(Thread& thread)
 	{
+		LockGuard _(m_lock);
 		(void)thread;
 	}
 
@@ -118,6 +121,8 @@ namespace Kernel
 
 	BAN::ErrorOr<BAN::String> Process::absolute_path_of(BAN::StringView path) const
 	{
+		LockGuard _(m_lock);
+
 		if (path.empty())
 			return m_working_directory;
 		BAN::String absolute_path;
@@ -142,6 +147,8 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Process::validate_fd(int fd)
 	{
+		LockGuard _(m_lock);
+
 		if (fd < 0 || m_open_files.size() <= (size_t)fd || !m_open_files[fd].inode)
 			return BAN::Error::from_errno(EBADF);
 		return {};
@@ -149,12 +156,16 @@ namespace Kernel
 
 	Process::OpenFileDescription& Process::open_file_description(int fd)
 	{
+		LockGuard _(m_lock);
+
 		MUST(validate_fd(fd));
 		return m_open_files[fd];
 	}
 
 	BAN::ErrorOr<int> Process::get_free_fd()
 	{
+		LockGuard _(m_lock);
+
 		for (size_t fd = 0; fd < m_open_files.size(); fd++)
 			if (!m_open_files[fd].inode)
 				return fd;

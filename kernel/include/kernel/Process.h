@@ -61,7 +61,7 @@ namespace Kernel
 
 		BAN::Vector<OpenFileDescription> m_open_files;
 
-		mutable SpinLock m_lock;
+		mutable RecursiveSpinLock m_lock;
 
 		pid_t m_pid = 0;
 		BAN::String m_working_directory;
