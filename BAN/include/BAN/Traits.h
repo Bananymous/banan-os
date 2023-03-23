@@ -60,6 +60,11 @@ namespace BAN
 	template<typename T> inline constexpr bool is_pointer_v = is_pointer<T>::value;
 	template<typename T> concept pointer = is_pointer_v<T>;
 
+	template<typename T> struct is_const			: false_type {};
+	template<typename T> struct is_const<const T>	: true_type {};
+	template<typename T> inline constexpr bool is_const_v = is_const<T>::value;
+	
+
 	template<typename T> struct less	{ constexpr bool operator()(const T& lhs, const T& rhs) const { return lhs < rhs; } };
 	template<typename T> struct equal	{ constexpr bool operator()(const T& lhs, const T& rhs) const { return lhs == rhs; } };
 	template<typename T> struct greater	{ constexpr bool operator()(const T& lhs, const T& rhs) const { return lhs > rhs; } };
