@@ -185,8 +185,8 @@ namespace Kernel
 		BAN::ErrorOr<void> delete_inode(uint32_t);
 		BAN::ErrorOr<void> resize_inode(uint32_t, size_t);
 
-		BAN::ErrorOr<BAN::Vector<uint8_t>> read_block(uint32_t);
-		BAN::ErrorOr<void> write_block(uint32_t, BAN::Span<const uint8_t>);
+		void read_block(uint32_t, BAN::Span<uint8_t>);
+		void write_block(uint32_t, BAN::Span<const uint8_t>);
 
 		const Ext2::Superblock& superblock() const { return m_superblock; }
 
