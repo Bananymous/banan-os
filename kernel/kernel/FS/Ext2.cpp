@@ -212,7 +212,7 @@ namespace Kernel
 			return block;
 		}
 
-		ASSERT(false);
+		ASSERT_NOT_REACHED();
 	}
 	
 	BAN::ErrorOr<size_t> Ext2Inode::read(size_t offset, void* buffer, size_t count)
@@ -458,9 +458,9 @@ namespace Kernel
 	BAN::ErrorOr<BAN::Vector<uint8_t>> Ext2FS::read_block(uint32_t block)
 	{
 		const uint32_t sector_size = m_partition.device().sector_size();
-		uint32_t block_size = 1024 << m_superblock.log_block_size;
+		const uint32_t block_size = 1024 << m_superblock.log_block_size;
 		ASSERT(block_size % sector_size == 0);
-		uint32_t sectors_per_block = block_size / sector_size;
+		const uint32_t sectors_per_block = block_size / sector_size;
 		
 		BAN::Vector<uint8_t> block_buffer;
 		TRY(block_buffer.resize(block_size));
@@ -468,6 +468,19 @@ namespace Kernel
 		TRY(m_partition.read_sectors(block * sectors_per_block, sectors_per_block, block_buffer.data()));
 
 		return block_buffer;
+	}
+
+	BAN::ErrorOr<void> Ext2FS::write_block(uint32_t block, BAN::Span<const uint8_t> data)
+	{
+		const uint32_t sector_size = m_partition.device().sector_size();
+		const uint32_t block_size = 1024 << m_superblock.log_block_size;
+		ASSERT(block_size % sector_size == 0);
+		ASSERT(data.size() <= block_size);
+		const uint32_t sectors_per_block = block_size / sector_size;
+
+		TRY(m_partition.write_sectors(block * sectors_per_block, sectors_per_block, data.data()));
+
+		return {};
 	}
 
 }

@@ -29,6 +29,7 @@ namespace Kernel
 			const StorageDevice& device() const { return m_device; }
 
 			BAN::ErrorOr<void> read_sectors(uint64_t lba, uint8_t sector_count, uint8_t* buffer);
+			BAN::ErrorOr<void> write_sectors(uint64_t lba, uint8_t sector_count, const uint8_t* buffer);
 			bool is_used() const { uint8_t zero[16] {}; return memcmp(&m_type, zero, 16); }
 
 		private:
@@ -47,6 +48,7 @@ namespace Kernel
 		BAN::ErrorOr<void> initialize_partitions();
 
 		virtual BAN::ErrorOr<void> read_sectors(uint64_t lba, uint8_t sector_count, uint8_t* buffer) = 0;
+		virtual BAN::ErrorOr<void> write_sectors(uint64_t lba, uint8_t sector_count, const uint8_t* buffer) = 0;
 		virtual uint32_t sector_size() const = 0;
 		virtual uint64_t total_size() const = 0;
 
