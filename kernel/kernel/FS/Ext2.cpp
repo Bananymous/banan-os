@@ -327,7 +327,6 @@ namespace Kernel
 		if (ext2fs == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
 		TRY(ext2fs->initialize_superblock());
-		TRY(ext2fs->initialize_block_group_descriptors());
 		TRY(ext2fs->initialize_root_inode());
 		return ext2fs;
 	}
@@ -339,17 +338,15 @@ namespace Kernel
 
 		// Read superblock from disk
 		{
-			uint8_t* superblock_buffer = (uint8_t*)kmalloc(1024);
-			if (superblock_buffer == nullptr)
-				BAN::Error::from_errno(ENOMEM);
-			BAN::ScopeGuard _([superblock_buffer] { kfree(superblock_buffer); });
+			BAN::Vector<uint8_t> superblock_buffer;
+			TRY(superblock_buffer.resize(1024));
 
 			uint32_t lba = 1024 / sector_size;
 			uint32_t sector_count = 1024 / sector_size;
 
-			TRY(m_partition.read_sectors(lba, sector_count, superblock_buffer));
+			TRY(m_partition.read_sectors(lba, sector_count, superblock_buffer.data()));
 
-			memcpy(&m_superblock, superblock_buffer, sizeof(Ext2::Superblock));
+			memcpy(&m_superblock, superblock_buffer.data(), sizeof(Ext2::Superblock));
 		}
 
 		if (m_superblock.magic != 0xEF53)
@@ -380,50 +377,6 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<void> Ext2FS::initialize_block_group_descriptors()
-	{
-		const uint32_t sector_size = m_partition.device().sector_size();
-		const uint32_t block_size = 1024 << m_superblock.log_block_size;
-		const uint32_t sectors_per_block = block_size / sector_size;
-		ASSERT(block_size % sector_size == 0);
-
-		uint32_t number_of_block_groups       = BAN::Math::div_round_up(m_superblock.inodes_count, m_superblock.inodes_per_group);
-		uint32_t number_of_block_groups_check = BAN::Math::div_round_up(m_superblock.blocks_count, m_superblock.blocks_per_group);
-		if (number_of_block_groups != number_of_block_groups_check)
-			return BAN::Error::from_c_string("Ambiguous number of blocks");
-
-		uint32_t block_group_descriptor_table_block = m_superblock.first_data_block + 1;
-		uint32_t block_group_descriptor_table_sector_count = BAN::Math::div_round_up(32u * number_of_block_groups, sector_size);
-
-		uint8_t* block_group_descriptor_table_buffer = (uint8_t*)kmalloc(block_group_descriptor_table_sector_count * sector_size);
-		if (block_group_descriptor_table_buffer == nullptr)
-			return BAN::Error::from_errno(ENOMEM);
-		BAN::ScopeGuard _([block_group_descriptor_table_buffer] { kfree(block_group_descriptor_table_buffer); });
-
-		TRY(m_partition.read_sectors(
-			block_group_descriptor_table_block * sectors_per_block,
-			block_group_descriptor_table_sector_count,
-			block_group_descriptor_table_buffer
-		));
-		TRY(m_block_group_descriptors.resize(number_of_block_groups));
-
-		for (uint32_t i = 0; i < number_of_block_groups; i++)
-		{
-			memcpy(&m_block_group_descriptors[i], block_group_descriptor_table_buffer + 32u * i, sizeof(Ext2::BlockGroupDescriptor));
-
-#if EXT2_DEBUG_PRINT
-			dprintln("block group descriptor {}", i);
-			dprintln("  block bitmap   {}", m_block_group_descriptors[i].block_bitmap);
-			dprintln("  inode bitmap   {}", m_block_group_descriptors[i].inode_bitmap);
-			dprintln("  inode table    {}", m_block_group_descriptors[i].inode_table);
-			dprintln("  unalloc blocks {}", m_block_group_descriptors[i].free_blocks_count);
-			dprintln("  unalloc inodes {}", m_block_group_descriptors[i].free_inodes_count);
-#endif
-		}
-
-		return {};
-	}
-
 	BAN::ErrorOr<void> Ext2FS::initialize_root_inode()
 	{
 		m_root_inode = TRY(Ext2Inode::create(*this, Ext2::Enum::ROOT_INO, ""));
@@ -437,34 +390,48 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<Ext2::Inode> Ext2FS::read_inode(uint32_t inode)
+	BAN::ErrorOr<uint32_t> Ext2FS::find_free_inode_index()
 	{
-		uint32_t block_size = 1024 << m_superblock.log_block_size;
+		ASSERT(false);
+		return 0;
+	}
 
-		uint32_t inode_block_group = (inode - 1) / m_superblock.inodes_per_group;
-		uint32_t local_inode_index = (inode - 1) % m_superblock.inodes_per_group;
+	BAN::ErrorOr<Ext2::Inode> Ext2FS::read_inode(uint32_t inode_index)
+	{
+		if (inode_index >= superblock().inodes_count)
+			return BAN::Error::from_format("Asked to read inode {}, but only {} exist in the filesystem", inode_index, superblock().inodes_count);
 
-		uint32_t inode_table_offset_blocks = (local_inode_index * m_superblock.inode_size) / block_size;
-		uint32_t inode_block_offset = (local_inode_index * m_superblock.inode_size) % block_size;
+		uint32_t block_size = this->block_size();
 
-		uint32_t inode_block = m_block_group_descriptors[inode_block_group].inode_table + inode_table_offset_blocks;
+		uint32_t inode_block_group = (inode_index - 1) / superblock().inodes_per_group;
+		uint32_t local_inode_index = (inode_index - 1) % superblock().inodes_per_group;
 
+		uint32_t inode_table_byte_offset = (local_inode_index * superblock().inode_size);
+
+		auto block_group_descriptor = TRY(read_block_group_descriptor(inode_block_group));
+
+		uint32_t inode_block = block_group_descriptor.inode_table + inode_table_byte_offset / block_size;
 		auto inode_block_buffer = TRY(read_block(inode_block));
+
 		Ext2::Inode ext2_inode;
-		memcpy(&ext2_inode, inode_block_buffer.data() + inode_block_offset, sizeof(Ext2::Inode));
+		memcpy(&ext2_inode, inode_block_buffer.data() + inode_table_byte_offset % block_size, sizeof(Ext2::Inode));
 		return ext2_inode;
+	}
+
+	BAN::ErrorOr<void> Ext2FS::write_inode(uint32_t inode_index, const Ext2::Inode& ext2_inode)
+	{
+		ASSERT(false);
+		return {};
 	}
 
 	BAN::ErrorOr<BAN::Vector<uint8_t>> Ext2FS::read_block(uint32_t block)
 	{
-		const uint32_t sector_size = m_partition.device().sector_size();
-		const uint32_t block_size = 1024 << m_superblock.log_block_size;
-		ASSERT(block_size % sector_size == 0);
-		const uint32_t sectors_per_block = block_size / sector_size;
+		uint32_t sector_size = m_partition.device().sector_size();
+		uint32_t block_size = this->block_size();
+		uint32_t sectors_per_block = block_size / sector_size;
 		
 		BAN::Vector<uint8_t> block_buffer;
 		TRY(block_buffer.resize(block_size));
-
 		TRY(m_partition.read_sectors(block * sectors_per_block, sectors_per_block, block_buffer.data()));
 
 		return block_buffer;
@@ -481,6 +448,31 @@ namespace Kernel
 		TRY(m_partition.write_sectors(block * sectors_per_block, sectors_per_block, data.data()));
 
 		return {};
+	}
+
+	BAN::ErrorOr<Ext2::BlockGroupDescriptor> Ext2FS::read_block_group_descriptor(uint32_t index)
+	{	
+		uint32_t block_size = this->block_size();
+
+		uint32_t number_of_block_groups       = BAN::Math::div_round_up(superblock().inodes_count, superblock().inodes_per_group);
+		uint32_t number_of_block_groups_check = BAN::Math::div_round_up(superblock().blocks_count, superblock().blocks_per_group);
+		if (number_of_block_groups != number_of_block_groups_check)
+			return BAN::Error::from_c_string("Ambiguous number of block groups");
+		
+		ASSERT(index < number_of_block_groups);
+
+		// NOTE: We use 32 because we cannot use the sizeof(Ext2::BlockGroupDescriptor) since I have
+		//       left out 14 bytes of padding/reserved memory from the end of the structure
+		uint32_t block_group_descriptor_byte_offset = 32u * index;
+
+		uint32_t block_group_descriptor_block = superblock().first_data_block + block_group_descriptor_byte_offset / block_size + 1;
+
+		auto block_data = TRY(read_block(block_group_descriptor_block));
+
+		Ext2::BlockGroupDescriptor result;
+		memcpy(&result, block_data.data() + block_group_descriptor_byte_offset % block_size, sizeof(Ext2::BlockGroupDescriptor));
+
+		return result;
 	}
 
 }

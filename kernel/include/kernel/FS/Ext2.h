@@ -81,8 +81,6 @@ namespace Kernel
 			uint16_t free_blocks_count;
 			uint16_t free_inodes_count;
 			uint16_t used_dirs_count;
-			uint16_t __padding;
-			//uint8_t reserved[12];
 		};
 
 		struct Inode
@@ -177,14 +175,17 @@ namespace Kernel
 		{}
 
 		BAN::ErrorOr<void> initialize_superblock();
-		BAN::ErrorOr<void> initialize_block_group_descriptors();
 		BAN::ErrorOr<void> initialize_root_inode();
 
 		BAN::ErrorOr<Ext2::Inode> read_inode(uint32_t);
 		BAN::ErrorOr<BAN::Vector<uint8_t>> read_block(uint32_t);
 		BAN::ErrorOr<void> write_block(uint32_t, BAN::Span<const uint8_t>);
 
+		BAN::ErrorOr<Ext2::BlockGroupDescriptor> read_block_group_descriptor(uint32_t);
+
 		const Ext2::Superblock& superblock() const { return m_superblock; }
+
+		uint32_t block_size() const { return 1024 << superblock().log_block_size; }
 
 	private:
 		StorageDevice::Partition& m_partition;
@@ -192,7 +193,6 @@ namespace Kernel
 		BAN::RefPtr<Inode> m_root_inode;
 
 		Ext2::Superblock m_superblock;
-		BAN::Vector<Ext2::BlockGroupDescriptor> m_block_group_descriptors;
 
 		friend class Ext2Inode;
 	};
