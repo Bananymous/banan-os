@@ -12,6 +12,7 @@
 #define EBADF 8
 #define EEXISTS 9
 #define ENOTEMPTY 10
+#define ENAMETOOLONG 11
 
 __BEGIN_DECLS
 

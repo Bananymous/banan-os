@@ -40,6 +40,9 @@ char* strerror(int error)
 	case ENOTEMPTY:
 		strcpy(buffer, "Directory not empty");
 		break;
+	case ENAMETOOLONG:
+		strcpy(buffer, "Filename too long");
+		break;
 	default:
 		{
 			// FIXME: sprintf
