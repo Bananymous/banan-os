@@ -21,8 +21,8 @@ namespace Kernel
 		const uint8_t* glyph(uint32_t) const;
 
 	private:
-		static BAN::ErrorOr<Font> parse_psf1(const BAN::Span<uint8_t>);
-		static BAN::ErrorOr<Font> parse_psf2(const BAN::Span<uint8_t>);
+		static BAN::ErrorOr<Font> parse_psf1(BAN::Span<const uint8_t>);
+		static BAN::ErrorOr<Font> parse_psf2(BAN::Span<const uint8_t>);
 
 	private:
 		BAN::HashMap<uint32_t, uint32_t> m_glyph_offsets;

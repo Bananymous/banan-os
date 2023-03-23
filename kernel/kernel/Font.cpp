@@ -31,7 +31,7 @@ namespace Kernel
 	BAN::ErrorOr<Font> Font::prefs()
 	{
 		size_t font_data_size = _binary_font_prefs_psf_end - _binary_font_prefs_psf_start;
-		BAN::Span<uint8_t> font_data(_binary_font_prefs_psf_start, font_data_size);
+		BAN::Span<const uint8_t> font_data(_binary_font_prefs_psf_start, font_data_size);
 		return parse_psf1(font_data);
 	}
 
@@ -57,8 +57,7 @@ namespace Kernel
 		return BAN::Error::from_c_string("Unsupported font format");
 	}
 
-
-	BAN::ErrorOr<Font> Font::parse_psf1(const BAN::Span<uint8_t> font_data)
+	BAN::ErrorOr<Font> Font::parse_psf1(BAN::Span<const uint8_t> font_data)
 	{
 		if (font_data.size() < 4)
 			return BAN::Error::from_c_string("Font file is too small");
@@ -139,7 +138,7 @@ namespace Kernel
 		return result;
 	}
 
-	BAN::ErrorOr<Font> Font::parse_psf2(const BAN::Span<uint8_t> font_data)
+	BAN::ErrorOr<Font> Font::parse_psf2(BAN::Span<const uint8_t> font_data)
 	{
 		struct PSF2Header
 		{

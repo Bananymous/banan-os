@@ -40,7 +40,7 @@ namespace Kernel
 		BAN::LittleEndian<uint64_t> ending_lba;
 		BAN::LittleEndian<uint64_t> attributes;
 		BAN::LittleEndian<uint16_t> partition_name[36];
-	} __attribute__((packed));
+	};
 
 	static uint32_t crc32_table[256] =
 	{
@@ -167,7 +167,6 @@ namespace Kernel
 		for (uint32_t i = 0; i < header.partition_entry_count; i++)
 		{
 			const PartitionEntry& entry = *(const PartitionEntry*)(entry_array.data() + header.partition_entry_size * i);
-			ASSERT((uintptr_t)&entry % 2 == 0);
 
 			char utf8_name[36 * 4 + 1];
 			BAN::UTF8::from_codepoints(entry.partition_name, 36, utf8_name);
