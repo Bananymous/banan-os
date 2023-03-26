@@ -1,6 +1,7 @@
 #include <BAN/ScopeGuard.h>
 #include <BAN/StringView.h>
 #include <kernel/FS/Ext2.h>
+#include <kernel/Process.h>
 #include <kernel/RTC.h>
 
 #define EXT2_DEBUG_PRINT 0
@@ -150,6 +151,16 @@ namespace Kernel
 
 	}
 
+	blksize_t Ext2Inode::blksize() const
+	{
+		return m_fs.block_size();
+	}
+
+	blkcnt_t Ext2Inode::blocks() const
+	{
+		return m_inode.blocks / (2 << m_fs.superblock().log_block_size);
+	}
+
 	BAN::ErrorOr<BAN::RefPtr<Inode>> Ext2Inode::create(Ext2FS& fs, uint32_t inode_inode, BAN::StringView name)
 	{
 		BAN::Vector<uint8_t> block_buffer;
@@ -273,6 +284,38 @@ namespace Kernel
 		return n_read;
 	}
 
+	BAN::ErrorOr<BAN::Vector<BAN::String>> Ext2Inode::read_directory_entries_impl(size_t index)
+	{
+		if (!ifdir())
+			return BAN::Error::from_errno(ENOTDIR);
+		
+		uint32_t data_block_count = blocks();
+		if (index >= data_block_count)
+			return BAN::Vector<BAN::String>();
+
+		uint32_t block_size = blksize();
+		uint32_t block_index = TRY(data_block_index(index));
+
+		BAN::Vector<uint8_t> block_buffer;
+		TRY(block_buffer.resize(block_size));
+
+		m_fs.read_block(block_index, block_buffer.span());
+
+		BAN::Vector<BAN::String> entries;
+
+		const uint8_t* block_buffer_end = block_buffer.data() + block_size;
+		const uint8_t* entry_addr = block_buffer.data();
+		while (entry_addr < block_buffer_end)
+		{
+			auto& entry = *(Ext2::LinkedDirectoryEntry*)entry_addr;
+			if (entry.inode)
+				TRY(entries.emplace_back(BAN::StringView(entry.name, entry.name_len)));
+			entry_addr += entry.rec_len;
+		}
+
+		return entries;
+	}
+
 	BAN::ErrorOr<void> Ext2Inode::create_file(BAN::StringView name, mode_t mode)
 	{
 		if (!ifdir())
@@ -285,7 +328,7 @@ namespace Kernel
 		BAN::Vector<uint8_t> block_buffer;
 		TRY(block_buffer.resize(block_size));
 
-		auto error_or = directory_find_impl(name);
+		auto error_or = read_directory_inode_impl(name);
 		if (!error_or.is_error())
 			return BAN::Error::from_errno(EEXISTS);
 		if (error_or.error().get_error_code() != ENOENT)
@@ -358,7 +401,7 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<BAN::RefPtr<Inode>> Ext2Inode::directory_find_impl(BAN::StringView file_name)
+	BAN::ErrorOr<BAN::RefPtr<Inode>> Ext2Inode::read_directory_inode_impl(BAN::StringView file_name)
 	{
 		if (!ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
@@ -367,7 +410,7 @@ namespace Kernel
 		BAN::Vector<uint8_t> block_buffer;
 		TRY(block_buffer.resize(block_size));
 
-		uint32_t data_block_count = m_inode.blocks / (2 << m_fs.superblock().log_block_size);
+		uint32_t data_block_count = blocks();
 
 		for (uint32_t i = 0; i < data_block_count; i++)
 		{
@@ -388,42 +431,6 @@ namespace Kernel
 		}
 
 		return BAN::Error::from_errno(ENOENT);
-	}
-
-	BAN::ErrorOr<BAN::Vector<BAN::RefPtr<Inode>>> Ext2Inode::directory_inodes_impl()
-	{
-		if (!ifdir())
-			return BAN::Error::from_errno(ENOTDIR);
-
-		uint32_t block_size = m_fs.block_size();
-		BAN::Vector<uint8_t> block_buffer;
-		TRY(block_buffer.resize(block_size));
-
-		uint32_t data_block_count = m_inode.blocks / (2 << m_fs.superblock().log_block_size);
-		
-		BAN::Vector<BAN::RefPtr<Inode>> inodes;
-
-		for (uint32_t i = 0; i < data_block_count; i++)
-		{
-			uint32_t block_index = TRY(data_block_index(i));
-			m_fs.read_block(block_index, block_buffer.span());
-			
-			const uint8_t* block_buffer_end = block_buffer.data() + block_size;
-			const uint8_t* entry_addr = block_buffer.data();
-			while (entry_addr < block_buffer_end)
-			{
-				const auto& entry = *(const Ext2::LinkedDirectoryEntry*)entry_addr;
-				if (entry.inode)
-				{
-					BAN::StringView entry_name(entry.name, entry.name_len);
-					auto inode = TRY(Ext2Inode::create(m_fs, entry.inode, entry_name));
-					TRY(inodes.push_back(inode));
-				}
-				entry_addr += entry.rec_len;
-			}
-		}
-
-		return inodes;
 	}
 
 	bool Ext2Inode::operator==(const Inode& other) const

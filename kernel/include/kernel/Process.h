@@ -7,6 +7,8 @@
 #include <kernel/SpinLock.h>
 #include <kernel/Thread.h>
 
+#include <sys/stat.h>
+
 namespace Kernel
 {
 
@@ -32,10 +34,13 @@ namespace Kernel
 		BAN::ErrorOr<size_t> read(int, void*, size_t);
 		BAN::ErrorOr<void> creat(BAN::StringView, mode_t);
 
+		BAN::ErrorOr<void> fstat(int, stat*);
+		BAN::ErrorOr<void> stat(BAN::StringView, stat*);
+
+		BAN::ErrorOr<BAN::Vector<BAN::String>> read_directory_entries(int);
+
 		BAN::String working_directory() const;
 		BAN::ErrorOr<void> set_working_directory(BAN::StringView);
-
-		Inode& inode_for_fd(int);
 
 		static BAN::RefPtr<Process> current() { return Thread::current()->process(); }
 
@@ -51,8 +56,6 @@ namespace Kernel
 			BAN::String path;
 			size_t offset = 0;
 			uint8_t flags = 0;
-
-			BAN::ErrorOr<size_t> read(void*, size_t);
 		};
 
 		BAN::ErrorOr<void> validate_fd(int);

@@ -36,7 +36,10 @@ namespace Kernel
 	void Process::on_thread_exit(Thread& thread)
 	{
 		LockGuard _(m_lock);
-		(void)thread;
+		dprintln("thread {} exit", thread.tid());
+		for (size_t i = 0; i < m_threads.size(); i++)
+			if (m_threads[i].ptr() == &thread)
+				m_threads.remove(i);
 	}
 
 	BAN::ErrorOr<int> Process::open(BAN::StringView path, int flags)
@@ -63,7 +66,6 @@ namespace Kernel
 	BAN::ErrorOr<void> Process::close(int fd)
 	{
 		LockGuard _(m_lock);
-
 		TRY(validate_fd(fd));
 		auto& open_file_description = this->open_file_description(fd);
 		open_file_description.inode = nullptr;
@@ -73,19 +75,18 @@ namespace Kernel
 	BAN::ErrorOr<size_t> Process::read(int fd, void* buffer, size_t count)
 	{
 		LockGuard _(m_lock);
-
 		TRY(validate_fd(fd));
-		auto& open_file_description = this->open_file_description(fd);
-		if (open_file_description.offset >= open_file_description.inode->size())
-			return 0;
-		size_t n_read = TRY(open_file_description.read(buffer, count));
+		auto& open_fd = open_file_description(fd);
+		if (!(open_fd.flags & O_RDONLY))
+			return BAN::Error::from_errno(EBADF);
+		size_t n_read = TRY(open_fd.inode->read(open_fd.offset, buffer, count));
+		open_fd.offset += n_read;
 		return n_read;
 	}
 
 	BAN::ErrorOr<void> Process::creat(BAN::StringView path, mode_t mode)
 	{
 		LockGuard _(m_lock);
-
 		auto absolute_path = TRY(absolute_path_of(path));
 		while (absolute_path.sv().back() != '/')
 			absolute_path.pop_back();
@@ -96,12 +97,47 @@ namespace Kernel
 		return {};
 	}
 
-	Inode& Process::inode_for_fd(int fd)
+	BAN::ErrorOr<void> Process::fstat(int fd, struct stat* out)
 	{
 		LockGuard _(m_lock);
 
-		MUST(validate_fd(fd));
-		return *open_file_description(fd).inode;
+		TRY(validate_fd(fd));
+		const auto& open_fd = open_file_description(fd);
+
+		out->st_dev = 0;
+		out->st_ino = open_fd.inode->ino();
+		out->st_mode = open_fd.inode->mode();
+		out->st_nlink = open_fd.inode->nlink();
+		out->st_uid = open_fd.inode->uid();
+		out->st_gid = open_fd.inode->gid();
+		out->st_rdev = 0;
+		out->st_size = open_fd.inode->size();
+		out->st_atim = open_fd.inode->atime();
+		out->st_mtim = open_fd.inode->mtime();
+		out->st_ctim = open_fd.inode->ctime();
+		out->st_blksize = open_fd.inode->blksize();
+		out->st_blocks = open_fd.inode->blocks();
+
+		return {};
+	}
+
+	BAN::ErrorOr<void> Process::stat(BAN::StringView path, struct stat* out)
+	{
+		LockGuard _(m_lock);
+		int fd = TRY(open(path, O_RDONLY));
+		auto ret = fstat(fd, out);
+		MUST(close(fd));
+		return ret;
+	}
+
+	BAN::ErrorOr<BAN::Vector<BAN::String>> Process::read_directory_entries(int fd)
+	{
+		LockGuard _(m_lock);
+		TRY(validate_fd(fd));
+		auto& open_fd = open_file_description(fd);
+		auto result = TRY(open_fd.inode->read_directory_entries(open_fd.offset));
+		open_fd.offset++;
+		return result;
 	}
 
 	BAN::String Process::working_directory() const
@@ -142,19 +178,9 @@ namespace Kernel
 		return absolute_path;
 	}
 
-	BAN::ErrorOr<size_t> Process::OpenFileDescription::read(void* buffer, size_t count)
-	{
-		if (!(flags & O_RDONLY))
-			return BAN::Error::from_errno(EBADF);
-		size_t n_read = TRY(inode->read(offset, buffer, count));
-		offset += n_read;
-		return n_read;
-	}
-
 	BAN::ErrorOr<void> Process::validate_fd(int fd)
 	{
 		LockGuard _(m_lock);
-
 		if (fd < 0 || m_open_files.size() <= (size_t)fd || !m_open_files[fd].inode)
 			return BAN::Error::from_errno(EBADF);
 		return {};
