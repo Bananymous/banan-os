@@ -425,6 +425,43 @@ argument_done:
 			}
 			TTY_PRINTLN("");
 		}
+		else if (arguments.front() == "stat")
+		{
+			if (arguments.size() != 2)
+				return BAN::Error::from_c_string("usage: 'stat path'");
+			
+			stat st;
+			TRY(Process::current()->stat(arguments[1], &st));
+
+			auto mode_string = [](mode_t mode)
+			{
+				static char buffer[11] {};
+				buffer[0] = (mode & Inode::Mode::IFDIR) ? 'd' : '-';
+				buffer[1] = (mode & Inode::Mode::IRUSR) ? 'r' : '-';
+				buffer[2] = (mode & Inode::Mode::IWUSR) ? 'w' : '-';
+				buffer[3] = (mode & Inode::Mode::IXUSR) ? 'x' : '-';
+				buffer[4] = (mode & Inode::Mode::IRGRP) ? 'r' : '-';
+				buffer[5] = (mode & Inode::Mode::IWGRP) ? 'w' : '-';
+				buffer[6] = (mode & Inode::Mode::IXGRP) ? 'x' : '-';
+				buffer[7] = (mode & Inode::Mode::IROTH) ? 'r' : '-';
+				buffer[8] = (mode & Inode::Mode::IWOTH) ? 'w' : '-';
+				buffer[9] = (mode & Inode::Mode::IXOTH) ? 'x' : '-';
+				return (const char*)buffer;
+			};
+
+			const char* type =
+				(st.st_mode & Inode::Mode::IFREG) ? "regular file" :
+				(st.st_mode & Inode::Mode::IFDIR) ? "directory" :
+													"other";
+			
+			TTY_PRINTLN("  File: {}", arguments[1]);
+			TTY_PRINTLN("  Size: {}\tBlocks: {}\tIO Block: {}\t {}", st.st_size, st.st_blocks, st.st_blksize, type);
+			TTY_PRINTLN("Device: {},{}\tInode: {}\tLinks: {}", st.st_dev, st.st_rdev, st.st_ino, st.st_nlink);
+			TTY_PRINTLN("Access: ({}/{})\tUid: {}\tGid: {}", st.st_mode, mode_string(st.st_mode), st.st_uid, st.st_gid);
+			TTY_PRINTLN("Access: {}", BAN::from_unix_time(st.st_atime));
+			TTY_PRINTLN("Modify: {}", BAN::from_unix_time(st.st_mtime));
+			TTY_PRINTLN("Change: {}", BAN::from_unix_time(st.st_ctime));
+		}
 		else if (arguments.front() == "cd")
 		{
 			if (arguments.size() > 2)

@@ -334,7 +334,7 @@ namespace Kernel
 		if (error_or.error().get_error_code() != ENOENT)
 			return error_or.error();
 
-		uint64_t current_time = RTC::get_unix_time();
+		uint64_t current_time = BAN::to_unix_time(RTC::get_current_time());
 
 		Ext2::Inode ext2_inode;
 		ext2_inode.mode			= mode;
