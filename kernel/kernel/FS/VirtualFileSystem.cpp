@@ -117,11 +117,9 @@ namespace Kernel
 
 	BAN::ErrorOr<void> VirtualFileSystem::mount_test()
 	{
-		auto mount = TRY(root_inode()->directory_find("mnt"sv));
+		auto mount = TRY(root_inode()->read_directory_inode("mnt"sv));
 		if (!mount->ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
-		if (TRY(mount->directory_inodes()).size() > 2)
-			return BAN::Error::from_errno(ENOTEMPTY);
 
 		for (auto* controller : m_storage_controllers)
 		{
@@ -159,7 +157,7 @@ namespace Kernel
 			}
 			else if (path_parts[i] == ".."sv)
 			{
-				inode = TRY(inode->directory_find(path_parts[i]));
+				inode = TRY(inode->read_directory_inode(path_parts[i]));
 				path_parts.remove(i);
 				if (i > 0)
 				{
@@ -169,7 +167,7 @@ namespace Kernel
 			}
 			else
 			{
-				inode = TRY(inode->directory_find(path_parts[i]));	
+				inode = TRY(inode->read_directory_inode(path_parts[i]));	
 				i++;
 			}
 		}

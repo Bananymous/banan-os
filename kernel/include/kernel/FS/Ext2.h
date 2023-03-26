@@ -123,15 +123,22 @@ namespace Kernel
 	class Ext2Inode : public Inode
 	{
 	public:
+		virtual ino_t ino() const override { return m_index; };
+		virtual mode_t mode() const override { return m_inode.mode; }
+		virtual nlink_t nlink() const override { return m_inode.links_count; }
 		virtual uid_t uid() const override { return m_inode.uid; }
 		virtual gid_t gid() const override { return m_inode.gid; }
-		virtual size_t size() const override { return m_inode.size; }
-
-		virtual mode_t mode() const override { return m_inode.mode; }
+		virtual off_t size() const override { return m_inode.size; }
+		virtual timespec atime() const override { return timespec { .tv_sec = m_inode.atime, .tv_nsec = 0 }; }
+		virtual timespec mtime() const override { return timespec { .tv_sec = m_inode.mtime, .tv_nsec = 0 }; }
+		virtual timespec ctime() const override { return timespec { .tv_sec = m_inode.ctime, .tv_nsec = 0 }; }
+		virtual blksize_t blksize() const override;
+		virtual blkcnt_t blocks() const override;
 
 		virtual BAN::StringView name() const override { return m_name; }
 
 		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t) override;
+		virtual BAN::ErrorOr<BAN::Vector<BAN::String>> read_directory_entries_impl(size_t) override;
 
 		virtual BAN::ErrorOr<void> create_file(BAN::StringView, mode_t) override;
 
@@ -139,8 +146,7 @@ namespace Kernel
 		virtual bool operator==(const Inode& other) const override;
 
 	protected:
-		virtual BAN::ErrorOr<BAN::Vector<BAN::RefPtr<Inode>>> directory_inodes_impl() override;
-		virtual BAN::ErrorOr<BAN::RefPtr<Inode>> directory_find_impl(BAN::StringView) override;
+		virtual BAN::ErrorOr<BAN::RefPtr<Inode>> read_directory_inode_impl(BAN::StringView) override;
 
 	private:
 		BAN::ErrorOr<uint32_t> data_block_index(uint32_t);

@@ -356,14 +356,6 @@ argument_done:
 			if (arguments.size() > 2)
 				return BAN::Error::from_c_string("usage: 'ls [path]'");
 
-			BAN::String path = (arguments.size() == 2) ? arguments[1] : Process::current()->working_directory();
-
-			int fd = TRY(Process::current()->open(path, O_RDONLY));
-			BAN::ScopeGuard _([fd] { MUST(Process::current()->close(fd)); });
-
-			auto& directory = Process::current()->inode_for_fd(fd);
-			auto inodes = TRY(directory.directory_inodes());
-
 			auto mode_string = [](mode_t mode)
 			{
 				static char buffer[11] {};
@@ -380,12 +372,40 @@ argument_done:
 				return (const char*)buffer;
 			};
 
-			for (auto& inode : inodes)
-				if (inode->ifdir())
-					TTY_PRINTLN("  {} {7} \e[34m{}\e[m", mode_string(inode->mode()), inode->size(), inode->name());
-			for (auto& inode : inodes)
-				if (!inode->ifdir())
-					TTY_PRINTLN("  {} {7} {}", mode_string(inode->mode()), inode->size(), inode->name());
+			BAN::String path = (arguments.size() == 2) ? arguments[1] : Process::current()->working_directory();
+
+			int fd = TRY(Process::current()->open(path, O_RDONLY));
+			BAN::ScopeGuard _([fd] { MUST(Process::current()->close(fd)); });
+
+			BAN::Vector<BAN::String> all_entries;
+
+			BAN::Vector<BAN::String> entries;
+			while (!(entries = TRY(Process::current()->read_directory_entries(fd))).empty())
+			{
+				TRY(all_entries.reserve(all_entries.size() + entries.size()));
+				for (auto& entry : entries)
+					TRY(all_entries.push_back(entry));
+			}
+
+			BAN::String entry_prefix;
+			TRY(entry_prefix.append(path));
+			TRY(entry_prefix.push_back('/'));
+			for (const auto& entry : all_entries)
+			{
+				stat st;
+
+				BAN::String entry_path;
+				TRY(entry_path.append(entry_prefix));
+				TRY(entry_path.append(entry));
+				TRY(Process::current()->stat(entry_path, &st));
+
+				const char* color =
+					(st.st_mode & Inode::Mode::IFDIR) ? "34" :
+					(st.st_mode & Inode::Mode::IXUSR) ? "32" :
+														"";
+				
+				TTY_PRINTLN("  {} {7} \e[{}m{}\e[m", mode_string(st.st_mode), st.st_size, color, entry);
+			}
 		}
 		else if (arguments.front() == "cat")
 		{
