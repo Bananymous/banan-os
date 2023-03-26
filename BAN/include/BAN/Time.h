@@ -9,14 +9,17 @@ namespace BAN
 
 	struct Time
 	{
-		uint8_t	second;
-		uint8_t	minute;
-		uint8_t	hour;
-		uint8_t week_day;
-		uint8_t	day;
+		uint32_t year;
 		uint8_t	month;
-		int		year;
+		uint8_t	day;
+		uint8_t	hour;
+		uint8_t	minute;
+		uint8_t	second;
+		uint8_t week_day;
 	};
+
+	uint64_t to_unix_time(const BAN::Time&);
+	BAN::Time from_unix_time(uint64_t);
 
 }
 
