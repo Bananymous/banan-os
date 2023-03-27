@@ -144,20 +144,19 @@ namespace Kernel
 		{
 			const SDTHeader* header = get_header_from_index(i);
 			MMU::get().allocate_range((uintptr_t)header, header->length, MMU::Flags::Present);
-			if (!is_valid_std_header(header))
-			{
-				unmap_header(header);
-				continue;
-			}
-			if (memcmp(header->signature, signature, 4) == 0)
+			if (is_valid_std_header(header) && memcmp(header->signature, signature, 4) == 0)
 				return header;
+			unmap_header(header);
 		}
 		return BAN::Error::from_format("Could not find ACPI header '{}'", BAN::StringView(signature, 4));
 	}
 
 	void ACPI::unmap_header(const ACPI::SDTHeader* header)
 	{
-		MMU::get().unallocate_range((uintptr_t)header, header->length);
+		// I have to improve MMU page mapping so we can actually unmap
+		// without unmapping other mapped tables
+		(void)header;
+		//MMU::get().unallocate_range((uintptr_t)header, header->length);
 	}
 
 	const ACPI::SDTHeader* ACPI::get_header_from_index(size_t index)
