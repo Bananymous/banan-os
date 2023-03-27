@@ -36,6 +36,7 @@ BUILDDIR=$(abspath build)
 KERNEL_OBJS=					\
 $(KERNEL_ARCH_OBJS)				\
 font/prefs.o					\
+kernel/ACPI.o					\
 kernel/APIC.o					\
 kernel/build_libc.o				\
 kernel/CPUID.o					\

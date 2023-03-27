@@ -1,3 +1,4 @@
+#include <kernel/ACPI.h>
 #include <kernel/Arch.h>
 #include <kernel/Debug.h>
 #include <kernel/FS/VirtualFileSystem.h>
@@ -126,6 +127,9 @@ extern "C" void kernel_main()
 	TTY* tty1 = new TTY(terminal_driver);
 	ASSERT(tty1);
 	
+	MUST(ACPI::initialize());
+	dprintln("ACPI initialized");
+
 	InterruptController::initialize(cmdline.force_pic);
 	dprintln("Interrupt controller initialized");
 
