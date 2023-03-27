@@ -13,10 +13,16 @@ namespace BAN
 		{ }
 		~ScopeGuard()
 		{
-			m_func();
+			if (m_enabled)
+				m_func();
+		}
+		void disable()
+		{
+			m_enabled = false;
 		}
 	private:
 		BAN::Function<void()> m_func;
+		bool m_enabled { true };
 	};
 
 }
