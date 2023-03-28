@@ -64,7 +64,7 @@ namespace BAN
 		const T& front() const;
 		T& front();
 
-		ErrorOr<void> resize(size_type);
+		ErrorOr<void> resize(size_type, const T& = T());
 		ErrorOr<void> reserve(size_type);
 		ErrorOr<void> shrink_to_fit();
 
@@ -297,7 +297,7 @@ namespace BAN
 	}
 
 	template<typename T>
-	ErrorOr<void> Vector<T>::resize(size_type size)
+	ErrorOr<void> Vector<T>::resize(size_type size, const T& value)
 	{
 		TRY(ensure_capacity(size));
 		if (size < m_size)
@@ -305,7 +305,7 @@ namespace BAN
 				m_data[i].~T();
 		if (size > m_size)
 			for (size_type i = m_size; i < size; i++)
-				new (m_data + i) T();
+				new (m_data + i) T(value);
 		m_size = size;
 		return {};
 	}
