@@ -3,7 +3,7 @@
 #include <BAN/StringView.h>
 #include <BAN/Vector.h>
 #include <kernel/CPUID.h>
-#include <kernel/Input.h>
+#include <kernel/Device.h>
 #include <kernel/IO.h>
 #include <kernel/PIT.h>
 #include <kernel/PCI.h>
@@ -25,7 +25,6 @@ namespace Kernel
 	Shell::Shell(TTY* tty)
 		: m_tty(tty)
 	{
-		Input::register_key_event_callback({ &Shell::key_event_callback, this });
 		MUST(set_prompt(s_default_prompt));
 		MUST(m_buffer.push_back(""sv));
 	}
@@ -83,8 +82,9 @@ namespace Kernel
 		TTY_PRINT("{}", m_prompt);
 		for (;;)
 		{
-			PIT::sleep(1); // sleep until next reschedule
-			Input::update();
+			Input::KeyEvent event;
+			MUST(((CharacterDevice*)DeviceManager::get().devices()[0])->read({ (uint8_t*)&event, sizeof(event) }));
+			key_event_callback(event);
 		}
 	}
 
@@ -560,7 +560,7 @@ argument_done:
 
 	void Shell::key_event_callback(Input::KeyEvent event)
 	{
-		if (!event.pressed)
+		if (event.released())
 			return;
 
 		BAN::String& current_buffer = m_buffer[m_cursor_pos.line];
@@ -606,7 +606,7 @@ argument_done:
 			case Input::Key::Tab:
 				break;
 			
-			case Input::Key::Left:
+			case Input::Key::ArrowLeft:
 				if (m_cursor_pos.index > 0)
 				{					
 					uint32_t len = get_last_length(current_buffer.sv().substring(0, m_cursor_pos.index));
@@ -615,7 +615,7 @@ argument_done:
 				}
 				break;
 
-			case Input::Key::Right:
+			case Input::Key::ArrowRight:
 				if (m_cursor_pos.index < current_buffer.size())
 				{
 					uint32_t len = get_next_length(current_buffer.sv().substring(m_cursor_pos.index));
@@ -624,7 +624,7 @@ argument_done:
 				}
 				break;
 
-			case Input::Key::Up:
+			case Input::Key::ArrowUp:
 				if (m_cursor_pos.line > 0)
 				{
 					const auto& new_buffer = m_buffer[m_cursor_pos.line - 1];
@@ -635,7 +635,7 @@ argument_done:
 				}
 				break;
 
-			case Input::Key::Down:
+			case Input::Key::ArrowDown:
 				if (m_cursor_pos.line < m_buffer.size() - 1)
 				{
 					const auto& new_buffer = m_buffer[m_cursor_pos.line + 1];
@@ -647,7 +647,7 @@ argument_done:
 				break;
 
 			case Input::Key::A:
-				if (event.modifiers & 2)
+				if (event.ctrl())
 				{
 					m_cursor_pos.col = m_cursor_pos.index = 0;
 					break;

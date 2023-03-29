@@ -2,7 +2,7 @@
 
 #include <BAN/String.h>
 #include <BAN/Vector.h>
-#include <kernel/Input.h>
+#include <kernel/Input/KeyEvent.h>
 #include <kernel/TTY.h>
 
 namespace Kernel

@@ -4,7 +4,7 @@
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/GDT.h>
 #include <kernel/IDT.h>
-#include <kernel/Input.h>
+#include <kernel/Input/PS2Controller.h>
 #include <kernel/InterruptController.h>
 #include <kernel/kmalloc.h>
 #include <kernel/kprint.h>
@@ -88,6 +88,7 @@ extern "C" uintptr_t g_userspace_end;
 extern void userspace_entry();
 
 void init2(void*);
+void device_updater(void*);
 
 extern "C" void kernel_main()
 {
@@ -136,10 +137,6 @@ extern "C" void kernel_main()
 	PIT::initialize();
 	dprintln("PIT initialized");
 
-	if (!Input::initialize())
-		dprintln("Could not initialize input drivers");
-	dprintln("Input initialized");
-
 	MUST(Scheduler::initialize());
 	Scheduler& scheduler = Scheduler::get();
 #if 0 
@@ -186,21 +183,35 @@ extern "C" void kernel_main()
 		}
 	))));
 #else
-	MUST(scheduler.add_thread(MUST(Thread::create(init2, tty1, nullptr))));
+	MUST(scheduler.add_thread(MUST(Thread::create(init2, tty1))));
+	MUST(scheduler.add_thread(MUST(Thread::create(device_updater))));
 #endif
 	scheduler.start();
 	ASSERT(false);
 }
 
+void device_updater(void*)
+{
+	while (true)
+	{
+		Kernel::DeviceManager::get().update();
+		PIT::sleep(1);
+	}
+}
+
 void init2(void* tty1_ptr)
 {
 	using namespace Kernel;
+	using namespace Kernel::Input;
 
 	TTY* tty1 = (TTY*)tty1_ptr;
 
 	MUST(VirtualFileSystem::initialize());
 	if (auto res = VirtualFileSystem::get().mount_test(); res.is_error())
 		dwarnln("{}", res.error());
+
+	if (auto res = PS2Controller::initialize(); res.is_error())
+		dprintln("{}", res.error());
 
 	MUST(Process::create_kernel(
 		[](void* tty1) 

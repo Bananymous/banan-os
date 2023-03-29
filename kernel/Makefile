@@ -41,11 +41,14 @@ kernel/APIC.o					\
 kernel/build_libc.o				\
 kernel/CPUID.o					\
 kernel/Debug.o					\
+kernel/Device.o					\
 kernel/Font.o					\
 kernel/FS/Ext2.o				\
 kernel/FS/Inode.o				\
 kernel/FS/VirtualFileSystem.o	\
-kernel/Input.o					\
+kernel/Input/PS2Controller.o	\
+kernel/Input/PS2Keyboard.o		\
+kernel/Input/PS2Keymap.o		\
 kernel/InterruptController.o	\
 kernel/kernel.o					\
 kernel/kmalloc.o				\
@@ -113,6 +116,7 @@ always:
 	mkdir -p $(BUILDDIR)/$(ARCHDIR)
 	mkdir -p $(BUILDDIR)/kernel
 	mkdir -p $(BUILDDIR)/kernel/FS
+	mkdir -p $(BUILDDIR)/kernel/Input
 	mkdir -p $(BUILDDIR)/kernel/Storage
 	mkdir -p $(BUILDDIR)/userspace
 	mkdir -p $(BUILDDIR)/font
