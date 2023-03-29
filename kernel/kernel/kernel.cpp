@@ -184,7 +184,6 @@ extern "C" void kernel_main()
 	))));
 #else
 	MUST(scheduler.add_thread(MUST(Thread::create(init2, tty1))));
-	MUST(scheduler.add_thread(MUST(Thread::create(device_updater))));
 #endif
 	scheduler.start();
 	ASSERT(false);
@@ -205,6 +204,8 @@ void init2(void* tty1_ptr)
 	using namespace Kernel::Input;
 
 	TTY* tty1 = (TTY*)tty1_ptr;
+
+	DeviceManager::initialize();
 
 	MUST(VirtualFileSystem::initialize());
 	if (auto res = VirtualFileSystem::get().mount_test(); res.is_error())
