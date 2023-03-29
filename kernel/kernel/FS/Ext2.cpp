@@ -444,7 +444,7 @@ namespace Kernel
 		return index() == ext2_other.index();
 	}
 
-	BAN::ErrorOr<Ext2FS*> Ext2FS::create(StorageDevice::Partition& partition)
+	BAN::ErrorOr<Ext2FS*> Ext2FS::create(Partition& partition)
 	{
 		Ext2FS* ext2fs = new Ext2FS(partition);
 		if (ext2fs == nullptr)

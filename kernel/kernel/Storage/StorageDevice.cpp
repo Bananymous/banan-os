@@ -185,7 +185,7 @@ namespace Kernel
 		return {};
 	}
 
-	StorageDevice::Partition::Partition(StorageDevice& device, const GUID& type, const GUID& guid, uint64_t start, uint64_t end, uint64_t attr, const char* name)
+	Partition::Partition(StorageDevice& device, const GUID& type, const GUID& guid, uint64_t start, uint64_t end, uint64_t attr, const char* label)
 		: m_device(device)
 		, m_type(type)
 		, m_guid(guid)
@@ -193,10 +193,10 @@ namespace Kernel
 		, m_lba_end(end)
 		, m_attributes(attr)
 	{
-		memcpy(m_name, name, sizeof(m_name));	
+		memcpy(m_label, label, sizeof(m_label));	
 	}
 
-	BAN::ErrorOr<void> StorageDevice::Partition::read_sectors(uint64_t lba, uint8_t sector_count, uint8_t* buffer)
+	BAN::ErrorOr<void> Partition::read_sectors(uint64_t lba, uint8_t sector_count, uint8_t* buffer)
 	{
 		const uint32_t sectors_in_partition = m_lba_end - m_lba_start;
 		if (lba + sector_count > sectors_in_partition)
@@ -205,7 +205,7 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<void> StorageDevice::Partition::write_sectors(uint64_t lba, uint8_t sector_count, const uint8_t* buffer)
+	BAN::ErrorOr<void> Partition::write_sectors(uint64_t lba, uint8_t sector_count, const uint8_t* buffer)
 	{
 		const uint32_t sectors_in_partition = m_lba_end - m_lba_start;
 		if (lba + sector_count > sectors_in_partition)

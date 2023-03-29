@@ -142,7 +142,7 @@ namespace Kernel
 
 		virtual BAN::ErrorOr<void> create_file(BAN::StringView, mode_t) override;
 
-		virtual Type type() const override { return Type::Ext2; }
+		virtual InodeType type() const override { return InodeType::Ext2; }
 		virtual bool operator==(const Inode& other) const override;
 
 	protected:
@@ -175,12 +175,12 @@ namespace Kernel
 	class Ext2FS : public FileSystem
 	{
 	public:	
-		static BAN::ErrorOr<Ext2FS*> create(StorageDevice::Partition&);
+		static BAN::ErrorOr<Ext2FS*> create(Partition&);
 
 		virtual BAN::RefPtr<Inode> root_inode() override { return m_root_inode; }
 
 	private:
-		Ext2FS(StorageDevice::Partition& partition)
+		Ext2FS(Partition& partition)
 			: m_partition(partition)
 		{}
 
@@ -207,7 +207,7 @@ namespace Kernel
 		uint32_t block_size() const { return 1024 << superblock().log_block_size; }
 
 	private:
-		StorageDevice::Partition& m_partition;
+		Partition& m_partition;
 
 		BAN::RefPtr<Inode> m_root_inode;
 

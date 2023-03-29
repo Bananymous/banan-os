@@ -33,7 +33,7 @@ namespace Kernel
 			IFREG = 0x8000,
 		};
 
-		enum class Type
+		enum class InodeType
 		{
 			DeviceManager,
 			Device,
@@ -66,7 +66,7 @@ namespace Kernel
 		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t) = 0;
 		virtual BAN::ErrorOr<void> create_file(BAN::StringView, mode_t) = 0;
 
-		virtual Type type() const = 0;
+		virtual InodeType type() const = 0;
 		virtual bool operator==(const Inode&) const = 0;
 
 	protected:

@@ -76,7 +76,7 @@ namespace Kernel::Input
 		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t) override;
 		virtual BAN::ErrorOr<void> create_file(BAN::StringView, mode_t) override { return BAN::Error::from_errno(ENOTDIR); }
 
-		virtual Type type() const override { return Type::Device; }
+		virtual InodeType type() const override { return InodeType::Device; }
 		virtual bool operator==(const Inode&) const override { return false; }
 
 	protected:
