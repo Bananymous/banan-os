@@ -43,6 +43,9 @@ char* strerror(int error)
 	case ENAMETOOLONG:
 		strcpy(buffer, "Filename too long");
 		break;
+	case ENOBUFS:
+		strcpy(buffer, "No buffer space available");
+		break;
 	default:
 		{
 			// FIXME: sprintf
