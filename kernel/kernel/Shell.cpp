@@ -22,6 +22,25 @@ namespace Kernel
 
 	static auto s_default_prompt = "\\[\e[32m\\]user\\[\e[m\\]:\\[\e[34m\\]\\w\\[\e[m\\]# "sv;
 
+	static const char* mode_string(mode_t mode)
+	{
+		static char buffer[11] {};
+		buffer[0] =
+			(mode & Inode::Mode::IFDIR) ? 'd' :
+			(mode & Inode::Mode::IFCHR) ? 'c' :
+										  '-';
+		buffer[1] = (mode & Inode::Mode::IRUSR) ? 'r' : '-';
+		buffer[2] = (mode & Inode::Mode::IWUSR) ? 'w' : '-';
+		buffer[3] = (mode & Inode::Mode::IXUSR) ? 'x' : '-';
+		buffer[4] = (mode & Inode::Mode::IRGRP) ? 'r' : '-';
+		buffer[5] = (mode & Inode::Mode::IWGRP) ? 'w' : '-';
+		buffer[6] = (mode & Inode::Mode::IXGRP) ? 'x' : '-';
+		buffer[7] = (mode & Inode::Mode::IROTH) ? 'r' : '-';
+		buffer[8] = (mode & Inode::Mode::IWOTH) ? 'w' : '-';
+		buffer[9] = (mode & Inode::Mode::IXOTH) ? 'x' : '-';
+		return (const char*)buffer;
+	};
+
 	Shell::Shell(TTY* tty)
 		: m_tty(tty)
 	{
@@ -358,22 +377,6 @@ argument_done:
 			if (arguments.size() > 2)
 				return BAN::Error::from_c_string("usage: 'ls [path]'");
 
-			auto mode_string = [](mode_t mode)
-			{
-				static char buffer[11] {};
-				buffer[0] = (mode & Inode::Mode::IFDIR) ? 'd' : '-';
-				buffer[1] = (mode & Inode::Mode::IRUSR) ? 'r' : '-';
-				buffer[2] = (mode & Inode::Mode::IWUSR) ? 'w' : '-';
-				buffer[3] = (mode & Inode::Mode::IXUSR) ? 'x' : '-';
-				buffer[4] = (mode & Inode::Mode::IRGRP) ? 'r' : '-';
-				buffer[5] = (mode & Inode::Mode::IWGRP) ? 'w' : '-';
-				buffer[6] = (mode & Inode::Mode::IXGRP) ? 'x' : '-';
-				buffer[7] = (mode & Inode::Mode::IROTH) ? 'r' : '-';
-				buffer[8] = (mode & Inode::Mode::IWOTH) ? 'w' : '-';
-				buffer[9] = (mode & Inode::Mode::IXOTH) ? 'x' : '-';
-				return (const char*)buffer;
-			};
-
 			BAN::String path = (arguments.size() == 2) ? arguments[1] : Process::current()->working_directory();
 
 			int fd = TRY(Process::current()->open(path, O_RDONLY));
@@ -403,6 +406,7 @@ argument_done:
 
 				const char* color =
 					(st.st_mode & Inode::Mode::IFDIR) ? "34" :
+					(st.st_mode & Inode::Mode::IFCHR) ? "33" :
 					(st.st_mode & Inode::Mode::IXUSR) ? "32" :
 														"";
 				
@@ -435,25 +439,10 @@ argument_done:
 			stat st;
 			TRY(Process::current()->stat(arguments[1], &st));
 
-			auto mode_string = [](mode_t mode)
-			{
-				static char buffer[11] {};
-				buffer[0] = (mode & Inode::Mode::IFDIR) ? 'd' : '-';
-				buffer[1] = (mode & Inode::Mode::IRUSR) ? 'r' : '-';
-				buffer[2] = (mode & Inode::Mode::IWUSR) ? 'w' : '-';
-				buffer[3] = (mode & Inode::Mode::IXUSR) ? 'x' : '-';
-				buffer[4] = (mode & Inode::Mode::IRGRP) ? 'r' : '-';
-				buffer[5] = (mode & Inode::Mode::IWGRP) ? 'w' : '-';
-				buffer[6] = (mode & Inode::Mode::IXGRP) ? 'x' : '-';
-				buffer[7] = (mode & Inode::Mode::IROTH) ? 'r' : '-';
-				buffer[8] = (mode & Inode::Mode::IWOTH) ? 'w' : '-';
-				buffer[9] = (mode & Inode::Mode::IXOTH) ? 'x' : '-';
-				return (const char*)buffer;
-			};
-
 			const char* type =
 				(st.st_mode & Inode::Mode::IFREG) ? "regular file" :
 				(st.st_mode & Inode::Mode::IFDIR) ? "directory" :
+				(st.st_mode & Inode::Mode::IFCHR) ? "character device" :
 													"other";
 			
 			TTY_PRINTLN("  File: {}", arguments[1]);
