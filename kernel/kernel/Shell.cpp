@@ -98,7 +98,7 @@ namespace Kernel
 
 	void Shell::run()
 	{
-		int fd = MUST(Process::current()->open("/dev/input"sv, O_RDONLY));
+		int fd = MUST(Process::current()->open("/dev/input0"sv, O_RDONLY));
 
 		TTY_PRINT("{}", m_prompt);
 		for (;;)

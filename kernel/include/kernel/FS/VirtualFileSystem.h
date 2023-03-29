@@ -30,10 +30,10 @@ namespace Kernel
 
 		struct MountPoint
 		{
-			BAN::RefPtr<Inode> inode;
+			File host;
 			FileSystem* target;
 		};
-		const BAN::Vector<MountPoint>& mount_points() const { return m_mount_points; }
+		MountPoint* mount_point_for_inode(BAN::RefPtr<Inode>);
 
 	private:
 		VirtualFileSystem() = default;

@@ -1,3 +1,4 @@
+#include <BAN/Time.h>
 #include <BAN/ScopeGuard.h>
 #include <kernel/ACPI.h>
 #include <kernel/IDT.h>
@@ -5,6 +6,7 @@
 #include <kernel/Input/PS2Keyboard.h>
 #include <kernel/InterruptController.h>
 #include <kernel/IO.h>
+#include <kernel/RTC.h>
 
 namespace Kernel::Input
 {
@@ -301,7 +303,7 @@ namespace Kernel::Input
 		
 		// MF2 Keyboard
 		if (index == 2 && (bytes[0] == 0xAB && bytes[1] == 0x83))
-			m_devices[device] = TRY(PS2Keyboard::create(*this));
+			m_devices[device] = TRY(PS2Keyboard::create(*this, device));
 
 		if (m_devices[device])
 			return {};
@@ -329,6 +331,13 @@ namespace Kernel::Input
 		TRY(device_send_byte(device, enabled ? PS2::DeviceCommand::ENABLE_SCANNING : PS2::DeviceCommand::DISABLE_SCANNING));
 		TRY(device_wait_ack());
 		return {};
+	}
+
+	PS2Device::PS2Device(dev_t dev)
+	{
+		m_dev = dev;
+		m_ino = dev & 1;
+		m_time = { BAN::to_unix_time(RTC::get_current_time()), 0 };
 	}
 
 }

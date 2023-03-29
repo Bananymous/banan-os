@@ -45,7 +45,7 @@ namespace Kernel
 		MUST(m_devices.push_back(device));
 	}
 
-	BAN::ErrorOr<BAN::RefPtr<Inode>> DeviceManager::read_directory_inode_impl(BAN::StringView name)
+	BAN::ErrorOr<BAN::RefPtr<Inode>> DeviceManager::read_directory_inode(BAN::StringView name)
 	{
 		LockGuard _(m_lock);
 		for (Device* device : m_devices)
@@ -54,7 +54,7 @@ namespace Kernel
 		return BAN::Error::from_errno(ENOENT);
 	}
 
-	BAN::ErrorOr<BAN::Vector<BAN::String>> DeviceManager::read_directory_entries_impl(size_t index)
+	BAN::ErrorOr<BAN::Vector<BAN::String>> DeviceManager::read_directory_entries(size_t index)
 	{
 		BAN::Vector<BAN::String> result;
 		if (index > 0)

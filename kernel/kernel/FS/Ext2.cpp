@@ -169,7 +169,7 @@ namespace Kernel
 		auto inode_location = TRY(fs.locate_inode(inode_inode));
 		fs.read_block(inode_location.block, block_buffer.span());
 		auto& inode = *(Ext2::Inode*)(block_buffer.data() + inode_location.offset);
-		Ext2Inode* result = new Ext2Inode(fs, inode, name, inode_inode);
+		Ext2Inode* result = new Ext2Inode(fs, inode, inode_inode, name);
 		if (result == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
 		return BAN::RefPtr<Inode>::adopt(result);
@@ -284,7 +284,7 @@ namespace Kernel
 		return n_read;
 	}
 
-	BAN::ErrorOr<BAN::Vector<BAN::String>> Ext2Inode::read_directory_entries_impl(size_t index)
+	BAN::ErrorOr<BAN::Vector<BAN::String>> Ext2Inode::read_directory_entries(size_t index)
 	{
 		if (!ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
@@ -328,7 +328,7 @@ namespace Kernel
 		BAN::Vector<uint8_t> block_buffer;
 		TRY(block_buffer.resize(block_size));
 
-		auto error_or = read_directory_inode_impl(name);
+		auto error_or = read_directory_inode(name);
 		if (!error_or.is_error())
 			return BAN::Error::from_errno(EEXISTS);
 		if (error_or.error().get_error_code() != ENOENT)
@@ -401,7 +401,7 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<BAN::RefPtr<Inode>> Ext2Inode::read_directory_inode_impl(BAN::StringView file_name)
+	BAN::ErrorOr<BAN::RefPtr<Inode>> Ext2Inode::read_directory_inode(BAN::StringView file_name)
 	{
 		if (!ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
@@ -425,23 +425,12 @@ namespace Kernel
 				const auto& entry = *(const Ext2::LinkedDirectoryEntry*)entry_addr;
 				BAN::StringView entry_name(entry.name, entry.name_len);
 				if (entry.inode && entry_name == file_name)
-					return TRY(Ext2Inode::create(m_fs, entry.inode, entry.name));
+					return TRY(Ext2Inode::create(m_fs, entry.inode, entry_name));
 				entry_addr += entry.rec_len;
 			}
 		}
 
 		return BAN::Error::from_errno(ENOENT);
-	}
-
-	bool Ext2Inode::operator==(const Inode& other) const
-	{
-		if (type() != other.type())
-			return false;
-		
-		const auto& ext2_other = (const Ext2Inode&)other;
-		if (&m_fs != &ext2_other.m_fs)
-			return false;
-		return index() == ext2_other.index();
 	}
 
 	BAN::ErrorOr<Ext2FS*> Ext2FS::create(Partition& partition)
