@@ -1,5 +1,6 @@
 #include <BAN/StringView.h>
 #include <BAN/Vector.h>
+#include <kernel/Device.h>
 #include <kernel/FS/Ext2.h>
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/PCI.h>
@@ -112,15 +113,14 @@ namespace Kernel
 
 		if (!root_inode())
 			derrorln("Could not locate root partition");
+
+		TRY(mount(&DeviceManager::get(), "/dev"));
+
 		return {};
 	}
 
 	BAN::ErrorOr<void> VirtualFileSystem::mount_test()
 	{
-		auto mount = TRY(root_inode()->read_directory_inode("mnt"sv));
-		if (!mount->ifdir())
-			return BAN::Error::from_errno(ENOTDIR);
-
 		for (auto* controller : m_storage_controllers)
 		{
 			for (auto* device : controller->devices())
@@ -130,12 +130,21 @@ namespace Kernel
 					if (partition.name() == "mount-test"sv)
 					{
 						auto ext2fs = TRY(Ext2FS::create(partition));
-						TRY(m_mount_points.push_back({ mount, ext2fs }));
+						TRY(mount(ext2fs, "/mnt"sv));
 						return {};
 					}
 				}
 			}
 		}
+		return BAN::Error::from_c_string("Could not find mount-test partition");
+	}
+
+	BAN::ErrorOr<void> VirtualFileSystem::mount(FileSystem* file_system, BAN::StringView path)
+	{
+		auto file = TRY(file_from_absolute_path(path));
+		if (!file.inode->ifdir())
+			return BAN::Error::from_errno(ENOTDIR);
+		TRY(m_mount_points.push_back({ file.inode, file_system }));
 		return {};
 	}
 

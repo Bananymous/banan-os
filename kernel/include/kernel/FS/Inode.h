@@ -35,6 +35,8 @@ namespace Kernel
 
 		enum class Type
 		{
+			DeviceManager,
+			Device,
 			Ext2,
 		};
 

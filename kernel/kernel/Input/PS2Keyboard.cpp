@@ -226,19 +226,19 @@ namespace Kernel::Input
 		append_command_queue(Command::SET_LEDS, new_leds);
 	}
 
-	BAN::ErrorOr<void> PS2Keyboard::read(BAN::Span<uint8_t> output)
+	BAN::ErrorOr<size_t> PS2Keyboard::read(size_t, void* buffer, size_t size)
 	{
-		if (output.size() < sizeof(Input::KeyEvent))
-			return BAN::Error::from_c_string("Too small buffer for KeyEvent");
+		if (size < sizeof(KeyEvent))
+			return BAN::Error::from_errno(ENOBUFS);
 
 		while (m_event_queue.empty())
 			PIT::sleep(1);
 
 		CriticalScope _;
-		*(Input::KeyEvent*)output.data() = m_event_queue.front();
+		*(KeyEvent*)buffer = m_event_queue.front();
 		m_event_queue.pop();
 
-		return {};
+		return sizeof(KeyEvent);
 	}
 
 }

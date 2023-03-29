@@ -79,11 +79,13 @@ namespace Kernel
 
 	void Shell::run()
 	{
+		int fd = MUST(Process::current()->open("/dev/input"sv, O_RDONLY));
+
 		TTY_PRINT("{}", m_prompt);
 		for (;;)
 		{
 			Input::KeyEvent event;
-			MUST(((CharacterDevice*)DeviceManager::get().devices()[0])->read({ (uint8_t*)&event, sizeof(event) }));
+			MUST(Process::current()->read(fd, &event, sizeof(event)));
 			key_event_callback(event);
 		}
 	}
