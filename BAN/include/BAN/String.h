@@ -46,6 +46,12 @@ namespace BAN
 		const_iterator end() const { return const_iterator(m_data + m_size); }
 		iterator end() { return iterator(m_data + m_size); }
 
+		char front() const	{ ASSERT(!empty()); return m_data[0]; }
+		char& front()		{ ASSERT(!empty()); return m_data[0]; }
+
+		char back() const	{ ASSERT(!empty()); return m_data[m_size - 1]; }
+		char& back()		{ ASSERT(!empty()); return m_data[m_size - 1]; }
+
 		char operator[](size_type) const;
 		char& operator[](size_type);
 
