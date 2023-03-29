@@ -312,7 +312,7 @@ namespace Kernel::Input
 
 		Key key = keymap[scancode];
 
-		if (dummy.num_lock() && !(dummy.shift() || dummy.ctrl() || dummy.alt()))
+		if (!dummy.num_lock() || dummy.shift() || dummy.ctrl() || dummy.alt())
 		{
 			switch (key)
 			{
@@ -354,7 +354,7 @@ namespace Kernel::Input
 			}
 		}
 
-		return keymap[scancode];
+		return key;
 	}
 
 }
