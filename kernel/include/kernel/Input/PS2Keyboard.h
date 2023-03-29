@@ -26,14 +26,16 @@ namespace Kernel::Input
 		};
 
 	public:
-		static BAN::ErrorOr<PS2Keyboard*> create(PS2Controller&);
+		static BAN::ErrorOr<PS2Keyboard*> create(PS2Controller&, dev_t);
 
 		virtual void on_byte(uint8_t) override;
 		virtual void update() override;
 
 	private:
-		PS2Keyboard(PS2Controller& controller)
-			: m_controller(controller)
+		PS2Keyboard(PS2Controller& controller, dev_t device)
+			: PS2Device(device)
+			, m_controller(controller)
+			, m_name(BAN::String::formatted("input{}", device))
 		{}
 		BAN::ErrorOr<void> initialize();
 
@@ -58,30 +60,13 @@ namespace Kernel::Input
 
 		State m_state { State::Normal };
 
+		BAN::String m_name;
+
 	public:
-		virtual ino_t ino() const override { return 0; }
-		virtual mode_t mode() const override { return IFCHR | IRUSR | IRGRP; }
-		virtual nlink_t nlink() const override { return 0; }
-		virtual uid_t uid() const override { return 0; }
-		virtual gid_t gid() const override { return 0; }
-		virtual off_t size() const override { return 0; }
-		virtual timespec atime() const override { return { 0, 0 }; }
-		virtual timespec mtime() const override { return { 0, 0 }; }
-		virtual timespec ctime() const override { return { 0, 0 }; }
+		virtual BAN::StringView name() const override { return m_name; }
 		virtual blksize_t blksize() const override { return sizeof(KeyEvent); }
-		virtual blkcnt_t blocks() const override { return 0; }
-
-		virtual BAN::StringView name() const override { return "input"sv; }
-
+		virtual dev_t rdev() const override { return 0x8594; }
 		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t) override;
-		virtual BAN::ErrorOr<void> create_file(BAN::StringView, mode_t) override { return BAN::Error::from_errno(ENOTDIR); }
-
-		virtual InodeType type() const override { return InodeType::Device; }
-		virtual bool operator==(const Inode&) const override { return false; }
-
-	protected:
-		virtual BAN::ErrorOr<BAN::RefPtr<Inode>> read_directory_inode_impl(BAN::StringView) override { return BAN::Error::from_errno(ENOTDIR); }
-		virtual BAN::ErrorOr<BAN::Vector<BAN::String>> read_directory_entries_impl(size_t) override { return BAN::Error::from_errno(ENOTDIR); }
 	};
 
 }

@@ -37,9 +37,9 @@ namespace Kernel::Input
 
 	}
 
-	BAN::ErrorOr<PS2Keyboard*> PS2Keyboard::create(PS2Controller& controller)
+	BAN::ErrorOr<PS2Keyboard*> PS2Keyboard::create(PS2Controller& controller, dev_t device)
 	{
-		PS2Keyboard* keyboard = new PS2Keyboard(controller);
+		PS2Keyboard* keyboard = new PS2Keyboard(controller, device);
 		if (keyboard == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
 		BAN::ScopeGuard guard([keyboard] { delete keyboard; });

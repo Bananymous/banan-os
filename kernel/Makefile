@@ -44,7 +44,6 @@ kernel/Debug.o					\
 kernel/Device.o					\
 kernel/Font.o					\
 kernel/FS/Ext2.o				\
-kernel/FS/Inode.o				\
 kernel/FS/VirtualFileSystem.o	\
 kernel/Input/PS2Controller.o	\
 kernel/Input/PS2Keyboard.o		\

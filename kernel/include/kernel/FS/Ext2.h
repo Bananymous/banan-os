@@ -134,19 +134,16 @@ namespace Kernel
 		virtual timespec ctime() const override { return timespec { .tv_sec = m_inode.ctime, .tv_nsec = 0 }; }
 		virtual blksize_t blksize() const override;
 		virtual blkcnt_t blocks() const override;
+		virtual dev_t dev() const override { return 0; }
+		virtual dev_t rdev() const override { return 0; }
 
 		virtual BAN::StringView name() const override { return m_name; }
 
 		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t) override;
-		virtual BAN::ErrorOr<BAN::Vector<BAN::String>> read_directory_entries_impl(size_t) override;
+		virtual BAN::ErrorOr<BAN::Vector<BAN::String>> read_directory_entries(size_t) override;
+		virtual BAN::ErrorOr<BAN::RefPtr<Inode>> read_directory_inode(BAN::StringView) override;
 
 		virtual BAN::ErrorOr<void> create_file(BAN::StringView, mode_t) override;
-
-		virtual InodeType type() const override { return InodeType::Ext2; }
-		virtual bool operator==(const Inode& other) const override;
-
-	protected:
-		virtual BAN::ErrorOr<BAN::RefPtr<Inode>> read_directory_inode_impl(BAN::StringView) override;
 
 	private:
 		BAN::ErrorOr<uint32_t> data_block_index(uint32_t);
@@ -154,7 +151,7 @@ namespace Kernel
 		uint32_t index() const { return m_index; }
 
 	private:
-		Ext2Inode(Ext2FS& fs, Ext2::Inode inode, BAN::StringView name, uint32_t index)
+		Ext2Inode(Ext2FS& fs, Ext2::Inode inode, uint32_t index, BAN::StringView name)
 			: m_fs(fs)
 			, m_inode(inode) 
 			, m_name(name)

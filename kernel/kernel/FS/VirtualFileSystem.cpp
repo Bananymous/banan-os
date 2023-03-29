@@ -144,8 +144,16 @@ namespace Kernel
 		auto file = TRY(file_from_absolute_path(path));
 		if (!file.inode->ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
-		TRY(m_mount_points.push_back({ file.inode, file_system }));
+		TRY(m_mount_points.push_back({ file, file_system }));
 		return {};
+	}
+
+	VirtualFileSystem::MountPoint* VirtualFileSystem::mount_point_for_inode(BAN::RefPtr<Inode> inode)
+	{
+		for (MountPoint& mount : m_mount_points)
+			if (*mount.host.inode == *inode)
+				return &mount;
+		return nullptr;
 	}
 
 	BAN::ErrorOr<VirtualFileSystem::File> VirtualFileSystem::file_from_absolute_path(BAN::StringView path)
@@ -156,39 +164,47 @@ namespace Kernel
 		if (!inode)
 			return BAN::Error::from_c_string("No root inode available");
 
-		auto path_parts = TRY(path.split('/'));
+		BAN::String canonical_path;
 
-		for (size_t i = 0; i < path_parts.size();)
+		const auto path_parts = TRY(path.split('/'));
+
+		for (const auto& path_part : path_parts)
 		{
-			if (path_parts[i] == "."sv)
+			if (path_part.empty() || path_part == "."sv)
 			{
-				path_parts.remove(i);
+				continue;
 			}
-			else if (path_parts[i] == ".."sv)
+			else if (path_part == ".."sv)
 			{
-				inode = TRY(inode->read_directory_inode(path_parts[i]));
-				path_parts.remove(i);
-				if (i > 0)
+				if (auto* mount_point = mount_point_for_inode(inode))
+					inode = TRY(mount_point->host.inode->read_directory_inode(".."sv));
+				else
+					inode = TRY(inode->read_directory_inode(".."sv));
+
+				if (!canonical_path.empty())
 				{
-					path_parts.remove(i - 1);
-					i--;
+					while (canonical_path.back() != '/')
+						canonical_path.pop_back();
+					canonical_path.pop_back();
 				}
 			}
 			else
 			{
-				inode = TRY(inode->read_directory_inode(path_parts[i]));	
-				i++;
+				inode = TRY(inode->read_directory_inode(path_part));
+				TRY(canonical_path.push_back('/'));
+				TRY(canonical_path.append(path_part));
 			}
+
+			if (auto* mount_point = mount_point_for_inode(inode))
+				inode = mount_point->target->root_inode();
 		}
+
+		if (canonical_path.empty())
+			TRY(canonical_path.push_back('/'));
 
 		File file;
 		file.inode = inode;
-
-		for (const auto& part : path_parts)
-		{
-			TRY(file.canonical_path.push_back('/'));
-			TRY(file.canonical_path.append(part));
-		}
+		file.canonical_path = BAN::move(canonical_path);
 
 		if (file.canonical_path.empty())
 			TRY(file.canonical_path.push_back('/'));
