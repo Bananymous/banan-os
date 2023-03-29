@@ -89,7 +89,7 @@ namespace Kernel
 				ATABus& bus = m_buses[bus_index];
 				ATADevice& device = bus.devices[device_index];
 
-				device.type = ATADevice::Type::Unknown;
+				device.type = ATADevice::DeviceType::Unknown;
 				device.slave_bit = device_index << 4;
 				device.bus = &bus;
 				device.controller = this;
@@ -113,7 +113,7 @@ namespace Kernel
 						break;
 				}
 
-				auto type = ATADevice::Type::ATA;
+				auto type = ATADevice::DeviceType::ATA;
 
 				// Not a ATA device, maybe ATAPI
 				if (status & ATA_STATUS_ERR)
@@ -122,9 +122,9 @@ namespace Kernel
 					uint8_t lba2 = bus.read(ATA_PORT_LBA2);
 
 					if (lba1 == 0x14 && lba2 == 0xEB)
-						type = ATADevice::Type::ATAPI;
+						type = ATADevice::DeviceType::ATAPI;
 					else if (lba1 == 0x69 && lba2 == 0x96)
-						type = ATADevice::Type::ATAPI;
+						type = ATADevice::DeviceType::ATAPI;
 					else
 						continue;
 
@@ -171,12 +171,12 @@ namespace Kernel
 			for (uint32_t j = 0; j < 2; j++)
 			{
 				ATADevice& device = m_buses[i].devices[j];
-				if (device.type == ATADevice::Type::Unknown)
+				if (device.type == ATADevice::DeviceType::Unknown)
 					continue;
 				constexpr uint32_t words_per_mib = 1024 * 1024 / 2;
 				const char* device_type =
-					device.type == ATADevice::Type::ATA ? "ATA" :
-					device.type == ATADevice::Type::ATAPI ? "ATAPI" :
+					device.type == ATADevice::DeviceType::ATA ? "ATA" :
+					device.type == ATADevice::DeviceType::ATAPI ? "ATAPI" :
 					"Unknown";
 				dprintln("Found {} Drive ({} MiB) model {}", device_type, device.lba_count * device.sector_words / words_per_mib, device.model);
 			}

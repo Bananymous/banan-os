@@ -92,7 +92,7 @@ namespace Kernel
 				
 				for (auto& partition : device->partitions())
 				{
-					if (partition.name() == "banan-root"sv)
+					if (partition.label() == "banan-root"sv)
 					{
 						if (root_inode())
 							dwarnln("multiple root partitions found");
@@ -127,7 +127,7 @@ namespace Kernel
 			{
 				for (auto& partition : device->partitions())
 				{
-					if (partition.name() == "mount-test"sv)
+					if (partition.label() == "mount-test"sv)
 					{
 						auto ext2fs = TRY(Ext2FS::create(partition));
 						TRY(mount(ext2fs, "/mnt"sv));

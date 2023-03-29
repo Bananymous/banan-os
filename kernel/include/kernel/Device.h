@@ -65,7 +65,7 @@ namespace Kernel
 		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t) override { return BAN::Error::from_errno(EISDIR); }
 		virtual BAN::ErrorOr<void> create_file(BAN::StringView, mode_t) override { return BAN::Error::from_errno(EINVAL); };
 
-		virtual Type type() const override { return Type::DeviceManager; }
+		virtual InodeType type() const override { return InodeType::DeviceManager; }
 		virtual bool operator==(const Inode&) const override { return false; }
 
 		virtual BAN::RefPtr<Inode> root_inode() override { return this; }

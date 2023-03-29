@@ -9,7 +9,7 @@ namespace Kernel
 	struct ATABus;
 	class ATAController;
 
-	class ATADevice : public StorageDevice
+	class ATADevice final : public StorageDevice
 	{
 	public:
 		virtual BAN::ErrorOr<void> read_sectors(uint64_t, uint8_t, uint8_t*) override;
@@ -18,14 +18,14 @@ namespace Kernel
 		virtual uint64_t total_size() const override { return lba_count * sector_size(); }
 
 	private:
-		enum class Type
+		enum class DeviceType
 		{
 			Unknown,
 			ATA,
 			ATAPI,
 		};
 
-		Type type;
+		DeviceType type;
 		uint8_t slave_bit; // 0x00 for master, 0x10 for slave
 		uint16_t signature;
 		uint16_t capabilities;
