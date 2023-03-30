@@ -87,6 +87,7 @@ namespace Kernel
 	private:
 		ATABus m_buses[2];
 		const PCIDevice& m_pci_device;
+		SpinLock m_lock;
 
 		friend class ATADevice;
 

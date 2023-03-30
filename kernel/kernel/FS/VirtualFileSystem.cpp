@@ -1,11 +1,10 @@
 #include <BAN/ScopeGuard.h>
 #include <BAN/StringView.h>
-#include <BAN/Vector.h>
 #include <kernel/Device.h>
 #include <kernel/FS/Ext2.h>
 #include <kernel/FS/VirtualFileSystem.h>
+#include <kernel/LockGuard.h>
 #include <kernel/PCI.h>
-#include <kernel/Storage/ATAController.h>
 
 namespace Kernel
 {
@@ -45,9 +44,11 @@ namespace Kernel
 		auto partition_file = TRY(file_from_absolute_path(partition));
 		if (partition_file.inode->inode_type() != Inode::InodeType::Device)
 			return BAN::Error::from_c_string("Not a partition");
+
 		Device* device = (Device*)partition_file.inode.ptr();
 		if (device->device_type() != Device::DeviceType::Partition)
 			return BAN::Error::from_c_string("Not a partition");
+
 		auto* file_system = TRY(Ext2FS::create(*(Partition*)device));
 		return mount(file_system, target);
 	}
@@ -57,12 +58,16 @@ namespace Kernel
 		auto file = TRY(file_from_absolute_path(path));
 		if (!file.inode->mode().ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
+
+		LockGuard _(m_lock);
 		TRY(m_mount_points.push_back({ file, file_system }));
+
 		return {};
 	}
 
 	VirtualFileSystem::MountPoint* VirtualFileSystem::mount_point_for_inode(BAN::RefPtr<Inode> inode)
 	{
+		ASSERT(m_lock.is_locked());
 		for (MountPoint& mount : m_mount_points)
 			if (*mount.host.inode == *inode)
 				return &mount;
@@ -71,6 +76,8 @@ namespace Kernel
 
 	BAN::ErrorOr<VirtualFileSystem::File> VirtualFileSystem::file_from_absolute_path(BAN::StringView path)
 	{
+		LockGuard _(m_lock);
+
 		ASSERT(path.front() == '/');
 
 		auto inode = root_inode();
