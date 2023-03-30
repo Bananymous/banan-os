@@ -76,7 +76,7 @@ namespace Kernel
 		virtual timespec ctime() const override { return { 0, 0 }; }
 		virtual blksize_t blksize() const override { return 0; }
 		virtual blkcnt_t blocks() const override { return 0; }
-		virtual dev_t dev() const override { return 0x4935; }
+		virtual dev_t dev() const override { return 0x4900; }
 		virtual dev_t rdev() const override { return 0x7854; }
 
 		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t)        { ASSERT_NOT_REACHED(); }

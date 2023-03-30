@@ -447,8 +447,11 @@ argument_done:
 			
 			TTY_PRINTLN("  File: {}", arguments[1]);
 			TTY_PRINTLN("  Size: {}\tBlocks: {}\tIO Block: {}\t {}", st.st_size, st.st_blocks, st.st_blksize, type);
-			TTY_PRINTLN("Device: {},{}\tInode: {}\tLinks: {}", st.st_dev, st.st_rdev, st.st_ino, st.st_nlink);
-			TTY_PRINTLN("Access: ({}/{})\tUid: {}\tGid: {}", st.st_mode, mode_string(st.st_mode), st.st_uid, st.st_gid);
+			TTY_PRINT("Device: {},{}\tInode: {}\tLinks: {}", st.st_dev >> 8, st.st_dev & 0xFF, st.st_ino, st.st_nlink);
+			if (st.st_rdev)
+				TTY_PRINT("\tDevice type: {},{}", st.st_rdev >> 8, st.st_rdev & 0xFF);
+			TTY_PRINTLN("");
+			TTY_PRINTLN("Access: ({4O}/{})\tUid: {}\tGid: {}", st.st_mode & 0777, mode_string(st.st_mode), st.st_uid, st.st_gid);
 			TTY_PRINTLN("Access: {}", BAN::from_unix_time(st.st_atime));
 			TTY_PRINTLN("Modify: {}", BAN::from_unix_time(st.st_mtime));
 			TTY_PRINTLN("Change: {}", BAN::from_unix_time(st.st_ctime));
