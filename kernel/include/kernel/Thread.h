@@ -10,13 +10,16 @@ namespace Kernel
 
 	class Process;
 
-	class Thread : public BAN::RefCounted<Thread>
+	class Thread
 	{
+		BAN_NON_COPYABLE(Thread);
+		BAN_NON_MOVABLE(Thread);
+		
 	public:
 		using entry_t = void(*)(void*);
 
 	public:
-		static BAN::ErrorOr<BAN::RefPtr<Thread>> create(entry_t, void* = nullptr, BAN::RefPtr<Process> = nullptr);
+		static BAN::ErrorOr<Thread*> create(entry_t, void* = nullptr, BAN::RefPtr<Process> = nullptr);
 		~Thread();
 
 		pid_t tid() const { return m_tid; }
@@ -29,7 +32,7 @@ namespace Kernel
 		void set_started() { m_started = true; }
 		bool started() const { return m_started; }
 
-		static BAN::RefPtr<Thread> current() ;
+		static Thread& current() ;
 		BAN::RefPtr<Process> process();
 
 	private:
@@ -45,8 +48,6 @@ namespace Kernel
 		const pid_t	m_tid			= 0;
 		bool		m_started		= false;
 		BAN::RefPtr<Process> m_process;
-
-		friend class BAN::RefPtr<Thread>;
 	};
 	
 }

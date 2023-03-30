@@ -46,9 +46,9 @@ namespace Kernel
 		ASSERT_NOT_REACHED();
 	}
 
-	BAN::RefPtr<Thread> Scheduler::current_thread()
+	Thread& Scheduler::current_thread()
 	{
-		return m_current_thread ? m_current_thread->thread : m_idle_thread;
+		return m_current_thread ? *m_current_thread->thread : *m_idle_thread;
 	}
 
 	void Scheduler::reschedule()
@@ -77,17 +77,16 @@ namespace Kernel
 		uint64_t current_time = PIT::ms_since_boot();
 		while (!m_sleeping_threads.empty() && m_sleeping_threads.front().wake_time <= current_time)
 		{
-			auto thread = m_sleeping_threads.front().thread;
+			Thread* thread = m_sleeping_threads.front().thread;
 			m_sleeping_threads.remove(m_sleeping_threads.begin());
 
 			// This should work as we released enough memory from sleeping thread
 			static_assert(sizeof(ActiveThread) == sizeof(SleepingThread));
 			MUST(m_active_threads.emplace_back(thread));
-			thread.clear();
 		}
 	}
 
-	BAN::ErrorOr<void> Scheduler::add_thread(BAN::RefPtr<Thread> thread)
+	BAN::ErrorOr<void> Scheduler::add_thread(Thread* thread)
 	{
 		Kernel::CriticalScope critical;
 		TRY(m_active_threads.emplace_back(thread));
@@ -141,9 +140,9 @@ namespace Kernel
 		}
 		read_rsp(rsp);
 
-		auto current = current_thread();
-		current->set_rip(rip);
-		current->set_rsp(rsp);
+		Thread& current = current_thread();
+		current.set_rip(rip);
+		current.set_rsp(rsp);
 		return false;
 	}
 
@@ -151,7 +150,7 @@ namespace Kernel
 	{
 		VERIFY_CLI();
 		
-		auto& current = *current_thread();
+		Thread& current = current_thread();
 
 		if (current.started())
 		{
@@ -166,8 +165,6 @@ namespace Kernel
 		ASSERT_NOT_REACHED();
 	}
 
-#pragma GCC push_options
-#pragma GCC optimize("O0")
 	void Scheduler::set_current_thread_sleeping(uint64_t wake_time)
 	{
 		VERIFY_STI();
@@ -175,7 +172,7 @@ namespace Kernel
 
 		ASSERT(m_current_thread);
 
-		auto sleeping = m_current_thread->thread;
+		Thread* sleeping = m_current_thread->thread;
 
 		if (save_current_thread())
 		{
@@ -192,12 +189,10 @@ namespace Kernel
 		// This should work as we released enough memory from active thread
 		static_assert(sizeof(ActiveThread) == sizeof(SleepingThread));
 		MUST(m_sleeping_threads.emplace(it, sleeping, wake_time));
-		sleeping.clear();
 
 		execute_current_thread();
 		ASSERT_NOT_REACHED();
 	}
-#pragma GCC pop_options
 
 	void Scheduler::set_current_thread_done()
 	{
@@ -205,14 +200,15 @@ namespace Kernel
 		DISABLE_INTERRUPTS();
 
 		ASSERT(m_current_thread);
+
+		Thread* thread = m_current_thread->thread;
 		remove_and_advance_current_thread();
+		delete thread;
 
 		execute_current_thread();
 		ASSERT_NOT_REACHED();
 	}
 
-#pragma GCC push_options
-#pragma GCC optimize("O0")
 	void Scheduler::block_current_thread(Semaphore* semaphore)
 	{
 		VERIFY_STI();
@@ -220,7 +216,7 @@ namespace Kernel
 
 		ASSERT(m_current_thread);
 
-		auto blocking = m_current_thread->thread;
+		Thread* blocking = m_current_thread->thread;
 
 		if (save_current_thread())
 		{
@@ -232,14 +228,12 @@ namespace Kernel
 		// This should work as we released enough memory from active thread
 		static_assert(sizeof(ActiveThread) == sizeof(BlockingThread));
 		MUST(m_blocking_threads.emplace_back(blocking, semaphore));
-		blocking.clear();
 
 		semaphore->m_blocked = true;
 
 		execute_current_thread();
 		ASSERT_NOT_REACHED();
 	}
-#pragma GCC pop_options
 	
 	void Scheduler::unblock_threads(Semaphore* semaphore)
 	{
