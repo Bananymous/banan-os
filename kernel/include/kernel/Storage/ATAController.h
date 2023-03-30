@@ -8,43 +8,62 @@
 namespace Kernel
 {
 
-	struct ATABus;
 	class ATAController;
 
 	class ATADevice final : public StorageDevice
 	{
 	public:
+		static BAN::ErrorOr<ATADevice*> create(ATAController*, uint16_t, uint16_t, uint8_t);
+
 		virtual BAN::ErrorOr<void> read_sectors(uint64_t, uint8_t, uint8_t*) override;
 		virtual BAN::ErrorOr<void> write_sectors(uint64_t, uint8_t, const uint8_t*) override;
-		virtual uint32_t sector_size() const override { return sector_words * 2; }
-		virtual uint64_t total_size() const override { return lba_count * sector_size(); }
+		virtual uint32_t sector_size() const override { return m_sector_words * 2; }
+		virtual uint64_t total_size() const override { return m_lba_count * sector_size(); }
+
+		BAN::StringView model() const { return m_model; }
+
+	private:
+		ATADevice(ATAController* controller, uint16_t base, uint16_t ctrl, uint8_t index)
+			: m_controller(controller)
+			, m_base(base)
+			, m_ctrl(ctrl)
+			, m_index(index)
+			, m_slave_bit((index & 0x01) << 4)
+		{ }
+		BAN::ErrorOr<void> initialize();
+
+		uint8_t io_read(uint16_t);
+		void io_write(uint16_t, uint8_t);
+		void read_buffer(uint16_t, uint16_t*, size_t);
+		void write_buffer(uint16_t, const uint16_t*, size_t);
+		BAN::ErrorOr<void> wait(bool);
+		BAN::Error error();
 
 	private:
 		enum class DeviceType
 		{
-			Unknown,
 			ATA,
 			ATAPI,
 		};
 
-		DeviceType type;
-		uint8_t slave_bit; // 0x00 for master, 0x10 for slave
-		uint16_t signature;
-		uint16_t capabilities;
-		uint32_t command_set;
-		uint32_t sector_words;
-		uint64_t lba_count;
-		char model[41];
+		ATAController* m_controller;
+		const uint16_t m_base;
+		const uint16_t m_ctrl;
+		const uint8_t m_index;
+		const uint8_t m_slave_bit;
 
-		ATABus* bus;
-		ATAController* controller;
+		DeviceType m_type;
+		uint16_t m_signature;
+		uint16_t m_capabilities;
+		uint32_t m_command_set;
+		uint32_t m_sector_words;
+		uint64_t m_lba_count;
+		char m_model[41];
 
 		friend class ATAController;
 
-		char device_name[4] {};
-
 	public:
-		virtual ino_t ino() const override { return !!slave_bit; }
+		virtual ino_t ino() const override { return m_index; }
 		virtual Mode mode() const override { return { Mode::IFBLK }; }
 		virtual nlink_t nlink() const override { return 1; }
 		virtual uid_t uid() const override { return 0; }
@@ -55,23 +74,12 @@ namespace Kernel
 		virtual dev_t dev() const override;
 		virtual dev_t rdev() const override { return 0x5429; }
 
-		virtual BAN::StringView name() const override { return BAN::StringView(device_name, sizeof(device_name) - 1); }
+		virtual BAN::StringView name() const override { return BAN::StringView(m_device_name, sizeof(m_device_name) - 1); }
 
 		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t) override;
-	};
 
-	struct ATABus
-	{
-		uint16_t base;
-		uint16_t ctrl;
-		ATADevice devices[2];
-
-		uint8_t read(uint16_t);
-		void read_buffer(uint16_t, uint16_t*, size_t);
-		void write(uint16_t, uint8_t);
-		void write_buffer(uint16_t, const uint16_t*, size_t);
-		BAN::ErrorOr<void> wait(bool);
-		BAN::Error error();
+	public:
+		char m_device_name[4] {};
 	};
 
 	class ATAController final : public StorageController
@@ -80,15 +88,13 @@ namespace Kernel
 		static BAN::ErrorOr<ATAController*> create(const PCIDevice&);
 
 	private:
-		ATAController(const PCIDevice& device) : m_pci_device(device) {}
-		BAN::ErrorOr<void> initialize();
+		ATAController() = default;
+		BAN::ErrorOr<void> initialize(const PCIDevice& device);
 
 		BAN::ErrorOr<void> read(ATADevice*, uint64_t, uint8_t, uint8_t*);
 		BAN::ErrorOr<void> write(ATADevice*, uint64_t, uint8_t, const uint8_t*);
 
 	private:
-		ATABus m_buses[2];
-		const PCIDevice& m_pci_device;
 		SpinLock m_lock;
 
 		friend class ATADevice;
