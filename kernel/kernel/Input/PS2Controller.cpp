@@ -337,7 +337,6 @@ namespace Kernel::Input
 	{
 		m_dev = dev;
 		m_ino = dev & 1;
-		m_time = { BAN::to_unix_time(RTC::get_current_time()), 0 };
 	}
 
 }

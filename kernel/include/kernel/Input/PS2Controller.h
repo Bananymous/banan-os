@@ -19,14 +19,10 @@ namespace Kernel::Input
 		virtual uid_t uid() const override { return 0; }
 		virtual gid_t gid() const override { return 0; }
 		virtual off_t size() const override { return 0; }
-		virtual timespec atime() const override { return m_time; }
-		virtual timespec mtime() const override { return m_time; }
-		virtual timespec ctime() const override { return m_time; }
 		virtual blkcnt_t blocks() const override { return 0; }
 		virtual dev_t dev() const override { return m_dev; }
 
 	private:
-		timespec m_time;
 		ino_t m_ino;
 		dev_t m_dev;
 	};
