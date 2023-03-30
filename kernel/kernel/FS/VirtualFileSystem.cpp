@@ -1,3 +1,4 @@
+#include <BAN/ScopeGuard.h>
 #include <BAN/StringView.h>
 #include <BAN/Vector.h>
 #include <kernel/Device.h>
@@ -17,13 +18,13 @@ namespace Kernel
 		s_instance = new VirtualFileSystem();
 		if (s_instance == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
+		BAN::ScopeGuard guard([] { delete s_instance; s_instance = nullptr; } );
 
-		if (auto res = s_instance->initialize_impl(); res.is_error())
-		{
-			delete s_instance;
-			s_instance = nullptr;
-			return res;
-		}
+		auto partition_inode = TRY(DeviceManager::get().read_directory_inode("hda1"));
+		s_instance->m_root_fs = TRY(Ext2FS::create(*(Partition*)partition_inode.ptr()));
+		TRY(s_instance->mount(&DeviceManager::get(), "/dev"));
+
+		guard.disable();
 
 		return {};
 	}
@@ -32,91 +33,6 @@ namespace Kernel
 	{
 		ASSERT(s_instance);
 		return *s_instance;
-	}
-
-	BAN::ErrorOr<void> VirtualFileSystem::initialize_impl()
-	{
-		// Initialize all storage controllers
-		for (auto& device : PCI::get().devices())
-		{
-			if (device.class_code() != 0x01)
-				continue;
-			
-			switch (device.subclass())
-			{
-				case 0x0:
-					dwarnln("unsupported SCSI Bus Controller");
-					break;
-				case 0x1:
-				case 0x5:
-					TRY(m_storage_controllers.push_back(TRY(ATAController::create(device))));
-					break;
-				case 0x2:
-					dwarnln("unsupported Floppy Disk Controller");
-					break;
-				case 0x3:
-					dwarnln("unsupported IPI Bus Controller");
-					break;
-				case 0x4:
-					dwarnln("unsupported RAID Controller");
-					break;
-				case 0x6:
-					dwarnln("unsupported Serial ATA Controller");
-					break;
-				case 0x7:
-					dwarnln("unsupported Serial Attached SCSI Controller");
-					break;
-				case 0x8:
-					dwarnln("unsupported Non-Volatile Memory Controller");
-					break;
-				case 0x80:
-					dwarnln("unsupported Unknown Storage Controller");
-					break;
-			}
-		}
-
-		// Initialize partitions on all devices on found controllers
-		for (auto controller : m_storage_controllers)
-		{
-			for (auto device : controller->devices())
-			{
-				if (device->total_size() == 0)
-					continue;
-
-				auto result = device->initialize_partitions();
-				if (result.is_error())
-				{
-					dwarnln("{}", result.error());
-					continue;
-				}
-				
-				for (auto& partition : device->partitions())
-				{
-					if (partition.label() == "banan-root"sv)
-					{
-						if (root_inode())
-							dwarnln("multiple root partitions found");
-						else
-						{
-							auto ext2fs_or_error = Ext2FS::create(partition);
-							if (ext2fs_or_error.is_error())
-								dwarnln("{}", ext2fs_or_error.error());
-							else
-								// FIXME: We leave a dangling pointer to ext2fs. This might be okay since
-								//        root fs sould probably be always mounted
-								m_root_inode = ext2fs_or_error.value()->root_inode();
-						}
-					}
-				}
-			}
-		}
-
-		if (!root_inode())
-			derrorln("Could not locate root partition");
-
-		TRY(mount(&DeviceManager::get(), "/dev"));
-
-		return {};
 	}
 
 	BAN::ErrorOr<void> VirtualFileSystem::mount(FileSystem* file_system, BAN::StringView path)

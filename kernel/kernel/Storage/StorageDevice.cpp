@@ -168,32 +168,41 @@ namespace Kernel
 		{
 			const PartitionEntry& entry = *(const PartitionEntry*)(entry_array.data() + header.partition_entry_size * i);
 
+			GUID zero {};
+			if (memcmp(&entry.partition_type_guid, &zero, sizeof(GUID)) == 0)
+				continue;
+
 			char utf8_name[36 * 4 + 1];
 			BAN::UTF8::from_codepoints(entry.partition_name, 36, utf8_name);
 
-			MUST(m_partitions.emplace_back(
+			Partition* partition = new Partition(
 				*this, 
 				entry.partition_type_guid,
 				entry.unique_partition_guid,
 				entry.starting_lba,
 				entry.ending_lba,
 				entry.attributes,
-				utf8_name
-			));
+				utf8_name,
+				i
+			);
+			ASSERT(partition != nullptr);
+			MUST(m_partitions.push_back(partition));
 		}
 
 		return {};
 	}
 
-	Partition::Partition(StorageDevice& device, const GUID& type, const GUID& guid, uint64_t start, uint64_t end, uint64_t attr, const char* label)
+	Partition::Partition(StorageDevice& device, const GUID& type, const GUID& guid, uint64_t start, uint64_t end, uint64_t attr, const char* label, uint32_t index)
 		: m_device(device)
 		, m_type(type)
 		, m_guid(guid)
 		, m_lba_start(start)
 		, m_lba_end(end)
 		, m_attributes(attr)
+		, m_index(index)
+		, m_device_name(BAN::String::formatted("{}{}", m_device.name(), index))
 	{
-		memcpy(m_label, label, sizeof(m_label));	
+		memcpy(m_label, label, sizeof(m_label));
 	}
 
 	BAN::ErrorOr<void> Partition::read_sectors(uint64_t lba, uint8_t sector_count, uint8_t* buffer)
@@ -212,6 +221,24 @@ namespace Kernel
 			return BAN::Error::from_c_string("Attempted to read outside of the partition boundaries");
 		TRY(m_device.write_sectors(m_lba_start + lba, sector_count, buffer));
 		return {};
+	}
+
+	blksize_t Partition::blksize() const
+	{
+		return m_device.blksize();
+	}
+
+	dev_t Partition::dev() const
+	{
+		return m_device.dev();
+	}
+
+	BAN::ErrorOr<size_t> Partition::read(size_t offset, void* buffer, size_t bytes)
+	{
+		if (offset % m_device.sector_size() || bytes % m_device.sector_size())
+			return BAN::Error::from_errno(ENOTSUP);
+		TRY(read_sectors(offset / m_device.sector_size(), bytes / m_device.sector_size(), (uint8_t*)buffer));
+		return bytes;
 	}
 
 }

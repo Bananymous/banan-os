@@ -34,13 +34,17 @@ namespace Kernel
 			IFREG = 0x8000,
 			IFLNK = 0xA000,
 			IFSOCK = 0xC000,
+			TYPE_MASK = 0xF000,
 		};
 
 	public:
 		virtual ~Inode() {}
 
-		bool ifdir() const { return mode() & Mode::IFDIR; }
-		bool ifreg() const { return mode() & Mode::IFREG; }
+		bool ifdir() const { return (mode() & Mode::TYPE_MASK) == Mode::IFDIR; }
+		bool ifblk() const { return (mode() & Mode::TYPE_MASK) == Mode::IFBLK; }
+		bool ifreg() const { return (mode() & Mode::TYPE_MASK) == Mode::IFREG; }
+		bool iflnk() const { return (mode() & Mode::TYPE_MASK) == Mode::IFLNK; }
+		bool ifsock() const { return (mode() & Mode::TYPE_MASK) == Mode::IFSOCK; }
 
 		bool operator==(const Inode& other) const { return dev() == other.dev() && rdev() == other.rdev() && ino() == other.ino(); }
 

@@ -16,7 +16,7 @@ namespace Kernel
 		static VirtualFileSystem& get();
 		virtual ~VirtualFileSystem() {};
 
-		virtual BAN::RefPtr<Inode> root_inode() override  { return m_root_inode; }
+		virtual BAN::RefPtr<Inode> root_inode() override  { return m_root_fs->root_inode(); }
 
 		BAN::ErrorOr<void> mount(FileSystem*, BAN::StringView);
 
@@ -36,10 +36,9 @@ namespace Kernel
 
 	private:
 		VirtualFileSystem() = default;
-		BAN::ErrorOr<void> initialize_impl();
 
 	private:
-		BAN::RefPtr<Inode>				m_root_inode;
+		FileSystem*						m_root_fs = nullptr;
 		BAN::Vector<MountPoint>			m_mount_points;
 		BAN::Vector<StorageController*>	m_storage_controllers;
 	};
