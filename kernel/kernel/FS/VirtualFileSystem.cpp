@@ -1,6 +1,6 @@
 #include <BAN/ScopeGuard.h>
 #include <BAN/StringView.h>
-#include <kernel/Device.h>
+#include <kernel/DeviceManager.h>
 #include <kernel/FS/Ext2.h>
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/LockGuard.h>

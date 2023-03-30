@@ -42,6 +42,7 @@ kernel/build_libc.o				\
 kernel/CPUID.o					\
 kernel/Debug.o					\
 kernel/Device.o					\
+kernel/DeviceManager.o			\
 kernel/Font.o					\
 kernel/FS/Ext2.o				\
 kernel/FS/VirtualFileSystem.o	\

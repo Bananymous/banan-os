@@ -1,6 +1,8 @@
 #pragma once
 
+#include <kernel/DeviceManager.h>
 #include <kernel/PCI.h>
+#include <kernel/SpinLock.h>
 #include <kernel/Storage/StorageController.h>
 
 namespace Kernel

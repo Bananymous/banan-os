@@ -2,6 +2,7 @@
 
 #include <BAN/Memory.h>
 #include <BAN/String.h>
+#include <BAN/StringView.h>
 #include <BAN/Vector.h>
 
 #include <sys/types.h>
