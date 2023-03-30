@@ -38,7 +38,7 @@ namespace BAN
 		ErrorOr<void> emplace(iterator, Args&&...);
 
 		void pop_back();
-		void remove(iterator);
+		iterator remove(iterator);
 		void clear();
 
 		iterator begin()				{ return iterator(m_data, empty()); }
@@ -201,7 +201,7 @@ namespace BAN
 	}
 
 	template<typename T>
-	void LinkedList<T>::remove(iterator iter)
+	LinkedList<T>::iterator LinkedList<T>::remove(iterator iter)
 	{
 		ASSERT(!empty() && iter);
 		Node* node = iter.m_current;
@@ -212,6 +212,7 @@ namespace BAN
 		(prev ? prev->next : m_data) = next;
 		(next ? next->prev : m_last) = prev;
 		m_size--;
+		return next ? iterator(next, false) : iterator(m_last, true);
 	}
 
 	template<typename T>
