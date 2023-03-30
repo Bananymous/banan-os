@@ -17,7 +17,7 @@ namespace Kernel
 		void start();
 		void reschedule();
 
-		BAN::ErrorOr<void> add_thread(BAN::RefPtr<Thread>);
+		BAN::ErrorOr<void> add_thread(Thread*);
 
 		void set_current_thread_sleeping(uint64_t);
 		[[noreturn]] void set_current_thread_done();
@@ -25,7 +25,7 @@ namespace Kernel
 		void block_current_thread(Semaphore*);
 		void unblock_threads(Semaphore*);
 
-		BAN::RefPtr<Thread> current_thread();
+		Thread& current_thread();
 
 	private:
 		Scheduler() = default;
@@ -39,27 +39,27 @@ namespace Kernel
 	private:
 		struct ActiveThread
 		{
-			ActiveThread(const BAN::RefPtr<Thread>& thread) : thread(thread) {}
-			BAN::RefPtr<Thread> thread;
-			uint64_t padding = 0;
+			ActiveThread(Thread* thread) : thread(thread) {}
+			Thread* thread;
+			uint64_t padding;
 		};
 
 		struct SleepingThread
 		{
-			SleepingThread(const BAN::RefPtr<Thread>& thread, uint64_t wake_time) : thread(thread), wake_time(wake_time) {}
-			BAN::RefPtr<Thread> thread;
+			SleepingThread(Thread* thread, uint64_t wake_time) : thread(thread), wake_time(wake_time) {}
+			Thread* thread;
 			uint64_t wake_time;
 		};
 
 		struct BlockingThread
 		{
-			BlockingThread(const BAN::RefPtr<Thread>& thread, Semaphore* semaphore) : thread(thread), semaphore(semaphore) {}
-			BAN::RefPtr<Thread> thread;
+			BlockingThread(Thread* thread, Semaphore* semaphore) : thread(thread), semaphore(semaphore) {}
+			Thread* thread;
 			Semaphore* semaphore;
 			uint8_t padding[sizeof(uint64_t) - sizeof(Semaphore*)];
 		};
 
-		BAN::RefPtr<Thread> m_idle_thread;
+		Thread* m_idle_thread { nullptr };
 		BAN::LinkedList<ActiveThread> m_active_threads;
 		BAN::LinkedList<SleepingThread> m_sleeping_threads;
 		BAN::LinkedList<BlockingThread> m_blocking_threads;

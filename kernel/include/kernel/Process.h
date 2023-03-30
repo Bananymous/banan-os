@@ -44,7 +44,7 @@ namespace Kernel
 		BAN::String working_directory() const;
 		BAN::ErrorOr<void> set_working_directory(BAN::StringView);
 
-		static BAN::RefPtr<Process> current() { return Thread::current()->process(); }
+		static BAN::RefPtr<Process> current() { return Thread::current().process(); }
 
 	private:
 		Process(pid_t pid) : m_pid(pid) {}
@@ -70,7 +70,7 @@ namespace Kernel
 
 		const pid_t m_pid = 0;
 		BAN::String m_working_directory;
-		BAN::Vector<BAN::RefPtr<Thread>> m_threads;
+		BAN::Vector<Thread*> m_threads;
 
 		friend class BAN::RefPtr<Process>;
 	};

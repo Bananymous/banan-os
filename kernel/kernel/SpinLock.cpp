@@ -25,7 +25,7 @@ namespace Kernel
 	void RecursiveSpinLock::lock()
 	{
 		// FIXME: is this thread safe?
-		if (m_locker == Thread::current()->tid())
+		if (m_locker == Thread::current().tid())
 		{
 			m_lock_depth++;
 		}
@@ -33,7 +33,7 @@ namespace Kernel
 		{
 			m_lock.lock();
 			ASSERT(m_locker == 0);
-			m_locker = Thread::current()->tid();
+			m_locker = Thread::current().tid();
 			m_lock_depth = 1;
 		}
 	}

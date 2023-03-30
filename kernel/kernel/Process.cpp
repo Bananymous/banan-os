@@ -22,7 +22,7 @@ namespace Kernel
 	{
 		LockGuard _(m_lock);
 
-		auto thread = TRY(Thread::create(entry, data, this));
+		Thread* thread = TRY(Thread::create(entry, data, this));
 		TRY(m_threads.push_back(thread));
 		if (auto res = Scheduler::get().add_thread(thread); res.is_error())
 		{
@@ -36,9 +36,8 @@ namespace Kernel
 	void Process::on_thread_exit(Thread& thread)
 	{
 		LockGuard _(m_lock);
-		dprintln("thread {} exit", thread.tid());
 		for (size_t i = 0; i < m_threads.size(); i++)
-			if (m_threads[i].ptr() == &thread)
+			if (m_threads[i] == &thread)
 				m_threads.remove(i);
 	}
 

@@ -19,10 +19,12 @@ namespace Kernel
 		memcpy((void*)rsp, (void*)&value, size);
 	}
 
-	BAN::ErrorOr<BAN::RefPtr<Thread>> Thread::create(entry_t entry, void* data, BAN::RefPtr<Process> process)
+	BAN::ErrorOr<Thread*> Thread::create(entry_t entry, void* data, BAN::RefPtr<Process> process)
 	{
 		static pid_t next_tid = 1;
-		auto thread = TRY(BAN::RefPtr<Thread>::create(next_tid++, process));
+		auto* thread = new Thread(next_tid++, process);
+		if (thread == nullptr)
+			return BAN::Error::from_errno(ENOMEM);
 		TRY(thread->initialize(entry, data));
 		return thread;
 	}
@@ -31,7 +33,7 @@ namespace Kernel
 		: m_tid(tid), m_process(process)
 	{}
 
-	BAN::RefPtr<Thread> Thread::current()
+	Thread& Thread::current()
 	{
 		return Scheduler::get().current_thread();
 	}
@@ -58,6 +60,7 @@ namespace Kernel
 
 	Thread::~Thread()
 	{
+		dprintln("thread {} exit", tid());
 		kfree(m_stack_base);
 	}
 
