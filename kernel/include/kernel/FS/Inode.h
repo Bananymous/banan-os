@@ -30,7 +30,10 @@ namespace Kernel
 			IFIFO = 0x1000,
 			IFCHR = 0x2000,
 			IFDIR = 0x4000,
+			IFBLK = 0x6000,
 			IFREG = 0x8000,
+			IFLNK = 0xA000,
+			IFSOCK = 0xC000,
 		};
 
 	public:
