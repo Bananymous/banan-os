@@ -18,7 +18,6 @@ namespace Kernel
 
 		virtual BAN::RefPtr<Inode> root_inode() override  { return m_root_inode; }
 
-		BAN::ErrorOr<void> mount_test();
 		BAN::ErrorOr<void> mount(FileSystem*, BAN::StringView);
 
 		struct File
