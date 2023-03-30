@@ -124,7 +124,7 @@ namespace Kernel
 	{
 	public:
 		virtual ino_t ino() const override { return m_index; };
-		virtual mode_t mode() const override { return m_inode.mode; }
+		virtual Mode mode() const override { return { m_inode.mode }; }
 		virtual nlink_t nlink() const override { return m_inode.links_count; }
 		virtual uid_t uid() const override { return m_inode.uid; }
 		virtual gid_t gid() const override { return m_inode.gid; }

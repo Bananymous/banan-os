@@ -14,7 +14,7 @@ namespace Kernel::Input
 		
 	public:
 		virtual ino_t ino() const override { return m_ino; }
-		virtual mode_t mode() const override { return Mode::IFCHR | Mode::IRUSR | Mode::IRGRP; }
+		virtual Mode mode() const override { return { Mode::IFCHR | Mode::IRUSR | Mode::IRGRP }; }
 		virtual nlink_t nlink() const override { return 1; }
 		virtual uid_t uid() const override { return 0; }
 		virtual gid_t gid() const override { return 0; }

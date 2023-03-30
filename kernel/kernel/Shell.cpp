@@ -22,22 +22,24 @@ namespace Kernel
 
 	static auto s_default_prompt = "\\[\e[32m\\]user\\[\e[m\\]:\\[\e[34m\\]\\w\\[\e[m\\]# "sv;
 
-	static const char* mode_string(mode_t mode)
+	static const char* mode_string(Inode::Mode mode)
 	{
 		static char buffer[11] {};
 		buffer[0] =
-			(mode & Inode::Mode::IFDIR) ? 'd' :
-			(mode & Inode::Mode::IFCHR) ? 'c' :
-										  '-';
-		buffer[1] = (mode & Inode::Mode::IRUSR) ? 'r' : '-';
-		buffer[2] = (mode & Inode::Mode::IWUSR) ? 'w' : '-';
-		buffer[3] = (mode & Inode::Mode::IXUSR) ? 'x' : '-';
-		buffer[4] = (mode & Inode::Mode::IRGRP) ? 'r' : '-';
-		buffer[5] = (mode & Inode::Mode::IWGRP) ? 'w' : '-';
-		buffer[6] = (mode & Inode::Mode::IXGRP) ? 'x' : '-';
-		buffer[7] = (mode & Inode::Mode::IROTH) ? 'r' : '-';
-		buffer[8] = (mode & Inode::Mode::IWOTH) ? 'w' : '-';
-		buffer[9] = (mode & Inode::Mode::IXOTH) ? 'x' : '-';
+			mode.ifdir() ? 'd' :
+			mode.ifblk() ? 'b' :
+			mode.ifchr() ? 'c' :
+							'-';
+
+		buffer[1] = (mode.mode & Inode::Mode::IRUSR) ? 'r' : '-';
+		buffer[2] = (mode.mode & Inode::Mode::IWUSR) ? 'w' : '-';
+		buffer[3] = (mode.mode & Inode::Mode::IXUSR) ? 'x' : '-';
+		buffer[4] = (mode.mode & Inode::Mode::IRGRP) ? 'r' : '-';
+		buffer[5] = (mode.mode & Inode::Mode::IWGRP) ? 'w' : '-';
+		buffer[6] = (mode.mode & Inode::Mode::IXGRP) ? 'x' : '-';
+		buffer[7] = (mode.mode & Inode::Mode::IROTH) ? 'r' : '-';
+		buffer[8] = (mode.mode & Inode::Mode::IWOTH) ? 'w' : '-';
+		buffer[9] = (mode.mode & Inode::Mode::IXOTH) ? 'x' : '-';
 		return (const char*)buffer;
 	};
 
@@ -404,13 +406,15 @@ argument_done:
 				TRY(entry_path.append(entry));
 				TRY(Process::current()->stat(entry_path, &st));
 
+				Inode::Mode mode { st.st_mode };
+
 				const char* color =
-					(st.st_mode & Inode::Mode::IFDIR) ? "34" :
-					(st.st_mode & Inode::Mode::IFCHR) ? "33" :
-					(st.st_mode & Inode::Mode::IXUSR) ? "32" :
-														"";
+					mode.ifdir()                     ? "34" :
+					mode.ifchr() || mode.ifblk()     ? "33" :
+					(mode.mode & Inode::Mode::IXUSR) ? "32" :
+													   "";
 				
-				TTY_PRINTLN("  {} {7} \e[{}m{}\e[m", mode_string(st.st_mode), st.st_size, color, entry);
+				TTY_PRINTLN("  {} {7} \e[{}m{}\e[m", mode_string(mode), st.st_size, color, entry);
 			}
 		}
 		else if (arguments.front() == "cat")
@@ -439,11 +443,14 @@ argument_done:
 			stat st;
 			TRY(Process::current()->stat(arguments[1], &st));
 
+			Inode::Mode mode { st.st_mode };
+
 			const char* type =
-				(st.st_mode & Inode::Mode::IFREG) ? "regular file" :
-				(st.st_mode & Inode::Mode::IFDIR) ? "directory" :
-				(st.st_mode & Inode::Mode::IFCHR) ? "character device" :
-													"other";
+				mode.ifreg() ? "regular file" :
+				mode.ifdir() ? "directory" :
+				mode.ifchr() ? "character device" :
+				mode.ifblk() ? "block device" :
+								"other";
 			
 			TTY_PRINTLN("  File: {}", arguments[1]);
 			TTY_PRINTLN("  Size: {}\tBlocks: {}\tIO Block: {}\t {}", st.st_size, st.st_blocks, st.st_blksize, type);
@@ -451,7 +458,7 @@ argument_done:
 			if (st.st_rdev)
 				TTY_PRINT("\tDevice type: {},{}", st.st_rdev >> 8, st.st_rdev & 0xFF);
 			TTY_PRINTLN("");
-			TTY_PRINTLN("Access: ({4O}/{})\tUid: {}\tGid: {}", st.st_mode & 0777, mode_string(st.st_mode), st.st_uid, st.st_gid);
+			TTY_PRINTLN("Access: ({4O}/{})\tUid: {}\tGid: {}", mode.mode & 0777, mode_string(mode), st.st_uid, st.st_gid);
 			TTY_PRINTLN("Access: {}", BAN::from_unix_time(st.st_atime));
 			TTY_PRINTLN("Modify: {}", BAN::from_unix_time(st.st_mtime));
 			TTY_PRINTLN("Change: {}", BAN::from_unix_time(st.st_ctime));

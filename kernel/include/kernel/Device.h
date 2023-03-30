@@ -74,7 +74,7 @@ namespace Kernel
 
 	public:
 		virtual ino_t ino() const override { return 0; }
-		virtual mode_t mode() const override { return Mode::IFDIR | Mode::IRUSR | Mode::IWUSR | Mode::IXUSR | Mode::IRGRP | Mode::IXGRP | Mode::IROTH | Mode::IXOTH; }
+		virtual Mode mode() const override { return { Mode::IFDIR | Mode::IRUSR | Mode::IWUSR | Mode::IXUSR | Mode::IRGRP | Mode::IXGRP | Mode::IROTH | Mode::IXOTH }; }
 		virtual nlink_t nlink() const override { return 0; }
 		virtual uid_t uid() const override { return 0; }
 		virtual gid_t gid() const override { return 0; }
