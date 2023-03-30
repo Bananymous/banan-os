@@ -97,6 +97,13 @@ namespace Kernel
 		return {};
 	}
 
+	BAN::ErrorOr<void> Process::mount(BAN::StringView partition, BAN::StringView path)
+	{
+		LockGuard _(m_lock);
+		TRY(VirtualFileSystem::get().mount(partition, path));
+		return {};
+	}
+
 	BAN::ErrorOr<void> Process::fstat(int fd, struct stat* out)
 	{
 		LockGuard _(m_lock);

@@ -137,6 +137,8 @@ namespace Kernel
 		virtual dev_t dev() const override { return 0; }
 		virtual dev_t rdev() const override { return 0; }
 
+		virtual InodeType inode_type() const override { return InodeType::Ext2; }
+
 		virtual BAN::StringView name() const override { return m_name; }
 
 		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t) override;

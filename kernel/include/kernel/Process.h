@@ -37,6 +37,8 @@ namespace Kernel
 		BAN::ErrorOr<void> fstat(int, stat*);
 		BAN::ErrorOr<void> stat(BAN::StringView, stat*);
 
+		BAN::ErrorOr<void> mount(BAN::StringView, BAN::StringView);
+
 		BAN::ErrorOr<BAN::Vector<BAN::String>> read_directory_entries(int);
 
 		BAN::String working_directory() const;

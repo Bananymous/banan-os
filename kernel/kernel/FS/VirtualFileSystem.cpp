@@ -35,6 +35,18 @@ namespace Kernel
 		return *s_instance;
 	}
 
+	BAN::ErrorOr<void> VirtualFileSystem::mount(BAN::StringView partition, BAN::StringView target)
+	{
+		auto partition_file = TRY(file_from_absolute_path(partition));
+		if (partition_file.inode->inode_type() != Inode::InodeType::Device)
+			return BAN::Error::from_c_string("Not a partition");
+		Device* device = (Device*)partition_file.inode.ptr();
+		if (device->device_type() != Device::DeviceType::Partition)
+			return BAN::Error::from_c_string("Not a partition");
+		auto* file_system = TRY(Ext2FS::create(*(Partition*)device));
+		return mount(file_system, target);
+	}
+
 	BAN::ErrorOr<void> VirtualFileSystem::mount(FileSystem* file_system, BAN::StringView path)
 	{
 		auto file = TRY(file_from_absolute_path(path));
