@@ -1,6 +1,6 @@
 #pragma once
 
-#include <BAN/Errors.h>
+#include <kernel/PCI.h>
 #include <kernel/Storage/StorageController.h>
 
 namespace Kernel
@@ -38,6 +38,24 @@ namespace Kernel
 		ATAController* controller;
 
 		friend class ATAController;
+
+		char device_name[4] {};
+
+	public:
+		virtual ino_t ino() const override { return !!slave_bit; }
+		virtual mode_t mode() const override { return Mode::IFBLK; }
+		virtual nlink_t nlink() const override { return 1; }
+		virtual uid_t uid() const override { return 0; }
+		virtual gid_t gid() const override { return 0; }
+		virtual off_t size() const override { return 0; }
+		virtual blksize_t blksize() const override { return sector_size(); }
+		virtual blkcnt_t blocks() const override { return 0; }
+		virtual dev_t dev() const override;
+		virtual dev_t rdev() const override { return 0x5429; }
+
+		virtual BAN::StringView name() const override { return BAN::StringView(device_name, sizeof(device_name) - 1); }
+
+		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t) override;
 	};
 
 	struct ATABus
@@ -54,7 +72,7 @@ namespace Kernel
 		BAN::Error error();
 	};
 
-	class ATAController : public StorageController
+	class ATAController final : public StorageController
 	{
 	public:
 		static BAN::ErrorOr<ATAController*> create(const PCIDevice&);
@@ -71,6 +89,22 @@ namespace Kernel
 		const PCIDevice& m_pci_device;
 
 		friend class ATADevice;
+
+	public:
+		virtual ino_t ino() const override { return 0; }
+		virtual mode_t mode() const override { return Mode::IFCHR; }
+		virtual nlink_t nlink() const override { return 1; }
+		virtual uid_t uid() const override { return 0; }
+		virtual gid_t gid() const override { return 0; }
+		virtual off_t size() const override { return 0; }
+		virtual blksize_t blksize() const override { return 0; }
+		virtual blkcnt_t blocks() const override { return 0; }
+		virtual dev_t dev() const override { return DeviceManager::get().dev(); }
+		virtual dev_t rdev() const override { return 0x8594; }
+
+		virtual BAN::StringView name() const override { return "hd"sv; }
+
+		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t) { return BAN::Error::from_errno(ENOTSUP); }
 	};
 
 }

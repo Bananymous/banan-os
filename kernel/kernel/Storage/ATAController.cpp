@@ -94,6 +94,11 @@ namespace Kernel
 				device.bus = &bus;
 				device.controller = this;
 
+				device.device_name[0] = 'h';
+				device.device_name[1] = 'd';
+				device.device_name[2] = 'a' + bus_index * 2 + device_index;
+				device.device_name[3] = '\0';
+
 				bus.write(ATA_PORT_DRIVE_SELECT, 0xA0 | device.slave_bit);
 				PIT::sleep(1);
 
@@ -162,7 +167,15 @@ namespace Kernel
 				}
 				device.model[40] = 0;
 
-				TRY(m_devices.push_back(&device));
+				if (auto res = device.initialize_partitions(); res.is_error())
+				{
+					dprintln("could not initialize partitions on device {}", device.device_name);
+					device.type = ATADevice::DeviceType::Unknown;
+				}
+				else
+				{
+					add_device(&device);
+				}
 			}
 		}
 
@@ -340,6 +353,20 @@ namespace Kernel
 		if (err & ATA_ERROR_BBK)
 			return BAN::Error::from_c_string("Bad Block detected.");
 		ASSERT_NOT_REACHED();
+	}
+
+	dev_t ATADevice::dev() const
+	{
+		ASSERT(controller);
+		return controller->dev();
+	}
+
+	BAN::ErrorOr<size_t> ATADevice::read(size_t offset, void* buffer, size_t bytes)
+	{
+		if (offset % sector_size() || bytes % sector_size())
+			return BAN::Error::from_errno(EINVAL);
+		TRY(read_sectors(offset / sector_size(), bytes / sector_size(), (uint8_t*)buffer));
+		return bytes;
 	}
 
 }
