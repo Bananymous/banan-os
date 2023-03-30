@@ -119,26 +119,6 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<void> VirtualFileSystem::mount_test()
-	{
-		for (auto* controller : m_storage_controllers)
-		{
-			for (auto* device : controller->devices())
-			{
-				for (auto& partition : device->partitions())
-				{
-					if (partition.label() == "mount-test"sv)
-					{
-						auto ext2fs = TRY(Ext2FS::create(partition));
-						TRY(mount(ext2fs, "/mnt"sv));
-						return {};
-					}
-				}
-			}
-		}
-		return BAN::Error::from_c_string("Could not find mount-test partition");
-	}
-
 	BAN::ErrorOr<void> VirtualFileSystem::mount(FileSystem* file_system, BAN::StringView path)
 	{
 		auto file = TRY(file_from_absolute_path(path));

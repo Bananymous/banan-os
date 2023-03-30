@@ -208,8 +208,6 @@ void init2(void* tty1_ptr)
 	DeviceManager::initialize();
 
 	MUST(VirtualFileSystem::initialize());
-	if (auto res = VirtualFileSystem::get().mount_test(); res.is_error())
-		dwarnln("{}", res.error());
 
 	if (auto res = PS2Controller::initialize(); res.is_error())
 		dprintln("{}", res.error());
