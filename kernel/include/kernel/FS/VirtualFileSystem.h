@@ -18,7 +18,7 @@ namespace Kernel
 
 		virtual BAN::RefPtr<Inode> root_inode() override  { return m_root_fs->root_inode(); }
 
-		BAN::ErrorOr<void> mount(FileSystem*, BAN::StringView);
+		BAN::ErrorOr<void> mount(BAN::StringView, BAN::StringView);
 
 		struct File
 		{
@@ -27,15 +27,16 @@ namespace Kernel
 		};
 		BAN::ErrorOr<File> file_from_absolute_path(BAN::StringView);
 
+	private:
+		VirtualFileSystem() = default;
+		BAN::ErrorOr<void> mount(FileSystem*, BAN::StringView);
+
 		struct MountPoint
 		{
 			File host;
 			FileSystem* target;
 		};
 		MountPoint* mount_point_for_inode(BAN::RefPtr<Inode>);
-
-	private:
-		VirtualFileSystem() = default;
 
 	private:
 		FileSystem*						m_root_fs = nullptr;

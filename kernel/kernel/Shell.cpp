@@ -508,6 +508,12 @@ argument_done:
 				TTY_PRINTLN("{} {} {}", crc32, total_read, arguments[i]);
 			}
 		}
+		else if (arguments.front() == "mount")
+		{
+			if (arguments.size() != 3)
+				return BAN::Error::from_c_string("usage: 'mount partition directory'");
+			TRY(Process::current()->mount(arguments[1], arguments[2]));
+		}
 		else if (arguments.front() == "loadfont")
 		{
 			if (arguments.size() != 2)
