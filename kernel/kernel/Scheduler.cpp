@@ -211,4 +211,58 @@ namespace Kernel
 		ASSERT_NOT_REACHED();
 	}
 
+#pragma GCC push_options
+#pragma GCC optimize("O0")
+	void Scheduler::block_current_thread(Semaphore* semaphore)
+	{
+		VERIFY_STI();
+		DISABLE_INTERRUPTS();
+
+		ASSERT(m_current_thread);
+
+		auto blocking = m_current_thread->thread;
+
+		if (save_current_thread())
+		{
+			ENABLE_INTERRUPTS();
+			return;
+		}
+		remove_and_advance_current_thread();
+
+		// This should work as we released enough memory from active thread
+		static_assert(sizeof(ActiveThread) == sizeof(BlockingThread));
+		MUST(m_blocking_threads.emplace_back(blocking, semaphore));
+		blocking.clear();
+
+		semaphore->m_blocked = true;
+
+		execute_current_thread();
+		ASSERT_NOT_REACHED();
+	}
+#pragma GCC pop_options
+	
+	void Scheduler::unblock_threads(Semaphore* semaphore)
+	{
+		Kernel::CriticalScope critical;
+
+		for (auto it = m_blocking_threads.begin(); it != m_blocking_threads.end();)
+		{
+			if (it->semaphore == semaphore)
+			{
+				auto thread = it->thread;
+				it = m_blocking_threads.remove(it);
+
+				// This should work as we released enough memory from active thread
+				static_assert(sizeof(ActiveThread) == sizeof(BlockingThread));
+				MUST(m_active_threads.emplace_back(thread));
+			}
+			else
+			{
+				it++;
+			}
+		}
+
+		semaphore->m_blocked = false;
+	}
+
 }

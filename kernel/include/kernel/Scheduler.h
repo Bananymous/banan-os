@@ -2,6 +2,7 @@
 
 #include <BAN/LinkedList.h>
 #include <BAN/Memory.h>
+#include <kernel/Semaphore.h>
 #include <kernel/Thread.h>
 
 namespace Kernel
@@ -20,6 +21,9 @@ namespace Kernel
 
 		void set_current_thread_sleeping(uint64_t);
 		[[noreturn]] void set_current_thread_done();
+
+		void block_current_thread(Semaphore*);
+		void unblock_threads(Semaphore*);
 
 		BAN::RefPtr<Thread> current_thread();
 
@@ -47,9 +51,18 @@ namespace Kernel
 			uint64_t wake_time;
 		};
 
+		struct BlockingThread
+		{
+			BlockingThread(const BAN::RefPtr<Thread>& thread, Semaphore* semaphore) : thread(thread), semaphore(semaphore) {}
+			BAN::RefPtr<Thread> thread;
+			Semaphore* semaphore;
+			uint8_t padding[sizeof(uint64_t) - sizeof(Semaphore*)];
+		};
+
 		BAN::RefPtr<Thread> m_idle_thread;
 		BAN::LinkedList<ActiveThread> m_active_threads;
 		BAN::LinkedList<SleepingThread> m_sleeping_threads;
+		BAN::LinkedList<BlockingThread> m_blocking_threads;
 
 		BAN::LinkedList<ActiveThread>::iterator m_current_thread;
 

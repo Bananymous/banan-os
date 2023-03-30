@@ -211,8 +211,9 @@ namespace Kernel::Input
 			m_event_queue.pop();
 		}
 		m_event_queue.push(event);
-	}
 
+		m_semaphore.unblock();
+	}
 
 	void PS2Keyboard::update_leds()
 	{
@@ -231,14 +232,20 @@ namespace Kernel::Input
 		if (size < sizeof(KeyEvent))
 			return BAN::Error::from_errno(ENOBUFS);
 
-		while (m_event_queue.empty())
-			PIT::sleep(1);
+		while (true)
+		{
+			if (m_event_queue.empty())
+				m_semaphore.block();
 
-		CriticalScope _;
-		*(KeyEvent*)buffer = m_event_queue.front();
-		m_event_queue.pop();
+			CriticalScope _;
+			if (m_event_queue.empty())
+				continue;
 
-		return sizeof(KeyEvent);
+			*(KeyEvent*)buffer = m_event_queue.front();
+			m_event_queue.pop();
+
+			return sizeof(KeyEvent);
+		}
 	}
 
 }

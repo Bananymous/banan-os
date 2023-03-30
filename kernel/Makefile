@@ -57,6 +57,7 @@ kernel/PIT.o					\
 kernel/Process.o				\
 kernel/RTC.o					\
 kernel/Scheduler.o				\
+kernel/Semaphore.o				\
 kernel/Serial.o					\
 kernel/Shell.o					\
 kernel/SpinLock.o				\
