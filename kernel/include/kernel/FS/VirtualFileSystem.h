@@ -1,10 +1,9 @@
 #pragma once
 
-#include <BAN/HashMap.h>
 #include <BAN/String.h>
-#include <BAN/StringView.h>
+#include <BAN/Vector.h>
 #include <kernel/FS/FileSystem.h>
-#include <kernel/Storage/StorageController.h>
+#include <kernel/SpinLock.h>
 
 namespace Kernel
 {
@@ -16,9 +15,10 @@ namespace Kernel
 		static VirtualFileSystem& get();
 		virtual ~VirtualFileSystem() {};
 
-		virtual BAN::RefPtr<Inode> root_inode() override  { return m_root_fs->root_inode(); }
+		virtual BAN::RefPtr<Inode> root_inode() override { return m_root_fs->root_inode(); }
 
 		BAN::ErrorOr<void> mount(BAN::StringView, BAN::StringView);
+		BAN::ErrorOr<void> mount(FileSystem*, BAN::StringView);
 
 		struct File
 		{
@@ -29,7 +29,6 @@ namespace Kernel
 
 	private:
 		VirtualFileSystem() = default;
-		BAN::ErrorOr<void> mount(FileSystem*, BAN::StringView);
 
 		struct MountPoint
 		{
@@ -39,9 +38,9 @@ namespace Kernel
 		MountPoint* mount_point_for_inode(BAN::RefPtr<Inode>);
 
 	private:
+		SpinLock						m_lock;
 		FileSystem*						m_root_fs = nullptr;
 		BAN::Vector<MountPoint>			m_mount_points;
-		BAN::Vector<StorageController*>	m_storage_controllers;
 	};
 
 }

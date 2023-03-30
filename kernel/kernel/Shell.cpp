@@ -77,7 +77,7 @@ namespace Kernel
 						break;
 					case 'w':
 					{
-						auto working_directory = Process::current()->working_directory();
+						auto working_directory = TRY(Process::current()->working_directory());
 						TRY(m_prompt.append(working_directory));
 						m_prompt_length += working_directory.size();
 						break;
@@ -379,7 +379,11 @@ argument_done:
 			if (arguments.size() > 2)
 				return BAN::Error::from_c_string("usage: 'ls [path]'");
 
-			BAN::String path = (arguments.size() == 2) ? arguments[1] : Process::current()->working_directory();
+			BAN::String path;
+			if (arguments.size() == 2)
+				TRY(path.append(arguments[1]));
+			else
+				TRY(path.append(TRY(Process::current()->working_directory())));
 
 			int fd = TRY(Process::current()->open(path, O_RDONLY));
 			BAN::ScopeGuard _([fd] { MUST(Process::current()->close(fd)); });
