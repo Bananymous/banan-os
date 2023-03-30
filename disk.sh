@@ -30,14 +30,9 @@ sed -e 's/\s*\([-\+[:alnum:]]*\).*/\1/' << EOF | fdisk $DISK_NAME
   t     # set type
   2     # ... of partition 2
   20    # Linux filesystem
-  x		# expert menu
-  n		# partition name
-  3		# ... of partition 3
-  mount-test
-  n		# partition name
-  2		# ... of partition 2
-  banan-root
-  r		# back to main menu
+  t     # set type
+  3     # ... of partition 3
+  20    # Linux filesystem
   w     # write changes
 EOF
 
@@ -63,16 +58,16 @@ sudo grub-install --no-floppy --target=i386-pc --modules="normal ext2 multiboot"
 
 echo -e '
 menuentry "banan-os" {
-	multiboot /boot/banan-os.kernel
+	multiboot /boot/banan-os.kernel root=/dev/hda1
 }
 menuentry "banan-os (no serial)" {
-	multiboot /boot/banan-os.kernel noserial
+	multiboot /boot/banan-os.kernel root=/dev/hda1 noserial
 }
 menuentry "banan-os (no apic)" {
-	multiboot /boot/banan-os.kernel noapic
+	multiboot /boot/banan-os.kernel root=/dev/hda1 noapic
 }
 menuentry "banan-os (no apic, no serial)" {
-	multiboot /boot/banan-os.kernel noapic noserial
+	multiboot /boot/banan-os.kernel root=/dev/hda1 noapic noserial
 }
 ' | sudo tee ${MOUNT_DIR}/boot/grub/grub.cfg
 

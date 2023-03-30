@@ -12,7 +12,7 @@ namespace Kernel
 	class VirtualFileSystem : public FileSystem
 	{
 	public:
-		static BAN::ErrorOr<void> initialize();
+		static BAN::ErrorOr<void> initialize(BAN::StringView);
 		static VirtualFileSystem& get();
 		virtual ~VirtualFileSystem() {};
 

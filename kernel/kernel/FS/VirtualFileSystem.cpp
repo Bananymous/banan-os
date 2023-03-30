@@ -12,7 +12,7 @@ namespace Kernel
 
 	static VirtualFileSystem* s_instance = nullptr;
 
-	BAN::ErrorOr<void> VirtualFileSystem::initialize()
+	BAN::ErrorOr<void> VirtualFileSystem::initialize(BAN::StringView root)
 	{
 		ASSERT(s_instance == nullptr);
 		s_instance = new VirtualFileSystem();
@@ -20,8 +20,13 @@ namespace Kernel
 			return BAN::Error::from_errno(ENOMEM);
 		BAN::ScopeGuard guard([] { delete s_instance; s_instance = nullptr; } );
 
-		auto partition_inode = TRY(DeviceManager::get().read_directory_inode("hda1"));
+		if (root.size() < 5 || root.substring(0, 5) != "/dev/")
+			return BAN::Error::from_c_string("root must be in /dev/");
+		root = root.substring(5);
+
+		auto partition_inode = TRY(DeviceManager::get().read_directory_inode(root));
 		s_instance->m_root_fs = TRY(Ext2FS::create(*(Partition*)partition_inode.ptr()));
+
 		TRY(s_instance->mount(&DeviceManager::get(), "/dev"));
 
 		guard.disable();
@@ -76,7 +81,7 @@ namespace Kernel
 
 		const auto path_parts = TRY(path.split('/'));
 
-		for (const auto& path_part : path_parts)
+		for (auto path_part : path_parts)
 		{
 			if (path_part.empty() || path_part == "."sv)
 			{
