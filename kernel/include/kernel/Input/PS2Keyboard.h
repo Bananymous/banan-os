@@ -4,6 +4,7 @@
 #include <kernel/Input/KeyEvent.h>
 #include <kernel/Input/PS2Controller.h>
 #include <kernel/Input/PS2Keymap.h>
+#include <kernel/Semaphore.h>
 
 namespace Kernel::Input
 {
@@ -59,6 +60,8 @@ namespace Kernel::Input
 		PS2Keymap m_keymap;
 
 		State m_state { State::Normal };
+
+		Semaphore m_semaphore;
 
 		BAN::String m_name;
 
