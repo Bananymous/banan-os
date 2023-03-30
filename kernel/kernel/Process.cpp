@@ -104,13 +104,13 @@ namespace Kernel
 		TRY(validate_fd(fd));
 		const auto& open_fd = open_file_description(fd);
 
-		out->st_dev = 0;
+		out->st_dev = open_fd.inode->dev();
 		out->st_ino = open_fd.inode->ino();
 		out->st_mode = open_fd.inode->mode();
 		out->st_nlink = open_fd.inode->nlink();
 		out->st_uid = open_fd.inode->uid();
 		out->st_gid = open_fd.inode->gid();
-		out->st_rdev = 0;
+		out->st_rdev = open_fd.inode->rdev();
 		out->st_size = open_fd.inode->size();
 		out->st_atim = open_fd.inode->atime();
 		out->st_mtim = open_fd.inode->mtime();
