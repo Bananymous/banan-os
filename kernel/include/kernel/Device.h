@@ -19,9 +19,17 @@ namespace Kernel
 			DeviceController
 		};
 
+		Device();
 		virtual ~Device() {}
 		virtual DeviceType device_type() const = 0;
 		virtual void update() {}
+
+		virtual timespec atime() const override { return m_create_time; }
+		virtual timespec mtime() const override { return m_create_time; }
+		virtual timespec ctime() const override { return m_create_time; }
+
+	private:
+		timespec m_create_time;
 	};
 
 	class BlockDevice : public Device
