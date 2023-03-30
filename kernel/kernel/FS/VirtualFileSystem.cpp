@@ -38,7 +38,7 @@ namespace Kernel
 	BAN::ErrorOr<void> VirtualFileSystem::mount(FileSystem* file_system, BAN::StringView path)
 	{
 		auto file = TRY(file_from_absolute_path(path));
-		if (!file.inode->ifdir())
+		if (!file.inode->mode().ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
 		TRY(m_mount_points.push_back({ file, file_system }));
 		return {};

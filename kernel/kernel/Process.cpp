@@ -106,7 +106,7 @@ namespace Kernel
 
 		out->st_dev = open_fd.inode->dev();
 		out->st_ino = open_fd.inode->ino();
-		out->st_mode = open_fd.inode->mode();
+		out->st_mode = open_fd.inode->mode().mode;
 		out->st_nlink = open_fd.inode->nlink();
 		out->st_uid = open_fd.inode->uid();
 		out->st_gid = open_fd.inode->gid();
@@ -153,7 +153,7 @@ namespace Kernel
 		BAN::String absolute_path = TRY(absolute_path_of(path));
 
 		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(absolute_path));
-		if (!file.inode->ifdir())
+		if (!file.inode->mode().ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
 
 		m_working_directory = BAN::move(file.canonical_path);

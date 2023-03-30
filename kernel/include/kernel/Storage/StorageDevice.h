@@ -43,7 +43,7 @@ namespace Kernel
 
 	public:
 		virtual ino_t ino() const override { return m_index; }
-		virtual mode_t mode() const override { return Mode::IFBLK | Mode::IRUSR | Mode::IRGRP; }
+		virtual Mode mode() const override { return { Mode::IFBLK | Mode::IRUSR | Mode::IRGRP }; }
 		virtual nlink_t nlink() const override { return 1; }
 		virtual uid_t uid() const override { return 0; }
 		virtual gid_t gid() const override { return 0; }

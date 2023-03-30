@@ -252,7 +252,7 @@ namespace Kernel
 	{
 		// FIXME: update atime if needed
 
-		if (ifdir())
+		if (mode().ifdir())
 			return BAN::Error::from_errno(EISDIR);
 
 		if (offset >= m_inode.size)
@@ -286,7 +286,7 @@ namespace Kernel
 
 	BAN::ErrorOr<BAN::Vector<BAN::String>> Ext2Inode::read_directory_entries(size_t index)
 	{
-		if (!ifdir())
+		if (!mode().ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
 		
 		uint32_t data_block_count = blocks();
@@ -318,7 +318,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Ext2Inode::create_file(BAN::StringView name, mode_t mode)
 	{
-		if (!ifdir())
+		if (!this->mode().ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
 
 		if (name.size() > 255)
@@ -403,7 +403,7 @@ namespace Kernel
 
 	BAN::ErrorOr<BAN::RefPtr<Inode>> Ext2Inode::read_directory_inode(BAN::StringView file_name)
 	{
-		if (!ifdir())
+		if (!mode().ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
 
 		uint32_t block_size = m_fs.block_size();

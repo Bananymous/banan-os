@@ -43,7 +43,7 @@ namespace Kernel
 
 	public:
 		virtual ino_t ino() const override { return !!slave_bit; }
-		virtual mode_t mode() const override { return Mode::IFBLK; }
+		virtual Mode mode() const override { return { Mode::IFBLK }; }
 		virtual nlink_t nlink() const override { return 1; }
 		virtual uid_t uid() const override { return 0; }
 		virtual gid_t gid() const override { return 0; }
@@ -92,7 +92,7 @@ namespace Kernel
 
 	public:
 		virtual ino_t ino() const override { return 0; }
-		virtual mode_t mode() const override { return Mode::IFCHR; }
+		virtual Mode mode() const override { return { Mode::IFCHR }; }
 		virtual nlink_t nlink() const override { return 1; }
 		virtual uid_t uid() const override { return 0; }
 		virtual gid_t gid() const override { return 0; }
