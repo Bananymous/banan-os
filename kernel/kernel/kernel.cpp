@@ -1,6 +1,7 @@
 #include <kernel/ACPI.h>
 #include <kernel/Arch.h>
 #include <kernel/Debug.h>
+#include <kernel/DeviceManager.h>
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/GDT.h>
 #include <kernel/IDT.h>
