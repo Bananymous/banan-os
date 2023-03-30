@@ -63,9 +63,38 @@ namespace BAN
 
 	ErrorOr<Vector<StringView>> StringView::split(char delim, bool allow_empties)
 	{
-		// FIXME: Won't work while multithreading
-		static char s_delim = delim;
-		return split([](char c){ return c == s_delim; }, allow_empties);
+		size_type count = 0;
+		{
+			size_type start = 0;
+			for (size_type i = 0; i < m_size; i++)
+			{
+				if (m_data[i] == delim)
+				{
+					if (allow_empties || start != i)
+						count++;
+					start = i + 1;
+				}
+			}
+			if (start != m_size)
+				count++;
+		}
+
+		Vector<StringView> result;
+		TRY(result.reserve(count));
+
+		size_type start = 0;
+		for (size_type i = 0; i < m_size; i++)
+		{
+			if (m_data[i] == delim)
+			{
+				if (allow_empties || start != i)
+					TRY(result.push_back(this->substring(start, i - start)));
+				start = i + 1;
+			}
+		}
+		if (start != m_size)
+			TRY(result.push_back(this->substring(start)));
+		return result;
 	}
 
 	ErrorOr<Vector<StringView>> StringView::split(bool(*comp)(char), bool allow_empties)
