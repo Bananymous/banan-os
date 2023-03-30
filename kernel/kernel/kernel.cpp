@@ -27,14 +27,13 @@ struct ParsedCommandLine
 {
 	bool force_pic		= false;
 	bool disable_serial	= false;
+	BAN::StringView root;
 };
 
-ParsedCommandLine ParseCommandLine()
+static bool should_disable_serial()
 {
-	ParsedCommandLine result;
-
 	if (!(g_multiboot_info->flags & 0x02))
-		return result;
+		return false;
 
 	const char* start = g_kernel_cmdline;
 	const char* current = g_kernel_cmdline;
@@ -42,12 +41,8 @@ ParsedCommandLine ParseCommandLine()
 	{
 		if (!*current || *current == ' ' || *current == '\t')
 		{
-			if (current - start == 6 && memcmp(start, "noapic", 6) == 0)
-				result.force_pic = true;
-
 			if (current - start == 8 && memcmp(start, "noserial", 8) == 0)
-				result.disable_serial = true;
-
+				return true;
 			if (!*current)
 				break;
 			start = current + 1;
@@ -55,7 +50,28 @@ ParsedCommandLine ParseCommandLine()
 		current++;
 	}
 
-	return result;
+	return false;
+}
+
+static ParsedCommandLine cmdline;
+
+static void parse_command_line()
+{
+	if (!(g_multiboot_info->flags & 0x02))
+		return;
+
+	BAN::StringView full_command_line(g_kernel_cmdline);
+	auto arguments = MUST(full_command_line.split(' '));
+
+	for (auto argument : arguments)
+	{
+		if (argument == "noapic")
+			cmdline.force_pic = true;
+		else if (argument == "noserial")
+			cmdline.disable_serial = true;
+		else if (argument.size() > 5 && argument.substring(0, 5) == "root=")
+			cmdline.root = argument.substring(5);
+	}
 }
 
 struct Test
@@ -87,8 +103,7 @@ extern "C" uintptr_t g_userspace_end;
 
 extern void userspace_entry();
 
-void init2(void*);
-void device_updater(void*);
+static void init2(void*);
 
 extern "C" void kernel_main()
 {
@@ -96,9 +111,7 @@ extern "C" void kernel_main()
 
 	DISABLE_INTERRUPTS();
 
-	auto cmdline = ParseCommandLine();
-
-	if (!cmdline.disable_serial)
+	if (!should_disable_serial())
 		Serial::initialize();
 	if (g_multiboot_magic != 0x2BADB002)
 	{
@@ -118,6 +131,9 @@ extern "C" void kernel_main()
 
 	MMU::intialize();
 	dprintln("MMU initialized");
+
+	parse_command_line();
+	dprintln("command line parsed, root='{}'", cmdline.root);
 
 	PCI::initialize();
 	dprintln("PCI initialized");
@@ -189,16 +205,7 @@ extern "C" void kernel_main()
 	ASSERT(false);
 }
 
-void device_updater(void*)
-{
-	while (true)
-	{
-		Kernel::DeviceManager::get().update();
-		PIT::sleep(1);
-	}
-}
-
-void init2(void* tty1_ptr)
+static void init2(void* tty1_ptr)
 {
 	using namespace Kernel;
 	using namespace Kernel::Input;
@@ -207,7 +214,7 @@ void init2(void* tty1_ptr)
 
 	DeviceManager::initialize();
 
-	MUST(VirtualFileSystem::initialize());
+	MUST(VirtualFileSystem::initialize(cmdline.root));
 
 	if (auto res = PS2Controller::initialize(); res.is_error())
 		dprintln("{}", res.error());
