@@ -106,7 +106,9 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Process::mount(BAN::StringView partition, BAN::StringView path)
 	{
-		TRY(VirtualFileSystem::get().mount(partition, path));
+		auto absolute_partition = TRY(absolute_path_of(partition));
+		auto absolute_path = TRY(absolute_path_of(path));
+		TRY(VirtualFileSystem::get().mount(absolute_partition, absolute_path));
 		return {};
 	}
 
