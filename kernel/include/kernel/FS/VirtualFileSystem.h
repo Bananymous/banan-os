@@ -35,7 +35,8 @@ namespace Kernel
 			File host;
 			FileSystem* target;
 		};
-		MountPoint* mount_point_for_inode(BAN::RefPtr<Inode>);
+		MountPoint* mount_from_host_inode(BAN::RefPtr<Inode>);
+		MountPoint* mount_from_root_inode(BAN::RefPtr<Inode>);
 
 	private:
 		SpinLock						m_lock;

@@ -65,11 +65,20 @@ namespace Kernel
 		return {};
 	}
 
-	VirtualFileSystem::MountPoint* VirtualFileSystem::mount_point_for_inode(BAN::RefPtr<Inode> inode)
+	VirtualFileSystem::MountPoint* VirtualFileSystem::mount_from_host_inode(BAN::RefPtr<Inode> inode)
 	{
 		ASSERT(m_lock.is_locked());
 		for (MountPoint& mount : m_mount_points)
 			if (*mount.host.inode == *inode)
+				return &mount;
+		return nullptr;
+	}
+
+	VirtualFileSystem::MountPoint* VirtualFileSystem::mount_from_root_inode(BAN::RefPtr<Inode> inode)
+	{
+		ASSERT(m_lock.is_locked());
+		for (MountPoint& mount : m_mount_points)
+			if (*mount.target->root_inode() == *inode)
 				return &mount;
 		return nullptr;
 	}
@@ -96,13 +105,14 @@ namespace Kernel
 			}
 			else if (path_part == ".."sv)
 			{
-				if (auto* mount_point = mount_point_for_inode(inode))
+				if (auto* mount_point = mount_from_root_inode(inode))
 					inode = TRY(mount_point->host.inode->read_directory_inode(".."sv));
 				else
 					inode = TRY(inode->read_directory_inode(".."sv));
 
 				if (!canonical_path.empty())
 				{
+					ASSERT(canonical_path.front() == '/');
 					while (canonical_path.back() != '/')
 						canonical_path.pop_back();
 					canonical_path.pop_back();
@@ -113,10 +123,10 @@ namespace Kernel
 				inode = TRY(inode->read_directory_inode(path_part));
 				TRY(canonical_path.push_back('/'));
 				TRY(canonical_path.append(path_part));
-			}
 
-			if (auto* mount_point = mount_point_for_inode(inode))
-				inode = mount_point->target->root_inode();
+				if (auto* mount_point = mount_from_host_inode(inode))
+					inode = mount_point->target->root_inode();
+			}
 		}
 
 		if (canonical_path.empty())
