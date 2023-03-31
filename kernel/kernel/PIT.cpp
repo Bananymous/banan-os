@@ -1,7 +1,6 @@
 #include <kernel/IDT.h>
 #include <kernel/InterruptController.h>
 #include <kernel/IO.h>
-#include <kernel/kprint.h>
 #include <kernel/Scheduler.h>
 
 #define TIMER0_CTL			0x40

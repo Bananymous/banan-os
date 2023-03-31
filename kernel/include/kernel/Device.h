@@ -1,6 +1,5 @@
 #pragma once
 
-#include <kernel/FS/FileSystem.h>
 #include <kernel/FS/Inode.h>
 
 namespace Kernel

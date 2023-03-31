@@ -1,4 +1,3 @@
-#include <kernel/LockGuard.h>
 #include <kernel/Scheduler.h>
 #include <kernel/Semaphore.h>
 

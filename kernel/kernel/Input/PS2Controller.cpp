@@ -1,5 +1,4 @@
 #include <BAN/ScopeGuard.h>
-#include <BAN/Time.h>
 #include <kernel/ACPI.h>
 #include <kernel/DeviceManager.h>
 #include <kernel/IDT.h>
@@ -7,7 +6,6 @@
 #include <kernel/Input/PS2Keyboard.h>
 #include <kernel/InterruptController.h>
 #include <kernel/IO.h>
-#include <kernel/RTC.h>
 
 namespace Kernel::Input
 {
