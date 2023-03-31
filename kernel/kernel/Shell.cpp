@@ -275,9 +275,11 @@ argument_done:
 			auto new_args = arguments;
 			new_args.remove(0);
 			auto start = PIT::ms_since_boot();
-			TRY(process_command(new_args));
+			auto ret = process_command(new_args);
 			auto duration = PIT::ms_since_boot() - start;
 			TTY_PRINTLN("took {} ms", duration);
+			if (ret.is_error())
+				return ret.error();
 		}
 		else if (arguments.front() == "thread")
 		{
