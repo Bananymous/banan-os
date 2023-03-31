@@ -432,13 +432,8 @@ argument_done:
 			BAN::ScopeGuard _([fd] { MUST(Process::current()->close(fd)); });
 
 			char buffer[1024] {};
-			while (true)
-			{
-				size_t n_read = TRY(Process::current()->read(fd, buffer, sizeof(buffer)));
-				if (n_read == 0)
-					break;
+			while (size_t n_read = TRY(Process::current()->read(fd, buffer, sizeof(buffer))))
 				TTY_PRINT("{}", BAN::StringView(buffer, n_read));
-			}
 			TTY_PRINTLN("");
 		}
 		else if (arguments.front() == "stat")
