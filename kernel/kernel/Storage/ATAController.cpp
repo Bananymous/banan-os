@@ -241,7 +241,7 @@ namespace Kernel
 	BAN::ErrorOr<void> ATAController::write(ATADevice* device, uint64_t lba, uint8_t sector_count, const uint8_t* buffer)
 	{
 		if (lba + sector_count > device->m_lba_count)
-			return BAN::Error::from_c_string("Attempted to read outside of the device boundaries");
+			return BAN::Error::from_c_string("Attempted to write outside of the device boundaries");
 
 		LockGuard _(m_lock);
 
@@ -377,6 +377,8 @@ namespace Kernel
 	{
 		if (offset % sector_size() || bytes % sector_size())
 			return BAN::Error::from_errno(EINVAL);
+		if (offset == total_size())
+			return 0;
 		TRY(read_sectors(offset / sector_size(), bytes / sector_size(), (uint8_t*)buffer));
 		return bytes;
 	}

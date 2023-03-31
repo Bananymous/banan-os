@@ -218,7 +218,7 @@ namespace Kernel
 	{
 		const uint32_t sectors_in_partition = m_lba_end - m_lba_start;
 		if (lba + sector_count > sectors_in_partition)
-			return BAN::Error::from_c_string("Attempted to read outside of the partition boundaries");
+			return BAN::Error::from_c_string("Attempted to write outside of the partition boundaries");
 		TRY(m_device.write_sectors(m_lba_start + lba, sector_count, buffer));
 		return {};
 	}
@@ -237,8 +237,18 @@ namespace Kernel
 	{
 		if (offset % m_device.sector_size() || bytes % m_device.sector_size())
 			return BAN::Error::from_errno(ENOTSUP);
-		TRY(read_sectors(offset / m_device.sector_size(), bytes / m_device.sector_size(), (uint8_t*)buffer));
-		return bytes;
+
+		const uint32_t sectors_in_partition = m_lba_end - m_lba_start;
+		uint32_t lba = offset / m_device.sector_size();
+		uint32_t sector_count = bytes / m_device.sector_size();
+
+		if (lba == sectors_in_partition)
+			return 0;
+		if (lba + sector_count > sectors_in_partition)
+			sector_count = sectors_in_partition - lba;
+
+		TRY(read_sectors(lba, sector_count, (uint8_t*)buffer));
+		return sector_count * m_device.sector_size();
 	}
 
 }
