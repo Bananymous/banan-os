@@ -438,8 +438,10 @@ namespace Kernel
 		Ext2FS* ext2fs = new Ext2FS(partition);
 		if (ext2fs == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
+		BAN::ScopeGuard guard([ext2fs] { delete ext2fs; });
 		TRY(ext2fs->initialize_superblock());
 		TRY(ext2fs->initialize_root_inode());
+		guard.disable();
 		return ext2fs;
 	}
 
