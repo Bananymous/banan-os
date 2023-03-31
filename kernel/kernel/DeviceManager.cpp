@@ -87,6 +87,8 @@ namespace Kernel
 	BAN::ErrorOr<BAN::RefPtr<Inode>> DeviceManager::read_directory_inode(BAN::StringView name)
 	{
 		LockGuard _(m_lock);
+		if (name == "."sv || name == ".."sv)
+			return BAN::RefPtr<Inode>(this);
 		for (Device* device : m_devices)
 			if (device->name() == name)
 				return BAN::RefPtr<Inode>(device);
@@ -100,9 +102,11 @@ namespace Kernel
 			return result;
 
 		LockGuard _(m_lock);
-		TRY(result.reserve(m_devices.size()));
+		TRY(result.reserve(m_devices.size() + 2));
+		MUST(result.emplace_back("."sv));
+		MUST(result.emplace_back(".."sv));
 		for (Device* device : m_devices)
-			TRY(result.emplace_back(device->name()));
+			MUST(result.emplace_back(device->name()));
 		return result;
 	}
 
