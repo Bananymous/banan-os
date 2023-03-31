@@ -1,7 +1,6 @@
 #include <BAN/ScopeGuard.h>
 #include <BAN/StringView.h>
 #include <kernel/FS/Ext2.h>
-#include <kernel/Process.h>
 #include <kernel/RTC.h>
 
 #define EXT2_DEBUG_PRINT 0

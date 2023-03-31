@@ -1,6 +1,6 @@
 #pragma once
 
-#include <BAN/Function.h>
+#include <BAN/Memory.h>
 #include <BAN/NoCopyMove.h>
 
 #include <sys/types.h>

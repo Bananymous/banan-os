@@ -4,7 +4,6 @@
 #include <kernel/FS/Ext2.h>
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/LockGuard.h>
-#include <kernel/PCI.h>
 
 namespace Kernel
 {
