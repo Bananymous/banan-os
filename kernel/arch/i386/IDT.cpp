@@ -3,6 +3,7 @@
 #include <kernel/InterruptController.h>
 #include <kernel/kmalloc.h>
 #include <kernel/Panic.h>
+#include <kernel/Scheduler.h>
 
 #define INTERRUPT_HANDLER____(i, msg)													\
 	static void interrupt ## i ()														\
@@ -132,6 +133,8 @@ found:
 		// NOTE: Scheduler sends PIT eoi's
 		if (irq != PIT_IRQ)
 			InterruptController::get().eoi(irq);
+
+		Kernel::Scheduler::get().reschedule_if_idling();
 	}
 
 	extern "C" void handle_irq_common();

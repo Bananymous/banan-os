@@ -70,6 +70,20 @@ namespace Kernel
 		ASSERT_NOT_REACHED();
 	}
 
+	void Scheduler::reschedule_if_idling()
+	{
+		VERIFY_CLI();
+
+		if (m_active_threads.empty() || &current_thread() != m_idle_thread)
+			return;
+		
+		if (save_current_thread())
+			return;
+		m_current_thread = m_active_threads.begin();
+		execute_current_thread();
+		ASSERT_NOT_REACHED();
+	}
+
 	void Scheduler::wake_threads()
 	{
 		VERIFY_CLI();
