@@ -2,11 +2,12 @@ cmake_minimum_required(VERSION 3.26)
 
 project(kernel CXX ASM)
 
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED True)
-set(CMAKE_CXX_COMPILER ${BANAN_ARCH}-elf-g++)
-set(CMAKE_CXX_COMPILER_WORKS True)
-	
+if("${BANAN_ARCH}" STREQUAL "x86_64")
+	set(ELF_FORMAT elf64-x86-64)
+elseif("${BANAN_ARCH}" STREQUAL "i386")
+	set(ELF_FORMAT elf32-i386)
+endif()
+
 set(KERNEL_SOURCES
 	font/prefs.psf.o
 	kernel/ACPI.cpp
@@ -62,7 +63,7 @@ if("${BANAN_ARCH}" STREQUAL "x86_64")
 		arch/x86_64/SpinLock.S
 		arch/x86_64/Thread.S
 	)
-elseif("${BANAN_ARCH}" EQUAL "i386")
+elseif("${BANAN_ARCH}" STREQUAL "i386")
 	set(KERNEL_SOURCES
 		${KERNEL_SOURCES}
 		arch/i386/boot.S
@@ -73,7 +74,7 @@ elseif("${BANAN_ARCH}" EQUAL "i386")
 		arch/i386/Thread.S
 	)
 else()
-	message(FATAL_ERROR "unsupported architecure")
+	message(FATAL_ERROR "unsupported architecure ${BANAN_ARCH}")
 endif()
 
 set(BAN_SOURCES
@@ -99,7 +100,7 @@ add_executable(kernel ${KERNEL_SOURCES})
 target_include_directories(kernel PUBLIC include ../BAN/include ../libc/include)
 
 target_compile_definitions(kernel PUBLIC __is_kernel)
-target_compile_definitions(kernel PUBLIC __arch=x86_64)
+target_compile_definitions(kernel PUBLIC __arch=${BANAN_ARCH})
 
 target_compile_options(kernel PUBLIC -O2 -g)
 target_compile_options(kernel PUBLIC -Wno-literal-suffix)
@@ -138,4 +139,9 @@ add_custom_command(
 	COMMAND cp ${CRTEND} .
 )
 
-set(CMAKE_CXX_LINK_EXECUTABLE "${CMAKE_CXX_COMPILER} <CMAKE_CXX_LINK_FLAGS> <FLAGS> <LINK_FLAGS> -o <TARGET> ${CMAKE_CURRENT_BINARY_DIR}/crti.o ${CMAKE_CURRENT_BINARY_DIR}/crtbegin.o <OBJECTS> ${CMAKE_CURRENT_BINARY_DIR}/crtend.o ${CMAKE_CURRENT_BINARY_DIR}/crtn.o")
+add_custom_command(
+	OUTPUT font/prefs.psf.o
+	COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR} && objcopy -O ${ELF_FORMAT} -B i386 -I binary font/prefs.psf ${CMAKE_CURRENT_BINARY_DIR}/font/prefs.psf.o
+)
+
+set(CMAKE_CXX_LINK_EXECUTABLE "${CMAKE_CXX_COMPILER} <CMAKE_CXX_LINK_FLAGS> <FLAGS> <LINK_FLAGS> -o <TARGET> ${CMAKE_CURRENT_BINARY_DIR}/crti.o ${CMAKE_CURRENT_BINARY_DIR}/crtbegin.o <OBJECTS> ${CMAKE_CURRENT_BINARY_DIR}/crtend.o ${CMAKE_CURRENT_BINARY_DIR}/crtn.o -lgcc ")

@@ -1,8 +1,21 @@
 cmake_minimum_required(VERSION 3.26)
 
-project(banan-os CXX ASM)
-
 set(BANAN_ARCH x86_64)
+
+if(DEFINED ENV{BANAN_ARCH})
+	set(BANAN_ARCH $ENV{BANAN_ARCH})
+endif()
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED True)
+set(CMAKE_CXX_COMPILER ${BANAN_ARCH}-elf-g++)
+set(CMAKE_CXX_COMPILER_WORKS True)
+
+if("${BANAN_ARCH}" STREQUAL "i386")
+	set(CMAKE_CXX_COMPILER i686-elf-g++)
+endif()
+
+project(banan-os CXX)
 
 set(BANAN_SYSROOT ${CMAKE_BINARY_DIR}/sysroot)
 set(BANAN_INCLUDE ${BANAN_SYSROOT}/usr/include)
