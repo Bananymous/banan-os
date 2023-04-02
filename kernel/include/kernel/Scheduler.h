@@ -16,6 +16,7 @@ namespace Kernel
 
 		void start();
 		void reschedule();
+		void reschedule_if_idling();
 
 		BAN::ErrorOr<void> add_thread(Thread*);
 

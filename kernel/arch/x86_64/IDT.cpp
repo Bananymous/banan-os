@@ -3,6 +3,7 @@
 #include <kernel/InterruptController.h>
 #include <kernel/kmalloc.h>
 #include <kernel/Panic.h>
+#include <kernel/Scheduler.h>
 
 #define REGISTER_ISR_HANDLER(i) register_interrupt_handler(i, isr ## i)
 #define REGISTER_IRQ_HANDLER(i) register_interrupt_handler(IRQ_VECTOR_BASE + i, irq ## i)
@@ -129,6 +130,8 @@ namespace IDT
 		// NOTE: Scheduler sends PIT eoi's
 		if (irq != PIT_IRQ)
 			InterruptController::get().eoi(irq);
+
+		Kernel::Scheduler::get().reschedule_if_idling();
 	}
 
 	static void flush_idt()
