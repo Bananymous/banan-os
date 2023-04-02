@@ -1,3 +1,3 @@
 #!/bin/sh
 
-find . | grep -v 'sysroot' | grep -E '\.(cpp|h|S)$' | xargs wc -l | sort -n
+find . | grep -v 'build' | grep -E '\.(cpp|h|S)$' | xargs wc -l | sort -n
