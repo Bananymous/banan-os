@@ -1,5 +1,6 @@
 #pragma once
 
+#include <BAN/Errors.h>
 #include <BAN/ForwardList.h>
 #include <BAN/Formatter.h>
 #include <BAN/Hash.h>
@@ -87,7 +88,7 @@ namespace BAN
 	String String::formatted(const char* format, const Args&... args)
 	{
 		String result;
-		BAN::Formatter::print([&](char c){ result.push_back(c); }, format, args...);
+		BAN::Formatter::print([&](char c){ MUST(result.push_back(c)); }, format, args...);
 		return result;
 	}
 

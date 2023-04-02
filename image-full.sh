@@ -1,16 +1,12 @@
 #!/bin/sh
 set -e
-. ./build.sh
 
-cp -r base/* $SYSROOT
-
-DISK_NAME=banan-os.img
 DISK_SIZE=$[50 * 1024 * 1024]
 MOUNT_DIR=/mnt
 
-dd if=/dev/zero of=$DISK_NAME bs=512 count=$[$DISK_SIZE / 512]
+dd if=/dev/zero of=$DISK_IMAGE_PATH bs=512 count=$[$DISK_SIZE / 512] > /dev/null
 
-sed -e 's/\s*\([-\+[:alnum:]]*\).*/\1/' << EOF | fdisk $DISK_NAME
+sed -e 's/\s*\([-\+[:alnum:]]*\).*/\1/' << EOF | fdisk $DISK_IMAGE_PATH > /dev/null
   g     # gpt
   n     # new partition
   1     # partition number 1
@@ -36,40 +32,25 @@ sed -e 's/\s*\([-\+[:alnum:]]*\).*/\1/' << EOF | fdisk $DISK_NAME
   w     # write changes
 EOF
 
-LOOP_DEV=$(sudo losetup -f --show $DISK_NAME)
+LOOP_DEV=$(sudo losetup -f --show $DISK_IMAGE_PATH)
 sudo partprobe $LOOP_DEV
 
 PARTITION1=${LOOP_DEV}p1
 PARTITION2=${LOOP_DEV}p2
 PARTITION3=${LOOP_DEV}p3
 
-sudo mkfs.ext2 $PARTITION3
+sudo mkfs.ext2 $PARTITION3 > /dev/null
 sudo mount $PARTITION3 $MOUNT_DIR
-echo 'hello' | sudo tee ${MOUNT_DIR}/hello.txt
+echo 'hello' | sudo tee ${MOUNT_DIR}/hello.txt > /dev/null
 sudo umount $MOUNT_DIR
 
-sudo mkfs.ext2 $PARTITION2
+sudo mkfs.ext2 $PARTITION2 > /dev/null
 
 sudo mount $PARTITION2 $MOUNT_DIR
 
 sudo cp -r ${SYSROOT}/* ${MOUNT_DIR}/
 
-sudo grub-install --no-floppy --target=i386-pc --modules="normal ext2 multiboot" --boot-directory=${MOUNT_DIR}/boot $LOOP_DEV
-
-echo -e '
-menuentry "banan-os" {
-	multiboot /boot/banan-os.kernel root=/dev/hda1
-}
-menuentry "banan-os (no serial)" {
-	multiboot /boot/banan-os.kernel root=/dev/hda1 noserial
-}
-menuentry "banan-os (no apic)" {
-	multiboot /boot/banan-os.kernel root=/dev/hda1 noapic
-}
-menuentry "banan-os (no apic, no serial)" {
-	multiboot /boot/banan-os.kernel root=/dev/hda1 noapic noserial
-}
-' | sudo tee ${MOUNT_DIR}/boot/grub/grub.cfg
+sudo grub-install --no-floppy --target=i386-pc --modules="normal ext2 multiboot" --boot-directory=${MOUNT_DIR}/boot $LOOP_DEV > /dev/null
 
 sudo umount $MOUNT_DIR
 

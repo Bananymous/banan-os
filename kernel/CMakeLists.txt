@@ -1,0 +1,141 @@
+cmake_minimum_required(VERSION 3.26)
+
+project(kernel CXX ASM)
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED True)
+set(CMAKE_CXX_COMPILER ${BANAN_ARCH}-elf-g++)
+set(CMAKE_CXX_COMPILER_WORKS True)
+	
+set(KERNEL_SOURCES
+	font/prefs.psf.o
+	kernel/ACPI.cpp
+	kernel/APIC.cpp
+	kernel/build_libc.cpp
+	kernel/CPUID.cpp
+	kernel/Debug.cpp
+	kernel/Device.cpp
+	kernel/DeviceManager.cpp
+	kernel/ELF.cpp
+	kernel/Font.cpp
+	kernel/FS/Ext2.cpp
+	kernel/FS/VirtualFileSystem.cpp
+	kernel/Input/PS2Controller.cpp
+	kernel/Input/PS2Keyboard.cpp
+	kernel/Input/PS2Keymap.cpp
+	kernel/InterruptController.cpp
+	kernel/kernel.cpp
+	kernel/kmalloc.cpp
+	kernel/PCI.cpp
+	kernel/PIC.cpp
+	kernel/PIT.cpp
+	kernel/Process.cpp
+	kernel/RTC.cpp
+	kernel/Scheduler.cpp
+	kernel/Semaphore.cpp
+	kernel/Serial.cpp
+	kernel/Shell.cpp
+	kernel/SpinLock.cpp
+	kernel/SSP.cpp
+	kernel/Storage/ATAController.cpp
+	kernel/Storage/StorageDevice.cpp
+	kernel/Syscall.cpp
+	kernel/Thread.cpp
+	kernel/TTY.cpp
+	kernel/VesaTerminalDriver.cpp
+	userspace/userspace.cpp
+	icxxabi.cpp
+)
+
+if(ENABLE_KERNEL_UBSAN)
+	set(KERNEL_SOURCES ${KERNEL_SOURCES} ubsan.cpp)
+endif()
+
+if("${BANAN_ARCH}" STREQUAL "x86_64")
+	set(KERNEL_SOURCES
+		${KERNEL_SOURCES}
+		arch/x86_64/boot.S
+		arch/x86_64/GDT.cpp
+		arch/x86_64/IDT.cpp
+		arch/x86_64/interrupts.S
+		arch/x86_64/MMU.cpp
+		arch/x86_64/SpinLock.S
+		arch/x86_64/Thread.S
+	)
+elseif("${BANAN_ARCH}" EQUAL "i386")
+	set(KERNEL_SOURCES
+		${KERNEL_SOURCES}
+		arch/i386/boot.S
+		arch/i386/GDT.cpp
+		arch/i386/IDT.cpp
+		arch/i386/MMU.cpp
+		arch/i386/SpinLock.S
+		arch/i386/Thread.S
+	)
+else()
+	message(FATAL_ERROR "unsupported architecure")
+endif()
+
+set(BAN_SOURCES
+	../BAN/BAN/Memory.cpp
+	../BAN/BAN/String.cpp
+	../BAN/BAN/StringView.cpp
+	../BAN/BAN/Time.cpp
+)
+
+set(LIBC_SOURCES
+	../libc/ctype.cpp
+	../libc/string.cpp
+)
+
+set(KERNEL_SOURCES
+	${KERNEL_SOURCES}
+	${BAN_SOURCES}
+	${LIBC_SOURCES}
+)
+
+add_executable(kernel ${KERNEL_SOURCES})
+
+target_include_directories(kernel PUBLIC include ../BAN/include ../libc/include)
+
+target_compile_definitions(kernel PUBLIC __is_kernel)
+target_compile_definitions(kernel PUBLIC __arch=x86_64)
+
+target_compile_options(kernel PUBLIC -O2 -g)
+target_compile_options(kernel PUBLIC -Wno-literal-suffix)
+target_compile_options(kernel PUBLIC -fno-rtti -fno-exceptions)
+target_compile_options(kernel PUBLIC -fstack-protector -ffreestanding -Wall -Wextra -Werror=return-type -fno-omit-frame-pointer -mno-sse -mno-sse2)
+
+if(ENABLE_KERNEL_UBSAN)
+	target_compile_options(kernel PUBLIC -fsanitize=undefined)
+endif()
+
+if("${BANAN_ARCH}" STREQUAL "x86_64")
+	target_compile_options(kernel PUBLIC -mcmodel=large -mno-red-zone -mno-mmx)
+	target_link_options(kernel PUBLIC LINKER:-z,max-page-size=4096)
+	target_link_options(kernel PUBLIC LINKER:-T,${CMAKE_CURRENT_SOURCE_DIR}/arch/x86_64/linker.ld)
+elseif("${BANAN_ARCH}" STREQUAL "i386")
+	target_link_options(kernel PUBLIC LINKER:-T,${CMAKE_CURRENT_SOURCE_DIR}/arch/i386/linker.ld)
+endif()
+
+target_link_options(kernel PUBLIC -ffreestanding -nostdlib -O2)
+
+add_custom_target(kernel-install
+	COMMAND cp -r ${CMAKE_CURRENT_SOURCE_DIR}/include/* ${BANAN_INCLUDE}/
+	COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/kernel ${BANAN_BOOT}/banan-os.kernel
+	DEPENDS sysroot
+	DEPENDS kernel
+)
+
+execute_process(COMMAND ${CMAKE_CXX_COMPILER} -print-file-name=crtbegin.o OUTPUT_VARIABLE CRTBEGIN OUTPUT_STRIP_TRAILING_WHITESPACE)
+execute_process(COMMAND ${CMAKE_CXX_COMPILER} -print-file-name=crtend.o OUTPUT_VARIABLE CRTEND OUTPUT_STRIP_TRAILING_WHITESPACE)
+
+add_custom_command(
+	TARGET kernel PRE_LINK
+	COMMAND ${CMAKE_CXX_COMPILER} -MD -c ${CMAKE_CURRENT_SOURCE_DIR}/arch/${BANAN_ARCH}/crti.S ${COMPILE_OPTIONS}
+	COMMAND ${CMAKE_CXX_COMPILER} -MD -c ${CMAKE_CURRENT_SOURCE_DIR}/arch/${BANAN_ARCH}/crtn.S ${COMPILE_OPTIONS}
+	COMMAND cp ${CRTBEGIN} .
+	COMMAND cp ${CRTEND} .
+)
+
+set(CMAKE_CXX_LINK_EXECUTABLE "${CMAKE_CXX_COMPILER} <CMAKE_CXX_LINK_FLAGS> <FLAGS> <LINK_FLAGS> -o <TARGET> ${CMAKE_CURRENT_BINARY_DIR}/crti.o ${CMAKE_CURRENT_BINARY_DIR}/crtbegin.o <OBJECTS> ${CMAKE_CURRENT_BINARY_DIR}/crtend.o ${CMAKE_CURRENT_BINARY_DIR}/crtn.o")
