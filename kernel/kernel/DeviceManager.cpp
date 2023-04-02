@@ -42,8 +42,13 @@ namespace Kernel
 						for (auto* device : controller->devices())
 						{
 							s_instance->add_device(device);
-							for (auto* partition : device->partitions())
-								s_instance->add_device(partition);
+							if (auto res = device->initialize_partitions(); res.is_error())
+								dprintln("{}: {}", device->name(), res.error());
+							else
+							{
+								for (auto* partition : device->partitions())
+									s_instance->add_device(partition);
+							}
 						}
 					}
 					break;

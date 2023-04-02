@@ -1,7 +1,5 @@
 #pragma once
 
-#include <kernel/SpinLock.h>
-
 namespace Kernel
 {
 

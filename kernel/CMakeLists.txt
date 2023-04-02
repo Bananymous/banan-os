@@ -38,6 +38,7 @@ set(KERNEL_SOURCES
 	kernel/Shell.cpp
 	kernel/SpinLock.cpp
 	kernel/SSP.cpp
+	kernel/Storage/ATABus.cpp
 	kernel/Storage/ATAController.cpp
 	kernel/Storage/ATADevice.cpp
 	kernel/Storage/StorageDevice.cpp

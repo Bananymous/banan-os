@@ -8,24 +8,24 @@
 namespace Kernel
 {
 
-	class ATADevice;
+	class ATABus;
 
 	class ATAController final : public StorageController
 	{
 	public:
 		static BAN::ErrorOr<ATAController*> create(const PCIDevice&);
 
+		virtual BAN::Vector<StorageDevice*> devices() override;
+
+		uint8_t next_device_index() const;
+
 	private:
 		ATAController() = default;
 		BAN::ErrorOr<void> initialize(const PCIDevice& device);
 
-		BAN::ErrorOr<void> read(ATADevice*, uint64_t, uint8_t, uint8_t*);
-		BAN::ErrorOr<void> write(ATADevice*, uint64_t, uint8_t, const uint8_t*);
-
 	private:
-		SpinLock m_lock;
-
-		friend class ATADevice;
+		ATABus* m_buses[2] { nullptr, nullptr };
+		friend class ATABus;
 
 	public:
 		virtual ino_t ino() const override { return 0; }
