@@ -216,6 +216,7 @@ namespace Kernel
 		if (lba < (1 << 28))
 		{
 			// LBA28
+			TRY(device->wait(false));
 			device->io_write(ATA_PORT_DRIVE_SELECT, 0xE0 | device->m_slave_bit | ((lba >> 24) & 0x0F));
 			device->io_write(ATA_PORT_SECTOR_COUNT, sector_count);
 			device->io_write(ATA_PORT_LBA0, (uint8_t)(lba >>  0));
@@ -248,6 +249,7 @@ namespace Kernel
 		if (lba < (1 << 28))
 		{
 			// LBA28
+			TRY(device->wait(false));
 			device->io_write(ATA_PORT_DRIVE_SELECT, 0xE0 | device->m_slave_bit | ((lba >> 24) & 0x0F));
 			device->io_write(ATA_PORT_SECTOR_COUNT, sector_count);
 			device->io_write(ATA_PORT_LBA0, (uint8_t)(lba >>  0));
