@@ -81,7 +81,9 @@ namespace Kernel
 		virtual BAN::ErrorOr<BAN::RefPtr<Inode>> read_directory_inode(BAN::StringView) { if (!mode().ifdir()) return BAN::Error::from_errno(ENOTDIR); ASSERT_NOT_REACHED(); }
 		virtual BAN::ErrorOr<BAN::Vector<BAN::String>> read_directory_entries(size_t)  { if (!mode().ifdir()) return BAN::Error::from_errno(ENOTDIR); ASSERT_NOT_REACHED(); }
 
-		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t)        { if ( mode().ifdir()) return BAN::Error::from_errno(EISDIR);  ASSERT_NOT_REACHED(); }
+		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t)  { if (mode().ifdir()) return BAN::Error::from_errno(EISDIR); ASSERT_NOT_REACHED(); }
+		virtual BAN::ErrorOr<size_t> write(size_t, void*, size_t) { if (mode().ifdir()) return BAN::Error::from_errno(EISDIR); ASSERT_NOT_REACHED(); }
+
 		virtual BAN::ErrorOr<void> create_file(BAN::StringView, mode_t) { if (!mode().ifdir()) return BAN::Error::from_errno(ENOTDIR); ASSERT_NOT_REACHED(); }
 	};
 
