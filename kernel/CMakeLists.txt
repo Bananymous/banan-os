@@ -17,7 +17,6 @@ set(KERNEL_SOURCES
 	kernel/Debug.cpp
 	kernel/Device.cpp
 	kernel/DeviceManager.cpp
-	kernel/ELF.cpp
 	kernel/Font.cpp
 	kernel/FS/Ext2.cpp
 	kernel/FS/VirtualFileSystem.cpp
