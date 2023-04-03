@@ -145,7 +145,7 @@ namespace Kernel::Input
 		m_shift_keymap[0x44] = Key::O;
 		m_shift_keymap[0x45] = Key::Equals;
 		m_shift_keymap[0x46] = Key::CloseBracet;
-		m_shift_keymap[0x49] = Key::Period;
+		m_shift_keymap[0x49] = Key::Colon;
 		m_shift_keymap[0x4A] = Key::Hyphen;
 		m_shift_keymap[0x4B] = Key::L;
 		m_shift_keymap[0x4C] = Key::O_Umlaut;
@@ -207,7 +207,7 @@ namespace Kernel::Input
 		m_altgr_keymap[0x21] = Key::C;
 		m_altgr_keymap[0x22] = Key::X;
 		m_altgr_keymap[0x23] = Key::D;
-		m_altgr_keymap[0x24] = Key::E;
+		m_altgr_keymap[0x24] = Key::Euro;
 		m_altgr_keymap[0x25] = Key::Dollar;
 		m_altgr_keymap[0x26] = Key::Pound;
 		m_altgr_keymap[0x29] = Key::Space;
