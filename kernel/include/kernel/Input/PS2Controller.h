@@ -8,23 +8,13 @@ namespace Kernel::Input
 	class PS2Device : public CharacterDevice
 	{
 	public:
-		PS2Device(dev_t);
 		virtual ~PS2Device() {}
 		virtual void on_byte(uint8_t) = 0;
 		
 	public:
-		virtual ino_t ino() const override { return m_ino; }
 		virtual Mode mode() const override { return { Mode::IFCHR | Mode::IRUSR | Mode::IRGRP }; }
-		virtual nlink_t nlink() const override { return 1; }
 		virtual uid_t uid() const override { return 0; }
 		virtual gid_t gid() const override { return 0; }
-		virtual off_t size() const override { return 0; }
-		virtual blkcnt_t blocks() const override { return 0; }
-		virtual dev_t dev() const override { return m_dev; }
-
-	private:
-		ino_t m_ino;
-		dev_t m_dev;
 	};
 
 	class PS2Controller

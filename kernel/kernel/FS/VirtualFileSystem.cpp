@@ -25,6 +25,7 @@ namespace Kernel
 		auto partition_inode = TRY(DeviceManager::get().read_directory_inode(root));
 		s_instance->m_root_fs = TRY(Ext2FS::create(*(Partition*)partition_inode.ptr()));
 
+		DeviceManager::get().set_blksize(s_instance->m_root_fs->root_inode()->blksize());
 		TRY(s_instance->mount(&DeviceManager::get(), "/dev"));
 
 		guard.disable();

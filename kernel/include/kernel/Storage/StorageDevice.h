@@ -44,16 +44,10 @@ namespace Kernel
 	public:
 		virtual DeviceType device_type() const override { return DeviceType::Partition; }
 
-		virtual ino_t ino() const override { return m_index; }
 		virtual Mode mode() const override { return { Mode::IFBLK | Mode::IRUSR | Mode::IRGRP }; }
-		virtual nlink_t nlink() const override { return 1; }
 		virtual uid_t uid() const override { return 0; }
 		virtual gid_t gid() const override { return 0; }
-		virtual off_t size() const override { return 0; }
-		virtual blksize_t blksize() const;
-		virtual blkcnt_t blocks() const override { return 0; }
-		virtual dev_t dev() const override;
-		virtual dev_t rdev() const { return 0x7459; }
+		virtual dev_t rdev() const override;
 
 		virtual BAN::StringView name() const override { return m_device_name; }
 

@@ -76,6 +76,24 @@ namespace Kernel
 		return *s_instance;
 	}
 
+	ino_t DeviceManager::get_next_ino() const
+	{
+		static ino_t next_ino = 1;
+		return next_ino++;
+	}
+
+	dev_t DeviceManager::get_next_rdev() const
+	{
+		static dev_t next_dev = 1;
+		return next_dev++;
+	}
+
+	uint8_t DeviceManager::get_next_input_dev() const
+	{
+		static uint8_t next_dev = 0;
+		return next_dev++;
+	}
+
 	void DeviceManager::update()
 	{
 		LockGuard _(m_lock);
