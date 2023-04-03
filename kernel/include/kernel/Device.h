@@ -38,7 +38,7 @@ namespace Kernel
 		virtual Mode mode() const;
 		virtual uid_t uid() const;
 		virtual gid_t gid() const;
-		virutal dev_t rdev() const;
+		virtual dev_t rdev() const;
 		virtual BAN::StringView name() const;
 		*/
 
