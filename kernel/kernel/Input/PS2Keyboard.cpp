@@ -37,9 +37,9 @@ namespace Kernel::Input
 
 	}
 
-	BAN::ErrorOr<PS2Keyboard*> PS2Keyboard::create(PS2Controller& controller, dev_t device)
+	BAN::ErrorOr<PS2Keyboard*> PS2Keyboard::create(PS2Controller& controller)
 	{
-		PS2Keyboard* keyboard = new PS2Keyboard(controller, device);
+		PS2Keyboard* keyboard = new PS2Keyboard(controller);
 		if (keyboard == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
 		BAN::ScopeGuard guard([keyboard] { delete keyboard; });
@@ -47,6 +47,12 @@ namespace Kernel::Input
 		guard.disable();
 		return keyboard;
 	}
+
+	PS2Keyboard::PS2Keyboard(PS2Controller& controller)
+		: m_controller(controller)
+		, m_name(BAN::String::formatted("input{}", DeviceManager::get().get_next_input_dev()))
+		, m_rdev(makedev(DeviceManager::get().get_next_rdev(), 0))
+	{ }
 
 	void PS2Keyboard::on_byte(uint8_t byte)
 	{

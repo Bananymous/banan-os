@@ -9,7 +9,10 @@ namespace Kernel
 	class ATADevice final : public StorageDevice
 	{
 	public:
-		ATADevice(ATABus* bus) : m_bus(bus) { }
+		ATADevice(ATABus* bus)
+			: m_bus(bus)
+			, m_rdev(makedev(DeviceManager::get().get_next_rdev(), 0))
+		{ }
 		BAN::ErrorOr<void> initialize(ATABus::DeviceType, const uint16_t*);
 
 		virtual BAN::ErrorOr<void> read_sectors(uint64_t, uint8_t, uint8_t*) override;
@@ -34,22 +37,17 @@ namespace Kernel
 		friend class ATABus;
 
 	public:
-		virtual ino_t ino() const override { return m_index; }
-		virtual Mode mode() const override { return { Mode::IFBLK }; }
-		virtual nlink_t nlink() const override { return 1; }
+		virtual Mode mode() const override { return { Mode::IFBLK | Mode::IRUSR | Mode::IRGRP }; }
 		virtual uid_t uid() const override { return 0; }
 		virtual gid_t gid() const override { return 0; }
-		virtual off_t size() const override { return 0; }
-		virtual blksize_t blksize() const override { return sector_size(); }
-		virtual blkcnt_t blocks() const override { return 0; }
-		virtual dev_t dev() const override { return m_bus->controller()->dev(); }
-		virtual dev_t rdev() const override { return 0x5429; }
+		virtual dev_t rdev() const override { return m_rdev; }
 
 		virtual BAN::StringView name() const override { return BAN::StringView(m_device_name, sizeof(m_device_name) - 1); }
 
 		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t) override;
 
 	public:
+		const dev_t m_rdev;
 		char m_device_name[4] {};
 	};
 

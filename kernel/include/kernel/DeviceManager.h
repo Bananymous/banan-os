@@ -2,11 +2,14 @@
 
 #include <BAN/StringView.h>
 #include <kernel/FS/FileSystem.h>
-#include <kernel/Device.h>
 #include <kernel/SpinLock.h>
+
+#include <sys/sysmacros.h>
 
 namespace Kernel
 {
+
+	class Device;
 
 	class DeviceManager final : public FileSystem, public Inode
 	{
@@ -16,6 +19,10 @@ namespace Kernel
 	public:
 		static void initialize();
 		static DeviceManager& get();
+
+		ino_t get_next_ino() const;
+		dev_t get_next_rdev() const;
+		uint8_t get_next_input_dev() const;
 
 		void update();
 		void add_device(Device*);
@@ -48,13 +55,18 @@ namespace Kernel
 		virtual timespec atime() const override { return { 0, 0 }; }
 		virtual timespec mtime() const override { return { 0, 0 }; }
 		virtual timespec ctime() const override { return { 0, 0 }; }
-		virtual blksize_t blksize() const override { return 0; }
+		virtual blksize_t blksize() const override { ASSERT(m_blksize); return m_blksize; }
 		virtual blkcnt_t blocks() const override { return 0; }
-		virtual dev_t dev() const override { return 0x4900; }
-		virtual dev_t rdev() const override { return 0x7854; }
+		virtual dev_t dev() const override { return makedev(0, 5); }
+		virtual dev_t rdev() const override { return 0; }
 
-		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t)        { ASSERT_NOT_REACHED(); }
-		virtual BAN::ErrorOr<void> create_file(BAN::StringView, mode_t) { ASSERT_NOT_REACHED(); }
+		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t)        { return BAN::Error::from_errno(EISDIR); }
+		virtual BAN::ErrorOr<void> create_file(BAN::StringView, mode_t) { return BAN::Error::from_errno(ENOTSUP); }
+
+		void set_blksize(blksize_t blksize) { m_blksize = blksize; }
+
+	private:
+		blksize_t m_blksize = 0;
 	};
 
 }

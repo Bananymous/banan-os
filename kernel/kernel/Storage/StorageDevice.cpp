@@ -189,7 +189,7 @@ namespace Kernel
 				entry.ending_lba,
 				entry.attributes,
 				utf8_name,
-				i
+				i + 1
 			);
 			ASSERT(partition != nullptr);
 			MUST(m_partitions.push_back(partition));
@@ -211,6 +211,11 @@ namespace Kernel
 		memcpy(m_label, label, sizeof(m_label));
 	}
 
+	dev_t Partition::rdev() const
+	{
+		return makedev(major(m_device.rdev()), m_index);
+	}
+
 	BAN::ErrorOr<void> Partition::read_sectors(uint64_t lba, uint8_t sector_count, uint8_t* buffer)
 	{
 		const uint32_t sectors_in_partition = m_lba_end - m_lba_start;
@@ -227,16 +232,6 @@ namespace Kernel
 			return BAN::Error::from_c_string("Attempted to write outside of the partition boundaries");
 		TRY(m_device.write_sectors(m_lba_start + lba, sector_count, buffer));
 		return {};
-	}
-
-	blksize_t Partition::blksize() const
-	{
-		return m_device.blksize();
-	}
-
-	dev_t Partition::dev() const
-	{
-		return m_device.dev();
 	}
 
 	BAN::ErrorOr<size_t> Partition::read(size_t offset, void* buffer, size_t bytes)

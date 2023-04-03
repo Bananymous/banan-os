@@ -27,17 +27,13 @@ namespace Kernel::Input
 		};
 
 	public:
-		static BAN::ErrorOr<PS2Keyboard*> create(PS2Controller&, dev_t);
+		static BAN::ErrorOr<PS2Keyboard*> create(PS2Controller&);
 
 		virtual void on_byte(uint8_t) override;
 		virtual void update() override;
 
 	private:
-		PS2Keyboard(PS2Controller& controller, dev_t device)
-			: PS2Device(device)
-			, m_controller(controller)
-			, m_name(BAN::String::formatted("input{}", device))
-		{}
+		PS2Keyboard(PS2Controller& controller);
 		BAN::ErrorOr<void> initialize();
 
 		void append_command_queue(uint8_t);
@@ -63,13 +59,15 @@ namespace Kernel::Input
 
 		Semaphore m_semaphore;
 
-		BAN::String m_name;
-
 	public:
 		virtual BAN::StringView name() const override { return m_name; }
-		virtual blksize_t blksize() const override { return sizeof(KeyEvent); }
-		virtual dev_t rdev() const override { return 0x8594; }
+		virtual dev_t rdev() const override { return m_rdev; }
+
 		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t) override;
+
+	private:
+		const BAN::String m_name;
+		const dev_t m_rdev;
 	};
 
 }

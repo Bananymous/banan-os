@@ -302,7 +302,7 @@ namespace Kernel::Input
 		
 		// MF2 Keyboard
 		if (index == 2 && (bytes[0] == 0xAB && bytes[1] == 0x83))
-			m_devices[device] = TRY(PS2Keyboard::create(*this, device));
+			m_devices[device] = TRY(PS2Keyboard::create(*this));
 
 		if (m_devices[device])
 			return {};
@@ -330,12 +330,6 @@ namespace Kernel::Input
 		TRY(device_send_byte(device, enabled ? PS2::DeviceCommand::ENABLE_SCANNING : PS2::DeviceCommand::DISABLE_SCANNING));
 		TRY(device_wait_ack());
 		return {};
-	}
-
-	PS2Device::PS2Device(dev_t dev)
-	{
-		m_dev = dev;
-		m_ino = dev & 1;
 	}
 
 }
