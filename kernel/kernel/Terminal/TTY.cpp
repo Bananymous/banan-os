@@ -92,6 +92,7 @@ namespace Kernel
 					ansi = "\n";
 					break;
 				case Input::Key::Backspace:
+					ansi = nullptr;
 					if (m_output.bytes > 0)
 					{
 						// Multibyte UTF8
@@ -103,19 +104,20 @@ namespace Kernel
 								ASSERT(m_output.bytes > 0);
 								m_output.bytes--;
 							}
-							ansi = "\b \b";
+							do_backspace();
 						}
 						// Control sequence
 						else if (m_output.bytes >= 2 && m_output.buffer[m_output.bytes - 2] == '\e')
 						{
 							m_output.bytes -= 2;
-							ansi = "\b\b  \b\b";
+							do_backspace();
+							do_backspace();
 						}
 						// Ascii
 						else
 						{
 							m_output.bytes--;
-							ansi = "\b \b";
+							do_backspace();
 						}
 					}
 					break;
@@ -154,6 +156,16 @@ namespace Kernel
 		for (uint32_t i = 0; i < m_width * m_height; i++)
 			m_buffer[i] = { .foreground = m_foreground, .background = m_background, .codepoint = ' ' };
 		m_terminal_driver->clear(m_background);
+	}
+
+	void TTY::do_backspace()
+	{
+		if (m_column > 0)
+		{
+			m_column--;
+			putchar_at(' ', m_column, m_row);
+			set_cursor_position(m_column, m_row);
+		}
 	}
 
 	void TTY::set_cursor_position(uint32_t x, uint32_t y)

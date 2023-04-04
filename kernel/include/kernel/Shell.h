@@ -19,10 +19,9 @@ namespace Kernel
 		void rerender_buffer() const;
 		BAN::Vector<BAN::String> parse_arguments(BAN::StringView) const;
 		BAN::ErrorOr<void> process_command(const BAN::Vector<BAN::String>&);
-		void key_event_callback(Input::KeyEvent);
 		BAN::ErrorOr<void> update_prompt();
 
-	private:		
+	private:
 		BAN::Vector<BAN::String>	m_old_buffer;
 		BAN::Vector<BAN::String>	m_buffer;
 		BAN::String					m_prompt_string;

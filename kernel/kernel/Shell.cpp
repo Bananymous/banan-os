@@ -11,11 +11,23 @@
 #include <kernel/RTC.h>
 #include <kernel/Shell.h>
 
-#include <fcntl.h>
 #include <ctype.h>
+#include <fcntl.h>
+#include <unistd.h>
 
-#define TTY_PRINT(...)
-#define TTY_PRINTLN(...)
+#define TTY_PRINT(...) \
+	do { \
+		BAN::String message_ = BAN::String::formatted(__VA_ARGS__); \
+		MUST(Process::current()->write(STDOUT_FILENO, message_.data(), message_.size())); \
+	} while (false)
+
+#define TTY_PRINTLN(...) \
+	do { \
+		TTY_PRINT(__VA_ARGS__); \
+		MUST(Process::current()->write(STDOUT_FILENO, "\n", 1)); \
+	} while (false)
+
+
 
 namespace Kernel
 {
@@ -99,17 +111,22 @@ namespace Kernel
 
 	void Shell::run()
 	{
-		int fd = MUST(Process::current()->open("/dev/tty1"sv, O_RDONLY));
-
 		TTY_PRINT("{}", m_prompt);
+		BAN::String input;
 		for (;;)
 		{
-			uint8_t buffer[128];
-			size_t n_read = MUST(Process::current()->read(fd, buffer, sizeof(buffer)));
-			dprintln("{}", BAN::StringView((const char*)buffer, n_read));
-			//Input::KeyEvent event;
-			//MUST(Process::current()->read(fd, &event, sizeof(event)));
-			//key_event_callback(event);
+			char buffer[128];
+			size_t n_read = MUST(Process::current()->read(STDIN_FILENO, buffer, sizeof(buffer)));
+
+			MUST(input.append(BAN::StringView(buffer, n_read)));
+			if (input.back() == '\n')
+			{
+				input.pop_back();
+				if (auto res = process_command(parse_arguments(input)); res.is_error())
+					TTY_PRINTLN("{}", res.error());
+				TTY_PRINT("{}", m_prompt);
+				input.clear();
+			}
 		}
 	}
 
@@ -538,149 +555,6 @@ argument_done:
 	void Shell::rerender_buffer() const
 	{
 		TTY_PRINT("\e[{}G{}\e[K", m_prompt_length + 1, m_buffer[m_cursor_pos.line]);
-	}
-
-	static uint32_t get_last_length(BAN::StringView sv)
-	{
-		if (sv.size() >= 2 && ((uint8_t)sv[sv.size() - 2] >> 5) == 0b110)	return 2;
-		if (sv.size() >= 3 && ((uint8_t)sv[sv.size() - 3] >> 4) == 0b1110)	return 3;
-		if (sv.size() >= 4 && ((uint8_t)sv[sv.size() - 4] >> 3) == 0b11110)	return 4;
-		return BAN::Math::min<uint32_t>(sv.size(), 1);
-	}
-
-	static uint32_t get_next_length(BAN::StringView sv)
-	{
-		if (sv.size() >= 2 && ((uint8_t)sv[0] >> 5) == 0b110)	return 2;
-		if (sv.size() >= 3 && ((uint8_t)sv[0] >> 4) == 0b1110)	return 3;
-		if (sv.size() >= 4 && ((uint8_t)sv[0] >> 3) == 0b11110)	return 4;
-		return BAN::Math::min<uint32_t>(sv.size(), 1);
-	}
-
-	static uint32_t get_unicode_character_count(BAN::StringView sv)
-	{
-		uint32_t len = 0;
-		for (uint32_t i = 0; i < sv.size(); i++)
-		{
-			uint8_t ch = sv[i];
-			if ((ch >> 5) == 0b110)		i += 1;
-			if ((ch >> 4) == 0b1110)	i += 2;
-			if ((ch >> 3) == 0b11110)	i += 3;
-			len++;
-		}
-		return len;
-	}
-
-	void Shell::key_event_callback(Input::KeyEvent event)
-	{
-		if (event.released())
-			return;
-
-		BAN::String& current_buffer = m_buffer[m_cursor_pos.line];
-
-		switch (event.key)
-		{
-			case Input::Key::Backspace:
-				if (m_cursor_pos.col > 0)
-				{
-					TTY_PRINT("\e[D{} ", current_buffer.sv().substring(m_cursor_pos.index));
-					
-					uint32_t len = get_last_length(current_buffer.sv().substring(0, m_cursor_pos.index));
-					m_cursor_pos.index -= len;
-					current_buffer.erase(m_cursor_pos.index, len);
-					m_cursor_pos.col--;
-				}
-				break;
-
-			case Input::Key::Enter:
-			case Input::Key::NumpadEnter:
-			{
-				TTY_PRINTLN("");
-				auto arguments = parse_arguments(current_buffer.sv());
-				if (!arguments.empty())
-				{
-					if (auto res = process_command(arguments); res.is_error())
-						TTY_PRINTLN("{}", res.error());
-					MUST(m_old_buffer.push_back(current_buffer));
-					m_buffer = m_old_buffer;
-					MUST(m_buffer.push_back(""sv));
-					m_cursor_pos.line = m_buffer.size() - 1;
-				}
-				m_cursor_pos.col = 0;
-				m_cursor_pos.index = 0;
-				TTY_PRINT("{}", m_prompt);
-				break;
-			}
-
-			case Input::Key::Escape:
-				TTY_PRINTLN("time since boot {} ms", PIT::ms_since_boot());
-				break;
-
-			case Input::Key::Tab:
-				break;
-			
-			case Input::Key::ArrowLeft:
-				if (m_cursor_pos.index > 0)
-				{					
-					uint32_t len = get_last_length(current_buffer.sv().substring(0, m_cursor_pos.index));
-					m_cursor_pos.index -= len;
-					m_cursor_pos.col--;
-				}
-				break;
-
-			case Input::Key::ArrowRight:
-				if (m_cursor_pos.index < current_buffer.size())
-				{
-					uint32_t len = get_next_length(current_buffer.sv().substring(m_cursor_pos.index));
-					m_cursor_pos.index += len;
-					m_cursor_pos.col++;
-				}
-				break;
-
-			case Input::Key::ArrowUp:
-				if (m_cursor_pos.line > 0)
-				{
-					const auto& new_buffer = m_buffer[m_cursor_pos.line - 1];
-					m_cursor_pos.line--;
-					m_cursor_pos.index = new_buffer.size();
-					m_cursor_pos.col = get_unicode_character_count(new_buffer);
-					rerender_buffer();
-				}
-				break;
-
-			case Input::Key::ArrowDown:
-				if (m_cursor_pos.line < m_buffer.size() - 1)
-				{
-					const auto& new_buffer = m_buffer[m_cursor_pos.line + 1];
-					m_cursor_pos.line++;
-					m_cursor_pos.index = new_buffer.size();
-					m_cursor_pos.col = get_unicode_character_count(new_buffer);
-					rerender_buffer();
-				}
-				break;
-
-			case Input::Key::A:
-				if (event.ctrl())
-				{
-					m_cursor_pos.col = m_cursor_pos.index = 0;
-					break;
-				}
-				// fall through
-
-			default:
-			{
-				const char* utf8 = Input::key_event_to_utf8(event);
-				if (utf8)
-				{
-					TTY_PRINT("{}{}", utf8, current_buffer.sv().substring(m_cursor_pos.index));
-					MUST(current_buffer.insert(utf8, m_cursor_pos.index));
-					m_cursor_pos.index += strlen(utf8);
-					m_cursor_pos.col++;
-				}
-				break;
-			}
-		}
-
-		//TTY_PRINT("\e[{}G", (m_prompt_length + m_cursor_pos.col) % m_tty->width() + 1);
 	}
 
 }
