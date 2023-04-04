@@ -286,9 +286,7 @@ argument_done:
 		{
 			if (arguments.size() != 1)
 				return BAN::Error::from_c_string("'clear' does not support command line arguments");
-			//m_tty->clear();
-			//m_tty->set_cursor_position(0, 0);
-			TTY_PRINT("\e[2J\e[1;1H"); // clear and reset cursor
+			TTY_PRINT("\e[2J\e[H");
 		}
 		else if (arguments.front() == "time")
 		{
