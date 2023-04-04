@@ -19,8 +19,8 @@
 #include <kernel/Serial.h>
 #include <kernel/Shell.h>
 #include <kernel/Syscall.h>
-#include <kernel/TTY.h>
-#include <kernel/VesaTerminalDriver.h>
+#include <kernel/Terminal/TTY.h>
+#include <kernel/Terminal/VesaTerminalDriver.h>
 
 extern "C" const char g_kernel_cmdline[];
 
@@ -142,8 +142,6 @@ extern "C" void kernel_main()
 	TerminalDriver* terminal_driver = VesaTerminalDriver::create();
 	ASSERT(terminal_driver);
 	dprintln("VESA initialized");
-	TTY* tty1 = new TTY(terminal_driver);
-	ASSERT(tty1);
 	
 	MUST(ACPI::initialize());
 	dprintln("ACPI initialized");
@@ -200,18 +198,16 @@ extern "C" void kernel_main()
 		}
 	))));
 #else
-	MUST(scheduler.add_thread(MUST(Thread::create(init2, tty1))));
+	MUST(scheduler.add_thread(MUST(Thread::create(init2, terminal_driver))));
 #endif
 	scheduler.start();
 	ASSERT(false);
 }
 
-static void init2(void* tty1_ptr)
+static void init2(void* terminal_driver)
 {
 	using namespace Kernel;
 	using namespace Kernel::Input;
-
-	TTY* tty1 = (TTY*)tty1_ptr;
 
 	DeviceManager::initialize();
 
@@ -220,12 +216,32 @@ static void init2(void* tty1_ptr)
 	if (auto res = PS2Controller::initialize(); res.is_error())
 		dprintln("{}", res.error());
 
+	TTY* tty1 = new TTY((TerminalDriver*)terminal_driver);
+	ASSERT(tty1);
+	DeviceManager::get().add_device(tty1);
+
 	MUST(Process::create_kernel(
-		[](void* tty1) 
+		[](void*)
 		{
-			Shell* shell = new Shell((TTY*)tty1);
+			int fd = MUST(Process::current()->open("/dev/tty1", 1));
+			while (true)
+			{
+				char buffer[1024];
+				int n_read = MUST(Process::current()->read(fd, buffer, sizeof(buffer)));
+				MUST(Process::current()->write(fd, buffer, n_read));
+				dprintln("{} bytes", n_read);
+			}
+		}, nullptr
+	));
+
+	return;
+
+	MUST(Process::create_kernel(
+		[](void*) 
+		{
+			Shell* shell = new Shell();
 			ASSERT(shell);
 			shell->run();
-		}, tty1
+		}, nullptr
 	));
 }

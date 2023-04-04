@@ -3,7 +3,6 @@
 #include <BAN/String.h>
 #include <BAN/Vector.h>
 #include <kernel/Input/KeyEvent.h>
-#include <kernel/TTY.h>
 
 namespace Kernel
 {
@@ -11,7 +10,7 @@ namespace Kernel
 	class Shell
 	{
 	public:
-		Shell(TTY*);
+		Shell();
 		Shell(const Shell&) = delete;
 		BAN::ErrorOr<void> set_prompt(BAN::StringView);
 		void run();
@@ -23,8 +22,7 @@ namespace Kernel
 		void key_event_callback(Input::KeyEvent);
 		BAN::ErrorOr<void> update_prompt();
 
-	private:
-		TTY*						m_tty;
+	private:		
 		BAN::Vector<BAN::String>	m_old_buffer;
 		BAN::Vector<BAN::String>	m_buffer;
 		BAN::String					m_prompt_string;

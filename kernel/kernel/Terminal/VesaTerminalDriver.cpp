@@ -2,7 +2,7 @@
 #include <kernel/Debug.h>
 #include <kernel/MMU.h>
 #include <kernel/multiboot.h>
-#include <kernel/VesaTerminalDriver.h>
+#include <kernel/Terminal/VesaTerminalDriver.h>
 
 VesaTerminalDriver* VesaTerminalDriver::create()
 {

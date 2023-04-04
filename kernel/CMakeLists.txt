@@ -43,8 +43,8 @@ set(KERNEL_SOURCES
 	kernel/Storage/StorageDevice.cpp
 	kernel/Syscall.cpp
 	kernel/Thread.cpp
-	kernel/TTY.cpp
-	kernel/VesaTerminalDriver.cpp
+	kernel/Terminal/TTY.cpp
+	kernel/Terminal/VesaTerminalDriver.cpp
 	userspace/userspace.cpp
 	icxxabi.cpp
 )

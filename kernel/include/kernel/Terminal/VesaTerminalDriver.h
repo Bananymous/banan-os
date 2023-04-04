@@ -1,6 +1,6 @@
 #pragma once
 
-#include <kernel/TerminalDriver.h>
+#include <kernel/Terminal/TerminalDriver.h>
 
 class VesaTerminalDriver final : public TerminalDriver
 {

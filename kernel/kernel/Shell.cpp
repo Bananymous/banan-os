@@ -1,12 +1,12 @@
-#include <BAN/Math.h>
 #include <BAN/ScopeGuard.h>
 #include <BAN/StringView.h>
 #include <BAN/Vector.h>
 #include <kernel/CPUID.h>
 #include <kernel/Device.h>
+#include <kernel/Font.h>
 #include <kernel/IO.h>
-#include <kernel/PIT.h>
 #include <kernel/PCI.h>
+#include <kernel/PIT.h>
 #include <kernel/Process.h>
 #include <kernel/RTC.h>
 #include <kernel/Shell.h>
@@ -14,8 +14,8 @@
 #include <fcntl.h>
 #include <ctype.h>
 
-#define TTY_PRINT(...) BAN::Formatter::print([this](char c) { m_tty->putchar(c); }, __VA_ARGS__)
-#define TTY_PRINTLN(...) BAN::Formatter::println([this](char c) { m_tty->putchar(c); }, __VA_ARGS__)
+#define TTY_PRINT(...)
+#define TTY_PRINTLN(...)
 
 namespace Kernel
 {
@@ -43,8 +43,7 @@ namespace Kernel
 		return (const char*)buffer;
 	};
 
-	Shell::Shell(TTY* tty)
-		: m_tty(tty)
+	Shell::Shell()
 	{
 		MUST(set_prompt(s_default_prompt));
 		MUST(m_buffer.push_back(""sv));
@@ -100,14 +99,17 @@ namespace Kernel
 
 	void Shell::run()
 	{
-		int fd = MUST(Process::current()->open("/dev/input0"sv, O_RDONLY));
+		int fd = MUST(Process::current()->open("/dev/tty1"sv, O_RDONLY));
 
 		TTY_PRINT("{}", m_prompt);
 		for (;;)
 		{
-			Input::KeyEvent event;
-			MUST(Process::current()->read(fd, &event, sizeof(event)));
-			key_event_callback(event);
+			uint8_t buffer[128];
+			size_t n_read = MUST(Process::current()->read(fd, buffer, sizeof(buffer)));
+			dprintln("{}", BAN::StringView((const char*)buffer, n_read));
+			//Input::KeyEvent event;
+			//MUST(Process::current()->read(fd, &event, sizeof(event)));
+			//key_event_callback(event);
 		}
 	}
 
@@ -267,8 +269,9 @@ argument_done:
 		{
 			if (arguments.size() != 1)
 				return BAN::Error::from_c_string("'clear' does not support command line arguments");
-			m_tty->clear();
-			m_tty->set_cursor_position(0, 0);
+			//m_tty->clear();
+			//m_tty->set_cursor_position(0, 0);
+			TTY_PRINT("\e[2J\e[1;1H"); // clear and reset cursor
 		}
 		else if (arguments.front() == "time")
 		{
@@ -301,7 +304,8 @@ argument_done:
 				PIT::sleep(5000);
 
 				if (auto res = shell->process_command(args); res.is_error())
-					BAN::Formatter::println([&](char c) { shell->m_tty->putchar(c); }, "{}", res.error());
+					dprintln("{}", res.error());
+					//BAN::Formatter::println([&](char c) { shell->m_tty->putchar(c); }, "{}", res.error());
 			};
 
 			SpinLock spinlock;
@@ -521,7 +525,7 @@ argument_done:
 				return BAN::Error::from_c_string("usage: 'loadfont font_path'");
 
 			auto font = TRY(Font::load(arguments[1]));
-			m_tty->set_font(font);
+			//m_tty->set_font(font);
 		}
 		else
 		{
@@ -676,7 +680,7 @@ argument_done:
 			}
 		}
 
-		TTY_PRINT("\e[{}G", (m_prompt_length + m_cursor_pos.col) % m_tty->width() + 1);
+		//TTY_PRINT("\e[{}G", (m_prompt_length + m_cursor_pos.col) % m_tty->width() + 1);
 	}
 
 }

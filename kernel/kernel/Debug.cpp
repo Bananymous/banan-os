@@ -1,6 +1,6 @@
 #include <kernel/Debug.h>
 #include <kernel/Serial.h>
-#include <kernel/TTY.h>
+#include <kernel/Terminal/TTY.h>
 
 namespace Debug
 {
@@ -40,8 +40,8 @@ namespace Debug
 	{
 		if (Serial::is_initialized())
 			return Serial::putchar(ch);
-		if (TTY::is_initialized())
-			return TTY::putchar_current(ch);
+		if (Kernel::TTY::is_initialized())
+			return Kernel::TTY::putchar_current(ch);
 	}
 
 }
