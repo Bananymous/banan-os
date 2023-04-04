@@ -18,6 +18,16 @@ namespace Kernel
 		return process;
 	}
 
+	BAN::ErrorOr<void> Process::init_stdio()
+	{
+		if (!m_open_files.empty())
+			return BAN::Error::from_c_string("Could not init stdio, process already has open files");
+		TRY(open("/dev/tty1", O_RDONLY)); // stdin
+		TRY(open("/dev/tty1", O_WRONLY)); // stdout
+		TRY(open("/dev/tty1", O_WRONLY)); // stderr
+		return {};
+	}
+
 	BAN::ErrorOr<void> Process::add_thread(entry_t entry, void* data)
 	{
 		Thread* thread = TRY(Thread::create(entry, data, this));
@@ -43,7 +53,7 @@ namespace Kernel
 
 	BAN::ErrorOr<int> Process::open(BAN::StringView path, int flags)
 	{
-		if (flags != O_RDONLY)
+		if (flags & ~O_RDWR)
 			return BAN::Error::from_errno(ENOTSUP);
 
 		BAN::String absolute_path = TRY(absolute_path_of(path));
@@ -97,7 +107,7 @@ namespace Kernel
 		auto open_fd_copy = open_file_description(fd);
 		m_lock.unlock();
 
-		if (!(open_fd_copy.flags & O_RDONLY))
+		if (!(open_fd_copy.flags & O_WRONLY))
 			return BAN::Error::from_errno(EBADF);
 		size_t n_written = TRY(open_fd_copy.inode->write(open_fd_copy.offset, buffer, count));
 		open_fd_copy.offset += n_written;

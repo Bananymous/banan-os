@@ -27,6 +27,8 @@ namespace Kernel
 		BAN::ErrorOr<void> add_thread(entry_t, void*);
 		void on_thread_exit(Thread&);
 
+		BAN::ErrorOr<void> init_stdio();
+
 		pid_t pid() const { return m_pid; }
 
 		BAN::ErrorOr<int> open(BAN::StringView, int);
