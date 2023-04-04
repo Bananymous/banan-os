@@ -22,6 +22,8 @@
 #include <kernel/Terminal/TTY.h>
 #include <kernel/Terminal/VesaTerminalDriver.h>
 
+#include <unistd.h>
+
 extern "C" const char g_kernel_cmdline[];
 
 struct ParsedCommandLine
@@ -223,12 +225,12 @@ static void init2(void* terminal_driver)
 	MUST(Process::create_kernel(
 		[](void*)
 		{
-			int fd = MUST(Process::current()->open("/dev/tty1", 1));
+			MUST(Process::current()->init_stdio());
 			while (true)
 			{
 				char buffer[1024];
-				int n_read = MUST(Process::current()->read(fd, buffer, sizeof(buffer)));
-				MUST(Process::current()->write(fd, buffer, n_read));
+				int n_read = MUST(Process::current()->read(STDIN_FILENO, buffer, sizeof(buffer)));
+				MUST(Process::current()->write(STDOUT_FILENO, buffer, n_read));
 				dprintln("{} bytes", n_read);
 			}
 		}, nullptr
