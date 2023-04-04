@@ -113,6 +113,9 @@ char* strerror(int error)
 	case ENOBUFS:
 		strcpy(buffer, "No buffer space available");
 		break;
+	case ENOTTY:
+		strcpy(buffer, "Inappropriate I/O control operation");
+		break;
 	default:
 		{
 			// FIXME: sprintf

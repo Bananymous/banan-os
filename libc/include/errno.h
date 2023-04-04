@@ -14,6 +14,7 @@
 #define ENOTEMPTY 10
 #define ENAMETOOLONG 11
 #define ENOBUFS 12
+#define ENOTTY 13
 
 __BEGIN_DECLS
 
