@@ -93,33 +93,7 @@ namespace Kernel
 					break;
 				case Input::Key::Backspace:
 					ansi = nullptr;
-					if (m_output.bytes > 0)
-					{
-						// Multibyte UTF8
-						if ((m_output.buffer[m_output.bytes - 1] & 0xC0) == 0x80)
-						{
-							// NOTE: this should be valid UTF8 since keyboard input already 'validates' it
-							while ((m_output.buffer[m_output.bytes - 1] & 0xC0) == 0x80)
-							{
-								ASSERT(m_output.bytes > 0);
-								m_output.bytes--;
-							}
-							do_backspace();
-						}
-						// Control sequence
-						else if (m_output.bytes >= 2 && m_output.buffer[m_output.bytes - 2] == '\e')
-						{
-							m_output.bytes -= 2;
-							do_backspace();
-							do_backspace();
-						}
-						// Ascii
-						else
-						{
-							m_output.bytes--;
-							do_backspace();
-						}
-					}
+					do_backspace();
 					break;
 				default:
 					break;
@@ -160,11 +134,43 @@ namespace Kernel
 
 	void TTY::do_backspace()
 	{
-		if (m_column > 0)
+		auto print_backspace =
+			[this]
+			{
+				if (m_column > 0)
+				{
+					m_column--;
+					putchar_at(' ', m_column, m_row);
+					set_cursor_position(m_column, m_row);
+				}
+			};
+
+		if (m_output.bytes > 0)
 		{
-			m_column--;
-			putchar_at(' ', m_column, m_row);
-			set_cursor_position(m_column, m_row);
+			// Multibyte UTF8
+			if ((m_output.buffer[m_output.bytes - 1] & 0xC0) == 0x80)
+			{
+				// NOTE: this should be valid UTF8 since keyboard input already 'validates' it
+				while ((m_output.buffer[m_output.bytes - 1] & 0xC0) == 0x80)
+				{
+					ASSERT(m_output.bytes > 0);
+					m_output.bytes--;
+				}
+				print_backspace();
+			}
+			// Control sequence
+			else if (m_output.bytes >= 2 && m_output.buffer[m_output.bytes - 2] == '\e')
+			{
+				m_output.bytes -= 2;
+				print_backspace();
+				print_backspace();
+			}
+			// Ascii
+			else
+			{
+				m_output.bytes--;
+				print_backspace();
+			}
 		}
 	}
 
@@ -310,7 +316,38 @@ namespace Kernel
 				m_column = BAN::Math::clamp<int32_t>(m_ansi_state.nums[1] - 1, 0, m_width - 1);
 				return reset_ansi();
 			case 'J': // Erase in Display
-				dprintln("Unsupported ANSI CSI character J");
+				if (m_ansi_state.nums[0] == -1 || m_ansi_state.nums[0] == 0)
+				{
+					// Clear from cursor to the end of screen
+					for (uint32_t i = m_column; i < m_width; i++)
+						putchar_at(' ', i, m_row);
+					for (uint32_t row = 0; row < m_height; row++)
+						for (uint32_t col = 0; col < m_width; col++)
+							putchar_at(' ', col, row);
+				}
+				else if (m_ansi_state.nums[0] == 1)
+				{
+					// Clear from cursor to the beginning of screen
+					for (uint32_t row = 0; row < m_row; row++)
+						for (uint32_t col = 0; col < m_width; col++)
+							putchar_at(' ', col, row);
+					for (uint32_t i = 0; i <= m_column; i++)
+						putchar_at(' ', i, m_row);
+				}
+				else if (m_ansi_state.nums[0] == 2 || m_ansi_state.nums[0] == 3)
+				{
+					// Clean entire screen
+					clear();
+				}
+				else
+				{
+					dprintln("Unsupported ANSI CSI character J");
+				}
+				
+				if (m_ansi_state.nums[0] == 3)
+				{
+					// FIXME: Clear scroll backbuffer if/when added
+				}
 				return reset_ansi();
 			case 'K': // Erase in Line
 				if (m_ansi_state.nums[0] == -1 || m_ansi_state.nums[0] == 0)
