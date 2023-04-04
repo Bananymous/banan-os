@@ -16,9 +16,8 @@ namespace Kernel
 	{
 	public:
 		TTY(TerminalDriver*);
-		void clear();
-		void putchar(uint8_t ch);
-		void set_cursor_position(uint32_t x, uint32_t y);
+
+		void set_termios(const termios& termios) { m_termios = termios; }		
 		void set_font(const Kernel::Font&);
 
 		uint32_t height() const { return m_height; }
@@ -27,16 +26,20 @@ namespace Kernel
 		// for kprint
 		static void putchar_current(uint8_t ch);
 		static bool is_initialized();
+		static TTY* current();
 
 		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t) override;
 		virtual BAN::ErrorOr<size_t> write(size_t, const void*, size_t) override;
 
 	private:
+		void clear();
+		void putchar(uint8_t ch);
 		void reset_ansi();
 		void handle_ansi_csi(uint8_t ch);
 		void handle_ansi_csi_color();
 		void putchar_at(uint32_t codepoint, uint32_t x, uint32_t y);
 		void render_from_buffer(uint32_t x, uint32_t y);
+		void set_cursor_position(uint32_t x, uint32_t y);
 
 		void on_key(Input::KeyEvent);
 		void do_backspace();

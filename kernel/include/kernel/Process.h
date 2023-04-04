@@ -5,6 +5,7 @@
 #include <BAN/Vector.h>
 #include <kernel/FS/Inode.h>
 #include <kernel/SpinLock.h>
+#include <kernel/Terminal/TTY.h>
 #include <kernel/Thread.h>
 
 #include <sys/stat.h>
@@ -28,6 +29,7 @@ namespace Kernel
 		void on_thread_exit(Thread&);
 
 		BAN::ErrorOr<void> init_stdio();
+		BAN::ErrorOr<void> set_termios(const termios&);
 
 		pid_t pid() const { return m_pid; }
 
@@ -50,7 +52,7 @@ namespace Kernel
 		static BAN::RefPtr<Process> current() { return Thread::current().process(); }
 
 	private:
-		Process(pid_t pid) : m_pid(pid) {}
+		Process(pid_t);
 
 		BAN::ErrorOr<BAN::String> absolute_path_of(BAN::StringView) const;
 
@@ -74,6 +76,8 @@ namespace Kernel
 		const pid_t m_pid = 0;
 		BAN::String m_working_directory;
 		BAN::Vector<Thread*> m_threads;
+
+		TTY* m_tty { nullptr };
 
 		friend class BAN::RefPtr<Process>;
 	};

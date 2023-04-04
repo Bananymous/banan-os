@@ -59,6 +59,11 @@ namespace Kernel
 		);
 	}
 
+	TTY* TTY::current()
+	{
+		return s_tty;
+	}
+
 	void TTY::on_key(Input::KeyEvent event)
 	{
 		ASSERT(!m_lock.is_locked());
