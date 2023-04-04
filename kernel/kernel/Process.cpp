@@ -18,15 +18,10 @@ namespace Kernel
 		return process;
 	}
 
-	BAN::ErrorOr<void> Process::init_stdio()
-	{
-		if (!m_open_files.empty())
-			return BAN::Error::from_c_string("Could not init stdio, process already has open files");
-		TRY(open("/dev/tty1", O_RDONLY)); // stdin
-		TRY(open("/dev/tty1", O_WRONLY)); // stdout
-		TRY(open("/dev/tty1", O_WRONLY)); // stderr
-		return {};
-	}
+	Process::Process(pid_t pid)
+		: m_pid(pid)
+		, m_tty(TTY::current())
+	{ }
 
 	BAN::ErrorOr<void> Process::add_thread(entry_t entry, void* data)
 	{
@@ -49,6 +44,24 @@ namespace Kernel
 		for (size_t i = 0; i < m_threads.size(); i++)
 			if (m_threads[i] == &thread)
 				m_threads.remove(i);
+	}
+
+	BAN::ErrorOr<void> Process::init_stdio()
+	{
+		if (!m_open_files.empty())
+			return BAN::Error::from_c_string("Could not init stdio, process already has open files");
+		TRY(open("/dev/tty1", O_RDONLY)); // stdin
+		TRY(open("/dev/tty1", O_WRONLY)); // stdout
+		TRY(open("/dev/tty1", O_WRONLY)); // stderr
+		return {};
+	}
+
+	BAN::ErrorOr<void> Process::set_termios(const termios& termios)
+	{
+		if (m_tty == nullptr)
+			return BAN::Error::from_errno(ENOTTY);
+		m_tty->set_termios(termios);
+		return {};
 	}
 
 	BAN::ErrorOr<int> Process::open(BAN::StringView path, int flags)
