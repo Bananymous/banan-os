@@ -223,24 +223,9 @@ static void init2(void* terminal_driver)
 	DeviceManager::get().add_device(tty1);
 
 	MUST(Process::create_kernel(
-		[](void*)
-		{
-			MUST(Process::current()->init_stdio());
-			while (true)
-			{
-				char buffer[1024];
-				int n_read = MUST(Process::current()->read(STDIN_FILENO, buffer, sizeof(buffer)));
-				MUST(Process::current()->write(STDOUT_FILENO, buffer, n_read));
-				dprintln("{} bytes", n_read);
-			}
-		}, nullptr
-	));
-
-	return;
-
-	MUST(Process::create_kernel(
 		[](void*) 
 		{
+			MUST(Process::current()->init_stdio());
 			Shell* shell = new Shell();
 			ASSERT(shell);
 			shell->run();

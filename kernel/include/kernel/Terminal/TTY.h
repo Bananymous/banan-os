@@ -39,6 +39,7 @@ namespace Kernel
 		void render_from_buffer(uint32_t x, uint32_t y);
 
 		void on_key(Input::KeyEvent);
+		void do_backspace();
 
 	private:
 		enum class State
