@@ -90,6 +90,26 @@ namespace Kernel
 		return n_read;
 	}
 
+	BAN::ErrorOr<size_t> Process::write(int fd, const void* buffer, size_t count)
+	{
+		m_lock.lock();
+		TRY(validate_fd(fd));
+		auto open_fd_copy = open_file_description(fd);
+		m_lock.unlock();
+
+		if (!(open_fd_copy.flags & O_RDONLY))
+			return BAN::Error::from_errno(EBADF);
+		size_t n_written = TRY(open_fd_copy.inode->write(open_fd_copy.offset, buffer, count));
+		open_fd_copy.offset += n_written;
+
+		m_lock.lock();
+		MUST(validate_fd(fd));
+		open_file_description(fd) = open_fd_copy;
+		m_lock.unlock();
+
+		return n_written;
+	}
+
 	BAN::ErrorOr<void> Process::creat(BAN::StringView path, mode_t mode)
 	{
 		auto absolute_path = TRY(absolute_path_of(path));

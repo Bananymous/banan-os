@@ -32,6 +32,7 @@ namespace Kernel
 		BAN::ErrorOr<int> open(BAN::StringView, int);
 		BAN::ErrorOr<void> close(int);
 		BAN::ErrorOr<size_t> read(int, void*, size_t);
+		BAN::ErrorOr<size_t> write(int, const void*, size_t);
 		BAN::ErrorOr<void> creat(BAN::StringView, mode_t);
 
 		BAN::ErrorOr<void> fstat(int, stat*);
