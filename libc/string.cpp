@@ -15,7 +15,7 @@ int memcmp(const void* s1, const void* s2, size_t n)
 	return 0;
 }
 
-void* memcpy(void* __restrict dstp, const void* __restrict srcp, size_t n)
+void* memcpy(void* __restrict__ dstp, const void* __restrict__ srcp, size_t n)
 {
 	unsigned char* dst = static_cast<unsigned char*>(dstp);
 	const unsigned char* src = static_cast<const unsigned char*>(srcp);
@@ -61,12 +61,18 @@ int strcmp(const char* s1, const char* s2)
 	return *u1 - *u2;
 }
 
-char* strcpy(char* __restrict dest, const char* __restrict src)
+char* strcpy(char* __restrict__ dest, const char* __restrict__ src)
 {
 	size_t i;
 	for (i = 0; src[i]; i++)
 		dest[i] = src[i];
 	dest[i] = '\0';
+	return dest;
+}
+
+char* strcat(char* __restrict__ dest, const char* __restrict__ src)
+{
+	strcpy(dest + strlen(src), src);
 	return dest;
 }
 
@@ -147,7 +153,18 @@ int strncmp(const char* s1, const char* s2, size_t n)
 	return *u1 - *u2;
 }
 
-char* strncpy(char* __restrict dest, const char* __restrict src, size_t n)
+char* strchr(const char* str, int c)
+{
+	while (*str)
+	{
+		if (*str == c)
+			return (char*)str;
+		str++;
+	}
+	return (*str == c) ? (char*)str : nullptr;
+}
+
+char* strncpy(char* __restrict__ dest, const char* __restrict__ src, size_t n)
 {
 	size_t i;
 	for (i = 0; src[i] && i < n; i++)
