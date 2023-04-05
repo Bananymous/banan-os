@@ -72,19 +72,40 @@ namespace Kernel
 		if (event.released())
 			return;
 
-		const char* ansi = Input::key_event_to_utf8(event);
-		bool flush = false;
+		const char* ansi_c_str = Input::key_event_to_utf8(event);
 
 		if (event.ctrl())
 		{
-			ansi = nullptr;
+			ansi_c_str = nullptr;			
 			switch (event.key)
 			{
-				case Input::Key::D:
-					flush = true;
-					break;
-				default:
-					break;
+				case Input::Key::A: ansi_c_str = "\x01"; break;
+				case Input::Key::B: ansi_c_str = "\x02"; break;
+				case Input::Key::C: ansi_c_str = "\x03"; break;
+				case Input::Key::D: ansi_c_str = "\x04"; break;
+				case Input::Key::E: ansi_c_str = "\x05"; break;
+				case Input::Key::F: ansi_c_str = "\x06"; break;
+				case Input::Key::G: ansi_c_str = "\x07"; break;
+				case Input::Key::H: ansi_c_str = "\x08"; break;
+				case Input::Key::I: ansi_c_str = "\x09"; break;
+				case Input::Key::J: ansi_c_str = "\x0A"; break;
+				case Input::Key::K: ansi_c_str = "\x0B"; break;
+				case Input::Key::L: ansi_c_str = "\x0C"; break;
+				case Input::Key::M: ansi_c_str = "\x0D"; break;
+				case Input::Key::N: ansi_c_str = "\x0E"; break;
+				case Input::Key::O: ansi_c_str = "\x0F"; break;
+				case Input::Key::P: ansi_c_str = "\x10"; break;
+				case Input::Key::Q: ansi_c_str = "\x11"; break;
+				case Input::Key::R: ansi_c_str = "\x12"; break;
+				case Input::Key::S: ansi_c_str = "\x13"; break;
+				case Input::Key::T: ansi_c_str = "\x14"; break;
+				case Input::Key::U: ansi_c_str = "\x15"; break;
+				case Input::Key::V: ansi_c_str = "\x16"; break;
+				case Input::Key::W: ansi_c_str = "\x17"; break;
+				case Input::Key::X: ansi_c_str = "\x18"; break;
+				case Input::Key::Y: ansi_c_str = "\x19"; break;
+				case Input::Key::Z: ansi_c_str = "\x1A"; break;
+				default: break;
 			}
 		}
 		else
@@ -93,37 +114,107 @@ namespace Kernel
 			{
 				case Input::Key::Enter:
 				case Input::Key::NumpadEnter:
-					flush = true;
-					ansi = "\n";
+					ansi_c_str = "\n";
 					break;
 				case Input::Key::Backspace:
-					ansi = nullptr;
-					do_backspace();
+					ansi_c_str = "\b";
+					break;
+				case Input::Key::ArrowUp:
+					ansi_c_str = "\e[A";
+					break;
+				case Input::Key::ArrowDown:
+					ansi_c_str = "\e[B";
+					break;
+				case Input::Key::ArrowRight:
+					ansi_c_str = "\e[C";
+					break;
+				case Input::Key::ArrowLeft:
+					ansi_c_str = "\e[D";
 					break;
 				default:
 					break;
 			}
 		}
 
-		if (!m_termios.canonical)
-			flush = true;
+		const uint8_t* ansi = (const uint8_t*)ansi_c_str;
 
-		if (ansi != nullptr)
+		bool eof = ansi && (
+			ansi[0] == '\x04' || // ^D
+			ansi[0] == '\n'      // \n
+		);
+
+		if (ansi && m_termios.canonical)
+		{
+			// EOF from ^D
+			if (ansi[0] == '\x04')
+				ansi = nullptr;
+			else if (ansi[0] == '\b')
+			{
+				ansi = nullptr;
+				do_backspace();
+			}
+		}
+
+		if (ansi == nullptr)
+			return;
+
+		for (size_t i = 0; ansi[i]; i++)
+		{
+			if (m_output.bytes >= m_output.buffer.size())
+			{
+				dprintln("TTY buffer full");
+				break;
+			}
+			m_output.buffer[m_output.bytes++] = ansi[i];
+		}
+
+		if (m_termios.echo)
 		{
 			for (size_t i = 0; ansi[i]; i++)
 			{
-				if (m_termios.echo)
-					putchar(ansi[i]);
-				if (m_output.bytes == m_output.buffer.size())
+				if (ansi[i] <= 26 && ansi[i] != 10)
 				{
-					dprintln("TTY buffer full");
-					continue;
+					putchar('^');
+					putchar('A' + ansi[i] - 1);
 				}
-				m_output.buffer[m_output.bytes++] = ansi[i];
+				else if (ansi[i] == 27)
+				{
+					putchar('^');
+					putchar('[');
+				}
+				else if (ansi[i] == 28)
+				{
+					putchar('^');
+					putchar('\\');
+				}
+				else if (ansi[i] == 29)
+				{
+					putchar('^');
+					putchar(']');
+				}
+				else if (ansi[i] == 30)
+				{
+					putchar('^');
+					putchar('^');
+				}
+				else if (ansi[i] == 31)
+				{
+					putchar('^');
+					putchar('_');
+				}
+				else if (ansi[i] == 127)
+				{
+					putchar('^');
+					putchar('?');
+				}
+				else
+				{
+					putchar(ansi[i]);
+				}
 			}
 		}
-		
-		if (flush)
+
+		if (eof || !m_termios.canonical)
 		{
 			m_output.flush = true;
 			m_output.semaphore.unblock();
@@ -142,7 +233,7 @@ namespace Kernel
 		auto print_backspace =
 			[this]
 			{
-				if (m_column > 0)
+				if (m_termios.echo && m_column > 0)
 				{
 					m_column--;
 					putchar_at(' ', m_column, m_row);
@@ -152,8 +243,10 @@ namespace Kernel
 
 		if (m_output.bytes > 0)
 		{
+			uint8_t last = m_output.buffer[m_output.bytes - 1];
+
 			// Multibyte UTF8
-			if ((m_output.buffer[m_output.bytes - 1] & 0xC0) == 0x80)
+			if ((last & 0xC0) == 0x80)
 			{
 				// NOTE: this should be valid UTF8 since keyboard input already 'validates' it
 				while ((m_output.buffer[m_output.bytes - 1] & 0xC0) == 0x80)
@@ -161,12 +254,14 @@ namespace Kernel
 					ASSERT(m_output.bytes > 0);
 					m_output.bytes--;
 				}
+				ASSERT(m_output.bytes > 0);
+				m_output.bytes--;
 				print_backspace();
 			}
-			// Control sequence
-			else if (m_output.bytes >= 2 && m_output.buffer[m_output.bytes - 2] == '\e')
+			// Caret notation
+			else if (last < 32 || last == 127)
 			{
-				m_output.bytes -= 2;
+				m_output.bytes--;
 				print_backspace();
 				print_backspace();
 			}
@@ -184,7 +279,7 @@ namespace Kernel
 		static uint32_t last_x = -1;
 		static uint32_t last_y = -1;
 		if (last_x != uint32_t(-1) && last_y != uint32_t(-1))
-			render_from_buffer(last_x, last_y); // Hacky way to clear previous cursor in graphics mode :D
+			render_from_buffer(last_x, last_y);
 		m_terminal_driver->set_cursor_position(x, y);
 		last_x = m_column = x;
 		last_y = m_row = y;
