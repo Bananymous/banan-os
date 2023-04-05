@@ -22,8 +22,6 @@
 #include <kernel/Terminal/TTY.h>
 #include <kernel/Terminal/VesaTerminalDriver.h>
 
-#include <unistd.h>
-
 extern "C" const char g_kernel_cmdline[];
 
 struct ParsedCommandLine

@@ -59,6 +59,7 @@ namespace Kernel
 	{
 		MUST(set_prompt(s_default_prompt));
 		MUST(m_buffer.push_back(""sv));
+		MUST(Process::current()->set_termios(termios { .canonical = false, .echo = false }));
 	}
 
 	BAN::ErrorOr<void> Shell::set_prompt(BAN::StringView prompt)
@@ -111,21 +112,83 @@ namespace Kernel
 
 	void Shell::run()
 	{
+		auto getch = [this] { uint8_t ch; MUST(Process::current()->read(STDIN_FILENO, &ch, 1)); return ch; };
+
+		MUST(m_buffer.push_back(""sv));
+
 		TTY_PRINT("{}", m_prompt);
-		BAN::String input;
 		for (;;)
 		{
-			char buffer[128];
-			size_t n_read = MUST(Process::current()->read(STDIN_FILENO, buffer, sizeof(buffer)));
+			BAN::String& current = m_buffer[m_cursor_pos.line];
 
-			MUST(input.append(BAN::StringView(buffer, n_read)));
-			if (input.back() == '\n')
+			uint8_t ch = getch();
+
+			if (ch == '\b')
 			{
-				input.pop_back();
-				if (auto res = process_command(parse_arguments(input)); res.is_error())
-					TTY_PRINTLN("{}", res.error());
-				TTY_PRINT("{}", m_prompt);
-				input.clear();
+				if (!current.empty())
+				{
+					while ((current.back() & 0xC0) == 0x80)
+						current.pop_back();
+					current.pop_back();
+					MUST(Process::current()->write(STDOUT_FILENO, "\b \b", 3));
+				}
+				continue;
+			}
+			if (ch == '\e')
+			{
+				bool handled = false;
+				if (getch() == '[')
+				{
+					handled = true;
+					switch (getch())
+					{
+						case 'A': // Up
+							if (m_cursor_pos.line > 0)
+							{
+								m_cursor_pos.line--;
+								TTY_PRINT("\e[G{}{}\e[K", m_prompt, m_buffer[m_cursor_pos.line]);
+							}
+							break;
+						case 'B': // Down
+							if (m_cursor_pos.line < m_buffer.size() - 1)
+							{
+								m_cursor_pos.line++;
+								TTY_PRINT("\e[G{}{}\e[K", m_prompt, m_buffer[m_cursor_pos.line]);
+							}
+							break;
+						case 'C': // Right
+							break;
+						case 'D': // Left
+							break;
+						default:
+							handled = false;
+					}
+				}
+
+				if (!handled)
+					while (!isalpha(ch))
+						ch = getch();
+				continue;
+			}
+
+			MUST(Process::current()->write(STDOUT_FILENO, &ch, 1));
+
+			if (ch != '\n')
+			{
+				MUST(current.push_back(ch));
+				continue;
+			}
+
+			if (auto res = process_command(parse_arguments(current)); res.is_error())
+				TTY_PRINTLN("{}", res.error());
+			TTY_PRINT("{}", m_prompt);
+
+			if (!current.empty())
+			{
+				MUST(m_old_buffer.push_back(current));
+				m_buffer = m_old_buffer;
+				MUST(m_buffer.push_back(""sv));
+				m_cursor_pos.line = m_buffer.size() - 1;
 			}
 		}
 	}
