@@ -4,11 +4,7 @@ set -e
 BINUTILS_VERSION="binutils-2.39"
 GCC_VERSION="gcc-12.2.0"
 
-SYSROOT="$HOME/dev/banan-os/build/sysroot"
-PREFIX="$(pwd)/local"
-ARCH="x86_64"
-
-TARGET="${ARCH}-banan_os"
+cd $(dirname "$0")
 
 if [[ -z $SYSROOT ]]; then
 	echo "You must set the SYSROOT environment variable" >&2
@@ -20,10 +16,12 @@ if [[ -z $PREFIX ]]; then
 	exit 1
 fi
 
-if [[ -z $BANAN_AR ]]; then
+if [[ -z $ARCH ]]; then
 	echo  "You must set the ARCH environment variable" >&2
 	exit 1
 fi
+
+TARGET="${ARCH}-banan_os"
 
 if [ ! -f ${PREFIX}/bin/${TARGET}-ld ]; then
 

@@ -21,6 +21,7 @@ set(BANAN_SYSROOT ${CMAKE_BINARY_DIR}/sysroot)
 set(BANAN_INCLUDE ${BANAN_SYSROOT}/usr/include)
 set(BANAN_BOOT ${BANAN_SYSROOT}/boot)
 set(DISK_IMAGE_PATH ${CMAKE_BINARY_DIR}/banan-os.img)
+set(TOOLCHAIN_PREFIX ${CMAKE_SOURCE_DIR}/toolchain/local)
 
 add_subdirectory(kernel)
 add_subdirectory(BAN)
@@ -31,6 +32,18 @@ add_custom_target(sysroot
 	COMMAND mkdir -p ${BANAN_BOOT}
 	COMMAND mkdir -p ${BANAN_INCLUDE}
 	COMMAND cp -r ${CMAKE_SOURCE_DIR}/base/* ${BANAN_SYSROOT}/
+)
+
+add_custom_target(headers
+	DEPENDS kernel-headers
+	DEPENDS ban-headers
+	DEPENDS libc-headers
+)
+
+add_custom_target(toolchain
+	COMMAND ${CMAKE_COMMAND} -E env SYSROOT="${BANAN_SYSROOT}" PREFIX="${TOOLCHAIN_PREFIX}" ARCH="${BANAN_ARCH}" ${CMAKE_SOURCE_DIR}/toolchain/build.sh
+	DEPENDS headers
+	USES_TERMINAL
 )
 
 add_custom_target(image
