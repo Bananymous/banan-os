@@ -260,9 +260,6 @@ namespace Kernel
 
 	void TTY::handle_ansi_csi(uint8_t ch)
 	{
-		uint32_t old_column = m_column;
-		uint32_t old_row = m_row;
-
 		switch (ch)
 		{
 			case '0': case '1': case '2': case '3': case '4':
@@ -377,9 +374,6 @@ namespace Kernel
 				dprintln("Unsupported ANSI CSI character {}", ch);
 				return reset_ansi();
 		}
-
-		if (old_column != m_column || old_row != m_row)
-			set_cursor_position(m_column, m_row);
 	}
 
 	void TTY::render_from_buffer(uint32_t x, uint32_t y)
@@ -442,6 +436,7 @@ namespace Kernel
 				return;
 			case State::WaitingAnsiCSI:
 				handle_ansi_csi(ch);
+				set_cursor_position(m_column, m_row);
 				return;
 			case State::WaitingUTF8:
 				if ((ch & 0xC0) != 0x80)
