@@ -122,10 +122,14 @@ endif()
 
 target_link_options(kernel PUBLIC -ffreestanding -nostdlib -O2)
 
-add_custom_target(kernel-install
+add_custom_target(kernel-headers
 	COMMAND cp -r ${CMAKE_CURRENT_SOURCE_DIR}/include/* ${BANAN_INCLUDE}/
-	COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/kernel ${BANAN_BOOT}/banan-os.kernel
 	DEPENDS sysroot
+)
+
+add_custom_target(kernel-install
+	COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/kernel ${BANAN_BOOT}/banan-os.kernel
+	DEPENDS kernel-headers
 	DEPENDS kernel
 )
 
