@@ -98,8 +98,6 @@ set(KERNEL_SOURCES
 
 add_executable(kernel ${KERNEL_SOURCES})
 
-target_include_directories(kernel PUBLIC include ../BAN/include ../libc/include)
-
 target_compile_definitions(kernel PUBLIC __is_kernel)
 target_compile_definitions(kernel PUBLIC __arch=${BANAN_ARCH})
 
