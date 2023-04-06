@@ -21,6 +21,7 @@ project(banan-os CXX)
 
 set(BANAN_SYSROOT ${CMAKE_BINARY_DIR}/sysroot)
 set(BANAN_INCLUDE ${BANAN_SYSROOT}/usr/include)
+set(BANAN_LIB ${BANAN_SYSROOT}/usr/lib)
 set(BANAN_BOOT ${BANAN_SYSROOT}/boot)
 set(DISK_IMAGE_PATH ${CMAKE_BINARY_DIR}/banan-os.img)
 
@@ -30,8 +31,9 @@ add_subdirectory(libc)
 
 add_custom_target(sysroot
 	COMMAND mkdir -p ${BANAN_SYSROOT}
-	COMMAND mkdir -p ${BANAN_BOOT}
 	COMMAND mkdir -p ${BANAN_INCLUDE}
+	COMMAND mkdir -p ${BANAN_LIB}
+	COMMAND mkdir -p ${BANAN_BOOT}
 	COMMAND cp -r ${CMAKE_SOURCE_DIR}/base/* ${BANAN_SYSROOT}/
 )
 
