@@ -1,18 +1,20 @@
 cmake_minimum_required(VERSION 3.26)
 
-set(BANAN_ARCH x86_64)
-
 if(DEFINED ENV{BANAN_ARCH})
 	set(BANAN_ARCH $ENV{BANAN_ARCH})
+else()
+	set(BANAN_ARCH x86_64)
 endif()
+
+set(TOOLCHAIN_PREFIX ${CMAKE_SOURCE_DIR}/toolchain/local)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
-set(CMAKE_CXX_COMPILER ${BANAN_ARCH}-elf-g++)
+set(CMAKE_CXX_COMPILER ${TOOLCHAIN_PREFIX}/bin/${BANAN_ARCH}-banan_os-g++)
 set(CMAKE_CXX_COMPILER_WORKS True)
 
-if("${BANAN_ARCH}" STREQUAL "i386")
-	set(CMAKE_CXX_COMPILER i686-elf-g++)
+if(NOT EXISTS ${CMAKE_CXX_COMPILER})
+	set(CMAKE_CXX_COMPILER g++)
 endif()
 
 project(banan-os CXX)
@@ -21,7 +23,6 @@ set(BANAN_SYSROOT ${CMAKE_BINARY_DIR}/sysroot)
 set(BANAN_INCLUDE ${BANAN_SYSROOT}/usr/include)
 set(BANAN_BOOT ${BANAN_SYSROOT}/boot)
 set(DISK_IMAGE_PATH ${CMAKE_BINARY_DIR}/banan-os.img)
-set(TOOLCHAIN_PREFIX ${CMAKE_SOURCE_DIR}/toolchain/local)
 
 add_subdirectory(kernel)
 add_subdirectory(BAN)
