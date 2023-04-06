@@ -43,7 +43,6 @@ if [ ! -f ${PREFIX}/bin/${TARGET}-ld ]; then
 		--target="$TARGET" \
 		--prefix="$PREFIX" \
 		--with-sysroot="$SYSROOT" \
-		--enable-shared \
 		--disable-werror
 
 	make -j $(nproc)
@@ -73,7 +72,6 @@ if [ ! -f ${PREFIX}/bin/${TARGET}-g++ ]; then
 		--target="$TARGET" \
 		--prefix="$PREFIX" \
 		--with-sysroot="$SYSROOT" \
-		--enable-shared \
 		--enable-languages=c,c++
 
 	make -j $(nproc) all-gcc all-target-libgcc

@@ -120,6 +120,11 @@ endif()
 
 target_link_options(kernel PUBLIC -ffreestanding -nostdlib -O2)
 
+add_custom_target(crt0
+	COMMAND ${CMAKE_CXX_COMPILER} -c ${CMAKE_CURRENT_SOURCE_DIR}/arch/${BANAN_ARCH}/crt0.S -o ${BANAN_LIB}/crt0.o
+	DEPENDS headers
+)
+
 add_custom_target(kernel-headers
 	COMMAND cp -r ${CMAKE_CURRENT_SOURCE_DIR}/include/* ${BANAN_INCLUDE}/
 	DEPENDS sysroot
@@ -148,4 +153,3 @@ add_custom_command(
 )
 
 set(CMAKE_CXX_LINK_EXECUTABLE "${CMAKE_CXX_COMPILER} <CMAKE_CXX_LINK_FLAGS> <FLAGS> <LINK_FLAGS> -o <TARGET> ${CMAKE_CURRENT_BINARY_DIR}/crti.o ${CMAKE_CURRENT_BINARY_DIR}/crtbegin.o <OBJECTS> ${CMAKE_CURRENT_BINARY_DIR}/crtend.o ${CMAKE_CURRENT_BINARY_DIR}/crtn.o -lgcc ")
-
