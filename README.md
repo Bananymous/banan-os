@@ -1,6 +1,8 @@
 # banan-os
 This is my hobby operating system written in C++. Currently runs on x86 based architectures (32 and 64 bit). Currently this operating system supports ext2 filesystem, ata drives (pio mode), vesa/vbe graphics mode and multithreaded processing.
 
+![ss](https://user-images.githubusercontent.com/68776844/230458915-a0c3f1b4-e747-401a-bc0c-07a62d18927c.png)
+
 ## Building
 > **_NOTE:_** I will be using ninja in these build instructions but you may use any other buildsystem cmake supports. If you want to use ninja, you can either define a environment variable 'CMAKE_GENERATOR=Ninja' or pass '-G Ninja' to all commands invoking cmake.
 
