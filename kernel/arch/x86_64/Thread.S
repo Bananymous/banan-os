@@ -14,6 +14,7 @@ start_thread:
 	movq %rdi, %rsp
 	popq %rdi
 	movq $0, %rbp
+	movq $0, (%rsp)
 	pushq $exit_thread_trampoline
 	sti
 	jmp *%rsi

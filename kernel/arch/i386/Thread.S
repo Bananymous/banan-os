@@ -15,6 +15,7 @@ start_thread:
 	movl 8(%esp), %ecx
 	movl 4(%esp), %esp
 	movl $0, %ebp
+	movl $0, (%esp)
 	pushl $exit_thread_trampoline
 	sti
 	jmp *%ecx
