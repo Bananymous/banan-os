@@ -16,8 +16,8 @@
 namespace Kernel
 {
 
-	extern "C" void start_thread(uintptr_t rsp, uintptr_t rip);
-	extern "C" void continue_thread(uintptr_t rsp, uintptr_t rip);
+	extern "C" [[noreturn]] void start_thread(uintptr_t rsp, uintptr_t rip);
+	extern "C" [[noreturn]] void continue_thread(uintptr_t rsp, uintptr_t rip);
 	extern "C" uintptr_t read_rip();
 
 	static Scheduler* s_instance = nullptr;
@@ -166,14 +166,17 @@ namespace Kernel
 		
 		Thread& current = current_thread();
 
-		if (current.started())
+		switch (current.state())
 		{
-			continue_thread(current.rsp(), current.rip());
-		}
-		else
-		{
-			current.set_started();
-			start_thread(current.rsp(), current.rip());
+			case Thread::State::NotStarted:
+				current.set_started();
+				start_thread(current.rsp(), current.rip());
+			case Thread::State::Executing:
+				continue_thread(current.rsp(), current.rip());
+			case Thread::State::Terminating:
+				ENABLE_INTERRUPTS();
+				current.on_exit();
+				ASSERT_NOT_REACHED();
 		}
 
 		ASSERT_NOT_REACHED();

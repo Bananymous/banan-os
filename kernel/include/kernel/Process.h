@@ -23,9 +23,11 @@ namespace Kernel
 
 	public:
 		static BAN::ErrorOr<BAN::RefPtr<Process>> create_kernel(entry_t, void*);
-		~Process() {}
+		~Process();
 
-		BAN::ErrorOr<void> add_thread(entry_t, void*);
+		void exit();
+
+		BAN::ErrorOr<Thread*> add_thread(entry_t, void*);
 		void on_thread_exit(Thread&);
 
 		BAN::ErrorOr<void> init_stdio();

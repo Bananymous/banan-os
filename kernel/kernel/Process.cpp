@@ -23,7 +23,12 @@ namespace Kernel
 		, m_tty(TTY::current())
 	{ }
 
-	BAN::ErrorOr<void> Process::add_thread(entry_t entry, void* data)
+	Process::~Process()
+	{
+		exit();
+	}
+
+	BAN::ErrorOr<Thread*> Process::add_thread(entry_t entry, void* data)
 	{
 		Thread* thread = TRY(Thread::create(entry, data, this));
 
@@ -32,10 +37,10 @@ namespace Kernel
 		if (auto res = Scheduler::get().add_thread(thread); res.is_error())
 		{
 			m_threads.pop_back();
-			return res;
+			return res.release_error();
 		}
 
-		return {};
+		return thread;
 	}
 
 	void Process::on_thread_exit(Thread& thread)
@@ -44,6 +49,17 @@ namespace Kernel
 		for (size_t i = 0; i < m_threads.size(); i++)
 			if (m_threads[i] == &thread)
 				m_threads.remove(i);
+	}
+
+	void Process::exit()
+	{
+		LockGuard _(m_lock);
+		for (auto* thread : m_threads)
+			thread->terminate();
+		while (!m_threads.empty())
+			PIT::sleep(1);
+		for (auto& open_fd : m_open_files)
+			open_fd.inode = nullptr;
 	}
 
 	BAN::ErrorOr<void> Process::init_stdio()
