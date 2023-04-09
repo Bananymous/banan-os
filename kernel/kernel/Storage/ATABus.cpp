@@ -265,6 +265,8 @@ namespace Kernel
 			io_write(ATA_PORT_LBA2, (uint8_t)(lba >> 16));
 			io_write(ATA_PORT_COMMAND, ATA_COMMAND_READ_SECTORS);
 
+			PIT::sleep(1);
+
 			for (uint32_t sector = 0; sector < sector_count; sector++)
 			{
 				block_until_irq();
@@ -296,6 +298,8 @@ namespace Kernel
 			io_write(ATA_PORT_LBA1, (uint8_t)(lba >>  8));
 			io_write(ATA_PORT_LBA2, (uint8_t)(lba >> 16));
 			io_write(ATA_PORT_COMMAND, ATA_COMMAND_WRITE_SECTORS);
+
+			PIT::sleep(1);
 
 			for (uint32_t sector = 0; sector < sector_count; sector++)
 			{
