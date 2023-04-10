@@ -1,6 +1,5 @@
 #pragma once
 
-#include <BAN/Memory.h>
 #include <kernel/FS/Inode.h>
 
 namespace Kernel

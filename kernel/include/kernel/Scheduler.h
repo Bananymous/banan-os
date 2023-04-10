@@ -1,7 +1,6 @@
 #pragma once
 
 #include <BAN/LinkedList.h>
-#include <BAN/Memory.h>
 #include <kernel/Semaphore.h>
 #include <kernel/Thread.h>
 
