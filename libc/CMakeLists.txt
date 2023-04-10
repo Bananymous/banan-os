@@ -11,12 +11,12 @@ set(LIBC_SOURCES
 )
 
 add_custom_target(libc-headers
-	COMMAND cp -r ${CMAKE_CURRENT_SOURCE_DIR}/include/* ${BANAN_INCLUDE}
+	COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different ${CMAKE_CURRENT_SOURCE_DIR}/include ${BANAN_INCLUDE}
 	DEPENDS sysroot
 )
 
 add_library(libc ${LIBC_SOURCES})
-add_dependencies(libc crt0)
+add_dependencies(libc headers crt0)
 
 add_custom_target(libc-install
 	COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/libc.a ${BANAN_LIB}/
