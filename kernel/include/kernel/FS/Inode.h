@@ -1,6 +1,6 @@
 #pragma once
 
-#include <BAN/Memory.h>
+#include <BAN/RefPtr.h>
 #include <BAN/String.h>
 #include <BAN/StringView.h>
 #include <BAN/Vector.h>

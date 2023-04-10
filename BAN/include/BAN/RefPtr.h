@@ -1,27 +1,12 @@
 #pragma once
 
-
 #include <BAN/Errors.h>
 #include <BAN/Move.h>
 #include <BAN/NoCopyMove.h>
-
-#if defined(__is_kernel)
-	#include <kernel/kmalloc.h>
-#else
-	#include <stdlib.h>
-#endif
-
 #include <stdint.h>
 
 namespace BAN
 {
-	#if defined(__is_kernel)
-		static constexpr void*(&allocator)(size_t) = kmalloc;
-		static constexpr void(&deallocator)(void*) = kfree;
-	#else
-		static constexpr void*(&allocator)(size_t) = malloc;
-		static constexpr void(&deallocator)(void*) = free;
-	#endif
 
 	template<typename T>
 	class RefCounted

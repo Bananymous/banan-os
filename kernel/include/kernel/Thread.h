@@ -1,7 +1,7 @@
 #pragma once
 
-#include <BAN/Memory.h>
 #include <BAN/NoCopyMove.h>
+#include <BAN/RefPtr.h>
 
 #include <sys/types.h>
 

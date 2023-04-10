@@ -79,7 +79,7 @@ else()
 endif()
 
 set(BAN_SOURCES
-	../BAN/BAN/Memory.cpp
+	../BAN/BAN/New.cpp
 	../BAN/BAN/String.cpp
 	../BAN/BAN/StringView.cpp
 	../BAN/BAN/Time.cpp

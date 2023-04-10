@@ -3,8 +3,8 @@
 #include <BAN/Errors.h>
 #include <BAN/Iterators.h>
 #include <BAN/Math.h>
-#include <BAN/Memory.h>
 #include <BAN/Move.h>
+#include <BAN/New.h>
 
 namespace BAN
 {
