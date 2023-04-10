@@ -97,6 +97,7 @@ set(KERNEL_SOURCES
 )
 
 add_executable(kernel ${KERNEL_SOURCES})
+add_dependencies(kernel headers)
 
 target_compile_definitions(kernel PUBLIC __is_kernel)
 target_compile_definitions(kernel PUBLIC __arch=${BANAN_ARCH})
@@ -126,13 +127,12 @@ add_custom_target(crt0
 )
 
 add_custom_target(kernel-headers
-	COMMAND cp -r ${CMAKE_CURRENT_SOURCE_DIR}/include/* ${BANAN_INCLUDE}/
+	COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different ${CMAKE_CURRENT_SOURCE_DIR}/include ${BANAN_INCLUDE}
 	DEPENDS sysroot
 )
 
 add_custom_target(kernel-install
 	COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/kernel ${BANAN_BOOT}/banan-os.kernel
-	DEPENDS kernel-headers
 	DEPENDS kernel
 )
 
