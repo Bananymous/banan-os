@@ -53,9 +53,11 @@ namespace Kernel
 
 	void Process::exit()
 	{
-		LockGuard _(m_lock);
-		for (auto* thread : m_threads)
-			thread->terminate();
+		{
+			LockGuard _(m_lock);
+			for (auto* thread : m_threads)
+				thread->terminate();
+		}
 		while (!m_threads.empty())
 			PIT::sleep(1);
 		for (auto& open_fd : m_open_files)
