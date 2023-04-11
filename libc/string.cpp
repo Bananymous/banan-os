@@ -122,6 +122,9 @@ char* strerror(int error)
 	case ENOTTY:
 		strcpy(buffer, "Inappropriate I/O control operation");
 		break;
+	case ENOTBLK:
+		strcpy(buffer, "Block device required");
+		break;
 	default:
 		{
 			// FIXME: sprintf

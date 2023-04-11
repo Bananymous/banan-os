@@ -64,8 +64,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Process::init_stdio()
 	{
-		if (!m_open_files.empty())
-			return BAN::Error::from_c_string("Could not init stdio, process already has open files");
+		ASSERT(m_open_files.empty());
 		TRY(open("/dev/tty1", O_RDONLY)); // stdin
 		TRY(open("/dev/tty1", O_WRONLY)); // stdout
 		TRY(open("/dev/tty1", O_WRONLY)); // stderr
@@ -152,13 +151,17 @@ namespace Kernel
 	BAN::ErrorOr<void> Process::creat(BAN::StringView path, mode_t mode)
 	{
 		auto absolute_path = TRY(absolute_path_of(path));
-		while (absolute_path.back() != '/')
-			absolute_path.pop_back();
-		
-		auto parent_file = TRY(VirtualFileSystem::get().file_from_absolute_path(absolute_path));
-		if (path.count('/') > 0)
-			return BAN::Error::from_c_string("You can only create files to current working directory");
-		TRY(parent_file.inode->create_file(path, mode));
+
+		size_t index;
+		for (index = absolute_path.size(); index > 0; index--)
+			if (absolute_path[index - 1] == '/')
+				break;
+
+		auto directory = absolute_path.sv().substring(0, index);
+		auto file_name = absolute_path.sv().substring(index);
+
+		auto parent_file = TRY(VirtualFileSystem::get().file_from_absolute_path(directory));
+		TRY(parent_file.inode->create_file(file_name, mode));
 
 		return {};
 	}

@@ -463,7 +463,7 @@ namespace Kernel
 		}
 
 		if (m_superblock.magic != 0xEF53)
-			return BAN::Error::from_c_string("Not an ext2 filesystem");
+			return BAN::Error::from_error_code(ErrorCode::Ext2_Invalid);
 
 		if (m_superblock.rev_level < 1)
 		{
@@ -475,7 +475,7 @@ namespace Kernel
 		uint32_t number_of_block_groups       = BAN::Math::div_round_up(superblock().inodes_count, superblock().inodes_per_group);
 		uint32_t number_of_block_groups_check = BAN::Math::div_round_up(superblock().blocks_count, superblock().blocks_per_group);
 		if (number_of_block_groups != number_of_block_groups_check)
-			return BAN::Error::from_c_string("Ambiguous number of block groups");
+			return BAN::Error::from_error_code(ErrorCode::Ext2_Corrupted);
 
 		ASSERT(!(m_superblock.feature_incompat & Ext2::Enum::FEATURE_INCOMPAT_COMPRESSION));
 		//ASSERT(!(m_superblock.feature_incompat & Ext2::Enum::FEATURE_INCOMPAT_FILETYPE));
@@ -546,7 +546,7 @@ namespace Kernel
 			}
 		}
 
-		return BAN::Error::from_c_string("No free inodes available in the whole filesystem");
+		return BAN::Error::from_error_code(ErrorCode::Ext2_NoInodes);
 	}
 
 	void Ext2FS::read_block(uint32_t block, BAN::Span<uint8_t> buffer)

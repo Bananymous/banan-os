@@ -100,7 +100,7 @@ namespace Kernel
 	{
 		const RSDP* rsdp = locate_rsdp();
 		if (rsdp == nullptr)
-			return BAN::Error::from_c_string("Could not find RSDP");
+			return BAN::Error::from_error_code(ErrorCode::ACPI_NoRootSDT);
 
 		if (rsdp->revision >= 2)
 		{
@@ -109,9 +109,9 @@ namespace Kernel
 			BAN::ScopeGuard _([xsdt] { MMU::get().unallocate_page((uintptr_t)xsdt); });
 
 			if (memcmp(xsdt->signature, "XSDT", 4) != 0)
-				return BAN::Error::from_c_string("XSDT has invalid signature");
+				return BAN::Error::from_error_code(ErrorCode::ACPI_RootInvalid);
 			if (!is_valid_std_header(xsdt))
-				return BAN::Error::from_c_string("XSDT has invalid checksum");
+				return BAN::Error::from_error_code(ErrorCode::ACPI_RootInvalid);
 
 			m_header_table = (uintptr_t)xsdt->entries;
 			m_entry_size = 8;
@@ -124,9 +124,9 @@ namespace Kernel
 			BAN::ScopeGuard _([rsdt] { MMU::get().unallocate_page((uintptr_t)rsdt); });
 
 			if (memcmp(rsdt->signature, "RSDT", 4) != 0)
-				return BAN::Error::from_c_string("RSDT has invalid signature");
+				return BAN::Error::from_error_code(ErrorCode::ACPI_RootInvalid);
 			if (!is_valid_std_header(rsdt))
-				return BAN::Error::from_c_string("RSDT has invalid checksum");
+				return BAN::Error::from_error_code(ErrorCode::ACPI_RootInvalid);
 
 			m_header_table = (uintptr_t)rsdt->entries;
 			m_entry_size = 4;
@@ -148,7 +148,7 @@ namespace Kernel
 				return header;
 			unmap_header(header);
 		}
-		return BAN::Error::from_format("Could not find ACPI header '{}'", BAN::StringView(signature, 4));
+		return BAN::Error::from_error_code(ErrorCode::ACPI_NoSuchHeader);
 	}
 
 	void ACPI::unmap_header(const ACPI::SDTHeader* header)

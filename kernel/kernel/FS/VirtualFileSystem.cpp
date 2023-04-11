@@ -18,8 +18,7 @@ namespace Kernel
 			return BAN::Error::from_errno(ENOMEM);
 		BAN::ScopeGuard guard([] { delete s_instance; s_instance = nullptr; } );
 
-		if (root.size() < 5 || root.substring(0, 5) != "/dev/")
-			return BAN::Error::from_c_string("root must be in /dev/");
+		ASSERT(root.size() >= 5 && root.substring(0, 5) == "/dev/"sv);;
 		root = root.substring(5);
 
 		auto partition_inode = TRY(DeviceManager::get().read_directory_inode(root));
@@ -43,11 +42,11 @@ namespace Kernel
 	{
 		auto partition_file = TRY(file_from_absolute_path(partition));
 		if (partition_file.inode->inode_type() != Inode::InodeType::Device)
-			return BAN::Error::from_c_string("Not a partition");
+			return BAN::Error::from_errno(ENOTBLK);
 
 		Device* device = (Device*)partition_file.inode.ptr();
-		if (device->device_type() != Device::DeviceType::Partition)
-			return BAN::Error::from_c_string("Not a partition");
+		if (device->device_type() != Device::DeviceType::BlockDevice)
+			return BAN::Error::from_errno(ENOTBLK);
 
 		auto* file_system = TRY(Ext2FS::create(*(Partition*)device));
 		return mount(file_system, target);
@@ -90,8 +89,7 @@ namespace Kernel
 		ASSERT(path.front() == '/');
 
 		auto inode = root_inode();
-		if (!inode)
-			return BAN::Error::from_c_string("No root inode available");
+		ASSERT(inode);
 
 		BAN::String canonical_path;
 

@@ -147,28 +147,28 @@ namespace Kernel
 	BAN::ErrorOr<void> StorageDevice::initialize_partitions()
 	{
 		if (total_size() < sizeof(GPTHeader))
-			return BAN::Error::from_format("Disk {} does not have enough space for GPT header", name());
+			return BAN::Error::from_error_code(ErrorCode::Storage_GPTHeader);
 
 		BAN::Vector<uint8_t> lba1(sector_size());
 		TRY(read_sectors(1, 1, lba1.data()));
 
 		const GPTHeader& header = *(const GPTHeader*)lba1.data();
 		if (!is_valid_gpt_header(header, sector_size()))
-			return BAN::Error::from_format("Disk {} has invalid GPT header", name());
+			return BAN::Error::from_error_code(ErrorCode::Storage_GPTHeader);
 
 		uint32_t size = header.partition_entry_count * header.partition_entry_size;
 		if (uint32_t remainder = size % sector_size())
 			size += sector_size() - remainder;
 
 		if (total_size() < header.partition_entry_lba * sector_size() + size)
-			return BAN::Error::from_format("Disk {} has invalid GPT header", name());
+			return BAN::Error::from_error_code(ErrorCode::Storage_GPTHeader);
 
 		BAN::Vector<uint8_t> entry_array;
 		TRY(entry_array.resize(size));
 		TRY(read_sectors(header.partition_entry_lba, size / sector_size(), entry_array.data()));
 
 		if (!is_valid_gpt_crc32(header, lba1, entry_array))
-			return BAN::Error::from_format("Disk {} has invalid crc3 in the GPT header", name());
+			return BAN::Error::from_error_code(ErrorCode::Storage_GPTHeader);
 
 		for (uint32_t i = 0; i < header.partition_entry_count; i++)
 		{
@@ -220,7 +220,7 @@ namespace Kernel
 	{
 		const uint32_t sectors_in_partition = m_lba_end - m_lba_start;
 		if (lba + sector_count > sectors_in_partition)
-			return BAN::Error::from_c_string("Attempted to read outside of the partition boundaries");
+			return BAN::Error::from_error_code(ErrorCode::Storage_Boundaries);
 		TRY(m_device.read_sectors(m_lba_start + lba, sector_count, buffer));
 		return {};
 	}
@@ -229,7 +229,7 @@ namespace Kernel
 	{
 		const uint32_t sectors_in_partition = m_lba_end - m_lba_start;
 		if (lba + sector_count > sectors_in_partition)
-			return BAN::Error::from_c_string("Attempted to write outside of the partition boundaries");
+			return BAN::Error::from_error_code(ErrorCode::Storage_Boundaries);
 		TRY(m_device.write_sectors(m_lba_start + lba, sector_count, buffer));
 		return {};
 	}

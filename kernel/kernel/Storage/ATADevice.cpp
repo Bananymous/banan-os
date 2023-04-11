@@ -18,7 +18,7 @@ namespace Kernel
 		m_command_set |= (uint32_t)(identify_buffer[ATA_IDENTIFY_COMMAND_SET + 1] << 16);
 
 		if (!(m_capabilities & ATA_CAPABILITIES_LBA))
-			return BAN::Error::from_c_string("Device does not support LBA addressing");
+			return BAN::Error::from_error_code(ErrorCode::ATA_NoLBA);
 		
 		if ((identify_buffer[ATA_IDENTIFY_SECTOR_INFO] & (1 << 15)) == 0 &&
 			(identify_buffer[ATA_IDENTIFY_SECTOR_INFO] & (1 << 14)) != 0 &&
