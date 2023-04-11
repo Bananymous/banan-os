@@ -224,22 +224,23 @@ namespace Kernel
 	{
 		uint8_t err = io_read(ATA_PORT_ERROR);
 		if (err & ATA_ERROR_AMNF)
-			return BAN::Error::from_c_string("Address mark not found.");
+			return BAN::Error::from_error_code(ErrorCode::ATA_AMNF);
 		if (err & ATA_ERROR_TKZNF)
-			return BAN::Error::from_c_string("Track zero not found.");
+			return BAN::Error::from_error_code(ErrorCode::ATA_TKZNF);
 		if (err & ATA_ERROR_ABRT)
-			return BAN::Error::from_c_string("Aborted command.");
+			return BAN::Error::from_error_code(ErrorCode::ATA_ABRT);
 		if (err & ATA_ERROR_MCR)
-			return BAN::Error::from_c_string("Media change request.");
+			return BAN::Error::from_error_code(ErrorCode::ATA_MCR);
 		if (err & ATA_ERROR_IDNF)
-			return BAN::Error::from_c_string("ID not found.");
+			return BAN::Error::from_error_code(ErrorCode::ATA_IDNF);
 		if (err & ATA_ERROR_MC)
-			return BAN::Error::from_c_string("Media changed.");
+			return BAN::Error::from_error_code(ErrorCode::ATA_MC);
 		if (err & ATA_ERROR_UNC)
-			return BAN::Error::from_c_string("Uncorrectable data error.");
+			return BAN::Error::from_error_code(ErrorCode::ATA_UNC);
 		if (err & ATA_ERROR_BBK)
-			return BAN::Error::from_c_string("Bad Block detected.");
-		return BAN::Error::from_c_string("No error");
+			return BAN::Error::from_error_code(ErrorCode::ATA_BBK);
+		
+		return BAN::Error::from_error_code(ErrorCode::None);
 	}
 
 	uint8_t ATABus::device_index(const ATADevice* device) const
@@ -251,7 +252,7 @@ namespace Kernel
 	BAN::ErrorOr<void> ATABus::read(ATADevice* device, uint64_t lba, uint8_t sector_count, uint8_t* buffer)
 	{
 		if (lba + sector_count > device->m_lba_count)
-			return BAN::Error::from_c_string("Attempted to read outside of the device boundaries");
+			return BAN::Error::from_error_code(ErrorCode::Storage_Boundaries);
 
 		LockGuard _(m_lock);
 
@@ -285,7 +286,7 @@ namespace Kernel
 	BAN::ErrorOr<void> ATABus::write(ATADevice* device, uint64_t lba, uint8_t sector_count, const uint8_t* buffer)
 	{
 		if (lba + sector_count > device->m_lba_count)
-			return BAN::Error::from_c_string("Attempted to write outside of the device boundaries");
+			return BAN::Error::from_error_code(ErrorCode::Storage_Boundaries);
 
 		LockGuard _(m_lock);
 

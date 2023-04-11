@@ -48,7 +48,7 @@ namespace Kernel
 		TRY(Process::current()->read(fd, file_data.data(), st.st_size));
 
 		if (file_data.size() < 4)
-			return BAN::Error::from_c_string("Font file is too small");
+			return BAN::Error::from_error_code(ErrorCode::Font_FileTooSmall);
 
 		if (file_data[0] == PSF1_MAGIC0 && file_data[1] == PSF1_MAGIC1)
 			return TRY(parse_psf1(file_data.span()));
@@ -56,13 +56,13 @@ namespace Kernel
 		if (file_data[0] == PSF2_MAGIC0 && file_data[1] == PSF2_MAGIC1 && file_data[2] == PSF2_MAGIC2 && file_data[3] == PSF2_MAGIC3)
 			return TRY(parse_psf2(file_data.span()));
 
-		return BAN::Error::from_c_string("Unsupported font format");
+		return BAN::Error::from_error_code(ErrorCode::Font_Unsupported);
 	}
 
 	BAN::ErrorOr<Font> Font::parse_psf1(BAN::Span<const uint8_t> font_data)
 	{
 		if (font_data.size() < 4)
-			return BAN::Error::from_c_string("Font file is too small");
+			return BAN::Error::from_error_code(ErrorCode::Font_FileTooSmall);
 
 		struct PSF1Header
 		{
@@ -77,7 +77,7 @@ namespace Kernel
 		uint32_t glyph_data_size = glyph_size * glyph_count;
 
 		if (font_data.size() < sizeof(PSF1Header) + glyph_data_size)
-			return BAN::Error::from_c_string("Font file is too small");
+			return BAN::Error::from_error_code(ErrorCode::Font_FileTooSmall);
 
 		BAN::Vector<uint8_t> glyph_data;
 		TRY(glyph_data.resize(glyph_data_size));
@@ -155,14 +155,14 @@ namespace Kernel
 		};
 
 		if (font_data.size() < sizeof(PSF2Header))
-			return BAN::Error::from_c_string("Font file is too small");
+			return BAN::Error::from_error_code(ErrorCode::Font_FileTooSmall);
 
 		const PSF2Header& header = *(const PSF2Header*)font_data.data();
 
 		uint32_t glyph_data_size = header.glyph_count * header.glyph_size;
 
 		if (font_data.size() < glyph_data_size + header.header_size)
-			return BAN::Error::from_c_string("Font file is too small");
+			return BAN::Error::from_error_code(ErrorCode::Font_FileTooSmall);
 
 		BAN::Vector<uint8_t> glyph_data;
 		TRY(glyph_data.resize(glyph_data_size));

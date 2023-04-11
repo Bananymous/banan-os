@@ -328,10 +328,25 @@ argument_done:
 		{
 
 		}
+		else if (arguments.front() == "oof")
+		{
+			SpinLock lock;
+			for (int i = 0; i < 100; i++)
+			{
+				lock.lock();
+				MUST(Process::create_kernel([](void*) { MUST(Process::current()->init_stdio()); TTY_PRINTLN("####"); Process::current()->exit(); }, nullptr));
+				PIT::sleep(5);
+				kmalloc_dump_info();
+				lock.unlock();
+			}
+		}
 		else if (arguments.front() == "date")
 		{
 			if (arguments.size() != 1)
-				return BAN::Error::from_c_string("'date' does not support command line arguments");
+			{
+				TTY_PRINTLN("'date' does not support command line arguments");
+				return {};
+			}
 			auto time = RTC::get_current_time();
 			TTY_PRINTLN("{}", time);
 		}
@@ -348,7 +363,10 @@ argument_done:
 		else if (arguments.front() == "clear")
 		{
 			if (arguments.size() != 1)
-				return BAN::Error::from_c_string("'clear' does not support command line arguments");
+			{
+				TTY_PRINTLN("'clear' does not support command line arguments");
+				return {};
+			}
 			TTY_PRINT("\e[2J\e[H");
 		}
 		else if (arguments.front() == "time")
@@ -382,8 +400,7 @@ argument_done:
 				PIT::sleep(5000);
 
 				if (auto res = shell->process_command(args); res.is_error())
-					dprintln("{}", res.error());
-					//BAN::Formatter::println([&](char c) { shell->m_tty->putchar(c); }, "{}", res.error());
+					TTY_PRINT("{}", res.error());
 			};
 
 			SpinLock spinlock;
@@ -395,19 +412,28 @@ argument_done:
 		else if (arguments.front() == "memory")
 		{
 			if (arguments.size() != 1)
-				return BAN::Error::from_c_string("'memory' does not support command line arguments");
+			{
+				TTY_PRINTLN("'memory' does not support command line arguments");
+				return {};
+			}
 			kmalloc_dump_info();
 		}
 		else if (arguments.front() == "sleep")
 		{
 			if (arguments.size() != 1)
-				return BAN::Error::from_c_string("'sleep' does not support command line arguments");
+			{
+				TTY_PRINTLN("'sleep' does not support command line arguments");
+				return {};
+			}
 			PIT::sleep(5000);
 		}
 		else if (arguments.front() == "cpuinfo")
 		{
 			if (arguments.size() != 1)
-				return BAN::Error::from_c_string("'cpuinfo' does not support command line arguments");
+			{
+				TTY_PRINTLN("'cpuinfo' does not support command line arguments");
+				return {};
+			}
 
 			uint32_t ecx, edx;
 			auto vendor = CPUID::get_vendor();
@@ -428,11 +454,17 @@ argument_done:
 		else if (arguments.front() == "random")
 		{
 			if (arguments.size() != 1)
-				return BAN::Error::from_c_string("'random' does not support command line arguments");
+			{
+				TTY_PRINTLN("'random' does not support command line arguments");
+				return {};
+			}
 			uint32_t ecx, edx;
 			CPUID::get_features(ecx, edx);
 			if (!(ecx & CPUID::Features::ECX_RDRND))
-				return BAN::Error::from_c_string("cpu does not support RDRAND instruction");
+			{
+				TTY_PRINTLN("cpu does not support RDRAND instruction");
+				return {};
+			}
 
 			for (int i = 0; i < 10; i++)
 			{
@@ -444,7 +476,10 @@ argument_done:
 		else if (arguments.front() == "reboot")
 		{
 			if (arguments.size() != 1)
-				return BAN::Error::from_c_string("'reboot' does not support command line arguments");
+			{
+				TTY_PRINTLN("'reboot' does not support command line arguments");
+				return {};
+			}
 			uint8_t good = 0x02;
 			while (good & 0x02)
 				good = IO::inb(0x64);
@@ -454,14 +489,20 @@ argument_done:
 		else if (arguments.front() == "lspci")
 		{
 			if (arguments.size() != 1)
-				return BAN::Error::from_c_string("'lspci' does not support command line arguments");
+			{
+				TTY_PRINTLN("'lspci' does not support command line arguments");
+				return {};
+			}
 			for (auto& device : PCI::get().devices())
 				TTY_PRINTLN("{2H}:{2H}.{2H} {2H}", device.bus(), device.dev(), device.func(), device.class_code());
 		}
 		else if (arguments.front() == "ls")
 		{
 			if (arguments.size() > 2)
-				return BAN::Error::from_c_string("usage: 'ls [path]'");
+			{
+				TTY_PRINTLN("usage: 'ls [path]'");
+				return {};
+			}
 
 			BAN::String path;
 			if (arguments.size() == 2)
@@ -508,7 +549,10 @@ argument_done:
 		else if (arguments.front() == "cat")
 		{
 			if (arguments.size() != 2)
-				return BAN::Error::from_c_string("usage: 'cat path'");
+			{
+				TTY_PRINTLN("usage: 'cat path'");
+				return {};
+			}
 			
 			int fd = TRY(Process::current()->open(arguments[1], O_RDONLY));
 			BAN::ScopeGuard _([fd] { MUST(Process::current()->close(fd)); });
@@ -521,7 +565,10 @@ argument_done:
 		else if (arguments.front() == "stat")
 		{
 			if (arguments.size() != 2)
-				return BAN::Error::from_c_string("usage: 'stat path'");
+			{
+				TTY_PRINTLN("usage: 'stat path'");
+				return {};
+			}
 			
 			stat st;
 			TRY(Process::current()->stat(arguments[1], &st));
@@ -549,7 +596,10 @@ argument_done:
 		else if (arguments.front() == "cd")
 		{
 			if (arguments.size() > 2)
-				return BAN::Error::from_c_string("usage 'cd path'");
+			{
+				TTY_PRINTLN("usage 'cd path'");
+				return {};
+			}
 			BAN::StringView path = arguments.size() == 2 ? arguments[1].sv() : "/"sv;
 			TRY(Process::current()->set_working_directory(path));
 			TRY(update_prompt());
@@ -557,13 +607,19 @@ argument_done:
 		else if (arguments.front() == "touch")
 		{
 			if (arguments.size() != 2)
-				return BAN::Error::from_c_string("usage 'touch path'");
+			{
+				TTY_PRINTLN("usage 'touch path'");
+				return {};
+			}
 			TRY(Process::current()->creat(arguments[1], 0));
 		}
 		else if (arguments.front() == "cksum")
 		{
 			if (arguments.size() < 2)
-				return BAN::Error::from_c_string("usage 'cksum paths...'");
+			{
+				TTY_PRINTLN("usage 'cksum paths...'");
+				return {};
+			}
 
 			uint8_t buffer[1024];
 			for (size_t i = 1; i < arguments.size(); i++)
@@ -594,20 +650,27 @@ argument_done:
 		else if (arguments.front() == "mount")
 		{
 			if (arguments.size() != 3)
-				return BAN::Error::from_c_string("usage: 'mount partition directory'");
+			{
+				TTY_PRINTLN("usage: 'mount partition directory'");
+				return {};
+			}
 			TRY(Process::current()->mount(arguments[1], arguments[2]));
 		}
 		else if (arguments.front() == "loadfont")
 		{
 			if (arguments.size() != 2)
-				return BAN::Error::from_c_string("usage: 'loadfont font_path'");
+			{
+				TTY_PRINTLN("usage: 'loadfont font_path'");
+				return {};
+			}
 
 			auto font = TRY(Font::load(arguments[1]));
 			//m_tty->set_font(font);
 		}
 		else
 		{
-			return BAN::Error::from_format("unrecognized command '{}'", arguments.front());
+			TTY_PRINTLN("unrecognized command '{}'", arguments.front());
+			return {};
 		}
 
 		return {};

@@ -8,6 +8,7 @@
 
 #if defined(__is_kernel)
 	#include <kernel/Panic.h>
+	#include <kernel/Errors.h>
 	#define MUST(expr)	({ auto e = expr; if (e.is_error()) Kernel::panic("{}", e.error()); e.release_value(); })
 #else
 	#define MUST(expr)	({ auto e = expr; assert(!e.is_error()); e.release_value(); })
@@ -20,43 +21,38 @@ namespace BAN
 
 	class Error
 	{
+	private:
+		static constexpr uint32_t kernel_error_mask = 0x80000000;
+
 	public:
-		static Error from_c_string(const char* message)
+		static Error from_error_code(Kernel::ErrorCode error)
 		{
-			Error result;
-			strncpy(result.m_message, message, sizeof(Error::m_message));
-			result.m_message[sizeof(Error::m_message) - 1] = '\0';
-			result.m_error_code = 0xFF;
-			return result;
-		}
-		template<typename... Args>
-		static Error from_format(const char* format, Args&&... args)
-		{
-			char buffer[sizeof(Error::m_message)] {};
-			size_t index = 0;
-			auto putc = [&](char ch)
-			{
-				if (index < sizeof(buffer) - 1)
-					buffer[index++] = ch;
-			};
-			Formatter::print(putc, format, forward<Args>(args)...);
-			return from_c_string(buffer);
+			return Error((uint32_t)error | kernel_error_mask);
 		}
 		static Error from_errno(int error)
 		{
-			Error result;
-			strncpy(result.m_message, strerror(error), sizeof(Error::m_message));
-			result.m_message[sizeof(Error::m_message) - 1] = '\0';
-			result.m_error_code = error;
-			return result;
+			return Error(error);
 		}
 
-		uint8_t get_error_code() const { return m_error_code; }
-		const char* get_message() const { return m_message; }
+		Kernel::ErrorCode kernel_error() const
+		{
+			return (Kernel::ErrorCode)(m_error_code & ~kernel_error_mask);
+		}
+
+		uint32_t get_error_code() const { return m_error_code; }
+		BAN::StringView get_message() const
+		{
+			if (m_error_code & kernel_error_mask)
+				return Kernel::error_string(kernel_error());
+			return strerror(m_error_code);
+		}
 
 	private:
-		char m_message[128];
-		uint8_t m_error_code;
+		Error(uint32_t error)
+			: m_error_code(error)
+		{}
+
+		uint32_t m_error_code;
 	};
 
 	template<typename T>
@@ -82,7 +78,7 @@ namespace BAN
 		const T& value() const			{ return m_data.template get<T>(); }
 		T& value()						{ return m_data.template get<T>(); }
 
-		Error release_error()				{ return move(error()); m_data.clear(); }
+		Error release_error()			{ return move(error()); m_data.clear(); }
 		T release_value()				{ return move(value()); m_data.clear(); }
 
 	private:
@@ -102,12 +98,12 @@ namespace BAN
 		const Error& error() const		{ return m_data; }
 		void value()					{ }
 
-		Error release_error()			{ return move(m_data); m_data = Error(); }
-		void release_value()			{ m_data = Error(); }
+		Error release_error()			{ return move(m_data); }
+		void release_value()			{ }
 
 	private:
-		Error m_data;
-		bool m_has_error = false;
+		Error m_data { Error::from_error_code(Kernel::ErrorCode::None) };
+		bool m_has_error { false };
 	};
 
 }
@@ -115,11 +111,8 @@ namespace BAN
 namespace BAN::Formatter
 {
 	template<typename F>
-	void print_argument(F putc, const Error& error, const ValueFormat&)
+	void print_argument(F putc, const Error& error, const ValueFormat& format)
 	{
-		if (error.get_error_code() == 0xFF)
-			print(putc, error.get_message());
-		else
-			print(putc, "{} ({})", error.get_message(), error.get_error_code());
+		print_argument(putc, error.get_message(), format);
 	}
 }

@@ -116,7 +116,7 @@ namespace Kernel::Input
 				return {};
 			}
 		}
-		return BAN::Error::from_c_string("PS/2 device timeout");
+		return BAN::Error::from_error_code(ErrorCode::PS2_Timeout);
 	}
 
 	static BAN::ErrorOr<uint8_t> device_read_byte()
@@ -125,7 +125,7 @@ namespace Kernel::Input
 		while (PIT::ms_since_boot() < timeout)
 			if (IO::inb(PS2::IOPort::STATUS) & PS2::Status::OUTPUT_FULL)
 				return IO::inb(PS2::IOPort::DATA);
-		return BAN::Error::from_c_string("PS/2 device timeout");
+		return BAN::Error::from_error_code(ErrorCode::PS2_Timeout);
 	}
 
 	static BAN::ErrorOr<void> device_wait_ack()
@@ -175,15 +175,7 @@ namespace Kernel::Input
 		// FIXME
 
 		// Step 2: Determine if the PS/2 Controller Exists
-		if (false)
-		{
-			const ACPI::FADT* fadt = (const ACPI::FADT*)TRY(ACPI::get().get_header("FACP"));
-			bool ps2_exists = fadt->iapc_boot_arch & (1 << 1);
-			ACPI::get().unmap_header(fadt);
-
-			if (!ps2_exists)
-				return BAN::Error::from_c_string("PS2 Controller does not exist");
-		}
+		// FIXME
 
 		// Step 3: Disable Devices
 		controller_send_command(PS2::Command::DISABLE_FIRST_PORT);
@@ -203,7 +195,7 @@ namespace Kernel::Input
 		// Step 6: Perform Controller Self Test
 		controller_send_command(PS2::Command::TEST_CONTROLLER);
 		if (wait_and_read() != PS2::Response::TEST_CONTROLLER_PASS)
-			return BAN::Error::from_c_string("PS/2 Controller self test failed");
+			return BAN::Error::from_error_code(ErrorCode::PS2_SelfTest);
 		// NOTE: self test might reset the device so we set the config byte again
 		controller_send_command(PS2::Command::WRITE_CONFIG, config);
 
@@ -229,7 +221,7 @@ namespace Kernel::Input
 				valid_ports[1] = false;
 		}
 		if (!valid_ports[0] && !valid_ports[1])
-			return BAN::Error::from_c_string("No ports available on Controller");
+			return {};
 		
 		// Step 9: Enable Devices (and disable scanning)
 		for (uint8_t device = 0; device < 2; device++)
@@ -298,7 +290,7 @@ namespace Kernel::Input
 
 		// Standard PS/2 Mouse
 		if (index == 1 && (bytes[0] == 0x00))
-			return BAN::Error::from_c_string("PS/2 mouse not supported");
+			return BAN::Error::from_error_code(ErrorCode::PS2_UnsupportedDevice);
 		
 		// MF2 Keyboard
 		if (index == 2 && (bytes[0] == 0xAB && bytes[1] == 0x83))
@@ -306,7 +298,8 @@ namespace Kernel::Input
 
 		if (m_devices[device])
 			return {};
-		return BAN::Error::from_format("Unhandled PS/2 device {}{} ({} bytes)", bytes[0], bytes[1], index);
+
+		return BAN::Error::from_error_code(ErrorCode::PS2_UnsupportedDevice);
 	}
 
 	void PS2Controller::send_byte(const PS2Device* device, uint8_t byte)
@@ -321,7 +314,7 @@ namespace Kernel::Input
 		TRY(device_send_byte(device, PS2::DeviceCommand::RESET));
 		TRY(device_wait_ack());
 		if (TRY(device_read_byte()) != PS2::Response::SELF_TEST_PASS)
-			return BAN::Error::from_c_string("Device reset failed");
+			return BAN::Error::from_error_code(ErrorCode::PS2_Reset);
 		return {};
 	}
 
