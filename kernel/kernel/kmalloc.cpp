@@ -341,9 +341,7 @@ void* kmalloc(size_t size, size_t align)
 
 	if (ptrdiff_t rem = size % s_kmalloc_min_align)
 		size += s_kmalloc_min_align - rem;
-
-	ASSERT(!is_corrupted());
-
+	
 	if (void* res = kmalloc_impl(size, align))
 		return res;
 
@@ -352,6 +350,7 @@ void* kmalloc(size_t size, size_t align)
 	dwarnln(" {6H} free", s_kmalloc_info.free);
 	debug_dump();
 	Debug::dump_stack_trace();
+	ASSERT(!is_corrupted());
 
 	return nullptr;
 }
@@ -399,8 +398,6 @@ void kfree(void* address)
 	}
 	else if (s_kmalloc_info.base <= address_uint && address_uint < s_kmalloc_info.end)
 	{
-		ASSERT(!is_corrupted());
-
 		auto& info = s_kmalloc_info;
 		
 		auto* node = info.from_address(address);
