@@ -20,6 +20,7 @@ namespace Debug
 			return;
 		}
 		uintptr_t first_rip = frame->rip;
+		uintptr_t last_rip = 0;
 
 		BAN::Formatter::print(Debug::putchar, "\e[36mStack trace:\r\n");
 		while (frame)
@@ -30,8 +31,16 @@ namespace Debug
 			if (frame && frame->rip == first_rip)
 			{
 				derrorln("looping kernel panic :(");
-				return;
+				break;
 			}
+
+			if (frame && frame->rip == last_rip)
+			{
+				derrorln("repeating stack strace");
+				break;
+			}
+
+			last_rip = frame->rip;
 		}
 		BAN::Formatter::print(Debug::putchar, "\e[m");
 	}
