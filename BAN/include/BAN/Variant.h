@@ -45,7 +45,7 @@ namespace BAN
 
 	private:
 		static constexpr uint32_t m_size = Math::max(sizeof(T1), sizeof(T2));
-		uint8_t m_storage[m_size] = {};
+		alignas(Math::max(alignof(T1), alignof(T2))) uint8_t m_storage[m_size] = {};
 		uint32_t m_index = 0;
 	};
 
