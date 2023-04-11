@@ -67,7 +67,6 @@ namespace Kernel
 
 	void TTY::on_key(Input::KeyEvent event)
 	{
-		ASSERT(!m_lock.is_locked());
 		LockGuard _(m_lock);
 
 		if (event.released())
