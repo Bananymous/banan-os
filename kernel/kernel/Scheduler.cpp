@@ -157,6 +157,9 @@ namespace Kernel
 		Thread& current = current_thread();
 		current.set_rip(rip);
 		current.set_rsp(rsp);
+
+		ASSERT(current.stack_base() <= rsp && rsp <= current.stack_base() + current.stack_size());
+
 		return false;
 	}
 
