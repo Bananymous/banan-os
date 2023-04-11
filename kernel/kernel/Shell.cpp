@@ -15,22 +15,22 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#define TTY_PRINT(...) \
-	do { \
-		BAN::String message_ = BAN::String::formatted(__VA_ARGS__); \
-		MUST(Process::current()->write(STDOUT_FILENO, message_.data(), message_.size())); \
-	} while (false)
-
-#define TTY_PRINTLN(...) \
-	do { \
-		TTY_PRINT(__VA_ARGS__); \
-		MUST(Process::current()->write(STDOUT_FILENO, "\n", 1)); \
-	} while (false)
-
-
-
 namespace Kernel
 {
+
+	template<typename... Args>
+	static void TTY_PRINT(Args&&... args)
+	{
+		BAN::String message = BAN::String::formatted(BAN::forward<Args>(args)...);
+		MUST(Process::current()->write(STDOUT_FILENO, message.data(), message.size()));
+	}
+
+	template<typename... Args>
+	static void TTY_PRINTLN(Args&&... args)
+	{
+		TTY_PRINT(BAN::forward<Args>(args)...);
+		MUST(Process::current()->write(STDOUT_FILENO, "\n", 1));
+	}
 
 	static auto s_default_prompt = "\\[\e[32m\\]user\\[\e[m\\]:\\[\e[34m\\]\\w\\[\e[m\\]# "sv;
 
