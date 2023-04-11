@@ -10,7 +10,6 @@
 namespace Kernel
 {
 
-	static constexpr size_t thread_stack_size = 16384;
 
 	template<size_t size, typename T>
 	static void write_to_stack(uintptr_t& rsp, const T& value)
@@ -45,10 +44,10 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Thread::initialize(entry_t entry, void* data)
 	{
-		m_stack_base = kmalloc(thread_stack_size, PAGE_SIZE);
+		m_stack_base = kmalloc(m_stack_size, PAGE_SIZE);
 		if (m_stack_base == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
-		m_rsp = (uintptr_t)m_stack_base + thread_stack_size;
+		m_rsp = (uintptr_t)m_stack_base + m_stack_size;
 		m_rip = (uintptr_t)entry;
 
 		write_to_stack<sizeof(void*)>(m_rsp, this);
