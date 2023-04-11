@@ -4,6 +4,8 @@
 #include <kernel/kprint.h>
 #include <kernel/multiboot.h>
 
+#include <kernel/Thread.h>
+
 #define MB (1 << 20)
 
 static constexpr size_t s_kmalloc_min_align = alignof(max_align_t);
@@ -55,6 +57,7 @@ private:
 	uint8_t		m_data[0];
 };
 static_assert(sizeof(kmalloc_node) == s_kmalloc_min_align);
+
 struct kmalloc_info
 {
 	static constexpr uintptr_t	base = 0x00400000;
@@ -182,6 +185,32 @@ void kmalloc_dump_info()
 	kprintln("  free: 0x{8H}", s_kmalloc_fixed_info.free);
 }
 
+static bool is_corrupted()
+{
+	auto& info = s_kmalloc_info;
+	auto* temp = info.first();
+	for (; temp->end() <= info.end; temp = temp->after());
+	return (uintptr_t)temp != info.end;
+}
+
+static void debug_dump()
+{
+	auto& info = s_kmalloc_info;
+
+	uint32_t used = 0;
+	uint32_t free = 0;
+
+	for (auto* node = info.first(); node->data() <= info.end; node = node->after())
+	{
+		(node->used() ? used : free) += sizeof(kmalloc_node) + node->size_no_align();
+		dprintln("{} node {H} -> {H}", node->used() ? "used" : "free", node->data(), node->end());
+	}
+
+	dprintln("total used: {}", used);
+	dprintln("total free: {}", free);
+	dprintln("            {}", used + free);
+}
+
 static void* kmalloc_fixed()
 {
 	auto& info = s_kmalloc_fixed_info;
@@ -282,10 +311,7 @@ static void* kmalloc_impl(size_t size, size_t align)
 
 void* kmalloc(size_t size)
 {
-	void* res = kmalloc(size, s_kmalloc_min_align);
-	if (res == nullptr)
-		dwarnln("could not allocate {} bytes", size);
-	return res;
+	return kmalloc(size, s_kmalloc_min_align);
 }
 
 static constexpr bool is_power_of_two(size_t value)
@@ -297,7 +323,6 @@ static constexpr bool is_power_of_two(size_t value)
 
 void* kmalloc(size_t size, size_t align)
 {
-
 	const kmalloc_info& info = s_kmalloc_info;
 
 	if (size == 0 || size >= info.size)
@@ -316,7 +341,19 @@ void* kmalloc(size_t size, size_t align)
 
 	if (ptrdiff_t rem = size % s_kmalloc_min_align)
 		size += s_kmalloc_min_align - rem;
-	return kmalloc_impl(size, align);
+
+	ASSERT(!is_corrupted());
+
+	if (void* res = kmalloc_impl(size, align))
+		return res;
+
+	dwarnln("could not allocate {H} bytes ({} aligned)", size, align);
+	dwarnln(" {6H} free (fixed)", s_kmalloc_fixed_info.free);
+	dwarnln(" {6H} free", s_kmalloc_info.free);
+	debug_dump();
+	Debug::dump_stack_trace();
+
+	return nullptr;
 }
 
 void kfree(void* address)
@@ -362,6 +399,8 @@ void kfree(void* address)
 	}
 	else if (s_kmalloc_info.base <= address_uint && address_uint < s_kmalloc_info.end)
 	{
+		ASSERT(!is_corrupted());
+
 		auto& info = s_kmalloc_info;
 		
 		auto* node = info.from_address(address);
