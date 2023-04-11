@@ -9,10 +9,11 @@
 namespace Kernel
 {
 
+	static pid_t s_next_pid = 1;
+
 	BAN::ErrorOr<BAN::RefPtr<Process>> Process::create_kernel(entry_t entry, void* data)
 	{
-		static pid_t next_pid = 1;
-		auto process = TRY(BAN::RefPtr<Process>::create(next_pid++));
+		auto process = TRY(BAN::RefPtr<Process>::create(s_next_pid++));
 		TRY(process->m_working_directory.push_back('/'));
 		TRY(process->add_thread(entry, data));
 		return process;

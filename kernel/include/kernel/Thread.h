@@ -40,6 +40,9 @@ namespace Kernel
 		State state() const { return m_state; }
 		void terminate() { m_state = State::Terminating; }
 
+		uintptr_t stack_base() const { return (uintptr_t)m_stack_base; }
+		size_t stack_size() const { return m_stack_size; }
+
 		static Thread& current() ;
 		BAN::RefPtr<Process> process();
 
@@ -50,6 +53,7 @@ namespace Kernel
 		void on_exit();
 		
 	private:
+		static constexpr size_t m_stack_size = 4096 * 1;
 		void*		m_stack_base	= nullptr;
 		uintptr_t	m_rip			= 0;
 		uintptr_t	m_rsp			= 0;
