@@ -13,7 +13,7 @@ namespace Kernel
 		static BAN::ErrorOr<void> initialize();
 		static Scheduler& get();
 
-		void start();
+		[[noreturn]] void start();
 		void reschedule();
 		void reschedule_if_idling();
 
