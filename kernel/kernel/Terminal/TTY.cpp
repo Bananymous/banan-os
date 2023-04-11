@@ -38,8 +38,9 @@ namespace Kernel
 	{
 		m_width = m_terminal_driver->width();
 		m_height = m_terminal_driver->height();
-		
+
 		m_buffer = new Cell[m_width * m_height];
+		ASSERT(m_buffer);
 
 		if (s_tty == nullptr)
 			s_tty = this;

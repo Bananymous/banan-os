@@ -58,6 +58,10 @@ namespace Kernel
 	{
 		register_bus_irq_handler(this, irq);
 
+		uint16_t* identify_buffer = new uint16_t[256];
+		ASSERT(identify_buffer);
+		BAN::ScopeGuard _([identify_buffer] { delete[] identify_buffer; });
+
 		for (uint8_t i = 0; i < 2; i++)
 		{
 			m_devices[i] = new ATADevice(this);
@@ -66,7 +70,7 @@ namespace Kernel
 
 			BAN::ScopeGuard guard([this, i] { m_devices[i]->unref(); m_devices[i] = nullptr; });
 
-			uint16_t identify_buffer[256];
+			
 			auto type = identify(device, identify_buffer);
 			if (type == DeviceType::None)
 				continue;

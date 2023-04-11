@@ -557,7 +557,10 @@ argument_done:
 			int fd = TRY(Process::current()->open(arguments[1], O_RDONLY));
 			BAN::ScopeGuard _([fd] { MUST(Process::current()->close(fd)); });
 
-			char buffer[1024] {};
+			char* buffer = new char[1024];
+			BAN::ScopeGuard buffer_guard([buffer] { delete[] buffer; });
+			ASSERT(buffer);
+
 			while (size_t n_read = TRY(Process::current()->read(fd, buffer, sizeof(buffer))))
 				TTY_PRINT("{}", BAN::StringView(buffer, n_read));
 			TTY_PRINTLN("");
@@ -621,7 +624,10 @@ argument_done:
 				return {};
 			}
 
-			uint8_t buffer[1024];
+			uint8_t* buffer = new uint8_t[1024];
+			BAN::ScopeGuard buffer_guard([buffer] { delete[] buffer; });
+			ASSERT(buffer);
+
 			for (size_t i = 1; i < arguments.size(); i++)
 			{
 				int fd = TRY(Process::current()->open(arguments[i], O_RDONLY));
