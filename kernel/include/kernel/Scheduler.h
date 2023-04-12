@@ -22,6 +22,8 @@ namespace Kernel
 		void set_current_thread_sleeping(uint64_t);
 		[[noreturn]] void set_current_thread_done();
 
+		[[noreturn]] void set_current_process_done();
+
 		void block_current_thread(Semaphore*);
 		void unblock_threads(Semaphore*);
 

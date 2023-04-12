@@ -1,4 +1,5 @@
 #include <BAN/StringView.h>
+#include <kernel/CriticalScope.h>
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/LockGuard.h>
 #include <kernel/Process.h>
@@ -54,15 +55,11 @@ namespace Kernel
 
 	void Process::exit()
 	{
-		{
-			LockGuard _(m_lock);
-			for (auto* thread : m_threads)
-				thread->terminate();
-		}
-		while (!m_threads.empty())
-			PIT::sleep(1);
+		CriticalScope _;
+		m_threads.clear();
 		for (auto& open_fd : m_open_files)
 			open_fd.inode = nullptr;
+		Scheduler::get().set_current_process_done();
 	}
 
 	BAN::ErrorOr<void> Process::init_stdio()
