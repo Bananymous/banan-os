@@ -29,6 +29,8 @@ namespace Kernel
 		static BAN::ErrorOr<Thread*> create(entry_t, void* = nullptr, BAN::RefPtr<Process> = nullptr);
 		~Thread();
 
+		void jump_userspace(uintptr_t rip);
+
 		pid_t tid() const { return m_tid; }
 
 		void set_rsp(uintptr_t rsp) { m_rsp = rsp; }

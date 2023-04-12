@@ -23,9 +23,10 @@ namespace Kernel
 
 	public:
 		static BAN::ErrorOr<BAN::RefPtr<Process>> create_kernel(entry_t, void*);
+		static BAN::ErrorOr<BAN::RefPtr<Process>> create_userspace(void(*)());
 		~Process();
 
-		void exit();
+		[[noreturn]] void exit();
 
 		BAN::ErrorOr<Thread*> add_thread(entry_t, void*);
 		void on_thread_exit(Thread&);

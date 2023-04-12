@@ -10,6 +10,7 @@
 namespace Kernel
 {
 
+	extern "C" void thread_jump_userspace(uintptr_t rsp, uintptr_t rip);
 
 	template<size_t size, typename T>
 	static void write_to_stack(uintptr_t& rsp, const T& value)
@@ -61,6 +62,11 @@ namespace Kernel
 	{
 		dprintln("thread {} exit", tid());
 		kfree(m_stack_base);
+	}
+
+	void Thread::jump_userspace(uintptr_t rip)
+	{
+		thread_jump_userspace(rsp(), rip);
 	}
 
 	void Thread::on_exit()

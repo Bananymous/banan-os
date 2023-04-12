@@ -103,6 +103,7 @@ extern "C" uintptr_t g_userspace_start;
 extern "C" uintptr_t g_userspace_end;
 
 extern void userspace_entry();
+static void jump_userspace();
 
 static void init2(void*);
 
@@ -154,54 +155,10 @@ extern "C" void kernel_main()
 
 	MUST(Scheduler::initialize());
 	Scheduler& scheduler = Scheduler::get();
-#if 0 
-	MUST(scheduler.add_thread(MUST(Thread::create(
-		[] (void*)
-		{
-			MMU::get().allocate_range((uintptr_t)&g_userspace_start, (uintptr_t)&g_userspace_end - (uintptr_t)&g_userspace_start, MMU::Flags::UserSupervisor | MMU::Flags::Present);
-			MMU::get().allocate_range((uintptr_t)&g_rodata_start,    (uintptr_t)&g_rodata_end    - (uintptr_t)&g_rodata_start,    MMU::Flags::UserSupervisor | MMU::Flags::Present);
-
-			void* userspace_stack = kmalloc(4096, 4096);
-			ASSERT(userspace_stack);
-			MMU::get().allocate_page((uintptr_t)userspace_stack, MMU::Flags::UserSupervisor | MMU::Flags::ReadWrite | MMU::Flags::Present);
-
-			BOCHS_BREAK();
-
-#if ARCH(x86_64)
-			asm volatile(
-				"pushq %0;"
-				"pushq %1;"
-				"pushfq;"
-				"pushq %2;"
-				"pushq %3;"
-				"iretq;"
-				:: "r"((uintptr_t)0x20 | 3), "r"((uintptr_t)userspace_stack + 4096), "r"((uintptr_t)0x18 | 3), "r"(userspace_entry)
-			);
-#else
-			asm volatile(
-				"movl %0, %%eax;"
-				"movw %%ax, %%ds;"
-				"movw %%ax, %%es;"
-				"movw %%ax, %%fs;"
-				"movw %%ax, %%gs;"
-
-				"movl %1, %%esp;"
-				"pushl %0;"
-				"pushl %1;"
-				"pushfl;"
-				"pushl %2;"
-				"pushl %3;"
-				"iret;"
-				:: "r"((uintptr_t)0x20 | 3), "r"((uintptr_t)userspace_stack + 4096), "r"((uintptr_t)0x18 | 3), "r"(userspace_entry)
-			);
-#endif
-		}
-	))));
-#else
 	MUST(scheduler.add_thread(MUST(Thread::create(init2, terminal_driver))));
-#endif
 	scheduler.start();
-	ASSERT(false);
+
+	ASSERT_NOT_REACHED();
 }
 
 static void init2(void* terminal_driver)
@@ -220,6 +177,8 @@ static void init2(void* terminal_driver)
 	ASSERT(tty1);
 	DeviceManager::get().add_device(tty1);
 
+	return jump_userspace();
+
 	MUST(Process::create_kernel(
 		[](void*) 
 		{
@@ -229,4 +188,14 @@ static void init2(void* terminal_driver)
 			shell->run();
 		}, nullptr
 	));
+}
+
+static void jump_userspace()
+{
+	using namespace Kernel;
+
+	MMU::get().allocate_range((uintptr_t)&g_userspace_start, (uintptr_t)&g_userspace_end - (uintptr_t)&g_userspace_start, MMU::Flags::UserSupervisor | MMU::Flags::Present);
+	MMU::get().allocate_range((uintptr_t)&g_rodata_start,    (uintptr_t)&g_rodata_end    - (uintptr_t)&g_rodata_start,    MMU::Flags::UserSupervisor | MMU::Flags::Present);
+
+	MUST(Process::create_userspace(userspace_entry));
 }
