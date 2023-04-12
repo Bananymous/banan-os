@@ -22,6 +22,8 @@
 #include <kernel/Terminal/TTY.h>
 #include <kernel/Terminal/VesaTerminalDriver.h>
 
+#include <LibELF/ELF.h>
+
 extern "C" const char g_kernel_cmdline[];
 
 struct ParsedCommandLine
@@ -177,7 +179,17 @@ static void init2(void* terminal_driver)
 	ASSERT(tty1);
 	DeviceManager::get().add_device(tty1);
 
-	return jump_userspace();
+	MUST(Process::create_kernel(
+		[](void*)
+		{
+			MUST(LibELF::ELF::load_from_file("/bin/test"sv));
+			Process::current()->exit();
+		}, nullptr
+	));
+	return;
+
+	jump_userspace();
+	return;
 
 	MUST(Process::create_kernel(
 		[](void*) 
