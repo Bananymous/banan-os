@@ -28,6 +28,7 @@ set(DISK_IMAGE_PATH ${CMAKE_BINARY_DIR}/banan-os.img)
 add_subdirectory(kernel)
 add_subdirectory(BAN)
 add_subdirectory(libc)
+add_subdirectory(LibELF)
 
 add_custom_target(sysroot
 	COMMAND mkdir -p ${BANAN_SYSROOT}
@@ -41,6 +42,7 @@ add_custom_target(headers
 	DEPENDS kernel-headers
 	DEPENDS ban-headers
 	DEPENDS libc-headers
+	DEPENDS libelf-headers
 )
 
 add_custom_target(toolchain
@@ -50,6 +52,7 @@ add_custom_target(toolchain
 )
 
 add_custom_target(image
+	COMMAND ${CMAKE_CXX_COMPILER} -x c ${CMAKE_SOURCE_DIR}/userspace/test.c -o ${BANAN_SYSROOT}/bin/test
 	COMMAND ${CMAKE_COMMAND} -E env SYSROOT="${BANAN_SYSROOT}" DISK_IMAGE_PATH="${DISK_IMAGE_PATH}" ${CMAKE_SOURCE_DIR}/image.sh
 	DEPENDS kernel-install
 	DEPENDS ban-install

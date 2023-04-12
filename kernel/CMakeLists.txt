@@ -93,10 +93,15 @@ set(LIBC_SOURCES
 	../libc/string.cpp
 )
 
+set(LIBELF_SOURCES
+	../LibELF/LibELF/ELF.cpp
+)
+
 set(KERNEL_SOURCES
 	${KERNEL_SOURCES}
 	${BAN_SOURCES}
 	${LIBC_SOURCES}
+	${LIBELF_SOURCES}
 )
 
 add_executable(kernel ${KERNEL_SOURCES})
