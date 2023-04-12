@@ -229,6 +229,37 @@ namespace Kernel
 		ASSERT_NOT_REACHED();
 	}
 
+#define remove_threads(list, condition)				\
+	for (auto it = list.begin(); it != list.end();) \
+	{												\
+		if (condition)								\
+		{											\
+			delete it->thread;						\
+			it = list.remove(it);					\
+		}											\
+		else										\
+		{											\
+			it++;									\
+		}											\
+	}
+
+	void Scheduler::set_current_process_done()
+	{
+		VERIFY_CLI();
+
+		pid_t pid = m_current_thread->thread->process()->pid();
+
+		remove_threads(m_blocking_threads, it->thread->process()->pid() == pid);
+		remove_threads(m_sleeping_threads, it->thread->process()->pid() == pid);
+		remove_threads(m_active_threads, it != m_current_thread && it->thread->process()->pid() == pid);
+
+		delete m_current_thread->thread;
+		remove_and_advance_current_thread();
+		execute_current_thread();
+
+		ASSERT_NOT_REACHED();
+	}
+
 	void Scheduler::block_current_thread(Semaphore* semaphore)
 	{
 		VERIFY_STI();
