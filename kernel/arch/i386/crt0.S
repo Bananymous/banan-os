@@ -9,7 +9,7 @@ _start:
 	movl %esp, %ebp
 
 	# Prepare signals, memory allocation, stdio and such.
-	call initialize_standard_library
+	#call initialize_standard_library
 
 	# Run the global constructors.
 	call _init

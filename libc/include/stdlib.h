@@ -6,6 +6,7 @@
 __BEGIN_DECLS
 
 [[noreturn]] void abort(void);
+[[noreturn]] void exit(int);
 
 int abs(int);
 
