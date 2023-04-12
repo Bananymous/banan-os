@@ -2,6 +2,7 @@
 #include <kernel/CriticalScope.h>
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/LockGuard.h>
+#include <kernel/MMU.h>
 #include <kernel/Process.h>
 #include <kernel/Scheduler.h>
 
@@ -17,6 +18,25 @@ namespace Kernel
 		auto process = TRY(BAN::RefPtr<Process>::create(s_next_pid++));
 		TRY(process->m_working_directory.push_back('/'));
 		TRY(process->add_thread(entry, data));
+		return process;
+	}
+
+	BAN::ErrorOr<BAN::RefPtr<Process>> Process::create_userspace(void(*entry)())
+	{
+		auto process = TRY(BAN::RefPtr<Process>::create(s_next_pid++));
+		TRY(process->m_working_directory.push_back('/'));
+		TRY(process->init_stdio());
+
+		TRY(process->add_thread(
+			[](void* entry_func)
+			{
+				Thread& current = Thread::current();
+				MMU::get().allocate_range(current.stack_base(), current.stack_size(), MMU::Flags::UserSupervisor | MMU::Flags::ReadWrite | MMU::Flags::Present);
+				current.jump_userspace((uintptr_t)entry_func);
+				ASSERT_NOT_REACHED();
+			}, (void*)entry
+		));
+
 		return process;
 	}
 

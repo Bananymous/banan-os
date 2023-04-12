@@ -26,3 +26,22 @@ continue_thread:
 	movl 4(%esp), %esp
 	movl $0, %eax
 	jmp *%ecx
+
+# void thread_jump_userspace(uint32_t rsp, uint32_t rip)
+.global thread_jump_userspace
+thread_jump_userspace:
+	movl $0x23, %eax
+	movw %ax, %ds
+	movw %ax, %es
+	movw %ax, %fs
+	movw %ax, %gs
+
+	movl 8(%esp), %ecx
+	movl 4(%esp), %esp
+
+	pushl $0x23
+	pushl %esp
+	pushfl
+	pushl $0x1B
+	pushl %ecx
+	iret
