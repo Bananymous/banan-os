@@ -15,6 +15,9 @@
 #define SEEK_END 1
 #define SEEK_SET 2
 
+#define EXIT_FAILURE 1
+#define EXIT_SUCCESS 0
+
 __BEGIN_DECLS
 
 struct FILE;

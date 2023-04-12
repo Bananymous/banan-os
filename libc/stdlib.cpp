@@ -1,10 +1,18 @@
+#include <BAN/Assert.h>
+#include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
+#include <unistd.h>
 
 void abort(void)
 {
+	ASSERT_NOT_REACHED();
+}
 
+void exit(int status)
+{
+	_exit(status);
+	ASSERT_NOT_REACHED();
 }
 
 int abs(int val)
