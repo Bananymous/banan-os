@@ -9,28 +9,40 @@ namespace Kernel::Memory
 
 	PhysicalRange::PhysicalRange(paddr_t start, size_t size)
 	{
-		ASSERT(start + size > (paddr_t)g_kernel_end);
+		// We can't use the memory ovelapping with kernel
+		if (start + size <= (paddr_t)g_kernel_end)
+			return;
 
 		// Align start to page boundary and after the kernel memory
 		m_start = BAN::Math::max(start, (paddr_t)g_kernel_end);
 		if (auto rem = m_start % PAGE_SIZE)
 			m_start += PAGE_SIZE - rem;
 
+		if (size <= m_start - start)
+			return;
+
 		// Align size to page boundary
 		m_size = size - (m_start - start);
 		if (auto rem = m_size % PAGE_SIZE)
 			m_size -= rem;
 
+		// We need atleast 2 pages
+		m_total_pages = m_size / PAGE_SIZE;
+		if (m_total_pages <= 1)
+			return;
+
 		// FIXME: if total pages is just over multiple of (PAGE_SIZE / sizeof(node)) we might make
 		//        couple of pages unallocatable
-		m_total_pages		= m_size / PAGE_SIZE;
 		m_list_pages		= BAN::Math::div_round_up<uint64_t>(m_total_pages * sizeof(node), PAGE_SIZE);
 		m_reservable_pages	= m_total_pages - m_list_pages;
 
-		MMU::get().allocate_range(m_start, m_list_pages * PAGE_SIZE, MMU::Flags::Present);
+		MMU::get().allocate_range(m_start, m_list_pages * PAGE_SIZE, MMU::Flags::ReadWrite | MMU::Flags::Present);
 
 		// Initialize page list so that every page points to the next one
 		node* page_list = (node*)m_start;
+
+		ASSERT((paddr_t)&page_list[m_reservable_pages - 1] <= m_start + m_size);
+
 		for (uint64_t i = 0; i < m_reservable_pages; i++)
 			page_list[i] = { page_list + i - 1, page_list + i + 1 };
 		page_list[           0          ].next = nullptr;
@@ -128,19 +140,22 @@ namespace Kernel::Memory
 
 			if (mmmt->type == 1)
 			{
-				// We can't use the memory ovelapping with kernel
-				if (mmmt->base_addr + mmmt->length > (paddr_t)g_kernel_end)
-					MUST(m_physical_ranges.push_back({ mmmt->base_addr, mmmt->length }));
+				PhysicalRange range(mmmt->base_addr, mmmt->length);
+				if (range.usable_pages() > 0)
+					MUST(m_physical_ranges.push_back(range));
 			}
 
 			i += mmmt->size + sizeof(uint32_t);
 		}
 
+		size_t total = 0;
 		for (auto& range : m_physical_ranges)
 		{
 			size_t bytes = range.usable_pages() * PAGE_SIZE;
 			dprintln("RAM {8H}->{8H}, {} pages ({}.{} MB)", range.usable_start(), range.usable_end(), range.usable_pages(), bytes / (1 << 20), bytes % (1 << 20) * 1000 / (1 << 20));
+			total += bytes;
 		}
+		dprintln("Total RAM {}.{} MB", total / (1 << 20), total % (1 << 20) * 1000 / (1 << 20));
 	}
 
 }
