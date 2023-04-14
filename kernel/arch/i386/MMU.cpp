@@ -47,6 +47,8 @@ MMU::MMU()
 		m_highest_paging_struct[i] = (uint64_t)page_directory | Flags::Present;
 	}
 
+	// FIXME: We should just identity map until g_kernel_end
+
 	// create and identity map first 6 MiB
 	uint64_t* page_directory1 = (uint64_t*)(m_highest_paging_struct[0] & PAGE_MASK);
 	for (uint64_t i = 0; i < 3; i++)

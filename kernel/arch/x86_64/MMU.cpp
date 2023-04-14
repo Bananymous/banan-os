@@ -35,7 +35,9 @@ static uint64_t* allocate_page_aligned_page()
 
 MMU::MMU()
 {
-	// Identity map from 4 KiB -> 6 MiB
+	// FIXME: We should just identity map until g_kernel_end
+
+	// Identity map from 0 -> 6 MiB
 	m_highest_paging_struct = allocate_page_aligned_page();
 	
 	uint64_t* pdpt = allocate_page_aligned_page();

@@ -2,13 +2,14 @@
 #include <kernel/CriticalScope.h>
 #include <kernel/kprint.h>
 #include <kernel/Memory/kmalloc.h>
-#include <kernel/multiboot.h>
 
 #include <kernel/Thread.h>
 
 #define MB (1 << 20)
 
 static constexpr size_t s_kmalloc_min_align = alignof(max_align_t);
+
+static uint8_t s_kmalloc_storage[2 * MB];
 
 struct kmalloc_node
 {
@@ -60,9 +61,9 @@ static_assert(sizeof(kmalloc_node) == s_kmalloc_min_align);
 
 struct kmalloc_info
 {
-	static constexpr uintptr_t	base = 0x00400000;
-	static constexpr size_t		size = 1 * MB;
-	static constexpr uintptr_t	end = base + size;
+	const uintptr_t	base = (uintptr_t)s_kmalloc_storage;
+	const size_t	size = sizeof(s_kmalloc_storage) / 2;
+	const uintptr_t	end = base + size;
 
 	kmalloc_node* first() { return (kmalloc_node*)base; }
 	kmalloc_node* from_address(void* addr)
@@ -91,11 +92,10 @@ struct kmalloc_fixed_info
 {
 	using node = kmalloc_fixed_node<64>;
 
-	static constexpr uintptr_t	base = s_kmalloc_info.end;
-	static constexpr size_t		size = 1 * MB;
-	static constexpr uintptr_t	end = base + size;
-	static constexpr size_t		node_count = size / sizeof(node);
-	static_assert(node_count < (1 << 16));
+	const uintptr_t	base = s_kmalloc_info.end;
+	const size_t	size = (uintptr_t)s_kmalloc_storage + sizeof(s_kmalloc_storage) - base;
+	const uintptr_t	end = base + size;
+	const size_t	node_count = size / sizeof(node);
 
 	node* free_list_head = NULL;
 	node* used_list_head = NULL;
@@ -108,42 +108,9 @@ struct kmalloc_fixed_info
 };
 static kmalloc_fixed_info s_kmalloc_fixed_info;
 
-extern "C" uintptr_t g_kernel_end;
-
 void kmalloc_initialize()
 {
-	if (!(g_multiboot_info->flags & (1 << 6)))
-		Kernel::panic("Kmalloc: Bootloader didn't provide a memory map");
-
-	if ((uintptr_t)&g_kernel_end > s_kmalloc_info.base)
-		Kernel::panic("Kmalloc: Kernel end ({}) is over kmalloc base ({})", &g_kernel_end, (void*)s_kmalloc_info.base);
-
-	// Validate kmalloc memory
-	bool valid = false;
-	for (size_t i = 0; i < g_multiboot_info->mmap_length;)
-	{
-		multiboot_memory_map_t* mmmt = (multiboot_memory_map_t*)(g_multiboot_info->mmap_addr + i);
-
-		if (mmmt->type == 1)
-		{
-			if (mmmt->base_addr <= s_kmalloc_info.base && s_kmalloc_fixed_info.end <= mmmt->base_addr + mmmt->length)
-			{
-				valid = true;
-				break;
-			}
-		}
-
-		i += mmmt->size + sizeof(uint32_t);
-	}
-
-	if (!valid)
-	{
-		size_t kmalloc_total_size = s_kmalloc_info.size + s_kmalloc_fixed_info.size;
-		Kernel::panic("Kmalloc: Could not find {}.{} MB of memory",
-			kmalloc_total_size / MB,
-			kmalloc_total_size % MB
-		);
-	}
+	dprintln("kmalloc {8H}->{8H}", (uintptr_t)s_kmalloc_storage, (uintptr_t)s_kmalloc_storage + sizeof(s_kmalloc_storage));
 
 	// initialize fixed size allocations
 	{
