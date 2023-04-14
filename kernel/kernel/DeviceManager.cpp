@@ -7,15 +7,14 @@
 namespace Kernel
 {
 
-	static DeviceManager* s_instance = nullptr;
-
-	void DeviceManager::initialize()
+	DeviceManager& DeviceManager::get()
 	{
-		ASSERT(s_instance == nullptr);
+		static DeviceManager instance;
+		return instance;
+	}
 
-		s_instance = new DeviceManager;
-		ASSERT(s_instance != nullptr);
-		
+	void DeviceManager::initialize_pci_devices()
+	{
 		for (const auto& pci_device : PCI::get().devices())
 		{
 			switch (pci_device.class_code())
@@ -38,16 +37,16 @@ namespace Kernel
 
 					if (controller)
 					{
-						s_instance->add_device(controller);
+						add_device(controller);
 						for (auto* device : controller->devices())
 						{
-							s_instance->add_device(device);
+							add_device(device);
 							if (auto res = device->initialize_partitions(); res.is_error())
 								dprintln("{}", res.error());
 							else
 							{
 								for (auto* partition : device->partitions())
-									s_instance->add_device(partition);
+									add_device(partition);
 							}
 						}
 					}
@@ -57,7 +56,10 @@ namespace Kernel
 					break;
 			}
 		}
+	}
 
+	void DeviceManager::initialize_updater()
+	{
 		MUST(Process::create_kernel(
 			[](void*)
 			{
@@ -68,12 +70,6 @@ namespace Kernel
 				}
 			}, nullptr)
 		);
-	}
-
-	DeviceManager& DeviceManager::get()
-	{
-		ASSERT(s_instance);
-		return *s_instance;
 	}
 
 	ino_t DeviceManager::get_next_ino() const

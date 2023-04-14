@@ -137,6 +137,13 @@ extern "C" void kernel_main()
 	MMU::intialize();
 	dprintln("MMU initialized");
 
+	TerminalDriver* terminal_driver = VesaTerminalDriver::create();
+	ASSERT(terminal_driver);
+	dprintln("VESA initialized");
+
+	TTY* tty1 = new TTY(terminal_driver);
+	ASSERT(tty1);
+
 	Memory::Heap::initialize();
 	dprintln("Heap initialzed");
 
@@ -146,10 +153,6 @@ extern "C" void kernel_main()
 	PCI::initialize();
 	dprintln("PCI initialized");
 
-	TerminalDriver* terminal_driver = VesaTerminalDriver::create();
-	ASSERT(terminal_driver);
-	dprintln("VESA initialized");
-	
 	MUST(ACPI::initialize());
 	dprintln("ACPI initialized");
 
@@ -161,27 +164,26 @@ extern "C" void kernel_main()
 
 	MUST(Scheduler::initialize());
 	Scheduler& scheduler = Scheduler::get();
-	MUST(scheduler.add_thread(MUST(Thread::create(init2, terminal_driver))));
+	MUST(scheduler.add_thread(MUST(Thread::create(init2, tty1))));
 	scheduler.start();
 
 	ASSERT_NOT_REACHED();
 }
 
-static void init2(void* terminal_driver)
+static void init2(void* tty1)
 {
 	using namespace Kernel;
 	using namespace Kernel::Input;
 
-	DeviceManager::initialize();
+	DeviceManager::get().initialize_pci_devices();
+	DeviceManager::get().initialize_updater();
 
 	MUST(VirtualFileSystem::initialize(cmdline.root));
 
 	if (auto res = PS2Controller::initialize(); res.is_error())
 		dprintln("{}", res.error());
 
-	TTY* tty1 = new TTY((TerminalDriver*)terminal_driver);
-	ASSERT(tty1);
-	DeviceManager::get().add_device(tty1);
+	((TTY*)tty1)->initialize_device();
 
 	MUST(Process::create_kernel(
 		[](void*)
