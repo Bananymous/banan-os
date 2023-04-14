@@ -28,6 +28,8 @@ namespace Kernel
 		static bool is_initialized();
 		static TTY* current();
 
+		void initialize_device();
+
 		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t) override;
 		virtual BAN::ErrorOr<size_t> write(size_t, const void*, size_t) override;
 
@@ -110,8 +112,8 @@ namespace Kernel
 		virtual BAN::StringView name() const { return m_name; }
 
 	private:
-		const dev_t m_rdev;
-		const BAN::String m_name;
+		dev_t m_rdev;
+		BAN::String m_name;
 	};
 
 }

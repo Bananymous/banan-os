@@ -33,8 +33,6 @@ namespace Kernel
 
 	TTY::TTY(TerminalDriver* driver)
 		: m_terminal_driver(driver)
-		, m_rdev(next_tty_rdev())
-		, m_name(BAN::String::formatted("tty{}", minor(m_rdev)))
 	{
 		m_width = m_terminal_driver->width();
 		m_height = m_terminal_driver->height();
@@ -44,7 +42,19 @@ namespace Kernel
 
 		if (s_tty == nullptr)
 			s_tty = this;
-		
+	}
+
+	TTY* TTY::current()
+	{
+		return s_tty;
+	}
+
+	void TTY::initialize_device()
+	{
+		m_rdev = next_tty_rdev();
+		m_name = BAN::String::formatted("tty{}", minor(m_rdev));
+		DeviceManager::get().add_device(this);
+
 		MUST(Process::create_kernel(
 			[](void* tty_)
 			{
@@ -58,11 +68,6 @@ namespace Kernel
 				}
 			}, this)
 		);
-	}
-
-	TTY* TTY::current()
-	{
-		return s_tty;
 	}
 
 	void TTY::on_key(Input::KeyEvent event)

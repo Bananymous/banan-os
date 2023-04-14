@@ -17,8 +17,10 @@ namespace Kernel
 		BAN_NON_MOVABLE(DeviceManager);
 
 	public:
-		static void initialize();
 		static DeviceManager& get();
+
+		void initialize_pci_devices();
+		void initialize_updater();
 
 		ino_t get_next_ino() const;
 		dev_t get_next_rdev() const;
