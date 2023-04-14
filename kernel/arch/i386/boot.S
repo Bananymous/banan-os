@@ -28,9 +28,7 @@ g_boot_stack_bottom:
 g_boot_stack_top:
 
 # 0 MiB -> 1 MiB: bootloader stuff
-# 1 MiB -> 2 MiB: kernel
-# 2 MiB -> 3 MiB: kmalloc
-# 3 MiB -> 4 Mib: kmalloc_fixed
+# 1 MiB ->      : kernel
 .align 32
 boot_page_directory_pointer_table:
 	.skip 4 * 8

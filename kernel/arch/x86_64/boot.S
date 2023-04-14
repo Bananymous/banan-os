@@ -41,9 +41,7 @@
 	# we will identity map first 4 MiB
 
 	# 0 MiB -> 1 MiB: bootloader stuff
-	# 1 MiB -> 4 MiB: kernel
-	# 4 MiB -> 5 MiB: kmalloc
-	# 5 MiB -> 6 MiB: kmalloc_fixed
+	# 1 MiB ->      : kernel
 	.align 4096
 	boot_pml4:
 		.skip 512 * 8
