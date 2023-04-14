@@ -2,7 +2,7 @@
 #include <kernel/CriticalScope.h>
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/LockGuard.h>
-#include <kernel/MMU.h>
+#include <kernel/Memory/MMU.h>
 #include <kernel/Process.h>
 #include <kernel/Scheduler.h>
 

@@ -1,7 +1,7 @@
 #include <BAN/Errors.h>
 #include <kernel/IDT.h>
 #include <kernel/InterruptController.h>
-#include <kernel/kmalloc.h>
+#include <kernel/Memory/kmalloc.h>
 #include <kernel/Panic.h>
 #include <kernel/Scheduler.h>
 

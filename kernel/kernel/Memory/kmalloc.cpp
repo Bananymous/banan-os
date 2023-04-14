@@ -1,7 +1,7 @@
 #include <BAN/Errors.h>
 #include <kernel/CriticalScope.h>
-#include <kernel/kmalloc.h>
 #include <kernel/kprint.h>
+#include <kernel/Memory/kmalloc.h>
 #include <kernel/multiboot.h>
 
 #include <kernel/Thread.h>
@@ -128,7 +128,6 @@ void kmalloc_initialize()
 		{
 			if (mmmt->base_addr <= s_kmalloc_info.base && s_kmalloc_fixed_info.end <= mmmt->base_addr + mmmt->length)
 			{
-				dprintln("Total usable RAM: {}.{} MB", mmmt->length / MB, mmmt->length % MB);
 				valid = true;
 				break;
 			}

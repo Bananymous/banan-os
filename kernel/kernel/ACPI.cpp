@@ -1,7 +1,7 @@
 #include <BAN/ScopeGuard.h>
 #include <BAN/StringView.h>
 #include <kernel/ACPI.h>
-#include <kernel/MMU.h>
+#include <kernel/Memory/MMU.h>
 
 #define RSPD_SIZE	20
 #define RSPDv2_SIZE	36

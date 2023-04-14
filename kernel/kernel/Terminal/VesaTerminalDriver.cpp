@@ -1,6 +1,6 @@
 #include <BAN/Errors.h>
 #include <kernel/Debug.h>
-#include <kernel/MMU.h>
+#include <kernel/Memory/MMU.h>
 #include <kernel/multiboot.h>
 #include <kernel/Terminal/VesaTerminalDriver.h>
 

@@ -4,7 +4,7 @@
 #include <kernel/APIC.h>
 #include <kernel/CPUID.h>
 #include <kernel/IDT.h>
-#include <kernel/MMU.h>
+#include <kernel/Memory/MMU.h>
 
 #include <string.h>
 

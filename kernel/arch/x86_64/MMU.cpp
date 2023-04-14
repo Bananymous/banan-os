@@ -1,6 +1,6 @@
 #include <BAN/Errors.h>
-#include <kernel/kmalloc.h>
-#include <kernel/MMU.h>
+#include <kernel/Memory/kmalloc.h>
+#include <kernel/Memory/MMU.h>
 
 #define PAGE_SIZE 0x1000
 #define PAGE_MASK ~(PAGE_SIZE - 1)
