@@ -12,7 +12,6 @@ set(KERNEL_SOURCES
 	font/prefs.psf.o
 	kernel/ACPI.cpp
 	kernel/APIC.cpp
-	kernel/build_libc.cpp
 	kernel/CPUID.cpp
 	kernel/Debug.cpp
 	kernel/Device.cpp
