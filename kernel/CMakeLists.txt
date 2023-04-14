@@ -26,7 +26,7 @@ set(KERNEL_SOURCES
 	kernel/Input/PS2Keymap.cpp
 	kernel/InterruptController.cpp
 	kernel/kernel.cpp
-	kernel/kmalloc.cpp
+	kernel/Memory/kmalloc.cpp
 	kernel/PCI.cpp
 	kernel/PIC.cpp
 	kernel/PIT.cpp

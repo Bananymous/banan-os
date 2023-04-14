@@ -1,7 +1,7 @@
 #pragma once
 
 #if defined(__is_kernel)
-	#include <kernel/kmalloc.h>
+	#include <kernel/Memory/kmalloc.h>
 #else
 	#include <stdlib.h>
 #endif

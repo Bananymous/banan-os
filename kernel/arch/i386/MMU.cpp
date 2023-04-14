@@ -1,7 +1,7 @@
 #include <BAN/Errors.h>
 #include <kernel/Debug.h>
-#include <kernel/MMU.h>
-#include <kernel/kmalloc.h>
+#include <kernel/Memory/MMU.h>
+#include <kernel/Memory/kmalloc.h>
 
 #include <string.h>
 

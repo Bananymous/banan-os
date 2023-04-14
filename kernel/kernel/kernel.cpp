@@ -7,9 +7,9 @@
 #include <kernel/IDT.h>
 #include <kernel/Input/PS2Controller.h>
 #include <kernel/InterruptController.h>
-#include <kernel/kmalloc.h>
 #include <kernel/kprint.h>
-#include <kernel/MMU.h>
+#include <kernel/Memory/kmalloc.h>
+#include <kernel/Memory/MMU.h>
 #include <kernel/multiboot.h>
 #include <kernel/PCI.h>
 #include <kernel/PIC.h>
