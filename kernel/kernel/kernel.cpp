@@ -8,6 +8,7 @@
 #include <kernel/Input/PS2Controller.h>
 #include <kernel/InterruptController.h>
 #include <kernel/kprint.h>
+#include <kernel/Memory/Heap.h>
 #include <kernel/Memory/kmalloc.h>
 #include <kernel/Memory/MMU.h>
 #include <kernel/multiboot.h>
@@ -135,6 +136,9 @@ extern "C" void kernel_main()
 
 	MMU::intialize();
 	dprintln("MMU initialized");
+
+	Memory::Heap::initialize();
+	dprintln("Heap initialzed");
 
 	parse_command_line();
 	dprintln("command line parsed, root='{}'", cmdline.root);
