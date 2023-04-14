@@ -22,12 +22,19 @@ namespace Kernel::Memory
 		paddr_t reserve_page();
 		void release_page(paddr_t);
 
-		paddr_t start() const { return m_start + m_list_pages  * PAGE_SIZE; }
-		paddr_t end() const   { return m_start + m_total_pages * PAGE_SIZE; }
-		uint64_t pages() const { return m_reservable_pages; }
+		paddr_t usable_start() const { return m_start + m_list_pages  * PAGE_SIZE; }
+		paddr_t usable_end() const   { return m_start + m_total_pages * PAGE_SIZE; }
+		uint64_t usable_pages() const { return m_reservable_pages; }
 
 	private:
-		paddr_t page_address(uint64_t) const;
+		struct node
+		{
+			node* next;
+			node* prev;
+		};
+		
+		paddr_t page_address(const node*) const;
+		node* node_address(paddr_t) const;
 
 	private:
 		paddr_t m_start	{ 0 };
@@ -37,8 +44,8 @@ namespace Kernel::Memory
 		uint64_t m_reservable_pages	{ 0 };
 		uint64_t m_list_pages		{ 0 };
 
-		uint64_t* m_free_list { nullptr };
-		uint64_t* m_used_list { nullptr };
+		node* m_free_list { nullptr };
+		node* m_used_list { nullptr };
 	};
 	
 	class Heap

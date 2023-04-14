@@ -21,42 +21,82 @@ namespace Kernel::Memory
 		if (auto rem = m_size % PAGE_SIZE)
 			m_size -= rem;
 
-		// FIXME: if total pages is just over multiple of (4096/sizeof(uint64_t)) we might make
+		// FIXME: if total pages is just over multiple of (PAGE_SIZE / sizeof(node)) we might make
 		//        couple of pages unallocatable
 		m_total_pages		= m_size / PAGE_SIZE;
-		m_list_pages		= BAN::Math::div_round_up<uint64_t>(m_total_pages * sizeof(uint64_t), PAGE_SIZE);
+		m_list_pages		= BAN::Math::div_round_up<uint64_t>(m_total_pages * sizeof(node), PAGE_SIZE);
 		m_reservable_pages	= m_total_pages - m_list_pages;
 
 		MMU::get().allocate_range(m_start, m_list_pages * PAGE_SIZE, MMU::Flags::Present);
 
-		// Initialize free list with every page pointing to the next one
-		uint64_t* list_ptr = (uint64_t*)m_start;
-		for (uint64_t i = 0; i < m_reservable_pages - 1; i++)
-		{
-			*list_ptr++ = i + 1;
-			//dprintln("{}/{}", i, m_reservable_pages);
-		}
+		// Initialize page list so that every page points to the next one
+		node* page_list = (node*)m_start;
+		for (uint64_t i = 0; i < m_reservable_pages; i++)
+			page_list[i] = { page_list + i - 1, page_list + i + 1 };
+		page_list[           0          ].next = nullptr;
+		page_list[m_reservable_pages - 1].prev = nullptr;
 
-		*list_ptr = invalid;
-		m_free_list = (uint64_t*)m_start;
-
+		m_free_list = page_list;
 		m_used_list = nullptr;
 	}
 
 	paddr_t PhysicalRange::reserve_page()
 	{
-		ASSERT_NOT_REACHED();
+		if (m_free_list == nullptr)
+			return invalid;
+
+		node* page = m_free_list;
+		ASSERT(page->next == nullptr);
+
+		// Detatch page from top of the free list
+		m_free_list = m_free_list->prev ? m_free_list->prev : nullptr;
+		if (m_free_list)
+			m_free_list->next = nullptr;
+
+		// Add page to used list
+		if (m_used_list)
+			m_used_list->next = page;
+		page->prev = m_used_list;
+		m_used_list = page;
+
+		return page_address(page);
 	}
 
-	void PhysicalRange::release_page(paddr_t)
+	void PhysicalRange::release_page(paddr_t page_address)
 	{
-		ASSERT_NOT_REACHED();
+		ASSERT(m_used_list);
+
+		node* page = node_address(page_address);
+		
+		// Detach page from used list
+		if (page->prev)
+			page->prev->next = page->next;
+		if (page->next)
+			page->next->prev = page->prev;
+		if (m_used_list == page)
+			m_used_list = page->prev;
+
+		// Add page to the top of free list
+		page->prev = m_free_list;
+		page->next = nullptr;
+		if (m_free_list)
+			m_free_list->next = page;
+		m_free_list = page;
 	}	
 
-	paddr_t PhysicalRange::page_address(uint64_t page_index) const
+	paddr_t PhysicalRange::page_address(const node* page) const
 	{
-		ASSERT(page_index < m_reservable_pages);
+		ASSERT((paddr_t)page <= m_start + m_reservable_pages * sizeof(node));
+		uint64_t page_index = page - (node*)m_start;
 		return m_start + (page_index + m_list_pages) * PAGE_SIZE;
+	}
+
+	PhysicalRange::node* PhysicalRange::node_address(paddr_t page_address) const
+	{
+		ASSERT(page_address % PAGE_SIZE == 0);
+		ASSERT(m_start + m_list_pages * PAGE_SIZE <= page_address && page_address < m_start + m_size);
+		uint64_t page_offset = page_address - (m_start + m_list_pages * PAGE_SIZE);
+		return (node*)m_start + page_offset / PAGE_SIZE;
 	}
 
 
@@ -97,7 +137,10 @@ namespace Kernel::Memory
 		}
 
 		for (auto& range : m_physical_ranges)
-			dprintln("RAM {8H}->{8H}, {} pages ({}.{} MB)", range.start(), range.end(), range.pages(), range.pages() * PAGE_SIZE / (1 << 20), range.pages() * PAGE_SIZE % (1 << 20) * 100 / (1 << 20));
+		{
+			size_t bytes = range.usable_pages() * PAGE_SIZE;
+			dprintln("RAM {8H}->{8H}, {} pages ({}.{} MB)", range.usable_start(), range.usable_end(), range.usable_pages(), bytes / (1 << 20), bytes % (1 << 20) * 1000 / (1 << 20));
+		}
 	}
 
 }
