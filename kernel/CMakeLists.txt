@@ -27,6 +27,7 @@ set(KERNEL_SOURCES
 	kernel/kernel.cpp
 	kernel/Memory/Heap.cpp
 	kernel/Memory/kmalloc.cpp
+	kernel/Panic.cpp
 	kernel/PCI.cpp
 	kernel/PIC.cpp
 	kernel/PIT.cpp
