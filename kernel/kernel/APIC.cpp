@@ -91,14 +91,12 @@ APIC* APIC::create()
 		return nullptr;
 	}
 
-	auto header_or_error = Kernel::ACPI::get().get_header("APIC");
-	if (header_or_error.is_error())
+	const MADT* madt = (const MADT*)Kernel::ACPI::get().get_header("APIC");
+	if (madt == nullptr)
 	{
-		dprintln("{}", header_or_error.error());
+		dprintln("Could not find MADT header");
 		return nullptr;
 	}
-
-	const MADT* madt = (const MADT*)header_or_error.value();
 
 	APIC* apic = new APIC;
 	apic->m_local_apic = madt->local_apic;
@@ -138,8 +136,6 @@ APIC* APIC::create()
 		}
 		madt_entry_addr += entry->length;
 	}
-
-	Kernel::ACPI::get().unmap_header(madt);
 
 	if (apic->m_local_apic == 0 || apic->m_io_apics.empty())
 	{

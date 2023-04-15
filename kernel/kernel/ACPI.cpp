@@ -135,28 +135,25 @@ namespace Kernel
 
 		MMU::get().allocate_range(m_header_table, m_entry_count * m_entry_size, MMU::Flags::Present);
 
+		for (uint32_t i = 0; i < m_entry_count; i++)
+		{
+			auto* header = get_header_from_index(i);
+			MMU::get().allocate_page((uintptr_t)header, MMU::Flags::Present);
+			MMU::get().allocate_range((uintptr_t)header, header->length, MMU::Flags::Present);
+		}
+
 		return {};
 	}
 
-	BAN::ErrorOr<const ACPI::SDTHeader*> ACPI::get_header(const char signature[4])
+	const ACPI::SDTHeader* ACPI::get_header(const char signature[4])
 	{
 		for (uint32_t i = 0; i < m_entry_count; i++)
 		{
 			const SDTHeader* header = get_header_from_index(i);
-			MMU::get().allocate_range((uintptr_t)header, header->length, MMU::Flags::Present);
 			if (is_valid_std_header(header) && memcmp(header->signature, signature, 4) == 0)
 				return header;
-			unmap_header(header);
 		}
-		return BAN::Error::from_error_code(ErrorCode::ACPI_NoSuchHeader);
-	}
-
-	void ACPI::unmap_header(const ACPI::SDTHeader* header)
-	{
-		// I have to improve MMU page mapping so we can actually unmap
-		// without unmapping other mapped tables
-		(void)header;
-		//MMU::get().unallocate_range((uintptr_t)header, header->length);
+		return nullptr;
 	}
 
 	const ACPI::SDTHeader* ACPI::get_header_from_index(size_t index)

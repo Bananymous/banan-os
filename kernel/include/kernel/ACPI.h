@@ -84,8 +84,7 @@ namespace Kernel
 		static BAN::ErrorOr<void> initialize();
 		static ACPI& get();
 
-		BAN::ErrorOr<const SDTHeader*> get_header(const char[4]);
-		void unmap_header(const SDTHeader*);
+		const SDTHeader* get_header(const char[4]);
 
 	private:
 		ACPI() = default;
