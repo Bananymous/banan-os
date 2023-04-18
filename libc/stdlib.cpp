@@ -4,6 +4,8 @@
 #include <string.h>
 #include <unistd.h>
 
+extern "C" void _fini();
+
 void abort(void)
 {
 	ASSERT_NOT_REACHED();
@@ -11,6 +13,7 @@ void abort(void)
 
 void exit(int status)
 {
+	_fini();
 	_exit(status);
 	ASSERT_NOT_REACHED();
 }
