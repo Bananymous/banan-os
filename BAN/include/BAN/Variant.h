@@ -4,6 +4,8 @@
 #include <BAN/Math.h>
 #include <BAN/Move.h>
 
+#include <string.h>
+
 namespace BAN
 {
 
@@ -53,7 +55,10 @@ namespace BAN
 		void move_construct(size_t index, uint8_t* source, uint8_t* target)
 		{
 			if (index == 0)
-				new (target) T(move(*reinterpret_cast<T*>(source)));
+				if constexpr(!is_lvalue_reference_v<T>)
+					new (target) T(move(*reinterpret_cast<T*>(source)));
+				else
+					memcpy(target, source, sizeof(remove_reference_t<T>*));
 			else if constexpr(sizeof...(Ts) > 0)
 				move_construct<Ts...>(index - 1, source, target);
 			else
@@ -64,7 +69,10 @@ namespace BAN
 		void copy_construct(size_t index, const uint8_t* source, uint8_t* target)
 		{
 			if (index == 0)
-				new (target) T(*reinterpret_cast<const T*>(source));
+				if constexpr(!is_lvalue_reference_v<T>)
+					new (target) T(*reinterpret_cast<const T*>(source));
+				else
+					memcpy(target, source, sizeof(remove_reference_t<T>*));
 			else if constexpr(sizeof...(Ts) > 0)
 				copy_construct<Ts...>(index - 1, source, target);
 			else
@@ -75,7 +83,10 @@ namespace BAN
 		void move_assign(size_t index, uint8_t* source, uint8_t* target)
 		{
 			if (index == 0)
-				*reinterpret_cast<T*>(target) = move(*reinterpret_cast<T*>(source));
+				if constexpr(!is_lvalue_reference_v<T>)
+					*reinterpret_cast<T*>(target) = move(*reinterpret_cast<T*>(source));
+				else
+					memcpy(target, source, sizeof(remove_reference_t<T>*));
 			else if constexpr(sizeof...(Ts) > 0)
 				move_assign<Ts...>(index - 1, source, target);
 			else
@@ -86,7 +97,10 @@ namespace BAN
 		void copy_assign(size_t index, const uint8_t* source, uint8_t* target)
 		{
 			if (index == 0)
-				*reinterpret_cast<T*>(target) = *reinterpret_cast<const T*>(source);
+				if constexpr(!is_lvalue_reference_v<T>)
+					*reinterpret_cast<T*>(target) = *reinterpret_cast<const T*>(source);
+				else
+					memcpy(target, source, sizeof(remove_reference_t<T>*));
 			else if constexpr(sizeof...(Ts) > 0)
 				copy_assign<Ts...>(index - 1, source, target);
 			else
@@ -142,9 +156,7 @@ namespace BAN
 		Variant& operator=(Variant&& other)
 		{
 			if (m_index == other.m_index)
-			{
 				detail::move_assign<Ts...>(m_index, other.m_storage, m_storage);
-			}
 			else
 			{
 				clear();
@@ -158,9 +170,7 @@ namespace BAN
 		Variant& operator=(const Variant& other)
 		{
 			if (m_index == other.m_index)
-			{
 				detail::copy_assign<Ts...>(m_index, other.m_storage, m_storage);
-			}
 			else
 			{
 				clear();
@@ -173,14 +183,28 @@ namespace BAN
 		template<typename T>
 		Variant& operator=(T&& value) requires (can_have<T>() && !is_lvalue_reference_v<T>)
 		{
-			*this = Variant(move(value));
+			if (size_t index = detail::index<T, Ts...>(); index == m_index)
+				get<T>() = move(value);
+			else
+			{
+				clear();
+				new (m_storage) T(move(value));
+				m_index = index;
+			}
 			return *this;
 		}
 
 		template<typename T>
 		Variant& operator=(const T& value) requires (can_have<T>() && !is_lvalue_reference_v<T>)
 		{
-			*this = Variant(value);
+			if (size_t index = detail::index<T, Ts...>(); index == m_index)
+				get<T>() = value;
+			else
+			{
+				clear();
+				new (m_storage) T(value);
+				m_index = index;
+			}
 			return *this;
 		}
 
