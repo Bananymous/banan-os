@@ -13,7 +13,7 @@
 namespace Kernel
 {
 
-	class Process : BAN::RefCounted<Process>
+	class Process
 	{
 		BAN_NON_COPYABLE(Process);
 		BAN_NON_MOVABLE(Process);
@@ -22,8 +22,8 @@ namespace Kernel
 		using entry_t = Thread::entry_t;
 
 	public:
-		static BAN::ErrorOr<BAN::RefPtr<Process>> create_kernel(entry_t, void*);
-		static BAN::ErrorOr<BAN::RefPtr<Process>> create_userspace(void(*)());
+		static BAN::ErrorOr<Process*> create_kernel(entry_t, void*);
+		static BAN::ErrorOr<Process*> create_userspace(void(*)());
 		~Process();
 
 		[[noreturn]] void exit();
@@ -52,10 +52,11 @@ namespace Kernel
 		BAN::ErrorOr<BAN::String> working_directory() const;
 		BAN::ErrorOr<void> set_working_directory(BAN::StringView);
 
-		static BAN::RefPtr<Process> current() { return Thread::current().process(); }
+		static Process& current() { return Thread::current().process(); }
 
 	private:
 		Process(pid_t);
+		static Process* create_process();
 
 		BAN::ErrorOr<BAN::String> absolute_path_of(BAN::StringView) const;
 
@@ -81,8 +82,6 @@ namespace Kernel
 		BAN::Vector<Thread*> m_threads;
 
 		TTY* m_tty { nullptr };
-
-		friend class BAN::RefPtr<Process>;
 	};
 
 }

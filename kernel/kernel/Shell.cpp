@@ -22,14 +22,14 @@ namespace Kernel
 	static void TTY_PRINT(Args&&... args)
 	{
 		BAN::String message = BAN::String::formatted(BAN::forward<Args>(args)...);
-		MUST(Process::current()->write(STDOUT_FILENO, message.data(), message.size()));
+		MUST(Process::current().write(STDOUT_FILENO, message.data(), message.size()));
 	}
 
 	template<typename... Args>
 	static void TTY_PRINTLN(Args&&... args)
 	{
 		TTY_PRINT(BAN::forward<Args>(args)...);
-		MUST(Process::current()->write(STDOUT_FILENO, "\n", 1));
+		MUST(Process::current().write(STDOUT_FILENO, "\n", 1));
 	}
 
 	static auto s_default_prompt = "\\[\e[32m\\]user\\[\e[m\\]:\\[\e[34m\\]\\w\\[\e[m\\]# "sv;
@@ -59,7 +59,7 @@ namespace Kernel
 	{
 		MUST(set_prompt(s_default_prompt));
 		MUST(m_buffer.push_back(""sv));
-		MUST(Process::current()->set_termios(termios { .canonical = false, .echo = false }));
+		MUST(Process::current().set_termios(termios { .canonical = false, .echo = false }));
 	}
 
 	BAN::ErrorOr<void> Shell::set_prompt(BAN::StringView prompt)
@@ -89,7 +89,7 @@ namespace Kernel
 						break;
 					case 'w':
 					{
-						auto working_directory = TRY(Process::current()->working_directory());
+						auto working_directory = TRY(Process::current().working_directory());
 						TRY(m_prompt.append(working_directory));
 						m_prompt_length += working_directory.size();
 						break;
@@ -112,7 +112,7 @@ namespace Kernel
 
 	void Shell::run()
 	{
-		auto getch = [this] { uint8_t ch; MUST(Process::current()->read(STDIN_FILENO, &ch, 1)); return ch; };
+		auto getch = [this] { uint8_t ch; MUST(Process::current().read(STDIN_FILENO, &ch, 1)); return ch; };
 
 		MUST(m_buffer.push_back(""sv));
 
@@ -130,7 +130,7 @@ namespace Kernel
 					while ((current.back() & 0xC0) == 0x80)
 						current.pop_back();
 					current.pop_back();
-					MUST(Process::current()->write(STDOUT_FILENO, "\b \b", 3));
+					MUST(Process::current().write(STDOUT_FILENO, "\b \b", 3));
 				}
 				continue;
 			}
@@ -171,7 +171,7 @@ namespace Kernel
 				continue;
 			}
 
-			MUST(Process::current()->write(STDOUT_FILENO, &ch, 1));
+			MUST(Process::current().write(STDOUT_FILENO, &ch, 1));
 
 			if (ch != '\n')
 			{
@@ -334,7 +334,7 @@ argument_done:
 			for (int i = 0; i < 100; i++)
 			{
 				lock.lock();
-				MUST(Process::create_kernel([](void*) { MUST(Process::current()->init_stdio()); TTY_PRINTLN("####"); Process::current()->exit(); }, nullptr));
+				MUST(Process::create_kernel([](void*) { MUST(Process::current().init_stdio()); TTY_PRINTLN("####"); Process::current().exit(); }, nullptr));
 				PIT::sleep(5);
 				kmalloc_dump_info();
 				lock.unlock();
@@ -406,7 +406,7 @@ argument_done:
 			SpinLock spinlock;
 			thread_data_t thread_data = { this, spinlock, arguments };
 			spinlock.lock();
-			TRY(Process::current()->add_thread(function, &thread_data));
+			TRY(Process::current().add_thread(function, &thread_data));
 			while (spinlock.is_locked());
 		}
 		else if (arguments.front() == "memory")
@@ -508,15 +508,15 @@ argument_done:
 			if (arguments.size() == 2)
 				TRY(path.append(arguments[1]));
 			else
-				TRY(path.append(TRY(Process::current()->working_directory())));
+				TRY(path.append(TRY(Process::current().working_directory())));
 
-			int fd = TRY(Process::current()->open(path, O_RDONLY));
-			BAN::ScopeGuard _([fd] { MUST(Process::current()->close(fd)); });
+			int fd = TRY(Process::current().open(path, O_RDONLY));
+			BAN::ScopeGuard _([fd] { MUST(Process::current().close(fd)); });
 
 			BAN::Vector<BAN::String> all_entries;
 
 			BAN::Vector<BAN::String> entries;
-			while (!(entries = TRY(Process::current()->read_directory_entries(fd))).empty())
+			while (!(entries = TRY(Process::current().read_directory_entries(fd))).empty())
 			{
 				TRY(all_entries.reserve(all_entries.size() + entries.size()));
 				for (auto& entry : entries)
@@ -533,7 +533,7 @@ argument_done:
 				BAN::String entry_path;
 				TRY(entry_path.append(entry_prefix));
 				TRY(entry_path.append(entry));
-				TRY(Process::current()->stat(entry_path, &st));
+				TRY(Process::current().stat(entry_path, &st));
 
 				Inode::Mode mode { st.st_mode };
 
@@ -554,14 +554,14 @@ argument_done:
 				return {};
 			}
 			
-			int fd = TRY(Process::current()->open(arguments[1], O_RDONLY));
-			BAN::ScopeGuard _([fd] { MUST(Process::current()->close(fd)); });
+			int fd = TRY(Process::current().open(arguments[1], O_RDONLY));
+			BAN::ScopeGuard _([fd] { MUST(Process::current().close(fd)); });
 
 			char* buffer = new char[1024];
 			BAN::ScopeGuard buffer_guard([buffer] { delete[] buffer; });
 			ASSERT(buffer);
 
-			while (size_t n_read = TRY(Process::current()->read(fd, buffer, sizeof(buffer))))
+			while (size_t n_read = TRY(Process::current().read(fd, buffer, sizeof(buffer))))
 				TTY_PRINT("{}", BAN::StringView(buffer, n_read));
 			TTY_PRINTLN("");
 		}
@@ -574,7 +574,7 @@ argument_done:
 			}
 			
 			stat st;
-			TRY(Process::current()->stat(arguments[1], &st));
+			TRY(Process::current().stat(arguments[1], &st));
 
 			Inode::Mode mode { st.st_mode };
 
@@ -604,7 +604,7 @@ argument_done:
 				return {};
 			}
 			BAN::StringView path = arguments.size() == 2 ? arguments[1].sv() : "/"sv;
-			TRY(Process::current()->set_working_directory(path));
+			TRY(Process::current().set_working_directory(path));
 			TRY(update_prompt());
 		}
 		else if (arguments.front() == "touch")
@@ -614,7 +614,7 @@ argument_done:
 				TTY_PRINTLN("usage 'touch path'");
 				return {};
 			}
-			TRY(Process::current()->creat(arguments[1], 0));
+			TRY(Process::current().creat(arguments[1], 0));
 		}
 		else if (arguments.front() == "cksum")
 		{
@@ -630,15 +630,15 @@ argument_done:
 
 			for (size_t i = 1; i < arguments.size(); i++)
 			{
-				int fd = TRY(Process::current()->open(arguments[i], O_RDONLY));
-				BAN::ScopeGuard _([fd] { MUST(Process::current()->close(fd)); });
+				int fd = TRY(Process::current().open(arguments[i], O_RDONLY));
+				BAN::ScopeGuard _([fd] { MUST(Process::current().close(fd)); });
 
 				uint32_t crc32 = 0;
 				uint32_t total_read = 0;
 
 				while (true)
 				{
-					size_t n_read = TRY(Process::current()->read(fd, buffer, sizeof(buffer)));
+					size_t n_read = TRY(Process::current().read(fd, buffer, sizeof(buffer)));
 					if (n_read == 0)
 						break;
 					for (size_t j = 0; j < n_read; j++)
@@ -660,7 +660,7 @@ argument_done:
 				TTY_PRINTLN("usage: 'mount partition directory'");
 				return {};
 			}
-			TRY(Process::current()->mount(arguments[1], arguments[2]));
+			TRY(Process::current().mount(arguments[1], arguments[2]));
 		}
 		else if (arguments.front() == "loadfont")
 		{

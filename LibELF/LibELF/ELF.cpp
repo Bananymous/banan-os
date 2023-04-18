@@ -15,15 +15,15 @@ namespace LibELF
 		{
 			BAN::Vector<uint8_t> data;
 
-			int fd = TRY(Kernel::Process::current()->open(file_path, O_RDONLY));
-			BAN::ScopeGuard _([fd] { MUST(Kernel::Process::current()->close(fd)); });
+			int fd = TRY(Kernel::Process::current().open(file_path, O_RDONLY));
+			BAN::ScopeGuard _([fd] { MUST(Kernel::Process::current().close(fd)); });
 
 			stat st;
-			TRY(Kernel::Process::current()->fstat(fd, &st));
+			TRY(Kernel::Process::current().fstat(fd, &st));
 
 			TRY(data.resize(st.st_size));
 
-			TRY(Kernel::Process::current()->read(fd, data.data(), data.size()));
+			TRY(Kernel::Process::current().read(fd, data.data(), data.size()));
 
 			elf = new ELF(BAN::move(data));
 			ASSERT(elf);

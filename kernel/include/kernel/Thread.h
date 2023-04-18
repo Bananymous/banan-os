@@ -26,7 +26,7 @@ namespace Kernel
 		};
 
 	public:
-		static BAN::ErrorOr<Thread*> create(entry_t, void* = nullptr, BAN::RefPtr<Process> = nullptr);
+		static BAN::ErrorOr<Thread*> create(entry_t, void*, Process*);
 		~Thread();
 
 		void jump_userspace(uintptr_t rip);
@@ -46,22 +46,22 @@ namespace Kernel
 		size_t stack_size() const { return m_stack_size; }
 
 		static Thread& current() ;
-		BAN::RefPtr<Process> process();
+		Process& process();
 
 	private:
-		Thread(pid_t tid, BAN::RefPtr<Process>);
+		Thread(pid_t tid, Process*);
 
 		BAN::ErrorOr<void> initialize(entry_t, void*);
 		void on_exit();
 		
 	private:
 		static constexpr size_t m_stack_size = 4096 * 1;
-		void*		m_stack_base	= nullptr;
-		uintptr_t	m_rip			= 0;
-		uintptr_t	m_rsp			= 0;
-		const pid_t	m_tid			= 0;
-		State		m_state { State::NotStarted };
-		BAN::RefPtr<Process> m_process;
+		void*		m_stack_base	{ nullptr };
+		uintptr_t	m_rip			{ 0 };
+		uintptr_t	m_rsp			{ 0 };
+		const pid_t	m_tid			{ 0 };
+		State		m_state			{ State::NotStarted };
+		Process*	m_process		{ nullptr };
 
 		friend class Scheduler;
 	};

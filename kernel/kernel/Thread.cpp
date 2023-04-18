@@ -19,7 +19,7 @@ namespace Kernel
 		memcpy((void*)rsp, (void*)&value, size);
 	}
 
-	BAN::ErrorOr<Thread*> Thread::create(entry_t entry, void* data, BAN::RefPtr<Process> process)
+	BAN::ErrorOr<Thread*> Thread::create(entry_t entry, void* data, Process* process)
 	{
 		static pid_t next_tid = 1;
 		auto* thread = new Thread(next_tid++, process);
@@ -29,7 +29,7 @@ namespace Kernel
 		return thread;
 	}
 
-	Thread::Thread(pid_t tid, BAN::RefPtr<Process> process)
+	Thread::Thread(pid_t tid, Process* process)
 		: m_tid(tid), m_process(process)
 	{}
 
@@ -38,9 +38,10 @@ namespace Kernel
 		return Scheduler::get().current_thread();
 	}
 
-	BAN::RefPtr<Process> Thread::process()
+	Process& Thread::process()
 	{
-		return m_process;
+		ASSERT(m_process);
+		return *m_process;
 	}
 
 	BAN::ErrorOr<void> Thread::initialize(entry_t entry, void* data)

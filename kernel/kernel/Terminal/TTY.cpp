@@ -59,11 +59,11 @@ namespace Kernel
 			[](void* tty_)
 			{
 				TTY* tty = (TTY*)tty_;
-				int fd = MUST(Process::current()->open("/dev/input0"sv, O_RDONLY));
+				int fd = MUST(Process::current().open("/dev/input0"sv, O_RDONLY));
 				while (true)
 				{
 					Input::KeyEvent event;
-					MUST(Process::current()->read(fd, &event, sizeof(event)));
+					MUST(Process::current().read(fd, &event, sizeof(event)));
 					tty->on_key(event);
 				}
 			}, this)

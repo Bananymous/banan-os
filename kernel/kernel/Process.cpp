@@ -11,19 +11,33 @@
 namespace Kernel
 {
 
-	static pid_t s_next_pid = 1;
+	static BAN::Vector<Process*> s_processes;
+	static SpinLock s_process_lock;
 
-	BAN::ErrorOr<BAN::RefPtr<Process>> Process::create_kernel(entry_t entry, void* data)
+	Process* Process::create_process()
 	{
-		auto process = TRY(BAN::RefPtr<Process>::create(s_next_pid++));
+		static pid_t s_next_pid = 1;
+		auto* process = new Process(s_next_pid++);
+		ASSERT(process);
+
+		s_process_lock.lock();
+		MUST(s_processes.push_back(process));
+		s_process_lock.unlock();
+		
+		return process;
+	}
+
+	BAN::ErrorOr<Process*> Process::create_kernel(entry_t entry, void* data)
+	{
+		auto* process = create_process();
 		TRY(process->m_working_directory.push_back('/'));
 		TRY(process->add_thread(entry, data));
 		return process;
 	}
 
-	BAN::ErrorOr<BAN::RefPtr<Process>> Process::create_userspace(void(*entry)())
+	BAN::ErrorOr<Process*> Process::create_userspace(void(*entry)())
 	{
-		auto process = TRY(BAN::RefPtr<Process>::create(s_next_pid++));
+		auto* process = create_process();
 		TRY(process->m_working_directory.push_back('/'));
 		TRY(process->init_stdio());
 

@@ -27,7 +27,7 @@ namespace Kernel
 		ASSERT(s_instance == nullptr);
 		s_instance = new Scheduler();
 		ASSERT(s_instance);
-		s_instance->m_idle_thread = TRY(Thread::create([](void*) { for (;;) asm volatile("hlt"); }));
+		s_instance->m_idle_thread = TRY(Thread::create([](void*) { for (;;) asm volatile("hlt"); }, nullptr, nullptr));
 		return {};
 	}
 
@@ -247,11 +247,11 @@ namespace Kernel
 	{
 		VERIFY_CLI();
 
-		pid_t pid = m_current_thread->thread->process()->pid();
+		pid_t pid = m_current_thread->thread->process().pid();
 
-		remove_threads(m_blocking_threads, it->thread->process()->pid() == pid);
-		remove_threads(m_sleeping_threads, it->thread->process()->pid() == pid);
-		remove_threads(m_active_threads, it != m_current_thread && it->thread->process()->pid() == pid);
+		remove_threads(m_blocking_threads, it->thread->process().pid() == pid);
+		remove_threads(m_sleeping_threads, it->thread->process().pid() == pid);
+		remove_threads(m_active_threads, it != m_current_thread && it->thread->process().pid() == pid);
 
 		delete m_current_thread->thread;
 		remove_and_advance_current_thread();
