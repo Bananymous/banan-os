@@ -165,9 +165,9 @@ extern "C" void kernel_main()
 
 	MUST(Scheduler::initialize());
 	Scheduler& scheduler = Scheduler::get();
-	MUST(scheduler.add_thread(MUST(Thread::create(init2, tty1, nullptr))));
+	MUST(Process::create_kernel(init2, tty1));
 	scheduler.start();
-
+	
 	ASSERT_NOT_REACHED();
 }
 
