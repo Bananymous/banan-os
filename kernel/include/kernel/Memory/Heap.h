@@ -22,9 +22,11 @@ namespace Kernel::Memory
 		paddr_t reserve_page();
 		void release_page(paddr_t);
 
-		paddr_t usable_start() const { return m_start + m_list_pages  * PAGE_SIZE; }
-		paddr_t usable_end() const   { return m_start + m_total_pages * PAGE_SIZE; }
-		uint64_t usable_pages() const { return m_reservable_pages; }
+		paddr_t start() const { return m_start; }
+		paddr_t end() const { return m_start + m_size; }
+		bool contains(paddr_t addr) const { return m_start <= addr && addr < m_start + m_size; }
+
+		size_t usable_memory() const { return m_reservable_pages * PAGE_SIZE; }
 
 	private:
 		struct node
@@ -56,6 +58,9 @@ namespace Kernel::Memory
 	public:
 		static void initialize();
 		static Heap& get();
+
+		paddr_t take_mapped_page(uint8_t);
+		void return_mapped_page(paddr_t);
 
 	private:
 		Heap() = default;
