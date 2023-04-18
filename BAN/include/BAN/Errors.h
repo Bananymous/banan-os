@@ -85,6 +85,33 @@ namespace BAN
 		Variant<Error, T> m_data;
 	};
 
+	template<lvalue_reference T>
+	class [[nodiscard]] ErrorOr<T>
+	{
+	public:
+		ErrorOr(T value)
+		{
+			m_data.template set<T>(value);
+		}
+		ErrorOr(Error&& error)
+			: m_data(move(error))
+		{ }
+		ErrorOr(const Error& error)
+			: m_data(error)
+		{ }
+
+		bool is_error() const			{ return m_data.template has<Error>(); }
+		Error& error()					{ return m_data.template get<Error>(); }
+		const Error& error() const		{ return m_data.template get<Error>(); }
+		T value()						{ return m_data.template get<T>(); }
+
+		Error release_error()			{ return move(error()); m_data.clear(); }
+		T release_value()				{ return value(); m_data.clear(); }
+
+	private:
+		Variant<Error, T> m_data;
+	};
+
 	template<>
 	class [[nodiscard]] ErrorOr<void>
 	{
