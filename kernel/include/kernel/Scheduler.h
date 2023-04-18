@@ -17,8 +17,6 @@ namespace Kernel
 		void reschedule();
 		void reschedule_if_idling();
 
-		BAN::ErrorOr<void> add_thread(Thread*);
-
 		void set_current_thread_sleeping(uint64_t);
 		[[noreturn]] void set_current_thread_done();
 
@@ -37,6 +35,8 @@ namespace Kernel
 		void remove_and_advance_current_thread();
 		void advance_current_thread();
 		[[noreturn]] void execute_current_thread();
+
+		BAN::ErrorOr<void> add_thread(Thread*);
 
 	private:
 		struct ActiveThread
@@ -69,6 +69,8 @@ namespace Kernel
 		BAN::LinkedList<ActiveThread>::iterator m_current_thread;
 
 		uint64_t m_last_reschedule = 0;
+
+		friend class Process;
 	};
 
 }
