@@ -1,3 +1,6 @@
+![lines](https://img.shields.io/tokei/lines/github/bananymous/banan-os)
+![license](https://img.shields.io/github/license/bananymous/banan-os)
+
 # banan-os
 This is my hobby operating system written in C++. Currently runs on x86 based architectures (32 and 64 bit). Currently this operating system supports ext2 filesystem, ata drives (pio mode), vesa/vbe graphics mode and multithreaded processing.
 
