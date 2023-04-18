@@ -167,7 +167,7 @@ extern "C" void kernel_main()
 	Scheduler& scheduler = Scheduler::get();
 	MUST(Process::create_kernel(init2, tty1));
 	scheduler.start();
-	
+
 	ASSERT_NOT_REACHED();
 }
 
@@ -193,17 +193,9 @@ static void init2(void* tty1)
 			Process::current().exit();
 		}, nullptr
 	));
-	return;
 
-	MUST(Process::create_kernel(
-		[](void*)
-		{
-
-		}, nullptr
-	));
-
-	jump_userspace();
-	return;
+	//jump_userspace();
+	//return;
 
 	MUST(Process::create_kernel(
 		[](void*) 
