@@ -40,6 +40,7 @@ namespace BAN
 	template<typename T> struct is_lvalue_reference		: false_type {};
 	template<typename T> struct is_lvalue_reference<T&>	: true_type {};
 	template<typename T> inline constexpr bool is_lvalue_reference_v = is_lvalue_reference<T>::value;
+	template<typename T> concept lvalue_reference = is_lvalue_reference_v<T>;
 
 	template<typename T> struct is_integral { static constexpr bool value = requires (T t, T* p, void (*f)(T)) { reinterpret_cast<T>(t); f(0); p + t; }; };
 	template<typename T> inline constexpr bool is_integral_v = is_integral<T>::value;
