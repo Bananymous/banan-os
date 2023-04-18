@@ -11,14 +11,19 @@ namespace BAN
 	{
 
 		template<typename T>
-		constexpr size_t max_size() { return sizeof(T); }
-		template<typename T0, typename T1, typename... Ts>
-		constexpr size_t max_size() { return sizeof(T0) > sizeof(T1) ? max_size<T0, Ts...>() : max_size<T1, Ts...>(); }
+		constexpr size_t size_ref_as_ptr() { return is_lvalue_reference_v<T> ? sizeof(remove_reference_t<T>*) : sizeof(T); }
+		template<typename T>
+		constexpr size_t align_ref_as_ptr() { return is_lvalue_reference_v<T> ? alignof(remove_reference_t<T>*) : alignof(T); }
 
 		template<typename T>
-		constexpr size_t max_align() { return alignof(T); }
+		constexpr size_t max_size_ref_as_ptr() { return size_ref_as_ptr<T>(); }
 		template<typename T0, typename T1, typename... Ts>
-		constexpr size_t max_align() { return alignof(T0) > alignof(T1) ? max_align<T0, Ts...>() : max_align<T1, Ts...>(); }
+		constexpr size_t max_size_ref_as_ptr() { return size_ref_as_ptr<T0>() > size_ref_as_ptr<T1>() ? max_size_ref_as_ptr<T0, Ts...>() : max_size_ref_as_ptr<T1, Ts...>(); }
+
+		template<typename T>
+		constexpr size_t max_align_ref_as_ptr() { return align_ref_as_ptr<T>(); }
+		template<typename T0, typename T1, typename... Ts>
+		constexpr size_t max_align_ref_as_ptr() { return align_ref_as_ptr<T0>() > align_ref_as_ptr<T1>() ? max_align_ref_as_ptr<T0, Ts...>() : max_align_ref_as_ptr<T1, Ts...>(); }
 
 		template<typename T, typename T0, typename... Ts>
 		constexpr size_t index()
@@ -35,7 +40,9 @@ namespace BAN
 		void destruct(size_t index, uint8_t* data)
 		{
 			if (index == 0)
-				reinterpret_cast<T*>(data)->~T();
+				if constexpr(!is_lvalue_reference_v<T>)
+					reinterpret_cast<T*>(data)->~T();
+				else;
 			else if constexpr(sizeof...(Ts) > 0)
 				destruct<Ts...>(index - 1, data);
 			else
@@ -89,7 +96,7 @@ namespace BAN
 	}
 
 	template<typename... Ts>
-		requires (!is_lvalue_reference_v<Ts> && ...)
+		requires (!is_const_v<Ts> && ...)
 	class Variant
 	{
 	private:
@@ -114,14 +121,14 @@ namespace BAN
 		}
 
 		template<typename T>
-		Variant(T&& value) requires (can_have<T>())
+		Variant(T&& value) requires (can_have<T>() && !is_lvalue_reference_v<T>)
 			: m_index(detail::index<T, Ts...>())
 		{
 			new (m_storage) T(move(value));	
 		}
 
 		template<typename T>
-		Variant(const T& value) requires (can_have<T>())
+		Variant(const T& value) requires (can_have<T>() && !is_lvalue_reference_v<T>)
 			: m_index(detail::index<T, Ts...>())
 		{
 			new (m_storage) T(value);	
@@ -164,14 +171,14 @@ namespace BAN
 		}
 
 		template<typename T>
-		Variant& operator=(T&& value) requires (can_have<T>())
+		Variant& operator=(T&& value) requires (can_have<T>() && !is_lvalue_reference_v<T>)
 		{
 			*this = Variant(move(value));
 			return *this;
 		}
 
 		template<typename T>
-		Variant& operator=(const T& value) requires (can_have<T>())
+		Variant& operator=(const T& value) requires (can_have<T>() && !is_lvalue_reference_v<T>)
 		{
 			*this = Variant(value);
 			return *this;
@@ -184,7 +191,7 @@ namespace BAN
 		}
 
 		template<typename T>
-		void set(T&& value) requires (can_have<T>())
+		void set(T&& value) requires (can_have<T>() && !is_lvalue_reference_v<T>)
 		{
 			if (has<T>())
 				get<T>() = move(value);
@@ -197,7 +204,7 @@ namespace BAN
 		}
 
 		template<typename T>
-		void set(const T& value) requires (can_have<T>())
+		void set(const T& value) requires (can_have<T>() && !is_lvalue_reference_v<T>)
 		{
 			if (has<T>())
 				get<T>() = value;
@@ -210,17 +217,39 @@ namespace BAN
 		}
 
 		template<typename T>
-		T& get() requires (can_have<T>())
+		void set(T value) requires (can_have<T>() && is_lvalue_reference_v<T>)
+		{
+			clear();
+			m_index = detail::index<T, Ts...>();
+			*reinterpret_cast<remove_reference_t<T>**>(m_storage) = &value;
+		}
+
+		template<typename T>
+		T& get() requires (can_have<T>() && !is_lvalue_reference_v<T>)
 		{
 			ASSERT(has<T>());
 			return *reinterpret_cast<T*>(m_storage);
 		}
 
 		template<typename T>
-		const T& get() const requires (can_have<T>())
+		const T& get() const requires (can_have<T>() && !is_lvalue_reference_v<T>)
 		{
 			ASSERT(has<T>());
 			return *reinterpret_cast<const T*>(m_storage);
+		}
+
+		template<typename T>
+		T get() requires (can_have<T>() && is_lvalue_reference_v<T>)
+		{
+			ASSERT(has<T>());
+			return **reinterpret_cast<remove_reference_t<T>**>(m_storage);
+		}
+
+		template<typename T>
+		const T get() const requires (can_have<T>() && is_lvalue_reference_v<T>)
+		{
+			ASSERT(has<T>());
+			return **reinterpret_cast<const remove_reference_t<T>**>(m_storage);
 		}
 
 		void clear()
@@ -233,7 +262,7 @@ namespace BAN
 		}
 
 	private:
-		alignas(detail::max_align<Ts...>()) uint8_t m_storage[detail::max_size<Ts...>()] {};
+		alignas(detail::max_align_ref_as_ptr<Ts...>()) uint8_t m_storage[detail::max_size_ref_as_ptr<Ts...>()] {};
 		size_t m_index { invalid_index() };
 	};
 
