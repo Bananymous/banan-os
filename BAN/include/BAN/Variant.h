@@ -7,141 +7,226 @@
 namespace BAN
 {
 
-	template<typename T1, typename T2>
+	namespace detail
+	{
+
+		template<typename T>
+		constexpr size_t max_size() { return sizeof(T); }
+		template<typename T0, typename T1, typename... Ts>
+		constexpr size_t max_size() { return sizeof(T0) > sizeof(T1) ? max_size<T0, Ts...>() : max_size<T1, Ts...>(); }
+
+		template<typename T>
+		constexpr size_t max_align() { return alignof(T); }
+		template<typename T0, typename T1, typename... Ts>
+		constexpr size_t max_align() { return alignof(T0) > alignof(T1) ? max_align<T0, Ts...>() : max_align<T1, Ts...>(); }
+
+		template<typename T, typename T0, typename... Ts>
+		constexpr size_t index()
+		{
+			if constexpr(is_same_v<T, T0>)
+				return 0;
+			else if constexpr(sizeof...(Ts) == 0)
+				return 1;
+			else
+				return index<T, Ts...>() + 1;
+		}
+
+		template<typename T, typename... Ts>
+		void destruct(size_t index, uint8_t* data)
+		{
+			if (index == 0)
+				reinterpret_cast<T*>(data)->~T();
+			else if constexpr(sizeof...(Ts) > 0)
+				destruct<Ts...>(index - 1, data);
+			else
+				ASSERT_NOT_REACHED();
+		}
+
+		template<typename T, typename... Ts>
+		void move_construct(size_t index, uint8_t* source, uint8_t* target)
+		{
+			if (index == 0)
+				new (target) T(move(*reinterpret_cast<T*>(source)));
+			else if constexpr(sizeof...(Ts) > 0)
+				move_construct<Ts...>(index - 1, source, target);
+			else
+				ASSERT_NOT_REACHED();
+		}
+
+		template<typename T, typename... Ts>
+		void copy_construct(size_t index, const uint8_t* source, uint8_t* target)
+		{
+			if (index == 0)
+				new (target) T(*reinterpret_cast<const T*>(source));
+			else if constexpr(sizeof...(Ts) > 0)
+				copy_construct<Ts...>(index - 1, source, target);
+			else
+				ASSERT_NOT_REACHED();
+		}
+
+		template<typename T, typename... Ts>
+		void move_assign(size_t index, uint8_t* source, uint8_t* target)
+		{
+			if (index == 0)
+				*reinterpret_cast<T*>(target) = move(*reinterpret_cast<T*>(source));
+			else if constexpr(sizeof...(Ts) > 0)
+				move_assign<Ts...>(index - 1, source, target);
+			else
+				ASSERT_NOT_REACHED();
+		}
+
+		template<typename T, typename... Ts>
+		void copy_assign(size_t index, const uint8_t* source, uint8_t* target)
+		{
+			if (index == 0)
+				*reinterpret_cast<T*>(target) = *reinterpret_cast<const T*>(source);
+			else if constexpr(sizeof...(Ts) > 0)
+				copy_assign<Ts...>(index - 1, source, target);
+			else
+				ASSERT_NOT_REACHED();
+		}
+
+	}
+
+	template<typename... Ts>
+		requires (!is_lvalue_reference_v<Ts> && ...)
 	class Variant
 	{
+	private:
+		template<typename T>
+		static constexpr bool can_have() { return detail::index<T, Ts...>() != invalid_index(); }
+		static constexpr size_t invalid_index() { return sizeof...(Ts); }
+
 	public:
-		static_assert(!is_same_v<T1, T2>);
+		Variant()
+			: m_index(invalid_index())
+		{ }
 
-		Variant() = default;
+		Variant(Variant&& other)
+			: m_index(other.m_index)
+		{
+			detail::move_construct<Ts...>(other.m_index, other.m_storage, m_storage);
+			other.clear();
+		}
 
-		Variant(const T1& value)	{ set(value); }
-		Variant(T1&& value)			{ set(move(value)); }
-		Variant(const T2& value)	{ set(value); }
-		Variant(T2&& value)			{ set(move(value)); }
+		Variant(const Variant& other)
+			: m_index(other.m_index)
+		{
+			detail::copy_construct<Ts...>(other.m_index, other.m_storage, m_storage);
+		}
 
-		Variant(const Variant<T1, T2>& other)	{ *this = other; }
-		Variant(Variant<T1, T2>&& other)		{ *this = move(other); }
+		template<typename T>
+		Variant(T&& value) requires (can_have<T>())
+			: m_index(detail::index<T, Ts...>())
+		{
+			new (m_storage) T(move(value));	
+		}
 
-		~Variant() { clear(); }
+		template<typename T>
+		Variant(const T& value) requires (can_have<T>())
+			: m_index(detail::index<T, Ts...>())
+		{
+			new (m_storage) T(value);	
+		}
 
-		Variant<T1, T2>& operator=(const Variant<T1, T2>& other);
-		Variant<T1, T2>& operator=(Variant<T1, T2>&& other);
+		~Variant()
+		{
+			clear();
+		}
 
-		template<typename U>
-		bool is() const;
+		Variant& operator=(Variant&& other)
+		{
+			if (m_index == other.m_index)
+			{
+				detail::move_assign<Ts...>(m_index, other.m_storage, m_storage);
+			}
+			else
+			{
+				clear();
+				detail::move_construct<Ts...>(other.m_index, other.m_storage, m_storage);
+				m_index = other.m_index;
+			}
+			other.clear();
+			return *this;
+		}
 
-		template<typename U>
-		void set(U&&);
-		template<typename U>
-		void set(const U& value) { set(move(U(value))); } 
+		Variant& operator=(const Variant& other)
+		{
+			if (m_index == other.m_index)
+			{
+				detail::copy_assign<Ts...>(m_index, other.m_storage, m_storage);
+			}
+			else
+			{
+				clear();
+				detail::copy_construct<Ts...>(other.m_index, other.m_storage, m_storage);
+				m_index = other.m_index;
+			}
+			return *this;
+		}
 
-		template<typename U>
-		const U& get() const;
-		template<typename U>
-		U& get();
+		template<typename T>
+		Variant& operator=(T&& value) requires (can_have<T>())
+		{
+			set(move(value));
+			return *this;
+		}
 
-		void clear();
+		template<typename T>
+		Variant& operator=(const T& value) requires (can_have<T>())
+		{
+			set(value);
+			return *this;
+		}
+
+		template<typename T>
+		bool has() const requires (can_have<T>())
+		{
+			return m_index == detail::index<T, Ts...>();
+		}
+
+		template<typename T>
+		void set(T&& value) requires (can_have<T>())
+		{
+			clear();
+			m_index = detail::index<T, Ts...>();
+			new (m_storage) T(move(value));
+		}
+
+		template<typename T>
+		void set(const T& value) requires (can_have<T>())
+		{
+			clear();
+			m_index = detail::index<T, Ts...>();
+			new (m_storage) T(value);
+		}
+
+		template<typename T>
+		T& get() requires (can_have<T>())
+		{
+			ASSERT(has<T>());
+			return (T&)m_storage;
+		}
+
+		template<typename T>
+		const T& get() const requires (can_have<T>())
+		{
+			ASSERT(has<T>());
+			return (const T&)m_storage;
+		}
+
+		void clear()
+		{
+			if (m_index != invalid_index())
+			{
+				detail::destruct<Ts...>(m_index, m_storage);
+				m_index = invalid_index();
+			}
+		}
 
 	private:
-		static constexpr uint32_t m_size = Math::max(sizeof(T1), sizeof(T2));
-		alignas(Math::max(alignof(T1), alignof(T2))) uint8_t m_storage[m_size] = {};
-		uint32_t m_index = 0;
+		alignas(detail::max_align<Ts...>()) uint8_t m_storage[detail::max_size<Ts...>()] {};
+		size_t m_index { invalid_index() };
 	};
-
-	template<typename T1, typename T2>
-	Variant<T1, T2>& Variant<T1, T2>::operator=(const Variant<T1, T2>& other)
-	{
-		clear();
-		if (other.is<T1>())
-			set(other.get<T1>());
-		if (other.is<T2>())
-			set(other.get<T2>());
-		return *this;
-	}
-
-	template<typename T1, typename T2>
-	Variant<T1, T2>& Variant<T1, T2>::operator=(Variant<T1, T2>&& other)
-	{
-		clear();
-		if (other.is<T1>())
-			set(move(other.get<T1>()));
-		if (other.is<T2>())
-			set(move(other.get<T2>()));
-		other.clear();
-		return *this;
-	}
-
-	template<typename T1, typename T2>
-	template<typename U>
-	bool Variant<T1, T2>::is() const
-	{
-		if constexpr(is_same_v<T1, U>)
-			return m_index == 1;
-		if constexpr(is_same_v<T2, U>)
-			return m_index == 2;
-		return false;
-	}
-
-
-	template<typename T1, typename T2>
-	template<typename U>
-	void Variant<T1, T2>::set(U&& value)
-	{
-		static_assert(is_same_v<T1, U> || is_same_v<T2, U>);
-		clear();
-		if constexpr(is_same_v<T1, U>)
-		{
-			new (m_storage) T1(move(value));
-			m_index = 1;
-		}
-		if constexpr(is_same_v<T2, U>)
-		{
-			new (m_storage) T2(move(value));
-			m_index = 2;
-		}
-	}
-
-	template<typename T1, typename T2>
-	template<typename U>
-	const U& Variant<T1, T2>::get() const
-	{
-		static_assert(is_same_v<T1, U> || is_same_v<T2, U>);
-		if constexpr(is_same_v<T1, U>)
-		{
-			ASSERT(m_index == 1);
-			return *(T1*)m_storage;
-		}
-		if constexpr(is_same_v<T2, U>)
-		{
-			ASSERT(m_index == 2);
-			return *(T2*)m_storage;
-		}
-	}
-
-	template<typename T1, typename T2>
-	template<typename U>
-	U& Variant<T1, T2>::get()
-	{
-		static_assert(is_same_v<T1, U> || is_same_v<T2, U>);
-		if constexpr(is_same_v<T1, U>)
-		{
-			ASSERT(m_index == 1);
-			return *(T1*)m_storage;
-		}
-		if constexpr(is_same_v<T2, U>)
-		{
-			ASSERT(m_index == 2);
-			return *(T2*)m_storage;
-		}
-	}
-
-	template<typename T1, typename T2>
-	void Variant<T1, T2>::clear()
-	{
-		if (is<T1>()) ((T1*)m_storage)->~T1();
-		if (is<T2>()) ((T2*)m_storage)->~T2();
-		m_index = 0;
-	}
 
 }
