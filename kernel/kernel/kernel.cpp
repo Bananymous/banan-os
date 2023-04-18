@@ -143,6 +143,7 @@ extern "C" void kernel_main()
 
 	TTY* tty1 = new TTY(terminal_driver);
 	ASSERT(tty1);
+	dprintln("TTY initialized");
 
 	Memory::Heap::initialize();
 	dprintln("Heap initialzed");
@@ -164,7 +165,7 @@ extern "C" void kernel_main()
 
 	MUST(Scheduler::initialize());
 	Scheduler& scheduler = Scheduler::get();
-	MUST(scheduler.add_thread(MUST(Thread::create(init2, tty1))));
+	MUST(scheduler.add_thread(MUST(Thread::create(init2, tty1, nullptr))));
 	scheduler.start();
 
 	ASSERT_NOT_REACHED();
@@ -189,10 +190,17 @@ static void init2(void* tty1)
 		[](void*)
 		{
 			MUST(LibELF::ELF::load_from_file("/bin/test"sv));
-			Process::current()->exit();
+			Process::current().exit();
 		}, nullptr
 	));
 	return;
+
+	MUST(Process::create_kernel(
+		[](void*)
+		{
+
+		}, nullptr
+	));
 
 	jump_userspace();
 	return;
@@ -200,7 +208,7 @@ static void init2(void* tty1)
 	MUST(Process::create_kernel(
 		[](void*) 
 		{
-			MUST(Process::current()->init_stdio());
+			MUST(Process::current().init_stdio());
 			Shell* shell = new Shell();
 			ASSERT(shell);
 			shell->run();

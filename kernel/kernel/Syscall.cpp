@@ -7,12 +7,12 @@ namespace Kernel
 
 	void sys_exit()
 	{
-		Process::current()->exit();
+		Process::current().exit();
 	}
 
 	int sys_read(int fd, void* buffer, size_t size)
 	{
-		auto res = Process::current()->read(fd, buffer, size);
+		auto res = Process::current().read(fd, buffer, size);
 		if (res.is_error())
 			return res.error().get_error_code();
 		return 0;
@@ -20,7 +20,7 @@ namespace Kernel
 
 	int sys_write(int fd, const void* buffer, size_t size)
 	{
-		auto res = Process::current()->write(fd, buffer, size);
+		auto res = Process::current().write(fd, buffer, size);
 		if (res.is_error())
 			return res.error().get_error_code();
 		return 0;
