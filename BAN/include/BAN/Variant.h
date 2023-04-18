@@ -98,9 +98,7 @@ namespace BAN
 		static constexpr size_t invalid_index() { return sizeof...(Ts); }
 
 	public:
-		Variant()
-			: m_index(invalid_index())
-		{ }
+		Variant() = default;
 
 		Variant(Variant&& other)
 			: m_index(other.m_index)
@@ -168,14 +166,14 @@ namespace BAN
 		template<typename T>
 		Variant& operator=(T&& value) requires (can_have<T>())
 		{
-			set(move(value));
+			*this = Variant(move(value));
 			return *this;
 		}
 
 		template<typename T>
 		Variant& operator=(const T& value) requires (can_have<T>())
 		{
-			set(value);
+			*this = Variant(value);
 			return *this;
 		}
 
@@ -188,31 +186,41 @@ namespace BAN
 		template<typename T>
 		void set(T&& value) requires (can_have<T>())
 		{
-			clear();
-			m_index = detail::index<T, Ts...>();
-			new (m_storage) T(move(value));
+			if (has<T>())
+				get<T>() = move(value);
+			else
+			{
+				clear();
+				m_index = detail::index<T, Ts...>();
+				new (m_storage) T(move(value));
+			}
 		}
 
 		template<typename T>
 		void set(const T& value) requires (can_have<T>())
 		{
-			clear();
-			m_index = detail::index<T, Ts...>();
-			new (m_storage) T(value);
+			if (has<T>())
+				get<T>() = value;
+			else
+			{
+				clear();
+				m_index = detail::index<T, Ts...>();
+				new (m_storage) T(value);
+			}
 		}
 
 		template<typename T>
 		T& get() requires (can_have<T>())
 		{
 			ASSERT(has<T>());
-			return (T&)m_storage;
+			return *reinterpret_cast<T*>(m_storage);
 		}
 
 		template<typename T>
 		const T& get() const requires (can_have<T>())
 		{
 			ASSERT(has<T>());
-			return (const T&)m_storage;
+			return *reinterpret_cast<const T*>(m_storage);
 		}
 
 		void clear()
