@@ -9,12 +9,15 @@
 #if defined(__is_kernel)
 	#include <kernel/Panic.h>
 	#include <kernel/Errors.h>
-	#define MUST(expr)	({ auto&& e = expr; if (e.is_error()) Kernel::panic("{}", e.error()); e.release_value(); })
+	#define MUST(expr)		 ({ auto&& e = expr; if (e.is_error()) Kernel::panic("{}", e.error()); e.release_value(); })
+	#define MUST_REF(expr)	*({ auto&& e = expr; if (e.is_error()) Kernel::panic("{}", e.error()); &e.release_value(); })
 #else
-	#define MUST(expr)	({ auto&& e = expr; assert(!e.is_error()); e.release_value(); })
+	#define MUST(expr)		 ({ auto&& e = expr; assert(!e.is_error()); e.release_value(); })
+	#define MUST_REF(expr)	*({ auto&& e = expr; assert(!e.is_error()); &e.release_value(); })
 #endif
 
-#define TRY(expr) ({ auto&& e = expr; if (e.is_error()) return e.release_error(); e.release_value(); })
+#define TRY(expr)		 ({ auto&& e = expr; if (e.is_error()) return e.release_error(); e.release_value(); })
+#define TRY_REF(expr)	*({ auto&& e = expr; if (e.is_error()) return e.release_error(); &e.release_value(); })
 
 namespace BAN
 {
