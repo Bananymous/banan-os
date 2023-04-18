@@ -72,7 +72,7 @@ namespace BAN
 			: m_data(move(error))
 		{}
 
-		bool is_error() const			{ return m_data.template is<Error>(); }
+		bool is_error() const			{ return m_data.template has<Error>(); }
 		const Error& error() const		{ return m_data.template get<Error>(); }
 		Error& error()					{ return m_data.template get<Error>(); }
 		const T& value() const			{ return m_data.template get<T>(); }
