@@ -141,7 +141,7 @@ namespace Kernel::Memory
 			if (mmmt->type == 1)
 			{
 				PhysicalRange range(mmmt->base_addr, mmmt->length);
-				if (range.usable_pages() > 0)
+				if (range.usable_memory() > 0)
 					MUST(m_physical_ranges.push_back(range));
 			}
 
@@ -151,11 +151,37 @@ namespace Kernel::Memory
 		size_t total = 0;
 		for (auto& range : m_physical_ranges)
 		{
-			size_t bytes = range.usable_pages() * PAGE_SIZE;
-			dprintln("RAM {8H}->{8H}, {} pages ({}.{} MB)", range.usable_start(), range.usable_end(), range.usable_pages(), bytes / (1 << 20), bytes % (1 << 20) * 1000 / (1 << 20));
+			size_t bytes = range.usable_memory();
+			dprintln("RAM {8H}->{8H} ({}.{} MB)", range.start(), range.end(), bytes / (1 << 20), bytes % (1 << 20) * 1000 / (1 << 20));
 			total += bytes;
 		}
 		dprintln("Total RAM {}.{} MB", total / (1 << 20), total % (1 << 20) * 1000 / (1 << 20));
+	}
+
+	paddr_t Heap::take_mapped_page(uint8_t flags)
+	{
+		for (auto& range : m_physical_ranges)
+		{
+			if (paddr_t page = range.reserve_page(); page != PhysicalRange::invalid)
+			{
+				MMU::get().allocate_page(page, flags);
+				return page;
+			}
+		}
+		ASSERT_NOT_REACHED();
+	}
+	
+	void Heap::return_mapped_page(paddr_t addr)
+	{
+		for (auto& range : m_physical_ranges)
+		{
+			if (range.contains(addr))
+			{
+				MMU::get().unallocate_page(addr);
+				return;
+			}
+		}
+		ASSERT_NOT_REACHED();
 	}
 
 }
