@@ -1,7 +1,6 @@
 #include <BAN/StringView.h>
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/LockGuard.h>
-#include <kernel/Memory/MMU.h>
 #include <kernel/Process.h>
 #include <kernel/Scheduler.h>
 
@@ -39,12 +38,14 @@ namespace Kernel
 		auto* process = create_process();
 		TRY(process->m_working_directory.push_back('/'));
 		TRY(process->init_stdio());
-
+		process->m_mmu = new MMU();
+		ASSERT(process->m_mmu);
+		
 		TRY(process->add_thread(
 			[](void* entry_func)
 			{
 				Thread& current = Thread::current();
-				MMU::get().map_range(current.stack_base(), current.stack_size(), MMU::Flags::UserSupervisor | MMU::Flags::ReadWrite | MMU::Flags::Present);
+				Process::current().m_mmu->map_range(current.stack_base(), current.stack_size(), MMU::Flags::UserSupervisor | MMU::Flags::ReadWrite | MMU::Flags::Present);
 				current.jump_userspace((uintptr_t)entry_func);
 				ASSERT_NOT_REACHED();
 			}, (void*)entry

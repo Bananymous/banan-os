@@ -134,7 +134,7 @@ extern "C" void kernel_main()
 	IDT::initialize();
 	dprintln("IDT initialized");	
 
-	MMU::intialize();
+	MMU::initialize();
 	dprintln("MMU initialized");
 
 	TerminalDriver* terminal_driver = VesaTerminalDriver::create();
@@ -194,8 +194,8 @@ static void init2(void* tty1)
 		}, nullptr
 	));
 
-	//jump_userspace();
-	//return;
+	jump_userspace();
+	return;
 
 	MUST(Process::create_kernel(
 		[](void*) 

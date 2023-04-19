@@ -47,6 +47,7 @@ namespace Kernel
 
 		static Thread& current() ;
 		Process& process();
+		bool has_process() const { return m_process; }
 
 	private:
 		Thread(pid_t tid, Process*);

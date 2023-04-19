@@ -169,6 +169,11 @@ namespace Kernel
 		
 		Thread& current = current_thread();
 
+		if (current.has_process())
+			current.process().mmu().load();
+		else
+			MMU::get().load();
+
 		switch (current.state())
 		{
 			case Thread::State::NotStarted:
@@ -245,7 +250,6 @@ namespace Kernel
 
 	void Scheduler::set_current_process_done()
 	{
-		VERIFY_STI();
 		DISABLE_INTERRUPTS();
 
 		pid_t pid = m_current_thread->thread->process().pid();
