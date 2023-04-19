@@ -59,8 +59,8 @@ namespace Kernel::Memory
 		static void initialize();
 		static Heap& get();
 
-		paddr_t take_mapped_page(uint8_t);
-		void return_mapped_page(paddr_t);
+		paddr_t take_free_page();
+		void release_page(paddr_t);
 
 	private:
 		Heap() = default;

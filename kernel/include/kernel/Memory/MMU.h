@@ -13,6 +13,9 @@ public:
 		UserSupervisor = 4,
 	};
 
+	using vaddr_t = uintptr_t;
+	using paddr_t = uintptr_t;
+
 public:
 	static void intialize();
 	static MMU& get();
@@ -25,6 +28,8 @@ public:
 
 	void unmap_page(uintptr_t);
 	void unmap_range(uintptr_t, ptrdiff_t);
+
+	void map_page_at(paddr_t, vaddr_t, uint8_t);
 
 private:
 	uint64_t* m_highest_paging_struct;

@@ -158,26 +158,21 @@ namespace Kernel::Memory
 		dprintln("Total RAM {}.{} MB", total / (1 << 20), total % (1 << 20) * 1000 / (1 << 20));
 	}
 
-	paddr_t Heap::take_mapped_page(uint8_t flags)
+	paddr_t Heap::take_free_page()
 	{
 		for (auto& range : m_physical_ranges)
-		{
 			if (paddr_t page = range.reserve_page(); page != PhysicalRange::invalid)
-			{
-				MMU::get().map_page(page, flags);
 				return page;
-			}
-		}
 		ASSERT_NOT_REACHED();
 	}
 	
-	void Heap::return_mapped_page(paddr_t addr)
+	void Heap::release_page(paddr_t addr)
 	{
 		for (auto& range : m_physical_ranges)
 		{
 			if (range.contains(addr))
 			{
-				MMU::get().unmap_page(addr);
+				range.release_page(addr);
 				return;
 			}
 		}
