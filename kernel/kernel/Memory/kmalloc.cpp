@@ -291,14 +291,14 @@ void* kmalloc(size_t size, size_t align)
 {
 	const kmalloc_info& info = s_kmalloc_info;
 
-	if (size == 0 || size >= info.size)
-		return nullptr;
-
 	ASSERT(is_power_of_two(align));
 	if (align < s_kmalloc_min_align)
 		align = s_kmalloc_min_align;
 	
 	Kernel::CriticalScope critical;
+
+	if (size == 0 || size >= info.size)
+		goto no_memory;
 
 	// if the size fits into fixed node, we will try to use that since it is faster
 	if (align == s_kmalloc_min_align && size <= sizeof(kmalloc_fixed_info::node::data))
@@ -311,10 +311,10 @@ void* kmalloc(size_t size, size_t align)
 	if (void* res = kmalloc_impl(size, align))
 		return res;
 
+no_memory:
 	dwarnln("could not allocate {H} bytes ({} aligned)", size, align);
 	dwarnln(" {6H} free (fixed)", s_kmalloc_fixed_info.free);
 	dwarnln(" {6H} free", s_kmalloc_info.free);
-	debug_dump();
 	Debug::dump_stack_trace();
 	ASSERT(!is_corrupted());
 
