@@ -26,6 +26,7 @@ namespace Kernel
 		"Media changed"sv,
 		"Uncorrectable data error"sv,
 		"Bad Block detected"sv,
+		"Unsupported ata device"sv,
 		"Font file too small"sv,
 		"Unsupported font format"sv,
 	};
