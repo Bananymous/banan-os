@@ -31,7 +31,7 @@ namespace Kernel
 								controller = res.value();
 							break;
 						default:
-							dprintln("unsupported storage device (pci subclass {2H})", pci_device.subclass());
+							dprintln("unsupported storage device (pci {2H}.{2H}.{2H})", pci_device.class_code(), pci_device.subclass(), pci_device.prog_if());
 							break;
 					}
 

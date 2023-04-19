@@ -90,6 +90,7 @@ namespace Kernel
 		uint32_t type = read_word(0x0A);
 		m_class_code  = (uint8_t)(type >> 8);
 		m_subclass    = (uint8_t)(type);
+		m_prog_if     = read_byte(0x09);
 	}
 
 	uint32_t PCIDevice::read_dword(uint8_t offset) const

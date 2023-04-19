@@ -20,6 +20,7 @@ namespace Kernel
 
 		uint8_t class_code() const { return m_class_code; }
 		uint8_t subclass() const { return m_subclass; }
+		uint8_t prog_if() const { return m_prog_if; }
 
 	private:
 		uint8_t m_bus;
@@ -28,6 +29,7 @@ namespace Kernel
 
 		uint8_t m_class_code;
 		uint8_t m_subclass;
+		uint8_t m_prog_if;
 	};
 
 	class PCI
