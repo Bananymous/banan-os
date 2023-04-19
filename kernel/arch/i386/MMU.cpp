@@ -69,7 +69,7 @@ MMU::MMU()
 	asm volatile("movl %0, %%cr3" :: "r"(m_highest_paging_struct));
 }
 
-void MMU::allocate_page(uintptr_t address, uint8_t flags)
+void MMU::map_page(uintptr_t address, uint8_t flags)
 {
 #if MMU_DEBUG_PRINT
 	dprintln("AllocatePage(0x{8H})", address);
@@ -96,15 +96,15 @@ void MMU::allocate_page(uintptr_t address, uint8_t flags)
 	asm volatile("invlpg (%0)" :: "r"(address) : "memory");
 }
 
-void MMU::allocate_range(uintptr_t address, ptrdiff_t size, uint8_t flags)
+void MMU::map_range(uintptr_t address, ptrdiff_t size, uint8_t flags)
 {
 	uintptr_t s_page = address & PAGE_MASK;
 	uintptr_t e_page = (address + size - 1) & PAGE_MASK;
 	for (uintptr_t page = s_page; page <= e_page; page += PAGE_SIZE)
-		allocate_page(page, flags);
+		map_page(page, flags);
 }
 
-void MMU::unallocate_page(uintptr_t address)
+void MMU::unmap_page(uintptr_t address)
 {
 #if MMU_DEBUG_PRINT
 	dprintln("UnAllocatePage(0x{8H})", address & PAGE_MASK);
@@ -129,10 +129,10 @@ void MMU::unallocate_page(uintptr_t address)
 	asm volatile("invlpg (%0)" :: "r"(address & PAGE_MASK) : "memory");
 }
 
-void MMU::unallocate_range(uintptr_t address, ptrdiff_t size)
+void MMU::unmap_range(uintptr_t address, ptrdiff_t size)
 {
 	uintptr_t s_page = address & PAGE_MASK;
 	uintptr_t e_page = (address + size - 1) & PAGE_MASK;
 	for (uintptr_t page = s_page; page <= e_page; page += PAGE_SIZE)
-		unallocate_page(page);
+		unmap_page(page);
 }
