@@ -29,6 +29,7 @@ namespace Kernel
 		ATA_MC,
 		ATA_UNC,
 		ATA_BBK,
+		ATA_UnsupportedDevice,
 		Font_FileTooSmall,
 		Font_Unsupported,
 		Count

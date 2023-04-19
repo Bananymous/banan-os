@@ -39,11 +39,13 @@ namespace Kernel
 		{
 			buses[0].base = pci_device.read_dword(0x10) & 0xFFFFFFFC;
 			buses[0].ctrl = pci_device.read_dword(0x14) & 0xFFFFFFFC;
+			return BAN::Error::from_error_code(ErrorCode::ATA_UnsupportedDevice);
 		}
 		if (prog_if & 0x04)
 		{
 			buses[1].base = pci_device.read_dword(0x18) & 0xFFFFFFFC;
 			buses[1].ctrl = pci_device.read_dword(0x1C) & 0xFFFFFFFC;
+			return BAN::Error::from_error_code(ErrorCode::ATA_UnsupportedDevice);
 		}
 
 		m_buses[0] = ATABus::create(this, buses[0].base, buses[0].ctrl, 14);
