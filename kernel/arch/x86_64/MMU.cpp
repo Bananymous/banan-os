@@ -8,15 +8,18 @@
 #define CLEANUP_STRUCTURE(s)			\
 	for (uint64_t i = 0; i < 512; i++)	\
 		if (s[i] & Flags::Present)		\
-			goto cleanup_done;			\
+			return;						\
 	kfree(s)
 
 static MMU* s_instance = nullptr;
 
-void MMU::intialize()
+void MMU::initialize()
 {
 	ASSERT(s_instance == nullptr);
 	s_instance = new MMU();
+	ASSERT(s_instance);
+	s_instance->initialize_kernel();
+	s_instance->load();
 }
 
 MMU& MMU::get()
@@ -33,9 +36,13 @@ static uint64_t* allocate_page_aligned_page()
 	return (uint64_t*)page;
 }
 
-MMU::MMU()
+extern uint8_t g_kernel_end[];
+
+void MMU::initialize_kernel()
 {
 	// FIXME: We should just identity map until g_kernel_end
+
+	ASSERT((uintptr_t)g_kernel_end <= 6 * (1 << 20));
 
 	// Identity map from 0 -> 6 MiB
 	m_highest_paging_struct = allocate_page_aligned_page();
@@ -57,9 +64,55 @@ MMU::MMU()
 	// Unmap 0 -> 4 KiB
 	uint64_t* pt1 = (uint64_t*)(pd[0] & PAGE_MASK);
 	pt1[0] = 0;
+}
 
-	// Load the new pml4
-	asm volatile("movq %0, %%cr3" :: "r"(m_highest_paging_struct));
+MMU::MMU()
+{
+	if (s_instance == nullptr)
+		return;
+	
+	// Here we copy the s_instances paging structs since they are
+	// global for every process
+
+	uint64_t* global_pml4 = s_instance->m_highest_paging_struct;
+
+	uint64_t* pml4 = allocate_page_aligned_page();
+	for (uint32_t pml4e = 0; pml4e < 512; pml4e++)
+	{
+		if (!(global_pml4[pml4e] & Flags::Present))
+			continue;
+
+		uint64_t* global_pdpt = (uint64_t*)(global_pml4[pml4e] & PAGE_MASK);
+
+		uint64_t* pdpt = allocate_page_aligned_page();
+		pml4[pml4e] = (uint64_t)pdpt | (global_pml4[pml4e] & ~PAGE_MASK);
+
+		for (uint32_t pdpte = 0; pdpte < 512; pdpte++)
+		{
+			if (!(global_pdpt[pdpte] & Flags::Present))
+				continue;
+
+			uint64_t* global_pd = (uint64_t*)(global_pdpt[pdpte] & PAGE_MASK);
+
+			uint64_t* pd = allocate_page_aligned_page();
+			pdpt[pdpte] = (uint64_t)pd | (global_pdpt[pdpte] & ~PAGE_MASK);
+
+			for (uint32_t pde = 0; pde < 512; pde++)
+			{
+				if (!(global_pd[pde] & Flags::Present))
+					continue;
+
+				uint64_t* global_pt = (uint64_t*)(global_pd[pde] & PAGE_MASK);
+
+				uint64_t* pt = allocate_page_aligned_page();
+				pd[pde] = (uint64_t)pt | (global_pd[pde] & ~PAGE_MASK);
+
+				memcpy(pt, global_pt, PAGE_SIZE);
+			}
+		}
+	}
+
+	m_highest_paging_struct = pml4;
 }
 
 MMU::~MMU()
@@ -86,6 +139,11 @@ MMU::~MMU()
 		kfree(pdpt);
 	}
 	kfree(pml4);
+}
+
+void MMU::load()
+{
+	asm volatile("movq %0, %%cr3" :: "r"(m_highest_paging_struct));
 }
 
 void MMU::map_page(uintptr_t address, uint8_t flags)
@@ -137,9 +195,6 @@ void MMU::unmap_page(uintptr_t address)
 	pdpt[pdpte] = 0;
 	CLEANUP_STRUCTURE(pdpt);
 	pml4[pml4e] = 0;
-cleanup_done:
-	
-	asm volatile("invlpg (%0)" :: "r"(address) : "memory");
 }
 
 void MMU::unmap_range(uintptr_t address, ptrdiff_t size)
@@ -159,7 +214,6 @@ void MMU::map_page_at(paddr_t paddr, vaddr_t vaddr, uint8_t flags)
 	ASSERT((vaddr & ~PAGE_MASK) == 0);;
 
 	ASSERT(flags & Flags::Present);
-	bool should_invalidate = false;
 
 	uint64_t pml4e = (vaddr >> 39) & 0x1FF;
 	uint64_t pdpte = (vaddr >> 30) & 0x1FF;
@@ -172,7 +226,6 @@ void MMU::map_page_at(paddr_t paddr, vaddr_t vaddr, uint8_t flags)
 		if (!(pml4[pml4e] & Flags::Present))
 			pml4[pml4e] = (uint64_t)allocate_page_aligned_page();
 		pml4[pml4e] = (pml4[pml4e] & PAGE_MASK) | flags;
-		should_invalidate = true;
 	}
 
 	uint64_t* pdpt = (uint64_t*)(pml4[pml4e] & PAGE_MASK);
@@ -181,7 +234,6 @@ void MMU::map_page_at(paddr_t paddr, vaddr_t vaddr, uint8_t flags)
 		if (!(pdpt[pdpte] & Flags::Present))
 			pdpt[pdpte] = (uint64_t)allocate_page_aligned_page();
 		pdpt[pdpte] = (pdpt[pdpte] & PAGE_MASK) | flags;
-		should_invalidate = true; 
 	}
 
 	uint64_t* pd = (uint64_t*)(pdpt[pdpte] & PAGE_MASK);
@@ -190,16 +242,9 @@ void MMU::map_page_at(paddr_t paddr, vaddr_t vaddr, uint8_t flags)
 		if (!(pd[pde] & Flags::Present))
 			pd[pde] = (uint64_t)allocate_page_aligned_page();
 		pd[pde] = (pd[pde] & PAGE_MASK) | flags;
-		should_invalidate = true;
 	}
 
 	uint64_t* pt = (uint64_t*)(pd[pde] & PAGE_MASK);
 	if ((pt[pte] & flags) != flags)
-	{
 		pt[pte] = paddr | flags;
-		should_invalidate = true;
-	}
-
-	if (should_invalidate)
-		asm volatile("movq %0, %%cr3" :: "r"(m_highest_paging_struct));
 }

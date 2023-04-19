@@ -4,6 +4,7 @@
 #include <BAN/StringView.h>
 #include <BAN/Vector.h>
 #include <kernel/FS/Inode.h>
+#include <kernel/Memory/MMU.h>
 #include <kernel/SpinLock.h>
 #include <kernel/Terminal/TTY.h>
 #include <kernel/Thread.h>
@@ -54,6 +55,8 @@ namespace Kernel
 
 		static Process& current() { return Thread::current().process(); }
 
+		MMU& mmu() { return m_mmu ? *m_mmu : MMU::get(); }
+
 	private:
 		Process(pid_t);
 		static Process* create_process();
@@ -81,6 +84,7 @@ namespace Kernel
 		BAN::String m_working_directory;
 		BAN::Vector<Thread*> m_threads;
 
+		MMU* m_mmu { nullptr };
 		TTY* m_tty { nullptr };
 	};
 
