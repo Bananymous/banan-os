@@ -90,54 +90,8 @@ MMU::~MMU()
 
 void MMU::map_page(uintptr_t address, uint8_t flags)
 {
-	ASSERT((address >> 48) == 0);
-
-	ASSERT(flags & Flags::Present);
-	bool should_invalidate = false;
-
 	address &= PAGE_MASK;
-
-	uint64_t pml4e = (address >> 39) & 0x1FF;
-	uint64_t pdpte = (address >> 30) & 0x1FF;
-	uint64_t pde   = (address >> 21) & 0x1FF;
-	uint64_t pte   = (address >> 12) & 0x1FF;
-
-	uint64_t* pml4 = m_highest_paging_struct;
-	if ((pml4[pml4e] & flags) != flags)
-	{
-		if (!(pml4[pml4e] & Flags::Present))
-			pml4[pml4e] = (uint64_t)allocate_page_aligned_page();
-		pml4[pml4e] = (pml4[pml4e] & PAGE_MASK) | flags;
-		should_invalidate = true;
-	}
-
-	uint64_t* pdpt = (uint64_t*)(pml4[pml4e] & PAGE_MASK);
-	if ((pdpt[pdpte] & flags) != flags)
-	{
-		if (!(pdpt[pdpte] & Flags::Present))
-			pdpt[pdpte] = (uint64_t)allocate_page_aligned_page();
-		pdpt[pdpte] = (pdpt[pdpte] & PAGE_MASK) | flags;
-		should_invalidate = true; 
-	}
-
-	uint64_t* pd = (uint64_t*)(pdpt[pdpte] & PAGE_MASK);
-	if ((pd[pde] & flags) != flags)
-	{
-		if (!(pd[pde] & Flags::Present))
-			pd[pde] = (uint64_t)allocate_page_aligned_page();
-		pd[pde] = (pd[pde] & PAGE_MASK) | flags;
-		should_invalidate = true;
-	}
-
-	uint64_t* pt = (uint64_t*)(pd[pde] & PAGE_MASK);
-	if ((pt[pte] & flags) != flags)
-	{
-		pt[pte] = address | flags;
-		should_invalidate = true;
-	}
-
-	if (should_invalidate)
-		asm volatile("invlpg (%0)" :: "r"(address) : "memory");
+	map_page_at(address, address, flags);
 }
 
 void MMU::map_range(uintptr_t address, ptrdiff_t size, uint8_t flags)
@@ -194,4 +148,58 @@ void MMU::unmap_range(uintptr_t address, ptrdiff_t size)
 	uintptr_t e_page = (address + size - 1) & PAGE_MASK;
 	for (uintptr_t page = s_page; page <= e_page; page += PAGE_SIZE)
 		unmap_page(page);
+}
+
+void MMU::map_page_at(paddr_t paddr, vaddr_t vaddr, uint8_t flags)
+{
+	ASSERT((paddr >> 48) == 0);
+	ASSERT((vaddr >> 48) == 0);
+
+	ASSERT((paddr & ~PAGE_MASK) == 0);
+	ASSERT((vaddr & ~PAGE_MASK) == 0);;
+
+	ASSERT(flags & Flags::Present);
+	bool should_invalidate = false;
+
+	uint64_t pml4e = (vaddr >> 39) & 0x1FF;
+	uint64_t pdpte = (vaddr >> 30) & 0x1FF;
+	uint64_t pde   = (vaddr >> 21) & 0x1FF;
+	uint64_t pte   = (vaddr >> 12) & 0x1FF;
+
+	uint64_t* pml4 = m_highest_paging_struct;
+	if ((pml4[pml4e] & flags) != flags)
+	{
+		if (!(pml4[pml4e] & Flags::Present))
+			pml4[pml4e] = (uint64_t)allocate_page_aligned_page();
+		pml4[pml4e] = (pml4[pml4e] & PAGE_MASK) | flags;
+		should_invalidate = true;
+	}
+
+	uint64_t* pdpt = (uint64_t*)(pml4[pml4e] & PAGE_MASK);
+	if ((pdpt[pdpte] & flags) != flags)
+	{
+		if (!(pdpt[pdpte] & Flags::Present))
+			pdpt[pdpte] = (uint64_t)allocate_page_aligned_page();
+		pdpt[pdpte] = (pdpt[pdpte] & PAGE_MASK) | flags;
+		should_invalidate = true; 
+	}
+
+	uint64_t* pd = (uint64_t*)(pdpt[pdpte] & PAGE_MASK);
+	if ((pd[pde] & flags) != flags)
+	{
+		if (!(pd[pde] & Flags::Present))
+			pd[pde] = (uint64_t)allocate_page_aligned_page();
+		pd[pde] = (pd[pde] & PAGE_MASK) | flags;
+		should_invalidate = true;
+	}
+
+	uint64_t* pt = (uint64_t*)(pd[pde] & PAGE_MASK);
+	if ((pt[pte] & flags) != flags)
+	{
+		pt[pte] = paddr | flags;
+		should_invalidate = true;
+	}
+
+	if (should_invalidate)
+		asm volatile("movq %0, %%cr3" :: "r"(m_highest_paging_struct));
 }
