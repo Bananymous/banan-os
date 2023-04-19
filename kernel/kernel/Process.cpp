@@ -1,5 +1,4 @@
 #include <BAN/StringView.h>
-#include <kernel/CriticalScope.h>
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/LockGuard.h>
 #include <kernel/Memory/MMU.h>
@@ -61,7 +60,8 @@ namespace Kernel
 
 	Process::~Process()
 	{
-		exit();
+		if (!m_threads.empty())
+			exit();
 	}
 
 	BAN::ErrorOr<Thread*> Process::add_thread(entry_t entry, void* data)
@@ -85,14 +85,24 @@ namespace Kernel
 		for (size_t i = 0; i < m_threads.size(); i++)
 			if (m_threads[i] == &thread)
 				m_threads.remove(i);
+		if (m_threads.empty())
+			exit();
 	}
 
 	void Process::exit()
 	{
-		CriticalScope _;
+		m_lock.lock();
 		m_threads.clear();
 		for (auto& open_fd : m_open_files)
 			open_fd.inode = nullptr;
+
+		dprintln("process {} exit", pid());
+		s_process_lock.lock();
+		for (size_t i = 0; i < s_processes.size(); i++)
+			if (s_processes[i] == this)
+				s_processes.remove(i);
+		s_process_lock.unlock();
+
 		Scheduler::get().set_current_process_done();
 	}
 
