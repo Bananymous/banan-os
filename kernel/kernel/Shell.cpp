@@ -369,6 +369,10 @@ argument_done:
 			}
 			TTY_PRINT("\e[2J\e[H");
 		}
+		else if (arguments.front() == "exit")
+		{
+			Process::current().exit();
+		}
 		else if (arguments.front() == "time")
 		{
 			auto new_args = arguments;
