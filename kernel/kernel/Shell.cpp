@@ -561,11 +561,12 @@ argument_done:
 			int fd = TRY(Process::current().open(arguments[1], O_RDONLY));
 			BAN::ScopeGuard _([fd] { MUST(Process::current().close(fd)); });
 
-			char* buffer = new char[1024];
+			constexpr size_t buffer_size = 1024;
+			char* buffer = new char[buffer_size];
 			BAN::ScopeGuard buffer_guard([buffer] { delete[] buffer; });
 			ASSERT(buffer);
 
-			while (size_t n_read = TRY(Process::current().read(fd, buffer, sizeof(buffer))))
+			while (size_t n_read = TRY(Process::current().read(fd, buffer, buffer_size)))
 				TTY_PRINT("{}", BAN::StringView(buffer, n_read));
 			TTY_PRINTLN("");
 		}
@@ -628,7 +629,9 @@ argument_done:
 				return {};
 			}
 
-			uint8_t* buffer = new uint8_t[1024];
+			constexpr size_t buffer_size = 1024;
+
+			uint8_t* buffer = new uint8_t[buffer_size];
 			BAN::ScopeGuard buffer_guard([buffer] { delete[] buffer; });
 			ASSERT(buffer);
 
@@ -642,7 +645,7 @@ argument_done:
 
 				while (true)
 				{
-					size_t n_read = TRY(Process::current().read(fd, buffer, sizeof(buffer)));
+					size_t n_read = TRY(Process::current().read(fd, buffer, buffer_size));
 					if (n_read == 0)
 						break;
 					for (size_t j = 0; j < n_read; j++)
