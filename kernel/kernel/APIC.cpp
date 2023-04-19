@@ -144,10 +144,10 @@ APIC* APIC::create()
 		return nullptr;
 	}
 
-	MMU::get().allocate_page(apic->m_local_apic, MMU::Flags::ReadWrite | MMU::Flags::Present);
+	MMU::get().map_page(apic->m_local_apic, MMU::Flags::ReadWrite | MMU::Flags::Present);
 	for (auto& io_apic : apic->m_io_apics)
 	{
-		MMU::get().allocate_page(io_apic.address, MMU::Flags::ReadWrite | MMU::Flags::Present);
+		MMU::get().map_page(io_apic.address, MMU::Flags::ReadWrite | MMU::Flags::Present);
 		io_apic.max_redirs = io_apic.read(IOAPIC_MAX_REDIRS);
 	}
 

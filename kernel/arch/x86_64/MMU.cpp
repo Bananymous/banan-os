@@ -88,7 +88,7 @@ MMU::~MMU()
 	kfree(pml4);
 }
 
-void MMU::allocate_page(uintptr_t address, uint8_t flags)
+void MMU::map_page(uintptr_t address, uint8_t flags)
 {
 	ASSERT((address >> 48) == 0);
 
@@ -140,15 +140,15 @@ void MMU::allocate_page(uintptr_t address, uint8_t flags)
 		asm volatile("invlpg (%0)" :: "r"(address) : "memory");
 }
 
-void MMU::allocate_range(uintptr_t address, ptrdiff_t size, uint8_t flags)
+void MMU::map_range(uintptr_t address, ptrdiff_t size, uint8_t flags)
 {
 	uintptr_t s_page = address & PAGE_MASK;
 	uintptr_t e_page = (address + size - 1) & PAGE_MASK;
 	for (uintptr_t page = s_page; page <= e_page; page += PAGE_SIZE)
-		allocate_page(page, flags);
+		map_page(page, flags);
 }
 
-void MMU::unallocate_page(uintptr_t address)
+void MMU::unmap_page(uintptr_t address)
 {
 	ASSERT((address >> 48) == 0);
 
@@ -188,10 +188,10 @@ cleanup_done:
 	asm volatile("invlpg (%0)" :: "r"(address) : "memory");
 }
 
-void MMU::unallocate_range(uintptr_t address, ptrdiff_t size)
+void MMU::unmap_range(uintptr_t address, ptrdiff_t size)
 {
 	uintptr_t s_page = address & PAGE_MASK;
 	uintptr_t e_page = (address + size - 1) & PAGE_MASK;
 	for (uintptr_t page = s_page; page <= e_page; page += PAGE_SIZE)
-		unallocate_page(page);
+		unmap_page(page);
 }

@@ -212,8 +212,8 @@ static void jump_userspace()
 {
 	using namespace Kernel;
 
-	MMU::get().allocate_range((uintptr_t)&g_userspace_start, (uintptr_t)&g_userspace_end - (uintptr_t)&g_userspace_start, MMU::Flags::UserSupervisor | MMU::Flags::Present);
-	MMU::get().allocate_range((uintptr_t)&g_rodata_start,    (uintptr_t)&g_rodata_end    - (uintptr_t)&g_rodata_start,    MMU::Flags::UserSupervisor | MMU::Flags::Present);
+	MMU::get().map_range((uintptr_t)&g_userspace_start, (uintptr_t)&g_userspace_end - (uintptr_t)&g_userspace_start, MMU::Flags::UserSupervisor | MMU::Flags::Present);
+	MMU::get().map_range((uintptr_t)&g_rodata_start,    (uintptr_t)&g_rodata_end    - (uintptr_t)&g_rodata_start,    MMU::Flags::UserSupervisor | MMU::Flags::Present);
 
 	MUST(Process::create_userspace(userspace_entry));
 }

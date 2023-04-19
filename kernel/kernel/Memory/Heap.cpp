@@ -36,7 +36,7 @@ namespace Kernel::Memory
 		m_list_pages		= BAN::Math::div_round_up<uint64_t>(m_total_pages * sizeof(node), PAGE_SIZE);
 		m_reservable_pages	= m_total_pages - m_list_pages;
 
-		MMU::get().allocate_range(m_start, m_list_pages * PAGE_SIZE, MMU::Flags::ReadWrite | MMU::Flags::Present);
+		MMU::get().map_range(m_start, m_list_pages * PAGE_SIZE, MMU::Flags::ReadWrite | MMU::Flags::Present);
 
 		// Initialize page list so that every page points to the next one
 		node* page_list = (node*)m_start;
@@ -164,7 +164,7 @@ namespace Kernel::Memory
 		{
 			if (paddr_t page = range.reserve_page(); page != PhysicalRange::invalid)
 			{
-				MMU::get().allocate_page(page, flags);
+				MMU::get().map_page(page, flags);
 				return page;
 			}
 		}
@@ -177,7 +177,7 @@ namespace Kernel::Memory
 		{
 			if (range.contains(addr))
 			{
-				MMU::get().unallocate_page(addr);
+				MMU::get().unmap_page(addr);
 				return;
 			}
 		}
