@@ -83,7 +83,6 @@ irq_stub:
 .macro isr n
 	.global isr\n
 	isr\n:
-		cli
 		pushq $0
 		pushq $\n
 		jmp isr_stub
@@ -92,7 +91,6 @@ irq_stub:
 .macro isr_err n
 	.global isr\n
 	isr\n:
-		cli
 		pushq $\n
 		jmp isr_stub
 .endm
@@ -100,7 +98,6 @@ irq_stub:
 .macro irq n
 	.global irq\n
 	irq\n:
-		cli
 		pushq $0
 		pushq $\n
 		jmp irq_stub
@@ -158,7 +155,6 @@ irq 15
 
 .global syscall_asm
 syscall_asm:
-	cli
 	pushaq
 	movq %rax, %rdi
 	movq %rbx, %rsi
