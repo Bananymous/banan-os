@@ -10,29 +10,29 @@ namespace Kernel
 		Process::current().exit();
 	}
 
-	int sys_read(int fd, void* buffer, size_t size)
+	long sys_read(int fd, void* buffer, size_t size)
 	{
 		auto res = Process::current().read(fd, buffer, size);
 		if (res.is_error())
 			return res.error().get_error_code();
-		return 0;
+		return res.value();
 	}
 
-	int sys_write(int fd, const void* buffer, size_t size)
+	long sys_write(int fd, const void* buffer, size_t size)
 	{
 		auto res = Process::current().write(fd, buffer, size);
 		if (res.is_error())
 			return res.error().get_error_code();
-		return 0;
+		return res.value();
 	}
 
-	extern "C" int cpp_syscall_handler(int syscall, void* arg1, void* arg2, void* arg3)
+	extern "C" long cpp_syscall_handler(int syscall, void* arg1, void* arg2, void* arg3)
 	{
-		(void)arg1;
-		(void)arg2;
-		(void)arg3;
+		Thread::current().set_in_syscall(true);
 
-		int ret = 0;
+		asm volatile("sti");
+
+		long ret = 0;
 		switch (syscall)
 		{
 		case SYS_EXIT:
@@ -49,6 +49,10 @@ namespace Kernel
 			dprintln("Unknown syscall");
 			break;
 		}
+
+		asm volatile("cli");
+
+		Thread::current().set_in_syscall(false);
 
 		return ret;
 	}
