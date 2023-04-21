@@ -315,7 +315,7 @@ no_memory:
 	dwarnln("could not allocate {H} bytes ({} aligned)", size, align);
 	dwarnln(" {6H} free (fixed)", s_kmalloc_fixed_info.free);
 	dwarnln(" {6H} free", s_kmalloc_info.free);
-	Debug::dump_stack_trace();
+	//Debug::dump_stack_trace();
 	ASSERT(!is_corrupted());
 
 	return nullptr;
