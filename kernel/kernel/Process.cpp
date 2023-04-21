@@ -45,7 +45,8 @@ namespace Kernel
 			[](void* entry_func)
 			{
 				Thread& current = Thread::current();
-				Process::current().m_mmu->map_range(current.stack_base(), current.stack_size(), MMU::Flags::UserSupervisor | MMU::Flags::ReadWrite | MMU::Flags::Present);
+				current.process().m_mmu->map_range(current.stack_base(), current.stack_size(), MMU::Flags::UserSupervisor | MMU::Flags::ReadWrite | MMU::Flags::Present);
+				current.process().m_mmu->load();
 				current.jump_userspace((uintptr_t)entry_func);
 				ASSERT_NOT_REACHED();
 			}, (void*)entry

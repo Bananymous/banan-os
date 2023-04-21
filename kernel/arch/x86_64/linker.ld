@@ -4,6 +4,7 @@ SECTIONS
 {
 	. = 0x00100000;
 
+	g_kernel_start = .;
 	.text BLOCK(4K) : ALIGN(4K)
 	{
 		*(.multiboot)
@@ -11,9 +12,7 @@ SECTIONS
 	}
 	.rodata BLOCK(4K) : ALIGN(4K)
 	{
-		g_rodata_start = .;
 		*(.rodata.*)
-		g_rodata_end = .;
 	}
 	.data BLOCK(4K) : ALIGN(4K)
 	{

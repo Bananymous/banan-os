@@ -33,7 +33,7 @@ namespace Kernel
 
 		pid_t tid() const { return m_tid; }
 
-		void set_rsp(uintptr_t rsp) { m_rsp = rsp; }
+		void set_rsp(uintptr_t rsp) { m_rsp = rsp; validate_stack(); }
 		void set_rip(uintptr_t rip) { m_rip = rip; }
 		uintptr_t rsp() const { return m_rsp; }
 		uintptr_t rip() const { return m_rip; }
@@ -49,9 +49,13 @@ namespace Kernel
 		Process& process();
 		bool has_process() const { return m_process; }
 
+		void set_in_syscall(bool b) { m_in_syscall = b; }
+
 	private:
 		Thread(pid_t tid, Process*);
 
+		void validate_stack() const { if (!m_in_syscall) ASSERT(stack_base() <= m_rsp && m_rsp <= stack_base() + stack_size()); }
+		
 		BAN::ErrorOr<void> initialize(entry_t, void*);
 		void on_exit();
 		
@@ -63,6 +67,7 @@ namespace Kernel
 		const pid_t	m_tid			{ 0 };
 		State		m_state			{ State::NotStarted };
 		Process*	m_process		{ nullptr };
+		bool		m_in_syscall	{ false };
 
 		friend class Scheduler;
 	};

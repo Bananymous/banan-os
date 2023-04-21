@@ -99,11 +99,11 @@ namespace BAN::Formatter
 
 }
 
-extern "C" uintptr_t g_rodata_start;
-extern "C" uintptr_t g_rodata_end;
-
 extern "C" uintptr_t g_userspace_start;
 extern "C" uintptr_t g_userspace_end;
+
+extern "C" uintptr_t g_kernel_start;
+extern "C" uintptr_t g_kernel_end;
 
 extern void userspace_entry();
 static void jump_userspace();
@@ -213,7 +213,7 @@ static void jump_userspace()
 	using namespace Kernel;
 
 	MMU::get().map_range((uintptr_t)&g_userspace_start, (uintptr_t)&g_userspace_end - (uintptr_t)&g_userspace_start, MMU::Flags::UserSupervisor | MMU::Flags::Present);
-	MMU::get().map_range((uintptr_t)&g_rodata_start,    (uintptr_t)&g_rodata_end    - (uintptr_t)&g_rodata_start,    MMU::Flags::UserSupervisor | MMU::Flags::Present);
+	MMU::get().map_range((uintptr_t)&g_kernel_start,    (uintptr_t)&g_kernel_end    - (uintptr_t)&g_kernel_start,    MMU::Flags::UserSupervisor | MMU::Flags::Present);
 
 	MUST(Process::create_userspace(userspace_entry));
 }
