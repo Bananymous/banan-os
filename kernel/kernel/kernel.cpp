@@ -189,7 +189,8 @@ static void init2(void* tty1)
 	MUST(Process::create_kernel(
 		[](void*)
 		{
-			MUST(LibELF::ELF::load_from_file("/bin/test"sv));
+			if (auto res = LibELF::ELF::load_from_file("/boot/banan-os.kernel"sv); res.is_error())
+				dwarnln("{}", res.error());
 			Process::current().exit();
 		}, nullptr
 	));
