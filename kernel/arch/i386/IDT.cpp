@@ -174,7 +174,18 @@ found:
 		"addl $16, %esp;"
 		"popw %es;"
 		"popw %ds;"
-		"popa;"
+		
+		// NOTE: following instructions are same as in 'popa', except we skip eax
+		//       since it holds the return value of the syscall.
+		"popl %edi;"
+		"popl %esi;"
+		"popl %ebp;"
+		"addl $4, %esp;"
+		"popl %ebx;"
+		"popl %edx;"
+		"popl %ecx;"
+		"addl $4, %esp;"
+		
 		"iret;"
 	);
 
