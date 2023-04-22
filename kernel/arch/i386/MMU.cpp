@@ -109,23 +109,43 @@ MMU::MMU()
 	m_highest_paging_struct = pdpt;
 }
 
+MMU::~MMU()
+{
+	uint64_t* pdpt = m_highest_paging_struct;
+	for (uint32_t pdpte = 0; pdpte < 512; pdpte++)
+	{
+		if (!(pdpt[pdpte] & Flags::Present))
+			continue;
+		uint64_t* pd = (uint64_t*)(pdpt[pdpte] & PAGE_MASK);
+		for (uint32_t pde = 0; pde < 512; pde++)
+		{
+			if (!(pd[pde] & Flags::Present))
+				continue;
+			kfree((void*)(pd[pde] & PAGE_MASK));
+		}
+		kfree(pd);
+	}
+	kfree(pdpt);
+}
+
 void MMU::load()
 {
 	asm volatile("movl %0, %%cr3" :: "r"(m_highest_paging_struct));
 }
 
-void MMU::map_page(uintptr_t address, uint8_t flags)
+void MMU::map_page_at(paddr_t paddr, vaddr_t vaddr, uint8_t flags)
 {
 #if MMU_DEBUG_PRINT
 	dprintln("AllocatePage(0x{8H})", address);
 #endif
 	ASSERT(flags & Flags::Present);
 
-	address &= PAGE_MASK;
+	ASSERT(!(paddr & ~PAGE_MASK));
+	ASSERT(!(vaddr & ~PAGE_MASK));
 
-	uint32_t pdpte = (address & 0xC0000000) >> 30;
-	uint32_t pde   = (address & 0x3FE00000) >> 21;
-	uint32_t pte   = (address & 0x001FF000) >> 12;
+	uint32_t pdpte = (vaddr & 0xC0000000) >> 30;
+	uint32_t pde   = (vaddr & 0x3FE00000) >> 21;
+	uint32_t pte   = (vaddr & 0x001FF000) >> 12;
 
 	uint64_t* page_directory = (uint64_t*)(m_highest_paging_struct[pdpte] & PAGE_MASK);
 	if (!(page_directory[pde] & Flags::Present))
@@ -136,7 +156,13 @@ void MMU::map_page(uintptr_t address, uint8_t flags)
 	page_directory[pde] |= flags;
 
 	uint64_t* page_table = (uint64_t*)(page_directory[pde] & PAGE_MASK);
-	page_table[pte] = address | flags;
+	page_table[pte] = paddr | flags;
+}
+
+void MMU::map_page(uintptr_t address, uint8_t flags)
+{
+	address &= PAGE_MASK;
+	map_page_at(address, address, flags);
 }
 
 void MMU::map_range(uintptr_t address, ptrdiff_t size, uint8_t flags)
