@@ -19,6 +19,8 @@ namespace LibELF
 		const char* lookup_section_name(uint32_t) const;
 		const char* lookup_string(size_t, uint32_t) const;
 
+		const uint8_t* data() const { return m_data.data(); }
+
 	private:
 		ELF(BAN::Vector<uint8_t>&& data)
 			: m_data(BAN::move(data))
@@ -26,6 +28,7 @@ namespace LibELF
 		BAN::ErrorOr<void> load();
 		
 		bool parse_elf64_file_header(const Elf64FileHeader&);
+		bool parse_elf64_program_header(const Elf64ProgramHeader&);
 		bool parse_elf64_section_header(const Elf64SectionHeader&);
 
 	private:
