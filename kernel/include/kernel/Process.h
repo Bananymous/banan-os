@@ -23,13 +23,13 @@ namespace Kernel
 		using entry_t = Thread::entry_t;
 
 	public:
-		static BAN::ErrorOr<Process*> create_kernel(entry_t, void*);
+		static Process* create_kernel(entry_t, void*);
 		static BAN::ErrorOr<Process*> create_userspace(BAN::StringView);
 		~Process();
 
 		[[noreturn]] void exit();
 
-		BAN::ErrorOr<Thread*> add_thread(entry_t, void*);
+		void add_thread(Thread*);
 		void on_thread_exit(Thread&);
 
 		BAN::ErrorOr<void> init_stdio();
@@ -60,6 +60,7 @@ namespace Kernel
 	private:
 		Process(pid_t);
 		static Process* create_process();
+		static void register_process(Process*);
 
 		BAN::ErrorOr<BAN::String> absolute_path_of(BAN::StringView) const;
 

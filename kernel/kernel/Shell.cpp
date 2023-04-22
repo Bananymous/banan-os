@@ -328,18 +328,6 @@ argument_done:
 		{
 
 		}
-		else if (arguments.front() == "oof")
-		{
-			SpinLock lock;
-			for (int i = 0; i < 100; i++)
-			{
-				lock.lock();
-				MUST(Process::create_kernel([](void*) { MUST(Process::current().init_stdio()); TTY_PRINTLN("####"); Process::current().exit(); }, nullptr));
-				PIT::sleep(5);
-				kmalloc_dump_info();
-				lock.unlock();
-			}
-		}
 		else if (arguments.front() == "date")
 		{
 			if (arguments.size() != 1)
@@ -410,7 +398,9 @@ argument_done:
 			SpinLock spinlock;
 			thread_data_t thread_data = { this, spinlock, arguments };
 			spinlock.lock();
-			TRY(Process::current().add_thread(function, &thread_data));
+
+			auto* thread = TRY(Thread::create(function, &thread_data, &Process::current()));
+			Process::current().add_thread(thread);
 			while (spinlock.is_locked());
 		}
 		else if (arguments.front() == "memory")
