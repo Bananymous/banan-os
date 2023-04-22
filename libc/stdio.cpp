@@ -1,5 +1,7 @@
 #include <stdarg.h>
 #include <stdio.h>
+#include <string.h>
+#include <sys/syscall.h>
 #include <unistd.h>
 
 struct FILE
@@ -86,7 +88,7 @@ int putchar(int ch)
 
 int puts(const char* str)
 {
-	return printf("%s", str);
+	return syscall(SYS_WRITE, STDOUT_FILENO, str, strlen(str));
 }
 
 int sprintf(char* __restrict__ stream, const char* __restrict__ format, ...)
