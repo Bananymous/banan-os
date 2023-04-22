@@ -74,7 +74,7 @@ namespace Kernel
 
 	Thread::~Thread()
 	{
-		dprintln("thread {} exit", tid());
+		dprintln("thread {} ({}) exit", tid(), m_process->pid());
 		kfree(m_stack_base);
 	}
 
