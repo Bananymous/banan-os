@@ -102,9 +102,6 @@ namespace BAN::Formatter
 extern "C" uintptr_t g_kernel_start;
 extern "C" uintptr_t g_kernel_end;
 
-extern void userspace_entry();
-static void jump_userspace();
-
 static void init2(void*);
 
 extern "C" void kernel_main()
@@ -162,7 +159,7 @@ extern "C" void kernel_main()
 
 	MUST(Scheduler::initialize());
 	Scheduler& scheduler = Scheduler::get();
-	MUST(Process::create_kernel(init2, tty1));
+	Process::create_kernel(init2, tty1);
 	scheduler.start();
 
 	ASSERT_NOT_REACHED();
@@ -183,10 +180,10 @@ static void init2(void* tty1)
 
 	((TTY*)tty1)->initialize_device();
 
-	jump_userspace();
+	MUST(Process::create_userspace("/bin/test"sv));
 	return;
 
-	MUST(Process::create_kernel(
+	Process::create_kernel(
 		[](void*) 
 		{
 			MUST(Process::current().init_stdio());
@@ -194,14 +191,5 @@ static void init2(void* tty1)
 			ASSERT(shell);
 			shell->run();
 		}, nullptr
-	));
-}
-
-static void jump_userspace()
-{
-	using namespace Kernel;
-
-	MMU::get().map_range((uintptr_t)&g_kernel_start, (uintptr_t)&g_kernel_end - (uintptr_t)&g_kernel_start, MMU::Flags::UserSupervisor | MMU::Flags::Present);
-
-	MUST(Process::create_userspace("/bin/test"sv));
+	);
 }

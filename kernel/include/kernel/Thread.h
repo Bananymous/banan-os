@@ -27,6 +27,7 @@ namespace Kernel
 
 	public:
 		static BAN::ErrorOr<Thread*> create(entry_t, void*, Process*);
+		static BAN::ErrorOr<Thread*> create_userspace(uintptr_t, Process*);
 		~Thread();
 
 		void jump_userspace(uintptr_t rip);

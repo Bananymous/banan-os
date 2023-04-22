@@ -55,7 +55,7 @@ namespace Kernel
 		m_name = BAN::String::formatted("tty{}", minor(m_rdev));
 		DeviceManager::get().add_device(this);
 
-		MUST(Process::create_kernel(
+		Process::create_kernel(
 			[](void* tty_)
 			{
 				TTY* tty = (TTY*)tty_;
@@ -66,7 +66,7 @@ namespace Kernel
 					MUST(Process::current().read(fd, &event, sizeof(event)));
 					tty->on_key(event);
 				}
-			}, this)
+			}, this
 		);
 	}
 

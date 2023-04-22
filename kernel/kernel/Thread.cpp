@@ -29,6 +29,19 @@ namespace Kernel
 		return thread;
 	}
 
+	BAN::ErrorOr<Thread*> Thread::create_userspace(uintptr_t entry, Process* process)
+	{
+		Thread* thread = TRY(Thread::create(
+			[](void* entry)
+			{
+				Thread::current().jump_userspace((uintptr_t)entry);
+				ASSERT_NOT_REACHED();
+			}, (void*)entry, process
+		));
+		process->mmu().map_range(thread->stack_base(), thread->stack_size(), MMU::Flags::UserSupervisor | MMU::Flags::ReadWrite | MMU::Flags::Present);
+		return thread;
+	}
+
 	Thread::Thread(pid_t tid, Process* process)
 		: m_tid(tid), m_process(process)
 	{}

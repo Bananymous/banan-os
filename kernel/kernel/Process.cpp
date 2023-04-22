@@ -20,19 +20,26 @@ namespace Kernel
 		static pid_t s_next_pid = 1;
 		auto* process = new Process(s_next_pid++);
 		ASSERT(process);
+		return process;
+	}
 
+	void Process::register_process(Process* process)
+	{
 		s_process_lock.lock();
 		MUST(s_processes.push_back(process));
 		s_process_lock.unlock();
 		
-		return process;
+		for (auto* thread : process->m_threads)
+			MUST(Scheduler::get().add_thread(thread));
 	}
 
-	BAN::ErrorOr<Process*> Process::create_kernel(entry_t entry, void* data)
+	Process* Process::create_kernel(entry_t entry, void* data)
 	{
 		auto* process = create_process();
-		TRY(process->m_working_directory.push_back('/'));
-		TRY(process->add_thread(entry, data));
+		MUST(process->m_working_directory.push_back('/'));
+		auto* thread = MUST(Thread::create(entry, data, process));
+		process->add_thread(thread);
+		register_process(process);
 		return process;
 	}
 
@@ -41,8 +48,8 @@ namespace Kernel
 		auto* elf = TRY(LibELF::ELF::load_from_file(path));	
 		
 		auto* process = create_process();
-		TRY(process->m_working_directory.push_back('/'));
-		TRY(process->init_stdio());
+		MUST(process->m_working_directory.push_back('/'));
+		MUST(process->init_stdio());
 		process->m_mmu = new MMU();
 		ASSERT(process->m_mmu);
 		
@@ -65,16 +72,9 @@ namespace Kernel
 					process->m_mmu->map_page_at(addr, page * 4096, MMU::Flags::UserSupervisor | MMU::Flags::ReadWrite | MMU::Flags::Present);
 				}
 				process->m_mmu->load();
-				memset((void*)elf_program_header.p_vaddr, 0, elf_program_header.p_memsz);
 				memcpy((void*)elf_program_header.p_vaddr, elf->data() + elf_program_header.p_offset, elf_program_header.p_filesz);
+				memset((void*)(elf_program_header.p_vaddr + elf_program_header.p_filesz), 0, elf_program_header.p_memsz);
 				Process::current().mmu().load();
-
-				dwarnln("mapped {8H}->{8H} to {8H}->{8H}",
-					elf_program_header.p_offset,
-					elf_program_header.p_offset + elf_program_header.p_filesz,
-					elf_program_header.p_vaddr,
-					elf_program_header.p_vaddr + elf_program_header.p_memsz
-				);
 				break;
 			}
 			default:
@@ -82,19 +82,12 @@ namespace Kernel
 			}
 		}
 
-		TRY(process->add_thread(
-			[](void* entry)
-			{
-				Thread& current = Thread::current();
-				current.process().m_mmu->map_range(current.stack_base(), current.stack_size(), MMU::Flags::UserSupervisor | MMU::Flags::ReadWrite | MMU::Flags::Present);
-				current.process().m_mmu->load();
-				current.jump_userspace((uintptr_t)entry);
-				ASSERT_NOT_REACHED();
-			}, (void*)elf_file_header.e_entry
-		));
+		auto* thread = MUST(Thread::create_userspace(elf_file_header.e_entry, process));
+		process->add_thread(thread);
 
 		delete elf;
 
+		register_process(process);
 		return process;
 	}
 
@@ -109,19 +102,10 @@ namespace Kernel
 			exit();
 	}
 
-	BAN::ErrorOr<Thread*> Process::add_thread(entry_t entry, void* data)
+	void Process::add_thread(Thread* thread)
 	{
-		Thread* thread = TRY(Thread::create(entry, data, this));
-
 		LockGuard _(m_lock);
-		TRY(m_threads.push_back(thread));
-		if (auto res = Scheduler::get().add_thread(thread); res.is_error())
-		{
-			m_threads.pop_back();
-			return res.release_error();
-		}
-
-		return thread;
+		MUST(m_threads.push_back(thread));
 	}
 
 	void Process::on_thread_exit(Thread& thread)

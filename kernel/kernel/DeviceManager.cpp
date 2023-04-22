@@ -60,7 +60,7 @@ namespace Kernel
 
 	void DeviceManager::initialize_updater()
 	{
-		MUST(Process::create_kernel(
+		Process::create_kernel(
 			[](void*)
 			{
 				while (true)
@@ -68,7 +68,7 @@ namespace Kernel
 					DeviceManager::get().update();
 					PIT::sleep(1);
 				}
-			}, nullptr)
+			}, nullptr
 		);
 	}
 
