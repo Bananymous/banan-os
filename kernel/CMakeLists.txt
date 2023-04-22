@@ -47,7 +47,6 @@ set(KERNEL_SOURCES
 	kernel/Thread.cpp
 	kernel/Terminal/TTY.cpp
 	kernel/Terminal/VesaTerminalDriver.cpp
-	userspace/userspace.cpp
 	icxxabi.cpp
 )
 
