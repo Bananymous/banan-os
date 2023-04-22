@@ -68,6 +68,20 @@ namespace LibELF
 		return true;
 	}
 
+	bool ELF::parse_elf64_program_header(const Elf64ProgramHeader& header)
+	{
+		dprintln("program header");
+		dprintln("  type   {H}", header.p_type);
+		dprintln("  flags  {H}", header.p_flags);
+		dprintln("  offset {H}", header.p_offset);
+		dprintln("  vaddr  {H}", header.p_vaddr);
+		dprintln("  paddr  {H}", header.p_paddr);
+		dprintln("  filesz {}", header.p_filesz);
+		dprintln("  memsz  {}", header.p_memsz);
+		dprintln("  align  {}", header.p_align);
+		return true;
+	}
+
 	bool ELF::parse_elf64_section_header(const Elf64SectionHeader& header)
 	{
 		if (auto* name = lookup_section_name(header.sh_name))
@@ -159,6 +173,13 @@ namespace LibELF
 		if (!parse_elf64_file_header(header))
 			return BAN::Error::from_errno(EINVAL);
 
+		for (size_t i = 0; i < header.e_phnum; i++)
+		{
+			auto& program_header = program_header64(i);
+			if (!parse_elf64_program_header(program_header))
+				return BAN::Error::from_errno(EINVAL);
+		}
+
 		for (size_t i = 1; i < header.e_shnum; i++)
 		{
 			auto& section_header = section_header64(i);
@@ -177,12 +198,16 @@ namespace LibELF
 
 	const Elf64ProgramHeader& ELF::program_header64(size_t index) const
 	{
-		return ((const Elf64ProgramHeader*)(m_data.data() + file_header64().e_phoff))[index];
+		const auto& file_header = file_header64();
+		ASSERT(index < file_header.e_phnum);
+		return *(const Elf64ProgramHeader*)(m_data.data() + file_header.e_phoff + file_header.e_phentsize * index);
 	}
 
 	const Elf64SectionHeader& ELF::section_header64(size_t index) const
 	{
-		return ((const Elf64SectionHeader*)(m_data.data() + file_header64().e_shoff))[index];
+		const auto& file_header = file_header64();
+		ASSERT(index < file_header.e_shnum);
+		return *(const Elf64SectionHeader*)(m_data.data() + file_header.e_shoff + file_header.e_shentsize * index);
 	}
 
 
