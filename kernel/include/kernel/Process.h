@@ -24,7 +24,7 @@ namespace Kernel
 
 	public:
 		static BAN::ErrorOr<Process*> create_kernel(entry_t, void*);
-		static BAN::ErrorOr<Process*> create_userspace(void(*)());
+		static BAN::ErrorOr<Process*> create_userspace(BAN::StringView);
 		~Process();
 
 		[[noreturn]] void exit();

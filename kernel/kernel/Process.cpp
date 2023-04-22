@@ -1,8 +1,11 @@
 #include <BAN/StringView.h>
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/LockGuard.h>
+#include <kernel/Memory/Heap.h>
 #include <kernel/Process.h>
 #include <kernel/Scheduler.h>
+#include <LibELF/ELF.h>
+#include <LibELF/Values.h>
 
 #include <fcntl.h>
 
@@ -33,24 +36,64 @@ namespace Kernel
 		return process;
 	}
 
-	BAN::ErrorOr<Process*> Process::create_userspace(void(*entry)())
+	BAN::ErrorOr<Process*> Process::create_userspace(BAN::StringView path)
 	{
+		auto* elf = TRY(LibELF::ELF::load_from_file(path));	
+		
 		auto* process = create_process();
 		TRY(process->m_working_directory.push_back('/'));
 		TRY(process->init_stdio());
 		process->m_mmu = new MMU();
 		ASSERT(process->m_mmu);
 		
+		auto& elf_file_header = elf->file_header64();
+		for (size_t i = 0; i < elf_file_header.e_phnum; i++)
+		{
+			auto& elf_program_header = elf->program_header64(i);
+
+			switch (elf_program_header.p_type)
+			{
+			case LibELF::PT_NULL:
+				break;
+			case LibELF::PT_LOAD:
+			{
+				size_t page_start = elf_program_header.p_vaddr / 4096;
+				size_t page_end = BAN::Math::div_round_up<size_t>(elf_program_header.p_vaddr + elf_program_header.p_memsz, 4096);
+				for (size_t page = page_start; page <= page_end; page++)
+				{
+					auto addr = Memory::Heap::get().take_free_page();
+					process->m_mmu->map_page_at(addr, page * 4096, MMU::Flags::UserSupervisor | MMU::Flags::ReadWrite | MMU::Flags::Present);
+				}
+				process->m_mmu->load();
+				memset((void*)elf_program_header.p_vaddr, 0, elf_program_header.p_memsz);
+				memcpy((void*)elf_program_header.p_vaddr, elf->data() + elf_program_header.p_offset, elf_program_header.p_filesz);
+				Process::current().mmu().load();
+
+				dwarnln("mapped {8H}->{8H} to {8H}->{8H}",
+					elf_program_header.p_offset,
+					elf_program_header.p_offset + elf_program_header.p_filesz,
+					elf_program_header.p_vaddr,
+					elf_program_header.p_vaddr + elf_program_header.p_memsz
+				);
+				break;
+			}
+			default:
+				ASSERT_NOT_REACHED();
+			}
+		}
+
 		TRY(process->add_thread(
-			[](void* entry_func)
+			[](void* entry)
 			{
 				Thread& current = Thread::current();
 				current.process().m_mmu->map_range(current.stack_base(), current.stack_size(), MMU::Flags::UserSupervisor | MMU::Flags::ReadWrite | MMU::Flags::Present);
 				current.process().m_mmu->load();
-				current.jump_userspace((uintptr_t)entry_func);
+				current.jump_userspace((uintptr_t)entry);
 				ASSERT_NOT_REACHED();
-			}, (void*)entry
+			}, (void*)elf_file_header.e_entry
 		));
+
+		delete elf;
 
 		return process;
 	}
@@ -105,6 +148,7 @@ namespace Kernel
 				s_processes.remove(i);
 		s_process_lock.unlock();
 
+		// FIXME: we can't assume this is the current process
 		Scheduler::get().set_current_process_done();
 	}
 

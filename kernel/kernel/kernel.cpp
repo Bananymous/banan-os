@@ -186,15 +186,6 @@ static void init2(void* tty1)
 
 	((TTY*)tty1)->initialize_device();
 
-	MUST(Process::create_kernel(
-		[](void*)
-		{
-			if (auto res = LibELF::ELF::load_from_file("/boot/banan-os.kernel"sv); res.is_error())
-				dwarnln("{}", res.error());
-			Process::current().exit();
-		}, nullptr
-	));
-
 	jump_userspace();
 	return;
 
@@ -216,5 +207,5 @@ static void jump_userspace()
 	MMU::get().map_range((uintptr_t)&g_userspace_start, (uintptr_t)&g_userspace_end - (uintptr_t)&g_userspace_start, MMU::Flags::UserSupervisor | MMU::Flags::Present);
 	MMU::get().map_range((uintptr_t)&g_kernel_start,    (uintptr_t)&g_kernel_end    - (uintptr_t)&g_kernel_start,    MMU::Flags::UserSupervisor | MMU::Flags::Present);
 
-	MUST(Process::create_userspace(userspace_entry));
+	MUST(Process::create_userspace("/bin/test"sv));
 }
