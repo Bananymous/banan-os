@@ -1,5 +1,7 @@
 #include <kernel/Debug.h>
+#include <kernel/InterruptController.h>
 #include <kernel/Serial.h>
+#include <kernel/SpinLock.h>
 #include <kernel/Terminal/TTY.h>
 
 namespace Debug
@@ -51,6 +53,21 @@ namespace Debug
 			return Serial::putchar(ch);
 		if (Kernel::TTY::is_initialized())
 			return Kernel::TTY::putchar_current(ch);
+	}
+
+
+	static Kernel::RecursiveSpinLock s_debug_lock;
+
+	void DebugLock::lock()
+	{
+		if (interrupts_enabled())
+			s_debug_lock.lock();
+	}
+
+	void DebugLock::unlock()
+	{
+		if (interrupts_enabled())
+			s_debug_lock.unlock();
 	}
 
 }
