@@ -5,6 +5,8 @@
 
 #include <fcntl.h>
 
+#define ELF_PRINT_HEADERS 0
+
 namespace LibELF
 {
 
@@ -70,6 +72,7 @@ namespace LibELF
 
 	bool ELF::parse_elf64_program_header(const Elf64ProgramHeader& header)
 	{
+#if ELF_PRINT_HEADERS
 		dprintln("program header");
 		dprintln("  type   {H}", header.p_type);
 		dprintln("  flags  {H}", header.p_flags);
@@ -79,11 +82,14 @@ namespace LibELF
 		dprintln("  filesz {}", header.p_filesz);
 		dprintln("  memsz  {}", header.p_memsz);
 		dprintln("  align  {}", header.p_align);
+#endif
+		(void)header;
 		return true;
 	}
 
 	bool ELF::parse_elf64_section_header(const Elf64SectionHeader& header)
 	{
+#if ELF_PRINT_HEADERS
 		if (auto* name = lookup_section_name(header.sh_name))
 			dprintln("{}", name);
 
@@ -124,7 +130,8 @@ namespace LibELF
 			default:
 				ASSERT(false);
 		}	
-
+#endif
+		(void)header;
 		return true;
 	}
 
