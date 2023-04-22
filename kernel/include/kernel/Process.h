@@ -4,6 +4,7 @@
 #include <BAN/StringView.h>
 #include <BAN/Vector.h>
 #include <kernel/FS/Inode.h>
+#include <kernel/Memory/Heap.h>
 #include <kernel/Memory/MMU.h>
 #include <kernel/SpinLock.h>
 #include <kernel/Terminal/TTY.h>
@@ -78,6 +79,7 @@ namespace Kernel
 		BAN::ErrorOr<int> get_free_fd();
 
 		BAN::Vector<OpenFileDescription> m_open_files;
+		BAN::Vector<Memory::paddr_t> m_allocated_pages;
 
 		mutable RecursiveSpinLock m_lock;
 
