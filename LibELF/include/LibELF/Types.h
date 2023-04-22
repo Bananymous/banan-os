@@ -5,6 +5,80 @@
 namespace LibELF
 {
 
+	using Elf32Addr = uint32_t;
+	using Elf32Off = uint32_t;
+	using Elf32Half = uint16_t;
+	using Elf32Word = uint32_t;
+	using Elf32Sword = int32_t;
+
+	struct Elf32FileHeader
+	{
+		unsigned char e_ident[16];
+		Elf32Half e_type;
+		Elf32Half e_machine;
+		Elf32Word e_version;
+		Elf32Addr e_entry;
+		Elf32Off e_phoff;
+		Elf32Off e_shoff;
+		Elf32Word e_flags;
+		Elf32Half e_ehsize;
+		Elf32Half e_phentsize;
+		Elf32Half e_phnum;
+		Elf32Half e_shentsize;
+		Elf32Half e_shnum;
+		Elf32Half e_shstrndx;
+	};
+
+	struct Elf32SectionHeader
+	{
+		Elf32Word sh_name;
+		Elf32Word sh_type;
+		Elf32Word sh_flags;
+		Elf32Addr sh_addr;
+		Elf32Off sh_offset;
+		Elf32Word sh_size;
+		Elf32Word sh_link;
+		Elf32Word sh_info;
+		Elf32Word sh_addralign;
+		Elf32Word sh_entsize;
+	};
+
+	struct Elf32Symbol
+	{
+		Elf32Word st_name;
+		Elf32Addr st_value;
+		Elf32Word st_size;
+		unsigned char st_info;
+		unsigned char st_other;
+		Elf32Half st_shndx;
+	};
+
+	struct Elf32Relocation
+	{
+		Elf32Addr r_offset;
+		Elf32Word r_info;
+	};
+
+	struct Elf32RelocationA
+	{
+		Elf32Addr r_offset;
+		Elf32Word r_info;
+		Elf32Sword r_addend;
+	};
+
+	struct Elf32ProgramHeader
+	{
+		Elf32Word p_type;
+		Elf32Off p_offset;
+		Elf32Addr p_vaddr;
+		Elf32Addr p_paddr;
+		Elf32Word p_filesz;
+		Elf32Word p_memsz;
+		Elf32Word p_flags;
+		Elf32Word p_align;
+	};
+
+
 	using Elf64Addr = uint64_t;
 	using Elf64Off = uint64_t;
 	using Elf64Half = uint16_t;
