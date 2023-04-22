@@ -19,15 +19,28 @@ long syscall(long syscall, ...)
 
 	switch (syscall)
 	{
-	case SYS_EXIT:
-		ret = Kernel::syscall(SYS_EXIT, va_arg(args, int));
-		break;
-	case SYS_READ:
-		ret = Kernel::syscall(SYS_READ, va_arg(args, int), va_arg(args, void*), va_arg(args, size_t));
-		break;
-	case SYS_WRITE:
-		ret = Kernel::syscall(SYS_WRITE, va_arg(args, int), va_arg(args, const void*), va_arg(args, size_t));
-		break;
+		case SYS_EXIT:
+		{
+			int exit_code = va_arg(args, int);
+			ret = Kernel::syscall(SYS_EXIT, exit_code);
+			break;
+		}
+		case SYS_READ:
+		{
+			int fd = va_arg(args, int);
+			void* buffer = va_arg(args, void*);
+			size_t bytes = va_arg(args, size_t);
+			ret = Kernel::syscall(SYS_READ, fd, buffer, bytes);
+			break;
+		}
+		case SYS_WRITE:
+		{
+			int fd = va_arg(args, int);
+			const char* string = va_arg(args, const char*);
+			size_t bytes = va_arg(args, size_t);
+			ret = Kernel::syscall(SYS_WRITE, fd, string, bytes);
+			break;
+		}
 	}
 
 	va_end(args);
