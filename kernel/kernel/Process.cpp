@@ -66,10 +66,12 @@ namespace Kernel
 			{
 				size_t page_start = elf_program_header.p_vaddr / 4096;
 				size_t page_end = BAN::Math::div_round_up<size_t>(elf_program_header.p_vaddr + elf_program_header.p_memsz, 4096);
+				MUST(process->m_allocated_pages.reserve(page_end - page_start + 1));
 				for (size_t page = page_start; page <= page_end; page++)
 				{
-					auto addr = Memory::Heap::get().take_free_page();
-					process->m_mmu->map_page_at(addr, page * 4096, MMU::Flags::UserSupervisor | MMU::Flags::ReadWrite | MMU::Flags::Present);
+					auto paddr = Memory::Heap::get().take_free_page();
+					MUST(process->m_allocated_pages.push_back(paddr));
+					process->m_mmu->map_page_at(paddr, page * 4096, MMU::Flags::UserSupervisor | MMU::Flags::ReadWrite | MMU::Flags::Present);
 				}
 				process->m_mmu->load();
 				memcpy((void*)elf_program_header.p_vaddr, elf->data() + elf_program_header.p_offset, elf_program_header.p_filesz);
@@ -98,8 +100,11 @@ namespace Kernel
 
 	Process::~Process()
 	{
-		if (!m_threads.empty())
-			exit();
+		ASSERT(m_threads.empty());
+		if (m_mmu)
+			delete m_mmu;
+		for (auto paddr : m_allocated_pages)
+			Memory::Heap::get().release_page(paddr);
 	}
 
 	void Process::add_thread(Thread* thread)
