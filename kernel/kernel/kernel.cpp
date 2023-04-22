@@ -99,9 +99,6 @@ namespace BAN::Formatter
 
 }
 
-extern "C" uintptr_t g_userspace_start;
-extern "C" uintptr_t g_userspace_end;
-
 extern "C" uintptr_t g_kernel_start;
 extern "C" uintptr_t g_kernel_end;
 
@@ -204,8 +201,7 @@ static void jump_userspace()
 {
 	using namespace Kernel;
 
-	MMU::get().map_range((uintptr_t)&g_userspace_start, (uintptr_t)&g_userspace_end - (uintptr_t)&g_userspace_start, MMU::Flags::UserSupervisor | MMU::Flags::Present);
-	MMU::get().map_range((uintptr_t)&g_kernel_start,    (uintptr_t)&g_kernel_end    - (uintptr_t)&g_kernel_start,    MMU::Flags::UserSupervisor | MMU::Flags::Present);
+	MMU::get().map_range((uintptr_t)&g_kernel_start, (uintptr_t)&g_kernel_end - (uintptr_t)&g_kernel_start, MMU::Flags::UserSupervisor | MMU::Flags::Present);
 
 	MUST(Process::create_userspace("/bin/test"sv));
 }

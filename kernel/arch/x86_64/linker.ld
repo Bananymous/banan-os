@@ -24,14 +24,4 @@ SECTIONS
 		*(.bss)
 	}
 	g_kernel_end = .;
-
-	. = 0x00A00000;
-
-	g_userspace_start = .;
-	.userspace BLOCK(4K) : ALIGN(4K)
-	{
-		*(.userspace)
-	}
-	g_userspace_end = .;
-
 }
