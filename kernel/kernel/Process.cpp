@@ -46,17 +46,22 @@ namespace Kernel
 	BAN::ErrorOr<Process*> Process::create_userspace(BAN::StringView path)
 	{
 		auto* elf = TRY(LibELF::ELF::load_from_file(path));	
-		
+		if (!elf->is_native())
+		{
+			derrorln("ELF has invalid architecture");
+			return BAN::Error::from_errno(EINVAL);
+		}
+
 		auto* process = create_process();
 		MUST(process->m_working_directory.push_back('/'));
 		MUST(process->init_stdio());
 		process->m_mmu = new MMU();
 		ASSERT(process->m_mmu);
 		
-		auto& elf_file_header = elf->file_header64();
+		auto& elf_file_header = elf->file_header_native();
 		for (size_t i = 0; i < elf_file_header.e_phnum; i++)
 		{
-			auto& elf_program_header = elf->program_header64(i);
+			auto& elf_program_header = elf->program_header_native(i);
 
 			switch (elf_program_header.p_type)
 			{
@@ -105,7 +110,10 @@ namespace Kernel
 	{
 		ASSERT(m_threads.empty());
 		if (m_mmu)
+		{
+			MMU::get().load();
 			delete m_mmu;
+		}
 		for (auto paddr : m_allocated_pages)
 			Memory::Heap::get().release_page(paddr);
 	}
