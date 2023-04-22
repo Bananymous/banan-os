@@ -149,6 +149,7 @@ namespace Kernel
 		s_process_lock.unlock();
 
 		// FIXME: we can't assume this is the current process
+		ASSERT(&Process::current() == this);
 		Scheduler::get().set_current_process_done();
 	}
 
