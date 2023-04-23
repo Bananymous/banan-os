@@ -201,10 +201,13 @@ namespace Kernel
 
 	BAN::ErrorOr<size_t> Process::read(int fd, void* buffer, size_t count)
 	{
-		m_lock.lock();
-		TRY(validate_fd(fd));
-		auto open_fd_copy = open_file_description(fd);
-		m_lock.unlock();
+		OpenFileDescription open_fd_copy;
+
+		{
+			LockGuard _(m_lock);
+			TRY(validate_fd(fd));
+			open_fd_copy = open_file_description(fd);
+		}
 
 		if (!(open_fd_copy.flags & O_RDONLY))
 			return BAN::Error::from_errno(EBADF);
