@@ -16,6 +16,9 @@
 #define ENOBUFS 12
 #define ENOTTY 13
 #define ENOTBLK 14
+#define EMFILE 15
+
+#define errno errno
 
 __BEGIN_DECLS
 

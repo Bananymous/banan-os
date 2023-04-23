@@ -1,5 +1,6 @@
 #include <BAN/Assert.h>
 #include <ctype.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -13,6 +14,7 @@ void abort(void)
 
 void exit(int status)
 {
+	fflush(nullptr);
 	_fini();
 	_exit(status);
 	ASSERT_NOT_REACHED();

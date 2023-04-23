@@ -304,6 +304,15 @@ namespace Kernel
 		return ret;
 	}
 
+	BAN::ErrorOr<void> Process::seek(int fd, size_t offset)
+	{
+		LockGuard _(m_lock);
+		TRY(validate_fd(fd));
+		auto& open_fd = open_file_description(fd);
+		open_fd.offset = offset;
+		return {};
+	}
+
 	BAN::ErrorOr<BAN::Vector<BAN::String>> Process::read_directory_entries(int fd)
 	{
 		OpenFileDescription open_fd_copy;
@@ -347,6 +356,14 @@ namespace Kernel
 		m_working_directory = BAN::move(file.canonical_path);
 
 		return {};
+	}
+
+	void Process::termid(char* buffer) const
+	{
+		if (m_tty == nullptr)
+			buffer[0] = '\0';
+		strcpy(buffer, "/dev/");
+		strcpy(buffer + 5, m_tty->name().data());
 	}
 
 	BAN::ErrorOr<BAN::String> Process::absolute_path_of(BAN::StringView path) const
