@@ -125,6 +125,9 @@ char* strerror(int error)
 	case ENOTBLK:
 		strcpy(buffer, "Block device required");
 		break;
+	case EMFILE:
+		strcpy(buffer, "File descriptor value too large");
+		break;
 	default:
 		{
 			// FIXME: sprintf

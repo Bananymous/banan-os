@@ -3,6 +3,10 @@
 #define SYS_EXIT 1
 #define SYS_READ 2
 #define SYS_WRITE 3
+#define SYS_TERMID 4
+#define SYS_CLOSE 5
+#define SYS_SEEK 6
+#define SYS_OPEN 7
 
 #include <stdint.h>
 

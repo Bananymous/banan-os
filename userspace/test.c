@@ -2,6 +2,7 @@
 
 int main()
 {
-	puts("Hello World!");
+	if (printf("Hello %s!", "World") == -1)
+		perror(NULL);
 	return 0;
 }

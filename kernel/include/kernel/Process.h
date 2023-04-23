@@ -43,6 +43,7 @@ namespace Kernel
 		BAN::ErrorOr<size_t> read(int, void*, size_t);
 		BAN::ErrorOr<size_t> write(int, const void*, size_t);
 		BAN::ErrorOr<void> creat(BAN::StringView, mode_t);
+		BAN::ErrorOr<void> seek(int, size_t);
 
 		BAN::ErrorOr<void> fstat(int, stat*);
 		BAN::ErrorOr<void> stat(BAN::StringView, stat*);
@@ -53,6 +54,8 @@ namespace Kernel
 
 		BAN::ErrorOr<BAN::String> working_directory() const;
 		BAN::ErrorOr<void> set_working_directory(BAN::StringView);
+
+		void termid(char*) const;
 
 		static Process& current() { return Thread::current().process(); }
 
