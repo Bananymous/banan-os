@@ -46,6 +46,9 @@ namespace Kernel
 		uintptr_t stack_base() const { return (uintptr_t)m_stack_base; }
 		size_t stack_size() const { return m_stack_size; }
 
+		uintptr_t interrupt_stack_base() const { return (uintptr_t)m_interrupt_stack; }
+		uintptr_t interrupt_stack_size() const { return m_interrupt_stack_size; }
+
 		static Thread& current() ;
 		Process& process();
 		bool has_process() const { return m_process; }
@@ -55,25 +58,22 @@ namespace Kernel
 	private:
 		Thread(pid_t tid, Process*);
 
-		void validate_stack() const
-		{
-			if (!m_in_syscall)
-				if (!(stack_base() <= m_rsp && m_rsp <= stack_base() + stack_size()))
-					Kernel::panic("rsp {8H}, stack {8H}->{8H}", m_rsp, stack_base(), stack_base() + stack_size());
-		}
+		void validate_stack() const;
 		
 		BAN::ErrorOr<void> initialize(entry_t, void*);
 		void on_exit();
 		
 	private:
-		static constexpr size_t m_stack_size = 4096 * 1;
-		void*		m_stack_base	{ nullptr };
-		uintptr_t	m_rip			{ 0 };
-		uintptr_t	m_rsp			{ 0 };
-		const pid_t	m_tid			{ 0 };
-		State		m_state			{ State::NotStarted };
-		Process*	m_process		{ nullptr };
-		bool		m_in_syscall	{ false };
+		static constexpr size_t m_stack_size			= 4096 * 1;
+		static constexpr size_t m_interrupt_stack_size	= 4096;
+		void*		m_interrupt_stack	{ nullptr };
+		void*		m_stack_base		{ nullptr };
+		uintptr_t	m_rip				{ 0 };
+		uintptr_t	m_rsp				{ 0 };
+		const pid_t	m_tid				{ 0 };
+		State		m_state				{ State::NotStarted };
+		Process*	m_process			{ nullptr };
+		bool		m_in_syscall		{ false };
 
 		friend class Scheduler;
 	};
