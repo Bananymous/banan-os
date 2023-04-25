@@ -1,6 +1,7 @@
 #include <kernel/Arch.h>
 #include <kernel/Attributes.h>
 #include <kernel/CriticalScope.h>
+#include <kernel/GDT.h>
 #include <kernel/InterruptController.h>
 #include <kernel/Process.h>
 #include <kernel/Scheduler.h>
@@ -168,7 +169,10 @@ namespace Kernel
 		Thread& current = current_thread();
 
 		if (current.has_process())
+		{
 			current.process().mmu().load();
+			GDT::set_tss_stack(current.interrupt_stack_base() + current.interrupt_stack_size());
+		}
 		else
 			MMU::get().load();
 
