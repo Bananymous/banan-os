@@ -55,7 +55,12 @@ namespace Kernel
 	private:
 		Thread(pid_t tid, Process*);
 
-		void validate_stack() const { if (!m_in_syscall) ASSERT(stack_base() <= m_rsp && m_rsp <= stack_base() + stack_size()); }
+		void validate_stack() const
+		{
+			if (!m_in_syscall)
+				if (!(stack_base() <= m_rsp && m_rsp <= stack_base() + stack_size()))
+					Kernel::panic("rsp {8H}, stack {8H}->{8H}", m_rsp, stack_base(), stack_base() + stack_size());
+		}
 		
 		BAN::ErrorOr<void> initialize(entry_t, void*);
 		void on_exit();
