@@ -38,6 +38,12 @@ namespace Kernel
 				ASSERT_NOT_REACHED();
 			}, (void*)entry, process
 		));
+		thread->m_interrupt_stack = kmalloc(m_interrupt_stack_size, PAGE_SIZE);
+		if (thread->m_interrupt_stack == nullptr)
+		{
+			delete thread;
+			return BAN::Error::from_errno(ENOMEM);
+		}
 		process->mmu().map_range(thread->stack_base(), thread->stack_size(), MMU::Flags::UserSupervisor | MMU::Flags::ReadWrite | MMU::Flags::Present);
 		return thread;
 	}
@@ -75,12 +81,26 @@ namespace Kernel
 	Thread::~Thread()
 	{
 		dprintln("thread {} ({}) exit", tid(), m_process->pid());
+		if (m_interrupt_stack)
+			kfree(m_interrupt_stack);
 		kfree(m_stack_base);
 	}
 
 	void Thread::jump_userspace(uintptr_t rip)
 	{
 		thread_jump_userspace(rsp(), rip);
+	}
+
+	void Thread::validate_stack() const
+	{
+		if (stack_base() <= m_rsp && m_rsp <= stack_base() + stack_size())
+			return;
+		if (interrupt_stack_base() <= m_rsp && m_rsp <= interrupt_stack_base() + interrupt_stack_size())
+			return;
+		Kernel::panic("rsp {8H}, stack {8H}->{8H}, interrupt_stack {8H}->{8H}", m_rsp,
+			stack_base(), stack_base() + stack_size(),
+			interrupt_stack_base(), interrupt_stack_base() + interrupt_stack_size()
+		);
 	}
 
 	void Thread::on_exit()
