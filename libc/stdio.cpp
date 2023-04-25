@@ -216,6 +216,7 @@ int fprintf(FILE* file, const char* format, ...)
 int fputc(int c, FILE* file)
 {
 	file->buffer[file->buffer_index++] = c;
+	file->offset++;
 	if (c == '\n' || file->buffer_index == sizeof(file->buffer))
 		if (fflush(file) == EOF)
 			return EOF;
@@ -235,7 +236,7 @@ int fputs(const char* str, FILE* file)
 
 size_t fread(void* buffer, size_t size, size_t nitems, FILE* file)
 {
-	if (file->eof)
+	if (file->eof || nitems * size == 0)
 		return 0;
 	long ret = syscall(SYS_READ, file->fd, buffer, size * nitems);
 	if (ret < 0)
@@ -246,6 +247,7 @@ size_t fread(void* buffer, size_t size, size_t nitems, FILE* file)
 	}
 	if (ret < size * nitems)
 		file->eof = true;
+	file->offset += ret;
 	return ret / size;
 }
 
@@ -376,7 +378,7 @@ void perror(const char* string)
 		fputs(": ", stderr);
 	}
 	fputs(strerror(errno), stderr);
-	fflush(stderr);
+	fputc('\n', stderr);
 	stderr->error = true;
 }
 
