@@ -1,6 +1,7 @@
 #include <BAN/Assert.h>
 #include <stdarg.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <sys/syscall.h>
 #include <unistd.h>
 
@@ -15,7 +16,7 @@ long syscall(long syscall, ...)
 	va_list args;
 	va_start(args, syscall);
 
-	long ret = 0;
+	long ret = -1;
 
 	switch (syscall)
 	{
@@ -41,6 +42,34 @@ long syscall(long syscall, ...)
 			ret = Kernel::syscall(SYS_WRITE, fd, string, bytes);
 			break;
 		}
+		case SYS_TERMID:
+		{
+			char* buffer = va_arg(args, char*);
+			Kernel::syscall(SYS_TERMID, buffer);
+			break;
+		}
+		case SYS_CLOSE:
+		{
+			int fd = va_arg(args, int);
+			ret = Kernel::syscall(SYS_CLOSE, fd);
+			break;
+		}
+		case SYS_SEEK:
+		{
+			int fd = va_arg(args, int);
+			long offset = va_arg(args, long);
+			ret = Kernel::syscall(SYS_SEEK, fd, offset);
+			break;
+		}
+		case SYS_OPEN:
+		{
+			const char* path = va_arg(args, const char*);
+			int oflags = va_arg(args, int);
+			ret = Kernel::syscall(SYS_OPEN, path, oflags);
+			break;
+		}
+		default:
+			puts("LibC: Unhandeled syscall");
 	}
 
 	va_end(args);
