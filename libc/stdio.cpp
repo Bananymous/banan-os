@@ -235,11 +235,18 @@ int fputs(const char* str, FILE* file)
 
 size_t fread(void* buffer, size_t size, size_t nitems, FILE* file)
 {
-	unsigned char* ubuffer = (unsigned char*)buffer;
-	for (size_t byte = 0; byte < nitems * size; byte++)
-		if ((ubuffer[byte] = fgetc(file)) == EOF)
-			return byte / size;
-	return nitems;
+	if (file->eof)
+		return 0;
+	long ret = syscall(SYS_READ, file->fd, buffer, size * nitems);
+	if (ret < 0)
+	{
+		errno = -ret;
+		file->error = true;
+		return 0;
+	}
+	if (ret < size * nitems)
+		file->eof = true;
+	return ret / size;
 }
 
 // TODO
