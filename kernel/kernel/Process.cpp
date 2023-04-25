@@ -83,7 +83,7 @@ namespace Kernel
 				}
 				process->m_mmu->load();
 				memcpy((void*)elf_program_header.p_vaddr, elf->data() + elf_program_header.p_offset, elf_program_header.p_filesz);
-				memset((void*)(elf_program_header.p_vaddr + elf_program_header.p_filesz), 0, elf_program_header.p_memsz);
+				memset((void*)(elf_program_header.p_vaddr + elf_program_header.p_filesz), 0, elf_program_header.p_memsz - elf_program_header.p_filesz);
 				Process::current().mmu().load();
 				break;
 			}
