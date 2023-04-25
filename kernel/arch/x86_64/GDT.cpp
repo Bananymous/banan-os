@@ -54,6 +54,8 @@ namespace Kernel::GDT
 		uint64_t address;
 	} __attribute__((packed));
 
+	static constexpr uint8_t s_tss_offset = 0x28;
+
 	static TaskStateSegment* s_tss = nullptr;
 	static SegmentDescriptor* s_gdt = nullptr;
 	static GDTR s_gdtr;
@@ -73,20 +75,25 @@ namespace Kernel::GDT
 		desc.flags = flags;
 	}
 
-	static void write_tss(uint8_t offset)
+	static void write_tss()
 	{
 		s_tss = new TaskStateSegment();
 		ASSERT(s_tss);
 		
 		memset(s_tss, 0x00, sizeof(TaskStateSegment));
-		s_tss->rsp0 = (uintptr_t)g_boot_stack_top;
+		s_tss->rsp0 = 0;
 		
 		uintptr_t base = (uintptr_t)s_tss;
 
-		write_entry(offset, (uint32_t)base, sizeof(TaskStateSegment), 0x89, 0x0);
-		SegmentDescriptor& desc = *(SegmentDescriptor*)((uintptr_t)s_gdt + offset + 0x08);
+		write_entry(s_tss_offset, (uint32_t)base, sizeof(TaskStateSegment), 0x89, 0x0);
+		SegmentDescriptor& desc = *(SegmentDescriptor*)((uintptr_t)s_gdt + s_tss_offset + 0x08);
 		desc.low = base >> 32;
 		desc.high = 0;
+	}
+
+	void set_tss_stack(uintptr_t rsp)
+	{
+		s_tss->rsp0 = rsp;
 	}
 
 	static void flush_gdt()
@@ -94,9 +101,9 @@ namespace Kernel::GDT
 		asm volatile("lgdt %0" :: "m"(s_gdtr));
 	}
 
-	extern "C" void flush_tss(uint16_t offset)
+	static void flush_tss()
 	{
-		asm volatile("ltr %0" :: "m"(offset));
+		asm volatile("ltr %0" :: "m"(s_tss_offset));
 	}
 
 	void initialize()
@@ -113,10 +120,10 @@ namespace Kernel::GDT
 		write_entry(0x10, 0x00000000, 0xFFFFF, 0x92, 0xC); // kernel data
 		write_entry(0x18, 0x00000000, 0xFFFFF, 0xFA, 0xA); // user code
 		write_entry(0x20, 0x00000000, 0xFFFFF, 0xF2, 0xC); // user data
-		write_tss(0x28);
+		write_tss();
 
 		flush_gdt();
-		flush_tss(0x28);
+		flush_tss();
 	}
 
 }
