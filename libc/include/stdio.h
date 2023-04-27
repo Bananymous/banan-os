@@ -35,6 +35,8 @@ extern FILE* stdin;
 extern FILE* stdout;
 extern FILE* stderr;
 
+
+// https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/stdio.h.html
 void	clearerr(FILE*);
 char*	ctermid(char*);
 int		fclose(FILE*);
