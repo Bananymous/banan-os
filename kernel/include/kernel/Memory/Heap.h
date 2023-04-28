@@ -7,9 +7,10 @@
 
 #define PAGE_SIZE 4096
 
-namespace Kernel::Memory
+namespace Kernel
 {
 
+	using vaddr_t = uintptr_t;
 	using paddr_t = uintptr_t;
 
 	class PhysicalRange

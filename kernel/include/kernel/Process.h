@@ -82,7 +82,7 @@ namespace Kernel
 		BAN::ErrorOr<int> get_free_fd();
 
 		BAN::Vector<OpenFileDescription> m_open_files;
-		BAN::Vector<Memory::paddr_t> m_allocated_pages;
+		BAN::Vector<paddr_t> m_allocated_pages;
 
 		mutable RecursiveSpinLock m_lock;
 

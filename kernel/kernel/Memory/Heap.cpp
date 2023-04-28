@@ -4,7 +4,7 @@
 
 extern uint8_t g_kernel_end[];
 
-namespace Kernel::Memory
+namespace Kernel
 {
 
 	PhysicalRange::PhysicalRange(paddr_t start, size_t size)
@@ -36,7 +36,7 @@ namespace Kernel::Memory
 		m_list_pages		= BAN::Math::div_round_up<uint64_t>(m_total_pages * sizeof(node), PAGE_SIZE);
 		m_reservable_pages	= m_total_pages - m_list_pages;
 
-		MMU::get().map_range(m_start, m_list_pages * PAGE_SIZE, MMU::Flags::ReadWrite | MMU::Flags::Present);
+		MMU::get().identity_map_range(m_start, m_list_pages * PAGE_SIZE, MMU::Flags::ReadWrite | MMU::Flags::Present);
 
 		// Initialize page list so that every page points to the next one
 		node* page_list = (node*)m_start;
