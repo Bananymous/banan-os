@@ -113,6 +113,7 @@ target_compile_definitions(kernel PUBLIC __arch=${BANAN_ARCH})
 target_compile_options(kernel PUBLIC -O2 -g)
 target_compile_options(kernel PUBLIC -Wno-literal-suffix)
 target_compile_options(kernel PUBLIC -fno-rtti -fno-exceptions)
+target_compile_options(kernel PUBLIC -fmacro-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}=.)
 target_compile_options(kernel PUBLIC -fstack-protector -ffreestanding -Wall -Wextra -Werror=return-type -Wstack-usage=1024 -fno-omit-frame-pointer -mno-sse -mno-sse2)
 
 if(ENABLE_KERNEL_UBSAN)
