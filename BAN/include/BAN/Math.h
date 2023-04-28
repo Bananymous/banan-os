@@ -52,6 +52,14 @@ namespace BAN::Math
 	}
 
 	template<integral T>
+	inline constexpr bool is_power_of_two(T value)
+	{
+		if (value == 0)
+			return false;
+		return (value & (value - 1)) == 0;
+	}
+
+	template<integral T>
 	inline constexpr T little_endian_to_host(const uint8_t* bytes)
 	{
 		T result = 0;
