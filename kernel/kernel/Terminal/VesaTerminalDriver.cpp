@@ -4,6 +4,8 @@
 #include <kernel/multiboot.h>
 #include <kernel/Terminal/VesaTerminalDriver.h>
 
+using namespace Kernel;
+
 VesaTerminalDriver* VesaTerminalDriver::create()
 {
 	if (!(g_multiboot_info->flags & MULTIBOOT_FLAGS_FRAMEBUFFER))
@@ -34,7 +36,7 @@ VesaTerminalDriver* VesaTerminalDriver::create()
 		return nullptr;
 	}
 
-	MMU::get().map_range(framebuffer.addr, framebuffer.pitch * framebuffer.height, MMU::Flags::UserSupervisor | MMU::Flags::ReadWrite | MMU::Flags::Present);
+	MMU::get().identity_map_range(framebuffer.addr, framebuffer.pitch * framebuffer.height, MMU::Flags::UserSupervisor | MMU::Flags::ReadWrite | MMU::Flags::Present);
 
 	auto* driver = new VesaTerminalDriver(
 		framebuffer.width,

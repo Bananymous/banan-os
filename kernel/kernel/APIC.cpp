@@ -81,6 +81,8 @@ union RedirectionEntry
 	};
 };
 
+using namespace Kernel;
+
 APIC* APIC::create()
 {
 	uint32_t ecx, edx;
@@ -144,10 +146,10 @@ APIC* APIC::create()
 		return nullptr;
 	}
 
-	MMU::get().map_page(apic->m_local_apic, MMU::Flags::ReadWrite | MMU::Flags::Present);
+	MMU::get().identity_map_page(apic->m_local_apic, MMU::Flags::ReadWrite | MMU::Flags::Present);
 	for (auto& io_apic : apic->m_io_apics)
 	{
-		MMU::get().map_page(io_apic.address, MMU::Flags::ReadWrite | MMU::Flags::Present);
+		MMU::get().identity_map_page(io_apic.address, MMU::Flags::ReadWrite | MMU::Flags::Present);
 		io_apic.max_redirs = io_apic.read(IOAPIC_MAX_REDIRS);
 	}
 

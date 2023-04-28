@@ -77,7 +77,7 @@ namespace Kernel
 				MUST(process->m_allocated_pages.reserve(page_end - page_start + 1));
 				for (size_t page = page_start; page <= page_end; page++)
 				{
-					auto paddr = Memory::Heap::get().take_free_page();
+					auto paddr = Heap::get().take_free_page();
 					MUST(process->m_allocated_pages.push_back(paddr));
 					process->m_mmu->map_page_at(paddr, page * 4096, flags);
 				}
@@ -115,7 +115,7 @@ namespace Kernel
 			delete m_mmu;
 		}
 		for (auto paddr : m_allocated_pages)
-			Memory::Heap::get().release_page(paddr);
+			Heap::get().release_page(paddr);
 	}
 
 	void Process::add_thread(Thread* thread)

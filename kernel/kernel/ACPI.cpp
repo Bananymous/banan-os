@@ -105,7 +105,7 @@ namespace Kernel
 		if (rsdp->revision >= 2)
 		{
 			const XSDT* xsdt = (const XSDT*)rsdp->xsdt_address;
-			MMU::get().map_page((uintptr_t)xsdt, MMU::Flags::Present);
+			MMU::get().identity_map_page((uintptr_t)xsdt, MMU::Flags::Present);
 			BAN::ScopeGuard _([xsdt] { MMU::get().unmap_page((uintptr_t)xsdt); });
 
 			if (memcmp(xsdt->signature, "XSDT", 4) != 0)
@@ -120,7 +120,7 @@ namespace Kernel
 		else
 		{
 			const RSDT* rsdt = (const RSDT*)(uintptr_t)rsdp->rsdt_address;
-			MMU::get().map_page((uintptr_t)rsdt, MMU::Flags::Present);
+			MMU::get().identity_map_page((uintptr_t)rsdt, MMU::Flags::Present);
 			BAN::ScopeGuard _([rsdt] { MMU::get().unmap_page((uintptr_t)rsdt); });
 
 			if (memcmp(rsdt->signature, "RSDT", 4) != 0)
@@ -133,13 +133,13 @@ namespace Kernel
 			m_entry_count = (rsdt->length - sizeof(SDTHeader)) / 4;
 		}
 
-		MMU::get().map_range(m_header_table, m_entry_count * m_entry_size, MMU::Flags::Present);
+		MMU::get().identity_map_range(m_header_table, m_entry_count * m_entry_size, MMU::Flags::Present);
 
 		for (uint32_t i = 0; i < m_entry_count; i++)
 		{
 			auto* header = get_header_from_index(i);
-			MMU::get().map_page((uintptr_t)header, MMU::Flags::Present);
-			MMU::get().map_range((uintptr_t)header, header->length, MMU::Flags::Present);
+			MMU::get().identity_map_page((uintptr_t)header, MMU::Flags::Present);
+			MMU::get().identity_map_range((uintptr_t)header, header->length, MMU::Flags::Present);
 		}
 
 		return {};

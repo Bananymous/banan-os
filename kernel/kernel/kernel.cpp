@@ -139,7 +139,7 @@ extern "C" void kernel_main()
 	ASSERT(tty1);
 	dprintln("TTY initialized");
 
-	Memory::Heap::initialize();
+	Heap::initialize();
 	dprintln("Heap initialzed");
 
 	parse_command_line();

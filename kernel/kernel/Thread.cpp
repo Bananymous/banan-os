@@ -44,7 +44,7 @@ namespace Kernel
 			delete thread;
 			return BAN::Error::from_errno(ENOMEM);
 		}
-		process->mmu().map_range(thread->stack_base(), thread->stack_size(), MMU::Flags::UserSupervisor | MMU::Flags::ReadWrite | MMU::Flags::Present);
+		process->mmu().identity_map_range(thread->stack_base(), thread->stack_size(), MMU::Flags::UserSupervisor | MMU::Flags::ReadWrite | MMU::Flags::Present);
 		return thread;
 	}
 
