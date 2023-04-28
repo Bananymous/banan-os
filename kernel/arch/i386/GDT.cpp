@@ -109,6 +109,11 @@ namespace Kernel::GDT
 		write_entry(offset, (uint32_t)s_tss, sizeof(TaskStateSegment), 0x89, 0x0);
 	}
 
+	void set_tss_stack(uintptr_t esp)
+	{
+		s_tss->esp0 = esp;
+	}
+
 	static void flush_gdt()
 	{
 		asm volatile("lgdt %0" :: "m"(s_gdtr));
