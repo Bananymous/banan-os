@@ -22,6 +22,8 @@
 namespace Kernel
 {
 
+	static Process* s_input_process = nullptr;
+
 	static dev_t next_tty_rdev()
 	{
 		static dev_t major = DeviceManager::get().get_next_rdev();
@@ -55,18 +57,19 @@ namespace Kernel
 		m_name = BAN::String::formatted("tty{}", minor(m_rdev));
 		DeviceManager::get().add_device(this);
 
-		Process::create_kernel(
-			[](void* tty_)
+		if (s_input_process)
+			return;
+		s_input_process = Process::create_kernel(
+			[](void*)
 			{
-				TTY* tty = (TTY*)tty_;
 				int fd = MUST(Process::current().open("/dev/input0"sv, O_RDONLY));
 				while (true)
 				{
 					Input::KeyEvent event;
-					MUST(Process::current().read(fd, &event, sizeof(event)));
-					tty->on_key(event);
+					ASSERT(MUST(Process::current().read(fd, &event, sizeof(event))) == sizeof(event));
+					TTY::current()->on_key(event);
 				}
-			}, this
+			}, nullptr
 		);
 	}
 
