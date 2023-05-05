@@ -4,11 +4,12 @@
 
 namespace Kernel
 {
-	
+
 	class MMU
 	{
 	public:
-		enum Flags : uint8_t 
+		using flags_t = uint8_t;
+		enum Flags : flags_t 
 		{
 			Present = 1,
 			ReadWrite = 2,
@@ -22,15 +23,18 @@ namespace Kernel
 		MMU();
 		~MMU();
 
-		void identity_map_page(paddr_t, uint8_t);
-		void identity_map_range(paddr_t, ptrdiff_t, uint8_t);
+		void identity_map_page(paddr_t, flags_t);
+		void identity_map_range(paddr_t, size_t, flags_t);
 
 		void unmap_page(vaddr_t);
-		void unmap_range(vaddr_t, ptrdiff_t);
+		void unmap_range(vaddr_t, size_t);
 
-		void map_page_at(paddr_t, vaddr_t, uint8_t);
+		void map_page_at(paddr_t, vaddr_t, flags_t);
 
-		uint8_t get_page_flags(vaddr_t) const;
+		flags_t get_page_flags(vaddr_t) const;
+
+		vaddr_t get_free_page() const;
+		vaddr_t get_free_contiguous_pages(uint32_t) const;
 
 		void load();
 
