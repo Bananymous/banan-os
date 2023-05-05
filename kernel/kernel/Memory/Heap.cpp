@@ -55,7 +55,7 @@ namespace Kernel
 	paddr_t PhysicalRange::reserve_page()
 	{
 		if (m_free_list == nullptr)
-			return invalid;
+			return 0;
 
 		node* page = m_free_list;
 		ASSERT(page->next == nullptr);
@@ -161,7 +161,7 @@ namespace Kernel
 	paddr_t Heap::take_free_page()
 	{
 		for (auto& range : m_physical_ranges)
-			if (paddr_t page = range.reserve_page(); page != PhysicalRange::invalid)
+			if (paddr_t page = range.reserve_page())
 				return page;
 		ASSERT_NOT_REACHED();
 	}

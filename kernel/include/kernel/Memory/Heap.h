@@ -16,9 +16,6 @@ namespace Kernel
 	class PhysicalRange
 	{
 	public:
-		static constexpr paddr_t invalid = ~paddr_t(0);
-
-	public:
 		PhysicalRange(paddr_t, size_t);
 		paddr_t reserve_page();
 		void release_page(paddr_t);

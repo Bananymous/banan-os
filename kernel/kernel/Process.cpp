@@ -75,14 +75,14 @@ namespace Kernel
 				uint8_t flags = MMU::Flags::UserSupervisor | MMU::Flags::Present;
 				if (elf_program_header.p_flags & LibELF::PF_W)
 					flags |= MMU::Flags::ReadWrite;
-				size_t page_start = elf_program_header.p_vaddr / 4096;
-				size_t page_end = BAN::Math::div_round_up<size_t>(elf_program_header.p_vaddr + elf_program_header.p_memsz, 4096);
+				size_t page_start = elf_program_header.p_vaddr / PAGE_SIZE;
+				size_t page_end = BAN::Math::div_round_up<size_t>(elf_program_header.p_vaddr + elf_program_header.p_memsz, PAGE_SIZE);
 				MUST(process->m_allocated_pages.reserve(page_end - page_start + 1));
 				for (size_t page = page_start; page <= page_end; page++)
 				{
 					auto paddr = Heap::get().take_free_page();
 					MUST(process->m_allocated_pages.push_back(paddr));
-					process->m_mmu->map_page_at(paddr, page * 4096, flags);
+					process->m_mmu->map_page_at(paddr, page * PAGE_SIZE, flags);
 				}
 				process->m_mmu->load();
 				memcpy((void*)elf_program_header.p_vaddr, elf->data() + elf_program_header.p_offset, elf_program_header.p_filesz);
