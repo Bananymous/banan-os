@@ -31,7 +31,11 @@ namespace Kernel
 
 		void map_page_at(paddr_t, vaddr_t, flags_t);
 
+		paddr_t physical_address_of(vaddr_t) const;
 		flags_t get_page_flags(vaddr_t) const;
+
+		bool is_page_free(vaddr_t) const;
+		bool is_range_free(vaddr_t, size_t) const;
 
 		vaddr_t get_free_page() const;
 		vaddr_t get_free_contiguous_pages(uint32_t) const;
@@ -39,6 +43,7 @@ namespace Kernel
 		void load();
 
 	private:
+		uint64_t get_page_data(vaddr_t) const;
 		void initialize_kernel();
 
 	private:

@@ -235,8 +235,9 @@ namespace Kernel
 			pt[pte] = paddr | flags;
 	}
 
-	uint8_t MMU::get_page_flags(vaddr_t address) const
+	uint64_t MMU::get_page_data(vaddr_t address) const
 	{
+		ASSERT((address >> 48) == 0);
 		ASSERT(address % PAGE_SIZE == 0);
 
 		uint64_t pml4e = (address >> 39) & 0x1FF;
@@ -260,7 +261,81 @@ namespace Kernel
 		if (!(pt[pte] & Flags::Present))
 			return 0;
 
-		return pt[pte] & FLAGS_MASK;
+		return pt[pte];
+	}
+
+	MMU::flags_t MMU::get_page_flags(vaddr_t addr) const
+	{
+		return get_page_data(addr) & FLAGS_MASK;
+	}
+
+	paddr_t MMU::physical_address_of(vaddr_t addr) const
+	{
+		return get_page_data(addr) & PAGE_MASK;
+	}
+
+	vaddr_t MMU::get_free_page() const
+	{
+		// Try to find free page that can be mapped without
+		// allocations (page table with unused entries)
+		vaddr_t* pml4 = m_highest_paging_struct;
+		for (uint64_t pml4e = 0; pml4e < 512; pml4e++)
+		{
+			if (!(pml4[pml4e] & Flags::Present))
+				continue;
+			vaddr_t* pdpt = (vaddr_t*)(pml4[pml4e] & PAGE_MASK);
+			for (uint64_t pdpte = 0; pdpte < 512; pdpte++)
+			{
+				if (!(pdpt[pdpte] & Flags::Present))
+					continue;
+				vaddr_t* pd = (vaddr_t*)(pdpt[pdpte] & PAGE_MASK);
+				for (uint64_t pde = 0; pde < 512; pde++)
+				{
+					if (!(pd[pde] & Flags::Present))
+						continue;
+					vaddr_t* pt = (vaddr_t*)(pd[pde] & PAGE_MASK);
+					for (uint64_t pte = !(pml4e + pdpte + pde); pte < 512; pte++)
+					{
+						if (!(pt[pte] & Flags::Present))
+						{
+							vaddr_t vaddr = 0;
+							vaddr |= pml4e << 39;
+							vaddr |= pdpte << 30;
+							vaddr |= pde   << 21;
+							vaddr |= pte   << 12;
+							return vaddr;
+						}
+					}
+				}
+			}
+		}
+
+		// Find any free page page (except for page 0)
+		vaddr_t address = PAGE_SIZE;
+		while ((address << 48) == 0)
+		{
+			if (!(get_page_flags(address) & Flags::Present))
+				return address;
+			address += PAGE_SIZE;
+		}
+
+		ASSERT_NOT_REACHED();
+	}
+
+	bool MMU::is_page_free(vaddr_t page) const
+	{
+		ASSERT(page % PAGE_SIZE == 0);
+		return !(get_page_flags(page) & Flags::Present);
+	}
+
+	bool MMU::is_range_free(vaddr_t start, size_t size) const
+	{
+		vaddr_t first_page = start / PAGE_SIZE;
+		vaddr_t last_page = BAN::Math::div_round_up<vaddr_t>(start + size, PAGE_SIZE);
+		for (vaddr_t page = first_page; page <= last_page; page++)
+			if (!is_page_free(page * PAGE_SIZE))
+				return false;
+		return true;
 	}
 
 }

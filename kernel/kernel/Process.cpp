@@ -69,6 +69,9 @@ namespace Kernel
 				break;
 			case LibELF::PT_LOAD:
 			{
+				// TODO: Do some relocations?
+				ASSERT(process->mmu().is_range_free(elf_program_header.p_vaddr, elf_program_header.p_memsz));
+
 				uint8_t flags = MMU::Flags::UserSupervisor | MMU::Flags::Present;
 				if (elf_program_header.p_flags & LibELF::PF_W)
 					flags |= MMU::Flags::ReadWrite;
