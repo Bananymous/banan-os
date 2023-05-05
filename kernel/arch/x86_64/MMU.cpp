@@ -44,30 +44,12 @@ namespace Kernel
 
 	void MMU::initialize_kernel()
 	{
-		// FIXME: We should just identity map until g_kernel_end
-
-		ASSERT((uintptr_t)g_kernel_end <= 6 * (1 << 20));
-
-		// Identity map from 0 -> 6 MiB
 		m_highest_paging_struct = allocate_page_aligned_page();
-		
-		uint64_t* pdpt = allocate_page_aligned_page();
-		m_highest_paging_struct[0] = (uint64_t)pdpt | Flags::ReadWrite | Flags::Present;
+		memset(m_highest_paging_struct, 0, PAGE_SIZE);
 
-		uint64_t* pd = allocate_page_aligned_page();
-		pdpt[0] = (uint64_t)pd | Flags::ReadWrite | Flags::Present;
-
-		for (uint32_t i = 0; i < 3; i++)
-		{
-			uint64_t* pt = allocate_page_aligned_page();
-			for (uint64_t j = 0; j < 512; j++)
-				pt[j] = (i << 21) | (j << 12) | Flags::ReadWrite | Flags::Present;
-			pd[i] = (uint64_t)pt | Flags::ReadWrite | Flags::Present;
-		}
-
-		// Unmap 0 -> 4 KiB
-		uint64_t* pt1 = (uint64_t*)(pd[0] & PAGE_MASK);
-		pt1[0] = 0;
+		// Identity map 4 KiB -> kernel end. We don't map the first page since nullptr derefs should
+		// page fault. Also there isn't anything useful in that memory.
+		identity_map_range(PAGE_SIZE, (uintptr_t)g_kernel_end, Flags::ReadWrite | Flags::Present);
 	}
 
 	MMU::MMU()
@@ -150,13 +132,13 @@ namespace Kernel
 		asm volatile("movq %0, %%cr3" :: "r"(m_highest_paging_struct));
 	}
 
-	void MMU::identity_map_page(paddr_t address, uint8_t flags)
+	void MMU::identity_map_page(paddr_t address, flags_t flags)
 	{
 		address &= PAGE_MASK;
 		map_page_at(address, address, flags);
 	}
 
-	void MMU::identity_map_range(paddr_t address, ptrdiff_t size, uint8_t flags)
+	void MMU::identity_map_range(paddr_t address, size_t size, flags_t flags)
 	{
 		paddr_t s_page = address & PAGE_MASK;
 		paddr_t e_page = (address + size - 1) & PAGE_MASK;
@@ -201,7 +183,7 @@ namespace Kernel
 		pml4[pml4e] = 0;
 	}
 
-	void MMU::unmap_range(vaddr_t address, ptrdiff_t size)
+	void MMU::unmap_range(vaddr_t address, size_t size)
 	{
 		vaddr_t s_page = address & PAGE_MASK;
 		vaddr_t e_page = (address + size - 1) & PAGE_MASK;
@@ -209,7 +191,7 @@ namespace Kernel
 			unmap_page(page);
 	}
 
-	void MMU::map_page_at(paddr_t paddr, vaddr_t vaddr, uint8_t flags)
+	void MMU::map_page_at(paddr_t paddr, vaddr_t vaddr, flags_t flags)
 	{
 		ASSERT((paddr >> 48) == 0);
 		ASSERT((vaddr >> 48) == 0);
