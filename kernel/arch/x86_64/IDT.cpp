@@ -3,6 +3,7 @@
 #include <kernel/InterruptController.h>
 #include <kernel/Memory/kmalloc.h>
 #include <kernel/Panic.h>
+#include <kernel/Process.h>
 #include <kernel/Scheduler.h>
 
 #define REGISTER_ISR_HANDLER(i) register_interrupt_handler(i, isr ## i)
@@ -99,13 +100,13 @@ namespace IDT
 	extern "C" void cpp_isr_handler(uint64_t isr, uint64_t error, const Registers* regs)
 	{
 		Kernel::panic(
-			"{} (error code: 0x{16H})\r\n"
+			"{} (error code: 0x{16H}), pid {}, tid {}\r\n"
 			"Register dump\r\n"
 			"rax=0x{16H}, rbx=0x{16H}, rcx=0x{16H}, rdx=0x{16H}\r\n"
 			"rsp=0x{16H}, rbp=0x{16H}, rdi=0x{16H}, rsi=0x{16H}\r\n"
 			"rip=0x{16H}, rflags=0x{16H}\r\n"
 			"cr0=0x{16H}, cr2=0x{16H}, cr3=0x{16H}, cr4=0x{16H}\r\n",
-			isr_exceptions[isr], error,
+			isr_exceptions[isr], error, Kernel::Process::current().pid(), Kernel::Thread::current().tid(),
 			regs->rax, regs->rbx, regs->rcx, regs->rdx,
 			regs->rsp, regs->rbp, regs->rdi, regs->rsi,
 			regs->rip, regs->rflags,
