@@ -54,7 +54,7 @@ namespace Kernel::GDT
 		uint64_t address;
 	} __attribute__((packed));
 
-	static constexpr uint8_t s_tss_offset = 0x28;
+	static constexpr uint16_t s_tss_offset = 0x28;
 
 	static TaskStateSegment* s_tss = nullptr;
 	static SegmentDescriptor* s_gdt = nullptr;
