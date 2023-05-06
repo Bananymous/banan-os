@@ -79,7 +79,9 @@ void* calloc(size_t nmemb, size_t size)
 	return ptr;
 }
 
-void free(void*)
+void free(void* ptr)
 {
-
+	if (ptr == nullptr)
+		return;
+	syscall(SYS_FREE, ptr);
 }

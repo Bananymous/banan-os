@@ -87,6 +87,9 @@ namespace Kernel
 
 		node* node = m_free_list;
 
+		ASSERT(!node->allocated);
+		node->allocated = true;
+
 		m_free_list = node->next;
 		if (m_free_list)
 			m_free_list->prev = nullptr;
@@ -100,23 +103,50 @@ namespace Kernel
 
 		m_allocated++;
 		allocate_page_for_node_if_needed(node);
-		return address_of(node);
+		return address_of_node(node);
 	}
 
-	void FixedWidthAllocator::deallocate(paddr_t addr)
+	bool FixedWidthAllocator::deallocate(vaddr_t address)
 	{
-		(void)addr;
-		ASSERT_NOT_REACHED();
+		if (address % m_allocation_size)
+			return false;
+		
+		node* node = node_from_address(address);
+		if (node == nullptr)
+			return false;
+
+
+		if (!node->allocated)
+		{
+			dwarnln("deallocate called on unallocated address");
+			return true;
+		}
+		node->allocated = false;
+
+		if (node->prev)
+			node->prev->next = node->next;
+		if (node->next)
+			node->next->prev = node->prev;
+
+		node->next = m_free_list;
+		node->prev = nullptr;
+
+		if (m_free_list)
+			m_free_list->prev = node;
+		m_free_list = node;
+
+		m_allocated--;
+		return true;
 	}
 
-	vaddr_t FixedWidthAllocator::address_of(const node* node) const
+	vaddr_t FixedWidthAllocator::address_of_node(const node* node) const
 	{
 		uint32_t index = node - (struct node*)m_nodes_page;
 
-		uint32_t page_index = index / (PAGE_SIZE / sizeof(struct node));
+		uint32_t page_index = index / (PAGE_SIZE / m_allocation_size);
 		ASSERT(page_index < PAGE_SIZE / sizeof(vaddr_t));
 
-		uint32_t offset = index % (PAGE_SIZE / sizeof(struct node));
+		uint32_t offset = index % (PAGE_SIZE / m_allocation_size);
 
 		vaddr_t page_begin = ((vaddr_t*)m_allocated_pages)[page_index];
 		ASSERT(page_begin);
@@ -124,11 +154,38 @@ namespace Kernel
 		return page_begin + offset * m_allocation_size;
 	}
 
+	FixedWidthAllocator::node* FixedWidthAllocator::node_from_address(vaddr_t address) const
+	{
+		// TODO: This probably should be optimized from O(n) preferably to O(1) but I
+		//       don't want to think about performance now.
+		
+		ASSERT(address % m_allocation_size == 0);
+
+		vaddr_t page_begin = address / PAGE_SIZE * PAGE_SIZE;
+
+		for (uint32_t page_index = 0; page_index < PAGE_SIZE / sizeof(vaddr_t); page_index++)
+		{
+			vaddr_t vaddr = ((vaddr_t*)m_allocated_pages)[page_index];
+			if (vaddr != page_begin)
+				continue;
+			
+			uint32_t offset = (address - page_begin) / m_allocation_size;
+
+			node* result = (node*)m_nodes_page;
+			result += page_index * PAGE_SIZE / m_allocation_size;
+			result += offset;
+			ASSERT(address_of_node(result) == address);
+			return result;
+		}
+
+		return nullptr;
+	}
+
 	void FixedWidthAllocator::allocate_page_for_node_if_needed(const node* node)
 	{
 		uint32_t index = node - (struct node*)m_nodes_page;
 
-		uint32_t page_index = index / (PAGE_SIZE / sizeof(struct node));
+		uint32_t page_index = index / (PAGE_SIZE / m_allocation_size);
 		ASSERT(page_index < PAGE_SIZE / sizeof(vaddr_t));
 
 		vaddr_t& page_vaddr = ((vaddr_t*)m_allocated_pages)[page_index];

@@ -63,6 +63,11 @@ namespace Kernel
 		return (long)res.value();
 	}
 
+	void sys_free(void* ptr)
+	{
+		Process::current().free(ptr);
+	}
+
 	extern "C" long cpp_syscall_handler(int syscall, void* arg1, void* arg2, void* arg3)
 	{
 		Thread::current().set_in_syscall(true);
@@ -95,6 +100,9 @@ namespace Kernel
 			break;
 		case SYS_ALLOC:
 			ret = sys_alloc((size_t)arg1);
+			break;
+		case SYS_FREE:
+			sys_free(arg1);
 			break;
 		default:
 			Kernel::panic("Unknown syscall {}", syscall);

@@ -8,6 +8,7 @@
 #define SYS_SEEK 6
 #define SYS_OPEN 7
 #define SYS_ALLOC 8
+#define SYS_FREE 9
 
 #include <stdint.h>
 
