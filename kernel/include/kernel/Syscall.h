@@ -7,6 +7,7 @@
 #define SYS_CLOSE 5
 #define SYS_SEEK 6
 #define SYS_OPEN 7
+#define SYS_ALLOC 8
 
 #include <stdint.h>
 

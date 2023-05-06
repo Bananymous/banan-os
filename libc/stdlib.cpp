@@ -1,8 +1,10 @@
 #include <BAN/Assert.h>
 #include <ctype.h>
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/syscall.h>
 #include <unistd.h>
 
 extern "C" void _fini();
@@ -55,9 +57,15 @@ char* getenv(const char*)
 	return nullptr;
 }
 
-void* malloc(size_t)
+void* malloc(size_t bytes)
 {
-	return nullptr;	
+	long ret = syscall(SYS_ALLOC, bytes);
+	if (ret < 0)
+	{
+		errno = -ret;
+		return nullptr;
+	}
+	return (void*)ret;
 }
 
 void* calloc(size_t nmemb, size_t size)
