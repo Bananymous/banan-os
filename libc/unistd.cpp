@@ -74,6 +74,12 @@ long syscall(long syscall, ...)
 			ret = Kernel::syscall(SYS_ALLOC, bytes);
 			break;
 		}
+		case SYS_FREE:
+		{
+			void* ptr = va_arg(args, void*);
+			ret = Kernel::syscall(SYS_FREE, ptr);
+			break;
+		}
 		default:
 			puts("LibC: Unhandeled syscall");
 	}

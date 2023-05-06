@@ -17,7 +17,7 @@ namespace Kernel
 		~FixedWidthAllocator();
 
 		vaddr_t allocate();
-		void deallocate(vaddr_t);
+		bool deallocate(vaddr_t);
 
 		uint32_t allocation_size() const { return m_allocation_size; }
 
@@ -26,8 +26,10 @@ namespace Kernel
 		{
 			node* prev { nullptr };
 			node* next { nullptr };
+			bool allocated { false };
 		};
-		vaddr_t address_of(const node*) const;
+		vaddr_t address_of_node(const node*) const;
+		node* node_from_address(vaddr_t) const;
 		void allocate_page_for_node_if_needed(const node*);
 
 	private:

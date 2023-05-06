@@ -386,6 +386,14 @@ namespace Kernel
 		return BAN::Error::from_errno(ENOMEM);
 	}
 
+	void Process::free(void* ptr)
+	{
+		for (auto& allocator : m_fixed_width_allocators)
+			if (allocator.deallocate((vaddr_t)ptr))
+				return;
+		dwarnln("free called on pointer that was not allocated");	
+	}
+
 	void Process::termid(char* buffer) const
 	{
 		if (m_tty == nullptr)

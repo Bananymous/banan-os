@@ -57,6 +57,7 @@ namespace Kernel
 		BAN::ErrorOr<void> set_working_directory(BAN::StringView);
 
 		BAN::ErrorOr<void*> allocate(size_t);
+		void free(void*);
 
 		void termid(char*) const;
 
