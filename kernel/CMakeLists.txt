@@ -129,7 +129,7 @@ elseif("${BANAN_ARCH}" STREQUAL "i386")
 	target_link_options(kernel PUBLIC LINKER:-T,${CMAKE_CURRENT_SOURCE_DIR}/arch/i386/linker.ld)
 endif()
 
-target_link_options(kernel PUBLIC -ffreestanding -nostdlib -O2)
+target_link_options(kernel PUBLIC -ffreestanding -nostdlib)
 
 add_custom_target(crt0
 	COMMAND ${CMAKE_CXX_COMPILER} -c ${CMAKE_CURRENT_SOURCE_DIR}/arch/${BANAN_ARCH}/crt0.S -o ${BANAN_LIB}/crt0.o
