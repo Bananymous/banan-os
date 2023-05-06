@@ -25,12 +25,12 @@ namespace BAN
 	class Error
 	{
 	private:
-		static constexpr uint32_t kernel_error_mask = 0x80000000;
+		static constexpr uint64_t kernel_error_mask = uint64_t(1) << 63;
 
 	public:
 		static Error from_error_code(Kernel::ErrorCode error)
 		{
-			return Error((uint32_t)error | kernel_error_mask);
+			return Error((uint64_t)error | kernel_error_mask);
 		}
 		static Error from_errno(int error)
 		{
@@ -42,7 +42,7 @@ namespace BAN
 			return (Kernel::ErrorCode)(m_error_code & ~kernel_error_mask);
 		}
 
-		uint32_t get_error_code() const { return m_error_code; }
+		uint64_t get_error_code() const { return m_error_code; }
 		BAN::StringView get_message() const
 		{
 			if (m_error_code & kernel_error_mask)
@@ -51,11 +51,11 @@ namespace BAN
 		}
 
 	private:
-		Error(uint32_t error)
+		Error(uint64_t error)
 			: m_error_code(error)
 		{}
 
-		uint32_t m_error_code;
+		uint64_t m_error_code;
 	};
 
 	template<typename T>

@@ -60,7 +60,7 @@ char* getenv(const char*)
 void* malloc(size_t bytes)
 {
 	long res = syscall(SYS_ALLOC, bytes);
-	if (res == -1)
+	if (res < 0)
 		return nullptr;
 	return (void*)res;
 }
