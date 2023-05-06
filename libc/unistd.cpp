@@ -1,4 +1,5 @@
 #include <BAN/Assert.h>
+#include <errno.h>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -45,7 +46,7 @@ long syscall(long syscall, ...)
 		case SYS_TERMID:
 		{
 			char* buffer = va_arg(args, char*);
-			Kernel::syscall(SYS_TERMID, buffer);
+			ret = Kernel::syscall(SYS_TERMID, buffer);
 			break;
 		}
 		case SYS_CLOSE:
@@ -82,10 +83,18 @@ long syscall(long syscall, ...)
 		}
 		default:
 			puts("LibC: Unhandeled syscall");
+			ret = -ENOSYS;
+			break;
 	}
 
 	va_end(args);
 	
+	if (ret < 0)
+	{
+		errno = -ret;
+		return -1;
+	}
+
 	return ret;
 }
 

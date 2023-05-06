@@ -43,11 +43,8 @@ char* ctermid(char* buffer)
 
 int fclose(FILE* file)
 {
-	if (int ret = syscall(SYS_CLOSE, file->fd) < 0)
-	{
-		errno = -ret;
+	if (syscall(SYS_CLOSE, file->fd) < 0)
 		return EOF;
-	}
 	file->fd = -1;
 	return 0;
 }
@@ -79,9 +76,8 @@ int fflush(FILE* file)
 	if (file->buffer_index == 0)
 		return 0;
 	
-	if (long ret = syscall(SYS_WRITE, file->fd, file->buffer, file->buffer_index); ret < 0)
+	if (syscall(SYS_WRITE, file->fd, file->buffer, file->buffer_index) < 0)
 	{
-		errno = -ret;
 		file->error = true;
 		return EOF;
 	}
@@ -100,10 +96,11 @@ int fgetc(FILE* file)
 
 	if (ret < 0)
 	{
-		errno = -ret;
+		file->error = true;
 		return EOF;
 	}
-	else if (ret == 0)
+	
+	if (ret == 0)
 	{
 		file->eof = true;
 		return EOF;
@@ -241,7 +238,6 @@ size_t fread(void* buffer, size_t size, size_t nitems, FILE* file)
 	long ret = syscall(SYS_READ, file->fd, buffer, size * nitems);
 	if (ret < 0)
 	{
-		errno = -ret;
 		file->error = true;
 		return 0;
 	}
@@ -286,11 +282,8 @@ int fseeko(FILE* file, off_t offset, int whence)
 		return -1;
 	}
 
-	if (long ret = syscall(SYS_SEEK, file->fd, file->offset); ret < 0)
-	{
-		errno = -ret;
+	if (syscall(SYS_SEEK, file->fd, file->offset))
 		return -1;
-	}
 
 	file->eof = false;
 

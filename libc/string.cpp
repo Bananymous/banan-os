@@ -128,6 +128,9 @@ char* strerror(int error)
 	case EMFILE:
 		strcpy(buffer, "File descriptor value too large");
 		break;
+	case ENOSYS:
+		strcpy(buffer, "Function not implemented");
+		break;
 	default:
 		{
 			// FIXME: sprintf
