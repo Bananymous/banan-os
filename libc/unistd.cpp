@@ -68,6 +68,12 @@ long syscall(long syscall, ...)
 			ret = Kernel::syscall(SYS_OPEN, path, oflags);
 			break;
 		}
+		case SYS_ALLOC:
+		{
+			size_t bytes = va_arg(args, size_t);
+			ret = Kernel::syscall(SYS_ALLOC, bytes);
+			break;
+		}
 		default:
 			puts("LibC: Unhandeled syscall");
 	}

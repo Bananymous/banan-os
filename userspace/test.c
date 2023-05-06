@@ -1,7 +1,18 @@
 #include <stdio.h>
+#include <stdlib.h>
 
 int main()
 {
+	void* ptr = malloc(10);
+	if (ptr == NULL)
+	{
+		perror("malloc");
+		return 1;
+	}
+	*(int*)ptr = 5;
+	putc('0' + *(int*)ptr, stdout);
+	return 0;
+
 	FILE* fp = fopen("/boot/grub/grub.cfg", "r");
 	if (fp == NULL)
 	{

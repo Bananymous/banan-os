@@ -1,4 +1,5 @@
 #include <BAN/StringView.h>
+#include <kernel/CriticalScope.h>
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/LockGuard.h>
 #include <kernel/Memory/Heap.h>
@@ -69,10 +70,10 @@ namespace Kernel
 				break;
 			case LibELF::PT_LOAD:
 			{
-				// TODO: Do some relocations?
+				// TODO: Do some relocations or map kernel to higher half?
 				ASSERT(process->mmu().is_range_free(elf_program_header.p_vaddr, elf_program_header.p_memsz));
 
-				uint8_t flags = MMU::Flags::UserSupervisor | MMU::Flags::Present;
+				MMU::flags_t flags = MMU::Flags::UserSupervisor | MMU::Flags::Present;
 				if (elf_program_header.p_flags & LibELF::PF_W)
 					flags |= MMU::Flags::ReadWrite;
 				size_t page_start = elf_program_header.p_vaddr / PAGE_SIZE;
@@ -82,12 +83,16 @@ namespace Kernel
 				{
 					auto paddr = Heap::get().take_free_page();
 					MUST(process->m_allocated_pages.push_back(paddr));
-					process->m_mmu->map_page_at(paddr, page * PAGE_SIZE, flags);
+					process->mmu().map_page_at(paddr, page * PAGE_SIZE, flags);
 				}
-				process->m_mmu->load();
-				memcpy((void*)elf_program_header.p_vaddr, elf->data() + elf_program_header.p_offset, elf_program_header.p_filesz);
-				memset((void*)(elf_program_header.p_vaddr + elf_program_header.p_filesz), 0, elf_program_header.p_memsz - elf_program_header.p_filesz);
-				Process::current().mmu().load();
+
+				{
+					CriticalScope _;
+					process->mmu().load();
+					memcpy((void*)elf_program_header.p_vaddr, elf->data() + elf_program_header.p_offset, elf_program_header.p_filesz);
+					memset((void*)(elf_program_header.p_vaddr + elf_program_header.p_filesz), 0, elf_program_header.p_memsz - elf_program_header.p_filesz);
+					Process::current().mmu().load();
+				}
 				break;
 			}
 			default:
@@ -99,6 +104,11 @@ namespace Kernel
 		process->add_thread(thread);
 
 		delete elf;
+
+		MUST(process->m_fixed_width_allocators.emplace_back(process, 64));
+		MUST(process->m_fixed_width_allocators.emplace_back(process, 256));
+		MUST(process->m_fixed_width_allocators.emplace_back(process, 1024));
+		MUST(process->m_fixed_width_allocators.emplace_back(process, 4096));
 
 		register_process(process);
 		return process;
@@ -112,6 +122,7 @@ namespace Kernel
 	Process::~Process()
 	{
 		ASSERT(m_threads.empty());
+		ASSERT(m_fixed_width_allocators.empty());
 		if (m_mmu)
 		{
 			MMU::get().load();
@@ -143,6 +154,9 @@ namespace Kernel
 		m_threads.clear();
 		for (auto& open_fd : m_open_files)
 			open_fd.inode = nullptr;
+
+		// NOTE: We must clear allocators while the mmu is still alive
+		m_fixed_width_allocators.clear();
 
 		dprintln("process {} exit", pid());
 		s_process_lock.lock();
@@ -362,6 +376,14 @@ namespace Kernel
 		m_working_directory = BAN::move(file.canonical_path);
 
 		return {};
+	}
+
+	BAN::ErrorOr<void*> Process::allocate(size_t bytes)
+	{
+		for (auto& allocator : m_fixed_width_allocators)
+			if (bytes <= allocator.allocation_size())
+				return (void*)allocator.allocate();
+		return BAN::Error::from_errno(ENOMEM);
 	}
 
 	void Process::termid(char* buffer) const

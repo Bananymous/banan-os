@@ -4,6 +4,7 @@
 #include <BAN/StringView.h>
 #include <BAN/Vector.h>
 #include <kernel/FS/Inode.h>
+#include <kernel/Memory/FixedWidthAllocator.h>
 #include <kernel/Memory/Heap.h>
 #include <kernel/Memory/MMU.h>
 #include <kernel/SpinLock.h>
@@ -55,6 +56,8 @@ namespace Kernel
 		BAN::ErrorOr<BAN::String> working_directory() const;
 		BAN::ErrorOr<void> set_working_directory(BAN::StringView);
 
+		BAN::ErrorOr<void*> allocate(size_t);
+
 		void termid(char*) const;
 
 		static Process& current() { return Thread::current().process(); }
@@ -89,6 +92,8 @@ namespace Kernel
 		const pid_t m_pid = 0;
 		BAN::String m_working_directory;
 		BAN::Vector<Thread*> m_threads;
+
+		BAN::Vector<FixedWidthAllocator> m_fixed_width_allocators;
 
 		MMU* m_mmu { nullptr };
 		TTY* m_tty { nullptr };
