@@ -17,6 +17,7 @@
 #define ENOTTY 13
 #define ENOTBLK 14
 #define EMFILE 15
+#define ENOSYS 16
 
 #define errno errno
 

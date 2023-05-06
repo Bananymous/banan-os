@@ -59,13 +59,10 @@ char* getenv(const char*)
 
 void* malloc(size_t bytes)
 {
-	long ret = syscall(SYS_ALLOC, bytes);
-	if (ret < 0)
-	{
-		errno = -ret;
+	long res = syscall(SYS_ALLOC, bytes);
+	if (res == -1)
 		return nullptr;
-	}
-	return (void*)ret;
+	return (void*)res;
 }
 
 void* calloc(size_t nmemb, size_t size)
