@@ -6,23 +6,23 @@
 namespace Kernel
 {
 
-	FixedWidthAllocator::FixedWidthAllocator(Process* process, uint32_t allocation_size)
-		: m_process(process)
+	FixedWidthAllocator::FixedWidthAllocator(MMU& mmu, uint32_t allocation_size)
+		: m_mmu(mmu)
 		, m_allocation_size(BAN::Math::max(allocation_size, m_min_allocation_size))
 	{
 		ASSERT(BAN::Math::is_power_of_two(allocation_size));
 
 		paddr_t nodes_paddr = Heap::get().take_free_page();
-		m_nodes_page = m_process->mmu().get_free_page();
-		m_process->mmu().map_page_at(nodes_paddr, m_nodes_page, MMU::Flags::ReadWrite | MMU::Flags::Present);
+		m_nodes_page = m_mmu.get_free_page();
+		m_mmu.map_page_at(nodes_paddr, m_nodes_page, MMU::Flags::ReadWrite | MMU::Flags::Present);
 
 		paddr_t allocated_pages_paddr = Heap::get().take_free_page();
-		m_allocated_pages = m_process->mmu().get_free_page();
-		m_process->mmu().map_page_at(allocated_pages_paddr, m_allocated_pages, MMU::Flags::ReadWrite | MMU::Flags::Present);
+		m_allocated_pages = m_mmu.get_free_page();
+		m_mmu.map_page_at(allocated_pages_paddr, m_allocated_pages, MMU::Flags::ReadWrite | MMU::Flags::Present);
 
 		CriticalScope _;
 
-		m_process->mmu().load();
+		m_mmu.load();
 
 		memset((void*)m_nodes_page, 0, PAGE_SIZE);
 		memset((void*)m_allocated_pages, 0, PAGE_SIZE);
@@ -42,25 +42,10 @@ namespace Kernel
 		Process::current().mmu().load();
 	}
 
-	FixedWidthAllocator::FixedWidthAllocator(FixedWidthAllocator&& other)
-		: m_process(other.m_process)
-		, m_allocation_size(other.m_allocation_size)
-		, m_nodes_page(other.m_nodes_page)
-		, m_allocated_pages(other.m_allocated_pages)
-		, m_free_list(other.m_free_list)
-		, m_used_list(other.m_used_list)
-		, m_allocations(other.m_allocations)
-	{
-		other.m_process = nullptr;
-	}
-
 	FixedWidthAllocator::~FixedWidthAllocator()
 	{
-		if (m_process == nullptr)
-			return;
-		
-		Heap::get().release_page(m_process->mmu().physical_address_of(m_nodes_page));
-		m_process->mmu().unmap_page(m_nodes_page);
+		Heap::get().release_page(m_mmu.physical_address_of(m_nodes_page));
+		m_mmu.unmap_page(m_nodes_page);
 
 		for (uint32_t page_index = 0; page_index < PAGE_SIZE / sizeof(vaddr_t); page_index++)
 		{
@@ -68,15 +53,15 @@ namespace Kernel
 			if (page_vaddr == 0)
 				continue;
 
-			ASSERT(!m_process->mmu().is_page_free(page_vaddr));
-			paddr_t page_paddr = m_process->mmu().physical_address_of(page_vaddr);
+			ASSERT(!m_mmu.is_page_free(page_vaddr));
+			paddr_t page_paddr = m_mmu.physical_address_of(page_vaddr);
 
 			Heap::get().release_page(page_paddr);
-			m_process->mmu().unmap_page(page_vaddr);
+			m_mmu.unmap_page(page_vaddr);
 		}
 
-		Heap::get().release_page(m_process->mmu().physical_address_of(m_allocated_pages));
-		m_process->mmu().unmap_page(m_allocated_pages);
+		Heap::get().release_page(m_mmu.physical_address_of(m_allocated_pages));
+		m_mmu.unmap_page(m_allocated_pages);
 	}
 
 	paddr_t FixedWidthAllocator::allocate()
@@ -202,8 +187,8 @@ namespace Kernel
 		paddr_t page_paddr = Heap::get().take_free_page();
 		ASSERT(page_paddr);
 
-		page_vaddr = m_process->mmu().get_free_page();
-		m_process->mmu().map_page_at(page_paddr, page_vaddr, MMU::Flags::UserSupervisor | MMU::Flags::ReadWrite | MMU::Flags::Present);
+		page_vaddr = m_mmu.get_free_page();
+		m_mmu.map_page_at(page_paddr, page_vaddr, MMU::Flags::UserSupervisor | MMU::Flags::ReadWrite | MMU::Flags::Present);
 	}
 
 }

@@ -397,7 +397,7 @@ namespace Kernel
 				if (allocator.allocation_size() == allocation_size && allocator.allocations() < allocator.max_allocations())
 					return (void*)allocator.allocate();
 
-			MUST(m_fixed_width_allocators.emplace_back(this, allocation_size));
+			MUST(m_fixed_width_allocators.emplace_back(mmu(), allocation_size));
 			return (void*)m_fixed_width_allocators.back().allocate();
 		}
 		else

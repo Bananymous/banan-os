@@ -1,19 +1,18 @@
 #pragma once
 
 #include <kernel/Memory/Heap.h>
+#include <kernel/Memory/MMU.h>
 
 namespace Kernel
 {
 
-	class Process;
-
 	class FixedWidthAllocator
 	{
 		BAN_NON_COPYABLE(FixedWidthAllocator);
+		BAN_NON_MOVABLE(FixedWidthAllocator);
 
 	public:
-		FixedWidthAllocator(Process*, uint32_t);
-		FixedWidthAllocator(FixedWidthAllocator&&);
+		FixedWidthAllocator(MMU&, uint32_t);
 		~FixedWidthAllocator();
 
 		vaddr_t allocate();
@@ -38,7 +37,7 @@ namespace Kernel
 	private:
 		static constexpr uint32_t m_min_allocation_size = 16;
 
-		Process* m_process;
+		MMU& m_mmu;
 		const uint32_t m_allocation_size;
 		
 		vaddr_t m_nodes_page { 0 };
