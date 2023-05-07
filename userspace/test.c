@@ -1,25 +1,34 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#define N 512
+
 int main()
 {
-	for (int i = 0; i < 10; i++)
+	for (int i = 0; i <= 10; i++)
 	{
-		int* ptrs[10];
-		for (int j = 0; j < 10; j++)
+		int** ptrs = malloc(N * sizeof(int*));
+		if (ptrs == NULL)
 		{
-			ptrs[j] = malloc(10);
+			perror("malloc");
+			return 1;
+		}
+		for (int j = 0; j < N; j++)
+		{
+			ptrs[j] = malloc(sizeof(int));
 			if (ptrs[j] == NULL)
 			{
 				perror("malloc");
 				return 1;
 			}
 			*ptrs[j] = j;
-			putc('0' + *ptrs[j], stdout);
+			putchar('0' + *ptrs[j] % 10);
 		}
-		for (int j = 0; j < 10; j++)
+		putchar('\n');
+
+		for (int j = 0; j < N; j++)
 			free(ptrs[j]);
-		putc('\n', stdout);
+		free(ptrs);
 	}
 	
 	return 0;

@@ -21,6 +21,9 @@ namespace Kernel
 
 		uint32_t allocation_size() const { return m_allocation_size; }
 
+		uint32_t allocations() const { return m_allocations; }
+		uint32_t max_allocations() const;
+
 	private:
 		struct node
 		{
@@ -44,7 +47,7 @@ namespace Kernel
 		node* m_free_list { nullptr };
 		node* m_used_list { nullptr };
 
-		uint32_t m_allocated { 0 };
+		uint32_t m_allocations { 0 };
 	};
 
 }
