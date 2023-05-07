@@ -105,11 +105,6 @@ namespace Kernel
 
 		delete elf;
 
-		MUST(process->m_fixed_width_allocators.emplace_back(process, 64));
-		MUST(process->m_fixed_width_allocators.emplace_back(process, 256));
-		MUST(process->m_fixed_width_allocators.emplace_back(process, 1024));
-		MUST(process->m_fixed_width_allocators.emplace_back(process, 4096));
-
 		register_process(process);
 		return process;
 	}
@@ -378,19 +373,55 @@ namespace Kernel
 		return {};
 	}
 
+	static constexpr uint16_t next_power_of_two(uint16_t value)
+	{
+		value--;
+		value |= value >> 1;
+		value |= value >> 2;
+		value |= value >> 4;
+		value |= value >> 8;
+		return value + 1;
+	}
+
 	BAN::ErrorOr<void*> Process::allocate(size_t bytes)
 	{
-		for (auto& allocator : m_fixed_width_allocators)
-			if (bytes <= allocator.allocation_size())
-				return (void*)allocator.allocate();
-		return BAN::Error::from_errno(ENOMEM);
+		if (bytes <= PAGE_SIZE)
+		{
+			// Do fixed width allocation
+			size_t allocation_size = next_power_of_two(bytes);
+			ASSERT(bytes <= allocation_size);
+
+			LockGuard _(m_lock);
+
+			for (auto& allocator : m_fixed_width_allocators)
+				if (allocator.allocation_size() == allocation_size && allocator.allocations() < allocator.max_allocations())
+					return (void*)allocator.allocate();
+
+			MUST(m_fixed_width_allocators.emplace_back(this, allocation_size));
+			return (void*)m_fixed_width_allocators.back().allocate();
+		}
+		else
+		{
+			// TODO: Do general allocation
+			return BAN::Error::from_errno(ENOMEM);
+		}
 	}
 
 	void Process::free(void* ptr)
 	{
-		for (auto& allocator : m_fixed_width_allocators)
-			if (allocator.deallocate((vaddr_t)ptr))
+		LockGuard _(m_lock);
+
+		for (auto it = m_fixed_width_allocators.begin(); it != m_fixed_width_allocators.end(); it++)
+		{
+			if (it->deallocate((vaddr_t)ptr))
+			{
+				// TODO: This might be too much. Maybe we should only
+				//       remove allocators when we have low memory... ?
+				if (it->allocations() == 0)
+					m_fixed_width_allocators.remove(it);
 				return;
+			}
+		}
 		dwarnln("free called on pointer that was not allocated");	
 	}
 

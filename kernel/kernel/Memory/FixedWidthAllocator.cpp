@@ -49,7 +49,7 @@ namespace Kernel
 		, m_allocated_pages(other.m_allocated_pages)
 		, m_free_list(other.m_free_list)
 		, m_used_list(other.m_used_list)
-		, m_allocated(other.m_allocated)
+		, m_allocations(other.m_allocations)
 	{
 		other.m_process = nullptr;
 	}
@@ -81,9 +81,8 @@ namespace Kernel
 
 	paddr_t FixedWidthAllocator::allocate()
 	{
-		// FIXME: We should get allocate more memory if we run out of
-		//        nodes in free list.
-		ASSERT(m_free_list);
+		if (m_free_list == nullptr)
+			return 0;
 
 		node* node = m_free_list;
 
@@ -101,7 +100,7 @@ namespace Kernel
 			m_used_list->prev = node;
 		m_used_list = node;
 
-		m_allocated++;
+		m_allocations++;
 		allocate_page_for_node_if_needed(node);
 		return address_of_node(node);
 	}
@@ -110,11 +109,12 @@ namespace Kernel
 	{
 		if (address % m_allocation_size)
 			return false;
+		if (m_allocations == 0)
+			return false;
 		
 		node* node = node_from_address(address);
 		if (node == nullptr)
 			return false;
-
 
 		if (!node->allocated)
 		{
@@ -123,6 +123,8 @@ namespace Kernel
 		}
 		node->allocated = false;
 
+		if (node == m_used_list)
+			m_used_list = node->next;
 		if (node->prev)
 			node->prev->next = node->next;
 		if (node->next)
@@ -135,8 +137,13 @@ namespace Kernel
 			m_free_list->prev = node;
 		m_free_list = node;
 
-		m_allocated--;
+		m_allocations--;
 		return true;
+	}
+
+	uint32_t FixedWidthAllocator::max_allocations() const
+	{
+		return PAGE_SIZE / sizeof(node);
 	}
 
 	vaddr_t FixedWidthAllocator::address_of_node(const node* node) const

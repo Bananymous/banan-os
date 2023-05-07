@@ -94,7 +94,7 @@ namespace Kernel
 		BAN::String m_working_directory;
 		BAN::Vector<Thread*> m_threads;
 
-		BAN::Vector<FixedWidthAllocator> m_fixed_width_allocators;
+		BAN::LinkedList<FixedWidthAllocator> m_fixed_width_allocators;
 
 		MMU* m_mmu { nullptr };
 		TTY* m_tty { nullptr };
