@@ -24,10 +24,10 @@ namespace Kernel
 		~MMU();
 
 		void identity_map_page(paddr_t, flags_t);
-		void identity_map_range(paddr_t, size_t, flags_t);
+		void identity_map_range(paddr_t, size_t bytes, flags_t);
 
 		void unmap_page(vaddr_t);
-		void unmap_range(vaddr_t, size_t);
+		void unmap_range(vaddr_t, size_t bytes);
 
 		void map_page_at(paddr_t, vaddr_t, flags_t);
 
@@ -35,10 +35,10 @@ namespace Kernel
 		flags_t get_page_flags(vaddr_t) const;
 
 		bool is_page_free(vaddr_t) const;
-		bool is_range_free(vaddr_t, size_t) const;
+		bool is_range_free(vaddr_t, size_t bytes) const;
 
 		vaddr_t get_free_page() const;
-		vaddr_t get_free_contiguous_pages(uint32_t) const;
+		vaddr_t get_free_contiguous_pages(size_t page_count) const;
 
 		void load();
 

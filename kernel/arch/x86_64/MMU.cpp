@@ -312,11 +312,32 @@ namespace Kernel
 
 		// Find any free page page (except for page 0)
 		vaddr_t address = PAGE_SIZE;
-		while ((address << 48) == 0)
+		while ((address >> 48) == 0)
 		{
 			if (!(get_page_flags(address) & Flags::Present))
 				return address;
 			address += PAGE_SIZE;
+		}
+
+		ASSERT_NOT_REACHED();
+	}
+
+	vaddr_t MMU::get_free_contiguous_pages(size_t page_count) const
+	{
+		for (vaddr_t address = PAGE_SIZE; !(address >> 48); address += PAGE_SIZE)
+		{
+			bool valid { true };
+			for (size_t page = 0; page < page_count; page++)
+			{
+				if (get_page_flags(address + page * PAGE_SIZE) & Flags::Present)
+				{
+					address += page;
+					valid = false;
+					break;
+				}
+			}
+			if (valid)
+				return address;
 		}
 
 		ASSERT_NOT_REACHED();
