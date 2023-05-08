@@ -118,6 +118,7 @@ namespace Kernel
 	{
 		ASSERT(m_threads.empty());
 		ASSERT(m_fixed_width_allocators.empty());
+		ASSERT(m_general_allocator == nullptr);
 		if (m_mmu)
 		{
 			MMU::get().load();
@@ -152,6 +153,11 @@ namespace Kernel
 
 		// NOTE: We must clear allocators while the mmu is still alive
 		m_fixed_width_allocators.clear();
+		if (m_general_allocator)
+		{
+			delete m_general_allocator;
+			m_general_allocator = nullptr;
+		}
 
 		dprintln("process {} exit", pid());
 		s_process_lock.lock();
@@ -385,6 +391,8 @@ namespace Kernel
 
 	BAN::ErrorOr<void*> Process::allocate(size_t bytes)
 	{
+		vaddr_t address = 0;
+
 		if (bytes <= PAGE_SIZE)
 		{
 			// Do fixed width allocation
@@ -393,18 +401,40 @@ namespace Kernel
 
 			LockGuard _(m_lock);
 
-			for (auto& allocator : m_fixed_width_allocators)
-				if (allocator.allocation_size() == allocation_size && allocator.allocations() < allocator.max_allocations())
-					return (void*)allocator.allocate();
+			bool needs_new_allocator { true };
 
-			MUST(m_fixed_width_allocators.emplace_back(mmu(), allocation_size));
-			return (void*)m_fixed_width_allocators.back().allocate();
+			for (auto& allocator : m_fixed_width_allocators)
+			{
+				if (allocator.allocation_size() == allocation_size && allocator.allocations() < allocator.max_allocations())
+				{
+					address = allocator.allocate();
+					needs_new_allocator = false;
+				}
+			}
+
+			if (needs_new_allocator)
+			{
+				TRY(m_fixed_width_allocators.emplace_back(mmu(), allocation_size));
+				address = m_fixed_width_allocators.back().allocate();
+			}
 		}
 		else
 		{
-			// TODO: Do general allocation
-			return BAN::Error::from_errno(ENOMEM);
+			LockGuard _(m_lock);
+
+			if (!m_general_allocator)
+			{
+				m_general_allocator = new GeneralAllocator(mmu());
+				if (m_general_allocator == nullptr)
+					return BAN::Error::from_errno(ENOMEM);
+			}
+
+			address = m_general_allocator->allocate(bytes);
 		}
+
+		if (address == 0)
+			return BAN::Error::from_errno(ENOMEM);
+		return (void*)address;
 	}
 
 	void Process::free(void* ptr)
@@ -422,6 +452,10 @@ namespace Kernel
 				return;
 			}
 		}
+
+		if (m_general_allocator && m_general_allocator->deallocate((vaddr_t)ptr))
+			return;
+
 		dwarnln("free called on pointer that was not allocated");	
 	}
 

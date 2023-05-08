@@ -26,6 +26,7 @@ set(KERNEL_SOURCES
 	kernel/InterruptController.cpp
 	kernel/kernel.cpp
 	kernel/Memory/FixedWidthAllocator.cpp
+	kernel/Memory/GeneralAllocator.cpp
 	kernel/Memory/Heap.cpp
 	kernel/Memory/kmalloc.cpp
 	kernel/Panic.cpp

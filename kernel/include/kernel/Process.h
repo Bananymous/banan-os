@@ -5,6 +5,7 @@
 #include <BAN/Vector.h>
 #include <kernel/FS/Inode.h>
 #include <kernel/Memory/FixedWidthAllocator.h>
+#include <kernel/Memory/GeneralAllocator.h>
 #include <kernel/Memory/Heap.h>
 #include <kernel/Memory/MMU.h>
 #include <kernel/SpinLock.h>
@@ -95,6 +96,7 @@ namespace Kernel
 		BAN::Vector<Thread*> m_threads;
 
 		BAN::LinkedList<FixedWidthAllocator> m_fixed_width_allocators;
+		GeneralAllocator* m_general_allocator;
 
 		MMU* m_mmu { nullptr };
 		TTY* m_tty { nullptr };
