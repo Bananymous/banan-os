@@ -5,6 +5,7 @@ project(libc CXX)
 set(LIBC_SOURCES
 	ctype.cpp
 	fcntl.cpp
+	printf_impl.cpp
 	stdio.cpp
 	stdlib.cpp
 	string.cpp

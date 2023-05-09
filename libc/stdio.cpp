@@ -1,5 +1,6 @@
 #include <errno.h>
 #include <fcntl.h>
+#include <printf_impl.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
@@ -426,11 +427,23 @@ void setbuf(FILE*, char*);
 // TODO
 int setvbuf(FILE*, char*, int, size_t);
 
-// TODO
-int snprintf(char*, size_t, const char*, ...);
+int snprintf(char* buffer, size_t max_size, const char* format, ...)
+{
+	va_list arguments;
+	va_start(arguments, format);
+	int ret = vsnprintf(buffer, max_size, format, arguments);
+	va_end(arguments);
+	return ret;
+}
 
-// TODO
-int sprintf(char*, const char*, ...);
+int sprintf(char* buffer, const char* format, ...)
+{
+	va_list arguments;
+	va_start(arguments, format);
+	int ret = vsprintf(buffer, format, arguments);
+	va_end(arguments);
+	return ret;
+}
 
 // TODO
 int sscanf(const char*, const char*, ...);
@@ -449,43 +462,7 @@ int ungetc(int, FILE*);
 
 int vfprintf(FILE* file, const char* format, va_list arguments)
 {
-	int written = 0;
-	while (*format)
-	{
-		if (*format == '%')
-		{
-			format++;
-			switch (*format)
-			{
-			case '%':
-				if (fputc('%', file) == EOF)
-					return -1;
-				written++;
-				format++;
-				break;
-			case 's':
-			{
-				const char* string = va_arg(arguments, const char*);
-				if (fputs(string, file) == EOF)
-					return -1;
-				written += strlen(string);
-				format++;
-				break;
-			}
-			default:
-				break;
-			}
-		}
-		else
-		{
-			if (fputc(*format, file) == EOF)
-				return -1;
-			written++;
-			format++;
-		}
-	}
-	
-	return written;
+	return printf_impl(format, arguments, [](int c, void* file) { return fputc(c, (FILE*)file); }, file);
 }
 
 // TODO
@@ -500,10 +477,47 @@ int vprintf(const char* format, va_list arguments)
 int vscanf(const char*, va_list);
 
 // TODO
-int vsnprintf(char*, size_t, const char*, va_list);
+int vsnprintf(char* buffer, size_t max_size, const char* format, va_list arguments)
+{
+	if (buffer == nullptr)
+		return printf_impl(format, arguments, [](int, void*) { return 0; }, nullptr);
+
+	struct print_info
+	{
+		char* buffer;
+		size_t remaining;
+	};
+	print_info info { buffer, max_size };
+
+	return printf_impl(format, arguments,
+		[](int c, void* _info)
+		{
+			print_info* info = (print_info*)_info;
+			if (info->remaining)
+			{
+				*info->buffer = (info->remaining == 1 ? '\0' : c);
+				info->buffer++;
+				info->remaining--;
+			}
+			return 0;
+		}, &info
+	);
+}
 
 // TODO
-int vsprintf(char*, const char*, va_list);
+int vsprintf(char* buffer, const char* format, va_list arguments)
+{
+	if (buffer == nullptr)
+		return printf_impl(format, arguments, [](int, void*) { return 0; }, nullptr);
+	
+	return printf_impl(format, arguments,
+		[](int c, void* _buffer)
+		{
+			*(*(char**)_buffer)++ = c;
+			return 0;
+		}, &buffer
+	);
+}
 
 // TODO
 int vsscanf(const char*, const char*, va_list);
