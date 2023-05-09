@@ -1,5 +1,6 @@
-#include <string.h>
 #include <errno.h>
+#include <stdio.h>
+#include <string.h>
 
 int errno = 0;
 
@@ -78,71 +79,66 @@ char* strcat(char* __restrict__ dest, const char* __restrict__ src)
 
 char* strerror(int error)
 {
-	static char buffer[100];
+	static char buffer[1024];
 	buffer[0] = 0;
-
-	switch (error)
-	{
-	case ENOMEM:
-		strcpy(buffer, "Cannot allocate memory");
-		break;
-	case EINVAL:
-		strcpy(buffer, "Invalid argument");
-		break;
-	case EISDIR:
-		strcpy(buffer, "Is a directory");
-		break;
-	case ENOTDIR:
-		strcpy(buffer, "Not a directory");
-		break;
-	case ENOENT:
-		strcpy(buffer, "No such file or directory");
-		break;
-	case EIO:
-		strcpy(buffer, "Input/output error");
-		break;
-	case ENOTSUP:
-		strcpy(buffer, "Operation not supported");
-		break;
-	case EBADF:
-		strcpy(buffer, "Bad file descriptor");
-		break;
-	case EEXISTS:
-		strcpy(buffer, "File exists");
-		break;
-	case ENOTEMPTY:
-		strcpy(buffer, "Directory not empty");
-		break;
-	case ENAMETOOLONG:
-		strcpy(buffer, "Filename too long");
-		break;
-	case ENOBUFS:
-		strcpy(buffer, "No buffer space available");
-		break;
-	case ENOTTY:
-		strcpy(buffer, "Inappropriate I/O control operation");
-		break;
-	case ENOTBLK:
-		strcpy(buffer, "Block device required");
-		break;
-	case EMFILE:
-		strcpy(buffer, "File descriptor value too large");
-		break;
-	case ENOSYS:
-		strcpy(buffer, "Function not implemented");
-		break;
-	default:
-		{
-			// FIXME: sprintf
-			//sprintf(buffer, "Unknown error %d", error);
-			strcpy(buffer, "Unknown error");
-			errno = EINVAL;
-			break;
-		}
-	}
-
+	strcpy(buffer, strerrordesc_np(error));
 	return buffer;
 }
+
+const char* strerrorname_np(int error)
+{
+	switch (error)
+	{
+		case 0:				return "NOERROR";
+		case ENOMEM:		return "ENOMEM";
+		case EINVAL:		return "EINVAL";
+		case EISDIR:		return "EISDIR";
+		case ENOTDIR:		return "ENOTDIR";
+		case ENOENT:		return "ENOENT";
+		case EIO:			return "EIO";
+		case ENOTSUP:		return "ENOTSUP";
+		case EBADF:			return "EBADF";
+		case EEXISTS:		return "EEXISTS";
+		case ENOTEMPTY:		return "ENOTEMPTY";
+		case ENAMETOOLONG:	return "ENAMETOOLONG";
+		case ENOBUFS:		return "ENOBUFS";
+		case ENOTTY:		return "ENOTTY";
+		case ENOTBLK:		return "ENOTBLK";
+		case EMFILE:		return "EMFILE";
+		case ENOSYS:		return "ENOSYS";
+	}
+
+	errno = EINVAL;
+	return "EUNKNOWN";
+}
+
+const char* strerrordesc_np(int error)
+{
+	switch (error)
+	{
+		case 0:				return "Success";
+		case ENOMEM:		return "Cannot allocate memory";
+		case EINVAL:		return "Invalid argument";
+		case EISDIR:		return "Is a directory";
+		case ENOTDIR:		return "Not a directory";
+		case ENOENT:		return "No such file or directory";
+		case EIO:			return "Input/output error";
+		case ENOTSUP:		return "Operation not supported";
+		case EBADF:			return "Bad file descriptor";
+		case EEXISTS:		return "File exists";
+		case ENOTEMPTY:		return "Directory not empty";
+		case ENAMETOOLONG:	return "Filename too long";
+		case ENOBUFS:		return "No buffer space available";
+		case ENOTTY:		return "Inappropriate I/O control operation";
+		case ENOTBLK:		return "Block device required";
+		case EMFILE:		return "File descriptor value too large";
+		case ENOSYS:		return "Function not implemented";
+	}
+
+	errno = EINVAL;
+	return "Unknown error";
+}
+
 
 size_t strlen(const char* str)
 {

@@ -24,5 +24,7 @@ char* strchr(const char*, int);
 char* strstr(const char*, const char*);
 
 char* strerror(int);
+const char* strerrorname_np(int);
+const char* strerrordesc_np(int);
 
 __END_DECLS

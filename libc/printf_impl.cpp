@@ -289,7 +289,7 @@ extern "C" int printf_impl(const char* format, va_list arguments, int (*putc_fun
 			{
 				// NOTE: this is a glibc extension
 				if (options.alternate_form)
-					string = strerror(errno); // TODO: string = strerrorname_np(errno);
+					string = strerrorname_np(errno);
 				else
 					string = strerror(errno);
 				format++;
