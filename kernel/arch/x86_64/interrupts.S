@@ -153,9 +153,13 @@ irq 13
 irq 14
 irq 15
 
+// arguments in RAX, RBX, RCX, RDX, RSI, RDI
+// System V ABI: RDI, RSI, RDX, RCX, R8, R9
 .global syscall_asm
 syscall_asm:
 	pushaq
+	movq %rsi, %r8
+	movq %rdi, %r9
 	movq %rax, %rdi
 	movq %rbx, %rsi
 	xchgq %rcx, %rdx

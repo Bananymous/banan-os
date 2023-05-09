@@ -202,7 +202,6 @@ namespace Kernel
 		auto& open_file_description = m_open_files[fd];
 		open_file_description.inode = file.inode;
 		open_file_description.path = BAN::move(file.canonical_path);
-		open_file_description.offset = 0;
 		open_file_description.flags = flags;
 
 		return fd;
@@ -217,7 +216,7 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<size_t> Process::read(int fd, void* buffer, size_t count)
+	BAN::ErrorOr<size_t> Process::read(int fd, void* buffer, size_t offset, size_t count)
 	{
 		OpenFileDescription open_fd_copy;
 
@@ -229,18 +228,10 @@ namespace Kernel
 
 		if (!(open_fd_copy.flags & O_RDONLY))
 			return BAN::Error::from_errno(EBADF);
-		size_t n_read = TRY(open_fd_copy.inode->read(open_fd_copy.offset, buffer, count));
-		open_fd_copy.offset += n_read;
-
-		m_lock.lock();
-		MUST(validate_fd(fd));
-		open_file_description(fd) = open_fd_copy;
-		m_lock.unlock();
-
-		return n_read;
+		return TRY(open_fd_copy.inode->read(offset, buffer, count));
 	}
 
-	BAN::ErrorOr<size_t> Process::write(int fd, const void* buffer, size_t count)
+	BAN::ErrorOr<size_t> Process::write(int fd, const void* buffer, size_t offset, size_t count)
 	{
 		OpenFileDescription open_fd_copy;
 
@@ -252,16 +243,7 @@ namespace Kernel
 
 		if (!(open_fd_copy.flags & O_WRONLY))
 			return BAN::Error::from_errno(EBADF);
-		size_t n_written = TRY(open_fd_copy.inode->write(open_fd_copy.offset, buffer, count));
-		open_fd_copy.offset += n_written;
-
-		{
-			LockGuard _(m_lock);
-			MUST(validate_fd(fd));
-			open_file_description(fd) = open_fd_copy;
-		}
-
-		return n_written;
+		return TRY(open_fd_copy.inode->write(offset, buffer, count));
 	}
 
 	BAN::ErrorOr<void> Process::creat(BAN::StringView path, mode_t mode)
@@ -282,11 +264,11 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<void> Process::mount(BAN::StringView partition, BAN::StringView path)
+	BAN::ErrorOr<void> Process::mount(BAN::StringView source, BAN::StringView target)
 	{
-		auto absolute_partition = TRY(absolute_path_of(partition));
-		auto absolute_path = TRY(absolute_path_of(path));
-		TRY(VirtualFileSystem::get().mount(absolute_partition, absolute_path));
+		auto absolute_source = TRY(absolute_path_of(source));
+		auto absolute_target = TRY(absolute_path_of(target));
+		TRY(VirtualFileSystem::get().mount(absolute_source, absolute_target));
 		return {};
 	}
 
@@ -325,15 +307,7 @@ namespace Kernel
 		return ret;
 	}
 
-	BAN::ErrorOr<void> Process::seek(int fd, size_t offset)
-	{
-		LockGuard _(m_lock);
-		TRY(validate_fd(fd));
-		auto& open_fd = open_file_description(fd);
-		open_fd.offset = offset;
-		return {};
-	}
-
+	// FIXME: This whole API has to be rewritten
 	BAN::ErrorOr<BAN::Vector<BAN::String>> Process::read_directory_entries(int fd)
 	{
 		OpenFileDescription open_fd_copy;
@@ -344,15 +318,7 @@ namespace Kernel
 			open_fd_copy = open_file_description(fd);
 		}
 
-		auto result = TRY(open_fd_copy.inode->read_directory_entries(open_fd_copy.offset));
-		open_fd_copy.offset++;
-
-		m_lock.lock();
-		MUST(validate_fd(fd));
-		open_file_description(fd) = open_fd_copy;
-		m_lock.unlock();
-
-		return result;
+		return TRY(open_fd_copy.inode->read_directory_entries(0));
 	}
 
 	BAN::ErrorOr<BAN::String> Process::working_directory() const

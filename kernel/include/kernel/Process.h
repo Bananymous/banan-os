@@ -41,16 +41,15 @@ namespace Kernel
 		pid_t pid() const { return m_pid; }
 
 		BAN::ErrorOr<int> open(BAN::StringView, int);
-		BAN::ErrorOr<void> close(int);
-		BAN::ErrorOr<size_t> read(int, void*, size_t);
-		BAN::ErrorOr<size_t> write(int, const void*, size_t);
-		BAN::ErrorOr<void> creat(BAN::StringView, mode_t);
-		BAN::ErrorOr<void> seek(int, size_t);
+		BAN::ErrorOr<void> close(int fd);
+		BAN::ErrorOr<size_t> read(int fd, void* buffer, size_t offset, size_t count);
+		BAN::ErrorOr<size_t> write(int fd, const void* buffer, size_t offset, size_t count);
+		BAN::ErrorOr<void> creat(BAN::StringView name, mode_t);
 
-		BAN::ErrorOr<void> fstat(int, stat*);
-		BAN::ErrorOr<void> stat(BAN::StringView, stat*);
+		BAN::ErrorOr<void> fstat(int fd, stat*);
+		BAN::ErrorOr<void> stat(BAN::StringView path, stat*);
 
-		BAN::ErrorOr<void> mount(BAN::StringView, BAN::StringView);
+		BAN::ErrorOr<void> mount(BAN::StringView source, BAN::StringView target);
 
 		BAN::ErrorOr<BAN::Vector<BAN::String>> read_directory_entries(int);
 
@@ -78,7 +77,6 @@ namespace Kernel
 		{
 			BAN::RefPtr<Inode> inode;
 			BAN::String path;
-			size_t offset = 0;
 			uint8_t flags = 0;
 		};
 

@@ -76,7 +76,7 @@ int fflush(FILE* file)
 	if (file->buffer_index == 0)
 		return 0;
 	
-	if (syscall(SYS_WRITE, file->fd, file->buffer, file->buffer_index) < 0)
+	if (syscall(SYS_WRITE, file->fd, file->buffer, file->offset, file->buffer_index) < 0)
 	{
 		file->error = true;
 		return EOF;
@@ -92,7 +92,7 @@ int fgetc(FILE* file)
 		return EOF;
 	
 	unsigned char c;
-	long ret = syscall(SYS_READ, file->fd, &c, 1);
+	long ret = syscall(SYS_READ, file->fd, &c, file->offset, 1);
 
 	if (ret < 0)
 	{
@@ -235,7 +235,7 @@ size_t fread(void* buffer, size_t size, size_t nitems, FILE* file)
 {
 	if (file->eof || nitems * size == 0)
 		return 0;
-	long ret = syscall(SYS_READ, file->fd, buffer, size * nitems);
+	long ret = syscall(SYS_READ, file->fd, buffer, file->offset, size * nitems);
 	if (ret < 0)
 	{
 		file->error = true;
@@ -260,7 +260,13 @@ int fseek(FILE* file, long offset, int whence)
 
 int fseeko(FILE* file, off_t offset, int whence)
 {
-	if (whence == SEEK_CUR)
+	if (offset < 0)
+	{
+		errno = EINVAL;
+		return -1;
+	}
+
+	if (whence == SEEK_CUR && offset <= file->offset)
 		file->offset += offset;
 	else if (whence == SEEK_SET)
 		file->offset = offset;
@@ -274,16 +280,6 @@ int fseeko(FILE* file, off_t offset, int whence)
 		errno = EINVAL;
 		return -1;
 	}
-
-	if (file->offset < 0)
-	{
-		file->offset -= offset;
-		errno = EINVAL;
-		return -1;
-	}
-
-	if (syscall(SYS_SEEK, file->fd, file->offset))
-		return -1;
 
 	file->eof = false;
 

@@ -10,17 +10,17 @@ namespace Kernel
 		Process::current().exit();
 	}
 
-	long sys_read(int fd, void* buffer, size_t size)
+	long sys_read(int fd, void* buffer, size_t offset, size_t size)
 	{
-		auto res = Process::current().read(fd, buffer, size);
+		auto res = Process::current().read(fd, buffer, offset, size);
 		if (res.is_error())
 			return -res.error().get_error_code();
 		return res.value();
 	}
 
-	long sys_write(int fd, const void* buffer, size_t size)
+	long sys_write(int fd, const void* buffer, size_t offset, size_t size)
 	{
-		auto res = Process::current().write(fd, buffer, size);
+		auto res = Process::current().write(fd, buffer, offset, size);
 		if (res.is_error())
 			return -res.error().get_error_code();
 		return res.value();
@@ -29,14 +29,6 @@ namespace Kernel
 	int sys_close(int fd)
 	{
 		auto res = Process::current().close(fd);
-		if (res.is_error())
-			return -res.error().get_error_code();
-		return 0;
-	}
-
-	int sys_seek(int fd, long offset)
-	{
-		auto res = Process::current().seek(fd, offset);
 		if (res.is_error())
 			return -res.error().get_error_code();
 		return 0;
@@ -68,11 +60,13 @@ namespace Kernel
 		Process::current().free(ptr);
 	}
 
-	extern "C" long cpp_syscall_handler(int syscall, void* arg1, void* arg2, void* arg3)
+	extern "C" long cpp_syscall_handler(int syscall, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
 	{
 		Thread::current().set_in_syscall(true);
 
 		asm volatile("sti");
+
+		(void)arg5;
 
 		long ret = 0;
 		switch (syscall)
@@ -81,28 +75,25 @@ namespace Kernel
 			sys_exit();
 			break;
 		case SYS_READ:
-			ret = sys_read((int)(uintptr_t)arg1, arg2, (size_t)(uintptr_t)arg3);
+			ret = sys_read((int)arg1, (void*)arg2, (size_t)arg3, (size_t)arg4);
 			break;
 		case SYS_WRITE:
-			ret = sys_write((int)(uintptr_t)arg1, arg2, (size_t)(uintptr_t)arg3);
+			ret = sys_write((int)arg1, (const void*)arg2, (size_t)arg3, (size_t)arg4);
 			break;
 		case SYS_TERMID:
 			sys_termid((char*)arg1);
 			break;
 		case SYS_CLOSE:
-			ret = sys_close((int)(uintptr_t)arg1);
-			break;
-		case SYS_SEEK:
-			ret = sys_seek((int)(uintptr_t)arg1, (long)arg2);
+			ret = sys_close((int)arg1);
 			break;
 		case SYS_OPEN:
-			ret = sys_open((const char*)arg1, (int)(uintptr_t)arg2);
+			ret = sys_open((const char*)arg1, (int)arg2);
 			break;
 		case SYS_ALLOC:
 			ret = sys_alloc((size_t)arg1);
 			break;
 		case SYS_FREE:
-			sys_free(arg1);
+			sys_free((void*)arg1);
 			break;
 		default:
 			Kernel::panic("Unknown syscall {}", syscall);
