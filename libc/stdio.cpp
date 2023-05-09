@@ -462,6 +462,10 @@ int vfprintf(FILE* file, const char* format, va_list arguments)
 			switch (*format)
 			{
 			case '%':
+				if (fputc('%', file) == EOF)
+					return -1;
+				written++;
+				format++;
 				break;
 			case 's':
 			{
@@ -476,11 +480,15 @@ int vfprintf(FILE* file, const char* format, va_list arguments)
 				break;
 			}
 		}
-		if (fputc(*format, file) == EOF)
-			return -1;
-		written++;
-		format++;
+		else
+		{
+			if (fputc(*format, file) == EOF)
+				return -1;
+			written++;
+			format++;
+		}
 	}
+	
 	return written;
 }
 
