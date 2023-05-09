@@ -31,22 +31,24 @@ long syscall(long syscall, ...)
 		{
 			int fd = va_arg(args, int);
 			void* buffer = va_arg(args, void*);
+			size_t offset = va_arg(args, size_t);
 			size_t bytes = va_arg(args, size_t);
-			ret = Kernel::syscall(SYS_READ, fd, buffer, bytes);
+			ret = Kernel::syscall(SYS_READ, fd, (uintptr_t)buffer, offset, bytes);
 			break;
 		}
 		case SYS_WRITE:
 		{
 			int fd = va_arg(args, int);
 			const char* string = va_arg(args, const char*);
+			size_t offset = va_arg(args, size_t);
 			size_t bytes = va_arg(args, size_t);
-			ret = Kernel::syscall(SYS_WRITE, fd, string, bytes);
+			ret = Kernel::syscall(SYS_WRITE, fd, (uintptr_t)string, offset, bytes);
 			break;
 		}
 		case SYS_TERMID:
 		{
 			char* buffer = va_arg(args, char*);
-			ret = Kernel::syscall(SYS_TERMID, buffer);
+			ret = Kernel::syscall(SYS_TERMID, (uintptr_t)buffer);
 			break;
 		}
 		case SYS_CLOSE:
@@ -55,18 +57,11 @@ long syscall(long syscall, ...)
 			ret = Kernel::syscall(SYS_CLOSE, fd);
 			break;
 		}
-		case SYS_SEEK:
-		{
-			int fd = va_arg(args, int);
-			long offset = va_arg(args, long);
-			ret = Kernel::syscall(SYS_SEEK, fd, offset);
-			break;
-		}
 		case SYS_OPEN:
 		{
 			const char* path = va_arg(args, const char*);
 			int oflags = va_arg(args, int);
-			ret = Kernel::syscall(SYS_OPEN, path, oflags);
+			ret = Kernel::syscall(SYS_OPEN, (uintptr_t)path, oflags);
 			break;
 		}
 		case SYS_ALLOC:
@@ -78,7 +73,7 @@ long syscall(long syscall, ...)
 		case SYS_FREE:
 		{
 			void* ptr = va_arg(args, void*);
-			ret = Kernel::syscall(SYS_FREE, ptr);
+			ret = Kernel::syscall(SYS_FREE, (uintptr_t)ptr);
 			break;
 		}
 		default:

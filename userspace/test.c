@@ -1,35 +1,30 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define N 1024
+#define ERROR(msg) { perror(msg); return 1; }
+#define BUF_SIZE 1024
 
 int main()
 {
-	for (int i = 0; i <= 10; i++)
-	{
-		int** ptrs = malloc(N * sizeof(int*));
-		if (ptrs == NULL)
-		{
-			perror("malloc");
-			return 1;
-		}
-		for (int j = 0; j < N; j++)
-		{
-			ptrs[j] = malloc(sizeof(int));
-			if (ptrs[j] == NULL)
-			{
-				perror("malloc");
-				return 1;
-			}
-			*ptrs[j] = j;
-			putchar('0' + *ptrs[j] % 10);
-		}
-		putchar('\n');
+	FILE* fp = fopen("/usr/include/stdio.h", "r");
+	if (fp == NULL)
+		ERROR("fopen");
 
-		for (int j = 0; j < N; j++)
-			free(ptrs[j]);
-		free(ptrs);
+	char* buffer = malloc(BUF_SIZE);
+	if (buffer == NULL)
+		ERROR("malloc");
+
+	for (;;)
+	{
+		size_t n_read = fread(buffer, 1, BUF_SIZE - 1, fp);
+		if (n_read == 0)
+			break;
+		buffer[n_read] = '\0';
+		printf("%s", buffer);
 	}
-	
+
+	free(buffer);
+	fclose(fp);
+
 	return 0;
 }
