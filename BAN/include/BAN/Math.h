@@ -59,6 +59,49 @@ namespace BAN::Math
 		return (value & (value - 1)) == 0;
 	}
 
+	template<floating_point T>
+	inline constexpr T log2(T value)
+	{
+		T result;
+		asm volatile("fyl2x" : "=t"(result) : "0"(value), "u"((T)1.0) : "st(1)");
+		return result;
+	}
+
+	template<floating_point T>
+	inline constexpr T log10(T value)
+	{
+		constexpr T INV_LOG_2_10 = 0.3010299956639811952137388947244930267681898814621085413104274611;
+		T result;
+		asm volatile("fyl2x" : "=t"(result) : "0"(value), "u"(INV_LOG_2_10) : "st(1)");
+		return result;
+	}
+
+	template<floating_point T>
+	inline constexpr T log(T value, T base)
+	{
+		return log2(value) / log2(base);
+	}
+
+	template<floating_point T>
+	inline constexpr T pow(T base, T exp)
+	{
+		T result;
+		asm volatile(
+			"fyl2x;"
+			"fld1;"
+			"fld %%st(1);"
+			"fprem;"
+			"f2xm1;"
+			"faddp;"
+			"fscale;"
+			"fxch %%st(1);"
+			"fstp %%st;"
+			: "=t"(result)
+			: "0"(base), "u"(exp)
+		);
+		return result;
+	}
+
 	template<integral T>
 	inline constexpr T little_endian_to_host(const uint8_t* bytes)
 	{
