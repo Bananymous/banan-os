@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.26)
 
-project(libc CXX)
+project(libc CXX ASM)
 
 set(LIBC_SOURCES
 	ctype.cpp
@@ -10,6 +10,7 @@ set(LIBC_SOURCES
 	stdlib.cpp
 	string.cpp
 	unistd.cpp
+	math.S
 )
 
 add_custom_target(libc-headers
