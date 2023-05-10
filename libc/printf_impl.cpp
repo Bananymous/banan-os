@@ -1,3 +1,4 @@
+#include <BAN/Traits.h>
 #include <ctype.h>
 #include <errno.h>
 #include <stdio.h>
@@ -22,7 +23,7 @@ struct format_options_t
 	int percision { -1 };
 };
 
-template<typename T>
+template<BAN::integral T>
 static void integer_to_string(char* buffer, T value, int base, bool upper, const format_options_t options)
 {
 	int width = 1;
@@ -94,7 +95,7 @@ static void integer_to_string(char* buffer, T value, int base, bool upper, const
 	buffer[offset++] = '\0';
 }
 
-template<typename T>
+template<BAN::floating_point T>
 static void floating_point_to_exponent_string(char* buffer, T value, bool upper, const format_options_t options)
 {
 	int percision = 6;
@@ -104,14 +105,59 @@ static void floating_point_to_exponent_string(char* buffer, T value, bool upper,
 	strcpy(buffer, "??e??");
 }
 
-template<typename T>
+template<BAN::floating_point T>
 static void floating_point_to_string(char* buffer, T value, bool upper, const format_options_t options)
 {
 	int percision = 6;
 	if (options.percision != -1)
 		percision = options.percision;
 
-	strcpy(buffer, "??.??");
+	int offset = 0;
+
+	if (value < 0)
+	{
+		buffer[offset++] = '-';
+		value = -value;
+	}
+	else if (options.show_plus_sign)
+		buffer[offset++] = '+';
+	else if (options.show_plus_sign_as_space)
+		buffer[offset++] = ' ';
+
+	int exponent = 1;
+	while (value > exponent * 10)
+		exponent *= 10;
+
+	T fractional = value;
+	while (exponent >= 1)
+	{
+		int scale = 0;
+		for (; scale < 10; scale++)
+			if (fractional < T(exponent * (scale + 1)))
+				break;
+		buffer[offset++] = '0' + scale;
+		fractional -= T(exponent * scale);
+		exponent /= 10;
+	}
+
+	if (!options.alternate_form && percision <= 0)
+	{
+		buffer[offset++] = '\0';
+		return;
+	}
+	
+	buffer[offset++] = '.';
+	for (int i = 0; i < percision; i++)
+	{
+		fractional *= T(10.0);
+		if (i == percision - 1)
+			fractional += T(0.5);
+		int digit = fractional;
+		buffer[offset++] = '0' + digit;
+		fractional -= T(digit);
+	}
+
+	buffer[offset++] = '\0';
 }
 
 extern "C" int printf_impl(const char* format, va_list arguments, int (*putc_fun)(int, void*), void* data)
@@ -179,12 +225,14 @@ extern "C" int printf_impl(const char* format, va_list arguments, int (*putc_fun
 				{
 					percision = va_arg(arguments, int);
 				}
+				if (percision < 0)
+					percision = -1;
 				options.percision = percision;
 			}
 		
 			// TODO: Lenght modifier
 
-			static char conversion[100];
+			static char conversion[1024];
 
 			const char* string = nullptr;
 			switch (*format)
