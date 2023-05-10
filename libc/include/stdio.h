@@ -11,9 +11,13 @@
 #define stdout stdout
 #define stderr stderr
 
-#define SEEK_CUR 0
-#define SEEK_END 1
-#define SEEK_SET 2
+#define SEEK_CUR 1
+#define SEEK_END 2
+#define SEEK_SET 3
+
+#define _IOFBF 1
+#define _IOLBF 2
+#define _IONBF 3
 
 #define EXIT_FAILURE 1
 #define EXIT_SUCCESS 0
