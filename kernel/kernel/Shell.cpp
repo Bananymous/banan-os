@@ -522,7 +522,7 @@ argument_done:
 			TRY(entry_prefix.push_back('/'));
 			for (const auto& entry : all_entries)
 			{
-				stat st;
+				struct stat st;
 
 				BAN::String entry_path;
 				TRY(entry_path.append(entry_prefix));
@@ -572,7 +572,7 @@ argument_done:
 				return {};
 			}
 			
-			stat st;
+			struct stat st;
 			TRY(Process::current().stat(arguments[1], &st));
 
 			Inode::Mode mode { st.st_mode };
