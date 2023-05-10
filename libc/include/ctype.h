@@ -18,4 +18,7 @@ int isspace(int);
 int isupper(int);
 int isxdigit(int);
 
+int toupper(int);
+int tolower(int);
+
 __END_DECLS
