@@ -2,6 +2,12 @@
 
 #include <sys/cdefs.h>
 
+#define FP_INFINITE		1
+#define FP_NAN			2
+#define FP_NORMAL		3
+#define FP_SUBNORMAL	4
+#define FP_ZERO			5
+
 __BEGIN_DECLS
 
 extern int signgam;
