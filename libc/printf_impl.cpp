@@ -1,6 +1,8 @@
 #include <BAN/Traits.h>
+#include <BAN/Math.h>
 #include <ctype.h>
 #include <errno.h>
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -35,7 +37,7 @@ static void integer_to_string(char* buffer, T value, int base, bool upper, const
 	}
 	else if (options.width != -1)
 		width = options.width;
-	
+
 	auto digit_char = [](int digit, bool upper)
 	{
 		if (digit < 10)
@@ -96,16 +98,6 @@ static void integer_to_string(char* buffer, T value, int base, bool upper, const
 }
 
 template<BAN::floating_point T>
-static void floating_point_to_exponent_string(char* buffer, T value, bool upper, const format_options_t options)
-{
-	int percision = 6;
-	if (options.percision != -1)
-		percision = options.percision;
-	
-	strcpy(buffer, "??e??");
-}
-
-template<BAN::floating_point T>
 static void floating_point_to_string(char* buffer, T value, bool upper, const format_options_t options)
 {
 	int percision = 6;
@@ -114,7 +106,8 @@ static void floating_point_to_string(char* buffer, T value, bool upper, const fo
 
 	int offset = 0;
 
-	if (value < 0)
+	// Add sign if needed
+	if (value < (T)0.0)
 	{
 		buffer[offset++] = '-';
 		value = -value;
@@ -124,40 +117,96 @@ static void floating_point_to_string(char* buffer, T value, bool upper, const fo
 	else if (options.show_plus_sign_as_space)
 		buffer[offset++] = ' ';
 
-	int exponent = 1;
-	while (value > exponent * 10)
-		exponent *= 10;
+	// Round last digit
+	value += (T)0.5 * BAN::Math::pow<T>(10.0, -percision);
 
-	T fractional = value;
-	while (exponent >= 1)
+	// Add integer part of the decimal
+	if (value < (T)1.0)
 	{
-		int scale = 0;
-		for (; scale < 10; scale++)
-			if (fractional < T(exponent * (scale + 1)))
-				break;
-		buffer[offset++] = '0' + scale;
-		fractional -= T(exponent * scale);
-		exponent /= 10;
+		buffer[offset++] = '0';
+		value *= (T)10.0;
+	}
+	else
+	{
+		int exponent = (int)BAN::Math::log10<T>(value);
+		T magnitude = BAN::Math::pow<T>(10, exponent);
+
+		value /= magnitude;
+
+		for (int i = 0; i <= exponent; i++)
+		{
+			int digit = 0;
+			for (; digit < 10; digit++)
+				if (value < digit + 1)
+					break;
+			buffer[offset++] = '0' + digit;
+			value -= (T)digit;
+			value *= (T)10.0;
+		}
 	}
 
-	if (!options.alternate_form && percision <= 0)
+	// We are done if the decimal part is not written
+	if (percision == 0 && !options.alternate_form)
 	{
 		buffer[offset++] = '\0';
 		return;
 	}
-	
 	buffer[offset++] = '.';
+	
+	// Add the 'percision' digits after decimal point
 	for (int i = 0; i < percision; i++)
 	{
-		fractional *= T(10.0);
-		if (i == percision - 1)
-			fractional += T(0.5);
-		int digit = fractional;
+		int digit = 0;
+		for (; digit < 10; digit++)
+			if (value < digit + 1)
+				break;
 		buffer[offset++] = '0' + digit;
-		fractional -= T(digit);
+		value -= (T)digit;
+		value *= (T)10.0;
 	}
 
 	buffer[offset++] = '\0';
+}
+
+template<BAN::floating_point T>
+static void floating_point_to_exponent_string(char* buffer, T value, bool upper, const format_options_t options)
+{
+	int percision = 6;
+	if (options.percision != -1)
+		percision = options.percision;
+	
+	int offset = 0;
+
+	// Add sign if needed
+	if (value < (T)0.0)
+	{
+		buffer[offset++] = '-';
+		value = -value;
+	}
+	else if (options.show_plus_sign)
+		buffer[offset++] = '+';
+	else if (options.show_plus_sign_as_space)
+		buffer[offset++] = ' ';
+
+	// Calculate which number to put as exponent
+	int exponent = 0;
+	if (value != (T)0.0)
+	{
+		exponent = (int)floorl(BAN::Math::log10<T>(value));
+		value /= BAN::Math::pow<T>(10.0, exponent);
+	}
+
+	// Add first numbers before 'e'
+	floating_point_to_string<T>(buffer + offset, value, upper, options);
+	offset = strlen(buffer);
+
+	// Add the exponent part
+	buffer[offset++] = (upper ? 'E' : 'e');
+	format_options_t exponent_options;
+	exponent_options.show_plus_sign = true;
+	exponent_options.zero_padded = true;
+	exponent_options.width = 3;
+	integer_to_string<int>(buffer + offset, exponent, 10, upper, exponent_options);
 }
 
 extern "C" int printf_impl(const char* format, va_list arguments, int (*putc_fun)(int, void*), void* data)
