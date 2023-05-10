@@ -46,8 +46,8 @@ namespace Kernel
 		BAN::ErrorOr<size_t> write(int fd, const void* buffer, size_t offset, size_t count);
 		BAN::ErrorOr<void> creat(BAN::StringView name, mode_t);
 
-		BAN::ErrorOr<void> fstat(int fd, stat*);
-		BAN::ErrorOr<void> stat(BAN::StringView path, stat*);
+		BAN::ErrorOr<void> fstat(int fd, struct stat*);
+		BAN::ErrorOr<void> stat(BAN::StringView path, struct stat*);
 
 		BAN::ErrorOr<void> mount(BAN::StringView source, BAN::StringView target);
 

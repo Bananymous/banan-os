@@ -20,7 +20,7 @@ namespace LibELF
 			int fd = TRY(Kernel::Process::current().open(file_path, O_RDONLY));
 			BAN::ScopeGuard _([fd] { MUST(Kernel::Process::current().close(fd)); });
 
-			stat st;
+			struct stat st;
 			TRY(Kernel::Process::current().fstat(fd, &st));
 
 			TRY(data.resize(st.st_size));
