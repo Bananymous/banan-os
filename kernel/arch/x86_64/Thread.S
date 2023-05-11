@@ -33,4 +33,5 @@ thread_jump_userspace:
 	pushfq
 	pushq $0x1B
 	pushq %rsi
+	movq $0, %rdi
 	iretq
