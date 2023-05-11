@@ -54,6 +54,9 @@ static void integer_to_string(char* buffer, T value, int base, bool upper, const
 		value = -(value / base);
 	}
 
+	if (value == 0 && width > 0)
+		buffer[offset++] = '0';
+
 	while (value)
 	{
 		buffer[offset++] = digit_char(value % base, upper);
