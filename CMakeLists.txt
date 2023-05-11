@@ -22,6 +22,7 @@ project(banan-os CXX)
 set(BANAN_SYSROOT ${CMAKE_BINARY_DIR}/sysroot)
 set(BANAN_INCLUDE ${BANAN_SYSROOT}/usr/include)
 set(BANAN_LIB ${BANAN_SYSROOT}/usr/lib)
+set(BANAN_BIN ${BANAN_SYSROOT}/usr/bin)
 set(BANAN_BOOT ${BANAN_SYSROOT}/boot)
 set(DISK_IMAGE_PATH ${CMAKE_BINARY_DIR}/banan-os.img)
 
@@ -29,6 +30,7 @@ add_subdirectory(kernel)
 add_subdirectory(BAN)
 add_subdirectory(libc)
 add_subdirectory(LibELF)
+add_subdirectory(userspace)
 
 add_custom_target(sysroot
 	COMMAND mkdir -p ${BANAN_SYSROOT}
@@ -52,11 +54,11 @@ add_custom_target(toolchain
 )
 
 add_custom_target(image
-	COMMAND ${CMAKE_CXX_COMPILER} -x c ${CMAKE_SOURCE_DIR}/userspace/test.c -o ${BANAN_SYSROOT}/bin/test
 	COMMAND ${CMAKE_COMMAND} -E env SYSROOT="${BANAN_SYSROOT}" DISK_IMAGE_PATH="${DISK_IMAGE_PATH}" ${CMAKE_SOURCE_DIR}/image.sh
 	DEPENDS kernel-install
 	DEPENDS ban-install
 	DEPENDS libc-install
+	DEPENDS userspace-install
 	USES_TERMINAL
 )
 
@@ -65,6 +67,7 @@ add_custom_target(image-full
 	DEPENDS kernel-install
 	DEPENDS ban-install
 	DEPENDS libc-install
+	DEPENDS userspace-install
 	USES_TERMINAL
 )
 
