@@ -65,6 +65,16 @@ namespace BAN
 	template<typename T> struct is_const<const T>	: true_type {};
 	template<typename T> inline constexpr bool is_const_v = is_const<T>::value;
 	
+	template<typename T> struct is_arithmetic { static constexpr bool value = is_integral_v<T> || is_floating_point_v<T>; };
+	template<typename T> inline constexpr bool is_arithmetic_v = is_arithmetic<T>::value;
+
+	namespace detail
+	{
+		template<typename T, bool = is_arithmetic_v<T>> struct is_signed { static constexpr bool value = T(-1) < T(0); };
+		template<typename T> struct is_signed<T, false> : false_type {};
+	}
+	template<typename T> struct is_signed : detail::is_signed<T> {};
+	template<typename T> inline constexpr bool is_signed_v = is_signed<T>::value;
 
 	template<typename T> struct less	{ constexpr bool operator()(const T& lhs, const T& rhs) const { return lhs < rhs; } };
 	template<typename T> struct equal	{ constexpr bool operator()(const T& lhs, const T& rhs) const { return lhs == rhs; } };
