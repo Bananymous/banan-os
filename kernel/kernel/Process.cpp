@@ -3,6 +3,7 @@
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/LockGuard.h>
 #include <kernel/Memory/Heap.h>
+#include <kernel/Memory/MMUScope.h>
 #include <kernel/Process.h>
 #include <kernel/Scheduler.h>
 #include <LibELF/ELF.h>
@@ -87,11 +88,9 @@ namespace Kernel
 				}
 
 				{
-					CriticalScope _;
-					process->mmu().load();
+					MMUScope _(process->mmu());
 					memcpy((void*)elf_program_header.p_vaddr, elf->data() + elf_program_header.p_offset, elf_program_header.p_filesz);
 					memset((void*)(elf_program_header.p_vaddr + elf_program_header.p_filesz), 0, elf_program_header.p_memsz - elf_program_header.p_filesz);
-					Process::current().mmu().load();
 				}
 				break;
 			}
@@ -100,7 +99,16 @@ namespace Kernel
 			}
 		}
 
-		auto* thread = MUST(Thread::create_userspace(elf_file_header.e_entry, process));
+		char** argv = nullptr;
+		{
+			MMUScope _(process->mmu());
+			argv = (char**)MUST(process->allocate(sizeof(char**) * 1));
+			argv[0] = (char*)MUST(process->allocate(path.size() + 1));
+			memcpy(argv[0], path.data(), path.size());
+			argv[0][path.size()] = '\0';
+		}
+
+		auto* thread = MUST(Thread::create_userspace(elf_file_header.e_entry, process, 1, argv));
 		process->add_thread(thread);
 
 		delete elf;

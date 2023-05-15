@@ -1,16 +1,15 @@
 #include <BAN/Errors.h>
+#include <kernel/CriticalScope.h>
 #include <kernel/InterruptController.h>
 #include <kernel/Memory/kmalloc.h>
 #include <kernel/Process.h>
 #include <kernel/Scheduler.h>
 #include <kernel/Thread.h>
 
-#define PAGE_SIZE 4096
-
 namespace Kernel
 {
 
-	extern "C" void thread_jump_userspace(uintptr_t rsp, uintptr_t rip);
+	extern "C" void thread_userspace_trampoline(uint64_t rsp, uint64_t rip, int argc, char** argv);
 
 	template<size_t size, typename T>
 	static void write_to_stack(uintptr_t& rsp, const T& value)
@@ -19,32 +18,66 @@ namespace Kernel
 		memcpy((void*)rsp, (void*)&value, size);
 	}
 
+	static pid_t s_next_tid = 1;
+
 	BAN::ErrorOr<Thread*> Thread::create(entry_t entry, void* data, Process* process)
 	{
-		static pid_t next_tid = 1;
-		auto* thread = new Thread(next_tid++, process);
+		// Create the thread object
+		Thread* thread = new Thread(s_next_tid++, process);
 		if (thread == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
-		TRY(thread->initialize(entry, data));
+
+		// Initialize stack and registers
+		thread->m_stack_base = (vaddr_t)kmalloc(m_kernel_stack_size, PAGE_SIZE);
+		if (thread->m_stack_base == 0)
+			return BAN::Error::from_errno(ENOMEM);
+		thread->m_rsp = (uintptr_t)thread->m_stack_base + m_kernel_stack_size;
+		thread->m_rip = (uintptr_t)entry;		
+
+		// Initialize stack for returning
+		write_to_stack<sizeof(void*)>(thread->m_rsp, thread);
+		write_to_stack<sizeof(void*)>(thread->m_rsp, &Thread::on_exit);
+		write_to_stack<sizeof(void*)>(thread->m_rsp, data);
+
 		return thread;
 	}
 
-	BAN::ErrorOr<Thread*> Thread::create_userspace(uintptr_t entry, Process* process)
+	BAN::ErrorOr<Thread*> Thread::create_userspace(uintptr_t entry, Process* process, int argc, char** argv)
 	{
-		Thread* thread = TRY(Thread::create(
-			[](void* entry)
-			{
-				Thread::current().jump_userspace((uintptr_t)entry);
-				ASSERT_NOT_REACHED();
-			}, (void*)entry, process
-		));
-		thread->m_interrupt_stack = kmalloc(m_interrupt_stack_size, PAGE_SIZE);
-		if (thread->m_interrupt_stack == nullptr)
-		{
-			delete thread;
+		// Create the thread object
+		Thread* thread = new Thread(s_next_tid++, process);
+		if (thread == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
-		}
-		process->mmu().identity_map_range(thread->stack_base(), thread->stack_size(), MMU::Flags::UserSupervisor | MMU::Flags::ReadWrite | MMU::Flags::Present);
+		thread->m_is_userspace = true;
+
+		// Allocate stack
+		thread->m_stack_base = (uintptr_t)kmalloc(m_userspace_stack_size, PAGE_SIZE);
+		ASSERT(thread->m_stack_base);
+		process->mmu().identity_map_range(thread->m_stack_base, m_userspace_stack_size, MMU::Flags::UserSupervisor | MMU::Flags::ReadWrite | MMU::Flags::Present);
+
+		// Allocate interrupt stack
+		thread->m_interrupt_stack = (vaddr_t)kmalloc(m_interrupt_stack_size, PAGE_SIZE);
+		ASSERT(thread->m_interrupt_stack);
+
+		thread->m_userspace_entry = { .entry = entry, .argc = argc, .argv = argv };
+
+		// Setup registers and entry
+		static entry_t entry_trampoline(
+			[](void*)
+			{
+				userspace_entry_t& entry = Thread::current().m_userspace_entry;
+				thread_userspace_trampoline(Thread::current().rsp(), entry.entry, entry.argc, entry.argv);
+				ASSERT_NOT_REACHED();
+			}
+		);
+		thread->m_rsp = thread->m_stack_base + m_userspace_stack_size;
+		thread->m_rip = (uintptr_t)entry_trampoline;
+
+		// Setup stack for returning
+		write_to_stack<sizeof(void*)>(thread->m_rsp, thread);
+		write_to_stack<sizeof(void*)>(thread->m_rsp, &Thread::on_exit);
+		write_to_stack<sizeof(void*)>(thread->m_rsp, nullptr);
+
 		return thread;
 	}
 
@@ -63,32 +96,13 @@ namespace Kernel
 		return *m_process;
 	}
 
-	BAN::ErrorOr<void> Thread::initialize(entry_t entry, void* data)
-	{
-		m_stack_base = kmalloc(m_stack_size, PAGE_SIZE);
-		if (m_stack_base == nullptr)
-			return BAN::Error::from_errno(ENOMEM);
-		m_rsp = (uintptr_t)m_stack_base + m_stack_size;
-		m_rip = (uintptr_t)entry;
-
-		write_to_stack<sizeof(void*)>(m_rsp, this);
-		write_to_stack<sizeof(void*)>(m_rsp, &Thread::on_exit);
-		write_to_stack<sizeof(void*)>(m_rsp, data);
-
-		return {};
-	}
-
 	Thread::~Thread()
 	{
 		dprintln("thread {} ({}) exit", tid(), m_process->pid());
-		if (m_interrupt_stack)
-			kfree(m_interrupt_stack);
-		kfree(m_stack_base);
-	}
 
-	void Thread::jump_userspace(uintptr_t rip)
-	{
-		thread_jump_userspace(rsp(), rip);
+		if (m_interrupt_stack)
+			kfree((void*)m_interrupt_stack);
+		kfree((void*)m_stack_base);
 	}
 
 	void Thread::validate_stack() const
