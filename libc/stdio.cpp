@@ -476,7 +476,6 @@ int vprintf(const char* format, va_list arguments)
 // TODO
 int vscanf(const char*, va_list);
 
-// TODO
 int vsnprintf(char* buffer, size_t max_size, const char* format, va_list arguments)
 {
 	if (buffer == nullptr)
@@ -489,34 +488,44 @@ int vsnprintf(char* buffer, size_t max_size, const char* format, va_list argumen
 	};
 	print_info info { buffer, max_size };
 
-	return printf_impl(format, arguments,
+	int ret = printf_impl(format, arguments,
 		[](int c, void* _info)
 		{
 			print_info* info = (print_info*)_info;
-			if (info->remaining)
+			if (info->remaining == 1)
 			{
-				*info->buffer = (info->remaining == 1 ? '\0' : c);
+				*info->buffer = '\0';
+				info->remaining = 0;
+			}
+			else if (info->remaining)
+			{
+				*info->buffer = c;
 				info->buffer++;
 				info->remaining--;
 			}
 			return 0;
 		}, &info
 	);
+
+	*info.buffer = '\0';
+	return ret;
 }
 
-// TODO
 int vsprintf(char* buffer, const char* format, va_list arguments)
 {
 	if (buffer == nullptr)
 		return printf_impl(format, arguments, [](int, void*) { return 0; }, nullptr);
 	
-	return printf_impl(format, arguments,
+	int ret = printf_impl(format, arguments,
 		[](int c, void* _buffer)
 		{
 			*(*(char**)_buffer)++ = c;
 			return 0;
 		}, &buffer
 	);
+
+	*buffer = '\0';
+	return ret;
 }
 
 // TODO
