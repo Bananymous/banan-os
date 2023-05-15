@@ -20,6 +20,8 @@ namespace Kernel
 		static void initialize();
 		static MMU& get();
 
+		static MMU& current();
+
 		MMU();
 		~MMU();
 
