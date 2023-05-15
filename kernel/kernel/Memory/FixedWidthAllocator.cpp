@@ -1,6 +1,7 @@
 #include <kernel/CriticalScope.h>
 #include <kernel/Memory/FixedWidthAllocator.h>
 #include <kernel/Memory/MMU.h>
+#include <kernel/Memory/MMUScope.h>
 #include <kernel/Process.h>
 
 namespace Kernel
@@ -20,9 +21,7 @@ namespace Kernel
 		m_allocated_pages = m_mmu.get_free_page();
 		m_mmu.map_page_at(allocated_pages_paddr, m_allocated_pages, MMU::Flags::ReadWrite | MMU::Flags::Present);
 
-		CriticalScope _;
-
-		m_mmu.load();
+		MMUScope _(m_mmu);
 
 		memset((void*)m_nodes_page, 0, PAGE_SIZE);
 		memset((void*)m_allocated_pages, 0, PAGE_SIZE);
@@ -38,8 +37,6 @@ namespace Kernel
 
 		m_free_list = node_table;
 		m_used_list = nullptr;
-
-		Process::current().mmu().load();
 	}
 
 	FixedWidthAllocator::~FixedWidthAllocator()
