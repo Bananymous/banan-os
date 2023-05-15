@@ -18,6 +18,7 @@ namespace Kernel
 {
 	
 	static MMU* s_instance = nullptr;
+	static MMU* s_current = nullptr;
 
 	void MMU::initialize()
 	{
@@ -32,6 +33,12 @@ namespace Kernel
 	{
 		ASSERT(s_instance);
 		return *s_instance;
+	}
+
+	MMU& MMU::current()
+	{
+		ASSERT(s_current);
+		return *s_current;
 	}
 
 	static uint64_t* allocate_page_aligned_page()
@@ -130,6 +137,7 @@ namespace Kernel
 	void MMU::load()
 	{
 		asm volatile("movq %0, %%cr3" :: "r"(m_highest_paging_struct));
+		s_current = this;
 	}
 
 	void MMU::identity_map_page(paddr_t address, flags_t flags)
