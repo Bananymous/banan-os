@@ -26,17 +26,14 @@ struct format_options_t
 };
 
 template<BAN::integral T>
-static void integer_to_string(char* buffer, T value, int base, bool upper, const format_options_t options)
+static void integer_to_string(char* buffer, T value, int base, bool upper, format_options_t options)
 {
-	int width = 1;
-	bool zero_padded = options.zero_padded;
+	int digits = 1;
 	if (options.percision != -1)
 	{
-		width = options.percision;
-		zero_padded = false;
+		digits = options.percision;
+		options.zero_padded = false;
 	}
-	else if (options.width != -1)
-		width = options.width;
 
 	auto digit_char = [](int digit, bool upper)
 	{
@@ -45,50 +42,56 @@ static void integer_to_string(char* buffer, T value, int base, bool upper, const
 		return (upper ? 'A' : 'a') + (digit - 10);
 	};
 
-	bool sign = false;
 	int offset = 0;
-	if (value < 0)
+
+	int prefix_length = 0;
+	char prefix[2] {};
+	if constexpr(BAN::is_signed_v<T>)
 	{
-		sign = true;
-		buffer[offset++] = digit_char(-(value % base), upper);
-		value = -(value / base);
+		prefix_length = 1;
+		if (value < 0)
+		{
+			prefix[0] = '-';
+			buffer[offset++] = digit_char(-(value % base), upper);
+			value = -(value / base);
+		}
+		else if (options.show_plus_sign)
+			prefix[0] = '+';
+		else if (options.show_plus_sign_as_space)
+			prefix[0] = ' ';
+		else
+			prefix_length = 0;
 	}
-
-	if (value == 0 && width > 0)
-		buffer[offset++] = '0';
-
-	while (value)
+	else
+	{
+		if (options.alternate_form && base == 8)
+		{
+			prefix_length = 1;
+			prefix[0] = '0';
+		}
+		else if (options.alternate_form && base == 16)
+		{
+			prefix_length = 2;
+			prefix[0] = '0';
+			prefix[1] = 'x';
+		}
+	}
+	
+	while (value || offset < digits)
 	{
 		buffer[offset++] = digit_char(value % base, upper);
 		value /= base;
 	}
 
-	int prefix_length = 0;
-
-	if (sign || options.show_plus_sign || options.show_plus_sign_as_space)
-		prefix_length++;
-	if (base == 8 && options.alternate_form)
-		prefix_length++;
-	if (base == 16 && options.alternate_form)
-		prefix_length += 2;
-
-	while (offset < width - prefix_length)
-		buffer[offset++] = (zero_padded ? '0' : ' ');
-
-	if (sign)
-		buffer[offset++] = '-';
-	else if (options.show_plus_sign)
-		buffer[offset++] = '+';
-	else if (options.show_plus_sign_as_space)
-		buffer[offset++] = ' ';
-
-	if (base == 8 && options.alternate_form)
-		buffer[offset++] = '0';
-	if (base == 16 && options.alternate_form)
+	if (options.zero_padded)
 	{
-		buffer[offset++] = 'x';
-		buffer[offset++] = '0';
+		int zeroes = options.width - prefix_length;
+		for (int i = offset; i < zeroes; i++)
+			buffer[offset++] = '0';
 	}
+
+	if (prefix[1]) buffer[offset++] = prefix[1];
+	if (prefix[0]) buffer[offset++] = prefix[0];
 
 	for (int i = 0; i < offset / 2; i++)
 	{
@@ -272,6 +275,13 @@ extern "C" int printf_impl(const char* format, va_list arguments, int (*putc_fun
 						percision += *format - '0';
 						format++;
 					}
+				}
+				else if (*format == '-')
+				{
+					percision = -1;
+					format++;
+					while (isdigit(*format))
+						format++;
 				}
 				else if (*format == '*')
 				{
