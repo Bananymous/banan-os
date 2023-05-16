@@ -10,7 +10,6 @@
 struct FILE
 {
 	int fd			{ -1 };
-	off_t offset	{ 0 };
 	bool eof		{ false };
 	bool error		{ false };
 
@@ -77,7 +76,7 @@ int fflush(FILE* file)
 	if (file->buffer_index == 0)
 		return 0;
 	
-	if (syscall(SYS_WRITE, file->fd, file->buffer, file->offset, file->buffer_index) < 0)
+	if (syscall(SYS_WRITE, file->fd, file->buffer, file->buffer_index) < 0)
 	{
 		file->error = true;
 		return EOF;
@@ -93,7 +92,7 @@ int fgetc(FILE* file)
 		return EOF;
 	
 	unsigned char c;
-	long ret = syscall(SYS_READ, file->fd, &c, file->offset, 1);
+	long ret = syscall(SYS_READ, file->fd, &c, 1);
 
 	if (ret < 0)
 	{
@@ -107,13 +106,15 @@ int fgetc(FILE* file)
 		return EOF;
 	}
 
-	file->offset++;
 	return c;
 }
 
 int fgetpos(FILE* file, fpos_t* pos)
 {
-	*pos = file->offset;
+	off_t offset = ftello(file);
+	if (offset == -1)
+		return -1;
+	*pos = offset;
 	return 0;
 }
 
@@ -214,7 +215,6 @@ int fprintf(FILE* file, const char* format, ...)
 int fputc(int c, FILE* file)
 {
 	file->buffer[file->buffer_index++] = c;
-	file->offset++;
 	if (c == '\n' || file->buffer_index == sizeof(file->buffer))
 		if (fflush(file) == EOF)
 			return EOF;
@@ -236,15 +236,14 @@ size_t fread(void* buffer, size_t size, size_t nitems, FILE* file)
 {
 	if (file->eof || nitems * size == 0)
 		return 0;
-	long ret = syscall(SYS_READ, file->fd, buffer, file->offset, size * nitems);
+	long ret = syscall(SYS_READ, file->fd, buffer, size * nitems);
 	if (ret < 0)
 	{
 		file->error = true;
 		return 0;
 	}
-	if (ret < size * nitems)
+	if (ret == 0)
 		file->eof = true;
-	file->offset += ret;
 	return ret / size;
 }
 
@@ -261,29 +260,11 @@ int fseek(FILE* file, long offset, int whence)
 
 int fseeko(FILE* file, off_t offset, int whence)
 {
-	if (offset < 0)
-	{
-		errno = EINVAL;
+	long ret = syscall(SYS_SEEK, file->fd, offset, whence);
+	if (ret < 0)
 		return -1;
-	}
-
-	if (whence == SEEK_CUR && offset <= file->offset)
-		file->offset += offset;
-	else if (whence == SEEK_SET)
-		file->offset = offset;
-	else if (whence == SEEK_END)
-	{
-		errno = ENOTSUP;
-		return -1;
-	}
-	else
-	{
-		errno = EINVAL;
-		return -1;
-	}
-
+	
 	file->eof = false;
-
 	return 0;
 }
 
@@ -299,7 +280,10 @@ long ftell(FILE* file)
 
 off_t ftello(FILE* file)
 {
-	return file->offset;
+	long ret = syscall(SYS_TELL, file->fd);
+	if (ret < 0)
+		return -1;
+	return ret;
 }
 
 // TODO

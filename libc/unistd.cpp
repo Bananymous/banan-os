@@ -76,6 +76,20 @@ long syscall(long syscall, ...)
 			ret = Kernel::syscall(SYS_FREE, (uintptr_t)ptr);
 			break;
 		}
+		case SYS_SEEK:
+		{
+			int fd = va_arg(args, int);
+			off_t offset = va_arg(args, off_t);
+			int whence = va_arg(args, int);
+			ret = Kernel::syscall(SYS_SEEK, fd, offset, whence);
+			break;
+		}
+		case SYS_TELL:
+		{
+			int fd = va_arg(args, int);
+			ret = Kernel::syscall(SYS_TELL, fd);
+			break;
+		}
 		default:
 			puts("LibC: Unhandeled syscall");
 			ret = -ENOSYS;

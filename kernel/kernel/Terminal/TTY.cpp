@@ -66,7 +66,7 @@ namespace Kernel
 				while (true)
 				{
 					Input::KeyEvent event;
-					ASSERT(MUST(Process::current().read(fd, &event, 0, sizeof(event))) == sizeof(event));
+					ASSERT(MUST(Process::current().read(fd, &event, sizeof(event))) == sizeof(event));
 					TTY::current()->on_key(event);
 				}
 			}, nullptr
