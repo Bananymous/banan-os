@@ -45,7 +45,7 @@ namespace Kernel
 
 		BAN::Vector<uint8_t> file_data;
 		TRY(file_data.resize(st.st_size));
-		TRY(Process::current().read(fd, file_data.data(), 0, st.st_size));
+		TRY(Process::current().read(fd, file_data.data(), st.st_size));
 
 		if (file_data.size() < 4)
 			return BAN::Error::from_error_code(ErrorCode::Font_FileTooSmall);

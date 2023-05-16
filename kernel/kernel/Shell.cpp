@@ -22,14 +22,14 @@ namespace Kernel
 	static void TTY_PRINT(Args&&... args)
 	{
 		BAN::String message = BAN::String::formatted(BAN::forward<Args>(args)...);
-		MUST(Process::current().write(STDOUT_FILENO, message.data(), 0, message.size()));
+		MUST(Process::current().write(STDOUT_FILENO, message.data(), message.size()));
 	}
 
 	template<typename... Args>
 	static void TTY_PRINTLN(Args&&... args)
 	{
 		TTY_PRINT(BAN::forward<Args>(args)...);
-		MUST(Process::current().write(STDOUT_FILENO, "\n", 0, 1));
+		MUST(Process::current().write(STDOUT_FILENO, "\n", 1));
 	}
 
 	static auto s_default_prompt = "\\[\e[32m\\]user\\[\e[m\\]:\\[\e[34m\\]\\w\\[\e[m\\]# "sv;
@@ -112,7 +112,7 @@ namespace Kernel
 
 	void Shell::run()
 	{
-		auto getch = [this] { uint8_t ch; MUST(Process::current().read(STDIN_FILENO, &ch, 0, 1)); return ch; };
+		auto getch = [this] { uint8_t ch; MUST(Process::current().read(STDIN_FILENO, &ch, 1)); return ch; };
 
 		MUST(m_buffer.push_back(""sv));
 
@@ -130,7 +130,7 @@ namespace Kernel
 					while ((current.back() & 0xC0) == 0x80)
 						current.pop_back();
 					current.pop_back();
-					MUST(Process::current().write(STDOUT_FILENO, "\b \b", 0, 3));
+					MUST(Process::current().write(STDOUT_FILENO, "\b \b", 3));
 				}
 				continue;
 			}
@@ -171,7 +171,7 @@ namespace Kernel
 				continue;
 			}
 
-			MUST(Process::current().write(STDOUT_FILENO, &ch, 0, 1));
+			MUST(Process::current().write(STDOUT_FILENO, &ch, 1));
 
 			if (ch != '\n')
 			{
@@ -556,12 +556,8 @@ argument_done:
 			BAN::ScopeGuard buffer_guard([buffer] { delete[] buffer; });
 			ASSERT(buffer);
 
-			size_t offset = 0;
-			while (size_t n_read = TRY(Process::current().read(fd, buffer, offset, buffer_size)))
-			{
+			while (size_t n_read = TRY(Process::current().read(fd, buffer, buffer_size)))
 				TTY_PRINT("{}", BAN::StringView(buffer, n_read));
-				offset += n_read;
-			}
 			TTY_PRINTLN("");
 		}
 		else if (arguments.front() == "stat")
@@ -639,7 +635,7 @@ argument_done:
 
 				while (true)
 				{
-					size_t n_read = TRY(Process::current().read(fd, buffer, total_read, buffer_size));
+					size_t n_read = TRY(Process::current().read(fd, buffer, buffer_size));
 					if (n_read == 0)
 						break;
 					for (size_t j = 0; j < n_read; j++)

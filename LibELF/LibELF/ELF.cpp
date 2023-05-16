@@ -25,7 +25,7 @@ namespace LibELF
 
 			TRY(data.resize(st.st_size));
 
-			TRY(Kernel::Process::current().read(fd, data.data(), 0, data.size()));
+			TRY(Kernel::Process::current().read(fd, data.data(), data.size()));
 
 			elf = new ELF(BAN::move(data));
 			ASSERT(elf);

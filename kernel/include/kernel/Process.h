@@ -42,9 +42,12 @@ namespace Kernel
 
 		BAN::ErrorOr<int> open(BAN::StringView, int);
 		BAN::ErrorOr<void> close(int fd);
-		BAN::ErrorOr<size_t> read(int fd, void* buffer, size_t offset, size_t count);
-		BAN::ErrorOr<size_t> write(int fd, const void* buffer, size_t offset, size_t count);
+		BAN::ErrorOr<size_t> read(int fd, void* buffer, size_t count);
+		BAN::ErrorOr<size_t> write(int fd, const void* buffer, size_t count);
 		BAN::ErrorOr<void> creat(BAN::StringView name, mode_t);
+
+		BAN::ErrorOr<void> seek(int fd, off_t offset, int whence);
+		BAN::ErrorOr<off_t> tell(int fd);
 
 		BAN::ErrorOr<void> fstat(int fd, struct stat*);
 		BAN::ErrorOr<void> stat(BAN::StringView path, struct stat*);
@@ -77,7 +80,8 @@ namespace Kernel
 		{
 			BAN::RefPtr<Inode> inode;
 			BAN::String path;
-			uint8_t flags = 0;
+			off_t offset { 0 };
+			uint8_t flags { 0 };
 		};
 
 		BAN::ErrorOr<void> validate_fd(int);

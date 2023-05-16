@@ -8,6 +8,8 @@
 #define SYS_OPEN 6
 #define SYS_ALLOC 7
 #define SYS_FREE 8
+#define SYS_SEEK 9
+#define SYS_TELL 10
 
 #include <kernel/Attributes.h>
 #include <stdint.h>

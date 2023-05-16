@@ -10,6 +10,7 @@
 #include <LibELF/Values.h>
 
 #include <fcntl.h>
+#include <stdio.h>
 
 namespace Kernel
 {
@@ -210,6 +211,7 @@ namespace Kernel
 		auto& open_file_description = m_open_files[fd];
 		open_file_description.inode = file.inode;
 		open_file_description.path = BAN::move(file.canonical_path);
+		open_file_description.offset = 0;
 		open_file_description.flags = flags;
 
 		return fd;
@@ -224,7 +226,7 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<size_t> Process::read(int fd, void* buffer, size_t offset, size_t count)
+	BAN::ErrorOr<size_t> Process::read(int fd, void* buffer, size_t count)
 	{
 		OpenFileDescription open_fd_copy;
 
@@ -236,10 +238,19 @@ namespace Kernel
 
 		if (!(open_fd_copy.flags & O_RDONLY))
 			return BAN::Error::from_errno(EBADF);
-		return TRY(open_fd_copy.inode->read(offset, buffer, count));
+
+		size_t nread = TRY(open_fd_copy.inode->read(open_fd_copy.offset, buffer, count));
+
+		{
+			LockGuard _(m_lock);
+			MUST(validate_fd(fd));
+			open_file_description(fd).offset += nread;
+		}
+
+		return nread;
 	}
 
-	BAN::ErrorOr<size_t> Process::write(int fd, const void* buffer, size_t offset, size_t count)
+	BAN::ErrorOr<size_t> Process::write(int fd, const void* buffer, size_t count)
 	{
 		OpenFileDescription open_fd_copy;
 
@@ -251,7 +262,54 @@ namespace Kernel
 
 		if (!(open_fd_copy.flags & O_WRONLY))
 			return BAN::Error::from_errno(EBADF);
-		return TRY(open_fd_copy.inode->write(offset, buffer, count));
+
+		size_t nwrite = TRY(open_fd_copy.inode->write(open_fd_copy.offset, buffer, count));
+
+		{
+			LockGuard _(m_lock);
+			MUST(validate_fd(fd));
+			open_file_description(fd).offset += nwrite;
+		}
+
+		return nwrite;
+	}
+
+	BAN::ErrorOr<void> Process::seek(int fd, off_t offset, int whence)
+	{
+		LockGuard _(m_lock);
+		TRY(validate_fd(fd));
+
+		auto& open_fd = open_file_description(fd);
+
+		off_t new_offset = 0;
+
+		switch (whence)
+		{
+			case SEEK_CUR:
+				new_offset = open_fd.offset + offset;
+				break;
+			case SEEK_END:
+				new_offset = open_fd.inode->size() - offset;
+				break;
+			case SEEK_SET:
+				new_offset = offset;
+				break;
+			default:
+				return BAN::Error::from_errno(EINVAL);
+		}
+
+		if (new_offset < 0)
+			return BAN::Error::from_errno(EINVAL);
+		open_fd.offset = new_offset;
+
+		return {};
+	}
+
+	BAN::ErrorOr<off_t> Process::tell(int fd)
+	{
+		LockGuard _(m_lock);
+		TRY(validate_fd(fd));
+		return open_file_description(fd).offset;
 	}
 
 	BAN::ErrorOr<void> Process::creat(BAN::StringView path, mode_t mode)
