@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.26)
 project(userspace CXX)
 
 set(USERSPACE_PROJECTS
+	Shell
 	cat
 	test
 	yes
