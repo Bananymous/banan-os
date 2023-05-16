@@ -8,7 +8,6 @@
 #include <kernel/Terminal/termios.h>
 #include <kernel/Semaphore.h>
 
-
 namespace Kernel
 {
 	
@@ -17,7 +16,8 @@ namespace Kernel
 	public:
 		TTY(TerminalDriver*);
 
-		void set_termios(const termios& termios) { m_termios = termios; }		
+		void set_termios(const termios& termios) { m_termios = termios; }
+		termios get_termios() const { return m_termios; }	
 		void set_font(const Kernel::Font&);
 
 		uint32_t height() const { return m_height; }
