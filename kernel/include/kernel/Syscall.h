@@ -10,6 +10,8 @@
 #define SYS_FREE 8
 #define SYS_SEEK 9
 #define SYS_TELL 10
+#define SYS_GET_TERMIOS 11
+#define SYS_SET_TERMIOS 12
 
 #include <kernel/Attributes.h>
 #include <stdint.h>

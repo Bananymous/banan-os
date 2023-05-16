@@ -2,6 +2,8 @@
 #include <kernel/Process.h>
 #include <kernel/Syscall.h>
 
+#include <termios.h>
+
 namespace Kernel
 {
 
@@ -76,6 +78,26 @@ namespace Kernel
 		return res.value();
 	}
 
+	long sys_get_termios(::termios* termios)
+	{
+		auto current = Process::current().tty().get_termios();
+		memset(termios, 0, sizeof(::termios));
+		if (current.canonical)
+			termios->c_lflag |= ICANON;
+		if (current.echo)
+			termios->c_lflag |= ECHO;
+		return 0;
+	}
+
+	long sys_set_termios(const ::termios* termios)
+	{
+		Kernel::termios new_termios;
+		new_termios.canonical = termios->c_lflag & ICANON;
+		new_termios.echo = termios->c_lflag & ECHO;
+		Process::current().tty().set_termios(new_termios);
+		return 0;
+	}
+
 	extern "C" long cpp_syscall_handler(int syscall, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
 	{
 		Thread::current().set_in_syscall(true);
@@ -120,6 +142,12 @@ namespace Kernel
 			break;
 		case SYS_TELL:
 			ret = sys_tell((int)arg1);
+			break;
+		case SYS_GET_TERMIOS:
+			ret = sys_get_termios((::termios*)arg1);
+			break;
+		case SYS_SET_TERMIOS:
+			ret = sys_set_termios((const ::termios*)arg1);
 			break;
 		default:
 			Kernel::panic("Unknown syscall {}", syscall);

@@ -90,6 +90,18 @@ long syscall(long syscall, ...)
 			ret = Kernel::syscall(SYS_TELL, fd);
 			break;
 		}
+		case SYS_GET_TERMIOS:
+		{
+			struct termios* termios = va_arg(args, struct termios*);
+			ret = Kernel::syscall(SYS_GET_TERMIOS, (uintptr_t)termios);
+			break;
+		}
+		case SYS_SET_TERMIOS:
+		{
+			const struct termios* termios = va_arg(args, const struct termios*);
+			ret = Kernel::syscall(SYS_SET_TERMIOS, (uintptr_t)termios);
+			break;
+		}
 		default:
 			puts("LibC: Unhandeled syscall");
 			ret = -ENOSYS;

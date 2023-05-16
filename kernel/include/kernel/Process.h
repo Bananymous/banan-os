@@ -59,6 +59,8 @@ namespace Kernel
 		BAN::ErrorOr<BAN::String> working_directory() const;
 		BAN::ErrorOr<void> set_working_directory(BAN::StringView);
 
+		TTY& tty() { ASSERT(m_tty); return *m_tty; }
+
 		BAN::ErrorOr<void*> allocate(size_t);
 		void free(void*);
 
