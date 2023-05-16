@@ -21,10 +21,6 @@ int main(int argc, char** argv)
 {
 	int ret = 0;
 
-	printf("argc %d, argv %p\n", argc, argv);
-	for (int i = 0; i < argc; i++)
-		printf("%s\n", argv[i]);
-
 	if (argc > 1)
 	{
 		for (int i = 1; i < argc; i++)
