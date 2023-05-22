@@ -1,12 +1,13 @@
 #pragma once
 
 #include <BAN/Formatter.h>
+#include <BAN/StringView.h>
 #include <BAN/Variant.h>
 
 #include <errno.h>
 #include <string.h>
 
-#if defined(__is_kernel)
+#ifdef __is_kernel
 	#include <kernel/Panic.h>
 	#include <kernel/Errors.h>
 	#define MUST(expr)		 ({ auto&& e = expr; if (e.is_error()) Kernel::panic("{}", e.error()); e.release_value(); })
@@ -24,29 +25,37 @@ namespace BAN
 
 	class Error
 	{
+#ifdef __is_kernel
 	private:
 		static constexpr uint64_t kernel_error_mask = uint64_t(1) << 63;
+#endif
 
 	public:
+#ifdef __is_kernel
 		static Error from_error_code(Kernel::ErrorCode error)
 		{
 			return Error((uint64_t)error | kernel_error_mask);
 		}
+#endif
 		static Error from_errno(int error)
 		{
 			return Error(error);
 		}
 
+#ifdef __is_kernel
 		Kernel::ErrorCode kernel_error() const
 		{
 			return (Kernel::ErrorCode)(m_error_code & ~kernel_error_mask);
 		}
+#endif
 
 		uint64_t get_error_code() const { return m_error_code; }
 		BAN::StringView get_message() const
 		{
+#ifdef __is_kernel
 			if (m_error_code & kernel_error_mask)
 				return Kernel::error_string(kernel_error());
+#endif
 			return strerror(m_error_code);
 		}
 
@@ -132,7 +141,7 @@ namespace BAN
 		void release_value()			{ }
 
 	private:
-		Error m_data { Error::from_error_code(Kernel::ErrorCode::None) };
+		Error m_data { Error::from_errno(0) };
 		bool m_has_error { false };
 	};
 
