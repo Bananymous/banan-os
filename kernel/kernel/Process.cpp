@@ -384,7 +384,15 @@ namespace Kernel
 			open_fd_copy = open_file_description(fd);
 		}
 
-		return TRY(open_fd_copy.inode->read_directory_entries(0));
+		auto result = TRY(open_fd_copy.inode->read_directory_entries(open_fd_copy.offset));
+
+		{
+			LockGuard _(m_lock);
+			MUST(validate_fd(fd));
+			open_file_description(fd).offset = open_fd_copy.offset + 1;
+		}
+
+		return result;
 	}
 
 	BAN::ErrorOr<BAN::String> Process::working_directory() const
