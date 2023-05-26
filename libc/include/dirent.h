@@ -1,27 +1,36 @@
-#pragma once
+#ifndef _DIRENT_H
+#define _DIRENT_H 1
 
-#include <sys/types.h>
+// https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/dirent.h.html
+
+#include <sys/cdefs.h>
 
 __BEGIN_DECLS
 
+#define __need_ino_t
+#include <sys/types.h>
+
 struct DIR;
+typedef DIR DIR;
 
 struct dirent
 {
-	ino_t d_ino;
-	char d_name[];
+	ino_t d_ino;	/* File serial number. */
+	char d_name[];	/* Filename string of entry. */
 };
 
-int				alphasort(const struct dirent**, const struct dirent**);
-int				closedir(DIR*);
-int				dirfd(DIR*);
-DIR*			fdopendir(int);
-DIR*			opendir(const char*);
-struct dirent*	readdir(DIR*);
-int				readdir_r(DIR*, struct dirent*, struct dirent**);
-void			rewinddir(DIR*);
-int				scandir(const char*, struct dirent***, int (*)(const struct dirent*), int (*)(const struct dirent**, const struct dirent**));
-void			seekdir(DIR*, long);
-long			telldir(DIR*);
+int				alphasort(const struct dirent** d1, const struct dirent** d2);
+int				closedir(DIR* dirp);
+int				dirfd(DIR* dirp);
+DIR*			fdopendir(int fd);
+DIR*			opendir(const char* dirname);
+struct dirent*	readdir(DIR* dirp);
+int				readdir_r(DIR* __restrict dirp, struct dirent* __restrict entry, struct dirent** __restrict result);
+void			rewinddir(DIR* dirp);
+int				scandir(const char* dir, struct dirent*** namelist, int (*sel)(const struct dirent*), int (*compar)(const struct dirent**, const struct dirent**));
+void			seekdir(DIR* dirp, long loc);
+long			telldir(DIR* dirp);
 
 __END_DECLS
+
+#endif

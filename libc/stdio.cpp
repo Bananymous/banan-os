@@ -1,6 +1,6 @@
+#include <bits/printf.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <printf_impl.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>

@@ -1,6 +1,11 @@
-#pragma once
+#ifndef _ERRNO_H
+#define _ERRNO_H 1
+
+// https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/errno.h.html
 
 #include <sys/cdefs.h>
+
+__BEGIN_DECLS
 
 #define E2BIG			1
 #define EACCES			2
@@ -83,13 +88,13 @@
 #define ETXTBSY			79
 #define EWOULDBLOCK		80
 #define EXDEV			81
-#define EEXISTS			82
-#define ENOTBLK			83
+#define ENOTBLK			82
+#define EEXISTS			83
 
-#define errno errno
+#define errno __errno
 
-__BEGIN_DECLS
-
-extern int errno;
+extern int __errno;
 
 __END_DECLS
+
+#endif

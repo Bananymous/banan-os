@@ -1,16 +1,76 @@
-#pragma once
+#ifndef _MATH_H
+#define _MATH_H 1
+
+// https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/math.h.html
 
 #include <sys/cdefs.h>
 
-#define FP_INFINITE		1
-#define FP_NAN			2
-#define FP_NORMAL		3
-#define FP_SUBNORMAL	4
-#define FP_ZERO			5
-
 __BEGIN_DECLS
 
-extern int signgam;
+#ifndef FLT_EVAL_METHOD
+	#define FLT_EVAL_METHOD 0
+#endif
+
+#if FLT_EVAL_METHOD == 0
+	typedef float float_t;
+	typedef double double_t;
+#elif FLT_EVAL_METHOD == 1
+	typedef double float_t;
+	typedef double double_t;
+#elif FLT_EVAL_METHOD == 2
+	typedef long double float_t;
+	typedef long double double_t;
+#endif
+
+// FIXME: define these
+#if 0
+int fpclassify(real-floating x);
+int isfinite(real-floating x);
+int isgreater(real-floating x, real-floating y);
+int isgreaterequal(real-floating x, real-floating y);
+int isinf(real-floating x);
+int isless(real-floating x, real-floating y);
+int islessequal(real-floating x, real-floating y);
+int islessgreater(real-floating x, real-floating y);
+int isnan(real-floating x);
+int isnormal(real-floating x);
+int isunordered(real-floating x, real-floating y);
+int signbit(real-floating x);
+#endif
+
+#define M_E			2.7182818284590452354
+#define M_LOG2E		1.4426950408889634074
+#define M_LOG10E	0.43429448190325182765
+#define M_LN2		0.69314718055994530942
+#define M_LN10		2.30258509299404568402
+#define M_PI		3.14159265358979323846
+#define M_PI_2		1.57079632679489661923
+#define M_PI_4		0.78539816339744830962
+#define M_1_PI		0.31830988618379067154
+#define M_2_PI		0.63661977236758134308
+#define M_2_SQRTPI	1.12837916709551257390
+#define M_SQRT2		1.41421356237309504880
+#define M_SQRT1_2	0.70710678118654752440
+
+#define HUGE_VAL	1e10000
+#define HUGE_VALF	1e10000f
+#define HUGE_VALL	1e10000L
+#define INFINITY	HUGE_VALf
+#define NAN			(0.0f / 0.0f)
+
+#define FP_INFINITE		0
+#define FP_NAN			1
+#define FP_NORMAL		2
+#define FP_SUBNORMAL	3
+#define FP_ZERO			4
+
+#define FP_ILOGB0	-2147483647
+#define FP_ILOGBNAN	+2147483647
+
+#define MATH_ERRNO		1
+#define MATH_ERREXCEPT	2
+
+#define math_errhandling (MATH_ERRNO | MATH_ERREXCEPT)
 
 double		acos(double);
 float		acosf(float);
@@ -190,4 +250,8 @@ double		y0(double);
 double		y1(double);
 double		yn(int, double);
 
+extern int signgam;
+
 __END_DECLS
+
+#endif
