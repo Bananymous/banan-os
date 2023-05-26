@@ -1,5 +1,20 @@
-#pragma once
+#ifndef __ASSERT_H
+#define _ASSERT_H 1
 
-#include <stdlib.h>
+// https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/assert.h.html
 
-#define assert(expr) { if (!(expr)) abort(); }
+#include <sys/cdefs.h>
+
+#ifdef NDEBUG
+	#define assert(ignore)((void) 0)
+#else
+	#define assert(expr) do { if (!(expr)) __assert_fail(#expr, __FILE__, __LINE__, __func__); } while (0)
+#endif
+
+__BEGIN_DECLS
+
+void __assert_fail(const char*, const char*, int, const char*);
+
+__END_DECLS
+
+#endif

@@ -1,4 +1,5 @@
 #include <BAN/Assert.h>
+#include <kernel/Syscall.h>
 #include <errno.h>
 #include <stdarg.h>
 #include <stddef.h>

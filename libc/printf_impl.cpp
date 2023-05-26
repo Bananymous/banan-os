@@ -1,5 +1,6 @@
 #include <BAN/Traits.h>
 #include <BAN/Math.h>
+#include <bits/printf.h>
 #include <ctype.h>
 #include <errno.h>
 #include <math.h>

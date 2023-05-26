@@ -1,26 +1,196 @@
-#pragma once
+#ifndef _SYS_TYPES_H
 
-#include <stddef.h>
-#include <stdint.h>
+// https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/sys_types.h.html
+
 #include <sys/cdefs.h>
 
 __BEGIN_DECLS
 
-typedef int32_t		blkcnt_t;
-typedef int32_t		blksize_t;
-typedef uint64_t	clock_t;
-typedef int32_t		clockid_t;
-typedef uint64_t	dev_t;
-typedef uint32_t	ino_t;
-typedef uint16_t	mode_t;
-typedef uint32_t	nlink_t;
-typedef int64_t		off_t;
-typedef uint64_t	time_t;
-typedef uint64_t	timer_t;
-typedef int32_t		id_t;
-typedef id_t		pid_t;
-typedef id_t		uid_t;
-typedef id_t		gid_t;
-typedef int64_t		ssize_t;
+#if    !defined(__need_blkcnt_t) \
+	&& !defined(__need_blksize_t) \
+	&& !defined(__need_clock_t) \
+	&& !defined(__need_clockid_t) \
+	&& !defined(__need_dev_t) \
+	&& !defined(__need_fsblkcnt_t) \
+	&& !defined(__need_fsfilcnt_t) \
+	&& !defined(__need_gid_t) \
+	&& !defined(__need_id_t) \
+	&& !defined(__need_ino_t) \
+	&& !defined(__need_key_t) \
+	&& !defined(__need_mode_t) \
+	&& !defined(__need_nlink_t) \
+	&& !defined(__need_off_t) \
+	&& !defined(__need_pid_t) \
+	&& !defined(__need_pthread_attr_t) \
+	&& !defined(__need_pthread_barrier_t) \
+	&& !defined(__need_pthread_barrierattr_t) \
+	&& !defined(__need_pthread_cond_t) \
+	&& !defined(__need_pthread_condattr_t) \
+	&& !defined(__need_pthread_key_t) \
+	&& !defined(__need_pthread_mutex_t) \
+	&& !defined(__need_pthread_mutexattr_t) \
+	&& !defined(__need_pthread_once_t) \
+	&& !defined(__need_pthread_rwlock_t) \
+	&& !defined(__need_pthread_rwlockattr_t) \
+	&& !defined(__need_pthread_spinlock_t) \
+	&& !defined(__need_pthread_t) \
+	&& !defined(__need_size_t) \
+	&& !defined(__need_ssize_t) \
+	&& !defined(__need_suseconds_t) \
+	&& !defined(__need_time_t) \
+	&& !defined(__need_timer_t) \
+	&& !defined(__need_uid_t)
+
+	#define __need_all_types
+#endif
+
+#ifdef __need_all_types
+#define _SYS_TYPES_H 1
+#endif
+
+#if !defined(__blkcnt_t_defined) && (defined(__need_all_types) || defined(__need_blkcnt_t))
+	#define __blkcnt_defined 1
+	typedef long blkcnt_t;
+#endif
+#undef __need_blkcnt_t
+
+#if !defined(__blksize_t_defined) && (defined(__need_all_types) || defined(__need_blksize_t))
+	#define __blksize_t_defined 1
+	typedef long blksize_t;
+#endif
+#undef __need_blksize_t
+
+#if !defined(__clock_t_defined) && (defined(__need_all_types) || defined(__need_clock_t))
+	#define __clock_t_defined 1
+	typedef long clock_t;
+#endif
+#undef __need_clock_t
+
+#if !defined(__clockid_t_defined) && (defined(__need_all_types) || defined(__need_clockid_t))
+	#define __clockid_t_defined 1
+	typedef int clockid_t;
+#endif
+#undef __need_clockid_t
+
+#if !defined(__dev_t_defined) && (defined(__need_all_types) || defined(__need_dev_t))
+	#define __dev_t_defined 1
+	typedef unsigned long dev_t;
+#endif
+#undef __need_dev_t
+
+#if !defined(__fsblkcnt_t_defined) && (defined(__need_all_types) || defined(__need_fsblkcnt_t))
+	#define __fsblkcnt_t_defined 1
+	typedef unsigned long fsblkcnt_t;
+#endif
+#undef __need_fsblkcnt_t
+
+#if !defined(__fsfilcnt_t_defined) && (defined(__need_all_types) || defined(__need_fsfilcnt_t))
+	#define __fsfilcnt_t_defined 1
+	typedef unsigned long fsfilcnt_t;
+#endif
+#undef __need_fsfilcnt_t
+
+#if !defined(__gid_t_defined) && (defined(__need_all_types) || defined(__need_gid_t))
+	#define __gid_t_defined 1
+	typedef unsigned int gid_t;
+#endif
+#undef __need_gid_t
+
+#if !defined(__id_t_defined) && (defined(__need_all_types) || defined(__need_id_t))
+	#define __id_t_defined 1
+	typedef unsigned int id_t;
+#endif
+#undef __need_id_t
+
+#if !defined(__ino_t_defined) && (defined(__need_all_types) || defined(__need_ino_t))
+	#define __ino_t_defined 1
+	typedef unsigned long ino_t;
+#endif
+#undef __need_ino_t
+
+#if !defined(__key_t_defined) && (defined(__need_all_types) || defined(__need_key_t))
+	#define __key_t_defined 1
+	typedef int key_t;
+#endif
+#undef __need_key_t
+
+#if !defined(__mode_t_defined) && (defined(__need_all_types) || defined(__need_mode_t))
+	#define __mode_t_defined 1
+	typedef unsigned int mode_t;
+#endif
+#undef __need_mode_t
+
+#if !defined(__nlink_t_defined) && (defined(__need_all_types) || defined(__need_nlink_t))
+	#define __nlink_t_defined 1
+	typedef unsigned long nlink_t;
+#endif
+#undef __need_nlink_t
+
+#if !defined(__off_t_defined) && (defined(__need_all_types) || defined(__need_off_t))
+	#define __off_t_defined 1
+	typedef long off_t;
+#endif
+#undef __need_off_t
+
+#if !defined(__pid_t_defined) && (defined(__need_all_types) || defined(__need_pid_t))
+	#define __pid_t_defined 1
+	typedef int pid_t;
+#endif
+#undef __need_pid_t
+
+#include <bits/pthread_types.h>
+
+#if !defined(__size_t_defined) && (defined(__need_all_types) || defined(__need_size_t))
+	#define __size_t_defined 1
+	#define __need_size_t
+	#include <stddef.h>
+#endif
+#undef __need_size_t
+
+#if !defined(__ssize_t_defined) && (defined(__need_all_types) || defined(__need_ssize_t))
+	#define __ssize_t_defined 1
+	#if __SIZEOF_SIZE_T__ == __SIZEOF_INT__
+		typedef int ssize_t;
+	#elif __SIZEOF_SIZE_T__ == __SIZEOF_LONG__
+		typedef long ssize_t;
+	#elif __SIZEOF_SIZE_T__ == __SIZEOF_LONG_LONG__
+		typedef long long ssize_t;
+	#else
+		#error "unsupported sizeof(size_t)"
+	#endif
+#endif
+#undef __need_ssize_t
+
+#if !defined(__suseconds_t_defined) && (defined(__need_all_types) || defined(__need_suseconds_t))
+	#define __suseconds_t_defined 1
+	typedef long suseconds_t;
+#endif
+#undef __need_suseconds_t
+
+#if !defined(__time_t_defined) && (defined(__need_all_types) || defined(__need_time_t))
+	#define __time_t_defined 1
+	typedef unsigned long long time_t;
+#endif
+#undef __need_time_t
+
+#if !defined(__timer_t_defined) && (defined(__need_all_types) || defined(__need_timer_t))
+	#define __timer_t_defined 1
+	typedef void* timer_t;
+#endif
+#undef __need_timer_t
+
+#if !defined(__uid_t_defined) && (defined(__need_all_types) || defined(__need_uid_t))
+	#define __uid_t_defined 1
+	typedef int uid_t;
+#endif
+#undef __need_uid_t
+
+#ifdef __need_all_types
+	#include <stdint.h>
+#endif
+
+#undef __need_all_types
 
 __END_DECLS
+
+#endif

@@ -1,20 +1,8 @@
 #pragma once
 
-#define SYS_EXIT 1
-#define SYS_READ 2
-#define SYS_WRITE 3
-#define SYS_TERMID 4
-#define SYS_CLOSE 5
-#define SYS_OPEN 6
-#define SYS_ALLOC 7
-#define SYS_FREE 8
-#define SYS_SEEK 9
-#define SYS_TELL 10
-#define SYS_GET_TERMIOS 11
-#define SYS_SET_TERMIOS 12
-
 #include <kernel/Attributes.h>
 #include <stdint.h>
+#include <sys/syscall.h>
 
 namespace Kernel
 {
