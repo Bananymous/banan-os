@@ -159,7 +159,7 @@ static bool is_corrupted()
 	return (uintptr_t)temp != info.end;
 }
 
-static void debug_dump()
+[[maybe_unused]] static void debug_dump()
 {
 	auto& info = s_kmalloc_info;
 
