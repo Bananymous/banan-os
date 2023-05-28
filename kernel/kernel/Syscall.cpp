@@ -106,6 +106,12 @@ namespace Kernel
 		return ret.value()->pid();
 	}
 
+	long sys_sleep(unsigned int seconds)
+	{
+		PIT::sleep(seconds * 1000);
+		return 0;
+	}
+
 	extern "C" long sys_fork_trampoline();
 
 	extern "C" long cpp_syscall_handler(int syscall, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
@@ -161,6 +167,9 @@ namespace Kernel
 			break;
 		case SYS_FORK:
 			ret = sys_fork_trampoline();
+			break;
+		case SYS_SLEEP:
+			ret = sys_sleep((unsigned int)arg1);
 			break;
 		default:
 			Kernel::panic("Unknown syscall {}", syscall);
