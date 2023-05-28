@@ -8,15 +8,18 @@
 
 int main()
 {
+	char* string = (char*)malloc(5000);
+	strcpy(string, "Hello");
+
 	printf("forking\n");
 
 	pid_t pid = fork();
 	if (pid == 0)
 	{
-		printf("child\n");
+		printf("child '%s'\n", string);
 		return 0;
 	}
-	printf("parent\n");
+	printf("parent '%s'\n", string);
 
 	return 0;
 }

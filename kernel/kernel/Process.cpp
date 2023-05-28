@@ -218,10 +218,10 @@ namespace Kernel
 		ASSERT(m_threads.front() == &Thread::current());
 
 		//for (auto& allocator : m_fixed_width_allocators)
-		//	MUST(forked->m_fixed_width_allocators.push_back(allocator.clone()));
+		//	MUST(forked->m_fixed_width_allocators.push_back(MUST(allocator->clone(forked->mmu()))));
 
-		//if (m_general_allocator)
-		//	forked->m_general_allocator = m_general_allocator->clone();
+		if (m_general_allocator)
+			forked->m_general_allocator = MUST(m_general_allocator->clone(forked->mmu()));
 
 		Thread* thread = MUST(m_threads.front()->clone(forked, rsp, rip));
 		forked->add_thread(thread);

@@ -1,4 +1,5 @@
 #include <kernel/Memory/GeneralAllocator.h>
+#include <kernel/Memory/MMUScope.h>
 #include <kernel/Process.h>
 
 namespace Kernel
@@ -59,6 +60,47 @@ namespace Kernel
 		}
 
 		return false;
+	}
+
+	BAN::ErrorOr<GeneralAllocator*> GeneralAllocator::clone(MMU& new_mmu)
+	{
+		GeneralAllocator* allocator = new GeneralAllocator(new_mmu);
+		if (allocator == nullptr)
+			return BAN::Error::from_errno(ENOMEM);
+
+		MMUScope _(m_mmu);
+		ASSERT(m_mmu.is_page_free(0));
+
+		for (auto& allocation : m_allocations)
+		{
+			Allocation new_allocation;
+			ASSERT(new_mmu.is_range_free(allocation.address, allocation.pages.size() * PAGE_SIZE));
+
+			new_allocation.address = allocation.address;
+			MUST(new_allocation.pages.reserve(allocation.pages.size()));
+
+			uint8_t flags = m_mmu.get_page_flags(allocation.address);
+			for (size_t i = 0; i < allocation.pages.size(); i++)
+			{
+				paddr_t paddr = Heap::get().take_free_page();
+				ASSERT(paddr);
+
+				vaddr_t vaddr = allocation.address + i * PAGE_SIZE;
+
+				MUST(new_allocation.pages.push_back(paddr));
+				new_mmu.map_page_at(paddr, vaddr, flags);
+
+				m_mmu.map_page_at(paddr, 0, MMU::Flags::ReadWrite | MMU::Flags::Present);
+				m_mmu.invalidate(0);
+				memcpy((void*)0, (void*)vaddr, PAGE_SIZE);
+			}
+
+			MUST(allocator->m_allocations.push_back(BAN::move(new_allocation)));
+		}
+		m_mmu.unmap_page(0);
+		m_mmu.invalidate(0);
+
+		return allocator;
 	}
 
 }
