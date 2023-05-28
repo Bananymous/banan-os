@@ -126,7 +126,7 @@ extern "C" void kernel_main()
 	dprintln("GDT initialized");
 
 	IDT::initialize();
-	dprintln("IDT initialized");	
+	dprintln("IDT initialized");
 
 	MMU::initialize();
 	dprintln("MMU initialized");
@@ -180,7 +180,7 @@ static void init2(void* tty1)
 
 	((TTY*)tty1)->initialize_device();
 
-	MUST(Process::create_userspace("/usr/bin/Shell"sv));
+	MUST(Process::create_userspace("/usr/bin/test"sv));
 	return;
 
 	Process::create_kernel(

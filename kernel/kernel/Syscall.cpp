@@ -98,6 +98,16 @@ namespace Kernel
 		return 0;
 	}
 
+	extern "C" long sys_fork(uintptr_t rsp, uintptr_t rip)
+	{
+		auto ret = Process::current().fork(rsp, rip);
+		if (ret.is_error())
+			return -ret.error().get_error_code();
+		return ret.value()->pid();
+	}
+
+	extern "C" long sys_fork_trampoline();
+
 	extern "C" long cpp_syscall_handler(int syscall, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
 	{
 		Thread::current().set_in_syscall(true);
@@ -148,6 +158,9 @@ namespace Kernel
 			break;
 		case SYS_SET_TERMIOS:
 			ret = sys_set_termios((const ::termios*)arg1);
+			break;
+		case SYS_FORK:
+			ret = sys_fork_trampoline();
 			break;
 		default:
 			Kernel::panic("Unknown syscall {}", syscall);

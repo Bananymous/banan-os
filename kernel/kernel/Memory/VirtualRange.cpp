@@ -83,9 +83,11 @@ namespace Kernel
 		for (size_t i = 0; i < result->m_physical_pages.size(); i++)
 		{
 			m_mmu.map_page_at(result->m_physical_pages[i], 0, MMU::Flags::ReadWrite | MMU::Flags::Present);
+			m_mmu.invalidate(0);
 			memcpy((void*)0, (void*)(vaddr() + i * PAGE_SIZE), PAGE_SIZE);
 		}
 		m_mmu.unmap_page(0);
+		m_mmu.invalidate(0);
 
 		return result;
 	}

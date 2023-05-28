@@ -18,3 +18,7 @@
 	#define push_callee_saved() asm volatile("pushal")
 	#define pop_callee_saved() asm volatile("popal")
 #endif
+
+#include <stdint.h>
+
+extern "C" uintptr_t read_rip();

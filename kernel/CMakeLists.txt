@@ -48,6 +48,7 @@ set(KERNEL_SOURCES
 	kernel/Storage/ATADevice.cpp
 	kernel/Storage/StorageDevice.cpp
 	kernel/Syscall.cpp
+	kernel/Syscall.S
 	kernel/Thread.cpp
 	kernel/Terminal/TTY.cpp
 	kernel/Terminal/VesaTerminalDriver.cpp
