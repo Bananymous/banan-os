@@ -19,6 +19,8 @@ namespace Kernel
 		vaddr_t allocate(size_t);
 		bool deallocate(vaddr_t);
 
+		BAN::ErrorOr<GeneralAllocator*> clone(MMU&);
+
 	private:
 		struct Allocation
 		{
