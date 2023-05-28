@@ -149,6 +149,12 @@ namespace Kernel
 		s_current = this;
 	}
 
+	void MMU::invalidate(vaddr_t vaddr)
+	{
+		ASSERT(this == s_current);
+		asm volatile("invlpg (%0)" :: "r"(vaddr) : "memory");
+	}
+
 	void MMU::identity_map_page(paddr_t address, flags_t flags)
 	{
 		address &= PAGE_MASK;

@@ -43,6 +43,7 @@ namespace Kernel
 		vaddr_t get_free_page() const;
 		vaddr_t get_free_contiguous_pages(size_t page_count) const;
 
+		void invalidate(vaddr_t);
 		void load();
 
 		void lock() const { m_lock.lock(); }
