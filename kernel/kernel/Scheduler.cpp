@@ -19,7 +19,6 @@ namespace Kernel
 
 	extern "C" [[noreturn]] void start_thread(uintptr_t rsp, uintptr_t rip);
 	extern "C" [[noreturn]] void continue_thread(uintptr_t rsp, uintptr_t rip);
-	extern "C" uintptr_t read_rip();
 
 	static Scheduler* s_instance = nullptr;
 

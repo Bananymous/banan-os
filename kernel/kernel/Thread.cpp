@@ -111,13 +111,38 @@ namespace Kernel
 
 	Thread::~Thread()
 	{
-		dprintln("thread {} ({}) exit", tid(), m_process->pid());
 		if (m_stack)
 			delete m_stack;
 		m_stack = nullptr;
 		if (m_interrupt_stack)
 			delete m_interrupt_stack;
 		m_interrupt_stack = nullptr;
+		
+		dprintln("thread {} ({}) exit", tid(), m_process->pid());
+	}
+
+	BAN::ErrorOr<Thread*> Thread::clone(Process* new_process, uintptr_t rsp, uintptr_t rip)
+	{
+		ASSERT(m_is_userspace);
+		ASSERT(m_state == State::Executing);
+
+		Thread* thread = new Thread(s_next_tid++, new_process);
+		if (thread == nullptr)
+			return BAN::Error::from_errno(ENOMEM);
+		thread->m_is_userspace = true;
+
+		thread->m_interrupt_stack = m_interrupt_stack->clone(new_process->mmu());
+		thread->m_stack = m_stack->clone(new_process->mmu());
+
+		thread->m_state = State::Executing;
+		thread->m_in_syscall = true;
+
+		thread->m_rip = rip;
+		thread->m_rsp = rsp;
+
+		thread->m_userspace_entry = {};
+
+		return thread;
 	}
 
 	void Thread::validate_stack() const

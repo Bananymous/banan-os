@@ -31,6 +31,8 @@ namespace Kernel
 		static BAN::ErrorOr<Thread*> create_userspace(uintptr_t, Process*, int, char**);
 		~Thread();
 
+		BAN::ErrorOr<Thread*> clone(Process*, uintptr_t rsp, uintptr_t rip);
+
 		pid_t tid() const { return m_tid; }
 
 		void set_rsp(uintptr_t rsp) { m_rsp = rsp; validate_stack(); }

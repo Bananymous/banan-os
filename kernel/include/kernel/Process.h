@@ -41,6 +41,8 @@ namespace Kernel
 
 		pid_t pid() const { return m_pid; }
 
+		BAN::ErrorOr<Process*> fork(uintptr_t rsp, uintptr_t rip);
+
 		BAN::ErrorOr<int> open(BAN::StringView, int);
 		BAN::ErrorOr<void> close(int fd);
 		BAN::ErrorOr<size_t> read(int fd, void* buffer, size_t count);

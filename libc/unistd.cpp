@@ -103,6 +103,11 @@ long syscall(long syscall, ...)
 			ret = Kernel::syscall(SYS_SET_TERMIOS, (uintptr_t)termios);
 			break;
 		}
+		case SYS_FORK:
+		{
+			ret = Kernel::syscall(SYS_FORK);
+			break;
+		}
 		default:
 			puts("LibC: Unhandeled syscall");
 			ret = -ENOSYS;
@@ -122,25 +127,5 @@ long syscall(long syscall, ...)
 
 pid_t fork(void)
 {
-	return -1;
-}
-
-int execv(const char*, char* const[])
-{
-	return -1;
-}
-
-int execve(const char*, char* const[], char* const[])
-{
-	return -1;
-}
-
-int execvp(const char*, char* const[])
-{
-	return -1;
-}
-
-pid_t getpid(void)
-{
-	return -1;
+	return syscall(SYS_FORK);
 }

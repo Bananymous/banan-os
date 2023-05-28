@@ -129,6 +129,8 @@ namespace Kernel
 			MMU::kernel().load();
 			delete m_mmu;
 		}
+
+		dprintln("process {} exit", pid());
 	}
 
 	void Process::add_thread(Thread* thread)
@@ -167,8 +169,6 @@ namespace Kernel
 			m_general_allocator = nullptr;
 		}
 
-		dprintln("process {} exit", pid());
-
 		s_process_lock.lock();
 		for (size_t i = 0; i < s_processes.size(); i++)
 			if (s_processes[i] == this)
@@ -195,6 +195,40 @@ namespace Kernel
 			return BAN::Error::from_errno(ENOTTY);
 		m_tty->set_termios(termios);
 		return {};
+	}
+
+	BAN::ErrorOr<Process*> Process::fork(uintptr_t rsp, uintptr_t rip)
+	{
+		LockGuard _(m_lock);
+		
+		Process* forked = create_process();
+
+		forked->m_tty = m_tty;
+		forked->m_working_directory = m_working_directory;
+
+		forked->m_open_files = m_open_files;
+
+		forked->m_mmu = new MMU();
+		ASSERT(forked->m_mmu);
+
+		for (auto* mapped_range : m_mapped_ranges)
+			MUST(forked->m_mapped_ranges.push_back(mapped_range->clone(forked->mmu())));
+
+		ASSERT(m_threads.size() == 1);
+		ASSERT(m_threads.front() == &Thread::current());
+
+		//for (auto& allocator : m_fixed_width_allocators)
+		//	MUST(forked->m_fixed_width_allocators.push_back(allocator.clone()));
+
+		//if (m_general_allocator)
+		//	forked->m_general_allocator = m_general_allocator->clone();
+
+		Thread* thread = MUST(m_threads.front()->clone(forked, rsp, rip));
+		forked->add_thread(thread);
+		
+		register_process(forked);
+
+		return forked;
 	}
 
 	BAN::ErrorOr<int> Process::open(BAN::StringView path, int flags)
