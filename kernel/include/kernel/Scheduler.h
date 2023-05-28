@@ -26,6 +26,7 @@ namespace Kernel
 		void unblock_threads(Semaphore*);
 
 		Thread& current_thread();
+		static pid_t current_tid();
 
 	private:
 		Scheduler() = default;

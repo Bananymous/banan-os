@@ -68,7 +68,7 @@ namespace Kernel
 
 		static Process& current() { return Thread::current().process(); }
 
-		MMU& mmu() { return m_mmu ? *m_mmu : MMU::get(); }
+		MMU& mmu() { return m_mmu ? *m_mmu : MMU::kernel(); }
 
 	private:
 		Process(pid_t);

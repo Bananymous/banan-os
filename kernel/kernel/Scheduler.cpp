@@ -52,16 +52,24 @@ namespace Kernel
 		return m_current_thread ? *m_current_thread->thread : *m_idle_thread;
 	}
 
+	pid_t Scheduler::current_tid()
+	{
+		if (s_instance == nullptr)
+			return 0;
+		return Scheduler::get().current_thread().tid();
+	}
+
 	void Scheduler::reschedule()
 	{
 		VERIFY_CLI();
+
 		ASSERT(InterruptController::get().is_in_service(PIT_IRQ));
 		InterruptController::get().eoi(PIT_IRQ);
 
 		if (PIT::ms_since_boot() <= m_last_reschedule)
 			return;
 		m_last_reschedule = PIT::ms_since_boot();
-		
+
 		wake_threads();
 
 		if (save_current_thread())
@@ -174,7 +182,7 @@ namespace Kernel
 			GDT::set_tss_stack(current.interrupt_stack_base() + current.interrupt_stack_size());
 		}
 		else
-			MMU::get().load();
+			MMU::kernel().load();
 
 		switch (current.state())
 		{

@@ -49,6 +49,8 @@ namespace Kernel
 		uintptr_t interrupt_stack_size() const { return m_interrupt_stack_size; }
 
 		static Thread& current() ;
+		static pid_t current_tid();
+
 		Process& process();
 		bool has_process() const { return m_process; }
 
