@@ -29,6 +29,8 @@ set(KERNEL_SOURCES
 	kernel/Memory/GeneralAllocator.cpp
 	kernel/Memory/Heap.cpp
 	kernel/Memory/kmalloc.cpp
+	kernel/Memory/PhysicalRange.cpp
+	kernel/Memory/VirtualRange.cpp
 	kernel/Panic.cpp
 	kernel/PCI.cpp
 	kernel/PIC.cpp
