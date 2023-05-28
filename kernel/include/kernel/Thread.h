@@ -58,6 +58,9 @@ namespace Kernel
 
 		void set_in_syscall(bool b) { m_in_syscall = b; }
 
+		bool is_userspace() const { return m_is_userspace; }
+		bool is_in_syscall() const { return m_in_syscall; }
+
 	private:
 		Thread(pid_t tid, Process*);
 		void on_exit();
