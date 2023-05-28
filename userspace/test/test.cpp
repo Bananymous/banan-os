@@ -8,7 +8,7 @@
 
 int main()
 {
-	char* string = (char*)malloc(5000);
+	char* string = (char*)malloc(10);
 	strcpy(string, "Hello");
 
 	printf("forking\n");
@@ -19,6 +19,8 @@ int main()
 		printf("child '%s'\n", string);
 		return 0;
 	}
+
+	strcpy(string, "World");
 	printf("parent '%s'\n", string);
 
 	return 0;

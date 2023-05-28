@@ -217,8 +217,8 @@ namespace Kernel
 		ASSERT(m_threads.size() == 1);
 		ASSERT(m_threads.front() == &Thread::current());
 
-		//for (auto& allocator : m_fixed_width_allocators)
-		//	MUST(forked->m_fixed_width_allocators.push_back(MUST(allocator->clone(forked->mmu()))));
+		for (auto& allocator : m_fixed_width_allocators)
+			MUST(forked->m_fixed_width_allocators.push_back(MUST(allocator->clone(forked->mmu()))));
 
 		if (m_general_allocator)
 			forked->m_general_allocator = MUST(m_general_allocator->clone(forked->mmu()));
