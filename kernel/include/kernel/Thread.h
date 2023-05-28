@@ -2,7 +2,7 @@
 
 #include <BAN/NoCopyMove.h>
 #include <BAN/RefPtr.h>
-#include <kernel/Memory/Heap.h>
+#include <kernel/Memory/VirtualRange.h>
 
 #include <sys/types.h>
 
@@ -27,7 +27,7 @@ namespace Kernel
 		};
 
 	public:
-		static BAN::ErrorOr<Thread*> create(entry_t, void*, Process*);
+		static BAN::ErrorOr<Thread*> create_kernel(entry_t, void*, Process*);
 		static BAN::ErrorOr<Thread*> create_userspace(uintptr_t, Process*, int, char**);
 		~Thread();
 
@@ -42,11 +42,11 @@ namespace Kernel
 		State state() const { return m_state; }
 		void terminate() { m_state = State::Terminating; }
 
-		uintptr_t stack_base() const { return (uintptr_t)m_stack_base; }
-		size_t stack_size() const { return m_is_userspace ? m_userspace_stack_size : m_kernel_stack_size; }
+		vaddr_t stack_base() const { return m_stack->vaddr(); }
+		size_t stack_size() const { return m_stack->size(); }
 
-		uintptr_t interrupt_stack_base() const { return (uintptr_t)m_interrupt_stack; }
-		uintptr_t interrupt_stack_size() const { return m_interrupt_stack_size; }
+		vaddr_t interrupt_stack_base() const { return m_interrupt_stack ? m_interrupt_stack->vaddr() : 0; }
+		size_t interrupt_stack_size() const { return m_interrupt_stack ? m_interrupt_stack->size() : 0; }
 
 		static Thread& current() ;
 		static pid_t current_tid();
@@ -72,17 +72,17 @@ namespace Kernel
 
 	private:
 		static constexpr size_t m_kernel_stack_size		= PAGE_SIZE * 1;
-		static constexpr size_t m_userspace_stack_size	= PAGE_SIZE * 1;
-		static constexpr size_t m_interrupt_stack_size	= PAGE_SIZE;
-		vaddr_t		m_interrupt_stack	{ 0 };
-		vaddr_t		m_stack_base		{ 0 };
-		uintptr_t	m_rip				{ 0 };
-		uintptr_t	m_rsp				{ 0 };
-		const pid_t	m_tid				{ 0 };
-		State		m_state				{ State::NotStarted };
-		Process*	m_process			{ nullptr };
-		bool		m_in_syscall		{ false };
-		bool		m_is_userspace		{ false };
+		static constexpr size_t m_userspace_stack_size	= PAGE_SIZE * 2;
+		static constexpr size_t m_interrupt_stack_size	= PAGE_SIZE * 2;
+		VirtualRange*	m_interrupt_stack	{ nullptr };
+		VirtualRange*	m_stack				{ nullptr };
+		uintptr_t		m_rip				{ 0 };
+		uintptr_t		m_rsp				{ 0 };
+		const pid_t		m_tid				{ 0 };
+		State			m_state				{ State::NotStarted };
+		Process*		m_process			{ nullptr };
+		bool			m_in_syscall		{ false };
+		bool			m_is_userspace		{ false };
 
 		userspace_entry_t m_userspace_entry;
 

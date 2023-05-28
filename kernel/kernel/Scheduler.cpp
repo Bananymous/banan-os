@@ -23,12 +23,18 @@ namespace Kernel
 
 	static Scheduler* s_instance = nullptr;
 
+	static uint8_t s_temp_stack[1024];
+	ALWAYS_INLINE static void load_temp_stack()
+	{
+		asm volatile("movq %0, %%rsp" :: "r"(s_temp_stack + sizeof(s_temp_stack)));
+	}
+
 	BAN::ErrorOr<void> Scheduler::initialize()
 	{
 		ASSERT(s_instance == nullptr);
 		s_instance = new Scheduler();
 		ASSERT(s_instance);
-		s_instance->m_idle_thread = TRY(Thread::create([](void*) { for (;;) asm volatile("hlt"); }, nullptr, nullptr));
+		s_instance->m_idle_thread = TRY(Thread::create_kernel([](void*) { for (;;) asm volatile("hlt"); }, nullptr, nullptr));
 		return {};
 	}
 
@@ -111,7 +117,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Scheduler::add_thread(Thread* thread)
 	{
-		Kernel::CriticalScope critical;
+		CriticalScope _;
 		TRY(m_active_threads.emplace_back(thread));
 		return {};
 	}
@@ -167,13 +173,15 @@ namespace Kernel
 		current.set_rip(rip);
 		current.set_rsp(rsp);
 
+		load_temp_stack();
+
 		return false;
 	}
 
 	void Scheduler::execute_current_thread()
 	{
 		VERIFY_CLI();
-		
+
 		Thread& current = current_thread();
 
 		if (current.has_process())
@@ -234,6 +242,8 @@ namespace Kernel
 		VERIFY_STI();
 		DISABLE_INTERRUPTS();
 
+		load_temp_stack();
+
 		ASSERT(m_current_thread);
 
 		Thread* thread = m_current_thread->thread;
@@ -262,14 +272,16 @@ namespace Kernel
 	{
 		DISABLE_INTERRUPTS();
 
-		pid_t pid = m_current_thread->thread->process().pid();
+		load_temp_stack();
 
-		remove_threads(m_blocking_threads, it->thread->process().pid() == pid);
-		remove_threads(m_sleeping_threads, it->thread->process().pid() == pid);
-		remove_threads(m_active_threads, it != m_current_thread && it->thread->process().pid() == pid);
+		Process* process = &m_current_thread->thread->process();
 
-		delete &m_current_thread->thread->process();
+		remove_threads(m_blocking_threads, it->thread->process().pid() == process->pid());
+		remove_threads(m_sleeping_threads, it->thread->process().pid() == process->pid());
+		remove_threads(m_active_threads, it != m_current_thread && it->thread->process().pid() == process->pid());
+
 		delete m_current_thread->thread;
+		delete process;
 		remove_and_advance_current_thread();
 		execute_current_thread();
 

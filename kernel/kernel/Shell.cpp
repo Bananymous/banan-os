@@ -399,7 +399,7 @@ argument_done:
 			thread_data_t thread_data = { this, spinlock, arguments };
 			spinlock.lock();
 
-			auto* thread = TRY(Thread::create(function, &thread_data, &Process::current()));
+			auto* thread = TRY(Thread::create_kernel(function, &thread_data, &Process::current()));
 			Process::current().add_thread(thread);
 			while (spinlock.is_locked());
 		}
