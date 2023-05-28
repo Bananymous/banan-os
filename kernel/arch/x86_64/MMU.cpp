@@ -4,9 +4,6 @@
 #include <kernel/Memory/kmalloc.h>
 #include <kernel/Memory/MMU.h>
 
-#define FLAGS_MASK (PAGE_SIZE - 1)
-#define PAGE_MASK (~FLAGS_MASK)
-
 #define CLEANUP_STRUCTURE(s)				\
 	do {									\
 		for (uint64_t i = 0; i < 512; i++)	\
@@ -80,30 +77,30 @@ namespace Kernel
 			if (!(global_pml4[pml4e] & Flags::Present))
 				continue;
 
-			uint64_t* global_pdpt = (uint64_t*)(global_pml4[pml4e] & PAGE_MASK);
+			uint64_t* global_pdpt = (uint64_t*)(global_pml4[pml4e] & PAGE_ADDR_MASK);
 
 			uint64_t* pdpt = allocate_page_aligned_page();
-			pml4[pml4e] = (uint64_t)pdpt | (global_pml4[pml4e] & FLAGS_MASK);
+			pml4[pml4e] = (uint64_t)pdpt | (global_pml4[pml4e] & PAGE_FLAG_MASK);
 
 			for (uint32_t pdpte = 0; pdpte < 512; pdpte++)
 			{
 				if (!(global_pdpt[pdpte] & Flags::Present))
 					continue;
 
-				uint64_t* global_pd = (uint64_t*)(global_pdpt[pdpte] & PAGE_MASK);
+				uint64_t* global_pd = (uint64_t*)(global_pdpt[pdpte] & PAGE_ADDR_MASK);
 
 				uint64_t* pd = allocate_page_aligned_page();
-				pdpt[pdpte] = (uint64_t)pd | (global_pdpt[pdpte] & FLAGS_MASK);
+				pdpt[pdpte] = (uint64_t)pd | (global_pdpt[pdpte] & PAGE_FLAG_MASK);
 
 				for (uint32_t pde = 0; pde < 512; pde++)
 				{
 					if (!(global_pd[pde] & Flags::Present))
 						continue;
 
-					uint64_t* global_pt = (uint64_t*)(global_pd[pde] & PAGE_MASK);
+					uint64_t* global_pt = (uint64_t*)(global_pd[pde] & PAGE_ADDR_MASK);
 
 					uint64_t* pt = allocate_page_aligned_page();
-					pd[pde] = (uint64_t)pt | (global_pd[pde] & FLAGS_MASK);
+					pd[pde] = (uint64_t)pt | (global_pd[pde] & PAGE_FLAG_MASK);
 
 					memcpy(pt, global_pt, PAGE_SIZE);
 				}
@@ -120,17 +117,17 @@ namespace Kernel
 		{
 			if (!(pml4[pml4e] & Flags::Present))
 				continue;
-			uint64_t* pdpt = (uint64_t*)(pml4[pml4e] & PAGE_MASK);
+			uint64_t* pdpt = (uint64_t*)(pml4[pml4e] & PAGE_ADDR_MASK);
 			for (uint32_t pdpte = 0; pdpte < 512; pdpte++)
 			{
 				if (!(pdpt[pdpte] & Flags::Present))
 					continue;
-				uint64_t* pd = (uint64_t*)(pdpt[pdpte] & PAGE_MASK);
+				uint64_t* pd = (uint64_t*)(pdpt[pdpte] & PAGE_ADDR_MASK);
 				for (uint32_t pde = 0; pde < 512; pde++)
 				{
 					if (!(pd[pde] & Flags::Present))
 						continue;
-					kfree((void*)(pd[pde] & PAGE_MASK));
+					kfree((void*)(pd[pde] & PAGE_ADDR_MASK));
 				}
 				kfree(pd);
 			}
@@ -143,7 +140,7 @@ namespace Kernel
 	{
 		uintptr_t rsp;
 		read_rsp(rsp);
-		ASSERT(!is_page_free(rsp & PAGE_MASK));
+		ASSERT(!is_page_free(rsp & PAGE_ADDR_MASK));
 
 		asm volatile("movq %0, %%cr3" :: "r"(m_highest_paging_struct));
 		s_current = this;
@@ -157,7 +154,7 @@ namespace Kernel
 
 	void MMU::identity_map_page(paddr_t address, flags_t flags)
 	{
-		address &= PAGE_MASK;
+		address &= PAGE_ADDR_MASK;
 		map_page_at(address, address, flags);
 	}
 
@@ -177,7 +174,7 @@ namespace Kernel
 
 		ASSERT((address >> 48) == 0);
 
-		address &= PAGE_MASK;
+		address &= PAGE_ADDR_MASK;
 
 		if (is_page_free(address))
 		{
@@ -191,9 +188,9 @@ namespace Kernel
 		uint64_t pte   = (address >> 12) & 0x1FF;
 		
 		uint64_t* pml4 = m_highest_paging_struct;
-		uint64_t* pdpt = (uint64_t*)(pml4[pml4e] & PAGE_MASK);
-		uint64_t* pd   = (uint64_t*)(pdpt[pdpte] & PAGE_MASK);
-		uint64_t* pt   = (uint64_t*)(pd[pde]     & PAGE_MASK);
+		uint64_t* pdpt = (uint64_t*)(pml4[pml4e] & PAGE_ADDR_MASK);
+		uint64_t* pd   = (uint64_t*)(pdpt[pdpte] & PAGE_ADDR_MASK);
+		uint64_t* pt   = (uint64_t*)(pd[pde]     & PAGE_ADDR_MASK);
 
 		pt[pte] = 0;
 		CLEANUP_STRUCTURE(pt);
@@ -236,26 +233,26 @@ namespace Kernel
 		{
 			if (!(pml4[pml4e] & Flags::Present))
 				pml4[pml4e] = (uint64_t)allocate_page_aligned_page();
-			pml4[pml4e] = (pml4[pml4e] & PAGE_MASK) | flags;
+			pml4[pml4e] = (pml4[pml4e] & PAGE_ADDR_MASK) | flags;
 		}
 
-		uint64_t* pdpt = (uint64_t*)(pml4[pml4e] & PAGE_MASK);
+		uint64_t* pdpt = (uint64_t*)(pml4[pml4e] & PAGE_ADDR_MASK);
 		if ((pdpt[pdpte] & flags) != flags)
 		{
 			if (!(pdpt[pdpte] & Flags::Present))
 				pdpt[pdpte] = (uint64_t)allocate_page_aligned_page();
-			pdpt[pdpte] = (pdpt[pdpte] & PAGE_MASK) | flags;
+			pdpt[pdpte] = (pdpt[pdpte] & PAGE_ADDR_MASK) | flags;
 		}
 
-		uint64_t* pd = (uint64_t*)(pdpt[pdpte] & PAGE_MASK);
+		uint64_t* pd = (uint64_t*)(pdpt[pdpte] & PAGE_ADDR_MASK);
 		if ((pd[pde] & flags) != flags)
 		{
 			if (!(pd[pde] & Flags::Present))
 				pd[pde] = (uint64_t)allocate_page_aligned_page();
-			pd[pde] = (pd[pde] & PAGE_MASK) | flags;
+			pd[pde] = (pd[pde] & PAGE_ADDR_MASK) | flags;
 		}
 
-		uint64_t* pt = (uint64_t*)(pd[pde] & PAGE_MASK);
+		uint64_t* pt = (uint64_t*)(pd[pde] & PAGE_ADDR_MASK);
 		pt[pte] = paddr | flags;
 	}
 
@@ -275,15 +272,15 @@ namespace Kernel
 		if (!(pml4[pml4e] & Flags::Present))
 			return 0;
 
-		uint64_t* pdpt = (uint64_t*)(pml4[pml4e] & PAGE_MASK);
+		uint64_t* pdpt = (uint64_t*)(pml4[pml4e] & PAGE_ADDR_MASK);
 		if (!(pdpt[pdpte] & Flags::Present))
 			return 0;
 
-		uint64_t* pd = (uint64_t*)(pdpt[pdpte] & PAGE_MASK);
+		uint64_t* pd = (uint64_t*)(pdpt[pdpte] & PAGE_ADDR_MASK);
 		if (!(pd[pde] & Flags::Present))
 			return 0;
 
-		uint64_t* pt = (uint64_t*)(pd[pde] & PAGE_MASK);
+		uint64_t* pt = (uint64_t*)(pd[pde] & PAGE_ADDR_MASK);
 		if (!(pt[pte] & Flags::Present))
 			return 0;
 
@@ -292,12 +289,12 @@ namespace Kernel
 
 	MMU::flags_t MMU::get_page_flags(vaddr_t addr) const
 	{
-		return get_page_data(addr) & FLAGS_MASK;
+		return get_page_data(addr) & PAGE_FLAG_MASK;
 	}
 
 	paddr_t MMU::physical_address_of(vaddr_t addr) const
 	{
-		return get_page_data(addr) & PAGE_MASK;
+		return get_page_data(addr) & PAGE_ADDR_MASK;
 	}
 
 	vaddr_t MMU::get_free_page() const
@@ -311,17 +308,17 @@ namespace Kernel
 		{
 			if (!(pml4[pml4e] & Flags::Present))
 				continue;
-			vaddr_t* pdpt = (vaddr_t*)(pml4[pml4e] & PAGE_MASK);
+			vaddr_t* pdpt = (vaddr_t*)(pml4[pml4e] & PAGE_ADDR_MASK);
 			for (uint64_t pdpte = 0; pdpte < 512; pdpte++)
 			{
 				if (!(pdpt[pdpte] & Flags::Present))
 					continue;
-				vaddr_t* pd = (vaddr_t*)(pdpt[pdpte] & PAGE_MASK);
+				vaddr_t* pd = (vaddr_t*)(pdpt[pdpte] & PAGE_ADDR_MASK);
 				for (uint64_t pde = 0; pde < 512; pde++)
 				{
 					if (!(pd[pde] & Flags::Present))
 						continue;
-					vaddr_t* pt = (vaddr_t*)(pd[pde] & PAGE_MASK);
+					vaddr_t* pt = (vaddr_t*)(pd[pde] & PAGE_ADDR_MASK);
 					for (uint64_t pte = !(pml4e + pdpte + pde); pte < 512; pte++)
 					{
 						if (!(pt[pte] & Flags::Present))
