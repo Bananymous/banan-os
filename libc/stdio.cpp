@@ -225,7 +225,7 @@ int fputs(const char* str, FILE* file)
 {
 	while (*str)
 	{
-		if (putc(*str, file) == EOF)
+		if (fputc(*str, file) == EOF)
 			return EOF;
 		str++;
 	}
