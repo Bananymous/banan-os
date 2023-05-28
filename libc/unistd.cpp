@@ -108,6 +108,12 @@ long syscall(long syscall, ...)
 			ret = Kernel::syscall(SYS_FORK);
 			break;
 		}
+		case SYS_SLEEP:
+		{
+			unsigned int seconds = va_arg(args, unsigned int);
+			ret = Kernel::syscall(SYS_SLEEP, seconds);
+			break;
+		}
 		default:
 			puts("LibC: Unhandeled syscall");
 			ret = -ENOSYS;
@@ -128,4 +134,9 @@ long syscall(long syscall, ...)
 pid_t fork(void)
 {
 	return syscall(SYS_FORK);
+}
+
+unsigned int sleep(unsigned int seconds)
+{
+	return syscall(SYS_SLEEP, seconds);
 }
