@@ -8,6 +8,7 @@
 #include <kernel/Memory/GeneralAllocator.h>
 #include <kernel/Memory/Heap.h>
 #include <kernel/Memory/MMU.h>
+#include <kernel/Memory/VirtualRange.h>
 #include <kernel/SpinLock.h>
 #include <kernel/Terminal/TTY.h>
 #include <kernel/Thread.h>
@@ -91,7 +92,7 @@ namespace Kernel
 		BAN::ErrorOr<int> get_free_fd();
 
 		BAN::Vector<OpenFileDescription> m_open_files;
-		BAN::Vector<paddr_t> m_allocated_pages;
+		BAN::Vector<VirtualRange*> m_mapped_ranges;
 
 		mutable RecursiveSpinLock m_lock;
 
@@ -99,7 +100,7 @@ namespace Kernel
 		BAN::String m_working_directory;
 		BAN::Vector<Thread*> m_threads;
 
-		BAN::LinkedList<FixedWidthAllocator> m_fixed_width_allocators;
+		BAN::Vector<FixedWidthAllocator*> m_fixed_width_allocators;
 		GeneralAllocator* m_general_allocator;
 
 		MMU* m_mmu { nullptr };

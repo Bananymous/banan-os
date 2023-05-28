@@ -1,7 +1,7 @@
 #include <BAN/Errors.h>
-#include <kernel/CriticalScope.h>
 #include <kernel/InterruptController.h>
 #include <kernel/Memory/kmalloc.h>
+#include <kernel/Memory/MMUScope.h>
 #include <kernel/Process.h>
 #include <kernel/Scheduler.h>
 #include <kernel/Thread.h>
@@ -10,6 +10,7 @@ namespace Kernel
 {
 
 	extern "C" void thread_userspace_trampoline(uint64_t rsp, uint64_t rip, int argc, char** argv);
+	extern "C" uintptr_t read_rip();
 
 	template<size_t size, typename T>
 	static void write_to_stack(uintptr_t& rsp, const T& value)
@@ -20,7 +21,7 @@ namespace Kernel
 
 	static pid_t s_next_tid = 1;
 
-	BAN::ErrorOr<Thread*> Thread::create(entry_t entry, void* data, Process* process)
+	BAN::ErrorOr<Thread*> Thread::create_kernel(entry_t entry, void* data, Process* process)
 	{
 		// Create the thread object
 		Thread* thread = new Thread(s_next_tid++, process);
@@ -28,11 +29,11 @@ namespace Kernel
 			return BAN::Error::from_errno(ENOMEM);
 
 		// Initialize stack and registers
-		thread->m_stack_base = (vaddr_t)kmalloc(m_kernel_stack_size, PAGE_SIZE);
-		if (thread->m_stack_base == 0)
+		thread->m_stack = VirtualRange::create_kmalloc(m_kernel_stack_size);
+		if (thread->m_stack == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
-		thread->m_rsp = (uintptr_t)thread->m_stack_base + m_kernel_stack_size;
-		thread->m_rip = (uintptr_t)entry;		
+		thread->m_rsp = thread->stack_base() + thread->stack_size();
+		thread->m_rip = (uintptr_t)entry;
 
 		// Initialize stack for returning
 		write_to_stack<sizeof(void*)>(thread->m_rsp, thread);
@@ -44,6 +45,8 @@ namespace Kernel
 
 	BAN::ErrorOr<Thread*> Thread::create_userspace(uintptr_t entry, Process* process, int argc, char** argv)
 	{
+		ASSERT(process);
+
 		// Create the thread object
 		Thread* thread = new Thread(s_next_tid++, process);
 		if (thread == nullptr)
@@ -51,13 +54,20 @@ namespace Kernel
 		thread->m_is_userspace = true;
 
 		// Allocate stack
-		thread->m_stack_base = (uintptr_t)kmalloc(m_userspace_stack_size, PAGE_SIZE);
-		ASSERT(thread->m_stack_base);
-		process->mmu().identity_map_range(thread->m_stack_base, m_userspace_stack_size, MMU::Flags::UserSupervisor | MMU::Flags::ReadWrite | MMU::Flags::Present);
+		thread->m_stack = VirtualRange::create(process->mmu(), 0, m_userspace_stack_size, MMU::Flags::UserSupervisor | MMU::Flags::ReadWrite | MMU::Flags::Present);
+		if (thread->m_stack == nullptr)
+		{
+			delete thread;
+			return BAN::Error::from_errno(ENOMEM);
+		}
 
 		// Allocate interrupt stack
-		thread->m_interrupt_stack = (vaddr_t)kmalloc(m_interrupt_stack_size, PAGE_SIZE);
-		ASSERT(thread->m_interrupt_stack);
+		thread->m_interrupt_stack = VirtualRange::create(process->mmu(), 0, m_interrupt_stack_size, MMU::Flags::UserSupervisor | MMU::Flags::ReadWrite | MMU::Flags::Present);
+		if (thread->m_interrupt_stack == nullptr)
+		{
+			delete thread;
+			return BAN::Error::from_errno(ENOMEM);
+		}
 
 		thread->m_userspace_entry = { .entry = entry, .argc = argc, .argv = argv };
 
@@ -70,13 +80,16 @@ namespace Kernel
 				ASSERT_NOT_REACHED();
 			}
 		);
-		thread->m_rsp = thread->m_stack_base + m_userspace_stack_size;
+		thread->m_rsp = thread->stack_base() + thread->stack_size();
 		thread->m_rip = (uintptr_t)entry_trampoline;
 
 		// Setup stack for returning
-		write_to_stack<sizeof(void*)>(thread->m_rsp, thread);
-		write_to_stack<sizeof(void*)>(thread->m_rsp, &Thread::on_exit);
-		write_to_stack<sizeof(void*)>(thread->m_rsp, nullptr);
+		{
+			MMUScope _(process->mmu());
+			write_to_stack<sizeof(void*)>(thread->m_rsp, thread);
+			write_to_stack<sizeof(void*)>(thread->m_rsp, &Thread::on_exit);
+			write_to_stack<sizeof(void*)>(thread->m_rsp, nullptr);
+		}
 
 		return thread;
 	}
@@ -99,10 +112,12 @@ namespace Kernel
 	Thread::~Thread()
 	{
 		dprintln("thread {} ({}) exit", tid(), m_process->pid());
-
+		if (m_stack)
+			delete m_stack;
+		m_stack = nullptr;
 		if (m_interrupt_stack)
-			kfree((void*)m_interrupt_stack);
-		kfree((void*)m_stack_base);
+			delete m_interrupt_stack;
+		m_interrupt_stack = nullptr;
 	}
 
 	void Thread::validate_stack() const

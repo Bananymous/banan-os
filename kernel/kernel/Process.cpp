@@ -40,7 +40,7 @@ namespace Kernel
 	{
 		auto* process = create_process();
 		MUST(process->m_working_directory.push_back('/'));
-		auto* thread = MUST(Thread::create(entry, data, process));
+		auto* thread = MUST(Thread::create_kernel(entry, data, process));
 		process->add_thread(thread);
 		register_process(process);
 		return process;
@@ -74,19 +74,14 @@ namespace Kernel
 			{
 				// TODO: Do some relocations or map kernel to higher half?
 				ASSERT(process->mmu().is_range_free(elf_program_header.p_vaddr, elf_program_header.p_memsz));
-
 				MMU::flags_t flags = MMU::Flags::UserSupervisor | MMU::Flags::Present;
 				if (elf_program_header.p_flags & LibELF::PF_W)
 					flags |= MMU::Flags::ReadWrite;
 				size_t page_start = elf_program_header.p_vaddr / PAGE_SIZE;
 				size_t page_end = BAN::Math::div_round_up<size_t>(elf_program_header.p_vaddr + elf_program_header.p_memsz, PAGE_SIZE);
-				MUST(process->m_allocated_pages.reserve(page_end - page_start + 1));
-				for (size_t page = page_start; page <= page_end; page++)
-				{
-					auto paddr = Heap::get().take_free_page();
-					MUST(process->m_allocated_pages.push_back(paddr));
-					process->mmu().map_page_at(paddr, page * PAGE_SIZE, flags);
-				}
+
+				size_t page_count = page_end - page_start + 1;
+				MUST(process->m_mapped_ranges.push_back(VirtualRange::create(process->mmu(), page_start * PAGE_SIZE, page_count * PAGE_SIZE, flags)));
 
 				{
 					MMUScope _(process->mmu());
@@ -128,13 +123,12 @@ namespace Kernel
 		ASSERT(m_threads.empty());
 		ASSERT(m_fixed_width_allocators.empty());
 		ASSERT(m_general_allocator == nullptr);
+		ASSERT(m_mapped_ranges.empty());
 		if (m_mmu)
 		{
 			MMU::kernel().load();
 			delete m_mmu;
 		}
-		for (auto paddr : m_allocated_pages)
-			Heap::get().release_page(paddr);
 	}
 
 	void Process::add_thread(Thread* thread)
@@ -160,6 +154,11 @@ namespace Kernel
 		for (auto& open_fd : m_open_files)
 			open_fd.inode = nullptr;
 
+		// NOTE: We must unmap ranges while the mmu is still alive
+		for (auto* range : m_mapped_ranges)
+			delete range;
+		m_mapped_ranges.clear();
+
 		// NOTE: We must clear allocators while the mmu is still alive
 		m_fixed_width_allocators.clear();
 		if (m_general_allocator)
@@ -169,6 +168,7 @@ namespace Kernel
 		}
 
 		dprintln("process {} exit", pid());
+
 		s_process_lock.lock();
 		for (size_t i = 0; i < s_processes.size(); i++)
 			if (s_processes[i] == this)
@@ -443,19 +443,22 @@ namespace Kernel
 
 			bool needs_new_allocator { true };
 
-			for (auto& allocator : m_fixed_width_allocators)
+			for (auto* allocator : m_fixed_width_allocators)
 			{
-				if (allocator.allocation_size() == allocation_size && allocator.allocations() < allocator.max_allocations())
+				if (allocator->allocation_size() == allocation_size && allocator->allocations() < allocator->max_allocations())
 				{
-					address = allocator.allocate();
+					address = allocator->allocate();
 					needs_new_allocator = false;
 				}
 			}
 
 			if (needs_new_allocator)
 			{
-				TRY(m_fixed_width_allocators.emplace_back(mmu(), allocation_size));
-				address = m_fixed_width_allocators.back().allocate();
+				auto* allocator = new FixedWidthAllocator(mmu(), allocation_size);
+				if (allocator == nullptr)
+					return BAN::Error::from_errno(ENOMEM);
+				TRY(m_fixed_width_allocators.push_back(allocator));
+				address = m_fixed_width_allocators.back()->allocate();
 			}
 		}
 		else
@@ -481,14 +484,15 @@ namespace Kernel
 	{
 		LockGuard _(m_lock);
 
-		for (auto it = m_fixed_width_allocators.begin(); it != m_fixed_width_allocators.end(); it++)
+		for (size_t i = 0; i < m_fixed_width_allocators.size(); i++)
 		{
-			if (it->deallocate((vaddr_t)ptr))
+			auto* allocator = m_fixed_width_allocators[i];
+			if (allocator->deallocate((vaddr_t)ptr))
 			{
 				// TODO: This might be too much. Maybe we should only
 				//       remove allocators when we have low memory... ?
-				if (it->allocations() == 0)
-					m_fixed_width_allocators.remove(it);
+				if (allocator->allocations() == 0)
+					m_fixed_width_allocators.remove(i);
 				return;
 			}
 		}
