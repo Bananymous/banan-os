@@ -250,8 +250,7 @@ namespace Kernel
 		}
 
 		uint64_t* pt = (uint64_t*)(pd[pde] & PAGE_MASK);
-		if ((pt[pte] & flags) != flags)
-			pt[pte] = paddr | flags;
+		pt[pte] = paddr | flags;
 	}
 
 	uint64_t MMU::get_page_data(vaddr_t address) const
