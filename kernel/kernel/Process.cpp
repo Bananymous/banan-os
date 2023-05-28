@@ -130,7 +130,7 @@ namespace Kernel
 		ASSERT(m_general_allocator == nullptr);
 		if (m_mmu)
 		{
-			MMU::get().load();
+			MMU::kernel().load();
 			delete m_mmu;
 		}
 		for (auto paddr : m_allocated_pages)

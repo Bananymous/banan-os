@@ -1,6 +1,7 @@
 #pragma once
 
-#include <kernel/Memory/Heap.h>
+#include <kernel/Memory/Types.h>
+#include <kernel/SpinLock.h>
 
 namespace Kernel
 {
@@ -18,7 +19,7 @@ namespace Kernel
 
 	public:
 		static void initialize();
-		static MMU& get();
+		static MMU& kernel();
 
 		static MMU& current();
 
@@ -44,12 +45,16 @@ namespace Kernel
 
 		void load();
 
+		void lock() const { m_lock.lock(); }
+		void unlock() const { m_lock.unlock(); }
+
 	private:
 		uint64_t get_page_data(vaddr_t) const;
 		void initialize_kernel();
 
 	private:
-		uint64_t* m_highest_paging_struct;
+		uint64_t*					m_highest_paging_struct { nullptr };
+		mutable RecursiveSpinLock	m_lock;
 	};
 
 }

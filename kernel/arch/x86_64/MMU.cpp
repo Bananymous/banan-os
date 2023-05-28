@@ -1,38 +1,41 @@
 #include <BAN/Errors.h>
+#include <kernel/Arch.h>
+#include <kernel/LockGuard.h>
 #include <kernel/Memory/kmalloc.h>
 #include <kernel/Memory/MMU.h>
 
 #define FLAGS_MASK (PAGE_SIZE - 1)
 #define PAGE_MASK (~FLAGS_MASK)
 
-#define CLEANUP_STRUCTURE(s)			\
-	for (uint64_t i = 0; i < 512; i++)	\
-		if (s[i] & Flags::Present)		\
-			return;						\
-	kfree(s)
-
+#define CLEANUP_STRUCTURE(s)				\
+	do {									\
+		for (uint64_t i = 0; i < 512; i++)	\
+			if ((s)[i] & Flags::Present)	\
+				return;						\
+		kfree(s);							\
+	} while (false)
 
 extern uint8_t g_kernel_end[];
 
 namespace Kernel
 {
 	
-	static MMU* s_instance = nullptr;
+	static MMU* s_kernel = nullptr;
 	static MMU* s_current = nullptr;
 
 	void MMU::initialize()
 	{
-		ASSERT(s_instance == nullptr);
-		s_instance = new MMU();
-		ASSERT(s_instance);
-		s_instance->initialize_kernel();
-		s_instance->load();
+		ASSERT(s_kernel == nullptr);
+		s_kernel = new MMU();
+		ASSERT(s_kernel);
+		s_kernel->initialize_kernel();
+		s_kernel->load();
 	}
 
-	MMU& MMU::get()
+	MMU& MMU::kernel()
 	{
-		ASSERT(s_instance);
-		return *s_instance;
+		ASSERT(s_kernel);
+		return *s_kernel;
 	}
 
 	MMU& MMU::current()
@@ -61,13 +64,15 @@ namespace Kernel
 
 	MMU::MMU()
 	{
-		if (s_instance == nullptr)
+		if (s_kernel == nullptr)
 			return;
 		
-		// Here we copy the s_instances paging structs since they are
+		// Here we copy the s_kernel paging structs since they are
 		// global for every process
 
-		uint64_t* global_pml4 = s_instance->m_highest_paging_struct;
+		LockGuard _(s_kernel->m_lock);
+
+		uint64_t* global_pml4 = s_kernel->m_highest_paging_struct;
 
 		uint64_t* pml4 = allocate_page_aligned_page();
 		for (uint32_t pml4e = 0; pml4e < 512; pml4e++)
@@ -136,6 +141,10 @@ namespace Kernel
 
 	void MMU::load()
 	{
+		uintptr_t rsp;
+		read_rsp(rsp);
+		ASSERT(!is_page_free(rsp & PAGE_MASK));
+
 		asm volatile("movq %0, %%cr3" :: "r"(m_highest_paging_struct));
 		s_current = this;
 	}
@@ -148,17 +157,27 @@ namespace Kernel
 
 	void MMU::identity_map_range(paddr_t address, size_t size, flags_t flags)
 	{
-		paddr_t s_page = address & PAGE_MASK;
-		paddr_t e_page = (address + size - 1) & PAGE_MASK;
-		for (paddr_t page = s_page; page <= e_page; page += PAGE_SIZE)
-			identity_map_page(page, flags);
+		LockGuard _(m_lock);
+
+		paddr_t s_page = address / PAGE_SIZE;
+		paddr_t e_page = (address + size - 1) / PAGE_SIZE;
+		for (paddr_t page = s_page; page <= e_page; page++)
+			identity_map_page(page * PAGE_SIZE, flags);
 	}
 
 	void MMU::unmap_page(vaddr_t address)
 	{
+		LockGuard _(m_lock);
+
 		ASSERT((address >> 48) == 0);
 
 		address &= PAGE_MASK;
+
+		if (is_page_free(address))
+		{
+			dwarnln("unmapping unmapped page {8H}", address);
+			return;
+		}
 
 		uint64_t pml4e = (address >> 39) & 0x1FF;
 		uint64_t pdpte = (address >> 30) & 0x1FF;
@@ -166,23 +185,11 @@ namespace Kernel
 		uint64_t pte   = (address >> 12) & 0x1FF;
 		
 		uint64_t* pml4 = m_highest_paging_struct;
-		if (!(pml4[pml4e] & Flags::Present))
-			return;
-
 		uint64_t* pdpt = (uint64_t*)(pml4[pml4e] & PAGE_MASK);
-		if (!(pdpt[pdpte] & Flags::Present))
-			return;
-
-		uint64_t* pd = (uint64_t*)(pdpt[pdpte] & PAGE_MASK);
-		if (!(pd[pde] & Flags::Present))
-			return;
-
-		uint64_t* pt = (uint64_t*)(pd[pde] & PAGE_MASK);
-		if (!(pt[pte] & Flags::Present))
-			return;
+		uint64_t* pd   = (uint64_t*)(pdpt[pdpte] & PAGE_MASK);
+		uint64_t* pt   = (uint64_t*)(pd[pde]     & PAGE_MASK);
 
 		pt[pte] = 0;
-
 		CLEANUP_STRUCTURE(pt);
 		pd[pde] = 0;
 		CLEANUP_STRUCTURE(pd);
@@ -193,14 +200,18 @@ namespace Kernel
 
 	void MMU::unmap_range(vaddr_t address, size_t size)
 	{
-		vaddr_t s_page = address & PAGE_MASK;
-		vaddr_t e_page = (address + size - 1) & PAGE_MASK;
-		for (vaddr_t page = s_page; page <= e_page; page += PAGE_SIZE)
-			unmap_page(page);
+		LockGuard _(m_lock);
+
+		vaddr_t s_page = address / PAGE_SIZE;
+		vaddr_t e_page = (address + size - 1) / PAGE_SIZE;
+		for (vaddr_t page = s_page; page <= e_page; page++)
+			unmap_page(page * PAGE_SIZE);
 	}
 
 	void MMU::map_page_at(paddr_t paddr, vaddr_t vaddr, flags_t flags)
 	{
+		LockGuard _(m_lock);
+
 		ASSERT((paddr >> 48) == 0);
 		ASSERT((vaddr >> 48) == 0);
 
@@ -245,6 +256,8 @@ namespace Kernel
 
 	uint64_t MMU::get_page_data(vaddr_t address) const
 	{
+		LockGuard _(m_lock);
+
 		ASSERT((address >> 48) == 0);
 		ASSERT(address % PAGE_SIZE == 0);
 
@@ -284,6 +297,8 @@ namespace Kernel
 
 	vaddr_t MMU::get_free_page() const
 	{
+		LockGuard _(m_lock);
+
 		// Try to find free page that can be mapped without
 		// allocations (page table with unused entries)
 		vaddr_t* pml4 = m_highest_paging_struct;
@@ -332,6 +347,8 @@ namespace Kernel
 
 	vaddr_t MMU::get_free_contiguous_pages(size_t page_count) const
 	{
+		LockGuard _(m_lock);
+
 		for (vaddr_t address = PAGE_SIZE; !(address >> 48); address += PAGE_SIZE)
 		{
 			bool valid { true };
@@ -339,7 +356,7 @@ namespace Kernel
 			{
 				if (get_page_flags(address + page * PAGE_SIZE) & Flags::Present)
 				{
-					address += page;
+					address += page * PAGE_SIZE;
 					valid = false;
 					break;
 				}
@@ -359,8 +376,10 @@ namespace Kernel
 
 	bool MMU::is_range_free(vaddr_t start, size_t size) const
 	{
+		LockGuard _(m_lock);
+		
 		vaddr_t first_page = start / PAGE_SIZE;
-		vaddr_t last_page = BAN::Math::div_round_up<vaddr_t>(start + size, PAGE_SIZE);
+		vaddr_t last_page = (start + size - 1) / PAGE_SIZE;
 		for (vaddr_t page = first_page; page <= last_page; page++)
 			if (!is_page_free(page * PAGE_SIZE))
 				return false;

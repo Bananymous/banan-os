@@ -36,7 +36,7 @@ VesaTerminalDriver* VesaTerminalDriver::create()
 		return nullptr;
 	}
 
-	MMU::get().identity_map_range(framebuffer.addr, framebuffer.pitch * framebuffer.height, MMU::Flags::UserSupervisor | MMU::Flags::ReadWrite | MMU::Flags::Present);
+	MMU::kernel().identity_map_range(framebuffer.addr, framebuffer.pitch * framebuffer.height, MMU::Flags::UserSupervisor | MMU::Flags::ReadWrite | MMU::Flags::Present);
 
 	auto* driver = new VesaTerminalDriver(
 		framebuffer.width,
@@ -53,7 +53,7 @@ VesaTerminalDriver* VesaTerminalDriver::create()
 
 VesaTerminalDriver::~VesaTerminalDriver()
 {
-	MMU::get().unmap_range(m_address, m_pitch * m_height);
+	MMU::kernel().unmap_range(m_address, m_pitch * m_height);
 }
 
 void VesaTerminalDriver::set_pixel(uint32_t offset, Color color)
