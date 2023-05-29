@@ -4,17 +4,16 @@
 namespace Kernel
 {
 
-	extern "C" void spinlock_lock_asm(int*);
-	extern "C" void spinlock_unlock_asm(int*);
-
 	void SpinLock::lock()
 	{
-		spinlock_lock_asm(&m_lock);
+		while (__sync_lock_test_and_set(&m_lock, 1))
+			while (m_lock)
+				__builtin_ia32_pause();
 	}
 
 	void SpinLock::unlock()
 	{
-		spinlock_unlock_asm(&m_lock);
+		__sync_lock_release(&m_lock);
 	}
 
 	bool SpinLock::is_locked() const
@@ -24,35 +23,50 @@ namespace Kernel
 
 	void RecursiveSpinLock::lock()
 	{
-		// FIXME: is this thread safe?
-		if (m_locker == Scheduler::current_tid())
+		pid_t tid = Scheduler::current_tid();
+
+		while (true)
 		{
-			m_lock_depth++;
-		}
-		else
-		{
+			// Wait for us to be the locker or the lock being free
+			while (m_locker != -1 && m_locker != tid)
+				__builtin_ia32_pause();
+
 			m_lock.lock();
-			ASSERT(m_locker == 0);
-			m_locker = Scheduler::current_tid();
-			m_lock_depth = 1;
+			if (m_locker == tid)
+			{
+				m_lock_depth++;
+				break;
+			}
+			if (m_locker == -1)
+			{
+				m_locker = tid;
+				m_lock_depth = 1;
+				break;
+			}
+			m_lock.unlock();
 		}
+
+		m_lock.unlock();
 	}
 
 	void RecursiveSpinLock::unlock()
 	{
+		m_lock.lock();
+		
 		ASSERT(m_lock_depth > 0);
+		ASSERT(m_locker == Scheduler::current_tid());
 
 		m_lock_depth--;
+
 		if (m_lock_depth == 0)
-		{
-			m_locker = 0;
-			m_lock.unlock();
-		}
+			m_locker = -1;
+		
+		m_lock.unlock();
 	}
 
 	bool RecursiveSpinLock::is_locked() const
 	{
-		return m_lock.is_locked();
+		return m_locker != -1;
 	}
 
 }
