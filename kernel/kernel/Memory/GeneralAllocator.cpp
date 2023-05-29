@@ -1,6 +1,4 @@
 #include <kernel/Memory/GeneralAllocator.h>
-#include <kernel/Memory/PageTableScope.h>
-#include <kernel/Process.h>
 
 namespace Kernel
 {
@@ -68,7 +66,8 @@ namespace Kernel
 		if (allocator == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
 
-		PageTableScope _(m_page_table);
+		m_page_table.lock();
+
 		ASSERT(m_page_table.is_page_free(0));
 
 		for (auto& allocation : m_allocations)
@@ -99,6 +98,8 @@ namespace Kernel
 		}
 		m_page_table.unmap_page(0);
 		m_page_table.invalidate(0);
+
+		m_page_table.unlock();
 
 		return allocator;
 	}

@@ -1,5 +1,4 @@
 #include <kernel/Memory/Heap.h>
-#include <kernel/Memory/PageTableScope.h>
 #include <kernel/Memory/VirtualRange.h>
 
 namespace Kernel
@@ -78,7 +77,8 @@ namespace Kernel
 	{
 		VirtualRange* result = create(page_table, vaddr(), size(), flags());
 
-		PageTableScope _(m_page_table);
+		m_page_table.lock();
+
 		ASSERT(m_page_table.is_page_free(0));
 		for (size_t i = 0; i < result->m_physical_pages.size(); i++)
 		{
@@ -88,6 +88,8 @@ namespace Kernel
 		}
 		m_page_table.unmap_page(0);
 		m_page_table.invalidate(0);
+
+		m_page_table.unlock();
 
 		return result;
 	}
