@@ -1,5 +1,4 @@
 #include <BAN/StringView.h>
-#include <kernel/CriticalScope.h>
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/LockGuard.h>
 #include <kernel/Memory/Heap.h>

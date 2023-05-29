@@ -7,8 +7,6 @@
 #include <kernel/Storage/ATABus.h>
 #include <kernel/Storage/ATADefinitions.h>
 
-#include <kernel/CriticalScope.h>
-
 namespace Kernel
 {
 
