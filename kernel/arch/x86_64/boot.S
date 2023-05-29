@@ -37,27 +37,33 @@
 	g_kernel_cmdline:
 		.skip 4096
 
-	# Reserve memory for paging structures,
-	# we will identity map first 4 MiB
-
-	# 0 MiB -> 1 MiB: bootloader stuff
-	# 1 MiB ->      : kernel
-	.align 4096
-	boot_pml4:
-		.skip 512 * 8
-	boot_pdpt1:
-		.skip 512 * 8
-	boot_pd1:
-		.skip 512 * 8
-
-.global g_multiboot_info
-g_multiboot_info:
-	.skip 8
-.global g_multiboot_magic
-g_multiboot_magic:
-	.skip 8
+	.global g_multiboot_info
+	g_multiboot_info:
+		.skip 8
+	.global g_multiboot_magic
+	g_multiboot_magic:
+		.skip 8
 
 .section .text
+
+# Identity map first GiB
+.align 4096
+boot_pml4:
+	.quad boot_pdpt + (PG_READ_WRITE | PG_PRESENT)
+	.rept 511
+		.quad 0
+	.endr
+boot_pdpt:
+	.quad boot_pd + (PG_READ_WRITE | PG_PRESENT)
+	.rept 511
+		.quad 0
+	.endr
+boot_pd:
+	.set i, 0
+	.rept 512
+		.quad i + (PG_PAGE_SIZE | PG_READ_WRITE | PG_PRESENT)
+		.set i, i + 0x00200000
+	.endr
 
 boot_gdt:
 	.quad 0x0000000000000000 # null descriptor
@@ -125,15 +131,6 @@ enable_sse:
 	ret
 
 initialize_paging:
-	# identity map first 6 MiB
-	movl $(0x00000000 + PG_PAGE_SIZE + PG_READ_WRITE + PG_PRESENT), boot_pd1 + 0
-	movl $(0x00200000 + PG_PAGE_SIZE + PG_READ_WRITE + PG_PRESENT), boot_pd1 + 8
-	movl $(0x00400000 + PG_PAGE_SIZE + PG_READ_WRITE + PG_PRESENT), boot_pd1 + 16
-
-	# set pdpte1 and pml4e1
-	movl $(boot_pd1   + PG_READ_WRITE + PG_PRESENT), boot_pdpt1	
-	movl $(boot_pdpt1 + PG_READ_WRITE + PG_PRESENT), boot_pml4
-
 	# enable PAE
 	movl %cr4, %ecx
 	orl $0x20, %ecx
