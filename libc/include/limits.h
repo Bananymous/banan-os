@@ -11,12 +11,6 @@ __BEGIN_DECLS
 //        glibc seems to only define numerical
 //        and posix constants
 
-#if defined __GNUC__ && !defined _GCC_LIMITS_H_
-	#include_next <limits.h>
-#else
-	#error "unsupported compiler"
-#endif
-
 __END_DECLS
 
 #endif
