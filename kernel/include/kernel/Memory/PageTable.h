@@ -1,12 +1,13 @@
 #pragma once
 
+#include <BAN/Errors.h>
 #include <kernel/Memory/Types.h>
 #include <kernel/SpinLock.h>
 
 namespace Kernel
 {
 
-	class MMU
+	class PageTable
 	{
 	public:
 		using flags_t = uint8_t;
@@ -19,12 +20,12 @@ namespace Kernel
 
 	public:
 		static void initialize();
-		static MMU& kernel();
 
-		static MMU& current();
+		static PageTable& kernel();
+		static PageTable& current();
 
-		MMU();
-		~MMU();
+		static BAN::ErrorOr<PageTable*> create_userspace();
+		~PageTable();
 
 		void identity_map_page(paddr_t, flags_t);
 		void identity_map_range(paddr_t, size_t bytes, flags_t);
@@ -50,6 +51,7 @@ namespace Kernel
 		void unlock() const { m_lock.unlock(); }
 
 	private:
+		PageTable() = default;
 		uint64_t get_page_data(vaddr_t) const;
 		void initialize_kernel();
 

@@ -2,7 +2,7 @@
 
 #include <BAN/LinkedList.h>
 #include <kernel/Memory/Heap.h>
-#include <kernel/Memory/MMU.h>
+#include <kernel/Memory/PageTable.h>
 
 namespace Kernel
 {
@@ -13,13 +13,13 @@ namespace Kernel
 		BAN_NON_MOVABLE(GeneralAllocator);
 
 	public:
-		GeneralAllocator(MMU&);
+		GeneralAllocator(PageTable&);
 		~GeneralAllocator();
 
 		vaddr_t allocate(size_t);
 		bool deallocate(vaddr_t);
 
-		BAN::ErrorOr<GeneralAllocator*> clone(MMU&);
+		BAN::ErrorOr<GeneralAllocator*> clone(PageTable&);
 
 	private:
 		struct Allocation
@@ -29,7 +29,7 @@ namespace Kernel
 		};
 
 	private:
-		MMU& m_mmu;
+		PageTable& m_page_table;
 		BAN::LinkedList<Allocation> m_allocations;
 	};
 

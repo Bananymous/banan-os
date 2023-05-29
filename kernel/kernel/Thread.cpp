@@ -1,7 +1,7 @@
 #include <BAN/Errors.h>
 #include <kernel/InterruptController.h>
 #include <kernel/Memory/kmalloc.h>
-#include <kernel/Memory/MMUScope.h>
+#include <kernel/Memory/PageTableScope.h>
 #include <kernel/Process.h>
 #include <kernel/Scheduler.h>
 #include <kernel/Thread.h>
@@ -54,7 +54,7 @@ namespace Kernel
 		thread->m_is_userspace = true;
 
 		// Allocate stack
-		thread->m_stack = VirtualRange::create(process->mmu(), 0, m_userspace_stack_size, MMU::Flags::UserSupervisor | MMU::Flags::ReadWrite | MMU::Flags::Present);
+		thread->m_stack = VirtualRange::create(process->page_table(), 0, m_userspace_stack_size, PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present);
 		if (thread->m_stack == nullptr)
 		{
 			delete thread;
@@ -62,7 +62,7 @@ namespace Kernel
 		}
 
 		// Allocate interrupt stack
-		thread->m_interrupt_stack = VirtualRange::create(process->mmu(), 0, m_interrupt_stack_size, MMU::Flags::UserSupervisor | MMU::Flags::ReadWrite | MMU::Flags::Present);
+		thread->m_interrupt_stack = VirtualRange::create(process->page_table(), 0, m_interrupt_stack_size, PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present);
 		if (thread->m_interrupt_stack == nullptr)
 		{
 			delete thread;
@@ -85,7 +85,7 @@ namespace Kernel
 
 		// Setup stack for returning
 		{
-			MMUScope _(process->mmu());
+			PageTableScope _(process->page_table());
 			write_to_stack<sizeof(void*)>(thread->m_rsp, thread);
 			write_to_stack<sizeof(void*)>(thread->m_rsp, &Thread::on_exit);
 			write_to_stack<sizeof(void*)>(thread->m_rsp, nullptr);
@@ -131,8 +131,8 @@ namespace Kernel
 			return BAN::Error::from_errno(ENOMEM);
 		thread->m_is_userspace = true;
 
-		thread->m_interrupt_stack = m_interrupt_stack->clone(new_process->mmu());
-		thread->m_stack = m_stack->clone(new_process->mmu());
+		thread->m_interrupt_stack = m_interrupt_stack->clone(new_process->page_table());
+		thread->m_stack = m_stack->clone(new_process->page_table());
 
 		thread->m_state = State::Executing;
 		thread->m_in_syscall = true;

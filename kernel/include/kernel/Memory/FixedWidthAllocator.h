@@ -1,7 +1,7 @@
 #pragma once
 
 #include <kernel/Memory/Heap.h>
-#include <kernel/Memory/MMU.h>
+#include <kernel/Memory/PageTable.h>
 
 namespace Kernel
 {
@@ -12,10 +12,10 @@ namespace Kernel
 		BAN_NON_MOVABLE(FixedWidthAllocator);
 
 	public:
-		FixedWidthAllocator(MMU&, uint32_t);
+		FixedWidthAllocator(PageTable&, uint32_t);
 		~FixedWidthAllocator();
 
-		BAN::ErrorOr<FixedWidthAllocator*> clone(MMU&);
+		BAN::ErrorOr<FixedWidthAllocator*> clone(PageTable&);
 
 		vaddr_t allocate();
 		bool deallocate(vaddr_t);
@@ -44,7 +44,7 @@ namespace Kernel
 	private:
 		static constexpr uint32_t m_min_allocation_size = 16;
 
-		MMU& m_mmu;
+		PageTable& m_page_table;
 		const uint32_t m_allocation_size;
 		
 		vaddr_t m_nodes_page { 0 };

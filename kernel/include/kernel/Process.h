@@ -7,7 +7,6 @@
 #include <kernel/Memory/FixedWidthAllocator.h>
 #include <kernel/Memory/GeneralAllocator.h>
 #include <kernel/Memory/Heap.h>
-#include <kernel/Memory/MMU.h>
 #include <kernel/Memory/VirtualRange.h>
 #include <kernel/SpinLock.h>
 #include <kernel/Terminal/TTY.h>
@@ -70,7 +69,7 @@ namespace Kernel
 
 		static Process& current() { return Thread::current().process(); }
 
-		MMU& mmu() { return m_mmu ? *m_mmu : MMU::kernel(); }
+		PageTable& page_table() { return m_page_table ? *m_page_table : PageTable::kernel(); }
 
 	private:
 		Process(pid_t);
@@ -104,7 +103,7 @@ namespace Kernel
 		BAN::Vector<FixedWidthAllocator*> m_fixed_width_allocators;
 		GeneralAllocator* m_general_allocator;
 
-		MMU* m_mmu { nullptr };
+		PageTable* m_page_table { nullptr };
 		TTY* m_tty { nullptr };
 	};
 

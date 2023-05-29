@@ -1,30 +1,30 @@
 #pragma once
 
 #include <kernel/CriticalScope.h>
-#include <kernel/Memory/MMU.h>
+#include <kernel/Memory/PageTable.h>
 
 namespace Kernel
 {
 
-	class MMUScope
+	class PageTableScope
 	{
 	public:
-		MMUScope(MMU& mmu)
-			: m_old(MMU::current())
-			, m_temp(mmu)
+		PageTableScope(PageTable& page_table)
+			: m_old(PageTable::current())
+			, m_temp(page_table)
 		{
 			if (&m_old != &m_temp)
 				m_temp.load();
 		}
-		~MMUScope()
+		~PageTableScope()
 		{
 			if (&m_old != &m_temp)
 				m_old.load();
 		}
 	private:
 		CriticalScope m_scope;
-		MMU& m_old;
-		MMU& m_temp;
+		PageTable& m_old;
+		PageTable& m_temp;
 	};
 
 }
