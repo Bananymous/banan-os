@@ -12,9 +12,10 @@ __BEGIN_DECLS
 #define PROT_READ	0x04
 #define PROT_WRITE	0x08
 
-#define MAP_FIXED	0x01
-#define MAP_PRIVATE	0x02
-#define MAP_SHARED	0x04
+#define MAP_FIXED		0x01
+#define MAP_PRIVATE		0x02
+#define MAP_SHARED		0x04
+#define MAP_ANONYMOUS	0x08
 
 #define MS_ASYNC		0x01
 #define MS_INVALIDATE	0x02
