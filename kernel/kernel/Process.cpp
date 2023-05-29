@@ -31,7 +31,6 @@ namespace Kernel
 		s_process_lock.lock();
 		MUST(s_processes.push_back(process));
 		s_process_lock.unlock();
-		
 		for (auto* thread : process->m_threads)
 			MUST(Scheduler::get().add_thread(thread));
 	}
@@ -57,10 +56,9 @@ namespace Kernel
 
 		auto* process = create_process();
 		MUST(process->m_working_directory.push_back('/'));
-		MUST(process->init_stdio());
 		process->m_mmu = new MMU();
 		ASSERT(process->m_mmu);
-		
+
 		auto& elf_file_header = elf->file_header_native();
 		for (size_t i = 0; i < elf_file_header.e_phnum; i++)
 		{
@@ -152,6 +150,7 @@ namespace Kernel
 	void Process::exit()
 	{
 		m_lock.lock();
+
 		m_threads.clear();
 		for (auto& open_fd : m_open_files)
 			open_fd.inode = nullptr;
@@ -180,17 +179,9 @@ namespace Kernel
 		Scheduler::get().set_current_process_done();
 	}
 
-	BAN::ErrorOr<void> Process::init_stdio()
-	{
-		ASSERT(m_open_files.empty());
-		TRY(open("/dev/tty1", O_RDONLY)); // stdin
-		TRY(open("/dev/tty1", O_WRONLY)); // stdout
-		TRY(open("/dev/tty1", O_WRONLY)); // stderr
-		return {};
-	}
-
 	BAN::ErrorOr<void> Process::set_termios(const termios& termios)
 	{
+		LockGuard _(m_lock);
 		if (m_tty == nullptr)
 			return BAN::Error::from_errno(ENOTTY);
 		m_tty->set_termios(termios);
@@ -199,17 +190,16 @@ namespace Kernel
 
 	BAN::ErrorOr<Process*> Process::fork(uintptr_t rsp, uintptr_t rip)
 	{
-		LockGuard _(m_lock);
-		
 		Process* forked = create_process();
 
+		forked->m_mmu = new MMU();
+		ASSERT(forked->m_mmu);
+
+		LockGuard _(m_lock);
 		forked->m_tty = m_tty;
 		forked->m_working_directory = m_working_directory;
 
 		forked->m_open_files = m_open_files;
-
-		forked->m_mmu = new MMU();
-		ASSERT(forked->m_mmu);
 
 		for (auto* mapped_range : m_mapped_ranges)
 			MUST(forked->m_mapped_ranges.push_back(mapped_range->clone(forked->mmu())));
@@ -366,8 +356,12 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Process::mount(BAN::StringView source, BAN::StringView target)
 	{
-		auto absolute_source = TRY(absolute_path_of(source));
-		auto absolute_target = TRY(absolute_path_of(target));
+		BAN::String absolute_source, absolute_target;
+		{
+			LockGuard _(m_lock);
+			absolute_source = TRY(absolute_path_of(source));
+			absolute_target = TRY(absolute_path_of(target));
+		}
 		TRY(VirtualFileSystem::get().mount(absolute_source, absolute_target));
 		return {};
 	}
@@ -539,6 +533,7 @@ namespace Kernel
 
 	void Process::termid(char* buffer) const
 	{
+		LockGuard _(m_lock);
 		if (m_tty == nullptr)
 			buffer[0] = '\0';
 		strcpy(buffer, "/dev/");

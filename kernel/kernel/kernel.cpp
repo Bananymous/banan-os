@@ -186,7 +186,6 @@ static void init2(void* tty1)
 	Process::create_kernel(
 		[](void*) 
 		{
-			MUST(Process::current().init_stdio());
 			Shell* shell = new Shell();
 			ASSERT(shell);
 			shell->run();

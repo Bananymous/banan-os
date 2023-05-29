@@ -13,7 +13,7 @@ _start:
 	pushq %rdi
 
 	# Prepare signals, memory allocation, stdio and such.
-	#call initialize_standard_library
+	call _init_libc
 
 	# Run the global constructors.
 	call _init

@@ -7,6 +7,13 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 
+extern "C" void _init_stdio();
+
+extern "C" void _init_libc()
+{
+	_init_stdio();
+}
+
 void _exit(int status)
 {
 	syscall(SYS_EXIT, status);
