@@ -36,7 +36,6 @@ namespace Kernel
 		void add_thread(Thread*);
 		void on_thread_exit(Thread&);
 
-		BAN::ErrorOr<void> init_stdio();
 		BAN::ErrorOr<void> set_termios(const termios&);
 
 		pid_t pid() const { return m_pid; }
