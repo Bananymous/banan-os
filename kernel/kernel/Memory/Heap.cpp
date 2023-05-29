@@ -1,6 +1,6 @@
 #include <kernel/LockGuard.h>
 #include <kernel/Memory/Heap.h>
-#include <kernel/Memory/MMU.h>
+#include <kernel/Memory/PageTable.h>
 #include <kernel/multiboot.h>
 
 namespace Kernel

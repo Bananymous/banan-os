@@ -8,20 +8,27 @@
 
 int main()
 {
-	char* string = (char*)malloc(10);
-	strcpy(string, "Hello");
+	printf("userspace\n");
 
-	printf("forking\n");
+	FILE* fp = fopen("/usr/include/kernel/kprint.h", "r");
+	if (fp == NULL)
+		ERROR("fopen");
+
+	char* buffer = (char*)malloc(128);
+	fread(buffer, 1, 100, fp);
 
 	pid_t pid = fork();
 	if (pid == 0)
 	{
-		printf("child '%s'\n", string);
+		while (size_t n_read = fread(buffer, 1, 127, fp))
+			fwrite(buffer, 1, n_read, stdout);
+		free(buffer);
+		fclose(fp);
 		return 0;
 	}
 
-	strcpy(string, "World");
-	printf("parent '%s'\n", string);
+	free(buffer);
+	fclose(fp);
 
 	return 0;
 }

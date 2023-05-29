@@ -10,7 +10,7 @@
 #include <kernel/kprint.h>
 #include <kernel/Memory/Heap.h>
 #include <kernel/Memory/kmalloc.h>
-#include <kernel/Memory/MMU.h>
+#include <kernel/Memory/PageTable.h>
 #include <kernel/multiboot.h>
 #include <kernel/PCI.h>
 #include <kernel/PIC.h>
@@ -128,8 +128,8 @@ extern "C" void kernel_main()
 	IDT::initialize();
 	dprintln("IDT initialized");
 
-	MMU::initialize();
-	dprintln("MMU initialized");
+	PageTable::initialize();
+	dprintln("PageTable initialized");
 
 	TerminalDriver* terminal_driver = VesaTerminalDriver::create();
 	ASSERT(terminal_driver);

@@ -3,7 +3,7 @@
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/LockGuard.h>
 #include <kernel/Memory/Heap.h>
-#include <kernel/Memory/MMUScope.h>
+#include <kernel/Memory/PageTableScope.h>
 #include <kernel/Process.h>
 #include <kernel/Scheduler.h>
 #include <LibELF/ELF.h>
@@ -56,8 +56,7 @@ namespace Kernel
 
 		auto* process = create_process();
 		MUST(process->m_working_directory.push_back('/'));
-		process->m_mmu = new MMU();
-		ASSERT(process->m_mmu);
+		process->m_page_table = MUST(PageTable::create_userspace());
 
 		auto& elf_file_header = elf->file_header_native();
 		for (size_t i = 0; i < elf_file_header.e_phnum; i++)
@@ -71,18 +70,18 @@ namespace Kernel
 			case LibELF::PT_LOAD:
 			{
 				// TODO: Do some relocations or map kernel to higher half?
-				ASSERT(process->mmu().is_range_free(elf_program_header.p_vaddr, elf_program_header.p_memsz));
-				MMU::flags_t flags = MMU::Flags::UserSupervisor | MMU::Flags::Present;
+				ASSERT(process->page_table().is_range_free(elf_program_header.p_vaddr, elf_program_header.p_memsz));
+				uint8_t flags = PageTable::Flags::UserSupervisor | PageTable::Flags::Present;
 				if (elf_program_header.p_flags & LibELF::PF_W)
-					flags |= MMU::Flags::ReadWrite;
+					flags |= PageTable::Flags::ReadWrite;
 				size_t page_start = elf_program_header.p_vaddr / PAGE_SIZE;
 				size_t page_end = BAN::Math::div_round_up<size_t>(elf_program_header.p_vaddr + elf_program_header.p_memsz, PAGE_SIZE);
 
 				size_t page_count = page_end - page_start + 1;
-				MUST(process->m_mapped_ranges.push_back(VirtualRange::create(process->mmu(), page_start * PAGE_SIZE, page_count * PAGE_SIZE, flags)));
+				MUST(process->m_mapped_ranges.push_back(VirtualRange::create(process->page_table(), page_start * PAGE_SIZE, page_count * PAGE_SIZE, flags)));
 
 				{
-					MMUScope _(process->mmu());
+					PageTableScope _(process->page_table());
 					memcpy((void*)elf_program_header.p_vaddr, elf->data() + elf_program_header.p_offset, elf_program_header.p_filesz);
 					memset((void*)(elf_program_header.p_vaddr + elf_program_header.p_filesz), 0, elf_program_header.p_memsz - elf_program_header.p_filesz);
 				}
@@ -95,7 +94,7 @@ namespace Kernel
 
 		char** argv = nullptr;
 		{
-			MMUScope _(process->mmu());
+			PageTableScope _(process->page_table());
 			argv = (char**)MUST(process->allocate(sizeof(char**) * 1));
 			argv[0] = (char*)MUST(process->allocate(path.size() + 1));
 			memcpy(argv[0], path.data(), path.size());
@@ -122,10 +121,10 @@ namespace Kernel
 		ASSERT(m_fixed_width_allocators.empty());
 		ASSERT(m_general_allocator == nullptr);
 		ASSERT(m_mapped_ranges.empty());
-		if (m_mmu)
+		if (m_page_table)
 		{
-			MMU::kernel().load();
-			delete m_mmu;
+			PageTable::kernel().load();
+			delete m_page_table;
 		}
 
 		dprintln("process {} exit", pid());
@@ -155,12 +154,12 @@ namespace Kernel
 		for (auto& open_fd : m_open_files)
 			open_fd.inode = nullptr;
 
-		// NOTE: We must unmap ranges while the mmu is still alive
+		// NOTE: We must unmap ranges while the page table is still alive
 		for (auto* range : m_mapped_ranges)
 			delete range;
 		m_mapped_ranges.clear();
 
-		// NOTE: We must clear allocators while the mmu is still alive
+		// NOTE: We must clear allocators while the page table is still alive
 		m_fixed_width_allocators.clear();
 		if (m_general_allocator)
 		{
@@ -192,8 +191,7 @@ namespace Kernel
 	{
 		Process* forked = create_process();
 
-		forked->m_mmu = new MMU();
-		ASSERT(forked->m_mmu);
+		forked->m_page_table = MUST(PageTable::create_userspace());
 
 		LockGuard _(m_lock);
 		forked->m_tty = m_tty;
@@ -202,16 +200,16 @@ namespace Kernel
 		forked->m_open_files = m_open_files;
 
 		for (auto* mapped_range : m_mapped_ranges)
-			MUST(forked->m_mapped_ranges.push_back(mapped_range->clone(forked->mmu())));
+			MUST(forked->m_mapped_ranges.push_back(mapped_range->clone(forked->page_table())));
 
 		ASSERT(m_threads.size() == 1);
 		ASSERT(m_threads.front() == &Thread::current());
 
 		for (auto& allocator : m_fixed_width_allocators)
-			MUST(forked->m_fixed_width_allocators.push_back(MUST(allocator->clone(forked->mmu()))));
+			MUST(forked->m_fixed_width_allocators.push_back(MUST(allocator->clone(forked->page_table()))));
 
 		if (m_general_allocator)
-			forked->m_general_allocator = MUST(m_general_allocator->clone(forked->mmu()));
+			forked->m_general_allocator = MUST(m_general_allocator->clone(forked->page_table()));
 
 		Thread* thread = MUST(m_threads.front()->clone(forked, rsp, rip));
 		forked->add_thread(thread);
@@ -482,7 +480,7 @@ namespace Kernel
 
 			if (needs_new_allocator)
 			{
-				auto* allocator = new FixedWidthAllocator(mmu(), allocation_size);
+				auto* allocator = new FixedWidthAllocator(page_table(), allocation_size);
 				if (allocator == nullptr)
 					return BAN::Error::from_errno(ENOMEM);
 				TRY(m_fixed_width_allocators.push_back(allocator));
@@ -495,7 +493,7 @@ namespace Kernel
 
 			if (!m_general_allocator)
 			{
-				m_general_allocator = new GeneralAllocator(mmu());
+				m_general_allocator = new GeneralAllocator(page_table());
 				if (m_general_allocator == nullptr)
 					return BAN::Error::from_errno(ENOMEM);
 			}

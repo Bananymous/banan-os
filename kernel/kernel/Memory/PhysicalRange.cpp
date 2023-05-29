@@ -1,6 +1,6 @@
 #include <BAN/Assert.h>
 #include <BAN/Math.h>
-#include <kernel/Memory/MMU.h>
+#include <kernel/Memory/PageTable.h>
 #include <kernel/Memory/PhysicalRange.h>
 
 extern uint8_t g_kernel_end[];
@@ -37,7 +37,7 @@ namespace Kernel
 		m_list_pages		= BAN::Math::div_round_up<uint64_t>(m_total_pages * sizeof(node), PAGE_SIZE);
 		m_reservable_pages	= m_total_pages - m_list_pages;
 
-		MMU::kernel().identity_map_range(m_start, m_list_pages * PAGE_SIZE, MMU::Flags::ReadWrite | MMU::Flags::Present);
+		PageTable::kernel().identity_map_range(m_start, m_list_pages * PAGE_SIZE, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
 
 		// Initialize page list so that every page points to the next one
 		node* page_list = (node*)m_start;

@@ -1,6 +1,6 @@
 #include <BAN/Errors.h>
 #include <kernel/Debug.h>
-#include <kernel/Memory/MMU.h>
+#include <kernel/Memory/PageTable.h>
 #include <kernel/multiboot.h>
 #include <kernel/Terminal/VesaTerminalDriver.h>
 
@@ -36,7 +36,7 @@ VesaTerminalDriver* VesaTerminalDriver::create()
 		return nullptr;
 	}
 
-	MMU::kernel().identity_map_range(framebuffer.addr, framebuffer.pitch * framebuffer.height, MMU::Flags::UserSupervisor | MMU::Flags::ReadWrite | MMU::Flags::Present);
+	PageTable::kernel().identity_map_range(framebuffer.addr, framebuffer.pitch * framebuffer.height, PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present);
 
 	auto* driver = new VesaTerminalDriver(
 		framebuffer.width,
@@ -53,7 +53,7 @@ VesaTerminalDriver* VesaTerminalDriver::create()
 
 VesaTerminalDriver::~VesaTerminalDriver()
 {
-	MMU::kernel().unmap_range(m_address, m_pitch * m_height);
+	PageTable::kernel().unmap_range(m_address, m_pitch * m_height);
 }
 
 void VesaTerminalDriver::set_pixel(uint32_t offset, Color color)

@@ -2,7 +2,7 @@
 #include <kernel/Arch.h>
 #include <kernel/LockGuard.h>
 #include <kernel/Memory/kmalloc.h>
-#include <kernel/Memory/MMU.h>
+#include <kernel/Memory/PageTable.h>
 
 #define CLEANUP_STRUCTURE(s)				\
 	do {									\
@@ -17,25 +17,25 @@ extern uint8_t g_kernel_end[];
 namespace Kernel
 {
 	
-	static MMU* s_kernel = nullptr;
-	static MMU* s_current = nullptr;
+	static PageTable* s_kernel = nullptr;
+	static PageTable* s_current = nullptr;
 
-	void MMU::initialize()
+	void PageTable::initialize()
 	{
 		ASSERT(s_kernel == nullptr);
-		s_kernel = new MMU();
+		s_kernel = new PageTable();
 		ASSERT(s_kernel);
 		s_kernel->initialize_kernel();
 		s_kernel->load();
 	}
 
-	MMU& MMU::kernel()
+	PageTable& PageTable::kernel()
 	{
 		ASSERT(s_kernel);
 		return *s_kernel;
 	}
 
-	MMU& MMU::current()
+	PageTable& PageTable::current()
 	{
 		ASSERT(s_current);
 		return *s_current;
@@ -49,7 +49,7 @@ namespace Kernel
 		return (uint64_t*)page;
 	}
 
-	void MMU::initialize_kernel()
+	void PageTable::initialize_kernel()
 	{
 		m_highest_paging_struct = allocate_page_aligned_page();
 		memset(m_highest_paging_struct, 0, PAGE_SIZE);
@@ -59,11 +59,8 @@ namespace Kernel
 		identity_map_range(PAGE_SIZE, (uintptr_t)g_kernel_end, Flags::ReadWrite | Flags::Present);
 	}
 
-	MMU::MMU()
+	BAN::ErrorOr<PageTable*> PageTable::create_userspace()
 	{
-		if (s_kernel == nullptr)
-			return;
-		
 		// Here we copy the s_kernel paging structs since they are
 		// global for every process
 
@@ -107,10 +104,14 @@ namespace Kernel
 			}
 		}
 
-		m_highest_paging_struct = pml4;
+		PageTable* result = new PageTable;
+		if (result == nullptr)
+			return BAN::Error::from_errno(ENOMEM);
+		result->m_highest_paging_struct = pml4;
+		return result;
 	}
 
-	MMU::~MMU()
+	PageTable::~PageTable()
 	{
 		uint64_t* pml4 = m_highest_paging_struct;
 		for (uint32_t pml4e = 0; pml4e < 512; pml4e++)
@@ -136,25 +137,25 @@ namespace Kernel
 		kfree(pml4);
 	}
 
-	void MMU::load()
+	void PageTable::load()
 	{
 		asm volatile("movq %0, %%cr3" :: "r"(m_highest_paging_struct));
 		s_current = this;
 	}
 
-	void MMU::invalidate(vaddr_t vaddr)
+	void PageTable::invalidate(vaddr_t vaddr)
 	{
 		ASSERT(this == s_current);
 		asm volatile("invlpg (%0)" :: "r"(vaddr) : "memory");
 	}
 
-	void MMU::identity_map_page(paddr_t address, flags_t flags)
+	void PageTable::identity_map_page(paddr_t address, flags_t flags)
 	{
 		address &= PAGE_ADDR_MASK;
 		map_page_at(address, address, flags);
 	}
 
-	void MMU::identity_map_range(paddr_t address, size_t size, flags_t flags)
+	void PageTable::identity_map_range(paddr_t address, size_t size, flags_t flags)
 	{
 		LockGuard _(m_lock);
 
@@ -164,7 +165,7 @@ namespace Kernel
 			identity_map_page(page * PAGE_SIZE, flags);
 	}
 
-	void MMU::unmap_page(vaddr_t address)
+	void PageTable::unmap_page(vaddr_t address)
 	{
 		LockGuard _(m_lock);
 
@@ -197,7 +198,7 @@ namespace Kernel
 		pml4[pml4e] = 0;
 	}
 
-	void MMU::unmap_range(vaddr_t address, size_t size)
+	void PageTable::unmap_range(vaddr_t address, size_t size)
 	{
 		LockGuard _(m_lock);
 
@@ -207,7 +208,7 @@ namespace Kernel
 			unmap_page(page * PAGE_SIZE);
 	}
 
-	void MMU::map_page_at(paddr_t paddr, vaddr_t vaddr, flags_t flags)
+	void PageTable::map_page_at(paddr_t paddr, vaddr_t vaddr, flags_t flags)
 	{
 		LockGuard _(m_lock);
 
@@ -252,7 +253,7 @@ namespace Kernel
 		pt[pte] = paddr | flags;
 	}
 
-	uint64_t MMU::get_page_data(vaddr_t address) const
+	uint64_t PageTable::get_page_data(vaddr_t address) const
 	{
 		LockGuard _(m_lock);
 
@@ -283,17 +284,17 @@ namespace Kernel
 		return pt[pte];
 	}
 
-	MMU::flags_t MMU::get_page_flags(vaddr_t addr) const
+	PageTable::flags_t PageTable::get_page_flags(vaddr_t addr) const
 	{
 		return get_page_data(addr) & PAGE_FLAG_MASK;
 	}
 
-	paddr_t MMU::physical_address_of(vaddr_t addr) const
+	paddr_t PageTable::physical_address_of(vaddr_t addr) const
 	{
 		return get_page_data(addr) & PAGE_ADDR_MASK;
 	}
 
-	vaddr_t MMU::get_free_page() const
+	vaddr_t PageTable::get_free_page() const
 	{
 		LockGuard _(m_lock);
 
@@ -343,7 +344,7 @@ namespace Kernel
 		ASSERT_NOT_REACHED();
 	}
 
-	vaddr_t MMU::get_free_contiguous_pages(size_t page_count) const
+	vaddr_t PageTable::get_free_contiguous_pages(size_t page_count) const
 	{
 		LockGuard _(m_lock);
 
@@ -366,13 +367,13 @@ namespace Kernel
 		ASSERT_NOT_REACHED();
 	}
 
-	bool MMU::is_page_free(vaddr_t page) const
+	bool PageTable::is_page_free(vaddr_t page) const
 	{
 		ASSERT(page % PAGE_SIZE == 0);
 		return !(get_page_flags(page) & Flags::Present);
 	}
 
-	bool MMU::is_range_free(vaddr_t start, size_t size) const
+	bool PageTable::is_range_free(vaddr_t start, size_t size) const
 	{
 		LockGuard _(m_lock);
 		

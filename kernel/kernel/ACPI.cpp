@@ -1,7 +1,7 @@
 #include <BAN/ScopeGuard.h>
 #include <BAN/StringView.h>
 #include <kernel/ACPI.h>
-#include <kernel/Memory/MMU.h>
+#include <kernel/Memory/PageTable.h>
 
 #define RSPD_SIZE	20
 #define RSPDv2_SIZE	36
@@ -105,8 +105,8 @@ namespace Kernel
 		if (rsdp->revision >= 2)
 		{
 			const XSDT* xsdt = (const XSDT*)rsdp->xsdt_address;
-			MMU::kernel().identity_map_page((uintptr_t)xsdt, MMU::Flags::Present);
-			BAN::ScopeGuard _([xsdt] { MMU::kernel().unmap_page((uintptr_t)xsdt); });
+			PageTable::kernel().identity_map_page((uintptr_t)xsdt, PageTable::Flags::Present);
+			BAN::ScopeGuard _([xsdt] { PageTable::kernel().unmap_page((uintptr_t)xsdt); });
 
 			if (memcmp(xsdt->signature, "XSDT", 4) != 0)
 				return BAN::Error::from_error_code(ErrorCode::ACPI_RootInvalid);
@@ -120,8 +120,8 @@ namespace Kernel
 		else
 		{
 			const RSDT* rsdt = (const RSDT*)(uintptr_t)rsdp->rsdt_address;
-			MMU::kernel().identity_map_page((uintptr_t)rsdt, MMU::Flags::Present);
-			BAN::ScopeGuard _([rsdt] { MMU::kernel().unmap_page((uintptr_t)rsdt); });
+			PageTable::kernel().identity_map_page((uintptr_t)rsdt, PageTable::Flags::Present);
+			BAN::ScopeGuard _([rsdt] { PageTable::kernel().unmap_page((uintptr_t)rsdt); });
 
 			if (memcmp(rsdt->signature, "RSDT", 4) != 0)
 				return BAN::Error::from_error_code(ErrorCode::ACPI_RootInvalid);
@@ -133,13 +133,13 @@ namespace Kernel
 			m_entry_count = (rsdt->length - sizeof(SDTHeader)) / 4;
 		}
 
-		MMU::kernel().identity_map_range(m_header_table, m_entry_count * m_entry_size, MMU::Flags::Present);
+		PageTable::kernel().identity_map_range(m_header_table, m_entry_count * m_entry_size, PageTable::Flags::Present);
 
 		for (uint32_t i = 0; i < m_entry_count; i++)
 		{
 			auto* header = get_header_from_index(i);
-			MMU::kernel().identity_map_page((uintptr_t)header, MMU::Flags::Present);
-			MMU::kernel().identity_map_range((uintptr_t)header, header->length, MMU::Flags::Present);
+			PageTable::kernel().identity_map_page((uintptr_t)header, PageTable::Flags::Present);
+			PageTable::kernel().identity_map_range((uintptr_t)header, header->length, PageTable::Flags::Present);
 		}
 
 		return {};

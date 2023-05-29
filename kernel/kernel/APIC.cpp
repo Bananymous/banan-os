@@ -4,7 +4,7 @@
 #include <kernel/APIC.h>
 #include <kernel/CPUID.h>
 #include <kernel/IDT.h>
-#include <kernel/Memory/MMU.h>
+#include <kernel/Memory/PageTable.h>
 
 #include <string.h>
 
@@ -146,10 +146,10 @@ APIC* APIC::create()
 		return nullptr;
 	}
 
-	MMU::kernel().identity_map_page(apic->m_local_apic, MMU::Flags::ReadWrite | MMU::Flags::Present);
+	PageTable::kernel().identity_map_page(apic->m_local_apic, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
 	for (auto& io_apic : apic->m_io_apics)
 	{
-		MMU::kernel().identity_map_page(io_apic.address, MMU::Flags::ReadWrite | MMU::Flags::Present);
+		PageTable::kernel().identity_map_page(io_apic.address, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
 		io_apic.max_redirs = io_apic.read(IOAPIC_MAX_REDIRS);
 	}
 

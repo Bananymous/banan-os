@@ -1,11 +1,11 @@
 #include <kernel/Memory/FixedWidthAllocator.h>
-#include <kernel/Memory/MMUScope.h>
+#include <kernel/Memory/PageTableScope.h>
 
 namespace Kernel
 {
 
-	FixedWidthAllocator::FixedWidthAllocator(MMU& mmu, uint32_t allocation_size)
-		: m_mmu(mmu)
+	FixedWidthAllocator::FixedWidthAllocator(PageTable& page_table, uint32_t allocation_size)
+		: m_page_table(page_table)
 		, m_allocation_size(BAN::Math::max(allocation_size, m_min_allocation_size))
 	{
 		ASSERT(BAN::Math::is_power_of_two(allocation_size));
@@ -40,9 +40,9 @@ namespace Kernel
 			if (page_vaddr == 0)
 				continue;
 
-			ASSERT(!m_mmu.is_page_free(page_vaddr));
-			Heap::get().release_page(m_mmu.physical_address_of(page_vaddr));
-			m_mmu.unmap_page(page_vaddr);
+			ASSERT(!m_page_table.is_page_free(page_vaddr));
+			Heap::get().release_page(m_page_table.physical_address_of(page_vaddr));
+			m_page_table.unmap_page(page_vaddr);
 		}
 
 		kfree((void*)m_nodes_page);
@@ -187,8 +187,8 @@ namespace Kernel
 		paddr_t page_paddr = Heap::get().take_free_page();
 		ASSERT(page_paddr);
 
-		page_vaddr = m_mmu.get_free_page();
-		m_mmu.map_page_at(page_paddr, page_vaddr, MMU::Flags::UserSupervisor | MMU::Flags::ReadWrite | MMU::Flags::Present);
+		page_vaddr = m_page_table.get_free_page();
+		m_page_table.map_page_at(page_paddr, page_vaddr, PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present);
 	}
 
 	bool FixedWidthAllocator::allocate_page_if_needed(vaddr_t vaddr, uint8_t flags)
@@ -204,7 +204,7 @@ namespace Kernel
 		}
 
 		// Page is not allocated so the vaddr must not be in use
-		ASSERT(m_mmu.is_page_free(vaddr));
+		ASSERT(m_page_table.is_page_free(vaddr));
 
 		// Allocate the vaddr on empty page
 		for (uint32_t page_index = 0; page_index < PAGE_SIZE / sizeof(vaddr_t); page_index++)
@@ -214,7 +214,7 @@ namespace Kernel
 			{
 				paddr_t paddr = Heap::get().take_free_page();
 				ASSERT(paddr);
-				m_mmu.map_page_at(paddr, vaddr, flags);
+				m_page_table.map_page_at(paddr, vaddr, flags);
 				page_begin = vaddr;
 				return true;
 			}
@@ -223,14 +223,14 @@ namespace Kernel
 		ASSERT_NOT_REACHED();
 	}
 
-	BAN::ErrorOr<FixedWidthAllocator*> FixedWidthAllocator::clone(MMU& new_mmu)
+	BAN::ErrorOr<FixedWidthAllocator*> FixedWidthAllocator::clone(PageTable& new_page_table)
 	{
-		FixedWidthAllocator* allocator = new FixedWidthAllocator(new_mmu, allocation_size());
+		FixedWidthAllocator* allocator = new FixedWidthAllocator(new_page_table, allocation_size());
 		if (allocator == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
 
-		MMUScope _(m_mmu);
-		ASSERT(m_mmu.is_page_free(0));
+		PageTableScope _(m_page_table);
+		ASSERT(m_page_table.is_page_free(0));
 
 		for (node* node = m_used_list; node; node = node->next)
 		{
@@ -238,14 +238,14 @@ namespace Kernel
 
 			vaddr_t vaddr = address_of_node(node);
 			vaddr_t page_begin = vaddr & PAGE_ADDR_MASK;
-			uint8_t flags = m_mmu.get_page_flags(page_begin);
+			uint8_t flags = m_page_table.get_page_flags(page_begin);
 
 			// Allocate and copy all data from this allocation to the new one
 			if (allocator->allocate_page_if_needed(page_begin, flags))
 			{
-				paddr_t paddr = new_mmu.physical_address_of(page_begin);
-				m_mmu.map_page_at(paddr, 0, MMU::Flags::ReadWrite | MMU::Flags::Present);
-				m_mmu.invalidate(0);
+				paddr_t paddr = new_page_table.physical_address_of(page_begin);
+				m_page_table.map_page_at(paddr, 0, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
+				m_page_table.invalidate(0);
 				memcpy((void*)0, (void*)page_begin, PAGE_SIZE);
 			}
 
@@ -254,8 +254,8 @@ namespace Kernel
 			allocator->allocate_node(new_node);
 		}
 
-		m_mmu.unmap_page(0);
-		m_mmu.invalidate(0);
+		m_page_table.unmap_page(0);
+		m_page_table.invalidate(0);
 
 		return allocator;
 	}
