@@ -19,7 +19,7 @@ namespace Kernel
 		bool is_locked() const;
 
 	private:
-		int m_lock = 0;
+		volatile int m_lock = 0;
 	};
 
 	class RecursiveSpinLock
@@ -34,7 +34,7 @@ namespace Kernel
 		bool is_locked() const;
 
 	private:
-		pid_t m_locker = 0;
+		pid_t m_locker = -1;
 		uint32_t m_lock_depth = 0;
 		SpinLock m_lock;
 	};
