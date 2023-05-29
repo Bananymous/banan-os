@@ -138,10 +138,6 @@ namespace Kernel
 
 	void MMU::load()
 	{
-		uintptr_t rsp;
-		read_rsp(rsp);
-		ASSERT(!is_page_free(rsp & PAGE_ADDR_MASK));
-
 		asm volatile("movq %0, %%cr3" :: "r"(m_highest_paging_struct));
 		s_current = this;
 	}
