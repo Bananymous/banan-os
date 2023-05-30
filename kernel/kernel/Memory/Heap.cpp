@@ -29,7 +29,7 @@ namespace Kernel
 		
 		for (size_t i = 0; i < g_multiboot_info->mmap_length;)
 		{
-			multiboot_memory_map_t* mmmt = (multiboot_memory_map_t*)(g_multiboot_info->mmap_addr + i);
+			multiboot_memory_map_t* mmmt = (multiboot_memory_map_t*)P2V(g_multiboot_info->mmap_addr + i);
 
 			if (mmmt->type == 1)
 			{
