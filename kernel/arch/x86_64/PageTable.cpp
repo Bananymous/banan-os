@@ -9,7 +9,7 @@
 		for (uint64_t i = 0; i < 512; i++)	\
 			if ((s)[i] & Flags::Present)	\
 				return;						\
-		kfree((void*)P2V(s));				\
+		kfree(s);							\
 	} while (false)
 
 extern uint8_t g_kernel_start[];
@@ -86,8 +86,6 @@ namespace Kernel
 		// Here we copy the s_kernel paging structs since they are
 		// global for every process
 
-		ASSERT_NOT_REACHED();
-
 		LockGuard _(s_kernel->m_lock);
 
 		uint64_t* global_pml4 = (uint64_t*)P2V(s_kernel->m_highest_paging_struct);
@@ -98,30 +96,30 @@ namespace Kernel
 			if (!(global_pml4[pml4e] & Flags::Present))
 				continue;
 
-			uint64_t* global_pdpt = (uint64_t*)(global_pml4[pml4e] & PAGE_ADDR_MASK);
+			uint64_t* global_pdpt = (uint64_t*)P2V(global_pml4[pml4e] & PAGE_ADDR_MASK);
 
 			uint64_t* pdpt = allocate_page_aligned_page();
-			pml4[pml4e] = (uint64_t)pdpt | (global_pml4[pml4e] & PAGE_FLAG_MASK);
+			pml4[pml4e] = V2P(pdpt) | (global_pml4[pml4e] & PAGE_FLAG_MASK);
 
 			for (uint32_t pdpte = 0; pdpte < 512; pdpte++)
 			{
 				if (!(global_pdpt[pdpte] & Flags::Present))
 					continue;
 
-				uint64_t* global_pd = (uint64_t*)(global_pdpt[pdpte] & PAGE_ADDR_MASK);
+				uint64_t* global_pd = (uint64_t*)P2V(global_pdpt[pdpte] & PAGE_ADDR_MASK);
 
 				uint64_t* pd = allocate_page_aligned_page();
-				pdpt[pdpte] = (uint64_t)pd | (global_pdpt[pdpte] & PAGE_FLAG_MASK);
+				pdpt[pdpte] = V2P(pd) | (global_pdpt[pdpte] & PAGE_FLAG_MASK);
 
 				for (uint32_t pde = 0; pde < 512; pde++)
 				{
 					if (!(global_pd[pde] & Flags::Present))
 						continue;
 
-					uint64_t* global_pt = (uint64_t*)(global_pd[pde] & PAGE_ADDR_MASK);
+					uint64_t* global_pt = (uint64_t*)P2V(global_pd[pde] & PAGE_ADDR_MASK);
 
 					uint64_t* pt = allocate_page_aligned_page();
-					pd[pde] = (uint64_t)pt | (global_pd[pde] & PAGE_FLAG_MASK);
+					pd[pde] = V2P(pt) | (global_pd[pde] & PAGE_FLAG_MASK);
 
 					memcpy(pt, global_pt, PAGE_SIZE);
 				}
@@ -131,7 +129,7 @@ namespace Kernel
 		PageTable* result = new PageTable;
 		if (result == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
-		result->m_highest_paging_struct = (paddr_t)pml4;
+		result->m_highest_paging_struct = V2P(pml4);
 		return result;
 	}
 
