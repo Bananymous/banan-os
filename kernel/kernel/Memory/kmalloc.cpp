@@ -383,7 +383,7 @@ void kfree(void* address)
 	}
 	else
 	{
-		Kernel::panic("Trying to free a pointer outsize of kmalloc memory");
+		Kernel::panic("Trying to free a pointer {8H} outsize of kmalloc memory", address);
 	}
 
 }
