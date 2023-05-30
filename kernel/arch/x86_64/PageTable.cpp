@@ -284,7 +284,7 @@ namespace Kernel
 		pt[pte] = paddr | flags;
 	}
 
-	void PageTable::map_range_at(paddr_t paddr, vaddr_t vaddr, size_t bytes, flags_t flags)
+	void PageTable::map_range_at(paddr_t paddr, vaddr_t vaddr, size_t size, flags_t flags)
 	{
 		LockGuard _(m_lock);
 
@@ -293,8 +293,11 @@ namespace Kernel
 		ASSERT(paddr % PAGE_SIZE == 0);
 		ASSERT(vaddr % PAGE_SIZE == 0);
 
-		for (size_t offset = 0; offset < bytes; offset += PAGE_SIZE)
-			map_page_at(paddr + offset, vaddr + offset, flags);	
+		size_t first_page = vaddr / PAGE_SIZE;
+		size_t last_page = (vaddr + size - 1) / PAGE_SIZE;
+		size_t page_count = last_page - first_page + 1;
+		for (size_t page = 0; page < page_count; page++)
+			map_page_at(paddr + page * PAGE_SIZE, vaddr + page * PAGE_SIZE, flags);
 	}
 
 	uint64_t PageTable::get_page_data(vaddr_t vaddr) const
