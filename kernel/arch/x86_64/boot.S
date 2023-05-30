@@ -49,7 +49,7 @@
 
 .section .text
 
-# Identity map first GiB
+# Map first GiB to 0x00000000 and 0xFFFFFFFF80000000
 .align 4096
 boot_pml4:
 	.quad V2P(boot_pdpt_lo) + (PG_READ_WRITE | PG_PRESENT)
@@ -58,22 +58,16 @@ boot_pml4:
 	.endr
 	.quad V2P(boot_pdpt_hi) + (PG_READ_WRITE | PG_PRESENT)
 boot_pdpt_lo:
-	.quad V2P(boot_pd) + (PG_READ_WRITE | PG_PRESENT)
+	.quad 0x00000000 + (PG_PAGE_SIZE | PG_READ_WRITE | PG_PRESENT)
 	.rept 511
 		.quad 0
 	.endr
 boot_pdpt_hi:
 	.rept 510
 		.quad 0
-	.endr	
-	.quad V2P(boot_pd) + (PG_READ_WRITE | PG_PRESENT)
-	.quad 0
-boot_pd: # 1 GiB
-	.set i, 0
-	.rept 512
-		.quad i + (PG_PAGE_SIZE | PG_READ_WRITE | PG_PRESENT)
-		.set i, i + 0x00200000
 	.endr
+	.quad 0x00000000 + (PG_PAGE_SIZE | PG_READ_WRITE | PG_PRESENT)
+	.quad 0
 
 boot_gdt:
 	.quad 0x0000000000000000 # null descriptor
