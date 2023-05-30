@@ -135,24 +135,22 @@ namespace Kernel
 
 	PageTable::~PageTable()
 	{
-		ASSERT_NOT_REACHED();
-
 		uint64_t* pml4 = (uint64_t*)P2V(m_highest_paging_struct);
 		for (uint32_t pml4e = 0; pml4e < 512; pml4e++)
 		{
 			if (!(pml4[pml4e] & Flags::Present))
 				continue;
-			uint64_t* pdpt = (uint64_t*)(pml4[pml4e] & PAGE_ADDR_MASK);
+			uint64_t* pdpt = (uint64_t*)P2V(pml4[pml4e] & PAGE_ADDR_MASK);
 			for (uint32_t pdpte = 0; pdpte < 512; pdpte++)
 			{
 				if (!(pdpt[pdpte] & Flags::Present))
 					continue;
-				uint64_t* pd = (uint64_t*)(pdpt[pdpte] & PAGE_ADDR_MASK);
+				uint64_t* pd = (uint64_t*)P2V(pdpt[pdpte] & PAGE_ADDR_MASK);
 				for (uint32_t pde = 0; pde < 512; pde++)
 				{
 					if (!(pd[pde] & Flags::Present))
 						continue;
-					kfree((void*)(pd[pde] & PAGE_ADDR_MASK));
+					kfree((void*)P2V(pd[pde] & PAGE_ADDR_MASK));
 				}
 				kfree(pd);
 			}
