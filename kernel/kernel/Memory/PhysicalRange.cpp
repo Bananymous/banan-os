@@ -11,11 +11,11 @@ namespace Kernel
 	PhysicalRange::PhysicalRange(paddr_t start, size_t size)
 	{
 		// We can't use the memory ovelapping with kernel
-		if (start + size <= (paddr_t)g_kernel_end)
+		if (start + size <= V2P(g_kernel_end))
 			return;
 
 		// Align start to page boundary and after the kernel memory
-		m_start = BAN::Math::max(start, (paddr_t)g_kernel_end);
+		m_start = BAN::Math::max(start, V2P(g_kernel_end));
 		if (auto rem = m_start % PAGE_SIZE)
 			m_start += PAGE_SIZE - rem;
 
