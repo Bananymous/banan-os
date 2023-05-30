@@ -73,11 +73,8 @@ namespace Kernel
 
 	void PageTable::initialize_kernel()
 	{
+		// Map (0 -> phys_kernel_end) to (KERNEL_OFFSET -> virt_kernel_end)
 		m_highest_paging_struct = V2P(allocate_page_aligned_page());
-		memset((void*)P2V(m_highest_paging_struct), 0, PAGE_SIZE);
-
-		// Identity map 4 KiB -> kernel end. We don't map the first page since nullptr derefs should
-		// page fault. Also there isn't anything useful in that memory.
 		map_range_at(0, KERNEL_OFFSET, (uintptr_t)g_kernel_end - KERNEL_OFFSET, Flags::ReadWrite | Flags::Present);
 	}
 
