@@ -33,6 +33,7 @@ namespace Kernel
 		void unmap_page(vaddr_t);
 		void unmap_range(vaddr_t, size_t bytes);
 
+		void map_range_at(paddr_t, vaddr_t, size_t, flags_t);
 		void map_page_at(paddr_t, vaddr_t, flags_t);
 
 		paddr_t physical_address_of(vaddr_t) const;
@@ -56,7 +57,7 @@ namespace Kernel
 		void initialize_kernel();
 
 	private:
-		uint64_t*					m_highest_paging_struct { nullptr };
+		paddr_t						m_highest_paging_struct { 0 };
 		mutable RecursiveSpinLock	m_lock;
 	};
 
