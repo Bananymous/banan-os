@@ -74,7 +74,8 @@ if [ ! -f ${PREFIX}/bin/${TARGET}-g++ ]; then
 		--with-sysroot="$SYSROOT" \
 		--enable-languages=c,c++
 
-	make -j $(nproc) all-gcc all-target-libgcc
+	make -j $(nproc) all-gcc 
+	make -j $(nproc) all-target-libgcc CFLAGS_FOR_TARGET='-g -O2 -mcmodel=large -mno-red-zone'
 	make install-gcc install-target-libgcc
 
 fi
