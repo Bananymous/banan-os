@@ -125,7 +125,7 @@ if(ENABLE_KERNEL_UBSAN)
 endif()
 
 if("${BANAN_ARCH}" STREQUAL "x86_64")
-	target_compile_options(kernel PUBLIC -mcmodel=large -mno-red-zone -mno-mmx)
+	target_compile_options(kernel PUBLIC -mcmodel=kernel -mno-red-zone -mno-mmx)
 	target_link_options(kernel PUBLIC LINKER:-z,max-page-size=4096)
 	target_link_options(kernel PUBLIC LINKER:-T,${CMAKE_CURRENT_SOURCE_DIR}/arch/x86_64/linker.ld)
 elseif("${BANAN_ARCH}" STREQUAL "i386")
