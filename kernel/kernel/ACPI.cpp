@@ -82,7 +82,7 @@ namespace Kernel
 	static const RSDP* locate_rsdp()
 	{
 		// Look in main BIOS area below 1 MB
-		for (uintptr_t addr = 0x000E0000; addr < 0x000FFFFF; addr += 16)
+		for (uintptr_t addr = P2V(0x000E0000); addr < P2V(0x000FFFFF); addr += 16)
 			if (is_rsdp(addr))
 				return (const RSDP*)addr;
 		return nullptr;
@@ -120,8 +120,8 @@ namespace Kernel
 		else
 		{
 			const RSDT* rsdt = (const RSDT*)(uintptr_t)rsdp->rsdt_address;
-			PageTable::kernel().identity_map_page((uintptr_t)rsdt, PageTable::Flags::Present);
-			BAN::ScopeGuard _([rsdt] { PageTable::kernel().unmap_page((uintptr_t)rsdt); });
+			PageTable::kernel().identity_map_page((vaddr_t)rsdt, PageTable::Flags::Present);
+			BAN::ScopeGuard _([rsdt] { PageTable::kernel().unmap_page((vaddr_t)rsdt); });
 
 			if (memcmp(rsdt->signature, "RSDT", 4) != 0)
 				return BAN::Error::from_error_code(ErrorCode::ACPI_RootInvalid);
