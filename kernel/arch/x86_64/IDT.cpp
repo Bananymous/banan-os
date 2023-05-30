@@ -101,6 +101,9 @@ namespace IDT
 
 	extern "C" void cpp_isr_handler(uint64_t isr, uint64_t error, const Registers* regs)
 	{
+		pid_t tid = Kernel::Scheduler::current_tid();
+		pid_t pid = tid ? Kernel::Process::current().pid() : 0;
+
 		dwarnln(
 			"{} (error code: 0x{16H}), pid {}, tid {}\r\n"
 			"Register dump\r\n"
@@ -108,14 +111,14 @@ namespace IDT
 			"rsp=0x{16H}, rbp=0x{16H}, rdi=0x{16H}, rsi=0x{16H}\r\n"
 			"rip=0x{16H}, rflags=0x{16H}\r\n"
 			"cr0=0x{16H}, cr2=0x{16H}, cr3=0x{16H}, cr4=0x{16H}",
-			isr_exceptions[isr], error, Kernel::Process::current().pid(), Kernel::Thread::current().tid(),
+			isr_exceptions[isr], error, pid, tid,
 			regs->rax, regs->rbx, regs->rcx, regs->rdx,
 			regs->rsp, regs->rbp, regs->rdi, regs->rsi,
 			regs->rip, regs->rflags,
 			regs->cr0, regs->cr2, regs->cr3, regs->cr4
 		);
 
-		if (Kernel::Thread::current().is_userspace() && !Kernel::Thread::current().is_in_syscall())
+		if (tid && Kernel::Thread::current().is_userspace() && !Kernel::Thread::current().is_in_syscall())
 		{
 			auto message = BAN::String::formatted("{}, aborting\n", isr_exceptions[isr]);
 			(void)Kernel::Process::current().write(STDERR_FILENO, message.data(), message.size());

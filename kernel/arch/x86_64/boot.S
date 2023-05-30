@@ -10,6 +10,9 @@
 .set PG_READ_WRITE,	1<<1
 .set PG_PAGE_SIZE,	1<<7
 
+#define KERNEL_OFFSET 0xFFFFFFFF80000000
+#define V2P(vaddr) ((vaddr) - KERNEL_OFFSET)
+
 .code32
 
 # Multiboot header
@@ -49,16 +52,23 @@
 # Identity map first GiB
 .align 4096
 boot_pml4:
-	.quad boot_pdpt + (PG_READ_WRITE | PG_PRESENT)
+	.quad V2P(boot_pdpt_lo) + (PG_READ_WRITE | PG_PRESENT)
+	.rept 510
+		.quad 0
+	.endr
+	.quad V2P(boot_pdpt_hi) + (PG_READ_WRITE | PG_PRESENT)
+boot_pdpt_lo:
+	.quad V2P(boot_pd) + (PG_READ_WRITE | PG_PRESENT)
 	.rept 511
 		.quad 0
 	.endr
-boot_pdpt:
-	.quad boot_pd + (PG_READ_WRITE | PG_PRESENT)
-	.rept 511
+boot_pdpt_hi:
+	.rept 510
 		.quad 0
-	.endr
-boot_pd:
+	.endr	
+	.quad V2P(boot_pd) + (PG_READ_WRITE | PG_PRESENT)
+	.quad 0
+boot_pd: # 1 GiB
 	.set i, 0
 	.rept 512
 		.quad i + (PG_PAGE_SIZE | PG_READ_WRITE | PG_PRESENT)
@@ -71,7 +81,7 @@ boot_gdt:
 	.quad 0x00AF92000000FFFF # kernel data
 boot_gdtr:
 	.short . - boot_gdt - 1
-	.quad boot_gdt
+	.quad V2P(boot_gdt)
 
 has_cpuid:
 	pushfl
@@ -110,11 +120,11 @@ check_requirements:
 copy_kernel_commandline:
 	pushl %esi
 	pushl %edi
-	movl g_multiboot_info, %esi
+	movl V2P(g_multiboot_info), %esi
 	addl $16, %esi
 	movl (%esi), %esi
 	movl $1024, %ecx
-	movl $g_kernel_cmdline, %edi
+	movl $V2P(g_kernel_cmdline), %edi
 	rep movsl
 	popl %edi
 	popl %esi
@@ -143,7 +153,7 @@ initialize_paging:
 	wrmsr
 
 	# set address of paging structures
-	movl $boot_pml4, %ecx
+	movl $V2P(boot_pml4), %ecx
 	movl %ecx, %cr3
 
 	# enable paging
@@ -157,9 +167,9 @@ initialize_paging:
 .type _start, @function
 _start:
 	# Initialize stack and multiboot info
-	movl $g_boot_stack_top, %esp
-	movl %eax, g_multiboot_magic
-	movl %ebx, g_multiboot_info
+	movl $V2P(g_boot_stack_top), %esp
+	movl %eax, V2P(g_multiboot_magic)
+	movl %ebx, V2P(g_multiboot_info)
 
 	call copy_kernel_commandline
 	call check_requirements
@@ -168,8 +178,8 @@ _start:
 	call initialize_paging
 
 	# flush gdt and jump to 64 bit
-	lgdt boot_gdtr
-	ljmpl $0x08, $long_mode
+	lgdt V2P(boot_gdtr)
+	ljmpl $0x08, $V2P(long_mode)
 
 .code64
 long_mode:
@@ -182,6 +192,13 @@ long_mode:
 	movw %ax, %es
 	movw %ax, %fs
 	movw %ax, %gs
+
+	# jump to higher half
+	movq $g_boot_stack_top, %rsp
+	movabsq $higher_half, %rcx
+	jmp *%rcx
+
+higher_half:
 
 	# call global constuctors
 	call _init

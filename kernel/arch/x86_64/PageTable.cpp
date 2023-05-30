@@ -12,6 +12,7 @@
 		kfree(s);							\
 	} while (false)
 
+extern uint8_t g_kernel_start[];
 extern uint8_t g_kernel_end[];
 
 namespace Kernel
@@ -19,6 +20,20 @@ namespace Kernel
 	
 	static PageTable* s_kernel = nullptr;
 	static PageTable* s_current = nullptr;
+
+	static inline bool is_canonical(uintptr_t addr)
+	{
+		static constexpr uintptr_t mask = 0xFFFF800000000000;
+		addr &= mask;
+		return addr == mask || addr == 0;
+	}
+
+	static inline void uncanonicalize(uintptr_t& addr)
+	{
+		static constexpr uintptr_t mask = 0xFFFF800000000000;
+		addr &= mask;
+		ASSERT(addr == mask || addr == 0);
+	}
 
 	void PageTable::initialize()
 	{
@@ -56,7 +71,7 @@ namespace Kernel
 
 		// Identity map 4 KiB -> kernel end. We don't map the first page since nullptr derefs should
 		// page fault. Also there isn't anything useful in that memory.
-		identity_map_range(PAGE_SIZE, (uintptr_t)g_kernel_end, Flags::ReadWrite | Flags::Present);
+		identity_map_range((uintptr_t)g_kernel_start, (uintptr_t)(g_kernel_end - g_kernel_start), Flags::ReadWrite | Flags::Present);
 	}
 
 	BAN::ErrorOr<PageTable*> PageTable::create_userspace()
@@ -169,7 +184,7 @@ namespace Kernel
 	{
 		LockGuard _(m_lock);
 
-		ASSERT((address >> 48) == 0);
+		uncanonicalize(address);
 
 		address &= PAGE_ADDR_MASK;
 
@@ -212,8 +227,8 @@ namespace Kernel
 	{
 		LockGuard _(m_lock);
 
-		ASSERT((paddr >> 48) == 0);
-		ASSERT((vaddr >> 48) == 0);
+		ASSERT(is_canonical(paddr));
+		uncanonicalize(vaddr);
 
 		ASSERT(paddr % PAGE_SIZE == 0);
 		ASSERT(vaddr % PAGE_SIZE == 0);;
@@ -257,7 +272,7 @@ namespace Kernel
 	{
 		LockGuard _(m_lock);
 
-		ASSERT((address >> 48) == 0);
+		uncanonicalize(address);
 		ASSERT(address % PAGE_SIZE == 0);
 
 		uint64_t pml4e = (address >> 39) & 0x1FF;
