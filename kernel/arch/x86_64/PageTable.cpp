@@ -4,10 +4,6 @@
 #include <kernel/Memory/kmalloc.h>
 #include <kernel/Memory/PageTable.h>
 
-#define KERNEL_OFFSET 0xFFFFFFFF80000000
-#define V2P(vaddr) (((vaddr_t)(vaddr)) - KERNEL_OFFSET)
-#define P2V(paddr) (((paddr_t)(paddr)) + KERNEL_OFFSET)
-
 #define CLEANUP_STRUCTURE(s)				\
 	do {									\
 		for (uint64_t i = 0; i < 512; i++)	\
