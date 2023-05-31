@@ -213,7 +213,7 @@ namespace BAN
 	template<typename T>
 	ErrorOr<void> Vector<T>::insert(size_type index, const T& value)
 	{
-		return insert(move(T(value)), index);
+		return insert(index, move(T(value)));
 	}
 
 	template<typename T>
