@@ -28,7 +28,7 @@ namespace Kernel
 
 	public:
 		static BAN::ErrorOr<Thread*> create_kernel(entry_t, void*, Process*);
-		static BAN::ErrorOr<Thread*> create_userspace(uintptr_t, Process*, int, char**);
+		static BAN::ErrorOr<Thread*> create_userspace(Process*);
 		~Thread();
 
 		BAN::ErrorOr<Thread*> clone(Process*, uintptr_t rsp, uintptr_t rip);
@@ -68,14 +68,6 @@ namespace Kernel
 		void validate_stack() const;
 
 	private:
-		struct userspace_entry_t
-		{
-			uintptr_t entry;
-			int argc  { 0 };
-			char** argv  { 0 };
-		};
-
-	private:
 		static constexpr size_t m_kernel_stack_size		= PAGE_SIZE * 1;
 		static constexpr size_t m_userspace_stack_size	= PAGE_SIZE * 2;
 		static constexpr size_t m_interrupt_stack_size	= PAGE_SIZE * 2;
@@ -88,8 +80,6 @@ namespace Kernel
 		Process*		m_process			{ nullptr };
 		bool			m_in_syscall		{ false };
 		bool			m_is_userspace		{ false };
-
-		userspace_entry_t m_userspace_entry;
 
 		friend class Scheduler;
 	};

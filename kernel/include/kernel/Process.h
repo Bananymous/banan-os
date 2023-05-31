@@ -25,6 +25,13 @@ namespace Kernel
 	public:
 		using entry_t = Thread::entry_t;
 
+		struct userspace_entry_t
+		{
+			uintptr_t entry { 0 };
+			int argc { 0 };
+			char** argv  { 0 };
+		};
+
 	public:
 		static Process* create_kernel(entry_t, void*);
 		static BAN::ErrorOr<Process*> create_userspace(BAN::StringView);
@@ -71,6 +78,8 @@ namespace Kernel
 
 		PageTable& page_table() { return m_page_table ? *m_page_table : PageTable::kernel(); }
 
+		const userspace_entry_t& userspace_entry() const { return m_userspace_entry; }
+
 	private:
 		Process(pid_t);
 		static Process* create_process();
@@ -102,6 +111,8 @@ namespace Kernel
 
 		BAN::Vector<FixedWidthAllocator*> m_fixed_width_allocators;
 		GeneralAllocator* m_general_allocator;
+
+		userspace_entry_t m_userspace_entry;
 
 		PageTable* m_page_table { nullptr };
 		TTY* m_tty { nullptr };
