@@ -188,11 +188,15 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Process::exec(BAN::StringView path, const char* const* argv, const char* const* envp)
 	{
-		if (argv == nullptr)
-			return BAN::Error::from_errno(EFAULT);
+		BAN::Vector<BAN::String> str_argv;
+		while (argv && *argv)
+			if (str_argv.emplace_back(*argv++).is_error())
+				return BAN::Error::from_errno(ENOMEM);
 
-		// FIXME: implement environment variables
-		(void)envp;
+		BAN::Vector<BAN::String> str_envp;
+		while (envp && *envp)
+			if (str_envp.emplace_back(*envp++).is_error())
+				return BAN::Error::from_errno(ENOMEM);
 
 		LockGuard lock_guard(m_lock);
 
@@ -201,23 +205,23 @@ namespace Kernel
 		ASSERT(m_threads.size() == 1);
 		ASSERT(&Process::current() == this);
 
-		int argc = 0;
-		while (argv[argc])
-			argc++;
-
 		{
 			PageTableScope _(page_table());
-			m_userspace_entry.argv = (char**)MUST(allocate(sizeof(char**) * (argc + 1)));
-			for (int i = 0; i < argc; i++)
+			m_userspace_entry.argv = (char**)MUST(allocate(sizeof(char**) * (str_argv.size() + 1)));
+			for (size_t i = 0; i < str_argv.size(); i++)
 			{
-				size_t len = strlen(argv[i]);
-				m_userspace_entry.argv[i] = (char*)MUST(allocate(len + 1));
-				memcpy(m_userspace_entry.argv[i], argv[i], len + 1);
+				m_userspace_entry.argv[i] = (char*)MUST(allocate(str_argv[i].size() + 1));
+				memcpy(m_userspace_entry.argv[i], str_argv[i].data(), str_argv[i].size());
+				m_userspace_entry.argv[i][str_argv[i].size()] = '\0';
 			}
-			m_userspace_entry.argv[argc] = nullptr;
+			m_userspace_entry.argv[str_argv.size()] = nullptr;
 		}
 
-		m_userspace_entry.argc = argc;
+		m_userspace_entry.argc = str_argv.size();
+
+		// NOTE: These must be manually cleared since this function won't return after this point
+		str_argv.clear();
+		str_envp.clear();
 
 		CriticalScope _;
 		lock_guard.~LockGuard();
