@@ -43,7 +43,7 @@ namespace Kernel
 		return thread;
 	}
 
-	BAN::ErrorOr<Thread*> Thread::create_userspace(uintptr_t entry, Process* process, int argc, char** argv)
+	BAN::ErrorOr<Thread*> Thread::create_userspace(Process* process)
 	{
 		ASSERT(process);
 
@@ -69,13 +69,11 @@ namespace Kernel
 			return BAN::Error::from_errno(ENOMEM);
 		}
 
-		thread->m_userspace_entry = { .entry = entry, .argc = argc, .argv = argv };
-
 		// Setup registers and entry
 		static entry_t entry_trampoline(
 			[](void*)
 			{
-				userspace_entry_t& entry = Thread::current().m_userspace_entry;
+				const auto& entry = Process::current().userspace_entry();
 				thread_userspace_trampoline(Thread::current().rsp(), entry.entry, entry.argc, entry.argv);
 				ASSERT_NOT_REACHED();
 			}
@@ -139,8 +137,6 @@ namespace Kernel
 
 		thread->m_rip = rip;
 		thread->m_rsp = rsp;
-
-		thread->m_userspace_entry = {};
 
 		return thread;
 	}

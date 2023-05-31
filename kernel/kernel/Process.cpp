@@ -94,13 +94,18 @@ namespace Kernel
 		char** argv = nullptr;
 		{
 			PageTableScope _(process->page_table());
-			argv = (char**)MUST(process->allocate(sizeof(char**) * 1));
+			argv = (char**)MUST(process->allocate(sizeof(char**) * 2));
 			argv[0] = (char*)MUST(process->allocate(path.size() + 1));
 			memcpy(argv[0], path.data(), path.size());
 			argv[0][path.size()] = '\0';
+			argv[1] = nullptr;
 		}
 
-		auto* thread = MUST(Thread::create_userspace(elf_file_header.e_entry, process, 1, argv));
+		process->m_userspace_entry.argc = 1;
+		process->m_userspace_entry.argv = argv;
+		process->m_userspace_entry.entry = elf_file_header.e_entry;
+
+		auto* thread = MUST(Thread::create_userspace(process));
 		process->add_thread(thread);
 
 		delete elf;
@@ -197,6 +202,8 @@ namespace Kernel
 		forked->m_working_directory = m_working_directory;
 
 		forked->m_open_files = m_open_files;
+
+		forked->m_userspace_entry = m_userspace_entry;
 
 		for (auto* mapped_range : m_mapped_ranges)
 			MUST(forked->m_mapped_ranges.push_back(mapped_range->clone(forked->page_table())));
