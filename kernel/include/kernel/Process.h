@@ -47,6 +47,7 @@ namespace Kernel
 		pid_t pid() const { return m_pid; }
 
 		BAN::ErrorOr<Process*> fork(uintptr_t rsp, uintptr_t rip);
+		BAN::ErrorOr<void> exec(BAN::StringView path, const char* const* argv, const char* const* envp);
 
 		BAN::ErrorOr<int> open(BAN::StringView, int);
 		BAN::ErrorOr<void> close(int fd);
@@ -84,6 +85,8 @@ namespace Kernel
 		Process(pid_t);
 		static Process* create_process();
 		static void register_process(Process*);
+
+		BAN::ErrorOr<void> cleanup_and_load_elf(BAN::StringView);
 
 		BAN::ErrorOr<BAN::String> absolute_path_of(BAN::StringView) const;
 

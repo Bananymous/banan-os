@@ -238,7 +238,6 @@ namespace Kernel
 
 	void Scheduler::set_current_thread_done()
 	{
-		VERIFY_STI();
 		DISABLE_INTERRUPTS();
 
 		load_temp_stack();
