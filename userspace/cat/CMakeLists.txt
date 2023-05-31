@@ -8,8 +8,7 @@ set(SOURCES
 
 add_executable(cat ${SOURCES})
 target_compile_options(cat PUBLIC -O2 -g)
-add_dependencies(cat libc-install)
-target_link_options(cat PUBLIC -nodefaultlibs -lc)
+target_link_libraries(cat PUBLIC libc)
 
 add_custom_target(cat-install
 	COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/cat ${BANAN_BIN}/

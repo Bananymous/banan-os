@@ -20,4 +20,5 @@ add_dependencies(ban headers libc-install)
 add_custom_target(ban-install
 	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/libban.a ${BANAN_LIB}/
 	DEPENDS ban
+	BYPRODUCTS ${BANAN_LIB}/libban.a
 )

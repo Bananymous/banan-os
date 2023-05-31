@@ -26,6 +26,7 @@ add_dependencies(libc headers crt0)
 add_custom_target(libc-install
 	COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/libc.a ${BANAN_LIB}/
 	DEPENDS libc
+	BYPRODUCTS ${BANAN_LIB}/libc.a
 )
 
 set(CMAKE_STATIC_LIBRARY_PREFIX "")
