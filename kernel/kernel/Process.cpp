@@ -46,49 +46,14 @@ namespace Kernel
 
 	BAN::ErrorOr<Process*> Process::create_userspace(BAN::StringView path)
 	{
-		auto* elf = TRY(LibELF::ELF::load_from_file(path));	
-		if (!elf->is_native())
-		{
-			derrorln("ELF has invalid architecture");
-			return BAN::Error::from_errno(EINVAL);
-		}
-
 		auto* process = create_process();
 		MUST(process->m_working_directory.push_back('/'));
 		process->m_page_table = MUST(PageTable::create_userspace());
 
-		auto& elf_file_header = elf->file_header_native();
-		for (size_t i = 0; i < elf_file_header.e_phnum; i++)
+		if (auto res = process->cleanup_and_load_elf(path); res.is_error())
 		{
-			auto& elf_program_header = elf->program_header_native(i);
-
-			switch (elf_program_header.p_type)
-			{
-			case LibELF::PT_NULL:
-				break;
-			case LibELF::PT_LOAD:
-			{
-				// TODO: Do some relocations or map kernel to higher half?
-				ASSERT(process->page_table().is_range_free(elf_program_header.p_vaddr, elf_program_header.p_memsz));
-				uint8_t flags = PageTable::Flags::UserSupervisor | PageTable::Flags::Present;
-				if (elf_program_header.p_flags & LibELF::PF_W)
-					flags |= PageTable::Flags::ReadWrite;
-				size_t page_start = elf_program_header.p_vaddr / PAGE_SIZE;
-				size_t page_end = BAN::Math::div_round_up<size_t>(elf_program_header.p_vaddr + elf_program_header.p_memsz, PAGE_SIZE);
-
-				size_t page_count = page_end - page_start + 1;
-				MUST(process->m_mapped_ranges.push_back(VirtualRange::create(process->page_table(), page_start * PAGE_SIZE, page_count * PAGE_SIZE, flags)));
-
-				{
-					PageTableScope _(process->page_table());
-					memcpy((void*)elf_program_header.p_vaddr, elf->data() + elf_program_header.p_offset, elf_program_header.p_filesz);
-					memset((void*)(elf_program_header.p_vaddr + elf_program_header.p_filesz), 0, elf_program_header.p_memsz - elf_program_header.p_filesz);
-				}
-				break;
-			}
-			default:
-				ASSERT_NOT_REACHED();
-			}
+			delete process;
+			return res.error();
 		}
 
 		char** argv = nullptr;
@@ -103,13 +68,9 @@ namespace Kernel
 
 		process->m_userspace_entry.argc = 1;
 		process->m_userspace_entry.argv = argv;
-		process->m_userspace_entry.entry = elf_file_header.e_entry;
 
 		auto* thread = MUST(Thread::create_userspace(process));
 		process->add_thread(thread);
-
-		delete elf;
-
 		register_process(process);
 		return process;
 	}
@@ -223,6 +184,110 @@ namespace Kernel
 		register_process(forked);
 
 		return forked;
+	}
+
+	BAN::ErrorOr<void> Process::exec(BAN::StringView path, const char* const* argv, const char* const* envp)
+	{
+		if (argv == nullptr)
+			return BAN::Error::from_errno(EFAULT);
+
+		// FIXME: implement environment variables
+		(void)envp;
+
+		LockGuard lock_guard(m_lock);
+
+		MUST(cleanup_and_load_elf(path));
+
+		ASSERT(m_threads.size() == 1);
+		ASSERT(&Process::current() == this);
+
+		int argc = 0;
+		while (argv[argc])
+			argc++;
+
+		{
+			PageTableScope _(page_table());
+			m_userspace_entry.argv = (char**)MUST(allocate(sizeof(char**) * (argc + 1)));
+			for (int i = 0; i < argc; i++)
+			{
+				size_t len = strlen(argv[i]);
+				m_userspace_entry.argv[i] = (char*)MUST(allocate(len + 1));
+				memcpy(m_userspace_entry.argv[i], argv[i], len + 1);
+			}
+			m_userspace_entry.argv[argc] = nullptr;
+		}
+
+		m_userspace_entry.argc = argc;
+
+		CriticalScope _;
+		lock_guard.~LockGuard();
+		m_threads.front()->setup_exec();
+		Scheduler::get().execute_current_thread();
+		ASSERT_NOT_REACHED();
+	}
+
+
+	BAN::ErrorOr<void> Process::cleanup_and_load_elf(BAN::StringView path)
+	{
+		auto* elf = TRY(LibELF::ELF::load_from_file(path));	
+		if (!elf->is_native())
+		{
+			derrorln("ELF has invalid architecture");
+			return BAN::Error::from_errno(EINVAL);
+		}
+
+		for (auto* allocator : m_fixed_width_allocators)
+			delete allocator;
+		m_fixed_width_allocators.clear();
+
+		if (m_general_allocator)
+			delete m_general_allocator;
+		m_general_allocator = nullptr;
+
+		for (auto* range : m_mapped_ranges)
+			delete range;
+		m_mapped_ranges.clear();
+
+		m_open_files.clear();
+
+		auto& elf_file_header = elf->file_header_native();
+		for (size_t i = 0; i < elf_file_header.e_phnum; i++)
+		{
+			auto& elf_program_header = elf->program_header_native(i);
+
+			switch (elf_program_header.p_type)
+			{
+			case LibELF::PT_NULL:
+				break;
+			case LibELF::PT_LOAD:
+			{
+				ASSERT(page_table().is_range_free(elf_program_header.p_vaddr, elf_program_header.p_memsz));
+				uint8_t flags = PageTable::Flags::UserSupervisor | PageTable::Flags::Present;
+				if (elf_program_header.p_flags & LibELF::PF_W)
+					flags |= PageTable::Flags::ReadWrite;
+				size_t page_start = elf_program_header.p_vaddr / PAGE_SIZE;
+				size_t page_end = BAN::Math::div_round_up<size_t>(elf_program_header.p_vaddr + elf_program_header.p_memsz, PAGE_SIZE);
+
+				size_t page_count = page_end - page_start + 1;
+				MUST(m_mapped_ranges.push_back(VirtualRange::create(page_table(), page_start * PAGE_SIZE, page_count * PAGE_SIZE, flags)));
+
+				{
+					PageTableScope _(page_table());
+					memcpy((void*)elf_program_header.p_vaddr, elf->data() + elf_program_header.p_offset, elf_program_header.p_filesz);
+					memset((void*)(elf_program_header.p_vaddr + elf_program_header.p_filesz), 0, elf_program_header.p_memsz - elf_program_header.p_filesz);
+				}
+				break;
+			}
+			default:
+				ASSERT_NOT_REACHED();
+			}
+		}
+
+		m_userspace_entry.entry = elf_file_header.e_entry;
+
+		delete elf;
+
+		return {};
 	}
 
 	BAN::ErrorOr<int> Process::open(BAN::StringView path, int flags)

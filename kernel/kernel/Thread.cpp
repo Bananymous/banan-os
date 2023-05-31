@@ -69,25 +69,7 @@ namespace Kernel
 			return BAN::Error::from_errno(ENOMEM);
 		}
 
-		// Setup registers and entry
-		static entry_t entry_trampoline(
-			[](void*)
-			{
-				const auto& entry = Process::current().userspace_entry();
-				thread_userspace_trampoline(Thread::current().rsp(), entry.entry, entry.argc, entry.argv);
-				ASSERT_NOT_REACHED();
-			}
-		);
-		thread->m_rsp = thread->stack_base() + thread->stack_size();
-		thread->m_rip = (uintptr_t)entry_trampoline;
-
-		// Setup stack for returning
-		{
-			PageTableScope _(process->page_table());
-			write_to_stack<sizeof(void*)>(thread->m_rsp, thread);
-			write_to_stack<sizeof(void*)>(thread->m_rsp, &Thread::on_exit);
-			write_to_stack<sizeof(void*)>(thread->m_rsp, nullptr);
-		}
+		thread->setup_exec();
 
 		return thread;
 	}
@@ -139,6 +121,30 @@ namespace Kernel
 		thread->m_rsp = rsp;
 
 		return thread;
+	}
+
+	void Thread::setup_exec()
+	{
+		ASSERT(is_userspace());
+		m_state = State::NotStarted;
+		static entry_t entry_trampoline(
+			[](void*)
+			{
+				const auto& entry = Process::current().userspace_entry();
+				thread_userspace_trampoline(Thread::current().rsp(), entry.entry, entry.argc, entry.argv);
+				ASSERT_NOT_REACHED();
+			}
+		);
+		m_rsp = stack_base() + stack_size();
+		m_rip = (uintptr_t)entry_trampoline;
+
+		// Setup stack for returning
+		{
+			PageTableScope _(m_process->page_table());
+			write_to_stack<sizeof(void*)>(m_rsp, this);
+			write_to_stack<sizeof(void*)>(m_rsp, &Thread::on_exit);
+			write_to_stack<sizeof(void*)>(m_rsp, nullptr);
+		}
 	}
 
 	void Thread::validate_stack() const

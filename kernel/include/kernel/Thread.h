@@ -32,6 +32,7 @@ namespace Kernel
 		~Thread();
 
 		BAN::ErrorOr<Thread*> clone(Process*, uintptr_t rsp, uintptr_t rip);
+		void setup_exec();
 
 		pid_t tid() const { return m_tid; }
 
