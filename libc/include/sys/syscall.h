@@ -19,6 +19,7 @@ __BEGIN_DECLS
 #define SYS_SET_TERMIOS 12
 #define SYS_FORK 13
 #define SYS_SLEEP 14
+#define SYS_EXEC 15
 
 __END_DECLS
 
