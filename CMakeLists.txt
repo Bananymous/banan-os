@@ -36,6 +36,7 @@ add_custom_target(sysroot
 	COMMAND mkdir -p ${BANAN_SYSROOT}
 	COMMAND mkdir -p ${BANAN_INCLUDE}
 	COMMAND mkdir -p ${BANAN_LIB}
+	COMMAND mkdir -p ${BANAN_BIN}
 	COMMAND mkdir -p ${BANAN_BOOT}
 	COMMAND cp -r ${CMAKE_SOURCE_DIR}/base/* ${BANAN_SYSROOT}/
 )
