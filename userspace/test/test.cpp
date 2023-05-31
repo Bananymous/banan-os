@@ -10,25 +10,17 @@ int main()
 {
 	printf("userspace\n");
 
-	FILE* fp = fopen("/usr/include/kernel/kprint.h", "r");
-	if (fp == NULL)
-		ERROR("fopen");
-
-	char* buffer = (char*)malloc(128);
-	fread(buffer, 1, 100, fp);
-
-	pid_t pid = fork();
-	if (pid == 0)
+	if (fork() == 0)
 	{
-		while (size_t n_read = fread(buffer, 1, 127, fp))
-			fwrite(buffer, 1, n_read, stdout);
-		free(buffer);
-		fclose(fp);
+		char* argv[3];
+		argv[0] = (char*)malloc(100); strcpy(argv[0], "/usr/bin/cat");
+		argv[1] = (char*)malloc(100); strcpy(argv[1], "/usr/include/kernel/kprint.h");
+		argv[2] = NULL;
+		execv("/usr/bin/cat", (char**)argv);
+		ERROR("execl");
 		return 0;
 	}
 
-	free(buffer);
-	fclose(fp);
-
+	printf("parent\n");
 	return 0;
 }

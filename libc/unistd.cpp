@@ -2,8 +2,9 @@
 #include <kernel/Syscall.h>
 #include <errno.h>
 #include <stdarg.h>
-#include <stddef.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <sys/syscall.h>
 #include <unistd.h>
 
@@ -121,6 +122,14 @@ long syscall(long syscall, ...)
 			ret = Kernel::syscall(SYS_SLEEP, seconds);
 			break;
 		}
+		case SYS_EXEC:
+		{
+			const char* pathname = va_arg(args, const char*);
+			const char* const* argv = va_arg(args, const char* const*);
+			const char* const* envp = va_arg(args, const char* const*);
+			ret = Kernel::syscall(SYS_EXEC, (uintptr_t)pathname, (uintptr_t)argv, (uintptr_t)envp);
+			break;
+		}
 		default:
 			puts("LibC: Unhandeled syscall");
 			ret = -ENOSYS;
@@ -136,6 +145,11 @@ long syscall(long syscall, ...)
 	}
 
 	return ret;
+}
+
+int execv(const char* pathname, char* const argv[])
+{
+	return syscall(SYS_EXEC, pathname, argv, nullptr);
 }
 
 pid_t fork(void)
