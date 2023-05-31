@@ -40,7 +40,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> VirtualFileSystem::mount(BAN::StringView partition, BAN::StringView target)
 	{
-		auto partition_file = TRY(file_from_absolute_path(partition));
+		auto partition_file = TRY(file_from_absolute_path(partition, true));
 		if (partition_file.inode->inode_type() != Inode::InodeType::Device)
 			return BAN::Error::from_errno(ENOTBLK);
 
@@ -54,7 +54,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> VirtualFileSystem::mount(FileSystem* file_system, BAN::StringView path)
 	{
-		auto file = TRY(file_from_absolute_path(path));
+		auto file = TRY(file_from_absolute_path(path, true));
 		if (!file.inode->mode().ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
 
@@ -82,7 +82,7 @@ namespace Kernel
 		return nullptr;
 	}
 
-	BAN::ErrorOr<VirtualFileSystem::File> VirtualFileSystem::file_from_absolute_path(BAN::StringView path)
+	BAN::ErrorOr<VirtualFileSystem::File> VirtualFileSystem::file_from_absolute_path(BAN::StringView path, bool follow_links)
 	{
 		LockGuard _(m_lock);
 
@@ -124,6 +124,28 @@ namespace Kernel
 
 				if (auto* mount_point = mount_from_host_inode(inode))
 					inode = mount_point->target->root_inode();
+
+				if (follow_links && inode->mode().iflnk())
+				{
+					auto target = TRY(inode->link_target());
+					if (target.empty())
+						return BAN::Error::from_errno(ENOENT);
+					if (target.front() == '/')
+					{
+						File file = TRY(file_from_absolute_path(target, follow_links));
+						inode = file.inode;
+						canonical_path = BAN::move(file.canonical_path);
+					}
+					else
+					{
+						while (canonical_path.back() != '/')
+							canonical_path.pop_back();
+						TRY(canonical_path.append(target));
+						File file = TRY(file_from_absolute_path(canonical_path, follow_links));
+						inode = file.inode;
+						canonical_path = BAN::move(file.canonical_path);
+					}
+				}
 			}
 		}
 

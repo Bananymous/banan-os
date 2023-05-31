@@ -247,6 +247,14 @@ namespace Kernel
 		ASSERT_NOT_REACHED();
 	}
 	
+	BAN::ErrorOr<BAN::String> Ext2Inode::link_target()
+	{
+		ASSERT(mode().iflnk());
+		if (m_inode.size < sizeof(m_inode.block))
+			return BAN::String((const char*)m_inode.block);
+		ASSERT_NOT_REACHED();
+	}
+
 	BAN::ErrorOr<size_t> Ext2Inode::read(size_t offset, void* buffer, size_t count)
 	{
 		// FIXME: update atime if needed
