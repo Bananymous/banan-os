@@ -57,6 +57,9 @@ namespace Kernel
 
 	Shell::Shell()
 	{
+		MUST(Process::current().open("/dev/tty1", O_RDONLY));
+		MUST(Process::current().open("/dev/tty1", O_WRONLY));
+		MUST(Process::current().open("/dev/tty1", O_WRONLY));
 		MUST(set_prompt(s_default_prompt));
 		MUST(m_buffer.push_back(""sv));
 		MUST(Process::current().set_termios(termios { .canonical = false, .echo = false }));
