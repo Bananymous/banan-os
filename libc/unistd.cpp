@@ -147,6 +147,38 @@ long syscall(long syscall, ...)
 	return ret;
 }
 
+int execl(const char* pathname, const char* arg0, ...)
+{
+	if (arg0 == nullptr)
+	{
+		char* temp = nullptr;
+		return execv(pathname, &temp);
+	}
+	
+	va_list ap;
+	va_start(ap, arg0);
+	int argc = 1;
+	while (va_arg(ap, const char*))
+		argc++;
+	va_end(ap);
+
+	char** argv = (char**)malloc(sizeof(char*) * (argc + 1));
+	if (argv == nullptr)
+	{
+		errno = ENOMEM;
+		return -1;
+	}
+
+	va_start(ap, arg0);
+	argv[0] = (char*)arg0;
+	for (int i = 1; i < argc; i++)
+		argv[i] = va_arg(ap, char*);
+	argv[argc] = nullptr;
+	va_end(ap);
+
+	return execv(pathname, argv);
+}
+
 int execv(const char* pathname, char* const argv[])
 {
 	return syscall(SYS_EXEC, pathname, argv, nullptr);

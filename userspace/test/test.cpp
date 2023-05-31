@@ -12,11 +12,7 @@ int main()
 
 	if (fork() == 0)
 	{
-		char* argv[3];
-		argv[0] = (char*)malloc(100); strcpy(argv[0], "/usr/bin/cat");
-		argv[1] = (char*)malloc(100); strcpy(argv[1], "/usr/include/kernel/kprint.h");
-		argv[2] = NULL;
-		execv("/usr/bin/cat", (char**)argv);
+		execl("/usr/bin/cat", "/usr/bin/cat", "/usr/include/kernel/kprint.h", NULL);
 		ERROR("execl");
 		return 0;
 	}
