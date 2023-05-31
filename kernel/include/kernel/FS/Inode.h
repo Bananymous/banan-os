@@ -78,6 +78,8 @@ namespace Kernel
 
 		virtual BAN::StringView name() const = 0;
 
+		virtual BAN::ErrorOr<BAN::String> link_target() { ASSERT_NOT_REACHED(); }
+
 		virtual BAN::ErrorOr<BAN::RefPtr<Inode>> read_directory_inode(BAN::StringView) { if (!mode().ifdir()) return BAN::Error::from_errno(ENOTDIR); ASSERT_NOT_REACHED(); }
 		virtual BAN::ErrorOr<BAN::Vector<BAN::String>> read_directory_entries(size_t)  { if (!mode().ifdir()) return BAN::Error::from_errno(ENOTDIR); ASSERT_NOT_REACHED(); }
 

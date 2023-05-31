@@ -301,7 +301,7 @@ namespace Kernel
 
 		BAN::String absolute_path = TRY(absolute_path_of(path));
 
-		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(absolute_path));
+		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(absolute_path, !(flags & O_NOFOLLOW)));
 
 		LockGuard _(m_lock);
 		int fd = TRY(get_free_fd());
@@ -421,7 +421,7 @@ namespace Kernel
 		auto directory = absolute_path.sv().substring(0, index);
 		auto file_name = absolute_path.sv().substring(index);
 
-		auto parent_file = TRY(VirtualFileSystem::get().file_from_absolute_path(directory));
+		auto parent_file = TRY(VirtualFileSystem::get().file_from_absolute_path(directory, true));
 		TRY(parent_file.inode->create_file(file_name, mode));
 
 		return {};
@@ -510,7 +510,7 @@ namespace Kernel
 	{
 		BAN::String absolute_path = TRY(absolute_path_of(path));
 
-		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(absolute_path));
+		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(absolute_path, true));
 		if (!file.inode->mode().ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
 

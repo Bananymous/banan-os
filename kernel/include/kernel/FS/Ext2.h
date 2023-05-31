@@ -141,9 +141,12 @@ namespace Kernel
 
 		virtual BAN::StringView name() const override { return m_name; }
 
-		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t) override;
+		virtual BAN::ErrorOr<BAN::String> link_target() override;
+		
 		virtual BAN::ErrorOr<BAN::Vector<BAN::String>> read_directory_entries(size_t) override;
 		virtual BAN::ErrorOr<BAN::RefPtr<Inode>> read_directory_inode(BAN::StringView) override;
+
+		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t) override;
 
 		virtual BAN::ErrorOr<void> create_file(BAN::StringView, mode_t) override;
 

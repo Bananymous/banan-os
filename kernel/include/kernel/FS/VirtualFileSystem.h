@@ -25,7 +25,7 @@ namespace Kernel
 			BAN::RefPtr<Inode> inode;
 			BAN::String canonical_path;
 		};
-		BAN::ErrorOr<File> file_from_absolute_path(BAN::StringView);
+		BAN::ErrorOr<File> file_from_absolute_path(BAN::StringView, bool follow_links);
 
 	private:
 		VirtualFileSystem() = default;
@@ -39,7 +39,7 @@ namespace Kernel
 		MountPoint* mount_from_root_inode(BAN::RefPtr<Inode>);
 
 	private:
-		SpinLock						m_lock;
+		RecursiveSpinLock				m_lock;
 		FileSystem*						m_root_fs = nullptr;
 		BAN::Vector<MountPoint>			m_mount_points;
 	};
