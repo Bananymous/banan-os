@@ -11,6 +11,7 @@ __BEGIN_DECLS
 #define __need_suseconds_t
 #include <sys/types.h>
 
+// NOTE: select is declared from here
 #include <sys/select.h>
 
 struct timeval
@@ -32,7 +33,6 @@ struct itimerval
 int getitimer(int which, struct itimerval* value);
 int gettimeofday(struct timeval* __restrict tp, void* __restrict tzp);
 int setitimer(int which, const struct itimerval* __restrict value, struct itimerval* __restrict ovalue);
-int select(int nfds, fd_set* __restrict readfds, fd_set* __restrict writefds, fd_set* __restrict errorfds, struct timeval* __restrict timeout);
 int utimes(const char* path, const struct timeval times[2]);
 
 __END_DECLS
