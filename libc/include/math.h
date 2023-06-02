@@ -55,7 +55,7 @@ int signbit(real-floating x);
 #define HUGE_VAL	1e10000
 #define HUGE_VALF	1e10000f
 #define HUGE_VALL	1e10000L
-#define INFINITY	HUGE_VALf
+#define INFINITY	HUGE_VALF
 #define NAN			(0.0f / 0.0f)
 
 #define FP_INFINITE		0
