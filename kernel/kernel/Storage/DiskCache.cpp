@@ -55,15 +55,17 @@ namespace Kernel
 		}
 
 		// We try to allocate new cache block for this sector
-		TRY(m_cache.emplace_back());
-		if (paddr_t paddr = Heap::get().take_free_page())
+		if (!m_cache.emplace_back().is_error())
 		{
-			auto& cache_block = m_cache.back();
-			cache_block.paddr = paddr;
-			cache_block.write_sector(m_device, 0, buffer);
-			cache_block.sectors[0].sector = sector;
-			cache_block.sectors[0].dirty = false;
-			return {};
+			if (paddr_t paddr = Heap::get().take_free_page())
+			{
+				auto& cache_block = m_cache.back();
+				cache_block.paddr = paddr;
+				cache_block.write_sector(m_device, 0, buffer);
+				cache_block.sectors[0].sector = sector;
+				cache_block.sectors[0].dirty = false;
+				return {};
+			}
 		}
 
 		// We could not cache the sector
@@ -106,15 +108,17 @@ namespace Kernel
 		}
 
 		// We try to allocate new cache block
-		TRY(m_cache.emplace_back());
-		if (paddr_t paddr = Heap::get().take_free_page())
+		if (!m_cache.emplace_back().is_error())
 		{
-			auto& cache_block = m_cache.back();
-			cache_block.paddr = paddr;
-			cache_block.write_sector(m_device, 0, buffer);
-			cache_block.sectors[0].sector = sector;
-			cache_block.sectors[0].dirty = true;
-			return {};
+			if (paddr_t paddr = Heap::get().take_free_page())
+			{
+				auto& cache_block = m_cache.back();
+				cache_block.paddr = paddr;
+				cache_block.write_sector(m_device, 0, buffer);
+				cache_block.sectors[0].sector = sector;
+				cache_block.sectors[0].dirty = true;
+				return {};
+			}
 		}
 
 		// We could not allocate cache, so we must sync it to disk
