@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 set -e
 
 SIZE=$(stat -c '%s' banan-os.img | numfmt --to=iec)

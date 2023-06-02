@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 set -e
 
 DISK_SIZE=$[50 * 1024 * 1024]

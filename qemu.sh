@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 set -e
  
 qemu-system-$BANAN_ARCH										\

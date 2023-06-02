@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 set -e
 
 BINUTILS_VERSION="binutils-2.39"
