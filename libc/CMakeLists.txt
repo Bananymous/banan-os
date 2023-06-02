@@ -13,6 +13,7 @@ set(LIBC_SOURCES
 	termios.cpp
 	unistd.cpp
 	math.S
+	icxxabi.cpp
 )
 
 add_custom_target(libc-headers
