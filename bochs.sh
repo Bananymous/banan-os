@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 set -e
  
 BOCHS_CONFIG_FILE=bochsrc
