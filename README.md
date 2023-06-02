@@ -24,6 +24,7 @@ To build the toolchain for this os. You can run the following command.
 ```sh
 ninja toolchain
 cmake --fresh .. # We need to reconfigure cmake to use the new compiler
+ninja libstdc++
 ```
 
 &nbsp;
