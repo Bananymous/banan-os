@@ -41,6 +41,7 @@ namespace Kernel
 			mode.ifdir() ? 'd' :
 			mode.ifblk() ? 'b' :
 			mode.ifchr() ? 'c' :
+			mode.iflnk() ? 'l' :
 							'-';
 
 		buffer[1] = (mode.mode & Inode::Mode::IRUSR) ? 'r' : '-';
