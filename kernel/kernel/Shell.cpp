@@ -536,8 +536,9 @@ argument_done:
 				Inode::Mode mode { st.st_mode };
 
 				const char* color =
-					mode.ifdir()                     ? "34" :
-					mode.ifchr() || mode.ifblk()     ? "33" :
+					mode.ifdir()					 ? "34" :
+					mode.ifchr() || mode.ifblk()	 ? "33" :
+					mode.iflnk()					 ? "36" :
 					(mode.mode & Inode::Mode::IXUSR) ? "32" :
 													   "";
 				
@@ -582,6 +583,7 @@ argument_done:
 				mode.ifdir() ? "directory" :
 				mode.ifchr() ? "character device" :
 				mode.ifblk() ? "block device" :
+				mode.iflnk() ? "symbolic link" :
 								"other";
 			
 			TTY_PRINTLN("  File: {}", arguments[1]);
