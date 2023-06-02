@@ -74,4 +74,22 @@ namespace Kernel
 		ASSERT_NOT_REACHED();
 	}
 
+	size_t Heap::used_pages() const
+	{
+		LockGuard _(m_lock);
+		size_t result = 0;
+		for (const auto& range : m_physical_ranges)
+			result += range.used_pages();
+		return result;
+	}
+
+	size_t Heap::free_pages() const
+	{
+		LockGuard _(m_lock);
+		size_t result = 0;
+		for (const auto& range : m_physical_ranges)
+			result += range.free_pages();
+		return result;
+	}
+
 }

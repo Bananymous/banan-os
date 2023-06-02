@@ -21,13 +21,16 @@ namespace Kernel
 		paddr_t take_free_page();
 		void release_page(paddr_t);
 
+		size_t used_pages() const;
+		size_t free_pages() const;
+
 	private:
 		Heap() = default;
 		void initialize_impl();
 
 	private:
 		BAN::Vector<PhysicalRange>	m_physical_ranges;
-		SpinLock					m_lock;
+		mutable SpinLock			m_lock;
 	};
 
 }

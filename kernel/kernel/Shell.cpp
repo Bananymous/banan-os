@@ -415,6 +415,9 @@ argument_done:
 				return {};
 			}
 			kmalloc_dump_info();
+			TTY_PRINTLN("heap:");
+			TTY_PRINTLN("  used: 0x{8H}", Heap::get().used_pages() * PAGE_SIZE);
+			TTY_PRINTLN("  free: 0x{8H}", Heap::get().free_pages() * PAGE_SIZE);
 		}
 		else if (arguments.front() == "sleep")
 		{

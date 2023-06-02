@@ -21,6 +21,9 @@ namespace Kernel
 
 		size_t usable_memory() const { return m_reservable_pages * PAGE_SIZE; }
 
+		size_t used_pages() const { return m_used_pages; }
+		size_t free_pages() const { return m_free_pages; }
+
 	private:
 		struct node
 		{
@@ -38,6 +41,9 @@ namespace Kernel
 		uint64_t m_total_pages		{ 0 };
 		uint64_t m_reservable_pages	{ 0 };
 		uint64_t m_list_pages		{ 0 };
+
+		size_t m_used_pages { 0 };
+		size_t m_free_pages { 0 };
 
 		node* m_free_list { nullptr };
 		node* m_used_list { nullptr };
