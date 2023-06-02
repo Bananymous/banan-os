@@ -7,10 +7,14 @@
 
 __BEGIN_DECLS
 
-#include <stddef.h>
 #include <limits.h>
 #include <math.h>
 #include <sys/wait.h>
+
+#define __need_NULL
+#define __need_size_t
+#define __need_wchar_t
+#include <stddef.h>
 
 #define EXIT_FAILURE 1
 #define EXIT_SUCCESS 0
