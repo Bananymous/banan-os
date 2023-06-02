@@ -21,7 +21,7 @@ __BEGIN_DECLS
 #define __need_pthread_attr_t
 #include <sys/types.h>
 
-typedef int sigatomic_t;
+typedef int sig_atomic_t;
 typedef void* sigset_t;
 
 union sigval
