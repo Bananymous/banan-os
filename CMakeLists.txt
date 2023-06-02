@@ -54,6 +54,12 @@ add_custom_target(toolchain
 	USES_TERMINAL
 )
 
+add_custom_target(libstdc++
+	COMMAND ${CMAKE_COMMAND} -E env LIBSTDCPP="1" ${CMAKE_SOURCE_DIR}/toolchain/build.sh
+	DEPENDS libc-install
+	USES_TERMINAL
+)
+
 add_custom_target(image
 	COMMAND ${CMAKE_COMMAND} -E env SYSROOT="${BANAN_SYSROOT}" DISK_IMAGE_PATH="${DISK_IMAGE_PATH}" ${CMAKE_SOURCE_DIR}/image.sh
 	DEPENDS kernel-install
