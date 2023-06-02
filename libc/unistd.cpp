@@ -130,6 +130,13 @@ long syscall(long syscall, ...)
 			ret = Kernel::syscall(SYS_EXEC, (uintptr_t)pathname, (uintptr_t)argv, (uintptr_t)envp);
 			break;
 		}
+		case SYS_REALLOC:
+		{
+			void* ptr = va_arg(args, void*);
+			size_t size = va_arg(args, size_t);
+			ret = Kernel::syscall(SYS_REALLOC, (uintptr_t)ptr, size);
+			break;
+		}
 		default:
 			puts("LibC: Unhandeled syscall");
 			ret = -ENOSYS;

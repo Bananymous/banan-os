@@ -76,6 +76,16 @@ void* calloc(size_t nmemb, size_t size)
 	return ptr;
 }
 
+void* realloc(void* ptr, size_t size)
+{
+	if (ptr == nullptr)
+		return malloc(size);
+	long ret = syscall(SYS_REALLOC, ptr, size);
+	if (ret == -1)
+		return nullptr;
+	return (void*)ret;
+}
+
 void free(void* ptr)
 {
 	if (ptr == nullptr)
