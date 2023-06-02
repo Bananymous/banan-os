@@ -37,6 +37,9 @@ namespace Kernel
 		m_list_pages		= BAN::Math::div_round_up<uint64_t>(m_total_pages * sizeof(node), PAGE_SIZE);
 		m_reservable_pages	= m_total_pages - m_list_pages;
 
+		m_used_pages = 0;
+		m_free_pages = m_reservable_pages;
+
 		PageTable::kernel().identity_map_range(m_start, m_list_pages * PAGE_SIZE, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
 
 		// Initialize page list so that every page points to the next one
@@ -72,6 +75,9 @@ namespace Kernel
 		page->prev = m_used_list;
 		m_used_list = page;
 
+		m_used_pages++;
+		m_free_pages--;
+
 		return page_address(page);
 	}
 
@@ -95,6 +101,9 @@ namespace Kernel
 		if (m_free_list)
 			m_free_list->next = page;
 		m_free_list = page;
+
+		m_used_pages--;
+		m_free_pages++;
 	}	
 
 	paddr_t PhysicalRange::page_address(const node* page) const
