@@ -66,6 +66,7 @@ namespace Kernel
 				cache_block.sectors[0].dirty = false;
 				return {};
 			}
+			m_cache.pop_back();
 		}
 
 		// We could not cache the sector
@@ -119,6 +120,7 @@ namespace Kernel
 				cache_block.sectors[0].dirty = true;
 				return {};
 			}
+			m_cache.pop_back();
 		}
 
 		// We could not allocate cache, so we must sync it to disk
@@ -152,6 +154,8 @@ namespace Kernel
 			released++;
 		}
 
+		(void)m_cache.shrink_to_fit();
+
 		return released;
 	}
 
@@ -176,6 +180,8 @@ namespace Kernel
 			released++;
 		}
 
+		(void)m_cache.shrink_to_fit();
+
 		return released;
 	}
 
@@ -189,15 +195,14 @@ namespace Kernel
 		uint8_t* temp_buffer = (uint8_t*)kmalloc(m_device.sector_size());
 		ASSERT(temp_buffer);
 
-		while (!m_cache.empty())
+		for (auto& cache_block : m_cache)
 		{
-			auto& cache_block = m_cache.back();
 			cache_block.sync(m_device);
 			Heap::get().release_page(cache_block.paddr);
-			m_cache.pop_back();
 		}
-	}
 
+		m_cache.clear();
+	}
 
 	void DiskCache::CacheBlock::sync(StorageDevice& device)
 	{
