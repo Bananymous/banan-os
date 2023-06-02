@@ -20,6 +20,7 @@ __BEGIN_DECLS
 #define SYS_FORK 13
 #define SYS_SLEEP 14
 #define SYS_EXEC 15
+#define SYS_REALLOC 16
 
 __END_DECLS
 
