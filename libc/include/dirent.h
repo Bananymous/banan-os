@@ -11,7 +11,7 @@ __BEGIN_DECLS
 #include <sys/types.h>
 
 struct DIR;
-typedef DIR DIR;
+typedef struct DIR DIR;
 
 struct dirent
 {
