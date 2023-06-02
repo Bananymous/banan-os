@@ -57,7 +57,7 @@ namespace Kernel
 		for (auto& range : m_physical_ranges)
 			if (paddr_t page = range.reserve_page())
 				return page;
-		ASSERT_NOT_REACHED();
+		return 0;
 	}
 	
 	void Heap::release_page(paddr_t addr)
