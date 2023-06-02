@@ -98,8 +98,10 @@ namespace Kernel
 		{
 			auto temp = TRY(path.split('/'));
 			for (size_t i = 0; i < temp.size(); i++)
-				TRY(path_parts.push_back(temp[temp.size() - i - 1]));
+				TRY(path_parts.emplace_back(temp[temp.size() - i - 1]));
 		}
+
+		size_t link_depth = 0;
 
 		while (!path_parts.empty())
 		{
@@ -165,6 +167,10 @@ namespace Kernel
 					for (size_t i = 0; i < new_parts.size(); i++)
 						TRY(path_parts.emplace_back(new_parts[new_parts.size() - i - 1]));
 				}
+
+				link_depth++;
+				if (link_depth > 100)
+					return BAN::Error::from_errno(ELOOP);
 			}
 		}
 
