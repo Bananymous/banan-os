@@ -41,9 +41,9 @@ typedef struct
 	long long rem;	/* remainder */
 } lldiv_t;
 
-[[noreturn]] void	_Exit(int status);
+void				_Exit(int status) __attribute__((__noreturn__));
 long				a64l(const char* s);
-[[noreturn]] void	abort(void);
+void				abort(void) __attribute__((__noreturn__));
 int					abs(int i);
 int					atexit(void (*func)(void));
 double				atof(const char* str);

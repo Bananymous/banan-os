@@ -132,7 +132,7 @@ size_t				confstr(int name, char* buf, size_t len);
 char*				crypt(const char* key, const char* salt);
 int					dup(int fildes);
 int					dup2(int fildes, int fildes2);
-[[noreturn]] void	_exit(int status);
+void				_exit(int status) __attribute__((__noreturn__));
 void				encrypt(char block[64], int edflag);
 int					execl(const char* path, const char* arg0, ...);
 int					execle(const char* path, const char* arg0, ...);
