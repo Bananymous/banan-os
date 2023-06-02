@@ -296,7 +296,7 @@ namespace Kernel
 
 	BAN::ErrorOr<int> Process::open(BAN::StringView path, int flags)
 	{
-		if (flags & ~O_RDWR)
+		if (flags & ~(O_RDONLY | O_WRONLY | O_NOFOLLOW))
 			return BAN::Error::from_errno(ENOTSUP);
 
 		BAN::String absolute_path = TRY(absolute_path_of(path));
@@ -468,7 +468,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Process::stat(BAN::StringView path, struct stat* out)
 	{
-		int fd = TRY(open(path, O_RDONLY));
+		int fd = TRY(open(path, O_RDONLY | O_NOFOLLOW));
 		auto ret = fstat(fd, out);
 		MUST(close(fd));
 		return ret;

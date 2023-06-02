@@ -82,7 +82,7 @@ namespace Kernel
 		return nullptr;
 	}
 
-	BAN::ErrorOr<VirtualFileSystem::File> VirtualFileSystem::file_from_absolute_path(BAN::StringView path, bool follow_links)
+	BAN::ErrorOr<VirtualFileSystem::File> VirtualFileSystem::file_from_absolute_path(BAN::StringView path, bool follow_link)
 	{
 		LockGuard _(m_lock);
 
@@ -93,13 +93,22 @@ namespace Kernel
 
 		BAN::String canonical_path;
 
-		const auto path_parts = TRY(path.split('/'));
+		BAN::Vector<BAN::String> path_parts;
 
-		for (auto path_part : path_parts)
 		{
+			auto temp = TRY(path.split('/'));
+			for (size_t i = 0; i < temp.size(); i++)
+				TRY(path_parts.push_back(temp[temp.size() - i - 1]));
+		}
+
+		while (!path_parts.empty())
+		{
+			const auto& path_part = path_parts.back();
+			auto orig = inode;
+
 			if (path_part.empty() || path_part == "."sv)
 			{
-				continue;
+
 			}
 			else if (path_part == ".."sv)
 			{
@@ -119,32 +128,42 @@ namespace Kernel
 			else
 			{
 				inode = TRY(inode->read_directory_inode(path_part));
-				TRY(canonical_path.push_back('/'));
-				TRY(canonical_path.append(path_part));
 
 				if (auto* mount_point = mount_from_host_inode(inode))
 					inode = mount_point->target->root_inode();
 
-				if (follow_links && inode->mode().iflnk())
+				TRY(canonical_path.push_back('/'));
+				TRY(canonical_path.append(path_part));
+			}
+
+			path_parts.pop_back();
+
+			if (inode->mode().iflnk() && (follow_link || !path_parts.empty()))
+			{
+				auto target = TRY(inode->link_target());
+				if (target.empty())
+					return BAN::Error::from_errno(ENOENT);
+				
+				if (target.front() == '/')
 				{
-					auto target = TRY(inode->link_target());
-					if (target.empty())
-						return BAN::Error::from_errno(ENOENT);
-					if (target.front() == '/')
-					{
-						File file = TRY(file_from_absolute_path(target, follow_links));
-						inode = file.inode;
-						canonical_path = BAN::move(file.canonical_path);
-					}
-					else
-					{
-						while (canonical_path.back() != '/')
-							canonical_path.pop_back();
-						TRY(canonical_path.append(target));
-						File file = TRY(file_from_absolute_path(canonical_path, follow_links));
-						inode = file.inode;
-						canonical_path = BAN::move(file.canonical_path);
-					}
+					inode = root_inode();
+					canonical_path.clear();
+
+					auto temp = TRY(target.sv().split('/'));
+					for (size_t i = 0; i < temp.size(); i++)
+						TRY(path_parts.emplace_back(temp[temp.size() - i - 1]));
+				}
+				else
+				{
+					inode = orig;
+
+					while (canonical_path.back() != '/')
+						canonical_path.pop_back();
+					canonical_path.pop_back();
+
+					auto new_parts = TRY(target.sv().split('/'));
+					for (size_t i = 0; i < new_parts.size(); i++)
+						TRY(path_parts.emplace_back(new_parts[new_parts.size() - i - 1]));
 				}
 			}
 		}
