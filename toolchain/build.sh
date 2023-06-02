@@ -6,6 +6,13 @@ GCC_VERSION="gcc-12.2.0"
 
 cd $(dirname "$0")
 
+if [[ -n $LIBSTDCPP ]]; then
+	cd build/${GCC_VERSION}/
+	make -j $(nproc) all-target-libstdc++-v3
+	make install-target-libstdc++-v3
+	exit 0
+fi
+
 if [[ -z $SYSROOT ]]; then
 	echo "You must set the SYSROOT environment variable" >&2
 	exit 1

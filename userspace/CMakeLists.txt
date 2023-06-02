@@ -17,7 +17,6 @@ add_custom_target(userspace)
 add_custom_target(userspace-install DEPENDS userspace)
 
 foreach(USERSPACE_PROJECT ${USERSPACE_PROJECTS})
-	target_link_options(${USERSPACE_PROJECT} PUBLIC -nodefaultlibs)
 	add_dependencies(userspace ${USERSPACE_PROJECT})
 	add_dependencies(userspace-install ${USERSPACE_PROJECT}-install)
 endforeach()
