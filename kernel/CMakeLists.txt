@@ -46,6 +46,7 @@ set(KERNEL_SOURCES
 	kernel/Storage/ATABus.cpp
 	kernel/Storage/ATAController.cpp
 	kernel/Storage/ATADevice.cpp
+	kernel/Storage/DiskCache.cpp
 	kernel/Storage/StorageDevice.cpp
 	kernel/Syscall.cpp
 	kernel/Syscall.S

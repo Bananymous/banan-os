@@ -15,12 +15,14 @@ namespace Kernel
 		{ }
 		BAN::ErrorOr<void> initialize(ATABus::DeviceType, const uint16_t*);
 
-		virtual BAN::ErrorOr<void> read_sectors(uint64_t, uint8_t, uint8_t*) override;
-		virtual BAN::ErrorOr<void> write_sectors(uint64_t, uint8_t, const uint8_t*) override;
 		virtual uint32_t sector_size() const override { return m_sector_words * 2; }
 		virtual uint64_t total_size() const override { return m_lba_count * sector_size(); }
 
 		BAN::StringView model() const { return m_model; }
+
+	protected:
+		virtual BAN::ErrorOr<void> read_sectors_impl(uint64_t, uint8_t, uint8_t*) override;
+		virtual BAN::ErrorOr<void> write_sectors_impl(uint64_t, uint8_t, const uint8_t*) override;
 
 	private:
 		ATABus* m_bus;

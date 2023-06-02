@@ -2,6 +2,7 @@
 
 #include <BAN/Vector.h>
 #include <kernel/Device.h>
+#include <kernel/Storage/DiskCache.h>
 
 namespace Kernel
 {
@@ -61,20 +62,29 @@ namespace Kernel
 	class StorageDevice : public BlockDevice
 	{
 	public:
-		virtual ~StorageDevice() {}
+		virtual ~StorageDevice();
 
 		BAN::ErrorOr<void> initialize_partitions();
 
-		virtual BAN::ErrorOr<void> read_sectors(uint64_t lba, uint8_t sector_count, uint8_t* buffer) = 0;
-		virtual BAN::ErrorOr<void> write_sectors(uint64_t lba, uint8_t sector_count, const uint8_t* buffer) = 0;
+		BAN::ErrorOr<void> read_sectors(uint64_t lba, uint8_t sector_count, uint8_t* buffer);
+		BAN::ErrorOr<void> write_sectors(uint64_t lba, uint8_t sector_count, const uint8_t* buffer);
+
 		virtual uint32_t sector_size() const = 0;
 		virtual uint64_t total_size() const = 0;
 
 		BAN::Vector<Partition*>& partitions() { return m_partitions; }
 		const BAN::Vector<Partition*>& partitions() const { return m_partitions; }
+	
+	protected:
+		virtual BAN::ErrorOr<void> read_sectors_impl(uint64_t lba, uint8_t sector_count, uint8_t* buffer) = 0;
+		virtual BAN::ErrorOr<void> write_sectors_impl(uint64_t lba, uint8_t sector_count, const uint8_t* buffer) = 0;
+		void add_disk_cache();
 
 	private:
+		DiskCache*				m_disk_cache { nullptr };
 		BAN::Vector<Partition*> m_partitions;
+
+		friend class DiskCache;
 	};
 
 }

@@ -53,16 +53,18 @@ namespace Kernel
 
 		dprintln("{} {} MB", m_device_name, total_size() / 1024 / 1024);
 
+		add_disk_cache();
+
 		return {};
 	}
 
-	BAN::ErrorOr<void> ATADevice::read_sectors(uint64_t lba, uint8_t sector_count, uint8_t* buffer)
+	BAN::ErrorOr<void> ATADevice::read_sectors_impl(uint64_t lba, uint8_t sector_count, uint8_t* buffer)
 	{
 		TRY(m_bus->read(this, lba, sector_count, buffer));
 		return {};
 	}
 
-	BAN::ErrorOr<void> ATADevice::write_sectors(uint64_t lba, uint8_t sector_count, const uint8_t* buffer)
+	BAN::ErrorOr<void> ATADevice::write_sectors_impl(uint64_t lba, uint8_t sector_count, const uint8_t* buffer)
 	{
 		TRY(m_bus->write(this, lba, sector_count, buffer));
 		return {};

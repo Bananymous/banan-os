@@ -68,7 +68,6 @@ namespace Kernel
 
 			BAN::ScopeGuard guard([this, i] { m_devices[i]->unref(); m_devices[i] = nullptr; });
 
-			
 			auto type = identify(device, identify_buffer);
 			if (type == DeviceType::None)
 				continue;
@@ -109,7 +108,7 @@ namespace Kernel
 
 		io_write(ATA_PORT_COMMAND, ATA_COMMAND_IDENTIFY);
 		PIT::sleep(1);
-		
+
 		// No device on port
 		if (io_read(ATA_PORT_STATUS) == 0)
 			return DeviceType::None;
