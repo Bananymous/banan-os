@@ -46,15 +46,19 @@ namespace Kernel
 
 	BAN::ErrorOr<Process*> Process::create_userspace(BAN::StringView path)
 	{
+		auto* elf = TRY(LibELF::ELF::load_from_file(path));
+		if (!elf->is_native())
+		{
+			derrorln("ELF has invalid architecture");
+			delete elf;
+			return BAN::Error::from_errno(EINVAL);
+		}
+
 		auto* process = create_process();
 		MUST(process->m_working_directory.push_back('/'));
 		process->m_page_table = MUST(PageTable::create_userspace());
 
-		if (auto res = process->cleanup_and_load_elf(path); res.is_error())
-		{
-			delete process;
-			return res.error();
-		}
+		process->load_elf(*elf);
 
 		char** argv = nullptr;
 		{
@@ -68,6 +72,9 @@ namespace Kernel
 
 		process->m_userspace_entry.argc = 1;
 		process->m_userspace_entry.argv = argv;
+		process->m_userspace_entry.entry = elf->file_header_native().e_entry;
+
+		delete elf;
 
 		auto* thread = MUST(Thread::create_userspace(process));
 		process->add_thread(thread);
@@ -198,9 +205,30 @@ namespace Kernel
 			if (str_envp.emplace_back(*envp++).is_error())
 				return BAN::Error::from_errno(ENOMEM);
 
+		auto* elf = TRY(LibELF::ELF::load_from_file(path));	
+		if (!elf->is_native())
+		{
+			derrorln("ELF has invalid architecture");
+			delete elf;
+			return BAN::Error::from_errno(EINVAL);
+		}
+
 		LockGuard lock_guard(m_lock);
 
-		MUST(cleanup_and_load_elf(path));
+		m_fixed_width_allocators.clear();
+		m_general_allocator.clear();
+
+		for (auto* range : m_mapped_ranges)
+			delete range;
+		m_mapped_ranges.clear();
+
+		m_open_files.clear();
+
+		load_elf(*elf);
+
+		m_userspace_entry.entry = elf->file_header_native().e_entry;
+
+		delete elf;
 
 		ASSERT(m_threads.size() == 1);
 		ASSERT(&Process::current() == this);
@@ -231,33 +259,14 @@ namespace Kernel
 	}
 
 
-	BAN::ErrorOr<void> Process::cleanup_and_load_elf(BAN::StringView path)
+	void Process::load_elf(LibELF::ELF& elf)
 	{
-		auto* elf = TRY(LibELF::ELF::load_from_file(path));	
-		if (!elf->is_native())
-		{
-			derrorln("ELF has invalid architecture");
-			return BAN::Error::from_errno(EINVAL);
-		}
+		ASSERT(elf.is_native());
 
-		for (auto* allocator : m_fixed_width_allocators)
-			delete allocator;
-		m_fixed_width_allocators.clear();
-
-		if (m_general_allocator)
-			delete m_general_allocator;
-		m_general_allocator = nullptr;
-
-		for (auto* range : m_mapped_ranges)
-			delete range;
-		m_mapped_ranges.clear();
-
-		m_open_files.clear();
-
-		auto& elf_file_header = elf->file_header_native();
+		auto& elf_file_header = elf.file_header_native();
 		for (size_t i = 0; i < elf_file_header.e_phnum; i++)
 		{
-			auto& elf_program_header = elf->program_header_native(i);
+			auto& elf_program_header = elf.program_header_native(i);
 
 			switch (elf_program_header.p_type)
 			{
@@ -265,7 +274,14 @@ namespace Kernel
 				break;
 			case LibELF::PT_LOAD:
 			{
-				ASSERT(page_table().is_range_free(elf_program_header.p_vaddr, elf_program_header.p_memsz));
+				if (!page_table().is_range_free(elf_program_header.p_vaddr, elf_program_header.p_memsz))
+				{
+					page_table().debug_dump();
+					Kernel::panic("vaddr {8H}-{8H} not free",
+						elf_program_header.p_vaddr,
+						elf_program_header.p_vaddr + elf_program_header.p_memsz
+					);
+				}
 				uint8_t flags = PageTable::Flags::UserSupervisor | PageTable::Flags::Present;
 				if (elf_program_header.p_flags & LibELF::PF_W)
 					flags |= PageTable::Flags::ReadWrite;
@@ -277,7 +293,7 @@ namespace Kernel
 
 				{
 					PageTableScope _(page_table());
-					memcpy((void*)elf_program_header.p_vaddr, elf->data() + elf_program_header.p_offset, elf_program_header.p_filesz);
+					memcpy((void*)elf_program_header.p_vaddr, elf.data() + elf_program_header.p_offset, elf_program_header.p_filesz);
 					memset((void*)(elf_program_header.p_vaddr + elf_program_header.p_filesz), 0, elf_program_header.p_memsz - elf_program_header.p_filesz);
 				}
 				break;
@@ -286,12 +302,6 @@ namespace Kernel
 				ASSERT_NOT_REACHED();
 			}
 		}
-
-		m_userspace_entry.entry = elf_file_header.e_entry;
-
-		delete elf;
-
-		return {};
 	}
 
 	BAN::ErrorOr<int> Process::open(BAN::StringView path, int flags)

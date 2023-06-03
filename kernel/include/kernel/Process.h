@@ -14,6 +14,8 @@
 
 #include <sys/stat.h>
 
+namespace LibELF { class ELF; }
+
 namespace Kernel
 {
 
@@ -86,7 +88,7 @@ namespace Kernel
 		static Process* create_process();
 		static void register_process(Process*);
 
-		BAN::ErrorOr<void> cleanup_and_load_elf(BAN::StringView);
+		void load_elf(LibELF::ELF&);
 
 		BAN::ErrorOr<BAN::String> absolute_path_of(BAN::StringView) const;
 
