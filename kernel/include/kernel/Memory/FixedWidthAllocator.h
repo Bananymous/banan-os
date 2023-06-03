@@ -1,5 +1,6 @@
 #pragma once
 
+#include <BAN/UniqPtr.h>
 #include <kernel/Memory/Heap.h>
 #include <kernel/Memory/PageTable.h>
 
@@ -12,10 +13,10 @@ namespace Kernel
 		BAN_NON_MOVABLE(FixedWidthAllocator);
 
 	public:
-		FixedWidthAllocator(PageTable&, uint32_t);
+		static BAN::ErrorOr<BAN::UniqPtr<FixedWidthAllocator>> create(PageTable&, uint32_t);
 		~FixedWidthAllocator();
 
-		BAN::ErrorOr<FixedWidthAllocator*> clone(PageTable&);
+		BAN::ErrorOr<BAN::UniqPtr<FixedWidthAllocator>> clone(PageTable&);
 
 		vaddr_t allocate();
 		bool deallocate(vaddr_t);
@@ -26,6 +27,7 @@ namespace Kernel
 		uint32_t max_allocations() const;
 
 	private:
+		FixedWidthAllocator(PageTable&, uint32_t);
 		bool allocate_page_if_needed(vaddr_t, uint8_t flags);
 
 		struct node

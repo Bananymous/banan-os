@@ -1,7 +1,16 @@
 #include <kernel/Memory/GeneralAllocator.h>
+#include <kernel/Memory/PageTableScope.h>
 
 namespace Kernel
 {
+
+	BAN::ErrorOr<BAN::UniqPtr<GeneralAllocator>> GeneralAllocator::create(PageTable& page_table)
+	{
+		auto* allocator = new GeneralAllocator(page_table);
+		if (allocator == nullptr)
+			return BAN::Error::from_errno(ENOMEM);
+		return BAN::UniqPtr<GeneralAllocator>::adopt(allocator);
+	}
 
 	GeneralAllocator::GeneralAllocator(PageTable& page_table)
 		: m_page_table(page_table)
@@ -60,11 +69,9 @@ namespace Kernel
 		return false;
 	}
 
-	BAN::ErrorOr<GeneralAllocator*> GeneralAllocator::clone(PageTable& new_page_table)
+	BAN::ErrorOr<BAN::UniqPtr<GeneralAllocator>> GeneralAllocator::clone(PageTable& new_page_table)
 	{
-		GeneralAllocator* allocator = new GeneralAllocator(new_page_table);
-		if (allocator == nullptr)
-			return BAN::Error::from_errno(ENOMEM);
+		auto allocator = TRY(GeneralAllocator::create(new_page_table));
 
 		m_page_table.lock();
 

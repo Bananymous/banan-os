@@ -56,7 +56,7 @@ namespace Kernel
 
 		auto* process = create_process();
 		MUST(process->m_working_directory.push_back('/'));
-		process->m_page_table = MUST(PageTable::create_userspace());
+		process->m_page_table = BAN::UniqPtr<PageTable>::adopt(MUST(PageTable::create_userspace()));
 
 		process->load_elf(*elf);
 
@@ -91,13 +91,9 @@ namespace Kernel
 	{
 		ASSERT(m_threads.empty());
 		ASSERT(m_fixed_width_allocators.empty());
-		ASSERT(m_general_allocator == nullptr);
+		ASSERT(!m_general_allocator);
 		ASSERT(m_mapped_ranges.empty());
-		if (m_page_table)
-		{
-			PageTable::kernel().load();
-			delete m_page_table;
-		}
+		ASSERT(&PageTable::current() != m_page_table.ptr());
 
 		dprintln("process {} exit", pid());
 	}
@@ -133,11 +129,7 @@ namespace Kernel
 
 		// NOTE: We must clear allocators while the page table is still alive
 		m_fixed_width_allocators.clear();
-		if (m_general_allocator)
-		{
-			delete m_general_allocator;
-			m_general_allocator = nullptr;
-		}
+		m_general_allocator.clear();
 
 		s_process_lock.lock();
 		for (size_t i = 0; i < s_processes.size(); i++)
@@ -163,7 +155,7 @@ namespace Kernel
 	{
 		Process* forked = create_process();
 
-		forked->m_page_table = MUST(PageTable::create_userspace());
+		forked->m_page_table = BAN::UniqPtr<PageTable>::adopt(MUST(PageTable::create_userspace()));
 
 		LockGuard _(m_lock);
 		forked->m_tty = m_tty;
@@ -180,7 +172,8 @@ namespace Kernel
 		ASSERT(m_threads.front() == &Thread::current());
 
 		for (auto& allocator : m_fixed_width_allocators)
-			MUST(forked->m_fixed_width_allocators.push_back(MUST(allocator->clone(forked->page_table()))));
+			if (allocator->allocations() > 0)
+				MUST(forked->m_fixed_width_allocators.push_back(MUST(allocator->clone(forked->page_table()))));
 
 		if (m_general_allocator)
 			forked->m_general_allocator = MUST(m_general_allocator->clone(forked->page_table()));
@@ -554,21 +547,20 @@ namespace Kernel
 
 			bool needs_new_allocator { true };
 
-			for (auto* allocator : m_fixed_width_allocators)
+			for (auto& allocator : m_fixed_width_allocators)
 			{
 				if (allocator->allocation_size() == allocation_size && allocator->allocations() < allocator->max_allocations())
 				{
 					address = allocator->allocate();
 					needs_new_allocator = false;
+					break;
 				}
 			}
 
 			if (needs_new_allocator)
 			{
-				auto* allocator = new FixedWidthAllocator(page_table(), allocation_size);
-				if (allocator == nullptr)
-					return BAN::Error::from_errno(ENOMEM);
-				TRY(m_fixed_width_allocators.push_back(allocator));
+				auto allocator = TRY(FixedWidthAllocator::create(page_table(), allocation_size));
+				TRY(m_fixed_width_allocators.push_back(BAN::move(allocator)));
 				address = m_fixed_width_allocators.back()->allocate();
 			}
 		}
@@ -577,11 +569,7 @@ namespace Kernel
 			LockGuard _(m_lock);
 
 			if (!m_general_allocator)
-			{
-				m_general_allocator = new GeneralAllocator(page_table());
-				if (m_general_allocator == nullptr)
-					return BAN::Error::from_errno(ENOMEM);
-			}
+				m_general_allocator = TRY(GeneralAllocator::create(page_table()));
 
 			address = m_general_allocator->allocate(bytes);
 		}
@@ -597,7 +585,7 @@ namespace Kernel
 
 		for (size_t i = 0; i < m_fixed_width_allocators.size(); i++)
 		{
-			auto* allocator = m_fixed_width_allocators[i];
+			auto& allocator = m_fixed_width_allocators[i];
 			if (allocator->deallocate((vaddr_t)ptr))
 			{
 				// TODO: This might be too much. Maybe we should only
