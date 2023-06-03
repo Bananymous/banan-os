@@ -13,6 +13,7 @@
 	#define MUST(expr)		 ({ auto&& e = expr; if (e.is_error()) Kernel::panic("{}", e.error()); e.release_value(); })
 	#define MUST_REF(expr)	*({ auto&& e = expr; if (e.is_error()) Kernel::panic("{}", e.error()); &e.release_value(); })
 #else
+	#include <assert.h>
 	#define MUST(expr)		 ({ auto&& e = expr; assert(!e.is_error()); e.release_value(); })
 	#define MUST_REF(expr)	*({ auto&& e = expr; assert(!e.is_error()); &e.release_value(); })
 #endif
