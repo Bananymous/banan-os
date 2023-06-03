@@ -31,8 +31,6 @@ namespace Kernel
 
 		virtual BAN::RefPtr<Inode> root_inode() override { return this; }
 
-		virtual InodeType inode_type() const override { return InodeType::Device; }
-
 		virtual BAN::StringView name() const override { return "device-manager"; }
 
 		virtual BAN::ErrorOr<BAN::RefPtr<Inode>> read_directory_inode(BAN::StringView) override;

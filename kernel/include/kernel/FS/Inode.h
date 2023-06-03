@@ -49,12 +49,6 @@ namespace Kernel
 			mode_t mode;
 		};
 
-		enum class InodeType
-		{
-			Device,
-			Ext2,
-		};
-
 	public:
 		virtual ~Inode() {}
 
@@ -74,7 +68,7 @@ namespace Kernel
 		virtual dev_t dev() const = 0;
 		virtual dev_t rdev() const = 0;
 
-		virtual InodeType inode_type() const = 0;
+		virtual bool is_device() const { return false; }
 
 		virtual BAN::StringView name() const = 0;
 

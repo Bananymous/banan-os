@@ -41,11 +41,11 @@ namespace Kernel
 	BAN::ErrorOr<void> VirtualFileSystem::mount(BAN::StringView partition, BAN::StringView target)
 	{
 		auto partition_file = TRY(file_from_absolute_path(partition, true));
-		if (partition_file.inode->inode_type() != Inode::InodeType::Device)
+		if (!partition_file.inode->is_device())
 			return BAN::Error::from_errno(ENOTBLK);
 
 		Device* device = (Device*)partition_file.inode.ptr();
-		if (device->device_type() != Device::DeviceType::BlockDevice)
+		if (!device->is_partition())
 			return BAN::Error::from_errno(ENOTBLK);
 
 		auto* file_system = TRY(Ext2FS::create(*(Partition*)device));
