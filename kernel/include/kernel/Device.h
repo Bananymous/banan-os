@@ -8,20 +8,13 @@ namespace Kernel
 	class Device : public Inode
 	{
 	public:
-		enum class DeviceType
-		{
-			BlockDevice,
-			CharacterDevice,
-			DeviceController,
-			Partition,
-		};
-
 		Device();
 		virtual ~Device() {}
-		virtual DeviceType device_type() const = 0;
 		virtual void update() {}
 
-		virtual InodeType inode_type() const override { return InodeType::Device; }
+		virtual bool is_device() const override { return true; }
+
+		virtual bool is_partition() const { return false; }
 
 		virtual ino_t ino() const override { return m_ino_t; }
 		virtual nlink_t nlink() const override { return 1; }
@@ -50,13 +43,11 @@ namespace Kernel
 	class BlockDevice : public Device
 	{
 	public:
-		virtual DeviceType device_type() const override { return DeviceType::BlockDevice; }
 	};
 
 	class CharacterDevice : public Device
 	{
 	public:
-		virtual DeviceType device_type() const override { return DeviceType::CharacterDevice; }
 	};
 
 }

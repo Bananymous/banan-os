@@ -43,7 +43,7 @@ namespace Kernel
 		char m_label[36 * 4 + 1];
 
 	public:
-		virtual DeviceType device_type() const override { return DeviceType::Partition; }
+		virtual bool is_partition() const override { return true; }
 
 		virtual Mode mode() const override { return { Mode::IFBLK | Mode::IRUSR | Mode::IRGRP }; }
 		virtual uid_t uid() const override { return 0; }
