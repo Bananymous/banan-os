@@ -523,14 +523,19 @@ namespace Kernel
 		return {};
 	}
 
-	static constexpr uint16_t next_power_of_two(uint16_t value)
+	static constexpr size_t allocator_size_for_allocation(size_t value)
 	{
-		value--;
-		value |= value >> 1;
-		value |= value >> 2;
-		value |= value >> 4;
-		value |= value >> 8;
-		return value + 1;
+		if (value <= 256) {
+			if (value <= 64)
+				return 64;
+			else
+				return 256;
+		} else {
+			if (value <= 1024)
+				return 1024;
+			else
+				return 4096;
+		}
 	}
 
 	BAN::ErrorOr<void*> Process::allocate(size_t bytes)
@@ -540,8 +545,9 @@ namespace Kernel
 		if (bytes <= PAGE_SIZE)
 		{
 			// Do fixed width allocation
-			size_t allocation_size = next_power_of_two(bytes);
+			size_t allocation_size = allocator_size_for_allocation(bytes);
 			ASSERT(bytes <= allocation_size);
+			ASSERT(allocation_size <= PAGE_SIZE);
 
 			LockGuard _(m_lock);
 
