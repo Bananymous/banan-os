@@ -114,12 +114,12 @@ namespace Kernel
 		BAN::String m_working_directory;
 		BAN::Vector<Thread*> m_threads;
 
-		BAN::Vector<FixedWidthAllocator*> m_fixed_width_allocators;
-		GeneralAllocator* m_general_allocator;
+		BAN::Vector<BAN::UniqPtr<FixedWidthAllocator>> m_fixed_width_allocators;
+		BAN::UniqPtr<GeneralAllocator> m_general_allocator;
 
 		userspace_entry_t m_userspace_entry;
 
-		PageTable* m_page_table { nullptr };
+		BAN::UniqPtr<PageTable> m_page_table;
 		TTY* m_tty { nullptr };
 	};
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <BAN/LinkedList.h>
+#include <BAN/UniqPtr.h>
 #include <kernel/Memory/Heap.h>
 #include <kernel/Memory/PageTable.h>
 
@@ -13,13 +14,16 @@ namespace Kernel
 		BAN_NON_MOVABLE(GeneralAllocator);
 
 	public:
-		GeneralAllocator(PageTable&);
+		static BAN::ErrorOr<BAN::UniqPtr<GeneralAllocator>> create(PageTable&);
 		~GeneralAllocator();
+
+		BAN::ErrorOr<BAN::UniqPtr<GeneralAllocator>> clone(PageTable&);
 
 		vaddr_t allocate(size_t);
 		bool deallocate(vaddr_t);
 
-		BAN::ErrorOr<GeneralAllocator*> clone(PageTable&);
+	private:
+		GeneralAllocator(PageTable&);
 
 	private:
 		struct Allocation

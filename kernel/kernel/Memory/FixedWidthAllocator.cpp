@@ -3,6 +3,14 @@
 namespace Kernel
 {
 
+	BAN::ErrorOr<BAN::UniqPtr<FixedWidthAllocator>> FixedWidthAllocator::create(PageTable& page_table, uint32_t allocation_size)
+	{
+		auto* allocator = new FixedWidthAllocator(page_table, allocation_size);
+		if (allocator == nullptr)
+			return BAN::Error::from_errno(ENOMEM);
+		return BAN::UniqPtr<FixedWidthAllocator>::adopt(allocator);
+	}
+
 	FixedWidthAllocator::FixedWidthAllocator(PageTable& page_table, uint32_t allocation_size)
 		: m_page_table(page_table)
 		, m_allocation_size(BAN::Math::max(allocation_size, m_min_allocation_size))
@@ -222,14 +230,11 @@ namespace Kernel
 		ASSERT_NOT_REACHED();
 	}
 
-	BAN::ErrorOr<FixedWidthAllocator*> FixedWidthAllocator::clone(PageTable& new_page_table)
+	BAN::ErrorOr<BAN::UniqPtr<FixedWidthAllocator>> FixedWidthAllocator::clone(PageTable& new_page_table)
 	{
-		FixedWidthAllocator* allocator = new FixedWidthAllocator(new_page_table, allocation_size());
-		if (allocator == nullptr)
-			return BAN::Error::from_errno(ENOMEM);
+		auto allocator = TRY(FixedWidthAllocator::create(new_page_table, allocation_size()));
 
 		m_page_table.lock();
-
 		ASSERT(m_page_table.is_page_free(0));
 
 		for (node* node = m_used_list; node; node = node->next)
