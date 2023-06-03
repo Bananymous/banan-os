@@ -15,9 +15,9 @@ namespace Kernel
 		paddr_t reserve_page();
 		void release_page(paddr_t);
 
-		paddr_t start() const { return m_start; }
-		paddr_t end() const { return m_start + m_size; }
-		bool contains(paddr_t addr) const { return m_start <= addr && addr < m_start + m_size; }
+		paddr_t start() const { return m_paddr; }
+		paddr_t end() const { return m_paddr + m_size; }
+		bool contains(paddr_t addr) const { return m_paddr <= addr && addr < m_paddr + m_size; }
 
 		size_t usable_memory() const { return m_reservable_pages * PAGE_SIZE; }
 
@@ -35,7 +35,8 @@ namespace Kernel
 		node* node_address(paddr_t) const;
 
 	private:
-		paddr_t m_start	{ 0 };
+		paddr_t m_paddr	{ 0 };
+		vaddr_t m_vaddr { 0 };
 		size_t m_size	{ 0 };
 
 		uint64_t m_total_pages		{ 0 };

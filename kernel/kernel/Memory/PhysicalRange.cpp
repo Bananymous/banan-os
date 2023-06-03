@@ -15,15 +15,15 @@ namespace Kernel
 			return;
 
 		// Align start to page boundary and after the kernel memory
-		m_start = BAN::Math::max(start, V2P(g_kernel_end));
-		if (auto rem = m_start % PAGE_SIZE)
-			m_start += PAGE_SIZE - rem;
+		m_paddr = BAN::Math::max(start, V2P(g_kernel_end));
+		if (auto rem = m_paddr % PAGE_SIZE)
+			m_paddr += PAGE_SIZE - rem;
 
-		if (size <= m_start - start)
+		if (size <= m_paddr - start)
 			return;
 
 		// Align size to page boundary
-		m_size = size - (m_start - start);
+		m_size = size - (m_paddr - start);
 		if (auto rem = m_size % PAGE_SIZE)
 			m_size -= rem;
 
@@ -40,12 +40,15 @@ namespace Kernel
 		m_used_pages = 0;
 		m_free_pages = m_reservable_pages;
 
-		PageTable::kernel().identity_map_range(m_start, m_list_pages * PAGE_SIZE, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
+		PageTable::kernel().lock();
+		m_vaddr = PageTable::kernel().get_free_contiguous_pages(m_list_pages, ((vaddr_t)g_kernel_end + PAGE_SIZE - 1) & PAGE_ADDR_MASK);
+		ASSERT(m_vaddr);
+		PageTable::kernel().map_range_at(m_paddr, m_vaddr, m_list_pages * PAGE_SIZE, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
+		PageTable::kernel().unlock();
+
 
 		// Initialize page list so that every page points to the next one
-		node* page_list = (node*)m_start;
-
-		ASSERT((paddr_t)&page_list[m_reservable_pages - 1] <= m_start + m_size);
+		node* page_list = (node*)m_vaddr;
 
 		for (uint64_t i = 0; i < m_reservable_pages; i++)
 			page_list[i] = { page_list + i - 1, page_list + i + 1 };
@@ -108,17 +111,17 @@ namespace Kernel
 
 	paddr_t PhysicalRange::page_address(const node* page) const
 	{
-		ASSERT((paddr_t)page <= m_start + m_reservable_pages * sizeof(node));
-		uint64_t page_index = page - (node*)m_start;
-		return m_start + (page_index + m_list_pages) * PAGE_SIZE;
+		ASSERT((vaddr_t)page <= m_vaddr + m_reservable_pages * sizeof(node));
+		uint64_t page_index = page - (node*)m_vaddr;
+		return m_paddr + (page_index + m_list_pages) * PAGE_SIZE;
 	}
 
 	PhysicalRange::node* PhysicalRange::node_address(paddr_t page_address) const
 	{
 		ASSERT(page_address % PAGE_SIZE == 0);
-		ASSERT(m_start + m_list_pages * PAGE_SIZE <= page_address && page_address < m_start + m_size);
-		uint64_t page_offset = page_address - (m_start + m_list_pages * PAGE_SIZE);
-		return (node*)m_start + page_offset / PAGE_SIZE;
+		ASSERT(m_paddr + m_list_pages * PAGE_SIZE <= page_address && page_address < m_paddr + m_size);
+		uint64_t page_offset = page_address - (m_paddr + m_list_pages * PAGE_SIZE);
+		return (node*)m_vaddr + page_offset / PAGE_SIZE;
 	}	
 
 }
