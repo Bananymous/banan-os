@@ -3,7 +3,6 @@
 #include <bits/printf.h>
 #include <ctype.h>
 #include <errno.h>
-#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -199,7 +198,7 @@ static void floating_point_to_exponent_string(char* buffer, T value, bool upper,
 	int exponent = 0;
 	if (value != (T)0.0)
 	{
-		exponent = (int)floorl(BAN::Math::log10<T>(value));
+		exponent = (int)BAN::Math::log10<T>(value);
 		value /= BAN::Math::pow<T>(10.0, exponent);
 	}
 
@@ -287,6 +286,7 @@ extern "C" int printf_impl(const char* format, va_list arguments, int (*putc_fun
 				else if (*format == '*')
 				{
 					percision = va_arg(arguments, int);
+					format++;
 				}
 				if (percision < 0)
 					percision = -1;
@@ -295,9 +295,11 @@ extern "C" int printf_impl(const char* format, va_list arguments, int (*putc_fun
 		
 			// TODO: Lenght modifier
 
-			static char conversion[1024];
-
+			char conversion[1024];
 			const char* string = nullptr;
+
+			int length = -1;
+
 			switch (*format)
 			{
 			case 'd':
@@ -371,6 +373,12 @@ extern "C" int printf_impl(const char* format, va_list arguments, int (*putc_fun
 			case 's':
 			{
 				string = va_arg(arguments, const char*);
+				if (options.percision != -1)
+				{
+					length = 0;
+					while (string[length] && length < options.percision)
+						length++;
+				}
 				format++;
 				break;
 			}
@@ -420,23 +428,21 @@ extern "C" int printf_impl(const char* format, va_list arguments, int (*putc_fun
 
 			if (string)
 			{
-				int len = strlen(string);
+				if (length == -1)
+					length = strlen(string);
 
 				if (options.width == -1)
 					options.width = 0;
 
 				if (!options.left_justified)
-					for (int i = len; i < options.width; i++)
+					for (int i = length; i < options.width; i++)
 						BAN_PRINTF_PUTC(' ');
 
-				while (*string)
-				{
-					BAN_PRINTF_PUTC(*string);
-					string++;
-				}
+				for (int i = 0; i < length && string[i]; i++)
+					BAN_PRINTF_PUTC(string[i]);
 
 				if (options.left_justified)
-					for (int i = len; i < options.width; i++)
+					for (int i = length; i < options.width; i++)
 						BAN_PRINTF_PUTC(' ');
 			}
 		}
