@@ -271,16 +271,20 @@ namespace Kernel
 		DISABLE_INTERRUPTS();
 
 		load_temp_stack();
+		PageTable::kernel().load();
 
-		Process* process = &m_current_thread->thread->process();
-
+		ASSERT(m_current_thread);
+		Thread* thread = m_current_thread->thread;
+		Process* process = &thread->process();
 		remove_threads(m_blocking_threads, it->thread->process().pid() == process->pid());
 		remove_threads(m_sleeping_threads, it->thread->process().pid() == process->pid());
 		remove_threads(m_active_threads, it != m_current_thread && it->thread->process().pid() == process->pid());
 
-		delete m_current_thread->thread;
-		delete process;
 		remove_and_advance_current_thread();
+
+		delete thread;
+		delete process;
+
 		execute_current_thread();
 
 		ASSERT_NOT_REACHED();
