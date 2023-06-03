@@ -382,11 +382,13 @@ namespace Kernel
 		ASSERT_NOT_REACHED();
 	}
 
-	vaddr_t PageTable::get_free_contiguous_pages(size_t page_count) const
+	vaddr_t PageTable::get_free_contiguous_pages(size_t page_count, vaddr_t first_address) const
 	{
+		ASSERT(first_address % PAGE_SIZE == 0);
+
 		LockGuard _(m_lock);
 
-		for (vaddr_t vaddr = PAGE_SIZE; !(vaddr >> 48); vaddr += PAGE_SIZE)
+		for (vaddr_t vaddr = first_address; is_canonical(vaddr); vaddr += PAGE_SIZE)
 		{
 			bool valid { true };
 			for (size_t page = 0; page < page_count; page++)
