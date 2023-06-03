@@ -10,9 +10,9 @@
 	#error
 #endif
 
-#define PAGE_SIZE 4096
-#define PAGE_FLAG_MASK ((uintptr_t)0xFFF)
-#define PAGE_ADDR_MASK (~PAGE_FLAG_MASK)
+#define PAGE_SIZE ((uintptr_t)4096)
+#define PAGE_FLAG_MASK ((uintptr_t)0xF)
+#define PAGE_ADDR_MASK (~(uintptr_t)0xFFF)
 
 namespace Kernel
 {
