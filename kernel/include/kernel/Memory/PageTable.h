@@ -51,6 +51,8 @@ namespace Kernel
 		void lock() const { m_lock.lock(); }
 		void unlock() const { m_lock.unlock(); }
 
+		void debug_dump();
+
 	private:
 		PageTable() = default;
 		uint64_t get_page_data(vaddr_t) const;
