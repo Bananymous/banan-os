@@ -423,4 +423,74 @@ namespace Kernel
 		return true;
 	}
 
+	static void dump_range(vaddr_t start, vaddr_t end, PageTable::flags_t flags)
+	{
+		if (start == 0)
+			return;
+		dprintln("{}-{}: {}{}{}",
+			(void*)canonicalize(start),
+			(void*)canonicalize(end - 1),
+			flags & PageTable::Flags::UserSupervisor	? 'u' : '-',
+			flags & PageTable::Flags::ReadWrite			? 'w' : '-',
+			flags & PageTable::Flags::Present			? 'r' : '-'
+		);
+	}
+
+	void PageTable::debug_dump()
+	{
+		LockGuard _(m_lock);
+
+		flags_t flags = 0;
+		vaddr_t start = 0;
+
+		uint64_t* pml4 = (uint64_t*)P2V(m_highest_paging_struct);
+		for (uint64_t pml4e = 0; pml4e < 512; pml4e++)
+		{
+			if (!(pml4[pml4e] & Flags::Present))
+			{
+				dump_range(start, (pml4e << 39), flags);
+				start = 0;
+				continue;
+			}
+			uint64_t* pdpt = (uint64_t*)P2V(pml4[pml4e] & PAGE_ADDR_MASK);
+			for (uint64_t pdpte = 0; pdpte < 512; pdpte++)
+			{
+				if (!(pdpt[pdpte] & Flags::Present))
+				{
+					dump_range(start, (pml4e << 39) | (pdpte << 30), flags);
+					start = 0;
+					continue;
+				}
+				uint64_t* pd = (uint64_t*)P2V(pdpt[pdpte] & PAGE_ADDR_MASK);
+				for (uint64_t pde = 0; pde < 512; pde++)
+				{
+					if (!(pd[pde] & Flags::Present))
+					{
+						dump_range(start, (pml4e << 39) | (pdpte << 30) | (pde << 21), flags);
+						start = 0;
+						continue;
+					}
+					uint64_t* pt = (uint64_t*)P2V(pd[pde] & PAGE_ADDR_MASK);
+					for (uint64_t pte = 0; pte < 512; pte++)
+					{
+						if ((pt[pte] & PAGE_FLAG_MASK) != flags)
+						{
+							dump_range(start, (pml4e << 39) | (pdpte << 30) | (pde << 21) | (pte << 12), flags);
+							start = 0;
+						}
+
+						if (!(pt[pte] & Flags::Present))
+							continue;
+						
+						if (start == 0)
+						{
+							flags = pt[pte] & PAGE_FLAG_MASK;
+							start = (pml4e << 39) | (pdpte << 30) | (pde << 21) | (pte << 12);
+						}
+					}
+				}
+			}
+		}
+	}
+
 }
