@@ -43,7 +43,7 @@ namespace Kernel
 		bool is_range_free(vaddr_t, size_t bytes) const;
 
 		vaddr_t get_free_page() const;
-		vaddr_t get_free_contiguous_pages(size_t page_count) const;
+		vaddr_t get_free_contiguous_pages(size_t page_count, vaddr_t first_address = PAGE_SIZE) const;
 
 		void invalidate(vaddr_t);
 		void load();
