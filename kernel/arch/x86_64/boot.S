@@ -58,7 +58,7 @@ boot_pml4:
 	.endr
 	.quad V2P(boot_pdpt_hi) + (PG_READ_WRITE | PG_PRESENT)
 boot_pdpt_lo:
-	.quad 0x00000000 + (PG_PAGE_SIZE | PG_READ_WRITE | PG_PRESENT)
+	.quad V2P(boot_pd) + (PG_READ_WRITE | PG_PRESENT)
 	.rept 511
 		.quad 0
 	.endr
@@ -66,8 +66,14 @@ boot_pdpt_hi:
 	.rept 510
 		.quad 0
 	.endr
-	.quad 0x00000000 + (PG_PAGE_SIZE | PG_READ_WRITE | PG_PRESENT)
+	.quad V2P(boot_pd) + (PG_READ_WRITE | PG_PRESENT)
 	.quad 0
+boot_pd:
+	.set i, 0
+	.rept 512
+		.quad i + (PG_PAGE_SIZE | PG_READ_WRITE | PG_PRESENT)
+		.set i, i + 0x200000
+	.endr
 
 boot_gdt:
 	.quad 0x0000000000000000 # null descriptor
