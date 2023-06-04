@@ -168,9 +168,6 @@ namespace Kernel
 		for (auto* mapped_range : m_mapped_ranges)
 			MUST(forked->m_mapped_ranges.push_back(mapped_range->clone(forked->page_table())));
 
-		ASSERT(m_threads.size() == 1);
-		ASSERT(m_threads.front() == &Thread::current());
-
 		for (auto& allocator : m_fixed_width_allocators)
 			if (allocator->allocations() > 0)
 				MUST(forked->m_fixed_width_allocators.push_back(MUST(allocator->clone(forked->page_table()))));
@@ -178,7 +175,8 @@ namespace Kernel
 		if (m_general_allocator)
 			forked->m_general_allocator = MUST(m_general_allocator->clone(forked->page_table()));
 
-		Thread* thread = MUST(m_threads.front()->clone(forked, rsp, rip));
+		ASSERT(this == &Process::current());
+		Thread* thread = MUST(Thread::current().clone(forked, rsp, rip));
 		forked->add_thread(thread);
 		
 		register_process(forked);
