@@ -51,6 +51,9 @@ namespace Kernel
 		BAN::ErrorOr<Process*> fork(uintptr_t rsp, uintptr_t rip);
 		BAN::ErrorOr<void> exec(BAN::StringView path, const char* const* argv, const char* const* envp);
 
+		int block_until_exit();
+		BAN::ErrorOr<pid_t> wait(pid_t pid, int* stat_loc, int options);
+
 		BAN::ErrorOr<int> open(BAN::StringView, int);
 		BAN::ErrorOr<void> close(int fd);
 		BAN::ErrorOr<size_t> read(int fd, void* buffer, size_t count);
@@ -105,6 +108,15 @@ namespace Kernel
 		OpenFileDescription& open_file_description(int);
 		BAN::ErrorOr<int> get_free_fd();
 
+
+		struct ExitStatus
+		{
+			Semaphore semaphore;
+			int exit_code { 0 };
+			bool exited { false };
+			int waiting { 0 };
+		};
+
 		BAN::Vector<OpenFileDescription> m_open_files;
 		BAN::Vector<VirtualRange*> m_mapped_ranges;
 
@@ -118,6 +130,7 @@ namespace Kernel
 		BAN::UniqPtr<GeneralAllocator> m_general_allocator;
 
 		userspace_entry_t m_userspace_entry;
+		ExitStatus m_exit_status;
 
 		BAN::UniqPtr<PageTable> m_page_table;
 		TTY* m_tty { nullptr };
