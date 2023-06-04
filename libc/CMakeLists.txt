@@ -10,6 +10,7 @@ set(LIBC_SOURCES
 	stdio.cpp
 	stdlib.cpp
 	string.cpp
+	sys/wait.cpp
 	termios.cpp
 	unistd.cpp
 	math.S

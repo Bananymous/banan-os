@@ -137,6 +137,14 @@ long syscall(long syscall, ...)
 			ret = Kernel::syscall(SYS_REALLOC, (uintptr_t)ptr, size);
 			break;
 		}
+		case SYS_WAIT:
+		{
+			pid_t pid = va_arg(args, pid_t);
+			int* stat_loc = va_arg(args, int*);
+			int options = va_arg(args, int);
+			ret = Kernel::syscall(SYS_WAIT, pid, (uintptr_t)stat_loc, options);
+			break;
+		}
 		default:
 			puts("LibC: Unhandeled syscall");
 			ret = -ENOSYS;
