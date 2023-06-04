@@ -117,6 +117,15 @@ namespace Kernel
 	void Process::exit()
 	{
 		m_lock.lock();
+		m_exit_status.exited = true;
+		while (m_exit_status.waiting > 0)
+		{
+			m_exit_status.semaphore.unblock();
+			m_lock.unlock();
+			// TODO: add proper software reschedule
+			Scheduler::get().set_current_thread_sleeping(0);
+		}
+		m_lock.lock();
 
 		m_threads.clear();
 		for (auto& open_fd : m_open_files)
@@ -249,6 +258,52 @@ namespace Kernel
 		ASSERT_NOT_REACHED();
 	}
 
+	int Process::block_until_exit()
+	{
+		ASSERT(s_process_lock.is_locked());
+		ASSERT(this != &Process::current());
+
+		s_process_lock.unlock();
+
+		m_lock.lock();
+		m_exit_status.waiting++;
+		while (!m_exit_status.exited)
+		{
+			m_lock.unlock();
+			m_exit_status.semaphore.block();
+			m_lock.lock();
+		}
+
+		int ret = m_exit_status.exit_code;
+		m_exit_status.waiting--;
+		m_lock.unlock();
+
+		s_process_lock.lock();
+
+		return ret;
+	}
+
+	BAN::ErrorOr<pid_t> Process::wait(pid_t pid, int* stat_loc, int options)
+	{
+		Process* target = nullptr;
+
+		// FIXME: support options
+		if (options)
+			return BAN::Error::from_errno(EINVAL);
+
+		LockGuard _(s_process_lock);
+		for (auto* process : s_processes)
+			if (process->pid() == pid)
+				target = process;
+
+		if (target == nullptr)
+			return BAN::Error::from_errno(ECHILD);
+
+		pid_t ret = target->pid();
+		*stat_loc = target->block_until_exit();
+
+		return ret;
+	}
 
 	void Process::load_elf(LibELF::ELF& elf)
 	{
