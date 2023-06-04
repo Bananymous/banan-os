@@ -21,6 +21,7 @@ __BEGIN_DECLS
 #define SYS_SLEEP 14
 #define SYS_EXEC 15
 #define SYS_REALLOC 16
+#define SYS_WAIT 17
 
 __END_DECLS
 

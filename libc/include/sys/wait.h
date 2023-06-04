@@ -20,11 +20,12 @@ __BEGIN_DECLS
 #define WNOWAIT		0x10
 #define WSTOPPED	0x20
 
+#define WEXITSTATUS(status)	(status & 0xFF)
+#define WIFEXITED(status)	(WEXITSTATUS(status) != 0)
+
 // FIXME
 #if 0
-#define WEXITSTATUS
 #define WIFCONTINUED
-#define WIFEXITED
 #define WIFSIGNALED
 #define WIFSTOPPED
 #define WSTOPSIG
