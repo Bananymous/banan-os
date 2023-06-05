@@ -50,6 +50,7 @@ if [ ! -f ${PREFIX}/bin/${TARGET}-ld ]; then
 		--target="$TARGET" \
 		--prefix="$PREFIX" \
 		--with-sysroot="$SYSROOT" \
+		--disable-nls \
 		--disable-werror
 
 	make -j $(nproc)
@@ -79,6 +80,7 @@ if [ ! -f ${PREFIX}/bin/${TARGET}-g++ ]; then
 		--target="$TARGET" \
 		--prefix="$PREFIX" \
 		--with-sysroot="$SYSROOT" \
+		--disable-nls \
 		--enable-languages=c,c++
 
 	make -j $(nproc) all-gcc 
