@@ -57,6 +57,8 @@ namespace Kernel
 		int block_until_exit();
 		BAN::ErrorOr<pid_t> wait(pid_t pid, int* stat_loc, int options);
 
+		BAN::ErrorOr<void> setenvp(char** envp);
+
 		BAN::ErrorOr<int> open(BAN::StringView, int);
 		BAN::ErrorOr<void> close(int fd);
 		BAN::ErrorOr<size_t> read(int fd, void* buffer, size_t count);
