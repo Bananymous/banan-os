@@ -22,6 +22,7 @@ __BEGIN_DECLS
 #define SYS_EXEC 15
 #define SYS_REALLOC 16
 #define SYS_WAIT 17
+#define SYS_STAT 18
 
 __END_DECLS
 

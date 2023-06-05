@@ -522,9 +522,9 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<void> Process::stat(BAN::StringView path, struct stat* out)
+	BAN::ErrorOr<void> Process::stat(BAN::StringView path, struct stat* out, int flags)
 	{
-		int fd = TRY(open(path, O_RDONLY | O_NOFOLLOW));
+		int fd = TRY(open(path, flags));
 		auto ret = fstat(fd, out);
 		MUST(close(fd));
 		return ret;

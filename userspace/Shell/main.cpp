@@ -1,6 +1,7 @@
 #include <BAN/ScopeGuard.h>
 #include <BAN/String.h>
 #include <BAN/Vector.h>
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
@@ -42,6 +43,13 @@ int execute_command(BAN::StringView command)
 	}
 	else
 	{
+		struct stat stat_buf;
+		if (stat(args.front(), &stat_buf) == -1)
+		{
+			fprintf(stderr, "command not found: %s\n", args.front());
+			return 1;
+		}
+
 		pid_t pid = fork();
 		if (pid == 0)
 		{
@@ -61,6 +69,28 @@ int execute_command(BAN::StringView command)
 	}
 
 	return 0;
+}
+
+int prompt_length(BAN::StringView prompt)
+{
+	int length { 0 };
+	bool in_escape { false };
+	for (char c : prompt)
+	{
+		if (in_escape)
+		{
+			if (isalpha(c))
+				in_escape = false;
+		}
+		else
+		{
+			if (c == '\e')
+				in_escape = true;
+			else
+				length++;
+		}
+	}
+	return length;
 }
 
 int main(int argc, char** argv)
@@ -102,8 +132,8 @@ int main(int argc, char** argv)
 			fread(&c, 1, sizeof(char), stdin);
 			switch (c)
 			{
-				case 'A': if (index > 0)					{ index--; col = buffers[index].size(); fprintf(stdout, "\e[G%s\e[K", buffers[index].data()); fflush(stdout); } break;
-				case 'B': if (index < buffers.size() - 1)	{ index++; col = buffers[index].size(); fprintf(stdout, "\e[G%s\e[K", buffers[index].data()); fflush(stdout); } break;
+				case 'A': if (index > 0)					{ index--; col = buffers[index].size(); fprintf(stdout, "\e[%dG%s\e[K", prompt_length(prompt) + 1, buffers[index].data()); fflush(stdout); } break;
+				case 'B': if (index < buffers.size() - 1)	{ index++; col = buffers[index].size(); fprintf(stdout, "\e[%dG%s\e[K", prompt_length(prompt) + 1, buffers[index].data()); fflush(stdout); } break;
 				case 'C': break;
 				case 'D': break;
 			}

@@ -534,7 +534,7 @@ argument_done:
 				BAN::String entry_path;
 				TRY(entry_path.append(entry_prefix));
 				TRY(entry_path.append(entry));
-				TRY(Process::current().stat(entry_path, &st));
+				TRY(Process::current().stat(entry_path, &st, O_RDONLY | O_NOFOLLOW));
 
 				Inode::Mode mode { st.st_mode };
 
@@ -577,7 +577,7 @@ argument_done:
 			}
 			
 			struct stat st;
-			TRY(Process::current().stat(arguments[1], &st));
+			TRY(Process::current().stat(arguments[1], &st, O_RDONLY | O_NOFOLLOW));
 
 			Inode::Mode mode { st.st_mode };
 
