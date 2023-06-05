@@ -9,10 +9,13 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 
+char** environ;
+
 extern "C" void _init_stdio();
 
-extern "C" void _init_libc()
+extern "C" void _init_libc(char** _environ)
 {
+	environ = _environ;
 	_init_stdio();
 }
 

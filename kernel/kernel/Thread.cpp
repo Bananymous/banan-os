@@ -9,7 +9,7 @@
 namespace Kernel
 {
 
-	extern "C" void thread_userspace_trampoline(uint64_t rsp, uint64_t rip, int argc, char** argv);
+	extern "C" void thread_userspace_trampoline(uint64_t rsp, uint64_t rip, int argc, char** argv, char** envp);
 	extern "C" uintptr_t read_rip();
 
 	template<size_t size, typename T>
@@ -131,7 +131,7 @@ namespace Kernel
 			[](void*)
 			{
 				const auto& entry = Process::current().userspace_entry();
-				thread_userspace_trampoline(Thread::current().rsp(), entry.entry, entry.argc, entry.argv);
+				thread_userspace_trampoline(Thread::current().rsp(), entry.entry, entry.argc, entry.argv, entry.envp);
 				ASSERT_NOT_REACHED();
 			}
 		);
