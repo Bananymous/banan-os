@@ -53,6 +53,12 @@ namespace Kernel
 			delete elf;
 			return BAN::Error::from_errno(EINVAL);
 		}
+		if (elf->file_header_native().e_type != LibELF::ET_EXEC)
+		{
+			derrorln("Not an executable");
+			delete elf;
+			return BAN::Error::from_errno(EINVAL);
+		}
 
 		auto* process = create_process();
 		MUST(process->m_working_directory.push_back('/'));
@@ -209,6 +215,12 @@ namespace Kernel
 		if (!elf->is_native())
 		{
 			derrorln("ELF has invalid architecture");
+			delete elf;
+			return BAN::Error::from_errno(EINVAL);
+		}
+		if (elf->file_header_native().e_type != LibELF::ET_EXEC)
+		{
+			derrorln("Not an executable");
 			delete elf;
 			return BAN::Error::from_errno(EINVAL);
 		}
