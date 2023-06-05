@@ -84,6 +84,9 @@ namespace Kernel
 		uint32_t m_width { 0 };
 		uint32_t m_height { 0 };
 
+		uint32_t m_saved_row { 0 };
+		uint32_t m_saved_column { 0 };
+
 		uint32_t m_row { 0 };
 		uint32_t m_column { 0 };
 		Cell* m_buffer { nullptr };
