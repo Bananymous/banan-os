@@ -145,6 +145,14 @@ namespace BAN
 		return m_data[0];
 	}
 
+	bool StringView::contains(char ch) const
+	{
+		for (size_type i = 0; i < m_size; i++)
+			if (m_data[i] == ch)
+				return true;
+		return false;
+	}
+
 	StringView::size_type StringView::count(char ch) const
 	{
 		size_type result = 0;
