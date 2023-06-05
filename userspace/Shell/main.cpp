@@ -117,12 +117,6 @@ int main(int argc, char** argv)
 		char c;
 		fread(&c, 1, sizeof(char), stdin);
 
-		if (got_csi)
-		{
-			
-			continue;
-		}
-
 		switch (c)
 		{
 		case '\e':
@@ -132,19 +126,19 @@ int main(int argc, char** argv)
 			fread(&c, 1, sizeof(char), stdin);
 			switch (c)
 			{
-				case 'A': if (index > 0)					{ index--; col = buffers[index].size(); fprintf(stdout, "\e[%dG%s\e[K", prompt_length(prompt) + 1, buffers[index].data()); fflush(stdout); } break;
-				case 'B': if (index < buffers.size() - 1)	{ index++; col = buffers[index].size(); fprintf(stdout, "\e[%dG%s\e[K", prompt_length(prompt) + 1, buffers[index].data()); fflush(stdout); } break;
-				case 'C': break;
-				case 'D': break;
+				case 'A': if (index > 0)						{ index--; col = buffers[index].size(); fprintf(stdout, "\e[%dG%s\e[K", prompt_length(prompt) + 1, buffers[index].data()); fflush(stdout); } break;
+				case 'B': if (index < buffers.size() - 1)		{ index++; col = buffers[index].size(); fprintf(stdout, "\e[%dG%s\e[K", prompt_length(prompt) + 1, buffers[index].data()); fflush(stdout); } break;
+				case 'C': if (col < buffers[index].size() - 1)	{ col++; fprintf(stdout, "\e[C"); fflush(stdout); } break;
+				case 'D': if (col > 0)							{ col--; fprintf(stdout, "\e[D"); fflush(stdout); } break;
 			}
 			break;
 		case '\b':
 			if (col > 0)
 			{
-				buffers[index].pop_back();
-				fprintf(stdout, "\b \b");
-				fflush(stdout);
 				col--;
+				buffers[index].remove(col);
+				fprintf(stdout, "\b\e[s%s\e[K\e[u", buffers[index].data() + col);
+				fflush(stdout);
 			}
 			break;
 		case '\n':
