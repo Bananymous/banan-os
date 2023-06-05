@@ -128,6 +128,14 @@ namespace Kernel
 		return ret.value();
 	}
 
+	long sys_stat(const char* path, struct stat* buf, int flags)
+	{
+		auto ret = Process::current().stat(path, buf, flags);
+		if (ret.is_error())
+			return -ret.error().get_error_code();
+		return 0;
+	}
+
 	extern "C" long sys_fork_trampoline();
 
 	extern "C" long cpp_syscall_handler(int syscall, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
@@ -192,6 +200,9 @@ namespace Kernel
 			break;
 		case SYS_WAIT:
 			ret = sys_wait((pid_t)arg1, (int*)arg2, (int)arg3);
+			break;
+		case SYS_STAT:
+			ret = sys_stat((const char*)arg1, (struct stat*)arg2, (int)arg3);
 			break;
 		default:
 			Kernel::panic("Unknown syscall {}", syscall);

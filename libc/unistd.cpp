@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <sys/syscall.h>
 #include <unistd.h>
 
@@ -143,6 +144,14 @@ long syscall(long syscall, ...)
 			int* stat_loc = va_arg(args, int*);
 			int options = va_arg(args, int);
 			ret = Kernel::syscall(SYS_WAIT, pid, (uintptr_t)stat_loc, options);
+			break;
+		}
+		case SYS_STAT:
+		{
+			const char* path = va_arg(args, const char*);
+			struct stat* buf = va_arg(args, struct stat*);
+			int flags = va_arg(args, int);
+			ret = Kernel::syscall(SYS_STAT, (uintptr_t)path, (uintptr_t)buf, flags);
 			break;
 		}
 		default:

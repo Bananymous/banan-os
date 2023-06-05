@@ -64,7 +64,7 @@ namespace Kernel
 		BAN::ErrorOr<off_t> tell(int fd);
 
 		BAN::ErrorOr<void> fstat(int fd, struct stat*);
-		BAN::ErrorOr<void> stat(BAN::StringView path, struct stat*);
+		BAN::ErrorOr<void> stat(BAN::StringView path, struct stat*, int flags);
 
 		BAN::ErrorOr<void> mount(BAN::StringView source, BAN::StringView target);
 
