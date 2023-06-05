@@ -106,7 +106,7 @@ int main(int argc, char** argv)
 	size_t index = 0;
 	size_t col = 0;
 
-	bool got_csi = false;
+	int waiting_utf8 = 0;
 
 	BAN::String prompt("\e[32muser@host\e[m:\e[34m/\e[m$ "sv);
 	fprintf(stdout, "%s", prompt.data());
@@ -114,30 +114,62 @@ int main(int argc, char** argv)
 
 	while (true)
 	{
-		char c;
-		fread(&c, 1, sizeof(char), stdin);
+		uint8_t ch;
+		fread(&ch, 1, sizeof(char), stdin);
 
-		switch (c)
+		if (waiting_utf8 > 0)
+		{
+			waiting_utf8--;
+
+			ASSERT((ch & 0xC0) == 0x80);
+
+			fputc(ch, stdout);
+			MUST(buffers[index].insert(ch, col++));
+			if (waiting_utf8 == 0)
+			{
+				fprintf(stdout, "\e[s%s\e[u", buffers[index].data() + col);
+				fflush(stdout);
+			}
+			continue;
+		}
+		else if (ch & 0x80)
+		{
+			if ((ch & 0xE0) == 0xC0)
+				waiting_utf8 = 1;
+			else if ((ch & 0xF0) == 0xE0)
+				waiting_utf8 = 2;
+			else if ((ch & 0xF8) == 0xF0)
+				waiting_utf8 = 3;
+			else
+				ASSERT_NOT_REACHED();
+			
+			fputc(ch, stdout);
+			MUST(buffers[index].insert(ch, col++));
+			continue;
+		}
+
+		switch (ch)
 		{
 		case '\e':
-			fread(&c, 1, sizeof(char), stdin);
-			if (c != '[')
+			fread(&ch, 1, sizeof(char), stdin);
+			if (ch != '[')
 				break;
-			fread(&c, 1, sizeof(char), stdin);
-			switch (c)
+			fread(&ch, 1, sizeof(char), stdin);
+			switch (ch)
 			{
-				case 'A': if (index > 0)						{ index--; col = buffers[index].size(); fprintf(stdout, "\e[%dG%s\e[K", prompt_length(prompt) + 1, buffers[index].data()); fflush(stdout); } break;
-				case 'B': if (index < buffers.size() - 1)		{ index++; col = buffers[index].size(); fprintf(stdout, "\e[%dG%s\e[K", prompt_length(prompt) + 1, buffers[index].data()); fflush(stdout); } break;
-				case 'C': if (col < buffers[index].size() - 1)	{ col++; fprintf(stdout, "\e[C"); fflush(stdout); } break;
-				case 'D': if (col > 0)							{ col--; fprintf(stdout, "\e[D"); fflush(stdout); } break;
+				case 'A': if (index > 0)					{ index--; col = buffers[index].size(); fprintf(stdout, "\e[%dG%s\e[K", prompt_length(prompt) + 1, buffers[index].data()); fflush(stdout); } break;
+				case 'B': if (index < buffers.size() - 1)	{ index++; col = buffers[index].size(); fprintf(stdout, "\e[%dG%s\e[K", prompt_length(prompt) + 1, buffers[index].data()); fflush(stdout); } break;
+				case 'C': if (col < buffers[index].size())	{ col++; while ((buffers[index][col - 1] & 0xC0) == 0x80) col++; fprintf(stdout, "\e[C"); fflush(stdout); } break;
+				case 'D': if (col > 0)						{ while ((buffers[index][col - 1] & 0xC0) == 0x80) col--; col--; fprintf(stdout, "\e[D"); fflush(stdout); } break;
 			}
 			break;
 		case '\b':
 			if (col > 0)
 			{
-				col--;
-				buffers[index].remove(col);
-				fprintf(stdout, "\b\e[s%s\e[K\e[u", buffers[index].data() + col);
+				while ((buffers[index][col - 1] & 0xC0) == 0x80)
+					buffers[index].remove(--col);
+				buffers[index].remove(--col);
+				fprintf(stdout, "\b\e[s%s \e[u", buffers[index].data() + col);
 				fflush(stdout);
 			}
 			break;
@@ -156,10 +188,9 @@ int main(int argc, char** argv)
 			col = 0;
 			break;
 		default:
-			MUST(buffers[index].push_back(c));
-			fprintf(stdout, "%s \b", buffers[index].data() + col);
+			MUST(buffers[index].insert(ch, col++));
+			fprintf(stdout, "%c\e[s%s\e[u", ch, buffers[index].data() + col);
 			fflush(stdout);
-			col++;
 			break;
 		}
 	}
