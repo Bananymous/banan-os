@@ -188,9 +188,6 @@ namespace Kernel
 	{
 		LockGuard _(m_lock);
 
-		ASSERT(is_canonical(vaddr));
-		vaddr = uncanonicalize(vaddr);
-
 		vaddr &= PAGE_ADDR_MASK;
 
 		if (is_page_free(vaddr))
@@ -198,6 +195,9 @@ namespace Kernel
 			dwarnln("unmapping unmapped page {8H}", vaddr);
 			return;
 		}
+
+		ASSERT(is_canonical(vaddr));
+		vaddr = uncanonicalize(vaddr);
 
 		uint64_t pml4e = (vaddr >> 39) & 0x1FF;
 		uint64_t pdpte = (vaddr >> 30) & 0x1FF;
@@ -384,7 +384,8 @@ namespace Kernel
 
 	vaddr_t PageTable::get_free_contiguous_pages(size_t page_count, vaddr_t first_address) const
 	{
-		ASSERT(first_address % PAGE_SIZE == 0);
+		if (first_address % PAGE_SIZE)
+			first_address = (first_address + PAGE_SIZE - 1) & PAGE_ADDR_MASK;
 
 		LockGuard _(m_lock);
 
