@@ -11,7 +11,9 @@ extern "C" void _fini();
 
 void abort(void)
 {
-	ASSERT_NOT_REACHED();
+	fflush(nullptr);
+	fprintf(stderr, "abort()\n");
+	exit(1);
 }
 
 void exit(int status)
