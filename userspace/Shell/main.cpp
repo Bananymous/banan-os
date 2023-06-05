@@ -177,7 +177,9 @@ int main(int argc, char** argv)
 			fputc('\n', stdout);
 			if (!buffers[index].empty())
 			{
+				tcsetattr(0, TCSANOW, &old_termios);
 				execute_command(buffers[index]);
+				tcsetattr(0, TCSANOW, &new_termios);
 				MUST(history.push_back(buffers[index]));
 				buffers = history;
 				MUST(buffers.emplace_back(""sv));
