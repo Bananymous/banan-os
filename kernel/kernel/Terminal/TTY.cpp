@@ -473,6 +473,14 @@ namespace Kernel
 			case 'm':
 				handle_ansi_csi_color();
 				return reset_ansi();
+			case 's':
+				m_saved_row = m_row;
+				m_saved_column = m_column;
+				return reset_ansi();
+			case 'u':
+				m_row = m_saved_row;
+				m_column = m_saved_column;
+				return reset_ansi();
 			default:
 				dprintln("Unsupported ANSI CSI character {}", ch);
 				return reset_ansi();
