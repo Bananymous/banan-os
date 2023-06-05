@@ -35,6 +35,7 @@ namespace BAN
 		char back() const;
 		char front() const;
 
+		bool contains(char) const;
 		size_type count(char) const;
 
 		bool empty() const;
