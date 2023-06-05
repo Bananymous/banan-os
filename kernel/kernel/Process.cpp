@@ -46,19 +46,7 @@ namespace Kernel
 
 	BAN::ErrorOr<Process*> Process::create_userspace(BAN::StringView path)
 	{
-		auto* elf = TRY(LibELF::ELF::load_from_file(path));
-		if (!elf->is_native())
-		{
-			derrorln("ELF has invalid architecture");
-			delete elf;
-			return BAN::Error::from_errno(EINVAL);
-		}
-		if (elf->file_header_native().e_type != LibELF::ET_EXEC)
-		{
-			derrorln("Not an executable");
-			delete elf;
-			return BAN::Error::from_errno(EINVAL);
-		}
+		auto* elf = TRY(load_elf_for_exec(path));		
 
 		auto* process = create_process();
 		MUST(process->m_working_directory.push_back('/'));
@@ -167,6 +155,34 @@ namespace Kernel
 		return {};
 	}
 
+	BAN::ErrorOr<LibELF::ELF*> Process::load_elf_for_exec(BAN::StringView path)
+	{
+		auto elf_or_error = LibELF::ELF::load_from_file(path);
+		if (elf_or_error.is_error())
+		{
+			if (elf_or_error.error().get_error_code() == EINVAL)
+				return BAN::Error::from_errno(ENOEXEC);
+			return elf_or_error.error();
+		}
+		
+		auto* elf = elf_or_error.release_value();
+		if (!elf->is_native())
+		{
+			derrorln("ELF has invalid architecture");
+			delete elf;
+			return BAN::Error::from_errno(EINVAL);
+		}
+
+		if (elf->file_header_native().e_type != LibELF::ET_EXEC)
+		{
+			derrorln("Not an executable");
+			delete elf;
+			return BAN::Error::from_errno(ENOEXEC);
+		}
+
+		return elf;
+	}
+
 	BAN::ErrorOr<Process*> Process::fork(uintptr_t rsp, uintptr_t rip)
 	{
 		Process* forked = create_process();
@@ -212,19 +228,7 @@ namespace Kernel
 			if (str_envp.emplace_back(*envp++).is_error())
 				return BAN::Error::from_errno(ENOMEM);
 
-		auto* elf = TRY(LibELF::ELF::load_from_file(path));	
-		if (!elf->is_native())
-		{
-			derrorln("ELF has invalid architecture");
-			delete elf;
-			return BAN::Error::from_errno(EINVAL);
-		}
-		if (elf->file_header_native().e_type != LibELF::ET_EXEC)
-		{
-			derrorln("Not an executable");
-			delete elf;
-			return BAN::Error::from_errno(EINVAL);
-		}
+		auto* elf = TRY(load_elf_for_exec(path));
 
 		LockGuard lock_guard(m_lock);
 

@@ -49,6 +49,8 @@ namespace Kernel
 
 		pid_t pid() const { return m_pid; }
 
+		static BAN::ErrorOr<LibELF::ELF*> load_elf_for_exec(BAN::StringView);
+
 		BAN::ErrorOr<Process*> fork(uintptr_t rsp, uintptr_t rip);
 		BAN::ErrorOr<void> exec(BAN::StringView path, const char* const* argv, const char* const* envp);
 
