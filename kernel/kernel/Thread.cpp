@@ -130,8 +130,8 @@ namespace Kernel
 		static entry_t entry_trampoline(
 			[](void*)
 			{
-				const auto& entry = Process::current().userspace_entry();
-				thread_userspace_trampoline(Thread::current().rsp(), entry.entry, entry.argc, entry.argv, entry.envp);
+				const auto& info = Process::current().userspace_info();
+				thread_userspace_trampoline(Thread::current().rsp(), info.entry, info.argc, info.argv, info.envp);
 				ASSERT_NOT_REACHED();
 			}
 		);

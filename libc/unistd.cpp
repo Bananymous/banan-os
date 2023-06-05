@@ -206,9 +206,49 @@ int execl(const char* pathname, const char* arg0, ...)
 	return execv(pathname, argv);
 }
 
+int execle(const char* pathname, const char* arg0, ...)
+{	
+	va_list ap;
+
+	int argc = 0;
+
+	if (arg0)
+	{
+		va_start(ap, arg0);
+		argc = 1;
+		while (va_arg(ap, const char*))
+			argc++;
+		va_end(ap);
+	}
+
+	char** argv = (char**)malloc(sizeof(char*) * (argc + 1));
+	if (argv == nullptr)
+	{
+		errno = ENOMEM;
+		return -1;
+	}
+
+	char** envp = nullptr;
+
+	va_start(ap, arg0);
+	argv[0] = (char*)arg0;
+	for (int i = 1; i < argc; i++)
+		argv[i] = va_arg(ap, char*);
+	argv[argc] = nullptr;
+	envp = va_arg(ap, char**);
+	va_end(ap);
+
+	return execve(pathname, argv, envp);
+}
+
 int execv(const char* pathname, char* const argv[])
 {
-	return syscall(SYS_EXEC, pathname, argv, nullptr);
+	return execve(pathname, argv, environ);
+}
+
+int execve(const char* pathname, char* const argv[], char* const envp[])
+{
+	return syscall(SYS_EXEC, pathname, argv, envp);
 }
 
 pid_t fork(void)
