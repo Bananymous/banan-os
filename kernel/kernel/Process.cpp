@@ -389,6 +389,13 @@ namespace Kernel
 		return ret;
 	}
 
+	BAN::ErrorOr<void> Process::setenvp(char** envp)
+	{
+		LockGuard _(m_lock);
+		m_userspace_info.envp = envp;
+		return {};
+	}
+
 	void Process::load_elf(LibELF::ELF& elf)
 	{
 		ASSERT(elf.is_native());

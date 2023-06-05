@@ -7,6 +7,8 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 
+extern "C" char** environ;
+
 extern "C" void _fini();
 
 void abort(void)
@@ -54,9 +56,117 @@ int atoi(const char* str)
 	return negative ? -res : res;
 }
 
-char* getenv(const char*)
+char* getenv(const char* name)
 {
+	if (environ == nullptr)
+		return nullptr;
+	size_t len = strlen(name);
+	for (int i = 0; environ[i]; i++)
+		if (strncmp(name, environ[i], len) == 0)
+			if (environ[i][len] == '=')
+				return environ[i] + len + 1;
 	return nullptr;
+}
+
+int setenv(const char* name, const char* val, int overwrite)
+{
+	if (name == nullptr || !name[0] || strchr(name, '='))
+	{
+		errno = EINVAL;
+		return -1;
+	}
+
+	if (!overwrite && getenv(name))
+		return 0;
+
+	size_t namelen = strlen(name);
+	size_t vallen = strlen(val);
+
+	char* string = (char*)malloc(namelen + vallen + 2);
+	memcpy(string, name, namelen);
+	string[namelen] = '=';
+	memcpy(string + namelen + 1, val, vallen);
+	string[namelen + vallen + 1] = '\0';
+
+	return putenv(string);
+}
+
+int unsetenv(const char* name)
+{
+	if (name == nullptr || !name[0] || strchr(name, '='))
+	{
+		errno = EINVAL;
+		return -1;
+	}
+
+	size_t len = strlen(name);
+
+	bool found = false;
+	for (int i = 0; environ[i]; i++)
+	{
+		if (!found && strncmp(environ[i], name, len) == 0 && environ[i][len] == '=')
+		{
+			free(environ[i]);
+			found = true;
+		}
+		if (found)
+			environ[i] = environ[i + 1];
+	}
+
+	return 0;
+}
+
+int putenv(char* string)
+{
+	if (string == nullptr || !string[0])
+	{
+		errno = EINVAL;
+		return -1;
+	}
+
+	int cnt = 0;
+	for (int i = 0; string[i]; i++)
+		if (string[i] == '=')
+			cnt++;
+	if (cnt != 1)
+	{
+		errno = EINVAL;
+		return -1;
+	}
+
+	int namelen = strchr(string, '=') - string;
+	for (int i = 0; environ[i]; i++)
+	{
+		if (strncmp(environ[i], string, namelen + 1) == 0)
+		{
+			free(environ[i]);
+			environ[i] = string;
+			return 0;
+		}
+	}
+
+	int env_count = 0;
+	while (environ[env_count])
+		env_count++;
+
+	char** new_envp = (char**)malloc(sizeof(char*) * (env_count + 2));
+	if (new_envp == nullptr)
+	{
+		errno = ENOMEM;
+		return -1;
+	}
+
+	for (int i = 0; i < env_count; i++)
+		new_envp[i] = environ[i];
+	new_envp[env_count] = string;
+	new_envp[env_count + 1] = nullptr;
+
+	free(environ);
+	environ = new_envp;
+
+	if (syscall(SYS_SETENVP, environ) == -1)
+		return -1;
+	return 0;
 }
 
 void* malloc(size_t bytes)

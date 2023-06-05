@@ -157,6 +157,12 @@ long syscall(long syscall, ...)
 			ret = Kernel::syscall(SYS_STAT, (uintptr_t)path, (uintptr_t)buf, flags);
 			break;
 		}
+		case SYS_SETENVP:
+		{
+			char** envp = va_arg(args, char**);
+			ret = Kernel::syscall(SYS_SETENVP, (uintptr_t)envp);
+			break;
+		}
 		default:
 			puts("LibC: Unhandeled syscall");
 			ret = -ENOSYS;
