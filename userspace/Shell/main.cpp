@@ -43,13 +43,6 @@ int execute_command(BAN::StringView command)
 	}
 	else
 	{
-		struct stat stat_buf;
-		if (stat(args.front(), &stat_buf) == -1)
-		{
-			fprintf(stderr, "command not found: %s\n", args.front());
-			return 1;
-		}
-
 		pid_t pid = fork();
 		if (pid == 0)
 		{
@@ -60,7 +53,7 @@ int execute_command(BAN::StringView command)
 		}
 		if (pid == -1)
 		{
-			perror("fork()");
+			perror("fork");
 			return 1;
 		}
 		int status;

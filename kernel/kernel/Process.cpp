@@ -46,7 +46,7 @@ namespace Kernel
 
 	BAN::ErrorOr<Process*> Process::create_userspace(BAN::StringView path)
 	{
-		auto* elf = TRY(load_elf_for_exec(path));		
+		auto* elf = TRY(load_elf_for_exec(path, "/"sv, {}));
 
 		auto* process = create_process();
 		MUST(process->m_working_directory.push_back('/'));
@@ -55,19 +55,28 @@ namespace Kernel
 		process->load_elf(*elf);
 
 		char** argv = nullptr;
+		char** envp = nullptr;
 		{
 			PageTableScope _(process->page_table());
+
 			argv = (char**)MUST(process->allocate(sizeof(char**) * 2));
 			argv[0] = (char*)MUST(process->allocate(path.size() + 1));
 			memcpy(argv[0], path.data(), path.size());
 			argv[0][path.size()] = '\0';
 			argv[1] = nullptr;
+
+			BAN::StringView env1 = "PATH=/bin:/usr/bin"sv;
+			envp = (char**)MUST(process->allocate(sizeof(char**) * 2));
+			envp[0] = (char*)MUST(process->allocate(env1.size() + 1));
+			memcpy(envp[0], env1.data(), env1.size());
+			envp[0][env1.size()] = '\0';
+			envp[1] = nullptr;
 		}
 
-		process->m_userspace_entry.argc = 1;
-		process->m_userspace_entry.argv = argv;
-		process->m_userspace_entry.envp = (char**)0x69696969;
-		process->m_userspace_entry.entry = elf->file_header_native().e_entry;
+		process->m_userspace_info.argc = 1;
+		process->m_userspace_info.argv = argv;
+		process->m_userspace_info.envp = envp;
+		process->m_userspace_info.entry = elf->file_header_native().e_entry;
 
 		delete elf;
 
@@ -155,9 +164,54 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<LibELF::ELF*> Process::load_elf_for_exec(BAN::StringView path)
+	BAN::ErrorOr<LibELF::ELF*> Process::load_elf_for_exec(BAN::StringView file_path, const BAN::String& cwd, const BAN::Vector<BAN::StringView>& path_env)
 	{
-		auto elf_or_error = LibELF::ELF::load_from_file(path);
+		if (file_path.empty())
+			return BAN::Error::from_errno(ENOENT);
+
+		BAN::String absolute_path;
+
+		if (file_path.front() == '/')
+		{
+			// We have an absolute path
+			TRY(absolute_path.append(file_path));
+		}
+		else if (file_path.front() == '.' || file_path.contains('/'))
+		{
+			// We have a relative path
+			TRY(absolute_path.append(cwd));
+			TRY(absolute_path.push_back('/'));
+			TRY(absolute_path.append(file_path));
+		}
+		else
+		{
+			// We have neither relative or absolute path,
+			// search from PATH environment
+			for (auto path_part : path_env)
+			{
+				if (path_part.empty())
+					continue;
+
+				if (path_part.front() != '/')
+				{
+					TRY(absolute_path.append(cwd));
+					TRY(absolute_path.push_back('/'));
+				}
+				TRY(absolute_path.append(path_part));
+				TRY(absolute_path.push_back('/'));
+				TRY(absolute_path.append(file_path));
+
+				if (!VirtualFileSystem::get().file_from_absolute_path(absolute_path, true).is_error())
+					break;
+
+				absolute_path.clear();
+			}
+
+			if (absolute_path.empty())
+				return BAN::Error::from_errno(ENOENT);
+		}
+
+		auto elf_or_error = LibELF::ELF::load_from_file(absolute_path);
 		if (elf_or_error.is_error())
 		{
 			if (elf_or_error.error().get_error_code() == EINVAL)
@@ -195,7 +249,7 @@ namespace Kernel
 
 		forked->m_open_files = m_open_files;
 
-		forked->m_userspace_entry = m_userspace_entry;
+		forked->m_userspace_info = m_userspace_info;
 
 		for (auto* mapped_range : m_mapped_ranges)
 			MUST(forked->m_mapped_ranges.push_back(mapped_range->clone(forked->page_table())));
@@ -219,16 +273,19 @@ namespace Kernel
 	BAN::ErrorOr<void> Process::exec(BAN::StringView path, const char* const* argv, const char* const* envp)
 	{
 		BAN::Vector<BAN::String> str_argv;
-		while (argv && *argv)
-			if (str_argv.emplace_back(*argv++).is_error())
-				return BAN::Error::from_errno(ENOMEM);
+		for (int i = 0; argv && argv[i]; i++)
+			TRY(str_argv.emplace_back(argv[i]));
 
+		BAN::Vector<BAN::StringView> path_env;
 		BAN::Vector<BAN::String> str_envp;
-		while (envp && *envp)
-			if (str_envp.emplace_back(*envp++).is_error())
-				return BAN::Error::from_errno(ENOMEM);
+		for (int i = 0; envp && envp[i]; i++)
+		{
+			TRY(str_envp.emplace_back(envp[i]));
+			if (strncmp(envp[i], "PATH=", 5) == 0)
+				path_env = TRY(BAN::StringView(envp[i]).substring(5).split(':'));
+		}
 
-		auto* elf = TRY(load_elf_for_exec(path));
+		auto* elf = TRY(load_elf_for_exec(path, TRY(working_directory()), path_env));
 
 		LockGuard lock_guard(m_lock);
 
@@ -243,7 +300,7 @@ namespace Kernel
 
 		load_elf(*elf);
 
-		m_userspace_entry.entry = elf->file_header_native().e_entry;
+		m_userspace_info.entry = elf->file_header_native().e_entry;
 
 		delete elf;
 
@@ -252,17 +309,27 @@ namespace Kernel
 
 		{
 			PageTableScope _(page_table());
-			m_userspace_entry.argv = (char**)MUST(allocate(sizeof(char**) * (str_argv.size() + 1)));
+
+			m_userspace_info.argv = (char**)MUST(allocate(sizeof(char**) * (str_argv.size() + 1)));
 			for (size_t i = 0; i < str_argv.size(); i++)
 			{
-				m_userspace_entry.argv[i] = (char*)MUST(allocate(str_argv[i].size() + 1));
-				memcpy(m_userspace_entry.argv[i], str_argv[i].data(), str_argv[i].size());
-				m_userspace_entry.argv[i][str_argv[i].size()] = '\0';
+				m_userspace_info.argv[i] = (char*)MUST(allocate(str_argv[i].size() + 1));
+				memcpy(m_userspace_info.argv[i], str_argv[i].data(), str_argv[i].size());
+				m_userspace_info.argv[i][str_argv[i].size()] = '\0';
 			}
-			m_userspace_entry.argv[str_argv.size()] = nullptr;
+			m_userspace_info.argv[str_argv.size()] = nullptr;
+
+			m_userspace_info.envp = (char**)MUST(allocate(sizeof(char**) * (str_envp.size() + 1)));
+			for (size_t i = 0; i < str_envp.size(); i++)
+			{
+				m_userspace_info.envp[i] = (char*)MUST(allocate(str_envp[i].size() + 1));
+				memcpy(m_userspace_info.envp[i], str_envp[i].data(), str_envp[i].size());
+				m_userspace_info.envp[i][str_envp[i].size()] = '\0';
+			}
+			m_userspace_info.envp[str_envp.size()] = nullptr;
 		}
 
-		m_userspace_entry.argc = str_argv.size();
+		m_userspace_info.argc = str_argv.size();
 
 		// NOTE: These must be manually cleared since this function won't return after this point
 		str_argv.clear();

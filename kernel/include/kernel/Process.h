@@ -27,7 +27,7 @@ namespace Kernel
 	public:
 		using entry_t = Thread::entry_t;
 
-		struct userspace_entry_t
+		struct userspace_info_t
 		{
 			uintptr_t entry { 0 };
 			int argc { 0 };
@@ -49,7 +49,7 @@ namespace Kernel
 
 		pid_t pid() const { return m_pid; }
 
-		static BAN::ErrorOr<LibELF::ELF*> load_elf_for_exec(BAN::StringView);
+		static BAN::ErrorOr<LibELF::ELF*> load_elf_for_exec(BAN::StringView file_path, const BAN::String& cwd, const BAN::Vector<BAN::StringView>& path_env);
 
 		BAN::ErrorOr<Process*> fork(uintptr_t rsp, uintptr_t rip);
 		BAN::ErrorOr<void> exec(BAN::StringView path, const char* const* argv, const char* const* envp);
@@ -87,7 +87,7 @@ namespace Kernel
 
 		PageTable& page_table() { return m_page_table ? *m_page_table : PageTable::kernel(); }
 
-		const userspace_entry_t& userspace_entry() const { return m_userspace_entry; }
+		const userspace_info_t& userspace_info() const { return m_userspace_info; }
 
 	private:
 		Process(pid_t);
@@ -132,7 +132,7 @@ namespace Kernel
 		BAN::Vector<BAN::UniqPtr<FixedWidthAllocator>> m_fixed_width_allocators;
 		BAN::UniqPtr<GeneralAllocator> m_general_allocator;
 
-		userspace_entry_t m_userspace_entry;
+		userspace_info_t m_userspace_info;
 		ExitStatus m_exit_status;
 
 		BAN::UniqPtr<PageTable> m_page_table;
