@@ -31,7 +31,8 @@ namespace Kernel
 		{
 			uintptr_t entry { 0 };
 			int argc { 0 };
-			char** argv  { 0 };
+			char** argv { nullptr };
+			char** envp { nullptr };
 		};
 
 	public:

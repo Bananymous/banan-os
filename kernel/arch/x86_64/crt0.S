@@ -9,10 +9,12 @@ _start:
 	movq %rsp, %rbp
 
 	# We need those in a moment when we call main.
+	pushq %rdx
 	pushq %rsi
 	pushq %rdi
 
 	# Prepare signals, memory allocation, stdio and such.
+	movq %rdx, %rdi
 	call _init_libc
 
 	# Run the global constructors.
@@ -21,6 +23,7 @@ _start:
 	# Restore argc and argv.
 	popq %rdi
 	popq %rsi
+	popq %rdx
 
 	# Run main
 	call main

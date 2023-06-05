@@ -78,6 +78,7 @@ namespace Kernel
 
 		process->m_userspace_entry.argc = 1;
 		process->m_userspace_entry.argv = argv;
+		process->m_userspace_entry.envp = (char**)0x69696969;
 		process->m_userspace_entry.entry = elf->file_header_native().e_entry;
 
 		delete elf;

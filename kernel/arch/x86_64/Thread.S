@@ -25,7 +25,7 @@ continue_thread:
 	movq $0, %rax
 	jmp *%rsi
 
-# void thread_userspace_trampoline(uint64_t rsp, uint64_t rip, int argc, char** argv)
+# void thread_userspace_trampoline(uint64_t rsp, uint64_t rip, int argc, char** argv, char** envp)
 .global thread_userspace_trampoline
 thread_userspace_trampoline:
 	pushq $0x23
@@ -35,4 +35,5 @@ thread_userspace_trampoline:
 	pushq %rsi
 	movq %rdx, %rdi
 	movq %rcx, %rsi
+	movq %r8, %rdx
 	iretq
