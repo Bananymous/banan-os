@@ -155,7 +155,7 @@ namespace Kernel
 		{
 			// EOF from ^D
 			if (ansi[0] == '\x04')
-				ansi = nullptr;
+				goto flush;
 			else if (ansi[0] == '\b')
 			{
 				ansi = nullptr;
@@ -222,6 +222,7 @@ namespace Kernel
 			}
 		}
 
+flush:
 		if (eof || !m_termios.canonical)
 		{
 			m_output.flush = true;
