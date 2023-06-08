@@ -84,6 +84,21 @@ namespace Kernel
 		ASSERT_NOT_REACHED();
 	}
 
+	void Scheduler::reschedule()
+	{
+		VERIFY_STI();
+		DISABLE_INTERRUPTS();
+
+		if (save_current_thread())
+		{
+			ENABLE_INTERRUPTS();
+			return;
+		}
+		advance_current_thread();
+		execute_current_thread();
+		ASSERT_NOT_REACHED();
+	}
+
 	void Scheduler::reschedule_if_idling()
 	{
 		VERIFY_CLI();
