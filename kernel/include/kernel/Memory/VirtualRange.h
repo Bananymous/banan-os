@@ -23,11 +23,15 @@ namespace Kernel
 		size_t size() const { return m_size; }
 		uint8_t flags() const { return m_flags; }
 
+		void set_zero();
+		void copy_from(size_t offset, const uint8_t* buffer, size_t bytes);
+
 	private:
 		VirtualRange(PageTable&);
 
 	private:
 		PageTable&				m_page_table;
+		bool					m_kmalloc { false };
 		vaddr_t					m_vaddr { 0 };
 		size_t					m_size { 0 };
 		uint8_t					m_flags { 0 };

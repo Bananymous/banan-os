@@ -1,5 +1,4 @@
 #include <kernel/Memory/GeneralAllocator.h>
-#include <kernel/Memory/PageTableScope.h>
 
 namespace Kernel
 {

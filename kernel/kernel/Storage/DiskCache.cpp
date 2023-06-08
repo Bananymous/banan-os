@@ -1,6 +1,6 @@
 #include <kernel/LockGuard.h>
 #include <kernel/Memory/Heap.h>
-#include <kernel/Memory/PageTableScope.h>
+#include <kernel/Memory/PageTable.h>
 #include <kernel/Storage/DiskCache.h>
 #include <kernel/Storage/StorageDevice.h>
 
@@ -225,24 +225,30 @@ namespace Kernel
 	{
 		ASSERT(index < sectors.size());
 		
-		PageTableScope _(PageTable::current());
-		ASSERT(PageTable::current().is_page_free(0));
-		PageTable::current().map_page_at(paddr, 0, PageTable::Flags::Present);
+		PageTable& page_table = PageTable::current();
+
+		page_table.lock();
+		ASSERT(page_table.is_page_free(0));
+		page_table.map_page_at(paddr, 0, PageTable::Flags::Present);
 		memcpy(buffer, (void*)(index * device.sector_size()), device.sector_size());
-		PageTable::current().unmap_page(0);
-		PageTable::current().invalidate(0);
+		page_table.unmap_page(0);
+		page_table.invalidate(0);
+		page_table.unlock();
 	}
 
 	void DiskCache::CacheBlock::write_sector(StorageDevice& device, size_t index, const uint8_t* buffer)
 	{
 		ASSERT(index < sectors.size());
 		
-		PageTableScope _(PageTable::current());
-		ASSERT(PageTable::current().is_page_free(0));
-		PageTable::current().map_page_at(paddr, 0, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
+		PageTable& page_table = PageTable::current();
+
+		page_table.lock();
+		ASSERT(page_table.is_page_free(0));
+		page_table.map_page_at(paddr, 0, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
 		memcpy((void*)(index * device.sector_size()), buffer, device.sector_size());
-		PageTable::current().unmap_page(0);
-		PageTable::current().invalidate(0);
+		page_table.unmap_page(0);
+		page_table.invalidate(0);
+		page_table.unlock();
 	}
 
 }
