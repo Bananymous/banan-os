@@ -1,4 +1,5 @@
 #include <BAN/StringView.h>
+#include <kernel/CriticalScope.h>
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/LockGuard.h>
 #include <kernel/Memory/Heap.h>
@@ -46,13 +47,18 @@ namespace Kernel
 
 	BAN::ErrorOr<Process*> Process::create_userspace(BAN::StringView path)
 	{
-		auto* elf = TRY(load_elf_for_exec(path, "/"sv, {}));
+		auto elf = TRY(load_elf_for_exec(path, "/"sv, {}));
 
 		auto* process = create_process();
 		MUST(process->m_working_directory.push_back('/'));
-		process->m_page_table = BAN::UniqPtr<PageTable>::adopt(MUST(PageTable::create_userspace()));
+		process->m_page_table = BAN::UniqPtr<PageTable>::adopt(MUST(PageTable::create_userspace()));;
 
-		process->load_elf(*elf);
+		process->load_elf_to_memory(*elf);
+
+		process->m_userspace_info.entry = elf->file_header_native().e_entry;
+
+		// NOTE: we clear the elf since we don't need the memory anymore
+		elf.clear();
 
 		char** argv = nullptr;
 		char** envp = nullptr;
@@ -76,9 +82,6 @@ namespace Kernel
 		process->m_userspace_info.argc = 1;
 		process->m_userspace_info.argv = argv;
 		process->m_userspace_info.envp = envp;
-		process->m_userspace_info.entry = elf->file_header_native().e_entry;
-
-		delete elf;
 
 		auto* thread = MUST(Thread::create_userspace(process));
 		process->add_thread(thread);
@@ -164,7 +167,7 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<LibELF::ELF*> Process::load_elf_for_exec(BAN::StringView file_path, const BAN::String& cwd, const BAN::Vector<BAN::StringView>& path_env)
+	BAN::ErrorOr<BAN::UniqPtr<LibELF::ELF>> Process::load_elf_for_exec(BAN::StringView file_path, const BAN::String& cwd, const BAN::Vector<BAN::StringView>& path_env)
 	{
 		if (file_path.empty())
 			return BAN::Error::from_errno(ENOENT);
@@ -219,22 +222,20 @@ namespace Kernel
 			return elf_or_error.error();
 		}
 		
-		auto* elf = elf_or_error.release_value();
+		auto elf = elf_or_error.release_value();
 		if (!elf->is_native())
 		{
 			derrorln("ELF has invalid architecture");
-			delete elf;
 			return BAN::Error::from_errno(EINVAL);
 		}
 
 		if (elf->file_header_native().e_type != LibELF::ET_EXEC)
 		{
 			derrorln("Not an executable");
-			delete elf;
 			return BAN::Error::from_errno(ENOEXEC);
 		}
 
-		return elf;
+		return BAN::move(elf);
 	}
 
 	BAN::ErrorOr<Process*> Process::fork(uintptr_t rsp, uintptr_t rip)
@@ -285,7 +286,7 @@ namespace Kernel
 				path_env = TRY(BAN::StringView(envp[i]).substring(5).split(':'));
 		}
 
-		auto* elf = TRY(load_elf_for_exec(path, TRY(working_directory()), path_env));
+		auto elf = TRY(load_elf_for_exec(path, TRY(working_directory()), path_env));
 
 		LockGuard lock_guard(m_lock);
 
@@ -298,17 +299,18 @@ namespace Kernel
 
 		m_open_files.clear();
 
-		load_elf(*elf);
+		load_elf_to_memory(*elf);
 
 		m_userspace_info.entry = elf->file_header_native().e_entry;
 
-		delete elf;
+		// NOTE: we clear the elf since we don't need the memory anymore
+		elf.clear();
 
 		ASSERT(m_threads.size() == 1);
 		ASSERT(&Process::current() == this);
 
 		{
-			PageTableScope _(page_table());
+			LockGuard _(page_table());
 
 			m_userspace_info.argv = (char**)MUST(allocate(sizeof(char**) * (str_argv.size() + 1)));
 			for (size_t i = 0; i < str_argv.size(); i++)
@@ -396,7 +398,7 @@ namespace Kernel
 		return {};
 	}
 
-	void Process::load_elf(LibELF::ELF& elf)
+	void Process::load_elf_to_memory(LibELF::ELF& elf)
 	{
 		ASSERT(elf.is_native());
 
@@ -411,6 +413,16 @@ namespace Kernel
 				break;
 			case LibELF::PT_LOAD:
 			{
+				uint8_t flags = PageTable::Flags::UserSupervisor | PageTable::Flags::Present;
+				if (elf_program_header.p_flags & LibELF::PF_W)
+					flags |= PageTable::Flags::ReadWrite;
+
+				size_t page_start = elf_program_header.p_vaddr / PAGE_SIZE;
+				size_t page_end = BAN::Math::div_round_up<size_t>(elf_program_header.p_vaddr + elf_program_header.p_memsz, PAGE_SIZE);
+				size_t page_count = page_end - page_start + 1;
+
+				page_table().lock();
+
 				if (!page_table().is_range_free(elf_program_header.p_vaddr, elf_program_header.p_memsz))
 				{
 					page_table().debug_dump();
@@ -419,20 +431,16 @@ namespace Kernel
 						elf_program_header.p_vaddr + elf_program_header.p_memsz
 					);
 				}
-				uint8_t flags = PageTable::Flags::UserSupervisor | PageTable::Flags::Present;
-				if (elf_program_header.p_flags & LibELF::PF_W)
-					flags |= PageTable::Flags::ReadWrite;
-				size_t page_start = elf_program_header.p_vaddr / PAGE_SIZE;
-				size_t page_end = BAN::Math::div_round_up<size_t>(elf_program_header.p_vaddr + elf_program_header.p_memsz, PAGE_SIZE);
-
-				size_t page_count = page_end - page_start + 1;
-				MUST(m_mapped_ranges.push_back(VirtualRange::create(page_table(), page_start * PAGE_SIZE, page_count * PAGE_SIZE, flags)));
 
 				{
-					PageTableScope _(page_table());
-					memcpy((void*)elf_program_header.p_vaddr, elf.data() + elf_program_header.p_offset, elf_program_header.p_filesz);
-					memset((void*)(elf_program_header.p_vaddr + elf_program_header.p_filesz), 0, elf_program_header.p_memsz - elf_program_header.p_filesz);
+					LockGuard _(m_lock);
+					MUST(m_mapped_ranges.push_back(VirtualRange::create(page_table(), page_start * PAGE_SIZE, page_count * PAGE_SIZE, flags)));
+					m_mapped_ranges.back()->set_zero();
+					m_mapped_ranges.back()->copy_from(elf_program_header.p_vaddr % PAGE_SIZE, elf.data() + elf_program_header.p_offset, elf_program_header.p_filesz);
 				}
+
+				page_table().unlock();
+
 				break;
 			}
 			default:

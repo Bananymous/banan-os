@@ -1,15 +1,54 @@
 #include <BAN/ScopeGuard.h>
-#include <kernel/Process.h>
 #include <LibELF/ELF.h>
 #include <LibELF/Values.h>
+
+#ifdef __is_kernel
+#include <kernel/FS/VirtualFileSystem.h>
+#include <kernel/Memory/PageTableScope.h>
+#include <kernel/Process.h>
+#endif
 
 #include <fcntl.h>
 
 #define ELF_PRINT_HEADERS 0
 
+#ifdef __is_kernel
+extern uint8_t g_kernel_end[];
+using namespace Kernel;
+#endif
+
 namespace LibELF
 {
 
+#ifdef __is_kernel
+	BAN::ErrorOr<BAN::UniqPtr<ELF>> ELF::load_from_file(BAN::StringView file_path)
+	{
+		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(file_path, true));
+
+		PageTable::current().lock();
+		size_t page_count = BAN::Math::div_round_up<size_t>(file.inode->size(), PAGE_SIZE);
+		vaddr_t vaddr = PageTable::current().get_free_contiguous_pages(page_count, (vaddr_t)g_kernel_end);
+		auto virtual_range = BAN::UniqPtr<VirtualRange>::adopt(
+			VirtualRange::create(
+				PageTable::current(),
+				vaddr, page_count * PAGE_SIZE,
+				PageTable::Flags::ReadWrite | PageTable::Flags::Present
+			)
+		);
+		PageTable::current().unlock();
+
+		TRY(file.inode->read(0, (void*)vaddr, file.inode->size()));
+
+		ELF* elf_ptr = new ELF(BAN::move(virtual_range), file.inode->size());
+		if (elf_ptr == nullptr)
+			return BAN::Error::from_errno(ENOMEM);
+
+		auto elf = BAN::UniqPtr<ELF>::adopt(elf_ptr);
+		TRY(elf->load());
+
+		return BAN::move(elf);
+	}
+#else
 	BAN::ErrorOr<ELF*> ELF::load_from_file(BAN::StringView file_path)
 	{
 		ELF* elf = nullptr;
@@ -39,6 +78,7 @@ namespace LibELF
 
 		return elf;
 	}
+#endif
 
 	BAN::ErrorOr<void> ELF::load()
 	{

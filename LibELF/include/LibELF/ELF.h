@@ -1,6 +1,11 @@
 #pragma once
 
+#ifdef __is_kernel
+#include <kernel/Memory/VirtualRange.h>
+#endif
+
 #include <BAN/StringView.h>
+#include <BAN/UniqPtr.h>
 #include <BAN/Vector.h>
 #include <kernel/Arch.h>
 #include "Types.h"
@@ -11,7 +16,7 @@ namespace LibELF
 	class ELF
 	{
 	public:
-		static BAN::ErrorOr<ELF*> load_from_file(BAN::StringView);
+		static BAN::ErrorOr<BAN::UniqPtr<ELF>> load_from_file(BAN::StringView);
 		
 		const Elf64FileHeader& file_header64() const;
 		const Elf64ProgramHeader& program_header64(size_t) const;
@@ -47,9 +52,16 @@ namespace LibELF
 		bool is_x86_64() const;
 
 	private:
+#ifdef __is_kernel
+		ELF(BAN::UniqPtr<Kernel::VirtualRange>&& storage, size_t size)
+			: m_storage(BAN::move(storage))
+			, m_data((const uint8_t*)m_storage->vaddr(), size)
+		{}
+#else
 		ELF(BAN::Vector<uint8_t>&& data)
 			: m_data(BAN::move(data))
 		{}
+#endif
 		BAN::ErrorOr<void> load();
 		
 		bool parse_elf64_file_header(const Elf64FileHeader&);
@@ -61,7 +73,12 @@ namespace LibELF
 		bool parse_elf32_section_header(const Elf32SectionHeader&);
 
 	private:
+#ifdef __is_kernel
+		BAN::UniqPtr<Kernel::VirtualRange> m_storage;
+		BAN::Span<const uint8_t> m_data;
+#else
 		const BAN::Vector<uint8_t> m_data;
+#endif
 	};
 
 }

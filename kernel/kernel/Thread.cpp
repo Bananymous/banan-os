@@ -140,6 +140,7 @@ namespace Kernel
 
 		// Setup stack for returning
 		{
+			// FIXME: don't use PageTableScope
 			PageTableScope _(m_process->page_table());
 			write_to_stack<sizeof(void*)>(m_rsp, this);
 			write_to_stack<sizeof(void*)>(m_rsp, &Thread::on_exit);

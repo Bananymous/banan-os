@@ -49,8 +49,6 @@ namespace Kernel
 
 		pid_t pid() const { return m_pid; }
 
-		static BAN::ErrorOr<LibELF::ELF*> load_elf_for_exec(BAN::StringView file_path, const BAN::String& cwd, const BAN::Vector<BAN::StringView>& path_env);
-
 		BAN::ErrorOr<Process*> fork(uintptr_t rsp, uintptr_t rip);
 		BAN::ErrorOr<void> exec(BAN::StringView path, const char* const* argv, const char* const* envp);
 
@@ -96,7 +94,11 @@ namespace Kernel
 		static Process* create_process();
 		static void register_process(Process*);
 
-		void load_elf(LibELF::ELF&);
+		// Load an elf file to virtual address space of the current page table
+		static BAN::ErrorOr<BAN::UniqPtr<LibELF::ELF>> load_elf_for_exec(BAN::StringView file_path, const BAN::String& cwd, const BAN::Vector<BAN::StringView>& path_env);
+		
+		// Copy an elf file from the current page table to the processes own
+		void load_elf_to_memory(LibELF::ELF&);
 
 		BAN::ErrorOr<BAN::String> absolute_path_of(BAN::StringView) const;
 
