@@ -8,7 +8,7 @@ namespace Kernel
 	{
 		while (__sync_lock_test_and_set(&m_lock, 1))
 			while (m_lock)
-				__builtin_ia32_pause();
+				Scheduler::get().reschedule();
 	}
 
 	void SpinLock::unlock()
@@ -27,10 +27,6 @@ namespace Kernel
 
 		while (true)
 		{
-			// Wait for us to be the locker or the lock being free
-			while (m_locker != -1 && m_locker != tid)
-				__builtin_ia32_pause();
-
 			m_lock.lock();
 			if (m_locker == tid)
 			{
