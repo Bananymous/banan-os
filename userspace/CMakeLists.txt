@@ -5,6 +5,7 @@ project(userspace CXX)
 set(USERSPACE_PROJECTS
 	Shell
 	cat
+	echo
 	test
 	yes
 )
