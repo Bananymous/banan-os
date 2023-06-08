@@ -64,7 +64,7 @@ namespace Kernel
 		return Scheduler::get().current_thread().tid();
 	}
 
-	void Scheduler::reschedule()
+	void Scheduler::timer_reschedule()
 	{
 		VERIFY_CLI();
 
