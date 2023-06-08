@@ -41,6 +41,10 @@ int execute_command(BAN::StringView command)
 		fflush(stdout);
 		return 0;
 	}
+	else if (args.front() == "exit"sv)
+	{
+		exit(0);
+	}
 	else
 	{
 		pid_t pid = fork();
