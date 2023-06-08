@@ -64,7 +64,7 @@ int execute_command(BAN::StringView command)
 	return 0;
 }
 
-int prompt_length(BAN::StringView prompt)
+int character_length(BAN::StringView prompt)
 {
 	int length { 0 };
 	bool in_escape { false };
@@ -79,7 +79,7 @@ int prompt_length(BAN::StringView prompt)
 		{
 			if (c == '\e')
 				in_escape = true;
-			else
+			else if (((uint8_t)c & 0xC0) != 0x80)
 				length++;
 		}
 	}
@@ -150,12 +150,19 @@ int main(int argc, char** argv)
 			fread(&ch, 1, sizeof(char), stdin);
 			switch (ch)
 			{
-				case 'A': if (index > 0)					{ index--; col = buffers[index].size(); fprintf(stdout, "\e[%dG%s\e[K", prompt_length(prompt) + 1, buffers[index].data()); fflush(stdout); } break;
-				case 'B': if (index < buffers.size() - 1)	{ index++; col = buffers[index].size(); fprintf(stdout, "\e[%dG%s\e[K", prompt_length(prompt) + 1, buffers[index].data()); fflush(stdout); } break;
+				case 'A': if (index > 0)					{ index--; col = buffers[index].size(); fprintf(stdout, "\e[%dG%s\e[K", character_length(prompt) + 1, buffers[index].data()); fflush(stdout); } break;
+				case 'B': if (index < buffers.size() - 1)	{ index++; col = buffers[index].size(); fprintf(stdout, "\e[%dG%s\e[K", character_length(prompt) + 1, buffers[index].data()); fflush(stdout); } break;
 				case 'C': if (col < buffers[index].size())	{ col++; while ((buffers[index][col - 1] & 0xC0) == 0x80) col++; fprintf(stdout, "\e[C"); fflush(stdout); } break;
 				case 'D': if (col > 0)						{ while ((buffers[index][col - 1] & 0xC0) == 0x80) col--; col--; fprintf(stdout, "\e[D"); fflush(stdout); } break;
 			}
 			break;
+		case '\x0C': // ^L
+		{
+			int x = character_length(prompt) + character_length(buffers[index].sv().substring(col)) + 1;
+			fprintf(stdout, "\e[H\e[J%s%s\e[u\e[1;%dH", prompt.data(), buffers[index].data(), x);
+			fflush(stdout);
+			break;
+		}
 		case '\b':
 			if (col > 0)
 			{
