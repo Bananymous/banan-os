@@ -14,7 +14,7 @@ namespace Kernel
 		static Scheduler& get();
 
 		[[noreturn]] void start();
-		void reschedule();
+		void timer_reschedule();
 		void reschedule_if_idling();
 
 		void set_current_thread_sleeping(uint64_t);

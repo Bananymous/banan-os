@@ -28,7 +28,7 @@ namespace PIT
 	void irq_handler()
 	{
 		s_system_time = s_system_time + 1;
-		Kernel::Scheduler::get().reschedule();
+		Kernel::Scheduler::get().timer_reschedule();
 	}
 
 	uint64_t ms_since_boot()
