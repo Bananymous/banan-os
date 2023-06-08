@@ -129,10 +129,9 @@ namespace Kernel
 		{
 			m_exit_status.semaphore.unblock();
 			m_lock.unlock();
-			// TODO: add proper software reschedule
-			Scheduler::get().set_current_thread_sleeping(0);
+			Scheduler::get().reschedule();
+			m_lock.lock();
 		}
-		m_lock.lock();
 
 		m_threads.clear();
 		for (auto& open_fd : m_open_files)
