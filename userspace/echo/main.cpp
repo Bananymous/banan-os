@@ -36,5 +36,5 @@ int main(int argc, char** argv)
 			fputc(' ', stdout);
 	}
 	printf("\n");
-	return 1;
+	return 0;
 }
