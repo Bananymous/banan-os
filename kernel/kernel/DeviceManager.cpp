@@ -114,19 +114,49 @@ namespace Kernel
 		return BAN::Error::from_errno(ENOENT);
 	}
 
-	BAN::ErrorOr<BAN::Vector<BAN::String>> DeviceManager::read_directory_entries(size_t index)
+	BAN::ErrorOr<void> DeviceManager::read_next_directory_entries(off_t offset, DirectoryEntryList* list, size_t list_size)
 	{
-		BAN::Vector<BAN::String> result;
-		if (index > 0)
-			return result;
+		if (offset != 0)
+		{
+			list->entry_count = 0;
+			return {};
+		}
 
 		LockGuard _(m_lock);
-		TRY(result.reserve(m_devices.size() + 2));
-		MUST(result.emplace_back("."sv));
-		MUST(result.emplace_back(".."sv));
+
+		size_t needed_size = sizeof(DirectoryEntryList);
+		needed_size += sizeof(DirectoryEntry) + 2;
+		needed_size += sizeof(DirectoryEntry) + 3;
 		for (Device* device : m_devices)
-			MUST(result.emplace_back(device->name()));
-		return result;
+			needed_size += sizeof(DirectoryEntry) + device->name().size() + 1;
+		if (needed_size > list_size)
+			return BAN::Error::from_errno(EINVAL);
+
+		DirectoryEntry* ptr = list->array;
+
+		ptr->dirent.d_ino = ino();
+		ptr->rec_len = sizeof(DirectoryEntry) + 2;
+		memcpy(ptr->dirent.d_name, ".", 2);
+		ptr = ptr->next();
+
+		ptr->dirent.d_ino = 69; // FIXME: store parent inode number when we implement proper RAM fs
+		ptr->rec_len = sizeof(DirectoryEntry) + 3;
+		memcpy(ptr->dirent.d_name, "..", 3);
+		ptr = ptr->next();
+
+		for (Device* device : m_devices)
+		{
+			ptr->dirent.d_ino = device->ino();
+			ptr->rec_len = sizeof(DirectoryEntry) + device->name().size() + 1;
+			memcpy(ptr->dirent.d_name, device->name().data(), device->name().size());
+			ptr->dirent.d_name[device->name().size()] = '\0';
+
+			ptr = ptr->next();
+		}
+
+		list->entry_count = m_devices.size() + 2;
+
+		return {};
 	}
 
 

@@ -34,7 +34,7 @@ namespace Kernel
 		virtual BAN::StringView name() const override { return "device-manager"; }
 
 		virtual BAN::ErrorOr<BAN::RefPtr<Inode>> read_directory_inode(BAN::StringView) override;
-		virtual BAN::ErrorOr<BAN::Vector<BAN::String>> read_directory_entries(size_t) override;
+		virtual BAN::ErrorOr<void> read_next_directory_entries(off_t, DirectoryEntryList*, size_t) override;
 
 	private:
 		DeviceManager() = default;

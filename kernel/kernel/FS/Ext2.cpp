@@ -291,36 +291,69 @@ namespace Kernel
 		return n_read;
 	}
 
-	BAN::ErrorOr<BAN::Vector<BAN::String>> Ext2Inode::read_directory_entries(size_t index)
+	BAN::ErrorOr<void> Ext2Inode::read_next_directory_entries(off_t offset, DirectoryEntryList* list, size_t list_size)
 	{
 		if (!mode().ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
 		
 		uint32_t data_block_count = blocks();
-		if (index >= data_block_count)
-			return BAN::Vector<BAN::String>();
+		if (offset >= data_block_count)
+		{
+			list->entry_count = 0;
+			return {};
+		}
 
 		uint32_t block_size = blksize();
-		uint32_t block_index = TRY(data_block_index(index));
+		uint32_t block_index = TRY(data_block_index(offset));
 
 		BAN::Vector<uint8_t> block_buffer;
 		TRY(block_buffer.resize(block_size));
 
 		m_fs.read_block(block_index, block_buffer.span());
 
-		BAN::Vector<BAN::String> entries;
-
-		const uint8_t* block_buffer_end = block_buffer.data() + block_size;
-		const uint8_t* entry_addr = block_buffer.data();
-		while (entry_addr < block_buffer_end)
+		// First determine if we have big enough list
 		{
-			auto& entry = *(Ext2::LinkedDirectoryEntry*)entry_addr;
-			if (entry.inode)
-				TRY(entries.emplace_back(BAN::StringView(entry.name, entry.name_len)));
-			entry_addr += entry.rec_len;
+			const uint8_t* block_buffer_end = block_buffer.data() + block_size;
+			const uint8_t* entry_addr = block_buffer.data();
+
+			size_t needed_size = sizeof(DirectoryEntryList);
+			while (entry_addr < block_buffer_end)
+			{
+				auto& entry = *(Ext2::LinkedDirectoryEntry*)entry_addr;
+				if (entry.inode)
+					needed_size += sizeof(DirectoryEntry) + entry.name_len + 1;
+				entry_addr += entry.rec_len;
+			}
+
+			if (needed_size > list_size)
+				return BAN::Error::from_errno(EINVAL);
 		}
 
-		return entries;
+		// Second fill the list
+		{
+			DirectoryEntry* ptr = list->array;
+			list->entry_count = 0;
+
+			const uint8_t* block_buffer_end = block_buffer.data() + block_size;
+			const uint8_t* entry_addr = block_buffer.data();
+			while (entry_addr < block_buffer_end)
+			{
+				auto& entry = *(Ext2::LinkedDirectoryEntry*)entry_addr;
+				if (entry.inode)
+				{
+					ptr->dirent.d_ino = entry.inode;
+					ptr->rec_len = sizeof(DirectoryEntry) + entry.name_len + 1;
+					memcpy(ptr->dirent.d_name, entry.name, entry.name_len);
+					ptr->dirent.d_name[entry.name_len] = '\0';
+
+					ptr = ptr->next();
+					list->entry_count++;
+				}
+				entry_addr += entry.rec_len;
+			}
+		}
+
+		return {};
 	}
 
 	BAN::ErrorOr<void> Ext2Inode::create_file(BAN::StringView name, mode_t mode)

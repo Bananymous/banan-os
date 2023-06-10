@@ -629,8 +629,7 @@ namespace Kernel
 		return ret;
 	}
 
-	// FIXME: This whole API has to be rewritten
-	BAN::ErrorOr<BAN::Vector<BAN::String>> Process::read_directory_entries(int fd)
+	BAN::ErrorOr<void> Process::read_next_directory_entries(int fd, DirectoryEntryList* list, size_t list_size)
 	{
 		OpenFileDescription open_fd_copy;
 
@@ -640,7 +639,7 @@ namespace Kernel
 			open_fd_copy = open_file_description(fd);
 		}
 
-		auto result = TRY(open_fd_copy.inode->read_directory_entries(open_fd_copy.offset));
+		TRY(open_fd_copy.inode->read_next_directory_entries(open_fd_copy.offset, list, list_size));
 
 		{
 			LockGuard _(m_lock);
@@ -648,7 +647,7 @@ namespace Kernel
 			open_file_description(fd).offset = open_fd_copy.offset + 1;
 		}
 
-		return result;
+		return {};
 	}
 
 	BAN::ErrorOr<BAN::String> Process::working_directory() const

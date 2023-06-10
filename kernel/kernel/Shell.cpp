@@ -516,12 +516,20 @@ argument_done:
 
 			BAN::Vector<BAN::String> all_entries;
 
-			BAN::Vector<BAN::String> entries;
-			while (!(entries = TRY(Process::current().read_directory_entries(fd))).empty())
+			DirectoryEntryList* directory_list = (DirectoryEntryList*)kmalloc(4096);
+			if (directory_list == nullptr)
+				return BAN::Error::from_errno(ENOMEM);
+			while (true)
 			{
-				TRY(all_entries.reserve(all_entries.size() + entries.size()));
-				for (auto& entry : entries)
-					TRY(all_entries.push_back(entry));
+				TRY(Process::current().read_next_directory_entries(fd, directory_list, 4096));
+				if (directory_list->entry_count == 0)
+					break;
+				DirectoryEntry* current = directory_list->array;
+				for (size_t i = 0; i < directory_list->entry_count; i++)
+				{
+					TRY(all_entries.emplace_back(current->dirent.d_name));
+					current = current->next();
+				}
 			}
 
 			BAN::String entry_prefix;
