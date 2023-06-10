@@ -118,12 +118,13 @@ namespace Kernel
 			if (m_threads[i] == &thread)
 				m_threads.remove(i);
 		if (m_threads.empty())
-			exit();
+			exit(0);
 	}
 
-	void Process::exit()
+	void Process::exit(int status)
 	{
 		m_lock.lock();
+		m_exit_status.exit_code = status;
 		m_exit_status.exited = true;
 		while (m_exit_status.waiting > 0)
 		{

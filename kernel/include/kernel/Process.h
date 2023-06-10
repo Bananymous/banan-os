@@ -40,7 +40,7 @@ namespace Kernel
 		static BAN::ErrorOr<Process*> create_userspace(BAN::StringView);
 		~Process();
 
-		[[noreturn]] void exit();
+		[[noreturn]] void exit(int status);
 
 		void add_thread(Thread*);
 		void on_thread_exit(Thread&);
