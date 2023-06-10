@@ -10,8 +10,8 @@ __BEGIN_DECLS
 #define __need_ino_t
 #include <sys/types.h>
 
-struct DIR;
-typedef struct DIR DIR;
+struct __DIR;
+typedef struct __DIR DIR;
 
 struct dirent
 {
