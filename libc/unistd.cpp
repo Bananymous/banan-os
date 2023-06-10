@@ -149,12 +149,11 @@ long syscall(long syscall, ...)
 			ret = Kernel::syscall(SYS_WAIT, pid, (uintptr_t)stat_loc, options);
 			break;
 		}
-		case SYS_STAT:
+		case SYS_FSTAT:
 		{
-			const char* path = va_arg(args, const char*);
+			int fd = va_arg(args, int);
 			struct stat* buf = va_arg(args, struct stat*);
-			int flags = va_arg(args, int);
-			ret = Kernel::syscall(SYS_STAT, (uintptr_t)path, (uintptr_t)buf, flags);
+			ret = Kernel::syscall(SYS_FSTAT, (uintptr_t)fd, (uintptr_t)buf);
 			break;
 		}
 		case SYS_SETENVP:

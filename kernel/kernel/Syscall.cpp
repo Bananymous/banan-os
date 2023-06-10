@@ -128,9 +128,9 @@ namespace Kernel
 		return ret.value();
 	}
 
-	long sys_stat(const char* path, struct stat* buf, int flags)
+	long sys_fstat(int fd, struct stat* buf)
 	{
-		auto ret = Process::current().stat(path, buf, flags);
+		auto ret = Process::current().fstat(fd, buf);
 		if (ret.is_error())
 			return -ret.error().get_error_code();
 		return 0;
@@ -217,8 +217,8 @@ namespace Kernel
 		case SYS_WAIT:
 			ret = sys_wait((pid_t)arg1, (int*)arg2, (int)arg3);
 			break;
-		case SYS_STAT:
-			ret = sys_stat((const char*)arg1, (struct stat*)arg2, (int)arg3);
+		case SYS_FSTAT:
+			ret = sys_fstat((int)arg1, (struct stat*)arg2);
 			break;
 		case SYS_SETENVP:
 			ret = sys_setenvp((char**)arg1);
