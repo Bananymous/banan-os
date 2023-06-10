@@ -52,7 +52,7 @@ char* ctermid(char* buffer)
 
 int fclose(FILE* file)
 {
-	if (syscall(SYS_CLOSE, file->fd) < 0)
+	if (close(file->fd) == -1)
 		return EOF;
 	file->fd = -1;
 	return 0;
