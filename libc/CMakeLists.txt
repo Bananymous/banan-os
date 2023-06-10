@@ -5,6 +5,7 @@ project(libc CXX ASM)
 set(LIBC_SOURCES
 	assert.cpp
 	ctype.cpp
+	dirent.cpp
 	fcntl.cpp
 	printf_impl.cpp
 	stdio.cpp
