@@ -71,7 +71,7 @@ namespace Kernel
 
 		BAN::ErrorOr<void> mount(BAN::StringView source, BAN::StringView target);
 
-		BAN::ErrorOr<BAN::Vector<BAN::String>> read_directory_entries(int);
+		BAN::ErrorOr<void> read_next_directory_entries(int fd, DirectoryEntryList* buffer, size_t buffer_size);
 
 		BAN::ErrorOr<BAN::String> working_directory() const;
 		BAN::ErrorOr<void> set_working_directory(BAN::StringView);
