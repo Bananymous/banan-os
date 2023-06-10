@@ -163,6 +163,14 @@ long syscall(long syscall, ...)
 			ret = Kernel::syscall(SYS_SETENVP, (uintptr_t)envp);
 			break;
 		}
+		case SYS_READ_DIR_ENTRIES:
+		{
+			int fd = va_arg(args, int);
+			void* buffer = va_arg(args, void*);
+			size_t buffer_size = va_arg(args, size_t);
+			ret = Kernel::syscall(SYS_READ_DIR_ENTRIES, fd, (uintptr_t)buffer, buffer_size);
+			break;
+		}
 		default:
 			puts("LibC: Unhandeled syscall");
 			ret = -ENOSYS;

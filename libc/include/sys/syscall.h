@@ -24,6 +24,7 @@ __BEGIN_DECLS
 #define SYS_WAIT 17
 #define SYS_STAT 18
 #define SYS_SETENVP 19
+#define SYS_READ_DIR_ENTRIES 20
 
 __END_DECLS
 

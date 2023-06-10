@@ -144,6 +144,14 @@ namespace Kernel
 		return 0;
 	}
 
+	long sys_read_dir_entries(int fd, API::DirectoryEntryList* buffer, size_t buffer_size)
+	{
+		auto ret = Process::current().read_next_directory_entries(fd, buffer, buffer_size);
+		if (ret.is_error())
+			return -ret.error().get_error_code();
+		return 0;
+	}
+
 	extern "C" long sys_fork_trampoline();
 
 	extern "C" long cpp_syscall_handler(int syscall, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
@@ -214,6 +222,9 @@ namespace Kernel
 			break;
 		case SYS_SETENVP:
 			ret = sys_setenvp((char**)arg1);
+			break;
+		case SYS_READ_DIR_ENTRIES:
+			ret = sys_read_dir_entries((int)arg1, (API::DirectoryEntryList*)arg2, (size_t)arg3);
 			break;
 		default:
 			Kernel::panic("Unknown syscall {}", syscall);
