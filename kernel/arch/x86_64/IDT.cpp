@@ -122,6 +122,7 @@ namespace IDT
 		{
 			auto message = BAN::String::formatted("{}, aborting\n", isr_exceptions[isr]);
 			(void)Kernel::Process::current().write(STDERR_FILENO, message.data(), message.size());
+			asm volatile("sti");
 			Kernel::Process::current().exit(1);
 		}
 		else
