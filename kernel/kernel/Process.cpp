@@ -451,7 +451,7 @@ namespace Kernel
 
 	BAN::ErrorOr<int> Process::open(BAN::StringView path, int flags)
 	{
-		if (flags & ~(O_RDONLY | O_WRONLY | O_NOFOLLOW))
+		if (flags & ~(O_RDONLY | O_WRONLY | O_NOFOLLOW | O_SEARCH))
 			return BAN::Error::from_errno(ENOTSUP);
 
 		BAN::String absolute_path = TRY(absolute_path_of(path));
