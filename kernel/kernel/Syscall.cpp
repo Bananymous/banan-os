@@ -7,9 +7,9 @@
 namespace Kernel
 {
 
-	void sys_exit()
+	void sys_exit(int status)
 	{
-		Process::current().exit();
+		Process::current().exit(status);
 	}
 
 	long sys_read(int fd, void* buffer, size_t size)
@@ -162,7 +162,7 @@ namespace Kernel
 		switch (syscall)
 		{
 		case SYS_EXIT:
-			sys_exit();
+			sys_exit((int)arg1);
 			break;
 		case SYS_READ:
 			ret = sys_read((int)arg1, (void*)arg2, (size_t)arg3);

@@ -363,7 +363,7 @@ argument_done:
 		}
 		else if (arguments.front() == "exit")
 		{
-			Process::current().exit();
+			Process::current().exit(0);
 		}
 		else if (arguments.front() == "time")
 		{
