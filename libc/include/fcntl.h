@@ -55,12 +55,13 @@ __BEGIN_DECLS
 #define O_RSYNC		0x08000
 #define O_SYNC		0x10000
 
-#define O_ACCMODE	0x00003
-
-/* bits 0-1 */
+/* bits 0-3 */
 #define O_RDONLY	0x00001
 #define O_WRONLY	0x00002
 #define O_RDWR		(O_RDONLY | O_WRONLY)
+#define O_SEARCH	0x00004
+#define O_EXEC		0x00008
+#define O_ACCMODE	0x0000F
 
 /* bit 17 */
 #define AT_FDCWD	0x20000
