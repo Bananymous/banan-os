@@ -187,6 +187,11 @@ long syscall(long syscall, ...)
 	return ret;
 }
 
+int close(int fd)
+{
+	return syscall(SYS_CLOSE, fd);
+}
+
 int execl(const char* pathname, const char* arg0, ...)
 {
 	if (arg0 == nullptr)
