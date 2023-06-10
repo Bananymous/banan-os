@@ -227,7 +227,9 @@ namespace Kernel
 			ret = sys_read_dir_entries((int)arg1, (API::DirectoryEntryList*)arg2, (size_t)arg3);
 			break;
 		default:
-			Kernel::panic("Unknown syscall {}", syscall);
+			dwarnln("Unknown syscall {}", syscall);
+			ret = -ENOSYS;
+			break;
 		}
 
 		asm volatile("cli");
