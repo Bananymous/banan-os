@@ -32,14 +32,15 @@ int main(int argc, char** argv)
 				ret = 1;
 				continue;
 			}
-			if (cat_file(fp))
+			if (!cat_file(fp))
 				ret = 1;
 			fclose(fp);
 		}
 	}
 	else
 	{
-		ret = cat_file(stdin);
+		if (!cat_file(stdin))
+			ret = 1;
 	}
 
 	return ret;
