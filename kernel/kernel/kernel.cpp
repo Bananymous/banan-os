@@ -18,7 +18,6 @@
 #include <kernel/Process.h>
 #include <kernel/Scheduler.h>
 #include <kernel/Serial.h>
-#include <kernel/Shell.h>
 #include <kernel/Syscall.h>
 #include <kernel/Terminal/TTY.h>
 #include <kernel/Terminal/VesaTerminalDriver.h>
@@ -181,14 +180,4 @@ static void init2(void* tty1)
 	((TTY*)tty1)->initialize_device();
 
 	MUST(Process::create_userspace({ 0, 0, 0, 0 }, "/usr/bin/init"sv));
-	return;
-
-	Process::create_kernel(
-		[](void*) 
-		{
-			Shell* shell = new Shell();
-			ASSERT(shell);
-			shell->run();
-		}, nullptr
-	);
 }
