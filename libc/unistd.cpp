@@ -77,10 +77,25 @@ long syscall(long syscall, ...)
 			ret = Kernel::syscall(SYS_OPEN, (uintptr_t)path, oflags);
 			break;
 		}
+		case SYS_OPENAT:
+		{
+			int fd = va_arg(args, int);
+			const char* path = va_arg(args, const char*);
+			int oflags = va_arg(args, int);
+			ret = Kernel::syscall(SYS_OPENAT, fd, (uintptr_t)path, oflags);
+			break;
+		}
 		case SYS_ALLOC:
 		{
 			size_t bytes = va_arg(args, size_t);
 			ret = Kernel::syscall(SYS_ALLOC, bytes);
+			break;
+		}
+		case SYS_REALLOC:
+		{
+			void* ptr = va_arg(args, void*);
+			size_t size = va_arg(args, size_t);
+			ret = Kernel::syscall(SYS_REALLOC, (uintptr_t)ptr, size);
 			break;
 		}
 		case SYS_FREE:
@@ -120,12 +135,6 @@ long syscall(long syscall, ...)
 			ret = Kernel::syscall(SYS_FORK);
 			break;
 		}
-		case SYS_SLEEP:
-		{
-			unsigned int seconds = va_arg(args, unsigned int);
-			ret = Kernel::syscall(SYS_SLEEP, seconds);
-			break;
-		}
 		case SYS_EXEC:
 		{
 			const char* pathname = va_arg(args, const char*);
@@ -134,11 +143,10 @@ long syscall(long syscall, ...)
 			ret = Kernel::syscall(SYS_EXEC, (uintptr_t)pathname, (uintptr_t)argv, (uintptr_t)envp);
 			break;
 		}
-		case SYS_REALLOC:
+		case SYS_SLEEP:
 		{
-			void* ptr = va_arg(args, void*);
-			size_t size = va_arg(args, size_t);
-			ret = Kernel::syscall(SYS_REALLOC, (uintptr_t)ptr, size);
+			unsigned int seconds = va_arg(args, unsigned int);
+			ret = Kernel::syscall(SYS_SLEEP, seconds);
 			break;
 		}
 		case SYS_WAIT:

@@ -114,18 +114,18 @@ namespace Kernel
 		return ret.value()->pid();
 	}
 
-	long sys_sleep(unsigned int seconds)
-	{
-		PIT::sleep(seconds * 1000);
-		return 0;
-	}
-
 	long sys_exec(const char* pathname, const char* const* argv, const char* const* envp)
 	{
 		auto ret = Process::current().exec(pathname, argv, envp);
 		if (ret.is_error())
 			return -ret.error().get_error_code();
 		ASSERT_NOT_REACHED();
+	}
+
+	long sys_sleep(unsigned int seconds)
+	{
+		PIT::sleep(seconds * 1000);
+		return 0;
 	}
 
 	long sys_wait(pid_t pid, int* stat_loc, int options)
@@ -219,11 +219,11 @@ namespace Kernel
 		case SYS_FORK:
 			ret = sys_fork_trampoline();
 			break;
-		case SYS_SLEEP:
-			ret = sys_sleep((unsigned int)arg1);
-			break;
 		case SYS_EXEC:
 			ret = sys_exec((const char*)arg1, (const char* const*)arg2, (const char* const*)arg3);
+			break;
+		case SYS_SLEEP:
+			ret = sys_sleep((unsigned int)arg1);
 			break;
 		case SYS_WAIT:
 			ret = sys_wait((pid_t)arg1, (int*)arg2, (int)arg3);
