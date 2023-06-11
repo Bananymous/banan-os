@@ -303,6 +303,17 @@ char* strchr(const char* str, int c)
 	return (*str == c) ? (char*)str : nullptr;
 }
 
+char* strchrnul(const char* str, int c)
+{
+	while (*str)
+	{
+		if (*str == c)
+			return (char*)str;
+		str++;
+	}
+	return (char*)str;
+}
+
 char* strncpy(char* __restrict__ dest, const char* __restrict__ src, size_t n)
 {
 	size_t i;

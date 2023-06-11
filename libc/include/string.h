@@ -20,6 +20,7 @@ char*	stpcpy(char* __restrict s1, const char* __restrict s2);
 char*	stpncpy(char* __restrict s1, const char* __restrict s2, size_t n);
 char*	strcat(char* __restrict s1, const char* __restrict s2);
 char*	strchr(const char* s, int c);
+char*	strchrnul(const char* s, int c);
 int		strcmp(const char* s1, const char* s2);
 int		strcoll(const char* s1, const char* s2);
 int		strcoll_l(const char* s1, const char* s2, locale_t locale);
