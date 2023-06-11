@@ -667,6 +667,38 @@ namespace Kernel
 		return {};
 	}
 
+	BAN::ErrorOr<void> Process::set_pwd(const char* path)
+	{
+		BAN::String absolute_path;
+
+		{
+			LockGuard _(m_lock);
+			absolute_path = TRY(absolute_path_of(path));
+		}
+
+		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, O_SEARCH));
+		if (!file.inode->mode().ifdir())
+			return BAN::Error::from_errno(ENOTDIR);
+
+		LockGuard _(m_lock);
+		m_working_directory = BAN::move(file.canonical_path);
+
+		return {};
+	}
+
+	BAN::ErrorOr<char*> Process::get_pwd(char* buffer, size_t size)
+	{
+		LockGuard _(m_lock);
+
+		if (size < m_working_directory.size() + 1)
+			return BAN::Error::from_errno(ERANGE);
+		
+		memcpy(buffer, m_working_directory.data(), m_working_directory.size());
+		buffer[m_working_directory.size()] = '\0';
+
+		return buffer;
+	}
+
 	BAN::ErrorOr<BAN::String> Process::working_directory() const
 	{
 		BAN::String result;

@@ -228,6 +228,22 @@ namespace Kernel
 		return Process::current().get_egid();
 	}
 
+	long sys_get_pwd(char* buffer, size_t size)
+	{
+		auto ret = Process::current().get_pwd(buffer, size);
+		if (ret.is_error())
+			return -ret.error().get_error_code();
+		return (long)ret.value();
+	}
+
+	long sys_set_pwd(const char* path)
+	{
+		auto ret = Process::current().set_pwd(path);
+		if (ret.is_error())
+			return -ret.error().get_error_code();
+		return 0;
+	}
+
 	extern "C" long sys_fork_trampoline();
 
 	extern "C" long cpp_syscall_handler(int syscall, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
@@ -334,6 +350,12 @@ namespace Kernel
 			break;
 		case SYS_GET_EGID:
 			ret = sys_get_egid();
+			break;
+		case SYS_GET_PWD:
+			ret = sys_get_pwd((char*)arg1, (size_t)arg2);
+			break;
+		case SYS_SET_PWD:
+			ret = sys_set_pwd((const char*)arg1);
 			break;
 		default:
 			dwarnln("Unknown syscall {}", syscall);

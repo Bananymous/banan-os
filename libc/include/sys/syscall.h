@@ -36,6 +36,8 @@ __BEGIN_DECLS
 #define SYS_GET_GID 29
 #define SYS_GET_EUID 30
 #define SYS_GET_EGID 31
+#define SYS_GET_PWD 32
+#define SYS_SET_PWD 33
 
 __END_DECLS
 
