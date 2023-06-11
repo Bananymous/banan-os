@@ -196,6 +196,7 @@ namespace Kernel
 
 		page_vaddr = m_page_table.get_free_page();
 		m_page_table.map_page_at(page_paddr, page_vaddr, PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present);
+		m_page_table.invalidate(page_vaddr);
 	}
 
 	bool FixedWidthAllocator::allocate_page_if_needed(vaddr_t vaddr, uint8_t flags)

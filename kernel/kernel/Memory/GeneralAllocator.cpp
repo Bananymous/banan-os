@@ -43,7 +43,11 @@ namespace Kernel
 
 		allocation.address = m_page_table.get_free_contiguous_pages(needed_pages);
 		for (size_t i = 0; i < needed_pages; i++)
-			m_page_table.map_page_at(allocation.pages[i], allocation.address + i * PAGE_SIZE, PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present);
+		{
+			vaddr_t vaddr = allocation.address + i * PAGE_SIZE;
+			m_page_table.map_page_at(allocation.pages[i], vaddr, PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present);
+			m_page_table.invalidate(vaddr);
+		}
 
 		MUST(m_allocations.push_back(BAN::move(allocation)));
 		return allocation.address;
