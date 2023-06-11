@@ -15,7 +15,8 @@ ROOT_PARTITON=${LOOP_DEV}p2
 
 sudo mount $ROOT_PARTITON $MOUNT_DIR
 
-sudo cp -r ${SYSROOT}/* ${MOUNT_DIR}/
+sudo cp -rp ${SYSROOT}/* ${MOUNT_DIR}/
+sudo find $MOUNT_DIR | grep -v "^${MOUNT_DIR}/home/" | sudo xargs chown 0:0
 
 sudo umount $MOUNT_DIR
 
