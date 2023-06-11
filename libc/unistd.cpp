@@ -11,12 +11,9 @@
 
 char** environ;
 
-extern "C" void _init_stdio();
-
 extern "C" void _init_libc(char** _environ)
 {
 	environ = _environ;
-	_init_stdio();
 }
 
 void _exit(int status)

@@ -27,15 +27,6 @@ FILE* stdin  = &s_files[0];
 FILE* stdout = &s_files[1];
 FILE* stderr = &s_files[2];
 
-extern "C" void _init_stdio()
-{
-	char tty[L_ctermid];
-	ctermid(tty);
-	if (open(tty, O_RDONLY) != 0) _exit(1);
-	if (open(tty, O_WRONLY) != 1) _exit(1);
-	if (open(tty, O_WRONLY) != 2) _exit(1);
-}
-
 void clearerr(FILE* file)
 {
 	file->eof = false;

@@ -180,7 +180,7 @@ static void init2(void* tty1)
 
 	((TTY*)tty1)->initialize_device();
 
-	MUST(Process::create_userspace({ 0, 0, 0, 0 }, "/usr/bin/Shell"sv));
+	MUST(Process::create_userspace({ 0, 0, 0, 0 }, "/usr/bin/init"sv));
 	return;
 
 	Process::create_kernel(
