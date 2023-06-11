@@ -21,12 +21,10 @@ namespace LibELF
 {
 
 #ifdef __is_kernel
-	BAN::ErrorOr<BAN::UniqPtr<ELF>> ELF::load_from_file(BAN::StringView file_path)
+	BAN::ErrorOr<BAN::UniqPtr<ELF>> ELF::load_from_file(BAN::RefPtr<Inode> inode)
 	{
-		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(file_path, true));
-
 		PageTable::current().lock();
-		size_t page_count = BAN::Math::div_round_up<size_t>(file.inode->size(), PAGE_SIZE);
+		size_t page_count = BAN::Math::div_round_up<size_t>(inode->size(), PAGE_SIZE);
 		vaddr_t vaddr = PageTable::current().get_free_contiguous_pages(page_count, (vaddr_t)g_kernel_end);
 		auto virtual_range = BAN::UniqPtr<VirtualRange>::adopt(
 			VirtualRange::create(
@@ -37,9 +35,9 @@ namespace LibELF
 		);
 		PageTable::current().unlock();
 
-		TRY(file.inode->read(0, (void*)vaddr, file.inode->size()));
+		TRY(inode->read(0, (void*)vaddr, inode->size()));
 
-		ELF* elf_ptr = new ELF(BAN::move(virtual_range), file.inode->size());
+		ELF* elf_ptr = new ELF(BAN::move(virtual_range), inode->size());
 		if (elf_ptr == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
 

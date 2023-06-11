@@ -58,7 +58,7 @@ void list_directory(const char* path)
 			}
 			else
 			{
-				printf("%s %d %s", mode_string(st.st_mode), st.st_size, dirent->d_name);
+				printf("%s %6d %s", mode_string(st.st_mode), st.st_size, dirent->d_name);
 			}
 		}
 		else
