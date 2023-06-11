@@ -45,6 +45,33 @@ int execute_command(BAN::StringView command)
 	{
 		exit(0);
 	}
+	else if (args.front() == "export"sv)
+	{
+		bool first = false;
+		for (const char* arg : args)
+		{
+			if (first)
+			{
+				first = false;
+				continue;
+			}
+
+			const char* eq_sign = strchr(arg, '=');
+			if (eq_sign == nullptr)
+				continue;
+
+			char name[128];
+			if (eq_sign - arg >= sizeof(name))
+				continue;
+			memcpy(name, arg, eq_sign - arg);
+			name[eq_sign - arg] = '\0';
+
+			char value[128];
+			strncpy(value, eq_sign + 1, sizeof(value));
+
+			setenv(name, value, true);
+		}
+	}
 	else
 	{
 		pid_t pid = fork();
@@ -90,6 +117,59 @@ int character_length(BAN::StringView prompt)
 	return length;
 }
 
+BAN::String get_prompt()
+{
+	const char* raw_prompt = getenv("PS1");
+	if (raw_prompt == nullptr)
+		raw_prompt = "\e[32muser@host\e[m:\e[34m/\e[m$ ";
+
+	BAN::String prompt;
+	for (int i = 0; raw_prompt[i]; i++)
+	{
+		char ch = raw_prompt[i];
+		if (ch == '\\')
+		{
+			switch (raw_prompt[++i])
+			{
+			case 'e':
+				MUST(prompt.push_back('\e'));
+				break;
+			case 'n':
+				MUST(prompt.push_back('\n'));
+				break;
+			case '\\':
+				MUST(prompt.push_back('\\'));
+				break;
+			case '\0':
+				MUST(prompt.push_back('\\'));
+				break;
+			default:
+				MUST(prompt.push_back('\\'));
+				MUST(prompt.push_back(*raw_prompt));
+				break;
+			}
+		}
+		else
+		{
+			MUST(prompt.push_back(ch));
+		}
+	}	
+	
+	return prompt;
+}
+
+int prompt_length()
+{
+	return character_length(get_prompt());
+}
+
+void print_prompt()
+{
+	auto prompt = get_prompt();
+	fprintf(stdout, "%.*s", prompt.size(), prompt.data());
+	fflush(stdout);
+}
+
 int main(int argc, char** argv)
 {
 	tcgetattr(0, &old_termios);
@@ -105,9 +185,7 @@ int main(int argc, char** argv)
 
 	int waiting_utf8 = 0;
 
-	BAN::String prompt("\e[32muser@host\e[m:\e[34m/\e[m$ "sv);
-	fprintf(stdout, "%s", prompt.data());
-	fflush(stdout);
+	print_prompt();
 
 	while (true)
 	{
@@ -154,16 +232,18 @@ int main(int argc, char** argv)
 			fread(&ch, 1, sizeof(char), stdin);
 			switch (ch)
 			{
-				case 'A': if (index > 0)					{ index--; col = buffers[index].size(); fprintf(stdout, "\e[%dG%s\e[K", character_length(prompt) + 1, buffers[index].data()); fflush(stdout); } break;
-				case 'B': if (index < buffers.size() - 1)	{ index++; col = buffers[index].size(); fprintf(stdout, "\e[%dG%s\e[K", character_length(prompt) + 1, buffers[index].data()); fflush(stdout); } break;
+				case 'A': if (index > 0)					{ index--; col = buffers[index].size(); fprintf(stdout, "\e[%dG%s\e[K", prompt_length() + 1, buffers[index].data()); fflush(stdout); } break;
+				case 'B': if (index < buffers.size() - 1)	{ index++; col = buffers[index].size(); fprintf(stdout, "\e[%dG%s\e[K", prompt_length() + 1, buffers[index].data()); fflush(stdout); } break;
 				case 'C': if (col < buffers[index].size())	{ col++; while ((buffers[index][col - 1] & 0xC0) == 0x80) col++; fprintf(stdout, "\e[C"); fflush(stdout); } break;
 				case 'D': if (col > 0)						{ while ((buffers[index][col - 1] & 0xC0) == 0x80) col--; col--; fprintf(stdout, "\e[D"); fflush(stdout); } break;
 			}
 			break;
 		case '\x0C': // ^L
 		{
-			int x = character_length(prompt) + character_length(buffers[index].sv().substring(col)) + 1;
-			fprintf(stdout, "\e[H\e[J%s%s\e[u\e[1;%dH", prompt.data(), buffers[index].data(), x);
+			int x = prompt_length() + character_length(buffers[index].sv().substring(col)) + 1;
+			fprintf(stdout, "\e[H\e[J");
+			print_prompt();
+			fprintf(stdout, "%s\e[u\e[1;%dH", buffers[index].data(), x);
 			fflush(stdout);
 			break;
 		}
@@ -188,8 +268,7 @@ int main(int argc, char** argv)
 				buffers = history;
 				MUST(buffers.emplace_back(""sv));
 			}
-			fprintf(stdout, "%s", prompt.data());
-			fflush(stdout);
+			print_prompt();
 			index = buffers.size() - 1;
 			col = 0;
 			break;
