@@ -11,20 +11,21 @@ __BEGIN_DECLS
 #define SYS_TERMID 4
 #define SYS_CLOSE 5
 #define SYS_OPEN 6
-#define SYS_ALLOC 7
-#define SYS_FREE 8
-#define SYS_SEEK 9
-#define SYS_TELL 10
-#define SYS_GET_TERMIOS 11
-#define SYS_SET_TERMIOS 12
-#define SYS_FORK 13
-#define SYS_SLEEP 14
-#define SYS_EXEC 15
-#define SYS_REALLOC 16
-#define SYS_WAIT 17
-#define SYS_FSTAT 18
-#define SYS_SETENVP 19
-#define SYS_READ_DIR_ENTRIES 20
+#define SYS_OPENAT 7
+#define SYS_ALLOC 8
+#define SYS_REALLOC 9
+#define SYS_FREE 10
+#define SYS_SEEK 11
+#define SYS_TELL 12
+#define SYS_GET_TERMIOS 13
+#define SYS_SET_TERMIOS 14
+#define SYS_FORK 15
+#define SYS_EXEC 16
+#define SYS_SLEEP 17
+#define SYS_WAIT 18
+#define SYS_FSTAT 19
+#define SYS_SETENVP 20
+#define SYS_READ_DIR_ENTRIES 21
 
 __END_DECLS
 

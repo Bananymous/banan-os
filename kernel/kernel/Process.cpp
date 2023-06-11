@@ -469,6 +469,22 @@ namespace Kernel
 		return fd;
 	}
 
+	BAN::ErrorOr<int> Process::openat(int fd, BAN::StringView path, int flags)
+	{
+		BAN::String absolute_path;
+		
+		{
+			LockGuard _(m_lock);
+			TRY(validate_fd(fd));
+			TRY(absolute_path.append(open_file_description(fd).path));
+		}
+		
+		TRY(absolute_path.push_back('/'));
+		TRY(absolute_path.append(path));
+
+		return open(absolute_path, flags);
+	}
+
 	BAN::ErrorOr<void> Process::close(int fd)
 	{
 		LockGuard _(m_lock);
