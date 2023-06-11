@@ -32,6 +32,10 @@ __BEGIN_DECLS
 #define SYS_SET_EGID 25
 #define SYS_SET_REUID 26
 #define SYS_SET_REGID 27
+#define SYS_GET_UID 28
+#define SYS_GET_GID 29
+#define SYS_GET_EUID 30
+#define SYS_GET_EGID 31
 
 __END_DECLS
 

@@ -208,6 +208,26 @@ namespace Kernel
 		return 0;
 	}
 
+	long sys_get_uid()
+	{
+		return Process::current().get_uid();
+	}
+
+	long sys_get_gid()
+	{
+		return Process::current().get_gid();
+	}
+
+	long sys_get_euid()
+	{
+		return Process::current().get_euid();
+	}
+
+	long sys_get_egid()
+	{
+		return Process::current().get_egid();
+	}
+
 	extern "C" long sys_fork_trampoline();
 
 	extern "C" long cpp_syscall_handler(int syscall, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
@@ -302,6 +322,18 @@ namespace Kernel
 			break;
 		case SYS_SET_REGID:
 			ret = sys_set_regid((gid_t)arg1, (gid_t)arg2);
+			break;
+		case SYS_GET_UID:
+			ret = sys_get_uid();
+			break;
+		case SYS_GET_GID:
+			ret = sys_get_gid();
+			break;
+		case SYS_GET_EUID:
+			ret = sys_get_euid();
+			break;
+		case SYS_GET_EGID:
+			ret = sys_get_egid();
 			break;
 		default:
 			dwarnln("Unknown syscall {}", syscall);
