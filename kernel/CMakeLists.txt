@@ -41,7 +41,6 @@ set(KERNEL_SOURCES
 	kernel/Scheduler.cpp
 	kernel/Semaphore.cpp
 	kernel/Serial.cpp
-	kernel/Shell.cpp
 	kernel/SpinLock.cpp
 	kernel/SSP.cpp
 	kernel/Storage/ATABus.cpp
