@@ -144,6 +144,9 @@ int main()
 					if (setuid(user.uid) == -1)
 						perror("setuid");
 
+					setenv("HOME", user.home.data(), 1);
+					chdir(user.home.data());
+
 					execl(user.shell.data(), user.shell.data(), nullptr);
 					perror("execl");
 					
