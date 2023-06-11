@@ -92,13 +92,13 @@ __BEGIN_DECLS
 
 #if !defined(__gid_t_defined) && (defined(__need_all_types) || defined(__need_gid_t))
 	#define __gid_t_defined 1
-	typedef unsigned int gid_t;
+	typedef int gid_t;
 #endif
 #undef __need_gid_t
 
 #if !defined(__id_t_defined) && (defined(__need_all_types) || defined(__need_id_t))
 	#define __id_t_defined 1
-	typedef unsigned int id_t;
+	typedef int id_t;
 #endif
 #undef __need_id_t
 
