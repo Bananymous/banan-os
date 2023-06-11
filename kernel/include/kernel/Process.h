@@ -58,6 +58,9 @@ namespace Kernel
 
 		BAN::ErrorOr<void> setenvp(char** envp);
 
+		BAN::ErrorOr<void> set_pwd(const char* path);
+		BAN::ErrorOr<char*> get_pwd(char* buffer, size_t size);
+
 		BAN::ErrorOr<void> set_uid(uid_t);
 		BAN::ErrorOr<void> set_gid(gid_t);
 		BAN::ErrorOr<void> set_euid(uid_t);

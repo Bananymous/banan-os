@@ -233,6 +233,19 @@ long syscall(long syscall, ...)
 			ret = Kernel::syscall(SYS_GET_EGID);
 			break;
 		}
+		case SYS_GET_PWD:
+		{
+			char* buffer = va_arg(args, char*);
+			size_t size = va_arg(args, size_t);
+			ret = Kernel::syscall(SYS_GET_PWD, (uintptr_t)buffer, size);
+			break;
+		}
+		case SYS_SET_PWD:
+		{
+			const char* path = va_arg(args, const char*);
+			ret = Kernel::syscall(SYS_SET_PWD, (uintptr_t)path);
+			break;
+		}
 		default:
 			puts("LibC: Unhandeled syscall");
 			ret = -ENOSYS;
@@ -340,6 +353,26 @@ pid_t fork(void)
 unsigned int sleep(unsigned int seconds)
 {
 	return syscall(SYS_SLEEP, seconds);
+}
+
+char* getcwd(char* buf, size_t size)
+{
+	if (size == 0)
+	{
+		errno = EINVAL;
+		return nullptr;
+	}
+
+	if ((char*)syscall(SYS_GET_PWD, buf, size) == nullptr)
+		return nullptr;
+
+	setenv("PWD", buf, 1);
+	return buf;
+}
+
+int chdir(const char* path)
+{
+	return syscall(SYS_SET_PWD, path);
 }
 
 uid_t getuid(void)
