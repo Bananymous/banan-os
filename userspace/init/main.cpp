@@ -131,6 +131,11 @@ int main()
 				{
 					printf("Welcome back %s!\n", user.name.data());
 
+					if (setgid(user.gid) == -1)
+						perror("setgid");
+					if (setuid(user.uid) == -1)
+						perror("setuid");
+
 					execl(user.shell.data(), user.shell.data(), nullptr);
 					perror("execl");
 					
