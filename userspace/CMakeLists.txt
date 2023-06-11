@@ -5,6 +5,7 @@ project(userspace CXX)
 set(USERSPACE_PROJECTS
 	cat
 	echo
+	id
 	init
 	ls
 	Shell
