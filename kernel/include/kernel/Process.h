@@ -65,6 +65,11 @@ namespace Kernel
 		BAN::ErrorOr<void> set_reuid(uid_t, uid_t);
 		BAN::ErrorOr<void> set_regid(gid_t, gid_t);
 
+		uid_t get_uid() const { return m_credentials.ruid(); }
+		gid_t get_gid() const { return m_credentials.rgid(); }
+		uid_t get_euid() const { return m_credentials.euid(); }
+		gid_t get_egid() const { return m_credentials.egid(); }
+
 		BAN::ErrorOr<int> open(BAN::StringView, int);
 		BAN::ErrorOr<int> openat(int, BAN::StringView, int);
 		BAN::ErrorOr<void> close(int fd);

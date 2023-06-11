@@ -213,6 +213,26 @@ long syscall(long syscall, ...)
 			ret = Kernel::syscall(SYS_SET_REGID, rgid, egid);
 			break;
 		}
+		case SYS_GET_UID:
+		{
+			ret = Kernel::syscall(SYS_GET_UID);
+			break;
+		}
+		case SYS_GET_GID:
+		{
+			ret = Kernel::syscall(SYS_GET_GID);
+			break;
+		}
+		case SYS_GET_EUID:
+		{
+			ret = Kernel::syscall(SYS_GET_EUID);
+			break;
+		}
+		case SYS_GET_EGID:
+		{
+			ret = Kernel::syscall(SYS_GET_EGID);
+			break;
+		}
 		default:
 			puts("LibC: Unhandeled syscall");
 			ret = -ENOSYS;
@@ -320,6 +340,26 @@ pid_t fork(void)
 unsigned int sleep(unsigned int seconds)
 {
 	return syscall(SYS_SLEEP, seconds);
+}
+
+uid_t getuid(void)
+{
+	return syscall(SYS_GET_UID);
+}
+
+gid_t getgid(void)
+{
+	return syscall(SYS_GET_GID);
+}
+
+uid_t geteuid(void)
+{
+	return syscall(SYS_GET_EUID);
+}
+
+gid_t getegid(void)
+{
+	return syscall(SYS_GET_EGID);
 }
 
 int seteuid(uid_t uid)
