@@ -72,6 +72,31 @@ int execute_command(BAN::StringView command)
 			setenv(name, value, true);
 		}
 	}
+	else if (args.front() == "cd"sv)
+	{
+		if (args.size() > 2)
+		{
+			printf("cd: too many arguments\n");
+			return 1;
+		}
+
+		const char* path = nullptr;
+
+		if (args.size() == 1)
+		{
+			path = getenv("HOME");
+			if (path == nullptr)
+				return 0;
+		}
+		else
+			path = args[1];
+
+		if (chdir(args.size() == 2 ? args[1] : getenv("HOME")) == -1)
+		{
+			perror("chdir");
+			return 1;
+		}
+	}
 	else
 	{
 		pid_t pid = fork();
@@ -121,7 +146,7 @@ BAN::String get_prompt()
 {
 	const char* raw_prompt = getenv("PS1");
 	if (raw_prompt == nullptr)
-		raw_prompt = "\e[32muser@host\e[m:\e[34m/\e[m$ ";
+		raw_prompt = "\e[32muser@host\e[m:\e[34m\\~\e[m$ ";
 
 	BAN::String prompt;
 	for (int i = 0; raw_prompt[i]; i++)
@@ -140,6 +165,26 @@ BAN::String get_prompt()
 			case '\\':
 				MUST(prompt.push_back('\\'));
 				break;
+			case '~':
+			{
+				char buffer[256];
+				if (getcwd(buffer, sizeof(buffer)) == nullptr)
+					strcpy(buffer, strerrorname_np(errno));
+				
+				const char* home = getenv("HOME");
+				size_t home_len = home ? strlen(home) : 0;
+				if (home && strncmp(buffer, home, home_len) == 0)
+				{
+					MUST(prompt.push_back('~'));
+					MUST(prompt.append(buffer + home_len));
+				}
+				else
+				{
+					MUST(prompt.append(buffer));
+				}
+
+				break;
+			}
 			case '\0':
 				MUST(prompt.push_back('\\'));
 				break;
@@ -154,7 +199,7 @@ BAN::String get_prompt()
 			MUST(prompt.push_back(ch));
 		}
 	}	
-	
+
 	return prompt;
 }
 
