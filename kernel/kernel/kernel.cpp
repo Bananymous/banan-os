@@ -173,14 +173,14 @@ static void init2(void* tty1)
 	DeviceManager::get().initialize_pci_devices();
 	DeviceManager::get().initialize_updater();
 
-	MUST(VirtualFileSystem::initialize(cmdline.root));
+	VirtualFileSystem::initialize(cmdline.root);
 
 	if (auto res = PS2Controller::initialize(); res.is_error())
 		dprintln("{}", res.error());
 
 	((TTY*)tty1)->initialize_device();
 
-	MUST(Process::create_userspace("/usr/bin/Shell"sv));
+	MUST(Process::create_userspace({ 0, 0, 0, 0 }, "/usr/bin/Shell"sv));
 	return;
 
 	Process::create_kernel(

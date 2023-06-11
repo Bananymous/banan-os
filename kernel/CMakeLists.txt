@@ -19,6 +19,7 @@ set(KERNEL_SOURCES
 	kernel/Errors.cpp
 	kernel/Font.cpp
 	kernel/FS/Ext2.cpp
+	kernel/FS/Inode.cpp
 	kernel/FS/VirtualFileSystem.cpp
 	kernel/Input/PS2Controller.cpp
 	kernel/Input/PS2Keyboard.cpp

@@ -11,21 +11,21 @@ namespace Kernel
 	class VirtualFileSystem : public FileSystem
 	{
 	public:
-		static BAN::ErrorOr<void> initialize(BAN::StringView);
+		static void initialize(BAN::StringView);
 		static VirtualFileSystem& get();
 		virtual ~VirtualFileSystem() {};
 
 		virtual BAN::RefPtr<Inode> root_inode() override { return m_root_fs->root_inode(); }
 
-		BAN::ErrorOr<void> mount(BAN::StringView, BAN::StringView);
-		BAN::ErrorOr<void> mount(FileSystem*, BAN::StringView);
+		BAN::ErrorOr<void> mount(const Credentials&, BAN::StringView, BAN::StringView);
+		BAN::ErrorOr<void> mount(const Credentials&, FileSystem*, BAN::StringView);
 
 		struct File
 		{
 			BAN::RefPtr<Inode> inode;
 			BAN::String canonical_path;
 		};
-		BAN::ErrorOr<File> file_from_absolute_path(BAN::StringView, bool follow_link);
+		BAN::ErrorOr<File> file_from_absolute_path(const Credentials&, BAN::StringView, int);
 
 	private:
 		VirtualFileSystem() = default;

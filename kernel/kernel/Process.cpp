@@ -18,10 +18,10 @@ namespace Kernel
 	static BAN::Vector<Process*> s_processes;
 	static SpinLock s_process_lock;
 
-	Process* Process::create_process()
+	Process* Process::create_process(const Credentials& credentials)
 	{
 		static pid_t s_next_pid = 1;
-		auto* process = new Process(s_next_pid++);
+		auto* process = new Process(credentials, s_next_pid++);
 		ASSERT(process);
 		return process;
 	}
@@ -37,7 +37,7 @@ namespace Kernel
 
 	Process* Process::create_kernel(entry_t entry, void* data)
 	{
-		auto* process = create_process();
+		auto* process = create_process({ 0, 0, 0, 0 });
 		MUST(process->m_working_directory.push_back('/'));
 		auto* thread = MUST(Thread::create_kernel(entry, data, process));
 		process->add_thread(thread);
@@ -45,11 +45,11 @@ namespace Kernel
 		return process;
 	}
 
-	BAN::ErrorOr<Process*> Process::create_userspace(BAN::StringView path)
+	BAN::ErrorOr<Process*> Process::create_userspace(const Credentials& credentials, BAN::StringView path)
 	{
-		auto elf = TRY(load_elf_for_exec(path, "/"sv, {}));
+		auto elf = TRY(load_elf_for_exec(credentials, path, "/"sv, {}));
 
-		auto* process = create_process();
+		auto* process = create_process(credentials);
 		MUST(process->m_working_directory.push_back('/'));
 		process->m_page_table = BAN::UniqPtr<PageTable>::adopt(MUST(PageTable::create_userspace()));;
 
@@ -89,8 +89,9 @@ namespace Kernel
 		return process;
 	}
 
-	Process::Process(pid_t pid)
-		: m_pid(pid)
+	Process::Process(const Credentials& credentials, pid_t pid)
+		: m_credentials(credentials)
+		, m_pid(pid)
 		, m_tty(TTY::current())
 	{ }
 
@@ -167,7 +168,7 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<BAN::UniqPtr<LibELF::ELF>> Process::load_elf_for_exec(BAN::StringView file_path, const BAN::String& cwd, const BAN::Vector<BAN::StringView>& path_env)
+	BAN::ErrorOr<BAN::UniqPtr<LibELF::ELF>> Process::load_elf_for_exec(const Credentials& credentials, BAN::StringView file_path, const BAN::String& cwd, const BAN::Vector<BAN::StringView>& path_env)
 	{
 		if (file_path.empty())
 			return BAN::Error::from_errno(ENOENT);
@@ -204,7 +205,7 @@ namespace Kernel
 				TRY(absolute_path.push_back('/'));
 				TRY(absolute_path.append(file_path));
 
-				if (!VirtualFileSystem::get().file_from_absolute_path(absolute_path, true).is_error())
+				if (!VirtualFileSystem::get().file_from_absolute_path(credentials, absolute_path, O_EXEC).is_error())
 					break;
 
 				absolute_path.clear();
@@ -214,7 +215,9 @@ namespace Kernel
 				return BAN::Error::from_errno(ENOENT);
 		}
 
-		auto elf_or_error = LibELF::ELF::load_from_file(absolute_path);
+		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(credentials, absolute_path, O_EXEC));
+
+		auto elf_or_error = LibELF::ELF::load_from_file(file.inode);
 		if (elf_or_error.is_error())
 		{
 			if (elf_or_error.error().get_error_code() == EINVAL)
@@ -240,7 +243,7 @@ namespace Kernel
 
 	BAN::ErrorOr<Process*> Process::fork(uintptr_t rsp, uintptr_t rip)
 	{
-		Process* forked = create_process();
+		Process* forked = create_process(m_credentials);
 
 		forked->m_page_table = BAN::UniqPtr<PageTable>::adopt(MUST(PageTable::create_userspace()));
 
@@ -286,7 +289,7 @@ namespace Kernel
 				path_env = TRY(BAN::StringView(envp[i]).substring(5).split(':'));
 		}
 
-		auto elf = TRY(load_elf_for_exec(path, TRY(working_directory()), path_env));
+		auto elf = TRY(load_elf_for_exec(m_credentials, path, TRY(working_directory()), path_env));
 
 		LockGuard lock_guard(m_lock);
 
@@ -456,7 +459,7 @@ namespace Kernel
 
 		BAN::String absolute_path = TRY(absolute_path_of(path));
 
-		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(absolute_path, !(flags & O_NOFOLLOW)));
+		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, flags));
 
 		LockGuard _(m_lock);
 		int fd = TRY(get_free_fd());
@@ -592,7 +595,7 @@ namespace Kernel
 		auto directory = absolute_path.sv().substring(0, index);
 		auto file_name = absolute_path.sv().substring(index);
 
-		auto parent_file = TRY(VirtualFileSystem::get().file_from_absolute_path(directory, true));
+		auto parent_file = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, directory, O_WRONLY));
 		TRY(parent_file.inode->create_file(file_name, mode));
 
 		return {};
@@ -606,7 +609,7 @@ namespace Kernel
 			absolute_source = TRY(absolute_path_of(source));
 			absolute_target = TRY(absolute_path_of(target));
 		}
-		TRY(VirtualFileSystem::get().mount(absolute_source, absolute_target));
+		TRY(VirtualFileSystem::get().mount(m_credentials, absolute_source, absolute_target));
 		return {};
 	}
 
@@ -680,7 +683,7 @@ namespace Kernel
 	{
 		BAN::String absolute_path = TRY(absolute_path_of(path));
 
-		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(absolute_path, true));
+		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, O_SEARCH));
 		if (!file.inode->mode().ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
 

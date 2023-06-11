@@ -4,32 +4,27 @@
 #include <kernel/FS/Ext2.h>
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/LockGuard.h>
+#include <fcntl.h>
 
 namespace Kernel
 {
 
 	static VirtualFileSystem* s_instance = nullptr;
 
-	BAN::ErrorOr<void> VirtualFileSystem::initialize(BAN::StringView root)
+	void VirtualFileSystem::initialize(BAN::StringView root)
 	{
 		ASSERT(s_instance == nullptr);
 		s_instance = new VirtualFileSystem();
-		if (s_instance == nullptr)
-			return BAN::Error::from_errno(ENOMEM);
-		BAN::ScopeGuard guard([] { delete s_instance; s_instance = nullptr; } );
+		ASSERT(s_instance);
 
 		ASSERT(root.size() >= 5 && root.substring(0, 5) == "/dev/"sv);;
 		root = root.substring(5);
 
-		auto partition_inode = TRY(DeviceManager::get().read_directory_inode(root));
-		s_instance->m_root_fs = TRY(Ext2FS::create(*(Partition*)partition_inode.ptr()));
+		auto partition_inode = MUST(DeviceManager::get().read_directory_inode(root));
+		s_instance->m_root_fs = MUST(Ext2FS::create(*(Partition*)partition_inode.ptr()));
 
 		DeviceManager::get().set_blksize(s_instance->m_root_fs->root_inode()->blksize());
-		TRY(s_instance->mount(&DeviceManager::get(), "/dev"));
-
-		guard.disable();
-
-		return {};
+		MUST(s_instance->mount({ 0, 0, 0, 0 }, &DeviceManager::get(), "/dev"));
 	}
 	
 	VirtualFileSystem& VirtualFileSystem::get()
@@ -38,9 +33,9 @@ namespace Kernel
 		return *s_instance;
 	}
 
-	BAN::ErrorOr<void> VirtualFileSystem::mount(BAN::StringView partition, BAN::StringView target)
+	BAN::ErrorOr<void> VirtualFileSystem::mount(const Credentials& credentials, BAN::StringView partition, BAN::StringView target)
 	{
-		auto partition_file = TRY(file_from_absolute_path(partition, true));
+		auto partition_file = TRY(file_from_absolute_path(credentials, partition, true));
 		if (!partition_file.inode->is_device())
 			return BAN::Error::from_errno(ENOTBLK);
 
@@ -49,12 +44,12 @@ namespace Kernel
 			return BAN::Error::from_errno(ENOTBLK);
 
 		auto* file_system = TRY(Ext2FS::create(*(Partition*)device));
-		return mount(file_system, target);
+		return mount(credentials, file_system, target);
 	}
 
-	BAN::ErrorOr<void> VirtualFileSystem::mount(FileSystem* file_system, BAN::StringView path)
+	BAN::ErrorOr<void> VirtualFileSystem::mount(const Credentials& credentials, FileSystem* file_system, BAN::StringView path)
 	{
-		auto file = TRY(file_from_absolute_path(path, true));
+		auto file = TRY(file_from_absolute_path(credentials, path, true));
 		if (!file.inode->mode().ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
 
@@ -82,7 +77,7 @@ namespace Kernel
 		return nullptr;
 	}
 
-	BAN::ErrorOr<VirtualFileSystem::File> VirtualFileSystem::file_from_absolute_path(BAN::StringView path, bool follow_link)
+	BAN::ErrorOr<VirtualFileSystem::File> VirtualFileSystem::file_from_absolute_path(const Credentials& credentials, BAN::StringView path, int flags)
 	{
 		LockGuard _(m_lock);
 
@@ -129,6 +124,9 @@ namespace Kernel
 			}
 			else
 			{
+				if (!inode->can_access(credentials, O_RDONLY))
+					return BAN::Error::from_errno(EACCES);
+
 				inode = TRY(inode->read_directory_inode(path_part));
 
 				if (auto* mount_point = mount_from_host_inode(inode))
@@ -140,7 +138,7 @@ namespace Kernel
 
 			path_parts.pop_back();
 
-			if (inode->mode().iflnk() && (follow_link || !path_parts.empty()))
+			if (inode->mode().iflnk() && (!(flags & O_NOFOLLOW) || !path_parts.empty()))
 			{
 				auto target = TRY(inode->link_target());
 				if (target.empty())
@@ -173,6 +171,9 @@ namespace Kernel
 					return BAN::Error::from_errno(ELOOP);
 			}
 		}
+
+		if (!inode->can_access(credentials, flags))
+			return BAN::Error::from_errno(EACCES);
 
 		if (canonical_path.empty())
 			TRY(canonical_path.push_back('/'));

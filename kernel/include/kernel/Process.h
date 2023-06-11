@@ -3,6 +3,7 @@
 #include <BAN/String.h>
 #include <BAN/StringView.h>
 #include <BAN/Vector.h>
+#include <kernel/Credentials.h>
 #include <kernel/FS/Inode.h>
 #include <kernel/Memory/FixedWidthAllocator.h>
 #include <kernel/Memory/GeneralAllocator.h>
@@ -37,7 +38,7 @@ namespace Kernel
 
 	public:
 		static Process* create_kernel(entry_t, void*);
-		static BAN::ErrorOr<Process*> create_userspace(BAN::StringView);
+		static BAN::ErrorOr<Process*> create_userspace(const Credentials&, BAN::StringView);
 		~Process();
 
 		[[noreturn]] void exit(int status);
@@ -91,12 +92,12 @@ namespace Kernel
 		const userspace_info_t& userspace_info() const { return m_userspace_info; }
 
 	private:
-		Process(pid_t);
-		static Process* create_process();
+		Process(const Credentials&, pid_t);
+		static Process* create_process(const Credentials&);
 		static void register_process(Process*);
 
 		// Load an elf file to virtual address space of the current page table
-		static BAN::ErrorOr<BAN::UniqPtr<LibELF::ELF>> load_elf_for_exec(BAN::StringView file_path, const BAN::String& cwd, const BAN::Vector<BAN::StringView>& path_env);
+		static BAN::ErrorOr<BAN::UniqPtr<LibELF::ELF>> load_elf_for_exec(const Credentials&, BAN::StringView file_path, const BAN::String& cwd, const BAN::Vector<BAN::StringView>& path_env);
 		
 		// Copy an elf file from the current page table to the processes own
 		void load_elf_to_memory(LibELF::ELF&);
@@ -124,6 +125,8 @@ namespace Kernel
 			bool exited { false };
 			int waiting { 0 };
 		};
+
+		Credentials m_credentials;
 
 		BAN::Vector<OpenFileDescription> m_open_files;
 		BAN::Vector<VirtualRange*> m_mapped_ranges;

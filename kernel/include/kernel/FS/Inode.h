@@ -6,6 +6,7 @@
 #include <BAN/Vector.h>
 
 #include <kernel/API/DirectoryEntry.h>
+#include <kernel/Credentials.h>
 
 #include <sys/types.h>
 #include <time.h>
@@ -55,6 +56,8 @@ namespace Kernel
 
 	public:
 		virtual ~Inode() {}
+
+		bool can_access(const Credentials&, int);
 
 		bool operator==(const Inode& other) const { return dev() == other.dev() && rdev() == other.rdev() && ino() == other.ino(); }
 

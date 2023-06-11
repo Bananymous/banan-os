@@ -1,6 +1,7 @@
 #pragma once
 
 #ifdef __is_kernel
+#include <kernel/FS/Inode.h>
 #include <kernel/Memory/VirtualRange.h>
 #endif
 
@@ -16,8 +17,12 @@ namespace LibELF
 	class ELF
 	{
 	public:
+#ifdef __is_kernel
+		static BAN::ErrorOr<BAN::UniqPtr<ELF>> load_from_file(BAN::RefPtr<Kernel::Inode>);
+#else
 		static BAN::ErrorOr<BAN::UniqPtr<ELF>> load_from_file(BAN::StringView);
-		
+#endif
+
 		const Elf64FileHeader& file_header64() const;
 		const Elf64ProgramHeader& program_header64(size_t) const;
 		const Elf64SectionHeader& section_header64(size_t) const;
