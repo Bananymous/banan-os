@@ -300,8 +300,6 @@ namespace Kernel
 			delete range;
 		m_mapped_ranges.clear();
 
-		m_open_files.clear();
-
 		load_elf_to_memory(*elf);
 
 		m_userspace_info.entry = elf->file_header_native().e_entry;
