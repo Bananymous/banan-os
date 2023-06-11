@@ -21,7 +21,7 @@ namespace Kernel
 
 		if (vaddr == 0)
 		{
-			vaddr = page_table.get_free_contiguous_pages(size / PAGE_SIZE, 0x400000);
+			vaddr = page_table.get_free_contiguous_pages(size / PAGE_SIZE, 0x300000);
 			ASSERT(vaddr);
 		}
 
