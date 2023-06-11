@@ -48,6 +48,14 @@ namespace Kernel
 			return -res.error().get_error_code();
 		return res.value();
 	}
+	
+	int sys_openat(int fd, const char* path, int oflags)
+	{
+		auto res = Process::current().openat(fd, path, oflags);
+		if (res.is_error())
+			return -res.error().get_error_code();
+		return res.value();
+	}
 
 	long sys_alloc(size_t bytes)
 	{
@@ -186,6 +194,9 @@ namespace Kernel
 			break;
 		case SYS_OPEN:
 			ret = sys_open((const char*)arg1, (int)arg2);
+			break;
+		case SYS_OPENAT:
+			ret = sys_openat((int)arg1, (const char*)arg2, (int)arg3);
 			break;
 		case SYS_ALLOC:
 			ret = sys_alloc((size_t)arg1);

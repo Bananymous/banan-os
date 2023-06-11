@@ -58,6 +58,7 @@ namespace Kernel
 		BAN::ErrorOr<void> setenvp(char** envp);
 
 		BAN::ErrorOr<int> open(BAN::StringView, int);
+		BAN::ErrorOr<int> openat(int, BAN::StringView, int);
 		BAN::ErrorOr<void> close(int fd);
 		BAN::ErrorOr<size_t> read(int fd, void* buffer, size_t count);
 		BAN::ErrorOr<size_t> write(int fd, const void* buffer, size_t count);
