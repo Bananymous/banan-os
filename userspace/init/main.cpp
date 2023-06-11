@@ -93,6 +93,8 @@ int main()
 {
 	initialize_stdio();
 
+	bool first = true;
+
 	while (true)
 	{
 		auto users = parse_users();
@@ -100,7 +102,13 @@ int main()
 		char name_buffer[128];
 		BAN::StringView name;
 
-		while (true)
+		if (first)
+		{
+			name = "user"sv;
+			first = false;
+		}
+
+		while (name.empty())
 		{
 			printf("username: ");
 			fflush(stdout);
