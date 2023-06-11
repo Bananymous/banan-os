@@ -26,6 +26,12 @@ __BEGIN_DECLS
 #define SYS_FSTAT 19
 #define SYS_SETENVP 20
 #define SYS_READ_DIR_ENTRIES 21
+#define SYS_SET_UID 22
+#define SYS_SET_GID 23
+#define SYS_SET_EUID 24
+#define SYS_SET_EGID 25
+#define SYS_SET_REUID 26
+#define SYS_SET_REGID 27
 
 __END_DECLS
 

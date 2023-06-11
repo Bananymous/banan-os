@@ -58,6 +58,13 @@ namespace Kernel
 
 		BAN::ErrorOr<void> setenvp(char** envp);
 
+		BAN::ErrorOr<void> set_uid(uid_t);
+		BAN::ErrorOr<void> set_gid(gid_t);
+		BAN::ErrorOr<void> set_euid(uid_t);
+		BAN::ErrorOr<void> set_egid(gid_t);
+		BAN::ErrorOr<void> set_reuid(uid_t, uid_t);
+		BAN::ErrorOr<void> set_regid(gid_t, gid_t);
+
 		BAN::ErrorOr<int> open(BAN::StringView, int);
 		BAN::ErrorOr<int> openat(int, BAN::StringView, int);
 		BAN::ErrorOr<void> close(int fd);

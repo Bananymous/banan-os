@@ -21,6 +21,16 @@ namespace Kernel
 		gid_t egid() const { return m_egid; }
 		gid_t sgid() const { return m_sgid; }
 
+		void set_ruid(uid_t uid) { m_ruid = uid; }
+		void set_euid(uid_t uid) { m_euid = uid; }
+		void set_suid(uid_t uid) { m_suid = uid; }
+
+		void set_rgid(gid_t gid) { m_rgid = gid; }
+		void set_egid(gid_t gid) { m_egid = gid; }
+		void set_sgid(gid_t gid) { m_sgid = gid; }
+
+		bool is_superuser() const { return m_euid == 0; }
+
 	private:
 		uid_t m_ruid, m_euid, m_suid;
 		gid_t m_rgid, m_egid, m_sgid;

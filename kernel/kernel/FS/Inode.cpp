@@ -7,7 +7,7 @@ namespace Kernel
 
 	bool Inode::can_access(const Credentials& credentials, int flags)
 	{
-		if (credentials.euid() == 0)
+		if (credentials.is_superuser())
 			return true;
 
 		// We treat O_SEARCH as O_RDONLY
