@@ -175,6 +175,44 @@ long syscall(long syscall, ...)
 			ret = Kernel::syscall(SYS_READ_DIR_ENTRIES, fd, (uintptr_t)buffer, buffer_size);
 			break;
 		}
+		case SYS_SET_UID:
+		{
+			uid_t uid = va_arg(args, uid_t);
+			ret = Kernel::syscall(SYS_SET_UID, uid);
+			break;
+		}
+		case SYS_SET_GID:
+		{
+			gid_t gid = va_arg(args, gid_t);
+			ret = Kernel::syscall(SYS_SET_GID, gid);
+			break;
+		}
+		case SYS_SET_EUID:
+		{
+			uid_t uid = va_arg(args, uid_t);
+			ret = Kernel::syscall(SYS_SET_EUID, uid);
+			break;
+		}
+		case SYS_SET_EGID:
+		{
+			gid_t gid = va_arg(args, gid_t);
+			ret = Kernel::syscall(SYS_SET_EGID, gid);
+			break;
+		}
+		case SYS_SET_REUID:
+		{
+			uid_t ruid = va_arg(args, uid_t);
+			uid_t euid = va_arg(args, uid_t);
+			ret = Kernel::syscall(SYS_SET_REUID, ruid, euid);
+			break;
+		}
+		case SYS_SET_REGID:
+		{
+			gid_t rgid = va_arg(args, gid_t);
+			gid_t egid = va_arg(args, gid_t);
+			ret = Kernel::syscall(SYS_SET_REGID, rgid, egid);
+			break;
+		}
 		default:
 			puts("LibC: Unhandeled syscall");
 			ret = -ENOSYS;
@@ -282,4 +320,34 @@ pid_t fork(void)
 unsigned int sleep(unsigned int seconds)
 {
 	return syscall(SYS_SLEEP, seconds);
+}
+
+int seteuid(uid_t uid)
+{
+	return syscall(SYS_SET_EUID, uid);
+}
+
+int setegid(gid_t gid)
+{
+	return syscall(SYS_SET_EGID, gid);
+}
+
+int setuid(uid_t uid)
+{
+	return syscall(SYS_SET_UID, uid);
+}
+
+int setgid(gid_t gid)
+{
+	return syscall(SYS_SET_GID, gid);
+}
+
+int setreuid(uid_t ruid, uid_t euid)
+{
+	return syscall(SYS_SET_REUID, ruid, euid);
+}
+
+int setregid(gid_t rgid, gid_t egid)
+{
+	return syscall(SYS_SET_REGID, rgid, egid);
 }

@@ -160,6 +160,54 @@ namespace Kernel
 		return 0;
 	}
 
+	long sys_set_uid(uid_t uid)
+	{
+		auto ret = Process::current().set_uid(uid);
+		if (ret.is_error())
+			return -ret.error().get_error_code();
+		return 0;
+	}
+
+	long sys_set_gid(gid_t gid)
+	{
+		auto ret = Process::current().set_gid(gid);
+		if (ret.is_error())
+			return -ret.error().get_error_code();
+		return 0;
+	}
+
+	long sys_set_euid(uid_t uid)
+	{
+		auto ret = Process::current().set_euid(uid);
+		if (ret.is_error())
+			return -ret.error().get_error_code();
+		return 0;
+	}
+
+	long sys_set_egid(gid_t gid)
+	{
+		auto ret = Process::current().set_egid(gid);
+		if (ret.is_error())
+			return -ret.error().get_error_code();
+		return 0;
+	}
+
+	long sys_set_reuid(uid_t ruid, uid_t euid)
+	{
+		auto ret = Process::current().set_reuid(ruid, euid);
+		if (ret.is_error())
+			return -ret.error().get_error_code();
+		return 0;
+	}
+
+	long sys_set_regid(gid_t rgid, gid_t egid)
+	{
+		auto ret = Process::current().set_regid(rgid, egid);
+		if (ret.is_error())
+			return -ret.error().get_error_code();
+		return 0;
+	}
+
 	extern "C" long sys_fork_trampoline();
 
 	extern "C" long cpp_syscall_handler(int syscall, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
@@ -236,6 +284,24 @@ namespace Kernel
 			break;
 		case SYS_READ_DIR_ENTRIES:
 			ret = sys_read_dir_entries((int)arg1, (API::DirectoryEntryList*)arg2, (size_t)arg3);
+			break;
+		case SYS_SET_UID:
+			ret = sys_set_uid((uid_t)arg1);
+			break;
+		case SYS_SET_GID:
+			ret = sys_set_gid((gid_t)arg1);
+			break;
+		case SYS_SET_EUID:
+			ret = sys_set_euid((uid_t)arg1);
+			break;
+		case SYS_SET_EGID:
+			ret = sys_set_egid((gid_t)arg1);
+			break;
+		case SYS_SET_REUID:
+			ret = sys_set_reuid((uid_t)arg1, (uid_t)arg2);
+			break;
+		case SYS_SET_REGID:
+			ret = sys_set_regid((gid_t)arg1, (gid_t)arg2);
 			break;
 		default:
 			dwarnln("Unknown syscall {}", syscall);

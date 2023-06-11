@@ -785,6 +785,187 @@ namespace Kernel
 		strcpy(buffer + 5, m_tty->name().data());
 	}
 
+	BAN::ErrorOr<void> Process::set_uid(uid_t uid)
+	{
+		if (uid < 0 || uid >= 1'000'000'000)
+			return BAN::Error::from_errno(EINVAL);
+
+		LockGuard _(m_lock);
+
+		// If the process has appropriate privileges, setuid() shall set the real user ID, effective user ID, and the saved
+		// set-user-ID of the calling process to uid.
+		if (m_credentials.is_superuser())
+		{
+			m_credentials.set_euid(uid);
+			m_credentials.set_ruid(uid);
+			m_credentials.set_suid(uid);
+			return {};
+		}
+
+		// If the process does not have appropriate privileges, but uid is equal to the real user ID or the saved set-user-ID,
+		// setuid() shall set the effective user ID to uid; the real user ID and saved set-user-ID shall remain unchanged.
+		if (uid == m_credentials.ruid() || uid == m_credentials.suid())
+		{
+			m_credentials.set_euid(uid);
+			return {};
+		}
+
+		return BAN::Error::from_errno(EPERM);
+	}
+
+	BAN::ErrorOr<void> Process::set_gid(gid_t gid)
+	{
+		if (gid < 0 || gid >= 1'000'000'000)
+			return BAN::Error::from_errno(EINVAL);
+
+		LockGuard _(m_lock);
+
+		// If the process has appropriate privileges, setgid() shall set the real group ID, effective group ID, and the saved
+		// set-group-ID of the calling process to gid.
+		if (m_credentials.is_superuser())
+		{
+			m_credentials.set_egid(gid);
+			m_credentials.set_rgid(gid);
+			m_credentials.set_sgid(gid);
+			return {};
+		}
+
+		// If the process does not have appropriate privileges, but gid is equal to the real group ID or the saved set-group-ID,
+		// setgid() shall set the effective group ID to gid; the real group ID and saved set-group-ID shall remain unchanged.
+		if (gid == m_credentials.rgid() || gid == m_credentials.sgid())
+		{
+			m_credentials.set_egid(gid);
+			return {};
+		}
+
+		return BAN::Error::from_errno(EPERM);
+	}
+
+	BAN::ErrorOr<void> Process::set_euid(uid_t uid)
+	{
+		if (uid < 0 || uid >= 1'000'000'000)
+			return BAN::Error::from_errno(EINVAL);
+
+		LockGuard _(m_lock);
+
+		// If uid is equal to the real user ID or the saved set-user-ID, or if the process has appropriate privileges, seteuid()
+		// shall set the effective user ID of the calling process to uid; the real user ID and saved set-user-ID shall remain unchanged.
+		if (uid == m_credentials.ruid() || uid == m_credentials.suid() || m_credentials.is_superuser())
+		{
+			m_credentials.set_euid(uid);
+			return {};
+		}
+
+		return BAN::Error::from_errno(EPERM);
+	}
+
+	BAN::ErrorOr<void> Process::set_egid(gid_t gid)
+	{
+		if (gid < 0 || gid >= 1'000'000'000)
+			return BAN::Error::from_errno(EINVAL);
+
+		LockGuard _(m_lock);
+
+		// If gid is equal to the real group ID or the saved set-group-ID, or if the process has appropriate privileges, setegid()
+		// shall set the effective group ID of the calling process to gid; the real group ID, saved set-group-ID, and any
+		// supplementary group IDs shall remain unchanged.
+		if (gid == m_credentials.rgid() || gid == m_credentials.sgid() || m_credentials.is_superuser())
+		{
+			m_credentials.set_egid(gid);
+			return {};
+		}
+
+		return BAN::Error::from_errno(EPERM);
+	}
+
+	BAN::ErrorOr<void> Process::set_reuid(uid_t ruid, uid_t euid)
+	{
+		if (ruid == -1 && euid == -1)
+			return {};
+
+		if (ruid < -1 || ruid >= 1'000'000'000)
+			return BAN::Error::from_errno(EINVAL);
+		if (euid < -1 || euid >= 1'000'000'000)
+			return BAN::Error::from_errno(EINVAL);
+
+		// The setreuid() function shall set the real and effective user IDs of the current process to the values specified
+		// by the ruid and euid arguments. If ruid or euid is -1, the corresponding effective or real user ID of the current
+		// process shall be left unchanged.
+
+		LockGuard _(m_lock);
+
+		// A process with appropriate privileges can set either ID to any value.
+		if (!m_credentials.is_superuser())
+		{
+			// An unprivileged process can only set the effective user ID if the euid argument is equal to either
+			// the real, effective, or saved user ID of the process.
+			if (euid != -1 && euid != m_credentials.ruid() && euid != m_credentials.euid() && euid == m_credentials.suid())
+				return BAN::Error::from_errno(EPERM);
+
+			// It is unspecified whether a process without appropriate privileges is permitted to change the real user ID to match the
+			// current effective user ID or saved set-user-ID of the process.
+			// NOTE: we will allow this
+			if (ruid != -1 && ruid != m_credentials.ruid() && ruid != m_credentials.euid() && ruid == m_credentials.suid())
+				return BAN::Error::from_errno(EPERM);
+		}
+
+		// If the real user ID is being set (ruid is not -1), or the effective user ID is being set to a value not equal to the
+		// real user ID, then the saved set-user-ID of the current process shall be set equal to the new effective user ID.
+		if (ruid != -1 || euid != m_credentials.ruid())
+			m_credentials.set_suid(euid);
+		
+		if (ruid != -1)
+			m_credentials.set_ruid(ruid);
+		if (euid != -1)
+			m_credentials.set_euid(euid);
+
+		return {};
+	}
+
+	BAN::ErrorOr<void> Process::set_regid(gid_t rgid, gid_t egid)
+	{
+		if (rgid == -1 && egid == -1)
+			return {};
+
+		if (rgid < -1 || rgid >= 1'000'000'000)
+			return BAN::Error::from_errno(EINVAL);
+		if (egid < -1 || egid >= 1'000'000'000)
+			return BAN::Error::from_errno(EINVAL);
+
+		// The setregid() function shall set the real and effective group IDs of the calling process.
+		
+		// If rgid is -1, the real group ID shall not be changed; if egid is -1, the effective group ID shall not be changed.
+
+		// The real and effective group IDs may be set to different values in the same call.
+
+		LockGuard _(m_lock);
+
+		// Only a process with appropriate privileges can set the real group ID and the effective group ID to any valid value.
+		if (!m_credentials.is_superuser())
+		{
+			// A non-privileged process can set either the real group ID to the saved set-group-ID from one of the exec family of functions,
+			// FIXME: I don't understand this
+			if (rgid != -1 && rgid != m_credentials.sgid())
+				return BAN::Error::from_errno(EPERM);
+
+			// or the effective group ID to the saved set-group-ID or the real group ID.
+			if (egid != -1 && egid != m_credentials.sgid() && egid != m_credentials.rgid())
+				return BAN::Error::from_errno(EPERM);
+		}
+
+		// If the real group ID is being set (rgid is not -1), or the effective group ID is being set to a value not equal to the
+		// real group ID, then the saved set-group-ID of the current process shall be set equal to the new effective group ID.
+		if (rgid != -1 || egid != m_credentials.rgid())
+			m_credentials.set_sgid(egid);
+		
+		if (rgid != -1)
+			m_credentials.set_rgid(rgid);
+		if (egid != -1)
+			m_credentials.set_egid(egid);
+
+		return {};
+	}
+
 	BAN::ErrorOr<BAN::String> Process::absolute_path_of(BAN::StringView path) const
 	{
 		if (path.empty())
