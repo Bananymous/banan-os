@@ -420,16 +420,16 @@ namespace Kernel
 
 				size_t page_start = elf_program_header.p_vaddr / PAGE_SIZE;
 				size_t page_end = BAN::Math::div_round_up<size_t>(elf_program_header.p_vaddr + elf_program_header.p_memsz, PAGE_SIZE);
-				size_t page_count = page_end - page_start + 1;
+				size_t page_count = page_end - page_start;
 
 				page_table().lock();
 
-				if (!page_table().is_range_free(elf_program_header.p_vaddr, elf_program_header.p_memsz))
+				if (!page_table().is_range_free(page_start * PAGE_SIZE, page_count * PAGE_SIZE))
 				{
 					page_table().debug_dump();
-					Kernel::panic("vaddr {8H}-{8H} not free",
-						elf_program_header.p_vaddr,
-						elf_program_header.p_vaddr + elf_program_header.p_memsz
+					Kernel::panic("vaddr {8H}-{8H} not free {8H}-{8H}",
+						page_start * PAGE_SIZE,
+						page_start * PAGE_SIZE + page_count * PAGE_SIZE
 					);
 				}
 
