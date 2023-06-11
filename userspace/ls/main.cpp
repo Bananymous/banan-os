@@ -31,6 +31,21 @@ const char* mode_string(mode_t mode)
 	return buffer;
 }
 
+const char* color_string(mode_t mode)
+{
+	if ((mode & 0770000) == S_IFLNK)
+		return "\e[36m";
+	if ((mode & 0770000) == S_IFDIR)
+		return "\e[34m";
+	if ((mode & 0770000) == S_IFCHR)
+		return "\e[33m";
+	if ((mode & 0770000) == S_IFBLK)
+		return "\e[33m";
+	if ((mode & (S_IXUSR | S_IXGRP | S_IXOTH)))
+		return "\e[32m";
+	return "";
+}
+
 void list_directory(const char* path)
 {
 	DIR* dirp = opendir(path);
@@ -45,28 +60,23 @@ void list_directory(const char* path)
 		if (!all && dirent->d_name[0] == '.')
 			continue;
 
-		if (list)
-		{
-			if (!first)
-				printf("\n");
+		if (!first)
+			printf(list ? "\n" : " ");
 
-			struct stat st;
-			if (fstatat(dirfd(dirp), dirent->d_name, &st, AT_SYMLINK_NOFOLLOW) == -1)
-			{
-				perror("stat");
-				printf("?????????? ???? %s", dirent->d_name);
-			}
-			else
-			{
-				printf("%s %6d %s", mode_string(st.st_mode), st.st_size, dirent->d_name);
-			}
-		}
-		else
+		struct stat st;
+		if (fstatat(dirfd(dirp), dirent->d_name, &st, AT_SYMLINK_NOFOLLOW) == -1)
 		{
-			if (!first)
-				printf(" ");
-			printf("%s", dirent->d_name);
+			perror("stat");
+			if (list)
+				printf("?????????? ???? ???? ?????? %s", dirent->d_name);
+			else
+				printf("%s", dirent->d_name);
 		}
+
+		if (list)
+			printf("%s %4d %4d %6d %s%s\e[m", mode_string(st.st_mode), st.st_uid, st.st_gid, st.st_size, color_string(st.st_mode), dirent->d_name);
+		else
+			printf("%s%s\e[m", color_string(st.st_mode), dirent->d_name);
 
 		first = false;
 	}
