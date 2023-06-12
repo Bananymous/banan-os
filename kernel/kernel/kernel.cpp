@@ -110,13 +110,16 @@ extern "C" void kernel_main()
 	DISABLE_INTERRUPTS();
 
 	if (!should_disable_serial())
+	{
 		Serial::initialize();
+		dprintln("Serial output initialized");
+	}
+	
 	if (g_multiboot_magic != 0x2BADB002)
 	{
 		dprintln("Invalid multiboot magic number");
 		return;
 	}
-	dprintln("Serial output initialized");
 
 	kmalloc_initialize();
 	dprintln("kmalloc initialized");
