@@ -14,6 +14,7 @@
 #include <kernel/Thread.h>
 
 #include <sys/stat.h>
+#include <termios.h>
 
 namespace LibELF { class ELF; }
 
@@ -46,59 +47,59 @@ namespace Kernel
 		void add_thread(Thread*);
 		void on_thread_exit(Thread&);
 
-		BAN::ErrorOr<void> set_termios(const termios&);
-
 		pid_t pid() const { return m_pid; }
 
-		BAN::ErrorOr<Process*> fork(uintptr_t rsp, uintptr_t rip);
-		BAN::ErrorOr<void> exec(BAN::StringView path, const char* const* argv, const char* const* envp);
+		BAN::ErrorOr<long> sys_exit(int status);
 
-		int block_until_exit();
-		BAN::ErrorOr<pid_t> wait(pid_t pid, int* stat_loc, int options);
+		BAN::ErrorOr<long> sys_gettermios(::termios*);
+		BAN::ErrorOr<long> sys_settermios(const ::termios*);
 
-		BAN::ErrorOr<void> setenvp(char** envp);
+		BAN::ErrorOr<long> sys_fork(uintptr_t rsp, uintptr_t rip);
+		BAN::ErrorOr<long> sys_exec(BAN::StringView path, const char* const* argv, const char* const* envp);
 
-		BAN::ErrorOr<void> set_pwd(const char* path);
-		BAN::ErrorOr<char*> get_pwd(char* buffer, size_t size);
+		BAN::ErrorOr<long> sys_wait(pid_t pid, int* stat_loc, int options);
+		BAN::ErrorOr<long> sys_sleep(int seconds);
 
-		BAN::ErrorOr<void> set_uid(uid_t);
-		BAN::ErrorOr<void> set_gid(gid_t);
-		BAN::ErrorOr<void> set_euid(uid_t);
-		BAN::ErrorOr<void> set_egid(gid_t);
-		BAN::ErrorOr<void> set_reuid(uid_t, uid_t);
-		BAN::ErrorOr<void> set_regid(gid_t, gid_t);
+		BAN::ErrorOr<long> sys_setenvp(char** envp);
 
-		uid_t get_uid() const { return m_credentials.ruid(); }
-		gid_t get_gid() const { return m_credentials.rgid(); }
-		uid_t get_euid() const { return m_credentials.euid(); }
-		gid_t get_egid() const { return m_credentials.egid(); }
+		BAN::ErrorOr<long> sys_setpwd(const char* path);
+		BAN::ErrorOr<long> sys_getpwd(char* buffer, size_t size);
 
-		BAN::ErrorOr<int> open(BAN::StringView, int);
-		BAN::ErrorOr<int> openat(int, BAN::StringView, int);
-		BAN::ErrorOr<void> close(int fd);
-		BAN::ErrorOr<size_t> read(int fd, void* buffer, size_t count);
-		BAN::ErrorOr<size_t> write(int fd, const void* buffer, size_t count);
-		BAN::ErrorOr<void> creat(BAN::StringView name, mode_t);
+		BAN::ErrorOr<long> sys_setuid(uid_t);
+		BAN::ErrorOr<long> sys_setgid(gid_t);
+		BAN::ErrorOr<long> sys_seteuid(uid_t);
+		BAN::ErrorOr<long> sys_setegid(gid_t);
+		BAN::ErrorOr<long> sys_setreuid(uid_t, uid_t);
+		BAN::ErrorOr<long> sys_setregid(gid_t, gid_t);
 
-		BAN::ErrorOr<void> seek(int fd, off_t offset, int whence);
-		BAN::ErrorOr<off_t> tell(int fd);
+		BAN::ErrorOr<long> sys_getuid() const { return m_credentials.ruid(); }
+		BAN::ErrorOr<long> sys_getgid() const { return m_credentials.rgid(); }
+		BAN::ErrorOr<long> sys_geteuid() const { return m_credentials.euid(); }
+		BAN::ErrorOr<long> sys_getegid() const { return m_credentials.egid(); }
 
-		BAN::ErrorOr<void> fstat(int fd, struct stat*);
-		BAN::ErrorOr<void> stat(BAN::StringView path, struct stat*, int flags);
+		BAN::ErrorOr<long> sys_open(BAN::StringView, int);
+		BAN::ErrorOr<long> sys_openat(int, BAN::StringView, int);
+		BAN::ErrorOr<long> sys_close(int fd);
+		BAN::ErrorOr<long> sys_read(int fd, void* buffer, size_t count);
+		BAN::ErrorOr<long> sys_write(int fd, const void* buffer, size_t count);
+		BAN::ErrorOr<long> sys_creat(BAN::StringView name, mode_t);
+
+		BAN::ErrorOr<long> sys_seek(int fd, off_t offset, int whence);
+		BAN::ErrorOr<long> sys_tell(int fd);
+
+		BAN::ErrorOr<long> sys_fstat(int fd, struct stat*);
+		BAN::ErrorOr<long> sys_stat(BAN::StringView path, struct stat*, int flags);
 
 		BAN::ErrorOr<void> mount(BAN::StringView source, BAN::StringView target);
 
-		BAN::ErrorOr<void> read_next_directory_entries(int fd, DirectoryEntryList* buffer, size_t buffer_size);
+		BAN::ErrorOr<long> sys_read_dir_entries(int fd, DirectoryEntryList* buffer, size_t buffer_size);
 
-		BAN::ErrorOr<BAN::String> working_directory() const;
-		BAN::ErrorOr<void> set_working_directory(BAN::StringView);
+		BAN::ErrorOr<long> sys_alloc(size_t);
+		BAN::ErrorOr<long> sys_free(void*);
+
+		BAN::ErrorOr<long> sys_termid(char*) const;
 
 		TTY& tty() { ASSERT(m_tty); return *m_tty; }
-
-		BAN::ErrorOr<void*> allocate(size_t);
-		void free(void*);
-
-		void termid(char*) const;
 
 		static Process& current() { return Thread::current().process(); }
 
@@ -116,6 +117,8 @@ namespace Kernel
 		
 		// Copy an elf file from the current page table to the processes own
 		void load_elf_to_memory(LibELF::ELF&);
+
+		int block_until_exit();
 
 		BAN::ErrorOr<BAN::String> absolute_path_of(BAN::StringView) const;
 

@@ -7,241 +7,12 @@
 namespace Kernel
 {
 
-	void sys_exit(int status)
-	{
-		Process::current().exit(status);
-	}
-
-	long sys_read(int fd, void* buffer, size_t size)
-	{
-		auto res = Process::current().read(fd, buffer, size);
-		if (res.is_error())
-			return -res.error().get_error_code();
-		return res.value();
-	}
-
-	long sys_write(int fd, const void* buffer, size_t size)
-	{
-		auto res = Process::current().write(fd, buffer, size);
-		if (res.is_error())
-			return -res.error().get_error_code();
-		return res.value();
-	}
-
-	int sys_close(int fd)
-	{
-		auto res = Process::current().close(fd);
-		if (res.is_error())
-			return -res.error().get_error_code();
-		return 0;
-	}
-
-	void sys_termid(char* buffer)
-	{
-		Process::current().termid(buffer);
-	}
-
-	int sys_open(const char* path, int oflags)
-	{
-		auto res = Process::current().open(path, oflags);
-		if (res.is_error())
-			return -res.error().get_error_code();
-		return res.value();
-	}
-	
-	int sys_openat(int fd, const char* path, int oflags)
-	{
-		auto res = Process::current().openat(fd, path, oflags);
-		if (res.is_error())
-			return -res.error().get_error_code();
-		return res.value();
-	}
-
-	long sys_alloc(size_t bytes)
-	{
-		auto res = Process::current().allocate(bytes);
-		if (res.is_error())
-			return -res.error().get_error_code();
-		return (long)res.value();
-	}
-
-	void sys_free(void* ptr)
-	{
-		Process::current().free(ptr);
-	}
-
-	long sys_seek(int fd, long offset, int whence)
-	{
-		auto res = Process::current().seek(fd, offset, whence);
-		if (res.is_error())
-			return -res.error().get_error_code();
-		return 0;
-	}
-
-	long sys_tell(int fd)
-	{
-		auto res = Process::current().tell(fd);
-		if (res.is_error())
-			return -res.error().get_error_code();
-		return res.value();
-	}
-
-	long sys_get_termios(::termios* termios)
-	{
-		auto current = Process::current().tty().get_termios();
-		memset(termios, 0, sizeof(::termios));
-		if (current.canonical)
-			termios->c_lflag |= ICANON;
-		if (current.echo)
-			termios->c_lflag |= ECHO;
-		return 0;
-	}
-
-	long sys_set_termios(const ::termios* termios)
-	{
-		Kernel::termios new_termios;
-		new_termios.canonical = termios->c_lflag & ICANON;
-		new_termios.echo = termios->c_lflag & ECHO;
-		Process::current().tty().set_termios(new_termios);
-		return 0;
-	}
-
 	extern "C" long sys_fork(uintptr_t rsp, uintptr_t rip)
 	{
-		auto ret = Process::current().fork(rsp, rip);
-		if (ret.is_error())
-			return -ret.error().get_error_code();
-		return ret.value()->pid();
-	}
-
-	long sys_exec(const char* pathname, const char* const* argv, const char* const* envp)
-	{
-		auto ret = Process::current().exec(pathname, argv, envp);
-		if (ret.is_error())
-			return -ret.error().get_error_code();
-		ASSERT_NOT_REACHED();
-	}
-
-	long sys_sleep(unsigned int seconds)
-	{
-		PIT::sleep(seconds * 1000);
-		return 0;
-	}
-
-	long sys_wait(pid_t pid, int* stat_loc, int options)
-	{
-		auto ret = Process::current().wait(pid, stat_loc, options);
+		auto ret = Process::current().sys_fork(rsp, rip);
 		if (ret.is_error())
 			return -ret.error().get_error_code();
 		return ret.value();
-	}
-
-	long sys_fstat(int fd, struct stat* buf)
-	{
-		auto ret = Process::current().fstat(fd, buf);
-		if (ret.is_error())
-			return -ret.error().get_error_code();
-		return 0;
-	}
-
-	long sys_setenvp(char** envp)
-	{
-		auto ret = Process::current().setenvp(envp);
-		if (ret.is_error())
-			return -ret.error().get_error_code();
-		return 0;
-	}
-
-	long sys_read_dir_entries(int fd, API::DirectoryEntryList* buffer, size_t buffer_size)
-	{
-		auto ret = Process::current().read_next_directory_entries(fd, buffer, buffer_size);
-		if (ret.is_error())
-			return -ret.error().get_error_code();
-		return 0;
-	}
-
-	long sys_set_uid(uid_t uid)
-	{
-		auto ret = Process::current().set_uid(uid);
-		if (ret.is_error())
-			return -ret.error().get_error_code();
-		return 0;
-	}
-
-	long sys_set_gid(gid_t gid)
-	{
-		auto ret = Process::current().set_gid(gid);
-		if (ret.is_error())
-			return -ret.error().get_error_code();
-		return 0;
-	}
-
-	long sys_set_euid(uid_t uid)
-	{
-		auto ret = Process::current().set_euid(uid);
-		if (ret.is_error())
-			return -ret.error().get_error_code();
-		return 0;
-	}
-
-	long sys_set_egid(gid_t gid)
-	{
-		auto ret = Process::current().set_egid(gid);
-		if (ret.is_error())
-			return -ret.error().get_error_code();
-		return 0;
-	}
-
-	long sys_set_reuid(uid_t ruid, uid_t euid)
-	{
-		auto ret = Process::current().set_reuid(ruid, euid);
-		if (ret.is_error())
-			return -ret.error().get_error_code();
-		return 0;
-	}
-
-	long sys_set_regid(gid_t rgid, gid_t egid)
-	{
-		auto ret = Process::current().set_regid(rgid, egid);
-		if (ret.is_error())
-			return -ret.error().get_error_code();
-		return 0;
-	}
-
-	long sys_get_uid()
-	{
-		return Process::current().get_uid();
-	}
-
-	long sys_get_gid()
-	{
-		return Process::current().get_gid();
-	}
-
-	long sys_get_euid()
-	{
-		return Process::current().get_euid();
-	}
-
-	long sys_get_egid()
-	{
-		return Process::current().get_egid();
-	}
-
-	long sys_get_pwd(char* buffer, size_t size)
-	{
-		auto ret = Process::current().get_pwd(buffer, size);
-		if (ret.is_error())
-			return -ret.error().get_error_code();
-		return (long)ret.value();
-	}
-
-	long sys_set_pwd(const char* path)
-	{
-		auto ret = Process::current().set_pwd(path);
-		if (ret.is_error())
-			return -ret.error().get_error_code();
-		return 0;
 	}
 
 	extern "C" long sys_fork_trampoline();
@@ -258,108 +29,108 @@ namespace Kernel
 		(void)arg4;
 		(void)arg5;
 
-		long ret = 0;
+		BAN::ErrorOr<long> ret = BAN::Error::from_errno(ENOSYS);
+
 		switch (syscall)
 		{
 		case SYS_EXIT:
-			sys_exit((int)arg1);
+			ret = Process::current().sys_exit((int)arg1);
 			break;
 		case SYS_READ:
-			ret = sys_read((int)arg1, (void*)arg2, (size_t)arg3);
+			ret = Process::current().sys_read((int)arg1, (void*)arg2, (size_t)arg3);
 			break;
 		case SYS_WRITE:
-			ret = sys_write((int)arg1, (const void*)arg2, (size_t)arg3);
+			ret = Process::current().sys_write((int)arg1, (const void*)arg2, (size_t)arg3);
 			break;
 		case SYS_TERMID:
-			sys_termid((char*)arg1);
+			ret = Process::current().sys_termid((char*)arg1);
 			break;
 		case SYS_CLOSE:
-			ret = sys_close((int)arg1);
+			ret = Process::current().sys_close((int)arg1);
 			break;
 		case SYS_OPEN:
-			ret = sys_open((const char*)arg1, (int)arg2);
+			ret = Process::current().sys_open((const char*)arg1, (int)arg2);
 			break;
 		case SYS_OPENAT:
-			ret = sys_openat((int)arg1, (const char*)arg2, (int)arg3);
+			ret = Process::current().sys_openat((int)arg1, (const char*)arg2, (int)arg3);
 			break;
 		case SYS_ALLOC:
-			ret = sys_alloc((size_t)arg1);
+			ret = Process::current().sys_alloc((size_t)arg1);
 			break;
 		case SYS_FREE:
-			sys_free((void*)arg1);
+			ret = Process::current().sys_free((void*)arg1);
 			break;
 		case SYS_SEEK:
-			ret = sys_seek((int)arg1, (long)arg2, (int)arg3);
+			ret = Process::current().sys_seek((int)arg1, (long)arg2, (int)arg3);
 			break;
 		case SYS_TELL:
-			ret = sys_tell((int)arg1);
+			ret = Process::current().sys_tell((int)arg1);
 			break;
 		case SYS_GET_TERMIOS:
-			ret = sys_get_termios((::termios*)arg1);
+			ret = Process::current().sys_gettermios((::termios*)arg1);
 			break;
 		case SYS_SET_TERMIOS:
-			ret = sys_set_termios((const ::termios*)arg1);
+			ret = Process::current().sys_settermios((const ::termios*)arg1);
 			break;
 		case SYS_FORK:
 			ret = sys_fork_trampoline();
 			break;
 		case SYS_EXEC:
-			ret = sys_exec((const char*)arg1, (const char* const*)arg2, (const char* const*)arg3);
+			ret = Process::current().sys_exec((const char*)arg1, (const char* const*)arg2, (const char* const*)arg3);
 			break;
 		case SYS_SLEEP:
-			ret = sys_sleep((unsigned int)arg1);
+			ret = Process::current().sys_sleep((unsigned int)arg1);
 			break;
 		case SYS_WAIT:
-			ret = sys_wait((pid_t)arg1, (int*)arg2, (int)arg3);
+			ret = Process::current().sys_wait((pid_t)arg1, (int*)arg2, (int)arg3);
 			break;
 		case SYS_FSTAT:
-			ret = sys_fstat((int)arg1, (struct stat*)arg2);
+			ret = Process::current().sys_fstat((int)arg1, (struct stat*)arg2);
 			break;
 		case SYS_SETENVP:
-			ret = sys_setenvp((char**)arg1);
+			ret = Process::current().sys_setenvp((char**)arg1);
 			break;
 		case SYS_READ_DIR_ENTRIES:
-			ret = sys_read_dir_entries((int)arg1, (API::DirectoryEntryList*)arg2, (size_t)arg3);
+			ret = Process::current().sys_read_dir_entries((int)arg1, (API::DirectoryEntryList*)arg2, (size_t)arg3);
 			break;
 		case SYS_SET_UID:
-			ret = sys_set_uid((uid_t)arg1);
+			ret = Process::current().sys_setuid((uid_t)arg1);
 			break;
 		case SYS_SET_GID:
-			ret = sys_set_gid((gid_t)arg1);
+			ret = Process::current().sys_setgid((gid_t)arg1);
 			break;
 		case SYS_SET_EUID:
-			ret = sys_set_euid((uid_t)arg1);
+			ret = Process::current().sys_seteuid((uid_t)arg1);
 			break;
 		case SYS_SET_EGID:
-			ret = sys_set_egid((gid_t)arg1);
+			ret = Process::current().sys_setegid((gid_t)arg1);
 			break;
 		case SYS_SET_REUID:
-			ret = sys_set_reuid((uid_t)arg1, (uid_t)arg2);
+			ret = Process::current().sys_setreuid((uid_t)arg1, (uid_t)arg2);
 			break;
 		case SYS_SET_REGID:
-			ret = sys_set_regid((gid_t)arg1, (gid_t)arg2);
+			ret = Process::current().sys_setregid((gid_t)arg1, (gid_t)arg2);
 			break;
 		case SYS_GET_UID:
-			ret = sys_get_uid();
+			ret = Process::current().sys_getuid();
 			break;
 		case SYS_GET_GID:
-			ret = sys_get_gid();
+			ret = Process::current().sys_getgid();
 			break;
 		case SYS_GET_EUID:
-			ret = sys_get_euid();
+			ret = Process::current().sys_geteuid();
 			break;
 		case SYS_GET_EGID:
-			ret = sys_get_egid();
+			ret = Process::current().sys_getegid();
 			break;
 		case SYS_GET_PWD:
-			ret = sys_get_pwd((char*)arg1, (size_t)arg2);
+			ret = Process::current().sys_getpwd((char*)arg1, (size_t)arg2);
 			break;
 		case SYS_SET_PWD:
-			ret = sys_set_pwd((const char*)arg1);
+			ret = Process::current().sys_setpwd((const char*)arg1);
 			break;
 		default:
 			dwarnln("Unknown syscall {}", syscall);
-			ret = -ENOSYS;
 			break;
 		}
 
@@ -367,7 +138,9 @@ namespace Kernel
 
 		Thread::current().set_in_syscall(false);
 
-		return ret;
+		if (ret.is_error())
+			return -ret.error().get_error_code();
+		return ret.value();
 	}
 
 }
