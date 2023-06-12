@@ -1,7 +1,6 @@
 #pragma once
 
 #include <BAN/Errors.h>
-#include <kernel/Semaphore.h>
 #include <kernel/SpinLock.h>
 #include <kernel/Storage/ATAController.h>
 
@@ -56,7 +55,6 @@ namespace Kernel
 		const uint16_t m_base;
 		const uint16_t m_ctrl;
 		SpinLock m_lock;
-		Semaphore m_semaphore;
 
 		bool m_has_got_irq { false };
 
