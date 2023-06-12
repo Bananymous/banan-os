@@ -10,6 +10,7 @@ set(USERSPACE_PROJECTS
 	ls
 	Shell
 	test
+	u8sum
 	yes
 )
 
