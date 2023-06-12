@@ -65,15 +65,15 @@ namespace Kernel
 		{
 			PageTableScope _(process->page_table());
 
-			argv = (char**)MUST(process->allocate(sizeof(char**) * 2));
-			argv[0] = (char*)MUST(process->allocate(path.size() + 1));
+			argv = (char**)MUST(process->sys_alloc(sizeof(char**) * 2));
+			argv[0] = (char*)MUST(process->sys_alloc(path.size() + 1));
 			memcpy(argv[0], path.data(), path.size());
 			argv[0][path.size()] = '\0';
 			argv[1] = nullptr;
 
 			BAN::StringView env1 = "PATH=/bin:/usr/bin"sv;
-			envp = (char**)MUST(process->allocate(sizeof(char**) * 2));
-			envp[0] = (char*)MUST(process->allocate(env1.size() + 1));
+			envp = (char**)MUST(process->sys_alloc(sizeof(char**) * 2));
+			envp[0] = (char*)MUST(process->sys_alloc(env1.size() + 1));
 			memcpy(envp[0], env1.data(), env1.size());
 			envp[0][env1.size()] = '\0';
 			envp[1] = nullptr;
@@ -159,13 +159,40 @@ namespace Kernel
 		Scheduler::get().set_current_process_done();
 	}
 
-	BAN::ErrorOr<void> Process::set_termios(const termios& termios)
+	BAN::ErrorOr<long> Process::sys_exit(int status)
+	{
+		exit(status);
+		ASSERT_NOT_REACHED();
+	}
+
+	BAN::ErrorOr<long> Process::sys_gettermios(::termios* termios)
 	{
 		LockGuard _(m_lock);
 		if (m_tty == nullptr)
 			return BAN::Error::from_errno(ENOTTY);
-		m_tty->set_termios(termios);
-		return {};
+		
+		Kernel::termios ktermios = m_tty->get_termios();
+		termios->c_lflag = 0;
+		if (ktermios.canonical)
+			termios->c_lflag |= ICANON;
+		if (ktermios.echo)
+			termios->c_lflag |= ECHO;
+
+		return 0;
+	}
+
+	BAN::ErrorOr<long> Process::sys_settermios(const ::termios* termios)
+	{
+		LockGuard _(m_lock);
+		if (m_tty == nullptr)
+			return BAN::Error::from_errno(ENOTTY);
+		
+		Kernel::termios ktermios;
+		ktermios.echo = termios->c_lflag & ECHO;
+		ktermios.canonical = termios->c_lflag & ICANON;
+		
+		m_tty->set_termios(ktermios);
+		return 0;
 	}
 
 	BAN::ErrorOr<BAN::UniqPtr<LibELF::ELF>> Process::load_elf_for_exec(const Credentials& credentials, BAN::StringView file_path, const BAN::String& cwd, const BAN::Vector<BAN::StringView>& path_env)
@@ -241,7 +268,7 @@ namespace Kernel
 		return BAN::move(elf);
 	}
 
-	BAN::ErrorOr<Process*> Process::fork(uintptr_t rsp, uintptr_t rip)
+	BAN::ErrorOr<long> Process::sys_fork(uintptr_t rsp, uintptr_t rip)
 	{
 		Process* forked = create_process(m_credentials);
 
@@ -271,10 +298,10 @@ namespace Kernel
 		
 		register_process(forked);
 
-		return forked;
+		return forked->pid();
 	}
 
-	BAN::ErrorOr<void> Process::exec(BAN::StringView path, const char* const* argv, const char* const* envp)
+	BAN::ErrorOr<long> Process::sys_exec(BAN::StringView path, const char* const* argv, const char* const* envp)
 	{
 		BAN::Vector<BAN::String> str_argv;
 		for (int i = 0; argv && argv[i]; i++)
@@ -289,7 +316,14 @@ namespace Kernel
 				path_env = TRY(BAN::StringView(envp[i]).substring(5).split(':'));
 		}
 
-		auto elf = TRY(load_elf_for_exec(m_credentials, path, TRY(working_directory()), path_env));
+		BAN::String working_directory;
+
+		{
+			LockGuard _(m_lock);
+			TRY(working_directory.append(m_working_directory));
+		}
+
+		auto elf = TRY(load_elf_for_exec(m_credentials, path, working_directory, path_env));
 
 		LockGuard lock_guard(m_lock);
 
@@ -313,19 +347,19 @@ namespace Kernel
 		{
 			LockGuard _(page_table());
 
-			m_userspace_info.argv = (char**)MUST(allocate(sizeof(char**) * (str_argv.size() + 1)));
+			m_userspace_info.argv = (char**)MUST(sys_alloc(sizeof(char**) * (str_argv.size() + 1)));
 			for (size_t i = 0; i < str_argv.size(); i++)
 			{
-				m_userspace_info.argv[i] = (char*)MUST(allocate(str_argv[i].size() + 1));
+				m_userspace_info.argv[i] = (char*)MUST(sys_alloc(str_argv[i].size() + 1));
 				memcpy(m_userspace_info.argv[i], str_argv[i].data(), str_argv[i].size());
 				m_userspace_info.argv[i][str_argv[i].size()] = '\0';
 			}
 			m_userspace_info.argv[str_argv.size()] = nullptr;
 
-			m_userspace_info.envp = (char**)MUST(allocate(sizeof(char**) * (str_envp.size() + 1)));
+			m_userspace_info.envp = (char**)MUST(sys_alloc(sizeof(char**) * (str_envp.size() + 1)));
 			for (size_t i = 0; i < str_envp.size(); i++)
 			{
-				m_userspace_info.envp[i] = (char*)MUST(allocate(str_envp[i].size() + 1));
+				m_userspace_info.envp[i] = (char*)MUST(sys_alloc(str_envp[i].size() + 1));
 				memcpy(m_userspace_info.envp[i], str_envp[i].data(), str_envp[i].size());
 				m_userspace_info.envp[i][str_envp[i].size()] = '\0';
 			}
@@ -370,7 +404,7 @@ namespace Kernel
 		return ret;
 	}
 
-	BAN::ErrorOr<pid_t> Process::wait(pid_t pid, int* stat_loc, int options)
+	BAN::ErrorOr<long> Process::sys_wait(pid_t pid, int* stat_loc, int options)
 	{
 		Process* target = nullptr;
 
@@ -392,11 +426,17 @@ namespace Kernel
 		return ret;
 	}
 
-	BAN::ErrorOr<void> Process::setenvp(char** envp)
+	BAN::ErrorOr<long> Process::sys_sleep(int seconds)
+	{
+		PIT::sleep(seconds * 1000);
+		return 0;
+	}
+
+	BAN::ErrorOr<long> Process::sys_setenvp(char** envp)
 	{
 		LockGuard _(m_lock);
 		m_userspace_info.envp = envp;
-		return {};
+		return 0;
 	}
 
 	void Process::load_elf_to_memory(LibELF::ELF& elf)
@@ -450,7 +490,7 @@ namespace Kernel
 		}
 	}
 
-	BAN::ErrorOr<int> Process::open(BAN::StringView path, int flags)
+	BAN::ErrorOr<long> Process::sys_open(BAN::StringView path, int flags)
 	{
 		if (flags & ~(O_RDONLY | O_WRONLY | O_NOFOLLOW | O_SEARCH))
 			return BAN::Error::from_errno(ENOTSUP);
@@ -470,7 +510,7 @@ namespace Kernel
 		return fd;
 	}
 
-	BAN::ErrorOr<int> Process::openat(int fd, BAN::StringView path, int flags)
+	BAN::ErrorOr<long> Process::sys_openat(int fd, BAN::StringView path, int flags)
 	{
 		BAN::String absolute_path;
 		
@@ -483,19 +523,19 @@ namespace Kernel
 		TRY(absolute_path.push_back('/'));
 		TRY(absolute_path.append(path));
 
-		return open(absolute_path, flags);
+		return sys_open(absolute_path, flags);
 	}
 
-	BAN::ErrorOr<void> Process::close(int fd)
+	BAN::ErrorOr<long> Process::sys_close(int fd)
 	{
 		LockGuard _(m_lock);
 		TRY(validate_fd(fd));
 		auto& open_file_description = this->open_file_description(fd);
 		open_file_description.inode = nullptr;
-		return {};
+		return 0;
 	}
 
-	BAN::ErrorOr<size_t> Process::read(int fd, void* buffer, size_t count)
+	BAN::ErrorOr<long> Process::sys_read(int fd, void* buffer, size_t count)
 	{
 		OpenFileDescription open_fd_copy;
 
@@ -519,7 +559,7 @@ namespace Kernel
 		return nread;
 	}
 
-	BAN::ErrorOr<size_t> Process::write(int fd, const void* buffer, size_t count)
+	BAN::ErrorOr<long> Process::sys_write(int fd, const void* buffer, size_t count)
 	{
 		OpenFileDescription open_fd_copy;
 
@@ -543,7 +583,7 @@ namespace Kernel
 		return nwrite;
 	}
 
-	BAN::ErrorOr<void> Process::seek(int fd, off_t offset, int whence)
+	BAN::ErrorOr<long> Process::sys_seek(int fd, off_t offset, int whence)
 	{
 		LockGuard _(m_lock);
 		TRY(validate_fd(fd));
@@ -571,17 +611,17 @@ namespace Kernel
 			return BAN::Error::from_errno(EINVAL);
 		open_fd.offset = new_offset;
 
-		return {};
+		return 0;
 	}
 
-	BAN::ErrorOr<off_t> Process::tell(int fd)
+	BAN::ErrorOr<long> Process::sys_tell(int fd)
 	{
 		LockGuard _(m_lock);
 		TRY(validate_fd(fd));
 		return open_file_description(fd).offset;
 	}
 
-	BAN::ErrorOr<void> Process::creat(BAN::StringView path, mode_t mode)
+	BAN::ErrorOr<long> Process::sys_creat(BAN::StringView path, mode_t mode)
 	{
 		auto absolute_path = TRY(absolute_path_of(path));
 
@@ -596,7 +636,7 @@ namespace Kernel
 		auto parent_file = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, directory, O_WRONLY));
 		TRY(parent_file.inode->create_file(file_name, mode));
 
-		return {};
+		return 0;
 	}
 
 	BAN::ErrorOr<void> Process::mount(BAN::StringView source, BAN::StringView target)
@@ -611,7 +651,7 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<void> Process::fstat(int fd, struct stat* out)
+	BAN::ErrorOr<long> Process::sys_fstat(int fd, struct stat* out)
 	{
 		OpenFileDescription open_fd_copy;
 
@@ -635,18 +675,18 @@ namespace Kernel
 		out->st_blksize	= open_fd_copy.inode->blksize();
 		out->st_blocks	= open_fd_copy.inode->blocks();
 
-		return {};
+		return 0;
 	}
 
-	BAN::ErrorOr<void> Process::stat(BAN::StringView path, struct stat* out, int flags)
+	BAN::ErrorOr<long> Process::sys_stat(BAN::StringView path, struct stat* out, int flags)
 	{
-		int fd = TRY(open(path, flags));
-		auto ret = fstat(fd, out);
-		MUST(close(fd));
+		int fd = TRY(sys_open(path, flags));
+		auto ret = sys_fstat(fd, out);
+		MUST(sys_close(fd));
 		return ret;
 	}
 
-	BAN::ErrorOr<void> Process::read_next_directory_entries(int fd, DirectoryEntryList* list, size_t list_size)
+	BAN::ErrorOr<long> Process::sys_read_dir_entries(int fd, DirectoryEntryList* list, size_t list_size)
 	{
 		OpenFileDescription open_fd_copy;
 
@@ -664,10 +704,10 @@ namespace Kernel
 			open_file_description(fd).offset = open_fd_copy.offset + 1;
 		}
 
-		return {};
+		return 0;
 	}
 
-	BAN::ErrorOr<void> Process::set_pwd(const char* path)
+	BAN::ErrorOr<long> Process::sys_setpwd(const char* path)
 	{
 		BAN::String absolute_path;
 
@@ -683,10 +723,10 @@ namespace Kernel
 		LockGuard _(m_lock);
 		m_working_directory = BAN::move(file.canonical_path);
 
-		return {};
+		return 0;
 	}
 
-	BAN::ErrorOr<char*> Process::get_pwd(char* buffer, size_t size)
+	BAN::ErrorOr<long> Process::sys_getpwd(char* buffer, size_t size)
 	{
 		LockGuard _(m_lock);
 
@@ -696,31 +736,7 @@ namespace Kernel
 		memcpy(buffer, m_working_directory.data(), m_working_directory.size());
 		buffer[m_working_directory.size()] = '\0';
 
-		return buffer;
-	}
-
-	BAN::ErrorOr<BAN::String> Process::working_directory() const
-	{
-		BAN::String result;
-
-		LockGuard _(m_lock);
-		TRY(result.append(m_working_directory));
-		
-		return result;
-	}
-
-	BAN::ErrorOr<void> Process::set_working_directory(BAN::StringView path)
-	{
-		BAN::String absolute_path = TRY(absolute_path_of(path));
-
-		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, O_SEARCH));
-		if (!file.inode->mode().ifdir())
-			return BAN::Error::from_errno(ENOTDIR);
-
-		LockGuard _(m_lock);
-		m_working_directory = BAN::move(file.canonical_path);
-
-		return {};
+		return (long)buffer;
 	}
 
 	static constexpr size_t allocator_size_for_allocation(size_t value)
@@ -738,7 +754,7 @@ namespace Kernel
 		}
 	}
 
-	BAN::ErrorOr<void*> Process::allocate(size_t bytes)
+	BAN::ErrorOr<long> Process::sys_alloc(size_t bytes)
 	{
 		vaddr_t address = 0;
 
@@ -782,10 +798,10 @@ namespace Kernel
 
 		if (address == 0)
 			return BAN::Error::from_errno(ENOMEM);
-		return (void*)address;
+		return address;
 	}
 
-	void Process::free(void* ptr)
+	BAN::ErrorOr<long> Process::sys_free(void* ptr)
 	{
 		LockGuard _(m_lock);
 
@@ -798,26 +814,28 @@ namespace Kernel
 				//       remove allocators when we have low memory... ?
 				if (allocator->allocations() == 0)
 					m_fixed_width_allocators.remove(i);
-				return;
+				return 0;
 			}
 		}
 
 		if (m_general_allocator && m_general_allocator->deallocate((vaddr_t)ptr))
-			return;
+			return 0;
 
-		dwarnln("free called on pointer that was not allocated");	
+		dwarnln("free called on pointer that was not allocated");
+		return BAN::Error::from_errno(EINVAL);
 	}
 
-	void Process::termid(char* buffer) const
+	BAN::ErrorOr<long> Process::sys_termid(char* buffer) const
 	{
 		LockGuard _(m_lock);
 		if (m_tty == nullptr)
 			buffer[0] = '\0';
 		strcpy(buffer, "/dev/");
 		strcpy(buffer + 5, m_tty->name().data());
+		return 0;
 	}
 
-	BAN::ErrorOr<void> Process::set_uid(uid_t uid)
+	BAN::ErrorOr<long> Process::sys_setuid(uid_t uid)
 	{
 		if (uid < 0 || uid >= 1'000'000'000)
 			return BAN::Error::from_errno(EINVAL);
@@ -831,7 +849,7 @@ namespace Kernel
 			m_credentials.set_euid(uid);
 			m_credentials.set_ruid(uid);
 			m_credentials.set_suid(uid);
-			return {};
+			return 0;
 		}
 
 		// If the process does not have appropriate privileges, but uid is equal to the real user ID or the saved set-user-ID,
@@ -839,13 +857,13 @@ namespace Kernel
 		if (uid == m_credentials.ruid() || uid == m_credentials.suid())
 		{
 			m_credentials.set_euid(uid);
-			return {};
+			return 0;
 		}
 
 		return BAN::Error::from_errno(EPERM);
 	}
 
-	BAN::ErrorOr<void> Process::set_gid(gid_t gid)
+	BAN::ErrorOr<long> Process::sys_setgid(gid_t gid)
 	{
 		if (gid < 0 || gid >= 1'000'000'000)
 			return BAN::Error::from_errno(EINVAL);
@@ -859,7 +877,7 @@ namespace Kernel
 			m_credentials.set_egid(gid);
 			m_credentials.set_rgid(gid);
 			m_credentials.set_sgid(gid);
-			return {};
+			return 0;
 		}
 
 		// If the process does not have appropriate privileges, but gid is equal to the real group ID or the saved set-group-ID,
@@ -867,13 +885,13 @@ namespace Kernel
 		if (gid == m_credentials.rgid() || gid == m_credentials.sgid())
 		{
 			m_credentials.set_egid(gid);
-			return {};
+			return 0;
 		}
 
 		return BAN::Error::from_errno(EPERM);
 	}
 
-	BAN::ErrorOr<void> Process::set_euid(uid_t uid)
+	BAN::ErrorOr<long> Process::sys_seteuid(uid_t uid)
 	{
 		if (uid < 0 || uid >= 1'000'000'000)
 			return BAN::Error::from_errno(EINVAL);
@@ -885,13 +903,13 @@ namespace Kernel
 		if (uid == m_credentials.ruid() || uid == m_credentials.suid() || m_credentials.is_superuser())
 		{
 			m_credentials.set_euid(uid);
-			return {};
+			return 0;
 		}
 
 		return BAN::Error::from_errno(EPERM);
 	}
 
-	BAN::ErrorOr<void> Process::set_egid(gid_t gid)
+	BAN::ErrorOr<long> Process::sys_setegid(gid_t gid)
 	{
 		if (gid < 0 || gid >= 1'000'000'000)
 			return BAN::Error::from_errno(EINVAL);
@@ -904,16 +922,16 @@ namespace Kernel
 		if (gid == m_credentials.rgid() || gid == m_credentials.sgid() || m_credentials.is_superuser())
 		{
 			m_credentials.set_egid(gid);
-			return {};
+			return 0;
 		}
 
 		return BAN::Error::from_errno(EPERM);
 	}
 
-	BAN::ErrorOr<void> Process::set_reuid(uid_t ruid, uid_t euid)
+	BAN::ErrorOr<long> Process::sys_setreuid(uid_t ruid, uid_t euid)
 	{
 		if (ruid == -1 && euid == -1)
-			return {};
+			return 0;
 
 		if (ruid < -1 || ruid >= 1'000'000'000)
 			return BAN::Error::from_errno(EINVAL);
@@ -951,13 +969,13 @@ namespace Kernel
 		if (euid != -1)
 			m_credentials.set_euid(euid);
 
-		return {};
+		return 0;
 	}
 
-	BAN::ErrorOr<void> Process::set_regid(gid_t rgid, gid_t egid)
+	BAN::ErrorOr<long> Process::sys_setregid(gid_t rgid, gid_t egid)
 	{
 		if (rgid == -1 && egid == -1)
-			return {};
+			return 0;
 
 		if (rgid < -1 || rgid >= 1'000'000'000)
 			return BAN::Error::from_errno(EINVAL);
@@ -995,22 +1013,29 @@ namespace Kernel
 		if (egid != -1)
 			m_credentials.set_egid(egid);
 
-		return {};
+		return 0;
 	}
 
 	BAN::ErrorOr<BAN::String> Process::absolute_path_of(BAN::StringView path) const
 	{
-		if (path.empty())
-			return working_directory();
+		if (path.empty() || path == "."sv)
+		{
+			LockGuard _(m_lock);
+			return m_working_directory;
+		}
+
 		BAN::String absolute_path;
 		if (path.front() != '/')
 		{
 			LockGuard _(m_lock);
 			TRY(absolute_path.append(m_working_directory));
 		}
+
 		if (!absolute_path.empty() && absolute_path.back() != '/')
 			TRY(absolute_path.push_back('/'));
+
 		TRY(absolute_path.append(path));
+		
 		return absolute_path;
 	}
 

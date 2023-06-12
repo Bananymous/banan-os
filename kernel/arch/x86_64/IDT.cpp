@@ -121,7 +121,7 @@ namespace IDT
 		if (tid && Kernel::Thread::current().is_userspace() && !Kernel::Thread::current().is_in_syscall())
 		{
 			auto message = BAN::String::formatted("{}, aborting\n", isr_exceptions[isr]);
-			(void)Kernel::Process::current().write(STDERR_FILENO, message.data(), message.size());
+			(void)Kernel::Process::current().sys_write(STDERR_FILENO, message.data(), message.size());
 			asm volatile("sti");
 			Kernel::Process::current().exit(1);
 		}

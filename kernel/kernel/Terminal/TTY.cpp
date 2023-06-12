@@ -62,11 +62,11 @@ namespace Kernel
 		s_input_process = Process::create_kernel(
 			[](void*)
 			{
-				int fd = MUST(Process::current().open("/dev/input0"sv, O_RDONLY));
+				int fd = MUST(Process::current().sys_open("/dev/input0"sv, O_RDONLY));
 				while (true)
 				{
 					Input::KeyEvent event;
-					ASSERT(MUST(Process::current().read(fd, &event, sizeof(event))) == sizeof(event));
+					ASSERT(MUST(Process::current().sys_read(fd, &event, sizeof(event))) == sizeof(event));
 					TTY::current()->on_key(event);
 				}
 			}, nullptr
