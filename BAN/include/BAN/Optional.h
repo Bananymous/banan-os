@@ -20,6 +20,12 @@ namespace BAN
 		Optional& operator=(const Optional&);
 		Optional& operator=(Optional&&);
 
+		T* operator->();
+		const T* operator->() const;
+
+		T& operator*();
+		const T& operator*() const;
+
 		bool has_value() const;
 
 		T&& release_value();
@@ -76,8 +82,36 @@ namespace BAN
 		if (other.has_value)
 		{
 			m_has_value = true;
-			new (m_storage) T(BAN::move(other.relase_value()));
+			new (m_storage) T(BAN::move(other.release_value()));
 		}
+	}
+
+	template<typename T>
+	T* Optional<T>::operator->()
+	{
+		ASSERT(has_value());
+		return &value();
+	}
+
+	template<typename T>
+	const T* Optional<T>::operator->() const
+	{
+		ASSERT(has_value());
+		return &value();
+	}
+
+	template<typename T>
+	T& Optional<T>::operator*()
+	{
+		ASSERT(has_value());
+		return value();
+	}
+	
+	template<typename T>
+	const T& Optional<T>::operator*() const
+	{
+		ASSERT(has_value());
+		return value();
 	}
 
 	template<typename T>
