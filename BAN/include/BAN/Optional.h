@@ -15,10 +15,16 @@ namespace BAN
 		Optional();
 		Optional(const T&);
 		Optional(T&&);
+		template<typename... Args>
+		Optional(Args&&...);
+
 		~Optional();
 
 		Optional& operator=(const Optional&);
 		Optional& operator=(Optional&&);
+
+		template<typename... Args>
+		Optional& emplace(Args&&...);
 
 		T* operator->();
 		const T* operator->() const;
@@ -59,6 +65,14 @@ namespace BAN
 	}
 
 	template<typename T>
+	template<typename... Args>
+	Optional<T>::Optional(Args&&... args)
+		: m_has_value(true)
+	{
+		new (m_storage) T(BAN::forward<Args>(args)...);
+	}
+
+	template<typename T>
 	Optional<T>::~Optional()
 	{
 		clear();
@@ -73,6 +87,7 @@ namespace BAN
 			m_has_value = true;
 			new (m_storage) T(other.value());
 		}
+		return *this;
 	}
 
 	template<typename T>
@@ -84,6 +99,17 @@ namespace BAN
 			m_has_value = true;
 			new (m_storage) T(BAN::move(other.release_value()));
 		}
+		return *this;
+	}
+
+	template<typename T>
+	template<typename... Args>
+	Optional<T>& Optional<T>::emplace(Args&&... args)
+	{
+		clear();
+		m_has_value = true;
+		new (m_storage) T(BAN::forward<Args>(args)...);
+		return *this;
 	}
 
 	template<typename T>
