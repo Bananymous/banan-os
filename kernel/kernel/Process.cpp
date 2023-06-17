@@ -791,7 +791,7 @@ namespace Kernel
 			LockGuard _(m_lock);
 
 			if (!m_general_allocator)
-				m_general_allocator = TRY(GeneralAllocator::create(page_table()));
+				m_general_allocator = TRY(GeneralAllocator::create(page_table(), 0x400000));
 
 			address = m_general_allocator->allocate(bytes);
 		}

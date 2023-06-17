@@ -14,7 +14,7 @@ namespace Kernel
 		BAN_NON_MOVABLE(GeneralAllocator);
 
 	public:
-		static BAN::ErrorOr<BAN::UniqPtr<GeneralAllocator>> create(PageTable&);
+		static BAN::ErrorOr<BAN::UniqPtr<GeneralAllocator>> create(PageTable&, vaddr_t first_vaddr);
 		~GeneralAllocator();
 
 		BAN::ErrorOr<BAN::UniqPtr<GeneralAllocator>> clone(PageTable&);
@@ -23,7 +23,7 @@ namespace Kernel
 		bool deallocate(vaddr_t);
 
 	private:
-		GeneralAllocator(PageTable&);
+		GeneralAllocator(PageTable&, vaddr_t first_vaddr);
 
 	private:
 		struct Allocation
@@ -33,6 +33,7 @@ namespace Kernel
 		};
 
 	private:
+		const vaddr_t m_first_vaddr;
 		PageTable& m_page_table;
 		BAN::LinkedList<Allocation> m_allocations;
 	};
