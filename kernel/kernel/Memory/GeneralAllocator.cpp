@@ -3,16 +3,17 @@
 namespace Kernel
 {
 
-	BAN::ErrorOr<BAN::UniqPtr<GeneralAllocator>> GeneralAllocator::create(PageTable& page_table)
+	BAN::ErrorOr<BAN::UniqPtr<GeneralAllocator>> GeneralAllocator::create(PageTable& page_table, vaddr_t first_vaddr)
 	{
-		auto* allocator = new GeneralAllocator(page_table);
+		auto* allocator = new GeneralAllocator(page_table, first_vaddr);
 		if (allocator == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
 		return BAN::UniqPtr<GeneralAllocator>::adopt(allocator);
 	}
 
-	GeneralAllocator::GeneralAllocator(PageTable& page_table)
+	GeneralAllocator::GeneralAllocator(PageTable& page_table, vaddr_t first_vaddr)
 		: m_page_table(page_table)
+		, m_first_vaddr(first_vaddr)
 	{ }
 
 	GeneralAllocator::~GeneralAllocator()
@@ -41,13 +42,19 @@ namespace Kernel
 			allocation.pages[i] = paddr;
 		}
 
-		allocation.address = m_page_table.get_free_contiguous_pages(needed_pages);
+		m_page_table.lock();
+
+		allocation.address = m_page_table.get_free_contiguous_pages(needed_pages, m_first_vaddr);
+		ASSERT(allocation.address);
+
 		for (size_t i = 0; i < needed_pages; i++)
 		{
 			vaddr_t vaddr = allocation.address + i * PAGE_SIZE;
 			m_page_table.map_page_at(allocation.pages[i], vaddr, PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present);
 			m_page_table.invalidate(vaddr);
 		}
+
+		m_page_table.unlock();
 
 		MUST(m_allocations.push_back(BAN::move(allocation)));
 		return allocation.address;
@@ -74,7 +81,7 @@ namespace Kernel
 
 	BAN::ErrorOr<BAN::UniqPtr<GeneralAllocator>> GeneralAllocator::clone(PageTable& new_page_table)
 	{
-		auto allocator = TRY(GeneralAllocator::create(new_page_table));
+		auto allocator = TRY(GeneralAllocator::create(new_page_table, m_first_vaddr));
 
 		m_page_table.lock();
 
