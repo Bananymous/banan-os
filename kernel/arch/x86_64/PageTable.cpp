@@ -65,7 +65,7 @@ namespace Kernel
 
 	static uint64_t* allocate_page_aligned_page()
 	{
-		void* page = kmalloc(PAGE_SIZE, PAGE_SIZE);
+		void* page = kmalloc(PAGE_SIZE, PAGE_SIZE, true);
 		ASSERT(page);
 		memset(page, 0, PAGE_SIZE);
 		return (uint64_t*)page;

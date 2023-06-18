@@ -133,6 +133,9 @@ extern "C" void kernel_main()
 	PageTable::initialize();
 	dprintln("PageTable initialized");
 
+	Heap::initialize();
+	dprintln("Heap initialzed");
+
 	TerminalDriver* terminal_driver = VesaTerminalDriver::create();
 	ASSERT(terminal_driver);
 	dprintln("VESA initialized");
@@ -140,9 +143,6 @@ extern "C" void kernel_main()
 	TTY* tty1 = new TTY(terminal_driver);
 	ASSERT(tty1);
 	dprintln("TTY initialized");
-
-	Heap::initialize();
-	dprintln("Heap initialzed");
 
 	parse_command_line();
 	dprintln("command line parsed, root='{}'", cmdline.root);
