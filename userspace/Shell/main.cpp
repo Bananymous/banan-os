@@ -12,10 +12,55 @@ struct termios old_termios, new_termios;
 
 BAN::Vector<BAN::String> parse_command(BAN::StringView command)
 {
-	auto args = MUST(command.split(' '));
+	enum class State
+	{
+		Normal,
+		SingleQuote,
+		DoubleQuote,
+	};
+
 	BAN::Vector<BAN::String> result;
-	for (auto arg : args)
-		MUST(result.push_back(arg));
+
+	State state = State::Normal;
+	BAN::String current;
+	for (char c : command)
+	{
+		switch (state)
+		{
+			case State::Normal:
+				if (c == '\'')
+					state = State::SingleQuote;
+				else if (c == '"')
+					state = State::DoubleQuote;
+				else if (!isspace(c))
+					MUST(current.push_back(c));
+				else
+				{
+					if (!current.empty())
+					{
+						MUST(result.push_back(current));
+						current.clear();
+					}
+				}
+				break;
+			case State::SingleQuote:
+				if (c == '\'')
+					state = State::Normal;
+				else
+					MUST(current.push_back(c));
+				break;
+			case State::DoubleQuote:
+				if (c == '"')
+					state = State::Normal;
+				else
+					MUST(current.push_back(c));
+				break;
+		}
+	}
+
+	// FIXME: handle state != State::Normal
+	MUST(result.push_back(BAN::move(current)));
+
 	return result;
 }
 
