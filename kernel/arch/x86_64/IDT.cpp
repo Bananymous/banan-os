@@ -63,6 +63,42 @@ namespace IDT
 
 	static void(*s_irq_handlers[0x10])() { nullptr };
 
+	enum ISR
+	{
+		DivisionError,
+		Debug,
+		NonMaskableInterrupt,
+		Breakpoint,
+		Overflow,
+		BoundRangeException,
+		InvalidOpcode,
+		DeviceNotAvailable,
+		DoubleFault,
+		CoprocessorSegmentOverrun,
+		InvalidTSS,
+		SegmentNotPresent,
+		StackSegmentFault,
+		GeneralProtectionFault,
+		PageFault,
+		UnknownException0x0F,
+		x87FloatingPointException,
+		AlignmentCheck,
+		MachineCheck,
+		SIMDFloatingPointException,
+		VirtualizationException,
+		ControlProtectionException,
+		UnknownException0x16,
+		UnknownException0x17,
+		UnknownException0x18,
+		UnknownException0x19,
+		UnknownException0x1A,
+		UnknownException0x1B,
+		HypervisorInjectionException,
+		VMMCommunicationException,
+		SecurityException,
+		UnkownException0x1F,
+	};
+
 	static const char* isr_exceptions[] =
 	{
 		"Division Error",
