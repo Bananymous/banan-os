@@ -1,6 +1,7 @@
 #pragma once
 
 #include <BAN/LinkedList.h>
+#include <BAN/Optional.h>
 #include <BAN/UniqPtr.h>
 #include <kernel/Memory/Heap.h>
 #include <kernel/Memory/PageTable.h>
@@ -19,6 +20,8 @@ namespace Kernel
 
 		BAN::ErrorOr<BAN::UniqPtr<GeneralAllocator>> clone(PageTable&);
 
+		BAN::Optional<paddr_t> paddr_of(vaddr_t);
+
 		vaddr_t allocate(size_t);
 		bool deallocate(vaddr_t);
 
@@ -30,12 +33,14 @@ namespace Kernel
 		{
 			vaddr_t address { 0 };
 			BAN::Vector<paddr_t> pages;
+
+			bool contains(vaddr_t);
 		};
 
 	private:
-		const vaddr_t m_first_vaddr;
 		PageTable& m_page_table;
 		BAN::LinkedList<Allocation> m_allocations;
+		const vaddr_t m_first_vaddr;
 	};
 
 }
