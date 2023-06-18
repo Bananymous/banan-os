@@ -51,8 +51,10 @@ namespace Kernel
 		{
 			vaddr_t vaddr = allocation.address + i * PAGE_SIZE;
 			m_page_table.map_page_at(allocation.pages[i], vaddr, PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present);
-			m_page_table.invalidate(vaddr);
 		}
+
+		if (&m_page_table == &PageTable::current())
+			m_page_table.load();
 
 		m_page_table.unlock();
 
@@ -119,6 +121,27 @@ namespace Kernel
 		m_page_table.unlock();
 
 		return allocator;
+	}
+
+	BAN::Optional<paddr_t> GeneralAllocator::paddr_of(vaddr_t vaddr)
+	{
+		for (auto& allocation : m_allocations)
+		{
+			if (!allocation.contains(vaddr))
+				continue;
+			
+			size_t offset = vaddr - allocation.address;
+			size_t page_index = offset / PAGE_SIZE;
+			size_t page_offset = offset % PAGE_SIZE;
+			return allocation.pages[page_index] + page_offset;
+		}
+
+		return {};
+	}
+
+	bool GeneralAllocator::Allocation::contains(vaddr_t vaddr)
+	{
+		return this->address <= vaddr && vaddr < this->address + this->pages.size() * PAGE_SIZE;
 	}
 
 }
