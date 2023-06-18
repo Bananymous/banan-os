@@ -57,16 +57,16 @@ namespace LibELF
 		bool is_x86_64() const;
 
 	private:
-#ifdef __is_kernel
-		ELF(BAN::UniqPtr<Kernel::VirtualRange>&& storage, size_t size)
-			: m_storage(BAN::move(storage))
-			, m_data((const uint8_t*)m_storage->vaddr(), size)
-		{}
-#else
+//#ifdef __is_kernel
+//		ELF(BAN::UniqPtr<Kernel::VirtualRange>&& storage, size_t size)
+//			: m_storage(BAN::move(storage))
+//			, m_data((const uint8_t*)m_storage->vaddr(), size)
+//		{}
+//#else
 		ELF(BAN::Vector<uint8_t>&& data)
 			: m_data(BAN::move(data))
 		{}
-#endif
+//#endif
 		BAN::ErrorOr<void> load();
 		
 		bool parse_elf64_file_header(const Elf64FileHeader&);
@@ -78,12 +78,12 @@ namespace LibELF
 		bool parse_elf32_section_header(const Elf32SectionHeader&);
 
 	private:
-#ifdef __is_kernel
-		BAN::UniqPtr<Kernel::VirtualRange> m_storage;
-		BAN::Span<const uint8_t> m_data;
-#else
+//#ifdef __is_kernel
+//		BAN::UniqPtr<Kernel::VirtualRange> m_storage;
+//		BAN::Span<const uint8_t> m_data;
+//#else
 		const BAN::Vector<uint8_t> m_data;
-#endif
+//#endif
 	};
 
 }

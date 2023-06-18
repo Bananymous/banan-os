@@ -23,21 +23,12 @@ namespace LibELF
 #ifdef __is_kernel
 	BAN::ErrorOr<BAN::UniqPtr<ELF>> ELF::load_from_file(BAN::RefPtr<Inode> inode)
 	{
-		PageTable::current().lock();
-		size_t page_count = BAN::Math::div_round_up<size_t>(inode->size(), PAGE_SIZE);
-		vaddr_t vaddr = PageTable::current().get_free_contiguous_pages(page_count, (vaddr_t)g_kernel_end);
-		auto virtual_range = BAN::UniqPtr<VirtualRange>::adopt(
-			VirtualRange::create(
-				PageTable::current(),
-				vaddr, page_count * PAGE_SIZE,
-				PageTable::Flags::ReadWrite | PageTable::Flags::Present
-			)
-		);
-		PageTable::current().unlock();
+		BAN::Vector<uint8_t> buffer;
+		TRY(buffer.resize(inode->size()));
 
-		TRY(inode->read(0, (void*)vaddr, inode->size()));
+		TRY(inode->read(0, buffer.data(), inode->size()));
 
-		ELF* elf_ptr = new ELF(BAN::move(virtual_range), inode->size());
+		ELF* elf_ptr = new ELF(BAN::move(buffer));
 		if (elf_ptr == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
 
