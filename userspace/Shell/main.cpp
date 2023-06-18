@@ -217,6 +217,9 @@ void print_prompt()
 
 int main(int argc, char** argv)
 {
+	if (argc >= 1)
+		setenv("SHELL", argv[0], true);
+
 	tcgetattr(0, &old_termios);
 
 	new_termios = old_termios;
