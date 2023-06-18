@@ -10,17 +10,12 @@
 
 struct termios old_termios, new_termios;
 
-BAN::Vector<char*> parse_command(BAN::StringView command)
+BAN::Vector<BAN::String> parse_command(BAN::StringView command)
 {
 	auto args = MUST(command.split(' '));
-	BAN::Vector<char*> result;
+	BAN::Vector<BAN::String> result;
 	for (auto arg : args)
-	{
-		char* carg = new char[arg.size() + 1];
-		memcpy(carg, arg.data(), arg.size());
-		carg[arg.size()] = '\0';
-		MUST(result.push_back(carg));
-	}
+		MUST(result.push_back(arg));
 	return result;
 }
 
@@ -29,11 +24,6 @@ int execute_command(BAN::StringView command)
 	auto args = parse_command(command);
 	if (args.empty())
 		return 0;
-
-	BAN::ScopeGuard deleter([&args] {
-		for (char* arg : args)
-			delete[] arg;
-	});
 	
 	if (args.front() == "clear"sv)
 	{
@@ -48,7 +38,7 @@ int execute_command(BAN::StringView command)
 	else if (args.front() == "export"sv)
 	{
 		bool first = false;
-		for (const char* arg : args)
+		for (const auto& arg : args)
 		{
 			if (first)
 			{
@@ -56,20 +46,15 @@ int execute_command(BAN::StringView command)
 				continue;
 			}
 
-			const char* eq_sign = strchr(arg, '=');
-			if (eq_sign == nullptr)
+			auto split = MUST(arg.sv().split('=', true));
+			if (split.size() != 2)
 				continue;
 
-			char name[128];
-			if (eq_sign - arg >= sizeof(name))
-				continue;
-			memcpy(name, arg, eq_sign - arg);
-			name[eq_sign - arg] = '\0';
-
-			char value[128];
-			strncpy(value, eq_sign + 1, sizeof(value));
-
-			setenv(name, value, true);
+			if (setenv(BAN::String(split[0]).data(), BAN::String(split[1]).data(), true) == -1)
+			{
+				perror("setenv");
+				return 1;
+			}
 		}
 	}
 	else if (args.front() == "cd"sv)
@@ -80,18 +65,19 @@ int execute_command(BAN::StringView command)
 			return 1;
 		}
 
-		const char* path = nullptr;
+		BAN::StringView path;
 
 		if (args.size() == 1)
 		{
-			path = getenv("HOME");
-			if (path == nullptr)
+			if (const char* path_env = getenv("HOME"))
+				path = path_env;
+			else
 				return 0;
 		}
 		else
 			path = args[1];
 
-		if (chdir(args.size() == 2 ? args[1] : getenv("HOME")) == -1)
+		if (chdir(path.data()) == -1)
 		{
 			perror("chdir");
 			return 1;
@@ -102,8 +88,12 @@ int execute_command(BAN::StringView command)
 		pid_t pid = fork();
 		if (pid == 0)
 		{
-			MUST(args.push_back(nullptr));
-			execv(args.front(), args.data());
+			BAN::Vector<char*> cmd_args;
+			MUST(cmd_args.reserve(args.size() + 1));
+			for (const auto& arg : args)
+				MUST(cmd_args.push_back((char*)arg.data()));
+			MUST(cmd_args.push_back(nullptr));
+			execv(cmd_args.front(), cmd_args.data());
 			perror("execv");
 			exit(1);
 		}
