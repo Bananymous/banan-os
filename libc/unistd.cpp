@@ -41,18 +41,16 @@ long syscall(long syscall, ...)
 		{
 			int fd = va_arg(args, int);
 			void* buffer = va_arg(args, void*);
-			size_t offset = va_arg(args, size_t);
 			size_t bytes = va_arg(args, size_t);
-			ret = Kernel::syscall(SYS_READ, fd, (uintptr_t)buffer, offset, bytes);
+			ret = Kernel::syscall(SYS_READ, fd, (uintptr_t)buffer, bytes);
 			break;
 		}
 		case SYS_WRITE:
 		{
 			int fd = va_arg(args, int);
-			const char* string = va_arg(args, const char*);
-			size_t offset = va_arg(args, size_t);
+			const void* buffer = va_arg(args, const void*);
 			size_t bytes = va_arg(args, size_t);
-			ret = Kernel::syscall(SYS_WRITE, fd, (uintptr_t)string, offset, bytes);
+			ret = Kernel::syscall(SYS_WRITE, fd, (uintptr_t)buffer, bytes);
 			break;
 		}
 		case SYS_TERMID:
