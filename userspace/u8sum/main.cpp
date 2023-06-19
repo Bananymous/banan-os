@@ -8,7 +8,7 @@ int main(int argc, char** argv)
 		FILE* fp = fopen(argv[i], "r");
 		if (fp == nullptr)
 		{
-			perror("nullptr");
+			perror("fopen");
 			continue;
 		}
 
