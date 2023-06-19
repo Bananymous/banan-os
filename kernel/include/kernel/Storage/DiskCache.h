@@ -18,30 +18,28 @@ namespace Kernel
 		BAN::ErrorOr<void> read_sector(uint64_t sector, uint8_t* buffer);
 		BAN::ErrorOr<void> write_sector(uint64_t sector, const uint8_t* buffer);
 
+		void sync();
 		size_t release_clean_pages(size_t);
 		size_t release_pages(size_t);
 		void release_all_pages();
 
 	private:
-		struct SectorCache
-		{
-			uint64_t sector { 0 };
-			bool dirty { false };
-		};
-		struct CacheBlock
+		struct PageCache
 		{
 			paddr_t paddr { 0 };
-			BAN::Array<SectorCache, 4> sectors;
+			uint64_t first_sector { 0 };
+			uint8_t sector_mask { 0 };
+			uint8_t dirty_mask { 0 };
 
 			void sync(StorageDevice&);
-			void read_sector(StorageDevice&, size_t, uint8_t*);
-			void write_sector(StorageDevice&, size_t, const uint8_t*);
+			BAN::ErrorOr<void> read_sector(StorageDevice&, uint64_t sector, uint8_t* buffer);
+			BAN::ErrorOr<void> write_sector(StorageDevice&, uint64_t sector, const uint8_t* buffer);
 		};
 
 	private:
 		SpinLock				m_lock;
 		StorageDevice&			m_device;
-		BAN::Vector<CacheBlock>	m_cache;
+		BAN::Vector<PageCache>	m_cache;
 	};
 
 }
