@@ -4,11 +4,14 @@
 #include <BAN/Vector.h>
 
 #include <ctype.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <termios.h>
 #include <unistd.h>
+
+#define ERROR_RETURN(msg) { perror(msg); return 1; }
 
 struct termios old_termios, new_termios;
 
@@ -173,10 +176,7 @@ int execute_command(BAN::StringView command)
 				continue;
 
 			if (setenv(BAN::String(split[0]).data(), BAN::String(split[1]).data(), true) == -1)
-			{
-				perror("setenv");
-				return 1;
-			}
+				ERROR_RETURN("setenv");
 		}
 	}
 	else if (args.front() == "cd"sv)
@@ -200,33 +200,58 @@ int execute_command(BAN::StringView command)
 			path = args[1];
 
 		if (chdir(path.data()) == -1)
-		{
-			perror("chdir");
-			return 1;
-		}
+			ERROR_RETURN("chdir");
 	}
 	else
 	{
+		bool time = false;
+		if (args.front() == "time"sv)
+		{
+			args.remove(0);
+			time = true;
+		}
+
+		BAN::Vector<char*> cmd_args;
+		MUST(cmd_args.reserve(args.size() + 1));
+		for (const auto& arg : args)
+			MUST(cmd_args.push_back((char*)arg.data()));
+		MUST(cmd_args.push_back(nullptr));
+
+		timespec start;
+		if (time && clock_gettime(CLOCK_MONOTONIC, &start) == -1)
+			ERROR_RETURN("clock_gettime");
+
 		pid_t pid = fork();
 		if (pid == 0)
 		{
-			BAN::Vector<char*> cmd_args;
-			MUST(cmd_args.reserve(args.size() + 1));
-			for (const auto& arg : args)
-				MUST(cmd_args.push_back((char*)arg.data()));
-			MUST(cmd_args.push_back(nullptr));
 			execv(cmd_args.front(), cmd_args.data());
 			perror("execv");
 			exit(1);
 		}
 		if (pid == -1)
-		{
-			perror("fork");
-			return 1;
-		}
+			ERROR_RETURN("fork");
 		int status;
 		if (waitpid(pid, &status, 0) == -1)
-			perror("waitpid");
+			ERROR_RETURN("waitpid");
+
+		if (time)
+		{
+			timespec end;
+			if (clock_gettime(CLOCK_MONOTONIC, &end) == -1)
+				ERROR_RETURN("clock_gettime");
+
+			uint64_t total_ns = 0;
+			total_ns += (end.tv_sec - start.tv_sec) * 1'000'000'000;
+			total_ns += end.tv_nsec - start.tv_nsec;
+
+			printf(
+				"took %d.%03d s\n",
+				(int)( total_ns / 1'000'000'000),
+				(int)((total_ns % 1'000'000'000) / 1'000'000)
+			);
+		}
+
+		return status;
 	}
 
 	return 0;
