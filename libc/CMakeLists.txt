@@ -14,6 +14,7 @@ set(LIBC_SOURCES
 	sys/stat.cpp
 	sys/wait.cpp
 	termios.cpp
+	time.cpp
 	unistd.cpp
 	math.S
 	icxxabi.cpp

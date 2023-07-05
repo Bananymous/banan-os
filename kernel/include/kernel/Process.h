@@ -99,6 +99,8 @@ namespace Kernel
 
 		BAN::ErrorOr<long> sys_termid(char*) const;
 
+		BAN::ErrorOr<long> sys_clock_gettime(clockid_t, timespec*) const;
+
 		TTY& tty() { ASSERT(m_tty); return *m_tty; }
 
 		static Process& current() { return Thread::current().process(); }
