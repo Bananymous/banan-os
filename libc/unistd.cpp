@@ -244,6 +244,13 @@ long syscall(long syscall, ...)
 			ret = Kernel::syscall(SYS_SET_PWD, (uintptr_t)path);
 			break;
 		}
+		case SYS_CLOCK_GETTIME:
+		{
+			clockid_t clock_id = va_arg(args, clockid_t);
+			timespec* tp = va_arg(args, timespec*);
+			ret = Kernel::syscall(SYS_CLOCK_GETTIME, clock_id, (uintptr_t)tp);
+			break;
+		}
 		default:
 			puts("LibC: Unhandeled syscall");
 			ret = -ENOSYS;

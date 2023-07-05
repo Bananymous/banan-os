@@ -129,6 +129,9 @@ namespace Kernel
 		case SYS_SET_PWD:
 			ret = Process::current().sys_setpwd((const char*)arg1);
 			break;
+		case SYS_CLOCK_GETTIME:
+			ret = Process::current().sys_clock_gettime((clockid_t)arg1, (timespec*)arg2);
+			break;
 		default:
 			dwarnln("Unknown syscall {}", syscall);
 			break;

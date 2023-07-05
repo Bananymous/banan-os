@@ -835,6 +835,24 @@ namespace Kernel
 		return 0;
 	}
 
+
+	BAN::ErrorOr<long> Process::sys_clock_gettime(clockid_t clock_id, timespec* tp) const
+	{
+		switch (clock_id)
+		{
+			case CLOCK_MONOTONIC:
+			{
+				uint64_t time_ms = PIT::ms_since_boot();
+				tp->tv_sec  =  time_ms / 1000;
+				tp->tv_nsec = (time_ms % 1000) * 1000000;
+				break;
+			}
+			default:
+				return BAN::Error::from_errno(ENOTSUP);
+		}
+		return 0;
+	}
+
 	BAN::ErrorOr<long> Process::sys_setuid(uid_t uid)
 	{
 		if (uid < 0 || uid >= 1'000'000'000)
