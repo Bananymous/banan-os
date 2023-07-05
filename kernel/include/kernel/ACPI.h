@@ -1,6 +1,7 @@
 #pragma once
 
-#include <BAN/Errors.h>
+#include <BAN/Vector.h>
+#include <kernel/Memory/Types.h>
 
 namespace Kernel
 {
@@ -93,9 +94,17 @@ namespace Kernel
 		const SDTHeader* get_header_from_index(size_t);
 
 	private:
-		uintptr_t m_header_table = 0;
+		paddr_t m_header_table_paddr = 0;
+		vaddr_t m_header_table_vaddr = 0;
 		uint32_t m_entry_size = 0;
 		uint32_t m_entry_count = 0;
+
+		struct MappedPage
+		{
+			Kernel::paddr_t paddr;
+			Kernel::vaddr_t vaddr;
+		};
+		BAN::Vector<MappedPage> m_mapped_headers;		
 	};
 
 }

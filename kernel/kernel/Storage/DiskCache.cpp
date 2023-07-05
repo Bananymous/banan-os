@@ -178,7 +178,6 @@ namespace Kernel
 		ASSERT(page_table.is_page_free(0));
 
 		page_table.map_page_at(this->paddr, 0, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
-		page_table.invalidate(0);
 
 		for (size_t i = 0; i < PAGE_SIZE / device.sector_size(); i++)
 		{
@@ -188,7 +187,6 @@ namespace Kernel
 		}
 
 		page_table.unmap_page(0);
-		page_table.invalidate(0);
 
 		page_table.unlock();
 
@@ -210,7 +208,6 @@ namespace Kernel
 		ASSERT(page_table.is_page_free(0));
 		
 		page_table.map_page_at(this->paddr, 0, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
-		page_table.invalidate(0);
 
 		// Sector not yet cached
 		if (!(this->sector_mask & (1 << sector_offset)))
@@ -222,7 +219,6 @@ namespace Kernel
 		memcpy(buffer, (const void*)(sector_offset * device.sector_size()), device.sector_size());
 
 		page_table.unmap_page(0);
-		page_table.invalidate(0);
 
 		page_table.unlock();
 
@@ -244,14 +240,12 @@ namespace Kernel
 		ASSERT(page_table.is_page_free(0));
 		
 		page_table.map_page_at(this->paddr, 0, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
-		page_table.invalidate(0);
 		
 		memcpy((void*)(sector_offset * device.sector_size()), buffer, device.sector_size());
 		this->sector_mask |= 1 << sector_offset;
 		this->dirty_mask |= 1 << sector_offset;
 
 		page_table.unmap_page(0);
-		page_table.invalidate(0);
 
 		page_table.unlock();
 

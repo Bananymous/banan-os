@@ -2,6 +2,7 @@
 
 #include <BAN/Vector.h>
 #include <kernel/InterruptController.h>
+#include <kernel/Memory/Types.h>
 
 class APIC final : public InterruptController
 {
@@ -15,6 +16,7 @@ private:
 	void write_to_local_apic(ptrdiff_t, uint32_t);
 
 private:
+	~APIC() { ASSERT_NOT_REACHED(); }
 	static APIC* create();
 	friend class InterruptController;
 
@@ -34,7 +36,8 @@ private:
 	struct IOAPIC
 	{
 		uint8_t id;
-		uintptr_t address;
+		Kernel::paddr_t paddr;
+		Kernel::vaddr_t vaddr;
 		uint32_t gsi_base;
 		uint8_t max_redirs;
 
@@ -44,7 +47,8 @@ private:
 
 private:
 	BAN::Vector<Processor>	m_processors;
-	uintptr_t				m_local_apic = 0;
+	Kernel::paddr_t			m_local_apic_paddr = 0;
+	Kernel::vaddr_t			m_local_apic_vaddr = 0;
 	BAN::Vector<IOAPIC>		m_io_apics;	
 	uint8_t					m_irq_overrides[0x100] {};
 };

@@ -6,6 +6,8 @@
 
 using namespace Kernel;
 
+extern uint8_t g_kernel_end[];
+
 VesaTerminalDriver* VesaTerminalDriver::create()
 {
 	if (!(g_multiboot_info->flags & MULTIBOOT_FLAGS_FRAMEBUFFER))
@@ -36,14 +38,21 @@ VesaTerminalDriver* VesaTerminalDriver::create()
 		return nullptr;
 	}
 
-	PageTable::kernel().identity_map_range(framebuffer.addr, framebuffer.pitch * framebuffer.height, PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present);
+	uint64_t first_page = framebuffer.addr / PAGE_SIZE;
+	uint64_t last_page = BAN::Math::div_round_up<uint64_t>(framebuffer.addr + framebuffer.pitch * framebuffer.height, PAGE_SIZE);
+	uint64_t needed_pages = last_page - first_page + 1;
+
+	vaddr_t vaddr = PageTable::kernel().get_free_contiguous_pages(needed_pages, (vaddr_t)g_kernel_end);
+	ASSERT(vaddr);
+
+	PageTable::kernel().map_range_at(framebuffer.addr, vaddr, needed_pages * PAGE_SIZE, PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present);
 
 	auto* driver = new VesaTerminalDriver(
 		framebuffer.width,
 		framebuffer.height,
 		framebuffer.pitch,
 		framebuffer.bpp,
-		framebuffer.addr
+		vaddr
 	);
 	driver->set_cursor_position(0, 0);
 	driver->clear(TerminalColor::BLACK);

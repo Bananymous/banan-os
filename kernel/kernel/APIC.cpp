@@ -81,6 +81,8 @@ union RedirectionEntry
 	};
 };
 
+extern uint8_t g_kernel_end[];
+
 using namespace Kernel;
 
 APIC* APIC::create()
@@ -101,7 +103,7 @@ APIC* APIC::create()
 	}
 
 	APIC* apic = new APIC;
-	apic->m_local_apic = madt->local_apic;
+	apic->m_local_apic_paddr = madt->local_apic;
 	for (uint32_t i = 0x00; i <= 0xFF; i++)
 		apic->m_irq_overrides[i] = i;
 
@@ -121,7 +123,7 @@ APIC* APIC::create()
 			case 1:
 				IOAPIC ioapic;
 				ioapic.id			= entry->entry1.ioapic_id;
-				ioapic.address		= entry->entry1.ioapic_address;
+				ioapic.paddr		= entry->entry1.ioapic_address;
 				ioapic.gsi_base		= entry->entry1.gsi_base;
 				ioapic.max_redirs	= 0;
 				MUST(apic->m_io_apics.push_back(ioapic));
@@ -130,7 +132,7 @@ APIC* APIC::create()
 				apic->m_irq_overrides[entry->entry2.irq_source] = entry->entry2.gsi;
 				break;
 			case 5:
-				apic->m_local_apic = entry->entry5.address;
+				apic->m_local_apic_paddr = entry->entry5.address;
 				break;
 			default:
 				dprintln("Unhandled madt entry, type {}", entry->type);
@@ -139,17 +141,40 @@ APIC* APIC::create()
 		madt_entry_addr += entry->length;
 	}
 
-	if (apic->m_local_apic == 0 || apic->m_io_apics.empty())
+	if (apic->m_local_apic_paddr == 0 || apic->m_io_apics.empty())
 	{
 		dprintln("MADT did not provide necessary information");
 		delete apic;
 		return nullptr;
 	}
 
-	PageTable::kernel().identity_map_page(apic->m_local_apic, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
+	// Map the local apic to kernel memory
+	{
+		vaddr_t vaddr = PageTable::kernel().get_free_page((vaddr_t)g_kernel_end);
+		ASSERT(vaddr);
+		dprintln("lapic paddr {8H}", apic->m_local_apic_paddr);
+		apic->m_local_apic_vaddr = vaddr + (apic->m_local_apic_paddr % PAGE_SIZE);
+		dprintln("lapic vaddr {8H}", apic->m_local_apic_vaddr);
+		PageTable::kernel().map_page_at(
+			apic->m_local_apic_paddr & PAGE_ADDR_MASK,
+			apic->m_local_apic_vaddr & PAGE_ADDR_MASK,
+			PageTable::Flags::ReadWrite | PageTable::Flags::Present
+		);
+	}
+
+	// Map io apics to kernel memory
 	for (auto& io_apic : apic->m_io_apics)
 	{
-		PageTable::kernel().identity_map_page(io_apic.address, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
+		vaddr_t vaddr = PageTable::kernel().get_free_page((vaddr_t)g_kernel_end);
+		ASSERT(vaddr);
+
+		io_apic.vaddr = vaddr + (io_apic.paddr % PAGE_SIZE);
+
+		PageTable::kernel().map_page_at(
+			io_apic.paddr & PAGE_ADDR_MASK,
+			io_apic.vaddr & PAGE_ADDR_MASK,
+			PageTable::Flags::ReadWrite | PageTable::Flags::Present
+		);
 		io_apic.max_redirs = io_apic.read(IOAPIC_MAX_REDIRS);
 	}
 
@@ -171,24 +196,24 @@ APIC* APIC::create()
 
 uint32_t APIC::read_from_local_apic(ptrdiff_t offset)
 {
-	return *(uint32_t*)(m_local_apic + offset);
+	return *(uint32_t*)(m_local_apic_vaddr + offset);
 }
 
 void APIC::write_to_local_apic(ptrdiff_t offset, uint32_t data)
 {
-	*(uint32_t*)(m_local_apic + offset) = data;
+	*(uint32_t*)(m_local_apic_vaddr + offset) = data;
 }
 
 uint32_t APIC::IOAPIC::read(uint8_t offset)
 {
-	volatile uint32_t* ioapic = (volatile uint32_t*)address;
+	volatile uint32_t* ioapic = (volatile uint32_t*)vaddr;
 	ioapic[0] = offset;
 	return ioapic[4];
 }
 
 void APIC::IOAPIC::write(uint8_t offset, uint32_t data)
 {
-	volatile uint32_t* ioapic = (volatile uint32_t*)address;
+	volatile uint32_t* ioapic = (volatile uint32_t*)vaddr;
 	ioapic[0] = offset;
 	ioapic[4] = data;
 }

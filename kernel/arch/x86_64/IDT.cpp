@@ -137,21 +137,6 @@ namespace IDT
 
 	extern "C" void cpp_isr_handler(uint64_t isr, uint64_t error, const Registers* regs)
 	{
-		if (isr == ISR::PageFault)
-		{
-			using namespace Kernel;
-			
-			vaddr_t vaddr = regs->cr2 & PAGE_ADDR_MASK;
-
-			if (!PageTable::kernel().is_page_free(vaddr))
-			{
-				auto paddr = kmalloc_paddr_of(vaddr);
-				ASSERT(paddr.has_value());
-				PageTable::current().map_page_at(paddr.value(), vaddr, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
-				return;
-			}
-		}
-
 		pid_t tid = Kernel::Scheduler::current_tid();
 		pid_t pid = tid ? Kernel::Process::current().pid() : 0;
 

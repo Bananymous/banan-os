@@ -4,14 +4,6 @@
 #include <kernel/Memory/kmalloc.h>
 #include <kernel/Memory/PageTable.h>
 
-#define CLEANUP_STRUCTURE(s)				\
-	do {									\
-		for (uint64_t i = 0; i < 512; i++)	\
-			if ((s)[i] & Flags::Present)	\
-				return;						\
-		kfree(s);							\
-	} while (false)
-
 extern uint8_t g_kernel_start[];
 extern uint8_t g_kernel_end[];
 
@@ -20,6 +12,10 @@ namespace Kernel
 	
 	static PageTable* s_kernel = nullptr;
 	static PageTable* s_current = nullptr;
+
+	// Page Directories for kernel memory (KERNEL_OFFSET -> 0xFFFFFFFFFFFFFFFF)
+	static paddr_t s_global[(0xFFFFFFFFFFFFFFFF - KERNEL_OFFSET + 1) / (4096ull * 512ull * 512ull)] { };
+	static_assert(sizeof(s_global) / sizeof(*s_global) < 512);
 
 	static constexpr inline bool is_canonical(uintptr_t addr)
 	{
@@ -63,7 +59,7 @@ namespace Kernel
 		return *s_current;
 	}
 
-	static uint64_t* allocate_page_aligned_page()
+	static uint64_t* allocate_zeroed_page_aligned_page()
 	{
 		void* page = kmalloc(PAGE_SIZE, PAGE_SIZE, true);
 		ASSERT(page);
@@ -73,80 +69,77 @@ namespace Kernel
 
 	void PageTable::initialize_kernel()
 	{
+		for (uint32_t i = 0; i < sizeof(s_global) / sizeof(*s_global); i++)
+		{
+			ASSERT(s_global[i] == 0);
+			s_global[i] = V2P(allocate_zeroed_page_aligned_page());
+		}
+		map_kernel_memory();
+
 		// Map (0 -> phys_kernel_end) to (KERNEL_OFFSET -> virt_kernel_end)
-		m_highest_paging_struct = V2P(allocate_page_aligned_page());
 		map_range_at(0, KERNEL_OFFSET, (uintptr_t)g_kernel_end - KERNEL_OFFSET, Flags::ReadWrite | Flags::Present);
 	}
 
 	BAN::ErrorOr<PageTable*> PageTable::create_userspace()
 	{
-		// Here we copy the s_kernel paging structs since they are
-		// global for every process
-
 		LockGuard _(s_kernel->m_lock);
-
-		uint64_t* global_pml4 = (uint64_t*)P2V(s_kernel->m_highest_paging_struct);
-
-		uint64_t* pml4 = allocate_page_aligned_page();
-		for (uint32_t pml4e = 0; pml4e < 512; pml4e++)
-		{
-			if (!(global_pml4[pml4e] & Flags::Present))
-				continue;
-
-			uint64_t* global_pdpt = (uint64_t*)P2V(global_pml4[pml4e] & PAGE_ADDR_MASK);
-
-			uint64_t* pdpt = allocate_page_aligned_page();
-			pml4[pml4e] = V2P(pdpt) | (global_pml4[pml4e] & PAGE_FLAG_MASK);
-
-			for (uint32_t pdpte = 0; pdpte < 512; pdpte++)
-			{
-				if (!(global_pdpt[pdpte] & Flags::Present))
-					continue;
-
-				uint64_t* global_pd = (uint64_t*)P2V(global_pdpt[pdpte] & PAGE_ADDR_MASK);
-
-				uint64_t* pd = allocate_page_aligned_page();
-				pdpt[pdpte] = V2P(pd) | (global_pdpt[pdpte] & PAGE_FLAG_MASK);
-
-				for (uint32_t pde = 0; pde < 512; pde++)
-				{
-					if (!(global_pd[pde] & Flags::Present))
-						continue;
-
-					uint64_t* global_pt = (uint64_t*)P2V(global_pd[pde] & PAGE_ADDR_MASK);
-
-					uint64_t* pt = allocate_page_aligned_page();
-					pd[pde] = V2P(pt) | (global_pd[pde] & PAGE_FLAG_MASK);
-
-					memcpy(pt, global_pt, PAGE_SIZE);
-				}
-			}
-		}
-
-		PageTable* result = new PageTable;
-		if (result == nullptr)
+		PageTable* page_table = new PageTable;
+		if (page_table == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
-		result->m_highest_paging_struct = V2P(pml4);
-		return result;
+		page_table->map_kernel_memory();
+		return page_table;
+	}
+
+	void PageTable::map_kernel_memory()
+	{
+		// Verify that kernel memory fits to single page directory pointer table
+		static_assert(0xFFFFFFFFFFFFFFFF - KERNEL_OFFSET < 4096ull * 512ull * 512ull * 512ull);
+
+		ASSERT(m_highest_paging_struct == 0);
+		m_highest_paging_struct = V2P(allocate_zeroed_page_aligned_page());
+
+		constexpr uint64_t pml4e = (KERNEL_OFFSET >> 39) & 0x1FF;
+		constexpr uint64_t pdpte = (KERNEL_OFFSET >> 30) & 0x1FF;
+
+		uint64_t* pml4 = (uint64_t*)P2V(m_highest_paging_struct);
+		pml4[pml4e] = V2P(allocate_zeroed_page_aligned_page());
+		pml4[pml4e] = (pml4[pml4e] & PAGE_ADDR_MASK) | (Flags::ReadWrite | Flags::Present);
+
+		uint64_t* pdpt = (uint64_t*)P2V(pml4[pml4e] & PAGE_ADDR_MASK);
+		for (uint64_t i = 0; pdpte + i < 512; i++)
+		{
+			pdpt[pdpte + i] = V2P(allocate_zeroed_page_aligned_page());
+			pdpt[pdpte + i] = s_global[i] | (Flags::ReadWrite | Flags::Present);
+		}
 	}
 
 	PageTable::~PageTable()
 	{
 		uint64_t* pml4 = (uint64_t*)P2V(m_highest_paging_struct);
-		for (uint32_t pml4e = 0; pml4e < 512; pml4e++)
+		for (uint64_t pml4e = 0; pml4e < 512; pml4e++)
 		{
 			if (!(pml4[pml4e] & Flags::Present))
 				continue;
 			uint64_t* pdpt = (uint64_t*)P2V(pml4[pml4e] & PAGE_ADDR_MASK);
-			for (uint32_t pdpte = 0; pdpte < 512; pdpte++)
+			for (uint64_t pdpte = 0; pdpte < 512; pdpte++)
 			{
 				if (!(pdpt[pdpte] & Flags::Present))
 					continue;
 				uint64_t* pd = (uint64_t*)P2V(pdpt[pdpte] & PAGE_ADDR_MASK);
-				for (uint32_t pde = 0; pde < 512; pde++)
+				for (uint64_t pde = 0; pde < 512; pde++)
 				{
 					if (!(pd[pde] & Flags::Present))
 						continue;
+
+					vaddr_t vaddr = 0;
+					vaddr |= pml4e << 39;
+					vaddr |= pdpte << 30;
+					vaddr |= pde   << 21;
+					vaddr = canonicalize(vaddr);
+
+					if (vaddr >= KERNEL_OFFSET)
+						return;
+
 					kfree((void*)P2V(pd[pde] & PAGE_ADDR_MASK));
 				}
 				kfree(pd);
@@ -164,24 +157,8 @@ namespace Kernel
 
 	void PageTable::invalidate(vaddr_t vaddr)
 	{
-		ASSERT(this == s_current);
-		asm volatile("invlpg (%0)" :: "r"(vaddr) : "memory");
-	}
-
-	void PageTable::identity_map_page(paddr_t address, flags_t flags)
-	{
-		address &= PAGE_ADDR_MASK;
-		map_page_at(address, address, flags);
-	}
-
-	void PageTable::identity_map_range(paddr_t address, size_t size, flags_t flags)
-	{
-		LockGuard _(m_lock);
-
-		paddr_t s_page = address / PAGE_SIZE;
-		paddr_t e_page = (address + size - 1) / PAGE_SIZE;
-		for (paddr_t page = s_page; page <= e_page; page++)
-			identity_map_page(page * PAGE_SIZE, flags);
+		if (this == s_current)
+			asm volatile("invlpg (%0)" :: "r"(vaddr) : "memory");
 	}
 
 	void PageTable::unmap_page(vaddr_t vaddr)
@@ -189,6 +166,9 @@ namespace Kernel
 		LockGuard _(m_lock);
 
 		vaddr &= PAGE_ADDR_MASK;
+
+		if (vaddr && (vaddr >= KERNEL_OFFSET) != (this == s_kernel))
+			Kernel::panic("unmapping {8H}, kernel: {}", vaddr, this == s_kernel);
 
 		if (is_page_free(vaddr))
 		{
@@ -210,12 +190,7 @@ namespace Kernel
 		uint64_t* pt   = (uint64_t*)P2V(pd[pde]     & PAGE_ADDR_MASK);
 
 		pt[pte] = 0;
-		CLEANUP_STRUCTURE(pt);
-		pd[pde] = 0;
-		CLEANUP_STRUCTURE(pd);
-		pdpt[pdpte] = 0;
-		CLEANUP_STRUCTURE(pdpt);
-		pml4[pml4e] = 0;
+		invalidate(canonicalize(vaddr));
 	}
 
 	void PageTable::unmap_range(vaddr_t vaddr, size_t size)
@@ -232,11 +207,14 @@ namespace Kernel
 	{
 		LockGuard _(m_lock);
 
+		if (vaddr && (vaddr >= KERNEL_OFFSET) != (this == s_kernel))
+			Kernel::panic("mapping {8H} to {8H}, kernel: {}", paddr, vaddr, this == s_kernel);
+
 		ASSERT(is_canonical(vaddr));
 		vaddr = uncanonicalize(vaddr);
 
 		ASSERT(paddr % PAGE_SIZE == 0);
-		ASSERT(vaddr % PAGE_SIZE == 0);;
+		ASSERT(vaddr % PAGE_SIZE == 0);
 
 		ASSERT(flags & Flags::Present);
 
@@ -249,7 +227,7 @@ namespace Kernel
 		if ((pml4[pml4e] & flags) != flags)
 		{
 			if (!(pml4[pml4e] & Flags::Present))
-				pml4[pml4e] = V2P(allocate_page_aligned_page());
+				pml4[pml4e] = V2P(allocate_zeroed_page_aligned_page());
 			pml4[pml4e] = (pml4[pml4e] & PAGE_ADDR_MASK) | flags;
 		}
 
@@ -257,7 +235,7 @@ namespace Kernel
 		if ((pdpt[pdpte] & flags) != flags)
 		{
 			if (!(pdpt[pdpte] & Flags::Present))
-				pdpt[pdpte] = V2P(allocate_page_aligned_page());
+				pdpt[pdpte] = V2P(allocate_zeroed_page_aligned_page());
 			pdpt[pdpte] = (pdpt[pdpte] & PAGE_ADDR_MASK) | flags;
 		}
 
@@ -265,12 +243,14 @@ namespace Kernel
 		if ((pd[pde] & flags) != flags)
 		{
 			if (!(pd[pde] & Flags::Present))
-				pd[pde] = V2P(allocate_page_aligned_page());
+				pd[pde] = V2P(allocate_zeroed_page_aligned_page());
 			pd[pde] = (pd[pde] & PAGE_ADDR_MASK) | flags;
 		}
 
 		uint64_t* pt = (uint64_t*)P2V(pd[pde] & PAGE_ADDR_MASK);
 		pt[pte] = paddr | flags;
+
+		invalidate(canonicalize(vaddr));
 	}
 
 	void PageTable::map_range_at(paddr_t paddr, vaddr_t vaddr, size_t size, flags_t flags)
@@ -332,29 +312,40 @@ namespace Kernel
 		return get_page_data(addr) & PAGE_ADDR_MASK;
 	}
 
-	vaddr_t PageTable::get_free_page() const
+	vaddr_t PageTable::get_free_page(vaddr_t first_address) const
 	{
 		LockGuard _(m_lock);
+
+		if (size_t rem = first_address % PAGE_SIZE)
+			first_address += PAGE_SIZE - rem;
+
+		ASSERT(is_canonical(first_address));
+		vaddr_t vaddr = uncanonicalize(first_address);
+
+		uint64_t pml4e = (vaddr >> 39) & 0x1FF;
+		uint64_t pdpte = (vaddr >> 30) & 0x1FF;
+		uint64_t pde   = (vaddr >> 21) & 0x1FF;
+		uint64_t pte   = (vaddr >> 12) & 0x1FF;
 
 		// Try to find free page that can be mapped without
 		// allocations (page table with unused entries)
 		uint64_t* pml4 = (uint64_t*)P2V(m_highest_paging_struct);
-		for (uint64_t pml4e = 0; pml4e < 512; pml4e++)
+		for (; pml4e < 512; pml4e++)
 		{
 			if (!(pml4[pml4e] & Flags::Present))
 				continue;
 			uint64_t* pdpt = (uint64_t*)P2V(pml4[pml4e] & PAGE_ADDR_MASK);
-			for (uint64_t pdpte = 0; pdpte < 512; pdpte++)
+			for (; pdpte < 512; pdpte++)
 			{
 				if (!(pdpt[pdpte] & Flags::Present))
 					continue;
 				uint64_t* pd = (uint64_t*)P2V(pdpt[pdpte] & PAGE_ADDR_MASK);
-				for (uint64_t pde = 0; pde < 512; pde++)
+				for (; pde < 512; pde++)
 				{
 					if (!(pd[pde] & Flags::Present))
 						continue;
 					uint64_t* pt = (uint64_t*)P2V(pd[pde] & PAGE_ADDR_MASK);
-					for (uint64_t pte = !(pml4e + pdpte + pde); pte < 512; pte++)
+					for (; pte < 512; pte++)
 					{
 						if (!(pt[pte] & Flags::Present))
 						{
@@ -371,11 +362,13 @@ namespace Kernel
 		}
 
 		// Find any free page page (except for page 0)
-		vaddr_t vaddr = PAGE_SIZE;
-		while ((vaddr >> 48) == 0)
+		vaddr = first_address;
+		while (is_canonical(vaddr))
 		{
-			if (!(get_page_flags(vaddr) & Flags::Present))
+			if (is_page_free(vaddr))
 				return vaddr;
+			if (vaddr > vaddr + PAGE_SIZE)
+				break;
 			vaddr += PAGE_SIZE;
 		}
 
