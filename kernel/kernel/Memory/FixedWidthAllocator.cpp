@@ -196,7 +196,6 @@ namespace Kernel
 
 		page_vaddr = m_page_table.get_free_page();
 		m_page_table.map_page_at(page_paddr, page_vaddr, PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present);
-		m_page_table.invalidate(page_vaddr);
 	}
 
 	bool FixedWidthAllocator::allocate_page_if_needed(vaddr_t vaddr, uint8_t flags)
@@ -251,7 +250,6 @@ namespace Kernel
 			{
 				paddr_t paddr = new_page_table.physical_address_of(page_begin);
 				m_page_table.map_page_at(paddr, 0, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
-				m_page_table.invalidate(0);
 				memcpy((void*)0, (void*)page_begin, PAGE_SIZE);
 			}
 
@@ -261,7 +259,6 @@ namespace Kernel
 		}
 
 		m_page_table.unmap_page(0);
-		m_page_table.invalidate(0);
 
 		m_page_table.unlock();
 

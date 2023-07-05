@@ -109,14 +109,12 @@ namespace Kernel
 				new_page_table.map_page_at(paddr, vaddr, flags);
 
 				m_page_table.map_page_at(paddr, 0, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
-				m_page_table.invalidate(0);
 				memcpy((void*)0, (void*)vaddr, PAGE_SIZE);
 			}
 
 			MUST(allocator->m_allocations.push_back(BAN::move(new_allocation)));
 		}
 		m_page_table.unmap_page(0);
-		m_page_table.invalidate(0);
 
 		m_page_table.unlock();
 

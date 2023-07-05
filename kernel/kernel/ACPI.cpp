@@ -6,6 +6,8 @@
 #define RSPD_SIZE	20
 #define RSPDv2_SIZE	36
 
+extern uint8_t g_kernel_end[];
+
 namespace Kernel
 {
 
@@ -104,42 +106,73 @@ namespace Kernel
 
 		if (rsdp->revision >= 2)
 		{
-			const XSDT* xsdt = (const XSDT*)rsdp->xsdt_address;
-			PageTable::kernel().identity_map_page((uintptr_t)xsdt, PageTable::Flags::Present);
-			BAN::ScopeGuard _([xsdt] { PageTable::kernel().unmap_page((uintptr_t)xsdt); });
+			PageTable::kernel().map_page_at(rsdp->xsdt_address & PAGE_ADDR_MASK, 0, PageTable::Flags::Present);
+			const XSDT* xsdt = (const XSDT*)(rsdp->xsdt_address % PAGE_SIZE);
+			BAN::ScopeGuard _([xsdt] { PageTable::kernel().unmap_page(0); });
 
 			if (memcmp(xsdt->signature, "XSDT", 4) != 0)
 				return BAN::Error::from_error_code(ErrorCode::ACPI_RootInvalid);
 			if (!is_valid_std_header(xsdt))
 				return BAN::Error::from_error_code(ErrorCode::ACPI_RootInvalid);
 
-			m_header_table = (uintptr_t)xsdt->entries;
+			m_header_table_paddr = (paddr_t)xsdt->entries + (rsdp->rsdt_address & PAGE_ADDR_MASK);
 			m_entry_size = 8;
 			m_entry_count = (xsdt->length - sizeof(SDTHeader)) / 8;
 		}
 		else
 		{
-			const RSDT* rsdt = (const RSDT*)(uintptr_t)rsdp->rsdt_address;
-			PageTable::kernel().identity_map_page((vaddr_t)rsdt, PageTable::Flags::Present);
-			BAN::ScopeGuard _([rsdt] { PageTable::kernel().unmap_page((vaddr_t)rsdt); });
+			PageTable::kernel().map_page_at(rsdp->rsdt_address & PAGE_ADDR_MASK, 0, PageTable::Flags::Present);
+			const RSDT* rsdt = (const RSDT*)((vaddr_t)rsdp->rsdt_address % PAGE_SIZE);
+			BAN::ScopeGuard _([rsdt] { PageTable::kernel().unmap_page(0); });
 
 			if (memcmp(rsdt->signature, "RSDT", 4) != 0)
 				return BAN::Error::from_error_code(ErrorCode::ACPI_RootInvalid);
 			if (!is_valid_std_header(rsdt))
 				return BAN::Error::from_error_code(ErrorCode::ACPI_RootInvalid);
 
-			m_header_table = (uintptr_t)rsdt->entries;
+			m_header_table_paddr = (paddr_t)rsdt->entries + (rsdp->rsdt_address & PAGE_ADDR_MASK);
 			m_entry_size = 4;
 			m_entry_count = (rsdt->length - sizeof(SDTHeader)) / 4;
 		}
 
-		PageTable::kernel().identity_map_range(m_header_table, m_entry_count * m_entry_size, PageTable::Flags::Present);
+		size_t needed_pages = range_page_count(m_header_table_paddr, m_entry_count * m_entry_size);
+		m_header_table_vaddr = PageTable::kernel().get_free_contiguous_pages(needed_pages, (vaddr_t)g_kernel_end);
+		ASSERT(m_header_table_vaddr);
+
+		m_header_table_vaddr += m_header_table_paddr % PAGE_SIZE;
+
+		PageTable::kernel().map_range_at(
+			m_header_table_paddr & PAGE_ADDR_MASK,
+			m_header_table_vaddr & PAGE_ADDR_MASK,
+			needed_pages * PAGE_SIZE,
+			PageTable::Flags::Present
+		);
 
 		for (uint32_t i = 0; i < m_entry_count; i++)
 		{
-			auto* header = get_header_from_index(i);
-			PageTable::kernel().identity_map_page((uintptr_t)header, PageTable::Flags::Present);
-			PageTable::kernel().identity_map_range((uintptr_t)header, header->length, PageTable::Flags::Present);
+			paddr_t header_paddr = (m_entry_size == 4) ?
+				((uint32_t*)m_header_table_vaddr)[i] :
+				((uint64_t*)m_header_table_vaddr)[i];
+			
+			PageTable::kernel().map_page_at(header_paddr & PAGE_ADDR_MASK, 0, PageTable::Flags::Present);
+			size_t header_length = ((SDTHeader*)(header_paddr % PAGE_SIZE))->length;
+			PageTable::kernel().unmap_page(0);
+
+			size_t needed_pages = range_page_count(header_paddr, header_length);
+			vaddr_t page_vaddr = PageTable::kernel().get_free_contiguous_pages(needed_pages, (vaddr_t)g_kernel_end);
+			ASSERT(page_vaddr);
+			
+			PageTable::kernel().map_range_at(
+				header_paddr & PAGE_ADDR_MASK,
+				page_vaddr,
+				needed_pages * PAGE_SIZE,
+				PageTable::Flags::Present
+			);
+
+			MUST(m_mapped_headers.push_back({
+				.paddr = header_paddr,
+				.vaddr = page_vaddr + (header_paddr % PAGE_SIZE)
+			}));
 		}
 
 		return {};
@@ -161,8 +194,15 @@ namespace Kernel
 		ASSERT(index < m_entry_count);
 		ASSERT(m_entry_size == 4 || m_entry_size == 8);
 
-		uintptr_t header_address = (m_entry_size == 4) ? ((uint32_t*)m_header_table)[index] : ((uint64_t*)m_header_table)[index];
-		return (SDTHeader*)header_address;
+		paddr_t header_paddr = (m_entry_size == 4) ?
+			((uint32_t*)m_header_table_vaddr)[index] :
+			((uint64_t*)m_header_table_vaddr)[index];
+
+		for (const auto& page : m_mapped_headers)
+			if (page.paddr == header_paddr)
+				return (SDTHeader*)page.vaddr;
+
+		ASSERT_NOT_REACHED();
 	}
 
 }

@@ -27,9 +27,6 @@ namespace Kernel
 		static BAN::ErrorOr<PageTable*> create_userspace();
 		~PageTable();
 
-		void identity_map_page(paddr_t, flags_t);
-		void identity_map_range(paddr_t, size_t bytes, flags_t);
-
 		void unmap_page(vaddr_t);
 		void unmap_range(vaddr_t, size_t bytes);
 
@@ -42,10 +39,9 @@ namespace Kernel
 		bool is_page_free(vaddr_t) const;
 		bool is_range_free(vaddr_t, size_t bytes) const;
 
-		vaddr_t get_free_page() const;
+		vaddr_t get_free_page(vaddr_t first_address = PAGE_SIZE) const;
 		vaddr_t get_free_contiguous_pages(size_t page_count, vaddr_t first_address = PAGE_SIZE) const;
 
-		void invalidate(vaddr_t);
 		void load();
 
 		void lock() const { m_lock.lock(); }
@@ -57,10 +53,19 @@ namespace Kernel
 		PageTable() = default;
 		uint64_t get_page_data(vaddr_t) const;
 		void initialize_kernel();
+		void map_kernel_memory();
+		void invalidate(vaddr_t);
 
 	private:
 		paddr_t						m_highest_paging_struct { 0 };
 		mutable RecursiveSpinLock	m_lock;
 	};
+
+	static constexpr size_t range_page_count(vaddr_t start, size_t bytes)
+	{
+		size_t first_page = start / PAGE_SIZE;
+		size_t last_page = BAN::Math::div_round_up<size_t>(start + bytes, PAGE_SIZE);
+		return last_page - first_page + 1;
+	}
 
 }

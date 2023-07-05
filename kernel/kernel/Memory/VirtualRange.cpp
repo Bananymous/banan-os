@@ -85,11 +85,9 @@ namespace Kernel
 		for (size_t i = 0; i < result->m_physical_pages.size(); i++)
 		{
 			m_page_table.map_page_at(result->m_physical_pages[i], 0, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
-			m_page_table.invalidate(0);
 			memcpy((void*)0, (void*)(vaddr() + i * PAGE_SIZE), PAGE_SIZE);
 		}
 		m_page_table.unmap_page(0);
-		m_page_table.invalidate(0);
 
 		m_page_table.unlock();
 
@@ -112,11 +110,9 @@ namespace Kernel
 		for (size_t i = 0; i < m_physical_pages.size(); i++)
 		{
 			page_table.map_page_at(m_physical_pages[i], 0, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
-			page_table.invalidate(0);
 			memset((void*)0, 0, PAGE_SIZE);
 		}
 		page_table.unmap_page(0);
-		page_table.invalidate(0);
 
 		page_table.unlock();
 	}
@@ -147,7 +143,6 @@ namespace Kernel
 
 		// NOTE: we map the first page separately since it needs extra calculations
 		page_table.map_page_at(m_physical_pages[i], 0, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
-		page_table.invalidate(0);
 
 		memcpy((void*)off, buffer, PAGE_SIZE - off);
 
@@ -160,7 +155,6 @@ namespace Kernel
 			size_t len = BAN::Math::min<size_t>(PAGE_SIZE, bytes);
 
 			page_table.map_page_at(m_physical_pages[i], 0, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
-			page_table.invalidate(0);
 
 			memcpy((void*)0, buffer, len);
 
@@ -169,7 +163,6 @@ namespace Kernel
 			i++;
 		}
 		page_table.unmap_page(0);
-		page_table.invalidate(0);
 
 		page_table.unlock();
 	}
