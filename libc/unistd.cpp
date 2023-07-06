@@ -273,6 +273,16 @@ int close(int fd)
 	return syscall(SYS_CLOSE, fd);
 }
 
+ssize_t read(int fildes, void* buf, size_t nbyte)
+{
+	return syscall(SYS_READ, fildes, buf, nbyte);
+}
+
+ssize_t write(int fildes, const void* buf, size_t nbyte)
+{
+	return syscall(SYS_WRITE, fildes, buf, nbyte);
+}
+
 int execl(const char* pathname, const char* arg0, ...)
 {
 	if (arg0 == nullptr)
