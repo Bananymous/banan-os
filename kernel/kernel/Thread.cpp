@@ -97,8 +97,6 @@ namespace Kernel
 		if (m_interrupt_stack)
 			delete m_interrupt_stack;
 		m_interrupt_stack = nullptr;
-		
-		dprintln("thread {} ({}) exit", tid(), m_process->pid());
 	}
 
 	BAN::ErrorOr<Thread*> Thread::clone(Process* new_process, uintptr_t rsp, uintptr_t rip)
