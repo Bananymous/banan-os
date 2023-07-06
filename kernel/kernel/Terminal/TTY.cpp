@@ -645,6 +645,8 @@ flush:
 		if (m_output.bytes == 0)
 			m_output.flush = false;
 
+		m_output.semaphore.unblock();
+
 		m_lock.unlock();
 
 		return to_copy;
