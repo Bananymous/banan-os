@@ -102,8 +102,6 @@ namespace Kernel
 		ASSERT(!m_general_allocator);
 		ASSERT(m_mapped_ranges.empty());
 		ASSERT(&PageTable::current() != m_page_table.ptr());
-
-		dprintln("process {} exit", pid());
 	}
 
 	void Process::add_thread(Thread* thread)
