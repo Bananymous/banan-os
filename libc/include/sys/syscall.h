@@ -39,6 +39,7 @@ __BEGIN_DECLS
 #define SYS_GET_PWD 32
 #define SYS_SET_PWD 33
 #define SYS_CLOCK_GETTIME 34
+#define SYS_PIPE 35
 
 __END_DECLS
 

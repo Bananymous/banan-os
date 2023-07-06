@@ -76,6 +76,7 @@ namespace Kernel
 		virtual dev_t rdev() const = 0;
 
 		virtual bool is_device() const { return false; }
+		virtual bool is_pipe() const { return false; }
 
 		virtual BAN::StringView name() const = 0;
 
