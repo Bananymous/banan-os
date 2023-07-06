@@ -135,6 +135,9 @@ namespace Kernel
 		case SYS_PIPE:
 			ret = Process::current().sys_pipe((int*)arg1);
 			break;
+		case SYS_DUP2:
+			ret = Process::current().sys_dup2((int)arg1, (int)arg2);
+			break;
 		default:
 			dwarnln("Unknown syscall {}", syscall);
 			break;

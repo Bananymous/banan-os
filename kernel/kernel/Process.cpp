@@ -135,8 +135,13 @@ namespace Kernel
 		}
 
 		m_threads.clear();
-		for (auto& open_fd : m_open_files)
-			open_fd.inode = nullptr;
+
+		for (int fd = 0; fd < (int)m_open_files.size(); fd++)
+		{
+			if (validate_fd(fd).is_error())
+				continue;
+			(void)sys_close(fd);
+		}
 
 		// NOTE: We must unmap ranges while the page table is still alive
 		for (auto* range : m_mapped_ranges)
@@ -622,6 +627,34 @@ namespace Kernel
 		openfd_write.path.clear();
 
 		return 0;
+	}
+
+	BAN::ErrorOr<long> Process::sys_dup2(int fildes, int fildes2)
+	{
+		// FIXME: m_open_files should be BAN::Array<BAN::RefPtr<OpenFileDescription>, OPEN_MAX> for accurate dup2
+
+		if (fildes2 < 0 || fildes2 >= 100)
+			return BAN::Error::from_errno(EBADF);
+
+		LockGuard _(m_lock);
+
+		TRY(validate_fd(fildes));
+		if (fildes == fildes2)
+			return fildes;
+
+		if (m_open_files.size() <= (size_t)fildes2)
+			TRY(m_open_files.resize(fildes2 + 1));
+		
+		if (!validate_fd(fildes2).is_error())
+			TRY(sys_close(fildes2));
+		
+		m_open_files[fildes2] = m_open_files[fildes];
+		m_open_files[fildes2].flags &= ~O_CLOEXEC;
+
+		if (m_open_files[fildes].flags & O_WRONLY && m_open_files[fildes].inode->is_pipe())
+			((Pipe*)m_open_files[fildes].inode.ptr())->clone_writing();
+
+		return fildes;
 	}
 
 	BAN::ErrorOr<long> Process::sys_seek(int fd, off_t offset, int whence)
