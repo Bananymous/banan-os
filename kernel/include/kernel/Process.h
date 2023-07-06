@@ -84,6 +84,8 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_write(int fd, const void* buffer, size_t count);
 		BAN::ErrorOr<long> sys_creat(BAN::StringView name, mode_t);
 
+		BAN::ErrorOr<long> sys_pipe(int fildes[2]);
+
 		BAN::ErrorOr<long> sys_seek(int fd, off_t offset, int whence);
 		BAN::ErrorOr<long> sys_tell(int fd);
 
@@ -136,6 +138,7 @@ namespace Kernel
 		BAN::ErrorOr<void> validate_fd(int);
 		OpenFileDescription& open_file_description(int);
 		BAN::ErrorOr<int> get_free_fd();
+		BAN::ErrorOr<void> get_free_fd_pair(int fds[2]);
 
 
 		struct ExitStatus

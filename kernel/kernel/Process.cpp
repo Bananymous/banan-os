@@ -1,5 +1,6 @@
 #include <BAN/StringView.h>
 #include <kernel/CriticalScope.h>
+#include <kernel/FS/Pipe.h>
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/LockGuard.h>
 #include <kernel/Memory/Heap.h>
@@ -277,6 +278,14 @@ namespace Kernel
 		forked->m_working_directory = m_working_directory;
 
 		forked->m_open_files = m_open_files;
+		for (int fd = 0; fd < (int)m_open_files.size(); fd++)
+		{
+			if (validate_fd(fd).is_error())
+				continue;
+			auto& openfd = open_file_description(fd);
+			if (openfd.flags & O_WRONLY && openfd.inode->is_pipe())
+				((Pipe*)openfd.inode.ptr())->clone_writing();
+		}
 
 		forked->m_userspace_info = m_userspace_info;
 
@@ -325,7 +334,7 @@ namespace Kernel
 
 		LockGuard lock_guard(m_lock);
 
-		for (int fd = 0; fd < m_open_files.size(); fd++)
+		for (int fd = 0; fd < (int)m_open_files.size(); fd++)
 		{
 			if (validate_fd(fd).is_error())
 				continue;
@@ -538,6 +547,8 @@ namespace Kernel
 		LockGuard _(m_lock);
 		TRY(validate_fd(fd));
 		auto& open_file_description = this->open_file_description(fd);
+		if (open_file_description.flags & O_WRONLY && open_file_description.inode->is_pipe())
+			((Pipe*)open_file_description.inode.ptr())->close_writing();
 		open_file_description.inode = nullptr;
 		return 0;
 	}
@@ -588,6 +599,29 @@ namespace Kernel
 		}
 
 		return nwrite;
+	}
+
+	BAN::ErrorOr<long> Process::sys_pipe(int fildes[2])
+	{
+		LockGuard _(m_lock);
+
+		auto pipe = TRY(Pipe::create(m_credentials));
+
+		TRY(get_free_fd_pair(fildes));
+
+		auto& openfd_read = m_open_files[fildes[0]];
+		openfd_read.inode = pipe;
+		openfd_read.flags = O_RDONLY;
+		openfd_read.offset = 0;
+		openfd_read.path.clear();
+
+		auto& openfd_write = m_open_files[fildes[1]];
+		openfd_write.inode = pipe;
+		openfd_write.flags = O_WRONLY;
+		openfd_write.offset = 0;
+		openfd_write.path.clear();
+
+		return 0;
 	}
 
 	BAN::ErrorOr<long> Process::sys_seek(int fd, off_t offset, int whence)
@@ -1087,6 +1121,29 @@ namespace Kernel
 				return fd;
 		TRY(m_open_files.push_back({}));
 		return m_open_files.size() - 1;
+	}
+
+	BAN::ErrorOr<void> Process::get_free_fd_pair(int fds[2])
+	{
+		ASSERT(m_lock.is_locked());
+		int found = 0;
+		for (size_t fd = 0; fd < m_open_files.size(); fd++)
+		{
+			if (!m_open_files[fd].inode)
+			{
+				fds[found++] = fd;
+				if (found >= 2)
+					return {};
+			}
+		}
+
+		while (found < 2)
+		{
+			TRY(m_open_files.push_back({}));
+			fds[found++] = m_open_files.size() - 1;
+		}
+
+		return {};
 	}
 
 }

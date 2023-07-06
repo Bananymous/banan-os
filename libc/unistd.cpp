@@ -251,6 +251,12 @@ long syscall(long syscall, ...)
 			ret = Kernel::syscall(SYS_CLOCK_GETTIME, clock_id, (uintptr_t)tp);
 			break;
 		}
+		case SYS_PIPE:
+		{
+			int* fildes = va_arg(args, int*);
+			ret = Kernel::syscall(SYS_PIPE, (uintptr_t)fildes);
+			break;
+		}
 		default:
 			puts("LibC: Unhandeled syscall");
 			ret = -ENOSYS;
@@ -363,6 +369,11 @@ int execve(const char* pathname, char* const argv[], char* const envp[])
 pid_t fork(void)
 {
 	return syscall(SYS_FORK);
+}
+
+int pipe(int fildes[2])
+{
+	return syscall(SYS_PIPE, fildes);
 }
 
 unsigned int sleep(unsigned int seconds)

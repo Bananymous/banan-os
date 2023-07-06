@@ -132,6 +132,9 @@ namespace Kernel
 		case SYS_CLOCK_GETTIME:
 			ret = Process::current().sys_clock_gettime((clockid_t)arg1, (timespec*)arg2);
 			break;
+		case SYS_PIPE:
+			ret = Process::current().sys_pipe((int*)arg1);
+			break;
 		default:
 			dwarnln("Unknown syscall {}", syscall);
 			break;
