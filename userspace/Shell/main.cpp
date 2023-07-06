@@ -359,6 +359,27 @@ void print_prompt()
 
 int main(int argc, char** argv)
 {
+	if (argc >= 2)
+	{
+		if (strcmp(argv[1], "-c") == 0)
+		{
+			if (argc == 2)
+			{
+				printf("-c requires an argument\n");
+				return 1;
+			}
+
+			BAN::String command;
+			MUST(command.append(argv[2]));
+
+			auto arguments = parse_command(command);
+			return execute_command(arguments);
+		}
+
+		printf("unknown argument '%s'\n", argv[1]);
+		return 1;
+	}
+
 	if (argc >= 1)
 		setenv("SHELL", argv[0], true);
 	setenv("PS1", "\e[32muser@host\e[m:\e[34m\\~\e[m$ ", false);
