@@ -325,6 +325,15 @@ namespace Kernel
 
 		LockGuard lock_guard(m_lock);
 
+		for (int fd = 0; fd < m_open_files.size(); fd++)
+		{
+			if (validate_fd(fd).is_error())
+				continue;
+			auto& file = open_file_description(fd);
+			if (file.flags & O_CLOEXEC)
+				MUST(sys_close(fd));
+		}
+
 		m_fixed_width_allocators.clear();
 		m_general_allocator.clear();
 
@@ -490,7 +499,7 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_open(BAN::StringView path, int flags)
 	{
-		if (flags & ~(O_RDONLY | O_WRONLY | O_NOFOLLOW | O_SEARCH))
+		if (flags & ~(O_RDONLY | O_WRONLY | O_NOFOLLOW | O_SEARCH | O_CLOEXEC))
 			return BAN::Error::from_errno(ENOTSUP);
 
 		BAN::String absolute_path = TRY(absolute_path_of(path));
