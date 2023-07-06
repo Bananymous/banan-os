@@ -11,11 +11,15 @@
 #include <termios.h>
 #include <unistd.h>
 
-#define ERROR_RETURN(msg) { perror(msg); return 1; }
+#define ERROR_RETURN(__msg, __ret) do { perror(__msg); return __ret; } while (false)
 
 struct termios old_termios, new_termios;
 
 extern char** environ;
+
+static const char* argv0 = nullptr;
+
+BAN::Vector<BAN::String> parse_command(BAN::StringView);
 
 BAN::Optional<BAN::String> parse_dollar(BAN::StringView command, size_t& i)
 {
@@ -64,7 +68,77 @@ BAN::Optional<BAN::String> parse_dollar(BAN::StringView command, size_t& i)
 	}
 	else if (command[i] == '(')
 	{
-		return {};
+		size_t len = 1;
+		int count = 1;
+		for (; i + len < command.size(); len++)
+		{
+			if (command[i + len] == '(')
+				count++;
+			if (command[i + len] == ')')
+				count--;
+			if (count == 0)
+				break;
+		}
+
+		if (count != 0)
+			return {};
+
+		BAN::String subcommand = command.substring(i + 1, len - 1);
+
+		char temp[3] { '-', 'c', '\0' };
+		BAN::Vector<char*> argv;
+		MUST(argv.push_back((char*)argv0));
+		MUST(argv.push_back(temp));
+		MUST(argv.push_back((char*)subcommand.data()));
+		MUST(argv.push_back(nullptr));
+
+		int fds[2];
+		if (pipe(fds) == -1)
+			ERROR_RETURN("pipe", {});
+
+		pid_t pid = fork();
+		if (pid == 0)
+		{
+			if (dup2(fds[1], STDOUT_FILENO) == -1)
+			{
+				perror("dup2");
+				exit(1);
+			}
+			close(fds[0]);
+			close(fds[1]);
+
+			execv(argv.front(), argv.data());
+			perror("execv");
+			exit(1);
+		}
+		if (pid == -1)
+			ERROR_RETURN("fork", {});
+
+		close(fds[1]);
+
+		char buffer[100];
+		BAN::String output;
+		while (ssize_t ret = read(fds[0], buffer, sizeof(buffer)))
+		{
+			if (ret == -1)
+			{
+				perror("read");
+				break;
+			}
+			MUST(output.append(BAN::StringView(buffer, ret)));
+		}
+
+		close(fds[0]);
+
+		int status;
+		if (waitpid(pid, &status, 0) == -1 && errno != ECHILD)
+			ERROR_RETURN("waitpid", {});
+
+		while (!output.empty() && output.back() == '\n')
+			output.pop_back();
+
+		i += len;
+		return output;
 	}
 
 	return "$"sv;
@@ -177,7 +251,7 @@ int execute_command(BAN::Vector<BAN::String>& args)
 				continue;
 
 			if (setenv(BAN::String(split[0]).data(), BAN::String(split[1]).data(), true) == -1)
-				ERROR_RETURN("setenv");
+				ERROR_RETURN("setenv", 1);
 		}
 	}
 	else if (args.front() == "env"sv)
@@ -207,7 +281,7 @@ int execute_command(BAN::Vector<BAN::String>& args)
 			path = args[1];
 
 		if (chdir(path.data()) == -1)
-			ERROR_RETURN("chdir");
+			ERROR_RETURN("chdir", 1);
 	}
 	else if (args.front() == "time"sv)
 	{
@@ -216,12 +290,12 @@ int execute_command(BAN::Vector<BAN::String>& args)
 		timespec start, end;
 
 		if (clock_gettime(CLOCK_MONOTONIC, &start) == -1)
-			ERROR_RETURN("clock_gettime");
+			ERROR_RETURN("clock_gettime", 1);
 
 		int ret = execute_command(args);
 
 		if (clock_gettime(CLOCK_MONOTONIC, &end) == -1)
-			ERROR_RETURN("clock_gettime");
+			ERROR_RETURN("clock_gettime", 1);
 		
 		uint64_t total_ns = 0;
 		total_ns += (end.tv_sec - start.tv_sec) * 1'000'000'000;
@@ -250,11 +324,11 @@ int execute_command(BAN::Vector<BAN::String>& args)
 			exit(1);
 		}
 		if (pid == -1)
-			ERROR_RETURN("fork");
+			ERROR_RETURN("fork", 1);
 
 		int status;
 		if (waitpid(pid, &status, 0) == -1)
-			ERROR_RETURN("waitpid");
+			ERROR_RETURN("waitpid", 1);
 
 		return status;
 	}
@@ -359,6 +433,8 @@ void print_prompt()
 
 int main(int argc, char** argv)
 {
+	argv0 = argv[0];
+
 	if (argc >= 2)
 	{
 		if (strcmp(argv[1], "-c") == 0)
