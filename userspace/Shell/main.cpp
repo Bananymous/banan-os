@@ -144,9 +144,8 @@ BAN::Vector<BAN::String> parse_command(BAN::StringView command)
 	return result;
 }
 
-int execute_command(BAN::StringView command)
+int execute_command(BAN::Vector<BAN::String>& args)
 {
-	auto args = parse_command(command);
 	if (args.empty())
 		return 0;
 	
@@ -202,24 +201,38 @@ int execute_command(BAN::StringView command)
 		if (chdir(path.data()) == -1)
 			ERROR_RETURN("chdir");
 	}
+	else if (args.front() == "time"sv)
+	{
+		args.remove(0);
+
+		timespec start, end;
+
+		if (clock_gettime(CLOCK_MONOTONIC, &start) == -1)
+			ERROR_RETURN("clock_gettime");
+
+		int ret = execute_command(args);
+
+		if (clock_gettime(CLOCK_MONOTONIC, &end) == -1)
+			ERROR_RETURN("clock_gettime");
+		
+		uint64_t total_ns = 0;
+		total_ns += (end.tv_sec - start.tv_sec) * 1'000'000'000;
+		total_ns += end.tv_nsec - start.tv_nsec;
+
+		int secs  =  total_ns / 1'000'000'000;
+		int msecs = (total_ns % 1'000'000'000) / 1'000'000;
+
+		printf("took %d.%03d s\n", secs, msecs);
+
+		return ret;
+	}
 	else
 	{
-		bool time = false;
-		if (args.front() == "time"sv)
-		{
-			args.remove(0);
-			time = true;
-		}
-
 		BAN::Vector<char*> cmd_args;
 		MUST(cmd_args.reserve(args.size() + 1));
 		for (const auto& arg : args)
 			MUST(cmd_args.push_back((char*)arg.data()));
 		MUST(cmd_args.push_back(nullptr));
-
-		timespec start;
-		if (time && clock_gettime(CLOCK_MONOTONIC, &start) == -1)
-			ERROR_RETURN("clock_gettime");
 
 		pid_t pid = fork();
 		if (pid == 0)
@@ -230,26 +243,10 @@ int execute_command(BAN::StringView command)
 		}
 		if (pid == -1)
 			ERROR_RETURN("fork");
+
 		int status;
 		if (waitpid(pid, &status, 0) == -1)
 			ERROR_RETURN("waitpid");
-
-		if (time)
-		{
-			timespec end;
-			if (clock_gettime(CLOCK_MONOTONIC, &end) == -1)
-				ERROR_RETURN("clock_gettime");
-
-			uint64_t total_ns = 0;
-			total_ns += (end.tv_sec - start.tv_sec) * 1'000'000'000;
-			total_ns += end.tv_nsec - start.tv_nsec;
-
-			printf(
-				"took %d.%03d s\n",
-				(int)( total_ns / 1'000'000'000),
-				(int)((total_ns % 1'000'000'000) / 1'000'000)
-			);
-		}
 
 		return status;
 	}
@@ -448,7 +445,8 @@ int main(int argc, char** argv)
 			if (!buffers[index].empty())
 			{
 				tcsetattr(0, TCSANOW, &old_termios);
-				execute_command(buffers[index]);
+				auto parsed_arguments = parse_command(buffers[index]);
+				execute_command(parsed_arguments);
 				tcsetattr(0, TCSANOW, &new_termios);
 				MUST(history.push_back(buffers[index]));
 				buffers = history;
