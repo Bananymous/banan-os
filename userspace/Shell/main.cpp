@@ -15,6 +15,8 @@
 
 struct termios old_termios, new_termios;
 
+extern char** environ;
+
 BAN::Optional<BAN::String> parse_dollar(BAN::StringView command, size_t& i)
 {
 	ASSERT(command[i] == '$');
@@ -177,6 +179,12 @@ int execute_command(BAN::Vector<BAN::String>& args)
 			if (setenv(BAN::String(split[0]).data(), BAN::String(split[1]).data(), true) == -1)
 				ERROR_RETURN("setenv");
 		}
+	}
+	else if (args.front() == "env"sv)
+	{
+		char** current = environ;
+		while (*current)
+			printf("%s\n", *current++);
 	}
 	else if (args.front() == "cd"sv)
 	{
