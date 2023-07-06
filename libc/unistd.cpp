@@ -257,6 +257,13 @@ long syscall(long syscall, ...)
 			ret = Kernel::syscall(SYS_PIPE, (uintptr_t)fildes);
 			break;
 		}
+		case SYS_DUP2:
+		{
+			int fildes = va_arg(args, int);
+			int fildes2 = va_arg(args, int);
+			ret = Kernel::syscall(SYS_DUP2, fildes, fildes2);
+			break;
+		}
 		default:
 			puts("LibC: Unhandeled syscall");
 			ret = -ENOSYS;
@@ -287,6 +294,11 @@ ssize_t read(int fildes, void* buf, size_t nbyte)
 ssize_t write(int fildes, const void* buf, size_t nbyte)
 {
 	return syscall(SYS_WRITE, fildes, buf, nbyte);
+}
+
+int dup2(int fildes, int fildes2)
+{
+	return syscall(SYS_DUP2, fildes, fildes2);
 }
 
 int execl(const char* pathname, const char* arg0, ...)
