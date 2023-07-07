@@ -1,0 +1,72 @@
+#pragma once
+
+#include <BAN/Array.h>
+#include <kernel/FS/Inode.h>
+
+#include <limits.h>
+#include <sys/stat.h>
+
+namespace Kernel
+{
+
+	class OpenFileDescriptorSet
+	{
+		BAN_NON_COPYABLE(OpenFileDescriptorSet);
+
+	public:
+		OpenFileDescriptorSet(const Credentials&);
+		~OpenFileDescriptorSet();
+
+		BAN::ErrorOr<void> clone_from(const OpenFileDescriptorSet&);
+
+		BAN::ErrorOr<int> open(BAN::StringView absolute_path, int flags);
+
+		BAN::ErrorOr<void> pipe(int fds[2]);
+
+		BAN::ErrorOr<int> dup2(int, int);
+
+		BAN::ErrorOr<void> seek(int fd, off_t offset, int whence);
+		BAN::ErrorOr<off_t> tell(int) const;
+
+		BAN::ErrorOr<void> fstat(int fd, struct stat*) const;
+
+		BAN::ErrorOr<void> close(int);
+		void close_all();
+		void close_cloexec();
+
+		BAN::ErrorOr<size_t> read(int fd, void* buffer, size_t count);
+		BAN::ErrorOr<size_t> write(int fd, const void* buffer, size_t count);
+
+		BAN::ErrorOr<void> read_dir_entries(int fd, DirectoryEntryList* list, size_t list_size);
+
+		BAN::ErrorOr<BAN::StringView> path_of(int) const;
+
+	private:
+		struct OpenFileDescription : public BAN::RefCounted<OpenFileDescription>
+		{
+			OpenFileDescription(BAN::RefPtr<Inode> inode, BAN::String path, off_t offset, uint8_t flags)
+				: inode(inode)
+				, path(BAN::move(path))
+				, offset(offset)
+				, flags(flags)
+			{ }
+
+			BAN::RefPtr<Inode> inode;
+			BAN::String path;
+			off_t offset { 0 };
+			uint8_t flags { 0 };
+
+			friend class BAN::RefPtr<OpenFileDescription>;
+		};
+
+		BAN::ErrorOr<void> validate_fd(int) const;
+		BAN::ErrorOr<int> get_free_fd() const;
+		BAN::ErrorOr<void> get_free_fd_pair(int fds[2]) const;
+
+	private:
+		const Credentials& m_credentials;
+
+		BAN::Array<BAN::RefPtr<OpenFileDescription>, OPEN_MAX> m_open_files;
+	};
+
+}

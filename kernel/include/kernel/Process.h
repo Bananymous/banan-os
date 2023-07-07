@@ -9,11 +9,11 @@
 #include <kernel/Memory/GeneralAllocator.h>
 #include <kernel/Memory/Heap.h>
 #include <kernel/Memory/VirtualRange.h>
+#include <kernel/OpenFileDescriptorSet.h>
 #include <kernel/SpinLock.h>
 #include <kernel/Terminal/TTY.h>
 #include <kernel/Thread.h>
 
-#include <sys/stat.h>
 #include <termios.h>
 
 namespace LibELF { class ELF; }
@@ -128,20 +128,6 @@ namespace Kernel
 		BAN::ErrorOr<BAN::String> absolute_path_of(BAN::StringView) const;
 
 	private:
-		struct OpenFileDescription
-		{
-			BAN::RefPtr<Inode> inode;
-			BAN::String path;
-			off_t offset { 0 };
-			uint8_t flags { 0 };
-		};
-
-		BAN::ErrorOr<void> validate_fd(int);
-		OpenFileDescription& open_file_description(int);
-		BAN::ErrorOr<int> get_free_fd();
-		BAN::ErrorOr<void> get_free_fd_pair(int fds[2]);
-
-
 		struct ExitStatus
 		{
 			Semaphore semaphore;
@@ -152,7 +138,8 @@ namespace Kernel
 
 		Credentials m_credentials;
 
-		BAN::Vector<OpenFileDescription> m_open_files;
+		OpenFileDescriptorSet m_open_file_descriptors;
+
 		BAN::Vector<VirtualRange*> m_mapped_ranges;
 
 		mutable RecursiveSpinLock m_lock;
