@@ -1,6 +1,5 @@
 #include <BAN/StringView.h>
 #include <kernel/CriticalScope.h>
-#include <kernel/FS/Pipe.h>
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/LockGuard.h>
 #include <kernel/Memory/Heap.h>
@@ -92,6 +91,7 @@ namespace Kernel
 
 	Process::Process(const Credentials& credentials, pid_t pid)
 		: m_credentials(credentials)
+		, m_open_file_descriptors(m_credentials)
 		, m_pid(pid)
 		, m_tty(TTY::current())
 	{ }
@@ -135,13 +135,7 @@ namespace Kernel
 		}
 
 		m_threads.clear();
-
-		for (int fd = 0; fd < (int)m_open_files.size(); fd++)
-		{
-			if (validate_fd(fd).is_error())
-				continue;
-			(void)sys_close(fd);
-		}
+		m_open_file_descriptors.close_all();
 
 		// NOTE: We must unmap ranges while the page table is still alive
 		for (auto* range : m_mapped_ranges)
@@ -282,15 +276,7 @@ namespace Kernel
 		forked->m_tty = m_tty;
 		forked->m_working_directory = m_working_directory;
 
-		forked->m_open_files = m_open_files;
-		for (int fd = 0; fd < (int)m_open_files.size(); fd++)
-		{
-			if (validate_fd(fd).is_error())
-				continue;
-			auto& openfd = open_file_description(fd);
-			if (openfd.flags & O_WRONLY && openfd.inode->is_pipe())
-				((Pipe*)openfd.inode.ptr())->clone_writing();
-		}
+		MUST(forked->m_open_file_descriptors.clone_from(m_open_file_descriptors));
 
 		forked->m_userspace_info = m_userspace_info;
 
@@ -339,14 +325,7 @@ namespace Kernel
 
 		LockGuard lock_guard(m_lock);
 
-		for (int fd = 0; fd < (int)m_open_files.size(); fd++)
-		{
-			if (validate_fd(fd).is_error())
-				continue;
-			auto& file = open_file_description(fd);
-			if (file.flags & O_CLOEXEC)
-				MUST(sys_close(fd));
-		}
+		m_open_file_descriptors.close_cloexec();
 
 		m_fixed_width_allocators.clear();
 		m_general_allocator.clear();
@@ -513,34 +492,17 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_open(BAN::StringView path, int flags)
 	{
-		if (flags & ~(O_RDONLY | O_WRONLY | O_NOFOLLOW | O_SEARCH | O_CLOEXEC))
-			return BAN::Error::from_errno(ENOTSUP);
-
-		BAN::String absolute_path = TRY(absolute_path_of(path));
-
-		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, flags));
-
 		LockGuard _(m_lock);
-		int fd = TRY(get_free_fd());
-		auto& open_file_description = m_open_files[fd];
-		open_file_description.inode = file.inode;
-		open_file_description.path = BAN::move(file.canonical_path);
-		open_file_description.offset = 0;
-		open_file_description.flags = flags;
-
-		return fd;
+		BAN::String absolute_path = TRY(absolute_path_of(path));
+		return TRY(m_open_file_descriptors.open(absolute_path, flags));
 	}
 
 	BAN::ErrorOr<long> Process::sys_openat(int fd, BAN::StringView path, int flags)
 	{
+		LockGuard _(m_lock);
+
 		BAN::String absolute_path;
-		
-		{
-			LockGuard _(m_lock);
-			TRY(validate_fd(fd));
-			TRY(absolute_path.append(open_file_description(fd).path));
-		}
-		
+		TRY(absolute_path.append(TRY(m_open_file_descriptors.path_of(fd))));
 		TRY(absolute_path.push_back('/'));
 		TRY(absolute_path.append(path));
 
@@ -550,149 +512,46 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_close(int fd)
 	{
 		LockGuard _(m_lock);
-		TRY(validate_fd(fd));
-		auto& open_file_description = this->open_file_description(fd);
-		if (open_file_description.flags & O_WRONLY && open_file_description.inode->is_pipe())
-			((Pipe*)open_file_description.inode.ptr())->close_writing();
-		open_file_description.inode = nullptr;
+		TRY(m_open_file_descriptors.close(fd));
 		return 0;
 	}
 
 	BAN::ErrorOr<long> Process::sys_read(int fd, void* buffer, size_t count)
 	{
-		OpenFileDescription open_fd_copy;
-
-		{
-			LockGuard _(m_lock);
-			TRY(validate_fd(fd));
-			open_fd_copy = open_file_description(fd);
-		}
-
-		if (!(open_fd_copy.flags & O_RDONLY))
-			return BAN::Error::from_errno(EBADF);
-
-		size_t nread = TRY(open_fd_copy.inode->read(open_fd_copy.offset, buffer, count));
-
-		{
-			LockGuard _(m_lock);
-			MUST(validate_fd(fd));
-			open_file_description(fd).offset += nread;
-		}
-
-		return nread;
+		LockGuard _(m_lock);
+		return TRY(m_open_file_descriptors.read(fd, buffer, count));
 	}
 
 	BAN::ErrorOr<long> Process::sys_write(int fd, const void* buffer, size_t count)
 	{
-		OpenFileDescription open_fd_copy;
-
-		{
-			LockGuard _(m_lock);
-			TRY(validate_fd(fd));
-			open_fd_copy = open_file_description(fd);
-		}
-
-		if (!(open_fd_copy.flags & O_WRONLY))
-			return BAN::Error::from_errno(EBADF);
-
-		size_t nwrite = TRY(open_fd_copy.inode->write(open_fd_copy.offset, buffer, count));
-
-		{
-			LockGuard _(m_lock);
-			MUST(validate_fd(fd));
-			open_file_description(fd).offset += nwrite;
-		}
-
-		return nwrite;
+		LockGuard _(m_lock);
+		return TRY(m_open_file_descriptors.write(fd, buffer, count));
 	}
 
 	BAN::ErrorOr<long> Process::sys_pipe(int fildes[2])
 	{
 		LockGuard _(m_lock);
-
-		auto pipe = TRY(Pipe::create(m_credentials));
-
-		TRY(get_free_fd_pair(fildes));
-
-		auto& openfd_read = m_open_files[fildes[0]];
-		openfd_read.inode = pipe;
-		openfd_read.flags = O_RDONLY;
-		openfd_read.offset = 0;
-		openfd_read.path.clear();
-
-		auto& openfd_write = m_open_files[fildes[1]];
-		openfd_write.inode = pipe;
-		openfd_write.flags = O_WRONLY;
-		openfd_write.offset = 0;
-		openfd_write.path.clear();
-
+		TRY(m_open_file_descriptors.pipe(fildes));
 		return 0;
 	}
 
 	BAN::ErrorOr<long> Process::sys_dup2(int fildes, int fildes2)
 	{
-		// FIXME: m_open_files should be BAN::Array<BAN::RefPtr<OpenFileDescription>, OPEN_MAX> for accurate dup2
-
-		if (fildes2 < 0 || fildes2 >= 100)
-			return BAN::Error::from_errno(EBADF);
-
 		LockGuard _(m_lock);
-
-		TRY(validate_fd(fildes));
-		if (fildes == fildes2)
-			return fildes;
-
-		if (m_open_files.size() <= (size_t)fildes2)
-			TRY(m_open_files.resize(fildes2 + 1));
-		
-		if (!validate_fd(fildes2).is_error())
-			TRY(sys_close(fildes2));
-		
-		m_open_files[fildes2] = m_open_files[fildes];
-		m_open_files[fildes2].flags &= ~O_CLOEXEC;
-
-		if (m_open_files[fildes].flags & O_WRONLY && m_open_files[fildes].inode->is_pipe())
-			((Pipe*)m_open_files[fildes].inode.ptr())->clone_writing();
-
-		return fildes;
+		return TRY(m_open_file_descriptors.dup2(fildes, fildes2));
 	}
 
 	BAN::ErrorOr<long> Process::sys_seek(int fd, off_t offset, int whence)
 	{
 		LockGuard _(m_lock);
-		TRY(validate_fd(fd));
-
-		auto& open_fd = open_file_description(fd);
-
-		off_t new_offset = 0;
-
-		switch (whence)
-		{
-			case SEEK_CUR:
-				new_offset = open_fd.offset + offset;
-				break;
-			case SEEK_END:
-				new_offset = open_fd.inode->size() - offset;
-				break;
-			case SEEK_SET:
-				new_offset = offset;
-				break;
-			default:
-				return BAN::Error::from_errno(EINVAL);
-		}
-
-		if (new_offset < 0)
-			return BAN::Error::from_errno(EINVAL);
-		open_fd.offset = new_offset;
-
+		TRY(m_open_file_descriptors.seek(fd, offset, whence));
 		return 0;
 	}
 
 	BAN::ErrorOr<long> Process::sys_tell(int fd)
 	{
 		LockGuard _(m_lock);
-		TRY(validate_fd(fd));
-		return open_file_description(fd).offset;
+		return TRY(m_open_file_descriptors.tell(fd));
 	}
 
 	BAN::ErrorOr<long> Process::sys_creat(BAN::StringView path, mode_t mode)
@@ -727,28 +586,8 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_fstat(int fd, struct stat* out)
 	{
-		OpenFileDescription open_fd_copy;
-
-		{
-			LockGuard _(m_lock);
-			TRY(validate_fd(fd));
-			open_fd_copy = open_file_description(fd);
-		}
-
-		out->st_dev		= open_fd_copy.inode->dev();
-		out->st_ino		= open_fd_copy.inode->ino();
-		out->st_mode	= open_fd_copy.inode->mode().mode;
-		out->st_nlink	= open_fd_copy.inode->nlink();
-		out->st_uid		= open_fd_copy.inode->uid();
-		out->st_gid		= open_fd_copy.inode->gid();
-		out->st_rdev	= open_fd_copy.inode->rdev();
-		out->st_size	= open_fd_copy.inode->size();
-		out->st_atim	= open_fd_copy.inode->atime();
-		out->st_mtim	= open_fd_copy.inode->mtime();
-		out->st_ctim	= open_fd_copy.inode->ctime();
-		out->st_blksize	= open_fd_copy.inode->blksize();
-		out->st_blocks	= open_fd_copy.inode->blocks();
-
+		LockGuard _(m_lock);
+		TRY(m_open_file_descriptors.fstat(fd, out));
 		return 0;
 	}
 
@@ -762,22 +601,8 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_read_dir_entries(int fd, DirectoryEntryList* list, size_t list_size)
 	{
-		OpenFileDescription open_fd_copy;
-
-		{
-			LockGuard _(m_lock);
-			TRY(validate_fd(fd));
-			open_fd_copy = open_file_description(fd);
-		}
-
-		TRY(open_fd_copy.inode->read_next_directory_entries(open_fd_copy.offset, list, list_size));
-
-		{
-			LockGuard _(m_lock);
-			MUST(validate_fd(fd));
-			open_file_description(fd).offset = open_fd_copy.offset + 1;
-		}
-
+		LockGuard _(m_lock);
+		TRY(m_open_file_descriptors.read_dir_entries(fd, list, list_size));
 		return 0;
 	}
 
@@ -1129,54 +954,6 @@ namespace Kernel
 		TRY(absolute_path.append(path));
 		
 		return absolute_path;
-	}
-
-	BAN::ErrorOr<void> Process::validate_fd(int fd)
-	{
-		ASSERT(m_lock.is_locked());
-		if (fd < 0 || m_open_files.size() <= (size_t)fd || !m_open_files[fd].inode)
-			return BAN::Error::from_errno(EBADF);
-		return {};
-	}
-
-	Process::OpenFileDescription& Process::open_file_description(int fd)
-	{
-		ASSERT(m_lock.is_locked());
-		MUST(validate_fd(fd));
-		return m_open_files[fd];
-	}
-
-	BAN::ErrorOr<int> Process::get_free_fd()
-	{
-		ASSERT(m_lock.is_locked());
-		for (size_t fd = 0; fd < m_open_files.size(); fd++)
-			if (!m_open_files[fd].inode)
-				return fd;
-		TRY(m_open_files.push_back({}));
-		return m_open_files.size() - 1;
-	}
-
-	BAN::ErrorOr<void> Process::get_free_fd_pair(int fds[2])
-	{
-		ASSERT(m_lock.is_locked());
-		int found = 0;
-		for (size_t fd = 0; fd < m_open_files.size(); fd++)
-		{
-			if (!m_open_files[fd].inode)
-			{
-				fds[found++] = fd;
-				if (found >= 2)
-					return {};
-			}
-		}
-
-		while (found < 2)
-		{
-			TRY(m_open_files.push_back({}));
-			fds[found++] = m_open_files.size() - 1;
-		}
-
-		return {};
 	}
 
 }

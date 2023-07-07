@@ -33,6 +33,7 @@ set(KERNEL_SOURCES
 	kernel/Memory/kmalloc.cpp
 	kernel/Memory/PhysicalRange.cpp
 	kernel/Memory/VirtualRange.cpp
+	kernel/OpenFileDescriptorSet.cpp
 	kernel/Panic.cpp
 	kernel/PCI.cpp
 	kernel/PIC.cpp
