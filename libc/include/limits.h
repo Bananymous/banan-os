@@ -11,6 +11,8 @@ __BEGIN_DECLS
 //        glibc seems to only define numerical
 //        and posix constants
 
+#define OPEN_MAX 64
+
 __END_DECLS
 
 #endif
