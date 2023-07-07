@@ -577,8 +577,8 @@ namespace Kernel
 		BAN::String absolute_source, absolute_target;
 		{
 			LockGuard _(m_lock);
-			absolute_source = TRY(absolute_path_of(source));
-			absolute_target = TRY(absolute_path_of(target));
+			TRY(absolute_source.append(TRY(absolute_path_of(source))));
+			TRY(absolute_target.append(TRY(absolute_path_of(target))));
 		}
 		TRY(VirtualFileSystem::get().mount(m_credentials, absolute_source, absolute_target));
 		return {};
@@ -593,6 +593,7 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_stat(BAN::StringView path, struct stat* out, int flags)
 	{
+		LockGuard _(m_lock);
 		int fd = TRY(sys_open(path, flags));
 		auto ret = sys_fstat(fd, out);
 		MUST(sys_close(fd));
@@ -935,18 +936,14 @@ namespace Kernel
 
 	BAN::ErrorOr<BAN::String> Process::absolute_path_of(BAN::StringView path) const
 	{
+		ASSERT(m_lock.is_locked());
+
 		if (path.empty() || path == "."sv)
-		{
-			LockGuard _(m_lock);
 			return m_working_directory;
-		}
 
 		BAN::String absolute_path;
 		if (path.front() != '/')
-		{
-			LockGuard _(m_lock);
 			TRY(absolute_path.append(m_working_directory));
-		}
 
 		if (!absolute_path.empty() && absolute_path.back() != '/')
 			TRY(absolute_path.push_back('/'));
