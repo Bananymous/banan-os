@@ -33,6 +33,13 @@ namespace Kernel
 		return IO::inl(CONFIG_DATA);
 	}
 
+	static void write_config_dword(uint8_t bus, uint8_t dev, uint8_t func, uint8_t offset, uint32_t value)
+	{
+		uint32_t config_addr = 0x80000000 | ((uint32_t)bus << 16) | ((uint32_t)dev << 11) | ((uint32_t)func << 8) | offset;
+		IO::outl(CONFIG_ADDRESS, config_addr);
+		IO::outl(CONFIG_DATA, value);
+	}
+
 	static uint16_t get_vendor_id(uint8_t bus, uint8_t dev, uint8_t func)
 	{
 		uint32_t dword = read_config_dword(bus, dev, func, 0x00);
@@ -110,6 +117,43 @@ namespace Kernel
 	{
 		uint32_t dword = read_config_dword(m_bus, m_dev, m_func, offset & 0xFC);
 		return (uint8_t)(dword >> (8 * (offset & 0x03)));
+	}
+
+	void PCIDevice::write_dword(uint8_t offset, uint32_t value) const
+	{
+		ASSERT((offset & 0x03) == 0);
+		write_config_dword(m_bus, m_dev, m_func, offset, value);
+	}
+
+	void PCIDevice::enable_bus_mastering() const
+	{
+		write_dword(0x04, read_dword(0x04) | 1u << 2);
+	}
+
+	void PCIDevice::disable_bus_mastering() const
+	{
+		write_dword(0x04, read_dword(0x04) & ~(1u << 2));
+
+	}
+
+	void PCIDevice::enable_memory_space() const
+	{
+		write_dword(0x04, read_dword(0x04) | 1u << 1);
+	}
+
+	void PCIDevice::disable_memory_space() const
+	{
+		write_dword(0x04, read_dword(0x04) & ~(1u << 1));
+	}
+
+	void PCIDevice::enable_pin_interrupts() const
+	{
+		write_dword(0x04, read_dword(0x04) | 1u << 10);
+	}
+
+	void PCIDevice::disable_pin_interrupts() const
+	{
+		write_dword(0x04, read_dword(0x04) & ~(1u << 10));
 	}
 
 }

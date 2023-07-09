@@ -14,6 +14,8 @@ namespace Kernel
 		uint16_t read_word(uint8_t) const;
 		uint8_t  read_byte(uint8_t) const;
 
+		void write_dword(uint8_t, uint32_t) const;
+
 		uint8_t bus() const { return m_bus; }
 		uint8_t dev() const { return m_dev; }
 		uint8_t func() const { return m_func; }
@@ -21,6 +23,15 @@ namespace Kernel
 		uint8_t class_code() const { return m_class_code; }
 		uint8_t subclass() const { return m_subclass; }
 		uint8_t prog_if() const { return m_prog_if; }
+
+		void enable_bus_mastering() const;
+		void disable_bus_mastering() const;
+
+		void enable_memory_space() const;
+		void disable_memory_space() const;
+
+		void enable_pin_interrupts() const;
+		void disable_pin_interrupts() const;
 
 	private:
 		uint8_t m_bus;
