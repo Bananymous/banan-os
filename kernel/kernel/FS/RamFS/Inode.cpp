@@ -57,18 +57,17 @@ namespace Kernel
 	BAN::ErrorOr<size_t> RamInode::write(size_t offset, const void* buffer, size_t bytes)
 	{
 		if (offset + bytes > (size_t)size())
-		{
-			TRY(m_data.resize(offset + bytes));
-			if (offset > (size_t)size())
-				memset(m_data.data() + offset, 0, offset - size());
-			
-			m_inode_info.size   = m_data.size();
-			m_inode_info.blocks = BAN::Math::div_round_up<size_t>(size(), blksize());
-		}
-
+			TRY(truncate(offset + bytes));
 		memcpy(m_data.data() + offset, buffer, bytes);
-
 		return bytes;
+	}
+
+	BAN::ErrorOr<void> RamInode::truncate(size_t new_size)
+	{
+		TRY(m_data.resize(new_size, 0));
+		m_inode_info.size   = m_data.size();
+		m_inode_info.blocks = BAN::Math::div_round_up<size_t>(size(), blksize());
+		return {};
 	}
 
 	/*

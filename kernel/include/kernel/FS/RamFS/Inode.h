@@ -33,6 +33,8 @@ namespace Kernel
 		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t) override;
 		virtual BAN::ErrorOr<size_t> write(size_t, const void*, size_t)	override;
 
+		virtual BAN::ErrorOr<void> truncate(size_t) override;
+
 		void add_link() { m_inode_info.nlink++; }
 
 	protected:
