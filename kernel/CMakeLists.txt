@@ -21,6 +21,8 @@ set(KERNEL_SOURCES
 	kernel/FS/Ext2.cpp
 	kernel/FS/Inode.cpp
 	kernel/FS/Pipe.cpp
+	kernel/FS/RamFS/FileSystem.cpp
+	kernel/FS/RamFS/Inode.cpp
 	kernel/FS/VirtualFileSystem.cpp
 	kernel/Input/PS2Controller.cpp
 	kernel/Input/PS2Keyboard.cpp
