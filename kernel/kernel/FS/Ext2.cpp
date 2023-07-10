@@ -291,6 +291,16 @@ namespace Kernel
 		return n_read;
 	}
 
+	BAN::ErrorOr<size_t> Ext2Inode::write(size_t offset, const void* buffer, size_t count)
+	{
+		(void)offset;
+		(void)buffer;
+		(void)count;
+		if (mode().ifdir())
+			return BAN::Error::from_errno(EISDIR);
+		return BAN::Error::from_errno(ENOTSUP);
+	}
+
 	BAN::ErrorOr<void> Ext2Inode::directory_read_next_entries(off_t offset, DirectoryEntryList* list, size_t list_size)
 	{
 		if (!mode().ifdir())
