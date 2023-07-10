@@ -567,7 +567,7 @@ namespace Kernel
 		auto file_name = absolute_path.sv().substring(index);
 
 		auto parent_file = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, directory, O_WRONLY));
-		TRY(parent_file.inode->create_file(file_name, mode));
+		TRY(parent_file.inode->create_file(file_name, mode, m_credentials.euid(), m_credentials.egid()));
 
 		return 0;
 	}

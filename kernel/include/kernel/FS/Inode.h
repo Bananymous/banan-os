@@ -88,7 +88,7 @@ namespace Kernel
 		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t)		{ if (mode().ifdir()) return BAN::Error::from_errno(EISDIR); ASSERT_NOT_REACHED(); }
 		virtual BAN::ErrorOr<size_t> write(size_t, const void*, size_t)	{ if (mode().ifdir()) return BAN::Error::from_errno(EISDIR); ASSERT_NOT_REACHED(); }
 
-		virtual BAN::ErrorOr<void> create_file(BAN::StringView, mode_t)	{ if (!mode().ifdir()) return BAN::Error::from_errno(ENOTDIR); ASSERT_NOT_REACHED(); }
+		virtual BAN::ErrorOr<void> create_file(BAN::StringView, mode_t, uid_t, gid_t) { if (!mode().ifdir()) return BAN::Error::from_errno(ENOTDIR); ASSERT_NOT_REACHED(); }
 	};
 
 }

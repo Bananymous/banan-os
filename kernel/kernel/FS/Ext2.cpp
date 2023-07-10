@@ -356,7 +356,7 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<void> Ext2Inode::create_file(BAN::StringView name, mode_t mode)
+	BAN::ErrorOr<void> Ext2Inode::create_file(BAN::StringView name, mode_t mode, uid_t uid, gid_t gid)
 	{
 		if (!this->mode().ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
@@ -378,13 +378,13 @@ namespace Kernel
 
 		Ext2::Inode ext2_inode;
 		ext2_inode.mode			= mode;
-		ext2_inode.uid			= 0;
+		ext2_inode.uid			= uid;
 		ext2_inode.size			= 0;
 		ext2_inode.atime 		= current_time;
 		ext2_inode.ctime 		= current_time;
 		ext2_inode.mtime 		= current_time;
 		ext2_inode.dtime 		= current_time;
-		ext2_inode.gid			= 0;
+		ext2_inode.gid			= gid;
 		ext2_inode.links_count	= 1;
 		ext2_inode.blocks		= 0;
 		ext2_inode.flags		= 0;

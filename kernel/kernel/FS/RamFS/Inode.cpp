@@ -153,8 +153,12 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<void> RamDirectoryInode::create_file(BAN::StringView, mode_t)
+	BAN::ErrorOr<void> RamDirectoryInode::create_file(BAN::StringView name, mode_t mode, uid_t uid, gid_t gid)
 	{
+		(void)name;
+		(void)mode;
+		(void)uid;
+		(void)gid;
 		ASSERT_NOT_REACHED();
 	}
 

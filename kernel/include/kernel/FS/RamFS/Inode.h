@@ -70,7 +70,7 @@ namespace Kernel
 
 		virtual BAN::ErrorOr<BAN::RefPtr<Inode>> directory_find_inode(BAN::StringView) override;
 		virtual BAN::ErrorOr<void> directory_read_next_entries(off_t, DirectoryEntryList*, size_t) override;
-		virtual BAN::ErrorOr<void> create_file(BAN::StringView, mode_t)	override;
+		virtual BAN::ErrorOr<void> create_file(BAN::StringView, mode_t, uid_t, gid_t) override;
 
 	private:
 		RamDirectoryInode(RamFileSystem&, ino_t parent, mode_t, uid_t, gid_t);

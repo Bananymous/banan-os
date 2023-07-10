@@ -146,7 +146,7 @@ namespace Kernel
 
 		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t) override;
 
-		virtual BAN::ErrorOr<void> create_file(BAN::StringView, mode_t) override;
+		virtual BAN::ErrorOr<void> create_file(BAN::StringView, mode_t, uid_t, gid_t) override;
 
 	private:
 		BAN::ErrorOr<uint32_t> data_block_index(uint32_t);
