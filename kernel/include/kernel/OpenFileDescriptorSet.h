@@ -44,7 +44,7 @@ namespace Kernel
 	private:
 		struct OpenFileDescription : public BAN::RefCounted<OpenFileDescription>
 		{
-			OpenFileDescription(BAN::RefPtr<Inode> inode, BAN::String path, off_t offset, uint8_t flags)
+			OpenFileDescription(BAN::RefPtr<Inode> inode, BAN::String path, off_t offset, int flags)
 				: inode(inode)
 				, path(BAN::move(path))
 				, offset(offset)
@@ -54,7 +54,7 @@ namespace Kernel
 			BAN::RefPtr<Inode> inode;
 			BAN::String path;
 			off_t offset { 0 };
-			uint8_t flags { 0 };
+			int flags { 0 };
 
 			friend class BAN::RefPtr<OpenFileDescription>;
 		};
