@@ -59,7 +59,7 @@ namespace Kernel
 
 		bool can_access(const Credentials&, int);
 
-		bool operator==(const Inode& other) const { return dev() == other.dev() && rdev() == other.rdev() && ino() == other.ino(); }
+		bool operator==(const Inode& other) const { return dev() == other.dev() && ino() == other.ino(); }
 
 		virtual ino_t ino() const = 0;
 		virtual Mode mode() const = 0;
