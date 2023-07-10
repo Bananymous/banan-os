@@ -11,6 +11,7 @@ set(USERSPACE_PROJECTS
 	Shell
 	tee
 	test
+	touch
 	u8sum
 	yes
 )
