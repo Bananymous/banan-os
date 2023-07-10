@@ -145,6 +145,7 @@ namespace Kernel
 		virtual BAN::ErrorOr<BAN::RefPtr<Inode>> directory_find_inode(BAN::StringView) override;
 
 		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t) override;
+		virtual BAN::ErrorOr<size_t> write(size_t, const void*, size_t) override;
 
 		virtual BAN::ErrorOr<void> create_file(BAN::StringView, mode_t, uid_t, gid_t) override;
 
