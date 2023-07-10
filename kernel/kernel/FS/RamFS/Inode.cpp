@@ -43,6 +43,34 @@ namespace Kernel
 		m_inode_info.rdev = 0;
 	}
 
+	BAN::ErrorOr<size_t> RamInode::read(size_t offset, void* buffer, size_t bytes)
+	{
+		if (offset >= (size_t)size())
+			return 0;
+
+		size_t to_copy = BAN::Math::min<size_t>(m_inode_info.size - offset, bytes);
+		memcpy(buffer, m_data.data(), to_copy);
+
+		return to_copy;
+	}
+
+	BAN::ErrorOr<size_t> RamInode::write(size_t offset, const void* buffer, size_t bytes)
+	{
+		if (offset + bytes > (size_t)size())
+		{
+			TRY(m_data.resize(offset + bytes));
+			if (offset > (size_t)size())
+				memset(m_data.data() + offset, 0, offset - size());
+			
+			m_inode_info.size   = m_data.size();
+			m_inode_info.blocks = BAN::Math::div_round_up<size_t>(size(), blksize());
+		}
+
+		memcpy(m_data.data() + offset, buffer, bytes);
+
+		return bytes;
+	}
+
 	/*
 	
 		RAM DIRECTORY INODE
@@ -100,8 +128,6 @@ namespace Kernel
 			}
 		}
 
-		sizeof(Entry);
-
 		return BAN::Error::from_errno(ENOENT);
 	}
 
@@ -155,11 +181,34 @@ namespace Kernel
 
 	BAN::ErrorOr<void> RamDirectoryInode::create_file(BAN::StringView name, mode_t mode, uid_t uid, gid_t gid)
 	{
-		(void)name;
-		(void)mode;
-		(void)uid;
-		(void)gid;
-		ASSERT_NOT_REACHED();
+		if (name.size() > m_name_max)
+			return BAN::Error::from_errno(ENAMETOOLONG);
+		
+		for (auto& entry : m_entries)
+			if (name == entry.name)
+				return BAN::Error::from_errno(EEXIST);
+
+		BAN::RefPtr<RamInode> inode;
+		if (Mode{ mode }.ifreg())
+			inode = TRY(RamInode::create(m_fs, mode, uid, gid));
+		else if (Mode{ mode }.ifdir())
+			inode = TRY(RamDirectoryInode::create(m_fs, ino(), mode, uid, gid));
+		else
+			ASSERT_NOT_REACHED();
+
+		TRY(m_entries.push_back({ }));
+		Entry& entry = m_entries.back();
+		strcpy(entry.name, name.data());
+		entry.name_len = name.size();
+		entry.ino = inode->ino();
+
+		if (auto ret = m_fs.add_inode(inode); ret.is_error())
+		{
+			m_entries.pop_back();
+			return ret.release_error();
+		}
+
+		return {};
 	}
 
 }
