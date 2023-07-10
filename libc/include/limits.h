@@ -12,6 +12,7 @@ __BEGIN_DECLS
 //        and posix constants
 
 #define OPEN_MAX 64
+#define NAME_MAX 255
 
 __END_DECLS
 
