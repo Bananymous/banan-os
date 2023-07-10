@@ -9,10 +9,7 @@ namespace Kernel
 	class ATADevice final : public StorageDevice
 	{
 	public:
-		ATADevice(ATABus* bus)
-			: m_bus(bus)
-			, m_rdev(makedev(DeviceManager::get().get_next_rdev(), 0))
-		{ }
+		ATADevice(ATABus&);
 		BAN::ErrorOr<void> initialize(ATABus::DeviceType, const uint16_t*);
 
 		virtual uint32_t sector_size() const override { return m_sector_words * 2; }
@@ -25,7 +22,7 @@ namespace Kernel
 		virtual BAN::ErrorOr<void> write_sectors_impl(uint64_t, uint8_t, const uint8_t*) override;
 
 	private:
-		ATABus* m_bus;
+		ATABus& m_bus;
 		uint8_t m_index;
 
 		ATABus::DeviceType m_type;
@@ -44,13 +41,10 @@ namespace Kernel
 		virtual gid_t gid() const override { return 0; }
 		virtual dev_t rdev() const override { return m_rdev; }
 
-		virtual BAN::StringView name() const override { return BAN::StringView(m_device_name, sizeof(m_device_name) - 1); }
-
 		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t) override;
 
 	public:
 		const dev_t m_rdev;
-		char m_device_name[4] {};
 	};
 
 }

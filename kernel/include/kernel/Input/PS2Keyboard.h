@@ -60,13 +60,10 @@ namespace Kernel::Input
 		Semaphore m_semaphore;
 
 	public:
-		virtual BAN::StringView name() const override { return m_name; }
 		virtual dev_t rdev() const override { return m_rdev; }
-
 		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t) override;
 
 	private:
-		const BAN::String m_name;
 		const dev_t m_rdev;
 	};
 

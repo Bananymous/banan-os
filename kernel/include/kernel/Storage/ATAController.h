@@ -1,6 +1,5 @@
 #pragma once
 
-#include <kernel/DeviceManager.h>
 #include <kernel/PCI.h>
 #include <kernel/SpinLock.h>
 #include <kernel/Storage/StorageController.h>
@@ -13,16 +12,12 @@ namespace Kernel
 	class ATAController final : public StorageController
 	{
 	public:
-		static BAN::ErrorOr<ATAController*> create(const PCIDevice&);
+		static BAN::ErrorOr<BAN::RefPtr<ATAController>> create(const PCIDevice&);
 
-		virtual BAN::Vector<StorageDevice*> devices() override;
-
-		uint8_t next_device_index() const;
+		virtual BAN::Vector<BAN::RefPtr<StorageDevice>> devices() override;
 
 	private:
-		ATAController()
-			: m_rdev(makedev(DeviceManager::get().get_next_rdev(), 0))
-		{ }
+		ATAController();
 		BAN::ErrorOr<void> initialize(const PCIDevice& device);
 
 	private:
@@ -34,8 +29,6 @@ namespace Kernel
 		virtual uid_t uid() const override { return 0; }
 		virtual gid_t gid() const override { return 0; }
 		virtual dev_t rdev() const override { return m_rdev; }
-
-		virtual BAN::StringView name() const override { return "hd"sv; }
 
 		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t) { return BAN::Error::from_errno(ENOTSUP); }
 	

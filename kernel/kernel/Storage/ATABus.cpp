@@ -44,7 +44,7 @@ namespace Kernel
 		ASSERT_NOT_REACHED();
 	}
 
-	ATABus* ATABus::create(ATAController* controller, uint16_t base, uint16_t ctrl, uint8_t irq)
+	ATABus* ATABus::create(ATAController& controller, uint16_t base, uint16_t ctrl, uint8_t irq)
 	{
 		ATABus* bus = new ATABus(controller, base, ctrl);
 		ASSERT(bus);
@@ -62,17 +62,20 @@ namespace Kernel
 
 		for (uint8_t i = 0; i < 2; i++)
 		{
-			m_devices[i] = new ATADevice(this);
-			ATADevice* device = m_devices[i];
-			ASSERT(device);
+			{
+				auto* temp_ptr = new ATADevice(*this);
+				ASSERT(temp_ptr);
+				m_devices[i] = BAN::RefPtr<ATADevice>::adopt(temp_ptr);
+			}
+			ATADevice& device = *m_devices[i];
 
-			BAN::ScopeGuard guard([this, i] { m_devices[i]->unref(); m_devices[i] = nullptr; });
+			BAN::ScopeGuard guard([this, i] { m_devices[i] = nullptr; });
 
 			auto type = identify(device, identify_buffer);
 			if (type == DeviceType::None)
 				continue;
 
-			auto res = device->initialize(type, identify_buffer);
+			auto res = device.initialize(type, identify_buffer);
 			if (res.is_error())
 			{
 				dprintln("{}", res.error());
@@ -87,19 +90,19 @@ namespace Kernel
 		{
 			if (!m_devices[i])
 				continue;
-			select_device(m_devices[i]);
+			select_device(*m_devices[i]);
 			io_write(ATA_PORT_CONTROL, 0);
 		}
 	}
 
-	void ATABus::select_device(const ATADevice* device)
+	void ATABus::select_device(const ATADevice& device)
 	{
 		uint8_t device_index = this->device_index(device);
 		io_write(ATA_PORT_DRIVE_SELECT, 0xA0 | (device_index << 4));
 		PIT::sleep(1);
 	}
 
-	ATABus::DeviceType ATABus::identify(const ATADevice* device, uint16_t* buffer)
+	ATABus::DeviceType ATABus::identify(const ATADevice& device, uint16_t* buffer)
 	{
 		select_device(device);
 
@@ -242,15 +245,15 @@ namespace Kernel
 		return BAN::Error::from_error_code(ErrorCode::None);
 	}
 
-	uint8_t ATABus::device_index(const ATADevice* device) const
+	uint8_t ATABus::device_index(const ATADevice& device) const
 	{
-		ASSERT(device == m_devices[0] || device == m_devices[1]);
-		return (device == m_devices[0]) ? 0 : 1;	
+		ASSERT(&device == m_devices[0].ptr() || &device == m_devices[1].ptr());
+		return (&device == m_devices[0].ptr()) ? 0 : 1;
 	}
 
-	BAN::ErrorOr<void> ATABus::read(ATADevice* device, uint64_t lba, uint8_t sector_count, uint8_t* buffer)
+	BAN::ErrorOr<void> ATABus::read(ATADevice& device, uint64_t lba, uint8_t sector_count, uint8_t* buffer)
 	{
-		if (lba + sector_count > device->m_lba_count)
+		if (lba + sector_count > device.m_lba_count)
 			return BAN::Error::from_error_code(ErrorCode::Storage_Boundaries);
 
 		LockGuard _(m_lock);
@@ -268,7 +271,7 @@ namespace Kernel
 			for (uint32_t sector = 0; sector < sector_count; sector++)
 			{
 				block_until_irq();
-				read_buffer(ATA_PORT_DATA, (uint16_t*)buffer + sector * device->m_sector_words, device->m_sector_words);
+				read_buffer(ATA_PORT_DATA, (uint16_t*)buffer + sector * device.m_sector_words, device.m_sector_words);
 			}
 		}
 		else
@@ -280,9 +283,9 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<void> ATABus::write(ATADevice* device, uint64_t lba, uint8_t sector_count, const uint8_t* buffer)
+	BAN::ErrorOr<void> ATABus::write(ATADevice& device, uint64_t lba, uint8_t sector_count, const uint8_t* buffer)
 	{
-		if (lba + sector_count > device->m_lba_count)
+		if (lba + sector_count > device.m_lba_count)
 			return BAN::Error::from_error_code(ErrorCode::Storage_Boundaries);
 
 		LockGuard _(m_lock);
@@ -301,7 +304,7 @@ namespace Kernel
 
 			for (uint32_t sector = 0; sector < sector_count; sector++)
 			{
-				write_buffer(ATA_PORT_DATA, (uint16_t*)buffer + sector * device->m_sector_words, device->m_sector_words);
+				write_buffer(ATA_PORT_DATA, (uint16_t*)buffer + sector * device.m_sector_words, device.m_sector_words);
 				block_until_irq();
 			}
 		}

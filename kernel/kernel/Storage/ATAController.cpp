@@ -1,14 +1,17 @@
 #include <BAN/ScopeGuard.h>
+#include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/LockGuard.h>
 #include <kernel/Storage/ATABus.h>
 #include <kernel/Storage/ATAController.h>
 #include <kernel/Storage/ATADefinitions.h>
 #include <kernel/Storage/ATADevice.h>
 
+#include <sys/sysmacros.h>
+
 namespace Kernel
 {
 
-	BAN::ErrorOr<ATAController*> ATAController::create(const PCIDevice& device)
+	BAN::ErrorOr<BAN::RefPtr<ATAController>> ATAController::create(const PCIDevice& device)
 	{
 		ATAController* controller = new ATAController();
 		if (controller == nullptr)
@@ -16,8 +19,41 @@ namespace Kernel
 		BAN::ScopeGuard guard([controller] { controller->unref(); });
 		TRY(controller->initialize(device));
 		guard.disable();
-		return controller;
+
+		auto ref_ptr = BAN::RefPtr<ATAController>::adopt(controller);
+
+		DevFileSystem::get().add_device("hd"sv, ref_ptr);
+
+		auto devices = controller->devices();
+		for (size_t i = 0; i < devices.size(); i++)
+		{
+			char device_name[4] { 'h', 'd', 'a', '\0' };
+			device_name[2] += i;
+
+			DevFileSystem::get().add_device(device_name, devices[i]);
+
+			if (auto res = devices[i]->initialize_partitions(); res.is_error())
+				dprintln("{}", res.error());
+			else
+			{
+				char partition_name[5] { 'h', 'd', 'a', '1', '\0' };
+				partition_name[2] += i;
+
+				auto& partitions = devices[i]->partitions();
+				for (size_t j = 0; j < partitions.size(); j++)
+				{
+					partition_name[3] += j;
+					DevFileSystem::get().add_device(partition_name, partitions[j]);
+				}
+			}
+		}
+
+		return ref_ptr;
 	}
+
+	ATAController::ATAController()
+		: m_rdev(makedev(DevFileSystem::get().get_next_rdev(), 0))
+	{ }
 
 	BAN::ErrorOr<void> ATAController::initialize(const PCIDevice& pci_device)
 	{
@@ -48,21 +84,15 @@ namespace Kernel
 			return BAN::Error::from_error_code(ErrorCode::ATA_UnsupportedDevice);
 		}
 
-		m_buses[0] = ATABus::create(this, buses[0].base, buses[0].ctrl, 14);
-		m_buses[1] = ATABus::create(this, buses[1].base, buses[1].ctrl, 15);
+		m_buses[0] = ATABus::create(*this, buses[0].base, buses[0].ctrl, 14);
+		m_buses[1] = ATABus::create(*this, buses[1].base, buses[1].ctrl, 15);
 
 		return {};
 	}
 
-	uint8_t ATAController::next_device_index() const
+	BAN::Vector<BAN::RefPtr<StorageDevice>> ATAController::devices()
 	{
-		static uint8_t index = 0;
-		return index++;
-	}
-
-	BAN::Vector<StorageDevice*> ATAController::devices()
-	{
-		BAN::Vector<StorageDevice*> devices;
+		BAN::Vector<BAN::RefPtr<StorageDevice>> devices;
 		if (m_buses[0]->m_devices[0])
 			MUST(devices.push_back(m_buses[0]->m_devices[0]));
 		if (m_buses[0]->m_devices[1])

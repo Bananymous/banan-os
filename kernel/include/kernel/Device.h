@@ -1,53 +1,41 @@
 #pragma once
 
-#include <kernel/DeviceManager.h>
+#include <kernel/FS/RamFS/Inode.h>
 
 namespace Kernel
 {
 
-	class Device : public Inode
+	class Device : public RamInode
 	{
 	public:
-		Device();
-		virtual ~Device() {}
+		Device(mode_t, uid_t, gid_t);
+		virtual ~Device() = default;
 		virtual void update() {}
 
 		virtual bool is_device() const override { return true; }
-
 		virtual bool is_partition() const { return false; }
 
-		virtual ino_t ino() const override { return m_ino_t; }
-		virtual nlink_t nlink() const override { return 1; }
-		virtual off_t size() const override { return 0; }
-		virtual timespec atime() const override { return m_create_time; }
-		virtual timespec mtime() const override { return m_create_time; }
-		virtual timespec ctime() const override { return m_create_time; }
-		virtual blksize_t blksize() const override { return DeviceManager::get().blksize(); }
-		virtual blkcnt_t blocks() const override { return DeviceManager::get().blocks(); }
-		virtual dev_t dev() const override { return DeviceManager::get().dev(); }
-
-		/*
-		a device has to overload
-		virtual Mode mode() const;
-		virtual uid_t uid() const;
-		virtual gid_t gid() const;
-		virtual dev_t rdev() const;
-		virtual BAN::StringView name() const;
-		*/
-
-	private:
-		const timespec m_create_time;
-		const ino_t m_ino_t;
+		virtual dev_t rdev() const override = 0;
 	};
 
 	class BlockDevice : public Device
 	{
 	public:
+		BlockDevice(mode_t mode, uid_t uid, gid_t gid)
+			: Device(Mode::IFBLK | mode, uid, gid)
+		{
+			ASSERT(Device::mode().ifblk());
+		}
 	};
 
 	class CharacterDevice : public Device
 	{
 	public:
+		CharacterDevice(mode_t mode, uid_t uid, gid_t gid)
+			: Device(Mode::IFCHR | mode, uid, gid)
+		{
+			ASSERT(Device::mode().ifchr());
+		}
 	};
 
 }

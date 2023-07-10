@@ -2,12 +2,14 @@
 #include <BAN/ScopeGuard.h>
 #include <BAN/UTF8.h>
 #include <kernel/Debug.h>
+#include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/LockGuard.h>
 #include <kernel/Process.h>
 #include <kernel/Terminal/TTY.h>
 
 #include <fcntl.h>
 #include <string.h>
+#include <sys/sysmacros.h>
 
 #define BEL	0x07
 #define BS	0x08
@@ -26,7 +28,7 @@ namespace Kernel
 
 	static dev_t next_tty_rdev()
 	{
-		static dev_t major = DeviceManager::get().get_next_rdev();
+		static dev_t major = DevFileSystem::get().get_next_rdev();
 		static dev_t minor = 1;
 		return makedev(major, minor++);
 	}
@@ -34,7 +36,8 @@ namespace Kernel
 	static TTY* s_tty = nullptr;
 
 	TTY::TTY(TerminalDriver* driver)
-		: m_terminal_driver(driver)
+		: CharacterDevice(0444, 0, 0)
+		, m_terminal_driver(driver)
 	{
 		m_width = m_terminal_driver->width();
 		m_height = m_terminal_driver->height();
@@ -54,8 +57,12 @@ namespace Kernel
 	void TTY::initialize_device()
 	{
 		m_rdev = next_tty_rdev();
-		m_name = BAN::String::formatted("tty{}", minor(m_rdev));
-		DeviceManager::get().add_device(this);
+
+		char name[5] { 't', 't', 'y', '1', '\0'};
+		name[3] += minor(m_rdev);
+		ASSERT(minor(m_rdev) < 10);
+
+		DevFileSystem::get().add_device(name, this);
 
 		if (s_input_process)
 			return;

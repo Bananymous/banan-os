@@ -137,8 +137,6 @@ namespace Kernel
 		virtual dev_t dev() const override { return 0; }
 		virtual dev_t rdev() const override { return 0; }
 
-		virtual BAN::StringView name() const override { return m_name; }
-
 		virtual BAN::ErrorOr<BAN::String> link_target() override;
 		
 		virtual BAN::ErrorOr<void> directory_read_next_entries(off_t, DirectoryEntryList*, size_t) override;

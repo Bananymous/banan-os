@@ -8,7 +8,10 @@ namespace Kernel
 	class StorageController : public CharacterDevice
 	{
 	public:
-		virtual BAN::Vector<StorageDevice*> devices() = 0;
+		StorageController()
+			: CharacterDevice(0660, 0, 0)
+		{ }
+		virtual BAN::Vector<BAN::RefPtr<StorageDevice>> devices() = 0;
 	};
 
 }

@@ -60,6 +60,7 @@ namespace Kernel
 		void check_device(uint8_t bus, uint8_t dev);
 		void check_bus(uint8_t bus);
 		void check_all_buses();
+		void initialize_devices();
 
 	private:
 		BAN::Vector<PCIDevice> m_devices;

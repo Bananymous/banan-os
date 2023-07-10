@@ -12,9 +12,9 @@ namespace Kernel::Input
 		virtual void on_byte(uint8_t) = 0;
 		
 	public:
-		virtual Mode mode() const override { return { Mode::IFCHR | Mode::IRUSR | Mode::IRGRP }; }
-		virtual uid_t uid() const override { return 0; }
-		virtual gid_t gid() const override { return 0; }
+		PS2Device()
+			: CharacterDevice(Mode::IRUSR | Mode::IRGRP, 0, 0)
+		{ }
 	};
 
 	class PS2Controller

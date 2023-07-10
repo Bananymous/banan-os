@@ -48,20 +48,20 @@ namespace Kernel
 		virtual Mode mode() const override { return { Mode::IFBLK | Mode::IRUSR | Mode::IRGRP }; }
 		virtual uid_t uid() const override { return 0; }
 		virtual gid_t gid() const override { return 0; }
-		virtual dev_t rdev() const override;
-
-		virtual BAN::StringView name() const override { return m_device_name; }
+		virtual dev_t rdev() const override { return m_rdev; }
 
 		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t) override;
-
+	
 	private:
-		const uint32_t m_index;
-		BAN::String m_device_name;
+		const dev_t m_rdev;
 	};
 
 	class StorageDevice : public BlockDevice
 	{
 	public:
+		StorageDevice()
+			: BlockDevice(0660, 0, 0)
+		{ }
 		virtual ~StorageDevice();
 
 		BAN::ErrorOr<void> initialize_partitions();
@@ -74,7 +74,7 @@ namespace Kernel
 
 		BAN::Vector<Partition*>& partitions() { return m_partitions; }
 		const BAN::Vector<Partition*>& partitions() const { return m_partitions; }
-	
+
 	protected:
 		virtual BAN::ErrorOr<void> read_sectors_impl(uint64_t lba, uint8_t sector_count, uint8_t* buffer) = 0;
 		virtual BAN::ErrorOr<void> write_sectors_impl(uint64_t lba, uint8_t sector_count, const uint8_t* buffer) = 0;
