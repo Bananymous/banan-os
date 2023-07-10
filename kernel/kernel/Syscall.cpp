@@ -49,10 +49,10 @@ namespace Kernel
 			ret = Process::current().sys_close((int)arg1);
 			break;
 		case SYS_OPEN:
-			ret = Process::current().sys_open((const char*)arg1, (int)arg2);
+			ret = Process::current().sys_open((const char*)arg1, (int)arg2, (mode_t)arg3);
 			break;
 		case SYS_OPENAT:
-			ret = Process::current().sys_openat((int)arg1, (const char*)arg2, (int)arg3);
+			ret = Process::current().sys_openat((int)arg1, (const char*)arg2, (int)arg3, (mode_t)arg4);
 			break;
 		case SYS_ALLOC:
 			ret = Process::current().sys_alloc((size_t)arg1);
