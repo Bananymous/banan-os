@@ -11,6 +11,7 @@
 
 #include <fcntl.h>
 #include <stdio.h>
+#include <sys/sysmacros.h>
 
 namespace Kernel
 {
@@ -749,8 +750,9 @@ namespace Kernel
 		LockGuard _(m_lock);
 		if (m_tty == nullptr)
 			buffer[0] = '\0';
-		strcpy(buffer, "/dev/");
-		strcpy(buffer + 5, m_tty->name().data());
+		ASSERT(minor(m_tty->rdev()) < 10);
+		strcpy(buffer, "/dev/tty1");
+		buffer[8] += minor(m_tty->rdev());
 		return 0;
 	}
 

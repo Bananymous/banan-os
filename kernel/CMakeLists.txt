@@ -15,9 +15,9 @@ set(KERNEL_SOURCES
 	kernel/CPUID.cpp
 	kernel/Debug.cpp
 	kernel/Device.cpp
-	kernel/DeviceManager.cpp
 	kernel/Errors.cpp
 	kernel/Font.cpp
+	kernel/FS/DevFS/FileSystem.cpp
 	kernel/FS/Ext2.cpp
 	kernel/FS/Inode.cpp
 	kernel/FS/Pipe.cpp

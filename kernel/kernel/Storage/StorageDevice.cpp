@@ -7,6 +7,8 @@
 #include <kernel/PCI.h>
 #include <kernel/Storage/StorageDevice.h>
 
+#include <sys/sysmacros.h>
+
 #define ATA_DEVICE_PRIMARY		0x1F0
 #define ATA_DEVICE_SECONDARY	0x170
 #define ATA_DEVICE_SLAVE_BIT	0x10
@@ -199,21 +201,16 @@ namespace Kernel
 	}
 
 	Partition::Partition(StorageDevice& device, const GUID& type, const GUID& guid, uint64_t start, uint64_t end, uint64_t attr, const char* label, uint32_t index)
-		: m_device(device)
+		: BlockDevice(0660, 0, 0)
+		, m_device(device)
 		, m_type(type)
 		, m_guid(guid)
 		, m_lba_start(start)
 		, m_lba_end(end)
 		, m_attributes(attr)
-		, m_index(index)
-		, m_device_name(BAN::String::formatted("{}{}", m_device.name(), index))
+		, m_rdev(makedev(major(device.rdev()), index))
 	{
 		memcpy(m_label, label, sizeof(m_label));
-	}
-
-	dev_t Partition::rdev() const
-	{
-		return makedev(major(m_device.rdev()), m_index);
 	}
 
 	BAN::ErrorOr<void> Partition::read_sectors(uint64_t lba, uint8_t sector_count, uint8_t* buffer)

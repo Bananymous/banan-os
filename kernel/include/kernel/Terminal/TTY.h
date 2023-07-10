@@ -113,11 +113,9 @@ namespace Kernel
 		virtual uid_t uid() const override { return 0; }
 		virtual gid_t gid() const override { return 0; }
 		virtual dev_t rdev() const override { return m_rdev; }
-		virtual BAN::StringView name() const { return m_name; }
 
 	private:
 		dev_t m_rdev;
-		BAN::String m_name;
 	};
 
 }

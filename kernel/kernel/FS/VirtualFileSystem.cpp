@@ -1,6 +1,6 @@
 #include <BAN/ScopeGuard.h>
 #include <BAN/StringView.h>
-#include <kernel/DeviceManager.h>
+#include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/FS/Ext2.h>
 #include <kernel/FS/RamFS/FileSystem.h>
 #include <kernel/FS/RamFS/Inode.h>
@@ -22,13 +22,11 @@ namespace Kernel
 		ASSERT(root.size() >= 5 && root.substring(0, 5) == "/dev/"sv);;
 		root = root.substring(5);
 
-		auto partition_inode = MUST(DeviceManager::get().directory_find_inode(root));
+		auto partition_inode = MUST(DevFileSystem::get().root_inode()->directory_find_inode(root));
 		s_instance->m_root_fs = MUST(Ext2FS::create(*(Partition*)partition_inode.ptr()));
 
 		Credentials root_creds { 0, 0, 0, 0 };
-
-		DeviceManager::get().set_blksize(s_instance->m_root_fs->root_inode()->blksize());
-		MUST(s_instance->mount(root_creds, &DeviceManager::get(), "/dev"));
+		MUST(s_instance->mount(root_creds, &DevFileSystem::get(), "/dev"));
 
 		mode_t tmpfs_mode = Inode::Mode::IFDIR
 			 | Inode::Mode::IRUSR | Inode::Mode::IWUSR | Inode::Mode::IXUSR

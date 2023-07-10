@@ -1,5 +1,6 @@
 #include <kernel/IO.h>
 #include <kernel/PCI.h>
+#include <kernel/Storage/ATAController.h>
 
 #define INVALID 0xFFFF
 #define MULTI_FUNCTION 0x80
@@ -18,6 +19,7 @@ namespace Kernel
 		s_instance = new PCI();
 		ASSERT(s_instance);
 		s_instance->check_all_buses();
+		s_instance->initialize_devices();
 	}
 
 	PCI& PCI::get()
@@ -88,6 +90,32 @@ namespace Kernel
 		else
 		{
 			check_bus(0);
+		}
+	}
+
+	void PCI::initialize_devices()
+	{
+		for (const auto& pci_device : PCI::get().devices())
+		{
+			switch (pci_device.class_code())
+			{
+				case 0x01:
+				{
+					switch (pci_device.subclass())
+					{
+						case 0x01:
+							if (auto res = ATAController::create(pci_device); res.is_error())
+								dprintln("{}", res.error());
+							break;
+						default:
+							dprintln("unsupported storage device (pci {2H}.{2H}.{2H})", pci_device.class_code(), pci_device.subclass(), pci_device.prog_if());
+							break;
+					}
+					break;
+				}
+				default:
+					break;
+			}
 		}
 	}
 

@@ -1,7 +1,7 @@
 #include <kernel/ACPI.h>
 #include <kernel/Arch.h>
 #include <kernel/Debug.h>
-#include <kernel/DeviceManager.h>
+#include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/GDT.h>
 #include <kernel/IDT.h>
@@ -140,15 +140,15 @@ extern "C" void kernel_main()
 	ASSERT(terminal_driver);
 	dprintln("VESA initialized");
 
+	DevFileSystem::initialize();
+	dprintln("devfs initialized");
+
 	TTY* tty1 = new TTY(terminal_driver);
 	ASSERT(tty1);
 	dprintln("TTY initialized");
 
 	parse_command_line();
 	dprintln("command line parsed, root='{}'", cmdline.root);
-
-	PCI::initialize();
-	dprintln("PCI initialized");
 
 	MUST(ACPI::initialize());
 	dprintln("ACPI initialized");
@@ -160,6 +160,8 @@ extern "C" void kernel_main()
 	dprintln("PIT initialized");
 
 	MUST(Scheduler::initialize());
+	dprintln("Scheduler initialized");
+
 	Scheduler& scheduler = Scheduler::get();
 	Process::create_kernel(init2, tty1);
 	scheduler.start();
@@ -172,9 +174,13 @@ static void init2(void* tty1)
 	using namespace Kernel;
 	using namespace Kernel::Input;
 
-	DeviceManager::get().initialize_pci_devices();
-	DeviceManager::get().initialize_updater();
+	dprintln("Scheduler started");
 
+	DevFileSystem::get().initialize_device_updater();
+
+	PCI::initialize();
+	dprintln("PCI initialized");
+	
 	VirtualFileSystem::initialize(cmdline.root);
 
 	if (auto res = PS2Controller::initialize(); res.is_error())

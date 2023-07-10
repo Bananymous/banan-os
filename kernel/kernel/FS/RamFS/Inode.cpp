@@ -180,13 +180,6 @@ namespace Kernel
 
 	BAN::ErrorOr<void> RamDirectoryInode::create_file(BAN::StringView name, mode_t mode, uid_t uid, gid_t gid)
 	{
-		if (name.size() > m_name_max)
-			return BAN::Error::from_errno(ENAMETOOLONG);
-		
-		for (auto& entry : m_entries)
-			if (name == entry.name)
-				return BAN::Error::from_errno(EEXIST);
-
 		BAN::RefPtr<RamInode> inode;
 		if (Mode{ mode }.ifreg())
 			inode = TRY(RamInode::create(m_fs, mode, uid, gid));
@@ -195,6 +188,20 @@ namespace Kernel
 		else
 			ASSERT_NOT_REACHED();
 
+		TRY(add_inode(name, inode));
+
+		return {};
+	}
+
+	BAN::ErrorOr<void> RamDirectoryInode::add_inode(BAN::StringView name, BAN::RefPtr<RamInode> inode)
+	{
+		if (name.size() > m_name_max)
+			return BAN::Error::from_errno(ENAMETOOLONG);
+		
+		for (auto& entry : m_entries)
+			if (name == entry.name)
+				return BAN::Error::from_errno(EEXIST);
+		
 		TRY(m_entries.push_back({ }));
 		Entry& entry = m_entries.back();
 		strcpy(entry.name, name.data());

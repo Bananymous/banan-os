@@ -12,6 +12,7 @@ namespace Kernel
 	class RamInode : public Inode
 	{
 	public:
+		static BAN::ErrorOr<BAN::RefPtr<RamInode>> create(RamFileSystem&, mode_t, uid_t, gid_t);
 		virtual ~RamInode() = default;
 	
 		virtual ino_t		ino()		const override { return m_inode_info.ino; }
@@ -28,8 +29,6 @@ namespace Kernel
 		virtual dev_t		dev()		const override { return m_inode_info.dev; }
 		virtual dev_t		rdev()		const override { return m_inode_info.rdev; }
 
-		virtual BAN::StringView name() const override { ASSERT_NOT_REACHED(); }
-
 		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t) override;
 		virtual BAN::ErrorOr<size_t> write(size_t, const void*, size_t)	override;
 
@@ -39,7 +38,6 @@ namespace Kernel
 
 	protected:
 		RamInode(RamFileSystem& fs, mode_t, uid_t, gid_t);
-		static BAN::ErrorOr<BAN::RefPtr<RamInode>> create(RamFileSystem&, mode_t, uid_t, gid_t);
 
 	protected:
 		struct FullInodeInfo
@@ -71,15 +69,17 @@ namespace Kernel
 	class RamDirectoryInode final : public RamInode
 	{
 	public:
+		static BAN::ErrorOr<BAN::RefPtr<RamDirectoryInode>> create(RamFileSystem&, ino_t parent, mode_t, uid_t, gid_t);
 		~RamDirectoryInode() = default;
 
 		virtual BAN::ErrorOr<BAN::RefPtr<Inode>> directory_find_inode(BAN::StringView) override;
 		virtual BAN::ErrorOr<void> directory_read_next_entries(off_t, DirectoryEntryList*, size_t) override;
 		virtual BAN::ErrorOr<void> create_file(BAN::StringView, mode_t, uid_t, gid_t) override;
+		
+		BAN::ErrorOr<void> add_inode(BAN::StringView, BAN::RefPtr<RamInode>);
 
 	private:
 		RamDirectoryInode(RamFileSystem&, ino_t parent, mode_t, uid_t, gid_t);
-		static BAN::ErrorOr<BAN::RefPtr<RamDirectoryInode>> create(RamFileSystem&, ino_t parent, mode_t, uid_t, gid_t);
 	
 	private:
 		static constexpr size_t m_name_max = NAME_MAX;

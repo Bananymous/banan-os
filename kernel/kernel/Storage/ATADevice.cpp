@@ -1,10 +1,18 @@
+#include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/IO.h>
 #include <kernel/Storage/ATABus.h>
 #include <kernel/Storage/ATADefinitions.h>
 #include <kernel/Storage/ATADevice.h>
 
+#include <sys/sysmacros.h>
+
 namespace Kernel
 {
+
+	ATADevice::ATADevice(ATABus& bus)
+		: m_bus(bus)
+		, m_rdev(makedev(DevFileSystem::get().get_next_rdev(), 0))
+	{ }
 
 	BAN::ErrorOr<void> ATADevice::initialize(ATABus::DeviceType type, const uint16_t* identify_buffer)
 	{
@@ -45,13 +53,7 @@ namespace Kernel
 		}
 		m_model[40] = 0;
 
-		m_index = m_bus->controller()->next_device_index();
-		m_device_name[0] = 'h';
-		m_device_name[1] = 'd';
-		m_device_name[2] = 'a' + m_index;
-		m_device_name[3] = '\0';
-
-		dprintln("{} {} MB", m_device_name, total_size() / 1024 / 1024);
+		dprintln("ATA disk {} MB", total_size() / 1024 / 1024);
 
 		add_disk_cache();
 
@@ -60,13 +62,13 @@ namespace Kernel
 
 	BAN::ErrorOr<void> ATADevice::read_sectors_impl(uint64_t lba, uint8_t sector_count, uint8_t* buffer)
 	{
-		TRY(m_bus->read(this, lba, sector_count, buffer));
+		TRY(m_bus.read(*this, lba, sector_count, buffer));
 		return {};
 	}
 
 	BAN::ErrorOr<void> ATADevice::write_sectors_impl(uint64_t lba, uint8_t sector_count, const uint8_t* buffer)
 	{
-		TRY(m_bus->write(this, lba, sector_count, buffer));
+		TRY(m_bus.write(*this, lba, sector_count, buffer));
 		return {};
 	}
 

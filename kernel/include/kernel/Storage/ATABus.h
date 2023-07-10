@@ -20,28 +20,28 @@ namespace Kernel
 		};
 
 	public:
-		static ATABus* create(ATAController*, uint16_t base, uint16_t ctrl, uint8_t irq);
+		static ATABus* create(ATAController&, uint16_t base, uint16_t ctrl, uint8_t irq);
 
-		BAN::ErrorOr<void> read(ATADevice*, uint64_t, uint8_t, uint8_t*);
-		BAN::ErrorOr<void> write(ATADevice*, uint64_t, uint8_t, const uint8_t*);
+		BAN::ErrorOr<void> read(ATADevice&, uint64_t, uint8_t, uint8_t*);
+		BAN::ErrorOr<void> write(ATADevice&, uint64_t, uint8_t, const uint8_t*);
 
-		ATAController* controller() { return m_controller; }
+		ATAController& controller() { return m_controller; }
 
 		void on_irq();
 
 	private:
-		ATABus(ATAController* controller, uint16_t base, uint16_t ctrl)
+		ATABus(ATAController& controller, uint16_t base, uint16_t ctrl)
 			: m_controller(controller)
 			, m_base(base)
 			, m_ctrl(ctrl)
 		{}
 		void initialize(uint8_t irq);
 
-		void select_device(const ATADevice*);
-		DeviceType identify(const ATADevice*, uint16_t*);
+		void select_device(const ATADevice&);
+		DeviceType identify(const ATADevice&, uint16_t*);
 
 		void block_until_irq();
-		uint8_t device_index(const ATADevice*) const;
+		uint8_t device_index(const ATADevice&) const;
 
 		uint8_t io_read(uint16_t);
 		void io_write(uint16_t, uint8_t);
@@ -51,14 +51,14 @@ namespace Kernel
 		BAN::Error error();
 
 	private:
-		ATAController* m_controller;
+		ATAController& m_controller;
 		const uint16_t m_base;
 		const uint16_t m_ctrl;
 		SpinLock m_lock;
 
 		bool m_has_got_irq { false };
 
-		ATADevice* m_devices[2] { nullptr, nullptr };
+		BAN::RefPtr<ATADevice> m_devices[2] {};
 
 		friend class ATAController;
 	};

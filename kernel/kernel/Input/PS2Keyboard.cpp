@@ -1,6 +1,9 @@
 #include <BAN/ScopeGuard.h>
 #include <kernel/CriticalScope.h>
+#include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/Input/PS2Keyboard.h>
+
+#include <sys/sysmacros.h>
 
 #define SET_MASK(byte, mask, on_off) ((on_off) ? ((byte) | (mask)) : ((byte) & ~(mask)))
 #define TOGGLE_MASK(byte, mask) ((byte) ^ (mask))
@@ -50,8 +53,7 @@ namespace Kernel::Input
 
 	PS2Keyboard::PS2Keyboard(PS2Controller& controller)
 		: m_controller(controller)
-		, m_name(BAN::String::formatted("input{}", DeviceManager::get().get_next_input_dev()))
-		, m_rdev(makedev(DeviceManager::get().get_next_rdev(), 0))
+		, m_rdev(makedev(DevFileSystem::get().get_next_rdev(), 0))
 	{ }
 
 	void PS2Keyboard::on_byte(uint8_t byte)

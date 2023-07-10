@@ -78,8 +78,6 @@ namespace Kernel
 		virtual bool is_device() const { return false; }
 		virtual bool is_pipe() const { return false; }
 
-		virtual BAN::StringView name() const = 0;
-
 		virtual BAN::ErrorOr<BAN::String> link_target() { ASSERT_NOT_REACHED(); }
 
 		virtual BAN::ErrorOr<BAN::RefPtr<Inode>> directory_find_inode(BAN::StringView)				{ if (!mode().ifdir()) return BAN::Error::from_errno(ENOTDIR); ASSERT_NOT_REACHED(); }

@@ -1,6 +1,6 @@
 #include <BAN/ScopeGuard.h>
 #include <kernel/ACPI.h>
-#include <kernel/DeviceManager.h>
+#include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/IDT.h>
 #include <kernel/Input/PS2Controller.h>
 #include <kernel/Input/PS2Keyboard.h>
@@ -258,14 +258,14 @@ namespace Kernel::Input
 			IDT::register_irq_handler(PS2::IRQ::DEVICE0, device0_irq);
 			InterruptController::get().enable_irq(PS2::IRQ::DEVICE0);
 			config |= PS2::Config::INTERRUPT_FIRST_PORT;
-			DeviceManager::get().add_device(m_devices[0]);
+			DevFileSystem::get().add_device("input0", m_devices[0]);
 		}
 		if (m_devices[1])
 		{
 			IDT::register_irq_handler(PS2::IRQ::DEVICE1, device1_irq);
 			InterruptController::get().enable_irq(PS2::IRQ::DEVICE1);
 			config |= PS2::Config::INTERRUPT_SECOND_PORT;
-			DeviceManager::get().add_device(m_devices[1]);
+			DevFileSystem::get().add_device("input1", m_devices[1]);
 		}
 
 		controller_send_command(PS2::Command::WRITE_CONFIG, config);
