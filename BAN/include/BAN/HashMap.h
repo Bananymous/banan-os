@@ -7,13 +7,30 @@
 namespace BAN
 {
 
+	template<typename Container>
+	class HashMapIterator;
+
 	template<typename Key, typename T, typename HASH = BAN::hash<Key>>
 	class HashMap
 	{
 	public:
+		struct Entry
+		{
+			template<typename... Args>
+			Entry(const Key& key, Args&&... args)
+				: key(key)
+				, value(forward<Args>(args)...)
+			{}
+
+			Key key;
+			T value;
+		};
+
+	public:
 		using size_type = size_t;
 		using key_type = Key;
 		using value_type = T;
+		using iterator = HashMapIterator<HashMap>;
 
 	public:
 		HashMap() = default;
@@ -29,6 +46,9 @@ namespace BAN
 		template<typename... Args>
 		ErrorOr<void> emplace(const Key&, Args&&...);
 
+		iterator begin() { return iterator(m_buckets, m_buckets.begin()); }
+		iterator end()   { return iterator(m_buckets, m_buckets.end()); }
+
 		ErrorOr<void> reserve(size_type);
 
 		void remove(const Key&);
@@ -43,19 +63,6 @@ namespace BAN
 		size_type size() const;
 
 	private:
-		struct Entry
-		{
-			template<typename... Args>
-			Entry(const Key& key, Args&&... args)
-				: key(key)
-				, value(forward<Args>(args)...)
-			{}
-
-			Key key;
-			T value;
-		};
-
-	private:
 		ErrorOr<void> rebucket(size_type);
 		LinkedList<Entry>& get_bucket(const Key&);
 		const LinkedList<Entry>& get_bucket(const Key&) const;
@@ -63,6 +70,101 @@ namespace BAN
 	private:
 		Vector<LinkedList<Entry>> m_buckets;
 		size_type m_size = 0;
+
+		friend iterator;
+	};
+
+	template<typename Container>
+	class HashMapIterator
+	{
+	public:
+		using KeyValue = typename Container::Entry;
+
+	public:
+		HashMapIterator() = default;
+
+		const KeyValue& operator*() const
+		{
+			ASSERT(*this);
+			ASSERT(!at_end());
+			return *m_entry_iterator;
+		}
+		KeyValue& operator*()
+		{
+			ASSERT(*this);
+			ASSERT(!at_end());
+			return *m_entry_iterator;
+		}
+
+		HashMapIterator& operator++()
+		{
+			ASSERT(*this);
+			ASSERT(!at_end());
+			++m_entry_iterator;
+			while (m_entry_iterator == m_bucket_iterator->end())
+			{
+				++m_bucket_iterator;
+				if (m_bucket_iterator == m_container.end())
+				{
+					m_entry_iterator = {};
+					break;
+				}
+				m_entry_iterator = m_bucket_iterator->begin();
+			}
+			return *this;
+		}
+
+		HashMapIterator operator++(int)
+		{
+			auto temp = *this;
+			++(*this);
+			return temp;
+		}
+
+		bool operator==(const HashMapIterator& other) const
+		{
+			if (&m_container != &other.m_container)
+				return false;
+			if (m_bucket_iterator != other.m_bucket_iterator)
+				return false;
+			if (m_bucket_iterator == m_container.end())
+				return true;
+			if (m_entry_iterator && other.m_entry_iterator)
+				return m_entry_iterator == other.m_entry_iterator;
+			if (!m_entry_iterator && !other.m_entry_iterator)
+				return true;
+			return false;
+		}
+		bool operator!=(const HashMapIterator& other) const
+		{
+			return !(*this == other);
+		}
+
+		operator bool() const
+		{
+			return m_bucket_iterator && m_entry_iterator;
+		}
+
+	private:
+		HashMapIterator(Vector<LinkedList<KeyValue>>& container, Vector<LinkedList<KeyValue>>::iterator current)
+			: m_container(container)
+			, m_bucket_iterator(current)
+		{
+			if (current != container.end())
+				m_entry_iterator = current->begin();
+		}
+
+		bool at_end() const
+		{
+			return m_bucket_iterator == m_container.end();
+		}
+
+	private:
+		Vector<LinkedList<KeyValue>>& m_container;
+		Vector<LinkedList<KeyValue>>::iterator m_bucket_iterator;
+		LinkedList<KeyValue>::iterator m_entry_iterator;
+
+		friend Container;
 	};
 
 	template<typename Key, typename T, typename HASH>
