@@ -69,7 +69,8 @@ long syscall(long syscall, ...)
 		{
 			const char* path = va_arg(args, const char*);
 			int oflags = va_arg(args, int);
-			ret = Kernel::syscall(SYS_OPEN, (uintptr_t)path, oflags);
+			mode_t mode = va_arg(args, mode_t);
+			ret = Kernel::syscall(SYS_OPEN, (uintptr_t)path, oflags, mode);
 			break;
 		}
 		case SYS_OPENAT:
@@ -77,7 +78,8 @@ long syscall(long syscall, ...)
 			int fd = va_arg(args, int);
 			const char* path = va_arg(args, const char*);
 			int oflags = va_arg(args, int);
-			ret = Kernel::syscall(SYS_OPENAT, fd, (uintptr_t)path, oflags);
+			mode_t mode = va_arg(args, mode_t);
+			ret = Kernel::syscall(SYS_OPENAT, fd, (uintptr_t)path, oflags, mode);
 			break;
 		}
 		case SYS_ALLOC:

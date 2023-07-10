@@ -77,8 +77,8 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_geteuid() const { return m_credentials.euid(); }
 		BAN::ErrorOr<long> sys_getegid() const { return m_credentials.egid(); }
 
-		BAN::ErrorOr<long> sys_open(BAN::StringView, int);
-		BAN::ErrorOr<long> sys_openat(int, BAN::StringView, int);
+		BAN::ErrorOr<long> sys_open(BAN::StringView, int, mode_t = 0);
+		BAN::ErrorOr<long> sys_openat(int, BAN::StringView, int, mode_t = 0);
 		BAN::ErrorOr<long> sys_close(int fd);
 		BAN::ErrorOr<long> sys_read(int fd, void* buffer, size_t count);
 		BAN::ErrorOr<long> sys_write(int fd, const void* buffer, size_t count);

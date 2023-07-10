@@ -490,14 +490,28 @@ namespace Kernel
 		}
 	}
 
-	BAN::ErrorOr<long> Process::sys_open(BAN::StringView path, int flags)
+	BAN::ErrorOr<long> Process::sys_open(BAN::StringView path, int flags, mode_t mode)
 	{
 		LockGuard _(m_lock);
 		BAN::String absolute_path = TRY(absolute_path_of(path));
+
+		if (flags & O_CREAT)
+		{
+			auto file_or_error = VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, O_WRONLY);
+			if (file_or_error.is_error())
+			{
+				if (file_or_error.error().get_error_code() == ENOENT)
+					TRY(sys_creat(path, mode));
+				else
+					return file_or_error.release_error();
+			}
+			flags &= ~O_CREAT;
+		}
+
 		return TRY(m_open_file_descriptors.open(absolute_path, flags));
 	}
 
-	BAN::ErrorOr<long> Process::sys_openat(int fd, BAN::StringView path, int flags)
+	BAN::ErrorOr<long> Process::sys_openat(int fd, BAN::StringView path, int flags, mode_t mode)
 	{
 		LockGuard _(m_lock);
 
@@ -506,7 +520,7 @@ namespace Kernel
 		TRY(absolute_path.push_back('/'));
 		TRY(absolute_path.append(path));
 
-		return sys_open(absolute_path, flags);
+		return sys_open(absolute_path, flags, mode);
 	}
 
 	BAN::ErrorOr<long> Process::sys_close(int fd)
