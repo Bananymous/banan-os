@@ -120,7 +120,7 @@ namespace Kernel
 
 	class Ext2FS;
 
-	class Ext2Inode : public Inode
+	class Ext2Inode final : public Inode
 	{
 	public:
 		virtual ino_t ino() const override { return m_index; };
@@ -172,7 +172,7 @@ namespace Kernel
 		friend class BAN::RefPtr<Ext2Inode>;
 	};
 
-	class Ext2FS : public FileSystem
+	class Ext2FS final : public FileSystem
 	{
 	public:	
 		static BAN::ErrorOr<Ext2FS*> create(Partition&);
