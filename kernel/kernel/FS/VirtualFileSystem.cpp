@@ -20,7 +20,7 @@ namespace Kernel
 		ASSERT(root.size() >= 5 && root.substring(0, 5) == "/dev/"sv);;
 		root = root.substring(5);
 
-		auto partition_inode = MUST(DeviceManager::get().read_directory_inode(root));
+		auto partition_inode = MUST(DeviceManager::get().directory_find_inode(root));
 		s_instance->m_root_fs = MUST(Ext2FS::create(*(Partition*)partition_inode.ptr()));
 
 		DeviceManager::get().set_blksize(s_instance->m_root_fs->root_inode()->blksize());
@@ -110,9 +110,9 @@ namespace Kernel
 			else if (path_part == ".."sv)
 			{
 				if (auto* mount_point = mount_from_root_inode(inode))
-					inode = TRY(mount_point->host.inode->read_directory_inode(".."sv));
+					inode = TRY(mount_point->host.inode->directory_find_inode(".."sv));
 				else
-					inode = TRY(inode->read_directory_inode(".."sv));
+					inode = TRY(inode->directory_find_inode(".."sv));
 
 				if (!canonical_path.empty())
 				{
@@ -127,7 +127,7 @@ namespace Kernel
 				if (!inode->can_access(credentials, O_RDONLY))
 					return BAN::Error::from_errno(EACCES);
 
-				inode = TRY(inode->read_directory_inode(path_part));
+				inode = TRY(inode->directory_find_inode(path_part));
 
 				if (auto* mount_point = mount_from_host_inode(inode))
 					inode = mount_point->target->root_inode();

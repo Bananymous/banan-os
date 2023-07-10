@@ -291,7 +291,7 @@ namespace Kernel
 		return n_read;
 	}
 
-	BAN::ErrorOr<void> Ext2Inode::read_next_directory_entries(off_t offset, DirectoryEntryList* list, size_t list_size)
+	BAN::ErrorOr<void> Ext2Inode::directory_read_next_entries(off_t offset, DirectoryEntryList* list, size_t list_size)
 	{
 		if (!mode().ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
@@ -368,7 +368,7 @@ namespace Kernel
 		BAN::Vector<uint8_t> block_buffer;
 		TRY(block_buffer.resize(block_size));
 
-		auto error_or = read_directory_inode(name);
+		auto error_or = directory_find_inode(name);
 		if (!error_or.is_error())
 			return BAN::Error::from_errno(EEXISTS);
 		if (error_or.error().get_error_code() != ENOENT)
@@ -441,7 +441,7 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<BAN::RefPtr<Inode>> Ext2Inode::read_directory_inode(BAN::StringView file_name)
+	BAN::ErrorOr<BAN::RefPtr<Inode>> Ext2Inode::directory_find_inode(BAN::StringView file_name)
 	{
 		if (!mode().ifdir())
 			return BAN::Error::from_errno(ENOTDIR);

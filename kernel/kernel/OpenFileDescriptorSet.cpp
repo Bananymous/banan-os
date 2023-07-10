@@ -199,7 +199,7 @@ namespace Kernel
 	{
 		TRY(validate_fd(fd));
 		auto& open_file = m_open_files[fd];
-		TRY(open_file->inode->read_next_directory_entries(open_file->offset, list, list_size));
+		TRY(open_file->inode->directory_read_next_entries(open_file->offset, list, list_size));
 		open_file->offset++;
 		return {};
 	}

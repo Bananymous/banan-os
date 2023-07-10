@@ -103,7 +103,7 @@ namespace Kernel
 		MUST(m_devices.push_back(device));
 	}
 
-	BAN::ErrorOr<BAN::RefPtr<Inode>> DeviceManager::read_directory_inode(BAN::StringView name)
+	BAN::ErrorOr<BAN::RefPtr<Inode>> DeviceManager::directory_find_inode(BAN::StringView name)
 	{
 		LockGuard _(m_lock);
 		if (name == "."sv || name == ".."sv)
@@ -114,7 +114,7 @@ namespace Kernel
 		return BAN::Error::from_errno(ENOENT);
 	}
 
-	BAN::ErrorOr<void> DeviceManager::read_next_directory_entries(off_t offset, DirectoryEntryList* list, size_t list_size)
+	BAN::ErrorOr<void> DeviceManager::directory_read_next_entries(off_t offset, DirectoryEntryList* list, size_t list_size)
 	{
 		if (offset != 0)
 		{
