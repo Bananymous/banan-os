@@ -49,10 +49,13 @@ namespace Kernel
 
 	BAN::ErrorOr<int> OpenFileDescriptorSet::open(BAN::StringView absolute_path, int flags)
 	{
-		if (flags & ~(O_RDONLY | O_WRONLY | O_NOFOLLOW | O_SEARCH | O_APPEND | O_CLOEXEC))
+		if (flags & ~(O_RDONLY | O_WRONLY | O_NOFOLLOW | O_SEARCH | O_APPEND | O_TRUNC | O_CLOEXEC))
 			return BAN::Error::from_errno(ENOTSUP);
 
 		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, flags));
+
+		if (flags & O_TRUNC)
+			TRY(file.inode->truncate(0));
 
 		int fd = TRY(get_free_fd());
 		m_open_files[fd] = TRY(BAN::RefPtr<OpenFileDescription>::create(file.inode, BAN::move(file.canonical_path), 0, flags));
