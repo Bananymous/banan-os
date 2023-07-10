@@ -53,7 +53,6 @@ namespace BAN
 			if (m_pointer)
 				m_pointer->ref();
 		}
-
 		~RefPtr() { clear(); }
 
 		template<typename U>
@@ -75,6 +74,10 @@ namespace BAN
 
 		RefPtr(const RefPtr& other) { *this = other; }
 		RefPtr(RefPtr&& other) { *this = move(other); }
+		template<typename U>
+		RefPtr(const RefPtr<U>& other) { *this = other; }
+		template<typename U>
+		RefPtr(RefPtr<U>&& other) { *this = move(other); }
 
 		RefPtr& operator=(const RefPtr& other)
 		{
@@ -86,6 +89,25 @@ namespace BAN
 		}
 
 		RefPtr& operator=(RefPtr&& other)
+		{
+			clear();
+			m_pointer = other.m_pointer;
+			other.m_pointer = nullptr;
+			return *this;
+		}
+
+		template<typename U>
+		RefPtr& operator=(const RefPtr<U>& other)
+		{
+			clear();
+			m_pointer = other.m_pointer;
+			if (m_pointer)
+				m_pointer->ref();
+			return *this;
+		}
+
+		template<typename U>
+		RefPtr& operator=(RefPtr<U>&& other)
 		{
 			clear();
 			m_pointer = other.m_pointer;
@@ -114,6 +136,9 @@ namespace BAN
 
 	private:
 		T* m_pointer = nullptr;
+
+		template<typename U>
+		friend class RefPtr;
 	};
 
 }
