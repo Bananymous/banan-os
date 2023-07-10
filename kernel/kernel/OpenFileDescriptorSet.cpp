@@ -49,7 +49,7 @@ namespace Kernel
 
 	BAN::ErrorOr<int> OpenFileDescriptorSet::open(BAN::StringView absolute_path, int flags)
 	{
-		if (flags & ~(O_RDONLY | O_WRONLY | O_NOFOLLOW | O_SEARCH | O_CLOEXEC))
+		if (flags & ~(O_RDONLY | O_WRONLY | O_NOFOLLOW | O_SEARCH | O_APPEND | O_CLOEXEC))
 			return BAN::Error::from_errno(ENOTSUP);
 
 		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, flags));
@@ -190,6 +190,8 @@ namespace Kernel
 	{
 		TRY(validate_fd(fd));
 		auto& open_file = m_open_files[fd];
+		if (open_file->flags & O_APPEND)
+			open_file->offset = open_file->inode->size();
 		size_t nwrite = TRY(open_file->inode->write(open_file->offset, buffer, count));
 		open_file->offset += nwrite;
 		return nwrite;
