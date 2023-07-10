@@ -570,6 +570,11 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_creat(BAN::StringView path, mode_t mode)
 	{
+		if ((mode & 0777) != mode)
+			return BAN::Error::from_errno(EINVAL);
+
+		LockGuard _(m_lock);
+
 		auto absolute_path = TRY(absolute_path_of(path));
 
 		size_t index;
@@ -581,7 +586,7 @@ namespace Kernel
 		auto file_name = absolute_path.sv().substring(index);
 
 		auto parent_file = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, directory, O_WRONLY));
-		TRY(parent_file.inode->create_file(file_name, mode, m_credentials.euid(), m_credentials.egid()));
+		TRY(parent_file.inode->create_file(file_name, S_IFREG | mode, m_credentials.euid(), m_credentials.egid()));
 
 		return 0;
 	}
