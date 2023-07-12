@@ -31,6 +31,7 @@ namespace BAN
 		using key_type = Key;
 		using value_type = T;
 		using iterator = IteratorDouble<Entry, Vector, LinkedList, HashMap>;
+		using const_iterator = ConstIteratorDouble<Entry, Vector, LinkedList, HashMap>;
 
 	public:
 		HashMap() = default;
@@ -48,6 +49,8 @@ namespace BAN
 
 		iterator begin() { return iterator(m_buckets.end(), m_buckets.begin()); }
 		iterator end()   { return iterator(m_buckets.end(), m_buckets.end()); }
+		const_iterator begin() const { return const_iterator(m_buckets.end(), m_buckets.begin()); }
+		const_iterator end() const   { return const_iterator(m_buckets.end(), m_buckets.end()); }
 
 		ErrorOr<void> reserve(size_type);
 
