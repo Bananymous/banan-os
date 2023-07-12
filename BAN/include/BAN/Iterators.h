@@ -266,4 +266,105 @@ namespace BAN
 		friend Container;
 	};
 
+	template<typename T, template <typename> typename OuterContainer, template <typename> typename InnerContainer, typename Container>
+	class ConstIteratorDouble
+	{
+	public:
+		using Inner = InnerContainer<T>;
+		using Outer = OuterContainer<Inner>;
+
+	public:
+		ConstIteratorDouble() = default;
+		ConstIteratorDouble(const IteratorDouble<T, OuterContainer, InnerContainer, Container>& other)
+			: m_outer_end(other.m_outer_end)
+			, m_outer_current(other.m_outer_current)
+			, m_inner_current(other.m_inner_current)
+		{
+		}
+
+		const T& operator*() const
+		{
+			ASSERT(*this);
+			ASSERT(m_outer_current != m_outer_end);
+			ASSERT(m_inner_current);
+			return m_inner_current.operator*();
+		}
+
+		const T* operator->() const
+		{
+			ASSERT(*this);
+			ASSERT(m_outer_current != m_outer_end);
+			ASSERT(m_inner_current);
+			return m_inner_current.operator->();
+		}
+
+		ConstIteratorDouble& operator++()
+		{
+			ASSERT(*this);
+			ASSERT(m_outer_current != m_outer_end);
+			ASSERT(m_inner_current);
+			m_inner_current++;
+			find_valid_or_end();
+			return *this;
+		}
+		ConstIteratorDouble operator++(int)
+		{
+			auto temp = *this;
+			++(*this);
+			return temp;
+		}
+
+		bool operator==(const ConstIteratorDouble& other) const
+		{
+			if (!*this || !other)
+				return false;
+			if (m_outer_end != other.m_outer_end)
+				return false;
+			if (m_outer_current != other.m_outer_current)
+				return false;
+			if (m_outer_current == m_outer_end)
+				return true;
+			return m_inner_current == other.m_inner_current;
+		}
+		bool operator!=(const ConstIteratorDouble& other) const
+		{
+			return !(*this == other);
+		}
+
+		operator bool() const
+		{
+			return m_outer_end && m_outer_current;
+		}
+
+	private:
+		ConstIteratorDouble(Outer::const_iterator outer_end, Outer::const_iterator outer_current)
+			: m_outer_end(outer_end)
+			, m_outer_current(outer_current)
+		{
+			if (outer_current != outer_end)
+			{
+				m_inner_current = m_outer_current->begin();
+				find_valid_or_end();
+			}
+		}
+
+		void find_valid_or_end()
+		{
+			while (m_inner_current == m_outer_current->end())
+			{
+				m_outer_current++;
+				if (m_outer_current == m_outer_end)
+					break;
+				m_inner_current = m_outer_current->begin();
+			}
+		}
+
+	private:
+		Outer::const_iterator m_outer_end;
+		Outer::const_iterator m_outer_current;
+		Inner::const_iterator m_inner_current;
+
+		friend Container;
+	};
+
 }
