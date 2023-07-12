@@ -30,6 +30,10 @@ namespace BAN
 	template<typename T> struct maybe_const<true, T> { using type = const T; };
 	template<bool B, typename T> using maybe_const_t = typename maybe_const<B, T>::type;
 
+	template<bool B, typename T1, typename T2> struct either_or { using type = T2; };
+	template<typename T1, typename T2> struct either_or<true, T1, T2> { using type = T1; };
+	template<bool B, typename T1, typename T2> using either_or_t = typename either_or<B, T1, T2>::type;
+
 	struct true_type { static constexpr bool value = true; };
 	struct false_type { static constexpr bool value = false; };
 
