@@ -5,91 +5,13 @@
 namespace BAN
 {
 
-	template<typename T, typename Container>
-	class IteratorSimple
+	template<typename T, typename Container, bool CONST>
+	class IteratorSimpleGeneral
 	{
 	public:
-		IteratorSimple() = default;
-
-		const T& operator*() const
-		{
-			ASSERT(m_pointer);
-			return *m_pointer;
-		}
-		T& operator*()
-		{
-			ASSERT(m_pointer);
-			return *m_pointer;
-		}
-
-		const T* operator->() const
-		{
-			ASSERT(m_pointer);
-			return m_pointer;
-		}
-		T* operator->()
-		{
-			ASSERT(m_pointer);
-			return m_pointer;
-		}
-
-		IteratorSimple& operator++()
-		{
-			ASSERT(m_pointer);
-			++m_pointer;
-			return *this;
-		}
-		IteratorSimple operator++(int)
-		{
-			auto temp = *this;
-			++(*this);
-			return temp;
-		}
-
-		IteratorSimple& operator--()
-		{
-			ASSERT(m_pointer);
-			return --m_pointer;
-		}
-		IteratorSimple operator--(int)
-		{
-			auto temp = *this;
-			--(*this);
-			return temp;
-		}
-
-		bool operator==(const IteratorSimple& other) const
-		{
-			return m_pointer == other.m_pointer;
-		}
-		bool operator!=(const IteratorSimple& other) const
-		{
-			return !(*this == other);
-		}
-
-		operator bool() const
-		{
-			return m_pointer;
-		}
-
-	private:
-		IteratorSimple(T* pointer)
-			: m_pointer(pointer)
-		{
-		}
-
-	private:
-		T* m_pointer = nullptr;
-
-		friend Container;
-	};
-
-	template<typename T, typename Container>
-	class ConstIteratorSimple
-	{
-	public:
-		ConstIteratorSimple() = default;
-		ConstIteratorSimple(IteratorSimple<T, Container> other)
+		IteratorSimpleGeneral() = default;
+		template<bool CONST2, typename = enable_if_t<CONST2 == CONST || CONST>>
+		IteratorSimpleGeneral(const IteratorSimpleGeneral<T, Container, CONST2>& other)
 			: m_pointer(other.m_pointer)
 		{
 		}
@@ -99,183 +21,91 @@ namespace BAN
 			ASSERT(m_pointer);
 			return *m_pointer;
 		}
+		template<bool CONST2 = CONST>
+		enable_if_t<!CONST2, T&> operator*()
+		{
+			ASSERT(m_pointer);
+			return *m_pointer;
+		}
 
 		const T* operator->() const
 		{
 			ASSERT(m_pointer);
 			return m_pointer;
 		}
+		template<bool CONST2 = CONST>
+		enable_if_t<!CONST2, T*> operator->()
+		{
+			ASSERT(m_pointer);
+			return m_pointer;
+		}
 
-		ConstIteratorSimple& operator++()
+		IteratorSimpleGeneral& operator++()
 		{
 			ASSERT(m_pointer);
 			++m_pointer;
 			return *this;
 		}
-		ConstIteratorSimple operator++(int)
+		IteratorSimpleGeneral operator++(int)
 		{
 			auto temp = *this;
 			++(*this);
 			return temp;
 		}
 
-		ConstIteratorSimple& operator--()
+		IteratorSimpleGeneral& operator--()
 		{
 			ASSERT(m_pointer);
 			return --m_pointer;
 		}
-		ConstIteratorSimple operator--(int)
+		IteratorSimpleGeneral operator--(int)
 		{
 			auto temp = *this;
 			--(*this);
 			return temp;
 		}
 
-		bool operator==(const ConstIteratorSimple& other) const
+		bool operator==(const IteratorSimpleGeneral& other) const
 		{
 			return m_pointer == other.m_pointer;
 		}
-		bool operator!=(const ConstIteratorSimple& other) const
+		bool operator!=(const IteratorSimpleGeneral& other) const
 		{
 			return !(*this == other);
 		}
 
 		operator bool() const
 		{
-			return !!m_pointer;
+			return m_pointer;
 		}
 
 	private:
-		ConstIteratorSimple(const T* pointer)
+		IteratorSimpleGeneral(maybe_const_t<CONST, T>* pointer)
 			: m_pointer(pointer)
 		{
 		}
 
 	private:
-		const T* m_pointer = nullptr;
+		maybe_const_t<CONST, T>* m_pointer = nullptr;
 
+		friend IteratorSimpleGeneral<T, Container, !CONST>;
 		friend Container;
 	};
 
-	template<typename T, template <typename> typename OuterContainer, template <typename> typename InnerContainer, typename Container>
-	class IteratorDouble
+	template<typename T, template<typename> typename OuterContainer, template<typename> typename InnerContainer, typename Container, bool CONST>
+	class IteratorDoubleGeneral
 	{
 	public:
 		using Inner = InnerContainer<T>;
 		using Outer = OuterContainer<Inner>;
 
-	public:
-		IteratorDouble() = default;
-
-		const T& operator*() const
-		{
-			ASSERT(*this);
-			ASSERT(m_outer_current != m_outer_end);
-			ASSERT(m_inner_current);
-			return m_inner_current.operator*();
-		}
-		T& operator*()
-		{
-			ASSERT(*this);
-			ASSERT(m_outer_current != m_outer_end);
-			ASSERT(m_inner_current);
-			return m_inner_current.operator*();
-		}
-
-		const T* operator->() const
-		{
-			ASSERT(*this);
-			ASSERT(m_outer_current != m_outer_end);
-			ASSERT(m_inner_current);
-			return m_inner_current.operator->();
-		}
-		T* operator->()
-		{
-			ASSERT(*this);
-			ASSERT(m_outer_current != m_outer_end);
-			ASSERT(m_inner_current);
-			return m_inner_current.operator->();
-		}
-
-		IteratorDouble& operator++()
-		{
-			ASSERT(*this);
-			ASSERT(m_outer_current != m_outer_end);
-			ASSERT(m_inner_current);
-			m_inner_current++;
-			find_valid_or_end();
-			return *this;
-		}
-		IteratorDouble operator++(int)
-		{
-			auto temp = *this;
-			++(*this);
-			return temp;
-		}
-
-		bool operator==(const IteratorDouble& other) const
-		{
-			if (!*this || !other)
-				return false;
-			if (m_outer_end != other.m_outer_end)
-				return false;
-			if (m_outer_current != other.m_outer_current)
-				return false;
-			if (m_outer_current == m_outer_end)
-				return true;
-			return m_inner_current == other.m_inner_current;
-		}
-		bool operator!=(const IteratorDouble& other) const
-		{
-			return !(*this == other);
-		}
-
-		operator bool() const
-		{
-			return m_outer_end && m_outer_current;
-		}
-
-	private:
-		IteratorDouble(Outer::iterator outer_end, Outer::iterator outer_current)
-			: m_outer_end(outer_end)
-			, m_outer_current(outer_current)
-		{
-			if (outer_current != outer_end)
-			{
-				m_inner_current = m_outer_current->begin();
-				find_valid_or_end();
-			}
-		}
-
-		void find_valid_or_end()
-		{
-			while (m_inner_current == m_outer_current->end())
-			{
-				m_outer_current++;
-				if (m_outer_current == m_outer_end)
-					break;
-				m_inner_current = m_outer_current->begin();
-			}
-		}
-
-	private:
-		Outer::iterator m_outer_end;
-		Outer::iterator m_outer_current;
-		Inner::iterator m_inner_current;
-
-		friend Container;
-	};
-
-	template<typename T, template <typename> typename OuterContainer, template <typename> typename InnerContainer, typename Container>
-	class ConstIteratorDouble
-	{
-	public:
-		using Inner = InnerContainer<T>;
-		using Outer = OuterContainer<Inner>;
+		using InnerIterator = either_or_t<CONST, typename Inner::const_iterator, typename Inner::iterator>;
+		using OuterIterator = either_or_t<CONST, typename Outer::const_iterator, typename Outer::iterator>;
 
 	public:
-		ConstIteratorDouble() = default;
-		ConstIteratorDouble(const IteratorDouble<T, OuterContainer, InnerContainer, Container>& other)
+		IteratorDoubleGeneral() = default;
+		template<bool CONST2, typename = enable_if_t<CONST2 == CONST || CONST>>
+		IteratorDoubleGeneral(const IteratorDoubleGeneral<T, OuterContainer, InnerContainer, Container, CONST2>& other)
 			: m_outer_end(other.m_outer_end)
 			, m_outer_current(other.m_outer_current)
 			, m_inner_current(other.m_inner_current)
@@ -289,6 +119,14 @@ namespace BAN
 			ASSERT(m_inner_current);
 			return m_inner_current.operator*();
 		}
+		template<bool CONST2 = CONST>
+		enable_if_t<!CONST2, T&> operator*()
+		{
+			ASSERT(*this);
+			ASSERT(m_outer_current != m_outer_end);
+			ASSERT(m_inner_current);
+			return m_inner_current.operator*();
+		}
 
 		const T* operator->() const
 		{
@@ -297,8 +135,16 @@ namespace BAN
 			ASSERT(m_inner_current);
 			return m_inner_current.operator->();
 		}
+		template<bool CONST2 = CONST>
+		enable_if_t<!CONST2, T*> operator->()
+		{
+			ASSERT(*this);
+			ASSERT(m_outer_current != m_outer_end);
+			ASSERT(m_inner_current);
+			return m_inner_current.operator->();
+		}
 
-		ConstIteratorDouble& operator++()
+		IteratorDoubleGeneral& operator++()
 		{
 			ASSERT(*this);
 			ASSERT(m_outer_current != m_outer_end);
@@ -307,14 +153,14 @@ namespace BAN
 			find_valid_or_end();
 			return *this;
 		}
-		ConstIteratorDouble operator++(int)
+		IteratorDoubleGeneral operator++(int)
 		{
 			auto temp = *this;
 			++(*this);
 			return temp;
 		}
 
-		bool operator==(const ConstIteratorDouble& other) const
+		bool operator==(const IteratorDoubleGeneral& other) const
 		{
 			if (!*this || !other)
 				return false;
@@ -326,7 +172,7 @@ namespace BAN
 				return true;
 			return m_inner_current == other.m_inner_current;
 		}
-		bool operator!=(const ConstIteratorDouble& other) const
+		bool operator!=(const IteratorDoubleGeneral& other) const
 		{
 			return !(*this == other);
 		}
@@ -337,7 +183,7 @@ namespace BAN
 		}
 
 	private:
-		ConstIteratorDouble(Outer::const_iterator outer_end, Outer::const_iterator outer_current)
+		IteratorDoubleGeneral(const OuterIterator& outer_end, const OuterIterator& outer_current)
 			: m_outer_end(outer_end)
 			, m_outer_current(outer_current)
 		{
@@ -360,11 +206,24 @@ namespace BAN
 		}
 
 	private:
-		Outer::const_iterator m_outer_end;
-		Outer::const_iterator m_outer_current;
-		Inner::const_iterator m_inner_current;
+		OuterIterator m_outer_end;
+		OuterIterator m_outer_current;
+		InnerIterator m_inner_current;
 
+		friend class IteratorDoubleGeneral<T, OuterContainer, InnerContainer, Container, !CONST>;
 		friend Container;
 	};
+
+	template<typename T, typename Container>
+	using IteratorSimple = IteratorSimpleGeneral<T, Container, false>;
+
+	template<typename T, typename Container>
+	using ConstIteratorSimple = IteratorSimpleGeneral<T, Container, true>;
+
+	template<typename T, template<typename> typename OuterContainer, template<typename> typename InnerContainer, typename Container>
+	using IteratorDouble = IteratorDoubleGeneral<T, OuterContainer, InnerContainer, Container, false>;
+
+	template<typename T, template<typename> typename OuterContainer, template<typename> typename InnerContainer, typename Container>
+	using ConstIteratorDouble = IteratorDoubleGeneral<T, OuterContainer, InnerContainer, Container, true>;
 
 }
