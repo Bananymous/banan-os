@@ -247,8 +247,11 @@ namespace Kernel
 
 	uint8_t ATABus::device_index(const ATADevice& device) const
 	{
-		ASSERT(&device == m_devices[0].ptr() || &device == m_devices[1].ptr());
-		return (&device == m_devices[0].ptr()) ? 0 : 1;
+		if (m_devices[0] && m_devices[0].ptr() == &device)
+			return 0;
+		if (m_devices[1] && m_devices[1].ptr() == &device)
+			return 1;
+		ASSERT_NOT_REACHED();
 	}
 
 	BAN::ErrorOr<void> ATABus::read(ATADevice& device, uint64_t lba, uint8_t sector_count, uint8_t* buffer)
