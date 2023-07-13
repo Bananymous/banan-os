@@ -100,10 +100,25 @@ struct passwd* getpwent(void)
 	return &s_pwent_struct;
 }
 
-struct passwd*	getpwnam(const char* name);
-int				getpwnam_r(const char* name, struct passwd* pwd, char* buffer, size_t bufsize, struct passwd** result);
-struct passwd*	getpwuid(uid_t uid);
-int				getpwuid_r(uid_t uid, struct passwd* pwd, char* buffer, size_t bufsize, struct passwd** result);
+struct passwd* getpwnam(const char* name)
+{
+	passwd* pwd;
+	setpwent();
+	while (pwd = getpwent())
+		if (strcmp(pwd->pw_name, name) == 0)
+			return pwd;
+	return nullptr;
+}
+
+struct passwd* getpwuid(uid_t uid)
+{
+	passwd* pwd;
+	setpwent();
+	while (pwd = getpwent())
+		if (pwd->pw_uid == uid)
+			return pwd;
+	return nullptr;
+}
 
 void setpwent(void)
 {
