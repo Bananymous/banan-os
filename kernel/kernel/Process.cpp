@@ -458,6 +458,8 @@ namespace Kernel
 				uint8_t flags = PageTable::Flags::UserSupervisor | PageTable::Flags::Present;
 				if (elf_program_header.p_flags & LibELF::PF_W)
 					flags |= PageTable::Flags::ReadWrite;
+				if (elf_program_header.p_flags & LibELF::PF_X)
+					flags |= PageTable::Flags::Execute;
 
 				size_t page_start = elf_program_header.p_vaddr / PAGE_SIZE;
 				size_t page_end = BAN::Math::div_round_up<size_t>(elf_program_header.p_vaddr + elf_program_header.p_memsz, PAGE_SIZE);
