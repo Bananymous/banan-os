@@ -4,81 +4,10 @@
 
 #include <ctype.h>
 #include <fcntl.h>
+#include <pwd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-struct User
-{
-	BAN::String name;
-	uid_t uid;
-	gid_t gid;
-	BAN::String home;
-	BAN::String shell;
-};
-
-BAN::Optional<id_t> parse_id(BAN::StringView value)
-{
-	// NOTE: we only allow 10^9 uids
-	if (value.size() < 1 || value.size() > 9)
-		return {};
-
-	id_t id { 0 };
-	for (char c : value)
-	{
-		if (!isdigit(c))
-			return {};
-		id = (id * 10) + (c - '0');
-	}
-
-	return id;
-}
-
-BAN::Optional<User> parse_user(BAN::StringView line)
-{
-	auto parts = MUST(line.split(':', true));
-	if (parts.size() != 7)
-		return {};
-	User user;
-	user.name = parts[0];
-	user.uid = ({ auto id = parse_id(parts[2]); if (!id.has_value()) return {}; id.value(); });
-	user.gid = ({ auto id = parse_id(parts[3]); if (!id.has_value()) return {}; id.value(); });
-	user.home = parts[5];
-	user.shell = parts[6];
-	return user;
-}
-
-BAN::Vector<User> parse_users()
-{
-	FILE* fp = fopen("/etc/passwd", "r");
-	if (fp == nullptr)
-	{
-		fprintf(stderr, "could not open /etc/passwd\n");
-		perror("fopen");
-	}
-
-	BAN::Vector<User> users;
-
-	char buffer[1024];
-	while (fgets(buffer, sizeof(buffer), fp))
-	{
-		*strchrnul(buffer, '\n') = '\0';
-		auto user = parse_user(buffer);
-		if (user.has_value())
-			MUST(users.push_back(user.release_value()));
-	}
-
-	if (ferror(fp))
-	{
-		perror("fread");
-		fclose(fp);
-		return {};
-	}
-
-	fclose(fp);
-
-	return users;
-}
 
 void initialize_stdio()
 {
@@ -97,18 +26,9 @@ int main()
 
 	while (true)
 	{
-		auto users = parse_users();
-
 		char name_buffer[128];
-		BAN::StringView name;
 
-		if (first)
-		{
-			name = "user"sv;
-			first = false;
-		}
-
-		while (name.empty())
+		while (!first)
 		{
 			printf("username: ");
 			fflush(stdout);
@@ -123,47 +43,51 @@ int main()
 				}
 				continue;
 			}
-			if (nread == 1)
-				continue;		
-
-			name = BAN::StringView(name_buffer, nread - 1);
+			if (nread <= 1 || name_buffer[nread - 1] != '\n')
+				continue;
+			name_buffer[nread - 1] = '\0';
 			break;
 		}
 
-		for (const User& user : users)
+		if (first)
 		{
-			if (user.name == name)
-			{
-				pid_t pid = fork();
-				if (pid == 0)
-				{
-					printf("Welcome back %s!\n", user.name.data());
-
-					if (setgid(user.gid) == -1)
-						perror("setgid");
-					if (setuid(user.uid) == -1)
-						perror("setuid");
-
-					setenv("HOME", user.home.data(), 1);
-					chdir(user.home.data());
-
-					execl(user.shell.data(), user.shell.data(), nullptr);
-					perror("execl");
-					
-					exit(1);
-				}
-				
-				if (pid == -1)
-				{
-					perror("fork");
-					break;
-				}
-
-				int status;
-				waitpid(pid, &status, 0);
-			}
+			strcpy(name_buffer, "user");
+			first = false;
 		}
-	}
 
+		auto* pwd = getpwnam(name_buffer);
+		if (pwd == nullptr)
+			continue;
+
+		pid_t pid = fork();
+		if (pid == 0)
+		{
+			printf("Welcome back %s!\n", pwd->pw_name);
+
+			if (setgid(pwd->pw_gid) == -1)
+				perror("setgid");
+			if (setuid(pwd->pw_uid) == -1)
+				perror("setuid");
+
+			setenv("HOME", pwd->pw_dir, 1);
+			chdir(pwd->pw_dir);
+
+			execl(pwd->pw_shell, pwd->pw_shell, nullptr);
+			perror("execl");
+
+			exit(1);
+		}
+		
+		endpwent();
+		
+		if (pid == -1)
+		{
+			perror("fork");
+			break;
+		}
+		
+		int status;
+		waitpid(pid, &status, 0);
+	}
 
 }
