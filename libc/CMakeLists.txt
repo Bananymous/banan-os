@@ -8,6 +8,7 @@ set(LIBC_SOURCES
 	dirent.cpp
 	fcntl.cpp
 	printf_impl.cpp
+	pwd.cpp
 	stdio.cpp
 	stdlib.cpp
 	string.cpp
