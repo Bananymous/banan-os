@@ -17,6 +17,7 @@ namespace Kernel
 	static PageTable* s_kernel = nullptr;
 	static PageTable* s_current = nullptr;
 	static bool s_has_nxe = false;
+	static bool s_has_pge = false;
 
 	// Page Directories for kernel memory (KERNEL_OFFSET -> 0xFFFFFFFFFFFFFFFF)
 	static paddr_t s_global[(0xFFFFFFFFFFFFFFFF - KERNEL_OFFSET + 1) / (4096ull * 512ull * 512ull)] { };
@@ -54,6 +55,18 @@ namespace Kernel
 				"wrmsr"
 			);
 			s_has_nxe = true;
+		}
+
+		uint32_t ecx, edx;
+		CPUID::get_features(ecx, edx);
+		if (edx & CPUID::EDX_PGE)
+		{
+			asm volatile(
+				"movq %cr4, %rax;"
+				"orq $0x80, %rax;"
+				"movq %rax, %cr4;"
+			);
+			s_has_pge = true;
 		}
 
 		ASSERT(s_kernel == nullptr);
@@ -231,9 +244,12 @@ namespace Kernel
 	{
 		LockGuard _(m_lock);
 
-		uint64_t xd_bit = 0;
+		uint64_t extra_flags = 0;
 		if (s_has_nxe && !(flags & Flags::Execute))
-			xd_bit = 1ull << 63;
+			extra_flags |= 1ull << 63;
+		if (s_has_pge && this == s_kernel)
+			extra_flags |= 1ull << 8;
+		flags &= ~Flags::Execute;
 
 		if (vaddr && (vaddr >= KERNEL_OFFSET) != (this == s_kernel))
 			Kernel::panic("mapping {8H} to {8H}, kernel: {}", paddr, vaddr, this == s_kernel);
@@ -276,7 +292,7 @@ namespace Kernel
 		}
 
 		uint64_t* pt = (uint64_t*)P2V(pd[pde] & PAGE_ADDR_MASK);
-		pt[pte] = xd_bit | paddr | flags;
+		pt[pte] = paddr | flags | extra_flags;
 
 		invalidate(canonicalize(vaddr));
 	}
