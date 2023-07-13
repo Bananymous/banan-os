@@ -155,7 +155,7 @@ namespace Kernel
 		ExitStatus m_exit_status;
 
 		BAN::UniqPtr<PageTable> m_page_table;
-		TTY* m_tty { nullptr };
+		BAN::RefPtr<TTY> m_tty;
 	};
 
 }
