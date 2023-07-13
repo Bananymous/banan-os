@@ -592,6 +592,21 @@ namespace Kernel
 					bgd.free_inodes_count--;
 					write_block(bgd_location.block, bgd_buffer.span());
 
+					uint32_t inode_table_byte_offset = inode_offset * superblock().inode_size;
+					BlockLocation inode_location
+					{
+						.block = bgd.inode_table + inode_table_byte_offset / block_size,
+						.offset = inode_table_byte_offset % block_size
+					};
+
+					ASSERT(block_size - inode_location.offset >= sizeof(ext2_inode));
+
+					// NOTE: we don't need bgd_buffer anymore, so we can reuse it to avoid allocations
+					auto& inode_buffer = bgd_buffer;
+					read_block(inode_location.block, inode_buffer.span());
+					memcpy(inode_buffer.data() + inode_location.offset, &ext2_inode, sizeof(ext2_inode));
+					write_block(inode_location.block, inode_buffer.span());
+
 					return group * superblock().inodes_per_group + inode_offset + 1;
 				}
 			}
