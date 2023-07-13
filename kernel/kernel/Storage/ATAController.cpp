@@ -27,22 +27,17 @@ namespace Kernel
 		auto devices = controller->devices();
 		for (size_t i = 0; i < devices.size(); i++)
 		{
-			char device_name[4] { 'h', 'd', 'a', '\0' };
-			device_name[2] += i;
-
+			char device_name[4] { 'h', 'd', (char)('a' + i), '\0' };
 			DevFileSystem::get().add_device(device_name, devices[i]);
 
 			if (auto res = devices[i]->initialize_partitions(); res.is_error())
 				dprintln("{}", res.error());
 			else
 			{
-				char partition_name[5] { 'h', 'd', 'a', '1', '\0' };
-				partition_name[2] += i;
-
 				auto& partitions = devices[i]->partitions();
 				for (size_t j = 0; j < partitions.size(); j++)
 				{
-					partition_name[3] += j;
+					char partition_name[5] { 'h', 'd', (char)('a' + i), (char)('1' + j), '\0' };
 					DevFileSystem::get().add_device(partition_name, partitions[j]);
 				}
 			}
