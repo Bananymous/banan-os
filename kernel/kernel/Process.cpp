@@ -167,7 +167,7 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_gettermios(::termios* termios)
 	{
 		LockGuard _(m_lock);
-		if (m_tty == nullptr)
+		if (!m_tty)
 			return BAN::Error::from_errno(ENOTTY);
 		
 		Kernel::termios ktermios = m_tty->get_termios();
@@ -183,7 +183,7 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_settermios(const ::termios* termios)
 	{
 		LockGuard _(m_lock);
-		if (m_tty == nullptr)
+		if (!m_tty)
 			return BAN::Error::from_errno(ENOTTY);
 		
 		Kernel::termios ktermios;
@@ -748,14 +748,16 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_termid(char* buffer) const
 	{
 		LockGuard _(m_lock);
-		if (m_tty == nullptr)
+		if (!m_tty)
 			buffer[0] = '\0';
-		ASSERT(minor(m_tty->rdev()) < 10);
-		strcpy(buffer, "/dev/tty1");
-		buffer[8] += minor(m_tty->rdev());
+		else
+		{
+			ASSERT(minor(m_tty->rdev()) < 10);
+			strcpy(buffer, "/dev/tty0");
+			buffer[8] += minor(m_tty->rdev());
+		}
 		return 0;
 	}
-
 
 	BAN::ErrorOr<long> Process::sys_clock_gettime(clockid_t clock_id, timespec* tp) const
 	{

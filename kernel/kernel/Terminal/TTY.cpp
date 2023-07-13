@@ -33,10 +33,10 @@ namespace Kernel
 		return makedev(major, minor++);
 	}
 
-	static TTY* s_tty = nullptr;
+	static BAN::RefPtr<TTY> s_tty;
 
 	TTY::TTY(TerminalDriver* driver)
-		: CharacterDevice(0444, 0, 0)
+		: CharacterDevice(0666, 0, 0)
 		, m_terminal_driver(driver)
 	{
 		m_width = m_terminal_driver->width();
@@ -45,11 +45,11 @@ namespace Kernel
 		m_buffer = new Cell[m_width * m_height];
 		ASSERT(m_buffer);
 
-		if (s_tty == nullptr)
+		if (!s_tty)
 			s_tty = this;
 	}
 
-	TTY* TTY::current()
+	BAN::RefPtr<TTY> TTY::current()
 	{
 		return s_tty;
 	}
@@ -58,11 +58,10 @@ namespace Kernel
 	{
 		m_rdev = next_tty_rdev();
 
-		char name[5] { 't', 't', 'y', '1', '\0'};
-		name[3] += minor(m_rdev);
 		ASSERT(minor(m_rdev) < 10);
+		char name[5] { 't', 't', 'y', (char)('0' + minor(m_rdev)), '\0' };
 
-		DevFileSystem::get().add_device(name, this);
+		DevFileSystem::get().add_device(name, BAN::RefPtr<TTY>::adopt(this));
 
 		if (s_input_process)
 			return;
@@ -676,7 +675,7 @@ flush:
 
 	bool TTY::is_initialized()
 	{
-		return s_tty != nullptr;
+		return s_tty;
 	}
 
 }

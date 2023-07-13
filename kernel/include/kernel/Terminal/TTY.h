@@ -26,7 +26,7 @@ namespace Kernel
 		// for kprint
 		static void putchar_current(uint8_t ch);
 		static bool is_initialized();
-		static TTY* current();
+		static BAN::RefPtr<TTY> current();
 
 		void initialize_device();
 
@@ -108,10 +108,6 @@ namespace Kernel
 		TerminalDriver* m_terminal_driver { nullptr };
 
 	public:
-		// FIXME: these should be crw------- with the owner being user
-		virtual Mode mode() const override { return { Mode::IFCHR | Mode::IRUSR | Mode::IWUSR | Mode::IRGRP | Mode::IWGRP | Mode::IROTH | Mode::IWOTH }; }
-		virtual uid_t uid() const override { return 0; }
-		virtual gid_t gid() const override { return 0; }
 		virtual dev_t rdev() const override { return m_rdev; }
 
 	private:
