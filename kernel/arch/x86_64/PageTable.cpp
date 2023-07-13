@@ -1,5 +1,6 @@
 #include <BAN/Errors.h>
 #include <kernel/Arch.h>
+#include <kernel/CPUID.h>
 #include <kernel/LockGuard.h>
 #include <kernel/Memory/kmalloc.h>
 #include <kernel/Memory/PageTable.h>
@@ -7,11 +8,15 @@
 extern uint8_t g_kernel_start[];
 extern uint8_t g_kernel_end[];
 
+extern uint8_t g_kernel_execute_start[];
+extern uint8_t g_kernel_execute_end[];
+
 namespace Kernel
 {
 	
 	static PageTable* s_kernel = nullptr;
 	static PageTable* s_current = nullptr;
+	static bool s_has_nxe = false;
 
 	// Page Directories for kernel memory (KERNEL_OFFSET -> 0xFFFFFFFFFFFFFFFF)
 	static paddr_t s_global[(0xFFFFFFFFFFFFFFFF - KERNEL_OFFSET + 1) / (4096ull * 512ull * 512ull)] { };
@@ -40,6 +45,17 @@ namespace Kernel
 
 	void PageTable::initialize()
 	{
+		if (CPUID::has_nxe())
+		{
+			asm volatile(
+				"movl $0xC0000080, %ecx;"
+				"rdmsr;"
+				"orl $0x800, %eax;"
+				"wrmsr"
+			);
+			s_has_nxe = true;
+		}
+
 		ASSERT(s_kernel == nullptr);
 		s_kernel = new PageTable();
 		ASSERT(s_kernel);
@@ -78,6 +94,14 @@ namespace Kernel
 
 		// Map (0 -> phys_kernel_end) to (KERNEL_OFFSET -> virt_kernel_end)
 		map_range_at(0, KERNEL_OFFSET, (uintptr_t)g_kernel_end - KERNEL_OFFSET, Flags::ReadWrite | Flags::Present);
+		
+		// Map executable kernel memory as executable
+		map_range_at(
+			V2P(g_kernel_execute_start),
+			(vaddr_t)g_kernel_execute_start,
+			g_kernel_execute_end - g_kernel_execute_start,
+			Flags::Execute | Flags::ReadWrite | Flags::Present
+		);
 	}
 
 	BAN::ErrorOr<PageTable*> PageTable::create_userspace()
@@ -207,6 +231,10 @@ namespace Kernel
 	{
 		LockGuard _(m_lock);
 
+		uint64_t xd_bit = 0;
+		if (s_has_nxe && !(flags & Flags::Execute))
+			xd_bit = 1ull << 63;
+
 		if (vaddr && (vaddr >= KERNEL_OFFSET) != (this == s_kernel))
 			Kernel::panic("mapping {8H} to {8H}, kernel: {}", paddr, vaddr, this == s_kernel);
 
@@ -248,7 +276,7 @@ namespace Kernel
 		}
 
 		uint64_t* pt = (uint64_t*)P2V(pd[pde] & PAGE_ADDR_MASK);
-		pt[pte] = paddr | flags;
+		pt[pte] = xd_bit | paddr | flags;
 
 		invalidate(canonicalize(vaddr));
 	}
@@ -304,12 +332,14 @@ namespace Kernel
 
 	PageTable::flags_t PageTable::get_page_flags(vaddr_t addr) const
 	{
-		return get_page_data(addr) & PAGE_FLAG_MASK;
+		uint64_t page_data = get_page_data(addr);
+		return (page_data & (1ull << 63) ? Flags::Execute : 0) | (page_data & PAGE_FLAG_MASK);
 	}
 
 	paddr_t PageTable::physical_address_of(vaddr_t addr) const
 	{
-		return get_page_data(addr) & PAGE_ADDR_MASK;
+		uint64_t page_data = get_page_data(addr);
+		return (page_data & PAGE_ADDR_MASK) & ~(1ull << 63);
 	}
 
 	vaddr_t PageTable::get_free_page(vaddr_t first_address) const

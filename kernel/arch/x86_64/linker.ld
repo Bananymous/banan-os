@@ -9,12 +9,14 @@ SECTIONS
 	g_kernel_start = .;
 	.text ALIGN(4K) : AT(ADDR(.text) - KERNEL_OFFSET)
 	{
+		g_kernel_execute_start = .;
 		*(.multiboot)
 		*(.text)
 	}
 	.rodata ALIGN(4K) : AT(ADDR(.rodata) - KERNEL_OFFSET)
 	{
 		*(.rodata.*)
+		g_kernel_execute_end = .;
 	}
 	.data ALIGN(4K) : AT(ADDR(.data) - KERNEL_OFFSET)
 	{

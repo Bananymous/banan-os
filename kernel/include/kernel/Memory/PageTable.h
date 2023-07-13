@@ -16,6 +16,7 @@ namespace Kernel
 			Present = 1,
 			ReadWrite = 2,
 			UserSupervisor = 4,
+			Execute = 8,
 		};
 
 	public:
