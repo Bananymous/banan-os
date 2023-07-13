@@ -39,6 +39,17 @@ namespace CPUID
 		return buffer[3] & (1 << 29);
 	}
 
+	bool has_nxe()
+	{
+		uint32_t buffer[4] {};
+		get_cpuid(0x80000000, buffer);
+		if (buffer[0] < 0x80000001)
+			return false;
+
+		get_cpuid(0x80000001, buffer);
+		return buffer[3] & (1 << 20);
+	}
+
 	const char* feature_string_ecx(uint32_t feat)
 	{
 		switch (feat)
