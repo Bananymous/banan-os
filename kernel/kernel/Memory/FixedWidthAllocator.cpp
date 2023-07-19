@@ -5,10 +5,12 @@ namespace Kernel
 
 	BAN::ErrorOr<BAN::UniqPtr<FixedWidthAllocator>> FixedWidthAllocator::create(PageTable& page_table, uint32_t allocation_size)
 	{
-		auto* allocator = new FixedWidthAllocator(page_table, allocation_size);
-		if (allocator == nullptr)
+		auto* allocator_ptr = new FixedWidthAllocator(page_table, allocation_size);
+		if (allocator_ptr == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
-		return BAN::UniqPtr<FixedWidthAllocator>::adopt(allocator);
+		auto allocator = BAN::UniqPtr<FixedWidthAllocator>::adopt(allocator_ptr);
+		TRY(allocator->initialize());
+		return allocator;
 	}
 
 	FixedWidthAllocator::FixedWidthAllocator(PageTable& page_table, uint32_t allocation_size)
@@ -16,12 +18,21 @@ namespace Kernel
 		, m_allocation_size(BAN::Math::max(allocation_size, m_min_allocation_size))
 	{
 		ASSERT(BAN::Math::is_power_of_two(allocation_size));
+	}
 
+	BAN::ErrorOr<void> FixedWidthAllocator::initialize()
+	{
 		m_nodes_page = (vaddr_t)kmalloc(PAGE_SIZE);
-		ASSERT(m_nodes_page);
+		if (!m_nodes_page)
+			return BAN::Error::from_errno(ENOMEM);
 
 		m_allocated_pages = (vaddr_t)kmalloc(PAGE_SIZE);
-		ASSERT(m_allocated_pages);
+		if (!m_allocated_pages)
+		{
+			kfree((void*)m_nodes_page);
+			m_nodes_page = 0;
+			return BAN::Error::from_errno(ENOMEM);
+		}
 
 		memset((void*)m_nodes_page, 0, PAGE_SIZE);
 		memset((void*)m_allocated_pages, 0, PAGE_SIZE);
@@ -37,23 +48,30 @@ namespace Kernel
 
 		m_free_list = node_table;
 		m_used_list = nullptr;
+
+		return {};
 	}
 
 	FixedWidthAllocator::~FixedWidthAllocator()
 	{
-		for (uint32_t page_index = 0; page_index < PAGE_SIZE / sizeof(vaddr_t); page_index++)
+		if (m_nodes_page && m_allocated_pages)
 		{
-			vaddr_t page_vaddr = ((vaddr_t*)m_allocated_pages)[page_index];
-			if (page_vaddr == 0)
-				continue;
+			for (uint32_t page_index = 0; page_index < PAGE_SIZE / sizeof(vaddr_t); page_index++)
+			{
+				vaddr_t page_vaddr = ((vaddr_t*)m_allocated_pages)[page_index];
+				if (page_vaddr == 0)
+					continue;
 
-			ASSERT(!m_page_table.is_page_free(page_vaddr));
-			Heap::get().release_page(m_page_table.physical_address_of(page_vaddr));
-			m_page_table.unmap_page(page_vaddr);
+				ASSERT(!m_page_table.is_page_free(page_vaddr));
+				Heap::get().release_page(m_page_table.physical_address_of(page_vaddr));
+				m_page_table.unmap_page(page_vaddr);
+			}
 		}
 
-		kfree((void*)m_nodes_page);
-		kfree((void*)m_allocated_pages);
+		if (m_nodes_page)
+			kfree((void*)m_nodes_page);
+		if (m_allocated_pages)
+			kfree((void*)m_allocated_pages);
 	}
 
 	paddr_t FixedWidthAllocator::allocate()
