@@ -1,4 +1,5 @@
 #include <BAN/Errors.h>
+#include <BAN/ScopeGuard.h>
 #include <kernel/InterruptController.h>
 #include <kernel/Memory/kmalloc.h>
 #include <kernel/Memory/PageTableScope.h>
@@ -27,11 +28,10 @@ namespace Kernel
 		Thread* thread = new Thread(s_next_tid++, process);
 		if (thread == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
+		BAN::ScopeGuard thread_deleter([thread] { delete thread; });
 
 		// Initialize stack and registers
-		thread->m_stack = VirtualRange::create_kmalloc(m_kernel_stack_size);
-		if (thread->m_stack == nullptr)
-			return BAN::Error::from_errno(ENOMEM);
+		thread->m_stack = TRY(VirtualRange::create_kmalloc(m_kernel_stack_size));
 		thread->m_rsp = thread->stack_base() + thread->stack_size();
 		thread->m_rip = (uintptr_t)entry;
 
@@ -39,6 +39,8 @@ namespace Kernel
 		write_to_stack<sizeof(void*)>(thread->m_rsp, thread);
 		write_to_stack<sizeof(void*)>(thread->m_rsp, &Thread::on_exit);
 		write_to_stack<sizeof(void*)>(thread->m_rsp, data);
+
+		thread_deleter.disable();
 
 		return thread;
 	}
@@ -51,25 +53,16 @@ namespace Kernel
 		Thread* thread = new Thread(s_next_tid++, process);
 		if (thread == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
+		BAN::ScopeGuard thread_deleter([thread] { delete thread; });
+
 		thread->m_is_userspace = true;
 
-		// Allocate stack
-		thread->m_stack = VirtualRange::create(process->page_table(), 0, m_userspace_stack_size, PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present);
-		if (thread->m_stack == nullptr)
-		{
-			delete thread;
-			return BAN::Error::from_errno(ENOMEM);
-		}
-
-		// Allocate interrupt stack
-		thread->m_interrupt_stack = VirtualRange::create(process->page_table(), 0, m_interrupt_stack_size, PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present);
-		if (thread->m_interrupt_stack == nullptr)
-		{
-			delete thread;
-			return BAN::Error::from_errno(ENOMEM);
-		}
+		thread->m_stack = TRY(VirtualRange::create(process->page_table(), 0, m_userspace_stack_size, PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present));
+		thread->m_interrupt_stack = TRY(VirtualRange::create(process->page_table(), 0, m_interrupt_stack_size, PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present));
 
 		thread->setup_exec();
+
+		thread_deleter.disable();
 
 		return thread;
 	}
@@ -91,12 +84,6 @@ namespace Kernel
 
 	Thread::~Thread()
 	{
-		if (m_stack)
-			delete m_stack;
-		m_stack = nullptr;
-		if (m_interrupt_stack)
-			delete m_interrupt_stack;
-		m_interrupt_stack = nullptr;
 	}
 
 	BAN::ErrorOr<Thread*> Thread::clone(Process* new_process, uintptr_t rsp, uintptr_t rip)
@@ -107,16 +94,20 @@ namespace Kernel
 		Thread* thread = new Thread(s_next_tid++, new_process);
 		if (thread == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
+		BAN::ScopeGuard thread_deleter([thread] { delete thread; });
+
 		thread->m_is_userspace = true;
 
-		thread->m_interrupt_stack = m_interrupt_stack->clone(new_process->page_table());
-		thread->m_stack = m_stack->clone(new_process->page_table());
+		thread->m_interrupt_stack = TRY(m_interrupt_stack->clone(new_process->page_table()));
+		thread->m_stack = TRY(m_stack->clone(new_process->page_table()));
 
 		thread->m_state = State::Executing;
 		thread->m_in_syscall = true;
 
 		thread->m_rip = rip;
 		thread->m_rsp = rsp;
+
+		thread_deleter.disable();
 
 		return thread;
 	}

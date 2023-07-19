@@ -1,7 +1,8 @@
 #pragma once
 
-#include <BAN/Vector.h>
 #include <BAN/NoCopyMove.h>
+#include <BAN/UniqPtr.h>
+#include <BAN/Vector.h>
 #include <kernel/Memory/PageTable.h>
 
 namespace Kernel
@@ -13,11 +14,11 @@ namespace Kernel
 		BAN_NON_MOVABLE(VirtualRange);
 
 	public:
-		static VirtualRange* create(PageTable&, vaddr_t, size_t, uint8_t flags);
-		static VirtualRange* create_kmalloc(size_t);
+		static BAN::ErrorOr<BAN::UniqPtr<VirtualRange>> create(PageTable&, vaddr_t, size_t, uint8_t flags);
+		static BAN::ErrorOr<BAN::UniqPtr<VirtualRange>> create_kmalloc(size_t);
 		~VirtualRange();
 
-		VirtualRange* clone(PageTable&);
+		BAN::ErrorOr<BAN::UniqPtr<VirtualRange>> clone(PageTable&);
 
 		vaddr_t vaddr() const { return m_vaddr; }
 		size_t size() const { return m_size; }
