@@ -2,6 +2,7 @@
 
 #include <BAN/NoCopyMove.h>
 #include <BAN/RefPtr.h>
+#include <BAN/UniqPtr.h>
 #include <kernel/Memory/VirtualRange.h>
 
 #include <sys/types.h>
@@ -69,18 +70,18 @@ namespace Kernel
 		void validate_stack() const;
 
 	private:
-		static constexpr size_t m_kernel_stack_size		= PAGE_SIZE * 1;
-		static constexpr size_t m_userspace_stack_size	= PAGE_SIZE * 2;
-		static constexpr size_t m_interrupt_stack_size	= PAGE_SIZE * 2;
-		VirtualRange*	m_interrupt_stack	{ nullptr };
-		VirtualRange*	m_stack				{ nullptr };
-		uintptr_t		m_rip				{ 0 };
-		uintptr_t		m_rsp				{ 0 };
-		const pid_t		m_tid				{ 0 };
-		State			m_state				{ State::NotStarted };
-		Process*		m_process			{ nullptr };
-		bool			m_in_syscall		{ false };
-		bool			m_is_userspace		{ false };
+		static constexpr size_t		m_kernel_stack_size		= PAGE_SIZE * 1;
+		static constexpr size_t		m_userspace_stack_size	= PAGE_SIZE * 2;
+		static constexpr size_t		m_interrupt_stack_size	= PAGE_SIZE * 2;
+		BAN::UniqPtr<VirtualRange>	m_interrupt_stack;
+		BAN::UniqPtr<VirtualRange>	m_stack;
+		uintptr_t					m_rip				{ 0 };
+		uintptr_t					m_rsp				{ 0 };
+		const pid_t					m_tid				{ 0 };
+		State						m_state				{ State::NotStarted };
+		Process*					m_process			{ nullptr };
+		bool						m_in_syscall		{ false };
+		bool						m_is_userspace		{ false };
 
 		friend class Scheduler;
 	};

@@ -4,7 +4,7 @@
 namespace Kernel
 {
 
-	VirtualRange* VirtualRange::create(PageTable& page_table, vaddr_t vaddr, size_t size, uint8_t flags)
+	BAN::ErrorOr<BAN::UniqPtr<VirtualRange>> VirtualRange::create(PageTable& page_table, vaddr_t vaddr, size_t size, uint8_t flags)
 	{
 		ASSERT(size % PAGE_SIZE == 0);
 		ASSERT(vaddr % PAGE_SIZE == 0);
@@ -37,10 +37,10 @@ namespace Kernel
 		}
 		page_table.unlock();
 
-		return result;
+		return BAN::UniqPtr<VirtualRange>::adopt(result);
 	}
 
-	VirtualRange* VirtualRange::create_kmalloc(size_t size)
+	BAN::ErrorOr<BAN::UniqPtr<VirtualRange>> VirtualRange::create_kmalloc(size_t size)
 	{
 		VirtualRange* result = new VirtualRange(PageTable::kernel());
 		ASSERT(result);
@@ -52,10 +52,10 @@ namespace Kernel
 		if (result->m_vaddr == 0)
 		{
 			delete result;
-			return nullptr;
+			return BAN::UniqPtr<VirtualRange>();
 		}
 
-		return result;
+		return BAN::UniqPtr<VirtualRange>::adopt(result);
 	}
 
 	VirtualRange::VirtualRange(PageTable& page_table)
@@ -75,9 +75,9 @@ namespace Kernel
 			Heap::get().release_page(page);
 	}
 
-	VirtualRange* VirtualRange::clone(PageTable& page_table)
+	BAN::ErrorOr<BAN::UniqPtr<VirtualRange>> VirtualRange::clone(PageTable& page_table)
 	{
-		VirtualRange* result = create(page_table, vaddr(), size(), flags());
+		auto result = TRY(create(page_table, vaddr(), size(), flags()));
 
 		m_page_table.lock();
 

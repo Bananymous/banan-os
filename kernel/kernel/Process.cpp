@@ -1,3 +1,4 @@
+#include <BAN/ScopeGuard.h>
 #include <BAN/StringView.h>
 #include <kernel/CriticalScope.h>
 #include <kernel/FS/VirtualFileSystem.h>
@@ -139,8 +140,6 @@ namespace Kernel
 		m_open_file_descriptors.close_all();
 
 		// NOTE: We must unmap ranges while the page table is still alive
-		for (auto* range : m_mapped_ranges)
-			delete range;
 		m_mapped_ranges.clear();
 
 		// NOTE: We must clear allocators while the page table is still alive
@@ -269,29 +268,43 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_fork(uintptr_t rsp, uintptr_t rip)
 	{
-		Process* forked = create_process(m_credentials);
-
-		forked->m_page_table = BAN::UniqPtr<PageTable>::adopt(MUST(PageTable::create_userspace()));
+		auto page_table = BAN::UniqPtr<PageTable>::adopt(TRY(PageTable::create_userspace()));
 
 		LockGuard _(m_lock);
-		forked->m_tty = m_tty;
-		forked->m_working_directory = m_working_directory;
 
-		MUST(forked->m_open_file_descriptors.clone_from(m_open_file_descriptors));
+		BAN::String working_directory;
+		TRY(working_directory.append(m_working_directory));
 
-		forked->m_userspace_info = m_userspace_info;
+		OpenFileDescriptorSet open_file_descriptors(m_credentials);
+		TRY(open_file_descriptors.clone_from(m_open_file_descriptors));
 
-		for (auto* mapped_range : m_mapped_ranges)
-			MUST(forked->m_mapped_ranges.push_back(mapped_range->clone(forked->page_table())));
+		BAN::Vector<BAN::UniqPtr<VirtualRange>> mapped_ranges;
+		TRY(mapped_ranges.reserve(m_mapped_ranges.size()));
+		for (auto& mapped_range : m_mapped_ranges)
+			MUST(mapped_ranges.push_back(TRY(mapped_range->clone(*page_table))));
 
+		BAN::Vector<BAN::UniqPtr<FixedWidthAllocator>> fixed_width_allocators;
+		TRY(fixed_width_allocators.reserve(m_fixed_width_allocators.size()));
 		for (auto& allocator : m_fixed_width_allocators)
 			if (allocator->allocations() > 0)
-				MUST(forked->m_fixed_width_allocators.push_back(MUST(allocator->clone(forked->page_table()))));
+				MUST(fixed_width_allocators.push_back(TRY(allocator->clone(*page_table))));
 
+		BAN::UniqPtr<GeneralAllocator> general_allocator;
 		if (m_general_allocator)
-			forked->m_general_allocator = MUST(m_general_allocator->clone(forked->page_table()));
+			general_allocator = TRY(m_general_allocator->clone(*page_table));
+
+		Process* forked = create_process(m_credentials);
+		forked->m_tty = m_tty;
+		forked->m_working_directory = BAN::move(working_directory);
+		forked->m_page_table = BAN::move(page_table);
+		forked->m_open_file_descriptors = BAN::move(open_file_descriptors);
+		forked->m_mapped_ranges = BAN::move(mapped_ranges);
+		forked->m_fixed_width_allocators = BAN::move(fixed_width_allocators);
+		forked->m_general_allocator = BAN::move(general_allocator);
+		forked->m_userspace_info = m_userspace_info;
 
 		ASSERT(this == &Process::current());
+		// FIXME: this should be able to fail
 		Thread* thread = MUST(Thread::current().clone(forked, rsp, rip));
 		forked->add_thread(thread);
 		
@@ -330,9 +343,6 @@ namespace Kernel
 
 		m_fixed_width_allocators.clear();
 		m_general_allocator.clear();
-
-		for (auto* range : m_mapped_ranges)
-			delete range;
 		m_mapped_ranges.clear();
 
 		load_elf_to_memory(*elf);
@@ -478,7 +488,7 @@ namespace Kernel
 
 				{
 					LockGuard _(m_lock);
-					MUST(m_mapped_ranges.push_back(VirtualRange::create(page_table(), page_start * PAGE_SIZE, page_count * PAGE_SIZE, flags)));
+					MUST(m_mapped_ranges.push_back(MUST(VirtualRange::create(page_table(), page_start * PAGE_SIZE, page_count * PAGE_SIZE, flags))));
 					m_mapped_ranges.back()->set_zero();
 					m_mapped_ranges.back()->copy_from(elf_program_header.p_vaddr % PAGE_SIZE, elf.data() + elf_program_header.p_offset, elf_program_header.p_filesz);
 				}

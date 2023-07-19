@@ -17,6 +17,8 @@ namespace Kernel
 		OpenFileDescriptorSet(const Credentials&);
 		~OpenFileDescriptorSet();
 
+		OpenFileDescriptorSet& operator=(OpenFileDescriptorSet&&);
+
 		BAN::ErrorOr<void> clone_from(const OpenFileDescriptorSet&);
 
 		BAN::ErrorOr<int> open(BAN::StringView absolute_path, int flags);

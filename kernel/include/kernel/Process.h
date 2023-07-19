@@ -140,7 +140,7 @@ namespace Kernel
 
 		OpenFileDescriptorSet m_open_file_descriptors;
 
-		BAN::Vector<VirtualRange*> m_mapped_ranges;
+		BAN::Vector<BAN::UniqPtr<VirtualRange>> m_mapped_ranges;
 
 		mutable RecursiveSpinLock m_lock;
 

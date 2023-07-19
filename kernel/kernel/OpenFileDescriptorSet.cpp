@@ -19,6 +19,13 @@ namespace Kernel
 		close_all();
 	}
 
+	OpenFileDescriptorSet& OpenFileDescriptorSet::operator=(OpenFileDescriptorSet&& other)
+	{
+		for (size_t i = 0; i < m_open_files.size(); i++)
+			m_open_files[i] = BAN::move(other.m_open_files[i]);
+		return *this;
+	}
+
 	BAN::ErrorOr<void> OpenFileDescriptorSet::clone_from(const OpenFileDescriptorSet& other)
 	{
 		close_all();
