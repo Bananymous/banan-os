@@ -1,3 +1,4 @@
+#include <BAN/ScopeGuard.h>
 #include <kernel/Memory/Heap.h>
 #include <kernel/Memory/VirtualRange.h>
 
@@ -9,35 +10,49 @@ namespace Kernel
 		ASSERT(size % PAGE_SIZE == 0);
 		ASSERT(vaddr % PAGE_SIZE == 0);
 
-		VirtualRange* result = new VirtualRange(page_table);
-		ASSERT(result);
+		VirtualRange* result_ptr = new VirtualRange(page_table);
+		if (result_ptr == nullptr)
+			return BAN::Error::from_errno(ENOMEM);
+		auto result = BAN::UniqPtr<VirtualRange>::adopt(result_ptr);
 
 		result->m_kmalloc = false;
 		result->m_size = size;
 		result->m_flags = flags;
-		MUST(result->m_physical_pages.reserve(size / PAGE_SIZE));
+		TRY(result->m_physical_pages.reserve(size / PAGE_SIZE));
 
 		page_table.lock();
 
 		if (vaddr == 0)
 		{
 			vaddr = page_table.get_free_contiguous_pages(size / PAGE_SIZE, 0x300000);
-			ASSERT(vaddr);
+			if (vaddr == 0)
+			{
+				derrorln("out of virtual memory");
+				return BAN::Error::from_errno(ENOMEM);
+			}
 		}
 
 		result->m_vaddr = vaddr;
 
 		ASSERT(page_table.is_range_free(vaddr, size));
+
+		TRY(result->m_physical_pages.reserve(size / PAGE_SIZE));
 		for (size_t offset = 0; offset < size; offset += PAGE_SIZE)
 		{
 			paddr_t paddr = Heap::get().take_free_page();
-			ASSERT(paddr);
+			if (paddr == 0)
+			{
+				for (paddr_t release : result->m_physical_pages)
+					Heap::get().release_page(release);
+				return BAN::Error::from_errno(ENOMEM);
+			}
 			MUST(result->m_physical_pages.push_back(paddr));
 			page_table.map_page_at(paddr, vaddr + offset, flags);
 		}
+
 		page_table.unlock();
 
-		return BAN::UniqPtr<VirtualRange>::adopt(result);
+		return result;
 	}
 
 	BAN::ErrorOr<BAN::UniqPtr<VirtualRange>> VirtualRange::create_kmalloc(size_t size)
@@ -52,7 +67,7 @@ namespace Kernel
 		if (result->m_vaddr == 0)
 		{
 			delete result;
-			return BAN::UniqPtr<VirtualRange>();
+			return BAN::Error::from_errno(ENOMEM);
 		}
 
 		return BAN::UniqPtr<VirtualRange>::adopt(result);
