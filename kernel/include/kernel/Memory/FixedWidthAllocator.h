@@ -1,5 +1,6 @@
 #pragma once
 
+#include <BAN/Errors.h>
 #include <BAN/UniqPtr.h>
 #include <kernel/Memory/Heap.h>
 #include <kernel/Memory/PageTable.h>
@@ -28,6 +29,8 @@ namespace Kernel
 
 	private:
 		FixedWidthAllocator(PageTable&, uint32_t);
+		BAN::ErrorOr<void> initialize();
+
 		bool allocate_page_if_needed(vaddr_t, uint8_t flags);
 
 		struct node
