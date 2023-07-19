@@ -140,18 +140,20 @@ namespace Kernel
 
 		uint64_t* pml4 = (uint64_t*)P2V(m_highest_paging_struct);
 		pml4[pml4e] = V2P(allocate_zeroed_page_aligned_page());
-		pml4[pml4e] = (pml4[pml4e] & PAGE_ADDR_MASK) | (Flags::ReadWrite | Flags::Present);
+		pml4[pml4e] |= Flags::ReadWrite | Flags::Present;
 
 		uint64_t* pdpt = (uint64_t*)P2V(pml4[pml4e] & PAGE_ADDR_MASK);
 		for (uint64_t i = 0; pdpte + i < 512; i++)
-		{
-			pdpt[pdpte + i] = V2P(allocate_zeroed_page_aligned_page());
 			pdpt[pdpte + i] = s_global[i] | (Flags::ReadWrite | Flags::Present);
-		}
 	}
 
 	PageTable::~PageTable()
 	{
+		// Verify that kernel memory fits to single page directory pointer table
+		static_assert(0xFFFFFFFFFFFFFFFF - KERNEL_OFFSET < 4096ull * 512ull * 512ull * 512ull);
+		constexpr uint64_t kernel_pml4e = (KERNEL_OFFSET >> 39) & 0x1FF;
+		constexpr uint64_t kernel_pdpte = (KERNEL_OFFSET >> 30) & 0x1FF;
+
 		uint64_t* pml4 = (uint64_t*)P2V(m_highest_paging_struct);
 		for (uint64_t pml4e = 0; pml4e < 512; pml4e++)
 		{
@@ -162,21 +164,13 @@ namespace Kernel
 			{
 				if (!(pdpt[pdpte] & Flags::Present))
 					continue;
+				if (pml4e >= kernel_pml4e && pdpte >= kernel_pdpte)
+					break;
 				uint64_t* pd = (uint64_t*)P2V(pdpt[pdpte] & PAGE_ADDR_MASK);
 				for (uint64_t pde = 0; pde < 512; pde++)
 				{
 					if (!(pd[pde] & Flags::Present))
 						continue;
-
-					vaddr_t vaddr = 0;
-					vaddr |= pml4e << 39;
-					vaddr |= pdpte << 30;
-					vaddr |= pde   << 21;
-					vaddr = canonicalize(vaddr);
-
-					if (vaddr >= KERNEL_OFFSET)
-						return;
-
 					kfree((void*)P2V(pd[pde] & PAGE_ADDR_MASK));
 				}
 				kfree(pd);
