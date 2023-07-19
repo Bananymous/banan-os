@@ -1,4 +1,4 @@
-#include <kernel/Device.h>
+#include <kernel/Device/Device.h>
 #include <kernel/FS/DevFS/FileSystem.h>
 
 namespace Kernel

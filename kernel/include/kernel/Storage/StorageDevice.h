@@ -1,7 +1,7 @@
 #pragma once
 
 #include <BAN/Vector.h>
-#include <kernel/Device.h>
+#include <kernel/Device/Device.h>
 #include <kernel/Storage/DiskCache.h>
 
 namespace Kernel

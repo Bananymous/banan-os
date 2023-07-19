@@ -1,6 +1,6 @@
 #pragma once
 
-#include <kernel/Device.h>
+#include <kernel/Device/Device.h>
 #include <kernel/FS/RamFS/FileSystem.h>
 
 namespace Kernel

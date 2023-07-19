@@ -1,6 +1,6 @@
 #pragma once
 
-#include <kernel/Device.h>
+#include <kernel/Device/Device.h>
 
 namespace Kernel::Input
 {
