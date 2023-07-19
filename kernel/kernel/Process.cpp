@@ -315,77 +315,77 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_exec(BAN::StringView path, const char* const* argv, const char* const* envp)
 	{
-		BAN::Vector<BAN::String> str_argv;
-		for (int i = 0; argv && argv[i]; i++)
-			TRY(str_argv.emplace_back(argv[i]));
-
-		BAN::Vector<BAN::StringView> path_env;
-		BAN::Vector<BAN::String> str_envp;
-		for (int i = 0; envp && envp[i]; i++)
+		// NOTE: We scope everything for automatic deletion
 		{
-			TRY(str_envp.emplace_back(envp[i]));
-			if (strncmp(envp[i], "PATH=", 5) == 0)
-				path_env = TRY(BAN::StringView(envp[i]).substring(5).split(':'));
-		}
+			BAN::Vector<BAN::String> str_argv;
+			for (int i = 0; argv && argv[i]; i++)
+				TRY(str_argv.emplace_back(argv[i]));
 
-		BAN::String working_directory;
-
-		{
-			LockGuard _(m_lock);
-			TRY(working_directory.append(m_working_directory));
-		}
-
-		auto elf = TRY(load_elf_for_exec(m_credentials, path, working_directory, path_env));
-
-		LockGuard lock_guard(m_lock);
-
-		m_open_file_descriptors.close_cloexec();
-
-		m_fixed_width_allocators.clear();
-		m_general_allocator.clear();
-		m_mapped_ranges.clear();
-
-		load_elf_to_memory(*elf);
-
-		m_userspace_info.entry = elf->file_header_native().e_entry;
-
-		// NOTE: we clear the elf since we don't need the memory anymore
-		elf.clear();
-
-		ASSERT(m_threads.size() == 1);
-		ASSERT(&Process::current() == this);
-
-		{
-			LockGuard _(page_table());
-
-			m_userspace_info.argv = (char**)MUST(sys_alloc(sizeof(char**) * (str_argv.size() + 1)));
-			for (size_t i = 0; i < str_argv.size(); i++)
+			BAN::Vector<BAN::StringView> path_env;
+			BAN::Vector<BAN::String> str_envp;
+			for (int i = 0; envp && envp[i]; i++)
 			{
-				m_userspace_info.argv[i] = (char*)MUST(sys_alloc(str_argv[i].size() + 1));
-				memcpy(m_userspace_info.argv[i], str_argv[i].data(), str_argv[i].size());
-				m_userspace_info.argv[i][str_argv[i].size()] = '\0';
+				TRY(str_envp.emplace_back(envp[i]));
+				if (strncmp(envp[i], "PATH=", 5) == 0)
+					path_env = TRY(BAN::StringView(envp[i]).substring(5).split(':'));
 			}
-			m_userspace_info.argv[str_argv.size()] = nullptr;
 
-			m_userspace_info.envp = (char**)MUST(sys_alloc(sizeof(char**) * (str_envp.size() + 1)));
-			for (size_t i = 0; i < str_envp.size(); i++)
+			BAN::String working_directory;
+
 			{
-				m_userspace_info.envp[i] = (char*)MUST(sys_alloc(str_envp[i].size() + 1));
-				memcpy(m_userspace_info.envp[i], str_envp[i].data(), str_envp[i].size());
-				m_userspace_info.envp[i][str_envp[i].size()] = '\0';
+				LockGuard _(m_lock);
+				TRY(working_directory.append(m_working_directory));
 			}
-			m_userspace_info.envp[str_envp.size()] = nullptr;
+
+			auto elf = TRY(load_elf_for_exec(m_credentials, path, working_directory, path_env));
+
+			LockGuard lock_guard(m_lock);
+
+			m_open_file_descriptors.close_cloexec();
+
+			m_fixed_width_allocators.clear();
+			m_general_allocator.clear();
+			m_mapped_ranges.clear();
+
+			load_elf_to_memory(*elf);
+
+			m_userspace_info.entry = elf->file_header_native().e_entry;
+
+			// NOTE: we clear the elf since we don't need the memory anymore
+			elf.clear();
+
+			ASSERT(m_threads.size() == 1);
+			ASSERT(&Process::current() == this);
+
+			// allocate memory on the new process for arguments and environment
+			{
+				LockGuard _(page_table());
+
+				m_userspace_info.argv = (char**)MUST(sys_alloc(sizeof(char**) * (str_argv.size() + 1)));
+				for (size_t i = 0; i < str_argv.size(); i++)
+				{
+					m_userspace_info.argv[i] = (char*)MUST(sys_alloc(str_argv[i].size() + 1));
+					memcpy(m_userspace_info.argv[i], str_argv[i].data(), str_argv[i].size());
+					m_userspace_info.argv[i][str_argv[i].size()] = '\0';
+				}
+				m_userspace_info.argv[str_argv.size()] = nullptr;
+
+				m_userspace_info.envp = (char**)MUST(sys_alloc(sizeof(char**) * (str_envp.size() + 1)));
+				for (size_t i = 0; i < str_envp.size(); i++)
+				{
+					m_userspace_info.envp[i] = (char*)MUST(sys_alloc(str_envp[i].size() + 1));
+					memcpy(m_userspace_info.envp[i], str_envp[i].data(), str_envp[i].size());
+					m_userspace_info.envp[i][str_envp[i].size()] = '\0';
+				}
+				m_userspace_info.envp[str_envp.size()] = nullptr;
+			}
+
+			m_userspace_info.argc = str_argv.size();
+
+			asm volatile("cli");
+			m_threads.front()->setup_exec();
 		}
 
-		m_userspace_info.argc = str_argv.size();
-
-		// NOTE: These must be manually cleared since this function won't return after this point
-		str_argv.clear();
-		str_envp.clear();
-
-		CriticalScope _;
-		lock_guard.~LockGuard();
-		m_threads.front()->setup_exec();
 		Scheduler::get().execute_current_thread();
 		ASSERT_NOT_REACHED();
 	}
