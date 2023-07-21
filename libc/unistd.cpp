@@ -279,6 +279,13 @@ long syscall(long syscall, ...)
 			ret = Kernel::syscall(SYS_KILL, pid, signal);
 			break;
 		}
+		case SYS_SIGNAL:
+		{
+			int signal = va_arg(args, int);
+			void (*handler)(int) = va_arg(args, void(*)(int));
+			ret = Kernel::syscall(SYS_SIGNAL, signal, (uintptr_t)handler);
+			break;
+		}
 		default:
 			puts("LibC: Unhandeled syscall");
 			ret = -ENOSYS;

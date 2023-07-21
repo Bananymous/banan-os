@@ -43,6 +43,7 @@ __BEGIN_DECLS
 #define SYS_DUP2 36
 #define SYS_RAISE 37
 #define SYS_KILL 38
+#define SYS_SIGNAL 39
 
 __END_DECLS
 
