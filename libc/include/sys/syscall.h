@@ -42,6 +42,7 @@ __BEGIN_DECLS
 #define SYS_PIPE 35
 #define SYS_DUP2 36
 #define SYS_RAISE 37
+#define SYS_KILL 38
 
 __END_DECLS
 
