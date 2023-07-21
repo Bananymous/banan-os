@@ -44,6 +44,11 @@ namespace Kernel
 		return addr;
 	}
 
+	static inline PageTable::flags_t parse_flags(uint64_t entry)
+	{
+		return (s_has_nxe && !(entry & (1ull << 63)) ? PageTable::Flags::Execute : 0) | (entry & 0b111);
+	}
+
 	void PageTable::initialize()
 	{
 		if (CPUID::has_nxe())
@@ -342,8 +347,7 @@ namespace Kernel
 
 	PageTable::flags_t PageTable::get_page_flags(vaddr_t addr) const
 	{
-		uint64_t page_data = get_page_data(addr);
-		return (page_data & (1ull << 63) ? Flags::Execute : 0) | (page_data & PAGE_FLAG_MASK);
+		return parse_flags(get_page_data(addr));
 	}
 
 	paddr_t PageTable::physical_address_of(vaddr_t addr) const
@@ -463,9 +467,10 @@ namespace Kernel
 	{
 		if (start == 0)
 			return;
-		dprintln("{}-{}: {}{}{}",
+		dprintln("{}-{}: {}{}{}{}",
 			(void*)canonicalize(start),
 			(void*)canonicalize(end - 1),
+			flags & PageTable::Flags::Execute			? 'x' : '-',
 			flags & PageTable::Flags::UserSupervisor	? 'u' : '-',
 			flags & PageTable::Flags::ReadWrite			? 'w' : '-',
 			flags & PageTable::Flags::Present			? 'r' : '-'
@@ -509,7 +514,7 @@ namespace Kernel
 					uint64_t* pt = (uint64_t*)P2V(pd[pde] & PAGE_ADDR_MASK);
 					for (uint64_t pte = 0; pte < 512; pte++)
 					{
-						if ((pt[pte] & PAGE_FLAG_MASK) != flags)
+						if (parse_flags(pt[pte]) != flags)
 						{
 							dump_range(start, (pml4e << 39) | (pdpte << 30) | (pde << 21) | (pte << 12), flags);
 							start = 0;
@@ -520,7 +525,7 @@ namespace Kernel
 						
 						if (start == 0)
 						{
-							flags = pt[pte] & PAGE_FLAG_MASK;
+							flags = parse_flags(pt[pte]);
 							start = (pml4e << 39) | (pdpte << 30) | (pde << 21) | (pte << 12);
 						}
 					}
