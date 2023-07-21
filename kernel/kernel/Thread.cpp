@@ -143,10 +143,20 @@ namespace Kernel
 		}
 	}
 
+	void Thread::handle_next_signal()
+	{
+		ASSERT(!interrupts_enabled());
+		ASSERT(!m_signal_queue.empty());
+		handle_signal(m_signal_queue.front(), m_rsp, m_rip);
+	}
+
 	void Thread::handle_signal(int signal, uintptr_t& return_rsp, uintptr_t& return_rip)
 	{
+		ASSERT(!interrupts_enabled());
 		ASSERT(signal >= _SIGMIN && signal <= _SIGMAX);
 		ASSERT(&Thread::current() == this);
+		ASSERT(!m_signal_queue.empty());
+		ASSERT(m_signal_queue.front() == signal);
 
 		// Skip masked (ignored) signals
 		if (m_signal_mask & (1ull << signal))
@@ -154,7 +164,6 @@ namespace Kernel
 
 		if (m_signal_handlers[signal])
 		{
-			asm volatile("cli");
 			write_to_stack(return_rsp, return_rip);
 			write_to_stack(return_rsp, signal);
 			write_to_stack(return_rsp, m_signal_handlers[signal]);
@@ -193,6 +202,8 @@ namespace Kernel
 				{
 					auto message = BAN::String::formatted("killed by signal {}\n", signal);
 					(void)process().tty().write(0, message.data(), message.size());
+
+					ENABLE_INTERRUPTS();
 					process().exit(128 + signal);
 					ASSERT_NOT_REACHED();
 				}
@@ -214,9 +225,7 @@ namespace Kernel
 			}
 		}
 
-		asm volatile("cli");
-		if (!m_signal_queue.empty() && m_signal_queue.front() == signal)
-			m_signal_queue.pop();
+		m_signal_queue.pop();
 	}
 
 	void Thread::validate_stack() const

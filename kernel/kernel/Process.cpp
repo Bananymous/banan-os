@@ -794,6 +794,8 @@ namespace Kernel
 		if (signal < _SIGMIN || signal > _SIGMAX)
 			return BAN::Error::from_errno(EINVAL);
 		ASSERT(m_threads.size() == 1);
+		CriticalScope _;
+		Thread::current().m_signal_queue.push(signal);
 		Thread::current().handle_signal(signal, return_rsp, return_rip);
 		return 0;
 	}
