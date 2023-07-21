@@ -113,7 +113,7 @@ namespace Kernel
 			V2P(g_kernel_execute_start),
 			(vaddr_t)g_kernel_execute_start,
 			g_kernel_execute_end - g_kernel_execute_start,
-			Flags::Execute | Flags::ReadWrite | Flags::Present
+			Flags::Execute | Flags::Present
 		);
 	}
 
