@@ -155,11 +155,15 @@ namespace Kernel
 		BAN::Vector<BAN::UniqPtr<FixedWidthAllocator>> m_fixed_width_allocators;
 		BAN::UniqPtr<GeneralAllocator> m_general_allocator;
 
+		vaddr_t m_signal_handlers[_SIGMAX + 1] { };
+
 		userspace_info_t m_userspace_info;
 		ExitStatus m_exit_status;
 
 		BAN::UniqPtr<PageTable> m_page_table;
 		BAN::RefPtr<TTY> m_tty;
+
+		friend class Thread;
 	};
 
 }

@@ -133,6 +133,8 @@ namespace Kernel
 		m_rsp = stack_base() + stack_size();
 		m_rip = (uintptr_t)entry_trampoline;
 
+		// Signal mask is inherited
+
 		// Setup stack for returning
 		{
 			// FIXME: don't use PageTableScope
@@ -141,6 +143,11 @@ namespace Kernel
 			write_to_stack(m_rsp, &Thread::on_exit);
 			write_to_stack(m_rsp, nullptr);
 		}
+	}
+
+	bool Thread::has_signal_to_execute() const
+	{
+		return !m_signal_queue.empty() && !m_handling_signal;
 	}
 
 	void Thread::handle_next_signal()
@@ -158,16 +165,24 @@ namespace Kernel
 		ASSERT(!m_signal_queue.empty());
 		ASSERT(m_signal_queue.front() == signal);
 
-		// Skip masked (ignored) signals
-		if (m_signal_mask & (1ull << signal))
-			return;
+		vaddr_t signal_handler = process().m_signal_handlers[signal];
 
-		if (m_signal_handlers[signal])
+		m_handling_signal = true;
+
+		// Skip masked and ignored signals
+		if (m_signal_mask & (1ull << signal))
+			;
+		else if (signal_handler == (vaddr_t)SIG_IGN)
+			;
+		else if (signal_handler != (vaddr_t)SIG_DFL)
 		{
 			write_to_stack(return_rsp, return_rip);
 			write_to_stack(return_rsp, signal);
-			write_to_stack(return_rsp, m_signal_handlers[signal]);
+			write_to_stack(return_rsp, signal_handler);
 			return_rip = (uintptr_t)signal_trampoline;
+
+			// FIXME: we should only mark this signal as done when
+			//        handler returns
 		}
 		else
 		{
@@ -226,6 +241,7 @@ namespace Kernel
 		}
 
 		m_signal_queue.pop();
+		m_handling_signal = false;
 	}
 
 	void Thread::validate_stack() const

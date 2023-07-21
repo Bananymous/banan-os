@@ -9,10 +9,10 @@ __BEGIN_DECLS
 
 #include <time.h>
 
-#define SIG_DFL		1
-#define SIG_ERR		2
-#define SIG_HOLD	3
-#define SIG_IGN		4
+#define SIG_DFL		((void (*)(int))0)
+#define SIG_ERR		((void (*)(int))1)
+#define SIG_HOLD	((void (*)(int))2)
+#define SIG_IGN		((void (*)(int))3)
 
 #define __need_pthread_t
 #define __need_size_t

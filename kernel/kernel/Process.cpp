@@ -97,7 +97,10 @@ namespace Kernel
 		, m_open_file_descriptors(m_credentials)
 		, m_pid(pid)
 		, m_tty(TTY::current())
-	{ }
+	{
+		for (size_t i = 0; i < sizeof(m_signal_handlers) / sizeof(*m_signal_handlers); i++)
+			m_signal_handlers[i] = (vaddr_t)SIG_DFL;
+	}
 
 	Process::~Process()
 	{
@@ -303,6 +306,7 @@ namespace Kernel
 		forked->m_fixed_width_allocators = BAN::move(fixed_width_allocators);
 		forked->m_general_allocator = BAN::move(general_allocator);
 		forked->m_userspace_info = m_userspace_info;
+		memcpy(forked->m_signal_handlers, m_signal_handlers, sizeof(m_signal_handlers));
 
 		ASSERT(this == &Process::current());
 		// FIXME: this should be able to fail
@@ -351,6 +355,9 @@ namespace Kernel
 			load_elf_to_memory(*elf);
 
 			m_userspace_info.entry = elf->file_header_native().e_entry;
+
+			for (size_t i = 0; i < sizeof(m_signal_handlers) / sizeof(*m_signal_handlers); i++)
+				m_signal_handlers[i] = (vaddr_t)SIG_DFL;
 
 			// NOTE: we clear the elf since we don't need the memory anymore
 			elf.clear();
@@ -786,6 +793,16 @@ namespace Kernel
 			default:
 				return BAN::Error::from_errno(ENOTSUP);
 		}
+		return 0;
+	}
+
+	BAN::ErrorOr<long> Process::sys_signal(int signal, void (*handler)(int))
+	{
+		if (signal < _SIGMIN || signal > _SIGMAX)
+			return BAN::Error::from_errno(EINVAL);
+
+		CriticalScope _;
+		m_signal_handlers[signal] = (vaddr_t)handler;
 		return 0;
 	}
 
