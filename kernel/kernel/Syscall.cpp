@@ -146,6 +146,9 @@ namespace Kernel
 		case SYS_KILL:
 			ret = Process::current().sys_kill((pid_t)arg1, (int)arg2, interrupt_stack.rsp, interrupt_stack.rip);
 			break;
+		case SYS_SIGNAL:
+			ret = Process::current().sys_signal((int)arg1, (void (*)(int))arg2);
+			break;
 		default:
 			dwarnln("Unknown syscall {}", syscall);
 			break;
