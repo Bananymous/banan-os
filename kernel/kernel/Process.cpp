@@ -789,6 +789,31 @@ namespace Kernel
 		return 0;
 	}
 
+	BAN::ErrorOr<long> Process::sys_kill(pid_t pid, int signal, uintptr_t& return_rsp, uintptr_t& return_rip)
+	{
+		if (pid <= 0)
+			return BAN::Error::from_errno(ENOTSUP);
+		if (signal != 0 && (signal < _SIGMIN || signal > _SIGMAX))
+			return BAN::Error::from_errno(EINVAL);
+
+		if (pid == this->pid())
+			return sys_raise(signal, return_rsp, return_rip);
+
+		LockGuard process_guard(s_process_lock);
+		CriticalScope _;
+		for (auto* process : s_processes)
+		{
+			if (process->pid() == pid)
+			{
+				if (signal)
+					process->m_threads.front()->m_signal_queue.push(signal);
+				return 0;
+			}
+		}
+
+		return BAN::Error::from_errno(ESRCH);
+	}
+
 	BAN::ErrorOr<long> Process::sys_raise(int signal, uintptr_t& return_rsp, uintptr_t& return_rip)
 	{
 		if (signal < _SIGMIN || signal > _SIGMAX)

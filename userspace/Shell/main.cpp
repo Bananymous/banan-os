@@ -260,9 +260,26 @@ int execute_command(BAN::Vector<BAN::String>& args)
 		while (*current)
 			printf("%s\n", *current++);
 	}
-	else if (args.front() == "raise"sv)
+	else if (args.front() == "kill-test"sv)
 	{
-		raise(SIGSEGV);
+		pid_t pid = fork();
+		if (pid == 0)
+		{
+			printf("child\n");
+			for (;;);
+		}
+		if (pid == -1)
+		{
+			perror("fork");
+			return 1;
+		}
+
+		sleep(1);
+		if (kill(pid, SIGSEGV) == -1)
+		{
+			perror("kill");
+			return 1;
+		}
 	}
 	else if (args.front() == "cd"sv)
 	{
