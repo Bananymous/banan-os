@@ -43,9 +43,3 @@ signal_trampoline:
 	addq $16, %rsp
 
 	ret
-
-.global test_signal
-test_signal:
-	movq $99, %rax
-	int $0x80
-	ret
