@@ -260,6 +260,10 @@ int execute_command(BAN::Vector<BAN::String>& args)
 		while (*current)
 			printf("%s\n", *current++);
 	}
+	else if (args.front() == "raise"sv)
+	{
+		raise(SIGSEGV);
+	}
 	else if (args.front() == "cd"sv)
 	{
 		if (args.size() > 2)

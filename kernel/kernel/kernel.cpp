@@ -98,8 +98,8 @@ namespace BAN::Formatter
 
 }
 
-extern "C" uintptr_t g_kernel_start;
-extern "C" uintptr_t g_kernel_end;
+extern "C" uint8_t g_userspace_start[];
+extern "C" uint8_t g_userspace_end[];
 
 static void init2(void*);
 

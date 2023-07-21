@@ -11,6 +11,9 @@ extern uint8_t g_kernel_end[];
 extern uint8_t g_kernel_execute_start[];
 extern uint8_t g_kernel_execute_end[];
 
+extern uint8_t g_userspace_start[];
+extern uint8_t g_userspace_end[];
+
 namespace Kernel
 {
 	
@@ -119,6 +122,14 @@ namespace Kernel
 			(vaddr_t)g_kernel_execute_start,
 			g_kernel_execute_end - g_kernel_execute_start,
 			Flags::Execute | Flags::Present
+		);
+
+		// Map userspace memory
+		map_range_at(
+			V2P(g_userspace_start),
+			(vaddr_t)g_userspace_start,
+			g_userspace_end - g_userspace_start,
+			Flags::Execute | Flags::UserSupervisor | Flags::Present
 		);
 	}
 

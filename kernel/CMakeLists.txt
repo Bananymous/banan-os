@@ -75,6 +75,7 @@ if("${BANAN_ARCH}" STREQUAL "x86_64")
 		arch/x86_64/IDT.cpp
 		arch/x86_64/interrupts.S
 		arch/x86_64/PageTable.cpp
+		arch/x86_64/Signal.S
 		arch/x86_64/Thread.S
 	)
 elseif("${BANAN_ARCH}" STREQUAL "i386")

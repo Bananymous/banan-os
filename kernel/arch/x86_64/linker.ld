@@ -11,7 +11,13 @@ SECTIONS
 	{
 		g_kernel_execute_start = .;
 		*(.multiboot)
-		*(.text)
+		*(.text.*)
+	}
+	.userspace ALIGN(4K) : AT(ADDR(.userspace) - KERNEL_OFFSET)
+	{
+		g_userspace_start = .;
+		*(.userspace)
+		g_userspace_end = .;
 	}
 	.rodata ALIGN(4K) : AT(ADDR(.rodata) - KERNEL_OFFSET)
 	{

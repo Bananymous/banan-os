@@ -74,6 +74,9 @@ struct sigevent
 #define SIGRTMIN	29
 #define SIGRTMAX	(SIGRTMIN+32)
 
+#define _SIGMIN SIGABRT
+#define _SIGMAX SIGRTMAX
+
 #define SIG_BLOCK	1
 #define SIG_UNBLOCK	2
 #define SIG_SETMASK	3
