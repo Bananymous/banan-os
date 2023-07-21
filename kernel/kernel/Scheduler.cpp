@@ -212,6 +212,8 @@ namespace Kernel
 				current.set_started();
 				start_thread(current.rsp(), current.rip());
 			case Thread::State::Executing:
+				while (!current.m_signal_queue.empty())
+					current.handle_next_signal();
 				continue_thread(current.rsp(), current.rip());
 			case Thread::State::Terminating:
 				ENABLE_INTERRUPTS();

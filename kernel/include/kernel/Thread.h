@@ -37,6 +37,7 @@ namespace Kernel
 		BAN::ErrorOr<Thread*> clone(Process*, uintptr_t rsp, uintptr_t rip);
 		void setup_exec();
 
+		void handle_next_signal();
 		void handle_signal(int signal, uintptr_t& return_rsp, uintptr_t& return_rip);
 
 		pid_t tid() const { return m_tid; }
