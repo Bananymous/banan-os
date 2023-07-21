@@ -7,6 +7,7 @@
 #include <kernel/Memory/PageTableScope.h>
 #include <kernel/Process.h>
 #include <kernel/Scheduler.h>
+#include <kernel/Signal.h>
 #include <LibELF/ELF.h>
 #include <LibELF/Values.h>
 
@@ -15,7 +16,6 @@
 #include <sys/sysmacros.h>
 
 extern "C" void signal_trampoline();
-extern "C" void test_signal();
 
 namespace Kernel
 {
@@ -795,19 +795,80 @@ namespace Kernel
 	{
 		if (signal < _SIGMIN || signal > _SIGMAX)
 			return BAN::Error::from_errno(EINVAL);
-
+		
 		ASSERT(&Process::current() == this);
 
+		// Skip masked (ignored) signals
+		if (m_signal_mask & (1ull << signal))
+			return 0;
+
 		LockGuard lock_guard(m_lock);
-		asm volatile("cli");
+		if (m_signal_handlers[signal])
+		{
+			asm volatile("cli");
 
-		uintptr_t* return_rsp_ptr = (uintptr_t*)return_rsp;
-		*--return_rsp_ptr = return_rip;
-		*--return_rsp_ptr = signal;
-		*--return_rsp_ptr = (uintptr_t)test_signal;
+			uintptr_t* return_rsp_ptr = (uintptr_t*)return_rsp;
+			*--return_rsp_ptr = return_rip;
+			*--return_rsp_ptr = signal;
+			*--return_rsp_ptr = m_signal_handlers[signal];
 
-		return_rsp = (uintptr_t)return_rsp_ptr;
-		return_rip = (uintptr_t)signal_trampoline;
+			return_rsp = (uintptr_t)return_rsp_ptr;
+			return_rip = (uintptr_t)signal_trampoline;
+		}
+		else
+		{
+			switch (signal)
+			{
+				// Abnormal termination of the process with additional actions.
+				case SIGABRT:
+				case SIGBUS:
+				case SIGFPE:
+				case SIGILL:
+				case SIGQUIT:
+				case SIGSEGV:
+				case SIGSYS:
+				case SIGTRAP:
+				case SIGXCPU:
+				case SIGXFSZ:
+					// TODO: additional actions
+					// fall through
+
+				// Abnormal termination of the process
+				case SIGALRM:
+				case SIGHUP:
+				case SIGINT:
+				case SIGKILL:
+				case SIGPIPE:
+				case SIGTERM:
+				case SIGUSR1:
+				case SIGUSR2:
+				case SIGPOLL:
+				case SIGPROF:
+				case SIGVTALRM:
+				{
+					auto message = BAN::String::formatted("killed by signal {}\n", signal);
+					(void)m_tty->write(0, message.data(), message.size());
+					lock_guard.~LockGuard();
+					exit(128 + signal);
+					ASSERT_NOT_REACHED();
+				}
+
+				// Ignore the signal
+				case SIGCHLD:
+				case SIGURG:
+					break;
+
+				// Stop the process:
+				case SIGTSTP:
+				case SIGTTIN:
+				case SIGTTOU:
+					ASSERT_NOT_REACHED();
+
+				// Continue the process, if it is stopped; otherwise, ignore the signal.
+				case SIGCONT:
+					ASSERT_NOT_REACHED();
+			}
+		}
 
 		return 0;
 	}
