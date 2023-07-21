@@ -37,6 +37,7 @@ namespace Kernel
 		BAN::ErrorOr<Thread*> clone(Process*, uintptr_t rsp, uintptr_t rip);
 		void setup_exec();
 
+		bool has_signal_to_execute() const;
 		void handle_next_signal();
 		void handle_signal(int signal, uintptr_t& return_rsp, uintptr_t& return_rip);
 
@@ -88,9 +89,9 @@ namespace Kernel
 		bool						m_in_syscall		{ false };
 		bool						m_is_userspace		{ false };
 
-		BAN::CircularQueue<int, 10> m_signal_queue;
-		vaddr_t m_signal_handlers[_SIGMAX + 1] { };
-		uint64_t m_signal_mask { (1ull << SIGCHLD) | (1ull << SIGURG) };
+		BAN::CircularQueue<int, 10>	m_signal_queue;
+		uint64_t					m_signal_mask		{ 0 };
+		bool						m_handling_signal	{ false };
 		static_assert(_SIGMAX < 64);
 
 		friend class Process;
