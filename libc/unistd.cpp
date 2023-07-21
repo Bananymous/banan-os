@@ -266,6 +266,12 @@ long syscall(long syscall, ...)
 			ret = Kernel::syscall(SYS_DUP2, fildes, fildes2);
 			break;
 		}
+		case SYS_RAISE:
+		{
+			int signal = va_arg(args, int);
+			ret = Kernel::syscall(SYS_RAISE, signal);
+			break;
+		}
 		default:
 			puts("LibC: Unhandeled syscall");
 			ret = -ENOSYS;

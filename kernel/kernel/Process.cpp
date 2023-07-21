@@ -14,6 +14,9 @@
 #include <stdio.h>
 #include <sys/sysmacros.h>
 
+extern "C" void signal_trampoline();
+extern "C" void test_signal();
+
 namespace Kernel
 {
 
@@ -785,6 +788,27 @@ namespace Kernel
 			default:
 				return BAN::Error::from_errno(ENOTSUP);
 		}
+		return 0;
+	}
+
+	BAN::ErrorOr<long> Process::sys_raise(int signal, uintptr_t& return_rsp, uintptr_t& return_rip)
+	{
+		if (signal < _SIGMIN || signal > _SIGMAX)
+			return BAN::Error::from_errno(EINVAL);
+
+		ASSERT(&Process::current() == this);
+
+		LockGuard lock_guard(m_lock);
+		asm volatile("cli");
+
+		uintptr_t* return_rsp_ptr = (uintptr_t*)return_rsp;
+		*--return_rsp_ptr = return_rip;
+		*--return_rsp_ptr = signal;
+		*--return_rsp_ptr = (uintptr_t)test_signal;
+
+		return_rsp = (uintptr_t)return_rsp_ptr;
+		return_rip = (uintptr_t)signal_trampoline;
+
 		return 0;
 	}
 

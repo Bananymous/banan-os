@@ -9,6 +9,7 @@ set(LIBC_SOURCES
 	fcntl.cpp
 	printf_impl.cpp
 	pwd.cpp
+	signal.cpp
 	stdio.cpp
 	stdlib.cpp
 	string.cpp

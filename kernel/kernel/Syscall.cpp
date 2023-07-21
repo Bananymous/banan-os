@@ -140,6 +140,9 @@ namespace Kernel
 		case SYS_DUP2:
 			ret = Process::current().sys_dup2((int)arg1, (int)arg2);
 			break;
+		case SYS_RAISE:
+			ret = Process::current().sys_raise((int)arg1, interrupt_stack.rsp, interrupt_stack.rip);
+			break;
 		default:
 			dwarnln("Unknown syscall {}", syscall);
 			break;

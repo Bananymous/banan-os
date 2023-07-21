@@ -41,6 +41,7 @@ __BEGIN_DECLS
 #define SYS_CLOCK_GETTIME 34
 #define SYS_PIPE 35
 #define SYS_DUP2 36
+#define SYS_RAISE 37
 
 __END_DECLS
 
