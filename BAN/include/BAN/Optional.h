@@ -94,7 +94,7 @@ namespace BAN
 	Optional<T>& Optional<T>::operator=(Optional&& other)
 	{
 		clear();
-		if (other.has_value)
+		if (other.has_value())
 		{
 			m_has_value = true;
 			new (m_storage) T(BAN::move(other.release_value()));
