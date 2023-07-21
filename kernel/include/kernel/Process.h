@@ -158,10 +158,6 @@ namespace Kernel
 		userspace_info_t m_userspace_info;
 		ExitStatus m_exit_status;
 
-		vaddr_t m_signal_handlers[_SIGMAX + 1] { };
-		uint64_t m_signal_mask { (1ull << SIGCHLD) | (1ull << SIGURG) };
-		static_assert(_SIGMAX < 64);
-
 		BAN::UniqPtr<PageTable> m_page_table;
 		BAN::RefPtr<TTY> m_tty;
 	};
