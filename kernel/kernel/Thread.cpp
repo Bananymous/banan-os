@@ -7,17 +7,23 @@
 #include <kernel/Scheduler.h>
 #include <kernel/Thread.h>
 
+
 namespace Kernel
 {
 
 	extern "C" void thread_userspace_trampoline(uint64_t rsp, uint64_t rip, int argc, char** argv, char** envp);
 	extern "C" uintptr_t read_rip();
 
-	template<size_t size, typename T>
+	extern "C" void signal_trampoline();
+
+	template<typename T>
 	static void write_to_stack(uintptr_t& rsp, const T& value)
 	{
-		rsp -= size;
-		memcpy((void*)rsp, (void*)&value, size);
+		rsp -= sizeof(uintptr_t);
+		if constexpr(sizeof(T) < sizeof(uintptr_t))
+			*(uintptr_t*)rsp = (uintptr_t)value;
+		else
+			memcpy((void*)rsp, (void*)&value, sizeof(uintptr_t));
 	}
 
 	static pid_t s_next_tid = 1;
@@ -36,9 +42,9 @@ namespace Kernel
 		thread->m_rip = (uintptr_t)entry;
 
 		// Initialize stack for returning
-		write_to_stack<sizeof(void*)>(thread->m_rsp, thread);
-		write_to_stack<sizeof(void*)>(thread->m_rsp, &Thread::on_exit);
-		write_to_stack<sizeof(void*)>(thread->m_rsp, data);
+		write_to_stack(thread->m_rsp, thread);
+		write_to_stack(thread->m_rsp, &Thread::on_exit);
+		write_to_stack(thread->m_rsp, data);
 
 		thread_deleter.disable();
 
@@ -131,10 +137,86 @@ namespace Kernel
 		{
 			// FIXME: don't use PageTableScope
 			PageTableScope _(m_process->page_table());
-			write_to_stack<sizeof(void*)>(m_rsp, this);
-			write_to_stack<sizeof(void*)>(m_rsp, &Thread::on_exit);
-			write_to_stack<sizeof(void*)>(m_rsp, nullptr);
+			write_to_stack(m_rsp, this);
+			write_to_stack(m_rsp, &Thread::on_exit);
+			write_to_stack(m_rsp, nullptr);
 		}
+	}
+
+	void Thread::handle_signal(int signal, uintptr_t& return_rsp, uintptr_t& return_rip)
+	{
+		ASSERT(signal >= _SIGMIN && signal <= _SIGMAX);
+		ASSERT(&Thread::current() == this);
+
+		// Skip masked (ignored) signals
+		if (m_signal_mask & (1ull << signal))
+			return;
+
+		if (m_signal_handlers[signal])
+		{
+			asm volatile("cli");
+			write_to_stack(return_rsp, return_rip);
+			write_to_stack(return_rsp, signal);
+			write_to_stack(return_rsp, m_signal_handlers[signal]);
+			return_rip = (uintptr_t)signal_trampoline;
+		}
+		else
+		{
+			switch (signal)
+			{
+				// Abnormal termination of the process with additional actions.
+				case SIGABRT:
+				case SIGBUS:
+				case SIGFPE:
+				case SIGILL:
+				case SIGQUIT:
+				case SIGSEGV:
+				case SIGSYS:
+				case SIGTRAP:
+				case SIGXCPU:
+				case SIGXFSZ:
+					// TODO: additional actions
+					// fall through
+
+				// Abnormal termination of the process
+				case SIGALRM:
+				case SIGHUP:
+				case SIGINT:
+				case SIGKILL:
+				case SIGPIPE:
+				case SIGTERM:
+				case SIGUSR1:
+				case SIGUSR2:
+				case SIGPOLL:
+				case SIGPROF:
+				case SIGVTALRM:
+				{
+					auto message = BAN::String::formatted("killed by signal {}\n", signal);
+					(void)process().tty().write(0, message.data(), message.size());
+					process().exit(128 + signal);
+					ASSERT_NOT_REACHED();
+				}
+
+				// Ignore the signal
+				case SIGCHLD:
+				case SIGURG:
+					break;
+
+				// Stop the process:
+				case SIGTSTP:
+				case SIGTTIN:
+				case SIGTTOU:
+					ASSERT_NOT_REACHED();
+
+				// Continue the process, if it is stopped; otherwise, ignore the signal.
+				case SIGCONT:
+					ASSERT_NOT_REACHED();
+			}
+		}
+
+		asm volatile("cli");
+		if (!m_signal_queue.empty() && m_signal_queue.front() == signal)
+			m_signal_queue.pop();
 	}
 
 	void Thread::validate_stack() const

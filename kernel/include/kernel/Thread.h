@@ -1,10 +1,12 @@
 #pragma once
 
+#include <BAN/CircularQueue.h>
 #include <BAN/NoCopyMove.h>
 #include <BAN/RefPtr.h>
 #include <BAN/UniqPtr.h>
 #include <kernel/Memory/VirtualRange.h>
 
+#include <signal.h>
 #include <sys/types.h>
 
 namespace Kernel
@@ -34,6 +36,8 @@ namespace Kernel
 
 		BAN::ErrorOr<Thread*> clone(Process*, uintptr_t rsp, uintptr_t rip);
 		void setup_exec();
+
+		void handle_signal(int signal, uintptr_t& return_rsp, uintptr_t& return_rip);
 
 		pid_t tid() const { return m_tid; }
 
@@ -83,6 +87,12 @@ namespace Kernel
 		bool						m_in_syscall		{ false };
 		bool						m_is_userspace		{ false };
 
+		BAN::CircularQueue<int, 10> m_signal_queue;
+		vaddr_t m_signal_handlers[_SIGMAX + 1] { };
+		uint64_t m_signal_mask { (1ull << SIGCHLD) | (1ull << SIGURG) };
+		static_assert(_SIGMAX < 64);
+
+		friend class Process;
 		friend class Scheduler;
 	};
 	
