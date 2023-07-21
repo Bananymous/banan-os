@@ -163,7 +163,11 @@ syscall_asm:
 	movq %rax, %rdi
 	movq %rbx, %rsi
 	xchgq %rcx, %rdx
+	movq %rsp, %rbx
+	addq $120, %rbx
+	pushq %rbx
 	call cpp_syscall_handler
+	addq $8, %rsp
 	popaq_no_rax
 	addq $8, %rsp
 	iretq

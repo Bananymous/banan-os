@@ -1,4 +1,5 @@
 #include <kernel/Debug.h>
+#include <kernel/InterruptStack.h>
 #include <kernel/Process.h>
 #include <kernel/Syscall.h>
 
@@ -17,7 +18,7 @@ namespace Kernel
 
 	extern "C" long sys_fork_trampoline();
 
-	extern "C" long cpp_syscall_handler(int syscall, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
+	extern "C" long cpp_syscall_handler(int syscall, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4, uintptr_t arg5, InterruptStack& interrupt_stack)
 	{
 		Thread::current().set_in_syscall(true);
 
@@ -28,6 +29,7 @@ namespace Kernel
 		(void)arg3;
 		(void)arg4;
 		(void)arg5;
+		(void)interrupt_stack;
 
 		BAN::ErrorOr<long> ret = BAN::Error::from_errno(ENOSYS);
 
