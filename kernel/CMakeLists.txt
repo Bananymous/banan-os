@@ -168,6 +168,11 @@ add_custom_command(
 )
 
 add_custom_command(
+	TARGET kernel POST_BUILD
+	COMMAND x86_64-banan_os-strip ${CMAKE_CURRENT_BINARY_DIR}/kernel
+)
+
+add_custom_command(
 	OUTPUT font/prefs.psf.o
 	COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR} && objcopy -O ${ELF_FORMAT} -B i386 -I binary font/prefs.psf ${CMAKE_CURRENT_BINARY_DIR}/font/prefs.psf.o
 )
