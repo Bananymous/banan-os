@@ -150,6 +150,19 @@ namespace Kernel
 		return !m_signal_queue.empty() && !m_handling_signal;
 	}
 
+	void Thread::set_signal_done(int signal)
+	{
+		ASSERT(!interrupts_enabled());
+		if (!m_handling_signal)
+			derrorln("set_signal_done called while not handling singal");
+		else if (m_signal_queue.empty())
+			derrorln("set_signal_done called and there are no signals in queue");
+		else if (m_signal_queue.front() != signal)
+			derrorln("set_signal_done called with wrong signal");
+		else
+			m_signal_queue.pop();
+	}
+
 	void Thread::handle_next_signal()
 	{
 		ASSERT(!interrupts_enabled());
@@ -167,8 +180,6 @@ namespace Kernel
 
 		vaddr_t signal_handler = process().m_signal_handlers[signal];
 
-		m_handling_signal = true;
-
 		// Skip masked and ignored signals
 		if (m_signal_mask & (1ull << signal))
 			;
@@ -176,13 +187,15 @@ namespace Kernel
 			;
 		else if (signal_handler != (vaddr_t)SIG_DFL)
 		{
+			// call userspace signal handlers
+			// FIXME: signal trampoline should take a hash etc
+			//        to only allow marking signals done from it
+			m_handling_signal = true;
 			write_to_stack(return_rsp, return_rip);
 			write_to_stack(return_rsp, signal);
 			write_to_stack(return_rsp, signal_handler);
 			return_rip = (uintptr_t)signal_trampoline;
-
-			// FIXME: we should only mark this signal as done when
-			//        handler returns
+			return;
 		}
 		else
 		{
@@ -241,7 +254,6 @@ namespace Kernel
 		}
 
 		m_signal_queue.pop();
-		m_handling_signal = false;
 	}
 
 	void Thread::validate_stack() const

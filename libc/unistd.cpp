@@ -286,6 +286,9 @@ long syscall(long syscall, ...)
 			ret = Kernel::syscall(SYS_SIGNAL, signal, (uintptr_t)handler);
 			break;
 		}
+		case SYS_SIGNAL_DONE:
+			// Should not be called by an user
+			// fall through
 		default:
 			puts("LibC: Unhandeled syscall");
 			ret = -ENOSYS;

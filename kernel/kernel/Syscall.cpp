@@ -22,6 +22,12 @@ namespace Kernel
 	{
 		Thread::current().set_in_syscall(true);
 
+		if (syscall == SYS_SIGNAL_DONE)
+		{
+			Thread::current().set_signal_done((int)arg1);
+			return 0;
+		}
+
 		asm volatile("sti");
 
 		(void)arg1;
@@ -149,6 +155,9 @@ namespace Kernel
 		case SYS_SIGNAL:
 			ret = Process::current().sys_signal((int)arg1, (void (*)(int))arg2);
 			break;
+		case SYS_SIGNAL_DONE:
+			// Handled above
+			ASSERT_NOT_REACHED();
 		default:
 			dwarnln("Unknown syscall {}", syscall);
 			break;

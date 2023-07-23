@@ -281,6 +281,39 @@ int execute_command(BAN::Vector<BAN::String>& args)
 			return 1;
 		}
 	}
+	else if (args.front() == "signal-test"sv)
+	{
+		pid_t pid = fork();
+		if (pid == 0)
+		{
+			if (signal(SIGSEGV, [](int) { printf("SIGSEGV\n"); }) == SIG_ERR)
+			{
+				perror("signal");
+				exit(1);
+			}
+			printf("child\n");
+			for (;;);
+		}
+		if (pid == -1)
+		{
+			perror("fork");
+			return 1;
+		}
+
+		sleep(1);
+		if (kill(pid, SIGSEGV) == -1)
+		{
+			perror("kill");
+			return 1;
+		}
+
+		sleep(1);
+		if (kill(pid, SIGTERM) == -1)
+		{
+			perror("kill");
+			return 1;
+		}
+	}
 	else if (args.front() == "cd"sv)
 	{
 		if (args.size() > 2)

@@ -44,6 +44,7 @@ __BEGIN_DECLS
 #define SYS_RAISE 37
 #define SYS_KILL 38
 #define SYS_SIGNAL 39
+#define SYS_SIGNAL_DONE 40
 
 __END_DECLS
 
