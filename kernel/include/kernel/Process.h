@@ -101,8 +101,8 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_free(void*);
 
 		BAN::ErrorOr<long> sys_signal(int, void (*)(int));
-		BAN::ErrorOr<long> sys_kill(pid_t pid, int signal, uintptr_t& return_rsp, uintptr_t& return_rip);
-		BAN::ErrorOr<long> sys_raise(int signal, uintptr_t& return_rsp, uintptr_t& return_rip);
+		BAN::ErrorOr<long> sys_raise(int signal);
+		static BAN::ErrorOr<long> sys_kill(pid_t pid, int signal);
 
 		BAN::ErrorOr<long> sys_termid(char*) const;
 

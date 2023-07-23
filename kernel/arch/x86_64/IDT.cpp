@@ -1,6 +1,7 @@
 #include <BAN/Errors.h>
 #include <kernel/IDT.h>
 #include <kernel/InterruptController.h>
+#include <kernel/InterruptStack.h>
 #include <kernel/Memory/kmalloc.h>
 #include <kernel/Panic.h>
 #include <kernel/Process.h>
@@ -135,7 +136,7 @@ namespace IDT
 		"Unkown Exception 0x1F",
 	};
 
-	extern "C" void cpp_isr_handler(uint64_t isr, uint64_t error, const Registers* regs)
+	extern "C" void cpp_isr_handler(uint64_t isr, uint64_t error, Kernel::InterruptStack& interrupt_stack, const Registers* regs)
 	{
 		pid_t tid = Kernel::Scheduler::current_tid();
 		pid_t pid = tid ? Kernel::Process::current().pid() : 0;
@@ -154,6 +155,12 @@ namespace IDT
 			regs->cr0, regs->cr2, regs->cr3, regs->cr4
 		);
 
+		if (tid)
+		{
+			Kernel::Thread::current().set_return_rsp(interrupt_stack.rsp);
+			Kernel::Thread::current().set_return_rip(interrupt_stack.rip);
+		}
+
 		if (tid && Kernel::Thread::current().is_userspace() && !Kernel::Thread::current().is_in_syscall())
 		{
 			auto message = BAN::String::formatted("{}, aborting\n", isr_exceptions[isr]);
@@ -167,8 +174,14 @@ namespace IDT
 		}
 	}
 
-	extern "C" void cpp_irq_handler(uint64_t irq)
+	extern "C" void cpp_irq_handler(uint64_t irq, Kernel::InterruptStack& interrupt_stack)
 	{
+		if (Kernel::Scheduler::current_tid())
+		{
+			Kernel::Thread::current().set_return_rsp(interrupt_stack.rsp);
+			Kernel::Thread::current().set_return_rip(interrupt_stack.rip);
+		}
+
 		if (s_irq_handlers[irq])
 			s_irq_handlers[irq]();
 		else

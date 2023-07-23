@@ -64,7 +64,11 @@ isr_stub:
 
 	movq 176(%rsp), %rdi
 	movq 184(%rsp), %rsi
+
 	movq %rsp, %rdx
+	addq $192, %rdx
+
+	movq %rsp, %rcx
 
 	call cpp_isr_handler
 	addq $56, %rsp
@@ -75,6 +79,8 @@ isr_stub:
 irq_stub:
 	pushaq
 	movq 0x78(%rsp), %rdi	# irq number
+	movq %rsp, %rsi
+	addq $136, %rsi
 	call cpp_irq_handler
 	popaq
 	addq $16, %rsp
