@@ -21,6 +21,8 @@ namespace Kernel
 	extern "C" long cpp_syscall_handler(int syscall, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4, uintptr_t arg5, InterruptStack& interrupt_stack)
 	{
 		Thread::current().set_in_syscall(true);
+		Thread::current().set_return_rsp(interrupt_stack.rsp);
+		Thread::current().set_return_rip(interrupt_stack.rip);
 
 		if (syscall == SYS_SIGNAL_DONE)
 		{
@@ -147,10 +149,10 @@ namespace Kernel
 			ret = Process::current().sys_dup2((int)arg1, (int)arg2);
 			break;
 		case SYS_RAISE:
-			ret = Process::current().sys_raise((int)arg1, interrupt_stack.rsp, interrupt_stack.rip);
+			ret = Process::current().sys_raise((int)arg1);
 			break;
 		case SYS_KILL:
-			ret = Process::current().sys_kill((pid_t)arg1, (int)arg2, interrupt_stack.rsp, interrupt_stack.rip);
+			ret = Process::current().sys_kill((pid_t)arg1, (int)arg2);
 			break;
 		case SYS_SIGNAL:
 			ret = Process::current().sys_signal((int)arg1, (void (*)(int))arg2);

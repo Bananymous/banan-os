@@ -40,7 +40,11 @@ namespace Kernel
 		bool has_signal_to_execute() const;
 		void set_signal_done(int signal);
 		void handle_next_signal();
-		void handle_signal(int signal, uintptr_t& return_rsp, uintptr_t& return_rip);
+
+		void set_return_rsp(uintptr_t& rsp) { m_return_rsp = &rsp; }
+		void set_return_rip(uintptr_t& rip) { m_return_rip = &rip; }
+		uintptr_t& return_rsp() { ASSERT(m_return_rsp); return *m_return_rsp; }
+		uintptr_t& return_rip() { ASSERT(m_return_rip); return *m_return_rip; }
 
 		pid_t tid() const { return m_tid; }
 
@@ -89,6 +93,9 @@ namespace Kernel
 		Process*					m_process			{ nullptr };
 		bool						m_in_syscall		{ false };
 		bool						m_is_userspace		{ false };
+
+		uintptr_t*					m_return_rsp		{ nullptr };
+		uintptr_t*					m_return_rip		{ nullptr };
 
 		BAN::CircularQueue<int, 10>	m_signal_queue;
 		uint64_t					m_signal_mask		{ 0 };

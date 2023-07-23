@@ -7,7 +7,6 @@
 #include <kernel/Scheduler.h>
 #include <kernel/Thread.h>
 
-
 namespace Kernel
 {
 
@@ -167,16 +166,14 @@ namespace Kernel
 	{
 		ASSERT(!interrupts_enabled());
 		ASSERT(!m_signal_queue.empty());
-		handle_signal(m_signal_queue.front(), m_rsp, m_rip);
-	}
-
-	void Thread::handle_signal(int signal, uintptr_t& return_rsp, uintptr_t& return_rip)
-	{
-		ASSERT(!interrupts_enabled());
-		ASSERT(signal >= _SIGMIN && signal <= _SIGMAX);
 		ASSERT(&Thread::current() == this);
-		ASSERT(!m_signal_queue.empty());
-		ASSERT(m_signal_queue.front() == signal);
+		ASSERT(is_userspace());
+
+		int signal = m_signal_queue.front();
+		ASSERT(signal >= _SIGMIN && signal <= _SIGMAX);
+
+		uintptr_t& return_rsp = this->return_rsp();
+		uintptr_t& return_rip = this->return_rip();
 
 		vaddr_t signal_handler = process().m_signal_handlers[signal];
 
@@ -212,8 +209,11 @@ namespace Kernel
 				case SIGTRAP:
 				case SIGXCPU:
 				case SIGXFSZ:
-					// TODO: additional actions
-					// fall through
+				{
+					auto message = BAN::String::formatted("killed by signal {}\n", signal);
+					(void)process().tty().write(0, message.data(), message.size());
+				}
+				// fall through
 
 				// Abnormal termination of the process
 				case SIGALRM:
@@ -228,9 +228,6 @@ namespace Kernel
 				case SIGPROF:
 				case SIGVTALRM:
 				{
-					auto message = BAN::String::formatted("killed by signal {}\n", signal);
-					(void)process().tty().write(0, message.data(), message.size());
-
 					ENABLE_INTERRUPTS();
 					process().exit(128 + signal);
 					ASSERT_NOT_REACHED();
