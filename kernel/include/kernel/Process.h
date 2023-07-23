@@ -114,6 +114,7 @@ namespace Kernel
 
 		PageTable& page_table() { return m_page_table ? *m_page_table : PageTable::kernel(); }
 
+		bool is_userspace() const { return m_is_userspace; }
 		const userspace_info_t& userspace_info() const { return m_userspace_info; }
 
 	private:
@@ -157,6 +158,7 @@ namespace Kernel
 
 		vaddr_t m_signal_handlers[_SIGMAX + 1] { };
 
+		bool m_is_userspace { false };
 		userspace_info_t m_userspace_info;
 		ExitStatus m_exit_status;
 

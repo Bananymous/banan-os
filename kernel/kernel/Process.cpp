@@ -58,6 +58,7 @@ namespace Kernel
 
 		process->load_elf_to_memory(*elf);
 
+		process->m_is_userspace = true;
 		process->m_userspace_info.entry = elf->file_header_native().e_entry;
 
 		// NOTE: we clear the elf since we don't need the memory anymore
@@ -305,6 +306,7 @@ namespace Kernel
 		forked->m_mapped_ranges = BAN::move(mapped_ranges);
 		forked->m_fixed_width_allocators = BAN::move(fixed_width_allocators);
 		forked->m_general_allocator = BAN::move(general_allocator);
+		forked->m_is_userspace = m_is_userspace;
 		forked->m_userspace_info = m_userspace_info;
 		memcpy(forked->m_signal_handlers, m_signal_handlers, sizeof(m_signal_handlers));
 
