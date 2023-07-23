@@ -24,6 +24,9 @@ signal_trampoline:
 	movq 120(%rsp), %rax
 	call *%rax
 
+	movq 128(%rsp), %rdi
+	call signal_done
+
 	popq %r15
 	popq %r14
 	popq %r13

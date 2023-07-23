@@ -38,6 +38,7 @@ namespace Kernel
 		void setup_exec();
 
 		bool has_signal_to_execute() const;
+		void set_signal_done(int signal);
 		void handle_next_signal();
 		void handle_signal(int signal, uintptr_t& return_rsp, uintptr_t& return_rip);
 
