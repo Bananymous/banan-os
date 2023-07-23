@@ -216,13 +216,17 @@ namespace Kernel
 		return {};
 	}
 
-
 	BAN::ErrorOr<BAN::StringView> OpenFileDescriptorSet::path_of(int fd) const
 	{
 		TRY(validate_fd(fd));
 		return m_open_files[fd]->path.sv();
 	}
 
+	BAN::ErrorOr<BAN::RefPtr<Inode>> OpenFileDescriptorSet::inode_of(int fd)
+	{
+		TRY(validate_fd(fd));
+		return m_open_files[fd]->inode;
+	}
 
 	BAN::ErrorOr<void> OpenFileDescriptorSet::validate_fd(int fd) const
 	{

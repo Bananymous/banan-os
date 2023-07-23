@@ -42,6 +42,7 @@ namespace Kernel
 		BAN::ErrorOr<void> read_dir_entries(int fd, DirectoryEntryList* list, size_t list_size);
 
 		BAN::ErrorOr<BAN::StringView> path_of(int) const;
+		BAN::ErrorOr<BAN::RefPtr<Inode>> inode_of(int);
 
 	private:
 		struct OpenFileDescription : public BAN::RefCounted<OpenFileDescription>
