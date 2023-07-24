@@ -26,6 +26,7 @@ namespace Kernel
 
 		void block_current_thread(Semaphore*);
 		void unblock_threads(Semaphore*);
+		void unblock_thread(pid_t tid);
 
 		Thread& current_thread();
 		static pid_t current_tid();
