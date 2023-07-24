@@ -286,6 +286,18 @@ long syscall(long syscall, ...)
 			ret = Kernel::syscall(SYS_SIGNAL, signal, (uintptr_t)handler);
 			break;
 		}
+		case SYS_TCSETPGRP:
+		{
+			int fd = va_arg(args, int);
+			pid_t pgrp = va_arg(args, pid_t);
+			ret = Kernel::syscall(SYS_TCSETPGRP, fd, pgrp);
+			break;
+		}
+		case SYS_GET_PID:
+		{
+			ret = Kernel::syscall(SYS_GET_PID);
+			break;
+		}
 		case SYS_SIGNAL_DONE:
 			// Should not be called by an user
 			// fall through
@@ -438,6 +450,11 @@ int chdir(const char* path)
 	return syscall(SYS_SET_PWD, path);
 }
 
+pid_t getpid(void)
+{
+	return syscall(SYS_GET_PID);
+}
+
 uid_t getuid(void)
 {
 	return syscall(SYS_GET_UID);
@@ -486,4 +503,9 @@ int setreuid(uid_t ruid, uid_t euid)
 int setregid(gid_t rgid, gid_t egid)
 {
 	return syscall(SYS_SET_REGID, rgid, egid);
+}
+
+int tcsetpgrp(int fildes, pid_t pgid_id)
+{
+	return syscall(SYS_TCSETPGRP, fildes, pgid_id);
 }

@@ -160,6 +160,12 @@ namespace Kernel
 		case SYS_SIGNAL_DONE:
 			// Handled above
 			ASSERT_NOT_REACHED();
+		case SYS_TCSETPGRP:
+			ret = Process::current().sys_tcsetpgrp((int)arg1, (pid_t)arg2);
+			break;
+		case SYS_GET_PID:
+			ret = Process::current().pid();
+			break;
 		default:
 			dwarnln("Unknown syscall {}", syscall);
 			break;
