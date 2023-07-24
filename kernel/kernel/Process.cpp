@@ -7,7 +7,6 @@
 #include <kernel/Memory/PageTableScope.h>
 #include <kernel/Process.h>
 #include <kernel/Scheduler.h>
-#include <kernel/Signal.h>
 #include <LibELF/ELF.h>
 #include <LibELF/Values.h>
 
@@ -826,7 +825,7 @@ namespace Kernel
 			if (process->pid() == pid)
 			{
 				if (signal)
-					process->m_threads.front()->m_signal_queue.push(signal);
+					process->m_threads.front()->queue_signal(signal);
 				return 0;
 			}
 		}
@@ -841,7 +840,7 @@ namespace Kernel
 		ASSERT(m_threads.size() == 1);
 		CriticalScope _;
 		Thread& current = Thread::current();
-		current.m_signal_queue.push(signal);
+		current.queue_signal(signal);
 		current.handle_next_signal();
 		return 0;
 	}
