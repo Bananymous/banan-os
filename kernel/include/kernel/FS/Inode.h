@@ -77,6 +77,7 @@ namespace Kernel
 
 		virtual bool is_device() const { return false; }
 		virtual bool is_pipe() const { return false; }
+		virtual bool is_tty() const { return false; }
 
 		virtual BAN::ErrorOr<BAN::String> link_target() { ASSERT_NOT_REACHED(); }
 

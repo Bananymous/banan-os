@@ -109,6 +109,7 @@ namespace Kernel
 
 	public:
 		virtual dev_t rdev() const override { return m_rdev; }
+		virtual bool is_tty() const override { return true; }
 
 	private:
 		dev_t m_rdev;
