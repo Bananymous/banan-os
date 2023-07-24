@@ -152,14 +152,12 @@ namespace Kernel
 	void Thread::set_signal_done(int signal)
 	{
 		ASSERT(!interrupts_enabled());
-		if (!m_handling_signal)
+		if (m_handling_signal == 0)
 			derrorln("set_signal_done called while not handling singal");
-		else if (m_signal_queue.empty())
-			derrorln("set_signal_done called and there are no signals in queue");
-		else if (m_signal_queue.front() != signal)
-			derrorln("set_signal_done called with wrong signal");
+		if (m_handling_signal != signal)
+			derrorln("set_signal_done called with invalid signal");
 		else
-			m_signal_queue.pop();
+			m_handling_signal = 0;
 	}
 
 	void Thread::handle_next_signal()
@@ -171,6 +169,7 @@ namespace Kernel
 
 		int signal = m_signal_queue.front();
 		ASSERT(signal >= _SIGMIN && signal <= _SIGMAX);
+		m_signal_queue.pop();
 
 		uintptr_t& return_rsp = this->return_rsp();
 		uintptr_t& return_rip = this->return_rip();
@@ -187,7 +186,7 @@ namespace Kernel
 			// call userspace signal handlers
 			// FIXME: signal trampoline should take a hash etc
 			//        to only allow marking signals done from it
-			m_handling_signal = true;
+			m_handling_signal = signal;
 			write_to_stack(return_rsp, return_rip);
 			write_to_stack(return_rsp, signal);
 			write_to_stack(return_rsp, signal_handler);
@@ -228,6 +227,9 @@ namespace Kernel
 				case SIGPROF:
 				case SIGVTALRM:
 				{
+					// NOTE: we cannot have schedulers temporary stack when
+					//       enabling interrupts
+					asm volatile("movq %0, %%rsp" :: "r"(m_return_rsp));
 					ENABLE_INTERRUPTS();
 					process().exit(128 + signal);
 					ASSERT_NOT_REACHED();
@@ -249,8 +251,19 @@ namespace Kernel
 					ASSERT_NOT_REACHED();
 			}
 		}
+	}
 
-		m_signal_queue.pop();
+	void Thread::queue_signal(int signal)
+	{
+		ASSERT(!interrupts_enabled());
+		if (m_signal_queue.full())
+		{
+			dwarnln("Signal queue full");
+			return;
+		}
+		m_signal_queue.push(signal);
+		if (this != &Thread::current())
+			Scheduler::get().unblock_thread(tid());
 	}
 
 	void Thread::validate_stack() const

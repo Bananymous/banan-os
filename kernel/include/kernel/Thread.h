@@ -40,6 +40,7 @@ namespace Kernel
 		bool has_signal_to_execute() const;
 		void set_signal_done(int signal);
 		void handle_next_signal();
+		void queue_signal(int signal);
 
 		void set_return_rsp(uintptr_t& rsp) { m_return_rsp = &rsp; }
 		void set_return_rip(uintptr_t& rip) { m_return_rip = &rip; }
@@ -99,10 +100,9 @@ namespace Kernel
 
 		BAN::CircularQueue<int, 10>	m_signal_queue;
 		uint64_t					m_signal_mask		{ 0 };
-		bool						m_handling_signal	{ false };
+		int							m_handling_signal	{ 0 };
 		static_assert(_SIGMAX < 64);
 
-		friend class Process;
 		friend class Scheduler;
 	};
 	
