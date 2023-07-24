@@ -11,8 +11,6 @@ namespace Kernel
 
 	void Semaphore::unblock()
 	{
-		if (!m_blocked)
-			return;
 		Scheduler::get().unblock_threads(this);
 	}
 
