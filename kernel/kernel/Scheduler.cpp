@@ -351,7 +351,26 @@ namespace Kernel
 				it++;
 			}
 		}
+	}
 
+	void Scheduler::unblock_thread(pid_t tid)
+	{
+		CriticalScope _;
+
+		for (auto it = m_blocking_threads.begin(); it != m_blocking_threads.end(); it++)
+		{
+			if (it->thread->tid() == tid)
+			{
+				auto thread = it->thread;
+				it = m_blocking_threads.remove(it);
+
+				// This should work as we released enough memory from active thread
+				static_assert(sizeof(ActiveThread) == sizeof(BlockingThread));
+				MUST(m_active_threads.emplace_back(thread));
+
+				return;
+			}
+		}
 	}
 
 }
