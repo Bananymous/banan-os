@@ -150,6 +150,9 @@ namespace Kernel
 		m_fixed_width_allocators.clear();
 		m_general_allocator.clear();
 
+		if (m_tty && m_tty->foreground_process() == pid())
+			m_tty->set_foreground_process(0);
+
 		s_process_lock.lock();
 		for (size_t i = 0; i < s_processes.size(); i++)
 			if (s_processes[i] == this)
