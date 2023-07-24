@@ -45,6 +45,8 @@ __BEGIN_DECLS
 #define SYS_KILL 38
 #define SYS_SIGNAL 39
 #define SYS_SIGNAL_DONE 40
+#define SYS_TCSETPGRP 41
+#define SYS_GET_PID 42
 
 __END_DECLS
 

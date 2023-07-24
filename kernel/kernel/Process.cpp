@@ -848,10 +848,31 @@ namespace Kernel
 		return 0;
 	}
 
-	pid_t Process::foreground_pid()
+	BAN::ErrorOr<long> Process::sys_tcsetpgrp(int fd, pid_t pgid)
 	{
-		ASSERT(s_foreground_pid);
-		return s_foreground_pid;
+		LockGuard _(m_lock);
+
+		// FIXME: validate the inode
+		auto inode = TRY(m_open_file_descriptors.inode_of(fd));
+		if (!inode->is_tty())
+			return BAN::Error::from_errno(ENOTTY);
+
+		// FIXME: use process groups instead of process ids
+		// FIXME: return values
+
+		LockGuard process_guard(s_process_lock);
+		for (auto* process : s_processes)
+		{
+			if (process->pid() == pgid)
+			{
+				if (!process->is_userspace())
+					return BAN::Error::from_errno(EINVAL);
+				((TTY*)inode.ptr())->set_foreground_process(pgid);
+				return 0;
+			}
+		}
+
+		return BAN::Error::from_errno(EPERM);
 	}
 
 	BAN::ErrorOr<long> Process::sys_setuid(uid_t uid)

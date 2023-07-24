@@ -104,6 +104,8 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_raise(int signal);
 		static BAN::ErrorOr<long> sys_kill(pid_t pid, int signal);
 
+		BAN::ErrorOr<long> sys_tcsetpgrp(int fd, pid_t pgid);
+
 		BAN::ErrorOr<long> sys_termid(char*) const;
 
 		BAN::ErrorOr<long> sys_clock_gettime(clockid_t, timespec*) const;
