@@ -135,7 +135,8 @@ namespace Kernel
 		while (m_exit_status.waiting > 0)
 		{
 			m_exit_status.semaphore.unblock();
-			m_lock.unlock();
+			while (m_lock.is_locked())
+				m_lock.unlock();
 			Scheduler::get().reschedule();
 			m_lock.lock();
 		}
