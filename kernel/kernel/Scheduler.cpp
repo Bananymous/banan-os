@@ -327,15 +327,13 @@ namespace Kernel
 		static_assert(sizeof(ActiveThread) == sizeof(BlockingThread));
 		MUST(m_blocking_threads.emplace_back(blocking, semaphore));
 
-		semaphore->m_blocked = true;
-
 		execute_current_thread();
 		ASSERT_NOT_REACHED();
 	}
 	
 	void Scheduler::unblock_threads(Semaphore* semaphore)
 	{
-		Kernel::CriticalScope critical;
+		CriticalScope critical;
 
 		for (auto it = m_blocking_threads.begin(); it != m_blocking_threads.end();)
 		{
@@ -354,7 +352,6 @@ namespace Kernel
 			}
 		}
 
-		semaphore->m_blocked = false;
 	}
 
 }
