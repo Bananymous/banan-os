@@ -251,35 +251,41 @@ namespace Kernel
 
 	StorageDevice::~StorageDevice()
 	{
-		if (m_disk_cache)
-			delete m_disk_cache;
-		m_disk_cache = nullptr;
 	}
 
 	void StorageDevice::add_disk_cache()
 	{
-		ASSERT(m_disk_cache == nullptr);
-		m_disk_cache = new DiskCache(*this);
-		ASSERT(m_disk_cache);
+		ASSERT(!m_disk_cache.has_value());
+		m_disk_cache = DiskCache(sector_size());
 	}
 
 	BAN::ErrorOr<void> StorageDevice::read_sectors(uint64_t lba, uint8_t sector_count, uint8_t* buffer)
 	{
-		if (!m_disk_cache)
-			return read_sectors_impl(lba, sector_count, buffer);
-		for (uint8_t sector = 0; sector < sector_count; sector++)
-			TRY(m_disk_cache->read_sector(lba + sector, buffer + sector * sector_size()));
+		for (uint8_t offset = 0; offset < sector_count; offset++)
+		{
+			uint8_t* buffer_ptr = buffer + offset * sector_size();
+			if (m_disk_cache.has_value())
+				if (m_disk_cache->read_from_cache(lba + offset, buffer_ptr))
+					continue;
+			TRY(read_sectors_impl(lba + offset, 1, buffer_ptr));
+			if (m_disk_cache.has_value())
+				(void)m_disk_cache->write_to_cache(lba + offset, buffer_ptr, false);
+		}
+		
 		return {};
 	}
 
 	BAN::ErrorOr<void> StorageDevice::write_sectors(uint64_t lba, uint8_t sector_count, const uint8_t* buffer)
 	{
-		if (!m_disk_cache)
-			return write_sectors_impl(lba, sector_count, buffer);
+		// TODO: use disk cache for dirty pages. I don't wanna think about how to do it safely now
 		for (uint8_t sector = 0; sector < sector_count; sector++)
-			TRY(m_disk_cache->write_sector(lba + sector, buffer + sector * sector_size()));
+		{
+			TRY(write_sectors_impl(lba + sector, 1, buffer));
+			if (m_disk_cache.has_value())
+				(void)m_disk_cache->write_to_cache(lba + sector, buffer + sector * sector_size(), false);
+		}
+
 		return {};
 	}
-
 
 }

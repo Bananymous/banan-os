@@ -81,8 +81,8 @@ namespace Kernel
 		void add_disk_cache();
 
 	private:
-		DiskCache*				m_disk_cache { nullptr };
-		BAN::Vector<Partition*> m_partitions;
+		BAN::Optional<DiskCache>	m_disk_cache;
+		BAN::Vector<Partition*>		m_partitions;
 
 		friend class DiskCache;
 	};

@@ -7,16 +7,14 @@
 namespace Kernel
 {
 
-	class StorageDevice;
-
 	class DiskCache
 	{
 	public:
-		DiskCache(StorageDevice&);
+		DiskCache(size_t sector_size);
 		~DiskCache();
 
-		BAN::ErrorOr<void> read_sector(uint64_t sector, uint8_t* buffer);
-		BAN::ErrorOr<void> write_sector(uint64_t sector, const uint8_t* buffer);
+		bool read_from_cache(uint64_t sector, uint8_t* buffer);
+		BAN::ErrorOr<void> write_to_cache(uint64_t sector, const uint8_t* buffer, bool dirty);
 
 		void sync();
 		size_t release_clean_pages(size_t);
@@ -30,16 +28,11 @@ namespace Kernel
 			uint64_t first_sector { 0 };
 			uint8_t sector_mask { 0 };
 			uint8_t dirty_mask { 0 };
-
-			void sync(StorageDevice&);
-			BAN::ErrorOr<void> read_sector(StorageDevice&, uint64_t sector, uint8_t* buffer);
-			BAN::ErrorOr<void> write_sector(StorageDevice&, uint64_t sector, const uint8_t* buffer);
 		};
 
 	private:
-		SpinLock				m_lock;
-		StorageDevice&			m_device;
-		BAN::Vector<PageCache>	m_cache;
+		const size_t m_sector_size;
+		BAN::Vector<PageCache> m_cache;
 	};
 
 }
