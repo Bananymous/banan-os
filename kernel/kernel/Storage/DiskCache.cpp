@@ -1,3 +1,4 @@
+#include <kernel/CriticalScope.h>
 #include <kernel/LockGuard.h>
 #include <kernel/Memory/Heap.h>
 #include <kernel/Memory/PageTable.h>
@@ -184,13 +185,13 @@ namespace Kernel
 			if (!(this->dirty_mask & (1 << i)))
 				continue;
 			MUST(device.write_sectors_impl(this->first_sector + i, 1, (const uint8_t*)(i * device.sector_size())));
+			// FIXME: race condition between here :)
+			this->dirty_mask &= ~(1 << i);
 		}
 
 		page_table.unmap_page(0);
 
 		page_table.unlock();
-
-		this->dirty_mask = 0;
 	}
 
 	BAN::ErrorOr<void> DiskCache::PageCache::read_sector(StorageDevice& device, uint64_t sector, uint8_t* buffer)
@@ -212,11 +213,17 @@ namespace Kernel
 		// Sector not yet cached
 		if (!(this->sector_mask & (1 << sector_offset)))
 		{
-			TRY(device.read_sectors_impl(sector, 1, (uint8_t*)(sector_offset * device.sector_size())));
+			TRY(device.read_sectors_impl(sector, 1, buffer));
+
+			CriticalScope _;
+			memcpy((void*)(sector_offset * device.sector_size()), buffer, device.sector_size());
 			this->sector_mask |= 1 << sector_offset;
 		}
-		
-		memcpy(buffer, (const void*)(sector_offset * device.sector_size()), device.sector_size());
+		else
+		{
+			CriticalScope _;
+			memcpy(buffer, (const void*)(sector_offset * device.sector_size()), device.sector_size());
+		}
 
 		page_table.unmap_page(0);
 
@@ -241,9 +248,12 @@ namespace Kernel
 		
 		page_table.map_page_at(this->paddr, 0, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
 		
-		memcpy((void*)(sector_offset * device.sector_size()), buffer, device.sector_size());
-		this->sector_mask |= 1 << sector_offset;
-		this->dirty_mask |= 1 << sector_offset;
+		{
+			CriticalScope _;
+			memcpy((void*)(sector_offset * device.sector_size()), buffer, device.sector_size());
+			this->sector_mask |= 1 << sector_offset;
+			this->dirty_mask |= 1 << sector_offset;
+		}
 
 		page_table.unmap_page(0);
 
