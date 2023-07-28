@@ -22,6 +22,9 @@ int main()
 {
 	initialize_stdio();
 
+	if (signal(SIGINT, [](int) {}) == SIG_ERR)
+		perror("signal");
+
 	bool first = true;
 
 	while (true)
@@ -85,9 +88,15 @@ int main()
 			perror("fork");
 			break;
 		}
-		
+
+		if (tcsetpgrp(0, pid) == -1)
+			perror("tcsetpgrp");
+
 		int status;
 		waitpid(pid, &status, 0);
+
+		if (tcsetpgrp(0, getpid()) == -1)
+			perror("tcsetpgrp");
 	}
 
 }
