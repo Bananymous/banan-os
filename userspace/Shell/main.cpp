@@ -380,9 +380,15 @@ int execute_command(BAN::Vector<BAN::String>& args)
 		if (pid == -1)
 			ERROR_RETURN("fork", 1);
 
+		if (tcsetpgrp(0, pid) == -1)
+			ERROR_RETURN("tcsetpgrp", 1);
+
 		int status;
 		if (waitpid(pid, &status, 0) == -1)
 			ERROR_RETURN("waitpid", 1);
+
+		if (tcsetpgrp(0, getpid()) == -1)
+			ERROR_RETURN("tcsetpgrp", 1);
 
 		return status;
 	}
@@ -488,6 +494,9 @@ void print_prompt()
 int main(int argc, char** argv)
 {
 	argv0 = argv[0];
+
+	if (signal(SIGINT, [](int) {}) == SIG_ERR)
+		perror("signal");
 
 	if (argc >= 2)
 	{
@@ -598,6 +607,12 @@ int main(int argc, char** argv)
 				fprintf(stdout, "\b\e[s%s \e[u", buffers[index].data() + col);
 				fflush(stdout);
 			}
+			break;
+		case '\x03': // ^C
+			fputc('\n', stdout);
+			print_prompt();
+			buffers[index].clear();
+			col = 0;
 			break;
 		case '\n':
 			fputc('\n', stdout);
