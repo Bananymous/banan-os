@@ -6,6 +6,7 @@
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/PCI.h>
 #include <kernel/Storage/StorageDevice.h>
+#include <kernel/Thread.h>
 
 #include <sys/sysmacros.h>
 
@@ -263,6 +264,7 @@ namespace Kernel
 	{
 		for (uint8_t offset = 0; offset < sector_count; offset++)
 		{
+			Thread::TerminateBlocker _(Thread::current());
 			uint8_t* buffer_ptr = buffer + offset * sector_size();
 			if (m_disk_cache.has_value())
 				if (m_disk_cache->read_from_cache(lba + offset, buffer_ptr))
@@ -280,6 +282,7 @@ namespace Kernel
 		// TODO: use disk cache for dirty pages. I don't wanna think about how to do it safely now
 		for (uint8_t sector = 0; sector < sector_count; sector++)
 		{
+			Thread::TerminateBlocker _(Thread::current());
 			TRY(write_sectors_impl(lba + sector, 1, buffer));
 			if (m_disk_cache.has_value())
 				(void)m_disk_cache->write_to_cache(lba + sector, buffer + sector * sector_size(), false);
