@@ -25,6 +25,52 @@ namespace Kernel
 			memcpy((void*)rsp, (void*)&value, sizeof(uintptr_t));
 	}
 
+
+	Thread::TerminateBlocker::TerminateBlocker(Thread& thread)
+		: m_thread(thread)
+	{
+		{
+			CriticalScope _;
+
+			if (m_thread.state() == State::Executing || m_thread.m_terminate_blockers > 0)
+			{
+				m_thread.m_terminate_blockers++;
+				return;
+			}
+
+			if (m_thread.state() == State::Terminating && m_thread.m_terminate_blockers == 0)
+				m_thread.m_state = State::Terminated;
+		}
+
+		while (true)
+			Scheduler::get().reschedule();
+	}
+
+	Thread::TerminateBlocker::~TerminateBlocker()
+	{
+		{
+			CriticalScope _;
+	
+			m_thread.m_terminate_blockers--;
+
+			if (m_thread.state() == State::Executing || m_thread.m_terminate_blockers > 0)
+				return;
+
+			if (m_thread.state() == State::Terminating && m_thread.m_terminate_blockers == 0)
+				m_thread.m_state = State::Terminated;
+		}
+
+		while (true)
+			Scheduler::get().reschedule();
+	}
+
+	void Thread::set_terminating()
+	{
+		CriticalScope _;
+		m_state = m_terminate_blockers == 0 ? State::Terminated : State::Terminating;
+		Scheduler::get().unblock_thread(tid());
+	}
+
 	static pid_t s_next_tid = 1;
 
 	BAN::ErrorOr<Thread*> Thread::create_kernel(entry_t entry, void* data, Process* process)
@@ -144,6 +190,32 @@ namespace Kernel
 		}
 	}
 
+	void Thread::setup_process_cleanup()
+	{
+		m_state = State::NotStarted;
+		static entry_t entry(
+			[](void* process)
+			{
+				((Process*)process)->cleanup_function();
+				Scheduler::get().delete_current_process_and_thread();
+				ASSERT_NOT_REACHED();				
+			}
+		);
+		m_rsp = stack_base() + stack_size();
+		m_rip = (uintptr_t)entry;
+
+		m_signal_mask = ~0ull;
+
+		// Setup stack for returning
+		{
+			// FIXME: don't use PageTableScope
+			PageTableScope _(m_process->page_table());
+			write_to_stack(m_rsp, this);
+			write_to_stack(m_rsp, &Thread::on_exit);
+			write_to_stack(m_rsp, m_process);
+		}
+	}
+
 	bool Thread::has_signal_to_execute() const
 	{
 		return !m_signal_queue.empty() && !m_handling_signal;
@@ -227,12 +299,8 @@ namespace Kernel
 				case SIGPROF:
 				case SIGVTALRM:
 				{
-					// NOTE: we cannot have schedulers temporary stack when
-					//       enabling interrupts
-					asm volatile("movq %0, %%rsp" :: "r"(m_return_rsp));
-					ENABLE_INTERRUPTS();
 					process().exit(128 + signal);
-					ASSERT_NOT_REACHED();
+					break;
 				}
 
 				// Ignore the signal
@@ -280,9 +348,8 @@ namespace Kernel
 
 	void Thread::on_exit()
 	{
-		if (m_process)
-			m_process->on_thread_exit(*this);
-		Scheduler::get().set_current_thread_done();
+		set_terminating();
+		TerminateBlocker(*this);
 		ASSERT_NOT_REACHED();
 	}
 

@@ -20,9 +20,6 @@ namespace Kernel
 		void reschedule_if_idling();
 
 		void set_current_thread_sleeping(uint64_t);
-		[[noreturn]] void set_current_thread_done();
-
-		[[noreturn]] void set_current_process_done();
 
 		void block_current_thread(Semaphore*);
 		void unblock_threads(Semaphore*);
@@ -32,6 +29,8 @@ namespace Kernel
 		static pid_t current_tid();
 
 		static bool is_valid_tid(pid_t tid);
+
+		[[noreturn]] void delete_current_process_and_thread();
 
 	private:
 		Scheduler() = default;
@@ -76,6 +75,7 @@ namespace Kernel
 
 		uint64_t m_last_reschedule = 0;
 
+		friend class Thread;
 		friend class Process;
 	};
 

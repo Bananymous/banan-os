@@ -41,8 +41,9 @@ namespace Kernel
 		static Process* create_kernel(entry_t, void*);
 		static BAN::ErrorOr<Process*> create_userspace(const Credentials&, BAN::StringView);
 		~Process();
+		void cleanup_function();
 
-		[[noreturn]] void exit(int status);
+		void exit(int status);
 
 		void add_thread(Thread*);
 		void on_thread_exit(Thread&);
