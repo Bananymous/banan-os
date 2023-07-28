@@ -73,7 +73,20 @@ namespace Kernel
 				{
 					Input::KeyEvent event;
 					ASSERT(MUST(Process::current().sys_read(fd, &event, sizeof(event))) == sizeof(event));
-					TTY::current()->on_key(event);
+
+					TTY& current_tty = *TTY::current();
+					if (current_tty.m_foreground_process &&
+						event.pressed() &&
+						event.ctrl() &&
+						!event.shift()
+						&& event.key == Input::Key::C
+					)
+					{
+						if (auto ret = Process::sys_kill(current_tty.m_foreground_process, SIGINT); ret.is_error())
+							dwarnln("TTY: {}", ret.error());
+					}
+					else				
+						current_tty.on_key(event);
 				}
 			}, nullptr
 		);
