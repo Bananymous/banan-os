@@ -27,6 +27,16 @@ namespace Kernel
 			NotStarted,
 			Executing,
 			Terminating,
+			Terminated
+		};
+
+		class TerminateBlocker
+		{
+		public:
+			TerminateBlocker(Thread&);
+			~TerminateBlocker();
+		private:
+			Thread& m_thread;
 		};
 
 	public:
@@ -36,6 +46,7 @@ namespace Kernel
 
 		BAN::ErrorOr<Thread*> clone(Process*, uintptr_t rsp, uintptr_t rip);
 		void setup_exec();
+		void setup_process_cleanup();
 
 		bool has_signal_to_execute() const;
 		void set_signal_done(int signal);
@@ -55,8 +66,8 @@ namespace Kernel
 		uintptr_t rip() const { return m_rip; }
 
 		void set_started() { ASSERT(m_state == State::NotStarted); m_state = State::Executing; }
+		void set_terminating();
 		State state() const { return m_state; }
-		void terminate() { m_state = State::Terminating; }
 
 		vaddr_t stack_base() const { return m_stack->vaddr(); }
 		size_t stack_size() const { return m_stack->size(); }
@@ -103,6 +114,9 @@ namespace Kernel
 		int							m_handling_signal	{ 0 };
 		static_assert(_SIGMAX < 64);
 
+		uint64_t m_terminate_blockers { 0 };
+
+		friend class TerminateBlocker;
 		friend class Scheduler;
 	};
 	

@@ -192,32 +192,67 @@ namespace Kernel
 		return false;
 	}
 
+	void Scheduler::delete_current_process_and_thread()
+	{
+		DISABLE_INTERRUPTS();
+
+		load_temp_stack();
+		PageTable::kernel().load();
+
+		Thread* thread = m_current_thread->thread;
+
+		ASSERT(thread->has_process());
+		delete &thread->process();
+		
+		remove_and_advance_current_thread();
+
+		delete thread;
+
+		execute_current_thread();
+	}
+
 	void Scheduler::execute_current_thread()
 	{
 		VERIFY_CLI();
 
-		Thread& current = current_thread();
+		load_temp_stack();
+		PageTable::kernel().load();
 
-		if (current.has_process())
+		Thread* current = &current_thread();
+
+		while (current->state() == Thread::State::Terminated)
 		{
-			current.process().page_table().load();
-			GDT::set_tss_stack(current.interrupt_stack_base() + current.interrupt_stack_size());
+			Thread* thread = m_current_thread->thread;
+			if (thread->has_process())
+				thread->process().on_thread_exit(*thread);
+			
+			remove_and_advance_current_thread();
+
+			delete thread;
+
+			current = &current_thread();
+		}
+
+		if (current->has_process())
+		{
+			current->process().page_table().load();
+			GDT::set_tss_stack(current->interrupt_stack_base() + current->interrupt_stack_size());
 		}
 		else
 			PageTable::kernel().load();
 
-		switch (current.state())
+		switch (current->state())
 		{
 			case Thread::State::NotStarted:
-				current.set_started();
-				start_thread(current.rsp(), current.rip());
+				current->set_started();
+				start_thread(current->rsp(), current->rip());
 			case Thread::State::Executing:
-				while (current.has_signal_to_execute())
-					current.handle_next_signal();
-				continue_thread(current.rsp(), current.rip());
+				while (current->has_signal_to_execute() && current->state() == Thread::State::Executing)
+					current->handle_next_signal();
+				// fall through
 			case Thread::State::Terminating:
-				ENABLE_INTERRUPTS();
-				current.on_exit();
+				continue_thread(current->rsp(), current->rip());
+			case Thread::State::Terminated:
 				ASSERT_NOT_REACHED();
 		}
 
@@ -250,60 +285,6 @@ namespace Kernel
 		MUST(m_sleeping_threads.emplace(it, sleeping, wake_time));
 
 		execute_current_thread();
-		ASSERT_NOT_REACHED();
-	}
-
-	void Scheduler::set_current_thread_done()
-	{
-		DISABLE_INTERRUPTS();
-
-		load_temp_stack();
-
-		ASSERT(m_current_thread);
-
-		Thread* thread = m_current_thread->thread;
-		remove_and_advance_current_thread();
-		delete thread;
-
-		execute_current_thread();
-		ASSERT_NOT_REACHED();
-	}
-
-#define remove_threads(list, condition)				\
-	for (auto it = list.begin(); it != list.end();) \
-	{												\
-		if (condition)								\
-		{											\
-			delete it->thread;						\
-			it = list.remove(it);					\
-		}											\
-		else										\
-		{											\
-			it++;									\
-		}											\
-	}
-
-	void Scheduler::set_current_process_done()
-	{
-		DISABLE_INTERRUPTS();
-
-		load_temp_stack();
-		PageTable::kernel().load();
-
-		ASSERT(m_current_thread);
-		Thread* thread = m_current_thread->thread;
-		Process* process = &thread->process();
-		remove_threads(m_blocking_threads, it->thread->process().pid() == process->pid());
-		remove_threads(m_sleeping_threads, it->thread->process().pid() == process->pid());
-		remove_threads(m_active_threads, it != m_current_thread && it->thread->process().pid() == process->pid());
-
-		remove_and_advance_current_thread();
-
-		delete thread;
-		delete process;
-
-		execute_current_thread();
-
 		ASSERT_NOT_REACHED();
 	}
 

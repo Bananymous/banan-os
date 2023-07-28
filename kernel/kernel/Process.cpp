@@ -2,6 +2,7 @@
 #include <BAN/StringView.h>
 #include <kernel/CriticalScope.h>
 #include <kernel/FS/VirtualFileSystem.h>
+#include <kernel/InterruptController.h>
 #include <kernel/LockGuard.h>
 #include <kernel/Memory/Heap.h>
 #include <kernel/Memory/PageTableScope.h>
@@ -108,6 +109,7 @@ namespace Kernel
 		ASSERT(m_fixed_width_allocators.empty());
 		ASSERT(!m_general_allocator);
 		ASSERT(m_mapped_ranges.empty());
+		ASSERT(m_exit_status.waiting == 0);
 		ASSERT(&PageTable::current() != m_page_table.ptr());
 	}
 
@@ -117,20 +119,15 @@ namespace Kernel
 		MUST(m_threads.push_back(thread));
 	}
 
-	void Process::on_thread_exit(Thread& thread)
+	void Process::cleanup_function()
 	{
-		LockGuard _(m_lock);
-		for (size_t i = 0; i < m_threads.size(); i++)
-			if (m_threads[i] == &thread)
-				m_threads.remove(i);
-		if (m_threads.empty())
-			exit(0);
-	}
+		s_process_lock.lock();
+		for (size_t i = 0; i < s_processes.size(); i++)
+			if (s_processes[i] == this)
+				s_processes.remove(i);
+		s_process_lock.unlock();
 
-	void Process::exit(int status)
-	{
 		m_lock.lock();
-		m_exit_status.exit_code = status;
 		m_exit_status.exited = true;
 		while (m_exit_status.waiting > 0)
 		{
@@ -141,7 +138,6 @@ namespace Kernel
 			m_lock.lock();
 		}
 
-		m_threads.clear();
 		m_open_file_descriptors.close_all();
 
 		// NOTE: We must unmap ranges while the page table is still alive
@@ -153,21 +149,47 @@ namespace Kernel
 
 		if (m_tty && m_tty->foreground_process() == pid())
 			m_tty->set_foreground_process(0);
+	}
 
-		s_process_lock.lock();
-		for (size_t i = 0; i < s_processes.size(); i++)
-			if (s_processes[i] == this)
-				s_processes.remove(i);
-		s_process_lock.unlock();
+	void Process::on_thread_exit(Thread& thread)
+	{
+		ASSERT(!interrupts_enabled());
 
-		// FIXME: we can't assume this is the current process
-		ASSERT(&Process::current() == this);
-		Scheduler::get().set_current_process_done();
+		ASSERT(m_threads.size() > 0);
+
+		if (m_threads.size() == 1)
+		{
+			ASSERT(m_threads.front() == &thread);
+			m_threads.clear();
+
+			thread.setup_process_cleanup();
+			Scheduler::get().execute_current_thread();
+		}
+
+		for (size_t i = 0; i < m_threads.size(); i++)
+		{
+			if (m_threads[i] == &thread)
+			{
+				m_threads.remove(i);
+				return;
+			}
+		}
+
+		ASSERT_NOT_REACHED();
+	}
+
+	void Process::exit(int status)
+	{
+		LockGuard _(m_lock);
+		m_exit_status.exit_code = status;
+		for (auto* thread : m_threads)
+			thread->set_terminating();
 	}
 
 	BAN::ErrorOr<long> Process::sys_exit(int status)
 	{
 		exit(status);
+		Thread::TerminateBlocker _(Thread::current());
 		ASSERT_NOT_REACHED();
 	}
 
@@ -558,6 +580,7 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_read(int fd, void* buffer, size_t count)
 	{
+		Thread::TerminateBlocker blocker(Thread::current());
 		LockGuard _(m_lock);
 		return TRY(m_open_file_descriptors.read(fd, buffer, count));
 	}
