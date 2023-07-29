@@ -845,14 +845,14 @@ namespace Kernel
 			return Process::current().sys_raise(signal);
 		
 		LockGuard process_guard(s_process_lock);
-		CriticalScope _;
-
 		for (auto* process : s_processes)
 		{
 			if (process->pid() == pid)
 			{
-				if (signal)
-					process->m_threads.front()->queue_signal(signal);
+				if (signal == 0)
+					return 0;
+				CriticalScope _;
+				process->m_signal_pending_mask |= 1ull << signal;
 				return 0;
 			}
 		}
@@ -864,12 +864,19 @@ namespace Kernel
 	{
 		if (signal < _SIGMIN || signal > _SIGMAX)
 			return BAN::Error::from_errno(EINVAL);
-		ASSERT(m_threads.size() == 1);
+		ASSERT(this == &Process::current());
+		
 		CriticalScope _;
+		
+		// FIXME: support raise with signal blocked
 		Thread& current = Thread::current();
-		current.queue_signal(signal);
-		current.handle_next_signal();
-		return 0;
+		if (current.add_signal(signal))
+		{
+			current.handle_signal(signal);
+			return 0;
+		}
+
+		ASSERT_NOT_REACHED();
 	}
 
 	BAN::ErrorOr<long> Process::sys_tcsetpgrp(int fd, pid_t pgid)

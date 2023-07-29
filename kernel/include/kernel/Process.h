@@ -160,6 +160,7 @@ namespace Kernel
 		BAN::UniqPtr<GeneralAllocator> m_general_allocator;
 
 		vaddr_t m_signal_handlers[_SIGMAX + 1] { };
+		uint64_t m_signal_pending_mask { 0 };
 
 		bool m_is_userspace { false };
 		userspace_info_t m_userspace_info;

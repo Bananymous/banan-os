@@ -183,7 +183,7 @@ namespace Kernel
 		// Setup stack for returning
 		{
 			// FIXME: don't use PageTableScope
-			PageTableScope _(m_process->page_table());
+			PageTableScope _(process().page_table());
 			write_to_stack(m_rsp, this);
 			write_to_stack(m_rsp, &Thread::on_exit);
 			write_to_stack(m_rsp, nullptr);
@@ -204,12 +204,13 @@ namespace Kernel
 		m_rsp = stack_base() + stack_size();
 		m_rip = (uintptr_t)entry;
 
-		m_signal_mask = ~0ull;
+		m_signal_pending_mask = 0;
+		m_signal_block_mask = ~0ull;
 
 		// Setup stack for returning
 		{
 			// FIXME: don't use PageTableScope
-			PageTableScope _(m_process->page_table());
+			PageTableScope _(process().page_table());
 			write_to_stack(m_rsp, this);
 			write_to_stack(m_rsp, &Thread::on_exit);
 			write_to_stack(m_rsp, m_process);
@@ -218,7 +219,10 @@ namespace Kernel
 
 	bool Thread::has_signal_to_execute() const
 	{
-		return !m_signal_queue.empty() && !m_handling_signal;
+		if (!m_process || m_handling_signal)
+			return false;
+		uint64_t full_pending_mask = m_signal_pending_mask | m_process->m_signal_pending_mask;
+		return full_pending_mask & ~m_signal_block_mask;
 	}
 
 	void Thread::set_signal_done(int signal)
@@ -232,26 +236,40 @@ namespace Kernel
 			m_handling_signal = 0;
 	}
 
-	void Thread::handle_next_signal()
+	void Thread::handle_signal(int signal)
 	{
 		ASSERT(!interrupts_enabled());
-		ASSERT(!m_signal_queue.empty());
 		ASSERT(&Thread::current() == this);
 		ASSERT(is_userspace());
 
-		int signal = m_signal_queue.front();
-		ASSERT(signal >= _SIGMIN && signal <= _SIGMAX);
-		m_signal_queue.pop();
+		if (signal == 0)
+		{
+			uint64_t full_pending_mask = m_signal_pending_mask | process().m_signal_pending_mask;
+			for (signal = _SIGMIN; signal <= _SIGMAX; signal++)
+			{
+				uint64_t mask = 1ull << signal;
+				if ((full_pending_mask & mask) && !(m_signal_block_mask & mask))
+					break;
+			}
+			ASSERT(signal <= _SIGMAX);
+		}
+		else
+		{
+			uint64_t full_pending_mask = m_signal_pending_mask | process().m_signal_pending_mask;
+			uint64_t mask = 1ull << signal;
+			ASSERT(full_pending_mask & mask);
+			ASSERT(!(m_signal_block_mask & mask));
+		}
 
 		uintptr_t& return_rsp = this->return_rsp();
 		uintptr_t& return_rip = this->return_rip();
 
 		vaddr_t signal_handler = process().m_signal_handlers[signal];
 
-		// Skip masked and ignored signals
-		if (m_signal_mask & (1ull << signal))
-			;
-		else if (signal_handler == (vaddr_t)SIG_IGN)
+		m_signal_pending_mask &= ~(1ull << signal);
+		process().m_signal_pending_mask &= ~(1ull << signal);
+
+		if (signal_handler == (vaddr_t)SIG_IGN)
 			;
 		else if (signal_handler != (vaddr_t)SIG_DFL)
 		{
@@ -321,17 +339,18 @@ namespace Kernel
 		}
 	}
 
-	void Thread::queue_signal(int signal)
+	bool Thread::add_signal(int signal)
 	{
 		ASSERT(!interrupts_enabled());
-		if (m_signal_queue.full())
+		uint64_t mask = 1ull << signal;
+		if (!(m_signal_block_mask & mask))
 		{
-			dwarnln("Signal queue full");
-			return;
+			m_signal_pending_mask |= mask;
+			if (this != &Thread::current())
+				Scheduler::get().unblock_thread(tid());
+			return true;
 		}
-		m_signal_queue.push(signal);
-		if (this != &Thread::current())
-			Scheduler::get().unblock_thread(tid());
+		return false;
 	}
 
 	void Thread::validate_stack() const

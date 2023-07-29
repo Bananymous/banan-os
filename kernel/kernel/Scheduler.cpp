@@ -248,7 +248,7 @@ namespace Kernel
 				start_thread(current->rsp(), current->rip());
 			case Thread::State::Executing:
 				while (current->has_signal_to_execute() && current->state() == Thread::State::Executing)
-					current->handle_next_signal();
+					current->handle_signal();
 				// fall through
 			case Thread::State::Terminating:
 				continue_thread(current->rsp(), current->rip());

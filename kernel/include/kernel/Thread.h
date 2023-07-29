@@ -1,6 +1,5 @@
 #pragma once
 
-#include <BAN/CircularQueue.h>
 #include <BAN/NoCopyMove.h>
 #include <BAN/RefPtr.h>
 #include <BAN/UniqPtr.h>
@@ -50,8 +49,8 @@ namespace Kernel
 
 		bool has_signal_to_execute() const;
 		void set_signal_done(int signal);
-		void handle_next_signal();
-		void queue_signal(int signal);
+		void handle_signal(int signal = 0);
+		bool add_signal(int signal);
 
 		void set_return_rsp(uintptr_t& rsp) { m_return_rsp = &rsp; }
 		void set_return_rip(uintptr_t& rip) { m_return_rip = &rip; }
@@ -109,9 +108,9 @@ namespace Kernel
 		uintptr_t*					m_return_rsp		{ nullptr };
 		uintptr_t*					m_return_rip		{ nullptr };
 
-		BAN::CircularQueue<int, 10>	m_signal_queue;
-		uint64_t					m_signal_mask		{ 0 };
-		int							m_handling_signal	{ 0 };
+		uint64_t					m_signal_pending_mask	{ 0 };
+		uint64_t					m_signal_block_mask		{ 0 };
+		int							m_handling_signal		{ 0 };
 		static_assert(_SIGMAX < 64);
 
 		uint64_t m_terminate_blockers { 0 };
