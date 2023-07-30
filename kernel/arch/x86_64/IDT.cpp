@@ -163,10 +163,33 @@ namespace IDT
 
 		if (tid && Kernel::Thread::current().is_userspace() && !Kernel::Thread::current().is_in_syscall())
 		{
-			auto message = BAN::String::formatted("{}, aborting\n", isr_exceptions[isr]);
-			(void)Kernel::Process::current().sys_write(STDERR_FILENO, message.data(), message.size());
-			asm volatile("sti");
-			Kernel::Process::current().exit(1);
+			// TODO: Confirm and fix the exception to signal mappings
+
+			int signal = 0;
+			switch (isr)
+			{
+			case ISR::DeviceNotAvailable:
+			case ISR::DivisionError:
+			case ISR::SIMDFloatingPointException:
+			case ISR::x87FloatingPointException:
+				signal = SIGFPE;
+				break;
+			case ISR::AlignmentCheck:
+				signal = SIGBUS;
+				break;
+			case ISR::InvalidOpcode:
+				signal = SIGILL;
+				break;
+			case ISR::PageFault:
+				signal = SIGSEGV;
+				break;			
+			default:
+				dwarnln("Unhandled exception");
+				signal = SIGABRT;
+				break;
+			}
+
+			Kernel::Thread::current().handle_signal(-signal);
 		}
 		else
 		{
