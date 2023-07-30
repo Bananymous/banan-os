@@ -253,12 +253,16 @@ namespace Kernel
 			}
 			ASSERT(signal <= _SIGMAX);
 		}
-		else
+		else if (signal > 0)
 		{
 			uint64_t full_pending_mask = m_signal_pending_mask | process().m_signal_pending_mask;
 			uint64_t mask = 1ull << signal;
 			ASSERT(full_pending_mask & mask);
 			ASSERT(!(m_signal_block_mask & mask));
+		}
+		else
+		{
+			signal = -signal;
 		}
 
 		uintptr_t& return_rsp = this->return_rsp();

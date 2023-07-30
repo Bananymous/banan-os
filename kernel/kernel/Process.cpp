@@ -867,15 +867,7 @@ namespace Kernel
 		ASSERT(this == &Process::current());
 		
 		CriticalScope _;
-		
-		// FIXME: support raise with signal blocked
-		Thread& current = Thread::current();
-		if (current.add_signal(signal))
-		{
-			current.handle_signal(signal);
-			return 0;
-		}
-
+		Thread::current().handle_signal(-signal);
 		ASSERT_NOT_REACHED();
 	}
 
