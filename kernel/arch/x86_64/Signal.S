@@ -1,5 +1,7 @@
 .section .userspace, "aw"
 
+#include <sys/syscall.h>
+
 .global signal_trampoline
 signal_trampoline:
 	pushq %rax
@@ -18,14 +20,13 @@ signal_trampoline:
 	pushq %r14
 	pushq %r15
 
-	xchgw %bx, %bx
-
 	movq 128(%rsp), %rdi
 	movq 120(%rsp), %rax
 	call *%rax
 
-	movq 128(%rsp), %rdi
-	call signal_done
+	movq $SYS_SIGNAL_DONE, %rax
+	movq 128(%rsp), %rbx
+	int $0x80
 
 	popq %r15
 	popq %r14
