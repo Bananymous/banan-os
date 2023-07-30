@@ -80,10 +80,7 @@ namespace Kernel
 		Process& process();
 		bool has_process() const { return m_process; }
 
-		void set_in_syscall(bool b) { m_in_syscall = b; }
-
 		bool is_userspace() const { return m_is_userspace; }
-		bool is_in_syscall() const { return m_in_syscall; }
 
 	private:
 		Thread(pid_t tid, Process*);
@@ -102,7 +99,6 @@ namespace Kernel
 		const pid_t					m_tid				{ 0 };
 		State						m_state				{ State::NotStarted };
 		Process*					m_process			{ nullptr };
-		bool						m_in_syscall		{ false };
 		bool						m_is_userspace		{ false };
 
 		uintptr_t*					m_return_rsp		{ nullptr };
