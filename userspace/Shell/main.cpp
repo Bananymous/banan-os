@@ -260,6 +260,11 @@ int execute_command(BAN::Vector<BAN::String>& args)
 		while (*current)
 			printf("%s\n", *current++);
 	}
+	else if (args.front() == "page-fault-test"sv)
+	{
+		volatile int* ptr = nullptr;
+		*ptr = 0;
+	}
 	else if (args.front() == "kill-test"sv)
 	{
 		pid_t pid = fork();
