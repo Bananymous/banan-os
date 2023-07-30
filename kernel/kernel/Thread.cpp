@@ -153,7 +153,6 @@ namespace Kernel
 		thread->m_stack = TRY(m_stack->clone(new_process->page_table()));
 
 		thread->m_state = State::Executing;
-		thread->m_in_syscall = true;
 
 		thread->m_rip = rip;
 		thread->m_rsp = rsp;

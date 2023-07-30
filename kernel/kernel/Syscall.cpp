@@ -20,7 +20,6 @@ namespace Kernel
 
 	extern "C" long cpp_syscall_handler(int syscall, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4, uintptr_t arg5, InterruptStack& interrupt_stack)
 	{
-		Thread::current().set_in_syscall(true);
 		Thread::current().set_return_rsp(interrupt_stack.rsp);
 		Thread::current().set_return_rip(interrupt_stack.rip);
 
@@ -172,8 +171,6 @@ namespace Kernel
 		}
 
 		asm volatile("cli");
-
-		Thread::current().set_in_syscall(false);
 
 		if (ret.is_error())
 			return -ret.error().get_error_code();

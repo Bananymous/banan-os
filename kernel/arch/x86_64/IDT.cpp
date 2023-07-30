@@ -161,7 +161,7 @@ namespace IDT
 			Kernel::Thread::current().set_return_rip(interrupt_stack.rip);
 		}
 
-		if (tid && Kernel::Thread::current().is_userspace() && !Kernel::Thread::current().is_in_syscall())
+		if (tid && Kernel::Thread::current().is_userspace())
 		{
 			// TODO: Confirm and fix the exception to signal mappings
 
