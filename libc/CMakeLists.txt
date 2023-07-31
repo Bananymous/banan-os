@@ -30,6 +30,8 @@ add_custom_target(libc-headers
 add_library(libc ${LIBC_SOURCES})
 add_dependencies(libc headers crt0)
 
+target_compile_options(libc PUBLIC -g -Wstack-usage=512)
+
 add_custom_target(libc-install
 	COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/libc.a ${BANAN_LIB}/
 	DEPENDS libc

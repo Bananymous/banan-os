@@ -24,7 +24,7 @@ add_custom_target(userspace)
 add_custom_target(userspace-install DEPENDS userspace)
 
 foreach(USERSPACE_PROJECT ${USERSPACE_PROJECTS})
-	target_compile_options(${USERSPACE_PROJECT} PUBLIC -mno-sse -mno-sse2)
+	target_compile_options(${USERSPACE_PROJECT} PUBLIC -g)
 	add_dependencies(userspace ${USERSPACE_PROJECT})
 	add_dependencies(userspace-install ${USERSPACE_PROJECT}-install)
 endforeach()
