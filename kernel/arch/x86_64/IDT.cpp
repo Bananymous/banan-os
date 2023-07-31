@@ -138,6 +138,8 @@ namespace IDT
 
 	extern "C" void cpp_isr_handler(uint64_t isr, uint64_t error, Kernel::InterruptStack& interrupt_stack, const Registers* regs)
 	{
+		Kernel::Thread::current().save_sse();
+
 		pid_t tid = Kernel::Scheduler::current_tid();
 		pid_t pid = tid ? Kernel::Process::current().pid() : 0;
 
@@ -205,10 +207,14 @@ namespace IDT
 		default:
 			break;
 		}
+
+		Kernel::Thread::current().load_sse();
 	}
 
 	extern "C" void cpp_irq_handler(uint64_t irq, Kernel::InterruptStack& interrupt_stack)
 	{
+		Kernel::Thread::current().save_sse();
+
 		if (Kernel::Scheduler::current_tid())
 		{
 			Kernel::Thread::current().set_return_rsp(interrupt_stack.rsp);
@@ -242,6 +248,8 @@ namespace IDT
 		default:
 			break;
 		}
+
+		Kernel::Thread::current().load_sse();
 	}
 
 	static void flush_idt()

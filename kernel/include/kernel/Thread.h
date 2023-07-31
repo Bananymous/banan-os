@@ -82,6 +82,9 @@ namespace Kernel
 
 		bool is_userspace() const { return m_is_userspace; }
 
+		void save_sse() { asm volatile("fxsave %0" :: "m"(m_sse_storage)); }
+		void load_sse() { asm volatile("fxrstor %0" :: "m"(m_sse_storage)); }
+
 	private:
 		Thread(pid_t tid, Process*);
 		void on_exit();
@@ -110,6 +113,8 @@ namespace Kernel
 		static_assert(_SIGMAX < 64);
 
 		uint64_t m_terminate_blockers { 0 };
+
+		alignas(16) uint8_t m_sse_storage[512];
 
 		friend class TerminateBlocker;
 		friend class Scheduler;
