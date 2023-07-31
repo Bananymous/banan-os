@@ -30,6 +30,8 @@ namespace Kernel
 			return 0;
 		}
 
+		Thread::current().save_sse();
+
 		asm volatile("sti");
 
 		(void)arg1;
@@ -182,6 +184,8 @@ namespace Kernel
 		default:
 			break;
 		}
+
+		Thread::current().load_sse();
 
 		if (ret.is_error())
 			return -ret.error().get_error_code();
