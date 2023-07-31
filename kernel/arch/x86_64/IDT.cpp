@@ -189,11 +189,21 @@ namespace IDT
 				break;
 			}
 
-			Kernel::Thread::current().handle_signal(-signal);
+			Kernel::Thread::current().handle_signal(signal);
 		}
 		else
 		{
 			Kernel::panic("Unhandled exception");
+		}
+
+		switch (Kernel::Thread::current().state())
+		{
+		case Kernel::Thread::State::Terminating:
+			ASSERT_NOT_REACHED();
+		case Kernel::Thread::State::Terminated:
+			Kernel::Scheduler::get().execute_current_thread();
+		default:
+			break;
 		}
 	}
 
@@ -222,6 +232,16 @@ namespace IDT
 			InterruptController::get().eoi(irq);
 
 		Kernel::Scheduler::get().reschedule_if_idling();
+
+		switch (Kernel::Thread::current().state())
+		{
+		case Kernel::Thread::State::Terminating:
+			ASSERT_NOT_REACHED();
+		case Kernel::Thread::State::Terminated:
+			Kernel::Scheduler::get().execute_current_thread();
+		default:
+			break;
+		}
 	}
 
 	static void flush_idt()
