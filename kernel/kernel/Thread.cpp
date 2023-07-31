@@ -218,7 +218,7 @@ namespace Kernel
 
 	bool Thread::has_signal_to_execute() const
 	{
-		if (!m_process || m_handling_signal)
+		if (!is_userspace() || m_handling_signal || m_state != State::Executing)
 			return false;
 		uint64_t full_pending_mask = m_signal_pending_mask | m_process->m_signal_pending_mask;
 		return full_pending_mask & ~m_signal_block_mask;
@@ -229,10 +229,14 @@ namespace Kernel
 		ASSERT(!interrupts_enabled());
 		if (m_handling_signal == 0)
 			derrorln("set_signal_done called while not handling singal");
-		if (m_handling_signal != signal)
+		else if (m_handling_signal != signal)
 			derrorln("set_signal_done called with invalid signal");
 		else
 			m_handling_signal = 0;
+
+		if (m_handling_signal == 0)
+			while (has_signal_to_execute())
+				handle_signal();
 	}
 
 	void Thread::handle_signal(int signal)
@@ -240,6 +244,7 @@ namespace Kernel
 		ASSERT(!interrupts_enabled());
 		ASSERT(&Thread::current() == this);
 		ASSERT(is_userspace());
+		ASSERT(!m_handling_signal);
 
 		if (signal == 0)
 		{
@@ -252,16 +257,10 @@ namespace Kernel
 			}
 			ASSERT(signal <= _SIGMAX);
 		}
-		else if (signal > 0)
-		{
-			uint64_t full_pending_mask = m_signal_pending_mask | process().m_signal_pending_mask;
-			uint64_t mask = 1ull << signal;
-			ASSERT(full_pending_mask & mask);
-			ASSERT(!(m_signal_block_mask & mask));
-		}
 		else
 		{
-			signal = -signal;
+			ASSERT(signal >= _SIGMIN);
+			ASSERT(signal <= _SIGMAX);
 		}
 
 		uintptr_t& return_rsp = this->return_rsp();
@@ -284,7 +283,6 @@ namespace Kernel
 			write_to_stack(return_rsp, signal);
 			write_to_stack(return_rsp, signal_handler);
 			return_rip = (uintptr_t)signal_trampoline;
-			return;
 		}
 		else
 		{

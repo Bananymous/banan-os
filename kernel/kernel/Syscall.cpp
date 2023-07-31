@@ -1,6 +1,7 @@
 #include <kernel/Debug.h>
 #include <kernel/InterruptStack.h>
 #include <kernel/Process.h>
+#include <kernel/Scheduler.h>
 #include <kernel/Syscall.h>
 
 #include <termios.h>
@@ -171,6 +172,16 @@ namespace Kernel
 		}
 
 		asm volatile("cli");
+
+		switch (Thread::current().state())
+		{
+		case Thread::State::Terminating:
+			ASSERT_NOT_REACHED();
+		case Thread::State::Terminated:
+			Scheduler::get().execute_current_thread();
+		default:
+			break;
+		}
 
 		if (ret.is_error())
 			return -ret.error().get_error_code();

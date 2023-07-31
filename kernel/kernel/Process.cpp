@@ -418,9 +418,9 @@ namespace Kernel
 			m_userspace_info.argc = str_argv.size();
 
 			asm volatile("cli");
-			m_threads.front()->setup_exec();
 		}
 
+		m_threads.front()->setup_exec();
 		Scheduler::get().execute_current_thread();
 		ASSERT_NOT_REACHED();
 	}
@@ -867,8 +867,8 @@ namespace Kernel
 		ASSERT(this == &Process::current());
 		
 		CriticalScope _;
-		Thread::current().handle_signal(-signal);
-		ASSERT_NOT_REACHED();
+		Thread::current().handle_signal(signal);
+		return 0;
 	}
 
 	BAN::ErrorOr<long> Process::sys_tcsetpgrp(int fd, pid_t pgid)

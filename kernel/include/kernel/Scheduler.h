@@ -30,6 +30,7 @@ namespace Kernel
 
 		static bool is_valid_tid(pid_t tid);
 
+		[[noreturn]] void execute_current_thread();
 		[[noreturn]] void delete_current_process_and_thread();
 
 	private:
@@ -39,7 +40,6 @@ namespace Kernel
 		[[nodiscard]] bool save_current_thread();
 		void remove_and_advance_current_thread();
 		void advance_current_thread();
-		[[noreturn]] void execute_current_thread();
 
 		BAN::ErrorOr<void> add_thread(Thread*);
 
@@ -75,7 +75,6 @@ namespace Kernel
 
 		uint64_t m_last_reschedule = 0;
 
-		friend class Thread;
 		friend class Process;
 	};
 
