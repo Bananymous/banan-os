@@ -20,17 +20,14 @@ __BEGIN_DECLS
 #define WNOWAIT		0x10
 #define WSTOPPED	0x20
 
-#define WEXITSTATUS(status)	(status & 0xFF)
-#define WIFEXITED(status)	(WEXITSTATUS(status) != 0)
+#define WEXITSTATUS(status) (((status) >> 8) & 0xFF)
+#define WSTOPSIG(status) WEXITSTATUS(status)
+#define WTERMSIG(status) ((status) & 0x7F)
+#define WIFEXITED(status) (WTERMSIG(status) == 0)
+#define WIFSIGNALED(status) (((status) & 0x7F) > 0 && ((status) & 0x7F) < 0x7F)
+#define	WIFSTOPPED(status) (((status) & 0xFF) == 0x7F)
 
-// FIXME
-#if 0
-#define WIFCONTINUED
-#define WIFSIGNALED
-#define WIFSTOPPED
-#define WSTOPSIG
-#define WTERMSIG
-#endif
+#define __WGENEXITCODE(ret, sig) (((ret) << 8) | (sig))
 
 typedef enum
 {
