@@ -10,13 +10,16 @@ namespace Kernel
 	class PageTable
 	{
 	public:
-		using flags_t = uint8_t;
+		using flags_t = uint16_t;
 		enum Flags : flags_t 
 		{
 			Present = 1,
 			ReadWrite = 2,
 			UserSupervisor = 4,
 			Execute = 8,
+			Reserved = 256,
+
+			Used = Present | Reserved,
 		};
 
 	public:
@@ -40,8 +43,8 @@ namespace Kernel
 		bool is_page_free(vaddr_t) const;
 		bool is_range_free(vaddr_t, size_t bytes) const;
 
-		vaddr_t get_free_page(vaddr_t first_address = PAGE_SIZE) const;
-		vaddr_t get_free_contiguous_pages(size_t page_count, vaddr_t first_address = PAGE_SIZE) const;
+		vaddr_t get_free_page(vaddr_t first_address = PAGE_SIZE);
+		vaddr_t get_free_contiguous_pages(size_t page_count, vaddr_t first_address = PAGE_SIZE);
 
 		void load();
 
