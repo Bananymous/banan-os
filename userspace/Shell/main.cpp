@@ -395,7 +395,10 @@ int execute_command(BAN::Vector<BAN::String>& args)
 		if (tcsetpgrp(0, getpid()) == -1)
 			ERROR_RETURN("tcsetpgrp", 1);
 
-		return status;
+		if (WIFSIGNALED(status))
+			fprintf(stderr, "Terminated by signal %d\n", WTERMSIG(status));
+
+		return WEXITSTATUS(status);
 	}
 
 	return 0;
