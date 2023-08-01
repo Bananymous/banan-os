@@ -48,7 +48,7 @@ namespace Kernel
 
 	static inline PageTable::flags_t parse_flags(uint64_t entry)
 	{
-		return (s_has_nxe && !(entry & (1ull << 63)) ? PageTable::Flags::Execute : 0) | (entry & 0b111);
+		return (s_has_nxe && !(entry & (1ull << 63)) ? PageTable::Flags::Execute : 0) | (entry & 0b100000111);
 	}
 
 	void PageTable::initialize()
@@ -251,7 +251,7 @@ namespace Kernel
 
 		ASSERT(paddr % PAGE_SIZE == 0);
 		ASSERT(vaddr % PAGE_SIZE == 0);
-		ASSERT(flags & Flags::Present);
+		ASSERT(flags & Flags::Used);
 
 		uint64_t pml4e = (vaddr >> 39) & 0x1FF;
 		uint64_t pdpte = (vaddr >> 30) & 0x1FF;
@@ -263,6 +263,8 @@ namespace Kernel
 			extra_flags |= 1ull << 63;
 		if (s_has_pge && pml4e == 511)
 			extra_flags |= 1ull << 8;
+		if (flags & Flags::Reserved)
+			extra_flags |= Flags::Reserved;
 		flags_t uwr_flags = flags & 0b111;
 
 		uint64_t* pml4 = (uint64_t*)P2V(m_highest_paging_struct);
@@ -355,7 +357,7 @@ namespace Kernel
 		return (page_data & PAGE_ADDR_MASK) & ~(1ull << 63);
 	}
 
-	vaddr_t PageTable::get_free_page(vaddr_t first_address) const
+	vaddr_t PageTable::get_free_page(vaddr_t first_address)
 	{
 		LockGuard _(m_lock);
 
@@ -390,13 +392,14 @@ namespace Kernel
 					uint64_t* pt = (uint64_t*)P2V(pd[pde] & PAGE_ADDR_MASK);
 					for (; pte < 512; pte++)
 					{
-						if (!(pt[pte] & Flags::Present))
+						if (!(pt[pte] & Flags::Used))
 						{
 							vaddr_t vaddr = 0;
 							vaddr |= pml4e << 39;
 							vaddr |= pdpte << 30;
 							vaddr |= pde   << 21;
 							vaddr |= pte   << 12;
+							pt[pte] |= Flags::Reserved;
 							return canonicalize(vaddr);
 						}
 					}
@@ -404,12 +407,15 @@ namespace Kernel
 			}
 		}
 
-		// Find any free page page (except for page 0)
+		// Find any free page page
 		vaddr = first_address;
 		while (is_canonical(vaddr))
 		{
 			if (is_page_free(vaddr))
+			{
+				map_page_at(0, vaddr, Flags::Reserved);
 				return vaddr;
+			}
 			if (vaddr > vaddr + PAGE_SIZE)
 				break;
 			vaddr += PAGE_SIZE;
@@ -418,7 +424,7 @@ namespace Kernel
 		ASSERT_NOT_REACHED();
 	}
 
-	vaddr_t PageTable::get_free_contiguous_pages(size_t page_count, vaddr_t first_address) const
+	vaddr_t PageTable::get_free_contiguous_pages(size_t page_count, vaddr_t first_address)
 	{
 		if (first_address % PAGE_SIZE)
 			first_address = (first_address + PAGE_SIZE - 1) & PAGE_ADDR_MASK;
@@ -430,7 +436,7 @@ namespace Kernel
 			bool valid { true };
 			for (size_t page = 0; page < page_count; page++)
 			{
-				if (get_page_flags(vaddr + page * PAGE_SIZE) & Flags::Present)
+				if (get_page_flags(vaddr + page * PAGE_SIZE) & Flags::Used)
 				{
 					vaddr += page * PAGE_SIZE;
 					valid = false;
@@ -438,7 +444,11 @@ namespace Kernel
 				}
 			}
 			if (valid)
+			{
+				for (size_t page = 0; page < page_count; page++)
+					map_page_at(0, vaddr + page * PAGE_SIZE, Flags::Reserved);
 				return vaddr;
+			}
 		}
 
 		ASSERT_NOT_REACHED();
@@ -447,7 +457,7 @@ namespace Kernel
 	bool PageTable::is_page_free(vaddr_t page) const
 	{
 		ASSERT(page % PAGE_SIZE == 0);
-		return !(get_page_flags(page) & Flags::Present);
+		return !(get_page_flags(page) & Flags::Used);
 	}
 
 	bool PageTable::is_range_free(vaddr_t start, size_t size) const
@@ -519,7 +529,7 @@ namespace Kernel
 							start = 0;
 						}
 
-						if (!(pt[pte] & Flags::Present))
+						if (!(pt[pte] & Flags::Used))
 							continue;
 						
 						if (start == 0)
