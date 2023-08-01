@@ -29,36 +29,32 @@ namespace Kernel
 	Thread::TerminateBlocker::TerminateBlocker(Thread& thread)
 		: m_thread(thread)
 	{
+		CriticalScope _;
+
+		if (m_thread.state() == State::Executing || m_thread.m_terminate_blockers > 0)
 		{
-			CriticalScope _;
-
-			if (m_thread.state() == State::Executing || m_thread.m_terminate_blockers > 0)
-			{
-				m_thread.m_terminate_blockers++;
-				return;
-			}
-
-			if (m_thread.state() == State::Terminating && m_thread.m_terminate_blockers == 0)
-				m_thread.m_state = State::Terminated;
+			m_thread.m_terminate_blockers++;
+			return;
 		}
 
+		if (m_thread.state() == State::Terminating && m_thread.m_terminate_blockers == 0)
+			m_thread.m_state = State::Terminated;
+				
 		while (true)
 			Scheduler::get().reschedule();
 	}
 
 	Thread::TerminateBlocker::~TerminateBlocker()
 	{
-		{
-			CriticalScope _;
-	
-			m_thread.m_terminate_blockers--;
+		CriticalScope _;
 
-			if (m_thread.state() == State::Executing || m_thread.m_terminate_blockers > 0)
-				return;
+		m_thread.m_terminate_blockers--;
 
-			if (m_thread.state() == State::Terminating && m_thread.m_terminate_blockers == 0)
-				m_thread.m_state = State::Terminated;
-		}
+		if (m_thread.state() == State::Executing || m_thread.m_terminate_blockers > 0)
+			return;
+
+		if (m_thread.state() == State::Terminating && m_thread.m_terminate_blockers == 0)
+			m_thread.m_state = State::Terminated;
 
 		while (true)
 			Scheduler::get().reschedule();
@@ -299,11 +295,8 @@ namespace Kernel
 				case SIGTRAP:
 				case SIGXCPU:
 				case SIGXFSZ:
-				{
-					auto message = BAN::String::formatted("killed by signal {}\n", signal);
-					(void)process().tty().write(0, message.data(), message.size());
-				}
-				// fall through
+					process().exit(128 + signal, signal | 0x80);
+					break;
 
 				// Abnormal termination of the process
 				case SIGALRM:
@@ -317,10 +310,8 @@ namespace Kernel
 				case SIGPOLL:
 				case SIGPROF:
 				case SIGVTALRM:
-				{
-					process().exit(128 + signal);
+					process().exit(128 + signal, signal);
 					break;
-				}
 
 				// Ignore the signal
 				case SIGCHLD:

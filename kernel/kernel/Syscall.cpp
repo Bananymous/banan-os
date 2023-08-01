@@ -21,6 +21,8 @@ namespace Kernel
 
 	extern "C" long cpp_syscall_handler(int syscall, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4, uintptr_t arg5, InterruptStack& interrupt_stack)
 	{
+		ASSERT((interrupt_stack.cs & 0b11) == 0b11);
+
 		Thread::current().set_return_rsp(interrupt_stack.rsp);
 		Thread::current().set_return_rip(interrupt_stack.rip);
 
@@ -175,16 +177,11 @@ namespace Kernel
 
 		asm volatile("cli");
 
-		switch (Thread::current().state())
-		{
-		case Thread::State::Terminating:
-			ASSERT_NOT_REACHED();
-		case Thread::State::Terminated:
-			Scheduler::get().execute_current_thread();
-		default:
-			break;
-		}
+		// Don't continue exection when terminated
+		if (Kernel::Thread::current().state() == Kernel::Thread::State::Terminated)
+			Kernel::Scheduler::get().execute_current_thread();
 
+		ASSERT(Kernel::Thread::current().state() != Kernel::Thread::State::Terminating);
 		Thread::current().load_sse();
 
 		if (ret.is_error())

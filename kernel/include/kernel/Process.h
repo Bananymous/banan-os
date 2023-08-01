@@ -43,7 +43,7 @@ namespace Kernel
 		~Process();
 		void cleanup_function();
 
-		void exit(int status);
+		void exit(int status, int signal);
 
 		void add_thread(Thread*);
 		void on_thread_exit(Thread&);
