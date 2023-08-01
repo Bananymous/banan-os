@@ -116,7 +116,6 @@ namespace Kernel
 
 		alignas(16) uint8_t m_sse_storage[512];
 
-		friend class TerminateBlocker;
 		friend class Scheduler;
 	};
 	

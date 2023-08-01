@@ -14,6 +14,7 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <sys/sysmacros.h>
+#include <sys/wait.h>
 
 namespace Kernel
 {
@@ -178,17 +179,17 @@ namespace Kernel
 		ASSERT_NOT_REACHED();
 	}
 
-	void Process::exit(int status)
+	void Process::exit(int status, int signal)
 	{
 		LockGuard _(m_lock);
-		m_exit_status.exit_code = status;
+		m_exit_status.exit_code = __WGENEXITCODE(status, signal);
 		for (auto* thread : m_threads)
 			thread->set_terminating();
 	}
 
 	BAN::ErrorOr<long> Process::sys_exit(int status)
 	{
-		exit(status);
+		exit(status, 0);
 		Thread::TerminateBlocker _(Thread::current());
 		ASSERT_NOT_REACHED();
 	}
@@ -427,10 +428,7 @@ namespace Kernel
 
 	int Process::block_until_exit()
 	{
-		ASSERT(s_process_lock.is_locked());
 		ASSERT(this != &Process::current());
-
-		s_process_lock.unlock();
 
 		m_lock.lock();
 		m_exit_status.waiting++;
@@ -445,8 +443,6 @@ namespace Kernel
 		m_exit_status.waiting--;
 		m_lock.unlock();
 
-		s_process_lock.lock();
-
 		return ret;
 	}
 
@@ -458,10 +454,12 @@ namespace Kernel
 		if (options)
 			return BAN::Error::from_errno(EINVAL);
 
-		LockGuard _(s_process_lock);
-		for (auto* process : s_processes)
-			if (process->pid() == pid)
-				target = process;
+		{
+			LockGuard _(s_process_lock);
+			for (auto* process : s_processes)
+				if (process->pid() == pid)
+					target = process;
+		}
 
 		if (target == nullptr)
 			return BAN::Error::from_errno(ECHILD);
@@ -580,7 +578,6 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_read(int fd, void* buffer, size_t count)
 	{
-		Thread::TerminateBlocker blocker(Thread::current());
 		LockGuard _(m_lock);
 		return TRY(m_open_file_descriptors.read(fd, buffer, count));
 	}

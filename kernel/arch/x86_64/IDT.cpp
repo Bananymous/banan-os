@@ -138,7 +138,10 @@ namespace IDT
 
 	extern "C" void cpp_isr_handler(uint64_t isr, uint64_t error, Kernel::InterruptStack& interrupt_stack, const Registers* regs)
 	{
-		Kernel::Thread::current().save_sse();
+		bool from_userspace = (interrupt_stack.cs & 0b11) == 0b11;
+
+		if (from_userspace)
+			Kernel::Thread::current().save_sse();
 
 		pid_t tid = Kernel::Scheduler::current_tid();
 		pid_t pid = tid ? Kernel::Process::current().pid() : 0;
@@ -198,22 +201,23 @@ namespace IDT
 			Kernel::panic("Unhandled exception");
 		}
 
-		switch (Kernel::Thread::current().state())
-		{
-		case Kernel::Thread::State::Terminating:
-			ASSERT_NOT_REACHED();
-		case Kernel::Thread::State::Terminated:
+		// Don't continue exection when terminated
+		if (Kernel::Thread::current().state() == Kernel::Thread::State::Terminated)
 			Kernel::Scheduler::get().execute_current_thread();
-		default:
-			break;
+		
+		if (from_userspace)
+		{
+			ASSERT(Kernel::Thread::current().state() != Kernel::Thread::State::Terminating);
+			Kernel::Thread::current().load_sse();
 		}
-
-		Kernel::Thread::current().load_sse();
 	}
 
 	extern "C" void cpp_irq_handler(uint64_t irq, Kernel::InterruptStack& interrupt_stack)
 	{
-		Kernel::Thread::current().save_sse();
+		bool from_userspace = (interrupt_stack.cs & 0b11) & 0b11;
+
+		if (from_userspace)
+			Kernel::Thread::current().save_sse();
 
 		if (Kernel::Scheduler::current_tid())
 		{
@@ -239,17 +243,15 @@ namespace IDT
 
 		Kernel::Scheduler::get().reschedule_if_idling();
 
-		switch (Kernel::Thread::current().state())
-		{
-		case Kernel::Thread::State::Terminating:
-			ASSERT_NOT_REACHED();
-		case Kernel::Thread::State::Terminated:
+		// Don't continue exection when terminated
+		if (Kernel::Thread::current().state() == Kernel::Thread::State::Terminated)
 			Kernel::Scheduler::get().execute_current_thread();
-		default:
-			break;
-		}
 
-		Kernel::Thread::current().load_sse();
+		if (from_userspace)
+		{
+			ASSERT(Kernel::Thread::current().state() != Kernel::Thread::State::Terminating);
+			Kernel::Thread::current().load_sse();
+		}
 	}
 
 	static void flush_idt()
