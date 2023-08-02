@@ -91,7 +91,7 @@ typedef uint64_t uintmax_t;
 
 #define INTPTR_MIN (-INTPTR_MAX - 1)
 #define INTPTR_MAX __INTPTR_MAX__
-#define UINPTR_MAX __UINTPTR_MAX__
+#define UINTPTR_MAX __UINTPTR_MAX__
 
 // FIXME: is this the correct?
 #define INTMAX_MIN INT64_MIN
