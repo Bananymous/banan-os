@@ -212,7 +212,9 @@ namespace Kernel
 		paddr_t page_paddr = Heap::get().take_free_page();
 		ASSERT(page_paddr);
 
-		page_vaddr = m_page_table.get_free_page();
+		page_vaddr = m_page_table.reserve_free_page(0x300000);
+		ASSERT(page_vaddr);
+		
 		m_page_table.map_page_at(page_paddr, page_vaddr, PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present);
 	}
 

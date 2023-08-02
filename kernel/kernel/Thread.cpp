@@ -104,8 +104,8 @@ namespace Kernel
 
 		thread->m_is_userspace = true;
 
-		thread->m_stack = TRY(VirtualRange::create(process->page_table(), 0, m_userspace_stack_size, PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present));
-		thread->m_interrupt_stack = TRY(VirtualRange::create(process->page_table(), 0, m_interrupt_stack_size, PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present));
+		thread->m_stack = TRY(VirtualRange::create_to_vaddr_range(process->page_table(), 0x300000, KERNEL_OFFSET, m_userspace_stack_size, PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present));
+		thread->m_interrupt_stack = TRY(VirtualRange::create_to_vaddr_range(process->page_table(), 0x300000, KERNEL_OFFSET, m_interrupt_stack_size, PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present));
 
 		thread->setup_exec();
 

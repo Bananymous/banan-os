@@ -193,18 +193,27 @@ namespace Kernel
 
 	void PageTable::invalidate(vaddr_t vaddr)
 	{
+		ASSERT(vaddr % PAGE_SIZE == 0);
 		if (this == s_current)
 			asm volatile("invlpg (%0)" :: "r"(vaddr) : "memory");
 	}
 
 	void PageTable::unmap_page(vaddr_t vaddr)
 	{
-		LockGuard _(m_lock);
-
-		vaddr &= PAGE_ADDR_MASK;
-
 		if (vaddr && (vaddr >= KERNEL_OFFSET) != (this == s_kernel))
 			Kernel::panic("unmapping {8H}, kernel: {}", vaddr, this == s_kernel);
+
+		ASSERT(is_canonical(vaddr));
+		vaddr_t uc_vaddr = uncanonicalize(vaddr);
+
+		ASSERT(vaddr % PAGE_SIZE == 0);
+
+		uint64_t pml4e = (uc_vaddr >> 39) & 0x1FF;
+		uint64_t pdpte = (uc_vaddr >> 30) & 0x1FF;
+		uint64_t pde   = (uc_vaddr >> 21) & 0x1FF;
+		uint64_t pte   = (uc_vaddr >> 12) & 0x1FF;
+
+		LockGuard _(m_lock);
 
 		if (is_page_free(vaddr))
 		{
@@ -212,51 +221,41 @@ namespace Kernel
 			return;
 		}
 
-		ASSERT(is_canonical(vaddr));
-		vaddr = uncanonicalize(vaddr);
-
-		uint64_t pml4e = (vaddr >> 39) & 0x1FF;
-		uint64_t pdpte = (vaddr >> 30) & 0x1FF;
-		uint64_t pde   = (vaddr >> 21) & 0x1FF;
-		uint64_t pte   = (vaddr >> 12) & 0x1FF;
-		
 		uint64_t* pml4 = (uint64_t*)P2V(m_highest_paging_struct);
 		uint64_t* pdpt = (uint64_t*)P2V(pml4[pml4e] & PAGE_ADDR_MASK);
 		uint64_t* pd   = (uint64_t*)P2V(pdpt[pdpte] & PAGE_ADDR_MASK);
 		uint64_t* pt   = (uint64_t*)P2V(pd[pde]     & PAGE_ADDR_MASK);
 
 		pt[pte] = 0;
-		invalidate(canonicalize(vaddr));
+		invalidate(vaddr);
 	}
 
 	void PageTable::unmap_range(vaddr_t vaddr, size_t size)
 	{
-		LockGuard _(m_lock);
-
 		vaddr_t s_page = vaddr / PAGE_SIZE;
-		vaddr_t e_page = (vaddr + size - 1) / PAGE_SIZE;
-		for (vaddr_t page = s_page; page <= e_page; page++)
+		vaddr_t e_page = BAN::Math::div_round_up<vaddr_t>(vaddr + size, PAGE_SIZE);
+
+		LockGuard _(m_lock);
+		for (vaddr_t page = s_page; page < e_page; page++)
 			unmap_page(page * PAGE_SIZE);
 	}
 
 	void PageTable::map_page_at(paddr_t paddr, vaddr_t vaddr, flags_t flags)
 	{
-		LockGuard _(m_lock);
-
 		if (vaddr && (vaddr >= KERNEL_OFFSET) != (this == s_kernel))
 			Kernel::panic("mapping {8H} to {8H}, kernel: {}", paddr, vaddr, this == s_kernel);
 
 		ASSERT(is_canonical(vaddr));
-		vaddr = uncanonicalize(vaddr);
+		vaddr_t uc_vaddr = uncanonicalize(vaddr);
 
 		ASSERT(paddr % PAGE_SIZE == 0);
 		ASSERT(vaddr % PAGE_SIZE == 0);
 		ASSERT(flags & Flags::Used);
 
-		uint64_t pml4e = (vaddr >> 39) & 0x1FF;
-		uint64_t pdpte = (vaddr >> 30) & 0x1FF;
-		uint64_t pde   = (vaddr >> 21) & 0x1FF;
-		uint64_t pte   = (vaddr >> 12) & 0x1FF;
+		uint64_t pml4e = (uc_vaddr >> 39) & 0x1FF;
+		uint64_t pdpte = (uc_vaddr >> 30) & 0x1FF;
+		uint64_t pde   = (uc_vaddr >> 21) & 0x1FF;
+		uint64_t pte   = (uc_vaddr >> 12) & 0x1FF;
 
 		uint64_t extra_flags = 0;
 		if (s_has_nxe && !(flags & Flags::Execute))
@@ -265,7 +264,11 @@ namespace Kernel
 			extra_flags |= 1ull << 8;
 		if (flags & Flags::Reserved)
 			extra_flags |= Flags::Reserved;
-		flags_t uwr_flags = flags & 0b111;
+		
+		// NOTE: we add present here, since it has to be available in higher level structures
+		flags_t uwr_flags = (flags & (Flags::UserSupervisor | Flags::ReadWrite)) | Flags::Present;
+
+		LockGuard _(m_lock);
 
 		uint64_t* pml4 = (uint64_t*)P2V(m_highest_paging_struct);
 		if ((pml4[pml4e] & uwr_flags) != uwr_flags)
@@ -291,16 +294,17 @@ namespace Kernel
 			pd[pde] |= uwr_flags;
 		}
 
+		if (!(flags & Flags::Present))
+			uwr_flags &= ~Flags::Present;
+
 		uint64_t* pt = (uint64_t*)P2V(pd[pde] & PAGE_ADDR_MASK);
 		pt[pte] = paddr | uwr_flags | extra_flags;
 
-		invalidate(canonicalize(vaddr));
+		invalidate(vaddr);
 	}
 
 	void PageTable::map_range_at(paddr_t paddr, vaddr_t vaddr, size_t size, flags_t flags)
 	{
-		LockGuard _(m_lock);
-
 		ASSERT(is_canonical(vaddr));
 
 		ASSERT(paddr % PAGE_SIZE == 0);
@@ -309,24 +313,26 @@ namespace Kernel
 		size_t first_page = vaddr / PAGE_SIZE;
 		size_t last_page = (vaddr + size - 1) / PAGE_SIZE;
 		size_t page_count = last_page - first_page + 1;
+		
+		LockGuard _(m_lock);
 		for (size_t page = 0; page < page_count; page++)
 			map_page_at(paddr + page * PAGE_SIZE, vaddr + page * PAGE_SIZE, flags);
 	}
 
 	uint64_t PageTable::get_page_data(vaddr_t vaddr) const
 	{
-		LockGuard _(m_lock);
-
 		ASSERT(is_canonical(vaddr));
-		vaddr = uncanonicalize(vaddr);
+		vaddr_t uc_vaddr = uncanonicalize(vaddr);
 
 		ASSERT(vaddr % PAGE_SIZE == 0);
 
-		uint64_t pml4e = (vaddr >> 39) & 0x1FF;
-		uint64_t pdpte = (vaddr >> 30) & 0x1FF;
-		uint64_t pde   = (vaddr >> 21) & 0x1FF;
-		uint64_t pte   = (vaddr >> 12) & 0x1FF;
+		uint64_t pml4e = (uc_vaddr >> 39) & 0x1FF;
+		uint64_t pdpte = (uc_vaddr >> 30) & 0x1FF;
+		uint64_t pde   = (uc_vaddr >> 21) & 0x1FF;
+		uint64_t pte   = (uc_vaddr >> 12) & 0x1FF;
 		
+		LockGuard _(m_lock);
+
 		uint64_t* pml4 = (uint64_t*)P2V(m_highest_paging_struct);
 		if (!(pml4[pml4e] & Flags::Present))
 			return 0;
@@ -340,7 +346,7 @@ namespace Kernel
 			return 0;
 
 		uint64_t* pt = (uint64_t*)P2V(pd[pde] & PAGE_ADDR_MASK);
-		if (!(pt[pte] & Flags::Present))
+		if (!(pt[pte] & Flags::Used))
 			return 0;
 
 		return pt[pte];
@@ -357,49 +363,90 @@ namespace Kernel
 		return (page_data & PAGE_ADDR_MASK) & ~(1ull << 63);
 	}
 
-	vaddr_t PageTable::get_free_page(vaddr_t first_address)
+	bool PageTable::reserve_page(vaddr_t vaddr, bool only_free)
 	{
 		LockGuard _(m_lock);
+		ASSERT(vaddr % PAGE_SIZE == 0);
+		if (only_free && !is_page_free(vaddr))
+			return false;
+		map_page_at(0, vaddr, Flags::Reserved);
+		return true;
+	}
 
+	bool PageTable::reserve_range(vaddr_t vaddr, size_t bytes, bool only_free)
+	{
+		if (size_t rem = bytes % PAGE_SIZE)
+			bytes += PAGE_SIZE - rem;
+		ASSERT(vaddr % PAGE_SIZE == 0);
+
+		LockGuard _(m_lock);
+		if (only_free && !is_range_free(vaddr, bytes))
+			return false;
+		for (size_t offset = 0; offset < bytes; offset += PAGE_SIZE)
+			reserve_page(vaddr + offset);
+		return true;
+	}
+
+	vaddr_t PageTable::reserve_free_page(vaddr_t first_address, vaddr_t last_address)
+	{
 		if (size_t rem = first_address % PAGE_SIZE)
 			first_address += PAGE_SIZE - rem;
+		if (size_t rem = last_address % PAGE_SIZE)
+			last_address -= rem;
 
 		ASSERT(is_canonical(first_address));
-		vaddr_t vaddr = uncanonicalize(first_address);
+		ASSERT(is_canonical(last_address));
+		const vaddr_t uc_vaddr_start = uncanonicalize(first_address);
+		const vaddr_t uc_vaddr_end   = uncanonicalize(last_address);
 
-		uint64_t pml4e = (vaddr >> 39) & 0x1FF;
-		uint64_t pdpte = (vaddr >> 30) & 0x1FF;
-		uint64_t pde   = (vaddr >> 21) & 0x1FF;
-		uint64_t pte   = (vaddr >> 12) & 0x1FF;
+		uint16_t pml4e = (uc_vaddr_start >> 39) & 0x1FF;
+		uint16_t pdpte = (uc_vaddr_start >> 30) & 0x1FF;
+		uint16_t pde   = (uc_vaddr_start >> 21) & 0x1FF;
+		uint16_t pte   = (uc_vaddr_start >> 12) & 0x1FF;
+
+		const uint16_t e_pml4e = (uc_vaddr_end >> 39) & 0x1FF;
+		const uint16_t e_pdpte = (uc_vaddr_end >> 30) & 0x1FF;
+		const uint16_t e_pde   = (uc_vaddr_end >> 21) & 0x1FF;
+		const uint16_t e_pte   = (uc_vaddr_end >> 12) & 0x1FF;
+		
+		LockGuard _(m_lock);
 
 		// Try to find free page that can be mapped without
 		// allocations (page table with unused entries)
 		uint64_t* pml4 = (uint64_t*)P2V(m_highest_paging_struct);
 		for (; pml4e < 512; pml4e++)
 		{
+			if (pml4e > e_pml4e)
+				break;
 			if (!(pml4[pml4e] & Flags::Present))
 				continue;
 			uint64_t* pdpt = (uint64_t*)P2V(pml4[pml4e] & PAGE_ADDR_MASK);
 			for (; pdpte < 512; pdpte++)
 			{
+				if (pml4e == e_pml4e && pdpte > e_pdpte)
+					break;
 				if (!(pdpt[pdpte] & Flags::Present))
 					continue;
 				uint64_t* pd = (uint64_t*)P2V(pdpt[pdpte] & PAGE_ADDR_MASK);
 				for (; pde < 512; pde++)
 				{
+					if (pml4e == e_pml4e && pdpte == e_pdpte && pde > e_pde)
+						break;
 					if (!(pd[pde] & Flags::Present))
 						continue;
 					uint64_t* pt = (uint64_t*)P2V(pd[pde] & PAGE_ADDR_MASK);
 					for (; pte < 512; pte++)
 					{
+						if (pml4e == e_pml4e && pdpte == e_pdpte && pde == e_pde && pte >= e_pte)
+							break;
 						if (!(pt[pte] & Flags::Used))
 						{
 							vaddr_t vaddr = 0;
-							vaddr |= pml4e << 39;
-							vaddr |= pdpte << 30;
-							vaddr |= pde   << 21;
-							vaddr |= pte   << 12;
-							pt[pte] |= Flags::Reserved;
+							vaddr |= (uint64_t)pml4e << 39;
+							vaddr |= (uint64_t)pdpte << 30;
+							vaddr |= (uint64_t)pde   << 21;
+							vaddr |= (uint64_t)pte   << 12;
+							ASSERT(reserve_page(vaddr));
 							return canonicalize(vaddr);
 						}
 					}
@@ -407,46 +454,54 @@ namespace Kernel
 			}
 		}
 
-		// Find any free page page
-		vaddr = first_address;
-		while (is_canonical(vaddr))
+		// Find any free page
+		vaddr_t uc_vaddr = uc_vaddr_start;
+		while (uc_vaddr < uc_vaddr_end)
 		{
-			if (is_page_free(vaddr))
+			if (vaddr_t vaddr = canonicalize(uc_vaddr); is_page_free(vaddr))
 			{
-				map_page_at(0, vaddr, Flags::Reserved);
+				ASSERT(reserve_page(vaddr));
 				return vaddr;
 			}
-			if (vaddr > vaddr + PAGE_SIZE)
-				break;
-			vaddr += PAGE_SIZE;
+			uc_vaddr += PAGE_SIZE;
 		}
 
 		ASSERT_NOT_REACHED();
 	}
 
-	vaddr_t PageTable::get_free_contiguous_pages(size_t page_count, vaddr_t first_address)
+	vaddr_t PageTable::reserve_free_contiguous_pages(size_t page_count, vaddr_t first_address, vaddr_t last_address)
 	{
-		if (first_address % PAGE_SIZE)
-			first_address = (first_address + PAGE_SIZE - 1) & PAGE_ADDR_MASK;
+		if (size_t rem = first_address % PAGE_SIZE)
+			first_address += PAGE_SIZE - rem;
+		if (size_t rem = last_address % PAGE_SIZE)
+			last_address -= rem;
+
+		ASSERT(is_canonical(first_address));
+		ASSERT(is_canonical(last_address));
 
 		LockGuard _(m_lock);
 
-		for (vaddr_t vaddr = first_address; is_canonical(vaddr); vaddr += PAGE_SIZE)
+		for (vaddr_t vaddr = first_address; vaddr < last_address;)
 		{
 			bool valid { true };
 			for (size_t page = 0; page < page_count; page++)
 			{
-				if (get_page_flags(vaddr + page * PAGE_SIZE) & Flags::Used)
+				if (!is_canonical(vaddr + page * PAGE_SIZE))
 				{
-					vaddr += page * PAGE_SIZE;
+					vaddr = canonicalize(uncanonicalize(vaddr) + page * PAGE_SIZE);
+					valid = false;
+					break;
+				}
+				if (!is_page_free(vaddr + page * PAGE_SIZE))
+				{
+					vaddr += (page + 1) * PAGE_SIZE;
 					valid = false;
 					break;
 				}
 			}
 			if (valid)
 			{
-				for (size_t page = 0; page < page_count; page++)
-					map_page_at(0, vaddr + page * PAGE_SIZE, Flags::Reserved);
+				ASSERT(reserve_range(vaddr, page_count * PAGE_SIZE));
 				return vaddr;
 			}
 		}
@@ -460,13 +515,13 @@ namespace Kernel
 		return !(get_page_flags(page) & Flags::Used);
 	}
 
-	bool PageTable::is_range_free(vaddr_t start, size_t size) const
+	bool PageTable::is_range_free(vaddr_t vaddr, size_t size) const
 	{
-		LockGuard _(m_lock);
+		vaddr_t s_page = vaddr / PAGE_SIZE;
+		vaddr_t e_page = BAN::Math::div_round_up<vaddr_t>(vaddr + size, PAGE_SIZE);
 
-		vaddr_t first_page = start / PAGE_SIZE;
-		vaddr_t last_page = (start + size - 1) / PAGE_SIZE;
-		for (vaddr_t page = first_page; page <= last_page; page++)
+		LockGuard _(m_lock);
+		for (vaddr_t page = s_page; page < e_page; page++)
 			if (!is_page_free(page * PAGE_SIZE))
 				return false;
 		return true;

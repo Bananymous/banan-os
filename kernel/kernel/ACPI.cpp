@@ -6,8 +6,6 @@
 #define RSPD_SIZE	20
 #define RSPDv2_SIZE	36
 
-extern uint8_t g_kernel_end[];
-
 namespace Kernel
 {
 
@@ -136,7 +134,7 @@ namespace Kernel
 		}
 
 		size_t needed_pages = range_page_count(m_header_table_paddr, m_entry_count * m_entry_size);
-		m_header_table_vaddr = PageTable::kernel().get_free_contiguous_pages(needed_pages, (vaddr_t)g_kernel_end);
+		m_header_table_vaddr = PageTable::kernel().reserve_free_contiguous_pages(needed_pages, KERNEL_OFFSET);
 		ASSERT(m_header_table_vaddr);
 
 		m_header_table_vaddr += m_header_table_paddr % PAGE_SIZE;
@@ -159,7 +157,7 @@ namespace Kernel
 			PageTable::kernel().unmap_page(0);
 
 			size_t needed_pages = range_page_count(header_paddr, header_length);
-			vaddr_t page_vaddr = PageTable::kernel().get_free_contiguous_pages(needed_pages, (vaddr_t)g_kernel_end);
+			vaddr_t page_vaddr = PageTable::kernel().reserve_free_contiguous_pages(needed_pages, KERNEL_OFFSET);
 			ASSERT(page_vaddr);
 			
 			PageTable::kernel().map_range_at(
