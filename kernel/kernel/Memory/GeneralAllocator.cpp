@@ -44,7 +44,7 @@ namespace Kernel
 
 		m_page_table.lock();
 
-		allocation.address = m_page_table.get_free_contiguous_pages(needed_pages, m_first_vaddr);
+		allocation.address = m_page_table.reserve_free_contiguous_pages(needed_pages, m_first_vaddr);
 		ASSERT(allocation.address);
 
 		for (size_t i = 0; i < needed_pages; i++)

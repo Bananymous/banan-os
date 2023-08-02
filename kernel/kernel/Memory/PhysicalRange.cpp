@@ -40,12 +40,10 @@ namespace Kernel
 		m_used_pages = 0;
 		m_free_pages = m_reservable_pages;
 
-		PageTable::kernel().lock();
-		m_vaddr = PageTable::kernel().get_free_contiguous_pages(m_list_pages, ((vaddr_t)g_kernel_end + PAGE_SIZE - 1) & PAGE_ADDR_MASK);
+		m_vaddr = PageTable::kernel().reserve_free_contiguous_pages(m_list_pages, KERNEL_OFFSET);
 		ASSERT(m_vaddr);
+		
 		PageTable::kernel().map_range_at(m_paddr, m_vaddr, m_list_pages * PAGE_SIZE, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
-		PageTable::kernel().unlock();
-
 
 		// Initialize page list so that every page points to the next one
 		node* page_list = (node*)m_vaddr;

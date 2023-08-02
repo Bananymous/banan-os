@@ -14,7 +14,11 @@ namespace Kernel
 		BAN_NON_MOVABLE(VirtualRange);
 
 	public:
-		static BAN::ErrorOr<BAN::UniqPtr<VirtualRange>> create(PageTable&, vaddr_t, size_t, uint8_t flags);
+		// Create virtual range to fixed virtual address
+		static BAN::ErrorOr<BAN::UniqPtr<VirtualRange>> create_to_vaddr(PageTable&, vaddr_t, size_t, uint8_t flags);
+		// Create virtual range to virtual address range
+		static BAN::ErrorOr<BAN::UniqPtr<VirtualRange>> create_to_vaddr_range(PageTable&, vaddr_t vaddr_start, vaddr_t vaddr_end, size_t, uint8_t flags);
+		// Create virtual range in kernel memory with kmalloc
 		static BAN::ErrorOr<BAN::UniqPtr<VirtualRange>> create_kmalloc(size_t);
 		~VirtualRange();
 

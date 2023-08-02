@@ -81,8 +81,6 @@ union RedirectionEntry
 	};
 };
 
-extern uint8_t g_kernel_end[];
-
 using namespace Kernel;
 
 APIC* APIC::create()
@@ -150,7 +148,7 @@ APIC* APIC::create()
 
 	// Map the local apic to kernel memory
 	{
-		vaddr_t vaddr = PageTable::kernel().get_free_page((vaddr_t)g_kernel_end);
+		vaddr_t vaddr = PageTable::kernel().reserve_free_page(KERNEL_OFFSET);
 		ASSERT(vaddr);
 		dprintln("lapic paddr {8H}", apic->m_local_apic_paddr);
 		apic->m_local_apic_vaddr = vaddr + (apic->m_local_apic_paddr % PAGE_SIZE);
@@ -165,7 +163,7 @@ APIC* APIC::create()
 	// Map io apics to kernel memory
 	for (auto& io_apic : apic->m_io_apics)
 	{
-		vaddr_t vaddr = PageTable::kernel().get_free_page((vaddr_t)g_kernel_end);
+		vaddr_t vaddr = PageTable::kernel().reserve_free_page(KERNEL_OFFSET);
 		ASSERT(vaddr);
 
 		io_apic.vaddr = vaddr + (io_apic.paddr % PAGE_SIZE);

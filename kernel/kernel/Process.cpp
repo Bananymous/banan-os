@@ -521,7 +521,7 @@ namespace Kernel
 
 				{
 					LockGuard _(m_lock);
-					MUST(m_mapped_ranges.push_back(MUST(VirtualRange::create(page_table(), page_start * PAGE_SIZE, page_count * PAGE_SIZE, flags))));
+					MUST(m_mapped_ranges.push_back(MUST(VirtualRange::create_to_vaddr(page_table(), page_start * PAGE_SIZE, page_count * PAGE_SIZE, flags))));
 					m_mapped_ranges.back()->set_zero();
 					m_mapped_ranges.back()->copy_from(elf_program_header.p_vaddr % PAGE_SIZE, elf.data() + elf_program_header.p_offset, elf_program_header.p_filesz);
 				}

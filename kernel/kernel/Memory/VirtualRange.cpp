@@ -1,14 +1,16 @@
 #include <BAN/ScopeGuard.h>
+#include <kernel/LockGuard.h>
 #include <kernel/Memory/Heap.h>
 #include <kernel/Memory/VirtualRange.h>
 
 namespace Kernel
 {
 
-	BAN::ErrorOr<BAN::UniqPtr<VirtualRange>> VirtualRange::create(PageTable& page_table, vaddr_t vaddr, size_t size, uint8_t flags)
+	BAN::ErrorOr<BAN::UniqPtr<VirtualRange>> VirtualRange::create_to_vaddr(PageTable& page_table, vaddr_t vaddr, size_t size, uint8_t flags)
 	{
 		ASSERT(size % PAGE_SIZE == 0);
 		ASSERT(vaddr % PAGE_SIZE == 0);
+		ASSERT(vaddr > 0);
 
 		VirtualRange* result_ptr = new VirtualRange(page_table);
 		if (result_ptr == nullptr)
@@ -16,25 +18,13 @@ namespace Kernel
 		auto result = BAN::UniqPtr<VirtualRange>::adopt(result_ptr);
 
 		result->m_kmalloc = false;
+		result->m_vaddr = vaddr;
 		result->m_size = size;
 		result->m_flags = flags;
 		TRY(result->m_physical_pages.reserve(size / PAGE_SIZE));
 
-		page_table.lock();
-
-		if (vaddr == 0)
-		{
-			vaddr = page_table.get_free_contiguous_pages(size / PAGE_SIZE, 0x300000);
-			if (vaddr == 0)
-			{
-				derrorln("out of virtual memory");
-				return BAN::Error::from_errno(ENOMEM);
-			}
-		}
-
-		result->m_vaddr = vaddr;
-
-		ASSERT(page_table.is_range_free(vaddr, size));
+		ASSERT(page_table.reserve_range(vaddr, size));
+		BAN::ScopeGuard unmapper([vaddr, size, &page_table] { page_table.unmap_range(vaddr, size); });
 
 		TRY(result->m_physical_pages.reserve(size / PAGE_SIZE));
 		for (size_t offset = 0; offset < size; offset += PAGE_SIZE)
@@ -50,7 +40,60 @@ namespace Kernel
 			page_table.map_page_at(paddr, vaddr + offset, flags);
 		}
 
-		page_table.unlock();
+		unmapper.disable();
+
+		return result;
+	}
+
+	BAN::ErrorOr<BAN::UniqPtr<VirtualRange>> VirtualRange::create_to_vaddr_range(PageTable& page_table, vaddr_t vaddr_start, vaddr_t vaddr_end, size_t size, uint8_t flags)
+	{
+		ASSERT(size % PAGE_SIZE == 0);
+		ASSERT(vaddr_start > 0);
+
+		// Align vaddr range to page boundaries
+		if (size_t rem = vaddr_start % PAGE_SIZE)
+			vaddr_start += PAGE_SIZE - rem;
+		if (size_t rem = vaddr_end % PAGE_SIZE)
+			vaddr_end -= rem;
+		ASSERT(vaddr_start < vaddr_end);
+		ASSERT(vaddr_end - vaddr_start + 1 >= size / PAGE_SIZE);
+
+		VirtualRange* result_ptr = new VirtualRange(page_table);
+		if (result_ptr == nullptr)
+			return BAN::Error::from_errno(ENOMEM);
+		auto result = BAN::UniqPtr<VirtualRange>::adopt(result_ptr);
+
+		result->m_kmalloc = false;
+		result->m_size = size;
+		result->m_flags = flags;
+		TRY(result->m_physical_pages.reserve(size / PAGE_SIZE));
+
+		vaddr_t vaddr = page_table.reserve_free_contiguous_pages(size / PAGE_SIZE, vaddr_start, vaddr_end);
+		if (vaddr == 0)
+			return BAN::Error::from_errno(ENOMEM);
+		result->m_vaddr = vaddr;
+
+		BAN::ScopeGuard unmapper([vaddr, size, &page_table] { page_table.unmap_range(vaddr, size); });
+		if (vaddr + size > vaddr_end)
+			return BAN::Error::from_errno(ENOMEM);
+
+		result->m_vaddr = vaddr;
+
+		TRY(result->m_physical_pages.reserve(size / PAGE_SIZE));
+		for (size_t offset = 0; offset < size; offset += PAGE_SIZE)
+		{
+			paddr_t paddr = Heap::get().take_free_page();
+			if (paddr == 0)
+			{
+				for (paddr_t release : result->m_physical_pages)
+					Heap::get().release_page(release);
+				return BAN::Error::from_errno(ENOMEM);
+			}
+			MUST(result->m_physical_pages.push_back(paddr));
+			page_table.map_page_at(paddr, vaddr + offset, flags);
+		}
+
+		unmapper.disable();
 
 		return result;
 	}
@@ -92,7 +135,7 @@ namespace Kernel
 
 	BAN::ErrorOr<BAN::UniqPtr<VirtualRange>> VirtualRange::clone(PageTable& page_table)
 	{
-		auto result = TRY(create(page_table, vaddr(), size(), flags()));
+		auto result = TRY(create_to_vaddr(page_table, vaddr(), size(), flags()));
 
 		m_page_table.lock();
 
