@@ -201,13 +201,11 @@ namespace IDT
 			Kernel::panic("Unhandled exception");
 		}
 
-		// Don't continue exection when terminated
-		if (Kernel::Thread::current().state() == Kernel::Thread::State::Terminated)
-			Kernel::Scheduler::get().execute_current_thread();
-		
+		ASSERT(Kernel::Thread::current().state() != Kernel::Thread::State::Terminated);
+
 		if (from_userspace)
 		{
-			ASSERT(Kernel::Thread::current().state() != Kernel::Thread::State::Terminating);
+			ASSERT(Kernel::Thread::current().state() == Kernel::Thread::State::Executing);
 			Kernel::Thread::current().load_sse();
 		}
 	}
@@ -243,13 +241,11 @@ namespace IDT
 
 		Kernel::Scheduler::get().reschedule_if_idling();
 
-		// Don't continue exection when terminated
-		if (Kernel::Thread::current().state() == Kernel::Thread::State::Terminated)
-			Kernel::Scheduler::get().execute_current_thread();
+		ASSERT(Kernel::Thread::current().state() != Kernel::Thread::State::Terminated);
 
 		if (from_userspace)
 		{
-			ASSERT(Kernel::Thread::current().state() != Kernel::Thread::State::Terminating);
+			ASSERT(Kernel::Thread::current().state() == Kernel::Thread::State::Executing);
 			Kernel::Thread::current().load_sse();
 		}
 	}

@@ -31,6 +31,9 @@ namespace Kernel
 	{
 		CriticalScope _;
 
+		// FIXME: this should not be a requirement
+		ASSERT(&thread == &Thread::current());
+
 		if (m_thread.state() == State::Executing || m_thread.m_terminate_blockers > 0)
 		{
 			m_thread.m_terminate_blockers++;
@@ -38,8 +41,11 @@ namespace Kernel
 		}
 
 		if (m_thread.state() == State::Terminating && m_thread.m_terminate_blockers == 0)
+		{
 			m_thread.m_state = State::Terminated;
-				
+			Scheduler::get().execute_current_thread();
+		}
+
 		while (true)
 			Scheduler::get().reschedule();
 	}
@@ -54,17 +60,29 @@ namespace Kernel
 			return;
 
 		if (m_thread.state() == State::Terminating && m_thread.m_terminate_blockers == 0)
+		{
 			m_thread.m_state = State::Terminated;
+			Scheduler::get().execute_current_thread();
+		}
 
-		while (true)
-			Scheduler::get().reschedule();
+		ASSERT_NOT_REACHED();
 	}
 
 	void Thread::set_terminating()
 	{
 		CriticalScope _;
-		m_state = m_terminate_blockers == 0 ? State::Terminated : State::Terminating;
-		Scheduler::get().unblock_thread(tid());
+		if (m_terminate_blockers == 0)
+		{
+			m_state = State::Terminated;
+			if (this == &Thread::current())
+				Scheduler::get().execute_current_thread();
+		}
+		else
+		{
+			m_state = State::Terminating;
+			if (this == &Thread::current())
+				Scheduler::get().unblock_thread(tid());
+		}
 	}
 
 	static pid_t s_next_tid = 1;
