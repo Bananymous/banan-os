@@ -177,11 +177,7 @@ namespace Kernel
 
 		asm volatile("cli");
 
-		// Don't continue exection when terminated
-		if (Kernel::Thread::current().state() == Kernel::Thread::State::Terminated)
-			Kernel::Scheduler::get().execute_current_thread();
-
-		ASSERT(Kernel::Thread::current().state() != Kernel::Thread::State::Terminating);
+		ASSERT(Kernel::Thread::current().state() == Kernel::Thread::State::Executing);
 		Thread::current().load_sse();
 
 		if (ret.is_error())
