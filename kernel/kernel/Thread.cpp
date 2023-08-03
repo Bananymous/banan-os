@@ -83,6 +83,7 @@ namespace Kernel
 		thread->m_rip = (uintptr_t)entry;
 
 		// Initialize stack for returning
+		write_to_stack(thread->m_rsp, nullptr); // alignment
 		write_to_stack(thread->m_rsp, thread);
 		write_to_stack(thread->m_rsp, &Thread::on_exit);
 		write_to_stack(thread->m_rsp, data);
@@ -179,6 +180,7 @@ namespace Kernel
 		{
 			// FIXME: don't use PageTableScope
 			PageTableScope _(process().page_table());
+			write_to_stack(m_rsp, nullptr); // alignment
 			write_to_stack(m_rsp, this);
 			write_to_stack(m_rsp, &Thread::on_exit);
 			write_to_stack(m_rsp, nullptr);
@@ -206,6 +208,7 @@ namespace Kernel
 		{
 			// FIXME: don't use PageTableScope
 			PageTableScope _(process().page_table());
+			write_to_stack(m_rsp, nullptr); // alignment
 			write_to_stack(m_rsp, this);
 			write_to_stack(m_rsp, &Thread::on_exit);
 			write_to_stack(m_rsp, m_process);
@@ -275,6 +278,7 @@ namespace Kernel
 			// FIXME: signal trampoline should take a hash etc
 			//        to only allow marking signals done from it
 			m_handling_signal = signal;
+			return_rsp += 128; // skip possible red-zone
 			write_to_stack(return_rsp, return_rip);
 			write_to_stack(return_rsp, signal);
 			write_to_stack(return_rsp, signal_handler);
