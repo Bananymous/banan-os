@@ -2,6 +2,11 @@
 
 #include <sys/syscall.h>
 
+// stack contains
+//    return address
+//    signal number
+//    signal handler
+
 .global signal_trampoline
 signal_trampoline:
 	pushq %rax
@@ -19,6 +24,8 @@ signal_trampoline:
 	pushq %r13
 	pushq %r14
 	pushq %r15
+
+	// This is 16 byte aligned
 
 	movq 128(%rsp), %rdi
 	movq 120(%rsp), %rax
@@ -46,4 +53,5 @@ signal_trampoline:
 
 	addq $16, %rsp
 
-	ret
+	// return over red-zone
+	ret $128
