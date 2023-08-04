@@ -214,6 +214,9 @@ namespace Kernel::Input
 		event.modifier = m_modifiers | (released ? (uint8_t)Input::KeyEvent::Modifier::Released : 0);
 		event.key = key;
 
+		if (event.pressed() && event.key == Input::Key::F11)
+			dprintln("{} ms", TimerHandler::get().ms_since_boot());
+
 		if (m_event_queue.full())
 		{
 			dwarnln("PS/2 event queue full");
