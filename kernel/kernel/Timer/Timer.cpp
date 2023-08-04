@@ -1,4 +1,5 @@
 #include <kernel/Scheduler.h>
+#include <kernel/Timer/HPET.h>
 #include <kernel/Timer/PIT.h>
 #include <kernel/Timer/Timer.h>
 
@@ -31,6 +32,15 @@ namespace Kernel
 	{
 		m_rtc = MUST(BAN::UniqPtr<RTC>::create());
 		m_boot_time = BAN::to_unix_time(m_rtc->get_current_time());
+
+		if (auto res = HPET::create(); res.is_error())
+			dwarnln("HPET: {}", res.error());
+		else
+		{
+			m_timer = res.release_value();
+			dprintln("HPET initialized");
+			return;
+		}
 
 		if (auto res = PIT::create(); res.is_error())
 			dwarnln("PIT: {}", res.error());
