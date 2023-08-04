@@ -56,6 +56,7 @@ set(KERNEL_SOURCES
 	kernel/Terminal/TTY.cpp
 	kernel/Terminal/VesaTerminalDriver.cpp
 	kernel/Thread.cpp
+	kernel/Timer/HPET.cpp
 	kernel/Timer/PIT.cpp
 	kernel/Timer/RTC.cpp
 	kernel/Timer/Timer.cpp

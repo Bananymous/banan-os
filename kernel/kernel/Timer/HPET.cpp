@@ -1,0 +1,113 @@
+#include <BAN/ScopeGuard.h>
+#include <kernel/ACPI.h>
+#include <kernel/IDT.h>
+#include <kernel/InterruptController.h>
+#include <kernel/Memory/PageTable.h>
+#include <kernel/MMIO.h>
+#include <kernel/Scheduler.h>
+#include <kernel/Timer/HPET.h>
+
+#define HPET_REG_CAPABILIES	0x00
+#define HPET_REG_CONFIG		0x10
+#define HPET_REG_COUNTER	0xF0
+
+#define HPET_CONFIG_ENABLE	0x01
+#define HPET_CONFIG_LEG_RT	0x02
+
+#define HPET_REG_TIMER_CONFIG(N)		(0x100 + 0x20 * N)
+#define HPET_REG_TIMER_COMPARATOR(N)	(0x108 + 0x20 * N)
+
+#define HPET_Tn_INT_ENB_CNF	(1 << 2)
+#define HPET_Tn_TYPE_CNF	(1 << 3)
+#define HPET_Tn_PER_INT_CAP	(1 << 4)
+#define HPET_Tn_VAL_SET_CNF	(1 << 6)
+
+#define FS_PER_MS 1'000'000'000'000
+
+namespace Kernel
+{
+
+	static uint64_t s_system_time = 0;
+
+	BAN::ErrorOr<BAN::UniqPtr<HPET>> HPET::create()
+	{
+		HPET* hpet = new HPET();
+		if (hpet == nullptr)
+			return BAN::Error::from_errno(ENOMEM);
+		if (auto ret = hpet->initialize(); ret.is_error())
+		{
+			delete hpet;
+			return ret.release_error();
+		}
+		return BAN::UniqPtr<HPET>::adopt(hpet);
+	}
+
+	BAN::ErrorOr<void> HPET::initialize()
+	{
+		auto* header = (ACPI::HPET*)ACPI::get().get_header("HPET");
+		if (header == nullptr)
+			return BAN::Error::from_errno(ENODEV);
+
+		if (header->hardware_rev_id == 0)
+			return BAN::Error::from_errno(EINVAL);
+
+		if (!header->legacy_replacement_irq_routing_cable)
+		{
+			dwarnln("HPET doesn't support legacy mapping");
+			return BAN::Error::from_errno(ENOTSUP);
+		}
+
+		m_mmio_base = PageTable::kernel().reserve_free_page(KERNEL_OFFSET);
+		ASSERT(m_mmio_base);
+
+		PageTable::kernel().map_page_at(header->base_address.address, m_mmio_base, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
+		BAN::ScopeGuard unmapper([this] { PageTable::kernel().unmap_page(m_mmio_base); });
+
+		m_counter_tick_period_fs = read_register(HPET_REG_CAPABILIES) >> 32;
+
+		uint64_t ticks_per_ms = FS_PER_MS / m_counter_tick_period_fs;
+
+		uint64_t timer0_config = read_register(HPET_REG_TIMER_CONFIG(0));
+		if (!(timer0_config & HPET_Tn_PER_INT_CAP))
+		{
+			dwarnln("timer 0 doesn't support periodic");
+			return BAN::Error::from_errno(ENOTSUP);
+		}
+
+		unmapper.disable();
+
+		// Enable main counter
+		write_register(HPET_REG_CONFIG, read_register(HPET_REG_CONFIG) | HPET_CONFIG_LEG_RT | HPET_CONFIG_ENABLE);
+
+		// Enable timer 0 as 1 ms periodic
+		write_register(HPET_REG_TIMER_CONFIG(0), HPET_Tn_INT_ENB_CNF | HPET_Tn_TYPE_CNF | HPET_Tn_VAL_SET_CNF);
+		write_register(HPET_REG_TIMER_COMPARATOR(0), read_register(HPET_REG_COUNTER) + ticks_per_ms);
+		write_register(HPET_REG_TIMER_COMPARATOR(0), ticks_per_ms);
+
+		// Disable timers 1->
+		for (int i = 1; i <= header->comparator_count; i++)
+			write_register(HPET_REG_TIMER_CONFIG(i), 0);
+
+		IDT::register_irq_handler(0, [] { s_system_time++; Scheduler::get().timer_reschedule(); });
+		InterruptController::get().enable_irq(0);
+
+		return {};
+	}
+
+	uint64_t HPET::ms_since_boot() const
+	{
+		// FIXME: 32 bit CPUs should use 32 bit counter with 32 bit reads
+		return read_register(HPET_REG_COUNTER) * m_counter_tick_period_fs / FS_PER_MS;
+	}
+
+	void HPET::write_register(ptrdiff_t reg, uint64_t value) const
+	{
+		MMIO::write64(m_mmio_base + reg, value);
+	}
+
+	uint64_t HPET::read_register(ptrdiff_t reg) const
+	{
+		return MMIO::read64(m_mmio_base + reg);
+	}
+
+}
