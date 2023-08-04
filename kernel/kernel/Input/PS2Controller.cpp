@@ -108,8 +108,8 @@ namespace Kernel::Input
 	{
 		if (device == 1)
 			IO::outb(PS2::IOPort::COMMAND, PS2::Command::WRITE_TO_SECOND_PORT);
-		uint64_t timeout = TimerHandler::get().ms_since_boot() + s_device_timeout_ms;
-		while (TimerHandler::get().ms_since_boot() < timeout)
+		uint64_t timeout = SystemTimer::get().ms_since_boot() + s_device_timeout_ms;
+		while (SystemTimer::get().ms_since_boot() < timeout)
 		{
 			if (!(IO::inb(PS2::IOPort::STATUS) & PS2::Status::INPUT_FULL))
 			{
@@ -122,8 +122,8 @@ namespace Kernel::Input
 
 	static BAN::ErrorOr<uint8_t> device_read_byte()
 	{
-		uint64_t timeout = TimerHandler::get().ms_since_boot() + s_device_timeout_ms;
-		while (TimerHandler::get().ms_since_boot() < timeout)
+		uint64_t timeout = SystemTimer::get().ms_since_boot() + s_device_timeout_ms;
+		while (SystemTimer::get().ms_since_boot() < timeout)
 			if (IO::inb(PS2::IOPort::STATUS) & PS2::Status::OUTPUT_FULL)
 				return IO::inb(PS2::IOPort::DATA);
 		return BAN::Error::from_error_code(ErrorCode::PS2_Timeout);

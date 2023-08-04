@@ -15,11 +15,11 @@ namespace Kernel
 		virtual timespec time_since_boot() const = 0;
 	};
 
-	class TimerHandler : public Timer
+	class SystemTimer : public Timer
 	{
 	public:
 		static void initialize();
-		static TimerHandler& get();
+		static SystemTimer& get();
 		static bool is_initialized();
 
 		virtual uint64_t ms_since_boot() const override;
@@ -27,10 +27,10 @@ namespace Kernel
 		
 		void sleep(uint64_t) const;
 
-		uint64_t get_unix_timestamp();
+		uint64_t get_unix_timestamp() const;
 
 	private:
-		TimerHandler() = default;
+		SystemTimer() = default;
 
 		void initialize_timers();
 

@@ -46,7 +46,7 @@ namespace Kernel
 					);
 					s_instance->m_device_lock.unlock();
 
-					Kernel::TimerHandler::get().sleep(1);
+					Kernel::SystemTimer::get().sleep(1);
 				}
 			}, nullptr
 		);
