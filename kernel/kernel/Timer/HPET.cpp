@@ -22,7 +22,10 @@
 #define HPET_Tn_PER_INT_CAP	(1 << 4)
 #define HPET_Tn_VAL_SET_CNF	(1 << 6)
 
-#define FS_PER_MS 1'000'000'000'000
+#define FS_PER_S	1'000'000'000'000'000
+#define FS_PER_MS	1'000'000'000'000
+#define FS_PER_US	1'000'000'000
+#define FS_PER_NS	1'000'000
 
 namespace Kernel
 {
@@ -66,6 +69,18 @@ namespace Kernel
 		m_counter_tick_period_fs = read_register(HPET_REG_CAPABILIES) >> 32;
 
 		uint64_t ticks_per_ms = FS_PER_MS / m_counter_tick_period_fs;
+		
+		{
+			const char* units[] = { "fs", "ps", "ns", "us", "ms", "s" };
+			int index = 0;
+			uint64_t temp = m_counter_tick_period_fs;
+			while (temp >= 1000)
+			{
+				temp /= 1000;
+				index++;
+			}
+			dprintln("HPET percision {} {}", temp, units[index]);
+		}
 
 		uint64_t timer0_config = read_register(HPET_REG_TIMER_CONFIG(0));
 		if (!(timer0_config & HPET_Tn_PER_INT_CAP))
@@ -98,6 +113,15 @@ namespace Kernel
 	{
 		// FIXME: 32 bit CPUs should use 32 bit counter with 32 bit reads
 		return read_register(HPET_REG_COUNTER) * m_counter_tick_period_fs / FS_PER_MS;
+	}
+
+	timespec HPET::time_since_boot() const
+	{
+		uint64_t time_fs = read_register(HPET_REG_COUNTER) * m_counter_tick_period_fs;
+		return timespec {
+			.tv_sec = time_fs / FS_PER_S,
+			.tv_nsec = (long)((time_fs % FS_PER_S) / FS_PER_NS)
+		};
 	}
 
 	void HPET::write_register(ptrdiff_t reg, uint64_t value) const
