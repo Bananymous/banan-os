@@ -71,10 +71,6 @@ namespace Kernel
 		ASSERT(InterruptController::get().is_in_service(PIT_IRQ));
 		InterruptController::get().eoi(PIT_IRQ);
 
-		if (PIT::ms_since_boot() <= m_last_reschedule)
-			return;
-		m_last_reschedule = PIT::ms_since_boot();
-
 		wake_threads();
 
 		if (save_current_thread())

@@ -73,8 +73,6 @@ namespace Kernel
 
 		BAN::LinkedList<ActiveThread>::iterator m_current_thread;
 
-		uint64_t m_last_reschedule = 0;
-
 		friend class Process;
 	};
 
