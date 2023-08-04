@@ -12,16 +12,19 @@ namespace Kernel
 	public:
 		virtual ~Timer() {};
 		virtual uint64_t ms_since_boot() const = 0;
+		virtual timespec time_since_boot() const = 0;
 	};
 
-	class TimerHandler
+	class TimerHandler : public Timer
 	{
 	public:
 		static void initialize();
 		static TimerHandler& get();
 		static bool is_initialized();
 
-		uint64_t ms_since_boot() const;
+		virtual uint64_t ms_since_boot() const override;
+		virtual timespec time_since_boot() const override;
+		
 		void sleep(uint64_t) const;
 
 		uint64_t get_unix_timestamp();

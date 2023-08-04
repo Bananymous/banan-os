@@ -21,6 +21,9 @@
 #define BASE_FREQUENCY		1193182
 #define TICKS_PER_SECOND	1000
 
+#define MS_PER_S			1'000
+#define NS_PER_S			1'000'000'000
+
 namespace Kernel
 {
 
@@ -34,7 +37,7 @@ namespace Kernel
 
 	BAN::ErrorOr<BAN::UniqPtr<PIT>> PIT::create()
 	{
-		PIT* pit = new PIT;
+		PIT* pit = new PIT();
 		if (pit == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
 		pit->initialize();
@@ -57,7 +60,16 @@ namespace Kernel
 
 	uint64_t PIT::ms_since_boot() const
 	{
-		return s_system_time;
+		return s_system_time * (MS_PER_S / TICKS_PER_SECOND);
+	}
+
+	timespec PIT::time_since_boot() const
+	{
+		uint64_t ticks = s_system_time;
+		return timespec {
+			.tv_sec = ticks / TICKS_PER_SECOND,
+			.tv_nsec = (long)((ticks % TICKS_PER_SECOND) * (NS_PER_S / TICKS_PER_SECOND))
+		};
 	}
 
 }

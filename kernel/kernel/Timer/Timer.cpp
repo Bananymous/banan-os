@@ -59,6 +59,11 @@ namespace Kernel
 		return m_timer->ms_since_boot();
 	}
 
+	timespec TimerHandler::time_since_boot() const
+	{
+		return m_timer->time_since_boot();
+	}
+
 	void TimerHandler::sleep(uint64_t ms) const
 	{
 		if (ms == 0)

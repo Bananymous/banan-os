@@ -11,6 +11,7 @@ namespace Kernel
 		static BAN::ErrorOr<BAN::UniqPtr<HPET>> create();
 
 		virtual uint64_t ms_since_boot() const override;
+		virtual timespec time_since_boot() const override;
 
 	private:
 		HPET() = default;
