@@ -473,7 +473,7 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_sleep(int seconds)
 	{
-		TimerHandler::get().sleep(seconds * 1000);
+		SystemTimer::get().sleep(seconds * 1000);
 		return 0;
 	}
 
@@ -811,7 +811,7 @@ namespace Kernel
 		{
 			case CLOCK_MONOTONIC:
 			{
-				uint64_t time_ms = TimerHandler::get().ms_since_boot();
+				uint64_t time_ms = SystemTimer::get().ms_since_boot();
 				tp->tv_sec  =  time_ms / 1000;
 				tp->tv_nsec = (time_ms % 1000) * 1000000;
 				break;

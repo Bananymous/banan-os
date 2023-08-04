@@ -6,29 +6,29 @@
 namespace Kernel
 {
 
-	static TimerHandler* s_instance = nullptr;
+	static SystemTimer* s_instance = nullptr;
 
-	void TimerHandler::initialize()
+	void SystemTimer::initialize()
 	{
 		ASSERT(s_instance == nullptr);
-		auto* temp = new TimerHandler;
+		auto* temp = new SystemTimer;
 		ASSERT(temp);
 		temp->initialize_timers();
 		s_instance = temp;
 	}
 
-	TimerHandler& TimerHandler::get()
+	SystemTimer& SystemTimer::get()
 	{
 		ASSERT(s_instance);
 		return *s_instance;
 	}
 
-	bool TimerHandler::is_initialized()
+	bool SystemTimer::is_initialized()
 	{
 		return !!s_instance;
 	}
 
-	void TimerHandler::initialize_timers()
+	void SystemTimer::initialize_timers()
 	{
 		m_rtc = MUST(BAN::UniqPtr<RTC>::create());
 		m_boot_time = BAN::to_unix_time(m_rtc->get_current_time());
@@ -54,17 +54,17 @@ namespace Kernel
 		Kernel::panic("Could not initialize any timer");
 	}
 
-	uint64_t TimerHandler::ms_since_boot() const
+	uint64_t SystemTimer::ms_since_boot() const
 	{
 		return m_timer->ms_since_boot();
 	}
 
-	timespec TimerHandler::time_since_boot() const
+	timespec SystemTimer::time_since_boot() const
 	{
 		return m_timer->time_since_boot();
 	}
 
-	void TimerHandler::sleep(uint64_t ms) const
+	void SystemTimer::sleep(uint64_t ms) const
 	{
 		if (ms == 0)
 			return;
@@ -74,7 +74,7 @@ namespace Kernel
 			dwarnln("sleep woke {} ms too soon", wake_time - ms_since_boot());
 	}
 
-	uint64_t TimerHandler::get_unix_timestamp()
+	uint64_t SystemTimer::get_unix_timestamp() const
 	{
 		return m_boot_time + ms_since_boot() / 1000;
 	}

@@ -384,7 +384,7 @@ namespace Kernel
 		if (error_or.error().get_error_code() != ENOENT)
 			return error_or.error();
 
-		uint64_t current_time = TimerHandler::get().get_unix_timestamp();
+		uint64_t current_time = SystemTimer::get().get_unix_timestamp();
 
 		Ext2::Inode ext2_inode;
 		ext2_inode.mode			= mode;

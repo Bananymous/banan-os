@@ -144,7 +144,7 @@ extern "C" void kernel_main()
 	InterruptController::initialize(cmdline.force_pic);
 	dprintln("Interrupt controller initialized");
 
-	TimerHandler::initialize();
+	SystemTimer::initialize();
 	dprintln("Timers initialized");
 
 	DevFileSystem::initialize();

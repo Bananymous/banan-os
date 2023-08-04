@@ -113,7 +113,7 @@ namespace Kernel
 	{
 		VERIFY_CLI();
 
-		uint64_t current_time = TimerHandler::get().ms_since_boot();
+		uint64_t current_time = SystemTimer::get().ms_since_boot();
 		while (!m_sleeping_threads.empty() && m_sleeping_threads.front().wake_time <= current_time)
 		{
 			Thread* thread = m_sleeping_threads.front().thread;

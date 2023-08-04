@@ -58,7 +58,7 @@ namespace Debug
 
 	void print_prefix(const char* file, int line)
 	{
-		auto ms_since_boot = Kernel::TimerHandler::is_initialized() ? Kernel::TimerHandler::get().ms_since_boot() : 0;
+		auto ms_since_boot = Kernel::SystemTimer::is_initialized() ? Kernel::SystemTimer::get().ms_since_boot() : 0;
 		BAN::Formatter::print(Debug::putchar, "[{5}.{3}] {}:{}: ", ms_since_boot / 1000, ms_since_boot % 1000, file, line);
 	}
 

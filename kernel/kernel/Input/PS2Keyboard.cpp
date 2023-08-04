@@ -216,7 +216,7 @@ namespace Kernel::Input
 
 		if (event.pressed() && event.key == Input::Key::F11)
 		{
-			auto time = TimerHandler::get().time_since_boot();
+			auto time = SystemTimer::get().time_since_boot();
 			dprintln("{}.{9} s", time.tv_sec, time.tv_nsec);
 		}
 
