@@ -60,14 +60,4 @@ namespace Kernel
 		return s_system_time;
 	}
 
-	void PIT::sleep(uint64_t ms) const
-	{
-		if (ms == 0)
-			return;
-		uint64_t wake_time = s_system_time + ms;
-		Kernel::Scheduler::get().set_current_thread_sleeping(wake_time);
-		if (s_system_time < wake_time)
-			dwarnln("sleep woke {} ms too soon", wake_time - s_system_time);
-	}
-
 }
