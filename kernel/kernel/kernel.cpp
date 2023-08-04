@@ -138,6 +138,15 @@ extern "C" void kernel_main()
 	ASSERT(terminal_driver);
 	dprintln("VESA initialized");
 
+	MUST(ACPI::initialize());
+	dprintln("ACPI initialized");
+
+	InterruptController::initialize(cmdline.force_pic);
+	dprintln("Interrupt controller initialized");
+
+	TimerHandler::initialize();
+	dprintln("Timers initialized");
+
 	DevFileSystem::initialize();
 	dprintln("devfs initialized");
 
@@ -147,15 +156,6 @@ extern "C" void kernel_main()
 
 	parse_command_line();
 	dprintln("command line parsed, root='{}'", cmdline.root);
-
-	MUST(ACPI::initialize());
-	dprintln("ACPI initialized");
-
-	InterruptController::initialize(cmdline.force_pic);
-	dprintln("Interrupt controller initialized");
-
-	TimerHandler::initialize();
-	dprintln("Timers initialized");
 
 	MUST(Scheduler::initialize());
 	dprintln("Scheduler initialized");

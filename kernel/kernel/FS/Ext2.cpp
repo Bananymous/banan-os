@@ -1,7 +1,7 @@
 #include <BAN/ScopeGuard.h>
 #include <BAN/StringView.h>
 #include <kernel/FS/Ext2.h>
-#include <kernel/RTC.h>
+#include <kernel/Timer/Timer.h>
 
 #define EXT2_DEBUG_PRINT 0
 #define VERIFY_INODE_EXISTANCE 1
@@ -384,7 +384,7 @@ namespace Kernel
 		if (error_or.error().get_error_code() != ENOENT)
 			return error_or.error();
 
-		uint64_t current_time = BAN::to_unix_time(RTC::get_current_time());
+		uint64_t current_time = TimerHandler::get().get_unix_timestamp();
 
 		Ext2::Inode ext2_inode;
 		ext2_inode.mode			= mode;

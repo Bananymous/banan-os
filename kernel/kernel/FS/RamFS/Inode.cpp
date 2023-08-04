@@ -1,6 +1,6 @@
 #include <kernel/FS/RamFS/FileSystem.h>
 #include <kernel/FS/RamFS/Inode.h>
-#include <kernel/RTC.h>
+#include <kernel/Timer/Timer.h>
 
 namespace Kernel
 {
@@ -23,7 +23,7 @@ namespace Kernel
 	RamInode::RamInode(RamFileSystem& fs, mode_t mode, uid_t uid, gid_t gid)
 			: m_fs(fs)
 	{
-		uint64_t current_unix_time = BAN::to_unix_time(RTC::get_current_time());
+		uint64_t current_unix_time = TimerHandler::get().get_unix_timestamp();
 		timespec current_timespec;
 		current_timespec.tv_sec = current_unix_time;
 		current_timespec.tv_nsec = 0;
