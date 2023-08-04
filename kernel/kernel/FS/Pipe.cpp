@@ -1,6 +1,6 @@
 #include <kernel/FS/Pipe.h>
 #include <kernel/LockGuard.h>
-#include <kernel/RTC.h>
+#include <kernel/Timer/Timer.h>
 
 namespace Kernel
 {
@@ -17,7 +17,7 @@ namespace Kernel
 		: m_uid(credentials.euid())
 		, m_gid(credentials.egid())
 	{
-		uint64_t current_time = BAN::to_unix_time(RTC::get_current_time());
+		uint64_t current_time = TimerHandler::get().get_unix_timestamp();
 		m_atime = { .tv_sec = current_time, .tv_nsec = 0 };
 		m_mtime = { .tv_sec = current_time, .tv_nsec = 0 };
 		m_ctime = { .tv_sec = current_time, .tv_nsec = 0 };
@@ -57,7 +57,7 @@ namespace Kernel
 		memmove(m_buffer.data(), m_buffer.data() + to_copy, m_buffer.size() - to_copy);
 		MUST(m_buffer.resize(m_buffer.size() - to_copy));
 
-		uint64_t current_time = BAN::to_unix_time(RTC::get_current_time());
+		uint64_t current_time = TimerHandler::get().get_unix_timestamp();
 		m_atime = { .tv_sec = current_time, .tv_nsec = 0 };
 
 		m_semaphore.unblock();
@@ -76,7 +76,7 @@ namespace Kernel
 		TRY(m_buffer.resize(old_size + count));
 		memcpy(m_buffer.data() + old_size, buffer, count);
 
-		uint64_t current_time = BAN::to_unix_time(RTC::get_current_time());
+		uint64_t current_time = TimerHandler::get().get_unix_timestamp();
 		m_mtime = { .tv_sec = current_time, .tv_nsec = 0 };
 		m_ctime = { .tv_sec = current_time, .tv_nsec = 0 };
 

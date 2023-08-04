@@ -9,9 +9,10 @@ namespace Kernel
 	void TimerHandler::initialize()
 	{
 		ASSERT(s_instance == nullptr);
-		s_instance = new TimerHandler;
-		ASSERT(s_instance);
-		s_instance->initialize_timers();
+		auto* temp = new TimerHandler;
+		ASSERT(temp);
+		temp->initialize_timers();
+		s_instance = temp;
 	}
 
 	TimerHandler& TimerHandler::get()
@@ -27,6 +28,9 @@ namespace Kernel
 
 	void TimerHandler::initialize_timers()
 	{
+		m_rtc = MUST(BAN::UniqPtr<RTC>::create());
+		m_boot_time = BAN::to_unix_time(m_rtc->get_current_time());
+
 		if (auto res = PIT::create(); res.is_error())
 			dwarnln("PIT: {}", res.error());
 		else
@@ -46,6 +50,11 @@ namespace Kernel
 	void TimerHandler::sleep(uint64_t ms) const
 	{
 		return m_timers.front()->sleep(ms);
+	}
+
+	uint64_t TimerHandler::get_unix_timestamp()
+	{
+		return m_boot_time + ms_since_boot() / 1000;
 	}
 
 }

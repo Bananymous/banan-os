@@ -2,6 +2,7 @@
 #include <kernel/CriticalScope.h>
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/Input/PS2Keyboard.h>
+#include <kernel/Timer/Timer.h>
 
 #include <sys/sysmacros.h>
 

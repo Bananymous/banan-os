@@ -1,5 +1,5 @@
 #include <kernel/IO.h>
-#include <kernel/RTC.h>
+#include <kernel/Timer/RTC.h>
 
 #include <string.h>
 
@@ -18,38 +18,38 @@
 #define CMOS_REGISTER_STATUS_1	0x0A
 #define CMOS_REGISTER_STATUS_2	0x0B
 
-namespace RTC
+namespace Kernel
 {
 
-	static bool get_update_in_progress()
+	bool RTC::is_update_in_progress()
 	{
 		IO::outb(CMOS_ADDRESS, CMOS_REGISTER_STATUS_1);
 		return IO::inb(CMOS_DATA) & 0x80;
 	}
 
-	static uint8_t get_rtc_register(uint8_t reg)
+	uint8_t RTC::read_register8(uint8_t reg)
 	{
 		IO::outb(CMOS_ADDRESS, reg);
 		return IO::inb(CMOS_DATA);
 	}
 
-	static void get_time(BAN::Time& out)
+	void RTC::get_time(BAN::Time& out)
 	{
-		out.second		= get_rtc_register(CMOS_REGISTER_SECOND);
-		out.minute		= get_rtc_register(CMOS_REGISTER_MINUTE);
-		out.hour		= get_rtc_register(CMOS_REGISTER_HOUR);
-		out.week_day	= get_rtc_register(CMOS_REGISTER_WEEK_DAY);
-		out.day			= get_rtc_register(CMOS_REGISTER_DAY);
-		out.month		= get_rtc_register(CMOS_REGISTER_MONTH);
-		out.year		= get_rtc_register(CMOS_REGISTER_YEAR);
+		out.second		= read_register8(CMOS_REGISTER_SECOND);
+		out.minute		= read_register8(CMOS_REGISTER_MINUTE);
+		out.hour		= read_register8(CMOS_REGISTER_HOUR);
+		out.week_day	= read_register8(CMOS_REGISTER_WEEK_DAY);
+		out.day			= read_register8(CMOS_REGISTER_DAY);
+		out.month		= read_register8(CMOS_REGISTER_MONTH);
+		out.year		= read_register8(CMOS_REGISTER_YEAR);
 	}
 
-	BAN::Time get_current_time()
+	BAN::Time RTC::get_current_time()
 	{
 		BAN::Time last_time	= {};
 		BAN::Time time		= {};
 
-		while (get_update_in_progress())
+		while (is_update_in_progress())
 			continue;
 
 		get_time(time);
@@ -61,18 +61,18 @@ namespace RTC
 			get_time(time);
 		}
 		
-		uint8_t regB = get_rtc_register(0x0B);
+		uint8_t regB = read_register8(0x0B);
 
 		// Convert BCD to binary values if necessary
 		if (!(regB & 0x04))
 		{
-            time.second		=  (time.second		& 0x0F) + ((time.second		/ 16) * 10);
-            time.minute		=  (time.minute		& 0x0F) + ((time.minute		/ 16) * 10);
-            time.hour		= ((time.hour		& 0x0F) + (((time.hour & 0x70) / 16) * 10) ) | (time.hour & 0x80);
-            time.week_day	=  (time.week_day	& 0x0F) + ((time.week_day	/ 16) * 10);
-            time.day		=  (time.day		& 0x0F) + ((time.day		/ 16) * 10);
-            time.month		=  (time.month		& 0x0F) + ((time.month		/ 16) * 10);
-            time.year		=  (time.year		& 0x0F) + ((time.year		/ 16) * 10);
+			time.second		=  (time.second		& 0x0F) + ((time.second		/ 16) * 10);
+			time.minute		=  (time.minute		& 0x0F) + ((time.minute		/ 16) * 10);
+			time.hour		= ((time.hour		& 0x0F) + (((time.hour & 0x70) / 16) * 10) ) | (time.hour & 0x80);
+			time.week_day	=  (time.week_day	& 0x0F) + ((time.week_day	/ 16) * 10);
+			time.day		=  (time.day		& 0x0F) + ((time.day		/ 16) * 10);
+			time.month		=  (time.month		& 0x0F) + ((time.month		/ 16) * 10);
+			time.year		=  (time.year		& 0x0F) + ((time.year		/ 16) * 10);
 		}
 
 		// Convert 12 hour clock to 24 hour clock if necessary

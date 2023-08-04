@@ -41,7 +41,6 @@ set(KERNEL_SOURCES
 	kernel/PCI.cpp
 	kernel/PIC.cpp
 	kernel/Process.cpp
-	kernel/RTC.cpp
 	kernel/Scheduler.cpp
 	kernel/Semaphore.cpp
 	kernel/Serial.cpp
@@ -58,6 +57,7 @@ set(KERNEL_SOURCES
 	kernel/Terminal/VesaTerminalDriver.cpp
 	kernel/Thread.cpp
 	kernel/Timer/PIT.cpp
+	kernel/Timer/RTC.cpp
 	kernel/Timer/Timer.cpp
 	icxxabi.cpp
 )

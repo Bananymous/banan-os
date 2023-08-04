@@ -2,7 +2,6 @@
 #include <kernel/FS/RamFS/FileSystem.h>
 #include <kernel/FS/RamFS/Inode.h>
 #include <kernel/LockGuard.h>
-#include <kernel/RTC.h>
 
 namespace Kernel
 {
