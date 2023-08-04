@@ -14,7 +14,8 @@ namespace BAN
 	public:
 		UniqPtr() = default;
 
-		UniqPtr(UniqPtr&& other)
+		template<typename U>
+		UniqPtr(UniqPtr<U>&& other)
 		{
 			m_pointer = other.m_pointer;
 			other.m_pointer = nullptr;
@@ -42,8 +43,10 @@ namespace BAN
 			return uniq;
 		}
 
-		UniqPtr& operator=(UniqPtr&& other)
+		template<typename U>
+		UniqPtr& operator=(UniqPtr<U>&& other)
 		{
+			clear();
 			m_pointer = other.m_pointer;
 			other.m_pointer = nullptr;
 			return *this;
@@ -87,6 +90,9 @@ namespace BAN
 
 	private:
 		T* m_pointer = nullptr;
+
+		template<typename U>
+		friend class UniqPtr;
 	};
 
 }
