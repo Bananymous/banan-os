@@ -12,7 +12,6 @@ namespace Kernel
 	public:
 		virtual ~Timer() {};
 		virtual uint64_t ms_since_boot() const = 0;
-		virtual void sleep(uint64_t) const = 0;
 	};
 
 	class TimerHandler
@@ -35,7 +34,7 @@ namespace Kernel
 	private:
 		uint64_t m_boot_time { 0 };
 		BAN::UniqPtr<RTC> m_rtc;
-		BAN::Vector<BAN::UniqPtr<Timer>> m_timers;
+		BAN::UniqPtr<Timer> m_timer;
 	};
 
 }

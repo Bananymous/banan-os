@@ -1,5 +1,6 @@
-#include <kernel/Timer/Timer.h>
+#include <kernel/Scheduler.h>
 #include <kernel/Timer/PIT.h>
+#include <kernel/Timer/Timer.h>
 
 namespace Kernel
 {
@@ -35,21 +36,27 @@ namespace Kernel
 			dwarnln("PIT: {}", res.error());
 		else
 		{
-			MUST(m_timers.emplace_back(BAN::move(res.release_value())));
+			m_timer = res.release_value();
 			dprintln("PIT initialized");
+			return;
 		}
 
-		ASSERT(!m_timers.empty());
+		Kernel::panic("Could not initialize any timer");
 	}
 
 	uint64_t TimerHandler::ms_since_boot() const
 	{
-		return m_timers.front()->ms_since_boot();
+		return m_timer->ms_since_boot();
 	}
 
 	void TimerHandler::sleep(uint64_t ms) const
 	{
-		return m_timers.front()->sleep(ms);
+		if (ms == 0)
+			return;
+		uint64_t wake_time = ms_since_boot() + ms;
+		Scheduler::get().set_current_thread_sleeping(wake_time);
+		if (ms_since_boot() < wake_time)
+			dwarnln("sleep woke {} ms too soon", wake_time - ms_since_boot());
 	}
 
 	uint64_t TimerHandler::get_unix_timestamp()

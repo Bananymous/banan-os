@@ -14,7 +14,6 @@ namespace Kernel
 		static BAN::ErrorOr<BAN::UniqPtr<PIT>> create();
 
 		virtual uint64_t ms_since_boot() const override;
-		virtual void sleep(uint64_t) const override;
 
 	private:
 		void initialize();
