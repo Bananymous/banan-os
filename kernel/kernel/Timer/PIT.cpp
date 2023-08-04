@@ -2,6 +2,7 @@
 #include <kernel/InterruptController.h>
 #include <kernel/IO.h>
 #include <kernel/Scheduler.h>
+#include <kernel/Timer/PIT.h>
 
 #define TIMER0_CTL			0x40
 #define TIMER1_CTL			0x41
@@ -20,7 +21,7 @@
 #define BASE_FREQUENCY		1193182
 #define TICKS_PER_SECOND	1000
 
-namespace PIT
+namespace Kernel
 {
 
 	static volatile uint64_t s_system_time = 0;
@@ -31,12 +32,16 @@ namespace PIT
 		Kernel::Scheduler::get().timer_reschedule();
 	}
 
-	uint64_t ms_since_boot()
+	BAN::ErrorOr<BAN::UniqPtr<PIT>> PIT::create()
 	{
-		return s_system_time;
+		PIT* pit = new PIT;
+		if (pit == nullptr)
+			return BAN::Error::from_errno(ENOMEM);
+		pit->initialize();
+		return BAN::UniqPtr<PIT>::adopt(pit);
 	}
 
-	void initialize()
+	void PIT::initialize()
 	{
 		constexpr uint16_t timer_reload = BASE_FREQUENCY / TICKS_PER_SECOND;
 	
@@ -50,7 +55,12 @@ namespace PIT
 		InterruptController::get().enable_irq(PIT_IRQ);
 	}
 
-	void sleep(uint64_t ms)
+	uint64_t PIT::ms_since_boot() const
+	{
+		return s_system_time;
+	}
+
+	void PIT::sleep(uint64_t ms) const
 	{
 		if (ms == 0)
 			return;

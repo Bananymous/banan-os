@@ -3,6 +3,7 @@
 #include <kernel/Serial.h>
 #include <kernel/SpinLock.h>
 #include <kernel/Terminal/TTY.h>
+#include <kernel/Timer/Timer.h>
 
 namespace Debug
 {
@@ -55,6 +56,11 @@ namespace Debug
 			return Kernel::TTY::putchar_current(ch);
 	}
 
+	void print_prefix(const char* file, int line)
+	{
+		auto ms_since_boot = Kernel::TimerHandler::is_initialized() ? Kernel::TimerHandler::get().ms_since_boot() : 0;
+		BAN::Formatter::print(Debug::putchar, "[{5}.{3}] {}:{}: ", ms_since_boot / 1000, ms_since_boot % 1000, file, line);
+	}
 
 	static Kernel::RecursiveSpinLock s_debug_lock;
 

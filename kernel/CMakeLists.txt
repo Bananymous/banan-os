@@ -40,7 +40,6 @@ set(KERNEL_SOURCES
 	kernel/Panic.cpp
 	kernel/PCI.cpp
 	kernel/PIC.cpp
-	kernel/PIT.cpp
 	kernel/Process.cpp
 	kernel/RTC.cpp
 	kernel/Scheduler.cpp
@@ -55,9 +54,11 @@ set(KERNEL_SOURCES
 	kernel/Storage/StorageDevice.cpp
 	kernel/Syscall.cpp
 	kernel/Syscall.S
-	kernel/Thread.cpp
 	kernel/Terminal/TTY.cpp
 	kernel/Terminal/VesaTerminalDriver.cpp
+	kernel/Thread.cpp
+	kernel/Timer/PIT.cpp
+	kernel/Timer/Timer.cpp
 	icxxabi.cpp
 )
 

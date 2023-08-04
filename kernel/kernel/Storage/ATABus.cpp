@@ -6,6 +6,7 @@
 #include <kernel/Storage/ATADevice.h>
 #include <kernel/Storage/ATABus.h>
 #include <kernel/Storage/ATADefinitions.h>
+#include <kernel/Timer/Timer.h>
 
 namespace Kernel
 {
@@ -99,7 +100,7 @@ namespace Kernel
 	{
 		uint8_t device_index = this->device_index(device);
 		io_write(ATA_PORT_DRIVE_SELECT, 0xA0 | (device_index << 4));
-		PIT::sleep(1);
+		TimerHandler::get().sleep(1);
 	}
 
 	ATABus::DeviceType ATABus::identify(const ATADevice& device, uint16_t* buffer)
@@ -110,7 +111,7 @@ namespace Kernel
 		io_write(ATA_PORT_CONTROL, ATA_CONTROL_nIEN);
 
 		io_write(ATA_PORT_COMMAND, ATA_COMMAND_IDENTIFY);
-		PIT::sleep(1);
+		TimerHandler::get().sleep(1);
 
 		// No device on port
 		if (io_read(ATA_PORT_STATUS) == 0)
@@ -134,7 +135,7 @@ namespace Kernel
 			}
 
 			io_write(ATA_PORT_COMMAND, ATA_COMMAND_IDENTIFY_PACKET);
-			PIT::sleep(1);
+			TimerHandler::get().sleep(1);
 
 			if (auto res = wait(true); res.is_error())
 			{
@@ -303,7 +304,7 @@ namespace Kernel
 			io_write(ATA_PORT_LBA2, (uint8_t)(lba >> 16));
 			io_write(ATA_PORT_COMMAND, ATA_COMMAND_WRITE_SECTORS);
 
-			PIT::sleep(1);
+			TimerHandler::get().sleep(1);
 
 			for (uint32_t sector = 0; sector < sector_count; sector++)
 			{

@@ -1,15 +1,14 @@
 #pragma once
 
 #include <BAN/Formatter.h>
-#include <kernel/PIT.h>
 
-#define dprintln(...)																																\
-	do {																																			\
-		Debug::DebugLock::lock();																													\
-		BAN::Formatter::print(Debug::putchar, "[{5}.{3}] {}:{}:  ", PIT::ms_since_boot() / 1000, PIT::ms_since_boot() % 1000, __FILE__, __LINE__);	\
-		BAN::Formatter::print(Debug::putchar, __VA_ARGS__);																							\
-		BAN::Formatter::print(Debug::putchar, "\r\n");																								\
-		Debug::DebugLock::unlock();																													\
+#define dprintln(...)										\
+	do {													\
+		Debug::DebugLock::lock();							\
+		Debug::print_prefix(__FILE__, __LINE__);				\
+		BAN::Formatter::print(Debug::putchar, __VA_ARGS__);	\
+		BAN::Formatter::print(Debug::putchar, "\r\n");		\
+		Debug::DebugLock::unlock();							\
 	} while(false)
 
 #define dwarnln(...)										\
@@ -36,6 +35,7 @@ namespace Debug
 {
 	void dump_stack_trace();
 	void putchar(char);
+	void print_prefix(const char*, int);
 
 	class DebugLock
 	{
