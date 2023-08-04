@@ -28,6 +28,7 @@ namespace Kernel
 		void sleep(uint64_t) const;
 
 		uint64_t get_unix_timestamp() const;
+		timespec get_real_time() const;
 
 	private:
 		SystemTimer() = default;
