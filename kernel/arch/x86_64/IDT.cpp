@@ -6,6 +6,7 @@
 #include <kernel/Panic.h>
 #include <kernel/Process.h>
 #include <kernel/Scheduler.h>
+#include <kernel/Timer/PIT.h>
 
 #include <unistd.h>
 

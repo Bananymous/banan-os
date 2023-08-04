@@ -14,15 +14,13 @@
 #include <kernel/multiboot.h>
 #include <kernel/PCI.h>
 #include <kernel/PIC.h>
-#include <kernel/PIT.h>
 #include <kernel/Process.h>
 #include <kernel/Scheduler.h>
 #include <kernel/Serial.h>
 #include <kernel/Syscall.h>
 #include <kernel/Terminal/TTY.h>
 #include <kernel/Terminal/VesaTerminalDriver.h>
-
-#include <LibELF/ELF.h>
+#include <kernel/Timer/Timer.h>
 
 extern "C" const char g_kernel_cmdline[];
 
@@ -156,8 +154,8 @@ extern "C" void kernel_main()
 	InterruptController::initialize(cmdline.force_pic);
 	dprintln("Interrupt controller initialized");
 
-	PIT::initialize();
-	dprintln("PIT initialized");
+	TimerHandler::initialize();
+	dprintln("Timers initialized");
 
 	MUST(Scheduler::initialize());
 	dprintln("Scheduler initialized");

@@ -4,6 +4,7 @@
 #include <kernel/FS/RamFS/Inode.h>
 #include <kernel/LockGuard.h>
 #include <kernel/Process.h>
+#include <kernel/Timer/Timer.h>
 
 namespace Kernel
 {
@@ -45,7 +46,7 @@ namespace Kernel
 					);
 					s_instance->m_device_lock.unlock();
 
-					PIT::sleep(1);
+					Kernel::TimerHandler::get().sleep(1);
 				}
 			}, nullptr
 		);

@@ -8,6 +8,7 @@
 #include <kernel/Memory/PageTableScope.h>
 #include <kernel/Process.h>
 #include <kernel/Scheduler.h>
+#include <kernel/Timer/Timer.h>
 #include <LibELF/ELF.h>
 #include <LibELF/Values.h>
 
@@ -472,7 +473,7 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_sleep(int seconds)
 	{
-		PIT::sleep(seconds * 1000);
+		TimerHandler::get().sleep(seconds * 1000);
 		return 0;
 	}
 
@@ -810,7 +811,7 @@ namespace Kernel
 		{
 			case CLOCK_MONOTONIC:
 			{
-				uint64_t time_ms = PIT::ms_since_boot();
+				uint64_t time_ms = TimerHandler::get().ms_since_boot();
 				tp->tv_sec  =  time_ms / 1000;
 				tp->tv_nsec = (time_ms % 1000) * 1000000;
 				break;

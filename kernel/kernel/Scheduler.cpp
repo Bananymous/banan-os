@@ -5,6 +5,7 @@
 #include <kernel/InterruptController.h>
 #include <kernel/Process.h>
 #include <kernel/Scheduler.h>
+#include <kernel/Timer/PIT.h>
 
 #if 1
 	#define VERIFY_STI() ASSERT(interrupts_enabled())
@@ -112,7 +113,7 @@ namespace Kernel
 	{
 		VERIFY_CLI();
 
-		uint64_t current_time = PIT::ms_since_boot();
+		uint64_t current_time = TimerHandler::get().ms_since_boot();
 		while (!m_sleeping_threads.empty() && m_sleeping_threads.front().wake_time <= current_time)
 		{
 			Thread* thread = m_sleeping_threads.front().thread;
