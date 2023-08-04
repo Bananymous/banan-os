@@ -9,6 +9,15 @@ namespace Kernel
 	class ACPI
 	{
 	public:
+		struct GAS
+		{
+			uint8_t address_space_id;
+			uint8_t register_bit_width;
+			uint8_t register_bit_offset;
+			uint8_t access_size;
+			uint64_t address;
+		} __attribute__((packed));
+
 		struct SDTHeader
 		{
 			uint8_t signature[4];
@@ -79,6 +88,20 @@ namespace Kernel
 			uint8_t sleep_control_reg[12];
 			uint8_t sleep_status_reg[12];
 			uint64_t hypervison_vendor_identity;
+		} __attribute__((packed));
+
+		struct HPET : public SDTHeader
+		{
+			uint8_t hardware_rev_id;
+			uint8_t comparator_count : 5;
+			uint8_t count_size_cap : 1;
+			uint8_t reserved : 1;
+			uint8_t legacy_replacement_irq_routing_cable : 1;
+			uint16_t pci_vendor_id;
+			GAS base_address;
+			uint8_t hpet_number;
+			uint16_t main_counter_minimum_clock_tick;
+			uint8_t page_protection_and_oem_attribute;
 		} __attribute__((packed));
 
 	public:
