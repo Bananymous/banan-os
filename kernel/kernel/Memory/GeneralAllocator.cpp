@@ -97,7 +97,7 @@ namespace Kernel
 			new_allocation.address = allocation.address;
 			MUST(new_allocation.pages.reserve(allocation.pages.size()));
 
-			uint8_t flags = m_page_table.get_page_flags(allocation.address);
+			PageTable::flags_t flags = m_page_table.get_page_flags(allocation.address);
 			for (size_t i = 0; i < allocation.pages.size(); i++)
 			{
 				paddr_t paddr = Heap::get().take_free_page();

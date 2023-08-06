@@ -263,7 +263,7 @@ namespace Kernel
 
 			vaddr_t vaddr = address_of_node(node);
 			vaddr_t page_begin = vaddr & PAGE_ADDR_MASK;
-			uint8_t flags = m_page_table.get_page_flags(page_begin);
+			PageTable::flags_t flags = m_page_table.get_page_flags(page_begin);
 
 			// Allocate and copy all data from this allocation to the new one
 			if (allocator->allocate_page_if_needed(page_begin, flags))

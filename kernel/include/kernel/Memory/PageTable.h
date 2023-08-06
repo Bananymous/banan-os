@@ -13,12 +13,13 @@ namespace Kernel
 		using flags_t = uint16_t;
 		enum Flags : flags_t 
 		{
-			Present = 1,
-			ReadWrite = 2,
-			UserSupervisor = 4,
-			Execute = 8,
-			Reserved = 256,
+			Present			= (1 << 0),
+			ReadWrite		= (1 << 1),
+			UserSupervisor	= (1 << 2),
+			CacheDisable	= (1 << 4),
+			Reserved		= (1 << 9),
 
+			Execute			= (1 << 15),
 			Used = Present | Reserved,
 		};
 

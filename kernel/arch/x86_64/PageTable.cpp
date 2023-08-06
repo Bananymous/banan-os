@@ -48,7 +48,22 @@ namespace Kernel
 
 	static inline PageTable::flags_t parse_flags(uint64_t entry)
 	{
-		return (s_has_nxe && !(entry & (1ull << 63)) ? PageTable::Flags::Execute : 0) | (entry & 0b100000111);
+		using Flags = PageTable::Flags;
+
+		PageTable::flags_t result = 0;
+		if (s_has_nxe && !(entry & (1ull << 63)))
+			result |= Flags::Execute;
+		if (entry & Flags::Reserved)
+			result |= Flags::Reserved;
+		if (entry & Flags::CacheDisable)
+			result |= Flags::CacheDisable;
+		if (entry & Flags::UserSupervisor)
+			result |= Flags::UserSupervisor;
+		if (entry & Flags::ReadWrite)
+			result |= Flags::ReadWrite;
+		if (entry & Flags::Present)
+			result |= Flags::Present;
+		return result;
 	}
 
 	void PageTable::initialize()
@@ -258,13 +273,15 @@ namespace Kernel
 		uint64_t pte   = (uc_vaddr >> 12) & 0x1FF;
 
 		uint64_t extra_flags = 0;
+		if (s_has_pge && pml4e == 511) // Map kernel memory as global
+			extra_flags |= 1ull << 8;
 		if (s_has_nxe && !(flags & Flags::Execute))
 			extra_flags |= 1ull << 63;
-		if (s_has_pge && pml4e == 511)
-			extra_flags |= 1ull << 8;
 		if (flags & Flags::Reserved)
 			extra_flags |= Flags::Reserved;
-		
+		if (flags & Flags::CacheDisable)
+			extra_flags |= Flags::CacheDisable;
+
 		// NOTE: we add present here, since it has to be available in higher level structures
 		flags_t uwr_flags = (flags & (Flags::UserSupervisor | Flags::ReadWrite)) | Flags::Present;
 
