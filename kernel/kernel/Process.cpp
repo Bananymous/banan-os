@@ -499,7 +499,7 @@ namespace Kernel
 				break;
 			case LibELF::PT_LOAD:
 			{
-				uint8_t flags = PageTable::Flags::UserSupervisor | PageTable::Flags::Present;
+				PageTable::flags_t flags = PageTable::Flags::UserSupervisor | PageTable::Flags::Present;
 				if (elf_program_header.p_flags & LibELF::PF_W)
 					flags |= PageTable::Flags::ReadWrite;
 				if (elf_program_header.p_flags & LibELF::PF_X)

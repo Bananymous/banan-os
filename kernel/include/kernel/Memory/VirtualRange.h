@@ -15,9 +15,9 @@ namespace Kernel
 
 	public:
 		// Create virtual range to fixed virtual address
-		static BAN::ErrorOr<BAN::UniqPtr<VirtualRange>> create_to_vaddr(PageTable&, vaddr_t, size_t, uint8_t flags);
+		static BAN::ErrorOr<BAN::UniqPtr<VirtualRange>> create_to_vaddr(PageTable&, vaddr_t, size_t, PageTable::flags_t flags);
 		// Create virtual range to virtual address range
-		static BAN::ErrorOr<BAN::UniqPtr<VirtualRange>> create_to_vaddr_range(PageTable&, vaddr_t vaddr_start, vaddr_t vaddr_end, size_t, uint8_t flags);
+		static BAN::ErrorOr<BAN::UniqPtr<VirtualRange>> create_to_vaddr_range(PageTable&, vaddr_t vaddr_start, vaddr_t vaddr_end, size_t, PageTable::flags_t flags);
 		// Create virtual range in kernel memory with kmalloc
 		static BAN::ErrorOr<BAN::UniqPtr<VirtualRange>> create_kmalloc(size_t);
 		~VirtualRange();
@@ -26,7 +26,7 @@ namespace Kernel
 
 		vaddr_t vaddr() const { return m_vaddr; }
 		size_t size() const { return m_size; }
-		uint8_t flags() const { return m_flags; }
+		PageTable::flags_t flags() const { return m_flags; }
 
 		void set_zero();
 		void copy_from(size_t offset, const uint8_t* buffer, size_t bytes);
@@ -39,7 +39,7 @@ namespace Kernel
 		bool					m_kmalloc { false };
 		vaddr_t					m_vaddr { 0 };
 		size_t					m_size { 0 };
-		uint8_t					m_flags { 0 };
+		PageTable::flags_t		m_flags { 0 };
 		BAN::Vector<paddr_t>	m_physical_pages;
 	};
 
