@@ -69,9 +69,6 @@ namespace Kernel
 	{
 		VERIFY_CLI();
 
-		ASSERT(InterruptController::get().is_in_service(PIT_IRQ));
-		InterruptController::get().eoi(PIT_IRQ);
-
 		wake_threads();
 
 		if (save_current_thread())
