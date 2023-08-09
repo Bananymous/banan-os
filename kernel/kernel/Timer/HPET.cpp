@@ -68,10 +68,14 @@ namespace Kernel
 
 		m_counter_tick_period_fs = read_register(HPET_REG_CAPABILIES) >> 32;
 
+		// period has to be less than 100 ns
+		if (m_counter_tick_period_fs == 0 || m_counter_tick_period_fs > FS_PER_NS * 100)
+			return BAN::Error::from_errno(EINVAL);
+
 		uint64_t ticks_per_ms = FS_PER_MS / m_counter_tick_period_fs;
 		
 		{
-			const char* units[] = { "fs", "ps", "ns", "us", "ms", "s" };
+			const char* units[] = { "fs", "ps", "ns" };
 			int index = 0;
 			uint64_t temp = m_counter_tick_period_fs;
 			while (temp >= 1000)
