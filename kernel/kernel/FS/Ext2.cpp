@@ -384,16 +384,16 @@ namespace Kernel
 		if (error_or.error().get_error_code() != ENOENT)
 			return error_or.error();
 
-		uint64_t current_time = SystemTimer::get().get_unix_timestamp();
+		timespec current_time = SystemTimer::get().real_time();
 
 		Ext2::Inode ext2_inode;
 		ext2_inode.mode			= mode;
 		ext2_inode.uid			= uid;
 		ext2_inode.size			= 0;
-		ext2_inode.atime 		= current_time;
-		ext2_inode.ctime 		= current_time;
-		ext2_inode.mtime 		= current_time;
-		ext2_inode.dtime 		= current_time;
+		ext2_inode.atime 		= current_time.tv_sec;
+		ext2_inode.ctime 		= current_time.tv_sec;
+		ext2_inode.mtime 		= current_time.tv_sec;
+		ext2_inode.dtime 		= current_time.tv_sec;
 		ext2_inode.gid			= gid;
 		ext2_inode.links_count	= 1;
 		ext2_inode.blocks		= 0;

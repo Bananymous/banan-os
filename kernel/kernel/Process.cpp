@@ -811,9 +811,12 @@ namespace Kernel
 		{
 			case CLOCK_MONOTONIC:
 			{
-				uint64_t time_ms = SystemTimer::get().ms_since_boot();
-				tp->tv_sec  =  time_ms / 1000;
-				tp->tv_nsec = (time_ms % 1000) * 1000000;
+				*tp = SystemTimer::get().time_since_boot();
+				break;
+			}
+			case CLOCK_REALTIME:
+			{
+				*tp = SystemTimer::get().real_time();
 				break;
 			}
 			default:
