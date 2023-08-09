@@ -213,7 +213,7 @@ namespace IDT
 
 	extern "C" void cpp_irq_handler(uint64_t irq, Kernel::InterruptStack& interrupt_stack)
 	{
-		bool from_userspace = (interrupt_stack.cs & 0b11) & 0b11;
+		bool from_userspace = (interrupt_stack.cs & 0b11) == 0b11;
 
 		if (from_userspace)
 			Kernel::Thread::current().save_sse();
@@ -224,21 +224,16 @@ namespace IDT
 			Kernel::Thread::current().set_return_rip(interrupt_stack.rip);
 		}
 
-		if (s_irq_handlers[irq])
-			s_irq_handlers[irq]();
+		if (!InterruptController::get().is_in_service(irq))
+			dprintln("spurious irq 0x{2H}", irq);
 		else
 		{
-			if (!InterruptController::get().is_in_service(irq))
-			{
-				dprintln("spurious irq 0x{2H}", irq);
-				return;
-			}
-			dprintln("no handler for irq 0x{2H}\n", irq);
-		}
-
-		// NOTE: Scheduler sends PIT eoi's
-		if (irq != PIT_IRQ)
 			InterruptController::get().eoi(irq);
+			if (s_irq_handlers[irq])
+				s_irq_handlers[irq]();
+			else
+				dprintln("no handler for irq 0x{2H}\n", irq);
+		}
 
 		Kernel::Scheduler::get().reschedule_if_idling();
 
