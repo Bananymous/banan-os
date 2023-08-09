@@ -25,10 +25,9 @@ namespace Kernel
 		virtual uint64_t ms_since_boot() const override;
 		virtual timespec time_since_boot() const override;
 		
-		void sleep(uint64_t) const;
+		void sleep(uint64_t ms) const;
 
-		uint64_t get_unix_timestamp() const;
-		timespec get_real_time() const;
+		timespec real_time() const;
 
 	private:
 		SystemTimer() = default;

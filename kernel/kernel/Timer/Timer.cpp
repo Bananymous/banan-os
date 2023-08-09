@@ -74,12 +74,7 @@ namespace Kernel
 			dwarnln("sleep woke {} ms too soon", wake_time - ms_since_boot());
 	}
 
-	uint64_t SystemTimer::get_unix_timestamp() const
-	{
-		return m_boot_time + ms_since_boot() / 1000;
-	}
-
-	timespec SystemTimer::get_real_time() const
+	timespec SystemTimer::real_time() const
 	{
 		auto result = time_since_boot();
 		result.tv_sec += m_boot_time;

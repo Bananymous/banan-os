@@ -23,10 +23,7 @@ namespace Kernel
 	RamInode::RamInode(RamFileSystem& fs, mode_t mode, uid_t uid, gid_t gid)
 			: m_fs(fs)
 	{
-		uint64_t current_unix_time = SystemTimer::get().get_unix_timestamp();
-		timespec current_timespec;
-		current_timespec.tv_sec = current_unix_time;
-		current_timespec.tv_nsec = 0;
+		timespec current_time = SystemTimer::get().real_time();
 
 		m_inode_info.ino = fs.next_ino();
 		m_inode_info.mode = mode;
@@ -34,9 +31,9 @@ namespace Kernel
 		m_inode_info.uid = uid;
 		m_inode_info.gid = gid;
 		m_inode_info.size = 0;
-		m_inode_info.atime = current_timespec;
-		m_inode_info.mtime = current_timespec;
-		m_inode_info.ctime = current_timespec;
+		m_inode_info.atime = current_time;
+		m_inode_info.mtime = current_time;
+		m_inode_info.ctime = current_time;
 		m_inode_info.blksize = fs.blksize();
 		m_inode_info.blocks = 0;
 		m_inode_info.dev = 0;
