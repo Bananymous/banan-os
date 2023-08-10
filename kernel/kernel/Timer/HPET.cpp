@@ -21,6 +21,7 @@
 #define HPET_Tn_TYPE_CNF	(1 << 3)
 #define HPET_Tn_PER_INT_CAP	(1 << 4)
 #define HPET_Tn_VAL_SET_CNF	(1 << 6)
+#define HPET_Tn_INT_ROUTE_CNF_SHIFT 9
 
 #define FS_PER_S	1'000'000'000'000'000
 #define FS_PER_MS	1'000'000'000'000
@@ -29,8 +30,6 @@
 
 namespace Kernel
 {
-
-	static uint64_t s_system_time = 0;
 
 	BAN::ErrorOr<BAN::UniqPtr<HPET>> HPET::create()
 	{
@@ -93,13 +92,26 @@ namespace Kernel
 			return BAN::Error::from_errno(ENOTSUP);
 		}
 
+		uint32_t irq_cap = timer0_config >> 32;
+		
+		if (irq_cap == 0)
+		{
+			dwarnln("HPET doesn't have any interrupts available");
+			return BAN::Error::from_errno(EINVAL);
+		}
+		
+		int irq = 0;
+		for (; irq < 32; irq++)
+			if (irq_cap & (1 << irq))
+				break;
+
 		unmapper.disable();
 
 		// Enable main counter
-		write_register(HPET_REG_CONFIG, read_register(HPET_REG_CONFIG) | HPET_CONFIG_LEG_RT | HPET_CONFIG_ENABLE);
+		write_register(HPET_REG_CONFIG, read_register(HPET_REG_CONFIG) | HPET_CONFIG_ENABLE);
 
 		// Enable timer 0 as 1 ms periodic
-		write_register(HPET_REG_TIMER_CONFIG(0), HPET_Tn_INT_ENB_CNF | HPET_Tn_TYPE_CNF | HPET_Tn_VAL_SET_CNF);
+		write_register(HPET_REG_TIMER_CONFIG(0), HPET_Tn_INT_ENB_CNF | HPET_Tn_TYPE_CNF | HPET_Tn_VAL_SET_CNF | (irq << HPET_Tn_INT_ROUTE_CNF_SHIFT));
 		write_register(HPET_REG_TIMER_COMPARATOR(0), read_register(HPET_REG_COUNTER) + ticks_per_ms);
 		write_register(HPET_REG_TIMER_COMPARATOR(0), ticks_per_ms);
 
@@ -107,8 +119,8 @@ namespace Kernel
 		for (int i = 1; i <= header->comparator_count; i++)
 			write_register(HPET_REG_TIMER_CONFIG(i), 0);
 
-		IDT::register_irq_handler(0, [] { s_system_time++; Scheduler::get().timer_reschedule(); });
-		InterruptController::get().enable_irq(0);
+		IDT::register_irq_handler(irq, [] { Scheduler::get().timer_reschedule(); });
+		InterruptController::get().enable_irq(irq);
 
 		return {};
 	}
