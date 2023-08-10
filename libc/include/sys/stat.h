@@ -57,6 +57,7 @@ struct stat
 #define S_ISUID		((mode_t)04000)
 #define S_ISGID		((mode_t)02000)
 #define S_ISVTX		((mode_t)01000)
+#define S_IRWXMASK	(S_IRWXU | S_IRWXG | S_IRWXO)
 
 #define S_IFIFO		((mode_t)0010000)
 #define S_IFCHR		((mode_t)0020000)
@@ -65,14 +66,15 @@ struct stat
 #define S_IFREG		((mode_t)0100000)
 #define S_IFLNK		((mode_t)0120000)
 #define S_IFSOCK	((mode_t)0140000)
+#define S_IFMASK	((mode_t)0170000)
 
-#define S_ISBLK(mode)	(mode & S_IFBLK)
-#define S_ISCHR(mode)	(mode & S_IFCHR)
-#define S_ISDIR(mode)	(mode & S_IFDIR)
-#define S_ISFIFO(mode)	(mode & S_IFIFO)
-#define S_ISREG(mode)	(mode & S_IFREG)
-#define S_ISLNK(mode)	(mode & S_IFLNK)
-#define S_ISSOCK(mode)	(mode & S_IFSOCK)
+#define S_ISBLK(mode)	((mode & S_IFMASK) == S_IFBLK)
+#define S_ISCHR(mode)	((mode & S_IFMASK) == S_IFCHR)
+#define S_ISDIR(mode)	((mode & S_IFMASK) == S_IFDIR)
+#define S_ISFIFO(mode)	((mode & S_IFMASK) == S_IFIFO)
+#define S_ISREG(mode)	((mode & S_IFMASK) == S_IFREG)
+#define S_ISLNK(mode)	((mode & S_IFMASK) == S_IFLNK)
+#define S_ISSOCK(mode)	((mode & S_IFMASK) == S_IFSOCK)
 
 // FIXME
 #if 0
