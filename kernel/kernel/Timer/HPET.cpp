@@ -31,12 +31,12 @@
 namespace Kernel
 {
 
-	BAN::ErrorOr<BAN::UniqPtr<HPET>> HPET::create()
+	BAN::ErrorOr<BAN::UniqPtr<HPET>> HPET::create(bool force_pic)
 	{
 		HPET* hpet = new HPET();
 		if (hpet == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
-		if (auto ret = hpet->initialize(); ret.is_error())
+		if (auto ret = hpet->initialize(force_pic); ret.is_error())
 		{
 			delete hpet;
 			return ret.release_error();
@@ -44,7 +44,7 @@ namespace Kernel
 		return BAN::UniqPtr<HPET>::adopt(hpet);
 	}
 
-	BAN::ErrorOr<void> HPET::initialize()
+	BAN::ErrorOr<void> HPET::initialize(bool force_pic)
 	{
 		auto* header = (ACPI::HPET*)ACPI::get().get_header("HPET");
 		if (header == nullptr)
@@ -53,7 +53,7 @@ namespace Kernel
 		if (header->hardware_rev_id == 0)
 			return BAN::Error::from_errno(EINVAL);
 
-		if (!header->legacy_replacement_irq_routing_cable)
+		if (force_pic && !header->legacy_replacement_irq_routing_cable)
 		{
 			dwarnln("HPET doesn't support legacy mapping");
 			return BAN::Error::from_errno(ENOTSUP);
@@ -92,26 +92,38 @@ namespace Kernel
 			return BAN::Error::from_errno(ENOTSUP);
 		}
 
-		uint32_t irq_cap = timer0_config >> 32;
-		
-		if (irq_cap == 0)
-		{
-			dwarnln("HPET doesn't have any interrupts available");
-			return BAN::Error::from_errno(EINVAL);
-		}
-		
 		int irq = 0;
-		for (; irq < 32; irq++)
-			if (irq_cap & (1 << irq))
-				break;
+		if (!force_pic)
+		{
+			uint32_t irq_cap = timer0_config >> 32;
+			if (irq_cap == 0)
+			{
+				dwarnln("HPET doesn't have any interrupts available");
+				return BAN::Error::from_errno(EINVAL);
+			}
+			for (irq = 0; irq < 32; irq++)
+				if (irq_cap & (1 << irq))
+					break;
+		}
 
 		unmapper.disable();
 
+		uint64_t main_flags = HPET_CONFIG_ENABLE;
+		if (force_pic)
+			main_flags |= HPET_CONFIG_LEG_RT;
+
 		// Enable main counter
-		write_register(HPET_REG_CONFIG, read_register(HPET_REG_CONFIG) | HPET_CONFIG_ENABLE);
+		write_register(HPET_REG_CONFIG, read_register(HPET_REG_CONFIG) | main_flags);
+
+		uint64_t timer0_flags = 0;
+		timer0_flags |= HPET_Tn_INT_ENB_CNF;
+		timer0_flags |= HPET_Tn_TYPE_CNF;
+		timer0_flags |= HPET_Tn_VAL_SET_CNF;
+		if (!force_pic)
+			timer0_flags |= irq << HPET_Tn_INT_ROUTE_CNF_SHIFT;
 
 		// Enable timer 0 as 1 ms periodic
-		write_register(HPET_REG_TIMER_CONFIG(0), HPET_Tn_INT_ENB_CNF | HPET_Tn_TYPE_CNF | HPET_Tn_VAL_SET_CNF | (irq << HPET_Tn_INT_ROUTE_CNF_SHIFT));
+		write_register(HPET_REG_TIMER_CONFIG(0), timer0_flags);
 		write_register(HPET_REG_TIMER_COMPARATOR(0), read_register(HPET_REG_COUNTER) + ticks_per_ms);
 		write_register(HPET_REG_TIMER_COMPARATOR(0), ticks_per_ms);
 
