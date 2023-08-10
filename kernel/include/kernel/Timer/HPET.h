@@ -8,14 +8,14 @@ namespace Kernel
 	class HPET final : public Timer
 	{
 	public:
-		static BAN::ErrorOr<BAN::UniqPtr<HPET>> create();
+		static BAN::ErrorOr<BAN::UniqPtr<HPET>> create(bool force_pic);
 
 		virtual uint64_t ms_since_boot() const override;
 		virtual timespec time_since_boot() const override;
 
 	private:
 		HPET() = default;
-		BAN::ErrorOr<void> initialize();
+		BAN::ErrorOr<void> initialize(bool force_pic);
 
 		void write_register(ptrdiff_t reg, uint64_t value) const;
 		uint64_t read_register(ptrdiff_t reg) const;

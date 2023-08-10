@@ -141,10 +141,13 @@ extern "C" void kernel_main()
 	MUST(ACPI::initialize());
 	dprintln("ACPI initialized");
 
+	parse_command_line();
+	dprintln("command line parsed, root='{}'", cmdline.root);
+
 	InterruptController::initialize(cmdline.force_pic);
 	dprintln("Interrupt controller initialized");
 
-	SystemTimer::initialize();
+	SystemTimer::initialize(cmdline.force_pic);
 	dprintln("Timers initialized");
 
 	DevFileSystem::initialize();
@@ -153,9 +156,6 @@ extern "C" void kernel_main()
 	TTY* tty1 = new TTY(terminal_driver);
 	ASSERT(tty1);
 	dprintln("TTY initialized");
-
-	parse_command_line();
-	dprintln("command line parsed, root='{}'", cmdline.root);
 
 	MUST(Scheduler::initialize());
 	dprintln("Scheduler initialized");

@@ -18,7 +18,7 @@ namespace Kernel
 	class SystemTimer : public Timer
 	{
 	public:
-		static void initialize();
+		static void initialize(bool force_pic);
 		static SystemTimer& get();
 		static bool is_initialized();
 
@@ -32,7 +32,7 @@ namespace Kernel
 	private:
 		SystemTimer() = default;
 
-		void initialize_timers();
+		void initialize_timers(bool force_pic);
 
 	private:
 		uint64_t m_boot_time { 0 };
