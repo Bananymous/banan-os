@@ -5,6 +5,7 @@
 #include <kernel/CPUID.h>
 #include <kernel/IDT.h>
 #include <kernel/Memory/PageTable.h>
+#include <kernel/MMIO.h>
 
 #include <string.h>
 
@@ -194,26 +195,24 @@ APIC* APIC::create()
 
 uint32_t APIC::read_from_local_apic(ptrdiff_t offset)
 {
-	return *(uint32_t*)(m_local_apic_vaddr + offset);
+	return MMIO::read32(m_local_apic_vaddr + offset);
 }
 
 void APIC::write_to_local_apic(ptrdiff_t offset, uint32_t data)
 {
-	*(uint32_t*)(m_local_apic_vaddr + offset) = data;
+	MMIO::write32(m_local_apic_vaddr + offset, data);
 }
 
 uint32_t APIC::IOAPIC::read(uint8_t offset)
 {
-	volatile uint32_t* ioapic = (volatile uint32_t*)vaddr;
-	ioapic[0] = offset;
-	return ioapic[4];
+	MMIO::write32(vaddr, offset);
+	return MMIO::read32(vaddr + 16);
 }
 
 void APIC::IOAPIC::write(uint8_t offset, uint32_t data)
 {
-	volatile uint32_t* ioapic = (volatile uint32_t*)vaddr;
-	ioapic[0] = offset;
-	ioapic[4] = data;
+	MMIO::write32(vaddr, offset);
+	MMIO::write32(vaddr + 16, data);
 }
 
 void APIC::eoi(uint8_t)
@@ -239,6 +238,7 @@ void APIC::enable_irq(uint8_t irq)
 	RedirectionEntry redir;
 	redir.lo_dword = ioapic->read(IOAPIC_REDIRS + gsi * 2);
 	redir.hi_dword = ioapic->read(IOAPIC_REDIRS + gsi * 2 + 1);
+	ASSERT(redir.mask); // TODO: handle overlapping interrupts
 
 	redir.vector = IRQ_VECTOR_BASE + irq;
 	redir.mask = 0;
