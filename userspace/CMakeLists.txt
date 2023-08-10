@@ -9,6 +9,7 @@ set(USERSPACE_PROJECTS
 	init
 	ls
 	Shell
+	stat
 	tee
 	test
 	touch
