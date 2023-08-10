@@ -47,7 +47,7 @@
 	g_multiboot_magic:
 		.skip 8
 
-.section .text
+.section .data
 
 # Map first GiB to 0x00000000 and 0xFFFFFFFF80000000
 .align 4096
@@ -82,6 +82,8 @@ boot_gdt:
 boot_gdtr:
 	.short . - boot_gdt - 1
 	.quad V2P(boot_gdt)
+
+.section .text
 
 has_cpuid:
 	pushfl
