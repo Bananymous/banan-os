@@ -657,15 +657,6 @@ namespace Kernel
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_stat(BAN::StringView path, struct stat* out, int flags)
-	{
-		LockGuard _(m_lock);
-		int fd = TRY(sys_open(path, flags));
-		auto ret = sys_fstat(fd, out);
-		MUST(sys_close(fd));
-		return ret;
-	}
-
 	BAN::ErrorOr<long> Process::sys_read_dir_entries(int fd, DirectoryEntryList* list, size_t list_size)
 	{
 		LockGuard _(m_lock);
