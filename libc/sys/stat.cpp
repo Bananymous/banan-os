@@ -11,13 +11,15 @@ int fstat(int fildes, struct stat* buf)
 
 int fstatat(int fd, const char* __restrict path, struct stat* __restrict buf, int flag)
 {
-	if (flag & ~AT_SYMLINK_NOFOLLOW)
+	if (flag == AT_SYMLINK_NOFOLLOW)
+		flag = O_NOFOLLOW;
+	else if (flag)
 	{
 		errno = EINVAL;
 		return -1;
 	}
 
-	int target = openat(fd, path, (flag & AT_SYMLINK_NOFOLLOW) ? O_NOFOLLOW : 0);
+	int target = openat(fd, path, O_SEARCH | flag);
 	if (target == -1)
 		return -1;
 	int ret = fstat(target, buf);
