@@ -10,8 +10,7 @@ namespace Kernel
 		if (credentials.is_superuser())
 			return true;
 
-		// We treat O_SEARCH as O_RDONLY
-		if (flags & (O_RDONLY | O_SEARCH))
+		if (flags & O_RDONLY)
 		{
 			if (mode().mode & S_IROTH)
 			{ }
