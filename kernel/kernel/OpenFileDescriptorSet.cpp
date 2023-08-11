@@ -59,6 +59,10 @@ namespace Kernel
 		if (flags & ~(O_RDONLY | O_WRONLY | O_NOFOLLOW | O_SEARCH | O_APPEND | O_TRUNC | O_CLOEXEC))
 			return BAN::Error::from_errno(ENOTSUP);
 
+		int access_mask = O_EXEC | O_RDONLY | O_WRONLY | O_SEARCH;
+		if ((flags & access_mask) != O_RDWR && __builtin_popcount(flags & access_mask) != 1)
+			return BAN::Error::from_errno(EINVAL);
+
 		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, flags));
 
 		if (flags & O_TRUNC)
