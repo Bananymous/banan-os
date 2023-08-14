@@ -616,6 +616,11 @@ int main(int argc, char** argv)
 				fflush(stdout);
 			}
 			break;
+		case '\x01': // ^A
+			col = 0;
+			fprintf(stdout, "\e[%dG", prompt_length() + 1);
+			fflush(stdout);
+			break;
 		case '\x03': // ^C
 			fputc('\n', stdout);
 			print_prompt();
