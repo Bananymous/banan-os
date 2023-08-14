@@ -5,6 +5,7 @@
 
 #include <ctype.h>
 #include <inttypes.h>
+#include <pwd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
@@ -469,6 +470,15 @@ BAN::String get_prompt()
 
 				break;
 			}
+			case 'u':
+			{
+				auto* passwd = getpwuid(geteuid());
+				if (passwd == nullptr)
+					break;
+				MUST(prompt.append(passwd->pw_name));
+				endpwent();
+				break;
+			}
 			case '\0':
 				MUST(prompt.push_back('\\'));
 				break;
@@ -529,7 +539,7 @@ int main(int argc, char** argv)
 
 	if (argc >= 1)
 		setenv("SHELL", argv[0], true);
-	setenv("PS1", "\e[32muser@host\e[m:\e[34m\\~\e[m$ ", false);
+	setenv("PS1", "\e[32m\\u@host\e[m:\e[34m\\~\e[m$ ", false);
 
 	tcgetattr(0, &old_termios);
 
