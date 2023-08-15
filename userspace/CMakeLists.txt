@@ -14,6 +14,7 @@ set(USERSPACE_PROJECTS
 	test
 	touch
 	u8sum
+	whoami
 	yes
 )
 
