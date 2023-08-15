@@ -19,6 +19,7 @@ struct termios old_termios, new_termios;
 extern char** environ;
 
 static const char* argv0 = nullptr;
+static int last_return = 0;
 
 BAN::Vector<BAN::String> parse_command(BAN::StringView);
 
@@ -28,7 +29,12 @@ BAN::Optional<BAN::String> parse_dollar(BAN::StringView command, size_t& i)
 
 	if (++i >= command.size())
 		return "$"sv;
-	
+
+	if (command[i] == '?')
+	{
+		i++;
+		return BAN::String::formatted("{}", last_return);
+	}	
 	if (isalnum(command[i]))
 	{
 		size_t len = 1;
@@ -643,7 +649,7 @@ int main(int argc, char** argv)
 			{
 				tcsetattr(0, TCSANOW, &old_termios);
 				auto parsed_arguments = parse_command(buffers[index]);
-				execute_command(parsed_arguments);
+				last_return = execute_command(parsed_arguments);
 				tcsetattr(0, TCSANOW, &new_termios);
 				MUST(history.push_back(buffers[index]));
 				buffers = history;
