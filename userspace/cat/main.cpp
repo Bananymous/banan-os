@@ -2,7 +2,7 @@
 
 bool cat_file(FILE* fp)
 {
-	char buffer[1024];
+	char buffer[1025];
 	size_t n_read;
 	while ((n_read = fread(buffer, 1, sizeof(buffer) - 1, fp)) > 0)
 	{
