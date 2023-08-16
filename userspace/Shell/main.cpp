@@ -326,6 +326,15 @@ int execute_command(BAN::Vector<BAN::String>& args)
 			return 1;
 		}
 	}
+	else if (args.front() == "printf-test"sv)
+	{
+		printf(" 0.0:   %f\n", 0.0f);
+		printf(" 123.0: %f\n", 123.0f);
+		printf(" 0.123: %f\n", 0.123f);
+		printf(" NAN:   %f\n", NAN);
+		printf("+INF:   %f\n", INFINITY);
+		printf("-INF:   %f\n", -INFINITY);
+	}
 	else if (args.front() == "cd"sv)
 	{
 		if (args.size() > 2)
