@@ -3,6 +3,7 @@
 #include <bits/printf.h>
 #include <ctype.h>
 #include <errno.h>
+#include <math.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -106,6 +107,12 @@ static void integer_to_string(char* buffer, T value, int base, bool upper, forma
 template<BAN::floating_point T>
 static void floating_point_to_string(char* buffer, T value, bool upper, const format_options_t options)
 {
+	if (isnan(value))
+	{
+		strcpy(buffer, "-nan");
+		return;
+	}
+
 	int percision = 6;
 	if (options.percision != -1)
 		percision = options.percision;
@@ -122,6 +129,12 @@ static void floating_point_to_string(char* buffer, T value, bool upper, const fo
 		buffer[offset++] = '+';
 	else if (options.show_plus_sign_as_space)
 		buffer[offset++] = ' ';
+
+	if (isinf(value))
+	{
+		strcpy(buffer + offset, "inf");
+		return;
+	}
 
 	// Round last digit
 	value += (T)0.5 * BAN::Math::pow<T>(10.0, -percision);
