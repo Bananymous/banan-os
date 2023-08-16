@@ -22,21 +22,20 @@ __BEGIN_DECLS
 	typedef long double double_t;
 #endif
 
-// FIXME: define these
-#if 0
-int fpclassify(real-floating x);
-int isfinite(real-floating x);
-int isgreater(real-floating x, real-floating y);
-int isgreaterequal(real-floating x, real-floating y);
-int isinf(real-floating x);
-int isless(real-floating x, real-floating y);
-int islessequal(real-floating x, real-floating y);
-int islessgreater(real-floating x, real-floating y);
-int isnan(real-floating x);
-int isnormal(real-floating x);
-int isunordered(real-floating x, real-floating y);
-int signbit(real-floating x);
-#endif
+// FIXME: define this
+// int fpclassify(real-floating x);
+
+#define isfinite(x)				__builtin_isfinite(x)
+#define isgreater(x, y)			__builtin_isgreater(x, y)
+#define isgreaterequal(x, y)	__builtin_isgreaterequal(x, y)
+#define isinf(x)				__builtin_isinf_sign(x)
+#define isless(x, y)			__builtin_isless(x, y)
+#define islessequal(x, y)		__builtin_islessequal(x, y)
+#define islessgreater(x, y)		__builtin_islessgreater(x, y)
+#define isnan(x)				__builtin_isnan(x)
+#define isnormal(x)				__builtin_isnormal(x)
+#define isunordered(x, y)		__builtin_isunordered(x, y)
+#define signbit(x)				__builtin_signbit(x)
 
 #define M_E			2.7182818284590452354
 #define M_LOG2E		1.4426950408889634074
@@ -52,11 +51,11 @@ int signbit(real-floating x);
 #define M_SQRT2		1.41421356237309504880
 #define M_SQRT1_2	0.70710678118654752440
 
-#define HUGE_VAL	1e10000
-#define HUGE_VALF	1e10000f
-#define HUGE_VALL	1e10000L
-#define INFINITY	HUGE_VALF
-#define NAN			(0.0f / 0.0f)
+#define HUGE_VAL	__builtin_huge_val()
+#define HUGE_VALF	__builtin_huge_valf()
+#define HUGE_VALL	__builtin_huge_vall()
+#define INFINITY	__builtin_inff()
+#define NAN			__builtin_nanf("")
 
 #define FP_INFINITE		0
 #define FP_NAN			1
