@@ -61,6 +61,11 @@ ssize_t write(int fildes, const void* buf, size_t nbyte)
 	return syscall(SYS_WRITE, fildes, buf, nbyte);
 }
 
+int dup(int fildes)
+{
+	return syscall(SYS_DUP, fildes);
+}
+
 int dup2(int fildes, int fildes2)
 {
 	return syscall(SYS_DUP2, fildes, fildes2);
