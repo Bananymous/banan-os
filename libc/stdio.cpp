@@ -49,8 +49,23 @@ int fclose(FILE* file)
 	return 0;
 }
 
-// TODO
-FILE* fdopen(int, const char*);
+FILE* fdopen(int fd, const char* mode)
+{
+	// FIXME
+	(void)mode;
+
+	for (int i = 0; i < FOPEN_MAX; i++)
+	{
+		if (s_files[i].fd == -1)
+		{
+			s_files[i] = { .fd = fd };
+			return &s_files[i];
+		}
+	}
+	
+	errno = EMFILE;
+	return nullptr;
+}
 
 int feof(FILE* file)
 {
@@ -144,8 +159,12 @@ char* fgets(char* str, int size, FILE* file)
 	return str;
 }
 
-// TODO
-int fileno(FILE*);
+int fileno(FILE* fp)
+{
+	if (fp == nullptr)
+		return EBADF;
+	return fp->fd;
+}
 
 // TODO
 void flockfile(FILE*);
