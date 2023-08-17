@@ -85,6 +85,19 @@ namespace Kernel
 		return {};
 	}
 
+	BAN::ErrorOr<int> OpenFileDescriptorSet::dup(int fildes)
+	{
+		TRY(validate_fd(fildes));
+
+		int result = TRY(get_free_fd());
+		m_open_files[result] = m_open_files[fildes];
+		
+		if (m_open_files[result]->flags & O_WRONLY && m_open_files[result]->inode->is_pipe())
+			((Pipe*)m_open_files[result]->inode.ptr())->clone_writing();
+
+		return result;
+	}
+
 	BAN::ErrorOr<int> OpenFileDescriptorSet::dup2(int fildes, int fildes2)
 	{
 		if (fildes2 < 0 || fildes2 >= (int)m_open_files.size())

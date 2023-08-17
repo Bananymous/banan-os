@@ -25,6 +25,7 @@ namespace Kernel
 
 		BAN::ErrorOr<void> pipe(int fds[2]);
 
+		BAN::ErrorOr<int> dup(int);
 		BAN::ErrorOr<int> dup2(int, int);
 
 		BAN::ErrorOr<void> seek(int fd, off_t offset, int whence);

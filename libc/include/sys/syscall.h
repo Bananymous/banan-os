@@ -40,13 +40,14 @@ __BEGIN_DECLS
 #define SYS_SET_PWD 33
 #define SYS_CLOCK_GETTIME 34
 #define SYS_PIPE 35
-#define SYS_DUP2 36
-#define SYS_RAISE 37
-#define SYS_KILL 38
-#define SYS_SIGNAL 39
-#define SYS_SIGNAL_DONE 40
-#define SYS_TCSETPGRP 41
-#define SYS_GET_PID 42
+#define SYS_DUP 36
+#define SYS_DUP2 37
+#define SYS_RAISE 38
+#define SYS_KILL 39
+#define SYS_SIGNAL 40
+#define SYS_SIGNAL_DONE 41
+#define SYS_TCSETPGRP 42
+#define SYS_GET_PID 43
 
 __END_DECLS
 

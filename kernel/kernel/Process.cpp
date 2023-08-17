@@ -596,6 +596,12 @@ namespace Kernel
 		return 0;
 	}
 
+	BAN::ErrorOr<long> Process::sys_dup(int fildes)
+	{
+		LockGuard _(m_lock);
+		return TRY(m_open_file_descriptors.dup(fildes));
+	}
+
 	BAN::ErrorOr<long> Process::sys_dup2(int fildes, int fildes2)
 	{
 		LockGuard _(m_lock);
