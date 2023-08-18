@@ -308,7 +308,7 @@ extern "C" int printf_impl(const char* format, va_list arguments, int (*putc_fun
 		
 			// TODO: Lenght modifier
 
-			char conversion[1024];
+			char conversion[128];
 			const char* string = nullptr;
 
 			int length = -1;
