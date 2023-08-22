@@ -79,6 +79,7 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_setegid(gid_t);
 		BAN::ErrorOr<long> sys_setreuid(uid_t, uid_t);
 		BAN::ErrorOr<long> sys_setregid(gid_t, gid_t);
+		BAN::ErrorOr<long> sys_setpgrp();
 
 		BAN::ErrorOr<long> sys_getuid() const { return m_credentials.ruid(); }
 		BAN::ErrorOr<long> sys_getgid() const { return m_credentials.rgid(); }

@@ -1137,6 +1137,13 @@ namespace Kernel
 		return 0;
 	}
 
+	BAN::ErrorOr<long> Process::sys_setpgrp()
+	{
+		LockGuard _(m_lock);
+		m_pgrp = pid();
+		return pgrp();
+	}
+
 	BAN::ErrorOr<BAN::String> Process::absolute_path_of(BAN::StringView path) const
 	{
 		ASSERT(m_lock.is_locked());

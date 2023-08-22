@@ -48,6 +48,8 @@ __BEGIN_DECLS
 #define SYS_SIGNAL_DONE 41
 #define SYS_TCSETPGRP 42
 #define SYS_GET_PID 43
+#define SYS_GET_PGRP 44
+#define SYS_SET_PGRP 45
 
 __END_DECLS
 
