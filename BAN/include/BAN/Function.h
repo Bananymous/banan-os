@@ -43,10 +43,10 @@ namespace BAN
 			clear();
 		}
 
-		Ret operator()(Args... args)
+		Ret operator()(Args... args) const
 		{
 			ASSERT(*this);
-			return reinterpret_cast<CallableBase*>(m_storage)->call(forward<Args>(args)...);
+			return reinterpret_cast<const CallableBase*>(m_storage)->call(forward<Args>(args)...);
 		}
 
 		operator bool() const
@@ -70,7 +70,7 @@ namespace BAN
 		struct CallableBase
 		{
 			virtual ~CallableBase() {}
-			virtual Ret call(Args...) = 0;
+			virtual Ret call(Args...) const = 0;
 		};
 
 		struct CallablePointer : public CallableBase
@@ -79,7 +79,7 @@ namespace BAN
 				: m_function(function)
 			{ }
 
-			virtual Ret call(Args... args) override
+			virtual Ret call(Args... args) const override
 			{
 				return m_function(forward<Args>(args)...);
 			}
@@ -96,7 +96,7 @@ namespace BAN
 				, m_function(function)
 			{ }
 
-			virtual Ret call(Args... args) override
+			virtual Ret call(Args... args) const override
 			{
 				return (m_owner->*m_function)(forward<Args>(args)...);
 			}
@@ -114,7 +114,7 @@ namespace BAN
 				, m_function(function)
 			{ }
 
-			virtual Ret call(Args... args) override
+			virtual Ret call(Args... args) const override
 			{
 				return (m_owner->*m_function)(forward<Args>(args)...);
 			}
@@ -131,7 +131,7 @@ namespace BAN
 				: m_lambda(lambda)
 			{ }
 
-			virtual Ret call(Args... args) override
+			virtual Ret call(Args... args) const override
 			{
 				return m_lambda(forward<Args>(args)...);
 			}
