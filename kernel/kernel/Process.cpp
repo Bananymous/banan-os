@@ -911,7 +911,7 @@ namespace Kernel
 		for_each_process(
 			[&](Process& process)
 			{
-				if (pid == process.pid() || -pid == process.pid())
+				if (pid == process.pid() || -pid == process.pgrp())
 				{
 					found = true;
 					if (signal)
