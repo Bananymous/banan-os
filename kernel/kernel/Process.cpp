@@ -36,6 +36,21 @@ namespace Kernel
 		}
 	}
 
+	void Process::for_each_process_in_session(pid_t sid, const BAN::Function<BAN::Iteration(Process&)>& callback)
+	{
+		LockGuard _(s_process_lock);
+
+		for (auto* process : s_processes)
+		{
+			if (process->sid() != sid)
+				continue;
+			auto ret = callback(*process);
+			if (ret == BAN::Iteration::Break)
+				return;
+			ASSERT(ret == BAN::Iteration::Continue);
+		}
+	}
+
 	Process* Process::create_process(const Credentials& credentials, pid_t parent, pid_t sid, pid_t pgrp)
 	{
 		static pid_t s_next_id = 1;
