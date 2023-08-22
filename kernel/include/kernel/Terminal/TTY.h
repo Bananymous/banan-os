@@ -23,8 +23,8 @@ namespace Kernel
 		uint32_t height() const { return m_height; }
 		uint32_t width() const { return m_width; }
 
-		void set_foreground_process(pid_t pgid) { m_foreground_process = pgid; }
-		pid_t foreground_process() const { return m_foreground_process; }
+		void set_foreground_pgrp(pid_t pgrp) { m_foreground_pgrp = pgrp; }
+		pid_t foreground_pgrp() const { return m_foreground_pgrp; }
 
 		// for kprint
 		static void putchar_current(uint8_t ch);
@@ -97,7 +97,7 @@ namespace Kernel
 		TerminalDriver::Color m_foreground { TerminalColor::BRIGHT_WHITE };
 		TerminalDriver::Color m_background { TerminalColor::BLACK };
 
-		pid_t m_foreground_process { 0 };
+		pid_t m_foreground_pgrp { 0 };
 
 		termios m_termios;
 

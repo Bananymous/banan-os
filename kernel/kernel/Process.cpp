@@ -21,13 +21,43 @@ namespace Kernel
 {
 
 	static BAN::Vector<Process*> s_processes;
-	static SpinLock s_process_lock;
+	static RecursiveSpinLock s_process_lock;
 
-	Process* Process::create_process(const Credentials& credentials)
+	void Process::for_each_process(const BAN::Function<BAN::Iteration(Process&)>& callback)
 	{
-		static pid_t s_next_pid = 1;
-		auto* process = new Process(credentials, s_next_pid++);
+		LockGuard _(s_process_lock);
+
+		for (auto* process : s_processes)
+		{
+			auto ret = callback(*process);
+			if (ret == BAN::Iteration::Break)
+				return;
+			ASSERT(ret == BAN::Iteration::Continue);
+		}
+	}
+
+	Process* Process::create_process(const Credentials& credentials, pid_t parent, pid_t sid, pid_t pgrp)
+	{
+		static pid_t s_next_id = 1;
+
+		pid_t pid;
+		{
+			CriticalScope _;
+			pid = s_next_id;
+			if (sid == 0 && pgrp == 0)
+			{
+				sid = s_next_id;
+				pgrp = s_next_id;
+			}
+			s_next_id++;
+		}
+
+		ASSERT(sid > 0);
+		ASSERT(pgrp > 0);
+
+		auto* process = new Process(credentials, pid, parent, sid, pgrp);
 		ASSERT(process);
+
 		return process;
 	}
 
@@ -42,7 +72,7 @@ namespace Kernel
 
 	Process* Process::create_kernel(entry_t entry, void* data)
 	{
-		auto* process = create_process({ 0, 0, 0, 0 });
+		auto* process = create_process({ 0, 0, 0, 0 }, 0);
 		MUST(process->m_working_directory.push_back('/'));
 		auto* thread = MUST(Thread::create_kernel(entry, data, process));
 		process->add_thread(thread);
@@ -54,7 +84,7 @@ namespace Kernel
 	{
 		auto elf = TRY(load_elf_for_exec(credentials, path, "/"sv, {}));
 
-		auto* process = create_process(credentials);
+		auto* process = create_process(credentials, 0);
 		MUST(process->m_working_directory.push_back('/'));
 		process->m_page_table = BAN::UniqPtr<PageTable>::adopt(MUST(PageTable::create_userspace()));;
 
@@ -95,11 +125,13 @@ namespace Kernel
 		return process;
 	}
 
-	Process::Process(const Credentials& credentials, pid_t pid)
+	Process::Process(const Credentials& credentials, pid_t pid, pid_t parent, pid_t sid, pid_t pgrp)
 		: m_credentials(credentials)
 		, m_open_file_descriptors(m_credentials)
+		, m_sid(sid)
+		, m_pgrp(pgrp)
 		, m_pid(pid)
-		, m_tty(TTY::current())
+		, m_parent(parent)
 	{
 		for (size_t i = 0; i < sizeof(m_signal_handlers) / sizeof(*m_signal_handlers); i++)
 			m_signal_handlers[i] = (vaddr_t)SIG_DFL;
@@ -148,9 +180,6 @@ namespace Kernel
 		// NOTE: We must clear allocators while the page table is still alive
 		m_fixed_width_allocators.clear();
 		m_general_allocator.clear();
-
-		if (m_tty && m_tty->foreground_process() == pid())
-			m_tty->set_foreground_process(0);
 	}
 
 	void Process::on_thread_exit(Thread& thread)
@@ -198,10 +227,11 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_gettermios(::termios* termios)
 	{
 		LockGuard _(m_lock);
-		if (!m_tty)
+
+		if (!m_controlling_terminal)
 			return BAN::Error::from_errno(ENOTTY);
 		
-		Kernel::termios ktermios = m_tty->get_termios();
+		Kernel::termios ktermios = m_controlling_terminal->get_termios();
 		termios->c_lflag = 0;
 		if (ktermios.canonical)
 			termios->c_lflag |= ICANON;
@@ -214,14 +244,15 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_settermios(const ::termios* termios)
 	{
 		LockGuard _(m_lock);
-		if (!m_tty)
+
+		if (!m_controlling_terminal)
 			return BAN::Error::from_errno(ENOTTY);
 		
 		Kernel::termios ktermios;
 		ktermios.echo = termios->c_lflag & ECHO;
 		ktermios.canonical = termios->c_lflag & ICANON;
 		
-		m_tty->set_termios(ktermios);
+		m_controlling_terminal->set_termios(ktermios);
 		return 0;
 	}
 
@@ -325,8 +356,8 @@ namespace Kernel
 		if (m_general_allocator)
 			general_allocator = TRY(m_general_allocator->clone(*page_table));
 
-		Process* forked = create_process(m_credentials);
-		forked->m_tty = m_tty;
+		Process* forked = create_process(m_credentials, m_pid, m_sid, m_pgrp);
+		forked->m_controlling_terminal = m_controlling_terminal;
 		forked->m_working_directory = BAN::move(working_directory);
 		forked->m_page_table = BAN::move(page_table);
 		forked->m_open_file_descriptors = BAN::move(open_file_descriptors);
@@ -455,12 +486,17 @@ namespace Kernel
 		if (options)
 			return BAN::Error::from_errno(EINVAL);
 
-		{
-			LockGuard _(s_process_lock);
-			for (auto* process : s_processes)
-				if (process->pid() == pid)
-					target = process;
-		}
+		for_each_process(
+			[&](Process& process)
+			{
+				if (process.pid() == pid)
+				{
+					target = &process;
+					return BAN::Iteration::Break;
+				}
+				return BAN::Iteration::Continue;
+			}
+		);
 
 		if (target == nullptr)
 			return BAN::Error::from_errno(ECHILD);
@@ -555,7 +591,14 @@ namespace Kernel
 			flags &= ~O_CREAT;
 		}
 
-		return TRY(m_open_file_descriptors.open(absolute_path, flags));
+		int fd = TRY(m_open_file_descriptors.open(absolute_path, flags));
+		auto inode = MUST(m_open_file_descriptors.inode_of(fd));
+
+		// Open controlling terminal
+		if ((flags & O_TTY_INIT) && !(flags & O_NOCTTY) && inode->is_tty() && is_session_leader() && !m_controlling_terminal)
+			m_controlling_terminal = (TTY*)inode.ptr();
+
+		return fd;
 	}
 
 	BAN::ErrorOr<long> Process::sys_openat(int fd, BAN::StringView path, int flags, mode_t mode)
@@ -791,14 +834,18 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_termid(char* buffer) const
 	{
 		LockGuard _(m_lock);
-		if (!m_tty)
+
+		auto& tty = m_controlling_terminal;
+
+		if (!tty)
 			buffer[0] = '\0';
 		else
 		{
-			ASSERT(minor(m_tty->rdev()) < 10);
+			ASSERT(minor(tty->rdev()) < 10);
 			strcpy(buffer, "/dev/tty0");
-			buffer[8] += minor(m_tty->rdev());
+			buffer[8] += minor(tty->rdev());
 		}
+
 		return 0;
 	}
 
@@ -834,7 +881,7 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_kill(pid_t pid, int signal)
 	{
-		if (pid <= 0)
+		if (pid == 0 || pid == -1)
 			return BAN::Error::from_errno(ENOTSUP);
 		if (signal != 0 && (signal < _SIGMIN || signal > _SIGMAX))
 			return BAN::Error::from_errno(EINVAL);
@@ -842,19 +889,26 @@ namespace Kernel
 		if (pid == Process::current().pid())
 			return Process::current().sys_raise(signal);
 		
-		LockGuard process_guard(s_process_lock);
-		for (auto* process : s_processes)
-		{
-			if (process->pid() == pid)
+		bool found = false;
+		for_each_process(
+			[&](Process& process)
 			{
-				if (signal == 0)
-					return 0;
-				CriticalScope _;
-				process->m_signal_pending_mask |= 1ull << signal;
-				return 0;
+				if (pid == process.pid() || -pid == process.pid())
+				{
+					found = true;
+					if (signal)
+					{
+						CriticalScope _;
+						process.m_signal_pending_mask |= 1 << signal;
+					}
+					return (pid > 0) ? BAN::Iteration::Break : BAN::Iteration::Continue;
+				}
+				return BAN::Iteration::Continue;
 			}
-		}
+		);
 
+		if (found)
+			return 0;
 		return BAN::Error::from_errno(ESRCH);
 	}
 
@@ -869,31 +923,37 @@ namespace Kernel
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_tcsetpgrp(int fd, pid_t pgid)
+	BAN::ErrorOr<long> Process::sys_tcsetpgrp(int fd, pid_t pgrp)
 	{
 		LockGuard _(m_lock);
 
-		// FIXME: validate the inode
+		if (!m_controlling_terminal)
+			return BAN::Error::from_errno(ENOTTY);
+
+		bool valid_pgrp = false;
+		for_each_process(
+			[&](Process& process)
+			{
+				if (process.sid() == sid() && process.pgrp() == pgrp)
+				{
+					valid_pgrp = true;
+					return BAN::Iteration::Break;
+				}
+				return BAN::Iteration::Continue;
+			}
+		);
+		if (!valid_pgrp)
+			return BAN::Error::from_errno(EPERM);
+
 		auto inode = TRY(m_open_file_descriptors.inode_of(fd));
 		if (!inode->is_tty())
 			return BAN::Error::from_errno(ENOTTY);
+	
+		if ((TTY*)inode.ptr() != m_controlling_terminal.ptr())
+			return BAN::Error::from_errno(ENOTTY);
 
-		// FIXME: use process groups instead of process ids
-		// FIXME: return values
-
-		LockGuard process_guard(s_process_lock);
-		for (auto* process : s_processes)
-		{
-			if (process->pid() == pgid)
-			{
-				if (!process->is_userspace())
-					return BAN::Error::from_errno(EINVAL);
-				((TTY*)inode.ptr())->set_foreground_process(pgid);
-				return 0;
-			}
-		}
-
-		return BAN::Error::from_errno(EPERM);
+		((TTY*)inode.ptr())->set_foreground_pgrp(pgrp);
+		return 0;
 	}
 
 	BAN::ErrorOr<long> Process::sys_setuid(uid_t uid)

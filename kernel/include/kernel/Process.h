@@ -1,5 +1,6 @@
 #pragma once
 
+#include <BAN/Iteration.h>
 #include <BAN/String.h>
 #include <BAN/StringView.h>
 #include <BAN/Vector.h>
@@ -45,10 +46,16 @@ namespace Kernel
 
 		void exit(int status, int signal);
 
+		static void for_each_process(const BAN::Function<BAN::Iteration(Process&)>& callback);
+
 		void add_thread(Thread*);
 		void on_thread_exit(Thread&);
 
+		pid_t sid() const { return m_sid; }
+		pid_t pgrp() const { return m_pgrp; }
 		pid_t pid() const { return m_pid; }
+
+		bool is_session_leader() const { return pid() == sid(); }
 
 		BAN::ErrorOr<long> sys_exit(int status);
 
@@ -111,7 +118,7 @@ namespace Kernel
 
 		BAN::ErrorOr<long> sys_clock_gettime(clockid_t, timespec*) const;
 
-		TTY& tty() { ASSERT(m_tty); return *m_tty; }
+		TTY& tty() { ASSERT(m_controlling_terminal); return *m_controlling_terminal; }
 
 		static Process& current() { return Thread::current().process(); }
 
@@ -121,8 +128,8 @@ namespace Kernel
 		const userspace_info_t& userspace_info() const { return m_userspace_info; }
 
 	private:
-		Process(const Credentials&, pid_t);
-		static Process* create_process(const Credentials&);
+		Process(const Credentials&, pid_t pid, pid_t parent, pid_t sid, pid_t pgrp);
+		static Process* create_process(const Credentials&, pid_t parent, pid_t sid = 0, pid_t pgrp = 0);
 		static void register_process(Process*);
 
 		// Load an elf file to virtual address space of the current page table
@@ -150,9 +157,13 @@ namespace Kernel
 
 		BAN::Vector<BAN::UniqPtr<VirtualRange>> m_mapped_ranges;
 
+		pid_t m_sid;
+		pid_t m_pgrp;
+		const pid_t m_pid;
+		const pid_t m_parent;
+
 		mutable RecursiveSpinLock m_lock;
 
-		const pid_t m_pid = 0;
 		BAN::String m_working_directory;
 		BAN::Vector<Thread*> m_threads;
 
@@ -167,7 +178,7 @@ namespace Kernel
 		ExitStatus m_exit_status;
 
 		BAN::UniqPtr<PageTable> m_page_table;
-		BAN::RefPtr<TTY> m_tty;
+		BAN::RefPtr<TTY> m_controlling_terminal;
 
 		friend class Thread;
 	};
