@@ -381,6 +381,7 @@ namespace Kernel
 		forked->m_general_allocator = BAN::move(general_allocator);
 		forked->m_is_userspace = m_is_userspace;
 		forked->m_userspace_info = m_userspace_info;
+		forked->m_has_called_exec = false;
 		memcpy(forked->m_signal_handlers, m_signal_handlers, sizeof(m_signal_handlers));
 
 		ASSERT(this == &Process::current());
@@ -586,6 +587,8 @@ namespace Kernel
 				ASSERT_NOT_REACHED();
 			}
 		}
+
+		m_has_called_exec = true;
 	}
 
 	BAN::ErrorOr<long> Process::sys_open(BAN::StringView path, int flags, mode_t mode)

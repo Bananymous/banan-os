@@ -180,6 +180,8 @@ namespace Kernel
 		userspace_info_t m_userspace_info;
 		ExitStatus m_exit_status;
 
+		bool m_has_called_exec { false };
+
 		BAN::UniqPtr<PageTable> m_page_table;
 		BAN::RefPtr<TTY> m_controlling_terminal;
 
