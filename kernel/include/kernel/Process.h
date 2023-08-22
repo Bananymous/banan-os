@@ -80,12 +80,13 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_setegid(gid_t);
 		BAN::ErrorOr<long> sys_setreuid(uid_t, uid_t);
 		BAN::ErrorOr<long> sys_setregid(gid_t, gid_t);
-		BAN::ErrorOr<long> sys_setpgrp();
+		BAN::ErrorOr<long> sys_setpgid(pid_t, pid_t);
 
 		BAN::ErrorOr<long> sys_getuid() const { return m_credentials.ruid(); }
 		BAN::ErrorOr<long> sys_getgid() const { return m_credentials.rgid(); }
 		BAN::ErrorOr<long> sys_geteuid() const { return m_credentials.euid(); }
 		BAN::ErrorOr<long> sys_getegid() const { return m_credentials.egid(); }
+		BAN::ErrorOr<long> sys_getpgid(pid_t);
 
 		BAN::ErrorOr<long> sys_open(BAN::StringView, int, mode_t = 0);
 		BAN::ErrorOr<long> sys_openat(int, BAN::StringView, int, mode_t = 0);

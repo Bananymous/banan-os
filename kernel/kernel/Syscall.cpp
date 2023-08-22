@@ -173,11 +173,11 @@ namespace Kernel
 		case SYS_GET_PID:
 			ret = Process::current().pid();
 			break;
-		case SYS_GET_PGRP:
-			ret = Process::current().pgrp();
+		case SYS_GET_PGID:
+			ret = Process::current().sys_getpgid((pid_t)arg1);
 			break;
-		case SYS_SET_PGRP:
-			ret = Process::current().sys_setpgrp();
+		case SYS_SET_PGID:
+			ret = Process::current().sys_setpgid((pid_t)arg1, (pid_t)arg2);
 			break;
 		default:
 			dwarnln("Unknown syscall {}", syscall);
