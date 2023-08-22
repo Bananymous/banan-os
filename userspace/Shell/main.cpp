@@ -21,6 +21,8 @@ extern char** environ;
 static const char* argv0 = nullptr;
 static int last_return = 0;
 
+static BAN::String hostname;
+
 BAN::Vector<BAN::Vector<BAN::String>> parse_command(BAN::StringView);
 
 BAN::Optional<BAN::String> parse_dollar(BAN::StringView command, size_t& i)
@@ -646,6 +648,11 @@ BAN::String get_prompt()
 				endpwent();
 				break;
 			}
+			case 'h':
+			{
+				MUST(prompt.append(hostname));
+				break;
+			}
 			case '\0':
 				MUST(prompt.push_back('\\'));
 				break;
@@ -683,6 +690,23 @@ int main(int argc, char** argv)
 	if (signal(SIGINT, [](int) {}) == SIG_ERR)
 		perror("signal");
 
+	{
+		FILE* fp = fopen("/etc/hostname", "r");
+		if (fp != NULL)
+		{
+			char buffer[512];
+			while (size_t nbyte = fread(buffer, 1, sizeof(buffer), fp))
+			{
+				if (nbyte == 0)
+					break;
+				MUST(hostname.append(BAN::StringView(buffer, nbyte)));
+			}
+			fclose(fp);
+		}
+		if (!hostname.empty() && hostname.back() == '\n')
+			hostname.pop_back();
+	}
+
 	if (argc >= 2)
 	{
 		if (strcmp(argv[1], "-c") == 0)
@@ -706,7 +730,7 @@ int main(int argc, char** argv)
 
 	if (argc >= 1)
 		setenv("SHELL", argv[0], true);
-	setenv("PS1", "\e[32m\\u@host\e[m:\e[34m\\~\e[m$ ", false);
+	setenv("PS1", "\e[32m\\u@\\h\e[m:\e[34m\\~\e[m$ ", false);
 
 	tcgetattr(0, &old_termios);
 
