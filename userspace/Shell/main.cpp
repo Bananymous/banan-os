@@ -418,7 +418,7 @@ BAN::Optional<int> execute_builtin(BAN::Vector<BAN::String>& args, int fd_in, in
 	return 0;
 }
 
-pid_t execute_command_no_wait(BAN::Vector<BAN::String>& args, int fd_in, int fd_out, bool set_pgrp)
+pid_t execute_command_no_wait(BAN::Vector<BAN::String>& args, int fd_in, int fd_out, pid_t pgrp)
 {
 	if (args.empty())
 		return 0;
@@ -451,14 +451,22 @@ pid_t execute_command_no_wait(BAN::Vector<BAN::String>& args, int fd_in, int fd_
 			close(fd_out);
 		}
 
-		if (set_pgrp)
+		if (pgrp == 0)
 		{
-			pid_t pgrp = setpgrp();
-			if (tcsetpgrp(0, pgrp) == -1)
+			if(setpgid(0, 0) == -1)
+			{
+				perror("setpgid");
+				exit(1);
+			}
+			if (tcsetpgrp(0, getpgrp()) == -1)
 			{
 				perror("tcsetpgrp");
 				exit(1);
 			}
+		}
+		else
+		{
+			setpgid(0, pgrp);
 		}
 
 		execv(cmd_args.front(), cmd_args.data());
@@ -471,7 +479,7 @@ pid_t execute_command_no_wait(BAN::Vector<BAN::String>& args, int fd_in, int fd_
 
 int execute_command(BAN::Vector<BAN::String>& args, int fd_in, int fd_out)
 {
-	pid_t pid = execute_command_no_wait(args, fd_in, fd_out, true);
+	pid_t pid = execute_command_no_wait(args, fd_in, fd_out, 0);
 	if (pid == -1)
 		ERROR_RETURN("fork", 1);
 
@@ -503,6 +511,7 @@ int execute_piped_commands(BAN::Vector<BAN::Vector<BAN::String>>& commands)
 
 	BAN::Vector<int> exit_codes(commands.size(), 0);
 	BAN::Vector<pid_t> processes(commands.size(), -1);
+	pid_t pgrp = 0;
 
 	int next_stdin = STDIN_FILENO;
 	for (size_t i = 0; i < commands.size(); i++)
@@ -524,8 +533,10 @@ int execute_piped_commands(BAN::Vector<BAN::Vector<BAN::String>>& commands)
 			exit_codes[i] = builtin_ret.value();
 		else
 		{
-			pid_t pid = execute_command_no_wait(commands[i], next_stdin, pipefd[1], first);
+			pid_t pid = execute_command_no_wait(commands[i], next_stdin, pipefd[1], pgrp);
 			processes[i] = pid;
+			if (pgrp == 0)
+				pgrp = pid;
 		}
 
 		if (next_stdin != STDIN_FILENO)
