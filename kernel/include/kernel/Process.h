@@ -47,6 +47,7 @@ namespace Kernel
 		void exit(int status, int signal);
 
 		static void for_each_process(const BAN::Function<BAN::Iteration(Process&)>& callback);
+		static void for_each_process_in_session(pid_t sid, const BAN::Function<BAN::Iteration(Process&)>& callback);
 
 		void add_thread(Thread*);
 		void on_thread_exit(Thread&);
