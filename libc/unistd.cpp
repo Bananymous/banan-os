@@ -210,7 +210,12 @@ gid_t getegid(void)
 
 pid_t getpgrp(void)
 {
-	return syscall(SYS_GET_PGRP);
+	return getpgid(0);
+}
+
+pid_t getpgid(pid_t pid)
+{
+	return syscall(SYS_GET_PGID, pid);
 }
 
 int seteuid(uid_t uid)
@@ -245,7 +250,13 @@ int setregid(gid_t rgid, gid_t egid)
 
 pid_t setpgrp(void)
 {
-	return syscall(SYS_SET_PGRP);
+	setpgid(0, 0);
+	return getpgrp();
+}
+
+int setpgid(pid_t pid, pid_t pgid)
+{
+	return syscall(SYS_SET_PGID, pid, pgid);
 }
 
 int tcsetpgrp(int fildes, pid_t pgid_id)

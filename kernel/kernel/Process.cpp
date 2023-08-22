@@ -1152,11 +1152,104 @@ namespace Kernel
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_setpgrp()
+	BAN::ErrorOr<long> Process::sys_setpgid(pid_t pid, pid_t pgid)
+	{
+		if (pgid < 0)
+			return BAN::Error::from_errno(EINVAL);
+
+		LockGuard _(m_lock);
+
+		if (pid == 0)
+			pid = m_pid;
+		if (pgid == 0)
+			pgid = m_pid;
+
+		if (pid != pgid)
+		{
+			bool pgid_valid = false;
+			for_each_process_in_session(m_sid,
+				[&](Process& process)
+				{
+					if (process.pgrp() == pgid)
+					{
+						pgid_valid = true;
+						return BAN::Iteration::Break;
+					}
+					return BAN::Iteration::Continue;
+				}
+			);
+			if (!pgid_valid)
+				return BAN::Error::from_errno(EPERM);
+		}
+
+		if (m_pid == pid)
+		{
+			if (is_session_leader())
+				return BAN::Error::from_errno(EPERM);
+			m_pgrp = pgid;
+			return 0;
+		}
+
+		int error = ESRCH;
+		for_each_process(
+			[&](Process& process)
+			{
+				if (process.pid() != pid)
+					return BAN::Iteration::Continue;
+
+				if (process.m_parent != m_pid)
+					error = ESRCH;
+				else if (process.is_session_leader())
+					error = EPERM;
+				else if (process.m_has_called_exec)
+					error = EACCES;
+				else if (process.m_sid != m_sid)
+					error = EPERM;
+				else
+				{
+					error = 0;
+					process.m_pgrp = pgid;
+				}
+
+				return BAN::Iteration::Break;
+			}
+		);
+
+		if (error == 0)
+			return 0;
+		return BAN::Error::from_errno(error);
+	}
+
+	BAN::ErrorOr<long> Process::sys_getpgid(pid_t pid)
 	{
 		LockGuard _(m_lock);
-		m_pgrp = pid();
-		return pgrp();
+
+		if (pid == 0 || pid == m_pid)
+			return m_pgrp;
+
+		pid_t result;
+		int error = ESRCH;
+		for_each_process(
+			[&](Process& process)
+			{
+				if (process.pid() != pid)
+					return BAN::Iteration::Continue;
+
+				if (process.sid() != m_sid)
+					error = EPERM;
+				else
+				{
+					error = 0;
+					result = process.pgrp();
+				}
+
+				return BAN::Iteration::Break;
+			}
+		);
+
+		if (error == 0)
+			return result;
+		return BAN::Error::from_errno(error);
 	}
 
 	BAN::ErrorOr<BAN::String> Process::absolute_path_of(BAN::StringView path) const
