@@ -11,9 +11,8 @@
 
 void initialize_stdio()
 {
-	char tty[L_ctermid];
-	ctermid(tty);
-	if (open(tty, O_RDONLY) != 0) _exit(1);
+	const char* tty = "/dev/tty0";
+	if (open(tty, O_RDONLY | O_TTY_INIT) != 0) _exit(1);
 	if (open(tty, O_WRONLY) != 1) _exit(1);
 	if (open(tty, O_WRONLY) != 2) _exit(1);
 }
@@ -65,6 +64,13 @@ int main()
 		pid_t pid = fork();
 		if (pid == 0)
 		{
+			pid_t pgrp = setpgrp();
+			if (tcsetpgrp(0, pgrp) == -1)
+			{
+				perror("tcsetpgrp");
+				exit(1);
+			}
+
 			printf("Welcome back %s!\n", pwd->pw_name);
 
 			if (setgid(pwd->pw_gid) == -1)
@@ -89,13 +95,10 @@ int main()
 			break;
 		}
 
-		if (tcsetpgrp(0, pid) == -1)
-			perror("tcsetpgrp");
-
 		int status;
 		waitpid(pid, &status, 0);
 
-		if (tcsetpgrp(0, getpid()) == -1)
+		if (tcsetpgrp(0, getpgrp()) == -1)
 			perror("tcsetpgrp");
 	}
 

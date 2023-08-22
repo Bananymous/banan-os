@@ -418,7 +418,7 @@ BAN::Optional<int> execute_builtin(BAN::Vector<BAN::String>& args, int fd_in, in
 	return 0;
 }
 
-pid_t execute_command_no_wait(BAN::Vector<BAN::String>& args, int fd_in, int fd_out)
+pid_t execute_command_no_wait(BAN::Vector<BAN::String>& args, int fd_in, int fd_out, bool set_pgrp)
 {
 	if (args.empty())
 		return 0;
@@ -451,6 +451,16 @@ pid_t execute_command_no_wait(BAN::Vector<BAN::String>& args, int fd_in, int fd_
 			close(fd_out);
 		}
 
+		if (set_pgrp)
+		{
+			pid_t pgrp = setpgrp();
+			if (tcsetpgrp(0, pgrp) == -1)
+			{
+				perror("tcsetpgrp");
+				exit(1);
+			}
+		}
+
 		execv(cmd_args.front(), cmd_args.data());
 		perror("execv");
 		exit(1);
@@ -461,18 +471,15 @@ pid_t execute_command_no_wait(BAN::Vector<BAN::String>& args, int fd_in, int fd_
 
 int execute_command(BAN::Vector<BAN::String>& args, int fd_in, int fd_out)
 {
-	pid_t pid = execute_command_no_wait(args, fd_in, fd_out);
+	pid_t pid = execute_command_no_wait(args, fd_in, fd_out, true);
 	if (pid == -1)
 		ERROR_RETURN("fork", 1);
-
-	if (tcsetpgrp(0, pid) == -1)
-		ERROR_RETURN("tcsetpgrp", 1);
 
 	int status;
 	if (waitpid(pid, &status, 0) == -1)
 		ERROR_RETURN("waitpid", 1);
 
-	if (tcsetpgrp(0, getpid()) == -1)
+	if (tcsetpgrp(0, getpgrp()) == -1)
 		ERROR_RETURN("tcsetpgrp", 1);
 
 	if (WIFSIGNALED(status))
@@ -517,10 +524,8 @@ int execute_piped_commands(BAN::Vector<BAN::Vector<BAN::String>>& commands)
 			exit_codes[i] = builtin_ret.value();
 		else
 		{
-			pid_t pid = execute_command_no_wait(commands[i], next_stdin, pipefd[1]);
+			pid_t pid = execute_command_no_wait(commands[i], next_stdin, pipefd[1], first);
 			processes[i] = pid;
-			if (first && tcsetpgrp(0, pid) == -1)
-				ERROR_RETURN("tcsetpgrp", 1);
 		}
 
 		if (next_stdin != STDIN_FILENO)
@@ -550,7 +555,7 @@ int execute_piped_commands(BAN::Vector<BAN::Vector<BAN::String>>& commands)
 			exit_codes[i] = WEXITSTATUS(status);
 	}
 
-	if (tcsetpgrp(0, getpid()) == -1)
+	if (tcsetpgrp(0, getpgrp()) == -1)
 		ERROR_RETURN("tcsetpgrp", 1);
 
 	return exit_codes.back();
