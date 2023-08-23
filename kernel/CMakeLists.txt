@@ -144,18 +144,26 @@ endif()
 target_link_options(kernel PUBLIC -ffreestanding -nostdlib)
 
 add_custom_target(crt0
-	COMMAND ${CMAKE_CXX_COMPILER} -c ${CMAKE_CURRENT_SOURCE_DIR}/arch/${BANAN_ARCH}/crt0.S -o ${BANAN_LIB}/crt0.o
+	COMMAND ${CMAKE_CXX_COMPILER} -c ${CMAKE_CURRENT_SOURCE_DIR}/arch/${BANAN_ARCH}/crt0.S -o ${CMAKE_CURRENT_BINARY_DIR}/crt0.o
 	DEPENDS headers
 )
 
+add_custom_command(
+	TARGET crt0
+	POST_BUILD
+	COMMAND sudo cp ${CMAKE_CURRENT_BINARY_DIR}/crt0.o ${BANAN_LIB}/
+)
+
 add_custom_target(kernel-headers
-	COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different ${CMAKE_CURRENT_SOURCE_DIR}/include ${BANAN_INCLUDE}
+	COMMAND sudo rsync -r ${CMAKE_CURRENT_SOURCE_DIR}/include/ ${BANAN_INCLUDE}/
 	DEPENDS sysroot
+	USES_TERMINAL
 )
 
 add_custom_target(kernel-install
-	COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/kernel ${BANAN_BOOT}/banan-os.kernel
+	COMMAND sudo cp ${CMAKE_CURRENT_BINARY_DIR}/kernel ${BANAN_BOOT}/banan-os.kernel
 	DEPENDS kernel
+	USES_TERMINAL
 )
 
 execute_process(COMMAND ${CMAKE_CXX_COMPILER} -print-file-name=crtbegin.o OUTPUT_VARIABLE CRTBEGIN OUTPUT_STRIP_TRAILING_WHITESPACE)

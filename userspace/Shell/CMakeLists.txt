@@ -11,6 +11,7 @@ target_compile_options(Shell PUBLIC -O2 -g)
 target_link_libraries(Shell PUBLIC libc ban)
 
 add_custom_target(Shell-install
-	COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/Shell ${BANAN_BIN}/
+	COMMAND sudo cp ${CMAKE_CURRENT_BINARY_DIR}/Shell ${BANAN_BIN}/
 	DEPENDS Shell
+	USES_TERMINAL
 )

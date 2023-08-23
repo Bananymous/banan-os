@@ -1,5 +1,8 @@
 .vscode/
 .idea/
 build/
+base/
 *.tar.*
 toolchain/*/
+
+!base-sysroot.tar.gz

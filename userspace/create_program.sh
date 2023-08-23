@@ -20,8 +20,9 @@ target_compile_options($PROGRAM_NAME PUBLIC -O2 -g)
 target_link_libraries($PROGRAM_NAME PUBLIC libc)
 
 add_custom_target($PROGRAM_NAME-install
-	COMMAND cp \${CMAKE_CURRENT_BINARY_DIR}/$PROGRAM_NAME \${BANAN_BIN}/
+	COMMAND sudo cp \${CMAKE_CURRENT_BINARY_DIR}/$PROGRAM_NAME \${BANAN_BIN}/
 	DEPENDS $PROGRAM_NAME
+	USES_TERMINAL
 )
 EOF
 

@@ -11,6 +11,7 @@ target_compile_options(tee PUBLIC -O2 -g)
 target_link_libraries(tee PUBLIC libc)
 
 add_custom_target(tee-install
-	COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/tee ${BANAN_BIN}/
+	COMMAND sudo cp ${CMAKE_CURRENT_BINARY_DIR}/tee ${BANAN_BIN}/
 	DEPENDS tee
+	USES_TERMINAL
 )
