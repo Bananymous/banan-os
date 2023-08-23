@@ -19,6 +19,7 @@ endif()
 
 project(banan-os CXX)
 
+set(BANAN_BASE_SYSROOT ${CMAKE_SOURCE_DIR}/base-sysroot.tar.gz)
 set(BANAN_SYSROOT ${CMAKE_BINARY_DIR}/sysroot)
 set(BANAN_INCLUDE ${BANAN_SYSROOT}/usr/include)
 set(BANAN_LIB ${BANAN_SYSROOT}/usr/lib)
@@ -34,11 +35,7 @@ add_subdirectory(userspace)
 
 add_custom_target(sysroot
 	COMMAND mkdir -p ${BANAN_SYSROOT}
-	COMMAND mkdir -p ${BANAN_INCLUDE}
-	COMMAND mkdir -p ${BANAN_LIB}
-	COMMAND mkdir -p ${BANAN_BIN}
-	COMMAND mkdir -p ${BANAN_BOOT}
-	COMMAND cp -r ${CMAKE_SOURCE_DIR}/base/* ${BANAN_SYSROOT}/
+	COMMAND cd ${BANAN_SYSROOT} && sudo tar xf ${BANAN_BASE_SYSROOT}
 )
 
 add_custom_target(headers
@@ -66,6 +63,7 @@ add_custom_target(image
 	DEPENDS ban-install
 	DEPENDS libc-install
 	DEPENDS userspace-install
+	DEPENDS libelf-install
 	USES_TERMINAL
 )
 
@@ -75,6 +73,7 @@ add_custom_target(image-full
 	DEPENDS ban-install
 	DEPENDS libc-install
 	DEPENDS userspace-install
+	DEPENDS libelf-install
 	USES_TERMINAL
 )
 

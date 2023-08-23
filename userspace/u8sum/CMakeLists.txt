@@ -11,6 +11,7 @@ target_compile_options(u8sum PUBLIC -O2 -g)
 target_link_libraries(u8sum PUBLIC libc)
 
 add_custom_target(u8sum-install
-	COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/u8sum ${BANAN_BIN}/
+	COMMAND sudo cp ${CMAKE_CURRENT_BINARY_DIR}/u8sum ${BANAN_BIN}/
 	DEPENDS u8sum
+	USES_TERMINAL
 )

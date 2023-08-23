@@ -10,15 +10,17 @@ set(BAN_SOURCES
 )
 
 add_custom_target(ban-headers
-	COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different ${CMAKE_CURRENT_SOURCE_DIR}/include ${BANAN_INCLUDE}
+	COMMAND sudo rsync -r ${CMAKE_CURRENT_SOURCE_DIR}/include/ ${BANAN_INCLUDE}/
 	DEPENDS sysroot
+	USES_TERMINAL
 )
 
 add_library(ban ${BAN_SOURCES})
 add_dependencies(ban headers libc-install)
 
 add_custom_target(ban-install
-	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/libban.a ${BANAN_LIB}/
+	COMMAND sudo cp ${CMAKE_CURRENT_BINARY_DIR}/libban.a ${BANAN_LIB}/
 	DEPENDS ban
 	BYPRODUCTS ${BANAN_LIB}/libban.a
+	USES_TERMINAL
 )

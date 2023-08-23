@@ -11,6 +11,7 @@ target_compile_options(test PUBLIC -O2 -g)
 target_link_libraries(test PUBLIC libc)
 
 add_custom_target(test-install
-	COMMAND cp ${CMAKE_CURRENT_BINARY_DIR}/test ${BANAN_BIN}/
+	COMMAND sudo cp ${CMAKE_CURRENT_BINARY_DIR}/test ${BANAN_BIN}/
 	DEPENDS test
+	USES_TERMINAL
 )
