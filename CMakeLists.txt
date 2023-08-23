@@ -36,6 +36,7 @@ add_subdirectory(userspace)
 add_custom_target(sysroot
 	COMMAND mkdir -p ${BANAN_SYSROOT}
 	COMMAND cd ${BANAN_SYSROOT} && sudo tar xf ${BANAN_BASE_SYSROOT}
+	USES_TERMINAL
 )
 
 add_custom_target(headers
