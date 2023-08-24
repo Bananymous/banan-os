@@ -191,9 +191,6 @@ typedef struct
 #define SCNxMAX		__PRI64_PREFIX "x"
 #define SCNxPTR		__PRIPTR_PREFIX "x"
 
-#undef __PRI64_PREFIX
-#undef __PRIPTR_PREFIX
-
 intmax_t	imaxabs(intmax_t);
 imaxdiv_t	imaxdiv(intmax_t, intmax_t);
 intmax_t	strtoimax(const char* __restrict nptr, char** __restrict endptr, int base);
