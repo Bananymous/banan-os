@@ -48,6 +48,11 @@ namespace BAN
 		{
 			return (Kernel::ErrorCode)(m_error_code & ~kernel_error_mask);
 		}
+
+		bool is_kernel_error() const
+		{
+			return m_error_code & kernel_error_mask;
+		}
 #endif
 
 		uint64_t get_error_code() const { return m_error_code; }
