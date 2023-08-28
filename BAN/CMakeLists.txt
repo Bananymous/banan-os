@@ -10,7 +10,7 @@ set(BAN_SOURCES
 )
 
 add_custom_target(ban-headers
-	COMMAND sudo rsync -r ${CMAKE_CURRENT_SOURCE_DIR}/include/ ${BANAN_INCLUDE}/
+	COMMAND sudo rsync -a ${CMAKE_CURRENT_SOURCE_DIR}/include/ ${BANAN_INCLUDE}/
 	DEPENDS sysroot
 	USES_TERMINAL
 )
