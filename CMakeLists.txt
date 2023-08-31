@@ -78,6 +78,11 @@ add_custom_target(image-full
 	USES_TERMINAL
 )
 
+add_custom_target(check-fs
+	COMMAND ${CMAKE_COMMAND} -E env DISK_IMAGE_PATH="${DISK_IMAGE_PATH}" ${CMAKE_SOURCE_DIR}/check-fs.sh
+	USES_TERMINAL
+)
+
 add_custom_target(qemu
 	COMMAND ${CMAKE_COMMAND} -E env BANAN_ARCH="${BANAN_ARCH}" DISK_IMAGE_PATH="${DISK_IMAGE_PATH}" ${CMAKE_SOURCE_DIR}/qemu.sh
 	DEPENDS image
