@@ -49,6 +49,7 @@ namespace Kernel
 			bool ifdir()  const { return (mode & Mask::TYPE_MASK) == Mask::IFDIR; }
 			bool ifblk()  const { return (mode & Mask::TYPE_MASK) == Mask::IFBLK; }
 			bool ifreg()  const { return (mode & Mask::TYPE_MASK) == Mask::IFREG; }
+			bool ififo()  const { return (mode & Mask::TYPE_MASK) == Mask::IFIFO; }
 			bool iflnk()  const { return (mode & Mask::TYPE_MASK) == Mask::IFLNK; }
 			bool ifsock() const { return (mode & Mask::TYPE_MASK) == Mask::IFSOCK; }
 			mode_t mode;
