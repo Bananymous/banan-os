@@ -1,0 +1,67 @@
+#pragma once
+
+#include <BAN/String.h>
+#include <BAN/StringView.h>
+#include <kernel/FS/Ext2/Definitions.h>
+#include <kernel/FS/Inode.h>
+
+namespace Kernel
+{
+
+	class Ext2FS;
+
+	class Ext2Inode final : public Inode
+	{
+	public:
+		virtual ino_t ino() const override { return m_ino; };
+		virtual Mode mode() const override { return { m_inode.mode }; }
+		virtual nlink_t nlink() const override { return m_inode.links_count; }
+		virtual uid_t uid() const override { return m_inode.uid; }
+		virtual gid_t gid() const override { return m_inode.gid; }
+		virtual off_t size() const override { return m_inode.size; }
+		virtual timespec atime() const override { return timespec { .tv_sec = m_inode.atime, .tv_nsec = 0 }; }
+		virtual timespec mtime() const override { return timespec { .tv_sec = m_inode.mtime, .tv_nsec = 0 }; }
+		virtual timespec ctime() const override { return timespec { .tv_sec = m_inode.ctime, .tv_nsec = 0 }; }
+		virtual blksize_t blksize() const override;
+		virtual blkcnt_t blocks() const override;
+		virtual dev_t dev() const override { return 0; }
+		virtual dev_t rdev() const override { return 0; }
+
+		virtual BAN::ErrorOr<BAN::String> link_target() override;
+		
+		virtual BAN::ErrorOr<void> directory_read_next_entries(off_t, DirectoryEntryList*, size_t) override;
+		virtual BAN::ErrorOr<BAN::RefPtr<Inode>> directory_find_inode(BAN::StringView) override;
+
+		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t) override;
+		virtual BAN::ErrorOr<size_t> write(size_t, const void*, size_t) override;
+		virtual BAN::ErrorOr<void> truncate(size_t) override;
+
+		virtual BAN::ErrorOr<void> create_file(BAN::StringView, mode_t, uid_t, gid_t) override;
+
+	private:
+		BAN::ErrorOr<void> for_data_block_index(uint32_t, const BAN::Function<void(uint32_t&)>&, bool allocate);
+
+		BAN::ErrorOr<uint32_t> data_block_index(uint32_t);
+		BAN::ErrorOr<uint32_t> allocate_new_block();
+		BAN::ErrorOr<void> sync();
+
+		uint32_t block_group() const;
+
+	private:
+		Ext2Inode(Ext2FS& fs, Ext2::Inode inode, uint32_t ino)
+			: m_fs(fs)
+			, m_inode(inode)
+			, m_ino(ino)
+		{}
+		static BAN::ErrorOr<BAN::RefPtr<Inode>> create(Ext2FS&, uint32_t);
+
+	private:
+		Ext2FS& m_fs;
+		Ext2::Inode m_inode;
+		const uint32_t m_ino;
+
+		friend class Ext2FS;
+		friend class BAN::RefPtr<Ext2Inode>;
+	};
+
+}
