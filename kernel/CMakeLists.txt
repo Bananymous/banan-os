@@ -19,7 +19,8 @@ set(KERNEL_SOURCES
 	kernel/Errors.cpp
 	kernel/Font.cpp
 	kernel/FS/DevFS/FileSystem.cpp
-	kernel/FS/Ext2.cpp
+	kernel/FS/Ext2/FileSystem.cpp
+	kernel/FS/Ext2/Inode.cpp
 	kernel/FS/Inode.cpp
 	kernel/FS/Pipe.cpp
 	kernel/FS/RamFS/FileSystem.cpp

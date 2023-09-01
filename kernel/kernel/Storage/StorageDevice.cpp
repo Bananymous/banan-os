@@ -2,7 +2,6 @@
 #include <BAN/ScopeGuard.h>
 #include <BAN/StringView.h>
 #include <BAN/UTF8.h>
-#include <kernel/FS/Ext2.h>
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/PCI.h>
 #include <kernel/Storage/StorageDevice.h>

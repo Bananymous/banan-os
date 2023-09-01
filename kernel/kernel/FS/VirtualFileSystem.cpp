@@ -1,7 +1,7 @@
 #include <BAN/ScopeGuard.h>
 #include <BAN/StringView.h>
 #include <kernel/FS/DevFS/FileSystem.h>
-#include <kernel/FS/Ext2.h>
+#include <kernel/FS/Ext2/FileSystem.h>
 #include <kernel/FS/RamFS/FileSystem.h>
 #include <kernel/FS/RamFS/Inode.h>
 #include <kernel/FS/VirtualFileSystem.h>
