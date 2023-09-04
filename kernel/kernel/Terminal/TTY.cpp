@@ -308,7 +308,8 @@ flush:
 		static uint32_t last_y = -1;
 		if (last_x != uint32_t(-1) && last_y != uint32_t(-1))
 			render_from_buffer(last_x, last_y);
-		m_terminal_driver->set_cursor_position(x, y);
+		if (m_show_cursor)
+			m_terminal_driver->set_cursor_position(x, y);
 		last_x = m_column = x;
 		last_y = m_row = y;
 	}
@@ -348,6 +349,7 @@ flush:
 		m_ansi_state.index = 0;
 		m_ansi_state.nums[0] = -1;
 		m_ansi_state.nums[1] = -1;
+		m_ansi_state.question = false;
 		m_state = State::Normal;
 	}
 
@@ -500,6 +502,24 @@ flush:
 			case 'u':
 				m_row = m_saved_row;
 				m_column = m_saved_column;
+				return reset_ansi();
+
+			case '?':
+				if (m_ansi_state.index != 0 || m_ansi_state.nums[0] != -1)
+				{
+					dprintln("invalid ANSI CSI ?");
+					return reset_ansi();
+				}
+				m_ansi_state.question = true;
+				return;
+			case 'h':
+			case 'l':
+				if (!m_ansi_state.question || m_ansi_state.nums[0] != 25)
+				{
+					dprintln("invalid ANSI CSI ?{}{}", m_ansi_state.nums[0], (char)ch);
+					return reset_ansi();
+				}
+				m_show_cursor = (ch == 'h');
 				return reset_ansi();
 			default:
 				dprintln("Unsupported ANSI CSI character {}", ch);
