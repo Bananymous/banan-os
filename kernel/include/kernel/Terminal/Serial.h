@@ -18,14 +18,15 @@ namespace Kernel
 		void putchar(char);
 		char getchar();
 
+		bool is_valid() const { return m_port != 0; }
+
 		uint16_t port() const { return m_port; }
 		uint32_t width() const { return m_width; }
 		uint32_t height() const { return m_height; }
 
 	private:
-		static bool port_has_device(uint16_t);
+		static bool initialize_port(uint16_t, uint32_t baud);
 		bool initialize_size();
-		bool is_valid() const { return m_port != 0; }
 
 	private:
 		uint16_t m_port { 0 };

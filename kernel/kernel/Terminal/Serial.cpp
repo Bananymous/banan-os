@@ -1,10 +1,28 @@
 #include <BAN/Array.h>
 #include <kernel/FS/DevFS/FileSystem.h>
+#include <kernel/IDT.h>
+#include <kernel/InterruptController.h>
 #include <kernel/IO.h>
 #include <kernel/Terminal/Serial.h>
 
 #include <ctype.h>
 #include <sys/sysmacros.h>
+
+#define MAX_BAUD 115200
+
+#define DATA_BITS_5		(0b00 << 0)
+#define DATA_BITS_6		(0b01 << 0)
+#define DATA_BITS_7		(0b10 << 0)
+#define DATA_BITS_8		(0b11 << 0)
+
+#define STOP_BITS_1		(0b0 << 2)
+#define STOP_BITS_2		(0b1 << 2)
+
+#define PARITY_NONE		(0b000 << 3)
+#define PARITY_ODD		(0b001 << 3)
+#define PARITY_EVEN		(0b011 << 3)
+#define PARITY_MARK		(0b101 << 3)
+#define PARITY_SPACE	(0b111 << 3)
 
 namespace Kernel
 {
@@ -13,6 +31,21 @@ namespace Kernel
 	static BAN::Array<Serial, sizeof(s_serial_ports) / sizeof(*s_serial_ports)> s_serial_drivers;
 	static bool s_has_devices { false };
 
+	static void irq3_handler()
+	{
+		if (!s_serial_drivers[1].is_valid())
+			return;
+		uint8_t ch = IO::inb(s_serial_drivers[1].port());
+		Debug::putchar(ch);
+	}
+
+	static void irq4_handler()
+	{
+		if (!s_serial_drivers[0].is_valid())
+			return;
+		uint8_t ch = IO::inb(s_serial_drivers[0].port());
+		Debug::putchar(ch);
+	}
 
 	static dev_t next_rdev()
 	{
@@ -26,7 +59,7 @@ namespace Kernel
 		int count = 0;
 		for (size_t i = 0; i < s_serial_drivers.size(); i++)
 		{
-			if (port_has_device(s_serial_ports[i]))
+			if (initialize_port(s_serial_ports[i], 115200))
 			{
 				auto& driver = s_serial_drivers[i];
 				driver.m_port = s_serial_ports[i];
@@ -48,24 +81,28 @@ namespace Kernel
 				MUST(SerialTTY::create(serial));
 	}
 
-	bool Serial::port_has_device(uint16_t port)
+	bool Serial::initialize_port(uint16_t port, uint32_t baud)
 	{
-		IO::outb(port + 1, 0x00);	// Disable all interrupts
-		IO::outb(port + 3, 0x80);	// Enable DLAB (set baud rate divisor)
-		IO::outb(port + 0, 0x03);	// Set divisor to 3 (lo byte) 38400 baud
-		IO::outb(port + 1, 0x00);	//                  (hi byte)
-		IO::outb(port + 3, 0x03);	// 8 bits, no parity, one stop bit
-		IO::outb(port + 2, 0xC7);	// Enable FIFO, clear them, with 14-byte threshold
-		IO::outb(port + 4, 0x0B);	// IRQs enabled, RTS/DSR set
-		IO::outb(port + 4, 0x1E);	// Set in loopback mode, test the serial chip
-		IO::outb(port + 0, 0xAE);	// Test serial chip (send byte 0xAE and check if serial returns same byte)
+		// Disable interrupts
+		IO::outb(port + 1, 0x00);
 
-		// Check if serial is faulty (i.e: not same byte as sent)
+		// configure port
+		uint16_t divisor = MAX_BAUD / baud;
+		IO::outb(port + 3, 0x80);
+		IO::outb(port + 0, divisor & 0xFF);
+		IO::outb(port + 1, divisor >> 8);
+		IO::outb(port + 3, DATA_BITS_8 | STOP_BITS_1 | PARITY_NONE);
+
+		IO::outb(port + 2, 0xC7);
+		IO::outb(port + 4, 0x0B);
+
+		// Test loopback
+		IO::outb(port + 4, 0x1E);
+		IO::outb(port + 0, 0xAE);
 		if(IO::inb(port + 0) != 0xAE)
 			return false;
 
-		// If serial is not faulty set it in normal operation mode
-		// (not-loopback with IRQs enabled and OUT#1 and OUT#2 bits enabled)
+		// Set to normal mode
 		IO::outb(port + 4, 0x0F);
 
 		return true;
@@ -154,9 +191,23 @@ namespace Kernel
 		auto* tty = new SerialTTY(serial);
 		ASSERT(tty);
 
+		// Enable interrupts for COM1 and COM2
+		if (serial.port() == s_serial_ports[0])
+		{
+			IO::outb(serial.port() + 1, 1);
+			InterruptController::get().enable_irq(4);
+			IDT::register_irq_handler(4, irq4_handler);
+		}
+		else if (serial.port() == s_serial_ports[1])
+		{
+			IO::outb(serial.port() + 1, 1);
+			InterruptController::get().enable_irq(3);
+			IDT::register_irq_handler(3, irq3_handler);
+		}
+
 		ASSERT(minor(tty->rdev()) < 10);
 		char name[] = { 't', 't', 'y', 'S', (char)('0' + minor(tty->rdev())), '\0' };
-		
+
 		auto ref_ptr = BAN::RefPtr<SerialTTY>::adopt(tty);
 		DevFileSystem::get().add_device(name, ref_ptr);
 		return ref_ptr;
