@@ -97,4 +97,24 @@ namespace Kernel
 		friend class RamFileSystem;
 	};
 
+	class RamSymlinkInode final : public RamInode
+	{
+	public:
+		static BAN::ErrorOr<BAN::RefPtr<RamSymlinkInode>> create(RamFileSystem&, BAN::StringView target, mode_t, uid_t, gid_t);
+		~RamSymlinkInode() = default;
+
+		virtual off_t size() const override { return m_target.size(); }
+
+		virtual BAN::ErrorOr<BAN::String> link_target() override;
+		BAN::ErrorOr<void> set_link_target(BAN::StringView);
+
+	private:
+		RamSymlinkInode(RamFileSystem&, mode_t, uid_t, gid_t);
+
+	private:
+		BAN::String m_target;
+	
+		friend class RamFileSystem;
+	};
+
 }

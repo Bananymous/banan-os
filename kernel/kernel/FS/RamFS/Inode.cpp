@@ -214,4 +214,40 @@ namespace Kernel
 		return {};
 	}
 
+	/*
+	
+		RAM SYMLINK INODE
+
+	*/
+
+	BAN::ErrorOr<BAN::RefPtr<RamSymlinkInode>> RamSymlinkInode::create(RamFileSystem& fs, BAN::StringView target, mode_t mode, uid_t uid, gid_t gid)
+	{
+		ASSERT(Mode{ mode }.iflnk());
+		auto* ram_inode = new RamSymlinkInode(fs, mode, uid, gid);
+		if (ram_inode == nullptr)
+			return BAN::Error::from_errno(ENOMEM);
+		auto ref_ptr = BAN::RefPtr<RamSymlinkInode>::adopt(ram_inode);
+		TRY(ref_ptr->set_link_target(target));
+		return ref_ptr;
+	}
+
+	RamSymlinkInode::RamSymlinkInode(RamFileSystem& fs, mode_t mode, uid_t uid, gid_t gid)
+		: RamInode(fs, mode, uid, gid)
+	{ }
+
+	BAN::ErrorOr<BAN::String> RamSymlinkInode::link_target()
+	{
+		BAN::String result;
+		TRY(result.append(m_target));
+		return result;
+	}
+
+	BAN::ErrorOr<void> RamSymlinkInode::set_link_target(BAN::StringView target)
+	{
+		BAN::String temp;
+		TRY(temp.append(target));
+		m_target = BAN::move(temp);
+		return {};
+	}
+
 }
