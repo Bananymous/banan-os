@@ -204,3 +204,32 @@ void free(void* ptr)
 		return;
 	syscall(SYS_FREE, ptr);
 }
+
+
+// Constants and algorithm from https://en.wikipedia.org/wiki/Permuted_congruential_generator
+
+static uint64_t s_rand_state = 0x4d595df4d0f33173;
+static constexpr uint64_t s_rand_multiplier = 6364136223846793005;
+static constexpr uint64_t s_rand_increment = 1442695040888963407;
+
+static constexpr uint32_t rotr32(uint32_t x, unsigned r)
+{
+	return x >> r | x << (-r & 31);
+}
+
+int rand(void)
+{
+	uint64_t x = s_rand_state;
+	unsigned count = (unsigned)(x >> 59);
+
+	s_rand_state = x * s_rand_multiplier + s_rand_increment;
+	x ^= x >> 18;
+
+	return rotr32(x >> 27, count) % RAND_MAX;
+}
+
+void srand(unsigned int seed)
+{
+	s_rand_state = seed + s_rand_increment;
+	(void)rand();
+}
