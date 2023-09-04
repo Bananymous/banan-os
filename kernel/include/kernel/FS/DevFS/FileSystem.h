@@ -16,7 +16,7 @@ namespace Kernel
 	
 		void add_device(BAN::StringView path, BAN::RefPtr<Device>);
 
-		dev_t get_next_rdev();
+		dev_t get_next_dev();
 
 	private:
 		DevFileSystem(size_t size)

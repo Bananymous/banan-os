@@ -11,7 +11,7 @@ namespace Kernel
 
 	ATADevice::ATADevice(ATABus& bus)
 		: m_bus(bus)
-		, m_rdev(makedev(DevFileSystem::get().get_next_rdev(), 0))
+		, m_rdev(makedev(DevFileSystem::get().get_next_dev(), 0))
 	{ }
 
 	BAN::ErrorOr<void> ATADevice::initialize(ATABus::DeviceType type, const uint16_t* identify_buffer)

@@ -47,7 +47,7 @@ namespace Kernel
 	}
 
 	ATAController::ATAController()
-		: m_rdev(makedev(DevFileSystem::get().get_next_rdev(), 0))
+		: m_rdev(makedev(DevFileSystem::get().get_next_dev(), 0))
 	{ }
 
 	BAN::ErrorOr<void> ATAController::initialize(const PCIDevice& pci_device)
