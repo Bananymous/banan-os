@@ -16,9 +16,9 @@
 #include <kernel/PIC.h>
 #include <kernel/Process.h>
 #include <kernel/Scheduler.h>
-#include <kernel/Serial.h>
 #include <kernel/Syscall.h>
-#include <kernel/Terminal/TTY.h>
+#include <kernel/Terminal/Serial.h>
+#include <kernel/Terminal/VirtualTTY.h>
 #include <kernel/Terminal/VesaTerminalDriver.h>
 #include <kernel/Timer/Timer.h>
 
@@ -28,6 +28,7 @@ struct ParsedCommandLine
 {
 	bool force_pic		= false;
 	bool disable_serial	= false;
+	BAN::StringView console = "tty0"sv;
 	BAN::StringView root;
 };
 
@@ -72,28 +73,9 @@ static void parse_command_line()
 			cmdline.disable_serial = true;
 		else if (argument.size() > 5 && argument.substring(0, 5) == "root=")
 			cmdline.root = argument.substring(5);
+		else if (argument.size() > 8 && argument.substring(0, 8) == "console=")
+			cmdline.console = argument.substring(8);
 	}
-}
-
-struct Test
-{
-	Test()							{ dprintln("construct (default)"); }
-	Test(const Test&)				{ dprintln("construct (copy)"); }
-	Test(Test&&)					{ dprintln("construct (move)"); }
-	~Test()							{ dprintln("destruct"); }
-	Test& operator=(const Test&)	{ dprintln("assign (copy)"); return *this; }
-	Test& operator=(Test&&)			{ dprintln("assign (move)"); return *this; }
-};
-
-namespace BAN::Formatter
-{
-
-	template<typename F>
-	void print_argument(F putc, const Test& test, const ValueFormat& format)
-	{
-		print_argument(putc, &test, format);
-	}
-
 }
 
 extern "C" uint8_t g_userspace_start[];
@@ -112,7 +94,7 @@ extern "C" void kernel_main()
 		Serial::initialize();
 		dprintln("Serial output initialized");
 	}
-	
+
 	if (g_multiboot_magic != 0x2BADB002)
 	{
 		dprintln("Invalid multiboot magic number");
@@ -134,15 +116,11 @@ extern "C" void kernel_main()
 	Heap::initialize();
 	dprintln("Heap initialzed");
 
-	TerminalDriver* terminal_driver = VesaTerminalDriver::create();
-	ASSERT(terminal_driver);
-	dprintln("VESA initialized");
+	parse_command_line();
+	dprintln("command line parsed, root='{}', console='{}'", cmdline.root, cmdline.console);
 
 	MUST(ACPI::initialize());
 	dprintln("ACPI initialized");
-
-	parse_command_line();
-	dprintln("command line parsed, root='{}'", cmdline.root);
 
 	InterruptController::initialize(cmdline.force_pic);
 	dprintln("Interrupt controller initialized");
@@ -153,21 +131,34 @@ extern "C" void kernel_main()
 	DevFileSystem::initialize();
 	dprintln("devfs initialized");
 
-	TTY* tty1 = new TTY(terminal_driver);
-	ASSERT(tty1);
-	dprintln("TTY initialized");
+	if (Serial::has_devices())
+	{
+		Serial::initialize_devices();
+		dprintln("Serial devices initialized");
+	}
+
+	TerminalDriver* terminal_driver = VesaTerminalDriver::create();
+	ASSERT(terminal_driver);
+	dprintln("VESA initialized");
+
+	auto vtty = MUST(VirtualTTY::create(terminal_driver));
+	dprintln("Virtual TTY initialized");
+
+	auto console = MUST(DevFileSystem::get().root_inode()->directory_find_inode(cmdline.console));
+	ASSERT(console->is_tty());
+	((TTY*)console.ptr())->set_as_current();
 
 	MUST(Scheduler::initialize());
 	dprintln("Scheduler initialized");
 
 	Scheduler& scheduler = Scheduler::get();
-	Process::create_kernel(init2, tty1);
+	Process::create_kernel(init2, nullptr);
 	scheduler.start();
 
 	ASSERT_NOT_REACHED();
 }
 
-static void init2(void* tty1)
+static void init2(void*)
 {
 	using namespace Kernel;
 	using namespace Kernel::Input;
@@ -184,7 +175,7 @@ static void init2(void* tty1)
 	if (auto res = PS2Controller::initialize(); res.is_error())
 		dprintln("{}", res.error());
 
-	((TTY*)tty1)->initialize_device();
+	TTY::initialize_devices();
 
 	MUST(Process::create_userspace({ 0, 0, 0, 0 }, "/usr/bin/init"sv));
 }

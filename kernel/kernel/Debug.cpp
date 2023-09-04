@@ -1,8 +1,8 @@
 #include <kernel/Debug.h>
 #include <kernel/InterruptController.h>
 #include <kernel/Memory/PageTable.h>
-#include <kernel/Serial.h>
 #include <kernel/SpinLock.h>
+#include <kernel/Terminal/Serial.h>
 #include <kernel/Terminal/TTY.h>
 #include <kernel/Timer/Timer.h>
 

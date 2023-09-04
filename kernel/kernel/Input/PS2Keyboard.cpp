@@ -54,7 +54,7 @@ namespace Kernel::Input
 
 	PS2Keyboard::PS2Keyboard(PS2Controller& controller)
 		: m_controller(controller)
-		, m_rdev(makedev(DevFileSystem::get().get_next_rdev(), 0))
+		, m_rdev(makedev(DevFileSystem::get().get_next_dev(), 0))
 	{ }
 
 	void PS2Keyboard::on_byte(uint8_t byte)

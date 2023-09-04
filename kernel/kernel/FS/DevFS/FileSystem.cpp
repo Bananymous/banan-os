@@ -58,10 +58,10 @@ namespace Kernel
 		MUST(reinterpret_cast<RamDirectoryInode*>(root_inode().ptr())->add_inode(path, device));
 	}
 
-	dev_t DevFileSystem::get_next_rdev()
+	dev_t DevFileSystem::get_next_dev()
 	{
-		static dev_t next_rdev = 1;
-		return next_rdev++;
+		static dev_t next_dev = 1;
+		return next_dev++;
 	}
 
 }

@@ -44,7 +44,6 @@ set(KERNEL_SOURCES
 	kernel/Process.cpp
 	kernel/Scheduler.cpp
 	kernel/Semaphore.cpp
-	kernel/Serial.cpp
 	kernel/SpinLock.cpp
 	kernel/SSP.cpp
 	kernel/Storage/ATABus.cpp
@@ -54,8 +53,10 @@ set(KERNEL_SOURCES
 	kernel/Storage/StorageDevice.cpp
 	kernel/Syscall.cpp
 	kernel/Syscall.S
+	kernel/Terminal/Serial.cpp
 	kernel/Terminal/TTY.cpp
 	kernel/Terminal/VesaTerminalDriver.cpp
+	kernel/Terminal/VirtualTTY.cpp
 	kernel/Thread.cpp
 	kernel/Timer/HPET.cpp
 	kernel/Timer/PIT.cpp

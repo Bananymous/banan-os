@@ -10,18 +10,13 @@
 
 namespace Kernel
 {
-	
+
 	class TTY : public CharacterDevice
 	{
 	public:
-		TTY(TerminalDriver*);
-
 		void set_termios(const termios& termios) { m_termios = termios; }
 		termios get_termios() const { return m_termios; }	
-		void set_font(const Kernel::Font&);
-
-		uint32_t height() const { return m_height; }
-		uint32_t width() const { return m_width; }
+		virtual void set_font(const Font&) {};
 
 		void set_foreground_pgrp(pid_t pgrp) { m_foreground_pgrp = pgrp; }
 		pid_t foreground_pgrp() const { return m_foreground_pgrp; }
@@ -30,79 +25,39 @@ namespace Kernel
 		static void putchar_current(uint8_t ch);
 		static bool is_initialized();
 		static BAN::RefPtr<TTY> current();
+		void set_as_current();
 
-		void initialize_device();
+		static void initialize_devices();
+		void on_key_event(Input::KeyEvent);
+
+		virtual bool is_tty() const override { return true; }
 
 		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t) override;
 		virtual BAN::ErrorOr<size_t> write(size_t, const void*, size_t) override;
-		virtual bool has_data() const override;
+
+		virtual uint32_t height() const = 0;
+		virtual uint32_t width() const = 0;
+		virtual void putchar(uint8_t ch) = 0;
+
+		bool has_data() const;
+
+	protected:
+		TTY(mode_t mode, uid_t uid, gid_t gid)
+			: CharacterDevice(mode, uid, gid)
+		{ }
 
 	private:
-		void clear();
-		void putchar(uint8_t ch);
-		void reset_ansi();
-		void handle_ansi_csi(uint8_t ch);
-		void handle_ansi_csi_color();
-		void putchar_at(uint32_t codepoint, uint32_t x, uint32_t y);
-		void render_from_buffer(uint32_t x, uint32_t y);
-		void set_cursor_position(uint32_t x, uint32_t y);
-
-		void on_key(Input::KeyEvent);
 		void do_backspace();
 
-	private:
-		enum class State
-		{
-			Normal,
-			WaitingAnsiEscape,
-			WaitingAnsiCSI,
-			WaitingUTF8,
-		};
-
-		struct AnsiState
-		{
-			int32_t nums[2]	{ -1, -1 };
-			int32_t index { 0 };
-			bool question { false };
-		};
-
-		struct UTF8State
-		{
-			uint32_t codepoint { 0 };
-			uint8_t bytes_missing { 0 };
-		};
-
-		struct Cell
-		{
-			TerminalDriver::Color foreground { TerminalColor::BRIGHT_WHITE };
-			TerminalDriver::Color background { TerminalColor::BLACK };
-			uint32_t codepoint { ' ' };
-		};
-
-	private:
+	protected:
 		mutable Kernel::SpinLock m_lock;
-
-		State m_state { State::Normal };
-		AnsiState m_ansi_state { };
-		UTF8State m_utf8_state { };
-
-		uint32_t m_width { 0 };
-		uint32_t m_height { 0 };
-
-		uint32_t m_saved_row { 0 };
-		uint32_t m_saved_column { 0 };
-
-		uint32_t m_row { 0 };
-		uint32_t m_column { 0 };
-		Cell* m_buffer { nullptr };
-		bool m_show_cursor { true };
 
 		TerminalDriver::Color m_foreground { TerminalColor::BRIGHT_WHITE };
 		TerminalDriver::Color m_background { TerminalColor::BLACK };
-
-		pid_t m_foreground_pgrp { 0 };
-
 		termios m_termios;
+
+	private:
+		pid_t m_foreground_pgrp { 0 };
 
 		struct Buffer
 		{
@@ -112,15 +67,6 @@ namespace Kernel
 			Semaphore semaphore;
 		};
 		Buffer m_output;
-
-		TerminalDriver* m_terminal_driver { nullptr };
-
-	public:
-		virtual dev_t rdev() const override { return m_rdev; }
-		virtual bool is_tty() const override { return true; }
-
-	private:
-		dev_t m_rdev;
 	};
 
 }
