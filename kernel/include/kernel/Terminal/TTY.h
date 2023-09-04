@@ -63,6 +63,7 @@ namespace Kernel
 		{
 			int32_t nums[2]	{ -1, -1 };
 			int32_t index { 0 };
+			bool question { false };
 		};
 
 		struct UTF8State
@@ -94,6 +95,7 @@ namespace Kernel
 		uint32_t m_row { 0 };
 		uint32_t m_column { 0 };
 		Cell* m_buffer { nullptr };
+		bool m_show_cursor { true };
 
 		TerminalDriver::Color m_foreground { TerminalColor::BRIGHT_WHITE };
 		TerminalDriver::Color m_background { TerminalColor::BLACK };
