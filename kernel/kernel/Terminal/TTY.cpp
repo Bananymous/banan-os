@@ -132,11 +132,16 @@ namespace Kernel
 			}
 		}
 
-		const uint8_t* ansi = (const uint8_t*)ansi_c_str;
+		handle_input((const uint8_t*)ansi_c_str);
+	}
+
+	void TTY::handle_input(const uint8_t* ansi)
+	{
+		LockGuard _(m_lock);
 
 		bool eof = ansi && (
-			ansi[0] == '\x04' || // ^D
-			ansi[0] == '\n'      // \n
+			ansi[0] == '\x04' ||	// ^D
+			ansi[0] == '\n'			// \n
 		);
 
 		if (ansi && m_termios.canonical)
