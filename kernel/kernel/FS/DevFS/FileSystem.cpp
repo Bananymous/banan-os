@@ -52,7 +52,7 @@ namespace Kernel
 		);
 	}
 
-	void DevFileSystem::add_device(BAN::StringView path, BAN::RefPtr<Device> device)
+	void DevFileSystem::add_device(BAN::StringView path, BAN::RefPtr<RamInode> device)
 	{
 		ASSERT(!path.contains('/'));
 		MUST(reinterpret_cast<RamDirectoryInode*>(root_inode().ptr())->add_inode(path, device));

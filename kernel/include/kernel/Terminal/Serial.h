@@ -45,11 +45,15 @@ namespace Kernel
 	
 		virtual void update() override;
 
+	protected:
+		virtual BAN::StringView name() const override { return m_name; }
+
 	private:
 		SerialTTY(Serial);
 		bool initialize();
 
 	private:
+		BAN::String m_name;
 		Serial m_serial;
 	
 	public:

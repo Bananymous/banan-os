@@ -25,6 +25,20 @@ namespace Kernel
 	void TTY::set_as_current()
 	{
 		s_tty = this;
+
+		auto inode_or_error = DevFileSystem::get().root_inode()->directory_find_inode("tty");
+		if (inode_or_error.is_error())
+		{
+			if (inode_or_error.error().get_error_code() == ENOENT)
+				DevFileSystem::get().add_device("tty"sv, MUST(RamSymlinkInode::create(DevFileSystem::get(), s_tty->name(), S_IFLNK | 0666, 0, 0)));
+			else
+				dwarnln("{}", inode_or_error.error());
+			return;
+		}
+
+		auto inode = inode_or_error.release_value();
+		if (inode->mode().iflnk())
+			MUST(((RamSymlinkInode*)inode.ptr())->set_link_target(name()));
 	}
 
 	void TTY::initialize_devices()

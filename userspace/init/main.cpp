@@ -11,7 +11,7 @@
 
 void initialize_stdio()
 {
-	const char* tty = "/dev/tty0";
+	const char* tty = "/dev/tty";
 	if (open(tty, O_RDONLY | O_TTY_INIT) != 0) _exit(1);
 	if (open(tty, O_WRONLY) != 1) _exit(1);
 	if (open(tty, O_WRONLY) != 2) _exit(1);

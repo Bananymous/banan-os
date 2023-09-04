@@ -207,7 +207,9 @@ namespace Kernel
 		: TTY(0660, 0, 0)
 		, m_serial(serial)
 		, m_rdev(next_rdev())
-	{}
+	{
+		m_name = BAN::String::formatted("ttyS{}", minor(rdev()));
+	}
 
 	BAN::ErrorOr<BAN::RefPtr<SerialTTY>> SerialTTY::create(Serial serial)
 	{
@@ -228,11 +230,8 @@ namespace Kernel
 			IDT::register_irq_handler(COM2_IRQ, irq3_handler);
 		}
 
-		ASSERT(minor(tty->rdev()) < 10);
-		char name[] = { 't', 't', 'y', 'S', (char)('0' + minor(tty->rdev())), '\0' };
-
 		auto ref_ptr = BAN::RefPtr<SerialTTY>::adopt(tty);
-		DevFileSystem::get().add_device(name, ref_ptr);
+		DevFileSystem::get().add_device(ref_ptr->name(), ref_ptr);
 		if (serial.port() == COM1_PORT)
 			s_com1 = ref_ptr;
 		if (serial.port() == COM2_PORT)

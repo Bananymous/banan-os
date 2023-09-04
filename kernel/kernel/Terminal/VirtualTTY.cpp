@@ -36,11 +36,8 @@ namespace Kernel
 		auto* tty = new VirtualTTY(driver);
 		ASSERT(tty);
 
-		ASSERT(minor(tty->rdev()) < 10);
-		char name[5] { 't', 't', 'y', (char)('0' + minor(tty->rdev())), '\0' };
-
 		auto ref_ptr = BAN::RefPtr<VirtualTTY>::adopt(tty);
-		DevFileSystem::get().add_device(name, ref_ptr);
+		DevFileSystem::get().add_device(ref_ptr->name(), ref_ptr);
 		return ref_ptr;
 	}
 
@@ -49,6 +46,8 @@ namespace Kernel
 		, m_terminal_driver(driver)
 		, m_rdev(next_rdev())
 	{
+		m_name = BAN::String::formatted("tty{}", minor(rdev()));
+
 		m_width = m_terminal_driver->width();
 		m_height = m_terminal_driver->height();
 
