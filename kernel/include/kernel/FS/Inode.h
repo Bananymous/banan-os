@@ -87,6 +87,7 @@ namespace Kernel
 
 		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t)		{ if (mode().ifdir()) return BAN::Error::from_errno(EISDIR); ASSERT_NOT_REACHED(); }
 		virtual BAN::ErrorOr<size_t> write(size_t, const void*, size_t)	{ if (mode().ifdir()) return BAN::Error::from_errno(EISDIR); ASSERT_NOT_REACHED(); }
+		virtual bool has_data() const									{ dwarnln("nonblock not supported"); return true; }
 		
 		virtual BAN::ErrorOr<void> truncate(size_t) { if (mode().ifdir()) return BAN::Error::from_errno(EISDIR); return BAN::Error::from_errno(ENOTSUP); }
 

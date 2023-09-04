@@ -679,6 +679,12 @@ flush:
 		return count;
 	}
 
+	bool TTY::has_data() const
+	{
+		LockGuard _(m_lock);
+		return m_output.flush;
+	}
+
 	void TTY::putchar_current(uint8_t ch)
 	{
 		ASSERT(s_tty);
