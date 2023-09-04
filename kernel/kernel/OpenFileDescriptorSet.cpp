@@ -118,6 +118,32 @@ namespace Kernel
 		return fildes;
 	}
 
+	BAN::ErrorOr<int> OpenFileDescriptorSet::fcntl(int fd, int cmd, int extra)
+	{
+		TRY(validate_fd(fd));
+
+		constexpr int creation_flags = O_CLOEXEC | O_CREAT | O_DIRECTORY | O_EXCL | O_NOCTTY | O_NOFOLLOW | O_TRUNC | O_TTY_INIT;
+
+		switch (cmd)
+		{
+			case F_GETFD:
+				return m_open_files[fd]->flags;
+			case F_SETFD:
+				// FIXME: validate permissions to set access flags
+				m_open_files[fd]->flags = extra;
+				return 0;
+			case F_GETFL:
+				return m_open_files[fd]->flags & ~creation_flags;
+			case F_SETFL:
+				m_open_files[fd]->flags |= extra & ~(O_ACCMODE | creation_flags);
+				return 0;
+			default:
+				break;
+		}
+		
+		return BAN::Error::from_errno(ENOTSUP);
+	}
+
 	BAN::ErrorOr<void> OpenFileDescriptorSet::seek(int fd, off_t offset, int whence)
 	{
 		TRY(validate_fd(fd));

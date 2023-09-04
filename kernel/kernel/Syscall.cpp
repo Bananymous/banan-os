@@ -179,6 +179,9 @@ namespace Kernel
 		case SYS_SET_PGID:
 			ret = Process::current().sys_setpgid((pid_t)arg1, (pid_t)arg2);
 			break;
+		case SYS_FCNTL:
+			ret = Process::current().sys_fcntl((int)arg1, (int)arg2, (int)arg3);
+			break;
 		default:
 			dwarnln("Unknown syscall {}", syscall);
 			break;
