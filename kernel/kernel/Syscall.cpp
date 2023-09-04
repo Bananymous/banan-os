@@ -182,6 +182,9 @@ namespace Kernel
 		case SYS_FCNTL:
 			ret = Process::current().sys_fcntl((int)arg1, (int)arg2, (int)arg3);
 			break;
+		case SYS_NANOSLEEP:
+			ret = Process::current().sys_nanosleep((const timespec*)arg1, (timespec*)arg2);
+			break;
 		default:
 			dwarnln("Unknown syscall {}", syscall);
 			break;
