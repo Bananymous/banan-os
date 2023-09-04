@@ -28,6 +28,8 @@ namespace Kernel
 		BAN::ErrorOr<int> dup(int);
 		BAN::ErrorOr<int> dup2(int, int);
 
+		BAN::ErrorOr<int> fcntl(int fd, int cmd, int extra);
+
 		BAN::ErrorOr<void> seek(int fd, off_t offset, int whence);
 		BAN::ErrorOr<off_t> tell(int) const;
 

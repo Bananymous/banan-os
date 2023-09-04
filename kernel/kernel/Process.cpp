@@ -669,6 +669,12 @@ namespace Kernel
 		return TRY(m_open_file_descriptors.dup2(fildes, fildes2));
 	}
 
+	BAN::ErrorOr<long> Process::sys_fcntl(int fildes, int cmd, int extra)
+	{
+		LockGuard _(m_lock);
+		return TRY(m_open_file_descriptors.fcntl(fildes, cmd, extra));
+	}
+
 	BAN::ErrorOr<long> Process::sys_seek(int fd, off_t offset, int whence)
 	{
 		LockGuard _(m_lock);

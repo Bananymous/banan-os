@@ -50,6 +50,7 @@ __BEGIN_DECLS
 #define SYS_GET_PID 43
 #define SYS_GET_PGID 44
 #define SYS_SET_PGID 45
+#define SYS_FCNTL 46
 
 __END_DECLS
 

@@ -23,3 +23,13 @@ int openat(int fd, const char* path, int oflag, ...)
 
 	return syscall(SYS_OPENAT, fd, path, oflag, mode);
 }
+
+int fcntl(int fildes, int cmd, ...)
+{
+	va_list args;
+	va_start(args, cmd);
+	int extra = va_arg(args, int);
+	va_end(args);
+
+	return syscall(SYS_FCNTL, fildes, cmd, extra);
+}
