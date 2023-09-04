@@ -47,6 +47,8 @@ namespace Kernel
 			: CharacterDevice(mode, uid, gid)
 		{ }
 
+		virtual BAN::StringView name() const = 0;
+
 	private:
 		void do_backspace();
 

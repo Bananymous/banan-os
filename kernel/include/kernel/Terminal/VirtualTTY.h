@@ -23,6 +23,9 @@ namespace Kernel
 		virtual uint32_t width() const override { return m_width; }
 		virtual void putchar(uint8_t ch) override;
 
+	protected:
+		virtual BAN::StringView name() const override { return m_name; }
+
 	private:
 		VirtualTTY(TerminalDriver*);
 
@@ -64,6 +67,8 @@ namespace Kernel
 		};
 
 	private:
+		BAN::String m_name;
+
 		State m_state { State::Normal };
 		AnsiState m_ansi_state { };
 		UTF8State m_utf8_state { };

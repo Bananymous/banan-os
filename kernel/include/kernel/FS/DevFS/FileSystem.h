@@ -14,7 +14,7 @@ namespace Kernel
 		
 		void initialize_device_updater();
 	
-		void add_device(BAN::StringView path, BAN::RefPtr<Device>);
+		void add_device(BAN::StringView path, BAN::RefPtr<RamInode>);
 
 		dev_t get_next_dev();
 
