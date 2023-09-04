@@ -29,6 +29,7 @@ namespace Kernel
 
 		static void initialize_devices();
 		void on_key_event(Input::KeyEvent);
+		void handle_input(const uint8_t* ch);
 
 		virtual bool is_tty() const override { return true; }
 
@@ -50,7 +51,7 @@ namespace Kernel
 		void do_backspace();
 
 	protected:
-		mutable Kernel::SpinLock m_lock;
+		mutable Kernel::RecursiveSpinLock m_lock;
 
 		TerminalDriver::Color m_foreground { TerminalColor::BRIGHT_WHITE };
 		TerminalDriver::Color m_background { TerminalColor::BLACK };

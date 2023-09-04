@@ -43,6 +43,8 @@ namespace Kernel
 		virtual uint32_t height() const override;
 		virtual void putchar(uint8_t) override;
 	
+		virtual void update() override;
+
 	private:
 		SerialTTY(Serial);
 		bool initialize();
