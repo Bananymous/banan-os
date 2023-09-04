@@ -529,6 +529,13 @@ namespace Kernel
 		return 0;
 	}
 
+	BAN::ErrorOr<long> Process::sys_nanosleep(const timespec* rqtp, timespec* rmtp)
+	{
+		(void)rmtp;
+		SystemTimer::get().sleep(rqtp->tv_sec * 1000 + BAN::Math::div_round_up<uint64_t>(rqtp->tv_nsec, 1'000'000));
+		return 0;
+	}
+
 	BAN::ErrorOr<long> Process::sys_setenvp(char** envp)
 	{
 		LockGuard _(m_lock);
