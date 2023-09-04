@@ -60,8 +60,8 @@ namespace Debug
 
 	void putchar(char ch)
 	{
-		if (Serial::is_initialized())
-			return Serial::putchar(ch);
+		if (Kernel::Serial::has_devices())
+			return Kernel::Serial::putchar_any(ch);
 		if (Kernel::TTY::is_initialized())
 			return Kernel::TTY::putchar_current(ch);
 	}
