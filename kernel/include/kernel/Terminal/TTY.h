@@ -35,6 +35,7 @@ namespace Kernel
 
 		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t) override;
 		virtual BAN::ErrorOr<size_t> write(size_t, const void*, size_t) override;
+		virtual bool has_data() const override;
 
 	private:
 		void clear();
@@ -78,7 +79,7 @@ namespace Kernel
 		};
 
 	private:
-		Kernel::SpinLock m_lock;
+		mutable Kernel::SpinLock m_lock;
 
 		State m_state { State::Normal };
 		AnsiState m_ansi_state { };

@@ -234,6 +234,8 @@ namespace Kernel
 	{
 		TRY(validate_fd(fd));
 		auto& open_file = m_open_files[fd];
+		if ((open_file->flags & O_NONBLOCK) && !open_file->inode->has_data())
+			return 0;
 		size_t nread = TRY(open_file->inode->read(open_file->offset, buffer, count));
 		open_file->offset += nread;
 		return nread;
