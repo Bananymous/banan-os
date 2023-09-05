@@ -169,19 +169,19 @@ void update()
 		}
 	}
 
+	MUST(g_tail.insert(0, old_head));
+	if (g_tail.size() > g_tail_target)
+	{
+		set_grid_tile(g_tail.back(), " ");
+		g_tail.pop_back();
+	}
+
 	if (g_head == g_apple)
 	{
 		g_tail_target++;
 		g_score++;
 		update_apple();
 		printf("\e[%dH\e[mScore: %d", g_grid_size.y + 3, g_score);
-	}
-
-	MUST(g_tail.insert(0, old_head));
-	if (g_tail.size() > g_tail_target)
-	{
-		set_grid_tile(g_tail.back(), " ");
-		g_tail.pop_back();
 	}
 
 	set_grid_tile(old_head, "\e[32mo");
