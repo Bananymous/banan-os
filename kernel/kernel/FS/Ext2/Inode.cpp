@@ -3,8 +3,6 @@
 #include <kernel/FS/Ext2/Inode.h>
 #include <kernel/Timer/Timer.h>
 
-#define EXT2_DEBUG_PRINT 1
-
 namespace Kernel
 {
 
@@ -406,7 +404,7 @@ namespace Kernel
 			.mtime 			= (uint32_t)current_time.tv_sec,
 			.dtime 			= 0,
 			.gid			= (uint16_t)gid,
-			.links_count	= 5,
+			.links_count	= 1,
 			.blocks			= 0,
 			.flags			= 0,
 			.osd1			= 0,
