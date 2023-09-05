@@ -40,16 +40,11 @@ PARTITION2=${LOOP_DEV}p2
 PARTITION3=${LOOP_DEV}p3
 
 sudo mkfs.ext2 $PARTITION3 > /dev/null
-sudo mount $PARTITION3 $MOUNT_DIR
-echo 'hello' | sudo tee ${MOUNT_DIR}/hello.txt > /dev/null
-sudo umount $MOUNT_DIR
-
 sudo mkfs.ext2 $PARTITION2 > /dev/null
 
 sudo mount $PARTITION2 $MOUNT_DIR
 
 sudo cp -rp ${SYSROOT}/* ${MOUNT_DIR}/
-sudo find $MOUNT_DIR | grep -v "^${MOUNT_DIR}/home/" | sudo xargs chown 0:0
 
 sudo grub-install --no-floppy --target=i386-pc --modules="normal ext2 multiboot" --boot-directory=${MOUNT_DIR}/boot $LOOP_DEV > /dev/null
 
