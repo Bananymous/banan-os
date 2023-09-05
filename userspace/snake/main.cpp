@@ -81,8 +81,9 @@ void setup_grid()
 	printf("\e[H\e[J");
 
 	// Render top line
-	for (int x = 0; x < g_grid_size.x + 2; x++)
-		printf("# ");
+	putchar('#');
+	for (int x = 1; x < g_grid_size.x + 2; x++)
+		printf(" #");
 	putchar('\n');
 
 	// Render side lines
@@ -90,8 +91,9 @@ void setup_grid()
 		printf("#\e[%dC#\n", g_grid_size.x * 2 + 1);
 
 	// Render Bottom line
-	for (int x = 0; x < g_grid_size.x + 2; x++)
-		printf("# ");
+	putchar('#');
+	for (int x = 1; x < g_grid_size.x + 2; x++)
+		printf(" #");
 	putchar('\n');
 
 	// Render snake head
