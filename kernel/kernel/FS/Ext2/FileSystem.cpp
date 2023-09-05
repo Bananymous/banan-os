@@ -192,15 +192,6 @@ namespace Kernel
 				.offset = inode_table_offset % block_size
 			};
 
-			dprintln("allocated inode {} at offset {2H}",
-				ino,
-				2048 + (inode_location.block - 2) * block_size + inode_location.offset
-			);
-			dprintln("bitmap byte at {2H} with bit {2H}",
-				2048 + (bgd->inode_bitmap - 2) * block_size + ino_bitmap_byte,
-				1 << ino_bitmap_bit
-			);
-
 			// NOTE: we don't need inode bitmap anymore, so we can reuse it
 			auto& inode_buffer = inode_bitmap;
 
