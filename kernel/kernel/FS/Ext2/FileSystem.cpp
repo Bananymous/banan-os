@@ -2,6 +2,7 @@
 #include <kernel/FS/Ext2/FileSystem.h>
 
 #define EXT2_DEBUG_PRINT 1
+#define EXT2_VERIFY_INODE 0
 
 namespace Kernel
 {
@@ -129,13 +130,6 @@ namespace Kernel
 	BAN::ErrorOr<void> Ext2FS::initialize_root_inode()
 	{
 		m_root_inode = TRY(Ext2Inode::create(*this, Ext2::Enum::ROOT_INO));
-
-#if EXT2_DEBUG_PRINT
-		dprintln("root inode:");
-		dprintln("  created  {}", root_inode()->ctime().tv_sec);
-		dprintln("  modified {}", root_inode()->mtime().tv_sec);
-		dprintln("  accessed {}", root_inode()->atime().tv_sec);
-#endif
 		return {};
 	}
 
@@ -336,7 +330,7 @@ namespace Kernel
 
 	BAN::ErrorOr<Ext2FS::BlockLocation> Ext2FS::locate_inode(uint32_t ino)
 	{
-		ASSERT(ino < superblock().inodes_count);
+		ASSERT(ino <= superblock().inodes_count);
 
 		const uint32_t block_size = this->block_size();
 
@@ -359,7 +353,7 @@ namespace Kernel
 			.offset = inode_byte_offset % block_size
 		};
 
-#if VERIFY_INODE_EXISTANCE
+#if EXT2_VERIFY_INODE
 		const uint32_t inode_bitmap_block = bgd.inode_bitmap;
 
 		// NOTE: we can reuse the bgd_buffer since it is not needed anymore
