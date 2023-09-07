@@ -251,14 +251,20 @@ namespace Kernel
 
 	BAN::ErrorOr<size_t> TTY::read(size_t, void* buffer, size_t count)
 	{
-		m_lock.lock();
+		LockGuard _(m_lock);
 		while (!m_output.flush)
 		{
 			m_lock.unlock();
 			m_output.semaphore.block();
 			m_lock.lock();
 		}
-		
+
+		if (m_output.bytes == 0)
+		{
+			m_output.flush = false;
+			return 0;
+		}
+
 		size_t to_copy = BAN::Math::min<size_t>(count, m_output.bytes);
 		memcpy(buffer, m_output.buffer.data(), to_copy);
 
@@ -269,8 +275,6 @@ namespace Kernel
 			m_output.flush = false;
 
 		m_output.semaphore.unblock();
-
-		m_lock.unlock();
 
 		return to_copy;
 	}
