@@ -15,7 +15,7 @@ ROOT_PARTITON=${LOOP_DEV}p2
 
 sudo mount $ROOT_PARTITON $MOUNT_DIR
 
-sudo cp -rp ${SYSROOT}/* ${MOUNT_DIR}/
+sudo rsync -a ${SYSROOT}/* ${MOUNT_DIR}/
 
 sudo umount $MOUNT_DIR
 
