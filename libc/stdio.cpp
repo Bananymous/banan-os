@@ -255,15 +255,26 @@ size_t fread(void* buffer, size_t size, size_t nitems, FILE* file)
 {
 	if (file->eof || nitems * size == 0)
 		return 0;
-	long ret = syscall(SYS_READ, file->fd, buffer, size * nitems);
-	if (ret < 0)
+
+	size_t target = size * nitems;
+	size_t nread = 0;
+
+	while (nread < target)
 	{
-		file->error = true;
-		return 0;
+		size_t ret = syscall(SYS_READ, file->fd, (uint8_t*)buffer + nread, target - nread);
+
+		if (ret < 0)
+			file->error = true;
+		else if (ret == 0)
+			file->eof = true;
+
+		if (ret <= 0)
+			return nread;
+
+		nread += ret;
 	}
-	if (ret == 0)
-		file->eof = true;
-	return ret / size;
+
+	return nread / size;
 }
 
 // TODO
