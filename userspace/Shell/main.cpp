@@ -23,6 +23,12 @@ static int last_return = 0;
 
 static BAN::String hostname;
 
+static void clean_exit()
+{
+	tcsetattr(0, TCSANOW, &old_termios);
+	exit(0);	
+}
+
 BAN::Vector<BAN::Vector<BAN::String>> parse_command(BAN::StringView);
 
 BAN::Optional<BAN::String> parse_dollar(BAN::StringView command, size_t& i)
@@ -268,7 +274,7 @@ BAN::Optional<int> execute_builtin(BAN::Vector<BAN::String>& args, int fd_in, in
 	}
 	else if (args.front() == "exit"sv)
 	{
-		exit(0);
+		clean_exit();
 	}
 	else if (args.front() == "export"sv)
 	{
@@ -749,8 +755,7 @@ int main(int argc, char** argv)
 
 	while (true)
 	{
-		uint8_t ch;
-		fread(&ch, 1, sizeof(char), stdin);
+		uint8_t ch = getchar();
 
 		if (waiting_utf8 > 0)
 		{
@@ -786,10 +791,10 @@ int main(int argc, char** argv)
 		switch (ch)
 		{
 		case '\e':
-			fread(&ch, 1, sizeof(char), stdin);
+			ch = getchar();
 			if (ch != '[')
 				break;
-			fread(&ch, 1, sizeof(char), stdin);
+			ch = getchar();
 			switch (ch)
 			{
 				case 'A': if (index > 0)					{ index--; col = buffers[index].size(); fprintf(stdout, "\e[%dG%s\e[K", prompt_length() + 1, buffers[index].data()); fflush(stdout); } break;
@@ -828,6 +833,10 @@ int main(int argc, char** argv)
 			buffers[index].clear();
 			col = 0;
 			break;
+		case '\x04':
+			fprintf(stdout, "\n");
+			clean_exit();
+			break;
 		case '\n':
 			fputc('\n', stdout);
 			if (!buffers[index].empty())
@@ -852,6 +861,5 @@ int main(int argc, char** argv)
 		}
 	}
 
-	tcsetattr(0, TCSANOW, &old_termios);
-	return 0;
+	clean_exit();
 }
