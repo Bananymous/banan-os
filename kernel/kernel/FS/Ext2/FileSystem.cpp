@@ -152,7 +152,7 @@ namespace Kernel
 		BlockLocation bgd_location {};
 		Ext2::BlockGroupDescriptor* bgd = nullptr;
 
-		for (uint32_t ino = superblock().inodes_per_group + 1; ino <= superblock().inodes_count; ino++)
+		for (uint32_t ino = superblock().first_ino; ino <= superblock().inodes_count; ino++)
 		{
 			const uint32_t ino_group = (ino - 1) / superblock().inodes_per_group;
 			const uint32_t ino_index = (ino - 1) % superblock().inodes_per_group;
@@ -285,6 +285,10 @@ namespace Kernel
 				read_block(bgd.block_bitmap, block_bitmap.span());
 				for (uint32_t block_offset = 0; block_offset < m_superblock.blocks_per_group; block_offset++)
 				{
+					const uint32_t fs_block_index = m_superblock.first_data_block + m_superblock.blocks_per_group * block_group + block_offset;
+					if (fs_block_index >= m_superblock.blocks_count)
+						break;
+
 					uint32_t byte = block_offset / 8;
 					uint32_t bit  = block_offset % 8;
 					if (block_bitmap[byte] & (1 << bit))
@@ -299,7 +303,7 @@ namespace Kernel
 					m_superblock.free_blocks_count--;
 					sync_superblock();
 
-					return m_superblock.first_data_block + m_superblock.blocks_per_group * block_group + block_offset;
+					return fs_block_index;
 				}
 
 				derrorln("Corrupted file system. Block group descriptor indicates free blocks but none were found");
