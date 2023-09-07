@@ -35,15 +35,11 @@ int main()
 			printf("username: ");
 			fflush(stdout);
 
-			size_t nread = fread(name_buffer, 1, sizeof(name_buffer) - 1, stdin);
-			if (nread == 0)
+			ssize_t nread = read(STDIN_FILENO, name_buffer, sizeof(name_buffer) - 1);
+			if (nread == -1)
 			{
-				if (ferror(stdin))
-				{
-					fprintf(stderr, "Could not read from stdin\n");
-					return 1;
-				}
-				continue;
+				perror("read");
+				return 1;
 			}
 			if (nread <= 1 || name_buffer[nread - 1] != '\n')
 				continue;
