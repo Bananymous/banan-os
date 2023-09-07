@@ -29,7 +29,7 @@ namespace Kernel
 
 		static void initialize_devices();
 		void on_key_event(Input::KeyEvent);
-		void handle_input(const uint8_t* ch);
+		void handle_input_byte(uint8_t);
 
 		virtual bool is_tty() const override { return true; }
 

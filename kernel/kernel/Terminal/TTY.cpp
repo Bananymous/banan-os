@@ -54,20 +54,7 @@ namespace Kernel
 				{
 					Input::KeyEvent event;
 					ASSERT(MUST(Process::current().sys_read(fd, &event, sizeof(event))) == sizeof(event));
-
-					TTY& current_tty = *TTY::current();
-					if (current_tty.m_foreground_pgrp &&
-						event.pressed() &&
-						event.ctrl() &&
-						!event.shift()
-						&& event.key == Input::Key::C
-					)
-					{
-						if (auto ret = Process::sys_kill(-current_tty.m_foreground_pgrp, SIGINT); ret.is_error())
-							dwarnln("TTY: {}", ret.error());
-					}
-					else
-						current_tty.on_key_event(event);
+					TTY::current()->on_key_event(event);
 				}
 			}, nullptr
 		);
@@ -146,91 +133,73 @@ namespace Kernel
 			}
 		}
 
-		handle_input((const uint8_t*)ansi_c_str);
+		if (ansi_c_str)
+		{
+			auto* ptr = (const uint8_t*)ansi_c_str;
+			while (*ptr)
+				handle_input_byte(*ptr++);
+		}
 	}
 
-	void TTY::handle_input(const uint8_t* ansi)
+	void TTY::handle_input_byte(uint8_t ch)
 	{
-		LockGuard _(m_lock);
-
-		bool eof = ansi && (
-			ansi[0] == '\x04' ||	// ^D
-			ansi[0] == '\n'			// \n
-		);
-
-		if (ansi && m_termios.canonical)
-		{
-			// EOF from ^D
-			if (ansi[0] == '\x04')
-				goto flush;
-			else if (ansi[0] == '\b')
-			{
-				ansi = nullptr;
-				do_backspace();
-			}
-		}
-
-		if (ansi == nullptr)
+		if (ch == 0)
 			return;
 
-		for (size_t i = 0; ansi[i]; i++)
+		LockGuard _(m_lock);
+
+		// ^C
+		if (ch == '\x03')
 		{
-			if (m_output.bytes >= m_output.buffer.size())
-			{
-				dprintln("TTY buffer full");
-				break;
-			}
-			m_output.buffer[m_output.bytes++] = ansi[i];
+			if (auto ret = Process::sys_kill(-m_foreground_pgrp, SIGINT); ret.is_error())
+				dwarnln("TTY: {}", ret.error());
+			return;
 		}
+
+		// ^D + canonical
+		if (ch == '\x04' && m_termios.canonical)
+		{
+			m_output.flush = true;
+			m_output.semaphore.unblock();
+			return;
+		}
+
+		// backspace + canonical
+		if (ch == '\b' && m_termios.canonical)
+		{
+			do_backspace();
+			return;
+		}
+
+		m_output.buffer[m_output.bytes++] = ch;
 
 		if (m_termios.echo)
 		{
-			for (size_t i = 0; ansi[i]; i++)
+			if ((ch <= 31 || ch == 127) && ch != '\n')
 			{
-				if (ansi[i] <= 26 && ansi[i] != 10)
-				{
-					putchar('^');
-					putchar('A' + ansi[i] - 1);
-				}
-				else if (ansi[i] == 27)
-				{
-					putchar('^');
+				putchar('^');
+				if (ch <= 26 && ch != 10)
+					putchar('A' + ch - 1);
+				else if (ch == 27)
 					putchar('[');
-				}
-				else if (ansi[i] == 28)
-				{
-					putchar('^');
+				else if (ch == 28)
 					putchar('\\');
-				}
-				else if (ansi[i] == 29)
-				{
-					putchar('^');
+				else if (ch == 29)
 					putchar(']');
-				}
-				else if (ansi[i] == 30)
-				{
+				else if (ch == 30)
 					putchar('^');
-					putchar('^');
-				}
-				else if (ansi[i] == 31)
-				{
-					putchar('^');
+				else if (ch == 31)
 					putchar('_');
-				}
-				else if (ansi[i] == 127)
-				{
-					putchar('^');
+				else if (ch == 127)
 					putchar('?');
-				}
-				else
-				{
-					putchar(ansi[i]);
-				}
+			}
+			else
+			{
+				putchar(ch);
 			}
 		}
 
-flush:
-		if (eof || !m_termios.canonical)
+		if (ch == '\n' || !m_termios.canonical)
 		{
 			m_output.flush = true;
 			m_output.semaphore.unblock();
