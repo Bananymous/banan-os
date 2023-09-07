@@ -244,12 +244,13 @@ namespace Kernel
 		if (m_serial.port() != COM1_PORT && m_serial.port() != COM2_PORT)
 			return;
 
+		static uint8_t buffer[128];
+
 		auto update_com =
 			[&](auto& device, auto& input_queue)
 			{
 				if (input_queue.empty())
 					return;
-				uint8_t buffer[128];
 				uint8_t* ptr = buffer;
 				while (!input_queue.empty())
 				{
@@ -262,7 +263,10 @@ namespace Kernel
 					ptr++;
 				}
 				*ptr = '\0';
-				device->handle_input(buffer);
+
+				ptr = buffer;
+				while (*ptr)
+					device->handle_input_byte(*ptr++);
 			};
 
 		CriticalScope _;
