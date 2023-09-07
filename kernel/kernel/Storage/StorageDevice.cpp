@@ -279,12 +279,13 @@ namespace Kernel
 	BAN::ErrorOr<void> StorageDevice::write_sectors(uint64_t lba, uint8_t sector_count, const uint8_t* buffer)
 	{
 		// TODO: use disk cache for dirty pages. I don't wanna think about how to do it safely now
-		for (uint8_t sector = 0; sector < sector_count; sector++)
+		for (uint8_t offset = 0; offset < sector_count; offset++)
 		{
 			Thread::TerminateBlocker _(Thread::current());
-			TRY(write_sectors_impl(lba + sector, 1, buffer));
+			const uint8_t* buffer_ptr = buffer + offset * sector_size();
+			TRY(write_sectors_impl(lba + offset, 1, buffer_ptr));
 			if (m_disk_cache.has_value())
-				(void)m_disk_cache->write_to_cache(lba + sector, buffer + sector * sector_size(), false);
+				(void)m_disk_cache->write_to_cache(lba + offset, buffer_ptr, false);
 		}
 
 		return {};
