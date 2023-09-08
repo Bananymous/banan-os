@@ -164,7 +164,7 @@ namespace Kernel
 		ASSERT(mode().iflnk());
 		if (m_inode.size < sizeof(m_inode.block))
 			return BAN::String((const char*)m_inode.block);
-		ASSERT_NOT_REACHED();
+		return BAN::Error::from_errno(ENOTSUP);
 	}
 
 	BAN::ErrorOr<size_t> Ext2Inode::read(size_t offset, void* buffer, size_t count)
@@ -486,8 +486,6 @@ namespace Kernel
 		}
 
 needs_new_block:
-		ASSERT_NOT_REACHED();
-
 		block_index = TRY(allocate_new_block());
 
 		m_fs.read_block(block_index, block_buffer.span());
@@ -510,6 +508,9 @@ needs_new_block:
 			m_inode.blocks -= blocks_per_data_block;
 			return res.release_error();
 		}
+
+		if (mode().ifdir())
+			m_inode.size += blksize();
 
 		TRY(sync());
 		return new_block_index;
