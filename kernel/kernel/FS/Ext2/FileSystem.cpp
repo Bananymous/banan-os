@@ -1,7 +1,7 @@
 #include <BAN/ScopeGuard.h>
 #include <kernel/FS/Ext2/FileSystem.h>
 
-#define EXT2_DEBUG_PRINT 1
+#define EXT2_DEBUG_PRINT 0
 #define EXT2_VERIFY_INODE 0
 
 namespace Kernel
