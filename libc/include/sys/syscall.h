@@ -52,6 +52,8 @@ __BEGIN_DECLS
 #define SYS_SET_PGID 45
 #define SYS_FCNTL 46
 #define SYS_NANOSLEEP 47
+#define SYS_FSTATAT 48
+#define SYS_STAT 49 // stat/lstat
 
 __END_DECLS
 
