@@ -106,6 +106,8 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_tell(int fd);
 
 		BAN::ErrorOr<long> sys_fstat(int fd, struct stat*);
+		BAN::ErrorOr<long> sys_fstatat(int fd, const char* path, struct stat* buf, int flag);
+		BAN::ErrorOr<long> sys_stat(const char* path, struct stat* buf, int flag);
 
 		BAN::ErrorOr<void> mount(BAN::StringView source, BAN::StringView target);
 

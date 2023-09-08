@@ -58,7 +58,7 @@ DIR* fdopendir(int fd)
 
 DIR* opendir(const char* dirname)
 {
-	int fd = open(dirname, O_SEARCH);
+	int fd = open(dirname, O_RDONLY);
 	if (fd == -1)
 		return nullptr;
 	return fdopendir(fd);

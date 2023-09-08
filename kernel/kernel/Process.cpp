@@ -630,6 +630,8 @@ namespace Kernel
 	{
 		LockGuard _(m_lock);
 
+		// FIXME: handle O_SEARCH in fd
+
 		BAN::String absolute_path;
 		TRY(absolute_path.append(TRY(m_open_file_descriptors.path_of(fd))));
 		TRY(absolute_path.push_back('/'));
@@ -734,6 +736,20 @@ namespace Kernel
 	{
 		LockGuard _(m_lock);
 		TRY(m_open_file_descriptors.fstat(fd, out));
+		return 0;
+	}
+
+	BAN::ErrorOr<long> Process::sys_fstatat(int fd, const char* path, struct stat* buf, int flag)
+	{
+		LockGuard _(m_lock);
+		TRY(m_open_file_descriptors.fstatat(fd, path, buf, flag));
+		return 0;
+	}
+
+	BAN::ErrorOr<long> Process::sys_stat(const char* path, struct stat* buf, int flag)
+	{
+		LockGuard _(m_lock);
+		TRY(m_open_file_descriptors.stat(TRY(absolute_path_of(path)), buf, flag));
 		return 0;
 	}
 

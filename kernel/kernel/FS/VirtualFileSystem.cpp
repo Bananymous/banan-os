@@ -133,7 +133,7 @@ namespace Kernel
 			}
 			else
 			{
-				if (!inode->can_access(credentials, O_RDONLY))
+				if (!inode->can_access(credentials, O_SEARCH))
 					return BAN::Error::from_errno(EACCES);
 
 				inode = TRY(inode->directory_find_inode(path_part));
@@ -152,7 +152,7 @@ namespace Kernel
 				auto target = TRY(inode->link_target());
 				if (target.empty())
 					return BAN::Error::from_errno(ENOENT);
-				
+
 				if (target.front() == '/')
 				{
 					inode = root_inode();

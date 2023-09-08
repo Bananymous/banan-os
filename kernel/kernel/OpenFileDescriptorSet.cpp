@@ -179,11 +179,8 @@ namespace Kernel
 		return m_open_files[fd]->offset;
 	}
 
-	BAN::ErrorOr<void> OpenFileDescriptorSet::fstat(int fd, struct stat* out) const
+	static void read_stat_from_inode(BAN::RefPtr<Inode> inode, struct stat* out)
 	{
-		TRY(validate_fd(fd));
-
-		auto inode = m_open_files[fd]->inode;
 		out->st_dev		= inode->dev();
 		out->st_ino		= inode->ino();
 		out->st_mode	= inode->mode().mode;
@@ -197,7 +194,42 @@ namespace Kernel
 		out->st_ctim	= inode->ctime();
 		out->st_blksize	= inode->blksize();
 		out->st_blocks	= inode->blocks();
+	}
 
+	BAN::ErrorOr<void> OpenFileDescriptorSet::fstat(int fd, struct stat* out) const
+	{
+		TRY(validate_fd(fd));
+		read_stat_from_inode(m_open_files[fd]->inode, out);
+		return {};
+	}
+
+	BAN::ErrorOr<void> OpenFileDescriptorSet::fstatat(int fd, BAN::StringView path, struct stat* out, int flag)
+	{
+		if (flag & ~AT_SYMLINK_NOFOLLOW)
+			return BAN::Error::from_errno(EINVAL);
+		if (flag == AT_SYMLINK_NOFOLLOW)
+			flag = O_NOFOLLOW;
+
+		BAN::String absolute_path;
+		TRY(absolute_path.append(TRY(path_of(fd))));
+		TRY(absolute_path.push_back('/'));
+		TRY(absolute_path.append(path));
+
+		// FIXME: handle O_SEARCH in fd
+		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, flag));
+		read_stat_from_inode(file.inode, out);
+
+		return {};
+	}
+
+	BAN::ErrorOr<void> OpenFileDescriptorSet::stat(BAN::StringView absolute_path, struct stat* out, int flag)
+	{
+		if (flag & ~AT_SYMLINK_NOFOLLOW)
+			return BAN::Error::from_errno(EINVAL);
+		if (flag == AT_SYMLINK_NOFOLLOW)
+			flag = O_NOFOLLOW;
+		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, flag));
+		read_stat_from_inode(file.inode, out);
 		return {};
 	}
 
@@ -256,6 +288,8 @@ namespace Kernel
 	{
 		TRY(validate_fd(fd));
 		auto& open_file = m_open_files[fd];
+		if (!(open_file->flags & O_RDONLY))
+			return BAN::Error::from_errno(EACCES);
 		TRY(open_file->inode->directory_read_next_entries(open_file->offset, list, list_size));
 		open_file->offset++;
 		return {};
