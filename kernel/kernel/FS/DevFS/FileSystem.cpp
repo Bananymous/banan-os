@@ -1,5 +1,6 @@
 #include <BAN/ScopeGuard.h>
 #include <kernel/Device/NullDevice.h>
+#include <kernel/Device/ZeroDevice.h>
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/FS/RamFS/Inode.h>
 #include <kernel/LockGuard.h>
@@ -21,6 +22,7 @@ namespace Kernel
 		MUST(s_instance->set_root_inode(root_inode));
 
 		s_instance->add_device("null", MUST(NullDevice::create(0666, 0, 0)));
+		s_instance->add_device("zero", MUST(ZeroDevice::create(0666, 0, 0)));
 	}
 
 	DevFileSystem& DevFileSystem::get()
