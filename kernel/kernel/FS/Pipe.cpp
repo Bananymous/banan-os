@@ -12,7 +12,7 @@ namespace Kernel
 			return BAN::Error::from_errno(ENOMEM);
 		return BAN::RefPtr<Inode>::adopt(pipe);
 	}
-	
+
 	Pipe::Pipe(const Credentials& credentials)
 		: m_uid(credentials.euid())
 		, m_gid(credentials.egid())
@@ -29,7 +29,7 @@ namespace Kernel
 		ASSERT(m_writing_count > 0);
 		m_writing_count++;
 	}
-	
+
 	void Pipe::close_writing()
 	{
 		LockGuard _(m_lock);
@@ -63,7 +63,7 @@ namespace Kernel
 
 		return to_copy;
 	}
-	
+
 	BAN::ErrorOr<size_t> Pipe::write_impl(off_t, const void* buffer, size_t count)
 	{
 		LockGuard _(m_lock);
@@ -81,5 +81,5 @@ namespace Kernel
 
 		return count;
 	}
-	
+
 }

@@ -42,7 +42,7 @@ namespace Kernel
 		virtual uint32_t width() const override;
 		virtual uint32_t height() const override;
 		virtual void putchar(uint8_t) override;
-	
+
 		virtual void update() override;
 
 	protected:
@@ -55,7 +55,7 @@ namespace Kernel
 	private:
 		BAN::String m_name;
 		Serial m_serial;
-	
+
 	public:
 		virtual dev_t rdev() const override { return m_rdev; }
 	private:

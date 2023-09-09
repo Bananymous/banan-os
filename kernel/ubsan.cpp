@@ -10,14 +10,14 @@ extern "C"
 		uint32_t line;
 		uint32_t column;
 	};
-	
+
 	struct type_descriptor
 	{
 		uint16_t kind;
 		uint16_t info;
 		char name[1];
 	};
-	
+
 	struct type_mismatch_data
 	{
 		source_location location;
@@ -25,7 +25,7 @@ extern "C"
 		uint8_t alignment;
 		uint8_t type_check_kind;
 	};
-	
+
 	struct out_of_bounds_data
 	{
 		source_location location;

@@ -132,7 +132,7 @@ namespace BAN
 		ASSERT(has_value());
 		return value();
 	}
-	
+
 	template<typename T>
 	const T& Optional<T>::operator*() const
 	{
@@ -160,7 +160,7 @@ namespace BAN
 		ASSERT(has_value());
 		return (const T&)m_storage;
 	}
-	
+
 	template<typename T>
 	T& Optional<T>::value()
 	{

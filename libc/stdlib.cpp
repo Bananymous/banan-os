@@ -205,7 +205,6 @@ void free(void* ptr)
 	syscall(SYS_FREE, ptr);
 }
 
-
 // Constants and algorithm from https://en.wikipedia.org/wiki/Permuted_congruential_generator
 
 static uint64_t s_rand_state = 0x4d595df4d0f33173;

@@ -8,7 +8,7 @@
 
 namespace Kernel
 {
-	
+
 	class Heap
 	{
 		BAN_NON_COPYABLE(Heap);

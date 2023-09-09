@@ -8,5 +8,5 @@ namespace Kernel
 		bool canonical { true };
 		bool echo { true };
 	};
-	
+
 }

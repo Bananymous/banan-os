@@ -51,9 +51,9 @@ void list_directory(const char* path)
 	DIR* dirp = opendir(path);
 	if (dirp == nullptr)
 		return perror("opendir");
-	
+
 	errno = 0;
-	
+
 	bool first = true;
 	while (auto* dirent = readdir(dirp))
 	{

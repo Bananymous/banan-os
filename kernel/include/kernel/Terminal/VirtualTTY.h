@@ -11,7 +11,7 @@
 
 namespace Kernel
 {
-	
+
 	class VirtualTTY : public TTY
 	{
 	public:

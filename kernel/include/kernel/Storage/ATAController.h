@@ -30,7 +30,7 @@ namespace Kernel
 		virtual dev_t rdev() const override { return m_rdev; }
 
 		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t) { return BAN::Error::from_errno(ENOTSUP); }
-	
+
 	private:
 		const dev_t m_rdev;
 	};

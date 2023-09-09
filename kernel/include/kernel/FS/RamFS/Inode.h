@@ -14,7 +14,7 @@ namespace Kernel
 	public:
 		static BAN::ErrorOr<BAN::RefPtr<RamInode>> create(RamFileSystem&, mode_t, uid_t, gid_t);
 		virtual ~RamInode() = default;
-	
+
 		virtual ino_t		ino()		const override { return m_inode_info.ino; }
 		virtual Mode		mode()		const override { return { m_inode_info.mode }; }
 		virtual nlink_t		nlink()		const override { return m_inode_info.nlink; }
@@ -80,7 +80,7 @@ namespace Kernel
 
 	private:
 		RamDirectoryInode(RamFileSystem&, ino_t parent, mode_t, uid_t, gid_t);
-	
+
 	private:
 		static constexpr size_t m_name_max = NAME_MAX;
 		struct Entry
@@ -106,7 +106,7 @@ namespace Kernel
 		virtual off_t size() const override { return m_target.size(); }
 
 		BAN::ErrorOr<void> set_link_target(BAN::StringView);
-	
+
 	protected:
 		virtual BAN::ErrorOr<BAN::String> link_target_impl() override;
 
@@ -115,7 +115,7 @@ namespace Kernel
 
 	private:
 		BAN::String m_target;
-	
+
 		friend class RamFileSystem;
 	};
 

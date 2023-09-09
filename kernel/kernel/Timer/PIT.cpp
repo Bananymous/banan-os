@@ -47,7 +47,7 @@ namespace Kernel
 	void PIT::initialize()
 	{
 		constexpr uint16_t timer_reload = BASE_FREQUENCY / TICKS_PER_SECOND;
-	
+
 		IO::outb(PIT_CTL, SELECT_CHANNEL0 | ACCESS_LO | ACCESS_HI | MODE_SQUARE_WAVE);
 
 		IO::outb(TIMER0_CTL, (timer_reload >> 0) & 0xff);

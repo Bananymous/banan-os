@@ -158,7 +158,7 @@ namespace LibELF
 	bool ELF::is_x86_64() const { return m_data[EI_CLASS] == ELFCLASS64; }
 
 	/*
-	
+
 		64 bit ELF
 
 	*/
@@ -280,9 +280,8 @@ namespace LibELF
 		return *(const Elf64SectionHeader*)(m_data.data() + file_header.e_shoff + file_header.e_shentsize * index);
 	}
 
-
 	/*
-	
+
 		32 bit ELF
 
 	*/
@@ -403,6 +402,5 @@ namespace LibELF
 		ASSERT(index < file_header.e_shnum);
 		return *(const Elf32SectionHeader*)(m_data.data() + file_header.e_shoff + file_header.e_shentsize * index);
 	}
-
 
 }

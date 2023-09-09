@@ -6,7 +6,7 @@ namespace Kernel
 {
 
 	/*
-	
+
 		RAM INODE
 
 	*/
@@ -68,7 +68,7 @@ namespace Kernel
 	}
 
 	/*
-	
+
 		RAM DIRECTORY INODE
 
 	*/
@@ -217,7 +217,7 @@ namespace Kernel
 	}
 
 	/*
-	
+
 		RAM SYMLINK INODE
 
 	*/

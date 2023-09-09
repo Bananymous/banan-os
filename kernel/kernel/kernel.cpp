@@ -169,7 +169,7 @@ static void init2(void*)
 
 	PCI::initialize();
 	dprintln("PCI initialized");
-	
+
 	VirtualFileSystem::initialize(cmdline.root);
 
 	if (auto res = PS2Controller::initialize(); res.is_error())

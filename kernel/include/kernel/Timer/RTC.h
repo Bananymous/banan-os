@@ -9,7 +9,7 @@ namespace Kernel
 	{
 	public:
 		BAN::Time get_current_time();
-	
+
 	private:
 		bool is_update_in_progress();
 		uint8_t read_register8(uint8_t reg);

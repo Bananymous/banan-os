@@ -25,7 +25,6 @@ namespace Kernel
 			memcpy((void*)rsp, (void*)&value, sizeof(uintptr_t));
 	}
 
-
 	Thread::TerminateBlocker::TerminateBlocker(Thread& thread)
 		: m_thread(thread)
 	{

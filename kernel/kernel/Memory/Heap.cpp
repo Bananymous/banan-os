@@ -59,7 +59,7 @@ namespace Kernel
 				return page;
 		return 0;
 	}
-	
+
 	void Heap::release_page(paddr_t addr)
 	{
 		LockGuard _(m_lock);

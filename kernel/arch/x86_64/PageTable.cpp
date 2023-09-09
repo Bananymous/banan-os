@@ -16,7 +16,7 @@ extern uint8_t g_userspace_end[];
 
 namespace Kernel
 {
-	
+
 	static PageTable* s_kernel = nullptr;
 	static PageTable* s_current = nullptr;
 	static bool s_has_nxe = false;

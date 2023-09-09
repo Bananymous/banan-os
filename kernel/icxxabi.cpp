@@ -104,7 +104,7 @@ void __cxa_finalize(void *f)
 			**/
 			(*__atexit_funcs[i].destructor_func)(__atexit_funcs[i].obj_ptr);
 			__atexit_funcs[i].destructor_func = 0;
- 
+
 			/*
 			* Notice that we didn't decrement __atexit_func_count: this is because this algorithm
 			* requires patching to deal with the FIXME outlined above.
@@ -113,8 +113,6 @@ void __cxa_finalize(void *f)
 	};
 };
 
-
-
 namespace __cxxabiv1 
 {
 	/* guard variables */
@@ -122,19 +120,19 @@ namespace __cxxabiv1
 
 	/* The ABI requires a 64-bit type.  */
 	__extension__ typedef int __guard __attribute__((mode(__DI__)));
- 
+
 	int __cxa_guard_acquire (__guard* g)
 	{
 		Kernel::LockGuard lock_guard(s_spin_lock);
 		return !*(int*)g;
 	}
- 
+
 	void __cxa_guard_release (__guard* g)
 	{
 		Kernel::LockGuard lock_guard(s_spin_lock);
 		*(int*)g = 1;
 	}
- 
+
 	void __cxa_guard_abort (__guard*)
 	{
 		Kernel::panic("__cxa_guard_abort");

@@ -22,7 +22,7 @@ namespace Kernel
 		{
 			m_lock.unlock();
 		}
-	
+
 	private:
 		Lock& m_lock;
 	};

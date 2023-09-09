@@ -52,7 +52,7 @@ namespace Kernel
 
 	protected:
 		virtual BAN::ErrorOr<size_t> read_impl(off_t, void*, size_t) override;
-	
+
 	private:
 		const dev_t m_rdev;
 	};

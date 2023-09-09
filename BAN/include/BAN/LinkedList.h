@@ -9,7 +9,7 @@ namespace BAN
 
 	template<typename T, bool CONST>
 	class LinkedListIterator;
-	
+
 	template<typename T>
 	class LinkedList
 	{
@@ -113,8 +113,6 @@ namespace BAN
 		friend class LinkedList<T>;
 		friend class LinkedListIterator<T, !CONST>;
 	};
-
-
 
 	template<typename T>
 	LinkedList<T>& LinkedList<T>::operator=(const LinkedList<T>& other)
@@ -293,8 +291,6 @@ namespace BAN
 		return node;
 	}
 
-
-
 	template<typename T, bool CONST>
 	template<bool C>
 	LinkedListIterator<T, CONST>::LinkedListIterator(const LinkedListIterator<T, C>& other, enable_if_t<C == CONST || !C>*)
@@ -379,7 +375,7 @@ namespace BAN
 		ASSERT(m_current);
 		return &m_current->value;
 	}
-	
+
 	template<typename T, bool CONST>
 	bool LinkedListIterator<T, CONST>::operator==(const LinkedListIterator<T, CONST>& other) const
 	{

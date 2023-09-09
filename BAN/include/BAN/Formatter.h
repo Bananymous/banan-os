@@ -28,9 +28,8 @@ namespace BAN::Formatter
 		static size_t parse_format_and_print_argument(F putc, const char* format, T&& arg);
 	}
 
-
 	/*
-	
+
 		IMPLEMENTATION
 
 	*/
@@ -42,7 +41,7 @@ namespace BAN::Formatter
 		int fill		= 0;
 		bool upper		= false;
 	};
-	
+
 	template<typename F>
 	void print(F putc, const char* format)
 	{
@@ -232,7 +231,7 @@ namespace BAN::Formatter
 	}
 
 	/*
-	
+
 		TEMPLATE SPECIALIZATIONS
 
 	*/
@@ -245,5 +244,5 @@ namespace BAN::Formatter
 	template<typename F> void print_argument(F putc, bool			value, const ValueFormat&)	{ print(putc, value ? "true" : "false"); }
 	template<typename F> void print_argument(F putc, const char*	value, const ValueFormat&)	{ print(putc, value); }
 	template<typename F> void print_argument(F putc, char*			value, const ValueFormat&)	{ print(putc, value); }
-	
+
 }

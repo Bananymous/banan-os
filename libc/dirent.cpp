@@ -24,7 +24,7 @@ int closedir(DIR* dirp)
 		errno = EBADF;
 		return -1;
 	}
-	
+
 	close(dirp->fd);
 	dirp->fd = -1;
 	free(dirp);

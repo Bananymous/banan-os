@@ -5,7 +5,7 @@
 namespace BAN
 {
 
-	
+
 	template<typename, size_t> class Array;
 	template<typename> class ErrorOr;
 	template<typename> class Function;

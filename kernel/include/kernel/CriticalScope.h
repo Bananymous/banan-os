@@ -11,7 +11,7 @@ namespace Kernel
 	{
 		BAN_NON_COPYABLE(CriticalScope);
 		BAN_NON_MOVABLE(CriticalScope);
-	
+
 	public:
 		CriticalScope()
 		{

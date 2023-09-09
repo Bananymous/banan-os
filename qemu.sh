@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
- 
+
 qemu-system-$BANAN_ARCH										\
 	-m 128													\
 	-smp 2													\

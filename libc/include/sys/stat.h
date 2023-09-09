@@ -87,7 +87,6 @@ struct stat
 #define UTIME_NOW	1000000001
 #define UTIME_OMIT	1000000002
 
-
 int		chmod(const char* path, mode_t mode);
 int		fchmod(int fildes, mode_t mode);
 int		fchmodat(int fd, const char* path, mode_t mode, int flag);

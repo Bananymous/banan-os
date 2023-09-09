@@ -995,7 +995,7 @@ namespace Kernel
 		auto inode = TRY(m_open_file_descriptors.inode_of(fd));
 		if (!inode->is_tty())
 			return BAN::Error::from_errno(ENOTTY);
-	
+
 		if ((TTY*)inode.ptr() != m_controlling_terminal.ptr())
 			return BAN::Error::from_errno(ENOTTY);
 

@@ -35,7 +35,7 @@ namespace Kernel
 		auto* tmpfs = MUST(RamFileSystem::create(1024 * 1024, tmpfs_mode, 0, 0));
 		MUST(s_instance->mount(root_creds, tmpfs, "/tmp"));
 	}
-	
+
 	VirtualFileSystem& VirtualFileSystem::get()
 	{
 		ASSERT(s_instance);

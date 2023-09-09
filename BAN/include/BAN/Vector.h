@@ -253,7 +253,7 @@ namespace BAN
 				return true;
 		return false;
 	}
-	
+
 	template<typename T>
 	const T& Vector<T>::operator[](size_type index) const
 	{

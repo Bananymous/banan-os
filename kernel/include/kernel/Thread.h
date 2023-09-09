@@ -118,5 +118,5 @@ namespace Kernel
 
 		friend class Scheduler;
 	};
-	
+
 }

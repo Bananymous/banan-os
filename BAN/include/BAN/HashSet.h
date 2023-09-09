@@ -85,8 +85,6 @@ namespace BAN
 		friend class HashSet<T, HASH>;
 	};
 
-
-
 	template<typename T, typename HASH>
 	HashSet<T, HASH>::HashSet(const HashSet<T, HASH>& other)
 		: m_buckets(other.m_buckets)
@@ -230,8 +228,6 @@ namespace BAN
 		size_type index = HASH()(key) % m_buckets.size();
 		return m_buckets[index];
 	}
-
-
 
 	template<typename T, typename HASH>
 	HashSetIterator<T, HASH>& HashSetIterator<T, HASH>::operator++()

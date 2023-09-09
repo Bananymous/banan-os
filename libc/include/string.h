@@ -49,7 +49,6 @@ size_t	strxfrm_l(char* __restrict s1, const char* __restrict s2, size_t n, local
 const char* strerrorname_np(int error);
 const char* strerrordesc_np(int error);
 
-
 __END_DECLS
 
 #endif
