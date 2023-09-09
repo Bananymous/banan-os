@@ -598,6 +598,26 @@ namespace Kernel
 		m_has_called_exec = true;
 	}
 
+	BAN::ErrorOr<void> Process::create_file(BAN::StringView path, mode_t mode)
+	{
+		LockGuard _(m_lock);
+
+		auto absolute_path = TRY(absolute_path_of(path));
+
+		size_t index;
+		for (index = absolute_path.size(); index > 0; index--)
+			if (absolute_path[index - 1] == '/')
+				break;
+
+		auto directory = absolute_path.sv().substring(0, index);
+		auto file_name = absolute_path.sv().substring(index);
+
+		auto parent_inode = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, directory, O_WRONLY)).inode;
+		TRY(parent_inode->create_file(file_name, S_IFREG | (mode & 0777), m_credentials.euid(), m_credentials.egid()));
+
+		return {};
+	}
+
 	BAN::ErrorOr<long> Process::sys_open(BAN::StringView path, int flags, mode_t mode)
 	{
 		LockGuard _(m_lock);
@@ -605,11 +625,13 @@ namespace Kernel
 
 		if (flags & O_CREAT)
 		{
+			if (flags & O_DIRECTORY)
+				return BAN::Error::from_errno(ENOTSUP);
 			auto file_or_error = VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, O_WRONLY);
 			if (file_or_error.is_error())
 			{
 				if (file_or_error.error().get_error_code() == ENOENT)
-					TRY(sys_creat(path, mode));
+					TRY(create_file(path, mode));
 				else
 					return file_or_error.release_error();
 			}
@@ -695,29 +717,6 @@ namespace Kernel
 	{
 		LockGuard _(m_lock);
 		return TRY(m_open_file_descriptors.tell(fd));
-	}
-
-	BAN::ErrorOr<long> Process::sys_creat(BAN::StringView path, mode_t mode)
-	{
-		if ((mode & 0777) != mode)
-			return BAN::Error::from_errno(EINVAL);
-
-		LockGuard _(m_lock);
-
-		auto absolute_path = TRY(absolute_path_of(path));
-
-		size_t index;
-		for (index = absolute_path.size(); index > 0; index--)
-			if (absolute_path[index - 1] == '/')
-				break;
-
-		auto directory = absolute_path.sv().substring(0, index);
-		auto file_name = absolute_path.sv().substring(index);
-
-		auto parent_file = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, directory, O_WRONLY));
-		TRY(parent_file.inode->create_file(file_name, S_IFREG | mode, m_credentials.euid(), m_credentials.egid()));
-
-		return 0;
 	}
 
 	BAN::ErrorOr<void> Process::mount(BAN::StringView source, BAN::StringView target)
