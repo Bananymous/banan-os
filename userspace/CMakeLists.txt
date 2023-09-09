@@ -4,6 +4,7 @@ project(userspace CXX)
 
 set(USERSPACE_PROJECTS
 	cat
+	dd
 	echo
 	id
 	init
