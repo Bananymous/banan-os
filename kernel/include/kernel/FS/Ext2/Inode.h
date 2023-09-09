@@ -27,16 +27,16 @@ namespace Kernel
 		virtual dev_t dev() const override { return 0; }
 		virtual dev_t rdev() const override { return 0; }
 
-		virtual BAN::ErrorOr<BAN::String> link_target() override;
+	protected:
+		virtual BAN::ErrorOr<BAN::RefPtr<Inode>> find_inode_impl(BAN::StringView) override;
+		virtual BAN::ErrorOr<void> list_next_inodes_impl(off_t, DirectoryEntryList*, size_t) override;
+		virtual BAN::ErrorOr<void> create_file_impl(BAN::StringView, mode_t, uid_t, gid_t) override;
 		
-		virtual BAN::ErrorOr<void> directory_read_next_entries(off_t, DirectoryEntryList*, size_t) override;
-		virtual BAN::ErrorOr<BAN::RefPtr<Inode>> directory_find_inode(BAN::StringView) override;
+		virtual BAN::ErrorOr<BAN::String> link_target_impl() override;
 
-		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t) override;
-		virtual BAN::ErrorOr<size_t> write(size_t, const void*, size_t) override;
-		virtual BAN::ErrorOr<void> truncate(size_t) override;
-
-		virtual BAN::ErrorOr<void> create_file(BAN::StringView, mode_t, uid_t, gid_t) override;
+		virtual BAN::ErrorOr<size_t> read_impl(off_t, void*, size_t) override;
+		virtual BAN::ErrorOr<size_t> write_impl(off_t, const void*, size_t) override;
+		virtual BAN::ErrorOr<void> truncate_impl(size_t) override;
 
 	private:
 		BAN::ErrorOr<void> for_data_block_index(uint32_t, const BAN::Function<void(uint32_t&)>&, bool allocate);

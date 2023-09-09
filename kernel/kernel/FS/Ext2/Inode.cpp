@@ -159,7 +159,7 @@ namespace Kernel
 		return result;
 	}
 
-	BAN::ErrorOr<BAN::String> Ext2Inode::link_target()
+	BAN::ErrorOr<BAN::String> Ext2Inode::link_target_impl()
 	{
 		ASSERT(mode().iflnk());
 		if (m_inode.size < sizeof(m_inode.block))
@@ -167,12 +167,15 @@ namespace Kernel
 		return BAN::Error::from_errno(ENOTSUP);
 	}
 
-	BAN::ErrorOr<size_t> Ext2Inode::read(size_t offset, void* buffer, size_t count)
+	BAN::ErrorOr<size_t> Ext2Inode::read_impl(off_t offset, void* buffer, size_t count)
 	{
 		// FIXME: update atime if needed
 
-		if (mode().ifdir())
-			return BAN::Error::from_errno(EISDIR);
+		ASSERT(!mode().ifdir());
+		ASSERT(offset >= 0);
+
+		if (offset >= UINT32_MAX || count >= UINT32_MAX || offset + count >= UINT32_MAX)
+			return BAN::Error::from_errno(EOVERFLOW);
 
 		if (offset >= m_inode.size)
 			return 0;
@@ -204,16 +207,18 @@ namespace Kernel
 		return n_read;
 	}
 
-	BAN::ErrorOr<size_t> Ext2Inode::write(size_t offset, const void* buffer, size_t count)
+	BAN::ErrorOr<size_t> Ext2Inode::write_impl(off_t offset, const void* buffer, size_t count)
 	{
-		if (offset >= UINT32_MAX || count == UINT32_MAX || offset + count >= UINT32_MAX)
+		// FIXME: update atime if needed
+
+		ASSERT(!mode().ifdir());
+		ASSERT(offset >= 0);
+
+		if (offset >= UINT32_MAX || count >= UINT32_MAX || offset + count >= UINT32_MAX)
 			return BAN::Error::from_errno(EOVERFLOW);
 
-		if (mode().ifdir())
-			return BAN::Error::from_errno(EISDIR);
-
 		if (m_inode.size < offset + count)
-			TRY(truncate(offset + count));
+			TRY(truncate_impl(offset + count));
 
 		const uint32_t block_size = blksize();
 
@@ -222,6 +227,8 @@ namespace Kernel
 
 		const uint8_t* u8buffer = (const uint8_t*)buffer;
 
+		size_t written = 0;
+
 		// Write partial block
 		if (offset % block_size)
 		{
@@ -229,7 +236,7 @@ namespace Kernel
 			uint32_t block_offset = offset % block_size;
 
 			uint32_t data_block_index = TRY(this->data_block_index(block_index));
-			uint32_t to_copy = BAN::Math::min<uint32_t>(block_size - block_offset, count);
+			uint32_t to_copy = BAN::Math::min<uint32_t>(block_size - block_offset, written);
 
 			m_fs.read_block(data_block_index, block_buffer.span());
 			memcpy(block_buffer.data() + block_offset, buffer, to_copy);
@@ -237,10 +244,10 @@ namespace Kernel
 
 			u8buffer += to_copy;
 			offset += to_copy;
-			count -= to_copy;
+			written -= to_copy;
 		}
 
-		while (count >= block_size)
+		while (written >= block_size)
 		{
 			uint32_t data_block_index = TRY(this->data_block_index(offset / block_size));
 
@@ -248,22 +255,22 @@ namespace Kernel
 
 			u8buffer += block_size;
 			offset += block_size;
-			count -= block_size;
+			written -= block_size;
 		}
 
-		if (count > 0)
+		if (written > 0)
 		{
 			uint32_t data_block_index = TRY(this->data_block_index(offset / block_size));
 
 			m_fs.read_block(data_block_index, block_buffer.span());
-			memcpy(block_buffer.data(), u8buffer, count);
+			memcpy(block_buffer.data(), u8buffer, written);
 			m_fs.write_block(data_block_index, block_buffer.span());
 		}
 
 		return count;
 	}
 
-	BAN::ErrorOr<void> Ext2Inode::truncate(size_t new_size)
+	BAN::ErrorOr<void> Ext2Inode::truncate_impl(size_t new_size)
 	{
 		if (m_inode.size == new_size)
 			return {};
@@ -304,10 +311,10 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<void> Ext2Inode::directory_read_next_entries(off_t offset, DirectoryEntryList* list, size_t list_size)
+	BAN::ErrorOr<void> Ext2Inode::list_next_inodes_impl(off_t offset, DirectoryEntryList* list, size_t list_size)
 	{
-		if (!mode().ifdir())
-			return BAN::Error::from_errno(ENOTDIR);
+		ASSERT(mode().ifdir());
+		ASSERT(offset >= 0);
 
 		const uint32_t data_block_count = blocks();
 		if (offset >= data_block_count)
@@ -369,7 +376,7 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<void> Ext2Inode::create_file(BAN::StringView name, mode_t mode, uid_t uid, gid_t gid)
+	BAN::ErrorOr<void> Ext2Inode::create_file_impl(BAN::StringView name, mode_t mode, uid_t uid, gid_t gid)
 	{
 		if (!this->mode().ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
@@ -386,7 +393,7 @@ namespace Kernel
 			return BAN::Error::from_errno(ENOTSUP);
 		}
 
-		auto error_or = directory_find_inode(name);
+		auto error_or = find_inode_impl(name);
 		if (!error_or.is_error())
 			return BAN::Error::from_errno(EEXISTS);
 		if (error_or.error().get_error_code() != ENOENT)
@@ -424,7 +431,7 @@ namespace Kernel
 
 		auto write_inode = [&](uint32_t entry_offset, uint32_t entry_rec_len)
 		{
-			auto typed_mode = Mode { mode };
+			auto typed_mode = Mode(mode);
 			uint8_t file_type = (m_fs.superblock().rev_level == Ext2::Enum::GOOD_OLD_REV) ? 0
 				: typed_mode.ifreg()  ? Ext2::Enum::REG_FILE
 				: typed_mode.ifdir()  ? Ext2::Enum::DIR
@@ -542,10 +549,9 @@ needs_new_block:
 		return {};
 	}
 
-	BAN::ErrorOr<BAN::RefPtr<Inode>> Ext2Inode::directory_find_inode(BAN::StringView file_name)
+	BAN::ErrorOr<BAN::RefPtr<Inode>> Ext2Inode::find_inode_impl(BAN::StringView file_name)
 	{
-		if (!mode().ifdir())
-			return BAN::Error::from_errno(ENOTDIR);
+		ASSERT(mode().ifdir());
 
 		const uint32_t block_size = blksize();
 		const uint32_t data_block_count = blocks();

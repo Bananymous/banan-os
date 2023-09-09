@@ -1,5 +1,6 @@
 #include <BAN/ScopeGuard.h>
 #include <kernel/FS/Ext2/FileSystem.h>
+#include <kernel/LockGuard.h>
 
 #define EXT2_DEBUG_PRINT 0
 #define EXT2_VERIFY_INODE 0
@@ -135,6 +136,8 @@ namespace Kernel
 
 	BAN::ErrorOr<uint32_t> Ext2FS::create_inode(const Ext2::Inode& ext2_inode)
 	{
+		LockGuard _(m_lock);
+
 		ASSERT(ext2_inode.size == 0);
 
 		if (m_superblock.free_inodes_count == 0)
@@ -213,6 +216,8 @@ namespace Kernel
 
 	void Ext2FS::read_block(uint32_t block, BAN::Span<uint8_t> buffer)
 	{
+		LockGuard _(m_lock);
+
 		const uint32_t sector_size = m_partition.device().sector_size();
 		const uint32_t block_size = this->block_size();
 		const uint32_t sectors_per_block = block_size / sector_size;
@@ -225,6 +230,8 @@ namespace Kernel
 
 	void Ext2FS::write_block(uint32_t block, BAN::Span<const uint8_t> buffer)
 	{
+		LockGuard _(m_lock);
+
 		const uint32_t sector_size = m_partition.device().sector_size();
 		const uint32_t block_size = this->block_size();
 		const uint32_t sectors_per_block = block_size / sector_size;
@@ -237,6 +244,8 @@ namespace Kernel
 
 	void Ext2FS::sync_superblock()
 	{
+		LockGuard _(m_lock);
+
 		const uint32_t sector_size = m_partition.device().sector_size();
 		ASSERT(1024 % sector_size == 0);
 
@@ -261,6 +270,8 @@ namespace Kernel
 
 	BAN::ErrorOr<uint32_t> Ext2FS::reserve_free_block(uint32_t primary_bgd)
 	{
+		LockGuard _(m_lock);
+
 		if (m_superblock.r_blocks_count >= m_superblock.free_blocks_count)
 			return BAN::Error::from_errno(ENOSPC);
 
@@ -325,6 +336,8 @@ namespace Kernel
 
 	BAN::ErrorOr<Ext2FS::BlockLocation> Ext2FS::locate_inode(uint32_t ino)
 	{
+		LockGuard _(m_lock);
+
 		ASSERT(ino <= superblock().inodes_count);
 
 		const uint32_t block_size = this->block_size();
@@ -366,6 +379,8 @@ namespace Kernel
 
 	Ext2FS::BlockLocation Ext2FS::locate_block_group_descriptior(uint32_t group_index)
 	{
+		LockGuard _(m_lock);
+
 		const uint32_t block_size = this->block_size();
 
 		const uint32_t block_group_count = BAN::Math::div_round_up(superblock().inodes_count, superblock().inodes_per_group);

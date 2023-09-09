@@ -242,7 +242,7 @@ namespace Kernel::Input
 		append_command_queue(Command::SET_LEDS, new_leds);
 	}
 
-	BAN::ErrorOr<size_t> PS2Keyboard::read(size_t, void* buffer, size_t size)
+	BAN::ErrorOr<size_t> PS2Keyboard::read_impl(off_t, void* buffer, size_t size)
 	{
 		if (size < sizeof(KeyEvent))
 			return BAN::Error::from_errno(ENOBUFS);

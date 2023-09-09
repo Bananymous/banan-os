@@ -72,11 +72,12 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<size_t> ATADevice::read(size_t offset, void* buffer, size_t bytes)
+	BAN::ErrorOr<size_t> ATADevice::read_impl(off_t offset, void* buffer, size_t bytes)
 	{
+		ASSERT(offset >= 0);
 		if (offset % sector_size() || bytes % sector_size())
 			return BAN::Error::from_errno(EINVAL);
-		if (offset == total_size())
+		if ((size_t)offset == total_size())
 			return 0;
 		TRY(read_sectors(offset / sector_size(), bytes / sector_size(), (uint8_t*)buffer));
 		return bytes;

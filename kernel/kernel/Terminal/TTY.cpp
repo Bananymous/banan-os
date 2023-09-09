@@ -26,7 +26,7 @@ namespace Kernel
 	{
 		s_tty = this;
 
-		auto inode_or_error = DevFileSystem::get().root_inode()->directory_find_inode("tty");
+		auto inode_or_error = DevFileSystem::get().root_inode()->find_inode("tty");
 		if (inode_or_error.is_error())
 		{
 			if (inode_or_error.error().get_error_code() == ENOENT)
@@ -249,7 +249,7 @@ namespace Kernel
 		}
 	}
 
-	BAN::ErrorOr<size_t> TTY::read(size_t, void* buffer, size_t count)
+	BAN::ErrorOr<size_t> TTY::read_impl(off_t, void* buffer, size_t count)
 	{
 		LockGuard _(m_lock);
 		while (!m_output.flush)
@@ -279,7 +279,7 @@ namespace Kernel
 		return to_copy;
 	}
 
-	BAN::ErrorOr<size_t> TTY::write(size_t, const void* buffer, size_t count)
+	BAN::ErrorOr<size_t> TTY::write_impl(off_t, const void* buffer, size_t count)
 	{
 		LockGuard _(m_lock);
 		for (size_t i = 0; i < count; i++)

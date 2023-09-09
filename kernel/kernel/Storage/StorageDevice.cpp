@@ -231,8 +231,10 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<size_t> Partition::read(size_t offset, void* buffer, size_t bytes)
+	BAN::ErrorOr<size_t> Partition::read_impl(off_t offset, void* buffer, size_t bytes)
 	{
+		ASSERT(offset >= 0);
+
 		if (offset % m_device.sector_size() || bytes % m_device.sector_size())
 			return BAN::Error::from_errno(ENOTSUP);
 

@@ -45,6 +45,8 @@ namespace Kernel
 		uint32_t block_size() const { return 1024 << superblock().log_block_size; }
 
 	private:
+		RecursiveSpinLock m_lock;
+
 		Partition& m_partition;
 
 		BAN::RefPtr<Inode> m_root_inode;
