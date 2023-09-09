@@ -55,7 +55,7 @@ namespace Kernel
 
 	BAN::ErrorOr<int> OpenFileDescriptorSet::open(BAN::StringView absolute_path, int flags)
 	{
-		if (flags & ~(O_RDONLY | O_WRONLY | O_NOFOLLOW | O_SEARCH | O_APPEND | O_TRUNC | O_CLOEXEC | O_TTY_INIT))
+		if (flags & ~(O_RDONLY | O_WRONLY | O_NOFOLLOW | O_SEARCH | O_APPEND | O_TRUNC | O_CLOEXEC | O_TTY_INIT | O_DIRECTORY))
 			return BAN::Error::from_errno(ENOTSUP);
 
 		int access_mask = O_EXEC | O_RDONLY | O_WRONLY | O_SEARCH;
@@ -64,7 +64,10 @@ namespace Kernel
 
 		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, flags));
 
-		if (flags & O_TRUNC)
+		if ((flags & O_DIRECTORY) && !file.inode->mode().ifdir())
+			return BAN::Error::from_errno(ENOTDIR);
+
+		if ((flags & O_TRUNC) && (flags & O_WRONLY) && file.inode->mode().ifreg())
 			TRY(file.inode->truncate(0));
 
 		int fd = TRY(get_free_fd());
