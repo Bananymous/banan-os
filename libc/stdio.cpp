@@ -62,7 +62,7 @@ FILE* fdopen(int fd, const char* mode)
 			return &s_files[i];
 		}
 	}
-	
+
 	errno = EMFILE;
 	return nullptr;
 }
@@ -90,7 +90,7 @@ int fflush(FILE* file)
 
 	if (file->buffer_index == 0)
 		return 0;
-	
+
 	if (syscall(SYS_WRITE, file->fd, file->buffer, file->buffer_index) < 0)
 	{
 		file->error = true;
@@ -105,7 +105,7 @@ int fgetc(FILE* file)
 {
 	if (file->eof)
 		return EOF;
-	
+
 	unsigned char c;
 	long ret = syscall(SYS_READ, file->fd, &c, 1);
 
@@ -114,7 +114,7 @@ int fgetc(FILE* file)
 		file->error = true;
 		return EOF;
 	}
-	
+
 	if (ret == 0)
 	{
 		file->eof = true;
@@ -217,7 +217,7 @@ FILE* fopen(const char* pathname, const char* mode)
 			return &s_files[i];
 		}
 	}
-	
+
 	errno = EMFILE;
 	return nullptr;
 }
@@ -293,7 +293,7 @@ int fseeko(FILE* file, off_t offset, int whence)
 	long ret = syscall(SYS_SEEK, file->fd, offset, whence);
 	if (ret < 0)
 		return -1;
-	
+
 	file->eof = false;
 	return 0;
 }
@@ -353,7 +353,7 @@ char* gets(char* buffer)
 		return nullptr;
 
 	unsigned char* ubuffer = (unsigned char*)buffer;
-	
+
 	int first = fgetc(stdin);
 	if (first == EOF)
 		return nullptr;
@@ -529,7 +529,7 @@ int vsprintf(char* buffer, const char* format, va_list arguments)
 {
 	if (buffer == nullptr)
 		return printf_impl(format, arguments, [](int, void*) { return 0; }, nullptr);
-	
+
 	int ret = printf_impl(format, arguments,
 		[](int c, void* _buffer)
 		{

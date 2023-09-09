@@ -6,7 +6,7 @@
 
 namespace Kernel
 {
-	
+
 	class RamInode;
 	class RamDirectoryInode;
 

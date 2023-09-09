@@ -18,5 +18,5 @@ namespace Kernel
 
 	using vaddr_t = uintptr_t;
 	using paddr_t = uintptr_t;
-	
+
 }

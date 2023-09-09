@@ -2,7 +2,7 @@
 
 namespace BAN
 {
-	
+
 	template<typename T> struct remove_refenrece { using type = T; };
 	template<typename T> struct remove_refenrece<T&> { using type =  T; };
 	template<typename T> struct remove_refenrece<T&&> { using type = T; };
@@ -68,7 +68,7 @@ namespace BAN
 	template<typename T> struct is_const			: false_type {};
 	template<typename T> struct is_const<const T>	: true_type {};
 	template<typename T> inline constexpr bool is_const_v = is_const<T>::value;
-	
+
 	template<typename T> struct is_arithmetic { static constexpr bool value = is_integral_v<T> || is_floating_point_v<T>; };
 	template<typename T> inline constexpr bool is_arithmetic_v = is_arithmetic<T>::value;
 

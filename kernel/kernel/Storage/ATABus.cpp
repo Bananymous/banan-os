@@ -323,5 +323,5 @@ namespace Kernel
 
 		return {};
 	}
-	
+
 }

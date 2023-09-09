@@ -12,7 +12,6 @@ namespace Kernel
 		return BAN::RefPtr<ZeroDevice>::adopt(result);
 	}
 
-
 	BAN::ErrorOr<size_t> ZeroDevice::read_impl(off_t, void* buffer, size_t bytes)
 	{
 		memset(buffer, 0, bytes);

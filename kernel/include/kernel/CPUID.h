@@ -73,7 +73,7 @@ namespace CPUID
 
 	const char* feature_string_ecx(uint32_t feat);
 	const char* feature_string_edx(uint32_t feat);
-	
+
 	const char* get_vendor();
 	void get_features(uint32_t& ecx, uint32_t& edx);
 	bool is_64_bit();

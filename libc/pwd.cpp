@@ -50,7 +50,7 @@ struct passwd* getpwent(void)
 		if (!open_pwent())
 			return nullptr;
 	clear_pwent(s_pwent_struct);
-	
+
 	BAN::String line;
 	while (true)
 	{

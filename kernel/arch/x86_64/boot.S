@@ -35,7 +35,7 @@
 		.skip 16384
 	.global g_boot_stack_top
 	g_boot_stack_top:
-	
+
 	.global g_kernel_cmdline
 	g_kernel_cmdline:
 		.skip 4096

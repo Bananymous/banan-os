@@ -11,7 +11,7 @@ namespace Kernel::API
 		struct dirent dirent;
 		DirectoryEntry* next() const { return (DirectoryEntry*)((uintptr_t)this + rec_len); }
 	};
-	
+
 	struct DirectoryEntryList
 	{
 		size_t entry_count { 0 };

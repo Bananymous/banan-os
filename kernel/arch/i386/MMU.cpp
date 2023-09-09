@@ -207,7 +207,6 @@ namespace Kernel
 			unmap_page(page);
 	}
 
-
 	uint8_t MMU::get_page_flags(vaddr_t address) const
 	{
 		uint32_t pdpte = (address & 0xC0000000) >> 30;

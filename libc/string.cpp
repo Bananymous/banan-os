@@ -273,7 +273,6 @@ const char* strerrordesc_np(int error)
 	return "Unknown error";
 }
 
-
 size_t strlen(const char* str)
 {
 	size_t len = 0;

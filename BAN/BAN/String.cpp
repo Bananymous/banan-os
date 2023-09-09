@@ -119,7 +119,7 @@ namespace BAN
 		m_size -= count;
 		m_data[m_size] = '\0';
 	}
-	
+
 	void String::clear()
 	{
 		m_size = 0;

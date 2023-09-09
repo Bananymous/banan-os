@@ -154,7 +154,7 @@ found:
 		"popa;"
 		"iret;"
 	);
-	
+
 	extern "C" void syscall_asm();
 	asm(
 	".global syscall_asm;"

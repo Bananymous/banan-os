@@ -5,7 +5,7 @@
 
 namespace Kernel
 {
-	
+
 	class DevFileSystem final : public RamFileSystem
 	{
 	public:
@@ -13,7 +13,7 @@ namespace Kernel
 		static DevFileSystem& get();
 		
 		void initialize_device_updater();
-	
+
 		void add_device(BAN::StringView path, BAN::RefPtr<RamInode>);
 
 		dev_t get_next_dev();

@@ -121,7 +121,7 @@ namespace Kernel::Input
 		}
 		m_command_queue.push(byte);
 	}
-	
+
 	void PS2Keyboard::append_command_queue(uint8_t byte1, uint8_t byte2)
 	{
 		if (m_command_queue.size() + 2 > m_command_queue.capacity())

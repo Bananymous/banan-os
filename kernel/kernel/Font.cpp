@@ -245,7 +245,7 @@ namespace Kernel
 		result.m_pitch = header.glyph_size / header.height;
 		return result;
 	}
-	
+
 	bool Font::has_glyph(uint32_t codepoint) const
 	{
 		return m_glyph_offsets.contains(codepoint);

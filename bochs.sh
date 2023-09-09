@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
- 
+
 BOCHS_CONFIG_FILE=bochsrc
 COM1_TERMINAL=kitty
 COM1_DEVICE_FILE=com1-term-device

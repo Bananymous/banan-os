@@ -77,7 +77,7 @@ static void integer_to_string(char* buffer, T value, int base, bool upper, forma
 			prefix[1] = 'x';
 		}
 	}
-	
+
 	while (value || offset < digits)
 	{
 		buffer[offset++] = digit_char(value % base, upper);
@@ -171,7 +171,7 @@ static void floating_point_to_string(char* buffer, T value, bool upper, const fo
 		return;
 	}
 	buffer[offset++] = '.';
-	
+
 	// Add the 'percision' digits after decimal point
 	for (int i = 0; i < percision; i++)
 	{
@@ -193,7 +193,7 @@ static void floating_point_to_exponent_string(char* buffer, T value, bool upper,
 	int percision = 6;
 	if (options.percision != -1)
 		percision = options.percision;
-	
+
 	int offset = 0;
 
 	// Add sign if needed
@@ -465,7 +465,6 @@ extern "C" int printf_impl(const char* format, va_list arguments, int (*putc_fun
 			format++;
 		}
 	}
-	
+
 	return written;
 }
-

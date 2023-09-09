@@ -7,7 +7,6 @@
 namespace Kernel
 {
 
-
 	OpenFileDescriptorSet::OpenFileDescriptorSet(const Credentials& credentials)
 		: m_credentials(credentials)
 	{

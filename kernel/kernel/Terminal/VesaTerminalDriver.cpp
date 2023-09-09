@@ -57,7 +57,6 @@ VesaTerminalDriver* VesaTerminalDriver::create()
 	return driver;
 }
 
-
 VesaTerminalDriver::~VesaTerminalDriver()
 {
 	PageTable::kernel().unmap_range(m_address, m_pitch * m_height);

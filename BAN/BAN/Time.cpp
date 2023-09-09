@@ -24,7 +24,7 @@ namespace BAN
 			leap_years++;
 		return leap_years;
 	}
-	
+
 	static constexpr uint64_t month_days[] { 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334 };
 
 	uint64_t to_unix_time(const BAN::Time& time)

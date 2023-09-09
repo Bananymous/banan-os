@@ -304,7 +304,7 @@ namespace Kernel
 		execute_current_thread();
 		ASSERT_NOT_REACHED();
 	}
-	
+
 	void Scheduler::unblock_threads(Semaphore* semaphore)
 	{
 		CriticalScope critical;

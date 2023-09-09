@@ -171,7 +171,7 @@ namespace BAN
 	{
 		return m_size;
 	}
-	
+
 	const char* StringView::data() const
 	{
 		return m_data;

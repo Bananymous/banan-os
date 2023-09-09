@@ -32,11 +32,11 @@ long syscall(long syscall, ...)
 	uintptr_t arg3 = va_arg(args, uintptr_t);
 	uintptr_t arg4 = va_arg(args, uintptr_t);
 	uintptr_t arg5 = va_arg(args, uintptr_t);
-	
+
 	va_end(args);
 
 	long ret = Kernel::syscall(syscall, arg1, arg2, arg3, arg4, arg5);
-	
+
 	if (ret < 0)
 	{
 		errno = -ret;
@@ -78,7 +78,7 @@ int execl(const char* pathname, const char* arg0, ...)
 		char* temp = nullptr;
 		return execv(pathname, &temp);
 	}
-	
+
 	va_list ap;
 	va_start(ap, arg0);
 	int argc = 1;

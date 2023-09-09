@@ -192,7 +192,7 @@ static void* kmalloc_fixed()
 	// allocate the node on top of free list
 	auto* node = info.free_list_head;
 	ASSERT(node->next == kmalloc_fixed_info::node::invalid);
-	
+
 	// remove the node from free list
 	if (info.free_list_head->prev != kmalloc_fixed_info::node::invalid)
 	{
@@ -326,7 +326,7 @@ void* kmalloc(size_t size, size_t align, bool force_indentity_map)
 
 	if (ptrdiff_t rem = size % s_kmalloc_min_align)
 		size += s_kmalloc_min_align - rem;
-	
+
 	if (void* res = kmalloc_impl(size, align))
 		return res;
 

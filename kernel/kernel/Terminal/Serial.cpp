@@ -181,7 +181,7 @@ namespace Kernel
 	{
 		return s_has_devices;
 	}
- 
+
 	void Serial::putchar(char c)
 	{
 		while (!(IO::inb(m_port + 5) & 0x20))
@@ -275,7 +275,7 @@ namespace Kernel
 		if (m_serial.port() == COM2_PORT)
 			update_com(s_com2, s_com2_input);
 	}
-	
+
 	uint32_t SerialTTY::width() const
 	{
 		return m_serial.width();
@@ -285,7 +285,7 @@ namespace Kernel
 	{
 		return m_serial.height();
 	}
-	
+
 	void SerialTTY::putchar(uint8_t ch)
 	{
 		m_serial.putchar(ch);

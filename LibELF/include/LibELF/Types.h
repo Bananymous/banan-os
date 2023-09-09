@@ -78,7 +78,6 @@ namespace LibELF
 		Elf32Word p_align;
 	};
 
-
 	using Elf64Addr = uint64_t;
 	using Elf64Off = uint64_t;
 	using Elf64Half = uint16_t;
