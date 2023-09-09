@@ -50,7 +50,8 @@ namespace Kernel
 		virtual gid_t gid() const override { return 0; }
 		virtual dev_t rdev() const override { return m_rdev; }
 
-		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t) override;
+	protected:
+		virtual BAN::ErrorOr<size_t> read_impl(off_t, void*, size_t) override;
 	
 	private:
 		const dev_t m_rdev;

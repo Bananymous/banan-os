@@ -7,6 +7,7 @@
 
 #include <kernel/API/DirectoryEntry.h>
 #include <kernel/Credentials.h>
+#include <kernel/SpinLock.h>
 
 #include <sys/types.h>
 #include <time.h>
@@ -80,18 +81,37 @@ namespace Kernel
 		virtual bool is_pipe() const { return false; }
 		virtual bool is_tty() const { return false; }
 
-		virtual BAN::ErrorOr<BAN::String> link_target() { ASSERT_NOT_REACHED(); }
+		// Directory API
+		BAN::ErrorOr<BAN::RefPtr<Inode>> find_inode(BAN::StringView);
+		BAN::ErrorOr<void> list_next_inodes(off_t, DirectoryEntryList*, size_t);
+		BAN::ErrorOr<void> create_file(BAN::StringView, mode_t, uid_t, gid_t);
 
-		virtual BAN::ErrorOr<BAN::RefPtr<Inode>> directory_find_inode(BAN::StringView)				{ if (!mode().ifdir()) return BAN::Error::from_errno(ENOTDIR); ASSERT_NOT_REACHED(); }
-		virtual BAN::ErrorOr<void> directory_read_next_entries(off_t, DirectoryEntryList*, size_t)	{ if (!mode().ifdir()) return BAN::Error::from_errno(ENOTDIR); ASSERT_NOT_REACHED(); }
+		// Link API
+		BAN::ErrorOr<BAN::String> link_target();
 
-		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t)		{ if (mode().ifdir()) return BAN::Error::from_errno(EISDIR); ASSERT_NOT_REACHED(); }
-		virtual BAN::ErrorOr<size_t> write(size_t, const void*, size_t)	{ if (mode().ifdir()) return BAN::Error::from_errno(EISDIR); ASSERT_NOT_REACHED(); }
-		virtual bool has_data() const									{ dwarnln("nonblock not supported"); return true; }
-		
-		virtual BAN::ErrorOr<void> truncate(size_t) { if (mode().ifdir()) return BAN::Error::from_errno(EISDIR); return BAN::Error::from_errno(ENOTSUP); }
+		// General API
+		BAN::ErrorOr<size_t> read(off_t, void*, size_t);
+		BAN::ErrorOr<size_t> write(off_t, const void*, size_t);
+		BAN::ErrorOr<void> truncate(size_t);
+		bool has_data() const;
 
-		virtual BAN::ErrorOr<void> create_file(BAN::StringView, mode_t, uid_t, gid_t) { if (!mode().ifdir()) return BAN::Error::from_errno(ENOTDIR); ASSERT_NOT_REACHED(); }
+	protected:
+		// Directory API
+		virtual BAN::ErrorOr<BAN::RefPtr<Inode>> find_inode_impl(BAN::StringView)				{ return BAN::Error::from_errno(ENOTSUP); }
+		virtual BAN::ErrorOr<void> list_next_inodes_impl(off_t, DirectoryEntryList*, size_t)	{ return BAN::Error::from_errno(ENOTSUP); }
+		virtual BAN::ErrorOr<void> create_file_impl(BAN::StringView, mode_t, uid_t, gid_t)		{ return BAN::Error::from_errno(ENOTSUP); }
+
+		// Link API
+		virtual BAN::ErrorOr<BAN::String> link_target_impl()				{ return BAN::Error::from_errno(ENOTSUP); }
+
+		// General API
+		virtual BAN::ErrorOr<size_t> read_impl(off_t, void*, size_t)		{ return BAN::Error::from_errno(ENOTSUP); }
+		virtual BAN::ErrorOr<size_t> write_impl(off_t, const void*, size_t)	{ return BAN::Error::from_errno(ENOTSUP); }
+		virtual BAN::ErrorOr<void> truncate_impl(size_t)					{ return BAN::Error::from_errno(ENOTSUP); }
+		virtual bool has_data_impl() const { dwarnln("nonblock not supported"); return true; }
+
+	private:
+		mutable RecursiveSpinLock m_lock;
 	};
 
 }

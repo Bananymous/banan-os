@@ -33,9 +33,6 @@ namespace Kernel
 
 		virtual bool is_tty() const override { return true; }
 
-		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t) override;
-		virtual BAN::ErrorOr<size_t> write(size_t, const void*, size_t) override;
-
 		virtual uint32_t height() const = 0;
 		virtual uint32_t width() const = 0;
 		virtual void putchar(uint8_t ch) = 0;
@@ -46,6 +43,9 @@ namespace Kernel
 		TTY(mode_t mode, uid_t uid, gid_t gid)
 			: CharacterDevice(mode, uid, gid)
 		{ }
+
+		virtual BAN::ErrorOr<size_t> read_impl(off_t, void*, size_t) override;
+		virtual BAN::ErrorOr<size_t> write_impl(off_t, const void*, size_t) override;
 
 		virtual BAN::StringView name() const = 0;
 

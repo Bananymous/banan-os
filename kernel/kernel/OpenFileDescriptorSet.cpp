@@ -290,7 +290,7 @@ namespace Kernel
 		auto& open_file = m_open_files[fd];
 		if (!(open_file->flags & O_RDONLY))
 			return BAN::Error::from_errno(EACCES);
-		TRY(open_file->inode->directory_read_next_entries(open_file->offset, list, list_size));
+		TRY(open_file->inode->list_next_inodes(open_file->offset, list, list_size));
 		open_file->offset++;
 		return {};
 	}

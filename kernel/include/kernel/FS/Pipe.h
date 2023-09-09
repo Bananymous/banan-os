@@ -30,8 +30,9 @@ namespace Kernel
 		virtual dev_t dev() const override { return 0; } // FIXME
 		virtual dev_t rdev() const override { return 0; } // FIXME
 
-		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t) override;
-		virtual BAN::ErrorOr<size_t> write(size_t, const void*, size_t) override;
+	protected:
+		virtual BAN::ErrorOr<size_t> read_impl(off_t, void*, size_t) override;
+		virtual BAN::ErrorOr<size_t> write_impl(off_t, const void*, size_t) override;
 
 	private:
 		Pipe(const Credentials&);

@@ -13,7 +13,7 @@ namespace Kernel
 
 	BAN::ErrorOr<BAN::RefPtr<RamInode>> RamInode::create(RamFileSystem& fs, mode_t mode, uid_t uid, gid_t gid)
 	{
-		ASSERT(Mode{ mode }.ifreg());
+		ASSERT(Mode(mode).ifreg());
 		auto* ram_inode = new RamInode(fs, mode, uid, gid);
 		if (ram_inode == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
@@ -40,26 +40,26 @@ namespace Kernel
 		m_inode_info.rdev = 0;
 	}
 
-	BAN::ErrorOr<size_t> RamInode::read(size_t offset, void* buffer, size_t bytes)
+	BAN::ErrorOr<size_t> RamInode::read_impl(off_t offset, void* buffer, size_t bytes)
 	{
-		if (offset >= (size_t)size())
+		ASSERT(offset >= 0);
+		if (offset >= size())
 			return 0;
-
 		size_t to_copy = BAN::Math::min<size_t>(m_inode_info.size - offset, bytes);
 		memcpy(buffer, m_data.data(), to_copy);
-
 		return to_copy;
 	}
 
-	BAN::ErrorOr<size_t> RamInode::write(size_t offset, const void* buffer, size_t bytes)
+	BAN::ErrorOr<size_t> RamInode::write_impl(off_t offset, const void* buffer, size_t bytes)
 	{
+		ASSERT(offset >= 0);
 		if (offset + bytes > (size_t)size())
-			TRY(truncate(offset + bytes));
+			TRY(truncate_impl(offset + bytes));
 		memcpy(m_data.data() + offset, buffer, bytes);
 		return bytes;
 	}
 
-	BAN::ErrorOr<void> RamInode::truncate(size_t new_size)
+	BAN::ErrorOr<void> RamInode::truncate_impl(size_t new_size)
 	{
 		TRY(m_data.resize(new_size, 0));
 		m_inode_info.size   = m_data.size();
@@ -75,7 +75,7 @@ namespace Kernel
 
 	BAN::ErrorOr<BAN::RefPtr<RamDirectoryInode>> RamDirectoryInode::create(RamFileSystem& fs, ino_t parent, mode_t mode, uid_t uid, gid_t gid)
 	{
-		ASSERT(Mode{ mode }.ifdir());
+		ASSERT(Mode(mode).ifdir());
 		auto* ram_inode = new RamDirectoryInode(fs, parent, mode, uid, gid);
 		if (ram_inode == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
@@ -101,7 +101,7 @@ namespace Kernel
 		}
 	}
 
-	BAN::ErrorOr<BAN::RefPtr<Inode>> RamDirectoryInode::directory_find_inode(BAN::StringView name)
+	BAN::ErrorOr<BAN::RefPtr<Inode>> RamDirectoryInode::find_inode_impl(BAN::StringView name)
 	{
 		if (name == "."sv)
 		{
@@ -127,8 +127,10 @@ namespace Kernel
 		return BAN::Error::from_errno(ENOENT);
 	}
 
-	BAN::ErrorOr<void> RamDirectoryInode::directory_read_next_entries(off_t offset, DirectoryEntryList* list, size_t list_size)
+	BAN::ErrorOr<void> RamDirectoryInode::list_next_inodes_impl(off_t offset, DirectoryEntryList* list, size_t list_size)
 	{
+		ASSERT(offset >= 0);
+
 		// TODO: don't require memory for all entries on single call
 		if (offset != 0)
 		{
@@ -175,12 +177,12 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<void> RamDirectoryInode::create_file(BAN::StringView name, mode_t mode, uid_t uid, gid_t gid)
+	BAN::ErrorOr<void> RamDirectoryInode::create_file_impl(BAN::StringView name, mode_t mode, uid_t uid, gid_t gid)
 	{
 		BAN::RefPtr<RamInode> inode;
-		if (Mode{ mode }.ifreg())
+		if (Mode(mode).ifreg())
 			inode = TRY(RamInode::create(m_fs, mode, uid, gid));
-		else if (Mode{ mode }.ifdir())
+		else if (Mode(mode).ifdir())
 			inode = TRY(RamDirectoryInode::create(m_fs, ino(), mode, uid, gid));
 		else
 			ASSERT_NOT_REACHED();
@@ -222,7 +224,7 @@ namespace Kernel
 
 	BAN::ErrorOr<BAN::RefPtr<RamSymlinkInode>> RamSymlinkInode::create(RamFileSystem& fs, BAN::StringView target, mode_t mode, uid_t uid, gid_t gid)
 	{
-		ASSERT(Mode{ mode }.iflnk());
+		ASSERT(Mode(mode).iflnk());
 		auto* ram_inode = new RamSymlinkInode(fs, mode, uid, gid);
 		if (ram_inode == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
@@ -235,7 +237,7 @@ namespace Kernel
 		: RamInode(fs, mode, uid, gid)
 	{ }
 
-	BAN::ErrorOr<BAN::String> RamSymlinkInode::link_target()
+	BAN::ErrorOr<BAN::String> RamSymlinkInode::link_target_impl()
 	{
 		BAN::String result;
 		TRY(result.append(m_target));

@@ -29,15 +29,14 @@ namespace Kernel
 		virtual dev_t		dev()		const override { return m_inode_info.dev; }
 		virtual dev_t		rdev()		const override { return m_inode_info.rdev; }
 
-		virtual BAN::ErrorOr<size_t> read(size_t, void*, size_t) override;
-		virtual BAN::ErrorOr<size_t> write(size_t, const void*, size_t)	override;
-
-		virtual BAN::ErrorOr<void> truncate(size_t) override;
-
 		void add_link() { m_inode_info.nlink++; }
 
 	protected:
 		RamInode(RamFileSystem& fs, mode_t, uid_t, gid_t);
+
+		virtual BAN::ErrorOr<size_t> read_impl(off_t, void*, size_t) override;
+		virtual BAN::ErrorOr<size_t> write_impl(off_t, const void*, size_t) override;
+		virtual BAN::ErrorOr<void> truncate_impl(size_t) override;
 
 	protected:
 		struct FullInodeInfo
@@ -72,11 +71,12 @@ namespace Kernel
 		static BAN::ErrorOr<BAN::RefPtr<RamDirectoryInode>> create(RamFileSystem&, ino_t parent, mode_t, uid_t, gid_t);
 		~RamDirectoryInode() = default;
 
-		virtual BAN::ErrorOr<BAN::RefPtr<Inode>> directory_find_inode(BAN::StringView) override;
-		virtual BAN::ErrorOr<void> directory_read_next_entries(off_t, DirectoryEntryList*, size_t) override;
-		virtual BAN::ErrorOr<void> create_file(BAN::StringView, mode_t, uid_t, gid_t) override;
-		
 		BAN::ErrorOr<void> add_inode(BAN::StringView, BAN::RefPtr<RamInode>);
+
+	protected:
+		virtual BAN::ErrorOr<BAN::RefPtr<Inode>> find_inode_impl(BAN::StringView) override;
+		virtual BAN::ErrorOr<void> list_next_inodes_impl(off_t, DirectoryEntryList*, size_t) override;
+		virtual BAN::ErrorOr<void> create_file_impl(BAN::StringView, mode_t, uid_t, gid_t) override;
 
 	private:
 		RamDirectoryInode(RamFileSystem&, ino_t parent, mode_t, uid_t, gid_t);
@@ -105,8 +105,10 @@ namespace Kernel
 
 		virtual off_t size() const override { return m_target.size(); }
 
-		virtual BAN::ErrorOr<BAN::String> link_target() override;
 		BAN::ErrorOr<void> set_link_target(BAN::StringView);
+	
+	protected:
+		virtual BAN::ErrorOr<BAN::String> link_target_impl() override;
 
 	private:
 		RamSymlinkInode(RamFileSystem&, mode_t, uid_t, gid_t);

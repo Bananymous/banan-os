@@ -39,9 +39,9 @@ namespace Kernel
 		MountPoint* mount_from_root_inode(BAN::RefPtr<Inode>);
 
 	private:
-		SpinLock						m_lock;
-		FileSystem*						m_root_fs = nullptr;
-		BAN::Vector<MountPoint>			m_mount_points;
+		SpinLock				m_lock;
+		FileSystem*				m_root_fs = nullptr;
+		BAN::Vector<MountPoint>	m_mount_points;
 	};
 
 }

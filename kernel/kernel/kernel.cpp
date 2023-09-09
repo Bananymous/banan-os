@@ -144,10 +144,6 @@ extern "C" void kernel_main()
 	auto vtty = MUST(VirtualTTY::create(terminal_driver));
 	dprintln("Virtual TTY initialized");
 
-	auto console = MUST(DevFileSystem::get().root_inode()->directory_find_inode(cmdline.console));
-	ASSERT(console->is_tty());
-	((TTY*)console.ptr())->set_as_current();
-
 	MUST(Scheduler::initialize());
 	dprintln("Scheduler initialized");
 
@@ -164,6 +160,10 @@ static void init2(void*)
 	using namespace Kernel::Input;
 
 	dprintln("Scheduler started");
+
+	auto console = MUST(DevFileSystem::get().root_inode()->find_inode(cmdline.console));
+	ASSERT(console->is_tty());
+	((TTY*)console.ptr())->set_as_current();
 
 	DevFileSystem::get().initialize_device_updater();
 

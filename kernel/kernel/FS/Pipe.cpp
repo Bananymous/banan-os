@@ -39,9 +39,9 @@ namespace Kernel
 			m_semaphore.unblock();
 	}
 
-	BAN::ErrorOr<size_t> Pipe::read(size_t, void* buffer, size_t count)
+	BAN::ErrorOr<size_t> Pipe::read_impl(off_t, void* buffer, size_t count)
 	{
-		m_lock.lock();
+		LockGuard _(m_lock);
 		while (m_buffer.empty())
 		{
 			if (m_writing_count == 0)
@@ -61,12 +61,10 @@ namespace Kernel
 
 		m_semaphore.unblock();
 
-		m_lock.unlock();
-
 		return to_copy;
 	}
 	
-	BAN::ErrorOr<size_t> Pipe::write(size_t, const void* buffer, size_t count)
+	BAN::ErrorOr<size_t> Pipe::write_impl(off_t, const void* buffer, size_t count)
 	{
 		LockGuard _(m_lock);
 
