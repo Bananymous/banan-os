@@ -8,8 +8,9 @@
 namespace Kernel
 {
 
-	DiskCache::DiskCache(size_t sector_size)
+	DiskCache::DiskCache(size_t sector_size, StorageDevice& device)
 		: m_sector_size(sector_size)
+		, m_device(device)
 	{
 		ASSERT(PAGE_SIZE % m_sector_size == 0);
 		ASSERT(PAGE_SIZE / m_sector_size <= sizeof(PageCache::sector_mask) * 8);
@@ -31,7 +32,6 @@ namespace Kernel
 		LockGuard page_table_locker(page_table);
 		ASSERT(page_table.is_page_free(0));
 
-		CriticalScope _;
 		for (auto& cache : m_cache)
 		{
 			if (cache.first_sector < page_cache_start)
@@ -42,6 +42,7 @@ namespace Kernel
 			if (!(cache.sector_mask & (1 << page_cache_offset)))
 				continue;
 
+			CriticalScope _;
 			page_table.map_page_at(cache.paddr, 0, PageTable::Flags::Present);
 			memcpy(buffer, (void*)(page_cache_offset * m_sector_size), m_sector_size);
 			page_table.unmap_page(0);
@@ -62,8 +63,6 @@ namespace Kernel
 		LockGuard page_table_locker(page_table);
 		ASSERT(page_table.is_page_free(0));
 
-		CriticalScope _;
-
 		size_t index = 0;
 
 		// Search the cache if the have this sector in memory
@@ -76,9 +75,12 @@ namespace Kernel
 			if (cache.first_sector > page_cache_start)
 				break;
 			
-			page_table.map_page_at(cache.paddr, 0, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
-			memcpy((void*)(page_cache_offset * m_sector_size), buffer, m_sector_size);
-			page_table.unmap_page(0);
+			{
+				CriticalScope _;
+				page_table.map_page_at(cache.paddr, 0, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
+				memcpy((void*)(page_cache_offset * m_sector_size), buffer, m_sector_size);
+				page_table.unmap_page(0);
+			}
 
 			cache.sector_mask |= 1 << page_cache_offset;
 			if (dirty)
@@ -104,25 +106,51 @@ namespace Kernel
 			return ret.error();
 		}
 
-		page_table.map_page_at(cache.paddr, 0, PageTable::Flags::Present);
-		memcpy((void*)(page_cache_offset * m_sector_size), buffer, m_sector_size);
-		page_table.unmap_page(0);
+		{
+			CriticalScope _;
+			page_table.map_page_at(cache.paddr, 0, PageTable::Flags::Present);
+			memcpy((void*)(page_cache_offset * m_sector_size), buffer, m_sector_size);
+			page_table.unmap_page(0);
+		}
 
 		return {};
 	}
 
-	void DiskCache::sync()
+	BAN::ErrorOr<void> DiskCache::sync()
 	{
-		CriticalScope _;
+		BAN::Vector<uint8_t> sector_buffer;
+		TRY(sector_buffer.resize(m_sector_size));
+
+		PageTable& page_table = PageTable::current();
+		LockGuard page_table_locker(page_table);
+		ASSERT(page_table.is_page_free(0));
+
 		for (auto& cache : m_cache)
-			ASSERT(cache.dirty_mask == 0);
+		{
+			for (int i = 0; cache.dirty_mask; i++)
+			{
+				if (!(cache.dirty_mask & (1 << i)))
+					continue;
+
+				{
+					CriticalScope _;
+					page_table.map_page_at(cache.paddr, 0, PageTable::Flags::Present);
+					memcpy(sector_buffer.data(), (void*)(i * m_sector_size), m_sector_size);
+					page_table.unmap_page(0);
+				}
+
+				TRY(m_device.write_sectors_impl(cache.first_sector + i, 1, sector_buffer.data()));
+				cache.dirty_mask &= ~(1 << i);
+			}
+		}
+
+		return {};
 	}
 
 	size_t DiskCache::release_clean_pages(size_t page_count)
 	{
 		// NOTE: There might not actually be page_count pages after this
 		//       function returns. The synchronization must be done elsewhere.
-		CriticalScope _;
 
 		size_t released = 0;
 		for (size_t i = 0; i < m_cache.size() && released < page_count;)
@@ -147,8 +175,9 @@ namespace Kernel
 		size_t released = release_clean_pages(page_count);
 		if (released >= page_count)
 			return released;
-
-		ASSERT_NOT_REACHED();
+		if (!sync().is_error())
+			released += release_clean_pages(page_count - released);
+		return released;
 	}
 
 	void DiskCache::release_all_pages()

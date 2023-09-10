@@ -3,6 +3,7 @@
 #include <BAN/StringView.h>
 #include <BAN/UTF8.h>
 #include <kernel/FS/VirtualFileSystem.h>
+#include <kernel/LockGuard.h>
 #include <kernel/PCI.h>
 #include <kernel/Storage/StorageDevice.h>
 #include <kernel/Thread.h>
@@ -257,15 +258,26 @@ namespace Kernel
 
 	void StorageDevice::add_disk_cache()
 	{
+		LockGuard _(m_lock);
 		ASSERT(!m_disk_cache.has_value());
-		m_disk_cache = DiskCache(sector_size());
+		m_disk_cache = DiskCache(sector_size(), *this);
+	}
+
+	BAN::ErrorOr<void> StorageDevice::sync_disk_cache()
+	{
+		LockGuard _(m_lock);
+		if (m_disk_cache.has_value())
+			TRY(m_disk_cache->sync());
+		return {};
 	}
 
 	BAN::ErrorOr<void> StorageDevice::read_sectors(uint64_t lba, uint8_t sector_count, uint8_t* buffer)
 	{
 		for (uint8_t offset = 0; offset < sector_count; offset++)
 		{
-			Thread::TerminateBlocker _(Thread::current());
+			LockGuard _(m_lock);
+			Thread::TerminateBlocker blocker(Thread::current());
+
 			uint8_t* buffer_ptr = buffer + offset * sector_size();
 			if (m_disk_cache.has_value())
 				if (m_disk_cache->read_from_cache(lba + offset, buffer_ptr))
@@ -283,11 +295,12 @@ namespace Kernel
 		// TODO: use disk cache for dirty pages. I don't wanna think about how to do it safely now
 		for (uint8_t offset = 0; offset < sector_count; offset++)
 		{
-			Thread::TerminateBlocker _(Thread::current());
+			LockGuard _(m_lock);
+			Thread::TerminateBlocker blocker(Thread::current());
+
 			const uint8_t* buffer_ptr = buffer + offset * sector_size();
-			TRY(write_sectors_impl(lba + offset, 1, buffer_ptr));
-			if (m_disk_cache.has_value())
-				(void)m_disk_cache->write_to_cache(lba + offset, buffer_ptr, false);
+			if (!m_disk_cache.has_value() || m_disk_cache->write_to_cache(lba + offset, buffer_ptr, true).is_error())
+				TRY(write_sectors_impl(lba + offset, 1, buffer_ptr));
 		}
 
 		return {};
