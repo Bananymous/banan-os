@@ -160,6 +160,7 @@ namespace IDT
 			regs->rip, regs->rflags,
 			regs->cr0, regs->cr2, regs->cr3, regs->cr4
 		);
+		Debug::dump_stack_trace();
 
 		if (tid)
 		{
