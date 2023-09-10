@@ -109,6 +109,8 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_fstatat(int fd, const char* path, struct stat* buf, int flag);
 		BAN::ErrorOr<long> sys_stat(const char* path, struct stat* buf, int flag);
 
+		BAN::ErrorOr<long> sys_sync();
+
 		BAN::ErrorOr<void> mount(BAN::StringView source, BAN::StringView target);
 
 		BAN::ErrorOr<long> sys_read_dir_entries(int fd, DirectoryEntryList* buffer, size_t buffer_size);

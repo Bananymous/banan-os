@@ -13,6 +13,7 @@ namespace Kernel
 
 		virtual bool is_device() const override { return true; }
 		virtual bool is_partition() const { return false; }
+		virtual bool is_storage_device() const { return false; }
 
 		virtual dev_t rdev() const override = 0;
 

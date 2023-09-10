@@ -191,6 +191,9 @@ namespace Kernel
 		case SYS_STAT:
 			ret = Process::current().sys_stat((const char*)arg1, (struct stat*)arg2, (int)arg3);
 			break;
+		case SYS_SYNC:
+			ret = Process::current().sys_sync();
+			break;
 		default:
 			dwarnln("Unknown syscall {}", syscall);
 			break;

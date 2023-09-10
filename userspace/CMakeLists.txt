@@ -12,6 +12,7 @@ set(USERSPACE_PROJECTS
 	Shell
 	snake
 	stat
+	sync
 	tee
 	test
 	touch

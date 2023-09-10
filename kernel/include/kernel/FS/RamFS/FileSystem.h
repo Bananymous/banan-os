@@ -1,6 +1,7 @@
 #pragma once
 
 #include <BAN/HashMap.h>
+#include <BAN/Iteration.h>
 #include <kernel/FS/FileSystem.h>
 #include <kernel/SpinLock.h>
 
@@ -25,7 +26,7 @@ namespace Kernel
 		blksize_t blksize() const { return m_blksize; }
 		ino_t next_ino() { return m_next_ino++; }
 
-		void for_each_inode(void (*callback)(BAN::RefPtr<RamInode>));
+		void for_each_inode(const BAN::Function<BAN::Iteration(BAN::RefPtr<RamInode>)>& callback);
 
 	protected:
 		RamFileSystem(size_t size)

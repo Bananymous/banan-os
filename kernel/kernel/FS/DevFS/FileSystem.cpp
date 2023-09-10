@@ -44,6 +44,7 @@ namespace Kernel
 						{
 							if (inode->is_device())
 								((Device*)inode.ptr())->update();
+							return BAN::Iteration::Continue;
 						}
 					);
 					s_instance->m_device_lock.unlock();
@@ -60,8 +61,22 @@ namespace Kernel
 		MUST(reinterpret_cast<RamDirectoryInode*>(root_inode().ptr())->add_inode(path, device));
 	}
 
+	void DevFileSystem::for_each_device(const BAN::Function<BAN::Iteration(Device*)>& callback)
+	{
+		LockGuard _(m_device_lock);
+		for_each_inode(
+			[&](BAN::RefPtr<Kernel::RamInode> inode)
+			{
+				if (!inode->is_device())
+					return BAN::Iteration::Continue;
+				return callback((Device*)inode.ptr());
+			}
+		);
+	}
+
 	dev_t DevFileSystem::get_next_dev()
 	{
+		LockGuard _(m_device_lock);
 		static dev_t next_dev = 1;
 		return next_dev++;
 	}

@@ -183,6 +183,11 @@ int chdir(const char* path)
 	return syscall(SYS_SET_PWD, path);
 }
 
+void sync(void)
+{
+	syscall(SYS_SYNC);
+}
+
 pid_t getpid(void)
 {
 	return syscall(SYS_GET_PID);

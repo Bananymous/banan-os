@@ -77,6 +77,7 @@ namespace Kernel
 		const BAN::Vector<Partition*>& partitions() const { return m_partitions; }
 
 		BAN::ErrorOr<void> sync_disk_cache();
+		virtual bool is_storage_device() const override { return true; }
 
 	protected:
 		virtual BAN::ErrorOr<void> read_sectors_impl(uint64_t lba, uint8_t sector_count, uint8_t* buffer) = 0;

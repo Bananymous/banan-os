@@ -48,11 +48,18 @@ namespace Kernel
 		return m_inodes[ino];
 	}
 
-	void RamFileSystem::for_each_inode(void (*callback)(BAN::RefPtr<RamInode>))
+	void RamFileSystem::for_each_inode(const BAN::Function<BAN::Iteration(BAN::RefPtr<RamInode>)>& callback)
 	{
 		LockGuard _(m_lock);
 		for (auto& [_, inode] : m_inodes)
-			callback(inode);
+		{
+			auto decision = callback(inode);
+			if (decision == BAN::Iteration::Break)
+				break;
+			if (decision == BAN::Iteration::Continue)
+				continue;
+			ASSERT_NOT_REACHED();
+		}
 	}
 
 }

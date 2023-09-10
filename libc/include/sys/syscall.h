@@ -54,6 +54,7 @@ __BEGIN_DECLS
 #define SYS_NANOSLEEP 47
 #define SYS_FSTATAT 48
 #define SYS_STAT 49 // stat/lstat
+#define SYS_SYNC 50
 
 __END_DECLS
 
