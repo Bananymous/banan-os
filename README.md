@@ -1,5 +1,9 @@
 ![license](https://img.shields.io/github/license/bananymous/banan-os)
 
+# This reposity is no longer hosted here
+
+You can find the upstream from [here](https://git.bananymous.com/Bananymous/banan-os)
+
 # banan-os
 
 This is my hobby operating system written in C++. Currently supports only x86_64 architecture. We have a read-only ext2 filesystem, read-write ramfs, IDE disk drivers in ATA PIO mode, userspace processes, executable loading from ELF format, linear VBE graphics and multithreaded processing on single core.
