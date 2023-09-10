@@ -227,7 +227,7 @@ namespace Kernel
 
 		const uint8_t* u8buffer = (const uint8_t*)buffer;
 
-		size_t written = 0;
+		size_t to_write = count;
 
 		// Write partial block
 		if (offset % block_size)
@@ -236,7 +236,7 @@ namespace Kernel
 			uint32_t block_offset = offset % block_size;
 
 			uint32_t data_block_index = TRY(this->data_block_index(block_index));
-			uint32_t to_copy = BAN::Math::min<uint32_t>(block_size - block_offset, written);
+			uint32_t to_copy = BAN::Math::min<uint32_t>(block_size - block_offset, to_write);
 
 			m_fs.read_block(data_block_index, block_buffer.span());
 			memcpy(block_buffer.data() + block_offset, buffer, to_copy);
@@ -244,10 +244,10 @@ namespace Kernel
 
 			u8buffer += to_copy;
 			offset += to_copy;
-			written -= to_copy;
+			to_write -= to_copy;
 		}
 
-		while (written >= block_size)
+		while (to_write >= block_size)
 		{
 			uint32_t data_block_index = TRY(this->data_block_index(offset / block_size));
 
@@ -255,15 +255,15 @@ namespace Kernel
 
 			u8buffer += block_size;
 			offset += block_size;
-			written -= block_size;
+			to_write -= block_size;
 		}
 
-		if (written > 0)
+		if (to_write > 0)
 		{
 			uint32_t data_block_index = TRY(this->data_block_index(offset / block_size));
 
 			m_fs.read_block(data_block_index, block_buffer.span());
-			memcpy(block_buffer.data(), u8buffer, written);
+			memcpy(block_buffer.data(), u8buffer, to_write);
 			m_fs.write_block(data_block_index, block_buffer.span());
 		}
 
