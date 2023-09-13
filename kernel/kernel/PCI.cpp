@@ -1,4 +1,5 @@
 #include <kernel/IO.h>
+#include <kernel/Networking/E1000.h>
 #include <kernel/PCI.h>
 #include <kernel/Storage/ATAController.h>
 
@@ -105,10 +106,24 @@ namespace Kernel
 					{
 						case 0x01:
 							if (auto res = ATAController::create(pci_device); res.is_error())
-								dprintln("{}", res.error());
+								dprintln("ATA: {}", res.error());
 							break;
 						default:
 							dprintln("unsupported storage device (pci {2H}.{2H}.{2H})", pci_device.class_code(), pci_device.subclass(), pci_device.prog_if());
+							break;
+					}
+					break;
+				}
+				case 0x02:
+				{
+					switch (pci_device.subclass())
+					{
+						case 0x00:
+							if (auto res = E1000::create(pci_device); res.is_error())
+								dprintln("E1000: {}", res.error());
+							break;
+						default:
+							dprintln("unsupported ethernet device (pci {2H}.{2H}.{2H})", pci_device.class_code(), pci_device.subclass(), pci_device.prog_if());
 							break;
 					}
 					break;
@@ -126,6 +141,7 @@ namespace Kernel
 		m_class_code  = (uint8_t)(type >> 8);
 		m_subclass    = (uint8_t)(type);
 		m_prog_if     = read_byte(0x09);
+		m_header_type = read_byte(0x0E);
 	}
 
 	uint32_t PCIDevice::read_dword(uint8_t offset) const
@@ -151,6 +167,33 @@ namespace Kernel
 	{
 		ASSERT((offset & 0x03) == 0);
 		write_config_dword(m_bus, m_dev, m_func, offset, value);
+	}
+
+	PCIDevice::BarType PCIDevice::read_bar_type(uint8_t bar) const
+	{
+		ASSERT(m_header_type == 0x00);
+		ASSERT(bar <= 5);
+
+		uint32_t type = read_dword(0x10 + bar * 4) & 0b111;
+		if (type & 1)
+			return BarType::IO;
+		type >>= 1;
+		if (type == 0x0 || type == 0x2)
+			return BarType::MEM;
+		return BarType::INVAL;
+	}
+
+	uint64_t PCIDevice::read_bar_address(uint8_t bar) const
+	{
+		ASSERT(m_header_type == 0x00);
+		ASSERT(bar <= 5);
+
+		uint64_t address = read_dword(0x10 + bar * 4);
+		if (address & 1)
+			return address & 0xFFFFFFFC;
+		if ((address & 0b110) == 0b100)
+			address |= (uint64_t)read_dword(0x10 + bar * 4 + 4) << 32;
+		return address & 0xFFFFFFFFFFFFFFF0;
 	}
 
 	void PCIDevice::enable_bus_mastering() const

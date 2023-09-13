@@ -8,6 +8,14 @@ namespace Kernel
 	class PCIDevice
 	{
 	public:
+		enum class BarType
+		{
+			INVAL,
+			MEM,
+			IO,
+		};
+
+	public:
 		PCIDevice(uint8_t, uint8_t, uint8_t);
 
 		uint32_t read_dword(uint8_t) const;
@@ -23,6 +31,9 @@ namespace Kernel
 		uint8_t class_code() const { return m_class_code; }
 		uint8_t subclass() const { return m_subclass; }
 		uint8_t prog_if() const { return m_prog_if; }
+
+		BarType read_bar_type(uint8_t) const;
+		uint64_t read_bar_address(uint8_t) const;
 
 		void enable_bus_mastering() const;
 		void disable_bus_mastering() const;
@@ -41,6 +52,8 @@ namespace Kernel
 		uint8_t m_class_code;
 		uint8_t m_subclass;
 		uint8_t m_prog_if;
+
+		uint8_t m_header_type;
 	};
 
 	class PCI
