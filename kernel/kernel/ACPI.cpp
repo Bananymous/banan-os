@@ -3,6 +3,8 @@
 #include <kernel/ACPI.h>
 #include <kernel/Memory/PageTable.h>
 
+#include <lai/core.h>
+
 #define RSPD_SIZE	20
 #define RSPDv2_SIZE	36
 
@@ -43,6 +45,7 @@ namespace Kernel
 		if (s_instance == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
 		TRY(s_instance->initialize_impl());
+		lai_create_namespace();
 		return {};
 	}
 
@@ -101,6 +104,9 @@ namespace Kernel
 		const RSDP* rsdp = locate_rsdp();
 		if (rsdp == nullptr)
 			return BAN::Error::from_error_code(ErrorCode::ACPI_NoRootSDT);
+		lai_set_acpi_revision(rsdp->revision);
+
+		uint32_t root_entry_count = 0;
 
 		if (rsdp->revision >= 2)
 		{
@@ -115,7 +121,7 @@ namespace Kernel
 
 			m_header_table_paddr = (paddr_t)xsdt->entries + (rsdp->rsdt_address & PAGE_ADDR_MASK);
 			m_entry_size = 8;
-			m_entry_count = (xsdt->length - sizeof(SDTHeader)) / 8;
+			root_entry_count = (xsdt->length - sizeof(SDTHeader)) / 8;
 		}
 		else
 		{
@@ -130,10 +136,10 @@ namespace Kernel
 
 			m_header_table_paddr = (paddr_t)rsdt->entries + (rsdp->rsdt_address & PAGE_ADDR_MASK);
 			m_entry_size = 4;
-			m_entry_count = (rsdt->length - sizeof(SDTHeader)) / 4;
+			root_entry_count = (rsdt->length - sizeof(SDTHeader)) / 4;
 		}
 
-		size_t needed_pages = range_page_count(m_header_table_paddr, m_entry_count * m_entry_size);
+		size_t needed_pages = range_page_count(m_header_table_paddr, root_entry_count * m_entry_size);
 		m_header_table_vaddr = PageTable::kernel().reserve_free_contiguous_pages(needed_pages, KERNEL_OFFSET);
 		ASSERT(m_header_table_vaddr);
 
@@ -146,31 +152,71 @@ namespace Kernel
 			PageTable::Flags::Present
 		);
 
-		for (uint32_t i = 0; i < m_entry_count; i++)
+		auto map_header =
+			[](paddr_t header_paddr) -> vaddr_t
+			{
+				PageTable::kernel().map_page_at(header_paddr & PAGE_ADDR_MASK, 0, PageTable::Flags::Present);
+				size_t header_length = ((SDTHeader*)(header_paddr % PAGE_SIZE))->length;
+				PageTable::kernel().unmap_page(0);
+
+				size_t needed_pages = range_page_count(header_paddr, header_length);
+				vaddr_t page_vaddr = PageTable::kernel().reserve_free_contiguous_pages(needed_pages, KERNEL_OFFSET);
+				ASSERT(page_vaddr);
+				
+				PageTable::kernel().map_range_at(
+					header_paddr & PAGE_ADDR_MASK,
+					page_vaddr,
+					needed_pages * PAGE_SIZE,
+					PageTable::Flags::Present
+				);
+
+				auto* header = (SDTHeader*)(page_vaddr + (header_paddr % PAGE_SIZE));
+				if (!is_valid_std_header(header))
+				{
+					PageTable::kernel().unmap_range(page_vaddr, needed_pages * PAGE_SIZE);
+					return 0;
+				}
+
+				return page_vaddr + (header_paddr % PAGE_SIZE);
+			};
+
+		for (uint32_t i = 0; i < root_entry_count; i++)
 		{
 			paddr_t header_paddr = (m_entry_size == 4) ?
 				((uint32_t*)m_header_table_vaddr)[i] :
 				((uint64_t*)m_header_table_vaddr)[i];
 			
-			PageTable::kernel().map_page_at(header_paddr & PAGE_ADDR_MASK, 0, PageTable::Flags::Present);
-			size_t header_length = ((SDTHeader*)(header_paddr % PAGE_SIZE))->length;
-			PageTable::kernel().unmap_page(0);
-
-			size_t needed_pages = range_page_count(header_paddr, header_length);
-			vaddr_t page_vaddr = PageTable::kernel().reserve_free_contiguous_pages(needed_pages, KERNEL_OFFSET);
-			ASSERT(page_vaddr);
-			
-			PageTable::kernel().map_range_at(
-				header_paddr & PAGE_ADDR_MASK,
-				page_vaddr,
-				needed_pages * PAGE_SIZE,
-				PageTable::Flags::Present
-			);
+			vaddr_t header_vaddr = map_header(header_paddr);
+			if (header_vaddr == 0)
+				continue;
 
 			MUST(m_mapped_headers.push_back({
 				.paddr = header_paddr,
-				.vaddr = page_vaddr + (header_paddr % PAGE_SIZE)
+				.vaddr = header_vaddr
 			}));
+		}
+
+		for (size_t i = 0; i < m_mapped_headers.size(); i++)
+		{
+			auto* header = m_mapped_headers[i].as_header();
+			dprintln("found header {}", *header);
+
+			if (memcmp(header->signature, "FACP", 4) == 0)
+			{
+				auto* fadt = (FADT*)header;
+				paddr_t dsdt_paddr = fadt->x_dsdt;
+				if (dsdt_paddr == 0 || !PageTable::is_valid_pointer(dsdt_paddr))
+					dsdt_paddr = fadt->dsdt;
+
+				vaddr_t dsdt_vaddr = map_header(dsdt_paddr);
+				if (dsdt_vaddr == 0)
+					continue;
+
+				MUST(m_mapped_headers.push_back({
+					.paddr = dsdt_paddr,
+					.vaddr = dsdt_vaddr
+				}));
+			}
 		}
 
 		return {};
@@ -178,29 +224,13 @@ namespace Kernel
 
 	const ACPI::SDTHeader* ACPI::get_header(const char signature[4])
 	{
-		for (uint32_t i = 0; i < m_entry_count; i++)
+		for (auto& mapped_header : m_mapped_headers)
 		{
-			const SDTHeader* header = get_header_from_index(i);
-			if (is_valid_std_header(header) && memcmp(header->signature, signature, 4) == 0)
+			auto* header = mapped_header.as_header();
+			if (memcmp(header->signature, signature, 4) == 0)
 				return header;
 		}
 		return nullptr;
-	}
-
-	const ACPI::SDTHeader* ACPI::get_header_from_index(size_t index)
-	{
-		ASSERT(index < m_entry_count);
-		ASSERT(m_entry_size == 4 || m_entry_size == 8);
-
-		paddr_t header_paddr = (m_entry_size == 4) ?
-			((uint32_t*)m_header_table_vaddr)[index] :
-			((uint64_t*)m_header_table_vaddr)[index];
-
-		for (const auto& page : m_mapped_headers)
-			if (page.paddr == header_paddr)
-				return (SDTHeader*)page.vaddr;
-
-		ASSERT_NOT_REACHED();
 	}
 
 }

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.26)
 
-project(kernel CXX ASM)
+project(kernel CXX C ASM)
 
 if("${BANAN_ARCH}" STREQUAL "x86_64")
 	set(ELF_FORMAT elf64-x86-64)
@@ -98,6 +98,14 @@ else()
 	message(FATAL_ERROR "unsupported architecure ${BANAN_ARCH}")
 endif()
 
+file(GLOB_RECURSE LAI_SOURCES
+	lai/*.c
+)
+set(LAI_SOURCES
+	${LAI_SOURCES}
+	kernel/lai_host.cpp
+)
+
 set(BAN_SOURCES
 	../BAN/BAN/New.cpp
 	../BAN/BAN/String.cpp
@@ -116,6 +124,7 @@ set(LIBELF_SOURCES
 
 set(KERNEL_SOURCES
 	${KERNEL_SOURCES}
+	${LAI_SOURCES}
 	${BAN_SOURCES}
 	${LIBC_SOURCES}
 	${LIBELF_SOURCES}
@@ -128,10 +137,9 @@ target_compile_definitions(kernel PUBLIC __is_kernel)
 target_compile_definitions(kernel PUBLIC __arch=${BANAN_ARCH})
 
 target_compile_options(kernel PUBLIC -O2 -g)
-target_compile_options(kernel PUBLIC -Wno-literal-suffix)
-target_compile_options(kernel PUBLIC -fno-rtti -fno-exceptions)
+target_compile_options(kernel PUBLIC $<$<COMPILE_LANGUAGE:CXX>:-Wno-literal-suffix -fno-rtti -fno-exceptions>)
 target_compile_options(kernel PUBLIC -fmacro-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}=.)
-target_compile_options(kernel PUBLIC -fstack-protector -ffreestanding -Wall -Wextra -Werror=return-type -Wstack-usage=1024 -fno-omit-frame-pointer -mgeneral-regs-only)
+target_compile_options(kernel PUBLIC -fstack-protector -ffreestanding -Wall -Werror=return-type -Wstack-usage=1024 -fno-omit-frame-pointer -mgeneral-regs-only)
 
 if(ENABLE_KERNEL_UBSAN)
 	target_compile_options(kernel PUBLIC -fsanitize=undefined)
@@ -160,6 +168,7 @@ add_custom_command(
 
 add_custom_target(kernel-headers
 	COMMAND sudo rsync -a ${CMAKE_CURRENT_SOURCE_DIR}/include/ ${BANAN_INCLUDE}/
+	COMMAND sudo rsync -a ${CMAKE_CURRENT_SOURCE_DIR}/lai/include/ ${BANAN_INCLUDE}/
 	DEPENDS sysroot
 	USES_TERMINAL
 )

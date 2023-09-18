@@ -1,0 +1,4 @@
+[submodule "kernel/lai"]
+	path = kernel/lai
+	url = https://github.com/managarm/lai.git
+	ignore = untracked
