@@ -110,6 +110,13 @@ namespace Kernel
 		return *s_current;
 	}
 
+	bool PageTable::is_valid_pointer(uintptr_t pointer)
+	{
+		if (!is_canonical(pointer))
+			return false;
+		return true;
+	}
+
 	static uint64_t* allocate_zeroed_page_aligned_page()
 	{
 		void* page = kmalloc(PAGE_SIZE, PAGE_SIZE, true);

@@ -29,13 +29,15 @@ namespace Kernel
 		static PageTable& kernel();
 		static PageTable& current();
 
+		static bool is_valid_pointer(uintptr_t);
+
 		static BAN::ErrorOr<PageTable*> create_userspace();
 		~PageTable();
 
 		void unmap_page(vaddr_t);
 		void unmap_range(vaddr_t, size_t bytes);
 
-		void map_range_at(paddr_t, vaddr_t, size_t, flags_t);
+		void map_range_at(paddr_t, vaddr_t, size_t bytes, flags_t);
 		void map_page_at(paddr_t, vaddr_t, flags_t);
 
 		paddr_t physical_address_of(vaddr_t) const;
