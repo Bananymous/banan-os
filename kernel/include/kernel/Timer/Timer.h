@@ -4,6 +4,8 @@
 #include <BAN/Vector.h>
 #include <kernel/Timer/RTC.h>
 
+#include <time.h>
+
 namespace Kernel
 {
 
