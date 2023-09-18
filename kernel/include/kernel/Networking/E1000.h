@@ -13,7 +13,7 @@ namespace Kernel
 	class E1000 final : public NetworkDriver
 	{
 	public:
-		static BAN::ErrorOr<BAN::UniqPtr<E1000>> create(const PCIDevice&);
+		static BAN::ErrorOr<BAN::UniqPtr<E1000>> create(PCI::Device&);
 		~E1000();
 
 		virtual uint8_t* get_mac_address() override { return m_mac_address; }
@@ -24,12 +24,12 @@ namespace Kernel
 
 	private:
 		E1000() = default;
-		BAN::ErrorOr<void> initialize(const PCIDevice&);
+		BAN::ErrorOr<void> initialize(PCI::Device&);
 
 		static void interrupt_handler();
 
-		void write32(uint16_t reg, uint32_t value);
 		uint32_t read32(uint16_t reg);
+		void write32(uint16_t reg, uint32_t value);
 
 		void detect_eeprom();
 		uint32_t eeprom_read(uint8_t addr);
@@ -44,8 +44,7 @@ namespace Kernel
 		void handle_receive();
 
 	private:
-		PCIDevice::BarType		m_bar_type {};
-		uint64_t				m_bar_addr {};
+		BAN::UniqPtr<PCI::BarRegion> m_bar_region;
 		bool					m_has_eerprom { false };
 		uint8_t					m_mac_address[6] {};
 		uint16_t				m_rx_current {};

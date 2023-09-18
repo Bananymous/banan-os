@@ -1,28 +1,63 @@
 #pragma once
 
+#include <BAN/UniqPtr.h>
 #include <BAN/Vector.h>
+#include <kernel/Memory/Types.h>
 
-namespace Kernel
+namespace Kernel::PCI
 {
 
-	class PCIDevice
+	enum class BarType
 	{
-	public:
-		enum class BarType
-		{
-			INVAL,
-			MEM,
-			IO,
-		};
+		INVALID,
+		MEM,
+		IO,
+	};
+
+	class Device;
+
+	class BarRegion
+	{
+		BAN_NON_COPYABLE(BarRegion);
 
 	public:
-		PCIDevice(uint8_t, uint8_t, uint8_t);
+		static BAN::ErrorOr<BAN::UniqPtr<BarRegion>> create(PCI::Device&, uint8_t bar_num);
+		~BarRegion();
+
+		BarType type() const { return m_type; }
+		vaddr_t vaddr() const { return m_vaddr; }
+		paddr_t paddr() const { return m_paddr; }
+		size_t size() const { return m_size; }
+
+		void write8(off_t, uint8_t);
+		void write16(off_t, uint16_t);
+		void write32(off_t, uint32_t);
+
+		uint8_t read8(off_t);
+		uint16_t read16(off_t);
+		uint32_t read32(off_t);
+
+	private:
+		BarRegion(BarType, paddr_t, size_t);
+		BAN::ErrorOr<void> initialize();
+
+	private:
+		const BarType	m_type	{};
+		const paddr_t	m_paddr	{};
+		const size_t	m_size	{};
+		vaddr_t			m_vaddr	{};
+	};
+
+	class Device
+	{
+	public:
+		Device(uint8_t, uint8_t, uint8_t);
 
 		uint32_t read_dword(uint8_t) const;
 		uint16_t read_word(uint8_t) const;
 		uint8_t  read_byte(uint8_t) const;
 
-		void write_dword(uint8_t, uint32_t) const;
+		void write_dword(uint8_t, uint32_t);
 
 		uint8_t bus() const { return m_bus; }
 		uint8_t dev() const { return m_dev; }
@@ -32,17 +67,24 @@ namespace Kernel
 		uint8_t subclass() const { return m_subclass; }
 		uint8_t prog_if() const { return m_prog_if; }
 
-		BarType read_bar_type(uint8_t) const;
-		uint64_t read_bar_address(uint8_t) const;
+		uint8_t header_type() const { return m_header_type; }
 
-		void enable_bus_mastering() const;
-		void disable_bus_mastering() const;
+		BAN::ErrorOr<BAN::UniqPtr<BarRegion>> allocate_bar_region(uint8_t bar_num);
 
-		void enable_memory_space() const;
-		void disable_memory_space() const;
+		void enable_bus_mastering();
+		void disable_bus_mastering();
 
-		void enable_pin_interrupts() const;
-		void disable_pin_interrupts() const;
+		void enable_memory_space();
+		void disable_memory_space();
+
+		void enable_io_space();
+		void disable_io_space();
+
+		void enable_pin_interrupts();
+		void disable_pin_interrupts();
+
+	private:
+		void enumerate_capabilites();
 
 	private:
 		uint8_t m_bus;
@@ -56,19 +98,19 @@ namespace Kernel
 		uint8_t m_header_type;
 	};
 
-	class PCI
+	class PCIManager
 	{
-		BAN_NON_COPYABLE(PCI);
-		BAN_NON_MOVABLE(PCI);
+		BAN_NON_COPYABLE(PCIManager);
+		BAN_NON_MOVABLE(PCIManager);
 
 	public:
 		static void initialize();
-		static PCI& get();
+		static PCIManager& get();
 		
-		const BAN::Vector<PCIDevice>& devices() const { return m_devices; }
+		const BAN::Vector<PCI::Device>& devices() const { return m_devices; }
 
 	private:
-		PCI() = default;
+		PCIManager() = default;
 		void check_function(uint8_t bus, uint8_t dev, uint8_t func);
 		void check_device(uint8_t bus, uint8_t dev);
 		void check_bus(uint8_t bus);
@@ -76,7 +118,7 @@ namespace Kernel
 		void initialize_devices();
 
 	private:
-		BAN::Vector<PCIDevice> m_devices;
+		BAN::Vector<PCI::Device> m_devices;
 	};
 
 }

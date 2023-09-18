@@ -167,7 +167,7 @@ static void init2(void*)
 
 	DevFileSystem::get().initialize_device_updater();
 
-	PCI::initialize();
+	PCI::PCIManager::initialize();
 	dprintln("PCI initialized");
 
 	VirtualFileSystem::initialize(cmdline.root);

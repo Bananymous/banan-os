@@ -5,7 +5,7 @@
 #include <kernel/MMIO.h>
 #include <kernel/Networking/E1000.h>
 
-#define E1000_GENERAL_MEM_SIZE		(128 * 1024)
+#define DEBUG_E1000 1
 
 #define E1000_REG_CTRL				0x0000
 #define E1000_REG_STATUS			0x0008
@@ -112,7 +112,7 @@ namespace Kernel
 		volatile uint16_t special;
 	} __attribute__((packed));
 
-	BAN::ErrorOr<BAN::UniqPtr<E1000>> E1000::create(const PCIDevice& pci_device)
+	BAN::ErrorOr<BAN::UniqPtr<E1000>> E1000::create(PCI::Device& pci_device)
 	{
 		E1000* e1000 = new E1000();
 		ASSERT(e1000);
@@ -126,42 +126,26 @@ namespace Kernel
 
 	E1000::~E1000()
 	{
-		if (m_bar_type == PCIDevice::BarType::MEM && m_bar_addr)
-			PageTable::kernel().unmap_range(m_bar_addr & PAGE_ADDR_MASK, E1000_GENERAL_MEM_SIZE);
 	}
 
-	BAN::ErrorOr<void> E1000::initialize(const PCIDevice& pci_device)
+	BAN::ErrorOr<void> E1000::initialize(PCI::Device& pci_device)
 	{
-		m_bar_type = pci_device.read_bar_type(0);
-		if (m_bar_type == PCIDevice::BarType::INVAL)
-		{
-			dwarnln("invalid bar0 type");
-			return BAN::Error::from_errno(EINVAL);
-		}
-
-		if (m_bar_type == PCIDevice::BarType::MEM)
-		{
-			uint64_t bar_addr = pci_device.read_bar_address(0);
-
-			vaddr_t page_vaddr = PageTable::kernel().reserve_free_contiguous_pages(E1000_GENERAL_MEM_SIZE / PAGE_SIZE, KERNEL_OFFSET);
-			paddr_t page_paddr = bar_addr & PAGE_ADDR_MASK;
-			PageTable::kernel().map_range_at(page_paddr, page_vaddr, E1000_GENERAL_MEM_SIZE, PageTable::Flags::CacheDisable | PageTable::Flags::ReadWrite | PageTable::Flags::Present);
-
-			m_bar_addr = page_vaddr + (bar_addr % PAGE_SIZE);
-		}
-		else if (m_bar_type == PCIDevice::BarType::IO)
-		{
-			m_bar_addr = pci_device.read_bar_address(0);
-		}
-
+		m_bar_region = TRY(pci_device.allocate_bar_region(0));
 		pci_device.enable_bus_mastering();
 
 		detect_eeprom();
 
 		TRY(read_mac_address());
 		
-		dprintln("E1000 at PCI {}:{}.{}", pci_device.bus(), pci_device.dev(), pci_device.func());
 
+		initialize_rx();
+		initialize_tx();
+
+		enable_link();
+		enable_interrupts();
+		
+#if DEBUG_E1000
+		dprintln("E1000 at PCI {}:{}.{}", pci_device.bus(), pci_device.dev(), pci_device.func());
 		dprintln("  MAC: {2H}:{2H}:{2H}:{2H}:{2H}:{2H}",
 			m_mac_address[0],
 			m_mac_address[1],
@@ -170,52 +154,22 @@ namespace Kernel
 			m_mac_address[4],
 			m_mac_address[5]
 		);
-
-		initialize_rx();
-		initialize_tx();
-
-		enable_link();
-		enable_interrupts();
-		
 		dprintln("  link up: {}", link_up());
 		if (link_up())
 			dprintln("  link speed: {} Mbps", link_speed());
+#endif
 
 		return {};
 	}
 
 	void E1000::write32(uint16_t reg, uint32_t value)
 	{
-		switch (m_bar_type)
-		{
-			case PCIDevice::BarType::MEM:
-				MMIO::write32(m_bar_addr + reg, value);
-				break;
-			case PCIDevice::BarType::IO:
-				IO::outl(m_bar_addr, reg);
-				IO::outl(m_bar_addr + 4, value);
-				break;
-			default:
-				ASSERT_NOT_REACHED();
-		}
+		m_bar_region->write32(reg, value);
 	}
 
 	uint32_t E1000::read32(uint16_t reg)
 	{
-		uint32_t result = 0;
-		switch (m_bar_type)
-		{
-			case PCIDevice::BarType::MEM:
-				result = MMIO::read32(m_bar_addr + reg);
-				break;
-			case PCIDevice::BarType::IO:
-				IO::outl(m_bar_addr, reg);
-				result = IO::inl(m_bar_addr + 4);
-				break;
-			default:
-				ASSERT_NOT_REACHED();
-		}
-		return result;
+		return m_bar_region->read32(reg);
 	}
 
 	void E1000::detect_eeprom()

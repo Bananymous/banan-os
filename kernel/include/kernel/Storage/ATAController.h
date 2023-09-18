@@ -11,13 +11,13 @@ namespace Kernel
 	class ATAController final : public StorageController
 	{
 	public:
-		static BAN::ErrorOr<BAN::RefPtr<ATAController>> create(const PCIDevice&);
+		static BAN::ErrorOr<BAN::RefPtr<ATAController>> create(const PCI::Device&);
 
 		virtual BAN::Vector<BAN::RefPtr<StorageDevice>> devices() override;
 
 	private:
 		ATAController();
-		BAN::ErrorOr<void> initialize(const PCIDevice& device);
+		BAN::ErrorOr<void> initialize(const PCI::Device& device);
 
 	private:
 		ATABus* m_buses[2] { nullptr, nullptr };

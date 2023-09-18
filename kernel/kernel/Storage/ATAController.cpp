@@ -11,7 +11,7 @@
 namespace Kernel
 {
 
-	BAN::ErrorOr<BAN::RefPtr<ATAController>> ATAController::create(const PCIDevice& device)
+	BAN::ErrorOr<BAN::RefPtr<ATAController>> ATAController::create(const PCI::Device& device)
 	{
 		ATAController* controller = new ATAController();
 		if (controller == nullptr)
@@ -50,7 +50,7 @@ namespace Kernel
 		: m_rdev(makedev(DevFileSystem::get().get_next_dev(), 0))
 	{ }
 
-	BAN::ErrorOr<void> ATAController::initialize(const PCIDevice& pci_device)
+	BAN::ErrorOr<void> ATAController::initialize(const PCI::Device& pci_device)
 	{
 		struct Bus
 		{
