@@ -18,29 +18,63 @@ namespace Kernel::PCI
 
 	static PCIManager* s_instance = nullptr;
 
-	static uint32_t read_config_dword(uint8_t bus, uint8_t dev, uint8_t func, uint8_t offset)
+	uint32_t PCIManager::read_config_dword(uint8_t bus, uint8_t dev, uint8_t func, uint8_t offset)
 	{
+		ASSERT(offset % 4 == 0);
 		uint32_t config_addr = 0x80000000 | ((uint32_t)bus << 16) | ((uint32_t)dev << 11) | ((uint32_t)func << 8) | offset;
 		IO::outl(CONFIG_ADDRESS, config_addr);
 		return IO::inl(CONFIG_DATA);
 	}
 
-	static void write_config_dword(uint8_t bus, uint8_t dev, uint8_t func, uint8_t offset, uint32_t value)
+	uint16_t PCIManager::read_config_word(uint8_t bus, uint8_t dev, uint8_t func, uint8_t offset)
 	{
+		ASSERT(offset % 2 == 0);
+		uint32_t dword = read_config_dword(bus, dev, func, offset & ~3);
+		return (dword >> ((offset & 3) * 8)) & 0xFFFF;
+	}
+
+	uint8_t PCIManager::read_config_byte(uint8_t bus, uint8_t dev, uint8_t func, uint8_t offset)
+	{
+		uint32_t dword = read_config_dword(bus, dev, func, offset & ~3);
+		return (dword >> ((offset & 3) * 8)) & 0xFF;
+	}
+
+	void PCIManager::write_config_dword(uint8_t bus, uint8_t dev, uint8_t func, uint8_t offset, uint32_t value)
+	{
+		ASSERT(offset % 4 == 0);
 		uint32_t config_addr = 0x80000000 | ((uint32_t)bus << 16) | ((uint32_t)dev << 11) | ((uint32_t)func << 8) | offset;
 		IO::outl(CONFIG_ADDRESS, config_addr);
 		IO::outl(CONFIG_DATA, value);
 	}
 
+	void PCIManager::write_config_word(uint8_t bus, uint8_t dev, uint8_t func, uint8_t offset, uint16_t value)
+	{
+		ASSERT(offset % 2 == 0);
+		uint32_t byte = (offset & 3) * 8;
+		uint32_t temp = read_config_dword(bus, dev, func, offset & ~3);
+		temp &= ~(0xFFFF << byte);
+		temp |= (uint32_t)value << byte;
+		write_config_dword(bus, dev, func, offset & ~3, temp);
+	}
+
+	void PCIManager::write_config_byte(uint8_t bus, uint8_t dev, uint8_t func, uint8_t offset, uint8_t value)
+	{
+		uint32_t byte = (offset & 3) * 8;
+		uint32_t temp = read_config_dword(bus, dev, func, offset & ~3);
+		temp &= ~(0xFF << byte);
+		temp |= (uint32_t)value << byte;
+		write_config_dword(bus, dev, func, offset, temp);
+	}
+
 	static uint16_t get_vendor_id(uint8_t bus, uint8_t dev, uint8_t func)
 	{
-		uint32_t dword = read_config_dword(bus, dev, func, 0x00);
+		uint32_t dword = PCIManager::read_config_dword(bus, dev, func, 0x00);
 		return dword & 0xFFFF;
 	}
 
 	static uint8_t get_header_type(uint8_t bus, uint8_t dev, uint8_t func)
 	{
-		uint32_t dword = read_config_dword(bus, dev, func, 0x0C);
+		uint32_t dword = PCIManager::read_config_dword(bus, dev, func, 0x0C);
 		return (dword >> 16) & 0xFF;
 	}
 
@@ -289,27 +323,36 @@ namespace Kernel::PCI
 
 	uint32_t PCI::Device::read_dword(uint8_t offset) const
 	{
-		ASSERT((offset & 0x03) == 0);
-		return read_config_dword(m_bus, m_dev, m_func, offset);
+		ASSERT(offset % 4 == 0);
+		return PCIManager::read_config_dword(m_bus, m_dev, m_func, offset);
 	}
 
 	uint16_t PCI::Device::read_word(uint8_t offset) const
 	{
-		ASSERT((offset & 0x01) == 0);
-		uint32_t dword = read_config_dword(m_bus, m_dev, m_func, offset & 0xFC);
-		return (uint16_t)(dword >> (8 * (offset & 0x03)));
+		ASSERT(offset % 2 == 0);
+		return PCIManager::read_config_word(m_bus, m_dev, m_func, offset);
 	}
 
 	uint8_t PCI::Device::read_byte(uint8_t offset) const
 	{
-		uint32_t dword = read_config_dword(m_bus, m_dev, m_func, offset & 0xFC);
-		return (uint8_t)(dword >> (8 * (offset & 0x03)));
+		return PCIManager::read_config_byte(m_bus, m_dev, m_func, offset);
 	}
 
 	void PCI::Device::write_dword(uint8_t offset, uint32_t value)
 	{
-		ASSERT((offset & 0x03) == 0);
-		write_config_dword(m_bus, m_dev, m_func, offset, value);
+		ASSERT(offset % 4 == 0);
+		PCIManager::write_config_dword(m_bus, m_dev, m_func, offset, value);
+	}
+
+	void PCI::Device::write_word(uint8_t offset, uint16_t value)
+	{
+		ASSERT(offset % 2 == 0);
+		PCIManager::write_config_word(m_bus, m_dev, m_func, offset, value);
+	}
+
+	void PCI::Device::write_byte(uint8_t offset, uint8_t value)
+	{
+		PCIManager::write_config_byte(m_bus, m_dev, m_func, offset, value);
 	}
 
 	BAN::ErrorOr<BAN::UniqPtr<BarRegion>> PCI::Device::allocate_bar_region(uint8_t bar_num)

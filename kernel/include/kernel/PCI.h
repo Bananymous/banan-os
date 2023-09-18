@@ -58,6 +58,8 @@ namespace Kernel::PCI
 		uint8_t  read_byte(uint8_t) const;
 
 		void write_dword(uint8_t, uint32_t);
+		void write_word(uint8_t, uint16_t);
+		void write_byte(uint8_t, uint8_t);
 
 		uint8_t bus() const { return m_bus; }
 		uint8_t dev() const { return m_dev; }
@@ -108,6 +110,14 @@ namespace Kernel::PCI
 		static PCIManager& get();
 		
 		const BAN::Vector<PCI::Device>& devices() const { return m_devices; }
+
+		static uint32_t read_config_dword(uint8_t bus, uint8_t dev, uint8_t func, uint8_t offset);
+		static uint16_t read_config_word(uint8_t bus, uint8_t dev, uint8_t func, uint8_t offset);
+		static uint8_t read_config_byte(uint8_t bus, uint8_t dev, uint8_t func, uint8_t offset);
+
+		static void write_config_dword(uint8_t bus, uint8_t dev, uint8_t func, uint8_t offset, uint32_t value);
+		static void write_config_word(uint8_t bus, uint8_t dev, uint8_t func, uint8_t offset, uint16_t value);
+		static void write_config_byte(uint8_t bus, uint8_t dev, uint8_t func, uint8_t offset, uint8_t value);
 
 	private:
 		PCIManager() = default;
