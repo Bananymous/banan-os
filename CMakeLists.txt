@@ -87,7 +87,13 @@ add_custom_target(check-fs
 )
 
 add_custom_target(qemu
-	COMMAND ${CMAKE_COMMAND} -E env BANAN_ARCH="${BANAN_ARCH}" DISK_IMAGE_PATH="${DISK_IMAGE_PATH}" ${CMAKE_SOURCE_DIR}/qemu.sh
+	COMMAND ${CMAKE_COMMAND} -E env BANAN_ARCH="${BANAN_ARCH}" DISK_IMAGE_PATH="${DISK_IMAGE_PATH}" ${CMAKE_SOURCE_DIR}/qemu.sh -accel kvm
+	DEPENDS image
+	USES_TERMINAL
+)
+
+add_custom_target(qemu-debug
+	COMMAND ${CMAKE_COMMAND} -E env BANAN_ARCH="${BANAN_ARCH}" DISK_IMAGE_PATH="${DISK_IMAGE_PATH}" ${CMAKE_SOURCE_DIR}/qemu.sh -d int -no-reboot
 	DEPENDS image
 	USES_TERMINAL
 )

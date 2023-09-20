@@ -6,4 +6,4 @@ qemu-system-$BANAN_ARCH										\
 	-smp 2													\
 	-drive format=raw,media=disk,file=${DISK_IMAGE_PATH}	\
 	-serial stdio											\
-	-accel kvm												\
+	$@														\
