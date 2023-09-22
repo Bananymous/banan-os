@@ -71,8 +71,6 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_sleep(int seconds);
 		BAN::ErrorOr<long> sys_nanosleep(const timespec* rqtp, timespec* rmtp);
 
-		BAN::ErrorOr<long> sys_setenvp(char** envp);
-
 		BAN::ErrorOr<long> sys_setpwd(const char* path);
 		BAN::ErrorOr<long> sys_getpwd(char* buffer, size_t size);
 
@@ -147,7 +145,7 @@ namespace Kernel
 		static void register_process(Process*);
 
 		// Load an elf file to virtual address space of the current page table
-		static BAN::ErrorOr<BAN::UniqPtr<LibELF::ELF>> load_elf_for_exec(const Credentials&, BAN::StringView file_path, const BAN::String& cwd, const BAN::Vector<BAN::StringView>& path_env);
+		static BAN::ErrorOr<BAN::UniqPtr<LibELF::ELF>> load_elf_for_exec(const Credentials&, BAN::StringView file_path, const BAN::String& cwd);
 		
 		// Copy an elf file from the current page table to the processes own
 		void load_elf_to_memory(LibELF::ELF&);

@@ -74,6 +74,8 @@ int main()
 			if (setuid(pwd->pw_uid) == -1)
 				perror("setuid");
 
+			setenv("PATH", "/bin:/usr/bin", 0);
+
 			setenv("HOME", pwd->pw_dir, 1);
 			chdir(pwd->pw_dir);
 

@@ -437,6 +437,40 @@ pid_t execute_command_no_wait(BAN::Vector<BAN::String>& args, int fd_in, int fd_
 		MUST(cmd_args.push_back((char*)arg.data()));
 	MUST(cmd_args.push_back(nullptr));
 
+	// do PATH resolution
+	BAN::String executable_file;
+	if (!args.front().empty() && args.front().front() != '.' && args.front().front() != '/')
+	{
+		char* path_env_cstr = getenv("PATH");
+		if (path_env_cstr)
+		{
+			auto path_env_list = MUST(BAN::StringView(path_env_cstr).split(':'));
+			for (auto path_env : path_env_list)
+			{
+				BAN::String test_file = path_env;
+				MUST(test_file.push_back('/'));
+				MUST(test_file.append(args.front()));
+
+				struct stat st;
+				if (stat(test_file.data(), &st) == 0)
+				{
+					executable_file = BAN::move(test_file);
+					break;
+				}
+			}
+
+			if (executable_file.empty())
+			{
+				fprintf(stderr, "command not found: %s\n", args.front().data());
+				return -1;
+			}
+		}
+	}
+	else
+	{
+		executable_file = args.front();
+	}
+
 	pid_t pid = fork();
 	if (pid == 0)
 	{
@@ -477,10 +511,13 @@ pid_t execute_command_no_wait(BAN::Vector<BAN::String>& args, int fd_in, int fd_
 			setpgid(0, pgrp);
 		}
 
-		execv(cmd_args.front(), cmd_args.data());
+		execv(executable_file.data(), cmd_args.data());
 		perror("execv");
 		exit(1);
 	}
+
+	if (pid == -1)
+		ERROR_RETURN("fork", -1);
 
 	return pid;
 }
@@ -489,7 +526,7 @@ int execute_command(BAN::Vector<BAN::String>& args, int fd_in, int fd_out)
 {
 	pid_t pid = execute_command_no_wait(args, fd_in, fd_out, 0);
 	if (pid == -1)
-		ERROR_RETURN("fork", 1);
+		return 1;
 
 	int status;
 	if (waitpid(pid, &status, 0) == -1)

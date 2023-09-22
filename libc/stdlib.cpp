@@ -124,6 +124,16 @@ int putenv(char* string)
 		return -1;
 	}
 
+	if (!environ)
+	{
+		environ = (char**)malloc(sizeof(char*) * 2);
+		if (!environ)
+			return -1;
+		environ[0] = string;
+		environ[1] = nullptr;
+		return 0;
+	}
+
 	int cnt = 0;
 	for (int i = 0; string[i]; i++)
 		if (string[i] == '=')
@@ -151,10 +161,7 @@ int putenv(char* string)
 
 	char** new_envp = (char**)malloc(sizeof(char*) * (env_count + 2));
 	if (new_envp == nullptr)
-	{
-		errno = ENOMEM;
 		return -1;
-	}
 
 	for (int i = 0; i < env_count; i++)
 		new_envp[i] = environ[i];
@@ -164,8 +171,6 @@ int putenv(char* string)
 	free(environ);
 	environ = new_envp;
 
-	if (syscall(SYS_SETENVP, environ) == -1)
-		return -1;
 	return 0;
 }
 

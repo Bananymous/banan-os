@@ -21,7 +21,6 @@ __BEGIN_DECLS
 #define SYS_SLEEP 17
 #define SYS_WAIT 18
 #define SYS_FSTAT 19
-#define SYS_SETENVP 20
 #define SYS_READ_DIR_ENTRIES 21
 #define SYS_SET_UID 22
 #define SYS_SET_GID 23

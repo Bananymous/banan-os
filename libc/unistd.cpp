@@ -14,8 +14,23 @@ char** environ;
 extern void init_malloc();
 extern "C" void _init_libc(char** _environ)
 {
-	environ = _environ;
 	init_malloc();
+
+	if (!_environ)
+		return;
+
+	size_t env_count = 0;
+	while (_environ[env_count])
+		env_count++;
+	
+	environ = (char**)malloc(sizeof(char*) * env_count + 1);
+	for (size_t i = 0; i < env_count; i++)
+	{
+		size_t bytes = strlen(_environ[i]) + 1;
+		environ[i] = (char*)malloc(bytes);
+		memcpy(environ[i], _environ[i], bytes);
+	}
+	environ[env_count] = nullptr;
 }
 
 void _exit(int status)

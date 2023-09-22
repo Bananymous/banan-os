@@ -97,9 +97,6 @@ namespace Kernel
 		case SYS_FSTAT:
 			ret = Process::current().sys_fstat((int)arg1, (struct stat*)arg2);
 			break;
-		case SYS_SETENVP:
-			ret = Process::current().sys_setenvp((char**)arg1);
-			break;
 		case SYS_READ_DIR_ENTRIES:
 			ret = Process::current().sys_read_dir_entries((int)arg1, (API::DirectoryEntryList*)arg2, (size_t)arg3);
 			break;

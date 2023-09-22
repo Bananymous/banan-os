@@ -99,7 +99,7 @@ namespace Kernel
 
 	BAN::ErrorOr<Process*> Process::create_userspace(const Credentials& credentials, BAN::StringView path)
 	{
-		auto elf = TRY(load_elf_for_exec(credentials, path, "/"sv, {}));
+		auto elf = TRY(load_elf_for_exec(credentials, path, "/"sv));
 
 		auto* process = create_process(credentials, 0);
 		MUST(process->m_working_directory.push_back('/'));
@@ -114,7 +114,6 @@ namespace Kernel
 		elf.clear();
 
 		char** argv = nullptr;
-		char** envp = nullptr;
 		{
 			PageTableScope _(process->page_table());
 
@@ -123,18 +122,11 @@ namespace Kernel
 			memcpy(argv[0], path.data(), path.size());
 			argv[0][path.size()] = '\0';
 			argv[1] = nullptr;
-
-			BAN::StringView env1 = "PATH=/bin:/usr/bin"sv;
-			envp = (char**)MUST(process->sys_alloc(sizeof(char**) * 2));
-			envp[0] = (char*)MUST(process->sys_alloc(env1.size() + 1));
-			memcpy(envp[0], env1.data(), env1.size());
-			envp[0][env1.size()] = '\0';
-			envp[1] = nullptr;
 		}
 
 		process->m_userspace_info.argc = 1;
 		process->m_userspace_info.argv = argv;
-		process->m_userspace_info.envp = envp;
+		process->m_userspace_info.envp = nullptr;
 
 		auto* thread = MUST(Thread::create_userspace(process));
 		process->add_thread(thread);
@@ -275,7 +267,7 @@ namespace Kernel
 		return 0;
 	}
 
-	BAN::ErrorOr<BAN::UniqPtr<LibELF::ELF>> Process::load_elf_for_exec(const Credentials& credentials, BAN::StringView file_path, const BAN::String& cwd, const BAN::Vector<BAN::StringView>& path_env)
+	BAN::ErrorOr<BAN::UniqPtr<LibELF::ELF>> Process::load_elf_for_exec(const Credentials& credentials, BAN::StringView file_path, const BAN::String& cwd)
 	{
 		if (file_path.empty())
 			return BAN::Error::from_errno(ENOENT);
@@ -283,43 +275,12 @@ namespace Kernel
 		BAN::String absolute_path;
 
 		if (file_path.front() == '/')
-		{
-			// We have an absolute path
 			TRY(absolute_path.append(file_path));
-		}
-		else if (file_path.front() == '.' || file_path.contains('/'))
+		else
 		{
-			// We have a relative path
 			TRY(absolute_path.append(cwd));
 			TRY(absolute_path.push_back('/'));
 			TRY(absolute_path.append(file_path));
-		}
-		else
-		{
-			// We have neither relative or absolute path,
-			// search from PATH environment
-			for (auto path_part : path_env)
-			{
-				if (path_part.empty())
-					continue;
-
-				if (path_part.front() != '/')
-				{
-					TRY(absolute_path.append(cwd));
-					TRY(absolute_path.push_back('/'));
-				}
-				TRY(absolute_path.append(path_part));
-				TRY(absolute_path.push_back('/'));
-				TRY(absolute_path.append(file_path));
-
-				if (!VirtualFileSystem::get().file_from_absolute_path(credentials, absolute_path, O_EXEC).is_error())
-					break;
-
-				absolute_path.clear();
-			}
-
-			if (absolute_path.empty())
-				return BAN::Error::from_errno(ENOENT);
 		}
 
 		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(credentials, absolute_path, O_EXEC));
@@ -412,14 +373,9 @@ namespace Kernel
 			for (int i = 0; argv && argv[i]; i++)
 				TRY(str_argv.emplace_back(argv[i]));
 
-			BAN::Vector<BAN::StringView> path_env;
 			BAN::Vector<BAN::String> str_envp;
 			for (int i = 0; envp && envp[i]; i++)
-			{
 				TRY(str_envp.emplace_back(envp[i]));
-				if (strncmp(envp[i], "PATH=", 5) == 0)
-					path_env = TRY(BAN::StringView(envp[i]).substring(5).split(':'));
-			}
 
 			BAN::String working_directory;
 
@@ -428,7 +384,7 @@ namespace Kernel
 				TRY(working_directory.append(m_working_directory));
 			}
 
-			auto elf = TRY(load_elf_for_exec(m_credentials, path, working_directory, path_env));
+			auto elf = TRY(load_elf_for_exec(m_credentials, path, working_directory));
 
 			LockGuard lock_guard(m_lock);
 
@@ -544,13 +500,6 @@ namespace Kernel
 	{
 		(void)rmtp;
 		SystemTimer::get().sleep(rqtp->tv_sec * 1000 + BAN::Math::div_round_up<uint64_t>(rqtp->tv_nsec, 1'000'000));
-		return 0;
-	}
-
-	BAN::ErrorOr<long> Process::sys_setenvp(char** envp)
-	{
-		LockGuard _(m_lock);
-		m_userspace_info.envp = envp;
 		return 0;
 	}
 
