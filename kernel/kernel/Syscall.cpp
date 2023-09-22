@@ -68,12 +68,6 @@ namespace Kernel
 		case SYS_OPENAT:
 			ret = Process::current().sys_openat((int)arg1, (const char*)arg2, (int)arg3, (mode_t)arg4);
 			break;
-		case SYS_ALLOC:
-			ret = Process::current().sys_alloc((size_t)arg1);
-			break;
-		case SYS_FREE:
-			ret = Process::current().sys_free((void*)arg1);
-			break;
 		case SYS_SEEK:
 			ret = Process::current().sys_seek((int)arg1, (long)arg2, (int)arg3);
 			break;

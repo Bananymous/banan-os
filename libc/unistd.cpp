@@ -11,9 +11,11 @@
 
 char** environ;
 
+extern void init_malloc();
 extern "C" void _init_libc(char** _environ)
 {
 	environ = _environ;
+	init_malloc();
 }
 
 void _exit(int status)

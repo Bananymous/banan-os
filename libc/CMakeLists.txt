@@ -7,6 +7,7 @@ set(LIBC_SOURCES
 	ctype.cpp
 	dirent.cpp
 	fcntl.cpp
+	malloc.cpp
 	printf_impl.cpp
 	pwd.cpp
 	signal.cpp

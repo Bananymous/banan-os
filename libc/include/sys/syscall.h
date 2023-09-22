@@ -12,9 +12,6 @@ __BEGIN_DECLS
 #define SYS_CLOSE 5
 #define SYS_OPEN 6
 #define SYS_OPENAT 7
-#define SYS_ALLOC 8
-#define SYS_REALLOC 9
-#define SYS_FREE 10
 #define SYS_SEEK 11
 #define SYS_TELL 12
 #define SYS_GET_TERMIOS 13

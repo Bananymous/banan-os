@@ -169,42 +169,6 @@ int putenv(char* string)
 	return 0;
 }
 
-void* malloc(size_t bytes)
-{
-	long res = syscall(SYS_ALLOC, bytes);
-	if (res < 0)
-		return nullptr;
-	return (void*)res;
-}
-
-void* calloc(size_t nmemb, size_t size)
-{
-	if (nmemb * size < nmemb)
-		return nullptr;
-	void* ptr = malloc(nmemb * size);
-	if (ptr == nullptr)
-		return nullptr;
-	memset(ptr, 0, nmemb * size);
-	return ptr;
-}
-
-void* realloc(void* ptr, size_t size)
-{
-	if (ptr == nullptr)
-		return malloc(size);
-	long ret = syscall(SYS_REALLOC, ptr, size);
-	if (ret == -1)
-		return nullptr;
-	return (void*)ret;
-}
-
-void free(void* ptr)
-{
-	if (ptr == nullptr)
-		return;
-	syscall(SYS_FREE, ptr);
-}
-
 // Constants and algorithm from https://en.wikipedia.org/wiki/Permuted_congruential_generator
 
 static uint64_t s_rand_state = 0x4d595df4d0f33173;
