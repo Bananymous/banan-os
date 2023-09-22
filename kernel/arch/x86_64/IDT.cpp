@@ -139,10 +139,11 @@ namespace IDT
 
 	extern "C" void cpp_isr_handler(uint64_t isr, uint64_t error, Kernel::InterruptStack& interrupt_stack, const Registers* regs)
 	{
+#if __enable_sse
 		bool from_userspace = (interrupt_stack.cs & 0b11) == 0b11;
-
 		if (from_userspace)
 			Kernel::Thread::current().save_sse();
+#endif
 
 		pid_t tid = Kernel::Scheduler::current_tid();
 		pid_t pid = tid ? Kernel::Process::current().pid() : 0;
@@ -205,19 +206,22 @@ namespace IDT
 
 		ASSERT(Kernel::Thread::current().state() != Kernel::Thread::State::Terminated);
 
+#if __enable_sse
 		if (from_userspace)
 		{
 			ASSERT(Kernel::Thread::current().state() == Kernel::Thread::State::Executing);
 			Kernel::Thread::current().load_sse();
 		}
+#endif
 	}
 
 	extern "C" void cpp_irq_handler(uint64_t irq, Kernel::InterruptStack& interrupt_stack)
 	{
+#if __enable_sse
 		bool from_userspace = (interrupt_stack.cs & 0b11) == 0b11;
-
 		if (from_userspace)
 			Kernel::Thread::current().save_sse();
+#endif
 
 		if (Kernel::Scheduler::current_tid())
 		{
@@ -240,11 +244,13 @@ namespace IDT
 
 		ASSERT(Kernel::Thread::current().state() != Kernel::Thread::State::Terminated);
 
+#if __enable_sse
 		if (from_userspace)
 		{
 			ASSERT(Kernel::Thread::current().state() == Kernel::Thread::State::Executing);
 			Kernel::Thread::current().load_sse();
 		}
+#endif
 	}
 
 	static void flush_idt()

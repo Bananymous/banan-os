@@ -32,7 +32,9 @@ namespace Kernel
 			return 0;
 		}
 
+#if __enable_sse
 		Thread::current().save_sse();
+#endif
 
 		asm volatile("sti");
 
@@ -205,7 +207,10 @@ namespace Kernel
 			Kernel::panic("Kernel error while returning to userspace {}", ret.error());
 
 		ASSERT(Kernel::Thread::current().state() == Kernel::Thread::State::Executing);
+
+#if __enable_sse
 		Thread::current().load_sse();
+#endif
 
 		if (ret.is_error())
 			return -ret.error().get_error_code();

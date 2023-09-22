@@ -104,6 +104,7 @@ static void integer_to_string(char* buffer, T value, int base, bool upper, forma
 	buffer[offset++] = '\0';
 }
 
+#if __enable_sse
 template<BAN::floating_point T>
 static void floating_point_to_string(char* buffer, T value, bool upper, const format_options_t options)
 {
@@ -227,6 +228,7 @@ static void floating_point_to_exponent_string(char* buffer, T value, bool upper,
 	exponent_options.width = 3;
 	integer_to_string<int>(buffer + offset, exponent, 10, upper, exponent_options);
 }
+#endif
 
 extern "C" int printf_impl(const char* format, va_list arguments, int (*putc_fun)(int, void*), void* data)
 {
@@ -349,6 +351,7 @@ extern "C" int printf_impl(const char* format, va_list arguments, int (*putc_fun
 				format++;
 				break;
 			}
+#if __enable_sse
 			case 'e':
 			case 'E':
 			{
@@ -367,6 +370,7 @@ extern "C" int printf_impl(const char* format, va_list arguments, int (*putc_fun
 				format++;
 				break;
 			}
+#endif
 			case 'g':
 			case 'G':
 				// TODO

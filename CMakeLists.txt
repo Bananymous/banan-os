@@ -20,6 +20,9 @@ if(NOT EXISTS ${CMAKE_CXX_COMPILER})
 	set(CMAKE_CXX_COMPILER g++)
 endif()
 
+add_compile_options(-mno-sse -mno-sse2)
+add_compile_definitions(__enable_sse=0)
+
 project(banan-os CXX)
 
 set(BANAN_BASE_SYSROOT ${CMAKE_SOURCE_DIR}/base-sysroot.tar.gz)
