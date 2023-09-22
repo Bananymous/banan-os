@@ -55,6 +55,8 @@ __BEGIN_DECLS
 #define SYS_FSTATAT 48
 #define SYS_STAT 49 // stat/lstat
 #define SYS_SYNC 50
+#define SYS_MMAP 51
+#define SYS_MUNMAP 52
 
 __END_DECLS
 

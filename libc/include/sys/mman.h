@@ -46,6 +46,16 @@ struct posix_typed_mem_info
 	size_t posix_tmi_length;	/* Maximum length which may be allocated from a typed memory object. */
 };
 
+struct sys_mmap_t
+{
+	void* addr;
+	size_t len;
+	int prot;
+	int flags;
+	int fildes;
+	off_t off;
+};
+
 int		mlock(const void* addr, size_t len);
 int		mlockall(int flags);
 void*	mmap(void* addr, size_t len, int prot, int flags, int fildes, off_t off);

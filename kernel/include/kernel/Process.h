@@ -15,6 +15,7 @@
 #include <kernel/Terminal/TTY.h>
 #include <kernel/Thread.h>
 
+#include <sys/mman.h>
 #include <termios.h>
 
 namespace LibELF { class ELF; }
@@ -115,6 +116,9 @@ namespace Kernel
 
 		BAN::ErrorOr<long> sys_read_dir_entries(int fd, DirectoryEntryList* buffer, size_t buffer_size);
 
+		BAN::ErrorOr<long> sys_mmap(const sys_mmap_t&);
+		BAN::ErrorOr<long> sys_munmap(void* addr, size_t len);
+
 		BAN::ErrorOr<long> sys_alloc(size_t);
 		BAN::ErrorOr<long> sys_free(void*);
 
@@ -176,6 +180,8 @@ namespace Kernel
 
 		BAN::String m_working_directory;
 		BAN::Vector<Thread*> m_threads;
+
+		BAN::Vector<BAN::UniqPtr<VirtualRange>> m_private_anonymous_mappings;
 
 		BAN::Vector<BAN::UniqPtr<FixedWidthAllocator>> m_fixed_width_allocators;
 		BAN::UniqPtr<GeneralAllocator> m_general_allocator;

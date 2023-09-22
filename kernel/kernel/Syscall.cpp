@@ -194,6 +194,12 @@ namespace Kernel
 		case SYS_SYNC:
 			ret = Process::current().sys_sync();
 			break;
+		case SYS_MMAP:
+			ret = Process::current().sys_mmap(*(const sys_mmap_t*)arg1);
+			break;
+		case SYS_MUNMAP:
+			ret = Process::current().sys_munmap((void*)arg1, (size_t)arg2);
+			break;
 		default:
 			dwarnln("Unknown syscall {}", syscall);
 			break;

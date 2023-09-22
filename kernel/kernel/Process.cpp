@@ -159,6 +159,7 @@ namespace Kernel
 		ASSERT(m_threads.empty());
 		ASSERT(m_fixed_width_allocators.empty());
 		ASSERT(!m_general_allocator);
+		ASSERT(m_private_anonymous_mappings.empty());
 		ASSERT(m_mapped_ranges.empty());
 		ASSERT(m_exit_status.waiting == 0);
 		ASSERT(&PageTable::current() != m_page_table.ptr());
@@ -192,6 +193,7 @@ namespace Kernel
 		m_open_file_descriptors.close_all();
 
 		// NOTE: We must unmap ranges while the page table is still alive
+		m_private_anonymous_mappings.clear();
 		m_mapped_ranges.clear();
 
 		// NOTE: We must clear allocators while the page table is still alive
@@ -358,6 +360,11 @@ namespace Kernel
 		OpenFileDescriptorSet open_file_descriptors(m_credentials);
 		TRY(open_file_descriptors.clone_from(m_open_file_descriptors));
 
+		BAN::Vector<BAN::UniqPtr<VirtualRange>> private_anonymous_mappings;
+		TRY(private_anonymous_mappings.reserve(m_private_anonymous_mappings.size()));
+		for (auto& private_anonymous_mapping : m_private_anonymous_mappings)
+			MUST(private_anonymous_mappings.push_back(TRY(private_anonymous_mapping->clone(*page_table))));
+
 		BAN::Vector<BAN::UniqPtr<VirtualRange>> mapped_ranges;
 		TRY(mapped_ranges.reserve(m_mapped_ranges.size()));
 		for (auto& mapped_range : m_mapped_ranges)
@@ -378,6 +385,7 @@ namespace Kernel
 		forked->m_working_directory = BAN::move(working_directory);
 		forked->m_page_table = BAN::move(page_table);
 		forked->m_open_file_descriptors = BAN::move(open_file_descriptors);
+		forked->m_private_anonymous_mappings = BAN::move(private_anonymous_mappings);
 		forked->m_mapped_ranges = BAN::move(mapped_ranges);
 		forked->m_fixed_width_allocators = BAN::move(fixed_width_allocators);
 		forked->m_general_allocator = BAN::move(general_allocator);
@@ -428,6 +436,7 @@ namespace Kernel
 
 			m_fixed_width_allocators.clear();
 			m_general_allocator.clear();
+			m_private_anonymous_mappings.clear();
 			m_mapped_ranges.clear();
 
 			load_elf_to_memory(*elf);
@@ -809,6 +818,66 @@ namespace Kernel
 		buffer[m_working_directory.size()] = '\0';
 
 		return (long)buffer;
+	}
+
+	BAN::ErrorOr<long> Process::sys_mmap(const sys_mmap_t& args)
+	{
+		if (args.prot != PROT_NONE && args.prot & ~(PROT_READ | PROT_WRITE | PROT_EXEC))
+			return BAN::Error::from_errno(EINVAL);
+
+		PageTable::flags_t flags = PageTable::Flags::UserSupervisor;
+		if (args.prot & PROT_READ)
+			flags |= PageTable::Flags::Present;
+		if (args.prot & PROT_WRITE)
+			flags |= PageTable::Flags::ReadWrite | PageTable::Flags::Present;
+		if (args.prot & PROT_EXEC)
+			flags |= PageTable::Flags::Execute | PageTable::Flags::Present;
+
+		if (args.flags == (MAP_ANONYMOUS | MAP_PRIVATE))
+		{
+			if (args.addr != nullptr)
+				return BAN::Error::from_errno(ENOTSUP);
+			if (args.off != 0)
+				return BAN::Error::from_errno(EINVAL);
+			if (args.len % PAGE_SIZE != 0)
+				return BAN::Error::from_errno(EINVAL);
+
+			auto range = TRY(VirtualRange::create_to_vaddr_range(
+				page_table(),
+				0x400000, KERNEL_OFFSET,
+				args.len,
+				PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present
+			));
+			range->set_zero();
+
+			LockGuard _(m_lock);
+			TRY(m_private_anonymous_mappings.push_back(BAN::move(range)));
+			return m_private_anonymous_mappings.back()->vaddr();
+		}
+
+		return BAN::Error::from_errno(ENOTSUP);
+	}
+
+	BAN::ErrorOr<long> Process::sys_munmap(void* addr, size_t len)
+	{
+		if (len == 0)
+			return BAN::Error::from_errno(EINVAL);
+
+		vaddr_t vaddr = (vaddr_t)addr;
+		if (vaddr % PAGE_SIZE != 0)
+			return BAN::Error::from_errno(EINVAL);
+
+		LockGuard _(m_lock);
+
+		for (size_t i = 0; i < m_private_anonymous_mappings.size(); i++)
+		{
+			auto& mapping = m_private_anonymous_mappings[i];
+			if (vaddr + len < mapping->vaddr() || vaddr >= mapping->vaddr() + mapping->size())
+				continue;
+			m_private_anonymous_mappings.remove(i);
+		}
+
+		return 0;
 	}
 
 	static constexpr size_t allocator_size_for_allocation(size_t value)
