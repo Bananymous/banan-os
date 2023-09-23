@@ -117,11 +117,27 @@ namespace Kernel
 		{
 			PageTableScope _(process->page_table());
 
-			argv = (char**)MUST(process->sys_alloc(sizeof(char**) * 2));
-			argv[0] = (char*)MUST(process->sys_alloc(path.size() + 1));
-			memcpy(argv[0], path.data(), path.size());
-			argv[0][path.size()] = '\0';
-			argv[1] = nullptr;
+			size_t needed_bytes = sizeof(char*) * 2 + path.size() + 1;
+			if (auto rem = needed_bytes % PAGE_SIZE)
+				needed_bytes += PAGE_SIZE - rem;
+
+			auto argv_range = MUST(VirtualRange::create_to_vaddr_range(
+				process->page_table(),
+				0x400000, KERNEL_OFFSET,
+				needed_bytes,
+				PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present
+			));
+			argv_range->set_zero();
+
+			uintptr_t temp = argv_range->vaddr() + sizeof(char*) * 2;
+			argv_range->copy_from(0, (uint8_t*)&temp, sizeof(char*));			
+
+			temp = 0;
+			argv_range->copy_from(sizeof(char*), (uint8_t*)&temp, sizeof(char*));	
+
+			argv_range->copy_from(sizeof(char*) * 2, (const uint8_t*)path.data(), path.size());
+
+			MUST(process->m_mapped_ranges.push_back(BAN::move(argv_range)));
 		}
 
 		process->m_userspace_info.argc = 1;
@@ -149,8 +165,6 @@ namespace Kernel
 	Process::~Process()
 	{
 		ASSERT(m_threads.empty());
-		ASSERT(m_fixed_width_allocators.empty());
-		ASSERT(!m_general_allocator);
 		ASSERT(m_private_anonymous_mappings.empty());
 		ASSERT(m_mapped_ranges.empty());
 		ASSERT(m_exit_status.waiting == 0);
@@ -187,10 +201,6 @@ namespace Kernel
 		// NOTE: We must unmap ranges while the page table is still alive
 		m_private_anonymous_mappings.clear();
 		m_mapped_ranges.clear();
-
-		// NOTE: We must clear allocators while the page table is still alive
-		m_fixed_width_allocators.clear();
-		m_general_allocator.clear();
 	}
 
 	void Process::on_thread_exit(Thread& thread)
@@ -331,16 +341,6 @@ namespace Kernel
 		for (auto& mapped_range : m_mapped_ranges)
 			MUST(mapped_ranges.push_back(TRY(mapped_range->clone(*page_table))));
 
-		BAN::Vector<BAN::UniqPtr<FixedWidthAllocator>> fixed_width_allocators;
-		TRY(fixed_width_allocators.reserve(m_fixed_width_allocators.size()));
-		for (auto& allocator : m_fixed_width_allocators)
-			if (allocator->allocations() > 0)
-				MUST(fixed_width_allocators.push_back(TRY(allocator->clone(*page_table))));
-
-		BAN::UniqPtr<GeneralAllocator> general_allocator;
-		if (m_general_allocator)
-			general_allocator = TRY(m_general_allocator->clone(*page_table));
-
 		Process* forked = create_process(m_credentials, m_pid, m_sid, m_pgrp);
 		forked->m_controlling_terminal = m_controlling_terminal;
 		forked->m_working_directory = BAN::move(working_directory);
@@ -348,8 +348,6 @@ namespace Kernel
 		forked->m_open_file_descriptors = BAN::move(open_file_descriptors);
 		forked->m_private_anonymous_mappings = BAN::move(private_anonymous_mappings);
 		forked->m_mapped_ranges = BAN::move(mapped_ranges);
-		forked->m_fixed_width_allocators = BAN::move(fixed_width_allocators);
-		forked->m_general_allocator = BAN::move(general_allocator);
 		forked->m_is_userspace = m_is_userspace;
 		forked->m_userspace_info = m_userspace_info;
 		forked->m_has_called_exec = false;
@@ -390,8 +388,6 @@ namespace Kernel
 
 			m_open_file_descriptors.close_cloexec();
 
-			m_fixed_width_allocators.clear();
-			m_general_allocator.clear();
 			m_private_anonymous_mappings.clear();
 			m_mapped_ranges.clear();
 
@@ -409,27 +405,46 @@ namespace Kernel
 			ASSERT(&Process::current() == this);
 
 			// allocate memory on the new process for arguments and environment
-			{
-				LockGuard _(page_table());
-
-				m_userspace_info.argv = (char**)MUST(sys_alloc(sizeof(char**) * (str_argv.size() + 1)));
-				for (size_t i = 0; i < str_argv.size(); i++)
+			auto create_range =
+				[&](const auto& container) -> BAN::UniqPtr<VirtualRange>
 				{
-					m_userspace_info.argv[i] = (char*)MUST(sys_alloc(str_argv[i].size() + 1));
-					memcpy(m_userspace_info.argv[i], str_argv[i].data(), str_argv[i].size());
-					m_userspace_info.argv[i][str_argv[i].size()] = '\0';
-				}
-				m_userspace_info.argv[str_argv.size()] = nullptr;
+					size_t bytes = sizeof(char*);
+					for (auto& elem : container)
+						bytes += sizeof(char*) + elem.size() + 1;
 
-				m_userspace_info.envp = (char**)MUST(sys_alloc(sizeof(char**) * (str_envp.size() + 1)));
-				for (size_t i = 0; i < str_envp.size(); i++)
-				{
-					m_userspace_info.envp[i] = (char*)MUST(sys_alloc(str_envp[i].size() + 1));
-					memcpy(m_userspace_info.envp[i], str_envp[i].data(), str_envp[i].size());
-					m_userspace_info.envp[i][str_envp[i].size()] = '\0';
-				}
-				m_userspace_info.envp[str_envp.size()] = nullptr;
-			}
+					if (auto rem = bytes % PAGE_SIZE)
+						bytes += PAGE_SIZE - rem;
+
+					auto range = MUST(VirtualRange::create_to_vaddr_range(
+						page_table(),
+						0x400000, KERNEL_OFFSET,
+						bytes,
+						PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present
+					));
+					range->set_zero();
+
+					size_t data_offset = sizeof(char*) * (container.size() + 1);
+					for (size_t i = 0; i < container.size(); i++)
+					{
+						uintptr_t ptr_addr = range->vaddr() + data_offset;
+						range->copy_from(sizeof(char*) * i, (const uint8_t*)&ptr_addr, sizeof(char*));
+						range->copy_from(data_offset, (const uint8_t*)container[i].data(), container[i].size());
+						data_offset += container[i].size() + 1;
+					}
+
+					uintptr_t null = 0;
+					range->copy_from(sizeof(char*) * container.size(), (const uint8_t*)&null, sizeof(char*));
+
+					return BAN::move(range);
+				};
+
+			auto argv_range = create_range(str_argv);
+			m_userspace_info.argv = (char**)argv_range->vaddr();
+			MUST(m_mapped_ranges.push_back(BAN::move(argv_range)));
+
+			auto envp_range = create_range(str_envp);
+			m_userspace_info.envp = (char**)envp_range->vaddr();
+			MUST(m_mapped_ranges.push_back(BAN::move(envp_range)));
 
 			m_userspace_info.argc = str_argv.size();
 
@@ -827,92 +842,6 @@ namespace Kernel
 		}
 
 		return 0;
-	}
-
-	static constexpr size_t allocator_size_for_allocation(size_t value)
-	{
-		if (value <= 256) {
-			if (value <= 64)
-				return 64;
-			else
-				return 256;
-		} else {
-			if (value <= 1024)
-				return 1024;
-			else
-				return 4096;
-		}
-	}
-
-	BAN::ErrorOr<long> Process::sys_alloc(size_t bytes)
-	{
-		vaddr_t address = 0;
-
-		if (bytes <= PAGE_SIZE)
-		{
-			// Do fixed width allocation
-			size_t allocation_size = allocator_size_for_allocation(bytes);
-			ASSERT(bytes <= allocation_size);
-			ASSERT(allocation_size <= PAGE_SIZE);
-
-			LockGuard _(m_lock);
-
-			bool needs_new_allocator { true };
-
-			for (auto& allocator : m_fixed_width_allocators)
-			{
-				if (allocator->allocation_size() == allocation_size && allocator->allocations() < allocator->max_allocations())
-				{
-					address = allocator->allocate();
-					needs_new_allocator = false;
-					break;
-				}
-			}
-
-			if (needs_new_allocator)
-			{
-				auto allocator = TRY(FixedWidthAllocator::create(page_table(), allocation_size));
-				TRY(m_fixed_width_allocators.push_back(BAN::move(allocator)));
-				address = m_fixed_width_allocators.back()->allocate();
-			}
-		}
-		else
-		{
-			LockGuard _(m_lock);
-
-			if (!m_general_allocator)
-				m_general_allocator = TRY(GeneralAllocator::create(page_table(), 0x400000));
-
-			address = m_general_allocator->allocate(bytes);
-		}
-
-		if (address == 0)
-			return BAN::Error::from_errno(ENOMEM);
-		return address;
-	}
-
-	BAN::ErrorOr<long> Process::sys_free(void* ptr)
-	{
-		LockGuard _(m_lock);
-
-		for (size_t i = 0; i < m_fixed_width_allocators.size(); i++)
-		{
-			auto& allocator = m_fixed_width_allocators[i];
-			if (allocator->deallocate((vaddr_t)ptr))
-			{
-				// TODO: This might be too much. Maybe we should only
-				//       remove allocators when we have low memory... ?
-				if (allocator->allocations() == 0)
-					m_fixed_width_allocators.remove(i);
-				return 0;
-			}
-		}
-
-		if (m_general_allocator && m_general_allocator->deallocate((vaddr_t)ptr))
-			return 0;
-
-		dwarnln("free called on pointer that was not allocated");
-		return BAN::Error::from_errno(EINVAL);
 	}
 
 	BAN::ErrorOr<long> Process::sys_termid(char* buffer) const

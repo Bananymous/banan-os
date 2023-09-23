@@ -6,8 +6,6 @@
 #include <BAN/Vector.h>
 #include <kernel/Credentials.h>
 #include <kernel/FS/Inode.h>
-#include <kernel/Memory/FixedWidthAllocator.h>
-#include <kernel/Memory/GeneralAllocator.h>
 #include <kernel/Memory/Heap.h>
 #include <kernel/Memory/VirtualRange.h>
 #include <kernel/OpenFileDescriptorSet.h>
@@ -117,9 +115,6 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_mmap(const sys_mmap_t&);
 		BAN::ErrorOr<long> sys_munmap(void* addr, size_t len);
 
-		BAN::ErrorOr<long> sys_alloc(size_t);
-		BAN::ErrorOr<long> sys_free(void*);
-
 		BAN::ErrorOr<long> sys_signal(int, void (*)(int));
 		BAN::ErrorOr<long> sys_raise(int signal);
 		static BAN::ErrorOr<long> sys_kill(pid_t pid, int signal);
@@ -180,9 +175,6 @@ namespace Kernel
 		BAN::Vector<Thread*> m_threads;
 
 		BAN::Vector<BAN::UniqPtr<VirtualRange>> m_private_anonymous_mappings;
-
-		BAN::Vector<BAN::UniqPtr<FixedWidthAllocator>> m_fixed_width_allocators;
-		BAN::UniqPtr<GeneralAllocator> m_general_allocator;
 
 		vaddr_t m_signal_handlers[_SIGMAX + 1] { };
 		uint64_t m_signal_pending_mask { 0 };
