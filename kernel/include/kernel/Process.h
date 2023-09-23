@@ -158,11 +158,17 @@ namespace Kernel
 			int waiting { 0 };
 		};
 
+		struct MappedRange
+		{
+			bool can_be_unmapped;
+			BAN::UniqPtr<VirtualRange> range;
+		};
+
 		Credentials m_credentials;
 
 		OpenFileDescriptorSet m_open_file_descriptors;
 
-		BAN::Vector<BAN::UniqPtr<VirtualRange>> m_mapped_ranges;
+		BAN::Vector<MappedRange> m_mapped_ranges;
 
 		pid_t m_sid;
 		pid_t m_pgrp;
@@ -173,8 +179,6 @@ namespace Kernel
 
 		BAN::String m_working_directory;
 		BAN::Vector<Thread*> m_threads;
-
-		BAN::Vector<BAN::UniqPtr<VirtualRange>> m_private_anonymous_mappings;
 
 		vaddr_t m_signal_handlers[_SIGMAX + 1] { };
 		uint64_t m_signal_pending_mask { 0 };

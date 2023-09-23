@@ -137,7 +137,7 @@ namespace Kernel
 
 			argv_range->copy_from(sizeof(char*) * 2, (const uint8_t*)path.data(), path.size());
 
-			MUST(process->m_mapped_ranges.push_back(BAN::move(argv_range)));
+			MUST(process->m_mapped_ranges.emplace_back(false, BAN::move(argv_range)));
 		}
 
 		process->m_userspace_info.argc = 1;
@@ -165,7 +165,6 @@ namespace Kernel
 	Process::~Process()
 	{
 		ASSERT(m_threads.empty());
-		ASSERT(m_private_anonymous_mappings.empty());
 		ASSERT(m_mapped_ranges.empty());
 		ASSERT(m_exit_status.waiting == 0);
 		ASSERT(&PageTable::current() != m_page_table.ptr());
@@ -199,7 +198,6 @@ namespace Kernel
 		m_open_file_descriptors.close_all();
 
 		// NOTE: We must unmap ranges while the page table is still alive
-		m_private_anonymous_mappings.clear();
 		m_mapped_ranges.clear();
 	}
 
@@ -331,22 +329,16 @@ namespace Kernel
 		OpenFileDescriptorSet open_file_descriptors(m_credentials);
 		TRY(open_file_descriptors.clone_from(m_open_file_descriptors));
 
-		BAN::Vector<BAN::UniqPtr<VirtualRange>> private_anonymous_mappings;
-		TRY(private_anonymous_mappings.reserve(m_private_anonymous_mappings.size()));
-		for (auto& private_anonymous_mapping : m_private_anonymous_mappings)
-			MUST(private_anonymous_mappings.push_back(TRY(private_anonymous_mapping->clone(*page_table))));
-
-		BAN::Vector<BAN::UniqPtr<VirtualRange>> mapped_ranges;
+		BAN::Vector<MappedRange> mapped_ranges;
 		TRY(mapped_ranges.reserve(m_mapped_ranges.size()));
 		for (auto& mapped_range : m_mapped_ranges)
-			MUST(mapped_ranges.push_back(TRY(mapped_range->clone(*page_table))));
+			MUST(mapped_ranges.emplace_back(mapped_range.can_be_unmapped, TRY(mapped_range.range->clone(*page_table))));
 
 		Process* forked = create_process(m_credentials, m_pid, m_sid, m_pgrp);
 		forked->m_controlling_terminal = m_controlling_terminal;
 		forked->m_working_directory = BAN::move(working_directory);
 		forked->m_page_table = BAN::move(page_table);
 		forked->m_open_file_descriptors = BAN::move(open_file_descriptors);
-		forked->m_private_anonymous_mappings = BAN::move(private_anonymous_mappings);
 		forked->m_mapped_ranges = BAN::move(mapped_ranges);
 		forked->m_is_userspace = m_is_userspace;
 		forked->m_userspace_info = m_userspace_info;
@@ -388,7 +380,6 @@ namespace Kernel
 
 			m_open_file_descriptors.close_cloexec();
 
-			m_private_anonymous_mappings.clear();
 			m_mapped_ranges.clear();
 
 			load_elf_to_memory(*elf);
@@ -440,11 +431,11 @@ namespace Kernel
 
 			auto argv_range = create_range(str_argv);
 			m_userspace_info.argv = (char**)argv_range->vaddr();
-			MUST(m_mapped_ranges.push_back(BAN::move(argv_range)));
+			MUST(m_mapped_ranges.emplace_back(false, BAN::move(argv_range)));
 
 			auto envp_range = create_range(str_envp);
 			m_userspace_info.envp = (char**)envp_range->vaddr();
-			MUST(m_mapped_ranges.push_back(BAN::move(envp_range)));
+			MUST(m_mapped_ranges.emplace_back(false, BAN::move(envp_range)));
 
 			m_userspace_info.argc = str_argv.size();
 
@@ -556,9 +547,11 @@ namespace Kernel
 
 				{
 					LockGuard _(m_lock);
-					MUST(m_mapped_ranges.push_back(MUST(VirtualRange::create_to_vaddr(page_table(), page_start * PAGE_SIZE, page_count * PAGE_SIZE, flags))));
-					m_mapped_ranges.back()->set_zero();
-					m_mapped_ranges.back()->copy_from(elf_program_header.p_vaddr % PAGE_SIZE, elf.data() + elf_program_header.p_offset, elf_program_header.p_filesz);
+					auto range = MUST(VirtualRange::create_to_vaddr(page_table(), page_start * PAGE_SIZE, page_count * PAGE_SIZE, flags));
+					range->set_zero();
+					range->copy_from(elf_program_header.p_vaddr % PAGE_SIZE, elf.data() + elf_program_header.p_offset, elf_program_header.p_filesz);
+
+					MUST(m_mapped_ranges.emplace_back(false, BAN::move(range)));
 				}
 
 				page_table().unlock();
@@ -815,8 +808,8 @@ namespace Kernel
 			range->set_zero();
 
 			LockGuard _(m_lock);
-			TRY(m_private_anonymous_mappings.push_back(BAN::move(range)));
-			return m_private_anonymous_mappings.back()->vaddr();
+			TRY(m_mapped_ranges.emplace_back(true, BAN::move(range)));
+			return m_mapped_ranges.back().range->vaddr();
 		}
 
 		return BAN::Error::from_errno(ENOTSUP);
@@ -833,12 +826,14 @@ namespace Kernel
 
 		LockGuard _(m_lock);
 
-		for (size_t i = 0; i < m_private_anonymous_mappings.size(); i++)
+		for (size_t i = 0; i < m_mapped_ranges.size(); i++)
 		{
-			auto& mapping = m_private_anonymous_mappings[i];
-			if (vaddr + len < mapping->vaddr() || vaddr >= mapping->vaddr() + mapping->size())
+			if (!m_mapped_ranges[i].can_be_unmapped)
 				continue;
-			m_private_anonymous_mappings.remove(i);
+			auto& range = m_mapped_ranges[i].range;
+			if (vaddr + len < range->vaddr() || vaddr >= range->vaddr() + range->size())
+				continue;
+			m_mapped_ranges.remove(i);
 		}
 
 		return 0;
