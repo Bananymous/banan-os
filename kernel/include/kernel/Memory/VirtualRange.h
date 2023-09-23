@@ -40,7 +40,6 @@ namespace Kernel
 		vaddr_t					m_vaddr { 0 };
 		size_t					m_size { 0 };
 		PageTable::flags_t		m_flags { 0 };
-		BAN::Vector<paddr_t>	m_physical_pages;
 	};
 
 }
