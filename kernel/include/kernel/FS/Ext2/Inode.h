@@ -39,7 +39,7 @@ namespace Kernel
 		virtual BAN::ErrorOr<void> truncate_impl(size_t) override;
 
 	private:
-		BAN::ErrorOr<uint32_t> fs_block_of_data_block_index(uint32_t data_block_index);
+		uint32_t fs_block_of_data_block_index(uint32_t data_block_index);
 
 		BAN::ErrorOr<uint32_t> allocate_new_block();
 		BAN::ErrorOr<void> sync();

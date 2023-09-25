@@ -23,12 +23,10 @@ namespace Kernel
 
 	BAN::ErrorOr<BAN::RefPtr<Inode>> Ext2Inode::create(Ext2FS& fs, uint32_t inode_ino)
 	{
-		auto inode_location = TRY(fs.locate_inode(inode_ino));
+		auto inode_location = fs.locate_inode(inode_ino);
 
-		BAN::Vector<uint8_t> block_buffer;
-		TRY(block_buffer.resize(fs.block_size()));
-
-		fs.read_block(inode_location.block, block_buffer.span());
+		auto block_buffer = fs.get_block_buffer();
+		fs.read_block(inode_location.block, block_buffer);
 
 		auto& inode = *(Ext2::Inode*)(block_buffer.data() + inode_location.offset);
 
@@ -38,10 +36,10 @@ namespace Kernel
 		return BAN::RefPtr<Inode>::adopt(result);
 	}
 
-#define VERIFY_AND_READ_BLOCK(expr) do { const uint32_t block_index = expr; ASSERT(block_index); m_fs.read_block(block_index, block_buffer.span()); } while (false)
+#define VERIFY_AND_READ_BLOCK(expr) do { const uint32_t block_index = expr; ASSERT(block_index); m_fs.read_block(block_index, block_buffer); } while (false)
 #define VERIFY_AND_RETURN(expr) ({ const uint32_t result = expr; ASSERT(result); return result; })
 
-	BAN::ErrorOr<uint32_t> Ext2Inode::fs_block_of_data_block_index(uint32_t data_block_index)
+	uint32_t Ext2Inode::fs_block_of_data_block_index(uint32_t data_block_index)
 	{
 		ASSERT(data_block_index < blocks());
 
@@ -53,8 +51,7 @@ namespace Kernel
 
 		data_block_index -= 12;
 
-		BAN::Vector<uint8_t> block_buffer;
-		TRY(block_buffer.resize(blksize()));
+		auto block_buffer = m_fs.get_block_buffer();
 
 		// Singly indirect block
 		if (data_block_index < indices_per_block)
@@ -115,8 +112,7 @@ namespace Kernel
 
 		const uint32_t block_size = blksize();
 
-		BAN::Vector<uint8_t> block_buffer;
-		TRY(block_buffer.resize(block_size));
+		auto block_buffer = m_fs.get_block_buffer();
 
 		const uint32_t first_block = offset / block_size;
 		const uint32_t last_block = BAN::Math::div_round_up<uint32_t>(offset + count, block_size);
@@ -125,8 +121,8 @@ namespace Kernel
 
 		for (uint32_t data_block_index = first_block; data_block_index < last_block; data_block_index++)
 		{
-			uint32_t block_index = TRY(fs_block_of_data_block_index(data_block_index));
-			m_fs.read_block(block_index, block_buffer.span());
+			uint32_t block_index = fs_block_of_data_block_index(data_block_index);
+			m_fs.read_block(block_index, block_buffer);
 
 			uint32_t copy_offset = (offset + n_read) % block_size;
 			uint32_t to_copy = BAN::Math::min<uint32_t>(block_size - copy_offset, count - n_read);
@@ -153,8 +149,7 @@ namespace Kernel
 
 		const uint32_t block_size = blksize();
 
-		BAN::Vector<uint8_t> block_buffer;
-		TRY(block_buffer.resize(block_size));
+		auto block_buffer = m_fs.get_block_buffer();
 
 		const uint8_t* u8buffer = (const uint8_t*)buffer;
 
@@ -163,14 +158,14 @@ namespace Kernel
 		// Write partial block
 		if (offset % block_size)
 		{
-			uint32_t block_index = TRY(fs_block_of_data_block_index(offset / block_size));
+			uint32_t block_index = fs_block_of_data_block_index(offset / block_size);
 			uint32_t block_offset = offset % block_size;
 
 			uint32_t to_copy = BAN::Math::min<uint32_t>(block_size - block_offset, to_write);
 
-			m_fs.read_block(block_index, block_buffer.span());
+			m_fs.read_block(block_index, block_buffer);
 			memcpy(block_buffer.data() + block_offset, u8buffer, to_copy);
-			m_fs.write_block(block_index, block_buffer.span());
+			m_fs.write_block(block_index, block_buffer);
 
 			u8buffer += to_copy;
 			offset += to_copy;
@@ -179,9 +174,10 @@ namespace Kernel
 
 		while (to_write >= block_size)
 		{
-			uint32_t block_index = TRY(fs_block_of_data_block_index(offset / block_size));
+			uint32_t block_index = fs_block_of_data_block_index(offset / block_size);
 
-			m_fs.write_block(block_index, BAN::Span<const uint8_t>(u8buffer, block_size));
+			memcpy(block_buffer.data(), u8buffer, block_buffer.size());
+			m_fs.write_block(block_index, block_buffer);
 
 			u8buffer += block_size;
 			offset += block_size;
@@ -190,11 +186,11 @@ namespace Kernel
 
 		if (to_write > 0)
 		{
-			uint32_t block_index = TRY(fs_block_of_data_block_index(offset / block_size));
+			uint32_t block_index = fs_block_of_data_block_index(offset / block_size);
 
-			m_fs.read_block(block_index, block_buffer.span());
+			m_fs.read_block(block_index, block_buffer);
 			memcpy(block_buffer.data(), u8buffer, to_write);
-			m_fs.write_block(block_index, block_buffer.span());
+			m_fs.write_block(block_index, block_buffer);
 		}
 
 		return count;
@@ -216,23 +212,22 @@ namespace Kernel
 			return {};
 		}
 
-		BAN::Vector<uint8_t> block_buffer;
-		TRY(block_buffer.resize(block_size));
+		auto block_buffer = m_fs.get_block_buffer();
 
 		if (uint32_t rem = m_inode.size % block_size)
 		{
-			uint32_t last_block_index = TRY(fs_block_of_data_block_index(current_data_blocks - 1));
+			uint32_t last_block_index = fs_block_of_data_block_index(current_data_blocks - 1);
 
-			m_fs.read_block(last_block_index, block_buffer.span());
+			m_fs.read_block(last_block_index, block_buffer);
 			memset(block_buffer.data() + rem, 0, block_size - rem);
-			m_fs.write_block(last_block_index, block_buffer.span());
+			m_fs.write_block(last_block_index, block_buffer);
 		}
 
 		memset(block_buffer.data(), 0, block_size);
 		while (blocks() < needed_data_blocks)
 		{
 			uint32_t block_index = TRY(allocate_new_block());
-			m_fs.write_block(block_index, block_buffer.span());
+			m_fs.write_block(block_index, block_buffer);
 		}
 
 		m_inode.size = new_size;
@@ -254,12 +249,11 @@ namespace Kernel
 		}
 
 		const uint32_t block_size = blksize();
-		const uint32_t block_index = TRY(fs_block_of_data_block_index(offset));
+		const uint32_t block_index = fs_block_of_data_block_index(offset);
 
-		BAN::Vector<uint8_t> block_buffer;
-		TRY(block_buffer.resize(block_size));
+		auto block_buffer = m_fs.get_block_buffer();
 
-		m_fs.read_block(block_index, block_buffer.span());
+		m_fs.read_block(block_index, block_buffer);
 
 		// First determine if we have big enough list
 		{
@@ -356,8 +350,8 @@ namespace Kernel
 		const uint32_t inode_index = TRY(m_fs.create_inode(ext2_inode));
 
 		const uint32_t block_size = m_fs.block_size();
-		BAN::Vector<uint8_t> block_buffer;
-		TRY(block_buffer.resize(block_size));
+
+		auto block_buffer = m_fs.get_block_buffer();
 
 		auto write_inode = [&](uint32_t entry_offset, uint32_t entry_rec_len)
 		{
@@ -392,8 +386,8 @@ namespace Kernel
 			goto needs_new_block;
 
 		// Try to insert inode to last data block
-		block_index = TRY(fs_block_of_data_block_index(data_block_count - 1));
-		m_fs.read_block(block_index, block_buffer.span());
+		block_index = fs_block_of_data_block_index(data_block_count - 1);
+		m_fs.read_block(block_index, block_buffer);
 
 		while (entry_offset < block_size)
 		{
@@ -406,7 +400,7 @@ namespace Kernel
 			if (entry.inode == 0 && needed_entry_len <= entry.rec_len)
 			{
 				write_inode(entry_offset, entry.rec_len);
-				m_fs.write_block(block_index, block_buffer.span());
+				m_fs.write_block(block_index, block_buffer);
 				return {};
 			}
 			else if (needed_entry_len <= entry.rec_len - entry_min_rec_len)
@@ -415,7 +409,7 @@ namespace Kernel
 				entry.rec_len = entry_min_rec_len;
 
 				write_inode(entry_offset + entry.rec_len, new_rec_len);
-				m_fs.write_block(block_index, block_buffer.span());
+				m_fs.write_block(block_index, block_buffer);
 				return {};
 			}
 
@@ -425,9 +419,9 @@ namespace Kernel
 needs_new_block:
 		block_index = TRY(allocate_new_block());
 
-		m_fs.read_block(block_index, block_buffer.span());
+		m_fs.read_block(block_index, block_buffer);
 		write_inode(0, block_size);
-		m_fs.write_block(block_index, block_buffer.span());
+		m_fs.write_block(block_index, block_buffer);
 
 		return {};
 	}
@@ -435,7 +429,7 @@ needs_new_block:
 #define READ_OR_ALLOCATE_BASE_BLOCK(index_)											\
 	do {																			\
 		if (m_inode.block[index_] != 0)												\
-			m_fs.read_block(m_inode.block[index_], block_buffer.span());			\
+			m_fs.read_block(m_inode.block[index_], block_buffer);					\
 		else																		\
 		{																			\
 			m_inode.block[index_] = TRY(m_fs.reserve_free_block(block_group()));	\
@@ -446,13 +440,13 @@ needs_new_block:
 #define READ_OR_ALLOCATE_INDIRECT_BLOCK(result_, buffer_index_, parent_block_)		\
 	uint32_t result_ = ((uint32_t*)block_buffer.data())[buffer_index_];				\
 	if (result_ != 0)																\
-		m_fs.read_block(result_, block_buffer.span());								\
+		m_fs.read_block(result_, block_buffer);										\
 	else																			\
 	{																				\
 		const uint32_t new_block_ = TRY(m_fs.reserve_free_block(block_group()));	\
 																					\
 		((uint32_t*)block_buffer.data())[buffer_index_] = new_block_;				\
-		m_fs.write_block(parent_block_, block_buffer.span());						\
+		m_fs.write_block(parent_block_, block_buffer);								\
 																					\
 		result_ = new_block_;														\
 		memset(block_buffer.data(), 0x00, block_buffer.size());						\
@@ -465,7 +459,7 @@ needs_new_block:
 																				\
 		ASSERT(((uint32_t*)block_buffer.data())[buffer_index_] == 0);			\
 		((uint32_t*)block_buffer.data())[buffer_index_] = block_;				\
-		m_fs.write_block(parent_block_, block_buffer.span());					\
+		m_fs.write_block(parent_block_, block_buffer);							\
 																				\
 		m_inode.blocks += blocks_per_fs_block;									\
 		update_and_sync();														\
@@ -503,8 +497,7 @@ needs_new_block:
 
 		block_array_index -= 12;
 
-		BAN::Vector<uint8_t> block_buffer;
-		TRY(block_buffer.resize(blksize()));
+		auto block_buffer = m_fs.get_block_buffer();
 
 		// singly indirect block
 		if (block_array_index < indices_per_fs_block)
@@ -544,25 +537,14 @@ needs_new_block:
 
 	BAN::ErrorOr<void> Ext2Inode::sync()
 	{
-		auto inode_location_or_error = m_fs.locate_inode(ino());
-		if (inode_location_or_error.is_error())
-		{
-			dwarnln("Open inode not found from filesystem");
-			return BAN::Error::from_error_code(ErrorCode::Ext2_Corrupted);
-		}
+		auto inode_location = m_fs.locate_inode(ino());
+		auto block_buffer = m_fs.get_block_buffer();
 
-		auto inode_location = inode_location_or_error.release_value();
-
-		const uint32_t block_size = blksize();
-
-		BAN::Vector<uint8_t> block_buffer;
-		TRY(block_buffer.resize(block_size));
-
-		m_fs.read_block(inode_location.block, block_buffer.span());
+		m_fs.read_block(inode_location.block, block_buffer);
 		if (memcmp(block_buffer.data() + inode_location.offset, &m_inode, sizeof(Ext2::Inode)))
 		{
 			memcpy(block_buffer.data() + inode_location.offset, &m_inode, sizeof(Ext2::Inode));
-			m_fs.write_block(inode_location.block, block_buffer.span());
+			m_fs.write_block(inode_location.block, block_buffer);
 		}
 
 		return {};
@@ -575,13 +557,12 @@ needs_new_block:
 		const uint32_t block_size = blksize();
 		const uint32_t data_block_count = blocks();
 
-		BAN::Vector<uint8_t> block_buffer;
-		TRY(block_buffer.resize(block_size));
+		auto block_buffer = m_fs.get_block_buffer();
 
 		for (uint32_t i = 0; i < data_block_count; i++)
 		{
-			const uint32_t block_index = TRY(fs_block_of_data_block_index(i));
-			m_fs.read_block(block_index, block_buffer.span());
+			const uint32_t block_index = fs_block_of_data_block_index(i);
+			m_fs.read_block(block_index, block_buffer);
 
 			const uint8_t* block_buffer_end = block_buffer.data() + block_size;
 			const uint8_t* entry_addr = block_buffer.data();
