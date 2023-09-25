@@ -38,126 +38,57 @@ namespace Kernel
 		return BAN::RefPtr<Inode>::adopt(result);
 	}
 
-#define READ_INDIRECT(block, container)										\
-	if (block)																\
-		m_fs.read_block(block, block_buffer.span());						\
-	else																	\
-	{																		\
-		if (!allocate)														\
-			return BAN::Error::from_error_code(ErrorCode::Ext2_Corrupted);	\
-		memset(block_buffer.data(), 0, block_size);							\
-		block = TRY(m_fs.reserve_free_block(block_group()));				\
-		m_fs.write_block(container, block_buffer.span());					\
-	}
+#define VERIFY_AND_READ_BLOCK(expr) do { const uint32_t block_index = expr; ASSERT(block_index); m_fs.read_block(block_index, block_buffer.span()); } while (false)
+#define VERIFY_AND_RETURN(expr) ({ const uint32_t result = expr; ASSERT(result); return result; })
 
-#define READ_INDIRECT_TOP(block)											\
-	if (block)																\
-		m_fs.read_block(block, block_buffer.span());						\
-	else																	\
-	{																		\
-		if (!allocate)														\
-			return BAN::Error::from_error_code(ErrorCode::Ext2_Corrupted);	\
-		memset(block_buffer.data(), 0, block_size);							\
-		block = TRY(m_fs.reserve_free_block(block_group()));				\
-	}
-
-	BAN::ErrorOr<void> Ext2Inode::for_data_block_index(uint32_t asked_data_block, const BAN::Function<void(uint32_t&)>& callback, bool allocate)
+	BAN::ErrorOr<uint32_t> Ext2Inode::fs_block_of_data_block_index(uint32_t data_block_index)
 	{
-		const uint32_t block_size = blksize();
-		const uint32_t data_blocks_count = blocks();
-		const uint32_t blocks_per_array = block_size / sizeof(uint32_t);
+		ASSERT(data_block_index < blocks());
 
-		ASSERT(asked_data_block < data_blocks_count);
+		const uint32_t indices_per_block = blksize() / sizeof(uint32_t);
 
 		// Direct block
-		if (asked_data_block < 12)
-		{
-			uint32_t& block = m_inode.block[asked_data_block];
-			uint32_t block_copy = block;
-			callback(block);
+		if (data_block_index < 12)
+			VERIFY_AND_RETURN(m_inode.block[data_block_index]);
 
-			if (block != block_copy)
-				TRY(sync());
-
-			return {};
-		}
-
-		asked_data_block -= 12;
+		data_block_index -= 12;
 
 		BAN::Vector<uint8_t> block_buffer;
-		TRY(block_buffer.resize(block_size));
+		TRY(block_buffer.resize(blksize()));
 
 		// Singly indirect block
-		if (asked_data_block < blocks_per_array)
+		if (data_block_index < indices_per_block)
 		{
-			READ_INDIRECT_TOP(m_inode.block[12]);
-
-			uint32_t& block = ((uint32_t*)block_buffer.data())[asked_data_block];
-			uint32_t block_copy = block;
-			callback(block);
-
-			if (block != block_copy)
-				m_fs.write_block(m_inode.block[12], block_buffer.span());
-
-			return {};
+			VERIFY_AND_READ_BLOCK(m_inode.block[12]);
+			VERIFY_AND_RETURN(((uint32_t*)block_buffer.data())[data_block_index]);
 		}
 
-		asked_data_block -= blocks_per_array;
+		data_block_index -= indices_per_block;
 
 		// Doubly indirect blocks
-		if (asked_data_block < blocks_per_array * blocks_per_array)
+		if (data_block_index < indices_per_block * indices_per_block)
 		{
-			READ_INDIRECT_TOP(m_inode.block[13]);
-
-			uint32_t& direct_block = ((uint32_t*)block_buffer.data())[asked_data_block / blocks_per_array];
-			READ_INDIRECT(direct_block, m_inode.block[13]);
-
-			uint32_t& block = ((uint32_t*)block_buffer.data())[asked_data_block % blocks_per_array];
-			uint32_t block_copy = block;
-			callback(block);
-
-			if (block != block_copy)
-				m_fs.write_block(direct_block, block_buffer.span());
-
-			return {};
+			VERIFY_AND_READ_BLOCK(m_inode.block[13]);
+			VERIFY_AND_READ_BLOCK(((uint32_t*)block_buffer.data())[data_block_index / indices_per_block]);
+			VERIFY_AND_RETURN(((uint32_t*)block_buffer.data())[data_block_index % indices_per_block]);
 		}
 
-		asked_data_block -= blocks_per_array * blocks_per_array;
+		data_block_index -= indices_per_block * indices_per_block;
 
 		// Triply indirect blocks
-		if (asked_data_block < blocks_per_array * blocks_per_array * blocks_per_array)
+		if (data_block_index < indices_per_block * indices_per_block * indices_per_block)
 		{
-			READ_INDIRECT_TOP(m_inode.block[14]);
-
-			uint32_t& doubly_indirect_block = ((uint32_t*)block_buffer.data())[asked_data_block / (blocks_per_array * blocks_per_array)];
-			READ_INDIRECT(doubly_indirect_block, m_inode.block[14]);
-
-			uint32_t& singly_direct_block = ((uint32_t*)block_buffer.data())[(asked_data_block / blocks_per_array) % blocks_per_array];
-			READ_INDIRECT(singly_direct_block, doubly_indirect_block);
-
-			uint32_t& block = ((uint32_t*)block_buffer.data())[asked_data_block % blocks_per_array];
-			uint32_t block_copy = block;
-			callback(block);
-
-			if (block != block_copy)
-				m_fs.write_block(singly_direct_block, block_buffer.span());
-
-			return {};
+			VERIFY_AND_READ_BLOCK(m_inode.block[14]);
+			VERIFY_AND_READ_BLOCK(((uint32_t*)block_buffer.data())[data_block_index / (indices_per_block * indices_per_block)]);
+			VERIFY_AND_READ_BLOCK(((uint32_t*)block_buffer.data())[(data_block_index / indices_per_block) % indices_per_block]);
+			VERIFY_AND_RETURN(((uint32_t*)block_buffer.data())[data_block_index % indices_per_block]);
 		}
 
 		ASSERT_NOT_REACHED();
 	}
 
-#undef READ_INDIRECT
-#undef READ_INDIRECT_TOP
-
-	BAN::ErrorOr<uint32_t> Ext2Inode::data_block_index(uint32_t asked_data_block)
-	{
-		uint32_t result;
-		TRY(for_data_block_index(asked_data_block, [&result] (uint32_t& index) { result = index; }, false));
-		ASSERT(result != 0);
-		return result;
-	}
+#undef VERIFY_AND_READ_BLOCK
+#undef VERIFY_AND_RETURN
 
 	BAN::ErrorOr<BAN::String> Ext2Inode::link_target_impl()
 	{
@@ -192,9 +123,9 @@ namespace Kernel
 
 		size_t n_read = 0;
 
-		for (uint32_t block = first_block; block < last_block; block++)
+		for (uint32_t data_block_index = first_block; data_block_index < last_block; data_block_index++)
 		{
-			uint32_t block_index = TRY(data_block_index(block));
+			uint32_t block_index = TRY(fs_block_of_data_block_index(data_block_index));
 			m_fs.read_block(block_index, block_buffer.span());
 
 			uint32_t copy_offset = (offset + n_read) % block_size;
@@ -232,15 +163,14 @@ namespace Kernel
 		// Write partial block
 		if (offset % block_size)
 		{
-			uint32_t block_index = offset / block_size;
+			uint32_t block_index = TRY(fs_block_of_data_block_index(offset / block_size));
 			uint32_t block_offset = offset % block_size;
 
-			uint32_t data_block_index = TRY(this->data_block_index(block_index));
 			uint32_t to_copy = BAN::Math::min<uint32_t>(block_size - block_offset, to_write);
 
-			m_fs.read_block(data_block_index, block_buffer.span());
-			memcpy(block_buffer.data() + block_offset, buffer, to_copy);
-			m_fs.write_block(data_block_index, block_buffer.span());
+			m_fs.read_block(block_index, block_buffer.span());
+			memcpy(block_buffer.data() + block_offset, u8buffer, to_copy);
+			m_fs.write_block(block_index, block_buffer.span());
 
 			u8buffer += to_copy;
 			offset += to_copy;
@@ -249,9 +179,9 @@ namespace Kernel
 
 		while (to_write >= block_size)
 		{
-			uint32_t data_block_index = TRY(this->data_block_index(offset / block_size));
+			uint32_t block_index = TRY(fs_block_of_data_block_index(offset / block_size));
 
-			m_fs.write_block(data_block_index, BAN::Span<const uint8_t>(u8buffer, block_size));
+			m_fs.write_block(block_index, BAN::Span<const uint8_t>(u8buffer, block_size));
 
 			u8buffer += block_size;
 			offset += block_size;
@@ -260,11 +190,11 @@ namespace Kernel
 
 		if (to_write > 0)
 		{
-			uint32_t data_block_index = TRY(this->data_block_index(offset / block_size));
+			uint32_t block_index = TRY(fs_block_of_data_block_index(offset / block_size));
 
-			m_fs.read_block(data_block_index, block_buffer.span());
+			m_fs.read_block(block_index, block_buffer.span());
 			memcpy(block_buffer.data(), u8buffer, to_write);
-			m_fs.write_block(data_block_index, block_buffer.span());
+			m_fs.write_block(block_index, block_buffer.span());
 		}
 
 		return count;
@@ -291,7 +221,7 @@ namespace Kernel
 
 		if (uint32_t rem = m_inode.size % block_size)
 		{
-			uint32_t last_block_index = TRY(data_block_index(current_data_blocks - 1));
+			uint32_t last_block_index = TRY(fs_block_of_data_block_index(current_data_blocks - 1));
 
 			m_fs.read_block(last_block_index, block_buffer.span());
 			memset(block_buffer.data() + rem, 0, block_size - rem);
@@ -324,7 +254,7 @@ namespace Kernel
 		}
 
 		const uint32_t block_size = blksize();
-		const uint32_t block_index = TRY(data_block_index(offset));
+		const uint32_t block_index = TRY(fs_block_of_data_block_index(offset));
 
 		BAN::Vector<uint8_t> block_buffer;
 		TRY(block_buffer.resize(block_size));
@@ -462,7 +392,7 @@ namespace Kernel
 			goto needs_new_block;
 
 		// Try to insert inode to last data block
-		block_index = TRY(data_block_index(data_block_count - 1));
+		block_index = TRY(fs_block_of_data_block_index(data_block_count - 1));
 		m_fs.read_block(block_index, block_buffer.span());
 
 		while (entry_offset < block_size)
@@ -502,26 +432,115 @@ needs_new_block:
 		return {};
 	}
 
+#define READ_OR_ALLOCATE_BASE_BLOCK(index_)											\
+	do {																			\
+		if (m_inode.block[index_] != 0)												\
+			m_fs.read_block(m_inode.block[index_], block_buffer.span());			\
+		else																		\
+		{																			\
+			m_inode.block[index_] = TRY(m_fs.reserve_free_block(block_group()));	\
+			memset(block_buffer.data(), 0x00, block_buffer.size());					\
+		}																			\
+	} while (false)
+
+#define READ_OR_ALLOCATE_INDIRECT_BLOCK(result_, buffer_index_, parent_block_)		\
+	uint32_t result_ = ((uint32_t*)block_buffer.data())[buffer_index_];				\
+	if (result_ != 0)																\
+		m_fs.read_block(result_, block_buffer.span());								\
+	else																			\
+	{																				\
+		const uint32_t new_block_ = TRY(m_fs.reserve_free_block(block_group()));	\
+																					\
+		((uint32_t*)block_buffer.data())[buffer_index_] = new_block_;				\
+		m_fs.write_block(parent_block_, block_buffer.span());						\
+																					\
+		result_ = new_block_;														\
+		memset(block_buffer.data(), 0x00, block_buffer.size());						\
+	}																				\
+	do {} while (false)
+
+#define WRITE_BLOCK_AND_RETURN(buffer_index_, parent_block_)					\
+	do {																		\
+		const uint32_t block_ = TRY(m_fs.reserve_free_block(block_group()));	\
+																				\
+		ASSERT(((uint32_t*)block_buffer.data())[buffer_index_] == 0);			\
+		((uint32_t*)block_buffer.data())[buffer_index_] = block_;				\
+		m_fs.write_block(parent_block_, block_buffer.span());					\
+																				\
+		m_inode.blocks += blocks_per_fs_block;									\
+		update_and_sync();														\
+																				\
+		return block_;															\
+	} while (false)
+
 	BAN::ErrorOr<uint32_t> Ext2Inode::allocate_new_block()
 	{
-		uint32_t new_block_index = TRY(m_fs.reserve_free_block(block_group()));
-		auto set_index_func = [new_block_index] (uint32_t& index) { index = new_block_index; };
+		const uint32_t blocks_per_fs_block = blksize() / 512;
+		const uint32_t indices_per_fs_block = blksize() / sizeof(uint32_t);
 
-		const uint32_t blocks_per_data_block = blksize() / 512;
+		uint32_t block_array_index = blocks();
 
-		m_inode.blocks += blocks_per_data_block;
-		if (auto res = for_data_block_index(blocks() - 1, set_index_func, true); res.is_error())
+		auto update_and_sync =
+			[&]
+			{
+				if (mode().ifdir())
+					m_inode.size += blksize();
+				MUST(sync());
+			};
+
+		// direct block
+		if (block_array_index < 12)
 		{
-			m_inode.blocks -= blocks_per_data_block;
-			return res.release_error();
+			const uint32_t block = TRY(m_fs.reserve_free_block(block_group()));
+
+			ASSERT(m_inode.block[block_array_index] == 0);
+			m_inode.block[block_array_index] = block;
+
+			m_inode.blocks += blocks_per_fs_block;
+			update_and_sync();
+			return block;
 		}
 
-		if (mode().ifdir())
-			m_inode.size += blksize();
+		block_array_index -= 12;
 
-		TRY(sync());
-		return new_block_index;
+		BAN::Vector<uint8_t> block_buffer;
+		TRY(block_buffer.resize(blksize()));
+
+		// singly indirect block
+		if (block_array_index < indices_per_fs_block)
+		{
+			READ_OR_ALLOCATE_BASE_BLOCK(12);
+			WRITE_BLOCK_AND_RETURN(block_array_index, m_inode.block[12]);
+		}
+
+		block_array_index -= indices_per_fs_block;
+
+		// doubly indirect block
+		if (block_array_index < indices_per_fs_block * indices_per_fs_block)
+		{
+			READ_OR_ALLOCATE_BASE_BLOCK(13);
+			READ_OR_ALLOCATE_INDIRECT_BLOCK(direct_block, block_array_index / indices_per_fs_block, m_inode.block[13]);
+			WRITE_BLOCK_AND_RETURN(block_array_index % indices_per_fs_block, direct_block);
+		}
+
+		block_array_index -= indices_per_fs_block * indices_per_fs_block;
+
+		// triply indirect block
+		if (block_array_index < indices_per_fs_block * indices_per_fs_block * indices_per_fs_block)
+		{
+			dwarnln("here");
+			READ_OR_ALLOCATE_BASE_BLOCK(14);
+			READ_OR_ALLOCATE_INDIRECT_BLOCK(indirect_block, block_array_index / (indices_per_fs_block * indices_per_fs_block), 14);
+			READ_OR_ALLOCATE_INDIRECT_BLOCK(direct_block, (block_array_index / indices_per_fs_block) % indices_per_fs_block, indirect_block);
+			WRITE_BLOCK_AND_RETURN(block_array_index % indices_per_fs_block, direct_block);
+		}
+
+		ASSERT_NOT_REACHED();
 	}
+
+#undef READ_OR_ALLOCATE_BASE_BLOCK
+#undef READ_OR_ALLOCATE_INDIRECT_BLOCK
+#undef WRITE_BLOCK_AND_RETURN
 
 	BAN::ErrorOr<void> Ext2Inode::sync()
 	{
@@ -561,7 +580,7 @@ needs_new_block:
 
 		for (uint32_t i = 0; i < data_block_count; i++)
 		{
-			const uint32_t block_index = TRY(data_block_index(i));
+			const uint32_t block_index = TRY(fs_block_of_data_block_index(i));
 			m_fs.read_block(block_index, block_buffer.span());
 
 			const uint8_t* block_buffer_end = block_buffer.data() + block_size;
