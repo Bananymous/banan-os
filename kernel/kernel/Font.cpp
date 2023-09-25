@@ -2,6 +2,7 @@
 #include <BAN/ScopeGuard.h>
 #include <BAN/UTF8.h>
 #include <kernel/Font.h>
+#include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/Process.h>
 
 #include <fcntl.h>
@@ -37,15 +38,12 @@ namespace Kernel
 
 	BAN::ErrorOr<Font> Font::load(BAN::StringView path)
 	{
-		int fd = TRY(Process::current().sys_open(path, O_RDONLY));
-		BAN::ScopeGuard _([fd] { MUST(Process::current().sys_close(fd)); });
-
-		struct stat st;
-		TRY(Process::current().sys_fstat(fd, &st));
+		auto inode = TRY(VirtualFileSystem::get().file_from_absolute_path({ 0, 0, 0, 0 }, path, O_RDONLY)).inode;
 
 		BAN::Vector<uint8_t> file_data;
-		TRY(file_data.resize(st.st_size));
-		TRY(Process::current().sys_read(fd, file_data.data(), st.st_size));
+		TRY(file_data.resize(inode->size()));
+	
+		inode->read(0, file_data.data(), file_data.size());
 
 		if (file_data.size() < 4)
 			return BAN::Error::from_error_code(ErrorCode::Font_FileTooSmall);

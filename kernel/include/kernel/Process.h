@@ -87,8 +87,9 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_getpgid(pid_t);
 
 		BAN::ErrorOr<void> create_file(BAN::StringView name, mode_t mode);
-		BAN::ErrorOr<long> sys_open(BAN::StringView, int, mode_t = 0);
-		BAN::ErrorOr<long> sys_openat(int, BAN::StringView, int, mode_t = 0);
+		BAN::ErrorOr<long> open_file(BAN::StringView path, int, mode_t = 0);
+		BAN::ErrorOr<long> sys_open(const char* path, int, mode_t);
+		BAN::ErrorOr<long> sys_openat(int, const char* path, int, mode_t);
 		BAN::ErrorOr<long> sys_close(int fd);
 		BAN::ErrorOr<long> sys_read(int fd, void* buffer, size_t count);
 		BAN::ErrorOr<long> sys_write(int fd, const void* buffer, size_t count);
@@ -112,7 +113,7 @@ namespace Kernel
 
 		BAN::ErrorOr<long> sys_read_dir_entries(int fd, DirectoryEntryList* buffer, size_t buffer_size);
 
-		BAN::ErrorOr<long> sys_mmap(const sys_mmap_t&);
+		BAN::ErrorOr<long> sys_mmap(const sys_mmap_t*);
 		BAN::ErrorOr<long> sys_munmap(void* addr, size_t len);
 
 		BAN::ErrorOr<long> sys_signal(int, void (*)(int));
@@ -121,9 +122,9 @@ namespace Kernel
 
 		BAN::ErrorOr<long> sys_tcsetpgrp(int fd, pid_t pgid);
 
-		BAN::ErrorOr<long> sys_termid(char*) const;
+		BAN::ErrorOr<long> sys_termid(char*);
 
-		BAN::ErrorOr<long> sys_clock_gettime(clockid_t, timespec*) const;
+		BAN::ErrorOr<long> sys_clock_gettime(clockid_t, timespec*);
 
 		TTY& tty() { ASSERT(m_controlling_terminal); return *m_controlling_terminal; }
 
@@ -148,6 +149,9 @@ namespace Kernel
 		int block_until_exit();
 
 		BAN::ErrorOr<BAN::String> absolute_path_of(BAN::StringView) const;
+
+		void validate_string_access(const char*);
+		void validate_pointer_access(const void*, size_t);
 
 	private:
 		struct ExitStatus

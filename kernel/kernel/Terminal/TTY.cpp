@@ -3,6 +3,7 @@
 #include <BAN/UTF8.h>
 #include <kernel/Debug.h>
 #include <kernel/FS/DevFS/FileSystem.h>
+#include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/LockGuard.h>
 #include <kernel/Process.h>
 #include <kernel/Terminal/TTY.h>
@@ -49,11 +50,12 @@ namespace Kernel
 		Process::create_kernel(
 			[](void*)
 			{
-				int fd = MUST(Process::current().sys_open("/dev/input0"sv, O_RDONLY));
+				auto inode = MUST(VirtualFileSystem::get().file_from_absolute_path({ 0, 0, 0, 0 }, "/dev/input0"sv, O_RDONLY)).inode;
 				while (true)
 				{
 					Input::KeyEvent event;
-					ASSERT(MUST(Process::current().sys_read(fd, &event, sizeof(event))) == sizeof(event));
+					size_t read = MUST(inode->read(0, &event, sizeof(event)));
+					ASSERT(read == sizeof(event));
 					TTY::current()->on_key_event(event);
 				}
 			}, nullptr

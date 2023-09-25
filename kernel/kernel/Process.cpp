@@ -247,6 +247,8 @@ namespace Kernel
 	{
 		LockGuard _(m_lock);
 
+		validate_pointer_access(termios, sizeof(::termios));
+
 		if (!m_controlling_terminal)
 			return BAN::Error::from_errno(ENOTTY);
 		
@@ -263,6 +265,8 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_settermios(const ::termios* termios)
 	{
 		LockGuard _(m_lock);
+
+		validate_pointer_access(termios, sizeof(::termios));
 
 		if (!m_controlling_terminal)
 			return BAN::Error::from_errno(ENOTTY);
@@ -360,12 +364,25 @@ namespace Kernel
 		// NOTE: We scope everything for automatic deletion
 		{
 			BAN::Vector<BAN::String> str_argv;
-			for (int i = 0; argv && argv[i]; i++)
-				TRY(str_argv.emplace_back(argv[i]));
-
 			BAN::Vector<BAN::String> str_envp;
-			for (int i = 0; envp && envp[i]; i++)
-				TRY(str_envp.emplace_back(envp[i]));
+
+			{
+				LockGuard _(m_lock);
+
+				for (int i = 0; argv && argv[i]; i++)
+				{
+					validate_pointer_access(argv + i, sizeof(char*));
+					validate_string_access(argv[i]);
+					TRY(str_argv.emplace_back(argv[i]));
+				}
+
+				for (int i = 0; envp && envp[i]; i++)
+				{
+					validate_pointer_access(envp + 1, sizeof(char*));
+					validate_string_access(envp[i]);
+					TRY(str_envp.emplace_back(envp[i]));
+				}
+			}
 
 			BAN::String working_directory;
 
@@ -471,6 +488,11 @@ namespace Kernel
 	{
 		Process* target = nullptr;
 
+		{
+			LockGuard _(m_lock);
+			validate_pointer_access(stat_loc, sizeof(int));
+		}
+
 		// FIXME: support options
 		if (options)
 			return BAN::Error::from_errno(EINVAL);
@@ -504,7 +526,12 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_nanosleep(const timespec* rqtp, timespec* rmtp)
 	{
-		(void)rmtp;
+		{
+			LockGuard _(m_lock);
+			validate_pointer_access(rqtp, sizeof(timespec));
+			validate_pointer_access(rmtp, sizeof(timespec));
+		}
+		// TODO: rmtp
 		SystemTimer::get().sleep(rqtp->tv_sec * 1000 + BAN::Math::div_round_up<uint64_t>(rqtp->tv_nsec, 1'000'000));
 		return 0;
 	}
@@ -586,9 +613,8 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<long> Process::sys_open(BAN::StringView path, int flags, mode_t mode)
+	BAN::ErrorOr<long> Process::open_file(BAN::StringView path, int flags, mode_t mode)
 	{
-		LockGuard _(m_lock);
 		BAN::String absolute_path = TRY(absolute_path_of(path));
 
 		if (flags & O_CREAT)
@@ -616,9 +642,18 @@ namespace Kernel
 		return fd;
 	}
 
-	BAN::ErrorOr<long> Process::sys_openat(int fd, BAN::StringView path, int flags, mode_t mode)
+	BAN::ErrorOr<long> Process::sys_open(const char* path, int flags, mode_t mode)
 	{
 		LockGuard _(m_lock);
+		validate_string_access(path);
+		return open_file(path, flags, mode);
+	}
+
+	BAN::ErrorOr<long> Process::sys_openat(int fd, const char* path, int flags, mode_t mode)
+	{
+		LockGuard _(m_lock);
+
+		validate_string_access(path);
 
 		// FIXME: handle O_SEARCH in fd
 
@@ -627,7 +662,7 @@ namespace Kernel
 		TRY(absolute_path.push_back('/'));
 		TRY(absolute_path.append(path));
 
-		return sys_open(absolute_path, flags, mode);
+		return open_file(absolute_path, flags, mode);
 	}
 
 	BAN::ErrorOr<long> Process::sys_close(int fd)
@@ -640,18 +675,21 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_read(int fd, void* buffer, size_t count)
 	{
 		LockGuard _(m_lock);
+		validate_pointer_access(buffer, count);
 		return TRY(m_open_file_descriptors.read(fd, buffer, count));
 	}
 
 	BAN::ErrorOr<long> Process::sys_write(int fd, const void* buffer, size_t count)
 	{
 		LockGuard _(m_lock);
+		validate_pointer_access(buffer, count);
 		return TRY(m_open_file_descriptors.write(fd, buffer, count));
 	}
 
 	BAN::ErrorOr<long> Process::sys_pipe(int fildes[2])
 	{
 		LockGuard _(m_lock);
+		validate_pointer_access(fildes, sizeof(int) * 2);
 		TRY(m_open_file_descriptors.pipe(fildes));
 		return 0;
 	}
@@ -699,16 +737,18 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<long> Process::sys_fstat(int fd, struct stat* out)
+	BAN::ErrorOr<long> Process::sys_fstat(int fd, struct stat* buf)
 	{
 		LockGuard _(m_lock);
-		TRY(m_open_file_descriptors.fstat(fd, out));
+		validate_pointer_access(buf, sizeof(struct stat));
+		TRY(m_open_file_descriptors.fstat(fd, buf));
 		return 0;
 	}
 
 	BAN::ErrorOr<long> Process::sys_fstatat(int fd, const char* path, struct stat* buf, int flag)
 	{
 		LockGuard _(m_lock);
+		validate_pointer_access(buf, sizeof(struct stat));
 		TRY(m_open_file_descriptors.fstatat(fd, path, buf, flag));
 		return 0;
 	}
@@ -716,6 +756,7 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_stat(const char* path, struct stat* buf, int flag)
 	{
 		LockGuard _(m_lock);
+		validate_pointer_access(buf, sizeof(struct stat));
 		TRY(m_open_file_descriptors.stat(TRY(absolute_path_of(path)), buf, flag));
 		return 0;
 	}
@@ -741,6 +782,7 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_read_dir_entries(int fd, DirectoryEntryList* list, size_t list_size)
 	{
 		LockGuard _(m_lock);
+		validate_pointer_access(list, list_size);
 		TRY(m_open_file_descriptors.read_dir_entries(fd, list, list_size));
 		return 0;
 	}
@@ -751,6 +793,7 @@ namespace Kernel
 
 		{
 			LockGuard _(m_lock);
+			validate_string_access(path);
 			absolute_path = TRY(absolute_path_of(path));
 		}
 
@@ -768,6 +811,8 @@ namespace Kernel
 	{
 		LockGuard _(m_lock);
 
+		validate_pointer_access(buffer, size);
+
 		if (size < m_working_directory.size() + 1)
 			return BAN::Error::from_errno(ERANGE);
 		
@@ -777,32 +822,37 @@ namespace Kernel
 		return (long)buffer;
 	}
 
-	BAN::ErrorOr<long> Process::sys_mmap(const sys_mmap_t& args)
+	BAN::ErrorOr<long> Process::sys_mmap(const sys_mmap_t* args)
 	{
-		if (args.prot != PROT_NONE && args.prot & ~(PROT_READ | PROT_WRITE | PROT_EXEC))
+		{
+			LockGuard _(m_lock);
+			validate_pointer_access(args, sizeof(sys_mmap_t));
+		}
+
+		if (args->prot != PROT_NONE && args->prot & ~(PROT_READ | PROT_WRITE | PROT_EXEC))
 			return BAN::Error::from_errno(EINVAL);
 
 		PageTable::flags_t flags = PageTable::Flags::UserSupervisor;
-		if (args.prot & PROT_READ)
+		if (args->prot & PROT_READ)
 			flags |= PageTable::Flags::Present;
-		if (args.prot & PROT_WRITE)
+		if (args->prot & PROT_WRITE)
 			flags |= PageTable::Flags::ReadWrite | PageTable::Flags::Present;
-		if (args.prot & PROT_EXEC)
+		if (args->prot & PROT_EXEC)
 			flags |= PageTable::Flags::Execute | PageTable::Flags::Present;
 
-		if (args.flags == (MAP_ANONYMOUS | MAP_PRIVATE))
+		if (args->flags == (MAP_ANONYMOUS | MAP_PRIVATE))
 		{
-			if (args.addr != nullptr)
+			if (args->addr != nullptr)
 				return BAN::Error::from_errno(ENOTSUP);
-			if (args.off != 0)
+			if (args->off != 0)
 				return BAN::Error::from_errno(EINVAL);
-			if (args.len % PAGE_SIZE != 0)
+			if (args->len % PAGE_SIZE != 0)
 				return BAN::Error::from_errno(EINVAL);
 
 			auto range = TRY(VirtualRange::create_to_vaddr_range(
 				page_table(),
 				0x400000, KERNEL_OFFSET,
-				args.len,
+				args->len,
 				PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present
 			));
 			range->set_zero();
@@ -839,9 +889,11 @@ namespace Kernel
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_termid(char* buffer) const
+	BAN::ErrorOr<long> Process::sys_termid(char* buffer)
 	{
 		LockGuard _(m_lock);
+
+		validate_string_access(buffer);
 
 		auto& tty = m_controlling_terminal;
 
@@ -857,8 +909,13 @@ namespace Kernel
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_clock_gettime(clockid_t clock_id, timespec* tp) const
+	BAN::ErrorOr<long> Process::sys_clock_gettime(clockid_t clock_id, timespec* tp)
 	{
+		{
+			LockGuard _(m_lock);
+			validate_pointer_access(tp, sizeof(timespec));
+		}
+
 		switch (clock_id)
 		{
 			case CLOCK_MONOTONIC:
@@ -881,6 +938,11 @@ namespace Kernel
 	{
 		if (signal < _SIGMIN || signal > _SIGMAX)
 			return BAN::Error::from_errno(EINVAL);
+
+		{
+			LockGuard _(m_lock);
+			validate_pointer_access((void*)handler, sizeof(handler));
+		}
 
 		CriticalScope _;
 		m_signal_handlers[signal] = (vaddr_t)handler;
@@ -1262,6 +1324,45 @@ namespace Kernel
 		TRY(absolute_path.append(path));
 		
 		return absolute_path;
+	}
+
+	void Process::validate_string_access(const char* str)
+	{
+		// NOTE: we will page fault here, if str is not actually mapped
+		//       outcome is still the same; SIGSEGV
+		validate_pointer_access(str, strlen(str) + 1);
+	}
+
+	void Process::validate_pointer_access(const void* ptr, size_t size)
+	{
+		ASSERT(&Process::current() == this);
+		auto& thread = Thread::current();
+
+		vaddr_t vaddr = (vaddr_t)ptr;
+
+		// NOTE: detect overflow
+		if (vaddr + size < vaddr)
+			goto unauthorized_access;
+
+		// trying to access kernel space memory
+		if (vaddr + size > KERNEL_OFFSET)
+			goto unauthorized_access;
+
+		if (vaddr == 0)
+			return;
+
+		if (vaddr >= thread.stack_base() && vaddr + size <= thread.stack_base() + thread.stack_size())
+			return;
+
+		// FIXME: should we allow cross mapping access?
+		for (auto& mapped_range : m_mapped_ranges)
+			if (vaddr >= mapped_range.range->vaddr() && vaddr + size <= mapped_range.range->vaddr() + mapped_range.range->size())
+				return;
+
+unauthorized_access:
+		dwarnln("process {}, thread {} attempted to make an invalid pointer access", pid(), Thread::current().tid());
+		Debug::dump_stack_trace();
+		MUST(sys_raise(SIGSEGV));
 	}
 
 }
