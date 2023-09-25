@@ -148,6 +148,31 @@ namespace IDT
 		pid_t tid = Kernel::Scheduler::current_tid();
 		pid_t pid = tid ? Kernel::Process::current().pid() : 0;
 
+		if (tid)
+		{
+			auto start = Kernel::Thread::current().stack_base();
+			auto end = start + Kernel::Thread::current().stack_size();
+			if (interrupt_stack.rsp < start)
+				derrorln("Stack overflow");
+			if (interrupt_stack.rsp >= end)
+				derrorln("Stack underflow");
+		}
+
+		if (Kernel::PageTable::current().get_page_flags(interrupt_stack.rip & PAGE_ADDR_MASK) & Kernel::PageTable::Flags::Present)
+		{
+			uint8_t* machine_code = (uint8_t*)interrupt_stack.rip;
+			dwarnln("While executing: {2H}{2H}{2H}{2H}{2H}{2H}{2H}{2H}",
+				machine_code[0],
+				machine_code[1],
+				machine_code[2],
+				machine_code[3],
+				machine_code[4],
+				machine_code[5],
+				machine_code[6],
+				machine_code[7]
+			);
+		}
+
 		dwarnln(
 			"{} (error code: 0x{16H}), pid {}, tid {}\r\n"
 			"Register dump\r\n"
@@ -161,6 +186,8 @@ namespace IDT
 			regs->rip, regs->rflags,
 			regs->cr0, regs->cr2, regs->cr3, regs->cr4
 		);
+		if (isr == ISR::PageFault)
+			Kernel::PageTable::current().debug_dump();
 		Debug::dump_stack_trace();
 
 		if (tid)
