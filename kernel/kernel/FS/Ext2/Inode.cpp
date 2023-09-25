@@ -23,6 +23,9 @@ namespace Kernel
 
 	BAN::ErrorOr<BAN::RefPtr<Inode>> Ext2Inode::create(Ext2FS& fs, uint32_t inode_ino)
 	{
+		if (fs.inode_cache().contains(inode_ino))
+			return fs.inode_cache()[inode_ino];
+
 		auto inode_location = fs.locate_inode(inode_ino);
 
 		auto block_buffer = fs.get_block_buffer();
@@ -30,10 +33,12 @@ namespace Kernel
 
 		auto& inode = *(Ext2::Inode*)(block_buffer.data() + inode_location.offset);
 
-		Ext2Inode* result = new Ext2Inode(fs, inode, inode_ino);
-		if (result == nullptr)
+		Ext2Inode* result_ptr = new Ext2Inode(fs, inode, inode_ino);
+		if (result_ptr == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
-		return BAN::RefPtr<Inode>::adopt(result);
+		auto result = BAN::RefPtr<Inode>::adopt(result_ptr);
+		TRY(fs.inode_cache().insert(inode_ino, result));
+		return result;
 	}
 
 #define VERIFY_AND_READ_BLOCK(expr) do { const uint32_t block_index = expr; ASSERT(block_index); m_fs.read_block(block_index, block_buffer); } while (false)
