@@ -4,7 +4,8 @@ set -e
 DISK_SIZE=$[50 * 1024 * 1024]
 MOUNT_DIR=/mnt
 
-dd if=/dev/zero of=$DISK_IMAGE_PATH bs=512 count=$[$DISK_SIZE / 512] > /dev/null
+truncate -s 0 $DISK_IMAGE_PATH
+truncate -s $DISK_SIZE $DISK_IMAGE_PATH
 
 sed -e 's/\s*\([-\+[:alnum:]]*\).*/\1/' << EOF | fdisk $DISK_IMAGE_PATH > /dev/null
   g     # gpt
@@ -12,10 +13,6 @@ sed -e 's/\s*\([-\+[:alnum:]]*\).*/\1/' << EOF | fdisk $DISK_IMAGE_PATH > /dev/n
   1     # partition number 1
         # default (from the beginning of the disk)
   +1MiB # bios boot partiton size
-  n		# new partition
-  3		# partition number 3
-		# default (right after bios boot partition)
-  +10Mib# partition size
   n     # new partition
   2     # partition number 2
         # default (right after bios boot partition)
@@ -26,9 +23,6 @@ sed -e 's/\s*\([-\+[:alnum:]]*\).*/\1/' << EOF | fdisk $DISK_IMAGE_PATH > /dev/n
   t     # set type
   2     # ... of partition 2
   20    # Linux filesystem
-  t     # set type
-  3     # ... of partition 3
-  20    # Linux filesystem
   w     # write changes
 EOF
 
@@ -37,13 +31,11 @@ sudo partprobe $LOOP_DEV
 
 PARTITION1=${LOOP_DEV}p1
 PARTITION2=${LOOP_DEV}p2
-PARTITION3=${LOOP_DEV}p3
 
-sudo mkfs.ext2 $PARTITION3 > /dev/null
-sudo mkfs.ext2 -d $SYSROOT $PARTITION2 > /dev/null
+sudo mkfs.ext2 -d $SYSROOT -b 1024 -q $PARTITION2
 
 sudo mount $PARTITION2 $MOUNT_DIR
-sudo grub-install --no-floppy --target=i386-pc --modules="normal ext2 multiboot" --boot-directory=${MOUNT_DIR}/boot $LOOP_DEV > /dev/null
+sudo grub-install --no-floppy --target=i386-pc --modules="normal ext2 multiboot" --boot-directory=${MOUNT_DIR}/boot $LOOP_DEV
 sudo umount $MOUNT_DIR
 
 sudo losetup -d $LOOP_DEV
