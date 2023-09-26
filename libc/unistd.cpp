@@ -202,7 +202,12 @@ int chdir(const char* path)
 
 void sync(void)
 {
-	syscall(SYS_SYNC);
+	syscall(SYS_SYNC, false);
+}
+
+void syncsync(int should_block)
+{
+	syscall(SYS_SYNC, should_block);
 }
 
 pid_t getpid(void)

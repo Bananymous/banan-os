@@ -196,6 +196,7 @@ void				swab(const void* __restrict src, void* __restrict dest, ssize_t nbytes);
 int					symlink(const char* path1, const char* path2);
 int					symlinkat(const char* path1, int fd, const char* path2);
 void				sync(void);
+void				syncsync(int should_block);
 long				sysconf(int name);
 pid_t				tcgetpgrp(int fildes);
 int					tcsetpgrp(int fildes, pid_t pgid_id);
