@@ -38,11 +38,13 @@ namespace Kernel
 		};
 
 	public:
+		static Process* create_kernel();
 		static Process* create_kernel(entry_t, void*);
 		static BAN::ErrorOr<Process*> create_userspace(const Credentials&, BAN::StringView);
 		~Process();
 		void cleanup_function();
 
+		void register_to_scheduler();
 		void exit(int status, int signal);
 
 		static void for_each_process(const BAN::Function<BAN::Iteration(Process&)>& callback);
@@ -138,7 +140,6 @@ namespace Kernel
 	private:
 		Process(const Credentials&, pid_t pid, pid_t parent, pid_t sid, pid_t pgrp);
 		static Process* create_process(const Credentials&, pid_t parent, pid_t sid = 0, pid_t pgrp = 0);
-		static void register_process(Process*);
 
 		// Load an elf file to virtual address space of the current page table
 		static BAN::ErrorOr<BAN::UniqPtr<LibELF::ELF>> load_elf_for_exec(const Credentials&, BAN::StringView file_path, const BAN::String& cwd);

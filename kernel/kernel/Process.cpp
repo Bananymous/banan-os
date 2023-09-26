@@ -78,13 +78,20 @@ namespace Kernel
 		return process;
 	}
 
-	void Process::register_process(Process* process)
+	void Process::register_to_scheduler()
 	{
 		s_process_lock.lock();
-		MUST(s_processes.push_back(process));
+		MUST(s_processes.push_back(this));
 		s_process_lock.unlock();
-		for (auto* thread : process->m_threads)
+		for (auto* thread : m_threads)
 			MUST(Scheduler::get().add_thread(thread));
+	}
+
+	Process* Process::create_kernel()
+	{
+		auto* process = create_process({ 0, 0, 0, 0 }, 0);
+		MUST(process->m_working_directory.push_back('/'));
+		return process;
 	}
 
 	Process* Process::create_kernel(entry_t entry, void* data)
@@ -93,7 +100,7 @@ namespace Kernel
 		MUST(process->m_working_directory.push_back('/'));
 		auto* thread = MUST(Thread::create_kernel(entry, data, process));
 		process->add_thread(thread);
-		register_process(process);
+		process->register_to_scheduler();
 		return process;
 	}
 
@@ -146,7 +153,7 @@ namespace Kernel
 
 		auto* thread = MUST(Thread::create_userspace(process));
 		process->add_thread(thread);
-		register_process(process);
+		process->register_to_scheduler();
 		return process;
 	}
 
@@ -353,8 +360,7 @@ namespace Kernel
 		// FIXME: this should be able to fail
 		Thread* thread = MUST(Thread::current().clone(forked, rsp, rip));
 		forked->add_thread(thread);
-		
-		register_process(forked);
+		forked->register_to_scheduler();
 
 		return forked->pid();
 	}
