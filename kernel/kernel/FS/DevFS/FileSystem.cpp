@@ -5,6 +5,7 @@
 #include <kernel/FS/RamFS/Inode.h>
 #include <kernel/LockGuard.h>
 #include <kernel/Process.h>
+#include <kernel/Storage/StorageDevice.h>
 #include <kernel/Timer/Timer.h>
 
 namespace Kernel
@@ -53,6 +54,67 @@ namespace Kernel
 				}
 			}, nullptr
 		);
+
+		auto* sync_process = Process::create_kernel();
+
+		sync_process->add_thread(MUST(Thread::create_kernel(
+			[](void*)
+			{
+				// NOTE: we lock the device lock here and unlock
+				//       it only while semaphore is blocking
+				s_instance->m_device_lock.lock();
+
+				while (true)
+				{
+					while (!s_instance->m_should_sync)
+					{
+						s_instance->m_device_lock.unlock();
+						s_instance->m_sync_semaphore.block();
+						s_instance->m_device_lock.lock();
+					}
+
+					s_instance->for_each_inode(
+						[](BAN::RefPtr<RamInode> inode)
+						{
+							if (inode->is_device())
+								if (((Device*)inode.ptr())->is_storage_device())
+									if (auto ret = ((StorageDevice*)inode.ptr())->sync_disk_cache(); ret.is_error())
+										dwarnln("disk sync: {}", ret.error());
+							return BAN::Iteration::Continue;
+						}
+					);
+					s_instance->m_should_sync = false;
+					s_instance->m_sync_done.unblock();
+				}
+			}, nullptr, sync_process
+		)));
+
+		sync_process->add_thread(MUST(Kernel::Thread::create_kernel(
+			[](void*)
+			{
+				while (true)
+				{
+					SystemTimer::get().sleep(10000);
+
+					LockGuard _(s_instance->m_device_lock);
+					s_instance->m_should_sync = true;
+					s_instance->m_sync_semaphore.unblock();
+				}
+			}, nullptr, sync_process
+		)));
+
+		sync_process->register_to_scheduler();
+	}
+
+	void DevFileSystem::initiate_sync(bool should_block)
+	{
+		{
+			LockGuard _(m_device_lock);
+			m_should_sync = true;
+			m_sync_semaphore.unblock();
+		}
+		if (should_block)
+			m_sync_done.block();
 	}
 
 	void DevFileSystem::add_device(BAN::StringView path, BAN::RefPtr<RamInode> device)

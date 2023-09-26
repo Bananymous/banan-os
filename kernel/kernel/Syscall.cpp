@@ -185,7 +185,7 @@ namespace Kernel
 			ret = Process::current().sys_stat((const char*)arg1, (struct stat*)arg2, (int)arg3);
 			break;
 		case SYS_SYNC:
-			ret = Process::current().sys_sync();
+			ret = Process::current().sys_sync((bool)arg1);
 			break;
 		case SYS_MMAP:
 			ret = Process::current().sys_mmap((const sys_mmap_t*)arg1);

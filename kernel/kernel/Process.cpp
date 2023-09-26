@@ -767,22 +767,10 @@ namespace Kernel
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_sync()
+	BAN::ErrorOr<long> Process::sys_sync(bool should_block)
 	{
-		BAN::ErrorOr<long> ret = 0;
-		DevFileSystem::get().for_each_device(
-			[&](Device* device)
-			{
-				if (device->is_storage_device())
-				{
-					auto success = ((StorageDevice*)device)->sync_disk_cache();
-					if (success.is_error())
-						ret = success.release_error();
-				}
-				return BAN::Iteration::Continue;
-			}
-		);
-		return ret;
+		DevFileSystem::get().initiate_sync(should_block);
+		return 0;
 	}
 
 	BAN::ErrorOr<long> Process::sys_read_dir_entries(int fd, DirectoryEntryList* list, size_t list_size)

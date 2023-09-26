@@ -2,6 +2,7 @@
 
 #include <kernel/Device/Device.h>
 #include <kernel/FS/RamFS/FileSystem.h>
+#include <kernel/Semaphore.h>
 
 namespace Kernel
 {
@@ -19,6 +20,8 @@ namespace Kernel
 
 		dev_t get_next_dev();
 
+		void initiate_sync(bool should_block);
+
 	private:
 		DevFileSystem(size_t size)
 			: RamFileSystem(size)
@@ -26,6 +29,10 @@ namespace Kernel
 
 	private:
 		SpinLock m_device_lock;
+
+		Semaphore m_sync_done;
+		Semaphore m_sync_semaphore;
+		volatile bool m_should_sync { false };
 	};
 
 }
