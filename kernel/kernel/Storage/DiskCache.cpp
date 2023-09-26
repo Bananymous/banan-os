@@ -118,30 +118,48 @@ namespace Kernel
 
 	BAN::ErrorOr<void> DiskCache::sync()
 	{
-		BAN::Vector<uint8_t> sector_buffer;
-		TRY(sector_buffer.resize(m_sector_size));
-
-		PageTable& page_table = PageTable::current();
-		LockGuard page_table_locker(page_table);
-		ASSERT(page_table.is_page_free(0));
+		ASSERT(&PageTable::current() == &PageTable::kernel());
+		auto& page_table = PageTable::kernel();
 
 		for (auto& cache : m_cache)
 		{
-			for (int i = 0; cache.dirty_mask; i++)
+			if (cache.dirty_mask == 0)
+				continue;
+
 			{
-				if (!(cache.dirty_mask & (1 << i)))
-					continue;
+				LockGuard _(page_table);
+				ASSERT(page_table.is_page_free(0));
 
-				{
-					CriticalScope _;
-					page_table.map_page_at(cache.paddr, 0, PageTable::Flags::Present);
-					memcpy(sector_buffer.data(), (void*)(i * m_sector_size), m_sector_size);
-					page_table.unmap_page(0);
-				}
-
-				TRY(m_device.write_sectors_impl(cache.first_sector + i, 1, sector_buffer.data()));
-				cache.dirty_mask &= ~(1 << i);
+				page_table.map_page_at(cache.paddr, 0, PageTable::Flags::Present);
+				memcpy(m_sync_cache.data(), (void*)0, PAGE_SIZE);
+				page_table.unmap_page(0);
 			}
+
+			uint8_t sector_start = 0;
+			uint8_t sector_count = 0;
+
+			while (sector_start + sector_count <= PAGE_SIZE / m_sector_size)
+			{
+				if (cache.dirty_mask & (1 << (sector_start + sector_count)))
+					sector_count++;
+				else if (sector_count == 0)
+					sector_start++;
+				else
+				{
+					dprintln("syncing {}->{}", cache.first_sector + sector_start, cache.first_sector + sector_start + sector_count);
+					TRY(m_device.write_sectors_impl(cache.first_sector + sector_start, sector_count, m_sync_cache.data() + sector_start * m_sector_size));
+					sector_start += sector_count + 1;
+					sector_count = 0;
+				}
+			}
+
+			if (sector_count > 0)
+			{
+				dprintln("syncing {}->{}", cache.first_sector + sector_start, cache.first_sector + sector_start + sector_count);
+				TRY(m_device.write_sectors_impl(cache.first_sector + sector_start, sector_count, m_sync_cache.data() + sector_start * m_sector_size));
+			}
+
+			cache.dirty_mask = 0;
 		}
 
 		return {};

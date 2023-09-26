@@ -260,7 +260,7 @@ namespace Kernel
 	{
 		LockGuard _(m_lock);
 		ASSERT(!m_disk_cache.has_value());
-		m_disk_cache = DiskCache(sector_size(), *this);
+		m_disk_cache.emplace(sector_size(), *this);
 	}
 
 	BAN::ErrorOr<void> StorageDevice::sync_disk_cache()

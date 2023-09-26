@@ -36,6 +36,7 @@ namespace Kernel
 		const size_t m_sector_size;
 		StorageDevice& m_device;
 		BAN::Vector<PageCache> m_cache;
+		BAN::Array<uint8_t, PAGE_SIZE> m_sync_cache;
 	};
 
 }
