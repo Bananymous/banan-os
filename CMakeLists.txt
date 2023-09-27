@@ -20,6 +20,10 @@ if(NOT EXISTS ${CMAKE_CXX_COMPILER})
 	set(CMAKE_CXX_COMPILER g++)
 endif()
 
+if(DEFINED QEMU_ACCEL)
+	set(QEMU_ACCEL -accel ${QEMU_ACCEL})
+endif()
+
 add_compile_options(-mno-sse -mno-sse2)
 add_compile_definitions(__enable_sse=0)
 
@@ -90,13 +94,19 @@ add_custom_target(check-fs
 )
 
 add_custom_target(qemu
-	COMMAND ${CMAKE_COMMAND} -E env BANAN_ARCH="${BANAN_ARCH}" DISK_IMAGE_PATH="${DISK_IMAGE_PATH}" ${CMAKE_SOURCE_DIR}/qemu.sh -accel kvm
+	COMMAND ${CMAKE_COMMAND} -E env BANAN_ARCH="${BANAN_ARCH}" DISK_IMAGE_PATH="${DISK_IMAGE_PATH}" ${CMAKE_SOURCE_DIR}/qemu.sh -serial stdio ${QEMU_ACCEL}
+	DEPENDS image
+	USES_TERMINAL
+)
+
+add_custom_target(qemu-nographic
+	COMMAND ${CMAKE_COMMAND} -E env BANAN_ARCH="${BANAN_ARCH}" DISK_IMAGE_PATH="${DISK_IMAGE_PATH}" ${CMAKE_SOURCE_DIR}/qemu.sh -nographic ${QEMU_ACCEL}
 	DEPENDS image
 	USES_TERMINAL
 )
 
 add_custom_target(qemu-debug
-	COMMAND ${CMAKE_COMMAND} -E env BANAN_ARCH="${BANAN_ARCH}" DISK_IMAGE_PATH="${DISK_IMAGE_PATH}" ${CMAKE_SOURCE_DIR}/qemu.sh -d int -no-reboot
+	COMMAND ${CMAKE_COMMAND} -E env BANAN_ARCH="${BANAN_ARCH}" DISK_IMAGE_PATH="${DISK_IMAGE_PATH}" ${CMAKE_SOURCE_DIR}/qemu.sh -serial stdio -d int -no-reboot
 	DEPENDS image
 	USES_TERMINAL
 )

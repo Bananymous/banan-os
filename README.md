@@ -14,18 +14,20 @@ Each major component and library has its own subdirectory (kernel, userspace, li
 
 There does not exist a complete list of needed packages for building. From the top of my head I can say that *cmake*, *ninja*, *make*, *grub*, *rsync* and emulator (*qemu* or *bochs*) are needed.
 
+You can and *should* pass cmake variable QEMU_ACCEL set to proper accelerator to cmake commands. For example on Linux this means adding -DQEMU_ACCEL=kvm to the end of all cmake commands. 
+
 Create the build directory and cofigure cmake
 ```sh
 mkdir build
 cd build
-cmake -G Ninja ..
+cmake ..
 ```
 
 To build the toolchain for this os. You can run the following command.
 > ***NOTE:*** The following step has to be done only once. This might take a long time since we are compiling binutils and gcc.
 ```sh
 ninja toolchain
-cmake -G Ninja --fresh .. # We need to reconfigure cmake to use the new compiler
+cmake --fresh .. # We need to reconfigure cmake to use the new compiler
 ninja libstdc++
 ```
 
