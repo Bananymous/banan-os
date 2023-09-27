@@ -193,6 +193,9 @@ namespace Kernel
 		case SYS_MUNMAP:
 			ret = Process::current().sys_munmap((void*)arg1, (size_t)arg2);
 			break;
+		case SYS_TTY_CTRL:
+			ret = Process::current().sys_tty_ctrl((int)arg1, (int)arg2, (int)arg3);
+			break;
 		default:
 			dwarnln("Unknown syscall {}", syscall);
 			break;

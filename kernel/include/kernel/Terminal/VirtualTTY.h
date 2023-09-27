@@ -21,7 +21,7 @@ namespace Kernel
 
 		virtual uint32_t height() const override { return m_height; }
 		virtual uint32_t width() const override { return m_width; }
-		virtual void putchar(uint8_t ch) override;
+		virtual void putchar_impl(uint8_t ch) override;
 
 	protected:
 		virtual BAN::StringView name() const override { return m_name; }

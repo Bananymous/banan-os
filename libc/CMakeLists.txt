@@ -14,6 +14,7 @@ set(LIBC_SOURCES
 	stdio.cpp
 	stdlib.cpp
 	string.cpp
+	sys/banan-os.cpp
 	sys/mman.cpp
 	sys/stat.cpp
 	sys/wait.cpp

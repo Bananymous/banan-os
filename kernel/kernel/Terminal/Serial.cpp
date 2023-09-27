@@ -286,7 +286,7 @@ namespace Kernel
 		return m_serial.height();
 	}
 
-	void SerialTTY::putchar(uint8_t ch)
+	void SerialTTY::putchar_impl(uint8_t ch)
 	{
 		m_serial.putchar(ch);
 	}

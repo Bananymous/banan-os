@@ -883,6 +883,19 @@ namespace Kernel
 		return 0;
 	}
 
+	BAN::ErrorOr<long> Process::sys_tty_ctrl(int fildes, int command, int flags)
+	{
+		LockGuard _(m_lock);
+
+		auto inode = TRY(m_open_file_descriptors.inode_of(fildes));
+		if (!inode->is_tty())
+			return BAN::Error::from_errno(ENOTTY);
+		
+		TRY(((TTY*)inode.ptr())->tty_ctrl(command, flags));
+
+		return 0;
+	}
+
 	BAN::ErrorOr<long> Process::sys_termid(char* buffer)
 	{
 		LockGuard _(m_lock);

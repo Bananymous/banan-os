@@ -41,7 +41,7 @@ namespace Kernel
 		
 		virtual uint32_t width() const override;
 		virtual uint32_t height() const override;
-		virtual void putchar(uint8_t) override;
+		virtual void putchar_impl(uint8_t) override;
 
 		virtual void update() override;
 

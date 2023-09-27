@@ -10,6 +10,7 @@
 
 #include <fcntl.h>
 #include <string.h>
+#include <sys/banan-os.h>
 #include <sys/sysmacros.h>
 
 namespace Kernel
@@ -42,6 +43,35 @@ namespace Kernel
 			MUST(((RamSymlinkInode*)inode.ptr())->set_link_target(name()));
 	}
 
+	BAN::ErrorOr<void> TTY::tty_ctrl(int command, int flags)
+	{
+		if (flags & ~(TTY_FLAG_ENABLE_INPUT | TTY_FLAG_ENABLE_OUTPUT))
+			return BAN::Error::from_errno(EINVAL);
+
+		switch (command)
+		{
+			case TTY_CMD_SET:
+				if ((flags & TTY_FLAG_ENABLE_INPUT) && !m_tty_ctrl.receive_input)
+				{
+					m_tty_ctrl.receive_input = true;
+					m_tty_ctrl.semaphore.unblock();
+				}
+				if (flags & TTY_FLAG_ENABLE_OUTPUT)
+					m_tty_ctrl.draw_graphics = true;
+				break;
+			case TTY_CMD_UNSET:
+				if ((flags & TTY_FLAG_ENABLE_INPUT) && m_tty_ctrl.receive_input)
+					m_tty_ctrl.receive_input = false;
+				if (flags & TTY_FLAG_ENABLE_OUTPUT)
+					m_tty_ctrl.draw_graphics = false;
+				break;
+			default:
+				return BAN::Error::from_errno(EINVAL);
+		}
+
+		return {};
+	}
+
 	void TTY::initialize_devices()
 	{
 		static bool initialized = false;
@@ -53,6 +83,9 @@ namespace Kernel
 				auto inode = MUST(VirtualFileSystem::get().file_from_absolute_path({ 0, 0, 0, 0 }, "/dev/input0"sv, O_RDONLY)).inode;
 				while (true)
 				{
+					while (!TTY::current()->m_tty_ctrl.receive_input)
+						TTY::current()->m_tty_ctrl.semaphore.block();
+
 					Input::KeyEvent event;
 					size_t read = MUST(inode->read(0, &event, sizeof(event)));
 					ASSERT(read == sizeof(event));
@@ -249,6 +282,12 @@ namespace Kernel
 				print_backspace();
 			}
 		}
+	}
+
+	void TTY::putchar(uint8_t ch)
+	{
+		if (m_tty_ctrl.draw_graphics)
+			putchar_impl(ch);
 	}
 
 	BAN::ErrorOr<size_t> TTY::read_impl(off_t, void* buffer, size_t count)

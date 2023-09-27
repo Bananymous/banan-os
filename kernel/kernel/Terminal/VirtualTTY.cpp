@@ -304,7 +304,7 @@ namespace Kernel
 		m_terminal_driver->putchar_at(codepoint, x, y, m_foreground, m_background);
 	}
 
-	void VirtualTTY::putchar(uint8_t ch)
+	void VirtualTTY::putchar_impl(uint8_t ch)
 	{
 		ASSERT(m_lock.is_locked());
 		

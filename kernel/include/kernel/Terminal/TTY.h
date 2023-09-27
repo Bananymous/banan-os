@@ -21,6 +21,8 @@ namespace Kernel
 		void set_foreground_pgrp(pid_t pgrp) { m_foreground_pgrp = pgrp; }
 		pid_t foreground_pgrp() const { return m_foreground_pgrp; }
 
+		BAN::ErrorOr<void> tty_ctrl(int command, int flags);
+
 		// for kprint
 		static void putchar_current(uint8_t ch);
 		static bool is_initialized();
@@ -35,7 +37,8 @@ namespace Kernel
 
 		virtual uint32_t height() const = 0;
 		virtual uint32_t width() const = 0;
-		virtual void putchar(uint8_t ch) = 0;
+		void putchar(uint8_t ch);
+		virtual void putchar_impl(uint8_t ch) = 0;
 
 		bool has_data() const;
 
@@ -61,6 +64,14 @@ namespace Kernel
 
 	private:
 		pid_t m_foreground_pgrp { 0 };
+
+		struct tty_ctrl_t
+		{
+			bool draw_graphics { true };
+			bool receive_input { true };
+			Semaphore semaphore;
+		};
+		tty_ctrl_t m_tty_ctrl;
 
 		struct Buffer
 		{
