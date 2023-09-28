@@ -75,7 +75,7 @@ namespace Kernel
 	{
 		size_t first_page = start / PAGE_SIZE;
 		size_t last_page = BAN::Math::div_round_up<size_t>(start + bytes, PAGE_SIZE);
-		return last_page - first_page + 1;
+		return last_page - first_page;
 	}
 
 }
