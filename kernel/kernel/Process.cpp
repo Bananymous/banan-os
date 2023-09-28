@@ -3,6 +3,7 @@
 #include <kernel/CriticalScope.h>
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/FS/VirtualFileSystem.h>
+#include <kernel/IDT.h>
 #include <kernel/InterruptController.h>
 #include <kernel/LockGuard.h>
 #include <kernel/Memory/Heap.h>
@@ -776,6 +777,18 @@ namespace Kernel
 		return 0;
 	}
 
+	[[noreturn]] static void reset_system()
+	{
+		lai_acpi_reset();
+
+		// acpi reset did not work
+
+		dwarnln("Could not reset with ACPI, crashing the cpu");
+
+		// reset through triple fault
+		IDT::force_triple_fault();
+	}
+
 	BAN::ErrorOr<long> Process::sys_poweroff(int command)
 	{
 		if (command != POWEROFF_REBOOT && command != POWEROFF_SHUTDOWN)
@@ -789,7 +802,7 @@ namespace Kernel
 		switch (command)
 		{
 			case POWEROFF_REBOOT:
-				error = lai_acpi_reset();
+				reset_system();
 				break;
 			case POWEROFF_SHUTDOWN:
 				error = lai_enter_sleep(5);

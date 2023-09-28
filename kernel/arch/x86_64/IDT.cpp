@@ -424,4 +424,14 @@ namespace IDT
 		flush_idt();
 	}
 
+	[[noreturn]] void force_triple_fault()
+	{
+		// load 0 sized IDT and trigger an interrupt to force triple fault
+		asm volatile("cli");
+		s_idtr.size = 0;
+		flush_idt();
+		asm volatile("int $0x00");
+		ASSERT_NOT_REACHED();
+	}
+
 }

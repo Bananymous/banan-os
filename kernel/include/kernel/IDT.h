@@ -9,5 +9,6 @@ namespace IDT
 
 	void initialize();
 	void register_irq_handler(uint8_t irq, void(*f)());
+	[[noreturn]] void force_triple_fault();
 
 }
