@@ -123,7 +123,7 @@ void* malloc(size_t size)
 
 	// find the first pool with size atleast size
 	size_t first_usable_pool = 0;
-	while (s_malloc_pools[first_usable_pool].size < size)
+	while (s_malloc_pools[first_usable_pool].size - sizeof(malloc_node_t) < size)
 		first_usable_pool++;
 	// first_usable_pool = ceil(log(size/s_malloc_smallest_pool, s_malloc_pool_size_mult))
 
@@ -140,6 +140,7 @@ void* malloc(size_t size)
 			continue;
 		if (!allocate_pool(i))
 			break;
+		// NOTE: always works since we just created the pool
 		return allocate_from_pool(i, size);
 	}
 
