@@ -14,8 +14,11 @@
 #include <LibELF/ELF.h>
 #include <LibELF/Values.h>
 
+#include <lai/helpers/pm.h>
+
 #include <fcntl.h>
 #include <stdio.h>
+#include <sys/banan-os.h>
 #include <sys/sysmacros.h>
 #include <sys/wait.h>
 
@@ -771,6 +774,33 @@ namespace Kernel
 	{
 		DevFileSystem::get().initiate_sync(should_block);
 		return 0;
+	}
+
+	BAN::ErrorOr<long> Process::sys_poweroff(int command)
+	{
+		if (command != POWEROFF_REBOOT && command != POWEROFF_SHUTDOWN)
+			return BAN::Error::from_errno(EINVAL);
+
+		// FIXME: gracefully kill all processes
+
+		DevFileSystem::get().initiate_sync(true);
+		
+		lai_api_error_t error;
+		switch (command)
+		{
+			case POWEROFF_REBOOT:
+				error = lai_acpi_reset();
+				break;
+			case POWEROFF_SHUTDOWN:
+				error = lai_enter_sleep(5);
+				break;
+			default:
+				ASSERT_NOT_REACHED();
+		}
+		
+		// If we reach here, there was an error
+		dprintln("{}", lai_api_error_to_string(error));
+		return BAN::Error::from_errno(EUNKNOWN);
 	}
 
 	BAN::ErrorOr<long> Process::sys_read_dir_entries(int fd, DirectoryEntryList* list, size_t list_size)

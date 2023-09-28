@@ -6,3 +6,8 @@ int tty_ctrl(int fildes, int command, int flags)
 {
 	return syscall(SYS_TTY_CTRL, fildes, command, flags);
 }
+
+int poweroff(int command)
+{
+	return syscall(SYS_POWEROFF, command);
+}

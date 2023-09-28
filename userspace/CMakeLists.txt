@@ -9,6 +9,7 @@ set(USERSPACE_PROJECTS
 	id
 	init
 	ls
+	poweroff
 	Shell
 	snake
 	stat

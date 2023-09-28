@@ -196,6 +196,9 @@ namespace Kernel
 		case SYS_TTY_CTRL:
 			ret = Process::current().sys_tty_ctrl((int)arg1, (int)arg2, (int)arg3);
 			break;
+		case SYS_POWEROFF:
+			ret = Process::current().sys_poweroff((int)arg1);
+			break;
 		default:
 			dwarnln("Unknown syscall {}", syscall);
 			break;

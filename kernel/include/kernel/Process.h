@@ -111,6 +111,8 @@ namespace Kernel
 
 		BAN::ErrorOr<long> sys_sync(bool should_block);
 
+		BAN::ErrorOr<long> sys_poweroff(int command);
+
 		BAN::ErrorOr<void> mount(BAN::StringView source, BAN::StringView target);
 
 		BAN::ErrorOr<long> sys_read_dir_entries(int fd, DirectoryEntryList* buffer, size_t buffer_size);
