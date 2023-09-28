@@ -119,6 +119,7 @@ namespace Kernel
 	BAN::ErrorOr<BAN::UniqPtr<VirtualRange>> VirtualRange::clone(PageTable& page_table)
 	{
 		ASSERT(&PageTable::current() == &m_page_table);
+		ASSERT(&m_page_table != &page_table);
 
 		auto result = TRY(create_to_vaddr(page_table, vaddr(), size(), flags(), m_preallocated));
 

@@ -19,6 +19,7 @@ namespace Kernel::PCI
 	class BarRegion
 	{
 		BAN_NON_COPYABLE(BarRegion);
+		BAN_NON_MOVABLE(BarRegion);
 
 	public:
 		static BAN::ErrorOr<BAN::UniqPtr<BarRegion>> create(PCI::Device&, uint8_t bar_num);
