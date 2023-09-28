@@ -252,6 +252,9 @@ namespace LibELF
 					break;
 				case PT_LOAD:
 				{
+					if (!(program_header.p_flags & LibELF::PF_W))
+						continue;
+
 					PageTable::flags_t flags = PageTable::Flags::UserSupervisor | PageTable::Flags::Present;
 					if (program_header.p_flags & LibELF::PF_W)
 						flags |= PageTable::Flags::ReadWrite;
