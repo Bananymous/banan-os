@@ -56,39 +56,14 @@ namespace Kernel
 		ASSERT(vaddr_start < vaddr_end);
 		ASSERT(vaddr_end - vaddr_start + 1 >= size / PAGE_SIZE);
 
-		VirtualRange* result_ptr = new VirtualRange(page_table);
-		if (result_ptr == nullptr)
-			return BAN::Error::from_errno(ENOMEM);
-		auto result = BAN::UniqPtr<VirtualRange>::adopt(result_ptr);
-
-		result->m_kmalloc = false;
-		result->m_vaddr = 0;
-		result->m_size = size;
-		result->m_flags = flags;
-
 		vaddr_t vaddr = page_table.reserve_free_contiguous_pages(size / PAGE_SIZE, vaddr_start, vaddr_end);
 		if (vaddr == 0)
 			return BAN::Error::from_errno(ENOMEM);
 		ASSERT(vaddr + size <= vaddr_end);
-		result->m_vaddr = vaddr;
 
-		size_t needed_pages = size / PAGE_SIZE;
-
-		for (size_t i = 0; i < needed_pages; i++)
-		{
-			paddr_t paddr = Heap::get().take_free_page();
-			if (paddr == 0)
-			{
-				for (size_t j = 0; j < i; j++)
-					Heap::get().release_page(page_table.physical_address_of(vaddr + j * PAGE_SIZE));
-				page_table.unmap_range(vaddr, size);
-				result->m_vaddr = 0;
-				return BAN::Error::from_errno(ENOMEM);
-			}
-			page_table.map_page_at(paddr, vaddr + i * PAGE_SIZE, flags);
-		}
-
-		return result;
+		LockGuard _(page_table);
+		page_table.unmap_range(vaddr, size); // We have to unmap here to allow reservation in create_to_vaddr()
+		return create_to_vaddr(page_table, vaddr, size, flags);
 	}
 
 	BAN::ErrorOr<BAN::UniqPtr<VirtualRange>> VirtualRange::create_kmalloc(size_t size)
