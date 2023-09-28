@@ -141,6 +141,11 @@ namespace Kernel
 		bool is_userspace() const { return m_is_userspace; }
 		const userspace_info_t& userspace_info() const { return m_userspace_info; }
 
+		// Returns error if page could not be allocated
+		// Returns true if the page was allocated successfully
+		// Return false if access was page violation (segfault)
+		BAN::ErrorOr<bool> allocate_page_for_demand_paging(vaddr_t addr);
+
 	private:
 		Process(const Credentials&, pid_t pid, pid_t parent, pid_t sid, pid_t pgrp);
 		static Process* create_process(const Credentials&, pid_t parent, pid_t sid = 0, pid_t pgrp = 0);

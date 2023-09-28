@@ -101,6 +101,29 @@ namespace IDT
 		UnkownException0x1F,
 	};
 
+	struct PageFaultError
+	{
+		union
+		{
+			uint32_t raw;
+			struct
+			{
+				uint32_t present		: 1;
+				uint32_t write			: 1;
+				uint32_t userspace		: 1;
+				uint32_t reserved_write	: 1;
+				uint32_t instruction	: 1;
+				uint32_t protection_key	: 1;
+				uint32_t shadow_stack	: 1;
+				uint32_t reserved1		: 8;
+				uint32_t sgx_violation	: 1;
+				uint32_t reserved2		: 16;
+			};
+		};
+		
+	};
+	static_assert(sizeof(PageFaultError) == 4);
+
 	static const char* isr_exceptions[] =
 	{
 		"Division Error",
@@ -147,6 +170,29 @@ namespace IDT
 
 		pid_t tid = Kernel::Scheduler::current_tid();
 		pid_t pid = tid ? Kernel::Process::current().pid() : 0;
+
+		if (pid && isr == ISR::PageFault)
+		{
+			PageFaultError page_fault_error;
+			page_fault_error.raw = error;
+
+			// Try demand paging on non present pages
+			if (!page_fault_error.present)
+			{
+				asm volatile("sti");
+				auto result = Kernel::Process::current().allocate_page_for_demand_paging(regs->cr2);
+				asm volatile("cli");
+
+				if (!result.is_error() && result.value())
+					return;
+
+				if (result.is_error())
+				{
+					dwarnln("Demand paging: {}", result.error());
+					Kernel::Thread::current().handle_signal(SIGTERM);
+				}
+			}
+		}
 
 		if (tid)
 		{

@@ -136,9 +136,9 @@ namespace Kernel
 				process->page_table(),
 				0x400000, KERNEL_OFFSET,
 				needed_bytes,
-				PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present
+				PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present,
+				true
 			));
-			argv_range->set_zero();
 
 			uintptr_t temp = argv_range->vaddr() + sizeof(char*) * 2;
 			argv_range->copy_from(0, (uint8_t*)&temp, sizeof(char*));			
@@ -437,9 +437,9 @@ namespace Kernel
 						page_table(),
 						0x400000, KERNEL_OFFSET,
 						bytes,
-						PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present
+						PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present,
+						true
 					));
-					range->set_zero();
 
 					size_t data_offset = sizeof(char*) * (container.size() + 1);
 					for (size_t i = 0; i < container.size(); i++)
@@ -584,8 +584,7 @@ namespace Kernel
 
 				{
 					LockGuard _(m_lock);
-					auto range = MUST(VirtualRange::create_to_vaddr(page_table(), page_start * PAGE_SIZE, page_count * PAGE_SIZE, flags));
-					range->set_zero();
+					auto range = MUST(VirtualRange::create_to_vaddr(page_table(), page_start * PAGE_SIZE, page_count * PAGE_SIZE, flags, true));
 					range->copy_from(elf_program_header.p_vaddr % PAGE_SIZE, elf.data() + elf_program_header.p_offset, elf_program_header.p_filesz);
 
 					MUST(m_mapped_ranges.emplace_back(false, BAN::move(range)));
@@ -621,6 +620,29 @@ namespace Kernel
 		TRY(parent_inode->create_file(file_name, S_IFREG | (mode & 0777), m_credentials.euid(), m_credentials.egid()));
 
 		return {};
+	}
+
+	BAN::ErrorOr<bool> Process::allocate_page_for_demand_paging(vaddr_t addr)
+	{
+		ASSERT(&Process::current() == this);
+
+		LockGuard _(m_lock);
+
+		if (Thread::current().stack().contains(addr))
+		{
+			TRY(Thread::current().stack().allocate_page_for_demand_paging(addr));
+			return true;
+		}
+
+		for (auto& mapped_range : m_mapped_ranges)
+		{
+			if (!mapped_range.range->contains(addr))
+				continue;
+			TRY(mapped_range.range->allocate_page_for_demand_paging(addr));
+			return true;
+		}
+
+		return false;
 	}
 
 	BAN::ErrorOr<long> Process::open_file(BAN::StringView path, int flags, mode_t mode)
@@ -890,9 +912,9 @@ namespace Kernel
 				page_table(),
 				0x400000, KERNEL_OFFSET,
 				args->len,
-				PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present
+				PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present,
+				false
 			));
-			range->set_zero();
 
 			LockGuard _(m_lock);
 			TRY(m_mapped_ranges.emplace_back(true, BAN::move(range)));
