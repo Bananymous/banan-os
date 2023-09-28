@@ -11,6 +11,9 @@ __BEGIN_DECLS
 #define TTY_FLAG_ENABLE_OUTPUT	1
 #define TTY_FLAG_ENABLE_INPUT	2
 
+#define POWER_SHUTDOWN 0
+#define POWER_REBOOT 1
+
 /*
 fildes:		refers to valid tty device
 command:	one of TTY_CMD_* definitions

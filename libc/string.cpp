@@ -173,6 +173,7 @@ const char* strerrorname_np(int error)
 		case EXDEV:				return "EXDEV";
 		case EEXISTS:			return "EEXISTS";
 		case ENOTBLK:			return "ENOTBLK";
+		case EUNKNOWN:			return "EUNKNOWN";
 	}
 
 	errno = EINVAL;
@@ -267,6 +268,7 @@ const char* strerrordesc_np(int error)
 		case EXDEV:				return "Cross-device link.";
 		case EEXISTS:			return "File exists";
 		case ENOTBLK:			return "Block device required";
+		case EUNKNOWN:			return "Unknown error";
 	}
 
 	errno = EINVAL;

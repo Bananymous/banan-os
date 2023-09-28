@@ -91,6 +91,8 @@ __BEGIN_DECLS
 #define ENOTBLK			82
 #define EEXISTS			83
 
+#define EUNKNOWN		0xFF
+
 #define errno __errno
 
 extern int __errno;
