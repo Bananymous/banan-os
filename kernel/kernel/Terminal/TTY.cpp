@@ -328,7 +328,7 @@ namespace Kernel
 		return count;
 	}
 
-	bool TTY::has_data() const
+	bool TTY::has_data_impl() const
 	{
 		LockGuard _(m_lock);
 		return m_output.flush;

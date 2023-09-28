@@ -40,7 +40,7 @@ namespace Kernel
 		void putchar(uint8_t ch);
 		virtual void putchar_impl(uint8_t ch) = 0;
 
-		bool has_data() const;
+		virtual bool has_data_impl() const override;
 
 	protected:
 		TTY(mode_t mode, uid_t uid, gid_t gid)
