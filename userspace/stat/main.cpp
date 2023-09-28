@@ -65,9 +65,9 @@ int main(int argc, char** argv)
 		access[10] = '\0';
 
 		printf("  File: %s\n", argv[i]);
-		printf("  Size: %-15d Blocks: %-10d IO Block: %-6d %s\n", (int)st.st_size, (int)st.st_blocks, (int)st.st_blksize, type);
-		printf("Device: %d,%-5d Inode: %-11d Links: %-5d Device type: %d,%d\n", (int)major(st.st_dev), (int)minor(st.st_dev), (int)st.st_ino, (int)st.st_nlink, (int)major(st.st_rdev), (int)minor(st.st_rdev));
-		printf("Access: (%04o/%s)  Uid: %5d Gid: %5d\n", (int)(st.st_mode & S_IRWXMASK), access, (int)st.st_uid, (int)st.st_gid);
+		printf("  Size: %-15ld Blocks: %-10ld IO Block: %-6ld %s\n", st.st_size, st.st_blocks, st.st_blksize, type);
+		printf("Device: %lu,%-5lu Inode: %-11lu Links: %-5lu Device type: %lu,%lu\n", major(st.st_dev), minor(st.st_dev), st.st_ino, st.st_nlink, major(st.st_rdev), minor(st.st_rdev));
+		printf("Access: (%04o/%s)  Uid: %5d Gid: %5d\n", st.st_mode & S_IRWXMASK, access, st.st_uid, st.st_gid);
 		printf("Access: "); print_timestamp(st.st_atim); printf("\n");
 		printf("Modify: "); print_timestamp(st.st_mtim); printf("\n");
 		printf("Change: "); print_timestamp(st.st_ctim); printf("\n");
