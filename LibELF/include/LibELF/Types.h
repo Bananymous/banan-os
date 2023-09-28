@@ -1,5 +1,7 @@
 #pragma once
 
+#include <kernel/Arch.h>
+
 #include <stdint.h>
 
 namespace LibELF
@@ -152,5 +154,36 @@ namespace LibELF
 		Elf64Xword p_memsz;
 		Elf64Xword p_align;
 	};
+
+
+#if ARCH(i386)
+	using ElfNativeAddr = Elf32Addr;
+	using ElfNativeOff = Elf32Off;
+	using ElfNativeHalf = Elf32Half;
+	using ElfNativeWord = Elf32Word;
+	using ElfNativeSword = Elf32Sword;
+	using ElfNativeXword = Elf32Xword;
+	using ElfNativeSxword = Elf32Sxword;
+	using ElfNativeFileHeader = Elf32FileHeader;
+	using ElfNativeSectionHeader = Elf32SectionHeader;
+	using ElfNativeSymbol = Elf32Symbol;
+	using ElfNativeRelocation = Elf32Relocation;
+	using ElfNativeRelocationA = Elf32RelocationA;
+	using ElfNativeProgramHeader = Elf32ProgramHeader;
+#elif ARCH(x86_64)
+	using ElfNativeAddr = Elf64Addr;
+	using ElfNativeOff = Elf64Off;
+	using ElfNativeHalf = Elf64Half;
+	using ElfNativeWord = Elf64Word;
+	using ElfNativeSword = Elf64Sword;
+	using ElfNativeXword = Elf64Xword;
+	using ElfNativeSxword = Elf64Sxword;
+	using ElfNativeFileHeader = Elf64FileHeader;
+	using ElfNativeSectionHeader = Elf64SectionHeader;
+	using ElfNativeSymbol = Elf64Symbol;
+	using ElfNativeRelocation = Elf64Relocation;
+	using ElfNativeRelocationA = Elf64RelocationA;
+	using ElfNativeProgramHeader = Elf64ProgramHeader;
+#endif
 
 }
