@@ -159,6 +159,21 @@ BAN::Optional<BAN::String> parse_dollar(BAN::StringView command, size_t& i)
 	return "$"sv;
 }
 
+BAN::StringView strip_whitespace(BAN::StringView sv)
+{
+	size_t leading = 0;
+	while (leading < sv.size() && isspace(sv[leading]))
+		leading++;
+	sv = sv.substring(leading);
+
+	size_t trailing = 0;
+	while (trailing < sv.size() && isspace(sv[sv.size() - trailing - 1]))
+		trailing++;
+	sv = sv.substring(0, sv.size() - trailing);
+
+	return sv;
+}
+
 BAN::Vector<BAN::Vector<BAN::String>> parse_command(BAN::StringView command_view)
 {
 	enum class State
@@ -167,6 +182,8 @@ BAN::Vector<BAN::Vector<BAN::String>> parse_command(BAN::StringView command_view
 		SingleQuote,
 		DoubleQuote,
 	};
+
+	command_view = strip_whitespace(command_view);
 
 	BAN::Vector<BAN::Vector<BAN::String>> result;
 	BAN::Vector<BAN::String> command_args;
