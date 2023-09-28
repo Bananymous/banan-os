@@ -161,6 +161,8 @@ static void init2(void*)
 
 	dprintln("Scheduler started");
 
+	InterruptController::get().enter_acpi_mode();
+
 	auto console = MUST(DevFileSystem::get().root_inode()->find_inode(cmdline.console));
 	ASSERT(console->is_tty());
 	((TTY*)console.ptr())->set_as_current();

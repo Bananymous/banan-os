@@ -16,6 +16,11 @@ public:
 
 	static void initialize(bool force_pic);
 	static InterruptController& get();
+
+	void enter_acpi_mode();
+
+private:
+	bool m_using_apic { false };
 };
 
 bool interrupts_enabled();

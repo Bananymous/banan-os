@@ -94,7 +94,7 @@ namespace Kernel
 		void validate_stack() const;
 
 	private:
-		static constexpr size_t		m_kernel_stack_size		= PAGE_SIZE * 1;
+		static constexpr size_t		m_kernel_stack_size		= PAGE_SIZE * 4;
 		static constexpr size_t		m_userspace_stack_size	= PAGE_SIZE * 2;
 		static constexpr size_t		m_interrupt_stack_size	= PAGE_SIZE * 2;
 		BAN::UniqPtr<VirtualRange>	m_interrupt_stack;
