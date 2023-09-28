@@ -12,8 +12,8 @@
 #include <kernel/Scheduler.h>
 #include <kernel/Storage/StorageDevice.h>
 #include <kernel/Timer/Timer.h>
-#include <LibELF/ELF.h>
-#include <LibELF/Values.h>
+
+#include <LibELF/LoadableELF.h>
 
 #include <lai/helpers/pm.h>
 
@@ -110,19 +110,15 @@ namespace Kernel
 
 	BAN::ErrorOr<Process*> Process::create_userspace(const Credentials& credentials, BAN::StringView path)
 	{
-		auto elf = TRY(load_elf_for_exec(credentials, path, "/"sv));
-
 		auto* process = create_process(credentials, 0);
 		MUST(process->m_working_directory.push_back('/'));
-		process->m_page_table = BAN::UniqPtr<PageTable>::adopt(MUST(PageTable::create_userspace()));;
+		process->m_page_table = BAN::UniqPtr<PageTable>::adopt(MUST(PageTable::create_userspace()));
 
-		process->load_elf_to_memory(*elf);
+		process->m_loadable_elf = TRY(load_elf_for_exec(credentials, path, "/"sv, process->page_table()));
+		process->m_loadable_elf->reserve_address_space();
 
 		process->m_is_userspace = true;
-		process->m_userspace_info.entry = elf->file_header_native().e_entry;
-
-		// NOTE: we clear the elf since we don't need the memory anymore
-		elf.clear();
+		process->m_userspace_info.entry = process->m_loadable_elf->entry_point();
 
 		char** argv = nullptr;
 		{
@@ -148,7 +144,7 @@ namespace Kernel
 
 			argv_range->copy_from(sizeof(char*) * 2, (const uint8_t*)path.data(), path.size());
 
-			MUST(process->m_mapped_ranges.emplace_back(false, BAN::move(argv_range)));
+			MUST(process->m_mapped_ranges.push_back(BAN::move(argv_range)));
 		}
 
 		process->m_userspace_info.argc = 1;
@@ -290,7 +286,7 @@ namespace Kernel
 		return 0;
 	}
 
-	BAN::ErrorOr<BAN::UniqPtr<LibELF::ELF>> Process::load_elf_for_exec(const Credentials& credentials, BAN::StringView file_path, const BAN::String& cwd)
+	BAN::ErrorOr<BAN::UniqPtr<LibELF::LoadableELF>> Process::load_elf_for_exec(const Credentials& credentials, BAN::StringView file_path, const BAN::String& cwd, PageTable& page_table)
 	{
 		if (file_path.empty())
 			return BAN::Error::from_errno(ENOENT);
@@ -307,29 +303,7 @@ namespace Kernel
 		}
 
 		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(credentials, absolute_path, O_EXEC));
-
-		auto elf_or_error = LibELF::ELF::load_from_file(file.inode);
-		if (elf_or_error.is_error())
-		{
-			if (elf_or_error.error().get_error_code() == EINVAL)
-				return BAN::Error::from_errno(ENOEXEC);
-			return elf_or_error.error();
-		}
-		
-		auto elf = elf_or_error.release_value();
-		if (!elf->is_native())
-		{
-			derrorln("ELF has invalid architecture");
-			return BAN::Error::from_errno(EINVAL);
-		}
-
-		if (elf->file_header_native().e_type != LibELF::ET_EXEC)
-		{
-			derrorln("Not an executable");
-			return BAN::Error::from_errno(ENOEXEC);
-		}
-
-		return BAN::move(elf);
+		return TRY(LibELF::LoadableELF::load_from_inode(page_table, file.inode));
 	}
 
 	BAN::ErrorOr<long> Process::sys_fork(uintptr_t rsp, uintptr_t rip)
@@ -344,10 +318,12 @@ namespace Kernel
 		OpenFileDescriptorSet open_file_descriptors(m_credentials);
 		TRY(open_file_descriptors.clone_from(m_open_file_descriptors));
 
-		BAN::Vector<MappedRange> mapped_ranges;
+		BAN::Vector<BAN::UniqPtr<VirtualRange>> mapped_ranges;
 		TRY(mapped_ranges.reserve(m_mapped_ranges.size()));
 		for (auto& mapped_range : m_mapped_ranges)
-			MUST(mapped_ranges.emplace_back(mapped_range.can_be_unmapped, TRY(mapped_range.range->clone(*page_table))));
+			MUST(mapped_ranges.push_back(TRY(mapped_range->clone(*page_table))));
+
+		auto loadable_elf = TRY(m_loadable_elf->clone(*page_table));
 
 		Process* forked = create_process(m_credentials, m_pid, m_sid, m_pgrp);
 		forked->m_controlling_terminal = m_controlling_terminal;
@@ -355,6 +331,7 @@ namespace Kernel
 		forked->m_page_table = BAN::move(page_table);
 		forked->m_open_file_descriptors = BAN::move(open_file_descriptors);
 		forked->m_mapped_ranges = BAN::move(mapped_ranges);
+		forked->m_loadable_elf = BAN::move(loadable_elf);
 		forked->m_is_userspace = m_is_userspace;
 		forked->m_userspace_info = m_userspace_info;
 		forked->m_has_called_exec = false;
@@ -373,51 +350,38 @@ namespace Kernel
 	{
 		// NOTE: We scope everything for automatic deletion
 		{
+			LockGuard _(m_lock);
+
 			BAN::Vector<BAN::String> str_argv;
+			for (int i = 0; argv && argv[i]; i++)
+			{
+				validate_pointer_access(argv + i, sizeof(char*));
+				validate_string_access(argv[i]);
+				TRY(str_argv.emplace_back(argv[i]));
+			}
+
 			BAN::Vector<BAN::String> str_envp;
-
+			for (int i = 0; envp && envp[i]; i++)
 			{
-				LockGuard _(m_lock);
-
-				for (int i = 0; argv && argv[i]; i++)
-				{
-					validate_pointer_access(argv + i, sizeof(char*));
-					validate_string_access(argv[i]);
-					TRY(str_argv.emplace_back(argv[i]));
-				}
-
-				for (int i = 0; envp && envp[i]; i++)
-				{
-					validate_pointer_access(envp + 1, sizeof(char*));
-					validate_string_access(envp[i]);
-					TRY(str_envp.emplace_back(envp[i]));
-				}
+				validate_pointer_access(envp + 1, sizeof(char*));
+				validate_string_access(envp[i]);
+				TRY(str_envp.emplace_back(envp[i]));
 			}
 
-			BAN::String working_directory;
-
-			{
-				LockGuard _(m_lock);
-				TRY(working_directory.append(m_working_directory));
-			}
-
-			auto elf = TRY(load_elf_for_exec(m_credentials, path, working_directory));
-
-			LockGuard lock_guard(m_lock);
+			BAN::String executable_path;
+			TRY(executable_path.append(path));
 
 			m_open_file_descriptors.close_cloexec();
 
 			m_mapped_ranges.clear();
+			m_loadable_elf.clear();
 
-			load_elf_to_memory(*elf);
-
-			m_userspace_info.entry = elf->file_header_native().e_entry;
+			m_loadable_elf = TRY(load_elf_for_exec(m_credentials, executable_path, m_working_directory, page_table()));
+			m_loadable_elf->reserve_address_space();
+			m_userspace_info.entry = m_loadable_elf->entry_point();
 
 			for (size_t i = 0; i < sizeof(m_signal_handlers) / sizeof(*m_signal_handlers); i++)
 				m_signal_handlers[i] = (vaddr_t)SIG_DFL;
-
-			// NOTE: we clear the elf since we don't need the memory anymore
-			elf.clear();
 
 			ASSERT(m_threads.size() == 1);
 			ASSERT(&Process::current() == this);
@@ -458,16 +422,18 @@ namespace Kernel
 
 			auto argv_range = create_range(str_argv);
 			m_userspace_info.argv = (char**)argv_range->vaddr();
-			MUST(m_mapped_ranges.emplace_back(false, BAN::move(argv_range)));
+			MUST(m_mapped_ranges.push_back(BAN::move(argv_range)));
 
 			auto envp_range = create_range(str_envp);
 			m_userspace_info.envp = (char**)envp_range->vaddr();
-			MUST(m_mapped_ranges.emplace_back(false, BAN::move(envp_range)));
+			MUST(m_mapped_ranges.push_back(BAN::move(envp_range)));
 
 			m_userspace_info.argc = str_argv.size();
 
 			asm volatile("cli");
 		}
+
+		m_has_called_exec = true;
 
 		m_threads.front()->setup_exec();
 		Scheduler::get().execute_current_thread();
@@ -546,62 +512,6 @@ namespace Kernel
 		return 0;
 	}
 
-	void Process::load_elf_to_memory(LibELF::ELF& elf)
-	{
-		ASSERT(elf.is_native());
-
-		auto& elf_file_header = elf.file_header_native();
-		for (size_t i = 0; i < elf_file_header.e_phnum; i++)
-		{
-			auto& elf_program_header = elf.program_header_native(i);
-
-			switch (elf_program_header.p_type)
-			{
-			case LibELF::PT_NULL:
-				break;
-			case LibELF::PT_LOAD:
-			{
-				PageTable::flags_t flags = PageTable::Flags::UserSupervisor | PageTable::Flags::Present;
-				if (elf_program_header.p_flags & LibELF::PF_W)
-					flags |= PageTable::Flags::ReadWrite;
-				if (elf_program_header.p_flags & LibELF::PF_X)
-					flags |= PageTable::Flags::Execute;
-
-				size_t page_start = elf_program_header.p_vaddr / PAGE_SIZE;
-				size_t page_end = BAN::Math::div_round_up<size_t>(elf_program_header.p_vaddr + elf_program_header.p_memsz, PAGE_SIZE);
-				size_t page_count = page_end - page_start;
-
-				page_table().lock();
-
-				if (!page_table().is_range_free(page_start * PAGE_SIZE, page_count * PAGE_SIZE))
-				{
-					page_table().debug_dump();
-					Kernel::panic("vaddr {8H}-{8H} not free {8H}-{8H}",
-						page_start * PAGE_SIZE,
-						page_start * PAGE_SIZE + page_count * PAGE_SIZE
-					);
-				}
-
-				{
-					LockGuard _(m_lock);
-					auto range = MUST(VirtualRange::create_to_vaddr(page_table(), page_start * PAGE_SIZE, page_count * PAGE_SIZE, flags, true));
-					range->copy_from(elf_program_header.p_vaddr % PAGE_SIZE, elf.data() + elf_program_header.p_offset, elf_program_header.p_filesz);
-
-					MUST(m_mapped_ranges.emplace_back(false, BAN::move(range)));
-				}
-
-				page_table().unlock();
-
-				break;
-			}
-			default:
-				ASSERT_NOT_REACHED();
-			}
-		}
-
-		m_has_called_exec = true;
-	}
-
 	BAN::ErrorOr<void> Process::create_file(BAN::StringView path, mode_t mode)
 	{
 		LockGuard _(m_lock);
@@ -622,23 +532,29 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<bool> Process::allocate_page_for_demand_paging(vaddr_t addr)
+	BAN::ErrorOr<bool> Process::allocate_page_for_demand_paging(vaddr_t address)
 	{
 		ASSERT(&Process::current() == this);
 
 		LockGuard _(m_lock);
 
-		if (Thread::current().stack().contains(addr))
+		if (Thread::current().stack().contains(address))
 		{
-			TRY(Thread::current().stack().allocate_page_for_demand_paging(addr));
+			TRY(Thread::current().stack().allocate_page_for_demand_paging(address));
 			return true;
 		}
 
 		for (auto& mapped_range : m_mapped_ranges)
 		{
-			if (!mapped_range.range->contains(addr))
+			if (!mapped_range->contains(address))
 				continue;
-			TRY(mapped_range.range->allocate_page_for_demand_paging(addr));
+			TRY(mapped_range->allocate_page_for_demand_paging(address));
+			return true;
+		}
+
+		if (m_loadable_elf && m_loadable_elf->contains(address))
+		{
+			TRY(m_loadable_elf->load_page_to_memory(address));
 			return true;
 		}
 
@@ -917,8 +833,8 @@ namespace Kernel
 			));
 
 			LockGuard _(m_lock);
-			TRY(m_mapped_ranges.emplace_back(true, BAN::move(range)));
-			return m_mapped_ranges.back().range->vaddr();
+			TRY(m_mapped_ranges.push_back(BAN::move(range)));
+			return m_mapped_ranges.back()->vaddr();
 		}
 
 		return BAN::Error::from_errno(ENOTSUP);
@@ -937,9 +853,7 @@ namespace Kernel
 
 		for (size_t i = 0; i < m_mapped_ranges.size(); i++)
 		{
-			if (!m_mapped_ranges[i].can_be_unmapped)
-				continue;
-			auto& range = m_mapped_ranges[i].range;
+			auto& range = m_mapped_ranges[i];
 			if (vaddr + len < range->vaddr() || vaddr >= range->vaddr() + range->size())
 				continue;
 			m_mapped_ranges.remove(i);
@@ -1428,8 +1342,11 @@ namespace Kernel
 
 		// FIXME: should we allow cross mapping access?
 		for (auto& mapped_range : m_mapped_ranges)
-			if (vaddr >= mapped_range.range->vaddr() && vaddr + size <= mapped_range.range->vaddr() + mapped_range.range->size())
+			if (vaddr >= mapped_range->vaddr() && vaddr + size <= mapped_range->vaddr() + mapped_range->size())
 				return;
+
+		if (m_loadable_elf->contains(vaddr))
+			return;
 
 unauthorized_access:
 		dwarnln("process {}, thread {} attempted to make an invalid pointer access", pid(), Thread::current().tid());

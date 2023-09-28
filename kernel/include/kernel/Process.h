@@ -16,7 +16,7 @@
 #include <sys/mman.h>
 #include <termios.h>
 
-namespace LibELF { class ELF; }
+namespace LibELF { class LoadableELF; }
 
 namespace Kernel
 {
@@ -150,11 +150,8 @@ namespace Kernel
 		Process(const Credentials&, pid_t pid, pid_t parent, pid_t sid, pid_t pgrp);
 		static Process* create_process(const Credentials&, pid_t parent, pid_t sid = 0, pid_t pgrp = 0);
 
-		// Load an elf file to virtual address space of the current page table
-		static BAN::ErrorOr<BAN::UniqPtr<LibELF::ELF>> load_elf_for_exec(const Credentials&, BAN::StringView file_path, const BAN::String& cwd);
-		
-		// Copy an elf file from the current page table to the processes own
-		void load_elf_to_memory(LibELF::ELF&);
+		// Load elf from a file
+		static BAN::ErrorOr<BAN::UniqPtr<LibELF::LoadableELF>> load_elf_for_exec(const Credentials&, BAN::StringView file_path, const BAN::String& cwd, Kernel::PageTable&);
 
 		int block_until_exit();
 
@@ -172,17 +169,12 @@ namespace Kernel
 			int waiting { 0 };
 		};
 
-		struct MappedRange
-		{
-			bool can_be_unmapped;
-			BAN::UniqPtr<VirtualRange> range;
-		};
-
 		Credentials m_credentials;
 
 		OpenFileDescriptorSet m_open_file_descriptors;
 
-		BAN::Vector<MappedRange> m_mapped_ranges;
+		BAN::UniqPtr<LibELF::LoadableELF> m_loadable_elf;
+		BAN::Vector<BAN::UniqPtr<VirtualRange>> m_mapped_ranges;
 
 		pid_t m_sid;
 		pid_t m_pgrp;

@@ -118,7 +118,7 @@ set(LIBC_SOURCES
 )
 
 set(LIBELF_SOURCES
-	../LibELF/LibELF/ELF.cpp
+	../LibELF/LibELF/LoadableELF.cpp
 )
 
 set(KERNEL_SOURCES
