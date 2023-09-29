@@ -10,6 +10,7 @@ set(USERSPACE_PROJECTS
 	id
 	init
 	ls
+	mmap-shared-test
 	poweroff
 	Shell
 	snake
