@@ -7,7 +7,7 @@
 #include <kernel/Credentials.h>
 #include <kernel/FS/Inode.h>
 #include <kernel/Memory/Heap.h>
-#include <kernel/Memory/VirtualRange.h>
+#include <kernel/Memory/MemoryRegion.h>
 #include <kernel/OpenFileDescriptorSet.h>
 #include <kernel/SpinLock.h>
 #include <kernel/Terminal/TTY.h>
@@ -174,7 +174,7 @@ namespace Kernel
 		OpenFileDescriptorSet m_open_file_descriptors;
 
 		BAN::UniqPtr<LibELF::LoadableELF> m_loadable_elf;
-		BAN::Vector<BAN::UniqPtr<VirtualRange>> m_mapped_ranges;
+		BAN::Vector<BAN::UniqPtr<MemoryRegion>> m_mapped_regions;
 
 		pid_t m_sid;
 		pid_t m_pgrp;

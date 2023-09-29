@@ -7,6 +7,7 @@
 #include <kernel/InterruptController.h>
 #include <kernel/LockGuard.h>
 #include <kernel/Memory/Heap.h>
+#include <kernel/Memory/MemoryBackedRegion.h>
 #include <kernel/Memory/PageTableScope.h>
 #include <kernel/Process.h>
 #include <kernel/Scheduler.h>
@@ -128,23 +129,23 @@ namespace Kernel
 			if (auto rem = needed_bytes % PAGE_SIZE)
 				needed_bytes += PAGE_SIZE - rem;
 
-			auto argv_range = MUST(VirtualRange::create_to_vaddr_range(
+			auto argv_region = MUST(MemoryBackedRegion::create(
 				process->page_table(),
-				0x400000, KERNEL_OFFSET,
 				needed_bytes,
-				PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present,
-				true
+				{ .start = 0x400000, .end = KERNEL_OFFSET },
+				MemoryRegion::Type::PRIVATE,
+				PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present
 			));
 
-			uintptr_t temp = argv_range->vaddr() + sizeof(char*) * 2;
-			argv_range->copy_from(0, (uint8_t*)&temp, sizeof(char*));			
+			uintptr_t temp = argv_region->vaddr() + sizeof(char*) * 2;
+			MUST(argv_region->copy_data_to_region(0, (const uint8_t*)&temp, sizeof(char*)));
 
 			temp = 0;
-			argv_range->copy_from(sizeof(char*), (uint8_t*)&temp, sizeof(char*));	
+			MUST(argv_region->copy_data_to_region(sizeof(char*), (const uint8_t*)&temp, sizeof(char*)));
 
-			argv_range->copy_from(sizeof(char*) * 2, (const uint8_t*)path.data(), path.size());
+			MUST(argv_region->copy_data_to_region(sizeof(char*) * 2, (const uint8_t*)path.data(), path.size()));
 
-			MUST(process->m_mapped_ranges.push_back(BAN::move(argv_range)));
+			MUST(process->m_mapped_regions.push_back(BAN::move(argv_region)));
 		}
 
 		process->m_userspace_info.argc = 1;
@@ -172,7 +173,8 @@ namespace Kernel
 	Process::~Process()
 	{
 		ASSERT(m_threads.empty());
-		ASSERT(m_mapped_ranges.empty());
+		ASSERT(m_mapped_regions.empty());
+		ASSERT(!m_loadable_elf);
 		ASSERT(m_exit_status.waiting == 0);
 		ASSERT(&PageTable::current() != m_page_table.ptr());
 	}
@@ -205,7 +207,8 @@ namespace Kernel
 		m_open_file_descriptors.close_all();
 
 		// NOTE: We must unmap ranges while the page table is still alive
-		m_mapped_ranges.clear();
+		m_mapped_regions.clear();
+		m_loadable_elf.clear();
 	}
 
 	void Process::on_thread_exit(Thread& thread)
@@ -318,10 +321,10 @@ namespace Kernel
 		OpenFileDescriptorSet open_file_descriptors(m_credentials);
 		TRY(open_file_descriptors.clone_from(m_open_file_descriptors));
 
-		BAN::Vector<BAN::UniqPtr<VirtualRange>> mapped_ranges;
-		TRY(mapped_ranges.reserve(m_mapped_ranges.size()));
-		for (auto& mapped_range : m_mapped_ranges)
-			MUST(mapped_ranges.push_back(TRY(mapped_range->clone(*page_table))));
+		BAN::Vector<BAN::UniqPtr<MemoryRegion>> mapped_regions;
+		TRY(mapped_regions.reserve(m_mapped_regions.size()));
+		for (auto& mapped_region : m_mapped_regions)
+			MUST(mapped_regions.push_back(TRY(mapped_region->clone(*page_table))));
 
 		auto loadable_elf = TRY(m_loadable_elf->clone(*page_table));
 
@@ -330,7 +333,7 @@ namespace Kernel
 		forked->m_working_directory = BAN::move(working_directory);
 		forked->m_page_table = BAN::move(page_table);
 		forked->m_open_file_descriptors = BAN::move(open_file_descriptors);
-		forked->m_mapped_ranges = BAN::move(mapped_ranges);
+		forked->m_mapped_regions = BAN::move(mapped_regions);
 		forked->m_loadable_elf = BAN::move(loadable_elf);
 		forked->m_is_userspace = m_is_userspace;
 		forked->m_userspace_info = m_userspace_info;
@@ -373,7 +376,7 @@ namespace Kernel
 
 			m_open_file_descriptors.close_cloexec();
 
-			m_mapped_ranges.clear();
+			m_mapped_regions.clear();
 			m_loadable_elf.clear();
 
 			m_loadable_elf = TRY(load_elf_for_exec(m_credentials, executable_path, m_working_directory, page_table()));
@@ -387,8 +390,8 @@ namespace Kernel
 			ASSERT(&Process::current() == this);
 
 			// allocate memory on the new process for arguments and environment
-			auto create_range =
-				[&](const auto& container) -> BAN::UniqPtr<VirtualRange>
+			auto create_region =
+				[&](BAN::Span<BAN::String> container) -> BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>>
 				{
 					size_t bytes = sizeof(char*);
 					for (auto& elem : container)
@@ -397,36 +400,36 @@ namespace Kernel
 					if (auto rem = bytes % PAGE_SIZE)
 						bytes += PAGE_SIZE - rem;
 
-					auto range = MUST(VirtualRange::create_to_vaddr_range(
+					auto region = TRY(MemoryBackedRegion::create(
 						page_table(),
-						0x400000, KERNEL_OFFSET,
 						bytes,
-						PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present,
-						true
+						{ .start = 0x400000, .end = KERNEL_OFFSET },
+						MemoryRegion::Type::PRIVATE,
+						PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present
 					));
 
 					size_t data_offset = sizeof(char*) * (container.size() + 1);
 					for (size_t i = 0; i < container.size(); i++)
 					{
-						uintptr_t ptr_addr = range->vaddr() + data_offset;
-						range->copy_from(sizeof(char*) * i, (const uint8_t*)&ptr_addr, sizeof(char*));
-						range->copy_from(data_offset, (const uint8_t*)container[i].data(), container[i].size());
+						uintptr_t ptr_addr = region->vaddr() + data_offset;
+						TRY(region->copy_data_to_region(sizeof(char*) * i, (const uint8_t*)&ptr_addr, sizeof(char*)));
+						TRY(region->copy_data_to_region(data_offset, (const uint8_t*)container[i].data(), container[i].size()));
 						data_offset += container[i].size() + 1;
 					}
 
 					uintptr_t null = 0;
-					range->copy_from(sizeof(char*) * container.size(), (const uint8_t*)&null, sizeof(char*));
+					TRY(region->copy_data_to_region(sizeof(char*) * container.size(), (const uint8_t*)&null, sizeof(char*)));
 
-					return BAN::move(range);
+					return BAN::UniqPtr<MemoryRegion>(BAN::move(region));
 				};
 
-			auto argv_range = create_range(str_argv);
-			m_userspace_info.argv = (char**)argv_range->vaddr();
-			MUST(m_mapped_ranges.push_back(BAN::move(argv_range)));
+			auto argv_region = MUST(create_region(str_argv.span()));
+			m_userspace_info.argv = (char**)argv_region->vaddr();
+			MUST(m_mapped_regions.push_back(BAN::move(argv_region)));
 
-			auto envp_range = create_range(str_envp);
-			m_userspace_info.envp = (char**)envp_range->vaddr();
-			MUST(m_mapped_ranges.push_back(BAN::move(envp_range)));
+			auto envp_region = MUST(create_region(str_envp.span()));
+			m_userspace_info.envp = (char**)envp_region->vaddr();
+			MUST(m_mapped_regions.push_back(BAN::move(envp_region)));
 
 			m_userspace_info.argc = str_argv.size();
 
@@ -544,11 +547,11 @@ namespace Kernel
 			return true;
 		}
 
-		for (auto& mapped_range : m_mapped_ranges)
+		for (auto& region : m_mapped_regions)
 		{
-			if (!mapped_range->contains(address))
+			if (!region->contains(address))
 				continue;
-			TRY(mapped_range->allocate_page_for_demand_paging(address));
+			TRY(region->allocate_page_containing(address));
 			return true;
 		}
 
@@ -824,17 +827,17 @@ namespace Kernel
 			if (args->len % PAGE_SIZE != 0)
 				return BAN::Error::from_errno(EINVAL);
 
-			auto range = TRY(VirtualRange::create_to_vaddr_range(
+			auto region = TRY(MemoryBackedRegion::create(
 				page_table(),
-				0x400000, KERNEL_OFFSET,
 				args->len,
-				PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present,
-				false
+				{ .start = 0x400000, .end = KERNEL_OFFSET },
+				MemoryRegion::Type::PRIVATE,
+				PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present
 			));
 
 			LockGuard _(m_lock);
-			TRY(m_mapped_ranges.push_back(BAN::move(range)));
-			return m_mapped_ranges.back()->vaddr();
+			TRY(m_mapped_regions.push_back(BAN::move(region)));
+			return m_mapped_regions.back()->vaddr();
 		}
 
 		return BAN::Error::from_errno(ENOTSUP);
@@ -851,13 +854,10 @@ namespace Kernel
 
 		LockGuard _(m_lock);
 
-		for (size_t i = 0; i < m_mapped_ranges.size(); i++)
-		{
-			auto& range = m_mapped_ranges[i];
-			if (vaddr + len < range->vaddr() || vaddr >= range->vaddr() + range->size())
-				continue;
-			m_mapped_ranges.remove(i);
-		}
+		// FIXME: We should only map partial regions
+		for (size_t i = 0; i < m_mapped_regions.size(); i++)
+			if (m_mapped_regions[i]->overlaps(vaddr, len))
+				m_mapped_regions.remove(i);
 
 		return 0;
 	}
@@ -1341,10 +1341,11 @@ namespace Kernel
 			return;
 
 		// FIXME: should we allow cross mapping access?
-		for (auto& mapped_range : m_mapped_ranges)
-			if (vaddr >= mapped_range->vaddr() && vaddr + size <= mapped_range->vaddr() + mapped_range->size())
+		for (auto& mapped_region : m_mapped_regions)
+			mapped_region->contains_fully(vaddr, size);
 				return;
 
+		// FIXME: elf should contain full range [vaddr, vaddr + size)
 		if (m_loadable_elf->contains(vaddr))
 			return;
 
