@@ -48,6 +48,7 @@ namespace Kernel
 
 		BAN::ErrorOr<BAN::StringView> path_of(int) const;
 		BAN::ErrorOr<BAN::RefPtr<Inode>> inode_of(int);
+		BAN::ErrorOr<int> flags_of(int) const;
 
 	private:
 		struct OpenFileDescription : public BAN::RefCounted<OpenFileDescription>

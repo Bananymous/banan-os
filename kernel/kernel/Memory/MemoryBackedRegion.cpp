@@ -1,13 +1,14 @@
+#include <kernel/LockGuard.h>
 #include <kernel/Memory/Heap.h>
 #include <kernel/Memory/MemoryBackedRegion.h>
-#include <kernel/LockGuard.h>
 
 namespace Kernel
 {
 
 	BAN::ErrorOr<BAN::UniqPtr<MemoryBackedRegion>> MemoryBackedRegion::create(PageTable& page_table, size_t size, AddressRange address_range, Type type, PageTable::flags_t flags)
 	{
-		ASSERT(type == Type::PRIVATE);
+		if (type != Type::PRIVATE)
+			return BAN::Error::from_errno(ENOTSUP);
 
 		auto* region_ptr = new MemoryBackedRegion(page_table, size, type, flags);
 		if (region_ptr == nullptr)

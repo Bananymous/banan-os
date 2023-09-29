@@ -6,6 +6,7 @@
 #include <kernel/IDT.h>
 #include <kernel/InterruptController.h>
 #include <kernel/LockGuard.h>
+#include <kernel/Memory/FileBackedRegion.h>
 #include <kernel/Memory/Heap.h>
 #include <kernel/Memory/MemoryBackedRegion.h>
 #include <kernel/Memory/PageTableScope.h>
@@ -810,29 +811,64 @@ namespace Kernel
 		if (args->prot != PROT_NONE && args->prot & ~(PROT_READ | PROT_WRITE | PROT_EXEC))
 			return BAN::Error::from_errno(EINVAL);
 
-		PageTable::flags_t flags = PageTable::Flags::UserSupervisor;
-		if (args->prot & PROT_READ)
-			flags |= PageTable::Flags::Present;
-		if (args->prot & PROT_WRITE)
-			flags |= PageTable::Flags::ReadWrite | PageTable::Flags::Present;
-		if (args->prot & PROT_EXEC)
-			flags |= PageTable::Flags::Execute | PageTable::Flags::Present;
+		if (args->flags & MAP_FIXED)
+			return BAN::Error::from_errno(ENOTSUP);
 
-		if (args->flags == (MAP_ANONYMOUS | MAP_PRIVATE))
+		if (!(args->flags & MAP_PRIVATE) == !(args->flags & MAP_SHARED))
+			return BAN::Error::from_errno(EINVAL);
+		auto region_type = (args->flags & MAP_PRIVATE) ? MemoryRegion::Type::PRIVATE : MemoryRegion::Type::SHARED;
+
+		PageTable::flags_t page_flags = 0;
+		if (args->prot & PROT_READ)
+			page_flags |= PageTable::Flags::Present;
+		if (args->prot & PROT_WRITE)
+			page_flags |= PageTable::Flags::ReadWrite | PageTable::Flags::Present;
+		if (args->prot & PROT_EXEC)
+			page_flags |= PageTable::Flags::Execute | PageTable::Flags::Present;
+
+		if (page_flags == 0)
+			page_flags = PageTable::Flags::Reserved;
+		else
+			page_flags |= PageTable::Flags::UserSupervisor;
+
+		if (args->flags & MAP_ANONYMOUS)
 		{
 			if (args->addr != nullptr)
 				return BAN::Error::from_errno(ENOTSUP);
 			if (args->off != 0)
-				return BAN::Error::from_errno(EINVAL);
-			if (args->len % PAGE_SIZE != 0)
 				return BAN::Error::from_errno(EINVAL);
 
 			auto region = TRY(MemoryBackedRegion::create(
 				page_table(),
 				args->len,
 				{ .start = 0x400000, .end = KERNEL_OFFSET },
-				MemoryRegion::Type::PRIVATE,
-				PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present
+				region_type, page_flags
+			));
+
+			LockGuard _(m_lock);
+			TRY(m_mapped_regions.push_back(BAN::move(region)));
+			return m_mapped_regions.back()->vaddr();
+		}
+
+		auto inode = TRY(m_open_file_descriptors.inode_of(args->fildes));
+		if (inode->mode().ifreg())
+		{
+			if (args->addr != nullptr)
+				return BAN::Error::from_errno(ENOTSUP);
+
+			auto inode_flags = TRY(m_open_file_descriptors.flags_of(args->fildes));
+			if (!(inode_flags & O_RDONLY))
+				return BAN::Error::from_errno(EACCES);
+			if (region_type == MemoryRegion::Type::SHARED)
+				if (!(args->prot & PROT_WRITE) || !(inode_flags & O_WRONLY))
+					return BAN::Error::from_errno(EACCES);
+			
+			auto region = TRY(FileBackedRegion::create(
+				inode,
+				page_table(),
+				args->off, args->len,
+				{ .start = 0x400000, .end = KERNEL_OFFSET },
+				region_type, page_flags
 			));
 
 			LockGuard _(m_lock);

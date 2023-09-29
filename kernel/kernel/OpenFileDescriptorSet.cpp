@@ -309,6 +309,12 @@ namespace Kernel
 		return m_open_files[fd]->inode;
 	}
 
+	BAN::ErrorOr<int> OpenFileDescriptorSet::flags_of(int fd) const
+	{
+		TRY(validate_fd(fd));
+		return m_open_files[fd]->flags;
+	}
+
 	BAN::ErrorOr<void> OpenFileDescriptorSet::validate_fd(int fd) const
 	{
 		if (fd < 0 || fd >= (int)m_open_files.size())

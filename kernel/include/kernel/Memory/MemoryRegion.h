@@ -21,7 +21,7 @@ namespace Kernel
 		BAN_NON_MOVABLE(MemoryRegion);
 
 	public:
-		enum Type : uint8_t
+		enum class Type : uint8_t
 		{
 			PRIVATE,
 			SHARED
