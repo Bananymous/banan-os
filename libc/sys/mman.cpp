@@ -9,6 +9,7 @@ void* mmap(void* addr, size_t len, int prot, int flags, int fildes, off_t off)
 		.len = len,
 		.prot = prot,
 		.flags = flags,
+		.fildes = fildes,
 		.off = off
 	};
 	long ret = syscall(SYS_MMAP, &args);
