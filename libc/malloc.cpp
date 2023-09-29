@@ -54,9 +54,11 @@ static bool allocate_pool(size_t pool_index)
 	assert(pool.start == nullptr);
 
 	// allocate memory for pool
-	pool.start = (uint8_t*)mmap(nullptr, pool.size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
-	if (pool.start == nullptr)
+	void* new_pool = mmap(nullptr, pool.size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+	if (new_pool == MAP_FAILED)
 		return false;
+
+	pool.start = (uint8_t*)new_pool;
 
 	// initialize pool to single unallocated node
 	auto* node = (malloc_node_t*)pool.start;

@@ -13,7 +13,7 @@ void* mmap(void* addr, size_t len, int prot, int flags, int fildes, off_t off)
 	};
 	long ret = syscall(SYS_MMAP, &args);
 	if (ret == -1)
-		return nullptr;
+		return MAP_FAILED;
 	return (void*)ret;
 }
 
