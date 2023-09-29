@@ -6,6 +6,17 @@
 namespace Kernel
 {
 
+	struct SharedFileData : public BAN::RefCounted<SharedFileData>, public BAN::Weakable<SharedFileData>
+	{
+		~SharedFileData();
+
+		// FIXME: this should probably be ordered tree like map
+		//        for fast lookup and less memory usage
+		BAN::Vector<paddr_t> pages;
+		BAN::RefPtr<Inode> inode;
+		uint8_t page_buffer[PAGE_SIZE];
+	};
+
 	class FileBackedRegion final : public MemoryRegion
 	{
 		BAN_NON_COPYABLE(FileBackedRegion);
@@ -25,6 +36,8 @@ namespace Kernel
 	private:
 		BAN::RefPtr<Inode> m_inode;
 		const off_t m_offset;
+
+		BAN::RefPtr<SharedFileData> m_shared_data;
 	};
 
 }

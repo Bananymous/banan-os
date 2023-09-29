@@ -3,6 +3,7 @@
 #include <BAN/RefPtr.h>
 #include <BAN/String.h>
 #include <BAN/StringView.h>
+#include <BAN/WeakPtr.h>
 #include <BAN/Vector.h>
 
 #include <kernel/API/DirectoryEntry.h>
@@ -16,6 +17,9 @@ namespace Kernel
 {
 
 	using namespace API;
+
+	class FileBackedRegion;
+	class SharedFileData;
 
 	class Inode : public BAN::RefCounted<Inode>
 	{
@@ -112,6 +116,9 @@ namespace Kernel
 
 	private:
 		mutable RecursiveSpinLock m_lock;
+
+		BAN::WeakPtr<SharedFileData> m_shared_region;
+		friend class FileBackedRegion;
 	};
 
 }

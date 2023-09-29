@@ -863,7 +863,7 @@ namespace Kernel
 			if (!(inode_flags & O_RDONLY))
 				return BAN::Error::from_errno(EACCES);
 			if (region_type == MemoryRegion::Type::SHARED)
-				if (!(args->prot & PROT_WRITE) || !(inode_flags & O_WRONLY))
+				if ((args->prot & PROT_WRITE) && !(inode_flags & O_WRONLY))
 					return BAN::Error::from_errno(EACCES);
 			
 			auto region = TRY(FileBackedRegion::create(
