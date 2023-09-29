@@ -493,7 +493,10 @@ namespace Kernel
 			return BAN::Error::from_errno(ECHILD);
 
 		pid_t ret = target->pid();
-		*stat_loc = target->block_until_exit();
+
+		int stat = target->block_until_exit();
+		if (stat_loc)
+			*stat_loc = stat;
 
 		return ret;
 	}
