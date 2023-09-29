@@ -701,11 +701,17 @@ BAN::String get_prompt()
 			}
 			case 'u':
 			{
-				auto* passwd = getpwuid(geteuid());
-				if (passwd == nullptr)
-					break;
-				MUST(prompt.append(passwd->pw_name));
-				endpwent();
+				static char* username = nullptr;
+				if (username == nullptr)
+				{
+					auto* passwd = getpwuid(geteuid());
+					if (passwd == nullptr)
+						break;
+					username = new char[strlen(passwd->pw_name) + 1];
+					strcpy(username, passwd->pw_name);
+					endpwent();
+				}
+				MUST(prompt.append(username));
 				break;
 			}
 			case 'h':
