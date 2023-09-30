@@ -5,7 +5,7 @@ namespace Kernel
 {
 
 	Device::Device(mode_t mode, uid_t uid, gid_t gid)
-		: RamInode(DevFileSystem::get(), mode, uid, gid)
+		: RamInode(DevFileSystem::get(), FullInodeInfo(DevFileSystem::get(), mode, uid, gid))
 	{ }
 
 }

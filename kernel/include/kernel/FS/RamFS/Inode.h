@@ -12,7 +12,6 @@ namespace Kernel
 	class RamInode : public Inode
 	{
 	public:
-		static BAN::ErrorOr<BAN::RefPtr<RamInode>> create(RamFileSystem&, mode_t, uid_t, gid_t);
 		virtual ~RamInode() = default;
 
 		virtual ino_t		ino()		const override { return m_inode_info.ino; }
@@ -32,15 +31,9 @@ namespace Kernel
 		void add_link() { m_inode_info.nlink++; }
 
 	protected:
-		RamInode(RamFileSystem& fs, mode_t, uid_t, gid_t);
-
-		virtual BAN::ErrorOr<size_t> read_impl(off_t, void*, size_t) override;
-		virtual BAN::ErrorOr<size_t> write_impl(off_t, const void*, size_t) override;
-		virtual BAN::ErrorOr<void> truncate_impl(size_t) override;
-
-	protected:
 		struct FullInodeInfo
 		{
+			FullInodeInfo(RamFileSystem&, mode_t, uid_t, gid_t);
 			ino_t		ino;
 			mode_t		mode;
 			nlink_t		nlink;
@@ -56,16 +49,36 @@ namespace Kernel
 			dev_t		rdev;
 		};
 
+		RamInode(RamFileSystem& fs, const FullInodeInfo& inode_info)
+			: m_fs(fs)
+			, m_inode_info(inode_info)
+		{}
+
 	protected:
 		RamFileSystem& m_fs;
 		FullInodeInfo m_inode_info;
+	};
 
+	class RamFileInode : public RamInode
+	{
+	public:
+		static BAN::ErrorOr<BAN::RefPtr<RamFileInode>> create(RamFileSystem&, mode_t, uid_t, gid_t);
+		~RamFileInode() = default;
+
+	protected:
+		RamFileInode(RamFileSystem&, const FullInodeInfo&);
+
+		virtual BAN::ErrorOr<size_t> read_impl(off_t, void*, size_t) override;
+		virtual BAN::ErrorOr<size_t> write_impl(off_t, const void*, size_t) override;
+		virtual BAN::ErrorOr<void> truncate_impl(size_t) override;
+
+	private:
 		BAN::Vector<uint8_t> m_data;
 
 		friend class RamFileSystem;
 	};
 
-	class RamDirectoryInode final : public RamInode
+	class RamDirectoryInode : public RamInode
 	{
 	public:
 		static BAN::ErrorOr<BAN::RefPtr<RamDirectoryInode>> create(RamFileSystem&, ino_t parent, mode_t, uid_t, gid_t);
@@ -74,12 +87,11 @@ namespace Kernel
 		BAN::ErrorOr<void> add_inode(BAN::StringView, BAN::RefPtr<RamInode>);
 
 	protected:
+		RamDirectoryInode(RamFileSystem&, const FullInodeInfo&, ino_t parent);
+
 		virtual BAN::ErrorOr<BAN::RefPtr<Inode>> find_inode_impl(BAN::StringView) override;
 		virtual BAN::ErrorOr<void> list_next_inodes_impl(off_t, DirectoryEntryList*, size_t) override;
 		virtual BAN::ErrorOr<void> create_file_impl(BAN::StringView, mode_t, uid_t, gid_t) override;
-
-	private:
-		RamDirectoryInode(RamFileSystem&, ino_t parent, mode_t, uid_t, gid_t);
 
 	private:
 		static constexpr size_t m_name_max = NAME_MAX;
@@ -92,7 +104,7 @@ namespace Kernel
 
 	private:
 		BAN::Vector<Entry> m_entries;
-		ino_t m_parent;
+		const ino_t m_parent;
 
 		friend class RamFileSystem;
 	};
@@ -111,7 +123,7 @@ namespace Kernel
 		virtual BAN::ErrorOr<BAN::String> link_target_impl() override;
 
 	private:
-		RamSymlinkInode(RamFileSystem&, mode_t, uid_t, gid_t);
+		RamSymlinkInode(RamFileSystem&, const FullInodeInfo&, BAN::String&&);
 
 	private:
 		BAN::String m_target;

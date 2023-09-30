@@ -32,7 +32,7 @@ namespace Kernel
 		if (inode_or_error.is_error())
 		{
 			if (inode_or_error.error().get_error_code() == ENOENT)
-				DevFileSystem::get().add_device("tty"sv, MUST(RamSymlinkInode::create(DevFileSystem::get(), s_tty->name(), S_IFLNK | 0666, 0, 0)));
+				DevFileSystem::get().add_device("tty"sv, MUST(RamSymlinkInode::create(DevFileSystem::get(), s_tty->name(), 0666, 0, 0)));
 			else
 				dwarnln("{}", inode_or_error.error());
 			return;

@@ -19,7 +19,7 @@ namespace Kernel
 		s_instance = new DevFileSystem(1024 * 1024);
 		ASSERT(s_instance);
 
-		auto root_inode = MUST(RamDirectoryInode::create(*s_instance, 0, Inode::Mode::IFDIR | 0755, 0, 0));
+		auto root_inode = MUST(RamDirectoryInode::create(*s_instance, 0, 0755, 0, 0));
 		MUST(s_instance->set_root_inode(root_inode));
 
 		s_instance->add_device("null", MUST(NullDevice::create(0666, 0, 0)));

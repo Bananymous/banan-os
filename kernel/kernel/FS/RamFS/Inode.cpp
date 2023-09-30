@@ -5,42 +5,51 @@
 namespace Kernel
 {
 
-	/*
-
-		RAM INODE
-
-	*/
-
-	BAN::ErrorOr<BAN::RefPtr<RamInode>> RamInode::create(RamFileSystem& fs, mode_t mode, uid_t uid, gid_t gid)
-	{
-		ASSERT(Mode(mode).ifreg());
-		auto* ram_inode = new RamInode(fs, mode, uid, gid);
-		if (ram_inode == nullptr)
-			return BAN::Error::from_errno(ENOMEM);
-		return BAN::RefPtr<RamInode>::adopt(ram_inode);
-	}
-
-	RamInode::RamInode(RamFileSystem& fs, mode_t mode, uid_t uid, gid_t gid)
-			: m_fs(fs)
+	RamInode::FullInodeInfo::FullInodeInfo(RamFileSystem& fs, mode_t mode, uid_t uid, gid_t gid)
 	{
 		timespec current_time = SystemTimer::get().real_time();
 
-		m_inode_info.ino = fs.next_ino();
-		m_inode_info.mode = mode;
-		m_inode_info.nlink = 1;
-		m_inode_info.uid = uid;
-		m_inode_info.gid = gid;
-		m_inode_info.size = 0;
-		m_inode_info.atime = current_time;
-		m_inode_info.mtime = current_time;
-		m_inode_info.ctime = current_time;
-		m_inode_info.blksize = fs.blksize();
-		m_inode_info.blocks = 0;
-		m_inode_info.dev = 0;
-		m_inode_info.rdev = 0;
+		this->ino = fs.next_ino();
+		this->mode = mode;
+		this->nlink = 1;
+		this->uid = uid;
+		this->gid = gid;
+		this->size = 0;
+		this->atime = current_time;
+		this->mtime = current_time;
+		this->ctime = current_time;
+		this->blksize = fs.blksize();
+		this->blocks = 0;
+
+		// TODO
+		this->dev = 0;
+		this->rdev = 0;
 	}
 
-	BAN::ErrorOr<size_t> RamInode::read_impl(off_t offset, void* buffer, size_t bytes)
+	/*
+
+		RAM FILE INODE
+
+	*/
+
+	BAN::ErrorOr<BAN::RefPtr<RamFileInode>> RamFileInode::create(RamFileSystem& fs, mode_t mode, uid_t uid, gid_t gid)
+	{
+		FullInodeInfo inode_info(fs, mode, uid, gid);
+
+		auto* ram_inode = new RamFileInode(fs, inode_info);
+		if (ram_inode == nullptr)
+			return BAN::Error::from_errno(ENOMEM);
+		return BAN::RefPtr<RamFileInode>::adopt(ram_inode);
+	}
+
+	RamFileInode::RamFileInode(RamFileSystem& fs, const FullInodeInfo& inode_info)
+		: RamInode(fs, inode_info)
+	{
+		ASSERT((m_inode_info.mode & Inode::Mode::TYPE_MASK) == 0);
+		m_inode_info.mode |= Inode::Mode::IFREG;
+	}
+
+	BAN::ErrorOr<size_t> RamFileInode::read_impl(off_t offset, void* buffer, size_t bytes)
 	{
 		ASSERT(offset >= 0);
 		if (offset >= size())
@@ -50,7 +59,7 @@ namespace Kernel
 		return to_copy;
 	}
 
-	BAN::ErrorOr<size_t> RamInode::write_impl(off_t offset, const void* buffer, size_t bytes)
+	BAN::ErrorOr<size_t> RamFileInode::write_impl(off_t offset, const void* buffer, size_t bytes)
 	{
 		ASSERT(offset >= 0);
 		if (offset + bytes > (size_t)size())
@@ -59,7 +68,7 @@ namespace Kernel
 		return bytes;
 	}
 
-	BAN::ErrorOr<void> RamInode::truncate_impl(size_t new_size)
+	BAN::ErrorOr<void> RamFileInode::truncate_impl(size_t new_size)
 	{
 		TRY(m_data.resize(new_size, 0));
 		m_inode_info.size   = m_data.size();
@@ -75,30 +84,32 @@ namespace Kernel
 
 	BAN::ErrorOr<BAN::RefPtr<RamDirectoryInode>> RamDirectoryInode::create(RamFileSystem& fs, ino_t parent, mode_t mode, uid_t uid, gid_t gid)
 	{
-		ASSERT(Mode(mode).ifdir());
-		auto* ram_inode = new RamDirectoryInode(fs, parent, mode, uid, gid);
+		FullInodeInfo inode_info(fs, mode, uid, gid);
+
+		// "." links to this
+		inode_info.nlink++;
+
+		// ".." links to this or parent
+		if (parent)
+			TRY(fs.get_inode(parent))->add_link();
+		else
+		{
+			inode_info.nlink++;
+			parent = inode_info.ino;
+		}
+
+		auto* ram_inode = new RamDirectoryInode(fs, inode_info, parent);
 		if (ram_inode == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
 		return BAN::RefPtr<RamDirectoryInode>::adopt(ram_inode);
 	}
 
-	RamDirectoryInode::RamDirectoryInode(RamFileSystem& fs, ino_t parent, mode_t mode, uid_t uid, gid_t gid)
-		: RamInode(fs, mode, uid, gid)
+	RamDirectoryInode::RamDirectoryInode(RamFileSystem& fs, const FullInodeInfo& inode_info, ino_t parent)
+		: RamInode(fs, inode_info)
+		, m_parent(parent)
 	{
-		// "." links to this
-		m_inode_info.nlink++;
-
-		// ".." links to this, if there is no parent
-		if (parent == 0)
-		{
-			m_inode_info.nlink++;
-			m_parent = ino();
-		}
-		else
-		{
-			MUST(fs.get_inode(parent))->add_link();
-			m_parent = parent;
-		}
+		ASSERT((m_inode_info.mode & Inode::Mode::TYPE_MASK) == 0);
+		m_inode_info.mode |= Inode::Mode::IFDIR;
 	}
 
 	BAN::ErrorOr<BAN::RefPtr<Inode>> RamDirectoryInode::find_inode_impl(BAN::StringView name)
@@ -181,7 +192,7 @@ namespace Kernel
 	{
 		BAN::RefPtr<RamInode> inode;
 		if (Mode(mode).ifreg())
-			inode = TRY(RamInode::create(m_fs, mode, uid, gid));
+			inode = TRY(RamFileInode::create(m_fs, mode, uid, gid));
 		else if (Mode(mode).ifdir())
 			inode = TRY(RamDirectoryInode::create(m_fs, ino(), mode, uid, gid));
 		else
@@ -222,20 +233,26 @@ namespace Kernel
 
 	*/
 
-	BAN::ErrorOr<BAN::RefPtr<RamSymlinkInode>> RamSymlinkInode::create(RamFileSystem& fs, BAN::StringView target, mode_t mode, uid_t uid, gid_t gid)
+	BAN::ErrorOr<BAN::RefPtr<RamSymlinkInode>> RamSymlinkInode::create(RamFileSystem& fs, BAN::StringView target_sv, mode_t mode, uid_t uid, gid_t gid)
 	{
-		ASSERT(Mode(mode).iflnk());
-		auto* ram_inode = new RamSymlinkInode(fs, mode, uid, gid);
+		FullInodeInfo inode_info(fs, mode, uid, gid);
+
+		BAN::String target_str;
+		TRY(target_str.append(target_sv));
+
+		auto* ram_inode = new RamSymlinkInode(fs, inode_info, BAN::move(target_str));
 		if (ram_inode == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
-		auto ref_ptr = BAN::RefPtr<RamSymlinkInode>::adopt(ram_inode);
-		TRY(ref_ptr->set_link_target(target));
-		return ref_ptr;
+		return BAN::RefPtr<RamSymlinkInode>::adopt(ram_inode);
 	}
 
-	RamSymlinkInode::RamSymlinkInode(RamFileSystem& fs, mode_t mode, uid_t uid, gid_t gid)
-		: RamInode(fs, mode, uid, gid)
-	{ }
+	RamSymlinkInode::RamSymlinkInode(RamFileSystem& fs, const FullInodeInfo& inode_info, BAN::String&& target)
+		: RamInode(fs, inode_info)
+		, m_target(BAN::move(target))
+	{
+		ASSERT((m_inode_info.mode & Inode::Mode::TYPE_MASK) == 0);
+		m_inode_info.mode |= Inode::Mode::IFLNK;
+	}
 
 	BAN::ErrorOr<BAN::String> RamSymlinkInode::link_target_impl()
 	{

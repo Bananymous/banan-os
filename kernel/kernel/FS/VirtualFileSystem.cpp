@@ -26,14 +26,10 @@ namespace Kernel
 		s_instance->m_root_fs = MUST(Ext2FS::create(*(Partition*)partition_inode.ptr()));
 
 		Credentials root_creds { 0, 0, 0, 0 };
-		MUST(s_instance->mount(root_creds, &DevFileSystem::get(), "/dev"));
+		MUST(s_instance->mount(root_creds, &DevFileSystem::get(), "/dev"sv));
 
-		mode_t tmpfs_mode = Inode::Mode::IFDIR
-			 | Inode::Mode::IRUSR | Inode::Mode::IWUSR | Inode::Mode::IXUSR
-			 | Inode::Mode::IRGRP | Inode::Mode::IWGRP | Inode::Mode::IXGRP
-			 | Inode::Mode::IROTH | Inode::Mode::IWOTH | Inode::Mode::IXOTH;
-		auto* tmpfs = MUST(RamFileSystem::create(1024 * 1024, tmpfs_mode, 0, 0));
-		MUST(s_instance->mount(root_creds, tmpfs, "/tmp"));
+		auto* tmpfs = MUST(RamFileSystem::create(1024 * 1024, 0777, 0, 0));
+		MUST(s_instance->mount(root_creds, tmpfs, "/tmp"sv));
 	}
 
 	VirtualFileSystem& VirtualFileSystem::get()
