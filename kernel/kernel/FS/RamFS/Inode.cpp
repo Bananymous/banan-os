@@ -227,6 +227,19 @@ namespace Kernel
 		return {};
 	}
 
+	BAN::ErrorOr<void> RamDirectoryInode::delete_inode_impl(BAN::StringView name)
+	{
+		for (size_t i = 0; i < m_entries.size(); i++)
+		{
+			if (name == m_entries[i].name)
+			{
+				m_entries.remove(i);
+				return {};
+			}
+		}
+		return BAN::Error::from_errno(ENOENT);
+	}
+
 	/*
 
 		RAM SYMLINK INODE
