@@ -30,28 +30,64 @@ int main()
 		if (!is_only_digits(proc_ent->d_name))
 			continue;
 
-		strcpy(path_buffer, proc_ent->d_name);
-		strcat(path_buffer, "/meminfo");
-	
-		int fd = openat(dirfd(proc), path_buffer, O_RDONLY);
-		if (fd == -1)
+		printf("process: ");
+
 		{
-			perror("openat");
-			continue;
+			strcpy(path_buffer, proc_ent->d_name);
+			strcat(path_buffer, "/cmdline");
+
+			int fd = openat(dirfd(proc), path_buffer, O_RDONLY);
+			if (fd == -1)
+			{
+				perror("openat");
+				continue;
+			}
+
+			while (ssize_t nread = read(fd, path_buffer, sizeof(path_buffer) - 1))
+			{
+				if (nread == -1)
+				{
+					perror("read");
+					break;
+				}
+				for (int i = 0; i < nread; i++)
+					if (path_buffer[i] == '\0')
+						path_buffer[i] = ' ';
+
+				path_buffer[nread] = '\0';
+
+				int written = 0;
+				while (written < nread)
+					written += printf("%s ", path_buffer + written);
+			}
+
+			close(fd);
 		}
 
-		proc_meminfo_t meminfo;
-		if (read(fd, &meminfo, sizeof(meminfo)) == -1)
-			perror("read");
-		else
-		{
-			printf("process:\n");
-			printf("  pid:  %s\n", proc_ent->d_name);
-			printf("  vmem: %zu pages (%zu bytes)\n", meminfo.virt_pages, meminfo.page_size * meminfo.virt_pages);
-			printf("  pmem: %zu pages (%zu bytes)\n", meminfo.phys_pages, meminfo.page_size * meminfo.phys_pages);
-		}
+		printf("\n  pid:  %s\n", proc_ent->d_name);
 
-		close(fd);
+		{
+			strcpy(path_buffer, proc_ent->d_name);
+			strcat(path_buffer, "/meminfo");
+		
+			int fd = openat(dirfd(proc), path_buffer, O_RDONLY);
+			if (fd == -1)
+			{
+				perror("openat");
+				continue;
+			}
+
+			proc_meminfo_t meminfo;
+			if (read(fd, &meminfo, sizeof(meminfo)) == -1)
+				perror("read");
+			else
+			{
+				printf("  vmem: %zu pages (%zu bytes)\n", meminfo.virt_pages, meminfo.page_size * meminfo.virt_pages);
+				printf("  pmem: %zu pages (%zu bytes)\n", meminfo.phys_pages, meminfo.page_size * meminfo.phys_pages);
+			}
+
+			close(fd);
+		}
 	}
 
 	closedir(proc);
