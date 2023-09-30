@@ -25,9 +25,9 @@ namespace Kernel
 	{
 	protected:
 		BlockDevice(mode_t mode, uid_t uid, gid_t gid)
-			: Device(Mode::IFBLK | mode, uid, gid)
+			: Device(mode, uid, gid)
 		{
-			ASSERT(Device::mode().ifblk());
+			m_inode_info.mode |= Inode::Mode::IFBLK;
 		}
 	};
 
@@ -35,9 +35,9 @@ namespace Kernel
 	{
 	protected:
 		CharacterDevice(mode_t mode, uid_t uid, gid_t gid)
-			: Device(Mode::IFCHR | mode, uid, gid)
+			: Device(mode, uid, gid)
 		{
-			ASSERT(Device::mode().ifchr());
+			m_inode_info.mode |= Inode::Mode::IFCHR;
 		}
 	};
 

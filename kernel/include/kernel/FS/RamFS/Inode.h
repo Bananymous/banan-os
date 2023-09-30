@@ -52,7 +52,9 @@ namespace Kernel
 		RamInode(RamFileSystem& fs, const FullInodeInfo& inode_info)
 			: m_fs(fs)
 			, m_inode_info(inode_info)
-		{}
+		{
+			ASSERT((inode_info.mode & Inode::Mode::TYPE_MASK) == 0);
+		}
 
 	protected:
 		RamFileSystem& m_fs;

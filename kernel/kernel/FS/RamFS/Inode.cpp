@@ -45,7 +45,6 @@ namespace Kernel
 	RamFileInode::RamFileInode(RamFileSystem& fs, const FullInodeInfo& inode_info)
 		: RamInode(fs, inode_info)
 	{
-		ASSERT((m_inode_info.mode & Inode::Mode::TYPE_MASK) == 0);
 		m_inode_info.mode |= Inode::Mode::IFREG;
 	}
 
@@ -108,7 +107,6 @@ namespace Kernel
 		: RamInode(fs, inode_info)
 		, m_parent(parent)
 	{
-		ASSERT((m_inode_info.mode & Inode::Mode::TYPE_MASK) == 0);
 		m_inode_info.mode |= Inode::Mode::IFDIR;
 	}
 
@@ -263,7 +261,6 @@ namespace Kernel
 		: RamInode(fs, inode_info)
 		, m_target(BAN::move(target))
 	{
-		ASSERT((m_inode_info.mode & Inode::Mode::TYPE_MASK) == 0);
 		m_inode_info.mode |= Inode::Mode::IFLNK;
 	}
 
