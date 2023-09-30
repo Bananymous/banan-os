@@ -291,6 +291,7 @@ namespace Kernel
 				if (entry.inode)
 				{
 					ptr->dirent.d_ino = entry.inode;
+					ptr->dirent.d_type = entry.file_type;
 					ptr->rec_len = sizeof(DirectoryEntry) + entry.name_len + 1;
 					memcpy(ptr->dirent.d_name, entry.name, entry.name_len);
 					ptr->dirent.d_name[entry.name_len] = '\0';

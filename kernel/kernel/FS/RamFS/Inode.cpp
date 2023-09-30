@@ -160,6 +160,7 @@ namespace Kernel
 		// "."
 		{
 			ptr->dirent.d_ino = ino();
+			ptr->dirent.d_type = DT_DIR;
 			ptr->rec_len = sizeof(DirectoryEntry) + 2;
 			strcpy(ptr->dirent.d_name, ".");
 			ptr = ptr->next();
@@ -168,6 +169,7 @@ namespace Kernel
 		// ".."
 		{
 			ptr->dirent.d_ino = m_parent;
+			ptr->dirent.d_type = DT_DIR;
 			ptr->rec_len = sizeof(DirectoryEntry) + 3;
 			strcpy(ptr->dirent.d_name, "..");
 			ptr = ptr->next();
@@ -176,6 +178,7 @@ namespace Kernel
 		for (auto& entry : m_entries)
 		{
 			ptr->dirent.d_ino = entry.ino;
+			ptr->dirent.d_type = entry.type;
 			ptr->rec_len = sizeof(DirectoryEntry) + entry.name_len + 1;
 			strcpy(ptr->dirent.d_name, entry.name);
 			ptr = ptr->next();
@@ -201,6 +204,25 @@ namespace Kernel
 		return {};
 	}
 
+	static uint8_t get_type(Inode::Mode mode)
+	{
+		if (mode.ifreg())
+			return DT_REG;
+		if (mode.ifdir())
+			return DT_DIR;
+		if (mode.ifchr())
+			return DT_CHR;
+		if (mode.ifblk())
+			return DT_BLK;
+		if (mode.ififo())
+			return DT_FIFO;
+		if (mode.ifsock())
+			return DT_SOCK;
+		if (mode.iflnk())
+			return DT_LNK;
+		return DT_UNKNOWN;
+	}
+
 	BAN::ErrorOr<void> RamDirectoryInode::add_inode(BAN::StringView name, BAN::RefPtr<RamInode> inode)
 	{
 		if (name.size() > m_name_max)
@@ -215,6 +237,7 @@ namespace Kernel
 		strcpy(entry.name, name.data());
 		entry.name_len = name.size();
 		entry.ino = inode->ino();
+		entry.type = get_type(inode->mode());
 
 		if (auto ret = m_fs.add_inode(inode); ret.is_error())
 		{

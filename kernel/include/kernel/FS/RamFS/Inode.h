@@ -103,6 +103,7 @@ namespace Kernel
 			char name[m_name_max + 1];
 			size_t name_len = 0;
 			ino_t ino;
+			uint8_t type;
 		};
 
 	private:
