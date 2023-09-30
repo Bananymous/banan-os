@@ -5,6 +5,9 @@
 
 __BEGIN_DECLS
 
+#define __need_size_t 1
+#include <stddef.h>
+
 #define TTY_CMD_SET		0x01
 #define TTY_CMD_UNSET	0x02
 
@@ -13,6 +16,12 @@ __BEGIN_DECLS
 
 #define POWEROFF_SHUTDOWN 0
 #define POWEROFF_REBOOT 1
+
+struct proc_meminfo_t
+{
+	size_t page_size;
+	size_t virt_pages;
+};
 
 /*
 fildes:		refers to valid tty device

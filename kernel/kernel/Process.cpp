@@ -252,6 +252,21 @@ namespace Kernel
 			thread->set_terminating();
 	}
 
+	void Process::get_meminfo(proc_meminfo_t* out) const
+	{
+		LockGuard _(m_lock);
+
+		out->page_size = PAGE_SIZE;
+
+		out->virt_pages = 0;
+		for (auto* thread : m_threads)
+			out->virt_pages += thread->virtual_page_count();
+		for (auto& region : m_mapped_regions)
+			out->virt_pages += region->virtual_page_count();
+		if (m_loadable_elf)
+			out->virt_pages += m_loadable_elf->virtual_page_count();
+	}
+
 	BAN::ErrorOr<long> Process::sys_exit(int status)
 	{
 		exit(status, 0);

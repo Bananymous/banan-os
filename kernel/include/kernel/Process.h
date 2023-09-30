@@ -13,6 +13,7 @@
 #include <kernel/Terminal/TTY.h>
 #include <kernel/Thread.h>
 
+#include <sys/banan-os.h>
 #include <sys/mman.h>
 #include <termios.h>
 
@@ -137,6 +138,8 @@ namespace Kernel
 		static Process& current() { return Thread::current().process(); }
 
 		PageTable& page_table() { return m_page_table ? *m_page_table : PageTable::kernel(); }
+
+		void get_meminfo(proc_meminfo_t*) const;
 
 		bool is_userspace() const { return m_is_userspace; }
 		const userspace_info_t& userspace_info() const { return m_userspace_info; }
