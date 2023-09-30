@@ -34,6 +34,7 @@ namespace LibELF
 		BAN::ErrorOr<BAN::UniqPtr<LoadableELF>> clone(Kernel::PageTable&);
 
 		size_t virtual_page_count() const { return m_virtual_page_count; }
+		size_t physical_page_count() const { return m_physical_page_count; }
 
 	private:
 		LoadableELF(Kernel::PageTable&, BAN::RefPtr<Kernel::Inode>);
@@ -45,6 +46,7 @@ namespace LibELF
 		ElfNativeFileHeader					m_file_header;
 		BAN::Vector<ElfNativeProgramHeader>	m_program_headers;
 		size_t m_virtual_page_count = 0;
+		size_t m_physical_page_count = 0;
 	};
 
 }

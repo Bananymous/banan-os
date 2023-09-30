@@ -38,11 +38,12 @@ namespace Kernel
 		vaddr_t vaddr() const { return m_vaddr; }
 
 		size_t virtual_page_count() const { return BAN::Math::div_round_up<size_t>(m_size, PAGE_SIZE); }
+		size_t physical_page_count() const { return m_physical_page_count; }
 
 		// Returns error if no memory was available
 		// Returns true if page was succesfully allocated
 		// Returns false if page was already allocated
-		virtual BAN::ErrorOr<bool> allocate_page_containing(vaddr_t address) = 0;
+		BAN::ErrorOr<bool> allocate_page_containing(vaddr_t address);
 
 		virtual BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> clone(PageTable& new_page_table) = 0;
 	
@@ -50,12 +51,15 @@ namespace Kernel
 		MemoryRegion(PageTable&, size_t size, Type type, PageTable::flags_t flags);
 		BAN::ErrorOr<void> initialize(AddressRange);
 
+		virtual BAN::ErrorOr<bool> allocate_page_containing_impl(vaddr_t address) = 0;
+
 	protected:
 		PageTable& m_page_table;
 		const size_t m_size;
 		const Type m_type;
 		const PageTable::flags_t m_flags;
 		vaddr_t m_vaddr { 0 };
+		size_t m_physical_page_count { 0 };
 	};
 
 }

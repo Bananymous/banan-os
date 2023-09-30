@@ -257,14 +257,24 @@ namespace Kernel
 		LockGuard _(m_lock);
 
 		out->page_size = PAGE_SIZE;
-
 		out->virt_pages = 0;
+		out->phys_pages = 0;
+
 		for (auto* thread : m_threads)
+		{
 			out->virt_pages += thread->virtual_page_count();
+			out->phys_pages += thread->physical_page_count();
+		}
 		for (auto& region : m_mapped_regions)
+		{
 			out->virt_pages += region->virtual_page_count();
+			out->phys_pages += region->physical_page_count();
+		}
 		if (m_loadable_elf)
+		{
 			out->virt_pages += m_loadable_elf->virtual_page_count();
+			out->phys_pages += m_loadable_elf->physical_page_count();
+		}
 	}
 
 	BAN::ErrorOr<long> Process::sys_exit(int status)

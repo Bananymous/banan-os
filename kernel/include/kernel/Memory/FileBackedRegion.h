@@ -26,9 +26,10 @@ namespace Kernel
 		static BAN::ErrorOr<BAN::UniqPtr<FileBackedRegion>> create(BAN::RefPtr<Inode>, PageTable&, off_t offset, size_t size, AddressRange address_range, Type, PageTable::flags_t);
 		~FileBackedRegion();
 
-		virtual BAN::ErrorOr<bool> allocate_page_containing(vaddr_t vaddr) override;
-
 		virtual BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> clone(PageTable& new_page_table) override;
+
+	protected:
+		virtual BAN::ErrorOr<bool> allocate_page_containing_impl(vaddr_t vaddr) override;
 
 	private:
 		FileBackedRegion(BAN::RefPtr<Inode>, PageTable&, off_t offset, ssize_t size, Type flags, PageTable::flags_t page_flags);

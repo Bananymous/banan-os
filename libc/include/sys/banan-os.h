@@ -21,6 +21,7 @@ struct proc_meminfo_t
 {
 	size_t page_size;
 	size_t virt_pages;
+	size_t phys_pages;
 };
 
 /*

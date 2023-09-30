@@ -85,7 +85,7 @@ namespace Kernel
 		}
 	}
 
-	BAN::ErrorOr<bool> FileBackedRegion::allocate_page_containing(vaddr_t address)
+	BAN::ErrorOr<bool> FileBackedRegion::allocate_page_containing_impl(vaddr_t address)
 	{
 		ASSERT(contains(address));
 

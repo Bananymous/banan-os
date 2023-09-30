@@ -14,13 +14,15 @@ namespace Kernel
 		static BAN::ErrorOr<BAN::UniqPtr<MemoryBackedRegion>> create(PageTable&, size_t size, AddressRange, Type, PageTable::flags_t);
 		~MemoryBackedRegion();
 
-		virtual BAN::ErrorOr<bool> allocate_page_containing(vaddr_t vaddr) override;
 
 		virtual BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> clone(PageTable& new_page_table) override;
 
 		// Copy data from buffer into this region
 		// This can fail if no memory is mapped and no free memory was available
 		BAN::ErrorOr<void> copy_data_to_region(size_t offset_into_region, const uint8_t* buffer, size_t buffer_size);
+
+	protected:
+		virtual BAN::ErrorOr<bool> allocate_page_containing_impl(vaddr_t vaddr) override;
 
 	private:
 		MemoryBackedRegion(PageTable&, size_t size, Type, PageTable::flags_t);

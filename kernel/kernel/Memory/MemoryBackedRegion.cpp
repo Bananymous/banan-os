@@ -38,7 +38,7 @@ namespace Kernel
 		}
 	}
 
-	BAN::ErrorOr<bool> MemoryBackedRegion::allocate_page_containing(vaddr_t address)
+	BAN::ErrorOr<bool> MemoryBackedRegion::allocate_page_containing_impl(vaddr_t address)
 	{
 		ASSERT(m_type == Type::PRIVATE);
 

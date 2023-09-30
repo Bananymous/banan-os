@@ -48,6 +48,7 @@ int main()
 			printf("process:\n");
 			printf("  pid:  %s\n", proc_ent->d_name);
 			printf("  vmem: %zu pages (%zu bytes)\n", meminfo.virt_pages, meminfo.page_size * meminfo.virt_pages);
+			printf("  pmem: %zu pages (%zu bytes)\n", meminfo.phys_pages, meminfo.page_size * meminfo.phys_pages);
 		}
 
 		close(fd);

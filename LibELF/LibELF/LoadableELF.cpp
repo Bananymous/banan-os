@@ -201,6 +201,7 @@ namespace LibELF
 						return BAN::Error::from_errno(ENOMEM);
 
 					m_page_table.map_page_at(paddr, vaddr, flags);
+					m_physical_page_count++;
 
 					memset((void*)vaddr, 0x00, PAGE_SIZE);
 					
@@ -280,6 +281,7 @@ namespace LibELF
 						m_page_table.unmap_page(0);
 
 						new_page_table.map_page_at(paddr, start + i * PAGE_SIZE, flags);
+						elf->m_physical_page_count++;
 					}
 
 					break;
