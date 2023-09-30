@@ -24,6 +24,8 @@ set(KERNEL_SOURCES
 	kernel/FS/Ext2/Inode.cpp
 	kernel/FS/Inode.cpp
 	kernel/FS/Pipe.cpp
+	kernel/FS/ProcFS/FileSystem.cpp
+	kernel/FS/ProcFS/Inode.cpp
 	kernel/FS/RamFS/FileSystem.cpp
 	kernel/FS/RamFS/Inode.cpp
 	kernel/FS/VirtualFileSystem.cpp

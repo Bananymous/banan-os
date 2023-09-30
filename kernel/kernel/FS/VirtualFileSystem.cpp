@@ -2,6 +2,7 @@
 #include <BAN/StringView.h>
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/FS/Ext2/FileSystem.h>
+#include <kernel/FS/ProcFS/FileSystem.h>
 #include <kernel/FS/RamFS/FileSystem.h>
 #include <kernel/FS/RamFS/Inode.h>
 #include <kernel/FS/VirtualFileSystem.h>
@@ -27,6 +28,8 @@ namespace Kernel
 
 		Credentials root_creds { 0, 0, 0, 0 };
 		MUST(s_instance->mount(root_creds, &DevFileSystem::get(), "/dev"sv));
+
+		MUST(s_instance->mount(root_creds, &ProcFileSystem::get(), "/proc"sv));
 
 		auto* tmpfs = MUST(RamFileSystem::create(1024 * 1024, 0777, 0, 0));
 		MUST(s_instance->mount(root_creds, tmpfs, "/tmp"sv));

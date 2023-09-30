@@ -2,6 +2,7 @@
 #include <kernel/Arch.h>
 #include <kernel/Debug.h>
 #include <kernel/FS/DevFS/FileSystem.h>
+#include <kernel/FS/ProcFS/FileSystem.h>
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/GDT.h>
 #include <kernel/IDT.h>
@@ -130,6 +131,9 @@ extern "C" void kernel_main()
 
 	DevFileSystem::initialize();
 	dprintln("devfs initialized");
+
+	ProcFileSystem::initialize();
+	dprintln("procfs initialized");
 
 	if (Serial::has_devices())
 	{

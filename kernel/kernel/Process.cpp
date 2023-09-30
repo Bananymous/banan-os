@@ -2,6 +2,7 @@
 #include <BAN/StringView.h>
 #include <kernel/CriticalScope.h>
 #include <kernel/FS/DevFS/FileSystem.h>
+#include <kernel/FS/ProcFS/FileSystem.h>
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/IDT.h>
 #include <kernel/InterruptController.h>
@@ -80,6 +81,8 @@ namespace Kernel
 
 		auto* process = new Process(credentials, pid, parent, sid, pgrp);
 		ASSERT(process);
+
+		MUST(ProcFileSystem::get().on_process_create(*process));
 
 		return process;
 	}
@@ -193,6 +196,8 @@ namespace Kernel
 			if (s_processes[i] == this)
 				s_processes.remove(i);
 		s_process_lock.unlock();
+
+		ProcFileSystem::get().on_process_delete(*this);
 
 		m_lock.lock();
 		m_exit_status.exited = true;
