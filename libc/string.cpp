@@ -62,12 +62,18 @@ int strcmp(const char* s1, const char* s2)
 	return *u1 - *u2;
 }
 
-char* strcpy(char* __restrict__ dest, const char* __restrict__ src)
+char* stpcpy(char* __restrict__ dest, const char* __restrict__ src)
 {
-	size_t i;
-	for (i = 0; src[i]; i++)
+	size_t i = 0;
+	for (; src[i]; i++)
 		dest[i] = src[i];
 	dest[i] = '\0';
+	return &dest[i];
+}
+
+char* strcpy(char* __restrict__ dest, const char* __restrict__ src)
+{
+	stpcpy(dest, src);
 	return dest;
 }
 
