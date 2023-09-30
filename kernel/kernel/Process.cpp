@@ -119,6 +119,9 @@ namespace Kernel
 		MUST(process->m_working_directory.push_back('/'));
 		process->m_page_table = BAN::UniqPtr<PageTable>::adopt(MUST(PageTable::create_userspace()));
 
+		TRY(process->m_cmdline.push_back({}));
+		TRY(process->m_cmdline.back().append(path));
+
 		process->m_loadable_elf = TRY(load_elf_for_exec(credentials, path, "/"sv, process->page_table()));
 		process->m_loadable_elf->reserve_address_space();
 
@@ -252,29 +255,75 @@ namespace Kernel
 			thread->set_terminating();
 	}
 
-	void Process::get_meminfo(proc_meminfo_t* out) const
+	size_t Process::proc_meminfo(off_t offset, void* buffer, size_t buffer_size) const
+	{
+		ASSERT(offset >= 0);
+		if ((size_t)offset >= sizeof(proc_meminfo_t))
+			return 0;
+
+		proc_meminfo_t meminfo;
+		meminfo.page_size = PAGE_SIZE;
+		meminfo.virt_pages = 0;
+		meminfo.phys_pages = 0;
+
+		{
+			LockGuard _(m_lock);
+			for (auto* thread : m_threads)
+			{
+				meminfo.virt_pages += thread->virtual_page_count();
+				meminfo.phys_pages += thread->physical_page_count();
+			}
+			for (auto& region : m_mapped_regions)
+			{
+				meminfo.virt_pages += region->virtual_page_count();
+				meminfo.phys_pages += region->physical_page_count();
+			}
+			if (m_loadable_elf)
+			{
+				meminfo.virt_pages += m_loadable_elf->virtual_page_count();
+				meminfo.phys_pages += m_loadable_elf->physical_page_count();
+			}
+		}
+
+		size_t bytes = BAN::Math::min<size_t>(sizeof(proc_meminfo_t) - offset, buffer_size);
+		memcpy(buffer, (uint8_t*)&meminfo + offset, bytes);
+		return bytes;
+	}
+
+	static size_t read_from_vec_of_str(const BAN::Vector<BAN::String>& container, size_t start, void* buffer, size_t buffer_size)
+	{
+		size_t offset = 0;
+		size_t written = 0;
+		for (const auto& elem : container)
+		{
+			if (start < offset + elem.size() + 1)
+			{
+				size_t elem_offset = 0;
+				if (offset < start)
+					elem_offset = start - offset;
+
+				size_t bytes = BAN::Math::min<size_t>(elem.size() + 1 - elem_offset, buffer_size - written);
+				memcpy((uint8_t*)buffer + written, elem.data() + elem_offset, bytes);
+
+				written += bytes;
+				if (written >= buffer_size)
+					break;
+			}
+			offset += elem.size() + 1;
+		}
+		return written;
+	}
+
+	size_t Process::proc_cmdline(off_t offset, void* buffer, size_t buffer_size) const
 	{
 		LockGuard _(m_lock);
+		return read_from_vec_of_str(m_cmdline, offset, buffer, buffer_size);
+	}
 
-		out->page_size = PAGE_SIZE;
-		out->virt_pages = 0;
-		out->phys_pages = 0;
-
-		for (auto* thread : m_threads)
-		{
-			out->virt_pages += thread->virtual_page_count();
-			out->phys_pages += thread->physical_page_count();
-		}
-		for (auto& region : m_mapped_regions)
-		{
-			out->virt_pages += region->virtual_page_count();
-			out->phys_pages += region->physical_page_count();
-		}
-		if (m_loadable_elf)
-		{
-			out->virt_pages += m_loadable_elf->virtual_page_count();
-			out->phys_pages += m_loadable_elf->physical_page_count();
-		}
+	size_t Process::proc_environ(off_t offset, void* buffer, size_t buffer_size) const
+	{
+		LockGuard _(m_lock);
+		return read_from_vec_of_str(m_environ, offset, buffer, buffer_size);
 	}
 
 	BAN::ErrorOr<long> Process::sys_exit(int status)
@@ -461,8 +510,11 @@ namespace Kernel
 			auto envp_region = MUST(create_region(str_envp.span()));
 			m_userspace_info.envp = (char**)envp_region->vaddr();
 			MUST(m_mapped_regions.push_back(BAN::move(envp_region)));
-
+			
 			m_userspace_info.argc = str_argv.size();
+
+			m_cmdline = BAN::move(str_argv);
+			m_environ = BAN::move(str_envp);
 
 			asm volatile("cli");
 		}

@@ -20,11 +20,11 @@ namespace Kernel
 		Process& m_process;
 	};
 
-	class ProcMemInode final : public RamInode
+	class ProcROInode final : public RamInode
 	{
 	public:
-		static BAN::ErrorOr<BAN::RefPtr<ProcMemInode>> create(Process&, RamFileSystem&, mode_t, uid_t, gid_t);
-		~ProcMemInode() = default;
+		static BAN::ErrorOr<BAN::RefPtr<ProcROInode>> create(Process&, size_t (Process::*callback)(off_t, void*, size_t) const, RamFileSystem&, mode_t, uid_t, gid_t);
+		~ProcROInode() = default;
 
 	protected:
 		virtual BAN::ErrorOr<size_t> read_impl(off_t, void*, size_t) override;
@@ -35,10 +35,11 @@ namespace Kernel
 		virtual bool has_data_impl() const override										{ return true; }
 
 	private:
-		ProcMemInode(Process&, RamFileSystem&, const FullInodeInfo&);
+		ProcROInode(Process&, size_t (Process::*)(off_t, void*, size_t) const, RamFileSystem&, const FullInodeInfo&);
 	
 	private:
 		Process& m_process;
+		size_t (Process::*m_callback)(off_t, void*, size_t) const;
 	};
 
 }
