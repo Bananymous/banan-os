@@ -124,6 +124,8 @@ namespace LibELF
 				dprintln("Invalid program header");
 				return BAN::Error::from_errno(EINVAL);
 			}
+
+			m_virtual_page_count += BAN::Math::div_round_up<size_t>((pheader.p_vaddr % PAGE_SIZE) + pheader.p_memsz, PAGE_SIZE);
 		}
 
 		return {};

@@ -37,6 +37,8 @@ namespace Kernel
 		size_t size() const { return m_size; }
 		vaddr_t vaddr() const { return m_vaddr; }
 
+		size_t virtual_page_count() const { return BAN::Math::div_round_up<size_t>(m_size, PAGE_SIZE); }
+
 		// Returns error if no memory was available
 		// Returns true if page was succesfully allocated
 		// Returns false if page was already allocated

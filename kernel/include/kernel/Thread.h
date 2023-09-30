@@ -83,6 +83,8 @@ namespace Kernel
 
 		bool is_userspace() const { return m_is_userspace; }
 
+		size_t virtual_page_count() const { return m_stack->size() / PAGE_SIZE; }
+
 #if __enable_sse
 		void save_sse() { asm volatile("fxsave %0" :: "m"(m_sse_storage)); }
 		void load_sse() { asm volatile("fxrstor %0" :: "m"(m_sse_storage)); }
