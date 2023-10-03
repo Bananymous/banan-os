@@ -82,8 +82,9 @@ int main()
 				perror("read");
 			else
 			{
+				size_t percent_times_100 = 10000 * meminfo.phys_pages / meminfo.virt_pages;
 				printf("  vmem: %zu pages (%zu bytes)\n", meminfo.virt_pages, meminfo.page_size * meminfo.virt_pages);
-				printf("  pmem: %zu pages (%zu bytes)\n", meminfo.phys_pages, meminfo.page_size * meminfo.phys_pages);
+				printf("  pmem: %zu pages (%zu bytes) %zu.%02zu%%\n", meminfo.phys_pages, meminfo.page_size * meminfo.phys_pages, percent_times_100 / 100, percent_times_100 % 100);
 			}
 
 			close(fd);
