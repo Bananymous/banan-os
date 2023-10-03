@@ -265,6 +265,8 @@ BAN::Vector<BAN::Vector<BAN::String>> parse_command(BAN::StringView command_view
 
 int execute_command(BAN::Vector<BAN::String>& args, int fd_in, int fd_out);
 
+int source_script(const BAN::String& path);
+
 BAN::Optional<int> execute_builtin(BAN::Vector<BAN::String>& args, int fd_in, int fd_out)
 {
 	if (args.empty())
@@ -311,6 +313,15 @@ BAN::Optional<int> execute_builtin(BAN::Vector<BAN::String>& args, int fd_in, in
 			if (setenv(BAN::String(split[0]).data(), BAN::String(split[1]).data(), true) == -1)
 				ERROR_RETURN("setenv", 1);
 		}
+	}
+	else if (args.front() == "source"sv)
+	{
+		if (args.size() != 2)
+		{
+			fprintf(fout, "usage: source FILE\n");
+			return 1;
+		}
+		return source_script(args[1]);
 	}
 	else if (args.front() == "env"sv)
 	{
@@ -634,6 +645,52 @@ int execute_piped_commands(BAN::Vector<BAN::Vector<BAN::String>>& commands)
 	return exit_codes.back();
 }
 
+int parse_and_execute_command(BAN::StringView command)
+{
+	if (command.empty())
+		return 0;
+	auto parsed_commands = parse_command(command);
+	if (parsed_commands.empty())
+		return 0;
+	tcsetattr(0, TCSANOW, &old_termios);
+	int ret = execute_piped_commands(parsed_commands);
+	tcsetattr(0, TCSANOW, &new_termios);
+	return ret;
+}
+
+int source_script(const BAN::String& path)
+{
+	FILE* fp = fopen(path.data(), "r");
+	if (fp == nullptr)
+		ERROR_RETURN("fopen", 1);
+
+	int ret = 0;
+
+	BAN::String command;
+	char temp_buffer[128];
+	while (fgets(temp_buffer, sizeof(temp_buffer), fp))
+	{
+		MUST(command.append(temp_buffer));
+		if (command.back() != '\n')
+			continue;
+			
+		command.pop_back();
+		
+		if (!command.empty())
+			if (int temp = parse_and_execute_command(command))
+				ret = temp;
+		command.clear();
+	}
+
+	if (!command.empty())
+		if (int temp = parse_and_execute_command(command))
+			ret = temp;
+
+	fclose(fp);
+
+	return ret;
+}
+
 int character_length(BAN::StringView prompt)
 {
 	int length { 0 };
@@ -901,10 +958,7 @@ int main(int argc, char** argv)
 			fputc('\n', stdout);
 			if (!buffers[index].empty())
 			{
-				tcsetattr(0, TCSANOW, &old_termios);
-				auto commands = parse_command(buffers[index]);
-				last_return = execute_piped_commands(commands);
-				tcsetattr(0, TCSANOW, &new_termios);
+				last_return = parse_and_execute_command(buffers[index]);
 				MUST(history.push_back(buffers[index]));
 				buffers = history;
 				MUST(buffers.emplace_back(""sv));
