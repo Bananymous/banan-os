@@ -691,6 +691,24 @@ int source_script(const BAN::String& path)
 	return ret;
 }
 
+bool exists(const BAN::String& path)
+{
+	struct stat st;
+	return stat(path.data(), &st) == 0;
+}
+
+int source_shellrc()
+{
+	if (char* home = getenv("HOME"))
+	{
+		BAN::String path(home);
+		MUST(path.append("/.shellrc"sv));
+		if (exists(path))
+			return source_script(path);
+	}
+	return 0;
+}
+
 int character_length(BAN::StringView prompt)
 {
 	int length { 0 };
@@ -717,7 +735,7 @@ BAN::String get_prompt()
 {
 	const char* raw_prompt = getenv("PS1");
 	if (raw_prompt == nullptr)
-		return ""sv;
+		return "$ "sv;
 
 	BAN::String prompt;
 	for (int i = 0; raw_prompt[i]; i++)
@@ -853,7 +871,8 @@ int main(int argc, char** argv)
 
 	if (argc >= 1)
 		setenv("SHELL", argv[0], true);
-	setenv("PS1", "\e[32m\\u@\\h\e[m:\e[34m\\~\e[m$ ", false);
+	
+	source_shellrc();
 
 	tcgetattr(0, &old_termios);
 
