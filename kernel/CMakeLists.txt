@@ -194,10 +194,10 @@ add_custom_command(
 	COMMAND cp ${CRTEND} .
 )
 
-add_custom_command(
-	TARGET kernel POST_BUILD
-	COMMAND x86_64-banan_os-strip ${CMAKE_CURRENT_BINARY_DIR}/kernel
-)
+#add_custom_command(
+#	TARGET kernel POST_BUILD
+#	COMMAND x86_64-banan_os-strip ${CMAKE_CURRENT_BINARY_DIR}/kernel
+#)
 
 add_custom_command(
 	OUTPUT font/prefs.psf.o
