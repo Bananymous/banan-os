@@ -5,22 +5,42 @@
 #define DISABLE_INTERRUPTS() asm volatile("cli")
 #define ENABLE_INTERRUPTS() asm volatile("sti")
 
-class InterruptController
+namespace Kernel
 {
-public:
-	virtual ~InterruptController() {}
 
-	virtual void eoi(uint8_t) = 0;
-	virtual void enable_irq(uint8_t) = 0;
-	virtual bool is_in_service(uint8_t) = 0;
+	class Interruptable
+	{
+	public:
+		Interruptable() = default;
 
-	static void initialize(bool force_pic);
-	static InterruptController& get();
+		void set_irq(int irq);
+		void enable_interrupt();
+		void disable_interrupt();
 
-	void enter_acpi_mode();
+		virtual void handle_irq() = 0;
 
-private:
-	bool m_using_apic { false };
-};
+	private:
+		int m_irq { -1 };
+	};
 
-bool interrupts_enabled();
+	class InterruptController
+	{
+	public:
+		virtual ~InterruptController() {}
+
+		virtual void eoi(uint8_t) = 0;
+		virtual void enable_irq(uint8_t) = 0;
+		virtual bool is_in_service(uint8_t) = 0;
+
+		static void initialize(bool force_pic);
+		static InterruptController& get();
+
+		void enter_acpi_mode();
+
+	private:
+		bool m_using_apic { false };
+	};
+
+	bool interrupts_enabled();
+
+}

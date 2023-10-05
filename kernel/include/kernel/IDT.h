@@ -4,11 +4,10 @@
 
 constexpr uint8_t IRQ_VECTOR_BASE = 0x20;
 
-namespace IDT
+namespace Kernel::IDT
 {
 
 	void initialize();
-	void register_irq_handler(uint8_t irq, void(*f)());
 	[[noreturn]] void force_triple_fault();
 
 }

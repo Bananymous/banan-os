@@ -131,10 +131,15 @@ namespace Kernel
 		for (int i = 1; i <= header->comparator_count; i++)
 			write_register(HPET_REG_TIMER_CONFIG(i), 0);
 
-		IDT::register_irq_handler(irq, [] { Scheduler::get().timer_reschedule(); });
-		InterruptController::get().enable_irq(irq);
+		set_irq(irq);
+		enable_interrupt();
 
 		return {};
+	}
+
+	void HPET::handle_irq()
+	{
+		Scheduler::get().timer_reschedule();
 	}
 
 	uint64_t HPET::ms_since_boot() const

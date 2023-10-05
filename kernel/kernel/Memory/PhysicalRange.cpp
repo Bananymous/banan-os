@@ -66,7 +66,7 @@ namespace Kernel
 		ASSERT(page->next == nullptr);
 
 		// Detatch page from top of the free list
-		m_free_list = m_free_list->prev ? m_free_list->prev : nullptr;
+		m_free_list = m_free_list->prev;
 		if (m_free_list)
 			m_free_list->next = nullptr;
 

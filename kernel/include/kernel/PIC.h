@@ -2,17 +2,22 @@
 
 #include <kernel/InterruptController.h>
 
-class PIC final : public InterruptController
+namespace Kernel
 {
-public:
-	virtual void eoi(uint8_t) override;
-	virtual void enable_irq(uint8_t) override;
-	virtual bool is_in_service(uint8_t) override;
 
-	static void remap();
-	static void mask_all();
+	class PIC final : public InterruptController
+	{
+	public:
+		virtual void eoi(uint8_t) override;
+		virtual void enable_irq(uint8_t) override;
+		virtual bool is_in_service(uint8_t) override;
 
-private:
-	static PIC* create();
-	friend class InterruptController;
-};
+		static void remap();
+		static void mask_all();
+
+	private:
+		static PIC* create();
+		friend class InterruptController;
+	};
+
+}

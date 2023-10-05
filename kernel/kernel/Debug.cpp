@@ -76,13 +76,13 @@ namespace Debug
 
 	void DebugLock::lock()
 	{
-		if (interrupts_enabled())
+		if (Kernel::interrupts_enabled())
 			s_debug_lock.lock();
 	}
 
 	void DebugLock::unlock()
 	{
-		if (interrupts_enabled())
+		if (Kernel::interrupts_enabled())
 			s_debug_lock.unlock();
 	}
 

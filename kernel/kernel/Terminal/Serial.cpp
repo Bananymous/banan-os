@@ -1,5 +1,4 @@
 #include <BAN/Array.h>
-#include <BAN/CircularQueue.h>
 #include <kernel/CriticalScope.h>
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/IDT.h>
@@ -38,36 +37,8 @@ namespace Kernel
 	static BAN::Array<Serial, sizeof(s_serial_ports) / sizeof(*s_serial_ports)> s_serial_drivers;
 	static bool s_has_devices { false };
 
-	static BAN::CircularQueue<uint8_t, 128> s_com1_input;
-	static BAN::CircularQueue<uint8_t, 128> s_com2_input;
 	static BAN::RefPtr<SerialTTY> s_com1;
 	static BAN::RefPtr<SerialTTY> s_com2;
-
-	static void irq3_handler()
-	{
-		if (!s_serial_drivers[1].is_valid())
-			return;
-		uint8_t ch = IO::inb(COM2_PORT);
-		if (s_com2_input.full())
-		{
-			dwarnln("COM2 buffer full");
-			s_com2_input.pop();
-		}
-		s_com2_input.push(ch);
-	}
-
-	static void irq4_handler()
-	{
-		if (!s_serial_drivers[0].is_valid())
-			return;
-		uint8_t ch = IO::inb(COM1_PORT);
-		if (s_com1_input.full())
-		{
-			dwarnln("COM1 buffer full");
-			s_com1_input.pop();
-		}
-		s_com1_input.push(ch);
-	}
 
 	static dev_t next_rdev()
 	{
@@ -220,14 +191,14 @@ namespace Kernel
 		if (serial.port() == COM1_PORT)
 		{
 			IO::outb(COM1_PORT + 1, 1);
-			InterruptController::get().enable_irq(COM1_IRQ);
-			IDT::register_irq_handler(COM1_IRQ, irq4_handler);
+			tty->set_irq(COM1_IRQ);
+			tty->enable_interrupt();
 		}
 		else if (serial.port() == COM2_PORT)
 		{
 			IO::outb(COM2_PORT + 1, 1);
-			InterruptController::get().enable_irq(COM2_IRQ);
-			IDT::register_irq_handler(COM2_IRQ, irq3_handler);
+			tty->set_irq(COM2_IRQ);
+			tty->enable_interrupt();
 		}
 
 		auto ref_ptr = BAN::RefPtr<SerialTTY>::adopt(tty);
@@ -239,41 +210,45 @@ namespace Kernel
 		return ref_ptr;
 	}
 
+	void SerialTTY::handle_irq()
+	{
+		uint8_t ch = IO::inb(m_serial.port());
+		if (m_input.full())
+		{
+			dwarnln("Serial buffer full");
+			m_input.pop();
+		}
+		m_input.push(ch);
+	}
+
 	void SerialTTY::update()
 	{
 		if (m_serial.port() != COM1_PORT && m_serial.port() != COM2_PORT)
 			return;
 
-		static uint8_t buffer[128];
+		uint8_t buffer[128];
 
-		auto update_com =
-			[&](auto& device, auto& input_queue)
+		{
+			CriticalScope _;
+			if (m_input.empty())
+				return;
+			uint8_t* ptr = buffer;
+			while (!m_input.empty())
 			{
-				if (input_queue.empty())
-					return;
-				uint8_t* ptr = buffer;
-				while (!input_queue.empty())
-				{
-					*ptr = input_queue.front();
-					if (*ptr == '\r')
-						*ptr = '\n';
-					if (*ptr == 127)
-						*ptr++ = '\b', *ptr++ = ' ', *ptr = '\b';
-					input_queue.pop();
-					ptr++;
-				}
-				*ptr = '\0';
+				*ptr = m_input.front();
+				if (*ptr == '\r')
+					*ptr = '\n';
+				if (*ptr == 127)
+					*ptr++ = '\b', *ptr++ = ' ', *ptr = '\b';
+				m_input.pop();
+				ptr++;
+			}
+			*ptr = '\0';
+		}
 
-				ptr = buffer;
-				while (*ptr)
-					device->handle_input_byte(*ptr++);
-			};
-
-		CriticalScope _;
-		if (m_serial.port() == COM1_PORT)
-			update_com(s_com1, s_com1_input);
-		if (m_serial.port() == COM2_PORT)
-			update_com(s_com2, s_com2_input);
+		const uint8_t* ptr = buffer;
+		while (*ptr)
+			handle_input_byte(*ptr++);
 	}
 
 	uint32_t SerialTTY::width() const

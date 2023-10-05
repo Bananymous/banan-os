@@ -29,7 +29,7 @@ namespace Kernel::Input
 	public:
 		static BAN::ErrorOr<PS2Keyboard*> create(PS2Controller&);
 
-		virtual void on_byte(uint8_t) override;
+		virtual void handle_irq() override;
 		virtual void update() override;
 
 	private:

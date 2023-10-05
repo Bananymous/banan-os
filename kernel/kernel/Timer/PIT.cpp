@@ -4,6 +4,8 @@
 #include <kernel/Scheduler.h>
 #include <kernel/Timer/PIT.h>
 
+#define PIT_IRQ 0
+
 #define TIMER0_CTL			0x40
 #define TIMER1_CTL			0x41
 #define TIMER2_CTL			0x42
@@ -27,14 +29,6 @@
 namespace Kernel
 {
 
-	static volatile uint64_t s_system_time = 0;
-
-	void irq_handler()
-	{
-		s_system_time = s_system_time + 1;
-		Kernel::Scheduler::get().timer_reschedule();
-	}
-
 	BAN::ErrorOr<BAN::UniqPtr<PIT>> PIT::create()
 	{
 		PIT* pit = new PIT();
@@ -53,19 +47,24 @@ namespace Kernel
 		IO::outb(TIMER0_CTL, (timer_reload >> 0) & 0xff);
 		IO::outb(TIMER0_CTL, (timer_reload >> 8) & 0xff);
 
-		IDT::register_irq_handler(PIT_IRQ, irq_handler);
+		set_irq(PIT_IRQ);
+		enable_interrupt();
+	}
 
-		InterruptController::get().enable_irq(PIT_IRQ);
+	void PIT::handle_irq()
+	{
+		m_system_time = m_system_time + 1;
+		Kernel::Scheduler::get().timer_reschedule();
 	}
 
 	uint64_t PIT::ms_since_boot() const
 	{
-		return s_system_time * (MS_PER_S / TICKS_PER_SECOND);
+		return m_system_time * (MS_PER_S / TICKS_PER_SECOND);
 	}
 
 	timespec PIT::time_since_boot() const
 	{
-		uint64_t ticks = s_system_time;
+		uint64_t ticks = m_system_time;
 		return timespec {
 			.tv_sec = ticks / TICKS_PER_SECOND,
 			.tv_nsec = (long)((ticks % TICKS_PER_SECOND) * (NS_PER_S / TICKS_PER_SECOND))

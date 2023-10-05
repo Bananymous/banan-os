@@ -13,7 +13,7 @@
 #define REGISTER_ISR_HANDLER(i) register_interrupt_handler(i, isr ## i)
 #define REGISTER_IRQ_HANDLER(i) register_interrupt_handler(IRQ_VECTOR_BASE + i, irq ## i)
 
-namespace IDT
+namespace Kernel::IDT
 {
 
 	struct Registers
@@ -63,7 +63,7 @@ namespace IDT
 	static IDTR				s_idtr;
 	static GateDescriptor*	s_idt = nullptr;
 
-	static void(*s_irq_handlers[0x10])() { nullptr };
+	static Interruptable* s_interruptables[0x10] {};
 
 	enum ISR
 	{
@@ -160,53 +160,62 @@ namespace IDT
 		"Unkown Exception 0x1F",
 	};
 
-	extern "C" void cpp_isr_handler(uint64_t isr, uint64_t error, Kernel::InterruptStack& interrupt_stack, const Registers* regs)
+	extern "C" void cpp_isr_handler(uint64_t isr, uint64_t error, InterruptStack& interrupt_stack, const Registers* regs)
 	{
 #if __enable_sse
 		bool from_userspace = (interrupt_stack.cs & 0b11) == 0b11;
 		if (from_userspace)
-			Kernel::Thread::current().save_sse();
+			Thread::current().save_sse();
 #endif
 
-		pid_t tid = Kernel::Scheduler::current_tid();
-		pid_t pid = tid ? Kernel::Process::current().pid() : 0;
+		pid_t tid = Scheduler::current_tid();
+		pid_t pid = tid ? Process::current().pid() : 0;
 
-		if (pid && isr == ISR::PageFault)
+		if (tid)
 		{
-			PageFaultError page_fault_error;
-			page_fault_error.raw = error;
+			Thread::current().set_return_rsp(interrupt_stack.rsp);
+			Thread::current().set_return_rip(interrupt_stack.rip);
 
-			// Try demand paging on non present pages
-			if (!page_fault_error.present)
+			if (isr == ISR::PageFault)
 			{
-				asm volatile("sti");
-				auto result = Kernel::Process::current().allocate_page_for_demand_paging(regs->cr2);
-				asm volatile("cli");
-
-				if (!result.is_error() && result.value())
-					return;
-
-				if (result.is_error())
+				// Check if stack is OOB
+				auto& stack = Thread::current().stack();
+				if (interrupt_stack.rsp < stack.vaddr())
 				{
-					dwarnln("Demand paging: {}", result.error());
-					Kernel::Thread::current().handle_signal(SIGTERM);
+					derrorln("Stack overflow");
+					goto done;
+				}
+				if (interrupt_stack.rsp >= stack.vaddr() + stack.size())
+				{
+					derrorln("Stack underflow");
+					goto done;
+				}
+
+				// Try demand paging on non present pages
+				PageFaultError page_fault_error;
+				page_fault_error.raw = error;
+				if (!page_fault_error.present)
+				{
+					asm volatile("sti");
+					auto result = Process::current().allocate_page_for_demand_paging(regs->cr2);
+					asm volatile("cli");
+
+					if (!result.is_error() && result.value())
+						goto done;
+
+					if (result.is_error())
+					{
+						dwarnln("Demand paging: {}", result.error());
+						Thread::current().handle_signal(SIGTERM);
+						goto done;
+					}
 				}
 			}
 		}
 
-		if (tid)
+		if (PageTable::current().get_page_flags(interrupt_stack.rip & PAGE_ADDR_MASK) & PageTable::Flags::Present)
 		{
-			auto start = Kernel::Thread::current().stack_base();
-			auto end = start + Kernel::Thread::current().stack_size();
-			if (interrupt_stack.rsp < start)
-				derrorln("Stack overflow");
-			if (interrupt_stack.rsp >= end)
-				derrorln("Stack underflow");
-		}
-
-		if (Kernel::PageTable::current().get_page_flags(interrupt_stack.rip & PAGE_ADDR_MASK) & Kernel::PageTable::Flags::Present)
-		{
-			uint8_t* machine_code = (uint8_t*)interrupt_stack.rip;
+			auto* machine_code = (const uint8_t*)interrupt_stack.rip;
 			dwarnln("While executing: {2H}{2H}{2H}{2H}{2H}{2H}{2H}{2H}",
 				machine_code[0],
 				machine_code[1],
@@ -233,16 +242,10 @@ namespace IDT
 			regs->cr0, regs->cr2, regs->cr3, regs->cr4
 		);
 		if (isr == ISR::PageFault)
-			Kernel::PageTable::current().debug_dump();
+			PageTable::current().debug_dump();
 		Debug::dump_stack_trace();
 
-		if (tid)
-		{
-			Kernel::Thread::current().set_return_rsp(interrupt_stack.rsp);
-			Kernel::Thread::current().set_return_rip(interrupt_stack.rip);
-		}
-
-		if (tid && Kernel::Thread::current().is_userspace())
+		if (tid && Thread::current().is_userspace())
 		{
 			// TODO: Confirm and fix the exception to signal mappings
 
@@ -270,36 +273,38 @@ namespace IDT
 				break;
 			}
 
-			Kernel::Thread::current().handle_signal(signal);
+			Thread::current().handle_signal(signal);
 		}
 		else
 		{
-			Kernel::panic("Unhandled exception");
+			panic("Unhandled exception");
 		}
 
-		ASSERT(Kernel::Thread::current().state() != Kernel::Thread::State::Terminated);
-
+		ASSERT(Thread::current().state() != Thread::State::Terminated);
+	
+done:
 #if __enable_sse
 		if (from_userspace)
 		{
-			ASSERT(Kernel::Thread::current().state() == Kernel::Thread::State::Executing);
-			Kernel::Thread::current().load_sse();
+			ASSERT(Thread::current().state() == Thread::State::Executing);
+			Thread::current().load_sse();
 		}
 #endif
+		return;
 	}
 
-	extern "C" void cpp_irq_handler(uint64_t irq, Kernel::InterruptStack& interrupt_stack)
+	extern "C" void cpp_irq_handler(uint64_t irq, InterruptStack& interrupt_stack)
 	{
 #if __enable_sse
 		bool from_userspace = (interrupt_stack.cs & 0b11) == 0b11;
 		if (from_userspace)
-			Kernel::Thread::current().save_sse();
+			Thread::current().save_sse();
 #endif
 
-		if (Kernel::Scheduler::current_tid())
+		if (Scheduler::current_tid())
 		{
-			Kernel::Thread::current().set_return_rsp(interrupt_stack.rsp);
-			Kernel::Thread::current().set_return_rip(interrupt_stack.rip);
+			Thread::current().set_return_rsp(interrupt_stack.rsp);
+			Thread::current().set_return_rip(interrupt_stack.rip);
 		}
 
 		if (!InterruptController::get().is_in_service(irq))
@@ -307,21 +312,21 @@ namespace IDT
 		else
 		{
 			InterruptController::get().eoi(irq);
-			if (s_irq_handlers[irq])
-				s_irq_handlers[irq]();
+			if (s_interruptables[irq])
+				s_interruptables[irq]->handle_irq();
 			else
 				dprintln("no handler for irq 0x{2H}\n", irq);
 		}
 
-		Kernel::Scheduler::get().reschedule_if_idling();
+		Scheduler::get().reschedule_if_idling();
 
-		ASSERT(Kernel::Thread::current().state() != Kernel::Thread::State::Terminated);
+		ASSERT(Thread::current().state() != Thread::State::Terminated);
 
 #if __enable_sse
 		if (from_userspace)
 		{
-			ASSERT(Kernel::Thread::current().state() == Kernel::Thread::State::Executing);
-			Kernel::Thread::current().load_sse();
+			ASSERT(Thread::current().state() == Thread::State::Executing);
+			Thread::current().load_sse();
 		}
 #endif
 	}
@@ -349,9 +354,9 @@ namespace IDT
 		s_idt[index].flags = 0xEE;
 	}
 
-	void register_irq_handler(uint8_t irq, void(*handler)())
+	void register_irq_handler(uint8_t irq, Interruptable* interruptable)
 	{
-		s_irq_handlers[irq] = handler;
+		s_interruptables[irq] = interruptable;
 	}
 
 	extern "C" void isr0();

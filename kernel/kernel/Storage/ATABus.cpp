@@ -11,40 +11,6 @@
 namespace Kernel
 {
 
-	static void bus_irq_handler0();
-	static void bus_irq_handler1();
-
-	struct BusIRQ
-	{
-		ATABus* bus { nullptr };
-		void (*handler)() { nullptr };
-		uint8_t irq { 0 };
-	};
-	static BusIRQ s_bus_irqs[] {
-		{ nullptr, bus_irq_handler0, 0 },
-		{ nullptr, bus_irq_handler1, 0 },
-	};
-
-	static void bus_irq_handler0() { ASSERT(s_bus_irqs[0].bus); s_bus_irqs[0].bus->on_irq(); }
-	static void bus_irq_handler1() { ASSERT(s_bus_irqs[1].bus); s_bus_irqs[1].bus->on_irq(); }
-
-	static void register_bus_irq_handler(ATABus* bus, uint8_t irq)
-	{
-		for (uint8_t i = 0; i < sizeof(s_bus_irqs) / sizeof(BusIRQ); i++)
-		{
-			if (s_bus_irqs[i].bus == nullptr)
-			{
-				s_bus_irqs[i].bus = bus;
-				s_bus_irqs[i].irq = irq;
-
-				IDT::register_irq_handler(irq, s_bus_irqs[i].handler);
-				InterruptController::get().enable_irq(irq);
-				return;
-			}
-		}
-		ASSERT_NOT_REACHED();
-	}
-
 	ATABus* ATABus::create(ATAController& controller, uint16_t base, uint16_t ctrl, uint8_t irq)
 	{
 		ATABus* bus = new ATABus(controller, base, ctrl);
@@ -55,11 +21,11 @@ namespace Kernel
 
 	void ATABus::initialize(uint8_t irq)
 	{
-		register_bus_irq_handler(this, irq);
+		set_irq(irq);
+		enable_interrupt();
 
-		uint16_t* identify_buffer = new uint16_t[256];
-		ASSERT(identify_buffer);
-		BAN::ScopeGuard _([identify_buffer] { delete[] identify_buffer; });
+		BAN::Vector<uint16_t> identify_buffer;
+		MUST(identify_buffer.resize(256));
 
 		for (uint8_t i = 0; i < 2; i++)
 		{
@@ -72,11 +38,11 @@ namespace Kernel
 
 			BAN::ScopeGuard guard([this, i] { m_devices[i] = nullptr; });
 
-			auto type = identify(device, identify_buffer);
+			auto type = identify(device, identify_buffer.data());
 			if (type == DeviceType::None)
 				continue;
 
-			auto res = device.initialize(type, identify_buffer);
+			auto res = device.initialize(type, identify_buffer.data());
 			if (res.is_error())
 			{
 				dprintln("{}", res.error());
@@ -149,7 +115,7 @@ namespace Kernel
 		return type;
 	}
 
-	void ATABus::on_irq()
+	void ATABus::handle_irq()
 	{
 		ASSERT(!m_has_got_irq);
 		if (io_read(ATA_PORT_STATUS) & ATA_STATUS_ERR)

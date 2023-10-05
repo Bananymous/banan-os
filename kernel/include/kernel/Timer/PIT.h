@@ -1,14 +1,12 @@
 #pragma once
 
+#include <kernel/InterruptController.h>
 #include <kernel/Timer/Timer.h>
-#include <stdint.h>
-
-#define PIT_IRQ 0
 
 namespace Kernel
 {
 
-	class PIT final : public Timer
+	class PIT final : public Timer, public Interruptable
 	{
 	public:
 		static BAN::ErrorOr<BAN::UniqPtr<PIT>> create();
@@ -16,8 +14,13 @@ namespace Kernel
 		virtual uint64_t ms_since_boot() const override;
 		virtual timespec time_since_boot() const override;
 
+		virtual void handle_irq() override;
+
 	private:
 		void initialize();
+
+	private:
+		volatile uint64_t m_system_time { 0 };
 	};
 
 }

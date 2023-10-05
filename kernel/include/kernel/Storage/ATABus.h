@@ -1,6 +1,7 @@
 #pragma once
 
 #include <BAN/Errors.h>
+#include <kernel/InterruptController.h>
 #include <kernel/SpinLock.h>
 #include <kernel/Storage/ATAController.h>
 
@@ -9,7 +10,7 @@ namespace Kernel
 
 	class ATADevice;
 
-	class ATABus
+	class ATABus : public Interruptable
 	{
 	public:
 		enum class DeviceType
@@ -27,7 +28,7 @@ namespace Kernel
 
 		ATAController& controller() { return m_controller; }
 
-		void on_irq();
+		virtual void handle_irq() override;
 
 	private:
 		ATABus(ATAController& controller, uint16_t base, uint16_t ctrl)
