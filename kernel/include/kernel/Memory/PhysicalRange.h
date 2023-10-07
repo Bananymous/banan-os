@@ -29,9 +29,12 @@ namespace Kernel
 
 	private:
 		unsigned long long* ull_bitmap_ptr() { return (unsigned long long*)m_vaddr; }
+		const unsigned long long* ull_bitmap_ptr() const { return (const unsigned long long*)m_vaddr; }
 		
 		paddr_t paddr_for_bit(unsigned long long) const;
 		unsigned long long bit_for_paddr(paddr_t paddr) const;
+
+		unsigned long long contiguous_bits_set(unsigned long long start, unsigned long long count) const;
 
 	private:
 		const paddr_t m_paddr { 0 };

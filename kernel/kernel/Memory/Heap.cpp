@@ -79,6 +79,25 @@ namespace Kernel
 		ASSERT_NOT_REACHED();
 	}
 
+	paddr_t Heap::take_free_contiguous_pages(size_t pages)
+	{
+		LockGuard _(m_lock);
+		for (auto& range : m_physical_ranges)
+			if (range.free_pages() >= pages)
+				if (paddr_t paddr = range.reserve_contiguous_pages(pages))
+					return paddr;
+		return 0;
+	}
+
+	void Heap::release_contiguous_pages(paddr_t paddr, size_t pages)
+	{
+		LockGuard _(m_lock);
+		for (auto& range : m_physical_ranges)
+			if (range.contains(paddr))
+				return range.release_contiguous_pages(paddr, pages);
+		ASSERT_NOT_REACHED();
+	}
+
 	size_t Heap::used_pages() const
 	{
 		LockGuard _(m_lock);

@@ -27,7 +27,7 @@ namespace Kernel
 
 		memset((void*)m_vaddr, 0x00, m_bitmap_pages * PAGE_SIZE);
 		memset((void*)m_vaddr, 0xFF, m_data_pages / 8);
-		for (int i = 0; i < m_data_pages % 8; i++)
+		for (ull i = 0; i < m_data_pages % 8; i++)
 			((uint8_t*)m_vaddr)[m_data_pages / 8] |= 1 << i;
 
 		dprintln("physical range needs {} pages for bitmap", m_bitmap_pages);
@@ -41,6 +41,18 @@ namespace Kernel
 	ull PhysicalRange::bit_for_paddr(paddr_t paddr) const
 	{
 		return (paddr - m_paddr) / PAGE_SIZE - m_bitmap_pages;
+	}
+
+	ull PhysicalRange::contiguous_bits_set(ull start, ull count) const
+	{
+		for (ull i = 0; i < count; i++)
+		{
+			ull off = (start + i) / ull_bits;
+			ull bit = (start + i) % ull_bits;
+			if (!(ull_bitmap_ptr()[off] & (1ull << bit)))
+				return i;
+		}
+		return count;
 	}
 
 	paddr_t PhysicalRange::reserve_page()
@@ -78,6 +90,63 @@ namespace Kernel
 		ull_bitmap_ptr()[off] |= mask;
 
 		m_free_pages++;
+	}
+
+	paddr_t PhysicalRange::reserve_contiguous_pages(size_t pages)
+	{
+		ASSERT(pages > 0);
+		ASSERT(free_pages() > 0);
+
+		if (pages == 1)
+			return reserve_page();
+
+		ull ull_count = BAN::Math::div_round_up<ull>(m_data_pages, ull_bits);
+
+		// NOTE: This feels kinda slow, but I don't want to be
+		//       doing premature optimization. This will be only
+		//       used when creating DMA regions.
+
+		for (ull i = 0; i < ull_count; i++)
+		{
+			if (ull_bitmap_ptr()[i] == 0)
+				continue;
+
+			for (ull bit = 0; bit < ull_bits;)
+			{
+				ull start = i * ull_bits + bit;
+				ull set_cnt = contiguous_bits_set(start, pages);
+				if (set_cnt == pages)
+				{
+					for (ull j = 0; j < pages; j++)
+						ull_bitmap_ptr()[(start + j) / ull_bits] &= ~(1ull << ((start + j) % ull_bits));
+					m_free_pages -= pages;
+					return paddr_for_bit(start);
+				}
+				bit += set_cnt + 1;
+			}
+		}
+
+		ASSERT_NOT_REACHED();
+	}
+
+	void PhysicalRange::release_contiguous_pages(paddr_t paddr, size_t pages)
+	{
+		ASSERT(paddr % PAGE_SIZE == 0);
+		ASSERT(paddr - m_paddr <= m_size);
+		ASSERT(pages > 0);
+
+		ull start_bit = bit_for_paddr(paddr);
+		for (size_t i = 0; i < pages; i++)
+		{
+			ull off = (start_bit + i) / ull_bits;
+			ull bit = (start_bit + i) % ull_bits;
+			ull mask = 1ull << bit;
+
+			ASSERT(!(ull_bitmap_ptr()[off] & mask));
+			ull_bitmap_ptr()[off] |= mask;
+		}
+
+		m_free_pages += pages;
 	}
 
 }

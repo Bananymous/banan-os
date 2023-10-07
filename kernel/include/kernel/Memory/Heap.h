@@ -21,6 +21,9 @@ namespace Kernel
 		paddr_t take_free_page();
 		void release_page(paddr_t);
 
+		paddr_t take_free_contiguous_pages(size_t pages);
+		void release_contiguous_pages(paddr_t paddr, size_t pages);
+
 		size_t used_pages() const;
 		size_t free_pages() const;
 
