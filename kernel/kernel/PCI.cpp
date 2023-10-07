@@ -184,12 +184,12 @@ namespace Kernel::PCI
 		// disable io/mem space while reading bar
 		device.write_dword(0x04, command_status & ~3);
 
-		uint8_t offset = 0x10 + bar_num * 8;
+		uint8_t offset = 0x10 + bar_num * 4;
 
 		uint64_t addr = device.read_dword(offset);
 
 		device.write_dword(offset, 0xFFFFFFFF);
-		uint32_t size = device.read_dword(0x10 + bar_num * 8);
+		uint32_t size = device.read_dword(offset);
 		size = ~size + 1;
 		device.write_dword(offset, addr);
 
@@ -209,7 +209,7 @@ namespace Kernel::PCI
 		{
 			type = BarType::MEM;
 			addr &= 0xFFFFFFF0;
-			addr |= (uint64_t)device.read_dword(offset + 8) << 32;
+			addr |= (uint64_t)device.read_dword(offset + 4) << 32;
 		}
 
 		if (type == BarType::INVALID)
