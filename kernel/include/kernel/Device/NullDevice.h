@@ -1,3 +1,5 @@
+#pragma once
+
 #include <kernel/Device/Device.h>
 
 namespace Kernel
@@ -9,6 +11,8 @@ namespace Kernel
 		static BAN::ErrorOr<BAN::RefPtr<NullDevice>> create(mode_t, uid_t, gid_t);
 
 		virtual dev_t rdev() const override { return m_rdev; }
+
+		virtual BAN::StringView name() const override { return "null"sv; }
 
 	protected:
 		NullDevice(mode_t mode, uid_t uid, gid_t gid, dev_t rdev)

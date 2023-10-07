@@ -202,7 +202,7 @@ namespace Kernel
 		}
 
 		auto ref_ptr = BAN::RefPtr<SerialTTY>::adopt(tty);
-		DevFileSystem::get().add_device(ref_ptr->name(), ref_ptr);
+		DevFileSystem::get().add_device(ref_ptr);
 		if (serial.port() == COM1_PORT)
 			s_com1 = ref_ptr;
 		if (serial.port() == COM2_PORT)

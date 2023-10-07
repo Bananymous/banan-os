@@ -20,7 +20,7 @@ namespace Kernel
 	class Partition final : public BlockDevice
 	{
 	public:
-		Partition(StorageDevice&, const GUID&, const GUID&, uint64_t, uint64_t, uint64_t, const char*, uint32_t);
+		static BAN::ErrorOr<BAN::RefPtr<Partition>> create(StorageDevice&, const GUID& type, const GUID& guid, uint64_t start, uint64_t end, uint64_t attr, const char* label, uint32_t index);
 
 		const GUID& partition_type() const { return m_type; }
 		const GUID& partition_guid() const { return m_guid; }
@@ -32,6 +32,11 @@ namespace Kernel
 
 		BAN::ErrorOr<void> read_sectors(uint64_t lba, uint8_t sector_count, uint8_t* buffer);
 		BAN::ErrorOr<void> write_sectors(uint64_t lba, uint8_t sector_count, const uint8_t* buffer);
+		
+		virtual BAN::StringView name() const override { return m_name; }
+
+	private:
+		Partition(StorageDevice&, const GUID&, const GUID&, uint64_t, uint64_t, uint64_t, const char*, uint32_t);
 
 	private:
 		StorageDevice& m_device;
@@ -41,6 +46,7 @@ namespace Kernel
 		const uint64_t m_lba_end;
 		const uint64_t m_attributes;
 		char m_label[36 * 4 + 1];
+		const BAN::String m_name;
 
 	public:
 		virtual bool is_partition() const override { return true; }
@@ -73,8 +79,8 @@ namespace Kernel
 		virtual uint32_t sector_size() const = 0;
 		virtual uint64_t total_size() const = 0;
 
-		BAN::Vector<Partition*>& partitions() { return m_partitions; }
-		const BAN::Vector<Partition*>& partitions() const { return m_partitions; }
+		BAN::Vector<BAN::RefPtr<Partition>>& partitions() { return m_partitions; }
+		const BAN::Vector<BAN::RefPtr<Partition>>& partitions() const { return m_partitions; }
 
 		BAN::ErrorOr<void> sync_disk_cache();
 		virtual bool is_storage_device() const override { return true; }
@@ -85,9 +91,9 @@ namespace Kernel
 		void add_disk_cache();
 
 	private:
-		SpinLock					m_lock;
-		BAN::Optional<DiskCache>	m_disk_cache;
-		BAN::Vector<Partition*>		m_partitions;
+		SpinLock							m_lock;
+		BAN::Optional<DiskCache>			m_disk_cache;
+		BAN::Vector<BAN::RefPtr<Partition>>	m_partitions;
 
 		friend class DiskCache;
 	};

@@ -28,11 +28,11 @@ namespace Kernel
 	{
 		s_tty = this;
 
-		auto inode_or_error = DevFileSystem::get().root_inode()->find_inode("tty");
+		auto inode_or_error = DevFileSystem::get().root_inode()->find_inode("tty"sv);
 		if (inode_or_error.is_error())
 		{
 			if (inode_or_error.error().get_error_code() == ENOENT)
-				DevFileSystem::get().add_device("tty"sv, MUST(RamSymlinkInode::create(DevFileSystem::get(), s_tty->name(), 0666, 0, 0)));
+				DevFileSystem::get().add_inode("tty"sv, MUST(RamSymlinkInode::create(DevFileSystem::get(), s_tty->name(), 0666, 0, 0)));
 			else
 				dwarnln("{}", inode_or_error.error());
 			return;

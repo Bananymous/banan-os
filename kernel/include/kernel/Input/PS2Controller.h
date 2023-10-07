@@ -9,12 +9,13 @@ namespace Kernel::Input
 	class PS2Device : public CharacterDevice, public Interruptable
 	{
 	public:
+		PS2Device();
 		virtual ~PS2Device() {}
 
-	public:
-		PS2Device()
-			: CharacterDevice(Mode::IRUSR | Mode::IRGRP, 0, 0)
-		{ }
+		virtual BAN::StringView name() const override { return m_name; }
+
+	private:
+		const BAN::String m_name;
 	};
 
 	class PS2Controller

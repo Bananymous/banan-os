@@ -3,7 +3,8 @@
 #include <kernel/MMIO.h>
 #include <kernel/Networking/E1000.h>
 #include <kernel/PCI.h>
-#include <kernel/Storage/ATAController.h>
+#include <kernel/Storage/ATA/AHCI/Controller.h>
+#include <kernel/Storage/ATA/ATAController.h>
 
 #define INVALID_VENDOR 0xFFFF
 #define MULTI_FUNCTION 0x80
@@ -143,6 +144,8 @@ namespace Kernel::PCI
 					switch (pci_device.subclass())
 					{
 						case 0x01:
+						case 0x05:
+						case 0x06:
 							if (auto res = ATAController::create(pci_device); res.is_error())
 								dprintln("ATA: {}", res.error());
 							break;

@@ -2,6 +2,7 @@
 #include <BAN/ScopeGuard.h>
 #include <BAN/StringView.h>
 #include <BAN/UTF8.h>
+#include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/LockGuard.h>
 #include <kernel/PCI.h>
@@ -184,7 +185,7 @@ namespace Kernel
 			char utf8_name[36 * 4 + 1];
 			BAN::UTF8::from_codepoints(entry.partition_name, 36, utf8_name);
 
-			Partition* partition = new Partition(
+			auto partition = TRY(Partition::create(
 				*this, 
 				entry.partition_type_guid,
 				entry.unique_partition_guid,
@@ -193,13 +194,23 @@ namespace Kernel
 				entry.attributes,
 				utf8_name,
 				i + 1
-			);
-			ASSERT(partition != nullptr);
-			MUST(m_partitions.push_back(partition));
+			));
+			TRY(m_partitions.push_back(BAN::move(partition)));
 		}
+
+		for (auto partition : m_partitions)
+			DevFileSystem::get().add_device(partition);
 
 		return {};
 	}
+
+	BAN::ErrorOr<BAN::RefPtr<Partition>> Partition::create(StorageDevice& device, const GUID& type, const GUID& guid, uint64_t start, uint64_t end, uint64_t attr, const char* label, uint32_t index)
+	{
+		auto partition_ptr = new Partition(device, type, guid, start, end, attr, label, index);
+		if (partition_ptr == nullptr)
+			return BAN::Error::from_errno(ENOMEM);
+		return BAN::RefPtr<Partition>::adopt(partition_ptr);
+	}	
 
 	Partition::Partition(StorageDevice& device, const GUID& type, const GUID& guid, uint64_t start, uint64_t end, uint64_t attr, const char* label, uint32_t index)
 		: BlockDevice(0660, 0, 0)
@@ -209,6 +220,7 @@ namespace Kernel
 		, m_lba_start(start)
 		, m_lba_end(end)
 		, m_attributes(attr)
+		, m_name(BAN::String::formatted("{}{}", device.name(), index))
 		, m_rdev(makedev(major(device.rdev()), index))
 	{
 		memcpy(m_label, label, sizeof(m_label));

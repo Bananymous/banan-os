@@ -52,9 +52,9 @@ set(KERNEL_SOURCES
 	kernel/Semaphore.cpp
 	kernel/SpinLock.cpp
 	kernel/SSP.cpp
-	kernel/Storage/ATABus.cpp
-	kernel/Storage/ATAController.cpp
-	kernel/Storage/ATADevice.cpp
+	kernel/Storage/ATA/ATABus.cpp
+	kernel/Storage/ATA/ATAController.cpp
+	kernel/Storage/ATA/ATADevice.cpp
 	kernel/Storage/DiskCache.cpp
 	kernel/Storage/StorageDevice.cpp
 	kernel/Syscall.cpp

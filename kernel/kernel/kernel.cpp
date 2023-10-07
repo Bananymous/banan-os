@@ -177,6 +177,7 @@ static void init2(void*)
 	dprintln("PCI initialized");
 
 	VirtualFileSystem::initialize(cmdline.root);
+	dprintln("VFS initialized");
 
 	if (auto res = PS2Controller::initialize(); res.is_error())
 		dprintln("{}", res.error());

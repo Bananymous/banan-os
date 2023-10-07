@@ -17,6 +17,8 @@ namespace Kernel
 
 		virtual dev_t rdev() const override = 0;
 
+		virtual BAN::StringView name() const = 0;
+
 	protected:
 		Device(mode_t, uid_t, gid_t);
 	};

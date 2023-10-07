@@ -22,8 +22,8 @@ namespace Kernel
 		auto root_inode = MUST(RamDirectoryInode::create(*s_instance, 0, 0755, 0, 0));
 		MUST(s_instance->set_root_inode(root_inode));
 
-		s_instance->add_device("null", MUST(NullDevice::create(0666, 0, 0)));
-		s_instance->add_device("zero", MUST(ZeroDevice::create(0666, 0, 0)));
+		s_instance->add_device(MUST(NullDevice::create(0666, 0, 0)));
+		s_instance->add_device(MUST(ZeroDevice::create(0666, 0, 0)));
 	}
 
 	DevFileSystem& DevFileSystem::get()
@@ -117,10 +117,16 @@ namespace Kernel
 			m_sync_done.block();
 	}
 
-	void DevFileSystem::add_device(BAN::StringView path, BAN::RefPtr<RamInode> device)
+	void DevFileSystem::add_device(BAN::RefPtr<Device> device)
+	{
+		ASSERT(!device->name().contains('/'));
+		MUST(reinterpret_cast<RamDirectoryInode*>(root_inode().ptr())->add_inode(device->name(), device));
+	}
+
+	void DevFileSystem::add_inode(BAN::StringView path, BAN::RefPtr<RamInode> inode)
 	{
 		ASSERT(!path.contains('/'));
-		MUST(reinterpret_cast<RamDirectoryInode*>(root_inode().ptr())->add_inode(path, device));
+		MUST(reinterpret_cast<RamDirectoryInode*>(root_inode().ptr())->add_inode(path, inode));
 	}
 
 	void DevFileSystem::for_each_device(const BAN::Function<BAN::Iteration(Device*)>& callback)
@@ -136,10 +142,17 @@ namespace Kernel
 		);
 	}
 
-	dev_t DevFileSystem::get_next_dev()
+	dev_t DevFileSystem::get_next_dev() const
 	{
 		LockGuard _(m_device_lock);
 		static dev_t next_dev = 1;
+		return next_dev++;
+	}
+
+	int DevFileSystem::get_next_input_device() const
+	{
+		LockGuard _(m_device_lock);
+		static dev_t next_dev = 0;
 		return next_dev++;
 	}
 

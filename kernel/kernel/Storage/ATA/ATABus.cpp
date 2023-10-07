@@ -1,27 +1,31 @@
-#include <BAN/ScopeGuard.h>
+#include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/IDT.h>
 #include <kernel/InterruptController.h>
 #include <kernel/IO.h>
 #include <kernel/LockGuard.h>
-#include <kernel/Storage/ATADevice.h>
-#include <kernel/Storage/ATABus.h>
-#include <kernel/Storage/ATADefinitions.h>
+#include <kernel/Storage/ATA/ATABus.h>
+#include <kernel/Storage/ATA/ATADefinitions.h>
+#include <kernel/Storage/ATA/ATADevice.h>
 #include <kernel/Timer/Timer.h>
 
 namespace Kernel
 {
 
-	ATABus* ATABus::create(ATAController& controller, uint16_t base, uint16_t ctrl, uint8_t irq)
+	BAN::ErrorOr<BAN::RefPtr<ATABus>> ATABus::create(uint16_t base, uint16_t ctrl, uint8_t irq)
 	{
-		ATABus* bus = new ATABus(controller, base, ctrl);
-		ASSERT(bus);
-		bus->initialize(irq);
+		auto* bus_ptr = new ATABus(base, ctrl);
+		if (bus_ptr == nullptr)
+			return BAN::Error::from_errno(ENOMEM);
+		auto bus = BAN::RefPtr<ATABus>::adopt(bus_ptr);
+		bus->set_irq(irq);
+		TRY(bus->initialize());
+		if (bus->m_devices.empty())
+			return BAN::Error::from_errno(ENODEV);
 		return bus;
 	}
 
-	void ATABus::initialize(uint8_t irq)
+	BAN::ErrorOr<void> ATABus::initialize()
 	{
-		set_irq(irq);
 		enable_interrupt();
 
 		BAN::Vector<uint16_t> identify_buffer;
@@ -29,49 +33,57 @@ namespace Kernel
 
 		for (uint8_t i = 0; i < 2; i++)
 		{
-			{
-				auto* temp_ptr = new ATADevice(*this);
-				ASSERT(temp_ptr);
-				m_devices[i] = BAN::RefPtr<ATADevice>::adopt(temp_ptr);
-			}
-			ATADevice& device = *m_devices[i];
+			bool is_secondary = (i == 1);
 
-			BAN::ScopeGuard guard([this, i] { m_devices[i] = nullptr; });
-
-			auto type = identify(device, identify_buffer.data());
-			if (type == DeviceType::None)
+			DeviceType device_type;
+			if (auto res = identify(is_secondary, identify_buffer.span()); res.is_error())
 				continue;
+			else
+				device_type = res.value();
 
-			auto res = device.initialize(type, identify_buffer.data());
-			if (res.is_error())
+			auto device_or_error = ATADevice::create(this, device_type, is_secondary, identify_buffer.span());
+
+			if (device_or_error.is_error())
 			{
-				dprintln("{}", res.error());
+				dprintln("{}", device_or_error.error());
 				continue;
 			}
 
-			guard.disable();
+			auto device = device_or_error.release_value();
+			device->ref();
+			TRY(m_devices.push_back(device.ptr()));
 		}
 
 		// Enable disk interrupts
-		for (int i = 0; i < 2; i++)
+		for (auto& device : m_devices)
 		{
-			if (!m_devices[i])
-				continue;
-			select_device(*m_devices[i]);
+			select_device(device->is_secondary());
 			io_write(ATA_PORT_CONTROL, 0);
+		}
+
+		return {};
+	}
+
+	void ATABus::initialize_devfs()
+	{
+		for (auto& device : m_devices)
+		{
+			DevFileSystem::get().add_device(device);
+			if (auto res = device->initialize_partitions(); res.is_error())
+				dprintln("{}", res.error());
+			device->unref();
 		}
 	}
 
-	void ATABus::select_device(const ATADevice& device)
+	void ATABus::select_device(bool secondary)
 	{
-		uint8_t device_index = this->device_index(device);
-		io_write(ATA_PORT_DRIVE_SELECT, 0xA0 | (device_index << 4));
+		io_write(ATA_PORT_DRIVE_SELECT, 0xA0 | ((uint8_t)secondary << 4));
 		SystemTimer::get().sleep(1);
 	}
 
-	ATABus::DeviceType ATABus::identify(const ATADevice& device, uint16_t* buffer)
+	BAN::ErrorOr<ATABus::DeviceType> ATABus::identify(bool secondary, BAN::Span<uint16_t> buffer)
 	{
-		select_device(device);
+		select_device(secondary);
 
 		// Disable interrupts
 		io_write(ATA_PORT_CONTROL, ATA_CONTROL_nIEN);
@@ -81,7 +93,7 @@ namespace Kernel
 
 		// No device on port
 		if (io_read(ATA_PORT_STATUS) == 0)
-			return DeviceType::None;
+			return BAN::Error::from_errno(EINVAL);
 
 		DeviceType type = DeviceType::ATA;
 
@@ -97,7 +109,7 @@ namespace Kernel
 			else
 			{
 				dprintln("Unsupported device type");
-				return DeviceType::None;
+				return BAN::Error::from_errno(EINVAL);
 			}
 
 			io_write(ATA_PORT_COMMAND, ATA_COMMAND_IDENTIFY_PACKET);
@@ -106,11 +118,12 @@ namespace Kernel
 			if (auto res = wait(true); res.is_error())
 			{
 				dprintln("Fatal error: {}", res.error());
-				return DeviceType::None;
+				return BAN::Error::from_errno(EINVAL);
 			}
 		}
 
-		read_buffer(ATA_PORT_DATA, buffer, 256);
+		ASSERT(buffer.size() >= 256);
+		read_buffer(ATA_PORT_DATA, buffer.data(), 256);
 
 		return type;
 	}
@@ -212,18 +225,9 @@ namespace Kernel
 		return BAN::Error::from_error_code(ErrorCode::None);
 	}
 
-	uint8_t ATABus::device_index(const ATADevice& device) const
-	{
-		if (m_devices[0] && m_devices[0].ptr() == &device)
-			return 0;
-		if (m_devices[1] && m_devices[1].ptr() == &device)
-			return 1;
-		ASSERT_NOT_REACHED();
-	}
-
 	BAN::ErrorOr<void> ATABus::read(ATADevice& device, uint64_t lba, uint8_t sector_count, uint8_t* buffer)
 	{
-		if (lba + sector_count > device.m_lba_count)
+		if (lba + sector_count > device.sector_count())
 			return BAN::Error::from_error_code(ErrorCode::Storage_Boundaries);
 
 		LockGuard _(m_lock);
@@ -231,7 +235,7 @@ namespace Kernel
 		if (lba < (1 << 28))
 		{
 			// LBA28
-			io_write(ATA_PORT_DRIVE_SELECT, 0xE0 | (device_index(device) << 4) | ((lba >> 24) & 0x0F));
+			io_write(ATA_PORT_DRIVE_SELECT, 0xE0 | ((uint8_t)device.is_secondary() << 4) | ((lba >> 24) & 0x0F));
 			io_write(ATA_PORT_SECTOR_COUNT, sector_count);
 			io_write(ATA_PORT_LBA0, (uint8_t)(lba >>  0));
 			io_write(ATA_PORT_LBA1, (uint8_t)(lba >>  8));
@@ -241,7 +245,7 @@ namespace Kernel
 			for (uint32_t sector = 0; sector < sector_count; sector++)
 			{
 				block_until_irq();
-				read_buffer(ATA_PORT_DATA, (uint16_t*)buffer + sector * device.m_sector_words, device.m_sector_words);
+				read_buffer(ATA_PORT_DATA, (uint16_t*)buffer + sector * device.words_per_sector(), device.words_per_sector());
 			}
 		}
 		else
@@ -255,7 +259,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> ATABus::write(ATADevice& device, uint64_t lba, uint8_t sector_count, const uint8_t* buffer)
 	{
-		if (lba + sector_count > device.m_lba_count)
+		if (lba + sector_count > device.sector_count())
 			return BAN::Error::from_error_code(ErrorCode::Storage_Boundaries);
 
 		LockGuard _(m_lock);
@@ -263,7 +267,7 @@ namespace Kernel
 		if (lba < (1 << 28))
 		{
 			// LBA28
-			io_write(ATA_PORT_DRIVE_SELECT, 0xE0 | (device_index(device) << 4) | ((lba >> 24) & 0x0F));
+			io_write(ATA_PORT_DRIVE_SELECT, 0xE0 | ((uint8_t)device.is_secondary() << 4) | ((lba >> 24) & 0x0F));
 			io_write(ATA_PORT_SECTOR_COUNT, sector_count);
 			io_write(ATA_PORT_LBA0, (uint8_t)(lba >>  0));
 			io_write(ATA_PORT_LBA1, (uint8_t)(lba >>  8));
@@ -274,7 +278,7 @@ namespace Kernel
 
 			for (uint32_t sector = 0; sector < sector_count; sector++)
 			{
-				write_buffer(ATA_PORT_DATA, (uint16_t*)buffer + sector * device.m_sector_words, device.m_sector_words);
+				write_buffer(ATA_PORT_DATA, (uint16_t*)buffer + sector * device.words_per_sector(), device.words_per_sector());
 				block_until_irq();
 			}
 		}

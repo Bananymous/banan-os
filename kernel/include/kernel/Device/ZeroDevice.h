@@ -10,6 +10,8 @@ namespace Kernel
 
 		virtual dev_t rdev() const override { return m_rdev; }
 
+		virtual BAN::StringView name() const override { return "zero"sv; }
+
 	protected:
 		ZeroDevice(mode_t mode, uid_t uid, gid_t gid, dev_t rdev)
 			: CharacterDevice(mode, uid, gid)

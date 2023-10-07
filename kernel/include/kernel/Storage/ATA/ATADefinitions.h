@@ -1,5 +1,8 @@
 #pragma once
 
+#define ATA_PROGIF_PRIMARY_NATIVE	(1 << 0)
+#define ATA_PROGIF_SECONDARY_NATIVE	(1 << 2)
+
 #define ATA_PORT_DATA				0x00
 #define ATA_PORT_ERROR				0x00
 #define ATA_PORT_SECTOR_COUNT		0x02

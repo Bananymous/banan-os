@@ -68,6 +68,11 @@ namespace Kernel::Input
 
 	static PS2Controller* s_instance = nullptr;
 
+	PS2Device::PS2Device()
+		: CharacterDevice(0440, 0, 0)
+		, m_name(BAN::String::formatted("input{}", DevFileSystem::get().get_next_input_device()))
+	{ }
+
 	BAN::ErrorOr<void> PS2Controller::initialize()
 	{
 		ASSERT(s_instance == nullptr);
@@ -175,14 +180,14 @@ namespace Kernel::Input
 			m_devices[0]->set_irq(PS2::IRQ::DEVICE0);
 			m_devices[0]->enable_interrupt();
 			config |= PS2::Config::INTERRUPT_FIRST_PORT;
-			DevFileSystem::get().add_device("input0", m_devices[0]);
+			DevFileSystem::get().add_device(m_devices[0]);
 		}
 		if (m_devices[1])
 		{
 			m_devices[1]->set_irq(PS2::IRQ::DEVICE1);
 			m_devices[1]->enable_interrupt();
 			config |= PS2::Config::INTERRUPT_SECOND_PORT;
-			DevFileSystem::get().add_device("input1", m_devices[1]);
+			DevFileSystem::get().add_device(m_devices[1]);
 		}
 
 		controller_send_command(PS2::Command::WRITE_CONFIG, config);

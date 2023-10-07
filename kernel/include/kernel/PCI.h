@@ -3,6 +3,9 @@
 #include <BAN/UniqPtr.h>
 #include <BAN/Vector.h>
 #include <kernel/Memory/Types.h>
+#include <kernel/Storage/StorageController.h>
+
+#include <sys/types.h>
 
 namespace Kernel::PCI
 {

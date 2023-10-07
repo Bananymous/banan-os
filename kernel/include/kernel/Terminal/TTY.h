@@ -50,8 +50,6 @@ namespace Kernel
 		virtual BAN::ErrorOr<size_t> read_impl(off_t, void*, size_t) override;
 		virtual BAN::ErrorOr<size_t> write_impl(off_t, const void*, size_t) override;
 
-		virtual BAN::StringView name() const = 0;
-
 	private:
 		void do_backspace();
 
