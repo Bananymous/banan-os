@@ -3,6 +3,8 @@
 #include <kernel/Memory/PageTable.h>
 #include <kernel/multiboot.h>
 
+extern uint8_t g_kernel_end[];
+
 namespace Kernel
 {
 
@@ -30,14 +32,22 @@ namespace Kernel
 		for (size_t i = 0; i < g_multiboot_info->mmap_length;)
 		{
 			multiboot_memory_map_t* mmmt = (multiboot_memory_map_t*)P2V(g_multiboot_info->mmap_addr + i);
-
 			if (mmmt->type == 1)
-			{
-				PhysicalRange range(mmmt->base_addr, mmmt->length);
-				if (range.usable_memory() > 0)
-					MUST(m_physical_ranges.push_back(range));
-			}
+			{				
+				paddr_t start = mmmt->base_addr;
+				if (start < V2P(g_kernel_end))
+					start = V2P(g_kernel_end);
+				if (auto rem = start % PAGE_SIZE)
+					start += PAGE_SIZE - rem;
 
+				paddr_t end = mmmt->base_addr + mmmt->length;
+				if (auto rem = end % PAGE_SIZE)
+					end -= rem;
+
+				// Physical pages needs atleast 2 pages
+				if (end > start + PAGE_SIZE)
+					MUST(m_physical_ranges.emplace_back(start, end - start));
+			}
 			i += mmmt->size + sizeof(uint32_t);
 		}
 
@@ -55,22 +65,17 @@ namespace Kernel
 	{
 		LockGuard _(m_lock);
 		for (auto& range : m_physical_ranges)
-			if (paddr_t page = range.reserve_page())
-				return page;
+			if (range.free_pages() >= 1)
+				return range.reserve_page();
 		return 0;
 	}
 
-	void Heap::release_page(paddr_t addr)
+	void Heap::release_page(paddr_t paddr)
 	{
 		LockGuard _(m_lock);
 		for (auto& range : m_physical_ranges)
-		{
-			if (range.contains(addr))
-			{
-				range.release_page(addr);
-				return;
-			}
-		}
+			if (range.contains(paddr))
+				return range.release_page(paddr);
 		ASSERT_NOT_REACHED();
 	}
 
