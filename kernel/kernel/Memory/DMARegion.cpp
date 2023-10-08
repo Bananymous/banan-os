@@ -26,7 +26,7 @@ namespace Kernel
 		vaddr_guard.disable();
 		paddr_guard.disable();
 
-		PageTable::kernel().map_range_at(paddr, vaddr, size, PageTable::Flags::CacheDisable | PageTable::Flags::ReadWrite | PageTable::Flags::Reserved);
+		PageTable::kernel().map_range_at(paddr, vaddr, size, PageTable::Flags::CacheDisable | PageTable::Flags::ReadWrite | PageTable::Flags::Present);
 
 		return BAN::UniqPtr<DMARegion>::adopt(region_ptr);
 	}
@@ -40,7 +40,7 @@ namespace Kernel
 	DMARegion::~DMARegion()
 	{
 		PageTable::kernel().unmap_range(m_vaddr, m_size);
-		Heap::get().release_contiguous_pages(m_vaddr, BAN::Math::div_round_up<size_t>(m_size, PAGE_SIZE));
+		Heap::get().release_contiguous_pages(m_paddr, BAN::Math::div_round_up<size_t>(m_size, PAGE_SIZE));
 	}
 
 }
