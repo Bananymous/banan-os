@@ -13,7 +13,7 @@ namespace Kernel
 	PhysicalRange::PhysicalRange(paddr_t paddr, size_t size)
 		: m_paddr(paddr)
 		, m_size(size)
-		, m_bitmap_pages(BAN::Math::div_round_up<size_t>(size / PAGE_SIZE, 8))
+		, m_bitmap_pages(BAN::Math::div_round_up<size_t>(size / PAGE_SIZE, PAGE_SIZE * 8))
 		, m_data_pages((size / PAGE_SIZE) - m_bitmap_pages)
 		, m_free_pages(m_data_pages)
 	{
@@ -26,9 +26,16 @@ namespace Kernel
 		PageTable::kernel().map_range_at(m_paddr, m_vaddr, size, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
 
 		memset((void*)m_vaddr, 0x00, m_bitmap_pages * PAGE_SIZE);
-		memset((void*)m_vaddr, 0xFF, m_data_pages / 8);
-		for (ull i = 0; i < m_data_pages % 8; i++)
-			((uint8_t*)m_vaddr)[m_data_pages / 8] |= 1 << i;
+
+		for (ull i = 0; i < m_data_pages / ull_bits; i++)
+			ull_bitmap_ptr()[i] = ~0ull;
+
+		if (m_data_pages % ull_bits)
+		{
+			ull off = m_data_pages / ull_bits;
+			ull bits = m_data_pages % ull_bits;
+			ull_bitmap_ptr()[off] = ~(~0ull << bits);
+		}
 
 		dprintln("physical range needs {} pages for bitmap", m_bitmap_pages);
 	}
