@@ -35,6 +35,8 @@ namespace Kernel
 		static void initialize(bool force_pic);
 		static InterruptController& get();
 
+		bool is_using_apic() const { return m_using_apic; }
+
 		void enter_acpi_mode();
 
 	private:

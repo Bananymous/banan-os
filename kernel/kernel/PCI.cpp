@@ -15,6 +15,11 @@
 #define CONFIG_DATA 0xCFC
 
 #define PCI_REG_COMMAND 0x04
+#define PCI_REG_STATUS 0x06
+#define PCI_REG_CAPABILITIES 0x34
+#define PCI_REG_IRQ_LINE 0x3C
+#define PCI_REG_IRQ_PIN 0x44
+
 #define PCI_CMD_IO_SPACE (1 << 0)
 #define PCI_CMD_MEM_SPACE (1 << 1)
 #define PCI_CMD_BUS_MASTER (1 << 2)
@@ -187,10 +192,9 @@ namespace Kernel::PCI
 	{
 		ASSERT(device.header_type() == 0x00);
 
-		uint32_t command_status = device.read_dword(0x04);
-
 		// disable io/mem space while reading bar
-		device.write_dword(0x04, command_status & ~3);
+		uint16_t command = device.read_word(PCI_REG_COMMAND);
+		device.write_word(PCI_REG_COMMAND, command & ~(PCI_CMD_IO_SPACE | PCI_CMD_MEM_SPACE));
 
 		uint8_t offset = 0x10 + bar_num * 4;
 
@@ -232,9 +236,9 @@ namespace Kernel::PCI
 		auto region = BAN::UniqPtr<BarRegion>::adopt(region_ptr);
 		TRY(region->initialize());
 
-		// restore old command register and enable correct IO/MEM
-		command_status |= (type == BarType::IO) ? 1 : 2;
-		device.write_dword(0x04, command_status);
+		// restore old command register and enable correct IO/MEM space
+		command |= (type == BarType::IO) ? PCI_CMD_IO_SPACE : PCI_CMD_MEM_SPACE;
+		device.write_word(PCI_REG_COMMAND, command);
 
 #if DEBUG_PCI
 		dprintln("created BAR region for PCI {}:{}.{}",
@@ -373,17 +377,65 @@ namespace Kernel::PCI
 
 	void PCI::Device::enumerate_capabilites()
 	{
-		uint16_t status = read_word(0x06);
+		uint16_t status = read_word(PCI_REG_STATUS);
 		if (!(status & (1 << 4)))
 			return;
 
-		uint8_t capabilities = read_byte(0x34) & 0xFC;
-		while (capabilities)
+		uint8_t capability_offset = read_byte(PCI_REG_CAPABILITIES) & 0xFC;
+		while (capability_offset)
 		{
-			uint16_t next = read_word(capabilities);
-			dprintln("  cap {2H}", next & 0xFF);
-			capabilities = (next >> 8) & 0xFC;
+			uint16_t capability_info = read_word(capability_offset);
+
+			switch (capability_info & 0xFF)
+			{
+				case 0x05:
+					m_offset_msi = capability_offset;
+					dprintln("{}:{}.{} has MSI", m_bus, m_dev, m_func);
+					break;
+				case 0x11:
+					m_offset_msi_x = capability_offset;
+					dprintln("{}:{}.{} has MSI-X", m_bus, m_dev, m_func);
+					break;
+				default:
+					break;
+			}
+
+			capability_offset = (capability_info >> 8) & 0xFC;
 		}
+	}
+
+	BAN::ErrorOr<uint8_t> PCI::Device::get_irq()
+	{
+		// Legacy PIC just uses the interrupt line field
+		if (!InterruptController::get().is_using_apic())
+			return read_byte(PCI_REG_IRQ_LINE);
+		
+		// TODO: use MSI and MSI-X if supported
+
+		if (m_offset_msi.has_value())
+		{
+		}
+
+		if (m_offset_msi_x.has_value())
+		{
+		}
+
+		for (uint8_t irq_pin = 1; irq_pin <= 4; irq_pin++)
+		{
+			acpi_resource_t dest;
+			auto err = lai_pci_route_pin(&dest, 0, m_bus, m_dev, m_func, irq_pin);
+			if (err != LAI_ERROR_NONE)
+			{
+				dprintln("{}", lai_api_error_to_string(err));
+				continue;
+			}
+
+			write_byte(PCI_REG_IRQ_PIN, irq_pin);
+			return dest.base;
+		}
+
+		dwarnln("Could not allocate interrupt for PCI {}:{}.{}", m_bus, m_dev, m_func);
+		return BAN::Error::from_errno(ENOTSUP);
 	}
 
 	void PCI::Device::set_command_bits(uint16_t mask)

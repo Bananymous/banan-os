@@ -75,6 +75,8 @@ namespace Kernel::PCI
 
 		uint8_t header_type() const { return m_header_type; }
 
+		BAN::ErrorOr<uint8_t> get_irq();
+
 		BAN::ErrorOr<BAN::UniqPtr<BarRegion>> allocate_bar_region(uint8_t bar_num);
 
 		void enable_bus_mastering();
@@ -105,6 +107,9 @@ namespace Kernel::PCI
 		uint8_t m_prog_if;
 
 		uint8_t m_header_type;
+
+		BAN::Optional<uint8_t> m_offset_msi;
+		BAN::Optional<uint8_t> m_offset_msi_x;
 	};
 
 	class PCIManager
