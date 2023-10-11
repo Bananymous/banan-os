@@ -6,11 +6,19 @@
 #include <kernel/Storage/ATA/AHCI/Controller.h>
 #include <kernel/Storage/ATA/ATAController.h>
 
+#include <lai/helpers/pci.h>
+
 #define INVALID_VENDOR 0xFFFF
 #define MULTI_FUNCTION 0x80
 
 #define CONFIG_ADDRESS 0xCF8
 #define CONFIG_DATA 0xCFC
+
+#define PCI_REG_COMMAND 0x04
+#define PCI_CMD_IO_SPACE (1 << 0)
+#define PCI_CMD_MEM_SPACE (1 << 1)
+#define PCI_CMD_BUS_MASTER (1 << 2)
+#define PCI_CMD_INTERRUPT_DISABLE (1 << 10)
 
 #define DEBUG_PCI 1
 
@@ -378,45 +386,54 @@ namespace Kernel::PCI
 		}
 	}
 
+	void PCI::Device::set_command_bits(uint16_t mask)
+	{
+		write_dword(PCI_REG_COMMAND, read_dword(PCI_REG_COMMAND) | mask);
+	}
+
+	void PCI::Device::unset_command_bits(uint16_t mask)
+	{
+		write_dword(PCI_REG_COMMAND, read_dword(PCI_REG_COMMAND) & ~mask);
+	}
+
 	void PCI::Device::enable_bus_mastering()
 	{
-		write_dword(0x04, read_dword(0x04) | 1u << 2);
+		set_command_bits(PCI_CMD_BUS_MASTER);
 	}
 
 	void PCI::Device::disable_bus_mastering()
 	{
-		write_dword(0x04, read_dword(0x04) & ~(1u << 2));
-
+		unset_command_bits(PCI_CMD_BUS_MASTER);
 	}
 
 	void PCI::Device::enable_memory_space()
 	{
-		write_dword(0x04, read_dword(0x04) | 1u << 1);
+		set_command_bits(PCI_CMD_MEM_SPACE);
 	}
 
 	void PCI::Device::disable_memory_space()
 	{
-		write_dword(0x04, read_dword(0x04) & ~(1u << 1));
+		unset_command_bits(PCI_CMD_MEM_SPACE);
 	}
 
 	void PCI::Device::enable_io_space()
 	{
-		write_dword(0x04, read_dword(0x04) | 1u << 0);
+		set_command_bits(PCI_CMD_IO_SPACE);
 	}
 
 	void PCI::Device::disable_io_space()
 	{
-		write_dword(0x04, read_dword(0x04) & ~(1u << 0));
+		unset_command_bits(PCI_CMD_IO_SPACE);
 	}
 
 	void PCI::Device::enable_pin_interrupts()
 	{
-		write_dword(0x04, read_dword(0x04) | 1u << 10);
+		unset_command_bits(PCI_CMD_INTERRUPT_DISABLE);
 	}
 
 	void PCI::Device::disable_pin_interrupts()
 	{
-		write_dword(0x04, read_dword(0x04) & ~(1u << 10));
+		set_command_bits(PCI_CMD_INTERRUPT_DISABLE);
 	}
 
 }

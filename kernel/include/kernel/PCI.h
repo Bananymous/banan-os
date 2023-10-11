@@ -92,10 +92,13 @@ namespace Kernel::PCI
 	private:
 		void enumerate_capabilites();
 
+		void set_command_bits(uint16_t mask);
+		void unset_command_bits(uint16_t mask);
+
 	private:
-		uint8_t m_bus;
-		uint8_t m_dev;
-		uint8_t m_func;
+		const uint8_t m_bus;
+		const uint8_t m_dev;
+		const uint8_t m_func;
 
 		uint8_t m_class_code;
 		uint8_t m_subclass;
