@@ -1,4 +1,5 @@
 #include <kernel/FS/DevFS/FileSystem.h>
+#include <kernel/Storage/ATA/AHCI/Controller.h>
 #include <kernel/Storage/ATA/ATABus.h>
 #include <kernel/Storage/ATA/ATAController.h>
 #include <kernel/Storage/ATA/ATADefinitions.h>
@@ -20,8 +21,8 @@ namespace Kernel
 				dwarnln("unsupported DMA ATA Controller");
 				return BAN::Error::from_errno(ENOTSUP);
 			case 0x06:
-				dwarnln("unsupported SATA Controller");
-				return BAN::Error::from_errno(ENOTSUP);
+				controller_ptr = new AHCIController(pci_device);
+				break;
 			default:
 				ASSERT_NOT_REACHED();
 		}
