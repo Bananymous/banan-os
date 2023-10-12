@@ -123,6 +123,11 @@ namespace Kernel
 		TRY(process->m_cmdline.back().append(path));
 
 		process->m_loadable_elf = TRY(load_elf_for_exec(credentials, path, "/"sv, process->page_table()));
+		if (!process->m_loadable_elf->is_address_space_free())
+		{
+			dprintln("Could not load ELF address space");
+			return BAN::Error::from_errno(ENOEXEC);
+		}
 		process->m_loadable_elf->reserve_address_space();
 
 		process->m_is_userspace = true;
@@ -460,6 +465,11 @@ namespace Kernel
 			m_loadable_elf.clear();
 
 			m_loadable_elf = TRY(load_elf_for_exec(m_credentials, executable_path, m_working_directory, page_table()));
+			if (!m_loadable_elf->is_address_space_free())
+			{
+				dprintln("ELF has unloadable address space");
+				MUST(sys_raise(SIGKILL));
+			}
 			m_loadable_elf->reserve_address_space();
 			m_userspace_info.entry = m_loadable_elf->entry_point();
 

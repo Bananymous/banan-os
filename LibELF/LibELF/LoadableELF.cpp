@@ -27,6 +27,8 @@ namespace LibELF
 
 	LoadableELF::~LoadableELF()
 	{
+		if (!m_loaded)
+			return;
 		for (const auto& program_header : m_program_headers)
 		{
 			switch (program_header.p_type)
@@ -155,6 +157,29 @@ namespace LibELF
 		return false;
 	}
 
+	bool LoadableELF::is_address_space_free() const
+	{
+		for (const auto& program_header : m_program_headers)
+		{
+			switch (program_header.p_type)
+			{
+				case PT_NULL:
+					break;
+				case PT_LOAD:
+				{
+					vaddr_t page_vaddr = program_header.p_vaddr & PAGE_ADDR_MASK;
+					size_t pages = range_page_count(program_header.p_vaddr, program_header.p_memsz);
+					if (!m_page_table.is_range_free(page_vaddr, pages * PAGE_SIZE))
+						return false;
+					break;
+				}
+				default:
+					ASSERT_NOT_REACHED();
+			}
+		}
+		return true;
+	}
+
 	void LoadableELF::reserve_address_space()
 	{
 		for (const auto& program_header : m_program_headers)
@@ -174,6 +199,7 @@ namespace LibELF
 					ASSERT_NOT_REACHED();
 			}
 		}
+		m_loaded = true;
 	}
 
 	BAN::ErrorOr<void> LoadableELF::load_page_to_memory(vaddr_t address)

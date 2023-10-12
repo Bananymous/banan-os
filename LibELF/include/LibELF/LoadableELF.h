@@ -27,6 +27,7 @@ namespace LibELF
 		Kernel::vaddr_t entry_point() const;
 
 		bool contains(Kernel::vaddr_t address) const;
+		bool is_address_space_free() const;
 		void reserve_address_space();
 
 		BAN::ErrorOr<void> load_page_to_memory(Kernel::vaddr_t address);
@@ -47,6 +48,7 @@ namespace LibELF
 		BAN::Vector<ElfNativeProgramHeader>	m_program_headers;
 		size_t m_virtual_page_count = 0;
 		size_t m_physical_page_count = 0;
+		bool m_loaded { false };
 	};
 
 }
