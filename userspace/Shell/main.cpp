@@ -156,7 +156,9 @@ BAN::Optional<BAN::String> parse_dollar(BAN::StringView command, size_t& i)
 		return output;
 	}
 
-	return "$"sv;
+	BAN::String temp = "$"sv;
+	MUST(temp.push_back(command[i]));
+	return temp;
 }
 
 BAN::StringView strip_whitespace(BAN::StringView sv)
