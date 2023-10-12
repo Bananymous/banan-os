@@ -148,6 +148,12 @@ namespace Kernel
 		return read_register(HPET_REG_COUNTER) * m_counter_tick_period_fs / FS_PER_MS;
 	}
 
+	uint64_t HPET::ns_since_boot() const
+	{
+		// FIXME: 32 bit CPUs should use 32 bit counter with 32 bit reads
+		return read_register(HPET_REG_COUNTER) * m_counter_tick_period_fs / FS_PER_NS;
+	}
+
 	timespec HPET::time_since_boot() const
 	{
 		uint64_t time_fs = read_register(HPET_REG_COUNTER) * m_counter_tick_period_fs;

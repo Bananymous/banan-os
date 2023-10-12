@@ -12,6 +12,7 @@ namespace Kernel
 		static BAN::ErrorOr<BAN::UniqPtr<HPET>> create(bool force_pic);
 
 		virtual uint64_t ms_since_boot() const override;
+		virtual uint64_t ns_since_boot() const override;
 		virtual timespec time_since_boot() const override;
 
 		virtual void handle_irq() override;

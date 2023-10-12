@@ -62,6 +62,11 @@ namespace Kernel
 		return m_system_time * (MS_PER_S / TICKS_PER_SECOND);
 	}
 
+	uint64_t PIT::ns_since_boot() const
+	{
+		return m_system_time * (NS_PER_S / TICKS_PER_SECOND);
+	}
+
 	timespec PIT::time_since_boot() const
 	{
 		uint64_t ticks = m_system_time;
