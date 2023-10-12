@@ -15,6 +15,9 @@ namespace Kernel
 		vaddr_t vaddr() const { return m_vaddr; }
 		paddr_t paddr() const { return m_paddr; }
 
+		paddr_t vaddr_to_paddr(vaddr_t vaddr) const { return vaddr - m_vaddr + m_paddr; }
+		vaddr_t paddr_to_vaddr(paddr_t paddr) const { return paddr - m_paddr + m_vaddr; }
+
 	private:
 		DMARegion(size_t size, vaddr_t vaddr, paddr_t paddr);
 
