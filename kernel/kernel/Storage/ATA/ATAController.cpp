@@ -7,7 +7,7 @@
 namespace Kernel
 {
 
-	BAN::ErrorOr<BAN::UniqPtr<StorageController>> ATAController::create(PCI::Device& pci_device)
+	BAN::ErrorOr<BAN::RefPtr<StorageController>> ATAController::create(PCI::Device& pci_device)
 	{
 		StorageController* controller_ptr = nullptr;
 
@@ -29,7 +29,7 @@ namespace Kernel
 		if (controller_ptr == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
 
-		auto controller = BAN::UniqPtr<StorageController>::adopt(controller_ptr);
+		auto controller = BAN::RefPtr<StorageController>::adopt(controller_ptr);
 		TRY(controller->initialize());
 		return controller;
 	}
@@ -66,9 +66,6 @@ namespace Kernel
 		{
 			dprintln("unsupported IDE ATABus in native mode");
 		}
-
-		for (auto& bus : buses)
-			bus->initialize_devfs();
 
 		return {};
 	}

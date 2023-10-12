@@ -1,9 +1,11 @@
 #pragma once
 
+#include <BAN/RefPtr.h>
+
 namespace Kernel
 {
 
-	class StorageController
+	class StorageController : public BAN::RefCounted<StorageController>
 	{
 	public:
 		virtual ~StorageController() {}

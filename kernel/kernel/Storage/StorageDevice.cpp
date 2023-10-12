@@ -283,9 +283,9 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<void> StorageDevice::read_sectors(uint64_t lba, uint8_t sector_count, uint8_t* buffer)
+	BAN::ErrorOr<void> StorageDevice::read_sectors(uint64_t lba, uint64_t sector_count, uint8_t* buffer)
 	{
-		for (uint8_t offset = 0; offset < sector_count; offset++)
+		for (uint64_t offset = 0; offset < sector_count; offset++)
 		{
 			LockGuard _(m_lock);
 			Thread::TerminateBlocker blocker(Thread::current());
@@ -302,7 +302,7 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<void> StorageDevice::write_sectors(uint64_t lba, uint8_t sector_count, const uint8_t* buffer)
+	BAN::ErrorOr<void> StorageDevice::write_sectors(uint64_t lba, uint64_t sector_count, const uint8_t* buffer)
 	{
 		// TODO: use disk cache for dirty pages. I don't wanna think about how to do it safely now
 		for (uint8_t offset = 0; offset < sector_count; offset++)

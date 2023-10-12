@@ -27,8 +27,6 @@ namespace Kernel
 
 		virtual void handle_irq() override;
 
-		void initialize_devfs();
-
 	private:
 		ATABus(uint16_t base, uint16_t ctrl)
 			: m_base(base)
@@ -54,7 +52,7 @@ namespace Kernel
 		const uint16_t m_ctrl;
 		SpinLock m_lock;
 
-		bool m_has_got_irq { false };
+		volatile bool m_has_got_irq { false };
 
 		// Non-owning pointers
 		BAN::Vector<ATADevice*> m_devices;

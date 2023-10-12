@@ -12,7 +12,7 @@ namespace Kernel
 	class ATAController : public StorageController
 	{
 	public:
-		static BAN::ErrorOr<BAN::UniqPtr<StorageController>> create(PCI::Device&);
+		static BAN::ErrorOr<BAN::RefPtr<StorageController>> create(PCI::Device&);
 		virtual BAN::ErrorOr<void> initialize() override;
 
 	private:

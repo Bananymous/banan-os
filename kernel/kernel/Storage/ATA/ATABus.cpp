@@ -41,6 +41,10 @@ namespace Kernel
 			else
 				device_type = res.value();
 
+			// Enable interrupts
+			select_device(is_secondary);
+			io_write(ATA_PORT_CONTROL, 0);
+
 			auto device_or_error = ATADevice::create(this, device_type, is_secondary, identify_buffer.span());
 
 			if (device_or_error.is_error())
@@ -50,35 +54,23 @@ namespace Kernel
 			}
 
 			auto device = device_or_error.release_value();
-			device->ref();
 			TRY(m_devices.push_back(device.ptr()));
-		}
-
-		// Enable disk interrupts
-		for (auto& device : m_devices)
-		{
-			select_device(device->is_secondary());
-			io_write(ATA_PORT_CONTROL, 0);
 		}
 
 		return {};
 	}
 
-	void ATABus::initialize_devfs()
+	static void select_delay()
 	{
-		for (auto& device : m_devices)
-		{
-			DevFileSystem::get().add_device(device);
-			if (auto res = device->initialize_partitions(); res.is_error())
-				dprintln("{}", res.error());
-			device->unref();
-		}
+		auto time = SystemTimer::get().ns_since_boot();
+		while (SystemTimer::get().ns_since_boot() < time + 400)
+			continue;
 	}
 
 	void ATABus::select_device(bool secondary)
 	{
 		io_write(ATA_PORT_DRIVE_SELECT, 0xA0 | ((uint8_t)secondary << 4));
-		SystemTimer::get().sleep(1);
+		select_delay();
 	}
 
 	BAN::ErrorOr<ATABus::DeviceType> ATABus::identify(bool secondary, BAN::Span<uint16_t> buffer)
@@ -236,6 +228,9 @@ namespace Kernel
 		{
 			// LBA28
 			io_write(ATA_PORT_DRIVE_SELECT, 0xE0 | ((uint8_t)device.is_secondary() << 4) | ((lba >> 24) & 0x0F));
+			select_delay();
+			io_write(ATA_PORT_CONTROL, 0);
+
 			io_write(ATA_PORT_SECTOR_COUNT, sector_count);
 			io_write(ATA_PORT_LBA0, (uint8_t)(lba >>  0));
 			io_write(ATA_PORT_LBA1, (uint8_t)(lba >>  8));
@@ -268,13 +263,14 @@ namespace Kernel
 		{
 			// LBA28
 			io_write(ATA_PORT_DRIVE_SELECT, 0xE0 | ((uint8_t)device.is_secondary() << 4) | ((lba >> 24) & 0x0F));
+			select_delay();
+			io_write(ATA_PORT_CONTROL, 0);
+
 			io_write(ATA_PORT_SECTOR_COUNT, sector_count);
 			io_write(ATA_PORT_LBA0, (uint8_t)(lba >>  0));
 			io_write(ATA_PORT_LBA1, (uint8_t)(lba >>  8));
 			io_write(ATA_PORT_LBA2, (uint8_t)(lba >> 16));
 			io_write(ATA_PORT_COMMAND, ATA_COMMAND_WRITE_SECTORS);
-
-			SystemTimer::get().sleep(1);
 
 			for (uint32_t sector = 0; sector < sector_count; sector++)
 			{

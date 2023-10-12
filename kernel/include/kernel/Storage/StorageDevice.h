@@ -73,8 +73,8 @@ namespace Kernel
 
 		BAN::ErrorOr<void> initialize_partitions();
 
-		BAN::ErrorOr<void> read_sectors(uint64_t lba, uint8_t sector_count, uint8_t* buffer);
-		BAN::ErrorOr<void> write_sectors(uint64_t lba, uint8_t sector_count, const uint8_t* buffer);
+		BAN::ErrorOr<void> read_sectors(uint64_t lba, uint64_t sector_count, uint8_t* buffer);
+		BAN::ErrorOr<void> write_sectors(uint64_t lba, uint64_t sector_count, const uint8_t* buffer);
 
 		virtual uint32_t sector_size() const = 0;
 		virtual uint64_t total_size() const = 0;
@@ -86,8 +86,8 @@ namespace Kernel
 		virtual bool is_storage_device() const override { return true; }
 
 	protected:
-		virtual BAN::ErrorOr<void> read_sectors_impl(uint64_t lba, uint8_t sector_count, uint8_t* buffer) = 0;
-		virtual BAN::ErrorOr<void> write_sectors_impl(uint64_t lba, uint8_t sector_count, const uint8_t* buffer) = 0;
+		virtual BAN::ErrorOr<void> read_sectors_impl(uint64_t lba, uint64_t sector_count, uint8_t* buffer) = 0;
+		virtual BAN::ErrorOr<void> write_sectors_impl(uint64_t lba, uint64_t sector_count, const uint8_t* buffer) = 0;
 		void add_disk_cache();
 
 	private:
