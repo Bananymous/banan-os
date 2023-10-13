@@ -23,7 +23,7 @@ namespace Kernel
 
 		m_vaddr = PageTable::kernel().reserve_free_contiguous_pages(m_bitmap_pages, KERNEL_OFFSET);
 		ASSERT(m_vaddr);
-		PageTable::kernel().map_range_at(m_paddr, m_vaddr, size, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
+		PageTable::kernel().map_range_at(m_paddr, m_vaddr, m_bitmap_pages * PAGE_SIZE, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
 
 		memset((void*)m_vaddr, 0x00, m_bitmap_pages * PAGE_SIZE);
 
@@ -36,8 +36,6 @@ namespace Kernel
 			ull bits = m_data_pages % ull_bits;
 			ull_bitmap_ptr()[off] = ~(~0ull << bits);
 		}
-
-		dprintln("physical range needs {} pages for bitmap", m_bitmap_pages);
 	}
 
 	paddr_t PhysicalRange::paddr_for_bit(ull bit) const
