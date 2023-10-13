@@ -43,7 +43,8 @@ namespace Kernel
 		
 		virtual uint32_t width() const override;
 		virtual uint32_t height() const override;
-		virtual void putchar_impl(uint8_t) override;
+
+		virtual void clear() override { putchar_impl('\e'); putchar_impl('['); putchar_impl('2'); putchar_impl('J'); }
 
 		virtual void update() override;
 
@@ -51,6 +52,7 @@ namespace Kernel
 
 	protected:
 		virtual BAN::StringView name() const override { return m_name; }
+		virtual void putchar_impl(uint8_t) override;
 
 	private:
 		SerialTTY(Serial);

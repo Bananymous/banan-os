@@ -27,6 +27,7 @@ namespace Kernel
 	void TTY::set_as_current()
 	{
 		s_tty = this;
+		clear();
 
 		auto inode_or_error = DevFileSystem::get().root_inode()->find_inode("tty"sv);
 		if (inode_or_error.is_error())

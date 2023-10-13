@@ -38,7 +38,8 @@ namespace Kernel
 		virtual uint32_t height() const = 0;
 		virtual uint32_t width() const = 0;
 		void putchar(uint8_t ch);
-		virtual void putchar_impl(uint8_t ch) = 0;
+
+		virtual void clear() = 0;
 
 		virtual bool has_data_impl() const override;
 
@@ -47,6 +48,7 @@ namespace Kernel
 			: CharacterDevice(mode, uid, gid)
 		{ }
 
+		virtual void putchar_impl(uint8_t ch) = 0;
 		virtual BAN::ErrorOr<size_t> read_impl(off_t, void*, size_t) override;
 		virtual BAN::ErrorOr<size_t> write_impl(off_t, const void*, size_t) override;
 
