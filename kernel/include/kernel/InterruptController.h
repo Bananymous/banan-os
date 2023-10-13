@@ -11,13 +11,15 @@ namespace Kernel
 	class Interruptable
 	{
 	public:
-		Interruptable() = default;
-
 		void set_irq(int irq);
 		void enable_interrupt();
 		void disable_interrupt();
 
 		virtual void handle_irq() = 0;
+
+	protected:
+		Interruptable() = default;
+		~Interruptable() {}
 
 	private:
 		int m_irq { -1 };
