@@ -82,6 +82,8 @@ static void parse_command_line()
 extern "C" uint8_t g_userspace_start[];
 extern "C" uint8_t g_userspace_end[];
 
+TerminalDriver* g_terminal_driver = nullptr;
+
 static void init2(void*);
 
 extern "C" void kernel_main()
@@ -114,6 +116,10 @@ extern "C" void kernel_main()
 	PageTable::initialize();
 	dprintln("PageTable initialized");
 
+	g_terminal_driver = VesaTerminalDriver::create();
+	ASSERT(g_terminal_driver);
+	dprintln("VESA initialized");
+
 	Heap::initialize();
 	dprintln("Heap initialzed");
 
@@ -141,11 +147,7 @@ extern "C" void kernel_main()
 		dprintln("Serial devices initialized");
 	}
 
-	TerminalDriver* terminal_driver = VesaTerminalDriver::create();
-	ASSERT(terminal_driver);
-	dprintln("VESA initialized");
-
-	auto vtty = MUST(VirtualTTY::create(terminal_driver));
+	auto vtty = MUST(VirtualTTY::create(g_terminal_driver));
 	dprintln("Virtual TTY initialized");
 
 	MUST(Scheduler::initialize());

@@ -6,6 +6,10 @@
 #include <kernel/Terminal/TTY.h>
 #include <kernel/Timer/Timer.h>
 
+#include <ctype.h>
+
+extern TerminalDriver* g_terminal_driver;
+
 namespace Debug
 {
 
@@ -64,6 +68,35 @@ namespace Debug
 			return Kernel::Serial::putchar_any(ch);
 		if (Kernel::TTY::is_initialized())
 			return Kernel::TTY::putchar_current(ch);
+
+		if (g_terminal_driver)
+		{
+			static uint32_t col = 0;
+			static uint32_t row = 0;
+
+			if (ch == '\n')
+			{
+				row++;
+				col = 0;
+			}
+			else if (ch == '\r')
+			{
+				col = 0;
+			}
+			else
+			{
+				if (!isprint(ch))
+					ch = '?';
+				g_terminal_driver->putchar_at(ch, col, row, TerminalColor::BRIGHT_WHITE, TerminalColor::BLACK);
+
+				col++;
+				if (col >= g_terminal_driver->width())
+				{
+					row++;
+					col = 0;
+				}
+			}
+		}
 	}
 
 	void print_prefix(const char* file, int line)
