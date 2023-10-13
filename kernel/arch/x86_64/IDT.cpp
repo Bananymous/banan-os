@@ -1,3 +1,4 @@
+#include <BAN/Array.h>
 #include <BAN/Errors.h>
 #include <kernel/IDT.h>
 #include <kernel/InterruptController.h>
@@ -8,10 +9,8 @@
 #include <kernel/Scheduler.h>
 #include <kernel/Timer/PIT.h>
 
-#include <unistd.h>
-
-#define REGISTER_ISR_HANDLER(i) register_interrupt_handler(i, isr ## i)
-#define REGISTER_IRQ_HANDLER(i) register_interrupt_handler(IRQ_VECTOR_BASE + i, irq ## i)
+#define ISR_LIST_X X(0) X(1) X(2) X(3) X(4) X(5) X(6) X(7) X(8) X(9) X(10) X(11) X(12) X(13) X(14) X(15) X(16) X(17) X(18) X(19) X(20) X(21) X(22) X(23) X(24) X(25) X(26) X(27) X(28) X(29) X(30) X(31)
+#define IRQ_LIST_X X(0) X(1) X(2) X(3) X(4) X(5) X(6) X(7) X(8) X(9) X(10) X(11) X(12) X(13) X(14) X(15) X(16) X(17) X(18) X(19) X(20) X(21) X(22) X(23) X(24) X(25) X(26) X(27) X(28) X(29) X(30) X(31)
 
 namespace Kernel::IDT
 {
@@ -63,7 +62,9 @@ namespace Kernel::IDT
 	static IDTR				s_idtr;
 	static GateDescriptor*	s_idt = nullptr;
 
-	static Interruptable* s_interruptables[0x10] {};
+#define X(num) 1 +
+	static BAN::Array<Interruptable*, IRQ_LIST_X 0> s_interruptables;
+#undef X
 
 	enum ISR
 	{
@@ -356,58 +357,18 @@ done:
 
 	void register_irq_handler(uint8_t irq, Interruptable* interruptable)
 	{
+		if (irq > s_interruptables.size())
+			Kernel::panic("Trying to assign handler for irq {} while only {} are supported", irq, s_interruptables.size());
 		s_interruptables[irq] = interruptable;
 	}
 
-	extern "C" void isr0();
-	extern "C" void isr1();
-	extern "C" void isr2();
-	extern "C" void isr3();
-	extern "C" void isr4();
-	extern "C" void isr5();
-	extern "C" void isr6();
-	extern "C" void isr7();
-	extern "C" void isr8();
-	extern "C" void isr9();
-	extern "C" void isr10();
-	extern "C" void isr11();
-	extern "C" void isr12();
-	extern "C" void isr13();
-	extern "C" void isr14();
-	extern "C" void isr15();
-	extern "C" void isr16();
-	extern "C" void isr17();
-	extern "C" void isr18();
-	extern "C" void isr19();
-	extern "C" void isr20();
-	extern "C" void isr21();
-	extern "C" void isr22();
-	extern "C" void isr23();
-	extern "C" void isr24();
-	extern "C" void isr25();
-	extern "C" void isr26();
-	extern "C" void isr27();
-	extern "C" void isr28();
-	extern "C" void isr29();
-	extern "C" void isr30();
-	extern "C" void isr31();
+#define X(num) extern "C" void isr ## num();
+	ISR_LIST_X
+#undef X
 
-	extern "C" void irq0();
-	extern "C" void irq1();
-	extern "C" void irq2();
-	extern "C" void irq3();
-	extern "C" void irq4();
-	extern "C" void irq5();
-	extern "C" void irq6();
-	extern "C" void irq7();
-	extern "C" void irq8();
-	extern "C" void irq9();
-	extern "C" void irq10();
-	extern "C" void irq11();
-	extern "C" void irq12();
-	extern "C" void irq13();
-	extern "C" void irq14();
-	extern "C" void irq15();
+#define X(num) extern "C" void irq ## num();
+	IRQ_LIST_X
+#undef X
 
 	extern "C" void syscall_asm();
 
@@ -420,55 +381,13 @@ done:
 		s_idtr.offset = (uint64_t)s_idt;
 		s_idtr.size = 0x100 * sizeof(GateDescriptor) - 1;
 
-		REGISTER_ISR_HANDLER(0);
-		REGISTER_ISR_HANDLER(1);
-		REGISTER_ISR_HANDLER(2);
-		REGISTER_ISR_HANDLER(3);
-		REGISTER_ISR_HANDLER(4);
-		REGISTER_ISR_HANDLER(5);
-		REGISTER_ISR_HANDLER(6);
-		REGISTER_ISR_HANDLER(7);
-		REGISTER_ISR_HANDLER(8);
-		REGISTER_ISR_HANDLER(9);
-		REGISTER_ISR_HANDLER(10);
-		REGISTER_ISR_HANDLER(11);
-		REGISTER_ISR_HANDLER(12);
-		REGISTER_ISR_HANDLER(13);
-		REGISTER_ISR_HANDLER(14);
-		REGISTER_ISR_HANDLER(15);
-		REGISTER_ISR_HANDLER(16);
-		REGISTER_ISR_HANDLER(17);
-		REGISTER_ISR_HANDLER(18);
-		REGISTER_ISR_HANDLER(19);
-		REGISTER_ISR_HANDLER(20);
-		REGISTER_ISR_HANDLER(21);
-		REGISTER_ISR_HANDLER(22);
-		REGISTER_ISR_HANDLER(23);
-		REGISTER_ISR_HANDLER(24);
-		REGISTER_ISR_HANDLER(25);
-		REGISTER_ISR_HANDLER(26);
-		REGISTER_ISR_HANDLER(27);
-		REGISTER_ISR_HANDLER(28);
-		REGISTER_ISR_HANDLER(29);
-		REGISTER_ISR_HANDLER(30);
-		REGISTER_ISR_HANDLER(31);
+#define X(num) register_interrupt_handler(num, isr ## num);
+		ISR_LIST_X
+#undef X
 
-		REGISTER_IRQ_HANDLER(0);
-		REGISTER_IRQ_HANDLER(1);
-		REGISTER_IRQ_HANDLER(2);
-		REGISTER_IRQ_HANDLER(3);
-		REGISTER_IRQ_HANDLER(4);
-		REGISTER_IRQ_HANDLER(5);
-		REGISTER_IRQ_HANDLER(6);
-		REGISTER_IRQ_HANDLER(7);
-		REGISTER_IRQ_HANDLER(8);
-		REGISTER_IRQ_HANDLER(9);
-		REGISTER_IRQ_HANDLER(10);
-		REGISTER_IRQ_HANDLER(11);
-		REGISTER_IRQ_HANDLER(12);
-		REGISTER_IRQ_HANDLER(13);
-		REGISTER_IRQ_HANDLER(14);
-		REGISTER_IRQ_HANDLER(15);
+#define X(num) register_interrupt_handler(IRQ_VECTOR_BASE + num, irq ## num);
+		IRQ_LIST_X
+#undef X
 
 		register_syscall_handler(0x80, syscall_asm);
 

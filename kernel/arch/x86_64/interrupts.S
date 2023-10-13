@@ -158,6 +158,22 @@ irq 12
 irq 13
 irq 14
 irq 15
+irq 16
+irq 17
+irq 18
+irq 19
+irq 20
+irq 21
+irq 22
+irq 23
+irq 24
+irq 25
+irq 26
+irq 27
+irq 28
+irq 29
+irq 30
+irq 31
 
 // arguments in RAX, RBX, RCX, RDX, RSI, RDI
 // System V ABI: RDI, RSI, RDX, RCX, R8, R9
