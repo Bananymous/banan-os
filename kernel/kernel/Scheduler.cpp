@@ -7,7 +7,10 @@
 #include <kernel/Scheduler.h>
 #include <kernel/Timer/PIT.h>
 
-#if 1
+#define SCHEDULER_VERIFY_STACK 1
+#define SCHEDULER_VERIFY_INTERRUPT_STATE 1
+
+#if SCHEDULER_VERIFY_INTERRUPT_STATE
 	#define VERIFY_STI() ASSERT(interrupts_enabled())
 	#define VERIFY_CLI() ASSERT(!interrupts_enabled())
 #else
@@ -202,6 +205,7 @@ namespace Kernel
 		delete thread;
 
 		execute_current_thread();
+		ASSERT_NOT_REACHED();
 	}
 
 	void Scheduler::execute_current_thread()
@@ -210,6 +214,20 @@ namespace Kernel
 
 		load_temp_stack();
 		PageTable::kernel().load();
+		_execute_current_thread();
+		ASSERT_NOT_REACHED();
+	}
+
+	NEVER_INLINE void Scheduler::_execute_current_thread()
+	{
+		VERIFY_CLI();
+
+#if SCHEDULER_VERIFY_STACK
+		vaddr_t rsp;
+		read_rsp(rsp);
+		ASSERT((vaddr_t)s_temp_stack <= rsp && rsp <= (vaddr_t)s_temp_stack + sizeof(s_temp_stack));
+		ASSERT(&PageTable::current() == &PageTable::kernel());
+#endif
 
 		Thread* current = &current_thread();
 

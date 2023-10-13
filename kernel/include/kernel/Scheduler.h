@@ -31,6 +31,7 @@ namespace Kernel
 		static bool is_valid_tid(pid_t tid);
 
 		[[noreturn]] void execute_current_thread();
+		[[noreturn]] void _execute_current_thread();
 		[[noreturn]] void delete_current_process_and_thread();
 
 	private:
