@@ -190,7 +190,11 @@ namespace Kernel::PCI
 
 	BAN::ErrorOr<BAN::UniqPtr<BarRegion>> BarRegion::create(PCI::Device& device, uint8_t bar_num)
 	{
-		ASSERT(device.header_type() == 0x00);
+		if (device.header_type() != 0x00)
+		{
+			dprintln("BAR regions for non general devices are not supported");
+			return BAN::Error::from_errno(ENOTSUP);
+		}
 
 		// disable io/mem space while reading bar
 		uint16_t command = device.read_word(PCI_REG_COMMAND);
@@ -390,11 +394,9 @@ namespace Kernel::PCI
 			{
 				case 0x05:
 					m_offset_msi = capability_offset;
-					dprintln("{}:{}.{} has MSI", m_bus, m_dev, m_func);
 					break;
 				case 0x11:
 					m_offset_msi_x = capability_offset;
-					dprintln("{}:{}.{} has MSI-X", m_bus, m_dev, m_func);
 					break;
 				default:
 					break;
