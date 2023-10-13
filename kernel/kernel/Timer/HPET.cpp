@@ -46,7 +46,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> HPET::initialize(bool force_pic)
 	{
-		auto* header = (ACPI::HPET*)ACPI::get().get_header("HPET");
+		auto* header = (ACPI::HPET*)ACPI::get().get_header("HPET"sv, 0);
 		if (header == nullptr)
 			return BAN::Error::from_errno(ENODEV);
 

@@ -51,8 +51,7 @@ void laihost_panic(const char* msg)
 
 void* laihost_scan(const char* sig, size_t index)
 {
-	ASSERT(index == 0);
-	return (void*)ACPI::get().get_header(sig);
+	return (void*)ACPI::get().get_header(sig, index);
 }
 
 void* laihost_map(size_t address, size_t count)

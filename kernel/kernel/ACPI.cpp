@@ -222,13 +222,20 @@ namespace Kernel
 		return {};
 	}
 
-	const ACPI::SDTHeader* ACPI::get_header(const char signature[4])
+	const ACPI::SDTHeader* ACPI::get_header(BAN::StringView signature, uint32_t index)
 	{
+		if (signature.size() != 4)
+		{
+			dprintln("Trying to get ACPI header with {} byte signature ??", signature.size());
+			return nullptr;
+		}
+		uint32_t cnt = 0;
 		for (auto& mapped_header : m_mapped_headers)
 		{
 			auto* header = mapped_header.as_header();
-			if (memcmp(header->signature, signature, 4) == 0)
-				return header;
+			if (memcmp(header->signature, signature.data(), 4) == 0)
+				if (cnt++ == index)
+					return header;
 		}
 		return nullptr;
 	}

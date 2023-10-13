@@ -108,7 +108,7 @@ namespace Kernel
 		static BAN::ErrorOr<void> initialize();
 		static ACPI& get();
 
-		const SDTHeader* get_header(const char[4]);
+		const SDTHeader* get_header(BAN::StringView signature, uint32_t index);
 
 	private:
 		ACPI() = default;

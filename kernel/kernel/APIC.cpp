@@ -95,7 +95,7 @@ namespace Kernel
 			return nullptr;
 		}
 
-		const MADT* madt = (const MADT*)Kernel::ACPI::get().get_header("APIC");
+		const MADT* madt = (const MADT*)Kernel::ACPI::get().get_header("APIC"sv, 0);
 		if (madt == nullptr)
 		{
 			dprintln("Could not find MADT header");
