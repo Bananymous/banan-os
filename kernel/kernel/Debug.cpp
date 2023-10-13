@@ -74,6 +74,8 @@ namespace Debug
 			static uint32_t col = 0;
 			static uint32_t row = 0;
 
+			uint32_t row_copy = row;
+
 			if (ch == '\n')
 			{
 				row++;
@@ -94,6 +96,19 @@ namespace Debug
 				{
 					row++;
 					col = 0;
+				}
+			}
+
+			if (row >= g_terminal_driver->height())
+				row = 0;
+			
+			if (row != row_copy)
+			{
+				for (uint32_t i = col; i < g_terminal_driver->width(); i++)
+				{
+					g_terminal_driver->putchar_at(' ', i, row, TerminalColor::BRIGHT_WHITE, TerminalColor::BLACK);
+					if (row + 1 < g_terminal_driver->height())
+						g_terminal_driver->putchar_at(' ', i, row + 1, TerminalColor::BRIGHT_WHITE, TerminalColor::BLACK);
 				}
 			}
 		}
