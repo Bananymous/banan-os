@@ -117,8 +117,8 @@ extern "C" void kernel_main()
 	dprintln("PageTable initialized");
 
 	g_terminal_driver = VesaTerminalDriver::create();
-	ASSERT(g_terminal_driver);
-	dprintln("VESA initialized");
+	if (g_terminal_driver)
+		dprintln("VESA initialized");
 
 	Heap::initialize();
 	dprintln("Heap initialzed");
@@ -147,8 +147,11 @@ extern "C" void kernel_main()
 		dprintln("Serial devices initialized");
 	}
 
-	auto vtty = MUST(VirtualTTY::create(g_terminal_driver));
-	dprintln("Virtual TTY initialized");
+	if (g_terminal_driver)
+	{
+		auto vtty = MUST(VirtualTTY::create(g_terminal_driver));
+		dprintln("Virtual TTY initialized");
+	}
 
 	MUST(Scheduler::initialize());
 	dprintln("Scheduler initialized");
