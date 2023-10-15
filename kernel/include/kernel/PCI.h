@@ -75,6 +75,9 @@ namespace Kernel::PCI
 
 		uint8_t header_type() const { return m_header_type; }
 
+		uint16_t vendor_id() const { return m_vendor_id; }
+		uint16_t device_id() const { return m_device_id; }
+
 		BAN::ErrorOr<uint8_t> get_irq();
 
 		BAN::ErrorOr<BAN::UniqPtr<BarRegion>> allocate_bar_region(uint8_t bar_num);
@@ -107,6 +110,8 @@ namespace Kernel::PCI
 		uint8_t m_prog_if;
 
 		uint8_t m_header_type;
+		uint16_t m_vendor_id;
+		uint16_t m_device_id;
 
 		BAN::Optional<uint8_t> m_offset_msi;
 		BAN::Optional<uint8_t> m_offset_msi_x;

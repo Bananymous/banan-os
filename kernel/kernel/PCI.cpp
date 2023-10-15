@@ -337,6 +337,15 @@ namespace Kernel::PCI
 		m_prog_if     = read_byte(0x09);
 		m_header_type = read_byte(0x0E);
 
+		uint32_t device = read_dword(0x00);
+		m_vendor_id = device & 0xFFFF;
+		m_device_id = device >> 16;
+
+		dprintln("PCI {2H}:{2H}.{2H} has {2H}.{2H}.{2H}",
+			m_bus, m_dev, m_func,
+			m_class_code, m_subclass, m_prog_if
+		);
+
 		enumerate_capabilites();
 	}
 
