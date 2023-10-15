@@ -173,8 +173,9 @@ namespace Kernel::PCI
 					switch (pci_device.subclass())
 					{
 						case 0x00:
-							if (auto res = E1000::create(pci_device); res.is_error())
-								dprintln("E1000: {}", res.error());
+							if (E1000::probe(pci_device))
+								if (auto res = E1000::create(pci_device); res.is_error())
+									dprintln("E1000: {}", res.error());
 							break;
 						default:
 							dprintln("unsupported ethernet device (pci {2H}.{2H}.{2H})", pci_device.class_code(), pci_device.subclass(), pci_device.prog_if());

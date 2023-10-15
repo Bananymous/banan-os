@@ -112,6 +112,45 @@ namespace Kernel
 		volatile uint16_t special;
 	} __attribute__((packed));
 
+	// https://www.intel.com/content/dam/doc/manual/pci-pci-x-family-gbe-controllers-software-dev-manual.pdf (section 5.2)
+	bool E1000::probe(PCI::Device& pci_device)
+	{
+		// Intel device
+		if (pci_device.vendor_id() != 0x8086)
+			return false;
+
+		switch (pci_device.device_id())
+		{
+			case 0x1019:
+			case 0x101A:
+			case 0x1010:
+			case 0x1012:
+			case 0x101D:
+			case 0x1079:
+			case 0x107A:
+			case 0x107B:
+			case 0x100F:
+			case 0x1011:
+			case 0x1026:
+			case 0x1027:
+			case 0x1028:
+			case 0x1107:
+			case 0x1112:
+			case 0x1013:
+			case 0x1018:
+			case 0x1076:
+			case 0x1077:
+			case 0x1078:
+			case 0x1017:
+			case 0x1016:
+			case 0x100e:
+			case 0x1015:
+				return true;
+			default:
+				return false;
+		}
+	}
+
 	BAN::ErrorOr<BAN::UniqPtr<E1000>> E1000::create(PCI::Device& pci_device)
 	{
 		E1000* e1000 = new E1000();

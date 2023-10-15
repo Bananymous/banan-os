@@ -13,6 +13,7 @@ namespace Kernel
 	class E1000 final : public NetworkDriver
 	{
 	public:
+		static bool probe(PCI::Device&);
 		static BAN::ErrorOr<BAN::UniqPtr<E1000>> create(PCI::Device&);
 		~E1000();
 
