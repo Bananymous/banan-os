@@ -22,6 +22,10 @@ if(DEFINED QEMU_ACCEL)
 	set(QEMU_ACCEL -accel ${QEMU_ACCEL})
 endif()
 
+if(DEFINED UEFI_BOOT)
+	set(UEFI_BOOT 1)
+endif()
+
 add_compile_options(-mno-sse -mno-sse2)
 add_compile_definitions(__enable_sse=0)
 
@@ -67,7 +71,7 @@ add_custom_target(libstdc++
 )
 
 add_custom_target(image
-	COMMAND ${CMAKE_COMMAND} -E env SYSROOT="${BANAN_SYSROOT}" DISK_IMAGE_PATH="${DISK_IMAGE_PATH}" ${CMAKE_SOURCE_DIR}/image.sh
+	COMMAND ${CMAKE_COMMAND} -E env BANAN_ARCH="${BANAN_ARCH}" SYSROOT="${BANAN_SYSROOT}" DISK_IMAGE_PATH="${DISK_IMAGE_PATH}" TOOLCHAIN="${TOOLCHAIN_PREFIX}" UEFI_BOOT="${UEFI_BOOT}" ${CMAKE_SOURCE_DIR}/image.sh
 	DEPENDS kernel-install
 	DEPENDS ban-install
 	DEPENDS libc-install
@@ -77,7 +81,7 @@ add_custom_target(image
 )
 
 add_custom_target(image-full
-	COMMAND ${CMAKE_COMMAND} -E env SYSROOT="${BANAN_SYSROOT}" DISK_IMAGE_PATH="${DISK_IMAGE_PATH}" ${CMAKE_SOURCE_DIR}/image-full.sh
+	COMMAND ${CMAKE_COMMAND} -E env BANAN_ARCH="${BANAN_ARCH}" SYSROOT="${BANAN_SYSROOT}" DISK_IMAGE_PATH="${DISK_IMAGE_PATH}" TOOLCHAIN="${TOOLCHAIN_PREFIX}" UEFI_BOOT="${UEFI_BOOT}" ${CMAKE_SOURCE_DIR}/image-full.sh
 	DEPENDS kernel-install
 	DEPENDS ban-install
 	DEPENDS libc-install
@@ -92,19 +96,19 @@ add_custom_target(check-fs
 )
 
 add_custom_target(qemu
-	COMMAND ${CMAKE_COMMAND} -E env BANAN_ARCH="${BANAN_ARCH}" DISK_IMAGE_PATH="${DISK_IMAGE_PATH}" ${CMAKE_SOURCE_DIR}/qemu.sh -serial stdio ${QEMU_ACCEL}
+	COMMAND ${CMAKE_COMMAND} -E env BANAN_ARCH="${BANAN_ARCH}" DISK_IMAGE_PATH="${DISK_IMAGE_PATH}" UEFI_BOOT="${UEFI_BOOT}" ${CMAKE_SOURCE_DIR}/qemu.sh -serial stdio ${QEMU_ACCEL}
 	DEPENDS image
 	USES_TERMINAL
 )
 
 add_custom_target(qemu-nographic
-	COMMAND ${CMAKE_COMMAND} -E env BANAN_ARCH="${BANAN_ARCH}" DISK_IMAGE_PATH="${DISK_IMAGE_PATH}" ${CMAKE_SOURCE_DIR}/qemu.sh -nographic ${QEMU_ACCEL}
+	COMMAND ${CMAKE_COMMAND} -E env BANAN_ARCH="${BANAN_ARCH}" DISK_IMAGE_PATH="${DISK_IMAGE_PATH}" UEFI_BOOT="${UEFI_BOOT}" ${CMAKE_SOURCE_DIR}/qemu.sh -nographic ${QEMU_ACCEL}
 	DEPENDS image
 	USES_TERMINAL
 )
 
 add_custom_target(qemu-debug
-	COMMAND ${CMAKE_COMMAND} -E env BANAN_ARCH="${BANAN_ARCH}" DISK_IMAGE_PATH="${DISK_IMAGE_PATH}" ${CMAKE_SOURCE_DIR}/qemu.sh -serial stdio -d int -no-reboot
+	COMMAND ${CMAKE_COMMAND} -E env BANAN_ARCH="${BANAN_ARCH}" DISK_IMAGE_PATH="${DISK_IMAGE_PATH}" UEFI_BOOT="${UEFI_BOOT}" ${CMAKE_SOURCE_DIR}/qemu.sh -serial stdio -d int -no-reboot
 	DEPENDS image
 	USES_TERMINAL
 )

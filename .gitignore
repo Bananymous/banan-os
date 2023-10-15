@@ -5,4 +5,5 @@ base/
 *.tar.*
 toolchain/*/
 
+!toolchain/local/
 !base-sysroot.tar.gz
