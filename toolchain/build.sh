@@ -3,6 +3,7 @@ set -e
 
 BINUTILS_VERSION="binutils-2.39"
 GCC_VERSION="gcc-12.2.0"
+GRUB_VERSION="grub-2.06"
 
 cd $(dirname "$0")
 
@@ -74,7 +75,7 @@ if [ ! -f ${PREFIX}/bin/${TARGET}-g++ ]; then
 	fi
 
 	mkdir -p build/${GCC_VERSION}/
-	cd build/${GCC_VERSION}/
+	pushd build/${GCC_VERSION}/
 
 	../../${GCC_VERSION}/configure \
 		--target="$TARGET" \
@@ -86,5 +87,35 @@ if [ ! -f ${PREFIX}/bin/${TARGET}-g++ ]; then
 	make -j $(nproc) all-gcc 
 	make -j $(nproc) all-target-libgcc CFLAGS_FOR_TARGET='-g -O2 -mcmodel=large -mno-red-zone'
 	make install-gcc install-target-libgcc
+
+	popd
+
+fi
+
+if [ ! -f ${PREFIX}/bin/grub-mkstandalone ]; then
+
+	echo "Building ${GRUB_VERSION}"
+
+	if [ ! -f ${GRUB_VERSION}.tar.xz ]; then
+		wget https://ftp.gnu.org/gnu/grub/${GRUB_VERSION}.tar.xz
+	fi
+
+	if [ ! -d $GRUB_VERSION ]; then
+		tar xvf ${GRUB_VERSION}.tar.xz
+	fi
+
+	mkdir -p build/${GRUB_VERSION}/
+	pushd build/${GRUB_VERSION}/
+
+	../../${GRUB_VERSION}/configure \
+		--target="$ARCH" \
+		--prefix="$PREFIX" \
+		--with-platform="efi" \
+		--disable-werror
+	
+	make -j $(nproc)
+	make install
+
+	popd
 
 fi
