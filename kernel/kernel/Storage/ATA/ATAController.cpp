@@ -41,6 +41,20 @@ namespace Kernel
 
 		uint8_t prog_if = m_pci_device.read_byte(0x09);
 
+		if ((prog_if & ATA_PROGIF_CAN_MODIFY_PRIMARY_NATIVE) && (prog_if & ATA_PROGIF_PRIMARY_NATIVE))
+		{
+			prog_if &= ~ATA_PROGIF_PRIMARY_NATIVE;
+			m_pci_device.write_byte(0x09, prog_if);
+			dprintln("enabling compatibility mode for bus 1");
+		}
+
+		if ((prog_if & ATA_PROGIF_CAN_MODIFY_SECONDARY_NATIVE) && (prog_if & ATA_PROGIF_SECONDARY_NATIVE))
+		{
+			prog_if &= ~ATA_PROGIF_SECONDARY_NATIVE;
+			m_pci_device.write_byte(0x09, prog_if);
+			dprintln("enabling compatibility mode for bus 2");
+		}
+
 		if (!(prog_if & ATA_PROGIF_PRIMARY_NATIVE))
 		{
 			auto bus_or_error = ATABus::create(0x1F0, 0x3F6, 14);
@@ -54,7 +68,6 @@ namespace Kernel
 			dprintln("unsupported IDE ATABus in native mode");
 		}
 
-		// BUS 2
 		if (!(prog_if & ATA_PROGIF_SECONDARY_NATIVE))
 		{
 			auto bus_or_error = ATABus::create(0x170, 0x376, 15);
