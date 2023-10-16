@@ -1,7 +1,7 @@
 #include <kernel/LockGuard.h>
 #include <kernel/Memory/Heap.h>
 #include <kernel/Memory/PageTable.h>
-#include <kernel/multiboot.h>
+#include <kernel/multiboot2.h>
 
 extern uint8_t g_kernel_end[];
 
@@ -26,21 +26,23 @@ namespace Kernel
 
 	void Heap::initialize_impl()
 	{
-		if (!(g_multiboot_info->flags & (1 << 6)))
+		auto* mmap_tag = (multiboot2_mmap_tag_t*)multiboot2_find_tag(MULTIBOOT2_TAG_MMAP);
+		if (mmap_tag == nullptr)
 			Kernel::panic("Bootloader did not provide a memory map");
-		
-		for (size_t i = 0; i < g_multiboot_info->mmap_length;)
+
+		for (size_t offset = sizeof(*mmap_tag); offset < mmap_tag->size; offset += mmap_tag->entry_size)
 		{
-			multiboot_memory_map_t* mmmt = (multiboot_memory_map_t*)P2V(g_multiboot_info->mmap_addr + i);
-			if (mmmt->type == 1)
+			auto* mmap_entry = (multiboot2_mmap_entry_t*)((uintptr_t)mmap_tag + offset);
+
+			if (mmap_entry->type == 1)
 			{				
-				paddr_t start = mmmt->base_addr;
+				paddr_t start = mmap_entry->base_addr;
 				if (start < V2P(g_kernel_end))
 					start = V2P(g_kernel_end);
 				if (auto rem = start % PAGE_SIZE)
 					start += PAGE_SIZE - rem;
 
-				paddr_t end = mmmt->base_addr + mmmt->length;
+				paddr_t end = mmap_entry->base_addr + mmap_entry->length;
 				if (auto rem = end % PAGE_SIZE)
 					end -= rem;
 
@@ -48,7 +50,6 @@ namespace Kernel
 				if (end > start + PAGE_SIZE)
 					MUST(m_physical_ranges.emplace_back(start, end - start));
 			}
-			i += mmmt->size + sizeof(uint32_t);
 		}
 
 		size_t total = 0;

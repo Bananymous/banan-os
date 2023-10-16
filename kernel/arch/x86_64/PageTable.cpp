@@ -4,6 +4,7 @@
 #include <kernel/LockGuard.h>
 #include <kernel/Memory/kmalloc.h>
 #include <kernel/Memory/PageTable.h>
+#include <kernel/multiboot2.h>
 
 extern uint8_t g_kernel_start[];
 extern uint8_t g_kernel_end[];
@@ -138,6 +139,16 @@ namespace Kernel
 		// Map (0 -> phys_kernel_end) to (KERNEL_OFFSET -> virt_kernel_end)
 		map_range_at(0, KERNEL_OFFSET, (uintptr_t)g_kernel_end - KERNEL_OFFSET, Flags::ReadWrite | Flags::Present);
 		
+		// Map multiboot info
+		vaddr_t multiboot_data_start = (vaddr_t)g_multiboot2_info & PAGE_ADDR_MASK;
+		vaddr_t multiboot_data_end = (vaddr_t)g_multiboot2_info + g_multiboot2_info->total_size;
+		map_range_at(
+			V2P(multiboot_data_start),
+			multiboot_data_start,
+			multiboot_data_end - multiboot_data_start,
+			Flags::ReadWrite | Flags::Present
+		);
+
 		// Map executable kernel memory as executable
 		map_range_at(
 			V2P(g_kernel_execute_start),

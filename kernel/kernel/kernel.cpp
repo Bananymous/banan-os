@@ -12,7 +12,7 @@
 #include <kernel/Memory/Heap.h>
 #include <kernel/Memory/kmalloc.h>
 #include <kernel/Memory/PageTable.h>
-#include <kernel/multiboot.h>
+#include <kernel/multiboot2.h>
 #include <kernel/PCI.h>
 #include <kernel/PIC.h>
 #include <kernel/Process.h>
@@ -22,8 +22,6 @@
 #include <kernel/Terminal/VirtualTTY.h>
 #include <kernel/Terminal/VesaTerminalDriver.h>
 #include <kernel/Timer/Timer.h>
-
-extern "C" const char g_kernel_cmdline[];
 
 struct ParsedCommandLine
 {
@@ -35,11 +33,12 @@ struct ParsedCommandLine
 
 static bool should_disable_serial()
 {
-	if (!(g_multiboot_info->flags & 0x02))
+	auto* cmdline_tag = (multiboot2_cmdline_tag_t*)multiboot2_find_tag(MULTIBOOT2_TAG_CMDLINE);
+	if (cmdline_tag == nullptr)
 		return false;
 
-	const char* start = g_kernel_cmdline;
-	const char* current = g_kernel_cmdline;
+	const char* start = cmdline_tag->cmdline;
+	const char* current = start;
 	while (true)
 	{
 		if (!*current || *current == ' ' || *current == '\t')
@@ -60,10 +59,11 @@ static ParsedCommandLine cmdline;
 
 static void parse_command_line()
 {
-	if (!(g_multiboot_info->flags & 0x02))
+	auto* cmdline_tag = (multiboot2_cmdline_tag_t*)multiboot2_find_tag(MULTIBOOT2_TAG_CMDLINE);
+	if (cmdline_tag == nullptr)
 		return;
 
-	BAN::StringView full_command_line(g_kernel_cmdline);
+	BAN::StringView full_command_line(cmdline_tag->cmdline);
 	auto arguments = MUST(full_command_line.split(' '));
 
 	for (auto argument : arguments)
@@ -98,7 +98,7 @@ extern "C" void kernel_main()
 		dprintln("Serial output initialized");
 	}
 
-	if (g_multiboot_magic != 0x2BADB002)
+	if (g_multiboot2_magic != 0x36d76289)
 	{
 		dprintln("Invalid multiboot magic number");
 		return;
