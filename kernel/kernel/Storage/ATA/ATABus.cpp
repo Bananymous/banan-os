@@ -73,6 +73,14 @@ namespace Kernel
 		select_delay();
 	}
 
+	static bool identify_all_ones(BAN::Span<const uint16_t> identify_data)
+	{
+		for (size_t i = 0; i < 256; i++)
+			if (identify_data[i] != 0xFFFF)
+				return false;
+		return true;
+	}
+
 	BAN::ErrorOr<ATABus::DeviceType> ATABus::identify(bool secondary, BAN::Span<uint16_t> buffer)
 	{
 		select_device(secondary);
@@ -116,6 +124,9 @@ namespace Kernel
 
 		ASSERT(buffer.size() >= 256);
 		read_buffer(ATA_PORT_DATA, buffer.data(), 256);
+
+		if (identify_all_ones(buffer))
+			return BAN::Error::from_errno(ENODEV);
 
 		return type;
 	}

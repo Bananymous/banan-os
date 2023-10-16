@@ -71,7 +71,7 @@ namespace Kernel
 		while (model_len > 0 && m_model[model_len - 1] == ' ')
 			model_len--;
 
-		dprintln("Initialized disk '{}' {} MB", BAN::StringView(m_model, model_len), total_size() / 1024 / 1024);
+		dprintln("Initialized disk '{}' {} MiB", BAN::StringView(m_model, model_len), total_size() / 1024 / 1024);
 
 		add_disk_cache();
 
