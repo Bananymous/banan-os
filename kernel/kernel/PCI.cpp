@@ -77,7 +77,7 @@ namespace Kernel::PCI
 		uint32_t temp = read_config_dword(bus, dev, func, offset & ~3);
 		temp &= ~(0xFF << byte);
 		temp |= (uint32_t)value << byte;
-		write_config_dword(bus, dev, func, offset, temp);
+		write_config_dword(bus, dev, func, offset & ~3, temp);
 	}
 
 	static uint16_t get_vendor_id(uint8_t bus, uint8_t dev, uint8_t func)
@@ -252,8 +252,13 @@ namespace Kernel::PCI
 			device.func()
 		);
 		dprintln("  type: {}", region->type() == BarType::IO ? "IO" : "MEM");
-		dprintln("  paddr {}", (void*)region->paddr());
-		dprintln("  vaddr {}", (void*)region->vaddr());
+		if (region->type() == BarType::IO)
+			dprintln("  iobase {8H}", region->iobase());
+		else
+		{
+			dprintln("  paddr {}", (void*)region->paddr());
+			dprintln("  vaddr {}", (void*)region->vaddr());
+		}
 		dprintln("  size  {}", region->size());
 #endif
 
@@ -290,42 +295,42 @@ namespace Kernel::PCI
 	void BarRegion::write8(off_t reg, uint8_t val)
 	{
 		if (m_type == BarType::IO)
-			return IO::outb(m_vaddr + reg, val);
+			return IO::outb(m_paddr + reg, val);
 		MMIO::write8(m_vaddr + reg, val);
 	}
 
 	void BarRegion::write16(off_t reg, uint16_t val)
 	{
 		if (m_type == BarType::IO)
-			return IO::outw(m_vaddr + reg, val);
+			return IO::outw(m_paddr + reg, val);
 		MMIO::write16(m_vaddr + reg, val);
 	}
 
 	void BarRegion::write32(off_t reg, uint32_t val)
 	{
 		if (m_type == BarType::IO)
-			return IO::outl(m_vaddr + reg, val);
+			return IO::outl(m_paddr + reg, val);
 		MMIO::write32(m_vaddr + reg, val);
 	}
 
 	uint8_t BarRegion::read8(off_t reg)
 	{
 		if (m_type == BarType::IO)
-			return IO::inb(m_vaddr + reg);
+			return IO::inb(m_paddr + reg);
 		return MMIO::read8(m_vaddr + reg);
 	}
 
 	uint16_t BarRegion::read16(off_t reg)
 	{
 		if (m_type == BarType::IO)
-			return IO::inw(m_vaddr + reg);
+			return IO::inw(m_paddr + reg);
 		return MMIO::read16(m_vaddr + reg);
 	}
 
 	uint32_t BarRegion::read32(off_t reg)
 	{
 		if (m_type == BarType::IO)
-			return IO::inl(m_vaddr + reg);
+			return IO::inl(m_paddr + reg);
 		return MMIO::read32(m_vaddr + reg);
 	}
 

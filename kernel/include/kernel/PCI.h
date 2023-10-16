@@ -29,8 +29,9 @@ namespace Kernel::PCI
 		~BarRegion();
 
 		BarType type() const { return m_type; }
-		vaddr_t vaddr() const { return m_vaddr; }
-		paddr_t paddr() const { return m_paddr; }
+		vaddr_t iobase() const { ASSERT(m_type == BarType::IO); return m_paddr; }
+		vaddr_t vaddr() const { ASSERT(m_type == BarType::MEM); return m_vaddr; }
+		paddr_t paddr() const { ASSERT(m_type == BarType::MEM); return m_paddr; }
 		size_t size() const { return m_size; }
 
 		void write8(off_t, uint8_t);
