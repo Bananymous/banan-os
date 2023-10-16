@@ -81,7 +81,14 @@ namespace Kernel
 		Process::create_kernel(
 			[](void*)
 			{
-				auto inode = MUST(VirtualFileSystem::get().file_from_absolute_path({ 0, 0, 0, 0 }, "/dev/input0"sv, O_RDONLY)).inode;
+				auto file_or_error = VirtualFileSystem::get().file_from_absolute_path({ 0, 0, 0, 0 }, "/dev/input0"sv, O_RDONLY);
+				if (file_or_error.is_error())
+				{
+					dprintln("no input device found");
+					return;
+				}
+
+				auto inode = file_or_error.value().inode;
 				while (true)
 				{
 					while (!TTY::current()->m_tty_ctrl.receive_input)
