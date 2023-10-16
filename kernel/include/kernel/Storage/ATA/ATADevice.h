@@ -28,7 +28,7 @@ namespace Kernel
 			uint64_t sector_count() const { return m_lba_count; }
 
 			BAN::StringView model() const { return m_model; }
-			BAN::StringView name() const;
+			BAN::StringView name() const { return m_name; }
 
 			virtual dev_t rdev() const override { return m_rdev; }
 
@@ -46,6 +46,7 @@ namespace Kernel
 			uint32_t m_sector_words;
 			uint64_t m_lba_count;
 			char m_model[41];
+			char m_name[4] {};
 
 			const dev_t m_rdev;
 		};

@@ -23,7 +23,10 @@ namespace Kernel
 
 	detail::ATABaseDevice::ATABaseDevice()
 		: m_rdev(makedev(get_ata_dev_major(), get_ata_dev_minor()))
-	{ }
+	{
+		strcpy(m_name, "sda");
+		m_name[2] += minor(m_rdev);
+	}
 
 	BAN::ErrorOr<void> detail::ATABaseDevice::initialize(BAN::Span<const uint16_t> identify_data)
 	{
@@ -97,13 +100,6 @@ namespace Kernel
 			return BAN::Error::from_errno(EINVAL);
 		TRY(write_sectors(offset / sector_size(), bytes / sector_size(), (const uint8_t*)buffer));
 		return bytes;
-	}
-
-	BAN::StringView detail::ATABaseDevice::name() const
-	{
-		static char device_name[] = "sda";
-		device_name[2] += minor(m_rdev);
-		return device_name;
 	}
 
 	BAN::ErrorOr<BAN::RefPtr<ATADevice>> ATADevice::create(BAN::RefPtr<ATABus> bus, ATABus::DeviceType type, bool is_secondary, BAN::Span<const uint16_t> identify_data)
