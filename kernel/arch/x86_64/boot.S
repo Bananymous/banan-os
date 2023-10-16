@@ -197,8 +197,6 @@ long_mode:
 	jmp *%rcx
 
 higher_half:
-	addq $KERNEL_OFFSET, g_multiboot2_info
-
 	# call global constuctors
 	call _init
 

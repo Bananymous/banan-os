@@ -138,16 +138,6 @@ namespace Kernel
 
 		// Map (0 -> phys_kernel_end) to (KERNEL_OFFSET -> virt_kernel_end)
 		map_range_at(0, KERNEL_OFFSET, (uintptr_t)g_kernel_end - KERNEL_OFFSET, Flags::ReadWrite | Flags::Present);
-		
-		// Map multiboot info
-		vaddr_t multiboot_data_start = (vaddr_t)g_multiboot2_info & PAGE_ADDR_MASK;
-		vaddr_t multiboot_data_end = (vaddr_t)g_multiboot2_info + g_multiboot2_info->total_size;
-		map_range_at(
-			V2P(multiboot_data_start),
-			multiboot_data_start,
-			multiboot_data_end - multiboot_data_start,
-			Flags::ReadWrite | Flags::Present
-		);
 
 		// Map executable kernel memory as executable
 		map_range_at(
@@ -164,6 +154,22 @@ namespace Kernel
 			g_userspace_end - g_userspace_start,
 			Flags::Execute | Flags::UserSupervisor | Flags::Present
 		);
+
+		// Map multiboot memory
+		paddr_t multiboot2_data_start = (vaddr_t)g_multiboot2_info & PAGE_ADDR_MASK;
+		paddr_t multiboot2_data_end = (vaddr_t)g_multiboot2_info + g_multiboot2_info->total_size;
+
+		size_t multiboot2_needed_pages = BAN::Math::div_round_up<size_t>(multiboot2_data_end - multiboot2_data_start, PAGE_SIZE);
+		vaddr_t multiboot2_vaddr = reserve_free_contiguous_pages(multiboot2_needed_pages, KERNEL_OFFSET);
+
+		map_range_at(
+			multiboot2_data_start,
+			multiboot2_vaddr,
+			multiboot2_needed_pages * PAGE_SIZE,
+			Flags::ReadWrite | Flags::Present
+		);
+
+		g_multiboot2_info = (multiboot2_info_t*)(multiboot2_vaddr + ((vaddr_t)g_multiboot2_info % PAGE_SIZE));
 	}
 
 	BAN::ErrorOr<PageTable*> PageTable::create_userspace()
