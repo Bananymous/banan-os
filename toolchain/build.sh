@@ -19,19 +19,19 @@ if [[ -z $SYSROOT ]]; then
 	exit 1
 fi
 
-if [[ -z $PREFIX ]]; then
-	echo "You must set the PREFIX environment variable" >&2
+if [[ -z $TOOLCHAIN_PREFIX ]]; then
+	echo "You must set the TOOLCHAIN_PREFIX environment variable" >&2
 	exit 1
 fi
 
-if [[ -z $ARCH ]]; then
-	echo  "You must set the ARCH environment variable" >&2
+if [[ -z $BANAN_ARCH ]]; then
+	echo  "You must set the BANAN_ARCH environment variable" >&2
 	exit 1
 fi
 
-TARGET="${ARCH}-banan_os"
+TARGET="${BANAN_ARCH}-banan_os"
 
-if [ ! -f ${PREFIX}/bin/${TARGET}-ld ]; then
+if [ ! -f ${TOOLCHAIN_PREFIX}/bin/${TARGET}-ld ]; then
 
 	echo "Building ${BINUTILS_VERSION}"
 
@@ -49,7 +49,7 @@ if [ ! -f ${PREFIX}/bin/${TARGET}-ld ]; then
 
 	../../${BINUTILS_VERSION}/configure \
 		--target="$TARGET" \
-		--prefix="$PREFIX" \
+		--prefix="$TOOLCHAIN_PREFIX" \
 		--with-sysroot="$SYSROOT" \
 		--disable-nls \
 		--disable-werror
@@ -61,7 +61,7 @@ if [ ! -f ${PREFIX}/bin/${TARGET}-ld ]; then
 
 fi
 
-if [ ! -f ${PREFIX}/bin/${TARGET}-g++ ]; then
+if [ ! -f ${TOOLCHAIN_PREFIX}/bin/${TARGET}-g++ ]; then
 
 	echo "Building ${GCC_VERSION}"
 
@@ -79,7 +79,7 @@ if [ ! -f ${PREFIX}/bin/${TARGET}-g++ ]; then
 
 	../../${GCC_VERSION}/configure \
 		--target="$TARGET" \
-		--prefix="$PREFIX" \
+		--prefix="$TOOLCHAIN_PREFIX" \
 		--with-sysroot="$SYSROOT" \
 		--disable-nls \
 		--enable-languages=c,c++
@@ -92,7 +92,7 @@ if [ ! -f ${PREFIX}/bin/${TARGET}-g++ ]; then
 
 fi
 
-if [ ! -f ${PREFIX}/bin/grub-mkstandalone ]; then
+if [ ! -f ${TOOLCHAIN_PREFIX}/bin/grub-mkstandalone ]; then
 
 	echo "Building ${GRUB_VERSION}"
 
@@ -108,8 +108,8 @@ if [ ! -f ${PREFIX}/bin/grub-mkstandalone ]; then
 	pushd build/${GRUB_VERSION}/
 
 	../../${GRUB_VERSION}/configure \
-		--target="$ARCH" \
-		--prefix="$PREFIX" \
+		--target="$BANAN_ARCH" \
+		--prefix="$TOOLCHAIN_PREFIX" \
 		--with-platform="efi" \
 		--disable-werror
 	

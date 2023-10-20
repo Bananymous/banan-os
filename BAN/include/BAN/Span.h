@@ -43,6 +43,8 @@ namespace BAN
 
 		Span slice(size_type, size_type = ~size_type(0));
 
+		Span<const T> as_const() const { return Span<const T>(m_data, m_size); }
+
 	private:
 		T* m_data = nullptr;
 		size_type m_size = 0;

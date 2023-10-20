@@ -39,6 +39,14 @@ set(BANAN_BIN ${BANAN_SYSROOT}/usr/bin)
 set(BANAN_BOOT ${BANAN_SYSROOT}/boot)
 set(DISK_IMAGE_PATH ${CMAKE_BINARY_DIR}/banan-os.img)
 
+set(BANAN_SCRIPT_ENV 
+	BANAN_ARCH="${BANAN_ARCH}" 
+	DISK_IMAGE_PATH="${DISK_IMAGE_PATH}" 
+	SYSROOT="${BANAN_SYSROOT}" 
+	TOOLCHAIN_PREFIX="${TOOLCHAIN_PREFIX}" 
+	UEFI_BOOT="${UEFI_BOOT}" 
+)
+
 add_subdirectory(kernel)
 add_subdirectory(BAN)
 add_subdirectory(libc)
@@ -59,7 +67,7 @@ add_custom_target(headers
 )
 
 add_custom_target(toolchain
-	COMMAND ${CMAKE_COMMAND} -E env SYSROOT="${BANAN_SYSROOT}" PREFIX="${TOOLCHAIN_PREFIX}" ARCH="${BANAN_ARCH}" ${CMAKE_SOURCE_DIR}/toolchain/build.sh
+	COMMAND ${CMAKE_COMMAND} -E env ${BANAN_SCRIPT_ENV} ${CMAKE_SOURCE_DIR}/toolchain/build.sh
 	DEPENDS headers
 	USES_TERMINAL
 )
@@ -71,7 +79,7 @@ add_custom_target(libstdc++
 )
 
 add_custom_target(image
-	COMMAND ${CMAKE_COMMAND} -E env BANAN_ARCH="${BANAN_ARCH}" SYSROOT="${BANAN_SYSROOT}" DISK_IMAGE_PATH="${DISK_IMAGE_PATH}" TOOLCHAIN="${TOOLCHAIN_PREFIX}" UEFI_BOOT="${UEFI_BOOT}" ${CMAKE_SOURCE_DIR}/image.sh
+	COMMAND ${CMAKE_COMMAND} -E env ${BANAN_SCRIPT_ENV} ${CMAKE_SOURCE_DIR}/image.sh
 	DEPENDS kernel-install
 	DEPENDS ban-install
 	DEPENDS libc-install
@@ -81,7 +89,7 @@ add_custom_target(image
 )
 
 add_custom_target(image-full
-	COMMAND ${CMAKE_COMMAND} -E env BANAN_ARCH="${BANAN_ARCH}" SYSROOT="${BANAN_SYSROOT}" DISK_IMAGE_PATH="${DISK_IMAGE_PATH}" TOOLCHAIN="${TOOLCHAIN_PREFIX}" UEFI_BOOT="${UEFI_BOOT}" ${CMAKE_SOURCE_DIR}/image-full.sh
+	COMMAND ${CMAKE_COMMAND} -E env ${BANAN_SCRIPT_ENV} ${CMAKE_SOURCE_DIR}/image-full.sh
 	DEPENDS kernel-install
 	DEPENDS ban-install
 	DEPENDS libc-install
@@ -91,30 +99,30 @@ add_custom_target(image-full
 )
 
 add_custom_target(check-fs
-	COMMAND ${CMAKE_COMMAND} -E env DISK_IMAGE_PATH="${DISK_IMAGE_PATH}" ${CMAKE_SOURCE_DIR}/check-fs.sh
+	COMMAND ${CMAKE_COMMAND} -E env ${BANAN_SCRIPT_ENV} ${CMAKE_SOURCE_DIR}/check-fs.sh
 	USES_TERMINAL
 )
 
 add_custom_target(qemu
-	COMMAND ${CMAKE_COMMAND} -E env BANAN_ARCH="${BANAN_ARCH}" DISK_IMAGE_PATH="${DISK_IMAGE_PATH}" UEFI_BOOT="${UEFI_BOOT}" ${CMAKE_SOURCE_DIR}/qemu.sh -serial stdio ${QEMU_ACCEL}
+	COMMAND ${CMAKE_COMMAND} -E env ${BANAN_SCRIPT_ENV} ${CMAKE_SOURCE_DIR}/qemu.sh -serial stdio ${QEMU_ACCEL}
 	DEPENDS image
 	USES_TERMINAL
 )
 
 add_custom_target(qemu-nographic
-	COMMAND ${CMAKE_COMMAND} -E env BANAN_ARCH="${BANAN_ARCH}" DISK_IMAGE_PATH="${DISK_IMAGE_PATH}" UEFI_BOOT="${UEFI_BOOT}" ${CMAKE_SOURCE_DIR}/qemu.sh -nographic ${QEMU_ACCEL}
+	COMMAND ${CMAKE_COMMAND} -E env ${BANAN_SCRIPT_ENV} ${CMAKE_SOURCE_DIR}/qemu.sh -nographic ${QEMU_ACCEL}
 	DEPENDS image
 	USES_TERMINAL
 )
 
 add_custom_target(qemu-debug
-	COMMAND ${CMAKE_COMMAND} -E env BANAN_ARCH="${BANAN_ARCH}" DISK_IMAGE_PATH="${DISK_IMAGE_PATH}" UEFI_BOOT="${UEFI_BOOT}" ${CMAKE_SOURCE_DIR}/qemu.sh -serial stdio -d int -no-reboot
+	COMMAND ${CMAKE_COMMAND} -E env ${BANAN_SCRIPT_ENV} ${CMAKE_SOURCE_DIR}/qemu.sh -serial stdio -d int -no-reboot
 	DEPENDS image
 	USES_TERMINAL
 )
 
 add_custom_target(bochs
-	COMMAND ${CMAKE_COMMAND} -E env DISK_IMAGE_PATH="${DISK_IMAGE_PATH}" ${CMAKE_SOURCE_DIR}/bochs.sh
+	COMMAND ${CMAKE_COMMAND} -E env ${BANAN_SCRIPT_ENV} ${CMAKE_SOURCE_DIR}/bochs.sh
 	DEPENDS image
 	USES_TERMINAL
 )

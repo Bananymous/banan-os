@@ -59,18 +59,18 @@ if [[ "$UEFI_BOOT" == "1" ]]; then
 	sudo mkfs.fat $PARTITION1 > /dev/null
 	sudo mount $PARTITION1 "$MOUNT_DIR"
 	sudo mkdir -p "$MOUNT_DIR/EFI/BOOT"
-	sudo "$TOOLCHAIN/bin/grub-mkstandalone" -O "$BANAN_ARCH-efi" -o "$MOUNT_DIR/EFI/BOOT/BOOTX64.EFI" "boot/grub/grub.cfg=$TOOLCHAIN/grub-memdisk.cfg"
+	sudo "$TOOLCHAIN_PREFIX/bin/grub-mkstandalone" -O "$BANAN_ARCH-efi" -o "$MOUNT_DIR/EFI/BOOT/BOOTX64.EFI" "boot/grub/grub.cfg=$TOOLCHAIN_PREFIX/grub-memdisk.cfg"
 	sudo umount "$MOUNT_DIR"
 
 	sudo mount $PARTITION2 "$MOUNT_DIR"
 	sudo mkdir -p "$MOUNT_DIR/boot/grub"
-	sudo cp "$TOOLCHAIN/grub-uefi.cfg" "$MOUNT_DIR/boot/grub/grub.cfg"
+	sudo cp "$TOOLCHAIN_PREFIX/grub-uefi.cfg" "$MOUNT_DIR/boot/grub/grub.cfg"
 	sudo umount "$MOUNT_DIR"
 else
 	sudo mount $PARTITION2 "$MOUNT_DIR"
 	sudo grub-install --no-floppy --target=i386-pc --modules="normal ext2 multiboot" --boot-directory="$MOUNT_DIR/boot" $LOOP_DEV
 	sudo mkdir -p "$MOUNT_DIR/boot/grub"
-	sudo cp "$TOOLCHAIN/grub-legacy-boot.cfg" "$MOUNT_DIR/boot/grub/grub.cfg"
+	sudo cp "$TOOLCHAIN_PREFIX/grub-legacy-boot.cfg" "$MOUNT_DIR/boot/grub/grub.cfg"
 	sudo umount "$MOUNT_DIR"
 fi
 
