@@ -18,8 +18,8 @@ namespace Kernel
 			, m_rdev(rdev)
 		{ }
 
-		virtual BAN::ErrorOr<size_t> read_impl(off_t, void*, size_t) override;
-		virtual BAN::ErrorOr<size_t> write_impl(off_t, const void*, size_t size) override { return size; };
+		virtual BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan) override;
+		virtual BAN::ErrorOr<size_t> write_impl(off_t, BAN::ConstByteSpan buffer) override { return buffer.size(); };
 
 	private:
 		const dev_t m_rdev;

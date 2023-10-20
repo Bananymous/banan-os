@@ -102,22 +102,22 @@ namespace Kernel
 		return link_target_impl();
 	}
 
-	BAN::ErrorOr<size_t> Inode::read(off_t offset, void* buffer, size_t bytes)
+	BAN::ErrorOr<size_t> Inode::read(off_t offset, BAN::ByteSpan buffer)
 	{
 		LockGuard _(m_lock);
 		Thread::TerminateBlocker blocker(Thread::current());
 		if (mode().ifdir())
 			return BAN::Error::from_errno(EISDIR);
-		return read_impl(offset, buffer, bytes);
+		return read_impl(offset, buffer);
 	}
 
-	BAN::ErrorOr<size_t> Inode::write(off_t offset, const void* buffer, size_t bytes)
+	BAN::ErrorOr<size_t> Inode::write(off_t offset, BAN::ConstByteSpan buffer)
 	{
 		LockGuard _(m_lock);
 		Thread::TerminateBlocker blocker(Thread::current());
 		if (mode().ifdir())
 			return BAN::Error::from_errno(EISDIR);
-		return write_impl(offset, buffer, bytes);
+		return write_impl(offset, buffer);
 	}
 
 	BAN::ErrorOr<void> Inode::truncate(size_t size)

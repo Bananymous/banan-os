@@ -23,8 +23,8 @@ namespace Kernel
 		BAN::ErrorOr<void> rebase();
 		BAN::ErrorOr<void> read_identify_data();
 
-		virtual BAN::ErrorOr<void> read_sectors_impl(uint64_t lba, uint64_t sector_count, uint8_t* buffer) override;
-		virtual BAN::ErrorOr<void> write_sectors_impl(uint64_t lba, uint64_t sector_count, const uint8_t* buffer) override;
+		virtual BAN::ErrorOr<void> read_sectors_impl(uint64_t lba, uint64_t sector_count, BAN::ByteSpan) override;
+		virtual BAN::ErrorOr<void> write_sectors_impl(uint64_t lba, uint64_t sector_count, BAN::ConstByteSpan) override;
 		BAN::ErrorOr<void> send_command_and_block(uint64_t lba, uint64_t sector_count, Command command);
 
 		BAN::Optional<uint32_t> find_free_command_slot();

@@ -62,7 +62,7 @@ namespace LibELF
 			return BAN::Error::from_errno(ENOEXEC);
 		}
 
-		size_t nread = TRY(m_inode->read(0, &m_file_header, sizeof(m_file_header)));
+		size_t nread = TRY(m_inode->read(0, BAN::ByteSpan::from(m_file_header)));
 		ASSERT(nread == sizeof(m_file_header));
 
 		if (m_file_header.e_ident[EI_MAG0] != ELFMAG0 || 
@@ -113,7 +113,7 @@ namespace LibELF
 		TRY(m_program_headers.resize(m_file_header.e_phnum));
 		for (size_t i = 0; i < m_file_header.e_phnum; i++)
 		{
-			TRY(m_inode->read(m_file_header.e_phoff + m_file_header.e_phentsize * i, &m_program_headers[i], m_file_header.e_phentsize));
+			TRY(m_inode->read(m_file_header.e_phoff + m_file_header.e_phentsize * i, BAN::ByteSpan::from(m_program_headers[i])));
 
 			const auto& pheader = m_program_headers[i];
 			if (pheader.p_type != PT_NULL && pheader.p_type != PT_LOAD)
@@ -242,7 +242,7 @@ namespace LibELF
 							file_offset = vaddr - program_header.p_vaddr;
 
 						size_t bytes = BAN::Math::min<size_t>(PAGE_SIZE - vaddr_offset, program_header.p_filesz - file_offset);
-						TRY(m_inode->read(program_header.p_offset + file_offset, (void*)(vaddr + vaddr_offset), bytes));
+						TRY(m_inode->read(program_header.p_offset + file_offset, { (uint8_t*)vaddr + vaddr_offset, bytes }));
 					}
 
 					return {};

@@ -32,8 +32,8 @@ namespace Kernel
 
 			virtual dev_t rdev() const override { return m_rdev; }
 
-			virtual BAN::ErrorOr<size_t> read_impl(off_t, void*, size_t) override;
-			virtual BAN::ErrorOr<size_t> write_impl(off_t, const void*, size_t) override;
+			virtual BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan) override;
+			virtual BAN::ErrorOr<size_t> write_impl(off_t, BAN::ConstByteSpan) override;
 
 		protected:
 			ATABaseDevice();
@@ -63,8 +63,8 @@ namespace Kernel
 	private:
 		ATADevice(BAN::RefPtr<ATABus>, ATABus::DeviceType, bool is_secodary);
 		
-		virtual BAN::ErrorOr<void> read_sectors_impl(uint64_t, uint64_t, uint8_t*) override;
-		virtual BAN::ErrorOr<void> write_sectors_impl(uint64_t, uint64_t, const uint8_t*) override;
+		virtual BAN::ErrorOr<void> read_sectors_impl(uint64_t, uint64_t, BAN::ByteSpan) override;
+		virtual BAN::ErrorOr<void> write_sectors_impl(uint64_t, uint64_t, BAN::ConstByteSpan) override;
 
 	private:
 		BAN::RefPtr<ATABus> m_bus;

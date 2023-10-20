@@ -80,7 +80,7 @@ namespace Kernel
 				page_table.unmap_page(0);
 			}
 
-			if (auto ret = inode->write(i * PAGE_SIZE, page_buffer, PAGE_SIZE); ret.is_error())
+			if (auto ret = inode->write(i * PAGE_SIZE, BAN::ConstByteSpan::from(page_buffer)); ret.is_error())
 				dwarnln("{}", ret.error());
 		}
 	}
@@ -109,7 +109,7 @@ namespace Kernel
 
 			// Zero out the new page
 			if (&PageTable::current() == &m_page_table)
-				read_ret = m_inode->read(file_offset, (void*)vaddr, bytes);
+				read_ret = m_inode->read(file_offset, BAN::ByteSpan((uint8_t*)vaddr, bytes));
 			else
 			{
 				auto& page_table = PageTable::current();
@@ -118,7 +118,7 @@ namespace Kernel
 				ASSERT(page_table.is_page_free(0));
 
 				page_table.map_page_at(paddr, 0, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
-				read_ret = m_inode->read(file_offset, (void*)0, bytes);
+				read_ret = m_inode->read(file_offset, BAN::ByteSpan((uint8_t*)0, bytes));
 				memset((void*)0, 0x00, PAGE_SIZE);
 				page_table.unmap_page(0);
 			}
@@ -156,7 +156,7 @@ namespace Kernel
 				size_t offset = vaddr - m_vaddr;
 				size_t bytes = BAN::Math::min<size_t>(m_size - offset, PAGE_SIZE);
 
-				TRY(m_inode->read(offset, m_shared_data->page_buffer, bytes));
+				TRY(m_inode->read(offset, BAN::ByteSpan(m_shared_data->page_buffer, bytes)));
 
 				auto& page_table = PageTable::current();
 

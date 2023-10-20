@@ -34,8 +34,8 @@ namespace Kernel
 		
 		virtual BAN::ErrorOr<BAN::String> link_target_impl() override;
 
-		virtual BAN::ErrorOr<size_t> read_impl(off_t, void*, size_t) override;
-		virtual BAN::ErrorOr<size_t> write_impl(off_t, const void*, size_t) override;
+		virtual BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan) override;
+		virtual BAN::ErrorOr<size_t> write_impl(off_t, BAN::ConstByteSpan) override;
 		virtual BAN::ErrorOr<void> truncate_impl(size_t) override;
 
 	private:

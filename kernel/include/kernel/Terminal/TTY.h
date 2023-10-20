@@ -49,8 +49,8 @@ namespace Kernel
 		{ }
 
 		virtual void putchar_impl(uint8_t ch) = 0;
-		virtual BAN::ErrorOr<size_t> read_impl(off_t, void*, size_t) override;
-		virtual BAN::ErrorOr<size_t> write_impl(off_t, const void*, size_t) override;
+		virtual BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan) override;
+		virtual BAN::ErrorOr<size_t> write_impl(off_t, BAN::ConstByteSpan) override;
 
 	private:
 		void do_backspace();

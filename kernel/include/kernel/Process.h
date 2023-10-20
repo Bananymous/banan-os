@@ -139,9 +139,9 @@ namespace Kernel
 
 		PageTable& page_table() { return m_page_table ? *m_page_table : PageTable::kernel(); }
 
-		size_t proc_meminfo(off_t offset, void* buffer, size_t buffer_size) const;
-		size_t proc_cmdline(off_t offset, void* buffer, size_t buffer_size) const;
-		size_t proc_environ(off_t offset, void* buffer, size_t buffer_size) const;
+		size_t proc_meminfo(off_t offset, BAN::ByteSpan) const;
+		size_t proc_cmdline(off_t offset, BAN::ByteSpan) const;
+		size_t proc_environ(off_t offset, BAN::ByteSpan) const;
 
 		bool is_userspace() const { return m_is_userspace; }
 		const userspace_info_t& userspace_info() const { return m_userspace_info; }

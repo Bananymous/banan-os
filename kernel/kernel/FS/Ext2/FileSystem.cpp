@@ -33,7 +33,7 @@ namespace Kernel
 			BAN::Vector<uint8_t> superblock_buffer;
 			TRY(superblock_buffer.resize(sector_count * sector_size));
 
-			TRY(m_partition.read_sectors(lba, sector_count, superblock_buffer.data()));
+			TRY(m_partition.read_sectors(lba, sector_count, superblock_buffer.span()));
 
 			memcpy(&m_superblock, superblock_buffer.data(), sizeof(Ext2::Superblock));
 		}
@@ -223,7 +223,7 @@ namespace Kernel
 
 		ASSERT(block >= 2);
 		ASSERT(buffer.size() >= block_size);
-		MUST(m_partition.read_sectors(sectors_before + (block - 2) * sectors_per_block, sectors_per_block, buffer.data()));
+		MUST(m_partition.read_sectors(sectors_before + (block - 2) * sectors_per_block, sectors_per_block, buffer.span()));
 	}
 
 	void Ext2FS::write_block(uint32_t block, const BlockBufferWrapper& buffer)
@@ -237,7 +237,7 @@ namespace Kernel
 
 		ASSERT(block >= 2);
 		ASSERT(buffer.size() >= block_size);
-		MUST(m_partition.write_sectors(sectors_before + (block - 2) * sectors_per_block, sectors_per_block, buffer.data()));
+		MUST(m_partition.write_sectors(sectors_before + (block - 2) * sectors_per_block, sectors_per_block, buffer.span()));
 	}
 
 	void Ext2FS::sync_superblock()
@@ -258,11 +258,11 @@ namespace Kernel
 		BAN::Vector<uint8_t> superblock_buffer;
 		MUST(superblock_buffer.resize(sector_count * sector_size));
 
-		MUST(m_partition.read_sectors(lba, sector_count, superblock_buffer.data()));
+		MUST(m_partition.read_sectors(lba, sector_count, superblock_buffer.span()));
 		if (memcmp(superblock_buffer.data(), &m_superblock, superblock_bytes))
 		{
 			memcpy(superblock_buffer.data(), &m_superblock, superblock_bytes);
-			MUST(m_partition.write_sectors(lba, sector_count, superblock_buffer.data()));
+			MUST(m_partition.write_sectors(lba, sector_count, superblock_buffer.span()));
 		}
 	}
 

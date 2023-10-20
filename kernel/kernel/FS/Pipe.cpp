@@ -39,7 +39,7 @@ namespace Kernel
 			m_semaphore.unblock();
 	}
 
-	BAN::ErrorOr<size_t> Pipe::read_impl(off_t, void* buffer, size_t count)
+	BAN::ErrorOr<size_t> Pipe::read_impl(off_t, BAN::ByteSpan buffer)
 	{
 		LockGuard _(m_lock);
 		while (m_buffer.empty())
@@ -51,8 +51,8 @@ namespace Kernel
 			m_lock.lock();
 		}
 
-		size_t to_copy = BAN::Math::min<size_t>(count, m_buffer.size());
-		memcpy(buffer, m_buffer.data(), to_copy);
+		size_t to_copy = BAN::Math::min<size_t>(buffer.size(), m_buffer.size());
+		memcpy(buffer.data(), m_buffer.data(), to_copy);
 
 		memmove(m_buffer.data(), m_buffer.data() + to_copy, m_buffer.size() - to_copy);
 		MUST(m_buffer.resize(m_buffer.size() - to_copy));
@@ -64,14 +64,14 @@ namespace Kernel
 		return to_copy;
 	}
 
-	BAN::ErrorOr<size_t> Pipe::write_impl(off_t, const void* buffer, size_t count)
+	BAN::ErrorOr<size_t> Pipe::write_impl(off_t, BAN::ConstByteSpan buffer)
 	{
 		LockGuard _(m_lock);
 
 		size_t old_size = m_buffer.size();
 
-		TRY(m_buffer.resize(old_size + count));
-		memcpy(m_buffer.data() + old_size, buffer, count);
+		TRY(m_buffer.resize(old_size + buffer.size()));
+		memcpy(m_buffer.data() + old_size, buffer.data(), buffer.size());
 
 		timespec current_time = SystemTimer::get().real_time();
 		m_mtime = current_time;
@@ -79,7 +79,7 @@ namespace Kernel
 
 		m_semaphore.unblock();
 
-		return count;
+		return buffer.size();
 	}
 
 }

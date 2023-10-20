@@ -25,7 +25,7 @@ namespace Kernel
 	{
 	}
 
-	BAN::ErrorOr<BAN::RefPtr<ProcROInode>> ProcROInode::create(Process& process, size_t (Process::*callback)(off_t, void*, size_t) const, RamFileSystem& fs, mode_t mode, uid_t uid, gid_t gid)
+	BAN::ErrorOr<BAN::RefPtr<ProcROInode>> ProcROInode::create(Process& process, size_t (Process::*callback)(off_t, BAN::ByteSpan) const, RamFileSystem& fs, mode_t mode, uid_t uid, gid_t gid)
 	{
 		FullInodeInfo inode_info(fs, mode, uid, gid);
 
@@ -35,7 +35,7 @@ namespace Kernel
 		return BAN::RefPtr<ProcROInode>::adopt(inode_ptr);
 	}
 
-	ProcROInode::ProcROInode(Process& process, size_t (Process::*callback)(off_t, void*, size_t) const, RamFileSystem& fs, const FullInodeInfo& inode_info)
+	ProcROInode::ProcROInode(Process& process, size_t (Process::*callback)(off_t, BAN::ByteSpan) const, RamFileSystem& fs, const FullInodeInfo& inode_info)
 		: RamInode(fs, inode_info)
 		, m_process(process)
 		, m_callback(callback)
@@ -43,12 +43,12 @@ namespace Kernel
 		m_inode_info.mode |= Inode::Mode::IFREG;
 	}
 
-	BAN::ErrorOr<size_t> ProcROInode::read_impl(off_t offset, void* buffer, size_t buffer_size)
+	BAN::ErrorOr<size_t> ProcROInode::read_impl(off_t offset, BAN::ByteSpan buffer)
 	{
 		ASSERT(offset >= 0);
 		if ((size_t)offset >= sizeof(proc_meminfo_t))
 			return 0;
-		return (m_process.*m_callback)(offset, buffer, buffer_size);
+		return (m_process.*m_callback)(offset, buffer);
 	}
 
 }

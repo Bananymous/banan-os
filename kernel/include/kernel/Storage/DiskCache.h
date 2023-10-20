@@ -1,6 +1,7 @@
 #pragma once
 
 #include <BAN/Array.h>
+#include <BAN/ByteSpan.h>
 #include <kernel/Memory/Types.h>
 #include <kernel/SpinLock.h>
 
@@ -15,8 +16,8 @@ namespace Kernel
 		DiskCache(size_t sector_size, StorageDevice&);
 		~DiskCache();
 
-		bool read_from_cache(uint64_t sector, uint8_t* buffer);
-		BAN::ErrorOr<void> write_to_cache(uint64_t sector, const uint8_t* buffer, bool dirty);
+		bool read_from_cache(uint64_t sector, BAN::ByteSpan);
+		BAN::ErrorOr<void> write_to_cache(uint64_t sector, BAN::ConstByteSpan, bool dirty);
 
 		BAN::ErrorOr<void> sync();
 		size_t release_clean_pages(size_t);

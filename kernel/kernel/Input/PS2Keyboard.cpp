@@ -217,9 +217,9 @@ namespace Kernel::Input
 		append_command_queue(Command::SET_LEDS, new_leds);
 	}
 
-	BAN::ErrorOr<size_t> PS2Keyboard::read_impl(off_t, void* buffer, size_t size)
+	BAN::ErrorOr<size_t> PS2Keyboard::read_impl(off_t, BAN::ByteSpan buffer)
 	{
-		if (size < sizeof(KeyEvent))
+		if (buffer.size() < sizeof(KeyEvent))
 			return BAN::Error::from_errno(ENOBUFS);
 
 		while (true)
@@ -231,7 +231,7 @@ namespace Kernel::Input
 			if (m_event_queue.empty())
 				continue;
 
-			*(KeyEvent*)buffer = m_event_queue.front();
+			buffer.as<KeyEvent>() = m_event_queue.front();
 			m_event_queue.pop();
 
 			return sizeof(KeyEvent);

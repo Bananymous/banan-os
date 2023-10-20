@@ -33,6 +33,9 @@ namespace Kernel
 			uint8_t* data() { return m_buffer.data(); }
 			const uint8_t* data() const { return m_buffer.data(); }
 
+			BAN::ByteSpan span() { return m_buffer; }
+			BAN::ConstByteSpan span() const { return m_buffer.as_const(); }
+
 			uint8_t& operator[](size_t index) { return m_buffer[index]; }
 			uint8_t operator[](size_t index) const { return m_buffer[index]; }
 

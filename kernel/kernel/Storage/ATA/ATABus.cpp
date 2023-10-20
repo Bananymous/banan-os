@@ -228,8 +228,10 @@ namespace Kernel
 		return BAN::Error::from_error_code(ErrorCode::None);
 	}
 
-	BAN::ErrorOr<void> ATABus::read(ATADevice& device, uint64_t lba, uint8_t sector_count, uint8_t* buffer)
+	BAN::ErrorOr<void> ATABus::read(ATADevice& device, uint64_t lba, uint64_t sector_count, BAN::ByteSpan buffer)
 	{
+		ASSERT(sector_count <= 0xFF);
+		ASSERT(buffer.size() >= sector_count * device.sector_size());
 		if (lba + sector_count > device.sector_count())
 			return BAN::Error::from_error_code(ErrorCode::Storage_Boundaries);
 
@@ -251,7 +253,7 @@ namespace Kernel
 			for (uint32_t sector = 0; sector < sector_count; sector++)
 			{
 				block_until_irq();
-				read_buffer(ATA_PORT_DATA, (uint16_t*)buffer + sector * device.words_per_sector(), device.words_per_sector());
+				read_buffer(ATA_PORT_DATA, (uint16_t*)buffer.data() + sector * device.words_per_sector(), device.words_per_sector());
 			}
 		}
 		else
@@ -263,8 +265,10 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<void> ATABus::write(ATADevice& device, uint64_t lba, uint8_t sector_count, const uint8_t* buffer)
+	BAN::ErrorOr<void> ATABus::write(ATADevice& device, uint64_t lba, uint64_t sector_count, BAN::ConstByteSpan buffer)
 	{
+		ASSERT(sector_count <= 0xFF);
+		ASSERT(buffer.size() >= sector_count * device.sector_size());
 		if (lba + sector_count > device.sector_count())
 			return BAN::Error::from_error_code(ErrorCode::Storage_Boundaries);
 
@@ -285,7 +289,7 @@ namespace Kernel
 
 			for (uint32_t sector = 0; sector < sector_count; sector++)
 			{
-				write_buffer(ATA_PORT_DATA, (uint16_t*)buffer + sector * device.words_per_sector(), device.words_per_sector());
+				write_buffer(ATA_PORT_DATA, (uint16_t*)buffer.data() + sector * device.words_per_sector(), device.words_per_sector());
 				block_until_irq();
 			}
 		}

@@ -48,23 +48,23 @@ namespace Kernel
 		m_inode_info.mode |= Inode::Mode::IFREG;
 	}
 
-	BAN::ErrorOr<size_t> RamFileInode::read_impl(off_t offset, void* buffer, size_t bytes)
+	BAN::ErrorOr<size_t> RamFileInode::read_impl(off_t offset, BAN::ByteSpan buffer)
 	{
 		ASSERT(offset >= 0);
 		if (offset >= size())
 			return 0;
-		size_t to_copy = BAN::Math::min<size_t>(m_inode_info.size - offset, bytes);
-		memcpy(buffer, m_data.data(), to_copy);
+		size_t to_copy = BAN::Math::min<size_t>(m_inode_info.size - offset, buffer.size());
+		memcpy(buffer.data(), m_data.data(), to_copy);
 		return to_copy;
 	}
 
-	BAN::ErrorOr<size_t> RamFileInode::write_impl(off_t offset, const void* buffer, size_t bytes)
+	BAN::ErrorOr<size_t> RamFileInode::write_impl(off_t offset, BAN::ConstByteSpan buffer)
 	{
 		ASSERT(offset >= 0);
-		if (offset + bytes > (size_t)size())
-			TRY(truncate_impl(offset + bytes));
-		memcpy(m_data.data() + offset, buffer, bytes);
-		return bytes;
+		if (offset + buffer.size() > (size_t)size())
+			TRY(truncate_impl(offset + buffer.size()));
+		memcpy(m_data.data() + offset, buffer.data(), buffer.size());
+		return buffer.size();
 	}
 
 	BAN::ErrorOr<void> RamFileInode::truncate_impl(size_t new_size)

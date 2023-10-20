@@ -1,5 +1,6 @@
 #pragma once
 
+#include <BAN/ByteSpan.h>
 #include <BAN/RefPtr.h>
 #include <BAN/Vector.h>
 #include <kernel/InterruptController.h>
@@ -22,8 +23,8 @@ namespace Kernel
 	public:
 		static BAN::ErrorOr<BAN::RefPtr<ATABus>> create(uint16_t base, uint16_t ctrl, uint8_t irq);
 
-		BAN::ErrorOr<void> read(ATADevice&, uint64_t, uint8_t, uint8_t*);
-		BAN::ErrorOr<void> write(ATADevice&, uint64_t, uint8_t, const uint8_t*);
+		BAN::ErrorOr<void> read(ATADevice&, uint64_t lba, uint64_t sector_count, BAN::ByteSpan);
+		BAN::ErrorOr<void> write(ATADevice&, uint64_t lba, uint64_t sector_count, BAN::ConstByteSpan);
 
 		virtual void handle_irq() override;
 

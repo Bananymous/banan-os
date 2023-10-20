@@ -24,8 +24,10 @@ namespace Kernel
 		release_all_pages();
 	}
 
-	bool DiskCache::read_from_cache(uint64_t sector, uint8_t* buffer)
+	bool DiskCache::read_from_cache(uint64_t sector, BAN::ByteSpan buffer)
 	{
+		ASSERT(buffer.size() >= m_sector_size);
+
 		uint64_t sectors_per_page = PAGE_SIZE / m_sector_size;
 		uint64_t page_cache_offset = sector % sectors_per_page;
 		uint64_t page_cache_start = sector - page_cache_offset;
@@ -46,7 +48,7 @@ namespace Kernel
 
 			CriticalScope _;
 			page_table.map_page_at(cache.paddr, 0, PageTable::Flags::Present);
-			memcpy(buffer, (void*)(page_cache_offset * m_sector_size), m_sector_size);
+			memcpy(buffer.data(), (void*)(page_cache_offset * m_sector_size), m_sector_size);
 			page_table.unmap_page(0);
 
 			return true;
@@ -55,8 +57,9 @@ namespace Kernel
 		return false;
 	};
 
-	BAN::ErrorOr<void> DiskCache::write_to_cache(uint64_t sector, const uint8_t* buffer, bool dirty)
+	BAN::ErrorOr<void> DiskCache::write_to_cache(uint64_t sector, BAN::ConstByteSpan buffer, bool dirty)
 	{
+		ASSERT(buffer.size() >= m_sector_size);
 		uint64_t sectors_per_page = PAGE_SIZE / m_sector_size;
 		uint64_t page_cache_offset = sector % sectors_per_page;
 		uint64_t page_cache_start = sector - page_cache_offset;
@@ -80,7 +83,7 @@ namespace Kernel
 			{
 				CriticalScope _;
 				page_table.map_page_at(cache.paddr, 0, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
-				memcpy((void*)(page_cache_offset * m_sector_size), buffer, m_sector_size);
+				memcpy((void*)(page_cache_offset * m_sector_size), buffer.data(), m_sector_size);
 				page_table.unmap_page(0);
 			}
 
@@ -110,8 +113,8 @@ namespace Kernel
 
 		{
 			CriticalScope _;
-			page_table.map_page_at(cache.paddr, 0, PageTable::Flags::Present);
-			memcpy((void*)(page_cache_offset * m_sector_size), buffer, m_sector_size);
+			page_table.map_page_at(cache.paddr, 0, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
+			memcpy((void*)(page_cache_offset * m_sector_size), buffer.data(), m_sector_size);
 			page_table.unmap_page(0);
 		}
 
@@ -149,7 +152,8 @@ namespace Kernel
 				else
 				{
 					dprintln_if(DEBUG_SYNC, "syncing {}->{}", cache.first_sector + sector_start, cache.first_sector + sector_start + sector_count);
-					TRY(m_device.write_sectors_impl(cache.first_sector + sector_start, sector_count, m_sync_cache.data() + sector_start * m_sector_size));
+					auto data_slice = m_sync_cache.span().slice(sector_start * m_sector_size, sector_count * m_sector_size);
+					TRY(m_device.write_sectors_impl(cache.first_sector + sector_start, sector_count, data_slice));
 					sector_start += sector_count + 1;
 					sector_count = 0;
 				}
@@ -158,7 +162,8 @@ namespace Kernel
 			if (sector_count > 0)
 			{
 				dprintln_if(DEBUG_SYNC, "syncing {}->{}", cache.first_sector + sector_start, cache.first_sector + sector_start + sector_count);
-				TRY(m_device.write_sectors_impl(cache.first_sector + sector_start, sector_count, m_sync_cache.data() + sector_start * m_sector_size));
+				auto data_slice = m_sync_cache.span().slice(sector_start * m_sector_size, sector_count * m_sector_size);
+				TRY(m_device.write_sectors_impl(cache.first_sector + sector_start, sector_count, data_slice));
 			}
 
 			cache.dirty_mask = 0;

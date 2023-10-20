@@ -264,24 +264,24 @@ namespace Kernel
 		}
 	}
 
-	BAN::ErrorOr<size_t> OpenFileDescriptorSet::read(int fd, void* buffer, size_t count)
+	BAN::ErrorOr<size_t> OpenFileDescriptorSet::read(int fd, BAN::ByteSpan buffer)
 	{
 		TRY(validate_fd(fd));
 		auto& open_file = m_open_files[fd];
 		if ((open_file->flags & O_NONBLOCK) && !open_file->inode->has_data())
 			return 0;
-		size_t nread = TRY(open_file->inode->read(open_file->offset, buffer, count));
+		size_t nread = TRY(open_file->inode->read(open_file->offset, buffer));
 		open_file->offset += nread;
 		return nread;
 	}
 
-	BAN::ErrorOr<size_t> OpenFileDescriptorSet::write(int fd, const void* buffer, size_t count)
+	BAN::ErrorOr<size_t> OpenFileDescriptorSet::write(int fd, BAN::ConstByteSpan buffer)
 	{
 		TRY(validate_fd(fd));
 		auto& open_file = m_open_files[fd];
 		if (open_file->flags & O_APPEND)
 			open_file->offset = open_file->inode->size();
-		size_t nwrite = TRY(open_file->inode->write(open_file->offset, buffer, count));
+		size_t nwrite = TRY(open_file->inode->write(open_file->offset, buffer));
 		open_file->offset += nwrite;
 		return nwrite;
 	}

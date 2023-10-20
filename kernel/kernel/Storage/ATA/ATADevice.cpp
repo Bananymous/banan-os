@@ -82,24 +82,24 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<size_t> detail::ATABaseDevice::read_impl(off_t offset, void* buffer, size_t bytes)
+	BAN::ErrorOr<size_t> detail::ATABaseDevice::read_impl(off_t offset, BAN::ByteSpan buffer)
 	{
 		if (offset % sector_size())
 			return BAN::Error::from_errno(EINVAL);
-		if (bytes % sector_size())
+		if (buffer.size() % sector_size())
 			return BAN::Error::from_errno(EINVAL);
-		TRY(read_sectors(offset / sector_size(), bytes / sector_size(), (uint8_t*)buffer));
-		return bytes;
+		TRY(read_sectors(offset / sector_size(), buffer.size() / sector_size(), buffer));
+		return buffer.size();
 	}
 
-	BAN::ErrorOr<size_t> detail::ATABaseDevice::write_impl(off_t offset, const void* buffer, size_t bytes)
+	BAN::ErrorOr<size_t> detail::ATABaseDevice::write_impl(off_t offset, BAN::ConstByteSpan buffer)
 	{
 		if (offset % sector_size())
 			return BAN::Error::from_errno(EINVAL);
-		if (bytes % sector_size())
+		if (buffer.size() % sector_size())
 			return BAN::Error::from_errno(EINVAL);
-		TRY(write_sectors(offset / sector_size(), bytes / sector_size(), (const uint8_t*)buffer));
-		return bytes;
+		TRY(write_sectors(offset / sector_size(), buffer.size() / sector_size(), buffer));
+		return buffer.size();
 	}
 
 	BAN::ErrorOr<BAN::RefPtr<ATADevice>> ATADevice::create(BAN::RefPtr<ATABus> bus, ATABus::DeviceType type, bool is_secondary, BAN::Span<const uint16_t> identify_data)
@@ -118,14 +118,16 @@ namespace Kernel
 		, m_is_secondary(is_secondary)
 	{ }
 
-	BAN::ErrorOr<void> ATADevice::read_sectors_impl(uint64_t lba, uint64_t sector_count, uint8_t* buffer)
+	BAN::ErrorOr<void> ATADevice::read_sectors_impl(uint64_t lba, uint64_t sector_count, BAN::ByteSpan buffer)
 	{
+		ASSERT(buffer.size() >= sector_count * sector_size());
 		TRY(m_bus->read(*this, lba, sector_count, buffer));
 		return {};
 	}
 
-	BAN::ErrorOr<void> ATADevice::write_sectors_impl(uint64_t lba, uint64_t sector_count, const uint8_t* buffer)
+	BAN::ErrorOr<void> ATADevice::write_sectors_impl(uint64_t lba, uint64_t sector_count, BAN::ConstByteSpan buffer)
 	{
+		ASSERT(buffer.size() >= sector_count * sector_size());
 		TRY(m_bus->write(*this, lba, sector_count, buffer));
 		return {};
 	}

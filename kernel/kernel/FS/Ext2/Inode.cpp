@@ -100,19 +100,21 @@ namespace Kernel
 		return BAN::Error::from_errno(ENOTSUP);
 	}
 
-	BAN::ErrorOr<size_t> Ext2Inode::read_impl(off_t offset, void* buffer, size_t count)
+	BAN::ErrorOr<size_t> Ext2Inode::read_impl(off_t offset, BAN::ByteSpan buffer)
 	{
 		// FIXME: update atime if needed
 
 		ASSERT(!mode().ifdir());
 		ASSERT(offset >= 0);
 
-		if (offset >= UINT32_MAX || count >= UINT32_MAX || offset + count >= UINT32_MAX)
+		if (offset >= UINT32_MAX || buffer.size() >= UINT32_MAX || buffer.size() >= (size_t)(UINT32_MAX - offset))
 			return BAN::Error::from_errno(EOVERFLOW);
 
 		if (offset >= m_inode.size)
 			return 0;
-		if (offset + count > m_inode.size)
+		
+		uint32_t count = buffer.size();
+		if (offset + buffer.size() > m_inode.size)
 			count = m_inode.size - offset;
 
 		const uint32_t block_size = blksize();
@@ -131,7 +133,7 @@ namespace Kernel
 
 			uint32_t copy_offset = (offset + n_read) % block_size;
 			uint32_t to_copy = BAN::Math::min<uint32_t>(block_size - copy_offset, count - n_read);
-			memcpy((uint8_t*)buffer + n_read, block_buffer.data() + copy_offset, to_copy);
+			memcpy(buffer.data() + n_read, block_buffer.data() + copy_offset, to_copy);
 
 			n_read += to_copy;
 		}
@@ -139,26 +141,25 @@ namespace Kernel
 		return n_read;
 	}
 
-	BAN::ErrorOr<size_t> Ext2Inode::write_impl(off_t offset, const void* buffer, size_t count)
+	BAN::ErrorOr<size_t> Ext2Inode::write_impl(off_t offset, BAN::ConstByteSpan buffer)
 	{
 		// FIXME: update atime if needed
 
 		ASSERT(!mode().ifdir());
 		ASSERT(offset >= 0);
 
-		if (offset >= UINT32_MAX || count >= UINT32_MAX || offset + count >= UINT32_MAX)
+		if (offset >= UINT32_MAX || buffer.size() >= UINT32_MAX || buffer.size() >= (size_t)(UINT32_MAX - offset))
 			return BAN::Error::from_errno(EOVERFLOW);
 
-		if (m_inode.size < offset + count)
-			TRY(truncate_impl(offset + count));
+		if (m_inode.size < offset + buffer.size())
+			TRY(truncate_impl(offset + buffer.size()));
 
 		const uint32_t block_size = blksize();
 
 		auto block_buffer = m_fs.get_block_buffer();
 
-		const uint8_t* u8buffer = (const uint8_t*)buffer;
-
-		size_t to_write = count;
+		size_t written = 0;
+		size_t to_write = buffer.size();
 
 		// Write partial block
 		if (offset % block_size)
@@ -169,10 +170,10 @@ namespace Kernel
 			uint32_t to_copy = BAN::Math::min<uint32_t>(block_size - block_offset, to_write);
 
 			m_fs.read_block(block_index, block_buffer);
-			memcpy(block_buffer.data() + block_offset, u8buffer, to_copy);
+			memcpy(block_buffer.data() + block_offset, buffer.data(), to_copy);
 			m_fs.write_block(block_index, block_buffer);
 
-			u8buffer += to_copy;
+			written += to_copy;
 			offset += to_copy;
 			to_write -= to_copy;
 		}
@@ -181,10 +182,10 @@ namespace Kernel
 		{
 			uint32_t block_index = fs_block_of_data_block_index(offset / block_size);
 
-			memcpy(block_buffer.data(), u8buffer, block_buffer.size());
+			memcpy(block_buffer.data(), buffer.data() + written, block_buffer.size());
 			m_fs.write_block(block_index, block_buffer);
 
-			u8buffer += block_size;
+			written += block_size;
 			offset += block_size;
 			to_write -= block_size;
 		}
@@ -194,11 +195,11 @@ namespace Kernel
 			uint32_t block_index = fs_block_of_data_block_index(offset / block_size);
 
 			m_fs.read_block(block_index, block_buffer);
-			memcpy(block_buffer.data(), u8buffer, to_write);
+			memcpy(block_buffer.data(), buffer.data() + written, to_write);
 			m_fs.write_block(block_index, block_buffer);
 		}
 
-		return count;
+		return buffer.size();
 	}
 
 	BAN::ErrorOr<void> Ext2Inode::truncate_impl(size_t new_size)

@@ -260,7 +260,7 @@ namespace Kernel
 			thread->set_terminating();
 	}
 
-	size_t Process::proc_meminfo(off_t offset, void* buffer, size_t buffer_size) const
+	size_t Process::proc_meminfo(off_t offset, BAN::ByteSpan buffer) const
 	{
 		ASSERT(offset >= 0);
 		if ((size_t)offset >= sizeof(proc_meminfo_t))
@@ -290,12 +290,12 @@ namespace Kernel
 			}
 		}
 
-		size_t bytes = BAN::Math::min<size_t>(sizeof(proc_meminfo_t) - offset, buffer_size);
-		memcpy(buffer, (uint8_t*)&meminfo + offset, bytes);
+		size_t bytes = BAN::Math::min<size_t>(sizeof(proc_meminfo_t) - offset, buffer.size());
+		memcpy(buffer.data(), (uint8_t*)&meminfo + offset, bytes);
 		return bytes;
 	}
 
-	static size_t read_from_vec_of_str(const BAN::Vector<BAN::String>& container, size_t start, void* buffer, size_t buffer_size)
+	static size_t read_from_vec_of_str(const BAN::Vector<BAN::String>& container, size_t start, BAN::ByteSpan buffer)
 	{
 		size_t offset = 0;
 		size_t written = 0;
@@ -307,11 +307,11 @@ namespace Kernel
 				if (offset < start)
 					elem_offset = start - offset;
 
-				size_t bytes = BAN::Math::min<size_t>(elem.size() + 1 - elem_offset, buffer_size - written);
-				memcpy((uint8_t*)buffer + written, elem.data() + elem_offset, bytes);
+				size_t bytes = BAN::Math::min<size_t>(elem.size() + 1 - elem_offset, buffer.size() - written);
+				memcpy(buffer.data() + written, elem.data() + elem_offset, bytes);
 
 				written += bytes;
-				if (written >= buffer_size)
+				if (written >= buffer.size())
 					break;
 			}
 			offset += elem.size() + 1;
@@ -319,16 +319,16 @@ namespace Kernel
 		return written;
 	}
 
-	size_t Process::proc_cmdline(off_t offset, void* buffer, size_t buffer_size) const
+	size_t Process::proc_cmdline(off_t offset, BAN::ByteSpan buffer) const
 	{
 		LockGuard _(m_lock);
-		return read_from_vec_of_str(m_cmdline, offset, buffer, buffer_size);
+		return read_from_vec_of_str(m_cmdline, offset, buffer);
 	}
 
-	size_t Process::proc_environ(off_t offset, void* buffer, size_t buffer_size) const
+	size_t Process::proc_environ(off_t offset, BAN::ByteSpan buffer) const
 	{
 		LockGuard _(m_lock);
-		return read_from_vec_of_str(m_environ, offset, buffer, buffer_size);
+		return read_from_vec_of_str(m_environ, offset, buffer);
 	}
 
 	BAN::ErrorOr<long> Process::sys_exit(int status)
@@ -723,14 +723,14 @@ namespace Kernel
 	{
 		LockGuard _(m_lock);
 		validate_pointer_access(buffer, count);
-		return TRY(m_open_file_descriptors.read(fd, buffer, count));
+		return TRY(m_open_file_descriptors.read(fd, BAN::ByteSpan((uint8_t*)buffer, count)));
 	}
 
 	BAN::ErrorOr<long> Process::sys_write(int fd, const void* buffer, size_t count)
 	{
 		LockGuard _(m_lock);
 		validate_pointer_access(buffer, count);
-		return TRY(m_open_file_descriptors.write(fd, buffer, count));
+		return TRY(m_open_file_descriptors.write(fd, BAN::ByteSpan((uint8_t*)buffer, count)));
 	}
 
 	BAN::ErrorOr<long> Process::sys_pipe(int fildes[2])

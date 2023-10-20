@@ -63,7 +63,7 @@ namespace Kernel::Input
 		virtual dev_t rdev() const override { return m_rdev; }
 
 	protected:
-		virtual BAN::ErrorOr<size_t> read_impl(off_t, void*, size_t) override;
+		virtual BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan) override;
 
 	private:
 		const dev_t m_rdev;

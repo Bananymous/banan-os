@@ -153,8 +153,10 @@ namespace Kernel
 		if (total_size() < sizeof(GPTHeader))
 			return BAN::Error::from_error_code(ErrorCode::Storage_GPTHeader);
 
-		BAN::Vector<uint8_t> lba1(sector_size());
-		TRY(read_sectors(1, 1, lba1.data()));
+		BAN::Vector<uint8_t> lba1;
+		TRY(lba1.resize(sector_size()));
+
+		TRY(read_sectors(1, 1, lba1.span()));
 
 		const GPTHeader& header = *(const GPTHeader*)lba1.data();
 		if (!is_valid_gpt_header(header, sector_size()))
@@ -169,7 +171,7 @@ namespace Kernel
 
 		BAN::Vector<uint8_t> entry_array;
 		TRY(entry_array.resize(size));
-		TRY(read_sectors(header.partition_entry_lba, size / sector_size(), entry_array.data()));
+		TRY(read_sectors(header.partition_entry_lba, size / sector_size(), entry_array.span()));
 
 		if (!is_valid_gpt_crc32(header, lba1, entry_array))
 			return BAN::Error::from_error_code(ErrorCode::Storage_GPTHeader);
@@ -226,8 +228,9 @@ namespace Kernel
 		memcpy(m_label, label, sizeof(m_label));
 	}
 
-	BAN::ErrorOr<void> Partition::read_sectors(uint64_t lba, uint8_t sector_count, uint8_t* buffer)
+	BAN::ErrorOr<void> Partition::read_sectors(uint64_t lba, uint8_t sector_count, BAN::ByteSpan buffer)
 	{
+		ASSERT(buffer.size() >= sector_count * m_device.sector_size());
 		const uint32_t sectors_in_partition = m_lba_end - m_lba_start;
 		if (lba + sector_count > sectors_in_partition)
 			return BAN::Error::from_error_code(ErrorCode::Storage_Boundaries);
@@ -235,8 +238,9 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<void> Partition::write_sectors(uint64_t lba, uint8_t sector_count, const uint8_t* buffer)
+	BAN::ErrorOr<void> Partition::write_sectors(uint64_t lba, uint8_t sector_count, BAN::ConstByteSpan buffer)
 	{
+		ASSERT(buffer.size() >= sector_count * m_device.sector_size());
 		const uint32_t sectors_in_partition = m_lba_end - m_lba_start;
 		if (lba + sector_count > sectors_in_partition)
 			return BAN::Error::from_error_code(ErrorCode::Storage_Boundaries);
@@ -244,23 +248,23 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<size_t> Partition::read_impl(off_t offset, void* buffer, size_t bytes)
+	BAN::ErrorOr<size_t> Partition::read_impl(off_t offset, BAN::ByteSpan buffer)
 	{
 		ASSERT(offset >= 0);
 
-		if (offset % m_device.sector_size() || bytes % m_device.sector_size())
+		if (offset % m_device.sector_size() || buffer.size() % m_device.sector_size())
 			return BAN::Error::from_errno(ENOTSUP);
 
 		const uint32_t sectors_in_partition = m_lba_end - m_lba_start;
 		uint32_t lba = offset / m_device.sector_size();
-		uint32_t sector_count = bytes / m_device.sector_size();
+		uint32_t sector_count = buffer.size() / m_device.sector_size();
 
 		if (lba == sectors_in_partition)
 			return 0;
 		if (lba + sector_count > sectors_in_partition)
 			sector_count = sectors_in_partition - lba;
 
-		TRY(read_sectors(lba, sector_count, (uint8_t*)buffer));
+		TRY(read_sectors(lba, sector_count, buffer));
 		return sector_count * m_device.sector_size();
 	}
 
@@ -283,36 +287,51 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<void> StorageDevice::read_sectors(uint64_t lba, uint64_t sector_count, uint8_t* buffer)
+	BAN::ErrorOr<void> StorageDevice::read_sectors(uint64_t lba, uint64_t sector_count, BAN::ByteSpan buffer)
 	{
+		ASSERT(buffer.size() >= sector_count * sector_size());
+
+		{
+			LockGuard _(m_lock);
+			Thread::TerminateBlocker blocker(Thread::current());
+			if (!m_disk_cache.has_value())
+				return read_sectors_impl(lba, sector_count, buffer);
+		}
+
 		for (uint64_t offset = 0; offset < sector_count; offset++)
 		{
 			LockGuard _(m_lock);
 			Thread::TerminateBlocker blocker(Thread::current());
 
-			uint8_t* buffer_ptr = buffer + offset * sector_size();
-			if (m_disk_cache.has_value())
-				if (m_disk_cache->read_from_cache(lba + offset, buffer_ptr))
-					continue;
-			TRY(read_sectors_impl(lba + offset, 1, buffer_ptr));
-			if (m_disk_cache.has_value())
-				(void)m_disk_cache->write_to_cache(lba + offset, buffer_ptr, false);
+			auto sector_buffer = buffer.slice(offset * sector_size(), sector_size());
+			if (m_disk_cache->read_from_cache(lba + offset, sector_buffer))
+				continue;
+			TRY(read_sectors_impl(lba + offset, 1, sector_buffer));
+			(void)m_disk_cache->write_to_cache(lba + offset, sector_buffer, false);
 		}
 		
 		return {};
 	}
 
-	BAN::ErrorOr<void> StorageDevice::write_sectors(uint64_t lba, uint64_t sector_count, const uint8_t* buffer)
+	BAN::ErrorOr<void> StorageDevice::write_sectors(uint64_t lba, uint64_t sector_count, BAN::ConstByteSpan buffer)
 	{
-		// TODO: use disk cache for dirty pages. I don't wanna think about how to do it safely now
+		ASSERT(buffer.size() >= sector_count * sector_size());
+
+		{
+			LockGuard _(m_lock);
+			Thread::TerminateBlocker blocker(Thread::current());
+			if (!m_disk_cache.has_value())
+				return write_sectors_impl(lba, sector_count, buffer);
+		}
+
 		for (uint8_t offset = 0; offset < sector_count; offset++)
 		{
 			LockGuard _(m_lock);
 			Thread::TerminateBlocker blocker(Thread::current());
 
-			const uint8_t* buffer_ptr = buffer + offset * sector_size();
-			if (!m_disk_cache.has_value() || m_disk_cache->write_to_cache(lba + offset, buffer_ptr, true).is_error())
-				TRY(write_sectors_impl(lba + offset, 1, buffer_ptr));
+			auto sector_buffer = buffer.slice(offset * sector_size(), sector_size());
+			if (m_disk_cache->write_to_cache(lba + offset, sector_buffer, true).is_error())
+				TRY(write_sectors_impl(lba + offset, 1, sector_buffer));
 		}
 
 		return {};

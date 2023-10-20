@@ -158,28 +158,30 @@ namespace Kernel
 			__builtin_ia32_pause();
 	}
 
-	BAN::ErrorOr<void> AHCIDevice::read_sectors_impl(uint64_t lba, uint64_t sector_count, uint8_t* buffer)
+	BAN::ErrorOr<void> AHCIDevice::read_sectors_impl(uint64_t lba, uint64_t sector_count, BAN::ByteSpan buffer)
 	{
+		ASSERT(buffer.size() >= sector_count * sector_size());
 		const size_t sectors_per_page = PAGE_SIZE / sector_size();
 		for (uint64_t sector_off = 0; sector_off < sector_count; sector_off += sectors_per_page)
 		{
 			uint64_t to_read = BAN::Math::min<uint64_t>(sector_count - sector_off, sectors_per_page);
 
 			TRY(send_command_and_block(lba + sector_off, to_read, Command::Read));
-			memcpy(buffer + sector_off * sector_size(), (void*)m_data_dma_region->vaddr(), to_read * sector_size());
+			memcpy(buffer.data() + sector_off * sector_size(), (void*)m_data_dma_region->vaddr(), to_read * sector_size());
 		}
 
 		return {};
 	}
 
-	BAN::ErrorOr<void> AHCIDevice::write_sectors_impl(uint64_t lba, uint64_t sector_count, const uint8_t* buffer)
+	BAN::ErrorOr<void> AHCIDevice::write_sectors_impl(uint64_t lba, uint64_t sector_count, BAN::ConstByteSpan buffer)
 	{
+		ASSERT(buffer.size() >= sector_count * sector_size());
 		const size_t sectors_per_page = PAGE_SIZE / sector_size();
 		for (uint64_t sector_off = 0; sector_off < sector_count; sector_off += sectors_per_page)
 		{
 			uint64_t to_read = BAN::Math::min<uint64_t>(sector_count - sector_off, sectors_per_page);
 
-			memcpy((void*)m_data_dma_region->vaddr(), buffer + sector_off * sector_size(), to_read * sector_size());
+			memcpy((void*)m_data_dma_region->vaddr(), buffer.data() + sector_off * sector_size(), to_read * sector_size());
 			TRY(send_command_and_block(lba + sector_off, to_read, Command::Write));
 		}
 

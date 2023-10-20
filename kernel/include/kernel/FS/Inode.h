@@ -1,10 +1,11 @@
 #pragma once
 
+#include <BAN/ByteSpan.h>
 #include <BAN/RefPtr.h>
 #include <BAN/String.h>
 #include <BAN/StringView.h>
-#include <BAN/WeakPtr.h>
 #include <BAN/Vector.h>
+#include <BAN/WeakPtr.h>
 
 #include <kernel/API/DirectoryEntry.h>
 #include <kernel/Credentials.h>
@@ -95,8 +96,8 @@ namespace Kernel
 		BAN::ErrorOr<BAN::String> link_target();
 
 		// General API
-		BAN::ErrorOr<size_t> read(off_t, void*, size_t);
-		BAN::ErrorOr<size_t> write(off_t, const void*, size_t);
+		BAN::ErrorOr<size_t> read(off_t, BAN::ByteSpan buffer);
+		BAN::ErrorOr<size_t> write(off_t, BAN::ConstByteSpan buffer);
 		BAN::ErrorOr<void> truncate(size_t);
 		bool has_data() const;
 
@@ -111,8 +112,8 @@ namespace Kernel
 		virtual BAN::ErrorOr<BAN::String> link_target_impl()				{ return BAN::Error::from_errno(ENOTSUP); }
 
 		// General API
-		virtual BAN::ErrorOr<size_t> read_impl(off_t, void*, size_t)		{ return BAN::Error::from_errno(ENOTSUP); }
-		virtual BAN::ErrorOr<size_t> write_impl(off_t, const void*, size_t)	{ return BAN::Error::from_errno(ENOTSUP); }
+		virtual BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan)		{ return BAN::Error::from_errno(ENOTSUP); }
+		virtual BAN::ErrorOr<size_t> write_impl(off_t, BAN::ConstByteSpan)	{ return BAN::Error::from_errno(ENOTSUP); }
 		virtual BAN::ErrorOr<void> truncate_impl(size_t)					{ return BAN::Error::from_errno(ENOTSUP); }
 		virtual bool has_data_impl() const { dwarnln("nonblock not supported"); return true; }
 

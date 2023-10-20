@@ -95,7 +95,7 @@ namespace Kernel
 						TTY::current()->m_tty_ctrl.semaphore.block();
 
 					Input::KeyEvent event;
-					size_t read = MUST(inode->read(0, &event, sizeof(event)));
+					size_t read = MUST(inode->read(0, BAN::ByteSpan::from(event)));
 					ASSERT(read == sizeof(event));
 					TTY::current()->on_key_event(event);
 				}
@@ -298,7 +298,7 @@ namespace Kernel
 			putchar_impl(ch);
 	}
 
-	BAN::ErrorOr<size_t> TTY::read_impl(off_t, void* buffer, size_t count)
+	BAN::ErrorOr<size_t> TTY::read_impl(off_t, BAN::ByteSpan buffer)
 	{
 		LockGuard _(m_lock);
 		while (!m_output.flush)
@@ -314,8 +314,8 @@ namespace Kernel
 			return 0;
 		}
 
-		size_t to_copy = BAN::Math::min<size_t>(count, m_output.bytes);
-		memcpy(buffer, m_output.buffer.data(), to_copy);
+		size_t to_copy = BAN::Math::min<size_t>(buffer.size(), m_output.bytes);
+		memcpy(buffer.data(), m_output.buffer.data(), to_copy);
 
 		memmove(m_output.buffer.data(), m_output.buffer.data() + to_copy, m_output.bytes - to_copy);
 		m_output.bytes -= to_copy;
@@ -328,12 +328,12 @@ namespace Kernel
 		return to_copy;
 	}
 
-	BAN::ErrorOr<size_t> TTY::write_impl(off_t, const void* buffer, size_t count)
+	BAN::ErrorOr<size_t> TTY::write_impl(off_t, BAN::ConstByteSpan buffer)
 	{
 		LockGuard _(m_lock);
-		for (size_t i = 0; i < count; i++)
-			putchar(((uint8_t*)buffer)[i]);
-		return count;
+		for (size_t i = 0; i < buffer.size(); i++)
+			putchar(buffer[i]);
+		return buffer.size();
 	}
 
 	bool TTY::has_data_impl() const
