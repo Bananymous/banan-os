@@ -14,7 +14,7 @@ COM1_DEVICE=$(cat $COM1_DEVICE_FILE)
 rm $COM1_DEVICE_FILE
 
 cat > $BOCHS_CONFIG_FILE << EOF
-ata0-master: type=disk, path=$DISK_IMAGE_PATH, status=inserted
+ata0-master: type=disk, path=$BANAN_DISK_IMAGE_PATH, status=inserted
 boot: disk
 clock: sync=realtime, time0=local
 display_library: x, options="gui_debug"
