@@ -5,6 +5,7 @@ project(userspace CXX)
 set(USERSPACE_PROJECTS
 	cat
 	cat-mmap
+	chmod
 	cp
 	dd
 	echo
