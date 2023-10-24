@@ -127,8 +127,8 @@ namespace BAN
 		ASSERT(start <= m_size);
 		if (length == ~size_type(0))
 			length = m_size - start;
-		ASSERT(start + length <= m_size);
-		return Span(m_data + start, m_size - start - length);
+		ASSERT(m_size - start >= length);
+		return Span(m_data + start, length);
 	}
 
 }
