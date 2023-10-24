@@ -1,5 +1,4 @@
 #!/bin/bash
-set -e
 
 if [[ -z $BANAN_DISK_IMAGE_PATH ]]; then
 	echo  "You must set the BANAN_DISK_IMAGE_PATH environment variable" >&2
@@ -79,18 +78,18 @@ if [[ "$BANAN_UEFI_BOOT" == "1" ]]; then
 	sudo mkfs.fat $PARTITION1 > /dev/null
 	sudo mount $PARTITION1 "$MOUNT_DIR"
 	sudo mkdir -p "$MOUNT_DIR/EFI/BOOT"
-	sudo "$BANAN_TOOLCHAIN_PREFIX/bin/grub-mkstandalone" -O "$BANAN_ARCH-efi" -o "$MOUNT_DIR/EFI/BOOT/BOOTX64.EFI" "boot/grub/grub.cfg=$BANAN_TOOLCHAIN_PREFIX/grub-memdisk.cfg"
+	sudo "$BANAN_TOOLCHAIN_PREFIX/bin/grub-mkstandalone" -O "$BANAN_ARCH-efi" -o "$MOUNT_DIR/EFI/BOOT/BOOTX64.EFI" "boot/grub/grub.cfg=$BANAN_TOOLCHAIN_DIR/grub-memdisk.cfg"
 	sudo umount "$MOUNT_DIR"
 
 	sudo mount $PARTITION2 "$MOUNT_DIR"
 	sudo mkdir -p "$MOUNT_DIR/boot/grub"
-	sudo cp "$BANAN_TOOLCHAIN_PREFIX/grub-uefi.cfg" "$MOUNT_DIR/boot/grub/grub.cfg"
+	sudo cp "$BANAN_TOOLCHAIN_DIR/grub-uefi.cfg" "$MOUNT_DIR/boot/grub/grub.cfg"
 	sudo umount "$MOUNT_DIR"
 else
 	sudo mount $PARTITION2 "$MOUNT_DIR"
 	sudo grub-install --no-floppy --target=i386-pc --modules="normal ext2 multiboot" --boot-directory="$MOUNT_DIR/boot" $LOOP_DEV
 	sudo mkdir -p "$MOUNT_DIR/boot/grub"
-	sudo cp "$BANAN_TOOLCHAIN_PREFIX/grub-legacy-boot.cfg" "$MOUNT_DIR/boot/grub/grub.cfg"
+	sudo cp "$BANAN_TOOLCHAIN_DIR/grub-legacy-boot.cfg" "$MOUNT_DIR/boot/grub/grub.cfg"
 	sudo umount "$MOUNT_DIR"
 fi
 

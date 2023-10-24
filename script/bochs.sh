@@ -1,5 +1,4 @@
 #!/bin/bash
-set -e
 
 BOCHS_CONFIG_FILE=bochsrc
 COM1_TERMINAL=kitty

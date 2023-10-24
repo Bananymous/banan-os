@@ -1,5 +1,5 @@
 if [[ -z $BANAN_ROOT_DIR ]]; then
-	if [[ -z $BANAN_SCRIPT_DIR ]]; then
+	if ! [[ -z $BANAN_SCRIPT_DIR ]]; then
 		export BANAN_ROOT_DIR=$BANAN_SCRIPT_DIR/..
 	else
 		echo  "You must set the BANAN_ROOT_DIR environment variable" >&2
@@ -8,8 +8,7 @@ if [[ -z $BANAN_ROOT_DIR ]]; then
 fi
 
 if [[ -z $BANAN_ARCH ]]; then
-	echo  "You must set the BANAN_ARCH environment variable" >&2
-	exit 1
+	export BANAN_ARCH=x86_64
 fi
 
 export BANAN_TOOLCHAIN_DIR=$BANAN_ROOT_DIR/toolchain

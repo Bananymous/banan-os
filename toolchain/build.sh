@@ -10,6 +10,16 @@ if [[ -z $BANAN_SYSROOT ]]; then
 	exit 1
 fi
 
+if [[ -z $BANAN_ROOT_DIR ]]; then
+	echo "You must set the BANAN_ROOT_DIR environment variable" >&2
+	exit 1
+fi
+
+if [[ -z $BANAN_BUILD_DIR ]]; then
+	echo "You must set the BANAN_BUILD_DIR environment variable" >&2
+	exit 1
+fi
+
 if [[ -z $BANAN_TOOLCHAIN_DIR ]]; then
 	echo "You must set the BANAN_TOOLCHAIN_DIR environment variable" >&2
 	exit 1
@@ -30,10 +40,16 @@ if [[ -z $BANAN_ARCH ]]; then
 	exit 1
 fi
 
+enter_clean_build () {
+	rm -rf build
+	mkdir build
+	cd build
+}
+
 build_binutils () {
 	echo "Building ${BINUTILS_VERSION}"
 
-	cd $BANAN_TOOLCHAIN_DIR
+	cd $BANAN_BUILD_DIR/toolchain
 
 	if [ ! -f ${BINUTILS_VERSION}.tar.xz ]; then
 		wget https://ftp.gnu.org/gnu/binutils/${BINUTILS_VERSION}.tar.xz
@@ -41,13 +57,13 @@ build_binutils () {
 
 	if [ ! -d $BINUTILS_VERSION ]; then
 		tar xvf ${BINUTILS_VERSION}.tar.xz
-		patch -s -p0 < ${BINUTILS_VERSION}.patch
+		patch -s -p0 < $BANAN_TOOLCHAIN_DIR/${BINUTILS_VERSION}.patch
 	fi
 
-	mkdir -p build/${BINUTILS_VERSION}/
-	cd build/${BINUTILS_VERSION}/
+	cd $BINUTILS_VERSION
+	enter_clean_build
 
-	../../${BINUTILS_VERSION}/configure \
+	../configure \
 		--target="$BANAN_TOOLCHAIN_TRIPLE_PREFIX" \
 		--prefix="$BANAN_TOOLCHAIN_PREFIX" \
 		--with-sysroot="$BANAN_SYSROOT" \
@@ -61,7 +77,7 @@ build_binutils () {
 build_gcc () {
 	echo "Building ${GCC_VERSION}"
 
-	cd $BANAN_TOOLCHAIN_DIR
+	cd $BANAN_BUILD_DIR/toolchain
 
 	if [ ! -f ${GCC_VERSION}.tar.xz ]; then
 		wget https://ftp.gnu.org/gnu/gcc/${GCC_VERSION}/${GCC_VERSION}.tar.xz
@@ -69,13 +85,13 @@ build_gcc () {
 
 	if [ ! -d $GCC_VERSION ]; then
 		tar xvf ${GCC_VERSION}.tar.xz
-		patch -s -p0 < ${GCC_VERSION}.patch
+		patch -s -p0 < $BANAN_TOOLCHAIN_DIR/${GCC_VERSION}.patch
 	fi
 
-	mkdir -p build/${GCC_VERSION}/
-	cd build/${GCC_VERSION}/
+	cd ${GCC_VERSION}
+	enter_clean_build
 
-	../../${GCC_VERSION}/configure \
+	../configure \
 		--target="$BANAN_TOOLCHAIN_TRIPLE_PREFIX" \
 		--prefix="$BANAN_TOOLCHAIN_PREFIX" \
 		--with-sysroot="$BANAN_SYSROOT" \
@@ -90,7 +106,7 @@ build_gcc () {
 build_grub () {
 	echo "Building ${GRUB_VERSION}"
 
-	cd $BANAN_TOOLCHAIN_DIR
+	cd $BANAN_BUILD_DIR/toolchain
 
 	if [ ! -f ${GRUB_VERSION}.tar.xz ]; then
 		wget https://ftp.gnu.org/gnu/grub/${GRUB_VERSION}.tar.xz
@@ -100,10 +116,10 @@ build_grub () {
 		tar xvf ${GRUB_VERSION}.tar.xz
 	fi
 
-	mkdir -p build/${GRUB_VERSION}/
-	cd build/${GRUB_VERSION}/
+	cd $GRUB_VERSION
+	enter_clean_build
 
-	../../${GRUB_VERSION}/configure \
+	../configure \
 		--target="$BANAN_ARCH" \
 		--prefix="$BANAN_TOOLCHAIN_PREFIX" \
 		--with-platform="efi" \
@@ -114,15 +130,34 @@ build_grub () {
 }
 
 build_libstdcpp () {
-	cd build/${GCC_VERSION}/
+	if ! [[ -d $BANAN_BUILD_DIR/toolchain/$GCC_VERSION/build ]]; then
+		echo "You have to build gcc first"
+		exit 1
+	fi
+
+	cd $BANAN_BUILD_DIR/toolchain/$GCC_VERSION/build
 	make -j $(nproc) all-target-libstdc++-v3
 	make install-target-libstdc++-v3
 }
 
-if [[ "$1" == "libstdc++" ]]; then
-	build_libstdcpp
-	exit 0
+if [[ $# -ge 1 ]]; then
+	if [[ "$1" == "libstdc++" ]]; then
+		build_libstdcpp
+		exit 0
+	fi
+
+	echo "unrecognized arguments $@"
+	exit 1
 fi
+
+# NOTE: we have to manually create initial sysroot with libc headers
+#       since cmake cannot be invoked yet
+echo "Syncing sysroot headers"
+mkdir -p $BANAN_SYSROOT
+sudo mkdir -p $BANAN_SYSROOT/usr/include
+sudo rsync -a $BANAN_ROOT_DIR/libc/include/ $BANAN_SYSROOT/usr/include/
+
+mkdir -p $BANAN_BUILD_DIR/toolchain
 
 build_binutils
 build_gcc
