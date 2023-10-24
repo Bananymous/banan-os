@@ -242,6 +242,16 @@ namespace Kernel
 		return {};
 	}
 
+	BAN::ErrorOr<void> Ext2Inode::chmod_impl(mode_t mode)
+	{
+		ASSERT((mode & Inode::Mode::TYPE_MASK) == 0);
+		if (m_inode.mode == mode)
+			return {};
+		m_inode.mode = (m_inode.mode & Inode::Mode::TYPE_MASK) | mode;
+		TRY(sync());
+		return {};
+	}
+
 	BAN::ErrorOr<void> Ext2Inode::list_next_inodes_impl(off_t offset, DirectoryEntryList* list, size_t list_size)
 	{
 		ASSERT(mode().ifdir());

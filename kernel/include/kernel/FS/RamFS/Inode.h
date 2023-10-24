@@ -56,6 +56,8 @@ namespace Kernel
 			ASSERT((inode_info.mode & Inode::Mode::TYPE_MASK) == 0);
 		}
 
+		virtual BAN::ErrorOr<void> chmod_impl(mode_t) override;
+
 	protected:
 		RamFileSystem& m_fs;
 		FullInodeInfo m_inode_info;

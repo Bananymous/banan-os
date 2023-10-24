@@ -199,6 +199,9 @@ namespace Kernel
 		case SYS_POWEROFF:
 			ret = Process::current().sys_poweroff((int)arg1);
 			break;
+		case SYS_CHMOD:
+			ret = Process::current().sys_chmod((const char*)arg1, (mode_t)arg2);
+			break;
 		default:
 			dwarnln("Unknown syscall {}", syscall);
 			break;

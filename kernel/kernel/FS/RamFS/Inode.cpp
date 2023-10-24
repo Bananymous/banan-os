@@ -26,6 +26,14 @@ namespace Kernel
 		this->rdev = 0;
 	}
 
+
+	BAN::ErrorOr<void> RamInode::chmod_impl(mode_t mode)
+	{
+		ASSERT((mode & Inode::Mode::TYPE_MASK) == 0);
+		m_inode_info.mode = (m_inode_info.mode & Inode::Mode::TYPE_MASK) | mode;
+		return {};
+	}
+
 	/*
 
 		RAM FILE INODE
@@ -193,9 +201,9 @@ namespace Kernel
 	{
 		BAN::RefPtr<RamInode> inode;
 		if (Mode(mode).ifreg())
-			inode = TRY(RamFileInode::create(m_fs, mode, uid, gid));
+			inode = TRY(RamFileInode::create(m_fs, mode & ~Inode::Mode::TYPE_MASK, uid, gid));
 		else if (Mode(mode).ifdir())
-			inode = TRY(RamDirectoryInode::create(m_fs, ino(), mode, uid, gid));
+			inode = TRY(RamDirectoryInode::create(m_fs, ino(), mode & ~Inode::Mode::TYPE_MASK, uid, gid));
 		else
 			ASSERT_NOT_REACHED();
 

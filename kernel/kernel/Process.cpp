@@ -733,6 +733,21 @@ namespace Kernel
 		return TRY(m_open_file_descriptors.write(fd, BAN::ByteSpan((uint8_t*)buffer, count)));
 	}
 
+	BAN::ErrorOr<long> Process::sys_chmod(const char* path, mode_t mode)
+	{
+		if (mode & S_IFMASK)
+			return BAN::Error::from_errno(EINVAL);
+
+		LockGuard _(m_lock);
+		validate_string_access(path);
+
+		auto absolute_path = TRY(absolute_path_of(path));
+		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, O_WRONLY));
+		TRY(file.inode->chmod(mode));
+
+		return 0;
+	}
+
 	BAN::ErrorOr<long> Process::sys_pipe(int fildes[2])
 	{
 		LockGuard _(m_lock);

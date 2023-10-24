@@ -97,6 +97,8 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_read(int fd, void* buffer, size_t count);
 		BAN::ErrorOr<long> sys_write(int fd, const void* buffer, size_t count);
 
+		BAN::ErrorOr<long> sys_chmod(const char*, mode_t);
+
 		BAN::ErrorOr<long> sys_pipe(int fildes[2]);
 		BAN::ErrorOr<long> sys_dup(int fildes);
 		BAN::ErrorOr<long> sys_dup2(int fildes, int fildes2);

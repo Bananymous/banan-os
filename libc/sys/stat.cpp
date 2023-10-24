@@ -4,6 +4,11 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 
+int chmod(const char* path, mode_t mode)
+{
+	return syscall(SYS_CHMOD, path, mode);
+}
+
 int fstat(int fildes, struct stat* buf)
 {
 	return syscall(SYS_FSTAT, fildes, buf);

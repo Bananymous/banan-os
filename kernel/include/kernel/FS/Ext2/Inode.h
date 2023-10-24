@@ -37,6 +37,7 @@ namespace Kernel
 		virtual BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan) override;
 		virtual BAN::ErrorOr<size_t> write_impl(off_t, BAN::ConstByteSpan) override;
 		virtual BAN::ErrorOr<void> truncate_impl(size_t) override;
+		virtual BAN::ErrorOr<void> chmod_impl(mode_t) override;
 
 	private:
 		uint32_t fs_block_of_data_block_index(uint32_t data_block_index);

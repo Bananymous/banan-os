@@ -55,6 +55,7 @@ __BEGIN_DECLS
 #define SYS_MUNMAP 52
 #define SYS_TTY_CTRL 53
 #define SYS_POWEROFF 54
+#define SYS_CHMOD 55
 
 __END_DECLS
 

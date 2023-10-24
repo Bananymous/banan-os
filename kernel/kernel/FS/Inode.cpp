@@ -129,6 +129,14 @@ namespace Kernel
 		return truncate_impl(size);
 	}
 
+	BAN::ErrorOr<void> Inode::chmod(mode_t mode)
+	{
+		ASSERT((mode & Inode::Mode::TYPE_MASK) == 0);
+		LockGuard _(m_lock);
+		Thread::TerminateBlocker blocker(Thread::current());
+		return chmod_impl(mode);
+	}
+
 	bool Inode::has_data() const
 	{
 		LockGuard _(m_lock);
