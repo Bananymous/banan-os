@@ -62,7 +62,7 @@ namespace Kernel
 		if (offset >= size())
 			return 0;
 		size_t to_copy = BAN::Math::min<size_t>(m_inode_info.size - offset, buffer.size());
-		memcpy(buffer.data(), m_data.data(), to_copy);
+		memcpy(buffer.data(), m_data.data() + offset, to_copy);
 		return to_copy;
 	}
 
