@@ -69,7 +69,7 @@ bool copy_file(const BAN::String& source, BAN::String destination)
 				perror("write");
 				ret = false;
 			}
-			if (nwrite == 0)
+			if (nwrite <= 0)
 				break;
 			written += nwrite;
 		}
