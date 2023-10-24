@@ -833,6 +833,8 @@ int main(int argc, char** argv)
 	if (signal(SIGINT, [](int) {}) == SIG_ERR)
 		perror("signal");
 
+	tcgetattr(0, &old_termios);
+
 	{
 		FILE* fp = fopen("/etc/hostname", "r");
 		if (fp != NULL)
@@ -875,8 +877,6 @@ int main(int argc, char** argv)
 		setenv("SHELL", argv[0], true);
 	
 	source_shellrc();
-
-	tcgetattr(0, &old_termios);
 
 	new_termios = old_termios;
 	new_termios.c_lflag &= ~(ECHO | ICANON);
