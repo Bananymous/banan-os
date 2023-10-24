@@ -45,7 +45,7 @@ int main()
 
 			while (ssize_t nread = read(fd, path_buffer, sizeof(path_buffer) - 1))
 			{
-				if (nread == -1)
+				if (nread < 0)
 				{
 					perror("read");
 					break;
