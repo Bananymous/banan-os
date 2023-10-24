@@ -1,3 +1,4 @@
+#include <kernel/Scheduler.h>
 #include <kernel/Storage/ATA/AHCI/Controller.h>
 #include <kernel/Storage/ATA/AHCI/Device.h>
 #include <kernel/Storage/ATA/ATADefinitions.h>
@@ -40,7 +41,7 @@ namespace Kernel
 		m_port->ie = 0xFFFFFFFF;
 
 		TRY(read_identify_data());
-		TRY(detail::ATABaseDevice::initialize({ (const uint16_t*)m_data_dma_region->vaddr(), m_data_dma_region->size() }));
+		TRY(detail::ATABaseDevice::initialize({ (const uint16_t*)m_data_dma_region->vaddr(), m_data_dma_region->size() / sizeof(uint16_t) }));
 
 		return {};
 	}
@@ -120,8 +121,7 @@ namespace Kernel
 
 		m_port->ci = 1 << slot.value();
 
-		// FIXME: timeout
-		do { block_until_irq(); } while (m_port->ci & (1 << slot.value()));
+		TRY(block_until_command_completed(slot.value()));
 
 		return {};
 	}
@@ -145,17 +145,32 @@ namespace Kernel
 
 	void AHCIDevice::handle_irq()
 	{
-		ASSERT(!m_has_got_irq);
 		uint16_t err = m_port->serr & 0xFFFF;
 		if (err)
 			print_error(err);
-		m_has_got_irq = true;
 	}
 
-	void AHCIDevice::block_until_irq()
+	BAN::ErrorOr<void> AHCIDevice::block_until_command_completed(uint32_t command_slot)
 	{
-		while (!__sync_bool_compare_and_swap(&m_has_got_irq, true, false))
-			__builtin_ia32_pause();
+		static constexpr uint64_t total_timeout_ms = 5000;
+		static constexpr uint64_t poll_timeout_ms = 10;
+
+		auto start_time = SystemTimer::get().ms_since_boot();
+
+		while (start_time + poll_timeout_ms < SystemTimer::get().ns_since_boot())
+			if (!(m_port->ci & (1 << command_slot)))
+				return {};
+		
+		// FIXME: This should actually block once semaphores support blocking with timeout.
+		//        This doesn't allow scheduler to go properly idle.
+		while (start_time + total_timeout_ms < SystemTimer::get().ns_since_boot())
+		{
+			Scheduler::get().reschedule();
+			if (!(m_port->ci & (1 << command_slot)))
+				return {};
+		}
+
+		return BAN::Error::from_errno(ETIMEDOUT);
 	}
 
 	BAN::ErrorOr<void> AHCIDevice::read_sectors_impl(uint64_t lba, uint64_t sector_count, BAN::ByteSpan buffer)
@@ -260,8 +275,7 @@ namespace Kernel
 
 		m_port->ci = 1 << slot.value();
 
-		// FIXME: timeout
-		do { block_until_irq(); } while (m_port->ci & (1 << slot.value()));
+		TRY(block_until_command_completed(slot.value()));
 
 		return {};
 	}

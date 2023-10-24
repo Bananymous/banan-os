@@ -30,7 +30,8 @@ namespace Kernel
 		BAN::Optional<uint32_t> find_free_command_slot();
 
 		void handle_irq();
-		void block_until_irq();
+		
+		BAN::ErrorOr<void> block_until_command_completed(uint32_t command_slot);
 
 	private:
 		BAN::RefPtr<AHCIController> m_controller;
@@ -40,8 +41,6 @@ namespace Kernel
 		// Intermediate read/write buffer
 		// TODO: can we read straight to user buffer?
 		BAN::UniqPtr<DMARegion> m_data_dma_region;
-
-		volatile bool m_has_got_irq { false };
 
 		friend class AHCIController;
 	};
