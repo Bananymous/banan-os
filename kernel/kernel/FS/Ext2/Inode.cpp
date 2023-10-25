@@ -41,6 +41,12 @@ namespace Kernel
 		return result;
 	}
 
+	Ext2Inode::~Ext2Inode()
+	{
+		if ((mode().ifdir() && m_inode.links_count == 1) || m_inode.links_count == 0)
+			cleanup_from_fs();
+	}
+
 #define VERIFY_AND_READ_BLOCK(expr) do { const uint32_t block_index = expr; ASSERT(block_index); m_fs.read_block(block_index, block_buffer); } while (false)
 #define VERIFY_AND_RETURN(expr) ({ const uint32_t result = expr; ASSERT(result); return result; })
 
@@ -252,6 +258,21 @@ namespace Kernel
 		return {};
 	}
 
+	void Ext2Inode::cleanup_from_fs()
+	{
+		if (mode().ifdir())
+		{
+			// FIXME: cleanup entires '.' and '..' and verify
+			//        there are no other entries
+			ASSERT_NOT_REACHED();
+		}
+
+		ASSERT(m_inode.links_count == 0);
+		for (uint32_t i = 0; i < blocks(); i++)
+			m_fs.release_block(fs_block_of_data_block_index(i));
+		m_fs.delete_inode(ino());
+	}
+
 	BAN::ErrorOr<void> Ext2Inode::list_next_inodes_impl(off_t offset, DirectoryEntryList* list, size_t list_size)
 	{
 		ASSERT(mode().ifdir());
@@ -371,9 +392,16 @@ namespace Kernel
 
 		const uint32_t new_ino = TRY(m_fs.create_inode(initialize_new_inode_info(mode, uid, gid)));
 
-		auto inode = MUST(Ext2Inode::create(m_fs, new_ino));
+		auto inode_or_error = Ext2Inode::create(m_fs, new_ino);
+		if (inode_or_error.is_error())
+		{
+			m_fs.delete_inode(new_ino);
+			return inode_or_error.release_error();
+		}
 
-		MUST(link_inode_to_directory(*inode, name));
+		auto inode = inode_or_error.release_value();
+
+		TRY(link_inode_to_directory(*inode, name));
 
 		return {};
 	}
@@ -386,12 +414,19 @@ namespace Kernel
 		ASSERT(Mode(mode).ifdir());
 
 		const uint32_t new_ino = TRY(m_fs.create_inode(initialize_new_inode_info(mode, uid, gid)));
-	
-		auto inode = MUST(Ext2Inode::create(m_fs, new_ino));
-		MUST(inode->link_inode_to_directory(*inode, "."sv));
-		MUST(inode->link_inode_to_directory(*this, ".."sv));
+
+		auto inode_or_error = Ext2Inode::create(m_fs, new_ino);
+		if (inode_or_error.is_error())
+		{
+			m_fs.delete_inode(new_ino);
+			return inode_or_error.release_error();
+		}
+
+		auto inode = inode_or_error.release_value();
+		TRY(inode->link_inode_to_directory(*inode, "."sv));
+		TRY(inode->link_inode_to_directory(*this, ".."sv));
 		
-		MUST(link_inode_to_directory(*inode, name));
+		TRY(link_inode_to_directory(*inode, name));
 
 		return {};
 	}
@@ -492,6 +527,42 @@ needs_new_block:
 		m_fs.read_block(block_index, block_buffer);
 		write_inode(0, block_size);
 		m_fs.write_block(block_index, block_buffer);
+
+		return {};
+	}
+
+	BAN::ErrorOr<void> Ext2Inode::unlink_impl(BAN::StringView name)
+	{
+		ASSERT(mode().ifdir());
+
+		auto block_buffer = m_fs.get_block_buffer();
+
+		for (uint32_t i = 0; i < blocks(); i++)
+		{
+			const uint32_t block = fs_block_of_data_block_index(i);
+			m_fs.read_block(block, block_buffer);
+
+			blksize_t offset = 0;
+			while (offset < blksize())
+			{
+				auto& entry = block_buffer.span().slice(offset).as<Ext2::LinkedDirectoryEntry>();
+				if (entry.inode && name == entry.name)
+				{
+					auto inode = TRY(Ext2Inode::create(m_fs, entry.inode));
+					if (inode->nlink() == 0)
+						dprintln("Corrupted filesystem. Deleting inode with 0 links");
+					else
+						inode->m_inode.links_count--;
+
+					TRY(sync());
+
+					// FIXME: This should expand the last inode if exists
+					entry.inode = 0;
+					m_fs.write_block(block, block_buffer);					
+				}
+				offset += entry.rec_len;
+			}
+		}
 
 		return {};
 	}

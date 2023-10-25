@@ -97,7 +97,7 @@ namespace Kernel
 		virtual BAN::ErrorOr<void> list_next_inodes_impl(off_t, DirectoryEntryList*, size_t) override;
 		virtual BAN::ErrorOr<void> create_file_impl(BAN::StringView, mode_t, uid_t, gid_t) override;
 		virtual BAN::ErrorOr<void> create_directory_impl(BAN::StringView, mode_t, uid_t, gid_t) override;
-		virtual BAN::ErrorOr<void> delete_inode_impl(BAN::StringView) override;
+		virtual BAN::ErrorOr<void> unlink_impl(BAN::StringView) override;
 
 	private:
 		static constexpr size_t m_name_max = NAME_MAX;

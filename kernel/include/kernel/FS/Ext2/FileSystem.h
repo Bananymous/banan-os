@@ -58,7 +58,7 @@ namespace Kernel
 		BAN::ErrorOr<void> initialize_root_inode();
 
 		BAN::ErrorOr<uint32_t> create_inode(const Ext2::Inode&);
-		BAN::ErrorOr<void> delete_inode(uint32_t);
+		void delete_inode(uint32_t);
 		BAN::ErrorOr<void> resize_inode(uint32_t, size_t);
 
 		void read_block(uint32_t, BlockBufferWrapper&);
@@ -68,6 +68,7 @@ namespace Kernel
 		BlockBufferWrapper get_block_buffer();
 
 		BAN::ErrorOr<uint32_t> reserve_free_block(uint32_t primary_bgd);
+		void release_block(uint32_t block);
 
 		BAN::HashMap<ino_t, BAN::RefPtr<Ext2Inode>>& inode_cache() { return m_inode_cache; }
 

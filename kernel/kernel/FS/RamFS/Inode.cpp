@@ -263,8 +263,9 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<void> RamDirectoryInode::delete_inode_impl(BAN::StringView name)
+	BAN::ErrorOr<void> RamDirectoryInode::unlink_impl(BAN::StringView name)
 	{
+		// FIXME: delete inodes contents only after they are closed
 		for (size_t i = 0; i < m_entries.size(); i++)
 		{
 			if (name == m_entries[i].name)

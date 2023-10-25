@@ -97,13 +97,13 @@ namespace Kernel
 		return create_directory_impl(name, mode, uid, gid);
 	}
 
-	BAN::ErrorOr<void> Inode::delete_inode(BAN::StringView name)
+	BAN::ErrorOr<void> Inode::unlink(BAN::StringView name)
 	{
 		LockGuard _(m_lock);
 		Thread::TerminateBlocker blocker(Thread::current());
 		if (!mode().ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
-		return delete_inode_impl(name);
+		return unlink_impl(name);
 	}
 
 	BAN::ErrorOr<BAN::String> Inode::link_target()

@@ -212,6 +212,40 @@ namespace Kernel
 		return BAN::Error::from_error_code(ErrorCode::Ext2_Corrupted);
 	}
 
+	void Ext2FS::delete_inode(uint32_t ino)
+	{
+		LockGuard _(m_lock);
+
+		ASSERT(ino <= superblock().inodes_count);
+
+		auto bgd_buffer = get_block_buffer();
+		auto bitmap_buffer = get_block_buffer();
+
+		const uint32_t inode_group = (ino - 1) / superblock().inodes_per_group;
+		const uint32_t inode_index = (ino - 1) % superblock().inodes_per_group;
+
+		auto bgd_location = locate_block_group_descriptior(inode_group);
+		read_block(bgd_location.block, bgd_buffer);
+
+		auto& bgd = bgd_buffer.span().slice(bgd_location.offset).as<Ext2::BlockGroupDescriptor>();
+		read_block(bgd.inode_bitmap, bitmap_buffer);
+
+		const uint32_t byte = inode_index / 8;
+		const uint32_t bit = inode_index % 8;
+		ASSERT(bitmap_buffer[byte] & (1 << bit));
+
+		bitmap_buffer[byte] &= ~(1 << bit);
+		write_block(bgd.inode_bitmap, bitmap_buffer);
+
+		bgd.free_inodes_count++;
+		write_block(bgd_location.block, bgd_buffer);
+
+		if (m_inode_cache.contains(ino))
+			m_inode_cache.remove(ino);
+
+		dprintln("succesfully deleted inode {}", ino);
+	}
+
 	void Ext2FS::read_block(uint32_t block, BlockBufferWrapper& buffer)
 	{
 		LockGuard _(m_lock);
@@ -255,8 +289,7 @@ namespace Kernel
 		const uint32_t lba = 1024 / sector_size;
 		const uint32_t sector_count = BAN::Math::div_round_up<uint32_t>(superblock_bytes, sector_size);
 
-		BAN::Vector<uint8_t> superblock_buffer;
-		MUST(superblock_buffer.resize(sector_count * sector_size));
+		auto superblock_buffer = get_block_buffer();
 
 		MUST(m_partition.read_sectors(lba, sector_count, superblock_buffer.span()));
 		if (memcmp(superblock_buffer.data(), &m_superblock, superblock_bytes))
@@ -265,7 +298,6 @@ namespace Kernel
 			MUST(m_partition.write_sectors(lba, sector_count, superblock_buffer.span()));
 		}
 	}
-
 
 	Ext2FS::BlockBufferWrapper Ext2FS::get_block_buffer()
 	{
@@ -332,6 +364,38 @@ namespace Kernel
 
 		derrorln("Corrupted file system. Superblock indicates free blocks but none were found.");
 		return BAN::Error::from_error_code(ErrorCode::Ext2_Corrupted);
+	}
+
+	void Ext2FS::release_block(uint32_t block)
+	{
+		LockGuard _(m_lock);
+
+		ASSERT(block >= m_superblock.first_data_block);
+		ASSERT(block < m_superblock.blocks_count);
+
+		const uint32_t block_group = (block - m_superblock.first_data_block) / m_superblock.blocks_per_group;
+		const uint32_t block_offset = (block - m_superblock.first_data_block) % m_superblock.blocks_per_group;
+
+		auto bgd_buffer = get_block_buffer();
+		auto bitmap_buffer = get_block_buffer();
+
+		auto bgd_location = locate_block_group_descriptior(block_group);
+		read_block(bgd_location.block, bgd_buffer);
+
+		auto& bgd = bgd_buffer.span().slice(bgd_location.offset).as<Ext2::BlockGroupDescriptor>();
+		read_block(bgd.block_bitmap, bitmap_buffer);
+
+		const uint32_t byte = block_offset / 8;
+		const uint32_t bit  = block_offset % 8;
+		ASSERT(bitmap_buffer[byte] & (1 << bit));
+
+		bitmap_buffer[byte] &= ~(1 << bit);
+		write_block(bgd.block_bitmap, bitmap_buffer);
+
+		bgd.free_blocks_count++;
+		write_block(bgd_location.block, bgd_buffer);
+
+		dprintln("successfully freed block {}", block);
 	}
 
 	Ext2FS::BlockLocation Ext2FS::locate_inode(uint32_t ino)

@@ -40,7 +40,7 @@ namespace Kernel
 	void ProcFileSystem::on_process_delete(Process& process)
 	{
 		auto path = BAN::String::formatted("{}", process.pid());
-		MUST(m_root_inode->delete_inode(path));
+		MUST(m_root_inode->unlink(path));
 	}
 
 }

@@ -13,6 +13,8 @@ namespace Kernel
 	class Ext2Inode final : public Inode
 	{
 	public:
+		~Ext2Inode();
+
 		virtual ino_t ino() const override { return m_ino; };
 		virtual Mode mode() const override { return { m_inode.mode }; }
 		virtual nlink_t nlink() const override { return m_inode.links_count; }
@@ -32,6 +34,7 @@ namespace Kernel
 		virtual BAN::ErrorOr<void> list_next_inodes_impl(off_t, DirectoryEntryList*, size_t) override;
 		virtual BAN::ErrorOr<void> create_file_impl(BAN::StringView, mode_t, uid_t, gid_t) override;
 		virtual BAN::ErrorOr<void> create_directory_impl(BAN::StringView, mode_t, uid_t, gid_t) override;
+		virtual BAN::ErrorOr<void> unlink_impl(BAN::StringView) override;
 		
 		virtual BAN::ErrorOr<BAN::String> link_target_impl() override;
 
@@ -44,6 +47,8 @@ namespace Kernel
 		uint32_t fs_block_of_data_block_index(uint32_t data_block_index);
 
 		BAN::ErrorOr<void> link_inode_to_directory(Ext2Inode&, BAN::StringView name);
+
+		void cleanup_from_fs();
 
 		BAN::ErrorOr<uint32_t> allocate_new_block();
 		BAN::ErrorOr<void> sync();
