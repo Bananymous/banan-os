@@ -53,7 +53,7 @@ namespace Kernel
 			, m_inode(inode)
 			, m_ino(ino)
 		{}
-		static BAN::ErrorOr<BAN::RefPtr<Inode>> create(Ext2FS&, uint32_t);
+		static BAN::ErrorOr<BAN::RefPtr<Ext2Inode>> create(Ext2FS&, uint32_t);
 
 	private:
 		Ext2FS& m_fs;

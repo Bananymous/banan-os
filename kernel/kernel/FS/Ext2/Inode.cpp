@@ -21,7 +21,7 @@ namespace Kernel
 		return (m_ino - 1) / m_fs.superblock().blocks_per_group;
 	}
 
-	BAN::ErrorOr<BAN::RefPtr<Inode>> Ext2Inode::create(Ext2FS& fs, uint32_t inode_ino)
+	BAN::ErrorOr<BAN::RefPtr<Ext2Inode>> Ext2Inode::create(Ext2FS& fs, uint32_t inode_ino)
 	{
 		if (fs.inode_cache().contains(inode_ino))
 			return fs.inode_cache()[inode_ino];
@@ -36,7 +36,7 @@ namespace Kernel
 		Ext2Inode* result_ptr = new Ext2Inode(fs, inode, inode_ino);
 		if (result_ptr == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
-		auto result = BAN::RefPtr<Inode>::adopt(result_ptr);
+		auto result = BAN::RefPtr<Ext2Inode>::adopt(result_ptr);
 		TRY(fs.inode_cache().insert(inode_ino, result));
 		return result;
 	}
@@ -589,7 +589,7 @@ needs_new_block:
 				const auto& entry = *(const Ext2::LinkedDirectoryEntry*)entry_addr;
 				BAN::StringView entry_name(entry.name, entry.name_len);
 				if (entry.inode && entry_name == file_name)
-					return TRY(Ext2Inode::create(m_fs, entry.inode));
+					return BAN::RefPtr<Inode>(TRY(Ext2Inode::create(m_fs, entry.inode)));
 				entry_addr += entry.rec_len;
 			}
 		}
