@@ -58,6 +58,7 @@ __BEGIN_DECLS
 #define SYS_CHMOD 55
 #define SYS_CREATE 56 // creat, mkfifo
 #define SYS_CREATE_DIR 57 // mkdir
+#define SYS_UNLINK 58
 
 __END_DECLS
 

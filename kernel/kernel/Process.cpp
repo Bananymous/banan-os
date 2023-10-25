@@ -634,7 +634,7 @@ namespace Kernel
 		auto directory = absolute_path.sv().substring(0, index);
 		auto file_name = absolute_path.sv().substring(index);
 
-		auto parent_inode = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, directory, O_WRONLY)).inode;
+		auto parent_inode = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, directory, O_EXEC | O_WRONLY)).inode;
 
 		if (Inode::Mode(mode).ifdir())
 			TRY(parent_inode->create_directory(file_name, mode, m_credentials.euid(), m_credentials.egid()));
@@ -759,6 +759,26 @@ namespace Kernel
 		LockGuard _(m_lock);
 		validate_string_access(path);
 		TRY(create_file_or_dir(path, Inode::Mode::IFDIR | mode));
+		return 0;
+	}
+
+	BAN::ErrorOr<long> Process::sys_unlink(const char* path)
+	{
+		LockGuard _(m_lock);
+		validate_string_access(path);
+		
+		auto absolute_path = TRY(absolute_path_of(path));
+
+		size_t index = absolute_path.size();
+		for (; index > 0; index--)
+			if (absolute_path[index - 1] == '/')
+				break;
+		auto directory = absolute_path.sv().substring(0, index);
+		auto file_name = absolute_path.sv().substring(index);
+
+		auto parent = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, directory, O_EXEC | O_WRONLY)).inode;
+		TRY(parent->unlink(file_name));
+
 		return 0;
 	}
 

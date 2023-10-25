@@ -210,6 +210,11 @@ void syncsync(int should_block)
 	syscall(SYS_SYNC, should_block);
 }
 
+int unlink(const char* path)
+{
+	return syscall(SYS_UNLINK, path);
+}
+
 pid_t getpid(void)
 {
 	return syscall(SYS_GET_PID);

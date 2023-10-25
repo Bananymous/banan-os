@@ -208,6 +208,9 @@ namespace Kernel
 		case SYS_CREATE_DIR:
 			ret = Process::current().sys_create_dir((const char*)arg1, (mode_t)arg2);
 			break;
+		case SYS_UNLINK:
+			ret = Process::current().sys_unlink((const char*)arg1);
+			break;
 		default:
 			dwarnln("Unknown syscall {}", syscall);
 			break;
