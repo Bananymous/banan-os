@@ -87,9 +87,12 @@ namespace BAN
 			return *reinterpret_cast<S*>(m_data);
 		}
 
-		ByteSpanGeneral slice(size_type offset, size_type length)
+		ByteSpanGeneral slice(size_type offset, size_type length = size_type(-1))
 		{
 			ASSERT(m_data);
+			ASSERT(m_size >= offset);
+			if (length == size_type(-1))
+				length = m_size - offset;
 			ASSERT(m_size >= offset + length);
 			return ByteSpanGeneral(m_data + offset, length);
 		}
