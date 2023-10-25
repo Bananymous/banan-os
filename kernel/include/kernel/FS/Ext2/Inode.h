@@ -31,6 +31,7 @@ namespace Kernel
 		virtual BAN::ErrorOr<BAN::RefPtr<Inode>> find_inode_impl(BAN::StringView) override;
 		virtual BAN::ErrorOr<void> list_next_inodes_impl(off_t, DirectoryEntryList*, size_t) override;
 		virtual BAN::ErrorOr<void> create_file_impl(BAN::StringView, mode_t, uid_t, gid_t) override;
+		virtual BAN::ErrorOr<void> create_directory_impl(BAN::StringView, mode_t, uid_t, gid_t) override;
 		
 		virtual BAN::ErrorOr<BAN::String> link_target_impl() override;
 
@@ -41,6 +42,8 @@ namespace Kernel
 
 	private:
 		uint32_t fs_block_of_data_block_index(uint32_t data_block_index);
+
+		BAN::ErrorOr<void> link_inode_to_directory(Ext2Inode&, BAN::StringView name);
 
 		BAN::ErrorOr<uint32_t> allocate_new_block();
 		BAN::ErrorOr<void> sync();

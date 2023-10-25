@@ -317,16 +317,92 @@ namespace Kernel
 		return {};
 	}
 
+	static bool mode_has_valid_type(mode_t mode)
+	{
+		switch (mode & Inode::Mode::TYPE_MASK)
+		{
+			case Inode::Mode::IFIFO: return true;
+			case Inode::Mode::IFCHR: return true;
+			case Inode::Mode::IFDIR: return true;
+			case Inode::Mode::IFBLK: return true;
+			case Inode::Mode::IFREG: return true;
+			case Inode::Mode::IFLNK: return true;
+			case Inode::Mode::IFSOCK: return true;
+		}
+		return false;
+	}
+
+	static Ext2::Inode initialize_new_inode_info(mode_t mode, uid_t uid, gid_t gid)
+	{
+		ASSERT(mode_has_valid_type(mode));
+
+		timespec current_time = SystemTimer::get().real_time();
+		return Ext2::Inode
+		{
+			.mode			= (uint16_t)mode,
+			.uid			= (uint16_t)uid,
+			.size			= 0,
+			.atime 			= (uint32_t)current_time.tv_sec,
+			.ctime 			= (uint32_t)current_time.tv_sec,
+			.mtime 			= (uint32_t)current_time.tv_sec,
+			.dtime 			= 0,
+			.gid			= (uint16_t)gid,
+			.links_count	= 0,
+			.blocks			= 0,
+			.flags			= 0,
+			.osd1			= 0,
+			.block 			= {},
+			.generation		= 0,
+			.file_acl		= 0,
+			.dir_acl		= 0,
+			.faddr			= 0,
+			.osd2 			= {}
+		};
+	}
+
 	BAN::ErrorOr<void> Ext2Inode::create_file_impl(BAN::StringView name, mode_t mode, uid_t uid, gid_t gid)
+	{
+		// FIXME: handle errors
+
+		ASSERT(this->mode().ifdir());
+
+		if (!(Mode(mode).ifreg()))
+			return BAN::Error::from_errno(ENOTSUP);
+
+		const uint32_t new_ino = TRY(m_fs.create_inode(initialize_new_inode_info(mode, uid, gid)));
+
+		auto inode = MUST(Ext2Inode::create(m_fs, new_ino));
+
+		MUST(link_inode_to_directory(*inode, name));
+
+		return {};
+	}
+
+	BAN::ErrorOr<void> Ext2Inode::create_directory_impl(BAN::StringView name, mode_t mode, uid_t uid, gid_t gid)
+	{
+		// FIXME: handle errors
+
+		ASSERT(this->mode().ifdir());
+		ASSERT(Mode(mode).ifdir());
+
+		const uint32_t new_ino = TRY(m_fs.create_inode(initialize_new_inode_info(mode, uid, gid)));
+	
+		auto inode = MUST(Ext2Inode::create(m_fs, new_ino));
+		MUST(inode->link_inode_to_directory(*inode, "."sv));
+		MUST(inode->link_inode_to_directory(*this, ".."sv));
+		
+		MUST(link_inode_to_directory(*inode, name));
+
+		return {};
+	}
+
+	BAN::ErrorOr<void> Ext2Inode::link_inode_to_directory(Ext2Inode& inode, BAN::StringView name)
 	{
 		if (!this->mode().ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
 
 		if (name.size() > 255)
 			return BAN::Error::from_errno(ENAMETOOLONG);
-
-		if (!(Mode(mode).ifreg()))
-			return BAN::Error::from_errno(EINVAL);
 
 		if (m_inode.flags & Ext2::Enum::INDEX_FL)
 		{
@@ -340,39 +416,13 @@ namespace Kernel
 		if (error_or.error().get_error_code() != ENOENT)
 			return error_or.error();
 
-		timespec current_time = SystemTimer::get().real_time();
-
-		Ext2::Inode ext2_inode
-		{
-			.mode			= (uint16_t)mode,
-			.uid			= (uint16_t)uid,
-			.size			= 0,
-			.atime 			= (uint32_t)current_time.tv_sec,
-			.ctime 			= (uint32_t)current_time.tv_sec,
-			.mtime 			= (uint32_t)current_time.tv_sec,
-			.dtime 			= 0,
-			.gid			= (uint16_t)gid,
-			.links_count	= 1,
-			.blocks			= 0,
-			.flags			= 0,
-			.osd1			= 0,
-			.block 			= {},
-			.generation		= 0,
-			.file_acl		= 0,
-			.dir_acl		= 0,
-			.faddr			= 0,
-			.osd2 			= {}
-		};
-
-		const uint32_t inode_index = TRY(m_fs.create_inode(ext2_inode));
-
 		const uint32_t block_size = m_fs.block_size();
 
 		auto block_buffer = m_fs.get_block_buffer();
 
 		auto write_inode = [&](uint32_t entry_offset, uint32_t entry_rec_len)
 		{
-			auto typed_mode = Mode(mode);
+			auto typed_mode = inode.mode();
 			uint8_t file_type = (m_fs.superblock().rev_level == Ext2::Enum::GOOD_OLD_REV) ? 0
 				: typed_mode.ifreg()  ? Ext2::Enum::REG_FILE
 				: typed_mode.ifdir()  ? Ext2::Enum::DIR
@@ -384,11 +434,14 @@ namespace Kernel
 				: 0;
 
 			auto& new_entry = *(Ext2::LinkedDirectoryEntry*)(block_buffer.data() + entry_offset);
-			new_entry.inode = inode_index;
+			new_entry.inode = inode.ino();
 			new_entry.rec_len = entry_rec_len;
 			new_entry.name_len = name.size();
 			new_entry.file_type = file_type;
 			memcpy(new_entry.name, name.data(), name.size());
+
+			inode.m_inode.links_count++;
+			MUST(inode.sync());
 		};
 
 		uint32_t block_index = 0;
