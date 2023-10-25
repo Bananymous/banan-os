@@ -16,6 +16,7 @@ set(USERSPACE_PROJECTS
 	mkdir
 	mmap-shared-test
 	poweroff
+	rm
 	Shell
 	snake
 	stat
