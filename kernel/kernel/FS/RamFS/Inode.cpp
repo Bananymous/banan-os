@@ -202,13 +202,20 @@ namespace Kernel
 		BAN::RefPtr<RamInode> inode;
 		if (Mode(mode).ifreg())
 			inode = TRY(RamFileInode::create(m_fs, mode & ~Inode::Mode::TYPE_MASK, uid, gid));
-		else if (Mode(mode).ifdir())
-			inode = TRY(RamDirectoryInode::create(m_fs, ino(), mode & ~Inode::Mode::TYPE_MASK, uid, gid));
 		else
-			ASSERT_NOT_REACHED();
+			return BAN::Error::from_errno(ENOTSUP);
 
 		TRY(add_inode(name, inode));
 
+		return {};
+	}
+
+	BAN::ErrorOr<void> RamDirectoryInode::create_directory_impl(BAN::StringView name, mode_t mode, uid_t uid, gid_t gid)
+	{
+		if (!Mode(mode).ifdir())
+			return BAN::Error::from_errno(EINVAL);
+		auto inode = TRY(RamDirectoryInode::create(m_fs, ino(), mode & ~Inode::Mode::TYPE_MASK, uid, gid));
+		TRY(add_inode(name, inode));
 		return {};
 	}
 
