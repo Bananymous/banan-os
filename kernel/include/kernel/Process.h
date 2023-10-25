@@ -96,6 +96,8 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_close(int fd);
 		BAN::ErrorOr<long> sys_read(int fd, void* buffer, size_t count);
 		BAN::ErrorOr<long> sys_write(int fd, const void* buffer, size_t count);
+		BAN::ErrorOr<long> sys_create(const char*, mode_t);
+		BAN::ErrorOr<long> sys_create_dir(const char*, mode_t);
 
 		BAN::ErrorOr<long> sys_chmod(const char*, mode_t);
 

@@ -28,3 +28,8 @@ int stat(const char* __restrict path, struct stat* __restrict buf)
 {
 	return syscall(SYS_STAT, path, buf, 0);
 }
+
+int mkdir(const char* path, mode_t mode)
+{
+	return syscall(SYS_CREATE_DIR, path, mode);
+}

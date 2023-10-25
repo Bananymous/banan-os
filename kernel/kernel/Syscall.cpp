@@ -202,6 +202,12 @@ namespace Kernel
 		case SYS_CHMOD:
 			ret = Process::current().sys_chmod((const char*)arg1, (mode_t)arg2);
 			break;
+		case SYS_CREATE:
+			ret = Process::current().sys_create((const char*)arg1, (mode_t)arg2);
+			break;
+		case SYS_CREATE_DIR:
+			ret = Process::current().sys_create_dir((const char*)arg1, (mode_t)arg2);
+			break;
 		default:
 			dwarnln("Unknown syscall {}", syscall);
 			break;

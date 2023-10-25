@@ -13,6 +13,7 @@ set(USERSPACE_PROJECTS
 	init
 	ls
 	meminfo
+	mkdir
 	mmap-shared-test
 	poweroff
 	Shell

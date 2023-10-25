@@ -56,6 +56,8 @@ __BEGIN_DECLS
 #define SYS_TTY_CTRL 53
 #define SYS_POWEROFF 54
 #define SYS_CHMOD 55
+#define SYS_CREATE 56 // creat, mkfifo
+#define SYS_CREATE_DIR 57 // mkdir
 
 __END_DECLS
 

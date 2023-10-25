@@ -746,6 +746,22 @@ namespace Kernel
 		return TRY(m_open_file_descriptors.write(fd, BAN::ByteSpan((uint8_t*)buffer, count)));
 	}
 
+	BAN::ErrorOr<long> Process::sys_create(const char* path, mode_t mode)
+	{
+		LockGuard _(m_lock);
+		validate_string_access(path);
+		TRY(create_file_or_dir(path, mode));
+		return 0;
+	}
+
+	BAN::ErrorOr<long> Process::sys_create_dir(const char* path, mode_t mode)
+	{
+		LockGuard _(m_lock);
+		validate_string_access(path);
+		TRY(create_file_or_dir(path, Inode::Mode::IFDIR | mode));
+		return 0;
+	}
+
 	BAN::ErrorOr<long> Process::sys_chmod(const char* path, mode_t mode)
 	{
 		if (mode & S_IFMASK)

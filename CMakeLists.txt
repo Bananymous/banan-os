@@ -23,7 +23,7 @@ add_subdirectory(LibELF)
 add_subdirectory(userspace)
 
 add_custom_target(sysroot
-	COMMAND mkdir -p ${BANAN_SYSROOT}
+	COMMAND ${CMAKE_COMMAND} -E make_directory ${BANAN_SYSROOT}
 	COMMAND cd ${BANAN_SYSROOT} && sudo tar xf ${BANAN_BASE_SYSROOT}
 	USES_TERMINAL
 )
