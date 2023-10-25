@@ -103,6 +103,8 @@ namespace Kernel
 		Thread::TerminateBlocker blocker(Thread::current());
 		if (!mode().ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
+		if (name == "."sv || name == ".."sv)
+			return BAN::Error::from_errno(EINVAL);
 		return unlink_impl(name);
 	}
 

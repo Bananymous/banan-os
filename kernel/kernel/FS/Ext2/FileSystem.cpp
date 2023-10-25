@@ -184,6 +184,8 @@ namespace Kernel
 			write_block(bgd->inode_bitmap, inode_bitmap);
 
 			bgd->free_inodes_count--;
+			if (Inode::Mode(ext2_inode.mode).ifdir())
+				bgd->used_dirs_count++;
 			write_block(bgd_location.block, bgd_buffer);
 
 			const uint32_t inode_table_offset = ino_index * superblock().inode_size;
@@ -216,34 +218,49 @@ namespace Kernel
 	{
 		LockGuard _(m_lock);
 
+		ASSERT(ino >= superblock().first_ino);
 		ASSERT(ino <= superblock().inodes_count);
 
 		auto bgd_buffer = get_block_buffer();
 		auto bitmap_buffer = get_block_buffer();
+		auto inode_buffer = get_block_buffer();
 
 		const uint32_t inode_group = (ino - 1) / superblock().inodes_per_group;
 		const uint32_t inode_index = (ino - 1) % superblock().inodes_per_group;
 
 		auto bgd_location = locate_block_group_descriptior(inode_group);
 		read_block(bgd_location.block, bgd_buffer);
-
 		auto& bgd = bgd_buffer.span().slice(bgd_location.offset).as<Ext2::BlockGroupDescriptor>();
+
+		// update inode bitmap
 		read_block(bgd.inode_bitmap, bitmap_buffer);
-
 		const uint32_t byte = inode_index / 8;
-		const uint32_t bit = inode_index % 8;
+		const uint32_t bit  = inode_index % 8;
 		ASSERT(bitmap_buffer[byte] & (1 << bit));
-
 		bitmap_buffer[byte] &= ~(1 << bit);
 		write_block(bgd.inode_bitmap, bitmap_buffer);
 
+		// memset inode to zero or fsck will complain
+		auto inode_location = locate_inode(ino);
+		read_block(inode_location.block, inode_buffer);
+		auto& inode = inode_buffer.span().slice(inode_location.offset).as<Ext2::Inode>();
+		bool is_directory = Inode::Mode(inode.mode).ifdir();
+		memset(&inode, 0x00, m_superblock.inode_size);
+		write_block(inode_location.block, inode_buffer);
+
+		// update bgd counts
 		bgd.free_inodes_count++;
+		if (is_directory)
+			bgd.used_dirs_count--;
 		write_block(bgd_location.block, bgd_buffer);
 
+		// update superblock inode count
+		m_superblock.free_inodes_count++;
+		sync_superblock();
+
+		// remove inode from cache
 		if (m_inode_cache.contains(ino))
 			m_inode_cache.remove(ino);
-
-		dprintln("succesfully deleted inode {}", ino);
 	}
 
 	void Ext2FS::read_block(uint32_t block, BlockBufferWrapper& buffer)
@@ -395,7 +412,8 @@ namespace Kernel
 		bgd.free_blocks_count++;
 		write_block(bgd_location.block, bgd_buffer);
 
-		dprintln("successfully freed block {}", block);
+		m_superblock.free_blocks_count++;
+		sync_superblock();
 	}
 
 	Ext2FS::BlockLocation Ext2FS::locate_inode(uint32_t ino)

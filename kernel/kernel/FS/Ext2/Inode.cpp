@@ -1,4 +1,5 @@
 #include <BAN/Function.h>
+#include <BAN/ScopeGuard.h>
 #include <kernel/FS/Ext2/FileSystem.h>
 #include <kernel/FS/Ext2/Inode.h>
 #include <kernel/Timer/Timer.h>
@@ -43,7 +44,7 @@ namespace Kernel
 
 	Ext2Inode::~Ext2Inode()
 	{
-		if ((mode().ifdir() && m_inode.links_count == 1) || m_inode.links_count == 0)
+		if (m_inode.links_count == 0)
 			cleanup_from_fs();
 	}
 
@@ -220,7 +221,7 @@ namespace Kernel
 		if (new_size < m_inode.size)
 		{
 			m_inode.size = new_size;
-			TRY(sync());
+			sync();
 			return {};
 		}
 
@@ -243,7 +244,7 @@ namespace Kernel
 		}
 
 		m_inode.size = new_size;
-		TRY(sync());
+		sync();
 
 		return {};
 	}
@@ -254,19 +255,12 @@ namespace Kernel
 		if (m_inode.mode == mode)
 			return {};
 		m_inode.mode = (m_inode.mode & Inode::Mode::TYPE_MASK) | mode;
-		TRY(sync());
+		sync();
 		return {};
 	}
 
 	void Ext2Inode::cleanup_from_fs()
 	{
-		if (mode().ifdir())
-		{
-			// FIXME: cleanup entires '.' and '..' and verify
-			//        there are no other entries
-			ASSERT_NOT_REACHED();
-		}
-
 		ASSERT(m_inode.links_count == 0);
 		for (uint32_t i = 0; i < blocks(); i++)
 			m_fs.release_block(fs_block_of_data_block_index(i));
@@ -383,8 +377,6 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Ext2Inode::create_file_impl(BAN::StringView name, mode_t mode, uid_t uid, gid_t gid)
 	{
-		// FIXME: handle errors
-
 		ASSERT(this->mode().ifdir());
 
 		if (!(Mode(mode).ifreg()))
@@ -408,8 +400,6 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Ext2Inode::create_directory_impl(BAN::StringView name, mode_t mode, uid_t uid, gid_t gid)
 	{
-		// FIXME: handle errors
-
 		ASSERT(this->mode().ifdir());
 		ASSERT(Mode(mode).ifdir());
 
@@ -423,10 +413,14 @@ namespace Kernel
 		}
 
 		auto inode = inode_or_error.release_value();
+		BAN::ScopeGuard cleanup([&] { inode->cleanup_from_fs(); });
+
 		TRY(inode->link_inode_to_directory(*inode, "."sv));
 		TRY(inode->link_inode_to_directory(*this, ".."sv));
 		
 		TRY(link_inode_to_directory(*inode, name));
+
+		cleanup.disable();
 
 		return {};
 	}
@@ -476,7 +470,7 @@ namespace Kernel
 			memcpy(new_entry.name, name.data(), name.size());
 
 			inode.m_inode.links_count++;
-			MUST(inode.sync());
+			inode.sync();
 		};
 
 		uint32_t block_index = 0;
@@ -531,9 +525,100 @@ needs_new_block:
 		return {};
 	}
 
+	BAN::ErrorOr<bool> Ext2Inode::is_directory_empty()
+	{
+		ASSERT(mode().ifdir());
+		if (m_inode.flags & Ext2::Enum::INDEX_FL)
+		{
+			dwarnln("deletion of indexed directory is not supported");
+			return BAN::Error::from_errno(ENOTSUP);
+		}
+
+		auto block_buffer = m_fs.get_block_buffer();
+
+		// Confirm that this doesn't contain anything else than '.' or '..'
+		for (uint32_t i = 0; i < blocks(); i++)
+		{
+			const uint32_t block = fs_block_of_data_block_index(i);
+			m_fs.read_block(block, block_buffer);
+
+			blksize_t offset = 0;
+			while (offset < blksize())
+			{
+				auto& entry = block_buffer.span().slice(offset).as<Ext2::LinkedDirectoryEntry>();
+
+				if (entry.inode)
+				{
+					BAN::StringView entry_name(entry.name, entry.name_len);
+					if (entry_name != "."sv && entry_name != ".."sv)
+						return false;
+				}
+
+				offset += entry.rec_len;
+			}
+		}
+
+		return true;
+	}
+
+	BAN::ErrorOr<void> Ext2Inode::cleanup_default_links()
+	{
+		ASSERT(mode().ifdir());
+
+		auto block_buffer = m_fs.get_block_buffer();
+
+		for (uint32_t i = 0; i < blocks(); i++)
+		{
+			const uint32_t block = fs_block_of_data_block_index(i);
+			m_fs.read_block(block, block_buffer);
+
+			bool modified = false;
+
+			blksize_t offset = 0;
+			while (offset < blksize())
+			{
+				auto& entry = block_buffer.span().slice(offset).as<Ext2::LinkedDirectoryEntry>();
+
+				if (entry.inode)
+				{
+					BAN::StringView entry_name(entry.name, entry.name_len);
+
+					if (entry_name == "."sv)
+					{
+						m_inode.links_count--;
+						sync();
+					}
+					else if (entry_name == ".."sv)
+					{
+						auto parent = TRY(Ext2Inode::create(m_fs, entry.inode));
+						parent->m_inode.links_count--;
+						parent->sync();
+					}
+					else
+						ASSERT_NOT_REACHED();
+
+					modified = true;
+					entry.inode = 0;
+				}
+
+				offset += entry.rec_len;
+			}
+
+			if (modified)
+				m_fs.write_block(block, block_buffer);
+		}
+
+		return {};
+	}
+
 	BAN::ErrorOr<void> Ext2Inode::unlink_impl(BAN::StringView name)
 	{
 		ASSERT(mode().ifdir());
+		if (m_inode.flags & Ext2::Enum::INDEX_FL)
+		{
+			dwarnln("deletion from indexed directory is not supported");
+			return BAN::Error::from_errno(ENOTSUP);
+		}
 
 		auto block_buffer = m_fs.get_block_buffer();
 
@@ -546,15 +631,31 @@ needs_new_block:
 			while (offset < blksize())
 			{
 				auto& entry = block_buffer.span().slice(offset).as<Ext2::LinkedDirectoryEntry>();
-				if (entry.inode && name == entry.name)
+				if (entry.inode && name == BAN::StringView(entry.name, entry.name_len))
 				{
 					auto inode = TRY(Ext2Inode::create(m_fs, entry.inode));
+					if (inode->mode().ifdir())
+					{
+						if (!TRY(inode->is_directory_empty()))
+							return BAN::Error::from_errno(ENOTEMPTY);
+						TRY(inode->cleanup_default_links());
+					}
+
 					if (inode->nlink() == 0)
 						dprintln("Corrupted filesystem. Deleting inode with 0 links");
 					else
 						inode->m_inode.links_count--;
 
-					TRY(sync());
+					sync();
+
+					// NOTE: If this was the last link to inode we must
+					//       remove it from inode cache to trigger cleanup
+					if (inode->nlink() == 0)
+					{
+						auto& cache = m_fs.inode_cache();
+						if (cache.contains(inode->ino()))
+							cache.remove(inode->ino());
+					}
 
 					// FIXME: This should expand the last inode if exists
 					entry.inode = 0;
@@ -620,7 +721,7 @@ needs_new_block:
 			{
 				if (mode().ifdir())
 					m_inode.size += blksize();
-				MUST(sync());
+				sync();
 			};
 
 		// direct block
@@ -676,7 +777,7 @@ needs_new_block:
 #undef READ_OR_ALLOCATE_INDIRECT_BLOCK
 #undef WRITE_BLOCK_AND_RETURN
 
-	BAN::ErrorOr<void> Ext2Inode::sync()
+	void Ext2Inode::sync()
 	{
 		auto inode_location = m_fs.locate_inode(ino());
 		auto block_buffer = m_fs.get_block_buffer();
@@ -687,8 +788,6 @@ needs_new_block:
 			memcpy(block_buffer.data() + inode_location.offset, &m_inode, sizeof(Ext2::Inode));
 			m_fs.write_block(inode_location.block, block_buffer);
 		}
-
-		return {};
 	}
 
 	BAN::ErrorOr<BAN::RefPtr<Inode>> Ext2Inode::find_inode_impl(BAN::StringView file_name)

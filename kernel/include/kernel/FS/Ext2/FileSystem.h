@@ -58,7 +58,7 @@ namespace Kernel
 		BAN::ErrorOr<void> initialize_root_inode();
 
 		BAN::ErrorOr<uint32_t> create_inode(const Ext2::Inode&);
-		void delete_inode(uint32_t);
+		void delete_inode(uint32_t ino);
 		BAN::ErrorOr<void> resize_inode(uint32_t, size_t);
 
 		void read_block(uint32_t, BlockBufferWrapper&);

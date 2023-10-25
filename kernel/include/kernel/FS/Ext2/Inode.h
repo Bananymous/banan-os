@@ -47,11 +47,13 @@ namespace Kernel
 		uint32_t fs_block_of_data_block_index(uint32_t data_block_index);
 
 		BAN::ErrorOr<void> link_inode_to_directory(Ext2Inode&, BAN::StringView name);
+		BAN::ErrorOr<bool> is_directory_empty();
 
+		BAN::ErrorOr<void> cleanup_default_links();
 		void cleanup_from_fs();
 
 		BAN::ErrorOr<uint32_t> allocate_new_block();
-		BAN::ErrorOr<void> sync();
+		void sync();
 
 		uint32_t block_group() const;
 
