@@ -81,7 +81,20 @@ namespace Kernel
 		Thread::TerminateBlocker blocker(Thread::current());
 		if (!this->mode().ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
+		if (Mode(mode).ifdir())
+			return BAN::Error::from_errno(EINVAL);
 		return create_file_impl(name, mode, uid, gid);
+	}
+
+	BAN::ErrorOr<void> Inode::create_directory(BAN::StringView name, mode_t mode, uid_t uid, gid_t gid)
+	{
+		LockGuard _(m_lock);
+		Thread::TerminateBlocker blocker(Thread::current());
+		if (!this->mode().ifdir())
+			return BAN::Error::from_errno(ENOTDIR);
+		if (!Mode(mode).ifdir())
+			return BAN::Error::from_errno(EINVAL);
+		return create_directory_impl(name, mode, uid, gid);
 	}
 
 	BAN::ErrorOr<void> Inode::delete_inode(BAN::StringView name)

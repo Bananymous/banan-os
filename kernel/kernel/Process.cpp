@@ -611,8 +611,17 @@ namespace Kernel
 		return 0;
 	}
 
-	BAN::ErrorOr<void> Process::create_file(BAN::StringView path, mode_t mode)
+	BAN::ErrorOr<void> Process::create_file_or_dir(BAN::StringView path, mode_t mode)
 	{
+		switch (mode & Inode::Mode::TYPE_MASK)
+		{
+			case Inode::Mode::IFREG: break;
+			case Inode::Mode::IFDIR: break;
+			case Inode::Mode::IFIFO: break;
+			default:
+				return BAN::Error::from_errno(EINVAL);
+		}
+
 		LockGuard _(m_lock);
 
 		auto absolute_path = TRY(absolute_path_of(path));
@@ -626,7 +635,11 @@ namespace Kernel
 		auto file_name = absolute_path.sv().substring(index);
 
 		auto parent_inode = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, directory, O_WRONLY)).inode;
-		TRY(parent_inode->create_file(file_name, S_IFREG | (mode & 0777), m_credentials.euid(), m_credentials.egid()));
+
+		if (Inode::Mode(mode).ifdir())
+			TRY(parent_inode->create_directory(file_name, mode, m_credentials.euid(), m_credentials.egid()));
+		else
+			TRY(parent_inode->create_file(file_name, mode, m_credentials.euid(), m_credentials.egid()));
 
 		return {};
 	}
@@ -672,7 +685,7 @@ namespace Kernel
 			if (file_or_error.is_error())
 			{
 				if (file_or_error.error().get_error_code() == ENOENT)
-					TRY(create_file(path, mode));
+					TRY(create_file_or_dir(path, Inode::Mode::IFREG | mode));
 				else
 					return file_or_error.release_error();
 			}

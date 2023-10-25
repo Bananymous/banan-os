@@ -89,7 +89,7 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_getegid() const { return m_credentials.egid(); }
 		BAN::ErrorOr<long> sys_getpgid(pid_t);
 
-		BAN::ErrorOr<void> create_file(BAN::StringView name, mode_t mode);
+		BAN::ErrorOr<void> create_file_or_dir(BAN::StringView name, mode_t mode);
 		BAN::ErrorOr<long> open_file(BAN::StringView path, int, mode_t = 0);
 		BAN::ErrorOr<long> sys_open(const char* path, int, mode_t);
 		BAN::ErrorOr<long> sys_openat(int, const char* path, int, mode_t);

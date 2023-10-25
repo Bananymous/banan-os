@@ -90,6 +90,7 @@ namespace Kernel
 		BAN::ErrorOr<BAN::RefPtr<Inode>> find_inode(BAN::StringView);
 		BAN::ErrorOr<void> list_next_inodes(off_t, DirectoryEntryList*, size_t);
 		BAN::ErrorOr<void> create_file(BAN::StringView, mode_t, uid_t, gid_t);
+		BAN::ErrorOr<void> create_directory(BAN::StringView, mode_t, uid_t, gid_t);
 		BAN::ErrorOr<void> delete_inode(BAN::StringView);
 
 		// Link API
@@ -107,6 +108,7 @@ namespace Kernel
 		virtual BAN::ErrorOr<BAN::RefPtr<Inode>> find_inode_impl(BAN::StringView)				{ return BAN::Error::from_errno(ENOTSUP); }
 		virtual BAN::ErrorOr<void> list_next_inodes_impl(off_t, DirectoryEntryList*, size_t)	{ return BAN::Error::from_errno(ENOTSUP); }
 		virtual BAN::ErrorOr<void> create_file_impl(BAN::StringView, mode_t, uid_t, gid_t)		{ return BAN::Error::from_errno(ENOTSUP); }
+		virtual BAN::ErrorOr<void> create_directory_impl(BAN::StringView, mode_t, uid_t, gid_t)	{ return BAN::Error::from_errno(ENOTSUP); }
 		virtual BAN::ErrorOr<void> delete_inode_impl(BAN::StringView)							{ return BAN::Error::from_errno(ENOTSUP); }
 
 		// Link API
