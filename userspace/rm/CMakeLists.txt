@@ -8,7 +8,7 @@ set(SOURCES
 
 add_executable(rm ${SOURCES})
 target_compile_options(rm PUBLIC -O2 -g)
-target_link_libraries(rm PUBLIC libc)
+target_link_libraries(rm PUBLIC libc ban)
 
 add_custom_target(rm-install
 	COMMAND sudo cp ${CMAKE_CURRENT_BINARY_DIR}/rm ${BANAN_BIN}/
