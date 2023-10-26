@@ -2,7 +2,7 @@
 
 # banan-os
 
-This is my hobby operating system written in C++. Currently supports only x86_64 architecture. We have a read-only ext2 filesystem, read-write ramfs, IDE disk drivers in ATA PIO mode, ATA AHCI drivers, userspace processes, executable loading from ELF format, linear VBE graphics and multithreaded processing on single core.
+This is my hobby operating system written in C++. Currently supports only x86_64 architecture. We have a ext2 filesystem, basic ramfs, IDE disk drivers in ATA PIO mode, ATA AHCI drivers, userspace processes, executable loading from ELF format, linear VBE graphics and multithreaded processing on single core.
 
 ![screenshot from qemu running banan-os](assets/banan-os.png)
 
