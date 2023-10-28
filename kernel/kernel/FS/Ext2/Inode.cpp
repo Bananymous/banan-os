@@ -32,12 +32,9 @@ namespace Kernel
 		auto block_buffer = fs.get_block_buffer();
 		fs.read_block(inode_location.block, block_buffer);
 
-		auto& inode = *(Ext2::Inode*)(block_buffer.data() + inode_location.offset);
+		auto& inode = block_buffer.span().slice(inode_location.offset).as<Ext2::Inode>();
 
-		Ext2Inode* result_ptr = new Ext2Inode(fs, inode, inode_ino);
-		if (result_ptr == nullptr)
-			return BAN::Error::from_errno(ENOMEM);
-		auto result = BAN::RefPtr<Ext2Inode>::adopt(result_ptr);
+		auto result = TRY(BAN::RefPtr<Ext2Inode>::create(fs, inode, inode_ino));
 		TRY(fs.inode_cache().insert(inode_ino, result));
 		return result;
 	}
@@ -48,56 +45,55 @@ namespace Kernel
 			cleanup_from_fs();
 	}
 
-#define VERIFY_AND_READ_BLOCK(expr) do { const uint32_t block_index = expr; ASSERT(block_index); m_fs.read_block(block_index, block_buffer); } while (false)
-#define VERIFY_AND_RETURN(expr) ({ const uint32_t result = expr; ASSERT(result); return result; })
-
-	uint32_t Ext2Inode::fs_block_of_data_block_index(uint32_t data_block_index)
+	BAN::Optional<uint32_t> Ext2Inode::block_from_indirect_block(uint32_t block, uint32_t index, uint32_t depth)
 	{
-		ASSERT(data_block_index < blocks());
+		if (block == 0)
+			return {};
+		ASSERT(depth >= 1);
+
+		auto block_buffer = m_fs.get_block_buffer();
+		m_fs.read_block(block, block_buffer);
 
 		const uint32_t indices_per_block = blksize() / sizeof(uint32_t);
 
-		// Direct block
-		if (data_block_index < 12)
-			VERIFY_AND_RETURN(m_inode.block[data_block_index]);
+		uint32_t divisor = 1;
+		for (uint32_t i = 1; i < depth; i++)
+			divisor *= indices_per_block;
 
+		const uint32_t next_block = block_buffer.span().as_span<uint32_t>()[(index / divisor) % indices_per_block];
+		if (next_block == 0)
+			return {};
+		if (depth == 1)
+			return next_block;
+
+		return block_from_indirect_block(next_block, index, depth - 1);
+	}
+
+	BAN::Optional<uint32_t> Ext2Inode::fs_block_of_data_block_index(uint32_t data_block_index)
+	{
+		const uint32_t indices_per_block = blksize() / sizeof(uint32_t);
+
+		if (data_block_index < 12)
+		{
+			if (m_inode.block[data_block_index] == 0)
+				return {};
+			return m_inode.block[data_block_index];
+		}
 		data_block_index -= 12;
 
-		auto block_buffer = m_fs.get_block_buffer();
-
-		// Singly indirect block
 		if (data_block_index < indices_per_block)
-		{
-			VERIFY_AND_READ_BLOCK(m_inode.block[12]);
-			VERIFY_AND_RETURN(((uint32_t*)block_buffer.data())[data_block_index]);
-		}
-
+			return block_from_indirect_block(m_inode.block[12], data_block_index, 1);
 		data_block_index -= indices_per_block;
 
-		// Doubly indirect blocks
 		if (data_block_index < indices_per_block * indices_per_block)
-		{
-			VERIFY_AND_READ_BLOCK(m_inode.block[13]);
-			VERIFY_AND_READ_BLOCK(((uint32_t*)block_buffer.data())[data_block_index / indices_per_block]);
-			VERIFY_AND_RETURN(((uint32_t*)block_buffer.data())[data_block_index % indices_per_block]);
-		}
-
+			return block_from_indirect_block(m_inode.block[13], data_block_index, 2);
 		data_block_index -= indices_per_block * indices_per_block;
 
-		// Triply indirect blocks
 		if (data_block_index < indices_per_block * indices_per_block * indices_per_block)
-		{
-			VERIFY_AND_READ_BLOCK(m_inode.block[14]);
-			VERIFY_AND_READ_BLOCK(((uint32_t*)block_buffer.data())[data_block_index / (indices_per_block * indices_per_block)]);
-			VERIFY_AND_READ_BLOCK(((uint32_t*)block_buffer.data())[(data_block_index / indices_per_block) % indices_per_block]);
-			VERIFY_AND_RETURN(((uint32_t*)block_buffer.data())[data_block_index % indices_per_block]);
-		}
+			return block_from_indirect_block(m_inode.block[14], data_block_index, 3);
 
 		ASSERT_NOT_REACHED();
 	}
-
-#undef VERIFY_AND_READ_BLOCK
-#undef VERIFY_AND_RETURN
 
 	BAN::ErrorOr<BAN::String> Ext2Inode::link_target_impl()
 	{
@@ -119,7 +115,7 @@ namespace Kernel
 
 		if (offset >= m_inode.size)
 			return 0;
-		
+
 		uint32_t count = buffer.size();
 		if (offset + buffer.size() > m_inode.size)
 			count = m_inode.size - offset;
@@ -135,8 +131,11 @@ namespace Kernel
 
 		for (uint32_t data_block_index = first_block; data_block_index < last_block; data_block_index++)
 		{
-			uint32_t block_index = fs_block_of_data_block_index(data_block_index);
-			m_fs.read_block(block_index, block_buffer);
+			auto block_index = fs_block_of_data_block_index(data_block_index);
+			if (block_index.has_value())
+				m_fs.read_block(block_index.value(), block_buffer);
+			else
+				memset(block_buffer.data(), 0x00, block_buffer.size());
 
 			uint32_t copy_offset = (offset + n_read) % block_size;
 			uint32_t to_copy = BAN::Math::min<uint32_t>(block_size - copy_offset, count - n_read);
@@ -171,14 +170,20 @@ namespace Kernel
 		// Write partial block
 		if (offset % block_size)
 		{
-			uint32_t block_index = fs_block_of_data_block_index(offset / block_size);
-			uint32_t block_offset = offset % block_size;
+			auto block_index = fs_block_of_data_block_index(offset / block_size);
+			if (block_index.has_value())
+				m_fs.read_block(block_index.value(), block_buffer);
+			else
+			{
+				block_index = TRY(allocate_new_block(offset / block_size));;
+				memset(block_buffer.data(), 0x00, block_buffer.size());
+			}
 
+			uint32_t block_offset = offset % block_size;
 			uint32_t to_copy = BAN::Math::min<uint32_t>(block_size - block_offset, to_write);
 
-			m_fs.read_block(block_index, block_buffer);
 			memcpy(block_buffer.data() + block_offset, buffer.data(), to_copy);
-			m_fs.write_block(block_index, block_buffer);
+			m_fs.write_block(block_index.value(), block_buffer);
 
 			written += to_copy;
 			offset += to_copy;
@@ -187,10 +192,12 @@ namespace Kernel
 
 		while (to_write >= block_size)
 		{
-			uint32_t block_index = fs_block_of_data_block_index(offset / block_size);
+			auto block_index = fs_block_of_data_block_index(offset / block_size);
+			if (!block_index.has_value())
+				block_index = TRY(allocate_new_block(offset / block_size));
 
 			memcpy(block_buffer.data(), buffer.data() + written, block_buffer.size());
-			m_fs.write_block(block_index, block_buffer);
+			m_fs.write_block(block_index.value(), block_buffer);
 
 			written += block_size;
 			offset += block_size;
@@ -199,11 +206,17 @@ namespace Kernel
 
 		if (to_write > 0)
 		{
-			uint32_t block_index = fs_block_of_data_block_index(offset / block_size);
+			auto block_index = fs_block_of_data_block_index(offset / block_size);
+			if (block_index.has_value())
+				m_fs.read_block(block_index.value(), block_buffer);
+			else
+			{
+				block_index = TRY(allocate_new_block(offset / block_size));
+				memset(block_buffer.data(), 0x00, block_buffer.size());
+			}
 
-			m_fs.read_block(block_index, block_buffer);
 			memcpy(block_buffer.data(), buffer.data() + written, to_write);
-			m_fs.write_block(block_index, block_buffer);
+			m_fs.write_block(block_index.value(), block_buffer);
 		}
 
 		return buffer.size();
@@ -214,34 +227,7 @@ namespace Kernel
 		if (m_inode.size == new_size)
 			return {};
 
-		const uint32_t block_size = blksize();
-		const uint32_t current_data_blocks = blocks();
-		const uint32_t needed_data_blocks = BAN::Math::div_round_up<uint32_t>(new_size, block_size);
-
-		if (new_size < m_inode.size)
-		{
-			m_inode.size = new_size;
-			sync();
-			return {};
-		}
-
-		auto block_buffer = m_fs.get_block_buffer();
-
-		if (uint32_t rem = m_inode.size % block_size)
-		{
-			uint32_t last_block_index = fs_block_of_data_block_index(current_data_blocks - 1);
-
-			m_fs.read_block(last_block_index, block_buffer);
-			memset(block_buffer.data() + rem, 0, block_size - rem);
-			m_fs.write_block(last_block_index, block_buffer);
-		}
-
-		memset(block_buffer.data(), 0, block_size);
-		while (blocks() < needed_data_blocks)
-		{
-			uint32_t block_index = TRY(allocate_new_block());
-			m_fs.write_block(block_index, block_buffer);
-		}
+		// TODO: we should remove unused blocks on shrink
 
 		m_inode.size = new_size;
 		sync();
@@ -275,9 +261,10 @@ namespace Kernel
 		const uint32_t ids_per_block = blksize() / sizeof(uint32_t);
 		for (uint32_t i = 0; i < ids_per_block; i++)
 		{
-			const uint32_t idx = ((uint32_t*)block_buffer.data())[i];
-			if (idx > 0)
-				cleanup_indirect_block(idx, depth - 1);
+			const uint32_t next_block = block_buffer.span().as_span<uint32_t>()[i];
+			if (next_block == 0)
+				continue;
+			cleanup_indirect_block(next_block, depth - 1);
 		}
 
 		m_fs.release_block(block);
@@ -299,14 +286,14 @@ namespace Kernel
 			cleanup_indirect_block(m_inode.block[13], 2);
 		if (m_inode.block[14])
 			cleanup_indirect_block(m_inode.block[14], 3);
-		
+
 		// mark blocks as deleted
 		memset(m_inode.block, 0x00, sizeof(m_inode.block));
 
 		// FIXME: this is only required since fs does not get
 		//        deleting inode from its cache
 		sync();
-	
+
 		m_fs.delete_inode(ino());
 	}
 
@@ -322,8 +309,8 @@ namespace Kernel
 			return {};
 		}
 
-		const uint32_t block_size = blksize();
-		const uint32_t block_index = fs_block_of_data_block_index(offset);
+		// FIXME: can we actually assume directories have all their blocks allocated
+		const uint32_t block_index = fs_block_of_data_block_index(offset).value();
 
 		auto block_buffer = m_fs.get_block_buffer();
 
@@ -331,16 +318,15 @@ namespace Kernel
 
 		// First determine if we have big enough list
 		{
-			const uint8_t* block_buffer_end = block_buffer.data() + block_size;
-			const uint8_t* entry_addr = block_buffer.data();
+			BAN::ConstByteSpan entry_span = block_buffer.span();
 
 			size_t needed_size = sizeof(DirectoryEntryList);
-			while (entry_addr < block_buffer_end)
+			while (entry_span.size() >= sizeof(Ext2::LinkedDirectoryEntry))
 			{
-				auto& entry = *(Ext2::LinkedDirectoryEntry*)entry_addr;
+				auto& entry = entry_span.as<const Ext2::LinkedDirectoryEntry>();
 				if (entry.inode)
 					needed_size += sizeof(DirectoryEntry) + entry.name_len + 1;
-				entry_addr += entry.rec_len;
+				entry_span = entry_span.slice(entry.rec_len);
 			}
 
 			if (needed_size > list_size)
@@ -352,11 +338,10 @@ namespace Kernel
 			DirectoryEntry* ptr = list->array;
 			list->entry_count = 0;
 
-			const uint8_t* block_buffer_end = block_buffer.data() + block_size;
-			const uint8_t* entry_addr = block_buffer.data();
-			while (entry_addr < block_buffer_end)
+			BAN::ConstByteSpan entry_span = block_buffer.span();
+			while (entry_span.size() >= sizeof(Ext2::LinkedDirectoryEntry))
 			{
-				auto& entry = *(Ext2::LinkedDirectoryEntry*)entry_addr;
+				auto& entry = entry_span.as<const Ext2::LinkedDirectoryEntry>();
 				if (entry.inode)
 				{
 					ptr->dirent.d_ino = entry.inode;
@@ -368,7 +353,7 @@ namespace Kernel
 					ptr = ptr->next();
 					list->entry_count++;
 				}
-				entry_addr += entry.rec_len;
+				entry_span = entry_span.slice(entry.rec_len);
 			}
 		}
 
@@ -460,7 +445,7 @@ namespace Kernel
 
 		TRY(inode->link_inode_to_directory(*inode, "."sv));
 		TRY(inode->link_inode_to_directory(*this, ".."sv));
-		
+
 		TRY(link_inode_to_directory(*inode, name));
 
 		cleanup.disable();
@@ -505,7 +490,7 @@ namespace Kernel
 				: typed_mode.iflnk()  ? Ext2::Enum::SYMLINK
 				: 0;
 
-			auto& new_entry = *(Ext2::LinkedDirectoryEntry*)(block_buffer.data() + entry_offset);
+			auto& new_entry = block_buffer.span().slice(entry_offset).as<Ext2::LinkedDirectoryEntry>();
 			new_entry.inode = inode.ino();
 			new_entry.rec_len = entry_rec_len;
 			new_entry.name_len = name.size();
@@ -523,17 +508,18 @@ namespace Kernel
 		if (auto rem = needed_entry_len % 4)
 			needed_entry_len += 4 - rem;
 
-		const uint32_t data_block_count = blocks();
+		// FIXME: can we actually assume directories have all their blocks allocated
+		const uint32_t data_block_count = max_used_data_block_count();
 		if (data_block_count == 0)
 			goto needs_new_block;
 
 		// Try to insert inode to last data block
-		block_index = fs_block_of_data_block_index(data_block_count - 1);
+		block_index = fs_block_of_data_block_index(data_block_count - 1).value();
 		m_fs.read_block(block_index, block_buffer);
 
 		while (entry_offset < block_size)
 		{
-			auto& entry = *(Ext2::LinkedDirectoryEntry*)(block_buffer.data() + entry_offset);
+			auto& entry = block_buffer.span().slice(entry_offset).as<Ext2::LinkedDirectoryEntry>();
 
 			uint32_t entry_min_rec_len = sizeof(Ext2::LinkedDirectoryEntry) + entry.name_len;
 			if (auto rem = entry_min_rec_len % 4)
@@ -559,9 +545,10 @@ namespace Kernel
 		}
 
 needs_new_block:
-		block_index = TRY(allocate_new_block());
+		block_index = TRY(allocate_new_block(data_block_count));
+		m_inode.size += blksize();
 
-		m_fs.read_block(block_index, block_buffer);
+		memset(block_buffer.data(), 0x00, block_buffer.size());
 		write_inode(0, block_size);
 		m_fs.write_block(block_index, block_buffer);
 
@@ -571,19 +558,15 @@ needs_new_block:
 	BAN::ErrorOr<bool> Ext2Inode::is_directory_empty()
 	{
 		ASSERT(mode().ifdir());
-		if (m_inode.flags & Ext2::Enum::INDEX_FL)
-		{
-			dwarnln("deletion of indexed directory is not supported");
-			return BAN::Error::from_errno(ENOTSUP);
-		}
 
 		auto block_buffer = m_fs.get_block_buffer();
 
 		// Confirm that this doesn't contain anything else than '.' or '..'
-		for (uint32_t i = 0; i < blocks(); i++)
+		for (uint32_t i = 0; i < max_used_data_block_count(); i++)
 		{
-			const uint32_t block = fs_block_of_data_block_index(i);
-			m_fs.read_block(block, block_buffer);
+			// FIXME: can we actually assume directories have all their blocks allocated
+			const uint32_t block_index = fs_block_of_data_block_index(i).value();
+			m_fs.read_block(block_index, block_buffer);
 
 			blksize_t offset = 0;
 			while (offset < blksize())
@@ -607,13 +590,19 @@ needs_new_block:
 	BAN::ErrorOr<void> Ext2Inode::cleanup_default_links()
 	{
 		ASSERT(mode().ifdir());
+		if (m_inode.flags & Ext2::Enum::INDEX_FL)
+		{
+			dwarnln("deletion of indexed directory is not supported");
+			return BAN::Error::from_errno(ENOTSUP);
+		}
 
 		auto block_buffer = m_fs.get_block_buffer();
 
-		for (uint32_t i = 0; i < blocks(); i++)
+		for (uint32_t i = 0; i < max_used_data_block_count(); i++)
 		{
-			const uint32_t block = fs_block_of_data_block_index(i);
-			m_fs.read_block(block, block_buffer);
+			// FIXME: can we actually assume directories have all their blocks allocated
+			const uint32_t block_index = fs_block_of_data_block_index(i).value();
+			m_fs.read_block(block_index, block_buffer);
 
 			bool modified = false;
 
@@ -648,7 +637,7 @@ needs_new_block:
 			}
 
 			if (modified)
-				m_fs.write_block(block, block_buffer);
+				m_fs.write_block(block_index, block_buffer);
 		}
 
 		return {};
@@ -665,10 +654,11 @@ needs_new_block:
 
 		auto block_buffer = m_fs.get_block_buffer();
 
-		for (uint32_t i = 0; i < blocks(); i++)
+		for (uint32_t i = 0; i < max_used_data_block_count(); i++)
 		{
-			const uint32_t block = fs_block_of_data_block_index(i);
-			m_fs.read_block(block, block_buffer);
+			// FIXME: can we actually assume directories have all their blocks allocated
+			const uint32_t block_index = fs_block_of_data_block_index(i).value();
+			m_fs.read_block(block_index, block_buffer);
 
 			blksize_t offset = 0;
 			while (offset < blksize())
@@ -702,7 +692,7 @@ needs_new_block:
 
 					// FIXME: This should expand the last inode if exists
 					entry.inode = 0;
-					m_fs.write_block(block, block_buffer);					
+					m_fs.write_block(block_index, block_buffer);
 				}
 				offset += entry.rec_len;
 			}
@@ -711,113 +701,71 @@ needs_new_block:
 		return {};
 	}
 
-#define READ_OR_ALLOCATE_BASE_BLOCK(index_)											\
-	do {																			\
-		if (m_inode.block[index_] != 0)												\
-			m_fs.read_block(m_inode.block[index_], block_buffer);					\
-		else																		\
-		{																			\
-			m_inode.block[index_] = TRY(m_fs.reserve_free_block(block_group()));	\
-			memset(block_buffer.data(), 0x00, block_buffer.size());					\
-		}																			\
-	} while (false)
-
-#define READ_OR_ALLOCATE_INDIRECT_BLOCK(result_, buffer_index_, parent_block_)		\
-	uint32_t result_ = ((uint32_t*)block_buffer.data())[buffer_index_];				\
-	if (result_ != 0)																\
-		m_fs.read_block(result_, block_buffer);										\
-	else																			\
-	{																				\
-		const uint32_t new_block_ = TRY(m_fs.reserve_free_block(block_group()));	\
-																					\
-		((uint32_t*)block_buffer.data())[buffer_index_] = new_block_;				\
-		m_fs.write_block(parent_block_, block_buffer);								\
-																					\
-		result_ = new_block_;														\
-		memset(block_buffer.data(), 0x00, block_buffer.size());						\
-	}																				\
-	do {} while (false)
-
-#define WRITE_BLOCK_AND_RETURN(buffer_index_, parent_block_)					\
-	do {																		\
-		const uint32_t block_ = TRY(m_fs.reserve_free_block(block_group()));	\
-																				\
-		ASSERT(((uint32_t*)block_buffer.data())[buffer_index_] == 0);			\
-		((uint32_t*)block_buffer.data())[buffer_index_] = block_;				\
-		m_fs.write_block(parent_block_, block_buffer);							\
-																				\
-		m_inode.blocks += blocks_per_fs_block;									\
-		update_and_sync();														\
-																				\
-		return block_;															\
-	} while (false)
-
-	BAN::ErrorOr<uint32_t> Ext2Inode::allocate_new_block()
+	BAN::ErrorOr<uint32_t> Ext2Inode::allocate_new_block_to_indirect_block(uint32_t& block, uint32_t index, uint32_t depth)
 	{
-		const uint32_t blocks_per_fs_block = blksize() / 512;
+		const uint32_t inode_blocks_per_fs_block = blksize() / 512;
 		const uint32_t indices_per_fs_block = blksize() / sizeof(uint32_t);
 
-		uint32_t block_array_index = blocks();
+		if (depth == 0)
+			ASSERT(block == 0);
 
-		auto update_and_sync =
-			[&]
-			{
-				if (mode().ifdir())
-					m_inode.size += blksize();
-				sync();
-			};
-
-		// direct block
-		if (block_array_index < 12)
+		if (block == 0)
 		{
-			const uint32_t block = TRY(m_fs.reserve_free_block(block_group()));
+			block = TRY(m_fs.reserve_free_block(block_group()));
+			m_inode.blocks += inode_blocks_per_fs_block;
 
-			ASSERT(m_inode.block[block_array_index] == 0);
-			m_inode.block[block_array_index] = block;
-
-			m_inode.blocks += blocks_per_fs_block;
-			update_and_sync();
-			return block;
+			auto block_buffer = m_fs.get_block_buffer();
+			memset(block_buffer.data(), 0x00, block_buffer.size());
+			m_fs.write_block(block, block_buffer);
 		}
 
-		block_array_index -= 12;
+		if (depth == 0)
+			return block;
 
 		auto block_buffer = m_fs.get_block_buffer();
+		m_fs.read_block(block, block_buffer);
 
-		// singly indirect block
-		if (block_array_index < indices_per_fs_block)
+		uint32_t divisor = 1;
+		for (uint32_t i = 1; i < depth; i++)
+			divisor *= indices_per_fs_block;
+
+		uint32_t& new_block = block_buffer.span().as_span<uint32_t>()[(index / divisor) % indices_per_fs_block];
+
+		uint32_t allocated_block = TRY(allocate_new_block_to_indirect_block(new_block, index, depth - 1));
+		m_fs.write_block(block, block_buffer);
+
+		return allocated_block;
+	}
+
+	BAN::ErrorOr<uint32_t> Ext2Inode::allocate_new_block(uint32_t data_block_index)
+	{
+		const uint32_t inode_blocks_per_fs_block = blksize() / 512;
+		const uint32_t indices_per_fs_block = blksize() / sizeof(uint32_t);
+
+		BAN::ScopeGuard syncer([&] { sync(); });
+
+		if (data_block_index < 12)
 		{
-			READ_OR_ALLOCATE_BASE_BLOCK(12);
-			WRITE_BLOCK_AND_RETURN(block_array_index, m_inode.block[12]);
+			ASSERT(m_inode.block[data_block_index] == 0);
+			m_inode.block[data_block_index] = TRY(m_fs.reserve_free_block(block_group()));
+			m_inode.blocks += inode_blocks_per_fs_block;
+			return m_inode.block[data_block_index];
 		}
+		data_block_index -= 12;
 
-		block_array_index -= indices_per_fs_block;
+		if (data_block_index < indices_per_fs_block)
+			return TRY(allocate_new_block_to_indirect_block(m_inode.block[12], data_block_index, 1));
+		data_block_index -= indices_per_fs_block;
 
-		// doubly indirect block
-		if (block_array_index < indices_per_fs_block * indices_per_fs_block)
-		{
-			READ_OR_ALLOCATE_BASE_BLOCK(13);
-			READ_OR_ALLOCATE_INDIRECT_BLOCK(direct_block, block_array_index / indices_per_fs_block, m_inode.block[13]);
-			WRITE_BLOCK_AND_RETURN(block_array_index % indices_per_fs_block, direct_block);
-		}
+		if (data_block_index < indices_per_fs_block * indices_per_fs_block)
+			return TRY(allocate_new_block_to_indirect_block(m_inode.block[13], data_block_index, 2));
+		data_block_index -= indices_per_fs_block;
 
-		block_array_index -= indices_per_fs_block * indices_per_fs_block;
-
-		// triply indirect block
-		if (block_array_index < indices_per_fs_block * indices_per_fs_block * indices_per_fs_block)
-		{
-			READ_OR_ALLOCATE_BASE_BLOCK(14);
-			READ_OR_ALLOCATE_INDIRECT_BLOCK(indirect_block, block_array_index / (indices_per_fs_block * indices_per_fs_block), m_inode.block[14]);
-			READ_OR_ALLOCATE_INDIRECT_BLOCK(direct_block, (block_array_index / indices_per_fs_block) % indices_per_fs_block, indirect_block);
-			WRITE_BLOCK_AND_RETURN(block_array_index % indices_per_fs_block, direct_block);
-		}
+		if (data_block_index < indices_per_fs_block * indices_per_fs_block * indices_per_fs_block)
+			return TRY(allocate_new_block_to_indirect_block(m_inode.block[14], data_block_index, 3));
 
 		ASSERT_NOT_REACHED();
 	}
-
-#undef READ_OR_ALLOCATE_BASE_BLOCK
-#undef READ_OR_ALLOCATE_INDIRECT_BLOCK
-#undef WRITE_BLOCK_AND_RETURN
 
 	void Ext2Inode::sync()
 	{
@@ -836,26 +784,22 @@ needs_new_block:
 	{
 		ASSERT(mode().ifdir());
 
-		const uint32_t block_size = blksize();
-		const uint32_t data_block_count = blocks();
-
 		auto block_buffer = m_fs.get_block_buffer();
 
-		for (uint32_t i = 0; i < data_block_count; i++)
+		for (uint32_t i = 0; i < max_used_data_block_count(); i++)
 		{
-			const uint32_t block_index = fs_block_of_data_block_index(i);
+			// FIXME: can we actually assume directories have all their blocks allocated
+			const uint32_t block_index = fs_block_of_data_block_index(i).value();
 			m_fs.read_block(block_index, block_buffer);
 
-			const uint8_t* block_buffer_end = block_buffer.data() + block_size;
-			const uint8_t* entry_addr = block_buffer.data();
-
-			while (entry_addr < block_buffer_end)
+			BAN::ConstByteSpan entry_span = block_buffer.span();
+			while (entry_span.size() >= sizeof(Ext2::LinkedDirectoryEntry))
 			{
-				const auto& entry = *(const Ext2::LinkedDirectoryEntry*)entry_addr;
+				auto& entry = entry_span.as<const Ext2::LinkedDirectoryEntry>();
 				BAN::StringView entry_name(entry.name, entry.name_len);
 				if (entry.inode && entry_name == file_name)
 					return BAN::RefPtr<Inode>(TRY(Ext2Inode::create(m_fs, entry.inode)));
-				entry_addr += entry.rec_len;
+				entry_span = entry_span.slice(entry.rec_len);
 			}
 		}
 

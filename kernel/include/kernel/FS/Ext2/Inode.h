@@ -44,7 +44,12 @@ namespace Kernel
 		virtual BAN::ErrorOr<void> chmod_impl(mode_t) override;
 
 	private:
-		uint32_t fs_block_of_data_block_index(uint32_t data_block_index);
+		// Returns maximum number of data blocks in use
+		// NOTE: the inode might have more blocks than what this suggests if it has been shrinked
+		uint32_t max_used_data_block_count() const { return size() / blksize(); }
+
+		BAN::Optional<uint32_t> block_from_indirect_block(uint32_t block, uint32_t index, uint32_t depth);
+		BAN::Optional<uint32_t> fs_block_of_data_block_index(uint32_t data_block_index);
 
 		BAN::ErrorOr<void> link_inode_to_directory(Ext2Inode&, BAN::StringView name);
 		BAN::ErrorOr<bool> is_directory_empty();
@@ -53,7 +58,8 @@ namespace Kernel
 		BAN::ErrorOr<void> cleanup_default_links();
 		void cleanup_from_fs();
 
-		BAN::ErrorOr<uint32_t> allocate_new_block();
+		BAN::ErrorOr<uint32_t> allocate_new_block_to_indirect_block(uint32_t& block, uint32_t index, uint32_t depth);
+		BAN::ErrorOr<uint32_t> allocate_new_block(uint32_t data_block_index);
 		void sync();
 
 		uint32_t block_group() const;
