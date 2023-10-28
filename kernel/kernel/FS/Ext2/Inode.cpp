@@ -806,9 +806,8 @@ needs_new_block:
 		// triply indirect block
 		if (block_array_index < indices_per_fs_block * indices_per_fs_block * indices_per_fs_block)
 		{
-			dwarnln("here");
 			READ_OR_ALLOCATE_BASE_BLOCK(14);
-			READ_OR_ALLOCATE_INDIRECT_BLOCK(indirect_block, block_array_index / (indices_per_fs_block * indices_per_fs_block), 14);
+			READ_OR_ALLOCATE_INDIRECT_BLOCK(indirect_block, block_array_index / (indices_per_fs_block * indices_per_fs_block), m_inode.block[14]);
 			READ_OR_ALLOCATE_INDIRECT_BLOCK(direct_block, (block_array_index / indices_per_fs_block) % indices_per_fs_block, indirect_block);
 			WRITE_BLOCK_AND_RETURN(block_array_index % indices_per_fs_block, direct_block);
 		}
