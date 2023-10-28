@@ -80,11 +80,28 @@ namespace BAN
 		}
 
 		template<typename S>
-		const S& as() const
+		requires(is_const_v<S>)
+		S& as() const
 		{
 			ASSERT(m_data);
 			ASSERT(m_size >= sizeof(S));
 			return *reinterpret_cast<S*>(m_data);
+		}
+
+		template<typename S>
+		requires(!CONST && !is_const_v<S>)
+		Span<S> as_span()
+		{
+			ASSERT(m_data);
+			return Span<S>(reinterpret_cast<S*>(m_data), m_size / sizeof(S));
+		}
+
+		template<typename S>
+		requires(is_const_v<S>)
+		Span<S> as_span() const
+		{
+			ASSERT(m_data);
+			return Span<S>(reinterpret_cast<S*>(m_data), m_size / sizeof(S));
 		}
 
 		ByteSpanGeneral slice(size_type offset, size_type length = size_type(-1))
