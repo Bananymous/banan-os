@@ -41,6 +41,10 @@ If you have corrupted your disk image or want to create new one, you can either 
 
 > ***NOTE*** ```ninja clean``` has to be ran with root permissions, since it deletes from the banan-so sysroot.
 
+If you feel like ```./script/build.sh``` is too verbose, there exists a symlink _bos_ in this projects root directory. All build commands can be used with ```./bos args...``` instead.
+
+I have also created shell completion script for zsh. You can either copy the file in _script/shell-completion/zsh/\_bos_ to _/usr/share/zsh/site-functions/_ or add the _script/shell-completion/zsh_ to your fpath in _.zshrc_.
+
 ### Contributing
 
 Currently I don't accept contributions to this repository unless explicitly told otherwise. This is a learning project for me and I want to do everything myself. Feel free to fork/clone this repo and tinker with it yourself.
