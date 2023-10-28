@@ -49,6 +49,7 @@ namespace Kernel
 		BAN::ErrorOr<void> link_inode_to_directory(Ext2Inode&, BAN::StringView name);
 		BAN::ErrorOr<bool> is_directory_empty();
 
+		void cleanup_indirect_block(uint32_t block, uint32_t depth);
 		BAN::ErrorOr<void> cleanup_default_links();
 		void cleanup_from_fs();
 

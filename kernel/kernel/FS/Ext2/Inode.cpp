@@ -259,11 +259,54 @@ namespace Kernel
 		return {};
 	}
 
+	void Ext2Inode::cleanup_indirect_block(uint32_t block, uint32_t depth)
+	{
+		ASSERT(block);
+
+		if (depth == 0)
+		{
+			m_fs.release_block(block);
+			return;
+		}
+
+		auto block_buffer = m_fs.get_block_buffer();
+		m_fs.read_block(block, block_buffer);
+
+		const uint32_t ids_per_block = blksize() / sizeof(uint32_t);
+		for (uint32_t i = 0; i < ids_per_block; i++)
+		{
+			const uint32_t idx = ((uint32_t*)block_buffer.data())[i];
+			if (idx > 0)
+				cleanup_indirect_block(idx, depth - 1);
+		}
+
+		m_fs.release_block(block);
+	}
+
 	void Ext2Inode::cleanup_from_fs()
 	{
 		ASSERT(m_inode.links_count == 0);
-		for (uint32_t i = 0; i < blocks(); i++)
-			m_fs.release_block(fs_block_of_data_block_index(i));
+
+		// cleanup direct blocks
+		for (uint32_t i = 0; i < 12; i++)
+			if (m_inode.block[i])
+				m_fs.release_block(m_inode.block[i]);
+
+		// cleanup indirect blocks
+		if (m_inode.block[12])
+			cleanup_indirect_block(m_inode.block[12], 1);
+		if (m_inode.block[13])
+			cleanup_indirect_block(m_inode.block[13], 2);
+		if (m_inode.block[14])
+			cleanup_indirect_block(m_inode.block[14], 3);
+		
+		// mark blocks as deleted
+		memset(m_inode.block, 0x00, sizeof(m_inode.block));
+
+		// FIXME: this is only required since fs does not get
+		//        deleting inode from its cache
+		sync();
+	
 		m_fs.delete_inode(ino());
 	}
 
