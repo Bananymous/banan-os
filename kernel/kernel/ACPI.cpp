@@ -211,7 +211,10 @@ namespace Kernel
 			if (memcmp(header->signature, "FACP", 4) == 0)
 			{
 				auto* fadt = (FADT*)header;
-				paddr_t dsdt_paddr = fadt->x_dsdt;
+
+				paddr_t dsdt_paddr = 0;
+				if (fadt->length > 140) // 140 is the offset of x_dsdt
+					dsdt_paddr = fadt->x_dsdt;
 				if (dsdt_paddr == 0 || !PageTable::is_valid_pointer(dsdt_paddr))
 					dsdt_paddr = fadt->dsdt;
 
