@@ -226,7 +226,8 @@ namespace LibELF
 					if (paddr == 0)
 						return BAN::Error::from_errno(ENOMEM);
 
-					m_page_table.map_page_at(paddr, vaddr, flags);
+					// Temporarily map page as RW so kernel can write to it
+					m_page_table.map_page_at(paddr, vaddr, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
 					m_physical_page_count++;
 
 					memset((void*)vaddr, 0x00, PAGE_SIZE);
@@ -244,6 +245,9 @@ namespace LibELF
 						size_t bytes = BAN::Math::min<size_t>(PAGE_SIZE - vaddr_offset, program_header.p_filesz - file_offset);
 						TRY(m_inode->read(program_header.p_offset + file_offset, { (uint8_t*)vaddr + vaddr_offset, bytes }));
 					}
+
+					// Map page with the correct flags
+					m_page_table.map_page_at(paddr, vaddr, flags);
 
 					return {};
 				}
