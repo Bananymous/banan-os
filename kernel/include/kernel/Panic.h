@@ -11,11 +11,11 @@ namespace Kernel::detail
 
 	template<typename... Args>
 	__attribute__((__noreturn__))
-	static void panic_impl(const char* file, int line, const char* message, Args... args)
+	static void panic_impl(const char* file, int line, const char* message, Args&&... args)
 	{
 		asm volatile("cli");
 		derrorln("Kernel panic at {}:{}", file, line);
-		derrorln(message, args...);
+		derrorln(message, BAN::forward<Args>(args)...);
 		if (!g_paniced)
 		{
 			g_paniced = true;
