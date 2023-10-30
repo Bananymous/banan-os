@@ -31,8 +31,22 @@ add_custom_target(libc-headers
 	USES_TERMINAL
 )
 
+add_custom_target(crtx
+	COMMAND ${CMAKE_C_COMPILER} -c ${CMAKE_CURRENT_SOURCE_DIR}/arch/${BANAN_ARCH}/crt0.S -o crt0.o
+	COMMAND ${CMAKE_C_COMPILER} -c ${CMAKE_CURRENT_SOURCE_DIR}/arch/${BANAN_ARCH}/crti.S -o crti.o
+	COMMAND ${CMAKE_C_COMPILER} -c ${CMAKE_CURRENT_SOURCE_DIR}/arch/${BANAN_ARCH}/crtn.S -o crtn.o
+)
+
+add_custom_target(crtx-install
+	COMMAND sudo cp crt0.o ${BANAN_LIB}/
+	COMMAND sudo cp crti.o ${BANAN_LIB}/
+	COMMAND sudo cp crtn.o ${BANAN_LIB}/
+	DEPENDS crtx
+	USES_TERMINAL
+)
+
 add_library(libc ${LIBC_SOURCES})
-add_dependencies(libc headers crt0)
+add_dependencies(libc headers crtx-install)
 
 target_compile_options(libc PRIVATE -g -Wstack-usage=512)
 

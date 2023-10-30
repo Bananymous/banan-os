@@ -8,19 +8,19 @@ _start:
 	pushq %rbp # rbp=0
 	movq %rsp, %rbp
 
-	# We need those in a moment when we call main.
+	# Save argc, argv, environ
 	pushq %rdx
 	pushq %rsi
 	pushq %rdi
 
-	# Prepare signals, memory allocation, stdio and such.
+	# Prepare malloc, environment
 	movq %rdx, %rdi
 	call _init_libc
 
-	# Run the global constructors.
+	# Call global constructos
 	call _init
 
-	# Restore argc and argv.
+	# Restore argc, argv, environ
 	popq %rdi
 	popq %rsi
 	popq %rdx
@@ -28,7 +28,8 @@ _start:
 	# Run main
 	call main
 
-	# Terminate the process with the exit code.
+	# Cleanly exit the process
 	movl %eax, %edi
 	call exit
+
 .size _start, . - _start

@@ -162,17 +162,6 @@ endif()
 
 target_link_options(kernel PUBLIC -ffreestanding -nostdlib)
 
-add_custom_target(crt0
-	COMMAND ${CMAKE_CXX_COMPILER} -c ${CMAKE_CURRENT_SOURCE_DIR}/arch/${BANAN_ARCH}/crt0.S -o ${CMAKE_CURRENT_BINARY_DIR}/crt0.o
-	DEPENDS headers
-)
-
-add_custom_command(
-	TARGET crt0
-	POST_BUILD
-	COMMAND sudo cp ${CMAKE_CURRENT_BINARY_DIR}/crt0.o ${BANAN_LIB}/
-)
-
 add_custom_target(kernel-headers
 	COMMAND sudo rsync -a ${CMAKE_CURRENT_SOURCE_DIR}/include/ ${BANAN_INCLUDE}/
 	COMMAND sudo rsync -a ${CMAKE_CURRENT_SOURCE_DIR}/lai/include/ ${BANAN_INCLUDE}/
@@ -193,8 +182,8 @@ add_custom_command(
 	TARGET kernel PRE_LINK
 	COMMAND ${CMAKE_CXX_COMPILER} -MD -c ${CMAKE_CURRENT_SOURCE_DIR}/arch/${BANAN_ARCH}/crti.S ${COMPILE_OPTIONS}
 	COMMAND ${CMAKE_CXX_COMPILER} -MD -c ${CMAKE_CURRENT_SOURCE_DIR}/arch/${BANAN_ARCH}/crtn.S ${COMPILE_OPTIONS}
-	COMMAND cp ${CRTBEGIN} .
-	COMMAND cp ${CRTEND} .
+	COMMAND ${CMAKE_COMMAND} -E copy ${CRTBEGIN} .
+	COMMAND ${CMAKE_COMMAND} -E copy ${CRTEND} .
 )
 
 #add_custom_command(
