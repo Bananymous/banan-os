@@ -92,6 +92,13 @@ namespace Kernel
 			s_has_pge = true;
 		}
 
+		// enable write protect to kernel
+		asm volatile(
+			"movq %cr0, %rax;"
+			"orq $0x10000, %rax;"
+			"movq %rax, %cr0;"
+		);
+
 		ASSERT(s_kernel == nullptr);
 		s_kernel = new PageTable();
 		ASSERT(s_kernel);
