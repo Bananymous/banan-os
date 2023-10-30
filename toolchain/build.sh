@@ -2,7 +2,13 @@
 set -e
 
 BINUTILS_VERSION="binutils-2.39"
+BINUTILS_GIT="https://sourceware.org/git/binutils-gdb.git"
+BINUTILS_BRANCH="binutils-2_39"
+
 GCC_VERSION="gcc-12.2.0"
+GCC_GIT="https://gcc.gnu.org/git/gcc.git"
+GCC_BRANCH="releases/$GCC_VERSION"
+
 GRUB_VERSION="grub-2.06"
 
 if [[ -z $BANAN_SYSROOT ]]; then
@@ -51,22 +57,20 @@ build_binutils () {
 
 	cd $BANAN_BUILD_DIR/toolchain
 
-	if [ ! -f ${BINUTILS_VERSION}.tar.xz ]; then
-		wget https://ftp.gnu.org/gnu/binutils/${BINUTILS_VERSION}.tar.xz
-	fi
-
 	if [ ! -d $BINUTILS_VERSION ]; then
-		tar xvf ${BINUTILS_VERSION}.tar.xz
-		patch -s -p0 < $BANAN_TOOLCHAIN_DIR/${BINUTILS_VERSION}.patch
+		git clone --single-branch --branch $BINUTILS_BRANCH $BINUTILS_GIT $BINUTILS_VERSION
+		cd $BINUTILS_VERSION
+		git am $BANAN_TOOLCHAIN_DIR/$BINUTILS_VERSION.patch
 	fi
 
-	cd $BINUTILS_VERSION
+	cd $BANAN_BUILD_DIR/toolchain/$BINUTILS_VERSION
 	enter_clean_build
 
 	../configure \
 		--target="$BANAN_TOOLCHAIN_TRIPLE_PREFIX" \
 		--prefix="$BANAN_TOOLCHAIN_PREFIX" \
 		--with-sysroot="$BANAN_SYSROOT" \
+		--disable-initfini-array \
 		--disable-nls \
 		--disable-werror
 
@@ -79,22 +83,20 @@ build_gcc () {
 
 	cd $BANAN_BUILD_DIR/toolchain
 
-	if [ ! -f ${GCC_VERSION}.tar.xz ]; then
-		wget https://ftp.gnu.org/gnu/gcc/${GCC_VERSION}/${GCC_VERSION}.tar.xz
-	fi
-
 	if [ ! -d $GCC_VERSION ]; then
-		tar xvf ${GCC_VERSION}.tar.xz
-		patch -s -p0 < $BANAN_TOOLCHAIN_DIR/${GCC_VERSION}.patch
+		git clone --single-branch --branch $GCC_BRANCH $GCC_GIT $GCC_VERSION
+		cd $GCC_VERSION
+		git am $BANAN_TOOLCHAIN_DIR/$GCC_VERSION.patch
 	fi
 
-	cd ${GCC_VERSION}
+	cd $BANAN_BUILD_DIR/toolchain/$GCC_VERSION
 	enter_clean_build
 
 	../configure \
 		--target="$BANAN_TOOLCHAIN_TRIPLE_PREFIX" \
 		--prefix="$BANAN_TOOLCHAIN_PREFIX" \
 		--with-sysroot="$BANAN_SYSROOT" \
+		--disable-initfini-array \
 		--disable-nls \
 		--enable-languages=c,c++
 
@@ -158,6 +160,9 @@ sudo mkdir -p $BANAN_SYSROOT/usr/include
 sudo rsync -a $BANAN_ROOT_DIR/libc/include/ $BANAN_SYSROOT/usr/include/
 
 mkdir -p $BANAN_BUILD_DIR/toolchain
+
+# Cleanup all old files from toolchain prefix
+rm -rf $BANAN_TOOLCHAIN_PREFIX
 
 build_binutils
 build_gcc
