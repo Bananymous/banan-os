@@ -98,7 +98,9 @@ namespace Kernel
 			paddr_t paddr = Heap::get().take_free_page();
 			if (paddr == 0)
 				return BAN::Error::from_errno(ENOMEM);
-			m_page_table.map_page_at(paddr, vaddr, m_flags);
+
+			// Temporarily force mapping to be writable so kernel can write to it
+			m_page_table.map_page_at(paddr, vaddr, m_flags | PageTable::Flags::ReadWrite);
 
 			size_t file_offset = m_offset + (vaddr - m_vaddr);
 			size_t bytes = BAN::Math::min<size_t>(m_size - file_offset, PAGE_SIZE);
@@ -120,6 +122,10 @@ namespace Kernel
 				m_page_table.unmap_page(vaddr);
 				return BAN::Error::from_errno(EIO);
 			}
+
+			// Disable writable if not wanted
+			if (!(m_flags & PageTable::Flags::ReadWrite))
+				m_page_table.map_page_at(paddr, vaddr, m_flags);
 		}
 		else if	(m_type == Type::SHARED)
 		{
