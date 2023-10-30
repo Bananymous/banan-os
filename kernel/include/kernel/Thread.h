@@ -71,6 +71,7 @@ namespace Kernel
 		vaddr_t stack_base() const { return m_stack->vaddr(); }
 		size_t stack_size() const { return m_stack->size(); }
 		VirtualRange& stack() { return *m_stack; }
+		VirtualRange& interrupt_stack() { return *m_interrupt_stack; }
 
 		vaddr_t interrupt_stack_base() const { return m_interrupt_stack ? m_interrupt_stack->vaddr() : 0; }
 		size_t interrupt_stack_size() const { return m_interrupt_stack ? m_interrupt_stack->size() : 0; }

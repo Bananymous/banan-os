@@ -181,14 +181,20 @@ namespace Kernel::IDT
 			{
 				// Check if stack is OOB
 				auto& stack = Thread::current().stack();
-				if (interrupt_stack.rsp < stack.vaddr())
+				auto& istack = Thread::current().interrupt_stack();
+				if (stack.vaddr() < interrupt_stack.rsp && interrupt_stack.rsp <= stack.vaddr() + stack.size())
+					; // using normal stack
+				else if (istack.vaddr() < interrupt_stack.rsp && interrupt_stack.rsp <= istack.vaddr() + istack.size())
+					; // using interrupt stack
+				else
 				{
-					derrorln("Stack overflow");
-					goto done;
-				}
-				if (interrupt_stack.rsp >= stack.vaddr() + stack.size())
-				{
-					derrorln("Stack underflow");
+					derrorln("Stack pointer out of bounds!");
+					derrorln("rsp {H}, stack {H}->{H}, istack {H}->{H}",
+						interrupt_stack.rsp,
+						stack.vaddr(), stack.vaddr() + stack.size(),
+						istack.vaddr(), istack.vaddr() + istack.size()
+					);
+					Thread::current().handle_signal(SIGKILL);
 					goto done;
 				}
 
@@ -207,7 +213,7 @@ namespace Kernel::IDT
 					if (result.is_error())
 					{
 						dwarnln("Demand paging: {}", result.error());
-						Thread::current().handle_signal(SIGTERM);
+						Thread::current().handle_signal(SIGKILL);
 						goto done;
 					}
 				}
