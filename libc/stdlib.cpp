@@ -7,6 +7,8 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 
+#include <icxxabi.h>
+
 extern "C" char** environ;
 
 extern "C" void _fini();
@@ -21,6 +23,7 @@ void abort(void)
 void exit(int status)
 {
 	fflush(nullptr);
+	__cxa_finalize(nullptr);
 	_fini();
 	_exit(status);
 	ASSERT_NOT_REACHED();
