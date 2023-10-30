@@ -23,6 +23,7 @@ set(USERSPACE_PROJECTS
 	sync
 	tee
 	test
+	test-globals
 	touch
 	u8sum
 	whoami
