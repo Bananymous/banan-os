@@ -82,17 +82,21 @@ namespace BAN
 	private:
 		struct SSOStorage
 		{
-			char storage[sso_capacity + 1] {};
+			char data[sso_capacity + 1] {};
 		};
 		struct GeneralStorage
 		{
-			size_type capacity { 0 };
-			char* data;
+			size_type capacity	{ 0 };
+			char* data			{ nullptr };
 		};
 
 	private:
-		Variant<SSOStorage, GeneralStorage>	m_storage	{ SSOStorage() };
-		size_type							m_size		{ 0 };
+		union {
+			SSOStorage sso_storage;
+			GeneralStorage general_storage;
+		} m_storage										{ .sso_storage = SSOStorage() };
+		size_type m_size	: sizeof(size_type) * 8 - 1	{ 0 };
+		size_type m_has_sso	: 1							{ true };
 	};
 
 	template<typename... Args>

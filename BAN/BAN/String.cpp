@@ -1,6 +1,5 @@
 #include <BAN/String.h>
 #include <BAN/New.h>
-#include <BAN/Variant.h>
 
 namespace BAN
 {
@@ -32,8 +31,7 @@ namespace BAN
 	String& String::operator=(const String& other)
 	{
 		clear();
-		if (!other.fits_in_sso())
-			MUST(ensure_capacity(other.size()));
+		MUST(ensure_capacity(other.size()));
 		memcpy(data(), other.data(), other.size() + 1);
 		m_size = other.size();
 		return *this;
@@ -43,14 +41,18 @@ namespace BAN
 	{
 		clear();
 
-		if (other.fits_in_sso())
+		if (other.has_sso())
 			memcpy(data(), other.data(), other.size() + 1);
 		else
-			m_storage = other.m_storage.get<GeneralStorage>();
+		{
+			m_storage.general_storage = other.m_storage.general_storage;
+			m_has_sso = false;
+		}
 		m_size = other.m_size;
 
 		other.m_size = 0;
-		other.m_storage = SSOStorage();
+		other.m_storage.sso_storage = SSOStorage();
+		other.m_has_sso = true;
 
 		return *this;
 	}
@@ -58,8 +60,7 @@ namespace BAN
 	String& String::operator=(StringView other)
 	{
 		clear();
-		if (!fits_in_sso(other.size()))
-			MUST(ensure_capacity(other.size()));
+		MUST(ensure_capacity(other.size()));
 		memcpy(data(), other.data(), other.size());
 		m_size = other.size();
 		data()[m_size] = '\0';
@@ -125,8 +126,9 @@ namespace BAN
 	{
 		if (!has_sso())
 		{
-			deallocator(m_storage.get<GeneralStorage>().data);
-			m_storage = SSOStorage();
+			deallocator(m_storage.general_storage.data);
+			m_storage.sso_storage = SSOStorage();
+			m_has_sso = true;
 		}
 		m_size = 0;
 		data()[m_size] = '\0';
@@ -166,15 +168,6 @@ namespace BAN
 			data()[m_size] = '\0';
 			return {};
 		}
-		
-		// shrink general -> sso
-		if (!has_sso() && fits_in_sso(new_size))
-		{
-			char* data = m_storage.get<GeneralStorage>().data;
-			m_storage = SSOStorage();
-			memcpy(m_storage.get<SSOStorage>().storage, data, new_size);
-			deallocator(data);
-		}
 
 		m_size = new_size;
 		data()[m_size] = '\0';
@@ -194,20 +187,21 @@ namespace BAN
 
 		if (fits_in_sso())
 		{
-			char* data = m_storage.get<GeneralStorage>().data;
-			m_storage = SSOStorage();
-			memcpy(m_storage.get<SSOStorage>().storage, data, m_size + 1);
+			char* data = m_storage.general_storage.data;
+			m_storage.sso_storage = SSOStorage();
+			m_has_sso = true;
+			memcpy(this->data(), data, m_size + 1);
 			deallocator(data);
 			return {};
 		}
 
-		GeneralStorage& storage = m_storage.get<GeneralStorage>();
+		GeneralStorage& storage = m_storage.general_storage;
 		if (storage.capacity == m_size)
 			return {};
 
 		char* new_data = (char*)allocator(m_size + 1);
 		if (new_data == nullptr)
-			return BAN::Error::from_errno(ENOMEM);
+			return Error::from_errno(ENOMEM);
 
 		memcpy(new_data, storage.data, m_size);
 		deallocator(storage.data);
@@ -222,40 +216,45 @@ namespace BAN
 	{
 		if (has_sso())
 			return sso_capacity;
-		return m_storage.get<GeneralStorage>().capacity;
+		return m_storage.general_storage.capacity;
 	}
 
 	char* String::data()
 	{
 		if (has_sso())
-			return m_storage.get<SSOStorage>().storage;
-		return m_storage.get<GeneralStorage>().data;
+			return m_storage.sso_storage.data;
+		return m_storage.general_storage.data;
 	}
 
 	const char* String::data() const
 	{
 		if (has_sso())
-			return m_storage.get<SSOStorage>().storage;
-		return m_storage.get<GeneralStorage>().data;
+			return m_storage.sso_storage.data;
+		return m_storage.general_storage.data;
 	}
 
 	ErrorOr<void> String::ensure_capacity(size_type new_size)
 	{
-		if (m_size >= new_size || fits_in_sso(new_size))
+		if (m_size >= new_size)
+			return {};
+		if (has_sso() && fits_in_sso(new_size))
 			return {};
 		
 		char* new_data = (char*)allocator(new_size + 1);
 		if (new_data == nullptr)
-			return BAN::Error::from_errno(ENOMEM);
+			return Error::from_errno(ENOMEM);
 		
 		memcpy(new_data, data(), m_size + 1);
 
 		if (has_sso())
-			m_storage = GeneralStorage();
+		{
+			m_storage.general_storage = GeneralStorage();
+			m_has_sso = false;
+		}
 		else
-			deallocator(m_storage.get<GeneralStorage>().data);
+			deallocator(m_storage.general_storage.data);
 
-		auto& storage = m_storage.get<GeneralStorage>();
+		auto& storage = m_storage.general_storage;
 		storage.capacity = new_size;
 		storage.data = new_data;
 
@@ -264,7 +263,7 @@ namespace BAN
 
 	bool String::has_sso() const
 	{
-		return m_storage.has<SSOStorage>();
+		return m_has_sso;
 	}
 
 }
