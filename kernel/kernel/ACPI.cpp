@@ -117,33 +117,33 @@ namespace Kernel
 
 		if (rsdp->revision >= 2)
 		{
-			PageTable::kernel().map_page_at(rsdp->xsdt_address & PAGE_ADDR_MASK, 0, PageTable::Flags::Present);
-			const XSDT* xsdt = (const XSDT*)(rsdp->xsdt_address % PAGE_SIZE);
-			BAN::ScopeGuard _([xsdt] { PageTable::kernel().unmap_page(0); });
+			PageTable::map_fast_page(rsdp->xsdt_address & PAGE_ADDR_MASK);
+			auto& xsdt = PageTable::fast_page_as<const XSDT>(rsdp->xsdt_address % PAGE_SIZE);
+			BAN::ScopeGuard _([] { PageTable::unmap_fast_page(); });
 
-			if (memcmp(xsdt->signature, "XSDT", 4) != 0)
+			if (memcmp(xsdt.signature, "XSDT", 4) != 0)
 				return BAN::Error::from_error_code(ErrorCode::ACPI_RootInvalid);
-			if (!is_valid_std_header(xsdt))
+			if (!is_valid_std_header(&xsdt))
 				return BAN::Error::from_error_code(ErrorCode::ACPI_RootInvalid);
 
-			m_header_table_paddr = (paddr_t)xsdt->entries + (rsdp->rsdt_address & PAGE_ADDR_MASK);
+			m_header_table_paddr = rsdp->xsdt_address + offsetof(XSDT, entries);
 			m_entry_size = 8;
-			root_entry_count = (xsdt->length - sizeof(SDTHeader)) / 8;
+			root_entry_count = (xsdt.length - sizeof(SDTHeader)) / 8;
 		}
 		else
 		{
-			PageTable::kernel().map_page_at(rsdp->rsdt_address & PAGE_ADDR_MASK, 0, PageTable::Flags::Present);
-			const RSDT* rsdt = (const RSDT*)((vaddr_t)rsdp->rsdt_address % PAGE_SIZE);
-			BAN::ScopeGuard _([rsdt] { PageTable::kernel().unmap_page(0); });
+			PageTable::map_fast_page(rsdp->rsdt_address & PAGE_ADDR_MASK);
+			auto& rsdt = PageTable::fast_page_as<const RSDT>(rsdp->rsdt_address % PAGE_SIZE);
+			BAN::ScopeGuard _([] { PageTable::unmap_fast_page(); });
 
-			if (memcmp(rsdt->signature, "RSDT", 4) != 0)
+			if (memcmp(rsdt.signature, "RSDT", 4) != 0)
 				return BAN::Error::from_error_code(ErrorCode::ACPI_RootInvalid);
-			if (!is_valid_std_header(rsdt))
+			if (!is_valid_std_header(&rsdt))
 				return BAN::Error::from_error_code(ErrorCode::ACPI_RootInvalid);
 
-			m_header_table_paddr = (paddr_t)rsdt->entries + (rsdp->rsdt_address & PAGE_ADDR_MASK);
+			m_header_table_paddr = rsdp->rsdt_address + offsetof(RSDT, entries);
 			m_entry_size = 4;
-			root_entry_count = (rsdt->length - sizeof(SDTHeader)) / 4;
+			root_entry_count = (rsdt.length - sizeof(SDTHeader)) / 4;
 		}
 
 		size_t needed_pages = range_page_count(m_header_table_paddr, root_entry_count * m_entry_size);
@@ -162,9 +162,9 @@ namespace Kernel
 		auto map_header =
 			[](paddr_t header_paddr) -> vaddr_t
 			{
-				PageTable::kernel().map_page_at(header_paddr & PAGE_ADDR_MASK, 0, PageTable::Flags::Present);
-				size_t header_length = ((SDTHeader*)(header_paddr % PAGE_SIZE))->length;
-				PageTable::kernel().unmap_page(0);
+				PageTable::map_fast_page(header_paddr & PAGE_ADDR_MASK);
+				size_t header_length = PageTable::fast_page_as<SDTHeader>(header_paddr % PAGE_SIZE).length;
+				PageTable::unmap_fast_page();
 
 				size_t needed_pages = range_page_count(header_paddr, header_length);
 				vaddr_t page_vaddr = PageTable::kernel().reserve_free_contiguous_pages(needed_pages, KERNEL_OFFSET);

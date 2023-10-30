@@ -1,4 +1,5 @@
 #include <BAN/ScopeGuard.h>
+#include <kernel/CriticalScope.h>
 #include <kernel/Memory/Heap.h>
 #include <kernel/LockGuard.h>
 #include <LibELF/LoadableELF.h>
@@ -306,9 +307,12 @@ namespace LibELF
 						if (paddr == 0)
 							return BAN::Error::from_errno(ENOMEM);
 
-						m_page_table.map_page_at(paddr, 0, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
-						memcpy((void*)0, (void*)(start + i * PAGE_SIZE), PAGE_SIZE);
-						m_page_table.unmap_page(0);
+						{
+							CriticalScope _;
+							PageTable::map_fast_page(paddr);
+							memcpy(PageTable::fast_page_as_ptr(), (void*)(start + i * PAGE_SIZE), PAGE_SIZE);
+							PageTable::unmap_fast_page();
+						}
 
 						new_page_table.map_page_at(paddr, start + i * PAGE_SIZE, flags);
 						elf->m_physical_page_count++;

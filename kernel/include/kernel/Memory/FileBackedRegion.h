@@ -38,6 +38,7 @@ namespace Kernel
 		BAN::RefPtr<Inode> m_inode;
 		const off_t m_offset;
 
+		// FIXME: is this even synchronized?
 		BAN::RefPtr<SharedFileData> m_shared_data;
 	};
 

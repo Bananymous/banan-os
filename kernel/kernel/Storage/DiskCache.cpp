@@ -47,9 +47,9 @@ namespace Kernel
 				continue;
 
 			CriticalScope _;
-			page_table.map_page_at(cache.paddr, 0, PageTable::Flags::Present);
-			memcpy(buffer.data(), (void*)(page_cache_offset * m_sector_size), m_sector_size);
-			page_table.unmap_page(0);
+			PageTable::map_fast_page(cache.paddr);
+			memcpy(buffer.data(), PageTable::fast_page_as_ptr(page_cache_offset * m_sector_size), m_sector_size);
+			PageTable::unmap_fast_page();
 
 			return true;
 		}
@@ -82,9 +82,9 @@ namespace Kernel
 			
 			{
 				CriticalScope _;
-				page_table.map_page_at(cache.paddr, 0, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
-				memcpy((void*)(page_cache_offset * m_sector_size), buffer.data(), m_sector_size);
-				page_table.unmap_page(0);
+				PageTable::map_fast_page(cache.paddr);
+				memcpy(PageTable::fast_page_as_ptr(page_cache_offset * m_sector_size), buffer.data(), m_sector_size);
+				PageTable::unmap_fast_page();
 			}
 
 			cache.sector_mask |= 1 << page_cache_offset;
@@ -113,9 +113,9 @@ namespace Kernel
 
 		{
 			CriticalScope _;
-			page_table.map_page_at(cache.paddr, 0, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
-			memcpy((void*)(page_cache_offset * m_sector_size), buffer.data(), m_sector_size);
-			page_table.unmap_page(0);
+			PageTable::map_fast_page(cache.paddr);
+			memcpy(PageTable::fast_page_as_ptr(page_cache_offset * m_sector_size), buffer.data(), m_sector_size);
+			PageTable::unmap_fast_page();
 		}
 
 		return {};
@@ -123,21 +123,16 @@ namespace Kernel
 
 	BAN::ErrorOr<void> DiskCache::sync()
 	{
-		ASSERT(&PageTable::current() == &PageTable::kernel());
-		auto& page_table = PageTable::kernel();
-
 		for (auto& cache : m_cache)
 		{
 			if (cache.dirty_mask == 0)
 				continue;
 
 			{
-				LockGuard _(page_table);
-				ASSERT(page_table.is_page_free(0));
-
-				page_table.map_page_at(cache.paddr, 0, PageTable::Flags::Present);
-				memcpy(m_sync_cache.data(), (void*)0, PAGE_SIZE);
-				page_table.unmap_page(0);
+				CriticalScope _;
+				PageTable::map_fast_page(cache.paddr);
+				memcpy(m_sync_cache.data(), PageTable::fast_page_as_ptr(), PAGE_SIZE);
+				PageTable::unmap_fast_page();
 			}
 
 			uint8_t sector_start = 0;

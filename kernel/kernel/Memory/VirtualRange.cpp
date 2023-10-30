@@ -1,3 +1,4 @@
+#include <kernel/CriticalScope.h>
 #include <kernel/LockGuard.h>
 #include <kernel/Memory/Heap.h>
 #include <kernel/Memory/VirtualRange.h>
@@ -124,7 +125,6 @@ namespace Kernel
 		auto result = TRY(create_to_vaddr(page_table, vaddr(), size(), flags(), m_preallocated));
 
 		LockGuard _(m_page_table);
-		ASSERT(m_page_table.is_page_free(0));
 		for (size_t offset = 0; offset < size(); offset += PAGE_SIZE)
 		{
 			if (!m_preallocated && m_page_table.physical_address_of(vaddr() + offset))
@@ -134,10 +134,12 @@ namespace Kernel
 					return BAN::Error::from_errno(ENOMEM);
 				result->m_page_table.map_page_at(paddr, vaddr() + offset, m_flags);					
 			}
-			m_page_table.map_page_at(result->m_page_table.physical_address_of(vaddr() + offset), 0, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
-			memcpy((void*)0, (void*)(vaddr() + offset), PAGE_SIZE);
+
+			CriticalScope _;
+			PageTable::map_fast_page(result->m_page_table.physical_address_of(vaddr() + offset));
+			memcpy(PageTable::fast_page_as_ptr(), (void*)(vaddr() + offset), PAGE_SIZE);
+			PageTable::unmap_fast_page();
 		}
-		m_page_table.unmap_page(0);
 
 		return result;
 	}
@@ -172,14 +174,13 @@ namespace Kernel
 			return;
 		}
 
-		LockGuard _(page_table);
-		ASSERT(page_table.is_page_free(0));
 		for (size_t offset = 0; offset < size(); offset += PAGE_SIZE)
 		{
-			page_table.map_page_at(m_page_table.physical_address_of(vaddr() + offset), 0, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
-			memset((void*)0, 0, PAGE_SIZE);
+			CriticalScope _;
+			PageTable::map_fast_page(m_page_table.physical_address_of(vaddr() + offset));
+			memset(PageTable::fast_page_as_ptr(), 0x00, PAGE_SIZE);
+			PageTable::unmap_fast_page();
 		}
-		page_table.unmap_page(0);
 	}
 
 	void VirtualRange::copy_from(size_t offset, const uint8_t* buffer, size_t bytes)
@@ -187,47 +188,34 @@ namespace Kernel
 		if (bytes == 0)
 			return;
 
-		// NOTE: Handling overflow
-		ASSERT(offset <= size());
-		ASSERT(bytes <= size());
-		ASSERT(offset + bytes <= size());
+		// Verify no overflow
+		ASSERT_LE(bytes, size());
+		ASSERT_LE(offset, size());
+		ASSERT_LE(offset, size() - bytes);
 
-		PageTable& page_table = PageTable::current();
-
-		if (m_kmalloc || &page_table == &m_page_table)
+		if (m_kmalloc || &PageTable::current() == &m_page_table)
 		{
 			memcpy((void*)(vaddr() + offset), buffer, bytes);
 			return;
 		}
 
-		LockGuard _(page_table);
-		ASSERT(page_table.is_page_free(0));
-
-		size_t off = offset % PAGE_SIZE;
-		size_t i = offset / PAGE_SIZE;
-
-		// NOTE: we map the first page separately since it needs extra calculations
-		page_table.map_page_at(m_page_table.physical_address_of(vaddr() + i * PAGE_SIZE), 0, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
-
-		memcpy((void*)off, buffer, PAGE_SIZE - off);
-
-		buffer += PAGE_SIZE - off;
-		bytes  -= PAGE_SIZE - off;
-		i++;
+		size_t page_offset = offset % PAGE_SIZE;
+		size_t page_index = offset / PAGE_SIZE;
 
 		while (bytes > 0)
 		{
-			size_t len = BAN::Math::min<size_t>(PAGE_SIZE, bytes);
+			{
+				CriticalScope _;
+				PageTable::map_fast_page(m_page_table.physical_address_of(vaddr() + page_index * PAGE_SIZE));
+				memcpy(PageTable::fast_page_as_ptr(page_offset), buffer, PAGE_SIZE - page_offset);
+				PageTable::unmap_fast_page();
+			}
 
-			page_table.map_page_at(m_page_table.physical_address_of(vaddr() + i * PAGE_SIZE), 0, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
-
-			memcpy((void*)0, buffer, len);
-
-			buffer += len;
-			bytes  -= len;
-			i++;
+			buffer += PAGE_SIZE - page_offset;
+			bytes  -= PAGE_SIZE - page_offset;
+			page_offset = 0;
+			page_index++;
 		}
-		page_table.unmap_page(0);
 	}
 
 }

@@ -1,3 +1,4 @@
+#include <kernel/CriticalScope.h>
 #include <kernel/LockGuard.h>
 #include <kernel/Memory/Heap.h>
 #include <kernel/Memory/MemoryBackedRegion.h>
@@ -60,12 +61,10 @@ namespace Kernel
 			memset((void*)vaddr, 0x00, PAGE_SIZE);
 		else
 		{
-			LockGuard _(PageTable::current());
-			ASSERT(PageTable::current().is_page_free(0));
-
-			PageTable::current().map_page_at(paddr, 0, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
-			memset((void*)0, 0x00, PAGE_SIZE);
-			PageTable::current().unmap_page(0);
+			CriticalScope _;
+			PageTable::map_fast_page(paddr);
+			memset(PageTable::fast_page_as_ptr(), 0x00, PAGE_SIZE);
+			PageTable::unmap_fast_page();
 		}
 
 		return true;
@@ -105,15 +104,10 @@ namespace Kernel
 				memcpy((void*)write_vaddr, (void*)(buffer + written), bytes);
 			else
 			{
-				paddr_t paddr = m_page_table.physical_address_of(write_vaddr & PAGE_ADDR_MASK);
-				ASSERT(paddr);
-
-				LockGuard _(PageTable::current());
-				ASSERT(PageTable::current().is_page_free(0));
-
-				PageTable::current().map_page_at(paddr, 0, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
-				memcpy((void*)page_offset, (void*)(buffer + written), bytes);
-				PageTable::current().unmap_page(0);
+				CriticalScope _;
+				PageTable::map_fast_page(m_page_table.physical_address_of(write_vaddr & PAGE_ADDR_MASK));
+				memcpy(PageTable::fast_page_as_ptr(page_offset), (void*)(buffer + written), bytes);
+				PageTable::unmap_fast_page();
 			}
 
 			written += bytes;

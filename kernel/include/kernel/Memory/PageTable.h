@@ -29,6 +29,24 @@ namespace Kernel
 		static PageTable& kernel();
 		static PageTable& current();
 
+		static void map_fast_page(paddr_t);
+		static void unmap_fast_page();
+		static constexpr vaddr_t fast_page() { return KERNEL_OFFSET; }
+
+		// FIXME: implement sized checks, return span, etc
+		static void* fast_page_as_ptr(size_t offset = 0)
+		{
+			ASSERT(offset <= PAGE_SIZE);
+			return reinterpret_cast<void*>(fast_page() + offset);
+		}
+
+		template<typename T>
+		static T& fast_page_as(size_t offset = 0)
+		{
+			ASSERT(offset + sizeof(T) <= PAGE_SIZE);
+			return *reinterpret_cast<T*>(fast_page() + offset);
+		}
+
 		static bool is_valid_pointer(uintptr_t);
 
 		static BAN::ErrorOr<PageTable*> create_userspace();
@@ -64,7 +82,8 @@ namespace Kernel
 		uint64_t get_page_data(vaddr_t) const;
 		void initialize_kernel();
 		void map_kernel_memory();
-		void invalidate(vaddr_t);
+		void prepare_fast_page();		
+		static void invalidate(vaddr_t);
 
 	private:
 		paddr_t						m_highest_paging_struct { 0 };

@@ -1,3 +1,4 @@
+#include <kernel/CriticalScope.h>
 #include <kernel/LockGuard.h>
 #include <kernel/Memory/FileBackedRegion.h>
 #include <kernel/Memory/Heap.h>
@@ -71,13 +72,10 @@ namespace Kernel
 				continue;
 			
 			{
-				auto& page_table = PageTable::current();
-				LockGuard _(page_table);
-				ASSERT(page_table.is_page_free(0));
-
-				page_table.map_page_at(pages[i], 0, PageTable::Flags::Present);
-				memcpy(page_buffer, (void*)0, PAGE_SIZE);
-				page_table.unmap_page(0);
+				CriticalScope _;
+				PageTable::map_fast_page(pages[i]);
+				memcpy(page_buffer, PageTable::fast_page_as_ptr(), PAGE_SIZE);
+				PageTable::unmap_fast_page();
 			}
 
 			if (auto ret = inode->write(i * PAGE_SIZE, BAN::ConstByteSpan::from(page_buffer)); ret.is_error())
@@ -105,23 +103,8 @@ namespace Kernel
 			size_t file_offset = m_offset + (vaddr - m_vaddr);
 			size_t bytes = BAN::Math::min<size_t>(m_size - file_offset, PAGE_SIZE);
 
-			BAN::ErrorOr<size_t> read_ret = 0;
-
-			// Zero out the new page
-			if (&PageTable::current() == &m_page_table)
-				read_ret = m_inode->read(file_offset, BAN::ByteSpan((uint8_t*)vaddr, bytes));
-			else
-			{
-				auto& page_table = PageTable::current();
-
-				LockGuard _(page_table);
-				ASSERT(page_table.is_page_free(0));
-
-				page_table.map_page_at(paddr, 0, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
-				read_ret = m_inode->read(file_offset, BAN::ByteSpan((uint8_t*)0, bytes));
-				memset((void*)0, 0x00, PAGE_SIZE);
-				page_table.unmap_page(0);
-			}
+			ASSERT_EQ(&PageTable::current(), &m_page_table);
+			auto read_ret = m_inode->read(file_offset, BAN::ByteSpan((uint8_t*)vaddr, bytes));
 
 			if (read_ret.is_error())
 			{
@@ -158,15 +141,10 @@ namespace Kernel
 
 				TRY(m_inode->read(offset, BAN::ByteSpan(m_shared_data->page_buffer, bytes)));
 
-				auto& page_table = PageTable::current();
-
-				// TODO: check if this can cause deadlock?
-				LockGuard page_table_lock(page_table);
-				ASSERT(page_table.is_page_free(0));
-
-				page_table.map_page_at(pages[page_index], 0, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
-				memcpy((void*)0, m_shared_data->page_buffer, PAGE_SIZE);
-				page_table.unmap_page(0);
+				CriticalScope _;
+				PageTable::map_fast_page(pages[page_index]);
+				memcpy(PageTable::fast_page_as_ptr(), m_shared_data->page_buffer, PAGE_SIZE);
+				PageTable::unmap_fast_page();
 			}
 
 			paddr_t paddr = pages[page_index];
