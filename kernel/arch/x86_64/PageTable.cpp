@@ -580,8 +580,9 @@ namespace Kernel
 							vaddr |= (uint64_t)pdpte << 30;
 							vaddr |= (uint64_t)pde   << 21;
 							vaddr |= (uint64_t)pte   << 12;
+							vaddr = canonicalize(vaddr);
 							ASSERT(reserve_page(vaddr));
-							return canonicalize(vaddr);
+							return vaddr;
 						}
 					}
 				}
