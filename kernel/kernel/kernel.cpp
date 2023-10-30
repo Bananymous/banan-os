@@ -79,9 +79,6 @@ static void parse_command_line()
 	}
 }
 
-extern "C" uint8_t g_userspace_start[];
-extern "C" uint8_t g_userspace_end[];
-
 TerminalDriver* g_terminal_driver = nullptr;
 
 static void init2(void*);
