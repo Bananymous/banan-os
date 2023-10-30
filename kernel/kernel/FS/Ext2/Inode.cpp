@@ -274,6 +274,9 @@ namespace Kernel
 	{
 		ASSERT(m_inode.links_count == 0);
 
+		if (mode().iflnk() && (size_t)size() < sizeof(m_inode.block))
+			goto done;
+
 		// cleanup direct blocks
 		for (uint32_t i = 0; i < 12; i++)
 			if (m_inode.block[i])
@@ -287,6 +290,7 @@ namespace Kernel
 		if (m_inode.block[14])
 			cleanup_indirect_block(m_inode.block[14], 3);
 
+done:
 		// mark blocks as deleted
 		memset(m_inode.block, 0x00, sizeof(m_inode.block));
 
@@ -759,7 +763,7 @@ needs_new_block:
 
 		if (data_block_index < indices_per_fs_block * indices_per_fs_block)
 			return TRY(allocate_new_block_to_indirect_block(m_inode.block[13], data_block_index, 2));
-		data_block_index -= indices_per_fs_block;
+		data_block_index -= indices_per_fs_block * indices_per_fs_block;
 
 		if (data_block_index < indices_per_fs_block * indices_per_fs_block * indices_per_fs_block)
 			return TRY(allocate_new_block_to_indirect_block(m_inode.block[14], data_block_index, 3));
