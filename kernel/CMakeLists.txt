@@ -36,7 +36,6 @@ set(KERNEL_SOURCES
 	kernel/kernel.cpp
 	kernel/Memory/DMARegion.cpp
 	kernel/Memory/FileBackedRegion.cpp
-	kernel/Memory/GeneralAllocator.cpp
 	kernel/Memory/Heap.cpp
 	kernel/Memory/kmalloc.cpp
 	kernel/Memory/MemoryBackedRegion.cpp

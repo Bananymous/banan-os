@@ -1,7 +1,6 @@
 #include <BAN/Errors.h>
 #include <kernel/CriticalScope.h>
 #include <kernel/kprint.h>
-#include <kernel/Memory/GeneralAllocator.h>
 #include <kernel/Memory/kmalloc.h>
 
 #include <kernel/Thread.h>
