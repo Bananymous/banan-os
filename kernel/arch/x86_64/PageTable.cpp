@@ -143,8 +143,14 @@ namespace Kernel
 		uint64_t* pml4 = (uint64_t*)P2V(m_highest_paging_struct);
 		pml4[511] = s_global_pml4e;
 
-		// Map (0 -> phys_kernel_end) to (KERNEL_OFFSET -> virt_kernel_end)
-		map_range_at(0, KERNEL_OFFSET, (uintptr_t)g_kernel_end - KERNEL_OFFSET, Flags::ReadWrite | Flags::Present);
+		// Map (phys_kernel_start -> phys_kernel_end) to (virt_kernel_start -> virt_kernel_end)
+		ASSERT((vaddr_t)g_kernel_start % PAGE_SIZE == 0);
+		map_range_at(
+			V2P(g_kernel_start),
+			(vaddr_t)g_kernel_start,
+			g_kernel_end - g_kernel_start,
+			Flags::ReadWrite | Flags::Present
+		);
 
 		// Map executable kernel memory as executable
 		map_range_at(
@@ -437,6 +443,8 @@ namespace Kernel
 
 	vaddr_t PageTable::reserve_free_page(vaddr_t first_address, vaddr_t last_address)
 	{
+		if (first_address >= KERNEL_OFFSET && first_address < (vaddr_t)g_kernel_end)
+			first_address = (vaddr_t)g_kernel_end;
 		if (size_t rem = first_address % PAGE_SIZE)
 			first_address += PAGE_SIZE - rem;
 		if (size_t rem = last_address % PAGE_SIZE)
