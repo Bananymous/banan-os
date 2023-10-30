@@ -148,6 +148,9 @@ target_compile_options(kernel PUBLIC $<$<COMPILE_LANGUAGE:CXX>:-Wno-literal-suff
 target_compile_options(kernel PUBLIC -fmacro-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}=.)
 target_compile_options(kernel PUBLIC -fstack-protector -ffreestanding -Wall -Werror=return-type -Wstack-usage=1024 -fno-omit-frame-pointer -mgeneral-regs-only)
 
+# This might not work with other toolchains
+target_compile_options(kernel PUBLIC $<$<COMPILE_LANGUAGE:CXX>:-Wno-invalid-offsetof>)
+
 if(ENABLE_KERNEL_UBSAN)
 	target_compile_options(kernel PUBLIC -fsanitize=undefined)
 endif()

@@ -213,7 +213,7 @@ namespace Kernel
 				auto* fadt = (FADT*)header;
 
 				paddr_t dsdt_paddr = 0;
-				if (fadt->length > 140) // 140 is the offset of x_dsdt
+				if (fadt->length > offsetof(FADT, x_dsdt))
 					dsdt_paddr = fadt->x_dsdt;
 				if (dsdt_paddr == 0 || !PageTable::is_valid_pointer(dsdt_paddr))
 					dsdt_paddr = fadt->dsdt;
