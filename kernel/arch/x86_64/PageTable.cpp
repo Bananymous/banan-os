@@ -215,7 +215,7 @@ namespace Kernel
 	void PageTable::map_fast_page(paddr_t paddr)
 	{
 		ASSERT(s_kernel);
-		ASSERT_GE(paddr, 0);
+		ASSERT_NEQ(paddr, 0);
 		ASSERT(!interrupts_enabled());
 
 		constexpr vaddr_t uc_vaddr = uncanonicalize(fast_page());
@@ -326,7 +326,7 @@ namespace Kernel
 		ASSERT(vaddr);
 		ASSERT(vaddr != fast_page());
 		if (vaddr >= KERNEL_OFFSET)
-			ASSERT_GE(vaddr, (vaddr_t)g_kernel_start);
+			ASSERT_GTE(vaddr, (vaddr_t)g_kernel_start);
 		if ((vaddr >= KERNEL_OFFSET) != (this == s_kernel))
 			Kernel::panic("unmapping {8H}, kernel: {}", vaddr, this == s_kernel);
 
@@ -372,7 +372,7 @@ namespace Kernel
 		ASSERT(vaddr);
 		ASSERT(vaddr != fast_page());
 		if (vaddr >= KERNEL_OFFSET)
-			ASSERT_GE(vaddr, (vaddr_t)g_kernel_start);
+			ASSERT_GTE(vaddr, (vaddr_t)g_kernel_start);
 		if ((vaddr >= KERNEL_OFFSET) != (this == s_kernel))
 			Kernel::panic("mapping {8H} to {8H}, kernel: {}", paddr, vaddr, this == s_kernel);
 

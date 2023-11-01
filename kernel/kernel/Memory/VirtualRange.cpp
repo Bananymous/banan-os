@@ -189,9 +189,9 @@ namespace Kernel
 			return;
 
 		// Verify no overflow
-		ASSERT_LE(bytes, size());
-		ASSERT_LE(offset, size());
-		ASSERT_LE(offset, size() - bytes);
+		ASSERT_LTE(bytes, size());
+		ASSERT_LTE(offset, size());
+		ASSERT_LTE(offset, size() - bytes);
 
 		if (m_kmalloc || &PageTable::current() == &m_page_table)
 		{
