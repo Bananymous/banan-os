@@ -26,9 +26,8 @@ set(LIBC_SOURCES
 )
 
 add_custom_target(libc-headers
-	COMMAND sudo rsync -a ${CMAKE_CURRENT_SOURCE_DIR}/include/ ${BANAN_INCLUDE}/
+	COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different ${CMAKE_CURRENT_SOURCE_DIR}/include/ ${BANAN_INCLUDE}/
 	DEPENDS sysroot
-	USES_TERMINAL
 )
 
 add_custom_target(crtx
@@ -38,11 +37,10 @@ add_custom_target(crtx
 )
 
 add_custom_target(crtx-install
-	COMMAND sudo cp crt0.o ${BANAN_LIB}/
-	COMMAND sudo cp crti.o ${BANAN_LIB}/
-	COMMAND sudo cp crtn.o ${BANAN_LIB}/
+	COMMAND ${CMAKE_COMMAND} -E copy crt0.o ${BANAN_LIB}/
+	COMMAND ${CMAKE_COMMAND} -E copy crti.o ${BANAN_LIB}/
+	COMMAND ${CMAKE_COMMAND} -E copy crtn.o ${BANAN_LIB}/
 	DEPENDS crtx
-	USES_TERMINAL
 )
 
 add_library(libc ${LIBC_SOURCES})
@@ -51,10 +49,9 @@ add_dependencies(libc headers crtx-install)
 target_compile_options(libc PRIVATE -g -Wstack-usage=512)
 
 add_custom_target(libc-install
-	COMMAND sudo cp ${CMAKE_CURRENT_BINARY_DIR}/libc.a ${BANAN_LIB}/
+	COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_BINARY_DIR}/libc.a ${BANAN_LIB}/
 	DEPENDS libc
 	BYPRODUCTS ${BANAN_LIB}/libc.a
-	USES_TERMINAL
 )
 
 set(CMAKE_STATIC_LIBRARY_PREFIX "")

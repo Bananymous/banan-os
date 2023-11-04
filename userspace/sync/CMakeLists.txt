@@ -11,7 +11,6 @@ target_compile_options(sync PUBLIC -O2 -g)
 target_link_libraries(sync PUBLIC libc)
 
 add_custom_target(sync-install
-	COMMAND sudo cp ${CMAKE_CURRENT_BINARY_DIR}/sync ${BANAN_BIN}/
+	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/sync ${BANAN_BIN}/
 	DEPENDS sync
-	USES_TERMINAL
 )

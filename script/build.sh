@@ -4,6 +4,12 @@ set -e
 export BANAN_SCRIPT_DIR=$(dirname $(realpath $0))
 source $BANAN_SCRIPT_DIR/config.sh
 
+FAKEROOT_FILE="$BANAN_BUILD_DIR/fakeroot-context"
+
+run_fakeroot() {
+	fakeroot -i $FAKEROOT_FILE -s $FAKEROOT_FILE -- /bin/bash -c '$@' bash $@
+}
+
 make_build_dir () {
 	mkdir -p $BANAN_BUILD_DIR
 	cd $BANAN_BUILD_DIR
@@ -19,7 +25,7 @@ build_target () {
 		exit 1
 	fi
 	cd $BANAN_BUILD_DIR
-	ninja $1
+	run_fakeroot ninja $1
 }
 
 build_toolchain () {
@@ -39,11 +45,7 @@ build_toolchain () {
 
 create_image () {
 	build_target install-sysroot
-	if [[ "$1" == "full" ]]; then
-		$BANAN_SCRIPT_DIR/image-full.sh
-	else
-		$BANAN_SCRIPT_DIR/image.sh
-	fi
+	$BANAN_SCRIPT_DIR/image.sh "$1"
 }
 
 run_qemu () {
@@ -56,7 +58,7 @@ run_bochs () {
 	$BANAN_SCRIPT_DIR/bochs.sh $@
 }
 
-if [[ "$(uname)" == "Linux" ]]; then
+if [[ -c /dev/kvm ]]; then
 	QEMU_ACCEL="-accel kvm"
 fi
 

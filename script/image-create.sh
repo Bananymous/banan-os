@@ -72,7 +72,7 @@ sudo partprobe $LOOP_DEV
 PARTITION1=${LOOP_DEV}p1
 PARTITION2=${LOOP_DEV}p2
 
-sudo mkfs.ext2 -d $BANAN_SYSROOT -b 1024 -q $PARTITION2
+sudo mkfs.ext2 -b 1024 -q $PARTITION2
 
 if [[ "$BANAN_UEFI_BOOT" == "1" ]]; then
 	sudo mkfs.fat $PARTITION1 > /dev/null

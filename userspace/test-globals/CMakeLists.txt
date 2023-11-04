@@ -11,7 +11,6 @@ target_compile_options(test-globals PUBLIC -O2 -g)
 target_link_libraries(test-globals PUBLIC libc)
 
 add_custom_target(test-globals-install
-	COMMAND sudo cp ${CMAKE_CURRENT_BINARY_DIR}/test-globals ${BANAN_BIN}/
+	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/test-globals ${BANAN_BIN}/
 	DEPENDS test-globals
-	USES_TERMINAL
 )

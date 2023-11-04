@@ -2,7 +2,7 @@
 
 # banan-os
 
-This is my hobby operating system written in C++. Currently supports only x86_64 architecture. We have a ext2 filesystem, basic ramfs, IDE disk drivers in ATA PIO mode, ATA AHCI drivers, userspace processes, executable loading from ELF format, linear VBE graphics and multithreaded processing on single core.
+This is my hobby operating system written in C++. Currently supports only x86\_64 architecture. We have a ext2 filesystem, basic ramfs, IDE disk drivers in ATA PIO mode, ATA AHCI drivers, userspace processes, executable loading from ELF format, linear VBE graphics and multithreaded processing on single core.
 
 ![screenshot from qemu running banan-os](assets/banan-os.png)
 
@@ -20,7 +20,7 @@ To build the toolchain for this os. You can run the following command.
 ./script/build.sh toolchain
 ```
 
-To build the os itself you can run one of the following commands. You will need root access since the sysroot has "proper" permissions.
+To build the os itself you can run one of the following commands. You will need root access for disk image creation/modification.
 ```sh
 ./script/build.sh qemu
 ./script/build.sh qemu-nographic
@@ -38,8 +38,6 @@ If you have corrupted your disk image or want to create new one, you can either 
 ```sh
 ./script/build.sh image-full
 ```
-
-> ***NOTE*** ```ninja clean``` has to be ran with root permissions, since it deletes from the banan-so sysroot.
 
 If you feel like ```./script/build.sh``` is too verbose, there exists a symlink _bos_ in this projects root directory. All build commands can be used with ```./bos args...``` instead.
 
