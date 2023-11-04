@@ -28,6 +28,8 @@ set(KERNEL_SOURCES
 	kernel/FS/ProcFS/Inode.cpp
 	kernel/FS/RamFS/FileSystem.cpp
 	kernel/FS/RamFS/Inode.cpp
+	kernel/FS/TmpFS/FileSystem.cpp
+	kernel/FS/TmpFS/Inode.cpp
 	kernel/FS/VirtualFileSystem.cpp
 	kernel/Input/PS2Controller.cpp
 	kernel/Input/PS2Keyboard.cpp
