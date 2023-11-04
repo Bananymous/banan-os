@@ -1,11 +1,19 @@
 #pragma once
 
 #include <BAN/Errors.h>
+#include <BAN/Traits.h>
+#include <kernel/CriticalScope.h>
 #include <kernel/Memory/Types.h>
 #include <kernel/SpinLock.h>
 
 namespace Kernel
 {
+
+	template<typename F>
+	concept with_fast_page_callback = requires(F func)
+	{
+		requires BAN::is_same_v<decltype(func()), void>;
+	};
 
 	class PageTable
 	{
@@ -33,6 +41,15 @@ namespace Kernel
 		static void unmap_fast_page();
 		static constexpr vaddr_t fast_page() { return KERNEL_OFFSET; }
 
+		template<with_fast_page_callback F>
+		static void with_fast_page(paddr_t paddr, F callback)
+		{
+			CriticalScope _;
+			map_fast_page(paddr);
+			callback();
+			unmap_fast_page();
+		}
+
 		// FIXME: implement sized checks, return span, etc
 		static void* fast_page_as_ptr(size_t offset = 0)
 		{
@@ -45,6 +62,14 @@ namespace Kernel
 		{
 			ASSERT(offset + sizeof(T) <= PAGE_SIZE);
 			return *reinterpret_cast<T*>(fast_page() + offset);
+		}
+
+		// Retrieves index'th element from fast_page
+		template<typename T>
+		static T& fast_page_as_sized(size_t index)
+		{
+			ASSERT((index + 1) * sizeof(T) <= PAGE_SIZE);
+			return *reinterpret_cast<T*>(fast_page() + index * sizeof(T));
 		}
 
 		static bool is_valid_pointer(uintptr_t);
