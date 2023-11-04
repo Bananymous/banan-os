@@ -97,8 +97,7 @@ namespace BAN
 		}
 
 		template<typename S>
-		requires(is_const_v<S>)
-		Span<S> as_span() const
+		const Span<S> as_span() const
 		{
 			ASSERT(m_data);
 			return Span<S>(reinterpret_cast<S*>(m_data), m_size / sizeof(S));
