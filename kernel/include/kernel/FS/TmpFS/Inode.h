@@ -53,6 +53,11 @@ namespace Kernel
 		static BAN::ErrorOr<BAN::RefPtr<TmpFileInode>> create(TmpFileSystem&, mode_t, uid_t, gid_t);
 		~TmpFileInode();
 
+	protected:
+		virtual BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan) override;
+		virtual BAN::ErrorOr<size_t> write_impl(off_t, BAN::ConstByteSpan) override;
+		virtual BAN::ErrorOr<void> truncate_impl(size_t) override;
+
 	private:
 		TmpFileInode(TmpFileSystem&, ino_t, const TmpInodeInfo&);
 

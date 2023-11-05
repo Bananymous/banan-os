@@ -130,6 +130,79 @@ namespace Kernel
 		m_fs.delete_inode(ino());
 	}
 
+	BAN::ErrorOr<size_t> TmpFileInode::read_impl(off_t offset, BAN::ByteSpan buffer)
+	{
+		if (offset >= size() || buffer.size() == 0)
+			return 0;
+
+		BAN::Vector<uint8_t> block_buffer;
+		TRY(block_buffer.resize(blksize()));
+
+		const size_t bytes_to_read = BAN::Math::min<size_t>(size() - offset, buffer.size());
+
+		size_t read_done = 0;
+		while (read_done < bytes_to_read)
+		{
+			const size_t data_block_index = (read_done + offset) / blksize();
+			const size_t block_offset     = (read_done + offset) % blksize();
+
+			const size_t block_index = this->block_index(data_block_index);
+
+			const size_t bytes = BAN::Math::min<size_t>(bytes_to_read - read_done, blksize() - block_offset);
+
+			m_fs.read_block(block_index, block_buffer.span());
+
+			memcpy(buffer.data() + read_done, block_buffer.data() + block_offset, bytes);
+
+			read_done += bytes;
+		}
+
+		return read_done;
+	}
+
+	BAN::ErrorOr<size_t> TmpFileInode::write_impl(off_t offset, BAN::ConstByteSpan buffer)
+	{
+		// FIXME: handle overflow
+
+		if (offset + buffer.size() > (size_t)size())
+			TRY(truncate_impl(offset + buffer.size()));
+
+		BAN::Vector<uint8_t> block_buffer;
+		TRY(block_buffer.resize(blksize()));
+
+		const size_t bytes_to_write = buffer.size();
+
+		size_t write_done = 0;
+		while (write_done < bytes_to_write)
+		{
+			const size_t data_block_index = (write_done + offset) / blksize();
+			const size_t block_offset     = (write_done + offset) % blksize();
+
+			const size_t block_index = this->block_index(data_block_index);
+
+			const size_t bytes = BAN::Math::min<size_t>(bytes_to_write - write_done, blksize() - block_offset);
+
+			if (bytes < (size_t)blksize())
+				m_fs.read_block(block_index, block_buffer.span());
+			memcpy(block_buffer.data() + block_offset, buffer.data() + write_done, bytes);
+
+			m_fs.write_block(block_index, block_buffer.span());
+
+			write_done += bytes;
+		}
+
+		return write_done;
+	}
+
+	BAN::ErrorOr<void> TmpFileInode::truncate_impl(size_t new_size)
+	{
+		size_t start_block = size() / blksize() * blksize();
+		for (size_t off = start_block; off < new_size; off += blksize())
+			TRY(block_index_with_allocation(off / blksize()));
+		m_inode_info.size = new_size;
+		return {};
+	}
+
 	/* DIRECTORY INODE */
 
 	BAN::ErrorOr<BAN::RefPtr<TmpDirectoryInode>> TmpDirectoryInode::create_root(TmpFileSystem& fs, mode_t mode, uid_t uid, gid_t gid)

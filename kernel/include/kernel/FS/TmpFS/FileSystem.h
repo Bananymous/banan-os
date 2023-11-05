@@ -28,6 +28,9 @@ namespace Kernel
 
 		BAN::ErrorOr<BAN::RefPtr<TmpInode>> open_inode(ino_t ino);
 
+		// FIXME: read_block and write_block should not require external buffer
+		//        probably some wrapper like PageTable::with_fast_page could work?
+
 		void read_inode(ino_t ino, TmpInodeInfo& out);
 		void write_inode(ino_t ino, const TmpInodeInfo&);
 		void delete_inode(ino_t ino);
