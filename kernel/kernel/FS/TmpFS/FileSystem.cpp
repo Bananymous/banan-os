@@ -1,6 +1,5 @@
 #include <kernel/FS/TmpFS/FileSystem.h>
 #include <kernel/Memory/Heap.h>
-#include <kernel/Memory/PageTable.h>
 
 namespace Kernel
 {
@@ -39,7 +38,6 @@ namespace Kernel
 		});
 
 		m_root_inode = TRY(TmpDirectoryInode::create_root(*this, mode, uid, gid));
-		TRY(m_inode_cache.insert(m_root_inode->ino(), m_root_inode));
 
 		return {};
 	}
@@ -64,6 +62,13 @@ namespace Kernel
 		auto inode = TRY(TmpInode::create_from_existing(*this, ino, inode_info));
 		TRY(m_inode_cache.insert(ino, inode));
 		return inode;
+	}
+
+	BAN::ErrorOr<void> TmpFileSystem::add_to_cache(BAN::RefPtr<TmpInode> inode)
+	{
+		if (!m_inode_cache.contains(inode->ino()))
+			TRY(m_inode_cache.insert(inode->ino(), inode));
+		return {};
 	}
 
 	void TmpFileSystem::read_inode(ino_t ino, TmpInodeInfo& out)
@@ -135,24 +140,6 @@ namespace Kernel
 		};
 	}
 
-	void TmpFileSystem::read_block(size_t index, BAN::ByteSpan buffer)
-	{
-		ASSERT(buffer.size() >= PAGE_SIZE);
-		paddr_t block_paddr = find_block(index);
-		PageTable::with_fast_page(block_paddr, [&] {
-			memcpy(buffer.data(), PageTable::fast_page_as_ptr(), PAGE_SIZE);
-		});
-	}
-
-	void TmpFileSystem::write_block(size_t index, BAN::ConstByteSpan buffer)
-	{
-		ASSERT(buffer.size() >= PAGE_SIZE);
-		paddr_t block_paddr = find_block(index);
-		PageTable::with_fast_page(block_paddr, [&] {
-			memcpy(PageTable::fast_page_as_ptr(), buffer.data(), PAGE_SIZE);
-		});
-	}
-
 	void TmpFileSystem::free_block(size_t index)
 	{
 		ASSERT_NOT_REACHED();
@@ -180,12 +167,15 @@ namespace Kernel
 	{
 		ASSERT(root.flags() & PageInfo::Flags::Present);
 		if (depth == 0)
+		{
+			ASSERT(index == 0);
 			return root.paddr();
+		}
 
 		constexpr size_t addresses_per_page = PAGE_SIZE / sizeof(PageInfo);
 
 		size_t divisor = 1;
-		for (size_t i = 0; i < depth; i++)
+		for (size_t i = 1; i < depth; i++)
 			divisor *= addresses_per_page;
 
 		size_t index_of_page = index / divisor;
@@ -201,11 +191,15 @@ namespace Kernel
 		return find_indirect(next, index_in_page, depth - 1);
 	}
 
-	template<for_each_indirect_paddr_allocating_callback F>
+	template<TmpFuncs::for_each_indirect_paddr_allocating_callback F>
 	BAN::ErrorOr<BAN::Iteration> TmpFileSystem::for_each_indirect_paddr_allocating_internal(PageInfo page_info, F callback, size_t depth)
 	{
-		ASSERT_GT(depth, 0);
 		ASSERT(page_info.flags() & PageInfo::Flags::Present);
+		if (depth == 0)
+		{
+			bool is_new_block = page_info.flags() & PageInfo::Flags::Internal;
+			return callback(page_info.paddr(), is_new_block);
+		}
 
 		for (size_t i = 0; i < PAGE_SIZE / sizeof(PageInfo); i++)
 		{
@@ -213,8 +207,6 @@ namespace Kernel
 			PageTable::with_fast_page(page_info.paddr(), [&] {
 				next_info = PageTable::fast_page_as_sized<PageInfo>(i);
 			});
-
-			bool allocated = false;
 
 			if (!(next_info.flags() & PageInfo::Flags::Present))
 			{
@@ -234,15 +226,11 @@ namespace Kernel
 					to_update_info = next_info;
 				});
 
-				allocated = true;
+				// Don't sync the internal bit to actual memory
+				next_info.set_flags(PageInfo::Flags::Internal | PageInfo::Flags::Present);
 			}
 
-			BAN::Iteration result;
-			if (depth == 1)
-				result = callback(next_info.paddr(), allocated);
-			else
-				result = TRY(for_each_indirect_paddr_allocating_internal(next_info, callback, depth - 1));
-
+			auto result = TRY(for_each_indirect_paddr_allocating_internal(next_info, callback, depth - 1));
 			switch (result)
 			{
 				case BAN::Iteration::Continue:
@@ -257,7 +245,7 @@ namespace Kernel
 		return BAN::Iteration::Continue;
 	}
 
-	template<for_each_indirect_paddr_allocating_callback F>
+	template<TmpFuncs::for_each_indirect_paddr_allocating_callback F>
 	BAN::ErrorOr<void> TmpFileSystem::for_each_indirect_paddr_allocating(PageInfo page_info, F callback, size_t depth)
 	{
 		BAN::Iteration result = TRY(for_each_indirect_paddr_allocating_internal(page_info, callback, depth));

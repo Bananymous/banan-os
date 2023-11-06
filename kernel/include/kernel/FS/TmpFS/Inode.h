@@ -8,6 +8,17 @@
 namespace Kernel
 {
 
+	namespace TmpFuncs
+	{
+
+		template<typename F>
+		concept for_each_entry_callback = requires(F func, const TmpDirectoryEntry& entry)
+		{
+			requires BAN::is_same_v<decltype(func(entry)), BAN::Iteration>;
+		};
+
+	}
+
 	class TmpFileSystem;
 
 	class TmpInode : public Inode
@@ -51,7 +62,7 @@ namespace Kernel
 	class TmpFileInode : public TmpInode
 	{
 	public:
-		static BAN::ErrorOr<BAN::RefPtr<TmpFileInode>> create(TmpFileSystem&, mode_t, uid_t, gid_t);
+		static BAN::ErrorOr<BAN::RefPtr<TmpFileInode>> create_new(TmpFileSystem&, mode_t, uid_t, gid_t);
 		~TmpFileInode();
 
 	protected:
@@ -74,12 +85,6 @@ namespace Kernel
 		TmpSymlinkInode(TmpFileSystem&, ino_t, const TmpInodeInfo&, BAN::StringView target);
 	};
 
-	template<typename F>
-	concept for_each_entry_callback = requires(F func, const TmpDirectoryEntry& entry)
-	{
-		requires BAN::is_same_v<decltype(func(entry)), BAN::Iteration>;
-	};
-
 	class TmpDirectoryInode : public TmpInode
 	{
 	public:
@@ -100,7 +105,7 @@ namespace Kernel
 
 		BAN::ErrorOr<void> link_inode(TmpInode&, BAN::StringView);
 
-		template<for_each_entry_callback F>
+		template<TmpFuncs::for_each_entry_callback F>
 		void for_each_entry(F callback);
 
 		friend class TmpInode;

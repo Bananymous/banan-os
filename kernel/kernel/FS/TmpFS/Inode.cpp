@@ -64,7 +64,10 @@ namespace Kernel
 		: m_fs(fs)
 		, m_inode_info(info)
 		, m_ino(ino)
-	{}
+	{
+		// FIXME: this should be able to fail
+		MUST(fs.add_to_cache(this));
+	}
 
 	void TmpInode::sync()
 	{
@@ -102,7 +105,7 @@ namespace Kernel
 
 	/* FILE INODE */
 
-	BAN::ErrorOr<BAN::RefPtr<TmpFileInode>> TmpFileInode::create(TmpFileSystem& fs, mode_t mode, uid_t uid, gid_t gid)
+	BAN::ErrorOr<BAN::RefPtr<TmpFileInode>> TmpFileInode::create_new(TmpFileSystem& fs, mode_t mode, uid_t uid, gid_t gid)
 	{
 		auto info = create_inode_info(Mode::IFREG | mode, uid, gid);
 		ino_t ino = TRY(fs.allocate_inode(info));
@@ -131,15 +134,12 @@ namespace Kernel
 		m_fs.delete_inode(ino());
 	}
 
-	BAN::ErrorOr<size_t> TmpFileInode::read_impl(off_t offset, BAN::ByteSpan buffer)
+	BAN::ErrorOr<size_t> TmpFileInode::read_impl(off_t offset, BAN::ByteSpan out_buffer)
 	{
-		if (offset >= size() || buffer.size() == 0)
+		if (offset >= size() || out_buffer.size() == 0)
 			return 0;
 
-		BAN::Vector<uint8_t> block_buffer;
-		TRY(block_buffer.resize(blksize()));
-
-		const size_t bytes_to_read = BAN::Math::min<size_t>(size() - offset, buffer.size());
+		const size_t bytes_to_read = BAN::Math::min<size_t>(size() - offset, out_buffer.size());
 
 		size_t read_done = 0;
 		while (read_done < bytes_to_read)
@@ -152,11 +152,11 @@ namespace Kernel
 			const size_t bytes = BAN::Math::min<size_t>(bytes_to_read - read_done, blksize() - block_offset);
 
 			if (block_index.has_value())
-				m_fs.read_block(block_index.value(), block_buffer.span());
+				m_fs.with_block_buffer(block_index.value(), [&](BAN::ByteSpan block_buffer) {
+					memcpy(out_buffer.data() + read_done, block_buffer.data() + block_offset, bytes);
+				});
 			else
-				memset(block_buffer.data(), 0x00, block_buffer.size());
-
-			memcpy(buffer.data() + read_done, block_buffer.data() + block_offset, bytes);
+				memset(out_buffer.data() + read_done, 0x00, bytes);
 
 			read_done += bytes;
 		}
@@ -164,17 +164,14 @@ namespace Kernel
 		return read_done;
 	}
 
-	BAN::ErrorOr<size_t> TmpFileInode::write_impl(off_t offset, BAN::ConstByteSpan buffer)
+	BAN::ErrorOr<size_t> TmpFileInode::write_impl(off_t offset, BAN::ConstByteSpan in_buffer)
 	{
 		// FIXME: handle overflow
 
-		if (offset + buffer.size() > (size_t)size())
-			TRY(truncate_impl(offset + buffer.size()));
+		if (offset + in_buffer.size() > (size_t)size())
+			TRY(truncate_impl(offset + in_buffer.size()));
 
-		BAN::Vector<uint8_t> block_buffer;
-		TRY(block_buffer.resize(blksize()));
-
-		const size_t bytes_to_write = buffer.size();
+		const size_t bytes_to_write = in_buffer.size();
 
 		size_t write_done = 0;
 		while (write_done < bytes_to_write)
@@ -186,11 +183,9 @@ namespace Kernel
 
 			const size_t bytes = BAN::Math::min<size_t>(bytes_to_write - write_done, blksize() - block_offset);
 
-			if (bytes < (size_t)blksize())
-				m_fs.read_block(block_index, block_buffer.span());
-			memcpy(block_buffer.data() + block_offset, buffer.data() + write_done, bytes);
-
-			m_fs.write_block(block_index, block_buffer.span());
+			m_fs.with_block_buffer(block_index, [&](BAN::ByteSpan block_buffer) {
+				memcpy(block_buffer.data() + block_offset, in_buffer.data() + write_done, bytes);
+			});
 
 			write_done += bytes;
 		}
@@ -233,7 +228,7 @@ namespace Kernel
 
 		auto inode = BAN::RefPtr<TmpDirectoryInode>::adopt(inode_ptr);
 		TRY(inode->link_inode(*inode, "."sv));
-		TRY(inode->link_inode(parent, "."sv));
+		TRY(inode->link_inode(parent, ".."sv));
 
 		return inode;
 	}
@@ -282,7 +277,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> TmpDirectoryInode::create_file_impl(BAN::StringView name, mode_t mode, uid_t uid, gid_t gid)
 	{
-		auto new_inode = TRY(TmpFileInode::create(m_fs, mode, uid, gid));
+		auto new_inode = TRY(TmpFileInode::create_new(m_fs, mode, uid, gid));
 		TRY(link_inode(*new_inode, name));
 		return {};
 	}
@@ -303,37 +298,41 @@ namespace Kernel
 	{
 		static constexpr size_t directory_entry_alignment = 16;
 
-		size_t current_size = size();
-
 		size_t new_entry_size = sizeof(TmpDirectoryEntry) + name.size();
 		if (auto rem = new_entry_size % directory_entry_alignment)
 			new_entry_size += directory_entry_alignment - rem;
 		ASSERT(new_entry_size < (size_t)blksize());
 
-		size_t new_entry_offset = current_size % blksize();
+		size_t new_entry_offset = size() % blksize();
 
 		// Target is the last block, or if it doesn't fit the new entry, the next one.
-		size_t target_data_block = current_size / blksize();
+		size_t target_data_block = size() / blksize();
 		if (blksize() - new_entry_offset < new_entry_size)
+		{
+			// insert an empty entry at the end of current block
+			m_fs.with_block_buffer(block_index(target_data_block).value(), [&](BAN::ByteSpan bytespan) {
+				auto& empty_entry = bytespan.slice(new_entry_offset).as<TmpDirectoryEntry>();
+				empty_entry.type = DT_UNKNOWN;
+				empty_entry.ino = 0;
+				empty_entry.rec_len = blksize() - new_entry_offset;
+			});
+			m_inode_info.size += blksize() - new_entry_offset;
+
 			target_data_block++;
+			new_entry_offset = 0;
+		}
 
 		size_t block_index = TRY(block_index_with_allocation(target_data_block));
-		
-		BAN::Vector<uint8_t> buffer;
-		TRY(buffer.resize(blksize()));
 
-		BAN::ByteSpan bytespan = buffer.span();
-
-		m_fs.read_block(block_index, bytespan);
-
-		auto& new_entry = bytespan.slice(new_entry_offset).as<TmpDirectoryEntry>();
-		new_entry.type = inode_mode_to_dt_type(inode.mode());
-		new_entry.ino = inode.ino();
-		new_entry.name_len = name.size();
-		new_entry.rec_len = new_entry_size;
-		memcpy(new_entry.name, name.data(), name.size());
-
-		m_fs.write_block(block_index, bytespan);
+		m_fs.with_block_buffer(block_index, [&](BAN::ByteSpan bytespan) {
+			auto& new_entry = bytespan.slice(new_entry_offset).as<TmpDirectoryEntry>();
+			ASSERT(new_entry.type == DT_UNKNOWN);
+			new_entry.type = inode_mode_to_dt_type(inode.mode());
+			new_entry.ino = inode.ino();
+			new_entry.name_len = name.size();
+			new_entry.rec_len = new_entry_size;
+			memcpy(new_entry.name, name.data(), name.size());
+		});
 
 		// increase current size
 		m_inode_info.size += new_entry_size;
@@ -344,33 +343,31 @@ namespace Kernel
 		return {};
 	}
 
-	template<for_each_entry_callback F>
+	template<TmpFuncs::for_each_entry_callback F>
 	void TmpDirectoryInode::for_each_entry(F callback)
 	{
-		size_t full_offset = 0;
-		while (full_offset < (size_t)size())
+		for (size_t data_block_index = 0; data_block_index * blksize() < (size_t)size(); data_block_index++)
 		{
-			const size_t data_block_index = full_offset / blksize();
 			const size_t block_index = this->block_index(data_block_index).value();
+			const size_t byte_count = BAN::Math::min<size_t>(size() - data_block_index * blksize(), blksize());
 
-			// FIXME: implement fast heap pages?
-			BAN::Vector<uint8_t> buffer;
-			MUST(buffer.resize(blksize()));
-
-			BAN::ByteSpan bytespan = buffer.span();
-			m_fs.read_block(block_index, bytespan);
-
-			size_t byte_count = BAN::Math::min<size_t>(blksize(), size() - full_offset);
-
-			bytespan = bytespan.slice(0, byte_count);
-			while (bytespan.size() > 0)
-			{
-				auto& entry = bytespan.as<TmpDirectoryEntry>();
-				callback(entry);
-				bytespan = bytespan.slice(entry.rec_len);
-			}
-
-			full_offset += blksize();
+			m_fs.with_block_buffer(block_index, [&](BAN::ByteSpan bytespan) {
+				bytespan = bytespan.slice(0, byte_count);
+				while (bytespan.size() > 0)
+				{
+					const auto& entry = bytespan.as<TmpDirectoryEntry>();
+					switch (callback(entry))
+					{
+						case BAN::Iteration::Continue:
+							break;
+						case BAN::Iteration::Break:
+							return;
+						default:
+							ASSERT_NOT_REACHED();
+					}
+					bytespan = bytespan.slice(entry.rec_len);
+				}
+			});
 		}
 	}
 

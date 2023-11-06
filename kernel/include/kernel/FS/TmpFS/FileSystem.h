@@ -4,16 +4,29 @@
 #include <BAN/Iteration.h>
 #include <kernel/FS/FileSystem.h>
 #include <kernel/FS/TmpFS/Inode.h>
+#include <kernel/Memory/PageTable.h>
 #include <kernel/SpinLock.h>
 
 namespace Kernel
 {
 
-	template<typename F>
-	concept for_each_indirect_paddr_allocating_callback = requires(F func, paddr_t paddr, bool was_allocated)
+	namespace TmpFuncs
 	{
-		requires BAN::is_same_v<decltype(func(paddr, was_allocated)), BAN::Iteration>;
-	};
+
+		template<typename F>
+		concept for_each_indirect_paddr_allocating_callback = requires(F func, paddr_t paddr, bool was_allocated)
+		{
+			requires BAN::is_same_v<decltype(func(paddr, was_allocated)), BAN::Iteration>;
+		};
+
+		template<typename F>
+		concept with_block_buffer_callback = requires(F func, BAN::ByteSpan buffer)
+		{
+			requires BAN::is_same_v<decltype(func(buffer)), void>;
+		};
+
+	}
+
 
 	class TmpFileSystem : public FileSystem
 	{
@@ -27,6 +40,7 @@ namespace Kernel
 		virtual BAN::RefPtr<Inode> root_inode() override { return m_root_inode; }
 
 		BAN::ErrorOr<BAN::RefPtr<TmpInode>> open_inode(ino_t ino);
+		BAN::ErrorOr<void> add_to_cache(BAN::RefPtr<TmpInode>);
 
 		// FIXME: read_block and write_block should not require external buffer
 		//        probably some wrapper like PageTable::with_fast_page could work?
@@ -36,8 +50,8 @@ namespace Kernel
 		void delete_inode(ino_t ino);
 		BAN::ErrorOr<ino_t> allocate_inode(const TmpInodeInfo&);
 
-		void read_block(size_t index, BAN::ByteSpan buffer);
-		void write_block(size_t index, BAN::ConstByteSpan buffer);
+		template<TmpFuncs::with_block_buffer_callback F>
+		void with_block_buffer(size_t index, F callback);
 		void free_block(size_t index);
 		BAN::ErrorOr<size_t> allocate_block();
 
@@ -46,7 +60,8 @@ namespace Kernel
 		{
 			enum Flags : paddr_t
 			{
-				Present = 1 << 0,				
+				Present = 1 << 0,
+				Internal = 1 << 1,
 			};
 
 			// 12 bottom bits of paddr can be used as flags, since
@@ -79,9 +94,9 @@ namespace Kernel
 
 		paddr_t find_block(size_t index);
 
-		template<for_each_indirect_paddr_allocating_callback F>
+		template<TmpFuncs::for_each_indirect_paddr_allocating_callback F>
 		BAN::ErrorOr<void> for_each_indirect_paddr_allocating(PageInfo page_info, F callback, size_t depth);
-		template<for_each_indirect_paddr_allocating_callback F>
+		template<TmpFuncs::for_each_indirect_paddr_allocating_callback F>
 		BAN::ErrorOr<BAN::Iteration> for_each_indirect_paddr_allocating_internal(PageInfo page_info, F callback, size_t depth);
 
 		paddr_t find_indirect(PageInfo root, size_t index, size_t depth);
@@ -118,5 +133,15 @@ namespace Kernel
 
 		const size_t m_max_pages;
 	};
+
+	template<TmpFuncs::with_block_buffer_callback F>
+	void TmpFileSystem::with_block_buffer(size_t index, F callback)
+	{
+		paddr_t block_paddr = find_block(index);
+		PageTable::with_fast_page(block_paddr, [&] {
+			BAN::ByteSpan buffer(reinterpret_cast<uint8_t*>(PageTable::fast_page()), PAGE_SIZE);
+			callback(buffer);
+		});
+	}
 
 }
