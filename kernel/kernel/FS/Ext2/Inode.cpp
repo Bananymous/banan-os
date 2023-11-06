@@ -306,8 +306,7 @@ done:
 		ASSERT(mode().ifdir());
 		ASSERT(offset >= 0);
 
-		const uint32_t data_block_count = blocks();
-		if (offset >= data_block_count)
+		if (offset >= max_used_data_block_count())
 		{
 			list->entry_count = 0;
 			return {};
