@@ -71,6 +71,12 @@ namespace Kernel
 		return {};
 	}
 
+	void TmpFileSystem::remove_from_cache(BAN::RefPtr<TmpInode> inode)
+	{
+		ASSERT(m_inode_cache.contains(inode->ino()));
+		m_inode_cache.remove(inode->ino());
+	}
+
 	void TmpFileSystem::read_inode(ino_t ino, TmpInodeInfo& out)
 	{
 		auto inode_location = find_inode(ino);
@@ -98,6 +104,7 @@ namespace Kernel
 				ASSERT_EQ(paddr, 0);
 			inode_info = {};
 		});
+		ASSERT(!m_inode_cache.contains(ino));
 	}
 
 	BAN::ErrorOr<ino_t> TmpFileSystem::allocate_inode(const TmpInodeInfo& info)
@@ -142,7 +149,20 @@ namespace Kernel
 
 	void TmpFileSystem::free_block(size_t index)
 	{
-		ASSERT_NOT_REACHED();
+		constexpr size_t addresses_per_page = PAGE_SIZE / sizeof(PageInfo);
+
+		const size_t index_of_page = (index - first_data_page) / addresses_per_page;
+		const size_t index_in_page = (index - first_data_page) % addresses_per_page;
+
+		paddr_t page_containing = find_indirect(m_data_pages, index_of_page, 2);
+
+		PageTable::with_fast_page(page_containing, [&] {
+			auto& page_info = PageTable::fast_page_as_sized<PageInfo>(index_in_page);
+			ASSERT(page_info.flags() & PageInfo::Flags::Present);
+			Heap::get().release_page(page_info.paddr());
+			page_info.set_paddr(0);
+			page_info.set_flags(0);
+		});
 	}
 
 	BAN::ErrorOr<size_t> TmpFileSystem::allocate_block()

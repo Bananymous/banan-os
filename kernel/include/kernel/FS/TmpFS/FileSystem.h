@@ -40,7 +40,9 @@ namespace Kernel
 		virtual BAN::RefPtr<Inode> root_inode() override { return m_root_inode; }
 
 		BAN::ErrorOr<BAN::RefPtr<TmpInode>> open_inode(ino_t ino);
+
 		BAN::ErrorOr<void> add_to_cache(BAN::RefPtr<TmpInode>);
+		void remove_from_cache(BAN::RefPtr<TmpInode>);
 
 		// FIXME: read_block and write_block should not require external buffer
 		//        probably some wrapper like PageTable::with_fast_page could work?

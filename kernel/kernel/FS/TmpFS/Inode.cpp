@@ -69,6 +69,17 @@ namespace Kernel
 		MUST(fs.add_to_cache(this));
 	}
 
+	TmpInode::~TmpInode()
+	{
+		if (nlink() > 0)
+		{
+			sync();
+			return;
+		}
+		free_all_blocks();
+		m_fs.delete_inode(ino());
+	}
+
 	void TmpInode::sync()
 	{
 		m_fs.write_inode(m_ino, m_inode_info);
@@ -76,6 +87,12 @@ namespace Kernel
 
 	void TmpInode::free_all_blocks()
 	{
+		for (size_t i = 0; i < TmpInodeInfo::direct_block_count; i++)
+		{
+			if (m_inode_info.block[i])
+				m_fs.free_block(m_inode_info.block[i]);
+			m_inode_info.block[i] = 0;
+		}
 		for (auto block : m_inode_info.block)
 			ASSERT(block == 0);
 	}
@@ -125,13 +142,6 @@ namespace Kernel
 
 	TmpFileInode::~TmpFileInode()
 	{
-		if (nlink() > 0)
-		{
-			sync();
-			return;
-		}
-		free_all_blocks();
-		m_fs.delete_inode(ino());
 	}
 
 	BAN::ErrorOr<size_t> TmpFileInode::read_impl(off_t offset, BAN::ByteSpan out_buffer)
@@ -247,13 +257,46 @@ namespace Kernel
 
 	TmpDirectoryInode::~TmpDirectoryInode()
 	{
-		if (nlink() >= 2)
+	}
+
+	BAN::ErrorOr<void> TmpDirectoryInode::prepare_unlink()
+	{
+		ino_t dot_ino = 0;
+		ino_t dotdot_ino = 0;
+
+		bool is_empty = true;
+		for_each_valid_entry([&](TmpDirectoryEntry& entry) {
+			if (entry.name_sv() == "."sv)
+				dot_ino = entry.ino;
+			else if (entry.name_sv() == ".."sv)
+				dotdot_ino = entry.ino;
+			else
+			{
+				is_empty = false;
+				return BAN::Iteration::Break;
+			}
+			return BAN::Iteration::Continue;
+		});
+		if (!is_empty)
+			return BAN::Error::from_errno(ENOTEMPTY);
+
+		// FIXME: can these leak inodes?
+
+		if (dot_ino)
 		{
-			sync();
-			return;
+			auto inode = TRY(m_fs.open_inode(dot_ino));
+			ASSERT(inode->nlink() > 0);
+			inode->m_inode_info.nlink--;
 		}
-		free_all_blocks();
-		m_fs.delete_inode(ino());
+
+		if (dotdot_ino)
+		{
+			auto inode = TRY(m_fs.open_inode(dotdot_ino));
+			ASSERT(inode->nlink() > 0);
+			inode->m_inode_info.nlink--;
+		}
+
+		return {};
 	}
 
 	BAN::ErrorOr<BAN::RefPtr<Inode>> TmpDirectoryInode::find_inode_impl(BAN::StringView name)
@@ -335,35 +378,37 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<void> TmpDirectoryInode::unlink_impl(BAN::StringView)
+	BAN::ErrorOr<void> TmpDirectoryInode::unlink_impl(BAN::StringView name)
 	{
 		ino_t entry_ino = 0;
 
 		for_each_valid_entry([&](TmpDirectoryEntry& entry) {
 			if (entry.name_sv() != name)
 				return BAN::Iteration::Continue;
-
-			// get ino of entry
 			entry_ino = entry.ino;
-
-			// invalidate the entry
-			entry.ino = 0;
-			entry.type = DT_UNKNOWN;
-
 			return BAN::Iteration::Break;
 		});
 
 		if (entry_ino == 0)
 			return BAN::Error::from_errno(ENOENT);
 
-		// FIXME: this should be able to fail
-		auto inode = MUST(m_fs.open_inode(entry_ino));
+		auto inode = TRY(m_fs.open_inode(entry_ino));
 
 		ASSERT(inode->nlink() > 0);
+
+		TRY(inode->prepare_unlink());
 		inode->m_inode_info.nlink--;
 
-		if (inode->nlink() == 0 || (inode->mode().ifdir() && inode->nlink() <= 2))
+		if (inode->nlink() == 0)
 			m_fs.remove_from_cache(inode);
+
+		for_each_valid_entry([&](TmpDirectoryEntry& entry) {
+			if (entry.name_sv() != name)
+				return BAN::Iteration::Continue;
+			entry.ino = 0;
+			entry.type = DT_UNKNOWN;
+			return BAN::Iteration::Break;
+		});
 
 		return {};
 	}
@@ -371,6 +416,12 @@ namespace Kernel
 	BAN::ErrorOr<void> TmpDirectoryInode::link_inode(TmpInode& inode, BAN::StringView name)
 	{
 		static constexpr size_t directory_entry_alignment = 16;
+
+		auto find_result = find_inode_impl(name);
+		if (!find_result.is_error())
+			return BAN::Error::from_errno(EEXIST);
+		if (find_result.error().get_error_code() != ENOENT)
+			return find_result.release_error();
 
 		size_t new_entry_size = sizeof(TmpDirectoryEntry) + name.size();
 		if (auto rem = new_entry_size % directory_entry_alignment)

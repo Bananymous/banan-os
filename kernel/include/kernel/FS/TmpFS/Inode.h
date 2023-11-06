@@ -40,12 +40,14 @@ namespace Kernel
 
 	public:
 		static BAN::ErrorOr<BAN::RefPtr<TmpInode>> create_from_existing(TmpFileSystem&, ino_t, const TmpInodeInfo&);
+		~TmpInode();
 
 	protected:
 		TmpInode(TmpFileSystem&, ino_t, const TmpInodeInfo&);
 
 		void sync();
 		void free_all_blocks();
+		virtual BAN::ErrorOr<void> prepare_unlink() { return {}; };
 
 		BAN::Optional<size_t> block_index(size_t data_block_index);
 		BAN::ErrorOr<size_t> block_index_with_allocation(size_t data_block_index);
@@ -94,6 +96,9 @@ namespace Kernel
 		static BAN::ErrorOr<BAN::RefPtr<TmpDirectoryInode>> create_new(TmpFileSystem&, mode_t, uid_t, gid_t, TmpInode& parent);
 
 		~TmpDirectoryInode();
+
+	protected:
+		virtual BAN::ErrorOr<void> prepare_unlink() override;
 
 	protected:
 		virtual BAN::ErrorOr<BAN::RefPtr<Inode>> find_inode_impl(BAN::StringView) override final;
