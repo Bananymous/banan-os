@@ -199,6 +199,12 @@ namespace Kernel
 		return {};
 	}
 
+	BAN::ErrorOr<void> TmpFileInode::chmod_impl(mode_t new_mode)
+	{
+		m_inode_info.mode = new_mode;
+		return {};
+	}
+
 	/* DIRECTORY INODE */
 
 	BAN::ErrorOr<BAN::RefPtr<TmpDirectoryInode>> TmpDirectoryInode::create_root(TmpFileSystem& fs, mode_t mode, uid_t uid, gid_t gid)
