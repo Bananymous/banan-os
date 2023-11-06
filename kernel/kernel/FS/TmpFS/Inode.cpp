@@ -394,7 +394,8 @@ namespace Kernel
 	template<TmpFuncs::for_each_entry_callback F>
 	void TmpDirectoryInode::for_each_entry(F callback)
 	{
-		for (size_t data_block_index = 0; data_block_index * blksize() < (size_t)size(); data_block_index++)
+		bool done = false;
+		for (size_t data_block_index = 0; !done && data_block_index * blksize() < (size_t)size(); data_block_index++)
 		{
 			const size_t block_index = this->block_index(data_block_index).value();
 			const size_t byte_count = BAN::Math::min<size_t>(size() - data_block_index * blksize(), blksize());
@@ -403,12 +404,13 @@ namespace Kernel
 				bytespan = bytespan.slice(0, byte_count);
 				while (bytespan.size() > 0)
 				{
-					const auto& entry = bytespan.as<TmpDirectoryEntry>();
+					auto& entry = bytespan.as<TmpDirectoryEntry>();
 					switch (callback(entry))
 					{
 						case BAN::Iteration::Continue:
 							break;
 						case BAN::Iteration::Break:
+							done = true;
 							return;
 						default:
 							ASSERT_NOT_REACHED();
