@@ -1,6 +1,7 @@
 #pragma once
 
 #include <BAN/Iteration.h>
+#include <BAN/Optional.h>
 #include <kernel/FS/Inode.h>
 #include <kernel/FS/TmpFS/Definitions.h>
 
@@ -35,7 +36,7 @@ namespace Kernel
 		void sync();
 		void free_all_blocks();
 
-		size_t block_index(size_t data_block_index);
+		BAN::Optional<size_t> block_index(size_t data_block_index);
 		BAN::ErrorOr<size_t> block_index_with_allocation(size_t data_block_index);
 
 	protected:

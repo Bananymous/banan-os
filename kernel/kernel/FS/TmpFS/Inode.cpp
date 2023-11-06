@@ -77,11 +77,12 @@ namespace Kernel
 			ASSERT(block == 0);
 	}
 
-	size_t TmpInode::block_index(size_t data_block_index)
+	BAN::Optional<size_t> TmpInode::block_index(size_t data_block_index)
 	{
 		ASSERT(data_block_index < TmpInodeInfo::direct_block_count);
-		ASSERT(m_inode_info.block[data_block_index]);
-		return m_inode_info.block[data_block_index];
+		if (m_inode_info.block[data_block_index])
+			return m_inode_info.block[data_block_index];
+		return {};
 	}
 
 	BAN::ErrorOr<size_t> TmpInode::block_index_with_allocation(size_t data_block_index)
@@ -146,11 +147,14 @@ namespace Kernel
 			const size_t data_block_index = (read_done + offset) / blksize();
 			const size_t block_offset     = (read_done + offset) % blksize();
 
-			const size_t block_index = this->block_index(data_block_index);
+			const auto block_index = this->block_index(data_block_index);
 
 			const size_t bytes = BAN::Math::min<size_t>(bytes_to_read - read_done, blksize() - block_offset);
 
-			m_fs.read_block(block_index, block_buffer.span());
+			if (block_index.has_value())
+				m_fs.read_block(block_index.value(), block_buffer.span());
+			else
+				memset(block_buffer.data(), 0x00, block_buffer.size());
 
 			memcpy(buffer.data() + read_done, block_buffer.data() + block_offset, bytes);
 
@@ -178,7 +182,7 @@ namespace Kernel
 			const size_t data_block_index = (write_done + offset) / blksize();
 			const size_t block_offset     = (write_done + offset) % blksize();
 
-			const size_t block_index = this->block_index(data_block_index);
+			const size_t block_index = TRY(block_index_with_allocation(data_block_index));
 
 			const size_t bytes = BAN::Math::min<size_t>(bytes_to_write - write_done, blksize() - block_offset);
 
@@ -196,9 +200,6 @@ namespace Kernel
 
 	BAN::ErrorOr<void> TmpFileInode::truncate_impl(size_t new_size)
 	{
-		size_t start_block = size() / blksize() * blksize();
-		for (size_t off = start_block; off < new_size; off += blksize())
-			TRY(block_index_with_allocation(off / blksize()));
 		m_inode_info.size = new_size;
 		return {};
 	}
@@ -349,8 +350,8 @@ namespace Kernel
 		size_t full_offset = 0;
 		while (full_offset < (size_t)size())
 		{
-			size_t data_block_index = full_offset / blksize();
-			size_t block_index = this->block_index(data_block_index);
+			const size_t data_block_index = full_offset / blksize();
+			const size_t block_index = this->block_index(data_block_index).value();
 
 			// FIXME: implement fast heap pages?
 			BAN::Vector<uint8_t> buffer;
