@@ -12,7 +12,7 @@ namespace Kernel
 	{
 
 		template<typename F>
-		concept for_each_entry_callback = requires(F func, const TmpDirectoryEntry& entry)
+		concept for_each_valid_entry_callback = requires(F func, TmpDirectoryEntry& entry)
 		{
 			requires BAN::is_same_v<decltype(func(entry)), BAN::Iteration>;
 		};
@@ -107,8 +107,8 @@ namespace Kernel
 
 		BAN::ErrorOr<void> link_inode(TmpInode&, BAN::StringView);
 
-		template<TmpFuncs::for_each_entry_callback F>
-		void for_each_entry(F callback);
+		template<TmpFuncs::for_each_valid_entry_callback F>
+		void for_each_valid_entry(F callback);
 
 		friend class TmpInode;
 	};

@@ -260,9 +260,7 @@ namespace Kernel
 	{
 		ino_t result = 0;
 
-		for_each_entry([&](const TmpDirectoryEntry& entry) {
-			if (entry.type == DT_UNKNOWN)
-				return BAN::Iteration::Continue;
+		for_each_valid_entry([&](TmpDirectoryEntry& entry) {
 			if (entry.name_sv() != name)
 				return BAN::Iteration::Continue;
 			result = entry.ino;
@@ -339,7 +337,35 @@ namespace Kernel
 
 	BAN::ErrorOr<void> TmpDirectoryInode::unlink_impl(BAN::StringView)
 	{
-		return BAN::Error::from_errno(ENOTSUP);
+		ino_t entry_ino = 0;
+
+		for_each_valid_entry([&](TmpDirectoryEntry& entry) {
+			if (entry.name_sv() != name)
+				return BAN::Iteration::Continue;
+
+			// get ino of entry
+			entry_ino = entry.ino;
+
+			// invalidate the entry
+			entry.ino = 0;
+			entry.type = DT_UNKNOWN;
+
+			return BAN::Iteration::Break;
+		});
+
+		if (entry_ino == 0)
+			return BAN::Error::from_errno(ENOENT);
+
+		// FIXME: this should be able to fail
+		auto inode = MUST(m_fs.open_inode(entry_ino));
+
+		ASSERT(inode->nlink() > 0);
+		inode->m_inode_info.nlink--;
+
+		if (inode->nlink() == 0 || (inode->mode().ifdir() && inode->nlink() <= 2))
+			m_fs.remove_from_cache(inode);
+
+		return {};
 	}
 
 	BAN::ErrorOr<void> TmpDirectoryInode::link_inode(TmpInode& inode, BAN::StringView name)
@@ -391,8 +417,8 @@ namespace Kernel
 		return {};
 	}
 
-	template<TmpFuncs::for_each_entry_callback F>
-	void TmpDirectoryInode::for_each_entry(F callback)
+	template<TmpFuncs::for_each_valid_entry_callback F>
+	void TmpDirectoryInode::for_each_valid_entry(F callback)
 	{
 		bool done = false;
 		for (size_t data_block_index = 0; !done && data_block_index * blksize() < (size_t)size(); data_block_index++)
@@ -405,15 +431,18 @@ namespace Kernel
 				while (bytespan.size() > 0)
 				{
 					auto& entry = bytespan.as<TmpDirectoryEntry>();
-					switch (callback(entry))
+					if (entry.type != DT_UNKNOWN)
 					{
-						case BAN::Iteration::Continue:
-							break;
-						case BAN::Iteration::Break:
-							done = true;
-							return;
-						default:
-							ASSERT_NOT_REACHED();
+						switch (callback(entry))
+						{
+							case BAN::Iteration::Continue:
+								break;
+							case BAN::Iteration::Break:
+								done = true;
+								return;
+							default:
+								ASSERT_NOT_REACHED();
+						}
 					}
 					bytespan = bytespan.slice(entry.rec_len);
 				}
