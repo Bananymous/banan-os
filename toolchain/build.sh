@@ -74,7 +74,7 @@ build_binutils () {
 		--disable-nls \
 		--disable-werror
 
-	make -j $(nproc)
+	make
 	make install
 }
 
@@ -100,8 +100,8 @@ build_gcc () {
 		--disable-nls \
 		--enable-languages=c,c++
 
-	make -j $(nproc) all-gcc 
-	make -j $(nproc) all-target-libgcc CFLAGS_FOR_TARGET='-g -O2 -mcmodel=large -mno-red-zone'
+	make all-gcc
+	make all-target-libgcc CFLAGS_FOR_TARGET='-g -O2 -mcmodel=large -mno-red-zone'
 	make install-gcc install-target-libgcc
 }
 
@@ -127,7 +127,7 @@ build_grub () {
 		--with-platform="efi" \
 		--disable-werror
 	
-	make -j $(nproc)
+	make
 	make install
 }
 
@@ -138,7 +138,7 @@ build_libstdcpp () {
 	fi
 
 	cd $BANAN_BUILD_DIR/toolchain/$GCC_VERSION/build
-	make -j $(nproc) all-target-libstdc++-v3
+	make all-target-libstdc++-v3
 	make install-target-libstdc++-v3
 }
 
@@ -154,16 +154,22 @@ fi
 
 # NOTE: we have to manually create initial sysroot with libc headers
 #       since cmake cannot be invoked yet
-echo "Syncing sysroot headers"
-mkdir -p $BANAN_SYSROOT
-sudo mkdir -p $BANAN_SYSROOT/usr/include
-sudo rsync -a $BANAN_ROOT_DIR/libc/include/ $BANAN_SYSROOT/usr/include/
+echo "Creating dummy sysroot"
+rm -rf $BANAN_SYSROOT
+mkdir -p $BANAN_SYSROOT/usr
+cp -r $BANAN_ROOT_DIR/libc/include $BANAN_SYSROOT/usr/include
 
-mkdir -p $BANAN_BUILD_DIR/toolchain
 
 # Cleanup all old files from toolchain prefix
 rm -rf $BANAN_TOOLCHAIN_PREFIX
 
+if [[ -z ${MAKEFLAGS:x} ]]; then
+	export MAKEFLAGS="-j$(proc)"
+fi
+
+mkdir -p $BANAN_BUILD_DIR/toolchain
 build_binutils
 build_gcc
 build_grub
+
+rm -rf $BANAN_SYSROOT
