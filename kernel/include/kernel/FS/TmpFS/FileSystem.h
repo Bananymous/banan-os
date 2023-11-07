@@ -88,10 +88,11 @@ namespace Kernel
 			size_t index;
 		};
 
-	private:
+	protected:
 		TmpFileSystem(size_t max_pages);
 		BAN::ErrorOr<void> initialize(mode_t, uid_t, gid_t);
 
+	private:
 		InodeLocation find_inode(ino_t ino);
 
 		paddr_t find_block(size_t index);

@@ -5,7 +5,7 @@
 namespace Kernel
 {
 
-	static TmpInodeInfo create_inode_info(mode_t mode, uid_t uid, gid_t gid)
+	TmpInodeInfo create_inode_info(mode_t mode, uid_t uid, gid_t gid)
 	{
 		auto current_time = SystemTimer::get().real_time();
 

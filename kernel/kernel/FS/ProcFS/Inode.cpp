@@ -3,31 +3,38 @@
 namespace Kernel
 {
 
-	BAN::ErrorOr<BAN::RefPtr<ProcPidInode>> ProcPidInode::create(Process& process, RamFileSystem& fs, mode_t mode, uid_t uid, gid_t gid)
+	BAN::ErrorOr<BAN::RefPtr<ProcPidInode>> ProcPidInode::create_new(Process& process, TmpFileSystem& fs, mode_t mode, uid_t uid, gid_t gid)
 	{
-		FullInodeInfo inode_info(fs, mode, uid, gid);
+		auto inode_info = create_inode_info(Mode::IFDIR | mode, uid, gid);
 
 		auto* inode_ptr = new ProcPidInode(process, fs, inode_info);
 		if (inode_ptr == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
 		auto inode = BAN::RefPtr<ProcPidInode>::adopt(inode_ptr);
 
-		TRY(inode->add_inode("meminfo"sv, MUST(ProcROInode::create(process, &Process::proc_meminfo, fs, 0755, 0, 0))));
-		TRY(inode->add_inode("cmdline"sv, MUST(ProcROInode::create(process, &Process::proc_cmdline, fs, 0755, 0, 0))));
-		TRY(inode->add_inode("environ"sv, MUST(ProcROInode::create(process, &Process::proc_environ, fs, 0755, 0, 0))));
+		TRY(inode->link_inode(*MUST(ProcROInode::create_new(process, &Process::proc_meminfo, fs, 0400, uid, gid)), "meminfo"sv));
+		TRY(inode->link_inode(*MUST(ProcROInode::create_new(process, &Process::proc_cmdline, fs, 0400, uid, gid)), "cmdline"sv));
+		TRY(inode->link_inode(*MUST(ProcROInode::create_new(process, &Process::proc_environ, fs, 0400, uid, gid)), "environ"sv));
 
 		return inode;
 	}
 
-	ProcPidInode::ProcPidInode(Process& process, RamFileSystem& fs, const FullInodeInfo& inode_info)
-		: RamDirectoryInode(fs, inode_info, fs.root_inode()->ino())
+	ProcPidInode::ProcPidInode(Process& process, TmpFileSystem& fs, const TmpInodeInfo& inode_info)
+		: TmpDirectoryInode(fs, MUST(fs.allocate_inode(inode_info)), inode_info)
 		, m_process(process)
 	{
 	}
 
-	BAN::ErrorOr<BAN::RefPtr<ProcROInode>> ProcROInode::create(Process& process, size_t (Process::*callback)(off_t, BAN::ByteSpan) const, RamFileSystem& fs, mode_t mode, uid_t uid, gid_t gid)
+	void ProcPidInode::cleanup()
 	{
-		FullInodeInfo inode_info(fs, mode, uid, gid);
+		(void)TmpDirectoryInode::unlink_impl("meminfo"sv);
+		(void)TmpDirectoryInode::unlink_impl("cmdline"sv);
+		(void)TmpDirectoryInode::unlink_impl("environ"sv);
+	}
+
+	BAN::ErrorOr<BAN::RefPtr<ProcROInode>> ProcROInode::create_new(Process& process, size_t (Process::*callback)(off_t, BAN::ByteSpan) const, TmpFileSystem& fs, mode_t mode, uid_t uid, gid_t gid)
+	{
+		auto inode_info = create_inode_info(Mode::IFREG | mode, uid, gid);
 
 		auto* inode_ptr = new ProcROInode(process, callback, fs, inode_info);
 		if (inode_ptr == nullptr)
@@ -35,8 +42,8 @@ namespace Kernel
 		return BAN::RefPtr<ProcROInode>::adopt(inode_ptr);
 	}
 
-	ProcROInode::ProcROInode(Process& process, size_t (Process::*callback)(off_t, BAN::ByteSpan) const, RamFileSystem& fs, const FullInodeInfo& inode_info)
-		: RamInode(fs, inode_info)
+	ProcROInode::ProcROInode(Process& process, size_t (Process::*callback)(off_t, BAN::ByteSpan) const, TmpFileSystem& fs, const TmpInodeInfo& inode_info)
+		: TmpInode(fs, MUST(fs.allocate_inode(inode_info)), inode_info)
 		, m_process(process)
 		, m_callback(callback)
 	{

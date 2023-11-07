@@ -97,7 +97,11 @@ namespace Kernel
 
 		~TmpDirectoryInode();
 
+		BAN::ErrorOr<void> link_inode(TmpInode&, BAN::StringView);
+
 	protected:
+		TmpDirectoryInode(TmpFileSystem&, ino_t, const TmpInodeInfo&);
+
 		virtual BAN::ErrorOr<void> prepare_unlink() override;
 
 	protected:
@@ -108,14 +112,12 @@ namespace Kernel
 		virtual BAN::ErrorOr<void> unlink_impl(BAN::StringView) override final;
 
 	private:
-		TmpDirectoryInode(TmpFileSystem&, ino_t, const TmpInodeInfo&);
-
-		BAN::ErrorOr<void> link_inode(TmpInode&, BAN::StringView);
-
 		template<TmpFuncs::for_each_valid_entry_callback F>
 		void for_each_valid_entry(F callback);
 
 		friend class TmpInode;
 	};
+
+	TmpInodeInfo create_inode_info(mode_t mode, uid_t uid, gid_t gid);
 
 }

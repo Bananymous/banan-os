@@ -60,6 +60,8 @@ namespace Kernel
 
 		bool is_session_leader() const { return pid() == sid(); }
 
+		const Credentials& credentials() const { return m_credentials; }
+
 		BAN::ErrorOr<long> sys_exit(int status);
 
 		BAN::ErrorOr<long> sys_gettermios(::termios*);

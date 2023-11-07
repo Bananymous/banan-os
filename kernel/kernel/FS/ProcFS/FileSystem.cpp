@@ -1,6 +1,5 @@
 #include <kernel/FS/ProcFS/FileSystem.h>
 #include <kernel/FS/ProcFS/Inode.h>
-#include <kernel/FS/RamFS/Inode.h>
 #include <kernel/LockGuard.h>
 
 namespace Kernel
@@ -11,11 +10,10 @@ namespace Kernel
 	void ProcFileSystem::initialize()
 	{
 		ASSERT(s_instance == nullptr);
-		s_instance = new ProcFileSystem(1024 * 1024);
+		s_instance = new ProcFileSystem();
 		ASSERT(s_instance);
 
-		s_instance->m_root_inode = MUST(RamDirectoryInode::create(*s_instance, 0, 0555, 0, 0));
-		MUST(s_instance->set_root_inode(s_instance->m_root_inode));
+		MUST(s_instance->TmpFileSystem::initialize(0555, 0, 0));
 	}
 
 	ProcFileSystem& ProcFileSystem::get()
@@ -24,23 +22,28 @@ namespace Kernel
 		return *s_instance;
 	}
 
-	ProcFileSystem::ProcFileSystem(size_t size)
-		: RamFileSystem(size)
+	ProcFileSystem::ProcFileSystem()
+		: TmpFileSystem(-1)
 	{
 	}
 
 	BAN::ErrorOr<void> ProcFileSystem::on_process_create(Process& process)
 	{
 		auto path = BAN::String::formatted("{}", process.pid());
-		auto inode = TRY(ProcPidInode::create(process, *this, 0555, 0, 0));
-		TRY(m_root_inode->add_inode(path, inode));
+		auto inode = TRY(ProcPidInode::create_new(process, *this, 0555, process.credentials().ruid(), process.credentials().rgid()));
+		TRY(reinterpret_cast<TmpDirectoryInode*>(root_inode().ptr())->link_inode(*inode, path));
 		return {};
 	}
 
 	void ProcFileSystem::on_process_delete(Process& process)
 	{
 		auto path = BAN::String::formatted("{}", process.pid());
-		MUST(m_root_inode->unlink(path));
+
+		auto inode = MUST(root_inode()->find_inode(path));
+		reinterpret_cast<ProcPidInode*>(inode.ptr())->cleanup();
+
+		if (auto ret = root_inode()->unlink(path); ret.is_error())
+			dwarnln("{}", ret.error());
 	}
 
 }
