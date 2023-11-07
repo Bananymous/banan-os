@@ -28,13 +28,13 @@ namespace Kernel::Input
 
 	public:
 		static BAN::ErrorOr<PS2Keyboard*> create(PS2Controller&);
+		virtual void send_initialize() override;
 
 		virtual void handle_irq() override;
 		virtual void update() override;
 
 	private:
 		PS2Keyboard(PS2Controller& controller);
-		BAN::ErrorOr<void> initialize();
 
 		void append_command_queue(uint8_t);
 		void append_command_queue(uint8_t, uint8_t);

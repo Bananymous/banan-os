@@ -180,18 +180,24 @@ namespace Kernel::Input
 			m_devices[0]->set_irq(PS2::IRQ::DEVICE0);
 			m_devices[0]->enable_interrupt();
 			config |= PS2::Config::INTERRUPT_FIRST_PORT;
-			DevFileSystem::get().add_device(m_devices[0]);
 		}
 		if (m_devices[1])
 		{
 			m_devices[1]->set_irq(PS2::IRQ::DEVICE1);
 			m_devices[1]->enable_interrupt();
 			config |= PS2::Config::INTERRUPT_SECOND_PORT;
-			DevFileSystem::get().add_device(m_devices[1]);
 		}
 
 		controller_send_command(PS2::Command::WRITE_CONFIG, config);
-			
+
+		for (uint8_t device = 0; device < 2; device++)
+		{
+			if (m_devices[device] == nullptr)
+				continue;
+			m_devices[device]->send_initialize();
+			DevFileSystem::get().add_device(m_devices[device]);
+		}
+
 		return {};
 	}
 

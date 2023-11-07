@@ -19,9 +19,6 @@ namespace Kernel::Input
 		PS2Keyboard* keyboard = new PS2Keyboard(controller);
 		if (keyboard == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
-		BAN::ScopeGuard guard([keyboard] { delete keyboard; });
-		TRY(keyboard->initialize());
-		guard.disable();
 		return keyboard;
 	}
 
@@ -69,12 +66,11 @@ namespace Kernel::Input
 		}
 	}
 
-	BAN::ErrorOr<void> PS2Keyboard::initialize()
+	void PS2Keyboard::send_initialize()
 	{
 		append_command_queue(Command::SET_LEDS, 0x00);
 		append_command_queue(Command::SCANCODE, PS2::KBScancode::SET_SCANCODE_SET2);
 		append_command_queue(Command::ENABLE_SCANNING);
-		return {};
 	}
 
 	void PS2Keyboard::update()

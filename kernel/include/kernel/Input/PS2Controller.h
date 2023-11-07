@@ -12,6 +12,8 @@ namespace Kernel::Input
 		PS2Device();
 		virtual ~PS2Device() {}
 
+		virtual void send_initialize() = 0;
+
 		virtual BAN::StringView name() const override { return m_name; }
 
 	private:
