@@ -15,6 +15,9 @@ namespace Kernel
 
 		void cleanup();
 
+	protected:
+		virtual BAN::ErrorOr<void> unlink_impl(BAN::StringView) override { return BAN::Error::from_errno(EPERM); }
+
 	private:
 		ProcPidInode(Process&, TmpFileSystem&, const TmpInodeInfo&);
 

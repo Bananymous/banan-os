@@ -109,7 +109,7 @@ namespace Kernel
 		virtual BAN::ErrorOr<void> list_next_inodes_impl(off_t, DirectoryEntryList*, size_t) override final;
 		virtual BAN::ErrorOr<void> create_file_impl(BAN::StringView, mode_t, uid_t, gid_t) override final;
 		virtual BAN::ErrorOr<void> create_directory_impl(BAN::StringView, mode_t, uid_t, gid_t) override final;
-		virtual BAN::ErrorOr<void> unlink_impl(BAN::StringView) override final;
+		virtual BAN::ErrorOr<void> unlink_impl(BAN::StringView) override;
 
 	private:
 		template<TmpFuncs::for_each_valid_entry_callback F>
