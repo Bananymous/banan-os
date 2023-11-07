@@ -6,6 +6,9 @@ namespace Kernel
 
 	BAN::ErrorOr<TmpFileSystem*> TmpFileSystem::create(size_t max_pages, mode_t mode, uid_t uid, gid_t gid)
 	{
+		if (max_pages < 2)
+			return BAN::Error::from_errno(ENOSPC);
+
 		auto* result = new TmpFileSystem(max_pages);
 		if (result == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
@@ -22,6 +25,8 @@ namespace Kernel
 		paddr_t data_paddr = Heap::get().take_free_page();
 		if (data_paddr == 0)
 			return BAN::Error::from_errno(ENOMEM);
+		m_used_pages++;
+
 		m_data_pages.set_paddr(data_paddr);
 		m_data_pages.set_flags(PageInfo::Flags::Present);
 		PageTable::with_fast_page(data_paddr, [&] {
@@ -31,6 +36,8 @@ namespace Kernel
 		paddr_t inodes_paddr = Heap::get().take_free_page();
 		if (inodes_paddr == 0)
 			return BAN::Error::from_errno(ENOMEM);
+		m_used_pages++;
+
 		m_inode_pages.set_paddr(inodes_paddr);
 		m_inode_pages.set_flags(PageInfo::Flags::Present);
 		PageTable::with_fast_page(inodes_paddr, [&] {
@@ -178,6 +185,8 @@ namespace Kernel
 			auto& page_info = PageTable::fast_page_as_sized<PageInfo>(index_in_page);
 			ASSERT(page_info.flags() & PageInfo::Flags::Present);
 			Heap::get().release_page(page_info.paddr());
+			m_used_pages--;
+
 			page_info.set_paddr(0);
 			page_info.set_flags(0);
 		});
@@ -256,9 +265,12 @@ namespace Kernel
 
 			if (!(next_info.flags() & PageInfo::Flags::Present))
 			{
+				if (m_used_pages >= m_max_pages)
+					return BAN::Error::from_errno(ENOSPC);
 				paddr_t new_paddr = Heap::get().take_free_page();
 				if (new_paddr == 0)
 					return BAN::Error::from_errno(ENOMEM);
+				m_used_pages++;
 
 				PageTable::with_fast_page(new_paddr, [&] {
 					memset(PageTable::fast_page_as_ptr(), 0x00, PAGE_SIZE);

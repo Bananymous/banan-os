@@ -145,6 +145,7 @@ namespace Kernel
 			(PAGE_SIZE / sizeof(TmpInodeInfo));
 
 		const size_t m_max_pages;
+		size_t m_used_pages { 0 };
 	};
 
 	template<TmpFuncs::with_block_buffer_callback F>
