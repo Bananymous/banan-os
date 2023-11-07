@@ -26,6 +26,12 @@ namespace Kernel
 			requires BAN::is_same_v<decltype(func(buffer)), void>;
 		};
 
+		template<typename F>
+		concept for_each_inode_callback = requires(F func, BAN::RefPtr<TmpInode> inode)
+		{
+			requires BAN::is_same_v<decltype(func(inode)), BAN::Iteration>;
+		};
+
 	}
 
 
@@ -57,6 +63,9 @@ namespace Kernel
 		void with_block_buffer(size_t index, F callback);
 		void free_block(size_t index);
 		BAN::ErrorOr<size_t> allocate_block();
+
+		template<TmpFuncs::for_each_inode_callback F>
+		void for_each_inode(F callback);
 
 	private:
 		struct PageInfo
@@ -147,6 +156,24 @@ namespace Kernel
 			BAN::ByteSpan buffer(reinterpret_cast<uint8_t*>(PageTable::fast_page()), PAGE_SIZE);
 			callback(buffer);
 		});
+	}
+
+	template<TmpFuncs::for_each_inode_callback F>
+	void TmpFileSystem::for_each_inode(F callback)
+	{
+		LockGuard _(m_lock);
+		for (auto& [_, inode] : m_inode_cache)
+		{
+			switch (callback(inode))
+			{
+				case BAN::Iteration::Continue:
+					break;
+				case BAN::Iteration::Break:
+					return;
+				default:
+					ASSERT_NOT_REACHED();
+			}
+		}
 	}
 
 }
