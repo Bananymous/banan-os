@@ -1,5 +1,6 @@
 #include <ctype.h>
 #include <dirent.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
@@ -30,8 +31,6 @@ int main()
 		if (!is_only_digits(proc_ent->d_name))
 			continue;
 
-		printf("process: ");
-
 		{
 			strcpy(path_buffer, proc_ent->d_name);
 			strcat(path_buffer, "/cmdline");
@@ -39,9 +38,12 @@ int main()
 			int fd = openat(dirfd(proc), path_buffer, O_RDONLY);
 			if (fd == -1)
 			{
-				perror("openat");
+				if (errno != EACCES)
+					perror("openat");
 				continue;
 			}
+
+			printf("process: ");
 
 			while (ssize_t nread = read(fd, path_buffer, sizeof(path_buffer) - 1))
 			{
@@ -61,10 +63,12 @@ int main()
 					written += printf("%s ", path_buffer + written);
 			}
 
+			printf("\n");
+
 			close(fd);
 		}
 
-		printf("\n  pid:  %s\n", proc_ent->d_name);
+		printf("  pid:  %s\n", proc_ent->d_name);
 
 		{
 			strcpy(path_buffer, proc_ent->d_name);
