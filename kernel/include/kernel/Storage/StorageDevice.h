@@ -51,9 +51,6 @@ namespace Kernel
 	public:
 		virtual bool is_partition() const override { return true; }
 
-		virtual Mode mode() const override { return { Mode::IFBLK | Mode::IRUSR | Mode::IRGRP }; }
-		virtual uid_t uid() const override { return 0; }
-		virtual gid_t gid() const override { return 0; }
 		virtual dev_t rdev() const override { return m_rdev; }
 
 	protected:

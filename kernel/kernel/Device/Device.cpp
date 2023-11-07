@@ -5,7 +5,12 @@ namespace Kernel
 {
 
 	Device::Device(mode_t mode, uid_t uid, gid_t gid)
-		: RamInode(DevFileSystem::get(), FullInodeInfo(DevFileSystem::get(), mode, uid, gid))
+		// FIXME: what the fuck is this
+		: TmpInode(
+			DevFileSystem::get(),
+			MUST(DevFileSystem::get().allocate_inode(create_inode_info(mode, uid, gid))),
+			create_inode_info(mode, uid, gid)
+		)
 	{ }
 
 }

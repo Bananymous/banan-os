@@ -33,7 +33,7 @@ namespace Kernel
 		if (inode_or_error.is_error())
 		{
 			if (inode_or_error.error().get_error_code() == ENOENT)
-				DevFileSystem::get().add_inode("tty"sv, MUST(RamSymlinkInode::create(DevFileSystem::get(), s_tty->name(), 0666, 0, 0)));
+				DevFileSystem::get().add_inode("tty"sv, MUST(TmpSymlinkInode::create_new(DevFileSystem::get(), 0666, 0, 0, s_tty->name())));
 			else
 				dwarnln("{}", inode_or_error.error());
 			return;
@@ -41,7 +41,7 @@ namespace Kernel
 
 		auto inode = inode_or_error.release_value();
 		if (inode->mode().iflnk())
-			MUST(((RamSymlinkInode*)inode.ptr())->set_link_target(name()));
+			MUST(reinterpret_cast<TmpSymlinkInode*>(inode.ptr())->set_link_target(name()));
 	}
 
 	BAN::ErrorOr<void> TTY::tty_ctrl(int command, int flags)

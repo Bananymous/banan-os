@@ -1,11 +1,11 @@
 #pragma once
 
-#include <kernel/FS/RamFS/Inode.h>
+#include <kernel/FS/TmpFS/Inode.h>
 
 namespace Kernel
 {
 
-	class Device : public RamInode
+	class Device : public TmpInode
 	{
 	public:
 		virtual ~Device() = default;

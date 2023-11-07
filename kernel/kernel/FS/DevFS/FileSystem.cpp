@@ -2,7 +2,7 @@
 #include <kernel/Device/NullDevice.h>
 #include <kernel/Device/ZeroDevice.h>
 #include <kernel/FS/DevFS/FileSystem.h>
-#include <kernel/FS/RamFS/Inode.h>
+#include <kernel/FS/TmpFS/Inode.h>
 #include <kernel/LockGuard.h>
 #include <kernel/Process.h>
 #include <kernel/Storage/StorageDevice.h>
@@ -16,12 +16,10 @@ namespace Kernel
 	void DevFileSystem::initialize()
 	{
 		ASSERT(s_instance == nullptr);
-		s_instance = new DevFileSystem(1024 * 1024);
+		s_instance = new DevFileSystem();
 		ASSERT(s_instance);
 
-		auto root_inode = MUST(RamDirectoryInode::create(*s_instance, 0, 0755, 0, 0));
-		MUST(s_instance->set_root_inode(root_inode));
-
+		MUST(s_instance->TmpFileSystem::initialize(0755, 0, 0));
 		s_instance->add_device(MUST(NullDevice::create(0666, 0, 0)));
 		s_instance->add_device(MUST(ZeroDevice::create(0666, 0, 0)));
 	}
@@ -41,10 +39,10 @@ namespace Kernel
 				{
 					s_instance->m_device_lock.lock();
 					s_instance->for_each_inode(
-						[](BAN::RefPtr<RamInode> inode)
+						[](BAN::RefPtr<TmpInode> inode)
 						{
 							if (inode->is_device())
-								((Device*)inode.ptr())->update();
+								reinterpret_cast<Device*>(inode.ptr())->update();
 							return BAN::Iteration::Continue;
 						}
 					);
@@ -74,11 +72,11 @@ namespace Kernel
 					}
 
 					s_instance->for_each_inode(
-						[](BAN::RefPtr<RamInode> inode)
+						[](BAN::RefPtr<TmpInode> inode)
 						{
 							if (inode->is_device())
 								if (((Device*)inode.ptr())->is_storage_device())
-									if (auto ret = ((StorageDevice*)inode.ptr())->sync_disk_cache(); ret.is_error())
+									if (auto ret = reinterpret_cast<StorageDevice*>(inode.ptr())->sync_disk_cache(); ret.is_error())
 										dwarnln("disk sync: {}", ret.error());
 							return BAN::Iteration::Continue;
 						}
@@ -120,24 +118,24 @@ namespace Kernel
 	void DevFileSystem::add_device(BAN::RefPtr<Device> device)
 	{
 		ASSERT(!device->name().contains('/'));
-		MUST(reinterpret_cast<RamDirectoryInode*>(root_inode().ptr())->add_inode(device->name(), device));
+		MUST(reinterpret_cast<TmpDirectoryInode*>(root_inode().ptr())->link_inode(*device, device->name()));
 	}
 
-	void DevFileSystem::add_inode(BAN::StringView path, BAN::RefPtr<RamInode> inode)
+	void DevFileSystem::add_inode(BAN::StringView path, BAN::RefPtr<TmpInode> inode)
 	{
 		ASSERT(!path.contains('/'));
-		MUST(reinterpret_cast<RamDirectoryInode*>(root_inode().ptr())->add_inode(path, inode));
+		MUST(reinterpret_cast<TmpDirectoryInode*>(root_inode().ptr())->link_inode(*inode, path));
 	}
 
 	void DevFileSystem::for_each_device(const BAN::Function<BAN::Iteration(Device*)>& callback)
 	{
 		LockGuard _(m_device_lock);
 		for_each_inode(
-			[&](BAN::RefPtr<Kernel::RamInode> inode)
+			[&](BAN::RefPtr<Kernel::TmpInode> inode)
 			{
 				if (!inode->is_device())
 					return BAN::Iteration::Continue;
-				return callback((Device*)inode.ptr());
+				return callback(reinterpret_cast<Device*>(inode.ptr()));
 			}
 		);
 	}
