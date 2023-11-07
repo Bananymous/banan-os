@@ -4,6 +4,7 @@
 #include <BAN/Iteration.h>
 #include <kernel/FS/FileSystem.h>
 #include <kernel/FS/TmpFS/Inode.h>
+#include <kernel/LockGuard.h>
 #include <kernel/Memory/PageTable.h>
 #include <kernel/SpinLock.h>
 
@@ -140,6 +141,7 @@ namespace Kernel
 	template<TmpFuncs::with_block_buffer_callback F>
 	void TmpFileSystem::with_block_buffer(size_t index, F callback)
 	{
+		LockGuard _(m_lock);
 		paddr_t block_paddr = find_block(index);
 		PageTable::with_fast_page(block_paddr, [&] {
 			BAN::ByteSpan buffer(reinterpret_cast<uint8_t*>(PageTable::fast_page()), PAGE_SIZE);
