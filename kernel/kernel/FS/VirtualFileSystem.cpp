@@ -3,8 +3,7 @@
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/FS/Ext2/FileSystem.h>
 #include <kernel/FS/ProcFS/FileSystem.h>
-#include <kernel/FS/RamFS/FileSystem.h>
-#include <kernel/FS/RamFS/Inode.h>
+#include <kernel/FS/TmpFS/FileSystem.h>
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/LockGuard.h>
 #include <fcntl.h>
@@ -31,7 +30,7 @@ namespace Kernel
 
 		MUST(s_instance->mount(root_creds, &ProcFileSystem::get(), "/proc"sv));
 
-		auto* tmpfs = MUST(RamFileSystem::create(1024 * 1024, 0777, 0, 0));
+		auto* tmpfs = MUST(TmpFileSystem::create(1024, 0777, 0, 0));
 		MUST(s_instance->mount(root_creds, tmpfs, "/tmp"sv));
 	}
 
