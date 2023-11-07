@@ -83,10 +83,16 @@ namespace Kernel
 	class TmpSymlinkInode : public TmpInode
 	{
 	public:
+		static BAN::ErrorOr<BAN::RefPtr<TmpSymlinkInode>> create_new(TmpFileSystem&, mode_t, uid_t, gid_t, BAN::StringView target);
 		~TmpSymlinkInode();
 
+		BAN::ErrorOr<void> set_link_target(BAN::StringView);
+
+	protected:
+		virtual BAN::ErrorOr<BAN::String> link_target_impl() override;
+
 	private:
-		TmpSymlinkInode(TmpFileSystem&, ino_t, const TmpInodeInfo&, BAN::StringView target);
+		TmpSymlinkInode(TmpFileSystem&, ino_t, const TmpInodeInfo&);
 	};
 
 	class TmpDirectoryInode : public TmpInode

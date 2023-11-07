@@ -215,6 +215,86 @@ namespace Kernel
 		return {};
 	}
 
+	/* SYMLINK INODE */
+
+	BAN::ErrorOr<BAN::RefPtr<TmpSymlinkInode>> TmpSymlinkInode::create_new(TmpFileSystem& fs, mode_t mode, uid_t uid, gid_t gid, BAN::StringView target)
+	{
+		auto info = create_inode_info(Mode::IFLNK | mode, uid, gid);
+		ino_t ino = TRY(fs.allocate_inode(info));
+
+		auto* inode_ptr = new TmpSymlinkInode(fs, ino, info);
+		if (inode_ptr == nullptr)
+			return BAN::Error::from_errno(ENOMEM);
+		auto inode = BAN::RefPtr<TmpSymlinkInode>::adopt(inode_ptr);
+
+		TRY(inode->set_link_target(target));
+
+		return inode;
+	}
+
+	TmpSymlinkInode::TmpSymlinkInode(TmpFileSystem& fs, ino_t ino, const TmpInodeInfo& info)
+		: TmpInode(fs, ino, info)
+	{
+		ASSERT(mode().iflnk());
+	}
+
+	TmpSymlinkInode::~TmpSymlinkInode()
+	{
+	}
+
+	BAN::ErrorOr<void> TmpSymlinkInode::set_link_target(BAN::StringView new_target)
+	{
+		free_all_blocks();
+		m_inode_info.size = 0;
+
+		if (new_target.size() <= sizeof(TmpInodeInfo::block))
+		{
+			memcpy(m_inode_info.block.data(), new_target.data(), new_target.size());
+			m_inode_info.size = new_target.size();
+			return {};
+		}
+
+		const size_t blocks_needed = BAN::Math::div_round_up<size_t>(new_target.size(), blksize());
+		for (size_t i = 0; i < blocks_needed; i++)
+		{
+			const size_t block_index = TRY(block_index_with_allocation(i));
+			const size_t byte_count = BAN::Math::min<size_t>(new_target.size() - i * blksize(), blksize());
+
+			m_fs.with_block_buffer(block_index, [&](BAN::ByteSpan bytespan) {
+				memcpy(bytespan.data(), new_target.data() + i * blksize(), byte_count);
+			});
+
+			m_inode_info.size += byte_count;
+		}
+
+		return {};
+	}
+
+	BAN::ErrorOr<BAN::String> TmpSymlinkInode::link_target_impl()
+	{
+		BAN::String result;
+		TRY(result.resize(size()));
+
+		if ((size_t)size() <= sizeof(TmpInodeInfo::block))
+		{
+			memcpy(result.data(), m_inode_info.block.data(), size());
+			return result;
+		}
+
+		const size_t data_block_count = BAN::Math::div_round_up<size_t>(size(), blksize());
+		for (size_t i = 0; i < data_block_count; i++)
+		{
+			const size_t block_index = TRY(block_index_with_allocation(i));
+			const size_t byte_count = BAN::Math::min<size_t>(size() - i * blksize(), blksize());
+
+			m_fs.with_block_buffer(block_index, [&](BAN::ByteSpan bytespan) {
+				memcpy(result.data() + i * blksize(), bytespan.data(), byte_count);
+			});
+		}
+
+		return result;
+	}
+
 	/* DIRECTORY INODE */
 
 	BAN::ErrorOr<BAN::RefPtr<TmpDirectoryInode>> TmpDirectoryInode::create_root(TmpFileSystem& fs, mode_t mode, uid_t uid, gid_t gid)
