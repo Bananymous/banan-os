@@ -164,7 +164,7 @@ cp -r $BANAN_ROOT_DIR/libc/include $BANAN_SYSROOT/usr/include
 rm -rf $BANAN_TOOLCHAIN_PREFIX
 
 if [[ -z ${MAKEFLAGS:x} ]]; then
-	export MAKEFLAGS="-j$(proc)"
+	export MAKEFLAGS="-j$(nproc)"
 fi
 
 mkdir -p $BANAN_BUILD_DIR/toolchain
