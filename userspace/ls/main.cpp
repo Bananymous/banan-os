@@ -74,7 +74,18 @@ void list_directory(const char* path)
 		}
 
 		if (list)
+		{
 			printf("%s %4d %4d %6d %s%s\e[m", mode_string(st.st_mode), st.st_uid, st.st_gid, st.st_size, color_string(st.st_mode), dirent->d_name);
+			if (S_ISLNK(st.st_mode))
+			{
+				char link_buffer[128];
+				ssize_t ret = readlinkat(dirfd(dirp), dirent->d_name, link_buffer, sizeof(link_buffer));
+				if (ret >= 0)
+					printf(" -> %.*s", ret, link_buffer);
+				else
+					perror("readlink");
+			}
+		}
 		else
 			printf("%s%s\e[m", color_string(st.st_mode), dirent->d_name);
 
