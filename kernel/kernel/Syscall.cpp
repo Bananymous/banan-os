@@ -211,6 +211,12 @@ namespace Kernel
 		case SYS_UNLINK:
 			ret = Process::current().sys_unlink((const char*)arg1);
 			break;
+		case SYS_READLINK:
+			ret = Process::current().sys_readlink((const char*)arg1, (char*)arg2, (size_t)arg3);
+			break;
+		case SYS_READLINKAT:
+			ret = Process::current().sys_readlinkat((int)arg1, (const char*)arg2, (char*)arg3, (size_t)arg4);
+			break;
 		default:
 			dwarnln("Unknown syscall {}", syscall);
 			break;

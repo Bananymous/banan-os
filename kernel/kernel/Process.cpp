@@ -782,6 +782,47 @@ namespace Kernel
 		return 0;
 	}
 
+	BAN::ErrorOr<long> Process::readlink_impl(BAN::StringView absolute_path, char* buffer, size_t bufsize)
+	{
+		auto inode = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, O_NOFOLLOW | O_RDONLY)).inode;
+		
+		// FIXME: no allocation needed
+		auto link_target = TRY(inode->link_target());
+
+		size_t byte_count = BAN::Math::min<size_t>(link_target.size(), bufsize);
+		memcpy(buffer, link_target.data(), byte_count);
+
+		return byte_count;
+	}
+
+	BAN::ErrorOr<long> Process::sys_readlink(const char* path, char* buffer, size_t bufsize)
+	{
+		LockGuard _(m_lock);
+		validate_string_access(path);
+		validate_pointer_access(buffer, bufsize);
+
+		auto absolute_path = TRY(absolute_path_of(path));
+
+		return readlink_impl(absolute_path.sv(), buffer, bufsize);
+	}
+
+	BAN::ErrorOr<long> Process::sys_readlinkat(int fd, const char* path, char* buffer, size_t bufsize)
+	{
+		LockGuard _(m_lock);
+		validate_string_access(path);
+		validate_pointer_access(buffer, bufsize);
+
+		// FIXME: handle O_SEARCH in fd
+		auto parent_path = TRY(m_open_file_descriptors.path_of(fd));
+
+		BAN::String absolute_path;
+		TRY(absolute_path.append(parent_path));
+		TRY(absolute_path.push_back('/'));
+		TRY(absolute_path.append(path));
+
+		return readlink_impl(absolute_path.sv(), buffer, bufsize);
+	}
+
 	BAN::ErrorOr<long> Process::sys_chmod(const char* path, mode_t mode)
 	{
 		if (mode & S_IFMASK)

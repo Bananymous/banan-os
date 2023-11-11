@@ -78,6 +78,16 @@ ssize_t write(int fildes, const void* buf, size_t nbyte)
 	return syscall(SYS_WRITE, fildes, buf, nbyte);
 }
 
+ssize_t readlink(const char* __restrict path, char* __restrict buf, size_t bufsize)
+{
+	return syscall(SYS_READLINK, path, buf, bufsize);
+}
+
+ssize_t readlinkat(int fd, const char* __restrict path, char* __restrict buf, size_t bufsize)
+{
+	return syscall(SYS_READLINKAT, fd, path, buf, bufsize);
+}
+
 int dup(int fildes)
 {
 	return syscall(SYS_DUP, fildes);

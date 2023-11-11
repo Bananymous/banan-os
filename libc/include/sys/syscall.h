@@ -59,6 +59,8 @@ __BEGIN_DECLS
 #define SYS_CREATE 56 // creat, mkfifo
 #define SYS_CREATE_DIR 57 // mkdir
 #define SYS_UNLINK 58
+#define SYS_READLINK 59
+#define SYS_READLINKAT 60
 
 __END_DECLS
 
