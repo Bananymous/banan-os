@@ -97,8 +97,12 @@ case $1 in
 		rm -f $FAKEROOT_FILE
 		rm -rf $BANAN_SYSROOT
 		;;
+	bootloader)
+		create_image
+		$BANAN_ROOT_DIR/bootloader/install.sh
+		$BANAN_SCRIPT_DIR/qemu.sh -serial stdio $QEMU_ACCEL
+		;;
 	*)
 		build_target $1
 		;;
 esac
-
