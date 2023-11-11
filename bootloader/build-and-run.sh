@@ -42,4 +42,4 @@ if [ "$1" == "debug" ] ; then
 fi
 
 echo running qemu
-qemu-system-x86_64 $QEMU_FLAGS --drive format=raw,file=test.img
+env BANAN_DISK_IMAGE_PATH=${DISK_IMAGE_PATH} BANAN_ARCH=x86_64 ../script/qemu.sh $QEMU_FLAGS
