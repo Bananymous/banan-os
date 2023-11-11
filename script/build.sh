@@ -92,6 +92,11 @@ case $1 in
 	check-fs)
 		$BANAN_SCRIPT_DIR/check-fs.sh
 		;;
+	clean)
+		build_target clean
+		rm -f $FAKEROOT_FILE
+		rm -rf $BANAN_SYSROOT
+		;;
 	*)
 		build_target $1
 		;;
