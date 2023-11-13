@@ -1,6 +1,8 @@
 #pragma once
 
+#ifdef __banan_os__
 #include <kernel/Arch.h>
+#endif
 
 #include <stdint.h>
 
@@ -155,15 +157,12 @@ namespace LibELF
 		Elf64Xword p_align;
 	};
 
-
 #if ARCH(i386)
 	using ElfNativeAddr = Elf32Addr;
 	using ElfNativeOff = Elf32Off;
 	using ElfNativeHalf = Elf32Half;
 	using ElfNativeWord = Elf32Word;
 	using ElfNativeSword = Elf32Sword;
-	using ElfNativeXword = Elf32Xword;
-	using ElfNativeSxword = Elf32Sxword;
 	using ElfNativeFileHeader = Elf32FileHeader;
 	using ElfNativeSectionHeader = Elf32SectionHeader;
 	using ElfNativeSymbol = Elf32Symbol;
