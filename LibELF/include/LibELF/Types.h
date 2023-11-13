@@ -1,8 +1,6 @@
 #pragma once
 
-#ifdef __banan_os__
 #include <kernel/Arch.h>
-#endif
 
 #include <stdint.h>
 
