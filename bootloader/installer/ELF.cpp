@@ -1,5 +1,7 @@
 #include "ELF.h"
 
+#include <LibELF/Values.h>
+
 #include <cassert>
 #include <cerrno>
 #include <cstring>
@@ -7,6 +9,8 @@
 #include <iostream>
 #include <sys/mman.h>
 #include <unistd.h>
+
+using namespace LibELF;
 
 ELFFile::ELFFile(std::string_view path)
 	: m_path(path)
@@ -49,14 +53,14 @@ ELFFile::~ELFFile()
 	m_fd = -1;
 }
 
-const Elf64_Ehdr& ELFFile::elf_header() const
+const ElfNativeFileHeader& ELFFile::elf_header() const
 {
-	return *reinterpret_cast<Elf64_Ehdr*>(m_mmap);
+	return *reinterpret_cast<LibELF::ElfNativeFileHeader*>(m_mmap);
 }
 
 bool ELFFile::validate_elf_header() const
 {
-	if (m_stat.st_size < sizeof(Elf64_Ehdr))
+	if (m_stat.st_size < sizeof(ElfNativeFileHeader))
 	{
 		std::cerr << m_path << " is too small to be a ELF executable" << std::endl;
 		return false;
@@ -75,9 +79,13 @@ bool ELFFile::validate_elf_header() const
 		return false;
 	}
 
+#if ARCH(x86_64)
 	if (elf_header.e_ident[EI_CLASS] != ELFCLASS64)
+#elif ARCH(i386)
+	if (elf_header.e_ident[EI_CLASS] != ELFCLASS32)
+#endif
 	{
-		std::cerr << m_path << " is not 64 bit ELF" << std::endl;
+		std::cerr << m_path << " architecture doesn't match" << std::endl;
 		return false;
 	}
 
@@ -99,24 +107,18 @@ bool ELFFile::validate_elf_header() const
 		return false;
 	}
 
-	if (elf_header.e_machine != EM_X86_64)
-	{
-		std::cerr << m_path << " is not an x86_64 ELF file" << std::endl;
-		return false;
-	}
-
 	return true;
 }
 
-const Elf64_Shdr& ELFFile::section_header(std::size_t index) const
+const ElfNativeSectionHeader& ELFFile::section_header(std::size_t index) const
 {
 	const auto& elf_header = this->elf_header();
 	assert(index < elf_header.e_shnum);
 	const uint8_t* section_array_start = m_mmap + elf_header.e_shoff;
-	return *reinterpret_cast<const Elf64_Shdr*>(section_array_start + index * elf_header.e_shentsize);
+	return *reinterpret_cast<const ElfNativeSectionHeader*>(section_array_start + index * elf_header.e_shentsize);
 }
 
-std::string_view ELFFile::section_name(const Elf64_Shdr& section_header) const
+std::string_view ELFFile::section_name(const ElfNativeSectionHeader& section_header) const
 {
 	const auto& elf_header = this->elf_header();
 	assert(elf_header.e_shstrndx != SHN_UNDEF);
