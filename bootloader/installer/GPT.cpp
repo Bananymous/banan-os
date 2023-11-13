@@ -63,18 +63,18 @@ const GPTHeader& GPTFile::gpt_header() const
     return *reinterpret_cast<GPTHeader*>(m_mmap + SECTOR_SIZE);
 }
 
-bool GPTFile::install_bootcode(std::span<const uint8_t> boot_code)
+bool GPTFile::install_stage1(std::span<const uint8_t> stage1)
 {
 	auto& mbr = this->mbr();
 
-	if (boot_code.size() > sizeof(mbr.boot_code))
+	if (stage1.size() > sizeof(mbr.boot_code))
 	{
-		std::cerr << m_path << ": can't fit " << boot_code.size() << " bytes of boot code in mbr (max is " << sizeof(mbr.boot_code) << ")" << std::endl;
+		std::cerr << m_path << ": can't fit " << stage1.size() << " bytes of boot code in mbr (max is " << sizeof(mbr.boot_code) << ")" << std::endl;
 		return false;
 	}
 
 	// copy boot code
-	memcpy(mbr.boot_code, boot_code.data(), boot_code.size());
+	memcpy(mbr.boot_code, stage1.data(), stage1.size());
 
 	// setup mbr
 	mbr.unique_mbr_disk_signature = 0xdeadbeef;
@@ -99,29 +99,104 @@ bool GPTFile::install_bootcode(std::span<const uint8_t> boot_code)
 	return true;
 }
 
-bool GPTFile::write_partition(std::span<const uint8_t> data, GUID type_guid)
+bool GPTFile::install_stage2(std::span<const uint8_t> stage2, const GUID& root_partition_guid)
 {
-	auto partition = find_partition(type_guid);
+	if (stage2.size() < 16)
+	{
+		std::cerr << m_path << ": contains invalid .stage2 section, too small for patches" << std::endl;
+		return false;
+	}
+
+	// find GUID patch offsets
+	std::size_t disk_guid_offset(-1);
+	std::size_t part_guid_offset(-1);
+	for (std::size_t i = 0; i < stage2.size() - 16; i++)
+	{
+		if (memcmp(stage2.data() + i, "root disk guid  ", 16) == 0)
+		{
+			if (disk_guid_offset != std::size_t(-1))
+			{
+				std::cerr << m_path << ": contains invalid .stage2 section, multiple patchable disk guids" << std::endl;
+				return false;
+			}
+			disk_guid_offset = i;
+		}
+		if (memcmp(stage2.data() + i, "root part guid  ", 16) == 0)
+		{
+			if (part_guid_offset != std::size_t(-1))
+			{
+				std::cerr << m_path << ": contains invalid .stage2 section, multiple patchable partition guids" << std::endl;
+				return false;
+			}
+			part_guid_offset = i;
+		}
+	}
+	if (disk_guid_offset == std::size_t(-1))
+	{
+		std::cerr << m_path << ": contains invalid .stage2 section, no patchable disk guid" << std::endl;
+		return false;
+	}
+	if (part_guid_offset == std::size_t(-1))
+	{
+		std::cerr << m_path << ": contains invalid .stage2 section, no patchable partition guid" << std::endl;
+		return false;
+	}
+	
+
+	auto partition = find_partition_with_type(bios_boot_guid);
 	if (!partition.has_value())
 	{
-		std::cerr << m_path << ": could not find partition with type " << type_guid << std::endl;
+		std::cerr << m_path << ": could not find partition with type " << bios_boot_guid << std::endl;
 		return false;
 	}
 
 	const std::size_t partition_size = (partition->ending_lba - partition->starting_lba + 1) * SECTOR_SIZE;
 
-	if (data.size() > partition_size)
+	if (stage2.size() > partition_size)
 	{
-		std::cerr << m_path << ": can't fit " << data.size() << " bytes of data to partition of size " << partition_size << std::endl;
+		std::cerr << m_path << ": can't fit " << stage2.size() << " bytes of data to partition of size " << partition_size << std::endl;
 		return false;
 	}
 
-	memcpy(m_mmap + partition->starting_lba * SECTOR_SIZE, data.data(), data.size());
+	uint8_t* partition_start = m_mmap + partition->starting_lba * SECTOR_SIZE;
+	memcpy(partition_start, stage2.data(), stage2.size());
+
+	// patch GUIDs
+	*reinterpret_cast<GUID*>(partition_start + disk_guid_offset) = gpt_header().disk_guid;
+	*reinterpret_cast<GUID*>(partition_start + part_guid_offset) = root_partition_guid;
 
 	return true;
 }
 
-std::optional<GPTPartitionEntry> GPTFile::find_partition(const GUID& type_guid) const
+bool GPTFile::install_bootloader(std::span<const uint8_t> stage1, std::span<const uint8_t> stage2, const GUID& root_partition_guid)
+{
+	if (!find_partition_with_guid(root_partition_guid).has_value())
+	{
+		std::cerr << m_path << ": no partition with GUID " << root_partition_guid << std::endl;
+		return false;
+	}
+	if (!install_stage1(stage1))
+		return false;
+	if (!install_stage2(stage2, root_partition_guid))
+		return false;
+	return true;
+}
+
+std::optional<GPTPartitionEntry> GPTFile::find_partition_with_guid(const GUID& guid) const
+{
+	const auto& gpt_header = this->gpt_header();
+	const uint8_t* partition_entry_array_start = m_mmap + gpt_header.partition_entry_lba * SECTOR_SIZE;
+	for (std::size_t i = 0; i < gpt_header.number_of_partition_entries; i++)
+	{
+		const auto& partition_entry = *reinterpret_cast<const GPTPartitionEntry*>(partition_entry_array_start + i * gpt_header.size_of_partition_entry);
+		if (partition_entry.partition_guid != guid)
+			continue;
+		return partition_entry;
+	}
+	return {};
+}
+
+std::optional<GPTPartitionEntry> GPTFile::find_partition_with_type(const GUID& type_guid) const
 {
 	const auto& gpt_header = this->gpt_header();
 	const uint8_t* partition_entry_array_start = m_mmap + gpt_header.partition_entry_lba * SECTOR_SIZE;
