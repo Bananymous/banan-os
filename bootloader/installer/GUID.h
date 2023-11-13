@@ -1,10 +1,14 @@
 #pragma once
 
 #include <cstdint>
+#include <optional>
 #include <ostream>
+#include <string_view>
 
 struct GUID
 {
+	static std::optional<GUID> from_string(std::string_view);
+
 	uint32_t component1;
 	uint16_t component2;
 	uint16_t component3;
