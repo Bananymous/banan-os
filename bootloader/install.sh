@@ -30,10 +30,10 @@ make
 mkdir -p $BUILD_DIR
 
 echo compiling bootloader
-x86_64-banan_os-as $CURRENT_DIR/arch/x86_64/boot.S -o $BUILD_DIR/bootloader.o
+x86_64-banan_os-as $CURRENT_DIR/boot.S -o $BUILD_DIR/bootloader.o
 
 echo linking bootloader
-x86_64-banan_os-ld -nostdlib -T $CURRENT_DIR/arch/x86_64/linker.ld $BUILD_DIR/bootloader.o -o $BUILD_DIR/bootloader
+x86_64-banan_os-ld -nostdlib -T $CURRENT_DIR/linker.ld $BUILD_DIR/bootloader.o -o $BUILD_DIR/bootloader
 
 echo installing bootloader to
 $INSTALLER_BUILD_DIR/x86_64-banan_os-bootloader-installer $BUILD_DIR/bootloader $BANAN_DISK_IMAGE_PATH $ROOT_PARTITION_GUID
