@@ -41,7 +41,7 @@ puts:
 	movb $0x0E, %ah
 	movb $0x00, %bh
 
-.puts_loop:
+ .puts_loop:
 	lodsb
 
 	test %al, %al
@@ -50,7 +50,7 @@ puts:
 	int $0x10
 	jmp .puts_loop
 
-.puts_done:
+ .puts_done:
 	popw %ax
 	popw %bx
 	popw %si
@@ -155,7 +155,7 @@ find_gpt_partition_entry:
 	#       although read will fail with more than 0x80
 	movw (gpt_header + 80), %cx
 
-.loop_gpt_entries:
+ .loop_gpt_entries:
 	pushw %cx
 	movw $16, %cx
 	call memcmp
@@ -169,11 +169,11 @@ find_gpt_partition_entry:
 
 	loop .loop_gpt_entries
 
-.no_gpt_partition_found:
+ .no_gpt_partition_found:
 	movb $0, %al
 	ret
 
-.gpt_partition_found:
+ .gpt_partition_found:
 	movb $1, %al
 	ret
 
@@ -186,10 +186,12 @@ stage1_main:
 
 	# setup stack
 	movw %ax, %ss
-	movw $0x7C00, %sp
+	movl $0x7C00, %esp
 
 	# save boot disk number
 	movb %dl, (boot_disk_number)
+
+	# FIXME: validate boot disk (needs size optizations)
 
 	# confirm that int 13h extensions are available
 	clc
@@ -241,23 +243,23 @@ halt:
 	hlt
 	jmp halt
 
-.no_int13h_ext:
+ .no_int13h_ext:
 	mov $no_int13_ext_msg, %si
 	jmp print_and_halt
 
-.read_failed:
+ .read_failed:
 	mov $read_failed_msg, %si
 	jmp print_and_halt
 
-.not_gpt_partition:
+ .not_gpt_partition:
 	mov $not_gpt_partition_msg, %si
 	jmp print_and_halt
 
-.no_bios_boot_partition:
+ .no_bios_boot_partition:
 	mov $no_bios_boot_partition_msg, %si
 	jmp print_and_halt
 
-.too_gpt_big_entries:
+ .too_gpt_big_entries:
 	mov $too_gpt_big_entries_msg, %si
 	jmp print_and_halt
 
@@ -341,12 +343,12 @@ print_backspace:
 	decb %dl
 	jmp .print_backspace_do_print
 
-.print_backspace_go_line_up:
+ .print_backspace_go_line_up:
 	# decrease row and set column to the last one
 	decb %dh
 	movb $(SCREEN_WIDTH - 1), %dl
 
-.print_backspace_do_print:
+ .print_backspace_do_print:
 	# set cursor position
 	movb $0x02, %ah
 	int $0x10
@@ -359,7 +361,7 @@ print_backspace:
 	movb $0x02, %ah
 	int $0x10
 
-.print_backspace_done:
+ .print_backspace_done:
 	popa
 	ret
 
@@ -375,7 +377,7 @@ printnum:
 	movw $printnum_buffer, %si
 	xorw %cx, %cx
 
-.printnum_fill_loop:
+ .printnum_fill_loop:
 	# fill buffer with all remainders ax % bx
 	xorw %dx, %dx
 	divw %bx
@@ -393,21 +395,21 @@ printnum:
 	xchgw %dx, %cx
 	subw %dx, %cx
 	movb $'0', %al
-.printnum_pad_zeroes:
+ .printnum_pad_zeroes:
 	call putc
 	loop .printnum_pad_zeroes
 
 	movw %dx, %cx
 
-.printnum_print_loop:
+ .printnum_print_loop:
 	decw %si
 	movb (%si), %al
 	cmpb $10, %al
 	jae 1f
 	addb $'0', %al
 	jmp 2f
-1:	addb $('a' - 10), %al
-2:	call putc
+ 1:	addb $('a' - 10), %al
+ 2:	call putc
 	loop .printnum_print_loop
 
 	popa
@@ -423,15 +425,39 @@ isprint:
 	cmpb $0x7E, %al
 	ja .isprint_done
 	cmpb %al, %al
-.isprint_done:
+ .isprint_done:
+	ret
+
+
+# check if drive exists
+#	dl: drive number
+# return:
+#	al: 1 if disk is usable, 0 otherwise
+drive_exists:
+	pusha
+
+	movb $0x48, %ah
+	movw $disk_drive_parameters, %si
+	movw $0x1A, (disk_drive_parameters) # set buffer size
+
+	clc
+	int $0x13
+	jc .drive_exists_nope
+
+	popa
+	movb $1, %al
+	ret
+
+ .drive_exists_nope:
+	popa
+	movb $0, %al
 	ret
 
 
 # fills memory map data structure
 # doesn't return on error
+# NO REGISTERS SAVED
 get_memory_map:
-	pusha
-
 	movl $0, (memory_map_entry_count)
 
 	movl $0x0000E820, %eax
@@ -445,7 +471,7 @@ get_memory_map:
 	# If first call returs with CF set, the call failed
 	jc .get_memory_map_error
 
-.get_memory_map_rest:
+ .get_memory_map_rest:
 	cmpl $0x534D4150, %eax
 	jne .get_memory_map_error
 
@@ -471,25 +497,23 @@ get_memory_map:
 	# BIOS can indicate end of list by setting CF
 	jnc .get_memory_map_rest
 
-.get_memory_map_done:
-	popa
+ .get_memory_map_done:
 	ret
 
-.get_memory_map_error:
+ .get_memory_map_error:
 	movw $memory_map_error_msg, %si
 	jmp print_and_halt
 
 
 # fills command line buffer
+# NO REGISTERS SAVED
 get_command_line:
-	pusha
-
 	movw $command_line_enter_msg, %si
 	call puts
 
 	movw $command_line_buffer, %di
 
-.get_command_line_loop:
+ .get_command_line_loop:
 	call getc
 
 	cmpb $'\b', %al
@@ -513,7 +537,7 @@ get_command_line:
 
 	jmp .get_command_line_loop
 
-.get_command_line_backspace:
+ .get_command_line_backspace:
 	# don't do anything if at the beginning
 	cmpw $command_line_buffer, %di
 	je .get_command_line_loop
@@ -526,42 +550,18 @@ get_command_line:
 
 	jmp .get_command_line_loop
 
-.get_command_line_done:
+ .get_command_line_done:
 	# null terminate command line
 	movb $0, (%di)
 
 	call print_newline
 
-	popa
 	ret
 
 
-stage2_main:
-	# clear screen and enter 80x25 text mode
-	movb $0x03, %al
-	movb $0x00, %ah
-	int $0x10
-
-	# print hello message
-	movw $hello_msg, %si
-	call puts
-	call print_newline
-
-	call get_memory_map
-	call get_command_line
-
-	call print_newline
-
-	movw $start_kernel_load_msg, %si
-	call puts
-	call print_newline
-
-	movw $command_line_msg, %si
-	call puts
-	movw $command_line_buffer, %si
-	call puts
-	call print_newline
-
+# print memory map from memory_map_entries
+# NO REGISTERS SAVED
+print_memory_map:
 	movw $memory_map_msg, %si
 	call puts
 	call print_newline
@@ -572,7 +572,7 @@ stage2_main:
 	movw $16, %bx
 	movw $4, %cx
 
-.loop_memory_map:
+ .loop_memory_map:
 	movb $' ', %al
 	call putc
 	call putc
@@ -619,9 +619,211 @@ stage2_main:
 	decl %edx
 	jnz .loop_memory_map
 
+	ret
+
+
+# find root disk and populate root_disk_drive_number field
+# NO REGISTERS SAVED
+find_root_disk:
+	movb $0x80, %dl
+
+ .find_root_disk_loop:
+	call drive_exists
+	testb %al, %al
+	jz .find_root_disk_not_found
+
+	# read GPT header
+	xorw %bx, %bx
+	movl $1, %eax
+	movw $1, %cx
+	movw $gpt_header, %di
+	call read_from_disk
+
+	# confirm header (starts with 'EFI PART')
+	cmpl $0x20494645, (gpt_header + 0)
+	jne .find_root_disk_next_disk
+	cmpl $0x54524150, (gpt_header + 4)
+	jne .find_root_disk_next_disk
+
+	# compare disk GUID
+	movw $root_disk_guid, %si
+	movw $(gpt_header + 56), %di
+	movw $16, %cx
+	call memcmp
+	testb %al, %al
+	jz .find_root_disk_next_disk
+
+	movb %dl, (root_disk_drive_number)
+	ret
+
+ .find_root_disk_next_disk:
+	incb %dl
+	jmp .find_root_disk_loop
+
+ .find_root_disk_not_found:
+	movw $no_root_disk_msg, %si
+	jmp print_and_halt
+
+
+# finds root partition from root disk
+# fills root_partition_entry data structure
+# NOTE: assumes GPT header is in `gpt_header`
+# NO REGISTERS SAVED
+find_root_partition:
+	pushl %ebp
+	movl %esp, %ebp
+	subl $16, %esp
+
+	# esp + 0: 8 byte entry array lba
+	movl (gpt_header + 72), %eax
+	movl %eax, 0(%esp)
+	movl (gpt_header + 76), %eax
+	movl %eax, 4(%esp)
+	# FIXME: check that bits 48-63 are zero
+
+	# esp + 8: 4 byte entries per sector
+	xorl %edx, %edx
+	movl $SECTOR_SIZE, %eax
+	divl (gpt_header + 84)
+	movl %eax, 8(%esp)
+
+	# esp + 12: 4 byte entries remaining
+	movl (gpt_header + 80), %eax
+	testl %eax, %eax
+	jz .find_root_partition_not_found
+	movl %eax, 12(%esp)
+
+ .find_root_partition_read_entry_section:
+	movl 0(%esp), %eax
+	movl 4(%esp), %ebx
+	movw $1, %cx
+	movb (root_disk_drive_number), %dl
+	movw $sector_buffer, %di
+	call read_from_disk
+
+	# ecx: min(entries per section, entries remaining)
+	movl 8(%esp), %ecx
+	cmpl 12(%esp), %ecx
+	jae .find_root_partition_got_entry_count
+	movl 12(%esp), %ecx
+
+ .find_root_partition_got_entry_count:
+	# update entries remaining
+	subl %ecx, 12(%esp)
+
+	# si: entry pointer
+	movw $sector_buffer, %si
+
+ .find_root_partition_loop_entries:
+	# temporarily save cx in dx
+	movw %cx, %dx
+
+	# check that entry is used
+	movw $16, %cx
+	movw $zero_guid, %di
+	call memcmp
+	test %al, %al
+	jnz .find_root_partition_next_entry
+
+	# compare entry guid to root guid
+	movw $16, %cx
+	addw $16, %si
+	movw $root_partition_guid, %di
+	call memcmp
+	subw $16, %si
+
+	testb %al, %al
+	jnz .find_root_partition_found
+
+ .find_root_partition_next_entry:
+
+	# restore cx
+	movw %dx, %cx
+
+	# entry pointer += entry size
+	addw (gpt_header + 84), %si
+	loop .find_root_partition_loop_entries
+
+	# entry not found in this sector
+
+	# increment 8 byte entry array lba
+	incl 0(%esp)
+	jno .find_root_partition_no_overflow
+	incl 4(%esp)
+
+ .find_root_partition_no_overflow:
+	# loop to read next section if entries remaining
+	cmpl $0, 12(%esp)
+	jnz .find_root_partition_read_entry_section
+
+ .find_root_partition_not_found:
+	movw $no_root_partition_msg, %si
+	jmp print_and_halt
+
+ .find_root_partition_found:
+	# copy entry to buffer
+	movw $root_partition_entry, %di
+	movw $128, %cx
+	rep movsb
+
+	leavel
+	ret
+
+
+stage2_main:
+	# clear screen and enter 80x25 text mode
+	movb $0x03, %al
+	movb $0x00, %ah
+	int $0x10
+
+	# print hello message
+	movw $hello_msg, %si
+	call puts; call print_newline
+
+	call get_memory_map
+	call get_command_line
+
+	call print_newline
+
+	movw $start_kernel_load_msg, %si
+	call puts; call print_newline
+
+	call print_memory_map
+
+	call find_root_disk
+	movw $root_disk_found_msg, %si
+	call puts; call print_newline
+
+	call find_root_partition
+	movw $root_partition_found_msg, %si
+	call puts; call print_newline
+
+	movw $16, %bx
+	movw $2,  %cx
+	movw (root_partition_entry + 38), %ax; call printnum
+	movw (root_partition_entry + 36), %ax; call printnum
+	movw (root_partition_entry + 34), %ax; call printnum
+	movw (root_partition_entry + 32), %ax; call printnum
+
+	movb $'-', %al; call putc
+	movb $'>', %al; call putc
+
+	movw (root_partition_entry + 46), %ax; call printnum
+	movw (root_partition_entry + 44), %ax; call printnum
+	movw (root_partition_entry + 42), %ax; call printnum
+	movw (root_partition_entry + 40), %ax; call printnum
 
 	jmp halt
 
+
+# These will be patched during bootloader installation
+root_disk_guid:
+	.ascii "root disk guid  "
+root_partition_guid:
+	.ascii "root part guid  "
+zero_guid:
+	.quad 0
+	.quad 0
 
 hello_msg:
 	.asciz "This is banan-os bootloader"
@@ -639,6 +841,16 @@ memory_map_error_msg:
 start_kernel_load_msg:
 	.asciz "Starting to load kernel"
 
+root_disk_found_msg:
+	.asciz "Root disk found!"
+no_root_disk_msg:
+	.asciz "Root disk not found"
+
+root_partition_found_msg:
+	.asciz "Root partition found!"
+no_root_partition_msg:
+	.asciz "Root partition not found"
+
 stage2_end:
 
 
@@ -650,11 +862,23 @@ gpt_header:
 gpt_entry_data:
 	.skip SECTOR_SIZE
 
+sector_buffer:
+	.skip SECTOR_SIZE
+
+disk_drive_parameters:
+	.skip 0x1A
+
 disk_address_packet:
 	.skip 16
 
 printnum_buffer:
 	.skip 10
+
+root_disk_drive_number:
+	.skip 1
+
+root_partition_entry:
+	.skip 128
 
 memory_map_entry_count:
 	.skip 4
