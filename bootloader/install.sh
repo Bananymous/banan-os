@@ -7,16 +7,22 @@ if [[ -z $BANAN_DISK_IMAGE_PATH ]]; then
 	exit 1
 fi
 
+if [[ -z $BANAN_BUILD_DIR ]]; then
+	echo "You must set the BANAN_BUILD_DIR environment variable" >&2
+	exit 1
+fi
+
 ROOT_PARTITION_INDEX=2
 ROOT_PARTITION_INFO=$(fdisk -x $BANAN_DISK_IMAGE_PATH | grep "^$BANAN_DISK_IMAGE_PATH" | head -$ROOT_PARTITION_INDEX | tail -1)
 ROOT_PARTITION_GUID=$(echo $ROOT_PARTITION_INFO | cut -d' ' -f6)
 
-CURRENT_DIR=$(dirname $(realpath $0))
+INSTALLER_BUILD_DIR=$(dirname $(realpath $0))/installer/build
+BOOTLOADER_ELF=$BANAN_BUILD_DIR/bootloader/bootloader
 
-INSTALLER_DIR=$CURRENT_DIR/installer
-INSTALLER_BUILD_DIR=$INSTALLER_DIR/build
-
-BUILD_DIR=$CURRENT_DIR/build
+if ! [ -f $BOOTLOADER_ELF ]; then
+	echo "You must build the bootloader first" >&2
+	exit 1
+fi
 
 if ! [ -d $INSTALLER_BUILD_DIR ]; then
 	mkdir -p $INSTALLER_BUILD_DIR
@@ -27,17 +33,5 @@ fi
 cd $INSTALLER_BUILD_DIR
 make
 
-mkdir -p $BUILD_DIR
-
-echo compiling bootloader
-x86_64-banan_os-as $CURRENT_DIR/boot.S        	-o $BUILD_DIR/boot.o
-x86_64-banan_os-as $CURRENT_DIR/command_line.S	-o $BUILD_DIR/command_line.o
-x86_64-banan_os-as $CURRENT_DIR/disk.S			-o $BUILD_DIR/disk.o
-x86_64-banan_os-as $CURRENT_DIR/memory_map.S	-o $BUILD_DIR/memory_map.o
-x86_64-banan_os-as $CURRENT_DIR/utils.S			-o $BUILD_DIR/utils.o
-
-echo linking bootloader
-x86_64-banan_os-ld -nostdlib -T $CURRENT_DIR/linker.ld $BUILD_DIR/boot.o $BUILD_DIR/command_line.o $BUILD_DIR/disk.o $BUILD_DIR/memory_map.o $BUILD_DIR/utils.o -o $BUILD_DIR/bootloader
-
-echo installing bootloader to
-$INSTALLER_BUILD_DIR/x86_64-banan_os-bootloader-installer $BUILD_DIR/bootloader $BANAN_DISK_IMAGE_PATH $ROOT_PARTITION_GUID
+echo installing bootloader
+$INSTALLER_BUILD_DIR/x86_64-banan_os-bootloader-installer $BOOTLOADER_ELF $BANAN_DISK_IMAGE_PATH $ROOT_PARTITION_GUID

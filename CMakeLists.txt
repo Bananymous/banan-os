@@ -16,6 +16,7 @@ set(BANAN_BIN ${BANAN_SYSROOT}/usr/bin)
 set(BANAN_BOOT ${BANAN_SYSROOT}/boot)
 
 add_subdirectory(kernel)
+add_subdirectory(bootloader)
 add_subdirectory(BAN)
 add_subdirectory(libc)
 add_subdirectory(LibELF)

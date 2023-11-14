@@ -99,6 +99,7 @@ case $1 in
 		;;
 	bootloader)
 		create_image
+		build_target bootloader
 		$BANAN_ROOT_DIR/bootloader/install.sh
 		$BANAN_SCRIPT_DIR/qemu.sh -serial stdio $QEMU_ACCEL
 		;;
