@@ -67,6 +67,13 @@ stage2_main:
 	call find_root_partition
 
 	call print_root_partition_info
+	call print_newline
+
+	call has_ext2_filesystem
+	testb %al, %al
+	jz print_and_halt
+
+	call ext2_find_kernel
 
 	jmp halt
 

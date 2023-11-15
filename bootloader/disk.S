@@ -305,6 +305,10 @@ find_root_disk:
 # fills root_partition_entry data structure
 # NOTE: assumes GPT header is in `gpt_header`
 # NO REGISTERS SAVED
+# return:
+#	dl:		drive number
+#	ecx:	sector count (capped at 0xFFFFFFFF)
+#	bx:eax:	first sector
 .global find_root_partition
 find_root_partition:
 	pushl %ebp
@@ -385,7 +389,7 @@ find_root_partition:
 
 	# increment 8 byte entry array lba
 	incl 0(%esp)
-	jno .find_root_partition_no_overflow
+	jnc .find_root_partition_no_overflow
 	incl 4(%esp)
 
  .find_root_partition_no_overflow:
@@ -405,6 +409,32 @@ find_root_partition:
 
 	movw $root_partition_found_msg, %si
 	call puts; call print_newline
+
+	# ebx:eax := last lba
+	movl (root_partition_entry + 44), %ebx
+	movl (root_partition_entry + 40), %eax
+
+	# ebx:eax -= first lba - 1
+	subl (root_partition_entry + 36), %ebx
+	movl (root_partition_entry + 32), %ecx;
+	decl %ecx
+	subl %ecx, %eax
+	jnc .find_root_partition_count_sub_no_carry
+	decl %ebx
+ .find_root_partition_count_sub_no_carry:
+ 	
+	# ecx: min(partition count, 0xFFFFFFFF)
+	movl $0xFFFFFFFF, %edx
+	movl %eax, %ecx
+	testl %ebx, %ebx
+	cmovnzl %edx, %ecx
+
+	# ebx:eax := first lba
+	# FIXME: confirm ebx bits 16:31 are zero
+	movl (root_partition_entry + 36), %ebx
+	movl (root_partition_entry + 32), %eax
+
+	movb (root_disk_drive_number), %dl
 
 	leavel
 	ret
