@@ -232,8 +232,8 @@ ext2_read_inode:
 	addl $ext2_block_buffer, %esi
 	  # edi := ext2_inode_buffer
 	movl $ext2_inode_buffer, %edi
-	  # cx := inode_size
-	movw (ext2_inode_size), %cx
+	  # ecx := inode_size
+	movl (ext2_inode_size), %ecx
 	rep movsb
 
 	popal
@@ -366,6 +366,87 @@ ext2_data_block_index:
 	ret
 
 
+# read bytes from inode (implements read callback)
+#	eax: first byte
+#	ecx: byte count
+#	edi: buffer
+# returns only on success
+.global ext2_inode_read_bytes
+ext2_inode_read_bytes:
+	pushal
+	pushl %ebp
+	movl %esp, %ebp
+	subl $8, %esp
+
+	# save read info
+	movl %eax, 0(%esp)
+	movl %ecx, 4(%esp)
+
+	# check if eax % EXT2_BLOCK_SIZE != 0,
+	# then we need to read a partial block starting from an offset
+	xorl %edx, %edx
+	movl $EXT2_BLOCK_SIZE, %ebx
+	divl %ebx
+	testl %edx, %edx
+	jz .ext2_inode_read_bytes_no_partial_start
+
+	# get data block index and read block
+	call ext2_data_block_index
+	call ext2_read_block
+
+	# ecx := byte count (min(block_size - edx, remaining_bytes))
+	movl $EXT2_BLOCK_SIZE, %ecx
+	subl %edx, %ecx
+	cmpl %ecx, 4(%esp)
+	cmovbl 4(%esp), %ecx
+
+	# update remaining read info
+	addl %ecx, 0(%esp)
+	subl %ecx, 4(%esp)
+
+	# esi := start sector data (block_buffer + index * SECTOR_SIZE)
+	movl $ext2_block_buffer, %esi
+	addl %edx, %esi
+
+	# copy partial block to destination buffer
+	rep movsb # not sure if this uses (si or esi) and (di or edi)
+
+	# check if all sectors are read
+	cmpl $0, 4(%esp)
+	je .ext2_inode_read_bytes_done
+
+ .ext2_inode_read_bytes_no_partial_start:
+	# eax := data block index (byte_start / block_size)
+	movl 0(%esp), %eax
+	shrl $(EXT2_BLOCK_SHIFT), %eax
+
+	# get data block index and read block
+	call ext2_data_block_index
+	call ext2_read_block
+
+	# calculate bytes to copy (min(block_size, remaining_bytes))
+	movl $EXT2_BLOCK_SIZE, %ecx
+	cmpl %ecx, 4(%esp)
+	cmovbl 4(%esp), %ecx
+
+	# update remaining read info
+	addl %ecx, 0(%esp)
+	subl %ecx, 4(%esp)
+
+	# copy bytes from block into destination
+	movl $ext2_block_buffer, %esi
+	rep movsb # not sure if this uses (si or esi) and (di or edi)
+
+	# read next block if more sectors remaining
+	cmpl $0, 4(%esp)
+	jnz .ext2_inode_read_bytes_no_partial_start
+
+ .ext2_inode_read_bytes_done:
+	leavel
+	popal
+	ret
+
+
 # find inode in inside directory inode stored in ext2_inode_buffer
 # store the found inode in ext2_inode_buffer
 #	si:		name string
@@ -473,8 +554,14 @@ ext2_directory_find_inode:
 
 
 # search for kernel file from filesystem
+# returns only on success
 .global ext2_find_kernel
 ext2_find_kernel:
+	pushl %eax
+	pushw %cx
+	pushw %di
+	pushw %si
+
 	movl $EXT2_ROOT_INO, %eax
 	call ext2_read_inode
 
@@ -523,8 +610,10 @@ ext2_find_kernel:
 	movw $ext2_kernel_found_msg, %si
 	call puts; call print_newline
 
-	1: jmp 1b
-
+	popw %si
+	popw %di
+	popw %cx
+	popl %eax
 	ret
 
  .ext2_find_kernel_part_not_dir:
