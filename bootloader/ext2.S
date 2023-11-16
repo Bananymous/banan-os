@@ -245,7 +245,10 @@ ext2_read_inode:
 # return:
 #	eax:	block index
 ext2_data_block_index:
+	pushl %ebx
 	pushl %ecx
+	pushl %edx
+	pushl %esi
 
 	# calculate max data blocks
 	movl (ext2_inode_buffer + i_size), %ecx
@@ -260,13 +263,87 @@ ext2_data_block_index:
 	# check if this is direct block access
 	cmpl $12, %eax
 	jb .ext2_data_block_index_direct
+	subl $12, %eax
 
-	jmp .ext2_data_block_index_unsupported
+	# check if this is singly indirect block access
+	cmpl $(EXT2_BLOCK_SIZE / 4), %eax
+	jb .ext2_data_block_index_singly_indirect
+	subl $(EXT2_BLOCK_SIZE / 4), %eax
+
+	# check if this is doubly indirect block access
+	cmpl $((EXT2_BLOCK_SIZE / 4) * (EXT2_BLOCK_SIZE / 4)), %eax
+	jb .ext2_data_block_index_doubly_indirect
+	subl $((EXT2_BLOCK_SIZE / 4) * (EXT2_BLOCK_SIZE / 4)), %eax
+
+	# check if this is triply indirect block access
+	cmpl $((EXT2_BLOCK_SIZE / 4) * (EXT2_BLOCK_SIZE / 4) * (EXT2_BLOCK_SIZE / 4)), %eax
+	jb .ext2_data_block_index_triply_indirect
+
+	# otherwise this is invalid access
+	jmp .ext2_data_block_index_invalid
 
  .ext2_data_block_index_direct:
-	movl $(ext2_inode_buffer + i_block), %ecx
-	addl %eax, %ecx
-	movl (%ecx), %eax
+	movl $(ext2_inode_buffer + i_block), %esi
+	movl (%esi, %eax, 4), %eax
+	jmp .ext2_data_block_index_done
+
+ .ext2_data_block_index_singly_indirect:
+	movl %eax, %ebx
+	movl (ext2_inode_buffer + i_block + 12 * 4), %eax
+	movw $1, %cx
+	jmp .ext2_data_block_index_indirect
+
+ .ext2_data_block_index_doubly_indirect:
+	movl %eax, %ebx
+	movl (ext2_inode_buffer + i_block + 13 * 4), %eax
+	movw $2, %cx
+	jmp .ext2_data_block_index_indirect
+
+ .ext2_data_block_index_triply_indirect:
+	movl %eax, %ebx
+	movl (ext2_inode_buffer + i_block + 14 * 4), %eax
+	movw $3, %cx
+	jmp .ext2_data_block_index_indirect
+
+	# eax := current block
+	# ebx := index
+	# cx  := depth
+ .ext2_data_block_index_indirect:
+	call ext2_read_block
+
+	# store depth and index
+	pushw %cx
+	pushl %ebx
+
+	cmpw $1, %cx
+	jbe .ext2_data_block_index_no_shift
+
+	# cl := shift
+	movb $(EXT2_BLOCK_SHIFT - 2), %al
+	decb %cl
+	mulb %cl
+	movb %al, %cl
+
+	# ebx := ebx >> cl
+	shrl %cl, %ebx
+
+ .ext2_data_block_index_no_shift:
+	# edx := index of next block
+	movl %ebx, %eax
+	xorl %edx, %edx
+	movl $(EXT2_BLOCK_SIZE / 4), %ebx
+	divl %ebx
+
+	# eax := next block
+	movl $ext2_block_buffer, %esi
+	movl (%esi, %edx, 4), %eax
+
+	# restore depth and index
+	popl %ebx
+	popw %cx
+
+	loop .ext2_data_block_index_indirect
+
 	jmp .ext2_data_block_index_done
 
  .ext2_data_block_index_out_of_bounds:
@@ -275,14 +352,17 @@ ext2_data_block_index:
 	movl $0, %eax
 	jmp .ext2_data_block_index_done
 
- .ext2_data_block_index_unsupported:
-	movw $ext2_data_block_index_unsupported_msg, %si
+ .ext2_data_block_index_invalid:
+	movw $ext2_data_block_index_invalid_msg, %si
 	call puts; call print_newline
 	movl $0, %eax
 	jmp .ext2_data_block_index_done
 
  .ext2_data_block_index_done:
+	popl %esi
+	popl %edx
 	popl %ecx
+	popl %ebx
 	ret
 
 
@@ -332,7 +412,7 @@ ext2_directory_find_inode:
 
 	# read current block
 	call ext2_read_block
-	
+
 	# dx := current entry pointer
 	movw $ext2_block_buffer, %si
 
@@ -422,7 +502,7 @@ ext2_find_kernel:
 	call puts
 	popw %si
 	call puts; call print_newline
-	
+
 	# search current directory for this file
 	call ext2_directory_find_inode
 	testl %eax, %eax
@@ -490,8 +570,8 @@ ext2_kernel_found_msg:
 
 ext2_data_block_index_out_of_bounds_msg:
 	.asciz "data block index out of bounds"
-ext2_data_block_index_unsupported_msg:
-	.asciz "unsupported data block index"
+ext2_data_block_index_invalid_msg:
+	.asciz "data block index is invalid"
 
 ext2_looking_for_msg:
 	.asciz "looking for "
