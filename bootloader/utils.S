@@ -196,6 +196,68 @@ print_number:
 	popa
 	ret
 
+# prints 8 bit hexadecimal number to screen
+#	al:		number to print
+.global print_hex8
+print_hex8:
+	pushw %ax
+	pushw %bx
+	pushw %cx
+
+	movw $16, %bx
+	movw $2,  %cx
+	andw $0xFF, %ax
+	call print_number
+
+	popw %cx
+	popw %bx
+	popw %ax
+	ret
+
+# prints 16 bit hexadecimal number to screen
+#	ax:		number to print
+.global print_hex16
+print_hex16:
+	pushw %bx
+	pushw %cx
+
+	movw $16, %bx
+	movw $4,  %cx
+	call print_number
+
+	popw %cx
+	popw %bx
+	ret
+
+# prints 32 bit hexadecimal number to screen
+#	eax:	number to print
+.global print_hex32
+print_hex32:
+	pushl %eax
+	pushw %dx
+
+	movw %ax, %dx
+
+	shrl $16, %eax;
+	call print_hex16
+
+	movw %dx, %ax
+	call print_hex16
+
+	popw %dx
+	popl %eax
+	ret
+
+# prints 64 bit hexadecimal number to screen
+#	edx:eax:	number to print
+.global print_hex64
+print_hex64:
+	xchgl %eax, %edx
+	call print_hex32
+	xchgl %eax, %edx
+	call print_hex32
+	ret
+
 # test if character is printable ascii
 #	al: character to test
 # return:
