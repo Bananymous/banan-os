@@ -56,9 +56,7 @@ namespace Kernel
 
 		const uint32_t indices_per_block = blksize() / sizeof(uint32_t);
 
-		uint32_t divisor = 1;
-		for (uint32_t i = 1; i < depth; i++)
-			divisor *= indices_per_block;
+		const uint32_t divisor = (depth > 1) ? indices_per_block * (depth - 1) : 1;
 
 		const uint32_t next_block = block_buffer.span().as_span<uint32_t>()[(index / divisor) % indices_per_block];
 		if (next_block == 0)
