@@ -78,10 +78,35 @@ stage2_main:
 	jz print_and_halt
 
 	call ext2_find_kernel
+	movl $ext2_inode_read_bytes, %esi
 
-	jmp halt
+	call elf_read_kernel_to_memory
+
+	cli
 
 
+	# setup protected mode
+	movl %cr0, %ebx
+	orb $1, %bl
+	movl %ebx, %cr0
+
+
+	# jump to kernel in protected mode
+	ljmpl $0x18, $protected_mode
+
+
+.code32
+protected_mode:
+	movw $0x10, %bx
+	movw %bx, %ds
+	movw %bx, %es
+	movw %bx, %fs
+	movw %bx, %gs
+	movw %bx, %ss
+	jmp *%eax
+
+
+.code16
 enter_unreal_mode:
 	cli
 	pushw %ds
@@ -120,6 +145,7 @@ gdt:
 	.quad 0x0000000000000000
 	.quad 0x00009A000000FFFF
 	.quad 0x00CF92000000FFFF
+	.quad 0x00CF9A000000FFFF
 gdtr:
 	.short . - gdt - 1
 	.quad gdt

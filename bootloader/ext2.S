@@ -408,8 +408,14 @@ ext2_inode_read_bytes:
 	movl $ext2_block_buffer, %esi
 	addl %edx, %esi
 
-	# copy partial block to destination buffer
-	rep movsb # not sure if this uses (si or esi) and (di or edi)
+	# very dumb memcpy with 32 bit addresses
+ .ext2_inode_read_bytes_memcpy_partial:
+	movb (%esi), %al
+	movb %al, (%edi)
+	incl %esi
+	incl %edi
+	decl %ecx
+	jnz .ext2_inode_read_bytes_memcpy_partial
 
 	# check if all sectors are read
 	cmpl $0, 4(%esp)
@@ -433,9 +439,15 @@ ext2_inode_read_bytes:
 	addl %ecx, 0(%esp)
 	subl %ecx, 4(%esp)
 
-	# copy bytes from block into destination
+	# very dumb memcpy with 32 bit addresses
 	movl $ext2_block_buffer, %esi
-	rep movsb # not sure if this uses (si or esi) and (di or edi)
+ .ext2_inode_read_bytes_memcpy:
+	movb (%esi), %al
+	movb %al, (%edi)
+	incl %esi
+	incl %edi
+	decl %ecx
+	jnz .ext2_inode_read_bytes_memcpy
 
 	# read next block if more sectors remaining
 	cmpl $0, 4(%esp)

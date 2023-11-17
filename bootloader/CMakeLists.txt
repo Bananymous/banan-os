@@ -6,6 +6,7 @@ set(BOOTLOADER_SOURCES
 	boot.S
 	command_line.S
 	disk.S
+	elf.S
 	ext2.S
 	memory_map.S
 	utils.S
