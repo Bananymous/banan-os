@@ -156,13 +156,14 @@ elf_read_kernel_to_memory:
 
 	movl (elf_program_header + p_memsz),  %ecx
 	subl %ebx, %ecx
-	jz .elf_read_kernel_to_memory_no_memset
+	jz .elf_read_kernel_to_memory_memset_done
 
  .elf_read_kernel_to_memory_memset:
 	movb $0, (%edi)
+	incl %edi
 	decl %ecx
 	jnz .elf_read_kernel_to_memory_memset
- .elf_read_kernel_to_memory_no_memset:
+ .elf_read_kernel_to_memory_memset_done:
 
 	# read file specified in program header to memory
 	movl (elf_program_header + p_offset), %eax
