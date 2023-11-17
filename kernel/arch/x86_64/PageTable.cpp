@@ -4,7 +4,6 @@
 #include <kernel/LockGuard.h>
 #include <kernel/Memory/kmalloc.h>
 #include <kernel/Memory/PageTable.h>
-#include <kernel/multiboot2.h>
 
 extern uint8_t g_kernel_start[];
 extern uint8_t g_kernel_end[];
@@ -145,6 +144,14 @@ namespace Kernel
 
 		prepare_fast_page();
 
+		// Map main bios area below 1 MiB
+		map_range_at(
+			0x000E0000,
+			P2V(0x000E0000),
+			0x00100000 - 0x000E0000,
+			PageTable::Flags::Present
+		);
+
 		// Map (phys_kernel_start -> phys_kernel_end) to (virt_kernel_start -> virt_kernel_end)
 		ASSERT((vaddr_t)g_kernel_start % PAGE_SIZE == 0);
 		map_range_at(
@@ -169,22 +176,6 @@ namespace Kernel
 			g_userspace_end - g_userspace_start,
 			Flags::Execute | Flags::UserSupervisor | Flags::Present
 		);
-
-		// Map multiboot memory
-		paddr_t multiboot2_data_start = (vaddr_t)g_multiboot2_info & PAGE_ADDR_MASK;
-		paddr_t multiboot2_data_end = (vaddr_t)g_multiboot2_info + g_multiboot2_info->total_size;
-
-		size_t multiboot2_needed_pages = BAN::Math::div_round_up<size_t>(multiboot2_data_end - multiboot2_data_start, PAGE_SIZE);
-		vaddr_t multiboot2_vaddr = reserve_free_contiguous_pages(multiboot2_needed_pages, KERNEL_OFFSET);
-
-		map_range_at(
-			multiboot2_data_start,
-			multiboot2_vaddr,
-			multiboot2_needed_pages * PAGE_SIZE,
-			Flags::ReadWrite | Flags::Present
-		);
-
-		g_multiboot2_info = (multiboot2_info_t*)(multiboot2_vaddr + ((vaddr_t)g_multiboot2_info % PAGE_SIZE));
 	}
 
 	void PageTable::prepare_fast_page()
@@ -371,7 +362,7 @@ namespace Kernel
 	{
 		ASSERT(vaddr);
 		ASSERT(vaddr != fast_page());
-		if (vaddr >= KERNEL_OFFSET)
+		if (vaddr >= KERNEL_OFFSET && s_current)
 			ASSERT_GTE(vaddr, (vaddr_t)g_kernel_start);
 		if ((vaddr >= KERNEL_OFFSET) != (this == s_kernel))
 			Kernel::panic("mapping {8H} to {8H}, kernel: {}", paddr, vaddr, this == s_kernel);

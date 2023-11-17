@@ -1,5 +1,6 @@
 #include <kernel/ACPI.h>
 #include <kernel/Arch.h>
+#include <kernel/BootInfo.h>
 #include <kernel/Debug.h>
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/FS/ProcFS/FileSystem.h>
@@ -12,7 +13,6 @@
 #include <kernel/Memory/Heap.h>
 #include <kernel/Memory/kmalloc.h>
 #include <kernel/Memory/PageTable.h>
-#include <kernel/multiboot2.h>
 #include <kernel/PCI.h>
 #include <kernel/PIC.h>
 #include <kernel/Process.h>
@@ -31,13 +31,9 @@ struct ParsedCommandLine
 	BAN::StringView root;
 };
 
-static bool should_disable_serial()
+static bool should_disable_serial(BAN::StringView full_command_line)
 {
-	auto* cmdline_tag = (multiboot2_cmdline_tag_t*)multiboot2_find_tag(MULTIBOOT2_TAG_CMDLINE);
-	if (cmdline_tag == nullptr)
-		return false;
-
-	const char* start = cmdline_tag->cmdline;
+	const char* start = full_command_line.data();
 	const char* current = start;
 	while (true)
 	{
@@ -59,13 +55,8 @@ static ParsedCommandLine cmdline;
 
 static void parse_command_line()
 {
-	auto* cmdline_tag = (multiboot2_cmdline_tag_t*)multiboot2_find_tag(MULTIBOOT2_TAG_CMDLINE);
-	if (cmdline_tag == nullptr)
-		return;
-
-	BAN::StringView full_command_line(cmdline_tag->cmdline);
+	auto full_command_line = Kernel::g_boot_info.command_line.sv();
 	auto arguments = MUST(full_command_line.split(' '));
-
 	for (auto argument : arguments)
 	{
 		if (argument == "noapic")
@@ -83,26 +74,30 @@ TerminalDriver* g_terminal_driver = nullptr;
 
 static void init2(void*);
 
-extern "C" void kernel_main()
+extern "C" void kernel_main(uint32_t boot_magic, uint32_t boot_info)
 {
 	using namespace Kernel;
 
 	DISABLE_INTERRUPTS();
 
-	if (!should_disable_serial())
+	if (!validate_boot_magic(boot_magic))
+	{
+		Serial::initialize();
+		dprintln("Unrecognized boot magic {8H}", boot_magic);
+		return;
+	}
+
+	if (!should_disable_serial(get_early_boot_command_line(boot_magic, boot_info)))
 	{
 		Serial::initialize();
 		dprintln("Serial output initialized");
 	}
 
-	if (g_multiboot2_magic != 0x36d76289)
-	{
-		dprintln("Invalid multiboot magic number");
-		return;
-	}
-
 	kmalloc_initialize();
 	dprintln("kmalloc initialized");
+
+	parse_boot_info(boot_magic, boot_info);
+	dprintln("boot info parsed");
 
 	GDT::initialize();
 	dprintln("GDT initialized");

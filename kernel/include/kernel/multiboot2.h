@@ -13,11 +13,18 @@
 
 #define MULTIBOOT2_FRAMEBUFFER_TYPE_RGB	1
 
+#define MULTIBOOT2_MAGIC 0x36d76289
+
 struct multiboot2_tag_t
 {
 	uint32_t type;
 	uint32_t size;
-	multiboot2_tag_t* next() { return (multiboot2_tag_t*)((uintptr_t)this + ((size + 7) & ~7)); }
+	const multiboot2_tag_t* next() const
+	{
+		return reinterpret_cast<const multiboot2_tag_t*>(
+			reinterpret_cast<uintptr_t>(this) + ((size + 7) & ~7)
+		);
+	}
 } __attribute__((packed));
 
 struct multiboot2_cmdline_tag_t : public multiboot2_tag_t
@@ -62,14 +69,3 @@ struct multiboot2_info_t
 	uint32_t reserved;
 	multiboot2_tag_t tags[];
 } __attribute__((packed));
-
-extern "C" multiboot2_info_t* g_multiboot2_info;
-extern "C" uint32_t g_multiboot2_magic;
-
-inline multiboot2_tag_t* multiboot2_find_tag(uint32_t type)
-{
-	for (auto* tag = g_multiboot2_info->tags; tag->type != MULTIBOOT2_TAG_END; tag = tag->next())
-		if (tag->type == type)
-			return tag;
-	return nullptr;
-}

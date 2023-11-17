@@ -21,8 +21,8 @@ multiboot2_start:
 	.short 5
 	.short 0
 	.long 20
-	.long 1920
-	.long 1080
+	.long 800
+	.long 600
 	.long 32
 
 	# legacy start
@@ -50,11 +50,9 @@ multiboot2_end:
 	g_kernel_cmdline:
 		.skip 4096
 
-	.global g_multiboot2_info
-	g_multiboot2_info:
+	bootloader_magic:
 		.skip 8
-	.global g_multiboot2_magic
-	g_multiboot2_magic:
+	bootloader_info:
 		.skip 8
 
 .section .data
@@ -167,8 +165,8 @@ initialize_paging:
 _start:
 	# Initialize stack and multiboot info
 	movl $V2P(g_boot_stack_top), %esp
-	movl %eax, V2P(g_multiboot2_magic)
-	movl %ebx, V2P(g_multiboot2_info)
+	movl %eax, V2P(bootloader_magic)
+	movl %ebx, V2P(bootloader_info)
 
 	call check_requirements
 	call enable_sse
@@ -200,8 +198,11 @@ higher_half:
 	# call global constuctors
 	call _init
 
-	# call to the kernel itself (clear ebp for stacktrace)
+	# call to the kernel itself (clear rbp for stacktrace)
 	xorq %rbp, %rbp
+
+	movl V2P(bootloader_magic), %edi
+	movl V2P(bootloader_info),  %esi
 	call kernel_main
 
 	# call global destructors

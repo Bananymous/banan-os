@@ -1,42 +1,41 @@
 #include <BAN/Errors.h>
+#include <kernel/BootInfo.h>
 #include <kernel/Debug.h>
 #include <kernel/Memory/PageTable.h>
-#include <kernel/multiboot2.h>
 #include <kernel/Terminal/VesaTerminalDriver.h>
 
 using namespace Kernel;
 
 VesaTerminalDriver* VesaTerminalDriver::create()
 {
-	auto* framebuffer_tag = (multiboot2_framebuffer_tag_t*)multiboot2_find_tag(MULTIBOOT2_TAG_FRAMEBUFFER);
-	if (framebuffer_tag == nullptr)	
+	if (g_boot_info.framebuffer.type == FramebufferType::NONE)	
 	{
 		dprintln("Bootloader did not provide framebuffer");
 		return nullptr;
 	}
 
-	if (framebuffer_tag->framebuffer_type != MULTIBOOT2_FRAMEBUFFER_TYPE_RGB)
+	if (g_boot_info.framebuffer.type != FramebufferType::RGB)
 	{
-		dprintln("unsupported framebuffer type {}", framebuffer_tag->framebuffer_type);
+		dprintln("unsupported framebuffer type");
 		return nullptr;
 	}
 
-	if (framebuffer_tag->framebuffer_bpp != 24 && framebuffer_tag->framebuffer_bpp != 32)
+	if (g_boot_info.framebuffer.bpp != 24 && g_boot_info.framebuffer.bpp != 32)
 	{
-		dprintln("Unsupported bpp {}", framebuffer_tag->framebuffer_bpp);
+		dprintln("Unsupported bpp {}", g_boot_info.framebuffer.bpp);
 		return nullptr;
 	}
 
 	dprintln("Graphics Mode {}x{} ({} bpp)",
-		(uint32_t)framebuffer_tag->framebuffer_width,
-		(uint32_t)framebuffer_tag->framebuffer_height,
-		(uint8_t)framebuffer_tag->framebuffer_bpp
+		g_boot_info.framebuffer.width,
+		g_boot_info.framebuffer.height,
+		g_boot_info.framebuffer.bpp
 	);
 
-	paddr_t paddr = framebuffer_tag->framebuffer_addr & PAGE_ADDR_MASK;
+	paddr_t paddr = g_boot_info.framebuffer.address & PAGE_ADDR_MASK;
 	size_t needed_pages = range_page_count(
-		framebuffer_tag->framebuffer_addr,
-		framebuffer_tag->framebuffer_pitch * framebuffer_tag->framebuffer_height
+		g_boot_info.framebuffer.address,
+		g_boot_info.framebuffer.pitch * g_boot_info.framebuffer.height
 	);
 
 	vaddr_t vaddr = PageTable::kernel().reserve_free_contiguous_pages(needed_pages, KERNEL_OFFSET);
@@ -45,10 +44,10 @@ VesaTerminalDriver* VesaTerminalDriver::create()
 	PageTable::kernel().map_range_at(paddr, vaddr, needed_pages * PAGE_SIZE, PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present);
 
 	auto* driver = new VesaTerminalDriver(
-		framebuffer_tag->framebuffer_width,
-		framebuffer_tag->framebuffer_height,
-		framebuffer_tag->framebuffer_pitch,
-		framebuffer_tag->framebuffer_bpp,
+		g_boot_info.framebuffer.width,
+		g_boot_info.framebuffer.height,
+		g_boot_info.framebuffer.pitch,
+		g_boot_info.framebuffer.bpp,
 		vaddr
 	);
 	driver->set_cursor_position(0, 0);

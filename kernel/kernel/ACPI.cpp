@@ -2,7 +2,6 @@
 #include <BAN/StringView.h>
 #include <kernel/ACPI.h>
 #include <kernel/Memory/PageTable.h>
-#include <kernel/multiboot2.h>
 
 #include <lai/core.h>
 
@@ -85,11 +84,14 @@ namespace Kernel
 
 	static const RSDP* locate_rsdp()
 	{
+		// FIXME: add this back
+#if 0
 		// Check the multiboot headers
 		if (auto* rsdp_new = (multiboot2_rsdp_tag_t*)multiboot2_find_tag(MULTIBOOT2_TAG_NEW_RSDP))
 			return (const RSDP*)rsdp_new->data;
 		if (auto* rsdp_old = (multiboot2_rsdp_tag_t*)multiboot2_find_tag(MULTIBOOT2_TAG_OLD_RSDP))
 			return (const RSDP*)rsdp_old->data;
+#endif
 
 		// Look in main BIOS area below 1 MB
 		for (uintptr_t addr = P2V(0x000E0000); addr < P2V(0x000FFFFF); addr += 16)
