@@ -409,13 +409,14 @@ ext2_inode_read_bytes:
 	addl %edx, %esi
 
 	# very dumb memcpy with 32 bit addresses
+	movl $0, %ebx
  .ext2_inode_read_bytes_memcpy_partial:
-	movb (%esi), %al
-	movb %al, (%edi)
-	incl %esi
-	incl %edi
+	movb (%esi, %ebx), %al
+	movb %al, (%edi, %ebx)
+	incl %ebx
 	decl %ecx
 	jnz .ext2_inode_read_bytes_memcpy_partial
+	addl %ebx, %edi
 
 	# check if all sectors are read
 	cmpl $0, 4(%esp)
@@ -441,13 +442,14 @@ ext2_inode_read_bytes:
 
 	# very dumb memcpy with 32 bit addresses
 	movl $ext2_block_buffer, %esi
+	movl $0, %ebx
  .ext2_inode_read_bytes_memcpy:
-	movb (%esi), %al
-	movb %al, (%edi)
-	incl %esi
-	incl %edi
+	movb (%esi, %ebx), %al
+	movb %al, (%edi, %ebx)
+	incl %ebx
 	decl %ecx
 	jnz .ext2_inode_read_bytes_memcpy
+	addl %ebx, %edi
 
 	# read next block if more sectors remaining
 	cmpl $0, 4(%esp)

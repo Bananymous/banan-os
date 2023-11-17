@@ -170,7 +170,7 @@ elf_read_kernel_to_memory:
 	andl $0x7FFFFFFF, %edi
 	movl (elf_program_header + p_filesz), %ecx
 
-	call print_hex32; call print_newline
+	#call print_hex32; call print_newline
 
 	call *%esi
 

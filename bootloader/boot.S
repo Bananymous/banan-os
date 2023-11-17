@@ -82,14 +82,19 @@ stage2_main:
 
 	call elf_read_kernel_to_memory
 
-	cli
+	# re-enter 80x25 text mode to clear screen
+	pushw %ax
+	movb $0x03, %al
+	movb $0x00, %ah
+	int $0x10
+	popw %ax
 
+	cli
 
 	# setup protected mode
 	movl %cr0, %ebx
 	orb $1, %bl
 	movl %ebx, %cr0
-
 
 	# jump to kernel in protected mode
 	ljmpl $0x18, $protected_mode
