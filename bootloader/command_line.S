@@ -6,10 +6,20 @@
 # NO REGISTERS SAVED
 .global read_user_command_line
 read_user_command_line:
+	# print initial command line
 	movw $command_line_enter_msg, %si
 	call puts
+	movw $command_line_buffer, %si
+	call puts
 
+	# prepare registers for input
+	movw $command_line_enter_msg, %si
 	movw $command_line_buffer, %di
+ .read_user_command_line_goto_end:
+	cmpb $0, (%di)
+	jz .read_user_command_line_loop
+	incw %di
+	jmp .read_user_command_line_goto_end
 
  .read_user_command_line_loop:
 	call getc
@@ -65,11 +75,9 @@ read_user_command_line:
 command_line_enter_msg:
 	.asciz "cmdline: "
 
-
-.section .bss
-
 .global command_line
 command_line:
 # 100 character command line
 command_line_buffer:
-	.skip 100
+	.ascii "root=/dev/sda2 console=ttyS0"
+	.skip 100 - 28
