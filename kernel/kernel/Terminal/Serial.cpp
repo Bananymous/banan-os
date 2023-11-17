@@ -57,7 +57,11 @@ namespace Kernel
 				auto& driver = s_serial_drivers[i];
 				driver.m_port = s_serial_ports[i];
 				if (!driver.initialize_size())
-					continue;
+				{
+					// if size detection fails, just use some random size
+					driver.m_width	= 999;
+					driver.m_height	= 999;
+				}
 				count++;
 			}
 		}
