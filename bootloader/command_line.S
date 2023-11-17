@@ -23,9 +23,13 @@ read_user_command_line:
 	cmpb $'\n', %al
 	je .read_user_command_line_done
 
+	pushw %ax
+
 	call isprint
 	testb %al, %al
-	jnz .read_user_command_line_loop
+	jz .read_user_command_line_loop
+
+	popw %ax
 
 	# put byte to buffer
 	movb %al, (%di)
