@@ -53,6 +53,10 @@ stage2_main:
 	movw $hello_msg, %si
 	call puts; call print_newline
 
+	call enter_unreal_mode
+	movw $unreal_enter_msg, %si
+	call puts; call print_newline
+
 	call get_memory_map
 	call read_user_command_line
 
@@ -77,8 +81,45 @@ stage2_main:
 
 	jmp halt
 
+
+enter_unreal_mode:
+	cli
+	pushw %ds
+
+	lgdt gdtr
+
+	movl %cr0, %eax
+	orb $1, %al
+	movl %eax, %cr0
+	ljmpl $0x8, $.enter_unreal_mode_pmode
+
+ .enter_unreal_mode_pmode:
+	movw $0x10, %bx
+	movw %bx, %ds
+
+	andb 0xFE, %al
+	movl %eax, %cr0
+	ljmpl $0x0, $.enter_unreal_mode_unreal
+
+ .enter_unreal_mode_unreal:
+	popw %ds
+	sti
+
+	ret
+
 hello_msg:
 	.asciz "This is banan-os bootloader"
 
+unreal_enter_msg:
+	.asciz "Entered unreal mode"
+
 start_kernel_load_msg:
 	.asciz "Starting to load kernel"
+
+gdt:
+	.quad 0x0000000000000000
+	.quad 0x00009A000000FFFF
+	.quad 0x00CF92000000FFFF
+gdtr:
+	.short . - gdt - 1
+	.quad gdt
