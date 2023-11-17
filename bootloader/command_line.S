@@ -79,5 +79,5 @@ command_line_enter_msg:
 command_line:
 # 100 character command line
 command_line_buffer:
-	.ascii "root=/dev/sda2 console=ttyS0"
+	.ascii "root=/dev/sda2"
 	.skip 100 - 28

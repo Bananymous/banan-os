@@ -59,6 +59,8 @@ stage2_main:
 
 	call get_memory_map
 	call read_user_command_line
+	
+	call vesa_find_video_mode
 
 	call print_newline
 
@@ -82,12 +84,7 @@ stage2_main:
 
 	call elf_read_kernel_to_memory
 
-	# re-enter 80x25 text mode to clear screen
-	pushw %ax
-	movb $0x03, %al
-	movb $0x00, %ah
-	int $0x10
-	popw %ax
+	call vesa_set_target_mode
 
 	cli
 
@@ -167,5 +164,7 @@ gdtr:
 banan_boot_info:
 	boot_command_line:
 		.long command_line
+	boot_framebuffer:
+		.long framebuffer
 	boot_memory_map:
 		.long memory_map

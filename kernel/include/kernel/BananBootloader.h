@@ -2,7 +2,18 @@
 
 #include <stdint.h>
 
-#define BANAN_BOOTLOADER_MAGIC 0xD3C60CFF
+#define BANAN_BOOTLOADER_MAGIC	0xD3C60CFF
+#define BANAN_BOOTLOADER_FB_RGB	1
+
+struct BananBootFramebufferInfo
+{
+	uint32_t	address;
+	uint32_t	pitch;
+	uint32_t	width;
+	uint32_t	height;
+	uint8_t		bpp;
+	uint8_t		type;
+};
 
 struct BananBootloaderMemoryMapEntry
 {
@@ -20,5 +31,6 @@ struct BananBootloaderMemoryMapInfo
 struct BananBootloaderInfo
 {
 	uint32_t command_line_addr;
+	uint32_t framebuffer_addr;
 	uint32_t memory_map_addr;
 } __attribute__((packed));

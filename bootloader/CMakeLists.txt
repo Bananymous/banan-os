@@ -8,6 +8,7 @@ set(BOOTLOADER_SOURCES
 	disk.S
 	elf.S
 	ext2.S
+	framebuffer.S
 	memory_map.S
 	utils.S
 )

@@ -71,6 +71,17 @@ namespace Kernel
 		const char* command_line = reinterpret_cast<const char*>(banan_bootloader_info.command_line_addr);
 		MUST(g_boot_info.command_line.append(command_line));
 
+		const auto& framebuffer = *reinterpret_cast<BananBootFramebufferInfo*>(banan_bootloader_info.framebuffer_addr);
+		if (framebuffer.type == BANAN_BOOTLOADER_FB_RGB)
+		{
+			g_boot_info.framebuffer.address	= framebuffer.address;
+			g_boot_info.framebuffer.width	= framebuffer.width;
+			g_boot_info.framebuffer.height	= framebuffer.height;
+			g_boot_info.framebuffer.pitch	= framebuffer.pitch;
+			g_boot_info.framebuffer.bpp		= framebuffer.bpp;
+			g_boot_info.framebuffer.type	= FramebufferType::RGB;
+		}
+
 		const auto& memory_map =  *reinterpret_cast<BananBootloaderMemoryMapInfo*>(banan_bootloader_info.memory_map_addr);
 		MUST(g_boot_info.memory_map_entries.resize(memory_map.entry_count));
 		for (size_t i = 0; i < memory_map.entry_count; i++)
