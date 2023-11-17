@@ -68,6 +68,8 @@ command_line_enter_msg:
 
 .section .bss
 
+.global command_line
+command_line:
 # 100 character command line
 command_line_buffer:
 	.skip 100

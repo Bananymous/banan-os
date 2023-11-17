@@ -108,7 +108,16 @@ protected_mode:
 	movw %bx, %fs
 	movw %bx, %gs
 	movw %bx, %ss
-	jmp *%eax
+
+	movl %eax, %ecx
+
+	movl $0xD3C60CFF, %eax
+	movl $banan_boot_info, %ebx
+	xorl %edx, %edx
+	xorl %esi, %esi
+	xorl %edi, %edi
+
+	jmp *%ecx
 
 
 .code16
@@ -154,3 +163,9 @@ gdt:
 gdtr:
 	.short . - gdt - 1
 	.quad gdt
+
+banan_boot_info:
+	boot_command_line:
+		.long command_line
+	boot_memory_map:
+		.long memory_map

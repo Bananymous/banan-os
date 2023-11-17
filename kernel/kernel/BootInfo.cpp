@@ -1,5 +1,5 @@
 #include <kernel/BootInfo.h>
-
+#include <kernel/BananBootloader.h>
 #include <kernel/multiboot2.h>
 
 namespace Kernel
@@ -64,9 +64,35 @@ namespace Kernel
 		return {};
 	}
 
+	void parse_boot_info_banan_bootloader(uint32_t info)
+	{
+		const auto& banan_bootloader_info = *reinterpret_cast<const BananBootloaderInfo*>(info);
+
+		const char* command_line = reinterpret_cast<const char*>(banan_bootloader_info.command_line_addr);
+		MUST(g_boot_info.command_line.append(command_line));
+
+		const auto& memory_map =  *reinterpret_cast<BananBootloaderMemoryMapInfo*>(banan_bootloader_info.memory_map_addr);
+		MUST(g_boot_info.memory_map_entries.resize(memory_map.entry_count));
+		for (size_t i = 0; i < memory_map.entry_count; i++)
+		{
+			const auto& mmap_entry = memory_map.entries[i];
+			g_boot_info.memory_map_entries[i].address	= mmap_entry.address;
+			g_boot_info.memory_map_entries[i].length	= mmap_entry.length;
+			g_boot_info.memory_map_entries[i].type		= mmap_entry.type;
+		}
+	}
+
+	BAN::StringView get_early_boot_command_line_banan_bootloader(uint32_t info)
+	{
+		const auto& banan_bootloader_info = *reinterpret_cast<const BananBootloaderInfo*>(info);
+		return reinterpret_cast<const char*>(banan_bootloader_info.command_line_addr);
+	}
+
 	bool validate_boot_magic(uint32_t magic)
 	{
 		if (magic == MULTIBOOT2_MAGIC)
+			return true;
+		if (magic == BANAN_BOOTLOADER_MAGIC)
 			return true;
 		return false;	
 	}
@@ -77,6 +103,8 @@ namespace Kernel
 		{
 			case MULTIBOOT2_MAGIC:
 				return parse_boot_info_multiboot2(info);
+			case BANAN_BOOTLOADER_MAGIC:
+				return parse_boot_info_banan_bootloader(info);
 		}
 		ASSERT_NOT_REACHED();
 	}
@@ -87,6 +115,8 @@ namespace Kernel
 		{
 			case MULTIBOOT2_MAGIC:
 				return get_early_boot_command_line_multiboot2(info);
+			case BANAN_BOOTLOADER_MAGIC:
+				return get_early_boot_command_line_banan_bootloader(info);
 		}
 		ASSERT_NOT_REACHED();
 	}

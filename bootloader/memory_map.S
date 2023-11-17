@@ -122,6 +122,8 @@ memory_map_error_msg:
 
 .section .bss
 
+.global memory_map
+memory_map:
 memory_map_entry_count:
 	.skip 4
 # 100 entries should be enough...
