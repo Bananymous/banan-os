@@ -13,6 +13,9 @@ namespace Kernel
 		static BAN::ErrorOr<BAN::RefPtr<ProcPidInode>> create_new(Process&, TmpFileSystem&, mode_t, uid_t, gid_t);
 		~ProcPidInode() = default;
 
+		virtual uid_t uid() const override { return m_process.credentials().ruid(); }
+		virtual gid_t gid() const override { return m_process.credentials().rgid(); }
+
 		void cleanup();
 
 	protected:
@@ -30,6 +33,9 @@ namespace Kernel
 	public:
 		static BAN::ErrorOr<BAN::RefPtr<ProcROInode>> create_new(Process&, size_t (Process::*callback)(off_t, BAN::ByteSpan) const, TmpFileSystem&, mode_t, uid_t, gid_t);
 		~ProcROInode() = default;
+
+		virtual uid_t uid() const override { return m_process.credentials().ruid(); }
+		virtual gid_t gid() const override { return m_process.credentials().rgid(); }
 
 	protected:
 		virtual BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan) override;
