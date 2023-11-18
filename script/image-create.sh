@@ -15,6 +15,11 @@ if [[ -z $BANAN_TOOLCHAIN_PREFIX ]]; then
 	exit 1
 fi
 
+if [[ -z $BANAN_BOOTLOADER ]]; then
+	echo "You must set the BANAN_BOOTLOADER environment variable" >&2
+	exit 1
+fi
+
 if [[ -z $BANAN_ARCH ]]; then
 	echo  "You must set the BANAN_ARCH environment variable" >&2
 	exit 1
@@ -74,23 +79,39 @@ PARTITION2=${LOOP_DEV}p2
 
 sudo mkfs.ext2 -b 1024 -q $PARTITION2
 
-if [[ "$BANAN_UEFI_BOOT" == "1" ]]; then
-	sudo mkfs.fat $PARTITION1 > /dev/null
-	sudo mount $PARTITION1 "$MOUNT_DIR"
-	sudo mkdir -p "$MOUNT_DIR/EFI/BOOT"
-	sudo "$BANAN_TOOLCHAIN_PREFIX/bin/grub-mkstandalone" -O "$BANAN_ARCH-efi" -o "$MOUNT_DIR/EFI/BOOT/BOOTX64.EFI" "boot/grub/grub.cfg=$BANAN_TOOLCHAIN_DIR/grub-memdisk.cfg"
-	sudo umount "$MOUNT_DIR"
+if [[ "$BANAN_BOOTLOADER" == "GRUB" ]]; then
+	if [[ "$BANAN_UEFI_BOOT" == "1" ]]; then
+		sudo mkfs.fat $PARTITION1 > /dev/null
+		sudo mount $PARTITION1 "$MOUNT_DIR"
+		sudo mkdir -p "$MOUNT_DIR/EFI/BOOT"
+		sudo "$BANAN_TOOLCHAIN_PREFIX/bin/grub-mkstandalone" -O "$BANAN_ARCH-efi" -o "$MOUNT_DIR/EFI/BOOT/BOOTX64.EFI" "boot/grub/grub.cfg=$BANAN_TOOLCHAIN_DIR/grub-memdisk.cfg"
+		sudo umount "$MOUNT_DIR"
 
-	sudo mount $PARTITION2 "$MOUNT_DIR"
-	sudo mkdir -p "$MOUNT_DIR/boot/grub"
-	sudo cp "$BANAN_TOOLCHAIN_DIR/grub-uefi.cfg" "$MOUNT_DIR/boot/grub/grub.cfg"
-	sudo umount "$MOUNT_DIR"
-else
-	sudo mount $PARTITION2 "$MOUNT_DIR"
-	sudo grub-install --no-floppy --target=i386-pc --modules="normal ext2 multiboot" --boot-directory="$MOUNT_DIR/boot" $LOOP_DEV
-	sudo mkdir -p "$MOUNT_DIR/boot/grub"
-	sudo cp "$BANAN_TOOLCHAIN_DIR/grub-legacy-boot.cfg" "$MOUNT_DIR/boot/grub/grub.cfg"
-	sudo umount "$MOUNT_DIR"
+		sudo mount $PARTITION2 "$MOUNT_DIR"
+		sudo mkdir -p "$MOUNT_DIR/boot/grub"
+		sudo cp "$BANAN_TOOLCHAIN_DIR/grub-uefi.cfg" "$MOUNT_DIR/boot/grub/grub.cfg"
+		sudo umount "$MOUNT_DIR"
+	else
+		sudo mount $PARTITION2 "$MOUNT_DIR"
+		sudo grub-install --no-floppy --target=i386-pc --modules="normal ext2 multiboot" --boot-directory="$MOUNT_DIR/boot" $LOOP_DEV
+		sudo mkdir -p "$MOUNT_DIR/boot/grub"
+		sudo cp "$BANAN_TOOLCHAIN_DIR/grub-legacy-boot.cfg" "$MOUNT_DIR/boot/grub/grub.cfg"
+		sudo umount "$MOUNT_DIR"
+	fi
 fi
 
 sudo losetup -d $LOOP_DEV
+
+if [[ "$BANAN_BOOTLOADER" == "GRUB" ]]; then
+	echo > /dev/null
+elif [[ "$BANAN_BOOTLOADER" == "BANAN" ]]; then
+	if [[ "$BANAN_UEFI_BOOT" == "1" ]]; then
+		echo "banan bootloader does not support UEFI" >&2
+		exit 1
+	fi
+	$BANAN_SCRIPT_DIR/install-bootloader.sh
+else
+	echo "unrecognized bootloader $BANAN_BOOTLOADER" >&2
+	exit 1
+fi
+

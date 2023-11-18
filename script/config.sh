@@ -25,3 +25,7 @@ export BANAN_DISK_IMAGE_PATH=$BANAN_BUILD_DIR/banan-os.img
 if [[ -z $BANAN_UEFI_BOOT ]]; then
 	export BANAN_UEFI_BOOT=0
 fi
+
+if [[ -z $BANAN_BOOTLOADER ]]; then
+	export BANAN_BOOTLOADER="BANAN"
+fi

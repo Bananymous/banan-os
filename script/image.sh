@@ -12,14 +12,6 @@ fi
 
 if [[ "$1" == "full" ]] || [[ ! -f $BANAN_DISK_IMAGE_PATH ]]; then
 	$BANAN_SCRIPT_DIR/image-create.sh
-else
-	fdisk -l $BANAN_DISK_IMAGE_PATH | grep -q 'EFI System'; IMAGE_IS_UEFI=$?
-	[[ $BANAN_UEFI_BOOT == 1 ]]; CREATE_IS_UEFI=$?
-
-	if [[ $IMAGE_IS_UEFI -ne $CREATE_IS_UEFI ]]; then
-		echo Converting disk image to/from UEFI
-		$BANAN_SCRIPT_DIR/image-create.sh
-	fi
 fi
 
 LOOP_DEV=$(sudo losetup --show -f "$BANAN_DISK_IMAGE_PATH")
