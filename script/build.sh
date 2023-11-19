@@ -42,6 +42,7 @@ build_toolchain () {
 }
 
 create_image () {
+	build_target bootloader
 	build_target install-sysroot
 	$BANAN_SCRIPT_DIR/image.sh "$1"
 }
@@ -94,12 +95,6 @@ case $1 in
 		build_target clean
 		rm -f $FAKEROOT_FILE
 		rm -rf $BANAN_SYSROOT
-		;;
-	bootloader)
-		create_image
-		build_target bootloader
-		$BANAN_ROOT_DIR/bootloader/install.sh
-		$BANAN_SCRIPT_DIR/qemu.sh -serial stdio $QEMU_ACCEL
 		;;
 	*)
 		build_target $1
