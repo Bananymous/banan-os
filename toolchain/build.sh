@@ -26,6 +26,11 @@ if [[ -z $BANAN_BUILD_DIR ]]; then
 	exit 1
 fi
 
+if [[ -z $BANAN_SCRIPT_DIR ]]; then
+	echo "You must set the BANAN_SCRIPT_DIR environment variable" >&2
+	exit 1
+fi
+
 if [[ -z $BANAN_TOOLCHAIN_DIR ]]; then
 	echo "You must set the BANAN_TOOLCHAIN_DIR environment variable" >&2
 	exit 1
@@ -44,6 +49,10 @@ fi
 if [[ -z $BANAN_ARCH ]]; then
 	echo  "You must set the BANAN_ARCH environment variable" >&2
 	exit 1
+fi
+
+if [[ -z ${MAKE_JOBS:x} ]]; then
+	MAKE_JOBS="-j$(nproc)"
 fi
 
 enter_clean_build () {
@@ -74,7 +83,7 @@ build_binutils () {
 		--disable-nls \
 		--disable-werror
 
-	make
+	make $MAKE_JOBS
 	make install
 }
 
@@ -100,9 +109,10 @@ build_gcc () {
 		--disable-nls \
 		--enable-languages=c,c++
 
-	make all-gcc
-	make all-target-libgcc CFLAGS_FOR_TARGET='-g -O2 -mcmodel=large -mno-red-zone'
-	make install-gcc install-target-libgcc
+	make $MAKE_JOBS all-gcc
+	make $MAKE_JOBS all-target-libgcc CFLAGS_FOR_TARGET='-g -O2 -mcmodel=large -mno-red-zone'
+	make install-gcc
+	make install-target-libgcc
 }
 
 build_grub () {
@@ -127,7 +137,7 @@ build_grub () {
 		--with-platform="efi" \
 		--disable-werror
 	
-	make
+	make $MAKE_JOBS
 	make install
 }
 
@@ -138,38 +148,29 @@ build_libstdcpp () {
 	fi
 
 	cd $BANAN_BUILD_DIR/toolchain/$GCC_VERSION/build
-	make all-target-libstdc++-v3
+	make $MAKE_JOBS all-target-libstdc++-v3 CFLAGS_FOR_TARGET='-g -O2 -mcmodel=large -mno-red-zone'
 	make install-target-libstdc++-v3
 }
 
-if [[ $# -ge 1 ]]; then
-	if [[ "$1" == "libstdc++" ]]; then
-		build_libstdcpp
-		exit 0
-	fi
-
-	echo "unrecognized arguments $@"
-	exit 1
-fi
+# delete everything but toolchain
+find $BANAN_BUILD_DIR -mindepth 1 -maxdepth 1 ! -name toolchain -exec rm -r {} +
 
 # NOTE: we have to manually create initial sysroot with libc headers
 #       since cmake cannot be invoked yet
 echo "Creating dummy sysroot"
-rm -rf $BANAN_SYSROOT
 mkdir -p $BANAN_SYSROOT/usr
 cp -r $BANAN_ROOT_DIR/libc/include $BANAN_SYSROOT/usr/include
 
-
 # Cleanup all old files from toolchain prefix
 rm -rf $BANAN_TOOLCHAIN_PREFIX
-
-if [[ -z ${MAKEFLAGS:x} ]]; then
-	export MAKEFLAGS="-j$(nproc)"
-fi
 
 mkdir -p $BANAN_BUILD_DIR/toolchain
 build_binutils
 build_gcc
 build_grub
 
-rm -rf $BANAN_SYSROOT
+# delete sysroot and install libc
+rm -r $BANAN_SYSROOT
+$BANAN_SCRIPT_DIR/build.sh libc-install
+
+build_libstdcpp

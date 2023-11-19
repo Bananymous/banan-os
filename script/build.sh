@@ -39,8 +39,6 @@ build_toolchain () {
 	fi
 	
 	$BANAN_TOOLCHAIN_DIR/build.sh
-	build_target libc-install
-	$BANAN_TOOLCHAIN_DIR/build.sh libstdc++
 }
 
 create_image () {
