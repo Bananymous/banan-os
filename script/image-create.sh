@@ -26,7 +26,7 @@ if [[ -z $BANAN_ARCH ]]; then
 fi
 
 DISK_SIZE=$[50 * 1024 * 1024]
-MOUNT_DIR=/mnt
+MOUNT_DIR="${MOUNT_DIR:-/bananmnt}"
 
 truncate -s 0 "$BANAN_DISK_IMAGE_PATH"
 truncate -s $DISK_SIZE "$BANAN_DISK_IMAGE_PATH"
@@ -79,6 +79,8 @@ PARTITION2=${LOOP_DEV}p2
 
 sudo mkfs.ext2 -b 1024 -q $PARTITION2
 
+sudo mkdir -p $MOUNT_DIR || { echo "Failed to create banan mount dir."; exit 1; }
+
 if [[ "$BANAN_BOOTLOADER" == "GRUB" ]]; then
 	if [[ "$BANAN_UEFI_BOOT" == "1" ]]; then
 		sudo mkfs.fat $PARTITION1 > /dev/null
@@ -100,7 +102,9 @@ if [[ "$BANAN_BOOTLOADER" == "GRUB" ]]; then
 	fi
 fi
 
-sudo losetup -d $LOOP_DEV
+sudo losetup -d $LOOP_DEV || { echo "Failed to remove loop device for banan mount."; exit 1; }
+
+sudo rm -rf $MOUNT_DIR || { echo "Failed to remove banan mount dir."; exit 1; }
 
 if [[ "$BANAN_BOOTLOADER" == "GRUB" ]]; then
 	echo > /dev/null
