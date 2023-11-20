@@ -59,6 +59,11 @@ namespace Kernel
 		return m_timer->ms_since_boot();
 	}
 
+	uint64_t SystemTimer::ns_since_boot() const
+	{
+		return m_timer->ns_since_boot();
+	}
+
 	timespec SystemTimer::time_since_boot() const
 	{
 		return m_timer->time_since_boot();

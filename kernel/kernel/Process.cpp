@@ -1,19 +1,28 @@
 #include <BAN/ScopeGuard.h>
 #include <BAN/StringView.h>
 #include <kernel/CriticalScope.h>
+#include <kernel/FS/DevFS/FileSystem.h>
+#include <kernel/FS/ProcFS/FileSystem.h>
 #include <kernel/FS/VirtualFileSystem.h>
+#include <kernel/IDT.h>
 #include <kernel/InterruptController.h>
 #include <kernel/LockGuard.h>
+#include <kernel/Memory/FileBackedRegion.h>
 #include <kernel/Memory/Heap.h>
+#include <kernel/Memory/MemoryBackedRegion.h>
 #include <kernel/Memory/PageTableScope.h>
 #include <kernel/Process.h>
 #include <kernel/Scheduler.h>
+#include <kernel/Storage/StorageDevice.h>
 #include <kernel/Timer/Timer.h>
-#include <LibELF/ELF.h>
-#include <LibELF/Values.h>
+
+#include <LibELF/LoadableELF.h>
+
+#include <lai/helpers/pm.h>
 
 #include <fcntl.h>
 #include <stdio.h>
+#include <sys/banan-os.h>
 #include <sys/sysmacros.h>
 #include <sys/wait.h>
 
@@ -73,16 +82,25 @@ namespace Kernel
 		auto* process = new Process(credentials, pid, parent, sid, pgrp);
 		ASSERT(process);
 
+		MUST(ProcFileSystem::get().on_process_create(*process));
+
 		return process;
 	}
 
-	void Process::register_process(Process* process)
+	void Process::register_to_scheduler()
 	{
 		s_process_lock.lock();
-		MUST(s_processes.push_back(process));
+		MUST(s_processes.push_back(this));
 		s_process_lock.unlock();
-		for (auto* thread : process->m_threads)
+		for (auto* thread : m_threads)
 			MUST(Scheduler::get().add_thread(thread));
+	}
+
+	Process* Process::create_kernel()
+	{
+		auto* process = create_process({ 0, 0, 0, 0 }, 0);
+		MUST(process->m_working_directory.push_back('/'));
+		return process;
 	}
 
 	Process* Process::create_kernel(entry_t entry, void* data)
@@ -91,52 +109,64 @@ namespace Kernel
 		MUST(process->m_working_directory.push_back('/'));
 		auto* thread = MUST(Thread::create_kernel(entry, data, process));
 		process->add_thread(thread);
-		register_process(process);
+		process->register_to_scheduler();
 		return process;
 	}
 
 	BAN::ErrorOr<Process*> Process::create_userspace(const Credentials& credentials, BAN::StringView path)
 	{
-		auto elf = TRY(load_elf_for_exec(credentials, path, "/"sv, {}));
-
 		auto* process = create_process(credentials, 0);
 		MUST(process->m_working_directory.push_back('/'));
-		process->m_page_table = BAN::UniqPtr<PageTable>::adopt(MUST(PageTable::create_userspace()));;
+		process->m_page_table = BAN::UniqPtr<PageTable>::adopt(MUST(PageTable::create_userspace()));
 
-		process->load_elf_to_memory(*elf);
+		TRY(process->m_cmdline.push_back({}));
+		TRY(process->m_cmdline.back().append(path));
+
+		process->m_loadable_elf = TRY(load_elf_for_exec(credentials, path, "/"sv, process->page_table()));
+		if (!process->m_loadable_elf->is_address_space_free())
+		{
+			dprintln("Could not load ELF address space");
+			return BAN::Error::from_errno(ENOEXEC);
+		}
+		process->m_loadable_elf->reserve_address_space();
 
 		process->m_is_userspace = true;
-		process->m_userspace_info.entry = elf->file_header_native().e_entry;
-
-		// NOTE: we clear the elf since we don't need the memory anymore
-		elf.clear();
+		process->m_userspace_info.entry = process->m_loadable_elf->entry_point();
 
 		char** argv = nullptr;
-		char** envp = nullptr;
 		{
 			PageTableScope _(process->page_table());
 
-			argv = (char**)MUST(process->sys_alloc(sizeof(char**) * 2));
-			argv[0] = (char*)MUST(process->sys_alloc(path.size() + 1));
-			memcpy(argv[0], path.data(), path.size());
-			argv[0][path.size()] = '\0';
-			argv[1] = nullptr;
+			size_t needed_bytes = sizeof(char*) * 2 + path.size() + 1;
+			if (auto rem = needed_bytes % PAGE_SIZE)
+				needed_bytes += PAGE_SIZE - rem;
 
-			BAN::StringView env1 = "PATH=/bin:/usr/bin"sv;
-			envp = (char**)MUST(process->sys_alloc(sizeof(char**) * 2));
-			envp[0] = (char*)MUST(process->sys_alloc(env1.size() + 1));
-			memcpy(envp[0], env1.data(), env1.size());
-			envp[0][env1.size()] = '\0';
-			envp[1] = nullptr;
+			auto argv_region = MUST(MemoryBackedRegion::create(
+				process->page_table(),
+				needed_bytes,
+				{ .start = 0x400000, .end = KERNEL_OFFSET },
+				MemoryRegion::Type::PRIVATE,
+				PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present
+			));
+
+			uintptr_t temp = argv_region->vaddr() + sizeof(char*) * 2;
+			MUST(argv_region->copy_data_to_region(0, (const uint8_t*)&temp, sizeof(char*)));
+
+			temp = 0;
+			MUST(argv_region->copy_data_to_region(sizeof(char*), (const uint8_t*)&temp, sizeof(char*)));
+
+			MUST(argv_region->copy_data_to_region(sizeof(char*) * 2, (const uint8_t*)path.data(), path.size()));
+
+			MUST(process->m_mapped_regions.push_back(BAN::move(argv_region)));
 		}
 
 		process->m_userspace_info.argc = 1;
 		process->m_userspace_info.argv = argv;
-		process->m_userspace_info.envp = envp;
+		process->m_userspace_info.envp = nullptr;
 
 		auto* thread = MUST(Thread::create_userspace(process));
 		process->add_thread(thread);
-		register_process(process);
+		process->register_to_scheduler();
 		return process;
 	}
 
@@ -155,9 +185,8 @@ namespace Kernel
 	Process::~Process()
 	{
 		ASSERT(m_threads.empty());
-		ASSERT(m_fixed_width_allocators.empty());
-		ASSERT(!m_general_allocator);
-		ASSERT(m_mapped_ranges.empty());
+		ASSERT(m_mapped_regions.empty());
+		ASSERT(!m_loadable_elf);
 		ASSERT(m_exit_status.waiting == 0);
 		ASSERT(&PageTable::current() != m_page_table.ptr());
 	}
@@ -176,6 +205,8 @@ namespace Kernel
 				s_processes.remove(i);
 		s_process_lock.unlock();
 
+		ProcFileSystem::get().on_process_delete(*this);
+
 		m_lock.lock();
 		m_exit_status.exited = true;
 		while (m_exit_status.waiting > 0)
@@ -190,11 +221,8 @@ namespace Kernel
 		m_open_file_descriptors.close_all();
 
 		// NOTE: We must unmap ranges while the page table is still alive
-		m_mapped_ranges.clear();
-
-		// NOTE: We must clear allocators while the page table is still alive
-		m_fixed_width_allocators.clear();
-		m_general_allocator.clear();
+		m_mapped_regions.clear();
+		m_loadable_elf.clear();
 	}
 
 	void Process::on_thread_exit(Thread& thread)
@@ -232,6 +260,77 @@ namespace Kernel
 			thread->set_terminating();
 	}
 
+	size_t Process::proc_meminfo(off_t offset, BAN::ByteSpan buffer) const
+	{
+		ASSERT(offset >= 0);
+		if ((size_t)offset >= sizeof(proc_meminfo_t))
+			return 0;
+
+		proc_meminfo_t meminfo;
+		meminfo.page_size = PAGE_SIZE;
+		meminfo.virt_pages = 0;
+		meminfo.phys_pages = 0;
+
+		{
+			LockGuard _(m_lock);
+			for (auto* thread : m_threads)
+			{
+				meminfo.virt_pages += thread->virtual_page_count();
+				meminfo.phys_pages += thread->physical_page_count();
+			}
+			for (auto& region : m_mapped_regions)
+			{
+				meminfo.virt_pages += region->virtual_page_count();
+				meminfo.phys_pages += region->physical_page_count();
+			}
+			if (m_loadable_elf)
+			{
+				meminfo.virt_pages += m_loadable_elf->virtual_page_count();
+				meminfo.phys_pages += m_loadable_elf->physical_page_count();
+			}
+		}
+
+		size_t bytes = BAN::Math::min<size_t>(sizeof(proc_meminfo_t) - offset, buffer.size());
+		memcpy(buffer.data(), (uint8_t*)&meminfo + offset, bytes);
+		return bytes;
+	}
+
+	static size_t read_from_vec_of_str(const BAN::Vector<BAN::String>& container, size_t start, BAN::ByteSpan buffer)
+	{
+		size_t offset = 0;
+		size_t written = 0;
+		for (const auto& elem : container)
+		{
+			if (start < offset + elem.size() + 1)
+			{
+				size_t elem_offset = 0;
+				if (offset < start)
+					elem_offset = start - offset;
+
+				size_t bytes = BAN::Math::min<size_t>(elem.size() + 1 - elem_offset, buffer.size() - written);
+				memcpy(buffer.data() + written, elem.data() + elem_offset, bytes);
+
+				written += bytes;
+				if (written >= buffer.size())
+					break;
+			}
+			offset += elem.size() + 1;
+		}
+		return written;
+	}
+
+	size_t Process::proc_cmdline(off_t offset, BAN::ByteSpan buffer) const
+	{
+		LockGuard _(m_lock);
+		return read_from_vec_of_str(m_cmdline, offset, buffer);
+	}
+
+	size_t Process::proc_environ(off_t offset, BAN::ByteSpan buffer) const
+	{
+		LockGuard _(m_lock);
+		return read_from_vec_of_str(m_environ, offset, buffer);
+	}
+
 	BAN::ErrorOr<long> Process::sys_exit(int status)
 	{
 		exit(status, 0);
@@ -242,6 +341,8 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_gettermios(::termios* termios)
 	{
 		LockGuard _(m_lock);
+
+		validate_pointer_access(termios, sizeof(::termios));
 
 		if (!m_controlling_terminal)
 			return BAN::Error::from_errno(ENOTTY);
@@ -260,6 +361,8 @@ namespace Kernel
 	{
 		LockGuard _(m_lock);
 
+		validate_pointer_access(termios, sizeof(::termios));
+
 		if (!m_controlling_terminal)
 			return BAN::Error::from_errno(ENOTTY);
 		
@@ -271,7 +374,7 @@ namespace Kernel
 		return 0;
 	}
 
-	BAN::ErrorOr<BAN::UniqPtr<LibELF::ELF>> Process::load_elf_for_exec(const Credentials& credentials, BAN::StringView file_path, const BAN::String& cwd, const BAN::Vector<BAN::StringView>& path_env)
+	BAN::ErrorOr<BAN::UniqPtr<LibELF::LoadableELF>> Process::load_elf_for_exec(const Credentials& credentials, BAN::StringView file_path, const BAN::String& cwd, PageTable& page_table)
 	{
 		if (file_path.empty())
 			return BAN::Error::from_errno(ENOENT);
@@ -279,69 +382,16 @@ namespace Kernel
 		BAN::String absolute_path;
 
 		if (file_path.front() == '/')
-		{
-			// We have an absolute path
 			TRY(absolute_path.append(file_path));
-		}
-		else if (file_path.front() == '.' || file_path.contains('/'))
+		else
 		{
-			// We have a relative path
 			TRY(absolute_path.append(cwd));
 			TRY(absolute_path.push_back('/'));
 			TRY(absolute_path.append(file_path));
 		}
-		else
-		{
-			// We have neither relative or absolute path,
-			// search from PATH environment
-			for (auto path_part : path_env)
-			{
-				if (path_part.empty())
-					continue;
-
-				if (path_part.front() != '/')
-				{
-					TRY(absolute_path.append(cwd));
-					TRY(absolute_path.push_back('/'));
-				}
-				TRY(absolute_path.append(path_part));
-				TRY(absolute_path.push_back('/'));
-				TRY(absolute_path.append(file_path));
-
-				if (!VirtualFileSystem::get().file_from_absolute_path(credentials, absolute_path, O_EXEC).is_error())
-					break;
-
-				absolute_path.clear();
-			}
-
-			if (absolute_path.empty())
-				return BAN::Error::from_errno(ENOENT);
-		}
 
 		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(credentials, absolute_path, O_EXEC));
-
-		auto elf_or_error = LibELF::ELF::load_from_file(file.inode);
-		if (elf_or_error.is_error())
-		{
-			if (elf_or_error.error().get_error_code() == EINVAL)
-				return BAN::Error::from_errno(ENOEXEC);
-			return elf_or_error.error();
-		}
-		
-		auto elf = elf_or_error.release_value();
-		if (!elf->is_native())
-		{
-			derrorln("ELF has invalid architecture");
-			return BAN::Error::from_errno(EINVAL);
-		}
-
-		if (elf->file_header_native().e_type != LibELF::ET_EXEC)
-		{
-			derrorln("Not an executable");
-			return BAN::Error::from_errno(ENOEXEC);
-		}
-
-		return BAN::move(elf);
+		return TRY(LibELF::LoadableELF::load_from_inode(page_table, file.inode));
 	}
 
 	BAN::ErrorOr<long> Process::sys_fork(uintptr_t rsp, uintptr_t rip)
@@ -356,29 +406,20 @@ namespace Kernel
 		OpenFileDescriptorSet open_file_descriptors(m_credentials);
 		TRY(open_file_descriptors.clone_from(m_open_file_descriptors));
 
-		BAN::Vector<BAN::UniqPtr<VirtualRange>> mapped_ranges;
-		TRY(mapped_ranges.reserve(m_mapped_ranges.size()));
-		for (auto& mapped_range : m_mapped_ranges)
-			MUST(mapped_ranges.push_back(TRY(mapped_range->clone(*page_table))));
+		BAN::Vector<BAN::UniqPtr<MemoryRegion>> mapped_regions;
+		TRY(mapped_regions.reserve(m_mapped_regions.size()));
+		for (auto& mapped_region : m_mapped_regions)
+			MUST(mapped_regions.push_back(TRY(mapped_region->clone(*page_table))));
 
-		BAN::Vector<BAN::UniqPtr<FixedWidthAllocator>> fixed_width_allocators;
-		TRY(fixed_width_allocators.reserve(m_fixed_width_allocators.size()));
-		for (auto& allocator : m_fixed_width_allocators)
-			if (allocator->allocations() > 0)
-				MUST(fixed_width_allocators.push_back(TRY(allocator->clone(*page_table))));
-
-		BAN::UniqPtr<GeneralAllocator> general_allocator;
-		if (m_general_allocator)
-			general_allocator = TRY(m_general_allocator->clone(*page_table));
+		auto loadable_elf = TRY(m_loadable_elf->clone(*page_table));
 
 		Process* forked = create_process(m_credentials, m_pid, m_sid, m_pgrp);
 		forked->m_controlling_terminal = m_controlling_terminal;
 		forked->m_working_directory = BAN::move(working_directory);
 		forked->m_page_table = BAN::move(page_table);
 		forked->m_open_file_descriptors = BAN::move(open_file_descriptors);
-		forked->m_mapped_ranges = BAN::move(mapped_ranges);
-		forked->m_fixed_width_allocators = BAN::move(fixed_width_allocators);
-		forked->m_general_allocator = BAN::move(general_allocator);
+		forked->m_mapped_regions = BAN::move(mapped_regions);
+		forked->m_loadable_elf = BAN::move(loadable_elf);
 		forked->m_is_userspace = m_is_userspace;
 		forked->m_userspace_info = m_userspace_info;
 		forked->m_has_called_exec = false;
@@ -388,8 +429,7 @@ namespace Kernel
 		// FIXME: this should be able to fail
 		Thread* thread = MUST(Thread::current().clone(forked, rsp, rip));
 		forked->add_thread(thread);
-		
-		register_process(forked);
+		forked->register_to_scheduler();
 
 		return forked->pid();
 	}
@@ -398,76 +438,98 @@ namespace Kernel
 	{
 		// NOTE: We scope everything for automatic deletion
 		{
+			LockGuard _(m_lock);
+
 			BAN::Vector<BAN::String> str_argv;
 			for (int i = 0; argv && argv[i]; i++)
+			{
+				validate_pointer_access(argv + i, sizeof(char*));
+				validate_string_access(argv[i]);
 				TRY(str_argv.emplace_back(argv[i]));
+			}
 
-			BAN::Vector<BAN::StringView> path_env;
 			BAN::Vector<BAN::String> str_envp;
 			for (int i = 0; envp && envp[i]; i++)
 			{
+				validate_pointer_access(envp + 1, sizeof(char*));
+				validate_string_access(envp[i]);
 				TRY(str_envp.emplace_back(envp[i]));
-				if (strncmp(envp[i], "PATH=", 5) == 0)
-					path_env = TRY(BAN::StringView(envp[i]).substring(5).split(':'));
 			}
 
-			BAN::String working_directory;
-
-			{
-				LockGuard _(m_lock);
-				TRY(working_directory.append(m_working_directory));
-			}
-
-			auto elf = TRY(load_elf_for_exec(m_credentials, path, working_directory, path_env));
-
-			LockGuard lock_guard(m_lock);
+			BAN::String executable_path;
+			TRY(executable_path.append(path));
 
 			m_open_file_descriptors.close_cloexec();
 
-			m_fixed_width_allocators.clear();
-			m_general_allocator.clear();
-			m_mapped_ranges.clear();
+			m_mapped_regions.clear();
+			m_loadable_elf.clear();
 
-			load_elf_to_memory(*elf);
-
-			m_userspace_info.entry = elf->file_header_native().e_entry;
+			m_loadable_elf = TRY(load_elf_for_exec(m_credentials, executable_path, m_working_directory, page_table()));
+			if (!m_loadable_elf->is_address_space_free())
+			{
+				dprintln("ELF has unloadable address space");
+				MUST(sys_raise(SIGKILL));
+			}
+			m_loadable_elf->reserve_address_space();
+			m_userspace_info.entry = m_loadable_elf->entry_point();
 
 			for (size_t i = 0; i < sizeof(m_signal_handlers) / sizeof(*m_signal_handlers); i++)
 				m_signal_handlers[i] = (vaddr_t)SIG_DFL;
-
-			// NOTE: we clear the elf since we don't need the memory anymore
-			elf.clear();
 
 			ASSERT(m_threads.size() == 1);
 			ASSERT(&Process::current() == this);
 
 			// allocate memory on the new process for arguments and environment
-			{
-				LockGuard _(page_table());
-
-				m_userspace_info.argv = (char**)MUST(sys_alloc(sizeof(char**) * (str_argv.size() + 1)));
-				for (size_t i = 0; i < str_argv.size(); i++)
+			auto create_region =
+				[&](BAN::Span<BAN::String> container) -> BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>>
 				{
-					m_userspace_info.argv[i] = (char*)MUST(sys_alloc(str_argv[i].size() + 1));
-					memcpy(m_userspace_info.argv[i], str_argv[i].data(), str_argv[i].size());
-					m_userspace_info.argv[i][str_argv[i].size()] = '\0';
-				}
-				m_userspace_info.argv[str_argv.size()] = nullptr;
+					size_t bytes = sizeof(char*);
+					for (auto& elem : container)
+						bytes += sizeof(char*) + elem.size() + 1;
 
-				m_userspace_info.envp = (char**)MUST(sys_alloc(sizeof(char**) * (str_envp.size() + 1)));
-				for (size_t i = 0; i < str_envp.size(); i++)
-				{
-					m_userspace_info.envp[i] = (char*)MUST(sys_alloc(str_envp[i].size() + 1));
-					memcpy(m_userspace_info.envp[i], str_envp[i].data(), str_envp[i].size());
-					m_userspace_info.envp[i][str_envp[i].size()] = '\0';
-				}
-				m_userspace_info.envp[str_envp.size()] = nullptr;
-			}
+					if (auto rem = bytes % PAGE_SIZE)
+						bytes += PAGE_SIZE - rem;
 
+					auto region = TRY(MemoryBackedRegion::create(
+						page_table(),
+						bytes,
+						{ .start = 0x400000, .end = KERNEL_OFFSET },
+						MemoryRegion::Type::PRIVATE,
+						PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present
+					));
+
+					size_t data_offset = sizeof(char*) * (container.size() + 1);
+					for (size_t i = 0; i < container.size(); i++)
+					{
+						uintptr_t ptr_addr = region->vaddr() + data_offset;
+						TRY(region->copy_data_to_region(sizeof(char*) * i, (const uint8_t*)&ptr_addr, sizeof(char*)));
+						TRY(region->copy_data_to_region(data_offset, (const uint8_t*)container[i].data(), container[i].size()));
+						data_offset += container[i].size() + 1;
+					}
+
+					uintptr_t null = 0;
+					TRY(region->copy_data_to_region(sizeof(char*) * container.size(), (const uint8_t*)&null, sizeof(char*)));
+
+					return BAN::UniqPtr<MemoryRegion>(BAN::move(region));
+				};
+
+			auto argv_region = MUST(create_region(str_argv.span()));
+			m_userspace_info.argv = (char**)argv_region->vaddr();
+			MUST(m_mapped_regions.push_back(BAN::move(argv_region)));
+
+			auto envp_region = MUST(create_region(str_envp.span()));
+			m_userspace_info.envp = (char**)envp_region->vaddr();
+			MUST(m_mapped_regions.push_back(BAN::move(envp_region)));
+			
 			m_userspace_info.argc = str_argv.size();
+
+			m_cmdline = BAN::move(str_argv);
+			m_environ = BAN::move(str_envp);
 
 			asm volatile("cli");
 		}
+
+		m_has_called_exec = true;
 
 		m_threads.front()->setup_exec();
 		Scheduler::get().execute_current_thread();
@@ -498,6 +560,11 @@ namespace Kernel
 	{
 		Process* target = nullptr;
 
+		{
+			LockGuard _(m_lock);
+			validate_pointer_access(stat_loc, sizeof(int));
+		}
+
 		// FIXME: support options
 		if (options)
 			return BAN::Error::from_errno(EINVAL);
@@ -518,7 +585,10 @@ namespace Kernel
 			return BAN::Error::from_errno(ECHILD);
 
 		pid_t ret = target->pid();
-		*stat_loc = target->block_until_exit();
+
+		int stat = target->block_until_exit();
+		if (stat_loc)
+			*stat_loc = stat;
 
 		return ret;
 	}
@@ -531,75 +601,27 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_nanosleep(const timespec* rqtp, timespec* rmtp)
 	{
-		(void)rmtp;
+		{
+			LockGuard _(m_lock);
+			validate_pointer_access(rqtp, sizeof(timespec));
+			validate_pointer_access(rmtp, sizeof(timespec));
+		}
+		// TODO: rmtp
 		SystemTimer::get().sleep(rqtp->tv_sec * 1000 + BAN::Math::div_round_up<uint64_t>(rqtp->tv_nsec, 1'000'000));
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_setenvp(char** envp)
+	BAN::ErrorOr<void> Process::create_file_or_dir(BAN::StringView path, mode_t mode)
 	{
-		LockGuard _(m_lock);
-		m_userspace_info.envp = envp;
-		return 0;
-	}
-
-	void Process::load_elf_to_memory(LibELF::ELF& elf)
-	{
-		ASSERT(elf.is_native());
-
-		auto& elf_file_header = elf.file_header_native();
-		for (size_t i = 0; i < elf_file_header.e_phnum; i++)
+		switch (mode & Inode::Mode::TYPE_MASK)
 		{
-			auto& elf_program_header = elf.program_header_native(i);
-
-			switch (elf_program_header.p_type)
-			{
-			case LibELF::PT_NULL:
-				break;
-			case LibELF::PT_LOAD:
-			{
-				PageTable::flags_t flags = PageTable::Flags::UserSupervisor | PageTable::Flags::Present;
-				if (elf_program_header.p_flags & LibELF::PF_W)
-					flags |= PageTable::Flags::ReadWrite;
-				if (elf_program_header.p_flags & LibELF::PF_X)
-					flags |= PageTable::Flags::Execute;
-
-				size_t page_start = elf_program_header.p_vaddr / PAGE_SIZE;
-				size_t page_end = BAN::Math::div_round_up<size_t>(elf_program_header.p_vaddr + elf_program_header.p_memsz, PAGE_SIZE);
-				size_t page_count = page_end - page_start;
-
-				page_table().lock();
-
-				if (!page_table().is_range_free(page_start * PAGE_SIZE, page_count * PAGE_SIZE))
-				{
-					page_table().debug_dump();
-					Kernel::panic("vaddr {8H}-{8H} not free {8H}-{8H}",
-						page_start * PAGE_SIZE,
-						page_start * PAGE_SIZE + page_count * PAGE_SIZE
-					);
-				}
-
-				{
-					LockGuard _(m_lock);
-					MUST(m_mapped_ranges.push_back(MUST(VirtualRange::create_to_vaddr(page_table(), page_start * PAGE_SIZE, page_count * PAGE_SIZE, flags))));
-					m_mapped_ranges.back()->set_zero();
-					m_mapped_ranges.back()->copy_from(elf_program_header.p_vaddr % PAGE_SIZE, elf.data() + elf_program_header.p_offset, elf_program_header.p_filesz);
-				}
-
-				page_table().unlock();
-
-				break;
-			}
+			case Inode::Mode::IFREG: break;
+			case Inode::Mode::IFDIR: break;
+			case Inode::Mode::IFIFO: break;
 			default:
-				ASSERT_NOT_REACHED();
-			}
+				return BAN::Error::from_errno(EINVAL);
 		}
 
-		m_has_called_exec = true;
-	}
-
-	BAN::ErrorOr<void> Process::create_file(BAN::StringView path, mode_t mode)
-	{
 		LockGuard _(m_lock);
 
 		auto absolute_path = TRY(absolute_path_of(path));
@@ -612,15 +634,47 @@ namespace Kernel
 		auto directory = absolute_path.sv().substring(0, index);
 		auto file_name = absolute_path.sv().substring(index);
 
-		auto parent_inode = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, directory, O_WRONLY)).inode;
-		TRY(parent_inode->create_file(file_name, S_IFREG | (mode & 0777), m_credentials.euid(), m_credentials.egid()));
+		auto parent_inode = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, directory, O_EXEC | O_WRONLY)).inode;
+
+		if (Inode::Mode(mode).ifdir())
+			TRY(parent_inode->create_directory(file_name, mode, m_credentials.euid(), m_credentials.egid()));
+		else
+			TRY(parent_inode->create_file(file_name, mode, m_credentials.euid(), m_credentials.egid()));
 
 		return {};
 	}
 
-	BAN::ErrorOr<long> Process::sys_open(BAN::StringView path, int flags, mode_t mode)
+	BAN::ErrorOr<bool> Process::allocate_page_for_demand_paging(vaddr_t address)
 	{
+		ASSERT(&Process::current() == this);
+
 		LockGuard _(m_lock);
+
+		if (Thread::current().stack().contains(address))
+		{
+			TRY(Thread::current().stack().allocate_page_for_demand_paging(address));
+			return true;
+		}
+
+		for (auto& region : m_mapped_regions)
+		{
+			if (!region->contains(address))
+				continue;
+			TRY(region->allocate_page_containing(address));
+			return true;
+		}
+
+		if (m_loadable_elf && m_loadable_elf->contains(address))
+		{
+			TRY(m_loadable_elf->load_page_to_memory(address));
+			return true;
+		}
+
+		return false;
+	}
+
+	BAN::ErrorOr<long> Process::open_file(BAN::StringView path, int flags, mode_t mode)
+	{
 		BAN::String absolute_path = TRY(absolute_path_of(path));
 
 		if (flags & O_CREAT)
@@ -631,7 +685,7 @@ namespace Kernel
 			if (file_or_error.is_error())
 			{
 				if (file_or_error.error().get_error_code() == ENOENT)
-					TRY(create_file(path, mode));
+					TRY(create_file_or_dir(path, Inode::Mode::IFREG | mode));
 				else
 					return file_or_error.release_error();
 			}
@@ -648,9 +702,18 @@ namespace Kernel
 		return fd;
 	}
 
-	BAN::ErrorOr<long> Process::sys_openat(int fd, BAN::StringView path, int flags, mode_t mode)
+	BAN::ErrorOr<long> Process::sys_open(const char* path, int flags, mode_t mode)
 	{
 		LockGuard _(m_lock);
+		validate_string_access(path);
+		return open_file(path, flags, mode);
+	}
+
+	BAN::ErrorOr<long> Process::sys_openat(int fd, const char* path, int flags, mode_t mode)
+	{
+		LockGuard _(m_lock);
+
+		validate_string_access(path);
 
 		// FIXME: handle O_SEARCH in fd
 
@@ -659,7 +722,7 @@ namespace Kernel
 		TRY(absolute_path.push_back('/'));
 		TRY(absolute_path.append(path));
 
-		return sys_open(absolute_path, flags, mode);
+		return open_file(absolute_path, flags, mode);
 	}
 
 	BAN::ErrorOr<long> Process::sys_close(int fd)
@@ -672,18 +735,113 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_read(int fd, void* buffer, size_t count)
 	{
 		LockGuard _(m_lock);
-		return TRY(m_open_file_descriptors.read(fd, buffer, count));
+		validate_pointer_access(buffer, count);
+		return TRY(m_open_file_descriptors.read(fd, BAN::ByteSpan((uint8_t*)buffer, count)));
 	}
 
 	BAN::ErrorOr<long> Process::sys_write(int fd, const void* buffer, size_t count)
 	{
 		LockGuard _(m_lock);
-		return TRY(m_open_file_descriptors.write(fd, buffer, count));
+		validate_pointer_access(buffer, count);
+		return TRY(m_open_file_descriptors.write(fd, BAN::ByteSpan((uint8_t*)buffer, count)));
+	}
+
+	BAN::ErrorOr<long> Process::sys_create(const char* path, mode_t mode)
+	{
+		LockGuard _(m_lock);
+		validate_string_access(path);
+		TRY(create_file_or_dir(path, mode));
+		return 0;
+	}
+
+	BAN::ErrorOr<long> Process::sys_create_dir(const char* path, mode_t mode)
+	{
+		LockGuard _(m_lock);
+		validate_string_access(path);
+		TRY(create_file_or_dir(path, Inode::Mode::IFDIR | mode));
+		return 0;
+	}
+
+	BAN::ErrorOr<long> Process::sys_unlink(const char* path)
+	{
+		LockGuard _(m_lock);
+		validate_string_access(path);
+		
+		auto absolute_path = TRY(absolute_path_of(path));
+
+		size_t index = absolute_path.size();
+		for (; index > 0; index--)
+			if (absolute_path[index - 1] == '/')
+				break;
+		auto directory = absolute_path.sv().substring(0, index);
+		auto file_name = absolute_path.sv().substring(index);
+
+		auto parent = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, directory, O_EXEC | O_WRONLY)).inode;
+		TRY(parent->unlink(file_name));
+
+		return 0;
+	}
+
+	BAN::ErrorOr<long> Process::readlink_impl(BAN::StringView absolute_path, char* buffer, size_t bufsize)
+	{
+		auto inode = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, O_NOFOLLOW | O_RDONLY)).inode;
+		
+		// FIXME: no allocation needed
+		auto link_target = TRY(inode->link_target());
+
+		size_t byte_count = BAN::Math::min<size_t>(link_target.size(), bufsize);
+		memcpy(buffer, link_target.data(), byte_count);
+
+		return byte_count;
+	}
+
+	BAN::ErrorOr<long> Process::sys_readlink(const char* path, char* buffer, size_t bufsize)
+	{
+		LockGuard _(m_lock);
+		validate_string_access(path);
+		validate_pointer_access(buffer, bufsize);
+
+		auto absolute_path = TRY(absolute_path_of(path));
+
+		return readlink_impl(absolute_path.sv(), buffer, bufsize);
+	}
+
+	BAN::ErrorOr<long> Process::sys_readlinkat(int fd, const char* path, char* buffer, size_t bufsize)
+	{
+		LockGuard _(m_lock);
+		validate_string_access(path);
+		validate_pointer_access(buffer, bufsize);
+
+		// FIXME: handle O_SEARCH in fd
+		auto parent_path = TRY(m_open_file_descriptors.path_of(fd));
+
+		BAN::String absolute_path;
+		TRY(absolute_path.append(parent_path));
+		TRY(absolute_path.push_back('/'));
+		TRY(absolute_path.append(path));
+
+		return readlink_impl(absolute_path.sv(), buffer, bufsize);
+	}
+
+	BAN::ErrorOr<long> Process::sys_chmod(const char* path, mode_t mode)
+	{
+		if (mode & S_IFMASK)
+			return BAN::Error::from_errno(EINVAL);
+
+		LockGuard _(m_lock);
+		validate_string_access(path);
+
+		auto absolute_path = TRY(absolute_path_of(path));
+		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, O_WRONLY));
+		TRY(file.inode->chmod(mode));
+
+		return 0;
 	}
 
 	BAN::ErrorOr<long> Process::sys_pipe(int fildes[2])
 	{
 		LockGuard _(m_lock);
+		validate_pointer_access(fildes, sizeof(int) * 2);
 		TRY(m_open_file_descriptors.pipe(fildes));
 		return 0;
 	}
@@ -731,16 +889,18 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<long> Process::sys_fstat(int fd, struct stat* out)
+	BAN::ErrorOr<long> Process::sys_fstat(int fd, struct stat* buf)
 	{
 		LockGuard _(m_lock);
-		TRY(m_open_file_descriptors.fstat(fd, out));
+		validate_pointer_access(buf, sizeof(struct stat));
+		TRY(m_open_file_descriptors.fstat(fd, buf));
 		return 0;
 	}
 
 	BAN::ErrorOr<long> Process::sys_fstatat(int fd, const char* path, struct stat* buf, int flag)
 	{
 		LockGuard _(m_lock);
+		validate_pointer_access(buf, sizeof(struct stat));
 		TRY(m_open_file_descriptors.fstatat(fd, path, buf, flag));
 		return 0;
 	}
@@ -748,13 +908,60 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_stat(const char* path, struct stat* buf, int flag)
 	{
 		LockGuard _(m_lock);
+		validate_pointer_access(buf, sizeof(struct stat));
 		TRY(m_open_file_descriptors.stat(TRY(absolute_path_of(path)), buf, flag));
 		return 0;
+	}
+
+	BAN::ErrorOr<long> Process::sys_sync(bool should_block)
+	{
+		DevFileSystem::get().initiate_sync(should_block);
+		return 0;
+	}
+
+	[[noreturn]] static void reset_system()
+	{
+		lai_acpi_reset();
+
+		// acpi reset did not work
+
+		dwarnln("Could not reset with ACPI, crashing the cpu");
+
+		// reset through triple fault
+		IDT::force_triple_fault();
+	}
+
+	BAN::ErrorOr<long> Process::sys_poweroff(int command)
+	{
+		if (command != POWEROFF_REBOOT && command != POWEROFF_SHUTDOWN)
+			return BAN::Error::from_errno(EINVAL);
+
+		// FIXME: gracefully kill all processes
+
+		DevFileSystem::get().initiate_sync(true);
+		
+		lai_api_error_t error;
+		switch (command)
+		{
+			case POWEROFF_REBOOT:
+				reset_system();
+				break;
+			case POWEROFF_SHUTDOWN:
+				error = lai_enter_sleep(5);
+				break;
+			default:
+				ASSERT_NOT_REACHED();
+		}
+		
+		// If we reach here, there was an error
+		dprintln("{}", lai_api_error_to_string(error));
+		return BAN::Error::from_errno(EUNKNOWN);
 	}
 
 	BAN::ErrorOr<long> Process::sys_read_dir_entries(int fd, DirectoryEntryList* list, size_t list_size)
 	{
 		LockGuard _(m_lock);
+		validate_pointer_access(list, list_size);
 		TRY(m_open_file_descriptors.read_dir_entries(fd, list, list_size));
 		return 0;
 	}
@@ -765,6 +972,7 @@ namespace Kernel
 
 		{
 			LockGuard _(m_lock);
+			validate_string_access(path);
 			absolute_path = TRY(absolute_path_of(path));
 		}
 
@@ -782,6 +990,8 @@ namespace Kernel
 	{
 		LockGuard _(m_lock);
 
+		validate_pointer_access(buffer, size);
+
 		if (size < m_working_directory.size() + 1)
 			return BAN::Error::from_errno(ERANGE);
 		
@@ -791,95 +1001,121 @@ namespace Kernel
 		return (long)buffer;
 	}
 
-	static constexpr size_t allocator_size_for_allocation(size_t value)
+	BAN::ErrorOr<long> Process::sys_mmap(const sys_mmap_t* args)
 	{
-		if (value <= 256) {
-			if (value <= 64)
-				return 64;
-			else
-				return 256;
-		} else {
-			if (value <= 1024)
-				return 1024;
-			else
-				return 4096;
-		}
-	}
-
-	BAN::ErrorOr<long> Process::sys_alloc(size_t bytes)
-	{
-		vaddr_t address = 0;
-
-		if (bytes <= PAGE_SIZE)
 		{
-			// Do fixed width allocation
-			size_t allocation_size = allocator_size_for_allocation(bytes);
-			ASSERT(bytes <= allocation_size);
-			ASSERT(allocation_size <= PAGE_SIZE);
-
 			LockGuard _(m_lock);
-
-			bool needs_new_allocator { true };
-
-			for (auto& allocator : m_fixed_width_allocators)
-			{
-				if (allocator->allocation_size() == allocation_size && allocator->allocations() < allocator->max_allocations())
-				{
-					address = allocator->allocate();
-					needs_new_allocator = false;
-					break;
-				}
-			}
-
-			if (needs_new_allocator)
-			{
-				auto allocator = TRY(FixedWidthAllocator::create(page_table(), allocation_size));
-				TRY(m_fixed_width_allocators.push_back(BAN::move(allocator)));
-				address = m_fixed_width_allocators.back()->allocate();
-			}
+			validate_pointer_access(args, sizeof(sys_mmap_t));
 		}
+
+		if (args->prot != PROT_NONE && args->prot & ~(PROT_READ | PROT_WRITE | PROT_EXEC))
+			return BAN::Error::from_errno(EINVAL);
+
+		if (args->flags & MAP_FIXED)
+			return BAN::Error::from_errno(ENOTSUP);
+
+		if (!(args->flags & MAP_PRIVATE) == !(args->flags & MAP_SHARED))
+			return BAN::Error::from_errno(EINVAL);
+		auto region_type = (args->flags & MAP_PRIVATE) ? MemoryRegion::Type::PRIVATE : MemoryRegion::Type::SHARED;
+
+		PageTable::flags_t page_flags = 0;
+		if (args->prot & PROT_READ)
+			page_flags |= PageTable::Flags::Present;
+		if (args->prot & PROT_WRITE)
+			page_flags |= PageTable::Flags::ReadWrite | PageTable::Flags::Present;
+		if (args->prot & PROT_EXEC)
+			page_flags |= PageTable::Flags::Execute | PageTable::Flags::Present;
+
+		if (page_flags == 0)
+			page_flags = PageTable::Flags::Reserved;
 		else
+			page_flags |= PageTable::Flags::UserSupervisor;
+
+		if (args->flags & MAP_ANONYMOUS)
 		{
+			if (args->addr != nullptr)
+				return BAN::Error::from_errno(ENOTSUP);
+			if (args->off != 0)
+				return BAN::Error::from_errno(EINVAL);
+
+			auto region = TRY(MemoryBackedRegion::create(
+				page_table(),
+				args->len,
+				{ .start = 0x400000, .end = KERNEL_OFFSET },
+				region_type, page_flags
+			));
+
 			LockGuard _(m_lock);
-
-			if (!m_general_allocator)
-				m_general_allocator = TRY(GeneralAllocator::create(page_table(), 0x400000));
-
-			address = m_general_allocator->allocate(bytes);
+			TRY(m_mapped_regions.push_back(BAN::move(region)));
+			return m_mapped_regions.back()->vaddr();
 		}
 
-		if (address == 0)
-			return BAN::Error::from_errno(ENOMEM);
-		return address;
-	}
-
-	BAN::ErrorOr<long> Process::sys_free(void* ptr)
-	{
-		LockGuard _(m_lock);
-
-		for (size_t i = 0; i < m_fixed_width_allocators.size(); i++)
+		auto inode = TRY(m_open_file_descriptors.inode_of(args->fildes));
+		if (inode->mode().ifreg())
 		{
-			auto& allocator = m_fixed_width_allocators[i];
-			if (allocator->deallocate((vaddr_t)ptr))
-			{
-				// TODO: This might be too much. Maybe we should only
-				//       remove allocators when we have low memory... ?
-				if (allocator->allocations() == 0)
-					m_fixed_width_allocators.remove(i);
-				return 0;
-			}
+			if (args->addr != nullptr)
+				return BAN::Error::from_errno(ENOTSUP);
+
+			auto inode_flags = TRY(m_open_file_descriptors.flags_of(args->fildes));
+			if (!(inode_flags & O_RDONLY))
+				return BAN::Error::from_errno(EACCES);
+			if (region_type == MemoryRegion::Type::SHARED)
+				if ((args->prot & PROT_WRITE) && !(inode_flags & O_WRONLY))
+					return BAN::Error::from_errno(EACCES);
+			
+			auto region = TRY(FileBackedRegion::create(
+				inode,
+				page_table(),
+				args->off, args->len,
+				{ .start = 0x400000, .end = KERNEL_OFFSET },
+				region_type, page_flags
+			));
+
+			LockGuard _(m_lock);
+			TRY(m_mapped_regions.push_back(BAN::move(region)));
+			return m_mapped_regions.back()->vaddr();
 		}
 
-		if (m_general_allocator && m_general_allocator->deallocate((vaddr_t)ptr))
-			return 0;
-
-		dwarnln("free called on pointer that was not allocated");
-		return BAN::Error::from_errno(EINVAL);
+		return BAN::Error::from_errno(ENOTSUP);
 	}
 
-	BAN::ErrorOr<long> Process::sys_termid(char* buffer) const
+	BAN::ErrorOr<long> Process::sys_munmap(void* addr, size_t len)
+	{
+		if (len == 0)
+			return BAN::Error::from_errno(EINVAL);
+
+		vaddr_t vaddr = (vaddr_t)addr;
+		if (vaddr % PAGE_SIZE != 0)
+			return BAN::Error::from_errno(EINVAL);
+
+		LockGuard _(m_lock);
+
+		// FIXME: We should only map partial regions
+		for (size_t i = 0; i < m_mapped_regions.size(); i++)
+			if (m_mapped_regions[i]->overlaps(vaddr, len))
+				m_mapped_regions.remove(i);
+
+		return 0;
+	}
+
+	BAN::ErrorOr<long> Process::sys_tty_ctrl(int fildes, int command, int flags)
 	{
 		LockGuard _(m_lock);
+
+		auto inode = TRY(m_open_file_descriptors.inode_of(fildes));
+		if (!inode->is_tty())
+			return BAN::Error::from_errno(ENOTTY);
+		
+		TRY(((TTY*)inode.ptr())->tty_ctrl(command, flags));
+
+		return 0;
+	}
+
+	BAN::ErrorOr<long> Process::sys_termid(char* buffer)
+	{
+		LockGuard _(m_lock);
+
+		validate_string_access(buffer);
 
 		auto& tty = m_controlling_terminal;
 
@@ -895,8 +1131,13 @@ namespace Kernel
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_clock_gettime(clockid_t clock_id, timespec* tp) const
+	BAN::ErrorOr<long> Process::sys_clock_gettime(clockid_t clock_id, timespec* tp)
 	{
+		{
+			LockGuard _(m_lock);
+			validate_pointer_access(tp, sizeof(timespec));
+		}
+
 		switch (clock_id)
 		{
 			case CLOCK_MONOTONIC:
@@ -919,6 +1160,11 @@ namespace Kernel
 	{
 		if (signal < _SIGMIN || signal > _SIGMAX)
 			return BAN::Error::from_errno(EINVAL);
+
+		{
+			LockGuard _(m_lock);
+			validate_pointer_access((void*)handler, sizeof(handler));
+		}
 
 		CriticalScope _;
 		m_signal_handlers[signal] = (vaddr_t)handler;
@@ -1300,6 +1546,49 @@ namespace Kernel
 		TRY(absolute_path.append(path));
 		
 		return absolute_path;
+	}
+
+	void Process::validate_string_access(const char* str)
+	{
+		// NOTE: we will page fault here, if str is not actually mapped
+		//       outcome is still the same; SIGSEGV
+		validate_pointer_access(str, strlen(str) + 1);
+	}
+
+	void Process::validate_pointer_access(const void* ptr, size_t size)
+	{
+		ASSERT(&Process::current() == this);
+		auto& thread = Thread::current();
+
+		vaddr_t vaddr = (vaddr_t)ptr;
+
+		// NOTE: detect overflow
+		if (vaddr + size < vaddr)
+			goto unauthorized_access;
+
+		// trying to access kernel space memory
+		if (vaddr + size > KERNEL_OFFSET)
+			goto unauthorized_access;
+
+		if (vaddr == 0)
+			return;
+
+		if (vaddr >= thread.stack_base() && vaddr + size <= thread.stack_base() + thread.stack_size())
+			return;
+
+		// FIXME: should we allow cross mapping access?
+		for (auto& mapped_region : m_mapped_regions)
+			mapped_region->contains_fully(vaddr, size);
+				return;
+
+		// FIXME: elf should contain full range [vaddr, vaddr + size)
+		if (m_loadable_elf->contains(vaddr))
+			return;
+
+unauthorized_access:
+		dwarnln("process {}, thread {} attempted to make an invalid pointer access", pid(), Thread::current().tid());
+		Debug::dump_stack_trace();
+		MUST(sys_raise(SIGSEGV));
 	}
 
 }

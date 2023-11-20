@@ -2,89 +2,175 @@
 set -e
 
 BINUTILS_VERSION="binutils-2.39"
+BINUTILS_GIT="https://sourceware.org/git/binutils-gdb.git"
+BINUTILS_BRANCH="binutils-2_39"
+
 GCC_VERSION="gcc-12.2.0"
+GCC_GIT="https://gcc.gnu.org/git/gcc.git"
+GCC_BRANCH="releases/$GCC_VERSION"
 
-cd $(dirname "$0")
+GRUB_VERSION="grub-2.06"
 
-if [[ -n $LIBSTDCPP ]]; then
-	cd build/${GCC_VERSION}/
-	make -j $(nproc) all-target-libstdc++-v3
-	make install-target-libstdc++-v3
-	exit 0
-fi
-
-if [[ -z $SYSROOT ]]; then
-	echo "You must set the SYSROOT environment variable" >&2
+if [[ -z $BANAN_SYSROOT ]]; then
+	echo "You must set the BANAN_SYSROOT environment variable" >&2
 	exit 1
 fi
 
-if [[ -z $PREFIX ]]; then
-	echo "You must set the PREFIX environment variable" >&2
+if [[ -z $BANAN_ROOT_DIR ]]; then
+	echo "You must set the BANAN_ROOT_DIR environment variable" >&2
 	exit 1
 fi
 
-if [[ -z $ARCH ]]; then
-	echo  "You must set the ARCH environment variable" >&2
+if [[ -z $BANAN_BUILD_DIR ]]; then
+	echo "You must set the BANAN_BUILD_DIR environment variable" >&2
 	exit 1
 fi
 
-TARGET="${ARCH}-banan_os"
+if [[ -z $BANAN_SCRIPT_DIR ]]; then
+	echo "You must set the BANAN_SCRIPT_DIR environment variable" >&2
+	exit 1
+fi
 
-if [ ! -f ${PREFIX}/bin/${TARGET}-ld ]; then
+if [[ -z $BANAN_TOOLCHAIN_DIR ]]; then
+	echo "You must set the BANAN_TOOLCHAIN_DIR environment variable" >&2
+	exit 1
+fi
 
+if [[ -z $BANAN_TOOLCHAIN_PREFIX ]]; then
+	echo "You must set the BANAN_TOOLCHAIN_PREFIX environment variable" >&2
+	exit 1
+fi
+
+if [[ -z $BANAN_TOOLCHAIN_TRIPLE_PREFIX ]]; then
+	echo "You must set the BANAN_TOOLCHAIN_TRIPLE_PREFIX environment variable" >&2
+	exit 1
+fi
+
+if [[ -z $BANAN_ARCH ]]; then
+	echo  "You must set the BANAN_ARCH environment variable" >&2
+	exit 1
+fi
+
+if [[ -z ${MAKE_JOBS:x} ]]; then
+	MAKE_JOBS="-j$(nproc)"
+fi
+
+enter_clean_build () {
+	rm -rf build
+	mkdir build
+	cd build
+}
+
+build_binutils () {
 	echo "Building ${BINUTILS_VERSION}"
 
-	if [ ! -f ${BINUTILS_VERSION}.tar.xz ]; then
-		wget https://ftp.gnu.org/gnu/binutils/${BINUTILS_VERSION}.tar.xz
-	fi
+	cd $BANAN_BUILD_DIR/toolchain
 
 	if [ ! -d $BINUTILS_VERSION ]; then
-		tar xvf ${BINUTILS_VERSION}.tar.xz
-		patch -s -p0 < ${BINUTILS_VERSION}.patch
+		git clone --single-branch --branch $BINUTILS_BRANCH $BINUTILS_GIT $BINUTILS_VERSION
+		cd $BINUTILS_VERSION
+		git am $BANAN_TOOLCHAIN_DIR/$BINUTILS_VERSION.patch
 	fi
 
-	mkdir -p build/${BINUTILS_VERSION}/
-	pushd build/${BINUTILS_VERSION}/
+	cd $BANAN_BUILD_DIR/toolchain/$BINUTILS_VERSION
+	enter_clean_build
 
-	../../${BINUTILS_VERSION}/configure \
-		--target="$TARGET" \
-		--prefix="$PREFIX" \
-		--with-sysroot="$SYSROOT" \
+	../configure \
+		--target="$BANAN_TOOLCHAIN_TRIPLE_PREFIX" \
+		--prefix="$BANAN_TOOLCHAIN_PREFIX" \
+		--with-sysroot="$BANAN_SYSROOT" \
+		--disable-initfini-array \
 		--disable-nls \
 		--disable-werror
 
-	make -j $(nproc)
+	make $MAKE_JOBS
 	make install
+}
 
-	popd
-
-fi
-
-if [ ! -f ${PREFIX}/bin/${TARGET}-g++ ]; then
-
+build_gcc () {
 	echo "Building ${GCC_VERSION}"
 
-	if [ ! -f ${GCC_VERSION}.tar.xz ]; then
-		wget https://ftp.gnu.org/gnu/gcc/${GCC_VERSION}/${GCC_VERSION}.tar.xz
-	fi
+	cd $BANAN_BUILD_DIR/toolchain
 
 	if [ ! -d $GCC_VERSION ]; then
-		tar xvf ${GCC_VERSION}.tar.xz
-		patch -s -p0 < ${GCC_VERSION}.patch
+		git clone --single-branch --branch $GCC_BRANCH $GCC_GIT $GCC_VERSION
+		cd $GCC_VERSION
+		git am $BANAN_TOOLCHAIN_DIR/$GCC_VERSION.patch
 	fi
 
-	mkdir -p build/${GCC_VERSION}/
-	cd build/${GCC_VERSION}/
+	cd $BANAN_BUILD_DIR/toolchain/$GCC_VERSION
+	enter_clean_build
 
-	../../${GCC_VERSION}/configure \
-		--target="$TARGET" \
-		--prefix="$PREFIX" \
-		--with-sysroot="$SYSROOT" \
+	../configure \
+		--target="$BANAN_TOOLCHAIN_TRIPLE_PREFIX" \
+		--prefix="$BANAN_TOOLCHAIN_PREFIX" \
+		--with-sysroot="$BANAN_SYSROOT" \
+		--disable-initfini-array \
 		--disable-nls \
 		--enable-languages=c,c++
 
-	make -j $(nproc) all-gcc 
-	make -j $(nproc) all-target-libgcc CFLAGS_FOR_TARGET='-g -O2 -mcmodel=large -mno-red-zone'
-	make install-gcc install-target-libgcc
+	make $MAKE_JOBS all-gcc
+	make $MAKE_JOBS all-target-libgcc CFLAGS_FOR_TARGET='-g -O2 -mcmodel=large -mno-red-zone'
+	make install-gcc
+	make install-target-libgcc
+}
 
-fi
+build_grub () {
+	echo "Building ${GRUB_VERSION}"
+
+	cd $BANAN_BUILD_DIR/toolchain
+
+	if [ ! -f ${GRUB_VERSION}.tar.xz ]; then
+		wget https://ftp.gnu.org/gnu/grub/${GRUB_VERSION}.tar.xz
+	fi
+
+	if [ ! -d $GRUB_VERSION ]; then
+		tar xvf ${GRUB_VERSION}.tar.xz
+	fi
+
+	cd $GRUB_VERSION
+	enter_clean_build
+
+	../configure \
+		--target="$BANAN_ARCH" \
+		--prefix="$BANAN_TOOLCHAIN_PREFIX" \
+		--with-platform="efi" \
+		--disable-werror
+	
+	make $MAKE_JOBS
+	make install
+}
+
+build_libstdcpp () {
+	if ! [[ -d $BANAN_BUILD_DIR/toolchain/$GCC_VERSION/build ]]; then
+		echo "You have to build gcc first"
+		exit 1
+	fi
+
+	cd $BANAN_BUILD_DIR/toolchain/$GCC_VERSION/build
+	make $MAKE_JOBS all-target-libstdc++-v3 CFLAGS_FOR_TARGET='-g -O2 -mcmodel=large -mno-red-zone'
+	make install-target-libstdc++-v3
+}
+
+# delete everything but toolchain
+find $BANAN_BUILD_DIR -mindepth 1 -maxdepth 1 ! -name toolchain -exec rm -r {} +
+
+# NOTE: we have to manually create initial sysroot with libc headers
+#       since cmake cannot be invoked yet
+echo "Creating dummy sysroot"
+mkdir -p $BANAN_SYSROOT/usr
+cp -r $BANAN_ROOT_DIR/libc/include $BANAN_SYSROOT/usr/include
+
+# Cleanup all old files from toolchain prefix
+rm -rf $BANAN_TOOLCHAIN_PREFIX
+
+mkdir -p $BANAN_BUILD_DIR/toolchain
+build_binutils
+build_gcc
+build_grub
+
+# delete sysroot and install libc
+rm -r $BANAN_SYSROOT
+$BANAN_SCRIPT_DIR/build.sh libc-install
+
+build_libstdcpp

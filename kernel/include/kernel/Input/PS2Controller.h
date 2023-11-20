@@ -1,20 +1,23 @@
 #pragma once
 
 #include <kernel/Device/Device.h>
+#include <kernel/InterruptController.h>
 
 namespace Kernel::Input
 {
 
-	class PS2Device : public CharacterDevice
+	class PS2Device : public CharacterDevice, public Interruptable
 	{
 	public:
+		PS2Device();
 		virtual ~PS2Device() {}
-		virtual void on_byte(uint8_t) = 0;
-		
-	public:
-		PS2Device()
-			: CharacterDevice(Mode::IRUSR | Mode::IRGRP, 0, 0)
-		{ }
+
+		virtual void send_initialize() = 0;
+
+		virtual BAN::StringView name() const override { return m_name; }
+
+	private:
+		const BAN::String m_name;
 	};
 
 	class PS2Controller
@@ -32,9 +35,6 @@ namespace Kernel::Input
 
 		BAN::ErrorOr<void> reset_device(uint8_t);
 		BAN::ErrorOr<void> set_scanning(uint8_t, bool);
-
-		static void device0_irq();
-		static void device1_irq();
 
 	private:
 		PS2Device* m_devices[2] { nullptr, nullptr };

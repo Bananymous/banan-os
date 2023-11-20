@@ -6,18 +6,18 @@
 #include <BAN/Vector.h>
 #include <kernel/Credentials.h>
 #include <kernel/FS/Inode.h>
-#include <kernel/Memory/FixedWidthAllocator.h>
-#include <kernel/Memory/GeneralAllocator.h>
 #include <kernel/Memory/Heap.h>
-#include <kernel/Memory/VirtualRange.h>
+#include <kernel/Memory/MemoryRegion.h>
 #include <kernel/OpenFileDescriptorSet.h>
 #include <kernel/SpinLock.h>
 #include <kernel/Terminal/TTY.h>
 #include <kernel/Thread.h>
 
+#include <sys/banan-os.h>
+#include <sys/mman.h>
 #include <termios.h>
 
-namespace LibELF { class ELF; }
+namespace LibELF { class LoadableELF; }
 
 namespace Kernel
 {
@@ -39,11 +39,13 @@ namespace Kernel
 		};
 
 	public:
+		static Process* create_kernel();
 		static Process* create_kernel(entry_t, void*);
 		static BAN::ErrorOr<Process*> create_userspace(const Credentials&, BAN::StringView);
 		~Process();
 		void cleanup_function();
 
+		void register_to_scheduler();
 		void exit(int status, int signal);
 
 		static void for_each_process(const BAN::Function<BAN::Iteration(Process&)>& callback);
@@ -58,6 +60,8 @@ namespace Kernel
 
 		bool is_session_leader() const { return pid() == sid(); }
 
+		const Credentials& credentials() const { return m_credentials; }
+
 		BAN::ErrorOr<long> sys_exit(int status);
 
 		BAN::ErrorOr<long> sys_gettermios(::termios*);
@@ -69,8 +73,6 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_wait(pid_t pid, int* stat_loc, int options);
 		BAN::ErrorOr<long> sys_sleep(int seconds);
 		BAN::ErrorOr<long> sys_nanosleep(const timespec* rqtp, timespec* rmtp);
-
-		BAN::ErrorOr<long> sys_setenvp(char** envp);
 
 		BAN::ErrorOr<long> sys_setpwd(const char* path);
 		BAN::ErrorOr<long> sys_getpwd(char* buffer, size_t size);
@@ -89,12 +91,21 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_getegid() const { return m_credentials.egid(); }
 		BAN::ErrorOr<long> sys_getpgid(pid_t);
 
-		BAN::ErrorOr<void> create_file(BAN::StringView name, mode_t mode);
-		BAN::ErrorOr<long> sys_open(BAN::StringView, int, mode_t = 0);
-		BAN::ErrorOr<long> sys_openat(int, BAN::StringView, int, mode_t = 0);
+		BAN::ErrorOr<void> create_file_or_dir(BAN::StringView name, mode_t mode);
+		BAN::ErrorOr<long> open_file(BAN::StringView path, int, mode_t = 0);
+		BAN::ErrorOr<long> sys_open(const char* path, int, mode_t);
+		BAN::ErrorOr<long> sys_openat(int, const char* path, int, mode_t);
 		BAN::ErrorOr<long> sys_close(int fd);
 		BAN::ErrorOr<long> sys_read(int fd, void* buffer, size_t count);
 		BAN::ErrorOr<long> sys_write(int fd, const void* buffer, size_t count);
+		BAN::ErrorOr<long> sys_create(const char*, mode_t);
+		BAN::ErrorOr<long> sys_create_dir(const char*, mode_t);
+		BAN::ErrorOr<long> sys_unlink(const char*);
+		BAN::ErrorOr<long> readlink_impl(BAN::StringView absolute_path, char* buffer, size_t bufsize);
+		BAN::ErrorOr<long> sys_readlink(const char* path, char* buffer, size_t bufsize);
+		BAN::ErrorOr<long> sys_readlinkat(int fd, const char* path, char* buffer, size_t bufsize);
+
+		BAN::ErrorOr<long> sys_chmod(const char*, mode_t);
 
 		BAN::ErrorOr<long> sys_pipe(int fildes[2]);
 		BAN::ErrorOr<long> sys_dup(int fildes);
@@ -109,12 +120,18 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_fstatat(int fd, const char* path, struct stat* buf, int flag);
 		BAN::ErrorOr<long> sys_stat(const char* path, struct stat* buf, int flag);
 
+		BAN::ErrorOr<long> sys_sync(bool should_block);
+
+		BAN::ErrorOr<long> sys_poweroff(int command);
+
 		BAN::ErrorOr<void> mount(BAN::StringView source, BAN::StringView target);
 
 		BAN::ErrorOr<long> sys_read_dir_entries(int fd, DirectoryEntryList* buffer, size_t buffer_size);
 
-		BAN::ErrorOr<long> sys_alloc(size_t);
-		BAN::ErrorOr<long> sys_free(void*);
+		BAN::ErrorOr<long> sys_mmap(const sys_mmap_t*);
+		BAN::ErrorOr<long> sys_munmap(void* addr, size_t len);
+
+		BAN::ErrorOr<long> sys_tty_ctrl(int fildes, int command, int flags);
 
 		BAN::ErrorOr<long> sys_signal(int, void (*)(int));
 		BAN::ErrorOr<long> sys_raise(int signal);
@@ -122,9 +139,9 @@ namespace Kernel
 
 		BAN::ErrorOr<long> sys_tcsetpgrp(int fd, pid_t pgid);
 
-		BAN::ErrorOr<long> sys_termid(char*) const;
+		BAN::ErrorOr<long> sys_termid(char*);
 
-		BAN::ErrorOr<long> sys_clock_gettime(clockid_t, timespec*) const;
+		BAN::ErrorOr<long> sys_clock_gettime(clockid_t, timespec*);
 
 		TTY& tty() { ASSERT(m_controlling_terminal); return *m_controlling_terminal; }
 
@@ -132,23 +149,31 @@ namespace Kernel
 
 		PageTable& page_table() { return m_page_table ? *m_page_table : PageTable::kernel(); }
 
+		size_t proc_meminfo(off_t offset, BAN::ByteSpan) const;
+		size_t proc_cmdline(off_t offset, BAN::ByteSpan) const;
+		size_t proc_environ(off_t offset, BAN::ByteSpan) const;
+
 		bool is_userspace() const { return m_is_userspace; }
 		const userspace_info_t& userspace_info() const { return m_userspace_info; }
+
+		// Returns error if page could not be allocated
+		// Returns true if the page was allocated successfully
+		// Return false if access was page violation (segfault)
+		BAN::ErrorOr<bool> allocate_page_for_demand_paging(vaddr_t addr);
 
 	private:
 		Process(const Credentials&, pid_t pid, pid_t parent, pid_t sid, pid_t pgrp);
 		static Process* create_process(const Credentials&, pid_t parent, pid_t sid = 0, pid_t pgrp = 0);
-		static void register_process(Process*);
 
-		// Load an elf file to virtual address space of the current page table
-		static BAN::ErrorOr<BAN::UniqPtr<LibELF::ELF>> load_elf_for_exec(const Credentials&, BAN::StringView file_path, const BAN::String& cwd, const BAN::Vector<BAN::StringView>& path_env);
-		
-		// Copy an elf file from the current page table to the processes own
-		void load_elf_to_memory(LibELF::ELF&);
+		// Load elf from a file
+		static BAN::ErrorOr<BAN::UniqPtr<LibELF::LoadableELF>> load_elf_for_exec(const Credentials&, BAN::StringView file_path, const BAN::String& cwd, Kernel::PageTable&);
 
 		int block_until_exit();
 
 		BAN::ErrorOr<BAN::String> absolute_path_of(BAN::StringView) const;
+
+		void validate_string_access(const char*);
+		void validate_pointer_access(const void*, size_t);
 
 	private:
 		struct ExitStatus
@@ -163,7 +188,8 @@ namespace Kernel
 
 		OpenFileDescriptorSet m_open_file_descriptors;
 
-		BAN::Vector<BAN::UniqPtr<VirtualRange>> m_mapped_ranges;
+		BAN::UniqPtr<LibELF::LoadableELF> m_loadable_elf;
+		BAN::Vector<BAN::UniqPtr<MemoryRegion>> m_mapped_regions;
 
 		pid_t m_sid;
 		pid_t m_pgrp;
@@ -175,11 +201,11 @@ namespace Kernel
 		BAN::String m_working_directory;
 		BAN::Vector<Thread*> m_threads;
 
-		BAN::Vector<BAN::UniqPtr<FixedWidthAllocator>> m_fixed_width_allocators;
-		BAN::UniqPtr<GeneralAllocator> m_general_allocator;
-
 		vaddr_t m_signal_handlers[_SIGMAX + 1] { };
 		uint64_t m_signal_pending_mask { 0 };
+
+		BAN::Vector<BAN::String> m_cmdline;
+		BAN::Vector<BAN::String> m_environ;
 
 		bool m_is_userspace { false };
 		userspace_info_t m_userspace_info;

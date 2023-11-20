@@ -81,7 +81,31 @@ namespace Kernel
 		Thread::TerminateBlocker blocker(Thread::current());
 		if (!this->mode().ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
+		if (Mode(mode).ifdir())
+			return BAN::Error::from_errno(EINVAL);
 		return create_file_impl(name, mode, uid, gid);
+	}
+
+	BAN::ErrorOr<void> Inode::create_directory(BAN::StringView name, mode_t mode, uid_t uid, gid_t gid)
+	{
+		LockGuard _(m_lock);
+		Thread::TerminateBlocker blocker(Thread::current());
+		if (!this->mode().ifdir())
+			return BAN::Error::from_errno(ENOTDIR);
+		if (!Mode(mode).ifdir())
+			return BAN::Error::from_errno(EINVAL);
+		return create_directory_impl(name, mode, uid, gid);
+	}
+
+	BAN::ErrorOr<void> Inode::unlink(BAN::StringView name)
+	{
+		LockGuard _(m_lock);
+		Thread::TerminateBlocker blocker(Thread::current());
+		if (!mode().ifdir())
+			return BAN::Error::from_errno(ENOTDIR);
+		if (name == "."sv || name == ".."sv)
+			return BAN::Error::from_errno(EINVAL);
+		return unlink_impl(name);
 	}
 
 	BAN::ErrorOr<BAN::String> Inode::link_target()
@@ -93,22 +117,22 @@ namespace Kernel
 		return link_target_impl();
 	}
 
-	BAN::ErrorOr<size_t> Inode::read(off_t offset, void* buffer, size_t bytes)
+	BAN::ErrorOr<size_t> Inode::read(off_t offset, BAN::ByteSpan buffer)
 	{
 		LockGuard _(m_lock);
 		Thread::TerminateBlocker blocker(Thread::current());
 		if (mode().ifdir())
 			return BAN::Error::from_errno(EISDIR);
-		return read_impl(offset, buffer, bytes);
+		return read_impl(offset, buffer);
 	}
 
-	BAN::ErrorOr<size_t> Inode::write(off_t offset, const void* buffer, size_t bytes)
+	BAN::ErrorOr<size_t> Inode::write(off_t offset, BAN::ConstByteSpan buffer)
 	{
 		LockGuard _(m_lock);
 		Thread::TerminateBlocker blocker(Thread::current());
 		if (mode().ifdir())
 			return BAN::Error::from_errno(EISDIR);
-		return write_impl(offset, buffer, bytes);
+		return write_impl(offset, buffer);
 	}
 
 	BAN::ErrorOr<void> Inode::truncate(size_t size)
@@ -118,6 +142,14 @@ namespace Kernel
 		if (mode().ifdir())
 			return BAN::Error::from_errno(EISDIR);
 		return truncate_impl(size);
+	}
+
+	BAN::ErrorOr<void> Inode::chmod(mode_t mode)
+	{
+		ASSERT((mode & Inode::Mode::TYPE_MASK) == 0);
+		LockGuard _(m_lock);
+		Thread::TerminateBlocker blocker(Thread::current());
+		return chmod_impl(mode);
 	}
 
 	bool Inode::has_data() const

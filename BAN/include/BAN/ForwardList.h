@@ -1,5 +1,6 @@
 #pragma once
 
+#include <BAN/Traits.h>
 #include <stddef.h>
 
 namespace BAN
@@ -14,5 +15,6 @@ namespace BAN
 	class StringView;
 	template<typename> class Vector;
 	template<typename> class LinkedList;
+	template<typename... Ts> requires (!is_const_v<Ts> && ...) class Variant;
 
 }

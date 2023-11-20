@@ -2,6 +2,7 @@
 #include <kernel/ACPI.h>
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/IDT.h>
+#include <kernel/Input/PS2Config.h>
 #include <kernel/Input/PS2Controller.h>
 #include <kernel/Input/PS2Keyboard.h>
 #include <kernel/InterruptController.h>
@@ -10,77 +11,6 @@
 
 namespace Kernel::Input
 {
-
-	namespace PS2
-	{
-
-		enum IOPort : uint8_t
-		{
-			DATA = 0x60,
-			STATUS = 0x64,
-			COMMAND = 0x64,
-		};
-
-		enum Status : uint8_t
-		{
-			OUTPUT_FULL = (1 << 0),
-			INPUT_FULL = (1 << 1),
-			SYSTEM = (1 << 2),
-			DEVICE_OR_CONTROLLER = (1 << 3),
-			TIMEOUT_ERROR = (1 << 6),
-			PARITY_ERROR = (1 << 7),
-		};
-
-		enum Config : uint8_t
-		{
-			INTERRUPT_FIRST_PORT = (1 << 0),
-			INTERRUPT_SECOND_PORT = (1 << 1),
-			SYSTEM_FLAG = (1 << 2),
-			ZERO1 = (1 << 3),
-			CLOCK_FIRST_PORT = (1 << 4),
-			CLOCK_SECOND_PORT = (1 << 5),
-			TRANSLATION_FIRST_PORT = (1 << 6),
-			ZERO2 = (1 << 7),
-		};
-
-		enum Command : uint8_t
-		{
-			READ_CONFIG = 0x20,
-			WRITE_CONFIG = 0x60,
-			DISABLE_SECOND_PORT = 0xA7,
-			ENABLE_SECOND_PORT = 0xA8,
-			TEST_SECOND_PORT = 0xA9,
-			TEST_CONTROLLER = 0xAA,
-			TEST_FIRST_PORT = 0xAB,
-			DISABLE_FIRST_PORT = 0xAD,
-			ENABLE_FIRST_PORT = 0xAE,
-			WRITE_TO_SECOND_PORT = 0xD4,
-		};
-
-		enum Response
-		{
-			TEST_FIRST_PORT_PASS = 0x00,
-			TEST_SECOND_PORT_PASS = 0x00,
-			TEST_CONTROLLER_PASS = 0x55,
-			SELF_TEST_PASS = 0xAA,
-			ACK = 0xFA,
-		};
-
-		enum DeviceCommand
-		{
-			ENABLE_SCANNING = 0xF4,
-			DISABLE_SCANNING = 0xF5,
-			IDENTIFY = 0xF2,
-			RESET = 0xFF,
-		};
-
-		enum IRQ
-		{
-			DEVICE0 = 1,
-			DEVICE1 = 12,
-		};
-
-	}
 
 	static constexpr uint64_t s_device_timeout_ms = 100;
 
@@ -136,21 +66,12 @@ namespace Kernel::Input
 		return {};
 	}
 
-	void PS2Controller::device0_irq()
-	{
-		auto& controller = PS2Controller::get();
-		ASSERT(controller.m_devices[0] != nullptr);
-		controller.m_devices[0]->on_byte(IO::inb(PS2::IOPort::DATA));
-	}
-
-	void PS2Controller::device1_irq()
-	{
-		auto& controller = PS2Controller::get();
-		ASSERT(controller.m_devices[1] != nullptr);
-		controller.m_devices[1]->on_byte(IO::inb(PS2::IOPort::DATA));
-	}
-
 	static PS2Controller* s_instance = nullptr;
+
+	PS2Device::PS2Device()
+		: CharacterDevice(0440, 0, 0)
+		, m_name(BAN::String::formatted("input{}", DevFileSystem::get().get_next_input_device()))
+	{ }
 
 	BAN::ErrorOr<void> PS2Controller::initialize()
 	{
@@ -256,21 +177,27 @@ namespace Kernel::Input
 
 		if (m_devices[0])
 		{
-			IDT::register_irq_handler(PS2::IRQ::DEVICE0, device0_irq);
-			InterruptController::get().enable_irq(PS2::IRQ::DEVICE0);
+			m_devices[0]->set_irq(PS2::IRQ::DEVICE0);
+			m_devices[0]->enable_interrupt();
 			config |= PS2::Config::INTERRUPT_FIRST_PORT;
-			DevFileSystem::get().add_device("input0", m_devices[0]);
 		}
 		if (m_devices[1])
 		{
-			IDT::register_irq_handler(PS2::IRQ::DEVICE1, device1_irq);
-			InterruptController::get().enable_irq(PS2::IRQ::DEVICE1);
+			m_devices[1]->set_irq(PS2::IRQ::DEVICE1);
+			m_devices[1]->enable_interrupt();
 			config |= PS2::Config::INTERRUPT_SECOND_PORT;
-			DevFileSystem::get().add_device("input1", m_devices[1]);
 		}
 
 		controller_send_command(PS2::Command::WRITE_CONFIG, config);
-			
+
+		for (uint8_t device = 0; device < 2; device++)
+		{
+			if (m_devices[device] == nullptr)
+				continue;
+			m_devices[device]->send_initialize();
+			DevFileSystem::get().add_device(m_devices[device]);
+		}
+
 		return {};
 	}
 

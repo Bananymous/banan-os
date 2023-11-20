@@ -11,7 +11,6 @@ target_compile_options(id PUBLIC -O2 -g)
 target_link_libraries(id PUBLIC libc ban)
 
 add_custom_target(id-install
-	COMMAND sudo cp ${CMAKE_CURRENT_BINARY_DIR}/id ${BANAN_BIN}/
+	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/id ${BANAN_BIN}/
 	DEPENDS id
-	USES_TERMINAL
 )

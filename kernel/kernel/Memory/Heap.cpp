@@ -1,7 +1,9 @@
+#include <kernel/BootInfo.h>
 #include <kernel/LockGuard.h>
 #include <kernel/Memory/Heap.h>
 #include <kernel/Memory/PageTable.h>
-#include <kernel/multiboot.h>
+
+extern uint8_t g_kernel_end[];
 
 namespace Kernel
 {
@@ -24,21 +26,33 @@ namespace Kernel
 
 	void Heap::initialize_impl()
 	{
-		if (!(g_multiboot_info->flags & (1 << 6)))
+		if (g_boot_info.memory_map_entries.empty())
 			Kernel::panic("Bootloader did not provide a memory map");
-		
-		for (size_t i = 0; i < g_multiboot_info->mmap_length;)
+
+		for (const auto& entry : g_boot_info.memory_map_entries)
 		{
-			multiboot_memory_map_t* mmmt = (multiboot_memory_map_t*)P2V(g_multiboot_info->mmap_addr + i);
+			dprintln("{16H}, {16H}, {8H}",
+				entry.address,
+				entry.length,
+				entry.type
+			);
 
-			if (mmmt->type == 1)
-			{
-				PhysicalRange range(mmmt->base_addr, mmmt->length);
-				if (range.usable_memory() > 0)
-					MUST(m_physical_ranges.push_back(range));
-			}
+			if (entry.type != 1)
+				continue;
+				
+			paddr_t start = entry.address;
+			if (start < V2P(g_kernel_end))
+				start = V2P(g_kernel_end);
+			if (auto rem = start % PAGE_SIZE)
+				start += PAGE_SIZE - rem;
 
-			i += mmmt->size + sizeof(uint32_t);
+			paddr_t end = entry.address + entry.length;
+			if (auto rem = end % PAGE_SIZE)
+				end -= rem;
+
+			// Physical pages needs atleast 2 pages
+			if (end > start + PAGE_SIZE)
+				MUST(m_physical_ranges.emplace_back(start, end - start));
 		}
 
 		size_t total = 0;
@@ -55,22 +69,36 @@ namespace Kernel
 	{
 		LockGuard _(m_lock);
 		for (auto& range : m_physical_ranges)
-			if (paddr_t page = range.reserve_page())
-				return page;
+			if (range.free_pages() >= 1)
+				return range.reserve_page();
 		return 0;
 	}
 
-	void Heap::release_page(paddr_t addr)
+	void Heap::release_page(paddr_t paddr)
 	{
 		LockGuard _(m_lock);
 		for (auto& range : m_physical_ranges)
-		{
-			if (range.contains(addr))
-			{
-				range.release_page(addr);
-				return;
-			}
-		}
+			if (range.contains(paddr))
+				return range.release_page(paddr);
+		ASSERT_NOT_REACHED();
+	}
+
+	paddr_t Heap::take_free_contiguous_pages(size_t pages)
+	{
+		LockGuard _(m_lock);
+		for (auto& range : m_physical_ranges)
+			if (range.free_pages() >= pages)
+				if (paddr_t paddr = range.reserve_contiguous_pages(pages))
+					return paddr;
+		return 0;
+	}
+
+	void Heap::release_contiguous_pages(paddr_t paddr, size_t pages)
+	{
+		LockGuard _(m_lock);
+		for (auto& range : m_physical_ranges)
+			if (range.contains(paddr))
+				return range.release_contiguous_pages(paddr, pages);
 		ASSERT_NOT_REACHED();
 	}
 

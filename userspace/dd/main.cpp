@@ -26,11 +26,11 @@ int parse_int(const char* val)
 	return result;
 }
 
-void print_time(uint64_t start_ns, uint64_t end_ns, int transfered)
+void print_time(uint64_t start_ns, uint64_t end_ns, size_t transfered)
 {
 	static bool first = true;
 	uint64_t duration_ns = end_ns - start_ns;
-	printf("%s%d bytes copied, %d.%09d s\e[K\n", (first ? "" : "\e[F"), transfered, (int)(duration_ns / 1'000'000'000), (int)(duration_ns % 1'000'000'000));
+	printf("%s%zu bytes copied, %d.%09d s\e[K\n", (first ? "" : "\e[F"), transfered, (int)(duration_ns / 1'000'000'000), (int)(duration_ns % 1'000'000'000));
 	first = false;
 }
 

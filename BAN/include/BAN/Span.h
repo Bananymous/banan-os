@@ -43,6 +43,8 @@ namespace BAN
 
 		Span slice(size_type, size_type = ~size_type(0));
 
+		Span<const T> as_const() const { return Span<const T>(m_data, m_size); }
+
 	private:
 		T* m_data = nullptr;
 		size_type m_size = 0;
@@ -125,8 +127,8 @@ namespace BAN
 		ASSERT(start <= m_size);
 		if (length == ~size_type(0))
 			length = m_size - start;
-		ASSERT(start + length <= m_size);
-		return Span(m_data + start, m_size - start - length);
+		ASSERT(m_size - start >= length);
+		return Span(m_data + start, length);
 	}
 
 }

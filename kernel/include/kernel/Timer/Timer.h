@@ -4,6 +4,8 @@
 #include <BAN/Vector.h>
 #include <kernel/Timer/RTC.h>
 
+#include <time.h>
+
 namespace Kernel
 {
 
@@ -12,6 +14,7 @@ namespace Kernel
 	public:
 		virtual ~Timer() {};
 		virtual uint64_t ms_since_boot() const = 0;
+		virtual uint64_t ns_since_boot() const = 0;
 		virtual timespec time_since_boot() const = 0;
 	};
 
@@ -23,6 +26,7 @@ namespace Kernel
 		static bool is_initialized();
 
 		virtual uint64_t ms_since_boot() const override;
+		virtual uint64_t ns_since_boot() const override;
 		virtual timespec time_since_boot() const override;
 		
 		void sleep(uint64_t ms) const;

@@ -1,17 +1,21 @@
 #pragma once
 
+#include <kernel/InterruptController.h>
 #include <kernel/Timer/Timer.h>
 
 namespace Kernel
 {
 
-	class HPET final : public Timer
+	class HPET final : public Timer, public Interruptable
 	{
 	public:
 		static BAN::ErrorOr<BAN::UniqPtr<HPET>> create(bool force_pic);
 
 		virtual uint64_t ms_since_boot() const override;
+		virtual uint64_t ns_since_boot() const override;
 		virtual timespec time_since_boot() const override;
+
+		virtual void handle_irq() override;
 
 	private:
 		HPET() = default;

@@ -1,3 +1,4 @@
+#include <BAN/Array.h>
 #include <BAN/Errors.h>
 #include <kernel/IDT.h>
 #include <kernel/InterruptController.h>
@@ -8,12 +9,10 @@
 #include <kernel/Scheduler.h>
 #include <kernel/Timer/PIT.h>
 
-#include <unistd.h>
+#define ISR_LIST_X X(0) X(1) X(2) X(3) X(4) X(5) X(6) X(7) X(8) X(9) X(10) X(11) X(12) X(13) X(14) X(15) X(16) X(17) X(18) X(19) X(20) X(21) X(22) X(23) X(24) X(25) X(26) X(27) X(28) X(29) X(30) X(31)
+#define IRQ_LIST_X X(0) X(1) X(2) X(3) X(4) X(5) X(6) X(7) X(8) X(9) X(10) X(11) X(12) X(13) X(14) X(15) X(16) X(17) X(18) X(19) X(20) X(21) X(22) X(23) X(24) X(25) X(26) X(27) X(28) X(29) X(30) X(31)
 
-#define REGISTER_ISR_HANDLER(i) register_interrupt_handler(i, isr ## i)
-#define REGISTER_IRQ_HANDLER(i) register_interrupt_handler(IRQ_VECTOR_BASE + i, irq ## i)
-
-namespace IDT
+namespace Kernel::IDT
 {
 
 	struct Registers
@@ -63,7 +62,9 @@ namespace IDT
 	static IDTR				s_idtr;
 	static GateDescriptor*	s_idt = nullptr;
 
-	static void(*s_irq_handlers[0x10])() { nullptr };
+#define X(num) 1 +
+	static BAN::Array<Interruptable*, IRQ_LIST_X 0> s_interruptables;
+#undef X
 
 	enum ISR
 	{
@@ -101,6 +102,29 @@ namespace IDT
 		UnkownException0x1F,
 	};
 
+	struct PageFaultError
+	{
+		union
+		{
+			uint32_t raw;
+			struct
+			{
+				uint32_t present		: 1;
+				uint32_t write			: 1;
+				uint32_t userspace		: 1;
+				uint32_t reserved_write	: 1;
+				uint32_t instruction	: 1;
+				uint32_t protection_key	: 1;
+				uint32_t shadow_stack	: 1;
+				uint32_t reserved1		: 8;
+				uint32_t sgx_violation	: 1;
+				uint32_t reserved2		: 16;
+			};
+		};
+		
+	};
+	static_assert(sizeof(PageFaultError) == 4);
+
 	static const char* isr_exceptions[] =
 	{
 		"Division Error",
@@ -137,15 +161,79 @@ namespace IDT
 		"Unkown Exception 0x1F",
 	};
 
-	extern "C" void cpp_isr_handler(uint64_t isr, uint64_t error, Kernel::InterruptStack& interrupt_stack, const Registers* regs)
+	extern "C" void cpp_isr_handler(uint64_t isr, uint64_t error, InterruptStack& interrupt_stack, const Registers* regs)
 	{
+#if __enable_sse
 		bool from_userspace = (interrupt_stack.cs & 0b11) == 0b11;
-
 		if (from_userspace)
-			Kernel::Thread::current().save_sse();
+			Thread::current().save_sse();
+#endif
 
-		pid_t tid = Kernel::Scheduler::current_tid();
-		pid_t pid = tid ? Kernel::Process::current().pid() : 0;
+		pid_t tid = Scheduler::current_tid();
+		pid_t pid = tid ? Process::current().pid() : 0;
+
+		if (tid)
+		{
+			Thread::current().set_return_rsp(interrupt_stack.rsp);
+			Thread::current().set_return_rip(interrupt_stack.rip);
+
+			if (isr == ISR::PageFault)
+			{
+				// Check if stack is OOB
+				auto& stack = Thread::current().stack();
+				auto& istack = Thread::current().interrupt_stack();
+				if (stack.vaddr() < interrupt_stack.rsp && interrupt_stack.rsp <= stack.vaddr() + stack.size())
+					; // using normal stack
+				else if (istack.vaddr() < interrupt_stack.rsp && interrupt_stack.rsp <= istack.vaddr() + istack.size())
+					; // using interrupt stack
+				else
+				{
+					derrorln("Stack pointer out of bounds!");
+					derrorln("rsp {H}, stack {H}->{H}, istack {H}->{H}",
+						interrupt_stack.rsp,
+						stack.vaddr(), stack.vaddr() + stack.size(),
+						istack.vaddr(), istack.vaddr() + istack.size()
+					);
+					Thread::current().handle_signal(SIGKILL);
+					goto done;
+				}
+
+				// Try demand paging on non present pages
+				PageFaultError page_fault_error;
+				page_fault_error.raw = error;
+				if (!page_fault_error.present)
+				{
+					asm volatile("sti");
+					auto result = Process::current().allocate_page_for_demand_paging(regs->cr2);
+					asm volatile("cli");
+
+					if (!result.is_error() && result.value())
+						goto done;
+
+					if (result.is_error())
+					{
+						dwarnln("Demand paging: {}", result.error());
+						Thread::current().handle_signal(SIGKILL);
+						goto done;
+					}
+				}
+			}
+		}
+
+		if (PageTable::current().get_page_flags(interrupt_stack.rip & PAGE_ADDR_MASK) & PageTable::Flags::Present)
+		{
+			auto* machine_code = (const uint8_t*)interrupt_stack.rip;
+			dwarnln("While executing: {2H}{2H}{2H}{2H}{2H}{2H}{2H}{2H}",
+				machine_code[0],
+				machine_code[1],
+				machine_code[2],
+				machine_code[3],
+				machine_code[4],
+				machine_code[5],
+				machine_code[6],
+				machine_code[7]
+			);
+		}
 
 		dwarnln(
 			"{} (error code: 0x{16H}), pid {}, tid {}\r\n"
@@ -160,14 +248,11 @@ namespace IDT
 			regs->rip, regs->rflags,
 			regs->cr0, regs->cr2, regs->cr3, regs->cr4
 		);
+		if (isr == ISR::PageFault)
+			PageTable::current().debug_dump();
+		Debug::dump_stack_trace();
 
-		if (tid)
-		{
-			Kernel::Thread::current().set_return_rsp(interrupt_stack.rsp);
-			Kernel::Thread::current().set_return_rip(interrupt_stack.rip);
-		}
-
-		if (tid && Kernel::Thread::current().is_userspace())
+		if (tid && Thread::current().is_userspace())
 		{
 			// TODO: Confirm and fix the exception to signal mappings
 
@@ -195,33 +280,38 @@ namespace IDT
 				break;
 			}
 
-			Kernel::Thread::current().handle_signal(signal);
+			Thread::current().handle_signal(signal);
 		}
 		else
 		{
-			Kernel::panic("Unhandled exception");
+			panic("Unhandled exception");
 		}
 
-		ASSERT(Kernel::Thread::current().state() != Kernel::Thread::State::Terminated);
-
+		ASSERT(Thread::current().state() != Thread::State::Terminated);
+	
+done:
+#if __enable_sse
 		if (from_userspace)
 		{
-			ASSERT(Kernel::Thread::current().state() == Kernel::Thread::State::Executing);
-			Kernel::Thread::current().load_sse();
+			ASSERT(Thread::current().state() == Thread::State::Executing);
+			Thread::current().load_sse();
 		}
+#endif
+		return;
 	}
 
-	extern "C" void cpp_irq_handler(uint64_t irq, Kernel::InterruptStack& interrupt_stack)
+	extern "C" void cpp_irq_handler(uint64_t irq, InterruptStack& interrupt_stack)
 	{
+#if __enable_sse
 		bool from_userspace = (interrupt_stack.cs & 0b11) == 0b11;
-
 		if (from_userspace)
-			Kernel::Thread::current().save_sse();
+			Thread::current().save_sse();
+#endif
 
-		if (Kernel::Scheduler::current_tid())
+		if (Scheduler::current_tid())
 		{
-			Kernel::Thread::current().set_return_rsp(interrupt_stack.rsp);
-			Kernel::Thread::current().set_return_rip(interrupt_stack.rip);
+			Thread::current().set_return_rsp(interrupt_stack.rsp);
+			Thread::current().set_return_rip(interrupt_stack.rip);
 		}
 
 		if (!InterruptController::get().is_in_service(irq))
@@ -229,21 +319,23 @@ namespace IDT
 		else
 		{
 			InterruptController::get().eoi(irq);
-			if (s_irq_handlers[irq])
-				s_irq_handlers[irq]();
+			if (s_interruptables[irq])
+				s_interruptables[irq]->handle_irq();
 			else
 				dprintln("no handler for irq 0x{2H}\n", irq);
 		}
 
-		Kernel::Scheduler::get().reschedule_if_idling();
+		Scheduler::get().reschedule_if_idling();
 
-		ASSERT(Kernel::Thread::current().state() != Kernel::Thread::State::Terminated);
+		ASSERT(Thread::current().state() != Thread::State::Terminated);
 
+#if __enable_sse
 		if (from_userspace)
 		{
-			ASSERT(Kernel::Thread::current().state() == Kernel::Thread::State::Executing);
-			Kernel::Thread::current().load_sse();
+			ASSERT(Thread::current().state() == Thread::State::Executing);
+			Thread::current().load_sse();
 		}
+#endif
 	}
 
 	static void flush_idt()
@@ -269,60 +361,20 @@ namespace IDT
 		s_idt[index].flags = 0xEE;
 	}
 
-	void register_irq_handler(uint8_t irq, void(*handler)())
+	void register_irq_handler(uint8_t irq, Interruptable* interruptable)
 	{
-		s_irq_handlers[irq] = handler;
+		if (irq > s_interruptables.size())
+			Kernel::panic("Trying to assign handler for irq {} while only {} are supported", irq, s_interruptables.size());
+		s_interruptables[irq] = interruptable;
 	}
 
-	extern "C" void isr0();
-	extern "C" void isr1();
-	extern "C" void isr2();
-	extern "C" void isr3();
-	extern "C" void isr4();
-	extern "C" void isr5();
-	extern "C" void isr6();
-	extern "C" void isr7();
-	extern "C" void isr8();
-	extern "C" void isr9();
-	extern "C" void isr10();
-	extern "C" void isr11();
-	extern "C" void isr12();
-	extern "C" void isr13();
-	extern "C" void isr14();
-	extern "C" void isr15();
-	extern "C" void isr16();
-	extern "C" void isr17();
-	extern "C" void isr18();
-	extern "C" void isr19();
-	extern "C" void isr20();
-	extern "C" void isr21();
-	extern "C" void isr22();
-	extern "C" void isr23();
-	extern "C" void isr24();
-	extern "C" void isr25();
-	extern "C" void isr26();
-	extern "C" void isr27();
-	extern "C" void isr28();
-	extern "C" void isr29();
-	extern "C" void isr30();
-	extern "C" void isr31();
+#define X(num) extern "C" void isr ## num();
+	ISR_LIST_X
+#undef X
 
-	extern "C" void irq0();
-	extern "C" void irq1();
-	extern "C" void irq2();
-	extern "C" void irq3();
-	extern "C" void irq4();
-	extern "C" void irq5();
-	extern "C" void irq6();
-	extern "C" void irq7();
-	extern "C" void irq8();
-	extern "C" void irq9();
-	extern "C" void irq10();
-	extern "C" void irq11();
-	extern "C" void irq12();
-	extern "C" void irq13();
-	extern "C" void irq14();
-	extern "C" void irq15();
+#define X(num) extern "C" void irq ## num();
+	IRQ_LIST_X
+#undef X
 
 	extern "C" void syscall_asm();
 
@@ -335,59 +387,27 @@ namespace IDT
 		s_idtr.offset = (uint64_t)s_idt;
 		s_idtr.size = 0x100 * sizeof(GateDescriptor) - 1;
 
-		REGISTER_ISR_HANDLER(0);
-		REGISTER_ISR_HANDLER(1);
-		REGISTER_ISR_HANDLER(2);
-		REGISTER_ISR_HANDLER(3);
-		REGISTER_ISR_HANDLER(4);
-		REGISTER_ISR_HANDLER(5);
-		REGISTER_ISR_HANDLER(6);
-		REGISTER_ISR_HANDLER(7);
-		REGISTER_ISR_HANDLER(8);
-		REGISTER_ISR_HANDLER(9);
-		REGISTER_ISR_HANDLER(10);
-		REGISTER_ISR_HANDLER(11);
-		REGISTER_ISR_HANDLER(12);
-		REGISTER_ISR_HANDLER(13);
-		REGISTER_ISR_HANDLER(14);
-		REGISTER_ISR_HANDLER(15);
-		REGISTER_ISR_HANDLER(16);
-		REGISTER_ISR_HANDLER(17);
-		REGISTER_ISR_HANDLER(18);
-		REGISTER_ISR_HANDLER(19);
-		REGISTER_ISR_HANDLER(20);
-		REGISTER_ISR_HANDLER(21);
-		REGISTER_ISR_HANDLER(22);
-		REGISTER_ISR_HANDLER(23);
-		REGISTER_ISR_HANDLER(24);
-		REGISTER_ISR_HANDLER(25);
-		REGISTER_ISR_HANDLER(26);
-		REGISTER_ISR_HANDLER(27);
-		REGISTER_ISR_HANDLER(28);
-		REGISTER_ISR_HANDLER(29);
-		REGISTER_ISR_HANDLER(30);
-		REGISTER_ISR_HANDLER(31);
+#define X(num) register_interrupt_handler(num, isr ## num);
+		ISR_LIST_X
+#undef X
 
-		REGISTER_IRQ_HANDLER(0);
-		REGISTER_IRQ_HANDLER(1);
-		REGISTER_IRQ_HANDLER(2);
-		REGISTER_IRQ_HANDLER(3);
-		REGISTER_IRQ_HANDLER(4);
-		REGISTER_IRQ_HANDLER(5);
-		REGISTER_IRQ_HANDLER(6);
-		REGISTER_IRQ_HANDLER(7);
-		REGISTER_IRQ_HANDLER(8);
-		REGISTER_IRQ_HANDLER(9);
-		REGISTER_IRQ_HANDLER(10);
-		REGISTER_IRQ_HANDLER(11);
-		REGISTER_IRQ_HANDLER(12);
-		REGISTER_IRQ_HANDLER(13);
-		REGISTER_IRQ_HANDLER(14);
-		REGISTER_IRQ_HANDLER(15);
+#define X(num) register_interrupt_handler(IRQ_VECTOR_BASE + num, irq ## num);
+		IRQ_LIST_X
+#undef X
 
 		register_syscall_handler(0x80, syscall_asm);
 
 		flush_idt();
+	}
+
+	[[noreturn]] void force_triple_fault()
+	{
+		// load 0 sized IDT and trigger an interrupt to force triple fault
+		asm volatile("cli");
+		s_idtr.size = 0;
+		flush_idt();
+		asm volatile("int $0x00");
+		ASSERT_NOT_REACHED();
 	}
 
 }

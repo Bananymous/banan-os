@@ -1,102 +1,109 @@
-#include <BAN/Errors.h>
-#include <BAN/Math.h>
-#include <BAN/Move.h>
-#include <BAN/New.h>
 #include <BAN/String.h>
-#include <BAN/StringView.h>
-
-#include <string.h>
+#include <BAN/New.h>
 
 namespace BAN
 {
 
 	String::String()
 	{
-		MUST(copy_impl(""sv));
 	}
 
 	String::String(const String& other)
 	{
-		MUST(copy_impl(other.sv()));
+		*this = other;
 	}
 
 	String::String(String&& other)
 	{
-		move_impl(move(other));
+		*this = move(other);
 	}
 
 	String::String(StringView other)
 	{
-		MUST(copy_impl(other));
+		*this = other;
 	}
 
 	String::~String()
 	{
-		BAN::deallocator(m_data);
+		clear();
 	}
 
 	String& String::operator=(const String& other)
 	{
-		MUST(copy_impl(other.sv()));
+		clear();
+		MUST(ensure_capacity(other.size()));
+		memcpy(data(), other.data(), other.size() + 1);
+		m_size = other.size();
 		return *this;
 	}
 
 	String& String::operator=(String&& other)
 	{
-		BAN::deallocator(m_data);
-		move_impl(move(other));
+		clear();
+
+		if (other.has_sso())
+			memcpy(data(), other.data(), other.size() + 1);
+		else
+		{
+			m_storage.general_storage = other.m_storage.general_storage;
+			m_has_sso = false;
+		}
+		m_size = other.m_size;
+
+		other.m_size = 0;
+		other.m_storage.sso_storage = SSOStorage();
+		other.m_has_sso = true;
+
 		return *this;
 	}
 
 	String& String::operator=(StringView other)
 	{
-		MUST(copy_impl(other));
+		clear();
+		MUST(ensure_capacity(other.size()));
+		memcpy(data(), other.data(), other.size());
+		m_size = other.size();
+		data()[m_size] = '\0';
 		return *this;
 	}
 
-	ErrorOr<void> String::push_back(char ch)
+	ErrorOr<void> String::push_back(char c)
 	{
-		TRY(ensure_capacity(m_size + 2));
-		m_data[m_size] = ch;
+		TRY(ensure_capacity(m_size + 1));
+		data()[m_size] = c;
 		m_size++;
-		m_data[m_size] = '\0';
+		data()[m_size] = '\0';
 		return {};
 	}
 
-	ErrorOr<void> String::insert(char ch, size_type index)
+	ErrorOr<void> String::insert(char c, size_type index)
 	{
 		ASSERT(index <= m_size);
-		TRY(ensure_capacity(m_size + 1 + 1));
-		memmove(m_data + index + 1, m_data + index, m_size - index);
-		m_data[index] = ch;
-		m_size += 1;
-		m_data[m_size] = '\0';
+		TRY(ensure_capacity(m_size + 1));
+		memmove(data() + index + 1, data() + index, m_size - index);
+		data()[index] = c;
+		m_size++;
+		data()[m_size] = '\0';
 		return {};
 	}
 
-	ErrorOr<void> String::insert(StringView other, size_type index)
+	ErrorOr<void> String::insert(StringView str, size_type index)
 	{
 		ASSERT(index <= m_size);
-		TRY(ensure_capacity(m_size + other.size() + 1));
-		memmove(m_data + index + other.size(), m_data + index, m_size - index);
-		memcpy(m_data + index, other.data(), other.size());
-		m_size += other.size();
-		m_data[m_size] = '\0';
+		TRY(ensure_capacity(m_size + str.size()));
+		memmove(data() + index + str.size(), data() + index, m_size - index);
+		memcpy(data() + index, str.data(), str.size());
+		m_size += str.size();
+		data()[m_size] = '\0';
 		return {};
 	}
 
-	ErrorOr<void> String::append(StringView other)
+	ErrorOr<void> String::append(StringView str)
 	{
-		TRY(ensure_capacity(m_size + other.size() + 1));
-		memcpy(m_data + m_size, other.data(), other.size());
-		m_size += other.size();
-		m_data[m_size] = '\0';
-		return {};
-	}
-
-	ErrorOr<void> String::append(const String& string)
-	{
-		TRY(append(string.sv()));
+		TRY(ensure_capacity(m_size + str.size()));
+		memcpy(data() + m_size, str.data(), str.size());
+		m_size += str.size();
+		data()[m_size] = '\0';
 		return {};
 	}
 
@@ -104,159 +111,159 @@ namespace BAN
 	{
 		ASSERT(m_size > 0);
 		m_size--;
-		m_data[m_size] = '\0';
+		data()[m_size] = '\0';
 	}
 
 	void String::remove(size_type index)
 	{
-		erase(index,  1);
-	}
-
-	void String::erase(size_type index, size_type count)
-	{
-		ASSERT(index + count <= m_size);
-		memmove(m_data + index, m_data + index + count, m_size - index - count);
-		m_size -= count;
-		m_data[m_size] = '\0';
+		ASSERT(index < m_size);
+		memcpy(data() + index, data() + index + 1, m_size - index);
+		m_size--;
+		data()[m_size] = '\0';
 	}
 
 	void String::clear()
 	{
+		if (!has_sso())
+		{
+			deallocator(m_storage.general_storage.data);
+			m_storage.sso_storage = SSOStorage();
+			m_has_sso = true;
+		}
 		m_size = 0;
-		m_data[0] = '\0';
+		data()[m_size] = '\0';
 	}
 
-	char String::operator[](size_type index) const
+	bool String::operator==(StringView str) const
 	{
-		ASSERT(index < m_size);
-		return m_data[index];
-	}
-
-	char& String::operator[](size_type index)
-	{
-		ASSERT(index < m_size);
-		return m_data[index];
-	}
-
-	bool String::operator==(const String& other) const
-	{
-		if (m_size != other.m_size)
+		if (size() != str.size())
 			return false;
-		return memcmp(m_data, other.m_data, m_size) == 0;
-	}
-
-	bool String::operator==(StringView other) const
-	{
-		if (m_size != other.size())
-			return false;
-		return memcmp(m_data, other.data(), m_size) == 0;
-	}
-
-	bool String::operator==(const char* other) const
-	{
-		for (size_type i = 0; i <= m_size; i++)
-			if (m_data[i] != other[i])
+		for (size_type i = 0; i < m_size; i++)
+			if (data()[i] != str.data()[i])
 				return false;
 		return true;
 	}
 
-	ErrorOr<void> String::resize(size_type size, char ch)
+	bool String::operator==(const char* cstr) const
 	{
-		if (size < m_size)
+		for (size_type i = 0; i < m_size; i++)
+			if (data()[i] != cstr[i])
+				return false;
+		if (cstr[size()] != '\0')
+			return false;
+		return true;
+	}
+
+	ErrorOr<void> String::resize(size_type new_size, char init_c)
+	{
+		if (m_size == new_size)
+			return {};
+
+		// expanding
+		if (m_size < new_size)
 		{
-			m_data[size] = '\0';
-			m_size = size;
+			TRY(ensure_capacity(new_size));
+			memset(data() + m_size, init_c, new_size - m_size);
+			m_size = new_size;
+			data()[m_size] = '\0';
+			return {};
 		}
-		else if (size > m_size)
-		{
-			TRY(ensure_capacity(size + 1));
-			for (size_type i = m_size; i < size; i++)
-				m_data[i] = ch;
-			m_data[size] = '\0';
-			m_size = size;
-		}
-		m_size = size;
+
+		m_size = new_size;
+		data()[m_size] = '\0';
 		return {};
 	}
 
-	ErrorOr<void> String::reserve(size_type size)
+	ErrorOr<void> String::reserve(size_type new_size)
 	{
-		TRY(ensure_capacity(size));
+		TRY(ensure_capacity(new_size));
 		return {};
 	}
 
 	ErrorOr<void> String::shrink_to_fit()
 	{
-		size_type temp = m_capacity;
-		m_capacity = 0;
-		auto error_or = ensure_capacity(m_size);
-		if (error_or.is_error())
+		if (has_sso())
+			return {};
+
+		if (fits_in_sso())
 		{
-			m_capacity = temp;
-			return error_or;
+			char* data = m_storage.general_storage.data;
+			m_storage.sso_storage = SSOStorage();
+			m_has_sso = true;
+			memcpy(this->data(), data, m_size + 1);
+			deallocator(data);
+			return {};
 		}
+
+		GeneralStorage& storage = m_storage.general_storage;
+		if (storage.capacity == m_size)
+			return {};
+
+		char* new_data = (char*)allocator(m_size + 1);
+		if (new_data == nullptr)
+			return Error::from_errno(ENOMEM);
+
+		memcpy(new_data, storage.data, m_size);
+		deallocator(storage.data);
+
+		storage.capacity = m_size;
+		storage.data = new_data;
+
 		return {};
-	}
-
-	StringView String::sv() const
-	{
-		return StringView(*this);
-	}
-
-	bool String::empty() const
-	{
-		return m_size == 0;
-	}
-
-	String::size_type String::size() const
-	{
-		return m_size;
 	}
 
 	String::size_type String::capacity() const
 	{
-		return m_capacity;
+		if (has_sso())
+			return sso_capacity;
+		return m_storage.general_storage.capacity;
+	}
+
+	char* String::data()
+	{
+		if (has_sso())
+			return m_storage.sso_storage.data;
+		return m_storage.general_storage.data;
 	}
 
 	const char* String::data() const
 	{
-		return m_data;
+		if (has_sso())
+			return m_storage.sso_storage.data;
+		return m_storage.general_storage.data;
 	}
 
-	ErrorOr<void> String::ensure_capacity(size_type size)
+	ErrorOr<void> String::ensure_capacity(size_type new_size)
 	{
-		if (m_capacity >= size)
+		if (m_size >= new_size)
 			return {};
-		size_type new_cap = BAN::Math::max<size_type>(size, m_capacity * 2);
-		void* new_data = BAN::allocator(new_cap);
+		if (has_sso() && fits_in_sso(new_size))
+			return {};
+		
+		char* new_data = (char*)allocator(new_size + 1);
 		if (new_data == nullptr)
 			return Error::from_errno(ENOMEM);
-		if (m_data)
-			memcpy(new_data, m_data, m_size + 1);
-		BAN::deallocator(m_data);
-		m_data = (char*)new_data;
-		m_capacity = new_cap;
+		
+		memcpy(new_data, data(), m_size + 1);
+
+		if (has_sso())
+		{
+			m_storage.general_storage = GeneralStorage();
+			m_has_sso = false;
+		}
+		else
+			deallocator(m_storage.general_storage.data);
+
+		auto& storage = m_storage.general_storage;
+		storage.capacity = new_size;
+		storage.data = new_data;
+
 		return {};
 	}
 
-	ErrorOr<void> String::copy_impl(StringView other)
+	bool String::has_sso() const
 	{
-		TRY(ensure_capacity(other.size() + 1));
-		memcpy(m_data, other.data(), other.size());
-		m_size = other.size();
-		m_data[m_size] = '\0';
-		return {};
-	}
-
-	void String::move_impl(String&& other)
-	{
-		m_data		= other.m_data;
-		m_size		= other.m_size;
-		m_capacity	= other.m_capacity;
-
-		other.m_data = nullptr;
-		other.m_size = 0;
-		other.m_capacity = 0;
+		return m_has_sso;
 	}
 
 }

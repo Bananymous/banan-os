@@ -195,7 +195,7 @@ namespace BAN
 	template<typename T>
 	void LinkedList<T>::pop_back()
 	{
-		return remove(m_last);
+		remove(iterator(m_last, false));
 	}
 
 	template<typename T>

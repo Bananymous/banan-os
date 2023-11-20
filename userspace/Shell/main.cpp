@@ -156,7 +156,24 @@ BAN::Optional<BAN::String> parse_dollar(BAN::StringView command, size_t& i)
 		return output;
 	}
 
-	return "$"sv;
+	BAN::String temp = "$"sv;
+	MUST(temp.push_back(command[i]));
+	return temp;
+}
+
+BAN::StringView strip_whitespace(BAN::StringView sv)
+{
+	size_t leading = 0;
+	while (leading < sv.size() && isspace(sv[leading]))
+		leading++;
+	sv = sv.substring(leading);
+
+	size_t trailing = 0;
+	while (trailing < sv.size() && isspace(sv[sv.size() - trailing - 1]))
+		trailing++;
+	sv = sv.substring(0, sv.size() - trailing);
+
+	return sv;
 }
 
 BAN::Vector<BAN::Vector<BAN::String>> parse_command(BAN::StringView command_view)
@@ -167,6 +184,8 @@ BAN::Vector<BAN::Vector<BAN::String>> parse_command(BAN::StringView command_view
 		SingleQuote,
 		DoubleQuote,
 	};
+
+	command_view = strip_whitespace(command_view);
 
 	BAN::Vector<BAN::Vector<BAN::String>> result;
 	BAN::Vector<BAN::String> command_args;
@@ -248,6 +267,8 @@ BAN::Vector<BAN::Vector<BAN::String>> parse_command(BAN::StringView command_view
 
 int execute_command(BAN::Vector<BAN::String>& args, int fd_in, int fd_out);
 
+int source_script(const BAN::String& path);
+
 BAN::Optional<int> execute_builtin(BAN::Vector<BAN::String>& args, int fd_in, int fd_out)
 {
 	if (args.empty())
@@ -294,6 +315,15 @@ BAN::Optional<int> execute_builtin(BAN::Vector<BAN::String>& args, int fd_in, in
 			if (setenv(BAN::String(split[0]).data(), BAN::String(split[1]).data(), true) == -1)
 				ERROR_RETURN("setenv", 1);
 		}
+	}
+	else if (args.front() == "source"sv)
+	{
+		if (args.size() != 2)
+		{
+			fprintf(fout, "usage: source FILE\n");
+			return 1;
+		}
+		return source_script(args[1]);
 	}
 	else if (args.front() == "env"sv)
 	{
@@ -437,6 +467,40 @@ pid_t execute_command_no_wait(BAN::Vector<BAN::String>& args, int fd_in, int fd_
 		MUST(cmd_args.push_back((char*)arg.data()));
 	MUST(cmd_args.push_back(nullptr));
 
+	// do PATH resolution
+	BAN::String executable_file;
+	if (!args.front().empty() && args.front().front() != '.' && args.front().front() != '/')
+	{
+		char* path_env_cstr = getenv("PATH");
+		if (path_env_cstr)
+		{
+			auto path_env_list = MUST(BAN::StringView(path_env_cstr).split(':'));
+			for (auto path_env : path_env_list)
+			{
+				BAN::String test_file = path_env;
+				MUST(test_file.push_back('/'));
+				MUST(test_file.append(args.front()));
+
+				struct stat st;
+				if (stat(test_file.data(), &st) == 0)
+				{
+					executable_file = BAN::move(test_file);
+					break;
+				}
+			}
+
+			if (executable_file.empty())
+			{
+				fprintf(stderr, "command not found: %s\n", args.front().data());
+				return -1;
+			}
+		}
+	}
+	else
+	{
+		executable_file = args.front();
+	}
+
 	pid_t pid = fork();
 	if (pid == 0)
 	{
@@ -477,10 +541,13 @@ pid_t execute_command_no_wait(BAN::Vector<BAN::String>& args, int fd_in, int fd_
 			setpgid(0, pgrp);
 		}
 
-		execv(cmd_args.front(), cmd_args.data());
+		execv(executable_file.data(), cmd_args.data());
 		perror("execv");
 		exit(1);
 	}
+
+	if (pid == -1)
+		ERROR_RETURN("fork", -1);
 
 	return pid;
 }
@@ -489,7 +556,7 @@ int execute_command(BAN::Vector<BAN::String>& args, int fd_in, int fd_out)
 {
 	pid_t pid = execute_command_no_wait(args, fd_in, fd_out, 0);
 	if (pid == -1)
-		ERROR_RETURN("fork", 1);
+		return 1;
 
 	int status;
 	if (waitpid(pid, &status, 0) == -1)
@@ -580,6 +647,70 @@ int execute_piped_commands(BAN::Vector<BAN::Vector<BAN::String>>& commands)
 	return exit_codes.back();
 }
 
+int parse_and_execute_command(BAN::StringView command)
+{
+	if (command.empty())
+		return 0;
+	auto parsed_commands = parse_command(command);
+	if (parsed_commands.empty())
+		return 0;
+	tcsetattr(0, TCSANOW, &old_termios);
+	int ret = execute_piped_commands(parsed_commands);
+	tcsetattr(0, TCSANOW, &new_termios);
+	return ret;
+}
+
+int source_script(const BAN::String& path)
+{
+	FILE* fp = fopen(path.data(), "r");
+	if (fp == nullptr)
+		ERROR_RETURN("fopen", 1);
+
+	int ret = 0;
+
+	BAN::String command;
+	char temp_buffer[128];
+	while (fgets(temp_buffer, sizeof(temp_buffer), fp))
+	{
+		MUST(command.append(temp_buffer));
+		if (command.back() != '\n')
+			continue;
+			
+		command.pop_back();
+		
+		if (!command.empty())
+			if (int temp = parse_and_execute_command(command))
+				ret = temp;
+		command.clear();
+	}
+
+	if (!command.empty())
+		if (int temp = parse_and_execute_command(command))
+			ret = temp;
+
+	fclose(fp);
+
+	return ret;
+}
+
+bool exists(const BAN::String& path)
+{
+	struct stat st;
+	return stat(path.data(), &st) == 0;
+}
+
+int source_shellrc()
+{
+	if (char* home = getenv("HOME"))
+	{
+		BAN::String path(home);
+		MUST(path.append("/.shellrc"sv));
+		if (exists(path))
+			return source_script(path);
+	}
+	return 0;
+}
+
 int character_length(BAN::StringView prompt)
 {
 	int length { 0 };
@@ -606,7 +737,7 @@ BAN::String get_prompt()
 {
 	const char* raw_prompt = getenv("PS1");
 	if (raw_prompt == nullptr)
-		return ""sv;
+		return "$ "sv;
 
 	BAN::String prompt;
 	for (int i = 0; raw_prompt[i]; i++)
@@ -647,11 +778,17 @@ BAN::String get_prompt()
 			}
 			case 'u':
 			{
-				auto* passwd = getpwuid(geteuid());
-				if (passwd == nullptr)
-					break;
-				MUST(prompt.append(passwd->pw_name));
-				endpwent();
+				static char* username = nullptr;
+				if (username == nullptr)
+				{
+					auto* passwd = getpwuid(geteuid());
+					if (passwd == nullptr)
+						break;
+					username = new char[strlen(passwd->pw_name) + 1];
+					strcpy(username, passwd->pw_name);
+					endpwent();
+				}
+				MUST(prompt.append(username));
 				break;
 			}
 			case 'h':
@@ -696,6 +833,8 @@ int main(int argc, char** argv)
 	if (signal(SIGINT, [](int) {}) == SIG_ERR)
 		perror("signal");
 
+	tcgetattr(0, &old_termios);
+
 	{
 		FILE* fp = fopen("/etc/hostname", "r");
 		if (fp != NULL)
@@ -736,9 +875,8 @@ int main(int argc, char** argv)
 
 	if (argc >= 1)
 		setenv("SHELL", argv[0], true);
-	setenv("PS1", "\e[32m\\u@\\h\e[m:\e[34m\\~\e[m$ ", false);
-
-	tcgetattr(0, &old_termios);
+	
+	source_shellrc();
 
 	new_termios = old_termios;
 	new_termios.c_lflag &= ~(ECHO | ICANON);
@@ -841,10 +979,7 @@ int main(int argc, char** argv)
 			fputc('\n', stdout);
 			if (!buffers[index].empty())
 			{
-				tcsetattr(0, TCSANOW, &old_termios);
-				auto commands = parse_command(buffers[index]);
-				last_return = execute_piped_commands(commands);
-				tcsetattr(0, TCSANOW, &new_termios);
+				last_return = parse_and_execute_command(buffers[index]);
 				MUST(history.push_back(buffers[index]));
 				buffers = history;
 				MUST(buffers.emplace_back(""sv));

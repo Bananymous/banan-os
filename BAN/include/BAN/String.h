@@ -1,8 +1,8 @@
 #pragma once
 
 #include <BAN/Errors.h>
-#include <BAN/ForwardList.h>
 #include <BAN/Formatter.h>
+#include <BAN/ForwardList.h>
 #include <BAN/Hash.h>
 #include <BAN/Iterators.h>
 
@@ -15,6 +15,7 @@ namespace BAN
 		using size_type = size_t;
 		using iterator = IteratorSimple<char, String>;
 		using const_iterator = ConstIteratorSimple<char, String>;
+		static constexpr size_type sso_capacity = 15;
 
 	public:
 		String();
@@ -34,29 +35,26 @@ namespace BAN
 		ErrorOr<void> insert(char, size_type);
 		ErrorOr<void> insert(StringView, size_type);
 		ErrorOr<void> append(StringView);
-		ErrorOr<void> append(const String&);
 
 		void pop_back();
 		void remove(size_type);
-		void erase(size_type, size_type);
 
 		void clear();
 
-		const_iterator begin() const { return const_iterator(m_data); }
-		iterator begin() { return iterator(m_data); }
-		const_iterator end() const { return const_iterator(m_data + m_size); }
-		iterator end() { return iterator(m_data + m_size); }
+		const_iterator begin() const	{ return const_iterator(data()); }
+		iterator begin()				{ return iterator(data()); }
+		const_iterator end() const		{ return const_iterator(data() + size()); }
+		iterator end()					{ return iterator(data() + size()); }
 
-		char front() const	{ ASSERT(!empty()); return m_data[0]; }
-		char& front()		{ ASSERT(!empty()); return m_data[0]; }
+		char front() const	{ ASSERT(m_size > 0); return data()[0]; }
+		char& front()		{ ASSERT(m_size > 0); return data()[0]; }
 
-		char back() const	{ ASSERT(!empty()); return m_data[m_size - 1]; }
-		char& back()		{ ASSERT(!empty()); return m_data[m_size - 1]; }
+		char back() const	{ ASSERT(m_size > 0); return data()[m_size - 1]; }
+		char& back()		{ ASSERT(m_size > 0); return data()[m_size - 1]; }
 
-		char operator[](size_type) const;
-		char& operator[](size_type);
+		char operator[](size_type index) const	{ ASSERT(index < m_size); return data()[index]; }
+		char& operator[](size_type index)		{ ASSERT(index < m_size); return data()[index]; }
 
-		bool operator==(const String&) const;
 		bool operator==(StringView) const;
 		bool operator==(const char*) const;
 
@@ -64,24 +62,41 @@ namespace BAN
 		ErrorOr<void> reserve(size_type);
 		ErrorOr<void> shrink_to_fit();
 
-		StringView sv() const;
+		StringView sv() const	{ return StringView(data(), size()); }
 
-		bool empty() const;
-		size_type size() const;
+		bool empty() const		{ return m_size == 0; }
+		size_type size() const	{ return m_size; }
 		size_type capacity() const;
 
+		char* data();
 		const char* data() const;
 
 	private:
 		ErrorOr<void> ensure_capacity(size_type);
 
-		ErrorOr<void> copy_impl(StringView);
-		void move_impl(String&&);
+		bool has_sso() const;
+
+		bool fits_in_sso() const { return fits_in_sso(m_size); }
+		static bool fits_in_sso(size_type size) { return size < sso_capacity; }
 
 	private:
-		char*		m_data		= nullptr;
-		size_type	m_capacity	= 0;
-		size_type	m_size		= 0;	
+		struct SSOStorage
+		{
+			char data[sso_capacity + 1] {};
+		};
+		struct GeneralStorage
+		{
+			size_type capacity	{ 0 };
+			char* data			{ nullptr };
+		};
+
+	private:
+		union {
+			SSOStorage sso_storage;
+			GeneralStorage general_storage;
+		} m_storage										{ .sso_storage = SSOStorage() };
+		size_type m_size	: sizeof(size_type) * 8 - 1	{ 0 };
+		size_type m_has_sso	: 1							{ true };
 	};
 
 	template<typename... Args>

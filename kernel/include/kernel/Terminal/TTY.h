@@ -21,6 +21,8 @@ namespace Kernel
 		void set_foreground_pgrp(pid_t pgrp) { m_foreground_pgrp = pgrp; }
 		pid_t foreground_pgrp() const { return m_foreground_pgrp; }
 
+		BAN::ErrorOr<void> tty_ctrl(int command, int flags);
+
 		// for kprint
 		static void putchar_current(uint8_t ch);
 		static bool is_initialized();
@@ -35,19 +37,20 @@ namespace Kernel
 
 		virtual uint32_t height() const = 0;
 		virtual uint32_t width() const = 0;
-		virtual void putchar(uint8_t ch) = 0;
+		void putchar(uint8_t ch);
 
-		bool has_data() const;
+		virtual void clear() = 0;
+
+		virtual bool has_data_impl() const override;
 
 	protected:
 		TTY(mode_t mode, uid_t uid, gid_t gid)
 			: CharacterDevice(mode, uid, gid)
 		{ }
 
-		virtual BAN::ErrorOr<size_t> read_impl(off_t, void*, size_t) override;
-		virtual BAN::ErrorOr<size_t> write_impl(off_t, const void*, size_t) override;
-
-		virtual BAN::StringView name() const = 0;
+		virtual void putchar_impl(uint8_t ch) = 0;
+		virtual BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan) override;
+		virtual BAN::ErrorOr<size_t> write_impl(off_t, BAN::ConstByteSpan) override;
 
 	private:
 		void do_backspace();
@@ -61,6 +64,14 @@ namespace Kernel
 
 	private:
 		pid_t m_foreground_pgrp { 0 };
+
+		struct tty_ctrl_t
+		{
+			bool draw_graphics { true };
+			bool receive_input { true };
+			Semaphore semaphore;
+		};
+		tty_ctrl_t m_tty_ctrl;
 
 		struct Buffer
 		{

@@ -32,7 +32,9 @@ namespace Kernel
 			return 0;
 		}
 
+#if __enable_sse
 		Thread::current().save_sse();
+#endif
 
 		asm volatile("sti");
 
@@ -68,12 +70,6 @@ namespace Kernel
 		case SYS_OPENAT:
 			ret = Process::current().sys_openat((int)arg1, (const char*)arg2, (int)arg3, (mode_t)arg4);
 			break;
-		case SYS_ALLOC:
-			ret = Process::current().sys_alloc((size_t)arg1);
-			break;
-		case SYS_FREE:
-			ret = Process::current().sys_free((void*)arg1);
-			break;
 		case SYS_SEEK:
 			ret = Process::current().sys_seek((int)arg1, (long)arg2, (int)arg3);
 			break;
@@ -100,9 +96,6 @@ namespace Kernel
 			break;
 		case SYS_FSTAT:
 			ret = Process::current().sys_fstat((int)arg1, (struct stat*)arg2);
-			break;
-		case SYS_SETENVP:
-			ret = Process::current().sys_setenvp((char**)arg1);
 			break;
 		case SYS_READ_DIR_ENTRIES:
 			ret = Process::current().sys_read_dir_entries((int)arg1, (API::DirectoryEntryList*)arg2, (size_t)arg3);
@@ -191,6 +184,39 @@ namespace Kernel
 		case SYS_STAT:
 			ret = Process::current().sys_stat((const char*)arg1, (struct stat*)arg2, (int)arg3);
 			break;
+		case SYS_SYNC:
+			ret = Process::current().sys_sync((bool)arg1);
+			break;
+		case SYS_MMAP:
+			ret = Process::current().sys_mmap((const sys_mmap_t*)arg1);
+			break;
+		case SYS_MUNMAP:
+			ret = Process::current().sys_munmap((void*)arg1, (size_t)arg2);
+			break;
+		case SYS_TTY_CTRL:
+			ret = Process::current().sys_tty_ctrl((int)arg1, (int)arg2, (int)arg3);
+			break;
+		case SYS_POWEROFF:
+			ret = Process::current().sys_poweroff((int)arg1);
+			break;
+		case SYS_CHMOD:
+			ret = Process::current().sys_chmod((const char*)arg1, (mode_t)arg2);
+			break;
+		case SYS_CREATE:
+			ret = Process::current().sys_create((const char*)arg1, (mode_t)arg2);
+			break;
+		case SYS_CREATE_DIR:
+			ret = Process::current().sys_create_dir((const char*)arg1, (mode_t)arg2);
+			break;
+		case SYS_UNLINK:
+			ret = Process::current().sys_unlink((const char*)arg1);
+			break;
+		case SYS_READLINK:
+			ret = Process::current().sys_readlink((const char*)arg1, (char*)arg2, (size_t)arg3);
+			break;
+		case SYS_READLINKAT:
+			ret = Process::current().sys_readlinkat((int)arg1, (const char*)arg2, (char*)arg3, (size_t)arg4);
+			break;
 		default:
 			dwarnln("Unknown syscall {}", syscall);
 			break;
@@ -202,7 +228,10 @@ namespace Kernel
 			Kernel::panic("Kernel error while returning to userspace {}", ret.error());
 
 		ASSERT(Kernel::Thread::current().state() == Kernel::Thread::State::Executing);
+
+#if __enable_sse
 		Thread::current().load_sse();
+#endif
 
 		if (ret.is_error())
 			return -ret.error().get_error_code();

@@ -1,6 +1,8 @@
 #pragma once
 
+#include <BAN/CircularQueue.h>
 #include <BAN/Errors.h>
+#include <kernel/InterruptController.h>
 #include <kernel/Terminal/TTY.h>
 
 namespace Kernel
@@ -34,19 +36,23 @@ namespace Kernel
 		uint32_t m_height { 0 };
 	};
 
-	class SerialTTY final : public TTY
+	class SerialTTY final : public TTY, public Interruptable
 	{
 	public:
 		static BAN::ErrorOr<BAN::RefPtr<SerialTTY>> create(Serial);
 		
 		virtual uint32_t width() const override;
 		virtual uint32_t height() const override;
-		virtual void putchar(uint8_t) override;
+
+		virtual void clear() override { putchar_impl('\e'); putchar_impl('['); putchar_impl('2'); putchar_impl('J'); }
 
 		virtual void update() override;
 
+		virtual void handle_irq() override;
+
 	protected:
 		virtual BAN::StringView name() const override { return m_name; }
+		virtual void putchar_impl(uint8_t) override;
 
 	private:
 		SerialTTY(Serial);
@@ -55,6 +61,7 @@ namespace Kernel
 	private:
 		BAN::String m_name;
 		Serial m_serial;
+		BAN::CircularQueue<uint8_t, 128> m_input;
 
 	public:
 		virtual dev_t rdev() const override { return m_rdev; }

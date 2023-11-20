@@ -4,18 +4,14 @@
 
 int main(int argc, char** argv)
 {
+	int ret = 0;
 	for (int i = 1; i < argc; i++)
 	{
-		int fd = open(argv[i], O_WRONLY | O_CREAT, 0644);
-		if (fd == -1)
+		if (creat(argv[i], 0644) == -1 && errno != EEXIST)
 		{
-			if (errno != EEXISTS)
-				perror(argv[i]);
-		}
-		else
-		{
-			close(fd);
+			perror(argv[i]);
+			ret = 1;
 		}
 	}
-	return 0;
+	return ret;
 }

@@ -15,6 +15,19 @@
 		written++;								\
 	} while (false)
 
+enum class length_t
+{
+	none,
+	hh,
+	h,
+	l,
+	ll,
+	j,
+	z,
+	t,
+	L,
+};
+
 struct format_options_t
 {
 	bool alternate_form { false };
@@ -24,6 +37,7 @@ struct format_options_t
 	bool show_plus_sign { false };
 	int width { -1 };
 	int percision { -1 };
+	length_t length { length_t::none };
 };
 
 template<BAN::integral T>
@@ -104,6 +118,7 @@ static void integer_to_string(char* buffer, T value, int base, bool upper, forma
 	buffer[offset++] = '\0';
 }
 
+#if __enable_sse
 template<BAN::floating_point T>
 static void floating_point_to_string(char* buffer, T value, bool upper, const format_options_t options)
 {
@@ -227,6 +242,7 @@ static void floating_point_to_exponent_string(char* buffer, T value, bool upper,
 	exponent_options.width = 3;
 	integer_to_string<int>(buffer + offset, exponent, 10, upper, exponent_options);
 }
+#endif
 
 extern "C" int printf_impl(const char* format, va_list arguments, int (*putc_fun)(int, void*), void* data)
 {
@@ -306,54 +322,170 @@ extern "C" int printf_impl(const char* format, va_list arguments, int (*putc_fun
 				options.percision = percision;
 			}
 		
-			// TODO: Lenght modifier
+			// PARSE LENGTH
+			if (*format == 'h')
+			{
+				if (*(format + 1) == 'h')
+				{
+					format++;
+					options.length = length_t::hh;
+				}
+				else
+					options.length = length_t::h;
+			}
+			else if (*format == 'l')
+			{
+				if (*(format + 1) == 'l')
+				{
+					format++;
+					options.length = length_t::ll;
+				}
+				else
+					options.length = length_t::l;
+			}
+			else if (*format == 'j')
+				options.length = length_t::j;
+			else if (*format == 'z')
+				options.length = length_t::z;
+			else if (*format == 't')
+				options.length = length_t::t;
+			else if (*format == 'L')
+				options.length = length_t::L;
+			else
+				format--;
+			format++;
 
 			char conversion[128];
 			const char* string = nullptr;
 
 			int length = -1;
 
+#define PARSE_INT_CASE(length, type) \
+	case length_t::length: integer_to_string<type>(conversion, va_arg(arguments, type), BASE_, UPPER_, options); break
+
+#define PARSE_INT_CASE_CAST(length, cast, type) \
+	case length_t::length: integer_to_string<cast>(conversion, va_arg(arguments, type), BASE_, UPPER_, options); break
+
+#define PARSE_INT_DEFAULT(type) \
+	default: integer_to_string<type>(conversion, va_arg(arguments, type), BASE_, UPPER_, options); break
+
 			switch (*format)
 			{
 			case 'd':
 			case 'i':
 			{
-				int value = va_arg(arguments, int);
-				integer_to_string<int>(conversion, value, 10, false, options);
+				switch (options.length)
+				{
+#define BASE_ 10
+#define UPPER_ false
+					PARSE_INT_CASE_CAST(hh, signed char, int);
+					PARSE_INT_CASE_CAST(h, short, int);
+					PARSE_INT_CASE(l, long);
+					PARSE_INT_CASE(ll, long long);
+					PARSE_INT_CASE(j, intmax_t);
+					PARSE_INT_CASE(z, ssize_t);
+					PARSE_INT_CASE(t, ptrdiff_t);
+					PARSE_INT_DEFAULT(int);
+#undef BASE_
+#undef UPPER_
+				}
 				string = conversion;
 				format++;
 				break;
 			}
 			case 'o':
 			{
-				unsigned int value = va_arg(arguments, unsigned int);
-				integer_to_string<unsigned int>(conversion, value, 8, false, options);
+				switch (options.length)
+				{
+#define BASE_ 8
+#define UPPER_ false
+					PARSE_INT_CASE_CAST(hh, unsigned char, unsigned int);
+					PARSE_INT_CASE_CAST(h, unsigned short, unsigned int);
+					PARSE_INT_CASE(l, unsigned long);
+					PARSE_INT_CASE(ll, unsigned long long);
+					PARSE_INT_CASE(j, uintmax_t);
+					PARSE_INT_CASE(z, size_t);
+					PARSE_INT_CASE(t, uintptr_t);
+					PARSE_INT_DEFAULT(unsigned int);
+#undef BASE_
+#undef UPPER_
+				}
 				string = conversion;
 				format++;
 				break;
 			}
 			case 'u':
 			{
-				unsigned int value = va_arg(arguments, unsigned int);
-				integer_to_string<unsigned int>(conversion, value, 10, false, options);
+				switch (options.length)
+				{
+#define BASE_ 10
+#define UPPER_ false
+					PARSE_INT_CASE_CAST(hh, unsigned char, unsigned int);
+					PARSE_INT_CASE_CAST(h, unsigned short, unsigned int);
+					PARSE_INT_CASE(l, unsigned long);
+					PARSE_INT_CASE(ll, unsigned long long);
+					PARSE_INT_CASE(j, uintmax_t);
+					PARSE_INT_CASE(z, size_t);
+					PARSE_INT_CASE(t, uintptr_t);
+					PARSE_INT_DEFAULT(unsigned int);
+#undef BASE_
+#undef UPPER_
+				}
 				string = conversion;
 				format++;
 				break;
 			}
 			case 'x':
-			case 'X':
 			{
-				unsigned int value = va_arg(arguments, unsigned int);
-				integer_to_string<unsigned int>(conversion, value, 16, *format == 'X', options);
+				switch (options.length)
+				{
+#define BASE_ 16
+#define UPPER_ false
+					PARSE_INT_CASE_CAST(hh, unsigned char, unsigned int);
+					PARSE_INT_CASE_CAST(h, unsigned short, unsigned int);
+					PARSE_INT_CASE(l, unsigned long);
+					PARSE_INT_CASE(ll, unsigned long long);
+					PARSE_INT_CASE(j, uintmax_t);
+					PARSE_INT_CASE(z, size_t);
+					PARSE_INT_CASE(t, uintptr_t);
+					PARSE_INT_DEFAULT(unsigned int);
+#undef BASE_
+#undef UPPER_
+				}
 				string = conversion;
 				format++;
 				break;
 			}
+			case 'X':
+			{
+				switch (options.length)
+				{
+#define BASE_ 16
+#define UPPER_ true
+					PARSE_INT_CASE_CAST(hh, unsigned char, unsigned int);
+					PARSE_INT_CASE_CAST(h, unsigned short, unsigned int);
+					PARSE_INT_CASE(l, unsigned long);
+					PARSE_INT_CASE(ll, unsigned long long);
+					PARSE_INT_CASE(j, uintmax_t);
+					PARSE_INT_CASE(z, size_t);
+					PARSE_INT_CASE(t, uintptr_t);
+					PARSE_INT_DEFAULT(unsigned int);
+#undef BASE_
+#undef UPPER_
+				}
+				string = conversion;
+				format++;
+				break;
+			}
+#if __enable_sse
 			case 'e':
 			case 'E':
 			{
-				double value = va_arg(arguments, double);
-				floating_point_to_exponent_string<double>(conversion, value, *format == 'E', options);
+				switch (options.length)
+				{
+					case length_t::L:	floating_point_to_exponent_string<long double>	(conversion, va_arg(arguments, long double),	*format == 'E', options); break;
+					default:			floating_point_to_exponent_string<double>		(conversion, va_arg(arguments, double),			*format == 'E', options); break;
+				}
 				string = conversion;
 				format++;
 				break;
@@ -361,8 +493,11 @@ extern "C" int printf_impl(const char* format, va_list arguments, int (*putc_fun
 			case 'f':
 			case 'F':
 			{
-				double value = va_arg(arguments, double);
-				floating_point_to_string<double>(conversion, value, *format == 'F', options);
+				switch (options.length)
+				{
+					case length_t::L:	floating_point_to_string<long double>	(conversion, va_arg(arguments, long double),	*format == 'F', options); break;
+					default:			floating_point_to_string<double>		(conversion, va_arg(arguments, double),			*format == 'F', options); break;
+				}
 				string = conversion;
 				format++;
 				break;
@@ -375,6 +510,7 @@ extern "C" int printf_impl(const char* format, va_list arguments, int (*putc_fun
 			case 'A':
 				// TODO
 				break;
+#endif
 			case 'c':
 			{
 				conversion[0] = va_arg(arguments, int);
@@ -412,8 +548,17 @@ extern "C" int printf_impl(const char* format, va_list arguments, int (*putc_fun
 			}
 			case 'n':
 			{
-				int* target = va_arg(arguments, int*);
-				*target = written;
+				switch (options.length)
+				{
+					case length_t::hh:	*va_arg(arguments, signed char*)	= written; break;
+					case length_t::h:	*va_arg(arguments, short*)			= written; break;
+					case length_t::l:	*va_arg(arguments, long*)			= written; break;
+					case length_t::ll:	*va_arg(arguments, long long*)		= written; break;
+					case length_t::j:	*va_arg(arguments, intmax_t*)		= written; break;
+					case length_t::z:	*va_arg(arguments, ssize_t*)		= written; break;
+					case length_t::t:	*va_arg(arguments, ptrdiff_t*)		= written; break;
+					default:			*va_arg(arguments, int*)			= written; break;
+				}
 				format++;
 				break;
 			}

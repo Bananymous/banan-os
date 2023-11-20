@@ -1,0 +1,18 @@
+#compdef bos
+
+__ninja_targets() {
+	ninja -C build -f build.ninja -t targets all 2>/dev/null | cut -d: -f1 | grep -vi cmake
+}
+
+__build_targets() {
+	grep -o '[a-zA-Z-]\+)$' script/build.sh 2>/dev/null | cut -d')' -f1
+}
+
+__targets() {
+	local -a targets
+	targets=($(__ninja_targets) $(__build_targets))
+	_describe 'targets' targets
+}
+
+_arguments '*::targets:__targets'
+

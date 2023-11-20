@@ -20,7 +20,7 @@ namespace Kernel
 	class Partition final : public BlockDevice
 	{
 	public:
-		Partition(StorageDevice&, const GUID&, const GUID&, uint64_t, uint64_t, uint64_t, const char*, uint32_t);
+		static BAN::ErrorOr<BAN::RefPtr<Partition>> create(StorageDevice&, const GUID& type, const GUID& guid, uint64_t start, uint64_t end, uint64_t attr, const char* label, uint32_t index);
 
 		const GUID& partition_type() const { return m_type; }
 		const GUID& partition_guid() const { return m_guid; }
@@ -30,8 +30,13 @@ namespace Kernel
 		const char* label() const { return m_label; }
 		const StorageDevice& device() const { return m_device; }
 
-		BAN::ErrorOr<void> read_sectors(uint64_t lba, uint8_t sector_count, uint8_t* buffer);
-		BAN::ErrorOr<void> write_sectors(uint64_t lba, uint8_t sector_count, const uint8_t* buffer);
+		BAN::ErrorOr<void> read_sectors(uint64_t lba, uint8_t sector_count, BAN::ByteSpan);
+		BAN::ErrorOr<void> write_sectors(uint64_t lba, uint8_t sector_count, BAN::ConstByteSpan);
+		
+		virtual BAN::StringView name() const override { return m_name; }
+
+	private:
+		Partition(StorageDevice&, const GUID&, const GUID&, uint64_t, uint64_t, uint64_t, const char*, uint32_t);
 
 	private:
 		StorageDevice& m_device;
@@ -41,17 +46,15 @@ namespace Kernel
 		const uint64_t m_lba_end;
 		const uint64_t m_attributes;
 		char m_label[36 * 4 + 1];
+		const BAN::String m_name;
 
 	public:
 		virtual bool is_partition() const override { return true; }
 
-		virtual Mode mode() const override { return { Mode::IFBLK | Mode::IRUSR | Mode::IRGRP }; }
-		virtual uid_t uid() const override { return 0; }
-		virtual gid_t gid() const override { return 0; }
 		virtual dev_t rdev() const override { return m_rdev; }
 
 	protected:
-		virtual BAN::ErrorOr<size_t> read_impl(off_t, void*, size_t) override;
+		virtual BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan) override;
 
 	private:
 		const dev_t m_rdev;
@@ -67,23 +70,27 @@ namespace Kernel
 
 		BAN::ErrorOr<void> initialize_partitions();
 
-		BAN::ErrorOr<void> read_sectors(uint64_t lba, uint8_t sector_count, uint8_t* buffer);
-		BAN::ErrorOr<void> write_sectors(uint64_t lba, uint8_t sector_count, const uint8_t* buffer);
+		BAN::ErrorOr<void> read_sectors(uint64_t lba, uint64_t sector_count, BAN::ByteSpan);
+		BAN::ErrorOr<void> write_sectors(uint64_t lba, uint64_t sector_count, BAN::ConstByteSpan);
 
 		virtual uint32_t sector_size() const = 0;
 		virtual uint64_t total_size() const = 0;
 
-		BAN::Vector<Partition*>& partitions() { return m_partitions; }
-		const BAN::Vector<Partition*>& partitions() const { return m_partitions; }
+		BAN::Vector<BAN::RefPtr<Partition>>& partitions() { return m_partitions; }
+		const BAN::Vector<BAN::RefPtr<Partition>>& partitions() const { return m_partitions; }
+
+		BAN::ErrorOr<void> sync_disk_cache();
+		virtual bool is_storage_device() const override { return true; }
 
 	protected:
-		virtual BAN::ErrorOr<void> read_sectors_impl(uint64_t lba, uint8_t sector_count, uint8_t* buffer) = 0;
-		virtual BAN::ErrorOr<void> write_sectors_impl(uint64_t lba, uint8_t sector_count, const uint8_t* buffer) = 0;
+		virtual BAN::ErrorOr<void> read_sectors_impl(uint64_t lba, uint64_t sector_count, BAN::ByteSpan) = 0;
+		virtual BAN::ErrorOr<void> write_sectors_impl(uint64_t lba, uint64_t sector_count, BAN::ConstByteSpan) = 0;
 		void add_disk_cache();
 
 	private:
-		BAN::Optional<DiskCache>	m_disk_cache;
-		BAN::Vector<Partition*>		m_partitions;
+		SpinLock							m_lock;
+		BAN::Optional<DiskCache>			m_disk_cache;
+		BAN::Vector<BAN::RefPtr<Partition>>	m_partitions;
 
 		friend class DiskCache;
 	};

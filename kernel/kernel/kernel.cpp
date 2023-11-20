@@ -1,7 +1,9 @@
 #include <kernel/ACPI.h>
 #include <kernel/Arch.h>
+#include <kernel/BootInfo.h>
 #include <kernel/Debug.h>
 #include <kernel/FS/DevFS/FileSystem.h>
+#include <kernel/FS/ProcFS/FileSystem.h>
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/GDT.h>
 #include <kernel/IDT.h>
@@ -11,7 +13,6 @@
 #include <kernel/Memory/Heap.h>
 #include <kernel/Memory/kmalloc.h>
 #include <kernel/Memory/PageTable.h>
-#include <kernel/multiboot.h>
 #include <kernel/PCI.h>
 #include <kernel/PIC.h>
 #include <kernel/Process.h>
@@ -22,8 +23,6 @@
 #include <kernel/Terminal/VesaTerminalDriver.h>
 #include <kernel/Timer/Timer.h>
 
-extern "C" const char g_kernel_cmdline[];
-
 struct ParsedCommandLine
 {
 	bool force_pic		= false;
@@ -32,13 +31,10 @@ struct ParsedCommandLine
 	BAN::StringView root;
 };
 
-static bool should_disable_serial()
+static bool should_disable_serial(BAN::StringView full_command_line)
 {
-	if (!(g_multiboot_info->flags & 0x02))
-		return false;
-
-	const char* start = g_kernel_cmdline;
-	const char* current = g_kernel_cmdline;
+	const char* start = full_command_line.data();
+	const char* current = start;
 	while (true)
 	{
 		if (!*current || *current == ' ' || *current == '\t')
@@ -59,12 +55,8 @@ static ParsedCommandLine cmdline;
 
 static void parse_command_line()
 {
-	if (!(g_multiboot_info->flags & 0x02))
-		return;
-
-	BAN::StringView full_command_line(g_kernel_cmdline);
+	auto full_command_line = Kernel::g_boot_info.command_line.sv();
 	auto arguments = MUST(full_command_line.split(' '));
-
 	for (auto argument : arguments)
 	{
 		if (argument == "noapic")
@@ -78,31 +70,34 @@ static void parse_command_line()
 	}
 }
 
-extern "C" uint8_t g_userspace_start[];
-extern "C" uint8_t g_userspace_end[];
+TerminalDriver* g_terminal_driver = nullptr;
 
 static void init2(void*);
 
-extern "C" void kernel_main()
+extern "C" void kernel_main(uint32_t boot_magic, uint32_t boot_info)
 {
 	using namespace Kernel;
 
 	DISABLE_INTERRUPTS();
 
-	if (!should_disable_serial())
+	if (!validate_boot_magic(boot_magic))
+	{
+		Serial::initialize();
+		dprintln("Unrecognized boot magic {8H}", boot_magic);
+		return;
+	}
+
+	if (!should_disable_serial(get_early_boot_command_line(boot_magic, boot_info)))
 	{
 		Serial::initialize();
 		dprintln("Serial output initialized");
 	}
 
-	if (g_multiboot_magic != 0x2BADB002)
-	{
-		dprintln("Invalid multiboot magic number");
-		return;
-	}
-
 	kmalloc_initialize();
 	dprintln("kmalloc initialized");
+
+	parse_boot_info(boot_magic, boot_info);
+	dprintln("boot info parsed");
 
 	GDT::initialize();
 	dprintln("GDT initialized");
@@ -112,6 +107,10 @@ extern "C" void kernel_main()
 
 	PageTable::initialize();
 	dprintln("PageTable initialized");
+
+	g_terminal_driver = VesaTerminalDriver::create();
+	if (g_terminal_driver)
+		dprintln("VESA initialized");
 
 	Heap::initialize();
 	dprintln("Heap initialzed");
@@ -131,18 +130,20 @@ extern "C" void kernel_main()
 	DevFileSystem::initialize();
 	dprintln("devfs initialized");
 
+	ProcFileSystem::initialize();
+	dprintln("procfs initialized");
+
 	if (Serial::has_devices())
 	{
 		Serial::initialize_devices();
 		dprintln("Serial devices initialized");
 	}
 
-	TerminalDriver* terminal_driver = VesaTerminalDriver::create();
-	ASSERT(terminal_driver);
-	dprintln("VESA initialized");
-
-	auto vtty = MUST(VirtualTTY::create(terminal_driver));
-	dprintln("Virtual TTY initialized");
+	if (g_terminal_driver)
+	{
+		auto vtty = MUST(VirtualTTY::create(g_terminal_driver));
+		dprintln("Virtual TTY initialized");
+	}
 
 	MUST(Scheduler::initialize());
 	dprintln("Scheduler initialized");
@@ -161,16 +162,19 @@ static void init2(void*)
 
 	dprintln("Scheduler started");
 
+	InterruptController::get().enter_acpi_mode();
+
 	auto console = MUST(DevFileSystem::get().root_inode()->find_inode(cmdline.console));
 	ASSERT(console->is_tty());
 	((TTY*)console.ptr())->set_as_current();
 
 	DevFileSystem::get().initialize_device_updater();
 
-	PCI::initialize();
+	PCI::PCIManager::initialize();
 	dprintln("PCI initialized");
 
 	VirtualFileSystem::initialize(cmdline.root);
+	dprintln("VFS initialized");
 
 	if (auto res = PS2Controller::initialize(); res.is_error())
 		dprintln("{}", res.error());

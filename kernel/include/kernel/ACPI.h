@@ -108,26 +108,37 @@ namespace Kernel
 		static BAN::ErrorOr<void> initialize();
 		static ACPI& get();
 
-		const SDTHeader* get_header(const char[4]);
+		const SDTHeader* get_header(BAN::StringView signature, uint32_t index);
 
 	private:
 		ACPI() = default;
 		BAN::ErrorOr<void> initialize_impl();
 
-		const SDTHeader* get_header_from_index(size_t);
-
 	private:
 		paddr_t m_header_table_paddr = 0;
 		vaddr_t m_header_table_vaddr = 0;
 		uint32_t m_entry_size = 0;
-		uint32_t m_entry_count = 0;
 
 		struct MappedPage
 		{
 			Kernel::paddr_t paddr;
 			Kernel::vaddr_t vaddr;
+
+			SDTHeader* as_header() { return (SDTHeader*)vaddr; }
 		};
 		BAN::Vector<MappedPage> m_mapped_headers;		
 	};
 
+}
+
+namespace BAN::Formatter
+{
+	template<typename F>
+	void print_argument(F putc, const Kernel::ACPI::SDTHeader& header, const ValueFormat& format)
+	{ 
+		putc(header.signature[0]);
+		putc(header.signature[1]);
+		putc(header.signature[2]);
+		putc(header.signature[3]);
+	}
 }

@@ -33,12 +33,12 @@ namespace Kernel
 
 	BAN::ErrorOr<BAN::RefPtr<VirtualTTY>> VirtualTTY::create(TerminalDriver* driver)
 	{
-		auto* tty = new VirtualTTY(driver);
-		ASSERT(tty);
+		auto* tty_ptr = new VirtualTTY(driver);
+		ASSERT(tty_ptr);
 
-		auto ref_ptr = BAN::RefPtr<VirtualTTY>::adopt(tty);
-		DevFileSystem::get().add_device(ref_ptr->name(), ref_ptr);
-		return ref_ptr;
+		auto tty = BAN::RefPtr<VirtualTTY>::adopt(tty_ptr);
+		DevFileSystem::get().add_device(tty);
+		return tty;
 	}
 
 	VirtualTTY::VirtualTTY(TerminalDriver* driver)
@@ -304,7 +304,7 @@ namespace Kernel
 		m_terminal_driver->putchar_at(codepoint, x, y, m_foreground, m_background);
 	}
 
-	void VirtualTTY::putchar(uint8_t ch)
+	void VirtualTTY::putchar_impl(uint8_t ch)
 	{
 		ASSERT(m_lock.is_locked());
 		

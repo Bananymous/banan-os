@@ -21,15 +21,16 @@ namespace Kernel
 
 		virtual uint32_t height() const override { return m_height; }
 		virtual uint32_t width() const override { return m_width; }
-		virtual void putchar(uint8_t ch) override;
+
+		virtual void clear() override;
 
 	protected:
 		virtual BAN::StringView name() const override { return m_name; }
+		virtual void putchar_impl(uint8_t ch) override;
 
 	private:
 		VirtualTTY(TerminalDriver*);
 
-		void clear();
 		void reset_ansi();
 		void handle_ansi_csi(uint8_t ch);
 		void handle_ansi_csi_color();

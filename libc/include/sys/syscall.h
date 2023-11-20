@@ -12,9 +12,6 @@ __BEGIN_DECLS
 #define SYS_CLOSE 5
 #define SYS_OPEN 6
 #define SYS_OPENAT 7
-#define SYS_ALLOC 8
-#define SYS_REALLOC 9
-#define SYS_FREE 10
 #define SYS_SEEK 11
 #define SYS_TELL 12
 #define SYS_GET_TERMIOS 13
@@ -24,7 +21,6 @@ __BEGIN_DECLS
 #define SYS_SLEEP 17
 #define SYS_WAIT 18
 #define SYS_FSTAT 19
-#define SYS_SETENVP 20
 #define SYS_READ_DIR_ENTRIES 21
 #define SYS_SET_UID 22
 #define SYS_SET_GID 23
@@ -54,6 +50,17 @@ __BEGIN_DECLS
 #define SYS_NANOSLEEP 47
 #define SYS_FSTATAT 48
 #define SYS_STAT 49 // stat/lstat
+#define SYS_SYNC 50
+#define SYS_MMAP 51
+#define SYS_MUNMAP 52
+#define SYS_TTY_CTRL 53
+#define SYS_POWEROFF 54
+#define SYS_CHMOD 55
+#define SYS_CREATE 56 // creat, mkfifo
+#define SYS_CREATE_DIR 57 // mkdir
+#define SYS_UNLINK 58
+#define SYS_READLINK 59
+#define SYS_READLINKAT 60
 
 __END_DECLS
 

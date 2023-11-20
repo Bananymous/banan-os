@@ -1,7 +1,9 @@
 #include <BAN/ScopeGuard.h>
 #include <kernel/CriticalScope.h>
 #include <kernel/FS/DevFS/FileSystem.h>
+#include <kernel/Input/PS2Config.h>
 #include <kernel/Input/PS2Keyboard.h>
+#include <kernel/IO.h>
 #include <kernel/Timer/Timer.h>
 
 #include <sys/sysmacros.h>
@@ -12,43 +14,11 @@
 namespace Kernel::Input
 {
 
-	namespace PS2
-	{
-
-		enum Response
-		{
-			KEY_ERROR_OR_BUFFER_OVERRUN1 = 0x00,
-			SELF_TEST_PASSED = 0xAA,
-			ECHO_RESPONSE = 0xEE,
-			ACK = 0xFA,
-			RESEND = 0xFE,
-			KEY_ERROR_OR_BUFFER_OVERRUN2 = 0xFF,
-		};
-
-		enum Scancode
-		{
-			SET_SCANCODE_SET1 = 1,
-			SET_SCANCODE_SET2 = 2,
-			SET_SCANCODE_SET3 = 3,
-		};
-
-		enum Leds
-		{
-			SCROLL_LOCK	= (1 << 0),
-			NUM_LOCK	= (1 << 1),
-			CAPS_LOCK	= (1 << 2),
-		};
-
-	}
-
 	BAN::ErrorOr<PS2Keyboard*> PS2Keyboard::create(PS2Controller& controller)
 	{
 		PS2Keyboard* keyboard = new PS2Keyboard(controller);
 		if (keyboard == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
-		BAN::ScopeGuard guard([keyboard] { delete keyboard; });
-		TRY(keyboard->initialize());
-		guard.disable();
 		return keyboard;
 	}
 
@@ -57,8 +27,10 @@ namespace Kernel::Input
 		, m_rdev(makedev(DevFileSystem::get().get_next_dev(), 0))
 	{ }
 
-	void PS2Keyboard::on_byte(uint8_t byte)
+	void PS2Keyboard::handle_irq()
 	{
+		uint8_t byte = IO::inb(PS2::IOPort::DATA);
+
 		// NOTE: This implementation does not allow using commands
 		//       that respond with more bytes than ACK
 		switch (m_state)
@@ -71,11 +43,11 @@ namespace Kernel::Input
 						m_command_queue.pop();
 						m_state = State::Normal;
 						break;
-					case PS2::Response::RESEND:
+					case PS2::KBResponse::RESEND:
 						m_state = State::Normal;
 						break;
-					case PS2::Response::KEY_ERROR_OR_BUFFER_OVERRUN1:
-					case PS2::Response::KEY_ERROR_OR_BUFFER_OVERRUN2:
+					case PS2::KBResponse::KEY_ERROR_OR_BUFFER_OVERRUN1:
+					case PS2::KBResponse::KEY_ERROR_OR_BUFFER_OVERRUN2:
 						dwarnln("Key detection error or internal buffer overrun");
 						break;
 					default:
@@ -94,12 +66,11 @@ namespace Kernel::Input
 		}
 	}
 
-	BAN::ErrorOr<void> PS2Keyboard::initialize()
+	void PS2Keyboard::send_initialize()
 	{
 		append_command_queue(Command::SET_LEDS, 0x00);
-		append_command_queue(Command::SCANCODE, PS2::Scancode::SET_SCANCODE_SET2);
+		append_command_queue(Command::SCANCODE, PS2::KBScancode::SET_SCANCODE_SET2);
 		append_command_queue(Command::ENABLE_SCANNING);
-		return {};
 	}
 
 	void PS2Keyboard::update()
@@ -234,17 +205,17 @@ namespace Kernel::Input
 	{
 		uint8_t new_leds = 0;
 		if (m_modifiers & (uint8_t)Input::KeyEvent::Modifier::ScrollLock)
-			new_leds |= PS2::Leds::SCROLL_LOCK;
+			new_leds |= PS2::KBLeds::SCROLL_LOCK;
 		if (m_modifiers & (uint8_t)Input::KeyEvent::Modifier::NumLock)
-			new_leds |= PS2::Leds::NUM_LOCK;
+			new_leds |= PS2::KBLeds::NUM_LOCK;
 		if (m_modifiers & (uint8_t)Input::KeyEvent::Modifier::CapsLock)
-			new_leds |= PS2::Leds::CAPS_LOCK;
+			new_leds |= PS2::KBLeds::CAPS_LOCK;
 		append_command_queue(Command::SET_LEDS, new_leds);
 	}
 
-	BAN::ErrorOr<size_t> PS2Keyboard::read_impl(off_t, void* buffer, size_t size)
+	BAN::ErrorOr<size_t> PS2Keyboard::read_impl(off_t, BAN::ByteSpan buffer)
 	{
-		if (size < sizeof(KeyEvent))
+		if (buffer.size() < sizeof(KeyEvent))
 			return BAN::Error::from_errno(ENOBUFS);
 
 		while (true)
@@ -256,7 +227,7 @@ namespace Kernel::Input
 			if (m_event_queue.empty())
 				continue;
 
-			*(KeyEvent*)buffer = m_event_queue.front();
+			buffer.as<KeyEvent>() = m_event_queue.front();
 			m_event_queue.pop();
 
 			return sizeof(KeyEvent);

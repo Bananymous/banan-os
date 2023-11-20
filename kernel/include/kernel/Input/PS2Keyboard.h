@@ -28,13 +28,13 @@ namespace Kernel::Input
 
 	public:
 		static BAN::ErrorOr<PS2Keyboard*> create(PS2Controller&);
+		virtual void send_initialize() override;
 
-		virtual void on_byte(uint8_t) override;
+		virtual void handle_irq() override;
 		virtual void update() override;
 
 	private:
 		PS2Keyboard(PS2Controller& controller);
-		BAN::ErrorOr<void> initialize();
 
 		void append_command_queue(uint8_t);
 		void append_command_queue(uint8_t, uint8_t);
@@ -63,7 +63,7 @@ namespace Kernel::Input
 		virtual dev_t rdev() const override { return m_rdev; }
 
 	protected:
-		virtual BAN::ErrorOr<size_t> read_impl(off_t, void*, size_t) override;
+		virtual BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan) override;
 
 	private:
 		const dev_t m_rdev;

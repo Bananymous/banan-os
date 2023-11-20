@@ -2,7 +2,4 @@
 .idea/
 build/
 base/
-*.tar.*
-toolchain/*/
-
-!base-sysroot.tar.gz
+script/fakeroot-context

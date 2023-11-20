@@ -11,9 +11,26 @@
 
 char** environ;
 
+extern void init_malloc();
 extern "C" void _init_libc(char** _environ)
 {
-	environ = _environ;
+	init_malloc();
+
+	if (!_environ)
+		return;
+
+	size_t env_count = 0;
+	while (_environ[env_count])
+		env_count++;
+	
+	environ = (char**)malloc(sizeof(char*) * env_count + 1);
+	for (size_t i = 0; i < env_count; i++)
+	{
+		size_t bytes = strlen(_environ[i]) + 1;
+		environ[i] = (char*)malloc(bytes);
+		memcpy(environ[i], _environ[i], bytes);
+	}
+	environ[env_count] = nullptr;
 }
 
 void _exit(int status)
@@ -59,6 +76,16 @@ ssize_t read(int fildes, void* buf, size_t nbyte)
 ssize_t write(int fildes, const void* buf, size_t nbyte)
 {
 	return syscall(SYS_WRITE, fildes, buf, nbyte);
+}
+
+ssize_t readlink(const char* __restrict path, char* __restrict buf, size_t bufsize)
+{
+	return syscall(SYS_READLINK, path, buf, bufsize);
+}
+
+ssize_t readlinkat(int fd, const char* __restrict path, char* __restrict buf, size_t bufsize)
+{
+	return syscall(SYS_READLINKAT, fd, path, buf, bufsize);
 }
 
 int dup(int fildes)
@@ -181,6 +208,21 @@ char* getcwd(char* buf, size_t size)
 int chdir(const char* path)
 {
 	return syscall(SYS_SET_PWD, path);
+}
+
+void sync(void)
+{
+	syscall(SYS_SYNC, false);
+}
+
+void syncsync(int should_block)
+{
+	syscall(SYS_SYNC, should_block);
+}
+
+int unlink(const char* path)
+{
+	return syscall(SYS_UNLINK, path);
 }
 
 pid_t getpid(void)

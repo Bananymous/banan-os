@@ -1,11 +1,3 @@
-# Declare constants for the multiboot header
-.set ALIGN,			1<<0						# align loaded modules on page boundaries
-.set MEMINFO,		1<<1						# provide memory map
-.set VIDEOINFO,		1<<2						# provide video info
-.set MB_FLAGS,		ALIGN | MEMINFO | VIDEOINFO # this is the Multiboot 'flag' field
-.set MB_MAGIC,		0x1BADB002					# 'magic number' lets bootloader find the header
-.set MB_CHECKSUM,	-(MB_MAGIC + MB_FLAGS)		#checksum of above, to prove we are multiboot
-
 .set PG_PRESENT,	1<<0
 .set PG_READ_WRITE,	1<<1
 .set PG_PAGE_SIZE,	1<<7
@@ -15,18 +7,36 @@
 
 .code32
 
-# Multiboot header
+# multiboot2 header
 .section .multiboot, "aw"
-	.align 4
-	.long MB_MAGIC
-	.long MB_FLAGS
-	.long MB_CHECKSUM
-	.skip 20
-
+multiboot2_start:
+	.align 8
+	.long 0xE85250D6
 	.long 0
+	.long multiboot2_end - multiboot2_start
+	.long -(0xE85250D6 + (multiboot2_end - multiboot2_start))
+
+	# framebuffer tag
+	.align 8
+	.short 5
+	.short 0
+	.long 20
 	.long 800
 	.long 600
 	.long 32
+
+	# legacy start
+	.align 8
+	.short 3
+	.short 0
+	.long 12
+	.long V2P(_start)
+
+	.align 8
+	.short 0
+	.short 0
+	.long 8
+multiboot2_end:
 
 .section .bss, "aw", @nobits
  	# Create stack
@@ -40,11 +50,9 @@
 	g_kernel_cmdline:
 		.skip 4096
 
-	.global g_multiboot_info
-	g_multiboot_info:
+	bootloader_magic:
 		.skip 8
-	.global g_multiboot_magic
-	g_multiboot_magic:
+	bootloader_info:
 		.skip 8
 
 .section .data
@@ -119,19 +127,6 @@ check_requirements:
 .exit:
 	jmp system_halt
 
-copy_kernel_commandline:
-	pushl %esi
-	pushl %edi
-	movl V2P(g_multiboot_info), %esi
-	addl $16, %esi
-	movl (%esi), %esi
-	movl $1024, %ecx
-	movl $V2P(g_kernel_cmdline), %edi
-	rep movsl
-	popl %edi
-	popl %esi
-	ret
-
 enable_sse:
 	movl %cr0, %eax
 	andw $0xFFFB, %ax
@@ -170,10 +165,9 @@ initialize_paging:
 _start:
 	# Initialize stack and multiboot info
 	movl $V2P(g_boot_stack_top), %esp
-	movl %eax, V2P(g_multiboot_magic)
-	movl %ebx, V2P(g_multiboot_info)
+	movl %eax, V2P(bootloader_magic)
+	movl %ebx, V2P(bootloader_info)
 
-	call copy_kernel_commandline
 	call check_requirements
 	call enable_sse
 
@@ -201,13 +195,14 @@ long_mode:
 	jmp *%rcx
 
 higher_half:
-	addq $KERNEL_OFFSET, g_multiboot_info
-
 	# call global constuctors
 	call _init
 
-	# call to the kernel itself (clear ebp for stacktrace)
+	# call to the kernel itself (clear rbp for stacktrace)
 	xorq %rbp, %rbp
+
+	movl V2P(bootloader_magic), %edi
+	movl V2P(bootloader_info),  %esi
 	call kernel_main
 
 	# call global destructors

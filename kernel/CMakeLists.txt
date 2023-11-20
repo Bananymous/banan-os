@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.26)
 
-project(kernel CXX ASM)
+project(kernel CXX C ASM)
 
 if("${BANAN_ARCH}" STREQUAL "x86_64")
 	set(ELF_FORMAT elf64-x86-64)
@@ -12,6 +12,7 @@ set(KERNEL_SOURCES
 	font/prefs.psf.o
 	kernel/ACPI.cpp
 	kernel/APIC.cpp
+	kernel/BootInfo.cpp
 	kernel/CPUID.cpp
 	kernel/Debug.cpp
 	kernel/Device/Device.cpp
@@ -24,20 +25,25 @@ set(KERNEL_SOURCES
 	kernel/FS/Ext2/Inode.cpp
 	kernel/FS/Inode.cpp
 	kernel/FS/Pipe.cpp
-	kernel/FS/RamFS/FileSystem.cpp
-	kernel/FS/RamFS/Inode.cpp
+	kernel/FS/ProcFS/FileSystem.cpp
+	kernel/FS/ProcFS/Inode.cpp
+	kernel/FS/TmpFS/FileSystem.cpp
+	kernel/FS/TmpFS/Inode.cpp
 	kernel/FS/VirtualFileSystem.cpp
 	kernel/Input/PS2Controller.cpp
 	kernel/Input/PS2Keyboard.cpp
 	kernel/Input/PS2Keymap.cpp
 	kernel/InterruptController.cpp
 	kernel/kernel.cpp
-	kernel/Memory/FixedWidthAllocator.cpp
-	kernel/Memory/GeneralAllocator.cpp
+	kernel/Memory/DMARegion.cpp
+	kernel/Memory/FileBackedRegion.cpp
 	kernel/Memory/Heap.cpp
 	kernel/Memory/kmalloc.cpp
+	kernel/Memory/MemoryBackedRegion.cpp
+	kernel/Memory/MemoryRegion.cpp
 	kernel/Memory/PhysicalRange.cpp
 	kernel/Memory/VirtualRange.cpp
+	kernel/Networking/E1000.cpp
 	kernel/OpenFileDescriptorSet.cpp
 	kernel/Panic.cpp
 	kernel/PCI.cpp
@@ -47,9 +53,11 @@ set(KERNEL_SOURCES
 	kernel/Semaphore.cpp
 	kernel/SpinLock.cpp
 	kernel/SSP.cpp
-	kernel/Storage/ATABus.cpp
-	kernel/Storage/ATAController.cpp
-	kernel/Storage/ATADevice.cpp
+	kernel/Storage/ATA/AHCI/Controller.cpp
+	kernel/Storage/ATA/AHCI/Device.cpp
+	kernel/Storage/ATA/ATABus.cpp
+	kernel/Storage/ATA/ATAController.cpp
+	kernel/Storage/ATA/ATADevice.cpp
 	kernel/Storage/DiskCache.cpp
 	kernel/Storage/StorageDevice.cpp
 	kernel/Syscall.cpp
@@ -97,6 +105,14 @@ else()
 	message(FATAL_ERROR "unsupported architecure ${BANAN_ARCH}")
 endif()
 
+file(GLOB_RECURSE LAI_SOURCES
+	lai/*.c
+)
+set(LAI_SOURCES
+	${LAI_SOURCES}
+	kernel/lai_host.cpp
+)
+
 set(BAN_SOURCES
 	../BAN/BAN/New.cpp
 	../BAN/BAN/String.cpp
@@ -110,11 +126,12 @@ set(LIBC_SOURCES
 )
 
 set(LIBELF_SOURCES
-	../LibELF/LibELF/ELF.cpp
+	../LibELF/LibELF/LoadableELF.cpp
 )
 
 set(KERNEL_SOURCES
 	${KERNEL_SOURCES}
+	${LAI_SOURCES}
 	${BAN_SOURCES}
 	${LIBC_SOURCES}
 	${LIBELF_SOURCES}
@@ -127,10 +144,12 @@ target_compile_definitions(kernel PUBLIC __is_kernel)
 target_compile_definitions(kernel PUBLIC __arch=${BANAN_ARCH})
 
 target_compile_options(kernel PUBLIC -O2 -g)
-target_compile_options(kernel PUBLIC -Wno-literal-suffix)
-target_compile_options(kernel PUBLIC -fno-rtti -fno-exceptions)
+target_compile_options(kernel PUBLIC $<$<COMPILE_LANGUAGE:CXX>:-Wno-literal-suffix -fno-rtti -fno-exceptions>)
 target_compile_options(kernel PUBLIC -fmacro-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}=.)
-target_compile_options(kernel PUBLIC -fstack-protector -ffreestanding -Wall -Wextra -Werror=return-type -Wstack-usage=1024 -fno-omit-frame-pointer -mgeneral-regs-only)
+target_compile_options(kernel PUBLIC -fstack-protector -ffreestanding -Wall -Werror=return-type -Wstack-usage=1024 -fno-omit-frame-pointer -mgeneral-regs-only)
+
+# This might not work with other toolchains
+target_compile_options(kernel PUBLIC $<$<COMPILE_LANGUAGE:CXX>:-Wno-invalid-offsetof>)
 
 if(ENABLE_KERNEL_UBSAN)
 	target_compile_options(kernel PUBLIC -fsanitize=undefined)
@@ -146,27 +165,15 @@ endif()
 
 target_link_options(kernel PUBLIC -ffreestanding -nostdlib)
 
-add_custom_target(crt0
-	COMMAND ${CMAKE_CXX_COMPILER} -c ${CMAKE_CURRENT_SOURCE_DIR}/arch/${BANAN_ARCH}/crt0.S -o ${CMAKE_CURRENT_BINARY_DIR}/crt0.o
-	DEPENDS headers
-)
-
-add_custom_command(
-	TARGET crt0
-	POST_BUILD
-	COMMAND sudo cp ${CMAKE_CURRENT_BINARY_DIR}/crt0.o ${BANAN_LIB}/
-)
-
 add_custom_target(kernel-headers
-	COMMAND sudo rsync -a ${CMAKE_CURRENT_SOURCE_DIR}/include/ ${BANAN_INCLUDE}/
+	COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different ${CMAKE_CURRENT_SOURCE_DIR}/include/ ${BANAN_INCLUDE}/
+	COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different ${CMAKE_CURRENT_SOURCE_DIR}/lai/include/ ${BANAN_INCLUDE}/
 	DEPENDS sysroot
-	USES_TERMINAL
 )
 
 add_custom_target(kernel-install
-	COMMAND sudo cp ${CMAKE_CURRENT_BINARY_DIR}/kernel ${BANAN_BOOT}/banan-os.kernel
+	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/kernel ${BANAN_BOOT}/banan-os.kernel
 	DEPENDS kernel
-	USES_TERMINAL
 )
 
 execute_process(COMMAND ${CMAKE_CXX_COMPILER} -print-file-name=crtbegin.o OUTPUT_VARIABLE CRTBEGIN OUTPUT_STRIP_TRAILING_WHITESPACE)
@@ -176,14 +183,14 @@ add_custom_command(
 	TARGET kernel PRE_LINK
 	COMMAND ${CMAKE_CXX_COMPILER} -MD -c ${CMAKE_CURRENT_SOURCE_DIR}/arch/${BANAN_ARCH}/crti.S ${COMPILE_OPTIONS}
 	COMMAND ${CMAKE_CXX_COMPILER} -MD -c ${CMAKE_CURRENT_SOURCE_DIR}/arch/${BANAN_ARCH}/crtn.S ${COMPILE_OPTIONS}
-	COMMAND cp ${CRTBEGIN} .
-	COMMAND cp ${CRTEND} .
+	COMMAND ${CMAKE_COMMAND} -E copy ${CRTBEGIN} .
+	COMMAND ${CMAKE_COMMAND} -E copy ${CRTEND} .
 )
 
-add_custom_command(
-	TARGET kernel POST_BUILD
-	COMMAND x86_64-banan_os-strip ${CMAKE_CURRENT_BINARY_DIR}/kernel
-)
+#add_custom_command(
+#	TARGET kernel POST_BUILD
+#	COMMAND x86_64-banan_os-strip ${CMAKE_CURRENT_BINARY_DIR}/kernel
+#)
 
 add_custom_command(
 	OUTPUT font/prefs.psf.o

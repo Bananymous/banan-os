@@ -4,6 +4,11 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 
+int creat(const char* path, mode_t mode)
+{
+	return syscall(SYS_CREATE, path, S_IFREG | mode);
+}
+
 int open(const char* path, int oflag, ...)
 {
 	va_list args;

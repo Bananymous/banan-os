@@ -1,18 +1,18 @@
+#include <fcntl.h>
 #include <stdio.h>
 
-bool cat_file(FILE* fp)
+bool cat_file(int fd)
 {
-	char buffer[1025];
+	char buffer[1024];
 	size_t n_read;
-	while ((n_read = fread(buffer, 1, sizeof(buffer) - 1, fp)) > 0)
+	while (ssize_t n_read = read(fd, buffer, sizeof(buffer)))
 	{
-		buffer[n_read] = '\0';
-		fputs(buffer, stdout);
-	}
-	if (ferror(fp))
-	{
-		perror("fread");
-		return false;
+		if (n_read == -1)
+		{
+			perror("read");
+			return false;
+		}
+		write(STDOUT_FILENO, buffer, n_read);
 	}
 	return true;
 }
@@ -25,21 +25,21 @@ int main(int argc, char** argv)
 	{
 		for (int i = 1; i < argc; i++)
 		{
-			FILE* fp = fopen(argv[i], "r");
-			if (fp == nullptr)
+			int fd = open(argv[i], O_RDONLY);
+			if (fd == -1)
 			{
 				perror(argv[i]);
 				ret = 1;
 				continue;
 			}
-			if (!cat_file(fp))
+			if (!cat_file(fd))
 				ret = 1;
-			fclose(fp);
+			close(fd);
 		}
 	}
 	else
 	{
-		if (!cat_file(stdin))
+		if (!cat_file(STDIN_FILENO))
 			ret = 1;
 	}
 

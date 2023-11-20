@@ -6,6 +6,10 @@
 #include <kernel/Terminal/TTY.h>
 #include <kernel/Timer/Timer.h>
 
+#include <ctype.h>
+
+extern TerminalDriver* g_terminal_driver;
+
 namespace Debug
 {
 
@@ -64,6 +68,50 @@ namespace Debug
 			return Kernel::Serial::putchar_any(ch);
 		if (Kernel::TTY::is_initialized())
 			return Kernel::TTY::putchar_current(ch);
+
+		if (g_terminal_driver)
+		{
+			static uint32_t col = 0;
+			static uint32_t row = 0;
+
+			uint32_t row_copy = row;
+
+			if (ch == '\n')
+			{
+				row++;
+				col = 0;
+			}
+			else if (ch == '\r')
+			{
+				col = 0;
+			}
+			else
+			{
+				if (!isprint(ch))
+					ch = '?';
+				g_terminal_driver->putchar_at(ch, col, row, TerminalColor::BRIGHT_WHITE, TerminalColor::BLACK);
+
+				col++;
+				if (col >= g_terminal_driver->width())
+				{
+					row++;
+					col = 0;
+				}
+			}
+
+			if (row >= g_terminal_driver->height())
+				row = 0;
+			
+			if (row != row_copy)
+			{
+				for (uint32_t i = col; i < g_terminal_driver->width(); i++)
+				{
+					g_terminal_driver->putchar_at(' ', i, row, TerminalColor::BRIGHT_WHITE, TerminalColor::BLACK);
+					if (row + 1 < g_terminal_driver->height())
+						g_terminal_driver->putchar_at(' ', i, row + 1, TerminalColor::BRIGHT_WHITE, TerminalColor::BLACK);
+				}
+			}
+		}
 	}
 
 	void print_prefix(const char* file, int line)
@@ -76,13 +124,13 @@ namespace Debug
 
 	void DebugLock::lock()
 	{
-		if (interrupts_enabled())
+		if (Kernel::interrupts_enabled())
 			s_debug_lock.lock();
 	}
 
 	void DebugLock::unlock()
 	{
-		if (interrupts_enabled())
+		if (Kernel::interrupts_enabled())
 			s_debug_lock.unlock();
 	}
 

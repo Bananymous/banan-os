@@ -1,4 +1,4 @@
-#include <BAN/Assert.h>
+#include <BAN/Array.h>
 #include <kernel/GDT.h>
 
 #include <string.h>
@@ -56,44 +56,44 @@ namespace Kernel::GDT
 
 	static constexpr uint16_t s_tss_offset = 0x28;
 
-	static TaskStateSegment* s_tss = nullptr;
-	static SegmentDescriptor* s_gdt = nullptr;
+	static TaskStateSegment s_tss;
+	static BAN::Array<SegmentDescriptor, 7> s_gdt; // null, kernel code, kernel data, user code, user data, tss low, tss high
 	static GDTR s_gdtr;
 
 	static void write_entry(uint8_t offset, uint32_t base, uint32_t limit, uint8_t access, uint8_t flags)
 	{
-		SegmentDescriptor& desc = *(SegmentDescriptor*)((uintptr_t)s_gdt + offset);
-		desc.base1 = base;
-		desc.base2 = base >> 16;
-		desc.base3 = base >> 24;
+		ASSERT(offset % sizeof(SegmentDescriptor) == 0);
 
-		desc.limit1 = limit;
-		desc.limit2 = limit >> 16;
+		SegmentDescriptor& desc = s_gdt[offset / sizeof(SegmentDescriptor)];
+		desc.base1 = (base >>  0) & 0xFFFF;
+		desc.base2 = (base >> 16) & 0xFF;
+		desc.base3 = (base >> 24) & 0xFF;
 
-		desc.access = access;
+		desc.limit1 = (limit >>  0) & 0xFFFF;
+		desc.limit2 = (limit >> 16) & 0x0F;
 
-		desc.flags = flags;
+		desc.access = access & 0xFF;
+
+		desc.flags = flags & 0x0F;
 	}
 
 	static void write_tss()
 	{
-		s_tss = new TaskStateSegment();
-		ASSERT(s_tss);
+		memset(&s_tss, 0x00, sizeof(TaskStateSegment));
+		s_tss.iopb = sizeof(TaskStateSegment);
 		
-		memset(s_tss, 0x00, sizeof(TaskStateSegment));
-		s_tss->rsp0 = 0;
-		
-		uintptr_t base = (uintptr_t)s_tss;
+		uint64_t base = (uint64_t)&s_tss;
 
 		write_entry(s_tss_offset, (uint32_t)base, sizeof(TaskStateSegment), 0x89, 0x0);
-		SegmentDescriptor& desc = *(SegmentDescriptor*)((uintptr_t)s_gdt + s_tss_offset + 0x08);
+
+		SegmentDescriptor& desc = s_gdt[s_tss_offset / sizeof(SegmentDescriptor) + 1];
 		desc.low = base >> 32;
 		desc.high = 0;
 	}
 
 	void set_tss_stack(uintptr_t rsp)
 	{
-		s_tss->rsp0 = rsp;
+		s_tss.rsp0 = rsp;
 	}
 
 	static void flush_gdt()
@@ -108,12 +108,8 @@ namespace Kernel::GDT
 
 	void initialize()
 	{
-		constexpr uint32_t descriptor_count = 6 + 1; // tss takes 2
-		s_gdt = new SegmentDescriptor[descriptor_count]; 
-		ASSERT(s_gdt);
-
-		s_gdtr.address = (uint64_t)s_gdt;
-		s_gdtr.size = descriptor_count * sizeof(SegmentDescriptor) - 1;
+		s_gdtr.address = (uint64_t)&s_gdt;
+		s_gdtr.size = s_gdt.size() * sizeof(SegmentDescriptor) - 1;
 
 		write_entry(0x00, 0x00000000, 0x00000, 0x00, 0x0); // null
 		write_entry(0x08, 0x00000000, 0xFFFFF, 0x9A, 0xA); // kernel code

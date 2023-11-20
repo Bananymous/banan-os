@@ -3,12 +3,14 @@
 #include <BAN/UTF8.h>
 #include <kernel/Debug.h>
 #include <kernel/FS/DevFS/FileSystem.h>
+#include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/LockGuard.h>
 #include <kernel/Process.h>
 #include <kernel/Terminal/TTY.h>
 
 #include <fcntl.h>
 #include <string.h>
+#include <sys/banan-os.h>
 #include <sys/sysmacros.h>
 
 namespace Kernel
@@ -25,12 +27,13 @@ namespace Kernel
 	void TTY::set_as_current()
 	{
 		s_tty = this;
+		clear();
 
-		auto inode_or_error = DevFileSystem::get().root_inode()->find_inode("tty");
+		auto inode_or_error = DevFileSystem::get().root_inode()->find_inode("tty"sv);
 		if (inode_or_error.is_error())
 		{
 			if (inode_or_error.error().get_error_code() == ENOENT)
-				DevFileSystem::get().add_device("tty"sv, MUST(RamSymlinkInode::create(DevFileSystem::get(), s_tty->name(), S_IFLNK | 0666, 0, 0)));
+				DevFileSystem::get().add_inode("tty"sv, MUST(TmpSymlinkInode::create_new(DevFileSystem::get(), 0666, 0, 0, s_tty->name())));
 			else
 				dwarnln("{}", inode_or_error.error());
 			return;
@@ -38,7 +41,36 @@ namespace Kernel
 
 		auto inode = inode_or_error.release_value();
 		if (inode->mode().iflnk())
-			MUST(((RamSymlinkInode*)inode.ptr())->set_link_target(name()));
+			MUST(reinterpret_cast<TmpSymlinkInode*>(inode.ptr())->set_link_target(name()));
+	}
+
+	BAN::ErrorOr<void> TTY::tty_ctrl(int command, int flags)
+	{
+		if (flags & ~(TTY_FLAG_ENABLE_INPUT | TTY_FLAG_ENABLE_OUTPUT))
+			return BAN::Error::from_errno(EINVAL);
+
+		switch (command)
+		{
+			case TTY_CMD_SET:
+				if ((flags & TTY_FLAG_ENABLE_INPUT) && !m_tty_ctrl.receive_input)
+				{
+					m_tty_ctrl.receive_input = true;
+					m_tty_ctrl.semaphore.unblock();
+				}
+				if (flags & TTY_FLAG_ENABLE_OUTPUT)
+					m_tty_ctrl.draw_graphics = true;
+				break;
+			case TTY_CMD_UNSET:
+				if ((flags & TTY_FLAG_ENABLE_INPUT) && m_tty_ctrl.receive_input)
+					m_tty_ctrl.receive_input = false;
+				if (flags & TTY_FLAG_ENABLE_OUTPUT)
+					m_tty_ctrl.draw_graphics = false;
+				break;
+			default:
+				return BAN::Error::from_errno(EINVAL);
+		}
+
+		return {};
 	}
 
 	void TTY::initialize_devices()
@@ -49,11 +81,22 @@ namespace Kernel
 		Process::create_kernel(
 			[](void*)
 			{
-				int fd = MUST(Process::current().sys_open("/dev/input0"sv, O_RDONLY));
+				auto file_or_error = VirtualFileSystem::get().file_from_absolute_path({ 0, 0, 0, 0 }, "/dev/input0"sv, O_RDONLY);
+				if (file_or_error.is_error())
+				{
+					dprintln("no input device found");
+					return;
+				}
+
+				auto inode = file_or_error.value().inode;
 				while (true)
 				{
+					while (!TTY::current()->m_tty_ctrl.receive_input)
+						TTY::current()->m_tty_ctrl.semaphore.block();
+
 					Input::KeyEvent event;
-					ASSERT(MUST(Process::current().sys_read(fd, &event, sizeof(event))) == sizeof(event));
+					size_t read = MUST(inode->read(0, BAN::ByteSpan::from(event)));
+					ASSERT(read == sizeof(event));
 					TTY::current()->on_key_event(event);
 				}
 			}, nullptr
@@ -249,7 +292,13 @@ namespace Kernel
 		}
 	}
 
-	BAN::ErrorOr<size_t> TTY::read_impl(off_t, void* buffer, size_t count)
+	void TTY::putchar(uint8_t ch)
+	{
+		if (m_tty_ctrl.draw_graphics)
+			putchar_impl(ch);
+	}
+
+	BAN::ErrorOr<size_t> TTY::read_impl(off_t, BAN::ByteSpan buffer)
 	{
 		LockGuard _(m_lock);
 		while (!m_output.flush)
@@ -265,8 +314,8 @@ namespace Kernel
 			return 0;
 		}
 
-		size_t to_copy = BAN::Math::min<size_t>(count, m_output.bytes);
-		memcpy(buffer, m_output.buffer.data(), to_copy);
+		size_t to_copy = BAN::Math::min<size_t>(buffer.size(), m_output.bytes);
+		memcpy(buffer.data(), m_output.buffer.data(), to_copy);
 
 		memmove(m_output.buffer.data(), m_output.buffer.data() + to_copy, m_output.bytes - to_copy);
 		m_output.bytes -= to_copy;
@@ -279,15 +328,15 @@ namespace Kernel
 		return to_copy;
 	}
 
-	BAN::ErrorOr<size_t> TTY::write_impl(off_t, const void* buffer, size_t count)
+	BAN::ErrorOr<size_t> TTY::write_impl(off_t, BAN::ConstByteSpan buffer)
 	{
 		LockGuard _(m_lock);
-		for (size_t i = 0; i < count; i++)
-			putchar(((uint8_t*)buffer)[i]);
-		return count;
+		for (size_t i = 0; i < buffer.size(); i++)
+			putchar(buffer[i]);
+		return buffer.size();
 	}
 
-	bool TTY::has_data() const
+	bool TTY::has_data_impl() const
 	{
 		LockGuard _(m_lock);
 		return m_output.flush;

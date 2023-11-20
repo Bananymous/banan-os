@@ -3,123 +3,155 @@
 #include <kernel/Memory/PageTable.h>
 #include <kernel/Memory/PhysicalRange.h>
 
-extern uint8_t g_kernel_end[];
-
 namespace Kernel
 {
 
-	PhysicalRange::PhysicalRange(paddr_t start, size_t size)
+	using ull = unsigned long long;
+
+	static constexpr ull ull_bits = sizeof(ull) * 8;
+
+	PhysicalRange::PhysicalRange(paddr_t paddr, size_t size)
+		: m_paddr(paddr)
+		, m_size(size)
+		, m_bitmap_pages(BAN::Math::div_round_up<size_t>(size / PAGE_SIZE, PAGE_SIZE * 8))
+		, m_data_pages((size / PAGE_SIZE) - m_bitmap_pages)
+		, m_free_pages(m_data_pages)
 	{
-		// We can't use the memory ovelapping with kernel
-		if (start + size <= V2P(g_kernel_end))
-			return;
+		ASSERT(paddr % PAGE_SIZE == 0);
+		ASSERT(size % PAGE_SIZE == 0);
+		ASSERT(m_bitmap_pages < size / PAGE_SIZE);
 
-		// Align start to page boundary and after the kernel memory
-		m_paddr = BAN::Math::max(start, V2P(g_kernel_end));
-		if (auto rem = m_paddr % PAGE_SIZE)
-			m_paddr += PAGE_SIZE - rem;
-
-		if (size <= m_paddr - start)
-			return;
-
-		// Align size to page boundary
-		m_size = size - (m_paddr - start);
-		if (auto rem = m_size % PAGE_SIZE)
-			m_size -= rem;
-
-		// We need atleast 2 pages
-		m_total_pages = m_size / PAGE_SIZE;
-		if (m_total_pages <= 1)
-			return;
-
-		// FIXME: if total pages is just over multiple of (PAGE_SIZE / sizeof(node)) we might make
-		//        couple of pages unallocatable
-		m_list_pages		= BAN::Math::div_round_up<uint64_t>(m_total_pages * sizeof(node), PAGE_SIZE);
-		m_reservable_pages	= m_total_pages - m_list_pages;
-
-		m_used_pages = 0;
-		m_free_pages = m_reservable_pages;
-
-		m_vaddr = PageTable::kernel().reserve_free_contiguous_pages(m_list_pages, KERNEL_OFFSET);
+		m_vaddr = PageTable::kernel().reserve_free_contiguous_pages(m_bitmap_pages, KERNEL_OFFSET);
 		ASSERT(m_vaddr);
-		
-		PageTable::kernel().map_range_at(m_paddr, m_vaddr, m_list_pages * PAGE_SIZE, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
+		PageTable::kernel().map_range_at(m_paddr, m_vaddr, m_bitmap_pages * PAGE_SIZE, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
 
-		// Initialize page list so that every page points to the next one
-		node* page_list = (node*)m_vaddr;
+		memset((void*)m_vaddr, 0x00, m_bitmap_pages * PAGE_SIZE);
 
-		for (uint64_t i = 0; i < m_reservable_pages; i++)
-			page_list[i] = { page_list + i - 1, page_list + i + 1 };
-		page_list[           0          ].next = nullptr;
-		page_list[m_reservable_pages - 1].prev = nullptr;
+		for (ull i = 0; i < m_data_pages / ull_bits; i++)
+			ull_bitmap_ptr()[i] = ~0ull;
 
-		m_free_list = page_list;
-		m_used_list = nullptr;
+		if (m_data_pages % ull_bits)
+		{
+			ull off = m_data_pages / ull_bits;
+			ull bits = m_data_pages % ull_bits;
+			ull_bitmap_ptr()[off] = ~(~0ull << bits);
+		}
+	}
+
+	paddr_t PhysicalRange::paddr_for_bit(ull bit) const
+	{
+		return m_paddr + (m_bitmap_pages + bit) * PAGE_SIZE;
+	}
+
+	ull PhysicalRange::bit_for_paddr(paddr_t paddr) const
+	{
+		return (paddr - m_paddr) / PAGE_SIZE - m_bitmap_pages;
+	}
+
+	ull PhysicalRange::contiguous_bits_set(ull start, ull count) const
+	{
+		for (ull i = 0; i < count; i++)
+		{
+			ull off = (start + i) / ull_bits;
+			ull bit = (start + i) % ull_bits;
+			if (!(ull_bitmap_ptr()[off] & (1ull << bit)))
+				return i;
+		}
+		return count;
 	}
 
 	paddr_t PhysicalRange::reserve_page()
 	{
-		if (m_free_list == nullptr)
-			return 0;
+		ASSERT(free_pages() > 0);
 
-		node* page = m_free_list;
-		ASSERT(page->next == nullptr);
+		ull ull_count = BAN::Math::div_round_up<ull>(m_data_pages, ull_bits);
 
-		// Detatch page from top of the free list
-		m_free_list = m_free_list->prev ? m_free_list->prev : nullptr;
-		if (m_free_list)
-			m_free_list->next = nullptr;
+		for (ull i = 0; i < ull_count; i++)
+		{
+			if (ull_bitmap_ptr()[i] == 0)
+				continue;
 
-		// Add page to used list
-		if (m_used_list)
-			m_used_list->next = page;
-		page->prev = m_used_list;
-		m_used_list = page;
+			int lsb = __builtin_ctzll(ull_bitmap_ptr()[i]);
 
-		m_used_pages++;
-		m_free_pages--;
+			ull_bitmap_ptr()[i] &= ~(1ull << lsb);
+			m_free_pages--;
+			return paddr_for_bit(i * ull_bits + lsb);
+		}
 
-		return page_address(page);
+		ASSERT_NOT_REACHED();
 	}
 
-	void PhysicalRange::release_page(paddr_t page_address)
+	void PhysicalRange::release_page(paddr_t paddr)
 	{
-		ASSERT(m_used_list);
+		ASSERT(paddr % PAGE_SIZE == 0);
+		ASSERT(paddr - m_paddr <= m_size);
 
-		node* page = node_address(page_address);
-		
-		// Detach page from used list
-		if (page->prev)
-			page->prev->next = page->next;
-		if (page->next)
-			page->next->prev = page->prev;
-		if (m_used_list == page)
-			m_used_list = page->prev;
+		ull full_bit = bit_for_paddr(paddr);
+		ull off = full_bit / ull_bits;
+		ull bit = full_bit % ull_bits;
+		ull mask = 1ull << bit;
 
-		// Add page to the top of free list
-		page->prev = m_free_list;
-		page->next = nullptr;
-		if (m_free_list)
-			m_free_list->next = page;
-		m_free_list = page;
+		ASSERT(!(ull_bitmap_ptr()[off] & mask));
+		ull_bitmap_ptr()[off] |= mask;
 
-		m_used_pages--;
 		m_free_pages++;
-	}	
-
-	paddr_t PhysicalRange::page_address(const node* page) const
-	{
-		ASSERT((vaddr_t)page <= m_vaddr + m_reservable_pages * sizeof(node));
-		uint64_t page_index = page - (node*)m_vaddr;
-		return m_paddr + (page_index + m_list_pages) * PAGE_SIZE;
 	}
 
-	PhysicalRange::node* PhysicalRange::node_address(paddr_t page_address) const
+	paddr_t PhysicalRange::reserve_contiguous_pages(size_t pages)
 	{
-		ASSERT(page_address % PAGE_SIZE == 0);
-		ASSERT(m_paddr + m_list_pages * PAGE_SIZE <= page_address && page_address < m_paddr + m_size);
-		uint64_t page_offset = page_address - (m_paddr + m_list_pages * PAGE_SIZE);
-		return (node*)m_vaddr + page_offset / PAGE_SIZE;
-	}	
+		ASSERT(pages > 0);
+		ASSERT(free_pages() > 0);
+
+		if (pages == 1)
+			return reserve_page();
+
+		ull ull_count = BAN::Math::div_round_up<ull>(m_data_pages, ull_bits);
+
+		// NOTE: This feels kinda slow, but I don't want to be
+		//       doing premature optimization. This will be only
+		//       used when creating DMA regions.
+
+		for (ull i = 0; i < ull_count; i++)
+		{
+			if (ull_bitmap_ptr()[i] == 0)
+				continue;
+
+			for (ull bit = 0; bit < ull_bits;)
+			{
+				ull start = i * ull_bits + bit;
+				ull set_cnt = contiguous_bits_set(start, pages);
+				if (set_cnt == pages)
+				{
+					for (ull j = 0; j < pages; j++)
+						ull_bitmap_ptr()[(start + j) / ull_bits] &= ~(1ull << ((start + j) % ull_bits));
+					m_free_pages -= pages;
+					return paddr_for_bit(start);
+				}
+				bit += set_cnt + 1;
+			}
+		}
+
+		ASSERT_NOT_REACHED();
+	}
+
+	void PhysicalRange::release_contiguous_pages(paddr_t paddr, size_t pages)
+	{
+		ASSERT(paddr % PAGE_SIZE == 0);
+		ASSERT(paddr - m_paddr <= m_size);
+		ASSERT(pages > 0);
+
+		ull start_bit = bit_for_paddr(paddr);
+		for (size_t i = 0; i < pages; i++)
+		{
+			ull off = (start_bit + i) / ull_bits;
+			ull bit = (start_bit + i) % ull_bits;
+			ull mask = 1ull << bit;
+
+			ASSERT(!(ull_bitmap_ptr()[off] & mask));
+			ull_bitmap_ptr()[off] |= mask;
+		}
+
+		m_free_pages += pages;
+	}
 
 }

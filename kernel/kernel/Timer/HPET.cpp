@@ -46,7 +46,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> HPET::initialize(bool force_pic)
 	{
-		auto* header = (ACPI::HPET*)ACPI::get().get_header("HPET");
+		auto* header = (ACPI::HPET*)ACPI::get().get_header("HPET"sv, 0);
 		if (header == nullptr)
 			return BAN::Error::from_errno(ENODEV);
 
@@ -131,16 +131,27 @@ namespace Kernel
 		for (int i = 1; i <= header->comparator_count; i++)
 			write_register(HPET_REG_TIMER_CONFIG(i), 0);
 
-		IDT::register_irq_handler(irq, [] { Scheduler::get().timer_reschedule(); });
-		InterruptController::get().enable_irq(irq);
+		set_irq(irq);
+		enable_interrupt();
 
 		return {};
+	}
+
+	void HPET::handle_irq()
+	{
+		Scheduler::get().timer_reschedule();
 	}
 
 	uint64_t HPET::ms_since_boot() const
 	{
 		// FIXME: 32 bit CPUs should use 32 bit counter with 32 bit reads
 		return read_register(HPET_REG_COUNTER) * m_counter_tick_period_fs / FS_PER_MS;
+	}
+
+	uint64_t HPET::ns_since_boot() const
+	{
+		// FIXME: 32 bit CPUs should use 32 bit counter with 32 bit reads
+		return read_register(HPET_REG_COUNTER) * m_counter_tick_period_fs / FS_PER_NS;
 	}
 
 	timespec HPET::time_since_boot() const

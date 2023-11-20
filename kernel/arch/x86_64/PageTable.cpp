@@ -1,6 +1,6 @@
-#include <BAN/Errors.h>
 #include <kernel/Arch.h>
 #include <kernel/CPUID.h>
+#include <kernel/InterruptController.h>
 #include <kernel/LockGuard.h>
 #include <kernel/Memory/kmalloc.h>
 #include <kernel/Memory/PageTable.h>
@@ -91,6 +91,13 @@ namespace Kernel
 			s_has_pge = true;
 		}
 
+		// enable write protect to kernel
+		asm volatile(
+			"movq %cr0, %rax;"
+			"orq $0x10000, %rax;"
+			"movq %rax, %cr0;"
+		);
+
 		ASSERT(s_kernel == nullptr);
 		s_kernel = new PageTable();
 		ASSERT(s_kernel);
@@ -108,6 +115,13 @@ namespace Kernel
 	{
 		ASSERT(s_current);
 		return *s_current;
+	}
+
+	bool PageTable::is_valid_pointer(uintptr_t pointer)
+	{
+		if (!is_canonical(pointer))
+			return false;
+		return true;
 	}
 
 	static uint64_t* allocate_zeroed_page_aligned_page()
@@ -128,9 +142,25 @@ namespace Kernel
 		uint64_t* pml4 = (uint64_t*)P2V(m_highest_paging_struct);
 		pml4[511] = s_global_pml4e;
 
-		// Map (0 -> phys_kernel_end) to (KERNEL_OFFSET -> virt_kernel_end)
-		map_range_at(0, KERNEL_OFFSET, (uintptr_t)g_kernel_end - KERNEL_OFFSET, Flags::ReadWrite | Flags::Present);
-		
+		prepare_fast_page();
+
+		// Map main bios area below 1 MiB
+		map_range_at(
+			0x000E0000,
+			P2V(0x000E0000),
+			0x00100000 - 0x000E0000,
+			PageTable::Flags::Present
+		);
+
+		// Map (phys_kernel_start -> phys_kernel_end) to (virt_kernel_start -> virt_kernel_end)
+		ASSERT((vaddr_t)g_kernel_start % PAGE_SIZE == 0);
+		map_range_at(
+			V2P(g_kernel_start),
+			(vaddr_t)g_kernel_start,
+			g_kernel_end - g_kernel_start,
+			Flags::ReadWrite | Flags::Present
+		);
+
 		// Map executable kernel memory as executable
 		map_range_at(
 			V2P(g_kernel_execute_start),
@@ -146,6 +176,76 @@ namespace Kernel
 			g_userspace_end - g_userspace_start,
 			Flags::Execute | Flags::UserSupervisor | Flags::Present
 		);
+	}
+
+	void PageTable::prepare_fast_page()
+	{
+		constexpr vaddr_t uc_vaddr = uncanonicalize(fast_page());
+		constexpr uint64_t pml4e = (uc_vaddr >> 39) & 0x1FF;
+		constexpr uint64_t pdpte = (uc_vaddr >> 30) & 0x1FF;
+		constexpr uint64_t pde   = (uc_vaddr >> 21) & 0x1FF;
+		constexpr uint64_t pte   = (uc_vaddr >> 12) & 0x1FF;
+
+		uint64_t* pml4 = (uint64_t*)P2V(m_highest_paging_struct);
+		ASSERT(!(pml4[pml4e] & Flags::Present));
+		pml4[pml4e] = V2P(allocate_zeroed_page_aligned_page()) | Flags::ReadWrite | Flags::Present;
+
+		uint64_t* pdpt = (uint64_t*)P2V(pml4[pml4e] & PAGE_ADDR_MASK);
+		ASSERT(!(pdpt[pdpte] & Flags::Present));
+		pdpt[pdpte] = V2P(allocate_zeroed_page_aligned_page()) | Flags::ReadWrite | Flags::Present;
+
+		uint64_t* pd = (uint64_t*)P2V(pdpt[pdpte] & PAGE_ADDR_MASK);
+		ASSERT(!(pd[pde] & Flags::Present));
+		pd[pde] = V2P(allocate_zeroed_page_aligned_page()) | Flags::ReadWrite | Flags::Present;
+
+		uint64_t* pt = (uint64_t*)P2V(pd[pde] & PAGE_ADDR_MASK);
+		ASSERT(!(pt[pte] & Flags::Present));
+		pt[pte] = V2P(allocate_zeroed_page_aligned_page());
+	}
+
+	void PageTable::map_fast_page(paddr_t paddr)
+	{
+		ASSERT(s_kernel);
+		ASSERT_NEQ(paddr, 0);
+		ASSERT(!interrupts_enabled());
+
+		constexpr vaddr_t uc_vaddr = uncanonicalize(fast_page());
+		constexpr uint64_t pml4e = (uc_vaddr >> 39) & 0x1FF;
+		constexpr uint64_t pdpte = (uc_vaddr >> 30) & 0x1FF;
+		constexpr uint64_t pde   = (uc_vaddr >> 21) & 0x1FF;
+		constexpr uint64_t pte   = (uc_vaddr >> 12) & 0x1FF;
+
+		uint64_t* pml4 = (uint64_t*)P2V(s_kernel->m_highest_paging_struct);
+		uint64_t* pdpt = (uint64_t*)P2V(pml4[pml4e] & PAGE_ADDR_MASK);
+		uint64_t* pd   = (uint64_t*)P2V(pdpt[pdpte] & PAGE_ADDR_MASK);
+		uint64_t* pt   = (uint64_t*)P2V(pd[pde] & PAGE_ADDR_MASK);
+
+		ASSERT(!(pt[pte] & Flags::Present));
+		pt[pte] = paddr | Flags::ReadWrite | Flags::Present;
+
+		invalidate(fast_page());
+	}
+
+	void PageTable::unmap_fast_page()
+	{
+		ASSERT(s_kernel);
+		ASSERT(!interrupts_enabled());
+
+		constexpr vaddr_t uc_vaddr = uncanonicalize(fast_page());
+		constexpr uint64_t pml4e = (uc_vaddr >> 39) & 0x1FF;
+		constexpr uint64_t pdpte = (uc_vaddr >> 30) & 0x1FF;
+		constexpr uint64_t pde   = (uc_vaddr >> 21) & 0x1FF;
+		constexpr uint64_t pte   = (uc_vaddr >> 12) & 0x1FF;
+
+		uint64_t* pml4 = (uint64_t*)P2V(s_kernel->m_highest_paging_struct);
+		uint64_t* pdpt = (uint64_t*)P2V(pml4[pml4e] & PAGE_ADDR_MASK);
+		uint64_t* pd   = (uint64_t*)P2V(pdpt[pdpte] & PAGE_ADDR_MASK);
+		uint64_t* pt   = (uint64_t*)P2V(pd[pde] & PAGE_ADDR_MASK);
+
+		ASSERT(pt[pte] & Flags::Present);
+		pt[pte] = 0;
+
+		invalidate(fast_page());
 	}
 
 	BAN::ErrorOr<PageTable*> PageTable::create_userspace()
@@ -209,13 +309,16 @@ namespace Kernel
 	void PageTable::invalidate(vaddr_t vaddr)
 	{
 		ASSERT(vaddr % PAGE_SIZE == 0);
-		if (this == s_current)
-			asm volatile("invlpg (%0)" :: "r"(vaddr) : "memory");
+		asm volatile("invlpg (%0)" :: "r"(vaddr) : "memory");
 	}
 
 	void PageTable::unmap_page(vaddr_t vaddr)
 	{
-		if (vaddr && (vaddr >= KERNEL_OFFSET) != (this == s_kernel))
+		ASSERT(vaddr);
+		ASSERT(vaddr != fast_page());
+		if (vaddr >= KERNEL_OFFSET)
+			ASSERT_GTE(vaddr, (vaddr_t)g_kernel_start);
+		if ((vaddr >= KERNEL_OFFSET) != (this == s_kernel))
 			Kernel::panic("unmapping {8H}, kernel: {}", vaddr, this == s_kernel);
 
 		ASSERT(is_canonical(vaddr));
@@ -257,7 +360,11 @@ namespace Kernel
 
 	void PageTable::map_page_at(paddr_t paddr, vaddr_t vaddr, flags_t flags)
 	{
-		if (vaddr && (vaddr >= KERNEL_OFFSET) != (this == s_kernel))
+		ASSERT(vaddr);
+		ASSERT(vaddr != fast_page());
+		if (vaddr >= KERNEL_OFFSET && s_current)
+			ASSERT_GTE(vaddr, (vaddr_t)g_kernel_start);
+		if ((vaddr >= KERNEL_OFFSET) != (this == s_kernel))
 			Kernel::panic("mapping {8H} to {8H}, kernel: {}", paddr, vaddr, this == s_kernel);
 
 		ASSERT(is_canonical(vaddr));
@@ -324,12 +431,11 @@ namespace Kernel
 	{
 		ASSERT(is_canonical(vaddr));
 
+		ASSERT(vaddr);
 		ASSERT(paddr % PAGE_SIZE == 0);
 		ASSERT(vaddr % PAGE_SIZE == 0);
 
-		size_t first_page = vaddr / PAGE_SIZE;
-		size_t last_page = (vaddr + size - 1) / PAGE_SIZE;
-		size_t page_count = last_page - first_page + 1;
+		size_t page_count = range_page_count(vaddr, size);
 		
 		LockGuard _(m_lock);
 		for (size_t page = 0; page < page_count; page++)
@@ -406,6 +512,8 @@ namespace Kernel
 
 	vaddr_t PageTable::reserve_free_page(vaddr_t first_address, vaddr_t last_address)
 	{
+		if (first_address >= KERNEL_OFFSET && first_address < (vaddr_t)g_kernel_end)
+			first_address = (vaddr_t)g_kernel_end;
 		if (size_t rem = first_address % PAGE_SIZE)
 			first_address += PAGE_SIZE - rem;
 		if (size_t rem = last_address % PAGE_SIZE)
@@ -463,8 +571,9 @@ namespace Kernel
 							vaddr |= (uint64_t)pdpte << 30;
 							vaddr |= (uint64_t)pde   << 21;
 							vaddr |= (uint64_t)pte   << 12;
+							vaddr = canonicalize(vaddr);
 							ASSERT(reserve_page(vaddr));
-							return canonicalize(vaddr);
+							return vaddr;
 						}
 					}
 				}
@@ -488,6 +597,8 @@ namespace Kernel
 
 	vaddr_t PageTable::reserve_free_contiguous_pages(size_t page_count, vaddr_t first_address, vaddr_t last_address)
 	{
+		if (first_address >= KERNEL_OFFSET && first_address < (vaddr_t)g_kernel_start)
+			first_address = (vaddr_t)g_kernel_start;
 		if (size_t rem = first_address % PAGE_SIZE)
 			first_address += PAGE_SIZE - rem;
 		if (size_t rem = last_address % PAGE_SIZE)

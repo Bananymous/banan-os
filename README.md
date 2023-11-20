@@ -2,7 +2,7 @@
 
 # banan-os
 
-This is my hobby operating system written in C++. Currently supports only x86_64 architecture. We have a read-only ext2 filesystem, read-write ramfs, IDE disk drivers in ATA PIO mode, userspace processes, executable loading from ELF format, linear VBE graphics and multithreaded processing on single core.
+This is my hobby operating system written in C++. Currently supports only x86\_64 architecture. We have a ext2 filesystem, basic ramfs, IDE disk drivers in ATA PIO mode, ATA AHCI drivers, userspace processes, executable loading from ELF format, linear VBE graphics and multithreaded processing on single core.
 
 ![screenshot from qemu running banan-os](assets/banan-os.png)
 
@@ -14,39 +14,34 @@ Each major component and library has its own subdirectory (kernel, userspace, li
 
 There does not exist a complete list of needed packages for building. From the top of my head I can say that *cmake*, *ninja*, *make*, *grub*, *rsync* and emulator (*qemu* or *bochs*) are needed.
 
-Create the build directory and cofigure cmake
-```sh
-mkdir build
-cd build
-cmake -G Ninja ..
-```
-
 To build the toolchain for this os. You can run the following command.
 > ***NOTE:*** The following step has to be done only once. This might take a long time since we are compiling binutils and gcc.
 ```sh
-ninja toolchain
-cmake -G Ninja --fresh .. # We need to reconfigure cmake to use the new compiler
-ninja libstdc++
+./script/build.sh toolchain
 ```
 
-To build the os itself you can run either of the following commands. You will need root access since the sysroot has "proper" permissions.
+To build the os itself you can run one of the following commands. You will need root access for disk image creation/modification.
 ```sh
-ninja qemu
-ninja bochs
+./script/build.sh qemu
+./script/build.sh qemu-nographic
+./script/build.sh qemu-debug
+./script/build.sh bochs
 ```
 
 You can also build the kernel or disk image without running it:
 ```sh
-ninja kernel
-ninja image
+./script/build.sh kernel
+./script/build.sh image
 ```
 
-If you have corrupted your disk image or want to create new one, you can either manually delete *banan-os.img* and cmake will automatically create you a new one or you can run the following command.
+If you have corrupted your disk image or want to create new one, you can either manually delete *build/banan-os.img* and build system will automatically create you a new one or you can run the following command.
 ```sh
-ninja image-full
+./script/build.sh image-full
 ```
 
-> ***NOTE*** ```ninja clean``` has to be ran with root permissions, since it deletes the root filesystem.
+If you feel like ```./script/build.sh``` is too verbose, there exists a symlink _bos_ in this projects root directory. All build commands can be used with ```./bos args...``` instead.
+
+I have also created shell completion script for zsh. You can either copy the file in _script/shell-completion/zsh/\_bos_ to _/usr/share/zsh/site-functions/_ or add the _script/shell-completion/zsh_ to your fpath in _.zshrc_.
 
 ### Contributing
 

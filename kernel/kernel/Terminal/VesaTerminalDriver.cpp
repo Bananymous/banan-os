@@ -1,55 +1,53 @@
 #include <BAN/Errors.h>
+#include <kernel/BootInfo.h>
 #include <kernel/Debug.h>
 #include <kernel/Memory/PageTable.h>
-#include <kernel/multiboot.h>
 #include <kernel/Terminal/VesaTerminalDriver.h>
 
 using namespace Kernel;
 
 VesaTerminalDriver* VesaTerminalDriver::create()
 {
-	if (!(g_multiboot_info->flags & MULTIBOOT_FLAGS_FRAMEBUFFER))
+	if (g_boot_info.framebuffer.type == FramebufferType::NONE)	
 	{
 		dprintln("Bootloader did not provide framebuffer");
 		return nullptr;
 	}
 
-	auto& framebuffer = g_multiboot_info->framebuffer;
-
-	if (framebuffer.type == MULTIBOOT_FRAMEBUFFER_TYPE_GRAPHICS)
+	if (g_boot_info.framebuffer.type != FramebufferType::RGB)
 	{
-		if (framebuffer.bpp != 24 && framebuffer.bpp != 32)
-		{
-			dprintln("Unsupported bpp {}", framebuffer.bpp);
-			return nullptr;
-		}
-		dprintln("Graphics Mode {}x{} ({} bpp)", framebuffer.width, framebuffer.height, framebuffer.bpp);
-	}
-	else if (framebuffer.type == MULTIBOOT_FRAMEBUFFER_TYPE_TEXT)
-	{
-		dprintln("Text Mode is currently not supported");
-		return nullptr;
-	}
-	else
-	{
-		dprintln("Unknown framebuffer type {}", framebuffer.type);
+		dprintln("unsupported framebuffer type");
 		return nullptr;
 	}
 
-	uint64_t first_page = framebuffer.addr / PAGE_SIZE;
-	uint64_t last_page = BAN::Math::div_round_up<uint64_t>(framebuffer.addr + framebuffer.pitch * framebuffer.height, PAGE_SIZE);
-	uint64_t needed_pages = last_page - first_page + 1;
+	if (g_boot_info.framebuffer.bpp != 24 && g_boot_info.framebuffer.bpp != 32)
+	{
+		dprintln("Unsupported bpp {}", g_boot_info.framebuffer.bpp);
+		return nullptr;
+	}
+
+	dprintln("Graphics Mode {}x{} ({} bpp)",
+		g_boot_info.framebuffer.width,
+		g_boot_info.framebuffer.height,
+		g_boot_info.framebuffer.bpp
+	);
+
+	paddr_t paddr = g_boot_info.framebuffer.address & PAGE_ADDR_MASK;
+	size_t needed_pages = range_page_count(
+		g_boot_info.framebuffer.address,
+		g_boot_info.framebuffer.pitch * g_boot_info.framebuffer.height
+	);
 
 	vaddr_t vaddr = PageTable::kernel().reserve_free_contiguous_pages(needed_pages, KERNEL_OFFSET);
 	ASSERT(vaddr);
 
-	PageTable::kernel().map_range_at(framebuffer.addr, vaddr, needed_pages * PAGE_SIZE, PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present);
+	PageTable::kernel().map_range_at(paddr, vaddr, needed_pages * PAGE_SIZE, PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present);
 
 	auto* driver = new VesaTerminalDriver(
-		framebuffer.width,
-		framebuffer.height,
-		framebuffer.pitch,
-		framebuffer.bpp,
+		g_boot_info.framebuffer.width,
+		g_boot_info.framebuffer.height,
+		g_boot_info.framebuffer.pitch,
+		g_boot_info.framebuffer.bpp,
 		vaddr
 	);
 	driver->set_cursor_position(0, 0);

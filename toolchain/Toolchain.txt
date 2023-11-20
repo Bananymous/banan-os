@@ -1,0 +1,28 @@
+if (NOT DEFINED ENV{BANAN_ARCH})
+	message(FATAL_ERROR "environment variable BANAN_ARCH not defined")
+endif ()
+set(BANAN_ARCH $ENV{BANAN_ARCH})
+
+if (NOT DEFINED ENV{BANAN_SYSROOT})
+	message(FATAL_ERROR "environment variable BANAN_SYSROOT not defined")
+endif ()
+set(BANAN_SYSROOT $ENV{BANAN_SYSROOT})
+
+if (NOT DEFINED ENV{BANAN_SYSROOT_TAR})
+	message(FATAL_ERROR "environment variable BANAN_SYSROOT_TAR not defined")
+endif ()
+set(BANAN_SYSROOT_TAR $ENV{BANAN_SYSROOT_TAR})
+
+
+set(TOOLCHAIN_PREFIX ${CMAKE_SOURCE_DIR}/toolchain/local)
+
+set(CMAKE_SYSTEM_NAME banan-os)
+set(CMAKE_SYSTEM_PROCESSOR AMD64)
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED True)
+set(CMAKE_CXX_COMPILER ${TOOLCHAIN_PREFIX}/bin/${BANAN_ARCH}-banan_os-g++)
+set(CMAKE_CXX_COMPILER_WORKS True)
+
+set(CMAKE_C_COMPILER ${TOOLCHAIN_PREFIX}/bin/${BANAN_ARCH}-banan_os-gcc)
+set(CMAKE_C_COMPILER_WORKS True)

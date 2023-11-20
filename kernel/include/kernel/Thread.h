@@ -70,6 +70,8 @@ namespace Kernel
 
 		vaddr_t stack_base() const { return m_stack->vaddr(); }
 		size_t stack_size() const { return m_stack->size(); }
+		VirtualRange& stack() { return *m_stack; }
+		VirtualRange& interrupt_stack() { return *m_interrupt_stack; }
 
 		vaddr_t interrupt_stack_base() const { return m_interrupt_stack ? m_interrupt_stack->vaddr() : 0; }
 		size_t interrupt_stack_size() const { return m_interrupt_stack ? m_interrupt_stack->size() : 0; }
@@ -82,8 +84,13 @@ namespace Kernel
 
 		bool is_userspace() const { return m_is_userspace; }
 
+		size_t virtual_page_count() const { return m_stack->size() / PAGE_SIZE; }
+		size_t physical_page_count() const { return virtual_page_count(); }
+
+#if __enable_sse
 		void save_sse() { asm volatile("fxsave %0" :: "m"(m_sse_storage)); }
 		void load_sse() { asm volatile("fxrstor %0" :: "m"(m_sse_storage)); }
+#endif
 
 	private:
 		Thread(pid_t tid, Process*);
@@ -92,7 +99,7 @@ namespace Kernel
 		void validate_stack() const;
 
 	private:
-		static constexpr size_t		m_kernel_stack_size		= PAGE_SIZE * 1;
+		static constexpr size_t		m_kernel_stack_size		= PAGE_SIZE * 4;
 		static constexpr size_t		m_userspace_stack_size	= PAGE_SIZE * 2;
 		static constexpr size_t		m_interrupt_stack_size	= PAGE_SIZE * 2;
 		BAN::UniqPtr<VirtualRange>	m_interrupt_stack;
@@ -114,7 +121,9 @@ namespace Kernel
 
 		uint64_t m_terminate_blockers { 0 };
 
+#if __enable_sse
 		alignas(16) uint8_t m_sse_storage[512] {};
+#endif
 
 		friend class Scheduler;
 	};

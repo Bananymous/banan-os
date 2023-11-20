@@ -1,7 +1,6 @@
 #include <BAN/Errors.h>
 #include <kernel/CriticalScope.h>
 #include <kernel/kprint.h>
-#include <kernel/Memory/GeneralAllocator.h>
 #include <kernel/Memory/kmalloc.h>
 
 #include <kernel/Thread.h>
@@ -12,9 +11,7 @@ extern uint8_t g_kernel_end[];
 
 static constexpr size_t s_kmalloc_min_align = alignof(max_align_t);
 
-static uint8_t s_kmalloc_storage[2 * MB];
-
-static BAN::UniqPtr<Kernel::GeneralAllocator> s_general_allocator;
+static uint8_t s_kmalloc_storage[20 * MB];
 
 struct kmalloc_node
 {
@@ -303,19 +300,6 @@ void* kmalloc(size_t size, size_t align, bool force_indentity_map)
 
 	Kernel::CriticalScope critical;
 
-	// FIXME: this is a hack to make more dynamic kmalloc memory
-	if (size > PAGE_SIZE && !force_indentity_map)
-	{
-		using namespace Kernel;
-
-		if (!s_general_allocator)
-			s_general_allocator = MUST(GeneralAllocator::create(PageTable::kernel(), (vaddr_t)g_kernel_end));
-		
-		auto vaddr = s_general_allocator->allocate(size);
-		if (vaddr)
-			return (void*)vaddr;
-	}
-
 	if (size == 0 || size >= info.size)
 		goto no_memory;
 
@@ -349,9 +333,6 @@ void kfree(void* address)
 	ASSERT(address_uint % s_kmalloc_min_align == 0);
 
 	Kernel::CriticalScope critical;
-
-	if (s_general_allocator && s_general_allocator->deallocate((Kernel::vaddr_t)address))
-		return;
 
 	if (s_kmalloc_fixed_info.base <= address_uint && address_uint < s_kmalloc_fixed_info.end)
 	{
@@ -413,13 +394,6 @@ void kfree(void* address)
 BAN::Optional<Kernel::paddr_t> kmalloc_paddr_of(Kernel::vaddr_t vaddr)
 {
 	using namespace Kernel;
-
-	if (s_general_allocator)
-	{
-		auto paddr = s_general_allocator->paddr_of(vaddr);
-		if (paddr.has_value())
-			return paddr.value();
-	}
 
 	if ((vaddr_t)s_kmalloc_storage <= vaddr && vaddr < (vaddr_t)s_kmalloc_storage + sizeof(s_kmalloc_storage))
 		return V2P(vaddr);

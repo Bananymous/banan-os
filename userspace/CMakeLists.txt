@@ -4,16 +4,26 @@ project(userspace CXX)
 
 set(USERSPACE_PROJECTS
 	cat
+	cat-mmap
+	chmod
+	cp
 	dd
 	echo
 	id
 	init
 	ls
+	meminfo
+	mkdir
+	mmap-shared-test
+	poweroff
+	rm
 	Shell
 	snake
 	stat
+	sync
 	tee
 	test
+	test-globals
 	touch
 	u8sum
 	whoami

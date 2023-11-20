@@ -11,7 +11,6 @@ target_compile_options(cat PUBLIC -O2 -g)
 target_link_libraries(cat PUBLIC libc)
 
 add_custom_target(cat-install
-	COMMAND sudo cp ${CMAKE_CURRENT_BINARY_DIR}/cat ${BANAN_BIN}/
+	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/cat ${BANAN_BIN}/
 	DEPENDS cat
-	USES_TERMINAL
 )

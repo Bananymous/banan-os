@@ -17,80 +17,85 @@
 
 #define ICW4_8086	0x01
 
-PIC* PIC::create()
+namespace Kernel
 {
-	mask_all();
-	remap();
-	return new PIC;
-}
 
-void PIC::remap()
-{
-	uint8_t a1 = IO::inb(PIC1_DATA);
-	uint8_t a2 = IO::inb(PIC2_DATA);
-
-	// Start the initialization sequence (in cascade mode)
-	IO::outb(PIC1_CMD, ICW1_INIT | ICW1_ICW4);
-	IO::io_wait();
-	IO::outb(PIC2_CMD, ICW1_INIT | ICW1_ICW4);
-	IO::io_wait();
-
-	// ICW2
-	IO::outb(PIC1_DATA, IRQ_VECTOR_BASE);
-	IO::io_wait();
-	IO::outb(PIC2_DATA, IRQ_VECTOR_BASE + 0x08);
-	IO::io_wait();
-
-	// ICW3
-	IO::outb(PIC1_DATA, 4);
-	IO::io_wait();
-	IO::outb(PIC2_DATA, 2);
-	IO::io_wait();
-
-	// ICW4
-	IO::outb(PIC1_DATA, ICW4_8086);
-	IO::io_wait();
-	IO::outb(PIC2_DATA, ICW4_8086);
-	IO::io_wait();
-
-	// Restore original masks
-	IO::outb(PIC1_DATA, a1);
-	IO::outb(PIC2_DATA, a2);
-}
-
-void PIC::mask_all()
-{
-	// NOTE: don't mask irq 2 as it is needed for slave pic
-	IO::outb(PIC1_DATA, 0xFB);
-	IO::outb(PIC2_DATA, 0xFF);
-}
-
-void PIC::eoi(uint8_t irq)
-{
-	if (irq >= 8)
-		IO::outb(PIC2_CMD, PIC_EOI);
-	IO::outb(PIC1_CMD, PIC_EOI);
-}
-
-void PIC::enable_irq(uint8_t irq)
-{
-	uint16_t port = PIC1_DATA;
-	if(irq >= 8)
+	PIC* PIC::create()
 	{
-		port = PIC2_DATA;
-		irq -= 8;
+		mask_all();
+		remap();
+		return new PIC;
 	}
-	IO::outb(port, IO::inb(port) & ~(1 << irq));
-}
 
-bool PIC::is_in_service(uint8_t irq)
-{
-	uint16_t port = PIC1_CMD;
-	if (irq >= 8)
+	void PIC::remap()
 	{
-		port = PIC2_CMD;
-		irq -= 8;
+		uint8_t a1 = IO::inb(PIC1_DATA);
+		uint8_t a2 = IO::inb(PIC2_DATA);
+
+		// Start the initialization sequence (in cascade mode)
+		IO::outb(PIC1_CMD, ICW1_INIT | ICW1_ICW4);
+		IO::io_wait();
+		IO::outb(PIC2_CMD, ICW1_INIT | ICW1_ICW4);
+		IO::io_wait();
+
+		// ICW2
+		IO::outb(PIC1_DATA, IRQ_VECTOR_BASE);
+		IO::io_wait();
+		IO::outb(PIC2_DATA, IRQ_VECTOR_BASE + 0x08);
+		IO::io_wait();
+
+		// ICW3
+		IO::outb(PIC1_DATA, 4);
+		IO::io_wait();
+		IO::outb(PIC2_DATA, 2);
+		IO::io_wait();
+
+		// ICW4
+		IO::outb(PIC1_DATA, ICW4_8086);
+		IO::io_wait();
+		IO::outb(PIC2_DATA, ICW4_8086);
+		IO::io_wait();
+
+		// Restore original masks
+		IO::outb(PIC1_DATA, a1);
+		IO::outb(PIC2_DATA, a2);
 	}
-	IO::outb(port, PIC_ISR);
-	return IO::inb(port) & (1 << irq);
+
+	void PIC::mask_all()
+	{
+		// NOTE: don't mask irq 2 as it is needed for slave pic
+		IO::outb(PIC1_DATA, 0xFB);
+		IO::outb(PIC2_DATA, 0xFF);
+	}
+
+	void PIC::eoi(uint8_t irq)
+	{
+		if (irq >= 8)
+			IO::outb(PIC2_CMD, PIC_EOI);
+		IO::outb(PIC1_CMD, PIC_EOI);
+	}
+
+	void PIC::enable_irq(uint8_t irq)
+	{
+		uint16_t port = PIC1_DATA;
+		if(irq >= 8)
+		{
+			port = PIC2_DATA;
+			irq -= 8;
+		}
+		IO::outb(port, IO::inb(port) & ~(1 << irq));
+	}
+
+	bool PIC::is_in_service(uint8_t irq)
+	{
+		uint16_t port = PIC1_CMD;
+		if (irq >= 8)
+		{
+			port = PIC2_CMD;
+			irq -= 8;
+		}
+		IO::outb(port, PIC_ISR);
+		return IO::inb(port) & (1 << irq);
+	}
+
 }

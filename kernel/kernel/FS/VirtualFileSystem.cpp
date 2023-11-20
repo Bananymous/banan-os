@@ -2,8 +2,8 @@
 #include <BAN/StringView.h>
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/FS/Ext2/FileSystem.h>
-#include <kernel/FS/RamFS/FileSystem.h>
-#include <kernel/FS/RamFS/Inode.h>
+#include <kernel/FS/ProcFS/FileSystem.h>
+#include <kernel/FS/TmpFS/FileSystem.h>
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/LockGuard.h>
 #include <fcntl.h>
@@ -26,14 +26,12 @@ namespace Kernel
 		s_instance->m_root_fs = MUST(Ext2FS::create(*(Partition*)partition_inode.ptr()));
 
 		Credentials root_creds { 0, 0, 0, 0 };
-		MUST(s_instance->mount(root_creds, &DevFileSystem::get(), "/dev"));
+		MUST(s_instance->mount(root_creds, &DevFileSystem::get(), "/dev"sv));
 
-		mode_t tmpfs_mode = Inode::Mode::IFDIR
-			 | Inode::Mode::IRUSR | Inode::Mode::IWUSR | Inode::Mode::IXUSR
-			 | Inode::Mode::IRGRP | Inode::Mode::IWGRP | Inode::Mode::IXGRP
-			 | Inode::Mode::IROTH | Inode::Mode::IWOTH | Inode::Mode::IXOTH;
-		auto* tmpfs = MUST(RamFileSystem::create(1024 * 1024, tmpfs_mode, 0, 0));
-		MUST(s_instance->mount(root_creds, tmpfs, "/tmp"));
+		MUST(s_instance->mount(root_creds, &ProcFileSystem::get(), "/proc"sv));
+
+		auto* tmpfs = MUST(TmpFileSystem::create(1024, 0777, 0, 0));
+		MUST(s_instance->mount(root_creds, tmpfs, "/tmp"sv));
 	}
 
 	VirtualFileSystem& VirtualFileSystem::get()

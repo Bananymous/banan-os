@@ -1,11 +1,19 @@
 #pragma once
 
 #include <BAN/Errors.h>
+#include <BAN/Traits.h>
+#include <kernel/CriticalScope.h>
 #include <kernel/Memory/Types.h>
 #include <kernel/SpinLock.h>
 
 namespace Kernel
 {
+
+	template<typename F>
+	concept with_fast_page_callback = requires(F func)
+	{
+		requires BAN::is_same_v<decltype(func()), void>;
+	};
 
 	class PageTable
 	{
@@ -29,13 +37,50 @@ namespace Kernel
 		static PageTable& kernel();
 		static PageTable& current();
 
+		static void map_fast_page(paddr_t);
+		static void unmap_fast_page();
+		static constexpr vaddr_t fast_page() { return KERNEL_OFFSET; }
+
+		template<with_fast_page_callback F>
+		static void with_fast_page(paddr_t paddr, F callback)
+		{
+			CriticalScope _;
+			map_fast_page(paddr);
+			callback();
+			unmap_fast_page();
+		}
+
+		// FIXME: implement sized checks, return span, etc
+		static void* fast_page_as_ptr(size_t offset = 0)
+		{
+			ASSERT(offset <= PAGE_SIZE);
+			return reinterpret_cast<void*>(fast_page() + offset);
+		}
+
+		template<typename T>
+		static T& fast_page_as(size_t offset = 0)
+		{
+			ASSERT(offset + sizeof(T) <= PAGE_SIZE);
+			return *reinterpret_cast<T*>(fast_page() + offset);
+		}
+
+		// Retrieves index'th element from fast_page
+		template<typename T>
+		static T& fast_page_as_sized(size_t index)
+		{
+			ASSERT((index + 1) * sizeof(T) <= PAGE_SIZE);
+			return *reinterpret_cast<T*>(fast_page() + index * sizeof(T));
+		}
+
+		static bool is_valid_pointer(uintptr_t);
+
 		static BAN::ErrorOr<PageTable*> create_userspace();
 		~PageTable();
 
 		void unmap_page(vaddr_t);
 		void unmap_range(vaddr_t, size_t bytes);
 
-		void map_range_at(paddr_t, vaddr_t, size_t, flags_t);
+		void map_range_at(paddr_t, vaddr_t, size_t bytes, flags_t);
 		void map_page_at(paddr_t, vaddr_t, flags_t);
 
 		paddr_t physical_address_of(vaddr_t) const;
@@ -62,7 +107,8 @@ namespace Kernel
 		uint64_t get_page_data(vaddr_t) const;
 		void initialize_kernel();
 		void map_kernel_memory();
-		void invalidate(vaddr_t);
+		void prepare_fast_page();		
+		static void invalidate(vaddr_t);
 
 	private:
 		paddr_t						m_highest_paging_struct { 0 };
@@ -73,7 +119,7 @@ namespace Kernel
 	{
 		size_t first_page = start / PAGE_SIZE;
 		size_t last_page = BAN::Math::div_round_up<size_t>(start + bytes, PAGE_SIZE);
-		return last_page - first_page + 1;
+		return last_page - first_page;
 	}
 
 }
