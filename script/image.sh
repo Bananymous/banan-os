@@ -18,7 +18,9 @@ LOOP_DEV=$(sudo losetup --show -f "$BANAN_DISK_IMAGE_PATH")
 sudo partprobe $LOOP_DEV
 
 ROOT_PARTITION=${LOOP_DEV}p2
-MOUNT_DIR=/mnt
+MOUNT_DIR=/bananmnt
+
+sudo mkdir -p $MOUNT_DIR || { echo "Failed to create mount point dir."; exit 1; } 
 
 sudo mount $ROOT_PARTITION $MOUNT_DIR
 
@@ -26,6 +28,8 @@ cd $MOUNT_DIR
 sudo tar xf $BANAN_SYSROOT_TAR
 cd
 
-sudo umount $MOUNT_DIR
+sudo umount $MOUNT_DIR || { echo "Failed to unmount banan mount."; exit 1; }
 
-sudo losetup -d $LOOP_DEV
+sudo losetup -d $LOOP_DEV || { echo "Failed to remove loop device for banan mount."; exit 1; }
+
+sudo rm -rf $MOUNT_DIR
