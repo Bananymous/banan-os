@@ -25,8 +25,18 @@ if [[ -z $BANAN_ARCH ]]; then
 	exit 1
 fi
 
+if [[ -z $BANAN_UEFI_BOOT ]]; then
+	echo  "You must set the BANAN_UEFI_BOOT environment variable" >&2
+	exit 1
+fi
+
+if [[ -z $BANAN_BUILD_DIR ]]; then
+	echo  "You must set the BANAN_BUILD_DIR environment variable" >&2
+	exit 1
+fi
+
 DISK_SIZE=$[50 * 1024 * 1024]
-MOUNT_DIR="${MOUNT_DIR:-/bananmnt}"
+MOUNT_DIR="${MOUNT_DIR:-$BANAN_BUILD_DIR/bananmnt}"
 
 truncate -s 0 "$BANAN_DISK_IMAGE_PATH"
 truncate -s $DISK_SIZE "$BANAN_DISK_IMAGE_PATH"
