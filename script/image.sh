@@ -18,7 +18,7 @@ LOOP_DEV=$(sudo losetup --show -f "$BANAN_DISK_IMAGE_PATH")
 sudo partprobe $LOOP_DEV
 
 ROOT_PARTITION=${LOOP_DEV}p2
-MOUNT_DIR=/bananmnt
+MOUNT_DIR="${MOUNT_DIR:-/bananmnt}"
 
 sudo mkdir -p $MOUNT_DIR || { echo "Failed to create mount point dir."; exit 1; } 
 
