@@ -9,7 +9,7 @@ if [[ -z $OVMF_PATH ]]; then
 	OVMF_PATH="/usr/share/ovmf/x64/OVMF.fd"
 fi
 
-if [[ "$BANAN_UEFI_BOOT" == "1" ]]; then
+if (($BANAN_UEFI_BOOT)); then
 	BIOS_ARGS="-bios $OVMF_PATH -net none"
 fi
 

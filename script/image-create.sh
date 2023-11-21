@@ -41,7 +41,7 @@ MOUNT_DIR="${MOUNT_DIR:-$BANAN_BUILD_DIR/bananmnt}"
 truncate -s 0 "$BANAN_DISK_IMAGE_PATH"
 truncate -s $DISK_SIZE "$BANAN_DISK_IMAGE_PATH"
 
-if [ "$BANAN_UEFI_BOOT" == "1" ]; then
+if (($BANAN_UEFI_BOOT)); then
 	sed -e 's/\s*\([-\+[:alnum:]]*\).*/\1/' << EOF | fdisk "$BANAN_DISK_IMAGE_PATH" > /dev/null
 	  g     # gpt
 	  n     # new partition
@@ -92,7 +92,7 @@ sudo mkfs.ext2 -b 1024 -q $PARTITION2
 sudo mkdir -p $MOUNT_DIR || { echo "Failed to create banan mount dir."; exit 1; }
 
 if [[ "$BANAN_BOOTLOADER" == "GRUB" ]]; then
-	if [[ "$BANAN_UEFI_BOOT" == "1" ]]; then
+	if (($BANAN_UEFI_BOOT)); then
 		sudo mkfs.fat $PARTITION1 > /dev/null
 		sudo mount $PARTITION1 "$MOUNT_DIR"
 		sudo mkdir -p "$MOUNT_DIR/EFI/BOOT"
@@ -119,7 +119,7 @@ sudo rm -rf $MOUNT_DIR || { echo "Failed to remove banan mount dir."; exit 1; }
 if [[ "$BANAN_BOOTLOADER" == "GRUB" ]]; then
 	echo > /dev/null
 elif [[ "$BANAN_BOOTLOADER" == "BANAN" ]]; then
-	if [[ "$BANAN_UEFI_BOOT" == "1" ]]; then
+	if (($BANAN_UEFI_BOOT)); then
 		echo "banan bootloader does not support UEFI" >&2
 		exit 1
 	fi
@@ -128,4 +128,3 @@ else
 	echo "unrecognized bootloader $BANAN_BOOTLOADER" >&2
 	exit 1
 fi
-
