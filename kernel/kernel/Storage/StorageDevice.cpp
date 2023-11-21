@@ -9,12 +9,6 @@
 #include <kernel/Storage/StorageDevice.h>
 #include <kernel/Thread.h>
 
-#include <sys/sysmacros.h>
-
-#define ATA_DEVICE_PRIMARY		0x1F0
-#define ATA_DEVICE_SECONDARY	0x170
-#define ATA_DEVICE_SLAVE_BIT	0x10
-
 namespace Kernel
 {
 
@@ -29,7 +23,7 @@ namespace Kernel
 		BAN::LittleEndian<uint64_t> alternate_lba;
 		BAN::LittleEndian<uint64_t> first_usable_lba;
 		BAN::LittleEndian<uint64_t> last_usable_lba;
-		GUID						disk_guid;
+		BAN::GUID					disk_guid;
 		BAN::LittleEndian<uint64_t> partition_entry_lba;
 		BAN::LittleEndian<uint32_t> partition_entry_count;
 		BAN::LittleEndian<uint32_t> partition_entry_size;
@@ -38,8 +32,8 @@ namespace Kernel
 
 	struct PartitionEntry
 	{
-		GUID partition_type_guid;
-		GUID unique_partition_guid;
+		BAN::GUID partition_type_guid;
+		BAN::GUID unique_partition_guid;
 		BAN::LittleEndian<uint64_t> starting_lba;
 		BAN::LittleEndian<uint64_t> ending_lba;
 		BAN::LittleEndian<uint64_t> attributes;
@@ -180,15 +174,15 @@ namespace Kernel
 		{
 			const PartitionEntry& entry = *(const PartitionEntry*)(entry_array.data() + header.partition_entry_size * i);
 
-			GUID zero {};
-			if (memcmp(&entry.partition_type_guid, &zero, sizeof(GUID)) == 0)
+			BAN::GUID zero {};
+			if (memcmp(&entry.partition_type_guid, &zero, sizeof(BAN::GUID)) == 0)
 				continue;
 
 			char utf8_name[36 * 4 + 1];
 			BAN::UTF8::from_codepoints(entry.partition_name, 36, utf8_name);
 
 			auto partition = TRY(Partition::create(
-				*this, 
+				this, 
 				entry.partition_type_guid,
 				entry.unique_partition_guid,
 				entry.starting_lba,
@@ -204,68 +198,6 @@ namespace Kernel
 			DevFileSystem::get().add_device(partition);
 
 		return {};
-	}
-
-	BAN::ErrorOr<BAN::RefPtr<Partition>> Partition::create(StorageDevice& device, const GUID& type, const GUID& guid, uint64_t start, uint64_t end, uint64_t attr, const char* label, uint32_t index)
-	{
-		auto partition_ptr = new Partition(device, type, guid, start, end, attr, label, index);
-		if (partition_ptr == nullptr)
-			return BAN::Error::from_errno(ENOMEM);
-		return BAN::RefPtr<Partition>::adopt(partition_ptr);
-	}	
-
-	Partition::Partition(StorageDevice& device, const GUID& type, const GUID& guid, uint64_t start, uint64_t end, uint64_t attr, const char* label, uint32_t index)
-		: BlockDevice(0660, 0, 0)
-		, m_device(device)
-		, m_type(type)
-		, m_guid(guid)
-		, m_lba_start(start)
-		, m_lba_end(end)
-		, m_attributes(attr)
-		, m_name(BAN::String::formatted("{}{}", device.name(), index))
-		, m_rdev(makedev(major(device.rdev()), index))
-	{
-		memcpy(m_label, label, sizeof(m_label));
-	}
-
-	BAN::ErrorOr<void> Partition::read_sectors(uint64_t lba, uint8_t sector_count, BAN::ByteSpan buffer)
-	{
-		ASSERT(buffer.size() >= sector_count * m_device.sector_size());
-		const uint32_t sectors_in_partition = m_lba_end - m_lba_start;
-		if (lba + sector_count > sectors_in_partition)
-			return BAN::Error::from_error_code(ErrorCode::Storage_Boundaries);
-		TRY(m_device.read_sectors(m_lba_start + lba, sector_count, buffer));
-		return {};
-	}
-
-	BAN::ErrorOr<void> Partition::write_sectors(uint64_t lba, uint8_t sector_count, BAN::ConstByteSpan buffer)
-	{
-		ASSERT(buffer.size() >= sector_count * m_device.sector_size());
-		const uint32_t sectors_in_partition = m_lba_end - m_lba_start;
-		if (lba + sector_count > sectors_in_partition)
-			return BAN::Error::from_error_code(ErrorCode::Storage_Boundaries);
-		TRY(m_device.write_sectors(m_lba_start + lba, sector_count, buffer));
-		return {};
-	}
-
-	BAN::ErrorOr<size_t> Partition::read_impl(off_t offset, BAN::ByteSpan buffer)
-	{
-		ASSERT(offset >= 0);
-
-		if (offset % m_device.sector_size() || buffer.size() % m_device.sector_size())
-			return BAN::Error::from_errno(ENOTSUP);
-
-		const uint32_t sectors_in_partition = m_lba_end - m_lba_start;
-		uint32_t lba = offset / m_device.sector_size();
-		uint32_t sector_count = buffer.size() / m_device.sector_size();
-
-		if (lba == sectors_in_partition)
-			return 0;
-		if (lba + sector_count > sectors_in_partition)
-			sector_count = sectors_in_partition - lba;
-
-		TRY(read_sectors(lba, sector_count, buffer));
-		return sector_count * m_device.sector_size();
 	}
 
 	StorageDevice::~StorageDevice()
@@ -287,7 +219,7 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<void> StorageDevice::read_sectors(uint64_t lba, uint64_t sector_count, BAN::ByteSpan buffer)
+	BAN::ErrorOr<void> StorageDevice::read_sectors(uint64_t lba, size_t sector_count, BAN::ByteSpan buffer)
 	{
 		ASSERT(buffer.size() >= sector_count * sector_size());
 
@@ -313,7 +245,7 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<void> StorageDevice::write_sectors(uint64_t lba, uint64_t sector_count, BAN::ConstByteSpan buffer)
+	BAN::ErrorOr<void> StorageDevice::write_sectors(uint64_t lba, size_t sector_count, BAN::ConstByteSpan buffer)
 	{
 		ASSERT(buffer.size() >= sector_count * sector_size());
 

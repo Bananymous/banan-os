@@ -3,62 +3,10 @@
 #include <BAN/Vector.h>
 #include <kernel/Device/Device.h>
 #include <kernel/Storage/DiskCache.h>
+#include <kernel/Storage/Partition.h>
 
 namespace Kernel
 {
-
-	struct GUID
-	{
-		uint32_t data1;
-		uint16_t data2;
-		uint16_t data3;
-		uint8_t data4[8];
-	};
-
-	class StorageDevice;
-
-	class Partition final : public BlockDevice
-	{
-	public:
-		static BAN::ErrorOr<BAN::RefPtr<Partition>> create(StorageDevice&, const GUID& type, const GUID& guid, uint64_t start, uint64_t end, uint64_t attr, const char* label, uint32_t index);
-
-		const GUID& partition_type() const { return m_type; }
-		const GUID& partition_guid() const { return m_guid; }
-		uint64_t lba_start() const { return m_lba_start; }
-		uint64_t lba_end() const { return m_lba_end; }
-		uint64_t attributes() const { return m_attributes; }
-		const char* label() const { return m_label; }
-		const StorageDevice& device() const { return m_device; }
-
-		BAN::ErrorOr<void> read_sectors(uint64_t lba, uint8_t sector_count, BAN::ByteSpan);
-		BAN::ErrorOr<void> write_sectors(uint64_t lba, uint8_t sector_count, BAN::ConstByteSpan);
-		
-		virtual BAN::StringView name() const override { return m_name; }
-
-	private:
-		Partition(StorageDevice&, const GUID&, const GUID&, uint64_t, uint64_t, uint64_t, const char*, uint32_t);
-
-	private:
-		StorageDevice& m_device;
-		const GUID m_type;
-		const GUID m_guid;
-		const uint64_t m_lba_start;
-		const uint64_t m_lba_end;
-		const uint64_t m_attributes;
-		char m_label[36 * 4 + 1];
-		const BAN::String m_name;
-
-	public:
-		virtual bool is_partition() const override { return true; }
-
-		virtual dev_t rdev() const override { return m_rdev; }
-
-	protected:
-		virtual BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan) override;
-
-	private:
-		const dev_t m_rdev;
-	};
 
 	class StorageDevice : public BlockDevice
 	{
@@ -70,8 +18,8 @@ namespace Kernel
 
 		BAN::ErrorOr<void> initialize_partitions();
 
-		BAN::ErrorOr<void> read_sectors(uint64_t lba, uint64_t sector_count, BAN::ByteSpan);
-		BAN::ErrorOr<void> write_sectors(uint64_t lba, uint64_t sector_count, BAN::ConstByteSpan);
+		BAN::ErrorOr<void> read_sectors(uint64_t lba, size_t sector_count, BAN::ByteSpan);
+		BAN::ErrorOr<void> write_sectors(uint64_t lba, size_t sector_count, BAN::ConstByteSpan);
 
 		virtual uint32_t sector_size() const = 0;
 		virtual uint64_t total_size() const = 0;
