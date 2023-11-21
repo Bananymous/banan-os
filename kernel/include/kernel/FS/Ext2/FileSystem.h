@@ -1,7 +1,7 @@
 #pragma once
 
 #include <BAN/HashMap.h>
-#include <kernel/Storage/StorageDevice.h>
+#include <kernel/Storage/Partition.h>
 #include <kernel/FS/FileSystem.h>
 #include <kernel/FS/Ext2/Inode.h>
 

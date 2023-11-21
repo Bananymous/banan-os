@@ -25,6 +25,12 @@ namespace Kernel
 
 	class BlockDevice : public Device
 	{
+	public:
+		virtual BAN::ErrorOr<void> read_blocks(uint64_t first_block, size_t block_count, BAN::ByteSpan) = 0;
+		virtual BAN::ErrorOr<void> write_blocks(uint64_t first_block, size_t block_count, BAN::ConstByteSpan) = 0;
+
+		virtual blksize_t blksize() const = 0;
+
 	protected:
 		BlockDevice(mode_t mode, uid_t uid, gid_t gid)
 			: Device(mode, uid, gid)
