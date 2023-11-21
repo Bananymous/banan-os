@@ -41,7 +41,7 @@ read_from_disk:
 	call drive_has_int13_ext
 
 	# prepare disk read packet
-	mov $disk_address_packet, %si
+	movw $disk_address_packet, %si
 	movb $0x10,	0x00(%si)	# packet size
 	movb $0x00,	0x01(%si)	# always 0
 	movw %cx,	0x02(%si)	# lba count
