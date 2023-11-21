@@ -236,6 +236,10 @@ ext2_read_inode:
 	movl (ext2_inode_size), %ecx
 	rep movsb
 
+	# reset indirect cache to zero
+	movl $0, (ext2_inode_indirect_number)
+
+ .ext2_read_inode_done:
 	popal
 	ret
 
@@ -249,6 +253,7 @@ ext2_data_block_index:
 	pushl %ecx
 	pushl %edx
 	pushl %esi
+	pushl %edi
 
 	# calculate max data blocks
 	movl (ext2_inode_buffer + i_size), %ecx
@@ -309,6 +314,25 @@ ext2_data_block_index:
 	# ebx := index
 	# cx  := depth
  .ext2_data_block_index_indirect:
+	# calculate cache index ((index & 0xFF) | depth)
+	movl %ebx, %edx
+	andl $(~(EXT2_BLOCK_SIZE / 4 - 1)), %edx
+	orw %cx, %dx
+
+	# check whether this block is already cached
+	cmpl $0, (ext2_inode_indirect_number)
+	je .ext2_data_block_index_indirect_no_cache
+	cmpl %edx, (ext2_inode_indirect_number)
+	je .ext2_data_block_index_indirect_cached
+
+ .ext2_data_block_index_indirect_no_cache:
+	# update cache block number, will be cached when found
+	movl %edx, (ext2_inode_indirect_number)
+
+	# eax := current block
+	# ebx := index
+	# cx  := depth
+ .ext2_data_block_index_indirect_loop:
 	call ext2_read_block
 
 	# store depth and index
@@ -342,7 +366,13 @@ ext2_data_block_index:
 	popl %ebx
 	popw %cx
 
-	loop .ext2_data_block_index_indirect
+	loop .ext2_data_block_index_indirect_loop
+
+	# cache last read block
+	movw $ext2_block_buffer, %si
+	movw $ext2_inode_indirect_buffer, %di
+	movw $EXT2_BLOCK_SIZE, %cx
+	rep movsb
 
 	jmp .ext2_data_block_index_done
 
@@ -358,7 +388,13 @@ ext2_data_block_index:
 	movl $0, %eax
 	jmp .ext2_data_block_index_done
 
+ .ext2_data_block_index_indirect_cached:
+	movl $ext2_inode_indirect_buffer, %esi
+	andl $(EXT2_BLOCK_SIZE / 4 - 1), %ebx
+	movl (%esi, %ebx, 4), %eax
+
  .ext2_data_block_index_done:
+	popl %edi
 	popl %esi
 	popl %edx
 	popl %ecx
@@ -681,8 +717,14 @@ ext2_looking_for_msg:
 
 .section .bss
 
+.align EXT2_BLOCK_SIZE
 ext2_block_buffer:
 	.skip EXT2_BLOCK_SIZE
+
+ext2_inode_indirect_buffer:
+	.skip EXT2_BLOCK_SIZE
+ext2_inode_indirect_number:
+	.skip 4
 
 ext2_partition_first_sector:
 	.skip 8
