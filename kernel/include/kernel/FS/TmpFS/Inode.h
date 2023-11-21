@@ -24,19 +24,19 @@ namespace Kernel
 	class TmpInode : public Inode
 	{
 	public:
-		virtual ino_t		ino()		const override final { return m_ino; }
-		virtual Mode		mode()		const override final { return Mode(m_inode_info.mode); }
-		virtual nlink_t		nlink()		const override final { return m_inode_info.nlink; }
-		virtual uid_t		uid()		const override		 { return m_inode_info.uid; }
-		virtual gid_t		gid()		const override		 { return m_inode_info.gid; }
-		virtual off_t		size()		const override final { return m_inode_info.size; }
-		virtual timespec	atime()		const override final { return m_inode_info.atime; }
-		virtual timespec	mtime()		const override final { return m_inode_info.mtime; }
-		virtual timespec	ctime()		const override final { return m_inode_info.ctime; }
-		virtual blksize_t	blksize()	const override final { return PAGE_SIZE; }
-		virtual blkcnt_t	blocks()	const override final { return m_inode_info.blocks; }
-		virtual dev_t		dev()		const override		 { return 0; } // TODO
-		virtual dev_t		rdev()		const override		 { return 0; } // TODO
+		virtual ino_t		ino()		const override { return m_ino; }
+		virtual Mode		mode()		const override { return Mode(m_inode_info.mode); }
+		virtual nlink_t		nlink()		const override { return m_inode_info.nlink; }
+		virtual uid_t		uid()		const override { return m_inode_info.uid; }
+		virtual gid_t		gid()		const override { return m_inode_info.gid; }
+		virtual off_t		size()		const override { return m_inode_info.size; }
+		virtual timespec	atime()		const override { return m_inode_info.atime; }
+		virtual timespec	mtime()		const override { return m_inode_info.mtime; }
+		virtual timespec	ctime()		const override { return m_inode_info.ctime; }
+		virtual blksize_t	blksize()	const override { return PAGE_SIZE; }
+		virtual blkcnt_t	blocks()	const override { return m_inode_info.blocks; }
+		virtual dev_t		dev()		const override { return 0; } // TODO
+		virtual dev_t		rdev()		const override { return 0; } // TODO
 
 	public:
 		static BAN::ErrorOr<BAN::RefPtr<TmpInode>> create_from_existing(TmpFileSystem&, ino_t, const TmpInodeInfo&);
