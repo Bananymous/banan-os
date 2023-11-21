@@ -1,7 +1,7 @@
 #pragma once
 
 #include <BAN/HashMap.h>
-#include <kernel/Storage/Partition.h>
+#include <kernel/Device/Device.h>
 #include <kernel/FS/FileSystem.h>
 #include <kernel/FS/Ext2/Inode.h>
 
@@ -45,13 +45,13 @@ namespace Kernel
 		};
 
 	public:	
-		static BAN::ErrorOr<Ext2FS*> create(Partition&);
+		static BAN::ErrorOr<Ext2FS*> create(BAN::RefPtr<BlockDevice>);
 
 		virtual BAN::RefPtr<Inode> root_inode() override { return m_root_inode; }
 
 	private:
-		Ext2FS(Partition& partition)
-			: m_partition(partition)
+		Ext2FS(BAN::RefPtr<BlockDevice> block_device)
+			: m_block_device(block_device)
 		{}
 
 		BAN::ErrorOr<void> initialize_superblock();
@@ -106,7 +106,7 @@ namespace Kernel
 	private:
 		RecursiveSpinLock m_lock;
 
-		Partition& m_partition;
+		BAN::RefPtr<BlockDevice> m_block_device;
 
 		BAN::RefPtr<Inode> m_root_inode;
 		BAN::Vector<uint32_t> m_superblock_backups;

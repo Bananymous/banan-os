@@ -9,9 +9,9 @@
 namespace Kernel
 {
 
-	BAN::ErrorOr<Ext2FS*> Ext2FS::create(Partition& partition)
+	BAN::ErrorOr<Ext2FS*> Ext2FS::create(BAN::RefPtr<BlockDevice> block_device)
 	{
-		Ext2FS* ext2fs = new Ext2FS(partition);
+		Ext2FS* ext2fs = new Ext2FS(block_device);
 		if (ext2fs == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
 		BAN::ScopeGuard guard([ext2fs] { delete ext2fs; });
@@ -25,7 +25,7 @@ namespace Kernel
 	{
 		// Read superblock from disk
 		{
-			const uint32_t sector_size = m_partition.device().sector_size();
+			const uint32_t sector_size = m_block_device->blksize();
 			ASSERT(1024 % sector_size == 0);
 
 			const uint32_t lba = 1024 / sector_size;
@@ -34,7 +34,7 @@ namespace Kernel
 			BAN::Vector<uint8_t> superblock_buffer;
 			TRY(superblock_buffer.resize(sector_count * sector_size));
 
-			TRY(m_partition.read_sectors(lba, sector_count, superblock_buffer.span()));
+			TRY(m_block_device->read_blocks(lba, sector_count, superblock_buffer.span()));
 
 			memcpy(&m_superblock, superblock_buffer.data(), sizeof(Ext2::Superblock));
 		}
@@ -272,35 +272,35 @@ namespace Kernel
 	{
 		LockGuard _(m_lock);
 
-		const uint32_t sector_size = m_partition.device().sector_size();
+		const uint32_t sector_size = m_block_device->blksize();
 		const uint32_t block_size = this->block_size();
 		const uint32_t sectors_per_block = block_size / sector_size;
 		const uint32_t sectors_before = 2048 / sector_size;
 
 		ASSERT(block >= 2);
 		ASSERT(buffer.size() >= block_size);
-		MUST(m_partition.read_sectors(sectors_before + (block - 2) * sectors_per_block, sectors_per_block, buffer.span()));
+		MUST(m_block_device->read_blocks(sectors_before + (block - 2) * sectors_per_block, sectors_per_block, buffer.span()));
 	}
 
 	void Ext2FS::write_block(uint32_t block, const BlockBufferWrapper& buffer)
 	{
 		LockGuard _(m_lock);
 
-		const uint32_t sector_size = m_partition.device().sector_size();
+		const uint32_t sector_size = m_block_device->blksize();
 		const uint32_t block_size = this->block_size();
 		const uint32_t sectors_per_block = block_size / sector_size;
 		const uint32_t sectors_before = 2048 / sector_size;
 
 		ASSERT(block >= 2);
 		ASSERT(buffer.size() >= block_size);
-		MUST(m_partition.write_sectors(sectors_before + (block - 2) * sectors_per_block, sectors_per_block, buffer.span()));
+		MUST(m_block_device->write_blocks(sectors_before + (block - 2) * sectors_per_block, sectors_per_block, buffer.span()));
 	}
 
 	void Ext2FS::sync_superblock()
 	{
 		LockGuard _(m_lock);
 
-		const uint32_t sector_size = m_partition.device().sector_size();
+		const uint32_t sector_size = m_block_device->blksize();
 		ASSERT(1024 % sector_size == 0);
 
 		const uint32_t superblock_bytes =
@@ -313,11 +313,11 @@ namespace Kernel
 
 		auto superblock_buffer = get_block_buffer();
 
-		MUST(m_partition.read_sectors(lba, sector_count, superblock_buffer.span()));
+		MUST(m_block_device->read_blocks(lba, sector_count, superblock_buffer.span()));
 		if (memcmp(superblock_buffer.data(), &m_superblock, superblock_bytes))
 		{
 			memcpy(superblock_buffer.data(), &m_superblock, superblock_bytes);
-			MUST(m_partition.write_sectors(lba, sector_count, superblock_buffer.span()));
+			MUST(m_block_device->write_blocks(lba, sector_count, superblock_buffer.span()));
 		}
 	}
 

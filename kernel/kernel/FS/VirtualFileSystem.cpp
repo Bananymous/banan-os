@@ -23,7 +23,9 @@ namespace Kernel
 		root = root.substring(5);
 
 		auto partition_inode = MUST(DevFileSystem::get().root_inode()->find_inode(root));
-		s_instance->m_root_fs = MUST(Ext2FS::create(*(Partition*)partition_inode.ptr()));
+		if (!partition_inode->is_device() || !reinterpret_cast<Device*>(partition_inode.ptr())->is_partition())
+			Kernel::panic("Specified root '/dev/{}' does not name a partition", root);
+		s_instance->m_root_fs = MUST(Ext2FS::create(reinterpret_cast<BlockDevice*>(partition_inode.ptr())));
 
 		Credentials root_creds { 0, 0, 0, 0 };
 		MUST(s_instance->mount(root_creds, &DevFileSystem::get(), "/dev"sv));
@@ -40,17 +42,18 @@ namespace Kernel
 		return *s_instance;
 	}
 
-	BAN::ErrorOr<void> VirtualFileSystem::mount(const Credentials& credentials, BAN::StringView partition, BAN::StringView target)
+	BAN::ErrorOr<void> VirtualFileSystem::mount(const Credentials& credentials, BAN::StringView block_device_path, BAN::StringView target)
 	{
-		auto partition_file = TRY(file_from_absolute_path(credentials, partition, true));
-		if (!partition_file.inode->is_device())
+		auto block_device_file = TRY(file_from_absolute_path(credentials, block_device_path, true));
+		if (!block_device_file.inode->is_device())
 			return BAN::Error::from_errno(ENOTBLK);
 
-		Device* device = (Device*)partition_file.inode.ptr();
-		if (!device->is_partition())
+		auto* device = reinterpret_cast<Device*>(block_device_file.inode.ptr());
+		if (!device->mode().ifblk())
 			return BAN::Error::from_errno(ENOTBLK);
 
-		auto* file_system = TRY(Ext2FS::create(*(Partition*)device));
+		auto* block_device = reinterpret_cast<BlockDevice*>(device);
+		auto* file_system = TRY(Ext2FS::create(block_device));
 		return mount(credentials, file_system, target);
 	}
 
