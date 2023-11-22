@@ -30,12 +30,10 @@ int prepare_file()
 	free(null_buffer);
 	close(fd);
 
-	printf("file created\n");
-
 	return 0;
 }
 
-int job1()
+int test1_job1()
 {
 	int fd = open(FILE_NAME, O_RDONLY);
 	if (fd == -1)
@@ -60,12 +58,12 @@ int job1()
 	munmap(addr, FILE_SIZE);
 	close(fd);
 
-	printf("sum: %zu\n", sum);
+	printf("got:       %zu\n", sum);
 
-	return 0;
+	exit(0);
 }
 
-int job2()
+int test1_job2()
 {
 	sleep(2);
 
@@ -93,14 +91,14 @@ int job2()
 	return 0;
 }
 
-int main()
+int test1()
 {
 	if (int ret = prepare_file())
 		return ret;
 
 	pid_t pid = fork();
 	if (pid == 0)
-		return job1();
+		return test1_job1();
 
 	if (pid == -1)
 	{
@@ -108,8 +106,92 @@ int main()
 		return 1;
 	}
 
-	int ret = job2();
+	int ret = test1_job2();
 	waitpid(pid, nullptr, 0);
-
 	return ret;
+}
+
+int test2_job1()
+{
+	sleep(2);
+
+	int fd = open(FILE_NAME, O_RDWR);
+	if (fd == -1)
+	{
+		perror("open");
+		return 1;
+	}
+
+	size_t value = 0;
+	if (read(fd, &value, sizeof(size_t)) == -1)
+	{
+		perror("read");
+		return 1;
+	}
+
+	printf("got:       %zu\n", value);
+
+	close(fd);
+
+	exit(0);
+}
+
+int test2_job2()
+{
+	int fd = open(FILE_NAME, O_RDWR);
+	if (fd == -1)
+	{
+		perror("open");
+		return 1;
+	}
+
+	void* addr = mmap(nullptr, FILE_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	if (addr == MAP_FAILED)
+	{
+		perror("mmap");
+		return 1;
+	}
+
+	*(size_t*)addr = 0x123456789;
+
+	if (msync(addr, sizeof(size_t), MS_SYNC) == -1)
+	{
+		perror("msync");
+		return 1;
+	}
+
+	printf("expecting: %zu\n", *(size_t*)addr);
+
+	sleep(4);
+
+	munmap(addr, FILE_SIZE);
+	close(fd);
+
+	return 0;
+}
+
+int test2()
+{
+	if (int ret = prepare_file())
+		return ret;
+
+	pid_t pid = fork();
+	if (pid == 0)
+		return test2_job1();
+
+	if (pid == -1)
+	{
+		perror("fork");
+		return 1;
+	}
+
+	int ret = test2_job2();
+	waitpid(pid, nullptr, 0);
+	return ret;
+}
+
+int main()
+{
+	test1();
+	test2();
 }
