@@ -6,6 +6,9 @@
 namespace Kernel
 {
 
+	// Internally we hold 32 bpp buffer (top 8 bits not used)
+	static constexpr uint32_t bytes_per_pixel_internal = 4;
+
 	static uint32_t get_framebuffer_device_index()
 	{
 		static uint32_t index = 0;
@@ -69,7 +72,7 @@ namespace Kernel
 		m_video_buffer = TRY(VirtualRange::create_to_vaddr_range(
 			PageTable::kernel(),
 			KERNEL_OFFSET, UINTPTR_MAX,
-			BAN::Math::div_round_up<size_t>(m_width * m_height * 3, PAGE_SIZE) * PAGE_SIZE, // Internally we hold 24 bpp buffer
+			BAN::Math::div_round_up<size_t>(m_width * m_height * bytes_per_pixel_internal, PAGE_SIZE) * PAGE_SIZE,
 			PageTable::Flags::ReadWrite | PageTable::Flags::Present,
 			true
 		));
@@ -81,10 +84,10 @@ namespace Kernel
 	{
 		if (offset < 0)
 			return BAN::Error::from_errno(EINVAL);
-		if ((size_t)offset >= m_width * m_height * 3)
+		if ((size_t)offset >= m_width * m_height * bytes_per_pixel_internal)
 			return 0;
 		
-		size_t bytes_to_copy = BAN::Math::min<size_t>(m_width * m_height * 3 - offset, buffer.size());
+		size_t bytes_to_copy = BAN::Math::min<size_t>(m_width * m_height * bytes_per_pixel_internal - offset, buffer.size());
 		memcpy(buffer.data(), reinterpret_cast<void*>(m_video_buffer->vaddr() + offset), bytes_to_copy);
 
 		return bytes_to_copy;
@@ -94,20 +97,44 @@ namespace Kernel
 	{
 		if (offset < 0)
 			return BAN::Error::from_errno(EINVAL);
-		if ((size_t)offset >= m_width * m_height * 3)
+		if ((size_t)offset >= m_width * m_height * bytes_per_pixel_internal)
 			return 0;
 		
 		size_t bytes_to_copy = BAN::Math::min<size_t>(m_width * m_height * 3 - offset, buffer.size());
 		memcpy(reinterpret_cast<void*>(m_video_buffer->vaddr() + offset), buffer.data(), bytes_to_copy);
 
-		uint32_t first_pixel = offset / 3;
-		uint32_t pixel_count = BAN::Math::div_round_up<uint32_t>(bytes_to_copy + (offset % 3), 3);
-		sync_pixels(first_pixel, pixel_count);
+		uint32_t first_pixel = offset / bytes_per_pixel_internal;
+		uint32_t pixel_count = BAN::Math::div_round_up<uint32_t>(bytes_to_copy + (offset % bytes_per_pixel_internal), bytes_per_pixel_internal);
+		sync_pixels_linear(first_pixel, pixel_count);
 
 		return bytes_to_copy;
 	}
 
-	void FramebufferDevice::sync_pixels(uint32_t first_pixel, uint32_t pixel_count)
+	void FramebufferDevice::set_pixel(uint32_t x, uint32_t y, uint32_t rgb)
+	{
+		if (x >= m_width || y >= m_height)
+			return;
+		auto* video_buffer_u32 = reinterpret_cast<uint32_t*>(m_video_buffer->vaddr());
+		video_buffer_u32[y * m_width + x] = rgb;
+	}
+
+	void FramebufferDevice::sync_pixels_full()
+	{
+		auto* video_memory_u8 = reinterpret_cast<uint8_t*>(m_video_memory_vaddr);
+		auto* video_buffer_u8 = reinterpret_cast<uint8_t*>(m_video_buffer->vaddr());
+
+		for (uint32_t i = 0; i < m_width * m_height; i++)
+		{
+			uint32_t row = i / m_width;
+			uint32_t idx = i % m_width;
+
+			video_memory_u8[(row * m_pitch) + (idx * m_bpp / 8) + 0] = video_buffer_u8[i * bytes_per_pixel_internal + 0];
+			video_memory_u8[(row * m_pitch) + (idx * m_bpp / 8) + 1] = video_buffer_u8[i * bytes_per_pixel_internal + 1];
+			video_memory_u8[(row * m_pitch) + (idx * m_bpp / 8) + 2] = video_buffer_u8[i * bytes_per_pixel_internal + 2];
+		}
+	}
+
+	void FramebufferDevice::sync_pixels_linear(uint32_t first_pixel, uint32_t pixel_count)
 	{
 		if (first_pixel >= m_width * m_height)
 			return;
@@ -122,9 +149,32 @@ namespace Kernel
 			uint32_t row = (first_pixel + i) / m_width;
 			uint32_t idx = (first_pixel + i) % m_width;
 
-			video_memory_u8[(row * m_pitch) + (idx * m_bpp / 8) + 0] = video_buffer_u8[(first_pixel + i) * 3 + 0];
-			video_memory_u8[(row * m_pitch) + (idx * m_bpp / 8) + 1] = video_buffer_u8[(first_pixel + i) * 3 + 1];
-			video_memory_u8[(row * m_pitch) + (idx * m_bpp / 8) + 2] = video_buffer_u8[(first_pixel + i) * 3 + 2];
+			video_memory_u8[(row * m_pitch) + (idx * m_bpp / 8) + 0] = video_buffer_u8[(first_pixel + i) * bytes_per_pixel_internal + 0];
+			video_memory_u8[(row * m_pitch) + (idx * m_bpp / 8) + 1] = video_buffer_u8[(first_pixel + i) * bytes_per_pixel_internal + 1];
+			video_memory_u8[(row * m_pitch) + (idx * m_bpp / 8) + 2] = video_buffer_u8[(first_pixel + i) * bytes_per_pixel_internal + 2];
+		}
+	}
+
+	void FramebufferDevice::sync_pixels_rectangle(uint32_t top_right_x, uint32_t top_right_y, uint32_t width, uint32_t height)
+	{
+		if (top_right_x >= m_width || top_right_y >= m_height)
+			return;
+		if (top_right_x + width > m_width)
+			width = m_width - top_right_x;
+		if (top_right_y + height > m_height)
+			height = m_height - top_right_y;
+
+		auto* video_memory_u8 = reinterpret_cast<uint8_t*>(m_video_memory_vaddr);
+		auto* video_buffer_u8 = reinterpret_cast<uint8_t*>(m_video_buffer->vaddr());
+
+		for (uint32_t row = top_right_y; row < top_right_y + height; row++)
+		{
+			for (uint32_t idx = top_right_x; idx < top_right_x + width; idx++)
+			{
+				video_memory_u8[(row * m_pitch) + (idx * m_bpp / 8) + 0] = video_buffer_u8[(row * m_width + idx) * bytes_per_pixel_internal + 0];
+				video_memory_u8[(row * m_pitch) + (idx * m_bpp / 8) + 1] = video_buffer_u8[(row * m_width + idx) * bytes_per_pixel_internal + 1];
+				video_memory_u8[(row * m_pitch) + (idx * m_bpp / 8) + 2] = video_buffer_u8[(row * m_width + idx) * bytes_per_pixel_internal + 2];
+			}
 		}
 	}
 

@@ -12,8 +12,16 @@ namespace Kernel
 		static BAN::ErrorOr<BAN::RefPtr<FramebufferDevice>> create_from_boot_framebuffer();
 		~FramebufferDevice();
 
-		virtual dev_t rdev() const override { return m_rdev; }
+		uint32_t width() const { return m_width; }
+		uint32_t height() const { return m_height; }
 
+		void set_pixel(uint32_t x, uint32_t y, uint32_t rgb);
+
+		void sync_pixels_full();
+		void sync_pixels_linear(uint32_t first_pixel, uint32_t pixel_count);
+		void sync_pixels_rectangle(uint32_t top_right_x, uint32_t top_right_y, uint32_t width, uint32_t height);
+
+		virtual dev_t rdev() const override { return m_rdev; }
 		virtual BAN::StringView name() const override { return m_name.sv(); }
 
 	protected:
@@ -23,8 +31,6 @@ namespace Kernel
 	private:
 		FramebufferDevice(mode_t mode, uid_t uid, gid_t gid, dev_t rdev, paddr_t paddr, uint32_t width, uint32_t height, uint32_t pitch, uint8_t bpp);
 		BAN::ErrorOr<void> initialize();
-
-		void sync_pixels(uint32_t first_pixel, uint32_t pixel_count);
 
 	private:
 		const BAN::String m_name;
