@@ -130,6 +130,7 @@ namespace Kernel
 
 		BAN::ErrorOr<long> sys_mmap(const sys_mmap_t*);
 		BAN::ErrorOr<long> sys_munmap(void* addr, size_t len);
+		BAN::ErrorOr<long> sys_msync(void* addr, size_t len, int flags);
 
 		BAN::ErrorOr<long> sys_tty_ctrl(int fildes, int command, int flags);
 

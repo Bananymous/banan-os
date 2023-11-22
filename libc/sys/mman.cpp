@@ -22,3 +22,8 @@ int munmap(void* addr, size_t len)
 {
 	return syscall(SYS_MUNMAP, addr, len);
 }
+
+int msync(void* addr, size_t len, int flags)
+{
+	return syscall(SYS_MSYNC, addr, len, flags);
+}

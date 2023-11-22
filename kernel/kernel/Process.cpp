@@ -1098,6 +1098,24 @@ namespace Kernel
 		return 0;
 	}
 
+	BAN::ErrorOr<long> Process::sys_msync(void* addr, size_t len, int flags)
+	{
+		if (flags != MS_SYNC && flags != MS_ASYNC && flags != MS_INVALIDATE)
+			return BAN::Error::from_errno(EINVAL);
+
+		vaddr_t vaddr = (vaddr_t)addr;
+		if (vaddr % PAGE_SIZE != 0)
+			return BAN::Error::from_errno(EINVAL);	
+
+		LockGuard _(m_lock);
+
+		for (auto& mapped_region : m_mapped_regions)
+			if (mapped_region->overlaps(vaddr, len))
+				TRY(mapped_region->msync(vaddr, len, flags));
+
+		return 0;
+	}
+
 	BAN::ErrorOr<long> Process::sys_tty_ctrl(int fildes, int command, int flags)
 	{
 		LockGuard _(m_lock);

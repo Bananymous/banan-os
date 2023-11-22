@@ -14,8 +14,9 @@ namespace Kernel
 		static BAN::ErrorOr<BAN::UniqPtr<MemoryBackedRegion>> create(PageTable&, size_t size, AddressRange, Type, PageTable::flags_t);
 		~MemoryBackedRegion();
 
-
 		virtual BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> clone(PageTable& new_page_table) override;
+
+		virtual BAN::ErrorOr<void> msync(vaddr_t, size_t, int) override { return {}; }
 
 		// Copy data from buffer into this region
 		// This can fail if no memory is mapped and no free memory was available

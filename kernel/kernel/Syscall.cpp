@@ -217,6 +217,9 @@ namespace Kernel
 		case SYS_READLINKAT:
 			ret = Process::current().sys_readlinkat((int)arg1, (const char*)arg2, (char*)arg3, (size_t)arg4);
 			break;
+		case SYS_MSYNC:
+			ret = Process::current().sys_msync((void*)arg1, (size_t)arg2, (int)arg3);
+			break;
 		default:
 			dwarnln("Unknown syscall {}", syscall);
 			break;

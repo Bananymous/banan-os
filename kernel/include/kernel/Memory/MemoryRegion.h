@@ -40,6 +40,8 @@ namespace Kernel
 		size_t virtual_page_count() const { return BAN::Math::div_round_up<size_t>(m_size, PAGE_SIZE); }
 		size_t physical_page_count() const { return m_physical_page_count; }
 
+		virtual BAN::ErrorOr<void> msync(vaddr_t, size_t, int) = 0;
+
 		// Returns error if no memory was available
 		// Returns true if page was succesfully allocated
 		// Returns false if page was already allocated

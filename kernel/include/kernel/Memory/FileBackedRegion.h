@@ -10,6 +10,8 @@ namespace Kernel
 	{
 		~SharedFileData();
 
+		void sync(size_t page_index);
+
 		// FIXME: this should probably be ordered tree like map
 		//        for fast lookup and less memory usage
 		BAN::Vector<paddr_t> pages;
@@ -25,6 +27,8 @@ namespace Kernel
 	public:
 		static BAN::ErrorOr<BAN::UniqPtr<FileBackedRegion>> create(BAN::RefPtr<Inode>, PageTable&, off_t offset, size_t size, AddressRange address_range, Type, PageTable::flags_t);
 		~FileBackedRegion();
+
+		virtual BAN::ErrorOr<void> msync(vaddr_t, size_t, int) override;
 
 		virtual BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> clone(PageTable& new_page_table) override;
 

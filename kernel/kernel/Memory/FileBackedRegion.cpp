@@ -3,6 +3,8 @@
 #include <kernel/Memory/FileBackedRegion.h>
 #include <kernel/Memory/Heap.h>
 
+#include <sys/mman.h>
+
 namespace Kernel
 {
 
@@ -46,7 +48,7 @@ namespace Kernel
 		, m_offset(offset)
 	{
 	}
-	
+
 	FileBackedRegion::~FileBackedRegion()
 	{
 		if (m_vaddr == 0)
@@ -70,17 +72,43 @@ namespace Kernel
 		{
 			if (pages[i] == 0)
 				continue;
-			
-			{
-				CriticalScope _;
-				PageTable::map_fast_page(pages[i]);
-				memcpy(page_buffer, PageTable::fast_page_as_ptr(), PAGE_SIZE);
-				PageTable::unmap_fast_page();
-			}
-
-			if (auto ret = inode->write(i * PAGE_SIZE, BAN::ConstByteSpan::from(page_buffer)); ret.is_error())
-				dwarnln("{}", ret.error());
+			sync(i);
 		}
+	}
+
+	void SharedFileData::sync(size_t page_index)
+	{
+		// FIXME: should this be locked?
+
+		if (pages[page_index] == 0)
+			return;
+
+		{
+			CriticalScope _;
+			PageTable::with_fast_page(pages[page_index], [&] {
+				memcpy(page_buffer, PageTable::fast_page_as_ptr(), PAGE_SIZE);
+			});
+		}
+
+		if (auto ret = inode->write(page_index * PAGE_SIZE, BAN::ConstByteSpan::from(page_buffer)); ret.is_error())
+			dwarnln("{}", ret.error());
+	}
+
+	BAN::ErrorOr<void> FileBackedRegion::msync(vaddr_t address, size_t size, int flags)
+	{
+		if (flags != MS_SYNC)
+			return BAN::Error::from_errno(ENOTSUP);
+		if (m_type != Type::SHARED)
+			return {};
+		
+		vaddr_t first_page	= address & PAGE_ADDR_MASK;
+		vaddr_t last_page	= BAN::Math::div_round_up<vaddr_t>(address + size, PAGE_SIZE) * PAGE_SIZE;
+
+		for (vaddr_t page_addr = first_page; page_addr < last_page; page_addr += PAGE_SIZE)
+			if (contains(page_addr))
+				m_shared_data->sync((page_addr - m_vaddr) / PAGE_SIZE);
+
+		return {};
 	}
 
 	BAN::ErrorOr<bool> FileBackedRegion::allocate_page_containing_impl(vaddr_t address)

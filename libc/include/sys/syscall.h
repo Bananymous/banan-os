@@ -61,6 +61,7 @@ __BEGIN_DECLS
 #define SYS_UNLINK 58
 #define SYS_READLINK 59
 #define SYS_READLINKAT 60
+#define SYS_MSYNC 61
 
 __END_DECLS
 
