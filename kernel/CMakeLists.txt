@@ -67,7 +67,6 @@ set(KERNEL_SOURCES
 	kernel/Terminal/FramebufferTerminal.cpp
 	kernel/Terminal/Serial.cpp
 	kernel/Terminal/TTY.cpp
-	kernel/Terminal/VesaTerminalDriver.cpp
 	kernel/Terminal/VirtualTTY.cpp
 	kernel/Thread.cpp
 	kernel/Timer/HPET.cpp
