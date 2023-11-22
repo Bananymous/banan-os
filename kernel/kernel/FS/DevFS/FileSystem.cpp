@@ -1,4 +1,5 @@
 #include <BAN/ScopeGuard.h>
+#include <kernel/Device/FramebufferDevice.h>
 #include <kernel/Device/NullDevice.h>
 #include <kernel/Device/ZeroDevice.h>
 #include <kernel/FS/DevFS/FileSystem.h>
@@ -22,6 +23,10 @@ namespace Kernel
 		MUST(s_instance->TmpFileSystem::initialize(0755, 0, 0));
 		s_instance->add_device(MUST(NullDevice::create(0666, 0, 0)));
 		s_instance->add_device(MUST(ZeroDevice::create(0666, 0, 0)));
+
+		auto fbdev_or_error = FramebufferDevice::create_from_boot_framebuffer();
+		if (!fbdev_or_error.is_error())
+			s_instance->add_device(fbdev_or_error.release_value());
 	}
 
 	DevFileSystem& DevFileSystem::get()
