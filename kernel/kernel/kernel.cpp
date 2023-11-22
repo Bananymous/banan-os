@@ -2,6 +2,7 @@
 #include <kernel/Arch.h>
 #include <kernel/BootInfo.h>
 #include <kernel/Debug.h>
+#include <kernel/Device/FramebufferDevice.h>
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/FS/ProcFS/FileSystem.h>
 #include <kernel/FS/VirtualFileSystem.h>
@@ -20,7 +21,7 @@
 #include <kernel/Syscall.h>
 #include <kernel/Terminal/Serial.h>
 #include <kernel/Terminal/VirtualTTY.h>
-#include <kernel/Terminal/VesaTerminalDriver.h>
+#include <kernel/Terminal/FramebufferTerminal.h>
 #include <kernel/Timer/Timer.h>
 
 struct ParsedCommandLine
@@ -108,10 +109,6 @@ extern "C" void kernel_main(uint32_t boot_magic, uint32_t boot_info)
 	PageTable::initialize();
 	dprintln("PageTable initialized");
 
-	g_terminal_driver = VesaTerminalDriver::create();
-	if (g_terminal_driver)
-		dprintln("VESA initialized");
-
 	Heap::initialize();
 	dprintln("Heap initialzed");
 
@@ -129,6 +126,12 @@ extern "C" void kernel_main(uint32_t boot_magic, uint32_t boot_info)
 
 	DevFileSystem::initialize();
 	dprintln("devfs initialized");
+
+	auto framebuffer_device = FramebufferDevice::create_from_boot_framebuffer();
+	if (!framebuffer_device.is_error())
+		g_terminal_driver = FramebufferTerminalDriver::create(framebuffer_device.value());
+	if (g_terminal_driver)
+		dprintln("Framebuffer terminal initialized");
 
 	ProcFileSystem::initialize();
 	dprintln("procfs initialized");

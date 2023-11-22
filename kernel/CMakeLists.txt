@@ -64,6 +64,7 @@ set(KERNEL_SOURCES
 	kernel/Storage/StorageDevice.cpp
 	kernel/Syscall.cpp
 	kernel/Syscall.S
+	kernel/Terminal/FramebufferTerminal.cpp
 	kernel/Terminal/Serial.cpp
 	kernel/Terminal/TTY.cpp
 	kernel/Terminal/VesaTerminalDriver.cpp
