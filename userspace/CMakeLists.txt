@@ -24,6 +24,7 @@ set(USERSPACE_PROJECTS
 	tee
 	test
 	test-globals
+	test-framebuffer
 	touch
 	u8sum
 	whoami
