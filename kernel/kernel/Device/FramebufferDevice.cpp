@@ -115,7 +115,7 @@ namespace Kernel
 		if ((size_t)offset >= m_width * m_height * bytes_per_pixel_internal)
 			return 0;
 		
-		size_t bytes_to_copy = BAN::Math::min<size_t>(m_width * m_height * 3 - offset, buffer.size());
+		size_t bytes_to_copy = BAN::Math::min<size_t>(m_width * m_height * bytes_per_pixel_internal - offset, buffer.size());
 		memcpy(reinterpret_cast<void*>(m_video_buffer->vaddr() + offset), buffer.data(), bytes_to_copy);
 
 		uint32_t first_pixel = offset / bytes_per_pixel_internal;
