@@ -129,7 +129,10 @@ extern "C" void kernel_main(uint32_t boot_magic, uint32_t boot_info)
 
 	auto framebuffer_device = FramebufferDevice::create_from_boot_framebuffer();
 	if (!framebuffer_device.is_error())
+	{
+		DevFileSystem::get().add_device(framebuffer_device.value());
 		g_terminal_driver = FramebufferTerminalDriver::create(framebuffer_device.value());
+	}
 	if (g_terminal_driver)
 		dprintln("Framebuffer terminal initialized");
 
