@@ -220,6 +220,9 @@ namespace Kernel
 		case SYS_MSYNC:
 			ret = Process::current().sys_msync((void*)arg1, (size_t)arg2, (int)arg3);
 			break;
+		case SYS_PREAD:
+			ret = Process::current().sys_pread((int)arg1, (void*)arg2, (size_t)arg3, (off_t)arg4);
+			break;
 		default:
 			dwarnln("Unknown syscall {}", syscall);
 			break;

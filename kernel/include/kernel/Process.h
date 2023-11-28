@@ -105,6 +105,8 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_readlink(const char* path, char* buffer, size_t bufsize);
 		BAN::ErrorOr<long> sys_readlinkat(int fd, const char* path, char* buffer, size_t bufsize);
 
+		BAN::ErrorOr<long> sys_pread(int fd, void* buffer, size_t count, off_t offset);
+
 		BAN::ErrorOr<long> sys_chmod(const char*, mode_t);
 
 		BAN::ErrorOr<long> sys_pipe(int fildes[2]);

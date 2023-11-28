@@ -88,6 +88,11 @@ ssize_t readlinkat(int fd, const char* __restrict path, char* __restrict buf, si
 	return syscall(SYS_READLINKAT, fd, path, buf, bufsize);
 }
 
+ssize_t pread(int fildes, void* buf, size_t nbyte, off_t offset)
+{
+	return syscall(SYS_PREAD, fildes, buf, nbyte, offset);
+}
+
 int dup(int fildes)
 {
 	return syscall(SYS_DUP, fildes);

@@ -823,6 +823,14 @@ namespace Kernel
 		return readlink_impl(absolute_path.sv(), buffer, bufsize);
 	}
 
+	BAN::ErrorOr<long> Process::sys_pread(int fd, void* buffer, size_t count, off_t offset)
+	{
+		LockGuard _(m_lock);
+		validate_pointer_access(buffer, count);
+		auto inode = TRY(m_open_file_descriptors.inode_of(fd));
+		return TRY(inode->read(offset, { (uint8_t*)buffer, count }));
+	}
+
 	BAN::ErrorOr<long> Process::sys_chmod(const char* path, mode_t mode)
 	{
 		if (mode & S_IFMASK)
