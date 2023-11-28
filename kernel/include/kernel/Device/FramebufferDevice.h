@@ -21,6 +21,8 @@ namespace Kernel
 		void sync_pixels_linear(uint32_t first_pixel, uint32_t pixel_count);
 		void sync_pixels_rectangle(uint32_t top_right_x, uint32_t top_right_y, uint32_t width, uint32_t height);
 
+		virtual BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> mmap_region(PageTable&, off_t offset, size_t len, AddressRange, MemoryRegion::Type, PageTable::flags_t) override;
+
 		virtual dev_t rdev() const override { return m_rdev; }
 		virtual BAN::StringView name() const override { return m_name.sv(); }
 
@@ -44,6 +46,8 @@ namespace Kernel
 		const uint8_t	m_bpp;
 
 		BAN::UniqPtr<VirtualRange> m_video_buffer;
+
+		friend class FramebufferMemoryRegion;
 	};
 
 }

@@ -3,6 +3,9 @@
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/Memory/Heap.h>
 
+#include <sys/framebuffer.h>
+#include <sys/mman.h>
+
 namespace Kernel
 {
 
@@ -188,6 +191,88 @@ namespace Kernel
 				video_memory_u8[(row * m_pitch) + (idx * m_bpp / 8) + 2] = video_buffer_u8[(row * m_width + idx) * bytes_per_pixel_internal + 2];
 			}
 		}
+	}
+
+	class FramebufferMemoryRegion : public MemoryRegion
+	{
+	public:
+		static BAN::ErrorOr<BAN::UniqPtr<FramebufferMemoryRegion>> create(PageTable& page_table, size_t size, AddressRange address_range, MemoryRegion::Type region_type, PageTable::flags_t page_flags, BAN::RefPtr<FramebufferDevice> framebuffer)
+		{
+			auto* region_ptr = new FramebufferMemoryRegion(page_table, size, region_type, page_flags, framebuffer);
+			if (region_ptr == nullptr)
+				return BAN::Error::from_errno(ENOMEM);
+			auto region = BAN::UniqPtr<FramebufferMemoryRegion>::adopt(region_ptr);
+
+			TRY(region->initialize(address_range));
+
+			return region;
+		}
+
+		~FramebufferMemoryRegion()
+		{
+			m_framebuffer->sync_pixels_full();
+		}
+
+		virtual BAN::ErrorOr<void> msync(vaddr_t vaddr, size_t size, int flags) override
+		{
+			if (flags != MS_SYNC)
+				return BAN::Error::from_errno(ENOTSUP);
+
+			if (vaddr < m_vaddr)
+				vaddr = m_vaddr;
+			if (vaddr + size > m_vaddr + m_size)
+				size = (vaddr - m_vaddr) + m_size;
+
+			m_framebuffer->sync_pixels_linear(
+				(vaddr - m_vaddr) / bytes_per_pixel_internal,
+				BAN::Math::div_round_up<uint32_t>((vaddr % bytes_per_pixel_internal) + size, bytes_per_pixel_internal)
+			);
+
+			return {};
+		}
+
+		virtual BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> clone(PageTable& new_page_table) override
+		{
+			return BAN::Error::from_errno(ENOTSUP);
+		}
+
+	protected:
+		// Returns error if no memory was available
+		// Returns true if page was succesfully allocated
+		// Returns false if page was already allocated
+		virtual BAN::ErrorOr<bool> allocate_page_containing_impl(vaddr_t vaddr) override
+		{
+			vaddr &= PAGE_ADDR_MASK;
+			if (m_page_table.physical_address_of(vaddr))
+				return false;
+			
+			paddr_t paddr = PageTable::kernel().physical_address_of(m_framebuffer->m_video_buffer->vaddr() + (vaddr - m_vaddr));
+			m_page_table.map_page_at(paddr, vaddr, m_flags);
+
+			return true;
+		}
+
+	private:
+		FramebufferMemoryRegion(PageTable& page_table, size_t size, MemoryRegion::Type region_type, PageTable::flags_t page_flags, BAN::RefPtr<FramebufferDevice> framebuffer)
+			: MemoryRegion(page_table, size, region_type, page_flags)
+			, m_framebuffer(framebuffer)
+		{ }
+
+	private:
+		BAN::RefPtr<FramebufferDevice> m_framebuffer;
+	};
+
+	BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> FramebufferDevice::mmap_region(PageTable& page_table, off_t offset, size_t len, AddressRange address_range, MemoryRegion::Type region_type, PageTable::flags_t page_flags)
+	{
+		if (offset != 0)
+			return BAN::Error::from_errno(EINVAL);
+		if (len > m_video_buffer->size())
+			return BAN::Error::from_errno(EINVAL);
+		if (region_type != MemoryRegion::Type::SHARED)
+			return BAN::Error::from_errno(EINVAL);
+
+		auto region = TRY(FramebufferMemoryRegion::create(page_table, len, address_range, region_type, page_flags, this));
+		return BAN::UniqPtr<MemoryRegion>(BAN::move(region));
 	}
 
 }
