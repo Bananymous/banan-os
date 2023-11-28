@@ -82,8 +82,20 @@ namespace Kernel
 
 	BAN::ErrorOr<size_t> FramebufferDevice::read_impl(off_t offset, BAN::ByteSpan buffer)
 	{
+		// Reading from negative offset will fill buffer with framebuffer info
 		if (offset < 0)
-			return BAN::Error::from_errno(EINVAL);
+		{
+			if (buffer.size() < sizeof(framebuffer_info_t))
+				return BAN::Error::from_errno(ENOBUFS);
+
+			auto& fb_info = buffer.as<framebuffer_info_t>();
+			fb_info.width = m_width;
+			fb_info.height = m_height;
+			fb_info.bpp = m_bpp;
+
+			return sizeof(framebuffer_info_t);
+		}
+
 		if ((size_t)offset >= m_width * m_height * bytes_per_pixel_internal)
 			return 0;
 		
