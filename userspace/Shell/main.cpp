@@ -290,7 +290,7 @@ BAN::Optional<int> execute_builtin(BAN::Vector<BAN::String>& args, int fd_in, in
 
 	if (args.front() == "clear"sv)
 	{
-		fprintf(fout, "\e[H\e[J");
+		fprintf(fout, "\e[H\e[2J");
 		fflush(fout);
 	}
 	else if (args.front() == "exit"sv)
