@@ -1,6 +1,7 @@
 #pragma once
 
 #include <kernel/FS/TmpFS/Inode.h>
+#include <kernel/Memory/MemoryRegion.h>
 
 namespace Kernel
 {
@@ -14,6 +15,8 @@ namespace Kernel
 		virtual bool is_device() const override { return true; }
 		virtual bool is_partition() const { return false; }
 		virtual bool is_storage_device() const { return false; }
+
+		virtual BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> mmap_region(PageTable&, off_t offset, size_t len, AddressRange, MemoryRegion::Type, PageTable::flags_t) { return BAN::Error::from_errno(EINVAL); }
 
 		virtual dev_t rdev() const override = 0;
 

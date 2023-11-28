@@ -1058,33 +1058,46 @@ namespace Kernel
 			return m_mapped_regions.back()->vaddr();
 		}
 
-		auto inode = TRY(m_open_file_descriptors.inode_of(args->fildes));
-		if (inode->mode().ifreg())
-		{
-			if (args->addr != nullptr)
-				return BAN::Error::from_errno(ENOTSUP);
+		if (args->addr != nullptr)
+			return BAN::Error::from_errno(ENOTSUP);
 
-			auto inode_flags = TRY(m_open_file_descriptors.flags_of(args->fildes));
-			if (!(inode_flags & O_RDONLY))
+		LockGuard _(m_lock);
+
+		auto inode = TRY(m_open_file_descriptors.inode_of(args->fildes));
+
+		auto inode_flags = TRY(m_open_file_descriptors.flags_of(args->fildes));
+		if (!(inode_flags & O_RDONLY))
+			return BAN::Error::from_errno(EACCES);
+		if (region_type == MemoryRegion::Type::SHARED)
+			if ((args->prot & PROT_WRITE) && !(inode_flags & O_WRONLY))
 				return BAN::Error::from_errno(EACCES);
-			if (region_type == MemoryRegion::Type::SHARED)
-				if ((args->prot & PROT_WRITE) && !(inode_flags & O_WRONLY))
-					return BAN::Error::from_errno(EACCES);
-			
-			auto region = TRY(FileBackedRegion::create(
+
+		BAN::UniqPtr<MemoryRegion> memory_region;
+		if (inode->mode().ifreg())
+		{			
+			memory_region = TRY(FileBackedRegion::create(
 				inode,
 				page_table(),
 				args->off, args->len,
 				{ .start = 0x400000, .end = KERNEL_OFFSET },
 				region_type, page_flags
 			));
-
-			LockGuard _(m_lock);
-			TRY(m_mapped_regions.push_back(BAN::move(region)));
-			return m_mapped_regions.back()->vaddr();
 		}
+		else if (inode->is_device())
+		{
+			memory_region = TRY(static_cast<Device&>(*inode).mmap_region(
+				page_table(),
+				args->off, args->len,
+				{ .start = 0x400000, .end = KERNEL_OFFSET },
+				region_type, page_flags
+			));
+		}
+		
+		if (!memory_region)
+			return BAN::Error::from_errno(ENODEV);
 
-		return BAN::Error::from_errno(ENOTSUP);
+		TRY(m_mapped_regions.push_back(BAN::move(memory_region)));
+		return m_mapped_regions.back()->vaddr();
 	}
 
 	BAN::ErrorOr<long> Process::sys_munmap(void* addr, size_t len)
