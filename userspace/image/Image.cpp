@@ -103,14 +103,9 @@ bool Image::render_to_framebuffer()
 		return false;
 	}
 
-	if (fb_info.bpp != 24 && fb_info.bpp != 32)
-	{
-		fprintf(stderr, "unsupported framebuffer bpp\n");
-		close(fd);
-		return false;
-	}
+	ASSERT(BANAN_FB_BPP == 24 || BANAN_FB_BPP == 32);
 
-	size_t mmap_size = fb_info.height * fb_info.width * fb_info.bpp / 8;
+	size_t mmap_size = fb_info.height * fb_info.width * BANAN_FB_BPP / 8;
 
 	void* mmap_addr = mmap(nullptr, mmap_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 	if (mmap_addr == MAP_FAILED)
@@ -126,11 +121,11 @@ bool Image::render_to_framebuffer()
 	{
 		for (uint64_t x = 0; x < BAN::Math::min<uint64_t>(width(), fb_info.width); x++)
 		{
-			u8_fb[(y * fb_info.width + x) * fb_info.bpp / 8 + 0] = m_bitmap[y * width() + x].r;
-			u8_fb[(y * fb_info.width + x) * fb_info.bpp / 8 + 1] = m_bitmap[y * width() + x].g;
-			u8_fb[(y * fb_info.width + x) * fb_info.bpp / 8 + 2] = m_bitmap[y * width() + x].b;
-			if (fb_info.bpp == 32)
-				u8_fb[(y * fb_info.width + x) * fb_info.bpp / 8 + 3] = m_bitmap[y * width() + x].a;
+			u8_fb[(y * fb_info.width + x) * BANAN_FB_BPP / 8 + 0] = m_bitmap[y * width() + x].r;
+			u8_fb[(y * fb_info.width + x) * BANAN_FB_BPP / 8 + 1] = m_bitmap[y * width() + x].g;
+			u8_fb[(y * fb_info.width + x) * BANAN_FB_BPP / 8 + 2] = m_bitmap[y * width() + x].b;
+			if constexpr(BANAN_FB_BPP == 32)
+				u8_fb[(y * fb_info.width + x) * BANAN_FB_BPP / 8 + 3] = m_bitmap[y * width() + x].a;
 		}
 	}
 

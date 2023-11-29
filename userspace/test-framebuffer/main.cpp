@@ -19,7 +19,7 @@ int main()
 		return 1;
 	}
 
-	size_t fb_size = fb_info.width * fb_info.height * fb_info.bpp / 8;
+	size_t fb_size = fb_info.width * fb_info.height * BANAN_FB_BPP / 8;
 
 	void* addr = mmap(nullptr, fb_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 	if (addr == MAP_FAILED)

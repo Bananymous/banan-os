@@ -7,11 +7,12 @@ __BEGIN_DECLS
 
 #include <stdint.h>
 
+#define BANAN_FB_BPP 32
+
 struct framebuffer_info_t
 {
 	uint32_t width;
 	uint32_t height;
-	uint8_t bpp;
 };
 
 __END_DECLS
