@@ -22,15 +22,17 @@ public:
 
 	bool render_to_framebuffer();
 
-protected:
+private:
 	Image(uint64_t width, uint64_t height, BAN::Vector<Color>&& bitmap)
 		: m_width(width)
 		, m_height(height)
 		, m_bitmap(BAN::move(bitmap))
 	{ }
 
-protected:
+private:
 	const uint64_t m_width;
 	const uint64_t m_height;
 	const BAN::Vector<Color> m_bitmap;
+
+	friend class BAN::UniqPtr<Image>;
 };

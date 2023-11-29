@@ -29,7 +29,7 @@ BAN::Optional<uint64_t> parse_u64(const uint8_t*& data, size_t data_size)
 	return {};
 }
 
-BAN::ErrorOr<BAN::UniqPtr<Netbpm>> Netbpm::create(const void* mmap_addr, size_t size)
+BAN::ErrorOr<BAN::UniqPtr<Image>> load_netbpm(const void* mmap_addr, size_t size)
 {
 	if (size < 11)
 	{
@@ -88,7 +88,7 @@ BAN::ErrorOr<BAN::UniqPtr<Netbpm>> Netbpm::create(const void* mmap_addr, size_t 
 
 	printf("Netbpm image %llux%llu\n", *width, *height);
 
-	BAN::Vector<Color> bitmap;
+	BAN::Vector<Image::Color> bitmap;
 	TRY(bitmap.resize(*width * *height));
 
 	// Fill bitmap
@@ -104,5 +104,5 @@ BAN::ErrorOr<BAN::UniqPtr<Netbpm>> Netbpm::create(const void* mmap_addr, size_t 
 		}
 	}
 
-	return TRY(BAN::UniqPtr<Netbpm>::create(*width, *height, BAN::move(bitmap)));
+	return TRY(BAN::UniqPtr<Image>::create(*width, *height, BAN::move(bitmap)));
 }

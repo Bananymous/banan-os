@@ -70,7 +70,7 @@ BAN::UniqPtr<Image> Image::load_from_file(BAN::StringView path)
 		case 0x3350:
 		case 0x3250:
 		case 0x3150:
-			if (auto res = Netbpm::create(addr, st.st_size); res.is_error())
+			if (auto res = load_netbpm(addr, st.st_size); res.is_error())
 				fprintf(stderr, "%s\n", strerror(res.error().get_error_code()));
 			else
 				image = res.release_value();
