@@ -18,9 +18,9 @@ bool copy_file(const BAN::String& source, BAN::String destination)
 		perror("stat");
 		return false;
 	}
-	if (!S_ISREG(st.st_mode))
+	if (S_ISDIR(st.st_mode))
 	{
-		fprintf(stderr, "%s: not a directory\n", source.data());
+		fprintf(stderr, "%s: is a directory\n", source.data());
 		return false;
 	}
 
