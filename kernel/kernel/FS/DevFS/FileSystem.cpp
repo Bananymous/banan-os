@@ -43,7 +43,7 @@ namespace Kernel
 						[](BAN::RefPtr<TmpInode> inode)
 						{
 							if (inode->is_device())
-								reinterpret_cast<Device*>(inode.ptr())->update();
+								static_cast<Device*>(inode.ptr())->update();
 							return BAN::Iteration::Continue;
 						}
 					);
@@ -77,7 +77,7 @@ namespace Kernel
 						{
 							if (inode->is_device())
 								if (((Device*)inode.ptr())->is_storage_device())
-									if (auto ret = reinterpret_cast<StorageDevice*>(inode.ptr())->sync_disk_cache(); ret.is_error())
+									if (auto ret = static_cast<StorageDevice*>(inode.ptr())->sync_disk_cache(); ret.is_error())
 										dwarnln("disk sync: {}", ret.error());
 							return BAN::Iteration::Continue;
 						}
@@ -119,13 +119,13 @@ namespace Kernel
 	void DevFileSystem::add_device(BAN::RefPtr<Device> device)
 	{
 		ASSERT(!device->name().contains('/'));
-		MUST(reinterpret_cast<TmpDirectoryInode*>(root_inode().ptr())->link_inode(*device, device->name()));
+		MUST(static_cast<TmpDirectoryInode*>(root_inode().ptr())->link_inode(*device, device->name()));
 	}
 
 	void DevFileSystem::add_inode(BAN::StringView path, BAN::RefPtr<TmpInode> inode)
 	{
 		ASSERT(!path.contains('/'));
-		MUST(reinterpret_cast<TmpDirectoryInode*>(root_inode().ptr())->link_inode(*inode, path));
+		MUST(static_cast<TmpDirectoryInode*>(root_inode().ptr())->link_inode(*inode, path));
 	}
 
 	void DevFileSystem::for_each_device(const BAN::Function<BAN::Iteration(Device*)>& callback)
@@ -136,7 +136,7 @@ namespace Kernel
 			{
 				if (!inode->is_device())
 					return BAN::Iteration::Continue;
-				return callback(reinterpret_cast<Device*>(inode.ptr()));
+				return callback(static_cast<Device*>(inode.ptr()));
 			}
 		);
 	}

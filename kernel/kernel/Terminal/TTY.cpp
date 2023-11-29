@@ -41,7 +41,7 @@ namespace Kernel
 
 		auto inode = inode_or_error.release_value();
 		if (inode->mode().iflnk())
-			MUST(reinterpret_cast<TmpSymlinkInode*>(inode.ptr())->set_link_target(name()));
+			MUST(static_cast<TmpSymlinkInode&>(*inode.ptr()).set_link_target(name()));
 	}
 
 	BAN::ErrorOr<void> TTY::tty_ctrl(int command, int flags)

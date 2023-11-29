@@ -31,7 +31,7 @@ namespace Kernel
 	{
 		auto path = BAN::String::formatted("{}", process.pid());
 		auto inode = TRY(ProcPidInode::create_new(process, *this, 0555, process.credentials().ruid(), process.credentials().rgid()));
-		TRY(reinterpret_cast<TmpDirectoryInode*>(root_inode().ptr())->link_inode(*inode, path));
+		TRY(static_cast<TmpDirectoryInode*>(root_inode().ptr())->link_inode(*inode, path));
 		return {};
 	}
 
@@ -40,7 +40,7 @@ namespace Kernel
 		auto path = BAN::String::formatted("{}", process.pid());
 
 		auto inode = MUST(root_inode()->find_inode(path));
-		reinterpret_cast<ProcPidInode*>(inode.ptr())->cleanup();
+		static_cast<ProcPidInode*>(inode.ptr())->cleanup();
 
 		if (auto ret = root_inode()->unlink(path); ret.is_error())
 			dwarnln("{}", ret.error());
