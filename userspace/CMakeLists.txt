@@ -11,6 +11,7 @@ set(USERSPACE_PROJECTS
 	echo
 	id
 	init
+	image
 	ls
 	meminfo
 	mkdir
