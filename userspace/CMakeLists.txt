@@ -39,6 +39,8 @@ endforeach()
 add_custom_target(userspace)
 add_custom_target(userspace-install DEPENDS userspace)
 
+add_subdirectory(aoc2023)
+
 foreach(USERSPACE_PROJECT ${USERSPACE_PROJECTS})
 	target_compile_options(${USERSPACE_PROJECT} PRIVATE -g)
 	add_dependencies(${USERSPACE_PROJECT} libc-install ban-install)
