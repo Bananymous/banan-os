@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <termios.h>
 
 void initialize_stdio()
 {
@@ -26,8 +27,13 @@ int main()
 
 	bool first = true;
 
+	termios termios;
+	tcgetattr(STDIN_FILENO, &termios);
+
 	while (true)
 	{
+		tcsetattr(STDIN_FILENO, TCSANOW, &termios);
+
 		char name_buffer[128];
 
 		while (!first)
