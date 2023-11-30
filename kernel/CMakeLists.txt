@@ -167,6 +167,8 @@ endif()
 
 target_link_options(kernel PUBLIC -ffreestanding -nostdlib)
 
+set_source_files_properties(${LAI_SOURCES} PROPERTIES COMPILE_FLAGS -Wno-stack-usage)
+
 add_custom_target(kernel-headers
 	COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different ${CMAKE_CURRENT_SOURCE_DIR}/include/ ${BANAN_INCLUDE}/
 	COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different ${CMAKE_CURRENT_SOURCE_DIR}/lai/include/ ${BANAN_INCLUDE}/
