@@ -194,7 +194,7 @@ namespace Kernel
 		return true;
 	}
 
-	BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> FileBackedRegion::clone(PageTable& new_page_table)
+	BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> FileBackedRegion::clone(PageTable&)
 	{
 		ASSERT_NOT_REACHED();
 	}

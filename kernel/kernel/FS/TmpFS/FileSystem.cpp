@@ -197,7 +197,7 @@ namespace Kernel
 		LockGuard _(m_lock);
 
 		size_t result = first_data_page;
-		TRY(for_each_indirect_paddr_allocating(m_data_pages, [&] (paddr_t paddr, bool allocated) {
+		TRY(for_each_indirect_paddr_allocating(m_data_pages, [&] (paddr_t, bool allocated) {
 			if (allocated)
 				return BAN::Iteration::Break;
 			result++;

@@ -289,8 +289,11 @@ static constexpr bool is_power_of_two(size_t value)
 	return (value & (value - 1)) == 0;
 }
 
-void* kmalloc(size_t size, size_t align, bool force_indentity_map)
+void* kmalloc(size_t size, size_t align, bool force_identity_map)
 {
+	// currently kmalloc is always identity mapped
+	(void)force_identity_map;
+
 	const kmalloc_info& info = s_kmalloc_info;
 
 	ASSERT(is_power_of_two(align));

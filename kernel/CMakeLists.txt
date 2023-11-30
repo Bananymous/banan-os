@@ -148,7 +148,7 @@ target_compile_definitions(kernel PUBLIC __arch=${BANAN_ARCH})
 target_compile_options(kernel PUBLIC -O2 -g)
 target_compile_options(kernel PUBLIC $<$<COMPILE_LANGUAGE:CXX>:-Wno-literal-suffix -fno-rtti -fno-exceptions>)
 target_compile_options(kernel PUBLIC -fmacro-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}=.)
-target_compile_options(kernel PUBLIC -fstack-protector -ffreestanding -Wall -Werror=return-type -Wstack-usage=1024 -fno-omit-frame-pointer -mgeneral-regs-only)
+target_compile_options(kernel PUBLIC -fstack-protector -ffreestanding -Wall -Wextra -Werror -Wstack-usage=1024 -fno-omit-frame-pointer -mgeneral-regs-only)
 
 # This might not work with other toolchains
 target_compile_options(kernel PUBLIC $<$<COMPILE_LANGUAGE:CXX>:-Wno-invalid-offsetof>)

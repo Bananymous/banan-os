@@ -233,6 +233,7 @@ namespace Kernel
 
 		virtual BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> clone(PageTable& new_page_table) override
 		{
+			(void)new_page_table;
 			return BAN::Error::from_errno(ENOTSUP);
 		}
 
