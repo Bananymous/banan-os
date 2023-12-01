@@ -53,54 +53,57 @@ int puzzle2(FILE* fp)
 	{
 		int line_len = strlen(buffer);
 
-		int digit = -1;
-
 		for (int i = 0; i < line_len; i++)
 		{
+			int digit = -1;
 			if (isdigit(buffer[i]))
-			{
 				digit = buffer[i] - '0';
-				break;
-			}
-			for (int j = 0; j < 10; j++)
+			else
 			{
-				if (line_len - i < strlen(str_digits[j]))
-					continue;
-				if (strncmp(buffer + i, str_digits[j], strlen(str_digits[j])) == 0)
+				for (int j = 0; j < 10; j++)
 				{
-					digit = j;
-					break;
+					int str_len = strlen(str_digits[j]);
+					if (line_len - i < str_len)
+						continue;
+					if (strncmp(buffer + i, str_digits[j], str_len) == 0)
+					{
+						digit = j;
+						break;
+					}
 				}
 			}
 			if (digit != -1)
+			{
+				sum += 10 * digit;
 				break;
+			}
 		}
-		sum += 10 * digit;
-
-		digit = -1;
 
 		for (int i = line_len - 1; i >= 0; i--)
 		{
+			int digit = -1;
 			if (isdigit(buffer[i]))
-			{
 				digit = buffer[i] - '0';
-				break;
-			}
-			for (int j = 0; j < 10; j++)
+			else
 			{
-				if (i < strlen(str_digits[j]))
-					continue;
-				if (strncmp(buffer + i - strlen(str_digits[j]), str_digits[j], strlen(str_digits[j])) == 0)
+				for (int j = 0; j < 10; j++)
 				{
-					digit = j;
-					break;
+					int str_len = strlen(str_digits[j]);
+					if (i < str_len)
+						continue;
+					if (strncmp(buffer + i - str_len, str_digits[j], str_len) == 0)
+					{
+						digit = j;
+						break;
+					}
 				}
 			}
 			if (digit != -1)
+			{
+				sum += digit;
 				break;
+			}
 		}
-
-		sum += digit;
 	}
 
 	return sum;
