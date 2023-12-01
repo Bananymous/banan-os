@@ -146,7 +146,7 @@ namespace Kernel::Input
 		m_shift_keymap[0x45] = Key::Equals;
 		m_shift_keymap[0x46] = Key::CloseBracet;
 		m_shift_keymap[0x49] = Key::Colon;
-		m_shift_keymap[0x4A] = Key::Hyphen;
+		m_shift_keymap[0x4A] = Key::Underscore;
 		m_shift_keymap[0x4B] = Key::L;
 		m_shift_keymap[0x4C] = Key::O_Umlaut;
 		m_shift_keymap[0x4D] = Key::P;
