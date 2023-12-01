@@ -6,18 +6,19 @@ set(AOC2023_PROJECTS
 	day1
 )
 
-foreach(AOC2023_PROJECT ${AOC2023_PROJECTS})
-	add_subdirectory(${AOC2023_PROJECT})
-endforeach()
+set(BANAN_AOC2023_BIN   ${BANAN_BIN}/aoc2023)
+set(BANAN_AOC2023_INPUT ${BANAN_SHARE}/aoc2023)
 
 add_custom_target(aoc2023)
-add_custom_target(aoc2023-install DEPENDS aoc2023)
+add_custom_target(aoc2023_always
+	COMMAND ${CMAKE_COMMAND} -E make_directory ${BANAN_AOC2023_BIN}
+	COMMAND ${CMAKE_COMMAND} -E make_directory ${BANAN_AOC2023_INPUT}
+	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/input/* ${BANAN_AOC2023_INPUT}/
+)
+add_custom_target(aoc2023-install DEPENDS aoc2023 aoc2023_always)
 
 foreach(AOC2023_PROJECT ${AOC2023_PROJECTS})
-	target_compile_options(${AOC2023_PROJECT} PRIVATE -g)
-	add_dependencies(${AOC2023_PROJECT} libc-install ban-install )
-	add_dependencies(aoc2023 ${AOC2023_PROJECT})
-	add_dependencies(aoc2023-install ${AOC2023_PROJECT}-install)
+	add_subdirectory(${AOC2023_PROJECT})
 endforeach()
 
 add_dependencies(userspace aoc2023)

@@ -13,6 +13,7 @@ set(BANAN_BASE_SYSROOT ${CMAKE_SOURCE_DIR}/base-sysroot.tar.gz)
 set(BANAN_INCLUDE ${BANAN_SYSROOT}/usr/include)
 set(BANAN_LIB ${BANAN_SYSROOT}/usr/lib)
 set(BANAN_BIN ${BANAN_SYSROOT}/usr/bin)
+set(BANAN_SHARE ${BANAN_SYSROOT}/usr/share)
 set(BANAN_BOOT ${BANAN_SYSROOT}/boot)
 
 add_subdirectory(kernel)
