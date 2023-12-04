@@ -32,10 +32,8 @@ int puzzle1(FILE* fp)
 			continue;
 
 		int matching = matching_numbers(buffer);
-		int points = !!matching;
-		for (int i = 1; i < matching; i++)
-			points *= 2;
-		result += points;
+		if (matching > 0)
+			result += 1 << (matching - 1);
 	}
 
 	return result;
