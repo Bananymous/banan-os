@@ -501,6 +501,21 @@ pid_t execute_command_no_wait(BAN::Vector<BAN::String>& args, int fd_in, int fd_
 		executable_file = args.front();
 	}
 
+	// Verify that the file exists is executable
+	{
+		struct stat st;
+		if (stat(executable_file.data(), &st) == -1)
+		{
+			fprintf(stderr, "command not found: %s\n", args.front().data());
+			return -1;
+		}
+		if ((st.st_mode & 0111) == 0)
+		{
+			fprintf(stderr, "permission denied: %s\n", executable_file.data());
+			return -1;
+		}
+	}
+
 	pid_t pid = fork();
 	if (pid == 0)
 	{
