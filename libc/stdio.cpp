@@ -135,19 +135,28 @@ int fgetpos(FILE* file, fpos_t* pos)
 
 char* fgets(char* str, int size, FILE* file)
 {
-	if (size == 0)
+	if (size == 1)
+		str[0] = '\n';
+	if (size <= 1)
 		return str;
+
 	int c = fgetc(file);
 	if (c == EOF)
 		return nullptr;
 	str[0] = c;
+	if (str[0] == '\n')
+	{
+		str[1] = '\0';
+		return str;
+	}
+
 	for (int i = 1; i < size - 1; i++)
 	{
 		str[i] = fgetc(file);
 		if (str[i] == EOF)
 		{
 			str[i] = '\0';
-			return nullptr;
+			return str;
 		}
 		if (str[i] == '\n')
 		{
@@ -155,6 +164,7 @@ char* fgets(char* str, int size, FILE* file)
 			return str;
 		}
 	}
+
 	str[size - 1] = '\0';
 	return str;
 }
