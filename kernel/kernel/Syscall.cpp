@@ -148,9 +148,6 @@ namespace Kernel
 		case SYS_DUP2:
 			ret = Process::current().sys_dup2((int)arg1, (int)arg2);
 			break;
-		case SYS_RAISE:
-			ret = Process::current().sys_raise((int)arg1);
-			break;
 		case SYS_KILL:
 			ret = Process::current().sys_kill((pid_t)arg1, (int)arg2);
 			break;

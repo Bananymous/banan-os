@@ -468,7 +468,7 @@ namespace Kernel
 			if (!m_loadable_elf->is_address_space_free())
 			{
 				dprintln("ELF has unloadable address space");
-				MUST(sys_raise(SIGKILL));
+				MUST(sys_kill(pid(), SIGKILL));
 			}
 			m_loadable_elf->reserve_address_space();
 			m_userspace_info.entry = m_loadable_elf->entry_point();
@@ -1218,8 +1218,12 @@ namespace Kernel
 			return BAN::Error::from_errno(EINVAL);
 
 		if (pid == Process::current().pid())
-			return Process::current().sys_raise(signal);
-		
+		{
+			CriticalScope _;
+			Process::current().m_signal_pending_mask |= 1 << signal;
+			return 0;
+		}
+
 		bool found = false;
 		for_each_process(
 			[&](Process& process)
@@ -1241,17 +1245,6 @@ namespace Kernel
 		if (found)
 			return 0;
 		return BAN::Error::from_errno(ESRCH);
-	}
-
-	BAN::ErrorOr<long> Process::sys_raise(int signal)
-	{
-		if (signal < _SIGMIN || signal > _SIGMAX)
-			return BAN::Error::from_errno(EINVAL);
-		ASSERT(this == &Process::current());
-		
-		CriticalScope _;
-		Thread::current().handle_signal(signal);
-		return 0;
 	}
 
 	BAN::ErrorOr<long> Process::sys_tcsetpgrp(int fd, pid_t pgrp)
@@ -1627,7 +1620,7 @@ namespace Kernel
 unauthorized_access:
 		dwarnln("process {}, thread {} attempted to make an invalid pointer access", pid(), Thread::current().tid());
 		Debug::dump_stack_trace();
-		MUST(sys_raise(SIGSEGV));
+		MUST(sys_kill(pid(), SIGSEGV));
 	}
 
 }

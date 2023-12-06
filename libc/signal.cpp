@@ -4,7 +4,8 @@
 
 int raise(int sig)
 {
-	return syscall(SYS_RAISE, sig);
+	// FIXME: won't work after multithreaded
+	return kill(getpid(), sig);
 }
 
 int kill(pid_t pid, int sig)
