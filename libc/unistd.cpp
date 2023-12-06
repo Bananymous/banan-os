@@ -180,6 +180,48 @@ int execve(const char* pathname, char* const argv[], char* const envp[])
 	return syscall(SYS_EXEC, pathname, argv, envp);
 }
 
+int execvp(const char* file, char* const argv[])
+{
+	char buffer[1024];
+	const char* pathname = file;
+
+	// do path resolution if file doesn't contain /
+	if (strchr(file, '/') == nullptr)
+	{
+		const char* cur = getenv("PATH");
+		if (!cur)
+		{
+			errno = ENOENT;
+			return -1;
+		}
+
+		while (*cur)
+		{
+			const char* end = strchrnul(cur, ':');
+			size_t len = end - cur;
+
+			ASSERT(strlen(file) + 1 + len < sizeof(buffer));
+
+			strncpy(buffer, cur, len);
+			strcat(buffer, "/");
+			strcat(buffer, file);
+
+			struct stat st;
+			if (stat(buffer, &st) == 0)
+			{
+				pathname = buffer;
+				break;
+			}
+
+			cur = end;
+			if (*cur)
+				cur++;
+		}
+	}
+
+	return execve(pathname, argv, environ);
+}
+
 pid_t fork(void)
 {
 	return syscall(SYS_FORK);
