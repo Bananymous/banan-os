@@ -22,6 +22,7 @@ set(USERSPACE_PROJECTS
 	sleep
 	snake
 	stat
+	sudo
 	sync
 	tee
 	test
