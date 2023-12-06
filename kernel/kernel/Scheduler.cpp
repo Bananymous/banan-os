@@ -351,8 +351,23 @@ namespace Kernel
 		{
 			if (it->thread->tid() == tid)
 			{
-				auto thread = it->thread;
-				it = m_blocking_threads.remove(it);
+				Thread* thread = it->thread;
+				m_blocking_threads.remove(it);
+
+				// This should work as we released enough memory from active thread
+				static_assert(sizeof(ActiveThread) == sizeof(BlockingThread));
+				MUST(m_active_threads.emplace_back(thread));
+
+				return;
+			}
+		}
+
+		for (auto it = m_sleeping_threads.begin(); it != m_sleeping_threads.end(); it++)
+		{
+			if (it->thread->tid() == tid)
+			{
+				Thread* thread = it->thread;
+				m_sleeping_threads.remove(it);
 
 				// This should work as we released enough memory from active thread
 				static_assert(sizeof(ActiveThread) == sizeof(BlockingThread));

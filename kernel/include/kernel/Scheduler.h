@@ -23,6 +23,7 @@ namespace Kernel
 
 		void block_current_thread(Semaphore*);
 		void unblock_threads(Semaphore*);
+		// Makes sleeping or blocked thread with tid active.
 		void unblock_thread(pid_t tid);
 
 		Thread& current_thread();
