@@ -908,7 +908,19 @@ int main(int argc, char** argv)
 
 	while (true)
 	{
-		uint8_t ch = getchar();
+		int chi = getchar();
+		if (chi == EOF)
+		{
+			if (errno == EINTR)
+			{
+				clearerr(stdin);
+				continue;
+			}
+			perror("getchar");
+			return 1;
+		}
+
+		uint8_t ch = chi;
 
 		if (waiting_utf8 > 0)
 		{
