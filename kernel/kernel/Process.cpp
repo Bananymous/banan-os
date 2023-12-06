@@ -616,10 +616,31 @@ namespace Kernel
 		{
 			LockGuard _(m_lock);
 			validate_pointer_access(rqtp, sizeof(timespec));
-			validate_pointer_access(rmtp, sizeof(timespec));
+			if (rmtp)
+				validate_pointer_access(rmtp, sizeof(timespec));
 		}
-		// TODO: rmtp
-		SystemTimer::get().sleep(rqtp->tv_sec * 1000 + BAN::Math::div_round_up<uint64_t>(rqtp->tv_nsec, 1'000'000));
+
+		uint64_t sleep_ms = rqtp->tv_sec * 1000 + BAN::Math::div_round_up<uint64_t>(rqtp->tv_nsec, 1'000'000);
+		if (sleep_ms == 0)
+			return 0;
+
+		uint64_t wake_time_ms = SystemTimer::get().ms_since_boot() + sleep_ms;
+
+		Scheduler::get().set_current_thread_sleeping(wake_time_ms);
+
+		uint64_t current_ms = SystemTimer::get().ms_since_boot();
+
+		if (current_ms < wake_time_ms)
+		{
+			if (rmtp)
+			{
+				uint64_t remaining_ms = wake_time_ms - current_ms;
+				rmtp->tv_sec = remaining_ms / 1000;
+				rmtp->tv_nsec = (remaining_ms % 1000) * 1'000'000;
+			}
+			return BAN::Error::from_errno(EINTR);
+		}
+
 		return 0;
 	}
 
