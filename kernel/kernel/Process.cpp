@@ -474,6 +474,7 @@ namespace Kernel
 				MUST(sys_kill(pid(), SIGKILL));
 			}
 			m_loadable_elf->reserve_address_space();
+			m_loadable_elf->update_suid_sgid(m_credentials);
 			m_userspace_info.entry = m_loadable_elf->entry_point();
 
 			for (size_t i = 0; i < sizeof(m_signal_handlers) / sizeof(*m_signal_handlers); i++)

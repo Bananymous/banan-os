@@ -203,6 +203,14 @@ namespace LibELF
 		m_loaded = true;
 	}
 
+	void LoadableELF::update_suid_sgid(Kernel::Credentials& credentials)
+	{
+		if (m_inode->mode().mode & +Inode::Mode::ISUID)
+			credentials.set_euid(m_inode->uid());
+		if (m_inode->mode().mode & +Inode::Mode::ISGID)
+			credentials.set_egid(m_inode->gid());
+	}
+
 	BAN::ErrorOr<void> LoadableELF::load_page_to_memory(vaddr_t address)
 	{
 		for (const auto& program_header : m_program_headers)

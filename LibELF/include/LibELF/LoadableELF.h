@@ -7,6 +7,7 @@
 #include <BAN/UniqPtr.h>
 #include <BAN/Vector.h>
 
+#include <kernel/Credentials.h>
 #include <kernel/FS/Inode.h>
 #include <kernel/Memory/PageTable.h>
 
@@ -29,6 +30,8 @@ namespace LibELF
 		bool contains(Kernel::vaddr_t address) const;
 		bool is_address_space_free() const;
 		void reserve_address_space();
+
+		void update_suid_sgid(Kernel::Credentials&);
 
 		BAN::ErrorOr<void> load_page_to_memory(Kernel::vaddr_t address);
 
