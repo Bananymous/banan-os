@@ -71,15 +71,38 @@ char* stpcpy(char* __restrict__ dest, const char* __restrict__ src)
 	return &dest[i];
 }
 
+char* stpncpy(char* __restrict__ dest, const char* __restrict__ src, size_t n)
+{
+	size_t i = 0;
+	for (; src[i] && n; i++, n--)
+		dest[i] = src[i];
+	for (; n; i++, n--)
+		dest[i] = '\0';
+	dest[i] = '\0';
+	return &dest[i];
+}
+
 char* strcpy(char* __restrict__ dest, const char* __restrict__ src)
 {
 	stpcpy(dest, src);
 	return dest;
 }
 
+char* strncpy(char* __restrict__ dest, const char* __restrict__ src, size_t n)
+{
+	stpncpy(dest, src, n);
+	return dest;
+}
+
 char* strcat(char* __restrict__ dest, const char* __restrict__ src)
 {
-	strcpy(dest + strlen(src), src);
+	strcpy(dest + strlen(dest), src);
+	return dest;
+}
+
+char* strncat(char* __restrict__ dest, const char* __restrict__ src, size_t n)
+{
+	strncpy(dest + strlen(dest), src, n);
 	return dest;
 }
 
@@ -319,16 +342,6 @@ char* strchrnul(const char* str, int c)
 		str++;
 	}
 	return (char*)str;
-}
-
-char* strncpy(char* __restrict__ dest, const char* __restrict__ src, size_t n)
-{
-	size_t i;
-	for (i = 0; src[i] && i < n; i++)
-		dest[i] = src[i];
-	for (; i < n; i++)
-		dest[i] = '\0';
-	return dest;
 }
 
 char* strstr(const char* haystack, const char* needle)
