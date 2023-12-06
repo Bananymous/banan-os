@@ -303,14 +303,12 @@ namespace Kernel
 		LockGuard _(m_lock);
 		while (!m_output.flush)
 		{
-			if (Thread::current().is_interrupted_by_signal())
-				return BAN::Error::from_errno(EINTR);
 			m_lock.unlock();
-			m_output.semaphore.block();
+			bool eintr = Thread::current().block_or_eintr(m_output.semaphore);
 			m_lock.lock();
+			if (eintr)
+				return BAN::Error::from_errno(EINTR);
 		}
-		if (Thread::current().is_interrupted_by_signal())
-			return BAN::Error::from_errno(EINTR);
 
 		if (m_output.bytes == 0)
 		{

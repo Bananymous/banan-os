@@ -598,14 +598,16 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_sleep(int seconds)
 	{
-		// FIXME: this is very dumb
+		if (seconds == 0)
+			return 0;
+
 		uint64_t wake_time = SystemTimer::get().ms_since_boot() + seconds * 1000;
-		while (SystemTimer::get().ms_since_boot() < wake_time)
-		{
-			if (Thread::current().is_interrupted_by_signal())
-				return BAN::Math::div_round_up<long>(wake_time - SystemTimer::get().ms_since_boot(), 1000);
-			Scheduler::get().reschedule();
-		}
+		Scheduler::get().set_current_thread_sleeping(wake_time);
+
+		uint64_t current_time = SystemTimer::get().ms_since_boot();
+		if (current_time < wake_time)
+			return BAN::Math::div_round_up<long>(wake_time - current_time, 1000);
+
 		return 0;
 	}
 
