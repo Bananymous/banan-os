@@ -225,7 +225,6 @@ namespace Kernel
 
 		{
 			LockGuard _(m_lock);
-			Thread::TerminateBlocker blocker(Thread::current());
 			if (!m_disk_cache.has_value())
 				return read_sectors_impl(lba, sector_count, buffer);
 		}
@@ -233,8 +232,6 @@ namespace Kernel
 		for (uint64_t offset = 0; offset < sector_count; offset++)
 		{
 			LockGuard _(m_lock);
-			Thread::TerminateBlocker blocker(Thread::current());
-
 			auto sector_buffer = buffer.slice(offset * sector_size(), sector_size());
 			if (m_disk_cache->read_from_cache(lba + offset, sector_buffer))
 				continue;
@@ -251,7 +248,6 @@ namespace Kernel
 
 		{
 			LockGuard _(m_lock);
-			Thread::TerminateBlocker blocker(Thread::current());
 			if (!m_disk_cache.has_value())
 				return write_sectors_impl(lba, sector_count, buffer);
 		}
@@ -259,8 +255,6 @@ namespace Kernel
 		for (uint8_t offset = 0; offset < sector_count; offset++)
 		{
 			LockGuard _(m_lock);
-			Thread::TerminateBlocker blocker(Thread::current());
-
 			auto sector_buffer = buffer.slice(offset * sector_size(), sector_size());
 			if (m_disk_cache->write_to_cache(lba + offset, sector_buffer, true).is_error())
 				TRY(write_sectors_impl(lba + offset, 1, sector_buffer));

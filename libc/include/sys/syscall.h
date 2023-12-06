@@ -40,7 +40,6 @@ __BEGIN_DECLS
 #define SYS_DUP2 37
 #define SYS_KILL 39
 #define SYS_SIGNAL 40
-#define SYS_SIGNAL_DONE 41
 #define SYS_TCSETPGRP 42
 #define SYS_GET_PID 43
 #define SYS_GET_PGID 44

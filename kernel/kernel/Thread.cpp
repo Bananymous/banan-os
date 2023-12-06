@@ -1,6 +1,8 @@
 #include <BAN/Errors.h>
 #include <BAN/ScopeGuard.h>
+#include <kernel/GDT.h>
 #include <kernel/InterruptController.h>
+#include <kernel/InterruptStack.h>
 #include <kernel/Memory/kmalloc.h>
 #include <kernel/Memory/PageTableScope.h>
 #include <kernel/Process.h>
@@ -25,63 +27,13 @@ namespace Kernel
 			memcpy((void*)rsp, (void*)&value, sizeof(uintptr_t));
 	}
 
-	Thread::TerminateBlocker::TerminateBlocker(Thread& thread)
-		: m_thread(thread)
+	void Thread::terminate()
 	{
 		CriticalScope _;
-
-		// FIXME: this should not be a requirement
-		ASSERT(&thread == &Thread::current());
-
-		if (m_thread.state() == State::Executing || m_thread.m_terminate_blockers > 0)
-		{
-			m_thread.m_terminate_blockers++;
-			return;
-		}
-
-		if (m_thread.state() == State::Terminating && m_thread.m_terminate_blockers == 0)
-		{
-			m_thread.m_state = State::Terminated;
+		ASSERT(this == &Thread::current());
+		m_state = Thread::State::Terminated;
+		if (this == &Thread::current())
 			Scheduler::get().execute_current_thread();
-		}
-
-		while (true)
-			Scheduler::get().reschedule();
-	}
-
-	Thread::TerminateBlocker::~TerminateBlocker()
-	{
-		CriticalScope _;
-
-		m_thread.m_terminate_blockers--;
-
-		if (m_thread.state() == State::Executing || m_thread.m_terminate_blockers > 0)
-			return;
-
-		if (m_thread.state() == State::Terminating && m_thread.m_terminate_blockers == 0)
-		{
-			m_thread.m_state = State::Terminated;
-			Scheduler::get().execute_current_thread();
-		}
-
-		ASSERT_NOT_REACHED();
-	}
-
-	void Thread::set_terminating()
-	{
-		CriticalScope _;
-		if (m_terminate_blockers == 0)
-		{
-			m_state = State::Terminated;
-			if (this == &Thread::current())
-				Scheduler::get().execute_current_thread();
-		}
-		else
-		{
-			m_state = State::Terminating;
-			if (this == &Thread::current())
-				Scheduler::get().unblock_thread(tid());
-		}
 	}
 
 	static pid_t s_next_tid = 1;
@@ -245,27 +197,30 @@ namespace Kernel
 		}
 	}
 
-	bool Thread::has_signal_to_execute() const
+	bool Thread::is_interrupted_by_signal()
 	{
-		if (!is_userspace() || m_handling_signal || m_state != State::Executing)
+		while (can_add_signal_to_execute())
+			handle_signal();
+		return will_execute_signal();
+	}
+
+	bool Thread::can_add_signal_to_execute() const
+	{
+		if (!is_userspace() || m_state != State::Executing)
+			return false;
+		auto& interrupt_stack = *reinterpret_cast<InterruptStack*>(interrupt_stack_base() + interrupt_stack_size() - sizeof(InterruptStack));
+		if (!GDT::is_user_segment(interrupt_stack.cs))
 			return false;
 		uint64_t full_pending_mask = m_signal_pending_mask | m_process->m_signal_pending_mask;
 		return full_pending_mask & ~m_signal_block_mask;
 	}
 
-	void Thread::set_signal_done(int signal)
+	bool Thread::will_execute_signal() const
 	{
-		ASSERT(!interrupts_enabled());
-		if (m_handling_signal == 0)
-			derrorln("set_signal_done called while not handling singal");
-		else if (m_handling_signal != signal)
-			derrorln("set_signal_done called with invalid signal");
-		else
-			m_handling_signal = 0;
-
-		if (m_handling_signal == 0)
-			while (has_signal_to_execute())
-				handle_signal();
+		if (!is_userspace() || m_state != State::Executing)
+			return false;
+		auto& interrupt_stack = *reinterpret_cast<InterruptStack*>(interrupt_stack_base() + interrupt_stack_size() - sizeof(InterruptStack));
+		return interrupt_stack.rip == (uintptr_t)signal_trampoline;
 	}
 
 	void Thread::handle_signal(int signal)
@@ -273,7 +228,9 @@ namespace Kernel
 		ASSERT(!interrupts_enabled());
 		ASSERT(&Thread::current() == this);
 		ASSERT(is_userspace());
-		ASSERT(!m_handling_signal);
+
+		auto& interrupt_stack = *reinterpret_cast<InterruptStack*>(interrupt_stack_base() + interrupt_stack_size() - sizeof(InterruptStack));
+		ASSERT(GDT::is_user_segment(interrupt_stack.cs));
 
 		if (signal == 0)
 		{
@@ -292,9 +249,6 @@ namespace Kernel
 			ASSERT(signal <= _SIGMAX);
 		}
 
-		uintptr_t& return_rsp = this->return_rsp();
-		uintptr_t& return_rip = this->return_rip();
-
 		vaddr_t signal_handler = process().m_signal_handlers[signal];
 
 		m_signal_pending_mask &= ~(1ull << signal);
@@ -305,14 +259,11 @@ namespace Kernel
 		else if (signal_handler != (vaddr_t)SIG_DFL)
 		{
 			// call userspace signal handlers
-			// FIXME: signal trampoline should take a hash etc
-			//        to only allow marking signals done from it
-			m_handling_signal = signal;
-			return_rsp += 128; // skip possible red-zone
-			write_to_stack(return_rsp, return_rip);
-			write_to_stack(return_rsp, signal);
-			write_to_stack(return_rsp, signal_handler);
-			return_rip = (uintptr_t)signal_trampoline;
+			interrupt_stack.rsp -= 128; // skip possible red-zone
+			write_to_stack(interrupt_stack.rsp, interrupt_stack.rip);
+			write_to_stack(interrupt_stack.rsp, signal);
+			write_to_stack(interrupt_stack.rsp, signal_handler);
+			interrupt_stack.rip = (uintptr_t)signal_trampoline;
 		}
 		else
 		{
@@ -393,8 +344,8 @@ namespace Kernel
 
 	void Thread::on_exit()
 	{
-		set_terminating();
-		TerminateBlocker(*this);
+		ASSERT(this == &Thread::current());
+		terminate();
 		ASSERT_NOT_REACHED();
 	}
 

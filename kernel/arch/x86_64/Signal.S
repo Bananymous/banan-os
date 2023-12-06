@@ -31,10 +31,6 @@ signal_trampoline:
 	movq 120(%rsp), %rax
 	call *%rax
 
-	movq $SYS_SIGNAL_DONE, %rax
-	movq 128(%rsp), %rbx
-	int $0x80
-
 	popq %r15
 	popq %r14
 	popq %r13

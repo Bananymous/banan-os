@@ -257,7 +257,10 @@ namespace Kernel
 		LockGuard _(m_lock);
 		m_exit_status.exit_code = __WGENEXITCODE(status, signal);
 		for (auto* thread : m_threads)
-			thread->set_terminating();
+			if (thread != &Thread::current())
+				thread->terminate();
+		if (this == &Process::current())
+			Thread::current().terminate();
 	}
 
 	size_t Process::proc_meminfo(off_t offset, BAN::ByteSpan buffer) const
@@ -334,7 +337,7 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_exit(int status)
 	{
 		exit(status, 0);
-		Thread::TerminateBlocker _(Thread::current());
+		Thread::current().terminate();
 		ASSERT_NOT_REACHED();
 	}
 
@@ -1235,6 +1238,8 @@ namespace Kernel
 					{
 						CriticalScope _;
 						process.m_signal_pending_mask |= 1 << signal;
+						// FIXME: This is super hacky
+						Scheduler::get().unblock_thread(process.m_threads.front()->tid());
 					}
 					return (pid > 0) ? BAN::Iteration::Break : BAN::Iteration::Continue;
 				}

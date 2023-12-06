@@ -258,10 +258,8 @@ namespace Kernel
 				current->set_started();
 				start_thread(current->rsp(), current->rip());
 			case Thread::State::Executing:
-				while (current->has_signal_to_execute())
+				while (current->can_add_signal_to_execute())
 					current->handle_signal();
-				// fall through
-			case Thread::State::Terminating:
 				continue_thread(current->rsp(), current->rip());
 			case Thread::State::Terminated:
 				ASSERT_NOT_REACHED();

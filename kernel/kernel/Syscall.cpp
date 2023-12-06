@@ -26,12 +26,6 @@ namespace Kernel
 		Thread::current().set_return_rsp(interrupt_stack.rsp);
 		Thread::current().set_return_rip(interrupt_stack.rip);
 
-		if (syscall == SYS_SIGNAL_DONE)
-		{
-			Thread::current().set_signal_done((int)arg1);
-			return 0;
-		}
-
 #if __enable_sse
 		Thread::current().save_sse();
 #endif
@@ -154,9 +148,6 @@ namespace Kernel
 		case SYS_SIGNAL:
 			ret = Process::current().sys_signal((int)arg1, (void (*)(int))arg2);
 			break;
-		case SYS_SIGNAL_DONE:
-			// Handled above
-			ASSERT_NOT_REACHED();
 		case SYS_TCSETPGRP:
 			ret = Process::current().sys_tcsetpgrp((int)arg1, (pid_t)arg2);
 			break;
@@ -230,10 +221,14 @@ namespace Kernel
 		if (ret.is_error() && ret.error().is_kernel_error())
 			Kernel::panic("Kernel error while returning to userspace {}", ret.error());
 
+		auto& current_thread = Thread::current();
+		if (current_thread.can_add_signal_to_execute())
+			current_thread.handle_signal();
+
 		ASSERT(Kernel::Thread::current().state() == Kernel::Thread::State::Executing);
 
 #if __enable_sse
-		Thread::current().load_sse();
+		current_thread.load_sse();
 #endif
 
 		if (ret.is_error())

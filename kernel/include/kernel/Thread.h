@@ -25,17 +25,7 @@ namespace Kernel
 		{
 			NotStarted,
 			Executing,
-			Terminating,
 			Terminated
-		};
-
-		class TerminateBlocker
-		{
-		public:
-			TerminateBlocker(Thread&);
-			~TerminateBlocker();
-		private:
-			Thread& m_thread;
 		};
 
 	public:
@@ -47,15 +37,20 @@ namespace Kernel
 		void setup_exec();
 		void setup_process_cleanup();
 
-		bool has_signal_to_execute() const;
-		void set_signal_done(int signal);
+		// Adds pending signals to thread if possible and
+		// returns true, if thread is going to trigger signal
+		bool is_interrupted_by_signal();
+
+		// Returns true if pending signal can be added to thread
+		bool can_add_signal_to_execute() const;
+		bool will_execute_signal() const;
 		void handle_signal(int signal = 0);
 		bool add_signal(int signal);
 
 		void set_return_rsp(uintptr_t& rsp) { m_return_rsp = &rsp; }
 		void set_return_rip(uintptr_t& rip) { m_return_rip = &rip; }
-		uintptr_t& return_rsp() { ASSERT(m_return_rsp); return *m_return_rsp; }
-		uintptr_t& return_rip() { ASSERT(m_return_rip); return *m_return_rip; }
+		uintptr_t return_rsp() { ASSERT(m_return_rsp); return *m_return_rsp; }
+		uintptr_t return_rip() { ASSERT(m_return_rip); return *m_return_rip; }
 
 		pid_t tid() const { return m_tid; }
 
@@ -65,7 +60,8 @@ namespace Kernel
 		uintptr_t rip() const { return m_rip; }
 
 		void set_started() { ASSERT(m_state == State::NotStarted); m_state = State::Executing; }
-		void set_terminating();
+		// Thread will no longer execute. If called on current thread, does not return
+		void terminate();
 		State state() const { return m_state; }
 
 		vaddr_t stack_base() const { return m_stack->vaddr(); }
@@ -116,10 +112,7 @@ namespace Kernel
 
 		uint64_t					m_signal_pending_mask	{ 0 };
 		uint64_t					m_signal_block_mask		{ 0 };
-		int							m_handling_signal		{ 0 };
 		static_assert(_SIGMAX < 64);
-
-		uint64_t m_terminate_blockers { 0 };
 
 #if __enable_sse
 		alignas(16) uint8_t m_sse_storage[512] {};
