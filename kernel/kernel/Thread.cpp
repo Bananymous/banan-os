@@ -330,6 +330,14 @@ namespace Kernel
 		return false;
 	}
 
+	bool Thread::block_or_eintr(Semaphore& semaphore)
+	{
+		if (is_interrupted_by_signal())
+			return true;
+		semaphore.block();
+		return is_interrupted_by_signal();
+	}
+
 	void Thread::validate_stack() const
 	{
 		if (stack_base() <= m_rsp && m_rsp <= stack_base() + stack_size())
