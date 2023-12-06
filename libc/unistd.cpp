@@ -192,7 +192,10 @@ int pipe(int fildes[2])
 
 unsigned int sleep(unsigned int seconds)
 {
-	return syscall(SYS_SLEEP, seconds);
+	unsigned int ret = syscall(SYS_SLEEP, seconds);
+	if (ret > 0)
+		errno = EINTR;
+	return ret;
 }
 
 char* getcwd(char* buf, size_t size)
