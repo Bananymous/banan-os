@@ -19,6 +19,7 @@ set(USERSPACE_PROJECTS
 	poweroff
 	rm
 	Shell
+	sleep
 	snake
 	stat
 	sync
