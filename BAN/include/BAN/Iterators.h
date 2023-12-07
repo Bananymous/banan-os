@@ -135,6 +135,11 @@ namespace BAN
 			return IteratorSimpleGeneral(m_pointer - offset);
 		}
 
+		bool operator<(const IteratorSimpleGeneral& other) const
+		{
+			return m_pointer < other.m_pointer;
+		}
+
 		bool operator==(const IteratorSimpleGeneral& other) const
 		{
 			return m_pointer == other.m_pointer;
