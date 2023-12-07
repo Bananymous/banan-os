@@ -34,4 +34,8 @@ int main()
 	TEST("exchange sort", BAN::sort_exchange, 100);
 	TEST("exchange sort", BAN::sort_exchange, 1000);
 	TEST("exchange sort", BAN::sort_exchange, 10000);
+
+	TEST("quick sort", BAN::sort_quick, 100);
+	TEST("quick sort", BAN::sort_quick, 1000);
+	TEST("quick sort", BAN::sort_quick, 10000);
 }
