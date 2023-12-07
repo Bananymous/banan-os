@@ -119,6 +119,22 @@ namespace BAN
 			return temp;
 		}
 
+		size_t operator-(const IteratorSimpleGeneral& other) const
+		{
+			ASSERT(m_pointer);
+			return m_pointer - other.m_pointer;
+		}
+
+		IteratorSimpleGeneral operator+(size_t offset) const
+		{
+			return IteratorSimpleGeneral(m_pointer + offset);
+		}
+
+		IteratorSimpleGeneral operator-(size_t offset) const
+		{
+			return IteratorSimpleGeneral(m_pointer - offset);
+		}
+
 		bool operator==(const IteratorSimpleGeneral& other) const
 		{
 			return m_pointer == other.m_pointer;
@@ -128,7 +144,7 @@ namespace BAN
 			return !(*this == other);
 		}
 
-		operator bool() const
+		explicit operator bool() const
 		{
 			return m_pointer;
 		}
@@ -233,7 +249,7 @@ namespace BAN
 			return !(*this == other);
 		}
 
-		operator bool() const
+		explicit operator bool() const
 		{
 			return m_outer_end && m_outer_current;
 		}
