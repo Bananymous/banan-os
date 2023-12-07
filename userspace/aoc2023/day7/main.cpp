@@ -116,7 +116,7 @@ i64 puzzle(FILE* fp, bool joker)
 		));
 	}
 
-	BAN::sort_quick(hands.begin(), hands.end(),
+	BAN::sort(hands.begin(), hands.end(),
 		[joker] (const Hand& lhs, const Hand& rhs) {
 			return hand_score(lhs, joker) < hand_score(rhs, joker);
 		}
