@@ -65,4 +65,39 @@ namespace BAN
 		}
 	}
 
+	template<typename It, typename Comp = less<typename It::value_type>>
+	void sort_heap(It begin, It end, Comp comp = {})
+	{
+		if (begin == end || next(begin, 1) == end)
+			return;
+
+		It start = next(begin, distance(begin, end) / 2);
+
+		while (prev(end, 1) != begin)
+		{
+			if (start != begin)
+				--start;
+			else
+				swap(*(--end), *begin);
+
+			It root = start;
+			while (true)
+			{
+				size_t left_child = 2 * distance(begin, root) + 1;
+				if (left_child >= distance(begin, end))
+					break;
+
+				It child = next(begin, left_child);
+				if (next(child, 1) != end && comp(*child, *next(child, 1)))
+					++child;
+
+				if (!comp(*root, *child))
+					break;
+
+				swap(*root, *child);
+				root = child;
+			}
+		}
+	}
+
 }
