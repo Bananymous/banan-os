@@ -1,6 +1,6 @@
 #include <BAN/Vector.h>
+#include <BAN/Sort.h>
 #include <BAN/String.h>
-#include <BAN/Swap.h>
 
 #include <ctype.h>
 #include <stdio.h>
@@ -116,24 +116,15 @@ i64 puzzle(FILE* fp, bool joker)
 		));
 	}
 
-	// Very slow sorting algorithm
-	for (size_t i = 0; i < hands.size(); i++)
-	{
-		i64 l_score = hand_score(hands[i], joker);
-		for (size_t j = i + 1; j < hands.size(); j++)
-		{
-			i64 r_score = hand_score(hands[j], joker);
-			if (r_score > l_score)
-			{
-				BAN::swap(hands[i], hands[j]);
-				l_score = r_score;
-			}
+	BAN::sort_quick(hands.begin(), hands.end(),
+		[joker] (const Hand& lhs, const Hand& rhs) {
+			return hand_score(lhs, joker) < hand_score(rhs, joker);
 		}
-	}
+	);
 
 	i64 score = 0;
 	for (size_t i = 0; i < hands.size(); i++)
-		score += (hands.size() - i) * hands[i].bid;
+		score += (i + 1) * hands[i].bid;
 	return score;
 }
 
