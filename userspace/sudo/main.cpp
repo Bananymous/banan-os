@@ -4,7 +4,7 @@
 int usage(char* argv0, int ret)
 {
 	FILE* fp = (ret == 0) ? stdout : stderr;
-	fprintf(fp, "usage: %s COMMAND [ARGUMENTS]\n", argv0);
+	fprintf(fp, "usage: %s COMMAND [ARGUMENTS...]\n", argv0);
 	return ret;
 }
 
@@ -26,6 +26,6 @@ int main(int argc, char** argv)
 
 	execvp(argv[1], argv + 1);
 
-	perror("execv");
+	perror("execvp");
 	return 1;
 }
