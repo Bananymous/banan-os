@@ -303,9 +303,13 @@ namespace Kernel
 		LockGuard _(m_lock);
 		while (!m_output.flush)
 		{
-			m_lock.unlock();
+			// FIXME: this is very hacky way to unlock lock temporarily
+			uint32_t depth = m_lock.lock_depth();
+			for (uint32_t i = 0; i < depth; i++)
+				m_lock.unlock();
 			bool eintr = Thread::current().block_or_eintr(m_output.semaphore);
-			m_lock.lock();
+			for (uint32_t i = 0; i < depth; i++)
+				m_lock.lock();
 			if (eintr)
 				return BAN::Error::from_errno(EINTR);
 		}

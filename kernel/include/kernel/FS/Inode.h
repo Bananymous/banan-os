@@ -121,9 +121,10 @@ namespace Kernel
 		virtual BAN::ErrorOr<void> chmod_impl(mode_t)						{ return BAN::Error::from_errno(ENOTSUP); }
 		virtual bool has_data_impl() const { dwarnln("nonblock not supported"); return true; }
 
-	private:
-		mutable RecursiveSpinLock m_lock;
+	protected:
+		mutable RecursivePrioritySpinLock m_lock;
 
+	private:
 		BAN::WeakPtr<SharedFileData> m_shared_region;
 		friend class FileBackedRegion;
 	};

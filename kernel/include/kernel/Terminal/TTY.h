@@ -56,8 +56,6 @@ namespace Kernel
 		void do_backspace();
 
 	protected:
-		mutable Kernel::RecursiveSpinLock m_lock;
-
 		TerminalDriver::Color m_foreground { TerminalColor::BRIGHT_WHITE };
 		TerminalDriver::Color m_background { TerminalColor::BLACK };
 		termios m_termios;
