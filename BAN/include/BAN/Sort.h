@@ -2,6 +2,7 @@
 
 #include <BAN/Swap.h>
 #include <BAN/Traits.h>
+#include <BAN/Math.h>
 
 namespace BAN
 {
@@ -98,6 +99,30 @@ namespace BAN
 				root = child;
 			}
 		}
+	}
+
+	namespace detail::sort
+	{
+
+		template<typename It, typename Comp>
+		void intro_impl(It begin, It end, size_t max_depth, Comp comp)
+		{
+			if (distance(begin, end) < 16)
+				return sort_insertion(begin, end, comp);
+			if (max_depth == 0)
+				return sort_heap(begin, end, comp);
+			It mid = detail::sort::partition(begin, end, comp);
+			intro_impl(begin, mid, max_depth - 1, comp);
+			intro_impl(++mid, end, max_depth - 1, comp);
+		}
+
+	}
+
+	template<typename It, typename Comp = less<typename It::value_type>>
+	void sort_intro(It begin, It end, Comp comp = {})
+	{
+		size_t max_depth = Math::ilog2(distance(begin, end));
+		detail::sort::intro_impl(begin, end, max_depth, comp);
 	}
 
 }
