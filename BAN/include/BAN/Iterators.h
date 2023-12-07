@@ -59,7 +59,8 @@ namespace BAN
 		IteratorSimpleGeneral& operator--()
 		{
 			ASSERT(m_pointer);
-			return --m_pointer;
+			--m_pointer;
+			return *this;
 		}
 		IteratorSimpleGeneral operator--(int)
 		{
