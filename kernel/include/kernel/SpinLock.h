@@ -39,4 +39,24 @@ namespace Kernel
 		SpinLock m_lock;
 	};
 
+	class RecursivePrioritySpinLock
+	{
+		BAN_NON_COPYABLE(RecursivePrioritySpinLock);
+		BAN_NON_MOVABLE(RecursivePrioritySpinLock);
+	
+	public:
+		RecursivePrioritySpinLock() = default;
+		void lock();
+		void unlock();
+		bool is_locked() const;
+
+		uint32_t lock_depth() const { return m_lock_depth; }
+
+	private:
+		pid_t m_locker = -1;
+		uint32_t m_queue_length = 0;
+		uint32_t m_lock_depth = 0;
+		SpinLock m_lock;
+	};
+
 }
