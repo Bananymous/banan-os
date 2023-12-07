@@ -125,4 +125,10 @@ namespace BAN
 		detail::sort::intro_impl(begin, end, max_depth, comp);
 	}
 
+	template<typename It, typename Comp = less<typename It::value_type>>
+	void sort(It begin, It end, Comp comp = {})
+	{
+		return sort_intro(begin, end, comp);
+	}
+
 }
