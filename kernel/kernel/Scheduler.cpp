@@ -378,26 +378,4 @@ namespace Kernel
 		}
 	}
 
-	bool Scheduler::is_valid_tid(pid_t tid)
-	{
-		CriticalScope _;
-
-		if (s_instance == nullptr)
-			return tid == 0;
-
-		for (auto& thread : s_instance->m_active_threads)
-			if (thread.thread->tid() == tid)
-				return true;
-		
-		for (auto& thread : s_instance->m_sleeping_threads)
-			if (thread.thread->tid() == tid)
-				return true;
-
-		for (auto& thread : s_instance->m_blocking_threads)
-			if (thread.thread->tid() == tid)
-				return true;
-
-		return false;
-	}
-
 }

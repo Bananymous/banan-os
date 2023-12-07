@@ -13,7 +13,7 @@ namespace Kernel
 			{
 				CriticalScope _;
 				ASSERT(m_locker != tid);
-				if (m_locker == -1 || !Scheduler::is_valid_tid(m_locker))
+				if (m_locker == -1)
 				{
 					m_locker = tid;
 					break;
@@ -48,7 +48,7 @@ namespace Kernel
 				m_lock_depth++;
 				break;
 			}
-			if (m_locker == -1 || !Scheduler::is_valid_tid(m_locker))
+			if (m_locker == -1)
 			{
 				m_locker = tid;
 				m_lock_depth = 1;
