@@ -1,5 +1,6 @@
 #include <BAN/Vector.h>
 #include <BAN/String.h>
+#include <BAN/Swap.h>
 
 #include <ctype.h>
 #include <stdio.h>
@@ -62,44 +63,40 @@ i64 hand_score(const Hand& hand, bool joker)
 	{
 		if (isdigit(c))
 			cnt[c - '0' +  0]++;
-		else if (c == 'J')
+		else if (joker && c == 'J')
 			joker_count++;
 		else
 			cnt[c - 'A' + 10]++;
 	}
 
-	if (!joker)
+	i64 freq_max1 = 0;
+	i64 freq_max2 = 0;
+	for (size_t i = 0; i < 36; i++)
 	{
-		cnt['J' - 'A' + 10] = joker_count;
-		joker_count = 0;
+		if (cnt[i] > freq_max1)
+		{
+			freq_max2 = freq_max1;
+			freq_max1 = cnt[i];
+		}
+		else if (cnt[i] > freq_max2)
+		{
+			freq_max2 = cnt[i];
+		}
 	}
-	
-	for (size_t i = 0; i < 36; i++)
-		if (cnt[i] + joker_count >= 5)
-			return 6'000'000 + hand_score_no_type(hand, joker);
-	
-	for (size_t i = 0; i < 36; i++)
-		if (cnt[i] + joker_count >= 4)
-			return 5'000'000 + hand_score_no_type(hand, joker);
-	
-	for (size_t i = 0; i < 36; i++)
-		for (size_t j = 0; j < 36; j++)
-			if (i != j && cnt[i] + joker_count >= 3 && cnt[j] >= 2)
-				return 4'000'000 + hand_score_no_type(hand, joker);
-	
-	for (size_t i = 0; i < 36; i++)
-		if (cnt[i] + joker_count >= 3)
-			return 3'000'000 + hand_score_no_type(hand, joker);
-	
-	for (size_t i = 0; i < 36; i++)
-		for (size_t j = 0; j < 36; j++)
-			if (i != j && cnt[i] + joker_count >= 2 && cnt[j] >= 2)
-				return 2'000'000 + hand_score_no_type(hand, joker);
-	
-	for (size_t i = 0; i < 36; i++)
-		if (cnt[i] + joker_count >= 2)
-			return 1'000'000 + hand_score_no_type(hand, joker);
-	
+	freq_max1 += joker_count;
+
+	if (freq_max1 == 5)
+		return 6'000'000 + hand_score_no_type(hand, joker);
+	if (freq_max1 == 4)
+		return 5'000'000 + hand_score_no_type(hand, joker);
+	if (freq_max1 == 3 && freq_max2 == 2)
+		return 4'000'000 + hand_score_no_type(hand, joker);
+	if (freq_max1 == 3)
+		return 3'000'000 + hand_score_no_type(hand, joker);
+	if (freq_max1 == 2 && freq_max2 == 2)
+		return 2'000'000 + hand_score_no_type(hand, joker);
+	if (freq_max1 == 2)
+		return 1'000'000 + hand_score_no_type(hand, joker);
 	return hand_score_no_type(hand, joker);
 }
 
@@ -113,11 +110,10 @@ i64 puzzle(FILE* fp, bool joker)
 		BAN::StringView line(buffer);
 		if (line.size() < 7)
 			continue;
-
-		Hand hand;
-		hand.hand = line.substring(0, 5);
-		hand.bid = parse_i64(line.substring(6));
-		MUST(hands.push_back(hand));
+		MUST(hands.emplace_back(
+			line.substring(0, 5),
+			parse_i64(line.substring(6))
+		));
 	}
 
 	// Very slow sorting algorithm
@@ -129,9 +125,7 @@ i64 puzzle(FILE* fp, bool joker)
 			i64 r_score = hand_score(hands[j], joker);
 			if (r_score > l_score)
 			{
-				Hand tmp = BAN::move(hands[i]);
-				hands[i] = BAN::move(hands[j]);
-				hands[j] = BAN::move(tmp);
+				BAN::swap(hands[i], hands[j]);
 				l_score = r_score;
 			}
 		}
