@@ -469,30 +469,24 @@ pid_t execute_command_no_wait(BAN::Vector<BAN::String>& args, int fd_in, int fd_
 
 	// do PATH resolution
 	BAN::String executable_file;
-	if (!args.front().empty() && args.front().front() != '.' && args.front().front() != '/')
+	if (!args.front().sv().contains('/'))
 	{
-		char* path_env_cstr = getenv("PATH");
-		if (path_env_cstr)
+		const char* path_env_cstr = getenv("PATH");
+		if (path_env_cstr == nullptr)
+			path_env_cstr = "";
+
+		auto path_env_list = MUST(BAN::StringView(path_env_cstr).split(':'));
+		for (auto path_env : path_env_list)
 		{
-			auto path_env_list = MUST(BAN::StringView(path_env_cstr).split(':'));
-			for (auto path_env : path_env_list)
-			{
-				BAN::String test_file = path_env;
-				MUST(test_file.push_back('/'));
-				MUST(test_file.append(args.front()));
+			BAN::String test_file = path_env;
+			MUST(test_file.push_back('/'));
+			MUST(test_file.append(args.front()));
 
-				struct stat st;
-				if (stat(test_file.data(), &st) == 0)
-				{
-					executable_file = BAN::move(test_file);
-					break;
-				}
-			}
-
-			if (executable_file.empty())
+			struct stat st;
+			if (stat(test_file.data(), &st) == 0)
 			{
-				fprintf(stderr, "command not found: %s\n", args.front().data());
-				return -1;
+				executable_file = BAN::move(test_file);
+				break;
 			}
 		}
 	}
@@ -504,7 +498,7 @@ pid_t execute_command_no_wait(BAN::Vector<BAN::String>& args, int fd_in, int fd_
 	// Verify that the file exists is executable
 	{
 		struct stat st;
-		if (stat(executable_file.data(), &st) == -1)
+		if (executable_file.empty() || stat(executable_file.data(), &st) == -1)
 		{
 			fprintf(stderr, "command not found: %s\n", args.front().data());
 			return -1;
