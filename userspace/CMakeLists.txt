@@ -28,6 +28,7 @@ set(USERSPACE_PROJECTS
 	test
 	test-globals
 	test-framebuffer
+	test-sort
 	touch
 	u8sum
 	whoami
