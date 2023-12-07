@@ -36,6 +36,25 @@ namespace BAN
 		return it - count;
 	}
 
+	template<typename It>
+	size_t distance(It it1, It it2)
+	{
+		size_t dist = 0;
+		while (it1 != it2)
+		{
+			++it1;
+			++dist;
+		}
+		return dist;
+	}
+
+	template<typename It>
+	requires requires(It it1, It it2) { requires is_integral_v<decltype(it2 - it1)>; }
+	size_t distance(It it1, It it2)
+	{
+		return it2 - it1;
+	}
+
 	template<typename T, typename Container, bool CONST>
 	class IteratorSimpleGeneral
 	{
