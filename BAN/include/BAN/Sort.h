@@ -10,7 +10,7 @@ namespace BAN
 	void sort_exchange(It begin, It end, Comp comp = {})
 	{
 		for (It lhs = begin; lhs != end; ++lhs)
-			for (It rhs = lhs; ++rhs != end;)
+			for (It rhs = next(lhs, 1); rhs != end; ++rhs)
 				if (!comp(*lhs, *rhs))
 					swap(*lhs, *rhs);
 	}
@@ -21,7 +21,7 @@ namespace BAN
 		template<typename It, typename Comp>
 		It sort_quick_partition(It begin, It end, Comp comp)
 		{
-			It pivot = end; --pivot;
+			It pivot = prev(end, 1);
 
 			It it1 = begin;
 			for (It it2 = begin; it2 != pivot; ++it2)

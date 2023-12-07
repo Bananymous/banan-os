@@ -1,9 +1,40 @@
 #pragma once
 
 #include <BAN/Assert.h>
+#include <BAN/Traits.h>
 
 namespace BAN
 {
+
+	template<typename It>
+	It next(It it, size_t count)
+	{
+		for (size_t i = 0; i < count; i++)
+			++it;
+		return it;
+	}
+
+	template<typename It>
+	requires requires(It it, size_t n) { requires is_same_v<decltype(it + n), It>; }
+	It next(It it, size_t count)
+	{
+		return it + count;
+	}
+
+	template<typename It>
+	It prev(It it, size_t count)
+	{
+		for (size_t i = 0; i < count; i++)
+			--it;
+		return it;
+	}
+
+	template<typename It>
+	requires requires(It it, size_t n) { requires is_same_v<decltype(it - n), It>; }
+	It prev(It it, size_t count)
+	{
+		return it - count;
+	}
 
 	template<typename T, typename Container, bool CONST>
 	class IteratorSimpleGeneral
