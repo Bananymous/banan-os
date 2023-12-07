@@ -3,6 +3,7 @@
 #include <BAN/Assert.h>
 #include <BAN/Math.h>
 #include <BAN/Move.h>
+#include <BAN/New.h>
 
 #include <string.h>
 
