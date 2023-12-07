@@ -42,9 +42,10 @@ namespace BAN
 		void destruct(size_t index, uint8_t* data)
 		{
 			if (index == 0)
+			{
 				if constexpr(!is_lvalue_reference_v<T>)
 					reinterpret_cast<T*>(data)->~T();
-				else;
+			}
 			else if constexpr(sizeof...(Ts) > 0)
 				destruct<Ts...>(index - 1, data);
 			else
