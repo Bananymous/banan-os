@@ -59,6 +59,17 @@ namespace BAN::Math
 		return (value & (value - 1)) == 0;
 	}
 
+	template<typename T>
+	requires is_same_v<T, unsigned int> || is_same_v<T, unsigned long> || is_same_v<T, unsigned long long>
+	inline constexpr T ilog2(T value)
+	{
+		if constexpr(is_same_v<T, unsigned int>)
+			return sizeof(T) * 8 - __builtin_clz(value) - 1;
+		if constexpr(is_same_v<T, unsigned long>)
+			return sizeof(T) * 8 - __builtin_clzl(value) - 1;
+		return sizeof(T) * 8 - __builtin_clzll(value) - 1;
+	}
+
 	template<floating_point T>
 	inline constexpr T log2(T value)
 	{
