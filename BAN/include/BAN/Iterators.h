@@ -9,6 +9,9 @@ namespace BAN
 	class IteratorSimpleGeneral
 	{
 	public:
+		using value_type = T;
+
+	public:
 		IteratorSimpleGeneral() = default;
 		template<bool CONST2, typename = enable_if_t<CONST2 == CONST || CONST>>
 		IteratorSimpleGeneral(const IteratorSimpleGeneral<T, Container, CONST2>& other)
@@ -101,6 +104,8 @@ namespace BAN
 
 		using InnerIterator = either_or_t<CONST, typename Inner::const_iterator, typename Inner::iterator>;
 		using OuterIterator = either_or_t<CONST, typename Outer::const_iterator, typename Outer::iterator>;
+
+		using value_type = T;
 
 	public:
 		IteratorDoubleGeneral() = default;
