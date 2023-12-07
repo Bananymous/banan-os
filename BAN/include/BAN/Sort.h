@@ -15,11 +15,11 @@ namespace BAN
 					swap(*lhs, *rhs);
 	}
 
-	namespace detail
+	namespace detail::sort
 	{
 
 		template<typename It, typename Comp>
-		It sort_quick_partition(It begin, It end, Comp comp)
+		It partition(It begin, It end, Comp comp)
 		{
 			It pivot = prev(end, 1);
 
@@ -45,7 +45,7 @@ namespace BAN
 	{
 		if (begin == end || next(begin, 1) == end)
 			return;
-		It mid = detail::sort_quick_partition(begin, end, comp);
+		It mid = detail::sort::partition(begin, end, comp);
 		sort_quick(begin, mid, comp);
 		sort_quick(++mid, end, comp);
 	}
@@ -53,7 +53,7 @@ namespace BAN
 	template<typename It, typename Comp = less<typename It::value_type>>
 	void sort_insertion(It begin, It end, Comp comp = {})
 	{
-		if (begin == end)
+		if (begin == end || next(begin, 1) == end)
 			return;
 		for (It it1 = next(begin, 1); it1 != end; ++it1)
 		{
