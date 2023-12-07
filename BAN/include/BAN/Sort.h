@@ -43,15 +43,26 @@ namespace BAN
 	template<typename It, typename Comp = less<typename It::value_type>>
 	void sort_quick(It begin, It end, Comp comp = {})
 	{
-		{
-			It it = begin;
-			if (it == end || ++it == end)
-				return;
-		}
-
+		if (begin == end || next(begin, 1) == end)
+			return;
 		It mid = detail::sort_quick_partition(begin, end, comp);
 		sort_quick(begin, mid, comp);
 		sort_quick(++mid, end, comp);
+	}
+
+	template<typename It, typename Comp = less<typename It::value_type>>
+	void sort_insertion(It begin, It end, Comp comp = {})
+	{
+		if (begin == end)
+			return;
+		for (It it1 = next(begin, 1); it1 != end; ++it1)
+		{
+			typename It::value_type x = move(*it1);
+			It it2 = it1;
+			for (; it2 != begin && comp(x, *prev(it2, 1)); --it2)
+				*it2 = move(*prev(it2, 1));
+			*it2 = move(x);
+		}
 	}
 
 }
