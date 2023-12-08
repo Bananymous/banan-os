@@ -4,11 +4,11 @@
 #include <BAN/Traits.h>
 #include <BAN/Math.h>
 
-namespace BAN
+namespace BAN::sort
 {
 
 	template<typename It, typename Comp = less<typename It::value_type>>
-	void sort_exchange(It begin, It end, Comp comp = {})
+	void exchange_sort(It begin, It end, Comp comp = {})
 	{
 		for (It lhs = begin; lhs != end; ++lhs)
 			for (It rhs = next(lhs, 1); rhs != end; ++rhs)
@@ -16,7 +16,7 @@ namespace BAN
 					swap(*lhs, *rhs);
 	}
 
-	namespace detail::sort
+	namespace detail
 	{
 
 		template<typename It, typename Comp>
@@ -42,17 +42,17 @@ namespace BAN
 	}
 
 	template<typename It, typename Comp = less<typename It::value_type>>
-	void sort_quick(It begin, It end, Comp comp = {})
+	void quick_sort(It begin, It end, Comp comp = {})
 	{
 		if (begin == end || next(begin, 1) == end)
 			return;
-		It mid = detail::sort::partition(begin, end, comp);
-		sort_quick(begin, mid, comp);
-		sort_quick(++mid, end, comp);
+		It mid = detail::partition(begin, end, comp);
+		quick_sort(begin, mid, comp);
+		quick_sort(++mid, end, comp);
 	}
 
 	template<typename It, typename Comp = less<typename It::value_type>>
-	void sort_insertion(It begin, It end, Comp comp = {})
+	void insertion_sort(It begin, It end, Comp comp = {})
 	{
 		if (begin == end || next(begin, 1) == end)
 			return;
@@ -67,7 +67,7 @@ namespace BAN
 	}
 
 	template<typename It, typename Comp = less<typename It::value_type>>
-	void sort_heap(It begin, It end, Comp comp = {})
+	void heap_sort(It begin, It end, Comp comp = {})
 	{
 		if (begin == end || next(begin, 1) == end)
 			return;
@@ -101,34 +101,34 @@ namespace BAN
 		}
 	}
 
-	namespace detail::sort
+	namespace detail
 	{
 
 		template<typename It, typename Comp>
-		void intro_impl(It begin, It end, size_t max_depth, Comp comp)
+		void intro_sort_impl(It begin, It end, size_t max_depth, Comp comp)
 		{
 			if (distance(begin, end) < 16)
-				return sort_insertion(begin, end, comp);
+				return insertion_sort(begin, end, comp);
 			if (max_depth == 0)
-				return sort_heap(begin, end, comp);
-			It mid = detail::sort::partition(begin, end, comp);
-			intro_impl(begin, mid, max_depth - 1, comp);
-			intro_impl(++mid, end, max_depth - 1, comp);
+				return heap_sort(begin, end, comp);
+			It mid = detail::partition(begin, end, comp);
+			intro_sort_impl(begin, mid, max_depth - 1, comp);
+			intro_sort_impl(++mid, end, max_depth - 1, comp);
 		}
 
 	}
 
 	template<typename It, typename Comp = less<typename It::value_type>>
-	void sort_intro(It begin, It end, Comp comp = {})
+	void intro_sort(It begin, It end, Comp comp = {})
 	{
 		size_t max_depth = Math::ilog2(distance(begin, end));
-		detail::sort::intro_impl(begin, end, max_depth, comp);
+		detail::intro_sort_impl(begin, end, max_depth, comp);
 	}
 
 	template<typename It, typename Comp = less<typename It::value_type>>
 	void sort(It begin, It end, Comp comp = {})
 	{
-		return sort_intro(begin, end, comp);
+		return sort::intro_sort(begin, end, comp);
 	}
 
 }
