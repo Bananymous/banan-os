@@ -87,7 +87,7 @@ sudo partprobe $LOOP_DEV
 PARTITION1=${LOOP_DEV}p1
 PARTITION2=${LOOP_DEV}p2
 
-sudo mkfs.ext2 -b 1024 -q $PARTITION2
+sudo mkfs.ext2 -q $PARTITION2
 
 sudo mkdir -p $MOUNT_DIR || { echo "Failed to create banan mount dir."; exit 1; }
 

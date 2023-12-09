@@ -106,7 +106,8 @@ namespace Kernel
 			else
 			{
 				// In other revision superblock backups are on blocks 1 and powers of 3, 5 and 7
-				TRY(m_superblock_backups.push_back(1));
+				if (1 < number_of_block_groups)
+					TRY(m_superblock_backups.push_back(1));
 				for (uint32_t i = 3; i < number_of_block_groups; i *= 3)
 					TRY(m_superblock_backups.push_back(i));
 				for (uint32_t i = 5; i < number_of_block_groups; i *= 5)
@@ -275,11 +276,10 @@ namespace Kernel
 		const uint32_t sector_size = m_block_device->blksize();
 		const uint32_t block_size = this->block_size();
 		const uint32_t sectors_per_block = block_size / sector_size;
-		const uint32_t sectors_before = 2048 / sector_size;
 
-		ASSERT(block >= 2);
+		ASSERT(block >= superblock().first_data_block + 1);
 		ASSERT(buffer.size() >= block_size);
-		MUST(m_block_device->read_blocks(sectors_before + (block - 2) * sectors_per_block, sectors_per_block, buffer.span()));
+		MUST(m_block_device->read_blocks(block * sectors_per_block, sectors_per_block, buffer.span()));
 	}
 
 	void Ext2FS::write_block(uint32_t block, const BlockBufferWrapper& buffer)
@@ -289,11 +289,10 @@ namespace Kernel
 		const uint32_t sector_size = m_block_device->blksize();
 		const uint32_t block_size = this->block_size();
 		const uint32_t sectors_per_block = block_size / sector_size;
-		const uint32_t sectors_before = 2048 / sector_size;
 
-		ASSERT(block >= 2);
+		ASSERT(block >= superblock().first_data_block + 1);
 		ASSERT(buffer.size() >= block_size);
-		MUST(m_block_device->write_blocks(sectors_before + (block - 2) * sectors_per_block, sectors_per_block, buffer.span()));
+		MUST(m_block_device->write_blocks(block * sectors_per_block, sectors_per_block, buffer.span()));
 	}
 
 	void Ext2FS::sync_superblock()
@@ -472,9 +471,8 @@ namespace Kernel
 		const uint32_t block_group_count = BAN::Math::div_round_up(superblock().inodes_count, superblock().inodes_per_group);
 		ASSERT(group_index < block_group_count);
 
-		// Block Group Descriptor table is always after the superblock
-		// Superblock begins at byte 1024 and is exactly 1024 bytes wide
-		const uint32_t bgd_byte_offset = 2048 + sizeof(Ext2::BlockGroupDescriptor) * group_index;
+		// Block Group Descriptor table is in the block after superblock
+		const uint32_t bgd_byte_offset = (superblock().first_data_block + 1) * block_size + sizeof(Ext2::BlockGroupDescriptor) * group_index;
 
 		return
 		{
