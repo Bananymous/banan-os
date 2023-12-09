@@ -1,27 +1,71 @@
 .code16
 .section .stage2
 
-# Find suitable video mode (argument registers not saved)
+# kernel framebuffer information format
+#	.align 8
+#	.long 0xBABAB007
+#	.long -(0xBABAB007 + width + height + bpp)
+#	.long width		(2 bytes used, 4 bytes for ease of calculation)
+#	.long height	(2 bytes used, 4 bytes for ease of calculation)
+#	.long bpp		(1 bytes used, 4 bytes for ease of calculation)
+
+# scan memory 0x100000 -> 0x200000 for framebuffer information
+# return:
 #	ax: target width
 #	bx: target height
-#	cl: target bpp
-# return:
-#	ax: video mode number if found, 0 otherwise
-.global vesa_find_video_mode
+#	cx: target bpp
+vesa_scan_kernel_image:
+	pushl %edx
+	pushl %esi
+
+	movl $0x100000, %esi
+
+ .vesa_scan_kernel_image_loop:
+	# check magic
+	cmpl $0xBABAB007, (%esi)
+	jne .vesa_scan_kernel_image_next_addr
+
+	# check checksum
+	movl 0x00(%esi), %edx
+	addl 0x04(%esi), %edx
+	addl 0x08(%esi), %edx
+	addl 0x0C(%esi), %edx
+	addl 0x10(%esi), %edx
+	testl %edx, %edx
+	jnz .vesa_scan_kernel_image_next_addr
+
+	# set return registers
+	movw 0x08(%esi), %ax
+	movw 0x0C(%esi), %bx
+	movw 0x10(%esi), %cx
+	jmp .vesa_scan_kernel_image_done
+
+ .vesa_scan_kernel_image_next_addr:
+	addl $8, %esi
+	cmpl $0x200000, %esi
+	jb .vesa_scan_kernel_image_loop
+
+	# zero out return registers
+	xorw %ax, %ax
+	xorw %bx, %bx
+	xorw %cx, %cx
+
+ .vesa_scan_kernel_image_done:
+	popl %esi
+	popl %edx
+	ret
+
+# Find suitable video mode and save it in (vesa_target_mode)
 vesa_find_video_mode:
+	pushw %ax
+	pushw %bx
+	pushw %cx
 	pushw %di
 	pushl %esi
 
 	pushl %ebp
 	movl %esp, %ebp
 	subl $6, %esp
-
-	# save arguments in stack
-	movw %ax, -2(%ebp)
-	movw %bx, -4(%ebp)
-
-	andw $0xFF, %cx
-	movw %cx, -6(%ebp)
 
 	# clear target mode and frame buffer
 	movw $0, (vesa_target_mode)
@@ -30,6 +74,15 @@ vesa_find_video_mode:
 	movl $0, (framebuffer + 8)
 	movl $0, (framebuffer + 12)
 	movw $0, (framebuffer + 16)
+
+	call vesa_scan_kernel_image
+	testw %ax, %ax
+	jz .vesa_find_video_mode_loop_modes_done
+
+	# save arguments in stack
+	movw %ax, -2(%ebp)
+	movw %bx, -4(%ebp)
+	movw %cx, -6(%ebp)
 
 	# get vesa information
 	movw $0x4F00, %ax
@@ -72,17 +125,17 @@ vesa_find_video_mode:
 	movb -6(%ebp), %al; cmpb %al, (vesa_mode_info_buffer + 0x19)
 	jne .vesa_find_video_mode_next_mode
 
+	# set address, pitch, type
 	movl (vesa_mode_info_buffer + 0x28), %esi
-	movl %esi,				(framebuffer + 0)
+	movl %esi, (framebuffer + 0)
 	movw (vesa_mode_info_buffer + 0x10), %ax
-	movw %ax,				(framebuffer + 4)
+	movw %ax,  (framebuffer + 4)
+	movb $1,   (framebuffer + 17)
 
-	xorl %eax, %eax
+	# set width, height, bpp
 	movw -2(%ebp), %ax; movw %ax, (framebuffer +  8)
 	movw -4(%ebp), %ax; movw %ax, (framebuffer + 12)
 	movw -6(%ebp), %ax; movb %al, (framebuffer + 16)
-
-	movb $1,				(framebuffer + 17)
 
 	movw %cx, (vesa_target_mode)
 	jmp .vesa_find_video_mode_loop_modes_done
@@ -95,6 +148,9 @@ vesa_find_video_mode:
 	leavel
 	popl %esi
 	popw %di
+	popw %cx
+	popw %bx
+	popw %ax
 	ret
 
  .vesa_unsupported:
@@ -108,16 +164,19 @@ vesa_find_video_mode:
 	jmp print_and_halt
 
 
-# set mode found from vesa_find_video_mode. if no mode
-# was found, set it to 80x25 text mode to clear the screen.
-.global vesa_set_target_mode
-vesa_set_target_mode:
+# scan for video mode in kernel memory and set the correct one.
+# when video mode is not found or does not exists,
+# set it to 80x25 text mode to clear the screen.
+.global vesa_set_video_mode
+vesa_set_video_mode:
 	pushw %ax
 	pushw %bx
 
+	call vesa_find_video_mode
+
 	movw (vesa_target_mode), %bx
 	testw %bx, %bx
-	jz .vesa_set_target_mode_generic	
+	jz .vesa_set_target_mode_generic
 
 	movw $0x4F02, %ax
 	orw $0x4000, %bx

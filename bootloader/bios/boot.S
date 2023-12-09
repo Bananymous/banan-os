@@ -59,11 +59,6 @@ stage2_main:
 
 	call get_memory_map
 	call read_user_command_line
-	
-	movw $800, %ax
-	movw $600, %bx
-	movb $32,  %cl
-	call vesa_find_video_mode
 
 	call print_newline
 
@@ -87,7 +82,7 @@ stage2_main:
 
 	call elf_read_kernel_to_memory
 
-	call vesa_set_target_mode
+	call vesa_set_video_mode
 
 	cli
 
