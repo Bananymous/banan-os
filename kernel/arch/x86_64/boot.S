@@ -2,6 +2,10 @@
 .set PG_READ_WRITE,	1<<1
 .set PG_PAGE_SIZE,	1<<7
 
+.set FB_WIDTH,	800
+.set FB_HEIGHT,	600
+.set FB_BPP,	32
+
 #define KERNEL_OFFSET 0xFFFFFFFF80000000
 #define V2P(vaddr) ((vaddr) - KERNEL_OFFSET)
 
@@ -9,8 +13,8 @@
 
 # multiboot2 header
 .section .multiboot, "aw"
-multiboot2_start:
 	.align 8
+multiboot2_start:
 	.long 0xE85250D6
 	.long 0
 	.long multiboot2_end - multiboot2_start
@@ -21,9 +25,9 @@ multiboot2_start:
 	.short 5
 	.short 0
 	.long 20
-	.long 800
-	.long 600
-	.long 32
+	.long FB_WIDTH
+	.long FB_HEIGHT
+	.long FB_BPP
 
 	# legacy start
 	.align 8
@@ -37,6 +41,16 @@ multiboot2_start:
 	.short 0
 	.long 8
 multiboot2_end:
+
+.section .bananboot, "aw"
+	.align 8
+bananboot_start:
+	.long 0xBABAB007
+	.long -(0xBABAB007 + FB_WIDTH + FB_HEIGHT + FB_BPP)
+	.long FB_WIDTH
+	.long FB_HEIGHT
+	.long FB_BPP
+bananboot_end:
 
 .section .bss, "aw", @nobits
  	# Create stack

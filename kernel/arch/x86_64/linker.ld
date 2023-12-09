@@ -11,6 +11,7 @@ SECTIONS
 	{
 		g_kernel_execute_start = .;
 		*(.multiboot)
+		*(.bananboot)
 		*(.text.*)
 	}
 	.userspace ALIGN(4K) : AT(ADDR(.userspace) - KERNEL_OFFSET)
