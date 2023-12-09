@@ -17,15 +17,15 @@ const char* mode_string(mode_t mode)
 				(mode & 0770000) == S_IFBLK ? 'b' :
 				(mode & 0770000) == S_IFCHR ? 'c' :
 				'-';
-	buffer[1] = mode & S_IRUSR ? 'r' : '-';
-	buffer[2] = mode & S_IWUSR ? 'w' : '-';
-	buffer[3] = mode & S_IXUSR ? 'x' : '-';
-	buffer[4] = mode & S_IRGRP ? 'r' : '-';
-	buffer[5] = mode & S_IWGRP ? 'w' : '-';
-	buffer[6] = mode & S_IXGRP ? 'x' : '-';
-	buffer[7] = mode & S_IROTH ? 'r' : '-';
-	buffer[8] = mode & S_IWOTH ? 'w' : '-';
-	buffer[9] = mode & S_IXOTH ? 'x' : '-';
+	buffer[1] = (mode & S_IRUSR) ? 'r' : '-';
+	buffer[2] = (mode & S_IWUSR) ? 'w' : '-';
+	buffer[3] = (mode & S_ISUID) ? ((mode & S_IXUSR) ? 's' : 'S') : (mode & S_IXUSR) ? 'x' : '-';
+	buffer[4] = (mode & S_IRGRP) ? 'r' : '-';
+	buffer[5] = (mode & S_IWGRP) ? 'w' : '-';
+	buffer[6] = (mode & S_ISGID) ? ((mode & S_IXGRP) ? 's' : 'S') : (mode & S_IXGRP) ? 'x' : '-';
+	buffer[7] = (mode & S_IROTH) ? 'r' : '-';
+	buffer[8] = (mode & S_IWOTH) ? 'w' : '-';
+	buffer[9] = (mode & S_ISVTX) ? ((mode & S_IXOTH) ? 't' : 'T') : (mode & S_IXOTH) ? 'x' : '-';
 	buffer[10] = '\0';
 
 	return buffer;
