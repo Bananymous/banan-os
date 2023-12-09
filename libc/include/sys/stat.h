@@ -57,7 +57,6 @@ struct stat
 #define S_ISUID		((mode_t)04000)
 #define S_ISGID		((mode_t)02000)
 #define S_ISVTX		((mode_t)01000)
-#define S_IRWXMASK	(S_IRWXU | S_IRWXG | S_IRWXO)
 
 #define S_IFIFO		((mode_t)0010000)
 #define S_IFCHR		((mode_t)0020000)
