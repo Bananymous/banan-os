@@ -16,7 +16,7 @@ i64 parse_i64(BAN::StringView sv)
 	bool negative = (!sv.empty() && sv.front() == '-');
 	if (negative)
 		sv = sv.substring(1);
-	
+
 	i64 result = 0;
 	for (char c : sv)
 	{
@@ -27,6 +27,37 @@ i64 parse_i64(BAN::StringView sv)
 	return negative ? -result : result;
 }
 
+BAN::Vector<BAN::Vector<i64>> build_difference_tree(BAN::StringView input)
+{
+	auto value_strs = MUST(input.split(' '));
+	if (value_strs.empty())
+		return {};
+
+	BAN::Vector<BAN::Vector<i64>> tree;
+	MUST(tree.emplace_back(value_strs.size(), 0));
+	for (size_t i = 0; i < value_strs.size(); i++)
+		tree.back()[i] = parse_i64(value_strs[i]);
+
+	bool all_zeroes = false;
+	while (!all_zeroes)
+	{
+		size_t last = tree.size();
+		MUST(tree.emplace_back(tree.back().size() - 1, 0));
+
+		all_zeroes = true;
+		for (size_t i = 0; i < tree.back().size(); i++)
+		{
+			i64 lhs = tree[last - 1][i + 0];
+			i64 rhs = tree[last - 1][i + 1];
+			tree[last][i] = rhs - lhs;
+			if (tree[last][i] != 0)
+				all_zeroes = false;
+		}
+	}
+
+	return tree;
+}
+
 i64 puzzle1(FILE* fp)
 {
 	i64 result = 0;
@@ -34,43 +65,15 @@ i64 puzzle1(FILE* fp)
 	char buffer[128];
 	while (fgets(buffer, sizeof(buffer), fp))
 	{
-		BAN::StringView line(buffer);
-
-		auto value_strs = MUST(line.split(' '));
-		if (value_strs.empty())
+		auto tree = build_difference_tree(buffer);
+		if (tree.empty())
 			continue;
 
-		BAN::Vector<BAN::Vector<i64>> values;
-		MUST(values.emplace_back(value_strs.size() + 1, 0));
-		for (size_t i = 0; i < value_strs.size(); i++)
-			values.back()[i] = parse_i64(value_strs[i]);
+		i64 current = 0;
+		for (size_t i = tree.size(); i > 0; i--)
+			current = tree[i - 1].back() + current;
 
-		bool all_zeroes = false;
-		while (!all_zeroes)
-		{
-			size_t last = values.size();
-			MUST(values.emplace_back(values.back().size() - 1, 0));
-
-			all_zeroes = true;
-			for (size_t i = 0; i < values.back().size() - 1; i++)
-			{
-				i64 lhs = values[last - 1][i + 0];
-				i64 rhs = values[last - 1][i + 1];
-				values[last][i] = rhs - lhs;
-				if (values[last][i] != 0)
-					all_zeroes = false;
-			}
-		}
-
-		for (size_t i = values.size() - 1; i > 0; i--)
-		{
-			const size_t len = values[i].size();
-			i64 lhs = values[i - 1][len - 1];
-			i64 res = values[i][len - 1];
-			values[i - 1][len - 0] = res + lhs;
-		}
-
-		result += values.front().back();
+		result += current;
 	}
 
 	return result;
@@ -83,42 +86,15 @@ i64 puzzle2(FILE* fp)
 	char buffer[128];
 	while (fgets(buffer, sizeof(buffer), fp))
 	{
-		BAN::StringView line(buffer);
-
-		auto value_strs = MUST(line.split(' '));
-		if (value_strs.empty())
+		auto tree = build_difference_tree(buffer);
+		if (tree.empty())
 			continue;
 
-		BAN::Vector<BAN::Vector<i64>> values;
-		MUST(values.emplace_back(value_strs.size() + 1, 0));
-		for (size_t i = 0; i < value_strs.size(); i++)
-			values.back()[i + 1] = parse_i64(value_strs[i]);
+		i64 current = 0;
+		for (size_t i = tree.size(); i > 0; i--)
+			current = tree[i - 1].front() - current;
 
-		bool all_zeroes = false;
-		while (!all_zeroes)
-		{
-			size_t last = values.size();
-			MUST(values.emplace_back(values.back().size() - 1, 0));
-
-			all_zeroes = true;
-			for (size_t i = 1; i < values.back().size(); i++)
-			{
-				i64 lhs = values[last - 1][i + 0];
-				i64 rhs = values[last - 1][i + 1];
-				values[last][i] = rhs - lhs;
-				if (values[last][i] != 0)
-					all_zeroes = false;
-			}
-		}
-
-		for (size_t i = values.size() - 1; i > 0; i--)
-		{
-			i64 rhs = values[i - 1][1];
-			i64 res = values[i][0];
-			values[i - 1][0] = rhs - res;
-		}
-
-		result += values.front().front();
+		result += current;
 	}
 
 	return result;
