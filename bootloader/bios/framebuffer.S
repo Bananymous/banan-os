@@ -1,19 +1,27 @@
-.set TARGET_WIDTH,	800
-.set TARGET_HEIGHT,	600
-.set TARGET_BPP,	32
-
 .code16
 .section .stage2
 
-# Find suitable video mode
+# Find suitable video mode (argument registers not saved)
+#	ax: target width
+#	bx: target height
+#	cl: target bpp
 # return:
 #	ax: video mode number if found, 0 otherwise
 .global vesa_find_video_mode
 vesa_find_video_mode:
-	pushw %ax
-	pushw %cx
 	pushw %di
 	pushl %esi
+
+	pushl %ebp
+	movl %esp, %ebp
+	subl $6, %esp
+
+	# save arguments in stack
+	movw %ax, -2(%ebp)
+	movw %bx, -4(%ebp)
+
+	andw $0xFF, %cx
+	movw %cx, -6(%ebp)
 
 	# clear target mode and frame buffer
 	movw $0, (vesa_target_mode)
@@ -57,20 +65,23 @@ vesa_find_video_mode:
 	jz .vesa_find_video_mode_next_mode
 
 	# compare mode's dimensions
-	cmpw $TARGET_WIDTH, (vesa_mode_info_buffer + 0x12)
+	movw -2(%ebp), %ax; cmpw %ax, (vesa_mode_info_buffer + 0x12)
 	jne .vesa_find_video_mode_next_mode
-	cmpw $TARGET_HEIGHT, (vesa_mode_info_buffer + 0x14)
+	movw -4(%ebp), %ax; cmpw %ax, (vesa_mode_info_buffer + 0x14)
 	jne .vesa_find_video_mode_next_mode
-	cmpb $TARGET_BPP, (vesa_mode_info_buffer + 0x19)
+	movb -6(%ebp), %al; cmpb %al, (vesa_mode_info_buffer + 0x19)
 	jne .vesa_find_video_mode_next_mode
 
 	movl (vesa_mode_info_buffer + 0x28), %esi
 	movl %esi,				(framebuffer + 0)
 	movw (vesa_mode_info_buffer + 0x10), %ax
 	movw %ax,				(framebuffer + 4)
-	movl $TARGET_WIDTH,		(framebuffer + 8)
-	movl $TARGET_HEIGHT,	(framebuffer + 12)
-	movb $TARGET_BPP,		(framebuffer + 16)
+
+	xorl %eax, %eax
+	movw -2(%ebp), %ax; movw %ax, (framebuffer +  8)
+	movw -4(%ebp), %ax; movw %ax, (framebuffer + 12)
+	movw -6(%ebp), %ax; movb %al, (framebuffer + 16)
+
 	movb $1,				(framebuffer + 17)
 
 	movw %cx, (vesa_target_mode)
@@ -81,10 +92,9 @@ vesa_find_video_mode:
 	jmp .vesa_find_video_mode_loop_modes
 
  .vesa_find_video_mode_loop_modes_done:
+	leavel
 	popl %esi
 	popw %di
-	popw %cx
-	popw %ax
 	ret
 
  .vesa_unsupported:

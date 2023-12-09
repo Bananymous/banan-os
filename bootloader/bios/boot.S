@@ -60,6 +60,9 @@ stage2_main:
 	call get_memory_map
 	call read_user_command_line
 	
+	movw $800, %ax
+	movw $600, %bx
+	movb $32,  %cl
 	call vesa_find_video_mode
 
 	call print_newline
