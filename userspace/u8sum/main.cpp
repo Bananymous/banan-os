@@ -16,7 +16,7 @@ int main(int argc, char** argv)
 
 		uint8_t buffer[1024];
 		while (size_t ret = fread(buffer, 1, sizeof(buffer), fp))
-			for (int j = 0; j < ret; j++)
+			for (size_t j = 0; j < ret; j++)
 				sum += buffer[j];
 
 		if (ferror(fp))

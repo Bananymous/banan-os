@@ -3,6 +3,7 @@
 #include <BAN/Optional.h>
 
 #include <ctype.h>
+#include <inttypes.h>
 #include <stdio.h>
 
 BAN::Optional<uint64_t> parse_u64(const uint8_t*& data, size_t data_size)
@@ -86,7 +87,7 @@ BAN::ErrorOr<BAN::UniqPtr<Image>> load_netbpm(const void* mmap_addr, size_t size
 		return BAN::Error::from_errno(EINVAL);
 	}
 
-	printf("Netbpm image %llux%llu\n", *width, *height);
+	printf("Netbpm image %" PRIuPTR "x%" PRIuPTR "\n", *width, *height);
 
 	BAN::Vector<Image::Color> bitmap;
 	TRY(bitmap.resize(*width * *height));

@@ -4,7 +4,6 @@
 bool cat_file(int fd)
 {
 	char buffer[1024];
-	size_t n_read;
 	while (ssize_t n_read = read(fd, buffer, sizeof(buffer)))
 	{
 		if (n_read == -1)

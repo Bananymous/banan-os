@@ -1,6 +1,7 @@
 #include <BAN/Vector.h>
 
 #include <ctype.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdint.h>
 
@@ -112,11 +113,11 @@ int main(int argc, char** argv)
 		return 1;
 	}
 
-	printf("puzzle1: %lld\n", puzzle1(fp));
+	printf("puzzle1: %" PRId64 "\n", puzzle1(fp));
 
 	fseek(fp, 0, SEEK_SET);
 
-	printf("puzzle2: %lld\n", puzzle2(fp));
+	printf("puzzle1: %" PRId64 "\n", puzzle2(fp));
 
 	fclose(fp);
 }

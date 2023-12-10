@@ -47,6 +47,7 @@ add_library(libc ${LIBC_SOURCES})
 add_dependencies(libc headers crtx-install)
 
 target_compile_options(libc PRIVATE -g -Wstack-usage=512)
+target_compile_options(libc PUBLIC -Wall -Wextra -Werror -Wno-error=stack-usage=)
 
 add_custom_target(libc-install
 	COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_BINARY_DIR}/libc.a ${BANAN_LIB}/

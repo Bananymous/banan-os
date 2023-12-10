@@ -54,13 +54,13 @@ bool delete_recursive(const char* path)
 		return false;
 	}
 
-	return true;
+	return ret;
 }
 
 void usage(const char* argv0, int ret)
 {
 	FILE* out = (ret == 0) ? stdout : stderr;
-	fprintf(out, "usage: %s [OPTIONS]... FILE...\n");
+	fprintf(out, "usage: %s [OPTIONS]... FILE...\n", argv0);
 	fprintf(out, "  remove each FILE\n");
 	fprintf(out, "OPTIONS:\n");
 	fprintf(out, "  -r           remove directories and their contents recursively\n");

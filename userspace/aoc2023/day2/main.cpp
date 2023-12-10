@@ -64,7 +64,7 @@ int puzzle2(FILE* fp)
 			continue;
 		ptr += 5;
 	
-		int id = parse_int_and_advance(ptr);
+		parse_int_and_advance(ptr);
 		ptr += 2;
 
 		int needed_red = 0;

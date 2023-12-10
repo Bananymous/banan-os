@@ -59,7 +59,7 @@ bool copy_file(const BAN::String& source, BAN::String destination)
 			break;
 		}
 
-		size_t written = 0;
+		ssize_t written = 0;
 		while (written < nread)
 		{
 			ssize_t nwrite = write(dest_fd, buffer, nread - written);

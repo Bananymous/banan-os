@@ -27,7 +27,7 @@ bool				g_running		= true;
 Point				g_grid_size		= { 21, 21 };
 Direction			g_direction		= Direction::Up;
 Point				g_head			= { 10, 10 };
-int					g_tail_target	= 3;
+size_t				g_tail_target	= 3;
 int					g_score			= 0;
 BAN::Vector<Point>	g_tail;
 Point				g_apple;
@@ -133,6 +133,8 @@ void update()
 				if (g_direction != Direction::Left)
 					new_direction = Direction::Right;
 				break;
+			default:
+				break;
 		}
 	}
 
@@ -154,6 +156,8 @@ void update()
 		case Direction::Right:
 			g_head.x++;
 			break;
+		default:
+			ASSERT_NOT_REACHED();
 	}
 
 	if (g_head.x < 0 || g_head.y < 0 || g_head.x >= g_grid_size.x || g_head.y >= g_grid_size.y)

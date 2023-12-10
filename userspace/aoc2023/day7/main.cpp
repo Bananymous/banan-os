@@ -3,6 +3,7 @@
 #include <BAN/String.h>
 
 #include <ctype.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdint.h>
 
@@ -142,11 +143,11 @@ int main(int argc, char** argv)
 		return 1;
 	}
 
-	printf("puzzle1: %lld\n", puzzle(fp, false));
+	printf("puzzle1: %" PRId64 "\n", puzzle(fp, false));
 
 	fseek(fp, 0, SEEK_SET);
 
-	printf("puzzle2: %lld\n", puzzle(fp, true));
+	printf("puzzle2: %" PRId64 "\n", puzzle(fp, true));
 
 	fclose(fp);
 }

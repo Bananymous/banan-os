@@ -138,7 +138,7 @@ int list_directory(const BAN::String& path, config_t config)
 		}
 
 		struct dirent* dirent;
-		while (dirent = readdir(dirp))
+		while ((dirent = readdir(dirp)))
 		{
 			if (!config.all && dirent->d_name[0] == '.')
 				continue;
@@ -216,15 +216,15 @@ int list_directory(const BAN::String& path, config_t config)
 
 	for (const auto& full_entry : full_entries)
 		printf("%*s %*s %*s %*s %*s %*s %*s %*s %s\n",
-			max_entry.access.size(),		full_entry.access.data(),
-			max_entry.hard_links.size(),	full_entry.hard_links.data(),
-			max_entry.owner_name.size(),	full_entry.owner_name.data(),
-			max_entry.owner_group.size(),	full_entry.owner_group.data(),
-			max_entry.size.size(),			full_entry.size.data(),
-			max_entry.month.size(),			full_entry.month.data(),
-			max_entry.day.size(),			full_entry.day.data(),
-			max_entry.time.size(),			full_entry.time.data(),
-			full_entry.full_name.data()
+			(int)max_entry.access.size(),		full_entry.access.data(),
+			(int)max_entry.hard_links.size(),	full_entry.hard_links.data(),
+			(int)max_entry.owner_name.size(),	full_entry.owner_name.data(),
+			(int)max_entry.owner_group.size(),	full_entry.owner_group.data(),
+			(int)max_entry.size.size(),			full_entry.size.data(),
+			(int)max_entry.month.size(),		full_entry.month.data(),
+			(int)max_entry.day.size(),			full_entry.day.data(),
+			(int)max_entry.time.size(),			full_entry.time.data(),
+												full_entry.full_name.data()
 		);
 
 	return ret;

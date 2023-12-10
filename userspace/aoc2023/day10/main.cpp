@@ -3,6 +3,7 @@
 #include <BAN/Vector.h>
 
 #include <ctype.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdint.h>
 
@@ -85,13 +86,13 @@ BAN::Array<Position, 2> find_grid_first_moves(const Grid& grid)
 			if (grid[y][x] == 'S')
 			{
 				size_t index = 0;
-				if (can_enter_tile_from(grid[y - 1][x], Direction::South))
+				if (index < 2 && can_enter_tile_from(grid[y - 1][x], Direction::South))
 					positions[index++] = { x, y - 1, Direction::South };
-				if (can_enter_tile_from(grid[y + 1][x], Direction::North))
+				if (index < 2 && can_enter_tile_from(grid[y + 1][x], Direction::North))
 					positions[index++] = { x, y + 1, Direction::North };
-				if (can_enter_tile_from(grid[y][x - 1], Direction::East))
+				if (index < 2 && can_enter_tile_from(grid[y][x - 1], Direction::East))
 					positions[index++] = { x - 1, y, Direction::East };
-				if (can_enter_tile_from(grid[y][x + 1], Direction::West))
+				if (index < 2 && can_enter_tile_from(grid[y][x + 1], Direction::West))
 					positions[index++] = { x + 1, y, Direction::West };
 				ASSERT(index == 2);
 				return positions;
@@ -268,11 +269,11 @@ int main(int argc, char** argv)
 		return 1;
 	}
 
-	printf("puzzle1: %lld\n", puzzle1(fp));
+	printf("puzzle1: %" PRId64 "\n", puzzle1(fp));
 
 	fseek(fp, 0, SEEK_SET);
 
-	printf("puzzle2: %lld\n", puzzle2(fp));
+	printf("puzzle2: %" PRId64 "\n", puzzle2(fp));
 
 	fclose(fp);
 }

@@ -1,6 +1,7 @@
 #include <BAN/HashMap.h>
 #include <BAN/Vector.h>
 
+#include <inttypes.h>
 #include <stdio.h>
 
 using i64 = int64_t;
@@ -31,7 +32,7 @@ i64 puzzle1(FILE* fp)
 		line = line.substring(0, line.size() - 1);
 
 		auto seeds_str = MUST(line.split(' '));
-		for (i64 i = 1; i < seeds_str.size(); i++)
+		for (size_t i = 1; i < seeds_str.size(); i++)
 			MUST(current.emplace_back(parse_i64(seeds_str[i]), 0));
 	}
 
@@ -92,7 +93,7 @@ i64 puzzle2(FILE* fp)
 		BAN::StringView line(buffer);
 		line = line.substring(0, line.size() - 1);
 		auto seeds_str = MUST(line.split(' '));
-		for (i64 i = 1; i < seeds_str.size(); i += 2)
+		for (size_t i = 1; i < seeds_str.size(); i += 2)
 			MUST(current.emplace_back(parse_i64(seeds_str[i]), parse_i64(seeds_str[i + 1]), 0));
 	}
 
@@ -179,11 +180,11 @@ int main(int argc, char** argv)
 		return 1;
 	}
 
-	printf("puzzle1: %lld\n", puzzle1(fp));
+	printf("puzzle1: %" PRId64 "\n", puzzle1(fp));
 
 	fseek(fp, 0, SEEK_SET);
 
-	printf("puzzle2: %lld\n", puzzle2(fp));
+	printf("puzzle2: %" PRId64 "\n", puzzle2(fp));
 
 	fclose(fp);
 }

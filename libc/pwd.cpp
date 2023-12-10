@@ -104,7 +104,7 @@ struct passwd* getpwnam(const char* name)
 {
 	passwd* pwd;
 	setpwent();
-	while (pwd = getpwent())
+	while ((pwd = getpwent()))
 		if (strcmp(pwd->pw_name, name) == 0)
 			return pwd;
 	return nullptr;
@@ -114,7 +114,7 @@ struct passwd* getpwuid(uid_t uid)
 {
 	passwd* pwd;
 	setpwent();
-	while (pwd = getpwent())
+	while ((pwd = getpwent()))
 		if (pwd->pw_uid == uid)
 			return pwd;
 	return nullptr;

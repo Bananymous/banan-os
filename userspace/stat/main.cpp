@@ -7,7 +7,7 @@
 void print_timestamp(timespec ts)
 {
 	auto time = BAN::from_unix_time(ts.tv_sec);
-	printf("%04d-%02d-%02d %02d:%02d:%02d.%09d",
+	printf("%04d-%02d-%02d %02d:%02d:%02d.%09ld",
 		time.year, time.month, time.day,
 		time.hour, time.minute, time.second,
 		ts.tv_nsec

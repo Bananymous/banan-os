@@ -10,9 +10,7 @@
 int parse_int(const char* val)
 {
 	int result = 0;
-
-	const char* ptr = val;
-	while (*ptr)
+	for (const char* ptr = val; *ptr; ptr++)
 	{
 		if (!isdigit(*ptr))
 		{
@@ -20,9 +18,7 @@ int parse_int(const char* val)
 			exit(1);
 		}
 		result = (result * 10) + (*ptr - '0');
-		*ptr++;
 	}
-
 	return result;
 }
 

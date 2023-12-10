@@ -21,9 +21,9 @@ int puzzle1(FILE* fp)
 
 	int result = 0;
 
-	for (ssize_t y = 0; y < lines.size(); y++)
+	for (size_t y = 0; y < lines.size(); y++)
 	{
-		for (ssize_t x = 0; x < lines[y].size(); x++)
+		for (size_t x = 0; x < lines[y].size(); x++)
 		{			
 			if (!isdigit(lines[y][x]))
 				continue;
@@ -32,14 +32,14 @@ int puzzle1(FILE* fp)
 
 			for (ssize_t y_off = -1; y_off <= 1; y_off++)
 			{
-				if (y + y_off < 0)
+				if ((ssize_t)y < y_off)
 					continue;
 				if (y + y_off >= lines.size())
 					break;
 
 				for (ssize_t x_off = -1;; x_off++)
 				{
-					if (x + x_off < 0)
+					if ((ssize_t)x < x_off)
 						continue;
 					if (x + x_off >= lines[y + y_off].size())
 						break;
@@ -94,9 +94,9 @@ int puzzle2(FILE* fp)
 	// Map numbers next to '*' to asterisk's coordinates.
 	HashMap<uint32_t, Vector<int>> gears;
 
-	for (ssize_t y = 0; y < lines.size(); y++)
+	for (size_t y = 0; y < lines.size(); y++)
 	{
-		for (ssize_t x = 0; x < lines[y].size(); x++)
+		for (size_t x = 0; x < lines[y].size(); x++)
 		{
 			if (!isdigit(lines[y][x]))
 				continue;
@@ -111,14 +111,14 @@ int puzzle2(FILE* fp)
 
 			for (ssize_t y_off = -1; y_off <= 1; y_off++)
 			{
-				if (y + y_off < 0)
+				if ((ssize_t)y < y_off)
 					continue;
 				if (y + y_off >= lines.size())
 					break;
 
 				for (ssize_t x_off = -1;; x_off++)
 				{
-					if (x + x_off < 0)
+					if ((ssize_t)x < x_off)
 						continue;
 					if (x + x_off >= lines[y + y_off].size())
 						break;

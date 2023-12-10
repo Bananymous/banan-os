@@ -13,7 +13,7 @@ struct FILE
 	bool eof		{ false };
 	bool error		{ false };
 
-	unsigned char buffer[BUFSIZ];
+	unsigned char buffer[BUFSIZ] {};
 	uint32_t buffer_index { 0 };
 };
 
@@ -260,7 +260,7 @@ size_t fread(void* buffer, size_t size, size_t nitems, FILE* file)
 
 	while (nread < target)
 	{
-		size_t ret = syscall(SYS_READ, file->fd, (uint8_t*)buffer + nread, target - nread);
+		ssize_t ret = syscall(SYS_READ, file->fd, (uint8_t*)buffer + nread, target - nread);
 
 		if (ret < 0)
 			file->error = true;

@@ -600,7 +600,6 @@ int execute_piped_commands(BAN::Vector<BAN::Vector<BAN::String>>& commands)
 	int next_stdin = STDIN_FILENO;
 	for (size_t i = 0; i < commands.size(); i++)
 	{
-		bool first = (i == 0);
 		bool last  = (i == commands.size() - 1);
 
 		int pipefd[2] { -1, STDOUT_FILENO };
@@ -831,7 +830,7 @@ int prompt_length()
 void print_prompt()
 {
 	auto prompt = get_prompt();
-	fprintf(stdout, "%.*s", prompt.size(), prompt.data());
+	fprintf(stdout, "%.*s", (int)prompt.size(), prompt.data());
 	fflush(stdout);
 }
 

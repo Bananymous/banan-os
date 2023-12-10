@@ -6,7 +6,7 @@
 void usage(int ret, char* arg0)
 {
 	FILE* fout = (ret == 0) ? stdout : stderr;
-	fprintf(fout, "usage: %s [OPTIONS]...\n");
+	fprintf(fout, "usage: %s [OPTIONS]...\n", arg0);
 	fprintf(fout, "  -s, --shutdown  Shutdown the system (default)\n");
 	fprintf(fout, "  -r, --reboot    Reboot the system\n");
 	fprintf(fout, "  -h, --help      Show this message\n");
