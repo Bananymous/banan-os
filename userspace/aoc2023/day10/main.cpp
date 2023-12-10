@@ -202,7 +202,7 @@ i64 puzzle2(FILE* fp)
 	{
 		for (u32& tile : row)
 		{
-			// Remove left and right from path
+			// Remove left and right from path tiles
 			if (tile & Flag::Path)
 				tile &= ~(Flag::Left | Flag::Right);
 			// Tile should never be both left and right
@@ -227,23 +227,16 @@ i64 puzzle2(FILE* fp)
 	}
 	ASSERT(enclosed != Flag::Path);
 
-	// Expand all enclosed areas
-	bool modified = true;
-	while (modified)
+	// Expand all enclosed areas (only one pass is needed since exery area
+	//     is fully bordered by enclosed tiles)
+	for (size_t y = 1; y < grid.size(); y++)
 	{
-		modified = false;
-		for (size_t y = 1; y < grid.size(); y++)
+		for (size_t x = 1; x < grid[y].size(); x++)
 		{
-			for (size_t x = 1; x < grid[y].size(); x++)
-			{
-				if (grid[y][x] & Flag::Mask)
-					continue;
-				if ((grid[y - 1][x] & enclosed) || (grid[y][x - 1] & enclosed))
-				{
-					grid[y][x] |= enclosed;
-					modified = true;
-				}
-			}
+			if (grid[y][x] & Flag::Mask)
+				continue;
+			if ((grid[y - 1][x] & enclosed) || (grid[y][x - 1] & enclosed))
+				grid[y][x] |= enclosed;
 		}
 	}
 
