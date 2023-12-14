@@ -57,6 +57,24 @@ extern "C"
 		const type_descriptor& type;
 	};
 
+	struct vla_bound_data
+	{
+		source_location location;
+		const type_descriptor& type;
+	};
+
+	enum builtin_check_kind : unsigned char
+	{
+		BCK_CTZPassedZero,
+		BCK_CLZPassedZero,
+	};
+
+	struct invalid_builtin_data
+	{
+		source_location location;
+		builtin_check_kind kind;
+	};
+
 	using value_handle = uintptr_t;
 
 	static const char* type_check_kinds[] = {
@@ -91,6 +109,10 @@ extern "C"
 	HANDLER(__ubsan_handle_mul_overflow, false, overflow_data* data, value_handle, value_handle)
 	HANDLER(__ubsan_handle_divrem_overflow, false, overflow_data* data, value_handle, value_handle)
 	HANDLER(__ubsan_handle_negate_overflow, false, overflow_data* data, value_handle)
+
+	HANDLER(__ubsan_handle_vla_bound_not_positive, false, vla_bound_data* data, value_handle);
+
+	HANDLER(__ubsan_handle_invalid_builtin, false, invalid_builtin_data* data);
 
 	void __ubsan_handle_type_mismatch_v1(type_mismatch_data* data, value_handle pointer)
 	{
