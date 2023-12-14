@@ -89,7 +89,6 @@ char* stpncpy(char* __restrict__ dest, const char* __restrict__ src, size_t n)
 		dest[i] = src[i];
 	for (; n; i++, n--)
 		dest[i] = '\0';
-	dest[i] = '\0';
 	return &dest[i];
 }
 
