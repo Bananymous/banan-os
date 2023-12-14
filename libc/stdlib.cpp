@@ -71,6 +71,27 @@ char* getenv(const char* name)
 	return nullptr;
 }
 
+int system(const char* command)
+{
+	// FIXME
+	if (command == nullptr)
+		return 1;
+
+	int pid = fork();
+	if (pid == 0)
+	{
+		execl("/bin/Shell", "Shell", "-c", command, (char*)0);
+		exit(1);
+	}
+
+	if (pid == -1)
+		return -1;
+
+	int stat_val;
+	waitpid(pid, &stat_val, 0);
+	return stat_val;
+}
+
 int setenv(const char* name, const char* val, int overwrite)
 {
 	if (name == nullptr || !name[0] || strchr(name, '='))
