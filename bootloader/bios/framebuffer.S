@@ -216,6 +216,7 @@ vesa_target_mode:
 	.skip 2
 
 .global framebuffer
+.align 8
 framebuffer:
 	.skip 4	# address
 	.skip 4	# pitch
