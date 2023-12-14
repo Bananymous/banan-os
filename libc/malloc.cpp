@@ -22,6 +22,7 @@ static constexpr size_t s_malloc_default_align = 16;
 struct malloc_node_t
 {
 	bool allocated;
+	bool last;
 	size_t size;
 	uint8_t data[0];
 
@@ -33,6 +34,11 @@ struct malloc_pool_t
 {
 	uint8_t* start;
 	size_t size;
+
+	malloc_node_t* first_free;
+
+	uint8_t* end() { return start + size; }
+	bool contains(malloc_node_t* node) { return start <= (uint8_t*)node && (uint8_t*)node < end(); }
 };
 
 static malloc_pool_t s_malloc_pools[s_malloc_pool_count];
@@ -44,6 +50,7 @@ void init_malloc()
 	{
 		s_malloc_pools[i].start = nullptr;
 		s_malloc_pools[i].size = pool_size;
+		s_malloc_pools[i].first_free = nullptr;
 		pool_size *= s_malloc_pool_size_multiplier;
 	}
 }
@@ -64,6 +71,9 @@ static bool allocate_pool(size_t pool_index)
 	auto* node = (malloc_node_t*)pool.start;
 	node->allocated = false;
 	node->size = pool.size;
+	node->last = true;
+
+	pool.first_free = node;
 
 	return true;
 }
@@ -75,24 +85,36 @@ static void* allocate_from_pool(size_t pool_index, size_t size)
 	auto& pool = s_malloc_pools[pool_index];
 	assert(pool.start != nullptr);
 
-	uint8_t* pool_end = pool.start + pool.size;
+	if (!pool.first_free)
+		return nullptr;
+	assert(!pool.first_free->allocated);
 
-	for (auto* node = (malloc_node_t*)pool.start; (uint8_t*)node < pool_end; node = node->next())
+	for (auto* node = pool.first_free;; node = node->next())
 	{
 		if (node->allocated)
-			continue;
-
 		{
-			// merge two unallocated nodes next to each other
-			auto* next = node->next();
-			if ((uint8_t*)next < pool_end && !next->allocated)
-				node->size += next->size;
+			if (node->last)
+				break;
+			continue;
+		}
+
+		if (!node->last && !node->next()->allocated)
+		{
+			node->last = node->next()->last;
+			node->size += node->next()->size;
 		}
 		
 		if (node->data_size() < size)
+		{
+			if (node->last)
+				break;
 			continue;
+		}
 
 		node->allocated = true;
+
+		if (node == pool.first_free)
+			pool.first_free = nullptr;
 
 		// shrink node if needed
 		if (node->data_size() - size > sizeof(malloc_node_t))
@@ -104,6 +126,27 @@ static void* allocate_from_pool(size_t pool_index, size_t size)
 			auto* next = node->next();
 			next->allocated = false;
 			next->size = node_end - (uint8_t*)next;
+			next->last = node->last;
+
+			node->last = false;
+
+			if (!pool.first_free || next < pool.first_free)
+				pool.first_free = next;
+		}
+
+		// Find next free node
+		if (!pool.first_free)
+		{
+			for (auto* free_node = node;; free_node = free_node->next())
+			{
+				if (!free_node->allocated)
+				{
+					pool.first_free = free_node;
+					break;
+				}
+				if (free_node->last)
+					break;
+			}
 		}
 
 		return node->data;
@@ -115,6 +158,14 @@ static void* allocate_from_pool(size_t pool_index, size_t size)
 static malloc_node_t* node_from_data_pointer(void* data_pointer)
 {
 	return (malloc_node_t*)((uint8_t*)data_pointer - sizeof(malloc_node_t));
+}
+
+static malloc_pool_t& pool_from_node(malloc_node_t* node)
+{
+	for (size_t i = 0; i < s_malloc_pool_count; i++)
+		if (s_malloc_pools[i].start && s_malloc_pools[i].contains(node))
+			return s_malloc_pools[i];
+	assert(false);
 }
 
 void* malloc(size_t size)
@@ -177,7 +228,15 @@ void* realloc(void* ptr, size_t size)
 			auto* next = node->next();
 			next->allocated = false;
 			next->size = node_end - (uint8_t*)next;
+			next->last = node->last;
+
+			node->last = false;
+
+			auto& pool = pool_from_node(node);
+			if (!pool.first_free || next < pool.first_free)
+				pool.first_free = next;
 		}
+
 		return ptr;
 	}
 
@@ -205,8 +264,15 @@ void free(void* ptr)
 
 	// mark node as unallocated and try to merge with the next node
 	node->allocated = false;
-	if (!node->next()->allocated)
+	if (!node->last && !node->next()->allocated)
+	{
+		node->last = node->next()->last;
 		node->size += node->next()->size;
+	}
+
+	auto& pool = pool_from_node(node);
+	if (!pool.first_free || node < pool.first_free)
+		pool.first_free = node;
 }
 
 void* calloc(size_t nmemb, size_t size)
