@@ -670,6 +670,9 @@ namespace Kernel
 
 		auto parent_inode = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, directory, O_EXEC | O_WRONLY)).inode;
 
+		if (auto ret = parent_inode->find_inode(file_name); !ret.is_error())
+			return BAN::Error::from_errno(EEXIST);
+
 		if (Inode::Mode(mode).ifdir())
 			TRY(parent_inode->create_directory(file_name, mode, m_credentials.euid(), m_credentials.egid()));
 		else
@@ -792,7 +795,10 @@ namespace Kernel
 	{
 		LockGuard _(m_lock);
 		validate_string_access(path);
-		TRY(create_file_or_dir(path, Inode::Mode::IFDIR | mode));
+		BAN::StringView path_sv(path);
+		if (!path_sv.empty() && path_sv.back() == '/')
+			path_sv = path_sv.substring(0, path_sv.size() - 1);
+		TRY(create_file_or_dir(path_sv, Inode::Mode::IFDIR | mode));
 		return 0;
 	}
 
