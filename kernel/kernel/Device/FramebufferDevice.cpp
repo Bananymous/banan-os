@@ -233,8 +233,14 @@ namespace Kernel
 
 		virtual BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> clone(PageTable& new_page_table) override
 		{
-			(void)new_page_table;
-			return BAN::Error::from_errno(ENOTSUP);
+			auto* region_ptr = new FramebufferMemoryRegion(new_page_table, m_size, m_type, m_flags, m_framebuffer);
+			if (region_ptr == nullptr)
+				return BAN::Error::from_errno(ENOMEM);
+			auto region = BAN::UniqPtr<FramebufferMemoryRegion>::adopt(region_ptr);
+
+			TRY(region->initialize({ m_vaddr, m_vaddr + BAN::Math::div_round_up(m_size, PAGE_SIZE) * PAGE_SIZE }));
+
+			return BAN::UniqPtr<MemoryRegion>(BAN::move(region));
 		}
 
 	protected:
