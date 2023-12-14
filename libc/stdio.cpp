@@ -422,8 +422,15 @@ int puts(const char* string)
 	return 0;
 }
 
-// TODO
-int remove(const char*);
+int remove(const char* path)
+{
+	struct stat st;
+	if (stat(path, &st) == -1)
+		return -1;
+	if (S_ISDIR(st.st_mode))
+		return rmdir(path);
+	return unlink(path);
+}
 
 // TODO
 int rename(const char*, const char*);
