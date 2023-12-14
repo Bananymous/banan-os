@@ -32,14 +32,14 @@ int puzzle1(FILE* fp)
 
 			for (ssize_t y_off = -1; y_off <= 1; y_off++)
 			{
-				if ((ssize_t)y < y_off)
+				if ((ssize_t)y + y_off < 0)
 					continue;
 				if (y + y_off >= lines.size())
 					break;
 
 				for (ssize_t x_off = -1;; x_off++)
 				{
-					if ((ssize_t)x < x_off)
+					if ((ssize_t)x + x_off < 0)
 						continue;
 					if (x + x_off >= lines[y + y_off].size())
 						break;
@@ -111,14 +111,14 @@ int puzzle2(FILE* fp)
 
 			for (ssize_t y_off = -1; y_off <= 1; y_off++)
 			{
-				if ((ssize_t)y < y_off)
+				if ((ssize_t)y + y_off < 0)
 					continue;
 				if (y + y_off >= lines.size())
 					break;
 
 				for (ssize_t x_off = -1;; x_off++)
 				{
-					if ((ssize_t)x < x_off)
+					if ((ssize_t)x + x_off < 0)
 						continue;
 					if (x + x_off >= lines[y + y_off].size())
 						break;
