@@ -13,7 +13,7 @@
 
 __BEGIN_DECLS
 
-void __assert_fail(const char*, const char*, int, const char*);
+[[noreturn]] void __assert_fail(const char*, const char*, int, const char*);
 
 __END_DECLS
 
