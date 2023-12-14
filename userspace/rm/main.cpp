@@ -48,7 +48,7 @@ bool delete_recursive(const char* path)
 		closedir(dir);
 	}
 
-	if (unlink(path) == -1)
+	if (remove(path) == -1)
 	{
 		perror(path);
 		return false;
