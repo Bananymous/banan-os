@@ -1,5 +1,6 @@
 #include <errno.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 int errno = 0;
@@ -62,6 +63,16 @@ int strcmp(const char* s1, const char* s2)
 	return *u1 - *u2;
 }
 
+int strncmp(const char* s1, const char* s2, size_t n)
+{
+	const unsigned char* u1 = (unsigned char*)s1;
+	const unsigned char* u2 = (unsigned char*)s2;
+	for (; --n && *u1 && *u2; u1++, u2++)
+		if (*u1 != *u2)
+			break;
+	return *u1 - *u2;
+}
+
 char* stpcpy(char* __restrict__ dest, const char* __restrict__ src)
 {
 	size_t i = 0;
@@ -104,6 +115,84 @@ char* strncat(char* __restrict__ dest, const char* __restrict__ src, size_t n)
 {
 	strncpy(dest + strlen(dest), src, n);
 	return dest;
+}
+
+#ifndef __is_kernel
+char* strdup(const char* str)
+{
+	const size_t size = strlen(str) + 1;
+
+	char* new_str = (char*)malloc(size);
+	if (new_str == nullptr)
+		return nullptr;
+
+	memcpy(new_str, str, size);
+	return new_str;
+}
+
+char* strndup(const char* str, size_t size)
+{
+	if (strlen(str) < size)
+		size = strlen(str);
+	size += 1;
+
+	char* new_str = (char*)malloc(size);
+	if (new_str == nullptr)
+		return nullptr;
+
+	memcpy(new_str, str, size);
+	return new_str;
+}
+#endif
+
+size_t strlen(const char* str)
+{
+	size_t len = 0;
+	while (str[len])
+		len++;
+	return len;
+}
+
+char* strchr(const char* str, int c)
+{
+	while (*str)
+	{
+		if (*str == c)
+			return (char*)str;
+		str++;
+	}
+	return (*str == c) ? (char*)str : nullptr;
+}
+
+char* strchrnul(const char* str, int c)
+{
+	while (*str)
+	{
+		if (*str == (char)c)
+			return (char*)str;
+		str++;
+	}
+	return (char*)str;
+}
+
+char* strrchr(const char* str, int c)
+{
+	size_t len = strlen(str);
+	while (len > 0)
+	{
+		if (str[len] == (char)c)
+			return (char*)str + len;
+		len--;
+	}
+	return (*str == c) ? (char*)str : nullptr;
+}
+
+char* strstr(const char* haystack, const char* needle)
+{
+	for (size_t i = 0; haystack[i]; i++)
+		if (memcmp(haystack + i, needle, strlen(needle)) == 0)
+			return (char*)haystack + i;
+	return NULL;
 }
 
 char* strerror(int error)
@@ -302,52 +391,4 @@ const char* strerrordesc_np(int error)
 
 	errno = EINVAL;
 	return "Unknown error";
-}
-
-size_t strlen(const char* str)
-{
-	size_t len = 0;
-	while (str[len])
-		len++;
-	return len;
-}
-
-int strncmp(const char* s1, const char* s2, size_t n)
-{
-	const unsigned char* u1 = (unsigned char*)s1;
-	const unsigned char* u2 = (unsigned char*)s2;
-	for (; --n && *u1 && *u2; u1++, u2++)
-		if (*u1 != *u2)
-			break;
-	return *u1 - *u2;
-}
-
-char* strchr(const char* str, int c)
-{
-	while (*str)
-	{
-		if (*str == c)
-			return (char*)str;
-		str++;
-	}
-	return (*str == c) ? (char*)str : nullptr;
-}
-
-char* strchrnul(const char* str, int c)
-{
-	while (*str)
-	{
-		if (*str == c)
-			return (char*)str;
-		str++;
-	}
-	return (char*)str;
-}
-
-char* strstr(const char* haystack, const char* needle)
-{
-	for (size_t i = 0; haystack[i]; i++)
-		if (memcmp(haystack + i, needle, strlen(needle)) == 0)
-			return (char*)haystack + i;
-	return NULL;
 }
