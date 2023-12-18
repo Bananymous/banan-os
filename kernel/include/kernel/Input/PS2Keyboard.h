@@ -64,6 +64,7 @@ namespace Kernel::Input
 
 	protected:
 		virtual BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan) override;
+		virtual bool has_data_impl() const override;
 
 	private:
 		const dev_t m_rdev;
