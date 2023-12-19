@@ -17,7 +17,8 @@ int memcmp(const void* s1, const void* s2, size_t n)
 	return 0;
 }
 
-void* memcpy(void* dstp, const void* srcp, size_t n)
+__attribute__((optimize("-O0")))
+void* memcpy(void* __restrict__ dstp, const void* __restrict__ srcp, size_t n)
 {
 	unsigned char* dst = static_cast<unsigned char*>(dstp);
 	const unsigned char* src = static_cast<const unsigned char*>(srcp);
@@ -45,6 +46,7 @@ void* memmove(void* destp, const void* srcp, size_t n)
 	return destp;
 }
 
+__attribute__((optimize("-O0")))
 void* memset(void* s, int c, size_t n)
 {
 	unsigned char* p = static_cast<unsigned char*>(s);
