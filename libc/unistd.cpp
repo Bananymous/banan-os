@@ -183,7 +183,7 @@ int execve(const char* pathname, char* const argv[], char* const envp[])
 int execvp(const char* file, char* const argv[])
 {
 	char buffer[1024];
-	const char* pathname = file;
+	const char* pathname = NULL;
 
 	// do path resolution if file doesn't contain /
 	if (strchr(file, '/') == nullptr)
@@ -217,6 +217,16 @@ int execvp(const char* file, char* const argv[])
 			if (*cur)
 				cur++;
 		}
+	}
+	else
+	{
+		pathname = file;
+	}
+
+	if (!pathname)
+	{
+		errno = ENOENT;
+		return -1;
 	}
 
 	return execve(pathname, argv, environ);
