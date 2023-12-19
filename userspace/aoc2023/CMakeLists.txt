@@ -18,6 +18,7 @@ set(AOC2023_PROJECTS
 	day13
 	day14
 	day15
+	day16
 )
 
 set(BANAN_AOC2023_BIN   ${BANAN_BIN}/aoc2023)
