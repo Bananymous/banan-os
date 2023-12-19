@@ -146,6 +146,7 @@ char* strndup(const char* str, size_t size)
 }
 #endif
 
+__attribute__((optimize("-O0")))
 size_t strlen(const char* str)
 {
 	size_t len = 0;
