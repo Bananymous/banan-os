@@ -223,20 +223,15 @@ namespace BAN
 		if (new_buckets.resize(new_bucket_count).is_error())
 			return Error::from_errno(ENOMEM);
 
-		if constexpr(STABLE)
+		for (auto& bucket : m_buckets)
 		{
-			// NOTE: We have to copy the old entries to the new entries and not move
-			//       since we might run out of memory half way through.
-			for (auto& bucket : m_buckets)
+			for (Entry& entry : bucket)
 			{
-				for (Entry& entry : bucket)
-				{
-					size_type bucket_index = HASH()(entry.key) % new_buckets.size();
-					if constexpr(STABLE)
-						TRY(new_buckets[bucket_index].push_back(entry));
-					else
-						TRY(new_buckets[bucket_index].push_back(BAN::move(entry)));
-				}
+				size_type bucket_index = HASH()(entry.key) % new_buckets.size();
+				if constexpr(STABLE)
+					TRY(new_buckets[bucket_index].push_back(entry));
+				else
+					TRY(new_buckets[bucket_index].push_back(BAN::move(entry)));
 			}
 		}
 
