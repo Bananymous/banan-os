@@ -1,7 +1,11 @@
+#include <BAN/Array.h>
 #include <BAN/HashMap.h>
 #include <BAN/HashSet.h>
+#include <BAN/Sort.h>
 #include <BAN/String.h>
 #include <BAN/Vector.h>
+
+#include <sys/time.h>
 
 #include <ctype.h>
 #include <inttypes.h>
@@ -192,8 +196,74 @@ i64 puzzle1(FILE* fp)
 
 i64 puzzle2(FILE* fp)
 {
-	(void)fp;
-	return -1;
+	auto workflows = parse_workflows(fp);
+
+	BAN::Array<BAN::HashSet<i64>, 4> values;
+	for (const auto& workflow : workflows)
+	{
+		for (const auto& rule : workflow.value)
+		{
+			if (rule.comparison != Comparison::Always)
+			{
+				MUST(values[rule.operand1].insert(rule.operand2));
+				MUST(values[rule.operand1].insert(rule.operand2 + 1));
+			}
+		}
+	}
+	for (i64 i = 0; i < 4; i++)
+	{
+		MUST(values[i].insert(1));
+		MUST(values[i].insert(4001));
+	}
+
+	BAN::Array<BAN::Vector<i64>, 4> values_sorted;
+	for (i64 i = 0; i < 4; i++)
+	{
+		MUST(values_sorted[i].reserve(values[i].size()));
+		for (i64 value : values[i])
+			MUST(values_sorted[i].push_back(value));
+		BAN::sort::sort(values_sorted[i].begin(), values_sorted[i].end());
+	}
+
+	i64 result = 0;
+	for (u64 xi = 0; xi < values_sorted[0].size() - 1; xi++)
+	{
+		timespec time_start;
+		clock_gettime(CLOCK_MONOTONIC, &time_start);
+
+		for (u64 mi = 0; mi < values_sorted[1].size() - 1; mi++)
+		{
+			for (u64 ai = 0; ai < values_sorted[2].size() - 1; ai++)
+			{
+				for (u64 si = 0; si < values_sorted[3].size() - 1; si++)
+				{
+					Item item {{
+						values_sorted[0][xi],
+						values_sorted[1][mi],
+						values_sorted[2][ai],
+						values_sorted[3][si]
+					}};
+					if (!is_accepted(item, "in"sv, workflows))
+						continue;
+					
+					i64 x_count = values_sorted[0][xi + 1] - values_sorted[0][xi];
+					i64 m_count = values_sorted[1][mi + 1] - values_sorted[1][mi];
+					i64 a_count = values_sorted[2][ai + 1] - values_sorted[2][ai];
+					i64 s_count = values_sorted[3][si + 1] - values_sorted[3][si];
+
+					result += x_count * m_count * a_count * s_count;
+				}	
+			}	
+		}
+
+		timespec time_stop;
+		clock_gettime(CLOCK_MONOTONIC, &time_stop);
+
+		u64 duration_us = (time_stop.tv_sec * 1'000'000 + time_stop.tv_nsec / 1'000) - (time_start.tv_sec * 1'000'000 + time_start.tv_nsec / 1'000);
+		printf("took %lu.%03lu ms, estimate %lu s\n", duration_us / 1000, duration_us % 1000, (values_sorted[0].size() - xi - 2) * duration_us / 1'000'000);
+	}
+
+	return result;
 }
 
 int main(int argc, char** argv)
