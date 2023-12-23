@@ -145,6 +145,22 @@ namespace BAN
 		return m_data[0];
 	}
 
+	BAN::Optional<StringView::size_type> StringView::find(char ch) const
+	{
+		for (size_type i = 0; i < m_size; i++)
+			if (m_data[i] == ch)
+				return i;
+		return {};
+	}
+
+	BAN::Optional<StringView::size_type> StringView::find(bool(*comp)(char)) const
+	{
+		for (size_type i = 0; i < m_size; i++)
+			if (comp(m_data[i]))
+				return i;
+		return {};
+	}
+
 	bool StringView::contains(char ch) const
 	{
 		for (size_type i = 0; i < m_size; i++)

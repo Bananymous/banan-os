@@ -1,8 +1,9 @@
 #pragma once
 
-#include <BAN/ForwardList.h>
 #include <BAN/Formatter.h>
+#include <BAN/ForwardList.h>
 #include <BAN/Iterators.h>
+#include <BAN/Optional.h>
 
 namespace BAN
 {
@@ -34,6 +35,9 @@ namespace BAN
 
 		char back() const;
 		char front() const;
+
+		BAN::Optional<size_type> find(char) const;
+		BAN::Optional<size_type> find(bool(*comp)(char)) const;
 
 		bool contains(char) const;
 		size_type count(char) const;
