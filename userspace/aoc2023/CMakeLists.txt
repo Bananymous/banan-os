@@ -19,6 +19,7 @@ set(AOC2023_PROJECTS
 	day14
 	day15
 	day16
+	day17
 	full
 )
 
