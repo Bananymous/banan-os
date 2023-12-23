@@ -3,6 +3,7 @@
 #include <BAN/Errors.h>
 #include <BAN/Hash.h>
 #include <BAN/Iterators.h>
+#include <BAN/LinkedList.h>
 #include <BAN/Math.h>
 #include <BAN/Move.h>
 #include <BAN/Vector.h>
@@ -16,8 +17,8 @@ namespace BAN
 	public:
 		using value_type = T;
 		using size_type = size_t;
-		using iterator = IteratorDouble<T, Vector, Vector, HashSet>;
-		using const_iterator = ConstIteratorDouble<T, Vector, Vector, HashSet>;
+		using iterator = IteratorDouble<T, Vector, LinkedList, HashSet>;
+		using const_iterator = ConstIteratorDouble<T, Vector, LinkedList, HashSet>;
 		
 	public:
 		HashSet() = default;
@@ -46,11 +47,11 @@ namespace BAN
 
 	private:
 		ErrorOr<void> rebucket(size_type);
-		Vector<T>& get_bucket(const T&);
-		const Vector<T>& get_bucket(const T&) const;
+		LinkedList<T>& get_bucket(const T&);
+		const LinkedList<T>& get_bucket(const T&) const;
 
 	private:
-		Vector<Vector<T>> m_buckets;
+		Vector<LinkedList<T>> m_buckets;
 		size_type m_size = 0;
 	};
 
@@ -110,15 +111,15 @@ namespace BAN
 	void HashSet<T, HASH, STABLE>::remove(const T& key)
 	{
 		if (empty()) return;
-		Vector<T>& bucket = get_bucket(key);
-		for (size_type i = 0; i < bucket.size(); i++)
+		auto& bucket = get_bucket(key);
+		for (auto it = bucket.begin(); it != bucket.end(); it++)
 		{
-			if (bucket[i] == key)
+			if (*it == key)
 			{
-				bucket.remove(i);
+				bucket.remove(it);
 				m_size--;
 				break;
-			}	
+			}
 		}
 	}
 
@@ -161,8 +162,8 @@ namespace BAN
 		if (m_buckets.size() >= bucket_count)
 			return {};
 
-		size_type new_bucket_count = BAN::Math::max<size_type>(bucket_count, m_buckets.size() * 2);
-		Vector<Vector<T>> new_buckets;
+		size_type new_bucket_count = Math::max<size_type>(bucket_count, m_buckets.size() * 2);
+		Vector<LinkedList<T>> new_buckets;
 		if (new_buckets.resize(new_bucket_count).is_error())
 			return Error::from_errno(ENOMEM);
 
@@ -183,7 +184,7 @@ namespace BAN
 	}
 
 	template<typename T, typename HASH, bool STABLE>
-	Vector<T>& HashSet<T, HASH, STABLE>::get_bucket(const T& key)
+	LinkedList<T>& HashSet<T, HASH, STABLE>::get_bucket(const T& key)
 	{
 		ASSERT(!m_buckets.empty());
 		size_type index = HASH()(key) % m_buckets.size();
@@ -191,7 +192,7 @@ namespace BAN
 	}
 
 	template<typename T, typename HASH, bool STABLE>
-	const Vector<T>& HashSet<T, HASH, STABLE>::get_bucket(const T& key) const
+	const LinkedList<T>& HashSet<T, HASH, STABLE>::get_bucket(const T& key) const
 	{
 		ASSERT(!m_buckets.empty());
 		size_type index = HASH()(key) % m_buckets.size();
@@ -202,7 +203,7 @@ namespace BAN
 	// This means that if insertion to set fails, elements could be in invalid state
 	// and that container is no longer usable. This is better if either way you are
 	// going to stop using the hash set after insertion fails.
-	template<typename T, typename HASH = BAN::hash<T>>
+	template<typename T, typename HASH = hash<T>>
 	using HashSetUnstable = HashSet<T, HASH, false>;
 
 }
