@@ -130,9 +130,7 @@ namespace BAN
 		ASSERT(!contains(key));
 		TRY(rebucket(m_size + 1));
 		auto& bucket = get_bucket(key);
-		auto result = bucket.emplace_back(key, forward<Args>(args)...);
-		if (result.is_error())
-			return Error::from_errno(ENOMEM);
+		TRY(bucket.emplace_back(key, forward<Args>(args)...));
 		m_size++;
 		return {};
 	}
@@ -220,8 +218,7 @@ namespace BAN
 
 		size_type new_bucket_count = BAN::Math::max<size_type>(bucket_count, m_buckets.size() * 2);
 		Vector<LinkedList<Entry>> new_buckets;
-		if (new_buckets.resize(new_bucket_count).is_error())
-			return Error::from_errno(ENOMEM);
+		TRY(new_buckets.resize(new_bucket_count));
 
 		for (auto& bucket : m_buckets)
 		{
@@ -231,7 +228,7 @@ namespace BAN
 				if constexpr(STABLE)
 					TRY(new_buckets[bucket_index].push_back(entry));
 				else
-					TRY(new_buckets[bucket_index].push_back(BAN::move(entry)));
+					TRY(new_buckets[bucket_index].push_back(move(entry)));
 			}
 		}
 
