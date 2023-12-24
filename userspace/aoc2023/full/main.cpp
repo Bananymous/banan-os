@@ -4,7 +4,7 @@
 
 int main()
 {
-	for (int i = 1; i <= 19; i++)
+	for (int i = 1; i <= 20; i++)
 	{
 		printf("day %d:\n", i);
 
