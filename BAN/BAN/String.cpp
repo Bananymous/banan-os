@@ -134,6 +134,16 @@ namespace BAN
 		data()[m_size] = '\0';
 	}
 
+	bool String::operator==(const String& str) const
+	{
+		if (size() != str.size())
+			return false;
+		for (size_type i = 0; i < m_size; i++)
+			if (data()[i] != str.data()[i])
+				return false;
+		return true;
+	}
+
 	bool String::operator==(StringView str) const
 	{
 		if (size() != str.size())

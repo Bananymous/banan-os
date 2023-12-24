@@ -55,6 +55,7 @@ namespace BAN
 		char operator[](size_type index) const	{ ASSERT(index < m_size); return data()[index]; }
 		char& operator[](size_type index)		{ ASSERT(index < m_size); return data()[index]; }
 
+		bool operator==(const String&) const;
 		bool operator==(StringView) const;
 		bool operator==(const char*) const;
 
