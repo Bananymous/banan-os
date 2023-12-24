@@ -46,6 +46,18 @@ namespace BAN
 	template<typename T> inline constexpr bool is_lvalue_reference_v = is_lvalue_reference<T>::value;
 	template<typename T> concept lvalue_reference = is_lvalue_reference_v<T>;
 
+	template<typename T, typename... Args> struct is_constructible { static constexpr bool value = __is_constructible(T, Args...); };
+	template<typename T, typename... Args> inline constexpr bool is_constructible_v = is_constructible<T, Args...>::value;
+
+	template<typename T> struct is_default_constructible { static constexpr bool value = is_constructible_v<T>; };
+	template<typename T> inline constexpr bool is_default_constructible_v = is_default_constructible<T>::value;
+
+	template<typename T> struct is_copy_constructible { static constexpr bool value = is_constructible_v<T, const T&>; };
+	template<typename T> inline constexpr bool is_copy_constructible_v = is_copy_constructible<T>::value;
+
+	template<typename T> struct is_move_constructible { static constexpr bool value = is_constructible_v<T, T&&>; };
+	template<typename T> inline constexpr bool is_move_constructible_v = is_move_constructible<T>::value;
+
 	template<typename T> struct is_integral { static constexpr bool value = requires (T t, T* p, void (*f)(T)) { reinterpret_cast<T>(t); f(0); p + t; }; };
 	template<typename T> inline constexpr bool is_integral_v = is_integral<T>::value;
 	template<typename T> concept integral = is_integral_v<T>;
