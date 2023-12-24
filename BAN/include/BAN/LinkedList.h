@@ -21,11 +21,11 @@ namespace BAN
 
 	public:
 		LinkedList() = default;
-		LinkedList(const LinkedList<T>& other)	{ *this = other; }
+		LinkedList(const LinkedList<T>& other) requires is_copy_constructible_v<T> { *this = other; }
 		LinkedList(LinkedList<T>&& other)		{ *this = move(other); }
 		~LinkedList()							{ clear(); }
 
-		LinkedList<T>& operator=(const LinkedList<T>&);
+		LinkedList<T>& operator=(const LinkedList<T>&) requires is_copy_constructible_v<T>;
 		LinkedList<T>& operator=(LinkedList<T>&&);
 
 		ErrorOr<void> push_back(const T&);
@@ -115,7 +115,7 @@ namespace BAN
 	};
 
 	template<typename T>
-	LinkedList<T>& LinkedList<T>::operator=(const LinkedList<T>& other)
+	LinkedList<T>& LinkedList<T>::operator=(const LinkedList<T>& other) requires is_copy_constructible_v<T>
 	{
 		clear();
 		for (const T& elem : other)
