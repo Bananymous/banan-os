@@ -64,7 +64,8 @@ namespace BAN
 		const T& front() const;
 		T& front();
 
-		ErrorOr<void> resize(size_type, const T& = T());
+		ErrorOr<void> resize(size_type)				requires is_default_constructible_v<T>;
+		ErrorOr<void> resize(size_type, const T&)	requires is_copy_constructible_v<T>;
 		ErrorOr<void> reserve(size_type);
 		ErrorOr<void> shrink_to_fit();
 
@@ -297,7 +298,21 @@ namespace BAN
 	}
 
 	template<typename T>
-	ErrorOr<void> Vector<T>::resize(size_type size, const T& value)
+	ErrorOr<void> Vector<T>::resize(size_type size) requires is_default_constructible_v<T>
+	{
+		TRY(ensure_capacity(size));
+		if (size < m_size)
+			for (size_type i = size; i < m_size; i++)
+				m_data[i].~T();
+		if (size > m_size)
+			for (size_type i = m_size; i < size; i++)
+				new (m_data + i) T();
+		m_size = size;
+		return {};
+	}
+
+	template<typename T>
+	ErrorOr<void> Vector<T>::resize(size_type size, const T& value) requires is_copy_constructible_v<T>
 	{
 		TRY(ensure_capacity(size));
 		if (size < m_size)
