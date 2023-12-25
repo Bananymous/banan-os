@@ -9,6 +9,12 @@ namespace BAN::Math
 {
 
 	template<typename T>
+	inline constexpr T abs(T val)
+	{
+		return val < 0 ? -val : val;
+	}
+
+	template<typename T>
 	inline constexpr T min(T a, T b)
 	{
 		return a < b ? a : b;
