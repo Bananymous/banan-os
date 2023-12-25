@@ -4,8 +4,10 @@
 
 int main()
 {
-	for (int i = 1; i <= 21; i++)
+	for (int i = 1; i <= 23; i++)
 	{
+		if (i == 22)
+			continue;
 		printf("day %d:\n", i);
 
 		char command[128];
