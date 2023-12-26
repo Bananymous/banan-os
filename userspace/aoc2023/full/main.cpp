@@ -4,7 +4,7 @@
 
 int main()
 {
-	for (int i = 1; i <= 23; i++)
+	for (int i = 1; i <= 24; i++)
 	{
 		if (i == 22)
 			continue;
