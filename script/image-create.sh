@@ -35,7 +35,7 @@ if [[ -z $BANAN_BUILD_DIR ]]; then
 	exit 1
 fi
 
-DISK_SIZE=$[50 * 1024 * 1024]
+DISK_SIZE=$[500 * 1024 * 1024]
 MOUNT_DIR="${MOUNT_DIR:-$BANAN_BUILD_DIR/bananmnt}"
 
 truncate -s 0 "$BANAN_DISK_IMAGE_PATH"
