@@ -153,6 +153,7 @@ build_libstdcpp () {
 }
 
 # delete everything but toolchain
+mkdir -p $BANAN_BUILD_DIR
 find $BANAN_BUILD_DIR -mindepth 1 -maxdepth 1 ! -name toolchain -exec rm -r {} +
 
 # NOTE: we have to manually create initial sysroot with libc headers
