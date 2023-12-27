@@ -14,6 +14,8 @@ Each major component and library has its own subdirectory (kernel, userspace, li
 
 There does not exist a complete list of needed packages for building. From the top of my head I can say that *cmake*, *ninja*, *make*, *grub*, *rsync* and emulator (*qemu* or *bochs*) are needed.
 
+You need cmake version of atleast 2.26. If you are using cmake that is not found from PATH, you can set the CMAKE\_COMMAND environment variable to point to the correct cmake binary.
+
 To build the toolchain for this os. You can run the following command.
 > ***NOTE:*** The following step has to be done only once. This might take a long time since we are compiling binutils and gcc.
 ```sh

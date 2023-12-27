@@ -14,7 +14,7 @@ make_build_dir () {
 	mkdir -p $BANAN_BUILD_DIR
 	cd $BANAN_BUILD_DIR
 	if ! [[ -f "build.ninja" ]]; then
-		cmake --toolchain=$BANAN_TOOLCHAIN_DIR/Toolchain.txt -G Ninja $BANAN_ROOT_DIR
+		$CMAKE_COMMAND --toolchain=$BANAN_TOOLCHAIN_DIR/Toolchain.txt -G Ninja $BANAN_ROOT_DIR
 	fi
 }
 
@@ -64,6 +64,10 @@ fi
 if [[ $# -eq 0 ]]; then
 	echo "No argument given"
 	exit 1
+fi
+
+if [[ -z $CMAKE_COMMAND ]]; then
+	export CMAKE_COMMAND=cmake
 fi
 
 case $1 in
