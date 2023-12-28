@@ -16,10 +16,18 @@ download_cmake() {
 	CMAKE_FULL_NAME="cmake-3.26.6-linux-x86_64"
 
 	mkdir -p $BANAN_BUILD_DIR/toolchain
+	mkdir -p $BANAN_TOOLCHAIN_PREFIX/bin
+	mkdir -p $BANAN_TOOLCHAIN_PREFIX/share
 	cd $BANAN_BUILD_DIR/toolchain
 
-	wget https://cmake.org/files/v3.26/$CMAKE_FULL_NAME.tar.gz
-	tar xf $CMAKE_FULL_NAME.tar.gz
+	if ! [[ -f $CMAKE_FULL_NAME.tar.gz ]]; then
+		wget https://cmake.org/files/v3.26/$CMAKE_FULL_NAME.tar.gz
+	fi
+
+	if ! [[ -d $CMAKE_FULL_NAME ]]; then
+		tar xf $CMAKE_FULL_NAME.tar.gz
+	fi
+
 	cp -r $CMAKE_FULL_NAME/bin/* $BANAN_TOOLCHAIN_PREFIX/bin/
 	cp -r $CMAKE_FULL_NAME/share/* $BANAN_TOOLCHAIN_PREFIX/share/
 
