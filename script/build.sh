@@ -6,6 +6,11 @@ source $BANAN_SCRIPT_DIR/config.sh
 
 FAKEROOT_FILE="$BANAN_BUILD_DIR/fakeroot-context"
 
+if [[ -z $CMAKE_COMMAND ]]; then
+	echo "No usable cmake binary found" >&2
+	exit 1
+fi
+
 run_fakeroot() {
 	fakeroot -i $FAKEROOT_FILE -s $FAKEROOT_FILE -- /bin/bash -c '$@' bash $@
 }
@@ -64,10 +69,6 @@ fi
 if [[ $# -eq 0 ]]; then
 	echo "No argument given"
 	exit 1
-fi
-
-if [[ -z $CMAKE_COMMAND ]]; then
-	export CMAKE_COMMAND=cmake
 fi
 
 case $1 in

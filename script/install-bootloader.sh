@@ -15,6 +15,11 @@ fi
 if [[ -z $BANAN_ROOT_DIR ]]; then
 	echo "You must set the BANAN_ROOT_DIR environment variable" >&2
 	exit 1
+fi
+
+if [[ -z $CMAKE_COMMAND ]]; then
+	echo "You must set the CMAKE_COMMAND environment variable" >&2
+	exit 1
 fi	
 
 ROOT_PARTITION_INDEX=2
@@ -32,7 +37,7 @@ fi
 if ! [ -d $INSTALLER_BUILD_DIR ]; then
 	mkdir -p $INSTALLER_BUILD_DIR
 	cd $INSTALLER_BUILD_DIR
-	cmake ..
+	$CMAKE_COMMAND ..
 fi
 
 cd $INSTALLER_BUILD_DIR

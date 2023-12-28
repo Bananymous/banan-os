@@ -29,3 +29,5 @@ fi
 if [[ -z $BANAN_BOOTLOADER ]]; then
 	export BANAN_BOOTLOADER="BANAN"
 fi
+
+source $BANAN_SCRIPT_DIR/check-requirements.sh
