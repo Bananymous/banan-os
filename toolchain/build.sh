@@ -69,7 +69,7 @@ build_binutils () {
 	if [ ! -d $BINUTILS_VERSION ]; then
 		git clone --single-branch --branch $BINUTILS_BRANCH $BINUTILS_GIT $BINUTILS_VERSION
 		cd $BINUTILS_VERSION
-		git am $BANAN_TOOLCHAIN_DIR/$BINUTILS_VERSION.patch
+		git apply $BANAN_TOOLCHAIN_DIR/$BINUTILS_VERSION.patch
 	fi
 
 	cd $BANAN_BUILD_DIR/toolchain/$BINUTILS_VERSION
@@ -95,7 +95,7 @@ build_gcc () {
 	if [ ! -d $GCC_VERSION ]; then
 		git clone --single-branch --branch $GCC_BRANCH $GCC_GIT $GCC_VERSION
 		cd $GCC_VERSION
-		git am $BANAN_TOOLCHAIN_DIR/$GCC_VERSION.patch
+		git apply $BANAN_TOOLCHAIN_DIR/$GCC_VERSION.patch
 	fi
 
 	cd $BANAN_BUILD_DIR/toolchain/$GCC_VERSION
