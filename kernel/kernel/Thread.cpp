@@ -99,7 +99,11 @@ namespace Kernel
 
 	Thread::Thread(pid_t tid, Process* process)
 		: m_tid(tid), m_process(process)
-	{}
+	{
+#if __enable_sse
+		save_sse();
+#endif
+	}
 
 	Thread& Thread::current()
 	{

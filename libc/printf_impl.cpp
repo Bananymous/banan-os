@@ -124,7 +124,12 @@ static void floating_point_to_string(char* buffer, T value, bool upper, const fo
 {
 	if (isnan(value))
 	{
-		strcpy(buffer, "-nan");
+		if (value < (T)0.0)
+		{
+			*buffer = '-';
+			buffer++;
+		}
+		strcpy(buffer, upper ? "NAN" : "nan");
 		return;
 	}
 
@@ -147,7 +152,7 @@ static void floating_point_to_string(char* buffer, T value, bool upper, const fo
 
 	if (isinf(value))
 	{
-		strcpy(buffer + offset, "inf");
+		strcpy(buffer + offset, upper ? "INF" : "inf");
 		return;
 	}
 
@@ -205,10 +210,6 @@ static void floating_point_to_string(char* buffer, T value, bool upper, const fo
 template<BAN::floating_point T>
 static void floating_point_to_exponent_string(char* buffer, T value, bool upper, const format_options_t options)
 {
-	int percision = 6;
-	if (options.percision != -1)
-		percision = options.percision;
-
 	int offset = 0;
 
 	// Add sign if needed

@@ -303,9 +303,7 @@ done:
 	extern "C" void cpp_irq_handler(uint64_t irq, InterruptStack& interrupt_stack)
 	{
 #if __enable_sse
-		bool from_userspace = (interrupt_stack.cs & 0b11) == 0b11;
-		if (from_userspace)
-			Thread::current().save_sse();
+		Thread::current().save_sse();
 #endif
 
 		if (Scheduler::current_tid())
@@ -330,11 +328,7 @@ done:
 		ASSERT(Thread::current().state() != Thread::State::Terminated);
 
 #if __enable_sse
-		if (from_userspace)
-		{
-			ASSERT(Thread::current().state() == Thread::State::Executing);
-			Thread::current().load_sse();
-		}
+		Thread::current().load_sse();
 #endif
 	}
 
