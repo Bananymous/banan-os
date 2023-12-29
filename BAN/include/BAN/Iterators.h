@@ -66,6 +66,7 @@ namespace BAN
 		template<bool CONST2, typename = enable_if_t<CONST2 == CONST || CONST>>
 		IteratorSimpleGeneral(const IteratorSimpleGeneral<T, Container, CONST2>& other)
 			: m_pointer(other.m_pointer)
+			, m_valid(other.m_valid)
 		{
 		}
 
@@ -77,24 +78,28 @@ namespace BAN
 		template<bool CONST2 = CONST>
 		enable_if_t<!CONST2, T&> operator*()
 		{
+			ASSERT(*this);
 			ASSERT(m_pointer);
 			return *m_pointer;
 		}
 
 		const T* operator->() const
 		{
+			ASSERT(*this);
 			ASSERT(m_pointer);
 			return m_pointer;
 		}
 		template<bool CONST2 = CONST>
 		enable_if_t<!CONST2, T*> operator->()
 		{
+			ASSERT(*this);
 			ASSERT(m_pointer);
 			return m_pointer;
 		}
 
 		IteratorSimpleGeneral& operator++()
 		{
+			ASSERT(*this);
 			ASSERT(m_pointer);
 			++m_pointer;
 			return *this;
@@ -108,6 +113,7 @@ namespace BAN
 
 		IteratorSimpleGeneral& operator--()
 		{
+			ASSERT(*this);
 			ASSERT(m_pointer);
 			--m_pointer;
 			return *this;
@@ -121,7 +127,7 @@ namespace BAN
 
 		size_t operator-(const IteratorSimpleGeneral& other) const
 		{
-			ASSERT(m_pointer);
+			ASSERT(*this && other);
 			return m_pointer - other.m_pointer;
 		}
 
@@ -137,31 +143,36 @@ namespace BAN
 
 		bool operator<(const IteratorSimpleGeneral& other) const
 		{
+			ASSERT(*this);
 			return m_pointer < other.m_pointer;
 		}
 
 		bool operator==(const IteratorSimpleGeneral& other) const
 		{
+			ASSERT(*this);
 			return m_pointer == other.m_pointer;
 		}
 		bool operator!=(const IteratorSimpleGeneral& other) const
 		{
+			ASSERT(*this);
 			return !(*this == other);
 		}
 
 		explicit operator bool() const
 		{
-			return m_pointer;
+			return m_valid;
 		}
 
 	private:
 		IteratorSimpleGeneral(maybe_const_t<CONST, T>* pointer)
 			: m_pointer(pointer)
+			, m_valid(true)
 		{
 		}
 
 	private:
 		maybe_const_t<CONST, T>* m_pointer = nullptr;
+		bool m_valid = false;
 
 		friend IteratorSimpleGeneral<T, Container, !CONST>;
 		friend Container;
@@ -239,14 +250,14 @@ namespace BAN
 
 		bool operator==(const IteratorDoubleGeneral& other) const
 		{
-			if (!*this || !other)
-				return false;
+			ASSERT(*this && other);
 			if (m_outer_end != other.m_outer_end)
 				return false;
 			if (m_outer_current != other.m_outer_current)
 				return false;
 			if (m_outer_current == m_outer_end)
 				return true;
+			ASSERT(m_inner_current && other.m_inner_current);
 			return m_inner_current == other.m_inner_current;
 		}
 		bool operator!=(const IteratorDoubleGeneral& other) const
@@ -256,7 +267,7 @@ namespace BAN
 
 		explicit operator bool() const
 		{
-			return m_outer_end && m_outer_current;
+			return !!m_outer_current;
 		}
 
 	private:
