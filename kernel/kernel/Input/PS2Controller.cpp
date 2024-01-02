@@ -69,7 +69,7 @@ namespace Kernel::Input
 	static PS2Controller* s_instance = nullptr;
 
 	PS2Device::PS2Device()
-		: CharacterDevice(0440, 0, 0)
+		: CharacterDevice(0440, 0, 901)
 		, m_name(BAN::String::formatted("input{}", DevFileSystem::get().get_next_input_device()))
 	{ }
 

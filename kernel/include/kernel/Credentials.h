@@ -1,5 +1,7 @@
 #pragma once
 
+#include <BAN/Vector.h>
+
 #include <sys/types.h>
 
 namespace Kernel
@@ -31,9 +33,17 @@ namespace Kernel
 
 		bool is_superuser() const { return m_euid == 0; }
 
+		bool has_egid(gid_t) const;
+
+		BAN::ErrorOr<void> initialize_supplementary_groups();
+
+	private:
+		BAN::ErrorOr<BAN::String> find_username() const;
+
 	private:
 		uid_t m_ruid, m_euid, m_suid;
 		gid_t m_rgid, m_egid, m_sgid;
+		BAN::Vector<gid_t> m_supplementary;
 	};
 
 }

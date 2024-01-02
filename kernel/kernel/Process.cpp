@@ -116,6 +116,8 @@ namespace Kernel
 	BAN::ErrorOr<Process*> Process::create_userspace(const Credentials& credentials, BAN::StringView path)
 	{
 		auto* process = create_process(credentials, 0);
+		TRY(process->m_credentials.initialize_supplementary_groups());
+
 		MUST(process->m_working_directory.push_back('/'));
 		process->m_page_table = BAN::UniqPtr<PageTable>::adopt(MUST(PageTable::create_userspace()));
 
@@ -1348,6 +1350,7 @@ namespace Kernel
 			m_credentials.set_euid(uid);
 			m_credentials.set_ruid(uid);
 			m_credentials.set_suid(uid);
+			TRY(m_credentials.initialize_supplementary_groups());
 			return 0;
 		}
 
@@ -1356,6 +1359,7 @@ namespace Kernel
 		if (uid == m_credentials.ruid() || uid == m_credentials.suid())
 		{
 			m_credentials.set_euid(uid);
+			TRY(m_credentials.initialize_supplementary_groups());
 			return 0;
 		}
 
@@ -1402,6 +1406,7 @@ namespace Kernel
 		if (uid == m_credentials.ruid() || uid == m_credentials.suid() || m_credentials.is_superuser())
 		{
 			m_credentials.set_euid(uid);
+			TRY(m_credentials.initialize_supplementary_groups());
 			return 0;
 		}
 
@@ -1467,6 +1472,8 @@ namespace Kernel
 			m_credentials.set_ruid(ruid);
 		if (euid != -1)
 			m_credentials.set_euid(euid);
+
+		TRY(m_credentials.initialize_supplementary_groups());
 
 		return 0;
 	}

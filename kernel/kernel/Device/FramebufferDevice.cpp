@@ -22,7 +22,7 @@ namespace Kernel
 		if (g_boot_info.framebuffer.bpp != 24 && g_boot_info.framebuffer.bpp != 32)
 			return BAN::Error::from_errno(ENOTSUP);
 		auto* device_ptr = new FramebufferDevice(
-			0666, 0, 0,
+			0660, 0, 900,
 			DevFileSystem::get().get_next_dev(),
 			g_boot_info.framebuffer.address,
 			g_boot_info.framebuffer.width,

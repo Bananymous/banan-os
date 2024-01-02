@@ -14,6 +14,7 @@ set(KERNEL_SOURCES
 	kernel/APIC.cpp
 	kernel/BootInfo.cpp
 	kernel/CPUID.cpp
+	kernel/Credentials.cpp
 	kernel/Debug.cpp
 	kernel/Device/Device.cpp
 	kernel/Device/FramebufferDevice.cpp

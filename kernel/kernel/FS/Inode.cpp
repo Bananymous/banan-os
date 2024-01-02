@@ -17,7 +17,7 @@ namespace Kernel
 			{ }
 			else if ((mode().mode & S_IRUSR) && credentials.euid() == uid())
 			{ }
-			else if ((mode().mode & S_IRGRP) && credentials.egid() == gid())
+			else if ((mode().mode & S_IRGRP) && credentials.has_egid(gid()))
 			{ }
 			else
 			{
@@ -31,7 +31,7 @@ namespace Kernel
 			{ }
 			else if ((mode().mode & S_IWUSR) && credentials.euid() == uid())
 			{ }
-			else if ((mode().mode & S_IWGRP) && credentials.egid() == gid())
+			else if ((mode().mode & S_IWGRP) && credentials.has_egid(gid()))
 			{ }
 			else
 			{
@@ -45,7 +45,7 @@ namespace Kernel
 			{ }
 			else if ((mode().mode & S_IXUSR) && credentials.euid() == uid())
 			{ }
-			else if ((mode().mode & S_IXGRP) && credentials.egid() == gid())
+			else if ((mode().mode & S_IXGRP) && credentials.has_egid(gid()))
 			{ }
 			else
 			{
