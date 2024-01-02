@@ -5,6 +5,7 @@
 
 #include <dirent.h>
 #include <fcntl.h>
+#include <grp.h>
 #include <pwd.h>
 #include <stdio.h>
 #include <sys/stat.h>
@@ -84,7 +85,10 @@ BAN::String build_owner_name_string(uid_t uid)
 
 BAN::String build_owner_group_string(gid_t gid)
 {
-	return BAN::String::formatted("{}", gid);
+	struct group* grp = getgrgid(gid);
+	if (grp == nullptr)
+		return BAN::String::formatted("{}", gid);
+	return BAN::String(BAN::StringView(grp->gr_name));
 }
 
 BAN::String build_size_string(off_t size)
