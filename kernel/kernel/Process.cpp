@@ -886,6 +886,18 @@ namespace Kernel
 		return 0;
 	}
 
+	BAN::ErrorOr<long> Process::sys_chown(const char* path, uid_t uid, gid_t gid)
+	{
+		LockGuard _(m_lock);
+		validate_string_access(path);
+
+		auto absolute_path = TRY(absolute_path_of(path));
+		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, O_WRONLY));
+		TRY(file.inode->chown(uid, gid));
+
+		return 0;
+	}
+
 	BAN::ErrorOr<long> Process::sys_pipe(int fildes[2])
 	{
 		LockGuard _(m_lock);

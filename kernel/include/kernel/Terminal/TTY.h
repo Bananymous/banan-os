@@ -41,6 +41,9 @@ namespace Kernel
 
 		virtual void clear() = 0;
 
+		virtual BAN::ErrorOr<void> chmod_impl(mode_t) override;
+		virtual BAN::ErrorOr<void> chown_impl(uid_t, gid_t) override;
+
 		virtual bool has_data_impl() const override;
 
 	protected:

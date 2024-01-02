@@ -101,6 +101,7 @@ namespace Kernel
 		BAN::ErrorOr<size_t> write(off_t, BAN::ConstByteSpan buffer);
 		BAN::ErrorOr<void> truncate(size_t);
 		BAN::ErrorOr<void> chmod(mode_t);
+		BAN::ErrorOr<void> chown(uid_t, gid_t);
 		bool has_data() const;
 
 	protected:
@@ -119,6 +120,7 @@ namespace Kernel
 		virtual BAN::ErrorOr<size_t> write_impl(off_t, BAN::ConstByteSpan)	{ return BAN::Error::from_errno(ENOTSUP); }
 		virtual BAN::ErrorOr<void> truncate_impl(size_t)					{ return BAN::Error::from_errno(ENOTSUP); }
 		virtual BAN::ErrorOr<void> chmod_impl(mode_t)						{ return BAN::Error::from_errno(ENOTSUP); }
+		virtual BAN::ErrorOr<void> chown_impl(uid_t, gid_t)					{ return BAN::Error::from_errno(ENOTSUP); }
 		virtual bool has_data_impl() const { dwarnln("nonblock not supported"); return true; }
 
 	protected:

@@ -42,7 +42,7 @@ namespace Kernel
 	}
 
 	VirtualTTY::VirtualTTY(TerminalDriver* driver)
-		: TTY(0666, 0, 0)
+		: TTY(0600, 0, 0)
 		, m_terminal_driver(driver)
 		, m_rdev(next_rdev())
 	{

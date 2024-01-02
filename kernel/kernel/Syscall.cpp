@@ -211,6 +211,9 @@ namespace Kernel
 		case SYS_PREAD:
 			ret = Process::current().sys_pread((int)arg1, (void*)arg2, (size_t)arg3, (off_t)arg4);
 			break;
+		case SYS_CHOWN:
+			ret = Process::current().sys_chown((const char*)arg1, (uid_t)arg2, (gid_t)arg3);
+			break;
 		default:
 			dwarnln("Unknown syscall {}", syscall);
 			break;

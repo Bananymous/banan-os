@@ -63,6 +63,18 @@ int main()
 		if (pwd == nullptr)
 			continue;
 
+		if (chown("/dev/tty", pwd->pw_uid, pwd->pw_gid) == -1)
+		{
+			perror("chown");
+			continue;
+		}
+
+		if (chmod("/dev/tty", 0600) == -1)
+		{
+			perror("chmod");
+			continue;
+		}
+
 		pid_t pid = fork();
 		if (pid == 0)
 		{

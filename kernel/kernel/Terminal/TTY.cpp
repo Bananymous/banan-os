@@ -105,6 +105,21 @@ namespace Kernel
 		initialized = true;
 	}
 
+	BAN::ErrorOr<void> TTY::chmod_impl(mode_t mode)
+	{
+		ASSERT((mode & Inode::Mode::TYPE_MASK) == 0);
+		m_inode_info.mode &= Inode::Mode::TYPE_MASK;
+		m_inode_info.mode |= mode;
+		return {};
+	}
+
+	BAN::ErrorOr<void> TTY::chown_impl(uid_t uid, gid_t gid)
+	{
+		m_inode_info.uid = uid;
+		m_inode_info.gid = gid;
+		return {};
+	}
+
 	void TTY::on_key_event(Input::KeyEvent event)
 	{
 		LockGuard _(m_lock);

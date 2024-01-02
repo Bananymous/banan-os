@@ -141,6 +141,12 @@ namespace Kernel
 		return chmod_impl(mode);
 	}
 
+	BAN::ErrorOr<void> Inode::chown(uid_t uid, gid_t gid)
+	{
+		LockGuard _(m_lock);
+		return chown_impl(uid, gid);
+	}
+
 	bool Inode::has_data() const
 	{
 		LockGuard _(m_lock);

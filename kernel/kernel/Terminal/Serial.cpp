@@ -179,7 +179,7 @@ namespace Kernel
 	}
 
 	SerialTTY::SerialTTY(Serial serial)
-		: TTY(0660, 0, 0)
+		: TTY(0600, 0, 0)
 		, m_serial(serial)
 		, m_rdev(next_rdev())
 	{

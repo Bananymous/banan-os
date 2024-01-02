@@ -270,6 +270,11 @@ int chdir(const char* path)
 	return syscall(SYS_SET_PWD, path);
 }
 
+int chown(const char* path, uid_t owner, gid_t group)
+{
+	return syscall(SYS_CHOWN, path, owner, group);
+}
+
 void sync(void)
 {
 	syscall(SYS_SYNC, false);

@@ -61,6 +61,7 @@ __BEGIN_DECLS
 #define SYS_READLINKAT 60
 #define SYS_MSYNC 61
 #define SYS_PREAD 62
+#define SYS_CHOWN 63
 
 __END_DECLS
 
