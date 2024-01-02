@@ -13,6 +13,9 @@ extern "C" char** environ;
 
 extern "C" void _fini();
 
+static void (*at_exit_funcs[64])();
+static uint32_t at_exit_funcs_count = 0;
+
 void abort(void)
 {
 	fflush(nullptr);
@@ -22,6 +25,8 @@ void abort(void)
 
 void exit(int status)
 {
+	for (uint32_t i = at_exit_funcs_count; i > 0; i--)
+		at_exit_funcs[i - 1]();
 	fflush(nullptr);
 	__cxa_finalize(nullptr);
 	_fini();
@@ -34,9 +39,15 @@ int abs(int val)
 	return val < 0 ? -val : val;
 }
 
-int atexit(void(*)(void))
+int atexit(void (*func)(void))
 {
-	return -1;
+	if (at_exit_funcs_count > sizeof(at_exit_funcs) / sizeof(*at_exit_funcs))
+	{
+		errno = ENOBUFS;
+		return -1;
+	}
+	at_exit_funcs[at_exit_funcs_count++] = func;
+	return 0;
 }
 
 int atoi(const char* str)
