@@ -30,8 +30,8 @@ namespace BAN
 
 		StringView substring(size_type, size_type = -1) const;
 
-		ErrorOr<Vector<StringView>> split(char, bool = false);
-		ErrorOr<Vector<StringView>> split(bool(*comp)(char), bool = false);
+		ErrorOr<Vector<StringView>> split(char, bool = false) const;
+		ErrorOr<Vector<StringView>> split(bool(*comp)(char), bool = false) const;
 
 		char back() const;
 		char front() const;

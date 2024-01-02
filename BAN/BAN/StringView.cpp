@@ -61,7 +61,7 @@ namespace BAN
 		return result;
 	}
 
-	ErrorOr<Vector<StringView>> StringView::split(char delim, bool allow_empties)
+	ErrorOr<Vector<StringView>> StringView::split(char delim, bool allow_empties) const
 	{
 		size_type count = 0;
 		{
@@ -92,12 +92,12 @@ namespace BAN
 				start = i + 1;
 			}
 		}
-		if (start != m_size)
+		if (start < m_size || (start == m_size && allow_empties))
 			TRY(result.push_back(this->substring(start)));
 		return result;
 	}
 
-	ErrorOr<Vector<StringView>> StringView::split(bool(*comp)(char), bool allow_empties)
+	ErrorOr<Vector<StringView>> StringView::split(bool(*comp)(char), bool allow_empties) const
 	{
 		size_type count = 0;
 		{
@@ -128,7 +128,7 @@ namespace BAN
 				start = i + 1;
 			}
 		}
-		if (start != m_size)
+		if (start < m_size || (start == m_size && allow_empties))
 			TRY(result.push_back(this->substring(start)));
 		return result;
 	}
