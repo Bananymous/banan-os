@@ -23,6 +23,10 @@ bool cat_file(int fd)
 	if (nwrite == -1)
 		perror("write");
 
+	if (static_cast<uint8_t*>(addr)[st.st_size - 1] != '\n')
+		if (write(STDOUT_FILENO, "\n", 1) == -1)
+			perror("write");
+
 	if (munmap(addr, st.st_size) == -1)
 	{
 		perror("munmap");

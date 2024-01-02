@@ -3,6 +3,7 @@
 
 bool cat_file(int fd)
 {
+	char last = '\0';
 	char buffer[1024];
 	while (ssize_t n_read = read(fd, buffer, sizeof(buffer)))
 	{
@@ -12,7 +13,10 @@ bool cat_file(int fd)
 			return false;
 		}
 		write(STDOUT_FILENO, buffer, n_read);
+		last = buffer[n_read - 1];
 	}
+	if (last != '\n')
+		write(STDOUT_FILENO, "\n", 1);
 	return true;
 }
 
