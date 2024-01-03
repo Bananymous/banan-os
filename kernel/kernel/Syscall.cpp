@@ -217,6 +217,9 @@ namespace Kernel
 
 		asm volatile("cli");
 
+		if (ret.is_error() && ret.error().get_error_code() == ENOTSUP)
+			dprintln("ENOTSUP {}", syscall);
+
 		if (ret.is_error() && ret.error().is_kernel_error())
 			Kernel::panic("Kernel error while returning to userspace {}", ret.error());
 

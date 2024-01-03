@@ -189,6 +189,7 @@ namespace Kernel::IDT
 				else
 				{
 					derrorln("Stack pointer out of bounds!");
+					derrorln("rip {H}", interrupt_stack.rip);
 					derrorln("rsp {H}, stack {H}->{H}, istack {H}->{H}",
 						interrupt_stack.rsp,
 						stack.vaddr(), stack.vaddr() + stack.size(),
