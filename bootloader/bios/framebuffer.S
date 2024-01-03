@@ -57,11 +57,7 @@ vesa_scan_kernel_image:
 
 # Find suitable video mode and save it in (vesa_target_mode)
 vesa_find_video_mode:
-	pushw %ax
-	pushw %bx
-	pushw %cx
-	pushw %di
-	pushl %esi
+	pushal
 
 	pushl %ebp
 	movl %esp, %ebp
@@ -87,7 +83,7 @@ vesa_find_video_mode:
 	# get vesa information
 	movw $0x4F00, %ax
 	movw $vesa_info_buffer, %di
-	int $0x10
+	pushl %ebp; int $0x10; popl %ebp	# BOCHS doesn't seem to reserve ebp
 	cmpb $0x4F, %al; jne .vesa_unsupported
 	cmpb $0x00, %ah; jne .vesa_error
 
@@ -109,7 +105,7 @@ vesa_find_video_mode:
 	movw $0x4F01, %ax
 	movw (%esi), %cx
 	movw $vesa_mode_info_buffer, %di
-	int $0x10
+	pushl %ebp; int $0x10; popl %ebp	# BOCHS doesn't seem to reserve ebp
 	cmpb $0x4F, %al; jne .vesa_unsupported
 	cmpb $0x00, %ah; jne .vesa_error
 
@@ -146,11 +142,7 @@ vesa_find_video_mode:
 
  .vesa_find_video_mode_loop_modes_done:
 	leavel
-	popl %esi
-	popw %di
-	popw %cx
-	popw %bx
-	popw %ax
+	popal
 	ret
 
  .vesa_unsupported:
@@ -180,14 +172,14 @@ vesa_set_video_mode:
 
 	movw $0x4F02, %ax
 	orw $0x4000, %bx
-	int $0x10
+	pushl %ebp; int $0x10; popl %ebp	# BOCHS doesn't seem to reserve ebp
 
 	jmp .set_video_done
 
  .vesa_set_target_mode_generic:
 	movb $0x03, %al
 	movb $0x00, %ah
-	int $0x10
+	pushl %ebp; int $0x10; popl %ebp	# BOCHS doesn't seem to reserve ebp
 
  .set_video_done:
 	popw %bx
