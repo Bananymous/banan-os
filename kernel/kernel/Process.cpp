@@ -347,7 +347,7 @@ namespace Kernel
 	{
 		LockGuard _(m_lock);
 
-		validate_pointer_access(termios, sizeof(::termios));
+		TRY(validate_pointer_access(termios, sizeof(::termios)));
 
 		if (!m_controlling_terminal)
 			return BAN::Error::from_errno(ENOTTY);
@@ -366,7 +366,7 @@ namespace Kernel
 	{
 		LockGuard _(m_lock);
 
-		validate_pointer_access(termios, sizeof(::termios));
+		TRY(validate_pointer_access(termios, sizeof(::termios)));
 
 		if (!m_controlling_terminal)
 			return BAN::Error::from_errno(ENOTTY);
@@ -445,22 +445,22 @@ namespace Kernel
 		{
 			LockGuard _(m_lock);
 
-			validate_string_access(path);
+			TRY(validate_string_access(path));
 			auto loadable_elf = TRY(load_elf_for_exec(m_credentials, path, m_working_directory, page_table()));
 
 			BAN::Vector<BAN::String> str_argv;
 			for (int i = 0; argv && argv[i]; i++)
 			{
-				validate_pointer_access(argv + i, sizeof(char*));
-				validate_string_access(argv[i]);
+				TRY(validate_pointer_access(argv + i, sizeof(char*)));
+				TRY(validate_string_access(argv[i]));
 				TRY(str_argv.emplace_back(argv[i]));
 			}
 
 			BAN::Vector<BAN::String> str_envp;
 			for (int i = 0; envp && envp[i]; i++)
 			{
-				validate_pointer_access(envp + 1, sizeof(char*));
-				validate_string_access(envp[i]);
+				TRY(validate_pointer_access(envp + 1, sizeof(char*)));
+				TRY(validate_string_access(envp[i]));
 				TRY(str_envp.emplace_back(envp[i]));
 			}
 
@@ -572,7 +572,7 @@ namespace Kernel
 
 		{
 			LockGuard _(m_lock);
-			validate_pointer_access(stat_loc, sizeof(int));
+			TRY(validate_pointer_access(stat_loc, sizeof(int)));
 		}
 
 		// FIXME: support options
@@ -622,9 +622,9 @@ namespace Kernel
 	{
 		{
 			LockGuard _(m_lock);
-			validate_pointer_access(rqtp, sizeof(timespec));
+			TRY(validate_pointer_access(rqtp, sizeof(timespec)));
 			if (rmtp)
-				validate_pointer_access(rmtp, sizeof(timespec));
+				TRY(validate_pointer_access(rmtp, sizeof(timespec)));
 		}
 
 		uint64_t sleep_ms = rqtp->tv_sec * 1000 + BAN::Math::div_round_up<uint64_t>(rqtp->tv_nsec, 1'000'000);
@@ -748,7 +748,7 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_open(const char* path, int flags, mode_t mode)
 	{
 		LockGuard _(m_lock);
-		validate_string_access(path);
+		TRY(validate_string_access(path));
 		return open_file(path, flags, mode);
 	}
 
@@ -756,7 +756,7 @@ namespace Kernel
 	{
 		LockGuard _(m_lock);
 
-		validate_string_access(path);
+		TRY(validate_string_access(path));
 
 		// FIXME: handle O_SEARCH in fd
 
@@ -778,21 +778,21 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_read(int fd, void* buffer, size_t count)
 	{
 		LockGuard _(m_lock);
-		validate_pointer_access(buffer, count);
+		TRY(validate_pointer_access(buffer, count));
 		return TRY(m_open_file_descriptors.read(fd, BAN::ByteSpan((uint8_t*)buffer, count)));
 	}
 
 	BAN::ErrorOr<long> Process::sys_write(int fd, const void* buffer, size_t count)
 	{
 		LockGuard _(m_lock);
-		validate_pointer_access(buffer, count);
+		TRY(validate_pointer_access(buffer, count));
 		return TRY(m_open_file_descriptors.write(fd, BAN::ByteSpan((uint8_t*)buffer, count)));
 	}
 
 	BAN::ErrorOr<long> Process::sys_create(const char* path, mode_t mode)
 	{
 		LockGuard _(m_lock);
-		validate_string_access(path);
+		TRY(validate_string_access(path));
 		TRY(create_file_or_dir(path, mode));
 		return 0;
 	}
@@ -800,7 +800,7 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_create_dir(const char* path, mode_t mode)
 	{
 		LockGuard _(m_lock);
-		validate_string_access(path);
+		TRY(validate_string_access(path));
 		BAN::StringView path_sv(path);
 		if (!path_sv.empty() && path_sv.back() == '/')
 			path_sv = path_sv.substring(0, path_sv.size() - 1);
@@ -811,7 +811,7 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_unlink(const char* path)
 	{
 		LockGuard _(m_lock);
-		validate_string_access(path);
+		TRY(validate_string_access(path));
 		
 		auto absolute_path = TRY(absolute_path_of(path));
 
@@ -844,8 +844,8 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_readlink(const char* path, char* buffer, size_t bufsize)
 	{
 		LockGuard _(m_lock);
-		validate_string_access(path);
-		validate_pointer_access(buffer, bufsize);
+		TRY(validate_string_access(path));
+		TRY(validate_pointer_access(buffer, bufsize));
 
 		auto absolute_path = TRY(absolute_path_of(path));
 
@@ -855,8 +855,8 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_readlinkat(int fd, const char* path, char* buffer, size_t bufsize)
 	{
 		LockGuard _(m_lock);
-		validate_string_access(path);
-		validate_pointer_access(buffer, bufsize);
+		TRY(validate_string_access(path));
+		TRY(validate_pointer_access(buffer, bufsize));
 
 		// FIXME: handle O_SEARCH in fd
 		auto parent_path = TRY(m_open_file_descriptors.path_of(fd));
@@ -872,7 +872,7 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_pread(int fd, void* buffer, size_t count, off_t offset)
 	{
 		LockGuard _(m_lock);
-		validate_pointer_access(buffer, count);
+		TRY(validate_pointer_access(buffer, count));
 		auto inode = TRY(m_open_file_descriptors.inode_of(fd));
 		return TRY(inode->read(offset, { (uint8_t*)buffer, count }));
 	}
@@ -883,7 +883,7 @@ namespace Kernel
 			return BAN::Error::from_errno(EINVAL);
 
 		LockGuard _(m_lock);
-		validate_string_access(path);
+		TRY(validate_string_access(path));
 
 		auto absolute_path = TRY(absolute_path_of(path));
 		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, O_WRONLY));
@@ -895,7 +895,7 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_chown(const char* path, uid_t uid, gid_t gid)
 	{
 		LockGuard _(m_lock);
-		validate_string_access(path);
+		TRY(validate_string_access(path));
 
 		auto absolute_path = TRY(absolute_path_of(path));
 		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, O_WRONLY));
@@ -907,7 +907,7 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_pipe(int fildes[2])
 	{
 		LockGuard _(m_lock);
-		validate_pointer_access(fildes, sizeof(int) * 2);
+		TRY(validate_pointer_access(fildes, sizeof(int) * 2));
 		TRY(m_open_file_descriptors.pipe(fildes));
 		return 0;
 	}
@@ -958,7 +958,7 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_fstat(int fd, struct stat* buf)
 	{
 		LockGuard _(m_lock);
-		validate_pointer_access(buf, sizeof(struct stat));
+		TRY(validate_pointer_access(buf, sizeof(struct stat)));
 		TRY(m_open_file_descriptors.fstat(fd, buf));
 		return 0;
 	}
@@ -966,7 +966,7 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_fstatat(int fd, const char* path, struct stat* buf, int flag)
 	{
 		LockGuard _(m_lock);
-		validate_pointer_access(buf, sizeof(struct stat));
+		TRY(validate_pointer_access(buf, sizeof(struct stat)));
 		TRY(m_open_file_descriptors.fstatat(fd, path, buf, flag));
 		return 0;
 	}
@@ -974,7 +974,7 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_stat(const char* path, struct stat* buf, int flag)
 	{
 		LockGuard _(m_lock);
-		validate_pointer_access(buf, sizeof(struct stat));
+		TRY(validate_pointer_access(buf, sizeof(struct stat)));
 		TRY(m_open_file_descriptors.stat(TRY(absolute_path_of(path)), buf, flag));
 		return 0;
 	}
@@ -1027,7 +1027,7 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_read_dir_entries(int fd, DirectoryEntryList* list, size_t list_size)
 	{
 		LockGuard _(m_lock);
-		validate_pointer_access(list, list_size);
+		TRY(validate_pointer_access(list, list_size));
 		TRY(m_open_file_descriptors.read_dir_entries(fd, list, list_size));
 		return 0;
 	}
@@ -1038,7 +1038,7 @@ namespace Kernel
 
 		{
 			LockGuard _(m_lock);
-			validate_string_access(path);
+			TRY(validate_string_access(path));
 			absolute_path = TRY(absolute_path_of(path));
 		}
 
@@ -1056,7 +1056,7 @@ namespace Kernel
 	{
 		LockGuard _(m_lock);
 
-		validate_pointer_access(buffer, size);
+		TRY(validate_pointer_access(buffer, size));
 
 		if (size < m_working_directory.size() + 1)
 			return BAN::Error::from_errno(ERANGE);
@@ -1071,7 +1071,7 @@ namespace Kernel
 	{
 		{
 			LockGuard _(m_lock);
-			validate_pointer_access(args, sizeof(sys_mmap_t));
+			TRY(validate_pointer_access(args, sizeof(sys_mmap_t)));
 		}
 
 		if (args->prot != PROT_NONE && args->prot & ~(PROT_READ | PROT_WRITE | PROT_EXEC))
@@ -1212,7 +1212,7 @@ namespace Kernel
 	{
 		LockGuard _(m_lock);
 
-		validate_string_access(buffer);
+		TRY(validate_string_access(buffer));
 
 		auto& tty = m_controlling_terminal;
 
@@ -1232,7 +1232,7 @@ namespace Kernel
 	{
 		{
 			LockGuard _(m_lock);
-			validate_pointer_access(tp, sizeof(timespec));
+			TRY(validate_pointer_access(tp, sizeof(timespec)));
 		}
 
 		switch (clock_id)
@@ -1260,7 +1260,7 @@ namespace Kernel
 
 		{
 			LockGuard _(m_lock);
-			validate_pointer_access((void*)handler, sizeof(handler));
+			TRY(validate_pointer_access((void*)handler, sizeof(handler)));
 		}
 
 		CriticalScope _;
@@ -1645,14 +1645,14 @@ namespace Kernel
 		return absolute_path;
 	}
 
-	void Process::validate_string_access(const char* str)
+	BAN::ErrorOr<void> Process::validate_string_access(const char* str)
 	{
 		// NOTE: we will page fault here, if str is not actually mapped
 		//       outcome is still the same; SIGSEGV
-		validate_pointer_access(str, strlen(str) + 1);
+		return validate_pointer_access(str, strlen(str) + 1);
 	}
 
-	void Process::validate_pointer_access(const void* ptr, size_t size)
+	BAN::ErrorOr<void> Process::validate_pointer_access(const void* ptr, size_t size)
 	{
 		ASSERT(&Process::current() == this);
 		auto& thread = Thread::current();
@@ -1668,24 +1668,25 @@ namespace Kernel
 			goto unauthorized_access;
 
 		if (vaddr == 0)
-			return;
+			return {};
 
 		if (vaddr >= thread.stack_base() && vaddr + size <= thread.stack_base() + thread.stack_size())
-			return;
+			return {};
 
 		// FIXME: should we allow cross mapping access?
 		for (auto& mapped_region : m_mapped_regions)
 			mapped_region->contains_fully(vaddr, size);
-				return;
+				return {};
 
 		// FIXME: elf should contain full range [vaddr, vaddr + size)
 		if (m_loadable_elf->contains(vaddr))
-			return;
+			return {};
 
 unauthorized_access:
 		dwarnln("process {}, thread {} attempted to make an invalid pointer access", pid(), Thread::current().tid());
 		Debug::dump_stack_trace();
 		MUST(sys_kill(pid(), SIGSEGV));
+		return BAN::Error::from_errno(EINTR);
 	}
 
 }

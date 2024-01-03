@@ -175,8 +175,8 @@ namespace Kernel
 
 		BAN::ErrorOr<BAN::String> absolute_path_of(BAN::StringView) const;
 
-		void validate_string_access(const char*);
-		void validate_pointer_access(const void*, size_t);
+		BAN::ErrorOr<void> validate_string_access(const char*);
+		BAN::ErrorOr<void> validate_pointer_access(const void*, size_t);
 
 	private:
 		struct ExitStatus
