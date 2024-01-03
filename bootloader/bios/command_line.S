@@ -26,6 +26,8 @@ read_user_command_line:
 
 	cmpb $'\b', %al
 	je .read_user_command_line_backspace
+	cmpb $0x7F, %al
+	je .read_user_command_line_backspace
 
 	# Not sure if some BIOSes return '\n' as enter, but check it just in case
 	cmpb $'\r', %al
