@@ -75,7 +75,7 @@ namespace Kernel
 		vaddr_t interrupt_stack_base() const { return m_interrupt_stack ? m_interrupt_stack->vaddr() : 0; }
 		size_t interrupt_stack_size() const { return m_interrupt_stack ? m_interrupt_stack->size() : 0; }
 
-		static Thread& current() ;
+		static Thread& current();
 		static pid_t current_tid();
 
 		Process& process();
@@ -87,8 +87,9 @@ namespace Kernel
 		size_t physical_page_count() const { return virtual_page_count(); }
 
 #if __enable_sse
-		void save_sse() { asm volatile("fxsave %0" :: "m"(m_sse_storage)); }
-		void load_sse() { asm volatile("fxrstor %0" :: "m"(m_sse_storage)); }
+		void save_sse();
+		void load_sse();
+		static Thread* sse_thread();
 #endif
 
 	private:

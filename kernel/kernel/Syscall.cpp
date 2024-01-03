@@ -26,10 +26,6 @@ namespace Kernel
 		Thread::current().set_return_rsp(interrupt_stack.rsp);
 		Thread::current().set_return_rip(interrupt_stack.rip);
 
-#if __enable_sse
-		Thread::current().save_sse();
-#endif
-
 		asm volatile("sti");
 
 		(void)arg1;
@@ -229,10 +225,6 @@ namespace Kernel
 			current_thread.handle_signal();
 
 		ASSERT(Kernel::Thread::current().state() == Kernel::Thread::State::Executing);
-
-#if __enable_sse
-		current_thread.load_sse();
-#endif
 
 		if (ret.is_error())
 			return -ret.error().get_error_code();

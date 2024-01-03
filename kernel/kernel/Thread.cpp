@@ -101,7 +101,16 @@ namespace Kernel
 		: m_tid(tid), m_process(process)
 	{
 #if __enable_sse
+		uintptr_t cr0;
+		asm volatile(
+			"movq %%cr0, %%rax;"
+			"movq %%rax, %%rbx;"
+			"andq $~(1 << 3), %%rax;"
+			"movq %%rax, %%cr0;"
+			: "=b"(cr0)
+		);
 		save_sse();
+		asm volatile("movq %0, %%cr0" :: "r"(cr0));
 #endif
 	}
 
@@ -360,5 +369,25 @@ namespace Kernel
 		terminate();
 		ASSERT_NOT_REACHED();
 	}
+
+#if __enable_sse
+	static Thread* s_sse_thread = nullptr;
+
+	void Thread::save_sse()
+	{
+		asm volatile("fxsave %0" :: "m"(m_sse_storage));
+	}
+
+	void Thread::load_sse()
+	{
+		asm volatile("fxrstor %0" :: "m"(m_sse_storage));
+		s_sse_thread = this;
+	}
+
+	Thread* Thread::sse_thread()
+	{
+		return s_sse_thread;
+	}
+#endif
 
 }

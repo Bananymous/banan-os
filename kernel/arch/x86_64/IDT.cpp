@@ -218,6 +218,23 @@ namespace Kernel::IDT
 					}
 				}
 			}
+#if __enable_sse
+			else if (isr == ISR::DeviceNotAvailable)
+			{
+				asm volatile(
+					"movq %cr0, %rax;"
+					"andq $~(1 << 3), %rax;"
+					"movq %rax, %cr0;"
+				);
+				if (auto* current = &Thread::current(); current != Thread::sse_thread())
+				{
+					if (auto* sse = Thread::sse_thread())
+						sse->save_sse();
+					current->load_sse();
+				}
+				goto done;
+			}
+#endif
 		}
 
 		if (PageTable::current().get_page_flags(interrupt_stack.rip & PAGE_ADDR_MASK) & PageTable::Flags::Present)
@@ -259,7 +276,6 @@ namespace Kernel::IDT
 			int signal = 0;
 			switch (isr)
 			{
-			case ISR::DeviceNotAvailable:
 			case ISR::DivisionError:
 			case ISR::SIMDFloatingPointException:
 			case ISR::x87FloatingPointException:
@@ -290,22 +306,11 @@ namespace Kernel::IDT
 		ASSERT(Thread::current().state() != Thread::State::Terminated);
 	
 done:
-#if __enable_sse
-		if (from_userspace)
-		{
-			ASSERT(Thread::current().state() == Thread::State::Executing);
-			Thread::current().load_sse();
-		}
-#endif
 		return;
 	}
 
 	extern "C" void cpp_irq_handler(uint64_t irq, InterruptStack& interrupt_stack)
 	{
-#if __enable_sse
-		Thread::current().save_sse();
-#endif
-
 		if (Scheduler::current_tid())
 		{
 			Thread::current().set_return_rsp(interrupt_stack.rsp);
@@ -326,10 +331,6 @@ done:
 		Scheduler::get().reschedule_if_idling();
 
 		ASSERT(Thread::current().state() != Thread::State::Terminated);
-
-#if __enable_sse
-		Thread::current().load_sse();
-#endif
 	}
 
 	static void flush_idt()

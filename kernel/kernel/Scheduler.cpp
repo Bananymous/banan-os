@@ -231,6 +231,17 @@ namespace Kernel
 
 		Thread* current = &current_thread();
 
+#if __enable_sse
+		if (current != Thread::sse_thread())
+		{
+			asm volatile(
+				"movq %cr0, %rax;"
+				"orq $(1 << 3), %rax;"
+				"movq %rax, %cr0"
+			);
+		}
+#endif
+
 		while (current->state() == Thread::State::Terminated)
 		{
 			Thread* thread = m_current_thread->thread;
