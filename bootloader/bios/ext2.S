@@ -2,9 +2,7 @@
 .set SECTOR_SHIFT,	9
 .set SECTOR_SIZE,	1 << SECTOR_SHIFT
 
-# FIXME: don't assume 1024 byte blocks
-.set EXT2_BLOCK_SHIFT,		10
-.set EXT2_BLOCK_SIZE,		1 << EXT2_BLOCK_SHIFT
+.set EXT2_MAX_BLOCK_SIZE,	4096
 .set EXT2_SUPERBLOCK_SIZE,	264
 .set EXT2_BGD_SHIFT,		5
 .set EXT2_BGD_SIZE,			1 << EXT2_BGD_SHIFT
@@ -18,6 +16,7 @@
 .set EXT2_S_IFREG,			0x8000
 
 # superblock offsets
+.set s_first_data_block,	20
 .set s_log_block_size,		24
 .set s_inodes_per_group,	40
 .set s_magic,				56
@@ -66,9 +65,7 @@ has_ext2_filesystem:
 
 	# from byte offset 1024
 	addl $(1024 / SECTOR_SIZE), %eax
-	jnc .has_ext2_filesystem_no_overflow
-	incw %bx
- .has_ext2_filesystem_no_overflow:
+	adcw $0, %bx
 
 	# into sector buffer
 	movw $ext2_block_buffer, %di
@@ -90,11 +87,16 @@ has_ext2_filesystem:
 	movl (ext2_superblock_buffer + s_log_block_size), %ecx
 	testl $0xFFFFFF00, %ecx
 	jnz .has_ext2_filesystem_unsupported_block_size
-	  # verify 1024 << s_log_block_size == EXT2_BLOCK_SIZE
+	  # verify 1024 << s_log_block_size <= EXT2_MAX_BLOCK_SIZE
 	movl $1024, %eax
 	shll %cl, %eax
-	cmpl $EXT2_BLOCK_SIZE, %eax
-	jne .has_ext2_filesystem_unsupported_block_size
+	cmpl $EXT2_MAX_BLOCK_SIZE, %eax
+	ja .has_ext2_filesystem_unsupported_block_size
+
+	# fill block size and shift
+	movl %eax, (ext2_block_size)
+	addl $10, %ecx
+	movl %ecx, (ext2_block_shift)
 
 	# fill inode size
 	movl $128, %eax
@@ -130,38 +132,23 @@ has_ext2_filesystem:
 # reads block in to ext2_block_buffer
 #	eax:	block number
 ext2_read_block:
-	pushl %eax
-	pushl %ebx
-	pushw %cx
-	pushl %edx
-	pushw %di
+	pushal
 
-	# NOTE: this assumes 1024 block size
-	# eax := (block * block_size) / sector_size := (eax << EXT2_BLOCK_SHIFT) >> SECTOR_SHIFT
-	xorl %edx, %edx
-	shll $EXT2_BLOCK_SHIFT, %eax
-	shrl $SECTOR_SHIFT, %eax
+	# ecx := sectors_per_block := block_size / sector_size
+	movl (ext2_block_size), %ecx
+	shrl $SECTOR_SHIFT, %ecx
 
-	# ebx:eax := eax + (ext2_partition_first_sector)
-	movl (ext2_partition_first_sector + 4), %ebx
+	# ebx:eax := block * sectors_per_block + (ext2_partition_first_sector)
+	xorl %ebx, %ebx
+	mull %ecx
 	addl (ext2_partition_first_sector + 0), %eax
-	jnc .ext2_read_block_no_carry
-	incl %ebx
- .ext2_read_block_no_carry:
-
-	# sectors per block
-	movw $(EXT2_BLOCK_SIZE / SECTOR_SIZE), %cx
+	adcl (ext2_partition_first_sector + 4), %ebx
 
 	movw $ext2_block_buffer, %di
-
 	movb (ext2_drive_number), %dl
 	call read_from_disk
 
-	popw %di
-	popl %edx
-	popw %cx
-	popl %ebx
-	popl %eax
+	popal
 	ret
 
 
@@ -170,15 +157,23 @@ ext2_read_block:
 ext2_read_block_group_descriptor:
 	pushal
 
-	# eax := bgd_byte_offset := 2048 + EXT2_BGD_SIZE * eax := (eax << EXT2_BGD_SHIFT) + 2048
-	shll $EXT2_BGD_SHIFT, %eax
-	addl $2048, %eax
+	# ebx := bgd_block_byte_offset := (s_first_data_block + 1) * block_size
+	#                              := (s_first_data_block + 1) << ext2_block_shift
+	movl (ext2_superblock_buffer + s_first_data_block), %ebx
+	incl %ebx
+	movb (ext2_block_shift), %cl
+	shll %cl, %ebx
 
-	# eax: bgd_block  := bgd_byte_offset / EXT2_BLOCK_SIZE
-	# ebx: bgd_offset := bgd_byte_offset % EXT2_BLOCK_SIZE
+	# eax := bgd_byte_offset := bgd_block_byte_offset + EXT2_BGD_SIZE * block_group;
+	#                        := bgd_block_byte_offset + (block_group << EXT2_BGD_SHIFT)
+	movb $EXT2_BGD_SHIFT, %cl
+	shll %cl, %eax
+	addl %ebx, %eax
+
+	# eax: bgd_block  := bgd_byte_offset / block_size
+	# ebx: bgd_offset := bgd_byte_offset % block_size
 	xorl %edx, %edx
-	movl $EXT2_BLOCK_SIZE, %ebx
-	divl %ebx
+	divl (ext2_block_size)
 	movl %edx, %ebx
 
 	call ext2_read_block
@@ -204,23 +199,19 @@ ext2_read_inode:
 	# ebx := inode_index = (ino - 1) % s_inodes_per_group
 	xorl %edx, %edx
 	decl %eax
-	movl (ext2_superblock_buffer + s_inodes_per_group), %ebx
-	divl %ebx
+	divl (ext2_superblock_buffer + s_inodes_per_group)
 	movl %edx, %ebx
 
 	call ext2_read_block_group_descriptor
 
-	# eax := inode_table_block  := (inode_index * inode_size) / EXT2_BLOCK_SIZE
-	# ebx := inode_table_offset := (inode_index * inode_size) % EXT2_BLOCK_SIZE
-	xorl %edx, %edx
+	# eax := inode_table_block  := (inode_index * inode_size) / block_size
+	# ebx := inode_table_offset := (inode_index * inode_size) % block_size
 	movl %ebx, %eax
-	movl (ext2_inode_size), %ebx
-	mull %ebx
-	movl $EXT2_BLOCK_SIZE, %ebx
-	divl %ebx
+	mull (ext2_inode_size)
+	divl (ext2_block_size)
 	movl %edx, %ebx
 
-	# eax := file system block := eax + bg_inode_table
+	# eax := filesystem_block := eax + bg_inode_table
 	addl (ext2_block_group_descriptor_buffer + bg_inode_table), %eax
 
 	movb (ext2_drive_number), %dl
@@ -255,14 +246,17 @@ ext2_data_block_index:
 	pushl %esi
 	pushl %edi
 
-	# calculate max data blocks
-	movl (ext2_inode_buffer + i_size), %ecx
-	addl (ext2_inode_size), %ecx
-	decl %ecx
-	shll $EXT2_BLOCK_SHIFT, %ecx
+	# ebx := max_data_blocks := (file_size + block_size - 1) / block_size
+	#                        := (i_size + ext2_block_size - 1) >> ext2_block_shift
+	# cl  := ext2_block_shift
+	movl (ext2_inode_buffer + i_size), %ebx
+	addl (ext2_block_size), %ebx
+	decl %ebx
+	movb (ext2_block_shift), %cl
+	shrl %cl, %ebx
 
 	# verify data block is within bounds
-	cmpl %ecx, %eax
+	cmpl %ebx, %eax
 	jae .ext2_data_block_index_out_of_bounds
 
 	# check if this is direct block access
@@ -270,18 +264,26 @@ ext2_data_block_index:
 	jb .ext2_data_block_index_direct
 	subl $12, %eax
 
+	# cl  := indices_per_block_shift := ext2_block_shift - 2
+	# ebx := comp
+	subb $2, %cl
+	movl $1, %ebx
+	shll %cl, %ebx
+
 	# check if this is singly indirect block access
-	cmpl $(EXT2_BLOCK_SIZE / 4), %eax
+	cmpl %ebx, %eax
 	jb .ext2_data_block_index_singly_indirect
-	subl $(EXT2_BLOCK_SIZE / 4), %eax
+	subl %ebx, %eax
+	shll %cl, %ebx
 
 	# check if this is doubly indirect block access
-	cmpl $((EXT2_BLOCK_SIZE / 4) * (EXT2_BLOCK_SIZE / 4)), %eax
+	cmpl %ebx, %eax
 	jb .ext2_data_block_index_doubly_indirect
-	subl $((EXT2_BLOCK_SIZE / 4) * (EXT2_BLOCK_SIZE / 4)), %eax
+	subl %ebx, %eax
+	shll %cl, %ebx
 
 	# check if this is triply indirect block access
-	cmpl $((EXT2_BLOCK_SIZE / 4) * (EXT2_BLOCK_SIZE / 4) * (EXT2_BLOCK_SIZE / 4)), %eax
+	cmpl %ebx, %eax
 	jb .ext2_data_block_index_triply_indirect
 
 	# otherwise this is invalid access
@@ -314,9 +316,12 @@ ext2_data_block_index:
 	# ebx := index
 	# cx  := depth
  .ext2_data_block_index_indirect:
-	# calculate cache index ((index & 0xFF) | depth)
-	movl %ebx, %edx
-	andl $(~(EXT2_BLOCK_SIZE / 4 - 1)), %edx
+	# edx := cache index := (index & ~(block_size / 4 - 1)) | depth
+	#                    := (index & -(block_size >> 2)) | depth
+	movl (ext2_block_size), %edx
+	shrl $2, %edx
+	negl %edx
+	andl %ebx, %edx
 	orw %cx, %dx
 
 	# check whether this block is already cached
@@ -343,20 +348,21 @@ ext2_data_block_index:
 	jbe .ext2_data_block_index_no_shift
 
 	# cl := shift
-	movb $(EXT2_BLOCK_SHIFT - 2), %al
+	movb (ext2_block_shift), %al
+	subb $2, %al
 	decb %cl
 	mulb %cl
 	movb %al, %cl
 
-	# ebx := ebx >> cl
+	# ebx := ebx >> shift
 	shrl %cl, %ebx
 
  .ext2_data_block_index_no_shift:
-	# edx := index of next block
-	movl %ebx, %eax
-	xorl %edx, %edx
-	movl $(EXT2_BLOCK_SIZE / 4), %ebx
-	divl %ebx
+	# edx := index of next block (ebx & (block_size / 4 - 1))
+	movl (ext2_block_size), %edx
+	shrl $2, %edx
+	decl %edx
+	andl %ebx, %edx
 
 	# eax := next block
 	movl $ext2_block_buffer, %esi
@@ -371,7 +377,7 @@ ext2_data_block_index:
 	# cache last read block
 	movw $ext2_block_buffer, %si
 	movw $ext2_inode_indirect_buffer, %di
-	movw $EXT2_BLOCK_SIZE, %cx
+	movw (ext2_block_size), %cx
 	rep movsb
 
 	jmp .ext2_data_block_index_done
@@ -390,7 +396,10 @@ ext2_data_block_index:
 
  .ext2_data_block_index_indirect_cached:
 	movl $ext2_inode_indirect_buffer, %esi
-	andl $(EXT2_BLOCK_SIZE / 4 - 1), %ebx
+	movl (ext2_block_size), %edx
+	shrl $2, %edx
+	decl %edx
+	andl %edx, %ebx
 	movl (%esi, %ebx, 4), %eax
 
  .ext2_data_block_index_done:
@@ -410,6 +419,7 @@ ext2_data_block_index:
 .global ext2_inode_read_bytes
 ext2_inode_read_bytes:
 	pushal
+
 	pushl %ebp
 	movl %esp, %ebp
 	subl $8, %esp
@@ -418,11 +428,11 @@ ext2_inode_read_bytes:
 	movl %eax, 0(%esp)
 	movl %ecx, 4(%esp)
 
-	# check if eax % EXT2_BLOCK_SIZE != 0,
-	# then we need to read a partial block starting from an offset
+	# eax := first_byte / block_size
+	# edx := first_byte % block_size
+	# when edx == 0, no partial read needed
 	xorl %edx, %edx
-	movl $EXT2_BLOCK_SIZE, %ebx
-	divl %ebx
+	divl (ext2_block_size)
 	testl %edx, %edx
 	jz .ext2_inode_read_bytes_no_partial_start
 
@@ -431,7 +441,7 @@ ext2_inode_read_bytes:
 	call ext2_read_block
 
 	# ecx := byte count (min(block_size - edx, remaining_bytes))
-	movl $EXT2_BLOCK_SIZE, %ecx
+	movl (ext2_block_size), %ecx
 	subl %edx, %ecx
 	cmpl %ecx, 4(%esp)
 	cmovbl 4(%esp), %ecx
@@ -445,7 +455,7 @@ ext2_inode_read_bytes:
 	addl %edx, %esi
 
 	# very dumb memcpy with 32 bit addresses
-	movl $0, %ebx
+	xorl %ebx, %ebx
  .ext2_inode_read_bytes_memcpy_partial:
 	movb (%esi, %ebx), %al
 	movb %al, (%edi, %ebx)
@@ -461,14 +471,15 @@ ext2_inode_read_bytes:
  .ext2_inode_read_bytes_no_partial_start:
 	# eax := data block index (byte_start / block_size)
 	movl 0(%esp), %eax
-	shrl $(EXT2_BLOCK_SHIFT), %eax
+	movb (ext2_block_shift), %cl
+	shrl %cl, %eax
 
 	# get data block index and read block
 	call ext2_data_block_index
 	call ext2_read_block
 
 	# calculate bytes to copy (min(block_size, remaining_bytes))
-	movl $EXT2_BLOCK_SIZE, %ecx
+	movl (ext2_block_size), %ecx
 	cmpl %ecx, 4(%esp)
 	cmovbl 4(%esp), %ecx
 
@@ -524,11 +535,12 @@ ext2_directory_find_inode:
 	cmpw $0xFF, %cx
 	ja .ext2_directory_find_inode_not_found
 
-	# ebx := max data blocks: ceil(i_size / EXT2_BLOCK_SIZE)
+	# ebx := max data blocks: ceil(i_size / block_size)
 	movl (ext2_inode_buffer + i_size), %ebx
-	addl $EXT2_BLOCK_SHIFT, %ebx
+	addl (ext2_block_size), %ebx
 	decl %ebx
-	shrl $EXT2_BLOCK_SHIFT, %ebx
+	movb (ext2_block_shift), %cl
+	shrl %cl, %ebx
 	jz .ext2_directory_find_inode_not_found
 
 	# 4(%esp) := current block
@@ -575,7 +587,9 @@ ext2_directory_find_inode:
 
 	# go to next entry if this block contains one
 	addw 4(%si), %si
-	cmpw $(ext2_block_buffer + EXT2_BLOCK_SIZE), %si
+	movw $ext2_block_buffer, %di
+	addw (ext2_block_size), %di
+	cmpw %di, %si
 	jb .ext2_directory_find_inode_loop_entries
 
  .ext2_directory_find_inode_next_block:
@@ -584,7 +598,7 @@ ext2_directory_find_inode:
 	jb .ext2_directory_find_inode_block_read_loop
 
  .ext2_directory_find_inode_not_found:
-	movb $0, %al
+	xorb %al, %al
 	jmp .ext2_directory_find_inode_done
 
  .ext2_directory_find_inode_found:
@@ -696,7 +710,7 @@ root_partition_does_not_fit_ext2_filesystem_msg:
 root_partition_has_invalid_ext2_magic_msg:
 	.asciz "Root partition doesn't contain ext2 magic number"
 root_partition_has_unsupported_ext2_block_size_msg:
-	.asciz "Root partition has unsupported ext2 block size (only 1024 supported)"
+	.asciz "Root partition has unsupported ext2 block size (1 KiB, 2 KiB and 4 KiB are supported)"
 
 ext2_part_not_dir_msg:
 	.asciz "inode in root path is not directory"
@@ -717,12 +731,12 @@ ext2_looking_for_msg:
 
 .section .bss
 
-.align EXT2_BLOCK_SIZE
+.align SECTOR_SIZE
 ext2_block_buffer:
-	.skip EXT2_BLOCK_SIZE
+	.skip EXT2_MAX_BLOCK_SIZE
 
 ext2_inode_indirect_buffer:
-	.skip EXT2_BLOCK_SIZE
+	.skip EXT2_MAX_BLOCK_SIZE
 ext2_inode_indirect_number:
 	.skip 4
 
@@ -735,6 +749,10 @@ ext2_drive_number:
 
 # NOTE: fits in 2 bytes
 ext2_inode_size:
+	.skip 4
+ext2_block_size:
+	.skip 4
+ext2_block_shift:
 	.skip 4
 
 ext2_superblock_buffer:
