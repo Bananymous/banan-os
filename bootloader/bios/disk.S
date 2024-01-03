@@ -389,10 +389,8 @@ find_root_partition:
 
 	# increment 8 byte entry array lba
 	incl 0(%esp)
-	jnc .find_root_partition_no_overflow
-	incl 4(%esp)
+	adcl $0, 4(%esp)
 
- .find_root_partition_no_overflow:
 	# loop to read next section if entries remaining
 	cmpl $0, 12(%esp)
 	jnz .find_root_partition_read_entry_section
@@ -416,12 +414,10 @@ find_root_partition:
 
 	# ebx:eax -= first lba - 1
 	subl (root_partition_entry + 36), %ebx
-	movl (root_partition_entry + 32), %ecx;
+	movl (root_partition_entry + 32), %ecx
 	decl %ecx
 	subl %ecx, %eax
-	jnc .find_root_partition_count_sub_no_carry
-	decl %ebx
- .find_root_partition_count_sub_no_carry:
+	sbbl $0, %ebx
  	
 	# ecx: min(partition count, 0xFFFFFFFF)
 	movl $0xFFFFFFFF, %edx

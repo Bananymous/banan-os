@@ -95,8 +95,7 @@ vesa_find_video_mode:
 	cmpw $0x0200, (vesa_info_buffer + 0x04)
 	jb .vesa_unsupported_version
 
-	movl $(vesa_info_buffer + 0x0E), %esi
-	movl (%esi), %esi
+	movl (vesa_info_buffer + 0x0E), %esi
  .vesa_find_video_mode_loop_modes:
 	cmpw $0xFFFF, (%esi)
 	je .vesa_find_video_mode_loop_modes_done
