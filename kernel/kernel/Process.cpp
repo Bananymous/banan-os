@@ -439,11 +439,14 @@ namespace Kernel
 		return forked->pid();
 	}
 
-	BAN::ErrorOr<long> Process::sys_exec(BAN::StringView path, const char* const* argv, const char* const* envp)
+	BAN::ErrorOr<long> Process::sys_exec(const char* path, const char* const* argv, const char* const* envp)
 	{
 		// NOTE: We scope everything for automatic deletion
 		{
 			LockGuard _(m_lock);
+
+			validate_string_access(path);
+			auto loadable_elf = TRY(load_elf_for_exec(m_credentials, path, m_working_directory, page_table()));
 
 			BAN::Vector<BAN::String> str_argv;
 			for (int i = 0; argv && argv[i]; i++)
@@ -467,13 +470,14 @@ namespace Kernel
 			m_open_file_descriptors.close_cloexec();
 
 			m_mapped_regions.clear();
-			m_loadable_elf.clear();
 
-			m_loadable_elf = TRY(load_elf_for_exec(m_credentials, executable_path, m_working_directory, page_table()));
+			m_loadable_elf = BAN::move(loadable_elf);
 			if (!m_loadable_elf->is_address_space_free())
 			{
 				dprintln("ELF has unloadable address space");
 				MUST(sys_kill(pid(), SIGKILL));
+				// NOTE: signal will only execute after return from syscall
+				return BAN::Error::from_errno(EINTR);
 			}
 			m_loadable_elf->reserve_address_space();
 			m_loadable_elf->update_suid_sgid(m_credentials);

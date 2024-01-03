@@ -68,7 +68,7 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_settermios(const ::termios*);
 
 		BAN::ErrorOr<long> sys_fork(uintptr_t rsp, uintptr_t rip);
-		BAN::ErrorOr<long> sys_exec(BAN::StringView path, const char* const* argv, const char* const* envp);
+		BAN::ErrorOr<long> sys_exec(const char* path, const char* const* argv, const char* const* envp);
 
 		BAN::ErrorOr<long> sys_wait(pid_t pid, int* stat_loc, int options);
 		BAN::ErrorOr<long> sys_sleep(int seconds);
