@@ -95,24 +95,24 @@ namespace Kernel::Input
 		if (m_byte_index < packet_size)
 			return;
 
-		uint8_t new_button_mask = m_byte_buffer[0] & 0b111;
+		// Ignore packets with bits 6 or 7 set. Qemu sends weird
+		// non-standard packets on touchpad when scrolling horizontally.
+		if (m_mouse_id == 0x04 && (m_byte_buffer[3] & 0xC0))
+		{
+			m_byte_index = 0;
+			return;
+		}
+
+		uint8_t new_button_mask = m_byte_buffer[0] & 0x07;
 		int32_t rel_x = m_byte_buffer[1] - (((uint16_t)m_byte_buffer[0] << 4) & 0x100);
 		int32_t rel_y = m_byte_buffer[2] - (((uint16_t)m_byte_buffer[0] << 3) & 0x100);
 		int32_t rel_z = 0;
 
-		if (m_mouse_id == 0x03)
-		{
-			rel_z = (int8_t)m_byte_buffer[3];
-		}
-		else if (m_mouse_id == 0x04)
-		{
-			new_button_mask |= (m_byte_buffer[3] >> 1) & 0b11000;
+		if (m_mouse_id == 0x03 || m_mouse_id == 0x04)
+			rel_z = (m_byte_buffer[3] & 0x0F) - ((m_byte_buffer[3] << 1) & 0x10);
 
-			// sign extend z value
-			if (m_byte_buffer[3] & 0x08)
-				m_byte_buffer[3] |= 0xF0;
-			rel_z = (int8_t)m_byte_buffer[3];
-		}
+		if (m_mouse_id == 0x04)
+			new_button_mask |= (m_byte_buffer[3] >> 1) & 0x18;
 
 		m_byte_index = 0;
 
