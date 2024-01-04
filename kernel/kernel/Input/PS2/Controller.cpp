@@ -5,6 +5,7 @@
 #include <kernel/Input/PS2/Config.h>
 #include <kernel/Input/PS2/Controller.h>
 #include <kernel/Input/PS2/Keyboard.h>
+#include <kernel/Input/PS2/Mouse.h>
 #include <kernel/InterruptController.h>
 #include <kernel/IO.h>
 #include <kernel/Timer/Timer.h>
@@ -213,10 +214,9 @@ namespace Kernel::Input
 
 		// Standard PS/2 Mouse
 		if (index == 1 && (bytes[0] == 0x00))
-			return BAN::Error::from_error_code(ErrorCode::PS2_UnsupportedDevice);
-		
+			m_devices[device] = TRY(PS2Mouse::create(*this));
 		// MF2 Keyboard
-		if (index == 2 && (bytes[0] == 0xAB && bytes[1] == 0x83))
+		else if (index == 2 && (bytes[0] == 0xAB && bytes[1] == 0x83))
 			m_devices[device] = TRY(PS2Keyboard::create(*this));
 
 		if (m_devices[device])
