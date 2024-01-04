@@ -1,8 +1,8 @@
 #include <BAN/ScopeGuard.h>
 #include <kernel/CriticalScope.h>
 #include <kernel/FS/DevFS/FileSystem.h>
-#include <kernel/Input/PS2Config.h>
-#include <kernel/Input/PS2Keyboard.h>
+#include <kernel/Input/PS2/Config.h>
+#include <kernel/Input/PS2/Keyboard.h>
 
 #define SET_MASK(byte, mask, on_off) ((on_off) ? ((byte) | (mask)) : ((byte) & ~(mask)))
 #define TOGGLE_MASK(byte, mask) ((byte) ^ (mask))

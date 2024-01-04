@@ -8,7 +8,7 @@
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/GDT.h>
 #include <kernel/IDT.h>
-#include <kernel/Input/PS2Controller.h>
+#include <kernel/Input/PS2/Controller.h>
 #include <kernel/InterruptController.h>
 #include <kernel/kprint.h>
 #include <kernel/Memory/Heap.h>

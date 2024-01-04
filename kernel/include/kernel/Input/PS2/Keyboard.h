@@ -1,8 +1,8 @@
 #pragma once
 
 #include <kernel/Input/KeyEvent.h>
-#include <kernel/Input/PS2Device.h>
-#include <kernel/Input/PS2Keymap.h>
+#include <kernel/Input/PS2/Device.h>
+#include <kernel/Input/PS2/Keymap.h>
 #include <kernel/Semaphore.h>
 
 namespace Kernel::Input

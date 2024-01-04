@@ -1,4 +1,6 @@
-#include <kernel/Input/PS2Controller.h>
+#pragma once
+
+#include <kernel/Input/PS2/Controller.h>
 
 namespace Kernel::Input
 {

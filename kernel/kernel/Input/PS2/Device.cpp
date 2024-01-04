@@ -1,6 +1,6 @@
 #include <kernel/FS/DevFS/FileSystem.h>
-#include <kernel/Input/PS2Config.h>
-#include <kernel/Input/PS2Device.h>
+#include <kernel/Input/PS2/Config.h>
+#include <kernel/Input/PS2/Device.h>
 #include <kernel/IO.h>
 
 #include <sys/sysmacros.h>

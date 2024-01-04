@@ -2,9 +2,9 @@
 #include <kernel/ACPI.h>
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/IDT.h>
-#include <kernel/Input/PS2Config.h>
-#include <kernel/Input/PS2Controller.h>
-#include <kernel/Input/PS2Keyboard.h>
+#include <kernel/Input/PS2/Config.h>
+#include <kernel/Input/PS2/Controller.h>
+#include <kernel/Input/PS2/Keyboard.h>
 #include <kernel/InterruptController.h>
 #include <kernel/IO.h>
 #include <kernel/Timer/Timer.h>

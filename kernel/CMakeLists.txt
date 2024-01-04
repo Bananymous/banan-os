@@ -32,10 +32,10 @@ set(KERNEL_SOURCES
 	kernel/FS/TmpFS/FileSystem.cpp
 	kernel/FS/TmpFS/Inode.cpp
 	kernel/FS/VirtualFileSystem.cpp
-	kernel/Input/PS2Controller.cpp
-	kernel/Input/PS2Device.cpp
-	kernel/Input/PS2Keyboard.cpp
-	kernel/Input/PS2Keymap.cpp
+	kernel/Input/PS2/Controller.cpp
+	kernel/Input/PS2/Device.cpp
+	kernel/Input/PS2/Keyboard.cpp
+	kernel/Input/PS2/Keymap.cpp
 	kernel/InterruptController.cpp
 	kernel/kernel.cpp
 	kernel/Memory/DMARegion.cpp

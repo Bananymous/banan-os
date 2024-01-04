@@ -1,4 +1,4 @@
-#include <kernel/Input/PS2Keymap.h>
+#include <kernel/Input/PS2/Keymap.h>
 
 namespace Kernel::Input
 {
