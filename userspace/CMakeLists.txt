@@ -26,8 +26,9 @@ set(USERSPACE_PROJECTS
 	sync
 	tee
 	test
-	test-globals
 	test-framebuffer
+	test-globals
+	test-mouse
 	test-sort
 	touch
 	u8sum
