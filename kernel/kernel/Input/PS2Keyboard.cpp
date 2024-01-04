@@ -23,89 +23,38 @@ namespace Kernel::Input
 	}
 
 	PS2Keyboard::PS2Keyboard(PS2Controller& controller)
-		: m_controller(controller)
+		: PS2Device(controller)
 		, m_rdev(makedev(DevFileSystem::get().get_next_dev(), 0))
 	{ }
-
-	void PS2Keyboard::handle_irq()
-	{
-		uint8_t byte = IO::inb(PS2::IOPort::DATA);
-
-		// NOTE: This implementation does not allow using commands
-		//       that respond with more bytes than ACK
-		switch (m_state)
-		{
-			case State::WaitingAck:
-			{
-				switch (byte)
-				{
-					case PS2::Response::ACK:
-						m_command_queue.pop();
-						m_state = State::Normal;
-						break;
-					case PS2::KBResponse::RESEND:
-						m_state = State::Normal;
-						break;
-					case PS2::KBResponse::KEY_ERROR_OR_BUFFER_OVERRUN1:
-					case PS2::KBResponse::KEY_ERROR_OR_BUFFER_OVERRUN2:
-						dwarnln("Key detection error or internal buffer overrun");
-						break;
-					default:
-						dwarnln("Unhandeled byte {2H}", byte);
-						break;
-				}
-				break;
-			}
-			case State::Normal:
-			{
-				m_byte_buffer[m_byte_index++] = byte;
-				if (byte != 0xE0 && byte != 0xF0)
-					buffer_has_key();
-				break;
-			}
-		}
-	}
 
 	void PS2Keyboard::send_initialize()
 	{
 		append_command_queue(Command::SET_LEDS, 0x00);
 		append_command_queue(Command::SCANCODE, PS2::KBScancode::SET_SCANCODE_SET2);
 		append_command_queue(Command::ENABLE_SCANNING);
+		update();
 	}
 
-	void PS2Keyboard::update()
+	void PS2Keyboard::handle_device_command_response(uint8_t byte)
 	{
-		if (m_state == State::WaitingAck)
-			return;
-		if (m_command_queue.empty())
-			return;
-		m_state = State::WaitingAck;
-		m_controller.send_byte(this, m_command_queue.front());
-	}
-
-	void PS2Keyboard::append_command_queue(uint8_t byte)
-	{
-		if (m_command_queue.full())
+		switch (byte)
 		{
-			dwarnln("PS/2 command queue full");
-			return;
+			case PS2::KBResponse::KEY_ERROR_OR_BUFFER_OVERRUN1:
+			case PS2::KBResponse::KEY_ERROR_OR_BUFFER_OVERRUN2:
+				dwarnln("Key detection error or internal buffer overrun");
+				break;
+			default:
+				dwarnln("Unhandeled byte {2H}", byte);
+				break;
 		}
-		m_command_queue.push(byte);
 	}
 
-	void PS2Keyboard::append_command_queue(uint8_t byte1, uint8_t byte2)
+	void PS2Keyboard::handle_byte(uint8_t byte)
 	{
-		if (m_command_queue.size() + 2 > m_command_queue.capacity())
-		{
-			dwarnln("PS/2 command queue full");
+		m_byte_buffer[m_byte_index++] = byte;
+		if (byte == 0xE0 || byte == 0xF0)
 			return;
-		}
-		m_command_queue.push(byte1);
-		m_command_queue.push(byte2);
-	}
 
-	void PS2Keyboard::buffer_has_key()
-	{
 		uint32_t scancode = 0;
 		bool extended = false;
 		bool released = false;

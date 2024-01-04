@@ -55,6 +55,7 @@ namespace Kernel::Input::PS2
 		TEST_CONTROLLER_PASS = 0x55,
 		SELF_TEST_PASS = 0xAA,
 		ACK = 0xFA,
+		RESEND = 0xFE,
 	};
 
 	enum DeviceCommand : uint8_t
@@ -74,9 +75,6 @@ namespace Kernel::Input::PS2
 	enum KBResponse : uint8_t
 	{
 		KEY_ERROR_OR_BUFFER_OVERRUN1 = 0x00,
-		SELF_TEST_PASSED = 0xAA,
-		ECHO_RESPONSE = 0xEE,
-		RESEND = 0xFE,
 		KEY_ERROR_OR_BUFFER_OVERRUN2 = 0xFF,
 	};
 
