@@ -33,6 +33,7 @@ set(KERNEL_SOURCES
 	kernel/FS/TmpFS/Inode.cpp
 	kernel/FS/VirtualFileSystem.cpp
 	kernel/Input/PS2Controller.cpp
+	kernel/Input/PS2Device.cpp
 	kernel/Input/PS2Keyboard.cpp
 	kernel/Input/PS2Keymap.cpp
 	kernel/InterruptController.cpp

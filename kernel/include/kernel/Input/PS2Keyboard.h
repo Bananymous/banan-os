@@ -1,7 +1,7 @@
 #pragma once
 
 #include <kernel/Input/KeyEvent.h>
-#include <kernel/Input/PS2Controller.h>
+#include <kernel/Input/PS2Device.h>
 #include <kernel/Input/PS2Keymap.h>
 #include <kernel/Semaphore.h>
 
@@ -41,15 +41,9 @@ namespace Kernel::Input
 
 		Semaphore m_semaphore;
 
-	public:
-		virtual dev_t rdev() const override { return m_rdev; }
-
 	protected:
 		virtual BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan) override;
 		virtual bool has_data_impl() const override;
-
-	private:
-		const dev_t m_rdev;
 	};
 
 }

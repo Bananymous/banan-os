@@ -3,10 +3,7 @@
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/Input/PS2Config.h>
 #include <kernel/Input/PS2Keyboard.h>
-#include <kernel/IO.h>
 #include <kernel/Timer/Timer.h>
-
-#include <sys/sysmacros.h>
 
 #define SET_MASK(byte, mask, on_off) ((on_off) ? ((byte) | (mask)) : ((byte) & ~(mask)))
 #define TOGGLE_MASK(byte, mask) ((byte) ^ (mask))
@@ -24,7 +21,6 @@ namespace Kernel::Input
 
 	PS2Keyboard::PS2Keyboard(PS2Controller& controller)
 		: PS2Device(controller)
-		, m_rdev(makedev(DevFileSystem::get().get_next_dev(), 0))
 	{ }
 
 	void PS2Keyboard::send_initialize()
