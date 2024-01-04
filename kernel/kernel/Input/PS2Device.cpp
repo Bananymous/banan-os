@@ -18,17 +18,25 @@ namespace Kernel::Input
 	bool PS2Device::append_command_queue(uint8_t command)
 	{
 		if (m_command_queue.size() + 1 >= m_command_queue.capacity())
+		{
+			dprintln("PS/2 command queue full");
 			return false;
+		}
 		m_command_queue.push(command);
+		update();
 		return true;
 	}
 
 	bool PS2Device::append_command_queue(uint8_t command, uint8_t data)
 	{
 		if (m_command_queue.size() + 2 >= m_command_queue.capacity())
+		{
+			dprintln("PS/2 command queue full");
 			return false;
+		}
 		m_command_queue.push(command);
 		m_command_queue.push(data);
+		update();
 		return true;
 	}
 

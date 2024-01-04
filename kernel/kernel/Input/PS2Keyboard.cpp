@@ -3,7 +3,6 @@
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/Input/PS2Config.h>
 #include <kernel/Input/PS2Keyboard.h>
-#include <kernel/Timer/Timer.h>
 
 #define SET_MASK(byte, mask, on_off) ((on_off) ? ((byte) | (mask)) : ((byte) & ~(mask)))
 #define TOGGLE_MASK(byte, mask) ((byte) ^ (mask))
@@ -28,7 +27,6 @@ namespace Kernel::Input
 		append_command_queue(Command::SET_LEDS, 0x00);
 		append_command_queue(Command::SCANCODE, PS2::KBScancode::SET_SCANCODE_SET2);
 		append_command_queue(Command::ENABLE_SCANNING);
-		update();
 	}
 
 	void PS2Keyboard::handle_device_command_response(uint8_t byte)
@@ -129,12 +127,6 @@ namespace Kernel::Input
 		Input::KeyEvent event;
 		event.modifier = m_modifiers | (released ? (uint8_t)Input::KeyEvent::Modifier::Released : 0);
 		event.key = key;
-
-		if (event.pressed() && event.key == Input::Key::F11)
-		{
-			auto time = SystemTimer::get().time_since_boot();
-			dprintln("{}.{9} s", time.tv_sec, time.tv_nsec);
-		}
 
 		if (m_event_queue.full())
 		{

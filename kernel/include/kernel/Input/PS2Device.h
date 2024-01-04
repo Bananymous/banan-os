@@ -21,7 +21,7 @@ namespace Kernel::Input
 		virtual BAN::StringView name() const final override { return m_name; }
 		virtual dev_t rdev() const final override { return m_rdev; }
 
-	protected:
+	private:
 		void update();
 
 	private:
