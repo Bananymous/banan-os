@@ -26,7 +26,7 @@ namespace Kernel::Input
 	{
 		append_command_queue(Command::SET_LEDS, 0x00);
 		append_command_queue(Command::SCANCODE, PS2::KBScancode::SET_SCANCODE_SET2);
-		append_command_queue(Command::ENABLE_SCANNING);
+		append_command_queue(PS2::DeviceCommand::ENABLE_SCANNING);
 	}
 
 	void PS2Keyboard::handle_device_command_response(uint8_t byte)
