@@ -34,7 +34,7 @@ namespace Kernel
 			BAN::Vector<uint8_t> superblock_buffer;
 			TRY(superblock_buffer.resize(sector_count * sector_size));
 
-			TRY(m_block_device->read_blocks(lba, sector_count, superblock_buffer.span()));
+			TRY(m_block_device->read_blocks(lba, sector_count, BAN::ByteSpan(superblock_buffer.span())));
 
 			memcpy(&m_superblock, superblock_buffer.data(), sizeof(Ext2::Superblock));
 		}
