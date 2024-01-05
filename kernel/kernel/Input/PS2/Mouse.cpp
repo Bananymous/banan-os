@@ -3,6 +3,7 @@
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/Input/PS2/Config.h>
 #include <kernel/Input/PS2/Mouse.h>
+#include <kernel/Thread.h>
 
 #define SET_MASK(byte, mask, on_off) ((on_off) ? ((byte) | (mask)) : ((byte) & ~(mask)))
 #define TOGGLE_MASK(byte, mask) ((byte) ^ (mask))
@@ -188,7 +189,7 @@ namespace Kernel::Input
 		while (true)
 		{
 			if (m_event_queue.empty())
-				m_semaphore.block();
+				TRY(Thread::current().block_or_eintr(m_semaphore));
 
 			CriticalScope _;
 			if (m_event_queue.empty())

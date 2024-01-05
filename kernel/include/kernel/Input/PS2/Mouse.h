@@ -35,7 +35,7 @@ namespace Kernel::Input
 		uint8_t m_mouse_id		{ 0x00 };
 		uint8_t m_button_mask	{ 0x00 };
 
-		BAN::CircularQueue<MouseEvent, 25> m_event_queue;
+		BAN::CircularQueue<MouseEvent, 128> m_event_queue;
 
 		Semaphore m_semaphore;
 
