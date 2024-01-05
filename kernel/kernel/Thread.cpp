@@ -343,12 +343,14 @@ namespace Kernel
 		return false;
 	}
 
-	bool Thread::block_or_eintr(Semaphore& semaphore)
+	BAN::ErrorOr<void> Thread::block_or_eintr(Semaphore& semaphore)
 	{
 		if (is_interrupted_by_signal())
-			return true;
+			return BAN::Error::from_errno(EINTR);
 		semaphore.block();
-		return is_interrupted_by_signal();
+		if (is_interrupted_by_signal())
+			return BAN::Error::from_errno(EINTR);
+		return {};
 	}
 
 	void Thread::validate_stack() const

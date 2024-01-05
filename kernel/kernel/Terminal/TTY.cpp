@@ -322,11 +322,11 @@ namespace Kernel
 			uint32_t depth = m_lock.lock_depth();
 			for (uint32_t i = 0; i < depth; i++)
 				m_lock.unlock();
-			bool eintr = Thread::current().block_or_eintr(m_output.semaphore);
+			auto eintr = Thread::current().block_or_eintr(m_output.semaphore);
 			for (uint32_t i = 0; i < depth; i++)
 				m_lock.lock();
-			if (eintr)
-				return BAN::Error::from_errno(EINTR);
+			if (eintr.is_error())
+				return eintr.release_error();
 		}
 
 		if (m_output.bytes == 0)

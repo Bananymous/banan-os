@@ -48,7 +48,7 @@ namespace Kernel
 		bool add_signal(int signal);
 
 		// blocks semaphore and returns either on unblock, eintr or spuriously
-		[[nodiscard]] bool block_or_eintr(Semaphore&);
+		BAN::ErrorOr<void> block_or_eintr(Semaphore&);
 
 		void set_return_rsp(uintptr_t& rsp) { m_return_rsp = &rsp; }
 		void set_return_rip(uintptr_t& rip) { m_return_rip = &rip; }
