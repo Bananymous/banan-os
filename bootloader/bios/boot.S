@@ -13,12 +13,10 @@
 
 .global stage1_main
 stage1_main:
-	# setup segments
-	movw $0, %ax
+	# setup segments and stack
+	xorw %ax, %ax
 	movw %ax, %ds
 	movw %ax, %es
-
-	# setup stack
 	movw %ax, %ss
 	movl $0x7C00, %esp
 
@@ -53,6 +51,8 @@ stage2_main:
 	movw $hello_msg, %si
 	call puts; call print_newline
 
+	lgdt gdtr
+
 	call enter_unreal_mode
 	movw $unreal_enter_msg, %si
 	call puts; call print_newline
@@ -86,32 +86,32 @@ stage2_main:
 
 	cli
 
+	# kernel entry point
+	movl %eax, %ecx
+
+	# setup kernel parameters
+	movl $0xD3C60CFF, %eax
+	movl $banan_boot_info, %ebx
+
 	# setup protected mode
-	movl %cr0, %ebx
-	orb $1, %bl
-	movl %ebx, %cr0
+	movl %cr0, %edx
+	orb $1, %dl
+	movl %edx, %cr0
 
-	# jump to kernel in protected mode
+	# jump to protected mode
 	ljmpl $0x18, $protected_mode
-
 
 .code32
 protected_mode:
-	movw $0x10, %bx
-	movw %bx, %ds
-	movw %bx, %es
-	movw %bx, %fs
-	movw %bx, %gs
-	movw %bx, %ss
+	# setup protected mode segments
+	movw $0x10, %dx
+	movw %dx, %ds
+	movw %dx, %es
+	movw %dx, %fs
+	movw %dx, %gs
+	movw %dx, %ss
 
-	movl %eax, %ecx
-
-	movl $0xD3C60CFF, %eax
-	movl $banan_boot_info, %ebx
-	xorl %edx, %edx
-	xorl %esi, %esi
-	xorl %edi, %edi
-
+	# jump to kernel entry
 	jmp *%ecx
 
 
@@ -119,8 +119,6 @@ protected_mode:
 enter_unreal_mode:
 	cli
 	pushw %ds
-
-	lgdt gdtr
 
 	movl %cr0, %eax
 	orb $1, %al
@@ -152,9 +150,9 @@ start_kernel_load_msg:
 
 gdt:
 	.quad 0x0000000000000000
-	.quad 0x00009A000000FFFF
-	.quad 0x00CF92000000FFFF
-	.quad 0x00CF9A000000FFFF
+	.quad 0x008F9A000000FFFF # 16-bit code
+	.quad 0x00CF92000000FFFF # 32-bit data
+	.quad 0x00CF9A000000FFFF # 32-bit code
 gdtr:
 	.short . - gdt - 1
 	.quad gdt
