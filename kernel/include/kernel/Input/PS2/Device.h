@@ -1,6 +1,8 @@
 #pragma once
 
+#include <BAN/CircularQueue.h>
 #include <kernel/Input/PS2/Controller.h>
+#include <kernel/InterruptController.h>
 
 namespace Kernel::Input
 {
@@ -13,8 +15,8 @@ namespace Kernel::Input
 
 		virtual void send_initialize() = 0;
 
-		bool append_command_queue(uint8_t command);
-		bool append_command_queue(uint8_t command, uint8_t data);
+		bool append_command_queue(uint8_t command, uint8_t response_size);
+		bool append_command_queue(uint8_t command, uint8_t data, uint8_t response_size);
 		virtual void handle_irq() final override;
 
 		virtual void handle_byte(uint8_t) = 0;
@@ -24,13 +26,22 @@ namespace Kernel::Input
 		virtual dev_t rdev() const final override { return m_rdev; }
 
 	private:
-		void update();
+		void update_command();
 
 	private:
 		enum class State
 		{
 			Normal,
 			WaitingAck,
+			WaitingResponse,
+		};
+
+		struct Command
+		{
+			uint8_t out_data[2];
+			uint8_t out_count;
+			uint8_t in_count;
+			uint8_t send_index;
 		};
 
 	private:
@@ -39,7 +50,9 @@ namespace Kernel::Input
 
 		PS2Controller&					m_controller;
 		State							m_state			= State::Normal;
-		BAN::CircularQueue<uint8_t, 10>	m_command_queue;
+		BAN::CircularQueue<Command, 10>	m_command_queue;
+
+		friend class PS2Controller;
 	};
 
 }

@@ -14,8 +14,8 @@ namespace Kernel::Input::PS2
 
 	enum Status : uint8_t
 	{
-		OUTPUT_FULL = (1 << 0),
-		INPUT_FULL = (1 << 1),
+		OUTPUT_STATUS = (1 << 0),
+		INPUT_STATUS = (1 << 1),
 		SYSTEM = (1 << 2),
 		DEVICE_OR_CONTROLLER = (1 << 3),
 		TIMEOUT_ERROR = (1 << 6),

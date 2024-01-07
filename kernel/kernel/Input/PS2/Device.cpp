@@ -15,28 +15,39 @@ namespace Kernel::Input
 		, m_controller(controller)
 	{ }
 
-	bool PS2Device::append_command_queue(uint8_t command)
+	bool PS2Device::append_command_queue(uint8_t command, uint8_t response_size)
 	{
+		CriticalScope _;
 		if (m_command_queue.size() + 1 >= m_command_queue.capacity())
 		{
 			dprintln("PS/2 command queue full");
 			return false;
 		}
-		m_command_queue.push(command);
-		update();
+		m_command_queue.push(Command {
+			.out_data	= { command, 0x00 },
+			.out_count	= 1,
+			.in_count	= response_size,
+			.send_index	= 0
+		});
+		update_command();
 		return true;
 	}
 
-	bool PS2Device::append_command_queue(uint8_t command, uint8_t data)
+	bool PS2Device::append_command_queue(uint8_t command, uint8_t data, uint8_t response_size)
 	{
-		if (m_command_queue.size() + 2 >= m_command_queue.capacity())
+		CriticalScope _;
+		if (m_command_queue.size() + 1 >= m_command_queue.capacity())
 		{
 			dprintln("PS/2 command queue full");
 			return false;
 		}
-		m_command_queue.push(command);
-		m_command_queue.push(data);
-		update();
+		m_command_queue.push(Command {
+			.out_data	= { command, data },
+			.out_count	= 2,
+			.in_count	= response_size,
+			.send_index	= 0
+		});
+		update_command();
 		return true;
 	}
 
@@ -44,8 +55,6 @@ namespace Kernel::Input
 	{
 		uint8_t byte = IO::inb(PS2::IOPort::DATA);
 
-		// NOTE: This implementation does not allow using commands
-		//       that respond with more bytes than ACK
 		switch (m_state)
 		{
 			case State::WaitingAck:
@@ -53,9 +62,20 @@ namespace Kernel::Input
 				switch (byte)
 				{
 					case PS2::Response::ACK:
-						m_command_queue.pop();
-						m_state = State::Normal;
+					{
+						auto& command = m_command_queue.front();
+						if (++command.send_index < command.out_count)
+							m_state = State::Normal;
+						else if (command.in_count > 0)
+							m_state = State::WaitingResponse;
+						else
+						{
+							m_command_queue.pop();
+							m_state = State::Normal;
+							m_controller.unlock_command(this);
+						}
 						break;
+					}
 					case PS2::Response::RESEND:
 						m_state = State::Normal;
 						break;
@@ -65,6 +85,17 @@ namespace Kernel::Input
 				}
 				break;
 			}
+			case State::WaitingResponse:
+			{
+				if (--m_command_queue.front().in_count <= 0)
+				{
+					m_command_queue.pop();
+					m_state = State::Normal;
+					m_controller.unlock_command(this);
+				}
+				handle_byte(byte);
+				break;
+			}
 			case State::Normal:
 			{
 				handle_byte(byte);
@@ -72,17 +103,28 @@ namespace Kernel::Input
 			}
 		}
 
-		update();
+		update_command();
 	}
 
-	void PS2Device::update()
+	void PS2Device::update_command()
 	{
-		if (m_state == State::WaitingAck)
+		ASSERT(!interrupts_enabled());
+
+		if (m_state != State::Normal)
 			return;
 		if (m_command_queue.empty())
 			return;
+
+		const auto& command = m_command_queue.front();
+		ASSERT(command.send_index < command.out_count);
+
+		if (!m_controller.lock_command(this))
+			return;
+
 		m_state = State::WaitingAck;
-		m_controller.send_byte(this, m_command_queue.front());
+		auto ret = m_controller.device_send_byte(this, command.out_data[command.send_index]);
+		if (ret.is_error())
+			dwarnln("Could not send byte to device: {}", ret.error());
 	}
 
 }

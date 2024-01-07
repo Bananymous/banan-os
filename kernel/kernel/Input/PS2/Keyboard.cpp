@@ -25,9 +25,9 @@ namespace Kernel::Input
 
 	void PS2Keyboard::send_initialize()
 	{
-		append_command_queue(Command::SET_LEDS, 0x00);
-		append_command_queue(Command::SCANCODE, PS2::KBScancode::SET_SCANCODE_SET2);
-		append_command_queue(PS2::DeviceCommand::ENABLE_SCANNING);
+		append_command_queue(Command::SET_LEDS, 0x00, 0);
+		append_command_queue(Command::SCANCODE, PS2::KBScancode::SET_SCANCODE_SET2, 0);
+		append_command_queue(PS2::DeviceCommand::ENABLE_SCANNING, 0);
 	}
 
 	void PS2Keyboard::handle_device_command_response(uint8_t byte)
@@ -148,7 +148,7 @@ namespace Kernel::Input
 			new_leds |= PS2::KBLeds::NUM_LOCK;
 		if (m_modifiers & (uint8_t)Input::KeyEvent::Modifier::CapsLock)
 			new_leds |= PS2::KBLeds::CAPS_LOCK;
-		append_command_queue(Command::SET_LEDS, new_leds);
+		append_command_queue(Command::SET_LEDS, new_leds, 0);
 	}
 
 	BAN::ErrorOr<size_t> PS2Keyboard::read_impl(off_t, BAN::ByteSpan buffer)

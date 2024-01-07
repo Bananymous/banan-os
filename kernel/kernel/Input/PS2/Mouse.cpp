@@ -26,10 +26,10 @@ namespace Kernel::Input
 	void PS2Mouse::send_initialize()
 	{
 		// Query extensions
-		append_command_queue(Command::SET_SAMPLE_RATE, 200);
-		append_command_queue(Command::SET_SAMPLE_RATE, 100);
-		append_command_queue(Command::SET_SAMPLE_RATE, 80);
-		append_command_queue(PS2::DeviceCommand::IDENTIFY);
+		append_command_queue(Command::SET_SAMPLE_RATE, 200, 0);
+		append_command_queue(Command::SET_SAMPLE_RATE, 100, 0);
+		append_command_queue(Command::SET_SAMPLE_RATE, 80, 0);
+		append_command_queue(PS2::DeviceCommand::IDENTIFY, 1);
 	}
 
 	void PS2Mouse::initialize_extensions(uint8_t byte)
@@ -48,10 +48,10 @@ namespace Kernel::Input
 				else
 				{
 					m_mouse_id = 0x03;
-					append_command_queue(Command::SET_SAMPLE_RATE, 200);
-					append_command_queue(Command::SET_SAMPLE_RATE, 200);
-					append_command_queue(Command::SET_SAMPLE_RATE, 80);
-					append_command_queue(PS2::DeviceCommand::IDENTIFY);
+					append_command_queue(Command::SET_SAMPLE_RATE, 200, 0);
+					append_command_queue(Command::SET_SAMPLE_RATE, 200, 0);
+					append_command_queue(Command::SET_SAMPLE_RATE, 80, 0);
+					append_command_queue(PS2::DeviceCommand::IDENTIFY, 1);
 				}
 				break;
 			case 0x04:
@@ -65,8 +65,8 @@ namespace Kernel::Input
 
 		if (m_enabled)
 		{
-			append_command_queue(Command::SET_SAMPLE_RATE, 100);
-			append_command_queue(PS2::DeviceCommand::ENABLE_SCANNING);
+			append_command_queue(Command::SET_SAMPLE_RATE, 100, 0);
+			append_command_queue(PS2::DeviceCommand::ENABLE_SCANNING, 0);
 		}
 	}
 
