@@ -22,7 +22,6 @@ namespace Kernel::Input
 		virtual void send_initialize() override;
 
 		virtual void handle_byte(uint8_t) final override;
-		virtual void handle_device_command_response(uint8_t) final override;
 
 	private:
 		PS2Keyboard(PS2Controller& controller);

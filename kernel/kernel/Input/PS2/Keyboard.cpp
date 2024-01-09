@@ -30,22 +30,14 @@ namespace Kernel::Input
 		append_command_queue(PS2::DeviceCommand::ENABLE_SCANNING, 0);
 	}
 
-	void PS2Keyboard::handle_device_command_response(uint8_t byte)
-	{
-		switch (byte)
-		{
-			case PS2::KBResponse::KEY_ERROR_OR_BUFFER_OVERRUN1:
-			case PS2::KBResponse::KEY_ERROR_OR_BUFFER_OVERRUN2:
-				dwarnln("Key detection error or internal buffer overrun");
-				break;
-			default:
-				dwarnln("Unhandeled byte {2H}", byte);
-				break;
-		}
-	}
-
 	void PS2Keyboard::handle_byte(uint8_t byte)
 	{
+		if (byte == PS2::KBResponse::KEY_ERROR_OR_BUFFER_OVERRUN1 || byte == PS2::KBResponse::KEY_ERROR_OR_BUFFER_OVERRUN2)
+		{
+			dwarnln("Key detection error or internal buffer overrun");
+			return;
+		}
+
 		m_byte_buffer[m_byte_index++] = byte;
 		if (byte == 0xE0 || byte == 0xF0)
 			return;

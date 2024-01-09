@@ -70,16 +70,6 @@ namespace Kernel::Input
 		}
 	}
 
-	void PS2Mouse::handle_device_command_response(uint8_t byte)
-	{
-		switch (byte)
-		{
-			default:
-				dwarnln("Unhandeled byte {2H}", byte);
-				break;
-		}
-	}
-
 	void PS2Mouse::handle_byte(uint8_t byte)
 	{
 		if (!m_enabled)

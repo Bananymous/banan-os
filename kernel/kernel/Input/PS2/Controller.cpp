@@ -21,6 +21,7 @@ namespace Kernel::Input
 
 	BAN::ErrorOr<void> PS2Controller::send_byte(uint16_t port, uint8_t byte)
 	{
+		ASSERT(interrupts_enabled());
 		LockGuard _(m_lock);
 		uint64_t timeout = SystemTimer::get().ms_since_boot() + s_ps2_timeout_ms;
 		while (SystemTimer::get().ms_since_boot() < timeout)
@@ -35,6 +36,7 @@ namespace Kernel::Input
 
 	BAN::ErrorOr<uint8_t> PS2Controller::read_byte()
 	{
+		ASSERT(interrupts_enabled());
 		LockGuard _(m_lock);
 		uint64_t timeout = SystemTimer::get().ms_since_boot() + s_ps2_timeout_ms;
 		while (SystemTimer::get().ms_since_boot() < timeout)
@@ -61,31 +63,6 @@ namespace Kernel::Input
 		return {};
 	}
 
-	bool PS2Controller::lock_command(PS2Device* device)
-	{
-		if (m_executing_device && m_executing_device != device)
-		{
-			ASSERT(!m_pending_device || m_pending_device == device);
-			m_pending_device = device;
-			return false;
-		}
-
-		m_executing_device = device;
-		return true;
-	}
-
-	void PS2Controller::unlock_command(PS2Device* device)
-	{
-		ASSERT(m_executing_device == device);
-		m_executing_device = nullptr;
-		if (m_pending_device)
-		{
-			m_executing_device = m_pending_device;
-			m_pending_device = nullptr;
-			m_executing_device->update_command();
-		}
-	}
-
 	BAN::ErrorOr<void> PS2Controller::device_send_byte(uint8_t device_index, uint8_t byte)
 	{
 		LockGuard _(m_lock);
@@ -95,23 +72,139 @@ namespace Kernel::Input
 		return {};
 	}
 
-	BAN::ErrorOr<void> PS2Controller::device_send_byte(PS2Device* device, uint8_t byte)
-	{
-		ASSERT(device);
-		ASSERT(device == m_devices[0].ptr() || device == m_devices[1].ptr());
-		TRY(device_send_byte(device == m_devices[0].ptr() ? 0 : 1, byte));
-		return {};
-	}
-
-	BAN::ErrorOr<void> PS2Controller::device_read_ack(uint8_t device_index)
+	BAN::ErrorOr<void> PS2Controller::device_send_byte_and_wait_ack(uint8_t device_index, uint8_t byte)
 	{
 		LockGuard _(m_lock);
-		if (TRY(read_byte()) != PS2::Response::ACK)
+		for (;;)
 		{
-			dwarnln_if(DEBUG_PS2, "PS/2 device on port {} did not respond with expected ACK", device_index);
+			TRY(device_send_byte(device_index, byte));
+			uint8_t response = TRY(read_byte());
+			if (response == PS2::Response::RESEND)
+				continue;
+			if (response == PS2::Response::ACK)
+				break;
+			dwarnln_if(DEBUG_PS2, "PS/2 device on port {} did not respond with expected ACK, got {2H}", device_index, byte);
 			return BAN::Error::from_errno(EBADMSG);
 		}
 		return {};
+	}
+
+	bool PS2Controller::append_command_queue(PS2Device* device, uint8_t command, uint8_t response_size)
+	{
+		// NOTE: command queue push/pop must be done without interrupts
+		CriticalScope _;
+		ASSERT(device && (device == m_devices[0].ptr() || device == m_devices[1].ptr()));
+		if (m_command_queue.size() + 1 >= m_command_queue.capacity())
+		{
+			dprintln("PS/2 command queue full");
+			return false;
+		}
+		m_command_queue.push(Command {
+			.state			= Command::State::NotSent,
+			.device_index	= (device == m_devices[0].ptr()) ? uint8_t(0) : uint8_t(1),
+			.out_data		= { command, 0x00 },
+			.out_count		= 1,
+			.in_count		= response_size,
+			.send_index		= 0
+		});
+		return true;
+	}
+
+	bool PS2Controller::append_command_queue(PS2Device* device, uint8_t command, uint8_t data, uint8_t response_size)
+	{
+		// NOTE: command queue push/pop must be done without interrupts
+		CriticalScope _;
+		ASSERT(device && (device == m_devices[0].ptr() || device == m_devices[1].ptr()));
+		if (m_command_queue.size() + 1 >= m_command_queue.capacity())
+		{
+			dprintln("PS/2 command queue full");
+			return false;
+		}
+		m_command_queue.push(Command {
+			.state			= Command::State::NotSent,
+			.device_index	= (device == m_devices[0].ptr()) ? uint8_t(0) : uint8_t(1),
+			.out_data		= { command, data },
+			.out_count		= 2,
+			.in_count		= response_size,
+			.send_index		= 0
+		});
+		return true;
+	}
+
+	void PS2Controller::update_command_queue()
+	{
+		ASSERT(interrupts_enabled());
+
+		if (m_command_queue.empty())
+			return;
+		auto& command = m_command_queue.front();
+		if (command.state == Command::State::WaitingResponse || command.state == Command::State::WaitingAck)
+			return;
+		ASSERT(command.send_index < command.out_count);
+		command.state = Command::State::WaitingAck;
+		if (auto ret = device_send_byte(command.device_index, command.out_data[command.send_index]); ret.is_error())
+		{
+			command.state = Command::State::Sending;
+			dwarnln_if(DEBUG_PS2, "PS/2 send command byte: {}", ret.error());
+		}
+	}
+
+	bool PS2Controller::handle_command_byte(PS2Device* device, uint8_t byte)
+	{
+		// NOTE: command queue push/pop must be done without interrupts
+		ASSERT(!interrupts_enabled());
+
+		if (m_command_queue.empty())
+			return false;
+		auto& command = m_command_queue.front();
+
+		ASSERT(device && (device == m_devices[0].ptr() || device == m_devices[1].ptr()));
+		if (command.device_index != (device == m_devices[0].ptr()) ? 0 : 1)
+			return false;
+
+		switch (command.state)
+		{
+			case Command::State::NotSent:
+			{
+				return false;
+			}
+			case Command::State::Sending:
+			{
+				dwarnln_if(DEBUG_PS2, "PS/2 device sent byte while middle of command send");
+				return false;
+			}
+			case Command::State::WaitingResponse:
+			{
+				if (--command.in_count <= 0)
+					m_command_queue.pop();
+				return false;
+			}
+			case Command::State::WaitingAck:
+			{
+				switch (byte)
+				{
+					case PS2::Response::ACK:
+					{
+						if (++command.send_index < command.out_count)
+							command.state = Command::State::Sending;
+						else if (command.in_count > 0)
+							command.state = Command::State::WaitingResponse;
+						else
+							m_command_queue.pop();
+						return true;
+					}
+					case PS2::Response::RESEND:
+						command.state = Command::State::Sending;
+						return true;
+					default:
+						dwarnln_if(DEBUG_PS2, "PS/2 expected ACK got {2H}", byte);
+						command.state = Command::State::Sending;
+						return true;
+				}
+				break;
+			}
+		}
+		ASSERT_NOT_REACHED();
 	}
 
 	BAN::ErrorOr<void> PS2Controller::initialize()
@@ -134,21 +227,25 @@ namespace Kernel::Input
 
 	BAN::ErrorOr<void> PS2Controller::initialize_impl()
 	{
-		// Step 1: Initialise USB Controllers
-		// FIXME
+		// FIXME: Initialise USB Controllers
 
-		// Step 2: Determine if the PS/2 Controller Exists
-		// FIXME
+		// Determine if the PS/2 Controller Exists
+		auto* fadt = static_cast<const ACPI::FADT*>(ACPI::get().get_header("FACP"sv, 0));
+		if (fadt && fadt->revision > 1 && !(fadt->iapc_boot_arch & (1 << 1)))
+		{
+			dwarnln_if(DEBUG_PS2, "No PS/2 available");
+			return {};
+		}
 
-		// Step 3: Disable Devices
+		// Disable Devices
 		TRY(send_command(PS2::Command::DISABLE_FIRST_PORT));
 		TRY(send_command(PS2::Command::DISABLE_SECOND_PORT));
 
-		// Step 4: Flush The Output Buffer
+		// Flush The Output Buffer
 		while (!read_byte().is_error())
 			continue;
 		
-		// Step 5: Set the Controller Configuration Byte
+		// Set the Controller Configuration Byte
 		TRY(send_command(PS2::Command::READ_CONFIG));
 		uint8_t config = TRY(read_byte());
 		config &= ~PS2::Config::INTERRUPT_FIRST_PORT;
@@ -156,7 +253,7 @@ namespace Kernel::Input
 		config &= ~PS2::Config::TRANSLATION_FIRST_PORT;
 		TRY(send_command(PS2::Command::WRITE_CONFIG, config));
 
-		// Step 6: Perform Controller Self Test
+		// Perform Controller Self Test
 		TRY(send_command(PS2::Command::TEST_CONTROLLER));
 		if (TRY(read_byte()) != PS2::Response::TEST_CONTROLLER_PASS)
 		{
@@ -166,7 +263,7 @@ namespace Kernel::Input
 		// NOTE: self test might reset the device so we set the config byte again
 		TRY(send_command(PS2::Command::WRITE_CONFIG, config));
 
-		// Step 7: Determine If There Are 2 Channels
+		// Determine If There Are 2 Channels
 		bool valid_ports[2] { true, false };
 		if (config & PS2::Config::CLOCK_SECOND_PORT)
 		{
@@ -179,7 +276,7 @@ namespace Kernel::Input
 			}
 		}
 
-		// Step 8: Perform Interface Tests
+		// Perform Interface Tests
 		TRY(send_command(PS2::Command::TEST_FIRST_PORT));
 		if (TRY(read_byte()) != PS2::Response::TEST_FIRST_PORT_PASS)
 		{
@@ -197,49 +294,29 @@ namespace Kernel::Input
 		}
 		if (!valid_ports[0] && !valid_ports[1])
 			return {};
-		
-		// Step 9: Enable Devices (and disable scanning)
-		for (uint8_t device = 0; device < 2; device++)
-		{
-			if (!valid_ports[device])
-				continue;
-			TRY(send_command(device == 0 ? PS2::Command::ENABLE_FIRST_PORT : PS2::Command::ENABLE_SECOND_PORT));
-			if (set_scanning(device, false).is_error())
-			{
-				dwarnln_if(DEBUG_PS2, "PS/2 could not disable device scanning");
-				valid_ports[device] = false;
-			}
-			TRY(send_command(device == 0 ? PS2::Command::DISABLE_FIRST_PORT : PS2::Command::DISABLE_SECOND_PORT));
-		}
 
-		// Step 10: Reset Devices
+		// Initialize devices
 		for (uint8_t device = 0; device < 2; device++)
 		{
 			if (!valid_ports[device])
 				continue;
-			if (auto ret = reset_device(device); ret.is_error())
+			if (auto ret = send_command(device == 0 ? PS2::Command::ENABLE_FIRST_PORT : PS2::Command::ENABLE_SECOND_PORT); ret.is_error())
 			{
-				dwarnln_if(DEBUG_PS2, "PS/2 device reset failed: {}", ret.error());
-				valid_ports[device] = false;
+				dwarnln_if(DEBUG_PS2, "PS/2 device enable failed: {}", ret.error());
 				continue;
 			}
-			if (auto ret = set_scanning(device, false); ret.is_error())
-			{
-				dwarnln_if(DEBUG_PS2, "PS/2 device scan disabling failed: {}", ret.error());
-				valid_ports[device] = false;
-				continue;
-			}
-		}
-
-		// Step 11: Initialize Device Drivers
-		for (uint8_t device = 0; device < 2; device++)
-		{
-			if (!valid_ports[device])
-				continue;
 			if (auto res = initialize_device(device); res.is_error())
+			{
 				dwarnln_if(DEBUG_PS2, "PS/2 device initialization failed: {}", res.error());
+				(void)send_command(device == 0 ? PS2::Command::DISABLE_FIRST_PORT : PS2::Command::DISABLE_SECOND_PORT);
+				continue;
+			}
 		}
 
+		if (!m_devices[0] && !m_devices[1])
+			return {};
+
+		// Enable irqs on valid devices
 		if (m_devices[0])
 		{
 			m_devices[0]->set_irq(PS2::IRQ::DEVICE0);
@@ -255,6 +332,7 @@ namespace Kernel::Input
 
 		TRY(send_command(PS2::Command::WRITE_CONFIG, config));
 
+		// Send device initialization sequence after interrupts are enabled
 		for (uint8_t device = 0; device < 2; device++)
 		{
 			if (!m_devices[device])
@@ -268,9 +346,25 @@ namespace Kernel::Input
 
 	BAN::ErrorOr<void> PS2Controller::initialize_device(uint8_t device)
 	{
-		TRY(device_send_byte(device, PS2::DeviceCommand::IDENTIFY));
-		TRY(device_read_ack(device));
+		// Reset device
+		TRY(device_send_byte_and_wait_ack(device, PS2::DeviceCommand::RESET));
+		if (TRY(read_byte()) != PS2::Response::SELF_TEST_PASS)
+		{
+			dwarnln_if(DEBUG_PS2, "PS/2 device self test failed");
+			return BAN::Error::from_errno(ENODEV);
+		}
+		while (!read_byte().is_error())
+			continue;
 
+		// Disable scanning and flush buffer
+		TRY(device_send_byte_and_wait_ack(device, PS2::DeviceCommand::DISABLE_SCANNING));
+		while (!read_byte().is_error())
+			continue;
+
+		// Identify device
+		TRY(device_send_byte_and_wait_ack(device, PS2::DeviceCommand::IDENTIFY));
+
+		// Read up to 2 identification bytes
 		uint8_t bytes[2] {};
 		uint8_t index = 0;
 		for (uint8_t i = 0; i < 2; i++)
@@ -286,41 +380,19 @@ namespace Kernel::Input
 		{
 			dprintln_if(DEBUG_PS2, "PS/2 found mouse");
 			m_devices[device] = TRY(PS2Mouse::create(*this));
+			return {};
 		}
+
 		// MF2 Keyboard
-		else if (index == 2 && (bytes[0] == 0xAB && bytes[1] == 0x83))
+		if (index == 2 && (bytes[0] == 0xAB && (bytes[1] == 0x83 || bytes[1] == 0x41)))
 		{
 			dprintln_if(DEBUG_PS2, "PS/2 found keyboard");
 			m_devices[device] = TRY(PS2Keyboard::create(*this));
-		}
-
-		if (m_devices[device])
 			return {};
+		}
 
 		dprintln_if(DEBUG_PS2, "PS/2 unsupported device {2H} {2H} ({} bytes) on port {}", bytes[0], bytes[1], index, device);
 		return BAN::Error::from_errno(ENOTSUP);
-	}
-
-	BAN::ErrorOr<void> PS2Controller::reset_device(uint8_t device)
-	{
-		TRY(device_send_byte(device, PS2::DeviceCommand::RESET));
-		TRY(device_read_ack(device));
-		if (TRY(read_byte()) != PS2::Response::SELF_TEST_PASS)
-		{
-			dwarnln_if(DEBUG_PS2, "PS/2 device self test failed");
-			return BAN::Error::from_errno(ENODEV);
-		}
-		// device might send extra data
-		while (!read_byte().is_error())
-			continue;
-		return {};
-	}
-
-	BAN::ErrorOr<void> PS2Controller::set_scanning(uint8_t device, bool enabled)
-	{
-		TRY(device_send_byte(device, enabled ? PS2::DeviceCommand::ENABLE_SCANNING : PS2::DeviceCommand::DISABLE_SCANNING));
-		TRY(device_read_ack(device));
-		return {};
 	}
 
 }
