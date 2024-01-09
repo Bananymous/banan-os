@@ -19,6 +19,8 @@ namespace Kernel::Input
 		static BAN::ErrorOr<PS2Mouse*> create(PS2Controller&);
 		virtual void send_initialize() override;
 
+		virtual void command_timedout(uint8_t* command_data, uint8_t command_size) final override {}
+
 		virtual void handle_byte(uint8_t) final override;
 
 	private:

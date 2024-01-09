@@ -139,9 +139,18 @@ namespace Kernel::Input
 			return;
 		auto& command = m_command_queue.front();
 		if (command.state == Command::State::WaitingResponse || command.state == Command::State::WaitingAck)
+		{
+			if (SystemTimer::get().ms_since_boot() >= m_command_send_time + s_ps2_timeout_ms)
+			{
+				dwarnln_if(DEBUG_PS2, "Command timedout");
+				m_devices[command.device_index]->command_timedout(command.out_data, command.out_count);
+				m_command_queue.pop();
+			}
 			return;
+		}
 		ASSERT(command.send_index < command.out_count);
 		command.state = Command::State::WaitingAck;
+		m_command_send_time = SystemTimer::get().ms_since_boot();
 		if (auto ret = device_send_byte(command.device_index, command.out_data[command.send_index]); ret.is_error())
 		{
 			command.state = Command::State::Sending;
