@@ -25,9 +25,24 @@ namespace Kernel::Input
 
 	void PS2Keyboard::send_initialize()
 	{
+		constexpr uint8_t wanted_scancode_set = 3;
 		append_command_queue(Command::SET_LEDS, 0x00, 0);
-		append_command_queue(Command::SCANCODE, PS2::KBScancode::SET_SCANCODE_SET2, 0);
-		append_command_queue(PS2::DeviceCommand::ENABLE_SCANNING, 0);
+		append_command_queue(Command::CONFIG_SCANCODE_SET, wanted_scancode_set, 0);
+		append_command_queue(Command::CONFIG_SCANCODE_SET, 0, 1);
+	}
+
+	void PS2Keyboard::command_timedout(uint8_t* command_data, uint8_t command_size)
+	{
+		if (command_size == 0)
+			return;
+
+		if (command_data[0] == Command::CONFIG_SCANCODE_SET && m_scancode_set >= 0xFE)
+		{
+			dwarnln("Could not detect scancode set, assuming 1");
+			m_scancode_set = 1;
+			m_keymap.initialize(m_scancode_set);
+			append_command_queue(PS2::DeviceCommand::ENABLE_SCANNING, 0);
+		}
 	}
 
 	void PS2Keyboard::handle_byte(uint8_t byte)
@@ -38,69 +53,93 @@ namespace Kernel::Input
 			return;
 		}
 
+		if (m_scancode_set == 0xFF)
+		{
+			append_command_queue(Command::CONFIG_SCANCODE_SET, 0, 1);
+			m_scancode_set = 0xFE;
+			return;
+		}
+
+		if (m_scancode_set == 0xFE)
+		{
+			if (1 <= byte && byte <= 3)
+			{
+				m_scancode_set = byte;
+				dprintln("Using scancode set {}", m_scancode_set);
+			}
+			else
+			{
+				dwarnln("Could not detect scancode set, assuming 1");
+				m_scancode_set = 1;
+			}
+			m_keymap.initialize(m_scancode_set);
+			append_command_queue(PS2::DeviceCommand::ENABLE_SCANNING, 0);
+			return;
+		}
+
+		if (m_byte_index >= 3)
+		{
+			dwarnln("PS/2 corrupted key packet");
+			m_byte_index = 0;
+			return;
+		}
+
 		m_byte_buffer[m_byte_index++] = byte;
-		if (byte == 0xE0 || byte == 0xF0)
+		if (byte == 0xE0)
+			return;
+		if ((m_scancode_set == 2 || m_scancode_set == 3) && byte == 0xF0)
 			return;
 
-		uint32_t scancode = 0;
 		bool extended = false;
 		bool released = false;
 
-		for (uint8_t i = 0; i < m_byte_index; i++)
+		uint8_t index = 0;
+		// in all scancode sets, extended scancode is indicated by byte 0xE0
+		if (index < m_byte_index && m_byte_buffer[index] == 0xE0)
 		{
-			if (m_byte_buffer[i] == 0xE0)
-				extended = true;
-			else if (m_byte_buffer[i] == 0xF0)
-				released = true;
-			else
-				scancode = (scancode << 8) | m_byte_buffer[i];
+			extended = true;
+			index++;
+		}
+		// in scancode set 1, released key is indicated by bit 7 set
+		if (m_scancode_set == 1 && (m_byte_buffer[index] & 0x80))
+		{
+			released = true;
+			m_byte_buffer[index] &= 0x7F;
+		}
+		// in scancode set 2 and 3, released key is indicated by byte 0xF0
+		if ((m_scancode_set == 2 || m_scancode_set == 3) && m_byte_buffer[index] == 0xF0)
+		{
+			released = true;
+			index++;
 		}
 
-		if (extended)
-			scancode |= 0x80000000;
-
+		bool corrupted = (index + 1 != m_byte_index);
 		m_byte_index = 0;
 
-		Key key = m_keymap.key_for_scancode_and_modifiers(scancode, m_modifiers);
-
-		if (key == Key::None)
-			return;
-
-		if (key == Input::Key::Invalid)
+		if (corrupted)
 		{
-			dprintln("unknown key for scancode {2H} {}", scancode & 0x7FFFFFFF, extended ? 'E' : ' ');
+			dwarnln("PS/2 corrupted key packet");
 			return;
 		}
 
-		uint8_t modifier_mask = 0;
-		uint8_t toggle_mask = 0;
-		switch (key)
+		auto keycode = m_keymap.get_keycode(m_byte_buffer[index], extended);
+		if (!keycode.has_value())
+			return;
+
+		uint16_t modifier_mask = 0;
+		uint16_t toggle_mask = 0;
+		switch (keycode.value())
 		{
-			case Input::Key::LeftShift:
-			case Input::Key::RightShift:
-				modifier_mask = (uint8_t)Input::KeyEvent::Modifier::Shift;
-				break;
-			case Input::Key::LeftCtrl:
-			case Input::Key::RightCtrl:
-				modifier_mask = (uint8_t)Input::KeyEvent::Modifier::Ctrl;
-				break;
-			case Input::Key::Alt:
-				modifier_mask = (uint8_t)Input::KeyEvent::Modifier::Alt;
-				break;
-			case Input::Key::AltGr:
-				modifier_mask = (uint8_t)Input::KeyEvent::Modifier::AltGr;
-				break;;
-			case Input::Key::ScrollLock:
-				toggle_mask = (uint8_t)Input::KeyEvent::Modifier::ScrollLock;
-				break;
-			case Input::Key::NumLock:
-				toggle_mask = (uint8_t)Input::KeyEvent::Modifier::NumLock;
-				break;
-			case Input::Key::CapsLock:
-				toggle_mask = (uint8_t)Input::KeyEvent::Modifier::CapsLock;
-				break;
-			default:
-				break;
+			case ModifierKeycode::LShift:	modifier_mask = KeyEvent::Modifier::LShift;	break;
+			case ModifierKeycode::RShift:	modifier_mask = KeyEvent::Modifier::RShift;	break;
+			case ModifierKeycode::LCtrl:	modifier_mask = KeyEvent::Modifier::LCtrl;	break;
+			case ModifierKeycode::RCtrl:	modifier_mask = KeyEvent::Modifier::RCtrl;	break;
+			case ModifierKeycode::LAlt:		modifier_mask = KeyEvent::Modifier::LAlt;	break;
+			case ModifierKeycode::RAlt:		modifier_mask = KeyEvent::Modifier::RAlt;	break;
+
+			case ModifierKeycode::ScrollLock:	toggle_mask = KeyEvent::Modifier::ScrollLock;	break;
+			case ModifierKeycode::NumLock:		toggle_mask = KeyEvent::Modifier::NumLock;		break;
+			case ModifierKeycode::CapsLock:		toggle_mask = KeyEvent::Modifier::CapsLock;		break;
 		}
 
 		if (modifier_mask)
@@ -111,15 +150,15 @@ namespace Kernel::Input
 				m_modifiers |= modifier_mask;
 		}
 
-		if (toggle_mask && !released)
+		if (toggle_mask)
 		{
 			m_modifiers ^= toggle_mask;
 			update_leds();
 		}
 
-		Input::KeyEvent event;
-		event.modifier = m_modifiers | (released ? (uint8_t)Input::KeyEvent::Modifier::Released : 0);
-		event.key = key;
+		KeyEvent event;
+		event.modifier = m_modifiers | (released ? 0 : KeyEvent::Modifier::Pressed);
+		event.keycode = keycode.value();
 
 		if (m_event_queue.full())
 		{
@@ -134,11 +173,11 @@ namespace Kernel::Input
 	void PS2Keyboard::update_leds()
 	{
 		uint8_t new_leds = 0;
-		if (m_modifiers & (uint8_t)Input::KeyEvent::Modifier::ScrollLock)
+		if (m_modifiers & +Input::KeyEvent::Modifier::ScrollLock)
 			new_leds |= PS2::KBLeds::SCROLL_LOCK;
-		if (m_modifiers & (uint8_t)Input::KeyEvent::Modifier::NumLock)
+		if (m_modifiers & +Input::KeyEvent::Modifier::NumLock)
 			new_leds |= PS2::KBLeds::NUM_LOCK;
-		if (m_modifiers & (uint8_t)Input::KeyEvent::Modifier::CapsLock)
+		if (m_modifiers & +Input::KeyEvent::Modifier::CapsLock)
 			new_leds |= PS2::KBLeds::CAPS_LOCK;
 		append_command_queue(Command::SET_LEDS, new_leds, 0);
 	}

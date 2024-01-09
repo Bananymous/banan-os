@@ -5,6 +5,47 @@
 namespace Kernel::Input
 {
 
+	/*
+		Key Code:
+			bits 4:0 column (from left)
+			bits 7:5 row    (from top)
+	*/
+
+	#define BANAN_CONSTEVAL_STATIC_ASSERT(cond) do { int dummy = 1 / (cond); } while (false)
+
+	consteval uint8_t keycode_function(uint8_t index)
+	{
+		BANAN_CONSTEVAL_STATIC_ASSERT(index <= 0b11111);
+		return index;
+	}
+
+	consteval uint8_t keycode_normal(uint8_t row, uint8_t col)
+	{
+		BANAN_CONSTEVAL_STATIC_ASSERT(row <= 0b111 - 1);
+		BANAN_CONSTEVAL_STATIC_ASSERT(col < 0b11111 - 8);
+		return ((row + 1) << 5) | col;
+	}
+
+	consteval uint8_t keycode_numpad(uint8_t row, uint8_t col)
+	{
+		BANAN_CONSTEVAL_STATIC_ASSERT(row <= 0b111 - 1);
+		BANAN_CONSTEVAL_STATIC_ASSERT(col <= 8);
+		return ((row + 1) << 5) | (col + 0b11111 - 8);
+	}
+
+	enum ModifierKeycode
+	{
+		CapsLock	= keycode_normal(2, 0),
+		NumLock		= keycode_numpad(0, 0),
+		ScrollLock	= keycode_function(20),
+		LShift		= keycode_normal(3, 0),
+		RShift		= keycode_normal(3, 12),
+		LCtrl		= keycode_normal(4, 0),
+		RCtrl		= keycode_normal(4, 5),
+		LAlt		= keycode_normal(4, 2),
+		RAlt		= keycode_normal(4, 4),
+	};
+
 	enum class Key
 	{
 		Invalid, None,
@@ -14,9 +55,9 @@ namespace Kernel::Input
 		F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12,
 		Insert, PrintScreen, Delete, Home, End, PageUp, PageDown, Enter, Space,
 		ExclamationMark, DoubleQuote, Hashtag, Currency, Percent, Ampersand, Slash, Section, Half,
-		OpenBracet, CloseBracet, OpenBrace, CloseBrace, OpenCurlyBrace, CloseCurlyBrace,
-		Equals, QuestionMark, Plus, BackSlash, Acute, BackTick, TwoDots, Backspace, AtSign, Pound, Dollar, Euro,
-		Escape, Tab, CapsLock, LeftShift, LeftCtrl, Super, Alt, AltGr, RightCtrl, RightShift,
+		OpenParenthesis, CloseParenthesis, OpenSquareBracket, CloseSquareBracket, OpenCurlyBracket, CloseCurlyBracket,
+		Equals, QuestionMark, Plus, BackSlash, Acute, BackTick, TwoDots, Cedilla, Backspace, AtSign, Pound, Dollar, Euro,
+		Escape, Tab, CapsLock, LeftShift, LeftCtrl, Super, LeftAlt, RightAlt, AltGr = RightAlt, RightCtrl, RightShift,
 		SingleQuote, Asterix, Caret, Tilde, ArrowUp, ArrowDown, ArrowLeft, ArrowRight,
 		Comma, Semicolon, Period, Colon, Hyphen, Underscore, NumLock, ScrollLock, LessThan, GreaterThan, Pipe,
 		Numpad0, Numpad1, Numpad2, Numpad3, Numpad4, Numpad5, Numpad6, Numpad7, Numpad8, Numpad9,
@@ -27,73 +68,44 @@ namespace Kernel::Input
 
 	struct KeyEvent
 	{
-		enum class Modifier : uint8_t
+		enum Modifier : uint16_t
 		{
-			Shift		= (1 << 0),
-			Ctrl		= (1 << 1),
-			Alt			= (1 << 2),
-			AltGr		= (1 << 3),
-			CapsLock	= (1 << 4),
-			NumLock		= (1 << 5),
-			ScrollLock	= (1 << 6),
-			Released	= (1 << 7),
+			LShift		= (1 << 0),
+			RShift		= (1 << 1),
+			LCtrl		= (1 << 2),
+			RCtrl		= (1 << 3),
+			LAlt		= (1 << 4),
+			RAlt		= (1 << 5),
+			CapsLock	= (1 << 6),
+			NumLock		= (1 << 7),
+			ScrollLock	= (1 << 8),
+			Pressed		= (1 << 9),
 		};
 
-		bool shift()		const { return modifier & (uint8_t)Modifier::Shift; }
-		bool ctrl()			const { return modifier & (uint8_t)Modifier::Ctrl; }
-		bool alt()			const { return modifier & (uint8_t)Modifier::Alt; }
-		bool altgr()		const { return modifier & (uint8_t)Modifier::AltGr; }
-		bool caps_lock()	const { return modifier & (uint8_t)Modifier::CapsLock; }
-		bool num_lock()		const { return modifier & (uint8_t)Modifier::NumLock; }
-		bool scroll_lock()	const { return modifier & (uint8_t)Modifier::ScrollLock; }
-		bool released()		const { return modifier & (uint8_t)Modifier::Released; }
-		bool pressed()		const { return !released(); }
+		bool lshift()		const { return modifier & Modifier::LShift; }
+		bool rshift()		const { return modifier & Modifier::RShift; }
+		bool shift()		const { return lshift() || rshift(); }
 
-		uint8_t modifier;
-		Key key;
+		bool lctrl()		const { return modifier & Modifier::LCtrl; }
+		bool rctrl()		const { return modifier & Modifier::RCtrl; }
+		bool ctrl()			const { return lctrl() || rctrl(); }
+
+		bool lalt()			const { return modifier & Modifier::LAlt; }
+		bool ralt()			const { return modifier & Modifier::RAlt; }
+		bool alt()			const { return lalt() || ralt(); }
+
+		bool caps_lock()	const { return modifier & Modifier::CapsLock; }
+		bool num_lock()		const { return modifier & Modifier::NumLock; }
+		bool scroll_lock()	const { return modifier & Modifier::ScrollLock; }
+
+		bool pressed()		const { return modifier & Modifier::Pressed; }
+		bool released()		const { return !pressed(); }
+
+		uint16_t modifier;
+		uint8_t keycode;
 	};
 
-	inline const char* key_event_to_utf8(KeyEvent event)
-	{
-		static constexpr const char* utf8_lower[] = {
-			nullptr, nullptr,
-			"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z",
-			"å", "ä", "ö",
-			"0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
-			nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
-			nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, " ",
-			"!", "\"", "#", "¤", "%", "&", "/", "§", "½",
-			"(", ")", "[", "]", "{", "}",
-			"=", "?", "+", "\\", "´", "`", "¨", nullptr, "@", "£", "$", "€",
-			nullptr, "\t", nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
-			"'", "*", "^", "~", nullptr, nullptr, nullptr, nullptr,
-			",", ";", ".", ":", "-", "_", nullptr, nullptr, "<", ">", "|",
-			"0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
-			"+", "-", "*", "/", nullptr, ",",
-			nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
-		};
-		static_assert((size_t)Key::Count == sizeof(utf8_lower) / sizeof(*utf8_lower));
-
-		static constexpr const char* utf8_upper[] = {
-			nullptr, nullptr,
-			"A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
-			"Å", "Ä", "Ö",
-			"0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
-			nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
-			nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, " ",
-			"!", "\"", "#", "¤", "%", "&", "/", "§", "½",
-			"(", ")", "[", "]", "{", "}",
-			"=", "?", "+", "\\", "´", "`", "¨", nullptr, "@", "£", "$", "€",
-			nullptr, "\t", nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
-			"'", "*", "^", "~", nullptr, nullptr, nullptr, nullptr,
-			",", ";", ".", ":", "-", "_", nullptr, nullptr, "<", ">", "|",
-			"0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
-			"+", "-", "*", "/", nullptr, ",",
-			nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
-		};
-		static_assert((size_t)Key::Count == sizeof(utf8_upper) / sizeof(*utf8_lower));
-
-		return (event.shift() ^ event.caps_lock()) ? utf8_upper[(uint8_t)event.key] : utf8_lower[(uint8_t)event.key];
-	}
+	Key key_event_to_key(KeyEvent);
+	const char* key_to_utf8(Key key, uint16_t modifier);
 
 }

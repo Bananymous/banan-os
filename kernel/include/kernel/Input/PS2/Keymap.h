@@ -1,7 +1,7 @@
 #pragma once
 
-#include <BAN/Vector.h>
-#include <kernel/Input/KeyEvent.h>
+#include <BAN/Array.h>
+#include <BAN/Optional.h>
 
 namespace Kernel::Input
 {
@@ -9,15 +9,18 @@ namespace Kernel::Input
 	class PS2Keymap
 	{
 	public:
-		PS2Keymap();
+		void initialize(uint8_t scancode_set);
 
-		Key key_for_scancode_and_modifiers(uint32_t, uint8_t);
+		BAN::Optional<uint8_t> get_keycode(uint8_t scancode, bool extended) const;
 
 	private:
-		BAN::Vector<Key> m_normal_keymap;
-		BAN::Vector<Key> m_shift_keymap;
-		BAN::Vector<Key> m_altgr_keymap;
-		BAN::Vector<Key> m_extended_keymap;
+		void initialize_scancode_set1();
+		void initialize_scancode_set2();
+		void initialize_scancode_set3();
+
+	private:
+		BAN::Array<uint8_t, 0xFF> m_scancode_to_keycode_normal;
+		BAN::Array<uint8_t, 0xFF> m_scancode_to_keycode_extended;
 	};
 
 }

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <BAN/Array.h>
+#include <BAN/CircularQueue.h>
 #include <kernel/Input/KeyEvent.h>
 #include <kernel/Input/PS2/Device.h>
 #include <kernel/Input/PS2/Keymap.h>
@@ -14,7 +16,7 @@ namespace Kernel::Input
 		enum Command : uint8_t
 		{
 			SET_LEDS = 0xED,
-			SCANCODE = 0xF0
+			CONFIG_SCANCODE_SET = 0xF0
 		};
 
 	public:
@@ -29,12 +31,14 @@ namespace Kernel::Input
 		void update_leds();
 
 	private:
-		uint8_t m_byte_buffer[10];
+		BAN::Array<uint8_t, 3> m_byte_buffer;
 		uint8_t m_byte_index { 0 };
 
-		uint8_t m_modifiers { 0 };
+		uint8_t m_scancode_set { 0xFF };
 
-		BAN::CircularQueue<KeyEvent, 10> m_event_queue;
+		uint16_t m_modifiers { 0 };
+
+		BAN::CircularQueue<KeyEvent, 50> m_event_queue;
 
 		PS2Keymap m_keymap;
 

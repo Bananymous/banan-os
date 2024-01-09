@@ -78,13 +78,6 @@ namespace Kernel::Input::PS2
 		KEY_ERROR_OR_BUFFER_OVERRUN2 = 0xFF,
 	};
 
-	enum KBScancode : uint8_t
-	{
-		SET_SCANCODE_SET1 = 1,
-		SET_SCANCODE_SET2 = 2,
-		SET_SCANCODE_SET3 = 3,
-	};
-
 	enum KBLeds : uint8_t
 	{
 		SCROLL_LOCK	= (1 << 0),

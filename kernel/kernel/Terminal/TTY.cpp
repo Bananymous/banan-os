@@ -127,12 +127,13 @@ namespace Kernel
 		if (event.released())
 			return;
 
-		const char* ansi_c_str = Input::key_event_to_utf8(event);
+		Input::Key key = Input::key_event_to_key(event);
+		const char* ansi_c_str = Input::key_to_utf8(key, event.modifier);
 
 		if (event.ctrl())
 		{
-			ansi_c_str = nullptr;			
-			switch (event.key)
+			ansi_c_str = nullptr;
+			switch (key)
 			{
 				case Input::Key::A: ansi_c_str = "\x01"; break;
 				case Input::Key::B: ansi_c_str = "\x02"; break;
@@ -165,7 +166,7 @@ namespace Kernel
 		}
 		else
 		{
-			switch (event.key)
+			switch (key)
 			{
 				case Input::Key::Enter:
 				case Input::Key::NumpadEnter:

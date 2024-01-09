@@ -8,6 +8,7 @@
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/GDT.h>
 #include <kernel/IDT.h>
+#include <kernel/Input/KeyboardLayouts/FI.h>
 #include <kernel/Input/PS2/Controller.h>
 #include <kernel/InterruptController.h>
 #include <kernel/kprint.h>
@@ -182,6 +183,7 @@ static void init2(void*)
 	VirtualFileSystem::initialize(cmdline.root);
 	dprintln("VFS initialized");
 
+	Input::KeyboardLayout::initialize_fi();
 	if (auto res = PS2Controller::initialize(); res.is_error())
 		dprintln("{}", res.error());
 

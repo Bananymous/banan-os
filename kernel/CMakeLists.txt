@@ -32,6 +32,8 @@ set(KERNEL_SOURCES
 	kernel/FS/TmpFS/FileSystem.cpp
 	kernel/FS/TmpFS/Inode.cpp
 	kernel/FS/VirtualFileSystem.cpp
+	kernel/Input/KeyboardLayouts/FI.cpp
+	kernel/Input/KeyEvent.cpp
 	kernel/Input/PS2/Controller.cpp
 	kernel/Input/PS2/Device.cpp
 	kernel/Input/PS2/Keyboard.cpp
