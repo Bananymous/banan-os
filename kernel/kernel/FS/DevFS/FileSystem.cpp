@@ -6,6 +6,7 @@
 #include <kernel/FS/TmpFS/Inode.h>
 #include <kernel/LockGuard.h>
 #include <kernel/Process.h>
+#include <kernel/Scheduler.h>
 #include <kernel/Storage/StorageDevice.h>
 #include <kernel/Timer/Timer.h>
 
@@ -48,8 +49,7 @@ namespace Kernel
 						}
 					);
 					s_instance->m_device_lock.unlock();
-
-					Kernel::SystemTimer::get().sleep(1);
+					Scheduler::get().reschedule();
 				}
 			}, nullptr
 		);
