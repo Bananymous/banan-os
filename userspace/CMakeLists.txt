@@ -12,6 +12,7 @@ set(USERSPACE_PROJECTS
 	id
 	init
 	image
+	loadkeys
 	ls
 	meminfo
 	mkdir
