@@ -62,6 +62,7 @@ __BEGIN_DECLS
 #define SYS_MSYNC 61
 #define SYS_PREAD 62
 #define SYS_CHOWN 63
+#define SYS_LOAD_KEYMAP 64
 
 __END_DECLS
 

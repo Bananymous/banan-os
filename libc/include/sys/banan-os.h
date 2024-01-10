@@ -34,6 +34,8 @@ return value: 0 on success, -1 on failure and errno set to the error
 int tty_ctrl(int fildes, int command, int flags);
 int poweroff(int command);
 
+int load_keymap(const char* path);
+
 __END_DECLS
 
 #endif

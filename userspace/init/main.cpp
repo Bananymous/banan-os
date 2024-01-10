@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/banan-os.h>
 #include <termios.h>
 
 void initialize_stdio()
@@ -24,6 +25,9 @@ int main()
 
 	if (signal(SIGINT, [](int) {}) == SIG_ERR)
 		perror("signal");
+
+	if (load_keymap("/usr/share/keymaps/fi.keymap") == -1)
+		perror("load_keymap");
 
 	bool first = true;
 

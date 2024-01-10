@@ -210,6 +210,9 @@ namespace Kernel
 		case SYS_CHOWN:
 			ret = Process::current().sys_chown((const char*)arg1, (uid_t)arg2, (gid_t)arg3);
 			break;
+		case SYS_LOAD_KEYMAP:
+			ret = Process::current().sys_load_keymap((const char*)arg1);
+			break;
 		default:
 			dwarnln("Unknown syscall {}", syscall);
 			break;

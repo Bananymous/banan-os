@@ -5,6 +5,7 @@
 #include <kernel/FS/ProcFS/FileSystem.h>
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/IDT.h>
+#include <kernel/Input/KeyboardLayout.h>
 #include <kernel/InterruptController.h>
 #include <kernel/LockGuard.h>
 #include <kernel/Memory/FileBackedRegion.h>
@@ -1250,6 +1251,17 @@ namespace Kernel
 			default:
 				return BAN::Error::from_errno(ENOTSUP);
 		}
+		return 0;
+	}
+
+
+	BAN::ErrorOr<long> Process::sys_load_keymap(const char* path)
+	{
+		LockGuard _(m_lock);
+		TRY(validate_string_access(path));
+
+		auto absolute_path = TRY(absolute_path_of(path));
+		TRY(Input::KeyboardLayout::get().load_from_file(absolute_path));
 		return 0;
 	}
 

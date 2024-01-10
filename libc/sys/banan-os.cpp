@@ -11,3 +11,8 @@ int poweroff(int command)
 {
 	return syscall(SYS_POWEROFF, command);
 }
+
+int load_keymap(const char* path)
+{
+	return syscall(SYS_LOAD_KEYMAP, path);
+}
