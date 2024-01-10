@@ -1,20 +1,13 @@
 #include <BAN/Array.h>
+#include <kernel/Input/KeyboardLayout.h>
 #include <kernel/Input/KeyEvent.h>
 
 namespace Kernel::Input
 {
 
-	BAN::Array<Key, 0xFF> g_keycode_to_key_normal;
-	BAN::Array<Key, 0xFF> g_keycode_to_key_shift;
-	BAN::Array<Key, 0xFF> g_keycode_to_key_altgr;
-
 	Key key_event_to_key(KeyEvent event)
 	{
-		if (event.shift())
-			return g_keycode_to_key_shift[event.keycode];
-		if (event.ralt())
-			return g_keycode_to_key_altgr[event.keycode];
-		return g_keycode_to_key_normal[event.keycode];
+		return KeyboardLayout::get().get_key_from_event(event);
 	}
 
 	const char* key_to_utf8(Key key, uint16_t modifier)

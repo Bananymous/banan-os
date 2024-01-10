@@ -8,7 +8,7 @@
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/GDT.h>
 #include <kernel/IDT.h>
-#include <kernel/Input/KeyboardLayouts/FI.h>
+#include <kernel/Input/KeyboardLayout.h>
 #include <kernel/Input/PS2/Controller.h>
 #include <kernel/InterruptController.h>
 #include <kernel/kprint.h>
@@ -177,13 +177,19 @@ static void init2(void*)
 
 	DevFileSystem::get().initialize_device_updater();
 
+#if 0
+	dprintln("sleeping for 5 seconds");
+	SystemTimer::get().sleep(5000);
+#endif
+
 	PCI::PCIManager::initialize();
 	dprintln("PCI initialized");
 
 	VirtualFileSystem::initialize(cmdline.root);
 	dprintln("VFS initialized");
 
-	Input::KeyboardLayout::initialize_fi();
+	// Initialize empty keymap
+	MUST(Input::KeyboardLayout::initialize());
 	if (auto res = PS2Controller::initialize(); res.is_error())
 		dprintln("{}", res.error());
 
