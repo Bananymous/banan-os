@@ -1260,6 +1260,9 @@ namespace Kernel
 		LockGuard _(m_lock);
 		TRY(validate_string_access(path));
 
+		if (!m_credentials.is_superuser())
+			return BAN::Error::from_errno(EPERM);
+
 		auto absolute_path = TRY(absolute_path_of(path));
 		TRY(Input::KeyboardLayout::get().load_from_file(absolute_path));
 		return 0;
