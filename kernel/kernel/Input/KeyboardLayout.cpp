@@ -107,18 +107,15 @@ namespace Kernel::Input
 		return {};
 	}
 
-	BAN::ErrorOr<void> KeyboardLayout::load_from_file(BAN::StringView path)
+	static BAN::ErrorOr<BAN::Vector<BAN::String>> load_keymap_lines_and_parse_includes(BAN::StringView path)
 	{
-		if (s_name_to_key.empty())
-			TRY(initialize_name_to_key());
-
-		auto inode = TRY(VirtualFileSystem::get().file_from_absolute_path({ 0, 0, 0, 0 }, path, 0)).inode;
+		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path({ 0, 0, 0, 0 }, path, 0));
 
 		BAN::String file_data;
-		TRY(file_data.resize(inode->size()));
-		TRY(inode->read(0, { reinterpret_cast<uint8_t*>(file_data.data()), file_data.size() }));
+		TRY(file_data.resize(file.inode->size()));
+		TRY(file.inode->read(0, BAN::ByteSpan { reinterpret_cast<uint8_t*>(file_data.data()), file_data.size() }));
 
-		auto new_layout = TRY(BAN::UniqPtr<KeyboardLayout>::create());
+		BAN::Vector<BAN::String> result;
 
 		auto lines = TRY(file_data.sv().split('\n'));
 		for (auto line : lines)
@@ -127,10 +124,89 @@ namespace Kernel::Input
 			if (parts.empty() || parts.front().front() == '#')
 				continue;
 
+			if (parts.front() == "include"sv)
+			{
+				if (parts.size() != 2)
+				{
+					dprintln("Invalid modifier instruction in keymap '{}'", line);
+					dprintln("  format: include \"PATH\"");
+					return BAN::Error::from_errno(EINVAL);
+				}
+
+				if (parts[1].size() < 2 || parts[1].front() != '"' || parts[1].back() != '"')
+				{
+					dprintln("Invalid modifier instruction in keymap '{}'", line);
+					dprintln("  format: include \"PATH\"");
+					return BAN::Error::from_errno(EINVAL);	
+				}
+				parts[1] = parts[1].substring(1, parts[1].size() - 2);
+
+				BAN::String include_path;
+				TRY(include_path.append(file.canonical_path));
+				ASSERT(include_path.sv().contains('/'));
+				while (include_path.back() != '/')
+					include_path.pop_back();
+				TRY(include_path.append(parts[1]));
+
+				auto new_lines = TRY(load_keymap_lines_and_parse_includes(include_path));
+				TRY(result.reserve(result.size() + new_lines.size()));
+				for (auto& line : new_lines)
+					TRY(result.push_back(BAN::move(line)));
+			}
+			else
+			{
+				BAN::String line_str;
+				TRY(line_str.append(line));
+				TRY(result.push_back(BAN::move(line_str)));
+			}
+		}
+
+		return result;
+	}
+
+	BAN::ErrorOr<void> KeyboardLayout::load_from_file(BAN::StringView path)
+	{
+		if (s_name_to_key.empty())
+			TRY(initialize_name_to_key());
+
+		auto new_layout = TRY(BAN::UniqPtr<KeyboardLayout>::create());
+
+		bool shift_is_mod = false;
+		bool altgr_is_mod = false;
+
+		auto lines = TRY(load_keymap_lines_and_parse_includes(path));
+		for (const auto& line : lines)
+		{
+			auto parts = TRY(line.sv().split([](char c) -> bool { return isspace(c); }));
+			if (parts.empty() || parts.front().front() == '#')
+				continue;
+
 			if (parts.size() == 1)
 			{
 				dprintln("Invalid line in keymap '{}'", line);
 				dprintln("  format: KEYCODE KEY [MODIFIER=KEY]...");
+				dprintln("  format: mod MODIFIER");
+				dprintln("  format: include \"PATH\"");
+				return BAN::Error::from_errno(EINVAL);
+			}
+
+			if (parts.front() == "mod"sv)
+			{
+				if (parts.size() != 2)
+				{
+					dprintln("Invalid modifier instruction in keymap '{}'", line);
+					dprintln("  format: mod MODIFIER");
+					return BAN::Error::from_errno(EINVAL);
+				}
+				if (parts[1] == "shift"sv)
+					shift_is_mod = true;
+				else if (parts[1] == "altgr"sv)
+					altgr_is_mod = true;
+				else
+				{
+					dprintln("Unrecognized modifier '{}'", parts[1]);
+					return BAN::Error::from_errno(EINVAL);
+				}
 				continue;
 			}
 
@@ -138,14 +214,14 @@ namespace Kernel::Input
 			if (!keycode.has_value())
 			{
 				dprintln("Invalid keycode '{}', keycode must number between [0, 0xFF[", parts.front());
-				continue;
+				return BAN::Error::from_errno(EINVAL);
 			}
 
 			auto default_key = parse_key(parts[1]);
 			if (!default_key.has_value())
 			{
 				dprintln("Unrecognized key '{}'", parts[1]);
-				continue;
+				return BAN::Error::from_errno(EINVAL);
 			}
 
 			new_layout->m_keycode_to_key_normal[*keycode] = *default_key;
@@ -158,32 +234,41 @@ namespace Kernel::Input
 				if (pair.size() != 2)
 				{
 					dprintln("Invalid modifier format '{}', modifier format: MODIFIRER=KEY", parts[i]);
-					continue;
+					return BAN::Error::from_errno(EINVAL);
 				}
 
 				auto key = parse_key(pair.back());
 				if (!key.has_value())
 				{
 					dprintln("Unrecognized key '{}'", pair.back());
-					continue;
+					return BAN::Error::from_errno(EINVAL);
 				}
 
-				if (pair.front() == "shift"sv)
+				if (shift_is_mod && pair.front() == "shift"sv)
 					new_layout->m_keycode_to_key_shift[*keycode] = *key;
-				else if (pair.front() == "altgr"sv)
+				else if (altgr_is_mod && pair.front() == "altgr"sv)
 					new_layout->m_keycode_to_key_altgr[*keycode] = *key;
 				else
 				{
 					dprintln("Unrecognized modifier '{}'", pair.front());
-					continue;
+					return BAN::Error::from_errno(EINVAL);
 				}
 			}
 		}
 
 		CriticalScope _;
-		m_keycode_to_key_normal = new_layout->m_keycode_to_key_normal;
-		m_keycode_to_key_shift  = new_layout->m_keycode_to_key_shift;
-		m_keycode_to_key_altgr  = new_layout->m_keycode_to_key_altgr;
+
+		for (size_t i = 0; i < new_layout->m_keycode_to_key_normal.size(); i++)
+			if (new_layout->m_keycode_to_key_normal[i] != Key::None)
+				m_keycode_to_key_normal[i] = new_layout->m_keycode_to_key_normal[i];
+
+		for (size_t i = 0; i < new_layout->m_keycode_to_key_shift.size(); i++)
+			if (new_layout->m_keycode_to_key_shift[i] != Key::None)
+				m_keycode_to_key_shift[i] = new_layout->m_keycode_to_key_shift[i];
+
+		for (size_t i = 0; i < new_layout->m_keycode_to_key_altgr.size(); i++)
+			if (new_layout->m_keycode_to_key_altgr[i] != Key::None)
+				m_keycode_to_key_altgr[i] = new_layout->m_keycode_to_key_altgr[i];
 
 		return {};
 	}
