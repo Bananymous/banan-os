@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.26)
 project(bootloader ASM)
 
 set(BOOTLOADER_SOURCES
+	a20_line.S
 	boot.S
 	command_line.S
 	disk.S

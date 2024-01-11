@@ -57,7 +57,11 @@ stage2_main:
 	movw $unreal_enter_msg, %si
 	call puts; call print_newline
 
+	call enable_a20
+
 	call get_memory_map
+
+	call print_newline
 	call read_user_command_line
 
 	call print_newline
@@ -129,7 +133,7 @@ enter_unreal_mode:
 	movw $0x10, %bx
 	movw %bx, %ds
 
-	andb 0xFE, %al
+	andb $0xFE, %al
 	movl %eax, %cr0
 	ljmpl $0x0, $.enter_unreal_mode_unreal
 
