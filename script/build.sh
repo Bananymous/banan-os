@@ -100,6 +100,7 @@ case $1 in
 		build_target clean
 		rm -f $FAKEROOT_FILE
 		rm -rf $BANAN_SYSROOT
+		rm -f $BANAN_DISK_IMAGE_PATH
 		;;
 	*)
 		build_target $1
