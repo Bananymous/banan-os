@@ -150,7 +150,7 @@ namespace Kernel::Input
 				m_modifiers |= modifier_mask;
 		}
 
-		if (toggle_mask)
+		if (toggle_mask && !released)
 		{
 			m_modifiers ^= toggle_mask;
 			update_leds();

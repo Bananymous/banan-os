@@ -59,7 +59,7 @@ namespace Kernel::Input
 		Equals, QuestionMark, Plus, BackSlash, Acute, BackTick, TwoDots, Cedilla, Backspace, AtSign, Pound, Dollar, Euro,
 		Escape, Tab, CapsLock, LeftShift, LeftCtrl, Super, LeftAlt, RightAlt, AltGr = RightAlt, RightCtrl, RightShift,
 		SingleQuote, Asterix, Caret, Tilde, ArrowUp, ArrowDown, ArrowLeft, ArrowRight,
-		Comma, Semicolon, Period, Colon, Hyphen, Underscore, NumLock, ScrollLock, LessThan, GreaterThan, Pipe,
+		Comma, Semicolon, Period, Colon, Hyphen, Underscore, NumLock, ScrollLock, LessThan, GreaterThan, Pipe, Negation, BrokenBar,
 		Numpad0, Numpad1, Numpad2, Numpad3, Numpad4, Numpad5, Numpad6, Numpad7, Numpad8, Numpad9,
 		NumpadPlus, NumpadMinus, NumpadMultiply, NumpadDivide, NumpadEnter, NumpadDecimal,
 		VolumeMute, VolumeUp, VolumeDown, Calculator, MediaPlayPause, MediaStop, MediaPrevious, MediaNext,

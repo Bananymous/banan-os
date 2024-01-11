@@ -205,6 +205,7 @@ namespace Kernel::Input
 		TRY(s_name_to_key.insert("BackSlash"sv,				Key::BackSlash));
 		TRY(s_name_to_key.insert("Backspace"sv,				Key::Backspace));
 		TRY(s_name_to_key.insert("BackTick"sv,				Key::BackTick));
+		TRY(s_name_to_key.insert("BrokenBar"sv,				Key::BrokenBar));
 		TRY(s_name_to_key.insert("C"sv,						Key::C));
 		TRY(s_name_to_key.insert("Calculator"sv,			Key::Calculator));
 		TRY(s_name_to_key.insert("CapsLock"sv,				Key::CapsLock));
@@ -276,6 +277,7 @@ namespace Kernel::Input
 		TRY(s_name_to_key.insert("MediaPrevious"sv,			Key::MediaPrevious));
 		TRY(s_name_to_key.insert("MediaStop"sv,				Key::MediaStop));
 		TRY(s_name_to_key.insert("N"sv,						Key::N));
+		TRY(s_name_to_key.insert("Negation"sv,				Key::Negation));
 		TRY(s_name_to_key.insert("None"sv,					Key::None));
 		TRY(s_name_to_key.insert("NumLock"sv,				Key::NumLock));
 		TRY(s_name_to_key.insert("Numpad0"sv,				Key::Numpad0));
