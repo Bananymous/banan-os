@@ -1,12 +1,10 @@
 #include <BAN/ScopeGuard.h>
 #include <kernel/CriticalScope.h>
 #include <kernel/FS/DevFS/FileSystem.h>
+#include <kernel/Input/KeyboardLayout.h>
 #include <kernel/Input/PS2/Config.h>
 #include <kernel/Input/PS2/Keyboard.h>
 #include <kernel/Thread.h>
-
-#define SET_MASK(byte, mask, on_off) ((on_off) ? ((byte) | (mask)) : ((byte) & ~(mask)))
-#define TOGGLE_MASK(byte, mask) ((byte) ^ (mask))
 
 namespace Kernel::Input
 {
@@ -126,20 +124,24 @@ namespace Kernel::Input
 		if (!keycode.has_value())
 			return;
 
+		auto key = KeyboardLayout::get().get_key_from_event(KeyEvent { .modifier = 0, .keycode = keycode.value() });
+
 		uint16_t modifier_mask = 0;
 		uint16_t toggle_mask = 0;
-		switch (keycode.value())
+		switch (key)
 		{
-			case ModifierKeycode::LShift:	modifier_mask = KeyEvent::Modifier::LShift;	break;
-			case ModifierKeycode::RShift:	modifier_mask = KeyEvent::Modifier::RShift;	break;
-			case ModifierKeycode::LCtrl:	modifier_mask = KeyEvent::Modifier::LCtrl;	break;
-			case ModifierKeycode::RCtrl:	modifier_mask = KeyEvent::Modifier::RCtrl;	break;
-			case ModifierKeycode::LAlt:		modifier_mask = KeyEvent::Modifier::LAlt;	break;
-			case ModifierKeycode::RAlt:		modifier_mask = KeyEvent::Modifier::RAlt;	break;
+			case Key::LeftShift:	modifier_mask = KeyEvent::Modifier::LShift;	break;
+			case Key::RightShift:	modifier_mask = KeyEvent::Modifier::RShift;	break;
+			case Key::LeftCtrl:		modifier_mask = KeyEvent::Modifier::LCtrl;	break;
+			case Key::RightCtrl:	modifier_mask = KeyEvent::Modifier::RCtrl;	break;
+			case Key::LeftAlt:		modifier_mask = KeyEvent::Modifier::LAlt;	break;
+			case Key::RightAlt:		modifier_mask = KeyEvent::Modifier::RAlt;	break;
 
-			case ModifierKeycode::ScrollLock:	toggle_mask = KeyEvent::Modifier::ScrollLock;	break;
-			case ModifierKeycode::NumLock:		toggle_mask = KeyEvent::Modifier::NumLock;		break;
-			case ModifierKeycode::CapsLock:		toggle_mask = KeyEvent::Modifier::CapsLock;		break;
+			case Key::ScrollLock:	toggle_mask = KeyEvent::Modifier::ScrollLock;	break;
+			case Key::NumLock:		toggle_mask = KeyEvent::Modifier::NumLock;		break;
+			case Key::CapsLock:		toggle_mask = KeyEvent::Modifier::CapsLock;		break;
+
+			default: break;
 		}
 
 		if (modifier_mask)
@@ -173,11 +175,11 @@ namespace Kernel::Input
 	void PS2Keyboard::update_leds()
 	{
 		uint8_t new_leds = 0;
-		if (m_modifiers & +Input::KeyEvent::Modifier::ScrollLock)
+		if (m_modifiers & +KeyEvent::Modifier::ScrollLock)
 			new_leds |= PS2::KBLeds::SCROLL_LOCK;
-		if (m_modifiers & +Input::KeyEvent::Modifier::NumLock)
+		if (m_modifiers & +KeyEvent::Modifier::NumLock)
 			new_leds |= PS2::KBLeds::NUM_LOCK;
-		if (m_modifiers & +Input::KeyEvent::Modifier::CapsLock)
+		if (m_modifiers & +KeyEvent::Modifier::CapsLock)
 			new_leds |= PS2::KBLeds::CAPS_LOCK;
 		append_command_queue(Command::SET_LEDS, new_leds, 0);
 	}

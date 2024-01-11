@@ -33,19 +33,6 @@ namespace Kernel::Input
 		return ((row + 1) << 5) | (col + 0b11111 - 8);
 	}
 
-	enum ModifierKeycode
-	{
-		CapsLock	= keycode_normal(2, 0),
-		NumLock		= keycode_numpad(0, 0),
-		ScrollLock	= keycode_function(20),
-		LShift		= keycode_normal(3, 0),
-		RShift		= keycode_normal(3, 12),
-		LCtrl		= keycode_normal(4, 0),
-		RCtrl		= keycode_normal(4, 5),
-		LAlt		= keycode_normal(4, 2),
-		RAlt		= keycode_normal(4, 4),
-	};
-
 	enum class Key
 	{
 		Invalid, None,

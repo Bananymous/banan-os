@@ -1,4 +1,5 @@
 #include <BAN/HashMap.h>
+#include <kernel/CriticalScope.h>
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/Input/KeyboardLayout.h>
 
@@ -179,6 +180,7 @@ namespace Kernel::Input
 			}
 		}
 
+		CriticalScope _;
 		m_keycode_to_key_normal = new_layout->m_keycode_to_key_normal;
 		m_keycode_to_key_shift  = new_layout->m_keycode_to_key_shift;
 		m_keycode_to_key_altgr  = new_layout->m_keycode_to_key_altgr;
