@@ -11,6 +11,8 @@
 namespace Kernel
 {
 
+	static constexpr uint64_t s_ata_timeout_ms = 100;
+
 	BAN::ErrorOr<BAN::RefPtr<ATABus>> ATABus::create(uint16_t base, uint16_t ctrl, uint8_t irq)
 	{
 		auto* bus_ptr = new ATABus(base, ctrl);
@@ -73,16 +75,37 @@ namespace Kernel
 		select_delay();
 	}
 
-	static bool identify_all_ones(BAN::Span<const uint16_t> identify_data)
+	static bool identify_all_same(BAN::Span<const uint16_t> identify_data)
 	{
-		for (size_t i = 0; i < 256; i++)
-			if (identify_data[i] != 0xFFFF)
+		uint16_t value = identify_data[0];
+		for (size_t i = 1; i < 256; i++)
+			if (identify_data[i] != value)
 				return false;
 		return true;
 	}
 
 	BAN::ErrorOr<ATABus::DeviceType> ATABus::identify(bool secondary, BAN::Span<uint16_t> buffer)
 	{
+		// Try to detect whether port contains device
+		uint8_t status = io_read(ATA_PORT_STATUS);
+		if (status & ATA_STATUS_BSY)
+		{
+			uint64_t timeout = SystemTimer::get().ms_since_boot() + s_ata_timeout_ms;
+			while ((status = io_read(ATA_PORT_STATUS)) & ATA_STATUS_BSY)
+			{
+				if (SystemTimer::get().ms_since_boot() >= timeout)
+				{
+					dprintln("BSY flag clear timeout, assuming no drive on port");
+					return BAN::Error::from_errno(ETIMEDOUT);
+				}
+			}
+		}
+		if (__builtin_popcount(status) >= 4)
+		{
+			dprintln("STATUS contains garbage, assuming no drive on port");
+			return BAN::Error::from_errno(EINVAL);
+		}
+
 		select_device(secondary);
 
 		// Disable interrupts
@@ -125,7 +148,7 @@ namespace Kernel
 		ASSERT(buffer.size() >= 256);
 		read_buffer(ATA_PORT_DATA, buffer.data(), 256);
 
-		if (identify_all_ones(buffer))
+		if (identify_all_same(buffer))
 			return BAN::Error::from_errno(ENODEV);
 
 		return type;
@@ -189,12 +212,17 @@ namespace Kernel
 		for (uint32_t i = 0; i < 4; i++)
 			io_read(ATA_PORT_ALT_STATUS);
 
-		uint8_t status = ATA_STATUS_BSY;
-		while (status & ATA_STATUS_BSY)
-			status = io_read(ATA_PORT_STATUS);
+		uint64_t timeout = SystemTimer::get().ms_since_boot() + s_ata_timeout_ms;
+
+		uint8_t status;
+		while ((status = io_read(ATA_PORT_STATUS)) & ATA_STATUS_BSY)
+			if (SystemTimer::get().ms_since_boot() >= timeout)
+				return BAN::Error::from_errno(ETIMEDOUT);
 
 		while (wait_drq && !(status & ATA_STATUS_DRQ))
 		{
+			if (SystemTimer::get().ms_since_boot() >= timeout)
+				return BAN::Error::from_errno(ETIMEDOUT);
 			if (status & ATA_STATUS_ERR)
 				return error();
 			if (status & ATA_STATUS_DF)
