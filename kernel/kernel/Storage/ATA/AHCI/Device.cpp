@@ -8,6 +8,8 @@
 namespace Kernel
 {
 
+	static constexpr uint64_t s_ata_timeout = 1000;
+
 	static void start_cmd(volatile HBAPortMemorySpace* port)
 	{
 		while (port->cmd & HBA_PxCMD_CR)
@@ -100,24 +102,26 @@ namespace Kernel
 		auto slot = find_free_command_slot();
 		ASSERT(slot.has_value());
 
-		auto& command_header = ((HBACommandHeader*)m_dma_region->paddr_to_vaddr(m_port->clb))[slot.value()];
+		volatile auto& command_header = reinterpret_cast<volatile HBACommandHeader*>(m_dma_region->paddr_to_vaddr(m_port->clb))[slot.value()];
 		command_header.cfl = sizeof(FISRegisterH2D) / sizeof(uint32_t);
 		command_header.w = 0;
 		command_header.prdtl = 1;
 
-		auto& command_table = *(HBACommandTable*)m_dma_region->paddr_to_vaddr(command_header.ctba);
-		memset(&command_table, 0x00, sizeof(HBACommandTable));
+		volatile auto& command_table = *reinterpret_cast<volatile HBACommandTable*>(m_dma_region->paddr_to_vaddr(command_header.ctba));
+		memset(const_cast<HBACommandTable*>(&command_table), 0x00, sizeof(HBACommandTable));
 		command_table.prdt_entry[0].dba = m_data_dma_region->paddr();
 		command_table.prdt_entry[0].dbc = 511;
 		command_table.prdt_entry[0].i = 1;
 
-		auto& command = *(FISRegisterH2D*)command_table.cfis;
+		volatile auto& command = *reinterpret_cast<volatile FISRegisterH2D*>(command_table.cfis);
 		command.fis_type = FIS_TYPE_REGISTER_H2D;
 		command.c = 1;
 		command.command = ATA_COMMAND_IDENTIFY;
 
+		uint64_t timeout = SystemTimer::get().ms_since_boot() + s_ata_timeout;
 		while (m_port->tfd & (ATA_STATUS_BSY | ATA_STATUS_DRQ))
-			continue;
+			if (SystemTimer::get().ms_since_boot() >= timeout)
+				return BAN::Error::from_errno(ETIMEDOUT);
 
 		m_port->ci = 1 << slot.value();
 
@@ -152,18 +156,17 @@ namespace Kernel
 
 	BAN::ErrorOr<void> AHCIDevice::block_until_command_completed(uint32_t command_slot)
 	{
-		static constexpr uint64_t total_timeout_ms = 5000;
 		static constexpr uint64_t poll_timeout_ms = 10;
 
 		auto start_time = SystemTimer::get().ms_since_boot();
 
-		while (start_time + poll_timeout_ms < SystemTimer::get().ns_since_boot())
+		while (SystemTimer::get().ms_since_boot() < start_time + poll_timeout_ms)
 			if (!(m_port->ci & (1 << command_slot)))
 				return {};
-		
+
 		// FIXME: This should actually block once semaphores support blocking with timeout.
 		//        This doesn't allow scheduler to go properly idle.
-		while (start_time + total_timeout_ms < SystemTimer::get().ns_since_boot())
+		while (SystemTimer::get().ms_since_boot() < start_time + s_ata_timeout)
 		{
 			Scheduler::get().reschedule();
 			if (!(m_port->ci & (1 << command_slot)))
@@ -216,7 +219,7 @@ namespace Kernel
 		auto slot = find_free_command_slot();
 		ASSERT(slot.has_value());
 		
-		auto& command_header = ((HBACommandHeader*)m_dma_region->paddr_to_vaddr(m_port->clb))[slot.value()];
+		volatile auto& command_header = reinterpret_cast<volatile HBACommandHeader*>(m_dma_region->paddr_to_vaddr(m_port->clb))[slot.value()];
 		command_header.cfl = sizeof(FISRegisterH2D) / sizeof(uint32_t);
 		command_header.prdtl = 1;
 		switch (command)
@@ -231,15 +234,15 @@ namespace Kernel
 				ASSERT_NOT_REACHED();
 		}
 
-		auto& command_table = *(HBACommandTable*)m_dma_region->paddr_to_vaddr(command_header.ctba);
-		memset(&command_table, 0x00, sizeof(HBACommandTable));
+		volatile auto& command_table = *reinterpret_cast<HBACommandTable*>(m_dma_region->paddr_to_vaddr(command_header.ctba));
+		memset(const_cast<HBACommandTable*>(&command_table), 0x00, sizeof(HBACommandTable));
 		command_table.prdt_entry[0].dba = m_data_dma_region->paddr() & 0xFFFFFFFF;
 		command_table.prdt_entry[0].dbau = m_data_dma_region->paddr() >> 32;
 		command_table.prdt_entry[0].dbc = sector_count * sector_size() - 1;
 		command_table.prdt_entry[0].i = 1;
 
-		auto& fis_command = *(FISRegisterH2D*)command_table.cfis;
-		memset(&fis_command, 0x00, sizeof(FISRegisterH2D));
+		volatile auto& fis_command = *reinterpret_cast<volatile FISRegisterH2D*>(command_table.cfis);
+		memset(const_cast<FISRegisterH2D*>(&fis_command), 0x00, sizeof(FISRegisterH2D));
 		fis_command.fis_type = FIS_TYPE_REGISTER_H2D;
 		fis_command.c = 1;
 
@@ -283,8 +286,8 @@ namespace Kernel
 	BAN::Optional<uint32_t> AHCIDevice::find_free_command_slot()
 	{
 		uint32_t slots = m_port->sact | m_port->ci;
-		for (uint32_t i = 0; i < m_controller->command_slot_count(); i++, slots >>= 1)
-			if (!(slots & 1))
+		for (uint32_t i = 0; i < m_controller->command_slot_count(); i++)
+			if (!(slots & (1 << i)))
 				return i;
 		return {};
 	}
