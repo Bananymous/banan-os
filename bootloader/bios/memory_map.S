@@ -114,6 +114,7 @@ print_memory_map:
 
 	ret
 
+.section .data
 
 memory_map_msg:
 	.asciz "memmap:"

@@ -143,6 +143,8 @@ enter_unreal_mode:
 
 	ret
 
+.section .data
+
 hello_msg:
 	.asciz "This is banan-os bootloader"
 

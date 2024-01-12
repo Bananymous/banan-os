@@ -692,6 +692,7 @@ ext2_find_kernel:
 	movw $ext2_kernel_not_reg_msg, %si
 	jmp print_and_halt
 
+.section .data
 
 kernel_path:
 	.short kernel_path1
@@ -703,7 +704,6 @@ kernel_path1:
 kernel_path2:
 	.short 15
 	.asciz "banan-os.kernel"
-
 
 root_partition_does_not_fit_ext2_filesystem_msg:
 	.asciz "Root partition is too small to contain ext2 filesystem"

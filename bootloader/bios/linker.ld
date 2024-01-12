@@ -8,6 +8,8 @@ SECTIONS
 	. = ALIGN(512);
 	stage2_start = .;
 	.stage2 : { *(.stage2) }
+	. = ALIGN(512);
+	.data : { *(.data) }
 	stage2_end = .;
 
 	. = ALIGN(512);

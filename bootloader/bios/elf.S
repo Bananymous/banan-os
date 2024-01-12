@@ -196,6 +196,7 @@ elf_read_kernel_to_memory:
 	movw $elf_read_kernel_to_memory_not_loadable_header_msg, %si
 	jmp print_and_halt
 
+.section .data
 
 elf_validate_file_header_invalid_magic_msg:
 	.asciz "ELF: file has invalid ELF magic"

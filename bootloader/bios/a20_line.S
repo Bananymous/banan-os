@@ -156,6 +156,8 @@ enable_a20:
 	popw %ax
 	ret
 
+.section .data
+
 a20_line_disabled_msg:
 	.asciz "A20 line disabled. Trying to enable it"
 

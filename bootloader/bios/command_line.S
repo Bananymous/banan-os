@@ -74,6 +74,8 @@ read_user_command_line:
 	ret
 
 
+.section .data
+
 command_line_enter_msg:
 	.asciz "cmdline: "
 

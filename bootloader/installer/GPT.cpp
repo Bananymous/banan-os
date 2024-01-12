@@ -99,33 +99,33 @@ bool GPTFile::install_stage1(std::span<const uint8_t> stage1)
 	return true;
 }
 
-bool GPTFile::install_stage2(std::span<const uint8_t> stage2, const GUID& root_partition_guid)
+bool GPTFile::install_stage2(std::span<const uint8_t> stage2, std::span<const uint8_t> data, const GUID& root_partition_guid)
 {
-	if (stage2.size() < 16)
+	if (data.size() < 16)
 	{
-		std::cerr << m_path << ": contains invalid .stage2 section, too small for patches" << std::endl;
+		std::cerr << m_path << ": contains invalid .data section, too small for patches" << std::endl;
 		return false;
 	}
 
 	// find GUID patch offsets
 	std::size_t disk_guid_offset(-1);
 	std::size_t part_guid_offset(-1);
-	for (std::size_t i = 0; i < stage2.size() - 16; i++)
+	for (std::size_t i = 0; i < data.size() - 16; i++)
 	{
-		if (memcmp(stage2.data() + i, "root disk guid  ", 16) == 0)
+		if (memcmp(data.data() + i, "root disk guid  ", 16) == 0)
 		{
 			if (disk_guid_offset != std::size_t(-1))
 			{
-				std::cerr << m_path << ": contains invalid .stage2 section, multiple patchable disk guids" << std::endl;
+				std::cerr << m_path << ": contains invalid .data section, multiple patchable disk guids" << std::endl;
 				return false;
 			}
 			disk_guid_offset = i;
 		}
-		if (memcmp(stage2.data() + i, "root part guid  ", 16) == 0)
+		if (memcmp(data.data() + i, "root part guid  ", 16) == 0)
 		{
 			if (part_guid_offset != std::size_t(-1))
 			{
-				std::cerr << m_path << ": contains invalid .stage2 section, multiple patchable partition guids" << std::endl;
+				std::cerr << m_path << ": contains invalid .data section, multiple patchable partition guids" << std::endl;
 				return false;
 			}
 			part_guid_offset = i;
@@ -133,15 +133,14 @@ bool GPTFile::install_stage2(std::span<const uint8_t> stage2, const GUID& root_p
 	}
 	if (disk_guid_offset == std::size_t(-1))
 	{
-		std::cerr << m_path << ": contains invalid .stage2 section, no patchable disk guid" << std::endl;
+		std::cerr << m_path << ": contains invalid .data section, no patchable disk guid" << std::endl;
 		return false;
 	}
 	if (part_guid_offset == std::size_t(-1))
 	{
-		std::cerr << m_path << ": contains invalid .stage2 section, no patchable partition guid" << std::endl;
+		std::cerr << m_path << ": contains invalid .data section, no patchable partition guid" << std::endl;
 		return false;
 	}
-	
 
 	auto partition = find_partition_with_type(bios_boot_guid);
 	if (!partition.has_value())
@@ -152,23 +151,28 @@ bool GPTFile::install_stage2(std::span<const uint8_t> stage2, const GUID& root_p
 
 	const std::size_t partition_size = (partition->ending_lba - partition->starting_lba + 1) * SECTOR_SIZE;
 
-	if (stage2.size() > partition_size)
+	std::size_t data_offset = stage2.size();
+	if (std::size_t rem = data_offset % 512)
+		data_offset += 512 - rem;
+
+	if (data_offset + data.size() > partition_size)
 	{
-		std::cerr << m_path << ": can't fit " << stage2.size() << " bytes of data to partition of size " << partition_size << std::endl;
+		std::cerr << m_path << ": can't fit " << stage2.size() + data.size() << " bytes of data to partition of size " << partition_size << std::endl;
 		return false;
 	}
 
 	uint8_t* partition_start = m_mmap + partition->starting_lba * SECTOR_SIZE;
 	memcpy(partition_start, stage2.data(), stage2.size());
+	memcpy(partition_start + data_offset, data.data(), data.size());
 
 	// patch GUIDs
-	*reinterpret_cast<GUID*>(partition_start + disk_guid_offset) = gpt_header().disk_guid;
-	*reinterpret_cast<GUID*>(partition_start + part_guid_offset) = root_partition_guid;
+	*reinterpret_cast<GUID*>(partition_start + data_offset + disk_guid_offset) = gpt_header().disk_guid;
+	*reinterpret_cast<GUID*>(partition_start + data_offset + part_guid_offset) = root_partition_guid;
 
 	return true;
 }
 
-bool GPTFile::install_bootloader(std::span<const uint8_t> stage1, std::span<const uint8_t> stage2, const GUID& root_partition_guid)
+bool GPTFile::install_bootloader(std::span<const uint8_t> stage1, std::span<const uint8_t> stage2, std::span<const uint8_t> data, const GUID& root_partition_guid)
 {
 	if (!find_partition_with_guid(root_partition_guid).has_value())
 	{
@@ -177,7 +181,7 @@ bool GPTFile::install_bootloader(std::span<const uint8_t> stage1, std::span<cons
 	}
 	if (!install_stage1(stage1))
 		return false;
-	if (!install_stage2(stage2, root_partition_guid))
+	if (!install_stage2(stage2, data, root_partition_guid))
 		return false;
 	return true;
 }

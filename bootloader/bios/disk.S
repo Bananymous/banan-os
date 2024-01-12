@@ -470,6 +470,7 @@ print_root_partition_info:
 	popw %ax
 	ret
 
+.section .data
 
 # These will be patched during bootloader installation
 root_disk_guid:

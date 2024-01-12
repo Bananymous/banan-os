@@ -185,6 +185,7 @@ vesa_set_video_mode:
 	popw %ax
 	ret
 
+.section .data
 
 vesa_error_msg:
 	.asciz "VESA error"

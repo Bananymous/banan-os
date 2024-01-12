@@ -26,9 +26,10 @@ int main(int argc, char** argv)
 
 	auto stage1 = bootloader.find_section(".stage1"sv);
 	auto stage2 = bootloader.find_section(".stage2"sv);
-	if (!stage1.has_value() || !stage2.has_value())
+	auto data = bootloader.find_section(".data"sv);
+	if (!stage1.has_value() || !stage2.has_value() || !data.has_value())
 	{
-		std::cerr << bootloader.path() << " doesn't contain .stage1 and .stage2 sections" << std::endl;
+		std::cerr << bootloader.path() << " doesn't contain .stage1, .stage2 and .data sections" << std::endl;
 		return 1;
 	}
 
@@ -36,7 +37,7 @@ int main(int argc, char** argv)
 	if (!disk_image.success())
 		return 1;
 
-	if (!disk_image.install_bootloader(*stage1, *stage2, *root_partition_guid))
+	if (!disk_image.install_bootloader(*stage1, *stage2, *data, *root_partition_guid))
 		return 1;
 	std::cout << "bootloader installed" << std::endl;
 
