@@ -13,11 +13,16 @@ if (($BANAN_UEFI_BOOT)); then
 	BIOS_ARGS="-bios $OVMF_PATH -net none"
 fi
 
+if [[ $BANAN_DISK_TYPE == "NVME" ]]; then
+	DISK_ARGS="-device nvme,serial=deadbeef,drive=disk"
+else
+	DISK_ARGS="-device ahci,id=ahci -device ide-hd,drive=disk,bus=ahci.0"
+fi
+
 qemu-system-$BANAN_ARCH												\
 	-m 128															\
 	-smp 2															\
 	$BIOS_ARGS														\
 	-drive format=raw,id=disk,file=${BANAN_DISK_IMAGE_PATH},if=none	\
-	-device ahci,id=ahci											\
-	-device ide-hd,drive=disk,bus=ahci.0							\
+	$DISK_ARGS														\
 	$@																\

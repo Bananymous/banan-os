@@ -6,6 +6,7 @@
 #include <kernel/PCI.h>
 #include <kernel/Storage/ATA/AHCI/Controller.h>
 #include <kernel/Storage/ATA/ATAController.h>
+#include <kernel/Storage/NVMe/Controller.h>
 
 #define INVALID_VENDOR 0xFFFF
 #define MULTI_FUNCTION 0x80
@@ -169,6 +170,14 @@ namespace Kernel::PCI
 						case 0x06:
 							if (auto res = ATAController::create(pci_device); res.is_error())
 								dprintln("ATA: {}", res.error());
+							break;
+						case 0x08:
+							// FIXME: HACK if inode initialization fails before it attaches to DevFS,
+							//        it will kernel panic. This is used to make nvme eternal
+							if (auto res = NVMeController::create(pci_device); res.is_error())
+								dprintln("NVMe: {}", res.error());
+							else
+								res.value()->ref();
 							break;
 						default:
 							dprintln("unsupported storage device (pci {2H}.{2H}.{2H})", pci_device.class_code(), pci_device.subclass(), pci_device.prog_if());

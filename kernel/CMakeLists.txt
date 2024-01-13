@@ -65,6 +65,9 @@ set(KERNEL_SOURCES
 	kernel/Storage/ATA/ATAController.cpp
 	kernel/Storage/ATA/ATADevice.cpp
 	kernel/Storage/DiskCache.cpp
+	kernel/Storage/NVMe/Controller.cpp
+	kernel/Storage/NVMe/Namespace.cpp
+	kernel/Storage/NVMe/Queue.cpp
 	kernel/Storage/Partition.cpp
 	kernel/Storage/StorageDevice.cpp
 	kernel/Syscall.cpp
