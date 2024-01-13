@@ -25,8 +25,8 @@ namespace Kernel
 
 		// Enable interrupts and bus mastering
 		m_pci_device.enable_bus_mastering();
-		m_pci_device.enable_pin_interrupts();
-		set_irq(TRY(m_pci_device.get_irq()));
+		TRY(m_pci_device.reserve_irqs(1));
+		set_irq(m_pci_device.get_irq(0));
 		enable_interrupt();
 		abar_mem.ghc = abar_mem.ghc | SATA_GHC_INTERRUPT_ENABLE;
 

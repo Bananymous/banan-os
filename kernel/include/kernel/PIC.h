@@ -12,12 +12,16 @@ namespace Kernel
 		virtual void enable_irq(uint8_t) override;
 		virtual bool is_in_service(uint8_t) override;
 
+		virtual BAN::ErrorOr<void> reserve_irq(uint8_t irq) override;
+		virtual BAN::Optional<uint8_t> get_free_irq() override;
+
 		static void remap();
 		static void mask_all();
 
 	private:
 		static PIC* create();
 		friend class InterruptController;
+		uint16_t m_reserved_irqs { 0 };
 	};
 
 }

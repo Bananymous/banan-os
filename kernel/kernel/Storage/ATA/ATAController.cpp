@@ -41,6 +41,8 @@ namespace Kernel
 
 		uint8_t prog_if = m_pci_device.read_byte(0x09);
 
+		// FIXME: support native mode
+
 		if ((prog_if & ATA_PROGIF_CAN_MODIFY_PRIMARY_NATIVE) && (prog_if & ATA_PROGIF_PRIMARY_NATIVE))
 		{
 			prog_if &= ~ATA_PROGIF_PRIMARY_NATIVE;
@@ -57,11 +59,16 @@ namespace Kernel
 
 		if (!(prog_if & ATA_PROGIF_PRIMARY_NATIVE))
 		{
-			auto bus_or_error = ATABus::create(0x1F0, 0x3F6, 14);
-			if (bus_or_error.is_error())
-				dprintln("IDE ATABus: {}", bus_or_error.error());
+			if (InterruptController::get().reserve_irq(14).is_error())
+				dwarnln("Could not reserve interrupt {} for ATA device", 14);
 			else
-				TRY(buses.push_back(bus_or_error.release_value()));
+			{
+				auto bus_or_error = ATABus::create(0x1F0, 0x3F6, 14);
+				if (bus_or_error.is_error())
+					dprintln("IDE ATABus: {}", bus_or_error.error());
+				else
+					TRY(buses.push_back(bus_or_error.release_value()));
+			}
 		}
 		else
 		{
@@ -70,11 +77,16 @@ namespace Kernel
 
 		if (!(prog_if & ATA_PROGIF_SECONDARY_NATIVE))
 		{
-			auto bus_or_error = ATABus::create(0x170, 0x376, 15);
-			if (bus_or_error.is_error())
-				dprintln("IDE ATABus: {}", bus_or_error.error());
+			if (InterruptController::get().reserve_irq(15).is_error())
+				dwarnln("Could not reserver interrupt {} for ATA device", 15);
 			else
-				TRY(buses.push_back(bus_or_error.release_value()));
+			{
+				auto bus_or_error = ATABus::create(0x170, 0x376, 15);
+				if (bus_or_error.is_error())
+					dprintln("IDE ATABus: {}", bus_or_error.error());
+				else
+					TRY(buses.push_back(bus_or_error.release_value()));
+			}
 		}
 		else
 		{

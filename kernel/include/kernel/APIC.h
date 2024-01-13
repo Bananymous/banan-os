@@ -14,6 +14,9 @@ namespace Kernel
 		virtual void enable_irq(uint8_t) override;
 		virtual bool is_in_service(uint8_t) override;
 
+		virtual BAN::ErrorOr<void> reserve_irq(uint8_t irq) override;
+		virtual BAN::Optional<uint8_t> get_free_irq() override;
+
 	private:
 		uint32_t read_from_local_apic(ptrdiff_t);
 		void write_to_local_apic(ptrdiff_t, uint32_t);
@@ -54,6 +57,7 @@ namespace Kernel
 		Kernel::vaddr_t			m_local_apic_vaddr = 0;
 		BAN::Vector<IOAPIC>		m_io_apics;	
 		uint8_t					m_irq_overrides[0x100] {};
+		uint8_t					m_reserved_gsis[0x100 / 8] {};
 	};
 
 }

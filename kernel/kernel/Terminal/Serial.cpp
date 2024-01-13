@@ -195,12 +195,14 @@ namespace Kernel
 		if (serial.port() == COM1_PORT)
 		{
 			IO::outb(COM1_PORT + 1, 1);
+			TRY(InterruptController::get().reserve_irq(COM1_IRQ));
 			tty->set_irq(COM1_IRQ);
 			tty->enable_interrupt();
 		}
 		else if (serial.port() == COM2_PORT)
 		{
 			IO::outb(COM2_PORT + 1, 1);
+			TRY(InterruptController::get().reserve_irq(COM2_IRQ));
 			tty->set_irq(COM2_IRQ);
 			tty->enable_interrupt();
 		}

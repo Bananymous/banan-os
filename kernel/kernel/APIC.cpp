@@ -223,7 +223,15 @@ namespace Kernel
 
 	void APIC::enable_irq(uint8_t irq)
 	{
+		CriticalScope _;
+
 		uint32_t gsi = m_irq_overrides[irq];
+
+		{
+			int byte = gsi / 8;
+			int bit  = gsi % 8;
+			ASSERT(m_reserved_gsis[byte] & (1 << bit));
+		}
 
 		IOAPIC* ioapic = nullptr;
 		for (IOAPIC& io : m_io_apics)
@@ -256,6 +264,69 @@ namespace Kernel
 
 		uint32_t isr = read_from_local_apic(LAPIC_IS_REG + dword * 0x10);
 		return isr & (1 << bit);
+	}
+
+	BAN::ErrorOr<void> APIC::reserve_irq(uint8_t irq)
+	{
+		CriticalScope _;
+
+		uint32_t gsi = m_irq_overrides[irq];
+
+		IOAPIC* ioapic = nullptr;
+		for (IOAPIC& io : m_io_apics)
+		{
+			if (io.gsi_base <= gsi && gsi <= io.gsi_base + io.max_redirs)
+			{
+				ioapic = &io;
+				break;
+			}
+		}
+
+		if (!ioapic)
+		{
+			dwarnln("Cannot enable irq {} for APIC", irq);
+			return BAN::Error::from_errno(EFAULT);
+		}
+
+		int byte = gsi / 8;
+		int bit  = gsi % 8;
+		if (m_reserved_gsis[byte] & (1 << bit))
+		{
+			dwarnln("irq {} is already reserved", irq);
+			return BAN::Error::from_errno(EFAULT);
+		}
+		m_reserved_gsis[byte] |= 1 << bit;
+		return {};
+	}
+
+	BAN::Optional<uint8_t> APIC::get_free_irq()
+	{
+		CriticalScope _;
+		for (int irq = 0; irq <= 0xFF; irq++)
+		{
+			uint32_t gsi = m_irq_overrides[irq];
+		
+			IOAPIC* ioapic = nullptr;
+			for (IOAPIC& io : m_io_apics)
+			{
+				if (io.gsi_base <= gsi && gsi <= io.gsi_base + io.max_redirs)
+				{
+					ioapic = &io;
+					break;
+				}
+			}
+
+			if (!ioapic)
+				continue;
+
+			int byte = gsi / 8;
+			int bit  = gsi % 8;
+			if (m_reserved_gsis[byte] & (1 << bit))
+				continue;
+			m_reserved_gsis[byte] |= 1 << bit;
+			return irq;
+		}
+		return {};
 	}
 
 }

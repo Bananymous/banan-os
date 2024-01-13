@@ -1,3 +1,4 @@
+#include <kernel/CriticalScope.h>
 #include <kernel/IDT.h>
 #include <kernel/IO.h>
 #include <kernel/PIC.h>
@@ -70,6 +71,7 @@ namespace Kernel
 
 	void PIC::eoi(uint8_t irq)
 	{
+		ASSERT(!interrupts_enabled());
 		if (irq >= 8)
 			IO::outb(PIC2_CMD, PIC_EOI);
 		IO::outb(PIC1_CMD, PIC_EOI);
@@ -77,6 +79,10 @@ namespace Kernel
 
 	void PIC::enable_irq(uint8_t irq)
 	{
+		CriticalScope _;
+		ASSERT(irq < 16);
+		ASSERT(m_reserved_irqs & (1 << irq));
+
 		uint16_t port = PIC1_DATA;
 		if(irq >= 8)
 		{
@@ -84,6 +90,37 @@ namespace Kernel
 			irq -= 8;
 		}
 		IO::outb(port, IO::inb(port) & ~(1 << irq));
+	}
+
+	BAN::ErrorOr<void> PIC::reserve_irq(uint8_t irq)
+	{
+		if (irq >= 16)
+		{
+			dwarnln("PIC only supports 16 irqs");
+			return BAN::Error::from_errno(EFAULT);
+		}
+		CriticalScope _;
+		if (m_reserved_irqs & (1 << irq))
+		{
+			dwarnln("irq {} is already reserved", irq);
+			return BAN::Error::from_errno(EFAULT);
+		}
+		m_reserved_irqs |= 1 << irq;
+		return {};
+	}
+
+	BAN::Optional<uint8_t> PIC::get_free_irq()
+	{
+		CriticalScope _;
+		for (int irq = 0; irq < 16; irq++)
+		{
+			if (m_reserved_irqs & (1 << irq))
+				continue;
+			m_reserved_irqs |= 1 << irq;
+			return irq;
+		}
+		
+		return {};
 	}
 
 	bool PIC::is_in_service(uint8_t irq)

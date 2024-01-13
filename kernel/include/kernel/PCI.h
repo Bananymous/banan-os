@@ -79,7 +79,8 @@ namespace Kernel::PCI
 		uint16_t vendor_id() const { return m_vendor_id; }
 		uint16_t device_id() const { return m_device_id; }
 
-		BAN::ErrorOr<uint8_t> get_irq();
+		BAN::ErrorOr<void> reserve_irqs(uint8_t count);
+		uint8_t get_irq(uint8_t index);
 
 		BAN::ErrorOr<BAN::UniqPtr<BarRegion>> allocate_bar_region(uint8_t bar_num);
 
@@ -92,14 +93,14 @@ namespace Kernel::PCI
 		void enable_io_space();
 		void disable_io_space();
 
-		void enable_pin_interrupts();
-		void disable_pin_interrupts();
-
 	private:
 		void enumerate_capabilites();
 
 		void set_command_bits(uint16_t mask);
 		void unset_command_bits(uint16_t mask);
+
+		void enable_pin_interrupts();
+		void disable_pin_interrupts();
 
 	private:
 		const uint8_t m_bus;
@@ -113,6 +114,9 @@ namespace Kernel::PCI
 		uint8_t m_header_type;
 		uint16_t m_vendor_id;
 		uint16_t m_device_id;
+
+		uint32_t m_reserved_irqs { 0 };
+		uint8_t m_reserved_irq_count { 0 };
 
 		BAN::Optional<uint8_t> m_offset_msi;
 		BAN::Optional<uint8_t> m_offset_msi_x;

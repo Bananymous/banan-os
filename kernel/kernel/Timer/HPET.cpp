@@ -105,6 +105,7 @@ namespace Kernel
 				if (irq_cap & (1 << irq))
 					break;
 		}
+		TRY(InterruptController::get().reserve_irq(irq));
 
 		unmapper.disable();
 

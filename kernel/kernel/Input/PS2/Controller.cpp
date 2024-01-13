@@ -329,6 +329,18 @@ namespace Kernel::Input
 			}
 		}
 
+		// Reserve IRQs
+		if (m_devices[0] && InterruptController::get().reserve_irq(PS2::IRQ::DEVICE0).is_error())
+		{
+			dwarnln("Could not reserve irq for PS/2 port 1");
+			m_devices[0].clear();
+		}
+		if (m_devices[1] && InterruptController::get().reserve_irq(PS2::IRQ::DEVICE1).is_error())
+		{
+			dwarnln("Could not reserve irq for PS/2 port 2");
+			m_devices[1].clear();
+		}
+		
 		if (!m_devices[0] && !m_devices[1])
 			return {};
 

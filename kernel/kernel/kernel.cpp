@@ -182,16 +182,18 @@ static void init2(void*)
 	SystemTimer::get().sleep(5000);
 #endif
 
+	// Initialize empty keymap
+	MUST(Input::KeyboardLayout::initialize());
+	if (auto res = PS2Controller::initialize(); res.is_error())
+		dprintln("{}", res.error());
+
+	// NOTE: PCI devices are the last ones to be initialized
+	//       so other devices can reserve predefined interrupts
 	PCI::PCIManager::initialize();
 	dprintln("PCI initialized");
 
 	VirtualFileSystem::initialize(cmdline.root);
 	dprintln("VFS initialized");
-
-	// Initialize empty keymap
-	MUST(Input::KeyboardLayout::initialize());
-	if (auto res = PS2Controller::initialize(); res.is_error())
-		dprintln("{}", res.error());
 
 	TTY::initialize_devices();
 

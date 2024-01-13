@@ -21,8 +21,6 @@ namespace Kernel
 		auto bus = BAN::RefPtr<ATABus>::adopt(bus_ptr);
 		bus->set_irq(irq);
 		TRY(bus->initialize());
-		if (bus->m_devices.empty())
-			return BAN::Error::from_errno(ENODEV);
 		return bus;
 	}
 

@@ -1,5 +1,8 @@
 #pragma once
 
+#include <BAN/Optional.h>
+#include <BAN/Errors.h>
+
 #include <stdint.h>
 
 #define DISABLE_INTERRUPTS() asm volatile("cli")
@@ -36,6 +39,9 @@ namespace Kernel
 
 		static void initialize(bool force_pic);
 		static InterruptController& get();
+
+		virtual BAN::ErrorOr<void> reserve_irq(uint8_t irq) = 0;
+		virtual BAN::Optional<uint8_t> get_free_irq() = 0;
 
 		bool is_using_apic() const { return m_using_apic; }
 
