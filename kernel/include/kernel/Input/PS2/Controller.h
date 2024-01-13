@@ -38,6 +38,8 @@ namespace Kernel::Input
 		BAN::ErrorOr<void> device_send_byte(uint8_t device_index, uint8_t byte);
 		BAN::ErrorOr<void> device_send_byte_and_wait_ack(uint8_t device_index, uint8_t byte);
 
+		uint8_t get_device_index(PS2Device*) const;
+
 	private:
 		struct Command
 		{

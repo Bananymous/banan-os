@@ -89,11 +89,20 @@ namespace Kernel::Input
 		return {};
 	}
 
+	uint8_t PS2Controller::get_device_index(PS2Device* device) const
+	{
+		ASSERT(device);
+		if (m_devices[0] && device == m_devices[0].ptr())
+			return 0;
+		if (m_devices[1] && device == m_devices[1].ptr())
+			return 1;
+		ASSERT_NOT_REACHED();
+	}
+
 	bool PS2Controller::append_command_queue(PS2Device* device, uint8_t command, uint8_t response_size)
 	{
 		// NOTE: command queue push/pop must be done without interrupts
 		CriticalScope _;
-		ASSERT(device && (device == m_devices[0].ptr() || device == m_devices[1].ptr()));
 		if (m_command_queue.size() + 1 >= m_command_queue.capacity())
 		{
 			dprintln("PS/2 command queue full");
@@ -101,7 +110,7 @@ namespace Kernel::Input
 		}
 		m_command_queue.push(Command {
 			.state			= Command::State::NotSent,
-			.device_index	= (device == m_devices[0].ptr()) ? uint8_t(0) : uint8_t(1),
+			.device_index	= get_device_index(device),
 			.out_data		= { command, 0x00 },
 			.out_count		= 1,
 			.in_count		= response_size,
@@ -114,7 +123,6 @@ namespace Kernel::Input
 	{
 		// NOTE: command queue push/pop must be done without interrupts
 		CriticalScope _;
-		ASSERT(device && (device == m_devices[0].ptr() || device == m_devices[1].ptr()));
 		if (m_command_queue.size() + 1 >= m_command_queue.capacity())
 		{
 			dprintln("PS/2 command queue full");
@@ -122,7 +130,7 @@ namespace Kernel::Input
 		}
 		m_command_queue.push(Command {
 			.state			= Command::State::NotSent,
-			.device_index	= (device == m_devices[0].ptr()) ? uint8_t(0) : uint8_t(1),
+			.device_index	= get_device_index(device),
 			.out_data		= { command, data },
 			.out_count		= 2,
 			.in_count		= response_size,
@@ -167,8 +175,7 @@ namespace Kernel::Input
 			return false;
 		auto& command = m_command_queue.front();
 
-		ASSERT(device && (device == m_devices[0].ptr() || device == m_devices[1].ptr()));
-		if (command.device_index != (device == m_devices[0].ptr()) ? 0 : 1)
+		if (command.device_index != get_device_index(device))
 			return false;
 
 		switch (command.state)
