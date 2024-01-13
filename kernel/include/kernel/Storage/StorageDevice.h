@@ -16,7 +16,7 @@ namespace Kernel
 		{ }
 		virtual ~StorageDevice();
 
-		BAN::ErrorOr<void> initialize_partitions();
+		BAN::ErrorOr<void> initialize_partitions(BAN::StringView name_prefix);
 
 		virtual BAN::ErrorOr<void> read_blocks(uint64_t lba, size_t sector_count, BAN::ByteSpan buffer) override		{ return read_sectors(lba, sector_count, buffer); }
 		virtual BAN::ErrorOr<void> write_blocks(uint64_t lba, size_t sector_count, BAN::ConstByteSpan buffer) override	{ return write_sectors(lba, sector_count, buffer); }

@@ -9,7 +9,7 @@ namespace Kernel
 	class Partition final : public BlockDevice
 	{
 	public:
-		static BAN::ErrorOr<BAN::RefPtr<Partition>> create(BAN::RefPtr<BlockDevice>, const BAN::GUID& type, const BAN::GUID& guid, uint64_t first_block, uint64_t last_block, uint64_t attr, const char* label, uint32_t index);
+		static BAN::ErrorOr<BAN::RefPtr<Partition>> create(BAN::RefPtr<BlockDevice>, const BAN::GUID& type, const BAN::GUID& guid, uint64_t first_block, uint64_t last_block, uint64_t attr, const char* label, uint32_t index, BAN::StringView name_prefix);
 
 		const BAN::GUID& partition_type() const { return m_type; }
 		const BAN::GUID& partition_guid() const { return m_guid; }
@@ -26,7 +26,7 @@ namespace Kernel
 		virtual BAN::StringView name() const override { return m_name; }
 
 	private:
-		Partition(BAN::RefPtr<BlockDevice>, const BAN::GUID&, const BAN::GUID&, uint64_t, uint64_t, uint64_t, const char*, uint32_t);
+		Partition(BAN::RefPtr<BlockDevice>, const BAN::GUID&, const BAN::GUID&, uint64_t, uint64_t, uint64_t, const char*, uint32_t, BAN::StringView);
 
 	private:
 		BAN::RefPtr<BlockDevice> m_device;

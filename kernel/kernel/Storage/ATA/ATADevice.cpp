@@ -76,7 +76,7 @@ namespace Kernel
 		add_disk_cache();
 
 		DevFileSystem::get().add_device(this);
-		if (auto res = initialize_partitions(); res.is_error())
+		if (auto res = initialize_partitions(name()); res.is_error())
 			dprintln("{}", res.error());
 
 		return {};

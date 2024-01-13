@@ -142,7 +142,7 @@ namespace Kernel
 		return true;
 	}
 
-	BAN::ErrorOr<void> StorageDevice::initialize_partitions()
+	BAN::ErrorOr<void> StorageDevice::initialize_partitions(BAN::StringView name_prefix)
 	{
 		if (total_size() < sizeof(GPTHeader))
 			return BAN::Error::from_error_code(ErrorCode::Storage_GPTHeader);
@@ -189,7 +189,8 @@ namespace Kernel
 				entry.ending_lba,
 				entry.attributes,
 				utf8_name,
-				i + 1
+				i + 1,
+				name_prefix
 			));
 			TRY(m_partitions.push_back(BAN::move(partition)));
 		}

@@ -5,15 +5,15 @@
 namespace Kernel
 {
 
-	BAN::ErrorOr<BAN::RefPtr<Partition>> Partition::create(BAN::RefPtr<BlockDevice> device, const BAN::GUID& type, const BAN::GUID& guid, uint64_t first_block, uint64_t last_block, uint64_t attr, const char* label, uint32_t index)
+	BAN::ErrorOr<BAN::RefPtr<Partition>> Partition::create(BAN::RefPtr<BlockDevice> device, const BAN::GUID& type, const BAN::GUID& guid, uint64_t first_block, uint64_t last_block, uint64_t attr, const char* label, uint32_t index, BAN::StringView name_prefix)
 	{
-		auto partition_ptr = new Partition(device, type, guid, first_block, last_block, attr, label, index);
+		auto partition_ptr = new Partition(device, type, guid, first_block, last_block, attr, label, index, name_prefix);
 		if (partition_ptr == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
 		return BAN::RefPtr<Partition>::adopt(partition_ptr);
 	}	
 
-	Partition::Partition(BAN::RefPtr<BlockDevice> device, const BAN::GUID& type, const BAN::GUID& guid, uint64_t first_block, uint64_t last_block, uint64_t attr, const char* label, uint32_t index)
+	Partition::Partition(BAN::RefPtr<BlockDevice> device, const BAN::GUID& type, const BAN::GUID& guid, uint64_t first_block, uint64_t last_block, uint64_t attr, const char* label, uint32_t index, BAN::StringView name_prefix)
 		: BlockDevice(0660, 0, 0)
 		, m_device(device)
 		, m_type(type)
@@ -21,7 +21,7 @@ namespace Kernel
 		, m_first_block(first_block)
 		, m_last_block(last_block)
 		, m_attributes(attr)
-		, m_name(BAN::String::formatted("{}{}", device->name(), index))
+		, m_name(BAN::String::formatted("{}{}", name_prefix, index))
 		, m_rdev(makedev(major(device->rdev()), index))
 	{
 		memcpy(m_label, label, sizeof(m_label));
