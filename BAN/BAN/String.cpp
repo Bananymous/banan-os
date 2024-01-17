@@ -254,7 +254,8 @@ namespace BAN
 		if (new_data == nullptr)
 			return Error::from_errno(ENOMEM);
 		
-		memcpy(new_data, data(), m_size + 1);
+		if (m_size)
+			memcpy(new_data, data(), m_size + 1);
 
 		if (has_sso())
 		{
