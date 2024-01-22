@@ -84,6 +84,12 @@ namespace BAN
 	template<typename T> struct is_arithmetic { static constexpr bool value = is_integral_v<T> || is_floating_point_v<T>; };
 	template<typename T> inline constexpr bool is_arithmetic_v = is_arithmetic<T>::value;
 
+	template<typename Base, typename Derived> struct is_base_of { static constexpr bool value = __is_base_of(Base, Derived); };
+	template<typename Base, typename Derived> inline constexpr bool is_base_of_v = is_base_of<Base, Derived>::value;
+
+	template<typename T, T V> struct integral_constant { static constexpr T value = V; };
+	template<typename T, T V > inline constexpr T integral_constant_v = integral_constant<T, V>::value;
+
 	namespace detail
 	{
 		template<typename T, bool = is_arithmetic_v<T>> struct is_signed { static constexpr bool value = T(-1) < T(0); };
