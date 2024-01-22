@@ -11,6 +11,7 @@ set(LIBC_SOURCES
 	malloc.cpp
 	printf_impl.cpp
 	pwd.cpp
+	scanf_impl.cpp
 	signal.cpp
 	stdio.cpp
 	stdlib.cpp

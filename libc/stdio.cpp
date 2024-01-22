@@ -1,6 +1,7 @@
 #include <bits/printf.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <scanf_impl.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
@@ -438,8 +439,14 @@ int rename(const char*, const char*);
 // TODO
 void rewind(FILE*);
 
-// TODO
-int scanf(const char*, ...);
+int scanf(const char* format, ...)
+{
+	va_list arguments;
+	va_start(arguments, format);
+	int ret = vscanf(format, arguments);
+	va_end(arguments);
+	return ret;
+}
 
 // TODO
 void setbuf(FILE*, char*);
@@ -465,8 +472,14 @@ int sprintf(char* buffer, const char* format, ...)
 	return ret;
 }
 
-// TODO
-int sscanf(const char*, const char*, ...);
+int sscanf(const char* s, const char* format, ...)
+{
+	va_list arguments;
+	va_start(arguments, format);
+	int ret = vsscanf(s, format, arguments);
+	va_end(arguments);
+	return ret;
+}
 
 // TODO
 char* tempnam(const char*, const char*);
@@ -485,16 +498,20 @@ int vfprintf(FILE* file, const char* format, va_list arguments)
 	return printf_impl(format, arguments, [](int c, void* file) { return fputc(c, (FILE*)file); }, file);
 }
 
-// TODO
-int vfscanf(FILE*, const char*, va_list);
+int vfscanf(FILE* file, const char* format, va_list arguments)
+{
+	return scanf_impl(format, arguments, [](void* file) { return fgetc(static_cast<FILE*>(file)); }, file);
+}
 
 int vprintf(const char* format, va_list arguments)
 {
 	return vfprintf(stdout, format, arguments);
 }
 
-// TODO
-int vscanf(const char*, va_list);
+int vscanf(const char* format, va_list arguments)
+{
+	return vfscanf(stdin, format, arguments);
+}
 
 int vsnprintf(char* buffer, size_t max_size, const char* format, va_list arguments)
 {
@@ -548,5 +565,16 @@ int vsprintf(char* buffer, const char* format, va_list arguments)
 	return ret;
 }
 
-// TODO
-int vsscanf(const char*, const char*, va_list);
+int vsscanf(const char* s, const char* format, va_list arguments)
+{
+	return scanf_impl(format, arguments,
+		[](void* data) -> int
+		{
+			char ret = **static_cast<char**>(data);
+			(*static_cast<char**>(data))++;
+			if (ret == '\0')
+				return -1;
+			return ret;
+		}, &s
+	);
+}
