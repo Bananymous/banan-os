@@ -202,24 +202,22 @@ namespace Kernel
 
 	void Process::cleanup_function()
 	{
-		s_process_lock.lock();
-		for (size_t i = 0; i < s_processes.size(); i++)
-			if (s_processes[i] == this)
-				s_processes.remove(i);
-		s_process_lock.unlock();
+		{
+			LockGuard _(s_process_lock);
+			for (size_t i = 0; i < s_processes.size(); i++)
+				if (s_processes[i] == this)
+					s_processes.remove(i);
+		}
 
 		ProcFileSystem::get().on_process_delete(*this);
 
-		m_lock.lock();
 		m_exit_status.exited = true;
+		m_exit_status.semaphore.unblock();
+
 		while (m_exit_status.waiting > 0)
-		{
-			m_exit_status.semaphore.unblock();
-			while (m_lock.is_locked())
-				m_lock.unlock();
 			Scheduler::get().reschedule();
-			m_lock.lock();
-		}
+
+		m_lock.lock();
 
 		m_open_file_descriptors.close_all();
 
@@ -241,6 +239,7 @@ namespace Kernel
 
 			thread.setup_process_cleanup();
 			Scheduler::get().execute_current_thread();
+			ASSERT_NOT_REACHED();
 		}
 
 		for (size_t i = 0; i < m_threads.size(); i++)
@@ -547,44 +546,17 @@ namespace Kernel
 		ASSERT_NOT_REACHED();
 	}
 
-	int Process::block_until_exit()
+	BAN::ErrorOr<int> Process::block_until_exit(pid_t pid)
 	{
-		ASSERT(this != &Process::current());
+		ASSERT(this->pid() != pid);
 
-		m_lock.lock();
-		m_exit_status.waiting++;
-		while (!m_exit_status.exited)
-		{
-			m_lock.unlock();
-			m_exit_status.semaphore.block();
-			m_lock.lock();
-		}
-
-		int ret = m_exit_status.exit_code;
-		m_exit_status.waiting--;
-		m_lock.unlock();
-
-		return ret;
-	}
-
-	BAN::ErrorOr<long> Process::sys_wait(pid_t pid, int* stat_loc, int options)
-	{
 		Process* target = nullptr;
-
-		{
-			LockGuard _(m_lock);
-			TRY(validate_pointer_access(stat_loc, sizeof(int)));
-		}
-
-		// FIXME: support options
-		if (options)
-			return BAN::Error::from_errno(EINVAL);
-
 		for_each_process(
-			[&](Process& process)
+			[pid, &target](Process& process)
 			{
 				if (process.pid() == pid)
 				{
+					process.m_exit_status.waiting++;
 					target = &process;
 					return BAN::Iteration::Break;
 				}
@@ -595,13 +567,31 @@ namespace Kernel
 		if (target == nullptr)
 			return BAN::Error::from_errno(ECHILD);
 
-		pid_t ret = target->pid();
+		while (!target->m_exit_status.exited)
+			TRY(Thread::current().block_or_eintr(target->m_exit_status.semaphore));
 
-		int stat = target->block_until_exit();
+		int exit_status = target->m_exit_status.exit_code;
+		target->m_exit_status.waiting--;
+
+		return exit_status;
+	}
+
+	BAN::ErrorOr<long> Process::sys_wait(pid_t pid, int* stat_loc, int options)
+	{
+		{
+			LockGuard _(m_lock);
+			TRY(validate_pointer_access(stat_loc, sizeof(int)));
+		}
+
+		// FIXME: support options
+		if (options)
+			return BAN::Error::from_errno(EINVAL);
+
+		int stat = TRY(block_until_exit(pid));
 		if (stat_loc)
 			*stat_loc = stat;
 
-		return ret;
+		return pid;
 	}
 
 	BAN::ErrorOr<long> Process::sys_sleep(int seconds)

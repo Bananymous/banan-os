@@ -1,5 +1,6 @@
 #pragma once
 
+#include <BAN/Atomic.h>
 #include <BAN/Iteration.h>
 #include <BAN/String.h>
 #include <BAN/StringView.h>
@@ -173,7 +174,7 @@ namespace Kernel
 		// Load elf from a file
 		static BAN::ErrorOr<BAN::UniqPtr<LibELF::LoadableELF>> load_elf_for_exec(const Credentials&, BAN::StringView file_path, const BAN::String& cwd, Kernel::PageTable&);
 
-		int block_until_exit();
+		BAN::ErrorOr<int> block_until_exit(pid_t pid);
 
 		BAN::ErrorOr<BAN::String> absolute_path_of(BAN::StringView) const;
 
@@ -183,10 +184,10 @@ namespace Kernel
 	private:
 		struct ExitStatus
 		{
-			Semaphore semaphore;
-			int exit_code { 0 };
-			bool exited { false };
-			int waiting { 0 };
+			Semaphore			semaphore;
+			int					exit_code	{ 0 };
+			BAN::Atomic<bool>	exited		{ false };
+			BAN::Atomic<int>	waiting		{ 0 };
 		};
 
 		Credentials m_credentials;
