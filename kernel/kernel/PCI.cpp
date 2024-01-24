@@ -472,7 +472,8 @@ namespace Kernel::PCI
 		}
 		else
 		{
-			ASSERT_NOT_REACHED();
+			dwarnln("Could not reserve interrupt for PCI device. No MSI, MSI-X or interrupt line is used");
+			return BAN::Error::from_errno(EFAULT);
 		}
 
 		for (; m_reserved_irq_count < count; m_reserved_irq_count++)
