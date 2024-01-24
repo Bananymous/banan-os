@@ -3,6 +3,7 @@
 #include <BAN/Traits.h>
 
 #include <ctype.h>
+#include <math.h>
 #include <scanf_impl.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -261,6 +262,181 @@ int scanf_impl(const char* format, va_list arguments, int (*__getc_fun)(void*), 
 			}
 		};
 
+	auto parse_floating_point_internal =
+		[&parse_integer_internal, &get_input, &in]<int BASE, typename T>(BASE_TYPE<BASE>, bool negative, int width, T* out, bool require_start = true) -> ConversionResult
+		{
+			constexpr auto is_base_digit =
+				[](char c) -> bool
+				{
+					c = tolower(c);
+					if ('0' <= c && c <= '9')
+						return c - '0' < BASE;
+					if ('a' <= c && c <= 'z')
+						return c - 'a' + 10 < BASE;
+					return false;
+				};
+			constexpr auto get_base_digit = [](char c) -> T { if (c <= '9') return T(c - '0'); return T(tolower(c) - 'a' + 10); };
+
+			if (require_start && !is_base_digit(in))
+				return ConversionResult::MATCH_FAILURE;
+
+			*out = T(0);
+
+			// Parse whole part
+			while (width > 0 && is_base_digit(in))
+			{
+				*out = (*out * BASE) + get_base_digit(in);
+				get_input(true);
+				width--;
+			}
+			if (width == 0)
+				goto done;
+
+			// Parse fractional part
+			if (in == '.')
+			{
+				get_input(true);
+				width--;
+				T multiplier = T(1) / T(BASE);
+				while (width > 0 && is_base_digit(in))
+				{
+					*out += get_base_digit(in) * multiplier;
+					multiplier /= T(BASE);
+					get_input(true);
+					width--;
+				}
+			}
+			if (width == 0)
+				goto done;
+
+			// Parse exponent
+			static_assert(BASE == 10 || BASE == 16);
+			if ((BASE == 10 && tolower(in) == 'e') || (BASE == 16 && tolower(in) == 'p'))
+			{
+				get_input(true);
+				width--;
+				bool exp_negative = (in == '-');
+				if (in == '+' || in == '-')
+				{
+					get_input(true);
+					if (--width == 0)
+						goto done;
+				}
+				int exp;
+				if (parse_integer_internal(BASE_TYPE<10>{}, exp_negative, width, &exp) == ConversionResult::SUCCESS)
+					*out *= BAN::Math::pow<T>(BASE == 10 ? T(10) : T(2), T(exp));
+			}
+
+		done:
+			if (negative)
+				*out = -*out;
+
+			return ConversionResult::SUCCESS;
+		};
+
+	auto parse_floating_point_typed =
+		[&parse_floating_point_internal, &arguments, &get_input, &in]<typename T>(bool suppress, int width, T*) -> ConversionResult
+		{
+			T dummy;
+			T* out = suppress ? &dummy : va_arg(arguments, T*);
+
+			get_input(false);
+			while (isspace(in))
+				get_input(true);
+			if (in == DONE)
+				return ConversionResult::INPUT_FAILURE;
+
+			bool negative = (in == '-');
+			if (in == '-' || in == '+')
+			{
+				get_input(true);
+				if (--width == 0)
+					return ConversionResult::MATCH_FAILURE;
+			}
+
+			if (tolower(in) == 'i')
+			{
+				get_input(true);
+				if (--width == 0)
+					return ConversionResult::MATCH_FAILURE;
+				if (tolower(in) != 'n')
+					return ConversionResult::MATCH_FAILURE;
+				get_input(true);
+				if (--width == 0)
+					return ConversionResult::MATCH_FAILURE;
+				if (tolower(in) != 'f')
+					return ConversionResult::MATCH_FAILURE;
+				if constexpr(sizeof(T) == sizeof(float))
+					*out = HUGE_VALF;
+				else if constexpr(sizeof(T) == sizeof(double))
+					*out = HUGE_VAL;
+				else if constexpr(sizeof(T) == sizeof(long double))
+					*out = HUGE_VALL;
+				else
+					[]<bool flag = false>() { static_assert(flag); };
+
+				if (negative)
+					*out = -*out;
+
+				return ConversionResult::SUCCESS;
+			}
+			
+			if (tolower(in) == 'n')
+			{
+				get_input(true);
+				if (--width == 0)
+					return ConversionResult::MATCH_FAILURE;
+				if (tolower(in) != 'a')
+					return ConversionResult::MATCH_FAILURE;
+				get_input(true);
+				if (--width == 0)
+					return ConversionResult::MATCH_FAILURE;
+				if (tolower(in) != 'n')
+					return ConversionResult::MATCH_FAILURE;
+				if constexpr(sizeof(T) == sizeof(float))
+					*out = nanf("");
+				else if constexpr(sizeof(T) == sizeof(double))
+					*out = nan("");
+				else if constexpr(sizeof(T) == sizeof(long double))
+					*out = nanl("");
+				else
+					[]<bool flag = false>() { static_assert(flag); };
+
+				return ConversionResult::SUCCESS;
+			}
+
+			if (in == '0' && width > 2)
+			{
+				get_input(true);
+				width--;
+				if (tolower(in) == 'x')
+				{
+					get_input(true);
+					width--;
+					return parse_floating_point_internal(BASE_TYPE<16>{}, negative, width, out);
+				}
+				return parse_floating_point_internal(BASE_TYPE<10>{}, negative, width, out, false);
+			}
+
+			return parse_floating_point_internal(BASE_TYPE<10>{}, negative, width, out);
+		};
+
+	auto parse_floating_point =
+		[&parse_floating_point_typed](bool suppress, int width, LengthModifier length) -> ConversionResult
+		{
+			if (width == -1)
+				width = __INT_MAX__;
+
+			switch (length)
+			{
+				case LengthModifier::none:	return parse_floating_point_typed(suppress, width, static_cast<float*>			(nullptr));
+				case LengthModifier::l:		return parse_floating_point_typed(suppress, width, static_cast<double*>			(nullptr));
+				case LengthModifier::L:		return parse_floating_point_typed(suppress, width, static_cast<long double*>	(nullptr));
+				default:
+					return ConversionResult::MATCH_FAILURE;
+			}
+		};
+
 	auto parse_string =
 		[&arguments, &get_input, &in](uint8_t* mask, bool exclude, bool suppress, bool allocate, int min_len, int max_len, bool terminate) -> ConversionResult
 		{
@@ -344,6 +520,9 @@ int scanf_impl(const char* format, va_list arguments, int (*__getc_fun)(void*), 
 				case 'x': result = parse_integer(BASE_TYPE<16>{}, IS_UNSIGNED<true> {}, conversion.suppress, conversion.field_width, conversion.length); break;
 				case 'X': result = parse_integer(BASE_TYPE<16>{}, IS_UNSIGNED<true> {}, conversion.suppress, conversion.field_width, conversion.length); break;
 				case 'p': result = parse_integer(BASE_TYPE<16>{}, IS_UNSIGNED<true> {}, conversion.suppress, conversion.field_width, LengthModifier::j); break;
+				case 'a': case 'e': case 'f': case 'g':
+					result = parse_floating_point(conversion.suppress, conversion.field_width, conversion.length);
+					break;
 				case 'S':
 					conversion.length = LengthModifier::l;
 					// fall through
