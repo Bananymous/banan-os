@@ -1,5 +1,6 @@
 #pragma once
 
+#include <BAN/Vector.h>
 #include <kernel/Device/Device.h>
 #include <kernel/FS/TmpFS/FileSystem.h>
 #include <kernel/Semaphore.h>
@@ -17,7 +18,6 @@ namespace Kernel
 
 		void add_device(BAN::RefPtr<Device>);
 		void add_inode(BAN::StringView path, BAN::RefPtr<TmpInode>);
-		void for_each_device(const BAN::Function<BAN::Iteration(Device*)>& callback);
 
 		dev_t get_next_dev() const;
 		int get_next_input_device() const;
@@ -31,6 +31,8 @@ namespace Kernel
 
 	private:
 		mutable SpinLock m_device_lock;
+
+		BAN::Vector<BAN::RefPtr<Device>> m_devices;
 
 		Semaphore m_sync_done;
 		Semaphore m_sync_semaphore;

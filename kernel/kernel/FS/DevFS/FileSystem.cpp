@@ -39,17 +39,12 @@ namespace Kernel
 			{
 				while (true)
 				{
-					s_instance->m_device_lock.lock();
-					s_instance->for_each_inode(
-						[](BAN::RefPtr<TmpInode> inode)
-						{
-							if (inode->is_device())
-								static_cast<Device*>(inode.ptr())->update();
-							return BAN::Iteration::Continue;
-						}
-					);
-					s_instance->m_device_lock.unlock();
-					Scheduler::get().reschedule();
+					{
+						LockGuard _(s_instance->m_device_lock);
+						for (auto& device : s_instance->m_devices)
+							device->update();
+					}
+					SystemTimer::get().sleep(10);
 				}
 			}, nullptr
 		);
@@ -72,16 +67,11 @@ namespace Kernel
 						s_instance->m_device_lock.lock();
 					}
 
-					s_instance->for_each_inode(
-						[](BAN::RefPtr<TmpInode> inode)
-						{
-							if (inode->is_device())
-								if (((Device*)inode.ptr())->is_storage_device())
-									if (auto ret = static_cast<StorageDevice*>(inode.ptr())->sync_disk_cache(); ret.is_error())
-										dwarnln("disk sync: {}", ret.error());
-							return BAN::Iteration::Continue;
-						}
-					);
+					for (auto& device : s_instance->m_devices)
+						if (device->is_storage_device())
+							if (auto ret = static_cast<StorageDevice*>(device.ptr())->sync_disk_cache(); ret.is_error())
+								dwarnln("disk sync: {}", ret.error());
+
 					s_instance->m_should_sync = false;
 					s_instance->m_sync_done.unblock();
 				}
@@ -118,27 +108,17 @@ namespace Kernel
 
 	void DevFileSystem::add_device(BAN::RefPtr<Device> device)
 	{
+		LockGuard _(m_device_lock);
 		ASSERT(!device->name().contains('/'));
 		MUST(static_cast<TmpDirectoryInode*>(root_inode().ptr())->link_inode(*device, device->name()));
+		MUST(m_devices.push_back(device));
 	}
 
 	void DevFileSystem::add_inode(BAN::StringView path, BAN::RefPtr<TmpInode> inode)
 	{
+		ASSERT(!inode->is_device());
 		ASSERT(!path.contains('/'));
 		MUST(static_cast<TmpDirectoryInode*>(root_inode().ptr())->link_inode(*inode, path));
-	}
-
-	void DevFileSystem::for_each_device(const BAN::Function<BAN::Iteration(Device*)>& callback)
-	{
-		LockGuard _(m_device_lock);
-		for_each_inode(
-			[&](BAN::RefPtr<Kernel::TmpInode> inode)
-			{
-				if (!inode->is_device())
-					return BAN::Iteration::Continue;
-				return callback(static_cast<Device*>(inode.ptr()));
-			}
-		);
 	}
 
 	dev_t DevFileSystem::get_next_dev() const
