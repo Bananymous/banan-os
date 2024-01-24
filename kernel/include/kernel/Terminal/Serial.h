@@ -40,7 +40,7 @@ namespace Kernel
 	{
 	public:
 		static BAN::ErrorOr<BAN::RefPtr<SerialTTY>> create(Serial);
-		
+
 		virtual uint32_t width() const override;
 		virtual uint32_t height() const override;
 

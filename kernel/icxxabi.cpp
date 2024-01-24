@@ -46,8 +46,8 @@ void __cxa_finalize(void *f)
 		* TODO:
 		* Note well, however, that deleting a function from here that contains a __dso_handle
 		* means that one link to a shared object file has been terminated. In other words,
-		* We should monitor this list (optional, of course), since it tells us how many links to 
-		* an object file exist at runtime in a particular application. This can be used to tell 
+		* We should monitor this list (optional, of course), since it tells us how many links to
+		* an object file exist at runtime in a particular application. This can be used to tell
 		* when a shared object is no longer in use. It is one of many methods, however.
 		**/
 		//You may insert a prinf() here to tell you whether or not the function gets called. Testing
@@ -59,7 +59,7 @@ void __cxa_finalize(void *f)
 				/* ^^^ That if statement is a safeguard...
 				* To make sure we don't call any entries that have already been called and unset at runtime.
 				* Those will contain a value of 0, and calling a function with value 0
-				* will cause undefined behaviour. Remember that linear address 0, 
+				* will cause undefined behaviour. Remember that linear address 0,
 				* in a non-virtual address space (physical) contains the IVT and BDA.
 				*
 				* In a virtual environment, the kernel will receive a page fault, and then probably
@@ -92,7 +92,7 @@ void __cxa_finalize(void *f)
 		**/
 		if (__atexit_funcs[i].destructor_func == f)
 		{
-			/* 
+			/*
 			* Note that in the next line, not every destructor function is a class destructor.
 			* It is perfectly legal to register a non class destructor function as a simple cleanup
 			* function to be called on program termination, in which case, it would not NEED an
@@ -113,7 +113,7 @@ void __cxa_finalize(void *f)
 	};
 };
 
-namespace __cxxabiv1 
+namespace __cxxabiv1
 {
 	/* guard variables */
 	static Kernel::SpinLock s_spin_lock;

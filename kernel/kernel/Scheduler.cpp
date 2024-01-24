@@ -101,7 +101,7 @@ namespace Kernel
 
 		if (m_active_threads.empty() || &current_thread() != m_idle_thread)
 			return;
-		
+
 		if (save_current_thread())
 			return;
 		m_current_thread = m_active_threads.begin();
@@ -199,7 +199,7 @@ namespace Kernel
 
 		ASSERT(thread->has_process());
 		delete &thread->process();
-		
+
 		remove_and_advance_current_thread();
 
 		delete thread;
@@ -247,7 +247,7 @@ namespace Kernel
 			Thread* thread = m_current_thread->thread;
 			if (thread->has_process())
 				thread->process().on_thread_exit(*thread);
-			
+
 			remove_and_advance_current_thread();
 
 			delete thread;

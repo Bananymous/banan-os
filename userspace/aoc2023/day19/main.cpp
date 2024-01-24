@@ -140,7 +140,7 @@ BAN::Vector<Item> parse_items(FILE* fp)
 		item.values[1] = parse_i64(values[1].substring(2));
 		item.values[2] = parse_i64(values[2].substring(2));
 		item.values[3] = parse_i64(values[3].substring(2));
-	
+
 		MUST(items.push_back(item));
 	}
 
@@ -245,15 +245,15 @@ i64 puzzle2(FILE* fp)
 					}};
 					if (!is_accepted(item, "in"sv, workflows))
 						continue;
-					
+
 					i64 x_count = values_sorted[0][xi + 1] - values_sorted[0][xi];
 					i64 m_count = values_sorted[1][mi + 1] - values_sorted[1][mi];
 					i64 a_count = values_sorted[2][ai + 1] - values_sorted[2][ai];
 					i64 s_count = values_sorted[3][si + 1] - values_sorted[3][si];
 
 					result += x_count * m_count * a_count * s_count;
-				}	
-			}	
+				}
+			}
 		}
 
 		timespec time_stop;

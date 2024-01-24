@@ -10,7 +10,7 @@ namespace Kernel
 		, m_flags(flags)
 	{
 	}
-	
+
 	MemoryRegion::~MemoryRegion()
 	{
 		if (m_vaddr)

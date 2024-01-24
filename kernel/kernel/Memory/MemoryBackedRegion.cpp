@@ -49,7 +49,7 @@ namespace Kernel
 		vaddr_t vaddr = address & PAGE_ADDR_MASK;
 		if (m_page_table.physical_address_of(vaddr) != 0)
 			return false;
-		
+
 		// Map new physcial page to address
 		paddr_t paddr = Heap::get().take_free_page();
 		if (paddr == 0)
@@ -83,7 +83,7 @@ namespace Kernel
 				continue;
 			TRY(result->copy_data_to_region(offset, (const uint8_t*)(m_vaddr + offset), PAGE_SIZE));
 		}
-		
+
 		return BAN::UniqPtr<MemoryRegion>(BAN::move(result));
 	}
 

@@ -182,7 +182,7 @@ namespace Kernel
 			BAN::UTF8::from_codepoints(entry.partition_name, 36, utf8_name);
 
 			auto partition = TRY(Partition::create(
-				this, 
+				this,
 				entry.partition_type_guid,
 				entry.unique_partition_guid,
 				entry.starting_lba,
@@ -239,7 +239,7 @@ namespace Kernel
 			TRY(read_sectors_impl(lba + offset, 1, sector_buffer));
 			(void)m_disk_cache->write_to_cache(lba + offset, sector_buffer, false);
 		}
-		
+
 		return {};
 	}
 

@@ -41,7 +41,7 @@ namespace Kernel
 
 			if (!(pi & 1))
 				continue;
-			
+
 			auto type = check_port_type(abar_mem.ports[i]);
 			if (!type.has_value())
 				continue;

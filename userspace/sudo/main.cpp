@@ -12,7 +12,7 @@ int main(int argc, char** argv)
 {
 	if (argc < 2)
 		return usage(argv[0], 1);
-	
+
 	if (setuid(0) == -1)
 	{
 		perror("setuid");

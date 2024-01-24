@@ -13,7 +13,7 @@ namespace Kernel
 	public:
 		static void initialize();
 		static DevFileSystem& get();
-		
+
 		void initialize_device_updater();
 
 		void add_device(BAN::RefPtr<Device>);

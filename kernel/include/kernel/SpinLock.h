@@ -43,7 +43,7 @@ namespace Kernel
 	{
 		BAN_NON_COPYABLE(RecursivePrioritySpinLock);
 		BAN_NON_MOVABLE(RecursivePrioritySpinLock);
-	
+
 	public:
 		RecursivePrioritySpinLock() = default;
 		void lock();

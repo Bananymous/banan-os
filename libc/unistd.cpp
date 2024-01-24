@@ -22,7 +22,7 @@ extern "C" void _init_libc(char** _environ)
 	size_t env_count = 0;
 	while (_environ[env_count])
 		env_count++;
-	
+
 	environ = (char**)malloc(sizeof(char*) * env_count + 1);
 	for (size_t i = 0; i < env_count; i++)
 	{
@@ -136,7 +136,7 @@ int execl(const char* pathname, const char* arg0, ...)
 }
 
 int execle(const char* pathname, const char* arg0, ...)
-{	
+{
 	va_list ap;
 
 	int argc = 0;

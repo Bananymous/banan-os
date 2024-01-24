@@ -24,7 +24,7 @@ int main(int argc, char** argv)
 	struct stat st;
 	if (stat(argv[1], &st) == 0)
 		return try_load_keymap(argv[1]);
-	
+
 	char buffer[128];
 	strcpy(buffer, "/usr/share/keymaps/");
 	strcat(buffer, argv[1]);

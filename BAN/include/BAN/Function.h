@@ -56,7 +56,7 @@ namespace BAN
 					return true;
 			return false;
 		}
-		
+
 		void clear()
 		{
 			if (*this)

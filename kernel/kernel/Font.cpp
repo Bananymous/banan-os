@@ -42,7 +42,7 @@ namespace Kernel
 
 		BAN::Vector<uint8_t> file_data;
 		TRY(file_data.resize(inode->size()));
-	
+
 		TRY(inode->read(0, file_data.span()));
 
 		if (file_data.size() < 4)
@@ -69,7 +69,7 @@ namespace Kernel
 			uint8_t char_size;
 		};
 		const PSF1Header& header = *(const PSF1Header*)font_data.data();
-		
+
 		uint32_t glyph_count = header.mode & PSF1_MODE512 ? 512 : 256;
 		uint32_t glyph_size = header.char_size;
 		uint32_t glyph_data_size = glyph_size * glyph_count;
@@ -225,7 +225,7 @@ namespace Kernel
 		else
 		{
 			for (uint32_t i = 0; i < header.glyph_count; i++)
-				TRY(glyph_offsets.insert(i, i * header.glyph_size));	
+				TRY(glyph_offsets.insert(i, i * header.glyph_size));
 		}
 
 		if (invalid_utf)

@@ -17,14 +17,14 @@ int puzzle1(FILE* fp)
 	{
 		buffer[strlen(buffer) - 1] = '\0';
 		MUST(lines.emplace_back(buffer));
-	}	
+	}
 
 	int result = 0;
 
 	for (size_t y = 0; y < lines.size(); y++)
 	{
 		for (size_t x = 0; x < lines[y].size(); x++)
-		{			
+		{
 			if (!isdigit(lines[y][x]))
 				continue;
 
@@ -52,7 +52,7 @@ int puzzle1(FILE* fp)
 						should_add = true;
 						break;
 					}
-				}	
+				}
 
 				if (should_add)
 					break;
@@ -88,7 +88,7 @@ int puzzle2(FILE* fp)
 	{
 		buffer[strlen(buffer) - 1] = '\0';
 		MUST(lines.emplace_back(buffer));
-	}	
+	}
 
 	// Didn't want to think about O(1) space, this is much simpler.
 	// Map numbers next to '*' to asterisk's coordinates.

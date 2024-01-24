@@ -22,7 +22,7 @@ namespace Kernel
 		auto* region_ptr = new DMARegion(size, vaddr, paddr);
 		if (region_ptr == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
-		
+
 		vaddr_guard.disable();
 		paddr_guard.disable();
 

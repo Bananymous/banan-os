@@ -58,7 +58,7 @@ index 62f806bdfe..e05db38382 100644
 @@ -221,6 +221,7 @@ case ${generic_target} in
    h8300-*-elf)				fmt=elf ;;
    h8300-*-linux*)			fmt=elf em=linux ;;
- 
+
 +  i386-*-banan_os*)			fmt=elf em=gnu ;;
    i386-*-beospe*)			fmt=coff em=pe ;;
    i386-*-beos*)				fmt=elf ;;

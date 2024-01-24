@@ -124,13 +124,13 @@ int main(int argc, char** argv)
 		perror("tcsetattr");
 		return 1;
 	}
-	
+
 	uint32_t color = 0xFF0000;
 	int mouse_x = fb_info.width / 2;
 	int mouse_y = fb_info.height / 2;
 	int radius = 10;
 
-	// clear screen and render 
+	// clear screen and render
 	memset(fb_mmap, 0x00, fb_bytes);
 	draw_circle(mouse_x, mouse_y, radius, color);
 	msync(fb_mmap, fb_bytes, MS_SYNC);
@@ -138,7 +138,7 @@ int main(int argc, char** argv)
 	while (true)
 	{
 		using namespace Kernel::Input;
-		
+
 		MouseEvent event;
 		if (read(mouse_fd, &event, sizeof(event)) == -1)
 		{

@@ -392,7 +392,7 @@ namespace Kernel
 
 		if (result == 0)
 			return BAN::Error::from_errno(ENOENT);
-		
+
 		auto inode = TRY(m_fs.open_inode(result));
 		return BAN::RefPtr<Inode>(inode);
 	}
@@ -406,13 +406,13 @@ namespace Kernel
 		}
 
 		auto block_index = this->block_index(data_block_index);
-		
+
 		list->entry_count = 0;
 
 		// if we reach a non-allocated block, it marks the end
 		if (!block_index.has_value())
 			return {};
-		
+
 		auto* dirp = list->array;
 
 		const size_t byte_count = BAN::Math::min<size_t>(size() - data_block_index * blksize(), blksize());

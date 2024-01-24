@@ -32,7 +32,7 @@ namespace BAN
 		size_type size() const { return m_size; }
 		bool empty() const { return size() == 0; }
 		bool full() const { return size() == capacity(); }
-		
+
 		static constexpr size_type capacity() { return S; }
 
 	private:

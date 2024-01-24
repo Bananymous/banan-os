@@ -149,7 +149,7 @@ namespace Kernel::NVMe
 		uint8_t cns;
 		uint8_t __reserved1;
 		uint16_t cntid;
-		// dword 11 
+		// dword 11
 		uint16_t cnsid;
 		uint8_t __reserved2;
 		uint8_t csi;

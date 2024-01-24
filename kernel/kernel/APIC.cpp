@@ -218,7 +218,7 @@ namespace Kernel
 
 	void APIC::eoi(uint8_t)
 	{
-		write_to_local_apic(LAPIC_EIO_REG, 0);	
+		write_to_local_apic(LAPIC_EIO_REG, 0);
 	}
 
 	void APIC::enable_irq(uint8_t irq)
@@ -305,7 +305,7 @@ namespace Kernel
 		for (int irq = 0; irq <= 0xFF; irq++)
 		{
 			uint32_t gsi = m_irq_overrides[irq];
-		
+
 			IOAPIC* ioapic = nullptr;
 			for (IOAPIC& io : m_io_apics)
 			{

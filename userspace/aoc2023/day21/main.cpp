@@ -104,7 +104,7 @@ i64 puzzle1(FILE* fp)
 			MUST(visited.insert(position));
 			if (i % 2 == 0)
 				MUST(reachable.insert(position));
-			
+
 			Position offsets[4] { { -1, 0 }, { 1, 0 }, { 0, -1 }, { 0, 1 } };
 			for (i32 j = 0; j < 4; j++)
 			{

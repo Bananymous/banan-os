@@ -17,7 +17,7 @@ namespace Kernel
 	{
 		BAN_NON_COPYABLE(Thread);
 		BAN_NON_MOVABLE(Thread);
-		
+
 	public:
 		using entry_t = void(*)(void*);
 
@@ -95,7 +95,7 @@ namespace Kernel
 	private:
 		Thread(pid_t tid, Process*);
 		void on_exit();
-		
+
 		void validate_stack() const;
 
 	private:

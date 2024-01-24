@@ -495,7 +495,7 @@ int ungetc(int, FILE*);
 
 int vfprintf(FILE* file, const char* format, va_list arguments)
 {
-	return printf_impl(format, arguments, [](int c, void* file) { return fputc(c, (FILE*)file); }, file);
+	return printf_impl(format, arguments, [](int c, void* file) { return fputc(c, static_cast<FILE*>(file)); }, file);
 }
 
 int vfscanf(FILE* file, const char* format, va_list arguments)

@@ -68,7 +68,7 @@ namespace LibELF
 		{}
 //#endif
 		BAN::ErrorOr<void> load();
-		
+
 		bool parse_elf64_file_header(const Elf64FileHeader&);
 		bool parse_elf64_program_header(const Elf64ProgramHeader&);
 		bool parse_elf64_section_header(const Elf64SectionHeader&);

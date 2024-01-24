@@ -66,7 +66,7 @@ namespace LibELF
 		size_t nread = TRY(m_inode->read(0, BAN::ByteSpan::from(m_file_header)));
 		ASSERT(nread == sizeof(m_file_header));
 
-		if (m_file_header.e_ident[EI_MAG0] != ELFMAG0 || 
+		if (m_file_header.e_ident[EI_MAG0] != ELFMAG0 ||
 			m_file_header.e_ident[EI_MAG1] != ELFMAG1 ||
 			m_file_header.e_ident[EI_MAG2] != ELFMAG2 ||
 			m_file_header.e_ident[EI_MAG3] != ELFMAG3)
@@ -93,7 +93,7 @@ namespace LibELF
 		if (m_file_header.e_ident[EI_CLASS] != ELFCLASS64)
 #endif
 		{
-			dprintln("Not in native format");	
+			dprintln("Not in native format");
 			return BAN::Error::from_errno(EINVAL);
 		}
 
@@ -240,13 +240,13 @@ namespace LibELF
 					m_physical_page_count++;
 
 					memset((void*)vaddr, 0x00, PAGE_SIZE);
-					
+
 					if (vaddr / PAGE_SIZE < BAN::Math::div_round_up<size_t>(program_header.p_vaddr + program_header.p_filesz, PAGE_SIZE))
 					{
 						size_t vaddr_offset = 0;
 						if (vaddr < program_header.p_vaddr)
 							vaddr_offset = program_header.p_vaddr - vaddr;
-						
+
 						size_t file_offset = 0;
 						if (vaddr > program_header.p_vaddr)
 							file_offset = vaddr - program_header.p_vaddr;
@@ -267,7 +267,7 @@ namespace LibELF
 		ASSERT_NOT_REACHED();
 	}
 
-	
+
 	BAN::ErrorOr<BAN::UniqPtr<LoadableELF>> LoadableELF::clone(Kernel::PageTable& new_page_table)
 	{
 		auto* elf_ptr = new LoadableELF(new_page_table, m_inode);

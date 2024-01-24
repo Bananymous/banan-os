@@ -111,7 +111,7 @@ i64 puzzle1(FILE* fp)
 	{
 		if (positions[0].x == positions[1].x && positions[0].y == positions[1].y)
 			return distance;
-		
+
 		for (auto& position : positions)
 		{
 			Direction direction = tile_exit_direction(grid[position.y][position.x], position.from);
@@ -140,7 +140,7 @@ i64 puzzle2(FILE* fp)
 	auto position = find_grid_first_moves(grid)[0];
 
 	while ((grid[position.y][position.x] & ~Flag::Mask) != 'S')
-	{	
+	{
 		Direction direction = tile_exit_direction(grid[position.y][position.x] & ~Flag::Mask, position.from);
 
 		switch (grid[position.y][position.x] & ~Flag::Mask)
@@ -196,7 +196,7 @@ i64 puzzle2(FILE* fp)
 
 	// Mark start tile as part of the path
 	grid[position.y][position.x] |= Flag::Path;
-	
+
 	// Clean up flags
 	for (auto& row : grid)
 	{

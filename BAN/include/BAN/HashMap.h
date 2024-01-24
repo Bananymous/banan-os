@@ -66,7 +66,7 @@ namespace BAN
 		ErrorOr<void> rebucket(size_type);
 		LinkedList<Entry>& get_bucket(const Key&);
 		const LinkedList<Entry>& get_bucket(const Key&) const;
-		
+
 	private:
 		Vector<LinkedList<Entry>> m_buckets;
 		size_type m_size = 0;

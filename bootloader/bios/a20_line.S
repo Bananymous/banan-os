@@ -31,7 +31,7 @@ check_a20:
 	movb $0xFF, %ds:(%si)
 
 	cmpb $0xFF, %es:(%di)
-	
+
 	pop %ax
 	movb %al, %ds:(%si)
 
@@ -40,7 +40,7 @@ check_a20:
 
 	movw $0, %ax
 	je .check_a20_done
-	
+
 	movw $1, %ax
 
  .check_a20_done:
@@ -68,7 +68,7 @@ enable_a20_ps2:
 	call .enable_a20_ps2_wait1
 	movb $0xD0, %al
 	outb %al, $0x64
- 
+
 	call .enable_a20_ps2_wait2
 	inb $0x60, %al
 	pushw %ax
@@ -77,7 +77,7 @@ enable_a20_ps2:
 	call .enable_a20_ps2_wait1
 	movb $0xD1, %al
 	outb %al, $0x64
- 
+
 	call .enable_a20_ps2_wait1
 	popw %ax
 	orw $2, %ax

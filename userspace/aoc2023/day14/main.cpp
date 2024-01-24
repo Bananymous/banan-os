@@ -191,7 +191,7 @@ i64 puzzle2(FILE* fp)
 		tilt_platform(platform, Direction::North);
 		tilt_platform(platform, Direction::West);
 		tilt_platform(platform, Direction::South);
-		tilt_platform(platform, Direction::East);	
+		tilt_platform(platform, Direction::East);
 	}
 
 	i64 result = 0;

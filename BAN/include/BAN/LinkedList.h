@@ -287,7 +287,7 @@ namespace BAN
 	{
 		Node* node = (Node*)BAN::allocator(sizeof(Node));
 		if (node == nullptr)
-			return Error::from_errno(ENOMEM);	
+			return Error::from_errno(ENOMEM);
 		return node;
 	}
 

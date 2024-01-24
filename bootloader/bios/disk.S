@@ -418,7 +418,7 @@ find_root_partition:
 	decl %ecx
 	subl %ecx, %eax
 	sbbl $0, %ebx
- 	
+
 	# ecx: min(partition count, 0xFFFFFFFF)
 	movl $0xFFFFFFFF, %edx
 	movl %eax, %ecx

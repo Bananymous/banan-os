@@ -39,7 +39,7 @@ namespace BAN
 		const Span<T> span() const { return Span(m_data, size()); }
 
 		constexpr size_type size() const;
-		
+
 		const T* data() const { return m_data; }
 		T* data() { return m_data; }
 

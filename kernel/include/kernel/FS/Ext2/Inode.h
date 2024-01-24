@@ -35,7 +35,7 @@ namespace Kernel
 		virtual BAN::ErrorOr<void> create_file_impl(BAN::StringView, mode_t, uid_t, gid_t) override;
 		virtual BAN::ErrorOr<void> create_directory_impl(BAN::StringView, mode_t, uid_t, gid_t) override;
 		virtual BAN::ErrorOr<void> unlink_impl(BAN::StringView) override;
-		
+
 		virtual BAN::ErrorOr<BAN::String> link_target_impl() override;
 
 		virtual BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan) override;

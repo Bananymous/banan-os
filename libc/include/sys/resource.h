@@ -34,7 +34,7 @@ struct rlimit
 struct rusage
 {
 	struct timeval ru_utime;	/* User time used. */
-	struct timeval ru_stime;	/* System time used. */	
+	struct timeval ru_stime;	/* System time used. */
 };
 
 #define RLIMIT_CORE		0

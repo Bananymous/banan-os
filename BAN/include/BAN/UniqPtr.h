@@ -67,7 +67,7 @@ namespace BAN
 		T* operator->()
 		{
 			ASSERT(m_pointer);
-			return m_pointer;	
+			return m_pointer;
 		}
 
 		const T* operator->() const

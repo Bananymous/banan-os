@@ -84,7 +84,7 @@ i64 solution(FILE* fp, u64 expansion)
 			const u64 x2 = j % map[0].size();
 			if (map[y2][x2] != '#')
 				continue;
-			
+
 			result += distance_with_expansion(map, x1, y1, x2, y2, expansion);
 		}
 	}

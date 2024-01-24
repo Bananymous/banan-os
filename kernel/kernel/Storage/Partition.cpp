@@ -11,7 +11,7 @@ namespace Kernel
 		if (partition_ptr == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
 		return BAN::RefPtr<Partition>::adopt(partition_ptr);
-	}	
+	}
 
 	Partition::Partition(BAN::RefPtr<BlockDevice> device, const BAN::GUID& type, const BAN::GUID& guid, uint64_t first_block, uint64_t last_block, uint64_t attr, const char* label, uint32_t index, BAN::StringView name_prefix)
 		: BlockDevice(0660, 0, 0)

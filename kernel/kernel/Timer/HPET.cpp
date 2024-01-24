@@ -72,7 +72,7 @@ namespace Kernel
 			return BAN::Error::from_errno(EINVAL);
 
 		uint64_t ticks_per_ms = FS_PER_MS / m_counter_tick_period_fs;
-		
+
 		{
 			const char* units[] = { "fs", "ps", "ns" };
 			int index = 0;

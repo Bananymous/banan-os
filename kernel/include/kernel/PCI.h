@@ -130,7 +130,7 @@ namespace Kernel::PCI
 	public:
 		static void initialize();
 		static PCIManager& get();
-		
+
 		const BAN::Vector<PCI::Device>& devices() const { return m_devices; }
 
 		static uint32_t read_config_dword(uint8_t bus, uint8_t dev, uint8_t func, uint8_t offset);

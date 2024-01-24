@@ -249,11 +249,11 @@ namespace BAN
 			return {};
 		if (has_sso() && fits_in_sso(new_size))
 			return {};
-		
+
 		char* new_data = (char*)allocator(new_size + 1);
 		if (new_data == nullptr)
 			return Error::from_errno(ENOMEM);
-		
+
 		if (m_size)
 			memcpy(new_data, data(), m_size + 1);
 

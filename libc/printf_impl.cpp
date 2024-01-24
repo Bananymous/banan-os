@@ -322,7 +322,7 @@ extern "C" int printf_impl(const char* format, va_list arguments, int (*putc_fun
 					percision = -1;
 				options.percision = percision;
 			}
-		
+
 			// PARSE LENGTH
 			if (*format == 'h')
 			{

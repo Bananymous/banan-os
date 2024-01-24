@@ -39,7 +39,7 @@ namespace Kernel
 			ATABaseDevice();
 			BAN::ErrorOr<void> initialize(BAN::Span<const uint16_t> identify_data);
 
-		protected:			
+		protected:
 			uint16_t m_signature;
 			uint16_t m_capabilities;
 			uint32_t m_command_set;
@@ -62,7 +62,7 @@ namespace Kernel
 
 	private:
 		ATADevice(BAN::RefPtr<ATABus>, ATABus::DeviceType, bool is_secodary);
-		
+
 		virtual BAN::ErrorOr<void> read_sectors_impl(uint64_t, uint64_t, BAN::ByteSpan) override;
 		virtual BAN::ErrorOr<void> write_sectors_impl(uint64_t, uint64_t, BAN::ConstByteSpan) override;
 

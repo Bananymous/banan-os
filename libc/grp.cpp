@@ -67,7 +67,7 @@ struct group* fill_group(const BAN::Vector<BAN::StringView>& parts)
 		s_group.gr_mem = nullptr;
 	}
 
-	auto groups_or_error = parts[3].split(',');	
+	auto groups_or_error = parts[3].split(',');
 	if (groups_or_error.is_error())
 		return nullptr;
 	auto groups = groups_or_error.release_value();
@@ -79,7 +79,7 @@ struct group* fill_group(const BAN::Vector<BAN::StringView>& parts)
 	s_group.gr_name = (char*)malloc(parts[0].size() + 1);
 	if (s_group.gr_name == nullptr)
 		return nullptr;
-	memcpy(s_group.gr_name, parts[0].data(), parts[0].size());	
+	memcpy(s_group.gr_name, parts[0].data(), parts[0].size());
 	s_group.gr_name[parts[0].size()] = '\0';
 
 	s_group.gr_mem = (char**)malloc((groups.size() + 1) * sizeof(char*));
@@ -99,7 +99,7 @@ struct group* fill_group(const BAN::Vector<BAN::StringView>& parts)
 		}
 		memcpy(s_group.gr_mem[i], groups[i].data(), groups[i].size());
 		s_group.gr_mem[i][groups[i].size()] = '\0';
-	}	
+	}
 	s_group.gr_mem[groups.size()] = nullptr;
 
 	return &s_group;
@@ -110,7 +110,7 @@ struct group* getgrnam(const char* name)
 	if (s_group_mmap == nullptr || s_group_mmap == MAP_FAILED)
 		if (!open_group_file())
 			return nullptr;
-	
+
 	off_t start = 0;
 	off_t end = 0;
 	while (start < s_group_st.st_size)
@@ -138,7 +138,7 @@ struct group* getgrgid(gid_t gid)
 	if (s_group_mmap == nullptr || s_group_mmap == MAP_FAILED)
 		if (!open_group_file())
 			return nullptr;
-	
+
 	off_t start = 0;
 	off_t end = 0;
 	while (start < s_group_st.st_size)

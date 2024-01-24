@@ -38,7 +38,7 @@ namespace BAN
 		ErrorOr<void> emplace(size_type, Args&&...);
 		ErrorOr<void> insert(size_type, T&&);
 		ErrorOr<void> insert(size_type, const T&);
-		
+
 		iterator begin() { return iterator(m_data); }
 		iterator end() { return iterator(m_data + m_size); }
 		const_iterator begin() const { return const_iterator(m_data); }

@@ -28,7 +28,7 @@ namespace BAN::UTF8
 		for (uint32_t i = 1; i < length; i++)
 			if ((bytes[i] & 0xC0) != 0x80)
 				return UTF8::invalid;
-		
+
 		switch (length)
 		{
 			case 1: return ((bytes[0] & 0x80) != 0x00) ? UTF8::invalid :   bytes[0];

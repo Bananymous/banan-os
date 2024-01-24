@@ -26,7 +26,7 @@ i64 puzzle1(FILE* fp)
 	char buffer[256];
 	if (!fgets(buffer, sizeof(buffer), fp))
 		return -1;
-	
+
 	{
 		BAN::StringView line(buffer);
 		line = line.substring(0, line.size() - 1);
@@ -88,7 +88,7 @@ i64 puzzle2(FILE* fp)
 	char buffer[256];
 	if (!fgets(buffer, sizeof(buffer), fp))
 		return -1;
-	
+
 	{
 		BAN::StringView line(buffer);
 		line = line.substring(0, line.size() - 1);

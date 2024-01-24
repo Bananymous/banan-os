@@ -125,7 +125,7 @@ namespace BAN
 		}
 
 		value_type* data() { return m_data; }
-		const value_type* data() const { return m_data; } 
+		const value_type* data() const { return m_data; }
 
 		size_type size() const { return m_size; }
 

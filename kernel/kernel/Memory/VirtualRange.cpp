@@ -132,7 +132,7 @@ namespace Kernel
 				paddr_t paddr = Heap::get().take_free_page();
 				if (paddr == 0)
 					return BAN::Error::from_errno(ENOMEM);
-				result->m_page_table.map_page_at(paddr, vaddr() + offset, m_flags);					
+				result->m_page_table.map_page_at(paddr, vaddr() + offset, m_flags);
 			}
 
 			CriticalScope _;

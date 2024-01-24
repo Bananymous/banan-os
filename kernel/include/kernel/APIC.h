@@ -55,7 +55,7 @@ namespace Kernel
 		BAN::Vector<Processor>	m_processors;
 		Kernel::paddr_t			m_local_apic_paddr = 0;
 		Kernel::vaddr_t			m_local_apic_vaddr = 0;
-		BAN::Vector<IOAPIC>		m_io_apics;	
+		BAN::Vector<IOAPIC>		m_io_apics;
 		uint8_t					m_irq_overrides[0x100] {};
 		uint8_t					m_reserved_gsis[0x100 / 8] {};
 	};

@@ -153,7 +153,7 @@ i64 solve_general(FILE* fp, auto parse_dir, auto parse_count)
 
 	i32 rmin_x = INT32_MAX;
 	find_min_and_remove_duplicates(rpath, lpath, rmin_x);
-	
+
 	ASSERT(lmin_x != rmin_x);
 	auto& expand = (lmin_x < rmin_x) ? rpath : lpath;
 
@@ -177,7 +177,7 @@ i64 solve_general(FILE* fp, auto parse_dir, auto parse_count)
 			MUST(visited.insert(next));
 		}
 	}
-	
+
 	return path.size() + inner_area.size();
 }
 

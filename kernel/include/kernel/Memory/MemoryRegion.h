@@ -48,7 +48,7 @@ namespace Kernel
 		BAN::ErrorOr<bool> allocate_page_containing(vaddr_t address);
 
 		virtual BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> clone(PageTable& new_page_table) = 0;
-	
+
 	protected:
 		MemoryRegion(PageTable&, size_t size, Type type, PageTable::flags_t flags);
 		BAN::ErrorOr<void> initialize(AddressRange);

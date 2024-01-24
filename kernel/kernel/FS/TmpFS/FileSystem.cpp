@@ -67,7 +67,7 @@ namespace Kernel
 		PageTable::with_fast_page(inode_location.paddr, [&] {
 			inode_info = PageTable::fast_page_as_sized<TmpInodeInfo>(inode_location.index);
 		});
-		
+
 		auto inode = TRY(TmpInode::create_from_existing(*this, ino, inode_info));
 		TRY(m_inode_cache.insert(ino, inode));
 		return inode;
@@ -85,7 +85,7 @@ namespace Kernel
 	void TmpFileSystem::remove_from_cache(BAN::RefPtr<TmpInode> inode)
 	{
 		LockGuard _(m_lock);
-	
+
 		ASSERT(m_inode_cache.contains(inode->ino()));
 		m_inode_cache.remove(inode->ino());
 	}

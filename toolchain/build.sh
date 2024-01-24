@@ -136,7 +136,7 @@ build_grub () {
 		--prefix="$BANAN_TOOLCHAIN_PREFIX" \
 		--with-platform="efi" \
 		--disable-werror
-	
+
 	make $MAKE_JOBS
 	make install
 }

@@ -38,7 +38,7 @@ struct kmalloc_node
 	{
 		uintptr_t node_end = end();
 		set_end(data() + size);
-		
+
 		auto* next = after();
 		next->set_end(node_end);
 		next->set_align(0);
@@ -124,10 +124,10 @@ void kmalloc_initialize()
 			node->next = i - 1;
 			node->prev = i + 1;
 		}
-		
+
 		info.node_at(0)->next = kmalloc_fixed_info::node::invalid;
 		info.node_at(info.node_count - 1)->prev = kmalloc_fixed_info::node::invalid;
-		
+
 		info.free_list_head = info.node_at(0);
 		info.used_list_head = nullptr;
 	}
@@ -371,7 +371,7 @@ void kfree(void* address)
 	else if (s_kmalloc_info.base <= address_uint && address_uint < s_kmalloc_info.end)
 	{
 		auto& info = s_kmalloc_info;
-		
+
 		auto* node = info.from_address(address);
 		ASSERT(node);
 		ASSERT(node->data() == (uintptr_t)address);

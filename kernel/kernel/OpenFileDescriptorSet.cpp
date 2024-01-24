@@ -33,7 +33,7 @@ namespace Kernel
 		{
 			if (other.validate_fd(fd).is_error())
 				continue;
-			
+
 			auto& open_file = other.m_open_files[fd];
 
 			auto result = BAN::RefPtr<OpenFileDescription>::create(open_file->inode, open_file->path, open_file->offset, open_file->flags);
@@ -93,7 +93,7 @@ namespace Kernel
 
 		int result = TRY(get_free_fd());
 		m_open_files[result] = m_open_files[fildes];
-		
+
 		if (m_open_files[result]->flags & O_WRONLY && m_open_files[result]->inode->is_pipe())
 			((Pipe*)m_open_files[result]->inode.ptr())->clone_writing();
 
@@ -110,7 +110,7 @@ namespace Kernel
 			return fildes;
 
 		(void)close(fildes2);
-		
+
 		m_open_files[fildes2] = m_open_files[fildes];
 		m_open_files[fildes2]->flags &= ~O_CLOEXEC;
 
@@ -142,7 +142,7 @@ namespace Kernel
 			default:
 				break;
 		}
-		
+
 		return BAN::Error::from_errno(ENOTSUP);
 	}
 
@@ -241,7 +241,7 @@ namespace Kernel
 
 		if (m_open_files[fd]->flags & O_WRONLY && m_open_files[fd]->inode->is_pipe())
 			((Pipe*)m_open_files[fd]->inode.ptr())->close_writing();
-		
+
 		m_open_files[fd].clear();
 
 		return {};

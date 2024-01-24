@@ -112,7 +112,7 @@ int main(int argc, char** argv)
 				ret = 1;
 				continue;
 			}
-			
+
 			if (S_ISDIR(st.st_mode))
 			{
 				fprintf(stderr, "%s: %s\n", argv[i], strerror(EISDIR));

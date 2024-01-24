@@ -58,7 +58,7 @@ namespace Kernel
 		if (m_bar0->size() < 0x1000)
 		{
 			dwarnln("NVMe controller BAR0 is too small {} bytes", m_bar0->size());
-			return BAN::Error::from_errno(EINVAL);	
+			return BAN::Error::from_errno(EINVAL);
 		}
 
 		m_controller_registers = reinterpret_cast<volatile NVMe::ControllerRegisters*>(m_bar0->vaddr());
@@ -171,7 +171,7 @@ namespace Kernel
 	BAN::ErrorOr<void> NVMeController::identify_namespaces()
 	{
 		auto dma_page = TRY(DMARegion::create(PAGE_SIZE));
-		
+
 		BAN::Vector<uint32_t> namespace_ids;
 		TRY(namespace_ids.resize(PAGE_SIZE / sizeof(uint32_t)));
 

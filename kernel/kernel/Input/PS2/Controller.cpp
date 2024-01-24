@@ -260,7 +260,7 @@ namespace Kernel::Input
 		// Flush The Output Buffer
 		while (!read_byte().is_error())
 			continue;
-		
+
 		// Set the Controller Configuration Byte
 		TRY(send_command(PS2::Command::READ_CONFIG));
 		uint8_t config = TRY(read_byte());
@@ -340,7 +340,7 @@ namespace Kernel::Input
 			dwarnln("Could not reserve irq for PS/2 port 2");
 			m_devices[1].clear();
 		}
-		
+
 		if (!m_devices[0] && !m_devices[1])
 			return {};
 

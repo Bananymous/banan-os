@@ -126,7 +126,7 @@ namespace Kernel
 
 			SDTHeader* as_header() { return (SDTHeader*)vaddr; }
 		};
-		BAN::Vector<MappedPage> m_mapped_headers;		
+		BAN::Vector<MappedPage> m_mapped_headers;
 	};
 
 }
@@ -135,7 +135,7 @@ namespace BAN::Formatter
 {
 	template<typename F>
 	void print_argument(F putc, const Kernel::ACPI::SDTHeader& header, const ValueFormat& format)
-	{ 
+	{
 		putc(header.signature[0]);
 		putc(header.signature[1]);
 		putc(header.signature[2]);

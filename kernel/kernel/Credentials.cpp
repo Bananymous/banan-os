@@ -55,7 +55,7 @@ namespace Kernel
 				TRY(result.append(parts[0]));
 				return result;
 			}
-			
+
 			line.clear();
 		}
 

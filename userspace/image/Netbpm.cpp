@@ -39,7 +39,7 @@ BAN::ErrorOr<BAN::UniqPtr<Image>> load_netbpm(const void* mmap_addr, size_t size
 	}
 
 	const uint8_t* u8_ptr = reinterpret_cast<const uint8_t*>(mmap_addr);
-	
+
 	if (u8_ptr[0] != 'P')
 	{
 		fprintf(stderr, "not Netbpm image\n");

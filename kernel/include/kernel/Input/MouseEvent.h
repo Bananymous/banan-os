@@ -42,7 +42,7 @@ namespace Kernel::Input
 			MouseButtonEvent button_event;
 			MouseMoveEvent move_event;
 			MouseScrollEvent scroll_event;
-		};	
+		};
 	};
 
 }

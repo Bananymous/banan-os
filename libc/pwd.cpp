@@ -19,7 +19,7 @@ static bool open_pwent()
 	if (s_pwent_fp)
 		return true;
 	s_pwent_fp = fopen("/etc/passwd", "r");
-	return s_pwent_fp;    
+	return s_pwent_fp;
 }
 
 static void clear_pwent(passwd& passwd)

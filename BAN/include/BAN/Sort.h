@@ -120,7 +120,7 @@ namespace BAN::sort
 
 			if (parent == 0)
 				break;
-			
+
 			parent--;
 		}
 	}

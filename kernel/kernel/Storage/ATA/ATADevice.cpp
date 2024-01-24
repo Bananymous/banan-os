@@ -41,7 +41,7 @@ namespace Kernel
 
 		if (!(m_capabilities & ATA_CAPABILITIES_LBA))
 			return BAN::Error::from_error_code(ErrorCode::ATA_NoLBA);
-		
+
 		if ((identify_data[ATA_IDENTIFY_SECTOR_INFO] & (1 << 15)) == 0 &&
 			(identify_data[ATA_IDENTIFY_SECTOR_INFO] & (1 << 14)) != 0 &&
 			(identify_data[ATA_IDENTIFY_SECTOR_INFO] & (1 << 12)) != 0)

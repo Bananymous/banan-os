@@ -15,7 +15,7 @@ namespace Kernel
 		LockGuard(Lock& lock)
 			: m_lock(lock)
 		{
-			m_lock.lock();	
+			m_lock.lock();
 		}
 
 		~LockGuard()

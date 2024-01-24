@@ -351,7 +351,7 @@ namespace Kernel
 
 		if (!m_controlling_terminal)
 			return BAN::Error::from_errno(ENOTTY);
-		
+
 		Kernel::termios ktermios = m_controlling_terminal->get_termios();
 		termios->c_lflag = 0;
 		if (ktermios.canonical)
@@ -370,11 +370,11 @@ namespace Kernel
 
 		if (!m_controlling_terminal)
 			return BAN::Error::from_errno(ENOTTY);
-		
+
 		Kernel::termios ktermios;
 		ktermios.echo = termios->c_lflag & ECHO;
 		ktermios.canonical = termios->c_lflag & ICANON;
-		
+
 		m_controlling_terminal->set_termios(ktermios);
 		return 0;
 	}
@@ -530,7 +530,7 @@ namespace Kernel
 			auto envp_region = MUST(create_region(str_envp.span()));
 			m_userspace_info.envp = (char**)envp_region->vaddr();
 			MUST(m_mapped_regions.push_back(BAN::move(envp_region)));
-			
+
 			m_userspace_info.argc = str_argv.size();
 
 			m_cmdline = BAN::move(str_argv);
@@ -803,7 +803,7 @@ namespace Kernel
 	{
 		LockGuard _(m_lock);
 		TRY(validate_string_access(path));
-		
+
 		auto absolute_path = TRY(absolute_path_of(path));
 
 		size_t index = absolute_path.size();
@@ -822,7 +822,7 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::readlink_impl(BAN::StringView absolute_path, char* buffer, size_t bufsize)
 	{
 		auto inode = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, O_NOFOLLOW | O_RDONLY)).inode;
-		
+
 		// FIXME: no allocation needed
 		auto link_target = TRY(inode->link_target());
 
@@ -996,7 +996,7 @@ namespace Kernel
 		// FIXME: gracefully kill all processes
 
 		DevFileSystem::get().initiate_sync(true);
-		
+
 		lai_api_error_t error;
 		switch (command)
 		{
@@ -1009,7 +1009,7 @@ namespace Kernel
 			default:
 				ASSERT_NOT_REACHED();
 		}
-		
+
 		// If we reach here, there was an error
 		dprintln("{}", lai_api_error_to_string(error));
 		return BAN::Error::from_errno(EUNKNOWN);
@@ -1051,7 +1051,7 @@ namespace Kernel
 
 		if (size < m_working_directory.size() + 1)
 			return BAN::Error::from_errno(ERANGE);
-		
+
 		memcpy(buffer, m_working_directory.data(), m_working_directory.size());
 		buffer[m_working_directory.size()] = '\0';
 
@@ -1123,7 +1123,7 @@ namespace Kernel
 
 		BAN::UniqPtr<MemoryRegion> memory_region;
 		if (inode->mode().ifreg())
-		{			
+		{
 			memory_region = TRY(FileBackedRegion::create(
 				inode,
 				page_table(),
@@ -1141,7 +1141,7 @@ namespace Kernel
 				region_type, page_flags
 			));
 		}
-		
+
 		if (!memory_region)
 			return BAN::Error::from_errno(ENODEV);
 
@@ -1175,7 +1175,7 @@ namespace Kernel
 
 		vaddr_t vaddr = (vaddr_t)addr;
 		if (vaddr % PAGE_SIZE != 0)
-			return BAN::Error::from_errno(EINVAL);	
+			return BAN::Error::from_errno(EINVAL);
 
 		LockGuard _(m_lock);
 
@@ -1193,7 +1193,7 @@ namespace Kernel
 		auto inode = TRY(m_open_file_descriptors.inode_of(fildes));
 		if (!inode->is_tty())
 			return BAN::Error::from_errno(ENOTTY);
-		
+
 		TRY(((TTY*)inode.ptr())->tty_ctrl(command, flags));
 
 		return 0;
@@ -1476,7 +1476,7 @@ namespace Kernel
 		// real user ID, then the saved set-user-ID of the current process shall be set equal to the new effective user ID.
 		if (ruid != -1 || euid != m_credentials.ruid())
 			m_credentials.set_suid(euid);
-		
+
 		if (ruid != -1)
 			m_credentials.set_ruid(ruid);
 		if (euid != -1)
@@ -1498,7 +1498,7 @@ namespace Kernel
 			return BAN::Error::from_errno(EINVAL);
 
 		// The setregid() function shall set the real and effective group IDs of the calling process.
-		
+
 		// If rgid is -1, the real group ID shall not be changed; if egid is -1, the effective group ID shall not be changed.
 
 		// The real and effective group IDs may be set to different values in the same call.
@@ -1522,7 +1522,7 @@ namespace Kernel
 		// real group ID, then the saved set-group-ID of the current process shall be set equal to the new effective group ID.
 		if (rgid != -1 || egid != m_credentials.rgid())
 			m_credentials.set_sgid(egid);
-		
+
 		if (rgid != -1)
 			m_credentials.set_rgid(rgid);
 		if (egid != -1)
@@ -1646,7 +1646,7 @@ namespace Kernel
 			TRY(absolute_path.push_back('/'));
 
 		TRY(absolute_path.append(path));
-		
+
 		return absolute_path;
 	}
 

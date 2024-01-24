@@ -29,7 +29,7 @@ BAN::Vector<BAN::Vector<char>> parse_grid(FILE* fp)
 		line = line.substring(0, line.size() - 1);
 		if (line.empty())
 			break;
-		
+
 		MUST(grid.emplace_back(line.size(), '\0'));
 		for (size_t i = 0; i < line.size(); i++)
 			grid.back()[i] = line[i];
@@ -86,7 +86,7 @@ i64 recurse_grid(BAN::Vector<Position>& path, const BAN::Vector<BAN::Vector<char
 
 		if (valid_next_count == 0)
 			return 0;
-		
+
 		if (valid_next_count == 1)
 		{
 			MUST(path.push_back(valid_next.front()));

@@ -63,7 +63,7 @@ namespace Kernel
 	void RecursiveSpinLock::unlock()
 	{
 		m_lock.lock();
-		
+
 		ASSERT(m_lock_depth > 0);
 		ASSERT(m_locker == Scheduler::current_tid());
 
@@ -71,7 +71,7 @@ namespace Kernel
 
 		if (m_lock_depth == 0)
 			m_locker = -1;
-		
+
 		m_lock.unlock();
 	}
 
@@ -116,7 +116,7 @@ namespace Kernel
 	void RecursivePrioritySpinLock::unlock()
 	{
 		m_lock.lock();
-		
+
 		ASSERT(m_lock_depth > 0);
 		ASSERT(m_locker == Scheduler::current_tid());
 
@@ -128,7 +128,7 @@ namespace Kernel
 
 		if (m_lock_depth == 0)
 			m_locker = -1;
-		
+
 		m_lock.unlock();
 	}
 

@@ -42,7 +42,7 @@ build_toolchain () {
 			exit 0
 		fi
 	fi
-	
+
 	$BANAN_TOOLCHAIN_DIR/build.sh
 }
 

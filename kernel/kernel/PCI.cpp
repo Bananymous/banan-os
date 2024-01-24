@@ -128,7 +128,7 @@ namespace Kernel::PCI
 	{
 		if (get_vendor_id(bus, dev, 0) == INVALID_VENDOR)
 			return;
-		
+
 		check_function(bus, dev, 0);
 		if (get_header_type(bus, dev, 0) & MULTI_FUNCTION)
 			for (uint8_t func = 1; func < 8; func++)
@@ -288,7 +288,7 @@ namespace Kernel::PCI
 	{
 		if (m_type == BarType::MEM && m_vaddr)
 			PageTable::kernel().unmap_range(m_vaddr, m_size);
-		m_vaddr = 0;		
+		m_vaddr = 0;
 	}
 
 	BAN::ErrorOr<void> BarRegion::initialize()

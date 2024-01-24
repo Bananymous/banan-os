@@ -53,7 +53,7 @@ i64 count_possibilities(BAN::StringView record, BAN::Span<u64> groups)
 	for (size_t i = 0; i + groups[0] <= record.size(); i++)
 	{
 		bool valid = true;
-		
+
 		if (record.substring(i, groups[0]).contains('.'))
 			valid = false;
 
@@ -91,7 +91,7 @@ i64 puzzle1(FILE* fp)
 			line = line.substring(0, line.size() - 1);
 		if (line.size() < 3)
 			continue;
-		
+
 		auto parts = MUST(line.split(' '));
 
 		auto record = parts[0];
@@ -119,7 +119,7 @@ i64 puzzle2(FILE* fp)
 			line = line.substring(0, line.size() - 1);
 		if (line.size() < 3)
 			continue;
-		
+
 		auto parts = MUST(line.split(' '));
 
 		BAN::String record;

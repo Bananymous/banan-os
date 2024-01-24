@@ -47,7 +47,7 @@ namespace Kernel
 
 	private:
 		ProcROInode(Process&, size_t (Process::*)(off_t, BAN::ByteSpan) const, TmpFileSystem&, const TmpInodeInfo&);
-	
+
 	private:
 		Process& m_process;
 		size_t (Process::*m_callback)(off_t, BAN::ByteSpan) const;

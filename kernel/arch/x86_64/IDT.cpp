@@ -121,7 +121,7 @@ namespace Kernel::IDT
 				uint32_t reserved2		: 16;
 			};
 		};
-		
+
 	};
 	static_assert(sizeof(PageFaultError) == 4);
 
@@ -290,7 +290,7 @@ namespace Kernel::IDT
 				break;
 			case ISR::PageFault:
 				signal = SIGSEGV;
-				break;			
+				break;
 			default:
 				dwarnln("Unhandled exception");
 				signal = SIGABRT;
@@ -305,7 +305,7 @@ namespace Kernel::IDT
 		}
 
 		ASSERT(Thread::current().state() != Thread::State::Terminated);
-	
+
 done:
 		return;
 	}

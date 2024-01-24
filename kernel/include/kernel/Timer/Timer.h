@@ -28,7 +28,7 @@ namespace Kernel
 		virtual uint64_t ms_since_boot() const override;
 		virtual uint64_t ns_since_boot() const override;
 		virtual timespec time_since_boot() const override;
-		
+
 		void sleep(uint64_t ms) const;
 
 		timespec real_time() const;

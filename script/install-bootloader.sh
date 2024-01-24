@@ -20,7 +20,7 @@ fi
 if [[ -z $CMAKE_COMMAND ]]; then
 	echo "You must set the CMAKE_COMMAND environment variable" >&2
 	exit 1
-fi	
+fi
 
 ROOT_PARTITION_INDEX=2
 ROOT_PARTITION_INFO=$(fdisk -x $BANAN_DISK_IMAGE_PATH | grep "^$BANAN_DISK_IMAGE_PATH" | head -$ROOT_PARTITION_INDEX | tail -1)

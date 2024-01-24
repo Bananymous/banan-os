@@ -9,7 +9,7 @@ namespace Kernel
 	{
 		BAN_NON_COPYABLE(MemoryBackedRegion);
 		BAN_NON_MOVABLE(MemoryBackedRegion);
-	
+
 	public:
 		static BAN::ErrorOr<BAN::UniqPtr<MemoryBackedRegion>> create(PageTable&, size_t size, AddressRange, Type, PageTable::flags_t);
 		~MemoryBackedRegion();

@@ -30,13 +30,13 @@ namespace Kernel
 		BAN::Optional<uint32_t> find_free_command_slot();
 
 		void handle_irq();
-		
+
 		BAN::ErrorOr<void> block_until_command_completed(uint32_t command_slot);
 
 	private:
 		BAN::RefPtr<AHCIController> m_controller;
 		volatile HBAPortMemorySpace* const m_port;
-		
+
 		BAN::UniqPtr<DMARegion> m_dma_region;
 		// Intermediate read/write buffer
 		// TODO: can we read straight to user buffer?

@@ -37,7 +37,7 @@ BAN::HashMap<BAN::String, Component> parse_components(FILE* fp)
 		line = line.substring(0, line.size() - 1);
 		if (line.empty())
 			break;
-		
+
 		auto parts = MUST(line.split(' '));
 		ASSERT(parts.size() >= 2);
 
@@ -46,7 +46,7 @@ BAN::HashMap<BAN::String, Component> parse_components(FILE* fp)
 
 		if (!components.contains(parts.front()))
 			MUST(components.emplace(parts.front(), parts.front()));
-		
+
 		for (size_t i = 1; i < parts.size(); i++)
 		{
 			MUST(components[parts.front()].connections.emplace_back(parts[i]));
@@ -96,7 +96,7 @@ size_t graph_size(const BAN::HashMap<BAN::String, Component>& graph, const BAN::
 		const auto& targets = graph[current].connections;
 		for (const auto& target : targets)
 		{
-			if (removed.contains(connection_key(current, target)))	
+			if (removed.contains(connection_key(current, target)))
 				continue;
 			if (visited.contains(target))
 				continue;

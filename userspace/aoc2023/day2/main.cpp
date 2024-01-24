@@ -24,7 +24,7 @@ int puzzle1(FILE* fp)
 		if (strncmp("Game ", ptr, 5))
 			continue;
 		ptr += 5;
-	
+
 		int id = parse_int_and_advance(ptr);
 		ptr += 2;
 
@@ -63,7 +63,7 @@ int puzzle2(FILE* fp)
 		if (strncmp("Game ", ptr, 5))
 			continue;
 		ptr += 5;
-	
+
 		parse_int_and_advance(ptr);
 		ptr += 2;
 

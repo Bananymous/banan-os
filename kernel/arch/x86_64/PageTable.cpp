@@ -138,7 +138,7 @@ namespace Kernel
 		s_global_pml4e = V2P(allocate_zeroed_page_aligned_page());
 
 		m_highest_paging_struct = V2P(allocate_zeroed_page_aligned_page());
-		
+
 		uint64_t* pml4 = (uint64_t*)P2V(m_highest_paging_struct);
 		pml4[511] = s_global_pml4e;
 
@@ -436,7 +436,7 @@ namespace Kernel
 		ASSERT(vaddr % PAGE_SIZE == 0);
 
 		size_t page_count = range_page_count(vaddr, size);
-		
+
 		LockGuard _(m_lock);
 		for (size_t page = 0; page < page_count; page++)
 			map_page_at(paddr + page * PAGE_SIZE, vaddr + page * PAGE_SIZE, flags);
@@ -453,7 +453,7 @@ namespace Kernel
 		uint64_t pdpte = (uc_vaddr >> 30) & 0x1FF;
 		uint64_t pde   = (uc_vaddr >> 21) & 0x1FF;
 		uint64_t pte   = (uc_vaddr >> 12) & 0x1FF;
-		
+
 		LockGuard _(m_lock);
 
 		uint64_t* pml4 = (uint64_t*)P2V(m_highest_paging_struct);
@@ -533,7 +533,7 @@ namespace Kernel
 		const uint16_t e_pdpte = (uc_vaddr_end >> 30) & 0x1FF;
 		const uint16_t e_pde   = (uc_vaddr_end >> 21) & 0x1FF;
 		const uint16_t e_pte   = (uc_vaddr_end >> 12) & 0x1FF;
-		
+
 		LockGuard _(m_lock);
 
 		// Try to find free page that can be mapped without
@@ -714,7 +714,7 @@ namespace Kernel
 
 						if (!(pt[pte] & Flags::Used))
 							continue;
-						
+
 						if (start == 0)
 						{
 							flags = parse_flags(pt[pte]);

@@ -250,7 +250,7 @@ namespace Kernel
 			return BAN::Error::from_error_code(ErrorCode::ATA_UNC);
 		if (err & ATA_ERROR_BBK)
 			return BAN::Error::from_error_code(ErrorCode::ATA_BBK);
-		
+
 		return BAN::Error::from_error_code(ErrorCode::None);
 	}
 

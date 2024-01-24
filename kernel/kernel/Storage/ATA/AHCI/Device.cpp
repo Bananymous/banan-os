@@ -15,9 +15,9 @@ namespace Kernel
 		while (port->cmd & HBA_PxCMD_CR)
 			continue;
 		port->cmd = port->cmd | HBA_PxCMD_FRE;
-		port->cmd = port->cmd | HBA_PxCMD_ST; 
+		port->cmd = port->cmd | HBA_PxCMD_ST;
 	}
-	
+
 	static void stop_cmd(volatile HBAPortMemorySpace* port)
 	{
 		port->cmd = port->cmd & ~HBA_PxCMD_ST;
@@ -58,7 +58,7 @@ namespace Kernel
 
 		m_data_dma_region = TRY(DMARegion::create(PAGE_SIZE));
 		memset((void*)m_data_dma_region->vaddr(), 0x00, m_data_dma_region->size());
-		
+
 		return {};
 	}
 
@@ -211,14 +211,14 @@ namespace Kernel
 		ASSERT(m_dma_region);
 		ASSERT(m_data_dma_region);
 		ASSERT(0 < sector_count && sector_count <= 0xFFFF + 1);
-		
+
 		ASSERT(sector_count * sector_size() <= m_data_dma_region->size());
 
 		m_port->is = ~(uint32_t)0;
 
 		auto slot = find_free_command_slot();
 		ASSERT(slot.has_value());
-		
+
 		volatile auto& command_header = reinterpret_cast<volatile HBACommandHeader*>(m_dma_region->paddr_to_vaddr(m_port->clb))[slot.value()];
 		command_header.cfl = sizeof(FISRegisterH2D) / sizeof(uint32_t);
 		command_header.prdtl = 1;
@@ -265,11 +265,11 @@ namespace Kernel
 		fis_command.lba1 = (lba >>  8) & 0xFF;
 		fis_command.lba2 = (lba >> 16) & 0xFF;
 		fis_command.device = 1 << 6;	// LBA mode
-	
+
 		fis_command.lba3 = (lba >> 24) & 0xFF;
 		fis_command.lba4 = (lba >> 32) & 0xFF;
 		fis_command.lba5 = (lba >> 40) & 0xFF;
-	
+
 		fis_command.count_lo = (sector_count >> 0) & 0xFF;
 		fis_command.count_hi = (sector_count >> 8) & 0xFF;
 

@@ -209,7 +209,7 @@ void* realloc(void* ptr, size_t size)
 {
 	if (ptr == nullptr)
 		return malloc(size);
-	
+
 	// align size to s_malloc_default_align boundary
 	if (size_t ret = size % s_malloc_default_align)
 		size += s_malloc_default_align - ret;
@@ -226,7 +226,7 @@ void* realloc(void* ptr, size_t size)
 	void* new_ptr = malloc(size);
 	if (new_ptr == nullptr)
 		return nullptr;
-	
+
 	// move data to the new pointer
 	size_t bytes_to_copy = oldsize < size ? oldsize : size;
 	memcpy(new_ptr, ptr, bytes_to_copy);

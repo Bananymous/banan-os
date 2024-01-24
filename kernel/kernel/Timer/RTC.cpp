@@ -60,7 +60,7 @@ namespace Kernel
 			last_time = time;
 			get_time(time);
 		}
-		
+
 		uint8_t regB = read_register8(0x0B);
 
 		// Convert BCD to binary values if necessary

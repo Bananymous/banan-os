@@ -63,7 +63,7 @@ namespace Kernel::GDT
 			uint8_t		flags  : 4;
 			uint8_t		base3;
 		} __attribute__((packed));
-		
+
 		struct
 		{
 			uint32_t low;
@@ -101,7 +101,7 @@ namespace Kernel::GDT
 	{
 		s_tss = new TaskStateSegment();
 		ASSERT(s_tss);
-		
+
 		memset(s_tss, 0x00, sizeof(TaskStateSegment));
 		s_tss->ss0 = 0x10;
 		s_tss->esp0 = (uintptr_t)g_boot_stack_top;
@@ -127,7 +127,7 @@ namespace Kernel::GDT
 	void initialize()
 	{
 		constexpr uint32_t descriptor_count = 6;
-		s_gdt = new SegmentDescriptor[descriptor_count]; 
+		s_gdt = new SegmentDescriptor[descriptor_count];
 		ASSERT(s_gdt);
 
 		s_gdtr.address = (uint64_t)s_gdt;

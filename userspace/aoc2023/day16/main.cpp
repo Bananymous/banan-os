@@ -69,7 +69,7 @@ Grid parse_grid(FILE* fp)
 		line = line.substring(0, line.size() - 1);
 		if (line.empty())
 			break;
-		
+
 		MUST(grid.emplace_back(line.size()));
 		for (size_t i = 0; i < line.size(); i++)
 			grid.back()[i] = char_to_tile(line[i]);

@@ -64,7 +64,7 @@ namespace Kernel
 			m_done = false;
 			return m_status;
 		}
-		
+
 		while (SystemTimer::get().ms_since_boot() < start_time + s_nvme_command_timeout_ms)
 		{
 			if (!m_done)

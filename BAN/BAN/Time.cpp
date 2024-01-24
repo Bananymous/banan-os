@@ -38,7 +38,7 @@ namespace BAN
 	}
 
 	BAN::Time from_unix_time(uint64_t unix_time)
-	{		
+	{
 		BAN::Time time {};
 
 		time.second = unix_time % 60; unix_time /= 60;

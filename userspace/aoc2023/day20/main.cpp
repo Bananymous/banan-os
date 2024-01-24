@@ -131,7 +131,7 @@ i64 puzzle1(FILE* fp)
 	auto modules = parse_modules(fp);
 
 	BAN::Queue<Signal> signal_queue;
-	
+
 	i64 sent_hi = 0;
 	i64 sent_lo = 0;
 

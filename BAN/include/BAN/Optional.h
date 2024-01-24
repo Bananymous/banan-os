@@ -72,7 +72,7 @@ namespace BAN
 	Optional<T>::Optional(const T& value)
 		: m_has_value(true)
 	{
-		new (m_storage) T(value);	
+		new (m_storage) T(value);
 	}
 
 	template<typename T>

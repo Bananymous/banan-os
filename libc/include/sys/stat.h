@@ -16,7 +16,7 @@ __BEGIN_DECLS
 #define __need_uid_t
 #define __need_gid_t
 #define __need_off_t
-#define __need_time_t 
+#define __need_time_t
 #include <sys/types.h>
 
 #include <time.h>

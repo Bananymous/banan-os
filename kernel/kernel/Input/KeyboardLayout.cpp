@@ -137,7 +137,7 @@ namespace Kernel::Input
 				{
 					dprintln("Invalid modifier instruction in keymap '{}'", line);
 					dprintln("  format: include \"PATH\"");
-					return BAN::Error::from_errno(EINVAL);	
+					return BAN::Error::from_errno(EINVAL);
 				}
 				parts[1] = parts[1].substring(1, parts[1].size() - 2);
 

@@ -27,7 +27,7 @@ namespace Kernel
 			{
 				m_used = false;
 			}
-		
+
 			size_t size() const { return m_buffer.size(); }
 
 			uint8_t* data() { return m_buffer.data(); }
@@ -44,7 +44,7 @@ namespace Kernel
 			bool& m_used;
 		};
 
-	public:	
+	public:
 		static BAN::ErrorOr<Ext2FS*> create(BAN::RefPtr<BlockDevice>);
 
 		virtual BAN::RefPtr<Inode> root_inode() override { return m_root_inode; }

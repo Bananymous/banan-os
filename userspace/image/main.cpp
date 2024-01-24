@@ -14,7 +14,7 @@ int main(int argc, char** argv)
 {
 	if (argc != 2)
 		return usage(argv[0], 1);
-	
+
 	auto image = Image::load_from_file(argv[1]);
 	if (!image)
 		return 1;

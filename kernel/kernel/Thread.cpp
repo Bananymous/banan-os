@@ -81,7 +81,7 @@ namespace Kernel
 			PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present,
 			true
 		));
-		
+
 		thread->m_interrupt_stack = TRY(VirtualRange::create_to_vaddr_range(
 			process->page_table(),
 			0x300000, KERNEL_OFFSET,
@@ -190,7 +190,7 @@ namespace Kernel
 			{
 				((Process*)process)->cleanup_function();
 				Scheduler::get().delete_current_process_and_thread();
-				ASSERT_NOT_REACHED();				
+				ASSERT_NOT_REACHED();
 			}
 		);
 		m_rsp = stack_base() + stack_size();

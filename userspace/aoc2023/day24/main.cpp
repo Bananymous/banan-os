@@ -46,7 +46,7 @@ BAN::Vector<Hailstone> parse_hailstones(FILE* fp)
 		line = line.substring(0, line.size() - 1);
 		if (line.empty())
 			break;
-		
+
 		auto position_velocity_strs = MUST(line.split('@'));
 		ASSERT(position_velocity_strs.size() == 2);
 
@@ -73,7 +73,7 @@ BAN::Vector<Hailstone> parse_hailstones(FILE* fp)
 i64 puzzle1(FILE* fp)
 {
 	auto hailstones = parse_hailstones(fp);
-	
+
 	i64 result = 0;
 
 	for (size_t i = 0; i < hailstones.size(); i++)

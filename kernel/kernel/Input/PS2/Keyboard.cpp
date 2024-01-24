@@ -126,6 +126,9 @@ namespace Kernel::Input
 
 		auto key = KeyboardLayout::get().get_key_from_event(KeyEvent { .modifier = 0, .keycode = keycode.value() });
 
+		if (key == Key::F1)
+			panic("OOF");
+
 		uint16_t modifier_mask = 0;
 		uint16_t toggle_mask = 0;
 		switch (key)

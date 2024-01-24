@@ -140,14 +140,14 @@ namespace BAN
 		Variant(T&& value) requires (can_have<T>() && !is_lvalue_reference_v<T>)
 			: m_index(detail::index<T, Ts...>())
 		{
-			new (m_storage) T(move(value));	
+			new (m_storage) T(move(value));
 		}
 
 		template<typename T>
 		Variant(const T& value) requires (can_have<T>() && !is_lvalue_reference_v<T>)
 			: m_index(detail::index<T, Ts...>())
 		{
-			new (m_storage) T(value);	
+			new (m_storage) T(value);
 		}
 
 		~Variant()

@@ -123,7 +123,7 @@ namespace IDT
 		}
 
 		dprintln("Spurious irq");
-		return;	
+		return;
 found:
 		if (s_irq_handlers[irq])
 			s_irq_handlers[irq]();
@@ -174,7 +174,7 @@ found:
 		"addl $16, %esp;"
 		"popw %es;"
 		"popw %ds;"
-		
+
 		// NOTE: following instructions are same as in 'popa', except we skip eax
 		//       since it holds the return value of the syscall.
 		"popl %edi;"
@@ -185,7 +185,7 @@ found:
 		"popl %edx;"
 		"popl %ecx;"
 		"addl $4, %esp;"
-		
+
 		"iret;"
 	);
 

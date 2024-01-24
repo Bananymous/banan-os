@@ -39,7 +39,7 @@ namespace Kernel::GDT
 			uint8_t		flags  : 4;
 			uint8_t		base3;
 		} __attribute__((packed));
-		
+
 		struct
 		{
 			uint32_t low;
@@ -81,7 +81,7 @@ namespace Kernel::GDT
 	{
 		memset(&s_tss, 0x00, sizeof(TaskStateSegment));
 		s_tss.iopb = sizeof(TaskStateSegment);
-		
+
 		uint64_t base = (uint64_t)&s_tss;
 
 		write_entry(s_tss_offset, (uint32_t)base, sizeof(TaskStateSegment), 0x89, 0x0);

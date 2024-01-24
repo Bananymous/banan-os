@@ -113,7 +113,7 @@ namespace Kernel
 		const char* ptr = query;
 		while (*ptr)
 			putchar(*ptr++);
-		
+
 		if (getchar() != '\033')
 			return false;
 		if (getchar() != '[')

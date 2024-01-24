@@ -39,7 +39,7 @@ namespace Kernel
 
 			if (entry.type != 1)
 				continue;
-				
+
 			paddr_t start = entry.address;
 			if (start < V2P(g_kernel_end))
 				start = V2P(g_kernel_end);

@@ -100,7 +100,7 @@ namespace Kernel
 			return BAN::Error::from_errno(ENOTSUP);
 		if (m_type != Type::SHARED)
 			return {};
-		
+
 		vaddr_t first_page	= address & PAGE_ADDR_MASK;
 		vaddr_t last_page	= BAN::Math::div_round_up<vaddr_t>(address + size, PAGE_SIZE) * PAGE_SIZE;
 

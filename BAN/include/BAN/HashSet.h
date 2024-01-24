@@ -19,7 +19,7 @@ namespace BAN
 		using size_type = size_t;
 		using iterator = IteratorDouble<T, Vector, LinkedList, HashSet>;
 		using const_iterator = ConstIteratorDouble<T, Vector, LinkedList, HashSet>;
-		
+
 	public:
 		HashSet() = default;
 		HashSet(const HashSet&);

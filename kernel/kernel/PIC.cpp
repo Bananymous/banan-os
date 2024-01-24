@@ -119,7 +119,7 @@ namespace Kernel
 			m_reserved_irqs |= 1 << irq;
 			return irq;
 		}
-		
+
 		return {};
 	}
 

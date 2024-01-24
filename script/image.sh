@@ -25,7 +25,7 @@ sudo partprobe $LOOP_DEV
 ROOT_PARTITION="${LOOP_DEV}p2"
 MOUNT_DIR="${MOUNT_DIR:-$BANAN_BUILD_DIR/bananmnt}"
 
-sudo mkdir -p $MOUNT_DIR || { echo "Failed to create mount point dir."; exit 1; } 
+sudo mkdir -p $MOUNT_DIR || { echo "Failed to create mount point dir."; exit 1; }
 
 sudo mount $ROOT_PARTITION $MOUNT_DIR
 

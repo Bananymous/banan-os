@@ -171,7 +171,7 @@ namespace Kernel
 				size_t needed_pages = range_page_count(header_paddr, header_length);
 				vaddr_t page_vaddr = PageTable::kernel().reserve_free_contiguous_pages(needed_pages, KERNEL_OFFSET);
 				ASSERT(page_vaddr);
-				
+
 				PageTable::kernel().map_range_at(
 					header_paddr & PAGE_ADDR_MASK,
 					page_vaddr,
@@ -194,7 +194,7 @@ namespace Kernel
 			paddr_t header_paddr = (m_entry_size == 4) ?
 				((uint32_t*)m_header_table_vaddr)[i] :
 				((uint64_t*)m_header_table_vaddr)[i];
-			
+
 			vaddr_t header_vaddr = map_header(header_paddr);
 			if (header_vaddr == 0)
 				continue;

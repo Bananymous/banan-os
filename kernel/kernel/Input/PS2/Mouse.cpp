@@ -133,7 +133,7 @@ namespace Kernel::Input
 			{
 				if ((new_button_mask & (1 << i)) == (m_button_mask & (1 << i)))
 					continue;
-				
+
 				auto& event = events[event_count++];
 				event.type = MouseEventType::MouseButtonEvent;
 				event.button_event.button = button_index_to_button(i);

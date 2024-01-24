@@ -76,7 +76,7 @@ namespace Kernel
 	{
 		if (s_instance == nullptr)
 			return;
-		
+
 		// Here we copy the s_instances paging structs since they are
 		// global for every process
 
@@ -84,7 +84,7 @@ namespace Kernel
 
 		uint64_t* pdpt = (uint64_t*)kmalloc(sizeof(uint64_t) * 4, 32);
 		ASSERT(pdpt);
-		
+
 		for (uint32_t pdpte = 0; pdpte < 4; pdpte++)
 		{
 			if (!(global_pdpt[pdpte] & Flags::Present))

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <BAN/UniqPtr.h>
+#include <kernel/InterruptController.h>
 #include <kernel/Networking/NetworkDriver.h>
 #include <kernel/PCI.h>
 
@@ -10,7 +11,7 @@
 namespace Kernel
 {
 
-	class E1000 final : public NetworkDriver
+	class E1000 final : public NetworkDriver, public Interruptable
 	{
 	public:
 		static bool probe(PCI::Device&);
@@ -23,9 +24,11 @@ namespace Kernel
 		virtual bool link_up() override { return m_link_up; }
 		virtual int link_speed() override;
 
+		virtual void handle_irq() override { ASSERT_NOT_REACHED(); }
+
 	private:
-		E1000() = default;
-		BAN::ErrorOr<void> initialize(PCI::Device&);
+		E1000(PCI::Device& pci_device) : m_pci_device(pci_device) {}
+		BAN::ErrorOr<void> initialize();
 
 		static void interrupt_handler();
 
@@ -40,11 +43,12 @@ namespace Kernel
 		void initialize_tx();
 
 		void enable_link();
-		void enable_interrupts();
-		
+		BAN::ErrorOr<void> enable_interrupts();
+
 		void handle_receive();
 
 	private:
+		PCI::Device&			m_pci_device;
 		BAN::UniqPtr<PCI::BarRegion> m_bar_region;
 		bool					m_has_eerprom { false };
 		uint8_t					m_mac_address[6] {};

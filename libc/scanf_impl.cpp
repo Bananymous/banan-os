@@ -30,7 +30,7 @@ struct Conversion
 	int				field_width	= -1;
 	bool			allocate	= false;
 	LengthModifier	length		= LengthModifier::none;
-	char			conversion	= '\0'; 
+	char			conversion	= '\0';
 };
 
 Conversion parse_conversion_specifier(const char*& format)
@@ -380,7 +380,7 @@ int scanf_impl(const char* format, va_list arguments, int (*__getc_fun)(void*), 
 
 				return ConversionResult::SUCCESS;
 			}
-			
+
 			if (tolower(in) == 'n')
 			{
 				get_input(true);

@@ -77,7 +77,7 @@ namespace LibELF
 			return BAN::Error::from_errno(EINVAL);
 		}
 
-		if (m_data[EI_MAG0] != ELFMAG0 || 
+		if (m_data[EI_MAG0] != ELFMAG0 ||
 			m_data[EI_MAG1] != ELFMAG1 ||
 			m_data[EI_MAG2] != ELFMAG2 ||
 			m_data[EI_MAG3] != ELFMAG3)
@@ -252,7 +252,7 @@ namespace LibELF
 				break;
 			default:
 				ASSERT(false);
-		}	
+		}
 #endif
 		(void)header;
 		return true;
@@ -375,7 +375,7 @@ namespace LibELF
 				break;
 			default:
 				ASSERT(false);
-		}	
+		}
 #endif
 		(void)header;
 		return true;

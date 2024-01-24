@@ -36,7 +36,7 @@ namespace Kernel
 				const auto& mmap_tag = *reinterpret_cast<const multiboot2_mmap_tag_t*>(tag);
 
 				const size_t entry_count = (mmap_tag.size - sizeof(multiboot2_mmap_tag_t)) / mmap_tag.entry_size;
-				
+
 				MUST(g_boot_info.memory_map_entries.resize(entry_count));
 
 				for (size_t i = 0; i < entry_count; i++)
@@ -105,7 +105,7 @@ namespace Kernel
 			return true;
 		if (magic == BANAN_BOOTLOADER_MAGIC)
 			return true;
-		return false;	
+		return false;
 	}
 
 	void parse_boot_info(uint32_t magic, uint32_t info)

@@ -192,7 +192,7 @@ namespace BAN::Formatter
 
 			if (sign)
 				*(--ptr) = '-';
-			
+
 			print(putc, ptr);
 		}
 
@@ -205,10 +205,10 @@ namespace BAN::Formatter
 				frac_part = -frac_part;
 
 			print_integer(putc, int_part, format);
-			
+
 			if (format.percision > 0)
 				putc('.');
-			
+
 			for (int i = 0; i < format.percision; i++)
 			{
 				frac_part *= format.base;

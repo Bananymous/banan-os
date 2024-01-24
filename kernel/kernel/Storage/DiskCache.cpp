@@ -79,7 +79,7 @@ namespace Kernel
 				continue;
 			if (cache.first_sector > page_cache_start)
 				break;
-			
+
 			{
 				CriticalScope _;
 				PageTable::map_fast_page(cache.paddr);

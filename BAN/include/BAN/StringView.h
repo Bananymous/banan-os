@@ -44,7 +44,7 @@ namespace BAN
 
 		bool empty() const;
 		size_type size() const;
-		
+
 		const char* data() const;
 
 	private:

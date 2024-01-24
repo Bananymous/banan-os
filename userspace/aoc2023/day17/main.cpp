@@ -52,7 +52,7 @@ BAN::Vector<BAN::Vector<i64>> parse_grid(FILE* fp)
 		line = line.substring(0, line.size() - 1);
 		if (line.empty())
 			break;
-		
+
 		MUST(grid.emplace_back(line.size()));
 		for (size_t i = 0; i < line.size(); i++)
 			grid.back()[i] = line[i] - '0';
@@ -95,7 +95,7 @@ i64 solve_general(FILE* fp)
 	BAN::HashSet<Position> visited;
 	BAN::HashSet<Position> pending;
 	MUST(pending.insert({ 0, 0 }));
-	
+
 	while (!pending.empty())
 	{
 		auto position = *pending.begin();
@@ -175,7 +175,7 @@ i64 puzzle1(FILE* fp)
 
 i64 puzzle2(FILE* fp)
 {
-	return solve_general<4, 10>(fp);	
+	return solve_general<4, 10>(fp);
 }
 
 int main(int argc, char** argv)

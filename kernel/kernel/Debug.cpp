@@ -101,7 +101,7 @@ namespace Debug
 
 			if (row >= g_terminal_driver->height())
 				row = 0;
-			
+
 			if (row != row_copy)
 			{
 				for (uint32_t i = col; i < g_terminal_driver->width(); i++)

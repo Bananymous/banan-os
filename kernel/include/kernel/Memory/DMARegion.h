@@ -4,7 +4,7 @@
 
 namespace Kernel
 {
-	
+
 	class DMARegion
 	{
 	public:

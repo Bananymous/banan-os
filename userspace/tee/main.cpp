@@ -32,7 +32,7 @@ int main(int argc, char** argv)
 			perror(argv[i]);
 		else
 			file_count++;
-		
+
 		if (file_count >= MAX_FILES)
 		{
 			fprintf(stderr, "only up to %d files are supported\n", MAX_FILES);
@@ -54,7 +54,7 @@ int main(int argc, char** argv)
 	}
 	free(buffer);
 
-	if (ferror(stdin)) 
+	if (ferror(stdin))
 		perror("stdin");
 
 	for (size_t i = 0; i < file_count; i++)

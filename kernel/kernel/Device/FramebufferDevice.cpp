@@ -97,7 +97,7 @@ namespace Kernel
 
 		if ((size_t)offset >= m_width * m_height * (BANAN_FB_BPP / 8))
 			return 0;
-		
+
 		size_t bytes_to_copy = BAN::Math::min<size_t>(m_width * m_height * (BANAN_FB_BPP / 8) - offset, buffer.size());
 		memcpy(buffer.data(), reinterpret_cast<void*>(m_video_buffer->vaddr() + offset), bytes_to_copy);
 
@@ -110,7 +110,7 @@ namespace Kernel
 			return BAN::Error::from_errno(EINVAL);
 		if ((size_t)offset >= m_width * m_height * (BANAN_FB_BPP / 8))
 			return 0;
-		
+
 		size_t bytes_to_copy = BAN::Math::min<size_t>(m_width * m_height * (BANAN_FB_BPP / 8) - offset, buffer.size());
 		memcpy(reinterpret_cast<void*>(m_video_buffer->vaddr() + offset), buffer.data(), bytes_to_copy);
 
@@ -252,7 +252,7 @@ namespace Kernel
 			vaddr &= PAGE_ADDR_MASK;
 			if (m_page_table.physical_address_of(vaddr))
 				return false;
-			
+
 			paddr_t paddr = PageTable::kernel().physical_address_of(m_framebuffer->m_video_buffer->vaddr() + (vaddr - m_vaddr));
 			m_page_table.map_page_at(paddr, vaddr, m_flags);
 

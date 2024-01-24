@@ -24,7 +24,7 @@ typedef struct {
 } fd_set;
 
 #define FD_CLR(fd, setp) \
-	do { \ 
+	do { \
 		__fd_mask off = (fd) / __FD_MASK_SIZE; \
 		__fd_mask bit = (fd) % __FD_MASK_SIZE; \
 		(setp)->__bits[off] &= ~((__fd_mask)1 << bit); \
@@ -38,7 +38,7 @@ typedef struct {
 	})
 
 #define FD_SET(fd, setp) \
-	do { \ 
+	do { \
 		__fd_mask off = (fd) / __FD_MASK_SIZE; \
 		__fd_mask bit = (fd) % __FD_MASK_SIZE; \
 		(setp)->__bits[off] |= ((__fd_mask)1 << bit); \

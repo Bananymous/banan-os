@@ -19,7 +19,7 @@ namespace Kernel
 	{
 	public:
 		using flags_t = uint16_t;
-		enum Flags : flags_t 
+		enum Flags : flags_t
 		{
 			Present			= (1 << 0),
 			ReadWrite		= (1 << 1),
@@ -107,7 +107,7 @@ namespace Kernel
 		uint64_t get_page_data(vaddr_t) const;
 		void initialize_kernel();
 		void map_kernel_memory();
-		void prepare_fast_page();		
+		void prepare_fast_page();
 		static void invalidate(vaddr_t);
 
 	private:

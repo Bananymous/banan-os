@@ -26,7 +26,7 @@ static BAN::String hostname;
 static void clean_exit()
 {
 	tcsetattr(0, TCSANOW, &old_termios);
-	exit(0);	
+	exit(0);
 }
 
 BAN::Vector<BAN::Vector<BAN::String>> parse_command(BAN::StringView);
@@ -42,7 +42,7 @@ BAN::Optional<BAN::String> parse_dollar(BAN::StringView command, size_t& i)
 	{
 		i++;
 		return BAN::String::formatted("{}", last_return);
-	}	
+	}
 	if (isalnum(command[i]))
 	{
 		size_t len = 1;
@@ -436,7 +436,7 @@ BAN::Optional<int> execute_builtin(BAN::Vector<BAN::String>& args, int fd_in, in
 
 		if (clock_gettime(CLOCK_MONOTONIC, &end) == -1)
 			ERROR_RETURN("clock_gettime", 1);
-		
+
 		uint64_t total_ns = 0;
 		total_ns += (end.tv_sec - start.tv_sec) * 1'000'000'000;
 		total_ns += end.tv_nsec - start.tv_nsec;
@@ -683,9 +683,9 @@ int source_script(const BAN::String& path)
 		MUST(command.append(temp_buffer));
 		if (command.back() != '\n')
 			continue;
-			
+
 		command.pop_back();
-		
+
 		if (!command.empty())
 			if (int temp = parse_and_execute_command(command))
 				ret = temp;
@@ -769,7 +769,7 @@ BAN::String get_prompt()
 				char buffer[256];
 				if (getcwd(buffer, sizeof(buffer)) == nullptr)
 					strcpy(buffer, strerrorname_np(errno));
-				
+
 				const char* home = getenv("HOME");
 				size_t home_len = home ? strlen(home) : 0;
 				if (home && strncmp(buffer, home, home_len) == 0)
@@ -817,7 +817,7 @@ BAN::String get_prompt()
 		{
 			MUST(prompt.push_back(ch));
 		}
-	}	
+	}
 
 	return prompt;
 }
@@ -883,7 +883,7 @@ int main(int argc, char** argv)
 
 	if (argc >= 1)
 		setenv("SHELL", argv[0], true);
-	
+
 	source_shellrc();
 
 	new_termios = old_termios;
@@ -940,7 +940,7 @@ int main(int argc, char** argv)
 				waiting_utf8 = 3;
 			else
 				ASSERT_NOT_REACHED();
-			
+
 			fputc(ch, stdout);
 			MUST(buffers[index].insert(ch, col++));
 			continue;

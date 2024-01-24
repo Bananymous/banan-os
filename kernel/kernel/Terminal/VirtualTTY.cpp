@@ -86,7 +86,7 @@ namespace Kernel
 			m_width = new_width;
 			m_height = new_height;
 		}
-		
+
 		for (uint32_t y = 0; y < m_height; y++)
 			for (uint32_t x = 0; x < m_width; x++)
 				render_from_buffer(x, y);
@@ -230,7 +230,7 @@ namespace Kernel
 				{
 					dprintln("Unsupported ANSI CSI character J");
 				}
-				
+
 				if (m_ansi_state.nums[0] == 3)
 				{
 					// FIXME: Clear scroll backbuffer if/when added
@@ -307,7 +307,7 @@ namespace Kernel
 	void VirtualTTY::putchar_impl(uint8_t ch)
 	{
 		ASSERT(m_lock.is_locked());
-		
+
 		uint32_t codepoint = ch;
 
 		switch (m_state)

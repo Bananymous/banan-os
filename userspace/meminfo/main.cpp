@@ -73,7 +73,7 @@ int main()
 		{
 			strcpy(path_buffer, proc_ent->d_name);
 			strcat(path_buffer, "/meminfo");
-		
+
 			int fd = openat(dirfd(proc), path_buffer, O_RDONLY);
 			if (fd == -1)
 			{

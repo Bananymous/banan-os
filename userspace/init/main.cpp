@@ -106,9 +106,9 @@ int main()
 
 			exit(1);
 		}
-		
+
 		endpwent();
-		
+
 		if (pid == -1)
 		{
 			perror("fork");
