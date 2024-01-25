@@ -94,9 +94,17 @@ namespace BAN
 	{
 		template<typename T, bool = is_arithmetic_v<T>> struct is_signed { static constexpr bool value = T(-1) < T(0); };
 		template<typename T> struct is_signed<T, false> : false_type {};
+
+		template<typename T, bool = is_arithmetic_v<T>> struct is_unsigned { static constexpr bool value = T(0) < T(-1); };
+		template<typename T> struct is_unsigned<T, false> : false_type {};
 	}
 	template<typename T> struct is_signed : detail::is_signed<T> {};
 	template<typename T> inline constexpr bool is_signed_v = is_signed<T>::value;
+	template<typename T> concept signed_integral = is_signed_v<T> && is_integral_v<T>;
+
+	template<typename T> struct is_unsigned : detail::is_unsigned<T> {};
+	template<typename T> inline constexpr bool is_unsigned_v = is_unsigned<T>::value;
+	template<typename T> concept unsigned_integral = is_unsigned_v<T> && is_integral_v<T>;
 
 	template<typename T> struct less	{ constexpr bool operator()(const T& lhs, const T& rhs) const { return lhs < rhs; } };
 	template<typename T> struct equal	{ constexpr bool operator()(const T& lhs, const T& rhs) const { return lhs == rhs; } };
