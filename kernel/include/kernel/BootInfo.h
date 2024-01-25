@@ -3,6 +3,7 @@
 #include <BAN/String.h>
 #include <BAN/StringView.h>
 #include <BAN/Vector.h>
+#include <kernel/RSDP.h>
 
 namespace Kernel
 {
@@ -34,7 +35,8 @@ namespace Kernel
 	struct BootInfo
 	{
 		BAN::String					command_line;
-		FramebufferInfo				framebuffer;
+		FramebufferInfo				framebuffer			{};
+		RSDP						rsdp				{};
 		BAN::Vector<MemoryMapEntry>	memory_map_entries;
 	};
 

@@ -7,7 +7,7 @@ namespace Kernel
 
 	BootInfo g_boot_info;
 
-	void parse_boot_info_multiboot2(uint32_t info)
+	static void parse_boot_info_multiboot2(uint32_t info)
 	{
 		const auto& multiboot2_info = *reinterpret_cast<const multiboot2_info_t*>(info);
 
@@ -15,12 +15,12 @@ namespace Kernel
 		{
 			if (tag->type == MULTIBOOT2_TAG_CMDLINE)
 			{
-				const auto& command_line_tag = *reinterpret_cast<const multiboot2_cmdline_tag_t*>(tag);
+				const auto& command_line_tag = *static_cast<const multiboot2_cmdline_tag_t*>(tag);
 				MUST(g_boot_info.command_line.append(command_line_tag.cmdline));
 			}
 			else if (tag->type == MULTIBOOT2_TAG_FRAMEBUFFER)
 			{
-				const auto& framebuffer_tag = *reinterpret_cast<const multiboot2_framebuffer_tag_t*>(tag);
+				const auto& framebuffer_tag = *static_cast<const multiboot2_framebuffer_tag_t*>(tag);
 				g_boot_info.framebuffer.address	= framebuffer_tag.framebuffer_addr;
 				g_boot_info.framebuffer.pitch	= framebuffer_tag.framebuffer_pitch;
 				g_boot_info.framebuffer.width	= framebuffer_tag.framebuffer_width;
@@ -33,7 +33,7 @@ namespace Kernel
 			}
 			else if (tag->type == MULTIBOOT2_TAG_MMAP)
 			{
-				const auto& mmap_tag = *reinterpret_cast<const multiboot2_mmap_tag_t*>(tag);
+				const auto& mmap_tag = *static_cast<const multiboot2_mmap_tag_t*>(tag);
 
 				const size_t entry_count = (mmap_tag.size - sizeof(multiboot2_mmap_tag_t)) / mmap_tag.entry_size;
 
@@ -52,19 +52,32 @@ namespace Kernel
 					g_boot_info.memory_map_entries[i].type		= mmap_entry.type;
 				}
 			}
+			else if (tag->type == MULTIBOOT2_TAG_OLD_RSDP)
+			{
+				if (g_boot_info.rsdp.length == 0)
+				{
+					memcpy(&g_boot_info.rsdp, static_cast<const multiboot2_rsdp_tag_t*>(tag)->data, 20);
+					g_boot_info.rsdp.length = 20;
+				}
+			}
+			else if (tag->type == MULTIBOOT2_TAG_NEW_RSDP)
+			{
+				const auto& rsdp = *reinterpret_cast<const RSDP*>(static_cast<const multiboot2_rsdp_tag_t*>(tag)->data);
+				memcpy(&g_boot_info.rsdp, &rsdp, BAN::Math::min<uint32_t>(rsdp.length, sizeof(g_boot_info.rsdp)));
+			}
 		}
 	}
 
-	BAN::StringView get_early_boot_command_line_multiboot2(uint32_t info)
+	static BAN::StringView get_early_boot_command_line_multiboot2(uint32_t info)
 	{
 		const auto& multiboot2_info = *reinterpret_cast<const multiboot2_info_t*>(info);
 		for (const auto* tag = multiboot2_info.tags; tag->type != MULTIBOOT2_TAG_END; tag = tag->next())
 			if (tag->type == MULTIBOOT2_TAG_CMDLINE)
-				return reinterpret_cast<const multiboot2_cmdline_tag_t*>(tag)->cmdline;
+				return static_cast<const multiboot2_cmdline_tag_t*>(tag)->cmdline;
 		return {};
 	}
 
-	void parse_boot_info_banan_bootloader(uint32_t info)
+	static void parse_boot_info_banan_bootloader(uint32_t info)
 	{
 		const auto& banan_bootloader_info = *reinterpret_cast<const BananBootloaderInfo*>(info);
 
@@ -93,7 +106,7 @@ namespace Kernel
 		}
 	}
 
-	BAN::StringView get_early_boot_command_line_banan_bootloader(uint32_t info)
+	static BAN::StringView get_early_boot_command_line_banan_bootloader(uint32_t info)
 	{
 		const auto& banan_bootloader_info = *reinterpret_cast<const BananBootloaderInfo*>(info);
 		return reinterpret_cast<const char*>(banan_bootloader_info.command_line_addr);

@@ -1,6 +1,7 @@
 #include <BAN/ScopeGuard.h>
 #include <BAN/StringView.h>
 #include <kernel/ACPI.h>
+#include <kernel/BootInfo.h>
 #include <kernel/Memory/PageTable.h>
 
 #include <lai/core.h>
@@ -10,21 +11,6 @@
 
 namespace Kernel
 {
-
-	struct RSDP
-	{
-		uint8_t signature[8];
-		uint8_t checksum;
-		uint8_t oemid[6];
-		uint8_t revision;
-		uint32_t rsdt_address;
-
-		// only in revision >= 2
-		uint32_t length;
-		uint64_t xsdt_address;
-		uint8_t extended_checksum;
-		uint8_t reserved[3];
-	};
 
 	struct RSDT : public ACPI::SDTHeader
 	{
@@ -84,19 +70,13 @@ namespace Kernel
 
 	static const RSDP* locate_rsdp()
 	{
-		// FIXME: add this back
-#if 0
-		// Check the multiboot headers
-		if (auto* rsdp_new = (multiboot2_rsdp_tag_t*)multiboot2_find_tag(MULTIBOOT2_TAG_NEW_RSDP))
-			return (const RSDP*)rsdp_new->data;
-		if (auto* rsdp_old = (multiboot2_rsdp_tag_t*)multiboot2_find_tag(MULTIBOOT2_TAG_OLD_RSDP))
-			return (const RSDP*)rsdp_old->data;
-#endif
+		if (g_boot_info.rsdp.length)
+			return &g_boot_info.rsdp;
 
 		// Look in main BIOS area below 1 MB
 		for (uintptr_t addr = P2V(0x000E0000); addr < P2V(0x000FFFFF); addr += 16)
 			if (is_rsdp(addr))
-				return (const RSDP*)addr;
+				return reinterpret_cast<const RSDP*>(addr);
 		return nullptr;
 	}
 
