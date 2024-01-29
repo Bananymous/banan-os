@@ -122,6 +122,8 @@ namespace Kernel
 
 		DevFileSystem::get().add_device(this);
 
+		StorageController::ref();
+
 		return {};
 	}
 
