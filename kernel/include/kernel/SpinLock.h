@@ -1,5 +1,6 @@
 #pragma once
 
+#include <BAN/Atomic.h>
 #include <BAN/NoCopyMove.h>
 
 #include <sys/types.h>
@@ -19,7 +20,7 @@ namespace Kernel
 		bool is_locked() const;
 
 	private:
-		volatile pid_t m_locker = -1;
+		BAN::Atomic<pid_t> m_locker = -1;
 	};
 
 	class RecursiveSpinLock
@@ -34,8 +35,8 @@ namespace Kernel
 		bool is_locked() const;
 
 	private:
-		pid_t m_locker = -1;
-		uint32_t m_lock_depth = 0;
+		BAN::Atomic<pid_t> m_locker = -1;
+		BAN::Atomic<uint32_t> m_lock_depth = 0;
 		SpinLock m_lock;
 	};
 

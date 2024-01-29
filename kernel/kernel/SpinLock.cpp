@@ -1,6 +1,5 @@
 #include <kernel/Scheduler.h>
 #include <kernel/SpinLock.h>
-#include <kernel/CriticalScope.h>
 
 namespace Kernel
 {
@@ -8,31 +7,18 @@ namespace Kernel
 	void SpinLock::lock()
 	{
 		pid_t tid = Scheduler::current_tid();
-		while (true)
-		{
-			{
-				CriticalScope _;
-				ASSERT(m_locker != tid);
-				if (m_locker == -1)
-				{
-					m_locker = tid;
-					break;
-				}
-			}
+		while (!m_locker.compare_exchange(-1, tid))
 			Scheduler::get().reschedule();
-		}
 	}
 
 	void SpinLock::unlock()
 	{
-		CriticalScope _;
 		ASSERT(m_locker == Scheduler::current_tid());
 		m_locker = -1;
 	}
 
 	bool SpinLock::is_locked() const
 	{
-		CriticalScope _;
 		return m_locker != -1;
 	}
 
