@@ -35,6 +35,8 @@ namespace BAN
 		inline T operator--(int) volatile { return __atomic_fetch_sub(&m_value, 1, MEM_ORDER); }
 		inline T operator++(int) volatile { return __atomic_fetch_add(&m_value, 1, MEM_ORDER); }
 
+		inline bool compare_exchange(T expected, T desired) volatile { return __atomic_compare_exchange_n(&m_value, &expected, desired, false, MEM_ORDER, MEM_ORDER); }
+
 	private:
 		T m_value;
 	};
