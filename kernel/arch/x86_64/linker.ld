@@ -19,11 +19,11 @@ SECTIONS
 		g_userspace_start = .;
 		*(.userspace)
 		g_userspace_end = .;
+		g_kernel_execute_end = .;
 	}
 	.rodata ALIGN(4K) : AT(ADDR(.rodata) - KERNEL_OFFSET)
 	{
 		*(.rodata.*)
-		g_kernel_execute_end = .;
 	}
 	.data ALIGN(4K) : AT(ADDR(.data) - KERNEL_OFFSET)
 	{
