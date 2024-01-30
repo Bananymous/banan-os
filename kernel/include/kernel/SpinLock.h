@@ -35,9 +35,8 @@ namespace Kernel
 		bool is_locked() const;
 
 	private:
-		BAN::Atomic<pid_t> m_locker = -1;
-		BAN::Atomic<uint32_t> m_lock_depth = 0;
-		SpinLock m_lock;
+		BAN::Atomic<pid_t>		m_locker		= -1;
+		BAN::Atomic<uint32_t>	m_lock_depth	= 0;
 	};
 
 	class RecursivePrioritySpinLock
@@ -54,10 +53,9 @@ namespace Kernel
 		uint32_t lock_depth() const { return m_lock_depth; }
 
 	private:
-		pid_t m_locker = -1;
-		uint32_t m_queue_length = 0;
-		uint32_t m_lock_depth = 0;
-		SpinLock m_lock;
+		BAN::Atomic<pid_t>		m_locker		= -1;
+		BAN::Atomic<uint32_t>	m_lock_depth	= 0;
+		BAN::Atomic<uint32_t>	m_queue_length	= 0;
 	};
 
 }
