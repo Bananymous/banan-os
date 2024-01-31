@@ -2,7 +2,7 @@
 
 #include <BAN/Errors.h>
 #include <BAN/Move.h>
-#include <BAN/New.h>
+#include <BAN/PlacementNew.h>
 
 namespace BAN
 {

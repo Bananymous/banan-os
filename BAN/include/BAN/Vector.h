@@ -5,6 +5,7 @@
 #include <BAN/Math.h>
 #include <BAN/Move.h>
 #include <BAN/New.h>
+#include <BAN/PlacementNew.h>
 #include <BAN/Span.h>
 
 namespace BAN
