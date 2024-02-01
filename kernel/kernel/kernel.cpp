@@ -15,6 +15,7 @@
 #include <kernel/Memory/Heap.h>
 #include <kernel/Memory/kmalloc.h>
 #include <kernel/Memory/PageTable.h>
+#include <kernel/Networking/NetworkManager.h>
 #include <kernel/PCI.h>
 #include <kernel/PIC.h>
 #include <kernel/Process.h>
@@ -186,6 +187,8 @@ static void init2(void*)
 	MUST(Input::KeyboardLayout::initialize());
 	if (auto res = PS2Controller::initialize(); res.is_error())
 		dprintln("{}", res.error());
+
+	MUST(NetworkManager::initialize());
 
 	// NOTE: PCI devices are the last ones to be initialized
 	//       so other devices can reserve predefined interrupts

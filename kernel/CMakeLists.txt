@@ -52,6 +52,9 @@ set(KERNEL_SOURCES
 	kernel/Networking/E1000/E1000.cpp
 	kernel/Networking/E1000/E1000E.cpp
 	kernel/Networking/NetworkInterface.cpp
+	kernel/Networking/NetworkManager.cpp
+	kernel/Networking/NetworkSocket.cpp
+	kernel/Networking/UDPSocket.cpp
 	kernel/OpenFileDescriptorSet.cpp
 	kernel/Panic.cpp
 	kernel/PCI.cpp

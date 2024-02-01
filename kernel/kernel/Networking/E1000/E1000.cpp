@@ -1,4 +1,3 @@
-#include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/IDT.h>
 #include <kernel/InterruptController.h>
 #include <kernel/IO.h>
@@ -96,8 +95,6 @@ namespace Kernel
 			dprintln("  link speed: {} Mbps", speed);
 		}
 #endif
-
-		DevFileSystem::get().add_device(this);
 
 		return {};
 	}
