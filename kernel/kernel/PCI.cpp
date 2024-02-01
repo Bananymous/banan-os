@@ -2,7 +2,8 @@
 #include <kernel/IO.h>
 #include <kernel/Memory/PageTable.h>
 #include <kernel/MMIO.h>
-#include <kernel/Networking/E1000.h>
+#include <kernel/Networking/E1000/E1000.h>
+#include <kernel/Networking/E1000/E1000E.h>
 #include <kernel/PCI.h>
 #include <kernel/Storage/ATA/AHCI/Controller.h>
 #include <kernel/Storage/ATA/ATAController.h>
@@ -187,11 +188,22 @@ namespace Kernel::PCI
 					{
 						case 0x00:
 							if (E1000::probe(pci_device))
+							{
 								if (auto res = E1000::create(pci_device); res.is_error())
 									dprintln("E1000: {}", res.error());
-							break;
+								break;
+							}
+							if (E1000E::probe(pci_device))
+							{
+								if (auto res = E1000E::create(pci_device); res.is_error())
+									dprintln("E1000E: {}", res.error());
+								break;
+							}
+							// fall through
 						default:
-							dprintln("unsupported ethernet device (pci {2H}.{2H}.{2H})", pci_device.class_code(), pci_device.subclass(), pci_device.prog_if());
+							dprintln("unsupported network controller (pci {2H}.{2H}.{2H})", pci_device.class_code(), pci_device.subclass(), pci_device.prog_if());
+							dprintln("  vendor id: {4H}", pci_device.vendor_id());
+							dprintln("  device id: {4H}", pci_device.device_id());
 							break;
 					}
 					break;
