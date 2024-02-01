@@ -42,6 +42,8 @@ namespace BAN
 		iterator remove(iterator);
 		void clear();
 
+		iterator move_element_to_other_linked_list(LinkedList& dest_list, iterator dest_iter, iterator src_iter);
+
 		iterator begin()				{ return iterator(m_data, empty()); }
 		const_iterator begin() const	{ return const_iterator(m_data, empty()); }
 		iterator end()					{ return iterator(m_last, true); }
@@ -65,7 +67,11 @@ namespace BAN
 			Node* prev;
 		};
 
-		ErrorOr<Node*> allocate_node() const;
+		template<typename... Args>
+		ErrorOr<Node*> allocate_node(Args&&...) const;
+
+		Node* remove_node(iterator);
+		void insert_node(iterator, Node*);
 
 		Node* m_data = nullptr;
 		Node* m_last = nullptr;
@@ -138,6 +144,31 @@ namespace BAN
 	}
 
 	template<typename T>
+	LinkedList<T>::Node* LinkedList<T>::remove_node(iterator iter)
+	{
+		ASSERT(!empty() && iter);
+		Node* node = iter.m_current;
+		Node* prev = node->prev;
+		Node* next = node->next;
+		(prev ? prev->next : m_data) = next;
+		(next ? next->prev : m_last) = prev;
+		m_size--;
+		return node;
+	}
+
+	template<typename T>
+	void LinkedList<T>::insert_node(iterator iter, Node* node)
+	{
+		Node* next = iter.m_past_end ? nullptr : iter.m_current;
+		Node* prev = next ? next->prev : m_last;
+		node->next = next;
+		node->prev = prev;
+		(prev ? prev->next : m_data) = node;
+		(next ? next->prev : m_last) = node;
+		m_size++;
+	}
+
+	template<typename T>
 	ErrorOr<void> LinkedList<T>::push_back(const T& value)
 	{
 		return push_back(move(T(value)));
@@ -158,15 +189,8 @@ namespace BAN
 	template<typename T>
 	ErrorOr<void> LinkedList<T>::insert(iterator iter, T&& value)
 	{
-		Node* next = iter.m_past_end ? nullptr : iter.m_current;
-		Node* prev = next ? next->prev : m_last;
-		Node* new_node = TRY(allocate_node());
-		new (&new_node->value) T(move(value));
-		new_node->next = next;
-		new_node->prev = prev;
-		(prev ? prev->next : m_data) = new_node;
-		(next ? next->prev : m_last) = new_node;
-		m_size++;
+		Node* new_node = TRY(allocate_node(move(value)));
+		insert_node(iter, new_node);
 		return {};
 	}
 
@@ -181,21 +205,15 @@ namespace BAN
 	template<typename... Args>
 	ErrorOr<void> LinkedList<T>::emplace(iterator iter, Args&&... args)
 	{
-		Node* next = iter.m_past_end ? nullptr : iter.m_current;
-		Node* prev = next ? next->prev : m_last;
-		Node* new_node = TRY(allocate_node());
-		new (&new_node->value) T(forward<Args>(args)...);
-		new_node->next = next;
-		new_node->prev = prev;
-		(prev ? prev->next : m_data) = new_node;
-		(next ? next->prev : m_last) = new_node;
-		m_size++;
+		Node* new_node = TRY(allocate_node(forward<Args>(args)...));
+		insert_node(iter, new_node);
 		return {};
 	}
 
 	template<typename T>
 	void LinkedList<T>::pop_back()
 	{
+		ASSERT(!empty());
 		remove(iterator(m_last, false));
 	}
 
@@ -203,14 +221,10 @@ namespace BAN
 	LinkedList<T>::iterator LinkedList<T>::remove(iterator iter)
 	{
 		ASSERT(!empty() && iter);
-		Node* node = iter.m_current;
-		Node* prev = node->prev;
+		Node* node = remove_node(iter);
 		Node* next = node->next;
 		node->value.~T();
 		BAN::deallocator(node);
-		(prev ? prev->next : m_data) = next;
-		(next ? next->prev : m_last) = prev;
-		m_size--;
 		return next ? iterator(next, false) : iterator(m_last, true);
 	}
 
@@ -228,6 +242,16 @@ namespace BAN
 		m_data = nullptr;
 		m_last = nullptr;
 		m_size = 0;
+	}
+
+	template<typename T>
+	LinkedList<T>::iterator LinkedList<T>::move_element_to_other_linked_list(LinkedList& dest_list, iterator dest_iter, iterator src_iter)
+	{
+		ASSERT(!empty() && src_iter);
+		Node* node = remove_node(src_iter);
+		iterator ret = node->next ? iterator(node->next, false) : iterator(m_last, true);
+		dest_list.insert_node(dest_iter, node);
+		return ret;
 	}
 
 	template<typename T>
@@ -284,11 +308,13 @@ namespace BAN
 	}
 
 	template<typename T>
-	ErrorOr<typename LinkedList<T>::Node*> LinkedList<T>::allocate_node() const
+	template<typename... Args>
+	ErrorOr<typename LinkedList<T>::Node*> LinkedList<T>::allocate_node(Args&&... args) const
 	{
 		Node* node = (Node*)BAN::allocator(sizeof(Node));
 		if (node == nullptr)
 			return Error::from_errno(ENOMEM);
+		new (&node->value) T(forward<Args>(args)...);
 		return node;
 	}
 
