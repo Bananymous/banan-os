@@ -5,7 +5,7 @@
 #include <kernel/InterruptController.h>
 #include <kernel/Process.h>
 #include <kernel/Scheduler.h>
-#include <kernel/Timer/PIT.h>
+#include <kernel/Timer/Timer.h>
 
 #define SCHEDULER_VERIFY_STACK 1
 #define SCHEDULER_VERIFY_INTERRUPT_STATE 1
@@ -116,12 +116,11 @@ namespace Kernel
 		uint64_t current_time = SystemTimer::get().ms_since_boot();
 		while (!m_sleeping_threads.empty() && m_sleeping_threads.front().wake_time <= current_time)
 		{
-			Thread* thread = m_sleeping_threads.front().thread;
-			m_sleeping_threads.remove(m_sleeping_threads.begin());
-
-			// This should work as we released enough memory from sleeping thread
-			static_assert(sizeof(ActiveThread) == sizeof(SleepingThread));
-			MUST(m_active_threads.emplace_back(thread));
+			m_sleeping_threads.move_element_to_other_linked_list(
+				m_active_threads,
+				m_active_threads.end(),
+				m_sleeping_threads.begin()
+			);
 		}
 	}
 
@@ -286,23 +285,26 @@ namespace Kernel
 
 		ASSERT(m_current_thread);
 
-		Thread* sleeping = m_current_thread->thread;
-
 		if (save_current_thread())
 		{
 			ENABLE_INTERRUPTS();
 			return;
 		}
-		remove_and_advance_current_thread();
 
 		auto it = m_sleeping_threads.begin();
 		for (; it != m_sleeping_threads.end(); it++)
 			if (wake_time <= it->wake_time)
 				break;
 
-		// This should work as we released enough memory from active thread
-		static_assert(sizeof(ActiveThread) == sizeof(SleepingThread));
-		MUST(m_sleeping_threads.emplace(it, sleeping, wake_time));
+		m_current_thread->wake_time = wake_time;
+		m_active_threads.move_element_to_other_linked_list(
+			m_sleeping_threads,
+			it,
+			m_current_thread
+		);
+
+		m_current_thread = {};
+		advance_current_thread();
 
 		execute_current_thread();
 		ASSERT_NOT_REACHED();
@@ -315,18 +317,21 @@ namespace Kernel
 
 		ASSERT(m_current_thread);
 
-		Thread* blocking = m_current_thread->thread;
-
 		if (save_current_thread())
 		{
 			ENABLE_INTERRUPTS();
 			return;
 		}
-		remove_and_advance_current_thread();
 
-		// This should work as we released enough memory from active thread
-		static_assert(sizeof(ActiveThread) == sizeof(BlockingThread));
-		MUST(m_blocking_threads.emplace_back(blocking, semaphore));
+		m_current_thread->semaphore = semaphore;
+		m_active_threads.move_element_to_other_linked_list(
+			m_blocking_threads,
+			m_blocking_threads.end(),
+			m_current_thread
+		);
+
+		m_current_thread = {};
+		advance_current_thread();
 
 		execute_current_thread();
 		ASSERT_NOT_REACHED();
@@ -340,12 +345,11 @@ namespace Kernel
 		{
 			if (it->semaphore == semaphore)
 			{
-				auto thread = it->thread;
-				it = m_blocking_threads.remove(it);
-
-				// This should work as we released enough memory from active thread
-				static_assert(sizeof(ActiveThread) == sizeof(BlockingThread));
-				MUST(m_active_threads.emplace_back(thread));
+				it = m_blocking_threads.move_element_to_other_linked_list(
+					m_active_threads,
+					m_active_threads.end(),
+					it
+				);
 			}
 			else
 			{
@@ -362,13 +366,11 @@ namespace Kernel
 		{
 			if (it->thread->tid() == tid)
 			{
-				Thread* thread = it->thread;
-				m_blocking_threads.remove(it);
-
-				// This should work as we released enough memory from active thread
-				static_assert(sizeof(ActiveThread) == sizeof(BlockingThread));
-				MUST(m_active_threads.emplace_back(thread));
-
+				m_blocking_threads.move_element_to_other_linked_list(
+					m_active_threads,
+					m_active_threads.end(),
+					it
+				);
 				return;
 			}
 		}
@@ -377,13 +379,11 @@ namespace Kernel
 		{
 			if (it->thread->tid() == tid)
 			{
-				Thread* thread = it->thread;
-				m_sleeping_threads.remove(it);
-
-				// This should work as we released enough memory from active thread
-				static_assert(sizeof(ActiveThread) == sizeof(BlockingThread));
-				MUST(m_active_threads.emplace_back(thread));
-
+				m_sleeping_threads.move_element_to_other_linked_list(
+					m_active_threads,
+					m_active_threads.end(),
+					it
+				);
 				return;
 			}
 		}

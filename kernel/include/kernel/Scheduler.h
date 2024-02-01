@@ -44,34 +44,26 @@ namespace Kernel
 		BAN::ErrorOr<void> add_thread(Thread*);
 
 	private:
-		struct ActiveThread
+		struct SchedulerThread
 		{
-			ActiveThread(Thread* thread) : thread(thread) {}
-			Thread* thread;
-			uint64_t padding;
-		};
+			SchedulerThread(Thread* thread)
+				: thread(thread)
+			{}
 
-		struct SleepingThread
-		{
-			SleepingThread(Thread* thread, uint64_t wake_time) : thread(thread), wake_time(wake_time) {}
 			Thread* thread;
-			uint64_t wake_time;
-		};
-
-		struct BlockingThread
-		{
-			BlockingThread(Thread* thread, Semaphore* semaphore) : thread(thread), semaphore(semaphore) {}
-			Thread* thread;
-			Semaphore* semaphore;
-			uint8_t padding[sizeof(uint64_t) - sizeof(Semaphore*)];
+			union
+			{
+				uint64_t	wake_time;
+				Semaphore*	semaphore;
+			};
 		};
 
 		Thread* m_idle_thread { nullptr };
-		BAN::LinkedList<ActiveThread> m_active_threads;
-		BAN::LinkedList<SleepingThread> m_sleeping_threads;
-		BAN::LinkedList<BlockingThread> m_blocking_threads;
+		BAN::LinkedList<SchedulerThread> m_active_threads;
+		BAN::LinkedList<SchedulerThread> m_sleeping_threads;
+		BAN::LinkedList<SchedulerThread> m_blocking_threads;
 
-		BAN::LinkedList<ActiveThread>::iterator m_current_thread;
+		BAN::LinkedList<SchedulerThread>::iterator m_current_thread;
 
 		friend class Process;
 	};
