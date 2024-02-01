@@ -1,8 +1,9 @@
 #pragma once
 
+#include <BAN/Math.h>
 #include <BAN/Swap.h>
 #include <BAN/Traits.h>
-#include <BAN/Math.h>
+#include <BAN/Vector.h>
 
 namespace BAN::sort
 {
@@ -173,6 +174,61 @@ namespace BAN::sort
 		if (len <= 1)
 			return;
 		detail::intro_sort_impl(begin, end, 2 * Math::ilog2(len), comp);
+	}
+
+	namespace detail
+	{
+
+		template<unsigned_integral T>
+		consteval T lsb_index(T value)
+		{
+			for (T result = 0;; result++)
+				if (value & (1 << result))
+					return result;
+		}
+
+	}
+
+	template<typename It, size_t radix = 256>
+	requires is_unsigned_v<typename It::value_type> && (radix > 0 && (radix & (radix - 1)) == 0)
+	BAN::ErrorOr<void> radix_sort(It begin, It end)
+	{
+		using value_type = typename It::value_type;
+
+		const size_t len = distance(begin, end);
+		if (len <= 1)
+			return {};
+
+		Vector<value_type> temp;
+		TRY(temp.resize(len));
+
+		Vector<size_t> counts;
+		TRY(counts.resize(radix));
+
+		constexpr size_t mask  = radix - 1;
+		constexpr size_t shift = detail::lsb_index(radix);
+
+		for (size_t s = 0; s < sizeof(value_type) * 8; s += shift)
+		{
+			for (auto& cnt : counts)
+				cnt = 0;
+			for (It it = begin; it != end; ++it)
+				counts[(*it >> s) & mask]++;
+
+			for (size_t i = 0; i < radix - 1; i++)
+				counts[i + 1] += counts[i];
+
+			for (It it = end; it != begin;)
+			{
+				--it;
+				temp[--counts[(*it >> s) & mask]] = *it;
+			}
+
+			for (size_t j = 0; j < temp.size(); j++)
+				*next(begin, j) = temp[j];
+		}
+
+		return {};
 	}
 
 	template<typename It, typename Comp = less<typename It::value_type>>
