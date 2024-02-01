@@ -13,11 +13,30 @@ namespace Kernel
 		)
 	{ }
 
-	void NetworkSocket::bind_interface(NetworkInterface* interface)
+	NetworkSocket::~NetworkSocket()
+	{
+	}
+
+	void NetworkSocket::on_close_impl()
+	{
+		if (m_interface)
+			NetworkManager::get().unbind_socket(m_port, this);
+	}
+
+	void NetworkSocket::bind_interface_and_port(NetworkInterface* interface, uint16_t port)
 	{
 		ASSERT(!m_interface);
 		ASSERT(interface);
 		m_interface = interface;
+		m_port = port;
+	}
+
+	BAN::ErrorOr<void> NetworkSocket::bind_impl(const sockaddr* address, socklen_t address_len)
+	{
+		if (address_len != sizeof(sockaddr_in))
+			return BAN::Error::from_errno(EINVAL);
+		auto* addr_in = reinterpret_cast<const sockaddr_in*>(address);
+		return NetworkManager::get().bind_socket(addr_in->sin_port, this);
 	}
 
 }

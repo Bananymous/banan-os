@@ -901,6 +901,20 @@ namespace Kernel
 		return TRY(m_open_file_descriptors.socket(domain, type, protocol));
 	}
 
+
+	BAN::ErrorOr<long> Process::sys_bind(int socket, const sockaddr* address, socklen_t address_len)
+	{
+		LockGuard _(m_lock);
+		TRY(validate_pointer_access(address, address_len));
+
+		auto inode = TRY(m_open_file_descriptors.inode_of(socket));
+		if (!inode->mode().ifsock())
+			return BAN::Error::from_errno(ENOTSOCK);
+
+		TRY(inode->bind(address, address_len));
+		return 0;
+	}
+
 	BAN::ErrorOr<long> Process::sys_pipe(int fildes[2])
 	{
 		LockGuard _(m_lock);

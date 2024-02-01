@@ -216,6 +216,9 @@ namespace Kernel
 		case SYS_SOCKET:
 			ret = Process::current().sys_socket((int)arg1, (int)arg2, (int)arg3);
 			break;
+		case SYS_BIND:
+			ret = Process::current().sys_bind((int)arg1, (const sockaddr*)arg2, (socklen_t)arg3);
+			break;
 		default:
 			dwarnln("Unknown syscall {}", syscall);
 			break;

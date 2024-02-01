@@ -35,6 +35,8 @@ namespace Kernel
 
 		const dev_t m_rdev;
 		char m_name[10];
+
+		uint32_t m_ipv4_address {};
 	};
 
 }

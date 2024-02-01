@@ -68,11 +68,39 @@ namespace Kernel
 
 	BAN::ErrorOr<BAN::RefPtr<NetworkSocket>> NetworkManager::create_socket(SocketType type, mode_t mode, uid_t uid, gid_t gid)
 	{
+		ASSERT((mode & Inode::Mode::TYPE_MASK) == 0);
+
 		if (type != SocketType::DGRAM)
 			return BAN::Error::from_errno(EPROTOTYPE);
 
-		auto udp_socket = TRY(UDPSocket::create(mode, uid, gid));
+		auto udp_socket = TRY(UDPSocket::create(mode | Inode::Mode::IFSOCK, uid, gid));
 		return BAN::RefPtr<NetworkSocket>(udp_socket);
+	}
+
+	void NetworkManager::unbind_socket(uint16_t port, BAN::RefPtr<NetworkSocket> socket)
+	{
+		if (m_bound_sockets.contains(port))
+		{
+			ASSERT(m_bound_sockets[port].valid());
+			ASSERT(m_bound_sockets[port].lock() == socket);
+			m_bound_sockets.remove(port);
+		}
+		NetworkManager::get().remove_from_cache(socket);
+	}
+
+	BAN::ErrorOr<void> NetworkManager::bind_socket(uint16_t port, BAN::RefPtr<NetworkSocket> socket)
+	{
+		if (m_interfaces.empty())
+			return BAN::Error::from_errno(EADDRNOTAVAIL);
+		if (m_bound_sockets.contains(port))
+			return BAN::Error::from_errno(EADDRINUSE);
+
+		// FIXME: actually determine proper interface
+		auto interface = m_interfaces.front();
+		TRY(m_bound_sockets.insert(port, socket));
+		socket->bind_interface_and_port(interface.ptr(), port);
+
+		return {};
 	}
 
 }

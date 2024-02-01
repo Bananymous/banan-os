@@ -56,6 +56,12 @@ namespace Kernel
 		return true;
 	}
 
+	void Inode::on_close()
+	{
+		LockGuard _(m_lock);
+		on_close_impl();
+	}
+
 	BAN::ErrorOr<BAN::RefPtr<Inode>> Inode::find_inode(BAN::StringView name)
 	{
 		LockGuard _(m_lock);
@@ -108,6 +114,14 @@ namespace Kernel
 		if (!mode().iflnk())
 			return BAN::Error::from_errno(EINVAL);
 		return link_target_impl();
+	}
+
+	BAN::ErrorOr<void> Inode::bind(const sockaddr* address, socklen_t address_len)
+	{
+		LockGuard _(m_lock);
+		if (!mode().ifsock())
+			return BAN::Error::from_errno(ENOTSOCK);
+		return bind_impl(address, address_len);
 	}
 
 	BAN::ErrorOr<size_t> Inode::read(off_t offset, BAN::ByteSpan buffer)

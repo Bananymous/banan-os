@@ -276,6 +276,8 @@ namespace Kernel
 		if (m_open_files[fd]->flags & O_WRONLY && m_open_files[fd]->inode->is_pipe())
 			((Pipe*)m_open_files[fd]->inode.ptr())->close_writing();
 
+		m_open_files[fd]->inode->on_close();
+
 		m_open_files[fd].clear();
 
 		return {};

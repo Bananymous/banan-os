@@ -16,6 +16,7 @@
 
 #include <sys/banan-os.h>
 #include <sys/mman.h>
+#include <sys/socket.h>
 #include <termios.h>
 
 namespace LibELF { class LoadableELF; }
@@ -112,6 +113,7 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_chown(const char*, uid_t, gid_t);
 
 		BAN::ErrorOr<long> sys_socket(int domain, int type, int protocol);
+		BAN::ErrorOr<long> sys_bind(int socket, const sockaddr* address, socklen_t address_len);
 
 		BAN::ErrorOr<long> sys_pipe(int fildes[2]);
 		BAN::ErrorOr<long> sys_dup(int fildes);
