@@ -111,6 +111,8 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_chmod(const char*, mode_t);
 		BAN::ErrorOr<long> sys_chown(const char*, uid_t, gid_t);
 
+		BAN::ErrorOr<long> sys_socket(int domain, int type, int protocol);
+
 		BAN::ErrorOr<long> sys_pipe(int fildes[2]);
 		BAN::ErrorOr<long> sys_dup(int fildes);
 		BAN::ErrorOr<long> sys_dup2(int fildes, int fildes2);

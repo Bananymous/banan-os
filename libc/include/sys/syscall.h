@@ -63,6 +63,7 @@ __BEGIN_DECLS
 #define SYS_PREAD 62
 #define SYS_CHOWN 63
 #define SYS_LOAD_KEYMAP 64
+#define SYS_SOCKET 65
 
 __END_DECLS
 

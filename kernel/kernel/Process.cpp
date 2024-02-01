@@ -895,6 +895,12 @@ namespace Kernel
 		return 0;
 	}
 
+	BAN::ErrorOr<long> Process::sys_socket(int domain, int type, int protocol)
+	{
+		LockGuard _(m_lock);
+		return TRY(m_open_file_descriptors.socket(domain, type, protocol));
+	}
+
 	BAN::ErrorOr<long> Process::sys_pipe(int fildes[2])
 	{
 		LockGuard _(m_lock);

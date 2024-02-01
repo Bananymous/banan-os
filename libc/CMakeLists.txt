@@ -19,6 +19,7 @@ set(LIBC_SOURCES
 	strings.cpp
 	sys/banan-os.cpp
 	sys/mman.cpp
+	sys/socket.cpp
 	sys/stat.cpp
 	sys/wait.cpp
 	termios.cpp

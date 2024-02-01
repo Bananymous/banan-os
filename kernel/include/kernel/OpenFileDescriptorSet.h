@@ -23,6 +23,8 @@ namespace Kernel
 
 		BAN::ErrorOr<int> open(BAN::StringView absolute_path, int flags);
 
+		BAN::ErrorOr<int> socket(int domain, int type, int protocol);
+
 		BAN::ErrorOr<void> pipe(int fds[2]);
 
 		BAN::ErrorOr<int> dup(int);

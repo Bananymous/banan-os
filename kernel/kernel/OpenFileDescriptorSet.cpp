@@ -1,8 +1,10 @@
 #include <kernel/FS/Pipe.h>
 #include <kernel/FS/VirtualFileSystem.h>
+#include <kernel/Networking/NetworkManager.h>
 #include <kernel/OpenFileDescriptorSet.h>
 
 #include <fcntl.h>
+#include <sys/socket.h>
 
 namespace Kernel
 {
@@ -73,6 +75,38 @@ namespace Kernel
 		int fd = TRY(get_free_fd());
 		m_open_files[fd] = TRY(BAN::RefPtr<OpenFileDescription>::create(file.inode, BAN::move(file.canonical_path), 0, flags));
 
+		return fd;
+	}
+
+	BAN::ErrorOr<int> OpenFileDescriptorSet::socket(int domain, int type, int protocol)
+	{
+		using SocketType = NetworkManager::SocketType;
+
+		if (domain != AF_INET)
+			return BAN::Error::from_errno(EAFNOSUPPORT);
+		if (protocol != 0)
+			return BAN::Error::from_errno(EPROTONOSUPPORT);
+
+		SocketType sock_type;
+		switch (type)
+		{
+			case SOCK_STREAM:
+				sock_type = SocketType::STREAM;
+				break;
+			case SOCK_DGRAM:
+				sock_type = SocketType::DGRAM;
+				break;
+			case SOCK_SEQPACKET:
+				sock_type = SocketType::SEQPACKET;
+				break;
+			default:
+				return BAN::Error::from_errno(EPROTOTYPE);
+		}
+
+		auto socket = TRY(NetworkManager::get().create_socket(sock_type, 0777, m_credentials.euid(), m_credentials.egid()));
+
+		int fd = TRY(get_free_fd());
+		m_open_files[fd] = TRY(BAN::RefPtr<OpenFileDescription>::create(socket, "no-path"sv, 0, O_RDWR));
 		return fd;
 	}
 
