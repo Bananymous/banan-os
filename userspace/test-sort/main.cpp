@@ -16,26 +16,37 @@ bool is_sorted(BAN::Vector<T>& vec)
 
 #define CURRENT_NS() ({ timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts); ts.tv_sec * 1'000'000'000 + ts.tv_nsec; })
 
-#define TEST(name, function, count) do {												\
-		BAN::Vector<int> ivec(count, 0);												\
-		for (int& i : ivec)																\
-			i = rand() % 100;															\
-		uint64_t start_ns = CURRENT_NS();												\
-		function(ivec.begin(), ivec.end());												\
-		uint64_t end_ns = CURRENT_NS();													\
-		uint64_t dur_us = (end_ns - start_ns) / 1000;									\
-		printf(name " (" #count "): %s\n", is_sorted(ivec) ? "success" : "fail");		\
-		printf("  took %" PRIu64 ".%03" PRIu64 " ms\n", dur_us / 1000, dur_us % 1000);	\
+#define TEST_ALGORITHM(ms, function) do {								\
+		uint64_t duration_us = 0;										\
+		printf(#function "\n");											\
+		for (size_t size = 100; duration_us < ms * 1000; size *= 10) {	\
+			BAN::Vector<unsigned> data(size, 0);						\
+			for (auto& val : data)										\
+				val = rand() % 100;										\
+			uint64_t start_ns = CURRENT_NS();							\
+			(void)function(data.begin(), data.end());					\
+			uint64_t stop_ns = CURRENT_NS();							\
+			if (!is_sorted(data)) {										\
+				printf("  \e[31mFAILED!\e[m\n");						\
+				break;													\
+			}															\
+			duration_us = (stop_ns - start_ns) / 1'000;					\
+			printf("  %5d.%03d ms (%zu)\n",								\
+				(int)(duration_us / 1000),								\
+				(int)(duration_us % 1000),								\
+				size													\
+			);															\
+		}																\
 	} while (0)
 
 int main()
 {
 	srand(time(0));
-	TEST("exchange sort", BAN::sort::exchange_sort, 100);
-	TEST("exchange sort", BAN::sort::exchange_sort, 1000);
-	TEST("exchange sort", BAN::sort::exchange_sort, 10000);
-
-	TEST("quick sort", BAN::sort::quick_sort, 100);
-	TEST("quick sort", BAN::sort::quick_sort, 1000);
-	TEST("quick sort", BAN::sort::quick_sort, 10000);
+	TEST_ALGORITHM(100,  BAN::sort::exchange_sort);
+	TEST_ALGORITHM(100,  BAN::sort::quick_sort);
+	TEST_ALGORITHM(100,  BAN::sort::insertion_sort);
+	TEST_ALGORITHM(100,  BAN::sort::heap_sort);
+	TEST_ALGORITHM(100,  BAN::sort::intro_sort);
+	TEST_ALGORITHM(1000, BAN::sort::sort);
+	TEST_ALGORITHM(1000, BAN::sort::radix_sort);
 }
