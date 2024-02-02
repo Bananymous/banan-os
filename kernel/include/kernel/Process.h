@@ -115,6 +115,7 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_socket(int domain, int type, int protocol);
 		BAN::ErrorOr<long> sys_bind(int socket, const sockaddr* address, socklen_t address_len);
 		BAN::ErrorOr<long> sys_sendto(const sys_sendto_t*);
+		BAN::ErrorOr<long> sys_recvfrom(sys_recvfrom_t*);
 
 		BAN::ErrorOr<long> sys_pipe(int fildes[2]);
 		BAN::ErrorOr<long> sys_dup(int fildes);

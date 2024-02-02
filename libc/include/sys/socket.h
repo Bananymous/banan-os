@@ -115,6 +115,16 @@ struct sys_sendto_t
 	socklen_t dest_len;
 };
 
+struct sys_recvfrom_t
+{
+	int socket;
+	void* buffer;
+	size_t length;
+	int flags;
+	struct sockaddr* address;
+	socklen_t* address_len;
+};
+
 int		accept(int socket, struct sockaddr* __restrict address, socklen_t* __restrict address_len);
 int		bind(int socket, const struct sockaddr* address, socklen_t address_len);
 int		connect(int socket, const struct sockaddr* address, socklen_t address_len);

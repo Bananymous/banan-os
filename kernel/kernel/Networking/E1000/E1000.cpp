@@ -4,6 +4,7 @@
 #include <kernel/Memory/PageTable.h>
 #include <kernel/MMIO.h>
 #include <kernel/Networking/E1000/E1000.h>
+#include <kernel/Networking/NetworkManager.h>
 
 #define DEBUG_E1000 1
 
@@ -69,14 +70,7 @@ namespace Kernel
 		TRY(read_mac_address());
 #if DEBUG_E1000
 		dprintln("E1000 at PCI {}:{}.{}", m_pci_device.bus(), m_pci_device.dev(), m_pci_device.func());
-		dprintln("  MAC: {2H}:{2H}:{2H}:{2H}:{2H}:{2H}",
-			m_mac_address[0],
-			m_mac_address[1],
-			m_mac_address[2],
-			m_mac_address[3],
-			m_mac_address[4],
-			m_mac_address[5]
-		);
+		dprintln("  MAC: {}", m_mac_address);
 #endif
 
 		TRY(initialize_rx());
@@ -141,16 +135,16 @@ namespace Kernel
 		if (m_has_eerprom)
 		{
 			uint32_t temp = eeprom_read(0);
-			m_mac_address[0] = temp;
-			m_mac_address[1] = temp >> 8;
+			m_mac_address.address[0] = temp;
+			m_mac_address.address[1] = temp >> 8;
 
 			temp = eeprom_read(1);
-			m_mac_address[2] = temp;
-			m_mac_address[3] = temp >> 8;
+			m_mac_address.address[2] = temp;
+			m_mac_address.address[3] = temp >> 8;
 
 			temp = eeprom_read(2);
-			m_mac_address[4] = temp;
-			m_mac_address[5] = temp >> 8;
+			m_mac_address.address[4] = temp;
+			m_mac_address.address[5] = temp >> 8;
 
 			return {};
 		}
@@ -162,7 +156,7 @@ namespace Kernel
 		}
 
 		for (int i = 0; i < 6; i++)
-			m_mac_address[i] = (uint8_t)read32(0x5400 + i * 8);
+			m_mac_address.address[i] = (uint8_t)read32(0x5400 + i * 8);
 
 		return {};
 	}
@@ -175,7 +169,6 @@ namespace Kernel
 		auto* rx_descriptors = reinterpret_cast<volatile e1000_rx_desc*>(m_rx_descriptor_region->vaddr());
 		for (size_t i = 0; i < E1000_RX_DESCRIPTOR_COUNT; i++)
 		{
-			m_rx_buffers[i] = reinterpret_cast<void*>(m_rx_buffer_region->vaddr() + E1000_RX_BUFFER_SIZE * i);
 			rx_descriptors[i].addr = m_rx_buffer_region->paddr() + E1000_RX_BUFFER_SIZE * i;
 			rx_descriptors[i].status = 0;
 		}
@@ -209,7 +202,6 @@ namespace Kernel
 		auto* tx_descriptors = reinterpret_cast<volatile e1000_tx_desc*>(m_tx_descriptor_region->vaddr());
 		for (size_t i = 0; i < E1000_TX_DESCRIPTOR_COUNT; i++)
 		{
-			m_tx_buffers[i] = reinterpret_cast<void*>(m_tx_buffer_region->vaddr() + E1000_TX_BUFFER_SIZE * i);
 			tx_descriptors[i].addr = m_tx_buffer_region->paddr() + E1000_TX_BUFFER_SIZE * i;
 			tx_descriptors[i].cmd = 0;
 		}
@@ -300,8 +292,10 @@ namespace Kernel
 				break;
 			ASSERT_LTE((uint16_t)descriptor.length, E1000_RX_BUFFER_SIZE);
 
-			// FIXME: do something with the packet :)
-			dprintln("got {} byte packet", (uint16_t)descriptor.length);
+			NetworkManager::get().on_receive(BAN::ConstByteSpan {
+				reinterpret_cast<const uint8_t*>(m_rx_buffer_region->vaddr() + rx_current * E1000_RX_BUFFER_SIZE),
+				descriptor.length
+			});
 
 			descriptor.status = 0;
 			write32(REG_RDT0, rx_current);

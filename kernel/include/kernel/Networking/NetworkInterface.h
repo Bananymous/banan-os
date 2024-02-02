@@ -2,7 +2,9 @@
 
 #include <BAN/Errors.h>
 #include <BAN/ByteSpan.h>
+#include <BAN/MAC.h>
 #include <kernel/Device/Device.h>
+#include <kernel/Networking/IPv4.h>
 
 namespace Kernel
 {
@@ -19,13 +21,14 @@ namespace Kernel
 		NetworkInterface();
 		virtual ~NetworkInterface() {}
 
-		virtual uint8_t* get_mac_address() = 0;
-		uint32_t get_ipv4_address() const { return m_ipv4_address; }
+		virtual BAN::MACAddress get_mac_address() const = 0;
+		BAN::IPv4Address get_ipv4_address() const { return m_ipv4_address; }
 
 		virtual bool link_up() = 0;
 		virtual int link_speed() = 0;
 
-		BAN::ErrorOr<void> add_interface_header(BAN::Vector<uint8_t>&, uint8_t destination_mac[6]);
+		size_t interface_header_size() const;
+		void add_interface_header(BAN::ByteSpan packet, BAN::MACAddress destination);
 
 		virtual dev_t rdev() const override { return m_rdev; }
 		virtual BAN::StringView name() const override { return m_name; }
@@ -38,7 +41,7 @@ namespace Kernel
 		const dev_t m_rdev;
 		char m_name[10];
 
-		uint32_t m_ipv4_address {};
+		BAN::IPv4Address m_ipv4_address { 0 };
 	};
 
 }

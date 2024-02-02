@@ -65,18 +65,62 @@ namespace Kernel
 			return BAN::Error::from_errno(EINVAL);
 		}
 
-		static uint8_t dest_mac[6] { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+		static BAN::MACAddress dest_mac {{ 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF }};
+
+		const size_t interface_header_offset	= 0;
+		const size_t interface_header_size		= m_interface->interface_header_size();
+
+		const size_t ipv4_header_offset	= interface_header_offset + interface_header_size;
+		const size_t ipv4_header_size	= sizeof(IPv4Header);
+
+		const size_t protocol_header_offset	= ipv4_header_offset + ipv4_header_size;
+		const size_t protocol_header_size	= this->protocol_header_size();
+
+		const size_t payload_offset	= protocol_header_offset + protocol_header_size;
+		const size_t payload_size	= message.size();
 
 		BAN::Vector<uint8_t> full_packet;
-		TRY(full_packet.resize(message.size()));
-		memcpy(full_packet.data(), message.data(), message.size());
-		TRY(add_protocol_header(full_packet, m_port, destination->sin_port));
-		TRY(add_ipv4_header(full_packet, m_interface->get_ipv4_address(), destination->sin_addr.s_addr, protocol()));
-		TRY(m_interface->add_interface_header(full_packet, dest_mac));
+		TRY(full_packet.resize(payload_offset + payload_size));
 
-		TRY(m_interface->send_raw_bytes(BAN::ConstByteSpan { full_packet.span() }));
+		BAN::ByteSpan packet_bytespan { full_packet.span() };
+
+		memcpy(full_packet.data() + payload_offset, message.data(), payload_size);
+		add_protocol_header(packet_bytespan.slice(protocol_header_offset), m_port, destination->sin_port);
+		add_ipv4_header(packet_bytespan.slice(ipv4_header_offset), m_interface->get_ipv4_address(), destination->sin_addr.s_addr, protocol());
+		m_interface->add_interface_header(packet_bytespan.slice(interface_header_offset), dest_mac);
+		TRY(m_interface->send_raw_bytes(packet_bytespan));
 
 		return arguments->length;
+	}
+
+	BAN::ErrorOr<ssize_t> NetworkSocket::recvfrom_impl(sys_recvfrom_t* arguments)
+	{
+		sockaddr_in* sender_addr = nullptr;
+		if (arguments->address)
+		{
+			ASSERT(arguments->address_len);
+			if (*arguments->address_len < (socklen_t)sizeof(sockaddr_in))
+				*arguments->address_len = 0;
+			else
+			{
+				sender_addr = reinterpret_cast<sockaddr_in*>(arguments->address);
+				*arguments->address_len = sizeof(sockaddr_in);
+			}
+		}
+
+		if (!m_interface)
+		{
+			dprintln("No interface bound");
+			return BAN::Error::from_errno(EINVAL);
+		}
+
+		if (m_port == PORT_NONE)
+		{
+			dprintln("No port bound");
+			return BAN::Error::from_errno(EINVAL);
+		}
+
+		return TRY(read_packet(BAN::ByteSpan { reinterpret_cast<uint8_t*>(arguments->buffer), arguments->length }, sender_addr));
 	}
 
 }

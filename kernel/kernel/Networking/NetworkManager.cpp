@@ -1,7 +1,9 @@
+#include <BAN/Endianness.h>
 #include <BAN/UniqPtr.h>
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/Networking/E1000/E1000.h>
 #include <kernel/Networking/E1000/E1000E.h>
+#include <kernel/Networking/IPv4.h>
 #include <kernel/Networking/NetworkManager.h>
 #include <kernel/Networking/UDPSocket.h>
 
@@ -104,6 +106,29 @@ namespace Kernel
 		socket->bind_interface_and_port(interface.ptr(), port);
 
 		return {};
+	}
+
+	void NetworkManager::on_receive(BAN::ConstByteSpan packet)
+	{
+		// FIXME: properly handle packet parsing
+
+		auto ipv4 = packet.slice(14);
+		auto& ipv4_header = ipv4.as<const IPv4Header>();
+		auto src_ipv4 = ipv4_header.src_address;
+
+		auto udp = ipv4.slice(20);
+		auto& udp_header = udp.as<const UDPHeader>();
+		uint16_t src_port = udp_header.src_port;
+		uint16_t dst_port = udp_header.dst_port;
+
+		if (!m_bound_sockets.contains(dst_port))
+		{
+			dprintln("no one is listening on port {}", dst_port);
+			return;
+		}
+
+		auto raw = udp.slice(8);
+		m_bound_sockets[dst_port].lock()->add_packet(raw, src_ipv4, src_port);
 	}
 
 }

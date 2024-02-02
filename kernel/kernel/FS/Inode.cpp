@@ -132,6 +132,14 @@ namespace Kernel
 		return sendto_impl(arguments);
 	};
 
+	BAN::ErrorOr<ssize_t> Inode::recvfrom(sys_recvfrom_t* arguments)
+	{
+		LockGuard _(m_lock);
+		if (!mode().ifsock())
+			return BAN::Error::from_errno(ENOTSOCK);
+		return recvfrom_impl(arguments);
+	};
+
 	BAN::ErrorOr<size_t> Inode::read(off_t offset, BAN::ByteSpan buffer)
 	{
 		LockGuard _(m_lock);

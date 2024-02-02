@@ -23,7 +23,7 @@ namespace Kernel
 		static BAN::ErrorOr<BAN::RefPtr<E1000>> create(PCI::Device&);
 		~E1000();
 
-		virtual uint8_t* get_mac_address() override { return m_mac_address; }
+		virtual BAN::MACAddress get_mac_address() const override { return m_mac_address; }
 
 		virtual bool link_up() override { return m_link_up; }
 		virtual int link_speed() override;
@@ -66,11 +66,7 @@ namespace Kernel
 		BAN::UniqPtr<DMARegion>	m_rx_descriptor_region;
 		BAN::UniqPtr<DMARegion>	m_tx_descriptor_region;
 
-		uint8_t		m_mac_address[6] {};
-		uint16_t	m_rx_current {};
-		uint16_t	m_tx_current {};
-		void*		m_rx_buffers[E1000_RX_DESCRIPTOR_COUNT] {};
-		void*		m_tx_buffers[E1000_TX_DESCRIPTOR_COUNT] {};
+		BAN::MACAddress	m_mac_address {};
 		bool		m_link_up { false };
 
 		friend class BAN::RefPtr<E1000>;

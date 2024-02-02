@@ -915,7 +915,6 @@ namespace Kernel
 		return 0;
 	}
 
-
 	BAN::ErrorOr<long> Process::sys_sendto(const sys_sendto_t* arguments)
 	{
 		LockGuard _(m_lock);
@@ -928,6 +927,29 @@ namespace Kernel
 			return BAN::Error::from_errno(ENOTSOCK);
 
 		return TRY(inode->sendto(arguments));
+	}
+
+	BAN::ErrorOr<long> Process::sys_recvfrom(sys_recvfrom_t* arguments)
+	{
+		if (arguments->address && !arguments->address_len)
+			return BAN::Error::from_errno(EINVAL);
+		if (!arguments->address && arguments->address_len)
+			return BAN::Error::from_errno(EINVAL);
+
+		LockGuard _(m_lock);
+		TRY(validate_pointer_access(arguments, sizeof(sys_recvfrom_t)));
+		TRY(validate_pointer_access(arguments->buffer, arguments->length));
+		if (arguments->address)
+		{
+			TRY(validate_pointer_access(arguments->address_len, sizeof(*arguments->address_len)));
+			TRY(validate_pointer_access(arguments->address, *arguments->address_len));
+		}
+
+		auto inode = TRY(m_open_file_descriptors.inode_of(arguments->socket));
+		if (!inode->mode().ifsock())
+			return BAN::Error::from_errno(ENOTSOCK);
+
+		return TRY(inode->recvfrom(arguments));
 	}
 
 	BAN::ErrorOr<long> Process::sys_pipe(int fildes[2])

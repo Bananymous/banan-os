@@ -222,6 +222,9 @@ namespace Kernel
 		case SYS_SENDTO:
 			ret = Process::current().sys_sendto((const sys_sendto_t*)arg1);
 			break;
+		case SYS_RECVFROM:
+			ret = Process::current().sys_recvfrom((sys_recvfrom_t*)arg1);
+			break;
 		default:
 			dwarnln("Unknown syscall {}", syscall);
 			break;

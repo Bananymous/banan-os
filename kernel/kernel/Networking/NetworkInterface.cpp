@@ -10,8 +10,8 @@ namespace Kernel
 
 	struct EthernetHeader
 	{
-		uint8_t dst_mac[6];
-		uint8_t src_mac[6];
+		BAN::MACAddress dst_mac;
+		BAN::MACAddress src_mac;
 		BAN::NetworkEndian<uint16_t> ether_type;
 	};
 	static_assert(sizeof(EthernetHeader) == 14);
@@ -40,19 +40,19 @@ namespace Kernel
 		m_name[3] = minor(m_rdev) + '0';
 	}
 
-	BAN::ErrorOr<void> NetworkInterface::add_interface_header(BAN::Vector<uint8_t>& packet, uint8_t destination_mac[6])
+	size_t NetworkInterface::interface_header_size() const
 	{
 		ASSERT(m_type == Type::Ethernet);
+		return sizeof(EthernetHeader);
+	}
 
-		TRY(packet.resize(packet.size() + sizeof(EthernetHeader)));
-		memmove(packet.data() + sizeof(EthernetHeader), packet.data(), packet.size() - sizeof(EthernetHeader));
-
-		auto* header = reinterpret_cast<EthernetHeader*>(packet.data());
-		memcpy(header->dst_mac, destination_mac, 6);
-		memcpy(header->src_mac, get_mac_address(), 6);
-		header->ether_type = 0x0800; // ipv4
-
-		return {};
+	void NetworkInterface::add_interface_header(BAN::ByteSpan packet, BAN::MACAddress destination)
+	{
+		ASSERT(m_type == Type::Ethernet);
+		auto& header = packet.as<EthernetHeader>();
+		header.dst_mac = destination;
+		header.src_mac = get_mac_address();
+		header.ether_type = 0x0800;
 	}
 
 }

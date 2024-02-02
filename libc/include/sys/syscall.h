@@ -66,6 +66,7 @@ __BEGIN_DECLS
 #define SYS_SOCKET 65
 #define SYS_BIND 66
 #define SYS_SENDTO 67
+#define SYS_RECVFROM 68
 
 __END_DECLS
 
