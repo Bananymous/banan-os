@@ -65,6 +65,7 @@ __BEGIN_DECLS
 #define SYS_LOAD_KEYMAP 64
 #define SYS_SOCKET 65
 #define SYS_BIND 66
+#define SYS_SENDTO 67
 
 __END_DECLS
 

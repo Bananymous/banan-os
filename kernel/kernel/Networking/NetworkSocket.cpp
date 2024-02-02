@@ -1,3 +1,4 @@
+#include <kernel/Networking/IPv4.h>
 #include <kernel/Networking/NetworkManager.h>
 #include <kernel/Networking/NetworkSocket.h>
 
@@ -37,6 +38,45 @@ namespace Kernel
 			return BAN::Error::from_errno(EINVAL);
 		auto* addr_in = reinterpret_cast<const sockaddr_in*>(address);
 		return NetworkManager::get().bind_socket(addr_in->sin_port, this);
+	}
+
+	BAN::ErrorOr<ssize_t> NetworkSocket::sendto_impl(const sys_sendto_t* arguments)
+	{
+		if (arguments->dest_len != sizeof(sockaddr_in))
+			return BAN::Error::from_errno(EINVAL);
+		if (arguments->flags)
+		{
+			dprintln("flags not supported");
+			return BAN::Error::from_errno(ENOTSUP);
+		}
+
+		if (!m_interface)
+			TRY(NetworkManager::get().bind_socket(PORT_NONE, this));
+
+		auto* destination = reinterpret_cast<const sockaddr_in*>(arguments->dest_addr);
+		auto  message = BAN::ConstByteSpan((const uint8_t*)arguments->message, arguments->length);
+
+		if (destination->sin_port == PORT_NONE)
+			return BAN::Error::from_errno(EINVAL);
+
+		if (destination->sin_addr.s_addr != 0xFFFFFFFF)
+		{
+			dprintln("Only broadcast ip supported");
+			return BAN::Error::from_errno(EINVAL);
+		}
+
+		static uint8_t dest_mac[6] { 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF };
+
+		BAN::Vector<uint8_t> full_packet;
+		TRY(full_packet.resize(message.size()));
+		memcpy(full_packet.data(), message.data(), message.size());
+		TRY(add_protocol_header(full_packet, m_port, destination->sin_port));
+		TRY(add_ipv4_header(full_packet, m_interface->get_ipv4_address(), destination->sin_addr.s_addr, protocol()));
+		TRY(m_interface->add_interface_header(full_packet, dest_mac));
+
+		TRY(m_interface->send_raw_bytes(BAN::ConstByteSpan { full_packet.span() }));
+
+		return arguments->length;
 	}
 
 }

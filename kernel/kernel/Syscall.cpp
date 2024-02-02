@@ -219,6 +219,9 @@ namespace Kernel
 		case SYS_BIND:
 			ret = Process::current().sys_bind((int)arg1, (const sockaddr*)arg2, (socklen_t)arg3);
 			break;
+		case SYS_SENDTO:
+			ret = Process::current().sys_sendto((const sys_sendto_t*)arg1);
+			break;
 		default:
 			dwarnln("Unknown syscall {}", syscall);
 			break;

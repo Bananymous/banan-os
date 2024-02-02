@@ -11,18 +11,13 @@ namespace Kernel
 	public:
 		static BAN::ErrorOr<BAN::RefPtr<UDPSocket>> create(mode_t, uid_t, gid_t);
 
-		void bind_interface(NetworkInterface*);
-
-	protected:
-		virtual BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan) override;
-		virtual BAN::ErrorOr<size_t> write_impl(off_t, BAN::ConstByteSpan) override;
+		virtual BAN::ErrorOr<void> add_protocol_header(BAN::Vector<uint8_t>&, uint16_t src_port, uint16_t dst_port) override;
+		virtual uint8_t protocol() const override { return 0x11; }
 
 	private:
 		UDPSocket(mode_t, uid_t, gid_t);
 
 	private:
-		NetworkInterface* m_interface = nullptr;
-
 		friend class BAN::RefPtr<UDPSocket>;
 	};
 

@@ -20,14 +20,16 @@ namespace Kernel
 		virtual ~NetworkInterface() {}
 
 		virtual uint8_t* get_mac_address() = 0;
+		uint32_t get_ipv4_address() const { return m_ipv4_address; }
 
 		virtual bool link_up() = 0;
 		virtual int link_speed() = 0;
 
+		BAN::ErrorOr<void> add_interface_header(BAN::Vector<uint8_t>&, uint8_t destination_mac[6]);
+
 		virtual dev_t rdev() const override { return m_rdev; }
 		virtual BAN::StringView name() const override { return m_name; }
 
-	protected:
 		virtual BAN::ErrorOr<void> send_raw_bytes(BAN::ConstByteSpan) = 0;
 
 	private:

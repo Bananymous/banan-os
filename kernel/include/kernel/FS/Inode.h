@@ -101,6 +101,7 @@ namespace Kernel
 
 		// Socket API
 		BAN::ErrorOr<void> bind(const sockaddr* address, socklen_t address_len);
+		BAN::ErrorOr<ssize_t> sendto(const sys_sendto_t*);
 
 		// General API
 		BAN::ErrorOr<size_t> read(off_t, BAN::ByteSpan buffer);
@@ -125,6 +126,7 @@ namespace Kernel
 
 		// Socket API
 		virtual BAN::ErrorOr<void> bind_impl(const sockaddr*, socklen_t)	{ return BAN::Error::from_errno(ENOTSUP); }
+		virtual BAN::ErrorOr<ssize_t> sendto_impl(const sys_sendto_t*)			{ return BAN::Error::from_errno(ENOTSUP); }
 
 		// General API
 		virtual BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan)		{ return BAN::Error::from_errno(ENOTSUP); }

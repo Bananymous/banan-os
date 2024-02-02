@@ -65,7 +65,6 @@ namespace Kernel
 		return {};
 	}
 
-
 	BAN::ErrorOr<BAN::RefPtr<NetworkSocket>> NetworkManager::create_socket(SocketType type, mode_t mode, uid_t uid, gid_t gid)
 	{
 		ASSERT((mode & Inode::Mode::TYPE_MASK) == 0);
@@ -92,12 +91,16 @@ namespace Kernel
 	{
 		if (m_interfaces.empty())
 			return BAN::Error::from_errno(EADDRNOTAVAIL);
-		if (m_bound_sockets.contains(port))
-			return BAN::Error::from_errno(EADDRINUSE);
+
+		if (port != NetworkSocket::PORT_NONE)
+		{
+			if (m_bound_sockets.contains(port))
+				return BAN::Error::from_errno(EADDRINUSE);
+			TRY(m_bound_sockets.insert(port, socket));
+		}
 
 		// FIXME: actually determine proper interface
 		auto interface = m_interfaces.front();
-		TRY(m_bound_sockets.insert(port, socket));
 		socket->bind_interface_and_port(interface.ptr(), port);
 
 		return {};

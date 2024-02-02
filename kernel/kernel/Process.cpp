@@ -915,6 +915,21 @@ namespace Kernel
 		return 0;
 	}
 
+
+	BAN::ErrorOr<long> Process::sys_sendto(const sys_sendto_t* arguments)
+	{
+		LockGuard _(m_lock);
+		TRY(validate_pointer_access(arguments, sizeof(sys_sendto_t)));
+		TRY(validate_pointer_access(arguments->message, arguments->length));
+		TRY(validate_pointer_access(arguments->dest_addr, arguments->dest_len));
+
+		auto inode = TRY(m_open_file_descriptors.inode_of(arguments->socket));
+		if (!inode->mode().ifsock())
+			return BAN::Error::from_errno(ENOTSOCK);
+
+		return TRY(inode->sendto(arguments));
+	}
+
 	BAN::ErrorOr<long> Process::sys_pipe(int fildes[2])
 	{
 		LockGuard _(m_lock);

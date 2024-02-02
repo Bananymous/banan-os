@@ -105,6 +105,16 @@ struct linger
 #define SHUT_WR		0x02
 #define SHUT_RDWR	(SHUT_RD | SHUT_WR)
 
+struct sys_sendto_t
+{
+	int socket;
+	const void* message;
+	size_t length;
+	int flags;
+	const struct sockaddr* dest_addr;
+	socklen_t dest_len;
+};
+
 int		accept(int socket, struct sockaddr* __restrict address, socklen_t* __restrict address_len);
 int		bind(int socket, const struct sockaddr* address, socklen_t address_len);
 int		connect(int socket, const struct sockaddr* address, socklen_t address_len);
