@@ -250,7 +250,7 @@ namespace Kernel::PCI
 		device.write_word(PCI_REG_COMMAND, command);
 
 #if DEBUG_PCI
-		dprintln("created BAR region for PCI {}:{}.{}",
+		dprintln("created BAR region for PCI {2H}:{2H}.{2H}",
 			device.bus(),
 			device.dev(),
 			device.func()
@@ -484,12 +484,12 @@ namespace Kernel::PCI
 		return {};
 	}
 
-	static uint64_t msi_message_address()
+	static constexpr uint64_t msi_message_address()
 	{
 		return 0xFEE00000;
 	}
 
-	static uint32_t msi_message_data(uint8_t irq)
+	static constexpr uint32_t msi_message_data(uint8_t irq)
 	{
 		return (IRQ_VECTOR_BASE + irq) & 0xFF;
 	}
