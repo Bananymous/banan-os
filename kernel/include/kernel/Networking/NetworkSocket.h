@@ -11,6 +11,9 @@ namespace Kernel
 
 	class NetworkSocket : public TmpInode, public BAN::Weakable<NetworkSocket>
 	{
+		BAN_NON_COPYABLE(NetworkSocket);
+		BAN_NON_MOVABLE(NetworkSocket);
+
 	public:
 		static constexpr uint16_t PORT_NONE = 0;
 

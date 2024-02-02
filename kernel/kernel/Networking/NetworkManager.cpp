@@ -19,6 +19,7 @@ namespace Kernel
 		if (manager_ptr == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
 		auto manager = BAN::UniqPtr<NetworkManager>::adopt(manager_ptr);
+		manager->m_arp_table = TRY(ARPTable::create());
 		TRY(manager->TmpFileSystem::initialize(0777, 0, 0));
 		s_instance = BAN::move(manager);
 		return {};

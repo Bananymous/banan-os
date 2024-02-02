@@ -2,6 +2,7 @@
 
 #include <BAN/Vector.h>
 #include <kernel/FS/TmpFS/FileSystem.h>
+#include <kernel/Networking/ARPTable.h>
 #include <kernel/Networking/NetworkInterface.h>
 #include <kernel/Networking/NetworkSocket.h>
 #include <kernel/PCI.h>
@@ -13,6 +14,9 @@ namespace Kernel
 
 	class NetworkManager : public TmpFileSystem
 	{
+		BAN_NON_COPYABLE(NetworkManager);
+		BAN_NON_MOVABLE(NetworkManager);
+
 	public:
 		enum class SocketType
 		{
@@ -24,6 +28,8 @@ namespace Kernel
 	public:
 		static BAN::ErrorOr<void> initialize();
 		static NetworkManager& get();
+
+		ARPTable& arp_table() { return *m_arp_table; }
 
 		BAN::ErrorOr<void> add_interface(PCI::Device& pci_device);
 
@@ -38,6 +44,7 @@ namespace Kernel
 		NetworkManager();
 
 	private:
+		BAN::UniqPtr<ARPTable>							m_arp_table;
 		BAN::Vector<BAN::RefPtr<NetworkInterface>>		m_interfaces;
 		BAN::HashMap<int, BAN::WeakPtr<NetworkSocket>>	m_bound_sockets;
 	};

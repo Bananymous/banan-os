@@ -58,16 +58,12 @@ namespace Kernel
 		auto* destination = reinterpret_cast<const sockaddr_in*>(arguments->dest_addr);
 		auto  message = BAN::ConstByteSpan((const uint8_t*)arguments->message, arguments->length);
 
-		if (destination->sin_port == PORT_NONE)
+		uint16_t dst_port = destination->sin_port;
+		if (dst_port == PORT_NONE)
 			return BAN::Error::from_errno(EINVAL);
 
-		if (destination->sin_addr.s_addr != 0xFFFFFFFF)
-		{
-			dprintln("Only broadcast ip supported");
-			return BAN::Error::from_errno(EINVAL);
-		}
-
-		static BAN::MACAddress dest_mac {{ 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF }};
+		auto dst_addr = BAN::IPv4Address(destination->sin_addr.s_addr);
+		auto dst_mac = TRY(NetworkManager::get().arp_table().get_mac_from_ipv4(dst_addr));
 
 		const size_t interface_header_offset	= 0;
 		const size_t interface_header_size		= m_interface->interface_header_size();
@@ -87,9 +83,9 @@ namespace Kernel
 		BAN::ByteSpan packet_bytespan { full_packet.span() };
 
 		memcpy(full_packet.data() + payload_offset, message.data(), payload_size);
-		add_protocol_header(packet_bytespan.slice(protocol_header_offset), m_port, destination->sin_port);
-		add_ipv4_header(packet_bytespan.slice(ipv4_header_offset), m_interface->get_ipv4_address(), destination->sin_addr.s_addr, protocol());
-		m_interface->add_interface_header(packet_bytespan.slice(interface_header_offset), dest_mac);
+		add_protocol_header(packet_bytespan.slice(protocol_header_offset), m_port, dst_port);
+		add_ipv4_header(packet_bytespan.slice(ipv4_header_offset), m_interface->get_ipv4_address(), dst_addr, protocol());
+		m_interface->add_interface_header(packet_bytespan.slice(interface_header_offset), dst_mac);
 		TRY(m_interface->send_raw_bytes(packet_bytespan));
 
 		return arguments->length;

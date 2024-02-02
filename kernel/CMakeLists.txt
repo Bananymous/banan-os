@@ -49,6 +49,7 @@ set(KERNEL_SOURCES
 	kernel/Memory/MemoryRegion.cpp
 	kernel/Memory/PhysicalRange.cpp
 	kernel/Memory/VirtualRange.cpp
+	kernel/Networking/ARPTable.cpp
 	kernel/Networking/E1000/E1000.cpp
 	kernel/Networking/E1000/E1000E.cpp
 	kernel/Networking/IPv4.cpp
