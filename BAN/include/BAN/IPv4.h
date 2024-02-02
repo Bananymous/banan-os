@@ -1,13 +1,14 @@
 #pragma once
 
 #include <BAN/Formatter.h>
+#include <BAN/Hash.h>
 
 namespace BAN
 {
 
 	struct IPv4Address
 	{
-		IPv4Address(uint32_t u32_address)
+		constexpr IPv4Address(uint32_t u32_address)
 		{
 			address[0] = u32_address >> 24;
 			address[1] = u32_address >> 16;
@@ -15,7 +16,7 @@ namespace BAN
 			address[3] = u32_address >>  0;
 		}
 
-		constexpr uint32_t as_u32()
+		constexpr uint32_t as_u32() const
 		{
 			return
 				((uint32_t)address[0] << 24) |
@@ -24,9 +25,27 @@ namespace BAN
 				((uint32_t)address[3] <<  0);
 		}
 
+		constexpr bool operator==(const IPv4Address& other) const
+		{
+			return
+				address[0] == other.address[0] &&
+				address[1] == other.address[1] &&
+				address[2] == other.address[2] &&
+				address[3] == other.address[3];
+		}
+
 		uint8_t address[4];
 	};
 	static_assert(sizeof(IPv4Address) == 4);
+
+	template<>
+	struct hash<IPv4Address>
+	{
+		constexpr hash_t operator()(IPv4Address ipv4) const
+		{
+			return hash<uint32_t>()(ipv4.as_u32());
+		}
+	};
 
 }
 
