@@ -112,6 +112,8 @@ namespace Kernel
 		BAN::ErrorOr<void> chown(uid_t, gid_t);
 		bool has_data() const;
 
+		BAN::ErrorOr<long> ioctl(int request, void* arg);
+
 	protected:
 		virtual void on_close_impl() {}
 
@@ -137,6 +139,8 @@ namespace Kernel
 		virtual BAN::ErrorOr<void> chmod_impl(mode_t)						{ return BAN::Error::from_errno(ENOTSUP); }
 		virtual BAN::ErrorOr<void> chown_impl(uid_t, gid_t)					{ return BAN::Error::from_errno(ENOTSUP); }
 		virtual bool has_data_impl() const { dwarnln("nonblock not supported"); return true; }
+
+		virtual BAN::ErrorOr<long> ioctl_impl(int request, void* arg)		{ return BAN::Error::from_errno(ENOTSUP); }
 
 	protected:
 		mutable RecursivePrioritySpinLock m_lock;

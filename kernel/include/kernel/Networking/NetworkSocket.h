@@ -35,6 +35,8 @@ namespace Kernel
 		virtual BAN::ErrorOr<ssize_t> sendto_impl(const sys_sendto_t*) override;
 		virtual BAN::ErrorOr<ssize_t> recvfrom_impl(sys_recvfrom_t*) override;
 
+		virtual BAN::ErrorOr<long> ioctl_impl(int request, void* arg) override;
+
 	protected:
 		NetworkInterface*	m_interface	= nullptr;
 		uint16_t			m_port		= PORT_NONE;

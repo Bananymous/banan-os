@@ -67,6 +67,7 @@ __BEGIN_DECLS
 #define SYS_BIND 66
 #define SYS_SENDTO 67
 #define SYS_RECVFROM 68
+#define SYS_IOCTL 69
 
 __END_DECLS
 

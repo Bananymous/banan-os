@@ -225,6 +225,9 @@ namespace Kernel
 		case SYS_RECVFROM:
 			ret = Process::current().sys_recvfrom((sys_recvfrom_t*)arg1);
 			break;
+		case SYS_IOCTL:
+			ret = Process::current().sys_ioctl((int)arg1, (int)arg2, (void*)arg3);
+			break;
 		default:
 			dwarnln("Unknown syscall {}", syscall);
 			break;

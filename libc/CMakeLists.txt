@@ -17,6 +17,7 @@ set(LIBC_SOURCES
 	stdlib.cpp
 	string.cpp
 	strings.cpp
+	stropts.cpp
 	sys/banan-os.cpp
 	sys/mman.cpp
 	sys/socket.cpp

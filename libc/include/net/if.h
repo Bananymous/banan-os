@@ -5,6 +5,8 @@
 
 #include <sys/cdefs.h>
 
+#include <sys/socket.h>
+
 #define IF_NAMESIZE 16
 
 __BEGIN_DECLS
@@ -14,6 +16,22 @@ struct if_nameindex
 	unsigned if_index;	/* Numeric index of the interface. */
 	char* if_name;		/* Null-terminated name of the interface. */
 };
+
+struct ifreq
+{
+	union {
+		struct sockaddr ifru_addr;
+		struct sockaddr ifru_netmask;
+		struct sockaddr ifru_hwaddr;
+		unsigned char __min_storage[sizeof(sockaddr) + 6];
+	} ifr_ifru;
+};
+
+#define SIOCGIFADDR		1	/* Get interface address */
+#define SIOCSIFADDR		2	/* Set interface address */
+#define SIOCGIFNETMASK	3	/* Get network mask */
+#define SIOCSIFNETMASK	4	/* Set network mask */
+#define SIOCGIFHWADDR	5	/* Get hardware address */
 
 void					if_freenameindex(struct if_nameindex* ptr);
 char*					if_indextoname(unsigned ifindex, char* ifname);

@@ -11,8 +11,8 @@ __BEGIN_DECLS
 #define __need_gid_t
 #include <sys/types.h>
 
-typedef uint32_t t_uscalar_t;
-typedef int32_t t_scalar_t;
+typedef __UINT32_TYPE__ t_uscalar_t;
+typedef __INT32_TYPE__ t_scalar_t;
 
 struct bandinfo
 {

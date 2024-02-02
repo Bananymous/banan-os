@@ -117,6 +117,8 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_sendto(const sys_sendto_t*);
 		BAN::ErrorOr<long> sys_recvfrom(sys_recvfrom_t*);
 
+		BAN::ErrorOr<long> sys_ioctl(int fildes, int request, void* arg);
+
 		BAN::ErrorOr<long> sys_pipe(int fildes[2]);
 		BAN::ErrorOr<long> sys_dup(int fildes);
 		BAN::ErrorOr<long> sys_dup2(int fildes, int fildes2);

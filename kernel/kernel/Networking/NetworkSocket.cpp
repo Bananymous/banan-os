@@ -2,6 +2,8 @@
 #include <kernel/Networking/NetworkManager.h>
 #include <kernel/Networking/NetworkSocket.h>
 
+#include <net/if.h>
+
 namespace Kernel
 {
 
@@ -121,6 +123,67 @@ namespace Kernel
 		}
 
 		return TRY(read_packet(BAN::ByteSpan { reinterpret_cast<uint8_t*>(arguments->buffer), arguments->length }, sender_addr));
+	}
+
+	BAN::ErrorOr<long> NetworkSocket::ioctl_impl(int request, void* arg)
+	{
+		if (!arg)
+		{
+			dprintln("No argument provided");
+			return BAN::Error::from_errno(EINVAL);
+		}
+		if (m_interface == nullptr)
+		{
+			dprintln("No interface bound");
+			return BAN::Error::from_errno(EADDRNOTAVAIL);
+		}
+
+		auto* ifreq = reinterpret_cast<struct ifreq*>(arg);
+
+		switch (request)
+		{
+			case SIOCGIFADDR:
+			{
+				auto ipv4_address = m_interface->get_ipv4_address();
+				ifreq->ifr_ifru.ifru_addr.sa_family = AF_INET;
+				memcpy(ifreq->ifr_ifru.ifru_addr.sa_data, &ipv4_address, sizeof(ipv4_address));
+				return 0;
+			}
+			case SIOCSIFADDR:
+			{
+				if (ifreq->ifr_ifru.ifru_addr.sa_family != AF_INET)
+					return BAN::Error::from_errno(EADDRNOTAVAIL);
+				BAN::IPv4Address ipv4_address { *reinterpret_cast<uint32_t*>(ifreq->ifr_ifru.ifru_addr.sa_data) };
+				m_interface->set_ipv4_address(ipv4_address);
+				dprintln("IPv4 address set to {}", m_interface->get_ipv4_address());
+				return 0;
+			}
+			case SIOCGIFNETMASK:
+			{
+				auto netmask_address = m_interface->get_netmask();
+				ifreq->ifr_ifru.ifru_netmask.sa_family = AF_INET;
+				memcpy(ifreq->ifr_ifru.ifru_netmask.sa_data, &netmask_address, sizeof(netmask_address));
+				return 0;
+			}
+			case SIOCSIFNETMASK:
+			{
+				if (ifreq->ifr_ifru.ifru_netmask.sa_family != AF_INET)
+					return BAN::Error::from_errno(EADDRNOTAVAIL);
+				BAN::IPv4Address netmask { *reinterpret_cast<uint32_t*>(ifreq->ifr_ifru.ifru_netmask.sa_data) };
+				m_interface->set_netmask(netmask);
+				dprintln("Netmask set to {}", m_interface->get_netmask());
+				return 0;
+			}
+			case SIOCGIFHWADDR:
+			{
+				auto mac_address = m_interface->get_mac_address();
+				ifreq->ifr_ifru.ifru_hwaddr.sa_family = AF_INET;
+				memcpy(ifreq->ifr_ifru.ifru_hwaddr.sa_data, &mac_address, sizeof(mac_address));
+				return 0;
+			}
+			default:
+				return BAN::Error::from_errno(EINVAL);
+		}
 	}
 
 }

@@ -952,6 +952,13 @@ namespace Kernel
 		return TRY(inode->recvfrom(arguments));
 	}
 
+	BAN::ErrorOr<long> Process::sys_ioctl(int fildes, int request, void* arg)
+	{
+		LockGuard _(m_lock);
+		auto inode = TRY(m_open_file_descriptors.inode_of(fildes));
+		return TRY(inode->ioctl(request, arg));
+	}
+
 	BAN::ErrorOr<long> Process::sys_pipe(int fildes[2])
 	{
 		LockGuard _(m_lock);

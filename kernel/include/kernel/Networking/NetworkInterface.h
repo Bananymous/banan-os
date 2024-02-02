@@ -11,6 +11,9 @@ namespace Kernel
 
 	class NetworkInterface : public CharacterDevice
 	{
+		BAN_NON_COPYABLE(NetworkInterface);
+		BAN_NON_MOVABLE(NetworkInterface);
+
 	public:
 		enum class Type
 		{
@@ -22,7 +25,12 @@ namespace Kernel
 		virtual ~NetworkInterface() {}
 
 		virtual BAN::MACAddress get_mac_address() const = 0;
+
 		BAN::IPv4Address get_ipv4_address() const { return m_ipv4_address; }
+		void set_ipv4_address(BAN::IPv4Address new_address) { m_ipv4_address = new_address; }
+
+		BAN::IPv4Address get_netmask() const { return m_netmask; }
+		void set_netmask(BAN::IPv4Address new_netmask) { m_netmask = new_netmask; }
 
 		virtual bool link_up() = 0;
 		virtual int link_speed() = 0;
@@ -42,6 +50,7 @@ namespace Kernel
 		char m_name[10];
 
 		BAN::IPv4Address m_ipv4_address { 0 };
+		BAN::IPv4Address m_netmask { 0 };
 	};
 
 }

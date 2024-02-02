@@ -183,4 +183,10 @@ namespace Kernel
 		return has_data_impl();
 	}
 
+	BAN::ErrorOr<long> Inode::ioctl(int request, void* arg)
+	{
+		LockGuard _(m_lock);
+		return ioctl_impl(request, arg);
+	}
+
 }
