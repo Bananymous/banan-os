@@ -357,23 +357,6 @@ int main()
 
 	update_ipv4_info(socket, dhcp_ack->address, dhcp_ack->subnet);
 
-	if (true)
-	{
-		uint32_t packet = 0x12345678;
-
-		sockaddr_in server_addr;
-		server_addr.sin_family = AF_INET;
-		server_addr.sin_port = 67;
-		server_addr.sin_addr.s_addr = dhcp_ack->routers.front().as_u32();
-		server_addr.sin_addr.s_addr = (192 << 24) | (168 << 16) | (1 << 8) | 203;
-
-		if (sendto(socket, &packet, sizeof(packet), 0, (sockaddr*)&server_addr, sizeof(server_addr)) == -1)
-		{
-			perror("sendto");
-			exit(1);
-		}
-	}
-
 	close(socket);
 
 	return 0;
