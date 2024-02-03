@@ -20,9 +20,11 @@ else
 fi
 
 qemu-system-$BANAN_ARCH												\
-	-m 128															\
+	-m 1G															\
 	-smp 2															\
 	$BIOS_ARGS														\
 	-drive format=raw,id=disk,file=${BANAN_DISK_IMAGE_PATH},if=none	\
+	-device e1000e,netdev=net										\
+	-netdev user,id=net												\
 	$DISK_ARGS														\
 	$@																\
