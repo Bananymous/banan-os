@@ -8,6 +8,7 @@ set(USERSPACE_PROJECTS
 	chmod
 	cp
 	dd
+	dhcp-client
 	echo
 	id
 	init

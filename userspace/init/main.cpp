@@ -29,6 +29,12 @@ int main()
 	if (load_keymap("/usr/share/keymaps/fi.keymap") == -1)
 		perror("load_keymap");
 
+	if (fork() == 0)
+	{
+		execl("/bin/dhcp-client", "dhcp-client", NULL);
+		exit(1);
+	}
+
 	bool first = true;
 
 	termios termios;
