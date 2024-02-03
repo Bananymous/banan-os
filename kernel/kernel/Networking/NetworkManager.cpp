@@ -109,7 +109,7 @@ namespace Kernel
 		return {};
 	}
 
-	void NetworkManager::on_receive(BAN::ConstByteSpan packet)
+	void NetworkManager::on_receive(NetworkInterface& interface, BAN::ConstByteSpan packet)
 	{
 		auto ethernet_header = packet.as<const EthernetHeader>();
 
@@ -117,7 +117,7 @@ namespace Kernel
 		{
 			case EtherType::ARP:
 			{
-				m_arp_table->handle_arp_packet(packet.slice(sizeof(EthernetHeader)));
+				m_arp_table->add_arp_packet(interface, packet.slice(sizeof(EthernetHeader)));
 				break;
 			}
 			case EtherType::IPv4:

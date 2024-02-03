@@ -5,20 +5,6 @@
 namespace Kernel
 {
 
-	struct ARPPacket
-	{
-		BAN::NetworkEndian<uint16_t>	htype;
-		BAN::NetworkEndian<uint16_t>	ptype;
-		BAN::NetworkEndian<uint8_t>		hlen;
-		BAN::NetworkEndian<uint8_t>		plen;
-		BAN::NetworkEndian<uint16_t>	oper;
-		BAN::MACAddress					sha;
-		BAN::IPv4Address				spa;
-		BAN::MACAddress					tha;
-		BAN::IPv4Address				tpa;
-	};
-	static_assert(sizeof(ARPPacket) == 28);
-
 	enum ARPOperation : uint16_t
 	{
 		Request = 1,
@@ -30,22 +16,31 @@ namespace Kernel
 
 	BAN::ErrorOr<BAN::UniqPtr<ARPTable>> ARPTable::create()
 	{
-		return TRY(BAN::UniqPtr<ARPTable>::create());
+		auto arp_table = TRY(BAN::UniqPtr<ARPTable>::create());
+		arp_table->m_process = Process::create_kernel(
+			[](void* arp_table_ptr)
+			{
+				auto& arp_table = *reinterpret_cast<ARPTable*>(arp_table_ptr);
+				arp_table.packet_handle_task();
+			}, arp_table.ptr()
+		);
+		ASSERT(arp_table->m_process);
+		return arp_table;
 	}
 
 	ARPTable::ARPTable()
 	{
-
 	}
 
 	BAN::ErrorOr<BAN::MACAddress> ARPTable::get_mac_from_ipv4(NetworkInterface& interface, BAN::IPv4Address ipv4_address)
 	{
-		LockGuard _(m_lock);
-
-		if (ipv4_address == s_broadcast_ipv4)
-			return s_broadcast_mac;
-		if (m_arp_table.contains(ipv4_address))
-			return m_arp_table[ipv4_address];
+		{
+			LockGuard _(m_lock);
+			if (ipv4_address == s_broadcast_ipv4)
+				return s_broadcast_mac;
+			if (m_arp_table.contains(ipv4_address))
+				return m_arp_table[ipv4_address];
+		}
 
 		BAN::Vector<uint8_t> full_packet_buffer;
 		TRY(full_packet_buffer.resize(sizeof(ARPPacket) + sizeof(EthernetHeader)));
@@ -70,39 +65,121 @@ namespace Kernel
 		TRY(interface.send_raw_bytes(full_packet));
 
 		uint64_t timeout = SystemTimer::get().ms_since_boot() + 5'000;
-		while (!m_has_got_reply)
-			if (SystemTimer::get().ms_since_boot() >= timeout)
-				return BAN::Error::from_errno(ETIMEDOUT);
-		ASSERT_EQ(m_reply.ipv4_address, ipv4_address);
+		while (SystemTimer::get().ms_since_boot() < timeout)
+		{
+			{
+				LockGuard _(m_lock);
+				if (m_arp_table.contains(ipv4_address))
+					return m_arp_table[ipv4_address];
+			}
+			TRY(Thread::current().block_or_eintr(m_pending_semaphore));
+		}
 
-		BAN::MACAddress mac_address = m_reply.mac_address;
-		(void)m_arp_table.insert(ipv4_address, m_reply.mac_address);
-		m_has_got_reply = false;
-
-		dprintln("IPv4 {} resolved to MAC {}", ipv4_address, mac_address);
-
-		return mac_address;
+		return BAN::Error::from_errno(EINVAL);
 	}
 
-	void ARPTable::handle_arp_packet(BAN::ConstByteSpan buffer)
+	BAN::ErrorOr<void> ARPTable::handle_arp_packet(NetworkInterface& interface, const ARPPacket& packet)
+	{
+		if (packet.ptype != EtherType::IPv4)
+		{
+			dprintln("Non IPv4 arp packet?");
+			return {};
+		}
+
+		switch (packet.oper)
+		{
+			case ARPOperation::Request:
+			{
+				if (packet.tpa == interface.get_ipv4_address())
+				{
+					BAN::Vector<uint8_t> full_packet_buffer;
+					TRY(full_packet_buffer.resize(sizeof(ARPPacket) + sizeof(EthernetHeader)));
+					auto full_packet = BAN::ByteSpan { full_packet_buffer.span() };
+
+					auto& ethernet_header = full_packet.as<EthernetHeader>();
+					ethernet_header.dst_mac = packet.sha;
+					ethernet_header.src_mac = interface.get_mac_address();
+					ethernet_header.ether_type = EtherType::ARP;
+
+					auto& arp_request = full_packet.slice(sizeof(EthernetHeader)).as<ARPPacket>();
+					arp_request.htype = 0x0001;
+					arp_request.ptype = EtherType::IPv4;
+					arp_request.hlen = 0x06;
+					arp_request.plen = 0x04;
+					arp_request.oper = ARPOperation::Reply;
+					arp_request.sha = interface.get_mac_address();
+					arp_request.spa = interface.get_ipv4_address();
+					arp_request.tha = packet.sha;
+					arp_request.tpa = packet.spa;
+
+					TRY(interface.send_raw_bytes(full_packet));
+				}
+				break;
+			}
+			case ARPOperation::Reply:
+			{
+				LockGuard _(m_lock);
+				if (m_arp_table.contains(packet.spa))
+				{
+					if (m_arp_table[packet.spa] != packet.sha)
+					{
+						dprintln("Update IPv4 {} MAC to {}", packet.spa, packet.sha);
+						m_arp_table[packet.spa] = packet.sha;
+					}
+				}
+				else
+				{
+					TRY(m_arp_table.insert(packet.spa, packet.sha));
+					dprintln("Assign IPv4 {} MAC to {}", packet.spa, packet.sha);
+				}
+				break;
+			}
+			default:
+				dprintln("Unhandled ARP packet (oper {4H})", (uint16_t)packet.oper);
+				break;
+		}
+
+		return {};
+	}
+
+	void ARPTable::packet_handle_task()
+	{
+		for (;;)
+		{
+			BAN::Optional<PendingArpPacket> pending;
+
+			{
+				CriticalScope _;
+				if (!m_pending_packets.empty())
+				{
+					pending = m_pending_packets.front();
+					m_pending_packets.pop();
+				}
+			}
+
+			if (!pending.has_value())
+			{
+				m_pending_semaphore.block();
+				continue;
+			}
+
+			if (auto ret = handle_arp_packet(pending->interface, pending->packet); ret.is_error())
+				dwarnln("{}", ret.error());
+		}
+	}
+
+	void ARPTable::add_arp_packet(NetworkInterface& interface, BAN::ConstByteSpan buffer)
 	{
 		auto& arp_packet = buffer.as<const ARPPacket>();
-		if (arp_packet.oper != ARPOperation::Reply)
+
+		if (m_pending_packets.full())
 		{
-			dprintln("Unhandled non-rely ARP packet (operation {2H})", (uint16_t)arp_packet.oper);
+			dprintln("arp packet queue full");
 			return;
 		}
 
-		if (arp_packet.ptype != EtherType::IPv4)
-		{
-			dprintln("Unhandled non-ipv4 ARP packet (ptype {2H})", (uint16_t)arp_packet.ptype);
-			return;
-		}
-
-		ASSERT(!m_has_got_reply);
-		m_has_got_reply = true;
-		m_reply.ipv4_address = arp_packet.spa;
-		m_reply.mac_address = arp_packet.sha;
+		m_pending_packets.push({ .interface = interface, .packet = arp_packet });
+		m_pending_semaphore.unblock();
 	}
 
 }

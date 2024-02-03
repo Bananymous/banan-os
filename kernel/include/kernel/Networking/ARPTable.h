@@ -1,11 +1,28 @@
 #pragma once
 
+#include <BAN/CircularQueue.h>
 #include <BAN/HashMap.h>
 #include <BAN/UniqPtr.h>
 #include <kernel/Networking/NetworkInterface.h>
+#include <kernel/Process.h>
+#include <kernel/Semaphore.h>
 
 namespace Kernel
 {
+
+	struct ARPPacket
+	{
+		BAN::NetworkEndian<uint16_t>	htype { 0 };
+		BAN::NetworkEndian<uint16_t>	ptype { 0 };
+		BAN::NetworkEndian<uint8_t>		hlen { 0 };
+		BAN::NetworkEndian<uint8_t>		plen { 0 };
+		BAN::NetworkEndian<uint16_t>	oper { 0 };
+		BAN::MACAddress					sha { 0, 0, 0, 0, 0, 0 };
+		BAN::IPv4Address				spa { 0 };
+		BAN::MACAddress					tha { 0, 0, 0, 0, 0, 0 };
+		BAN::IPv4Address				tpa { 0 };
+	};
+	static_assert(sizeof(ARPPacket) == 28);
 
 	class ARPTable
 	{
@@ -17,16 +34,19 @@ namespace Kernel
 
 		BAN::ErrorOr<BAN::MACAddress> get_mac_from_ipv4(NetworkInterface&, BAN::IPv4Address);
 
-		void handle_arp_packet(BAN::ConstByteSpan);
+		void add_arp_packet(NetworkInterface&, BAN::ConstByteSpan);
 
 	private:
 		ARPTable();
 
+		void packet_handle_task();
+		BAN::ErrorOr<void> handle_arp_packet(NetworkInterface&, const ARPPacket&);
+
 	private:
-		struct ARPReply
+		struct PendingArpPacket
 		{
-			BAN::IPv4Address ipv4_address { 0 };
-			BAN::MACAddress mac_address;
+			NetworkInterface& interface;
+			ARPPacket packet;
 		};
 
 	private:
@@ -34,8 +54,9 @@ namespace Kernel
 
 		BAN::HashMap<BAN::IPv4Address, BAN::MACAddress> m_arp_table;
 
-		BAN::Atomic<bool>	m_has_got_reply;
-		ARPReply			m_reply;
+		Process*									m_process = nullptr;
+		BAN::CircularQueue<PendingArpPacket, 128>	m_pending_packets;
+		Semaphore									m_pending_semaphore;
 
 		friend class BAN::UniqPtr<ARPTable>;
 	};

@@ -38,7 +38,7 @@ namespace Kernel
 
 		BAN::ErrorOr<BAN::RefPtr<NetworkSocket>> create_socket(SocketType, mode_t, uid_t, gid_t);
 
-		void on_receive(BAN::ConstByteSpan);
+		void on_receive(NetworkInterface&, BAN::ConstByteSpan);
 
 	private:
 		NetworkManager();
