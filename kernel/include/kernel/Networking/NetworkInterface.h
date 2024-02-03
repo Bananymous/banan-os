@@ -9,6 +9,20 @@
 namespace Kernel
 {
 
+	struct EthernetHeader
+	{
+		BAN::MACAddress dst_mac;
+		BAN::MACAddress src_mac;
+		BAN::NetworkEndian<uint16_t> ether_type;
+	};
+	static_assert(sizeof(EthernetHeader) == 14);
+
+	enum EtherType : uint16_t
+	{
+		IPv4 = 0x0800,
+		ARP = 0x0806,
+	};
+
 	class NetworkInterface : public CharacterDevice
 	{
 		BAN_NON_COPYABLE(NetworkInterface);

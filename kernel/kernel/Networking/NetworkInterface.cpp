@@ -8,14 +8,6 @@
 namespace Kernel
 {
 
-	struct EthernetHeader
-	{
-		BAN::MACAddress dst_mac;
-		BAN::MACAddress src_mac;
-		BAN::NetworkEndian<uint16_t> ether_type;
-	};
-	static_assert(sizeof(EthernetHeader) == 14);
-
 	static dev_t get_network_rdev_major()
 	{
 		static dev_t major = DevFileSystem::get().get_next_dev();

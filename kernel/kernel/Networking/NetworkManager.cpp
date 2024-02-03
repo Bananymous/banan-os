@@ -111,25 +111,49 @@ namespace Kernel
 
 	void NetworkManager::on_receive(BAN::ConstByteSpan packet)
 	{
-		// FIXME: properly handle packet parsing
+		auto ethernet_header = packet.as<const EthernetHeader>();
 
-		auto ipv4 = packet.slice(14);
-		auto& ipv4_header = ipv4.as<const IPv4Header>();
-		auto src_ipv4 = ipv4_header.src_address;
-
-		auto udp = ipv4.slice(20);
-		auto& udp_header = udp.as<const UDPHeader>();
-		uint16_t src_port = udp_header.src_port;
-		uint16_t dst_port = udp_header.dst_port;
-
-		if (!m_bound_sockets.contains(dst_port))
+		switch (ethernet_header.ether_type)
 		{
-			dprintln("no one is listening on port {}", dst_port);
-			return;
-		}
+			case EtherType::ARP:
+			{
+				m_arp_table->handle_arp_packet(packet.slice(sizeof(EthernetHeader)));
+				break;
+			}
+			case EtherType::IPv4:
+			{
+				auto ipv4 = packet.slice(sizeof(EthernetHeader));
+				auto& ipv4_header = ipv4.as<const IPv4Header>();
+				auto src_ipv4 = ipv4_header.src_address;
+				switch (ipv4_header.protocol)
+				{
+					case NetworkProtocol::UDP:
+					{
+						auto udp = ipv4.slice(sizeof(IPv4Header));
+						auto& udp_header = udp.as<const UDPHeader>();
+						uint16_t src_port = udp_header.src_port;
+						uint16_t dst_port = udp_header.dst_port;
 
-		auto raw = udp.slice(8);
-		m_bound_sockets[dst_port].lock()->add_packet(raw, src_ipv4, src_port);
+						if (!m_bound_sockets.contains(dst_port))
+						{
+							dprintln("no one is listening on port {}", dst_port);
+							return;
+						}
+
+						auto raw = udp.slice(8);
+						m_bound_sockets[dst_port].lock()->add_packet(raw, src_ipv4, src_port);
+						break;
+					}
+					default:
+						dprintln("Unknown network protocol 0x{2H}", ipv4_header.protocol);
+						break;
+				}
+				break;
+			}
+			default:
+				dprintln("Unknown EtherType 0x{4H}", (uint16_t)ethernet_header.ether_type);
+				break;
+		}
 	}
 
 }

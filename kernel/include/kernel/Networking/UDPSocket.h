@@ -26,7 +26,7 @@ namespace Kernel
 
 		virtual size_t protocol_header_size() const override { return sizeof(UDPHeader); }
 		virtual void add_protocol_header(BAN::ByteSpan packet, uint16_t src_port, uint16_t dst_port) override;
-		virtual uint8_t protocol() const override { return 0x11; }
+		virtual NetworkProtocol protocol() const override { return NetworkProtocol::UDP; }
 
 	protected:
 		virtual void add_packet(BAN::ConstByteSpan, BAN::IPv4Address sender_addr, uint16_t sender_port) override;

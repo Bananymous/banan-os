@@ -63,7 +63,7 @@ namespace Kernel
 			return BAN::Error::from_errno(EINVAL);
 
 		auto dst_addr = BAN::IPv4Address(destination->sin_addr.s_addr);
-		auto dst_mac = TRY(NetworkManager::get().arp_table().get_mac_from_ipv4(dst_addr));
+		auto dst_mac = TRY(NetworkManager::get().arp_table().get_mac_from_ipv4(*m_interface, dst_addr));
 
 		const size_t interface_header_offset	= 0;
 		const size_t interface_header_size		= m_interface->interface_header_size();

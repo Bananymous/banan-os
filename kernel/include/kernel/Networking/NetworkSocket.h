@@ -9,6 +9,11 @@
 namespace Kernel
 {
 
+	enum NetworkProtocol : uint8_t
+	{
+		UDP = 0x11,
+	};
+
 	class NetworkSocket : public TmpInode, public BAN::Weakable<NetworkSocket>
 	{
 		BAN_NON_COPYABLE(NetworkSocket);
@@ -23,7 +28,7 @@ namespace Kernel
 
 		virtual size_t protocol_header_size() const = 0;
 		virtual void add_protocol_header(BAN::ByteSpan packet, uint16_t src_port, uint16_t dst_port) = 0;
-		virtual uint8_t protocol() const = 0;
+		virtual NetworkProtocol protocol() const = 0;
 
 		virtual void add_packet(BAN::ConstByteSpan, BAN::IPv4Address sender_address, uint16_t sender_port) = 0;
 
