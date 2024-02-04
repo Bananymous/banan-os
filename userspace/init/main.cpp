@@ -17,6 +17,7 @@ void initialize_stdio()
 	if (open(tty, O_RDONLY | O_TTY_INIT) != 0) _exit(1);
 	if (open(tty, O_WRONLY) != 1) _exit(1);
 	if (open(tty, O_WRONLY) != 2) _exit(1);
+	if (open("/dev/debug", O_WRONLY) != 3) _exit(1);
 }
 
 int main()

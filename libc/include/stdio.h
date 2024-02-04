@@ -53,6 +53,8 @@ extern FILE* __stdout;
 #define stdout __stdout
 extern FILE* __stderr;
 #define stderr __stderr
+extern FILE* __stddbg;
+#define stddbg __stddbg
 
 void	clearerr(FILE* stream);
 char*	ctermid(char* s);

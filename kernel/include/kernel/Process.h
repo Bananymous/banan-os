@@ -62,6 +62,8 @@ namespace Kernel
 
 		bool is_session_leader() const { return pid() == sid(); }
 
+		const char* name() const { return m_cmdline.empty() ? "" : m_cmdline.front().data(); }
+
 		const Credentials& credentials() const { return m_credentials; }
 
 		BAN::ErrorOr<long> sys_exit(int status);

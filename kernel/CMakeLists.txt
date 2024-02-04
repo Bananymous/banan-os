@@ -16,6 +16,7 @@ set(KERNEL_SOURCES
 	kernel/CPUID.cpp
 	kernel/Credentials.cpp
 	kernel/Debug.cpp
+	kernel/Device/DebugDevice.cpp
 	kernel/Device/Device.cpp
 	kernel/Device/FramebufferDevice.cpp
 	kernel/Device/NullDevice.cpp

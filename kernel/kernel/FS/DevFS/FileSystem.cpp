@@ -1,4 +1,5 @@
 #include <BAN/ScopeGuard.h>
+#include <kernel/Device/DebugDevice.h>
 #include <kernel/Device/FramebufferDevice.h>
 #include <kernel/Device/NullDevice.h>
 #include <kernel/Device/ZeroDevice.h>
@@ -22,6 +23,7 @@ namespace Kernel
 		ASSERT(s_instance);
 
 		MUST(s_instance->TmpFileSystem::initialize(0755, 0, 0));
+		s_instance->add_device(MUST(DebugDevice::create(0666, 0, 0)));
 		s_instance->add_device(MUST(NullDevice::create(0666, 0, 0)));
 		s_instance->add_device(MUST(ZeroDevice::create(0666, 0, 0)));
 	}

@@ -22,11 +22,13 @@ static FILE s_files[FOPEN_MAX] {
 	{ .fd = STDIN_FILENO  },
 	{ .fd = STDOUT_FILENO },
 	{ .fd = STDERR_FILENO },
+	{ .fd = STDDBG_FILENO },
 };
 
 FILE* stdin  = &s_files[0];
 FILE* stdout = &s_files[1];
 FILE* stderr = &s_files[2];
+FILE* stddbg = &s_files[3];
 
 void clearerr(FILE* file)
 {

@@ -5,7 +5,7 @@
 #define dprintln(...)										\
 	do {													\
 		Debug::DebugLock::lock();							\
-		Debug::print_prefix(__FILE__, __LINE__);				\
+		Debug::print_prefix(__FILE__, __LINE__);			\
 		BAN::Formatter::print(Debug::putchar, __VA_ARGS__);	\
 		BAN::Formatter::print(Debug::putchar, "\r\n");		\
 		Debug::DebugLock::unlock();							\
