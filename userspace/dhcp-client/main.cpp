@@ -1,3 +1,4 @@
+#include <BAN/Debug.h>
 #include <BAN/Endianness.h>
 #include <BAN/IPv4.h>
 #include <BAN/MAC.h>
@@ -12,7 +13,7 @@
 #include <stropts.h>
 #include <sys/socket.h>
 
-#define DEBUG_DHCP 0
+#define DEBUG_DHCP 1
 
 struct DHCPPacket
 {
@@ -304,12 +305,12 @@ int main()
 
 	auto mac_address = get_mac_address(socket);
 #if DEBUG_DHCP
-	BAN::Formatter::println(putchar, "MAC: {}", mac_address);
+	dprintln("MAC: {}", mac_address);
 #endif
 
 	send_dhcp_discover(socket, mac_address);
 #if DEBUG_DHCP
-	printf("DHCPDISCOVER sent\n");
+	dprintln("DHCPDISCOVER sent");
 #endif
 
 	auto dhcp_offer = read_dhcp_packet(socket);
@@ -322,15 +323,15 @@ int main()
 	}
 
 #if DEBUG_DHCP
-	BAN::Formatter::println(putchar, "DHCPOFFER");
-	BAN::Formatter::println(putchar, "  IP     {}", dhcp_offer->address);
-	BAN::Formatter::println(putchar, "  SUBNET {}", dhcp_offer->subnet);
-	BAN::Formatter::println(putchar, "  SERVER {}", dhcp_offer->server);
+	dprintln("DHCPOFFER");
+	dprintln("  IP     {}", dhcp_offer->address);
+	dprintln("  SUBNET {}", dhcp_offer->subnet);
+	dprintln("  SERVER {}", dhcp_offer->server);
 #endif
 
 	send_dhcp_request(socket, mac_address, dhcp_offer->address, dhcp_offer->server);
 #if DEBUG_DHCP
-	printf("DHCPREQUEST sent\n");
+	dprintln("DHCPREQUEST sent");
 #endif
 
 	auto dhcp_ack = read_dhcp_packet(socket);
@@ -343,10 +344,10 @@ int main()
 	}
 
 #if DEBUG_DHCP
-	BAN::Formatter::println(putchar, "DHCPACK");
-	BAN::Formatter::println(putchar, "  IP     {}", dhcp_ack->address);
-	BAN::Formatter::println(putchar, "  SUBNET {}", dhcp_ack->subnet);
-	BAN::Formatter::println(putchar, "  SERVER {}", dhcp_ack->server);
+	dprintln("DHCPACK");
+	dprintln("  IP     {}", dhcp_ack->address);
+	dprintln("  SUBNET {}", dhcp_ack->subnet);
+	dprintln("  SERVER {}", dhcp_ack->server);
 #endif
 
 	if (dhcp_offer->address != dhcp_ack->address)
