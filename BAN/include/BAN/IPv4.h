@@ -1,5 +1,6 @@
 #pragma once
 
+#include <BAN/Endianness.h>
 #include <BAN/Formatter.h>
 #include <BAN/Hash.h>
 

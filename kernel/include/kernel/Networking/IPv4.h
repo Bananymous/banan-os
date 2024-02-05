@@ -23,12 +23,13 @@ namespace Kernel
 
 		constexpr uint16_t calculate_checksum() const
 		{
-			return 0xFFFF
-				- (((uint16_t)version_IHL << 8) | DSCP_ECN)
-				- total_length
-				- identification
-				- flags_frament
-				- (((uint16_t)time_to_live << 8) | protocol);
+			uint32_t total_sum = 0;
+			for (size_t i = 0; i < sizeof(IPv4Header) / sizeof(uint16_t); i++)
+				total_sum += reinterpret_cast<const BAN::NetworkEndian<uint16_t>*>(this)[i];
+			total_sum -= checksum;
+			while (total_sum >> 16)
+				total_sum = (total_sum >> 16) + (total_sum & 0xFFFF);
+			return ~(uint16_t)total_sum;
 		}
 	};
 	static_assert(sizeof(IPv4Header) == 20);

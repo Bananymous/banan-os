@@ -8,15 +8,15 @@ namespace Kernel
 	{
 		auto& header = packet.as<IPv4Header>();
 		header.version_IHL		= 0x45;
-		header.DSCP_ECN			= 0x10;
+		header.DSCP_ECN			= 0x00;
 		header.total_length		= packet.size();
 		header.identification	= 1;
 		header.flags_frament	= 0x00;
 		header.time_to_live		= 0x40;
 		header.protocol			= protocol;
-		header.checksum			= header.calculate_checksum();
 		header.src_address		= src_ipv4;
 		header.dst_address		= dst_ipv4;
+		header.checksum			= header.calculate_checksum();
 	}
 
 }
