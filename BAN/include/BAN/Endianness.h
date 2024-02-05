@@ -90,4 +90,10 @@ namespace BAN
 	template<integral T>
 	using NetworkEndian = BigEndian<T>;
 
+	template<integral T>
+	constexpr T host_to_network_endian(T value)
+	{
+		return host_to_big_endian(value);
+	}
+
 }
