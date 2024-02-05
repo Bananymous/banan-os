@@ -31,6 +31,7 @@ namespace Kernel
 
 	public:
 		static BAN::ErrorOr<BAN::UniqPtr<ARPTable>> create();
+		~ARPTable();
 
 		BAN::ErrorOr<BAN::MACAddress> get_mac_from_ipv4(NetworkInterface&, BAN::IPv4Address);
 

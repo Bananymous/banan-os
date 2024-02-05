@@ -1,5 +1,6 @@
 #include <kernel/LockGuard.h>
 #include <kernel/Networking/ARPTable.h>
+#include <kernel/Scheduler.h>
 #include <kernel/Timer/Timer.h>
 
 namespace Kernel
@@ -32,12 +33,20 @@ namespace Kernel
 	{
 	}
 
+	ARPTable::~ARPTable()
+	{
+		if (m_process)
+			m_process->exit(0, SIGKILL);
+		m_process = nullptr;
+	}
+
 	BAN::ErrorOr<BAN::MACAddress> ARPTable::get_mac_from_ipv4(NetworkInterface& interface, BAN::IPv4Address ipv4_address)
 	{
+		if (ipv4_address == s_broadcast_ipv4)
+			return s_broadcast_mac;
+
 		{
 			LockGuard _(m_lock);
-			if (ipv4_address == s_broadcast_ipv4)
-				return s_broadcast_mac;
 			if (m_arp_table.contains(ipv4_address))
 				return m_arp_table[ipv4_address];
 		}
@@ -64,7 +73,7 @@ namespace Kernel
 
 		TRY(interface.send_raw_bytes(full_packet));
 
-		uint64_t timeout = SystemTimer::get().ms_since_boot() + 5'000;
+		uint64_t timeout = SystemTimer::get().ms_since_boot() + 1'000;
 		while (SystemTimer::get().ms_since_boot() < timeout)
 		{
 			{
@@ -72,10 +81,10 @@ namespace Kernel
 				if (m_arp_table.contains(ipv4_address))
 					return m_arp_table[ipv4_address];
 			}
-			TRY(Thread::current().block_or_eintr(m_pending_semaphore));
+			Scheduler::get().reschedule();
 		}
 
-		return BAN::Error::from_errno(EINVAL);
+		return BAN::Error::from_errno(ETIMEDOUT);
 	}
 
 	BAN::ErrorOr<void> ARPTable::handle_arp_packet(NetworkInterface& interface, const ARPPacket& packet)
