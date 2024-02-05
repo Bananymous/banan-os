@@ -11,31 +11,32 @@ namespace BAN
 	{
 		constexpr IPv4Address(uint32_t u32_address)
 		{
-			address[0] = u32_address >> 24;
-			address[1] = u32_address >> 16;
-			address[2] = u32_address >>  8;
-			address[3] = u32_address >>  0;
+			raw = u32_address;
 		}
 
-		constexpr uint32_t as_u32() const
+		constexpr IPv4Address(uint8_t oct1, uint8_t oct2, uint8_t oct3, uint8_t oct4)
 		{
-			return
-				((uint32_t)address[0] << 24) |
-				((uint32_t)address[1] << 16) |
-				((uint32_t)address[2] <<  8) |
-				((uint32_t)address[3] <<  0);
+			octets[0] = oct1;
+			octets[1] = oct2;
+			octets[2] = oct3;
+			octets[3] = oct4;
 		}
 
 		constexpr bool operator==(const IPv4Address& other) const
 		{
-			return
-				address[0] == other.address[0] &&
-				address[1] == other.address[1] &&
-				address[2] == other.address[2] &&
-				address[3] == other.address[3];
+			return raw == other.raw;
 		}
 
-		uint8_t address[4];
+		constexpr IPv4Address mask(const IPv4Address& other) const
+		{
+			return IPv4Address(raw & other.raw);
+		}
+
+		union
+		{
+			uint8_t octets[4];
+			uint32_t raw;
+		} __attribute__((packed));
 	};
 	static_assert(sizeof(IPv4Address) == 4);
 
@@ -44,7 +45,7 @@ namespace BAN
 	{
 		constexpr hash_t operator()(IPv4Address ipv4) const
 		{
-			return hash<uint32_t>()(ipv4.as_u32());
+			return hash<uint32_t>()(ipv4.raw);
 		}
 	};
 
@@ -63,11 +64,11 @@ namespace BAN::Formatter
 			.upper = false,
 		};
 
-		print_argument(putc, ipv4.address[0], format);
+		print_argument(putc, ipv4.octets[0], format);
 		for (size_t i = 1; i < 4; i++)
 		{
 			putc('.');
-			print_argument(putc, ipv4.address[i], format);
+			print_argument(putc, ipv4.octets[i], format);
 		}
 	}
 

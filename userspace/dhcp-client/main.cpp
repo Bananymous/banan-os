@@ -4,6 +4,7 @@
 #include <BAN/MAC.h>
 #include <BAN/Vector.h>
 
+#include <arpa/inet.h>
 #include <fcntl.h>
 #include <net/if.h>
 #include <netinet/in.h>
@@ -24,10 +25,10 @@ struct DHCPPacket
 	BAN::NetworkEndian<uint32_t>	xid		{ 0x3903F326 };
 	BAN::NetworkEndian<uint16_t>	secs	{ 0x0000 };
 	BAN::NetworkEndian<uint16_t>	flags	{ 0x0000 };
-	BAN::NetworkEndian<uint32_t>	ciaddr	{ 0 };
-	BAN::NetworkEndian<uint32_t>	yiaddr	{ 0 };
-	BAN::NetworkEndian<uint32_t>	siaddr	{ 0 };
-	BAN::NetworkEndian<uint32_t>	giaddr	{ 0 };
+	BAN::IPv4Address				ciaddr	{ 0 };
+	BAN::IPv4Address				yiaddr	{ 0 };
+	BAN::IPv4Address				siaddr	{ 0 };
+	BAN::IPv4Address				giaddr	{ 0 };
 	BAN::MACAddress					chaddr;
 	uint8_t							padding[10] {};
 	uint8_t							legacy[192] {};
@@ -76,8 +77,9 @@ void update_ipv4_info(int socket, BAN::IPv4Address address, BAN::IPv4Address sub
 {
 	{
 		ifreq ifreq;
-		ifreq.ifr_ifru.ifru_addr.sa_family = AF_INET;
-		*(uint32_t*)ifreq.ifr_ifru.ifru_addr.sa_data = address.as_u32();
+		auto& ifru_addr = *reinterpret_cast<sockaddr_in*>(&ifreq.ifr_ifru.ifru_addr);
+		ifru_addr.sin_family = AF_INET;
+		ifru_addr.sin_addr.s_addr = address.raw;
 		if (ioctl(socket, SIOCSIFADDR, &ifreq) == -1)
 		{
 			perror("ioctl");
@@ -87,8 +89,9 @@ void update_ipv4_info(int socket, BAN::IPv4Address address, BAN::IPv4Address sub
 
 	{
 		ifreq ifreq;
-		ifreq.ifr_ifru.ifru_netmask.sa_family = AF_INET;
-		*(uint32_t*)ifreq.ifr_ifru.ifru_netmask.sa_data = subnet.as_u32();
+		auto& ifru_netmask = *reinterpret_cast<sockaddr_in*>(&ifreq.ifr_ifru.ifru_netmask);
+		ifru_netmask.sin_family = AF_INET;
+		ifru_netmask.sin_addr.s_addr = netmask.raw;
 		if (ioctl(socket, SIOCSIFNETMASK, &ifreq) == -1)
 		{
 			perror("ioctl");
@@ -101,8 +104,8 @@ void send_dhcp_packet(int socket, const DHCPPacket& dhcp_packet, BAN::IPv4Addres
 {
 	sockaddr_in server_addr;
 	server_addr.sin_family = AF_INET;
-	server_addr.sin_port = 67;
-	server_addr.sin_addr.s_addr = server_ipv4.as_u32();;
+	server_addr.sin_port = htons(67);
+	server_addr.sin_addr.s_addr = server_ipv4.raw;
 
 	if (sendto(socket, &dhcp_packet, sizeof(DHCPPacket), 0, (sockaddr*)&server_addr, sizeof(server_addr)) == -1)
 	{
@@ -138,7 +141,7 @@ void send_dhcp_request(int socket, BAN::MACAddress mac_address, BAN::IPv4Address
 {
 	DHCPPacket dhcp_packet;
 	dhcp_packet.op = 0x01;
-	dhcp_packet.siaddr = server_ipv4.as_u32();
+	dhcp_packet.siaddr = server_ipv4.raw;
 	dhcp_packet.chaddr = mac_address;
 
 	size_t idx = 0;
@@ -149,10 +152,10 @@ void send_dhcp_request(int socket, BAN::MACAddress mac_address, BAN::IPv4Address
 
 	dhcp_packet.options[idx++] = RequestedIPv4Address;
 	dhcp_packet.options[idx++] = 0x04;
-	dhcp_packet.options[idx++] = offered_ipv4.address[0];
-	dhcp_packet.options[idx++] = offered_ipv4.address[1];
-	dhcp_packet.options[idx++] = offered_ipv4.address[2];
-	dhcp_packet.options[idx++] = offered_ipv4.address[3];
+	dhcp_packet.options[idx++] = offered_ipv4.octets[0];
+	dhcp_packet.options[idx++] = offered_ipv4.octets[1];
+	dhcp_packet.options[idx++] = offered_ipv4.octets[2];
+	dhcp_packet.options[idx++] = offered_ipv4.octets[3];
 
 	dhcp_packet.options[idx++] = 0xFF;
 
@@ -189,7 +192,7 @@ DHCPPacketInfo parse_dhcp_packet(const DHCPPacket& packet)
 					fprintf(stderr, "Subnet mask with invalid length %hhu\n", length);
 					break;
 				}
-				uint32_t raw = *reinterpret_cast<const BAN::NetworkEndian<uint32_t>*>(options);
+				uint32_t raw = *reinterpret_cast<const uint32_t*>(options);
 				packet_info.subnet = BAN::IPv4Address(raw);
 				break;
 			}
@@ -202,7 +205,7 @@ DHCPPacketInfo parse_dhcp_packet(const DHCPPacket& packet)
 				}
 				for (int i = 0; i < length; i += 4)
 				{
-					uint32_t raw = *reinterpret_cast<const BAN::NetworkEndian<uint32_t>*>(options + i);
+					uint32_t raw = *reinterpret_cast<const uint32_t*>(options + i);
 					MUST(packet_info.routers.emplace_back(raw));
 				}
 				break;
@@ -216,7 +219,7 @@ DHCPPacketInfo parse_dhcp_packet(const DHCPPacket& packet)
 				}
 				for (int i = 0; i < length; i += 4)
 				{
-					uint32_t raw = *reinterpret_cast<const BAN::NetworkEndian<uint32_t>*>(options + i);
+					uint32_t raw = *reinterpret_cast<const uint32_t*>(options + i);
 					MUST(packet_info.dns.emplace_back(raw));
 				}
 				break;
@@ -245,7 +248,7 @@ DHCPPacketInfo parse_dhcp_packet(const DHCPPacket& packet)
 					fprintf(stderr, "Server identifier with invalid length %hhu\n", length);
 					break;
 				}
-				uint32_t raw = *reinterpret_cast<const BAN::NetworkEndian<uint32_t>*>(options);
+				uint32_t raw = *reinterpret_cast<const uint32_t*>(options);
 				packet_info.server = BAN::IPv4Address(raw);
 				break;
 			}
@@ -294,8 +297,8 @@ int main()
 
 	sockaddr_in client_addr;
 	client_addr.sin_family = AF_INET;
-	client_addr.sin_port = 68;
-	client_addr.sin_addr.s_addr = 0x00000000;
+	client_addr.sin_port = htons(68);
+	client_addr.sin_addr.s_addr = INADDR_ANY;
 
 	if (bind(socket, (sockaddr*)&client_addr, sizeof(client_addr)) == -1)
 	{

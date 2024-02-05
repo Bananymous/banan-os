@@ -91,8 +91,8 @@ namespace Kernel
 		if (sender_addr)
 		{
 			sender_addr->sin_family = AF_INET;
-			sender_addr->sin_port = packet_info.sender_port;
-			sender_addr->sin_addr.s_addr = packet_info.sender_addr.as_u32();
+			sender_addr->sin_port = BAN::NetworkEndian(packet_info.sender_port);
+			sender_addr->sin_addr.s_addr = packet_info.sender_addr.raw;
 		}
 
 		return nread;

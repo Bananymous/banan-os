@@ -39,7 +39,8 @@ namespace Kernel
 		if (address_len != sizeof(sockaddr_in))
 			return BAN::Error::from_errno(EINVAL);
 		auto* addr_in = reinterpret_cast<const sockaddr_in*>(address);
-		return NetworkManager::get().bind_socket(addr_in->sin_port, this);
+		uint16_t dst_port = BAN::host_to_network_endian(addr_in->sin_port);
+		return NetworkManager::get().bind_socket(dst_port, this);
 	}
 
 	BAN::ErrorOr<ssize_t> NetworkSocket::sendto_impl(const sys_sendto_t* arguments)
@@ -58,7 +59,7 @@ namespace Kernel
 		auto* destination = reinterpret_cast<const sockaddr_in*>(arguments->dest_addr);
 		auto  message = BAN::ConstByteSpan((const uint8_t*)arguments->message, arguments->length);
 
-		uint16_t dst_port = destination->sin_port;
+		uint16_t dst_port = BAN::host_to_network_endian(destination->sin_port);
 		if (dst_port == PORT_NONE)
 			return BAN::Error::from_errno(EINVAL);
 
@@ -140,33 +141,33 @@ namespace Kernel
 		{
 			case SIOCGIFADDR:
 			{
-				auto ipv4_address = m_interface->get_ipv4_address();
-				ifreq->ifr_ifru.ifru_addr.sa_family = AF_INET;
-				memcpy(ifreq->ifr_ifru.ifru_addr.sa_data, &ipv4_address, sizeof(ipv4_address));
+				auto& ifru_addr = *reinterpret_cast<sockaddr_in*>(&ifreq->ifr_ifru.ifru_addr);
+				ifru_addr.sin_family = AF_INET;
+				ifru_addr.sin_addr.s_addr = m_interface->get_ipv4_address().raw;
 				return 0;
 			}
 			case SIOCSIFADDR:
 			{
-				if (ifreq->ifr_ifru.ifru_addr.sa_family != AF_INET)
+				auto& ifru_addr = *reinterpret_cast<const sockaddr_in*>(&ifreq->ifr_ifru.ifru_addr);
+				if (ifru_addr.sin_family != AF_INET)
 					return BAN::Error::from_errno(EADDRNOTAVAIL);
-				BAN::IPv4Address ipv4_address { *reinterpret_cast<uint32_t*>(ifreq->ifr_ifru.ifru_addr.sa_data) };
-				m_interface->set_ipv4_address(ipv4_address);
+				m_interface->set_ipv4_address(BAN::IPv4Address { ifru_addr.sin_addr.s_addr });
 				dprintln("IPv4 address set to {}", m_interface->get_ipv4_address());
 				return 0;
 			}
 			case SIOCGIFNETMASK:
 			{
-				auto netmask_address = m_interface->get_netmask();
-				ifreq->ifr_ifru.ifru_netmask.sa_family = AF_INET;
-				memcpy(ifreq->ifr_ifru.ifru_netmask.sa_data, &netmask_address, sizeof(netmask_address));
+				auto& ifru_netmask = *reinterpret_cast<sockaddr_in*>(&ifreq->ifr_ifru.ifru_netmask);
+				ifru_netmask.sin_family = AF_INET;
+				ifru_netmask.sin_addr.s_addr = m_interface->get_netmask().raw;
 				return 0;
 			}
 			case SIOCSIFNETMASK:
 			{
-				if (ifreq->ifr_ifru.ifru_netmask.sa_family != AF_INET)
+				auto& ifru_netmask = *reinterpret_cast<const sockaddr_in*>(&ifreq->ifr_ifru.ifru_netmask);
+				if (ifru_netmask.sin_family != AF_INET)
 					return BAN::Error::from_errno(EADDRNOTAVAIL);
-				BAN::IPv4Address netmask { *reinterpret_cast<uint32_t*>(ifreq->ifr_ifru.ifru_netmask.sa_data) };
-				m_interface->set_netmask(netmask);
+				m_interface->set_netmask(BAN::IPv4Address { ifru_netmask.sin_addr.s_addr });
 				dprintln("Netmask set to {}", m_interface->get_netmask());
 				return 0;
 			}
