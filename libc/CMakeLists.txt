@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.26)
 project(libc CXX ASM)
 
 set(LIBC_SOURCES
+	arpa/inet.cpp
 	assert.cpp
 	ctype.cpp
 	dirent.cpp
