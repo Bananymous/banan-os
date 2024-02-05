@@ -73,7 +73,7 @@ BAN::MACAddress get_mac_address(int socket)
 	return mac_address;
 }
 
-void update_ipv4_info(int socket, BAN::IPv4Address address, BAN::IPv4Address subnet)
+void update_ipv4_info(int socket, BAN::IPv4Address address, BAN::IPv4Address netmask, BAN::IPv4Address gateway)
 {
 	{
 		ifreq ifreq;
@@ -93,6 +93,19 @@ void update_ipv4_info(int socket, BAN::IPv4Address address, BAN::IPv4Address sub
 		ifru_netmask.sin_family = AF_INET;
 		ifru_netmask.sin_addr.s_addr = netmask.raw;
 		if (ioctl(socket, SIOCSIFNETMASK, &ifreq) == -1)
+		{
+			perror("ioctl");
+			exit(1);
+		}
+	}
+
+	if (gateway.raw)
+	{
+		ifreq ifreq;
+		auto& ifru_gwaddr = *reinterpret_cast<sockaddr_in*>(&ifreq.ifr_ifru.ifru_gwaddr);
+		ifru_gwaddr.sin_family = AF_INET;
+		ifru_gwaddr.sin_addr.s_addr = gateway.raw;
+		if (ioctl(socket, SIOCSIFGWADDR, &ifreq) == -1)
 		{
 			perror("ioctl");
 			exit(1);
@@ -359,7 +372,11 @@ int main()
 		return 1;
 	}
 
-	update_ipv4_info(socket, dhcp_ack->address, dhcp_ack->subnet);
+	BAN::IPv4Address gateway { 0 };
+	if (!dhcp_ack->routers.empty())
+		gateway = dhcp_ack->routers.front();
+
+	update_ipv4_info(socket, dhcp_ack->address, dhcp_ack->subnet, gateway);
 
 	close(socket);
 

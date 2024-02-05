@@ -171,6 +171,22 @@ namespace Kernel
 				dprintln("Netmask set to {}", m_interface->get_netmask());
 				return 0;
 			}
+			case SIOCGIFGWADDR:
+			{
+				auto& ifru_gwaddr = *reinterpret_cast<sockaddr_in*>(&ifreq->ifr_ifru.ifru_gwaddr);
+				ifru_gwaddr.sin_family = AF_INET;
+				ifru_gwaddr.sin_addr.s_addr = m_interface->get_gateway().raw;
+				return 0;
+			}
+			case SIOCSIFGWADDR:
+			{
+				auto& ifru_gwaddr = *reinterpret_cast<const sockaddr_in*>(&ifreq->ifr_ifru.ifru_gwaddr);
+				if (ifru_gwaddr.sin_family != AF_INET)
+					return BAN::Error::from_errno(EADDRNOTAVAIL);
+				m_interface->set_gateway(BAN::IPv4Address { ifru_gwaddr.sin_addr.s_addr });
+				dprintln("Gateway set to {}", m_interface->get_gateway());
+				return 0;
+			}
 			case SIOCGIFHWADDR:
 			{
 				auto mac_address = m_interface->get_mac_address();

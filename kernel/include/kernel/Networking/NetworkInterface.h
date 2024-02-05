@@ -46,6 +46,9 @@ namespace Kernel
 		BAN::IPv4Address get_netmask() const { return m_netmask; }
 		void set_netmask(BAN::IPv4Address new_netmask) { m_netmask = new_netmask; }
 
+		BAN::IPv4Address get_gateway() const { return m_gateway; }
+		void set_gateway(BAN::IPv4Address new_gateway) { m_gateway = new_gateway; }
+
 		virtual bool link_up() = 0;
 		virtual int link_speed() = 0;
 
@@ -65,6 +68,7 @@ namespace Kernel
 
 		BAN::IPv4Address m_ipv4_address { 0 };
 		BAN::IPv4Address m_netmask { 0 };
+		BAN::IPv4Address m_gateway { 0 };
 	};
 
 }

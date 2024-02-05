@@ -22,6 +22,7 @@ struct ifreq
 	union {
 		struct sockaddr ifru_addr;
 		struct sockaddr ifru_netmask;
+		struct sockaddr ifru_gwaddr;
 		struct sockaddr ifru_hwaddr;
 		unsigned char __min_storage[sizeof(sockaddr) + 6];
 	} ifr_ifru;
@@ -31,7 +32,9 @@ struct ifreq
 #define SIOCSIFADDR		2	/* Set interface address */
 #define SIOCGIFNETMASK	3	/* Get network mask */
 #define SIOCSIFNETMASK	4	/* Set network mask */
-#define SIOCGIFHWADDR	5	/* Get hardware address */
+#define SIOCGIFGWADDR	5	/* Get gateway address */
+#define SIOCSIFGWADDR	6	/* Set gateway address */
+#define SIOCGIFHWADDR	7	/* Get hardware address */
 
 void					if_freenameindex(struct if_nameindex* ptr);
 char*					if_indextoname(unsigned ifindex, char* ifname);

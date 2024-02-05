@@ -45,6 +45,9 @@ namespace Kernel
 		if (ipv4_address == s_broadcast_ipv4)
 			return s_broadcast_mac;
 
+		if (interface.get_ipv4_address().mask(interface.get_netmask()) != ipv4_address.mask(interface.get_netmask()))
+			ipv4_address = interface.get_gateway();
+
 		{
 			LockGuard _(m_lock);
 			if (m_arp_table.contains(ipv4_address))
