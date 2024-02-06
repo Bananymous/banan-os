@@ -33,7 +33,7 @@ struct Rule
 	BAN::String	target;
 };
 
-using Workflows = BAN::HashMapUnstable<BAN::String, BAN::Vector<Rule>>;
+using Workflows = BAN::HashMap<BAN::String, BAN::Vector<Rule>>;
 
 struct Item
 {

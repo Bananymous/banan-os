@@ -7,7 +7,7 @@
 namespace BAN
 {
 
-	template<typename Key, typename T, typename HASH = BAN::hash<Key>, bool STABLE = true>
+	template<typename Key, typename T, typename HASH = BAN::hash<Key>>
 	class HashMap
 	{
 	public:
@@ -32,12 +32,12 @@ namespace BAN
 
 	public:
 		HashMap() = default;
-		HashMap(const HashMap<Key, T, HASH, STABLE>&);
-		HashMap(HashMap<Key, T, HASH, STABLE>&&);
+		HashMap(const HashMap<Key, T, HASH>&);
+		HashMap(HashMap<Key, T, HASH>&&);
 		~HashMap();
 
-		HashMap<Key, T, HASH, STABLE>& operator=(const HashMap<Key, T, HASH, STABLE>&);
-		HashMap<Key, T, HASH, STABLE>& operator=(HashMap<Key, T, HASH, STABLE>&&);
+		HashMap<Key, T, HASH>& operator=(const HashMap<Key, T, HASH>&);
+		HashMap<Key, T, HASH>& operator=(HashMap<Key, T, HASH>&&);
 
 		ErrorOr<void> insert(const Key&, const T&);
 		ErrorOr<void> insert(const Key&, T&&);
@@ -74,26 +74,26 @@ namespace BAN
 		friend iterator;
 	};
 
-	template<typename Key, typename T, typename HASH, bool STABLE>
-	HashMap<Key, T, HASH, STABLE>::HashMap(const HashMap<Key, T, HASH, STABLE>& other)
+	template<typename Key, typename T, typename HASH>
+	HashMap<Key, T, HASH>::HashMap(const HashMap<Key, T, HASH>& other)
 	{
 		*this = other;
 	}
 
-	template<typename Key, typename T, typename HASH, bool STABLE>
-	HashMap<Key, T, HASH, STABLE>::HashMap(HashMap<Key, T, HASH, STABLE>&& other)
+	template<typename Key, typename T, typename HASH>
+	HashMap<Key, T, HASH>::HashMap(HashMap<Key, T, HASH>&& other)
 	{
 		*this = move(other);
 	}
 
-	template<typename Key, typename T, typename HASH, bool STABLE>
-	HashMap<Key, T, HASH, STABLE>::~HashMap()
+	template<typename Key, typename T, typename HASH>
+	HashMap<Key, T, HASH>::~HashMap()
 	{
 		clear();
 	}
 
-	template<typename Key, typename T, typename HASH, bool STABLE>
-	HashMap<Key, T, HASH, STABLE>& HashMap<Key, T, HASH, STABLE>::operator=(const HashMap<Key, T, HASH, STABLE>& other)
+	template<typename Key, typename T, typename HASH>
+	HashMap<Key, T, HASH>& HashMap<Key, T, HASH>::operator=(const HashMap<Key, T, HASH>& other)
 	{
 		clear();
 		m_buckets = other.m_buckets;
@@ -101,8 +101,8 @@ namespace BAN
 		return *this;
 	}
 
-	template<typename Key, typename T, typename HASH, bool STABLE>
-	HashMap<Key, T, HASH, STABLE>& HashMap<Key, T, HASH, STABLE>::operator=(HashMap<Key, T, HASH, STABLE>&& other)
+	template<typename Key, typename T, typename HASH>
+	HashMap<Key, T, HASH>& HashMap<Key, T, HASH>::operator=(HashMap<Key, T, HASH>&& other)
 	{
 		clear();
 		m_buckets = move(other.m_buckets);
@@ -111,21 +111,21 @@ namespace BAN
 		return *this;
 	}
 
-	template<typename Key, typename T, typename HASH, bool STABLE>
-	ErrorOr<void> HashMap<Key, T, HASH, STABLE>::insert(const Key& key, const T& value)
+	template<typename Key, typename T, typename HASH>
+	ErrorOr<void> HashMap<Key, T, HASH>::insert(const Key& key, const T& value)
 	{
 		return insert(key, move(T(value)));
 	}
 
-	template<typename Key, typename T, typename HASH, bool STABLE>
-	ErrorOr<void> HashMap<Key, T, HASH, STABLE>::insert(const Key& key, T&& value)
+	template<typename Key, typename T, typename HASH>
+	ErrorOr<void> HashMap<Key, T, HASH>::insert(const Key& key, T&& value)
 	{
 		return emplace(key, move(value));
 	}
 
-	template<typename Key, typename T, typename HASH, bool STABLE>
+	template<typename Key, typename T, typename HASH>
 	template<typename... Args>
-	ErrorOr<void> HashMap<Key, T, HASH, STABLE>::emplace(const Key& key, Args&&... args)
+	ErrorOr<void> HashMap<Key, T, HASH>::emplace(const Key& key, Args&&... args)
 	{
 		ASSERT(!contains(key));
 		TRY(rebucket(m_size + 1));
@@ -135,15 +135,15 @@ namespace BAN
 		return {};
 	}
 
-	template<typename Key, typename T, typename HASH, bool STABLE>
-	ErrorOr<void> HashMap<Key, T, HASH, STABLE>::reserve(size_type size)
+	template<typename Key, typename T, typename HASH>
+	ErrorOr<void> HashMap<Key, T, HASH>::reserve(size_type size)
 	{
 		TRY(rebucket(size));
 		return {};
 	}
 
-	template<typename Key, typename T, typename HASH, bool STABLE>
-	void HashMap<Key, T, HASH, STABLE>::remove(const Key& key)
+	template<typename Key, typename T, typename HASH>
+	void HashMap<Key, T, HASH>::remove(const Key& key)
 	{
 		if (empty()) return;
 		auto& bucket = get_bucket(key);
@@ -158,15 +158,15 @@ namespace BAN
 		}
 	}
 
-	template<typename Key, typename T, typename HASH, bool STABLE>
-	void HashMap<Key, T, HASH, STABLE>::clear()
+	template<typename Key, typename T, typename HASH>
+	void HashMap<Key, T, HASH>::clear()
 	{
 		m_buckets.clear();
 		m_size = 0;
 	}
 
-	template<typename Key, typename T, typename HASH, bool STABLE>
-	T& HashMap<Key, T, HASH, STABLE>::operator[](const Key& key)
+	template<typename Key, typename T, typename HASH>
+	T& HashMap<Key, T, HASH>::operator[](const Key& key)
 	{
 		ASSERT(!empty());
 		auto& bucket = get_bucket(key);
@@ -176,8 +176,8 @@ namespace BAN
 		ASSERT(false);
 	}
 
-	template<typename Key, typename T, typename HASH, bool STABLE>
-	const T& HashMap<Key, T, HASH, STABLE>::operator[](const Key& key) const
+	template<typename Key, typename T, typename HASH>
+	const T& HashMap<Key, T, HASH>::operator[](const Key& key) const
 	{
 		ASSERT(!empty());
 		const auto& bucket = get_bucket(key);
@@ -187,8 +187,8 @@ namespace BAN
 		ASSERT(false);
 	}
 
-	template<typename Key, typename T, typename HASH, bool STABLE>
-	bool HashMap<Key, T, HASH, STABLE>::contains(const Key& key) const
+	template<typename Key, typename T, typename HASH>
+	bool HashMap<Key, T, HASH>::contains(const Key& key) const
 	{
 		if (empty()) return false;
 		const auto& bucket = get_bucket(key);
@@ -198,20 +198,20 @@ namespace BAN
 		return false;
 	}
 
-	template<typename Key, typename T, typename HASH, bool STABLE>
-	bool HashMap<Key, T, HASH, STABLE>::empty() const
+	template<typename Key, typename T, typename HASH>
+	bool HashMap<Key, T, HASH>::empty() const
 	{
 		return m_size == 0;
 	}
 
-	template<typename Key, typename T, typename HASH, bool STABLE>
-	typename HashMap<Key, T, HASH, STABLE>::size_type HashMap<Key, T, HASH, STABLE>::size() const
+	template<typename Key, typename T, typename HASH>
+	typename HashMap<Key, T, HASH>::size_type HashMap<Key, T, HASH>::size() const
 	{
 		return m_size;
 	}
 
-	template<typename Key, typename T, typename HASH, bool STABLE>
-	ErrorOr<void> HashMap<Key, T, HASH, STABLE>::rebucket(size_type bucket_count)
+	template<typename Key, typename T, typename HASH>
+	ErrorOr<void> HashMap<Key, T, HASH>::rebucket(size_type bucket_count)
 	{
 		if (m_buckets.size() >= bucket_count)
 			return {};
@@ -222,13 +222,10 @@ namespace BAN
 
 		for (auto& bucket : m_buckets)
 		{
-			for (Entry& entry : bucket)
+			for (auto it = bucket.begin(); it != bucket.end();)
 			{
-				size_type bucket_index = HASH()(entry.key) % new_buckets.size();
-				if constexpr(STABLE)
-					TRY(new_buckets[bucket_index].push_back(entry));
-				else
-					TRY(new_buckets[bucket_index].push_back(move(entry)));
+				size_type new_bucket_index = HASH()(it->key) % new_buckets.size();
+				it = bucket.move_element_to_other_linked_list(new_buckets[new_bucket_index], new_buckets[new_bucket_index].end(), it);
 			}
 		}
 
@@ -236,27 +233,20 @@ namespace BAN
 		return {};
 	}
 
-	template<typename Key, typename T, typename HASH, bool STABLE>
-	LinkedList<typename HashMap<Key, T, HASH, STABLE>::Entry>& HashMap<Key, T, HASH, STABLE>::get_bucket(const Key& key)
+	template<typename Key, typename T, typename HASH>
+	LinkedList<typename HashMap<Key, T, HASH>::Entry>& HashMap<Key, T, HASH>::get_bucket(const Key& key)
 	{
 		ASSERT(!m_buckets.empty());
 		auto index = HASH()(key) % m_buckets.size();
 		return m_buckets[index];
 	}
 
-	template<typename Key, typename T, typename HASH, bool STABLE>
-	const LinkedList<typename HashMap<Key, T, HASH, STABLE>::Entry>& HashMap<Key, T, HASH, STABLE>::get_bucket(const Key& key) const
+	template<typename Key, typename T, typename HASH>
+	const LinkedList<typename HashMap<Key, T, HASH>::Entry>& HashMap<Key, T, HASH>::get_bucket(const Key& key) const
 	{
 		ASSERT(!m_buckets.empty());
 		auto index = HASH()(key) % m_buckets.size();
 		return m_buckets[index];
 	}
-
-	// Unstable hash map moves values between container during rebucketing.
-	// This means that if insertion to map fails, elements could be in invalid state
-	// and that container is no longer usable. This is better if either way you are
-	// going to stop using the hash map after insertion fails.
-	template<typename Key, typename T, typename HASH = BAN::hash<Key>>
-	using HashMapUnstable = HashMap<Key, T, HASH, false>;
 
 }

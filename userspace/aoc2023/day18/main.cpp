@@ -72,9 +72,9 @@ static constexpr Position s_dir_offset[] {
 
 i64 solve_general(FILE* fp, auto parse_dir, auto parse_count)
 {
-	BAN::HashSetUnstable<Position, PositionHash> path;
-	BAN::HashSetUnstable<Position, PositionHash> lpath;
-	BAN::HashSetUnstable<Position, PositionHash> rpath;
+	BAN::HashSet<Position, PositionHash> path;
+	BAN::HashSet<Position, PositionHash> lpath;
+	BAN::HashSet<Position, PositionHash> rpath;
 
 	Position current_pos { 0, 0 };
 	MUST(path.insert(current_pos));
@@ -157,8 +157,8 @@ i64 solve_general(FILE* fp, auto parse_dir, auto parse_count)
 	ASSERT(lmin_x != rmin_x);
 	auto& expand = (lmin_x < rmin_x) ? rpath : lpath;
 
-	BAN::HashSetUnstable<Position, PositionHash> visited;
-	BAN::HashSetUnstable<Position, PositionHash> inner_area;
+	BAN::HashSet<Position, PositionHash> visited;
+	BAN::HashSet<Position, PositionHash> inner_area;
 
 	while (!expand.empty())
 	{

@@ -88,13 +88,13 @@ i64 puzzle1(FILE* fp)
 {
 	auto garden = parse_garden(fp);
 
-	BAN::HashSetUnstable<Position> visited, reachable, pending;
+	BAN::HashSet<Position> visited, reachable, pending;
 	MUST(pending.insert(garden.start));
 
 	for (i32 i = 0; i <= 64; i++)
 	{
 		auto temp = BAN::move(pending);
-		pending = BAN::HashSetUnstable<Position>();
+		pending = BAN::HashSet<Position>();
 
 		while (!temp.empty())
 		{

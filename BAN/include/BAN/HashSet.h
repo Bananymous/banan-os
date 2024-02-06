@@ -11,7 +11,7 @@
 namespace BAN
 {
 
-	template<typename T, typename HASH = hash<T>, bool STABLE = true>
+	template<typename T, typename HASH = hash<T>>
 	class HashSet
 	{
 	public:
@@ -55,23 +55,23 @@ namespace BAN
 		size_type m_size = 0;
 	};
 
-	template<typename T, typename HASH, bool STABLE>
-	HashSet<T, HASH, STABLE>::HashSet(const HashSet& other)
+	template<typename T, typename HASH>
+	HashSet<T, HASH>::HashSet(const HashSet& other)
 		: m_buckets(other.m_buckets)
 		, m_size(other.m_size)
 	{
 	}
 
-	template<typename T, typename HASH, bool STABLE>
-	HashSet<T, HASH, STABLE>::HashSet(HashSet&& other)
+	template<typename T, typename HASH>
+	HashSet<T, HASH>::HashSet(HashSet&& other)
 		: m_buckets(move(other.m_buckets))
 		, m_size(other.m_size)
 	{
 		other.clear();
 	}
 
-	template<typename T, typename HASH, bool STABLE>
-	HashSet<T, HASH, STABLE>& HashSet<T, HASH, STABLE>::operator=(const HashSet& other)
+	template<typename T, typename HASH>
+	HashSet<T, HASH>& HashSet<T, HASH>::operator=(const HashSet& other)
 	{
 		clear();
 		m_buckets = other.m_buckets;
@@ -79,8 +79,8 @@ namespace BAN
 		return *this;
 	}
 
-	template<typename T, typename HASH, bool STABLE>
-	HashSet<T, HASH, STABLE>& HashSet<T, HASH, STABLE>::operator=(HashSet&& other)
+	template<typename T, typename HASH>
+	HashSet<T, HASH>& HashSet<T, HASH>::operator=(HashSet&& other)
 	{
 		clear();
 		m_buckets = move(other.m_buckets);
@@ -89,14 +89,14 @@ namespace BAN
 		return *this;
 	}
 
-	template<typename T, typename HASH, bool STABLE>
-	ErrorOr<void> HashSet<T, HASH, STABLE>::insert(const T& key)
+	template<typename T, typename HASH>
+	ErrorOr<void> HashSet<T, HASH>::insert(const T& key)
 	{
 		return insert(move(T(key)));
 	}
 
-	template<typename T, typename HASH, bool STABLE>
-	ErrorOr<void> HashSet<T, HASH, STABLE>::insert(T&& key)
+	template<typename T, typename HASH>
+	ErrorOr<void> HashSet<T, HASH>::insert(T&& key)
 	{
 		if (!empty() && get_bucket(key).contains(key))
 			return {};
@@ -107,8 +107,8 @@ namespace BAN
 		return {};
 	}
 
-	template<typename T, typename HASH, bool STABLE>
-	void HashSet<T, HASH, STABLE>::remove(const T& key)
+	template<typename T, typename HASH>
+	void HashSet<T, HASH>::remove(const T& key)
 	{
 		if (empty()) return;
 		auto& bucket = get_bucket(key);
@@ -123,41 +123,41 @@ namespace BAN
 		}
 	}
 
-	template<typename T, typename HASH, bool STABLE>
-	void HashSet<T, HASH, STABLE>::clear()
+	template<typename T, typename HASH>
+	void HashSet<T, HASH>::clear()
 	{
 		m_buckets.clear();
 		m_size = 0;
 	}
 
-	template<typename T, typename HASH, bool STABLE>
-	ErrorOr<void> HashSet<T, HASH, STABLE>::reserve(size_type size)
+	template<typename T, typename HASH>
+	ErrorOr<void> HashSet<T, HASH>::reserve(size_type size)
 	{
 		TRY(rebucket(size));
 		return {};
 	}
 
-	template<typename T, typename HASH, bool STABLE>
-	bool HashSet<T, HASH, STABLE>::contains(const T& key) const
+	template<typename T, typename HASH>
+	bool HashSet<T, HASH>::contains(const T& key) const
 	{
 		if (empty()) return false;
 		return get_bucket(key).contains(key);
 	}
 
-	template<typename T, typename HASH, bool STABLE>
-	typename HashSet<T, HASH, STABLE>::size_type HashSet<T, HASH, STABLE>::size() const
+	template<typename T, typename HASH>
+	typename HashSet<T, HASH>::size_type HashSet<T, HASH>::size() const
 	{
 		return m_size;
 	}
 
-	template<typename T, typename HASH, bool STABLE>
-	bool HashSet<T, HASH, STABLE>::empty() const
+	template<typename T, typename HASH>
+	bool HashSet<T, HASH>::empty() const
 	{
 		return m_size == 0;
 	}
 
-	template<typename T, typename HASH, bool STABLE>
-	ErrorOr<void> HashSet<T, HASH, STABLE>::rebucket(size_type bucket_count)
+	template<typename T, typename HASH>
+	ErrorOr<void> HashSet<T, HASH>::rebucket(size_type bucket_count)
 	{
 		if (m_buckets.size() >= bucket_count)
 			return {};
@@ -169,13 +169,10 @@ namespace BAN
 
 		for (auto& bucket : m_buckets)
 		{
-			for (T& key : bucket)
+			for (auto it = bucket.begin(); it != bucket.end();)
 			{
-				size_type bucket_index = HASH()(key) % new_buckets.size();
-				if constexpr(STABLE)
-					TRY(new_buckets[bucket_index].push_back(key));
-				else
-					TRY(new_buckets[bucket_index].push_back(move(key)));
+				size_type new_bucket_index = HASH()(*it) % new_buckets.size();
+				it = bucket.move_element_to_other_linked_list(new_buckets[new_bucket_index], new_buckets[new_bucket_index].end(), it);
 			}
 		}
 
@@ -183,27 +180,20 @@ namespace BAN
 		return {};
 	}
 
-	template<typename T, typename HASH, bool STABLE>
-	LinkedList<T>& HashSet<T, HASH, STABLE>::get_bucket(const T& key)
+	template<typename T, typename HASH>
+	LinkedList<T>& HashSet<T, HASH>::get_bucket(const T& key)
 	{
 		ASSERT(!m_buckets.empty());
 		size_type index = HASH()(key) % m_buckets.size();
 		return m_buckets[index];
 	}
 
-	template<typename T, typename HASH, bool STABLE>
-	const LinkedList<T>& HashSet<T, HASH, STABLE>::get_bucket(const T& key) const
+	template<typename T, typename HASH>
+	const LinkedList<T>& HashSet<T, HASH>::get_bucket(const T& key) const
 	{
 		ASSERT(!m_buckets.empty());
 		size_type index = HASH()(key) % m_buckets.size();
 		return m_buckets[index];
 	}
-
-	// Unstable hash set moves values between container during rebucketing.
-	// This means that if insertion to set fails, elements could be in invalid state
-	// and that container is no longer usable. This is better if either way you are
-	// going to stop using the hash set after insertion fails.
-	template<typename T, typename HASH = hash<T>>
-	using HashSetUnstable = HashSet<T, HASH, false>;
 
 }

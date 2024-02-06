@@ -72,9 +72,9 @@ struct ConjunctionModule : public Module
 	}
 };
 
-BAN::HashMapUnstable<BAN::String, BAN::UniqPtr<Module>> parse_modules(FILE* fp)
+BAN::HashMap<BAN::String, BAN::UniqPtr<Module>> parse_modules(FILE* fp)
 {
-	BAN::HashMapUnstable<BAN::String, BAN::UniqPtr<Module>> modules;
+	BAN::HashMap<BAN::String, BAN::UniqPtr<Module>> modules;
 
 	char buffer[128];
 	while (fgets(buffer, sizeof(buffer), fp))
