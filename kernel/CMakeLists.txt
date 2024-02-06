@@ -53,7 +53,7 @@ set(KERNEL_SOURCES
 	kernel/Networking/ARPTable.cpp
 	kernel/Networking/E1000/E1000.cpp
 	kernel/Networking/E1000/E1000E.cpp
-	kernel/Networking/IPv4.cpp
+	kernel/Networking/IPv4Layer.cpp
 	kernel/Networking/NetworkInterface.cpp
 	kernel/Networking/NetworkManager.cpp
 	kernel/Networking/NetworkSocket.cpp

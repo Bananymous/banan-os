@@ -3,9 +3,11 @@
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/Networking/E1000/E1000.h>
 #include <kernel/Networking/E1000/E1000E.h>
-#include <kernel/Networking/IPv4.h>
+#include <kernel/Networking/ICMP.h>
 #include <kernel/Networking/NetworkManager.h>
 #include <kernel/Networking/UDPSocket.h>
+
+#define DEBUG_ETHERTYPE 0
 
 namespace Kernel
 {
@@ -19,8 +21,8 @@ namespace Kernel
 		if (manager_ptr == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
 		auto manager = BAN::UniqPtr<NetworkManager>::adopt(manager_ptr);
-		manager->m_arp_table = TRY(ARPTable::create());
 		TRY(manager->TmpFileSystem::initialize(0777, 0, 0));
+		manager->m_ipv4_layer = TRY(IPv4Layer::create());
 		s_instance = BAN::move(manager);
 		return {};
 	}
@@ -68,45 +70,41 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<BAN::RefPtr<NetworkSocket>> NetworkManager::create_socket(SocketType type, mode_t mode, uid_t uid, gid_t gid)
+	BAN::ErrorOr<BAN::RefPtr<NetworkSocket>> NetworkManager::create_socket(SocketDomain domain, SocketType type, mode_t mode, uid_t uid, gid_t gid)
 	{
+		switch (domain)
+		{
+			case SocketDomain::INET:
+			{
+				if (type != SocketType::DGRAM)
+					return BAN::Error::from_errno(EPROTOTYPE);
+				break;
+			}
+			default:
+				return BAN::Error::from_errno(EAFNOSUPPORT);
+		}
+
 		ASSERT((mode & Inode::Mode::TYPE_MASK) == 0);
+		mode |= Inode::Mode::IFSOCK;
 
-		if (type != SocketType::DGRAM)
-			return BAN::Error::from_errno(EPROTOTYPE);
+		auto inode_info = create_inode_info(mode, uid, gid);
+		ino_t ino = TRY(allocate_inode(inode_info));
 
-		auto udp_socket = TRY(UDPSocket::create(mode | Inode::Mode::IFSOCK, uid, gid));
-		return BAN::RefPtr<NetworkSocket>(udp_socket);
-	}
-
-	void NetworkManager::unbind_socket(uint16_t port, BAN::RefPtr<NetworkSocket> socket)
-	{
-		if (m_bound_sockets.contains(port))
+		BAN::RefPtr<NetworkSocket> socket;
+		switch (domain)
 		{
-			ASSERT(m_bound_sockets[port].valid());
-			ASSERT(m_bound_sockets[port].lock() == socket);
-			m_bound_sockets.remove(port);
-		}
-		NetworkManager::get().remove_from_cache(socket);
-	}
-
-	BAN::ErrorOr<void> NetworkManager::bind_socket(uint16_t port, BAN::RefPtr<NetworkSocket> socket)
-	{
-		if (m_interfaces.empty())
-			return BAN::Error::from_errno(EADDRNOTAVAIL);
-
-		if (port != NetworkSocket::PORT_NONE)
-		{
-			if (m_bound_sockets.contains(port))
-				return BAN::Error::from_errno(EADDRINUSE);
-			TRY(m_bound_sockets.insert(port, socket));
+			case SocketDomain::INET:
+			{
+				if (type == SocketType::DGRAM)
+					socket = TRY(UDPSocket::create(*m_ipv4_layer, ino, inode_info));
+				break;
+			}
+			default:
+				ASSERT_NOT_REACHED();
 		}
 
-		// FIXME: actually determine proper interface
-		auto interface = m_interfaces.front();
-		socket->bind_interface_and_port(interface.ptr(), port);
-
-		return {};
+		ASSERT(socket);
+		return socket;
 	}
 
 	void NetworkManager::on_receive(NetworkInterface& interface, BAN::ConstByteSpan packet)
@@ -117,41 +115,16 @@ namespace Kernel
 		{
 			case EtherType::ARP:
 			{
-				m_arp_table->add_arp_packet(interface, packet.slice(sizeof(EthernetHeader)));
+				m_ipv4_layer->arp_table().add_arp_packet(interface, packet.slice(sizeof(EthernetHeader)));
 				break;
 			}
 			case EtherType::IPv4:
 			{
-				auto ipv4 = packet.slice(sizeof(EthernetHeader));
-				auto& ipv4_header = ipv4.as<const IPv4Header>();
-				auto src_ipv4 = ipv4_header.src_address;
-				switch (ipv4_header.protocol)
-				{
-					case NetworkProtocol::UDP:
-					{
-						auto udp = ipv4.slice(sizeof(IPv4Header));
-						auto& udp_header = udp.as<const UDPHeader>();
-						uint16_t src_port = udp_header.src_port;
-						uint16_t dst_port = udp_header.dst_port;
-
-						if (!m_bound_sockets.contains(dst_port))
-						{
-							dprintln("no one is listening on port {}", dst_port);
-							return;
-						}
-
-						auto raw = udp.slice(8);
-						m_bound_sockets[dst_port].lock()->add_packet(raw, src_ipv4, src_port);
-						break;
-					}
-					default:
-						dprintln("Unknown network protocol 0x{2H}", ipv4_header.protocol);
-						break;
-				}
+				m_ipv4_layer->add_ipv4_packet(interface, packet.slice(sizeof(EthernetHeader)));
 				break;
 			}
 			default:
-				dprintln("Unknown EtherType 0x{4H}", (uint16_t)ethernet_header.ether_type);
+				dprintln_if(DEBUG_ETHERTYPE, "Unknown EtherType 0x{4H}", (uint16_t)ethernet_header.ether_type);
 				break;
 		}
 	}

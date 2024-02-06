@@ -80,12 +80,24 @@ namespace Kernel
 
 	BAN::ErrorOr<int> OpenFileDescriptorSet::socket(int domain, int type, int protocol)
 	{
-		using SocketType = NetworkManager::SocketType;
-
-		if (domain != AF_INET)
-			return BAN::Error::from_errno(EAFNOSUPPORT);
 		if (protocol != 0)
 			return BAN::Error::from_errno(EPROTONOSUPPORT);
+
+		SocketDomain sock_domain;
+		switch (domain)
+		{
+			case AF_INET:
+				sock_domain = SocketDomain::INET;
+				break;
+			case AF_INET6:
+				sock_domain = SocketDomain::INET6;
+				break;
+			case AF_UNIX:
+				sock_domain = SocketDomain::UNIX;
+				break;
+			default:
+				return BAN::Error::from_errno(EPROTOTYPE);
+		}
 
 		SocketType sock_type;
 		switch (type)
@@ -103,7 +115,7 @@ namespace Kernel
 				return BAN::Error::from_errno(EPROTOTYPE);
 		}
 
-		auto socket = TRY(NetworkManager::get().create_socket(sock_type, 0777, m_credentials.euid(), m_credentials.egid()));
+		auto socket = TRY(NetworkManager::get().create_socket(sock_domain, sock_type, 0777, m_credentials.euid(), m_credentials.egid()));
 
 		int fd = TRY(get_free_fd());
 		m_open_files[fd] = TRY(BAN::RefPtr<OpenFileDescription>::create(socket, "no-path"sv, 0, O_RDWR));

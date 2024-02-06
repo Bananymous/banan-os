@@ -1,4 +1,3 @@
-#include <kernel/Networking/IPv4.h>
 #include <kernel/Networking/NetworkManager.h>
 #include <kernel/Networking/NetworkSocket.h>
 
@@ -7,13 +6,9 @@
 namespace Kernel
 {
 
-	NetworkSocket::NetworkSocket(mode_t mode, uid_t uid, gid_t gid)
-		// FIXME: what the fuck is this
-		: TmpInode(
-			NetworkManager::get(),
-			MUST(NetworkManager::get().allocate_inode(create_inode_info(mode, uid, gid))),
-			create_inode_info(mode, uid, gid)
-		)
+	NetworkSocket::NetworkSocket(NetworkLayer& network_layer, ino_t ino, const TmpInodeInfo& inode_info)
+		: TmpInode(NetworkManager::get(), ino, inode_info)
+		, m_network_layer(network_layer)
 	{ }
 
 	NetworkSocket::~NetworkSocket()
@@ -23,7 +18,7 @@ namespace Kernel
 	void NetworkSocket::on_close_impl()
 	{
 		if (m_interface)
-			NetworkManager::get().unbind_socket(m_port, this);
+			m_network_layer.unbind_socket(m_port, this);
 	}
 
 	void NetworkSocket::bind_interface_and_port(NetworkInterface* interface, uint16_t port)
@@ -36,17 +31,15 @@ namespace Kernel
 
 	BAN::ErrorOr<void> NetworkSocket::bind_impl(const sockaddr* address, socklen_t address_len)
 	{
-		if (address_len != sizeof(sockaddr_in))
+		if (m_interface || address_len != sizeof(sockaddr_in))
 			return BAN::Error::from_errno(EINVAL);
 		auto* addr_in = reinterpret_cast<const sockaddr_in*>(address);
 		uint16_t dst_port = BAN::host_to_network_endian(addr_in->sin_port);
-		return NetworkManager::get().bind_socket(dst_port, this);
+		return m_network_layer.bind_socket(dst_port, this);
 	}
 
 	BAN::ErrorOr<ssize_t> NetworkSocket::sendto_impl(const sys_sendto_t* arguments)
 	{
-		if (arguments->dest_len != sizeof(sockaddr_in))
-			return BAN::Error::from_errno(EINVAL);
 		if (arguments->flags)
 		{
 			dprintln("flags not supported");
@@ -54,42 +47,9 @@ namespace Kernel
 		}
 
 		if (!m_interface)
-			TRY(NetworkManager::get().bind_socket(PORT_NONE, this));
+			TRY(m_network_layer.bind_socket(PORT_NONE, this));
 
-		auto* destination = reinterpret_cast<const sockaddr_in*>(arguments->dest_addr);
-		auto  message = BAN::ConstByteSpan((const uint8_t*)arguments->message, arguments->length);
-
-		uint16_t dst_port = BAN::host_to_network_endian(destination->sin_port);
-		if (dst_port == PORT_NONE)
-			return BAN::Error::from_errno(EINVAL);
-
-		auto dst_addr = BAN::IPv4Address(destination->sin_addr.s_addr);
-		auto dst_mac = TRY(NetworkManager::get().arp_table().get_mac_from_ipv4(*m_interface, dst_addr));
-
-		const size_t interface_header_offset	= 0;
-		const size_t interface_header_size		= m_interface->interface_header_size();
-
-		const size_t ipv4_header_offset	= interface_header_offset + interface_header_size;
-		const size_t ipv4_header_size	= sizeof(IPv4Header);
-
-		const size_t protocol_header_offset	= ipv4_header_offset + ipv4_header_size;
-		const size_t protocol_header_size	= this->protocol_header_size();
-
-		const size_t payload_offset	= protocol_header_offset + protocol_header_size;
-		const size_t payload_size	= message.size();
-
-		BAN::Vector<uint8_t> full_packet;
-		TRY(full_packet.resize(payload_offset + payload_size));
-
-		BAN::ByteSpan packet_bytespan { full_packet.span() };
-
-		memcpy(full_packet.data() + payload_offset, message.data(), payload_size);
-		add_protocol_header(packet_bytespan.slice(protocol_header_offset), m_port, dst_port);
-		add_ipv4_header(packet_bytespan.slice(ipv4_header_offset), m_interface->get_ipv4_address(), dst_addr, protocol());
-		m_interface->add_interface_header(packet_bytespan.slice(interface_header_offset), dst_mac);
-		TRY(m_interface->send_raw_bytes(packet_bytespan));
-
-		return arguments->length;
+		return TRY(m_network_layer.sendto(*this, arguments));
 	}
 
 	BAN::ErrorOr<ssize_t> NetworkSocket::recvfrom_impl(sys_recvfrom_t* arguments)

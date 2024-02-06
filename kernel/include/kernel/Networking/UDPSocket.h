@@ -22,10 +22,10 @@ namespace Kernel
 	class UDPSocket final : public NetworkSocket
 	{
 	public:
-		static BAN::ErrorOr<BAN::RefPtr<UDPSocket>> create(mode_t, uid_t, gid_t);
+		static BAN::ErrorOr<BAN::RefPtr<UDPSocket>> create(NetworkLayer&, ino_t, const TmpInodeInfo&);
 
 		virtual size_t protocol_header_size() const override { return sizeof(UDPHeader); }
-		virtual void add_protocol_header(BAN::ByteSpan packet, uint16_t src_port, uint16_t dst_port) override;
+		virtual void add_protocol_header(BAN::ByteSpan packet, uint16_t dst_port) override;
 		virtual NetworkProtocol protocol() const override { return NetworkProtocol::UDP; }
 
 	protected:
@@ -33,7 +33,7 @@ namespace Kernel
 		virtual BAN::ErrorOr<size_t> read_packet(BAN::ByteSpan, sockaddr_in* sender_address) override;
 
 	private:
-		UDPSocket(mode_t, uid_t, gid_t);
+		UDPSocket(NetworkLayer&, ino_t, const TmpInodeInfo&);
 
 		struct PacketInfo
 		{

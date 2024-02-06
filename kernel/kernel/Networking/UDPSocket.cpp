@@ -5,9 +5,9 @@
 namespace Kernel
 {
 
-	BAN::ErrorOr<BAN::RefPtr<UDPSocket>> UDPSocket::create(mode_t mode, uid_t uid, gid_t gid)
+	BAN::ErrorOr<BAN::RefPtr<UDPSocket>> UDPSocket::create(NetworkLayer& network_layer, ino_t ino, const TmpInodeInfo& inode_info)
 	{
-		auto socket = TRY(BAN::RefPtr<UDPSocket>::create(mode, uid, gid));
+		auto socket = TRY(BAN::RefPtr<UDPSocket>::create(network_layer, ino, inode_info));
 		socket->m_packet_buffer = TRY(VirtualRange::create_to_vaddr_range(
 			PageTable::kernel(),
 			KERNEL_OFFSET,
@@ -19,14 +19,14 @@ namespace Kernel
 		return socket;
 	}
 
-	UDPSocket::UDPSocket(mode_t mode, uid_t uid, gid_t gid)
-		: NetworkSocket(mode, uid, gid)
+	UDPSocket::UDPSocket(NetworkLayer& network_layer, ino_t ino, const TmpInodeInfo& inode_info)
+		: NetworkSocket(network_layer, ino, inode_info)
 	{ }
 
-	void UDPSocket::add_protocol_header(BAN::ByteSpan packet, uint16_t src_port, uint16_t dst_port)
+	void UDPSocket::add_protocol_header(BAN::ByteSpan packet, uint16_t dst_port)
 	{
 		auto& header = packet.as<UDPHeader>();
-		header.src_port = src_port;
+		header.src_port = m_port;
 		header.dst_port = dst_port;
 		header.length = packet.size();
 		header.checksum = 0;

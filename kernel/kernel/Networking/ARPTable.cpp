@@ -45,6 +45,9 @@ namespace Kernel
 		if (ipv4_address == s_broadcast_ipv4)
 			return s_broadcast_mac;
 
+		if (interface.get_ipv4_address() == BAN::IPv4Address { 0 })
+			return BAN::Error::from_errno(EINVAL);
+
 		if (interface.get_ipv4_address().mask(interface.get_netmask()) != ipv4_address.mask(interface.get_netmask()))
 			ipv4_address = interface.get_gateway();
 
@@ -54,16 +57,7 @@ namespace Kernel
 				return m_arp_table[ipv4_address];
 		}
 
-		BAN::Vector<uint8_t> full_packet_buffer;
-		TRY(full_packet_buffer.resize(sizeof(ARPPacket) + sizeof(EthernetHeader)));
-		auto full_packet = BAN::ByteSpan { full_packet_buffer.span() };
-
-		auto& ethernet_header = full_packet.as<EthernetHeader>();
-		ethernet_header.dst_mac = s_broadcast_mac;
-		ethernet_header.src_mac = interface.get_mac_address();
-		ethernet_header.ether_type = EtherType::ARP;
-
-		auto& arp_request = full_packet.slice(sizeof(EthernetHeader)).as<ARPPacket>();
+		ARPPacket arp_request;
 		arp_request.htype = 0x0001;
 		arp_request.ptype = EtherType::IPv4;
 		arp_request.hlen = 0x06;
@@ -74,7 +68,7 @@ namespace Kernel
 		arp_request.tha = {{ 0, 0, 0, 0, 0, 0 }};
 		arp_request.tpa = ipv4_address;
 
-		TRY(interface.send_raw_bytes(full_packet));
+		TRY(interface.send_bytes(s_broadcast_mac, EtherType::ARP, BAN::ConstByteSpan::from(arp_request)));
 
 		uint64_t timeout = SystemTimer::get().ms_since_boot() + 1'000;
 		while (SystemTimer::get().ms_since_boot() < timeout)
@@ -104,27 +98,17 @@ namespace Kernel
 			{
 				if (packet.tpa == interface.get_ipv4_address())
 				{
-					BAN::Vector<uint8_t> full_packet_buffer;
-					TRY(full_packet_buffer.resize(sizeof(ARPPacket) + sizeof(EthernetHeader)));
-					auto full_packet = BAN::ByteSpan { full_packet_buffer.span() };
-
-					auto& ethernet_header = full_packet.as<EthernetHeader>();
-					ethernet_header.dst_mac = packet.sha;
-					ethernet_header.src_mac = interface.get_mac_address();
-					ethernet_header.ether_type = EtherType::ARP;
-
-					auto& arp_request = full_packet.slice(sizeof(EthernetHeader)).as<ARPPacket>();
-					arp_request.htype = 0x0001;
-					arp_request.ptype = EtherType::IPv4;
-					arp_request.hlen = 0x06;
-					arp_request.plen = 0x04;
-					arp_request.oper = ARPOperation::Reply;
-					arp_request.sha = interface.get_mac_address();
-					arp_request.spa = interface.get_ipv4_address();
-					arp_request.tha = packet.sha;
-					arp_request.tpa = packet.spa;
-
-					TRY(interface.send_raw_bytes(full_packet));
+					ARPPacket arp_reply;
+					arp_reply.htype = 0x0001;
+					arp_reply.ptype = EtherType::IPv4;
+					arp_reply.hlen = 0x06;
+					arp_reply.plen = 0x04;
+					arp_reply.oper = ARPOperation::Reply;
+					arp_reply.sha = interface.get_mac_address();
+					arp_reply.spa = interface.get_ipv4_address();
+					arp_reply.tha = packet.sha;
+					arp_reply.tpa = packet.spa;
+					TRY(interface.send_bytes(packet.sha, EtherType::ARP, BAN::ConstByteSpan::from(arp_reply)));
 				}
 				break;
 			}

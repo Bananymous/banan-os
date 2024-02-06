@@ -256,19 +256,26 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<void> E1000::send_raw_bytes(BAN::ConstByteSpan buffer)
+
+	BAN::ErrorOr<void> E1000::send_bytes(BAN::MACAddress destination, EtherType protocol, BAN::ConstByteSpan buffer)
 	{
-		ASSERT_LTE(buffer.size(), E1000_TX_BUFFER_SIZE);
+		ASSERT_LTE(buffer.size() + sizeof(EthernetHeader), E1000_TX_BUFFER_SIZE);
 
 		CriticalScope _;
 
 		size_t tx_current = read32(REG_TDT) % E1000_TX_DESCRIPTOR_COUNT;
 
-		auto* tx_buffer = reinterpret_cast<void*>(m_tx_buffer_region->vaddr() + E1000_TX_BUFFER_SIZE * tx_current);
-		memcpy(tx_buffer, buffer.data(), buffer.size());
+		auto* tx_buffer = reinterpret_cast<uint8_t*>(m_tx_buffer_region->vaddr() + E1000_TX_BUFFER_SIZE * tx_current);
+
+		auto& ethernet_header = *reinterpret_cast<EthernetHeader*>(tx_buffer);
+		ethernet_header.dst_mac = destination;
+		ethernet_header.src_mac = get_mac_address();
+		ethernet_header.ether_type = protocol;
+
+		memcpy(tx_buffer + sizeof(EthernetHeader), buffer.data(), buffer.size());
 
 		auto& descriptor = reinterpret_cast<volatile e1000_tx_desc*>(m_tx_descriptor_region->vaddr())[tx_current];
-		descriptor.length = buffer.size();
+		descriptor.length = sizeof(EthernetHeader) + buffer.size();
 		descriptor.status = 0;
 		descriptor.cmd = CMD_EOP | CMD_IFCS | CMD_RS;
 

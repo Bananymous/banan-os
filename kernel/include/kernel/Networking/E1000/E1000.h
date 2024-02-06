@@ -42,7 +42,7 @@ namespace Kernel
 		uint32_t read32(uint16_t reg);
 		void write32(uint16_t reg, uint32_t value);
 
-		virtual BAN::ErrorOr<void> send_raw_bytes(BAN::ConstByteSpan) override;
+		virtual BAN::ErrorOr<void> send_bytes(BAN::MACAddress destination, EtherType protocol, BAN::ConstByteSpan) override;
 
 	private:
 		BAN::ErrorOr<void> read_mac_address();
