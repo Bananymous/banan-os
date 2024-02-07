@@ -96,7 +96,7 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_getpgid(pid_t);
 
 		BAN::ErrorOr<void> create_file_or_dir(BAN::StringView name, mode_t mode);
-		BAN::ErrorOr<long> open_file(BAN::StringView path, int, mode_t = 0);
+		BAN::ErrorOr<long> open_file(BAN::StringView path, int oflag, mode_t = 0);
 		BAN::ErrorOr<long> sys_open(const char* path, int, mode_t);
 		BAN::ErrorOr<long> sys_openat(int, const char* path, int, mode_t);
 		BAN::ErrorOr<long> sys_close(int fd);
@@ -180,6 +180,8 @@ namespace Kernel
 		// Return false if access was page violation (segfault)
 		BAN::ErrorOr<bool> allocate_page_for_demand_paging(vaddr_t addr);
 
+		BAN::ErrorOr<BAN::String> absolute_path_of(BAN::StringView) const;
+
 	private:
 		Process(const Credentials&, pid_t pid, pid_t parent, pid_t sid, pid_t pgrp);
 		static Process* create_process(const Credentials&, pid_t parent, pid_t sid = 0, pid_t pgrp = 0);
@@ -188,8 +190,6 @@ namespace Kernel
 		static BAN::ErrorOr<BAN::UniqPtr<LibELF::LoadableELF>> load_elf_for_exec(const Credentials&, BAN::StringView file_path, const BAN::String& cwd, Kernel::PageTable&);
 
 		BAN::ErrorOr<int> block_until_exit(pid_t pid);
-
-		BAN::ErrorOr<BAN::String> absolute_path_of(BAN::StringView) const;
 
 		BAN::ErrorOr<void> validate_string_access(const char*);
 		BAN::ErrorOr<void> validate_pointer_access(const void*, size_t);

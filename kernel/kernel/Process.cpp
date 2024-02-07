@@ -710,6 +710,8 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::open_file(BAN::StringView path, int flags, mode_t mode)
 	{
+		LockGuard _(m_lock);
+
 		BAN::String absolute_path = TRY(absolute_path_of(path));
 
 		if (flags & O_CREAT)
@@ -717,6 +719,8 @@ namespace Kernel
 			if (flags & O_DIRECTORY)
 				return BAN::Error::from_errno(ENOTSUP);
 			auto file_or_error = VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, O_WRONLY);
+			if (!file_or_error.is_error() && (flags & O_EXCL))
+				return BAN::Error::from_errno(EEXIST);
 			if (file_or_error.is_error())
 			{
 				if (file_or_error.error().get_error_code() == ENOENT)
@@ -1744,7 +1748,7 @@ namespace Kernel
 
 	BAN::ErrorOr<BAN::String> Process::absolute_path_of(BAN::StringView path) const
 	{
-		ASSERT(m_lock.is_locked());
+		LockGuard _(m_lock);
 
 		if (path.empty() || path == "."sv)
 			return m_working_directory;
