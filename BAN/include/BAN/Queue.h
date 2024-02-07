@@ -45,6 +45,7 @@ namespace BAN
 		void clear();
 
 		bool empty() const;
+		size_type capacity() const;
 		size_type size() const;
 
 		const T& front() const;
@@ -184,6 +185,12 @@ namespace BAN
 	bool Queue<T>::empty() const
 	{
 		return m_size == 0;
+	}
+
+	template<typename T>
+	typename Queue<T>::size_type Queue<T>::capacity() const
+	{
+		return m_capacity;
 	}
 
 	template<typename T>
