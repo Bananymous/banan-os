@@ -16,6 +16,12 @@ __BEGIN_DECLS
 #include <bits/types/sa_family_t.h>
 typedef long socklen_t;
 
+#if !defined(FILENAME_MAX)
+	#define FILENAME_MAX 256
+#elif FILENAME_MAX != 256
+	#error "invalid FILENAME_MAX"
+#endif
+
 struct sockaddr
 {
 	sa_family_t	sa_family;	/* Address family. */
@@ -24,8 +30,8 @@ struct sockaddr
 
 struct sockaddr_storage
 {
-	// FIXME
 	sa_family_t ss_family;
+	char		ss_storage[FILENAME_MAX];
 };
 
 struct msghdr

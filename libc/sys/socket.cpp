@@ -22,7 +22,7 @@ int listen(int socket, int backlog)
 	return syscall(SYS_LISTEN, socket, backlog);
 }
 
-ssize_t revc(int socket, void* __restrict buffer, size_t length, int flags)
+ssize_t recv(int socket, void* __restrict buffer, size_t length, int flags)
 {
 	return recvfrom(socket, buffer, length, flags, nullptr, nullptr);
 }

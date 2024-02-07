@@ -11,8 +11,8 @@ __BEGIN_DECLS
 
 struct sockaddr_un
 {
-	sa_family_t	sun_family;	/* Address family. */
-	char		sun_path[];	/* Socket pathname. */
+	sa_family_t	sun_family;				/* Address family. */
+	char		sun_path[FILENAME_MAX];	/* Socket pathname. */
 };
 
 __END_DECLS
