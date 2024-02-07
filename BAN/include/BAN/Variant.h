@@ -216,6 +216,14 @@ namespace BAN
 			return m_index == detail::index<T, Ts...>();
 		}
 
+		template<typename T, typename... Args>
+		void emplace(Args&&... args) requires (can_have<T>())
+		{
+			clear();
+			m_index = detail::index<T, Ts...>();
+			new (m_storage) T(BAN::forward<Args>(args)...);
+		}
+
 		template<typename T>
 		void set(T&& value) requires (can_have<T>() && !is_lvalue_reference_v<T>)
 		{
