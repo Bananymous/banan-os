@@ -294,6 +294,9 @@ void* kmalloc(size_t size, size_t align, bool force_identity_map)
 	// currently kmalloc is always identity mapped
 	(void)force_identity_map;
 
+	if (size == 0)
+		size = 1;
+
 	const kmalloc_info& info = s_kmalloc_info;
 
 	ASSERT(is_power_of_two(align));
