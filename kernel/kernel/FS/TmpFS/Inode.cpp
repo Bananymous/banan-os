@@ -215,6 +215,30 @@ namespace Kernel
 		return {};
 	}
 
+	/* SOCKET INODE */
+
+	BAN::ErrorOr<BAN::RefPtr<TmpSocketInode>> TmpSocketInode::create_new(TmpFileSystem& fs, mode_t mode, uid_t uid, gid_t gid)
+	{
+		auto info = create_inode_info(Mode::IFSOCK | mode, uid, gid);
+		ino_t ino = TRY(fs.allocate_inode(info));
+
+		auto* inode_ptr = new TmpSocketInode(fs, ino, info);
+		if (inode_ptr == nullptr)
+			return BAN::Error::from_errno(ENOMEM);
+
+		return BAN::RefPtr<TmpSocketInode>::adopt(inode_ptr);
+	}
+
+	TmpSocketInode::TmpSocketInode(TmpFileSystem& fs, ino_t ino, const TmpInodeInfo& info)
+		: TmpInode(fs, ino, info)
+	{
+		ASSERT(mode().ifsock());
+	}
+
+	TmpSocketInode::~TmpSocketInode()
+	{
+	}
+
 	/* SYMLINK INODE */
 
 	BAN::ErrorOr<BAN::RefPtr<TmpSymlinkInode>> TmpSymlinkInode::create_new(TmpFileSystem& fs, mode_t mode, uid_t uid, gid_t gid, BAN::StringView target)
@@ -446,7 +470,19 @@ namespace Kernel
 
 	BAN::ErrorOr<void> TmpDirectoryInode::create_file_impl(BAN::StringView name, mode_t mode, uid_t uid, gid_t gid)
 	{
-		auto new_inode = TRY(TmpFileInode::create_new(m_fs, mode, uid, gid));
+		BAN::RefPtr<TmpInode> new_inode;
+		switch (mode & Mode::TYPE_MASK)
+		{
+			case Mode::IFREG:
+				new_inode = TRY(TmpFileInode::create_new(m_fs, mode, uid, gid));
+				break;
+			case Mode::IFSOCK:
+				new_inode = TRY(TmpSocketInode::create_new(m_fs, mode, uid, gid));
+				break;
+			default:
+				dprintln("Creating with mode {o} is not supported", mode);
+				return BAN::Error::from_errno(ENOTSUP);
+		}
 		TRY(link_inode(*new_inode, name));
 		return {};
 	}

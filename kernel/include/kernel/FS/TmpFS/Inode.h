@@ -80,6 +80,24 @@ namespace Kernel
 		friend class TmpInode;
 	};
 
+	class TmpSocketInode : public TmpInode
+	{
+	public:
+		static BAN::ErrorOr<BAN::RefPtr<TmpSocketInode>> create_new(TmpFileSystem&, mode_t, uid_t, gid_t);
+		~TmpSocketInode();
+
+	protected:
+		virtual BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan) override { return BAN::Error::from_errno(ENODEV); }
+		virtual BAN::ErrorOr<size_t> write_impl(off_t, BAN::ConstByteSpan) override { return BAN::Error::from_errno(ENODEV); }
+		virtual BAN::ErrorOr<void> truncate_impl(size_t) override { return BAN::Error::from_errno(ENODEV); }
+		virtual bool has_data_impl() const override { return true; }
+
+	private:
+		TmpSocketInode(TmpFileSystem&, ino_t, const TmpInodeInfo&);
+
+		friend class TmpInode;
+	};
+
 	class TmpSymlinkInode : public TmpInode
 	{
 	public:

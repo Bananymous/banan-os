@@ -649,8 +649,9 @@ namespace Kernel
 			case Inode::Mode::IFREG: break;
 			case Inode::Mode::IFDIR: break;
 			case Inode::Mode::IFIFO: break;
+			case Inode::Mode::IFSOCK: break;
 			default:
-				return BAN::Error::from_errno(EINVAL);
+				return BAN::Error::from_errno(ENOTSUP);
 		}
 
 		LockGuard _(m_lock);
