@@ -228,6 +228,15 @@ namespace Kernel
 		case SYS_IOCTL:
 			ret = Process::current().sys_ioctl((int)arg1, (int)arg2, (void*)arg3);
 			break;
+		case SYS_ACCEPT:
+			ret = Process::current().sys_accept((int)arg1, (sockaddr*)arg2, (socklen_t*)arg3);
+			break;
+		case SYS_CONNECT:
+			ret = Process::current().sys_connect((int)arg1, (const sockaddr*)arg2, (socklen_t)arg3);
+			break;
+		case SYS_LISTEN:
+			ret = Process::current().sys_listen((int)arg1, (int)arg2);
+			break;
 		default:
 			dwarnln("Unknown syscall {}", syscall);
 			break;

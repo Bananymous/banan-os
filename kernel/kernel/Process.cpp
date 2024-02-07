@@ -901,6 +901,27 @@ namespace Kernel
 		return TRY(m_open_file_descriptors.socket(domain, type, protocol));
 	}
 
+	BAN::ErrorOr<long> Process::sys_accept(int socket, sockaddr* address, socklen_t* address_len)
+	{
+		if (address && !address_len)
+			return BAN::Error::from_errno(EINVAL);
+		if (!address && address_len)
+			return BAN::Error::from_errno(EINVAL);
+
+		LockGuard _(m_lock);
+		if (address)
+		{
+			TRY(validate_pointer_access(address_len, sizeof(*address_len)));
+			TRY(validate_pointer_access(address, *address_len));
+		}
+
+		auto inode = TRY(m_open_file_descriptors.inode_of(socket));
+		if (!inode->mode().ifsock())
+			return BAN::Error::from_errno(ENOTSOCK);
+
+		TRY(inode->accept(address, address_len));
+		return 0;
+	}
 
 	BAN::ErrorOr<long> Process::sys_bind(int socket, const sockaddr* address, socklen_t address_len)
 	{
@@ -912,6 +933,31 @@ namespace Kernel
 			return BAN::Error::from_errno(ENOTSOCK);
 
 		TRY(inode->bind(address, address_len));
+		return 0;
+	}
+
+	BAN::ErrorOr<long> Process::sys_connect(int socket, const sockaddr* address, socklen_t address_len)
+	{
+		LockGuard _(m_lock);
+		TRY(validate_pointer_access(address, address_len));
+
+		auto inode = TRY(m_open_file_descriptors.inode_of(socket));
+		if (!inode->mode().ifsock())
+			return BAN::Error::from_errno(ENOTSOCK);
+
+		TRY(inode->connect(address, address_len));
+		return 0;
+	}
+
+	BAN::ErrorOr<long> Process::sys_listen(int socket, int backlog)
+	{
+		LockGuard _(m_lock);
+
+		auto inode = TRY(m_open_file_descriptors.inode_of(socket));
+		if (!inode->mode().ifsock())
+			return BAN::Error::from_errno(ENOTSOCK);
+
+		TRY(inode->listen(backlog));
 		return 0;
 	}
 

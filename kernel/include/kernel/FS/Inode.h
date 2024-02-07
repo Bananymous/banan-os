@@ -100,9 +100,12 @@ namespace Kernel
 		BAN::ErrorOr<BAN::String> link_target();
 
 		// Socket API
+		BAN::ErrorOr<void> accept(sockaddr* address, socklen_t* address_len);
 		BAN::ErrorOr<void> bind(const sockaddr* address, socklen_t address_len);
-		BAN::ErrorOr<ssize_t> sendto(const sys_sendto_t*);
-		BAN::ErrorOr<ssize_t> recvfrom(sys_recvfrom_t*);
+		BAN::ErrorOr<void> connect(const sockaddr* address, socklen_t address_len);
+		BAN::ErrorOr<void> listen(int backlog);
+		BAN::ErrorOr<size_t> sendto(const sys_sendto_t*);
+		BAN::ErrorOr<size_t> recvfrom(sys_recvfrom_t*);
 
 		// General API
 		BAN::ErrorOr<size_t> read(off_t, BAN::ByteSpan buffer);
@@ -128,9 +131,12 @@ namespace Kernel
 		virtual BAN::ErrorOr<BAN::String> link_target_impl()				{ return BAN::Error::from_errno(ENOTSUP); }
 
 		// Socket API
+		virtual BAN::ErrorOr<void> accept_impl(sockaddr*, socklen_t*)		{ return BAN::Error::from_errno(ENOTSUP); }
+		virtual BAN::ErrorOr<void> connect_impl(const sockaddr*, socklen_t)	{ return BAN::Error::from_errno(ENOTSUP); }
+		virtual BAN::ErrorOr<void> listen_impl(int)							{ return BAN::Error::from_errno(ENOTSUP); }
 		virtual BAN::ErrorOr<void> bind_impl(const sockaddr*, socklen_t)	{ return BAN::Error::from_errno(ENOTSUP); }
-		virtual BAN::ErrorOr<ssize_t> sendto_impl(const sys_sendto_t*)		{ return BAN::Error::from_errno(ENOTSUP); }
-		virtual BAN::ErrorOr<ssize_t> recvfrom_impl(sys_recvfrom_t*)		{ return BAN::Error::from_errno(ENOTSUP); }
+		virtual BAN::ErrorOr<size_t> sendto_impl(const sys_sendto_t*)		{ return BAN::Error::from_errno(ENOTSUP); }
+		virtual BAN::ErrorOr<size_t> recvfrom_impl(sys_recvfrom_t*)			{ return BAN::Error::from_errno(ENOTSUP); }
 
 		// General API
 		virtual BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan)		{ return BAN::Error::from_errno(ENOTSUP); }

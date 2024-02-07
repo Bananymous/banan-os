@@ -38,7 +38,7 @@ namespace Kernel
 		return m_network_layer.bind_socket(dst_port, this);
 	}
 
-	BAN::ErrorOr<ssize_t> NetworkSocket::sendto_impl(const sys_sendto_t* arguments)
+	BAN::ErrorOr<size_t> NetworkSocket::sendto_impl(const sys_sendto_t* arguments)
 	{
 		if (arguments->flags)
 		{
@@ -52,7 +52,7 @@ namespace Kernel
 		return TRY(m_network_layer.sendto(*this, arguments));
 	}
 
-	BAN::ErrorOr<ssize_t> NetworkSocket::recvfrom_impl(sys_recvfrom_t* arguments)
+	BAN::ErrorOr<size_t> NetworkSocket::recvfrom_impl(sys_recvfrom_t* arguments)
 	{
 		sockaddr_in* sender_addr = nullptr;
 		if (arguments->address)

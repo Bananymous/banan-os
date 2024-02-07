@@ -116,6 +116,14 @@ namespace Kernel
 		return link_target_impl();
 	}
 
+	BAN::ErrorOr<void> Inode::accept(sockaddr* address, socklen_t* address_len)
+	{
+		LockGuard _(m_lock);
+		if (!mode().ifsock())
+			return BAN::Error::from_errno(ENOTSOCK);
+		return accept_impl(address, address_len);
+	}
+
 	BAN::ErrorOr<void> Inode::bind(const sockaddr* address, socklen_t address_len)
 	{
 		LockGuard _(m_lock);
@@ -124,7 +132,23 @@ namespace Kernel
 		return bind_impl(address, address_len);
 	}
 
-	BAN::ErrorOr<ssize_t> Inode::sendto(const sys_sendto_t* arguments)
+	BAN::ErrorOr<void> Inode::connect(const sockaddr* address, socklen_t address_len)
+	{
+		LockGuard _(m_lock);
+		if (!mode().ifsock())
+			return BAN::Error::from_errno(ENOTSOCK);
+		return connect_impl(address, address_len);
+	}
+
+	BAN::ErrorOr<void> Inode::listen(int backlog)
+	{
+		LockGuard _(m_lock);
+		if (!mode().ifsock())
+			return BAN::Error::from_errno(ENOTSOCK);
+		return listen_impl(backlog);
+	}
+
+	BAN::ErrorOr<size_t> Inode::sendto(const sys_sendto_t* arguments)
 	{
 		LockGuard _(m_lock);
 		if (!mode().ifsock())
@@ -132,7 +156,7 @@ namespace Kernel
 		return sendto_impl(arguments);
 	};
 
-	BAN::ErrorOr<ssize_t> Inode::recvfrom(sys_recvfrom_t* arguments)
+	BAN::ErrorOr<size_t> Inode::recvfrom(sys_recvfrom_t* arguments)
 	{
 		LockGuard _(m_lock);
 		if (!mode().ifsock())

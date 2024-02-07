@@ -58,8 +58,8 @@ namespace Kernel
 		virtual void on_close_impl() override;
 
 		virtual BAN::ErrorOr<void> bind_impl(const sockaddr* address, socklen_t address_len) override;
-		virtual BAN::ErrorOr<ssize_t> sendto_impl(const sys_sendto_t*) override;
-		virtual BAN::ErrorOr<ssize_t> recvfrom_impl(sys_recvfrom_t*) override;
+		virtual BAN::ErrorOr<size_t> sendto_impl(const sys_sendto_t*) override;
+		virtual BAN::ErrorOr<size_t> recvfrom_impl(sys_recvfrom_t*) override;
 
 		virtual BAN::ErrorOr<long> ioctl_impl(int request, void* arg) override;
 

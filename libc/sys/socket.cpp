@@ -2,9 +2,29 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 
+int accept(int socket, struct sockaddr* __restrict address, socklen_t* __restrict address_len)
+{
+	return syscall(SYS_ACCEPT, socket, address, address_len);
+}
+
 int bind(int socket, const struct sockaddr* address, socklen_t address_len)
 {
 	return syscall(SYS_BIND, socket, address, address_len);
+}
+
+int connect(int socket, const struct sockaddr* address, socklen_t address_len)
+{
+	return syscall(SYS_CONNECT, socket, address, address_len);
+}
+
+int listen(int socket, int backlog)
+{
+	return syscall(SYS_LISTEN, socket, backlog);
+}
+
+ssize_t revc(int socket, void* __restrict buffer, size_t length, int flags)
+{
+	return recvfrom(socket, buffer, length, flags, nullptr, nullptr);
 }
 
 ssize_t recvfrom(int socket, void* __restrict buffer, size_t length, int flags, struct sockaddr* __restrict address, socklen_t* __restrict address_len)
@@ -20,6 +40,10 @@ ssize_t recvfrom(int socket, void* __restrict buffer, size_t length, int flags, 
 	return syscall(SYS_RECVFROM, &arguments);
 }
 
+ssize_t send(int socket, const void* message, size_t length, int flags)
+{
+	return sendto(socket, message, length, flags, nullptr, 0);
+}
 
 ssize_t sendto(int socket, const void* message, size_t length, int flags, const struct sockaddr* dest_addr, socklen_t dest_len)
 {

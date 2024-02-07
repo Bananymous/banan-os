@@ -68,6 +68,9 @@ __BEGIN_DECLS
 #define SYS_SENDTO 67
 #define SYS_RECVFROM 68
 #define SYS_IOCTL 69
+#define SYS_ACCEPT 70
+#define SYS_CONNECT 71
+#define SYS_LISTEN 72
 
 __END_DECLS
 
