@@ -36,6 +36,12 @@ int main()
 		exit(1);
 	}
 
+	if (fork() == 0)
+	{
+		execl("/bin/resolver", "resolver", NULL);
+		exit(1);
+	}
+
 	bool first = true;
 
 	termios termios;

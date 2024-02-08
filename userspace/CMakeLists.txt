@@ -11,14 +11,16 @@ set(USERSPACE_PROJECTS
 	dhcp-client
 	echo
 	id
-	init
 	image
+	init
 	loadkeys
 	ls
 	meminfo
 	mkdir
 	mmap-shared-test
+	nslookup
 	poweroff
+	resolver
 	rm
 	Shell
 	sleep
