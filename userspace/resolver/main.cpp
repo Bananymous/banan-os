@@ -1,4 +1,5 @@
 #include <BAN/ByteSpan.h>
+#include <BAN/Debug.h>
 #include <BAN/Endianness.h>
 #include <BAN/HashMap.h>
 #include <BAN/IPv4.h>
@@ -83,7 +84,7 @@ bool send_dns_query(int socket, BAN::StringView domain, uint16_t id)
 	nameserver.sin_addr.s_addr = inet_addr("8.8.8.8");
 	if (sendto(socket, &request, sizeof(DNSPacket) + idx, 0, (sockaddr*)&nameserver, sizeof(nameserver)) == -1)
 	{
-		perror("sendto");
+		dprintln("sendto: {}", strerror(errno));
 		return false;
 	}
 
@@ -97,19 +98,19 @@ BAN::Optional<DNSEntry> read_dns_response(int socket, uint16_t id)
 	ssize_t nrecv = recvfrom(socket, buffer, sizeof(buffer), 0, nullptr, nullptr);
 	if (nrecv == -1)
 	{
-		perror("recvfrom");
+		dprintln("recvfrom: {}", strerror(errno));
 		return {};
 	}
 
 	DNSPacket& reply = *reinterpret_cast<DNSPacket*>(buffer);
 	if (reply.identification != id)
 	{
-		fprintf(stderr, "Reply to invalid packet\n");
+		dprintln("Reply to invalid packet");
 		return {};
 	}
 	if (reply.flags & 0x0F)
 	{
-		fprintf(stderr, "DNS error (rcode %u)\n", (unsigned)(reply.flags & 0xF));
+		dprintln("DNS error (rcode {})", (unsigned)(reply.flags & 0xF));
 		return {};
 	}
 
@@ -124,12 +125,12 @@ BAN::Optional<DNSEntry> read_dns_response(int socket, uint16_t id)
 	DNSAnswer& answer = *reinterpret_cast<DNSAnswer*>(&reply.data[idx]);
 	if (answer.type() != QTYPE::A)
 	{
-		fprintf(stderr, "Not A record\n");
+		dprintln("Not A record");
 		return {};
 	}
 	if (answer.data_len() != 4)
 	{
-		fprintf(stderr, "corrupted package\n");
+		dprintln("corrupted package");
 		return {};
 	}
 
@@ -145,7 +146,7 @@ int create_service_socket()
 	int socket = ::socket(AF_UNIX, SOCK_SEQPACKET, 0);
 	if (socket == -1)
 	{
-		perror("socket");
+		dprintln("socket: {}", strerror(errno));
 		return -1;
 	}
 
@@ -154,21 +155,21 @@ int create_service_socket()
 	strcpy(addr.sun_path, "/tmp/resolver.sock");
 	if (bind(socket, (sockaddr*)&addr, sizeof(addr)) == -1)
 	{
-		perror("bind");
+		dprintln("bind: {}", strerror(errno));
 		close(socket);
 		return -1;
 	}
 
 	if (chmod("/tmp/resolver.sock", 0777) == -1)
 	{
-		perror("chmod");
+		dprintln("chmod: {}", strerror(errno));
 		close(socket);
 		return -1;
 	}
 
 	if (listen(socket, 10) == -1)
 	{
-		perror("listen");
+		dprintln("listen: {}", strerror(errno));
 		close(socket);
 		return -1;
 	}
@@ -182,7 +183,7 @@ BAN::Optional<BAN::String> read_service_query(int socket)
 	ssize_t nrecv = recv(socket, buffer, sizeof(buffer), 0);
 	if (nrecv == -1)
 	{
-		perror("recv");
+		dprintln("recv: {}", strerror(errno));
 		return {};
 	}
 	buffer[nrecv] = '\0';
@@ -200,7 +201,7 @@ int main(int, char**)
 	int dns_socket = socket(AF_INET, SOCK_DGRAM, 0);
 	if (dns_socket == -1)
 	{
-		perror("socket");
+		dprintln("socket: {}", strerror(errno));
 		return 1;
 	}
 
@@ -211,7 +212,7 @@ int main(int, char**)
 		int client = accept(service_socket, nullptr, nullptr);
 		if (client == -1)
 		{
-			perror("accept");
+			dprintln("accept: {}", strerror(errno));
 			continue;
 		}
 
@@ -252,7 +253,7 @@ int main(int, char**)
 		memcpy(storage.ss_storage, &result->address.raw, sizeof(result->address.raw));
 
 		if (send(client, &storage, sizeof(storage), 0) == -1)
-			perror("send");
+			dprintln("send: {}", strerror(errno));
 
 		close(client);
 	}
