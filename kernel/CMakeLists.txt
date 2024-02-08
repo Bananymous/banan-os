@@ -58,6 +58,7 @@ set(KERNEL_SOURCES
 	kernel/Networking/NetworkManager.cpp
 	kernel/Networking/NetworkSocket.cpp
 	kernel/Networking/UDPSocket.cpp
+	kernel/Networking/UNIX/Socket.cpp
 	kernel/OpenFileDescriptorSet.cpp
 	kernel/Panic.cpp
 	kernel/PCI.cpp

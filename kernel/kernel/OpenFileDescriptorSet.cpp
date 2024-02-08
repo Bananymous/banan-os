@@ -55,6 +55,21 @@ namespace Kernel
 		return {};
 	}
 
+	BAN::ErrorOr<int> OpenFileDescriptorSet::open(BAN::RefPtr<Inode> inode, int flags)
+	{
+		ASSERT(inode);
+		ASSERT(!inode->mode().ifdir());
+
+		if (flags & ~(O_RDONLY | O_WRONLY))
+			return BAN::Error::from_errno(ENOTSUP);
+
+		int fd = TRY(get_free_fd());
+		// FIXME: path?
+		m_open_files[fd] = TRY(BAN::RefPtr<OpenFileDescription>::create(inode, ""sv, 0, flags));
+
+		return fd;
+	}
+
 	BAN::ErrorOr<int> OpenFileDescriptorSet::open(BAN::StringView absolute_path, int flags)
 	{
 		if (flags & ~(O_RDONLY | O_WRONLY | O_NOFOLLOW | O_SEARCH | O_APPEND | O_TRUNC | O_CLOEXEC | O_TTY_INIT | O_DIRECTORY | O_NONBLOCK))

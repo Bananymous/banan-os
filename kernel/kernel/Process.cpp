@@ -708,6 +708,13 @@ namespace Kernel
 		return false;
 	}
 
+	BAN::ErrorOr<long> Process::open_inode(BAN::RefPtr<Inode> inode, int flags)
+	{
+		ASSERT(inode);
+		LockGuard _(m_lock);
+		return TRY(m_open_file_descriptors.open(inode, flags));
+	}
+
 	BAN::ErrorOr<long> Process::open_file(BAN::StringView path, int flags, mode_t mode)
 	{
 		LockGuard _(m_lock);
@@ -924,8 +931,7 @@ namespace Kernel
 		if (!inode->mode().ifsock())
 			return BAN::Error::from_errno(ENOTSOCK);
 
-		TRY(inode->accept(address, address_len));
-		return 0;
+		return TRY(inode->accept(address, address_len));
 	}
 
 	BAN::ErrorOr<long> Process::sys_bind(int socket, const sockaddr* address, socklen_t address_len)

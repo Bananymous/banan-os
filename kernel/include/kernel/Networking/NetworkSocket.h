@@ -1,6 +1,7 @@
 #pragma once
 
 #include <BAN/WeakPtr.h>
+#include <kernel/FS/Socket.h>
 #include <kernel/FS/TmpFS/Inode.h>
 #include <kernel/Networking/NetworkInterface.h>
 #include <kernel/Networking/NetworkLayer.h>
@@ -14,20 +15,6 @@ namespace Kernel
 	{
 		ICMP = 0x01,
 		UDP = 0x11,
-	};
-
-	enum class SocketDomain
-	{
-		INET,
-		INET6,
-		UNIX,
-	};
-
-	enum class SocketType
-	{
-		STREAM,
-		DGRAM,
-		SEQPACKET,
 	};
 
 	class NetworkSocket : public TmpInode, public BAN::Weakable<NetworkSocket>

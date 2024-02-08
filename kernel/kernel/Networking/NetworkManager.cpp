@@ -6,6 +6,7 @@
 #include <kernel/Networking/ICMP.h>
 #include <kernel/Networking/NetworkManager.h>
 #include <kernel/Networking/UDPSocket.h>
+#include <kernel/Networking/UNIX/Socket.h>
 
 #define DEBUG_ETHERTYPE 0
 
@@ -70,7 +71,7 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<BAN::RefPtr<NetworkSocket>> NetworkManager::create_socket(SocketDomain domain, SocketType type, mode_t mode, uid_t uid, gid_t gid)
+	BAN::ErrorOr<BAN::RefPtr<TmpInode>> NetworkManager::create_socket(SocketDomain domain, SocketType type, mode_t mode, uid_t uid, gid_t gid)
 	{
 		switch (domain)
 		{
@@ -78,6 +79,10 @@ namespace Kernel
 			{
 				if (type != SocketType::DGRAM)
 					return BAN::Error::from_errno(EPROTOTYPE);
+				break;
+			}
+			case SocketDomain::UNIX:
+			{
 				break;
 			}
 			default:
@@ -90,13 +95,18 @@ namespace Kernel
 		auto inode_info = create_inode_info(mode, uid, gid);
 		ino_t ino = TRY(allocate_inode(inode_info));
 
-		BAN::RefPtr<NetworkSocket> socket;
+		BAN::RefPtr<TmpInode> socket;
 		switch (domain)
 		{
 			case SocketDomain::INET:
 			{
 				if (type == SocketType::DGRAM)
 					socket = TRY(UDPSocket::create(*m_ipv4_layer, ino, inode_info));
+				break;
+			}
+			case SocketDomain::UNIX:
+			{
+				socket = TRY(UnixDomainSocket::create(type, ino, inode_info));
 				break;
 			}
 			default:

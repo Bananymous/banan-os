@@ -116,7 +116,7 @@ namespace Kernel
 		return link_target_impl();
 	}
 
-	BAN::ErrorOr<void> Inode::accept(sockaddr* address, socklen_t* address_len)
+	BAN::ErrorOr<long> Inode::accept(sockaddr* address, socklen_t* address_len)
 	{
 		LockGuard _(m_lock);
 		if (!mode().ifsock())
