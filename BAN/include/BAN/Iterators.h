@@ -3,6 +3,8 @@
 #include <BAN/Assert.h>
 #include <BAN/Traits.h>
 
+#include <stddef.h>
+
 namespace BAN
 {
 

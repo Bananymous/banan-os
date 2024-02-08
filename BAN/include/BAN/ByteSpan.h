@@ -2,6 +2,8 @@
 
 #include <BAN/Span.h>
 
+#include <stdint.h>
+
 namespace BAN
 {
 
