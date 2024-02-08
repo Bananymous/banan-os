@@ -239,6 +239,12 @@ namespace Kernel
 	{
 	}
 
+	BAN::ErrorOr<void> TmpSocketInode::chmod_impl(mode_t new_mode)
+	{
+		m_inode_info.mode = new_mode;
+		return {};
+	}
+
 	/* SYMLINK INODE */
 
 	BAN::ErrorOr<BAN::RefPtr<TmpSymlinkInode>> TmpSymlinkInode::create_new(TmpFileSystem& fs, mode_t mode, uid_t uid, gid_t gid, BAN::StringView target)
