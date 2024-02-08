@@ -50,3 +50,26 @@ char* inet_ntoa(struct in_addr in)
 	);
 	return buffer;
 }
+
+const char* inet_ntop(int af, const void* __restrict src, char* __restrict dst, socklen_t size)
+{
+	if (af == AF_INET)
+	{
+		if (size < INET_ADDRSTRLEN)
+		{
+			errno = ENOSPC;
+			return nullptr;
+		}
+		uint32_t he = ntohl(reinterpret_cast<const in_addr*>(src)->s_addr);
+		sprintf(dst, "%u.%u.%u.%u",
+			(he >> 24) & 0xFF,
+			(he >> 16) & 0xFF,
+			(he >>  8) & 0xFF,
+			(he >>  0) & 0xFF
+		);
+		return dst;
+	}
+
+	errno = EAFNOSUPPORT;
+	return nullptr;
+}
