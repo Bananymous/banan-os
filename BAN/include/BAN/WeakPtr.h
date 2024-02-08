@@ -91,6 +91,8 @@ namespace BAN
 
 		bool valid() const { return m_link && m_link->valid(); }
 
+		operator bool() const { return valid(); }
+
 	private:
 		WeakPtr(const RefPtr<WeakLink<T>>& link)
 			: m_link(link)
