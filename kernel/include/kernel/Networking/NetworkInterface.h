@@ -52,6 +52,8 @@ namespace Kernel
 		virtual bool link_up() = 0;
 		virtual int link_speed() = 0;
 
+		virtual size_t payload_mtu() const = 0;
+
 		virtual dev_t rdev() const override { return m_rdev; }
 		virtual BAN::StringView name() const override { return m_name; }
 

@@ -1,3 +1,4 @@
+#include <kernel/LockGuard.h>
 #include <kernel/Memory/Heap.h>
 #include <kernel/Networking/UDPSocket.h>
 #include <kernel/Thread.h>
@@ -23,7 +24,7 @@ namespace Kernel
 		: NetworkSocket(network_layer, ino, inode_info)
 	{ }
 
-	void UDPSocket::add_protocol_header(BAN::ByteSpan packet, uint16_t dst_port)
+	void UDPSocket::add_protocol_header(BAN::ByteSpan packet, uint16_t dst_port, PseudoHeader)
 	{
 		auto& header = packet.as<UDPHeader>();
 		header.src_port = m_port;
@@ -34,7 +35,7 @@ namespace Kernel
 
 	void UDPSocket::add_packet(BAN::ConstByteSpan packet, BAN::IPv4Address sender_addr, uint16_t sender_port)
 	{
-		CriticalScope _;
+		LockGuard _(m_packet_lock);
 
 		if (m_packets.full())
 		{
@@ -58,15 +59,15 @@ namespace Kernel
 		});
 		m_packet_total_size += packet.size();
 
-		m_semaphore.unblock();
+		m_packet_semaphore.unblock();
 	}
 
 	BAN::ErrorOr<size_t> UDPSocket::read_packet(BAN::ByteSpan buffer, sockaddr_in* sender_addr)
 	{
 		while (m_packets.empty())
-			TRY(Thread::current().block_or_eintr(m_semaphore));
+			TRY(Thread::current().block_or_eintr(m_packet_semaphore));
 
-		CriticalScope _;
+		LockGuard _(m_packet_lock);
 		if (m_packets.empty())
 			return read_packet(buffer, sender_addr);
 

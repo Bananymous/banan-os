@@ -12,6 +12,11 @@
 namespace Kernel
 {
 
+	enum IPv4Flags : uint16_t
+	{
+		DF = 1 << 14,
+	};
+
 	BAN::ErrorOr<BAN::UniqPtr<IPv4Layer>> IPv4Layer::create()
 	{
 		auto ipv4_manager = TRY(BAN::UniqPtr<IPv4Layer>::create());
@@ -57,7 +62,8 @@ namespace Kernel
 		header.protocol			= protocol;
 		header.src_address		= src_ipv4;
 		header.dst_address		= dst_ipv4;
-		header.checksum			= header.calculate_checksum();
+		header.checksum			= 0;
+		header.checksum			= calculate_internet_checksum(BAN::ConstByteSpan::from(header), {});
 	}
 
 	void IPv4Layer::unbind_socket(uint16_t port, BAN::RefPtr<NetworkSocket> socket)
@@ -98,7 +104,7 @@ namespace Kernel
 
 		if (m_bound_sockets.contains(port))
 			return BAN::Error::from_errno(EADDRINUSE);
-		TRY(m_bound_sockets.insert(port, socket));
+		TRY(m_bound_sockets.insert(port, TRY(socket->get_weak_ptr())));
 
 		// FIXME: actually determine proper interface
 		auto interface = NetworkManager::get().interfaces().front();
@@ -107,28 +113,37 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<size_t> IPv4Layer::sendto(NetworkSocket& socket, const sys_sendto_t* arguments)
+	BAN::ErrorOr<size_t> IPv4Layer::sendto(NetworkSocket& socket, BAN::ConstByteSpan buffer, const sockaddr* address, socklen_t address_len)
 	{
-		if (arguments->dest_addr->sa_family != AF_INET)
+		if (address->sa_family != AF_INET)
 			return BAN::Error::from_errno(EINVAL);
-		auto& sockaddr_in = *reinterpret_cast<const struct sockaddr_in*>(arguments->dest_addr);
+		if (address == nullptr || address_len != sizeof(sockaddr_in))
+			return BAN::Error::from_errno(EINVAL);
+		auto& sockaddr_in = *reinterpret_cast<const struct sockaddr_in*>(address);
 
 		auto dst_port = BAN::host_to_network_endian(sockaddr_in.sin_port);
 		auto dst_ipv4 = BAN::IPv4Address { sockaddr_in.sin_addr.s_addr };
 		auto dst_mac = TRY(m_arp_table->get_mac_from_ipv4(socket.interface(), dst_ipv4));
 
 		BAN::Vector<uint8_t> packet_buffer;
-		TRY(packet_buffer.resize(arguments->length + sizeof(IPv4Header) + socket.protocol_header_size()));
+		TRY(packet_buffer.resize(buffer.size() + sizeof(IPv4Header) + socket.protocol_header_size()));
 		auto packet = BAN::ByteSpan { packet_buffer.span() };
+
+		auto pseudo_header = PseudoHeader {
+			.src_ipv4 = socket.interface().get_ipv4_address(),
+			.dst_ipv4 = dst_ipv4,
+			.protocol = socket.protocol()
+		};
 
 		memcpy(
 			packet.slice(sizeof(IPv4Header)).slice(socket.protocol_header_size()).data(),
-			arguments->message,
-			arguments->length
+			buffer.data(),
+			buffer.size()
 		);
 		socket.add_protocol_header(
 			packet.slice(sizeof(IPv4Header)),
-			dst_port
+			dst_port,
+			pseudo_header
 		);
 		add_ipv4_header(
 			packet,
@@ -139,25 +154,13 @@ namespace Kernel
 
 		TRY(socket.interface().send_bytes(dst_mac, EtherType::IPv4, packet));
 
-		return arguments->length;
-	}
-
-	static uint16_t calculate_internet_checksum(BAN::ConstByteSpan packet)
-	{
-		uint32_t checksum = 0;
-		for (size_t i = 0; i < packet.size() / sizeof(uint16_t); i++)
-			checksum += BAN::host_to_network_endian(reinterpret_cast<const uint16_t*>(packet.data())[i]);
-		while (checksum >> 16)
-			checksum = (checksum >> 16) | (checksum & 0xFFFF);
-		return ~(uint16_t)checksum;
+		return buffer.size();
 	}
 
 	BAN::ErrorOr<void> IPv4Layer::handle_ipv4_packet(NetworkInterface& interface, BAN::ByteSpan packet)
 	{
 		auto& ipv4_header = packet.as<const IPv4Header>();
 		auto ipv4_data = packet.slice(sizeof(IPv4Header));
-
-		ASSERT(ipv4_header.is_valid_checksum());
 
 		auto src_ipv4 = ipv4_header.src_address;
 		switch (ipv4_header.protocol)
@@ -174,7 +177,7 @@ namespace Kernel
 						auto& reply_icmp_header = ipv4_data.as<ICMPHeader>();
 						reply_icmp_header.type = ICMPType::EchoReply;
 						reply_icmp_header.checksum = 0;
-						reply_icmp_header.checksum = calculate_internet_checksum(ipv4_data);
+						reply_icmp_header.checksum = calculate_internet_checksum(ipv4_data, {});
 
 						add_ipv4_header(packet, interface.get_ipv4_address(), src_ipv4, NetworkProtocol::ICMP);
 
@@ -195,14 +198,20 @@ namespace Kernel
 
 				LockGuard _(m_lock);
 
-				if (!m_bound_sockets.contains(dst_port) || !m_bound_sockets[dst_port].valid())
+				if (!m_bound_sockets.contains(dst_port))
+				{
+					dprintln_if(DEBUG_IPV4, "no one is listening on port {}", dst_port);
+					return {};
+				}
+				auto socket = m_bound_sockets[dst_port].lock();
+				if (!socket)
 				{
 					dprintln_if(DEBUG_IPV4, "no one is listening on port {}", dst_port);
 					return {};
 				}
 
 				auto udp_data = ipv4_data.slice(sizeof(UDPHeader));
-				m_bound_sockets[dst_port].lock()->add_packet(udp_data, src_ipv4, src_port);
+				socket->add_packet(udp_data, src_ipv4, src_port);
 				break;
 			}
 			default:
@@ -262,14 +271,17 @@ namespace Kernel
 		}
 
 		auto& ipv4_header = buffer.as<const IPv4Header>();
-		if (!ipv4_header.is_valid_checksum())
+		if (calculate_internet_checksum(BAN::ConstByteSpan::from(ipv4_header), {}) != 0)
 		{
 			dwarnln("Invalid IPv4 packet");
 			return;
 		}
-		if (ipv4_header.total_length > buffer.size())
+		if (ipv4_header.total_length > buffer.size() || ipv4_header.total_length > interface.payload_mtu())
 		{
-			dwarnln("Too short IPv4 packet");
+			if (ipv4_header.flags_frament & IPv4Flags::DF)
+				dwarnln("Invalid IPv4 packet");
+			else
+				dwarnln("IPv4 fragmentation not supported");
 			return;
 		}
 

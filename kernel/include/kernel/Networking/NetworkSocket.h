@@ -32,7 +32,7 @@ namespace Kernel
 		NetworkInterface& interface() { ASSERT(m_interface); return *m_interface; }
 
 		virtual size_t protocol_header_size() const = 0;
-		virtual void add_protocol_header(BAN::ByteSpan packet, uint16_t dst_port) = 0;
+		virtual void add_protocol_header(BAN::ByteSpan packet, uint16_t dst_port, PseudoHeader) = 0;
 		virtual NetworkProtocol protocol() const = 0;
 
 		virtual void add_packet(BAN::ConstByteSpan, BAN::IPv4Address sender_address, uint16_t sender_port) = 0;

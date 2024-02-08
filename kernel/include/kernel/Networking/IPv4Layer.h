@@ -29,27 +29,6 @@ namespace Kernel
 		BAN::NetworkEndian<uint16_t> checksum		{ 0 };
 		BAN::IPv4Address src_address;
 		BAN::IPv4Address dst_address;
-
-		constexpr uint16_t calculate_checksum() const
-		{
-			uint32_t total_sum = 0;
-			for (size_t i = 0; i < sizeof(IPv4Header) / sizeof(uint16_t); i++)
-				total_sum += reinterpret_cast<const BAN::NetworkEndian<uint16_t>*>(this)[i];
-			total_sum -= checksum;
-			while (total_sum >> 16)
-				total_sum = (total_sum >> 16) + (total_sum & 0xFFFF);
-			return ~(uint16_t)total_sum;
-		}
-
-		constexpr bool is_valid_checksum() const
-		{
-			uint32_t total_sum = 0;
-			for (size_t i = 0; i < sizeof(IPv4Header) / sizeof(uint16_t); i++)
-				total_sum += reinterpret_cast<const BAN::NetworkEndian<uint16_t>*>(this)[i];
-			while (total_sum >> 16)
-				total_sum = (total_sum >> 16) + (total_sum & 0xFFFF);
-			return total_sum == 0xFFFF;
-		}
 	};
 	static_assert(sizeof(IPv4Header) == 20);
 
@@ -69,7 +48,7 @@ namespace Kernel
 		virtual void unbind_socket(uint16_t port, BAN::RefPtr<NetworkSocket>) override;
 		virtual BAN::ErrorOr<void> bind_socket(uint16_t port, BAN::RefPtr<NetworkSocket>) override;
 
-		virtual BAN::ErrorOr<size_t> sendto(NetworkSocket&, const sys_sendto_t*) override;
+		virtual BAN::ErrorOr<size_t> sendto(NetworkSocket&, BAN::ConstByteSpan, const sockaddr*, socklen_t) override;
 
 	private:
 		IPv4Layer();

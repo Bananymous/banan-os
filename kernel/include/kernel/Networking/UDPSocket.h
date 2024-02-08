@@ -24,9 +24,10 @@ namespace Kernel
 	public:
 		static BAN::ErrorOr<BAN::RefPtr<UDPSocket>> create(NetworkLayer&, ino_t, const TmpInodeInfo&);
 
-		virtual size_t protocol_header_size() const override { return sizeof(UDPHeader); }
-		virtual void add_protocol_header(BAN::ByteSpan packet, uint16_t dst_port) override;
 		virtual NetworkProtocol protocol() const override { return NetworkProtocol::UDP; }
+
+		virtual size_t protocol_header_size() const override { return sizeof(UDPHeader); }
+		virtual void add_protocol_header(BAN::ByteSpan packet, uint16_t dst_port, PseudoHeader) override;
 
 	protected:
 		virtual void add_packet(BAN::ConstByteSpan, BAN::IPv4Address sender_addr, uint16_t sender_port) override;
@@ -47,7 +48,8 @@ namespace Kernel
 		BAN::UniqPtr<VirtualRange>			m_packet_buffer;
 		BAN::CircularQueue<PacketInfo, 128>	m_packets;
 		size_t								m_packet_total_size { 0 };
-		Semaphore							m_semaphore;
+		SpinLock							m_packet_lock;
+		Semaphore							m_packet_semaphore;
 
 		friend class BAN::RefPtr<UDPSocket>;
 	};

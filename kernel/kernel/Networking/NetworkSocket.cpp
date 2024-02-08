@@ -49,7 +49,8 @@ namespace Kernel
 		if (!m_interface)
 			TRY(m_network_layer.bind_socket(PORT_NONE, this));
 
-		return TRY(m_network_layer.sendto(*this, arguments));
+		auto buffer = BAN::ConstByteSpan { reinterpret_cast<const uint8_t*>(arguments->message), arguments->length };
+		return TRY(m_network_layer.sendto(*this, buffer, arguments->dest_addr, arguments->dest_len));
 	}
 
 	BAN::ErrorOr<size_t> NetworkSocket::recvfrom_impl(sys_recvfrom_t* arguments)
