@@ -1,7 +1,12 @@
+#include <arpa/inet.h>
+#include <netinet/in.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <unistd.h>
+
+#define MAX(a, b) ((a) < (b) ? (b) : (a))
 
 int main(int argc, char** argv)
 {
@@ -33,15 +38,17 @@ int main(int argc, char** argv)
 		return 1;
 	}
 
-	char buffer[128];
-	ssize_t nrecv = recv(socket, buffer, sizeof(buffer), 0);
-	if (nrecv == -1)
+	sockaddr_storage storage;
+	if (recv(socket, &storage, sizeof(storage), 0) == -1)
 	{
 		perror("recv");
 		return 1;
 	}
-	buffer[nrecv] = '\0';
 
-	printf("%s\n", buffer);
+	close(socket);
+
+	char buffer[MAX(INET_ADDRSTRLEN, INET6_ADDRSTRLEN)];
+	printf("%s\n", inet_ntop(storage.ss_family, storage.ss_storage, buffer, sizeof(buffer)));
+
 	return 0;
 }
