@@ -34,6 +34,7 @@ set(USERSPACE_PROJECTS
 	test-globals
 	test-mouse
 	test-sort
+	test-unix-socket
 	touch
 	u8sum
 	whoami
