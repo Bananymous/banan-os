@@ -66,7 +66,7 @@ namespace Kernel
 			return BAN::Error::from_errno(EINVAL);
 
 		while (connection_info.pending_connections.empty())
-			TRY(Thread::current().block_or_eintr(connection_info.pending_semaphore));
+			TRY(Thread::current().block_or_eintr_indefinite(connection_info.pending_semaphore));
 
 		BAN::RefPtr<UnixDomainSocket> pending;
 
@@ -158,7 +158,7 @@ namespace Kernel
 					break;
 				}
 			}
-			TRY(Thread::current().block_or_eintr(target_info.pending_semaphore));
+			TRY(Thread::current().block_or_eintr_indefinite(target_info.pending_semaphore));
 		}
 
 		while (!connection_info.connection_done)
@@ -234,7 +234,7 @@ namespace Kernel
 		while (m_packet_sizes.full() || m_packet_size_total + packet.size() > s_packet_buffer_size)
 		{
 			LockFreeGuard _(m_lock);
-			TRY(Thread::current().block_or_eintr(m_packet_semaphore));
+			TRY(Thread::current().block_or_eintr_indefinite(m_packet_semaphore));
 		}
 
 		uint8_t* packet_buffer = reinterpret_cast<uint8_t*>(m_packet_buffer->vaddr() + m_packet_size_total);
@@ -321,7 +321,7 @@ namespace Kernel
 		while (m_packet_size_total == 0)
 		{
 			LockFreeGuard _(m_lock);
-			TRY(Thread::current().block_or_eintr(m_packet_semaphore));
+			TRY(Thread::current().block_or_eintr_indefinite(m_packet_semaphore));
 		}
 
 		uint8_t* packet_buffer = reinterpret_cast<uint8_t*>(m_packet_buffer->vaddr());

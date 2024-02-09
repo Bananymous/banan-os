@@ -155,7 +155,7 @@ namespace Kernel
 
 			if (!pending.has_value())
 			{
-				m_pending_semaphore.block();
+				m_pending_semaphore.block_indefinite();
 				continue;
 			}
 

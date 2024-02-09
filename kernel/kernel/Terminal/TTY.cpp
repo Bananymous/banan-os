@@ -92,7 +92,7 @@ namespace Kernel
 				while (true)
 				{
 					while (!TTY::current()->m_tty_ctrl.receive_input)
-						TTY::current()->m_tty_ctrl.semaphore.block();
+						TTY::current()->m_tty_ctrl.semaphore.block_indefinite();
 
 					Input::KeyEvent event;
 					size_t read = MUST(inode->read(0, BAN::ByteSpan::from(event)));
@@ -323,7 +323,7 @@ namespace Kernel
 			uint32_t depth = m_lock.lock_depth();
 			for (uint32_t i = 0; i < depth; i++)
 				m_lock.unlock();
-			auto eintr = Thread::current().block_or_eintr(m_output.semaphore);
+			auto eintr = Thread::current().block_or_eintr_indefinite(m_output.semaphore);
 			for (uint32_t i = 0; i < depth; i++)
 				m_lock.lock();
 			if (eintr.is_error())

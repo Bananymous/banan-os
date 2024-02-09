@@ -8,6 +8,7 @@
 #include <kernel/Process.h>
 #include <kernel/Scheduler.h>
 #include <kernel/Thread.h>
+#include <kernel/Timer/Timer.h>
 
 namespace Kernel
 {
@@ -30,7 +31,6 @@ namespace Kernel
 	void Thread::terminate()
 	{
 		CriticalScope _;
-		ASSERT(this == &Thread::current());
 		m_state = Thread::State::Terminated;
 		if (this == &Thread::current())
 			Scheduler::get().execute_current_thread();
@@ -343,13 +343,31 @@ namespace Kernel
 		return false;
 	}
 
-	BAN::ErrorOr<void> Thread::block_or_eintr(Semaphore& semaphore)
+	BAN::ErrorOr<void> Thread::block_or_eintr_indefinite(Semaphore& semaphore)
 	{
 		if (is_interrupted_by_signal())
 			return BAN::Error::from_errno(EINTR);
-		semaphore.block();
+		semaphore.block_indefinite();
 		if (is_interrupted_by_signal())
 			return BAN::Error::from_errno(EINTR);
+		return {};
+	}
+
+	BAN::ErrorOr<void> Thread::block_or_eintr_or_timeout(Semaphore& semaphore, uint64_t timeout_ms, bool etimedout)
+	{
+		uint64_t wake_time_ms = SystemTimer::get().ms_since_boot() + timeout_ms;
+		return block_or_eintr_or_waketime(semaphore, wake_time_ms, etimedout);
+	}
+
+	BAN::ErrorOr<void> Thread::block_or_eintr_or_waketime(Semaphore& semaphore, uint64_t wake_time_ms, bool etimedout)
+	{
+		if (is_interrupted_by_signal())
+			return BAN::Error::from_errno(EINTR);
+		semaphore.block_with_wake_time(wake_time_ms);
+		if (is_interrupted_by_signal())
+			return BAN::Error::from_errno(EINTR);
+		if (etimedout && SystemTimer::get().ms_since_boot() >= wake_time_ms)
+			return BAN::Error::from_errno(ETIMEDOUT);
 		return {};
 	}
 

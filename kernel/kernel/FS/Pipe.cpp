@@ -1,5 +1,6 @@
 #include <kernel/FS/Pipe.h>
 #include <kernel/LockGuard.h>
+#include <kernel/Thread.h>
 #include <kernel/Timer/Timer.h>
 
 namespace Kernel
@@ -46,9 +47,8 @@ namespace Kernel
 		{
 			if (m_writing_count == 0)
 				return 0;
-			m_lock.unlock();
-			m_semaphore.block();
-			m_lock.lock();
+			LockFreeGuard lock_free(m_lock);
+			TRY(Thread::current().block_or_eintr_indefinite(m_semaphore));
 		}
 
 		size_t to_copy = BAN::Math::min<size_t>(buffer.size(), m_buffer.size());

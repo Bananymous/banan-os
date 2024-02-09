@@ -65,7 +65,7 @@ namespace Kernel
 	BAN::ErrorOr<size_t> UDPSocket::read_packet(BAN::ByteSpan buffer, sockaddr_in* sender_addr)
 	{
 		while (m_packets.empty())
-			TRY(Thread::current().block_or_eintr(m_packet_semaphore));
+			TRY(Thread::current().block_or_eintr_indefinite(m_packet_semaphore));
 
 		LockGuard _(m_packet_lock);
 		if (m_packets.empty())

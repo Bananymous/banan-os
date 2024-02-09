@@ -19,9 +19,9 @@ namespace Kernel
 		void reschedule();
 		void reschedule_if_idling();
 
-		void set_current_thread_sleeping(uint64_t);
+		void set_current_thread_sleeping(uint64_t wake_time);
 
-		void block_current_thread(Semaphore*);
+		void block_current_thread(Semaphore*, uint64_t wake_time);
 		void unblock_threads(Semaphore*);
 		// Makes sleeping or blocked thread with tid active.
 		void unblock_thread(pid_t tid);
@@ -35,6 +35,8 @@ namespace Kernel
 
 	private:
 		Scheduler() = default;
+
+		void set_current_thread_sleeping_impl(uint64_t wake_time);
 
 		void wake_threads();
 		[[nodiscard]] bool save_current_thread();
@@ -50,18 +52,14 @@ namespace Kernel
 				: thread(thread)
 			{}
 
-			Thread* thread;
-			union
-			{
-				uint64_t	wake_time;
-				Semaphore*	semaphore;
-			};
+			Thread*		thread;
+			uint64_t	wake_time;
+			Semaphore*	semaphore;
 		};
 
 		Thread* m_idle_thread { nullptr };
 		BAN::LinkedList<SchedulerThread> m_active_threads;
 		BAN::LinkedList<SchedulerThread> m_sleeping_threads;
-		BAN::LinkedList<SchedulerThread> m_blocking_threads;
 
 		BAN::LinkedList<SchedulerThread>::iterator m_current_thread;
 

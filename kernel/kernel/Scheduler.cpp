@@ -278,12 +278,9 @@ namespace Kernel
 		ASSERT_NOT_REACHED();
 	}
 
-	void Scheduler::set_current_thread_sleeping(uint64_t wake_time)
+	void Scheduler::set_current_thread_sleeping_impl(uint64_t wake_time)
 	{
-		VERIFY_STI();
-		DISABLE_INTERRUPTS();
-
-		ASSERT(m_current_thread);
+		VERIFY_CLI();
 
 		if (save_current_thread())
 		{
@@ -310,42 +307,37 @@ namespace Kernel
 		ASSERT_NOT_REACHED();
 	}
 
-	void Scheduler::block_current_thread(Semaphore* semaphore)
+	void Scheduler::set_current_thread_sleeping(uint64_t wake_time)
 	{
 		VERIFY_STI();
 		DISABLE_INTERRUPTS();
 
 		ASSERT(m_current_thread);
 
-		if (save_current_thread())
-		{
-			ENABLE_INTERRUPTS();
-			return;
-		}
+		m_current_thread->semaphore = nullptr;
+		set_current_thread_sleeping_impl(wake_time);
+	}
+
+	void Scheduler::block_current_thread(Semaphore* semaphore, uint64_t wake_time)
+	{
+		VERIFY_STI();
+		DISABLE_INTERRUPTS();
+
+		ASSERT(m_current_thread);
 
 		m_current_thread->semaphore = semaphore;
-		m_active_threads.move_element_to_other_linked_list(
-			m_blocking_threads,
-			m_blocking_threads.end(),
-			m_current_thread
-		);
-
-		m_current_thread = {};
-		advance_current_thread();
-
-		execute_current_thread();
-		ASSERT_NOT_REACHED();
+		set_current_thread_sleeping_impl(wake_time);
 	}
 
 	void Scheduler::unblock_threads(Semaphore* semaphore)
 	{
 		CriticalScope critical;
 
-		for (auto it = m_blocking_threads.begin(); it != m_blocking_threads.end();)
+		for (auto it = m_sleeping_threads.begin(); it != m_sleeping_threads.end();)
 		{
 			if (it->semaphore == semaphore)
 			{
-				it = m_blocking_threads.move_element_to_other_linked_list(
+				it = m_sleeping_threads.move_element_to_other_linked_list(
 					m_active_threads,
 					m_active_threads.end(),
 					it
@@ -361,19 +353,6 @@ namespace Kernel
 	void Scheduler::unblock_thread(pid_t tid)
 	{
 		CriticalScope _;
-
-		for (auto it = m_blocking_threads.begin(); it != m_blocking_threads.end(); it++)
-		{
-			if (it->thread->tid() == tid)
-			{
-				m_blocking_threads.move_element_to_other_linked_list(
-					m_active_threads,
-					m_active_threads.end(),
-					it
-				);
-				return;
-			}
-		}
 
 		for (auto it = m_sleeping_threads.begin(); it != m_sleeping_threads.end(); it++)
 		{

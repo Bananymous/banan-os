@@ -47,8 +47,10 @@ namespace Kernel
 		void handle_signal(int signal = 0);
 		bool add_signal(int signal);
 
-		// blocks semaphore and returns either on unblock, eintr or spuriously
-		BAN::ErrorOr<void> block_or_eintr(Semaphore&);
+		// blocks semaphore and returns either on unblock, eintr, spuriously or after timeout
+		BAN::ErrorOr<void> block_or_eintr_indefinite(Semaphore& semaphore);
+		BAN::ErrorOr<void> block_or_eintr_or_timeout(Semaphore& semaphore, uint64_t timeout_ms, bool etimedout);
+		BAN::ErrorOr<void> block_or_eintr_or_waketime(Semaphore& semaphore, uint64_t wake_time_ms, bool etimedout);
 
 		void set_return_rsp(uintptr_t& rsp) { m_return_rsp = &rsp; }
 		void set_return_rip(uintptr_t& rip) { m_return_rip = &rip; }

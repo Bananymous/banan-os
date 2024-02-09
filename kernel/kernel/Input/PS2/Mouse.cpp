@@ -179,7 +179,7 @@ namespace Kernel::Input
 		while (true)
 		{
 			if (m_event_queue.empty())
-				TRY(Thread::current().block_or_eintr(m_semaphore));
+				TRY(Thread::current().block_or_eintr_indefinite(m_semaphore));
 
 			CriticalScope _;
 			if (m_event_queue.empty())

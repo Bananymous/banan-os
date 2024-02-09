@@ -64,9 +64,8 @@ namespace Kernel
 				{
 					while (!s_instance->m_should_sync)
 					{
-						s_instance->m_device_lock.unlock();
-						s_instance->m_sync_semaphore.block();
-						s_instance->m_device_lock.lock();
+						LockFreeGuard _(s_instance->m_device_lock);
+						s_instance->m_sync_semaphore.block_indefinite();
 					}
 
 					for (auto& device : s_instance->m_devices)
@@ -105,7 +104,7 @@ namespace Kernel
 			m_sync_semaphore.unblock();
 		}
 		if (should_block)
-			m_sync_done.block();
+			m_sync_done.block_indefinite();
 	}
 
 	void DevFileSystem::add_device(BAN::RefPtr<Device> device)

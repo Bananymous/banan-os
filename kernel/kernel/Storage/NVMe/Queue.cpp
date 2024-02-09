@@ -67,13 +67,12 @@ namespace Kernel
 
 		while (SystemTimer::get().ms_since_boot() < start_time + s_nvme_command_timeout_ms)
 		{
-			if (!m_done)
+			if (m_done)
 			{
-				m_semaphore.block();
-				continue;
+				m_done = false;
+				return m_status;
 			}
-			m_done = false;
-			return m_status;
+			m_semaphore.block_with_wake_time(start_time + s_nvme_command_timeout_ms);
 		}
 
 		return 0xFFFF;
