@@ -227,28 +227,6 @@ namespace Kernel
 		}
 	}
 
-	// This to feels too hacky to expose out of here
-	struct LockFreeGuard
-	{
-		LockFreeGuard(RecursivePrioritySpinLock& lock)
-			: m_lock(lock)
-			, m_depth(lock.lock_depth())
-		{
-			for (uint32_t i = 0; i < m_depth; i++)
-				m_lock.unlock();
-		}
-
-		~LockFreeGuard()
-		{
-			for (uint32_t i = 0; i < m_depth; i++)
-				m_lock.lock();
-		}
-
-	private:
-		RecursivePrioritySpinLock& m_lock;
-		const uint32_t m_depth;
-	};
-
 	BAN::ErrorOr<void> UnixDomainSocket::add_packet(BAN::ConstByteSpan packet)
 	{
 		LockGuard _(m_lock);

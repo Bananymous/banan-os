@@ -19,6 +19,8 @@ namespace Kernel
 		void unlock();
 		bool is_locked() const;
 
+		uint32_t lock_depth() const { return m_locker != -1; }
+
 	private:
 		BAN::Atomic<pid_t> m_locker = -1;
 	};
@@ -33,6 +35,8 @@ namespace Kernel
 		void lock();
 		void unlock();
 		bool is_locked() const;
+
+		uint32_t lock_depth() const { return m_lock_depth; }
 
 	private:
 		BAN::Atomic<pid_t>		m_locker		= -1;
