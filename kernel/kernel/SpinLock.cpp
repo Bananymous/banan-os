@@ -7,6 +7,7 @@ namespace Kernel
 	void SpinLock::lock()
 	{
 		pid_t tid = Scheduler::current_tid();
+		ASSERT(tid != m_locker);
 		while (!m_locker.compare_exchange(-1, tid))
 			Scheduler::get().reschedule();
 	}
