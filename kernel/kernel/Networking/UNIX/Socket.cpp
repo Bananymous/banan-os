@@ -248,29 +248,27 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<size_t> UnixDomainSocket::sendto_impl(const sys_sendto_t* arguments)
+	BAN::ErrorOr<size_t> UnixDomainSocket::sendto_impl(BAN::ConstByteSpan message, const sockaddr* address, socklen_t address_len)
 	{
-		if (arguments->flags)
-			return BAN::Error::from_errno(ENOTSUP);
-		if (arguments->length > s_packet_buffer_size)
+		if (message.size() > s_packet_buffer_size)
 			return BAN::Error::from_errno(ENOBUFS);
 
 		if (m_info.has<ConnectionInfo>())
 		{
 			auto& connection_info = m_info.get<ConnectionInfo>();
-			if (arguments->dest_addr)
+			if (address)
 				return BAN::Error::from_errno(EISCONN);
 			auto target = connection_info.connection.lock();
 			if (!target)
 				return BAN::Error::from_errno(ENOTCONN);
-			TRY(target->add_packet({ reinterpret_cast<const uint8_t*>(arguments->message), arguments->length }));
-			return arguments->length;
+			TRY(target->add_packet(message));
+			return message.size();
 		}
 		else
 		{
 			BAN::String canonical_path;
 
-			if (!arguments->dest_addr)
+			if (!address)
 			{
 				auto& connectionless_info = m_info.get<ConnectionlessInfo>();
 				if (connectionless_info.peer_address.empty())
@@ -279,9 +277,9 @@ namespace Kernel
 			}
 			else
 			{
-				if (arguments->dest_len != sizeof(sockaddr_un))
+				if (address_len != sizeof(sockaddr_un))
 					return BAN::Error::from_errno(EINVAL);
-				auto& sockaddr_un = *reinterpret_cast<const struct sockaddr_un*>(arguments->dest_addr);
+				auto& sockaddr_un = *reinterpret_cast<const struct sockaddr_un*>(address);
 				if (sockaddr_un.sun_family != AF_UNIX)
 					return BAN::Error::from_errno(EAFNOSUPPORT);
 
@@ -301,16 +299,13 @@ namespace Kernel
 			auto target = s_bound_sockets[canonical_path].lock();
 			if (!target)
 				return BAN::Error::from_errno(EDESTADDRREQ);
-			TRY(target->add_packet({ reinterpret_cast<const uint8_t*>(arguments->message), arguments->length }));
-			return arguments->length;
+			TRY(target->add_packet(message));
+			return message.size();
 		}
 	}
 
-	BAN::ErrorOr<size_t> UnixDomainSocket::recvfrom_impl(sys_recvfrom_t* arguments)
+	BAN::ErrorOr<size_t> UnixDomainSocket::recvfrom_impl(BAN::ByteSpan buffer, sockaddr*, socklen_t*)
 	{
-		if (arguments->flags)
-			return BAN::Error::from_errno(ENOTSUP);
-
 		if (m_info.has<ConnectionInfo>())
 		{
 			auto& connection_info = m_info.get<ConnectionInfo>();
@@ -328,14 +323,14 @@ namespace Kernel
 
 		size_t nread = 0;
 		if (is_streaming())
-			nread = BAN::Math::min(arguments->length, m_packet_size_total);
+			nread = BAN::Math::min(buffer.size(), m_packet_size_total);
 		else
 		{
-			nread = BAN::Math::min(arguments->length, m_packet_sizes.front());
+			nread = BAN::Math::min(buffer.size(), m_packet_sizes.front());
 			m_packet_sizes.pop();
 		}
 
-		memcpy(arguments->buffer, packet_buffer, nread);
+		memcpy(buffer.data(), packet_buffer, nread);
 		memmove(packet_buffer, packet_buffer + nread, m_packet_size_total - nread);
 		m_packet_size_total -= nread;
 

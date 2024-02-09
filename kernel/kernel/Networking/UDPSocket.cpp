@@ -33,8 +33,11 @@ namespace Kernel
 		header.checksum = 0;
 	}
 
-	void UDPSocket::add_packet(BAN::ConstByteSpan packet, BAN::IPv4Address sender_addr, uint16_t sender_port)
+	void UDPSocket::receive_packet(BAN::ConstByteSpan packet, const sockaddr_storage& sender)
 	{
+		//auto& header = packet.as<const UDPHeader>();
+		auto payload = packet.slice(sizeof(UDPHeader));
+
 		LockGuard _(m_packet_lock);
 
 		if (m_packets.full())
@@ -43,60 +46,82 @@ namespace Kernel
 			return;
 		}
 
-		if (!m_packets.empty() && m_packet_total_size > m_packet_buffer->size())
+		if (m_packet_total_size + payload.size() > m_packet_buffer->size())
 		{
 			dprintln("Packet buffer full, dropping packet");
 			return;
 		}
 
 		void* buffer = reinterpret_cast<void*>(m_packet_buffer->vaddr() + m_packet_total_size);
-		memcpy(buffer, packet.data(), packet.size());
+		memcpy(buffer, payload.data(), payload.size());
 
-		m_packets.push(PacketInfo {
-			.sender_addr = sender_addr,
-			.sender_port = sender_port,
-			.packet_size = packet.size()
+		m_packets.emplace(PacketInfo {
+			.sender = sender,
+			.packet_size = payload.size()
 		});
-		m_packet_total_size += packet.size();
+		m_packet_total_size += payload.size();
 
 		m_packet_semaphore.unblock();
 	}
 
-	BAN::ErrorOr<size_t> UDPSocket::read_packet(BAN::ByteSpan buffer, sockaddr_in* sender_addr)
+	BAN::ErrorOr<void> UDPSocket::bind_impl(const sockaddr* address, socklen_t address_len)
 	{
-		while (m_packets.empty())
-			TRY(Thread::current().block_or_eintr_indefinite(m_packet_semaphore));
+		if (is_bound())
+			return BAN::Error::from_errno(EINVAL);
+		return m_network_layer.bind_socket_to_address(this, address, address_len);
+	}
+
+	BAN::ErrorOr<size_t> UDPSocket::recvfrom_impl(BAN::ByteSpan buffer, sockaddr* address, socklen_t* address_len)
+	{
+		if (!is_bound())
+		{
+			dprintln("No interface bound");
+			return BAN::Error::from_errno(EINVAL);
+		}
+		ASSERT(m_port != PORT_NONE);
 
 		LockGuard _(m_packet_lock);
-		if (m_packets.empty())
-			return read_packet(buffer, sender_addr);
+
+		while (m_packets.empty())
+		{
+			LockFreeGuard free(m_packet_lock);
+			TRY(Thread::current().block_or_eintr_indefinite(m_packet_semaphore));
+		}
 
 		auto packet_info = m_packets.front();
 		m_packets.pop();
 
 		size_t nread = BAN::Math::min<size_t>(packet_info.packet_size, buffer.size());
 
+		uint8_t* packet_buffer = reinterpret_cast<uint8_t*>(m_packet_buffer->vaddr());
 		memcpy(
 			buffer.data(),
-			(const void*)m_packet_buffer->vaddr(),
+			packet_buffer,
 			nread
 		);
 		memmove(
-			(void*)m_packet_buffer->vaddr(),
-			(void*)(m_packet_buffer->vaddr() + packet_info.packet_size),
+			packet_buffer,
+			packet_buffer + packet_info.packet_size,
 			m_packet_total_size - packet_info.packet_size
 		);
 
 		m_packet_total_size -= packet_info.packet_size;
 
-		if (sender_addr)
+		if (address && address_len)
 		{
-			sender_addr->sin_family = AF_INET;
-			sender_addr->sin_port = BAN::NetworkEndian(packet_info.sender_port);
-			sender_addr->sin_addr.s_addr = packet_info.sender_addr.raw;
+			if (*address_len > (socklen_t)sizeof(sockaddr_storage))
+				*address_len = sizeof(sockaddr_storage);
+			memcpy(address, &packet_info.sender, *address_len);
 		}
 
 		return nread;
+	}
+
+	BAN::ErrorOr<size_t> UDPSocket::sendto_impl(BAN::ConstByteSpan message, const sockaddr* address, socklen_t address_len)
+	{
+		if (!is_bound())
+			TRY(m_network_layer.bind_socket_to_unused(this, address, address_len));
+		return TRY(m_network_layer.sendto(*this, message, address, address_len));
 	}
 
 }

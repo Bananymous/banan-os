@@ -23,8 +23,8 @@ namespace Kernel
 		virtual BAN::ErrorOr<void> connect_impl(const sockaddr*, socklen_t) override;
 		virtual BAN::ErrorOr<void> listen_impl(int) override;
 		virtual BAN::ErrorOr<void> bind_impl(const sockaddr*, socklen_t) override;
-		virtual BAN::ErrorOr<size_t> sendto_impl(const sys_sendto_t*) override;
-		virtual BAN::ErrorOr<size_t> recvfrom_impl(sys_recvfrom_t*) override;
+		virtual BAN::ErrorOr<size_t> sendto_impl(BAN::ConstByteSpan, const sockaddr*, socklen_t) override;
+		virtual BAN::ErrorOr<size_t> recvfrom_impl(BAN::ByteSpan, sockaddr*, socklen_t*) override;
 
 	private:
 		UnixDomainSocket(SocketType, ino_t, const TmpInodeInfo&);

@@ -17,8 +17,12 @@ namespace Kernel
 
 	void NetworkSocket::on_close_impl()
 	{
-		if (m_interface)
-			m_network_layer.unbind_socket(m_port, this);
+		if (is_bound())
+		{
+			m_network_layer.unbind_socket(this, m_port);
+			m_interface = nullptr;
+			m_port = PORT_NONE;
+		}
 	}
 
 	void NetworkSocket::bind_interface_and_port(NetworkInterface* interface, uint16_t port)
@@ -27,60 +31,6 @@ namespace Kernel
 		ASSERT(interface);
 		m_interface = interface;
 		m_port = port;
-	}
-
-	BAN::ErrorOr<void> NetworkSocket::bind_impl(const sockaddr* address, socklen_t address_len)
-	{
-		if (m_interface || address_len != sizeof(sockaddr_in))
-			return BAN::Error::from_errno(EINVAL);
-		auto* addr_in = reinterpret_cast<const sockaddr_in*>(address);
-		uint16_t dst_port = BAN::host_to_network_endian(addr_in->sin_port);
-		return m_network_layer.bind_socket(dst_port, this);
-	}
-
-	BAN::ErrorOr<size_t> NetworkSocket::sendto_impl(const sys_sendto_t* arguments)
-	{
-		if (arguments->flags)
-		{
-			dprintln("flags not supported");
-			return BAN::Error::from_errno(ENOTSUP);
-		}
-
-		if (!m_interface)
-			TRY(m_network_layer.bind_socket(PORT_NONE, this));
-
-		auto buffer = BAN::ConstByteSpan { reinterpret_cast<const uint8_t*>(arguments->message), arguments->length };
-		return TRY(m_network_layer.sendto(*this, buffer, arguments->dest_addr, arguments->dest_len));
-	}
-
-	BAN::ErrorOr<size_t> NetworkSocket::recvfrom_impl(sys_recvfrom_t* arguments)
-	{
-		sockaddr_in* sender_addr = nullptr;
-		if (arguments->address)
-		{
-			ASSERT(arguments->address_len);
-			if (*arguments->address_len < (socklen_t)sizeof(sockaddr_in))
-				*arguments->address_len = 0;
-			else
-			{
-				sender_addr = reinterpret_cast<sockaddr_in*>(arguments->address);
-				*arguments->address_len = sizeof(sockaddr_in);
-			}
-		}
-
-		if (!m_interface)
-		{
-			dprintln("No interface bound");
-			return BAN::Error::from_errno(EINVAL);
-		}
-
-		if (m_port == PORT_NONE)
-		{
-			dprintln("No port bound");
-			return BAN::Error::from_errno(EINVAL);
-		}
-
-		return TRY(read_packet(BAN::ByteSpan { reinterpret_cast<uint8_t*>(arguments->buffer), arguments->length }, sender_addr));
 	}
 
 	BAN::ErrorOr<long> NetworkSocket::ioctl_impl(int request, void* arg)

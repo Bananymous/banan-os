@@ -66,7 +66,7 @@ namespace Kernel
 		header.checksum			= calculate_internet_checksum(BAN::ConstByteSpan::from(header), {});
 	}
 
-	void IPv4Layer::unbind_socket(uint16_t port, BAN::RefPtr<NetworkSocket> socket)
+	void IPv4Layer::unbind_socket(BAN::RefPtr<NetworkSocket> socket, uint16_t port)
 	{
 		LockGuard _(m_lock);
 		if (m_bound_sockets.contains(port))
@@ -78,29 +78,52 @@ namespace Kernel
 		NetworkManager::get().TmpFileSystem::remove_from_cache(socket);
 	}
 
-	BAN::ErrorOr<void> IPv4Layer::bind_socket(uint16_t port, BAN::RefPtr<NetworkSocket> socket)
+	BAN::ErrorOr<void> IPv4Layer::bind_socket_to_unused(BAN::RefPtr<NetworkSocket> socket, const sockaddr* address, socklen_t address_len)
+	{
+		if (!address || address_len < (socklen_t)sizeof(sockaddr_in))
+			return BAN::Error::from_errno(EINVAL);
+		if (address->sa_family != AF_INET)
+			return BAN::Error::from_errno(EAFNOSUPPORT);
+		auto& sockaddr_in = *reinterpret_cast<const struct sockaddr_in*>(address);
+
+		LockGuard _(m_lock);
+
+		uint16_t port = NetworkSocket::PORT_NONE;
+		for (uint32_t temp = 0xC000; temp < 0xFFFF; temp++)
+		{
+			if (!m_bound_sockets.contains(temp))
+			{
+				port = temp;
+				break;
+			}
+		}
+		if (port == NetworkSocket::PORT_NONE)
+		{
+			dwarnln("No ports available");
+			return BAN::Error::from_errno(EAGAIN);
+		}
+
+		struct sockaddr_in target;
+		target.sin_family = AF_INET;
+		target.sin_port = BAN::host_to_network_endian(port);
+		target.sin_addr.s_addr = sockaddr_in.sin_addr.s_addr;
+		return bind_socket_to_address(socket, (sockaddr*)&target, sizeof(sockaddr_in));
+	}
+
+	BAN::ErrorOr<void> IPv4Layer::bind_socket_to_address(BAN::RefPtr<NetworkSocket> socket, const sockaddr* address, socklen_t address_len)
 	{
 		if (NetworkManager::get().interfaces().empty())
 			return BAN::Error::from_errno(EADDRNOTAVAIL);
 
-		LockGuard _(m_lock);
+		if (!address || address_len < (socklen_t)sizeof(sockaddr_in))
+			return BAN::Error::from_errno(EINVAL);
+		if (address->sa_family != AF_INET)
+			return BAN::Error::from_errno(EAFNOSUPPORT);
 
-		if (port == NetworkSocket::PORT_NONE)
-		{
-			for (uint32_t temp = 0xC000; temp < 0xFFFF; temp++)
-			{
-				if (!m_bound_sockets.contains(temp))
-				{
-					port = temp;
-					break;
-				}
-			}
-			if (port == NetworkSocket::PORT_NONE)
-			{
-				dwarnln("No ports available");
-				return BAN::Error::from_errno(EAGAIN);
-			}
-		}
+		auto& sockaddr_in = *reinterpret_cast<const struct sockaddr_in*>(address);
+		uint16_t port = BAN::host_to_network_endian(sockaddr_in.sin_port);
+
+		LockGuard _(m_lock);
 
 		if (m_bound_sockets.contains(port))
 			return BAN::Error::from_errno(EADDRINUSE);
@@ -163,6 +186,10 @@ namespace Kernel
 		auto ipv4_data = packet.slice(sizeof(IPv4Header));
 
 		auto src_ipv4 = ipv4_header.src_address;
+
+		uint16_t dst_port = NetworkSocket::PORT_NONE;
+		uint16_t src_port = NetworkSocket::PORT_NONE;
+
 		switch (ipv4_header.protocol)
 		{
 			case NetworkProtocol::ICMP:
@@ -188,36 +215,52 @@ namespace Kernel
 						dprintln("Unhandleded ICMP packet (type {2H})", icmp_header.type);
 						break;
 				}
-				break;
+				return {};
 			}
 			case NetworkProtocol::UDP:
 			{
 				auto& udp_header = ipv4_data.as<const UDPHeader>();
-				uint16_t src_port = udp_header.src_port;
-				uint16_t dst_port = udp_header.dst_port;
-
-				LockGuard _(m_lock);
-
-				if (!m_bound_sockets.contains(dst_port))
-				{
-					dprintln_if(DEBUG_IPV4, "no one is listening on port {}", dst_port);
-					return {};
-				}
-				auto socket = m_bound_sockets[dst_port].lock();
-				if (!socket)
-				{
-					dprintln_if(DEBUG_IPV4, "no one is listening on port {}", dst_port);
-					return {};
-				}
-
-				auto udp_data = ipv4_data.slice(sizeof(UDPHeader));
-				socket->add_packet(udp_data, src_ipv4, src_port);
+				dst_port = udp_header.dst_port;
+				src_port = udp_header.src_port;
 				break;
 			}
 			default:
 				dprintln_if(DEBUG_IPV4, "Unknown network protocol 0x{2H}", ipv4_header.protocol);
-				break;
+				return {};
 		}
+
+		ASSERT(dst_port != NetworkSocket::PORT_NONE);
+		ASSERT(src_port != NetworkSocket::PORT_NONE);
+
+		BAN::RefPtr<Kernel::NetworkSocket> bound_socket;
+
+		{
+			LockGuard _(m_lock);
+			if (!m_bound_sockets.contains(dst_port))
+			{
+				dprintln_if(DEBUG_IPV4, "no one is listening on port {}", dst_port);
+				return {};
+			}
+			bound_socket = m_bound_sockets[dst_port].lock();
+		}
+
+		if (!bound_socket)
+		{
+			dprintln_if(DEBUG_IPV4, "no one is listening on port {}", dst_port);
+			return {};
+		}
+
+		if (bound_socket->protocol() != ipv4_header.protocol)
+		{
+			dprintln_if(DEBUG_IPV4, "got data with wrong protocol ({}) on port {} (bound as {})", ipv4_header.protocol, dst_port, (uint8_t)bound_socket->protocol());
+			return {};
+		}
+
+		sockaddr_in sender;
+		sender.sin_family = AF_INET;
+		sender.sin_port = BAN::NetworkEndian<uint16_t>(src_port);
+		sender.sin_addr.s_addr = src_ipv4.raw;
+		bound_socket->receive_packet(ipv4_data, *reinterpret_cast<const sockaddr_storage*>(&sender));
 
 		return {};
 	}

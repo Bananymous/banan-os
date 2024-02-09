@@ -983,7 +983,8 @@ namespace Kernel
 		if (!inode->mode().ifsock())
 			return BAN::Error::from_errno(ENOTSOCK);
 
-		return TRY(inode->sendto(arguments));
+		BAN::ConstByteSpan message { reinterpret_cast<const uint8_t*>(arguments->message), arguments->length };
+		return TRY(inode->sendto(message, arguments->dest_addr, arguments->dest_len));
 	}
 
 	BAN::ErrorOr<long> Process::sys_recvfrom(sys_recvfrom_t* arguments)
@@ -1006,7 +1007,8 @@ namespace Kernel
 		if (!inode->mode().ifsock())
 			return BAN::Error::from_errno(ENOTSOCK);
 
-		return TRY(inode->recvfrom(arguments));
+		BAN::ByteSpan buffer { reinterpret_cast<uint8_t*>(arguments->buffer), arguments->length };
+		return TRY(inode->recvfrom(buffer, arguments->address, arguments->address_len));
 	}
 
 	BAN::ErrorOr<long> Process::sys_ioctl(int fildes, int request, void* arg)

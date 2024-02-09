@@ -104,8 +104,8 @@ namespace Kernel
 		BAN::ErrorOr<void> bind(const sockaddr* address, socklen_t address_len);
 		BAN::ErrorOr<void> connect(const sockaddr* address, socklen_t address_len);
 		BAN::ErrorOr<void> listen(int backlog);
-		BAN::ErrorOr<size_t> sendto(const sys_sendto_t*);
-		BAN::ErrorOr<size_t> recvfrom(sys_recvfrom_t*);
+		BAN::ErrorOr<size_t> sendto(BAN::ConstByteSpan message, const sockaddr* address, socklen_t address_len);
+		BAN::ErrorOr<size_t> recvfrom(BAN::ByteSpan buffer, sockaddr* address, socklen_t* address_len);
 
 		// General API
 		BAN::ErrorOr<size_t> read(off_t, BAN::ByteSpan buffer);
@@ -131,12 +131,12 @@ namespace Kernel
 		virtual BAN::ErrorOr<BAN::String> link_target_impl()				{ return BAN::Error::from_errno(ENOTSUP); }
 
 		// Socket API
-		virtual BAN::ErrorOr<long> accept_impl(sockaddr*, socklen_t*)		{ return BAN::Error::from_errno(ENOTSUP); }
-		virtual BAN::ErrorOr<void> connect_impl(const sockaddr*, socklen_t)	{ return BAN::Error::from_errno(ENOTSUP); }
-		virtual BAN::ErrorOr<void> listen_impl(int)							{ return BAN::Error::from_errno(ENOTSUP); }
-		virtual BAN::ErrorOr<void> bind_impl(const sockaddr*, socklen_t)	{ return BAN::Error::from_errno(ENOTSUP); }
-		virtual BAN::ErrorOr<size_t> sendto_impl(const sys_sendto_t*)		{ return BAN::Error::from_errno(ENOTSUP); }
-		virtual BAN::ErrorOr<size_t> recvfrom_impl(sys_recvfrom_t*)			{ return BAN::Error::from_errno(ENOTSUP); }
+		virtual BAN::ErrorOr<long> accept_impl(sockaddr*, socklen_t*)								{ return BAN::Error::from_errno(ENOTSUP); }
+		virtual BAN::ErrorOr<void> connect_impl(const sockaddr*, socklen_t)							{ return BAN::Error::from_errno(ENOTSUP); }
+		virtual BAN::ErrorOr<void> listen_impl(int)													{ return BAN::Error::from_errno(ENOTSUP); }
+		virtual BAN::ErrorOr<void> bind_impl(const sockaddr*, socklen_t)							{ return BAN::Error::from_errno(ENOTSUP); }
+		virtual BAN::ErrorOr<size_t> sendto_impl(BAN::ConstByteSpan, const sockaddr*, socklen_t)	{ return BAN::Error::from_errno(ENOTSUP); }
+		virtual BAN::ErrorOr<size_t> recvfrom_impl(BAN::ByteSpan, sockaddr*, socklen_t*)				{ return BAN::Error::from_errno(ENOTSUP); }
 
 		// General API
 		virtual BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan)		{ return BAN::Error::from_errno(ENOTSUP); }

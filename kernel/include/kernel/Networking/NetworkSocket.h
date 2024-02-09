@@ -6,8 +6,6 @@
 #include <kernel/Networking/NetworkInterface.h>
 #include <kernel/Networking/NetworkLayer.h>
 
-#include <netinet/in.h>
-
 namespace Kernel
 {
 
@@ -35,25 +33,21 @@ namespace Kernel
 		virtual void add_protocol_header(BAN::ByteSpan packet, uint16_t dst_port, PseudoHeader) = 0;
 		virtual NetworkProtocol protocol() const = 0;
 
-		virtual void add_packet(BAN::ConstByteSpan, BAN::IPv4Address sender_address, uint16_t sender_port) = 0;
+		virtual void receive_packet(BAN::ConstByteSpan, const sockaddr_storage& sender) = 0;
+
+		bool is_bound() const { return m_interface != nullptr; }
 
 	protected:
 		NetworkSocket(NetworkLayer&, ino_t, const TmpInodeInfo&);
 
-		virtual BAN::ErrorOr<size_t> read_packet(BAN::ByteSpan, sockaddr_in* sender_address) = 0;
-
 		virtual void on_close_impl() override;
-
-		virtual BAN::ErrorOr<void> bind_impl(const sockaddr* address, socklen_t address_len) override;
-		virtual BAN::ErrorOr<size_t> sendto_impl(const sys_sendto_t*) override;
-		virtual BAN::ErrorOr<size_t> recvfrom_impl(sys_recvfrom_t*) override;
 
 		virtual BAN::ErrorOr<long> ioctl_impl(int request, void* arg) override;
 
 	protected:
 		NetworkLayer&		m_network_layer;
 		NetworkInterface*	m_interface	= nullptr;
-		uint16_t			m_port		= PORT_NONE;
+		uint16_t			m_port { PORT_NONE };
 	};
 
 }
