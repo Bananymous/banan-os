@@ -15,16 +15,6 @@ namespace Kernel
 	{
 	}
 
-	void NetworkSocket::on_close_impl()
-	{
-		if (is_bound())
-		{
-			m_network_layer.unbind_socket(this, m_port);
-			m_interface = nullptr;
-			m_port = PORT_NONE;
-		}
-	}
-
 	void NetworkSocket::bind_interface_and_port(NetworkInterface* interface, uint16_t port)
 	{
 		ASSERT(!m_interface);

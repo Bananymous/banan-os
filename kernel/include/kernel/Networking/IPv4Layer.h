@@ -51,6 +51,8 @@ namespace Kernel
 
 		virtual BAN::ErrorOr<size_t> sendto(NetworkSocket&, BAN::ConstByteSpan, const sockaddr*, socklen_t) override;
 
+		virtual size_t header_size() const override { return sizeof(IPv4Header); }
+
 	private:
 		IPv4Layer();
 

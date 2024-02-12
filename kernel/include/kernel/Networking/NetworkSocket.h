@@ -40,8 +40,6 @@ namespace Kernel
 	protected:
 		NetworkSocket(NetworkLayer&, ino_t, const TmpInodeInfo&);
 
-		virtual void on_close_impl() override;
-
 		virtual BAN::ErrorOr<long> ioctl_impl(int request, void* arg) override;
 
 	protected:

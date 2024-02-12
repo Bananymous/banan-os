@@ -24,6 +24,14 @@ namespace Kernel
 		: NetworkSocket(network_layer, ino, inode_info)
 	{ }
 
+	void UDPSocket::on_close_impl()
+	{
+		if (is_bound())
+			m_network_layer.unbind_socket(this, m_port);
+		m_port = PORT_NONE;
+		m_interface = nullptr;
+	}
+
 	void UDPSocket::add_protocol_header(BAN::ByteSpan packet, uint16_t dst_port, PseudoHeader)
 	{
 		auto& header = packet.as<UDPHeader>();

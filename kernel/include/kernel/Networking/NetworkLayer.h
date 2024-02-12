@@ -28,6 +28,8 @@ namespace Kernel
 
 		virtual BAN::ErrorOr<size_t> sendto(NetworkSocket&, BAN::ConstByteSpan, const sockaddr*, socklen_t) = 0;
 
+		virtual size_t header_size() const = 0;
+
 	protected:
 		NetworkLayer() = default;
 	};

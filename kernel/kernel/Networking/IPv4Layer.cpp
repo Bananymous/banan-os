@@ -4,6 +4,7 @@
 #include <kernel/Networking/IPv4Layer.h>
 #include <kernel/Networking/NetworkManager.h>
 #include <kernel/Networking/UDPSocket.h>
+#include <kernel/Random.h>
 
 #include <netinet/in.h>
 
@@ -89,19 +90,18 @@ namespace Kernel
 		LockGuard _(m_lock);
 
 		uint16_t port = NetworkSocket::PORT_NONE;
-		for (uint32_t temp = 0xC000; temp < 0xFFFF; temp++)
-		{
-			if (!m_bound_sockets.contains(temp))
-			{
+		for (uint32_t i = 0; i < 100 && port == NetworkSocket::PORT_NONE; i++)
+			if (uint32_t temp = 0xC000 | (Random::get_u32() & 0x3FFF); !m_bound_sockets.contains(temp))
 				port = temp;
-				break;
-			}
-		}
+		for (uint32_t temp = 0xC000; temp < 0xFFFF && port == NetworkSocket::PORT_NONE; temp++)
+			if (!m_bound_sockets.contains(temp))
+				port = temp;
 		if (port == NetworkSocket::PORT_NONE)
 		{
 			dwarnln("No ports available");
 			return BAN::Error::from_errno(EAGAIN);
 		}
+		dprintln_if(DEBUG_IPV4, "using port {}", port);
 
 		struct sockaddr_in target;
 		target.sin_family = AF_INET;

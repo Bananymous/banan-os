@@ -32,6 +32,8 @@ namespace Kernel
 	protected:
 		virtual void receive_packet(BAN::ConstByteSpan, const sockaddr_storage& sender) override;
 
+		virtual void on_close_impl() override;
+
 		virtual BAN::ErrorOr<void> bind_impl(const sockaddr* address, socklen_t address_len) override;
 		virtual BAN::ErrorOr<size_t> sendto_impl(BAN::ConstByteSpan message, const sockaddr* address, socklen_t address_len) override;
 		virtual BAN::ErrorOr<size_t> recvfrom_impl(BAN::ByteSpan buffer, sockaddr* address, socklen_t* address_len) override;
