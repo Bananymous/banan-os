@@ -5,73 +5,82 @@
 
 __BEGIN_DECLS
 
-#define SYS_EXIT 1
-#define SYS_READ 2
-#define SYS_WRITE 3
-#define SYS_TERMID 4
-#define SYS_CLOSE 5
-#define SYS_OPEN 6
-#define SYS_OPENAT 7
-#define SYS_SEEK 11
-#define SYS_TELL 12
-#define SYS_GET_TERMIOS 13
-#define SYS_SET_TERMIOS 14
-#define SYS_FORK 15
-#define SYS_EXEC 16
-#define SYS_SLEEP 17
-#define SYS_WAIT 18
-#define SYS_FSTAT 19
-#define SYS_READ_DIR_ENTRIES 21
-#define SYS_SET_UID 22
-#define SYS_SET_GID 23
-#define SYS_SET_EUID 24
-#define SYS_SET_EGID 25
-#define SYS_SET_REUID 26
-#define SYS_SET_REGID 27
-#define SYS_GET_UID 28
-#define SYS_GET_GID 29
-#define SYS_GET_EUID 30
-#define SYS_GET_EGID 31
-#define SYS_GET_PWD 32
-#define SYS_SET_PWD 33
-#define SYS_CLOCK_GETTIME 34
-#define SYS_PIPE 35
-#define SYS_DUP 36
-#define SYS_DUP2 37
-#define SYS_KILL 39
-#define SYS_SIGNAL 40
-#define SYS_TCSETPGRP 42
-#define SYS_GET_PID 43
-#define SYS_GET_PGID 44
-#define SYS_SET_PGID 45
-#define SYS_FCNTL 46
-#define SYS_NANOSLEEP 47
-#define SYS_FSTATAT 48
-#define SYS_STAT 49 // stat/lstat
-#define SYS_SYNC 50
-#define SYS_MMAP 51
-#define SYS_MUNMAP 52
-#define SYS_TTY_CTRL 53
-#define SYS_POWEROFF 54
-#define SYS_CHMOD 55
-#define SYS_CREATE 56 // creat, mkfifo
-#define SYS_CREATE_DIR 57 // mkdir
-#define SYS_UNLINK 58
-#define SYS_READLINK 59
-#define SYS_READLINKAT 60
-#define SYS_MSYNC 61
-#define SYS_PREAD 62
-#define SYS_CHOWN 63
-#define SYS_LOAD_KEYMAP 64
-#define SYS_SOCKET 65
-#define SYS_BIND 66
-#define SYS_SENDTO 67
-#define SYS_RECVFROM 68
-#define SYS_IOCTL 69
-#define SYS_ACCEPT 70
-#define SYS_CONNECT 71
-#define SYS_LISTEN 72
-#define SYS_PSELECT 73
+#define __SYSCALL_LIST(O)					\
+	O(SYS_EXIT,				exit)			\
+	O(SYS_READ,				read)			\
+	O(SYS_WRITE,			write)			\
+	O(SYS_TERMID,			termid)			\
+	O(SYS_CLOSE,			close)			\
+	O(SYS_OPEN,				open)			\
+	O(SYS_OPENAT,			openat)			\
+	O(SYS_SEEK,				seek)			\
+	O(SYS_TELL,				tell)			\
+	O(SYS_GET_TERMIOS,		gettermios)		\
+	O(SYS_SET_TERMIOS,		settermios)		\
+	O(SYS_FORK,				fork)			\
+	O(SYS_EXEC,				exec)			\
+	O(SYS_SLEEP,			sleep)			\
+	O(SYS_WAIT,				wait)			\
+	O(SYS_FSTAT,			fstat)			\
+	O(SYS_READ_DIR,			readdir)		\
+	O(SYS_SET_UID,			setuid)			\
+	O(SYS_SET_GID,			setgid)			\
+	O(SYS_SET_EUID,			seteuid)		\
+	O(SYS_SET_EGID,			setegid)		\
+	O(SYS_SET_REUID,		setreuid)		\
+	O(SYS_SET_REGID,		setregid)		\
+	O(SYS_GET_UID,			getuid)			\
+	O(SYS_GET_GID,			getgid)			\
+	O(SYS_GET_EUID,			geteuid)		\
+	O(SYS_GET_EGID,			getegid)		\
+	O(SYS_GET_PWD,			getpwd)			\
+	O(SYS_SET_PWD,			setpwd)			\
+	O(SYS_CLOCK_GETTIME,	clock_gettime)	\
+	O(SYS_PIPE,				pipe)			\
+	O(SYS_DUP,				dup)			\
+	O(SYS_DUP2,				dup2)			\
+	O(SYS_KILL,				kill)			\
+	O(SYS_SIGNAL,			signal)			\
+	O(SYS_TCSETPGRP,		tcsetpgrp)		\
+	O(SYS_GET_PID,			getpid)			\
+	O(SYS_GET_PGID,			getpgid)		\
+	O(SYS_SET_PGID,			setpgid)		\
+	O(SYS_FCNTL,			fcntl)			\
+	O(SYS_NANOSLEEP,		nanosleep)		\
+	O(SYS_FSTATAT,			fstatat)		\
+	O(SYS_STAT,				stat)			\
+	O(SYS_SYNC,				sync)			\
+	O(SYS_MMAP,				mmap)			\
+	O(SYS_MUNMAP,			munmap) 		\
+	O(SYS_TTY_CTRL,			tty_ctrl)		\
+	O(SYS_POWEROFF,			poweroff)		\
+	O(SYS_CHMOD,			chmod)			\
+	O(SYS_CREATE,			create)			\
+	O(SYS_CREATE_DIR,		create_dir)		\
+	O(SYS_UNLINK,			unlink) 		\
+	O(SYS_READLINK,			readlink)		\
+	O(SYS_READLINKAT,		readlinkat)		\
+	O(SYS_MSYNC,			msync)			\
+	O(SYS_PREAD,			pread)			\
+	O(SYS_CHOWN,			chown)			\
+	O(SYS_LOAD_KEYMAP,		load_keymap)	\
+	O(SYS_SOCKET,			socket)			\
+	O(SYS_BIND,				bind)			\
+	O(SYS_SENDTO,			sendto)			\
+	O(SYS_RECVFROM,			recvfrom)		\
+	O(SYS_IOCTL,			ioctl)			\
+	O(SYS_ACCEPT,			accept)			\
+	O(SYS_CONNECT,			connect)		\
+	O(SYS_LISTEN,			listen)			\
+	O(SYS_PSELECT,			pselect)		\
+
+enum Syscall
+{
+#define O(enum, name) enum,
+	__SYSCALL_LIST(O)
+#undef O
+	__SYSCALL_COUNT
+};
 
 __END_DECLS
 

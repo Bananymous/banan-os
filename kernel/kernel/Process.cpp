@@ -1218,7 +1218,7 @@ namespace Kernel
 		return BAN::Error::from_errno(EUNKNOWN);
 	}
 
-	BAN::ErrorOr<long> Process::sys_read_dir_entries(int fd, DirectoryEntryList* list, size_t list_size)
+	BAN::ErrorOr<long> Process::sys_readdir(int fd, DirectoryEntryList* list, size_t list_size)
 	{
 		LockGuard _(m_lock);
 		TRY(validate_pointer_access(list, list_size));

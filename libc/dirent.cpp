@@ -79,7 +79,7 @@ struct dirent* readdir(DIR* dirp)
 		return &dirp->current->dirent;
 	}
 
-	if (syscall(SYS_READ_DIR_ENTRIES, dirp->fd, dirp->buffer, dirp->buffer_size) == -1)
+	if (syscall(SYS_READ_DIR, dirp->fd, dirp->buffer, dirp->buffer_size) == -1)
 		return nullptr;
 
 	if (dirp->buffer->entry_count == 0)

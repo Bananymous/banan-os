@@ -1,7 +1,5 @@
 .section .userspace, "aw"
 
-#include <sys/syscall.h>
-
 // stack contains
 //    return address
 //    signal number
