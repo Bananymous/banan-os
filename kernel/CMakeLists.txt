@@ -64,6 +64,7 @@ set(KERNEL_SOURCES
 	kernel/PCI.cpp
 	kernel/PIC.cpp
 	kernel/Process.cpp
+	kernel/Random.cpp
 	kernel/Scheduler.cpp
 	kernel/Semaphore.cpp
 	kernel/SpinLock.cpp

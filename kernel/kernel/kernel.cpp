@@ -19,6 +19,7 @@
 #include <kernel/PCI.h>
 #include <kernel/PIC.h>
 #include <kernel/Process.h>
+#include <kernel/Random.h>
 #include <kernel/Scheduler.h>
 #include <kernel/Syscall.h>
 #include <kernel/Terminal/Serial.h>
@@ -152,6 +153,9 @@ extern "C" void kernel_main(uint32_t boot_magic, uint32_t boot_info)
 		auto vtty = MUST(VirtualTTY::create(g_terminal_driver));
 		dprintln("Virtual TTY initialized");
 	}
+
+	Random::initialize();
+	dprintln("RNG initialized");
 
 	MUST(Scheduler::initialize());
 	dprintln("Scheduler initialized");
