@@ -35,6 +35,7 @@ set(USERSPACE_PROJECTS
 	test-mouse
 	test-sort
 	test-tcp
+	test-udp
 	test-unix-socket
 	touch
 	u8sum
