@@ -253,6 +253,8 @@ namespace Kernel
 		if (m_info.has<ConnectionInfo>())
 		{
 			auto& connection_info = m_info.get<ConnectionInfo>();
+			if (!connection_info.pending_connections.empty())
+				return true;
 			if (!connection_info.connection)
 				return false;
 		}

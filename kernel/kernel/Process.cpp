@@ -1048,8 +1048,8 @@ namespace Kernel
 		fd_set writefds;	FD_ZERO(&writefds);
 		fd_set errorfds;	FD_ZERO(&errorfds);
 
-		long set_bits = 0;
-		while (set_bits == 0)
+		int set_bits = 0;
+		for (;;)
 		{
 			if (arguments->timeout && SystemTimer::get().ms_since_boot() >= timedout_ms)
 				break;
@@ -1072,7 +1072,7 @@ namespace Kernel
 					if (!mode.ifreg() && !mode.ififo() && !mode.ifsock() && !inode->is_pipe() && !inode->is_tty())
 						return;
 
-					if ((inode_or_error.value().ptr()->*func)())
+					if ((inode.ptr()->*func)())
 					{
 						FD_SET(fd, dest);
 						set_bits++;
@@ -1083,18 +1083,33 @@ namespace Kernel
 			{
 				update_fds(i, arguments->readfds, &readfds, &Inode::can_read);
 				update_fds(i, arguments->writefds, &writefds, &Inode::can_write);
-				update_fds(i, arguments->errorfds, &errorfds, &Inode::can_read);
+				update_fds(i, arguments->errorfds, &errorfds, &Inode::has_error);
 			}
 
+			if (set_bits > 0)
+				break;
+
+			LockFreeGuard free(m_lock);
 			SystemTimer::get().sleep(1);
 		}
 
 		if (arguments->readfds)
-			memcpy(arguments->readfds, &readfds, sizeof(fd_set));
+			FD_ZERO(arguments->readfds);
 		if (arguments->writefds)
-			memcpy(arguments->writefds, &writefds, sizeof(fd_set));
+			FD_ZERO(arguments->writefds);
 		if (arguments->errorfds)
-			memcpy(arguments->errorfds, &errorfds, sizeof(fd_set));
+			FD_ZERO(arguments->errorfds);
+
+		for (int i = 0; i < arguments->nfds; i++)
+		{
+			if (arguments->readfds && FD_ISSET(i, &readfds))
+				FD_SET(i, arguments->readfds);
+			if (arguments->writefds && FD_ISSET(i, &writefds))
+				FD_SET(i, arguments->writefds);
+			if (arguments->errorfds && FD_ISSET(i, &errorfds))
+				FD_SET(i, arguments->errorfds);
+		}
+
 		return set_bits;
 	}
 
