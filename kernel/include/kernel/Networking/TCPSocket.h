@@ -73,17 +73,33 @@ namespace Kernel
 			TimeWait,
 		};
 
-		struct WindowInfo
+		struct RecvWindowInfo
 		{
-			uint32_t					mss				{ 0 };
-			uint16_t					size			{ 0 };
-			uint8_t						scale			{ 0 };
-			uint32_t					start_seq		{ 0 };
-			uint32_t					current_seq		{ 0 };
-			BAN::Atomic<uint32_t>		ack_number		{ 0 };
-			uint32_t					data_size		{ 0 };
-			uint64_t					send_time_ms	{ 0 };
-			BAN::UniqPtr<VirtualRange>	window;
+			uint32_t					start_seq	{ 0 }; // sequence number of first byte in buffer
+
+			bool						has_ghost_byte { false };
+
+			uint32_t					data_size	{ 0 }; // number of bytes in this buffer
+			BAN::UniqPtr<VirtualRange>	buffer;
+		};
+
+		struct SendWindowInfo
+		{
+			uint32_t					mss				{ 0 }; // maximum segment size
+			uint16_t					non_scaled_size	{ 0 }; // window size without scaling
+			uint8_t						scale			{ 0 }; // window scale
+			uint32_t 					scaled_size() const { return (uint32_t)non_scaled_size << scale; }
+
+			uint32_t					start_seq		{ 0 }; // sequence number of first byte in buffer
+			uint32_t					current_seq		{ 0 }; // sequence number of next send
+			uint32_t					current_ack		{ 0 }; // sequence number aknowledged by connection
+
+			uint64_t					last_send_ms	{ 0 }; // last send time, used for retransmission timeout
+
+			bool						has_ghost_byte { false };
+
+			uint32_t					data_size		{ 0 }; // number of bytes in this buffer
+			BAN::UniqPtr<VirtualRange>	buffer;
 		};
 
 	private:
@@ -104,8 +120,8 @@ namespace Kernel
 
 		BAN::Atomic<bool> m_should_ack { false };
 
-		WindowInfo m_recv_window;
-		WindowInfo m_send_window;
+		RecvWindowInfo m_recv_window;
+		SendWindowInfo m_send_window;
 
 		struct ConnectionInfo
 		{
