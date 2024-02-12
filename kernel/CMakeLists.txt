@@ -57,6 +57,7 @@ set(KERNEL_SOURCES
 	kernel/Networking/NetworkInterface.cpp
 	kernel/Networking/NetworkManager.cpp
 	kernel/Networking/NetworkSocket.cpp
+	kernel/Networking/TCPSocket.cpp
 	kernel/Networking/UDPSocket.cpp
 	kernel/Networking/UNIX/Socket.cpp
 	kernel/OpenFileDescriptorSet.cpp

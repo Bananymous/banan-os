@@ -5,6 +5,7 @@
 #include <kernel/Networking/E1000/E1000E.h>
 #include <kernel/Networking/ICMP.h>
 #include <kernel/Networking/NetworkManager.h>
+#include <kernel/Networking/TCPSocket.h>
 #include <kernel/Networking/UDPSocket.h>
 #include <kernel/Networking/UNIX/Socket.h>
 
@@ -76,15 +77,17 @@ namespace Kernel
 		switch (domain)
 		{
 			case SocketDomain::INET:
-			{
-				if (type != SocketType::DGRAM)
-					return BAN::Error::from_errno(EPROTOTYPE);
+				switch (type)
+				{
+					case SocketType::DGRAM:
+					case SocketType::STREAM:
+						break;
+					default:
+						return BAN::Error::from_errno(EPROTOTYPE);
+				}
 				break;
-			}
 			case SocketDomain::UNIX:
-			{
 				break;
-			}
 			default:
 				return BAN::Error::from_errno(EAFNOSUPPORT);
 		}
@@ -100,8 +103,17 @@ namespace Kernel
 		{
 			case SocketDomain::INET:
 			{
-				if (type == SocketType::DGRAM)
-					socket = TRY(UDPSocket::create(*m_ipv4_layer, ino, inode_info));
+				switch (type)
+				{
+					case SocketType::DGRAM:
+						socket = TRY(UDPSocket::create(*m_ipv4_layer, ino, inode_info));
+						break;
+					case SocketType::STREAM:
+						socket = TRY(TCPSocket::create(*m_ipv4_layer, ino, inode_info));
+						break;
+					default:
+						ASSERT_NOT_REACHED();
+				}
 				break;
 			}
 			case SocketDomain::UNIX:

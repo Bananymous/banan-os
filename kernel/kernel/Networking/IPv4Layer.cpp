@@ -3,6 +3,7 @@
 #include <kernel/Networking/ICMP.h>
 #include <kernel/Networking/IPv4Layer.h>
 #include <kernel/Networking/NetworkManager.h>
+#include <kernel/Networking/TCPSocket.h>
 #include <kernel/Networking/UDPSocket.h>
 #include <kernel/Random.h>
 
@@ -222,6 +223,13 @@ namespace Kernel
 				auto& udp_header = ipv4_data.as<const UDPHeader>();
 				dst_port = udp_header.dst_port;
 				src_port = udp_header.src_port;
+				break;
+			}
+			case NetworkProtocol::TCP:
+			{
+				auto& tcp_header = ipv4_data.as<const TCPHeader>();
+				dst_port = tcp_header.dst_port;
+				src_port = tcp_header.src_port;
 				break;
 			}
 			default:
