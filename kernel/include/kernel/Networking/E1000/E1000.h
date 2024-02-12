@@ -28,7 +28,7 @@ namespace Kernel
 		virtual bool link_up() override { return m_link_up; }
 		virtual int link_speed() override;
 
-		virtual size_t payload_mtu() const { return E1000_RX_BUFFER_SIZE; }
+		virtual size_t payload_mtu() const { return E1000_RX_BUFFER_SIZE - sizeof(EthernetHeader); }
 
 		virtual void handle_irq() final override;
 
