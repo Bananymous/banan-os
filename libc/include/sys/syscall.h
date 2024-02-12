@@ -71,6 +71,7 @@ __BEGIN_DECLS
 #define SYS_ACCEPT 70
 #define SYS_CONNECT 71
 #define SYS_LISTEN 72
+#define SYS_PSELECT 73
 
 __END_DECLS
 

@@ -57,6 +57,10 @@ namespace Kernel
 		virtual BAN::ErrorOr<size_t> sendto_impl(BAN::ConstByteSpan message, const sockaddr* address, socklen_t address_len) override;
 		virtual BAN::ErrorOr<size_t> recvfrom_impl(BAN::ByteSpan message, sockaddr* address, socklen_t* address_len) override;
 
+		virtual bool can_read_impl() const override { return m_recv_window.data_size; }
+		virtual bool can_write_impl() const override { return m_state == State::Established; }
+		virtual bool has_error_impl() const override { return m_state != State::Established && m_state != State::Listen && m_state != State::SynSent && m_state != State::SynReceived; }
+
 	private:
 		enum class State
 		{

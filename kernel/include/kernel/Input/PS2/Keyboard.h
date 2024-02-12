@@ -48,7 +48,10 @@ namespace Kernel::Input
 
 	protected:
 		virtual BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan) override;
-		virtual bool has_data_impl() const override;
+
+		virtual bool can_read_impl() const override { return !m_event_queue.empty(); }
+		virtual bool can_write_impl() const override { return false; }
+		virtual bool has_error_impl() const override { return false; }
 	};
 
 }

@@ -30,6 +30,10 @@ namespace Kernel
 		virtual BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan) override;
 		virtual BAN::ErrorOr<size_t> write_impl(off_t, BAN::ConstByteSpan) override;
 
+		virtual bool can_read_impl() const override { return true; }
+		virtual bool can_write_impl() const override { return true; }
+		virtual bool has_error_impl() const override { return false; }
+
 	private:
 		FramebufferDevice(mode_t mode, uid_t uid, gid_t gid, dev_t rdev, paddr_t paddr, uint32_t width, uint32_t height, uint32_t pitch, uint8_t bpp);
 		BAN::ErrorOr<void> initialize();

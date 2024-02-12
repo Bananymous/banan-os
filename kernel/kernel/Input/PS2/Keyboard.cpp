@@ -208,10 +208,4 @@ namespace Kernel::Input
 		}
 	}
 
-	bool PS2Keyboard::has_data_impl() const
-	{
-		CriticalScope _;
-		return !m_event_queue.empty();
-	}
-
 }

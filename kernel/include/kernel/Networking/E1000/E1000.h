@@ -46,6 +46,10 @@ namespace Kernel
 
 		virtual BAN::ErrorOr<void> send_bytes(BAN::MACAddress destination, EtherType protocol, BAN::ConstByteSpan) override;
 
+		virtual bool can_read_impl() const override { return false; }
+		virtual bool can_write_impl() const override { return false; }
+		virtual bool has_error_impl() const override { return false; }
+
 	private:
 		BAN::ErrorOr<void> read_mac_address();
 

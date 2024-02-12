@@ -248,6 +248,29 @@ namespace Kernel
 		return {};
 	}
 
+	bool UnixDomainSocket::can_read_impl() const
+	{
+		if (m_info.has<ConnectionInfo>())
+		{
+			auto& connection_info = m_info.get<ConnectionInfo>();
+			if (!connection_info.connection)
+				return false;
+		}
+
+		return m_packet_size_total > 0;
+	}
+
+	bool UnixDomainSocket::can_write_impl() const
+	{
+		if (m_info.has<ConnectionInfo>())
+		{
+			auto& connection_info = m_info.get<ConnectionInfo>();
+			return connection_info.connection.valid();
+		}
+
+		return true;
+	}
+
 	BAN::ErrorOr<size_t> UnixDomainSocket::sendto_impl(BAN::ConstByteSpan message, const sockaddr* address, socklen_t address_len)
 	{
 		if (message.size() > s_packet_buffer_size)

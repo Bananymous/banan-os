@@ -38,6 +38,10 @@ namespace Kernel
 		virtual BAN::ErrorOr<size_t> sendto_impl(BAN::ConstByteSpan message, const sockaddr* address, socklen_t address_len) override;
 		virtual BAN::ErrorOr<size_t> recvfrom_impl(BAN::ByteSpan buffer, sockaddr* address, socklen_t* address_len) override;
 
+		virtual bool can_read_impl() const override { return !m_packets.empty(); }
+		virtual bool can_write_impl() const override { return true; }
+		virtual bool has_error_impl() const override { return false; }
+
 	private:
 		UDPSocket(NetworkLayer&, ino_t, const TmpInodeInfo&);
 

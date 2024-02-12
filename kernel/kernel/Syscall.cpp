@@ -237,6 +237,9 @@ namespace Kernel
 		case SYS_LISTEN:
 			ret = Process::current().sys_listen((int)arg1, (int)arg2);
 			break;
+		case SYS_PSELECT:
+			ret = Process::current().sys_pselect((sys_pselect_t*)arg1);
+			break;
 		default:
 			dwarnln("Unknown syscall {}", syscall);
 			break;

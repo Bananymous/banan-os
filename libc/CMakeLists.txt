@@ -21,6 +21,7 @@ set(LIBC_SOURCES
 	stropts.cpp
 	sys/banan-os.cpp
 	sys/mman.cpp
+	sys/select.cpp
 	sys/socket.cpp
 	sys/stat.cpp
 	sys/wait.cpp

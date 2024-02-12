@@ -358,12 +358,6 @@ namespace Kernel
 		return buffer.size();
 	}
 
-	bool TTY::has_data_impl() const
-	{
-		LockGuard _(m_lock);
-		return m_output.flush;
-	}
-
 	void TTY::putchar_current(uint8_t ch)
 	{
 		ASSERT(s_tty);

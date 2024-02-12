@@ -201,10 +201,22 @@ namespace Kernel
 		return chown_impl(uid, gid);
 	}
 
-	bool Inode::has_data() const
+	bool Inode::can_read() const
 	{
 		LockGuard _(m_lock);
-		return has_data_impl();
+		return can_read_impl();
+	}
+
+	bool Inode::can_write() const
+	{
+		LockGuard _(m_lock);
+		return can_write_impl();
+	}
+
+	bool Inode::has_error() const
+	{
+		LockGuard _(m_lock);
+		return has_error_impl();
 	}
 
 	BAN::ErrorOr<long> Inode::ioctl(int request, void* arg)

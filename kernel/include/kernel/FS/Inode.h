@@ -113,7 +113,11 @@ namespace Kernel
 		BAN::ErrorOr<void> truncate(size_t);
 		BAN::ErrorOr<void> chmod(mode_t);
 		BAN::ErrorOr<void> chown(uid_t, gid_t);
-		bool has_data() const;
+
+		// Select/Non blocking API
+		bool can_read() const;
+		bool can_write() const;
+		bool has_error() const;
 
 		BAN::ErrorOr<long> ioctl(int request, void* arg);
 
@@ -144,7 +148,11 @@ namespace Kernel
 		virtual BAN::ErrorOr<void> truncate_impl(size_t)					{ return BAN::Error::from_errno(ENOTSUP); }
 		virtual BAN::ErrorOr<void> chmod_impl(mode_t)						{ return BAN::Error::from_errno(ENOTSUP); }
 		virtual BAN::ErrorOr<void> chown_impl(uid_t, gid_t)					{ return BAN::Error::from_errno(ENOTSUP); }
-		virtual bool has_data_impl() const { dwarnln("nonblock not supported"); return true; }
+
+		// Select/Non blocking API
+		virtual bool can_read_impl() const = 0;
+		virtual bool can_write_impl() const = 0;
+		virtual bool has_error_impl() const = 0;
 
 		virtual BAN::ErrorOr<long> ioctl_impl(int request, void* arg)		{ return BAN::Error::from_errno(ENOTSUP); }
 

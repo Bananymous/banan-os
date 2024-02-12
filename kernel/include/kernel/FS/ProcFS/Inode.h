@@ -43,7 +43,10 @@ namespace Kernel
 		// You may not write here and this is always non blocking
 		virtual BAN::ErrorOr<size_t> write_impl(off_t, BAN::ConstByteSpan) override		{ return BAN::Error::from_errno(EINVAL); }
 		virtual BAN::ErrorOr<void> truncate_impl(size_t) override						{ return BAN::Error::from_errno(EINVAL); }
-		virtual bool has_data_impl() const override										{ return true; }
+
+		virtual bool can_read_impl() const override { return true; }
+		virtual bool can_write_impl() const override { return false; }
+		virtual bool has_error_impl() const override { return false; }
 
 	private:
 		ProcROInode(Process&, size_t (Process::*)(off_t, BAN::ByteSpan) const, TmpFileSystem&, const TmpInodeInfo&);

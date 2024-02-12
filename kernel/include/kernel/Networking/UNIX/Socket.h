@@ -26,6 +26,10 @@ namespace Kernel
 		virtual BAN::ErrorOr<size_t> sendto_impl(BAN::ConstByteSpan, const sockaddr*, socklen_t) override;
 		virtual BAN::ErrorOr<size_t> recvfrom_impl(BAN::ByteSpan, sockaddr*, socklen_t*) override;
 
+		virtual bool can_read_impl() const override;
+		virtual bool can_write_impl() const override;
+		virtual bool has_error_impl() const override { return false; }
+
 	private:
 		UnixDomainSocket(SocketType, ino_t, const TmpInodeInfo&);
 

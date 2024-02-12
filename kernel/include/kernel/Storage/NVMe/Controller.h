@@ -24,6 +24,11 @@ namespace Kernel
 		virtual dev_t rdev() const override { return m_rdev; }
 		virtual BAN::StringView name() const override { return m_name; }
 
+	protected:
+		virtual bool can_read_impl() const override { return false; }
+		virtual bool can_write_impl() const override { return false; }
+		virtual bool has_error_impl() const override { return false; }
+
 	private:
 		NVMeController(PCI::Device& pci_device);
 		virtual BAN::ErrorOr<void> initialize() override;

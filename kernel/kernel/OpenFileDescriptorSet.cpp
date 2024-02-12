@@ -331,7 +331,7 @@ namespace Kernel
 	{
 		TRY(validate_fd(fd));
 		auto& open_file = m_open_files[fd];
-		if ((open_file->flags & O_NONBLOCK) && !open_file->inode->has_data())
+		if ((open_file->flags & O_NONBLOCK) && !open_file->inode->can_read())
 			return 0;
 		size_t nread = TRY(open_file->inode->read(open_file->offset, buffer));
 		open_file->offset += nread;
@@ -342,6 +342,8 @@ namespace Kernel
 	{
 		TRY(validate_fd(fd));
 		auto& open_file = m_open_files[fd];
+		if ((open_file->flags & O_NONBLOCK) && !open_file->inode->can_write())
+			return 0;
 		if (open_file->flags & O_APPEND)
 			open_file->offset = open_file->inode->size();
 		size_t nwrite = TRY(open_file->inode->write(open_file->offset, buffer));

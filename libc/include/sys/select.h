@@ -7,9 +7,7 @@
 
 __BEGIN_DECLS
 
-#define __need_time_t
-#define __need_suseconds_t
-#include <sys/types.h>
+#include <bits/types/timeval.h>
 
 #include <signal.h>
 #include <time.h>
@@ -49,6 +47,16 @@ typedef struct {
 		for (int i = 0; i < FD_SETSIZE / __FD_MASK_SIZE; i++) \
 			(setp)->__bits[i] = (__fd_mask)0; \
 	} while (0)
+
+struct sys_pselect_t
+{
+	int nfds;
+	fd_set* readfds;
+	fd_set* writefds;
+	fd_set* errorfds;
+	const struct timespec* timeout;
+	const sigset_t* sigmask;
+};
 
 int pselect(int nfds, fd_set* __restrict readfds, fd_set* __restrict writefds, fd_set* __restrict errorfds, const struct timespec* __restrict timeout, const sigset_t* __restrict sigmask);
 int select(int nfds, fd_set* __restrict readfds, fd_set* __restrict writefds, fd_set* __restrict errorfds, struct timeval* __restrict timeout);

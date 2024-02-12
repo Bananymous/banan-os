@@ -7,18 +7,10 @@
 
 __BEGIN_DECLS
 
-#define __need_time_t
-#define __need_suseconds_t
-#include <sys/types.h>
-
 // NOTE: select is declared from here
 #include <sys/select.h>
 
-struct timeval
-{
-	time_t		tv_sec;		/* Seconds. */
-	suseconds_t	tc_usec;	/* Microseconds. */
-};
+#include <bits/types/timeval.h>
 
 struct itimerval
 {

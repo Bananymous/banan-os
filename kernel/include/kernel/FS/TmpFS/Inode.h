@@ -72,7 +72,10 @@ namespace Kernel
 		virtual BAN::ErrorOr<size_t> write_impl(off_t, BAN::ConstByteSpan) override;
 		virtual BAN::ErrorOr<void> truncate_impl(size_t) override;
 		virtual BAN::ErrorOr<void> chmod_impl(mode_t) override;
-		virtual bool has_data_impl() const override { return true; }
+
+		virtual bool can_read_impl() const override { return true; }
+		virtual bool can_write_impl() const override { return true; }
+		virtual bool has_error_impl() const override { return false; }
 
 	private:
 		TmpFileInode(TmpFileSystem&, ino_t, const TmpInodeInfo&);
@@ -91,7 +94,10 @@ namespace Kernel
 		virtual BAN::ErrorOr<size_t> write_impl(off_t, BAN::ConstByteSpan) override { return BAN::Error::from_errno(ENODEV); }
 		virtual BAN::ErrorOr<void> truncate_impl(size_t) override { return BAN::Error::from_errno(ENODEV); }
 		virtual BAN::ErrorOr<void> chmod_impl(mode_t) override;
-		virtual bool has_data_impl() const override { return true; }
+
+		virtual bool can_read_impl() const override { return false; }
+		virtual bool can_write_impl() const override { return false; }
+		virtual bool has_error_impl() const override { return false; }
 
 	private:
 		TmpSocketInode(TmpFileSystem&, ino_t, const TmpInodeInfo&);
@@ -109,6 +115,10 @@ namespace Kernel
 
 	protected:
 		virtual BAN::ErrorOr<BAN::String> link_target_impl() override;
+
+		virtual bool can_read_impl() const override { return false; }
+		virtual bool can_write_impl() const override { return false; }
+		virtual bool has_error_impl() const override { return false; }
 
 	private:
 		TmpSymlinkInode(TmpFileSystem&, ino_t, const TmpInodeInfo&);
@@ -135,6 +145,10 @@ namespace Kernel
 		virtual BAN::ErrorOr<void> create_file_impl(BAN::StringView, mode_t, uid_t, gid_t) override final;
 		virtual BAN::ErrorOr<void> create_directory_impl(BAN::StringView, mode_t, uid_t, gid_t) override final;
 		virtual BAN::ErrorOr<void> unlink_impl(BAN::StringView) override;
+
+		virtual bool can_read_impl() const override { return false; }
+		virtual bool can_write_impl() const override { return false; }
+		virtual bool has_error_impl() const override { return false; }
 
 	private:
 		template<TmpFuncs::for_each_valid_entry_callback F>

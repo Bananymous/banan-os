@@ -43,6 +43,10 @@ namespace Kernel
 		virtual BAN::ErrorOr<void> truncate_impl(size_t) override;
 		virtual BAN::ErrorOr<void> chmod_impl(mode_t) override;
 
+		virtual bool can_read_impl() const override { return true; }
+		virtual bool can_write_impl() const override { return true; }
+		virtual bool has_error_impl() const override { return false; }
+
 	private:
 		// Returns maximum number of data blocks in use
 		// NOTE: the inode might have more blocks than what this suggests if it has been shrinked

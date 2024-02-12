@@ -16,6 +16,7 @@
 
 #include <sys/banan-os.h>
 #include <sys/mman.h>
+#include <sys/select.h>
 #include <sys/socket.h>
 #include <termios.h>
 
@@ -125,6 +126,8 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_recvfrom(sys_recvfrom_t*);
 
 		BAN::ErrorOr<long> sys_ioctl(int fildes, int request, void* arg);
+
+		BAN::ErrorOr<long> sys_pselect(sys_pselect_t* arguments);
 
 		BAN::ErrorOr<long> sys_pipe(int fildes[2]);
 		BAN::ErrorOr<long> sys_dup(int fildes);

@@ -1018,6 +1018,86 @@ namespace Kernel
 		return TRY(inode->ioctl(request, arg));
 	}
 
+	BAN::ErrorOr<long> Process::sys_pselect(sys_pselect_t* arguments)
+	{
+		LockGuard _(m_lock);
+
+		TRY(validate_pointer_access(arguments, sizeof(sys_pselect_t)));
+		if (arguments->readfds)
+			TRY(validate_pointer_access(arguments->readfds, sizeof(fd_set)));
+		if (arguments->writefds)
+			TRY(validate_pointer_access(arguments->writefds, sizeof(fd_set)));
+		if (arguments->errorfds)
+			TRY(validate_pointer_access(arguments->errorfds, sizeof(fd_set)));
+		if (arguments->timeout)
+			TRY(validate_pointer_access(arguments->timeout, sizeof(timespec)));
+		if (arguments->sigmask)
+			TRY(validate_pointer_access(arguments->sigmask, sizeof(sigset_t)));
+
+		if (arguments->sigmask)
+			return BAN::Error::from_errno(ENOTSUP);
+
+		uint64_t timedout_ms = SystemTimer::get().ms_since_boot();
+		if (arguments->timeout)
+		{
+			timedout_ms += arguments->timeout->tv_sec * 1000;
+			timedout_ms += arguments->timeout->tv_nsec / 1'000'000;
+		}
+
+		fd_set readfds;		FD_ZERO(&readfds);
+		fd_set writefds;	FD_ZERO(&writefds);
+		fd_set errorfds;	FD_ZERO(&errorfds);
+
+		long set_bits = 0;
+		while (set_bits == 0)
+		{
+			if (arguments->timeout && SystemTimer::get().ms_since_boot() >= timedout_ms)
+				break;
+
+			auto update_fds =
+				[&](int fd, fd_set* source, fd_set* dest, bool (Inode::*func)() const)
+				{
+					if (source == nullptr)
+						return;
+
+					if (!FD_ISSET(fd, source))
+						return;
+
+					auto inode_or_error = m_open_file_descriptors.inode_of(fd);
+					if (inode_or_error.is_error())
+						return;
+
+					auto inode = inode_or_error.release_value();
+					auto mode = inode->mode();
+					if (!mode.ifreg() && !mode.ififo() && !mode.ifsock() && !inode->is_pipe() && !inode->is_tty())
+						return;
+
+					if ((inode_or_error.value().ptr()->*func)())
+					{
+						FD_SET(fd, dest);
+						set_bits++;
+					}
+				};
+
+			for (int i = 0; i < arguments->nfds; i++)
+			{
+				update_fds(i, arguments->readfds, &readfds, &Inode::can_read);
+				update_fds(i, arguments->writefds, &writefds, &Inode::can_write);
+				update_fds(i, arguments->errorfds, &errorfds, &Inode::can_read);
+			}
+
+			SystemTimer::get().sleep(1);
+		}
+
+		if (arguments->readfds)
+			memcpy(arguments->readfds, &readfds, sizeof(fd_set));
+		if (arguments->writefds)
+			memcpy(arguments->writefds, &writefds, sizeof(fd_set));
+		if (arguments->errorfds)
+			memcpy(arguments->errorfds, &errorfds, sizeof(fd_set));
+		return set_bits;
+	}
+
 	BAN::ErrorOr<long> Process::sys_pipe(int fildes[2])
 	{
 		LockGuard _(m_lock);
