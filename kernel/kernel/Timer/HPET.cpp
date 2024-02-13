@@ -7,21 +7,7 @@
 #include <kernel/Scheduler.h>
 #include <kernel/Timer/HPET.h>
 
-#define HPET_REG_CAPABILIES	0x00
-#define HPET_REG_CONFIG		0x10
-#define HPET_REG_COUNTER	0xF0
-
-#define HPET_CONFIG_ENABLE	0x01
-#define HPET_CONFIG_LEG_RT	0x02
-
-#define HPET_REG_TIMER_CONFIG(N)		(0x100 + 0x20 * N)
-#define HPET_REG_TIMER_COMPARATOR(N)	(0x108 + 0x20 * N)
-
-#define HPET_Tn_INT_ENB_CNF	(1 << 2)
-#define HPET_Tn_TYPE_CNF	(1 << 3)
-#define HPET_Tn_PER_INT_CAP	(1 << 4)
-#define HPET_Tn_VAL_SET_CNF	(1 << 6)
-#define HPET_Tn_INT_ROUTE_CNF_SHIFT 9
+#define HPET_PERIOD_MAX 0x05F5E100
 
 #define FS_PER_S	1'000'000'000'000'000
 #define FS_PER_MS	1'000'000'000'000
@@ -31,17 +17,116 @@
 namespace Kernel
 {
 
+	enum HPETCapabilities : uint32_t
+	{
+		LEG_RT_CAP		= 1 << 16,
+		COUNT_SIZE_CAP	= 1 << 13,
+
+		NUM_TIM_CAP_MASK	= 0x1F << 8,
+		NUM_TIM_CAP_SHIFT	= 8,
+	};
+
+	enum HPETConfiguration : uint32_t
+	{
+		LEG_RT_CNF	= 1 << 1,
+		ENABLE_CNF	= 1 << 0,
+	};
+
+	enum HPETTimerConfiguration : uint32_t
+	{
+		Tn_INT_TYPE_CNF		= 1 << 1,
+		Tn_INT_ENB_CNF		= 1 << 2,
+		Tn_TYPE_CNF			= 1 << 3,
+		Tn_PER_INT_CAP		= 1 << 4,
+		Tn_SIZE_CAP			= 1 << 5,
+		Tn_VAL_SET_CNF		= 1 << 6,
+		Tn_32MODE_CNF		= 1 << 8,
+		Tn_FSB_EN_CNF		= 1 << 14,
+		Tn_FSB_INT_DEL_CAP	= 1 << 14,
+
+		Tn_INT_ROUTE_CNF_MASK	= 0x1F << 9,
+		Tn_INT_ROUTE_CNF_SHIFT	= 9,
+	};
+
+	struct HPETRegister
+	{
+		union
+		{
+			uint64_t full;
+			struct
+			{
+				uint32_t low;
+				uint32_t high;
+			};
+		};
+	};
+	static_assert(sizeof(HPETRegister) == 8);
+
+	struct HPETTimer
+	{
+		uint32_t		configuration;
+		uint32_t		int_route_cap;
+		HPETRegister	comparator;
+		HPETRegister	fsb_interrupt_route;
+		uint64_t		__reserved;
+	};
+	static_assert(sizeof(HPETTimer) == 32);
+
+	struct HPETRegisters
+	{
+		/*
+			63:32	COUNTER_CLK_PERIOD
+			31:16	VENDOR_ID
+			15		LEG_RT_CAP
+			13		COUNT_SIZE_CAP
+			12:8	NUM_TIM_CAP
+			7:0		REV_ID
+		*/
+		uint32_t		capabilities;
+		uint32_t		counter_clk_period;
+
+		uint64_t 		__reserved0;
+
+		/*
+			1	LEG_RT_CNF
+			0	ENABLE_CNF
+		*/
+		HPETRegister	configuration;
+
+		uint64_t		__reserved1;
+
+		/*
+			N	Tn_INT_STS
+		*/
+		HPETRegister	interrupt_status;
+
+		uint8_t			__reserved2[0xF0 - 0x28];
+
+		HPETRegister	main_counter;
+
+		uint64_t		__reserved3;
+
+		HPETTimer		timers[32];
+	};
+	static_assert(offsetof(HPETRegisters, main_counter)	== 0xF0);
+	static_assert(offsetof(HPETRegisters, timers[0])	== 0x100);
+	static_assert(offsetof(HPETRegisters, timers[1])	== 0x120);
+
 	BAN::ErrorOr<BAN::UniqPtr<HPET>> HPET::create(bool force_pic)
 	{
-		HPET* hpet = new HPET();
-		if (hpet == nullptr)
+		HPET* hpet_ptr = new HPET();
+		if (hpet_ptr == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
-		if (auto ret = hpet->initialize(force_pic); ret.is_error())
-		{
-			delete hpet;
-			return ret.release_error();
-		}
-		return BAN::UniqPtr<HPET>::adopt(hpet);
+		auto hpet = BAN::UniqPtr<HPET>::adopt(hpet_ptr);
+		TRY(hpet->initialize(force_pic));
+		return hpet;
+	}
+
+	HPET::~HPET()
+	{
+		if (m_mmio_base)
+			PageTable::kernel().unmap_page(m_mmio_base);
+		m_mmio_base = 0;
 	}
 
 	BAN::ErrorOr<void> HPET::initialize(bool force_pic)
@@ -63,115 +148,155 @@ namespace Kernel
 		ASSERT(m_mmio_base);
 
 		PageTable::kernel().map_page_at(header->base_address.address, m_mmio_base, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
-		BAN::ScopeGuard unmapper([this] { PageTable::kernel().unmap_page(m_mmio_base); });
 
-		m_counter_tick_period_fs = read_register(HPET_REG_CAPABILIES) >> 32;
+		auto& regs = registers();
 
-		// period has to be less than 100 ns
-		if (m_counter_tick_period_fs == 0 || m_counter_tick_period_fs > FS_PER_NS * 100)
-			return BAN::Error::from_errno(EINVAL);
+		m_is_64bit = regs.capabilities & COUNT_SIZE_CAP;
 
-		uint64_t ticks_per_ms = FS_PER_MS / m_counter_tick_period_fs;
+		// Disable main counter and reset value
+		regs.configuration.low = regs.configuration.low & ~ENABLE_CNF;
+		regs.main_counter.high = 0;
+		regs.main_counter.low = 0;
 
+		// Enable legacy routing if available
+		if (regs.capabilities & LEG_RT_CAP)
+			regs.configuration.low = regs.configuration.low | LEG_RT_CNF;
+
+		uint32_t period_fs = regs.counter_clk_period;
+		if (period_fs == 0 || period_fs > HPET_PERIOD_MAX)
 		{
-			const char* units[] = { "fs", "ps", "ns" };
-			int index = 0;
-			uint64_t temp = m_counter_tick_period_fs;
-			while (temp >= 1000)
-			{
-				temp /= 1000;
-				index++;
-			}
-			dprintln("HPET percision {} {}", temp, units[index]);
+			dwarnln("HPET: Invalid counter period");
+			return BAN::Error::from_errno(EINVAL);
 		}
 
-		uint64_t timer0_config = read_register(HPET_REG_TIMER_CONFIG(0));
-		if (!(timer0_config & HPET_Tn_PER_INT_CAP))
+		m_ticks_per_s = FS_PER_S / period_fs;
+		dprintln("HPET frequency {} Hz", m_ticks_per_s);
+
+		uint8_t last_timer = (regs.capabilities & NUM_TIM_CAP_MASK) >> NUM_TIM_CAP_SHIFT;
+		dprintln("HPET has {} timers", last_timer + 1);
+
+		// Disable all timers
+		for (uint8_t i = 0; i <= last_timer; i++)
 		{
-			dwarnln("timer 0 doesn't support periodic");
+			auto& timer_regs = regs.timers[i];
+			timer_regs.configuration = timer_regs.configuration & ~Tn_INT_ENB_CNF;
+		}
+
+		auto& timer0 = regs.timers[0];
+		if (!(timer0.configuration & Tn_PER_INT_CAP))
+		{
+			dwarnln("HPET: timer0 cannot be periodic");
 			return BAN::Error::from_errno(ENOTSUP);
 		}
 
-		int irq = 0;
-		if (!force_pic)
+		// enable interrupts
+		timer0.configuration  = timer0.configuration | Tn_INT_ENB_CNF;
+		// clear interrupt mask (set irq to 0)
+		timer0.configuration = timer0.configuration & ~Tn_INT_ROUTE_CNF_MASK;
+		// edge triggered interrupts
+		timer0.configuration = timer0.configuration & ~Tn_INT_TYPE_CNF;
+		// periodic timer
+		timer0.configuration = timer0.configuration | Tn_TYPE_CNF;
+		// disable 32 bit mode
+		timer0.configuration = timer0.configuration & ~Tn_32MODE_CNF;
+		// disable FSB interrupts
+		if (timer0.configuration & Tn_FSB_INT_DEL_CAP)
+			timer0.configuration = timer0.configuration & ~Tn_FSB_EN_CNF;
+
+		// set timer period to 1000 Hz
+		uint64_t ticks_per_ms = m_ticks_per_s / 1000;
+		timer0.configuration = timer0.configuration | Tn_VAL_SET_CNF;
+		timer0.comparator.low = ticks_per_ms;
+		if (timer0.configuration & Tn_SIZE_CAP)
 		{
-			uint32_t irq_cap = timer0_config >> 32;
-			if (irq_cap == 0)
-			{
-				dwarnln("HPET doesn't have any interrupts available");
-				return BAN::Error::from_errno(EINVAL);
-			}
-			for (irq = 0; irq < 32; irq++)
-				if (irq_cap & (1 << irq))
-					break;
+			timer0.configuration = timer0.configuration | Tn_VAL_SET_CNF;
+			timer0.comparator.high = ticks_per_ms >> 32;
 		}
-		TRY(InterruptController::get().reserve_irq(irq));
+		else if (ticks_per_ms > 0xFFFFFFFF)
+		{
+			dprintln("HPET: cannot create 1 kHz timer");
+			return BAN::Error::from_errno(ENOTSUP);
+		}
 
-		unmapper.disable();
+		// enable main counter
+		regs.configuration.low = regs.configuration.low | ENABLE_CNF;
 
-		uint64_t main_flags = HPET_CONFIG_ENABLE;
-		if (force_pic)
-			main_flags |= HPET_CONFIG_LEG_RT;
-
-		// Enable main counter
-		write_register(HPET_REG_CONFIG, read_register(HPET_REG_CONFIG) | main_flags);
-
-		uint64_t timer0_flags = 0;
-		timer0_flags |= HPET_Tn_INT_ENB_CNF;
-		timer0_flags |= HPET_Tn_TYPE_CNF;
-		timer0_flags |= HPET_Tn_VAL_SET_CNF;
-		if (!force_pic)
-			timer0_flags |= irq << HPET_Tn_INT_ROUTE_CNF_SHIFT;
-
-		// Enable timer 0 as 1 ms periodic
-		write_register(HPET_REG_TIMER_CONFIG(0), timer0_flags);
-		write_register(HPET_REG_TIMER_COMPARATOR(0), read_register(HPET_REG_COUNTER) + ticks_per_ms);
-		write_register(HPET_REG_TIMER_COMPARATOR(0), ticks_per_ms);
-
-		// Disable timers 1->
-		for (int i = 1; i <= header->comparator_count; i++)
-			write_register(HPET_REG_TIMER_CONFIG(i), 0);
-
-		set_irq(irq);
+		TRY(InterruptController::get().reserve_irq(0));
+		set_irq(0);
 		enable_interrupt();
 
 		return {};
 	}
 
+	volatile HPETRegisters& HPET::registers()
+	{
+		return *reinterpret_cast<volatile HPETRegisters*>(m_mmio_base);
+	}
+
+	const volatile HPETRegisters& HPET::registers() const
+	{
+		return *reinterpret_cast<const volatile HPETRegisters*>(m_mmio_base);
+	}
+
+	uint64_t HPET::read_main_counter() const
+	{
+		auto& regs = registers();
+		if (m_is_64bit)
+			return regs.main_counter.full;
+
+		uint32_t current = regs.main_counter.low;
+		uint64_t wraps = m_32bit_wraps;
+		if (current < (uint32_t)m_last_ticks)
+			wraps++;
+		return (wraps << 32) | current;
+	}
+
 	void HPET::handle_irq()
 	{
+		auto& regs = registers();
+
+		uint64_t current_ticks { 0 };
+
+		if (m_is_64bit)
+			current_ticks = regs.main_counter.full;
+		else
+		{
+			uint32_t current = regs.main_counter.low;
+			if (current < (uint32_t)m_last_ticks)
+				m_32bit_wraps++;
+			current_ticks = ((uint64_t)m_32bit_wraps << 32) | current;
+		}
+
+		m_last_ticks = current_ticks;
+
 		Scheduler::get().timer_reschedule();
 	}
 
 	uint64_t HPET::ms_since_boot() const
 	{
-		// FIXME: 32 bit CPUs should use 32 bit counter with 32 bit reads
-		return read_register(HPET_REG_COUNTER) * m_counter_tick_period_fs / FS_PER_MS;
+		return ns_since_boot() / 1'000'000;
 	}
 
 	uint64_t HPET::ns_since_boot() const
 	{
-		// FIXME: 32 bit CPUs should use 32 bit counter with 32 bit reads
-		return read_register(HPET_REG_COUNTER) * m_counter_tick_period_fs / FS_PER_NS;
+		auto current = time_since_boot();
+		return current.tv_sec * 1'000'000'000 + current.tv_nsec;
 	}
 
 	timespec HPET::time_since_boot() const
 	{
-		uint64_t time_fs = read_register(HPET_REG_COUNTER) * m_counter_tick_period_fs;
+		auto& regs = registers();
+
+		uint64_t counter = read_main_counter();
+		uint64_t seconds			= counter / m_ticks_per_s;
+		uint64_t ticks_this_second	= counter % m_ticks_per_s;
+
+		long ns_this_second = ticks_this_second * regs.counter_clk_period / FS_PER_NS;
+
 		return timespec {
-			.tv_sec = time_fs / FS_PER_S,
-			.tv_nsec = (long)((time_fs % FS_PER_S) / FS_PER_NS)
+			.tv_sec = seconds,
+			.tv_nsec = ns_this_second
 		};
-	}
-
-	void HPET::write_register(ptrdiff_t reg, uint64_t value) const
-	{
-		MMIO::write64(m_mmio_base + reg, value);
-	}
-
-	uint64_t HPET::read_register(ptrdiff_t reg) const
-	{
-		return MMIO::read64(m_mmio_base + reg);
 	}
 
 }
