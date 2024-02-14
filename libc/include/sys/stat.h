@@ -66,6 +66,7 @@ struct stat
 #define S_IFLNK		((mode_t)0120000)
 #define S_IFSOCK	((mode_t)0140000)
 #define S_IFMASK	((mode_t)0170000)
+#define S_IFMT		S_IFMASK
 
 #define S_ISBLK(mode)	((mode & S_IFMASK) == S_IFBLK)
 #define S_ISCHR(mode)	((mode & S_IFMASK) == S_IFCHR)
