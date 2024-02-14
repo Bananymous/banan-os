@@ -10,6 +10,7 @@ set(USERSPACE_PROJECTS
 	dd
 	dhcp-client
 	echo
+	getopt
 	id
 	image
 	init
