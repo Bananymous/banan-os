@@ -34,6 +34,7 @@ set(USERSPACE_PROJECTS
 	test-framebuffer
 	test-globals
 	test-mouse
+	test-popen
 	test-sort
 	test-tcp
 	test-udp
