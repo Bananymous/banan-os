@@ -1,10 +1,11 @@
 #include <BAN/Assert.h>
+#include <BAN/Limits.h>
 #include <ctype.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/syscall.h>
+#include <strings.h>
 #include <unistd.h>
 
 #include <icxxabi.h>
@@ -50,24 +51,144 @@ int atexit(void (*func)(void))
 	return 0;
 }
 
-int atoi(const char* str)
+template<BAN::integral T>
+static T strtoT(const char* str, char** endp, int base)
 {
+	// validate base
+	if (base != 0 && (base < 2 || base > 36))
+	{
+		errno = EINVAL;
+		return 0;
+	}
+
+	// parse character to its value in base
+	// if digit is not of base, return -1
+	auto get_base_digit = [](char c, int base) -> int
+	{
+		int digit = -1;
+		if (isdigit(c))
+			digit = c - '0';
+		else if (isalpha(c))
+			digit = 10 + tolower(c) - 'a';
+		if (digit < base)
+			return digit;
+		return -1;
+	};
+
+	// skip whitespace
 	while (isspace(*str))
 		str++;
 
+	// get sign and skip in
 	bool negative = (*str == '-');
-
 	if (*str == '-' || *str == '+')
 		str++;
 
-	int res = 0;
-	while (isdigit(*str))
+	// determine base from prefix
+	if (base == 0)
 	{
-		res = (res * 10) + (*str - '0');
-		str++;
+		if (strncasecmp(str, "0x", 2) == 0)
+			base = 16;
+		else if (*str == '0')
+			base = 8;
+		else if (isdigit(*str))
+			base = 10;
 	}
 
-	return negative ? -res : res;
+	// check for invalid conversion
+	if (get_base_digit(*str, base) == -1)
+	{
+		if (endp)
+			*endp = const_cast<char*>(str);
+		errno = EINVAL;
+		return 0;
+	}
+
+	// remove "0x" prefix from hexadecimal
+	if (base == 16)
+	{
+		if (strncasecmp(str, "0x", 2) == 0)
+			str += 2;
+	}
+
+	// limits of type T
+	constexpr T max_val = BAN::numeric_limits<T>::max();
+	constexpr T min_val = -max_val - 1;
+
+	bool overflow = false;
+
+	T result = 0;
+	while (!overflow)
+	{
+		int digit = get_base_digit(*str, base);
+		if (digit == -1)
+			break;
+
+		// check for overflow
+		if (negative)
+		{
+			if (result < min_val / base)
+				overflow = true;
+			else if (result * base < min_val + digit)
+				overflow = true;
+		}
+		else
+		{
+			if (result > max_val / base)
+				overflow = true;
+			else if (result * base > max_val - digit)
+				overflow = true;
+		}
+
+		// calculate result's next step and move to next character
+		if (!overflow)
+		{
+			result = result * base + (negative ? -digit : digit);
+			str++;
+		}
+	}
+
+	// save endp if asked
+	if (endp)
+	{
+		while (get_base_digit(*str, base) != -1)
+			str++;
+		*endp = const_cast<char*>(str);
+	}
+
+	// return error on overflow
+	if (overflow)
+	{
+		errno = ERANGE;
+		return negative ? min_val : max_val;
+	}
+
+	return negative ? -result : result;
+}
+
+int atoi(const char* str)
+{
+	return strtol(str, nullptr, 10);
+}
+
+long atol(const char* str)
+{
+	return strtol(str, nullptr, 10);
+}
+
+long long atoll(const char* str)
+{
+	return strtoll(str, nullptr, 10);
+}
+
+long strtol(const char* __restrict str, char** __restrict endp, int base)
+{
+	return strtoT<long>(str, endp, base);
+}
+
+long long strtoll(const char* __restrict str, char** __restrict endp, int base)
+{
+	return strtoT<long long>(str, endp, base);
 }
 
 char* getenv(const char* name)
