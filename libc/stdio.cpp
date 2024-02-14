@@ -11,6 +11,7 @@
 struct FILE
 {
 	int fd			{ -1 };
+	mode_t mode		{ 0 };
 	bool eof		{ false };
 	bool error		{ false };
 
@@ -18,11 +19,27 @@ struct FILE
 	uint32_t buffer_index { 0 };
 };
 
+struct ScopeLock
+{
+	ScopeLock(FILE* file)
+		: m_file(file)
+	{
+		flockfile(m_file);
+	}
+
+	~ScopeLock()
+	{
+		funlockfile(m_file);
+	}
+
+	FILE* m_file;
+};
+
 static FILE s_files[FOPEN_MAX] {
-	{ .fd = STDIN_FILENO  },
-	{ .fd = STDOUT_FILENO },
-	{ .fd = STDERR_FILENO },
-	{ .fd = STDDBG_FILENO },
+	{ .fd = STDIN_FILENO,	.mode = O_RDONLY },
+	{ .fd = STDOUT_FILENO,	.mode = O_WRONLY },
+	{ .fd = STDERR_FILENO,	.mode = O_WRONLY },
+	{ .fd = STDDBG_FILENO,	.mode = O_WRONLY },
 };
 
 FILE* stdin  = &s_files[0];
@@ -32,6 +49,7 @@ FILE* stddbg = &s_files[3];
 
 void clearerr(FILE* file)
 {
+	ScopeLock _(file);
 	file->eof = false;
 	file->error = false;
 }
@@ -46,22 +64,51 @@ char* ctermid(char* buffer)
 
 int fclose(FILE* file)
 {
-	if (close(file->fd) == -1)
-		return EOF;
+	ScopeLock _(file);
+	(void)fflush(file);
+	int ret = (close(file->fd) == -1) ? EOF : 0;
 	file->fd = -1;
+	return ret;
+}
+
+static mode_t parse_mode_string(const char* mode_str)
+{
+	size_t len = strlen(mode_str);
+	if (len == 0 || len > 3)
+		return 0;
+	if (len == 3 && mode_str[1] == mode_str[2])
+		return 0;
+	if (strcspn(mode_str + 1, "b+") != len - 1)
+		return 0;
+	bool plus = (mode_str[1] == '+' || mode_str[2] == '+');
+	switch (mode_str[0])
+	{
+		case 'r': return plus ? O_RDWR : O_RDONLY;
+		case 'w': return plus ? O_RDWR | O_CREAT | O_TRUNC : O_WRONLY | O_CREAT | O_TRUNC;
+		case 'a': return plus ? O_RDWR | O_CREAT | O_APPEND : O_WRONLY | O_CREAT | O_APPEND;
+	}
 	return 0;
 }
 
-FILE* fdopen(int fd, const char* mode)
+FILE* fdopen(int fd, const char* mode_str)
 {
-	// FIXME
-	(void)mode;
+	mode_t mode = parse_mode_string(mode_str);
+	if (mode == 0)
+	{
+		errno = EINVAL;
+		return nullptr;
+	}
+	mode &= ~O_TRUNC;
 
+	// FIXME: when threads are implemented
 	for (int i = 0; i < FOPEN_MAX; i++)
 	{
 		if (s_files[i].fd == -1)
 		{
-			s_files[i] = { .fd = fd };
+			s_files[i] = {
+				.fd = fd,
+				.mode = mode & O_ACCMODE,
+			};
 			return &s_files[i];
 		}
 	}
@@ -91,6 +138,8 @@ int fflush(FILE* file)
 		return 0;
 	}
 
+	ScopeLock _(file);
+
 	if (file->buffer_index == 0)
 		return 0;
 
@@ -106,29 +155,13 @@ int fflush(FILE* file)
 
 int fgetc(FILE* file)
 {
-	if (file->eof)
-		return EOF;
-
-	unsigned char c;
-	long ret = syscall(SYS_READ, file->fd, &c, 1);
-
-	if (ret < 0)
-	{
-		file->error = true;
-		return EOF;
-	}
-
-	if (ret == 0)
-	{
-		file->eof = true;
-		return EOF;
-	}
-
-	return c;
+	ScopeLock _(file);
+	return getc_unlocked(file);
 }
 
 int fgetpos(FILE* file, fpos_t* pos)
 {
+	ScopeLock _(file);
 	off_t offset = ftello(file);
 	if (offset == -1)
 		return -1;
@@ -140,10 +173,11 @@ char* fgets(char* str, int size, FILE* file)
 {
 	if (size == 0)
 		return nullptr;
+	ScopeLock _(file);
 	int i = 0;
 	for (; i < size - 1; i++)
 	{
-		char c = fgetc(file);
+		int c = getc_unlocked(file);
 		if (c == EOF)
 		{
 			if (i == 0)
@@ -168,54 +202,33 @@ int fileno(FILE* fp)
 	return fp->fd;
 }
 
-// TODO
-void flockfile(FILE*);
-
-FILE* fopen(const char* pathname, const char* mode)
+void flockfile(FILE*)
 {
-	uint8_t flags = 0;
-	if (mode[0] == 'r')
-		flags |= O_RDONLY;
-	else if (mode[0] == 'w')
-		flags |= O_WRONLY | O_CREAT | O_TRUNC;
-	else if (mode[0] == 'a')
-		flags |= O_WRONLY | O_CREAT | O_APPEND;
-	else
+	// FIXME: when threads are implemented
+}
+
+FILE* fopen(const char* pathname, const char* mode_str)
+{
+	mode_t mode = parse_mode_string(mode_str);
+	if (mode == 0)
 	{
 		errno = EINVAL;
 		return nullptr;
 	}
 
-	if (mode[1] && mode[2] && mode[1] == mode[2])
-	{
-		errno = EINVAL;
-		return nullptr;
-	}
-
-	for (int i = 1; i <= 2; i++)
-	{
-		if (mode[i] == 0)
-			break;
-		else if (mode[i] == '+')
-			flags |= O_RDWR;
-		else if (mode[i] == 'b')
-			continue;
-		else
-		{
-			errno = EINVAL;
-			return nullptr;
-		}
-	}
-
-	int fd = open(pathname, flags);
+	int fd = open(pathname, mode, 0666);
 	if (fd == -1)
 		return nullptr;
 
+	// FIXME: when threads are implemented
 	for (int i = 0; i < FOPEN_MAX; i++)
 	{
 		if (s_files[i].fd == -1)
 		{
-			s_files[i] = { .fd = fd };
+			s_files[i] = {
+				.fd = fd,
+				.mode = mode & O_ACCMODE
+			};
 			return &s_files[i];
 		}
 	}
@@ -235,18 +248,16 @@ int fprintf(FILE* file, const char* format, ...)
 
 int fputc(int c, FILE* file)
 {
-	file->buffer[file->buffer_index++] = c;
-	if (c == '\n' || file->buffer_index == sizeof(file->buffer))
-		if (fflush(file) == EOF)
-			return EOF;
-	return (unsigned char)c;
+	ScopeLock _(file);
+	return putc_unlocked(c, file);
 }
 
 int fputs(const char* str, FILE* file)
 {
+	ScopeLock _(file);
 	while (*str)
 	{
-		if (fputc(*str, file) == EOF)
+		if (putc_unlocked(*str, file) == EOF)
 			return EOF;
 		str++;
 	}
@@ -255,6 +266,7 @@ int fputs(const char* str, FILE* file)
 
 size_t fread(void* buffer, size_t size, size_t nitems, FILE* file)
 {
+	ScopeLock _(file);
 	if (file->eof || nitems * size == 0)
 		return 0;
 
@@ -279,8 +291,42 @@ size_t fread(void* buffer, size_t size, size_t nitems, FILE* file)
 	return nread / size;
 }
 
-// TODO
-FILE* freopen(const char*, const char*, FILE*);
+FILE* freopen(const char* pathname, const char* mode_str, FILE* file)
+{
+	mode_t mode = parse_mode_string(mode_str);
+	if (mode == 0)
+	{
+		errno = EINVAL;
+		return nullptr;
+	}
+
+	ScopeLock _(file);
+
+	(void)fflush(file);
+
+	if (pathname)
+	{
+		close(file->fd);
+		file->fd = open(pathname, mode, 0666);
+		file->mode = mode & O_ACCMODE;
+		if (file->fd == -1)
+			return nullptr;
+	}
+	else
+	{
+		mode &= O_ACCMODE;
+		if ((file->mode & mode) != mode)
+		{
+			close(file->fd);
+			file->fd = -1;
+			errno = EBADF;
+			return nullptr;
+		}
+		file->mode = mode;
+	}
+
+	return file;
+}
 
 int fscanf(FILE* file, const char* format, ...)
 {
@@ -298,10 +344,10 @@ int fseek(FILE* file, long offset, int whence)
 
 int fseeko(FILE* file, off_t offset, int whence)
 {
+	ScopeLock _(file);
 	long ret = syscall(SYS_SEEK, file->fd, offset, whence);
 	if (ret < 0)
 		return -1;
-
 	file->eof = false;
 	return 0;
 }
@@ -318,30 +364,38 @@ long ftell(FILE* file)
 
 off_t ftello(FILE* file)
 {
+	ScopeLock _(file);
 	long ret = syscall(SYS_TELL, file->fd);
 	if (ret < 0)
 		return -1;
 	return ret;
 }
 
-// TODO
-int ftrylockfile(FILE*);
+int ftrylockfile(FILE*)
+{
+	// FIXME: when threads are implemented
+	return 0;
+}
 
-// TODO
-void funlockfile(FILE*);
+void funlockfile(FILE*)
+{
+	// FIXME: when threads are implemented
+}
 
 size_t fwrite(const void* buffer, size_t size, size_t nitems, FILE* file)
 {
+	ScopeLock _(file);
 	unsigned char* ubuffer = (unsigned char*)buffer;
 	for (size_t byte = 0; byte < nitems * size; byte++)
-		if (fputc(ubuffer[byte], file) == EOF)
+		if (putc_unlocked(ubuffer[byte], file) == EOF)
 			return byte / size;
 	return nitems;
 }
 
 int getc(FILE* file)
 {
-	return fgetc(file);
+	ScopeLock _(file);
+	return getc_unlocked(file);
 }
 
 int getchar(void)
@@ -349,11 +403,33 @@ int getchar(void)
 	return getc(stdin);
 }
 
-// TODO
-int getc_unlocked(FILE*);
+int getc_unlocked(FILE* file)
+{
+	if (file->eof)
+		return EOF;
 
-// TODO
-int getchar_unlocked(void);
+	unsigned char c;
+	long ret = syscall(SYS_READ, file->fd, &c, 1);
+
+	if (ret < 0)
+	{
+		file->error = true;
+		return EOF;
+	}
+
+	if (ret == 0)
+	{
+		file->eof = true;
+		return EOF;
+	}
+
+	return c;
+}
+
+int getchar_unlocked(void)
+{
+	return getc_unlocked(stdin);
+}
 
 char* gets(char* buffer)
 {
@@ -384,6 +460,7 @@ int pclose(FILE*);
 
 void perror(const char* string)
 {
+	ScopeLock _(stderr);
 	if (string && *string)
 	{
 		fputs(string, stderr);
@@ -416,14 +493,23 @@ int putchar(int c)
 	return putc(c, stdout);
 }
 
-// TODO
-int putc_unlocked(int, FILE*);
+int putc_unlocked(int c, FILE* file)
+{
+	file->buffer[file->buffer_index++] = c;
+	if (c == '\n' || file->buffer_index == sizeof(file->buffer))
+		if (fflush(file) == EOF)
+			return EOF;
+	return (unsigned char)c;
+}
 
-// TODO
-int putchar_unlocked(int);
+int putchar_unlocked(int c)
+{
+	return putc_unlocked(c, stdout);
+}
 
 int puts(const char* string)
 {
+	ScopeLock _(stdout);
 	if (fputs(string, stdout) == EOF)
 		return EOF;
 	if (fputc('\n', stdout) == EOF)
@@ -444,8 +530,12 @@ int remove(const char* path)
 // TODO
 int rename(const char*, const char*);
 
-// TODO
-void rewind(FILE*);
+void rewind(FILE* file)
+{
+	ScopeLock _(file);
+	file->error = false;
+	(void)fseek(file, 0L, SEEK_SET);
+}
 
 int scanf(const char* format, ...)
 {
@@ -503,12 +593,14 @@ int ungetc(int, FILE*);
 
 int vfprintf(FILE* file, const char* format, va_list arguments)
 {
-	return printf_impl(format, arguments, [](int c, void* file) { return fputc(c, static_cast<FILE*>(file)); }, file);
+	ScopeLock _(file);
+	return printf_impl(format, arguments, [](int c, void* file) { return putc_unlocked(c, static_cast<FILE*>(file)); }, file);
 }
 
 int vfscanf(FILE* file, const char* format, va_list arguments)
 {
-	return scanf_impl(format, arguments, [](void* file) { return fgetc(static_cast<FILE*>(file)); }, file);
+	ScopeLock _(file);
+	return scanf_impl(format, arguments, [](void* file) { return getc_unlocked(static_cast<FILE*>(file)); }, file);
 }
 
 int vprintf(const char* format, va_list arguments)
