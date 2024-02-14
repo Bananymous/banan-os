@@ -1,9 +1,29 @@
 #include <errno.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 int errno = 0;
+
+void* memccpy(void* __restrict s1, const void* __restrict s2, int c, size_t n)
+{
+	unsigned char* dst = static_cast<unsigned char*>(s1);
+	const unsigned char* src = static_cast<const unsigned char*>(s2);
+	for (size_t i = 0; i < n; i++)
+		if ((dst[i] = src[i]) == c)
+			return dst + i + 1;
+	return nullptr;
+}
+
+void* memchr(const void* s, int c, size_t n)
+{
+	const unsigned char* u = static_cast<const unsigned char*>(s);
+	for (size_t i = 0; i < n; i++)
+		if (u[i] == c)
+			return const_cast<unsigned char*>(u + i);
+	return nullptr;
+}
 
 int memcmp(const void* s1, const void* s2, size_t n)
 {
@@ -153,6 +173,14 @@ size_t strlen(const char* str)
 	return len;
 }
 
+size_t strnlen(const char* str, size_t maxlen)
+{
+	size_t len = 0;
+	while (len < maxlen && str[len])
+		len++;
+	return len;
+}
+
 char* strchr(const char* str, int c)
 {
 	while (*str)
@@ -189,18 +217,154 @@ char* strrchr(const char* str, int c)
 
 char* strstr(const char* haystack, const char* needle)
 {
+	size_t needle_len = strlen(needle);
 	for (size_t i = 0; haystack[i]; i++)
-		if (memcmp(haystack + i, needle, strlen(needle)) == 0)
-			return (char*)haystack + i;
-	return NULL;
+		if (strncmp(haystack + i, needle, needle_len) == 0)
+			return const_cast<char*>(haystack + i);
+	return nullptr;
+}
+
+size_t strcspn(const char* s1, const char* s2)
+{
+	size_t i = 0;
+	for (; s1[i]; i++)
+		for (size_t j = 0; s2[j]; j++)
+			if (s1[i] == s2[j])
+				return i;
+	return i;
+}
+
+char* strpbrk(const char* s1, const char* s2)
+{
+	for (size_t i = 0; s1[i]; i++)
+		for (size_t j = 0; s2[j]; j++)
+			if (s1[i] == s2[j])
+				return const_cast<char*>(s1 + i);
+	return nullptr;
+}
+
+size_t strspn(const char* s1, const char* s2)
+{
+	size_t i = 0;
+	for (; s1[i]; i++)
+	{
+		bool found = false;
+		for (size_t j = 0; s2[j] && !found; j++)
+			if (s1[i] == s2[j])
+				found = true;
+		if (!found)
+			break;
+	}
+	return i;
+}
+
+char* strtok(char* __restrict s, const char* __restrict sep)
+{
+	static char* state = nullptr;
+	return strtok_r(s, sep, &state);
+}
+
+char* strtok_r(char* __restrict str, const char* __restrict sep, char** __restrict state)
+{
+	if (str)
+	{
+		while (*str)
+		{
+			bool found = false;
+			for (size_t i = 0; sep[i] && !found; i++)
+				if (*str == sep[i])
+					found = true;
+			if (!found)
+				break;
+			str++;
+		}
+
+		if (!*str)
+		{
+			*state = nullptr;
+			return nullptr;
+		}
+
+		*state = str;
+	}
+
+	if (!*state)
+		return nullptr;
+
+	str = *state;
+	for (size_t i = 0; str[i]; i++)
+	{
+		for (size_t j = 0; sep[j]; j++)
+		{
+			if (str[i] == sep[j])
+			{
+				str[i] = '\0';
+				*state = str + i + 1;
+				return str;
+			}
+		}
+	}
+
+	*state = nullptr;
+	return str;
+}
+
+char* strsignal(int signum)
+{
+	static char buffer[128];
+	switch (signum)
+	{
+		case SIGABRT:	strcpy(buffer, "SIGABRT"); break;
+		case SIGALRM:	strcpy(buffer, "SIGALRM"); break;
+		case SIGBUS:	strcpy(buffer, "SIGBUS"); break;
+		case SIGCHLD:	strcpy(buffer, "SIGCHLD"); break;
+		case SIGCONT:	strcpy(buffer, "SIGCONT"); break;
+		case SIGFPE:	strcpy(buffer, "SIGFPE"); break;
+		case SIGHUP:	strcpy(buffer, "SIGHUP"); break;
+		case SIGILL:	strcpy(buffer, "SIGILL"); break;
+		case SIGINT:	strcpy(buffer, "SIGINT"); break;
+		case SIGKILL:	strcpy(buffer, "SIGKILL"); break;
+		case SIGPIPE:	strcpy(buffer, "SIGPIPE"); break;
+		case SIGQUIT:	strcpy(buffer, "SIGQUIT"); break;
+		case SIGSEGV:	strcpy(buffer, "SIGSEGV"); break;
+		case SIGSTOP:	strcpy(buffer, "SIGSTOP"); break;
+		case SIGTERM:	strcpy(buffer, "SIGTERM"); break;
+		case SIGTSTP:	strcpy(buffer, "SIGTSTP"); break;
+		case SIGTTIN:	strcpy(buffer, "SIGTTIN"); break;
+		case SIGTTOU:	strcpy(buffer, "SIGTTOU"); break;
+		case SIGUSR1:	strcpy(buffer, "SIGUSR1"); break;
+		case SIGUSR2:	strcpy(buffer, "SIGUSR2"); break;
+		case SIGPOLL:	strcpy(buffer, "SIGPOLL"); break;
+		case SIGPROF:	strcpy(buffer, "SIGPROF"); break;
+		case SIGSYS:	strcpy(buffer, "SIGSYS"); break;
+		case SIGTRAP:	strcpy(buffer, "SIGTRAP"); break;
+		case SIGURG:	strcpy(buffer, "SIGURG"); break;
+		case SIGVTALRM:	strcpy(buffer, "SIGVTALRM"); break;
+		case SIGXCPU:	strcpy(buffer, "SIGXCPU"); break;
+		case SIGXFSZ:	strcpy(buffer, "SIGXFSZ"); break;
+	}
+	return buffer;
 }
 
 char* strerror(int error)
 {
-	static char buffer[1024];
-	buffer[0] = 0;
-	strcpy(buffer, strerrordesc_np(error));
+	static char buffer[128];
+	if (const char* str = strerrordesc_np(error))
+		strcpy(buffer, str);
+	else
+		sprintf(buffer, "Unknown error %d", error);
 	return buffer;
+}
+
+int strerror_r(int error, char* strerrbuf, size_t buflen)
+{
+	const char* str = strerrordesc_np(error);
+	if (!str)
+		return EINVAL;
+	if (strlen(str) + 1 > buflen)
+		return ERANGE;
+	strcpy(strerrbuf, str);
+	return 0;
 }
 
 const char* strerrorname_np(int error)
@@ -295,7 +459,7 @@ const char* strerrorname_np(int error)
 	}
 
 	errno = EINVAL;
-	return "EUNKNOWN";
+	return nullptr;
 }
 
 const char* strerrordesc_np(int error)
@@ -390,5 +554,5 @@ const char* strerrordesc_np(int error)
 	}
 
 	errno = EINVAL;
-	return "Unknown error";
+	return nullptr;
 }

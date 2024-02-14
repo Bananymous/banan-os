@@ -25,7 +25,7 @@ int		strcmp(const char* s1, const char* s2);
 int		strcoll(const char* s1, const char* s2);
 int		strcoll_l(const char* s1, const char* s2, locale_t locale);
 char*	strcpy(char* __restrict s1, const char* __restrict s2);
-size_t	strcspn(const char* , const char* );
+size_t	strcspn(const char* s1, const char* s2);
 char*	strdup(const char* s);
 char*	strerror(int errnum);
 char*	strerror_l(int errnum, locale_t locale);
