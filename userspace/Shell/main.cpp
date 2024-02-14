@@ -448,6 +448,27 @@ BAN::Optional<int> execute_builtin(BAN::Vector<BAN::String>& args, int fd_in, in
 
 		return ret;
 	}
+	else if (args.front() == "test-strtol")
+	{
+#define TEST(num, base) do { errno = 0; printf("strtol(\"" num "\", nullptr, " #base ") = %ld ", strtol(num, nullptr, base)); puts(errno ? strerrorname_np(errno) : ""); } while (false)
+		TEST("0", 10);
+		TEST("", 10);
+		TEST("+", 10);
+		TEST("123", 10);
+		TEST("-123", 10);
+		TEST("7fffffffffffffff", 10);
+		TEST("7fffffffffffffff", 16);
+		TEST("8000000000000000", 16);
+		TEST("-8000000000000000", 16);
+		TEST("-8000000000000001", 16);
+		TEST("123", 0);
+		TEST("0123", 0);
+		TEST("0x123", 0);
+		TEST("123", 1);
+		TEST("hello", 10);
+		TEST("hello", 36);
+#undef TEST
+	}
 	else
 	{
 		return {};
