@@ -282,8 +282,14 @@ size_t fread(void* buffer, size_t size, size_t nitems, FILE* file)
 // TODO
 FILE* freopen(const char*, const char*, FILE*);
 
-// TODO
-int fscanf(FILE*, const char*, ...);
+int fscanf(FILE* file, const char* format, ...)
+{
+	va_list arguments;
+	va_start(arguments, format);
+	int ret = vfscanf(file, format, arguments);
+	va_end(arguments);
+	return ret;
+}
 
 int fseek(FILE* file, long offset, int whence)
 {
