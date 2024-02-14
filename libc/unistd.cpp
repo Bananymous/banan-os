@@ -295,6 +295,91 @@ int rmdir(const char* path)
 	return syscall(SYS_UNLINK, path);
 }
 
+char* optarg = nullptr;
+int opterr = 1;
+int optind = 1;
+int optopt = 0;
+
+int getopt(int argc, char* const argv[], const char* optstring)
+{
+	if (optind >= argc)
+		return -1;
+
+	static int idx = 1;
+	const char* current = argv[optind];
+
+	// if "--" is encountered, no more options are parsed
+	if (idx == -1)
+		return -1;
+
+	// if current is nullptr, does not start with '-' or is string "-", return -1
+	if (current == nullptr || current[0] != '-' || current[1] == '\0')
+		return -1;
+
+	// if current points to string "--" increment optind and return -1
+	if (current[1] == '-' && current[2] == '\0')
+	{
+		idx = -1;
+		optind++;
+		return -1;
+	}
+
+	for (size_t i = 0; optstring[i]; i++)
+	{
+		if (optstring[i] == ':')
+			continue;
+		if (current[idx] != optstring[i])
+			continue;
+
+		if (optstring[i + 1] == ':')
+		{
+			if (current[idx + 1])
+			{
+				optarg = const_cast<char*>(current + idx + 1);
+				optind += 1;
+			}
+			else
+			{
+				optarg = const_cast<char*>(argv[optind + 1]);
+				optind += 2;
+			}
+
+			idx = 1;
+
+			if (optind > argc)
+			{
+				if (opterr && optstring[0] != ':')
+					fprintf(stderr, "%s: option requires an argument -- %c\n", argv[0], optstring[i]);
+				optopt = optstring[i];
+				return optstring[0] == ':' ? ':' : '?';
+			}
+
+			return optstring[i];
+		}
+		else
+		{
+			if (current[++idx] == '\0')
+			{
+				idx = 1;
+				optind++;
+			}
+
+			return optstring[i];
+		}
+	}
+
+	if (opterr && optstring[0] != ':')
+		fprintf(stderr, "%s: illegal option -- %c\n", argv[0], current[idx]);
+
+	if (current[++idx] == '\0')
+	{
+		idx = 1;
+		optind++;
+	}
+
+	return '?';
+}
+
 pid_t getpid(void)
 {
 	return syscall(SYS_GET_PID);
