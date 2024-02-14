@@ -136,7 +136,6 @@ char* strncat(char* __restrict__ dest, const char* __restrict__ src, size_t n)
 	return dest;
 }
 
-#ifndef __is_kernel
 char* strdup(const char* str)
 {
 	const size_t size = strlen(str) + 1;
@@ -162,9 +161,7 @@ char* strndup(const char* str, size_t size)
 	memcpy(new_str, str, size);
 	return new_str;
 }
-#endif
 
-__attribute__((optimize("-O0")))
 size_t strlen(const char* str)
 {
 	size_t len = 0;

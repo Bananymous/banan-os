@@ -141,9 +141,9 @@ set(BAN_SOURCES
 	../BAN/BAN/Time.cpp
 )
 
-set(LIBC_SOURCES
-	../libc/ctype.cpp
-	../libc/string.cpp
+set(KLIBC_SOURCES
+	klibc/ctype.cpp
+	klibc/string.cpp
 )
 
 set(LIBELF_SOURCES
@@ -154,7 +154,7 @@ set(KERNEL_SOURCES
 	${KERNEL_SOURCES}
 	${LAI_SOURCES}
 	${BAN_SOURCES}
-	${LIBC_SOURCES}
+	${KLIBC_SOURCES}
 	${LIBELF_SOURCES}
 )
 
