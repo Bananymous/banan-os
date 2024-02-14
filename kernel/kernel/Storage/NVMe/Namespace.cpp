@@ -46,15 +46,16 @@ namespace Kernel
 
 	BAN::ErrorOr<void> NVMeNamespace::initialize()
 	{
+		BAN::String name_prefix;
+		TRY(name_prefix.append(m_name));
+		TRY(name_prefix.push_back('p'));
+
 		m_dma_region = TRY(DMARegion::create(PAGE_SIZE));
 
 		add_disk_cache();
 
 		DevFileSystem::get().add_device(this);
 
-		char name_prefix[20];
-		strcpy(name_prefix, m_name);
-		strcat(name_prefix, "p");
 		if (auto res = initialize_partitions(name_prefix); res.is_error())
 			dprintln("{}", res.error());
 
