@@ -48,7 +48,6 @@ namespace Kernel
 		timespec m_mtime {};
 		timespec m_ctime {};
 		BAN::Vector<uint8_t> m_buffer;
-		SpinLock m_lock;
 		Semaphore m_semaphore;
 
 		uint32_t m_writing_count { 1 };
