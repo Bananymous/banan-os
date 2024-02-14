@@ -62,7 +62,9 @@ namespace BAN
 			if (m_error_code & kernel_error_mask)
 				return Kernel::error_string(kernel_error());
 #endif
-			return strerror(m_error_code);
+			if (auto* desc = strerrordesc_np(m_error_code))
+				return desc;
+			return "Unknown error"sv;
 		}
 
 	private:
