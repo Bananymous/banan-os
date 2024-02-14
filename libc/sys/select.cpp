@@ -22,7 +22,7 @@ int select(int nfds, fd_set* __restrict readfds, fd_set* __restrict writefds, fd
 	if (timeout)
 	{
 		ts.tv_sec = timeout->tv_sec;
-		ts.tv_nsec = timeout->tc_usec * 1000;
+		ts.tv_nsec = timeout->tv_usec * 1000;
 		pts = &ts;
 	}
 

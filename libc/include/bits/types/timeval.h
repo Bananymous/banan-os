@@ -12,7 +12,7 @@ __BEGIN_DECLS
 struct timeval
 {
 	time_t		tv_sec;		/* Seconds. */
-	suseconds_t	tc_usec;	/* Microseconds. */
+	suseconds_t	tv_usec;	/* Microseconds. */
 };
 
 __END_DECLS
