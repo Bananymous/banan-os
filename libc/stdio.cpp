@@ -4,6 +4,7 @@
 #include <scanf_impl.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/syscall.h>
 #include <unistd.h>
@@ -14,6 +15,8 @@ struct FILE
 	mode_t mode		{ 0 };
 	bool eof		{ false };
 	bool error		{ false };
+
+	int pid			{ -1 };
 
 	unsigned char buffer[BUFSIZ] {};
 	uint32_t buffer_index { 0 };
@@ -455,8 +458,28 @@ char* gets(char* buffer)
 	}
 }
 
-// TODO
-int pclose(FILE*);
+int pclose(FILE* file)
+{
+	if (file->pid == -1)
+	{
+		errno = EBADF;
+		return -1;
+	}
+
+	pid_t pid = file->pid;
+	(void)fclose(file);
+
+	int stat;
+	while (waitpid(pid, &stat, 0) != -1)
+	{
+		if (errno != EINTR)
+		{
+			stat = -1;
+			break;
+		}
+	}
+	return stat;
+}
 
 void perror(const char* string)
 {
@@ -471,8 +494,60 @@ void perror(const char* string)
 	stderr->error = true;
 }
 
-// TODO
-FILE* popen(const char*, const char*);
+FILE* popen(const char* command, const char* mode_str)
+{
+	if ((mode_str[0] != 'r' && mode_str[0] != 'w') || mode_str[1] != '\0')
+	{
+		errno = EINVAL;
+		return nullptr;
+	}
+
+	bool read = (mode_str[0] == 'r');
+
+	int fds[2];
+	if (pipe(fds) == -1)
+		return nullptr;
+
+	pid_t pid = fork();
+	if (pid == 0)
+	{
+		if (read)
+			dup2(fds[1], STDOUT_FILENO);
+		else
+			dup2(fds[0], STDIN_FILENO);
+		close(fds[0]);
+		close(fds[1]);
+
+		execl("/bin/Shell", "sh", "-c", command, nullptr);
+		exit(1);
+	}
+
+	if (pid == -1)
+	{
+		close(fds[0]);
+		close(fds[1]);
+		return nullptr;
+	}
+
+	close(read ? fds[1] : fds[0]);
+
+	// FIXME: when threads are implemented
+	for (int i = 0; i < FOPEN_MAX; i++)
+	{
+		if (s_files[i].fd == -1)
+		{
+			s_files[i] = {
+				.fd = read ? fds[0] : fds[1],
+				.mode = (unsigned)(read ? O_RDONLY : O_WRONLY),
+				.pid = pid
+			};
+			return &s_files[i];
+		}
+	}
+
+	errno = EMFILE;
+	return nullptr;
+}
 
 int printf(const char* format, ...)
 {
