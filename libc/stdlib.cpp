@@ -113,7 +113,7 @@ static T strtoT(const char* str, char** endp, int base)
 
 	// limits of type T
 	constexpr T max_val = BAN::numeric_limits<T>::max();
-	constexpr T min_val = -max_val - 1;
+	constexpr T min_val = BAN::is_signed_v<T> ? -max_val - 1 : 0;
 
 	bool overflow = false;
 
@@ -189,6 +189,16 @@ long strtol(const char* __restrict str, char** __restrict endp, int base)
 long long strtoll(const char* __restrict str, char** __restrict endp, int base)
 {
 	return strtoT<long long>(str, endp, base);
+}
+
+unsigned long strtoul(const char* __restrict str, char** __restrict endp, int base)
+{
+	return strtoT<unsigned long>(str, endp, base);
+}
+
+unsigned long long strtoull(const char* __restrict str, char** __restrict endp, int base)
+{
+	return strtoT<unsigned long long>(str, endp, base);
 }
 
 char* getenv(const char* name)
