@@ -42,30 +42,30 @@ struct stat
 #define st_ctime st_ctim.tv_sec
 #define st_mtime st_mtim.tv_sec
 
-#define S_IRWXU		((mode_t)00700)
-#define S_IRUSR		((mode_t)00400)
-#define S_IWUSR		((mode_t)00200)
-#define S_IXUSR		((mode_t)00100)
-#define S_IRWXG		((mode_t)00070)
-#define S_IRGRP		((mode_t)00040)
-#define S_IWGRP		((mode_t)00020)
-#define S_IXGRP		((mode_t)00010)
-#define S_IRWXO		((mode_t)00007)
-#define S_IROTH		((mode_t)00004)
-#define S_IWOTH		((mode_t)00002)
-#define S_IXOTH		((mode_t)00001)
-#define S_ISUID		((mode_t)04000)
-#define S_ISGID		((mode_t)02000)
-#define S_ISVTX		((mode_t)01000)
+#define S_IRWXU		00700
+#define S_IRUSR		00400
+#define S_IWUSR		00200
+#define S_IXUSR		00100
+#define S_IRWXG		00070
+#define S_IRGRP		00040
+#define S_IWGRP		00020
+#define S_IXGRP		00010
+#define S_IRWXO		00007
+#define S_IROTH		00004
+#define S_IWOTH		00002
+#define S_IXOTH		00001
+#define S_ISUID		04000
+#define S_ISGID		02000
+#define S_ISVTX		01000
 
-#define S_IFIFO		((mode_t)0010000)
-#define S_IFCHR		((mode_t)0020000)
-#define S_IFDIR		((mode_t)0040000)
-#define S_IFBLK		((mode_t)0060000)
-#define S_IFREG		((mode_t)0100000)
-#define S_IFLNK		((mode_t)0120000)
-#define S_IFSOCK	((mode_t)0140000)
-#define S_IFMASK	((mode_t)0170000)
+#define S_IFIFO		0010000
+#define S_IFCHR		0020000
+#define S_IFDIR		0040000
+#define S_IFBLK		0060000
+#define S_IFREG		0100000
+#define S_IFLNK		0120000
+#define S_IFSOCK	0140000
+#define S_IFMASK	0170000
 #define S_IFMT		S_IFMASK
 
 #define S_ISBLK(mode)	((mode & S_IFMASK) == S_IFBLK)
