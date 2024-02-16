@@ -122,17 +122,6 @@ static void integer_to_string(char* buffer, T value, int base, bool upper, forma
 template<BAN::floating_point T>
 static void floating_point_to_string(char* buffer, T value, bool upper, const format_options_t options)
 {
-	if (isnan(value))
-	{
-		if (value < (T)0.0)
-		{
-			*buffer = '-';
-			buffer++;
-		}
-		strcpy(buffer, upper ? "NAN" : "nan");
-		return;
-	}
-
 	int percision = 6;
 	if (options.percision != -1)
 		percision = options.percision;
@@ -150,6 +139,11 @@ static void floating_point_to_string(char* buffer, T value, bool upper, const fo
 	else if (options.show_plus_sign_as_space)
 		buffer[offset++] = ' ';
 
+	if (isnan(value))
+	{
+		strcpy(buffer + offset, upper ? "NAN" : "nan");
+		return;
+	}
 	if (isinf(value))
 	{
 		strcpy(buffer + offset, upper ? "INF" : "inf");
@@ -222,6 +216,17 @@ static void floating_point_to_exponent_string(char* buffer, T value, bool upper,
 		buffer[offset++] = '+';
 	else if (options.show_plus_sign_as_space)
 		buffer[offset++] = ' ';
+
+	if (isnan(value))
+	{
+		strcpy(buffer + offset, upper ? "NAN" : "nan");
+		return;
+	}
+	if (isinf(value))
+	{
+		strcpy(buffer + offset, upper ? "INF" : "inf");
+		return;
+	}
 
 	// Calculate which number to put as exponent
 	int exponent = 0;
