@@ -448,7 +448,7 @@ BAN::Optional<int> execute_builtin(BAN::Vector<BAN::String>& args, int fd_in, in
 
 		return ret;
 	}
-	else if (args.front() == "test-strtol")
+	else if (args.front() == "test-strtox")
 	{
 #define TEST(num, base) do { errno = 0; printf("strtol(\"" num "\", nullptr, " #base ") = %ld ", strtol(num, nullptr, base)); puts(errno ? strerrorname_np(errno) : ""); } while (false)
 		TEST("0", 10);
@@ -467,6 +467,47 @@ BAN::Optional<int> execute_builtin(BAN::Vector<BAN::String>& args, int fd_in, in
 		TEST("123", 1);
 		TEST("hello", 10);
 		TEST("hello", 36);
+#undef TEST
+#define TEST(num, base) do { errno = 0; printf("strtoul(\"" num "\", nullptr, " #base ") = %lu ", strtoul(num, nullptr, base)); puts(errno ? strerrorname_np(errno) : ""); } while (false)
+		TEST("0", 10);
+		TEST("123", 10);
+		TEST("-123", 10);
+		TEST("-1", 10);
+		TEST("fffffffffffffff", 16);
+		TEST("ffffffffffffffff", 16);
+		TEST("10000000000000000", 16);
+#undef TEST
+#define TEST(num) do { errno = 0; printf("strtod(\"" num "\", nullptr) = %e ", strtod(num, nullptr)); puts(errno ? strerrorname_np(errno) : ""); } while (false)
+		TEST("0");
+		TEST(".1");
+		TEST("1.");
+		TEST("0x.1");
+		TEST("0x1.");
+		TEST("123");
+		TEST("-123");
+		TEST("0x123");
+		TEST("123.456");
+		TEST("-123.456");
+		TEST("1.2e5");
+		TEST("1.e5");
+		TEST(".2e5");
+		TEST("0x1.2p5");
+		TEST("0x1.p5");
+		TEST("0x.2p5");
+		TEST("1e999");
+		TEST("-1e999");
+		TEST("1e308");
+		TEST("1e-307");
+		TEST("1e309");
+		TEST("1e-308");
+		TEST("0.00000000001e312");
+		TEST("1000000000000e-312");
+		TEST("0e999");
+		TEST("0e-999");
+		TEST("1237754.446f");
+		TEST("inf");
+		TEST("-inf");
+		TEST("nan");
 #undef TEST
 	}
 	else
