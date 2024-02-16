@@ -13,58 +13,143 @@ namespace BAN
 	public:
 		numeric_limits() = delete;
 
-		static constexpr T max() requires(is_signed_v<T> && is_integral_v<T>)
+		static inline constexpr T max()
 		{
-			if constexpr(sizeof(T) == sizeof(int8_t))
-				return __INT8_MAX__;
-			if constexpr(sizeof(T) == sizeof(int16_t))
-				return __INT16_MAX__;
-			if constexpr(sizeof(T) == sizeof(int32_t))
-				return __INT32_MAX__;
-			if constexpr(sizeof(T) == sizeof(int64_t))
-				return __INT64_MAX__;
-		}
+			if constexpr(is_same_v<T, char>)
+				return __SCHAR_MAX__;
+			if constexpr(is_same_v<T, signed char>)
+				return __SCHAR_MAX__;
+			if constexpr(is_same_v<T, unsigned char>)
+				return (T)__SCHAR_MAX__ * 2 + 1;
 
-		static constexpr T max() requires(is_unsigned_v<T> && is_integral_v<T>)
-		{
-			if constexpr(sizeof(T) == sizeof(uint8_t))
-				return __UINT8_MAX__;
-			if constexpr(sizeof(T) == sizeof(uint16_t))
-				return __UINT16_MAX__;
-			if constexpr(sizeof(T) == sizeof(uint32_t))
-				return __UINT32_MAX__;
-			if constexpr(sizeof(T) == sizeof(uint64_t))
-				return __UINT64_MAX__;
-		}
+			if constexpr(is_same_v<T, short>)
+				return __SHRT_MAX__;
+			if constexpr(is_same_v<T, int>)
+				return __INT_MAX__;
+			if constexpr(is_same_v<T, long>)
+				return __LONG_MAX__;
+			if constexpr(is_same_v<T, long long>)
+				return __LONG_LONG_MAX__;
 
-		static constexpr T max() requires(is_floating_point_v<T>)
-		{
-			if constexpr(sizeof(T) == sizeof(float))
+			if constexpr(is_same_v<T, unsigned short>)
+				return (T)__SHRT_MAX__ * 2 + 1;
+			if constexpr(is_same_v<T, unsigned int>)
+				return (T)__INT_MAX__ * 2 + 1;
+			if constexpr(is_same_v<T, unsigned long>)
+				return (T)__LONG_MAX__ * 2 + 1;
+			if constexpr(is_same_v<T, unsigned long long>)
+				return (T)__LONG_LONG_MAX__ * 2 + 1;
+
+			if constexpr(is_same_v<T, float>)
 				return __FLT_MAX__;
-			if constexpr(sizeof(T) == sizeof(double))
+			if constexpr(is_same_v<T, double>)
 				return __DBL_MAX__;
-			if constexpr(sizeof(T) == sizeof(long double))
+			if constexpr(is_same_v<T, long double>)
 				return __LDBL_MAX__;
 		}
 
-		static constexpr T infinity() requires(is_floating_point_v<T>)
+		static inline constexpr T min()
 		{
-			if constexpr(sizeof(T) == sizeof(float))
-				return __FLT_MAX__;
-			if constexpr(sizeof(T) == sizeof(double))
-				return __DBL_MAX__;
-			if constexpr(sizeof(T) == sizeof(long double))
-				return __LDBL_MAX__;
+			if constexpr(is_signed_v<T> && is_integral_v<T>)
+				return -max() - 1;
+
+			if constexpr(is_unsigned_v<T> && is_integral_v<T>)
+				return 0;
+
+			if constexpr(is_same_v<T, float>)
+				return __FLT_MIN__;
+			if constexpr(is_same_v<T, double>)
+				return __DBL_MIN__;
+			if constexpr(is_same_v<T, long double>)
+				return __LDBL_MIN__;
 		}
 
-		static constexpr T nan() requires(is_floating_point_v<T>)
+		static inline constexpr bool has_infinity()
 		{
-			if constexpr(sizeof(T) == sizeof(float))
+			if constexpr(is_same_v<T, float>)
+				return __FLT_HAS_INFINITY__;
+			if constexpr(is_same_v<T, double>)
+				return __DBL_HAS_INFINITY__;
+			if constexpr(is_same_v<T, long double>)
+				return __LDBL_HAS_INFINITY__;
+			return false;
+		}
+
+		static inline constexpr T infinity() requires(has_infinity())
+		{
+			if constexpr(is_same_v<T, float>)
+				return __builtin_inff();
+			if constexpr(is_same_v<T, double>)
+				return __builtin_inf();
+			if constexpr(is_same_v<T, long double>)
+				return __builtin_infl();
+		}
+
+		static inline constexpr bool has_quiet_NaN()
+		{
+			if constexpr(is_same_v<T, float>)
+				return __FLT_HAS_QUIET_NAN__;
+			if constexpr(is_same_v<T, double>)
+				return __DBL_HAS_QUIET_NAN__;
+			if constexpr(is_same_v<T, long double>)
+				return __LDBL_HAS_QUIET_NAN__;
+			return false;
+		}
+
+		static inline constexpr T quiet_NaN() requires(has_quiet_NaN())
+		{
+			if constexpr(is_same_v<T, float>)
 				return __builtin_nanf("");
-			if constexpr(sizeof(T) == sizeof(double))
+			if constexpr(is_same_v<T, double>)
 				return __builtin_nan("");
-			if constexpr(sizeof(T) == sizeof(long double))
+			if constexpr(is_same_v<T, long double>)
 				return __builtin_nanl("");
+		}
+
+		static inline constexpr int max_exponent2()
+		{
+			static_assert(__FLT_RADIX__ == 2);
+			if constexpr(is_same_v<T, float>)
+				return __FLT_MAX_EXP__;
+			if constexpr(is_same_v<T, double>)
+				return __DBL_MAX_EXP__;
+			if constexpr(is_same_v<T, long double>)
+				return __LDBL_MAX_EXP__;
+			return 0;
+		}
+
+		static inline constexpr int max_exponent10()
+		{
+			if constexpr(is_same_v<T, float>)
+				return __FLT_MAX_10_EXP__;
+			if constexpr(is_same_v<T, double>)
+				return __DBL_MAX_10_EXP__;
+			if constexpr(is_same_v<T, long double>)
+				return __LDBL_MAX_10_EXP__;
+			return 0;
+		}
+
+		static inline constexpr int min_exponent2()
+		{
+			static_assert(__FLT_RADIX__ == 2);
+			if constexpr(is_same_v<T, float>)
+				return __FLT_MIN_EXP__;
+			if constexpr(is_same_v<T, double>)
+				return __DBL_MIN_EXP__;
+			if constexpr(is_same_v<T, long double>)
+				return __LDBL_MIN_EXP__;
+			return 0;
+		}
+
+		static inline constexpr int min_exponent10()
+		{
+			if constexpr(is_same_v<T, float>)
+				return __FLT_MIN_10_EXP__;
+			if constexpr(is_same_v<T, double>)
+				return __DBL_MIN_10_EXP__;
+			if constexpr(is_same_v<T, long double>)
+				return __LDBL_MIN_10_EXP__;
+			return 0;
 		}
 	};
 
