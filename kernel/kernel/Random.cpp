@@ -1,6 +1,7 @@
-#include <kernel/Debug.h>
 #include <kernel/CPUID.h>
+#include <kernel/Debug.h>
 #include <kernel/Random.h>
+#include <kernel/Timer/Timer.h>
 
 namespace Kernel
 {
@@ -18,9 +19,16 @@ namespace Kernel
 		CPUID::get_features(ecx, edx);
 
 		if (ecx & CPUID::ECX_RDRND)
+		{
 			asm volatile("rdrand %0" : "=a"(s_rand_seed));
+			dprintln("RNG seeded by RDRAND");
+		}
 		else
-			dprintln("No RDRAND available");
+		{
+			auto rt = SystemTimer::get().real_time();
+			s_rand_seed ^= rt.tv_sec ^ rt.tv_nsec;
+			dprintln("RNG seeded by real time");
+		}
 	}
 
 	uint32_t Random::get_u32()
