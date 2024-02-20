@@ -81,7 +81,7 @@ static mode_t parse_mode_string(const char* mode_str)
 		return 0;
 	if (len == 3 && mode_str[1] == mode_str[2])
 		return 0;
-	if (strcspn(mode_str + 1, "b+") != len - 1)
+	if (strspn(mode_str + 1, "b+") != len - 1)
 		return 0;
 	bool plus = (mode_str[1] == '+' || mode_str[2] == '+');
 	switch (mode_str[0])
