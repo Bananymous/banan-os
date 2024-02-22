@@ -1,10 +1,12 @@
 #include <kernel/BootInfo.h>
+#include <kernel/Device/DeviceNumbers.h>
 #include <kernel/Device/FramebufferDevice.h>
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/Memory/Heap.h>
 
 #include <sys/framebuffer.h>
 #include <sys/mman.h>
+#include <sys/sysmacros.h>
 
 namespace Kernel
 {
@@ -23,7 +25,7 @@ namespace Kernel
 			return BAN::Error::from_errno(ENOTSUP);
 		auto* device_ptr = new FramebufferDevice(
 			0660, 0, 900,
-			DevFileSystem::get().get_next_dev(),
+			makedev(DeviceNumber::Framebuffer, get_framebuffer_device_index()),
 			g_boot_info.framebuffer.address,
 			g_boot_info.framebuffer.width,
 			g_boot_info.framebuffer.height,
@@ -39,7 +41,7 @@ namespace Kernel
 
 	FramebufferDevice::FramebufferDevice(mode_t mode, uid_t uid, gid_t gid, dev_t rdev, paddr_t paddr, uint32_t width, uint32_t height, uint32_t pitch, uint8_t bpp)
 		: CharacterDevice(mode, uid, gid)
-		, m_name(BAN::String::formatted("fb{}", get_framebuffer_device_index()))
+		, m_name(BAN::String::formatted("fb{}", minor(rdev)))
 		, m_rdev(rdev)
 		, m_video_memory_paddr(paddr)
 		, m_width(width)

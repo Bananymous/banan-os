@@ -1,12 +1,15 @@
+#include <kernel/Device/DeviceNumbers.h>
 #include <kernel/Device/ZeroDevice.h>
-#include <kernel/FS/DevFS/FileSystem.h>
+
+#include <sys/sysmacros.h>
 
 namespace Kernel
 {
 
 	BAN::ErrorOr<BAN::RefPtr<ZeroDevice>> ZeroDevice::create(mode_t mode, uid_t uid, gid_t gid)
 	{
-		auto* result = new ZeroDevice(mode, uid, gid, DevFileSystem::get().get_next_dev());
+		static uint32_t minor = 0;
+		auto* result = new ZeroDevice(mode, uid, gid, makedev(DeviceNumber::Zero, minor++));
 		if (result == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
 		return BAN::RefPtr<ZeroDevice>::adopt(result);

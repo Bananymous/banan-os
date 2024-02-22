@@ -35,8 +35,8 @@ namespace Kernel
 		virtual timespec	ctime()		const override { return m_inode_info.ctime; }
 		virtual blksize_t	blksize()	const override { return PAGE_SIZE; }
 		virtual blkcnt_t	blocks()	const override { return m_inode_info.blocks; }
-		virtual dev_t		dev()		const override { return 0; } // TODO
-		virtual dev_t		rdev()		const override { return 0; } // TODO
+		virtual dev_t		dev()		const override;
+		virtual dev_t		rdev()		const override { return 0; }
 
 	public:
 		static BAN::ErrorOr<BAN::RefPtr<TmpInode>> create_from_existing(TmpFileSystem&, ino_t, const TmpInodeInfo&);

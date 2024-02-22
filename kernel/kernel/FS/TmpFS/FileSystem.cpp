@@ -1,8 +1,17 @@
+#include <kernel/Device/DeviceNumbers.h>
 #include <kernel/FS/TmpFS/FileSystem.h>
 #include <kernel/Memory/Heap.h>
 
+#include <sys/sysmacros.h>
+
 namespace Kernel
 {
+
+	static dev_t get_next_rdev()
+	{
+		static dev_t minor = 0;
+		return makedev(DeviceNumber::TmpFS, minor++);
+	}
 
 	BAN::ErrorOr<TmpFileSystem*> TmpFileSystem::create(size_t max_pages, mode_t mode, uid_t uid, gid_t gid)
 	{
@@ -17,7 +26,8 @@ namespace Kernel
 	}
 
 	TmpFileSystem::TmpFileSystem(size_t max_pages)
-		: m_max_pages(max_pages)
+		: m_rdev(get_next_rdev())
+		, m_max_pages(max_pages)
 	{ }
 
 	BAN::ErrorOr<void> TmpFileSystem::initialize(mode_t mode, uid_t uid, gid_t gid)

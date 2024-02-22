@@ -41,6 +41,11 @@ namespace Kernel
 
 	/* GENERAL INODE */
 
+	dev_t TmpInode::dev() const
+	{
+		return m_fs.dev();
+	}
+
 	BAN::ErrorOr<BAN::RefPtr<TmpInode>> TmpInode::create_from_existing(TmpFileSystem& fs, ino_t ino, const TmpInodeInfo& info)
 	{
 		TmpInode* inode_ptr = nullptr;

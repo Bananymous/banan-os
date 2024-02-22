@@ -46,6 +46,8 @@ namespace Kernel
 
 		virtual BAN::RefPtr<Inode> root_inode() override { return m_root_inode; }
 
+		virtual dev_t dev() const override { return m_rdev; }
+
 		BAN::ErrorOr<BAN::RefPtr<TmpInode>> open_inode(ino_t ino);
 
 		BAN::ErrorOr<void> add_to_cache(BAN::RefPtr<TmpInode>);
@@ -115,6 +117,8 @@ namespace Kernel
 		paddr_t find_indirect(PageInfo root, size_t index, size_t depth);
 
 	private:
+		const dev_t m_rdev;
+
 		RecursiveSpinLock m_lock;
 
 		BAN::HashMap<ino_t, BAN::RefPtr<TmpInode>> m_inode_cache;

@@ -1,4 +1,5 @@
 #include <BAN/Array.h>
+#include <kernel/Device/DeviceNumbers.h>
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/Memory/DMARegion.h>
 #include <kernel/Storage/NVMe/Controller.h>
@@ -10,12 +11,6 @@
 
 namespace Kernel
 {
-
-	static dev_t get_ctrl_dev_major()
-	{
-		static dev_t major = DevFileSystem::get().get_next_dev();
-		return major;
-	}
 
 	static dev_t get_ctrl_dev_minor()
 	{
@@ -36,7 +31,7 @@ namespace Kernel
 	NVMeController::NVMeController(PCI::Device& pci_device)
 		: CharacterDevice(0600, 0, 0)
 		, m_pci_device(pci_device)
-		, m_rdev(makedev(get_ctrl_dev_major(), get_ctrl_dev_minor()))
+		, m_rdev(makedev(DeviceNumber::NVMeController, get_ctrl_dev_minor()))
 	{
 		ASSERT(minor(m_rdev) < 10);
 		strcpy(m_name, "nvmeX");

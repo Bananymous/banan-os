@@ -1,5 +1,6 @@
 #include <BAN/Array.h>
 #include <kernel/CriticalScope.h>
+#include <kernel/Device/DeviceNumbers.h>
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/IDT.h>
 #include <kernel/InterruptController.h>
@@ -42,9 +43,8 @@ namespace Kernel
 
 	static dev_t next_rdev()
 	{
-		static dev_t major = DevFileSystem::get().get_next_dev();
 		static dev_t minor = 0;
-		return makedev(major, minor++);
+		return makedev(DeviceNumber::Serial, minor++);
 	}
 
 	void Serial::initialize()

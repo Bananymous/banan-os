@@ -1,14 +1,17 @@
 #include <kernel/Device/DebugDevice.h>
-#include <kernel/FS/DevFS/FileSystem.h>
+#include <kernel/Device/DeviceNumbers.h>
 #include <kernel/Process.h>
 #include <kernel/Timer/Timer.h>
+
+#include <sys/sysmacros.h>
 
 namespace Kernel
 {
 
 	BAN::ErrorOr<BAN::RefPtr<DebugDevice>> DebugDevice::create(mode_t mode, uid_t uid, gid_t gid)
 	{
-		auto* result = new DebugDevice(mode, uid, gid, DevFileSystem::get().get_next_dev());
+		static uint32_t minor = 0;
+		auto* result = new DebugDevice(mode, uid, gid, makedev(DeviceNumber::Debug, minor++));
 		if (result == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
 		return BAN::RefPtr<DebugDevice>::adopt(result);

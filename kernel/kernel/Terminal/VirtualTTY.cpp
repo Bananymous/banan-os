@@ -2,6 +2,7 @@
 #include <BAN/ScopeGuard.h>
 #include <BAN/UTF8.h>
 #include <kernel/Debug.h>
+#include <kernel/Device/DeviceNumbers.h>
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/LockGuard.h>
 #include <kernel/Process.h>
@@ -26,9 +27,8 @@ namespace Kernel
 
 	static dev_t next_rdev()
 	{
-		static dev_t major = DevFileSystem::get().get_next_dev();
 		static dev_t minor = 0;
-		return makedev(major, minor++);
+		return makedev(DeviceNumber::TTY, minor++);
 	}
 
 	BAN::ErrorOr<BAN::RefPtr<VirtualTTY>> VirtualTTY::create(TerminalDriver* driver)

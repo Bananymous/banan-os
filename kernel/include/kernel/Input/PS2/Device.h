@@ -9,7 +9,6 @@ namespace Kernel::Input
 	class PS2Device : public CharacterDevice, public Interruptable
 	{
 	public:
-		PS2Device(PS2Controller&);
 		virtual ~PS2Device() {}
 
 		virtual void send_initialize() = 0;
@@ -27,9 +26,12 @@ namespace Kernel::Input
 
 		virtual void update() final override { m_controller.update_command_queue(); }
 
+	protected:
+		PS2Device(PS2Controller&);
+
 	private:
-		const BAN::String m_name;
 		const dev_t m_rdev;
+		const BAN::String m_name;
 		PS2Controller& m_controller;
 	};
 

@@ -1,3 +1,4 @@
+#include <kernel/Device/DeviceNumbers.h>
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/IO.h>
 #include <kernel/Storage/ATA/ATABus.h>
@@ -9,12 +10,6 @@
 namespace Kernel
 {
 
-	static dev_t get_ata_dev_major()
-	{
-		static dev_t major = DevFileSystem::get().get_next_dev();
-		return major;
-	}
-
 	static dev_t get_ata_dev_minor()
 	{
 		static dev_t minor = 0;
@@ -22,7 +17,7 @@ namespace Kernel
 	}
 
 	detail::ATABaseDevice::ATABaseDevice()
-		: m_rdev(makedev(get_ata_dev_major(), get_ata_dev_minor()))
+		: m_rdev(makedev(DeviceNumber::SCSI, get_ata_dev_minor()))
 	{
 		strcpy(m_name, "sda");
 		m_name[2] += minor(m_rdev);

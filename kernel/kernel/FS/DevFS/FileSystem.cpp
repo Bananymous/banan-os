@@ -122,17 +122,9 @@ namespace Kernel
 		MUST(static_cast<TmpDirectoryInode*>(root_inode().ptr())->link_inode(*inode, path));
 	}
 
-	dev_t DevFileSystem::get_next_dev() const
-	{
-		LockGuard _(m_device_lock);
-		static dev_t next_dev = 1;
-		return next_dev++;
-	}
-
 	int DevFileSystem::get_next_input_device() const
 	{
-		LockGuard _(m_device_lock);
-		static dev_t next_dev = 0;
+		static BAN::Atomic<dev_t> next_dev = 0;
 		return next_dev++;
 	}
 

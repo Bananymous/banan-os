@@ -1,3 +1,4 @@
+#include <kernel/Device/DeviceNumbers.h>
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/Storage/NVMe/Controller.h>
 #include <kernel/Storage/NVMe/Namespace.h>
@@ -6,12 +7,6 @@
 
 namespace Kernel
 {
-
-	static dev_t get_ns_dev_major()
-	{
-		static dev_t major = DevFileSystem::get().get_next_dev();
-		return major;
-	}
 
 	static dev_t get_ns_dev_minor()
 	{
@@ -34,7 +29,7 @@ namespace Kernel
 		, m_nsid(nsid)
 		, m_block_size(block_size)
 		, m_block_count(block_count)
-		, m_rdev(makedev(get_ns_dev_major(), get_ns_dev_minor()))
+		, m_rdev(makedev(DeviceNumber::NVMeNamespace, get_ns_dev_minor()))
 	{
 		ASSERT(minor(m_rdev) < 10);
 		ASSERT(m_controller.name().size() + 2 < sizeof(m_name));
