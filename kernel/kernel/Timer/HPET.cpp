@@ -131,7 +131,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> HPET::initialize(bool force_pic)
 	{
-		auto* header = (ACPI::HPET*)ACPI::get().get_header("HPET"sv, 0);
+		auto* header = static_cast<const ACPI::HPET*>(ACPI::get().get_header("HPET"sv, 0));
 		if (header == nullptr)
 			return BAN::Error::from_errno(ENODEV);
 
@@ -274,7 +274,8 @@ namespace Kernel
 
 	uint64_t HPET::ms_since_boot() const
 	{
-		return ns_since_boot() / 1'000'000;
+		auto current = time_since_boot();
+		return current.tv_sec * 1'000 + current.tv_nsec / 1'000'000;
 	}
 
 	uint64_t HPET::ns_since_boot() const
