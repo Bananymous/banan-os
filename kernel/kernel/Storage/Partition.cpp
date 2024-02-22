@@ -41,7 +41,7 @@ namespace Kernel
 	{
 		ASSERT(buffer.size() >= block_count * m_device->blksize());
 		const uint32_t blocks_in_partition = m_last_block - m_first_block + 1;
-		if (m_first_block + block_count > blocks_in_partition)
+		if (first_block + block_count > blocks_in_partition)
 			return BAN::Error::from_error_code(ErrorCode::Storage_Boundaries);
 		TRY(m_device->write_blocks(m_first_block + first_block, block_count, buffer));
 		return {};
