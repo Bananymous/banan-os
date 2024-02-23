@@ -153,7 +153,7 @@ namespace Kernel
 
 		m_is_64bit = regs.capabilities & COUNT_SIZE_CAP;
 
-		// Disable main counter and reset value
+		// Disable and reset main counter
 		regs.configuration.low = regs.configuration.low & ~ENABLE_CNF;
 		regs.main_counter.high = 0;
 		regs.main_counter.low = 0;
@@ -244,27 +244,28 @@ namespace Kernel
 		if (m_is_64bit)
 			return regs.main_counter.full;
 
-		uint32_t current = regs.main_counter.low;
-		uint64_t wraps = m_32bit_wraps;
-		if (current < (uint32_t)m_last_ticks)
+		CriticalScope _;
+		uint32_t current_low = regs.main_counter.low;
+		uint32_t wraps = m_32bit_wraps;
+		if (current_low < (uint32_t)m_last_ticks)
 			wraps++;
-		return (wraps << 32) | current;
+		return ((uint64_t)wraps << 32) | current_low;
 	}
 
 	void HPET::handle_irq()
 	{
 		auto& regs = registers();
 
-		uint64_t current_ticks { 0 };
+		uint64_t current_ticks;
 
 		if (m_is_64bit)
 			current_ticks = regs.main_counter.full;
 		else
 		{
-			uint32_t current = regs.main_counter.low;
-			if (current < (uint32_t)m_last_ticks)
+			uint32_t current_low = regs.main_counter.low;
+			if (current_low < (uint32_t)m_last_ticks)
 				m_32bit_wraps++;
-			current_ticks = ((uint64_t)m_32bit_wraps << 32) | current;
+			current_ticks = ((uint64_t)m_32bit_wraps << 32) | current_low;
 		}
 
 		m_last_ticks = current_ticks;
