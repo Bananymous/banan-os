@@ -183,12 +183,9 @@ namespace Kernel
 		// Signal mask is inherited
 
 		// Setup stack for returning
-		uintptr_t offset = m_rsp % PAGE_SIZE;
-		if (offset == 0)
-			offset = PAGE_SIZE;
-		ASSERT_GTE(offset, 4 * sizeof(uintptr_t));
-		PageTable::with_fast_page(process().page_table().physical_address_of((m_rsp - 4 * sizeof(uintptr_t)) & PAGE_ADDR_MASK), [&] {
-			uintptr_t rsp = PageTable::fast_page() + offset;
+		ASSERT_EQ(m_rsp % PAGE_SIZE, 0u);
+		PageTable::with_fast_page(process().page_table().physical_address_of(m_rsp - PAGE_SIZE), [&] {
+			uintptr_t rsp = PageTable::fast_page() + PAGE_SIZE;
 			write_to_stack(rsp, nullptr); // alignment
 			write_to_stack(rsp, this);
 			write_to_stack(rsp, &Thread::on_exit);
@@ -216,12 +213,9 @@ namespace Kernel
 		m_signal_pending_mask = 0;
 		m_signal_block_mask = ~0ull;
 
-		uintptr_t offset = m_rsp % PAGE_SIZE;
-		if (offset == 0)
-			offset = PAGE_SIZE;
-		ASSERT_GTE(offset, 4 * sizeof(uintptr_t));
-		PageTable::with_fast_page(process().page_table().physical_address_of((m_rsp - 4 * sizeof(uintptr_t)) & PAGE_ADDR_MASK), [&] {
-			uintptr_t rsp = PageTable::fast_page() + offset;
+		ASSERT_EQ(m_rsp % PAGE_SIZE, 0u);
+		PageTable::with_fast_page(process().page_table().physical_address_of(m_rsp - PAGE_SIZE), [&] {
+			uintptr_t rsp = PageTable::fast_page() + PAGE_SIZE;
 			write_to_stack(rsp, nullptr); // alignment
 			write_to_stack(rsp, this);
 			write_to_stack(rsp, &Thread::on_exit);
