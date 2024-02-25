@@ -13,8 +13,8 @@
 
 	#define __ASSERT_BIN_OP(lhs, rhs, name, op)														\
 		do {																						\
-			auto&& _lhs = lhs;																		\
-			auto&& _rhs = rhs;																		\
+			auto&& _lhs = (lhs);																	\
+			auto&& _rhs = (rhs);																	\
 			if (!(_lhs op _rhs))																	\
 					Kernel::panic(name "(" #lhs ", " #rhs ") ({} " #op " {}) failed", _lhs, _rhs);	\
 		} while (false)
