@@ -18,8 +18,6 @@ namespace Kernel
 		static BAN::ErrorOr<BAN::UniqPtr<VirtualRange>> create_to_vaddr(PageTable&, vaddr_t, size_t, PageTable::flags_t flags, bool preallocate_pages);
 		// Create virtual range to virtual address range
 		static BAN::ErrorOr<BAN::UniqPtr<VirtualRange>> create_to_vaddr_range(PageTable&, vaddr_t vaddr_start, vaddr_t vaddr_end, size_t, PageTable::flags_t flags, bool preallocate_pages);
-		// Create virtual range in kernel memory with kmalloc
-		static BAN::ErrorOr<BAN::UniqPtr<VirtualRange>> create_kmalloc(size_t);
 		~VirtualRange();
 
 		BAN::ErrorOr<BAN::UniqPtr<VirtualRange>> clone(PageTable&);
@@ -35,14 +33,13 @@ namespace Kernel
 		void copy_from(size_t offset, const uint8_t* buffer, size_t bytes);
 
 	private:
-		VirtualRange(PageTable&, bool preallocated, bool kmalloc);
+		VirtualRange(PageTable&, bool preallocated);
 
 		void set_zero();
 
 	private:
 		PageTable&				m_page_table;
 		const bool				m_preallocated;
-		const bool				m_kmalloc;
 		vaddr_t					m_vaddr { 0 };
 		size_t					m_size { 0 };
 		PageTable::flags_t		m_flags { 0 };
