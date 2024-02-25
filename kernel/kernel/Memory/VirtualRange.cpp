@@ -74,21 +74,18 @@ namespace Kernel
 
 	BAN::ErrorOr<BAN::UniqPtr<VirtualRange>> VirtualRange::create_kmalloc(size_t size)
 	{
-		VirtualRange* result = new VirtualRange(PageTable::kernel(), false, true);
-		ASSERT(result);
+		auto* result_ptr = new VirtualRange(PageTable::kernel(), false, true);
+		if (!result_ptr)
+			return BAN::Error::from_errno(ENOMEM);
 
+		auto result = BAN::UniqPtr<VirtualRange>::adopt(result_ptr);
 		result->m_size = size;
 		result->m_flags = PageTable::Flags::ReadWrite | PageTable::Flags::Present;
 		result->m_vaddr = (vaddr_t)kmalloc(size);
 		if (result->m_vaddr == 0)
-		{
-			delete result;
 			return BAN::Error::from_errno(ENOMEM);
-		}
-
 		result->set_zero();
-
-		return BAN::UniqPtr<VirtualRange>::adopt(result);
+		return result;
 	}
 
 	VirtualRange::VirtualRange(PageTable& page_table, bool preallocated, bool kmalloc)
