@@ -12,7 +12,7 @@ namespace Kernel
 		ASSERT(vaddr % PAGE_SIZE == 0);
 		ASSERT(vaddr > 0);
 
-		VirtualRange* result_ptr = new VirtualRange(page_table, preallocate_pages, false);
+		VirtualRange* result_ptr = new VirtualRange(page_table, preallocate_pages);
 		if (result_ptr == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
 
@@ -73,26 +73,9 @@ namespace Kernel
 		return create_to_vaddr(page_table, vaddr, size, flags, preallocate_pages);
 	}
 
-	BAN::ErrorOr<BAN::UniqPtr<VirtualRange>> VirtualRange::create_kmalloc(size_t size)
-	{
-		auto* result_ptr = new VirtualRange(PageTable::kernel(), false, true);
-		if (!result_ptr)
-			return BAN::Error::from_errno(ENOMEM);
-
-		auto result = BAN::UniqPtr<VirtualRange>::adopt(result_ptr);
-		result->m_size = size;
-		result->m_flags = PageTable::Flags::ReadWrite | PageTable::Flags::Present;
-		result->m_vaddr = (vaddr_t)kmalloc(size);
-		if (result->m_vaddr == 0)
-			return BAN::Error::from_errno(ENOMEM);
-		result->set_zero();
-		return result;
-	}
-
-	VirtualRange::VirtualRange(PageTable& page_table, bool preallocated, bool kmalloc)
+	VirtualRange::VirtualRange(PageTable& page_table, bool preallocated)
 		: m_page_table(page_table)
 		, m_preallocated(preallocated)
-		, m_kmalloc(kmalloc)
 	{ }
 
 	VirtualRange::~VirtualRange()
@@ -100,18 +83,13 @@ namespace Kernel
 		if (m_vaddr == 0)
 			return;
 
-		if (m_kmalloc)
-			kfree((void*)m_vaddr);
-		else
+		for (size_t offset = 0; offset < size(); offset += PAGE_SIZE)
 		{
-			for (size_t offset = 0; offset < size(); offset += PAGE_SIZE)
-			{
-				paddr_t paddr = m_page_table.physical_address_of(vaddr() + offset);
-				if (paddr)
-					Heap::get().release_page(paddr);
-			}
-			m_page_table.unmap_range(vaddr(), size());
+			paddr_t paddr = m_page_table.physical_address_of(vaddr() + offset);
+			if (paddr)
+				Heap::get().release_page(paddr);
 		}
+		m_page_table.unmap_range(vaddr(), size());
 	}
 
 	BAN::ErrorOr<BAN::UniqPtr<VirtualRange>> VirtualRange::clone(PageTable& page_table)
@@ -143,7 +121,6 @@ namespace Kernel
 
 	BAN::ErrorOr<void> VirtualRange::allocate_page_for_demand_paging(vaddr_t address)
 	{
-		ASSERT(!m_kmalloc);
 		ASSERT(!m_preallocated);
 		ASSERT(contains(address));
 		ASSERT(&PageTable::current() == &m_page_table);
@@ -163,9 +140,7 @@ namespace Kernel
 
 	void VirtualRange::set_zero()
 	{
-		PageTable& page_table = PageTable::current();
-
-		if (m_kmalloc || &page_table == &m_page_table)
+		if (&PageTable::current() == &m_page_table || &PageTable::kernel() == &m_page_table)
 		{
 			memset((void*)vaddr(), 0, size());
 			return;
@@ -190,7 +165,7 @@ namespace Kernel
 		ASSERT_LTE(offset, size());
 		ASSERT_LTE(offset, size() - bytes);
 
-		if (m_kmalloc || &PageTable::current() == &m_page_table)
+		if (&PageTable::current() == &m_page_table || &PageTable::kernel() == &m_page_table)
 		{
 			memcpy((void*)(vaddr() + offset), buffer, bytes);
 			return;

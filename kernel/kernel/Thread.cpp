@@ -47,7 +47,14 @@ namespace Kernel
 		BAN::ScopeGuard thread_deleter([thread] { delete thread; });
 
 		// Initialize stack and registers
-		thread->m_stack = TRY(VirtualRange::create_kmalloc(m_kernel_stack_size));
+		thread->m_stack = TRY(VirtualRange::create_to_vaddr_range(
+			PageTable::kernel(),
+			KERNEL_OFFSET,
+			~(uintptr_t)0,
+			m_kernel_stack_size,
+			PageTable::Flags::ReadWrite | PageTable::Flags::Present,
+			true
+		));
 		thread->m_rsp = thread->stack_base() + thread->stack_size();
 		thread->m_rip = (uintptr_t)entry;
 
