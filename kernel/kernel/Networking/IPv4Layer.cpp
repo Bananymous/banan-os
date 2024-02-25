@@ -212,6 +212,13 @@ namespace Kernel
 						TRY(interface.send_bytes(dst_mac, EtherType::IPv4, packet));
 						break;
 					}
+					case ICMPType::DestinationUnreachable:
+					{
+						auto& ipv4_header = ipv4_data.slice(sizeof(ICMPHeader)).as<const IPv4Header>();
+						dprintln("Destination '{}' unreachable, code {2H}", ipv4_header.dst_address, icmp_header.code);
+						// FIXME: inform the socket
+						break;
+					}
 					default:
 						dprintln("Unhandleded ICMP packet (type {2H})", icmp_header.type);
 						break;

@@ -18,6 +18,7 @@ namespace Kernel
 	enum ICMPType : uint8_t
 	{
 		EchoReply = 0x00,
+		DestinationUnreachable = 0x03,
 		EchoRequest = 0x08,
 	};
 
