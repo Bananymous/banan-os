@@ -66,7 +66,7 @@ namespace Kernel
 
 	BAN::ErrorOr<BAN::RefPtr<TmpInode>> TmpFileSystem::open_inode(ino_t ino)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 
 		if (m_inode_cache.contains(ino))
 			return m_inode_cache[ino];
@@ -85,7 +85,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> TmpFileSystem::add_to_cache(BAN::RefPtr<TmpInode> inode)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 
 		if (!m_inode_cache.contains(inode->ino()))
 			TRY(m_inode_cache.insert(inode->ino(), inode));
@@ -94,7 +94,7 @@ namespace Kernel
 
 	void TmpFileSystem::remove_from_cache(BAN::RefPtr<TmpInode> inode)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 
 		ASSERT(m_inode_cache.contains(inode->ino()));
 		m_inode_cache.remove(inode->ino());
@@ -102,7 +102,7 @@ namespace Kernel
 
 	void TmpFileSystem::read_inode(ino_t ino, TmpInodeInfo& out)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 
 		auto inode_location = find_inode(ino);
 		PageTable::with_fast_page(inode_location.paddr, [&] {
@@ -112,7 +112,7 @@ namespace Kernel
 
 	void TmpFileSystem::write_inode(ino_t ino, const TmpInodeInfo& info)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 
 		auto inode_location = find_inode(ino);
 		PageTable::with_fast_page(inode_location.paddr, [&] {
@@ -123,7 +123,7 @@ namespace Kernel
 
 	void TmpFileSystem::delete_inode(ino_t ino)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 
 		auto inode_location = find_inode(ino);
 		PageTable::with_fast_page(inode_location.paddr, [&] {
@@ -138,7 +138,7 @@ namespace Kernel
 
 	BAN::ErrorOr<ino_t> TmpFileSystem::allocate_inode(const TmpInodeInfo& info)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 
 		constexpr size_t inodes_per_page = PAGE_SIZE / sizeof(TmpInodeInfo);
 
@@ -164,7 +164,7 @@ namespace Kernel
 
 	TmpFileSystem::InodeLocation TmpFileSystem::find_inode(ino_t ino)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 
 		ASSERT_GTE(ino, first_inode);
 		ASSERT_LT(ino, max_inodes);
@@ -182,7 +182,7 @@ namespace Kernel
 
 	void TmpFileSystem::free_block(size_t index)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 
 		constexpr size_t addresses_per_page = PAGE_SIZE / sizeof(PageInfo);
 
@@ -204,7 +204,7 @@ namespace Kernel
 
 	BAN::ErrorOr<size_t> TmpFileSystem::allocate_block()
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 
 		size_t result = first_data_page;
 		TRY(for_each_indirect_paddr_allocating(m_data_pages, [&] (paddr_t, bool allocated) {
@@ -218,7 +218,7 @@ namespace Kernel
 
 	paddr_t TmpFileSystem::find_block(size_t index)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 
 		ASSERT_GT(index, 0);
 		return find_indirect(m_data_pages, index - first_data_page, 3);
@@ -226,7 +226,7 @@ namespace Kernel
 
 	paddr_t TmpFileSystem::find_indirect(PageInfo root, size_t index, size_t depth)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 
 		ASSERT(root.flags() & PageInfo::Flags::Present);
 		if (depth == 0)
@@ -257,7 +257,7 @@ namespace Kernel
 	template<TmpFuncs::for_each_indirect_paddr_allocating_callback F>
 	BAN::ErrorOr<BAN::Iteration> TmpFileSystem::for_each_indirect_paddr_allocating_internal(PageInfo page_info, F callback, size_t depth)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 
 		ASSERT(page_info.flags() & PageInfo::Flags::Present);
 		if (depth == 0)
@@ -316,7 +316,7 @@ namespace Kernel
 	template<TmpFuncs::for_each_indirect_paddr_allocating_callback F>
 	BAN::ErrorOr<void> TmpFileSystem::for_each_indirect_paddr_allocating(PageInfo page_info, F callback, size_t depth)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 
 		BAN::Iteration result = TRY(for_each_indirect_paddr_allocating_internal(page_info, callback, depth));
 		ASSERT(result == BAN::Iteration::Break);

@@ -59,6 +59,7 @@ namespace Kernel
 		bool initialize();
 
 	private:
+		SpinLock m_lock;
 		BAN::String m_name;
 		Serial m_serial;
 		BAN::CircularQueue<uint8_t, 128> m_input;

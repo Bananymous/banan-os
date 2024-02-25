@@ -1,5 +1,4 @@
 #include <BAN/ScopeGuard.h>
-#include <kernel/CriticalScope.h>
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/Input/KeyboardLayout.h>
 #include <kernel/Input/PS2/Config.h>
@@ -165,6 +164,7 @@ namespace Kernel::Input
 		event.modifier = m_modifiers | (released ? 0 : KeyEvent::Modifier::Pressed);
 		event.keycode = keycode.value();
 
+		LockGuard _(m_event_lock);
 		if (m_event_queue.full())
 		{
 			dwarnln("PS/2 event queue full");
@@ -197,7 +197,7 @@ namespace Kernel::Input
 			if (m_event_queue.empty())
 				TRY(Thread::current().block_or_eintr_indefinite(m_semaphore));
 
-			CriticalScope _;
+			LockGuard _(m_event_lock);
 			if (m_event_queue.empty())
 				continue;
 

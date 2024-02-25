@@ -20,6 +20,8 @@ namespace Kernel::Input
 		KeyboardLayout();
 
 	private:
+		SpinLock m_lock;
+
 		BAN::Array<Key, 0xFF> m_keycode_to_key_normal;
 		BAN::Array<Key, 0xFF> m_keycode_to_key_shift;
 		BAN::Array<Key, 0xFF> m_keycode_to_key_altgr;

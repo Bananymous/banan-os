@@ -229,11 +229,11 @@ namespace Kernel
 
 	BAN::ErrorOr<void> UnixDomainSocket::add_packet(BAN::ConstByteSpan packet)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 
 		while (m_packet_sizes.full() || m_packet_size_total + packet.size() > s_packet_buffer_size)
 		{
-			LockFreeGuard _(m_lock);
+			LockFreeGuard _(m_mutex);
 			TRY(Thread::current().block_or_eintr_indefinite(m_packet_semaphore));
 		}
 
@@ -340,7 +340,7 @@ namespace Kernel
 
 		while (m_packet_size_total == 0)
 		{
-			LockFreeGuard _(m_lock);
+			LockFreeGuard _(m_mutex);
 			TRY(Thread::current().block_or_eintr_indefinite(m_packet_semaphore));
 		}
 

@@ -1,5 +1,4 @@
 #include <BAN/ScopeGuard.h>
-#include <kernel/CriticalScope.h>
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/Input/PS2/Config.h>
 #include <kernel/Input/PS2/Mouse.h>
@@ -158,6 +157,7 @@ namespace Kernel::Input
 			event.scroll_event.scroll = rel_z;
 		}
 
+		LockGuard _(m_event_lock);
 		for (int i = 0; i < event_count; i++)
 		{
 			if (m_event_queue.full())
@@ -181,7 +181,7 @@ namespace Kernel::Input
 			if (m_event_queue.empty())
 				TRY(Thread::current().block_or_eintr_indefinite(m_semaphore));
 
-			CriticalScope _;
+			LockGuard _(m_event_lock);
 			if (m_event_queue.empty())
 				continue;
 

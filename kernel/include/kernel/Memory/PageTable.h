@@ -2,9 +2,8 @@
 
 #include <BAN/Errors.h>
 #include <BAN/Traits.h>
-#include <kernel/CriticalScope.h>
+#include <kernel/Lock/SpinLock.h>
 #include <kernel/Memory/Types.h>
-#include <kernel/SpinLock.h>
 
 namespace Kernel
 {
@@ -13,6 +12,12 @@ namespace Kernel
 	concept with_fast_page_callback = requires(F func)
 	{
 		requires BAN::is_same_v<decltype(func()), void>;
+	};
+
+	template<typename F>
+	concept with_fast_page_callback_error = requires(F func)
+	{
+		requires BAN::is_same_v<decltype(func()), BAN::ErrorOr<void>>;
 	};
 
 	class PageTable
@@ -37,18 +42,29 @@ namespace Kernel
 		static PageTable& kernel();
 		static PageTable& current();
 
-		static void map_fast_page(paddr_t);
-		static void unmap_fast_page();
-		static constexpr vaddr_t fast_page() { return KERNEL_OFFSET; }
-
+	public:
 		template<with_fast_page_callback F>
 		static void with_fast_page(paddr_t paddr, F callback)
 		{
-			CriticalScope _;
+			s_fast_page_lock.lock();
 			map_fast_page(paddr);
 			callback();
 			unmap_fast_page();
+			s_fast_page_lock.unlock();
 		}
+
+		template<with_fast_page_callback_error F>
+		static BAN::ErrorOr<void> with_fast_page(paddr_t paddr, F callback)
+		{
+			s_fast_page_lock.lock();
+			map_fast_page(paddr);
+			auto ret = callback();
+			unmap_fast_page();
+			s_fast_page_lock.unlock();
+			return ret;
+		}
+
+		static constexpr vaddr_t fast_page() { return KERNEL_OFFSET; }
 
 		// FIXME: implement sized checks, return span, etc
 		static void* fast_page_as_ptr(size_t offset = 0)
@@ -110,9 +126,13 @@ namespace Kernel
 		void prepare_fast_page();
 		static void invalidate(vaddr_t);
 
+		static void map_fast_page(paddr_t);
+		static void unmap_fast_page();
+
 	private:
 		paddr_t						m_highest_paging_struct { 0 };
 		mutable RecursiveSpinLock	m_lock;
+		static SpinLock				s_fast_page_lock;
 	};
 
 	static constexpr size_t range_page_count(vaddr_t start, size_t bytes)

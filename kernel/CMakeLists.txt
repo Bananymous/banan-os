@@ -68,7 +68,8 @@ set(KERNEL_SOURCES
 	kernel/Random.cpp
 	kernel/Scheduler.cpp
 	kernel/Semaphore.cpp
-	kernel/SpinLock.cpp
+	kernel/Lock/Mutex.cpp
+	kernel/Lock/SpinLock.cpp
 	kernel/SSP.cpp
 	kernel/Storage/ATA/AHCI/Controller.cpp
 	kernel/Storage/ATA/AHCI/Device.cpp

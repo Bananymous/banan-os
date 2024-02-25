@@ -7,6 +7,21 @@
 namespace Kernel
 {
 
+	class SchedulerLock
+	{
+	public:
+		void lock();
+		void unlock();
+		void unlock_all();
+		pid_t locker() const;
+
+	private:
+		BAN::Atomic<pid_t> m_locker { -1 };
+		uint32_t m_lock_depth { 0 };
+
+		friend class Scheduler;
+	};
+
 	class Scheduler
 	{
 	public:
@@ -19,6 +34,8 @@ namespace Kernel
 		void reschedule();
 		void reschedule_if_idling();
 
+		void reschedule_current_no_save();
+
 		void set_current_thread_sleeping(uint64_t wake_time);
 
 		void block_current_thread(Semaphore*, uint64_t wake_time);
@@ -29,8 +46,8 @@ namespace Kernel
 		Thread& current_thread();
 		static pid_t current_tid();
 
-		[[noreturn]] void execute_current_thread();
-		[[noreturn]] void _execute_current_thread();
+		BAN::ErrorOr<void> add_thread(Thread*);
+
 		[[noreturn]] void delete_current_process_and_thread();
 
 	private:
@@ -43,7 +60,8 @@ namespace Kernel
 		void remove_and_advance_current_thread();
 		void advance_current_thread();
 
-		BAN::ErrorOr<void> add_thread(Thread*);
+		[[noreturn]] void execute_current_thread();
+		[[noreturn]] void _execute_current_thread();
 
 	private:
 		struct SchedulerThread
@@ -57,13 +75,13 @@ namespace Kernel
 			Semaphore*	semaphore;
 		};
 
+		SchedulerLock m_lock;
+
 		Thread* m_idle_thread { nullptr };
 		BAN::LinkedList<SchedulerThread> m_active_threads;
 		BAN::LinkedList<SchedulerThread> m_sleeping_threads;
 
 		BAN::LinkedList<SchedulerThread>::iterator m_current_thread;
-
-		friend class Process;
 	};
 
 }

@@ -1,7 +1,7 @@
 #include <kernel/Arch.h>
 #include <kernel/CPUID.h>
 #include <kernel/InterruptController.h>
-#include <kernel/LockGuard.h>
+#include <kernel/Lock/LockGuard.h>
 #include <kernel/Memory/kmalloc.h>
 #include <kernel/Memory/PageTable.h>
 
@@ -21,6 +21,8 @@ namespace Kernel
 	static PageTable* s_current = nullptr;
 	static bool s_has_nxe = false;
 	static bool s_has_pge = false;
+
+	SpinLock PageTable::s_fast_page_lock;
 
 	// PML4 entry for kernel memory
 	static paddr_t s_global_pml4e = 0;

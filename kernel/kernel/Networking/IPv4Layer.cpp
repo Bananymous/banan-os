@@ -70,7 +70,7 @@ namespace Kernel
 
 	void IPv4Layer::unbind_socket(BAN::RefPtr<NetworkSocket> socket, uint16_t port)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_socket_lock);
 		if (m_bound_sockets.contains(port))
 		{
 			ASSERT(m_bound_sockets[port].valid());
@@ -88,11 +88,11 @@ namespace Kernel
 			return BAN::Error::from_errno(EAFNOSUPPORT);
 		auto& sockaddr_in = *reinterpret_cast<const struct sockaddr_in*>(address);
 
-		LockGuard _(m_lock);
+		LockGuard _(m_socket_lock);
 
 		uint16_t port = NetworkSocket::PORT_NONE;
 		for (uint32_t i = 0; i < 100 && port == NetworkSocket::PORT_NONE; i++)
-			if (uint32_t temp = 0xC000 | (Random::get_u32() & 0x3FFF); !m_bound_sockets.contains(temp))
+			if (uint32_t temp = 0xC000 | (Random::get_u32() & 0x3FFF); !m_bound_sockets.contains(temp) || !m_bound_sockets[temp].valid())
 				port = temp;
 		for (uint32_t temp = 0xC000; temp < 0xFFFF && port == NetworkSocket::PORT_NONE; temp++)
 			if (!m_bound_sockets.contains(temp))
@@ -124,11 +124,17 @@ namespace Kernel
 		auto& sockaddr_in = *reinterpret_cast<const struct sockaddr_in*>(address);
 		uint16_t port = BAN::host_to_network_endian(sockaddr_in.sin_port);
 
-		LockGuard _(m_lock);
+		LockGuard _(m_socket_lock);
 
-		if (m_bound_sockets.contains(port))
-			return BAN::Error::from_errno(EADDRINUSE);
-		TRY(m_bound_sockets.insert(port, TRY(socket->get_weak_ptr())));
+		if (!m_bound_sockets.contains(port))
+			TRY(m_bound_sockets.insert(port, TRY(socket->get_weak_ptr())));
+		else
+		{
+			auto& bound = m_bound_sockets[port];
+			if (bound.valid())
+				return BAN::Error::from_errno(EADDRINUSE);
+			bound = TRY(socket->get_weak_ptr());
+		}
 
 		// FIXME: actually determine proper interface
 		auto interface = NetworkManager::get().interfaces().front();
@@ -243,7 +249,7 @@ namespace Kernel
 		BAN::RefPtr<Kernel::NetworkSocket> bound_socket;
 
 		{
-			LockGuard _(m_lock);
+			LockGuard _(m_socket_lock);
 			if (!m_bound_sockets.contains(dst_port))
 			{
 				dprintln_if(DEBUG_IPV4, "no one is listening on port {}", dst_port);
@@ -280,7 +286,7 @@ namespace Kernel
 			BAN::Optional<PendingIPv4Packet> pending;
 
 			{
-				CriticalScope _;
+				LockGuard _(m_packet_lock);
 				if (!m_pending_packets.empty())
 				{
 					pending = m_pending_packets.front();
@@ -300,7 +306,7 @@ namespace Kernel
 			if (auto ret = handle_ipv4_packet(pending->interface, BAN::ByteSpan(buffer_start, ipv4_packet_size)); ret.is_error())
 				dwarnln("{}", ret.error());
 
-			CriticalScope _;
+			LockGuard _(m_packet_lock);
 			m_pending_total_size -= ipv4_packet_size;
 			if (m_pending_total_size)
 				memmove(buffer_start, buffer_start + ipv4_packet_size, m_pending_total_size);
@@ -309,6 +315,8 @@ namespace Kernel
 
 	void IPv4Layer::add_ipv4_packet(NetworkInterface& interface, BAN::ConstByteSpan buffer)
 	{
+		LockGuard _(m_packet_lock);
+
 		if (m_pending_packets.full())
 		{
 			dwarnln("IPv4 packet queue full");

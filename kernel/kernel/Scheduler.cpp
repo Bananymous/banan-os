@@ -1,8 +1,8 @@
 #include <kernel/Arch.h>
 #include <kernel/Attributes.h>
-#include <kernel/CriticalScope.h>
 #include <kernel/GDT.h>
 #include <kernel/InterruptController.h>
+#include <kernel/Lock/LockGuard.h>
 #include <kernel/Process.h>
 #include <kernel/Scheduler.h>
 #include <kernel/Timer/Timer.h>
@@ -32,6 +32,39 @@ namespace Kernel
 		asm volatile("movq %0, %%rsp" :: "r"(s_temp_stack + sizeof(s_temp_stack)));
 	}
 
+	void SchedulerLock::lock()
+	{
+		auto tid = Scheduler::current_tid();
+		if (tid != m_locker)
+		{
+			while (!m_locker.compare_exchange(-1, tid))
+				__builtin_ia32_pause();
+			ASSERT_EQ(m_lock_depth, 0);
+		}
+		m_lock_depth++;
+	}
+
+	void SchedulerLock::unlock()
+	{
+		ASSERT_EQ(m_locker.load(), Scheduler::current_tid());
+		ASSERT_GT(m_lock_depth, 0);
+		if (--m_lock_depth == 0)
+			m_locker = -1;
+	}
+
+	void SchedulerLock::unlock_all()
+	{
+		ASSERT_EQ(m_locker.load(), Scheduler::current_tid());
+		ASSERT_GT(m_lock_depth, 0);
+		m_lock_depth = 0;
+		m_locker = -1;
+	}
+
+	pid_t SchedulerLock::locker() const
+	{
+		return m_locker;
+	}
+
 	BAN::ErrorOr<void> Scheduler::initialize()
 	{
 		ASSERT(s_instance == nullptr);
@@ -52,6 +85,7 @@ namespace Kernel
 		VERIFY_CLI();
 		ASSERT(!m_active_threads.empty());
 		m_current_thread = m_active_threads.begin();
+		m_lock.lock();
 		execute_current_thread();
 		ASSERT_NOT_REACHED();
 	}
@@ -63,7 +97,7 @@ namespace Kernel
 
 	pid_t Scheduler::current_tid()
 	{
-		if (s_instance == nullptr)
+		if (s_instance == nullptr || s_instance->m_idle_thread == nullptr)
 			return 0;
 		return Scheduler::get().current_thread().tid();
 	}
@@ -71,6 +105,7 @@ namespace Kernel
 	void Scheduler::timer_reschedule()
 	{
 		VERIFY_CLI();
+		m_lock.lock();
 
 		wake_threads();
 
@@ -84,6 +119,7 @@ namespace Kernel
 	void Scheduler::reschedule()
 	{
 		DISABLE_INTERRUPTS();
+		m_lock.lock();
 
 		if (save_current_thread())
 		{
@@ -98,20 +134,30 @@ namespace Kernel
 	void Scheduler::reschedule_if_idling()
 	{
 		VERIFY_CLI();
+		m_lock.lock();
 
 		if (m_active_threads.empty() || &current_thread() != m_idle_thread)
-			return;
+			return m_lock.unlock();
 
 		if (save_current_thread())
 			return;
-		m_current_thread = m_active_threads.begin();
+		m_current_thread = {};
+		advance_current_thread();
 		execute_current_thread();
 		ASSERT_NOT_REACHED();
+	}
+
+	void Scheduler::reschedule_current_no_save()
+	{
+		VERIFY_CLI();
+		m_lock.lock();
+		execute_current_thread();
 	}
 
 	void Scheduler::wake_threads()
 	{
 		VERIFY_CLI();
+		ASSERT_EQ(m_lock.locker(), current_tid());
 
 		uint64_t current_time = SystemTimer::get().ms_since_boot();
 		while (!m_sleeping_threads.empty() && m_sleeping_threads.front().wake_time <= current_time)
@@ -126,7 +172,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Scheduler::add_thread(Thread* thread)
 	{
-		CriticalScope _;
+		LockGuard _(m_lock);
 		TRY(m_active_threads.emplace_back(thread));
 		return {};
 	}
@@ -134,19 +180,20 @@ namespace Kernel
 	void Scheduler::advance_current_thread()
 	{
 		VERIFY_CLI();
+		ASSERT_EQ(m_lock.locker(), current_tid());
 
 		if (m_active_threads.empty())
-		{
 			m_current_thread = {};
-			return;
-		}
-		if (!m_current_thread || ++m_current_thread == m_active_threads.end())
+		else if (!m_current_thread || ++m_current_thread == m_active_threads.end())
 			m_current_thread = m_active_threads.begin();
+
+		m_lock.m_locker = current_tid();
 	}
 
 	void Scheduler::remove_and_advance_current_thread()
 	{
 		VERIFY_CLI();
+		ASSERT_EQ(m_lock.locker(), current_tid());
 
 		ASSERT(m_current_thread);
 
@@ -161,6 +208,8 @@ namespace Kernel
 			advance_current_thread();
 			m_active_threads.remove(temp);
 		}
+
+		m_lock.m_locker = current_tid();
 	}
 
 	// NOTE: this is declared always inline, so we don't corrupt the stack
@@ -168,6 +217,7 @@ namespace Kernel
 	ALWAYS_INLINE bool Scheduler::save_current_thread()
 	{
 		VERIFY_CLI();
+		ASSERT_EQ(m_lock.locker(), current_tid());
 
 		uintptr_t rsp, rip;
 		push_callee_saved();
@@ -190,6 +240,7 @@ namespace Kernel
 	void Scheduler::delete_current_process_and_thread()
 	{
 		DISABLE_INTERRUPTS();
+		m_lock.lock();
 
 		load_temp_stack();
 		PageTable::kernel().load();
@@ -210,6 +261,7 @@ namespace Kernel
 	void Scheduler::execute_current_thread()
 	{
 		VERIFY_CLI();
+		ASSERT_EQ(m_lock.locker(), current_tid());
 
 		load_temp_stack();
 		PageTable::kernel().load();
@@ -220,6 +272,7 @@ namespace Kernel
 	NEVER_INLINE void Scheduler::_execute_current_thread()
 	{
 		VERIFY_CLI();
+		ASSERT_EQ(m_lock.locker(), current_tid());
 
 #if SCHEDULER_VERIFY_STACK
 		vaddr_t rsp;
@@ -266,10 +319,12 @@ namespace Kernel
 		{
 			case Thread::State::NotStarted:
 				current->set_started();
+				m_lock.unlock_all();
 				start_thread(current->rsp(), current->rip());
 			case Thread::State::Executing:
 				while (current->can_add_signal_to_execute())
 					current->handle_signal();
+				m_lock.unlock_all();
 				continue_thread(current->rsp(), current->rip());
 			case Thread::State::Terminated:
 				ASSERT_NOT_REACHED();
@@ -281,6 +336,7 @@ namespace Kernel
 	void Scheduler::set_current_thread_sleeping_impl(uint64_t wake_time)
 	{
 		VERIFY_CLI();
+		ASSERT_EQ(m_lock.locker(), current_tid());
 
 		if (save_current_thread())
 		{
@@ -301,6 +357,7 @@ namespace Kernel
 		);
 
 		m_current_thread = {};
+		m_lock.m_locker = current_tid();
 		advance_current_thread();
 
 		execute_current_thread();
@@ -311,6 +368,7 @@ namespace Kernel
 	{
 		VERIFY_STI();
 		DISABLE_INTERRUPTS();
+		m_lock.lock();
 
 		ASSERT(m_current_thread);
 
@@ -322,6 +380,7 @@ namespace Kernel
 	{
 		VERIFY_STI();
 		DISABLE_INTERRUPTS();
+		m_lock.lock();
 
 		ASSERT(m_current_thread);
 
@@ -331,7 +390,7 @@ namespace Kernel
 
 	void Scheduler::unblock_threads(Semaphore* semaphore)
 	{
-		CriticalScope critical;
+		LockGuard _(m_lock);
 
 		for (auto it = m_sleeping_threads.begin(); it != m_sleeping_threads.end();)
 		{
@@ -352,7 +411,7 @@ namespace Kernel
 
 	void Scheduler::unblock_thread(pid_t tid)
 	{
-		CriticalScope _;
+		LockGuard _(m_lock);
 
 		for (auto it = m_sleeping_threads.begin(); it != m_sleeping_threads.end(); it++)
 		{

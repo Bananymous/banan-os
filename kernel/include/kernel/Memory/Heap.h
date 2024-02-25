@@ -3,8 +3,8 @@
 #include <BAN/NoCopyMove.h>
 #include <BAN/Vector.h>
 
+#include <kernel/Lock/SpinLock.h>
 #include <kernel/Memory/PhysicalRange.h>
-#include <kernel/SpinLock.h>
 
 namespace Kernel
 {

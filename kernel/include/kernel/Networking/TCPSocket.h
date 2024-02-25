@@ -119,8 +119,7 @@ namespace Kernel
 
 		uint64_t m_time_wait_start_ms { 0 };
 
-		RecursiveSpinLock	m_lock;
-		Semaphore			m_semaphore;
+		Semaphore m_semaphore;
 
 		BAN::Atomic<bool> m_should_ack { false };
 

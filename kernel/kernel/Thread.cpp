@@ -3,8 +3,8 @@
 #include <kernel/GDT.h>
 #include <kernel/InterruptController.h>
 #include <kernel/InterruptStack.h>
+#include <kernel/Lock/LockGuard.h>
 #include <kernel/Memory/kmalloc.h>
-#include <kernel/Memory/PageTableScope.h>
 #include <kernel/Process.h>
 #include <kernel/Scheduler.h>
 #include <kernel/Thread.h>
@@ -30,10 +30,10 @@ namespace Kernel
 
 	void Thread::terminate()
 	{
-		CriticalScope _;
+		LockGuard _(m_lock);
 		m_state = Thread::State::Terminated;
 		if (this == &Thread::current())
-			Scheduler::get().execute_current_thread();
+			Scheduler::get().reschedule_current_no_save();
 	}
 
 	static pid_t s_next_tid = 1;
@@ -131,6 +131,8 @@ namespace Kernel
 
 	BAN::ErrorOr<Thread*> Thread::clone(Process* new_process, uintptr_t rsp, uintptr_t rip)
 	{
+		LockGuard _(m_lock);
+
 		ASSERT(m_is_userspace);
 		ASSERT(m_state == State::Executing);
 
@@ -156,6 +158,8 @@ namespace Kernel
 
 	void Thread::setup_exec()
 	{
+		LockGuard _(m_lock);
+
 		ASSERT(is_userspace());
 		m_state = State::NotStarted;
 		static entry_t entry_trampoline(
@@ -172,18 +176,24 @@ namespace Kernel
 		// Signal mask is inherited
 
 		// Setup stack for returning
-		{
-			// FIXME: don't use PageTableScope
-			PageTableScope _(process().page_table());
-			write_to_stack(m_rsp, nullptr); // alignment
-			write_to_stack(m_rsp, this);
-			write_to_stack(m_rsp, &Thread::on_exit);
-			write_to_stack(m_rsp, nullptr);
-		}
+		uintptr_t offset = m_rsp % PAGE_SIZE;
+		if (offset == 0)
+			offset = PAGE_SIZE;
+		ASSERT_GTE(offset, 4 * sizeof(uintptr_t));
+		PageTable::with_fast_page(process().page_table().physical_address_of((m_rsp - 4 * sizeof(uintptr_t)) & PAGE_ADDR_MASK), [&] {
+			uintptr_t rsp = PageTable::fast_page() + offset;
+			write_to_stack(rsp, nullptr); // alignment
+			write_to_stack(rsp, this);
+			write_to_stack(rsp, &Thread::on_exit);
+			write_to_stack(rsp, nullptr);
+			m_rsp -= 4 * sizeof(uintptr_t);
+		});
 	}
 
 	void Thread::setup_process_cleanup()
 	{
+		LockGuard _(m_lock);
+
 		m_state = State::NotStarted;
 		static entry_t entry(
 			[](void* process)
@@ -199,19 +209,23 @@ namespace Kernel
 		m_signal_pending_mask = 0;
 		m_signal_block_mask = ~0ull;
 
-		// Setup stack for returning
-		{
-			// FIXME: don't use PageTableScope
-			PageTableScope _(process().page_table());
-			write_to_stack(m_rsp, nullptr); // alignment
-			write_to_stack(m_rsp, this);
-			write_to_stack(m_rsp, &Thread::on_exit);
-			write_to_stack(m_rsp, m_process);
-		}
+		uintptr_t offset = m_rsp % PAGE_SIZE;
+		if (offset == 0)
+			offset = PAGE_SIZE;
+		ASSERT_GTE(offset, 4 * sizeof(uintptr_t));
+		PageTable::with_fast_page(process().page_table().physical_address_of((m_rsp - 4 * sizeof(uintptr_t)) & PAGE_ADDR_MASK), [&] {
+			uintptr_t rsp = PageTable::fast_page() + offset;
+			write_to_stack(rsp, nullptr); // alignment
+			write_to_stack(rsp, this);
+			write_to_stack(rsp, &Thread::on_exit);
+			write_to_stack(rsp, m_process);
+			m_rsp -= 4 * sizeof(uintptr_t);
+		});
 	}
 
 	bool Thread::is_interrupted_by_signal()
 	{
+		LockGuard _(m_lock);
 		while (can_add_signal_to_execute())
 			handle_signal();
 		return will_execute_signal();
@@ -219,6 +233,7 @@ namespace Kernel
 
 	bool Thread::can_add_signal_to_execute() const
 	{
+		LockGuard _(m_lock);
 		if (!is_userspace() || m_state != State::Executing)
 			return false;
 		auto& interrupt_stack = *reinterpret_cast<InterruptStack*>(interrupt_stack_base() + interrupt_stack_size() - sizeof(InterruptStack));
@@ -230,6 +245,7 @@ namespace Kernel
 
 	bool Thread::will_execute_signal() const
 	{
+		LockGuard _(m_lock);
 		if (!is_userspace() || m_state != State::Executing)
 			return false;
 		auto& interrupt_stack = *reinterpret_cast<InterruptStack*>(interrupt_stack_base() + interrupt_stack_size() - sizeof(InterruptStack));
@@ -238,6 +254,7 @@ namespace Kernel
 
 	void Thread::handle_signal(int signal)
 	{
+		LockGuard _(m_lock);
 		ASSERT(!interrupts_enabled());
 		ASSERT(&Thread::current() == this);
 		ASSERT(is_userspace());
@@ -331,6 +348,7 @@ namespace Kernel
 
 	bool Thread::add_signal(int signal)
 	{
+		LockGuard _(m_lock);
 		ASSERT(!interrupts_enabled());
 		uint64_t mask = 1ull << signal;
 		if (!(m_signal_block_mask & mask))
@@ -373,6 +391,7 @@ namespace Kernel
 
 	void Thread::validate_stack() const
 	{
+		LockGuard _(m_lock);
 		if (stack_base() <= m_rsp && m_rsp <= stack_base() + stack_size())
 			return;
 		if (interrupt_stack_base() <= m_rsp && m_rsp <= interrupt_stack_base() + interrupt_stack_size())

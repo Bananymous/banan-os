@@ -1,9 +1,12 @@
 #include <BAN/Errors.h>
-#include <kernel/CriticalScope.h>
 #include <kernel/kprint.h>
+#include <kernel/Lock/LockGuard.h>
 #include <kernel/Memory/kmalloc.h>
 
 #include <kernel/Thread.h>
+
+using Kernel::LockGuard;
+using Kernel::SpinLock;
 
 #define MB (1 << 20)
 
@@ -81,6 +84,8 @@ struct kmalloc_info
 };
 static kmalloc_info s_kmalloc_info;
 
+static SpinLock s_kmalloc_lock;
+
 template<size_t SIZE>
 struct kmalloc_fixed_node
 {
@@ -144,6 +149,8 @@ void kmalloc_initialize()
 
 void kmalloc_dump_info()
 {
+	LockGuard _(s_kmalloc_lock);
+
 	kprintln("kmalloc:               0x{8H}->0x{8H}", s_kmalloc_info.base, s_kmalloc_info.end);
 	kprintln("  used: 0x{8H}", s_kmalloc_info.used);
 	kprintln("  free: 0x{8H}", s_kmalloc_info.free);
@@ -155,14 +162,18 @@ void kmalloc_dump_info()
 
 static bool is_corrupted()
 {
+	LockGuard _(s_kmalloc_lock);
 	auto& info = s_kmalloc_info;
 	auto* temp = info.first();
-	for (; temp->end() <= info.end; temp = temp->after());
+	for (; temp->end() <= info.end; temp = temp->after())
+		continue;
 	return (uintptr_t)temp != info.end;
 }
 
 [[maybe_unused]] static void debug_dump()
 {
+	LockGuard _(s_kmalloc_lock);
+
 	auto& info = s_kmalloc_info;
 
 	uint32_t used = 0;
@@ -182,6 +193,8 @@ static bool is_corrupted()
 static void* kmalloc_fixed()
 {
 	auto& info = s_kmalloc_fixed_info;
+
+	LockGuard _(s_kmalloc_lock);
 
 	if (!info.free_list_head)
 		return nullptr;
@@ -224,6 +237,8 @@ static void* kmalloc_impl(size_t size, size_t align)
 	ASSERT(size % s_kmalloc_min_align == 0);
 
 	auto& info = s_kmalloc_info;
+
+	LockGuard _(s_kmalloc_lock);
 
 	for (auto* node = info.first(); node->end() <= info.end; node = node->after())
 	{
@@ -304,8 +319,6 @@ void* kmalloc(size_t size, size_t align, bool force_identity_map)
 		align = s_kmalloc_min_align;
 	ASSERT(align <= PAGE_SIZE);
 
-	Kernel::CriticalScope critical;
-
 	if (size == 0 || size >= info.size)
 		goto no_memory;
 
@@ -338,7 +351,7 @@ void kfree(void* address)
 	uintptr_t address_uint = (uintptr_t)address;
 	ASSERT(address_uint % s_kmalloc_min_align == 0);
 
-	Kernel::CriticalScope critical;
+	LockGuard _(s_kmalloc_lock);
 
 	if (s_kmalloc_fixed_info.base <= address_uint && address_uint < s_kmalloc_fixed_info.end)
 	{
@@ -399,10 +412,9 @@ void kfree(void* address)
 
 BAN::Optional<Kernel::paddr_t> kmalloc_paddr_of(Kernel::vaddr_t vaddr)
 {
-	using namespace Kernel;
-
+	using Kernel::vaddr_t;
+	LockGuard _(s_kmalloc_lock);
 	if ((vaddr_t)s_kmalloc_storage <= vaddr && vaddr < (vaddr_t)s_kmalloc_storage + sizeof(s_kmalloc_storage))
 		return V2P(vaddr);
-
 	return {};
 }

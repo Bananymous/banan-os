@@ -2,7 +2,6 @@
 
 #include <kernel/FS/Inode.h>
 #include <kernel/Semaphore.h>
-#include <kernel/SpinLock.h>
 
 namespace Kernel
 {

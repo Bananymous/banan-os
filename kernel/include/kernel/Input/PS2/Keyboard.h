@@ -45,6 +45,7 @@ namespace Kernel::Input
 		PS2Keymap m_keymap;
 
 		Semaphore m_semaphore;
+		SpinLock m_event_lock;
 
 	protected:
 		virtual BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan) override;

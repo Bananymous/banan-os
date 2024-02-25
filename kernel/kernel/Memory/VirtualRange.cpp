@@ -1,5 +1,4 @@
-#include <kernel/CriticalScope.h>
-#include <kernel/LockGuard.h>
+#include <kernel/Lock/LockGuard.h>
 #include <kernel/Memory/Heap.h>
 #include <kernel/Memory/VirtualRange.h>
 
@@ -135,10 +134,9 @@ namespace Kernel
 				result->m_page_table.map_page_at(paddr, vaddr() + offset, m_flags);
 			}
 
-			CriticalScope _;
-			PageTable::map_fast_page(result->m_page_table.physical_address_of(vaddr() + offset));
-			memcpy(PageTable::fast_page_as_ptr(), (void*)(vaddr() + offset), PAGE_SIZE);
-			PageTable::unmap_fast_page();
+			PageTable::with_fast_page(result->m_page_table.physical_address_of(vaddr() + offset), [&] {
+				memcpy(PageTable::fast_page_as_ptr(), (void*)(vaddr() + offset), PAGE_SIZE);
+			});
 		}
 
 		return result;
@@ -176,10 +174,9 @@ namespace Kernel
 
 		for (size_t offset = 0; offset < size(); offset += PAGE_SIZE)
 		{
-			CriticalScope _;
-			PageTable::map_fast_page(m_page_table.physical_address_of(vaddr() + offset));
-			memset(PageTable::fast_page_as_ptr(), 0x00, PAGE_SIZE);
-			PageTable::unmap_fast_page();
+			PageTable::with_fast_page(m_page_table.physical_address_of(vaddr() + offset), [&] {
+				memset(PageTable::fast_page_as_ptr(), 0x00, PAGE_SIZE);
+			});
 		}
 	}
 
@@ -204,12 +201,9 @@ namespace Kernel
 
 		while (bytes > 0)
 		{
-			{
-				CriticalScope _;
-				PageTable::map_fast_page(m_page_table.physical_address_of(vaddr() + page_index * PAGE_SIZE));
+			PageTable::with_fast_page(m_page_table.physical_address_of(vaddr() + page_index * PAGE_SIZE), [&] {
 				memcpy(PageTable::fast_page_as_ptr(page_offset), buffer, PAGE_SIZE - page_offset);
-				PageTable::unmap_fast_page();
-			}
+			});
 
 			buffer += PAGE_SIZE - page_offset;
 			bytes  -= PAGE_SIZE - page_offset;

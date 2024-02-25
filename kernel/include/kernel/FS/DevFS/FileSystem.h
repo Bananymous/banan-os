@@ -29,7 +29,7 @@ namespace Kernel
 		{ }
 
 	private:
-		mutable SpinLock m_device_lock;
+		mutable Mutex m_device_lock;
 
 		BAN::Vector<BAN::RefPtr<Device>> m_devices;
 

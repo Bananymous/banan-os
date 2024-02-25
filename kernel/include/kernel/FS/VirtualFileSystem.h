@@ -3,7 +3,7 @@
 #include <BAN/String.h>
 #include <BAN/Vector.h>
 #include <kernel/FS/FileSystem.h>
-#include <kernel/SpinLock.h>
+#include <kernel/Lock/Mutex.h>
 
 namespace Kernel
 {
@@ -42,7 +42,7 @@ namespace Kernel
 		MountPoint* mount_from_root_inode(BAN::RefPtr<Inode>);
 
 	private:
-		SpinLock				m_lock;
+		Mutex					m_mutex;
 		FileSystem*				m_root_fs = nullptr;
 		BAN::Vector<MountPoint>	m_mount_points;
 	};

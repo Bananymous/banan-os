@@ -1,4 +1,4 @@
-#include <kernel/LockGuard.h>
+#include <kernel/Lock/LockGuard.h>
 #include <kernel/Networking/ARPTable.h>
 #include <kernel/Scheduler.h>
 #include <kernel/Timer/Timer.h>
@@ -52,7 +52,7 @@ namespace Kernel
 			ipv4_address = interface.get_gateway();
 
 		{
-			LockGuard _(m_lock);
+			LockGuard _(m_table_lock);
 			if (m_arp_table.contains(ipv4_address))
 				return m_arp_table[ipv4_address];
 		}
@@ -74,7 +74,7 @@ namespace Kernel
 		while (SystemTimer::get().ms_since_boot() < timeout)
 		{
 			{
-				LockGuard _(m_lock);
+				LockGuard _(m_table_lock);
 				if (m_arp_table.contains(ipv4_address))
 					return m_arp_table[ipv4_address];
 			}
@@ -114,7 +114,7 @@ namespace Kernel
 			}
 			case ARPOperation::Reply:
 			{
-				LockGuard _(m_lock);
+				LockGuard _(m_table_lock);
 				if (m_arp_table.contains(packet.spa))
 				{
 					if (m_arp_table[packet.spa] != packet.sha)
@@ -145,7 +145,7 @@ namespace Kernel
 			BAN::Optional<PendingArpPacket> pending;
 
 			{
-				CriticalScope _;
+				LockGuard _(m_pending_lock);
 				if (!m_pending_packets.empty())
 				{
 					pending = m_pending_packets.front();
@@ -168,12 +168,12 @@ namespace Kernel
 	{
 		auto& arp_packet = buffer.as<const ARPPacket>();
 
+		LockGuard _(m_pending_lock);
 		if (m_pending_packets.full())
 		{
 			dprintln("arp packet queue full");
 			return;
 		}
-
 		m_pending_packets.push({ .interface = interface, .packet = arp_packet });
 		m_pending_semaphore.unblock();
 	}

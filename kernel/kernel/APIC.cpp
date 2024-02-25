@@ -1,9 +1,10 @@
 #include <BAN/ScopeGuard.h>
-#include <kernel/Debug.h>
 #include <kernel/ACPI.h>
 #include <kernel/APIC.h>
 #include <kernel/CPUID.h>
+#include <kernel/Debug.h>
 #include <kernel/IDT.h>
+#include <kernel/Lock/LockGuard.h>
 #include <kernel/Memory/PageTable.h>
 #include <kernel/MMIO.h>
 
@@ -223,7 +224,7 @@ namespace Kernel
 
 	void APIC::enable_irq(uint8_t irq)
 	{
-		CriticalScope _;
+		LockGuard _(m_lock);
 
 		uint32_t gsi = m_irq_overrides[irq];
 
@@ -268,7 +269,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> APIC::reserve_irq(uint8_t irq)
 	{
-		CriticalScope _;
+		LockGuard _(m_lock);
 
 		uint32_t gsi = m_irq_overrides[irq];
 
@@ -301,7 +302,7 @@ namespace Kernel
 
 	BAN::Optional<uint8_t> APIC::get_free_irq()
 	{
-		CriticalScope _;
+		LockGuard _(m_lock);
 		for (int irq = 0; irq <= 0xFF; irq++)
 		{
 			uint32_t gsi = m_irq_overrides[irq];

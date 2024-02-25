@@ -4,7 +4,7 @@
 #include <kernel/Debug.h>
 #include <kernel/Device/DeviceNumbers.h>
 #include <kernel/FS/DevFS/FileSystem.h>
-#include <kernel/LockGuard.h>
+#include <kernel/Lock/LockGuard.h>
 #include <kernel/Process.h>
 #include <kernel/Terminal/VirtualTTY.h>
 
@@ -57,6 +57,7 @@ namespace Kernel
 
 	void VirtualTTY::clear()
 	{
+		LockGuard _(m_write_lock);
 		for (uint32_t i = 0; i < m_width * m_height; i++)
 			m_buffer[i] = { .foreground = m_foreground, .background = m_background, .codepoint = ' ' };
 		m_terminal_driver->clear(m_background);
@@ -64,6 +65,7 @@ namespace Kernel
 
 	void VirtualTTY::set_font(const Kernel::Font& font)
 	{
+		LockGuard _(m_write_lock);
 		m_terminal_driver->set_font(font);
 
 		uint32_t new_width = m_terminal_driver->width();
@@ -306,7 +308,7 @@ namespace Kernel
 
 	void VirtualTTY::putchar_impl(uint8_t ch)
 	{
-		ASSERT(m_lock.is_locked());
+		LockGuard _(m_write_lock);
 
 		uint32_t codepoint = ch;
 

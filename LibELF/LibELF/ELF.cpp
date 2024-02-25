@@ -4,7 +4,6 @@
 
 #ifdef __is_kernel
 #include <kernel/FS/VirtualFileSystem.h>
-#include <kernel/Memory/PageTableScope.h>
 #include <kernel/Process.h>
 #endif
 
@@ -26,7 +25,7 @@ namespace LibELF
 		BAN::Vector<uint8_t> buffer;
 		TRY(buffer.resize(inode->size()));
 
-		TRY(inode->read(0, buffer.data(), inode->size()));
+		TRY(inode->read(0, { buffer.data(), inode->size() }));
 
 		ELF* elf_ptr = new ELF(BAN::move(buffer));
 		if (elf_ptr == nullptr)

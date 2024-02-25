@@ -38,6 +38,7 @@ namespace Kernel::Input
 
 		BAN::CircularQueue<MouseEvent, 128> m_event_queue;
 
+		SpinLock m_event_lock;
 		Semaphore m_semaphore;
 
 	protected:

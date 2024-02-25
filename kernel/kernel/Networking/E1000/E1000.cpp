@@ -261,7 +261,7 @@ namespace Kernel
 	{
 		ASSERT_LTE(buffer.size() + sizeof(EthernetHeader), E1000_TX_BUFFER_SIZE);
 
-		CriticalScope _;
+		LockGuard _(m_lock);
 
 		size_t tx_current = read32(REG_TDT) % E1000_TX_DESCRIPTOR_COUNT;
 

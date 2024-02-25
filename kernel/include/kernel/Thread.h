@@ -113,6 +113,8 @@ namespace Kernel
 		Process*					m_process			{ nullptr };
 		bool						m_is_userspace		{ false };
 
+		mutable RecursiveSpinLock	m_lock;
+
 		uintptr_t*					m_return_rsp		{ nullptr };
 		uintptr_t*					m_return_rip		{ nullptr };
 

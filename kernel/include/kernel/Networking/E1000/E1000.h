@@ -67,6 +67,8 @@ namespace Kernel
 		bool							m_has_eerprom { false };
 
 	private:
+		SpinLock m_lock;
+
 		BAN::UniqPtr<DMARegion>	m_rx_buffer_region;
 		BAN::UniqPtr<DMARegion>	m_tx_buffer_region;
 		BAN::UniqPtr<DMARegion>	m_rx_descriptor_region;

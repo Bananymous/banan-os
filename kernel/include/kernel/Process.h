@@ -10,7 +10,6 @@
 #include <kernel/Memory/Heap.h>
 #include <kernel/Memory/MemoryRegion.h>
 #include <kernel/OpenFileDescriptorSet.h>
-#include <kernel/SpinLock.h>
 #include <kernel/Terminal/TTY.h>
 #include <kernel/Thread.h>
 
@@ -222,7 +221,8 @@ namespace Kernel
 		const pid_t m_pid;
 		const pid_t m_parent;
 
-		mutable RecursiveSpinLock m_lock;
+		mutable Mutex m_big_mutex;
+		SpinLock m_signal_lock;
 
 		BAN::String m_working_directory;
 		BAN::Vector<Thread*> m_threads;

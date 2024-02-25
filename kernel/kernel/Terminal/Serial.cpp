@@ -1,5 +1,4 @@
 #include <BAN/Array.h>
-#include <kernel/CriticalScope.h>
 #include <kernel/Device/DeviceNumbers.h>
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/IDT.h>
@@ -235,7 +234,7 @@ namespace Kernel
 		uint8_t buffer[128];
 
 		{
-			CriticalScope _;
+			LockGuard _(m_lock);
 			if (m_input.empty())
 				return;
 			uint8_t* ptr = buffer;

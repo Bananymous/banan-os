@@ -2,6 +2,7 @@
 
 #include <BAN/Vector.h>
 #include <kernel/InterruptController.h>
+#include <kernel/Lock/SpinLock.h>
 #include <kernel/Memory/Types.h>
 
 namespace Kernel
@@ -58,6 +59,7 @@ namespace Kernel
 		BAN::Vector<IOAPIC>		m_io_apics;
 		uint8_t					m_irq_overrides[0x100] {};
 		uint8_t					m_reserved_gsis[0x100 / 8] {};
+		SpinLock				m_lock;
 	};
 
 }

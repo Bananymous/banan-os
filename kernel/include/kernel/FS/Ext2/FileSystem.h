@@ -106,7 +106,7 @@ namespace Kernel
 		};
 
 	private:
-		RecursiveSpinLock m_lock;
+		Mutex m_mutex;
 
 		BAN::RefPtr<BlockDevice> m_block_device;
 

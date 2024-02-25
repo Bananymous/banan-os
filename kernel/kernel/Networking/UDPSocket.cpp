@@ -1,4 +1,4 @@
-#include <kernel/LockGuard.h>
+#include <kernel/Lock/LockGuard.h>
 #include <kernel/Memory/Heap.h>
 #include <kernel/Networking/UDPSocket.h>
 #include <kernel/Thread.h>

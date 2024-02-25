@@ -1,5 +1,5 @@
 #include <kernel/FS/Pipe.h>
-#include <kernel/LockGuard.h>
+#include <kernel/Lock/LockGuard.h>
 #include <kernel/Thread.h>
 #include <kernel/Timer/Timer.h>
 
@@ -26,14 +26,14 @@ namespace Kernel
 
 	void Pipe::clone_writing()
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 		ASSERT(m_writing_count > 0);
 		m_writing_count++;
 	}
 
 	void Pipe::close_writing()
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 		ASSERT(m_writing_count > 0);
 		m_writing_count--;
 		if (m_writing_count == 0)
@@ -42,12 +42,11 @@ namespace Kernel
 
 	BAN::ErrorOr<size_t> Pipe::read_impl(off_t, BAN::ByteSpan buffer)
 	{
-		LockGuard _(m_lock);
 		while (m_buffer.empty())
 		{
 			if (m_writing_count == 0)
 				return 0;
-			LockFreeGuard lock_free(m_lock);
+			LockFreeGuard lock_free(m_mutex);
 			TRY(Thread::current().block_or_eintr_indefinite(m_semaphore));
 		}
 
@@ -66,8 +65,6 @@ namespace Kernel
 
 	BAN::ErrorOr<size_t> Pipe::write_impl(off_t, BAN::ConstByteSpan buffer)
 	{
-		LockGuard _(m_lock);
-
 		size_t old_size = m_buffer.size();
 
 		TRY(m_buffer.resize(old_size + buffer.size()));

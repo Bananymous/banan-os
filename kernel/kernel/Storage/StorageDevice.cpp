@@ -4,7 +4,7 @@
 #include <BAN/UTF8.h>
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/FS/VirtualFileSystem.h>
-#include <kernel/LockGuard.h>
+#include <kernel/Lock/LockGuard.h>
 #include <kernel/PCI.h>
 #include <kernel/Storage/StorageDevice.h>
 #include <kernel/Thread.h>
@@ -150,7 +150,7 @@ namespace Kernel
 		BAN::Vector<uint8_t> lba1;
 		TRY(lba1.resize(sector_size()));
 
-		TRY(read_sectors(1, 1, lba1.span()));
+		TRY(read_sectors(1, 1, BAN::ByteSpan { lba1.span() }));
 
 		const GPTHeader& header = *(const GPTHeader*)lba1.data();
 		if (!is_valid_gpt_header(header, sector_size()))
@@ -165,7 +165,7 @@ namespace Kernel
 
 		BAN::Vector<uint8_t> entry_array;
 		TRY(entry_array.resize(size));
-		TRY(read_sectors(header.partition_entry_lba, size / sector_size(), entry_array.span()));
+		TRY(read_sectors(header.partition_entry_lba, size / sector_size(), BAN::ByteSpan { entry_array.span() }));
 
 		if (!is_valid_gpt_crc32(header, lba1, entry_array))
 			return BAN::Error::from_error_code(ErrorCode::Storage_GPTHeader);
@@ -207,14 +207,14 @@ namespace Kernel
 
 	void StorageDevice::add_disk_cache()
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 		ASSERT(!m_disk_cache.has_value());
 		m_disk_cache.emplace(sector_size(), *this);
 	}
 
 	BAN::ErrorOr<void> StorageDevice::sync_disk_cache()
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 		if (m_disk_cache.has_value())
 			TRY(m_disk_cache->sync());
 		return {};
@@ -224,15 +224,12 @@ namespace Kernel
 	{
 		ASSERT(buffer.size() >= sector_count * sector_size());
 
-		{
-			LockGuard _(m_lock);
-			if (!m_disk_cache.has_value())
-				return read_sectors_impl(lba, sector_count, buffer);
-		}
+		LockGuard _(m_mutex);
+		if (!m_disk_cache.has_value())
+			return read_sectors_impl(lba, sector_count, buffer);
 
 		for (uint64_t offset = 0; offset < sector_count; offset++)
 		{
-			LockGuard _(m_lock);
 			auto sector_buffer = buffer.slice(offset * sector_size(), sector_size());
 			if (m_disk_cache->read_from_cache(lba + offset, sector_buffer))
 				continue;
@@ -247,15 +244,12 @@ namespace Kernel
 	{
 		ASSERT(buffer.size() >= sector_count * sector_size());
 
-		{
-			LockGuard _(m_lock);
-			if (!m_disk_cache.has_value())
-				return write_sectors_impl(lba, sector_count, buffer);
-		}
+		LockGuard _(m_mutex);
+		if (!m_disk_cache.has_value())
+			return write_sectors_impl(lba, sector_count, buffer);
 
 		for (uint8_t offset = 0; offset < sector_count; offset++)
 		{
-			LockGuard _(m_lock);
 			auto sector_buffer = buffer.slice(offset * sector_size(), sector_size());
 			if (m_disk_cache->write_to_cache(lba + offset, sector_buffer, true).is_error())
 				TRY(write_sectors_impl(lba + offset, 1, sector_buffer));

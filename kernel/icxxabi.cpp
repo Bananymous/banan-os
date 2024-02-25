@@ -1,6 +1,4 @@
-#include <kernel/LockGuard.h>
 #include <kernel/Panic.h>
-#include <kernel/SpinLock.h>
 
 #define ATEXIT_MAX_FUNCS 128
 
@@ -115,21 +113,17 @@ void __cxa_finalize(void *f)
 
 namespace __cxxabiv1
 {
-	/* guard variables */
-	static Kernel::SpinLock s_spin_lock;
 
 	/* The ABI requires a 64-bit type.  */
 	__extension__ typedef int __guard __attribute__((mode(__DI__)));
 
 	int __cxa_guard_acquire (__guard* g)
 	{
-		Kernel::LockGuard lock_guard(s_spin_lock);
 		return !*(int*)g;
 	}
 
 	void __cxa_guard_release (__guard* g)
 	{
-		Kernel::LockGuard lock_guard(s_spin_lock);
 		*(int*)g = 1;
 	}
 

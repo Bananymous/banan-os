@@ -1,6 +1,6 @@
-#include <kernel/CriticalScope.h>
 #include <kernel/IDT.h>
 #include <kernel/IO.h>
+#include <kernel/Lock/LockGuard.h>
 #include <kernel/PIC.h>
 
 #include <string.h>
@@ -79,7 +79,7 @@ namespace Kernel
 
 	void PIC::enable_irq(uint8_t irq)
 	{
-		CriticalScope _;
+		LockGuard _(m_lock);
 		ASSERT(irq < 16);
 		ASSERT(m_reserved_irqs & (1 << irq));
 
@@ -99,7 +99,7 @@ namespace Kernel
 			dwarnln("PIC only supports 16 irqs");
 			return BAN::Error::from_errno(EFAULT);
 		}
-		CriticalScope _;
+		LockGuard _(m_lock);
 		if (m_reserved_irqs & (1 << irq))
 		{
 			dwarnln("irq {} is already reserved", irq);
@@ -111,7 +111,7 @@ namespace Kernel
 
 	BAN::Optional<uint8_t> PIC::get_free_irq()
 	{
-		CriticalScope _;
+		LockGuard _(m_lock);
 		for (int irq = 0; irq < 16; irq++)
 		{
 			if (m_reserved_irqs & (1 << irq))

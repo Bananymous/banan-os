@@ -3,7 +3,6 @@
 #include <BAN/Array.h>
 #include <kernel/Device/Device.h>
 #include <kernel/Input/KeyEvent.h>
-#include <kernel/SpinLock.h>
 #include <kernel/Terminal/TerminalDriver.h>
 #include <kernel/Terminal/termios.h>
 #include <kernel/Terminal/TTY.h>
@@ -69,6 +68,8 @@ namespace Kernel
 
 	private:
 		BAN::String m_name;
+
+		RecursiveSpinLock m_write_lock;
 
 		State m_state { State::Normal };
 		AnsiState m_ansi_state { };

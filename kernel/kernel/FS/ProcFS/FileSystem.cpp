@@ -1,6 +1,5 @@
 #include <kernel/FS/ProcFS/FileSystem.h>
 #include <kernel/FS/ProcFS/Inode.h>
-#include <kernel/LockGuard.h>
 
 namespace Kernel
 {

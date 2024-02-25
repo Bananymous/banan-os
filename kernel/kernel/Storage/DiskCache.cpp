@@ -1,5 +1,4 @@
-#include <kernel/CriticalScope.h>
-#include <kernel/LockGuard.h>
+#include <kernel/Lock/LockGuard.h>
 #include <kernel/Memory/Heap.h>
 #include <kernel/Memory/PageTable.h>
 #include <kernel/Storage/DiskCache.h>
@@ -32,10 +31,6 @@ namespace Kernel
 		uint64_t page_cache_offset = sector % sectors_per_page;
 		uint64_t page_cache_start = sector - page_cache_offset;
 
-		PageTable& page_table = PageTable::current();
-		LockGuard page_table_locker(page_table);
-		ASSERT(page_table.is_page_free(0));
-
 		for (auto& cache : m_cache)
 		{
 			if (cache.first_sector < page_cache_start)
@@ -46,10 +41,9 @@ namespace Kernel
 			if (!(cache.sector_mask & (1 << page_cache_offset)))
 				continue;
 
-			CriticalScope _;
-			PageTable::map_fast_page(cache.paddr);
-			memcpy(buffer.data(), PageTable::fast_page_as_ptr(page_cache_offset * m_sector_size), m_sector_size);
-			PageTable::unmap_fast_page();
+			PageTable::with_fast_page(cache.paddr, [&] {
+				memcpy(buffer.data(), PageTable::fast_page_as_ptr(page_cache_offset * m_sector_size), m_sector_size);
+			});
 
 			return true;
 		}
@@ -64,10 +58,6 @@ namespace Kernel
 		uint64_t page_cache_offset = sector % sectors_per_page;
 		uint64_t page_cache_start = sector - page_cache_offset;
 
-		PageTable& page_table = PageTable::current();
-		LockGuard page_table_locker(page_table);
-		ASSERT(page_table.is_page_free(0));
-
 		size_t index = 0;
 
 		// Search the cache if the have this sector in memory
@@ -80,12 +70,9 @@ namespace Kernel
 			if (cache.first_sector > page_cache_start)
 				break;
 
-			{
-				CriticalScope _;
-				PageTable::map_fast_page(cache.paddr);
+			PageTable::with_fast_page(cache.paddr, [&] {
 				memcpy(PageTable::fast_page_as_ptr(page_cache_offset * m_sector_size), buffer.data(), m_sector_size);
-				PageTable::unmap_fast_page();
-			}
+			});
 
 			cache.sector_mask |= 1 << page_cache_offset;
 			if (dirty)
@@ -111,12 +98,9 @@ namespace Kernel
 			return ret.error();
 		}
 
-		{
-			CriticalScope _;
-			PageTable::map_fast_page(cache.paddr);
+		PageTable::with_fast_page(cache.paddr, [&] {
 			memcpy(PageTable::fast_page_as_ptr(page_cache_offset * m_sector_size), buffer.data(), m_sector_size);
-			PageTable::unmap_fast_page();
-		}
+		});
 
 		return {};
 	}
@@ -128,12 +112,9 @@ namespace Kernel
 			if (cache.dirty_mask == 0)
 				continue;
 
-			{
-				CriticalScope _;
-				PageTable::map_fast_page(cache.paddr);
+			PageTable::with_fast_page(cache.paddr, [&] {
 				memcpy(m_sync_cache.data(), PageTable::fast_page_as_ptr(), PAGE_SIZE);
-				PageTable::unmap_fast_page();
-			}
+			});
 
 			uint8_t sector_start = 0;
 			uint8_t sector_count = 0;

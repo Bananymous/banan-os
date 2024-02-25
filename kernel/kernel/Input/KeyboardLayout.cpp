@@ -1,7 +1,7 @@
 #include <BAN/HashMap.h>
-#include <kernel/CriticalScope.h>
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/Input/KeyboardLayout.h>
+#include <kernel/Lock/LockGuard.h>
 
 #include <ctype.h>
 
@@ -74,6 +74,7 @@ namespace Kernel::Input
 
 	Key KeyboardLayout::get_key_from_event(KeyEvent event)
 	{
+		LockGuard _(m_lock);
 		if (event.shift())
 			return m_keycode_to_key_shift[event.keycode];
 		if (event.ralt())
@@ -256,7 +257,7 @@ namespace Kernel::Input
 			}
 		}
 
-		CriticalScope _;
+		LockGuard _(m_lock);
 
 		for (size_t i = 0; i < new_layout->m_keycode_to_key_normal.size(); i++)
 			if (new_layout->m_keycode_to_key_normal[i] != Key::None)

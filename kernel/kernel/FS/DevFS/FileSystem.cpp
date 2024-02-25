@@ -5,7 +5,7 @@
 #include <kernel/Device/ZeroDevice.h>
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/FS/TmpFS/Inode.h>
-#include <kernel/LockGuard.h>
+#include <kernel/Lock/LockGuard.h>
 #include <kernel/Process.h>
 #include <kernel/Scheduler.h>
 #include <kernel/Storage/StorageDevice.h>
