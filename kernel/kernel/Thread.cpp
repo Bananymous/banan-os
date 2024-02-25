@@ -179,14 +179,15 @@ namespace Kernel
 		// Signal mask is inherited
 
 		// Setup stack for returning
-		{
-			// FIXME: don't use PageTableScope
-			PageTableScope _(process().page_table());
-			write_to_stack(m_rsp, nullptr); // alignment
-			write_to_stack(m_rsp, this);
-			write_to_stack(m_rsp, &Thread::on_exit);
-			write_to_stack(m_rsp, nullptr);
-		}
+		ASSERT_EQ(m_rsp % PAGE_SIZE, 0u);
+		PageTable::with_fast_page(process().page_table().physical_address_of(m_rsp - PAGE_SIZE), [&] {
+			uintptr_t rsp = PageTable::fast_page() + PAGE_SIZE;
+			write_to_stack(rsp, nullptr); // alignment
+			write_to_stack(rsp, this);
+			write_to_stack(rsp, &Thread::on_exit);
+			write_to_stack(rsp, nullptr);
+			m_rsp -= 4 * sizeof(uintptr_t);
+		});
 	}
 
 	void Thread::setup_process_cleanup()
@@ -206,15 +207,15 @@ namespace Kernel
 		m_signal_pending_mask = 0;
 		m_signal_block_mask = ~0ull;
 
-		// Setup stack for returning
-		{
-			// FIXME: don't use PageTableScope
-			PageTableScope _(process().page_table());
-			write_to_stack(m_rsp, nullptr); // alignment
-			write_to_stack(m_rsp, this);
-			write_to_stack(m_rsp, &Thread::on_exit);
-			write_to_stack(m_rsp, m_process);
-		}
+		ASSERT_EQ(m_rsp % PAGE_SIZE, 0u);
+		PageTable::with_fast_page(process().page_table().physical_address_of(m_rsp - PAGE_SIZE), [&] {
+			uintptr_t rsp = PageTable::fast_page() + PAGE_SIZE;
+			write_to_stack(rsp, nullptr); // alignment
+			write_to_stack(rsp, this);
+			write_to_stack(rsp, &Thread::on_exit);
+			write_to_stack(rsp, m_process);
+			m_rsp -= 4 * sizeof(uintptr_t);
+		});
 	}
 
 	bool Thread::is_interrupted_by_signal()
