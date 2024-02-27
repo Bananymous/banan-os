@@ -57,6 +57,8 @@ namespace BAN
 		T& operator[](const Key&);
 		const T& operator[](const Key&) const;
 
+		iterator find(const Key& key);
+		const_iterator find(const Key& key) const;
 		bool contains(const Key&) const;
 
 		bool empty() const;
@@ -66,6 +68,8 @@ namespace BAN
 		ErrorOr<void> rebucket(size_type);
 		LinkedList<Entry>& get_bucket(const Key&);
 		const LinkedList<Entry>& get_bucket(const Key&) const;
+		Vector<LinkedList<Entry>>::iterator get_bucket_iterator(const Key&);
+		Vector<LinkedList<Entry>>::const_iterator get_bucket_iterator(const Key&) const;
 
 	private:
 		Vector<LinkedList<Entry>> m_buckets;
@@ -188,14 +192,33 @@ namespace BAN
 	}
 
 	template<typename Key, typename T, typename HASH>
+	typename HashMap<Key, T, HASH>::iterator HashMap<Key, T, HASH>::find(const Key& key)
+	{
+		if (empty())
+			return end();
+		auto bucket_it = get_bucket_iterator(key);
+		for (auto it = bucket_it->begin(); it != bucket_it->end(); it++)
+			if (it->key == key)
+				return iterator(m_buckets.end(), bucket_it, it);
+		return end();
+	}
+
+	template<typename Key, typename T, typename HASH>
+	typename HashMap<Key, T, HASH>::const_iterator HashMap<Key, T, HASH>::find(const Key& key) const
+	{
+		if (empty())
+			return end();
+		auto bucket_it = get_bucket_iterator(key);
+		for (auto it = bucket_it->begin(); it != bucket_it->end(); it++)
+			if (it->key == key)
+				return const_iterator(m_buckets.end(), bucket_it, it);
+		return end();
+	}
+
+	template<typename Key, typename T, typename HASH>
 	bool HashMap<Key, T, HASH>::contains(const Key& key) const
 	{
-		if (empty()) return false;
-		const auto& bucket = get_bucket(key);
-		for (const Entry& entry : bucket)
-			if (entry.key == key)
-				return true;
-		return false;
+		return find(key) != end();
 	}
 
 	template<typename Key, typename T, typename HASH>
@@ -236,17 +259,29 @@ namespace BAN
 	template<typename Key, typename T, typename HASH>
 	LinkedList<typename HashMap<Key, T, HASH>::Entry>& HashMap<Key, T, HASH>::get_bucket(const Key& key)
 	{
-		ASSERT(!m_buckets.empty());
-		auto index = HASH()(key) % m_buckets.size();
-		return m_buckets[index];
+		return *get_bucket_iterator(key);
 	}
 
 	template<typename Key, typename T, typename HASH>
 	const LinkedList<typename HashMap<Key, T, HASH>::Entry>& HashMap<Key, T, HASH>::get_bucket(const Key& key) const
 	{
+		return *get_bucket_iterator(key);
+	}
+
+	template<typename Key, typename T, typename HASH>
+	Vector<LinkedList<typename HashMap<Key, T, HASH>::Entry>>::iterator HashMap<Key, T, HASH>::get_bucket_iterator(const Key& key)
+	{
 		ASSERT(!m_buckets.empty());
 		auto index = HASH()(key) % m_buckets.size();
-		return m_buckets[index];
+		return next(m_buckets.begin(), index);
+	}
+
+	template<typename Key, typename T, typename HASH>
+	Vector<LinkedList<typename HashMap<Key, T, HASH>::Entry>>::const_iterator HashMap<Key, T, HASH>::get_bucket_iterator(const Key& key) const
+	{
+		ASSERT(!m_buckets.empty());
+		auto index = HASH()(key) % m_buckets.size();
+		return next(m_buckets.begin(), index);
 	}
 
 }

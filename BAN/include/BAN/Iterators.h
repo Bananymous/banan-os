@@ -284,6 +284,14 @@ namespace BAN
 			}
 		}
 
+		IteratorDoubleGeneral(const OuterIterator& outer_end, const OuterIterator& outer_current, const InnerIterator& inner_current)
+			: m_outer_end(outer_end)
+			, m_outer_current(outer_current)
+			, m_inner_current(inner_current)
+		{
+			find_valid_or_end();
+		}
+
 		void find_valid_or_end()
 		{
 			while (m_inner_current == m_outer_current->end())
