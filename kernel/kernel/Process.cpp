@@ -7,11 +7,10 @@
 #include <kernel/IDT.h>
 #include <kernel/Input/KeyboardLayout.h>
 #include <kernel/InterruptController.h>
-#include <kernel/LockGuard.h>
+#include <kernel/Lock/LockGuard.h>
 #include <kernel/Memory/FileBackedRegion.h>
 #include <kernel/Memory/Heap.h>
 #include <kernel/Memory/MemoryBackedRegion.h>
-#include <kernel/Memory/PageTableScope.h>
 #include <kernel/Process.h>
 #include <kernel/Scheduler.h>
 #include <kernel/Storage/StorageDevice.h>
@@ -33,9 +32,9 @@ namespace Kernel
 	static BAN::Vector<Process*> s_processes;
 	static RecursiveSpinLock s_process_lock;
 
-	void Process::for_each_process(const BAN::Function<BAN::Iteration(Process&)>& callback)
+	static void for_each_process(const BAN::Function<BAN::Iteration(Process&)>& callback)
 	{
-		LockGuard _(s_process_lock);
+		SpinLockGuard _(s_process_lock);
 
 		for (auto* process : s_processes)
 		{
@@ -46,9 +45,9 @@ namespace Kernel
 		}
 	}
 
-	void Process::for_each_process_in_session(pid_t sid, const BAN::Function<BAN::Iteration(Process&)>& callback)
+	static void for_each_process_in_session(pid_t sid, const BAN::Function<BAN::Iteration(Process&)>& callback)
 	{
-		LockGuard _(s_process_lock);
+		SpinLockGuard _(s_process_lock);
 
 		for (auto* process : s_processes)
 		{
@@ -90,9 +89,10 @@ namespace Kernel
 
 	void Process::register_to_scheduler()
 	{
-		s_process_lock.lock();
-		MUST(s_processes.push_back(this));
-		s_process_lock.unlock();
+		{
+			SpinLockGuard _(s_process_lock);
+			MUST(s_processes.push_back(this));
+		}
 		for (auto* thread : m_threads)
 			MUST(Scheduler::get().add_thread(thread));
 	}
@@ -138,8 +138,6 @@ namespace Kernel
 
 		char** argv = nullptr;
 		{
-			PageTableScope _(process->page_table());
-
 			size_t needed_bytes = sizeof(char*) * 2 + path.size() + 1;
 			if (auto rem = needed_bytes % PAGE_SIZE)
 				needed_bytes += PAGE_SIZE - rem;
@@ -196,14 +194,14 @@ namespace Kernel
 
 	void Process::add_thread(Thread* thread)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 		MUST(m_threads.push_back(thread));
 	}
 
 	void Process::cleanup_function()
 	{
 		{
-			LockGuard _(s_process_lock);
+			SpinLockGuard _(s_process_lock);
 			for (size_t i = 0; i < s_processes.size(); i++)
 				if (s_processes[i] == this)
 					s_processes.remove(i);
@@ -217,7 +215,7 @@ namespace Kernel
 		while (m_exit_status.waiting > 0)
 			Scheduler::get().reschedule();
 
-		m_lock.lock();
+		m_process_lock.lock();
 
 		m_open_file_descriptors.close_all();
 
@@ -256,7 +254,7 @@ namespace Kernel
 
 	void Process::exit(int status, int signal)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 		m_exit_status.exit_code = __WGENEXITCODE(status, signal);
 		for (auto* thread : m_threads)
 			if (thread != &Thread::current())
@@ -277,7 +275,7 @@ namespace Kernel
 		meminfo.phys_pages = 0;
 
 		{
-			LockGuard _(m_lock);
+			LockGuard _(m_process_lock);
 			for (auto* thread : m_threads)
 			{
 				meminfo.virt_pages += thread->virtual_page_count();
@@ -326,13 +324,13 @@ namespace Kernel
 
 	size_t Process::proc_cmdline(off_t offset, BAN::ByteSpan buffer) const
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 		return read_from_vec_of_str(m_cmdline, offset, buffer);
 	}
 
 	size_t Process::proc_environ(off_t offset, BAN::ByteSpan buffer) const
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 		return read_from_vec_of_str(m_environ, offset, buffer);
 	}
 
@@ -345,7 +343,7 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_gettermios(::termios* termios)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 
 		TRY(validate_pointer_access(termios, sizeof(::termios)));
 
@@ -364,7 +362,7 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_settermios(const ::termios* termios)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 
 		TRY(validate_pointer_access(termios, sizeof(::termios)));
 
@@ -403,7 +401,7 @@ namespace Kernel
 	{
 		auto page_table = BAN::UniqPtr<PageTable>::adopt(TRY(PageTable::create_userspace()));
 
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 
 		BAN::String working_directory;
 		TRY(working_directory.append(m_working_directory));
@@ -443,7 +441,7 @@ namespace Kernel
 	{
 		// NOTE: We scope everything for automatic deletion
 		{
-			LockGuard _(m_lock);
+			LockGuard _(m_process_lock);
 
 			TRY(validate_string_access(path));
 			auto loadable_elf = TRY(load_elf_for_exec(m_credentials, path, m_working_directory, page_table()));
@@ -579,7 +577,7 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_wait(pid_t pid, int* stat_loc, int options)
 	{
 		{
-			LockGuard _(m_lock);
+			LockGuard _(m_process_lock);
 			TRY(validate_pointer_access(stat_loc, sizeof(int)));
 		}
 
@@ -612,7 +610,7 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_nanosleep(const timespec* rqtp, timespec* rmtp)
 	{
 		{
-			LockGuard _(m_lock);
+			LockGuard _(m_process_lock);
 			TRY(validate_pointer_access(rqtp, sizeof(timespec)));
 			if (rmtp)
 				TRY(validate_pointer_access(rmtp, sizeof(timespec)));
@@ -654,7 +652,7 @@ namespace Kernel
 				return BAN::Error::from_errno(ENOTSUP);
 		}
 
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 
 		auto absolute_path = TRY(absolute_path_of(path));
 
@@ -683,7 +681,7 @@ namespace Kernel
 	{
 		ASSERT(&Process::current() == this);
 
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 
 		if (Thread::current().stack().contains(address))
 		{
@@ -711,13 +709,13 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::open_inode(BAN::RefPtr<Inode> inode, int flags)
 	{
 		ASSERT(inode);
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 		return TRY(m_open_file_descriptors.open(inode, flags));
 	}
 
 	BAN::ErrorOr<long> Process::open_file(BAN::StringView path, int flags, mode_t mode)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 
 		BAN::String absolute_path = TRY(absolute_path_of(path));
 
@@ -750,14 +748,14 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_open(const char* path, int flags, mode_t mode)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 		TRY(validate_string_access(path));
 		return open_file(path, flags, mode);
 	}
 
 	BAN::ErrorOr<long> Process::sys_openat(int fd, const char* path, int flags, mode_t mode)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 
 		TRY(validate_string_access(path));
 
@@ -773,28 +771,28 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_close(int fd)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 		TRY(m_open_file_descriptors.close(fd));
 		return 0;
 	}
 
 	BAN::ErrorOr<long> Process::sys_read(int fd, void* buffer, size_t count)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 		TRY(validate_pointer_access(buffer, count));
 		return TRY(m_open_file_descriptors.read(fd, BAN::ByteSpan((uint8_t*)buffer, count)));
 	}
 
 	BAN::ErrorOr<long> Process::sys_write(int fd, const void* buffer, size_t count)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 		TRY(validate_pointer_access(buffer, count));
 		return TRY(m_open_file_descriptors.write(fd, BAN::ByteSpan((uint8_t*)buffer, count)));
 	}
 
 	BAN::ErrorOr<long> Process::sys_create(const char* path, mode_t mode)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 		TRY(validate_string_access(path));
 		TRY(create_file_or_dir(path, mode));
 		return 0;
@@ -802,7 +800,7 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_create_dir(const char* path, mode_t mode)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 		TRY(validate_string_access(path));
 		BAN::StringView path_sv(path);
 		if (!path_sv.empty() && path_sv.back() == '/')
@@ -813,7 +811,7 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_unlink(const char* path)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 		TRY(validate_string_access(path));
 
 		auto absolute_path = TRY(absolute_path_of(path));
@@ -846,7 +844,7 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_readlink(const char* path, char* buffer, size_t bufsize)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 		TRY(validate_string_access(path));
 		TRY(validate_pointer_access(buffer, bufsize));
 
@@ -857,7 +855,7 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_readlinkat(int fd, const char* path, char* buffer, size_t bufsize)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 		TRY(validate_string_access(path));
 		TRY(validate_pointer_access(buffer, bufsize));
 
@@ -874,7 +872,7 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_pread(int fd, void* buffer, size_t count, off_t offset)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 		TRY(validate_pointer_access(buffer, count));
 		auto inode = TRY(m_open_file_descriptors.inode_of(fd));
 		return TRY(inode->read(offset, { (uint8_t*)buffer, count }));
@@ -885,7 +883,7 @@ namespace Kernel
 		if (mode & S_IFMASK)
 			return BAN::Error::from_errno(EINVAL);
 
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 		TRY(validate_string_access(path));
 
 		auto absolute_path = TRY(absolute_path_of(path));
@@ -897,7 +895,7 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_chown(const char* path, uid_t uid, gid_t gid)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 		TRY(validate_string_access(path));
 
 		auto absolute_path = TRY(absolute_path_of(path));
@@ -909,7 +907,7 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_socket(int domain, int type, int protocol)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 		return TRY(m_open_file_descriptors.socket(domain, type, protocol));
 	}
 
@@ -920,7 +918,7 @@ namespace Kernel
 		if (!address && address_len)
 			return BAN::Error::from_errno(EINVAL);
 
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 		if (address)
 		{
 			TRY(validate_pointer_access(address_len, sizeof(*address_len)));
@@ -936,7 +934,7 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_bind(int socket, const sockaddr* address, socklen_t address_len)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 		TRY(validate_pointer_access(address, address_len));
 
 		auto inode = TRY(m_open_file_descriptors.inode_of(socket));
@@ -949,7 +947,7 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_connect(int socket, const sockaddr* address, socklen_t address_len)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 		TRY(validate_pointer_access(address, address_len));
 
 		auto inode = TRY(m_open_file_descriptors.inode_of(socket));
@@ -962,7 +960,7 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_listen(int socket, int backlog)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 
 		auto inode = TRY(m_open_file_descriptors.inode_of(socket));
 		if (!inode->mode().ifsock())
@@ -974,7 +972,7 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_sendto(const sys_sendto_t* arguments)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 		TRY(validate_pointer_access(arguments, sizeof(sys_sendto_t)));
 		TRY(validate_pointer_access(arguments->message, arguments->length));
 		TRY(validate_pointer_access(arguments->dest_addr, arguments->dest_len));
@@ -994,7 +992,7 @@ namespace Kernel
 		if (!arguments->address && arguments->address_len)
 			return BAN::Error::from_errno(EINVAL);
 
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 		TRY(validate_pointer_access(arguments, sizeof(sys_recvfrom_t)));
 		TRY(validate_pointer_access(arguments->buffer, arguments->length));
 		if (arguments->address)
@@ -1013,14 +1011,14 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_ioctl(int fildes, int request, void* arg)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 		auto inode = TRY(m_open_file_descriptors.inode_of(fildes));
 		return TRY(inode->ioctl(request, arg));
 	}
 
 	BAN::ErrorOr<long> Process::sys_pselect(sys_pselect_t* arguments)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 
 		TRY(validate_pointer_access(arguments, sizeof(sys_pselect_t)));
 		if (arguments->readfds)
@@ -1089,7 +1087,7 @@ namespace Kernel
 			if (set_bits > 0)
 				break;
 
-			LockFreeGuard free(m_lock);
+			LockFreeGuard free(m_process_lock);
 			SystemTimer::get().sleep(1);
 		}
 
@@ -1115,7 +1113,7 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_pipe(int fildes[2])
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 		TRY(validate_pointer_access(fildes, sizeof(int) * 2));
 		TRY(m_open_file_descriptors.pipe(fildes));
 		return 0;
@@ -1123,32 +1121,32 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_dup(int fildes)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 		return TRY(m_open_file_descriptors.dup(fildes));
 	}
 
 	BAN::ErrorOr<long> Process::sys_dup2(int fildes, int fildes2)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 		return TRY(m_open_file_descriptors.dup2(fildes, fildes2));
 	}
 
 	BAN::ErrorOr<long> Process::sys_fcntl(int fildes, int cmd, int extra)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 		return TRY(m_open_file_descriptors.fcntl(fildes, cmd, extra));
 	}
 
 	BAN::ErrorOr<long> Process::sys_seek(int fd, off_t offset, int whence)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 		TRY(m_open_file_descriptors.seek(fd, offset, whence));
 		return 0;
 	}
 
 	BAN::ErrorOr<long> Process::sys_tell(int fd)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 		return TRY(m_open_file_descriptors.tell(fd));
 	}
 
@@ -1156,7 +1154,7 @@ namespace Kernel
 	{
 		BAN::String absolute_source, absolute_target;
 		{
-			LockGuard _(m_lock);
+			LockGuard _(m_process_lock);
 			TRY(absolute_source.append(TRY(absolute_path_of(source))));
 			TRY(absolute_target.append(TRY(absolute_path_of(target))));
 		}
@@ -1166,7 +1164,7 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_fstat(int fd, struct stat* buf)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 		TRY(validate_pointer_access(buf, sizeof(struct stat)));
 		TRY(m_open_file_descriptors.fstat(fd, buf));
 		return 0;
@@ -1174,7 +1172,7 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_fstatat(int fd, const char* path, struct stat* buf, int flag)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 		TRY(validate_pointer_access(buf, sizeof(struct stat)));
 		TRY(m_open_file_descriptors.fstatat(fd, path, buf, flag));
 		return 0;
@@ -1182,7 +1180,7 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_stat(const char* path, struct stat* buf, int flag)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 		TRY(validate_pointer_access(buf, sizeof(struct stat)));
 		TRY(m_open_file_descriptors.stat(TRY(absolute_path_of(path)), buf, flag));
 		return 0;
@@ -1235,7 +1233,7 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_readdir(int fd, DirectoryEntryList* list, size_t list_size)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 		TRY(validate_pointer_access(list, list_size));
 		TRY(m_open_file_descriptors.read_dir_entries(fd, list, list_size));
 		return 0;
@@ -1246,7 +1244,7 @@ namespace Kernel
 		BAN::String absolute_path;
 
 		{
-			LockGuard _(m_lock);
+			LockGuard _(m_process_lock);
 			TRY(validate_string_access(path));
 			absolute_path = TRY(absolute_path_of(path));
 		}
@@ -1255,7 +1253,7 @@ namespace Kernel
 		if (!file.inode->mode().ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
 
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 		m_working_directory = BAN::move(file.canonical_path);
 
 		return 0;
@@ -1263,7 +1261,7 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_getpwd(char* buffer, size_t size)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 
 		TRY(validate_pointer_access(buffer, size));
 
@@ -1279,7 +1277,7 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_mmap(const sys_mmap_t* args)
 	{
 		{
-			LockGuard _(m_lock);
+			LockGuard _(m_process_lock);
 			TRY(validate_pointer_access(args, sizeof(sys_mmap_t)));
 		}
 
@@ -1320,7 +1318,7 @@ namespace Kernel
 				region_type, page_flags
 			));
 
-			LockGuard _(m_lock);
+			LockGuard _(m_process_lock);
 			TRY(m_mapped_regions.push_back(BAN::move(region)));
 			return m_mapped_regions.back()->vaddr();
 		}
@@ -1328,7 +1326,7 @@ namespace Kernel
 		if (args->addr != nullptr)
 			return BAN::Error::from_errno(ENOTSUP);
 
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 
 		auto inode = TRY(m_open_file_descriptors.inode_of(args->fildes));
 
@@ -1376,7 +1374,7 @@ namespace Kernel
 		if (vaddr % PAGE_SIZE != 0)
 			return BAN::Error::from_errno(EINVAL);
 
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 
 		// FIXME: We should only map partial regions
 		for (size_t i = 0; i < m_mapped_regions.size(); i++)
@@ -1395,7 +1393,7 @@ namespace Kernel
 		if (vaddr % PAGE_SIZE != 0)
 			return BAN::Error::from_errno(EINVAL);
 
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 
 		for (auto& mapped_region : m_mapped_regions)
 			if (mapped_region->overlaps(vaddr, len))
@@ -1406,7 +1404,7 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_tty_ctrl(int fildes, int command, int flags)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 
 		auto inode = TRY(m_open_file_descriptors.inode_of(fildes));
 		if (!inode->is_tty())
@@ -1419,7 +1417,7 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_termid(char* buffer)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 
 		TRY(validate_string_access(buffer));
 
@@ -1440,7 +1438,7 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_clock_gettime(clockid_t clock_id, timespec* tp)
 	{
 		{
-			LockGuard _(m_lock);
+			LockGuard _(m_process_lock);
 			TRY(validate_pointer_access(tp, sizeof(timespec)));
 		}
 
@@ -1465,7 +1463,7 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_load_keymap(const char* path)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 		TRY(validate_string_access(path));
 
 		if (!m_credentials.is_superuser())
@@ -1482,7 +1480,7 @@ namespace Kernel
 			return BAN::Error::from_errno(EINVAL);
 
 		{
-			LockGuard _(m_lock);
+			LockGuard _(m_process_lock);
 			TRY(validate_pointer_access((void*)handler, sizeof(handler)));
 		}
 
@@ -1532,7 +1530,7 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_tcsetpgrp(int fd, pid_t pgrp)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 
 		if (!m_controlling_terminal)
 			return BAN::Error::from_errno(ENOTTY);
@@ -1568,7 +1566,7 @@ namespace Kernel
 		if (uid < 0 || uid >= 1'000'000'000)
 			return BAN::Error::from_errno(EINVAL);
 
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 
 		// If the process has appropriate privileges, setuid() shall set the real user ID, effective user ID, and the saved
 		// set-user-ID of the calling process to uid.
@@ -1598,7 +1596,7 @@ namespace Kernel
 		if (gid < 0 || gid >= 1'000'000'000)
 			return BAN::Error::from_errno(EINVAL);
 
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 
 		// If the process has appropriate privileges, setgid() shall set the real group ID, effective group ID, and the saved
 		// set-group-ID of the calling process to gid.
@@ -1626,7 +1624,7 @@ namespace Kernel
 		if (uid < 0 || uid >= 1'000'000'000)
 			return BAN::Error::from_errno(EINVAL);
 
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 
 		// If uid is equal to the real user ID or the saved set-user-ID, or if the process has appropriate privileges, seteuid()
 		// shall set the effective user ID of the calling process to uid; the real user ID and saved set-user-ID shall remain unchanged.
@@ -1645,7 +1643,7 @@ namespace Kernel
 		if (gid < 0 || gid >= 1'000'000'000)
 			return BAN::Error::from_errno(EINVAL);
 
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 
 		// If gid is equal to the real group ID or the saved set-group-ID, or if the process has appropriate privileges, setegid()
 		// shall set the effective group ID of the calling process to gid; the real group ID, saved set-group-ID, and any
@@ -1673,7 +1671,7 @@ namespace Kernel
 		// by the ruid and euid arguments. If ruid or euid is -1, the corresponding effective or real user ID of the current
 		// process shall be left unchanged.
 
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 
 		// A process with appropriate privileges can set either ID to any value.
 		if (!m_credentials.is_superuser())
@@ -1721,7 +1719,7 @@ namespace Kernel
 
 		// The real and effective group IDs may be set to different values in the same call.
 
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 
 		// Only a process with appropriate privileges can set the real group ID and the effective group ID to any valid value.
 		if (!m_credentials.is_superuser())
@@ -1754,7 +1752,7 @@ namespace Kernel
 		if (pgid < 0)
 			return BAN::Error::from_errno(EINVAL);
 
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 
 		if (pid == 0)
 			pid = m_pid;
@@ -1819,7 +1817,7 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_getpgid(pid_t pid)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 
 		if (pid == 0 || pid == m_pid)
 			return m_pgrp;
@@ -1851,7 +1849,7 @@ namespace Kernel
 
 	BAN::ErrorOr<BAN::String> Process::absolute_path_of(BAN::StringView path) const
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_process_lock);
 
 		if (path.empty() || path == "."sv)
 			return m_working_directory;

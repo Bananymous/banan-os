@@ -1,4 +1,3 @@
-#include <kernel/LockGuard.h>
 #include <kernel/Networking/ARPTable.h>
 #include <kernel/Scheduler.h>
 #include <kernel/Timer/Timer.h>
@@ -52,9 +51,10 @@ namespace Kernel
 			ipv4_address = interface.get_gateway();
 
 		{
-			LockGuard _(m_lock);
-			if (m_arp_table.contains(ipv4_address))
-				return m_arp_table[ipv4_address];
+			SpinLockGuard _(m_table_lock);
+			auto it = m_arp_table.find(ipv4_address);
+			if (it != m_arp_table.end())
+				return it->value;
 		}
 
 		ARPPacket arp_request;
@@ -74,9 +74,10 @@ namespace Kernel
 		while (SystemTimer::get().ms_since_boot() < timeout)
 		{
 			{
-				LockGuard _(m_lock);
-				if (m_arp_table.contains(ipv4_address))
-					return m_arp_table[ipv4_address];
+				SpinLockGuard _(m_table_lock);
+				auto it = m_arp_table.find(ipv4_address);
+				if (it != m_arp_table.end())
+					return it->value;
 			}
 			Scheduler::get().reschedule();
 		}
@@ -114,13 +115,15 @@ namespace Kernel
 			}
 			case ARPOperation::Reply:
 			{
-				LockGuard _(m_lock);
-				if (m_arp_table.contains(packet.spa))
+				SpinLockGuard _(m_table_lock);
+				auto it = m_arp_table.find(packet.spa);
+
+				if (it != m_arp_table.end())
 				{
-					if (m_arp_table[packet.spa] != packet.sha)
+					if (it->value != packet.sha)
 					{
 						dprintln("Update IPv4 {} MAC to {}", packet.spa, packet.sha);
-						m_arp_table[packet.spa] = packet.sha;
+						it->value = packet.sha;
 					}
 				}
 				else

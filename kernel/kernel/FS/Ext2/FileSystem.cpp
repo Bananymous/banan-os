@@ -1,6 +1,6 @@
 #include <BAN/ScopeGuard.h>
 #include <kernel/FS/Ext2/FileSystem.h>
-#include <kernel/LockGuard.h>
+#include <kernel/Lock/LockGuard.h>
 
 #define EXT2_DEBUG_PRINT 0
 #define EXT2_VERIFY_INODE 0
@@ -139,7 +139,7 @@ namespace Kernel
 
 	BAN::ErrorOr<uint32_t> Ext2FS::create_inode(const Ext2::Inode& ext2_inode)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 
 		ASSERT(ext2_inode.size == 0);
 
@@ -218,7 +218,7 @@ namespace Kernel
 
 	void Ext2FS::delete_inode(uint32_t ino)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 
 		ASSERT(ino >= superblock().first_ino);
 		ASSERT(ino <= superblock().inodes_count);
@@ -271,7 +271,7 @@ namespace Kernel
 
 	void Ext2FS::read_block(uint32_t block, BlockBufferWrapper& buffer)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 
 		const uint32_t sector_size = m_block_device->blksize();
 		const uint32_t block_size = this->block_size();
@@ -284,7 +284,7 @@ namespace Kernel
 
 	void Ext2FS::write_block(uint32_t block, const BlockBufferWrapper& buffer)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 
 		const uint32_t sector_size = m_block_device->blksize();
 		const uint32_t block_size = this->block_size();
@@ -297,7 +297,7 @@ namespace Kernel
 
 	void Ext2FS::sync_superblock()
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 
 		const uint32_t sector_size = m_block_device->blksize();
 		ASSERT(1024 % sector_size == 0);
@@ -322,13 +322,13 @@ namespace Kernel
 
 	Ext2FS::BlockBufferWrapper Ext2FS::get_block_buffer()
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 		return m_buffer_manager.get_buffer();
 	}
 
 	BAN::ErrorOr<uint32_t> Ext2FS::reserve_free_block(uint32_t primary_bgd)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 
 		if (m_superblock.r_blocks_count >= m_superblock.free_blocks_count)
 			return BAN::Error::from_errno(ENOSPC);
@@ -389,7 +389,7 @@ namespace Kernel
 
 	void Ext2FS::release_block(uint32_t block)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 
 		ASSERT(block >= m_superblock.first_data_block);
 		ASSERT(block < m_superblock.blocks_count);
@@ -422,7 +422,7 @@ namespace Kernel
 
 	Ext2FS::BlockLocation Ext2FS::locate_inode(uint32_t ino)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 
 		ASSERT(ino <= superblock().inodes_count);
 
@@ -464,7 +464,7 @@ namespace Kernel
 
 	Ext2FS::BlockLocation Ext2FS::locate_block_group_descriptior(uint32_t group_index)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 
 		const uint32_t block_size = this->block_size();
 

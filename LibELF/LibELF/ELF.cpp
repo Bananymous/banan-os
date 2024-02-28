@@ -4,7 +4,6 @@
 
 #ifdef __is_kernel
 #include <kernel/FS/VirtualFileSystem.h>
-#include <kernel/Memory/PageTableScope.h>
 #include <kernel/Process.h>
 #endif
 

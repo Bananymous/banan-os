@@ -1,4 +1,3 @@
-#include <kernel/LockGuard.h>
 #include <kernel/Memory/Heap.h>
 #include <kernel/Networking/UDPSocket.h>
 #include <kernel/Thread.h>
@@ -46,7 +45,7 @@ namespace Kernel
 		//auto& header = packet.as<const UDPHeader>();
 		auto payload = packet.slice(sizeof(UDPHeader));
 
-		LockGuard _(m_packet_lock);
+		SpinLockGuard _(m_packet_lock);
 
 		if (m_packets.full())
 		{
@@ -88,12 +87,12 @@ namespace Kernel
 		}
 		ASSERT(m_port != PORT_NONE);
 
-		LockGuard _(m_packet_lock);
-
+		auto state = m_packet_lock.lock();
 		while (m_packets.empty())
 		{
-			LockFreeGuard free(m_packet_lock);
+			m_packet_lock.unlock(state);
 			TRY(Thread::current().block_or_eintr_indefinite(m_packet_semaphore));
+			state = m_packet_lock.lock();
 		}
 
 		auto packet_info = m_packets.front();
@@ -114,6 +113,8 @@ namespace Kernel
 		);
 
 		m_packet_total_size -= packet_info.packet_size;
+
+		m_packet_lock.unlock(state);
 
 		if (address && address_len)
 		{

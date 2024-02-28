@@ -4,7 +4,7 @@
 #include <kernel/Debug.h>
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/FS/VirtualFileSystem.h>
-#include <kernel/LockGuard.h>
+#include <kernel/Lock/LockGuard.h>
 #include <kernel/Process.h>
 #include <kernel/Terminal/TTY.h>
 
@@ -122,7 +122,7 @@ namespace Kernel
 
 	void TTY::on_key_event(Input::KeyEvent event)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 
 		if (event.released())
 			return;
@@ -205,7 +205,7 @@ namespace Kernel
 		if (ch == 0)
 			return;
 
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 
 		// ^C
 		if (ch == '\x03')
@@ -310,24 +310,17 @@ namespace Kernel
 
 	void TTY::putchar(uint8_t ch)
 	{
+		SpinLockGuard _(m_write_lock);
 		if (m_tty_ctrl.draw_graphics)
 			putchar_impl(ch);
 	}
 
 	BAN::ErrorOr<size_t> TTY::read_impl(off_t, BAN::ByteSpan buffer)
 	{
-		LockGuard _(m_lock);
 		while (!m_output.flush)
 		{
-			// FIXME: this is very hacky way to unlock lock temporarily
-			uint32_t depth = m_lock.lock_depth();
-			for (uint32_t i = 0; i < depth; i++)
-				m_lock.unlock();
-			auto eintr = Thread::current().block_or_eintr_indefinite(m_output.semaphore);
-			for (uint32_t i = 0; i < depth; i++)
-				m_lock.lock();
-			if (eintr.is_error())
-				return eintr.release_error();
+			LockFreeGuard _(m_mutex);
+			TRY(Thread::current().block_or_eintr_indefinite(m_output.semaphore));
 		}
 
 		if (m_output.bytes == 0)
@@ -352,7 +345,7 @@ namespace Kernel
 
 	BAN::ErrorOr<size_t> TTY::write_impl(off_t, BAN::ConstByteSpan buffer)
 	{
-		LockGuard _(m_lock);
+		SpinLockGuard _(m_write_lock);
 		for (size_t i = 0; i < buffer.size(); i++)
 			putchar(buffer[i]);
 		return buffer.size();
@@ -361,7 +354,7 @@ namespace Kernel
 	void TTY::putchar_current(uint8_t ch)
 	{
 		ASSERT(s_tty);
-		LockGuard _(s_tty->m_lock);
+		SpinLockGuard _(s_tty->m_write_lock);
 		s_tty->putchar(ch);
 	}
 

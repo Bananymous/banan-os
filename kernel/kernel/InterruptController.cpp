@@ -67,11 +67,4 @@ namespace Kernel
 			dwarnln("could not enter acpi mode");
 	}
 
-	bool interrupts_enabled()
-	{
-		uintptr_t flags;
-		asm volatile("pushf; pop %0" : "=r"(flags) :: "memory");
-		return flags & (1 << 9);
-	}
-
 }

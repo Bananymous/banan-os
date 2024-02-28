@@ -2,6 +2,7 @@
 
 #include <BAN/Vector.h>
 #include <kernel/Device/Device.h>
+#include <kernel/Lock/Mutex.h>
 #include <kernel/Storage/DiskCache.h>
 #include <kernel/Storage/Partition.h>
 
@@ -44,7 +45,7 @@ namespace Kernel
 		virtual bool has_error_impl() const override { return false; }
 
 	private:
-		SpinLock							m_lock;
+		Mutex								m_mutex;
 		BAN::Optional<DiskCache>			m_disk_cache;
 		BAN::Vector<BAN::RefPtr<Partition>>	m_partitions;
 

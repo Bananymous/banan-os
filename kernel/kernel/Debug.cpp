@@ -1,7 +1,7 @@
 #include <kernel/Debug.h>
 #include <kernel/InterruptController.h>
+#include <kernel/Lock/SpinLock.h>
 #include <kernel/Memory/PageTable.h>
-#include <kernel/SpinLock.h>
 #include <kernel/Terminal/Serial.h>
 #include <kernel/Terminal/TTY.h>
 #include <kernel/Timer/Timer.h>
@@ -12,6 +12,8 @@ extern TerminalDriver* g_terminal_driver;
 
 namespace Debug
 {
+
+	Kernel::RecursiveSpinLock s_debug_lock;
 
 	void dump_stack_trace()
 	{
@@ -118,20 +120,6 @@ namespace Debug
 	{
 		auto ms_since_boot = Kernel::SystemTimer::is_initialized() ? Kernel::SystemTimer::get().ms_since_boot() : 0;
 		BAN::Formatter::print(Debug::putchar, "[{5}.{3}] {}:{}: ", ms_since_boot / 1000, ms_since_boot % 1000, file, line);
-	}
-
-	static Kernel::RecursiveSpinLock s_debug_lock;
-
-	void DebugLock::lock()
-	{
-		if (Kernel::interrupts_enabled())
-			s_debug_lock.lock();
-	}
-
-	void DebugLock::unlock()
-	{
-		if (Kernel::interrupts_enabled())
-			s_debug_lock.unlock();
 	}
 
 }

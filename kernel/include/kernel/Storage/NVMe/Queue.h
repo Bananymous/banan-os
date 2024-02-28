@@ -3,6 +3,7 @@
 #include <BAN/UniqPtr.h>
 #include <BAN/Vector.h>
 #include <kernel/InterruptController.h>
+#include <kernel/Lock/Mutex.h>
 #include <kernel/Memory/DMARegion.h>
 #include <kernel/Semaphore.h>
 #include <kernel/Storage/NVMe/Definitions.h>
@@ -20,7 +21,7 @@ namespace Kernel
 		virtual void handle_irq() final override;
 
 	private:
-		SpinLock m_lock;
+		Mutex m_mutex;
 		BAN::UniqPtr<Kernel::DMARegion> m_completion_queue;
 		BAN::UniqPtr<Kernel::DMARegion> m_submission_queue;
 		volatile NVMe::DoorbellRegisters& m_doorbell;

@@ -5,7 +5,7 @@
 #include <kernel/Device/ZeroDevice.h>
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/FS/TmpFS/Inode.h>
-#include <kernel/LockGuard.h>
+#include <kernel/Lock/LockGuard.h>
 #include <kernel/Process.h>
 #include <kernel/Scheduler.h>
 #include <kernel/Storage/StorageDevice.h>
@@ -56,12 +56,9 @@ namespace Kernel
 		sync_process->add_thread(MUST(Thread::create_kernel(
 			[](void*)
 			{
-				// NOTE: we lock the device lock here and unlock
-				//       it only while semaphore is blocking
-				s_instance->m_device_lock.lock();
-
 				while (true)
 				{
+					LockGuard _(s_instance->m_device_lock);
 					while (!s_instance->m_should_sync)
 					{
 						LockFreeGuard _(s_instance->m_device_lock);

@@ -70,12 +70,14 @@ namespace Kernel
 
 	void IPv4Layer::unbind_socket(BAN::RefPtr<NetworkSocket> socket, uint16_t port)
 	{
-		LockGuard _(m_lock);
-		if (m_bound_sockets.contains(port))
 		{
-			ASSERT(m_bound_sockets[port].valid());
-			ASSERT(m_bound_sockets[port].lock() == socket);
-			m_bound_sockets.remove(port);
+			SpinLockGuard _(m_bound_socket_lock);
+			auto it = m_bound_sockets.find(port);
+			if (it != m_bound_sockets.end())
+			{
+				ASSERT(it->value.lock() == socket);
+				m_bound_sockets.remove(it);
+			}
 		}
 		NetworkManager::get().TmpFileSystem::remove_from_cache(socket);
 	}
@@ -88,7 +90,7 @@ namespace Kernel
 			return BAN::Error::from_errno(EAFNOSUPPORT);
 		auto& sockaddr_in = *reinterpret_cast<const struct sockaddr_in*>(address);
 
-		LockGuard _(m_lock);
+		SpinLockGuard _(m_bound_socket_lock);
 
 		uint16_t port = NetworkSocket::PORT_NONE;
 		for (uint32_t i = 0; i < 100 && port == NetworkSocket::PORT_NONE; i++)
@@ -124,7 +126,7 @@ namespace Kernel
 		auto& sockaddr_in = *reinterpret_cast<const struct sockaddr_in*>(address);
 		uint16_t port = BAN::host_to_network_endian(sockaddr_in.sin_port);
 
-		LockGuard _(m_lock);
+		SpinLockGuard _(m_bound_socket_lock);
 
 		if (m_bound_sockets.contains(port))
 			return BAN::Error::from_errno(EADDRINUSE);
@@ -250,13 +252,14 @@ namespace Kernel
 		BAN::RefPtr<Kernel::NetworkSocket> bound_socket;
 
 		{
-			LockGuard _(m_lock);
-			if (!m_bound_sockets.contains(dst_port))
+			SpinLockGuard _(m_bound_socket_lock);
+			auto it = m_bound_sockets.find(dst_port);
+			if (it == m_bound_sockets.end())
 			{
 				dprintln_if(DEBUG_IPV4, "no one is listening on port {}", dst_port);
 				return {};
 			}
-			bound_socket = m_bound_sockets[dst_port].lock();
+			bound_socket = it->value.lock();
 		}
 
 		if (!bound_socket)

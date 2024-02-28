@@ -4,7 +4,7 @@
 #include <kernel/Debug.h>
 #include <kernel/Device/DeviceNumbers.h>
 #include <kernel/FS/DevFS/FileSystem.h>
-#include <kernel/LockGuard.h>
+#include <kernel/Lock/LockGuard.h>
 #include <kernel/Process.h>
 #include <kernel/Terminal/VirtualTTY.h>
 
@@ -306,8 +306,6 @@ namespace Kernel
 
 	void VirtualTTY::putchar_impl(uint8_t ch)
 	{
-		ASSERT(m_lock.is_locked());
-
 		uint32_t codepoint = ch;
 
 		switch (m_state)

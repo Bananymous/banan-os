@@ -51,9 +51,10 @@ namespace Kernel
 	{
 		if (is_bound() && !is_bound_to_unused())
 		{
-			LockGuard _(s_bound_socket_lock);
-			if (s_bound_sockets.contains(m_bound_path))
-				s_bound_sockets.remove(m_bound_path);
+			SpinLockGuard _(s_bound_socket_lock);
+			auto it = s_bound_sockets.find(m_bound_path);
+			if (it != s_bound_sockets.end())
+				s_bound_sockets.remove(it);
 		}
 	}
 
@@ -71,7 +72,7 @@ namespace Kernel
 		BAN::RefPtr<UnixDomainSocket> pending;
 
 		{
-			LockGuard _(connection_info.pending_lock);
+			SpinLockGuard _(connection_info.pending_lock);
 			pending = connection_info.pending_connections.front();
 			connection_info.pending_connections.pop();
 			connection_info.pending_semaphore.unblock();
@@ -120,10 +121,11 @@ namespace Kernel
 		BAN::RefPtr<UnixDomainSocket> target;
 
 		{
-			LockGuard _(s_bound_socket_lock);
-			if (!s_bound_sockets.contains(file.canonical_path))
+			SpinLockGuard _(s_bound_socket_lock);
+			auto it = s_bound_sockets.find(file.canonical_path);
+			if (it == s_bound_sockets.end())
 				return BAN::Error::from_errno(ECONNREFUSED);
-			target = s_bound_sockets[file.canonical_path].lock();
+			target = it->value.lock();
 			if (!target)
 				return BAN::Error::from_errno(ECONNREFUSED);
 		}
@@ -150,7 +152,7 @@ namespace Kernel
 		{
 			auto& target_info = target->m_info.get<ConnectionInfo>();
 			{
-				LockGuard _(target_info.pending_lock);
+				SpinLockGuard _(target_info.pending_lock);
 				if (target_info.pending_connections.size() < target_info.pending_connections.capacity())
 				{
 					MUST(target_info.pending_connections.push(this));
@@ -205,7 +207,7 @@ namespace Kernel
 			O_RDWR
 		));
 
-		LockGuard _(s_bound_socket_lock);
+		SpinLockGuard _(s_bound_socket_lock);
 		ASSERT(!s_bound_sockets.contains(file.canonical_path));
 		TRY(s_bound_sockets.emplace(file.canonical_path, TRY(get_weak_ptr())));
 		m_bound_path = BAN::move(file.canonical_path);
@@ -229,12 +231,12 @@ namespace Kernel
 
 	BAN::ErrorOr<void> UnixDomainSocket::add_packet(BAN::ConstByteSpan packet)
 	{
-		LockGuard _(m_lock);
-
+		auto state = m_packet_lock.lock();
 		while (m_packet_sizes.full() || m_packet_size_total + packet.size() > s_packet_buffer_size)
 		{
-			LockFreeGuard _(m_lock);
+			m_packet_lock.unlock(state);
 			TRY(Thread::current().block_or_eintr_indefinite(m_packet_semaphore));
+			state = m_packet_lock.lock();
 		}
 
 		uint8_t* packet_buffer = reinterpret_cast<uint8_t*>(m_packet_buffer->vaddr() + m_packet_size_total);
@@ -245,6 +247,7 @@ namespace Kernel
 			m_packet_sizes.push(packet.size());
 
 		m_packet_semaphore.unblock();
+		m_packet_lock.unlock(state);
 		return {};
 	}
 
@@ -318,10 +321,11 @@ namespace Kernel
 				canonical_path = BAN::move(file.canonical_path);
 			}
 
-			LockGuard _(s_bound_socket_lock);
-			if (!s_bound_sockets.contains(canonical_path))
+			SpinLockGuard _(s_bound_socket_lock);
+			auto it = s_bound_sockets.find(canonical_path);
+			if (it == s_bound_sockets.end())
 				return BAN::Error::from_errno(EDESTADDRREQ);
-			auto target = s_bound_sockets[canonical_path].lock();
+			auto target = it->value.lock();
 			if (!target)
 				return BAN::Error::from_errno(EDESTADDRREQ);
 			TRY(target->add_packet(message));
@@ -338,10 +342,12 @@ namespace Kernel
 				return BAN::Error::from_errno(ENOTCONN);
 		}
 
+		auto state = m_packet_lock.lock();
 		while (m_packet_size_total == 0)
 		{
-			LockFreeGuard _(m_lock);
+			m_packet_lock.unlock(state);
 			TRY(Thread::current().block_or_eintr_indefinite(m_packet_semaphore));
+			state = m_packet_lock.lock();
 		}
 
 		uint8_t* packet_buffer = reinterpret_cast<uint8_t*>(m_packet_buffer->vaddr());
@@ -360,6 +366,7 @@ namespace Kernel
 		m_packet_size_total -= nread;
 
 		m_packet_semaphore.unblock();
+		m_packet_lock.unlock(state);
 
 		return nread;
 	}

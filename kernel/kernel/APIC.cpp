@@ -1,8 +1,8 @@
 #include <BAN/ScopeGuard.h>
-#include <kernel/Debug.h>
 #include <kernel/ACPI.h>
 #include <kernel/APIC.h>
 #include <kernel/CPUID.h>
+#include <kernel/Debug.h>
 #include <kernel/IDT.h>
 #include <kernel/Memory/PageTable.h>
 #include <kernel/MMIO.h>

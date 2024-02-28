@@ -12,7 +12,6 @@
 #include <kernel/Networking/NetworkLayer.h>
 #include <kernel/Networking/NetworkSocket.h>
 #include <kernel/Process.h>
-#include <kernel/SpinLock.h>
 
 namespace Kernel
 {
@@ -68,7 +67,7 @@ namespace Kernel
 		};
 
 	private:
-		RecursiveSpinLock		m_lock;
+		RecursiveSpinLock		m_bound_socket_lock;
 
 		BAN::UniqPtr<ARPTable>	m_arp_table;
 		Process*				m_process { nullptr };

@@ -51,6 +51,11 @@ namespace Kernel
 		bool m_using_apic { false };
 	};
 
-	bool interrupts_enabled();
+	inline bool interrupts_enabled()
+	{
+		uintptr_t flags;
+		asm volatile("pushf; pop %0" : "=r"(flags) :: "memory");
+		return flags & (1 << 9);
+	}
 
 }

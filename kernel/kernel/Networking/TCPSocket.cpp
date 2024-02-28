@@ -1,4 +1,4 @@
-#include <kernel/LockGuard.h>
+#include <kernel/Lock/LockGuard.h>
 #include <kernel/Networking/TCPSocket.h>
 #include <kernel/Random.h>
 #include <kernel/Timer/Timer.h>
@@ -68,7 +68,7 @@ namespace Kernel
 
 	void TCPSocket::on_close_impl()
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 
 		if (!is_bound())
 			return;
@@ -103,7 +103,7 @@ namespace Kernel
 		if (address_len > (socklen_t)sizeof(sockaddr_storage))
 			address_len = sizeof(sockaddr_storage);
 
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 
 		ASSERT(!m_connection_info.has_value());
 
@@ -139,7 +139,7 @@ namespace Kernel
 		uint64_t wake_time_ms = SystemTimer::get().ms_since_boot() + 5000;
 		while (m_state != State::Established)
 		{
-			LockFreeGuard free(m_lock);
+			LockFreeGuard free(m_mutex);
 			if (SystemTimer::get().ms_since_boot() >= wake_time_ms)
 				return BAN::Error::from_errno(ECONNREFUSED);
 			TRY(Thread::current().block_or_eintr_or_waketime(m_semaphore, wake_time_ms, true));
@@ -212,7 +212,7 @@ namespace Kernel
 		{
 			case State::Closed:
 			{
-				LockGuard _(m_lock);
+				LockGuard _(m_mutex);
 				header.syn = 1;
 				add_tcp_header_option<0, TCPOption::MaximumSeqmentSize>(header, m_interface->payload_mtu() - m_network_layer.header_size());
 				add_tcp_header_option<4, TCPOption::WindowScale>(header, 0);
@@ -233,7 +233,7 @@ namespace Kernel
 				break;
 			case State::CloseWait:
 			{
-				LockGuard _(m_lock);
+				LockGuard _(m_mutex);
 				header.ack = 1;
 				header.fin = 1;
 				m_state = State::LastAck;
@@ -242,7 +242,7 @@ namespace Kernel
 			}
 			case State::FinWait1:
 			{
-				LockGuard _(m_lock);
+				LockGuard _(m_mutex);
 				header.ack = 1;
 				header.fin = 1;
 				m_state = State::FinWait2;
@@ -250,7 +250,7 @@ namespace Kernel
 			}
 			case State::FinWait2:
 			{
-				LockGuard _(m_lock);
+				LockGuard _(m_mutex);
 				header.ack = 1;
 				m_state = State::TimeWait;
 				m_time_wait_start_ms = SystemTimer::get().ms_since_boot();
@@ -312,7 +312,7 @@ namespace Kernel
 				if (!header.ack || !header.syn)
 					break;
 
-				LockGuard _(m_lock);
+				LockGuard _(m_mutex);
 
 				if (header.ack_number != m_send_window.current_seq)
 				{
@@ -345,7 +345,7 @@ namespace Kernel
 				if (!header.ack)
 					break;
 
-				LockGuard _(m_lock);
+				LockGuard _(m_mutex);
 
 				if (header.fin)
 				{
@@ -436,7 +436,7 @@ namespace Kernel
 				set_connection_as_closed();
 
 			{
-				LockGuard _(m_lock);
+				LockGuard _(m_mutex);
 
 				if (m_should_ack)
 				{
@@ -518,7 +518,7 @@ namespace Kernel
 
 	BAN::ErrorOr<size_t> TCPSocket::recvfrom_impl(BAN::ByteSpan buffer, sockaddr*, socklen_t*)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 
 		if (m_state == State::Closed)
 			return BAN::Error::from_errno(ENOTCONN);
@@ -542,7 +542,7 @@ namespace Kernel
 				case State::Closing:	ASSERT_NOT_REACHED();
 			};
 
-			LockFreeGuard free(m_lock);
+			LockFreeGuard free(m_mutex);
 			TRY(Thread::current().block_or_eintr_indefinite(m_semaphore));
 		}
 
@@ -575,7 +575,7 @@ namespace Kernel
 			return message.size();
 		}
 
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 
 		if (m_state == State::Closed)
 			return BAN::Error::from_errno(ENOTCONN);
@@ -602,7 +602,7 @@ namespace Kernel
 			if (m_send_window.data_size + message.size() <= m_send_window.buffer->size())
 				break;
 
-			LockFreeGuard free(m_lock);
+			LockFreeGuard free(m_mutex);
 			TRY(Thread::current().block_or_eintr_indefinite(m_semaphore));
 		}
 
@@ -634,7 +634,7 @@ namespace Kernel
 				case State::Closing:	ASSERT_NOT_REACHED();
 			};
 
-			LockFreeGuard free(m_lock);
+			LockFreeGuard free(m_mutex);
 			TRY(Thread::current().block_or_eintr_indefinite(m_semaphore));
 		}
 

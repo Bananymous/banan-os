@@ -1,6 +1,7 @@
 #pragma once
 
 #include <BAN/Endianness.h>
+#include <kernel/Lock/Mutex.h>
 #include <kernel/Memory/VirtualRange.h>
 #include <kernel/Networking/NetworkInterface.h>
 #include <kernel/Networking/NetworkSocket.h>
@@ -119,8 +120,8 @@ namespace Kernel
 
 		uint64_t m_time_wait_start_ms { 0 };
 
-		RecursiveSpinLock	m_lock;
-		Semaphore			m_semaphore;
+		Mutex		m_lock;
+		Semaphore	m_semaphore;
 
 		BAN::Atomic<bool> m_should_ack { false };
 

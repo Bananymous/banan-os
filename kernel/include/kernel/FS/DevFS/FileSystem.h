@@ -3,6 +3,7 @@
 #include <BAN/Vector.h>
 #include <kernel/Device/Device.h>
 #include <kernel/FS/TmpFS/FileSystem.h>
+#include <kernel/Lock/Mutex.h>
 #include <kernel/Semaphore.h>
 
 namespace Kernel
@@ -29,7 +30,7 @@ namespace Kernel
 		{ }
 
 	private:
-		mutable SpinLock m_device_lock;
+		mutable Mutex m_device_lock;
 
 		BAN::Vector<BAN::RefPtr<Device>> m_devices;
 

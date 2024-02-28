@@ -5,7 +5,7 @@
 #include <kernel/FS/ProcFS/FileSystem.h>
 #include <kernel/FS/TmpFS/FileSystem.h>
 #include <kernel/FS/VirtualFileSystem.h>
-#include <kernel/LockGuard.h>
+#include <kernel/Lock/LockGuard.h>
 #include <fcntl.h>
 
 namespace Kernel
@@ -63,15 +63,14 @@ namespace Kernel
 		if (!file.inode->mode().ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
 
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 		TRY(m_mount_points.push_back({ file, file_system }));
-
 		return {};
 	}
 
 	VirtualFileSystem::MountPoint* VirtualFileSystem::mount_from_host_inode(BAN::RefPtr<Inode> inode)
 	{
-		ASSERT(m_lock.is_locked());
+		LockGuard _(m_mutex);
 		for (MountPoint& mount : m_mount_points)
 			if (*mount.host.inode == *inode)
 				return &mount;
@@ -80,7 +79,7 @@ namespace Kernel
 
 	VirtualFileSystem::MountPoint* VirtualFileSystem::mount_from_root_inode(BAN::RefPtr<Inode> inode)
 	{
-		ASSERT(m_lock.is_locked());
+		LockGuard _(m_mutex);
 		for (MountPoint& mount : m_mount_points)
 			if (*mount.target->root_inode() == *inode)
 				return &mount;
@@ -89,7 +88,7 @@ namespace Kernel
 
 	BAN::ErrorOr<VirtualFileSystem::File> VirtualFileSystem::file_from_absolute_path(const Credentials& credentials, BAN::StringView path, int flags)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 
 		ASSERT(path.front() == '/');
 

@@ -3,7 +3,6 @@
 #include <BAN/Array.h>
 #include <BAN/ByteSpan.h>
 #include <kernel/Memory/Types.h>
-#include <kernel/SpinLock.h>
 
 namespace Kernel
 {

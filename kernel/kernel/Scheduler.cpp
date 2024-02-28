@@ -35,9 +35,10 @@ namespace Kernel
 	BAN::ErrorOr<void> Scheduler::initialize()
 	{
 		ASSERT(s_instance == nullptr);
-		s_instance = new Scheduler();
-		ASSERT(s_instance);
-		s_instance->m_idle_thread = TRY(Thread::create_kernel([](void*) { for (;;) asm volatile("hlt"); }, nullptr, nullptr));
+		Scheduler* scheduler = new Scheduler();
+		ASSERT(scheduler);
+		scheduler->m_idle_thread = TRY(Thread::create_kernel([](void*) { for (;;) asm volatile("hlt"); }, nullptr, nullptr));
+		s_instance = scheduler;
 		return {};
 	}
 

@@ -22,7 +22,7 @@ namespace Kernel::Input
 	BAN::ErrorOr<void> PS2Controller::send_byte(uint16_t port, uint8_t byte)
 	{
 		ASSERT(interrupts_enabled());
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 		uint64_t timeout = SystemTimer::get().ms_since_boot() + s_ps2_timeout_ms;
 		while (SystemTimer::get().ms_since_boot() < timeout)
 		{
@@ -37,7 +37,7 @@ namespace Kernel::Input
 	BAN::ErrorOr<uint8_t> PS2Controller::read_byte()
 	{
 		ASSERT(interrupts_enabled());
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 		uint64_t timeout = SystemTimer::get().ms_since_boot() + s_ps2_timeout_ms;
 		while (SystemTimer::get().ms_since_boot() < timeout)
 		{
@@ -50,14 +50,14 @@ namespace Kernel::Input
 
 	BAN::ErrorOr<void> PS2Controller::send_command(PS2::Command command)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 		TRY(send_byte(PS2::IOPort::COMMAND, command));
 		return {};
 	}
 
 	BAN::ErrorOr<void> PS2Controller::send_command(PS2::Command command, uint8_t data)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 		TRY(send_byte(PS2::IOPort::COMMAND, command));
 		TRY(send_byte(PS2::IOPort::DATA, data));
 		return {};
@@ -65,7 +65,7 @@ namespace Kernel::Input
 
 	BAN::ErrorOr<void> PS2Controller::device_send_byte(uint8_t device_index, uint8_t byte)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 		if (device_index == 1)
 			TRY(send_byte(PS2::IOPort::COMMAND, PS2::Command::WRITE_TO_SECOND_PORT));
 		TRY(send_byte(PS2::IOPort::DATA, byte));
@@ -74,7 +74,7 @@ namespace Kernel::Input
 
 	BAN::ErrorOr<void> PS2Controller::device_send_byte_and_wait_ack(uint8_t device_index, uint8_t byte)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 		for (;;)
 		{
 			TRY(device_send_byte(device_index, byte));

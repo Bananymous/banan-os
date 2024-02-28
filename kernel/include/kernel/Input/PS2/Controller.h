@@ -5,7 +5,7 @@
 #include <kernel/Device/Device.h>
 #include <kernel/Input/PS2/Config.h>
 #include <kernel/InterruptController.h>
-#include <kernel/SpinLock.h>
+#include <kernel/Lock/Mutex.h>
 
 namespace Kernel::Input
 {
@@ -60,7 +60,7 @@ namespace Kernel::Input
 
 	private:
 		BAN::RefPtr<PS2Device> m_devices[2];
-		RecursiveSpinLock m_lock;
+		Mutex m_mutex;
 
 		BAN::CircularQueue<Command, 128> m_command_queue;
 		uint64_t m_command_send_time { 0 };

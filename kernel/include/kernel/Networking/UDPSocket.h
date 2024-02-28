@@ -2,6 +2,7 @@
 
 #include <BAN/CircularQueue.h>
 #include <BAN/Endianness.h>
+#include <kernel/Lock/SpinLock.h>
 #include <kernel/Memory/VirtualRange.h>
 #include <kernel/Networking/NetworkInterface.h>
 #include <kernel/Networking/NetworkSocket.h>

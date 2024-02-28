@@ -1,5 +1,5 @@
 #include <kernel/CriticalScope.h>
-#include <kernel/LockGuard.h>
+#include <kernel/Lock/LockGuard.h>
 #include <kernel/Memory/Heap.h>
 #include <kernel/Memory/MemoryBackedRegion.h>
 
@@ -57,15 +57,9 @@ namespace Kernel
 		m_page_table.map_page_at(paddr, vaddr, m_flags);
 
 		// Zero out the new page
-		if (&PageTable::current() == &m_page_table)
-			memset((void*)vaddr, 0x00, PAGE_SIZE);
-		else
-		{
-			CriticalScope _;
-			PageTable::map_fast_page(paddr);
+		PageTable::with_fast_page(paddr, [&] {
 			memset(PageTable::fast_page_as_ptr(), 0x00, PAGE_SIZE);
-			PageTable::unmap_fast_page();
-		}
+		});
 
 		return true;
 	}
@@ -100,15 +94,9 @@ namespace Kernel
 
 			TRY(allocate_page_containing(write_vaddr));
 
-			if (&PageTable::current() == &m_page_table)
-				memcpy((void*)write_vaddr, (void*)(buffer + written), bytes);
-			else
-			{
-				CriticalScope _;
-				PageTable::map_fast_page(m_page_table.physical_address_of(write_vaddr & PAGE_ADDR_MASK));
+			PageTable::with_fast_page(m_page_table.physical_address_of(write_vaddr & PAGE_ADDR_MASK), [&] {
 				memcpy(PageTable::fast_page_as_ptr(page_offset), (void*)(buffer + written), bytes);
-				PageTable::unmap_fast_page();
-			}
+			});
 
 			written += bytes;
 		}

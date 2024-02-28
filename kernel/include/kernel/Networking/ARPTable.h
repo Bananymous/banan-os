@@ -51,7 +51,7 @@ namespace Kernel
 		};
 
 	private:
-		SpinLock m_lock;
+		SpinLock m_table_lock;
 
 		BAN::HashMap<BAN::IPv4Address, BAN::MACAddress> m_arp_table;
 

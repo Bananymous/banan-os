@@ -42,6 +42,7 @@ set(KERNEL_SOURCES
 	kernel/Input/PS2/Mouse.cpp
 	kernel/InterruptController.cpp
 	kernel/kernel.cpp
+	kernel/Lock/SpinLock.cpp
 	kernel/Memory/DMARegion.cpp
 	kernel/Memory/FileBackedRegion.cpp
 	kernel/Memory/Heap.cpp
@@ -68,7 +69,6 @@ set(KERNEL_SOURCES
 	kernel/Random.cpp
 	kernel/Scheduler.cpp
 	kernel/Semaphore.cpp
-	kernel/SpinLock.cpp
 	kernel/SSP.cpp
 	kernel/Storage/ATA/AHCI/Controller.cpp
 	kernel/Storage/ATA/AHCI/Device.cpp

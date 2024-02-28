@@ -1,32 +1,30 @@
 #pragma once
 
 #include <BAN/Formatter.h>
+#include <kernel/Lock/SpinLock.h>
 
 #define dprintln(...)										\
 	do {													\
-		Debug::DebugLock::lock();							\
+		Kernel::SpinLockGuard _(Debug::s_debug_lock);		\
 		Debug::print_prefix(__FILE__, __LINE__);			\
 		BAN::Formatter::print(Debug::putchar, __VA_ARGS__);	\
 		BAN::Formatter::print(Debug::putchar, "\r\n");		\
-		Debug::DebugLock::unlock();							\
 	} while(false)
 
 #define dwarnln(...)										\
 	do {													\
-		Debug::DebugLock::lock();							\
+		Kernel::SpinLockGuard _(Debug::s_debug_lock);		\
 		BAN::Formatter::print(Debug::putchar, "\e[33m");	\
 		dprintln(__VA_ARGS__);								\
 		BAN::Formatter::print(Debug::putchar, "\e[m");		\
-		Debug::DebugLock::unlock();							\
 	} while(false)
 
 #define derrorln(...)										\
 	do {													\
-		Debug::DebugLock::lock();							\
+		Kernel::SpinLockGuard _(Debug::s_debug_lock);		\
 		BAN::Formatter::print(Debug::putchar, "\e[31m");	\
 		dprintln(__VA_ARGS__);								\
 		BAN::Formatter::print(Debug::putchar, "\e[m");		\
-		Debug::DebugLock::unlock();							\
 	} while(false)
 
 #define dprintln_if(cond, ...)		\
@@ -55,10 +53,5 @@ namespace Debug
 	void putchar(char);
 	void print_prefix(const char*, int);
 
-	class DebugLock
-	{
-	public:
-		static void lock();
-		static void unlock();
-	};
+	extern Kernel::RecursiveSpinLock s_debug_lock;
 }

@@ -4,7 +4,7 @@
 #include <BAN/RefPtr.h>
 #include <BAN/Vector.h>
 #include <kernel/InterruptController.h>
-#include <kernel/SpinLock.h>
+#include <kernel/Lock/Mutex.h>
 
 namespace Kernel
 {
@@ -51,7 +51,7 @@ namespace Kernel
 	private:
 		const uint16_t m_base;
 		const uint16_t m_ctrl;
-		SpinLock m_lock;
+		Mutex m_mutex;
 
 		volatile bool m_has_got_irq { false };
 

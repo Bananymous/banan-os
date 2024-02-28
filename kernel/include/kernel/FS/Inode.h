@@ -9,7 +9,8 @@
 
 #include <kernel/API/DirectoryEntry.h>
 #include <kernel/Credentials.h>
-#include <kernel/SpinLock.h>
+#include <kernel/Debug.h>
+#include <kernel/Lock/Mutex.h>
 
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -157,7 +158,7 @@ namespace Kernel
 		virtual BAN::ErrorOr<long> ioctl_impl(int request, void* arg)		{ return BAN::Error::from_errno(ENOTSUP); }
 
 	protected:
-		mutable RecursivePrioritySpinLock m_lock;
+		mutable PriorityMutex m_mutex;
 
 	private:
 		BAN::WeakPtr<SharedFileData> m_shared_region;

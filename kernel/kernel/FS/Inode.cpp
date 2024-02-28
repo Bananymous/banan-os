@@ -1,5 +1,5 @@
 #include <kernel/FS/Inode.h>
-#include <kernel/LockGuard.h>
+#include <kernel/Lock/LockGuard.h>
 
 #include <fcntl.h>
 
@@ -58,13 +58,13 @@ namespace Kernel
 
 	void Inode::on_close()
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 		on_close_impl();
 	}
 
 	BAN::ErrorOr<BAN::RefPtr<Inode>> Inode::find_inode(BAN::StringView name)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 		if (!mode().ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
 		return find_inode_impl(name);
@@ -72,7 +72,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Inode::list_next_inodes(off_t offset, DirectoryEntryList* list, size_t list_len)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 		if (!mode().ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
 		return list_next_inodes_impl(offset, list, list_len);
@@ -80,7 +80,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Inode::create_file(BAN::StringView name, mode_t mode, uid_t uid, gid_t gid)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 		if (!this->mode().ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
 		if (Mode(mode).ifdir())
@@ -90,7 +90,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Inode::create_directory(BAN::StringView name, mode_t mode, uid_t uid, gid_t gid)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 		if (!this->mode().ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
 		if (!Mode(mode).ifdir())
@@ -100,7 +100,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Inode::unlink(BAN::StringView name)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 		if (!mode().ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
 		if (name == "."sv || name == ".."sv)
@@ -110,7 +110,7 @@ namespace Kernel
 
 	BAN::ErrorOr<BAN::String> Inode::link_target()
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 		if (!mode().iflnk())
 			return BAN::Error::from_errno(EINVAL);
 		return link_target_impl();
@@ -118,7 +118,7 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Inode::accept(sockaddr* address, socklen_t* address_len)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 		if (!mode().ifsock())
 			return BAN::Error::from_errno(ENOTSOCK);
 		return accept_impl(address, address_len);
@@ -126,7 +126,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Inode::bind(const sockaddr* address, socklen_t address_len)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 		if (!mode().ifsock())
 			return BAN::Error::from_errno(ENOTSOCK);
 		return bind_impl(address, address_len);
@@ -134,7 +134,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Inode::connect(const sockaddr* address, socklen_t address_len)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 		if (!mode().ifsock())
 			return BAN::Error::from_errno(ENOTSOCK);
 		return connect_impl(address, address_len);
@@ -142,7 +142,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Inode::listen(int backlog)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 		if (!mode().ifsock())
 			return BAN::Error::from_errno(ENOTSOCK);
 		return listen_impl(backlog);
@@ -150,7 +150,7 @@ namespace Kernel
 
 	BAN::ErrorOr<size_t> Inode::sendto(BAN::ConstByteSpan message, const sockaddr* address, socklen_t address_len)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 		if (!mode().ifsock())
 			return BAN::Error::from_errno(ENOTSOCK);
 		return sendto_impl(message, address, address_len);
@@ -158,7 +158,7 @@ namespace Kernel
 
 	BAN::ErrorOr<size_t> Inode::recvfrom(BAN::ByteSpan buffer, sockaddr* address, socklen_t* address_len)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 		if (!mode().ifsock())
 			return BAN::Error::from_errno(ENOTSOCK);
 		return recvfrom_impl(buffer, address, address_len);
@@ -166,7 +166,7 @@ namespace Kernel
 
 	BAN::ErrorOr<size_t> Inode::read(off_t offset, BAN::ByteSpan buffer)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 		if (mode().ifdir())
 			return BAN::Error::from_errno(EISDIR);
 		return read_impl(offset, buffer);
@@ -174,7 +174,7 @@ namespace Kernel
 
 	BAN::ErrorOr<size_t> Inode::write(off_t offset, BAN::ConstByteSpan buffer)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 		if (mode().ifdir())
 			return BAN::Error::from_errno(EISDIR);
 		return write_impl(offset, buffer);
@@ -182,7 +182,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Inode::truncate(size_t size)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 		if (mode().ifdir())
 			return BAN::Error::from_errno(EISDIR);
 		return truncate_impl(size);
@@ -191,37 +191,37 @@ namespace Kernel
 	BAN::ErrorOr<void> Inode::chmod(mode_t mode)
 	{
 		ASSERT((mode & Inode::Mode::TYPE_MASK) == 0);
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 		return chmod_impl(mode);
 	}
 
 	BAN::ErrorOr<void> Inode::chown(uid_t uid, gid_t gid)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 		return chown_impl(uid, gid);
 	}
 
 	bool Inode::can_read() const
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 		return can_read_impl();
 	}
 
 	bool Inode::can_write() const
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 		return can_write_impl();
 	}
 
 	bool Inode::has_error() const
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 		return has_error_impl();
 	}
 
 	BAN::ErrorOr<long> Inode::ioctl(int request, void* arg)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 		return ioctl_impl(request, arg);
 	}
 

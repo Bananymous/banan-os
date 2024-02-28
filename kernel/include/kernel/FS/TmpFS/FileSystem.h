@@ -4,9 +4,8 @@
 #include <BAN/Iteration.h>
 #include <kernel/FS/FileSystem.h>
 #include <kernel/FS/TmpFS/Inode.h>
-#include <kernel/LockGuard.h>
+#include <kernel/Lock/LockGuard.h>
 #include <kernel/Memory/PageTable.h>
-#include <kernel/SpinLock.h>
 
 namespace Kernel
 {
@@ -119,7 +118,7 @@ namespace Kernel
 	private:
 		const dev_t m_rdev;
 
-		RecursiveSpinLock m_lock;
+		Mutex m_mutex;
 
 		BAN::HashMap<ino_t, BAN::RefPtr<TmpInode>> m_inode_cache;
 		BAN::RefPtr<TmpDirectoryInode> m_root_inode;
@@ -155,7 +154,7 @@ namespace Kernel
 	template<TmpFuncs::with_block_buffer_callback F>
 	void TmpFileSystem::with_block_buffer(size_t index, F callback)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 		paddr_t block_paddr = find_block(index);
 		PageTable::with_fast_page(block_paddr, [&] {
 			BAN::ByteSpan buffer(reinterpret_cast<uint8_t*>(PageTable::fast_page()), PAGE_SIZE);
@@ -166,7 +165,7 @@ namespace Kernel
 	template<TmpFuncs::for_each_inode_callback F>
 	void TmpFileSystem::for_each_inode(F callback)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 		for (auto& [_, inode] : m_inode_cache)
 		{
 			switch (callback(inode))

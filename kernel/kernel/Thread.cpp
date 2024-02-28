@@ -4,7 +4,6 @@
 #include <kernel/InterruptController.h>
 #include <kernel/InterruptStack.h>
 #include <kernel/Memory/kmalloc.h>
-#include <kernel/Memory/PageTableScope.h>
 #include <kernel/Process.h>
 #include <kernel/Scheduler.h>
 #include <kernel/Thread.h>

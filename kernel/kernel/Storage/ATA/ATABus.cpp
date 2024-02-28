@@ -2,7 +2,7 @@
 #include <kernel/IDT.h>
 #include <kernel/InterruptController.h>
 #include <kernel/IO.h>
-#include <kernel/LockGuard.h>
+#include <kernel/Lock/LockGuard.h>
 #include <kernel/Storage/ATA/ATABus.h>
 #include <kernel/Storage/ATA/ATADefinitions.h>
 #include <kernel/Storage/ATA/ATADevice.h>
@@ -261,7 +261,7 @@ namespace Kernel
 		if (lba + sector_count > device.sector_count())
 			return BAN::Error::from_error_code(ErrorCode::Storage_Boundaries);
 
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 
 		if (lba < (1 << 28))
 		{
@@ -298,7 +298,7 @@ namespace Kernel
 		if (lba + sector_count > device.sector_count())
 			return BAN::Error::from_error_code(ErrorCode::Storage_Boundaries);
 
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 
 		if (lba < (1 << 28))
 		{

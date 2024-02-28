@@ -1,7 +1,7 @@
 #include <kernel/Arch.h>
 #include <kernel/CPUID.h>
 #include <kernel/InterruptController.h>
-#include <kernel/LockGuard.h>
+#include <kernel/Lock/SpinLock.h>
 #include <kernel/Memory/kmalloc.h>
 #include <kernel/Memory/PageTable.h>
 
@@ -16,6 +16,8 @@ extern uint8_t g_userspace_end[];
 
 namespace Kernel
 {
+
+	SpinLock PageTable::s_fast_page_lock;
 
 	static PageTable* s_kernel = nullptr;
 	static PageTable* s_current = nullptr;
@@ -250,7 +252,7 @@ namespace Kernel
 
 	BAN::ErrorOr<PageTable*> PageTable::create_userspace()
 	{
-		LockGuard _(s_kernel->m_lock);
+		SpinLockGuard _(s_kernel->m_lock);
 		PageTable* page_table = new PageTable;
 		if (page_table == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
@@ -331,7 +333,7 @@ namespace Kernel
 		uint64_t pde   = (uc_vaddr >> 21) & 0x1FF;
 		uint64_t pte   = (uc_vaddr >> 12) & 0x1FF;
 
-		LockGuard _(m_lock);
+		SpinLockGuard _(m_lock);
 
 		if (is_page_free(vaddr))
 		{
@@ -353,7 +355,7 @@ namespace Kernel
 		vaddr_t s_page = vaddr / PAGE_SIZE;
 		vaddr_t e_page = BAN::Math::div_round_up<vaddr_t>(vaddr + size, PAGE_SIZE);
 
-		LockGuard _(m_lock);
+		SpinLockGuard _(m_lock);
 		for (vaddr_t page = s_page; page < e_page; page++)
 			unmap_page(page * PAGE_SIZE);
 	}
@@ -392,7 +394,7 @@ namespace Kernel
 		// NOTE: we add present here, since it has to be available in higher level structures
 		flags_t uwr_flags = (flags & (Flags::UserSupervisor | Flags::ReadWrite)) | Flags::Present;
 
-		LockGuard _(m_lock);
+		SpinLockGuard _(m_lock);
 
 		uint64_t* pml4 = (uint64_t*)P2V(m_highest_paging_struct);
 		if ((pml4[pml4e] & uwr_flags) != uwr_flags)
@@ -437,7 +439,7 @@ namespace Kernel
 
 		size_t page_count = range_page_count(vaddr, size);
 
-		LockGuard _(m_lock);
+		SpinLockGuard _(m_lock);
 		for (size_t page = 0; page < page_count; page++)
 			map_page_at(paddr + page * PAGE_SIZE, vaddr + page * PAGE_SIZE, flags);
 	}
@@ -454,7 +456,7 @@ namespace Kernel
 		uint64_t pde   = (uc_vaddr >> 21) & 0x1FF;
 		uint64_t pte   = (uc_vaddr >> 12) & 0x1FF;
 
-		LockGuard _(m_lock);
+		SpinLockGuard _(m_lock);
 
 		uint64_t* pml4 = (uint64_t*)P2V(m_highest_paging_struct);
 		if (!(pml4[pml4e] & Flags::Present))
@@ -488,7 +490,7 @@ namespace Kernel
 
 	bool PageTable::reserve_page(vaddr_t vaddr, bool only_free)
 	{
-		LockGuard _(m_lock);
+		SpinLockGuard _(m_lock);
 		ASSERT(vaddr % PAGE_SIZE == 0);
 		if (only_free && !is_page_free(vaddr))
 			return false;
@@ -502,7 +504,7 @@ namespace Kernel
 			bytes += PAGE_SIZE - rem;
 		ASSERT(vaddr % PAGE_SIZE == 0);
 
-		LockGuard _(m_lock);
+		SpinLockGuard _(m_lock);
 		if (only_free && !is_range_free(vaddr, bytes))
 			return false;
 		for (size_t offset = 0; offset < bytes; offset += PAGE_SIZE)
@@ -534,7 +536,7 @@ namespace Kernel
 		const uint16_t e_pde   = (uc_vaddr_end >> 21) & 0x1FF;
 		const uint16_t e_pte   = (uc_vaddr_end >> 12) & 0x1FF;
 
-		LockGuard _(m_lock);
+		SpinLockGuard _(m_lock);
 
 		// Try to find free page that can be mapped without
 		// allocations (page table with unused entries)
@@ -607,7 +609,7 @@ namespace Kernel
 		ASSERT(is_canonical(first_address));
 		ASSERT(is_canonical(last_address));
 
-		LockGuard _(m_lock);
+		SpinLockGuard _(m_lock);
 
 		for (vaddr_t vaddr = first_address; vaddr < last_address;)
 		{
@@ -648,7 +650,7 @@ namespace Kernel
 		vaddr_t s_page = vaddr / PAGE_SIZE;
 		vaddr_t e_page = BAN::Math::div_round_up<vaddr_t>(vaddr + size, PAGE_SIZE);
 
-		LockGuard _(m_lock);
+		SpinLockGuard _(m_lock);
 		for (vaddr_t page = s_page; page < e_page; page++)
 			if (!is_page_free(page * PAGE_SIZE))
 				return false;
@@ -671,7 +673,7 @@ namespace Kernel
 
 	void PageTable::debug_dump()
 	{
-		LockGuard _(m_lock);
+		SpinLockGuard _(m_lock);
 
 		flags_t flags = 0;
 		vaddr_t start = 0;

@@ -1,4 +1,4 @@
-#include <kernel/LockGuard.h>
+#include <kernel/Lock/LockGuard.h>
 #include <kernel/Scheduler.h>
 #include <kernel/Storage/NVMe/Queue.h>
 #include <kernel/Timer/Timer.h>
@@ -44,7 +44,7 @@ namespace Kernel
 
 	uint16_t NVMeQueue::submit_command(NVMe::SubmissionQueueEntry& sqe)
 	{
-		LockGuard _(m_lock);
+		LockGuard _(m_mutex);
 
 		ASSERT(m_done == false);
 		m_status = 0;

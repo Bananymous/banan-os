@@ -1,5 +1,4 @@
 #include <kernel/BootInfo.h>
-#include <kernel/LockGuard.h>
 #include <kernel/Memory/Heap.h>
 #include <kernel/Memory/PageTable.h>
 
@@ -67,7 +66,7 @@ namespace Kernel
 
 	paddr_t Heap::take_free_page()
 	{
-		LockGuard _(m_lock);
+		SpinLockGuard _(m_lock);
 		for (auto& range : m_physical_ranges)
 			if (range.free_pages() >= 1)
 				return range.reserve_page();
@@ -76,7 +75,7 @@ namespace Kernel
 
 	void Heap::release_page(paddr_t paddr)
 	{
-		LockGuard _(m_lock);
+		SpinLockGuard _(m_lock);
 		for (auto& range : m_physical_ranges)
 			if (range.contains(paddr))
 				return range.release_page(paddr);
@@ -85,7 +84,7 @@ namespace Kernel
 
 	paddr_t Heap::take_free_contiguous_pages(size_t pages)
 	{
-		LockGuard _(m_lock);
+		SpinLockGuard _(m_lock);
 		for (auto& range : m_physical_ranges)
 			if (range.free_pages() >= pages)
 				if (paddr_t paddr = range.reserve_contiguous_pages(pages))
@@ -95,7 +94,7 @@ namespace Kernel
 
 	void Heap::release_contiguous_pages(paddr_t paddr, size_t pages)
 	{
-		LockGuard _(m_lock);
+		SpinLockGuard _(m_lock);
 		for (auto& range : m_physical_ranges)
 			if (range.contains(paddr))
 				return range.release_contiguous_pages(paddr, pages);
@@ -104,7 +103,7 @@ namespace Kernel
 
 	size_t Heap::used_pages() const
 	{
-		LockGuard _(m_lock);
+		SpinLockGuard _(m_lock);
 		size_t result = 0;
 		for (const auto& range : m_physical_ranges)
 			result += range.used_pages();
@@ -113,7 +112,7 @@ namespace Kernel
 
 	size_t Heap::free_pages() const
 	{
-		LockGuard _(m_lock);
+		SpinLockGuard _(m_lock);
 		size_t result = 0;
 		for (const auto& range : m_physical_ranges)
 			result += range.free_pages();

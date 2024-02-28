@@ -4,6 +4,7 @@
 #include <BAN/WeakPtr.h>
 #include <kernel/FS/Socket.h>
 #include <kernel/FS/TmpFS/Inode.h>
+#include <kernel/Lock/SpinLock.h>
 
 namespace Kernel
 {
@@ -65,6 +66,7 @@ namespace Kernel
 		BAN::CircularQueue<size_t, 128>	m_packet_sizes;
 		size_t							m_packet_size_total { 0 };
 		BAN::UniqPtr<VirtualRange>		m_packet_buffer;
+		SpinLock						m_packet_lock;
 		Semaphore						m_packet_semaphore;
 
 		friend class BAN::RefPtr<UnixDomainSocket>;

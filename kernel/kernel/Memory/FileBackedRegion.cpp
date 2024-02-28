@@ -1,5 +1,5 @@
 #include <kernel/CriticalScope.h>
-#include <kernel/LockGuard.h>
+#include <kernel/Lock/LockGuard.h>
 #include <kernel/Memory/FileBackedRegion.h>
 #include <kernel/Memory/Heap.h>
 
@@ -26,7 +26,7 @@ namespace Kernel
 
 		if (type == Type::SHARED)
 		{
-			LockGuard _(inode->m_lock);
+			LockGuard _(inode->m_mutex);
 			if (inode->m_shared_region.valid())
 				region->m_shared_data = inode->m_shared_region.lock();
 			else
@@ -157,7 +157,7 @@ namespace Kernel
 		}
 		else if	(m_type == Type::SHARED)
 		{
-			LockGuard _(m_inode->m_lock);
+			LockGuard _(m_inode->m_mutex);
 			ASSERT(m_inode->m_shared_region.valid());
 			ASSERT(m_shared_data->pages.size() == BAN::Math::div_round_up<size_t>(m_inode->size(), PAGE_SIZE));
 
@@ -175,10 +175,9 @@ namespace Kernel
 
 				TRY(m_inode->read(offset, BAN::ByteSpan(m_shared_data->page_buffer, bytes)));
 
-				CriticalScope _;
-				PageTable::map_fast_page(pages[page_index]);
-				memcpy(PageTable::fast_page_as_ptr(), m_shared_data->page_buffer, PAGE_SIZE);
-				PageTable::unmap_fast_page();
+				PageTable::with_fast_page(pages[page_index], [&] {
+					memcpy(PageTable::fast_page_as_ptr(), m_shared_data->page_buffer, PAGE_SIZE);
+				});
 			}
 
 			paddr_t paddr = pages[page_index];
