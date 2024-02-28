@@ -1,6 +1,7 @@
 #pragma once
 
 #include <kernel/InterruptController.h>
+#include <kernel/Lock/SpinLock.h>
 #include <kernel/Timer/Timer.h>
 
 namespace Kernel
@@ -30,6 +31,8 @@ namespace Kernel
 		uint64_t read_main_counter() const;
 
 	private:
+		mutable SpinLock m_lock;
+
 		bool m_is_64bit { false };
 
 		uint64_t m_last_ticks	{ 0 };

@@ -244,7 +244,7 @@ namespace Kernel
 		if (m_is_64bit)
 			return regs.main_counter.full;
 
-		CriticalScope _;
+		SpinLockGuard _(m_lock);
 		uint32_t current_low = regs.main_counter.low;
 		uint32_t wraps = m_32bit_wraps;
 		if (current_low < (uint32_t)m_last_ticks)
@@ -256,19 +256,21 @@ namespace Kernel
 	{
 		auto& regs = registers();
 
-		uint64_t current_ticks;
-
-		if (m_is_64bit)
-			current_ticks = regs.main_counter.full;
-		else
 		{
-			uint32_t current_low = regs.main_counter.low;
-			if (current_low < (uint32_t)m_last_ticks)
-				m_32bit_wraps++;
-			current_ticks = ((uint64_t)m_32bit_wraps << 32) | current_low;
-		}
+			SpinLockGuard _(m_lock);
 
-		m_last_ticks = current_ticks;
+			uint64_t current_ticks;
+			if (m_is_64bit)
+				current_ticks = regs.main_counter.full;
+			else
+			{
+				uint32_t current_low = regs.main_counter.low;
+				if (current_low < (uint32_t)m_last_ticks)
+					m_32bit_wraps++;
+				current_ticks = ((uint64_t)m_32bit_wraps << 32) | current_low;
+			}
+			m_last_ticks = current_ticks;
+		}
 
 		Scheduler::get().timer_reschedule();
 	}
