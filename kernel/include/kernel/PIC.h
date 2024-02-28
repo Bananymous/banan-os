@@ -1,6 +1,7 @@
 #pragma once
 
 #include <kernel/InterruptController.h>
+#include <kernel/Lock/SpinLock.h>
 
 namespace Kernel
 {
@@ -20,8 +21,12 @@ namespace Kernel
 
 	private:
 		static PIC* create();
-		friend class InterruptController;
+
+	private:
+		SpinLock m_lock;
 		uint16_t m_reserved_irqs { 0 };
+
+		friend class InterruptController;
 	};
 
 }

@@ -2,6 +2,7 @@
 
 #include <BAN/Vector.h>
 #include <kernel/InterruptController.h>
+#include <kernel/Lock/SpinLock.h>
 #include <kernel/Memory/Types.h>
 
 namespace Kernel
@@ -52,6 +53,7 @@ namespace Kernel
 		};
 
 	private:
+		SpinLock				m_lock;
 		BAN::Vector<Processor>	m_processors;
 		Kernel::paddr_t			m_local_apic_paddr = 0;
 		Kernel::vaddr_t			m_local_apic_vaddr = 0;
