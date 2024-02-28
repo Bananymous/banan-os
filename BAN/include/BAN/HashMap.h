@@ -52,6 +52,7 @@ namespace BAN
 		ErrorOr<void> reserve(size_type);
 
 		void remove(const Key&);
+		void remove(iterator it);
 		void clear();
 
 		T& operator[](const Key&);
@@ -149,17 +150,16 @@ namespace BAN
 	template<typename Key, typename T, typename HASH>
 	void HashMap<Key, T, HASH>::remove(const Key& key)
 	{
-		if (empty()) return;
-		auto& bucket = get_bucket(key);
-		for (auto it = bucket.begin(); it != bucket.end(); it++)
-		{
-			if (it->key == key)
-			{
-				bucket.remove(it);
-				m_size--;
-				return;
-			}
-		}
+		auto it = find(key);
+		if (it != end())
+			remove(it);
+	}
+
+	template<typename Key, typename T, typename HASH>
+	void HashMap<Key, T, HASH>::remove(iterator it)
+	{
+		it.outer_current()->remove(it.inner_current());
+		m_size--;
 	}
 
 	template<typename Key, typename T, typename HASH>

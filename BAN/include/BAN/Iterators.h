@@ -303,6 +303,9 @@ namespace BAN
 			}
 		}
 
+		OuterIterator outer_current() { return m_outer_current; }
+		InnerIterator inner_current() { return m_inner_current; }
+
 	private:
 		OuterIterator m_outer_end;
 		OuterIterator m_outer_current;
