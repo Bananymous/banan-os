@@ -6,7 +6,6 @@
 #include <kernel/Input/PS2/Controller.h>
 #include <kernel/Input/PS2/Keyboard.h>
 #include <kernel/Input/PS2/Mouse.h>
-#include <kernel/InterruptController.h>
 #include <kernel/IO.h>
 #include <kernel/Timer/Timer.h>
 
@@ -21,7 +20,6 @@ namespace Kernel::Input
 
 	BAN::ErrorOr<void> PS2Controller::send_byte(uint16_t port, uint8_t byte)
 	{
-		ASSERT(interrupts_enabled());
 		LockGuard _(m_mutex);
 		uint64_t timeout = SystemTimer::get().ms_since_boot() + s_ps2_timeout_ms;
 		while (SystemTimer::get().ms_since_boot() < timeout)
@@ -36,7 +34,6 @@ namespace Kernel::Input
 
 	BAN::ErrorOr<uint8_t> PS2Controller::read_byte()
 	{
-		ASSERT(interrupts_enabled());
 		LockGuard _(m_mutex);
 		uint64_t timeout = SystemTimer::get().ms_since_boot() + s_ps2_timeout_ms;
 		while (SystemTimer::get().ms_since_boot() < timeout)
@@ -101,8 +98,7 @@ namespace Kernel::Input
 
 	bool PS2Controller::append_command_queue(PS2Device* device, uint8_t command, uint8_t response_size)
 	{
-		// NOTE: command queue push/pop must be done without interrupts
-		CriticalScope _;
+		SpinLockGuard _(m_command_lock);
 		if (m_command_queue.size() + 1 >= m_command_queue.capacity())
 		{
 			dprintln("PS/2 command queue full");
@@ -121,8 +117,7 @@ namespace Kernel::Input
 
 	bool PS2Controller::append_command_queue(PS2Device* device, uint8_t command, uint8_t data, uint8_t response_size)
 	{
-		// NOTE: command queue push/pop must be done without interrupts
-		CriticalScope _;
+		SpinLockGuard _(m_command_lock);
 		if (m_command_queue.size() + 1 >= m_command_queue.capacity())
 		{
 			dprintln("PS/2 command queue full");
@@ -141,35 +136,38 @@ namespace Kernel::Input
 
 	void PS2Controller::update_command_queue()
 	{
-		ASSERT(interrupts_enabled());
+		Command command_copy;
 
-		if (m_command_queue.empty())
-			return;
-		auto& command = m_command_queue.front();
-		if (command.state == Command::State::WaitingResponse || command.state == Command::State::WaitingAck)
 		{
-			if (SystemTimer::get().ms_since_boot() >= m_command_send_time + s_ps2_timeout_ms)
+			SpinLockGuard _(m_command_lock);
+
+			if (m_command_queue.empty())
+				return;
+			auto& command = m_command_queue.front();
+			if (command.state == Command::State::WaitingResponse || command.state == Command::State::WaitingAck)
 			{
-				dwarnln_if(DEBUG_PS2, "Command timedout");
-				m_devices[command.device_index]->command_timedout(command.out_data, command.out_count);
-				m_command_queue.pop();
+				if (SystemTimer::get().ms_since_boot() >= m_command_send_time + s_ps2_timeout_ms)
+				{
+					dwarnln_if(DEBUG_PS2, "Command timedout");
+					m_devices[command.device_index]->command_timedout(command.out_data, command.out_count);
+					m_command_queue.pop();
+				}
+				return;
 			}
-			return;
+			ASSERT(command.send_index < command.out_count);
+			command.state = Command::State::WaitingAck;
+
+			command_copy = command;
 		}
-		ASSERT(command.send_index < command.out_count);
-		command.state = Command::State::WaitingAck;
+
 		m_command_send_time = SystemTimer::get().ms_since_boot();
-		if (auto ret = device_send_byte(command.device_index, command.out_data[command.send_index]); ret.is_error())
-		{
-			command.state = Command::State::Sending;
+		if (auto ret = device_send_byte(command_copy.device_index, command_copy.out_data[command_copy.send_index]); ret.is_error())
 			dwarnln_if(DEBUG_PS2, "PS/2 send command byte: {}", ret.error());
-		}
 	}
 
 	bool PS2Controller::handle_command_byte(PS2Device* device, uint8_t byte)
 	{
-		// NOTE: command queue push/pop must be done without interrupts
-		ASSERT(!interrupts_enabled());
+		SpinLockGuard _(m_command_lock);
 
 		if (m_command_queue.empty())
 			return false;

@@ -41,6 +41,7 @@ namespace Kernel::Input
 		uint16_t m_modifiers { 0 };
 
 		BAN::CircularQueue<KeyEvent, 50> m_event_queue;
+		SpinLock m_event_lock;
 
 		PS2Keymap m_keymap;
 

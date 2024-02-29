@@ -3,6 +3,7 @@
 #include <BAN/Array.h>
 #include <BAN/UniqPtr.h>
 #include <kernel/Input/KeyEvent.h>
+#include <kernel/Lock/SpinLock.h>
 
 namespace Kernel::Input
 {
@@ -23,6 +24,7 @@ namespace Kernel::Input
 		BAN::Array<Key, 0xFF> m_keycode_to_key_normal;
 		BAN::Array<Key, 0xFF> m_keycode_to_key_shift;
 		BAN::Array<Key, 0xFF> m_keycode_to_key_altgr;
+		SpinLock m_lock;
 
 		friend class BAN::UniqPtr<KeyboardLayout>;
 	};

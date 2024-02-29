@@ -1,5 +1,4 @@
 #include <BAN/ScopeGuard.h>
-#include <kernel/CriticalScope.h>
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/Input/PS2/Config.h>
 #include <kernel/Input/PS2/Mouse.h>
@@ -158,6 +157,8 @@ namespace Kernel::Input
 			event.scroll_event.scroll = rel_z;
 		}
 
+		SpinLockGuard _(m_event_lock);
+
 		for (int i = 0; i < event_count; i++)
 		{
 			if (m_event_queue.full())
@@ -176,20 +177,20 @@ namespace Kernel::Input
 		if (buffer.size() < sizeof(MouseEvent))
 			return BAN::Error::from_errno(ENOBUFS);
 
-		while (true)
+		auto state = m_event_lock.lock();
+		while (m_event_queue.empty())
 		{
-			if (m_event_queue.empty())
-				TRY(Thread::current().block_or_eintr_indefinite(m_semaphore));
-
-			CriticalScope _;
-			if (m_event_queue.empty())
-				continue;
-
-			buffer.as<MouseEvent>() = m_event_queue.front();
-			m_event_queue.pop();
-
-			return sizeof(MouseEvent);
+			m_event_lock.unlock(state);
+			TRY(Thread::current().block_or_eintr_indefinite(m_semaphore));
+			state = m_event_lock.lock();
 		}
+
+		buffer.as<MouseEvent>() = m_event_queue.front();
+		m_event_queue.pop();
+
+		m_event_lock.unlock(state);
+
+		return sizeof(MouseEvent);
 	}
 
 }
