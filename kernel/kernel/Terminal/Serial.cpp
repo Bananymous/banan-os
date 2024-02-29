@@ -1,5 +1,4 @@
 #include <BAN/Array.h>
-#include <kernel/CriticalScope.h>
 #include <kernel/Device/DeviceNumbers.h>
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/IDT.h>
@@ -219,6 +218,8 @@ namespace Kernel
 	void SerialTTY::handle_irq()
 	{
 		uint8_t ch = IO::inb(m_serial.port());
+
+		SpinLockGuard _(m_input_lock);
 		if (m_input.full())
 		{
 			dwarnln("Serial buffer full");
@@ -235,7 +236,7 @@ namespace Kernel
 		uint8_t buffer[128];
 
 		{
-			CriticalScope _;
+			SpinLockGuard _(m_input_lock);
 			if (m_input.empty())
 				return;
 			uint8_t* ptr = buffer;

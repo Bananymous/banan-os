@@ -62,6 +62,7 @@ namespace Kernel
 		BAN::String m_name;
 		Serial m_serial;
 		BAN::CircularQueue<uint8_t, 128> m_input;
+		SpinLock m_input_lock;
 
 	public:
 		virtual dev_t rdev() const override { return m_rdev; }
