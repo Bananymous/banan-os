@@ -145,24 +145,22 @@ namespace Kernel
 	{
 		for (;;)
 		{
-			BAN::Optional<PendingArpPacket> pending;
-
-			{
-				CriticalScope _;
-				if (!m_pending_packets.empty())
+			PendingArpPacket pending = ({
+				auto state = m_pending_lock.lock();
+				while (m_pending_packets.empty())
 				{
-					pending = m_pending_packets.front();
-					m_pending_packets.pop();
+					m_pending_lock.unlock(state);
+					m_pending_semaphore.block_indefinite();
+					state = m_pending_lock.lock();
 				}
-			}
+				auto packet = m_pending_packets.front();
+				m_pending_packets.pop();
+				m_pending_lock.unlock(state);
 
-			if (!pending.has_value())
-			{
-				m_pending_semaphore.block_indefinite();
-				continue;
-			}
+				packet;
+			});
 
-			if (auto ret = handle_arp_packet(pending->interface, pending->packet); ret.is_error())
+			if (auto ret = handle_arp_packet(pending.interface, pending.packet); ret.is_error())
 				dwarnln("{}", ret.error());
 		}
 	}
@@ -170,6 +168,8 @@ namespace Kernel
 	void ARPTable::add_arp_packet(NetworkInterface& interface, BAN::ConstByteSpan buffer)
 	{
 		auto& arp_packet = buffer.as<const ARPPacket>();
+
+		SpinLockGuard _(m_pending_lock);
 
 		if (m_pending_packets.full())
 		{

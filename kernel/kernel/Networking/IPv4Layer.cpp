@@ -287,30 +287,28 @@ namespace Kernel
 	{
 		for (;;)
 		{
-			BAN::Optional<PendingIPv4Packet> pending;
-
-			{
-				CriticalScope _;
-				if (!m_pending_packets.empty())
+			PendingIPv4Packet pending = ({
+				auto state = m_pending_lock.lock();
+				while (m_pending_packets.empty())
 				{
-					pending = m_pending_packets.front();
-					m_pending_packets.pop();
+					m_pending_lock.unlock(state);
+					m_pending_semaphore.block_indefinite();
+					state = m_pending_lock.lock();
 				}
-			}
+				auto packet = m_pending_packets.front();
+				m_pending_packets.pop();
+				m_pending_lock.unlock(state);
 
-			if (!pending.has_value())
-			{
-				m_pending_semaphore.block_indefinite();
-				continue;
-			}
+				packet;
+			});
 
 			uint8_t* buffer_start = reinterpret_cast<uint8_t*>(m_pending_packet_buffer->vaddr());
 			const size_t ipv4_packet_size = reinterpret_cast<const IPv4Header*>(buffer_start)->total_length;
 
-			if (auto ret = handle_ipv4_packet(pending->interface, BAN::ByteSpan(buffer_start, ipv4_packet_size)); ret.is_error())
+			if (auto ret = handle_ipv4_packet(pending.interface, BAN::ByteSpan(buffer_start, ipv4_packet_size)); ret.is_error())
 				dwarnln("{}", ret.error());
 
-			CriticalScope _;
+			SpinLockGuard _(m_pending_lock);
 			m_pending_total_size -= ipv4_packet_size;
 			if (m_pending_total_size)
 				memmove(buffer_start, buffer_start + ipv4_packet_size, m_pending_total_size);
@@ -319,6 +317,8 @@ namespace Kernel
 
 	void IPv4Layer::add_ipv4_packet(NetworkInterface& interface, BAN::ConstByteSpan buffer)
 	{
+		SpinLockGuard _(m_pending_lock);
+
 		if (m_pending_packets.full())
 		{
 			dwarnln("IPv4 packet queue full");

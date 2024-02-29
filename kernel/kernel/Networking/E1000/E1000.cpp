@@ -261,7 +261,7 @@ namespace Kernel
 	{
 		ASSERT_LTE(buffer.size() + sizeof(EthernetHeader), E1000_TX_BUFFER_SIZE);
 
-		CriticalScope _;
+		SpinLockGuard _(m_lock);
 
 		size_t tx_current = read32(REG_TDT) % E1000_TX_DESCRIPTOR_COUNT;
 
@@ -290,6 +290,8 @@ namespace Kernel
 	{
 		if (read32(REG_ICR) & ICR_RxQ0)
 			return;
+
+		SpinLockGuard _(m_lock);
 
 		for (;;) {
 			uint32_t rx_current = (read32(REG_RDT0) + 1) % E1000_RX_DESCRIPTOR_COUNT;

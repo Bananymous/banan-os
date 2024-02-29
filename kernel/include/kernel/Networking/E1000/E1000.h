@@ -71,6 +71,7 @@ namespace Kernel
 		BAN::UniqPtr<DMARegion>	m_tx_buffer_region;
 		BAN::UniqPtr<DMARegion>	m_rx_descriptor_region;
 		BAN::UniqPtr<DMARegion>	m_tx_descriptor_region;
+		SpinLock m_lock;
 
 		BAN::MACAddress	m_mac_address {};
 		bool			m_link_up { false };
