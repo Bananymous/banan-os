@@ -17,7 +17,7 @@ extern uint8_t g_userspace_end[];
 namespace Kernel
 {
 
-	SpinLock PageTable::s_fast_page_lock;
+	RecursiveSpinLock PageTable::s_fast_page_lock;
 
 	static PageTable* s_kernel = nullptr;
 	static PageTable* s_current = nullptr;
@@ -209,7 +209,8 @@ namespace Kernel
 	{
 		ASSERT(s_kernel);
 		ASSERT_NEQ(paddr, 0);
-		ASSERT(!interrupts_enabled());
+
+		SpinLockGuard _(s_fast_page_lock);
 
 		constexpr vaddr_t uc_vaddr = uncanonicalize(fast_page());
 		constexpr uint64_t pml4e = (uc_vaddr >> 39) & 0x1FF;
@@ -231,7 +232,8 @@ namespace Kernel
 	void PageTable::unmap_fast_page()
 	{
 		ASSERT(s_kernel);
-		ASSERT(!interrupts_enabled());
+
+		SpinLockGuard _(s_fast_page_lock);
 
 		constexpr vaddr_t uc_vaddr = uncanonicalize(fast_page());
 		constexpr uint64_t pml4e = (uc_vaddr >> 39) & 0x1FF;

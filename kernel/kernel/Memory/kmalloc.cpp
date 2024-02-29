@@ -1,5 +1,4 @@
 #include <BAN/Errors.h>
-#include <kernel/CriticalScope.h>
 #include <kernel/kprint.h>
 #include <kernel/Memory/kmalloc.h>
 
@@ -81,6 +80,8 @@ struct kmalloc_info
 };
 static kmalloc_info s_kmalloc_info;
 
+static Kernel::SpinLock s_kmalloc_lock;
+
 template<size_t SIZE>
 struct kmalloc_fixed_node
 {
@@ -144,6 +145,8 @@ void kmalloc_initialize()
 
 void kmalloc_dump_info()
 {
+	Kernel::SpinLockGuard _(s_kmalloc_lock);
+
 	kprintln("kmalloc:               0x{8H}->0x{8H}", s_kmalloc_info.base, s_kmalloc_info.end);
 	kprintln("  used: 0x{8H}", s_kmalloc_info.used);
 	kprintln("  free: 0x{8H}", s_kmalloc_info.free);
@@ -155,6 +158,7 @@ void kmalloc_dump_info()
 
 static bool is_corrupted()
 {
+	Kernel::SpinLockGuard _(s_kmalloc_lock);
 	auto& info = s_kmalloc_info;
 	auto* temp = info.first();
 	for (; temp->end() <= info.end; temp = temp->after());
@@ -163,6 +167,8 @@ static bool is_corrupted()
 
 [[maybe_unused]] static void debug_dump()
 {
+	Kernel::SpinLockGuard _(s_kmalloc_lock);
+
 	auto& info = s_kmalloc_info;
 
 	uint32_t used = 0;
@@ -181,6 +187,8 @@ static bool is_corrupted()
 
 static void* kmalloc_fixed()
 {
+	Kernel::SpinLockGuard _(s_kmalloc_lock);
+
 	auto& info = s_kmalloc_fixed_info;
 
 	if (!info.free_list_head)
@@ -222,6 +230,8 @@ static void* kmalloc_impl(size_t size, size_t align)
 {
 	ASSERT(align % s_kmalloc_min_align == 0);
 	ASSERT(size % s_kmalloc_min_align == 0);
+
+	Kernel::SpinLockGuard _(s_kmalloc_lock);
 
 	auto& info = s_kmalloc_info;
 
@@ -304,8 +314,6 @@ void* kmalloc(size_t size, size_t align, bool force_identity_map)
 		align = s_kmalloc_min_align;
 	ASSERT(align <= PAGE_SIZE);
 
-	Kernel::CriticalScope critical;
-
 	if (size == 0 || size >= info.size)
 		goto no_memory;
 
@@ -338,7 +346,7 @@ void kfree(void* address)
 	uintptr_t address_uint = (uintptr_t)address;
 	ASSERT(address_uint % s_kmalloc_min_align == 0);
 
-	Kernel::CriticalScope critical;
+	Kernel::SpinLockGuard _(s_kmalloc_lock);
 
 	if (s_kmalloc_fixed_info.base <= address_uint && address_uint < s_kmalloc_fixed_info.end)
 	{

@@ -1,4 +1,3 @@
-#include <kernel/CriticalScope.h>
 #include <kernel/Lock/LockGuard.h>
 #include <kernel/Memory/FileBackedRegion.h>
 #include <kernel/Memory/Heap.h>
@@ -83,12 +82,9 @@ namespace Kernel
 		if (pages[page_index] == 0)
 			return;
 
-		{
-			CriticalScope _;
-			PageTable::with_fast_page(pages[page_index], [&] {
-				memcpy(page_buffer, PageTable::fast_page_as_ptr(), PAGE_SIZE);
-			});
-		}
+		PageTable::with_fast_page(pages[page_index], [&] {
+			memcpy(page_buffer, PageTable::fast_page_as_ptr(), PAGE_SIZE);
+		});
 
 		if (auto ret = inode->write(page_index * PAGE_SIZE, BAN::ConstByteSpan::from(page_buffer)); ret.is_error())
 			dwarnln("{}", ret.error());

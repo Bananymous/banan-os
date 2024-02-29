@@ -2,7 +2,6 @@
 
 #include <BAN/Errors.h>
 #include <BAN/Traits.h>
-#include <kernel/CriticalScope.h>
 #include <kernel/Lock/SpinLock.h>
 #include <kernel/Memory/Types.h>
 
@@ -130,7 +129,7 @@ namespace Kernel
 	private:
 		paddr_t						m_highest_paging_struct { 0 };
 		mutable RecursiveSpinLock	m_lock;
-		static SpinLock				s_fast_page_lock;
+		static RecursiveSpinLock	s_fast_page_lock;
 	};
 
 	static constexpr size_t range_page_count(vaddr_t start, size_t bytes)

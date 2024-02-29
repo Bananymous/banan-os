@@ -1,4 +1,3 @@
-#include <kernel/CriticalScope.h>
 #include <kernel/Lock/LockGuard.h>
 #include <kernel/Memory/Heap.h>
 #include <kernel/Memory/VirtualRange.h>
