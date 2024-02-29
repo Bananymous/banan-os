@@ -220,7 +220,7 @@ namespace Kernel
 
 	void Process::on_thread_exit(Thread& thread)
 	{
-		ASSERT(!interrupts_enabled());
+		ASSERT(get_interrupt_state() == InterruptState::Disabled);
 
 		ASSERT(m_threads.size() > 0);
 

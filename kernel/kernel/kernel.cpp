@@ -82,7 +82,7 @@ extern "C" void kernel_main(uint32_t boot_magic, uint32_t boot_info)
 {
 	using namespace Kernel;
 
-	DISABLE_INTERRUPTS();
+	set_interrupt_state(InterruptState::Disabled);
 
 	if (!validate_boot_magic(boot_magic))
 	{

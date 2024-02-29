@@ -5,9 +5,6 @@
 
 #include <stdint.h>
 
-#define DISABLE_INTERRUPTS() asm volatile("cli")
-#define ENABLE_INTERRUPTS() asm volatile("sti")
-
 namespace Kernel
 {
 
@@ -50,12 +47,5 @@ namespace Kernel
 	private:
 		bool m_using_apic { false };
 	};
-
-	inline bool interrupts_enabled()
-	{
-		uintptr_t flags;
-		asm volatile("pushf; pop %0" : "=r"(flags) :: "memory");
-		return flags & (1 << 9);
-	}
 
 }

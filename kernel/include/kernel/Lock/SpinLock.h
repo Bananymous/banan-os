@@ -2,13 +2,12 @@
 
 #include <BAN/Atomic.h>
 #include <BAN/NoCopyMove.h>
+#include <kernel/Interrupts.h>
 
 #include <sys/types.h>
 
 namespace Kernel
 {
-
-	using InterruptState = bool;
 
 	class SpinLock
 	{

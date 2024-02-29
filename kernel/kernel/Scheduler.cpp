@@ -11,8 +11,8 @@
 #define SCHEDULER_VERIFY_INTERRUPT_STATE 1
 
 #if SCHEDULER_VERIFY_INTERRUPT_STATE
-	#define VERIFY_STI() ASSERT(interrupts_enabled())
-	#define VERIFY_CLI() ASSERT(!interrupts_enabled())
+	#define VERIFY_STI() ASSERT(get_interrupt_state() == InterruptState::Enabled)
+	#define VERIFY_CLI() ASSERT(get_interrupt_state() == InterruptState::Disabled)
 #else
 	#define VERIFY_STI()
 	#define VERIFY_CLI()
@@ -84,13 +84,10 @@ namespace Kernel
 
 	void Scheduler::reschedule()
 	{
-		DISABLE_INTERRUPTS();
+		set_interrupt_state(InterruptState::Disabled);
 
 		if (save_current_thread())
-		{
-			ENABLE_INTERRUPTS();
-			return;
-		}
+			return set_interrupt_state(InterruptState::Enabled);
 		advance_current_thread();
 		execute_current_thread();
 		ASSERT_NOT_REACHED();
@@ -190,7 +187,7 @@ namespace Kernel
 
 	void Scheduler::delete_current_process_and_thread()
 	{
-		DISABLE_INTERRUPTS();
+		set_interrupt_state(InterruptState::Disabled);
 
 		load_temp_stack();
 		PageTable::kernel().load();
@@ -285,7 +282,7 @@ namespace Kernel
 
 		if (save_current_thread())
 		{
-			ENABLE_INTERRUPTS();
+			set_interrupt_state(InterruptState::Enabled);
 			return;
 		}
 
@@ -311,7 +308,7 @@ namespace Kernel
 	void Scheduler::set_current_thread_sleeping(uint64_t wake_time)
 	{
 		VERIFY_STI();
-		DISABLE_INTERRUPTS();
+		set_interrupt_state(InterruptState::Disabled);
 
 		ASSERT(m_current_thread);
 
@@ -322,7 +319,7 @@ namespace Kernel
 	void Scheduler::block_current_thread(Semaphore* semaphore, uint64_t wake_time)
 	{
 		VERIFY_STI();
-		DISABLE_INTERRUPTS();
+		set_interrupt_state(InterruptState::Disabled);
 
 		ASSERT(m_current_thread);
 

@@ -12,8 +12,8 @@ namespace Kernel
 		auto tid = Scheduler::current_tid();
 		ASSERT_NEQ(m_locker.load(), tid);
 
-		InterruptState state = interrupts_enabled();
-		DISABLE_INTERRUPTS();
+		auto state = get_interrupt_state();
+		set_interrupt_state(InterruptState::Disabled);
 
 		if (!m_locker.compare_exchange(-1, tid))
 			ASSERT_NOT_REACHED();
@@ -25,16 +25,15 @@ namespace Kernel
 	{
 		ASSERT_EQ(m_locker.load(), Scheduler::current_tid());
 		m_locker.store(-1);
-		if (state)
-			ENABLE_INTERRUPTS();
+		set_interrupt_state(state);
 	}
 
 	InterruptState RecursiveSpinLock::lock()
 	{
 		auto tid = Scheduler::current_tid();
 
-		InterruptState state = interrupts_enabled();
-		DISABLE_INTERRUPTS();
+		auto state = get_interrupt_state();
+		set_interrupt_state(InterruptState::Disabled);
 
 		if (tid == m_locker)
 			ASSERT_GT(m_lock_depth, 0);
@@ -57,8 +56,7 @@ namespace Kernel
 		ASSERT_GT(m_lock_depth, 0);
 		if (--m_lock_depth == 0)
 			m_locker = -1;
-		if (state)
-			ENABLE_INTERRUPTS();
+		set_interrupt_state(state);
 	}
 
 }
