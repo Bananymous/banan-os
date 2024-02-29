@@ -118,6 +118,7 @@ namespace Kernel
 
 		uint64_t					m_signal_pending_mask	{ 0 };
 		uint64_t					m_signal_block_mask		{ 0 };
+		SpinLock					m_signal_lock;
 		static_assert(_SIGMAX < 64);
 
 #if __enable_sse

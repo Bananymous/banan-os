@@ -1,6 +1,5 @@
 #include <BAN/ScopeGuard.h>
 #include <BAN/StringView.h>
-#include <kernel/CriticalScope.h>
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/FS/ProcFS/FileSystem.h>
 #include <kernel/FS/VirtualFileSystem.h>
@@ -62,18 +61,13 @@ namespace Kernel
 
 	Process* Process::create_process(const Credentials& credentials, pid_t parent, pid_t sid, pid_t pgrp)
 	{
-		static pid_t s_next_id = 1;
+		static BAN::Atomic<pid_t> s_next_id = 1;
 
-		pid_t pid;
+		pid_t pid = s_next_id++;
+		if (sid == 0 && pgrp == 0)
 		{
-			CriticalScope _;
-			pid = s_next_id;
-			if (sid == 0 && pgrp == 0)
-			{
-				sid = s_next_id;
-				pgrp = s_next_id;
-			}
-			s_next_id++;
+			sid = pid;
+			pgrp = pid;
 		}
 
 		ASSERT(sid > 0);
@@ -1484,7 +1478,6 @@ namespace Kernel
 			TRY(validate_pointer_access((void*)handler, sizeof(handler)));
 		}
 
-		CriticalScope _;
 		m_signal_handlers[signal] = (vaddr_t)handler;
 		return 0;
 	}
@@ -1496,10 +1489,9 @@ namespace Kernel
 		if (signal != 0 && (signal < _SIGMIN || signal > _SIGMAX))
 			return BAN::Error::from_errno(EINVAL);
 
-		if (pid == Process::current().pid())
+		if (pid == m_pid)
 		{
-			CriticalScope _;
-			Process::current().m_signal_pending_mask |= 1 << signal;
+			m_signal_pending_mask |= 1 << signal;
 			return 0;
 		}
 
@@ -1512,9 +1504,8 @@ namespace Kernel
 					found = true;
 					if (signal)
 					{
-						CriticalScope _;
 						process.m_signal_pending_mask |= 1 << signal;
-						// FIXME: This is super hacky
+						// FIXME: This feels hacky
 						Scheduler::get().unblock_thread(process.m_threads.front()->tid());
 					}
 					return (pid > 0) ? BAN::Iteration::Break : BAN::Iteration::Continue;

@@ -224,8 +224,8 @@ namespace Kernel
 		BAN::String m_working_directory;
 		BAN::Vector<Thread*> m_threads;
 
-		vaddr_t m_signal_handlers[_SIGMAX + 1] { };
-		uint64_t m_signal_pending_mask { 0 };
+		BAN::Atomic<vaddr_t> m_signal_handlers[_SIGMAX + 1] { };
+		BAN::Atomic<uint64_t> m_signal_pending_mask { 0 };
 
 		BAN::Vector<BAN::String> m_cmdline;
 		BAN::Vector<BAN::String> m_environ;

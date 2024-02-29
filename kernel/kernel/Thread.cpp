@@ -29,7 +29,7 @@ namespace Kernel
 
 	void Thread::terminate()
 	{
-		CriticalScope _;
+		set_interrupt_state(InterruptState::Disabled);
 		m_state = Thread::State::Terminated;
 		if (this == &Thread::current())
 			Scheduler::get().execute_current_thread();
@@ -245,9 +245,10 @@ namespace Kernel
 
 	void Thread::handle_signal(int signal)
 	{
-		ASSERT(!interrupts_enabled());
 		ASSERT(&Thread::current() == this);
 		ASSERT(is_userspace());
+
+		SpinLockGuard _(m_signal_lock);
 
 		auto& interrupt_stack = *reinterpret_cast<InterruptStack*>(interrupt_stack_base() + interrupt_stack_size() - sizeof(InterruptStack));
 		ASSERT(GDT::is_user_segment(interrupt_stack.cs));
@@ -338,7 +339,8 @@ namespace Kernel
 
 	bool Thread::add_signal(int signal)
 	{
-		ASSERT(!interrupts_enabled());
+		SpinLockGuard _(m_signal_lock);
+
 		uint64_t mask = 1ull << signal;
 		if (!(m_signal_block_mask & mask))
 		{
