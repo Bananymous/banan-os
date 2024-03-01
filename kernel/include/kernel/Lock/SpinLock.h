@@ -40,6 +40,37 @@ namespace Kernel
 		uint32_t m_lock_depth { 0 };
 	};
 
+	class SpinLockUnsafe
+	{
+		BAN_NON_COPYABLE(SpinLockUnsafe);
+		BAN_NON_MOVABLE(SpinLockUnsafe);
+
+	public:
+		SpinLockUnsafe() = default;
+
+		InterruptState lock()
+		{
+			auto state = get_interrupt_state();
+			set_interrupt_state(InterruptState::Disabled);
+
+			while (!m_locked.compare_exchange(false, true))
+				__builtin_ia32_pause();
+
+			return state;
+		}
+
+		void unlock(InterruptState state)
+		{
+			m_locked.store(false);
+			set_interrupt_state(state);
+		}
+
+		bool is_locked() const { return m_locked; }
+
+	private:
+		BAN::Atomic<bool> m_locked;
+	};
+
 	template<typename Lock>
 	class SpinLockGuard
 	{
