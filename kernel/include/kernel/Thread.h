@@ -65,8 +65,6 @@ namespace Kernel
 		uintptr_t rip() const { return m_rip; }
 
 		void set_started() { ASSERT(m_state == State::NotStarted); m_state = State::Executing; }
-		// Thread will no longer execute. If called on current thread, does not return
-		void terminate();
 		State state() const { return m_state; }
 
 		vaddr_t stack_base() const { return m_stack->vaddr(); }

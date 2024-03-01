@@ -230,7 +230,8 @@ namespace Kernel
 			m_threads.clear();
 
 			thread.setup_process_cleanup();
-			Scheduler::get().execute_current_thread();
+			// NOTE: This function is only called from scheduler when it is already locked
+			Scheduler::get().execute_current_thread_locked();
 			ASSERT_NOT_REACHED();
 		}
 
@@ -252,9 +253,9 @@ namespace Kernel
 		m_exit_status.exit_code = __WGENEXITCODE(status, signal);
 		for (auto* thread : m_threads)
 			if (thread != &Thread::current())
-				thread->terminate();
+				Scheduler::get().terminate_thread(thread);
 		if (this == &Process::current())
-			Thread::current().terminate();
+			Scheduler::get().terminate_thread(&Thread::current());
 	}
 
 	size_t Process::proc_meminfo(off_t offset, BAN::ByteSpan buffer) const
@@ -330,8 +331,8 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_exit(int status)
 	{
+		ASSERT(this == &Process::current());
 		exit(status, 0);
-		Thread::current().terminate();
 		ASSERT_NOT_REACHED();
 	}
 

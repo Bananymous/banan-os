@@ -30,8 +30,11 @@ namespace Kernel
 		static pid_t current_tid();
 
 		[[noreturn]] void execute_current_thread();
-		[[noreturn]] void _execute_current_thread();
+		[[noreturn]] void execute_current_thread_locked();
 		[[noreturn]] void delete_current_process_and_thread();
+
+		// This is no return if called on current thread
+		void terminate_thread(Thread*);
 
 	private:
 		Scheduler() = default;
@@ -42,6 +45,8 @@ namespace Kernel
 		[[nodiscard]] bool save_current_thread();
 		void remove_and_advance_current_thread();
 		void advance_current_thread();
+
+		[[noreturn]] void execute_current_thread_stack_loaded();
 
 		BAN::ErrorOr<void> add_thread(Thread*);
 
@@ -56,6 +61,8 @@ namespace Kernel
 			uint64_t	wake_time;
 			Semaphore*	semaphore;
 		};
+
+		SpinLockUnsafe m_lock;
 
 		Thread* m_idle_thread { nullptr };
 		BAN::LinkedList<SchedulerThread> m_active_threads;

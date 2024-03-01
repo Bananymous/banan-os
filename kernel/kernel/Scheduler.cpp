@@ -1,6 +1,5 @@
 #include <kernel/Arch.h>
 #include <kernel/Attributes.h>
-#include <kernel/CriticalScope.h>
 #include <kernel/GDT.h>
 #include <kernel/InterruptController.h>
 #include <kernel/Process.h>
@@ -8,15 +7,6 @@
 #include <kernel/Timer/Timer.h>
 
 #define SCHEDULER_VERIFY_STACK 1
-#define SCHEDULER_VERIFY_INTERRUPT_STATE 1
-
-#if SCHEDULER_VERIFY_INTERRUPT_STATE
-	#define VERIFY_STI() ASSERT(get_interrupt_state() == InterruptState::Enabled)
-	#define VERIFY_CLI() ASSERT(get_interrupt_state() == InterruptState::Disabled)
-#else
-	#define VERIFY_STI()
-	#define VERIFY_CLI()
-#endif
 
 namespace Kernel
 {
@@ -50,10 +40,11 @@ namespace Kernel
 
 	void Scheduler::start()
 	{
-		VERIFY_CLI();
+		ASSERT(get_interrupt_state() == InterruptState::Disabled);
+		m_lock.lock();
 		ASSERT(!m_active_threads.empty());
 		m_current_thread = m_active_threads.begin();
-		execute_current_thread();
+		execute_current_thread_locked();
 		ASSERT_NOT_REACHED();
 	}
 
@@ -71,45 +62,40 @@ namespace Kernel
 
 	void Scheduler::timer_reschedule()
 	{
-		VERIFY_CLI();
-
+		auto state = m_lock.lock();
 		wake_threads();
-
 		if (save_current_thread())
-			return;
+			return m_lock.unlock(state);
 		advance_current_thread();
-		execute_current_thread();
+		execute_current_thread_locked();
 		ASSERT_NOT_REACHED();
 	}
 
 	void Scheduler::reschedule()
 	{
-		set_interrupt_state(InterruptState::Disabled);
-
+		auto state = m_lock.lock();
 		if (save_current_thread())
-			return set_interrupt_state(InterruptState::Enabled);
+			return set_interrupt_state(state);
 		advance_current_thread();
-		execute_current_thread();
+		execute_current_thread_locked();
 		ASSERT_NOT_REACHED();
 	}
 
 	void Scheduler::reschedule_if_idling()
 	{
-		VERIFY_CLI();
-
+		auto state = m_lock.lock();
 		if (m_active_threads.empty() || &current_thread() != m_idle_thread)
-			return;
-
+			return m_lock.unlock(state);
 		if (save_current_thread())
-			return;
+			return m_lock.unlock(state);
 		m_current_thread = m_active_threads.begin();
-		execute_current_thread();
+		execute_current_thread_locked();
 		ASSERT_NOT_REACHED();
 	}
 
 	void Scheduler::wake_threads()
 	{
-		VERIFY_CLI();
+		ASSERT(m_lock.is_locked());
 
 		uint64_t current_time = SystemTimer::get().ms_since_boot();
 		while (!m_sleeping_threads.empty() && m_sleeping_threads.front().wake_time <= current_time)
@@ -124,14 +110,22 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Scheduler::add_thread(Thread* thread)
 	{
-		CriticalScope _;
+		SpinLockGuard _(m_lock);
 		TRY(m_active_threads.emplace_back(thread));
 		return {};
 	}
 
+	void Scheduler::terminate_thread(Thread* thread)
+	{
+		SpinLockGuard _(m_lock);
+		thread->m_state = Thread::State::Terminated;
+		if (thread == &current_thread())
+			execute_current_thread_locked();
+	}
+
 	void Scheduler::advance_current_thread()
 	{
-		VERIFY_CLI();
+		ASSERT(m_lock.is_locked());
 
 		if (m_active_threads.empty())
 		{
@@ -144,7 +138,7 @@ namespace Kernel
 
 	void Scheduler::remove_and_advance_current_thread()
 	{
-		VERIFY_CLI();
+		ASSERT(m_lock.is_locked());
 
 		ASSERT(m_current_thread);
 
@@ -165,7 +159,7 @@ namespace Kernel
 	//       after getting the rsp
 	ALWAYS_INLINE bool Scheduler::save_current_thread()
 	{
-		VERIFY_CLI();
+		ASSERT(m_lock.is_locked());
 
 		uintptr_t rsp, rip;
 		push_callee_saved();
@@ -187,7 +181,7 @@ namespace Kernel
 
 	void Scheduler::delete_current_process_and_thread()
 	{
-		set_interrupt_state(InterruptState::Disabled);
+		m_lock.lock();
 
 		load_temp_stack();
 		PageTable::kernel().load();
@@ -201,23 +195,33 @@ namespace Kernel
 
 		delete thread;
 
-		execute_current_thread();
+		execute_current_thread_locked();
 		ASSERT_NOT_REACHED();
 	}
 
 	void Scheduler::execute_current_thread()
 	{
-		VERIFY_CLI();
-
+		m_lock.lock();
 		load_temp_stack();
 		PageTable::kernel().load();
-		_execute_current_thread();
+		execute_current_thread_stack_loaded();
 		ASSERT_NOT_REACHED();
 	}
 
-	NEVER_INLINE void Scheduler::_execute_current_thread()
+	void Scheduler::execute_current_thread_locked()
 	{
-		VERIFY_CLI();
+		load_temp_stack();
+		PageTable::kernel().load();
+		execute_current_thread_stack_loaded();
+		ASSERT_NOT_REACHED();
+	}
+
+	NEVER_INLINE void Scheduler::execute_current_thread_stack_loaded()
+	{
+		ASSERT(m_lock.is_locked());
+
+		load_temp_stack();
+		PageTable::kernel().load();
 
 #if SCHEDULER_VERIFY_STACK
 		vaddr_t rsp;
@@ -264,10 +268,12 @@ namespace Kernel
 		{
 			case Thread::State::NotStarted:
 				current->set_started();
+				m_lock.unlock(InterruptState::Disabled);
 				start_thread(current->rsp(), current->rip());
 			case Thread::State::Executing:
 				while (current->can_add_signal_to_execute())
 					current->handle_signal();
+				m_lock.unlock(InterruptState::Disabled);
 				continue_thread(current->rsp(), current->rip());
 			case Thread::State::Terminated:
 				ASSERT_NOT_REACHED();
@@ -278,7 +284,7 @@ namespace Kernel
 
 	void Scheduler::set_current_thread_sleeping_impl(uint64_t wake_time)
 	{
-		VERIFY_CLI();
+		ASSERT(m_lock.is_locked());
 
 		if (save_current_thread())
 		{
@@ -301,35 +307,27 @@ namespace Kernel
 		m_current_thread = {};
 		advance_current_thread();
 
-		execute_current_thread();
+		execute_current_thread_locked();
 		ASSERT_NOT_REACHED();
 	}
 
 	void Scheduler::set_current_thread_sleeping(uint64_t wake_time)
 	{
-		VERIFY_STI();
-		set_interrupt_state(InterruptState::Disabled);
-
-		ASSERT(m_current_thread);
-
+		SpinLockGuard _(m_lock);
 		m_current_thread->semaphore = nullptr;
 		set_current_thread_sleeping_impl(wake_time);
 	}
 
 	void Scheduler::block_current_thread(Semaphore* semaphore, uint64_t wake_time)
 	{
-		VERIFY_STI();
-		set_interrupt_state(InterruptState::Disabled);
-
-		ASSERT(m_current_thread);
-
+		SpinLockGuard _(m_lock);
 		m_current_thread->semaphore = semaphore;
 		set_current_thread_sleeping_impl(wake_time);
 	}
 
 	void Scheduler::unblock_threads(Semaphore* semaphore)
 	{
-		CriticalScope critical;
+		SpinLockGuard _(m_lock);
 
 		for (auto it = m_sleeping_threads.begin(); it != m_sleeping_threads.end();)
 		{
@@ -350,7 +348,7 @@ namespace Kernel
 
 	void Scheduler::unblock_thread(pid_t tid)
 	{
-		CriticalScope _;
+		SpinLockGuard _(m_lock);
 
 		for (auto it = m_sleeping_threads.begin(); it != m_sleeping_threads.end(); it++)
 		{

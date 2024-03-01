@@ -27,14 +27,6 @@ namespace Kernel
 			memcpy((void*)rsp, (void*)&value, sizeof(uintptr_t));
 	}
 
-	void Thread::terminate()
-	{
-		set_interrupt_state(InterruptState::Disabled);
-		m_state = Thread::State::Terminated;
-		if (this == &Thread::current())
-			Scheduler::get().execute_current_thread();
-	}
-
 	static pid_t s_next_tid = 1;
 
 	BAN::ErrorOr<Thread*> Thread::create_kernel(entry_t entry, void* data, Process* process)
@@ -193,9 +185,10 @@ namespace Kernel
 	{
 		m_state = State::NotStarted;
 		static entry_t entry(
-			[](void* process)
+			[](void* process_ptr)
 			{
-				((Process*)process)->cleanup_function();
+				auto& process = *reinterpret_cast<Process*>(process_ptr);
+				process.cleanup_function();
 				Scheduler::get().delete_current_process_and_thread();
 				ASSERT_NOT_REACHED();
 			}
@@ -395,7 +388,7 @@ namespace Kernel
 	void Thread::on_exit()
 	{
 		ASSERT(this == &Thread::current());
-		terminate();
+		Scheduler::get().terminate_thread(this);
 		ASSERT_NOT_REACHED();
 	}
 
