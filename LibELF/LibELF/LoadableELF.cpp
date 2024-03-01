@@ -1,5 +1,4 @@
 #include <BAN/ScopeGuard.h>
-#include <kernel/CriticalScope.h>
 #include <kernel/Memory/Heap.h>
 #include <kernel/Lock/LockGuard.h>
 #include <LibELF/LoadableELF.h>
