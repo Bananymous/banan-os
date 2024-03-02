@@ -3,7 +3,17 @@
 namespace BAN
 {
 
-	template<typename T, int MEM_ORDER = __ATOMIC_SEQ_CST>
+	enum MemoryOrder
+	{
+		memory_order_relaxed = __ATOMIC_RELAXED,
+		memory_order_consume = __ATOMIC_CONSUME,
+		memory_order_acquire = __ATOMIC_ACQUIRE,
+		memory_order_release = __ATOMIC_RELEASE,
+		memory_order_acq_rel = __ATOMIC_ACQ_REL,
+		memory_order_seq_cst = __ATOMIC_SEQ_CST,
+	};
+
+	template<typename T, MemoryOrder MEM_ORDER = MemoryOrder::memory_order_seq_cst>
 	requires requires { __atomic_always_lock_free(sizeof(T), 0); }
 	class Atomic
 	{
@@ -16,8 +26,8 @@ namespace BAN
 		constexpr Atomic() : m_value(0) {}
 		constexpr Atomic(T val) : m_value(val) {}
 
-		inline T load() const volatile		{ return __atomic_load_n(&m_value, MEM_ORDER); }
-		inline void store(T val) volatile	{ __atomic_store_n(&m_value, val, MEM_ORDER); }
+		inline T load(MemoryOrder mem_order = MEM_ORDER) const volatile			{ return __atomic_load_n(&m_value, mem_order); }
+		inline void store(T val, MemoryOrder mem_order = MEM_ORDER) volatile	{ __atomic_store_n(&m_value, val, mem_order); }
 
 		inline T operator=(T val) volatile { store(val); return val; }
 
@@ -35,7 +45,7 @@ namespace BAN
 		inline T operator--(int) volatile { return __atomic_fetch_sub(&m_value, 1, MEM_ORDER); }
 		inline T operator++(int) volatile { return __atomic_fetch_add(&m_value, 1, MEM_ORDER); }
 
-		inline bool compare_exchange(T expected, T desired) volatile { return __atomic_compare_exchange_n(&m_value, &expected, desired, false, MEM_ORDER, MEM_ORDER); }
+		inline bool compare_exchange(T expected, T desired, MemoryOrder mem_order = MEM_ORDER) volatile { return __atomic_compare_exchange_n(&m_value, &expected, desired, false, mem_order, mem_order); }
 
 	private:
 		T m_value;
