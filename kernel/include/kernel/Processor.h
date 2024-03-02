@@ -30,6 +30,15 @@ namespace Kernel
 		return InterruptState::Disabled;
 	}
 
+	using ProcessorID = uint8_t;
+	constexpr ProcessorID PROCESSOR_NONE = 0xFF;
+	inline ProcessorID get_processor_id()
+	{
+		uint16_t id;
+		asm volatile("movw %%gs, %0" : "=rm"(id));
+		return id;
+	}
+
 #else
 #error "Unknown architecure"
 #endif
