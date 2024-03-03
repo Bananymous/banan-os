@@ -16,10 +16,9 @@ namespace Kernel
 
 	static Scheduler* s_instance = nullptr;
 
-	static uint8_t s_temp_stack[1024];
 	ALWAYS_INLINE static void load_temp_stack()
 	{
-		asm volatile("movq %0, %%rsp" :: "r"(s_temp_stack + sizeof(s_temp_stack)));
+		asm volatile("movq %0, %%rsp" :: "rm"(Processor::current().stack_top()));
 	}
 
 	BAN::ErrorOr<void> Scheduler::initialize()
@@ -40,7 +39,7 @@ namespace Kernel
 
 	void Scheduler::start()
 	{
-		ASSERT(get_interrupt_state() == InterruptState::Disabled);
+		ASSERT(Processor::get_interrupt_state() == InterruptState::Disabled);
 		m_lock.lock();
 		ASSERT(!m_active_threads.empty());
 		m_current_thread = m_active_threads.begin();
@@ -75,7 +74,7 @@ namespace Kernel
 	{
 		auto state = m_lock.lock();
 		if (save_current_thread())
-			return set_interrupt_state(state);
+			return Processor::set_interrupt_state(state);
 		advance_current_thread();
 		execute_current_thread_locked();
 		ASSERT_NOT_REACHED();
@@ -210,6 +209,7 @@ namespace Kernel
 
 	void Scheduler::execute_current_thread_locked()
 	{
+		ASSERT(m_lock.is_locked());
 		load_temp_stack();
 		PageTable::kernel().load();
 		execute_current_thread_stack_loaded();
@@ -220,13 +220,10 @@ namespace Kernel
 	{
 		ASSERT(m_lock.is_locked());
 
-		load_temp_stack();
-		PageTable::kernel().load();
-
 #if SCHEDULER_VERIFY_STACK
 		vaddr_t rsp;
 		read_rsp(rsp);
-		ASSERT((vaddr_t)s_temp_stack <= rsp && rsp <= (vaddr_t)s_temp_stack + sizeof(s_temp_stack));
+		ASSERT(Processor::current().stack_bottom() <= rsp && rsp <= Processor::current().stack_top());
 		ASSERT(&PageTable::current() == &PageTable::kernel());
 #endif
 
@@ -287,10 +284,7 @@ namespace Kernel
 		ASSERT(m_lock.is_locked());
 
 		if (save_current_thread())
-		{
-			set_interrupt_state(InterruptState::Enabled);
 			return;
-		}
 
 		auto it = m_sleeping_threads.begin();
 		for (; it != m_sleeping_threads.end(); it++)

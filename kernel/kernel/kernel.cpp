@@ -83,8 +83,6 @@ extern "C" void kernel_main(uint32_t boot_magic, uint32_t boot_info)
 {
 	using namespace Kernel;
 
-	set_interrupt_state(InterruptState::Disabled);
-
 	if (!validate_boot_magic(boot_magic))
 	{
 		Serial::initialize();
@@ -103,6 +101,9 @@ extern "C" void kernel_main(uint32_t boot_magic, uint32_t boot_info)
 
 	parse_boot_info(boot_magic, boot_info);
 	dprintln("boot info parsed");
+
+	Processor::create(Processor::current_id());
+	dprintln("BSP initialized");
 
 	GDT::initialize();
 	dprintln("GDT initialized");
@@ -214,7 +215,7 @@ extern "C" void ap_main()
 {
 	using namespace Kernel;
 
-	dprintln("hello from processor {}", get_processor_id());
+	dprintln("hello from processor {}", Processor::current_id());
 
 	for (;;)
 		asm volatile("");

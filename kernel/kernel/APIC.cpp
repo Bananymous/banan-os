@@ -26,6 +26,7 @@ extern uint8_t g_ap_init_addr[];
 
 extern volatile uint8_t g_ap_startup_done[];
 extern volatile uint8_t g_ap_running_count[];
+extern volatile uint8_t g_ap_stack_loaded[];
 
 namespace Kernel
 {
@@ -215,7 +216,7 @@ namespace Kernel
 
 		dprintln("System has {} processors", m_processors.size());
 
-		uint8_t bsp_id = get_processor_id();
+		uint8_t bsp_id = Kernel::Processor::current_id();
 		dprintln("BSP lapic id: {}", bsp_id);
 
 		for (auto& processor : m_processors)
@@ -231,6 +232,13 @@ namespace Kernel
 
 			dprintln("Trying to enable processor (lapic id {})", processor.apic_id);
 
+			Kernel::Processor::create(processor.processor_id);
+
+			PageTable::with_fast_page((paddr_t)g_ap_init_addr, [&] {
+				PageTable::fast_page_as_sized<uint32_t>(2) = V2P(Kernel::Processor::get(processor.processor_id).stack_top());
+			});
+			*g_ap_stack_loaded = 0;
+
 			write_to_local_apic(LAPIC_ERROR_REG, 0x00);
 			send_ipi(processor.processor_id, (read_from_local_apic(LAPIC_ICR_LO_REG) & 0xFFF00000) | 0x0000C500, 0);
 			send_ipi(processor.processor_id, (read_from_local_apic(LAPIC_ICR_LO_REG) & 0xFFF0F800) | 0x00008500, 0);
@@ -242,12 +250,13 @@ namespace Kernel
 				write_to_local_apic(LAPIC_ERROR_REG, 0x00);
 				send_ipi(processor.processor_id, (read_from_local_apic(LAPIC_ICR_LO_REG) & 0xFFF0F800) | 0x00000600 | ap_init_page, 200);
 			}
+
+			// give processor upto 100 * 100 us (10 ms to boot)
+			for (int i = 0; *g_ap_stack_loaded == 0 && i < 100; i++)
+				udelay(100);
 		}
 
 		*g_ap_startup_done = 1;
-
-		udelay(100);
-
 		dprintln("{} processors started", *g_ap_running_count);
 	}
 

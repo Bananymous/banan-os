@@ -50,10 +50,10 @@ namespace Kernel
 
 		InterruptState lock()
 		{
-			auto id = get_processor_id();
+			auto id = Processor::current_id();
 
-			auto state = get_interrupt_state();
-			set_interrupt_state(InterruptState::Disabled);
+			auto state = Processor::get_interrupt_state();
+			Processor::set_interrupt_state(InterruptState::Disabled);
 
 			while (!m_locker.compare_exchange(PROCESSOR_NONE, id, BAN::MemoryOrder::memory_order_acquire))
 				__builtin_ia32_pause();
@@ -64,7 +64,7 @@ namespace Kernel
 		void unlock(InterruptState state)
 		{
 			m_locker.store(PROCESSOR_NONE, BAN::MemoryOrder::memory_order_release);
-			set_interrupt_state(state);
+			Processor::set_interrupt_state(state);
 		}
 
 		bool is_locked() const { return m_locker != PROCESSOR_NONE; }

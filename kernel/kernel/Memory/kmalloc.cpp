@@ -75,6 +75,11 @@ struct kmalloc_info
 		return nullptr;
 	}
 
+	bool contains(uintptr_t addr) const
+	{
+		return base <= addr && addr < end;
+	}
+
 	size_t used = 0;
 	size_t free = size;
 };
@@ -161,8 +166,17 @@ static bool is_corrupted()
 	Kernel::SpinLockGuard _(s_kmalloc_lock);
 	auto& info = s_kmalloc_info;
 	auto* temp = info.first();
-	for (; temp->end() <= info.end; temp = temp->after());
-	return (uintptr_t)temp != info.end;
+	while (reinterpret_cast<uintptr_t>(temp) != info.end)
+	{
+		if (!info.contains(reinterpret_cast<uintptr_t>(temp)))
+			return true;
+		if (!info.contains(temp->end() - 1))
+			return true;
+		if (temp->after() <= temp)
+			return true;
+		temp = temp->after();
+	}
+	return false;
 }
 
 [[maybe_unused]] static void debug_dump()
@@ -235,12 +249,12 @@ static void* kmalloc_impl(size_t size, size_t align)
 
 	auto& info = s_kmalloc_info;
 
-	for (auto* node = info.first(); node->end() <= info.end; node = node->after())
+	for (auto* node = info.first(); info.contains(reinterpret_cast<uintptr_t>(node)); node = node->after())
 	{
 		if (node->used())
 			continue;
 
-		if (auto* next = node->after(); next->end() <= info.end)
+		if (auto* next = node->after(); info.contains(reinterpret_cast<uintptr_t>(next)))
 			if (!next->used())
 				node->set_end(next->end());
 

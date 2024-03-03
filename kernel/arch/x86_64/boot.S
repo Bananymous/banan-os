@@ -53,9 +53,9 @@ bananboot_start:
 bananboot_end:
 
 .section .bss, "aw", @nobits
-	# reserve 4096 bytes of initial stack for each processor
-	g_processor_stacks:
-		.skip 4096 * 64
+	boot_stack_bottom:
+		.skip 4096 * 4
+	boot_stack_top:
 
 	.global g_kernel_cmdline
 	g_kernel_cmdline:
@@ -108,6 +108,9 @@ g_ap_startup_done:
 .global g_ap_running_count
 g_ap_running_count:
 	.byte 0
+.global g_ap_stack_loaded
+g_ap_stack_loaded:
+	.byte 0
 
 .section .text
 
@@ -155,19 +158,12 @@ enable_sse:
 	movl %eax, %cr4
 	ret
 
-# NOTE: return address in argument %edi
-initialize_pmode_stack:
+initialize_lapic_id:
 	movl $1, %eax
 	cpuid
 	shrl $24, %ebx
-
 	movw %bx, %gs
-
-	shll $12, %ebx
-	addl $V2P(g_processor_stacks) + 4096, %ebx
-	movl %ebx, %esp
-
-	jmp *%edi
+	ret
 
 initialize_paging:
 	# enable PAE
@@ -195,13 +191,14 @@ initialize_paging:
 .global _start
 .type _start, @function
 _start:
+	cli; cld
+
 	# Initialize stack and multiboot info
 	movl %eax, V2P(bootloader_magic)
 	movl %ebx, V2P(bootloader_info)
 
-	movl $V2P(1f), %edi
-	jmp initialize_pmode_stack
-1:
+	movl $V2P(boot_stack_top), %esp
+	call initialize_lapic_id
 
 	call check_requirements
 	call enable_sse
@@ -253,7 +250,12 @@ system_halt:
 .code16
 .global ap_trampoline
 ap_trampoline:
-	cli
+	jmp 1f
+.align 8
+ap_stack_ptr:
+	.skip 4
+1:
+	cli; cld
 	ljmpl $0x00, $ap_cs_clear
 
 ap_cs_clear:
@@ -274,12 +276,15 @@ ap_protected_mode:
 	movw %ax, %ss
 	movw %ax, %es
 
-	movl $1f, %edi
-	jmp V2P(initialize_pmode_stack)
-1:
+	movl ap_stack_ptr, %esp
+	movb $1, V2P(g_ap_stack_loaded)
+	call V2P(initialize_lapic_id)
 
-	# load boot gdt, load boot page table and enter long mode
+	call V2P(enable_sse)
+
 	call V2P(initialize_paging)
+
+	# load boot gdt and enter long mode
 	lgdt V2P(boot_gdtr)
 	ljmpl $0x08, $ap_long_mode
 
