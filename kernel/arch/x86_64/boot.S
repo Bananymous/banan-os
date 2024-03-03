@@ -53,12 +53,9 @@ bananboot_start:
 bananboot_end:
 
 .section .bss, "aw", @nobits
- 	# Create stack
-	.global g_boot_stack_bottom
-	g_boot_stack_bottom:
-		.skip 16384
-	.global g_boot_stack_top
-	g_boot_stack_top:
+	# reserve 4096 bytes of initial stack for each processor
+	g_processor_stacks:
+		.skip 4096 * 64
 
 	.global g_kernel_cmdline
 	g_kernel_cmdline:
@@ -104,6 +101,13 @@ boot_gdt:
 boot_gdtr:
 	.short . - boot_gdt - 1
 	.quad V2P(boot_gdt)
+
+.global g_ap_startup_done
+g_ap_startup_done:
+	.byte 0
+.global g_ap_running_count
+g_ap_running_count:
+	.byte 0
 
 .section .text
 
@@ -151,6 +155,20 @@ enable_sse:
 	movl %eax, %cr4
 	ret
 
+# NOTE: return address in argument %edi
+initialize_pmode_stack:
+	movl $1, %eax
+	cpuid
+	shrl $24, %ebx
+
+	movw %bx, %gs
+
+	shll $12, %ebx
+	addl $V2P(g_processor_stacks) + 4096, %ebx
+	movl %ebx, %esp
+
+	jmp *%edi
+
 initialize_paging:
 	# enable PAE
 	movl %cr4, %ecx
@@ -178,9 +196,12 @@ initialize_paging:
 .type _start, @function
 _start:
 	# Initialize stack and multiboot info
-	movl $V2P(g_boot_stack_top), %esp
 	movl %eax, V2P(bootloader_magic)
 	movl %ebx, V2P(bootloader_info)
+
+	movl $V2P(1f), %edi
+	jmp initialize_pmode_stack
+1:
 
 	call check_requirements
 	call enable_sse
@@ -194,17 +215,15 @@ _start:
 .code64
 long_mode:
 	movw $0x10, %ax
-	movw %ax, %ss
-
-	# clear segment registers (unused in x86_64?)
-	movw $0x00, %ax
 	movw %ax, %ds
+	movw %ax, %ss
 	movw %ax, %es
-	movw %ax, %fs
-	movw %ax, %gs
+
+	# move stack pointer to higher half
+	movl %esp, %esp
+	addq $KERNEL_OFFSET, %rsp
 
 	# jump to higher half
-	movq $g_boot_stack_top, %rsp
 	movabsq $higher_half, %rcx
 	jmp *%rcx
 
@@ -227,3 +246,70 @@ system_halt:
 	cli
 1:	hlt
 	jmp 1b
+
+
+.section .ap_init, "ax"
+
+.code16
+.global ap_trampoline
+ap_trampoline:
+	cli
+	ljmpl $0x00, $ap_cs_clear
+
+ap_cs_clear:
+	xorw %ax, %ax
+	movw %ax, %ds
+
+	# load ap gdt and enter protected mode
+	lgdt ap_gdtr
+	movl %cr0, %eax
+	orb $1, %al
+	movl %eax, %cr0
+	ljmpl $0x08, $ap_protected_mode
+
+.code32
+ap_protected_mode:
+	movw $0x10, %ax
+	movw %ax, %ds
+	movw %ax, %ss
+	movw %ax, %es
+
+	movl $1f, %edi
+	jmp V2P(initialize_pmode_stack)
+1:
+
+	# load boot gdt, load boot page table and enter long mode
+	call V2P(initialize_paging)
+	lgdt V2P(boot_gdtr)
+	ljmpl $0x08, $ap_long_mode
+
+.code64
+ap_long_mode:
+	# move stack pointer to higher half
+	movl %esp, %esp
+	addq $KERNEL_OFFSET, %rsp
+
+	# jump to higher half
+	movabsq $ap_higher_half, %rcx
+	jmp *%rcx
+
+ap_higher_half:
+	# clear rbp for stacktrace
+	xorq %rbp, %rbp
+
+1:	pause
+	cmpb $0, g_ap_startup_done
+	jz 1b
+
+	lock incb g_ap_running_count
+
+	call ap_main
+	jmp system_halt
+
+ap_gdt:
+	.quad 0x0000000000000000 # null descriptor
+	.quad 0x00CF9A000000FFFF # 32 bit code
+	.quad 0x00CF92000000FFFF # 32 bit data
+ap_gdtr:
+	.short . - ap_gdt - 1
+	.quad ap_gdt

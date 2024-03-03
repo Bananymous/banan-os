@@ -134,4 +134,9 @@ namespace Kernel
 		return IO::inb(port) & (1 << irq);
 	}
 
+	void PIC::initialize_multiprocessor()
+	{
+		dprintln("Only single processor supported with PIC");
+	}
+
 }

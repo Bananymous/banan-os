@@ -306,6 +306,7 @@ namespace Kernel
 
 	void PageTable::load()
 	{
+		SpinLockGuard _(m_lock);
 		asm volatile("movq %0, %%cr3" :: "r"(m_highest_paging_struct));
 		s_current = this;
 	}

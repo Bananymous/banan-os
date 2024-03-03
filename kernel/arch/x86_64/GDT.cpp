@@ -3,8 +3,6 @@
 
 #include <string.h>
 
-extern "C" uintptr_t g_boot_stack_top[0];
-
 namespace Kernel::GDT
 {
 

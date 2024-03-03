@@ -18,6 +18,8 @@ namespace Kernel
 		virtual BAN::ErrorOr<void> reserve_irq(uint8_t irq) override;
 		virtual BAN::Optional<uint8_t> get_free_irq() override;
 
+		virtual void initialize_multiprocessor() override;
+
 	private:
 		uint32_t read_from_local_apic(ptrdiff_t);
 		void write_to_local_apic(ptrdiff_t, uint32_t);

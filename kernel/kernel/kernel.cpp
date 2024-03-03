@@ -19,12 +19,13 @@
 #include <kernel/PCI.h>
 #include <kernel/PIC.h>
 #include <kernel/Process.h>
+#include <kernel/Processor.h>
 #include <kernel/Random.h>
 #include <kernel/Scheduler.h>
 #include <kernel/Syscall.h>
+#include <kernel/Terminal/FramebufferTerminal.h>
 #include <kernel/Terminal/Serial.h>
 #include <kernel/Terminal/VirtualTTY.h>
-#include <kernel/Terminal/FramebufferTerminal.h>
 #include <kernel/Timer/Timer.h>
 
 struct ParsedCommandLine
@@ -127,6 +128,8 @@ extern "C" void kernel_main(uint32_t boot_magic, uint32_t boot_info)
 	SystemTimer::initialize(cmdline.force_pic);
 	dprintln("Timers initialized");
 
+	InterruptController::get().initialize_multiprocessor();
+
 	DevFileSystem::initialize();
 	dprintln("devfs initialized");
 
@@ -205,4 +208,14 @@ static void init2(void*)
 	TTY::initialize_devices();
 
 	MUST(Process::create_userspace({ 0, 0, 0, 0 }, "/usr/bin/init"sv));
+}
+
+extern "C" void ap_main()
+{
+	using namespace Kernel;
+
+	dprintln("hello from processor {}", get_processor_id());
+
+	for (;;)
+		asm volatile("");
 }

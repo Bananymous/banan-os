@@ -37,6 +37,8 @@ namespace Kernel
 		static void initialize(bool force_pic);
 		static InterruptController& get();
 
+		virtual void initialize_multiprocessor() = 0;
+
 		virtual BAN::ErrorOr<void> reserve_irq(uint8_t irq) = 0;
 		virtual BAN::Optional<uint8_t> get_free_irq() = 0;
 

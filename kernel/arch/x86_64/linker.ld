@@ -4,6 +4,13 @@ KERNEL_OFFSET = 0xFFFFFFFF80000000;
 
 SECTIONS
 {
+	. = 0xF000;
+	.ap_init ALIGN(4K) : AT(ADDR(.ap_init))
+	{
+		g_ap_init_addr = .;
+		*(.ap_init)
+	}
+
 	. = 0x00100000 + KERNEL_OFFSET;
 
 	g_kernel_start = .;

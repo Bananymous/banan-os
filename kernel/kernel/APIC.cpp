@@ -6,19 +6,26 @@
 #include <kernel/IDT.h>
 #include <kernel/Memory/PageTable.h>
 #include <kernel/MMIO.h>
+#include <kernel/Timer/Timer.h>
 
 #include <string.h>
 
 #define LAPIC_EIO_REG		0xB0
 #define LAPIC_SIV_REG		0xF0
 #define LAPIC_IS_REG		0x100
+#define LAPIC_ERROR_REG		0x280
+#define LAPIC_ICR_LO_REG	0x300
+#define LAPIC_ICR_HI_REG	0x310
 
 #define IOAPIC_MAX_REDIRS	0x01
 #define IOAPIC_REDIRS		0x10
 
-#define DEBUG_PRINT_PROCESSORS 0
-
 // https://uefi.org/specs/ACPI/6.5/05_ACPI_Software_Programming_Model.html#multiple-apic-description-table-madt-format
+
+extern uint8_t g_ap_init_addr[];
+
+extern volatile uint8_t g_ap_startup_done[];
+extern volatile uint8_t g_ap_running_count[];
 
 namespace Kernel
 {
@@ -182,16 +189,66 @@ namespace Kernel
 		uint32_t sivr = apic->read_from_local_apic(LAPIC_SIV_REG);
 		apic->write_to_local_apic(LAPIC_SIV_REG, sivr | 0x1FF);
 
-	#if DEBUG_PRINT_PROCESSORS
-		for (auto& processor : apic->m_processors)
-		{
-			dprintln("Processor{}", processor.processor_id);
-			dprintln("  lapic id: {}", processor.apic_id);
-			dprintln("  status:   {}", (processor.flags & Processor::Flags::Enabled) ? "enabled" : (processor.flags & Processor::Flags::OnlineCapable) ? "can be enabled" : "disabled");
-		}
-	#endif
-
 		return apic;
+	}
+
+	void APIC::initialize_multiprocessor()
+	{
+		constexpr auto udelay =
+			[](uint64_t us) {
+				uint64_t wake_time = SystemTimer::get().ns_since_boot() + us * 1000;
+				while (SystemTimer::get().ns_since_boot() < wake_time)
+					__builtin_ia32_pause();
+			};
+
+		const auto send_ipi =
+			[&](uint8_t processor, uint32_t data, uint64_t ud)
+			{
+				write_to_local_apic(LAPIC_ICR_HI_REG, (read_from_local_apic(LAPIC_ICR_HI_REG) & 0x00FFFFFF) | (processor << 24));
+				write_to_local_apic(LAPIC_ICR_LO_REG, data);
+				udelay(ud);
+				while (read_from_local_apic(LAPIC_ICR_LO_REG) & (1 << 12))
+					__builtin_ia32_pause();
+			};
+
+		const size_t ap_init_page = reinterpret_cast<vaddr_t>(g_ap_init_addr) / PAGE_SIZE;
+
+		dprintln("System has {} processors", m_processors.size());
+
+		uint8_t bsp_id = get_processor_id();
+		dprintln("BSP lapic id: {}", bsp_id);
+
+		for (auto& processor : m_processors)
+		{
+			if (processor.apic_id == bsp_id)
+				continue;
+
+			if (!(processor.flags & (Processor::Flags::Enabled | Processor::Flags::OnlineCapable)))
+			{
+				dwarnln("Skipping processor (lapic id {}) initialization", processor.apic_id);
+				continue;
+			}
+
+			dprintln("Trying to enable processor (lapic id {})", processor.apic_id);
+
+			write_to_local_apic(LAPIC_ERROR_REG, 0x00);
+			send_ipi(processor.processor_id, (read_from_local_apic(LAPIC_ICR_LO_REG) & 0xFFF00000) | 0x0000C500, 0);
+			send_ipi(processor.processor_id, (read_from_local_apic(LAPIC_ICR_LO_REG) & 0xFFF0F800) | 0x00008500, 0);
+
+			udelay(10 * 1000);
+
+			for (int i = 0; i < 2; i++)
+			{
+				write_to_local_apic(LAPIC_ERROR_REG, 0x00);
+				send_ipi(processor.processor_id, (read_from_local_apic(LAPIC_ICR_LO_REG) & 0xFFF0F800) | 0x00000600 | ap_init_page, 200);
+			}
+		}
+
+		*g_ap_startup_done = 1;
+
+		udelay(100);
+
+		dprintln("{} processors started", *g_ap_running_count);
 	}
 
 	uint32_t APIC::read_from_local_apic(ptrdiff_t offset)

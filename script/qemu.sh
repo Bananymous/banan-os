@@ -21,7 +21,7 @@ fi
 
 qemu-system-$BANAN_ARCH												\
 	-m 1G															\
-	-smp 2															\
+	-smp 4															\
 	$BIOS_ARGS														\
 	-drive format=raw,id=disk,file=${BANAN_DISK_IMAGE_PATH},if=none	\
 	-device e1000e,netdev=net										\
