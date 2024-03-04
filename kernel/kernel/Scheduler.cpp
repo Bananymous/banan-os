@@ -64,7 +64,7 @@ namespace Kernel
 		auto state = m_lock.lock();
 		wake_threads();
 		if (save_current_thread())
-			return m_lock.unlock(state);
+			return Processor::set_interrupt_state(state);
 		advance_current_thread();
 		execute_current_thread_locked();
 		ASSERT_NOT_REACHED();
@@ -86,7 +86,7 @@ namespace Kernel
 		if (m_active_threads.empty() || &current_thread() != m_idle_thread)
 			return m_lock.unlock(state);
 		if (save_current_thread())
-			return m_lock.unlock(state);
+			return Processor::set_interrupt_state(state);
 		m_current_thread = m_active_threads.begin();
 		execute_current_thread_locked();
 		ASSERT_NOT_REACHED();
@@ -94,7 +94,7 @@ namespace Kernel
 
 	void Scheduler::wake_threads()
 	{
-		ASSERT(m_lock.is_locked());
+		ASSERT(m_lock.current_processor_has_lock());
 
 		uint64_t current_time = SystemTimer::get().ms_since_boot();
 		while (!m_sleeping_threads.empty() && m_sleeping_threads.front().wake_time <= current_time)
@@ -124,7 +124,7 @@ namespace Kernel
 
 	void Scheduler::advance_current_thread()
 	{
-		ASSERT(m_lock.is_locked());
+		ASSERT(m_lock.current_processor_has_lock());
 
 		if (m_active_threads.empty())
 		{
@@ -137,7 +137,7 @@ namespace Kernel
 
 	void Scheduler::remove_and_advance_current_thread()
 	{
-		ASSERT(m_lock.is_locked());
+		ASSERT(m_lock.current_processor_has_lock());
 
 		ASSERT(m_current_thread);
 
@@ -158,7 +158,7 @@ namespace Kernel
 	//       after getting the rsp
 	ALWAYS_INLINE bool Scheduler::save_current_thread()
 	{
-		ASSERT(m_lock.is_locked());
+		ASSERT(m_lock.current_processor_has_lock());
 
 		uintptr_t rsp, rip;
 		push_callee_saved();
@@ -209,7 +209,7 @@ namespace Kernel
 
 	void Scheduler::execute_current_thread_locked()
 	{
-		ASSERT(m_lock.is_locked());
+		ASSERT(m_lock.current_processor_has_lock());
 		load_temp_stack();
 		PageTable::kernel().load();
 		execute_current_thread_stack_loaded();
@@ -218,7 +218,7 @@ namespace Kernel
 
 	NEVER_INLINE void Scheduler::execute_current_thread_stack_loaded()
 	{
-		ASSERT(m_lock.is_locked());
+		ASSERT(m_lock.current_processor_has_lock());
 
 #if SCHEDULER_VERIFY_STACK
 		vaddr_t rsp;
@@ -281,7 +281,7 @@ namespace Kernel
 
 	void Scheduler::set_current_thread_sleeping_impl(uint64_t wake_time)
 	{
-		ASSERT(m_lock.is_locked());
+		ASSERT(m_lock.current_processor_has_lock());
 
 		if (save_current_thread())
 			return;
@@ -307,16 +307,18 @@ namespace Kernel
 
 	void Scheduler::set_current_thread_sleeping(uint64_t wake_time)
 	{
-		SpinLockGuard _(m_lock);
+		auto state = m_lock.lock();
 		m_current_thread->semaphore = nullptr;
 		set_current_thread_sleeping_impl(wake_time);
+		Processor::set_interrupt_state(state);
 	}
 
 	void Scheduler::block_current_thread(Semaphore* semaphore, uint64_t wake_time)
 	{
-		SpinLockGuard _(m_lock);
+		auto state = m_lock.lock();
 		m_current_thread->semaphore = semaphore;
 		set_current_thread_sleeping_impl(wake_time);
+		Processor::set_interrupt_state(state);
 	}
 
 	void Scheduler::unblock_threads(Semaphore* semaphore)

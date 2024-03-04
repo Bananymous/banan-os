@@ -62,7 +62,7 @@ namespace Kernel
 			Semaphore*	semaphore;
 		};
 
-		SpinLockUnsafe m_lock;
+		SpinLock m_lock;
 
 		Thread* m_idle_thread { nullptr };
 		BAN::LinkedList<SchedulerThread> m_active_threads;

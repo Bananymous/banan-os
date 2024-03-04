@@ -1,5 +1,6 @@
 #pragma once
 
+#include <BAN/Assert.h>
 #include <BAN/Atomic.h>
 #include <BAN/NoCopyMove.h>
 #include <kernel/Processor.h>
@@ -17,11 +18,35 @@ namespace Kernel
 	public:
 		SpinLock() = default;
 
-		InterruptState lock();
-		void unlock(InterruptState state);
+		InterruptState lock()
+		{
+			auto state = Processor::get_interrupt_state();
+			Processor::set_interrupt_state(InterruptState::Disabled);
+
+			auto id = Processor::current_id();
+			ASSERT(m_locker != id);
+
+			while (!m_locker.compare_exchange(PROCESSOR_NONE, id, BAN::MemoryOrder::memory_order_acquire))
+				__builtin_ia32_pause();
+
+			return state;
+		}
+
+		void unlock(InterruptState state)
+		{
+			ASSERT(Processor::get_interrupt_state() == InterruptState::Disabled);
+			ASSERT(m_locker == Processor::current_id());
+			m_locker.store(PROCESSOR_NONE, BAN::MemoryOrder::memory_order_release);
+			Processor::set_interrupt_state(state);
+		}
+
+		bool current_processor_has_lock() const
+		{
+			return m_locker == Processor::current_id();
+		}
 
 	private:
-		BAN::Atomic<ProcessorID>	m_locker { PROCESSOR_NONE };
+		BAN::Atomic<ProcessorID> m_locker { PROCESSOR_NONE };
 	};
 
 	class RecursiveSpinLock
@@ -32,45 +57,44 @@ namespace Kernel
 	public:
 		RecursiveSpinLock() = default;
 
-		InterruptState lock();
-		void unlock(InterruptState state);
-
-	private:
-		BAN::Atomic<ProcessorID>	m_locker { PROCESSOR_NONE };
-		uint32_t					m_lock_depth { 0 };
-	};
-
-	class SpinLockUnsafe
-	{
-		BAN_NON_COPYABLE(SpinLockUnsafe);
-		BAN_NON_MOVABLE(SpinLockUnsafe);
-
-	public:
-		SpinLockUnsafe() = default;
-
 		InterruptState lock()
 		{
-			auto id = Processor::current_id();
-
 			auto state = Processor::get_interrupt_state();
 			Processor::set_interrupt_state(InterruptState::Disabled);
 
-			while (!m_locker.compare_exchange(PROCESSOR_NONE, id, BAN::MemoryOrder::memory_order_acquire))
-				__builtin_ia32_pause();
+			auto id = Processor::current_id();
+			if (m_locker == id)
+				ASSERT(m_lock_depth > 0);
+			else
+			{
+				while (!m_locker.compare_exchange(PROCESSOR_NONE, id, BAN::MemoryOrder::memory_order_acquire))
+					__builtin_ia32_pause();
+				ASSERT(m_lock_depth == 0);
+			}
+
+			m_lock_depth++;
 
 			return state;
 		}
 
 		void unlock(InterruptState state)
 		{
-			m_locker.store(PROCESSOR_NONE, BAN::MemoryOrder::memory_order_release);
+			ASSERT(Processor::get_interrupt_state() == InterruptState::Disabled);
+			ASSERT(m_locker == Processor::current_id());
+			ASSERT(m_lock_depth > 0);
+			if (--m_lock_depth == 0)
+				m_locker.store(PROCESSOR_NONE, BAN::MemoryOrder::memory_order_release);
 			Processor::set_interrupt_state(state);
 		}
 
-		bool is_locked() const { return m_locker != PROCESSOR_NONE; }
+		bool current_processor_has_lock() const
+		{
+			return m_locker == Processor::current_id();
+		}
 
 	private:
-		BAN::Atomic<ProcessorID> m_locker { PROCESSOR_NONE };
+		BAN::Atomic<ProcessorID>	m_locker { PROCESSOR_NONE };
+		uint32_t					m_lock_depth { 0 };
 	};
 
 	template<typename Lock>
