@@ -1,33 +1,13 @@
 #pragma once
 
-#include <BAN/Traits.h>
+#define __ban_assert_stringify_helper(s) #s
+#define __ban_assert_stringify(s) __ban_assert_stringify_helper(s)
 
-#if defined(__is_kernel)
-	#include <kernel/Panic.h>
+#define ASSERT(cond)																						\
+	(__builtin_expect(!(cond), 0)																			\
+		? __ban_assertion_failed(__FILE__ ":" __ban_assert_stringify(__LINE__), "ASSERT(" #cond ") failed")	\
+		: (void)0)
 
-	#define ASSERT(cond)									\
-		do {												\
-			if (!(cond))									\
-				Kernel::panic("ASSERT(" #cond ") failed");	\
-		} while (false)
+#define ASSERT_NOT_REACHED() ASSERT(false)
 
-	#define __ASSERT_BIN_OP(lhs, rhs, name, op)														\
-		do {																						\
-			auto&& _lhs = (lhs);																	\
-			auto&& _rhs = (rhs);																	\
-			if (!(_lhs op _rhs))																	\
-					Kernel::panic(name "(" #lhs ", " #rhs ") ({} " #op " {}) failed", _lhs, _rhs);	\
-		} while (false)
-
-	#define ASSERT_LT(lhs, rhs)		__ASSERT_BIN_OP(lhs, rhs, "ASSERT_LT",	<)
-	#define ASSERT_LTE(lhs, rhs)	__ASSERT_BIN_OP(lhs, rhs, "ASSERT_LTE",	<=)
-	#define ASSERT_GT(lhs, rhs)		__ASSERT_BIN_OP(lhs, rhs, "ASSERT_GT",	>)
-	#define ASSERT_GTE(lhs, rhs)	__ASSERT_BIN_OP(lhs, rhs, "ASSERT_GTE",	>=)
-	#define ASSERT_EQ(lhs, rhs)		__ASSERT_BIN_OP(lhs, rhs, "ASSERT_EQ",	==)
-	#define ASSERT_NEQ(lhs, rhs)	__ASSERT_BIN_OP(lhs, rhs, "ASSERT_NEQ",	!=)
-	#define ASSERT_NOT_REACHED() Kernel::panic("ASSERT_NOT_REACHED() failed")
-#else
-	#include <assert.h>
-	#define ASSERT(cond) assert((cond) && "ASSERT("#cond") failed")
-	#define ASSERT_NOT_REACHED() do { assert(false && "ASSERT_NOT_REACHED() failed"); __builtin_unreachable(); } while (false)
-#endif
+[[noreturn]] void __ban_assertion_failed(const char* location, const char* msg);

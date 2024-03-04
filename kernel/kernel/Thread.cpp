@@ -170,7 +170,7 @@ namespace Kernel
 		// Signal mask is inherited
 
 		// Setup stack for returning
-		ASSERT_EQ(m_rsp % PAGE_SIZE, 0u);
+		ASSERT(m_rsp % PAGE_SIZE == 0);
 		PageTable::with_fast_page(process().page_table().physical_address_of(m_rsp - PAGE_SIZE), [&] {
 			uintptr_t rsp = PageTable::fast_page() + PAGE_SIZE;
 			write_to_stack(rsp, nullptr); // alignment
@@ -199,7 +199,7 @@ namespace Kernel
 		m_signal_pending_mask = 0;
 		m_signal_block_mask = ~0ull;
 
-		ASSERT_EQ(m_rsp % PAGE_SIZE, 0u);
+		ASSERT(m_rsp % PAGE_SIZE == 0);
 		PageTable::with_fast_page(process().page_table().physical_address_of(m_rsp - PAGE_SIZE), [&] {
 			uintptr_t rsp = PageTable::fast_page() + PAGE_SIZE;
 			write_to_stack(rsp, nullptr); // alignment

@@ -129,7 +129,7 @@ namespace Kernel
 			size_t file_offset = m_offset + (vaddr - m_vaddr);
 			size_t bytes = BAN::Math::min<size_t>(m_size - file_offset, PAGE_SIZE);
 
-			ASSERT_EQ(&PageTable::current(), &m_page_table);
+			ASSERT(&PageTable::current() == &m_page_table);
 			auto read_ret = m_inode->read(file_offset, BAN::ByteSpan((uint8_t*)vaddr, bytes));
 
 			if (read_ret.is_error())

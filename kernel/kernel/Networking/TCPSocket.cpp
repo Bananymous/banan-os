@@ -455,7 +455,7 @@ namespace Kernel
 				if (m_send_window.data_size > 0 && m_send_window.current_ack - m_send_window.has_ghost_byte > m_send_window.start_seq)
 				{
 					uint32_t acknowledged_bytes = m_send_window.current_ack - m_send_window.start_seq - m_send_window.has_ghost_byte;
-					ASSERT_LTE(acknowledged_bytes, m_send_window.data_size);
+					ASSERT(acknowledged_bytes <= m_send_window.data_size);
 
 					m_send_window.data_size -= acknowledged_bytes;
 					m_send_window.start_seq += acknowledged_bytes;

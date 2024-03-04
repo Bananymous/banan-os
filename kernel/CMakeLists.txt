@@ -136,6 +136,7 @@ set(LAI_SOURCES
 )
 
 set(BAN_SOURCES
+	../BAN/BAN/Assert.cpp
 	../BAN/BAN/New.cpp
 	../BAN/BAN/String.cpp
 	../BAN/BAN/StringView.cpp

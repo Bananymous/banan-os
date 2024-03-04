@@ -158,9 +158,9 @@ namespace Kernel
 			return;
 
 		// Verify no overflow
-		ASSERT_LTE(bytes, size());
-		ASSERT_LTE(offset, size());
-		ASSERT_LTE(offset, size() - bytes);
+		ASSERT(bytes <= size());
+		ASSERT(offset <= size());
+		ASSERT(offset <= size() - bytes);
 
 		if (&PageTable::current() == &m_page_table || &PageTable::kernel() == &m_page_table)
 		{

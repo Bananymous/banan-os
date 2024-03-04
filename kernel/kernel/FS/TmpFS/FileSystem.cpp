@@ -128,9 +128,9 @@ namespace Kernel
 		auto inode_location = find_inode(ino);
 		PageTable::with_fast_page(inode_location.paddr, [&] {
 			auto& inode_info = PageTable::fast_page_as_sized<TmpInodeInfo>(inode_location.index);
-			ASSERT_EQ(inode_info.nlink, 0);
+			ASSERT(inode_info.nlink == 0);
 			for (auto paddr : inode_info.block)
-				ASSERT_EQ(paddr, 0);
+				ASSERT(paddr == 0);
 			inode_info = {};
 		});
 		ASSERT(!m_inode_cache.contains(ino));
@@ -166,8 +166,8 @@ namespace Kernel
 	{
 		LockGuard _(m_mutex);
 
-		ASSERT_GTE(ino, first_inode);
-		ASSERT_LT(ino, max_inodes);
+		ASSERT(ino >= first_inode);
+		ASSERT(ino < max_inodes);
 
 		constexpr size_t inodes_per_page = PAGE_SIZE / sizeof(TmpInodeInfo);
 
@@ -220,7 +220,7 @@ namespace Kernel
 	{
 		LockGuard _(m_mutex);
 
-		ASSERT_GT(index, 0);
+		ASSERT(index > 0);
 		return find_indirect(m_data_pages, index - first_data_page, 3);
 	}
 

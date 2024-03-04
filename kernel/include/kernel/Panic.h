@@ -2,28 +2,29 @@
 
 #include <kernel/Debug.h>
 
-#define panic(...) detail::panic_impl(__FILE__, __LINE__, __VA_ARGS__)
+#define __panic_stringify_helper(s) #s
+#define __panic_stringify(s) __panic_stringify_helper(s)
 
-namespace Kernel::detail
+#define panic(...) panic_impl(__FILE__ ":" __panic_stringify(__LINE__), __VA_ARGS__)
+
+namespace Kernel
 {
 
-	extern bool g_paniced;
+	extern volatile bool g_paniced;
 
 	template<typename... Args>
 	__attribute__((__noreturn__))
-	static void panic_impl(const char* file, int line, const char* message, Args&&... args)
+	static void panic_impl(const char* location, const char* message, Args&&... args)
 	{
 		asm volatile("cli");
-		derrorln("Kernel panic at {}:{}", file, line);
+		derrorln("Kernel panic at {}", location);
 		derrorln(message, BAN::forward<Args>(args)...);
 		if (!g_paniced)
 		{
 			g_paniced = true;
 			Debug::dump_stack_trace();
 		}
-		for (;;)
-			asm volatile("hlt");
-		__builtin_unreachable();
+		asm volatile("ud2");
 	}
 
 }

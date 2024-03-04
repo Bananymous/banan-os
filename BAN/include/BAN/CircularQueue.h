@@ -1,6 +1,7 @@
 #pragma once
 
 #include <BAN/Assert.h>
+#include <BAN/Move.h>
 #include <BAN/PlacementNew.h>
 
 #include <stdint.h>

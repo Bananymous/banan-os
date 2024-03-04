@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.26)
 project(BAN CXX)
 
 set(BAN_SOURCES
+	BAN/Assert.cpp
 	BAN/New.cpp
 	BAN/String.cpp
 	BAN/StringView.cpp

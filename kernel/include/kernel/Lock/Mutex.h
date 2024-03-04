@@ -21,12 +21,12 @@ namespace Kernel
 		{
 			auto tid = Scheduler::current_tid();
 			if (tid == m_locker)
-				ASSERT_GT(m_lock_depth, 0);
+				ASSERT(m_lock_depth > 0);
 			else
 			{
 				while (!m_locker.compare_exchange(-1, tid))
 					Scheduler::get().reschedule();
-				ASSERT_EQ(m_lock_depth, 0);
+				ASSERT(m_lock_depth == 0);
 			}
 			m_lock_depth++;
 		}
@@ -35,20 +35,20 @@ namespace Kernel
 		{
 			auto tid = Scheduler::current_tid();
 			if (tid == m_locker)
-				ASSERT_GT(m_lock_depth, 0);
+				ASSERT(m_lock_depth > 0);
 			else
 			{
 				if (!m_locker.compare_exchange(-1, tid))
 					return false;
-				ASSERT_EQ(m_lock_depth, 0);
+				ASSERT(m_lock_depth == 0);
 			}
 			m_lock_depth++;
 		}
 
 		void unlock()
 		{
-			ASSERT_EQ(m_locker.load(), Scheduler::current_tid());
-			ASSERT_GT(m_lock_depth, 0);
+			ASSERT(m_locker == Scheduler::current_tid());
+			ASSERT(m_lock_depth > 0);
 			if (--m_lock_depth == 0)
 				m_locker = -1;
 		}
@@ -74,7 +74,7 @@ namespace Kernel
 		{
 			auto tid = Scheduler::current_tid();
 			if (tid == m_locker)
-				ASSERT_GT(m_lock_depth, 0);
+				ASSERT(m_lock_depth > 0);
 			else
 			{
 				bool has_priority = tid ? !Thread::current().is_userspace() : true;
@@ -82,7 +82,7 @@ namespace Kernel
 					m_queue_length++;
 				while (!(has_priority || m_queue_length == 0) || !m_locker.compare_exchange(-1, tid))
 					Scheduler::get().reschedule();
-				ASSERT_EQ(m_lock_depth, 0);
+				ASSERT(m_lock_depth == 0);
 			}
 			m_lock_depth++;
 		}
@@ -91,7 +91,7 @@ namespace Kernel
 		{
 			auto tid = Scheduler::current_tid();
 			if (tid == m_locker)
-				ASSERT_GT(m_lock_depth, 0);
+				ASSERT(m_lock_depth > 0);
 			else
 			{
 				bool has_priority = tid ? !Thread::current().is_userspace() : true;
@@ -99,7 +99,7 @@ namespace Kernel
 					return false;
 				if (has_priority)
 					m_queue_length++;
-				ASSERT_EQ(m_lock_depth, 0);
+				ASSERT(m_lock_depth == 0);
 			}
 			m_lock_depth++;
 		}
@@ -107,8 +107,8 @@ namespace Kernel
 		void unlock()
 		{
 			auto tid = Scheduler::current_tid();
-			ASSERT_EQ(m_locker.load(), tid);
-			ASSERT_GT(m_lock_depth, 0);
+			ASSERT(m_locker == tid);
+			ASSERT(m_lock_depth > 0);
 			if (--m_lock_depth == 0)
 			{
 				bool has_priority = tid ? !Thread::current().is_userspace() : true;

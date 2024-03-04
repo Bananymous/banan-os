@@ -1,6 +1,6 @@
 #include <kernel/Panic.h>
 
-namespace Kernel::detail
+namespace Kernel
 {
-	bool g_paniced = false;
+	volatile bool g_paniced = false;
 }

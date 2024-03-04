@@ -30,6 +30,8 @@ set(LIBC_SOURCES
 	unistd.cpp
 	math.S
 	icxxabi.cpp
+
+	../BAN/BAN/Assert.cpp
 )
 
 add_custom_target(libc-headers

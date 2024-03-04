@@ -259,7 +259,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> E1000::send_bytes(BAN::MACAddress destination, EtherType protocol, BAN::ConstByteSpan buffer)
 	{
-		ASSERT_LTE(buffer.size() + sizeof(EthernetHeader), E1000_TX_BUFFER_SIZE);
+		ASSERT(buffer.size() + sizeof(EthernetHeader) <= E1000_TX_BUFFER_SIZE);
 
 		SpinLockGuard _(m_lock);
 
@@ -299,7 +299,7 @@ namespace Kernel
 			auto& descriptor = reinterpret_cast<volatile e1000_rx_desc*>(m_rx_descriptor_region->vaddr())[rx_current];
 			if (!(descriptor.status & 1))
 				break;
-			ASSERT_LTE((uint16_t)descriptor.length, E1000_RX_BUFFER_SIZE);
+			ASSERT(descriptor.length <= E1000_RX_BUFFER_SIZE);
 
 			NetworkManager::get().on_receive(*this, BAN::ConstByteSpan {
 				reinterpret_cast<const uint8_t*>(m_rx_buffer_region->vaddr() + rx_current * E1000_RX_BUFFER_SIZE),

@@ -1,8 +1,10 @@
 #pragma once
 
 #if __is_kernel
-#error "This is userspace only file"
-#endif
+
+#include <kernel/Debug.h>
+
+#else
 
 #include <BAN/Formatter.h>
 #include <stdio.h>
@@ -29,3 +31,5 @@
 		dprintln(__VA_ARGS__);								\
 		BAN::Formatter::print(__debug_putchar, "\e[m");		\
 	} while(false)
+
+#endif

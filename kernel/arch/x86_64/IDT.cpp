@@ -163,6 +163,13 @@ namespace Kernel::IDT
 
 	extern "C" void cpp_isr_handler(uint64_t isr, uint64_t error, InterruptStack& interrupt_stack, const Registers* regs)
 	{
+		if (g_paniced)
+		{
+			// FIXME: tell other processors kernel panic has occured
+			dprintln("Processor {} halted", Processor::current_id());
+			asm volatile("cli; 1: hlt; jmp 1b");
+		}
+
 #if __enable_sse
 		bool from_userspace = (interrupt_stack.cs & 0b11) == 0b11;
 		if (from_userspace)
