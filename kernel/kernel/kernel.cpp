@@ -103,10 +103,8 @@ extern "C" void kernel_main(uint32_t boot_magic, uint32_t boot_info)
 	dprintln("boot info parsed");
 
 	Processor::create(Processor::current_id());
+	Processor::current().initialize();
 	dprintln("BSP initialized");
-
-	GDT::initialize();
-	dprintln("GDT initialized");
 
 	IDT::initialize();
 	dprintln("IDT initialized");
@@ -215,7 +213,8 @@ extern "C" void ap_main()
 {
 	using namespace Kernel;
 
-	dprintln("hello from processor {}", Processor::current_id());
+	Processor::current().initialize();
+	dprintln("ap{} initialized", Processor::current_id());
 
 	for (;;)
 		asm volatile("");

@@ -24,11 +24,24 @@ namespace Kernel
 		if (m_stack)
 			kfree(m_stack);
 		m_stack = nullptr;
+
+		if (m_gdt)
+			delete m_gdt;
+		m_gdt = nullptr;
 	}
 
 	Processor& Processor::get(ProcessorID id)
 	{
 		return s_processors[id];
+	}
+
+	void Processor::initialize()
+	{
+		ASSERT(this == &Processor::current());
+
+		ASSERT(m_gdt == nullptr);
+		m_gdt = GDT::create();
+		ASSERT(m_gdt);
 	}
 
 }

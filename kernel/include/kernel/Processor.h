@@ -1,7 +1,9 @@
 #pragma once
 
 #include <BAN/ForwardList.h>
+
 #include <kernel/Arch.h>
+#include <kernel/GDT.h>
 
 namespace Kernel
 {
@@ -54,18 +56,27 @@ namespace Kernel
 		uintptr_t stack_bottom() const { return reinterpret_cast<uintptr_t>(m_stack); }
 		uintptr_t stack_top() const { return stack_bottom() + m_stack_size; }
 
+		void initialize();
+
+		GDT& gdt() { ASSERT(m_gdt); return *m_gdt; }
+
 	private:
 		Processor() = default;
 		Processor(Processor&& other)
 		{
 			m_stack = other.m_stack;
 			other.m_stack = nullptr;
+
+			m_gdt = other.m_gdt;
+			other.m_gdt = nullptr;
 		}
 		~Processor();
 
 	private:
 		void* m_stack { nullptr };
 		static constexpr size_t m_stack_size { 4096 };
+
+		GDT* m_gdt { nullptr };
 
 		friend class BAN::Vector<Processor>;
 	};
