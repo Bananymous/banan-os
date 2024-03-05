@@ -1,6 +1,5 @@
 #pragma once
 
-#include <BAN/Errors.h>
 #include <BAN/Iterators.h>
 #include <BAN/Span.h>
 

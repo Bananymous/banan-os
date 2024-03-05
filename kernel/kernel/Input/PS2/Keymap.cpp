@@ -1,5 +1,8 @@
+#include <kernel/Debug.h>
 #include <kernel/Input/KeyEvent.h>
 #include <kernel/Input/PS2/Keymap.h>
+
+#include <string.h>
 
 namespace Kernel::Input
 {
