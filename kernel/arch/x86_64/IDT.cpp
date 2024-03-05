@@ -12,7 +12,7 @@
 #define ISR_LIST_X X(0) X(1) X(2) X(3) X(4) X(5) X(6) X(7) X(8) X(9) X(10) X(11) X(12) X(13) X(14) X(15) X(16) X(17) X(18) X(19) X(20) X(21) X(22) X(23) X(24) X(25) X(26) X(27) X(28) X(29) X(30) X(31)
 #define IRQ_LIST_X X(0) X(1) X(2) X(3) X(4) X(5) X(6) X(7) X(8) X(9) X(10) X(11) X(12) X(13) X(14) X(15) X(16) X(17) X(18) X(19) X(20) X(21) X(22) X(23) X(24) X(25) X(26) X(27) X(28) X(29) X(30) X(31)
 
-namespace Kernel::IDT
+namespace Kernel
 {
 
 	struct Registers
@@ -41,26 +41,6 @@ namespace Kernel::IDT
 		uint64_t rbx;
 		uint64_t rax;
 	};
-
-	struct GateDescriptor
-	{
-		uint16_t offset1;
-		uint16_t selector;
-		uint8_t IST;
-		uint8_t flags;
-		uint16_t offset2;
-		uint32_t offset3;
-		uint32_t reserved;
-	} __attribute__((packed));
-
-	struct IDTR
-	{
-		uint16_t size;
-		uint64_t offset;
-	} __attribute__((packed));
-
-	static IDTR				s_idtr;
-	static GateDescriptor*	s_idt = nullptr;
 
 #define X(num) 1 +
 	static BAN::Array<Interruptable*, IRQ_LIST_X 0> s_interruptables;
@@ -341,14 +321,9 @@ done:
 		ASSERT(Thread::current().state() != Thread::State::Terminated);
 	}
 
-	static void flush_idt()
+	void IDT::register_interrupt_handler(uint8_t index, void (*handler)())
 	{
-		asm volatile("lidt %0"::"m"(s_idtr));
-	}
-
-	static void register_interrupt_handler(uint8_t index, void(*handler)())
-	{
-		GateDescriptor& descriptor = s_idt[index];
+		auto& descriptor = m_idt[index];
 		descriptor.offset1 = (uint16_t)((uint64_t)handler >> 0);
 		descriptor.offset2 = (uint16_t)((uint64_t)handler >> 16);
 		descriptor.offset3 = (uint32_t)((uint64_t)handler >> 32);
@@ -358,13 +333,13 @@ done:
 		descriptor.flags = 0x8E;
 	}
 
-	static void register_syscall_handler(uint8_t index, void(*handler)())
+	void IDT::register_syscall_handler(uint8_t index, void (*handler)())
 	{
 		register_interrupt_handler(index, handler);
-		s_idt[index].flags = 0xEE;
+		m_idt[index].flags = 0xEE;
 	}
 
-	void register_irq_handler(uint8_t irq, Interruptable* interruptable)
+	void IDT::register_irq_handler(uint8_t irq, Interruptable* interruptable)
 	{
 		if (irq > s_interruptables.size())
 			Kernel::panic("Trying to assign handler for irq {} while only {} are supported", irq, s_interruptables.size());
@@ -381,34 +356,39 @@ done:
 
 	extern "C" void syscall_asm();
 
-	void initialize()
+	IDT* IDT::create()
 	{
-		s_idt = (GateDescriptor*)kmalloc(0x100 * sizeof(GateDescriptor));
-		ASSERT(s_idt);
-		memset(s_idt, 0x00, 0x100 * sizeof(GateDescriptor));
+		auto* idt = new IDT();
+		ASSERT(idt);
 
-		s_idtr.offset = (uint64_t)s_idt;
-		s_idtr.size = 0x100 * sizeof(GateDescriptor) - 1;
+		memset(idt->m_idt.data(), 0x00, 0x100 * sizeof(GateDescriptor));
 
-#define X(num) register_interrupt_handler(num, isr ## num);
+#define X(num) idt->register_interrupt_handler(num, isr ## num);
 		ISR_LIST_X
 #undef X
 
-#define X(num) register_interrupt_handler(IRQ_VECTOR_BASE + num, irq ## num);
-		IRQ_LIST_X
+		// FIXME: distribute IRQs more evenly?
+#define X(num) idt->register_interrupt_handler(IRQ_VECTOR_BASE + num, irq ## num);
+		if (Processor::current_is_bsb())
+		{
+			IRQ_LIST_X
+		}
 #undef X
 
-		register_syscall_handler(0x80, syscall_asm);
+		idt->register_syscall_handler(0x80, syscall_asm);
 
-		flush_idt();
+		idt->flush();
+
+		return idt;
 	}
 
-	[[noreturn]] void force_triple_fault()
+	[[noreturn]] void IDT::force_triple_fault()
 	{
 		// load 0 sized IDT and trigger an interrupt to force triple fault
-		asm volatile("cli");
-		s_idtr.size = 0;
-		flush_idt();
+		auto& processor = Processor::current();
+		processor.set_interrupt_state(InterruptState::Disabled);
+		processor.idt().m_idtr.size = 0;
+		processor.idt().flush();
 		asm volatile("int $0x00");
 		ASSERT_NOT_REACHED();
 	}

@@ -106,9 +106,6 @@ extern "C" void kernel_main(uint32_t boot_magic, uint32_t boot_info)
 	Processor::current().initialize();
 	dprintln("BSP initialized");
 
-	IDT::initialize();
-	dprintln("IDT initialized");
-
 	PageTable::initialize();
 	dprintln("PageTable initialized");
 

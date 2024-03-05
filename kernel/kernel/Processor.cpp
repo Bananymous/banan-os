@@ -48,6 +48,10 @@ namespace Kernel
 		ASSERT(m_gdt == nullptr);
 		m_gdt = GDT::create();
 		ASSERT(m_gdt);
+
+		ASSERT(m_idt == nullptr);
+		m_idt = IDT::create();
+		ASSERT(m_idt);
 	}
 
 }

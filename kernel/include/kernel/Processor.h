@@ -4,6 +4,7 @@
 
 #include <kernel/Arch.h>
 #include <kernel/GDT.h>
+#include <kernel/IDT.h>
 
 namespace Kernel
 {
@@ -60,6 +61,7 @@ namespace Kernel
 		void initialize();
 
 		GDT& gdt() { ASSERT(m_gdt); return *m_gdt; }
+		IDT& idt() { ASSERT(m_idt); return *m_idt; }
 
 	private:
 		Processor() = default;
@@ -70,6 +72,9 @@ namespace Kernel
 
 			m_gdt = other.m_gdt;
 			other.m_gdt = nullptr;
+
+			m_idt = other.m_idt;
+			other.m_idt = nullptr;
 		}
 		~Processor();
 
@@ -80,6 +85,7 @@ namespace Kernel
 		static constexpr size_t m_stack_size { 4096 };
 
 		GDT* m_gdt { nullptr };
+		IDT* m_idt { nullptr };
 
 		friend class BAN::Vector<Processor>;
 	};
