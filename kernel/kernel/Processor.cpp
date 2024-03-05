@@ -4,10 +4,16 @@
 namespace Kernel
 {
 
+	ProcessorID Processor::s_bsb_id { PROCESSOR_NONE };
+
 	static BAN::Vector<Processor> s_processors;
 
 	Processor& Processor::create(ProcessorID id)
 	{
+		// bsb is the first processor
+		if (s_bsb_id == PROCESSOR_NONE)
+			s_bsb_id = id;
+
 		while (s_processors.size() <= id)
 			MUST(s_processors.emplace_back());
 		auto& processor = s_processors[id];

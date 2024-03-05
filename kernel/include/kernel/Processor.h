@@ -31,10 +31,11 @@ namespace Kernel
 			asm volatile("movw %%gs, %0" : "=rm"(id));
 			return id;
 		}
-
 		static Processor& get(ProcessorID);
-
 		static Processor& current() { return get(current_id()); }
+
+		static ProcessorID bsb_id() { return s_bsb_id; }
+		static bool current_is_bsb() { return current_id() == bsb_id(); }
 
 		static void set_interrupt_state(InterruptState state)
 		{
@@ -73,6 +74,8 @@ namespace Kernel
 		~Processor();
 
 	private:
+		static ProcessorID s_bsb_id;
+
 		void* m_stack { nullptr };
 		static constexpr size_t m_stack_size { 4096 };
 
