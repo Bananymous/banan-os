@@ -1,7 +1,7 @@
 #pragma once
 
 #include <kernel/Input/PS2/Controller.h>
-#include <kernel/InterruptController.h>
+#include <kernel/Interruptable.h>
 
 namespace Kernel::Input
 {

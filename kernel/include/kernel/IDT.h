@@ -2,6 +2,7 @@
 
 #include <BAN/Array.h>
 #include <BAN/NoCopyMove.h>
+#include <kernel/Interruptable.h>
 
 #include <stdint.h>
 
@@ -9,8 +10,6 @@ constexpr uint8_t IRQ_VECTOR_BASE = 0x20;
 
 namespace Kernel
 {
-
-	class Interruptable;
 
 	struct GateDescriptor
 	{

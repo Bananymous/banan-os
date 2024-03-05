@@ -8,28 +8,7 @@
 namespace Kernel
 {
 
-	namespace IDT { void register_irq_handler(uint8_t irq, Interruptable*); }
-
 	static InterruptController* s_instance = nullptr;
-
-	void Interruptable::set_irq(int irq)
-	{
-		if (m_irq != -1)
-			IDT::register_irq_handler(m_irq, nullptr);
-		m_irq = irq;
-		IDT::register_irq_handler(irq, this);
-	}
-
-	void Interruptable::enable_interrupt()
-	{
-		ASSERT(m_irq != -1);
-		InterruptController::get().enable_irq(m_irq);
-	}
-
-	void Interruptable::disable_interrupt()
-	{
-		ASSERT_NOT_REACHED();
-	}
 
 	InterruptController& InterruptController::get()
 	{

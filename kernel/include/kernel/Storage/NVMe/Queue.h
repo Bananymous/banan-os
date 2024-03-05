@@ -2,7 +2,7 @@
 
 #include <BAN/UniqPtr.h>
 #include <BAN/Vector.h>
-#include <kernel/InterruptController.h>
+#include <kernel/Interruptable.h>
 #include <kernel/Lock/Mutex.h>
 #include <kernel/Memory/DMARegion.h>
 #include <kernel/Semaphore.h>

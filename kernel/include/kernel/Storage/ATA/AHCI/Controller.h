@@ -2,7 +2,7 @@
 
 #include <BAN/Array.h>
 #include <BAN/RefPtr.h>
-#include <kernel/InterruptController.h>
+#include <kernel/Interruptable.h>
 #include <kernel/Memory/DMARegion.h>
 #include <kernel/PCI.h>
 #include <kernel/Storage/ATA/AHCI/Definitions.h>

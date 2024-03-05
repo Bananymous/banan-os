@@ -1,4 +1,5 @@
 #include <kernel/FS/DevFS/FileSystem.h>
+#include <kernel/InterruptController.h>
 #include <kernel/Storage/ATA/AHCI/Controller.h>
 #include <kernel/Storage/ATA/ATABus.h>
 #include <kernel/Storage/ATA/ATAController.h>

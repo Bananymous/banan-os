@@ -1,6 +1,6 @@
 #pragma once
 
-#include <kernel/InterruptController.h>
+#include <kernel/Interruptable.h>
 #include <kernel/Timer/Timer.h>
 
 namespace Kernel

@@ -2,7 +2,7 @@
 
 #include <BAN/CircularQueue.h>
 #include <BAN/Errors.h>
-#include <kernel/InterruptController.h>
+#include <kernel/Interruptable.h>
 #include <kernel/Terminal/TTY.h>
 
 namespace Kernel

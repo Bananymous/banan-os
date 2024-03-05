@@ -3,7 +3,7 @@
 #include <BAN/ByteSpan.h>
 #include <BAN/RefPtr.h>
 #include <BAN/Vector.h>
-#include <kernel/InterruptController.h>
+#include <kernel/Interruptable.h>
 #include <kernel/Lock/Mutex.h>
 
 namespace Kernel

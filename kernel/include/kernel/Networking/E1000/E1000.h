@@ -1,7 +1,7 @@
 #pragma once
 
 #include <BAN/UniqPtr.h>
-#include <kernel/InterruptController.h>
+#include <kernel/Interruptable.h>
 #include <kernel/Memory/DMARegion.h>
 #include <kernel/Networking/E1000/Definitions.h>
 #include <kernel/Networking/NetworkInterface.h>
