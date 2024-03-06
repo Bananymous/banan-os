@@ -107,6 +107,7 @@ extern "C" void kernel_main(uint32_t boot_magic, uint32_t boot_info)
 	dprintln("BSP initialized");
 
 	PageTable::initialize();
+	PageTable::kernel().initial_load();
 	dprintln("PageTable initialized");
 
 	Heap::initialize();
@@ -211,8 +212,10 @@ extern "C" void ap_main()
 	using namespace Kernel;
 
 	Processor::current().initialize();
+	PageTable::kernel().initial_load();
+
 	dprintln("ap{} initialized", Processor::current_id());
 
 	for (;;)
-		asm volatile("");
+		asm volatile("hlt");
 }

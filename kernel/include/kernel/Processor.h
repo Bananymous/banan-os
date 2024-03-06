@@ -87,7 +87,10 @@ namespace Kernel
 		GDT* m_gdt { nullptr };
 		IDT* m_idt { nullptr };
 
+		void* m_current_page_table { nullptr };
+
 		friend class BAN::Vector<Processor>;
+		friend class PageTable;
 	};
 #else
 	#error

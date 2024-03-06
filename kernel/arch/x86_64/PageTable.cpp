@@ -20,7 +20,6 @@ namespace Kernel
 	RecursiveSpinLock PageTable::s_fast_page_lock;
 
 	static PageTable* s_kernel = nullptr;
-	static PageTable* s_current = nullptr;
 	static bool s_has_nxe = false;
 	static bool s_has_pge = false;
 
@@ -71,52 +70,57 @@ namespace Kernel
 	void PageTable::initialize()
 	{
 		if (CPUID::has_nxe())
-		{
-			asm volatile(
-				"movl $0xC0000080, %ecx;"
-				"rdmsr;"
-				"orl $0x800, %eax;"
-				"wrmsr"
-			);
 			s_has_nxe = true;
-		}
 
-		uint32_t ecx, edx;
-		CPUID::get_features(ecx, edx);
-		if (edx & CPUID::EDX_PGE)
-		{
-			asm volatile(
-				"movq %cr4, %rax;"
-				"orq $0x80, %rax;"
-				"movq %rax, %cr4;"
-			);
+		if (CPUID::has_pge())
 			s_has_pge = true;
-		}
-
-		// enable write protect to kernel
-		asm volatile(
-			"movq %cr0, %rax;"
-			"orq $0x10000, %rax;"
-			"movq %rax, %cr0;"
-		);
 
 		ASSERT(s_kernel == nullptr);
 		s_kernel = new PageTable();
 		ASSERT(s_kernel);
+
 		s_kernel->initialize_kernel();
-		s_kernel->load();
+		s_kernel->initial_load();
+	}
+
+	void PageTable::initial_load()
+	{
+		if (s_has_nxe)
+		{
+			asm volatile(
+				"movl $0xC0000080, %%ecx;"
+				"rdmsr;"
+				"orl $0x800, %%eax;"
+				"wrmsr"
+				::: "eax", "ecx", "edx", "memory"
+			);
+		}
+
+		if (s_has_pge)
+		{
+			asm volatile(
+				"movq %%cr4, %%rax;"
+				"orq $0x80, %%rax;"
+				"movq %%rax, %%cr4;"
+				::: "rax"
+			);
+		}
+
+		// enable write protect
+		asm volatile(
+			"movq %%cr0, %%rax;"
+			"orq $0x10000, %%rax;"
+			"movq %%rax, %%cr0;"
+			::: "rax"
+		);
+
+		load();
 	}
 
 	PageTable& PageTable::kernel()
 	{
 		ASSERT(s_kernel);
 		return *s_kernel;
-	}
-
-	PageTable& PageTable::current()
-	{
-		ASSERT(s_current);
-		return *s_current;
 	}
 
 	bool PageTable::is_valid_pointer(uintptr_t pointer)
@@ -308,7 +312,7 @@ namespace Kernel
 	{
 		SpinLockGuard _(m_lock);
 		asm volatile("movq %0, %%cr3" :: "r"(m_highest_paging_struct));
-		s_current = this;
+		Processor::current().m_current_page_table = this;
 	}
 
 	void PageTable::invalidate(vaddr_t vaddr)
@@ -367,8 +371,6 @@ namespace Kernel
 	{
 		ASSERT(vaddr);
 		ASSERT(vaddr != fast_page());
-		if (vaddr >= KERNEL_OFFSET && s_current)
-			ASSERT(vaddr >= (vaddr_t)g_kernel_start);
 		if ((vaddr >= KERNEL_OFFSET) != (this == s_kernel))
 			Kernel::panic("mapping {8H} to {8H}, kernel: {}", paddr, vaddr, this == s_kernel);
 

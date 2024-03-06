@@ -50,6 +50,13 @@ namespace CPUID
 		return buffer[3] & (1 << 20);
 	}
 
+	bool has_pge()
+	{
+		uint32_t ecx, edx;
+		get_features(ecx, edx);
+		return edx & CPUID::EDX_PGE;
+	}
+
 	const char* feature_string_ecx(uint32_t feat)
 	{
 		switch (feat)

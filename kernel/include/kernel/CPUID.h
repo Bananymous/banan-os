@@ -78,5 +78,6 @@ namespace CPUID
 	void get_features(uint32_t& ecx, uint32_t& edx);
 	bool is_64_bit();
 	bool has_nxe();
+	bool has_pge();
 
 }

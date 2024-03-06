@@ -40,7 +40,7 @@ namespace Kernel
 		static void initialize();
 
 		static PageTable& kernel();
-		static PageTable& current();
+		static PageTable& current() { return *reinterpret_cast<PageTable*>(Processor::current().m_current_page_table); }
 
 		static constexpr vaddr_t fast_page() { return KERNEL_OFFSET; }
 
@@ -109,6 +109,7 @@ namespace Kernel
 		vaddr_t reserve_free_contiguous_pages(size_t page_count, vaddr_t first_address, vaddr_t last_address = UINTPTR_MAX);
 
 		void load();
+		void initial_load();
 
 		InterruptState lock() const { return m_lock.lock(); }
 		void unlock(InterruptState state) const { m_lock.unlock(state); }
