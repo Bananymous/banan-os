@@ -18,7 +18,7 @@ namespace BAN
 		using const_iterator = ConstIteratorSimple<T, Array>;
 
 	public:
-		Array();
+		Array() = default;
 		Array(const T&);
 
 		iterator begin() { return iterator(m_data); }
@@ -43,15 +43,8 @@ namespace BAN
 		T* data() { return m_data; }
 
 	private:
-		T m_data[S];
+		T m_data[S] {};
 	};
-
-	template<typename T, size_t S>
-	Array<T, S>::Array()
-	{
-		for (size_type i = 0; i < S; i++)
-			m_data[i] = T();
-	}
 
 	template<typename T, size_t S>
 	Array<T, S>::Array(const T& value)
