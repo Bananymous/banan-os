@@ -125,8 +125,6 @@ extern "C" void kernel_main(uint32_t boot_magic, uint32_t boot_info)
 	SystemTimer::initialize(cmdline.force_pic);
 	dprintln("Timers initialized");
 
-	InterruptController::get().initialize_multiprocessor();
-
 	DevFileSystem::initialize();
 	dprintln("devfs initialized");
 
@@ -138,6 +136,8 @@ extern "C" void kernel_main(uint32_t boot_magic, uint32_t boot_info)
 	}
 	if (g_terminal_driver)
 		dprintln("Framebuffer terminal initialized");
+
+	InterruptController::get().initialize_multiprocessor();
 
 	ProcFileSystem::initialize();
 	dprintln("procfs initialized");
