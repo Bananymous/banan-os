@@ -31,6 +31,35 @@ extern volatile uint8_t g_ap_stack_loaded[];
 namespace Kernel
 {
 
+	enum ICR_LO : uint32_t
+	{
+		ICR_LO_reserved_mask							= 0xFFF32000,
+
+		ICR_LO_delivery_mode_fixed						= 0b000 << 8,
+		ICR_LO_delivery_mode_lowest_priority			= 0b001 << 8,
+		ICR_LO_delivery_mode_smi						= 0b010 << 8,
+		ICR_LO_delivery_mode_nmi						= 0b100 << 8,
+		ICR_LO_delivery_mode_init						= 0b101 << 8,
+		ICR_LO_delivery_mode_start_up					= 0b110 << 8,
+
+		ICR_LO_destination_mode_physical				= 0 << 11,
+		ICR_LO_destination_mode_logical					= 1 << 11,
+
+		ICR_LO_delivery_status_idle						= 0 << 12,
+		ICR_LO_delivery_status_send_pending				= 1 << 12,
+
+		ICR_LO_level_deassert							= 0 << 14,
+		ICR_LO_level_assert								= 1 << 14,
+
+		ICR_LO_trigger_mode_edge						= 0 << 15,
+		ICR_LO_trigger_mode_level						= 1 << 15,
+
+		ICR_LO_destination_shorthand_none				= 0b00 << 18,
+		ICR_LO_destination_shorthand_self				= 0b01 << 18,
+		ICR_LO_destination_shorthand_all_including_self	= 0b10 << 18,
+		ICR_LO_destination_shorthand_all_excluding_self	= 0b11 << 18,
+	};
+
 	struct MADT : public Kernel::ACPI::SDTHeader
 	{
 		uint32_t local_apic;
@@ -208,7 +237,7 @@ namespace Kernel
 				write_to_local_apic(LAPIC_ICR_HI_REG, (read_from_local_apic(LAPIC_ICR_HI_REG) & 0x00FFFFFF) | (processor << 24));
 				write_to_local_apic(LAPIC_ICR_LO_REG, data);
 				udelay(ud);
-				while (read_from_local_apic(LAPIC_ICR_LO_REG) & (1 << 12))
+				while ((read_from_local_apic(LAPIC_ICR_LO_REG) & ICR_LO_delivery_status_send_pending) == ICR_LO_delivery_status_send_pending)
 					__builtin_ia32_pause();
 			};
 
@@ -232,30 +261,55 @@ namespace Kernel
 
 			dprintln("Trying to enable processor (lapic id {})", processor.apic_id);
 
-			auto& proc = Kernel::Processor::create(processor.processor_id);
+			auto& proc = Kernel::Processor::create(processor.apic_id);
 			PageTable::with_fast_page((paddr_t)g_ap_init_addr, [&] {
 				PageTable::fast_page_as_sized<uint32_t>(2) = V2P(proc.stack_top());
 			});
 			*g_ap_stack_loaded = 0;
 
 			write_to_local_apic(LAPIC_ERROR_REG, 0x00);
-			send_ipi(processor.processor_id, (read_from_local_apic(LAPIC_ICR_LO_REG) & 0xFFF00000) | 0x0000C500, 0);
-			send_ipi(processor.processor_id, (read_from_local_apic(LAPIC_ICR_LO_REG) & 0xFFF0F800) | 0x00008500, 0);
+
+			// send INIT IPI
+			send_ipi(processor.apic_id,
+				(read_from_local_apic(LAPIC_ICR_LO_REG) & ICR_LO_reserved_mask)
+				| ICR_LO_delivery_mode_init
+				| ICR_LO_destination_mode_physical
+				| ICR_LO_level_assert
+				| ICR_LO_trigger_mode_edge
+				| ICR_LO_destination_shorthand_none
+				, 0
+			);
+
+			// TODO: If we are on processor predating Pentium, we need to send deassert
 
 			udelay(10 * 1000);
 
 			for (int i = 0; i < 2; i++)
 			{
 				write_to_local_apic(LAPIC_ERROR_REG, 0x00);
-				send_ipi(processor.processor_id, (read_from_local_apic(LAPIC_ICR_LO_REG) & 0xFFF0F800) | 0x00000600 | ap_init_page, 200);
+
+				// send 2 SETUP IPIs with 200 us delay
+				send_ipi(processor.apic_id,
+					(read_from_local_apic(LAPIC_ICR_LO_REG) & ICR_LO_reserved_mask)
+					| ICR_LO_delivery_mode_start_up
+					| ICR_LO_destination_mode_physical
+					| ICR_LO_level_assert
+					| ICR_LO_trigger_mode_edge
+					| ICR_LO_destination_shorthand_none
+					| ap_init_page
+					, 200
+				);
 			}
 
-			// give processor upto 100 * 100 us (10 ms to boot)
+			// give processor upto 100 * 100 us + 200 us to boot
 			for (int i = 0; *g_ap_stack_loaded == 0 && i < 100; i++)
 				udelay(100);
 		}
 
 		*g_ap_startup_done = 1;
+
+		// give processors 100 us time to increment running count
+		udelay(100);
 		dprintln("{} processors started", *g_ap_running_count);
 	}
 
