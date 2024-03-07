@@ -61,6 +61,7 @@ namespace Kernel
 
 	public:
 		static GDT* create();
+		void load() { flush_gdt(); flush_tss(); }
 
 		static constexpr inline bool is_user_segment(uint8_t segment)
 		{

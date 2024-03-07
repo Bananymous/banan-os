@@ -40,7 +40,7 @@ namespace Kernel
 		static void initialize();
 
 		static PageTable& kernel();
-		static PageTable& current() { return *reinterpret_cast<PageTable*>(Processor::current().m_current_page_table); }
+		static PageTable& current() { return *reinterpret_cast<PageTable*>(Processor::get_current_page_table()); }
 
 		static constexpr vaddr_t fast_page() { return KERNEL_OFFSET; }
 

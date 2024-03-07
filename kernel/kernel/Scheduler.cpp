@@ -18,7 +18,7 @@ namespace Kernel
 
 	ALWAYS_INLINE static void load_temp_stack()
 	{
-		asm volatile("movq %0, %%rsp" :: "rm"(Processor::current().stack_top()));
+		asm volatile("movq %0, %%rsp" :: "rm"(Processor::current_stack_top()));
 	}
 
 	BAN::ErrorOr<void> Scheduler::initialize()
@@ -223,7 +223,7 @@ namespace Kernel
 #if SCHEDULER_VERIFY_STACK
 		vaddr_t rsp;
 		read_rsp(rsp);
-		ASSERT(Processor::current().stack_bottom() <= rsp && rsp <= Processor::current().stack_top());
+		ASSERT(Processor::current_stack_bottom() <= rsp && rsp <= Processor::current_stack_top());
 		ASSERT(&PageTable::current() == &PageTable::kernel());
 #endif
 
@@ -256,7 +256,7 @@ namespace Kernel
 		if (current->has_process())
 		{
 			current->process().page_table().load();
-			Processor::current().gdt().set_tss_stack(current->interrupt_stack_base() + current->interrupt_stack_size());
+			Processor::gdt().set_tss_stack(current->interrupt_stack_base() + current->interrupt_stack_size());
 		}
 		else
 			PageTable::kernel().load();

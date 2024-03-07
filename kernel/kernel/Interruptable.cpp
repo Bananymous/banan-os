@@ -8,11 +8,10 @@ namespace Kernel
 
 	void Interruptable::set_irq(int irq)
 	{
-		auto& processor = Processor::current();
 		if (m_irq != -1)
-			processor.idt().register_irq_handler(m_irq, nullptr);
+			Processor::idt().register_irq_handler(m_irq, nullptr);
 		m_irq = irq;
-		processor.idt().register_irq_handler(irq, this);
+		Processor::idt().register_irq_handler(irq, this);
 	}
 
 	void Interruptable::enable_interrupt()

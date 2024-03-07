@@ -22,18 +22,13 @@ namespace Kernel
 	class Processor
 	{
 		BAN_NON_COPYABLE(Processor);
+		BAN_NON_MOVABLE(Processor);
 
 	public:
 		static Processor& create(ProcessorID id);
+		static Processor& initialize();
 
-		static ProcessorID current_id()
-		{
-			uint16_t id;
-			asm volatile("movw %%gs, %0" : "=rm"(id));
-			return id;
-		}
-		static Processor& get(ProcessorID);
-		static Processor& current() { return get(current_id()); }
+		static ProcessorID current_id() { return read_gs_sized<ProcessorID>(offsetof(Processor, m_id)); }
 
 		static ProcessorID bsb_id() { return s_bsb_id; }
 		static bool current_is_bsb() { return current_id() == bsb_id(); }
@@ -55,42 +50,71 @@ namespace Kernel
 			return InterruptState::Disabled;
 		};
 
-		uintptr_t stack_bottom() const { return reinterpret_cast<uintptr_t>(m_stack); }
-		uintptr_t stack_top() const { return stack_bottom() + m_stack_size; }
+		static uintptr_t current_stack_bottom() { return reinterpret_cast<uintptr_t>(read_gs_ptr(offsetof(Processor, m_stack))); }
+		static uintptr_t current_stack_top()	{ return current_stack_bottom() + s_stack_size; }
 
-		void initialize();
+		uintptr_t stack_bottom() const	{ return reinterpret_cast<uintptr_t>(m_stack); }
+		uintptr_t stack_top() const		{ return stack_bottom() + s_stack_size; }
 
-		GDT& gdt() { ASSERT(m_gdt); return *m_gdt; }
-		IDT& idt() { ASSERT(m_idt); return *m_idt; }
+		static GDT& gdt() { return *reinterpret_cast<GDT*>(read_gs_ptr(offsetof(Processor, m_gdt))); }
+		static IDT& idt() { return *reinterpret_cast<IDT*>(read_gs_ptr(offsetof(Processor, m_idt))); }
+
+		static void* get_current_page_table()					{ return read_gs_ptr(offsetof(Processor, m_current_page_table)); }
+		static void set_current_page_table(void* page_table)	{ write_gs_ptr(offsetof(Processor, m_current_page_table), page_table); }
 
 	private:
 		Processor() = default;
-		Processor(Processor&& other)
+		~Processor() { ASSERT_NOT_REACHED(); }
+
+		template<typename T>
+		static T read_gs_sized(uintptr_t offset) requires(sizeof(T) <= 8)
 		{
-			m_stack = other.m_stack;
-			other.m_stack = nullptr;
-
-			m_gdt = other.m_gdt;
-			other.m_gdt = nullptr;
-
-			m_idt = other.m_idt;
-			other.m_idt = nullptr;
+#define __ASM_INPUT(operation) operation " %%gs:(%[offset]), %[result]" : [result]"=rm"(result) : [offset]"rm"(offset)
+			T result;
+			if constexpr(sizeof(T) == 8)
+				asm volatile(__ASM_INPUT("movq"));
+			if constexpr(sizeof(T) == 4)
+				asm volatile(__ASM_INPUT("movl"));
+			if constexpr(sizeof(T) == 2)
+				asm volatile(__ASM_INPUT("movw"));
+			if constexpr(sizeof(T) == 1)
+				asm volatile(__ASM_INPUT("movb"));
+			return result;
+#undef __ASM_INPUT
 		}
-		~Processor();
+
+		template<typename T>
+		static void write_gs_sized(uintptr_t offset, T value) requires(sizeof(T) <= 8)
+		{
+#define __ASM_INPUT(operation) operation " %[value], %%gs:(%[offset])" :: [value]"rm"(value), [offset]"rm"(offset) : "memory"
+			if constexpr(sizeof(T) == 8)
+				asm volatile(__ASM_INPUT("movq"));
+			if constexpr(sizeof(T) == 4)
+				asm volatile(__ASM_INPUT("movl"));
+			if constexpr(sizeof(T) == 2)
+				asm volatile(__ASM_INPUT("movw"));
+			if constexpr(sizeof(T) == 1)
+				asm volatile(__ASM_INPUT("movb"));
+#undef __ASM_INPUT
+		}
+
+		static void* read_gs_ptr(uintptr_t offset) { return read_gs_sized<void*>(offset); }
+		static void write_gs_ptr(uintptr_t offset, void* value) { write_gs_sized<void*>(offset, value); }
 
 	private:
 		static ProcessorID s_bsb_id;
 
+		ProcessorID m_id { PROCESSOR_NONE };
+
+		static constexpr size_t s_stack_size { 4096 };
 		void* m_stack { nullptr };
-		static constexpr size_t m_stack_size { 4096 };
 
 		GDT* m_gdt { nullptr };
 		IDT* m_idt { nullptr };
 
 		void* m_current_page_table { nullptr };
 
-		friend class BAN::Vector<Processor>;
-		friend class PageTable;
+		friend class BAN::Array<Processor, 0xFF>;
 	};
 #else
 	#error

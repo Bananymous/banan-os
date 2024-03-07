@@ -356,7 +356,7 @@ done:
 
 	extern "C" void syscall_asm();
 
-	IDT* IDT::create()
+	IDT* IDT::create(bool is_bsb)
 	{
 		auto* idt = new IDT();
 		ASSERT(idt);
@@ -369,7 +369,7 @@ done:
 
 		// FIXME: distribute IRQs more evenly?
 #define X(num) idt->register_interrupt_handler(IRQ_VECTOR_BASE + num, irq ## num);
-		if (Processor::current_is_bsb())
+		if (is_bsb)
 		{
 			IRQ_LIST_X
 		}
@@ -377,18 +377,15 @@ done:
 
 		idt->register_syscall_handler(0x80, syscall_asm);
 
-		idt->flush();
-
 		return idt;
 	}
 
 	[[noreturn]] void IDT::force_triple_fault()
 	{
 		// load 0 sized IDT and trigger an interrupt to force triple fault
-		auto& processor = Processor::current();
-		processor.set_interrupt_state(InterruptState::Disabled);
-		processor.idt().m_idtr.size = 0;
-		processor.idt().flush();
+		Processor::set_interrupt_state(InterruptState::Disabled);
+		Processor::idt().m_idtr.size = 0;
+		Processor::idt().load();
 		asm volatile("int $0x00");
 		ASSERT_NOT_REACHED();
 	}

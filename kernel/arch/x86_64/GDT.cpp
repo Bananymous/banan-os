@@ -18,9 +18,6 @@ namespace Kernel
 		gdt->write_entry(0x20, 0x00000000, 0xFFFFF, 0xF2, 0xC); // user data
 		gdt->write_tss();
 
-		gdt->flush_gdt();
-		gdt->flush_tss();
-
 		return gdt;
 	}
 

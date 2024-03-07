@@ -232,10 +232,9 @@ namespace Kernel
 
 			dprintln("Trying to enable processor (lapic id {})", processor.apic_id);
 
-			Kernel::Processor::create(processor.processor_id);
-
+			auto& proc = Kernel::Processor::create(processor.processor_id);
 			PageTable::with_fast_page((paddr_t)g_ap_init_addr, [&] {
-				PageTable::fast_page_as_sized<uint32_t>(2) = V2P(Kernel::Processor::get(processor.processor_id).stack_top());
+				PageTable::fast_page_as_sized<uint32_t>(2) = V2P(proc.stack_top());
 			});
 			*g_ap_stack_loaded = 0;
 

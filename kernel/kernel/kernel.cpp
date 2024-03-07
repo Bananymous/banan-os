@@ -102,8 +102,8 @@ extern "C" void kernel_main(uint32_t boot_magic, uint32_t boot_info)
 	parse_boot_info(boot_magic, boot_info);
 	dprintln("boot info parsed");
 
-	Processor::create(Processor::current_id());
-	Processor::current().initialize();
+	Processor::create(0);
+	Processor::initialize();
 	dprintln("BSP initialized");
 
 	PageTable::initialize();
@@ -211,7 +211,7 @@ extern "C" void ap_main()
 {
 	using namespace Kernel;
 
-	Processor::current().initialize();
+	Processor::initialize();
 	PageTable::kernel().initial_load();
 
 	dprintln("ap{} initialized", Processor::current_id());

@@ -34,22 +34,22 @@ namespace Kernel
 		BAN_NON_MOVABLE(IDT);
 
 	public:
-		static IDT* create();
+		static IDT* create(bool is_bsb);
 
 		[[noreturn]] static void force_triple_fault();
 
 		void register_irq_handler(uint8_t irq, Interruptable* interruptable);
+
+		void load()
+		{
+			asm volatile("lidt %0" :: "m"(m_idtr) : "memory");
+		}
 
 	private:
 		IDT() = default;
 
 		void register_interrupt_handler(uint8_t index, void (*handler)());
 		void register_syscall_handler(uint8_t index, void (*handler)());
-
-		void flush()
-		{
-			asm volatile("lidt %0" :: "m"(m_idtr) : "memory");
-		}
 
 	private:
 		BAN::Array<GateDescriptor, 0x100> m_idt;

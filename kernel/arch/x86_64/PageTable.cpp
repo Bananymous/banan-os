@@ -312,7 +312,7 @@ namespace Kernel
 	{
 		SpinLockGuard _(m_lock);
 		asm volatile("movq %0, %%cr3" :: "r"(m_highest_paging_struct));
-		Processor::current().m_current_page_table = this;
+		Processor::set_current_page_table(this);
 	}
 
 	void PageTable::invalidate(vaddr_t vaddr)

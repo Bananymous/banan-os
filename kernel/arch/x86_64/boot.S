@@ -158,13 +158,6 @@ enable_sse:
 	movl %eax, %cr4
 	ret
 
-initialize_lapic_id:
-	movl $1, %eax
-	cpuid
-	shrl $24, %ebx
-	movw %bx, %gs
-	ret
-
 initialize_paging:
 	# enable PAE
 	movl %cr4, %ecx
@@ -198,7 +191,6 @@ _start:
 	movl %ebx, V2P(bootloader_info)
 
 	movl $V2P(boot_stack_top), %esp
-	call initialize_lapic_id
 
 	call check_requirements
 	call enable_sse
@@ -278,7 +270,6 @@ ap_protected_mode:
 
 	movl ap_stack_ptr, %esp
 	movb $1, V2P(g_ap_stack_loaded)
-	call V2P(initialize_lapic_id)
 
 	call V2P(enable_sse)
 
