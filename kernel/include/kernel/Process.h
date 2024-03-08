@@ -52,7 +52,8 @@ namespace Kernel
 		void exit(int status, int signal);
 
 		void add_thread(Thread*);
-		void on_thread_exit(Thread&);
+		// returns true if thread was the last one
+		bool on_thread_exit(Thread&);
 
 		pid_t sid() const { return m_sid; }
 		pid_t pgrp() const { return m_pgrp; }

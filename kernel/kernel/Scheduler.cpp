@@ -42,7 +42,7 @@ namespace Kernel
 		ASSERT(Processor::get_interrupt_state() == InterruptState::Disabled);
 		m_lock.lock();
 		ASSERT(!m_active_threads.empty());
-		m_current_thread = m_active_threads.begin();
+		advance_current_thread();
 		execute_current_thread_locked();
 		ASSERT_NOT_REACHED();
 	}
@@ -62,7 +62,7 @@ namespace Kernel
 	void Scheduler::timer_reschedule()
 	{
 		auto state = m_lock.lock();
-		wake_threads();
+		m_blocking_threads.remove_with_wake_time(m_active_threads, SystemTimer::get().ms_since_boot());
 		if (save_current_thread())
 			return Processor::set_interrupt_state(state);
 		advance_current_thread();
@@ -83,34 +83,22 @@ namespace Kernel
 	void Scheduler::reschedule_if_idling()
 	{
 		auto state = m_lock.lock();
-		if (m_active_threads.empty() || &current_thread() != m_idle_thread)
+		if (m_active_threads.empty() || m_current_thread)
 			return m_lock.unlock(state);
 		if (save_current_thread())
 			return Processor::set_interrupt_state(state);
-		m_current_thread = m_active_threads.begin();
+		advance_current_thread();
 		execute_current_thread_locked();
 		ASSERT_NOT_REACHED();
 	}
 
-	void Scheduler::wake_threads()
-	{
-		ASSERT(m_lock.current_processor_has_lock());
-
-		uint64_t current_time = SystemTimer::get().ms_since_boot();
-		while (!m_sleeping_threads.empty() && m_sleeping_threads.front().wake_time <= current_time)
-		{
-			m_sleeping_threads.move_element_to_other_linked_list(
-				m_active_threads,
-				m_active_threads.end(),
-				m_sleeping_threads.begin()
-			);
-		}
-	}
-
 	BAN::ErrorOr<void> Scheduler::add_thread(Thread* thread)
 	{
+		auto* node = new SchedulerQueue::Node(thread);
+		if (node == nullptr)
+			return BAN::Error::from_errno(ENOMEM);
 		SpinLockGuard _(m_lock);
-		TRY(m_active_threads.emplace_back(thread));
+		m_active_threads.push_back(node);
 		return {};
 	}
 
@@ -126,32 +114,12 @@ namespace Kernel
 	{
 		ASSERT(m_lock.current_processor_has_lock());
 
-		if (m_active_threads.empty())
-		{
-			m_current_thread = {};
-			return;
-		}
-		if (!m_current_thread || ++m_current_thread == m_active_threads.end())
-			m_current_thread = m_active_threads.begin();
-	}
+		if (m_current_thread)
+			m_active_threads.push_back(m_current_thread);
+		m_current_thread = nullptr;
 
-	void Scheduler::remove_and_advance_current_thread()
-	{
-		ASSERT(m_lock.current_processor_has_lock());
-
-		ASSERT(m_current_thread);
-
-		if (m_active_threads.size() == 1)
-		{
-			m_active_threads.remove(m_current_thread);
-			m_current_thread = {};
-		}
-		else
-		{
-			auto temp = m_current_thread;
-			advance_current_thread();
-			m_active_threads.remove(temp);
-		}
+		if (!m_active_threads.empty())
+			m_current_thread = m_active_threads.pop_front();
 	}
 
 	// NOTE: this is declared always inline, so we don't corrupt the stack
@@ -189,11 +157,11 @@ namespace Kernel
 
 		ASSERT(thread->has_process());
 		delete &thread->process();
-
-		remove_and_advance_current_thread();
-
 		delete thread;
+		delete m_current_thread;
+		m_current_thread = nullptr;
 
+		advance_current_thread();
 		execute_current_thread_locked();
 		ASSERT_NOT_REACHED();
 	}
@@ -244,12 +212,14 @@ namespace Kernel
 		{
 			Thread* thread = m_current_thread->thread;
 			if (thread->has_process())
-				thread->process().on_thread_exit(*thread);
-
-			remove_and_advance_current_thread();
+				if (thread->process().on_thread_exit(*thread))
+					break;
 
 			delete thread;
+			delete m_current_thread;
+			m_current_thread = nullptr;
 
+			advance_current_thread();
 			current = &current_thread();
 		}
 
@@ -286,21 +256,11 @@ namespace Kernel
 		if (save_current_thread())
 			return;
 
-		auto it = m_sleeping_threads.begin();
-		for (; it != m_sleeping_threads.end(); it++)
-			if (wake_time <= it->wake_time)
-				break;
-
 		m_current_thread->wake_time = wake_time;
-		m_active_threads.move_element_to_other_linked_list(
-			m_sleeping_threads,
-			it,
-			m_current_thread
-		);
+		m_blocking_threads.add_with_wake_time(m_current_thread);
+		m_current_thread = nullptr;
 
-		m_current_thread = {};
 		advance_current_thread();
-
 		execute_current_thread_locked();
 		ASSERT_NOT_REACHED();
 	}
@@ -324,40 +284,13 @@ namespace Kernel
 	void Scheduler::unblock_threads(Semaphore* semaphore)
 	{
 		SpinLockGuard _(m_lock);
-
-		for (auto it = m_sleeping_threads.begin(); it != m_sleeping_threads.end();)
-		{
-			if (it->semaphore == semaphore)
-			{
-				it = m_sleeping_threads.move_element_to_other_linked_list(
-					m_active_threads,
-					m_active_threads.end(),
-					it
-				);
-			}
-			else
-			{
-				it++;
-			}
-		}
+		m_blocking_threads.remove_with_condition(m_active_threads, [&](auto* node) { return node->semaphore == semaphore; });
 	}
 
 	void Scheduler::unblock_thread(pid_t tid)
 	{
 		SpinLockGuard _(m_lock);
-
-		for (auto it = m_sleeping_threads.begin(); it != m_sleeping_threads.end(); it++)
-		{
-			if (it->thread->tid() == tid)
-			{
-				m_sleeping_threads.move_element_to_other_linked_list(
-					m_active_threads,
-					m_active_threads.end(),
-					it
-				);
-				return;
-			}
-		}
+		m_blocking_threads.remove_with_condition(m_active_threads, [&](auto* node) { return node->thread->tid() == tid; });
 	}
 
 }

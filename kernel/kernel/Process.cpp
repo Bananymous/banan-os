@@ -218,7 +218,7 @@ namespace Kernel
 		m_loadable_elf.clear();
 	}
 
-	void Process::on_thread_exit(Thread& thread)
+	bool Process::on_thread_exit(Thread& thread)
 	{
 		ASSERT(Processor::get_interrupt_state() == InterruptState::Disabled);
 
@@ -230,9 +230,7 @@ namespace Kernel
 			m_threads.clear();
 
 			thread.setup_process_cleanup();
-			// NOTE: This function is only called from scheduler when it is already locked
-			Scheduler::get().execute_current_thread_locked();
-			ASSERT_NOT_REACHED();
+			return true;
 		}
 
 		for (size_t i = 0; i < m_threads.size(); i++)
@@ -240,7 +238,7 @@ namespace Kernel
 			if (m_threads[i] == &thread)
 			{
 				m_threads.remove(i);
-				return;
+				return false;
 			}
 		}
 
