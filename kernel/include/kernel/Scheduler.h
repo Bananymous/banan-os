@@ -38,7 +38,7 @@ namespace Kernel
 	private:
 		Scheduler() = default;
 
-		void set_current_thread_sleeping_impl(uint64_t wake_time);
+		void set_current_thread_sleeping_impl(Semaphore* semaphore, uint64_t wake_time);
 
 		[[nodiscard]] bool save_current_thread();
 		void advance_current_thread();
@@ -53,9 +53,6 @@ namespace Kernel
 
 		SchedulerQueue m_active_threads;
 		SchedulerQueue m_blocking_threads;
-
-		Thread* m_idle_thread { nullptr };
-		SchedulerQueue::Node* m_current_thread { nullptr };
 
 		friend class Process;
 	};

@@ -1,7 +1,6 @@
 #include <kernel/Memory/kmalloc.h>
 #include <kernel/Processor.h>
-
-#include <kernel/Debug.h>
+#include <kernel/Thread.h>
 
 namespace Kernel
 {
@@ -65,6 +64,13 @@ namespace Kernel
 		processor.idt().load();
 
 		return processor;
+	}
+
+	void Processor::allocate_idle_thread()
+	{
+		ASSERT(idle_thread() == nullptr);
+		auto* idle_thread = MUST(Thread::create_kernel([](void*) { for (;;) asm volatile("hlt"); }, nullptr, nullptr));
+		write_gs_ptr(offsetof(Processor, m_idle_thread), idle_thread);
 	}
 
 }

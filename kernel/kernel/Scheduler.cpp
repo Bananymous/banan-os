@@ -24,10 +24,9 @@ namespace Kernel
 	BAN::ErrorOr<void> Scheduler::initialize()
 	{
 		ASSERT(s_instance == nullptr);
-		Scheduler* scheduler = new Scheduler();
-		ASSERT(scheduler);
-		scheduler->m_idle_thread = TRY(Thread::create_kernel([](void*) { for (;;) asm volatile("hlt"); }, nullptr, nullptr));
-		s_instance = scheduler;
+		s_instance = new Scheduler();
+		ASSERT(s_instance);
+		Processor::allocate_idle_thread();
 		return {};
 	}
 
@@ -49,7 +48,8 @@ namespace Kernel
 
 	Thread& Scheduler::current_thread()
 	{
-		return m_current_thread ? *m_current_thread->thread : *m_idle_thread;
+		auto* current = Processor::get_current_thread();
+		return current ? *current->thread : *Processor::idle_thread();
 	}
 
 	pid_t Scheduler::current_tid()
@@ -83,7 +83,7 @@ namespace Kernel
 	void Scheduler::reschedule_if_idling()
 	{
 		auto state = m_lock.lock();
-		if (m_active_threads.empty() || m_current_thread)
+		if (m_active_threads.empty() || Processor::get_current_thread())
 			return m_lock.unlock(state);
 		if (save_current_thread())
 			return Processor::set_interrupt_state(state);
@@ -114,12 +114,12 @@ namespace Kernel
 	{
 		ASSERT(m_lock.current_processor_has_lock());
 
-		if (m_current_thread)
-			m_active_threads.push_back(m_current_thread);
-		m_current_thread = nullptr;
+		if (auto* current = Processor::get_current_thread())
+			m_active_threads.push_back(current);
+		Processor::set_current_thread(nullptr);
 
 		if (!m_active_threads.empty())
-			m_current_thread = m_active_threads.pop_front();
+			Processor::set_current_thread(m_active_threads.pop_front());
 	}
 
 	// NOTE: this is declared always inline, so we don't corrupt the stack
@@ -153,13 +153,12 @@ namespace Kernel
 		load_temp_stack();
 		PageTable::kernel().load();
 
-		Thread* thread = m_current_thread->thread;
-
-		ASSERT(thread->has_process());
-		delete &thread->process();
-		delete thread;
-		delete m_current_thread;
-		m_current_thread = nullptr;
+		auto* current = Processor::get_current_thread();
+		ASSERT(current);
+		delete &current->thread->process();
+		delete current->thread;
+		delete current;
+		Processor::set_current_thread(nullptr);
 
 		advance_current_thread();
 		execute_current_thread_locked();
@@ -210,14 +209,14 @@ namespace Kernel
 
 		while (current->state() == Thread::State::Terminated)
 		{
-			Thread* thread = m_current_thread->thread;
-			if (thread->has_process())
-				if (thread->process().on_thread_exit(*thread))
+			auto* node = Processor::get_current_thread();
+			if (node->thread->has_process())
+				if (node->thread->process().on_thread_exit(*node->thread))
 					break;
 
-			delete thread;
-			delete m_current_thread;
-			m_current_thread = nullptr;
+			delete node->thread;
+			delete node;
+			Processor::set_current_thread(nullptr);
 
 			advance_current_thread();
 			current = &current_thread();
@@ -249,16 +248,18 @@ namespace Kernel
 		ASSERT_NOT_REACHED();
 	}
 
-	void Scheduler::set_current_thread_sleeping_impl(uint64_t wake_time)
+	void Scheduler::set_current_thread_sleeping_impl(Semaphore* semaphore, uint64_t wake_time)
 	{
 		ASSERT(m_lock.current_processor_has_lock());
 
 		if (save_current_thread())
 			return;
 
-		m_current_thread->wake_time = wake_time;
-		m_blocking_threads.add_with_wake_time(m_current_thread);
-		m_current_thread = nullptr;
+		auto* current = Processor::get_current_thread();
+		current->semaphore = semaphore;
+		current->wake_time = wake_time;
+		m_blocking_threads.add_with_wake_time(current);
+		Processor::set_current_thread(nullptr);
 
 		advance_current_thread();
 		execute_current_thread_locked();
@@ -268,16 +269,14 @@ namespace Kernel
 	void Scheduler::set_current_thread_sleeping(uint64_t wake_time)
 	{
 		auto state = m_lock.lock();
-		m_current_thread->semaphore = nullptr;
-		set_current_thread_sleeping_impl(wake_time);
+		set_current_thread_sleeping_impl(nullptr, wake_time);
 		Processor::set_interrupt_state(state);
 	}
 
 	void Scheduler::block_current_thread(Semaphore* semaphore, uint64_t wake_time)
 	{
 		auto state = m_lock.lock();
-		m_current_thread->semaphore = semaphore;
-		set_current_thread_sleeping_impl(wake_time);
+		set_current_thread_sleeping_impl(semaphore, wake_time);
 		Processor::set_interrupt_state(state);
 	}
 

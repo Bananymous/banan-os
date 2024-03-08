@@ -5,6 +5,7 @@
 #include <kernel/Arch.h>
 #include <kernel/GDT.h>
 #include <kernel/IDT.h>
+#include <kernel/SchedulerQueue.h>
 
 namespace Kernel
 {
@@ -27,6 +28,7 @@ namespace Kernel
 	public:
 		static Processor& create(ProcessorID id);
 		static Processor& initialize();
+		static void allocate_idle_thread();
 
 		static ProcessorID current_id() { return read_gs_sized<ProcessorID>(offsetof(Processor, m_id)); }
 
@@ -61,6 +63,10 @@ namespace Kernel
 
 		static void* get_current_page_table()					{ return read_gs_ptr(offsetof(Processor, m_current_page_table)); }
 		static void set_current_page_table(void* page_table)	{ write_gs_ptr(offsetof(Processor, m_current_page_table), page_table); }
+
+		static Thread* idle_thread()									{ return reinterpret_cast<Thread*>(read_gs_ptr(offsetof(Processor, m_idle_thread))); }
+		static SchedulerQueue::Node* get_current_thread()				{ return reinterpret_cast<SchedulerQueue::Node*>(read_gs_ptr(offsetof(Processor, m_current_thread))); }
+		static void set_current_thread(SchedulerQueue::Node* thread)	{ write_gs_ptr(offsetof(Processor, m_current_thread), thread); }
 
 	private:
 		Processor() = default;
@@ -111,6 +117,9 @@ namespace Kernel
 
 		GDT* m_gdt { nullptr };
 		IDT* m_idt { nullptr };
+
+		Thread* m_idle_thread { nullptr };
+		SchedulerQueue::Node* m_current_thread { nullptr };
 
 		void* m_current_page_table { nullptr };
 

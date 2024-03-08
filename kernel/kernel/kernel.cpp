@@ -213,6 +213,7 @@ extern "C" void ap_main()
 
 	Processor::initialize();
 	PageTable::kernel().initial_load();
+	Processor::allocate_idle_thread();
 
 	dprintln("ap{} initialized", Processor::current_id());
 
