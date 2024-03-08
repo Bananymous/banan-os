@@ -8,6 +8,7 @@
 		? __ban_assertion_failed(__FILE__ ":" __ban_assert_stringify(__LINE__), "ASSERT(" #cond ") failed")	\
 		: (void)0)
 
-#define ASSERT_NOT_REACHED() ASSERT(false)
+#define ASSERT_NOT_REACHED()																				\
+	__ban_assertion_failed(__FILE__ ":" __ban_assert_stringify(__LINE__), "ASSERT_NOT_REACHED() reached")
 
 [[noreturn]] void __ban_assertion_failed(const char* location, const char* msg);
