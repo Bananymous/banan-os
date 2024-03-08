@@ -69,7 +69,7 @@ namespace Kernel
 		template<typename T>
 		static T read_gs_sized(uintptr_t offset) requires(sizeof(T) <= 8)
 		{
-#define __ASM_INPUT(operation) operation " %%gs:(%[offset]), %[result]" : [result]"=rm"(result) : [offset]"rm"(offset)
+#define __ASM_INPUT(operation) operation " %%gs:%a[offset], %[result]" : [result]"=r"(result) : [offset]"ir"(offset)
 			T result;
 			if constexpr(sizeof(T) == 8)
 				asm volatile(__ASM_INPUT("movq"));
@@ -86,7 +86,7 @@ namespace Kernel
 		template<typename T>
 		static void write_gs_sized(uintptr_t offset, T value) requires(sizeof(T) <= 8)
 		{
-#define __ASM_INPUT(operation) operation " %[value], %%gs:(%[offset])" :: [value]"rm"(value), [offset]"rm"(offset) : "memory"
+#define __ASM_INPUT(operation) operation " %[value], %%gs:%a[offset]" :: [value]"r"(value), [offset]"ir"(offset) : "memory"
 			if constexpr(sizeof(T) == 8)
 				asm volatile(__ASM_INPUT("movq"));
 			if constexpr(sizeof(T) == 4)
