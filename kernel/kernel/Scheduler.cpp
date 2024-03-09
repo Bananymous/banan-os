@@ -15,6 +15,7 @@ namespace Kernel
 	extern "C" [[noreturn]] void continue_thread(uintptr_t rsp, uintptr_t rip);
 
 	static Scheduler* s_instance = nullptr;
+	static BAN::Atomic<bool> s_started { false };
 
 	ALWAYS_INLINE static void load_temp_stack()
 	{
@@ -40,10 +41,15 @@ namespace Kernel
 	{
 		ASSERT(Processor::get_interrupt_state() == InterruptState::Disabled);
 		m_lock.lock();
-		ASSERT(!m_active_threads.empty());
+		s_started = true;
 		advance_current_thread();
 		execute_current_thread_locked();
 		ASSERT_NOT_REACHED();
+	}
+
+	bool Scheduler::is_started()
+	{
+		return s_started;
 	}
 
 	Thread& Scheduler::current_thread()

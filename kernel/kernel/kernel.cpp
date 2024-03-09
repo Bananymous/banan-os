@@ -217,6 +217,7 @@ extern "C" void ap_main()
 
 	dprintln("ap{} initialized", Processor::current_id());
 
-	for (;;)
-		asm volatile("hlt");
+	while (!Scheduler::is_started())
+		__builtin_ia32_pause();
+	Scheduler::get().start();
 }
