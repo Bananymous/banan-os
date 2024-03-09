@@ -310,10 +310,12 @@ done:
 		else
 		{
 			InterruptController::get().eoi(irq);
-			if (s_interruptables[irq])
-				s_interruptables[irq]->handle_irq();
+			if (irq == IRQ_IPI)
+				Scheduler::get().reschedule();
+			else if (auto* handler = s_interruptables[irq])
+				handler->handle_irq();
 			else
-				dprintln("no handler for irq 0x{2H}\n", irq);
+				dprintln("no handler for irq 0x{2H}", irq);
 		}
 
 		Scheduler::get().reschedule_if_idling();

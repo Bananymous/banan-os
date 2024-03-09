@@ -67,6 +67,10 @@ namespace Kernel
 
 	void Scheduler::timer_reschedule()
 	{
+		// Broadcast IPI to all other processors for them
+		// to perform reschedule
+		InterruptController::get().broadcast_ipi();
+
 		auto state = m_lock.lock();
 		m_blocking_threads.remove_with_wake_time(m_active_threads, SystemTimer::get().ms_since_boot());
 		if (save_current_thread())
