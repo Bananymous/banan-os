@@ -34,7 +34,7 @@ namespace Kernel
 		BAN_NON_MOVABLE(IDT);
 
 	public:
-		static IDT* create(bool is_bsb);
+		static IDT* create();
 
 		[[noreturn]] static void force_triple_fault();
 

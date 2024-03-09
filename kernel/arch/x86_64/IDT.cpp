@@ -356,7 +356,7 @@ done:
 
 	extern "C" void syscall_asm();
 
-	IDT* IDT::create(bool is_bsb)
+	IDT* IDT::create()
 	{
 		auto* idt = new IDT();
 		ASSERT(idt);
@@ -367,12 +367,8 @@ done:
 		ISR_LIST_X
 #undef X
 
-		// FIXME: distribute IRQs more evenly?
 #define X(num) idt->register_interrupt_handler(IRQ_VECTOR_BASE + num, irq ## num);
-		if (is_bsb)
-		{
-			IRQ_LIST_X
-		}
+		IRQ_LIST_X
 #undef X
 
 		idt->register_syscall_handler(0x80, syscall_asm);

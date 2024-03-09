@@ -42,7 +42,7 @@ namespace Kernel
 		processor.m_gdt = GDT::create();
 		ASSERT(processor.m_gdt);
 
-		processor.m_idt = IDT::create(id == s_bsb_id);
+		processor.m_idt = IDT::create();
 		ASSERT(processor.m_idt);
 
 		return processor;
