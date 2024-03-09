@@ -174,6 +174,7 @@ irq 28
 irq 29
 irq 30
 irq 31
+irq 32
 
 // arguments in RAX, RBX, RCX, RDX, RSI, RDI
 // System V ABI: RDI, RSI, RDX, RCX, R8, R9

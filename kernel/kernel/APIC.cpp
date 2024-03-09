@@ -215,9 +215,8 @@ namespace Kernel
 			io_apic.max_redirs = io_apic.read(IOAPIC_MAX_REDIRS);
 		}
 
-		// Mask all interrupts
-		uint32_t sivr = apic->read_from_local_apic(LAPIC_SIV_REG);
-		apic->write_to_local_apic(LAPIC_SIV_REG, sivr | 0x1FF);
+		// Enable local apic
+		apic->write_to_local_apic(LAPIC_SIV_REG, apic->read_from_local_apic(LAPIC_SIV_REG) | 0x1FF);
 
 		return apic;
 	}
@@ -313,6 +312,28 @@ namespace Kernel
 		dprintln("{} processors started", *g_ap_running_count);
 	}
 
+	void APIC::broadcast_ipi()
+	{
+		write_to_local_apic(LAPIC_ICR_HI_REG, (read_from_local_apic(LAPIC_ICR_HI_REG) & 0x00FFFFFF) | 0xFF000000);
+		write_to_local_apic(LAPIC_ICR_LO_REG,
+			(read_from_local_apic(LAPIC_ICR_LO_REG) & ICR_LO_reserved_mask)
+			| ICR_LO_delivery_mode_fixed
+			| ICR_LO_destination_mode_physical
+			| ICR_LO_level_assert
+			| ICR_LO_trigger_mode_level
+			| ICR_LO_destination_shorthand_all_excluding_self
+			| (IRQ_VECTOR_BASE + IRQ_IPI)
+		);
+		while ((read_from_local_apic(LAPIC_ICR_LO_REG) & ICR_LO_delivery_status_send_pending) == ICR_LO_delivery_status_send_pending)
+			__builtin_ia32_pause();
+	}
+
+	void APIC::enable()
+	{
+		write_to_local_apic(LAPIC_SIV_REG, read_from_local_apic(LAPIC_SIV_REG) | 0x1FF);
+	}
+
+
 	uint32_t APIC::read_from_local_apic(ptrdiff_t offset)
 	{
 		return MMIO::read32(m_local_apic_vaddr + offset);
@@ -370,7 +391,8 @@ namespace Kernel
 
 		redir.vector = IRQ_VECTOR_BASE + irq;
 		redir.mask = 0;
-		redir.destination = m_processors.front().apic_id;
+		// FIXME: distribute IRQs more evenly?
+		redir.destination = Kernel::Processor::bsb_id();
 
 		ioapic->write(IOAPIC_REDIRS + gsi * 2,		redir.lo_dword);
 		ioapic->write(IOAPIC_REDIRS + gsi * 2 + 1,	redir.hi_dword);
