@@ -25,6 +25,8 @@ namespace Debug
 			uintptr_t rip;
 		};
 
+		SpinLockGuard _(s_debug_lock);
+
 		stackframe* frame = (stackframe*)__builtin_frame_address(0);
 		if (!frame)
 		{
