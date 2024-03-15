@@ -64,7 +64,7 @@ namespace Kernel::Input
 
 		BAN::CircularQueue<Command, 128> m_command_queue;
 		uint64_t m_command_send_time { 0 };
-		SpinLock m_command_lock;
+		RecursiveSpinLock m_command_lock;
 	};
 
 }
