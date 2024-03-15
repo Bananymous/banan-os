@@ -15,6 +15,8 @@ namespace Kernel
 		, m_doorbell(db)
 		, m_qdepth(qdepth)
 	{
+		for (uint32_t i = qdepth; i < 64; i++)
+			m_used_mask |= (uint64_t)1 << i;
 		set_irq(irq);
 		enable_interrupt();
 	}
@@ -27,12 +29,13 @@ namespace Kernel
 		{
 			uint16_t sts = cq_ptr[m_cq_head].sts >> 1;
 			uint16_t cid = cq_ptr[m_cq_head].cid;
-			ASSERT(cid == 0);
+			uint64_t cid_mask = (uint64_t)1 << cid;
+			ASSERT(cid < 64);
 
-			ASSERT(!m_done);
-			m_status = sts;
-			m_done = true;
-			m_semaphore.unblock();
+			ASSERT((m_done_mask & cid_mask) == 0);
+
+			m_status_codes[cid] = sts;
+			m_done_mask |= cid_mask;
 
 			m_cq_head = (m_cq_head + 1) % m_qdepth;
 			if (m_cq_head == 0)
@@ -40,42 +43,75 @@ namespace Kernel
 		}
 
 		m_doorbell.cq_head = m_cq_head;
+
+		m_semaphore.unblock();
 	}
 
 	uint16_t NVMeQueue::submit_command(NVMe::SubmissionQueueEntry& sqe)
 	{
-		LockGuard _(m_mutex);
+		uint16_t cid = reserve_cid();
+		uint64_t cid_mask = (uint64_t)1 << cid;
 
-		ASSERT(m_done == false);
-		m_status = 0;
+		{
+			SpinLockGuard _(m_lock);
 
-		sqe.cid = 0;
+			m_done_mask &= ~cid_mask;
+			m_status_codes[cid]	= 0;
 
-		auto* sqe_ptr = reinterpret_cast<NVMe::SubmissionQueueEntry*>(m_submission_queue->vaddr());
-		memcpy(&sqe_ptr[m_sq_tail], &sqe, sizeof(NVMe::SubmissionQueueEntry));
-		m_sq_tail = (m_sq_tail + 1) % m_qdepth;
-		m_doorbell.sq_tail = m_sq_tail;
+			sqe.cid = cid;
+
+			auto* sqe_ptr = reinterpret_cast<NVMe::SubmissionQueueEntry*>(m_submission_queue->vaddr());
+			memcpy(&sqe_ptr[m_sq_tail], &sqe, sizeof(NVMe::SubmissionQueueEntry));
+			m_sq_tail = (m_sq_tail + 1) % m_qdepth;
+			m_doorbell.sq_tail = m_sq_tail;
+		}
 
 		const uint64_t start_time = SystemTimer::get().ms_since_boot();
 		while (SystemTimer::get().ms_since_boot() < start_time + s_nvme_command_poll_timeout_ms)
 		{
-			if (!m_done)
-				continue;
-			m_done = false;
-			return m_status;
+			if (m_done_mask & cid_mask)
+			{
+				uint16_t status = m_status_codes[cid];
+				m_used_mask &= ~cid_mask;
+				return status;
+			}
 		}
 
 		while (SystemTimer::get().ms_since_boot() < start_time + s_nvme_command_timeout_ms)
 		{
-			if (m_done)
+			if (m_done_mask & cid_mask)
 			{
-				m_done = false;
-				return m_status;
+				uint16_t status = m_status_codes[cid];
+				m_used_mask &= ~cid_mask;
+				return status;
 			}
-			m_semaphore.block_with_wake_time(start_time + s_nvme_command_timeout_ms);
 		}
 
+		m_used_mask &= ~cid_mask;
 		return 0xFFFF;
+	}
+
+	uint16_t NVMeQueue::reserve_cid()
+	{
+		auto state = m_lock.lock();
+		while (~m_used_mask == 0)
+		{
+			m_lock.unlock(state);
+			m_semaphore.block_with_timeout(s_nvme_command_timeout_ms);
+			state = m_lock.lock();
+		}
+
+		uint16_t cid = 0;
+		for (; cid < 64; cid++)
+			if ((m_used_mask & ((uint64_t)1 << cid)) == 0)
+				break;
+		ASSERT(cid < 64);
+		ASSERT(cid < m_qdepth);
+
+		m_used_mask |= (uint64_t)1 << cid;
+
+		m_lock.unlock(state);
+		return cid;
 	}
 
 }

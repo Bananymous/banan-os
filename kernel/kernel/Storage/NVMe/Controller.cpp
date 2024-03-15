@@ -92,10 +92,10 @@ namespace Kernel
 			TRY(wait_until_ready(true));
 		cc.en = 0;
 		TRY(wait_until_ready(false));
-		dprintln_if(DEBUG_NVMe, " controller reset");
+		dprintln_if(DEBUG_NVMe, "  controller reset");
 
 		TRY(create_admin_queue());
-		dprintln_if(DEBUG_NVMe, " created admin queue");
+		dprintln_if(DEBUG_NVMe, "  created admin queue");
 
 		// Configure controller
 		cc.ams = 0;
