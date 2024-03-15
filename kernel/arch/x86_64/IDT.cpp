@@ -145,8 +145,8 @@ namespace Kernel
 	{
 		if (g_paniced)
 		{
-			// FIXME: tell other processors kernel panic has occured
 			dprintln("Processor {} halted", Processor::current_id());
+			InterruptController::get().broadcast_ipi();
 			asm volatile("cli; 1: hlt; jmp 1b");
 		}
 
@@ -299,6 +299,13 @@ done:
 
 	extern "C" void cpp_irq_handler(uint64_t irq, InterruptStack& interrupt_stack)
 	{
+		if (g_paniced)
+		{
+			dprintln("Processor {} halted", Processor::current_id());
+			InterruptController::get().broadcast_ipi();
+			asm volatile("cli; 1: hlt; jmp 1b");
+		}
+
 		if (Scheduler::current_tid())
 		{
 			Thread::current().set_return_rsp(interrupt_stack.rsp);
