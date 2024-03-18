@@ -247,7 +247,6 @@ namespace Kernel
 
 	void Process::exit(int status, int signal)
 	{
-		LockGuard _(m_process_lock);
 		m_exit_status.exit_code = __WGENEXITCODE(status, signal);
 		for (auto* thread : m_threads)
 			if (thread != &Thread::current())
@@ -330,6 +329,7 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_exit(int status)
 	{
 		ASSERT(this == &Process::current());
+		LockGuard _(m_process_lock);
 		exit(status, 0);
 		ASSERT_NOT_REACHED();
 	}

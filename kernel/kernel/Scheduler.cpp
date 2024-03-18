@@ -247,9 +247,9 @@ namespace Kernel
 				m_lock.unlock(InterruptState::Disabled);
 				start_thread(current->rsp(), current->rip());
 			case Thread::State::Executing:
+				m_lock.unlock(InterruptState::Disabled);
 				while (current->can_add_signal_to_execute())
 					current->handle_signal();
-				m_lock.unlock(InterruptState::Disabled);
 				continue_thread(current->rsp(), current->rip());
 			case Thread::State::Terminated:
 				ASSERT_NOT_REACHED();
