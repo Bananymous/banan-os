@@ -67,24 +67,20 @@ namespace Kernel
 		}
 
 		const uint64_t start_time = SystemTimer::get().ms_since_boot();
-		while (SystemTimer::get().ms_since_boot() < start_time + s_nvme_command_poll_timeout_ms)
-		{
-			if (m_done_mask & cid_mask)
-			{
-				uint16_t status = m_status_codes[cid];
-				m_used_mask &= ~cid_mask;
-				return status;
-			}
-		}
+		while (!(m_done_mask & cid_mask) && SystemTimer::get().ms_since_boot() < start_time + s_nvme_command_poll_timeout_ms)
+			continue;
 
-		while (SystemTimer::get().ms_since_boot() < start_time + s_nvme_command_timeout_ms)
+		// FIXME: Here is a possible race condition if done mask is set before
+		//        scheduler has put the current thread blocking.
+		//        EINTR should also be handled here.
+		while (!(m_done_mask & cid_mask) && SystemTimer::get().ms_since_boot() < start_time + s_nvme_command_timeout_ms)
+			Scheduler::get().block_current_thread(&m_semaphore, start_time + s_nvme_command_timeout_ms);
+
+		if (m_done_mask & cid_mask)
 		{
-			if (m_done_mask & cid_mask)
-			{
-				uint16_t status = m_status_codes[cid];
-				m_used_mask &= ~cid_mask;
-				return status;
-			}
+			uint16_t status = m_status_codes[cid];
+			m_used_mask &= ~cid_mask;
+			return status;
 		}
 
 		m_used_mask &= ~cid_mask;
