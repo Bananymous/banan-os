@@ -27,7 +27,7 @@ int main()
 	if (signal(SIGINT, [](int) {}) == SIG_ERR)
 		perror("signal");
 
-	if (load_keymap("/usr/share/keymaps/fi.keymap") == -1)
+	if (load_keymap("/usr/share/keymaps/us.keymap") == -1)
 		perror("load_keymap");
 
 	if (fork() == 0)
