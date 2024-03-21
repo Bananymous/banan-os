@@ -55,10 +55,16 @@ if [[ -z ${MAKE_JOBS:x} ]]; then
 	MAKE_JOBS="-j$(nproc)"
 fi
 
+if [ $BANAN_ARCH = "x86_64" ]; then
+	XCFLAGS="-g -O2 -mcmodel=large -mno-red-zone"
+else
+	XCFLAGS="-g -O2"
+fi
+
 enter_clean_build () {
-	rm -rf build
-	mkdir build
-	cd build
+	rm -rf build-$BANAN_ARCH
+	mkdir build-$BANAN_ARCH
+	cd build-$BANAN_ARCH
 }
 
 build_binutils () {
@@ -110,7 +116,7 @@ build_gcc () {
 		--enable-languages=c,c++
 
 	make $MAKE_JOBS all-gcc
-	make $MAKE_JOBS all-target-libgcc CFLAGS_FOR_TARGET='-g -O2 -mcmodel=large -mno-red-zone'
+	make $MAKE_JOBS all-target-libgcc CFLAGS_FOR_TARGET="$XCFLAGS"
 	make install-gcc
 	make install-target-libgcc
 }
@@ -142,13 +148,13 @@ build_grub () {
 }
 
 build_libstdcpp () {
-	if ! [[ -d $BANAN_BUILD_DIR/toolchain/$GCC_VERSION/build ]]; then
+	if ! [[ -d $BANAN_BUILD_DIR/toolchain/$GCC_VERSION/build-$BANAN_ARCH ]]; then
 		echo "You have to build gcc first"
 		exit 1
 	fi
 
-	cd $BANAN_BUILD_DIR/toolchain/$GCC_VERSION/build
-	make $MAKE_JOBS all-target-libstdc++-v3 CFLAGS_FOR_TARGET='-g -O2 -mcmodel=large -mno-red-zone'
+	cd $BANAN_BUILD_DIR/toolchain/$GCC_VERSION/build-$BANAN_ARCH
+	make $MAKE_JOBS all-target-libstdc++-v3 CFLAGS_FOR_TARGET="$XCFLAGS"
 	make install-target-libstdc++-v3
 }
 
@@ -162,13 +168,14 @@ echo "Creating dummy sysroot"
 mkdir -p $BANAN_SYSROOT/usr
 cp -r $BANAN_ROOT_DIR/libc/include $BANAN_SYSROOT/usr/include
 
-# Cleanup all old files from toolchain prefix
-rm -rf $BANAN_TOOLCHAIN_PREFIX
-
 mkdir -p $BANAN_BUILD_DIR/toolchain
 build_binutils
 build_gcc
-build_grub
+
+# Grub is only needed for UEFI (x86_64)
+if [ $BANAN_ARCH = "x86_64" ]; then
+	build_grub
+fi
 
 # delete sysroot and install libc
 rm -r $BANAN_SYSROOT
