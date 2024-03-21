@@ -28,7 +28,7 @@ set(LIBC_SOURCES
 	termios.cpp
 	time.cpp
 	unistd.cpp
-	math.S
+	math.cpp
 	icxxabi.cpp
 
 	../BAN/BAN/Assert.cpp
