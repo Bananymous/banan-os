@@ -117,9 +117,6 @@ elseif("${BANAN_ARCH}" STREQUAL "i386")
 	set(KERNEL_SOURCES
 		${KERNEL_SOURCES}
 		arch/i386/boot.S
-		arch/i386/GDT.cpp
-		arch/i386/IDT.cpp
-		arch/i386/MMU.cpp
 		arch/i386/SpinLock.S
 		arch/i386/Thread.S
 	)
