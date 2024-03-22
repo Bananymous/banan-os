@@ -125,7 +125,6 @@ elseif("${BANAN_ARCH}" STREQUAL "i386")
 		${KERNEL_SOURCES}
 		arch/i386/boot.S
 		arch/i386/PageTable.cpp
-		arch/i386/SpinLock.S
 		arch/i386/Syscall.S
 		arch/i386/Thread.S
 	)
