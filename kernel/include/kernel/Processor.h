@@ -16,10 +16,10 @@ namespace Kernel
 		Enabled,
 	};
 
-	using ProcessorID = uint8_t;
-	constexpr ProcessorID PROCESSOR_NONE = 0xFF;
+	using ProcessorID = uint32_t;
+	constexpr ProcessorID PROCESSOR_NONE = 0xFFFFFFFF;
 
-#if ARCH(x86_64)
+#if ARCH(x86_64) || ARCH(i386)
 	class Processor
 	{
 		BAN_NON_COPYABLE(Processor);
@@ -75,16 +75,16 @@ namespace Kernel
 		template<typename T>
 		static T read_gs_sized(uintptr_t offset) requires(sizeof(T) <= 8)
 		{
-#define __ASM_INPUT(operation) operation " %%gs:%a[offset], %[result]" : [result]"=r"(result) : [offset]"ir"(offset)
+#define __ASM_INPUT(operation) asm volatile(operation " %%gs:%a[offset], %[result]" : [result]"=r"(result) : [offset]"ir"(offset))
 			T result;
 			if constexpr(sizeof(T) == 8)
-				asm volatile(__ASM_INPUT("movq"));
+				__ASM_INPUT("movq");
 			if constexpr(sizeof(T) == 4)
-				asm volatile(__ASM_INPUT("movl"));
+				__ASM_INPUT("movl");
 			if constexpr(sizeof(T) == 2)
-				asm volatile(__ASM_INPUT("movw"));
+				__ASM_INPUT("movw");
 			if constexpr(sizeof(T) == 1)
-				asm volatile(__ASM_INPUT("movb"));
+				__ASM_INPUT("movb");
 			return result;
 #undef __ASM_INPUT
 		}
@@ -92,15 +92,15 @@ namespace Kernel
 		template<typename T>
 		static void write_gs_sized(uintptr_t offset, T value) requires(sizeof(T) <= 8)
 		{
-#define __ASM_INPUT(operation) operation " %[value], %%gs:%a[offset]" :: [value]"r"(value), [offset]"ir"(offset) : "memory"
+#define __ASM_INPUT(operation) asm volatile(operation " %[value], %%gs:%a[offset]" :: [value]"r"(value), [offset]"ir"(offset) : "memory")
 			if constexpr(sizeof(T) == 8)
-				asm volatile(__ASM_INPUT("movq"));
+				__ASM_INPUT("movq");
 			if constexpr(sizeof(T) == 4)
-				asm volatile(__ASM_INPUT("movl"));
+				__ASM_INPUT("movl");
 			if constexpr(sizeof(T) == 2)
-				asm volatile(__ASM_INPUT("movw"));
+				__ASM_INPUT("movw");
 			if constexpr(sizeof(T) == 1)
-				asm volatile(__ASM_INPUT("movb"));
+				__ASM_INPUT("movb");
 #undef __ASM_INPUT
 		}
 

@@ -13,14 +13,13 @@ namespace Kernel
 
 	static ProcessorID read_processor_id()
 	{
-		uint8_t id;
+		uint32_t id;
 		asm volatile(
 			"movl $1, %%eax;"
 			"cpuid;"
 			"shrl $24, %%ebx;"
-			"movb %%bl, %0;"
-			: "=rm"(id)
-			:: "eax", "ebx", "ecx", "edx"
+			: "=b"(id)
+			:: "eax", "ecx", "edx"
 		);
 		return id;
 	}
@@ -55,7 +54,9 @@ namespace Kernel
 
 		// set gs base to pointer to this processor
 		uint64_t ptr = reinterpret_cast<uint64_t>(&processor);
-		asm volatile("wrmsr" :: "d"(ptr >> 32), "a"(ptr), "c"(MSR_IA32_GS_BASE));
+		uint32_t ptr_hi = ptr >> 32;
+		uint32_t ptr_lo = ptr & 0xFFFFFFFF;
+		asm volatile("wrmsr" :: "d"(ptr_hi), "a"(ptr_lo), "c"(MSR_IA32_GS_BASE));
 
 		ASSERT(processor.m_gdt);
 		processor.gdt().load();
