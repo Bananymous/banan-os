@@ -108,10 +108,10 @@ namespace Kernel
 		ASSERT(!mode().ifdir());
 		ASSERT(offset >= 0);
 
-		if (offset >= UINT32_MAX || buffer.size() >= UINT32_MAX || buffer.size() >= (size_t)(UINT32_MAX - offset))
+		if (static_cast<BAN::make_unsigned_t<decltype(offset)>>(offset) >= UINT32_MAX || buffer.size() >= UINT32_MAX || buffer.size() >= (size_t)(UINT32_MAX - offset))
 			return BAN::Error::from_errno(EOVERFLOW);
 
-		if (offset >= m_inode.size)
+		if (static_cast<BAN::make_unsigned_t<decltype(offset)>>(offset) >= m_inode.size)
 			return 0;
 
 		uint32_t count = buffer.size();
@@ -152,7 +152,7 @@ namespace Kernel
 		ASSERT(!mode().ifdir());
 		ASSERT(offset >= 0);
 
-		if (offset >= UINT32_MAX || buffer.size() >= UINT32_MAX || buffer.size() >= (size_t)(UINT32_MAX - offset))
+		if (static_cast<BAN::make_unsigned_t<decltype(offset)>>(offset) >= UINT32_MAX || buffer.size() >= UINT32_MAX || buffer.size() >= (size_t)(UINT32_MAX - offset))
 			return BAN::Error::from_errno(EOVERFLOW);
 
 		if (m_inode.size < offset + buffer.size())
@@ -304,7 +304,7 @@ done:
 		ASSERT(mode().ifdir());
 		ASSERT(offset >= 0);
 
-		if (offset >= max_used_data_block_count())
+		if (static_cast<BAN::make_unsigned_t<decltype(offset)>>(offset) >= max_used_data_block_count())
 		{
 			list->entry_count = 0;
 			return {};
