@@ -1187,7 +1187,9 @@ namespace Kernel
 
 	[[noreturn]] static void reset_system()
 	{
+#if ARCH(x86_64)
 		lai_acpi_reset();
+#endif
 
 		// acpi reset did not work
 
@@ -1206,21 +1208,17 @@ namespace Kernel
 
 		DevFileSystem::get().initiate_sync(true);
 
-		lai_api_error_t error;
-		switch (command)
-		{
-			case POWEROFF_REBOOT:
-				reset_system();
-				break;
-			case POWEROFF_SHUTDOWN:
-				error = lai_enter_sleep(5);
-				break;
-			default:
-				ASSERT_NOT_REACHED();
-		}
+		if (command == POWEROFF_REBOOT)
+			reset_system();
 
+#if ARCH(x86_64)
+		auto error = lai_enter_sleep(5);
 		// If we reach here, there was an error
 		dprintln("{}", lai_api_error_to_string(error));
+#else
+		dprintln("poweroff available only on x86_64");
+#endif
+
 		return BAN::Error::from_errno(EUNKNOWN);
 	}
 

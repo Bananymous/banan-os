@@ -31,7 +31,9 @@ namespace Kernel
 		if (s_instance == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
 		TRY(s_instance->initialize_impl());
+#if ARCH(x86_64)
 		lai_create_namespace();
+#endif
 		return {};
 	}
 
@@ -93,7 +95,9 @@ namespace Kernel
 		const RSDP* rsdp = locate_rsdp();
 		if (rsdp == nullptr)
 			return BAN::Error::from_error_code(ErrorCode::ACPI_NoRootSDT);
+#if ARCH(x86_64)
 		lai_set_acpi_revision(rsdp->revision);
+#endif
 
 		uint32_t root_entry_count = 0;
 

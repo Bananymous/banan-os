@@ -42,7 +42,9 @@ namespace Kernel
 
 	void InterruptController::enter_acpi_mode()
 	{
+#if ARCH(x86_64)
 		if (lai_enable_acpi(m_using_apic ? 1 : 0) != 0)
+#endif
 			dwarnln("could not enter acpi mode");
 	}
 

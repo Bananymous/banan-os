@@ -113,6 +113,13 @@ if("${BANAN_ARCH}" STREQUAL "x86_64")
 		arch/x86_64/Syscall.S
 		arch/x86_64/Thread.S
 	)
+	file(GLOB_RECURSE LAI_SOURCES
+		lai/*.c
+	)
+	set(LAI_SOURCES
+		${LAI_SOURCES}
+		kernel/lai_host.cpp
+	)
 elseif("${BANAN_ARCH}" STREQUAL "i386")
 	set(KERNEL_SOURCES
 		${KERNEL_SOURCES}
@@ -124,14 +131,6 @@ elseif("${BANAN_ARCH}" STREQUAL "i386")
 else()
 	message(FATAL_ERROR "unsupported architecure ${BANAN_ARCH}")
 endif()
-
-file(GLOB_RECURSE LAI_SOURCES
-	lai/*.c
-)
-set(LAI_SOURCES
-	${LAI_SOURCES}
-	kernel/lai_host.cpp
-)
 
 set(BAN_SOURCES
 	../BAN/BAN/Assert.cpp
@@ -177,7 +176,7 @@ if(ENABLE_KERNEL_UBSAN)
 endif()
 
 if("${BANAN_ARCH}" STREQUAL "x86_64")
-	target_compile_options(kernel PUBLIC -mcmodel=kernel -mno-red-zone -mno-mmx)
+	target_compile_options(kernel PUBLIC -mcmodel=kernel -mno-red-zone)
 	target_link_options(kernel PUBLIC LINKER:-z,max-page-size=4096)
 	target_link_options(kernel PUBLIC LINKER:-T,${CMAKE_CURRENT_SOURCE_DIR}/arch/x86_64/linker.ld)
 elseif("${BANAN_ARCH}" STREQUAL "i386")
