@@ -83,7 +83,6 @@ set(KERNEL_SOURCES
 	kernel/Storage/Partition.cpp
 	kernel/Storage/StorageDevice.cpp
 	kernel/Syscall.cpp
-	kernel/Syscall.S
 	kernel/Terminal/FramebufferTerminal.cpp
 	kernel/Terminal/Serial.cpp
 	kernel/Terminal/TTY.cpp
@@ -111,6 +110,7 @@ if("${BANAN_ARCH}" STREQUAL "x86_64")
 		arch/x86_64/interrupts.S
 		arch/x86_64/PageTable.cpp
 		arch/x86_64/Signal.S
+		arch/x86_64/Syscall.S
 		arch/x86_64/Thread.S
 	)
 elseif("${BANAN_ARCH}" STREQUAL "i386")
@@ -118,6 +118,7 @@ elseif("${BANAN_ARCH}" STREQUAL "i386")
 		${KERNEL_SOURCES}
 		arch/i386/boot.S
 		arch/i386/SpinLock.S
+		arch/i386/Syscall.S
 		arch/i386/Thread.S
 	)
 else()
