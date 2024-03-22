@@ -106,6 +106,36 @@ namespace BAN
 	template<typename T> inline constexpr bool is_unsigned_v = is_unsigned<T>::value;
 	template<typename T> concept unsigned_integral = is_unsigned_v<T> && is_integral_v<T>;
 
+#define __BAN_TRAITS_MAKE_UNSIGNED_CV(__type)																	\
+	template<> struct make_unsigned<__type>					{ using type = unsigned __type; };					\
+	template<> struct make_unsigned<const __type>			{ using type = unsigned const __type; };			\
+	template<> struct make_unsigned<volatile __type>		{ using type = unsigned volatile __type; };			\
+	template<> struct make_unsigned<const volatile __type>	{ using type = unsigned const volatile __type; };
+
+	template<typename T> requires is_arithmetic_v<T> struct make_unsigned { using type = T; };
+	__BAN_TRAITS_MAKE_UNSIGNED_CV(char)
+	__BAN_TRAITS_MAKE_UNSIGNED_CV(short)
+	__BAN_TRAITS_MAKE_UNSIGNED_CV(int)
+	__BAN_TRAITS_MAKE_UNSIGNED_CV(long)
+	__BAN_TRAITS_MAKE_UNSIGNED_CV(long long)
+	template<typename T> using make_unsigned_t = typename make_unsigned<T>::type;
+#undef __BAN_TRAITS_MAKE_UNSIGNED_CV
+
+#define __BAN_TRAITS_MAKE_SIGNED_CV(__type)																		\
+	template<> struct make_signed<unsigned __type>					{ using type = __type; };					\
+	template<> struct make_signed<unsigned const __type>			{ using type = const __type; };				\
+	template<> struct make_signed<unsigned volatile __type>			{ using type = volatile __type; };			\
+	template<> struct make_signed<unsigned const volatile __type>	{ using type = const volatile __type; };
+
+	template<typename T> requires is_arithmetic_v<T> struct make_signed { using type = T; };
+	__BAN_TRAITS_MAKE_SIGNED_CV(char)
+	__BAN_TRAITS_MAKE_SIGNED_CV(short)
+	__BAN_TRAITS_MAKE_SIGNED_CV(int)
+	__BAN_TRAITS_MAKE_SIGNED_CV(long)
+	__BAN_TRAITS_MAKE_SIGNED_CV(long long)
+	template<typename T> using make_signed_t = typename make_signed<T>::type;
+#undef __BAN_TRAITS_MAKE_SIGNED_CV
+
 	template<typename T> struct less	{ constexpr bool operator()(const T& lhs, const T& rhs) const { return lhs < rhs; } };
 	template<typename T> struct equal	{ constexpr bool operator()(const T& lhs, const T& rhs) const { return lhs == rhs; } };
 	template<typename T> struct greater	{ constexpr bool operator()(const T& lhs, const T& rhs) const { return lhs > rhs; } };
