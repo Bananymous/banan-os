@@ -19,7 +19,13 @@ namespace Kernel
 
 	ALWAYS_INLINE static void load_temp_stack()
 	{
+#if ARCH(x86_64)
 		asm volatile("movq %0, %%rsp" :: "rm"(Processor::current_stack_top()));
+#elif ARCH(i386)
+		asm volatile("movl %0, %%esp" :: "rm"(Processor::current_stack_top()));
+#else
+		#error
+#endif
 	}
 
 	BAN::ErrorOr<void> Scheduler::initialize()
@@ -209,11 +215,21 @@ namespace Kernel
 #if __enable_sse
 		if (current != Thread::sse_thread())
 		{
+#if ARCH(x86_64)
 			asm volatile(
 				"movq %cr0, %rax;"
 				"orq $(1 << 3), %rax;"
 				"movq %rax, %cr0"
 			);
+#elif ARCH(i386)
+			asm volatile(
+				"movl %cr0, %eax;"
+				"orl $(1 << 3), %eax;"
+				"movl %eax, %cr0"
+			);
+#else
+			#error
+#endif
 		}
 #endif
 
