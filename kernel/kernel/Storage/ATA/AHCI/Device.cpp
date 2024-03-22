@@ -70,11 +70,11 @@ namespace Kernel
 
 		stop_cmd(m_port);
 
-		paddr_t fis_paddr = m_dma_region->paddr();
+		uint64_t fis_paddr = m_dma_region->paddr();
 		m_port->fb = fis_paddr & 0xFFFFFFFF;
 		m_port->fbu = fis_paddr >> 32;
 
-		paddr_t command_list_paddr = fis_paddr + sizeof(ReceivedFIS);
+		uint64_t command_list_paddr = fis_paddr + sizeof(ReceivedFIS);
 		m_port->clb = command_list_paddr & 0xFFFFFFFF;
 		m_port->clbu = command_list_paddr >> 32;
 
@@ -236,8 +236,9 @@ namespace Kernel
 
 		volatile auto& command_table = *reinterpret_cast<HBACommandTable*>(m_dma_region->paddr_to_vaddr(command_header.ctba));
 		memset(const_cast<HBACommandTable*>(&command_table), 0x00, sizeof(HBACommandTable));
-		command_table.prdt_entry[0].dba = m_data_dma_region->paddr() & 0xFFFFFFFF;
-		command_table.prdt_entry[0].dbau = m_data_dma_region->paddr() >> 32;
+		uint64_t data_dma_paddr64 = m_data_dma_region->paddr();
+		command_table.prdt_entry[0].dba = data_dma_paddr64 & 0xFFFFFFFF;
+		command_table.prdt_entry[0].dbau = data_dma_paddr64 >> 32;
 		command_table.prdt_entry[0].dbc = sector_count * sector_size() - 1;
 		command_table.prdt_entry[0].i = 1;
 
