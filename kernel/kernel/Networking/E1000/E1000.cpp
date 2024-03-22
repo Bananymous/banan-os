@@ -173,8 +173,9 @@ namespace Kernel
 			rx_descriptors[i].status = 0;
 		}
 
-		write32(REG_RDBAL0, m_rx_descriptor_region->paddr() & 0xFFFFFFFF);
-		write32(REG_RDBAH0, m_rx_descriptor_region->paddr() >> 32);
+		uint64_t paddr64 = m_rx_descriptor_region->paddr();
+		write32(REG_RDBAL0, paddr64 & 0xFFFFFFFF);
+		write32(REG_RDBAH0, paddr64 >> 32);
 		write32(REG_RDLEN0, E1000_RX_DESCRIPTOR_COUNT * sizeof(e1000_rx_desc));
 		write32(REG_RDH0, 0);
 		write32(REG_RDT0, E1000_RX_DESCRIPTOR_COUNT - 1);
@@ -206,8 +207,9 @@ namespace Kernel
 			tx_descriptors[i].cmd = 0;
 		}
 
-		write32(REG_TDBAL, m_tx_descriptor_region->paddr() & 0xFFFFFFFF);
-		write32(REG_TDBAH, m_tx_descriptor_region->paddr() >> 32);
+		uint64_t paddr64 = m_tx_descriptor_region->paddr();
+		write32(REG_TDBAL, paddr64 & 0xFFFFFFFF);
+		write32(REG_TDBAH, paddr64 >> 32);
 		write32(REG_TDLEN, E1000_TX_DESCRIPTOR_COUNT * sizeof(e1000_tx_desc));
 		write32(REG_TDH, 0);
 		write32(REG_TDT, 0);
