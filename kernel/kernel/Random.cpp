@@ -20,7 +20,19 @@ namespace Kernel
 
 		if (ecx & CPUID::ECX_RDRND)
 		{
-			asm volatile("rdrand %0" : "=a"(s_rand_seed));
+#if ARCH(x86_64)
+			asm volatile("rdrand %0" : "=r"(s_rand_seed));
+#elif ARCH(i386)
+			uint32_t lo, hi;
+			asm volatile(
+				"rdrand %[lo];"
+				"rdrand %[hi];"
+				: [lo]"=r"(lo), [hi]"=r"(hi)
+			);
+			s_rand_seed = ((uint64_t)hi << 32) | lo;
+#else
+			#error
+#endif
 			dprintln("RNG seeded by RDRAND");
 		}
 		else
