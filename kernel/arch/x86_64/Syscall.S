@@ -6,7 +6,7 @@ sys_fork_trampoline:
 	pushq %r13
 	pushq %r14
 	pushq %r15
-	call read_rip
+	call read_ip
 	testq %rax, %rax
 	je .done
 	movq %rax, %rsi

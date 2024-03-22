@@ -12,8 +12,8 @@
 namespace Kernel
 {
 
-	extern "C" void thread_userspace_trampoline(uint64_t rsp, uint64_t rip, int argc, char** argv, char** envp);
-	extern "C" uintptr_t read_rip();
+	extern "C" void thread_userspace_trampoline(uint64_t sp, uint64_t ip, int argc, char** argv, char** envp);
+	extern "C" uintptr_t read_ip();
 
 	extern "C" void signal_trampoline();
 
@@ -46,14 +46,14 @@ namespace Kernel
 			PageTable::Flags::ReadWrite | PageTable::Flags::Present,
 			true
 		));
-		thread->m_rsp = thread->stack_base() + thread->stack_size();
-		thread->m_rip = (uintptr_t)entry;
+		thread->m_sp = thread->stack_base() + thread->stack_size();
+		thread->m_ip = (uintptr_t)entry;
 
 		// Initialize stack for returning
-		write_to_stack(thread->m_rsp, nullptr); // alignment
-		write_to_stack(thread->m_rsp, thread);
-		write_to_stack(thread->m_rsp, &Thread::on_exit);
-		write_to_stack(thread->m_rsp, data);
+		write_to_stack(thread->m_sp, nullptr); // alignment
+		write_to_stack(thread->m_sp, thread);
+		write_to_stack(thread->m_sp, &Thread::on_exit);
+		write_to_stack(thread->m_sp, data);
 
 		thread_deleter.disable();
 
@@ -144,7 +144,7 @@ namespace Kernel
 	{
 	}
 
-	BAN::ErrorOr<Thread*> Thread::clone(Process* new_process, uintptr_t rsp, uintptr_t rip)
+	BAN::ErrorOr<Thread*> Thread::clone(Process* new_process, uintptr_t sp, uintptr_t ip)
 	{
 		ASSERT(m_is_userspace);
 		ASSERT(m_state == State::Executing);
@@ -161,8 +161,8 @@ namespace Kernel
 
 		thread->m_state = State::Executing;
 
-		thread->m_rip = rip;
-		thread->m_rsp = rsp;
+		thread->m_ip = ip;
+		thread->m_sp = sp;
 
 		thread_deleter.disable();
 
@@ -177,24 +177,24 @@ namespace Kernel
 			[](void*)
 			{
 				const auto& info = Process::current().userspace_info();
-				thread_userspace_trampoline(Thread::current().rsp(), info.entry, info.argc, info.argv, info.envp);
+				thread_userspace_trampoline(Thread::current().sp(), info.entry, info.argc, info.argv, info.envp);
 				ASSERT_NOT_REACHED();
 			}
 		);
-		m_rsp = stack_base() + stack_size();
-		m_rip = (uintptr_t)entry_trampoline;
+		m_sp = stack_base() + stack_size();
+		m_ip = (uintptr_t)entry_trampoline;
 
 		// Signal mask is inherited
 
 		// Setup stack for returning
-		ASSERT(m_rsp % PAGE_SIZE == 0);
-		PageTable::with_fast_page(process().page_table().physical_address_of(m_rsp - PAGE_SIZE), [&] {
-			uintptr_t rsp = PageTable::fast_page() + PAGE_SIZE;
-			write_to_stack(rsp, nullptr); // alignment
-			write_to_stack(rsp, this);
-			write_to_stack(rsp, &Thread::on_exit);
-			write_to_stack(rsp, nullptr);
-			m_rsp -= 4 * sizeof(uintptr_t);
+		ASSERT(m_sp % PAGE_SIZE == 0);
+		PageTable::with_fast_page(process().page_table().physical_address_of(m_sp - PAGE_SIZE), [&] {
+			uintptr_t sp = PageTable::fast_page() + PAGE_SIZE;
+			write_to_stack(sp, nullptr); // alignment
+			write_to_stack(sp, this);
+			write_to_stack(sp, &Thread::on_exit);
+			write_to_stack(sp, nullptr);
+			m_sp -= 4 * sizeof(uintptr_t);
 		});
 	}
 
@@ -210,20 +210,20 @@ namespace Kernel
 				ASSERT_NOT_REACHED();
 			}
 		);
-		m_rsp = stack_base() + stack_size();
-		m_rip = (uintptr_t)entry;
+		m_sp = stack_base() + stack_size();
+		m_ip = (uintptr_t)entry;
 
 		m_signal_pending_mask = 0;
 		m_signal_block_mask = ~0ull;
 
-		ASSERT(m_rsp % PAGE_SIZE == 0);
-		PageTable::with_fast_page(process().page_table().physical_address_of(m_rsp - PAGE_SIZE), [&] {
-			uintptr_t rsp = PageTable::fast_page() + PAGE_SIZE;
-			write_to_stack(rsp, nullptr); // alignment
-			write_to_stack(rsp, this);
-			write_to_stack(rsp, &Thread::on_exit);
-			write_to_stack(rsp, m_process);
-			m_rsp -= 4 * sizeof(uintptr_t);
+		ASSERT(m_sp % PAGE_SIZE == 0);
+		PageTable::with_fast_page(process().page_table().physical_address_of(m_sp - PAGE_SIZE), [&] {
+			uintptr_t sp = PageTable::fast_page() + PAGE_SIZE;
+			write_to_stack(sp, nullptr); // alignment
+			write_to_stack(sp, this);
+			write_to_stack(sp, &Thread::on_exit);
+			write_to_stack(sp, m_process);
+			m_sp -= 4 * sizeof(uintptr_t);
 		});
 	}
 
@@ -250,7 +250,7 @@ namespace Kernel
 		if (!is_userspace() || m_state != State::Executing)
 			return false;
 		auto& interrupt_stack = *reinterpret_cast<InterruptStack*>(interrupt_stack_base() + interrupt_stack_size() - sizeof(InterruptStack));
-		return interrupt_stack.rip == (uintptr_t)signal_trampoline;
+		return interrupt_stack.ip == (uintptr_t)signal_trampoline;
 	}
 
 	void Thread::handle_signal(int signal)
@@ -290,11 +290,11 @@ namespace Kernel
 		else if (signal_handler != (vaddr_t)SIG_DFL)
 		{
 			// call userspace signal handlers
-			interrupt_stack.rsp -= 128; // skip possible red-zone
-			write_to_stack(interrupt_stack.rsp, interrupt_stack.rip);
-			write_to_stack(interrupt_stack.rsp, signal);
-			write_to_stack(interrupt_stack.rsp, signal_handler);
-			interrupt_stack.rip = (uintptr_t)signal_trampoline;
+			interrupt_stack.sp -= 128; // skip possible red-zone
+			write_to_stack(interrupt_stack.sp, interrupt_stack.ip);
+			write_to_stack(interrupt_stack.sp, signal);
+			write_to_stack(interrupt_stack.sp, signal_handler);
+			interrupt_stack.ip = (uintptr_t)signal_trampoline;
 		}
 		else
 		{
@@ -392,11 +392,11 @@ namespace Kernel
 
 	void Thread::validate_stack() const
 	{
-		if (stack_base() <= m_rsp && m_rsp <= stack_base() + stack_size())
+		if (stack_base() <= m_sp && m_sp <= stack_base() + stack_size())
 			return;
-		if (interrupt_stack_base() <= m_rsp && m_rsp <= interrupt_stack_base() + interrupt_stack_size())
+		if (interrupt_stack_base() <= m_sp && m_sp <= interrupt_stack_base() + interrupt_stack_size())
 			return;
-		Kernel::panic("rsp {8H}, stack {8H}->{8H}, interrupt_stack {8H}->{8H}", m_rsp,
+		Kernel::panic("sp {8H}, stack {8H}->{8H}, interrupt_stack {8H}->{8H}", m_sp,
 			stack_base(), stack_base() + stack_size(),
 			interrupt_stack_base(), interrupt_stack_base() + interrupt_stack_size()
 		);

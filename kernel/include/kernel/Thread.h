@@ -33,7 +33,7 @@ namespace Kernel
 		static BAN::ErrorOr<Thread*> create_userspace(Process*);
 		~Thread();
 
-		BAN::ErrorOr<Thread*> clone(Process*, uintptr_t rsp, uintptr_t rip);
+		BAN::ErrorOr<Thread*> clone(Process*, uintptr_t sp, uintptr_t ip);
 		void setup_exec();
 		void setup_process_cleanup();
 
@@ -52,17 +52,17 @@ namespace Kernel
 		BAN::ErrorOr<void> block_or_eintr_or_timeout(Semaphore& semaphore, uint64_t timeout_ms, bool etimedout);
 		BAN::ErrorOr<void> block_or_eintr_or_waketime(Semaphore& semaphore, uint64_t wake_time_ms, bool etimedout);
 
-		void set_return_rsp(uintptr_t& rsp) { m_return_rsp = &rsp; }
-		void set_return_rip(uintptr_t& rip) { m_return_rip = &rip; }
-		uintptr_t return_rsp() { ASSERT(m_return_rsp); return *m_return_rsp; }
-		uintptr_t return_rip() { ASSERT(m_return_rip); return *m_return_rip; }
+		void set_return_sp(uintptr_t& sp) { m_return_sp = &sp; }
+		void set_return_ip(uintptr_t& ip) { m_return_ip = &ip; }
+		uintptr_t return_sp() { ASSERT(m_return_sp); return *m_return_sp; }
+		uintptr_t return_ip() { ASSERT(m_return_ip); return *m_return_ip; }
 
 		pid_t tid() const { return m_tid; }
 
-		void set_rsp(uintptr_t rsp) { m_rsp = rsp; validate_stack(); }
-		void set_rip(uintptr_t rip) { m_rip = rip; }
-		uintptr_t rsp() const { return m_rsp; }
-		uintptr_t rip() const { return m_rip; }
+		void set_sp(uintptr_t sp) { m_sp = sp; validate_stack(); }
+		void set_ip(uintptr_t ip) { m_ip = ip; }
+		uintptr_t sp() const { return m_sp; }
+		uintptr_t ip() const { return m_ip; }
 
 		void set_started() { ASSERT(m_state == State::NotStarted); m_state = State::Executing; }
 		State state() const { return m_state; }
@@ -104,15 +104,15 @@ namespace Kernel
 		static constexpr size_t		m_interrupt_stack_size	= PAGE_SIZE * 2;
 		BAN::UniqPtr<VirtualRange>	m_interrupt_stack;
 		BAN::UniqPtr<VirtualRange>	m_stack;
-		uintptr_t					m_rip				{ 0 };
-		uintptr_t					m_rsp				{ 0 };
+		uintptr_t					m_ip				{ 0 };
+		uintptr_t					m_sp				{ 0 };
 		const pid_t					m_tid				{ 0 };
 		State						m_state				{ State::NotStarted };
 		Process*					m_process			{ nullptr };
 		bool						m_is_userspace		{ false };
 
-		uintptr_t*					m_return_rsp		{ nullptr };
-		uintptr_t*					m_return_rip		{ nullptr };
+		uintptr_t*					m_return_sp			{ nullptr };
+		uintptr_t*					m_return_ip			{ nullptr };
 
 		uint64_t					m_signal_pending_mask	{ 0 };
 		uint64_t					m_signal_block_mask		{ 0 };

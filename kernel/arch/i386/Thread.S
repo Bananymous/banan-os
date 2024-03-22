@@ -1,6 +1,6 @@
-# uint32_t read_rip()
-.global read_rip
-read_rip:
+# uint32_t read_ip()
+.global read_ip
+read_ip:
 	popl %eax
 	jmp *%eax
 
@@ -9,7 +9,7 @@ exit_thread_trampoline:
 	pushl (%esp)
 	ret
 
-# void start_thread(uint32_t esp, uint32_t eip)
+# void start_thread(uint32_t sp, uint32_t ip)
 .global start_thread
 start_thread:
 	movl 8(%esp), %ecx
@@ -19,7 +19,7 @@ start_thread:
 	sti
 	jmp *%ecx
 
-# void continue_thread(uint32_t rsp, uint32_t rip)
+# void continue_thread(uint32_t sp, uint32_t ip)
 .global continue_thread
 continue_thread:
 	movl 8(%esp), %ecx
@@ -27,7 +27,7 @@ continue_thread:
 	movl $0, %eax
 	jmp *%ecx
 
-# void thread_jump_userspace(uint32_t rsp, uint32_t rip)
+# void thread_jump_userspace(uint32_t sp, uint32_t ip)
 .global thread_jump_userspace
 thread_jump_userspace:
 	movl $0x23, %eax

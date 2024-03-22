@@ -390,7 +390,7 @@ namespace Kernel
 		return TRY(LibELF::LoadableELF::load_from_inode(page_table, file.inode));
 	}
 
-	BAN::ErrorOr<long> Process::sys_fork(uintptr_t rsp, uintptr_t rip)
+	BAN::ErrorOr<long> Process::sys_fork(uintptr_t sp, uintptr_t ip)
 	{
 		auto page_table = BAN::UniqPtr<PageTable>::adopt(TRY(PageTable::create_userspace()));
 
@@ -423,7 +423,7 @@ namespace Kernel
 
 		ASSERT(this == &Process::current());
 		// FIXME: this should be able to fail
-		Thread* thread = MUST(Thread::current().clone(forked, rsp, rip));
+		Thread* thread = MUST(Thread::current().clone(forked, sp, ip));
 		forked->add_thread(thread);
 		forked->register_to_scheduler();
 

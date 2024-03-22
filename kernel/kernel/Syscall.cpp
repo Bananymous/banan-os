@@ -10,9 +10,9 @@
 namespace Kernel
 {
 
-	extern "C" long sys_fork(uintptr_t rsp, uintptr_t rip)
+	extern "C" long sys_fork(uintptr_t sp, uintptr_t ip)
 	{
-		auto ret = Process::current().sys_fork(rsp, rip);
+		auto ret = Process::current().sys_fork(sp, ip);
 		if (ret.is_error())
 			return -ret.error().get_error_code();
 		return ret.value();
@@ -32,8 +32,8 @@ namespace Kernel
 	{
 		ASSERT((interrupt_stack.cs & 0b11) == 0b11);
 
-		Thread::current().set_return_rsp(interrupt_stack.rsp);
-		Thread::current().set_return_rip(interrupt_stack.rip);
+		Thread::current().set_return_sp(interrupt_stack.sp);
+		Thread::current().set_return_ip(interrupt_stack.ip);
 
 		asm volatile("sti");
 

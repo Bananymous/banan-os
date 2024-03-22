@@ -21,8 +21,8 @@ namespace Debug
 
 		struct stackframe
 		{
-			stackframe* rbp;
-			uintptr_t rip;
+			stackframe* bp;
+			uintptr_t ip;
 		};
 
 		SpinLockGuard _(s_debug_lock);
@@ -33,8 +33,8 @@ namespace Debug
 			dprintln("Could not get frame address");
 			return;
 		}
-		uintptr_t first_rip = frame->rip;
-		uintptr_t last_rip = 0;
+		uintptr_t first_ip = frame->ip;
+		uintptr_t last_ip = 0;
 		bool first = true;
 
 		BAN::Formatter::print(Debug::putchar, "\e[36mStack trace:\r\n");
@@ -46,21 +46,21 @@ namespace Debug
 				break;
 			}
 
-			BAN::Formatter::print(Debug::putchar, "    {}\r\n", (void*)frame->rip);
+			BAN::Formatter::print(Debug::putchar, "    {}\r\n", (void*)frame->ip);
 
-			if (!first && frame->rip == first_rip)
+			if (!first && frame->ip == first_ip)
 			{
 				derrorln("looping kernel panic :(");
 				break;
 			}
-			else if (!first && frame->rip == last_rip)
+			else if (!first && frame->ip == last_ip)
 			{
 				derrorln("repeating stack trace");
 				break;
 			}
 
-			last_rip = frame->rip;
-			frame = frame->rbp;
+			last_ip = frame->ip;
+			frame = frame->bp;
 			first = false;
 		}
 		BAN::Formatter::print(Debug::putchar, "\e[m");

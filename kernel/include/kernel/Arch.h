@@ -21,8 +21,4 @@
 
 #include <stdint.h>
 
-#ifdef __cplusplus
-extern "C" uintptr_t read_rip();
-#else
-extern uintptr_t read_rip();
-#endif
+extern "C" uintptr_t read_ip();

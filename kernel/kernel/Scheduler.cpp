@@ -11,8 +11,8 @@
 namespace Kernel
 {
 
-	extern "C" [[noreturn]] void start_thread(uintptr_t rsp, uintptr_t rip);
-	extern "C" [[noreturn]] void continue_thread(uintptr_t rsp, uintptr_t rip);
+	extern "C" [[noreturn]] void start_thread(uintptr_t sp, uintptr_t ip);
+	extern "C" [[noreturn]] void continue_thread(uintptr_t sp, uintptr_t ip);
 
 	static Scheduler* s_instance = nullptr;
 	static BAN::Atomic<bool> s_started { false };
@@ -144,18 +144,18 @@ namespace Kernel
 	{
 		ASSERT(m_lock.current_processor_has_lock());
 
-		uintptr_t rsp, rip;
+		uintptr_t sp, ip;
 		push_callee_saved();
-		if (!(rip = read_rip()))
+		if (!(ip = read_ip()))
 		{
 			pop_callee_saved();
 			return true;
 		}
-		read_rsp(rsp);
+		read_rsp(sp);
 
 		Thread& current = current_thread();
-		current.set_rip(rip);
-		current.set_rsp(rsp);
+		current.set_ip(ip);
+		current.set_sp(sp);
 
 		load_temp_stack();
 
@@ -261,12 +261,12 @@ namespace Kernel
 			case Thread::State::NotStarted:
 				current->set_started();
 				m_lock.unlock(InterruptState::Disabled);
-				start_thread(current->rsp(), current->rip());
+				start_thread(current->sp(), current->ip());
 			case Thread::State::Executing:
 				m_lock.unlock(InterruptState::Disabled);
 				while (current->can_add_signal_to_execute())
 					current->handle_signal();
-				continue_thread(current->rsp(), current->rip());
+				continue_thread(current->sp(), current->ip());
 			case Thread::State::Terminated:
 				ASSERT_NOT_REACHED();
 		}

@@ -161,24 +161,24 @@ namespace Kernel
 
 		if (tid)
 		{
-			Thread::current().set_return_rsp(interrupt_stack.rsp);
-			Thread::current().set_return_rip(interrupt_stack.rip);
+			Thread::current().set_return_sp(interrupt_stack.sp);
+			Thread::current().set_return_ip(interrupt_stack.ip);
 
 			if (isr == ISR::PageFault)
 			{
 				// Check if stack is OOB
 				auto& stack = Thread::current().stack();
 				auto& istack = Thread::current().interrupt_stack();
-				if (stack.vaddr() < interrupt_stack.rsp && interrupt_stack.rsp <= stack.vaddr() + stack.size())
+				if (stack.vaddr() < interrupt_stack.sp && interrupt_stack.sp <= stack.vaddr() + stack.size())
 					; // using normal stack
-				else if (istack.vaddr() < interrupt_stack.rsp && interrupt_stack.rsp <= istack.vaddr() + istack.size())
+				else if (istack.vaddr() < interrupt_stack.sp && interrupt_stack.sp <= istack.vaddr() + istack.size())
 					; // using interrupt stack
 				else
 				{
 					derrorln("Stack pointer out of bounds!");
-					derrorln("rip {H}", interrupt_stack.rip);
+					derrorln("rip {H}", interrupt_stack.ip);
 					derrorln("rsp {H}, stack {H}->{H}, istack {H}->{H}",
-						interrupt_stack.rsp,
+						interrupt_stack.sp,
 						stack.vaddr(), stack.vaddr() + stack.size(),
 						istack.vaddr(), istack.vaddr() + istack.size()
 					);
@@ -225,9 +225,9 @@ namespace Kernel
 #endif
 		}
 
-		if (PageTable::current().get_page_flags(interrupt_stack.rip & PAGE_ADDR_MASK) & PageTable::Flags::Present)
+		if (PageTable::current().get_page_flags(interrupt_stack.ip & PAGE_ADDR_MASK) & PageTable::Flags::Present)
 		{
-			auto* machine_code = (const uint8_t*)interrupt_stack.rip;
+			auto* machine_code = (const uint8_t*)interrupt_stack.ip;
 			dwarnln("While executing: {2H}{2H}{2H}{2H}{2H}{2H}{2H}{2H}",
 				machine_code[0],
 				machine_code[1],
@@ -308,8 +308,8 @@ done:
 
 		if (Scheduler::current_tid())
 		{
-			Thread::current().set_return_rsp(interrupt_stack.rsp);
-			Thread::current().set_return_rip(interrupt_stack.rip);
+			Thread::current().set_return_sp(interrupt_stack.sp);
+			Thread::current().set_return_ip(interrupt_stack.ip);
 		}
 
 		if (!InterruptController::get().is_in_service(irq))

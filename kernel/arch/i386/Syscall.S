@@ -3,7 +3,7 @@ sys_fork_trampoline:
 	subl $4, %esp
 	pushl %ebx
 	pushl %ebp
-	call read_rip
+	call read_ip
 	testl %eax, %eax
 	je .done
 	subl $8, %esp
