@@ -1,61 +1,98 @@
-# Declare constants for the multiboot header
-.set ALIGN,			1<<0						# align loaded modules on page boundaries
-.set MEMINFO,		1<<1						# provide memory map
-.set VIDEOINFO,		1<<2						# provide video info
-.set MB_FLAGS,		ALIGN | MEMINFO | VIDEOINFO # this is the Multiboot 'flag' field
-.set MB_MAGIC,		0x1BADB002					# 'magic number' lets bootloader find the header
-.set MB_CHECKSUM,	-(MB_MAGIC + MB_FLAGS)		#checksum of above, to prove we are multiboot
+.set PG_PRESENT,	1<<0
+.set PG_READ_WRITE,	1<<1
+.set PG_PAGE_SIZE,	1<<7
 
-# Multiboot header
+.set FB_WIDTH,	800
+.set FB_HEIGHT,	600
+.set FB_BPP,	32
+
+#define KERNEL_OFFSET 0xC0000000
+#define V2P(vaddr) ((vaddr) - KERNEL_OFFSET)
+
+.code32
+
+# multiboot2 header
 .section .multiboot, "aw"
-	.align 4
-	.long MB_MAGIC
-	.long MB_FLAGS
-	.long MB_CHECKSUM
-	.skip 20
-
+	.align 8
+multiboot2_start:
+	.long 0xE85250D6
 	.long 0
-	.long 800
-	.long 600
-	.long 32
+	.long multiboot2_end - multiboot2_start
+	.long -(0xE85250D6 + (multiboot2_end - multiboot2_start))
+
+	# framebuffer tag
+	.align 8
+	.short 5
+	.short 0
+	.long 20
+	.long FB_WIDTH
+	.long FB_HEIGHT
+	.long FB_BPP
+
+	# legacy start
+	.align 8
+	.short 3
+	.short 0
+	.long 12
+	.long V2P(_start)
+
+	.align 8
+	.short 0
+	.short 0
+	.long 8
+multiboot2_end:
+
+.section .bananboot, "aw"
+	.align 8
+bananboot_start:
+	.long 0xBABAB007
+	.long -(0xBABAB007 + FB_WIDTH + FB_HEIGHT + FB_BPP)
+	.long FB_WIDTH
+	.long FB_HEIGHT
+	.long FB_BPP
+bananboot_end:
 
 .section .bss, "aw", @nobits
-# Create stack
-.global g_boot_stack_bottom
-g_boot_stack_bottom:
-	.skip 16384
-.global g_boot_stack_top
-g_boot_stack_top:
+	boot_stack_bottom:
+		.skip 4096 * 4
+	boot_stack_top:
 
-# 0 MiB -> 1 MiB: bootloader stuff
-# 1 MiB ->      : kernel
-.align 32
-boot_page_directory_pointer_table:
-	.skip 4 * 8
+	.global g_kernel_cmdline
+	g_kernel_cmdline:
+		.skip 4096
+
+	bootloader_magic:
+		.skip 8
+	bootloader_info:
+		.skip 8
+
+.section .data
+
 .align 4096
-boot_page_directory1:
-	.skip 512 * 8
-
-.global g_kernel_cmdline
-g_kernel_cmdline:
-	.skip 4096
-
-.global g_multiboot_info
-g_multiboot_info:
-	.skip 4
-.global g_multiboot_magic
-g_multiboot_magic:
-	.skip 4
-
-.section .text
+boot_pml4:
+boot_pdpt_lo:
+boot_pdpt_hi:
+boot_pd:
 
 boot_gdt:
-	.quad 0x0000000000000000 # null
+	.quad 0x0000000000000000 # null descriptor
 	.quad 0x00CF9A000000FFFF # kernel code
 	.quad 0x00CF92000000FFFF # kernel data
 boot_gdtr:
 	.short . - boot_gdt - 1
-	.long boot_gdt
+	.long V2P(boot_gdt)
+
+.global g_ap_startup_done
+g_ap_startup_done:
+	.byte 0
+.global g_ap_running_count
+g_ap_running_count:
+	.byte 0
+.global g_ap_stack_loaded
+g_ap_stack_loaded:
+	.byte 0
+
+.section .text
 
 has_cpuid:
 	pushfl
@@ -69,41 +106,12 @@ has_cpuid:
 	testl $0x00200000, %eax
 	ret
 
-has_pae:
-	movl $0, %eax
-	cpuid
-	testl $(1 << 6), %edx
-	ret
-
-has_sse:
-	movl $1, %eax
-	cpuid
-	testl $(1 << 25), %edx
-	ret
-
 check_requirements:
 	call has_cpuid
-	jz .exit
-	call has_pae
-	jz .exit
-	call has_sse
 	jz .exit
 	ret
 .exit:
 	jmp system_halt
-
-copy_kernel_commandline:
-	pushl %esi
-	pushl %edi
-	movl g_multiboot_info, %esi
-	addl $16, %esi
-	movl (%esi), %esi
-	movl $1024, %ecx
-	movl $g_kernel_cmdline, %edi
-	rep movsl
-	popl %edi
-	popl %esi
-	ret
 
 enable_sse:
 	movl %cr0, %eax
@@ -116,19 +124,13 @@ enable_sse:
 	ret
 
 initialize_paging:
-	# identity map first 6 MiB
-	movl $(0x00000000           + 0x83), boot_page_directory1 + 0
-	movl $(0x00200000           + 0x83), boot_page_directory1 + 8
-	movl $(0x00400000           + 0x83), boot_page_directory1 + 16
-	movl $(boot_page_directory1 + 0x01), boot_page_directory_pointer_table
-
 	# enable PAE
 	movl %cr4, %ecx
 	orl $0x20, %ecx
 	movl %ecx, %cr4
 
 	# set address of paging structures
-	movl $boot_page_directory_pointer_table, %ecx
+	movl $V2P(boot_pml4), %ecx
 	movl %ecx, %cr3
 
 	# enable paging
@@ -138,41 +140,52 @@ initialize_paging:
 
 	ret
 
-initialize_gdt:
-	lgdt boot_gdtr
-
-	# flush gdt
-	movw $0x10, %ax
-	movw %ax, %ds
-	movw %ax, %es
-	movw %ax, %fs
-	movw %ax, %gs
-	movw %ax, %ss
-	jmp $0x08, $flush
-flush:
-	ret
-
 .global _start
 .type _start, @function
 _start:
-	# Initialize stack and multiboot info
-	movl $g_boot_stack_top, %esp
-	movl %eax, g_multiboot_magic
-	movl %ebx, g_multiboot_info
+	cli; cld
 
-	call copy_kernel_commandline
+	# Initialize stack and multiboot info
+	movl %eax, V2P(bootloader_magic)
+	movl %ebx, V2P(bootloader_info)
+
+	movl $V2P(boot_stack_top), %esp
+
 	call check_requirements
 	call enable_sse
 
 	call initialize_paging
-	call initialize_gdt
 
+	# flush gdt
+	lgdt V2P(boot_gdtr)
+	ljmpl $0x08, $V2P(gdt_flush)
+
+gdt_flush:
+	movw $0x10, %ax
+	movw %ax, %ds
+	movw %ax, %ss
+	movw %ax, %es
+
+	# move stack pointer to higher half
+	movl %esp, %esp
+	addl $KERNEL_OFFSET, %esp
+
+	# jump to higher half
+	leal higher_half, %ecx
+	jmp *%ecx
+
+higher_half:
+	# call global constuctors
 	call _init
 
 	# call to the kernel itself (clear ebp for stacktrace)
 	xorl %ebp, %ebp
+
+	movl V2P(bootloader_magic), %edi
+	movl V2P(bootloader_info),  %esi
 	call kernel_main
 
+	# call global destructors
 	call _fini
 
 system_halt:
@@ -180,3 +193,76 @@ system_halt:
 	cli
 1:	hlt
 	jmp 1b
+
+
+.section .ap_init, "ax"
+
+.code16
+.global ap_trampoline
+ap_trampoline:
+	jmp 1f
+.align 8
+ap_stack_ptr:
+	.skip 4
+1:
+	cli; cld
+	ljmpl $0x00, $ap_cs_clear
+
+ap_cs_clear:
+	xorw %ax, %ax
+	movw %ax, %ds
+
+	# load ap gdt and enter protected mode
+	lgdt ap_gdtr
+	movl %cr0, %eax
+	orb $1, %al
+	movl %eax, %cr0
+	ljmpl $0x08, $ap_protected_mode
+
+.code32
+ap_protected_mode:
+	movw $0x10, %ax
+	movw %ax, %ds
+	movw %ax, %ss
+	movw %ax, %es
+
+	movl ap_stack_ptr, %esp
+	movb $1, V2P(g_ap_stack_loaded)
+
+	call V2P(enable_sse)
+
+	call V2P(initialize_paging)
+
+	# load boot gdt and enter long mode
+	lgdt V2P(boot_gdtr)
+	ljmpl $0x08, $ap_flush_gdt
+
+ap_flush_gdt:
+	# move stack pointer to higher half
+	movl %esp, %esp
+	addl $KERNEL_OFFSET, %esp
+
+	# jump to higher half
+	leal ap_higher_half, %ecx
+	jmp *%ecx
+
+ap_higher_half:
+	# clear rbp for stacktrace
+	xorl %ebp, %ebp
+
+1:	pause
+	cmpb $0, g_ap_startup_done
+	jz 1b
+
+	lock incb g_ap_running_count
+
+	call ap_main
+	jmp system_halt
+
+ap_gdt:
+	.quad 0x0000000000000000 # null descriptor
+	.quad 0x00CF9A000000FFFF # 32 bit code
+	.quad 0x00CF92000000FFFF # 32 bit data
+ap_gdtr:
+	.short . - ap_gdt - 1
+	.long ap_gdt
