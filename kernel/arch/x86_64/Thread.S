@@ -1,4 +1,4 @@
-# uint64_t read_()
+# uint64_t read_ip()
 .global read_ip
 read_ip:
 	popq %rax
