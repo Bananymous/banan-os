@@ -38,7 +38,7 @@ namespace Kernel
 		processor.m_stack = kmalloc(s_stack_size, 4096, true);
 		ASSERT(processor.m_stack);
 
-		processor.m_gdt = GDT::create();
+		processor.m_gdt = GDT::create(&processor);
 		ASSERT(processor.m_gdt);
 
 		processor.m_idt = IDT::create();
@@ -52,14 +52,19 @@ namespace Kernel
 		auto id = read_processor_id();
 		auto& processor = s_processors[id];
 
+		ASSERT(processor.m_gdt);
+		processor.m_gdt->load();
+
+		// initialize GS
+#if ARCH(x86_64)
 		// set gs base to pointer to this processor
 		uint64_t ptr = reinterpret_cast<uint64_t>(&processor);
 		uint32_t ptr_hi = ptr >> 32;
 		uint32_t ptr_lo = ptr & 0xFFFFFFFF;
 		asm volatile("wrmsr" :: "d"(ptr_hi), "a"(ptr_lo), "c"(MSR_IA32_GS_BASE));
-
-		ASSERT(processor.m_gdt);
-		processor.gdt().load();
+#elif ARCH(i686)
+		asm volatile("movw $0x28, %%ax; movw %%ax, %%gs" ::: "ax");
+#endif
 
 		ASSERT(processor.m_idt);
 		processor.idt().load();

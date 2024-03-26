@@ -2,6 +2,7 @@
 
 #include <BAN/Array.h>
 #include <BAN/NoCopyMove.h>
+#include <kernel/Arch.h>
 #include <kernel/Interruptable.h>
 
 #include <stdint.h>
@@ -12,21 +13,36 @@ constexpr uint8_t IRQ_IPI = 32;
 namespace Kernel
 {
 
+#if ARCH(x86_64)
 	struct GateDescriptor
 	{
-		uint16_t offset1;
+		uint16_t offset0;
 		uint16_t selector;
 		uint8_t IST;
 		uint8_t flags;
-		uint16_t offset2;
-		uint32_t offset3;
+		uint16_t offset1;
+		uint32_t offset2;
 		uint32_t reserved;
-	} __attribute__((packed));
+	};
+	static_assert(sizeof(GateDescriptor) == 16);
+#elif ARCH(i686)
+	struct GateDescriptor
+	{
+		uint16_t offset0;
+		uint16_t selector;
+		uint8_t reserved;
+		uint8_t flags;
+		uint16_t offset1;
+	};
+	static_assert(sizeof(GateDescriptor) == 8);
+#else
+	#error
+#endif
 
 	struct IDTR
 	{
 		uint16_t size;
-		uint64_t offset;
+		uintptr_t offset;
 	} __attribute__((packed));
 
 	class IDT

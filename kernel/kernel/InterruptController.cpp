@@ -40,6 +40,11 @@ namespace Kernel
 		s_instance->m_using_apic = false;
 	}
 
+	bool InterruptController::is_initialized()
+	{
+		return s_instance;
+	}
+
 	void InterruptController::enter_acpi_mode()
 	{
 #if ARCH(x86_64)

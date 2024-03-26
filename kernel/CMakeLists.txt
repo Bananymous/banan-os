@@ -33,6 +33,8 @@ set(KERNEL_SOURCES
 	kernel/FS/TmpFS/FileSystem.cpp
 	kernel/FS/TmpFS/Inode.cpp
 	kernel/FS/VirtualFileSystem.cpp
+	kernel/GDT.cpp
+	kernel/IDT.cpp
 	kernel/Input/KeyboardLayout.cpp
 	kernel/Input/KeyEvent.cpp
 	kernel/Input/PS2/Controller.cpp
@@ -105,8 +107,6 @@ if("${BANAN_ARCH}" STREQUAL "x86_64")
 	set(KERNEL_SOURCES
 		${KERNEL_SOURCES}
 		arch/x86_64/boot.S
-		arch/x86_64/GDT.cpp
-		arch/x86_64/IDT.cpp
 		arch/x86_64/interrupts.S
 		arch/x86_64/PageTable.cpp
 		arch/x86_64/Signal.S
@@ -124,8 +124,7 @@ elseif("${BANAN_ARCH}" STREQUAL "i686")
 	set(KERNEL_SOURCES
 		${KERNEL_SOURCES}
 		arch/i686/boot.S
-		arch/i686/GDT.cpp
-		arch/i686/IDT.cpp
+		arch/i686/interrupts.S
 		arch/i686/PageTable.cpp
 		arch/i686/Signal.S
 		arch/i686/Syscall.S

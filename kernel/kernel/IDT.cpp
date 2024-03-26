@@ -141,20 +141,15 @@ namespace Kernel
 		"Unkown Exception 0x1F",
 	};
 
-	extern "C" void cpp_isr_handler(uint64_t isr, uint64_t error, InterruptStack& interrupt_stack, const Registers* regs)
+	extern "C" void cpp_isr_handler(uint32_t isr, uint32_t error, InterruptStack& interrupt_stack, const Registers* regs)
 	{
 		if (g_paniced)
 		{
 			dprintln("Processor {} halted", Processor::current_id());
-			InterruptController::get().broadcast_ipi();
+			if (InterruptController::is_initialized())
+				InterruptController::get().broadcast_ipi();
 			asm volatile("cli; 1: hlt; jmp 1b");
 		}
-
-#if __enable_sse
-		bool from_userspace = (interrupt_stack.cs & 0b11) == 0b11;
-		if (from_userspace)
-			Thread::current().save_sse();
-#endif
 
 		pid_t tid = Scheduler::current_tid();
 		pid_t pid = tid ? Process::current().pid() : 0;
@@ -209,11 +204,19 @@ namespace Kernel
 #if __enable_sse
 			else if (isr == ISR::DeviceNotAvailable)
 			{
+#if ARCH(x86_64)
 				asm volatile(
 					"movq %cr0, %rax;"
 					"andq $~(1 << 3), %rax;"
 					"movq %rax, %cr0;"
 				);
+#elif ARCH(i686)
+				asm volatile(
+					"movl %cr0, %eax;"
+					"andl $~(1 << 3), %eax;"
+					"movl %eax, %cr0;"
+				);
+#endif
 				if (auto* current = &Thread::current(); current != Thread::sse_thread())
 				{
 					if (auto* sse = Thread::sse_thread())
@@ -302,7 +305,8 @@ done:
 		if (g_paniced)
 		{
 			dprintln("Processor {} halted", Processor::current_id());
-			InterruptController::get().broadcast_ipi();
+			if (InterruptController::is_initialized())
+				InterruptController::get().broadcast_ipi();
 			asm volatile("cli; 1: hlt; jmp 1b");
 		}
 
@@ -332,14 +336,17 @@ done:
 
 	void IDT::register_interrupt_handler(uint8_t index, void (*handler)())
 	{
-		auto& descriptor = m_idt[index];
-		descriptor.offset1 = (uint16_t)((uint64_t)handler >> 0);
-		descriptor.offset2 = (uint16_t)((uint64_t)handler >> 16);
-		descriptor.offset3 = (uint32_t)((uint64_t)handler >> 32);
+		auto& desc = m_idt[index];
+		memset(&desc, 0, sizeof(GateDescriptor));
 
-		descriptor.selector = 0x08;
-		descriptor.IST = 0;
-		descriptor.flags = 0x8E;
+		desc.offset0 = (uint16_t)((uintptr_t)handler >> 0);
+		desc.offset1 = (uint16_t)((uintptr_t)handler >> 16);
+#if ARCH(x86_64)
+		desc.offset2 = (uint32_t)((uintptr_t)handler >> 32);
+#endif
+
+		desc.selector = 0x08;
+		desc.flags = 0x8E;
 	}
 
 	void IDT::register_syscall_handler(uint8_t index, void (*handler)())

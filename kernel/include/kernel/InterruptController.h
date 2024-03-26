@@ -18,6 +18,7 @@ namespace Kernel
 		virtual bool is_in_service(uint8_t) = 0;
 
 		static void initialize(bool force_pic);
+		static bool is_initialized();
 		static InterruptController& get();
 
 		virtual void initialize_multiprocessor() = 0;
