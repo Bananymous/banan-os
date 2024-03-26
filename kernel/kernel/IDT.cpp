@@ -262,7 +262,7 @@ namespace Kernel
 
 #if ARCH(x86_64)
 		dwarnln(
-			"{} (error code: 0x{16H}), pid {}, tid {}\r\n"
+			"{} (error code: 0x{8H}), pid {}, tid {}\r\n"
 			"Register dump\r\n"
 			"rax=0x{16H}, rbx=0x{16H}, rcx=0x{16H}, rdx=0x{16H}\r\n"
 			"rsp=0x{16H}, rbp=0x{16H}, rdi=0x{16H}, rsi=0x{16H}\r\n"
@@ -276,7 +276,7 @@ namespace Kernel
 		);
 #elif ARCH(i686)
 		dwarnln(
-			"{} (error code: 0x{16H}), pid {}, tid {}\r\n"
+			"{} (error code: 0x{8H}), pid {}, tid {}\r\n"
 			"Register dump\r\n"
 			"eax=0x{8H}, ebx=0x{8H}, ecx=0x{8H}, edx=0x{8H}\r\n"
 			"esp=0x{8H}, ebp=0x{8H}, edi=0x{8H}, esi=0x{8H}\r\n"
