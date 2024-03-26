@@ -53,6 +53,7 @@ bananboot_start:
 bananboot_end:
 
 .section .bss, "aw", @nobits
+	.align 4096
 	boot_stack_bottom:
 		.skip 4096 * 4
 	boot_stack_top:
@@ -68,11 +69,23 @@ bananboot_end:
 
 .section .data
 
+# Map first GiB to 0x00000000 and 0xC0000000
+.align 32
+boot_pdpt:
+	.long V2P(boot_pd) + (PG_PRESENT)
+	.long 0
+	.quad 0
+	.quad 0
+	.long V2P(boot_pd) + (PG_PRESENT)
+	.long 0
 .align 4096
-boot_pml4:
-boot_pdpt_lo:
-boot_pdpt_hi:
 boot_pd:
+	.set i, 0
+	.rept 512
+		.long i + (PG_PAGE_SIZE | PG_READ_WRITE | PG_PRESENT)
+		.long 0
+		.set i, i + 0x200000
+	.endr
 
 boot_gdt:
 	.quad 0x0000000000000000 # null descriptor
@@ -106,8 +119,24 @@ has_cpuid:
 	testl $0x00200000, %eax
 	ret
 
+has_pae:
+	movl $0, %eax
+	cpuid
+	testl $(1 << 6), %edx
+	ret
+
+has_sse:
+	movl $1, %eax
+	cpuid
+	testl $(1 << 25), %edx
+	ret
+
 check_requirements:
 	call has_cpuid
+	jz .exit
+	call has_pae
+	jz .exit
+	call has_sse
 	jz .exit
 	ret
 .exit:
@@ -126,16 +155,16 @@ enable_sse:
 initialize_paging:
 	# enable PAE
 	movl %cr4, %ecx
-	orl $0x20, %ecx
+	orl $(1 << 5), %ecx
 	movl %ecx, %cr4
 
-	# set address of paging structures
-	movl $V2P(boot_pml4), %ecx
+	# load page tables
+	movl $V2P(boot_pdpt), %ecx
 	movl %ecx, %cr3
 
 	# enable paging
 	movl %cr0, %ecx
-	orl $0x80000000, %ecx
+	orl $(1 << 31), %ecx
 	movl %ecx, %cr0
 
 	ret
@@ -145,30 +174,30 @@ initialize_paging:
 _start:
 	cli; cld
 
-	# Initialize stack and multiboot info
+	# save bootloader magic and info
 	movl %eax, V2P(bootloader_magic)
 	movl %ebx, V2P(bootloader_info)
 
+	# load boot stack
 	movl $V2P(boot_stack_top), %esp
 
-	call check_requirements
-	call enable_sse
-
-	call initialize_paging
-
-	# flush gdt
+	# load boot GDT
 	lgdt V2P(boot_gdtr)
 	ljmpl $0x08, $V2P(gdt_flush)
-
 gdt_flush:
+	# set correct segment registers
 	movw $0x10, %ax
 	movw %ax, %ds
 	movw %ax, %ss
 	movw %ax, %es
 
-	# move stack pointer to higher half
-	movl %esp, %esp
-	addl $KERNEL_OFFSET, %esp
+	# do processor initialization
+	call check_requirements
+	call enable_sse
+	call initialize_paging
+
+	# load higher half stack pointer
+	movl $boot_stack_top, %esp
 
 	# jump to higher half
 	leal higher_half, %ecx
@@ -181,9 +210,11 @@ higher_half:
 	# call to the kernel itself (clear ebp for stacktrace)
 	xorl %ebp, %ebp
 
-	movl V2P(bootloader_magic), %edi
-	movl V2P(bootloader_info),  %esi
+	subl $8, %esp
+	pushl bootloader_info
+	pushl bootloader_magic
 	call kernel_main
+	addl $16, %esp
 
 	# call global destructors
 	call _fini
@@ -200,6 +231,7 @@ system_halt:
 .code16
 .global ap_trampoline
 ap_trampoline:
+	ud2
 	jmp 1f
 .align 8
 ap_stack_ptr:
