@@ -1488,7 +1488,7 @@ namespace Kernel
 
 		if (pid == m_pid)
 		{
-			m_signal_pending_mask |= 1 << signal;
+			add_pending_signal(signal);
 			return 0;
 		}
 
@@ -1501,7 +1501,7 @@ namespace Kernel
 					found = true;
 					if (signal)
 					{
-						process.m_signal_pending_mask |= 1 << signal;
+						process.add_pending_signal(signal);
 						// FIXME: This feels hacky
 						Scheduler::get().unblock_thread(process.m_threads.front()->tid());
 					}

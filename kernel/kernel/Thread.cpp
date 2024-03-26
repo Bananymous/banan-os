@@ -140,6 +140,12 @@ namespace Kernel
 		return *m_process;
 	}
 
+	const Process& Thread::process() const
+	{
+		ASSERT(m_process);
+		return *m_process;
+	}
+
 	Thread::~Thread()
 	{
 	}
@@ -241,7 +247,7 @@ namespace Kernel
 		auto& interrupt_stack = *reinterpret_cast<InterruptStack*>(interrupt_stack_base() + interrupt_stack_size() - sizeof(InterruptStack));
 		if (!GDT::is_user_segment(interrupt_stack.cs))
 			return false;
-		uint64_t full_pending_mask = m_signal_pending_mask | m_process->m_signal_pending_mask;
+		uint64_t full_pending_mask = m_signal_pending_mask | process().signal_pending_mask();;
 		return full_pending_mask & ~m_signal_block_mask;
 	}
 
@@ -265,7 +271,7 @@ namespace Kernel
 
 		if (signal == 0)
 		{
-			uint64_t full_pending_mask = m_signal_pending_mask | process().m_signal_pending_mask;
+			uint64_t full_pending_mask = m_signal_pending_mask | process().signal_pending_mask();
 			for (signal = _SIGMIN; signal <= _SIGMAX; signal++)
 			{
 				uint64_t mask = 1ull << signal;
@@ -283,7 +289,7 @@ namespace Kernel
 		vaddr_t signal_handler = process().m_signal_handlers[signal];
 
 		m_signal_pending_mask &= ~(1ull << signal);
-		process().m_signal_pending_mask &= ~(1ull << signal);
+		process().remove_pending_signal(signal);
 
 		if (signal_handler == (vaddr_t)SIG_IGN)
 			;

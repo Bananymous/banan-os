@@ -79,6 +79,7 @@ namespace Kernel
 		static pid_t current_tid();
 
 		Process& process();
+		const Process& process() const;
 		bool has_process() const { return m_process; }
 
 		bool is_userspace() const { return m_is_userspace; }
