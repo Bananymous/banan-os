@@ -1,115 +1,41 @@
-#include <BAN/Atomic.h>
 #include <kernel/Panic.h>
 
 #define ATEXIT_MAX_FUNCS 128
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-typedef unsigned uarch_t;
-
 struct atexit_func_entry_t
 {
-	/*
-	* Each member is at least 4 bytes large. Such that each entry is 12bytes.
-	* 128 * 12 = 1.5KB exact.
-	**/
-	void (*destructor_func)(void *);
-	void *obj_ptr;
-	void *dso_handle;
+	void(*func)(void*);
+	void* arg;
+	void* dso_handle;
 };
 
-atexit_func_entry_t __atexit_funcs[ATEXIT_MAX_FUNCS];
-uarch_t __atexit_func_count = 0;
+static atexit_func_entry_t __atexit_funcs[ATEXIT_MAX_FUNCS];
+static size_t __atexit_func_count = 0;
 
-int __cxa_atexit(void (*f)(void *), void *objptr, void *dso)
+extern "C" int __cxa_atexit(void(*func)(void*), void* arg, void* dso_handle)
 {
-	if (__atexit_func_count >= ATEXIT_MAX_FUNCS) {return -1;};
-	__atexit_funcs[__atexit_func_count].destructor_func = f;
-	__atexit_funcs[__atexit_func_count].obj_ptr = objptr;
-	__atexit_funcs[__atexit_func_count].dso_handle = dso;
-	__atexit_func_count++;
-	return 0; /*I would prefer if functions returned 1 on success, but the ABI says...*/
+	if (__atexit_func_count >= ATEXIT_MAX_FUNCS)
+		return -1;
+	auto& atexit_func = __atexit_funcs[__atexit_func_count++];
+	atexit_func.func = func;
+	atexit_func.arg = arg;
+	atexit_func.dso_handle = dso_handle;
+	return 0;
 };
 
-void __cxa_finalize(void *f)
+extern "C" void __cxa_finalize(void* f)
 {
-	uarch_t i = __atexit_func_count;
-	if (!f)
+	for (size_t i = __atexit_func_count; i > 0; i--)
 	{
-		/*
-		* According to the Itanium C++ ABI, if __cxa_finalize is called without a
-		* function ptr, then it means that we should destroy EVERYTHING MUAHAHAHA!!
-		*
-		* TODO:
-		* Note well, however, that deleting a function from here that contains a __dso_handle
-		* means that one link to a shared object file has been terminated. In other words,
-		* We should monitor this list (optional, of course), since it tells us how many links to
-		* an object file exist at runtime in a particular application. This can be used to tell
-		* when a shared object is no longer in use. It is one of many methods, however.
-		**/
-		//You may insert a prinf() here to tell you whether or not the function gets called. Testing
-		//is CRITICAL!
-		while (i--)
+		auto& atexit_func = __atexit_funcs[i - 1];
+		if (atexit_func.func == nullptr)
+			continue;
+		if (f == nullptr || f == atexit_func.func)
 		{
-			if (__atexit_funcs[i].destructor_func)
-			{
-				/* ^^^ That if statement is a safeguard...
-				* To make sure we don't call any entries that have already been called and unset at runtime.
-				* Those will contain a value of 0, and calling a function with value 0
-				* will cause undefined behaviour. Remember that linear address 0,
-				* in a non-virtual address space (physical) contains the IVT and BDA.
-				*
-				* In a virtual environment, the kernel will receive a page fault, and then probably
-				* map in some trash, or a blank page, or something stupid like that.
-				* This will result in the processor executing trash, and...we don't want that.
-				**/
-				(*__atexit_funcs[i].destructor_func)(__atexit_funcs[i].obj_ptr);
-			};
-		};
-		return;
-	};
-
-	while (i--)
-	{
-		/*
-		* The ABI states that multiple calls to the __cxa_finalize(destructor_func_ptr) function
-		* should not destroy objects multiple times. Only one call is needed to eliminate multiple
-		* entries with the same address.
-		*
-		* FIXME:
-		* This presents the obvious problem: all destructors must be stored in the order they
-		* were placed in the list. I.e: the last initialized object's destructor must be first
-		* in the list of destructors to be called. But removing a destructor from the list at runtime
-		* creates holes in the table with unfilled entries.
-		* Remember that the insertion algorithm in __cxa_atexit simply inserts the next destructor
-		* at the end of the table. So, we have holes with our current algorithm
-		* This function should be modified to move all the destructors above the one currently
-		* being called and removed one place down in the list, so as to cover up the hole.
-		* Otherwise, whenever a destructor is called and removed, an entire space in the table is wasted.
-		**/
-		if (__atexit_funcs[i].destructor_func == f)
-		{
-			/*
-			* Note that in the next line, not every destructor function is a class destructor.
-			* It is perfectly legal to register a non class destructor function as a simple cleanup
-			* function to be called on program termination, in which case, it would not NEED an
-			* object This pointer. A smart programmer may even take advantage of this and register
-			* a C function in the table with the address of some structure containing data about
-			* what to clean up on exit.
-			* In the case of a function that takes no arguments, it will simply be ignore within the
-			* function itself. No worries.
-			**/
-			(*__atexit_funcs[i].destructor_func)(__atexit_funcs[i].obj_ptr);
-			__atexit_funcs[i].destructor_func = 0;
-
-			/*
-			* Notice that we didn't decrement __atexit_func_count: this is because this algorithm
-			* requires patching to deal with the FIXME outlined above.
-			**/
-		};
-	};
+			atexit_func.func(atexit_func.arg);
+			atexit_func.func = nullptr;
+		}
+	}
 };
 
 namespace __cxxabiv1
@@ -118,23 +44,19 @@ namespace __cxxabiv1
 
 	int __cxa_guard_acquire (__guard* g)
 	{
-		auto& atomic = *reinterpret_cast<BAN::Atomic<__guard>*>(g);
-		return atomic == 0;
+		uint8_t* byte = reinterpret_cast<uint8_t*>(g);
+		uint8_t zero = 0;
+		return __atomic_compare_exchange_n(byte, &zero, 1, false, __ATOMIC_ACQUIRE, __ATOMIC_ACQUIRE);
 	}
 
 	void __cxa_guard_release (__guard* g)
 	{
-		auto& atomic = *reinterpret_cast<BAN::Atomic<__guard>*>(g);
-		atomic = 1;
+		uint8_t* byte = reinterpret_cast<uint8_t*>(g);
+		__atomic_store_n(byte, 0, __ATOMIC_RELEASE);
 	}
 
 	void __cxa_guard_abort (__guard*)
 	{
 		Kernel::panic("__cxa_guard_abort");
-		__builtin_unreachable();
 	}
 }
-
-#ifdef __cplusplus
-};
-#endif
