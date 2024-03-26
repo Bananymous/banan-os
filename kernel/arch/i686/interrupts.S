@@ -1,15 +1,42 @@
 isr_stub:
-	ud2
 	pusha
+
+	movl %cr0, %eax; pushl %eax
+	movl %cr2, %eax; pushl %eax
+	movl %cr3, %eax; pushl %eax
+	movl %cr4, %eax; pushl %eax
+
+	movl %esp,     %eax // register ptr
+	leal 56(%esp), %ebx // interrupt stack ptr
+	movl 52(%esp), %ecx // error code
+	movl 48(%esp), %edx // isr number
+
+	subl $12, %esp
+	pushl %eax
+	pushl %ebx
+	pushl %ecx
+	pushl %edx
 	call cpp_isr_handler
+	addl $44, %esp
+
 	popa
+	addl $8, %esp
 	iret
 
 irq_stub:
-	ud2
 	pusha
+
+	leal 40(%esp), %eax // interrupt stack ptr
+	movl 32(%esp), %ebx // irq number
+
+	subl $12, %esp
+	pushl %eax
+	pushl %ebx
 	call cpp_irq_handler
+	addl $20, %esp
+
 	popa
+	addl $8, %esp
 	iret
 
 // arguments in EAX, EBX, ECX, EDX, ESI, EDI

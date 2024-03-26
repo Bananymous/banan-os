@@ -15,11 +15,9 @@
 namespace Kernel
 {
 
+#if ARCH(x86_64)
 	struct Registers
 	{
-		uint64_t rsp;
-		uint64_t rip;
-		uint64_t rflags;
 		uint64_t cr4;
 		uint64_t cr3;
 		uint64_t cr2;
@@ -33,14 +31,33 @@ namespace Kernel
 		uint64_t r10;
 		uint64_t r9;
 		uint64_t r8;
-		uint64_t rsi;
+
 		uint64_t rdi;
+		uint64_t rsi;
 		uint64_t rbp;
+		uint64_t rbx;
 		uint64_t rdx;
 		uint64_t rcx;
-		uint64_t rbx;
 		uint64_t rax;
 	};
+#elif ARCH(i686)
+	struct Registers
+	{
+		uint32_t cr4;
+		uint32_t cr3;
+		uint32_t cr2;
+		uint32_t cr0;
+
+		uint32_t edi;
+		uint32_t esi;
+		uint32_t ebp;
+		uint32_t unused;
+		uint32_t ebx;
+		uint32_t edx;
+		uint32_t ecx;
+		uint32_t eax;
+	};
+#endif
 
 #define X(num) 1 +
 	static BAN::Array<Interruptable*, IRQ_LIST_X 0> s_interruptables;
@@ -141,7 +158,7 @@ namespace Kernel
 		"Unkown Exception 0x1F",
 	};
 
-	extern "C" void cpp_isr_handler(uint32_t isr, uint32_t error, InterruptStack& interrupt_stack, const Registers* regs)
+	extern "C" void cpp_isr_handler(uint32_t isr, uint32_t error, InterruptStack* interrupt_stack, const Registers* regs)
 	{
 		if (g_paniced)
 		{
@@ -156,24 +173,24 @@ namespace Kernel
 
 		if (tid)
 		{
-			Thread::current().set_return_sp(interrupt_stack.sp);
-			Thread::current().set_return_ip(interrupt_stack.ip);
+			Thread::current().set_return_sp(interrupt_stack->sp);
+			Thread::current().set_return_ip(interrupt_stack->ip);
 
 			if (isr == ISR::PageFault)
 			{
 				// Check if stack is OOB
 				auto& stack = Thread::current().stack();
 				auto& istack = Thread::current().interrupt_stack();
-				if (stack.vaddr() < interrupt_stack.sp && interrupt_stack.sp <= stack.vaddr() + stack.size())
+				if (stack.vaddr() < interrupt_stack->sp && interrupt_stack->sp <= stack.vaddr() + stack.size())
 					; // using normal stack
-				else if (istack.vaddr() < interrupt_stack.sp && interrupt_stack.sp <= istack.vaddr() + istack.size())
+				else if (istack.vaddr() < interrupt_stack->sp && interrupt_stack->sp <= istack.vaddr() + istack.size())
 					; // using interrupt stack
 				else
 				{
 					derrorln("Stack pointer out of bounds!");
-					derrorln("rip {H}", interrupt_stack.ip);
+					derrorln("rip {H}", interrupt_stack->ip);
 					derrorln("rsp {H}, stack {H}->{H}, istack {H}->{H}",
-						interrupt_stack.sp,
+						interrupt_stack->sp,
 						stack.vaddr(), stack.vaddr() + stack.size(),
 						istack.vaddr(), istack.vaddr() + istack.size()
 					);
@@ -228,9 +245,9 @@ namespace Kernel
 #endif
 		}
 
-		if (PageTable::current().get_page_flags(interrupt_stack.ip & PAGE_ADDR_MASK) & PageTable::Flags::Present)
+		if (PageTable::current().get_page_flags(interrupt_stack->ip & PAGE_ADDR_MASK) & PageTable::Flags::Present)
 		{
-			auto* machine_code = (const uint8_t*)interrupt_stack.ip;
+			auto* machine_code = (const uint8_t*)interrupt_stack->ip;
 			dwarnln("While executing: {2H}{2H}{2H}{2H}{2H}{2H}{2H}{2H}",
 				machine_code[0],
 				machine_code[1],
@@ -243,6 +260,7 @@ namespace Kernel
 			);
 		}
 
+#if ARCH(x86_64)
 		dwarnln(
 			"{} (error code: 0x{16H}), pid {}, tid {}\r\n"
 			"Register dump\r\n"
@@ -252,10 +270,25 @@ namespace Kernel
 			"cr0=0x{16H}, cr2=0x{16H}, cr3=0x{16H}, cr4=0x{16H}",
 			isr_exceptions[isr], error, pid, tid,
 			regs->rax, regs->rbx, regs->rcx, regs->rdx,
-			regs->rsp, regs->rbp, regs->rdi, regs->rsi,
-			regs->rip, regs->rflags,
+			interrupt_stack->sp, regs->rbp, regs->rdi, regs->rsi,
+			interrupt_stack->ip, interrupt_stack->flags,
 			regs->cr0, regs->cr2, regs->cr3, regs->cr4
 		);
+#elif ARCH(i686)
+		dwarnln(
+			"{} (error code: 0x{16H}), pid {}, tid {}\r\n"
+			"Register dump\r\n"
+			"eax=0x{8H}, ebx=0x{8H}, ecx=0x{8H}, edx=0x{8H}\r\n"
+			"esp=0x{8H}, ebp=0x{8H}, edi=0x{8H}, esi=0x{8H}\r\n"
+			"eip=0x{8H}, eflags=0x{8H}\r\n"
+			"cr0=0x{8H}, cr2=0x{8H}, cr3=0x{8H}, cr4=0x{8H}",
+			isr_exceptions[isr], error, pid, tid,
+			regs->eax, regs->ebx, regs->ecx, regs->edx,
+			interrupt_stack->sp, regs->ebp, regs->edi, regs->esi,
+			interrupt_stack->ip, interrupt_stack->flags,
+			regs->cr0, regs->cr2, regs->cr3, regs->cr4
+		);
+#endif
 		if (isr == ISR::PageFault)
 			PageTable::current().debug_dump();
 		Debug::dump_stack_trace();
@@ -300,7 +333,7 @@ done:
 		return;
 	}
 
-	extern "C" void cpp_irq_handler(uint64_t irq, InterruptStack& interrupt_stack)
+	extern "C" void cpp_irq_handler(uint32_t irq, InterruptStack* interrupt_stack)
 	{
 		if (g_paniced)
 		{
@@ -312,8 +345,8 @@ done:
 
 		if (Scheduler::current_tid())
 		{
-			Thread::current().set_return_sp(interrupt_stack.sp);
-			Thread::current().set_return_ip(interrupt_stack.ip);
+			Thread::current().set_return_sp(interrupt_stack->sp);
+			Thread::current().set_return_ip(interrupt_stack->ip);
 		}
 
 		if (!InterruptController::get().is_in_service(irq))
