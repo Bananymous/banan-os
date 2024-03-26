@@ -4,7 +4,7 @@ project(kernel CXX C ASM)
 
 if("${BANAN_ARCH}" STREQUAL "x86_64")
 	set(ELF_FORMAT elf64-x86-64)
-elseif("${BANAN_ARCH}" STREQUAL "i386")
+elseif("${BANAN_ARCH}" STREQUAL "i686")
 	set(ELF_FORMAT elf32-i386)
 endif()
 
@@ -120,16 +120,16 @@ if("${BANAN_ARCH}" STREQUAL "x86_64")
 		${LAI_SOURCES}
 		kernel/lai_host.cpp
 	)
-elseif("${BANAN_ARCH}" STREQUAL "i386")
+elseif("${BANAN_ARCH}" STREQUAL "i686")
 	set(KERNEL_SOURCES
 		${KERNEL_SOURCES}
-		arch/i386/boot.S
-		arch/i386/GDT.cpp
-		arch/i386/IDT.cpp
-		arch/i386/PageTable.cpp
-		arch/i386/Signal.S
-		arch/i386/Syscall.S
-		arch/i386/Thread.S
+		arch/i686/boot.S
+		arch/i686/GDT.cpp
+		arch/i686/IDT.cpp
+		arch/i686/PageTable.cpp
+		arch/i686/Signal.S
+		arch/i686/Syscall.S
+		arch/i686/Thread.S
 	)
 else()
 	message(FATAL_ERROR "unsupported architecure ${BANAN_ARCH}")
@@ -182,8 +182,8 @@ if("${BANAN_ARCH}" STREQUAL "x86_64")
 	target_compile_options(kernel PUBLIC -mcmodel=kernel -mno-red-zone)
 	target_link_options(kernel PUBLIC LINKER:-z,max-page-size=4096)
 	target_link_options(kernel PUBLIC LINKER:-T,${CMAKE_CURRENT_SOURCE_DIR}/arch/x86_64/linker.ld)
-elseif("${BANAN_ARCH}" STREQUAL "i386")
-	target_link_options(kernel PUBLIC LINKER:-T,${CMAKE_CURRENT_SOURCE_DIR}/arch/i386/linker.ld)
+elseif("${BANAN_ARCH}" STREQUAL "i686")
+	target_link_options(kernel PUBLIC LINKER:-T,${CMAKE_CURRENT_SOURCE_DIR}/arch/i686/linker.ld)
 endif()
 
 target_link_options(kernel PUBLIC -ffreestanding -nostdlib)

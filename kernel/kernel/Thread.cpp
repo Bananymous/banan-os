@@ -111,7 +111,7 @@ namespace Kernel
 		);
 		save_sse();
 		asm volatile("movq %0, %%cr0" :: "r"(cr0));
-	#elif ARCH(i386)
+	#elif ARCH(i686)
 		uintptr_t cr0;
 		asm volatile(
 			"movl %%cr0, %%eax;"

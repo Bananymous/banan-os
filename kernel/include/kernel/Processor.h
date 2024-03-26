@@ -19,7 +19,7 @@ namespace Kernel
 	using ProcessorID = uint32_t;
 	constexpr ProcessorID PROCESSOR_NONE = 0xFFFFFFFF;
 
-#if ARCH(x86_64) || ARCH(i386)
+#if ARCH(x86_64) || ARCH(i686)
 	class Processor
 	{
 		BAN_NON_COPYABLE(Processor);

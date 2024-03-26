@@ -28,7 +28,7 @@ namespace Kernel
 		// 1x triply indirect
 		BAN::Array<paddr_t, 5> block;
 		static constexpr size_t direct_block_count = 2;
-#elif ARCH(i386)
+#elif ARCH(i686)
 		// 14x direct blocks
 		// 1x singly indirect
 		// 1x doubly indirect

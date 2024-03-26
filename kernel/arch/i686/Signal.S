@@ -7,6 +7,8 @@
 
 .global signal_trampoline
 signal_trampoline:
+	ud2
+
 	pushl %ebp
 	movl %esp, %ebp
 	subl $8, %esp

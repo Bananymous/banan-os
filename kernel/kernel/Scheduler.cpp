@@ -21,7 +21,7 @@ namespace Kernel
 	{
 #if ARCH(x86_64)
 		asm volatile("movq %0, %%rsp" :: "rm"(Processor::current_stack_top()));
-#elif ARCH(i386)
+#elif ARCH(i686)
 		asm volatile("movl %0, %%esp" :: "rm"(Processor::current_stack_top()));
 #else
 		#error
@@ -221,7 +221,7 @@ namespace Kernel
 				"orq $(1 << 3), %rax;"
 				"movq %rax, %cr0"
 			);
-#elif ARCH(i386)
+#elif ARCH(i686)
 			asm volatile(
 				"movl %cr0, %eax;"
 				"orl $(1 << 3), %eax;"

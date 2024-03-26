@@ -155,7 +155,7 @@ namespace LibELF
 		Elf64Xword p_align;
 	};
 
-#if ARCH(i386)
+#if ARCH(i686)
 	using ElfNativeAddr = Elf32Addr;
 	using ElfNativeOff = Elf32Off;
 	using ElfNativeHalf = Elf32Half;

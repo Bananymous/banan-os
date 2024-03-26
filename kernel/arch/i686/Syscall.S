@@ -1,5 +1,6 @@
 .global sys_fork_trampoline
 sys_fork_trampoline:
+	ud2
 	subl $4, %esp
 	pushl %ebx
 	pushl %ebp

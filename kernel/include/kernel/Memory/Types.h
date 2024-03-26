@@ -4,7 +4,7 @@
 
 #if ARCH(x86_64)
 	#define KERNEL_OFFSET 0xFFFFFFFF80000000
-#elif ARCH(i386)
+#elif ARCH(i686)
 	#define KERNEL_OFFSET 0xC0000000
 #else
 	#error

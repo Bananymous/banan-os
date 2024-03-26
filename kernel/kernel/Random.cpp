@@ -22,7 +22,7 @@ namespace Kernel
 		{
 #if ARCH(x86_64)
 			asm volatile("rdrand %0" : "=r"(s_rand_seed));
-#elif ARCH(i386)
+#elif ARCH(i686)
 			uint32_t lo, hi;
 			asm volatile(
 				"rdrand %[lo];"
