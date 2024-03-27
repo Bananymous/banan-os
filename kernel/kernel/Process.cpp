@@ -676,9 +676,9 @@ namespace Kernel
 
 		LockGuard _(m_process_lock);
 
-		if (Thread::current().stack().contains(address))
+		if (Thread::current().userspace_stack().contains(address))
 		{
-			TRY(Thread::current().stack().allocate_page_for_demand_paging(address));
+			TRY(Thread::current().userspace_stack().allocate_page_for_demand_paging(address));
 			return true;
 		}
 
@@ -1879,7 +1879,7 @@ namespace Kernel
 		if (vaddr == 0)
 			return {};
 
-		if (vaddr >= thread.stack_base() && vaddr + size <= thread.stack_base() + thread.stack_size())
+		if (vaddr >= thread.userspace_stack_bottom() && vaddr + size <= thread.userspace_stack_top())
 			return {};
 
 		// FIXME: should we allow cross mapping access?

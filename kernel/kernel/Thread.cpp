@@ -38,7 +38,7 @@ namespace Kernel
 		BAN::ScopeGuard thread_deleter([thread] { delete thread; });
 
 		// Initialize stack and registers
-		thread->m_stack = TRY(VirtualRange::create_to_vaddr_range(
+		thread->m_kernel_stack = TRY(VirtualRange::create_to_vaddr_range(
 			PageTable::kernel(),
 			KERNEL_OFFSET,
 			~(uintptr_t)0,
@@ -46,7 +46,7 @@ namespace Kernel
 			PageTable::Flags::ReadWrite | PageTable::Flags::Present,
 			true
 		));
-		thread->m_sp = thread->stack_base() + thread->stack_size();
+		thread->m_sp = thread->kernel_stack_top();
 		thread->m_ip = (uintptr_t)entry;
 
 		// Initialize stack for returning
@@ -72,7 +72,7 @@ namespace Kernel
 
 		thread->m_is_userspace = true;
 
-		thread->m_stack = TRY(VirtualRange::create_to_vaddr_range(
+		thread->m_userspace_stack = TRY(VirtualRange::create_to_vaddr_range(
 			process->page_table(),
 			0x300000, KERNEL_OFFSET,
 			m_userspace_stack_size,
@@ -80,10 +80,10 @@ namespace Kernel
 			true
 		));
 
-		thread->m_interrupt_stack = TRY(VirtualRange::create_to_vaddr_range(
+		thread->m_kernel_stack = TRY(VirtualRange::create_to_vaddr_range(
 			process->page_table(),
 			0x300000, KERNEL_OFFSET,
-			m_interrupt_stack_size,
+			m_kernel_stack_size,
 			PageTable::Flags::ReadWrite | PageTable::Flags::Present,
 			true
 		));
@@ -162,8 +162,8 @@ namespace Kernel
 
 		thread->m_is_userspace = true;
 
-		thread->m_interrupt_stack = TRY(m_interrupt_stack->clone(new_process->page_table()));
-		thread->m_stack = TRY(m_stack->clone(new_process->page_table()));
+		thread->m_kernel_stack = TRY(m_kernel_stack->clone(new_process->page_table()));
+		thread->m_userspace_stack = TRY(m_userspace_stack->clone(new_process->page_table()));
 
 		thread->m_state = State::Executing;
 
@@ -183,11 +183,11 @@ namespace Kernel
 			[](void*)
 			{
 				const auto& info = Process::current().userspace_info();
-				thread_userspace_trampoline(Thread::current().sp(), info.entry, info.argc, info.argv, info.envp);
+				thread_userspace_trampoline(Thread::current().userspace_stack_top(), info.entry, info.argc, info.argv, info.envp);
 				ASSERT_NOT_REACHED();
 			}
 		);
-		m_sp = stack_base() + stack_size();
+		m_sp = kernel_stack_top();
 		m_ip = (uintptr_t)entry_trampoline;
 
 		// Signal mask is inherited
@@ -216,7 +216,7 @@ namespace Kernel
 				ASSERT_NOT_REACHED();
 			}
 		);
-		m_sp = stack_base() + stack_size();
+		m_sp = kernel_stack_top();
 		m_ip = (uintptr_t)entry;
 
 		m_signal_pending_mask = 0;
@@ -244,7 +244,7 @@ namespace Kernel
 	{
 		if (!is_userspace() || m_state != State::Executing)
 			return false;
-		auto& interrupt_stack = *reinterpret_cast<InterruptStack*>(interrupt_stack_base() + interrupt_stack_size() - sizeof(InterruptStack));
+		auto& interrupt_stack = *reinterpret_cast<InterruptStack*>(kernel_stack_top() - sizeof(InterruptStack));
 		if (!GDT::is_user_segment(interrupt_stack.cs))
 			return false;
 		uint64_t full_pending_mask = m_signal_pending_mask | process().signal_pending_mask();;
@@ -255,7 +255,7 @@ namespace Kernel
 	{
 		if (!is_userspace() || m_state != State::Executing)
 			return false;
-		auto& interrupt_stack = *reinterpret_cast<InterruptStack*>(interrupt_stack_base() + interrupt_stack_size() - sizeof(InterruptStack));
+		auto& interrupt_stack = *reinterpret_cast<InterruptStack*>(kernel_stack_top() - sizeof(InterruptStack));
 		return interrupt_stack.ip == (uintptr_t)signal_trampoline;
 	}
 
@@ -266,7 +266,7 @@ namespace Kernel
 
 		SpinLockGuard _(m_signal_lock);
 
-		auto& interrupt_stack = *reinterpret_cast<InterruptStack*>(interrupt_stack_base() + interrupt_stack_size() - sizeof(InterruptStack));
+		auto& interrupt_stack = *reinterpret_cast<InterruptStack*>(kernel_stack_top() - sizeof(InterruptStack));
 		ASSERT(GDT::is_user_segment(interrupt_stack.cs));
 
 		if (signal == 0)
@@ -398,13 +398,13 @@ namespace Kernel
 
 	void Thread::validate_stack() const
 	{
-		if (stack_base() <= m_sp && m_sp <= stack_base() + stack_size())
+		if (kernel_stack_bottom() <= m_sp && m_sp <= kernel_stack_top())
 			return;
-		if (interrupt_stack_base() <= m_sp && m_sp <= interrupt_stack_base() + interrupt_stack_size())
+		if (userspace_stack_bottom() <= m_sp && m_sp <= userspace_stack_top())
 			return;
-		Kernel::panic("sp {8H}, stack {8H}->{8H}, interrupt_stack {8H}->{8H}", m_sp,
-			stack_base(), stack_base() + stack_size(),
-			interrupt_stack_base(), interrupt_stack_base() + interrupt_stack_size()
+		Kernel::panic("sp {8H}, kernel stack {8H}->{8H}, userspace stack {8H}->{8H}", m_sp,
+			kernel_stack_bottom(), kernel_stack_top(),
+			userspace_stack_bottom(), userspace_stack_top()
 		);
 	}
 

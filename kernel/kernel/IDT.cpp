@@ -179,20 +179,19 @@ namespace Kernel
 			if (isr == ISR::PageFault)
 			{
 				// Check if stack is OOB
-				auto& stack = Thread::current().stack();
-				auto& istack = Thread::current().interrupt_stack();
-				if (stack.vaddr() < interrupt_stack->sp && interrupt_stack->sp <= stack.vaddr() + stack.size())
-					; // using normal stack
-				else if (istack.vaddr() < interrupt_stack->sp && interrupt_stack->sp <= istack.vaddr() + istack.size())
-					; // using interrupt stack
+				auto& thread = Thread::current();
+				if (thread.userspace_stack_bottom() < interrupt_stack->sp && interrupt_stack->sp <= thread.userspace_stack_top())
+					; // using userspace stack
+				else if (thread.kernel_stack_bottom() < interrupt_stack->sp && interrupt_stack->sp <= thread.kernel_stack_top())
+					; // using kernel stack
 				else
 				{
 					derrorln("Stack pointer out of bounds!");
 					derrorln("rip {H}", interrupt_stack->ip);
-					derrorln("rsp {H}, stack {H}->{H}, istack {H}->{H}",
+					derrorln("rsp {H}, userspace stack {H}->{H}, kernel stack {H}->{H}",
 						interrupt_stack->sp,
-						stack.vaddr(), stack.vaddr() + stack.size(),
-						istack.vaddr(), istack.vaddr() + istack.size()
+						thread.userspace_stack_bottom(), thread.userspace_stack_top(),
+						thread.kernel_stack_bottom(), thread.kernel_stack_top()
 					);
 					Thread::current().handle_signal(SIGKILL);
 					goto done;

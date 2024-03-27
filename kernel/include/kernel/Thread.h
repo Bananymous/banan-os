@@ -67,13 +67,13 @@ namespace Kernel
 		void set_started() { ASSERT(m_state == State::NotStarted); m_state = State::Executing; }
 		State state() const { return m_state; }
 
-		vaddr_t stack_base() const { return m_stack->vaddr(); }
-		size_t stack_size() const { return m_stack->size(); }
-		VirtualRange& stack() { return *m_stack; }
-		VirtualRange& interrupt_stack() { return *m_interrupt_stack; }
+		vaddr_t kernel_stack_bottom() const	{ return m_kernel_stack->vaddr(); }
+		vaddr_t kernel_stack_top() const	{ return m_kernel_stack->vaddr() + m_kernel_stack->size(); }
+		VirtualRange& kernel_stack() { return *m_kernel_stack; }
 
-		vaddr_t interrupt_stack_base() const { return m_interrupt_stack ? m_interrupt_stack->vaddr() : 0; }
-		size_t interrupt_stack_size() const { return m_interrupt_stack ? m_interrupt_stack->size() : 0; }
+		vaddr_t userspace_stack_bottom() const	{ return is_userspace() ? m_userspace_stack->vaddr() : 0; }
+		vaddr_t userspace_stack_top() const		{ return is_userspace() ? m_userspace_stack->vaddr() + m_userspace_stack->size() : 0; }
+		VirtualRange& userspace_stack() { ASSERT(is_userspace()); return *m_userspace_stack; }
 
 		static Thread& current();
 		static pid_t current_tid();
@@ -84,7 +84,7 @@ namespace Kernel
 
 		bool is_userspace() const { return m_is_userspace; }
 
-		size_t virtual_page_count() const { return m_stack->size() / PAGE_SIZE; }
+		size_t virtual_page_count() const { return (m_kernel_stack->size() / PAGE_SIZE) + (m_userspace_stack->size() / PAGE_SIZE); }
 		size_t physical_page_count() const { return virtual_page_count(); }
 
 #if __enable_sse
@@ -101,10 +101,9 @@ namespace Kernel
 
 	private:
 		static constexpr size_t		m_kernel_stack_size		= PAGE_SIZE * 4;
-		static constexpr size_t		m_userspace_stack_size	= PAGE_SIZE * 2;
-		static constexpr size_t		m_interrupt_stack_size	= PAGE_SIZE * 2;
-		BAN::UniqPtr<VirtualRange>	m_interrupt_stack;
-		BAN::UniqPtr<VirtualRange>	m_stack;
+		static constexpr size_t		m_userspace_stack_size	= PAGE_SIZE * 4;
+		BAN::UniqPtr<VirtualRange>	m_kernel_stack;
+		BAN::UniqPtr<VirtualRange>	m_userspace_stack;
 		uintptr_t					m_ip				{ 0 };
 		uintptr_t					m_sp				{ 0 };
 		const pid_t					m_tid				{ 0 };

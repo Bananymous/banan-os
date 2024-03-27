@@ -251,7 +251,7 @@ namespace Kernel
 		if (current->has_process())
 		{
 			current->process().page_table().load();
-			Processor::gdt().set_tss_stack(current->interrupt_stack_base() + current->interrupt_stack_size());
+			Processor::gdt().set_tss_stack(current->kernel_stack_top());
 		}
 		else
 			PageTable::kernel().load();
