@@ -10,7 +10,7 @@
 #include <kernel/Timer/PIT.h>
 
 #define ISR_LIST_X X(0) X(1) X(2) X(3) X(4) X(5) X(6) X(7) X(8) X(9) X(10) X(11) X(12) X(13) X(14) X(15) X(16) X(17) X(18) X(19) X(20) X(21) X(22) X(23) X(24) X(25) X(26) X(27) X(28) X(29) X(30) X(31)
-#define IRQ_LIST_X X(0) X(1) X(2) X(3) X(4) X(5) X(6) X(7) X(8) X(9) X(10) X(11) X(12) X(13) X(14) X(15) X(16) X(17) X(18) X(19) X(20) X(21) X(22) X(23) X(24) X(25) X(26) X(27) X(28) X(29) X(30) X(31) X(32)
+#define IRQ_LIST_X X(0) X(1) X(2) X(3) X(4) X(5) X(6) X(7) X(8) X(9) X(10) X(11) X(12) X(13) X(14) X(15) X(16) X(17) X(18) X(19) X(20) X(21) X(22) X(23) X(24) X(25) X(26) X(27) X(28) X(29) X(30) X(31)
 
 namespace Kernel
 {
@@ -173,9 +173,6 @@ namespace Kernel
 
 		if (tid)
 		{
-			Thread::current().set_return_sp(interrupt_stack->sp);
-			Thread::current().set_return_ip(interrupt_stack->ip);
-
 			if (isr == ISR::PageFault)
 			{
 				// Check if stack is OOB
@@ -202,9 +199,9 @@ namespace Kernel
 				page_fault_error.raw = error;
 				if (!page_fault_error.present)
 				{
-					asm volatile("sti");
+					Processor::set_interrupt_state(InterruptState::Enabled);
 					auto result = Process::current().allocate_page_for_demand_paging(regs->cr2);
-					asm volatile("cli");
+					Processor::set_interrupt_state(InterruptState::Disabled);
 
 					if (!result.is_error() && result.value())
 						goto done;
@@ -332,7 +329,14 @@ done:
 		return;
 	}
 
-	extern "C" void cpp_irq_handler(uint32_t irq, InterruptStack* interrupt_stack)
+	extern "C" void cpp_reschedule_handler(InterruptStack* interrupt_stack, InterruptRegisters* interrupt_registers)
+	{
+		Processor::enter_interrupt(interrupt_stack, interrupt_registers);
+		Scheduler::get().irq_reschedule();
+		Processor::leave_interrupt();
+	}
+
+	extern "C" void cpp_irq_handler(uint32_t irq)
 	{
 		if (g_paniced)
 		{
@@ -342,20 +346,14 @@ done:
 			asm volatile("cli; 1: hlt; jmp 1b");
 		}
 
-		if (Scheduler::current_tid())
-		{
-			Thread::current().set_return_sp(interrupt_stack->sp);
-			Thread::current().set_return_ip(interrupt_stack->ip);
-		}
+		ASSERT(irq != IRQ_IPI);
 
 		if (!InterruptController::get().is_in_service(irq))
 			dprintln("spurious irq 0x{2H}", irq);
 		else
 		{
 			InterruptController::get().eoi(irq);
-			if (irq == IRQ_IPI)
-				Scheduler::get().reschedule();
-			else if (auto* handler = s_interruptables[irq])
+			if (auto* handler = s_interruptables[irq])
 				handler->handle_irq();
 			else
 				dprintln("no handler for irq 0x{2H}", irq);
@@ -402,6 +400,7 @@ done:
 	IRQ_LIST_X
 #undef X
 
+	extern "C" void asm_reschedule_handler();
 	extern "C" void syscall_asm();
 
 	IDT* IDT::create()
@@ -418,6 +417,8 @@ done:
 #define X(num) idt->register_interrupt_handler(IRQ_VECTOR_BASE + num, irq ## num);
 		IRQ_LIST_X
 #undef X
+
+		idt->register_interrupt_handler(IRQ_VECTOR_BASE + IRQ_IPI, asm_reschedule_handler);
 
 		idt->register_syscall_handler(0x80, syscall_asm);
 

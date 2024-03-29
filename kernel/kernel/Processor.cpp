@@ -79,4 +79,34 @@ namespace Kernel
 		write_gs_ptr(offsetof(Processor, m_idle_thread), idle_thread);
 	}
 
+	void Processor::enter_interrupt(InterruptStack* interrupt_stack, InterruptRegisters* interrupt_registers)
+	{
+		ASSERT(get_interrupt_state() == InterruptState::Disabled);
+		ASSERT(read_gs_ptr(offsetof(Processor, m_interrupt_stack)) == nullptr);
+		write_gs_ptr(offsetof(Processor, m_interrupt_stack), interrupt_stack);
+		write_gs_ptr(offsetof(Processor, m_interrupt_registers), interrupt_registers);
+	}
+
+	void Processor::leave_interrupt()
+	{
+		ASSERT(get_interrupt_state() == InterruptState::Disabled);
+		ASSERT(read_gs_ptr(offsetof(Processor, m_interrupt_stack)) != nullptr);
+		write_gs_ptr(offsetof(Processor, m_interrupt_stack), nullptr);
+		write_gs_ptr(offsetof(Processor, m_interrupt_registers), nullptr);
+	}
+
+	InterruptStack& Processor::get_interrupt_stack()
+	{
+		ASSERT(get_interrupt_state() == InterruptState::Disabled);
+		ASSERT(read_gs_ptr(offsetof(Processor, m_interrupt_stack)));
+		return *read_gs_sized<InterruptStack*>(offsetof(Processor, m_interrupt_stack));
+	}
+
+	InterruptRegisters& Processor::get_interrupt_registers()
+	{
+		ASSERT(get_interrupt_state() == InterruptState::Disabled);
+		ASSERT(read_gs_ptr(offsetof(Processor, m_interrupt_registers)));
+		return *read_gs_sized<InterruptRegisters*>(offsetof(Processor, m_interrupt_registers));
+	}
+
 }

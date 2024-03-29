@@ -32,9 +32,6 @@ namespace Kernel
 	{
 		ASSERT((interrupt_stack.cs & 0b11) == 0b11);
 
-		Thread::current().set_return_sp(interrupt_stack.sp);
-		Thread::current().set_return_ip(interrupt_stack.ip);
-
 		asm volatile("sti");
 
 		BAN::ErrorOr<long> ret = BAN::Error::from_errno(ENOSYS);

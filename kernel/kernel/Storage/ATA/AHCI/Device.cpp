@@ -168,7 +168,7 @@ namespace Kernel
 		//        This doesn't allow scheduler to go properly idle.
 		while (SystemTimer::get().ms_since_boot() < start_time + s_ata_timeout)
 		{
-			Scheduler::get().reschedule();
+			Scheduler::get().yield();
 			if (!(m_port->ci & (1 << command_slot)))
 				return {};
 		}

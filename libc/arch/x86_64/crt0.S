@@ -2,34 +2,29 @@
 
 .global _start
 _start:
-	# Set up end of the stack frame linked list.
-	movq $0, %rbp
-	pushq %rbp # rip=0
-	pushq %rbp # rbp=0
-	movq %rsp, %rbp
+	# STACK LAYOUT
+	#   null
+	#   argc
+	#   argv
+	#   envp
 
-	# Save argc, argv, environ
-	pushq %rdx
-	pushq %rsi
-	pushq %rdi
+	xorq %rbp, %rbp
 
-	# Prepare malloc, environment
-	movq %rdx, %rdi
+	# init libc
+	movq 0(%rsp), %rdi
 	call _init_libc
 
-	# Call global constructos
+	# call global constructors
 	call _init
 
-	# Restore argc, argv, environ
-	popq %rdi
-	popq %rsi
-	popq %rdx
-
-	# Run main
+	# call main
+	movq 16(%rsp), %rdi
+	movq  8(%rsp), %rsi
+	movq  0(%rsp), %rdx
 	call main
 
-	# Cleanly exit the process
-	movl %eax, %edi
+	# call exit
+	movq %rax, %rdi
 	call exit
 
 .size _start, . - _start

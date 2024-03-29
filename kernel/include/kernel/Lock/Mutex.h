@@ -25,7 +25,7 @@ namespace Kernel
 			else
 			{
 				while (!m_locker.compare_exchange(-1, tid))
-					Scheduler::get().reschedule();
+					Scheduler::get().yield();
 				ASSERT(m_lock_depth == 0);
 			}
 			m_lock_depth++;
@@ -81,7 +81,7 @@ namespace Kernel
 				if (has_priority)
 					m_queue_length++;
 				while (!(has_priority || m_queue_length == 0) || !m_locker.compare_exchange(-1, tid))
-					Scheduler::get().reschedule();
+					Scheduler::get().yield();
 				ASSERT(m_lock_depth == 0);
 			}
 			m_lock_depth++;

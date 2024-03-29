@@ -5,6 +5,7 @@
 #include <kernel/Arch.h>
 #include <kernel/GDT.h>
 #include <kernel/IDT.h>
+#include <kernel/InterruptStack.h>
 #include <kernel/SchedulerQueue.h>
 
 namespace Kernel
@@ -68,6 +69,11 @@ namespace Kernel
 		static SchedulerQueue::Node* get_current_thread()				{ return reinterpret_cast<SchedulerQueue::Node*>(read_gs_ptr(offsetof(Processor, m_current_thread))); }
 		static void set_current_thread(SchedulerQueue::Node* thread)	{ write_gs_ptr(offsetof(Processor, m_current_thread), thread); }
 
+		static void enter_interrupt(InterruptStack*, InterruptRegisters*);
+		static void leave_interrupt();
+		static InterruptStack& get_interrupt_stack();
+		static InterruptRegisters& get_interrupt_registers();
+
 	private:
 		Processor() = default;
 		~Processor() { ASSERT_NOT_REACHED(); }
@@ -120,6 +126,9 @@ namespace Kernel
 
 		Thread* m_idle_thread { nullptr };
 		SchedulerQueue::Node* m_current_thread { nullptr };
+
+		InterruptStack* m_interrupt_stack { nullptr };
+		InterruptRegisters* m_interrupt_registers { nullptr };
 
 		void* m_current_page_table { nullptr };
 

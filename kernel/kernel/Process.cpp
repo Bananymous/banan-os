@@ -127,9 +127,6 @@ namespace Kernel
 		}
 		process->m_loadable_elf->reserve_address_space();
 
-		process->m_is_userspace = true;
-		process->m_userspace_info.entry = process->m_loadable_elf->entry_point();
-
 		char** argv = nullptr;
 		{
 			size_t needed_bytes = sizeof(char*) * 2 + path.size() + 1;
@@ -155,6 +152,8 @@ namespace Kernel
 			MUST(process->m_mapped_regions.push_back(BAN::move(argv_region)));
 		}
 
+		process->m_is_userspace = true;
+		process->m_userspace_info.entry = process->m_loadable_elf->entry_point();
 		process->m_userspace_info.argc = 1;
 		process->m_userspace_info.argv = argv;
 		process->m_userspace_info.envp = nullptr;
@@ -207,7 +206,7 @@ namespace Kernel
 		m_exit_status.semaphore.unblock();
 
 		while (m_exit_status.waiting > 0)
-			Scheduler::get().reschedule();
+			Scheduler::get().yield();
 
 		m_process_lock.lock();
 
@@ -220,7 +219,7 @@ namespace Kernel
 
 	bool Process::on_thread_exit(Thread& thread)
 	{
-		ASSERT(Processor::get_interrupt_state() == InterruptState::Disabled);
+		LockGuard _(m_process_lock);
 
 		ASSERT(m_threads.size() > 0);
 
@@ -228,8 +227,6 @@ namespace Kernel
 		{
 			ASSERT(m_threads.front() == &thread);
 			m_threads.clear();
-
-			thread.setup_process_cleanup();
 			return true;
 		}
 
@@ -248,11 +245,18 @@ namespace Kernel
 	void Process::exit(int status, int signal)
 	{
 		m_exit_status.exit_code = __WGENEXITCODE(status, signal);
-		for (auto* thread : m_threads)
-			if (thread != &Thread::current())
-				Scheduler::get().terminate_thread(thread);
-		if (this == &Process::current())
-			Scheduler::get().terminate_thread(&Thread::current());
+		while (!m_threads.empty())
+			m_threads.front()->on_exit();
+		//for (auto* thread : m_threads)
+		//	if (thread != &Thread::current())
+		//		Scheduler::get().terminate_thread(thread);
+		//if (this == &Process::current())
+		//{
+		//	m_threads.clear();
+		//	Processor::set_interrupt_state(InterruptState::Disabled);
+		//	Thread::current().setup_process_cleanup();
+		//	Scheduler::get().yield();
+		//}
 	}
 
 	size_t Process::proc_meminfo(off_t offset, BAN::ByteSpan buffer) const
@@ -533,7 +537,7 @@ namespace Kernel
 		m_has_called_exec = true;
 
 		m_threads.front()->setup_exec();
-		Scheduler::get().execute_current_thread();
+		Scheduler::get().yield();
 		ASSERT_NOT_REACHED();
 	}
 

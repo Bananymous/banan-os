@@ -72,9 +72,7 @@ isr_stub:
 
 irq_stub:
 	pushaq
-	movq 0x78(%rsp), %rdi	# irq number
-	movq %rsp, %rsi
-	addq $136, %rsi
+	movq 120(%rsp), %rdi	# irq number
 	call cpp_irq_handler
 	popaq
 	addq $16, %rsp
@@ -168,7 +166,15 @@ irq 28
 irq 29
 irq 30
 irq 31
-irq 32
+
+.global asm_reschedule_handler
+asm_reschedule_handler:
+	pushaq
+	leaq 120(%rsp), %rdi # interrupt stack ptr
+	movq     %rsp,  %rsi # interrupt register ptr
+	call cpp_reschedule_handler
+	popaq
+	iretq
 
 // arguments in RAX, RBX, RCX, RDX, RSI, RDI
 // System V ABI: RDI, RSI, RDX, RCX, R8, R9

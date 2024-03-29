@@ -4,6 +4,7 @@
 #include <BAN/RefPtr.h>
 #include <BAN/UniqPtr.h>
 #include <kernel/Memory/VirtualRange.h>
+#include <kernel/InterruptStack.h>
 
 #include <signal.h>
 #include <sys/types.h>
@@ -25,7 +26,7 @@ namespace Kernel
 		{
 			NotStarted,
 			Executing,
-			Terminated
+			Terminated,
 		};
 
 	public:
@@ -52,19 +53,8 @@ namespace Kernel
 		BAN::ErrorOr<void> block_or_eintr_or_timeout(Semaphore& semaphore, uint64_t timeout_ms, bool etimedout);
 		BAN::ErrorOr<void> block_or_eintr_or_waketime(Semaphore& semaphore, uint64_t wake_time_ms, bool etimedout);
 
-		void set_return_sp(uintptr_t& sp) { m_return_sp = &sp; }
-		void set_return_ip(uintptr_t& ip) { m_return_ip = &ip; }
-		uintptr_t return_sp() { ASSERT(m_return_sp); return *m_return_sp; }
-		uintptr_t return_ip() { ASSERT(m_return_ip); return *m_return_ip; }
-
 		pid_t tid() const { return m_tid; }
 
-		void set_sp(uintptr_t sp) { m_sp = sp; validate_stack(); }
-		void set_ip(uintptr_t ip) { m_ip = ip; }
-		uintptr_t sp() const { return m_sp; }
-		uintptr_t ip() const { return m_ip; }
-
-		void set_started() { ASSERT(m_state == State::NotStarted); m_state = State::Executing; }
 		State state() const { return m_state; }
 
 		vaddr_t kernel_stack_bottom() const	{ return m_kernel_stack->vaddr(); }
@@ -87,6 +77,10 @@ namespace Kernel
 		size_t virtual_page_count() const { return (m_kernel_stack->size() / PAGE_SIZE) + (m_userspace_stack->size() / PAGE_SIZE); }
 		size_t physical_page_count() const { return virtual_page_count(); }
 
+		uintptr_t& interrupt_sp() { return m_interrupt_sp; }
+		InterruptStack& interrupt_stack() { return m_interrupt_stack; }
+		InterruptRegisters& interrupt_registers() { return m_interrupt_registers; }
+
 #if __enable_sse
 		void save_sse();
 		void load_sse();
@@ -97,22 +91,20 @@ namespace Kernel
 		Thread(pid_t tid, Process*);
 		void on_exit();
 
-		void validate_stack() const;
-
 	private:
 		static constexpr size_t		m_kernel_stack_size		= PAGE_SIZE * 4;
 		static constexpr size_t		m_userspace_stack_size	= PAGE_SIZE * 4;
 		BAN::UniqPtr<VirtualRange>	m_kernel_stack;
 		BAN::UniqPtr<VirtualRange>	m_userspace_stack;
-		uintptr_t					m_ip				{ 0 };
-		uintptr_t					m_sp				{ 0 };
 		const pid_t					m_tid				{ 0 };
 		State						m_state				{ State::NotStarted };
 		Process*					m_process			{ nullptr };
 		bool						m_is_userspace		{ false };
+		bool						m_delete_process	{ false };
 
-		uintptr_t*					m_return_sp			{ nullptr };
-		uintptr_t*					m_return_ip			{ nullptr };
+		InterruptStack				m_interrupt_stack		{ };
+		InterruptRegisters			m_interrupt_registers	{ };
+		uintptr_t					m_interrupt_sp			{ };
 
 		uint64_t					m_signal_pending_mask	{ 0 };
 		uint64_t					m_signal_block_mask		{ 0 };
@@ -123,6 +115,7 @@ namespace Kernel
 		alignas(16) uint8_t m_sse_storage[512] {};
 #endif
 
+		friend class Process;
 		friend class Scheduler;
 	};
 
