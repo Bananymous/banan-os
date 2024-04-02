@@ -115,11 +115,7 @@ namespace Kernel
 		if (thread->state() == Thread::State::NotStarted)
 			thread->m_state = Thread::State::Executing;
 
-		ASSERT(thread->interrupt_stack().ip);
-		ASSERT(thread->interrupt_stack().sp);
-
 		Processor::gdt().set_tss_stack(thread->kernel_stack_top());
-
 		Processor::get_interrupt_stack() = thread->interrupt_stack();
 		Processor::get_interrupt_registers() = thread->interrupt_registers();
 	}
@@ -149,7 +145,9 @@ namespace Kernel
 			"movq %[load_sp], %%rsp;"
 			"int %[ipi];"
 			"movq %%rcx, %%rsp;"
-			:: [load_sp]"r"(Processor::current_stack_top()),
+			// NOTE: This is offset by 2 pointers since interrupt without PL change
+			//       does not push SP and SS. This allows accessing "whole" interrupt stack.
+			:: [load_sp]"r"(Processor::current_stack_top() - 2 * sizeof(uintptr_t)),
 			   [ipi]"i"(IRQ_VECTOR_BASE + IRQ_IPI)
 			:  "memory", "rcx"
 		);
@@ -159,7 +157,9 @@ namespace Kernel
 			"movl %[load_sp], %%esp;"
 			"int %[ipi];"
 			"movl %%ecx, %%esp;"
-			:: [load_sp]"r"(Processor::current_stack_top()),
+			// NOTE: This is offset by 2 pointers since interrupt without PL change
+			//       does not push SP and SS. This allows accessing "whole" interrupt stack.
+			:: [load_sp]"r"(Processor::current_stack_top() - 2 * sizeof(uintptr_t)),
 			   [ipi]"i"(IRQ_VECTOR_BASE + IRQ_IPI)
 			:  "memory", "ecx"
 		);
