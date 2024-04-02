@@ -231,7 +231,6 @@ system_halt:
 .code16
 .global ap_trampoline
 ap_trampoline:
-	ud2
 	jmp 1f
 .align 8
 ap_stack_ptr:
@@ -239,10 +238,7 @@ ap_stack_ptr:
 1:
 	cli; cld
 	ljmpl $0x00, $ap_cs_clear
-
 ap_cs_clear:
-	xorw %ax, %ax
-	movw %ax, %ds
 
 	# load ap gdt and enter protected mode
 	lgdt ap_gdtr
