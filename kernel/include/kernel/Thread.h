@@ -77,7 +77,6 @@ namespace Kernel
 		size_t virtual_page_count() const { return (m_kernel_stack->size() / PAGE_SIZE) + (m_userspace_stack->size() / PAGE_SIZE); }
 		size_t physical_page_count() const { return virtual_page_count(); }
 
-		uintptr_t& interrupt_sp() { return m_interrupt_sp; }
 		InterruptStack& interrupt_stack() { return m_interrupt_stack; }
 		InterruptRegisters& interrupt_registers() { return m_interrupt_registers; }
 
@@ -89,6 +88,8 @@ namespace Kernel
 
 	private:
 		Thread(pid_t tid, Process*);
+
+		static void on_exit_trampoline(Thread*);
 		void on_exit();
 
 	private:
@@ -104,7 +105,6 @@ namespace Kernel
 
 		InterruptStack				m_interrupt_stack		{ };
 		InterruptRegisters			m_interrupt_registers	{ };
-		uintptr_t					m_interrupt_sp			{ };
 
 		uint64_t					m_signal_pending_mask	{ 0 };
 		uint64_t					m_signal_block_mask		{ 0 };

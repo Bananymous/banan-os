@@ -12,19 +12,15 @@
 namespace Kernel
 {
 
-	extern "C" [[noreturn]] void start_userspace_thread();
 	extern "C" [[noreturn]] void start_kernel_thread();
 
 	extern "C" void signal_trampoline();
 
 	template<typename T>
-	static void write_to_stack(uintptr_t& rsp, const T& value)
+	static void write_to_stack(uintptr_t& rsp, const T& value) requires(sizeof(T) <= sizeof(uintptr_t))
 	{
 		rsp -= sizeof(uintptr_t);
-		if constexpr(sizeof(T) < sizeof(uintptr_t))
-			*(uintptr_t*)rsp = (uintptr_t)value;
-		else
-			memcpy((void*)rsp, (void*)&value, sizeof(uintptr_t));
+		*(uintptr_t*)rsp = (uintptr_t)value;
 	}
 
 	static pid_t s_next_tid = 1;
@@ -50,13 +46,13 @@ namespace Kernel
 		// Initialize stack for returning
 		uintptr_t sp = thread->kernel_stack_top();
 		write_to_stack(sp, thread);
-		write_to_stack(sp, &Thread::on_exit);
+		write_to_stack(sp, &Thread::on_exit_trampoline);
 		write_to_stack(sp, data);
 		write_to_stack(sp, entry);
 
 		thread->m_interrupt_stack.ip = reinterpret_cast<vaddr_t>(start_kernel_thread);
 		thread->m_interrupt_stack.cs = 0x08;
-		thread->m_interrupt_stack.flags = 0x202;
+		thread->m_interrupt_stack.flags = 0x002;
 		thread->m_interrupt_stack.sp = sp;
 		thread->m_interrupt_stack.ss = 0x10;
 
@@ -245,7 +241,7 @@ namespace Kernel
 		PageTable::with_fast_page(process().page_table().physical_address_of(kernel_stack_top() - PAGE_SIZE), [&] {
 			uintptr_t sp = PageTable::fast_page() + PAGE_SIZE;
 			write_to_stack(sp, this);
-			write_to_stack(sp, &Thread::on_exit);
+			write_to_stack(sp, &Thread::on_exit_trampoline);
 			write_to_stack(sp, m_process);
 			write_to_stack(sp, entry);
 		});
@@ -420,6 +416,11 @@ namespace Kernel
 		if (etimedout && SystemTimer::get().ms_since_boot() >= wake_time_ms)
 			return BAN::Error::from_errno(ETIMEDOUT);
 		return {};
+	}
+
+	void Thread::on_exit_trampoline(Thread* thread)
+	{
+		thread->on_exit();
 	}
 
 	void Thread::on_exit()

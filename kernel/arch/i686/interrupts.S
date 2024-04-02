@@ -26,17 +26,31 @@ isr_stub:
 irq_stub:
 	pusha
 
-	leal 40(%esp), %eax // interrupt stack ptr
-	movl 32(%esp), %ebx // irq number
+	movl 32(%esp), %eax # interrupt number
+
+	subl $8, %esp
+	pushl %eax
+	call cpp_irq_handler
+	addl $12, %esp
+
+	popa
+	addl $8, %esp
+	iret
+
+.global asm_reschedule_handler
+asm_reschedule_handler:
+	pusha
+
+	movl %esp,     %eax # interrupt registers ptr
+	leal 32(%esp), %ebx # interrupt stack ptr
 
 	subl $12, %esp
 	pushl %eax
 	pushl %ebx
-	call cpp_irq_handler
+	call cpp_reschedule_handler
 	addl $20, %esp
 
 	popa
-	addl $8, %esp
 	iret
 
 // arguments in EAX, EBX, ECX, EDX, ESI, EDI
@@ -158,4 +172,3 @@ irq 28
 irq 29
 irq 30
 irq 31
-irq 32

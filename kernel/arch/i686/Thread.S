@@ -4,40 +4,31 @@ read_ip:
 	popl %eax
 	jmp *%eax
 
-# void start_thread(uint32_t sp, uint32_t ip)
-.global start_thread
-start_thread:
-	movl 8(%esp), %edi # ip
-	movl 4(%esp), %esp # sp
+# void start_kernel_thread()
+.global start_kernel_thread
+start_kernel_thread:
+	call get_start_kernel_thread_sp
+	movl %eax, %esp
 
 	# STACK LAYOUT
-	#   NULL
-	#   thread ptr
-	#   &Thread::on_exit
-	#   data
+	#   on_exit arg
+	#   on_exit func
+	#   entry arg
+	#   entry func
 
-	xorl %ebp, %ebp
+	movl 4(%esp), %edi
+	movl 0(%esp), %esi
 
+	subl $12, %esp
+	pushl %edi
 	sti
-	call *%edi
+	call *%esi
+	addl $16, %esp
 
-	movl 4(%esp), %edi # &Thread::on_exit
+	movl 12(%esp), %edi
+	movl  8(%esp), %esi
 
-	movl 8(%esp), %eax # thread ptr
-	movl %eax, (%esp)
-
-	call *%edi
-
-
-# void continue_thread(uint32_t sp, uint32_t ip)
-.global continue_thread
-continue_thread:
-	movl 8(%esp), %edi # ip
-	movl 4(%esp), %esp # sp
-	xorl %eax, %eax
-	jmp *%edi
-
-# void thread_userspace_trampoline(uint32_t sp, uint32_t ip, int argc, char** argv, char** envp)
-.global thread_userspace_trampoline
-thread_userspace_trampoline:
-	ud2
+	subl $12, %esp
+	pushl %edi
+	call *%esi
+	addl $16, %esp

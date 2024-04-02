@@ -14,17 +14,6 @@ namespace Kernel
 	static Scheduler* s_instance = nullptr;
 	static BAN::Atomic<bool> s_started { false };
 
-	ALWAYS_INLINE static void load_temp_stack()
-	{
-#if ARCH(x86_64)
-		asm volatile("movq %0, %%rsp" :: "rm"(Processor::current_stack_top()));
-#elif ARCH(i686)
-		asm volatile("movl %0, %%esp" :: "rm"(Processor::current_stack_top()));
-#else
-		#error
-#endif
-	}
-
 	BAN::ErrorOr<void> Scheduler::initialize()
 	{
 		ASSERT(s_instance == nullptr);
@@ -38,6 +27,11 @@ namespace Kernel
 	{
 		ASSERT(s_instance);
 		return *s_instance;
+	}
+
+	extern "C" uintptr_t get_start_kernel_thread_sp()
+	{
+		return Scheduler::get().current_thread().kernel_stack_top() - 4 * sizeof(uintptr_t);
 	}
 
 	void Scheduler::start()
@@ -86,7 +80,6 @@ namespace Kernel
 				if (thread->state() != Thread::State::NotStarted)
 				{
 					thread->interrupt_stack() = Processor::get_interrupt_stack();
-					thread->interrupt_stack().sp = thread->interrupt_sp();
 					thread->interrupt_registers() = Processor::get_interrupt_registers();
 				}
 
@@ -155,15 +148,29 @@ namespace Kernel
 		auto state = Processor::get_interrupt_state();
 		Processor::set_interrupt_state(InterruptState::Disabled);
 
+#if ARCH(x86_64)
 		asm volatile(
-			"movq %%rsp, %[save_sp];"
+			"movq %%rsp, %%rcx;"
 			"movq %[load_sp], %%rsp;"
 			"int %[ipi];"
-			: [save_sp]"=m"(Thread::current().interrupt_sp())
-			: [load_sp]"r"(Processor::current_stack_top()),
-			  [ipi]"i"(IRQ_VECTOR_BASE + IRQ_IPI)
-			: "memory"
+			"movq %%rcx, %%rsp;"
+			:: [load_sp]"r"(Processor::current_stack_top()),
+			   [ipi]"i"(IRQ_VECTOR_BASE + IRQ_IPI)
+			:  "memory", "rcx"
 		);
+#elif ARCH(i686)
+		asm volatile(
+			"movl %%esp, %%ecx;"
+			"movl %[load_sp], %%esp;"
+			"int %[ipi];"
+			"movl %%ecx, %%esp;"
+			:: [load_sp]"r"(Processor::current_stack_top()),
+			   [ipi]"i"(IRQ_VECTOR_BASE + IRQ_IPI)
+			:  "memory", "ecx"
+		);
+#else
+		#error
+#endif
 
 		Processor::set_interrupt_state(state);
 	}
