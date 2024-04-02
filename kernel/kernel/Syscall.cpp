@@ -28,9 +28,9 @@ namespace Kernel
 #undef O
 	};
 
-	extern "C" long cpp_syscall_handler(int syscall, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4, uintptr_t arg5, InterruptStack& interrupt_stack)
+	extern "C" long cpp_syscall_handler(int syscall, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4, uintptr_t arg5, InterruptStack* interrupt_stack)
 	{
-		ASSERT((interrupt_stack.cs & 0b11) == 0b11);
+		ASSERT(GDT::is_user_segment(interrupt_stack->cs));
 
 		asm volatile("sti");
 

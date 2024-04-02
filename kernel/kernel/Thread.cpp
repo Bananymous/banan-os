@@ -24,9 +24,9 @@ namespace Kernel
 		*(uintptr_t*)rsp = (uintptr_t)value;
 	}
 
-	extern "C" uintptr_t get_start_kernel_thread_sp()
+	extern "C" uintptr_t get_thread_start_sp()
 	{
-		return Thread::current().kernel_stack_top() - 4 * sizeof(uintptr_t);
+		return Thread::current().interrupt_stack().sp;
 	}
 
 	extern "C" uintptr_t get_userspace_thread_stack_top()
@@ -191,6 +191,12 @@ namespace Kernel
 		thread->m_interrupt_stack.flags = 0x002;
 		thread->m_interrupt_stack.sp = sp;
 		thread->m_interrupt_stack.ss = 0x10;
+
+#if ARCH(x86_64)
+		thread->m_interrupt_registers.rax = 0;
+#elif ARCH(i686)
+		thread->m_interrupt_registers.eax = 0;
+#endif
 
 		thread_deleter.disable();
 

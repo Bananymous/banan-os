@@ -2,31 +2,32 @@
 
 .global _start
 _start:
-	# zero out stack frame
 	pushl $0
-	pushl $0
-	movl %esp, %ebp
-
-	# FIXME: handle stack alignment
-	ud2
-
-	# push argc, argv, environ for call to main
-	pushl %edx
-	pushl %esi
 	pushl %edi
-
-	# initialize libc
+	pushl %esi
 	pushl %edx
-	call _init_libc
-	addl $4, %esp
 
-	# call global constructos
+	# STACK LAYOUT
+	#   null
+	#   argc
+	#   argv
+	#   envp
+
+	xorl %ebp, %ebp
+
+	# init libc (envp already as argument)
+	call _init_libc
+
+	# call global constructors
 	call _init
 
-	# call main, arguments are already on stack
+	# call main
+	movl 0(%esp), %eax
+	xchgl %eax, 8(%esp)
+	movl %eax, (%esp)
 	call main
 
-	# cleanly exit the process
+	subl $12, %esp
 	pushl %eax
 	call exit
 

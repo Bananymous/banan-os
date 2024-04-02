@@ -6,13 +6,16 @@ sys_fork_trampoline:
 	pushq %r13
 	pushq %r14
 	pushq %r15
+
 	call read_ip
 	testq %rax, %rax
-	je .done
+	je .reload_stack
+
 	movq %rax, %rsi
 	movq %rsp, %rdi
 	call sys_fork
-.done:
+
+ .done:
 	popq %r15
 	popq %r14
 	popq %r13
@@ -20,3 +23,9 @@ sys_fork_trampoline:
 	popq %rbp
 	popq %rbx
 	ret
+
+ .reload_stack:
+	call get_thread_start_sp
+	movq %rax, %rsp
+	xorq %rax, %rax
+	jmp .done

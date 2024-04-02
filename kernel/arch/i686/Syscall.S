@@ -1,19 +1,31 @@
 .global sys_fork_trampoline
 sys_fork_trampoline:
-	ud2
-	subl $4, %esp
-	pushl %ebx
 	pushl %ebp
+	pushl %ebx
+	pushl %esi
+	pushl %edi
+
 	call read_ip
 	testl %eax, %eax
-	je .done
+	jz .reload_stack
+
+	movl %esp, %ebx
+
 	subl $8, %esp
 	pushl %eax
-	pushl %esp
+	pushl %ebx
 	call sys_fork
 	addl $16, %esp
-.done:
-	popl %ebp
+
+ .done:
+	popl %edi
+	popl %esi
 	popl %ebx
-	addl $4, %esp
+	popl %ebp
 	ret
+
+ .reload_stack:
+	call get_thread_start_sp
+	movl %eax, %esp
+	xorl %eax, %eax
+	jmp .done

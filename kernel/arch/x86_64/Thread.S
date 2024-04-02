@@ -7,7 +7,7 @@ read_ip:
 # void start_kernel_thread()
 .global start_kernel_thread
 start_kernel_thread:
-	call get_start_kernel_thread_sp
+	call get_thread_start_sp
 	movq %rax, %rsp
 
 	# STACK LAYOUT
@@ -27,7 +27,7 @@ start_kernel_thread:
 
 .global start_userspace_thread
 start_userspace_thread:
-	call get_start_kernel_thread_sp
+	call get_thread_start_sp
 	movq %rax, %rsp
 
 	# STACK LAYOUT

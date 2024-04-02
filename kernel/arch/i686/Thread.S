@@ -7,7 +7,7 @@ read_ip:
 # void start_kernel_thread()
 .global start_kernel_thread
 start_kernel_thread:
-	call get_start_kernel_thread_sp
+	call get_thread_start_sp
 	movl %eax, %esp
 
 	# STACK LAYOUT
@@ -32,3 +32,37 @@ start_kernel_thread:
 	pushl %edi
 	call *%esi
 	addl $16, %esp
+
+
+.global start_userspace_thread
+start_userspace_thread:
+	call get_thread_start_sp
+	movl %eax, %esp
+
+	# STACK LAYOUT
+	#   entry
+	#   argc
+	#   argv
+	#   envp
+	#   userspace stack
+
+	call get_userspace_thread_stack_top
+
+	movw $(0x20 | 3), %bx
+	movw %bx, %ds
+	movw %bx, %es
+	movw %bx, %fs
+	movw %bx, %gs
+	xorw %bx, %bx
+
+	popl %edx
+	popl %esi
+	popl %edi
+	popl %ecx
+
+	pushl $(0x20 | 3)
+	pushl %eax
+	pushl $0x202
+	pushl $(0x18 | 3)
+	pushl %ecx
+	iret

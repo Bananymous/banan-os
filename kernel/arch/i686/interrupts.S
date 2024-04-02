@@ -24,6 +24,22 @@
 	popw %gs
 .endm
 
+.macro pop_userspace_skip_eax
+	popl %edi
+	popl %esi
+	popl %ebp
+	addl $4, %esp
+	popl %ebx
+	popl %edx
+	popl %ecx
+	addl $4, %esp
+
+	popw %ds
+	popw %es
+	popw %fs
+	popw %gs
+.endm
+
 isr_stub:
 	push_userspace
 	load_kernel_segments
@@ -85,11 +101,12 @@ asm_reschedule_handler:
 // arguments in EAX, EBX, ECX, EDX, ESI, EDI
 .global syscall_asm
 syscall_asm:
-	ud2
-	pusha
+	push_userspace
+
+	subl $8, %esp
 
 	pushl %esp
-	addl $36, (%esp)
+	addl $48, (%esp)
 
 	pushl %edi
 	pushl %esi
@@ -98,19 +115,12 @@ syscall_asm:
 	pushl %ebx
 	pushl %eax
 
+	load_kernel_segments
+
 	call cpp_syscall_handler
+	addl $36, %esp
 
-	addl $60, %esp
-
-	popl %edi
-	popl %esi
-	popl %ebp
-	addl $4, %esp
-	popl %ebx
-	popl %edx
-	popl %ecx
-	addl $4, %esp
-
+	pop_userspace_skip_eax
 	iret
 
 .macro isr n
