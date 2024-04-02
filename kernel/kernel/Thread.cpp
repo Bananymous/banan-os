@@ -12,19 +12,26 @@
 namespace Kernel
 {
 
-	extern "C" void thread_userspace_trampoline(uint64_t rsp, uint64_t rip, int argc, char** argv, char** envp);
-	extern "C" uintptr_t read_rip();
+	extern "C" [[noreturn]] void start_kernel_thread();
+	extern "C" [[noreturn]] void start_userspace_thread();
 
 	extern "C" void signal_trampoline();
 
 	template<typename T>
-	static void write_to_stack(uintptr_t& rsp, const T& value)
+	static void write_to_stack(uintptr_t& rsp, const T& value) requires(sizeof(T) <= sizeof(uintptr_t))
 	{
 		rsp -= sizeof(uintptr_t);
-		if constexpr(sizeof(T) < sizeof(uintptr_t))
-			*(uintptr_t*)rsp = (uintptr_t)value;
-		else
-			memcpy((void*)rsp, (void*)&value, sizeof(uintptr_t));
+		*(uintptr_t*)rsp = (uintptr_t)value;
+	}
+
+	extern "C" uintptr_t get_thread_start_sp()
+	{
+		return Thread::current().interrupt_stack().sp;
+	}
+
+	extern "C" uintptr_t get_userspace_thread_stack_top()
+	{
+		return Thread::current().userspace_stack_top() - 4 * sizeof(uintptr_t);
 	}
 
 	static pid_t s_next_tid = 1;
@@ -38,7 +45,7 @@ namespace Kernel
 		BAN::ScopeGuard thread_deleter([thread] { delete thread; });
 
 		// Initialize stack and registers
-		thread->m_stack = TRY(VirtualRange::create_to_vaddr_range(
+		thread->m_kernel_stack = TRY(VirtualRange::create_to_vaddr_range(
 			PageTable::kernel(),
 			KERNEL_OFFSET,
 			~(uintptr_t)0,
@@ -46,14 +53,21 @@ namespace Kernel
 			PageTable::Flags::ReadWrite | PageTable::Flags::Present,
 			true
 		));
-		thread->m_rsp = thread->stack_base() + thread->stack_size();
-		thread->m_rip = (uintptr_t)entry;
 
 		// Initialize stack for returning
-		write_to_stack(thread->m_rsp, nullptr); // alignment
-		write_to_stack(thread->m_rsp, thread);
-		write_to_stack(thread->m_rsp, &Thread::on_exit);
-		write_to_stack(thread->m_rsp, data);
+		uintptr_t sp = thread->kernel_stack_top();
+		write_to_stack(sp, thread);
+		write_to_stack(sp, &Thread::on_exit_trampoline);
+		write_to_stack(sp, data);
+		write_to_stack(sp, entry);
+
+		thread->m_interrupt_stack.ip = reinterpret_cast<vaddr_t>(start_kernel_thread);
+		thread->m_interrupt_stack.cs = 0x08;
+		thread->m_interrupt_stack.flags = 0x002;
+		thread->m_interrupt_stack.sp = sp;
+		thread->m_interrupt_stack.ss = 0x10;
+
+		memset(&thread->m_interrupt_registers, 0, sizeof(InterruptRegisters));
 
 		thread_deleter.disable();
 
@@ -72,19 +86,19 @@ namespace Kernel
 
 		thread->m_is_userspace = true;
 
-		thread->m_stack = TRY(VirtualRange::create_to_vaddr_range(
+		thread->m_kernel_stack = TRY(VirtualRange::create_to_vaddr_range(
+			process->page_table(),
+			0x300000, KERNEL_OFFSET,
+			m_kernel_stack_size,
+			PageTable::Flags::ReadWrite | PageTable::Flags::Present,
+			true
+		));
+
+		thread->m_userspace_stack = TRY(VirtualRange::create_to_vaddr_range(
 			process->page_table(),
 			0x300000, KERNEL_OFFSET,
 			m_userspace_stack_size,
 			PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present,
-			true
-		));
-
-		thread->m_interrupt_stack = TRY(VirtualRange::create_to_vaddr_range(
-			process->page_table(),
-			0x300000, KERNEL_OFFSET,
-			m_interrupt_stack_size,
-			PageTable::Flags::ReadWrite | PageTable::Flags::Present,
 			true
 		));
 
@@ -99,16 +113,33 @@ namespace Kernel
 		: m_tid(tid), m_process(process)
 	{
 #if __enable_sse
+	#if ARCH(x86_64)
 		uintptr_t cr0;
 		asm volatile(
 			"movq %%cr0, %%rax;"
-			"movq %%rax, %%rbx;"
+			"movq %%rax, %[cr0];"
 			"andq $~(1 << 3), %%rax;"
 			"movq %%rax, %%cr0;"
-			: "=b"(cr0)
+			: [cr0]"=r"(cr0)
+			:: "rax"
 		);
 		save_sse();
 		asm volatile("movq %0, %%cr0" :: "r"(cr0));
+	#elif ARCH(i686)
+		uintptr_t cr0;
+		asm volatile(
+			"movl %%cr0, %%eax;"
+			"movl %%eax, %[cr0];"
+			"andl $~(1 << 3), %%eax;"
+			"movl %%eax, %%cr0;"
+			: [cr0]"=r"(cr0)
+			:: "eax"
+		);
+		save_sse();
+		asm volatile("movl %0, %%cr0" :: "r"(cr0));
+	#else
+		#error
+	#endif
 #endif
 	}
 
@@ -123,11 +154,22 @@ namespace Kernel
 		return *m_process;
 	}
 
-	Thread::~Thread()
+	const Process& Thread::process() const
 	{
+		ASSERT(m_process);
+		return *m_process;
 	}
 
-	BAN::ErrorOr<Thread*> Thread::clone(Process* new_process, uintptr_t rsp, uintptr_t rip)
+	Thread::~Thread()
+	{
+		if (m_delete_process)
+		{
+			ASSERT(m_process);
+			delete m_process;
+		}
+	}
+
+	BAN::ErrorOr<Thread*> Thread::clone(Process* new_process, uintptr_t sp, uintptr_t ip)
 	{
 		ASSERT(m_is_userspace);
 		ASSERT(m_state == State::Executing);
@@ -139,13 +181,22 @@ namespace Kernel
 
 		thread->m_is_userspace = true;
 
-		thread->m_interrupt_stack = TRY(m_interrupt_stack->clone(new_process->page_table()));
-		thread->m_stack = TRY(m_stack->clone(new_process->page_table()));
+		thread->m_kernel_stack = TRY(m_kernel_stack->clone(new_process->page_table()));
+		thread->m_userspace_stack = TRY(m_userspace_stack->clone(new_process->page_table()));
 
-		thread->m_state = State::Executing;
+		thread->m_state = State::NotStarted;
 
-		thread->m_rip = rip;
-		thread->m_rsp = rsp;
+		thread->m_interrupt_stack.ip = ip;
+		thread->m_interrupt_stack.cs = 0x08;
+		thread->m_interrupt_stack.flags = 0x002;
+		thread->m_interrupt_stack.sp = sp;
+		thread->m_interrupt_stack.ss = 0x10;
+
+#if ARCH(x86_64)
+		thread->m_interrupt_registers.rax = 0;
+#elif ARCH(i686)
+		thread->m_interrupt_registers.eax = 0;
+#endif
 
 		thread_deleter.disable();
 
@@ -156,58 +207,69 @@ namespace Kernel
 	{
 		ASSERT(is_userspace());
 		m_state = State::NotStarted;
-		static entry_t entry_trampoline(
-			[](void*)
-			{
-				const auto& info = Process::current().userspace_info();
-				thread_userspace_trampoline(Thread::current().rsp(), info.entry, info.argc, info.argv, info.envp);
-				ASSERT_NOT_REACHED();
-			}
-		);
-		m_rsp = stack_base() + stack_size();
-		m_rip = (uintptr_t)entry_trampoline;
 
 		// Signal mask is inherited
 
-		// Setup stack for returning
-		ASSERT(m_rsp % PAGE_SIZE == 0);
-		PageTable::with_fast_page(process().page_table().physical_address_of(m_rsp - PAGE_SIZE), [&] {
-			uintptr_t rsp = PageTable::fast_page() + PAGE_SIZE;
-			write_to_stack(rsp, nullptr); // alignment
-			write_to_stack(rsp, this);
-			write_to_stack(rsp, &Thread::on_exit);
-			write_to_stack(rsp, nullptr);
-			m_rsp -= 4 * sizeof(uintptr_t);
+		auto& userspace_info = process().userspace_info();
+		ASSERT(userspace_info.entry);
+
+		// Initialize stack for returning
+		PageTable::with_fast_page(process().page_table().physical_address_of(kernel_stack_top() - PAGE_SIZE), [&] {
+			uintptr_t sp = PageTable::fast_page() + PAGE_SIZE;
+			write_to_stack(sp, userspace_info.entry);
+			write_to_stack(sp, userspace_info.argc);
+			write_to_stack(sp, userspace_info.argv);
+			write_to_stack(sp, userspace_info.envp);
 		});
+
+		m_interrupt_stack.ip = reinterpret_cast<vaddr_t>(start_userspace_thread);;
+		m_interrupt_stack.cs = 0x08;
+		m_interrupt_stack.flags = 0x002;
+		m_interrupt_stack.sp = kernel_stack_top() - 4 * sizeof(uintptr_t);
+		m_interrupt_stack.ss = 0x10;
+
+		memset(&m_interrupt_registers, 0, sizeof(InterruptRegisters));
 	}
 
 	void Thread::setup_process_cleanup()
 	{
+		ASSERT(Processor::get_interrupt_state() == InterruptState::Disabled);
+
 		m_state = State::NotStarted;
 		static entry_t entry(
 			[](void* process_ptr)
 			{
-				auto& process = *reinterpret_cast<Process*>(process_ptr);
-				process.cleanup_function();
-				Scheduler::get().delete_current_process_and_thread();
-				ASSERT_NOT_REACHED();
+				auto* thread = &Thread::current();
+				auto* process = static_cast<Process*>(process_ptr);
+
+				ASSERT(thread->m_process == process);
+
+				process->cleanup_function();
+
+				thread->m_delete_process = true;
+
+				// will call on thread exit after return
 			}
 		);
-		m_rsp = stack_base() + stack_size();
-		m_rip = (uintptr_t)entry;
 
 		m_signal_pending_mask = 0;
 		m_signal_block_mask = ~0ull;
 
-		ASSERT(m_rsp % PAGE_SIZE == 0);
-		PageTable::with_fast_page(process().page_table().physical_address_of(m_rsp - PAGE_SIZE), [&] {
-			uintptr_t rsp = PageTable::fast_page() + PAGE_SIZE;
-			write_to_stack(rsp, nullptr); // alignment
-			write_to_stack(rsp, this);
-			write_to_stack(rsp, &Thread::on_exit);
-			write_to_stack(rsp, m_process);
-			m_rsp -= 4 * sizeof(uintptr_t);
+		PageTable::with_fast_page(process().page_table().physical_address_of(kernel_stack_top() - PAGE_SIZE), [&] {
+			uintptr_t sp = PageTable::fast_page() + PAGE_SIZE;
+			write_to_stack(sp, this);
+			write_to_stack(sp, &Thread::on_exit_trampoline);
+			write_to_stack(sp, m_process);
+			write_to_stack(sp, entry);
 		});
+
+		m_interrupt_stack.ip = reinterpret_cast<vaddr_t>(start_kernel_thread);
+		m_interrupt_stack.cs = 0x08;
+		m_interrupt_stack.flags = 0x202;
+		m_interrupt_stack.sp = kernel_stack_top() - 4 * sizeof(uintptr_t);
+		m_interrupt_stack.ss = 0x10;
+
+		memset(&m_interrupt_registers, 0, sizeof(InterruptRegisters));
 	}
 
 	bool Thread::is_interrupted_by_signal()
@@ -221,10 +283,10 @@ namespace Kernel
 	{
 		if (!is_userspace() || m_state != State::Executing)
 			return false;
-		auto& interrupt_stack = *reinterpret_cast<InterruptStack*>(interrupt_stack_base() + interrupt_stack_size() - sizeof(InterruptStack));
+		auto& interrupt_stack = *reinterpret_cast<InterruptStack*>(kernel_stack_top() - sizeof(InterruptStack));
 		if (!GDT::is_user_segment(interrupt_stack.cs))
 			return false;
-		uint64_t full_pending_mask = m_signal_pending_mask | m_process->m_signal_pending_mask;
+		uint64_t full_pending_mask = m_signal_pending_mask | process().signal_pending_mask();;
 		return full_pending_mask & ~m_signal_block_mask;
 	}
 
@@ -232,8 +294,8 @@ namespace Kernel
 	{
 		if (!is_userspace() || m_state != State::Executing)
 			return false;
-		auto& interrupt_stack = *reinterpret_cast<InterruptStack*>(interrupt_stack_base() + interrupt_stack_size() - sizeof(InterruptStack));
-		return interrupt_stack.rip == (uintptr_t)signal_trampoline;
+		auto& interrupt_stack = *reinterpret_cast<InterruptStack*>(kernel_stack_top() - sizeof(InterruptStack));
+		return interrupt_stack.ip == (uintptr_t)signal_trampoline;
 	}
 
 	void Thread::handle_signal(int signal)
@@ -243,12 +305,12 @@ namespace Kernel
 
 		SpinLockGuard _(m_signal_lock);
 
-		auto& interrupt_stack = *reinterpret_cast<InterruptStack*>(interrupt_stack_base() + interrupt_stack_size() - sizeof(InterruptStack));
+		auto& interrupt_stack = *reinterpret_cast<InterruptStack*>(kernel_stack_top() - sizeof(InterruptStack));
 		ASSERT(GDT::is_user_segment(interrupt_stack.cs));
 
 		if (signal == 0)
 		{
-			uint64_t full_pending_mask = m_signal_pending_mask | process().m_signal_pending_mask;
+			uint64_t full_pending_mask = m_signal_pending_mask | process().signal_pending_mask();
 			for (signal = _SIGMIN; signal <= _SIGMAX; signal++)
 			{
 				uint64_t mask = 1ull << signal;
@@ -266,18 +328,18 @@ namespace Kernel
 		vaddr_t signal_handler = process().m_signal_handlers[signal];
 
 		m_signal_pending_mask &= ~(1ull << signal);
-		process().m_signal_pending_mask &= ~(1ull << signal);
+		process().remove_pending_signal(signal);
 
 		if (signal_handler == (vaddr_t)SIG_IGN)
 			;
 		else if (signal_handler != (vaddr_t)SIG_DFL)
 		{
 			// call userspace signal handlers
-			interrupt_stack.rsp -= 128; // skip possible red-zone
-			write_to_stack(interrupt_stack.rsp, interrupt_stack.rip);
-			write_to_stack(interrupt_stack.rsp, signal);
-			write_to_stack(interrupt_stack.rsp, signal_handler);
-			interrupt_stack.rip = (uintptr_t)signal_trampoline;
+			interrupt_stack.sp -= 128; // skip possible red-zone
+			write_to_stack(interrupt_stack.sp, interrupt_stack.ip);
+			write_to_stack(interrupt_stack.sp, signal);
+			write_to_stack(interrupt_stack.sp, signal_handler);
+			interrupt_stack.ip = (uintptr_t)signal_trampoline;
 		}
 		else
 		{
@@ -373,22 +435,29 @@ namespace Kernel
 		return {};
 	}
 
-	void Thread::validate_stack() const
+	void Thread::on_exit_trampoline(Thread* thread)
 	{
-		if (stack_base() <= m_rsp && m_rsp <= stack_base() + stack_size())
-			return;
-		if (interrupt_stack_base() <= m_rsp && m_rsp <= interrupt_stack_base() + interrupt_stack_size())
-			return;
-		Kernel::panic("rsp {8H}, stack {8H}->{8H}, interrupt_stack {8H}->{8H}", m_rsp,
-			stack_base(), stack_base() + stack_size(),
-			interrupt_stack_base(), interrupt_stack_base() + interrupt_stack_size()
-		);
+		thread->on_exit();
 	}
 
 	void Thread::on_exit()
 	{
 		ASSERT(this == &Thread::current());
-		Scheduler::get().terminate_thread(this);
+		if (!m_delete_process && has_process())
+		{
+			if (process().on_thread_exit(*this))
+			{
+				Processor::set_interrupt_state(InterruptState::Disabled);
+				setup_process_cleanup();
+				Scheduler::get().yield();
+			}
+			else
+				Scheduler::get().terminate_thread(this);
+		}
+		else
+		{
+			Scheduler::get().terminate_thread(this);
+		}
 		ASSERT_NOT_REACHED();
 	}
 

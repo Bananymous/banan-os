@@ -10,9 +10,9 @@
 namespace Kernel
 {
 
-	extern "C" long sys_fork(uintptr_t rsp, uintptr_t rip)
+	extern "C" long sys_fork(uintptr_t sp, uintptr_t ip)
 	{
-		auto ret = Process::current().sys_fork(rsp, rip);
+		auto ret = Process::current().sys_fork(sp, ip);
 		if (ret.is_error())
 			return -ret.error().get_error_code();
 		return ret.value();
@@ -28,12 +28,9 @@ namespace Kernel
 #undef O
 	};
 
-	extern "C" long cpp_syscall_handler(int syscall, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4, uintptr_t arg5, InterruptStack& interrupt_stack)
+	extern "C" long cpp_syscall_handler(int syscall, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4, uintptr_t arg5, InterruptStack* interrupt_stack)
 	{
-		ASSERT((interrupt_stack.cs & 0b11) == 0b11);
-
-		Thread::current().set_return_rsp(interrupt_stack.rsp);
-		Thread::current().set_return_rip(interrupt_stack.rip);
+		ASSERT(GDT::is_user_segment(interrupt_stack->cs));
 
 		asm volatile("sti");
 

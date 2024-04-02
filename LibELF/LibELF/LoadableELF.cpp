@@ -86,7 +86,7 @@ namespace LibELF
 			return BAN::Error::from_errno(ENOEXEC);
 		}
 
-#if ARCH(i386)
+#if ARCH(i686)
 		if (m_file_header.e_ident[EI_CLASS] != ELFCLASS32)
 #elif ARCH(x86_64)
 		if (m_file_header.e_ident[EI_CLASS] != ELFCLASS64)

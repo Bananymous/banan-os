@@ -31,11 +31,13 @@ namespace Kernel
 		uint32_t m_cq_head { 0 };
 		uint16_t m_cq_valid_phase { 1 };
 
-		Semaphore				m_semaphore;
-		SpinLock				m_lock;
-		BAN::Atomic<uint64_t>	m_used_mask			{ 0 };
-		BAN::Atomic<uint64_t>	m_done_mask			{ 0 };
-		volatile uint16_t		m_status_codes[64]	{ };
+		Semaphore			m_semaphore;
+		SpinLock			m_lock;
+		BAN::Atomic<size_t>	m_used_mask			{ 0 };
+		BAN::Atomic<size_t>	m_done_mask			{ 0 };
+		volatile uint16_t	m_status_codes[64]	{ };
+
+		static constexpr size_t m_mask_bits = sizeof(size_t) * 8;
 	};
 
 }

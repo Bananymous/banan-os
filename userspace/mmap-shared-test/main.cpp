@@ -152,7 +152,7 @@ int test2_job2()
 		return 1;
 	}
 
-	*(size_t*)addr = 0x123456789;
+	*(size_t*)addr = 0x12345678;
 
 	if (msync(addr, sizeof(size_t), MS_SYNC) == -1)
 	{

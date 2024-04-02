@@ -6,7 +6,7 @@
 .set FB_HEIGHT,	600
 .set FB_BPP,	32
 
-#define KERNEL_OFFSET 0xFFFFFFFF80000000
+#define KERNEL_OFFSET 0xC0000000
 #define V2P(vaddr) ((vaddr) - KERNEL_OFFSET)
 
 .code32
@@ -53,6 +53,7 @@ bananboot_start:
 bananboot_end:
 
 .section .bss, "aw", @nobits
+	.align 4096
 	boot_stack_bottom:
 		.skip 4096 * 4
 	boot_stack_top:
@@ -68,39 +69,31 @@ bananboot_end:
 
 .section .data
 
-# Map first GiB to 0x00000000 and 0xFFFFFFFF80000000
-.align 4096
-boot_pml4:
-	.quad V2P(boot_pdpt_lo) + (PG_READ_WRITE | PG_PRESENT)
-	.rept 510
-		.quad 0
-	.endr
-	.quad V2P(boot_pdpt_hi) + (PG_READ_WRITE | PG_PRESENT)
-boot_pdpt_lo:
-	.quad V2P(boot_pd) + (PG_READ_WRITE | PG_PRESENT)
-	.rept 511
-		.quad 0
-	.endr
-boot_pdpt_hi:
-	.rept 510
-		.quad 0
-	.endr
-	.quad V2P(boot_pd) + (PG_READ_WRITE | PG_PRESENT)
+# Map first GiB to 0x00000000 and 0xC0000000
+.align 32
+boot_pdpt:
+	.long V2P(boot_pd) + (PG_PRESENT)
+	.long 0
 	.quad 0
+	.quad 0
+	.long V2P(boot_pd) + (PG_PRESENT)
+	.long 0
+.align 4096
 boot_pd:
 	.set i, 0
 	.rept 512
-		.quad i + (PG_PAGE_SIZE | PG_READ_WRITE | PG_PRESENT)
+		.long i + (PG_PAGE_SIZE | PG_READ_WRITE | PG_PRESENT)
+		.long 0
 		.set i, i + 0x200000
 	.endr
 
 boot_gdt:
 	.quad 0x0000000000000000 # null descriptor
-	.quad 0x00AF9A000000FFFF # kernel code
-	.quad 0x00AF92000000FFFF # kernel data
+	.quad 0x00CF9A000000FFFF # kernel code
+	.quad 0x00CF92000000FFFF # kernel data
 boot_gdtr:
 	.short . - boot_gdt - 1
-	.quad V2P(boot_gdt)
+	.long V2P(boot_gdt)
 
 .global g_ap_startup_done
 g_ap_startup_done:
@@ -126,23 +119,24 @@ has_cpuid:
 	testl $0x00200000, %eax
 	ret
 
-is_64_bit:
-	movl $0x80000000, %eax
+has_pae:
+	movl $0, %eax
 	cpuid
-	cmpl $0x80000001, %eax
-	jl .no_extension
-	movl $0x80000001, %eax
-	cpuid
-	testl $(1 << 29), %edx
+	testl $(1 << 6), %edx
 	ret
-.no_extension:
-	cmpl %eax, %eax
+
+has_sse:
+	movl $1, %eax
+	cpuid
+	testl $(1 << 25), %edx
 	ret
 
 check_requirements:
 	call has_cpuid
 	jz .exit
-	call is_64_bit
+	call has_pae
+	jz .exit
+	call has_sse
 	jz .exit
 	ret
 .exit:
@@ -161,22 +155,16 @@ enable_sse:
 initialize_paging:
 	# enable PAE
 	movl %cr4, %ecx
-	orl $0x20, %ecx
+	orl $(1 << 5), %ecx
 	movl %ecx, %cr4
 
-	# set long mode enable bit
-	movl $0x100, %eax
-	movl $0x000, %edx
-	movl $0xC0000080, %ecx
-	wrmsr
-
-	# set address of paging structures
-	movl $V2P(boot_pml4), %ecx
+	# load page tables
+	movl $V2P(boot_pdpt), %ecx
 	movl %ecx, %cr3
 
 	# enable paging
 	movl %cr0, %ecx
-	orl $0x80000000, %ecx
+	orl $(1 << 31), %ecx
 	movl %ecx, %cr0
 
 	ret
@@ -186,46 +174,47 @@ initialize_paging:
 _start:
 	cli; cld
 
-	# Initialize stack and multiboot info
+	# save bootloader magic and info
 	movl %eax, V2P(bootloader_magic)
 	movl %ebx, V2P(bootloader_info)
 
+	# load boot stack
 	movl $V2P(boot_stack_top), %esp
 
-	call check_requirements
-	call enable_sse
-
-	call initialize_paging
-
-	# flush gdt and jump to 64 bit
+	# load boot GDT
 	lgdt V2P(boot_gdtr)
-	ljmpl $0x08, $V2P(long_mode)
-
-.code64
-long_mode:
+	ljmpl $0x08, $V2P(gdt_flush)
+gdt_flush:
+	# set correct segment registers
 	movw $0x10, %ax
 	movw %ax, %ds
 	movw %ax, %ss
 	movw %ax, %es
 
-	# move stack pointer to higher half
-	movl %esp, %esp
-	addq $KERNEL_OFFSET, %rsp
+	# do processor initialization
+	call check_requirements
+	call enable_sse
+	call initialize_paging
+
+	# load higher half stack pointer
+	movl $boot_stack_top, %esp
 
 	# jump to higher half
-	movabsq $higher_half, %rcx
-	jmp *%rcx
+	leal higher_half, %ecx
+	jmp *%ecx
 
 higher_half:
 	# call global constuctors
 	call _init
 
-	# call to the kernel itself (clear rbp for stacktrace)
-	xorq %rbp, %rbp
+	# call to the kernel itself (clear ebp for stacktrace)
+	xorl %ebp, %ebp
 
-	movl V2P(bootloader_magic), %edi
-	movl V2P(bootloader_info),  %esi
+	subl $8, %esp
+	pushl bootloader_info
+	pushl bootloader_magic
 	call kernel_main
+	addl $16, %esp
 
 	# call global destructors
 	call _fini
@@ -274,21 +263,20 @@ ap_protected_mode:
 
 	# load boot gdt and enter long mode
 	lgdt V2P(boot_gdtr)
-	ljmpl $0x08, $ap_long_mode
+	ljmpl $0x08, $ap_flush_gdt
 
-.code64
-ap_long_mode:
+ap_flush_gdt:
 	# move stack pointer to higher half
 	movl %esp, %esp
-	addq $KERNEL_OFFSET, %rsp
+	addl $KERNEL_OFFSET, %esp
 
 	# jump to higher half
-	movabsq $ap_higher_half, %rcx
-	jmp *%rcx
+	leal ap_higher_half, %ecx
+	jmp *%ecx
 
 ap_higher_half:
 	# clear rbp for stacktrace
-	xorq %rbp, %rbp
+	xorl %ebp, %ebp
 
 1:	pause
 	cmpb $0, g_ap_startup_done
@@ -305,4 +293,4 @@ ap_gdt:
 	.quad 0x00CF92000000FFFF # 32 bit data
 ap_gdtr:
 	.short . - ap_gdt - 1
-	.quad ap_gdt
+	.long ap_gdt

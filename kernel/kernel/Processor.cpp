@@ -13,14 +13,13 @@ namespace Kernel
 
 	static ProcessorID read_processor_id()
 	{
-		uint8_t id;
+		uint32_t id;
 		asm volatile(
 			"movl $1, %%eax;"
 			"cpuid;"
 			"shrl $24, %%ebx;"
-			"movb %%bl, %0;"
-			: "=rm"(id)
-			:: "eax", "ebx", "ecx", "edx"
+			: "=b"(id)
+			:: "eax", "ecx", "edx"
 		);
 		return id;
 	}
@@ -39,7 +38,7 @@ namespace Kernel
 		processor.m_stack = kmalloc(s_stack_size, 4096, true);
 		ASSERT(processor.m_stack);
 
-		processor.m_gdt = GDT::create();
+		processor.m_gdt = GDT::create(&processor);
 		ASSERT(processor.m_gdt);
 
 		processor.m_idt = IDT::create();
@@ -53,12 +52,19 @@ namespace Kernel
 		auto id = read_processor_id();
 		auto& processor = s_processors[id];
 
+		ASSERT(processor.m_gdt);
+		processor.m_gdt->load();
+
+		// initialize GS
+#if ARCH(x86_64)
 		// set gs base to pointer to this processor
 		uint64_t ptr = reinterpret_cast<uint64_t>(&processor);
-		asm volatile("wrmsr" :: "d"(ptr >> 32), "a"(ptr), "c"(MSR_IA32_GS_BASE));
-
-		ASSERT(processor.m_gdt);
-		processor.gdt().load();
+		uint32_t ptr_hi = ptr >> 32;
+		uint32_t ptr_lo = ptr & 0xFFFFFFFF;
+		asm volatile("wrmsr" :: "d"(ptr_hi), "a"(ptr_lo), "c"(MSR_IA32_GS_BASE));
+#elif ARCH(i686)
+		asm volatile("movw $0x28, %%ax; movw %%ax, %%gs" ::: "ax");
+#endif
 
 		ASSERT(processor.m_idt);
 		processor.idt().load();
@@ -71,6 +77,36 @@ namespace Kernel
 		ASSERT(idle_thread() == nullptr);
 		auto* idle_thread = MUST(Thread::create_kernel([](void*) { for (;;) asm volatile("hlt"); }, nullptr, nullptr));
 		write_gs_ptr(offsetof(Processor, m_idle_thread), idle_thread);
+	}
+
+	void Processor::enter_interrupt(InterruptStack* interrupt_stack, InterruptRegisters* interrupt_registers)
+	{
+		ASSERT(get_interrupt_state() == InterruptState::Disabled);
+		ASSERT(read_gs_ptr(offsetof(Processor, m_interrupt_stack)) == nullptr);
+		write_gs_ptr(offsetof(Processor, m_interrupt_stack), interrupt_stack);
+		write_gs_ptr(offsetof(Processor, m_interrupt_registers), interrupt_registers);
+	}
+
+	void Processor::leave_interrupt()
+	{
+		ASSERT(get_interrupt_state() == InterruptState::Disabled);
+		ASSERT(read_gs_ptr(offsetof(Processor, m_interrupt_stack)) != nullptr);
+		write_gs_ptr(offsetof(Processor, m_interrupt_stack), nullptr);
+		write_gs_ptr(offsetof(Processor, m_interrupt_registers), nullptr);
+	}
+
+	InterruptStack& Processor::get_interrupt_stack()
+	{
+		ASSERT(get_interrupt_state() == InterruptState::Disabled);
+		ASSERT(read_gs_ptr(offsetof(Processor, m_interrupt_stack)));
+		return *read_gs_sized<InterruptStack*>(offsetof(Processor, m_interrupt_stack));
+	}
+
+	InterruptRegisters& Processor::get_interrupt_registers()
+	{
+		ASSERT(get_interrupt_state() == InterruptState::Disabled);
+		ASSERT(read_gs_ptr(offsetof(Processor, m_interrupt_registers)));
+		return *read_gs_sized<InterruptRegisters*>(offsetof(Processor, m_interrupt_registers));
 	}
 
 }

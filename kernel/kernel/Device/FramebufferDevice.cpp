@@ -240,7 +240,7 @@ namespace Kernel
 				return BAN::Error::from_errno(ENOMEM);
 			auto region = BAN::UniqPtr<FramebufferMemoryRegion>::adopt(region_ptr);
 
-			TRY(region->initialize({ m_vaddr, m_vaddr + BAN::Math::div_round_up(m_size, PAGE_SIZE) * PAGE_SIZE }));
+			TRY(region->initialize({ m_vaddr, m_vaddr + BAN::Math::div_round_up<uintptr_t>(m_size, PAGE_SIZE) * PAGE_SIZE }));
 
 			return BAN::UniqPtr<MemoryRegion>(BAN::move(region));
 		}

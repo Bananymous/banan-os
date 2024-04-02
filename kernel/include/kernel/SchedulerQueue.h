@@ -26,6 +26,7 @@ namespace Kernel
 			Thread*		thread;
 			uint64_t	wake_time { 0 };
 			Semaphore*	semaphore { nullptr };
+			bool		should_block { false };
 
 		private:
 			Node* next { nullptr };

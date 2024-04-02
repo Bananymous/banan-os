@@ -87,7 +87,7 @@ BAN::ErrorOr<BAN::UniqPtr<Image>> load_netbpm(const void* mmap_addr, size_t size
 		return BAN::Error::from_errno(EINVAL);
 	}
 
-	printf("Netbpm image %" PRIuPTR "x%" PRIuPTR "\n", *width, *height);
+	printf("Netbpm image %" PRIu64 "x%" PRIu64 "\n", *width, *height);
 
 	BAN::Vector<Image::Color> bitmap;
 	TRY(bitmap.resize(*width * *height));

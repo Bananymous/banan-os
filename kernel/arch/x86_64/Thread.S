@@ -1,39 +1,52 @@
-# uint64_t read_rip()
-.global read_rip
-read_rip:
+# uint64_t read_ip()
+.global read_ip
+read_ip:
 	popq %rax
 	jmp *%rax
 
-exit_thread_trampoline:
+# void start_kernel_thread()
+.global start_kernel_thread
+start_kernel_thread:
+	call get_thread_start_sp
+	movq %rax, %rsp
+
+	# STACK LAYOUT
+	#   on_exit arg
+	#   on_exit func
+	#   entry arg
+	#   entry func
+
 	movq 8(%rsp), %rdi
-	ret
-
-# void start_thread(uint64_t rsp, uint64_t rip)
-.global start_thread
-start_thread:
-	movq %rdi, %rsp
-	popq %rdi
-	movq $0, %rbp
-	pushq $exit_thread_trampoline
+	movq 0(%rsp), %rsi
 	sti
-	jmp *%rsi
+	call *%rsi
 
-# void continue_thread(uint64_t rsp, uint64_t rip)
-.global continue_thread
-continue_thread:
-	movq %rdi, %rsp
-	movq $0, %rax
-	jmp *%rsi
+	movq 24(%rsp), %rdi
+	movq 16(%rsp), %rsi
+	call *%rsi
 
-# void thread_userspace_trampoline(uint64_t rsp, uint64_t rip, int argc, char** argv, char** envp)
-.global thread_userspace_trampoline
-thread_userspace_trampoline:
-	pushq $0x23
-	pushq %rdi
-	pushfq
-	pushq $0x1B
-	pushq %rsi
-	movq %rdx, %rdi
-	movq %rcx, %rsi
-	movq %r8, %rdx
+.global start_userspace_thread
+start_userspace_thread:
+	call get_thread_start_sp
+	movq %rax, %rsp
+
+	# STACK LAYOUT
+	#   entry
+	#   argc
+	#   argv
+	#   envp
+	#   userspace stack
+
+	call get_userspace_thread_stack_top
+
+	popq %rdx
+	popq %rsi
+	popq %rdi
+	popq %rcx
+
+	pushq $(0x20 | 3)
+	pushq %rax
+	pushq $0x202
+	pushq $(0x18 | 3)
+	pushq %rcx
 	iretq

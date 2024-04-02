@@ -19,7 +19,12 @@ else
 	DISK_ARGS="-device ahci,id=ahci -device ide-hd,drive=disk,bus=ahci.0"
 fi
 
-qemu-system-$BANAN_ARCH												\
+QEMU_ARCH=$BANAN_ARCH
+if [ $BANAN_ARCH = "i686" ]; then
+	QEMU_ARCH=i386
+fi
+
+qemu-system-$QEMU_ARCH												\
 	-m 1G															\
 	-smp 4															\
 	$BIOS_ARGS														\

@@ -63,7 +63,7 @@ namespace Kernel
 
 		for (uint64_t i = 0; i < sector_count;)
 		{
-			uint16_t count = BAN::Math::min(sector_count - i, m_dma_region->size() / m_block_size);
+			uint16_t count = BAN::Math::min<uint64_t>(sector_count - i, m_dma_region->size() / m_block_size);
 
 			NVMe::SubmissionQueueEntry sqe {};
 			sqe.opc = NVMe::OPC_IO_READ;
@@ -90,7 +90,7 @@ namespace Kernel
 
 		for (uint64_t i = 0; i < sector_count;)
 		{
-			uint16_t count = BAN::Math::min(sector_count - i, m_dma_region->size() / m_block_size);
+			uint16_t count = BAN::Math::min<uint16_t>(sector_count - i, m_dma_region->size() / m_block_size);
 
 			memcpy(reinterpret_cast<void*>(m_dma_region->vaddr()), buffer.data() + i * m_block_size, count * m_block_size);
 

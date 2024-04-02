@@ -42,7 +42,7 @@ namespace LibELF
 		const Elf32SectionHeader& section_header32(size_t) const;
 		const char* lookup_section_name32(uint32_t) const;
 		const char* lookup_string32(size_t, uint32_t) const;
-#if ARCH(i386)
+#if ARCH(i686)
 		const Elf32FileHeader& file_header_native() const { return file_header32(); }
 		const Elf32ProgramHeader& program_header_native(size_t index) const { return program_header32(index); }
 		const Elf32SectionHeader& section_header_native(size_t index) const { return section_header32(index); }

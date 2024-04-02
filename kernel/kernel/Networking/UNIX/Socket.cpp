@@ -164,7 +164,7 @@ namespace Kernel
 		}
 
 		while (!connection_info.connection_done)
-			Scheduler::get().reschedule();
+			Scheduler::get().yield();
 
 		return {};
 	}

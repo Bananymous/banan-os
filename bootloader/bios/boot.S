@@ -161,7 +161,7 @@ gdt:
 	.quad 0x00CF9A000000FFFF # 32-bit code
 gdtr:
 	.short . - gdt - 1
-	.quad gdt
+	.long gdt
 
 banan_boot_info:
 	boot_command_line:

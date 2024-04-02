@@ -2,10 +2,10 @@
 
 .global _start
 _start:
-	pushq $0
-	pushq %rdi
-	pushq %rsi
-	pushq %rdx
+	pushl $0
+	pushl %edi
+	pushl %esi
+	pushl %edx
 
 	# STACK LAYOUT
 	#   null
@@ -13,23 +13,22 @@ _start:
 	#   argv
 	#   envp
 
-	xorq %rbp, %rbp
+	xorl %ebp, %ebp
 
-	# init libc
-	movq 0(%rsp), %rdi
+	# init libc (envp already as argument)
 	call _init_libc
 
 	# call global constructors
 	call _init
 
 	# call main
-	movq 16(%rsp), %rdi
-	movq  8(%rsp), %rsi
-	movq  0(%rsp), %rdx
+	movl 0(%esp), %eax
+	xchgl %eax, 8(%esp)
+	movl %eax, (%esp)
 	call main
 
-	# call exit
-	movq %rax, %rdi
+	subl $12, %esp
+	pushl %eax
 	call exit
 
 .size _start, . - _start

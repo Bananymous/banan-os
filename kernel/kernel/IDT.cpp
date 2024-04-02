@@ -10,16 +10,14 @@
 #include <kernel/Timer/PIT.h>
 
 #define ISR_LIST_X X(0) X(1) X(2) X(3) X(4) X(5) X(6) X(7) X(8) X(9) X(10) X(11) X(12) X(13) X(14) X(15) X(16) X(17) X(18) X(19) X(20) X(21) X(22) X(23) X(24) X(25) X(26) X(27) X(28) X(29) X(30) X(31)
-#define IRQ_LIST_X X(0) X(1) X(2) X(3) X(4) X(5) X(6) X(7) X(8) X(9) X(10) X(11) X(12) X(13) X(14) X(15) X(16) X(17) X(18) X(19) X(20) X(21) X(22) X(23) X(24) X(25) X(26) X(27) X(28) X(29) X(30) X(31) X(32)
+#define IRQ_LIST_X X(0) X(1) X(2) X(3) X(4) X(5) X(6) X(7) X(8) X(9) X(10) X(11) X(12) X(13) X(14) X(15) X(16) X(17) X(18) X(19) X(20) X(21) X(22) X(23) X(24) X(25) X(26) X(27) X(28) X(29) X(30) X(31)
 
 namespace Kernel
 {
 
+#if ARCH(x86_64)
 	struct Registers
 	{
-		uint64_t rsp;
-		uint64_t rip;
-		uint64_t rflags;
 		uint64_t cr4;
 		uint64_t cr3;
 		uint64_t cr2;
@@ -33,14 +31,33 @@ namespace Kernel
 		uint64_t r10;
 		uint64_t r9;
 		uint64_t r8;
-		uint64_t rsi;
+
 		uint64_t rdi;
+		uint64_t rsi;
 		uint64_t rbp;
+		uint64_t rbx;
 		uint64_t rdx;
 		uint64_t rcx;
-		uint64_t rbx;
 		uint64_t rax;
 	};
+#elif ARCH(i686)
+	struct Registers
+	{
+		uint32_t cr4;
+		uint32_t cr3;
+		uint32_t cr2;
+		uint32_t cr0;
+
+		uint32_t edi;
+		uint32_t esi;
+		uint32_t ebp;
+		uint32_t unused;
+		uint32_t ebx;
+		uint32_t edx;
+		uint32_t ecx;
+		uint32_t eax;
+	};
+#endif
 
 #define X(num) 1 +
 	static BAN::Array<Interruptable*, IRQ_LIST_X 0> s_interruptables;
@@ -141,46 +158,37 @@ namespace Kernel
 		"Unkown Exception 0x1F",
 	};
 
-	extern "C" void cpp_isr_handler(uint64_t isr, uint64_t error, InterruptStack& interrupt_stack, const Registers* regs)
+	extern "C" void cpp_isr_handler(uint32_t isr, uint32_t error, InterruptStack* interrupt_stack, const Registers* regs)
 	{
 		if (g_paniced)
 		{
 			dprintln("Processor {} halted", Processor::current_id());
-			InterruptController::get().broadcast_ipi();
+			if (InterruptController::is_initialized())
+				InterruptController::get().broadcast_ipi();
 			asm volatile("cli; 1: hlt; jmp 1b");
 		}
-
-#if __enable_sse
-		bool from_userspace = (interrupt_stack.cs & 0b11) == 0b11;
-		if (from_userspace)
-			Thread::current().save_sse();
-#endif
 
 		pid_t tid = Scheduler::current_tid();
 		pid_t pid = tid ? Process::current().pid() : 0;
 
 		if (tid)
 		{
-			Thread::current().set_return_rsp(interrupt_stack.rsp);
-			Thread::current().set_return_rip(interrupt_stack.rip);
-
 			if (isr == ISR::PageFault)
 			{
 				// Check if stack is OOB
-				auto& stack = Thread::current().stack();
-				auto& istack = Thread::current().interrupt_stack();
-				if (stack.vaddr() < interrupt_stack.rsp && interrupt_stack.rsp <= stack.vaddr() + stack.size())
-					; // using normal stack
-				else if (istack.vaddr() < interrupt_stack.rsp && interrupt_stack.rsp <= istack.vaddr() + istack.size())
-					; // using interrupt stack
+				auto& thread = Thread::current();
+				if (thread.userspace_stack_bottom() < interrupt_stack->sp && interrupt_stack->sp <= thread.userspace_stack_top())
+					; // using userspace stack
+				else if (thread.kernel_stack_bottom() < interrupt_stack->sp && interrupt_stack->sp <= thread.kernel_stack_top())
+					; // using kernel stack
 				else
 				{
 					derrorln("Stack pointer out of bounds!");
-					derrorln("rip {H}", interrupt_stack.rip);
-					derrorln("rsp {H}, stack {H}->{H}, istack {H}->{H}",
-						interrupt_stack.rsp,
-						stack.vaddr(), stack.vaddr() + stack.size(),
-						istack.vaddr(), istack.vaddr() + istack.size()
+					derrorln("rip {H}", interrupt_stack->ip);
+					derrorln("rsp {H}, userspace stack {H}->{H}, kernel stack {H}->{H}",
+						interrupt_stack->sp,
+						thread.userspace_stack_bottom(), thread.userspace_stack_top(),
+						thread.kernel_stack_bottom(), thread.kernel_stack_top()
 					);
 					Thread::current().handle_signal(SIGKILL);
 					goto done;
@@ -191,9 +199,9 @@ namespace Kernel
 				page_fault_error.raw = error;
 				if (!page_fault_error.present)
 				{
-					asm volatile("sti");
+					Processor::set_interrupt_state(InterruptState::Enabled);
 					auto result = Process::current().allocate_page_for_demand_paging(regs->cr2);
-					asm volatile("cli");
+					Processor::set_interrupt_state(InterruptState::Disabled);
 
 					if (!result.is_error() && result.value())
 						goto done;
@@ -209,11 +217,19 @@ namespace Kernel
 #if __enable_sse
 			else if (isr == ISR::DeviceNotAvailable)
 			{
+#if ARCH(x86_64)
 				asm volatile(
 					"movq %cr0, %rax;"
 					"andq $~(1 << 3), %rax;"
 					"movq %rax, %cr0;"
 				);
+#elif ARCH(i686)
+				asm volatile(
+					"movl %cr0, %eax;"
+					"andl $~(1 << 3), %eax;"
+					"movl %eax, %cr0;"
+				);
+#endif
 				if (auto* current = &Thread::current(); current != Thread::sse_thread())
 				{
 					if (auto* sse = Thread::sse_thread())
@@ -225,9 +241,9 @@ namespace Kernel
 #endif
 		}
 
-		if (PageTable::current().get_page_flags(interrupt_stack.rip & PAGE_ADDR_MASK) & PageTable::Flags::Present)
+		if (PageTable::current().get_page_flags(interrupt_stack->ip & PAGE_ADDR_MASK) & PageTable::Flags::Present)
 		{
-			auto* machine_code = (const uint8_t*)interrupt_stack.rip;
+			auto* machine_code = (const uint8_t*)interrupt_stack->ip;
 			dwarnln("While executing: {2H}{2H}{2H}{2H}{2H}{2H}{2H}{2H}",
 				machine_code[0],
 				machine_code[1],
@@ -240,8 +256,9 @@ namespace Kernel
 			);
 		}
 
+#if ARCH(x86_64)
 		dwarnln(
-			"{} (error code: 0x{16H}), pid {}, tid {}\r\n"
+			"{} (error code: 0x{8H}), pid {}, tid {}\r\n"
 			"Register dump\r\n"
 			"rax=0x{16H}, rbx=0x{16H}, rcx=0x{16H}, rdx=0x{16H}\r\n"
 			"rsp=0x{16H}, rbp=0x{16H}, rdi=0x{16H}, rsi=0x{16H}\r\n"
@@ -249,10 +266,25 @@ namespace Kernel
 			"cr0=0x{16H}, cr2=0x{16H}, cr3=0x{16H}, cr4=0x{16H}",
 			isr_exceptions[isr], error, pid, tid,
 			regs->rax, regs->rbx, regs->rcx, regs->rdx,
-			regs->rsp, regs->rbp, regs->rdi, regs->rsi,
-			regs->rip, regs->rflags,
+			interrupt_stack->sp, regs->rbp, regs->rdi, regs->rsi,
+			interrupt_stack->ip, interrupt_stack->flags,
 			regs->cr0, regs->cr2, regs->cr3, regs->cr4
 		);
+#elif ARCH(i686)
+		dwarnln(
+			"{} (error code: 0x{8H}), pid {}, tid {}\r\n"
+			"Register dump\r\n"
+			"eax=0x{8H}, ebx=0x{8H}, ecx=0x{8H}, edx=0x{8H}\r\n"
+			"esp=0x{8H}, ebp=0x{8H}, edi=0x{8H}, esi=0x{8H}\r\n"
+			"eip=0x{8H}, eflags=0x{8H}\r\n"
+			"cr0=0x{8H}, cr2=0x{8H}, cr3=0x{8H}, cr4=0x{8H}",
+			isr_exceptions[isr], error, pid, tid,
+			regs->eax, regs->ebx, regs->ecx, regs->edx,
+			interrupt_stack->sp, regs->ebp, regs->edi, regs->esi,
+			interrupt_stack->ip, interrupt_stack->flags,
+			regs->cr0, regs->cr2, regs->cr3, regs->cr4
+		);
+#endif
 		if (isr == ISR::PageFault)
 			PageTable::current().debug_dump();
 		Debug::dump_stack_trace();
@@ -297,29 +329,31 @@ done:
 		return;
 	}
 
-	extern "C" void cpp_irq_handler(uint64_t irq, InterruptStack& interrupt_stack)
+	extern "C" void cpp_reschedule_handler(InterruptStack* interrupt_stack, InterruptRegisters* interrupt_registers)
+	{
+		Processor::enter_interrupt(interrupt_stack, interrupt_registers);
+		Scheduler::get().irq_reschedule();
+		Processor::leave_interrupt();
+	}
+
+	extern "C" void cpp_irq_handler(uint32_t irq)
 	{
 		if (g_paniced)
 		{
 			dprintln("Processor {} halted", Processor::current_id());
-			InterruptController::get().broadcast_ipi();
+			if (InterruptController::is_initialized())
+				InterruptController::get().broadcast_ipi();
 			asm volatile("cli; 1: hlt; jmp 1b");
 		}
 
-		if (Scheduler::current_tid())
-		{
-			Thread::current().set_return_rsp(interrupt_stack.rsp);
-			Thread::current().set_return_rip(interrupt_stack.rip);
-		}
+		ASSERT(irq != IRQ_IPI);
 
 		if (!InterruptController::get().is_in_service(irq))
 			dprintln("spurious irq 0x{2H}", irq);
 		else
 		{
 			InterruptController::get().eoi(irq);
-			if (irq == IRQ_IPI)
-				Scheduler::get().reschedule();
-			else if (auto* handler = s_interruptables[irq])
+			if (auto* handler = s_interruptables[irq])
 				handler->handle_irq();
 			else
 				dprintln("no handler for irq 0x{2H}", irq);
@@ -332,14 +366,17 @@ done:
 
 	void IDT::register_interrupt_handler(uint8_t index, void (*handler)())
 	{
-		auto& descriptor = m_idt[index];
-		descriptor.offset1 = (uint16_t)((uint64_t)handler >> 0);
-		descriptor.offset2 = (uint16_t)((uint64_t)handler >> 16);
-		descriptor.offset3 = (uint32_t)((uint64_t)handler >> 32);
+		auto& desc = m_idt[index];
+		memset(&desc, 0, sizeof(GateDescriptor));
 
-		descriptor.selector = 0x08;
-		descriptor.IST = 0;
-		descriptor.flags = 0x8E;
+		desc.offset0 = (uint16_t)((uintptr_t)handler >> 0);
+		desc.offset1 = (uint16_t)((uintptr_t)handler >> 16);
+#if ARCH(x86_64)
+		desc.offset2 = (uint32_t)((uintptr_t)handler >> 32);
+#endif
+
+		desc.selector = 0x08;
+		desc.flags = 0x8E;
 	}
 
 	void IDT::register_syscall_handler(uint8_t index, void (*handler)())
@@ -363,6 +400,7 @@ done:
 	IRQ_LIST_X
 #undef X
 
+	extern "C" void asm_reschedule_handler();
 	extern "C" void syscall_asm();
 
 	IDT* IDT::create()
@@ -379,6 +417,8 @@ done:
 #define X(num) idt->register_interrupt_handler(IRQ_VECTOR_BASE + num, irq ## num);
 		IRQ_LIST_X
 #undef X
+
+		idt->register_interrupt_handler(IRQ_VECTOR_BASE + IRQ_IPI, asm_reschedule_handler);
 
 		idt->register_syscall_handler(0x80, syscall_asm);
 

@@ -79,7 +79,7 @@ namespace Kernel
 				if (it != m_arp_table.end())
 					return it->value;
 			}
-			Scheduler::get().reschedule();
+			Scheduler::get().yield();
 		}
 
 		return BAN::Error::from_errno(ETIMEDOUT);

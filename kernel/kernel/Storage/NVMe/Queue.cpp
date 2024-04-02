@@ -15,8 +15,8 @@ namespace Kernel
 		, m_doorbell(db)
 		, m_qdepth(qdepth)
 	{
-		for (uint32_t i = qdepth; i < 64; i++)
-			m_used_mask |= (uint64_t)1 << i;
+		for (uint32_t i = qdepth; i < m_mask_bits; i++)
+			m_used_mask |= (size_t)1 << i;
 		set_irq(irq);
 		enable_interrupt();
 	}
@@ -29,8 +29,8 @@ namespace Kernel
 		{
 			uint16_t sts = cq_ptr[m_cq_head].sts >> 1;
 			uint16_t cid = cq_ptr[m_cq_head].cid;
-			uint64_t cid_mask = (uint64_t)1 << cid;
-			ASSERT(cid < 64);
+			size_t cid_mask = (size_t)1 << cid;
+			ASSERT(cid < m_mask_bits);
 
 			ASSERT((m_done_mask & cid_mask) == 0);
 
@@ -50,7 +50,7 @@ namespace Kernel
 	uint16_t NVMeQueue::submit_command(NVMe::SubmissionQueueEntry& sqe)
 	{
 		uint16_t cid = reserve_cid();
-		uint64_t cid_mask = (uint64_t)1 << cid;
+		size_t cid_mask = (size_t)1 << cid;
 
 		{
 			SpinLockGuard _(m_lock);
@@ -98,13 +98,13 @@ namespace Kernel
 		}
 
 		uint16_t cid = 0;
-		for (; cid < 64; cid++)
-			if ((m_used_mask & ((uint64_t)1 << cid)) == 0)
+		for (; cid < m_mask_bits; cid++)
+			if ((m_used_mask & ((size_t)1 << cid)) == 0)
 				break;
-		ASSERT(cid < 64);
+		ASSERT(cid < m_mask_bits);
 		ASSERT(cid < m_qdepth);
 
-		m_used_mask |= (uint64_t)1 << cid;
+		m_used_mask |= (size_t)1 << cid;
 
 		m_lock.unlock(state);
 		return cid;

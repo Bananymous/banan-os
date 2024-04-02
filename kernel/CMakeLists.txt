@@ -4,7 +4,7 @@ project(kernel CXX C ASM)
 
 if("${BANAN_ARCH}" STREQUAL "x86_64")
 	set(ELF_FORMAT elf64-x86-64)
-elseif("${BANAN_ARCH}" STREQUAL "i386")
+elseif("${BANAN_ARCH}" STREQUAL "i686")
 	set(ELF_FORMAT elf32-i386)
 endif()
 
@@ -33,6 +33,8 @@ set(KERNEL_SOURCES
 	kernel/FS/TmpFS/FileSystem.cpp
 	kernel/FS/TmpFS/Inode.cpp
 	kernel/FS/VirtualFileSystem.cpp
+	kernel/GDT.cpp
+	kernel/IDT.cpp
 	kernel/Input/KeyboardLayout.cpp
 	kernel/Input/KeyEvent.cpp
 	kernel/Input/PS2/Controller.cpp
@@ -83,7 +85,6 @@ set(KERNEL_SOURCES
 	kernel/Storage/Partition.cpp
 	kernel/Storage/StorageDevice.cpp
 	kernel/Syscall.cpp
-	kernel/Syscall.S
 	kernel/Terminal/FramebufferTerminal.cpp
 	kernel/Terminal/Serial.cpp
 	kernel/Terminal/TTY.cpp
@@ -106,34 +107,32 @@ if("${BANAN_ARCH}" STREQUAL "x86_64")
 	set(KERNEL_SOURCES
 		${KERNEL_SOURCES}
 		arch/x86_64/boot.S
-		arch/x86_64/GDT.cpp
-		arch/x86_64/IDT.cpp
 		arch/x86_64/interrupts.S
 		arch/x86_64/PageTable.cpp
 		arch/x86_64/Signal.S
+		arch/x86_64/Syscall.S
 		arch/x86_64/Thread.S
 	)
-elseif("${BANAN_ARCH}" STREQUAL "i386")
+	file(GLOB_RECURSE LAI_SOURCES
+		lai/*.c
+	)
+	set(LAI_SOURCES
+		${LAI_SOURCES}
+		kernel/lai_host.cpp
+	)
+elseif("${BANAN_ARCH}" STREQUAL "i686")
 	set(KERNEL_SOURCES
 		${KERNEL_SOURCES}
-		arch/i386/boot.S
-		arch/i386/GDT.cpp
-		arch/i386/IDT.cpp
-		arch/i386/MMU.cpp
-		arch/i386/SpinLock.S
-		arch/i386/Thread.S
+		arch/i686/boot.S
+		arch/i686/interrupts.S
+		arch/i686/PageTable.cpp
+		arch/i686/Signal.S
+		arch/i686/Syscall.S
+		arch/i686/Thread.S
 	)
 else()
 	message(FATAL_ERROR "unsupported architecure ${BANAN_ARCH}")
 endif()
-
-file(GLOB_RECURSE LAI_SOURCES
-	lai/*.c
-)
-set(LAI_SOURCES
-	${LAI_SOURCES}
-	kernel/lai_host.cpp
-)
 
 set(BAN_SOURCES
 	../BAN/BAN/Assert.cpp
@@ -179,11 +178,11 @@ if(ENABLE_KERNEL_UBSAN)
 endif()
 
 if("${BANAN_ARCH}" STREQUAL "x86_64")
-	target_compile_options(kernel PUBLIC -mcmodel=kernel -mno-red-zone -mno-mmx)
+	target_compile_options(kernel PUBLIC -mcmodel=kernel -mno-red-zone)
 	target_link_options(kernel PUBLIC LINKER:-z,max-page-size=4096)
 	target_link_options(kernel PUBLIC LINKER:-T,${CMAKE_CURRENT_SOURCE_DIR}/arch/x86_64/linker.ld)
-elseif("${BANAN_ARCH}" STREQUAL "i386")
-	target_link_options(kernel PUBLIC LINKER:-T,${CMAKE_CURRENT_SOURCE_DIR}/arch/i386/linker.ld)
+elseif("${BANAN_ARCH}" STREQUAL "i686")
+	target_link_options(kernel PUBLIC LINKER:-T,${CMAKE_CURRENT_SOURCE_DIR}/arch/i686/linker.ld)
 endif()
 
 target_link_options(kernel PUBLIC -ffreestanding -nostdlib)

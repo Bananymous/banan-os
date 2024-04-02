@@ -2,12 +2,14 @@
 
 #include <BAN/Array.h>
 #include <BAN/NoCopyMove.h>
+#include <kernel/Arch.h>
 
 #include <stdint.h>
 
 namespace Kernel
 {
 
+#if ARCH(x86_64)
 	struct TaskStateSegment
 	{
 		uint32_t reserved1;
@@ -26,6 +28,54 @@ namespace Kernel
 		uint16_t reserved4;
 		uint16_t iopb;
 	} __attribute__((packed));
+	static_assert(sizeof(TaskStateSegment) == 104);
+#elif ARCH(i686)
+	struct TaskStateSegment
+	{
+		uint16_t link;
+		uint16_t __reserved0;
+		uint32_t esp0;
+		uint16_t ss0;
+		uint16_t __reserved1;
+		uint32_t esp1;
+		uint16_t ss1;
+		uint16_t __reserved2;
+		uint32_t esp2;
+		uint16_t ss2;
+		uint16_t __reserved3;
+		uint32_t cr3;
+		uint32_t eip;
+		uint32_t eflags;
+		uint32_t eax;
+		uint32_t ecx;
+		uint32_t edx;
+		uint32_t ebx;
+		uint32_t esp;
+		uint32_t ebp;
+		uint32_t esi;
+		uint32_t edi;
+		uint16_t es;
+		uint16_t __reserved4;
+		uint16_t cs;
+		uint16_t __reserved5;
+		uint16_t ss;
+		uint16_t __reserved6;
+		uint16_t ds;
+		uint16_t __reserved7;
+		uint16_t fs;
+		uint16_t __reserved8;
+		uint16_t gs;
+		uint16_t __reserved9;
+		uint16_t ldtr;
+		uint16_t __reserved10;
+		uint16_t __reserved11;
+		uint16_t iopb;
+		uint32_t ssp;
+	};
+	static_assert(sizeof(TaskStateSegment) == 108);
+#else
+	#error
+#endif
 
 	union SegmentDescriptor
 	{
@@ -38,20 +88,20 @@ namespace Kernel
 			uint8_t		limit2 : 4;
 			uint8_t		flags  : 4;
 			uint8_t		base3;
-		} __attribute__((packed));
+		};
 
 		struct
 		{
 			uint32_t low;
 			uint32_t high;
-		} __attribute__((packed));
-
-	} __attribute__((packed));
+		};
+	};
+	static_assert(sizeof(SegmentDescriptor) == 8);
 
 	struct GDTR
 	{
 		uint16_t size;
-		uint64_t address;
+		uintptr_t address;
 	} __attribute__((packed));
 
 	class GDT
@@ -60,7 +110,7 @@ namespace Kernel
 		BAN_NON_MOVABLE(GDT);
 
 	public:
-		static GDT* create();
+		static GDT* create(void* processor);
 		void load() { flush_gdt(); flush_tss(); }
 
 		static constexpr inline bool is_user_segment(uint8_t segment)
@@ -68,9 +118,14 @@ namespace Kernel
 			return (segment & 3) == 3;
 		}
 
-		void set_tss_stack(uintptr_t rsp)
+		void set_tss_stack(uintptr_t sp)
 		{
-			m_tss.rsp0 = rsp;
+#if ARCH(x86_64)
+			m_tss.rsp0 = sp;
+#elif ARCH(i686)
+			m_tss.esp0 = sp;
+			m_tss.ss0 = 0x10;
+#endif
 		}
 
 	private:
@@ -86,15 +141,21 @@ namespace Kernel
 
 		void flush_tss()
 		{
-			asm volatile("ltr %0" :: "rm"((uint16_t)0x28) : "memory");
+			asm volatile("ltr %0" :: "rm"(m_tss_offset) : "memory");
 		}
 
 	private:
+#if ARCH(x86_64)
 		BAN::Array<SegmentDescriptor, 7> m_gdt; // null, kernel code, kernel data, user code, user data, tss low, tss high
+		static constexpr uint16_t m_tss_offset = 0x28;
+#elif ARCH(i686)
+		BAN::Array<SegmentDescriptor, 7> m_gdt; // null, kernel code, kernel data, user code, user data, processor data, tss
+		static constexpr uint16_t m_tss_offset = 0x30;
+#endif
 		TaskStateSegment m_tss;
 		const GDTR m_gdtr {
 			.size = m_gdt.size() * sizeof(SegmentDescriptor) - 1,
-			.address = reinterpret_cast<uint64_t>(m_gdt.data())
+			.address = reinterpret_cast<uintptr_t>(m_gdt.data())
 		};
 	};
 

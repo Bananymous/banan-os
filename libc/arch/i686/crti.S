@@ -1,4 +1,4 @@
-/* i386 crti.s */
+/* i686 crti.s */
 .section .init
 .global _init
 .type _init, @function

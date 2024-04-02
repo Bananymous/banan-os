@@ -199,6 +199,33 @@ namespace Kernel
 		BAN::ErrorOr<void> validate_string_access(const char*);
 		BAN::ErrorOr<void> validate_pointer_access(const void*, size_t);
 
+		uint64_t signal_pending_mask() const
+		{
+			return ((uint64_t)m_signal_pending_mask[1].load() << 32) | m_signal_pending_mask[0].load();
+		}
+
+		void add_pending_signal(uint8_t signal)
+		{
+			ASSERT(signal >= _SIGMIN);
+			ASSERT(signal <= _SIGMAX);
+			ASSERT(signal < 64);
+			if (signal < 32)
+				m_signal_pending_mask[0] |= (uint32_t)1 << signal;
+			else
+				m_signal_pending_mask[1] |= (uint32_t)1 << (signal - 32);
+		}
+
+		void remove_pending_signal(uint8_t signal)
+		{
+			ASSERT(signal >= _SIGMIN);
+			ASSERT(signal <= _SIGMAX);
+			ASSERT(signal < 64);
+			if (signal < 32)
+				m_signal_pending_mask[0] &= ~((uint32_t)1 << signal);
+			else
+				m_signal_pending_mask[1] &= ~((uint32_t)1 << (signal - 32));
+		}
+
 	private:
 		struct ExitStatus
 		{
@@ -226,7 +253,8 @@ namespace Kernel
 		BAN::Vector<Thread*> m_threads;
 
 		BAN::Atomic<vaddr_t> m_signal_handlers[_SIGMAX + 1] { };
-		BAN::Atomic<uint64_t> m_signal_pending_mask { 0 };
+		// This is 2 32 bit values to allow atomicity on 32 targets
+		BAN::Atomic<uint32_t> m_signal_pending_mask[2] { 0, 0 };
 
 		BAN::Vector<BAN::String> m_cmdline;
 		BAN::Vector<BAN::String> m_environ;

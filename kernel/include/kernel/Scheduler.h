@@ -16,8 +16,10 @@ namespace Kernel
 
 		[[noreturn]] void start();
 
+		void yield();
+
 		void timer_reschedule();
-		void reschedule();
+		void irq_reschedule();
 		void reschedule_if_idling();
 
 		void set_current_thread_sleeping(uint64_t wake_time);
@@ -30,9 +32,6 @@ namespace Kernel
 		Thread& current_thread();
 		static pid_t current_tid();
 
-		[[noreturn]] void execute_current_thread();
-		[[noreturn]] void delete_current_process_and_thread();
-
 		// This is no return if called on current thread
 		void terminate_thread(Thread*);
 
@@ -41,11 +40,7 @@ namespace Kernel
 
 		void set_current_thread_sleeping_impl(Semaphore* semaphore, uint64_t wake_time);
 
-		[[nodiscard]] bool save_current_thread();
-		void advance_current_thread();
-
-		[[noreturn]] void execute_current_thread_locked();
-		[[noreturn]] void execute_current_thread_stack_loaded();
+		void setup_next_thread();
 
 		BAN::ErrorOr<void> add_thread(Thread*);
 

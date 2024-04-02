@@ -11,16 +11,8 @@
 namespace Kernel
 {
 
-	extern "C" [[noreturn]] void start_thread(uintptr_t rsp, uintptr_t rip);
-	extern "C" [[noreturn]] void continue_thread(uintptr_t rsp, uintptr_t rip);
-
 	static Scheduler* s_instance = nullptr;
 	static BAN::Atomic<bool> s_started { false };
-
-	ALWAYS_INLINE static void load_temp_stack()
-	{
-		asm volatile("movq %0, %%rsp" :: "rm"(Processor::current_stack_top()));
-	}
 
 	BAN::ErrorOr<void> Scheduler::initialize()
 	{
@@ -40,10 +32,8 @@ namespace Kernel
 	void Scheduler::start()
 	{
 		ASSERT(Processor::get_interrupt_state() == InterruptState::Disabled);
-		m_lock.lock();
-		s_started = true;
-		advance_current_thread();
-		execute_current_thread_locked();
+		ASSERT(!m_active_threads.empty());
+		yield();
 		ASSERT_NOT_REACHED();
 	}
 
@@ -65,41 +55,138 @@ namespace Kernel
 		return Scheduler::get().current_thread().tid();
 	}
 
+	void Scheduler::setup_next_thread()
+	{
+		ASSERT(m_lock.current_processor_has_lock());
+
+		if (auto* current = Processor::get_current_thread())
+		{
+			auto* thread = current->thread;
+
+			if (thread->state() == Thread::State::Terminated)
+			{
+				PageTable::kernel().load();
+				delete thread;
+				delete current;
+			}
+			else
+			{
+				// thread->state() can be NotStarted when calling exec or cleaning up process
+				if (thread->state() != Thread::State::NotStarted)
+				{
+					thread->interrupt_stack() = Processor::get_interrupt_stack();
+					thread->interrupt_registers() = Processor::get_interrupt_registers();
+				}
+
+				if (current->should_block)
+				{
+					current->should_block = false;
+					m_blocking_threads.add_with_wake_time(current);
+				}
+				else
+				{
+					m_active_threads.push_back(current);
+				}
+			}
+		}
+
+		SchedulerQueue::Node* node = nullptr;
+		while (!m_active_threads.empty())
+		{
+			node = m_active_threads.pop_front();
+			if (node->thread->state() != Thread::State::Terminated)
+				break;
+
+			PageTable::kernel().load();
+			delete node->thread;
+			delete node;
+			node = nullptr;
+		}
+
+		Processor::set_current_thread(node);
+
+		auto* thread = node ? node->thread : Processor::idle_thread();
+
+		if (thread->has_process())
+			thread->process().page_table().load();
+		else
+			PageTable::kernel().load();
+
+		if (thread->state() == Thread::State::NotStarted)
+			thread->m_state = Thread::State::Executing;
+
+		Processor::gdt().set_tss_stack(thread->kernel_stack_top());
+		Processor::get_interrupt_stack() = thread->interrupt_stack();
+		Processor::get_interrupt_registers() = thread->interrupt_registers();
+	}
+
 	void Scheduler::timer_reschedule()
 	{
 		// Broadcast IPI to all other processors for them
 		// to perform reschedule
 		InterruptController::get().broadcast_ipi();
 
-		auto state = m_lock.lock();
-		m_blocking_threads.remove_with_wake_time(m_active_threads, SystemTimer::get().ms_since_boot());
-		if (save_current_thread())
-			return Processor::set_interrupt_state(state);
-		advance_current_thread();
-		execute_current_thread_locked();
-		ASSERT_NOT_REACHED();
+		{
+			SpinLockGuard _(m_lock);
+			m_blocking_threads.remove_with_wake_time(m_active_threads, SystemTimer::get().ms_since_boot());
+		}
+
+		yield();
 	}
 
-	void Scheduler::reschedule()
+	void Scheduler::yield()
 	{
-		auto state = m_lock.lock();
-		if (save_current_thread())
-			return Processor::set_interrupt_state(state);
-		advance_current_thread();
-		execute_current_thread_locked();
-		ASSERT_NOT_REACHED();
+		auto state = Processor::get_interrupt_state();
+		Processor::set_interrupt_state(InterruptState::Disabled);
+
+#if ARCH(x86_64)
+		asm volatile(
+			"movq %%rsp, %%rcx;"
+			"movq %[load_sp], %%rsp;"
+			"int %[ipi];"
+			"movq %%rcx, %%rsp;"
+			// NOTE: This is offset by 2 pointers since interrupt without PL change
+			//       does not push SP and SS. This allows accessing "whole" interrupt stack.
+			:: [load_sp]"r"(Processor::current_stack_top() - 2 * sizeof(uintptr_t)),
+			   [ipi]"i"(IRQ_VECTOR_BASE + IRQ_IPI)
+			:  "memory", "rcx"
+		);
+#elif ARCH(i686)
+		asm volatile(
+			"movl %%esp, %%ecx;"
+			"movl %[load_sp], %%esp;"
+			"int %[ipi];"
+			"movl %%ecx, %%esp;"
+			// NOTE: This is offset by 2 pointers since interrupt without PL change
+			//       does not push SP and SS. This allows accessing "whole" interrupt stack.
+			:: [load_sp]"r"(Processor::current_stack_top() - 2 * sizeof(uintptr_t)),
+			   [ipi]"i"(IRQ_VECTOR_BASE + IRQ_IPI)
+			:  "memory", "ecx"
+		);
+#else
+		#error
+#endif
+
+		Processor::set_interrupt_state(state);
+	}
+
+	void Scheduler::irq_reschedule()
+	{
+		SpinLockGuard _(m_lock);
+		setup_next_thread();
 	}
 
 	void Scheduler::reschedule_if_idling()
 	{
-		auto state = m_lock.lock();
-		if (m_active_threads.empty() || Processor::get_current_thread())
-			return m_lock.unlock(state);
-		if (save_current_thread())
-			return Processor::set_interrupt_state(state);
-		advance_current_thread();
-		execute_current_thread_locked();
-		ASSERT_NOT_REACHED();
+		{
+			SpinLockGuard _(m_lock);
+			if (Processor::get_current_thread())
+				return;
+			if (m_active_threads.empty())
+				return;
+		}
+
+		yield();
 	}
 
 	BAN::ErrorOr<void> Scheduler::add_thread(Thread* thread)
@@ -114,180 +201,49 @@ namespace Kernel
 
 	void Scheduler::terminate_thread(Thread* thread)
 	{
-		SpinLockGuard _(m_lock);
+		auto state = m_lock.lock();
+
+		ASSERT(thread->state() == Thread::State::Executing);
 		thread->m_state = Thread::State::Terminated;
-		if (thread == &current_thread())
-			execute_current_thread_locked();
-	}
+		thread->interrupt_stack().sp = Processor::current_stack_top();
 
-	void Scheduler::advance_current_thread()
-	{
-		ASSERT(m_lock.current_processor_has_lock());
+		m_lock.unlock(InterruptState::Disabled);
 
-		if (auto* current = Processor::get_current_thread())
-			m_active_threads.push_back(current);
-		Processor::set_current_thread(nullptr);
+		// actual deletion will be done while rescheduling
 
-		if (!m_active_threads.empty())
-			Processor::set_current_thread(m_active_threads.pop_front());
-	}
-
-	// NOTE: this is declared always inline, so we don't corrupt the stack
-	//       after getting the rsp
-	ALWAYS_INLINE bool Scheduler::save_current_thread()
-	{
-		ASSERT(m_lock.current_processor_has_lock());
-
-		uintptr_t rsp, rip;
-		push_callee_saved();
-		if (!(rip = read_rip()))
+		if (&current_thread() == thread)
 		{
-			pop_callee_saved();
-			return true;
-		}
-		read_rsp(rsp);
-
-		Thread& current = current_thread();
-		current.set_rip(rip);
-		current.set_rsp(rsp);
-
-		load_temp_stack();
-
-		return false;
-	}
-
-	void Scheduler::delete_current_process_and_thread()
-	{
-		m_lock.lock();
-
-		load_temp_stack();
-		PageTable::kernel().load();
-
-		auto* current = Processor::get_current_thread();
-		ASSERT(current);
-		delete &current->thread->process();
-		delete current->thread;
-		delete current;
-		Processor::set_current_thread(nullptr);
-
-		advance_current_thread();
-		execute_current_thread_locked();
-		ASSERT_NOT_REACHED();
-	}
-
-	void Scheduler::execute_current_thread()
-	{
-		m_lock.lock();
-		load_temp_stack();
-		PageTable::kernel().load();
-		execute_current_thread_stack_loaded();
-		ASSERT_NOT_REACHED();
-	}
-
-	void Scheduler::execute_current_thread_locked()
-	{
-		ASSERT(m_lock.current_processor_has_lock());
-		load_temp_stack();
-		PageTable::kernel().load();
-		execute_current_thread_stack_loaded();
-		ASSERT_NOT_REACHED();
-	}
-
-	NEVER_INLINE void Scheduler::execute_current_thread_stack_loaded()
-	{
-		ASSERT(m_lock.current_processor_has_lock());
-
-#if SCHEDULER_VERIFY_STACK
-		vaddr_t rsp;
-		read_rsp(rsp);
-		ASSERT(Processor::current_stack_bottom() <= rsp && rsp <= Processor::current_stack_top());
-		ASSERT(&PageTable::current() == &PageTable::kernel());
-#endif
-
-		Thread* current = &current_thread();
-
-#if __enable_sse
-		if (current != Thread::sse_thread())
-		{
-			asm volatile(
-				"movq %cr0, %rax;"
-				"orq $(1 << 3), %rax;"
-				"movq %rax, %cr0"
-			);
-		}
-#endif
-
-		while (current->state() == Thread::State::Terminated)
-		{
-			auto* node = Processor::get_current_thread();
-			if (node->thread->has_process())
-				if (node->thread->process().on_thread_exit(*node->thread))
-					break;
-
-			delete node->thread;
-			delete node;
-			Processor::set_current_thread(nullptr);
-
-			advance_current_thread();
-			current = &current_thread();
+			yield();
+			ASSERT_NOT_REACHED();
 		}
 
-		if (current->has_process())
-		{
-			current->process().page_table().load();
-			Processor::gdt().set_tss_stack(current->interrupt_stack_base() + current->interrupt_stack_size());
-		}
-		else
-			PageTable::kernel().load();
-
-		switch (current->state())
-		{
-			case Thread::State::NotStarted:
-				current->set_started();
-				m_lock.unlock(InterruptState::Disabled);
-				start_thread(current->rsp(), current->rip());
-			case Thread::State::Executing:
-				m_lock.unlock(InterruptState::Disabled);
-				while (current->can_add_signal_to_execute())
-					current->handle_signal();
-				continue_thread(current->rsp(), current->rip());
-			case Thread::State::Terminated:
-				ASSERT_NOT_REACHED();
-		}
-
-		ASSERT_NOT_REACHED();
+		Processor::set_interrupt_state(state);
 	}
 
 	void Scheduler::set_current_thread_sleeping_impl(Semaphore* semaphore, uint64_t wake_time)
 	{
-		ASSERT(m_lock.current_processor_has_lock());
-
-		if (save_current_thread())
-			return;
+		auto state = m_lock.lock();
 
 		auto* current = Processor::get_current_thread();
 		current->semaphore = semaphore;
 		current->wake_time = wake_time;
-		m_blocking_threads.add_with_wake_time(current);
-		Processor::set_current_thread(nullptr);
+		current->should_block = true;
 
-		advance_current_thread();
-		execute_current_thread_locked();
-		ASSERT_NOT_REACHED();
+		m_lock.unlock(InterruptState::Disabled);
+
+		yield();
+
+		Processor::set_interrupt_state(state);
 	}
 
 	void Scheduler::set_current_thread_sleeping(uint64_t wake_time)
 	{
-		auto state = m_lock.lock();
 		set_current_thread_sleeping_impl(nullptr, wake_time);
-		Processor::set_interrupt_state(state);
 	}
 
 	void Scheduler::block_current_thread(Semaphore* semaphore, uint64_t wake_time)
 	{
-		auto state = m_lock.lock();
 		set_current_thread_sleeping_impl(semaphore, wake_time);
-		Processor::set_interrupt_state(state);
 	}
 
 	void Scheduler::unblock_threads(Semaphore* semaphore)

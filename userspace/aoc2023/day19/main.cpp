@@ -260,7 +260,7 @@ i64 puzzle2(FILE* fp)
 		clock_gettime(CLOCK_MONOTONIC, &time_stop);
 
 		u64 duration_us = (time_stop.tv_sec * 1'000'000 + time_stop.tv_nsec / 1'000) - (time_start.tv_sec * 1'000'000 + time_start.tv_nsec / 1'000);
-		printf("took %lu.%03lu ms, estimate %lu s\n", duration_us / 1000, duration_us % 1000, (values_sorted[0].size() - xi - 2) * duration_us / 1'000'000);
+		printf("step took %" PRIu64 ".%03" PRIu64 " ms, estimate %" PRIu64 " s\n", duration_us / 1000, duration_us % 1000, (values_sorted[0].size() - xi - 2) * duration_us / 1'000'000);
 	}
 
 	return result;
