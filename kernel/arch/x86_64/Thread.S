@@ -24,3 +24,29 @@ start_kernel_thread:
 	movq 24(%rsp), %rdi
 	movq 16(%rsp), %rsi
 	call *%rsi
+
+.global start_userspace_thread
+start_userspace_thread:
+	call get_start_kernel_thread_sp
+	movq %rax, %rsp
+
+	# STACK LAYOUT
+	#   entry
+	#   argc
+	#   argv
+	#   envp
+	#   userspace stack
+
+	call get_userspace_thread_stack_top
+
+	popq %rdx
+	popq %rsi
+	popq %rdi
+	popq %rcx
+
+	pushq $(0x20 | 3)
+	pushq %rax
+	pushq $0x202
+	pushq $(0x18 | 3)
+	pushq %rcx
+	iretq

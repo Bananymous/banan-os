@@ -29,11 +29,6 @@ namespace Kernel
 		return *s_instance;
 	}
 
-	extern "C" uintptr_t get_start_kernel_thread_sp()
-	{
-		return Scheduler::get().current_thread().kernel_stack_top() - 4 * sizeof(uintptr_t);
-	}
-
 	void Scheduler::start()
 	{
 		ASSERT(Processor::get_interrupt_state() == InterruptState::Disabled);

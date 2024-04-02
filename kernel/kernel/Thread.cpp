@@ -13,6 +13,7 @@ namespace Kernel
 {
 
 	extern "C" [[noreturn]] void start_kernel_thread();
+	extern "C" [[noreturn]] void start_userspace_thread();
 
 	extern "C" void signal_trampoline();
 
@@ -21,6 +22,16 @@ namespace Kernel
 	{
 		rsp -= sizeof(uintptr_t);
 		*(uintptr_t*)rsp = (uintptr_t)value;
+	}
+
+	extern "C" uintptr_t get_start_kernel_thread_sp()
+	{
+		return Thread::current().kernel_stack_top() - 4 * sizeof(uintptr_t);
+	}
+
+	extern "C" uintptr_t get_userspace_thread_stack_top()
+	{
+		return Thread::current().userspace_stack_top() - 4 * sizeof(uintptr_t);
 	}
 
 	static pid_t s_next_tid = 1;
@@ -197,19 +208,19 @@ namespace Kernel
 		ASSERT(userspace_info.entry);
 
 		// Initialize stack for returning
-		PageTable::with_fast_page(process().page_table().physical_address_of(userspace_stack_top() - PAGE_SIZE), [&] {
+		PageTable::with_fast_page(process().page_table().physical_address_of(kernel_stack_top() - PAGE_SIZE), [&] {
 			uintptr_t sp = PageTable::fast_page() + PAGE_SIZE;
-			write_to_stack(sp, nullptr);
+			write_to_stack(sp, userspace_info.entry);
 			write_to_stack(sp, userspace_info.argc);
 			write_to_stack(sp, userspace_info.argv);
 			write_to_stack(sp, userspace_info.envp);
 		});
 
-		m_interrupt_stack.ip = userspace_info.entry;
-		m_interrupt_stack.cs = 0x18 | 3;
-		m_interrupt_stack.flags = 0x202;
-		m_interrupt_stack.sp = userspace_stack_top() - 4 * sizeof(uintptr_t);
-		m_interrupt_stack.ss = 0x20 | 3;
+		m_interrupt_stack.ip = reinterpret_cast<vaddr_t>(start_userspace_thread);;
+		m_interrupt_stack.cs = 0x08;
+		m_interrupt_stack.flags = 0x002;
+		m_interrupt_stack.sp = kernel_stack_top() - 4 * sizeof(uintptr_t);
+		m_interrupt_stack.ss = 0x10;
 
 		memset(&m_interrupt_registers, 0, sizeof(InterruptRegisters));
 	}

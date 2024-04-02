@@ -2,6 +2,11 @@
 
 .global _start
 _start:
+	pushq $0
+	pushq %rdi
+	pushq %rsi
+	pushq %rdx
+
 	# STACK LAYOUT
 	#   null
 	#   argc
