@@ -124,6 +124,7 @@ namespace Kernel
 			m_tss.rsp0 = sp;
 #elif ARCH(i686)
 			m_tss.esp0 = sp;
+			m_tss.ss0 = 0x10;
 #endif
 		}
 
