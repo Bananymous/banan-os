@@ -81,7 +81,7 @@ bool ELFFile::validate_elf_header() const
 
 #if ARCH(x86_64)
 	if (elf_header.e_ident[EI_CLASS] != ELFCLASS64)
-#elif ARCH(i386)
+#elif ARCH(i686)
 	if (elf_header.e_ident[EI_CLASS] != ELFCLASS32)
 #endif
 	{
