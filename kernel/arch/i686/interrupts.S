@@ -1,5 +1,32 @@
+.macro push_userspace
+	pushw %gs
+	pushw %fs
+	pushw %es
+	pushw %ds
+	pushal
+.endm
+
+.macro load_kernel_segments
+	movw $0x10, %ax
+	movw %ax, %ds
+	movw %ax, %es
+	movw %ax, %fs
+
+	movw $0x28, %ax
+	movw %ax, %gs
+.endm
+
+.macro pop_userspace
+	popal
+	popw %ds
+	popw %es
+	popw %fs
+	popw %gs
+.endm
+
 isr_stub:
-	pusha
+	push_userspace
+	load_kernel_segments
 
 	movl %cr0, %eax; pushl %eax
 	movl %cr2, %eax; pushl %eax
@@ -7,9 +34,9 @@ isr_stub:
 	movl %cr4, %eax; pushl %eax
 
 	movl %esp,     %eax // register ptr
-	leal 56(%esp), %ebx // interrupt stack ptr
-	movl 52(%esp), %ecx // error code
-	movl 48(%esp), %edx // isr number
+	leal 64(%esp), %ebx // interrupt stack ptr
+	movl 60(%esp), %ecx // error code
+	movl 56(%esp), %edx // isr number
 
 	subl $12, %esp
 	pushl %eax
@@ -19,30 +46,32 @@ isr_stub:
 	call cpp_isr_handler
 	addl $44, %esp
 
-	popa
+	pop_userspace
 	addl $8, %esp
 	iret
 
 irq_stub:
-	pusha
+	push_userspace
+	load_kernel_segments
 
-	movl 32(%esp), %eax # interrupt number
+	movl 40(%esp), %eax # interrupt number
 
-	subl $8, %esp
+	subl $12, %esp
 	pushl %eax
 	call cpp_irq_handler
-	addl $12, %esp
+	addl $16, %esp
 
-	popa
+	pop_userspace
 	addl $8, %esp
 	iret
 
 .global asm_reschedule_handler
 asm_reschedule_handler:
-	pusha
+	push_userspace
+	load_kernel_segments
 
 	movl %esp,     %eax # interrupt registers ptr
-	leal 32(%esp), %ebx # interrupt stack ptr
+	leal 40(%esp), %ebx # interrupt stack ptr
 
 	subl $12, %esp
 	pushl %eax
@@ -50,7 +79,7 @@ asm_reschedule_handler:
 	call cpp_reschedule_handler
 	addl $20, %esp
 
-	popa
+	pop_userspace
 	iret
 
 // arguments in EAX, EBX, ECX, EDX, ESI, EDI
