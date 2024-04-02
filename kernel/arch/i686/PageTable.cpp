@@ -117,16 +117,7 @@ namespace Kernel
 		ASSERT(s_global_pdpte == 0);
 		s_global_pdpte = V2P(allocate_zeroed_page_aligned_page());
 
-		ASSERT(m_highest_paging_struct == 0);
-		m_highest_paging_struct = V2P(kmalloc(32, 32, true));
-		ASSERT(m_highest_paging_struct);
-
-		uint64_t* pdpt = reinterpret_cast<uint64_t*>(P2V(m_highest_paging_struct));
-		pdpt[0] = 0;
-		pdpt[1] = 0;
-		pdpt[2] = 0;
-		pdpt[3] = s_global_pdpte;
-		static_assert(KERNEL_OFFSET == 0xC0000000);
+		map_kernel_memory();
 
 		prepare_fast_page();
 
@@ -171,8 +162,7 @@ namespace Kernel
 		constexpr uint64_t pte   = (fast_page() >> 12) & 0x1FF;
 
 		uint64_t* pdpt = reinterpret_cast<uint64_t*>(P2V(m_highest_paging_struct));
-		ASSERT(!(pdpt[pdpte] & Flags::Present));
-		pdpt[pdpte] = V2P(allocate_zeroed_page_aligned_page()) | Flags::Present;
+		ASSERT(pdpt[pdpte] & Flags::Present);
 
 		uint64_t* pd = reinterpret_cast<uint64_t*>(P2V(pdpt[pdpte]) & PAGE_ADDR_MASK);
 		ASSERT(!(pd[pde] & Flags::Present));
@@ -247,7 +237,7 @@ namespace Kernel
 		pdpt[0] = 0;
 		pdpt[1] = 0;
 		pdpt[2] = 0;
-		pdpt[3] = s_global_pdpte;
+		pdpt[3] = s_global_pdpte | Flags::Present;
 		static_assert(KERNEL_OFFSET == 0xC0000000);
 	}
 
