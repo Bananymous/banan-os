@@ -362,6 +362,10 @@ done:
 				dprintln("no handler for irq 0x{2H}", irq);
 		}
 
+		auto& current_thread = Thread::current();
+		if (current_thread.can_add_signal_to_execute())
+			current_thread.handle_signal();
+
 		Scheduler::get().reschedule_if_idling();
 
 		ASSERT(Thread::current().state() != Thread::State::Terminated);
