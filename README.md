@@ -4,7 +4,47 @@
 
 # banan-os
 
-This is my hobby operating system written in C++. Currently supports only x86\_64 architecture. We have a ext2 filesystem, basic ramfs, IDE disk drivers in ATA PIO mode, ATA AHCI drivers, userspace processes, executable loading from ELF format, linear VBE graphics and multithreaded processing on single core.
+This is my hobby operating system written in C++. Currently supports x86\_64 and i686 architectures.
+
+### Features
+
+#### General
+- [x] Ring3 userspace
+- [x] SMP (multiprocessing)
+- [x] Linear framebuffer (VESA and GOP)
+- [x] Network stack
+- [x] ELF executable loading
+- [ ] ELF dynamic linking
+- [ ] Graphical desktop
+- [ ] AML interpreter (currenly using [lai](https://github.com/managarm/lai))
+
+#### Drivers
+- [x] NVMe disks
+- [x] ATA (IDE, SATA) disks
+- [x] E1000 and E1000E NICs
+- [x] PS2 keyboard (all scancode sets)
+- [x] PS2 mouse
+
+#### Network
+- [x] ARP
+- [x] ICMP
+- [x] IPv4
+- [x] UDP
+- [x] TCP (partial and buggy)
+- [x] Unix domain sockets
+
+#### Filesystems
+- [x] Virtual filesystem
+- [x] Ext2
+- [x] Dev
+- [x] Ram
+- [x] Proc
+- [ ] Sys
+
+#### Bootloader support
+- [x] GRUB
+- [x] Custom BIOS bootloader
+- [ ] Custom UEFI bootloader
 
 ![screenshot from qemu running banan-os](assets/banan-os.png)
 
@@ -29,32 +69,36 @@ When you clone this reposity, make sure to also clone submodules. This can be do
 To build the toolchain for this os. You can run the following command.
 > ***NOTE:*** The following step has to be done only once. This might take a long time since we are compiling binutils and gcc.
 ```sh
-./script/build.sh toolchain
+./bos toolchain
 ```
 
 To build the os itself you can run one of the following commands. You will need root access for disk image creation/modification.
 ```sh
-./script/build.sh qemu
-./script/build.sh qemu-nographic
-./script/build.sh qemu-debug
-./script/build.sh bochs
+./bos qemu
+./bos qemu-nographic
+./bos qemu-debug
+./bos bochs
 ```
 
 You can also build the kernel or disk image without running it:
 ```sh
-./script/build.sh kernel
-./script/build.sh image
+./bos kernel
+./bos image
 ```
+
+To build for other architectures set environment variable BANAN\_ARCH=*arch* (e.g. BANAN\_ARCH=i686).
+
+To change the bootloader you can set environment variable BANAN\_BOOTLOADER; supported values are BANAN (my custom bootloader) and GRUB.
+
+To run with UEFI set environment variable BANAN\_UEFI\_BOOT=1. You will also have to set OVMF\_PATH to the correct OVMF (default */usr/share/ovmf/x64/OVMF.fd*).
 
 If you have corrupted your disk image or want to create new one, you can either manually delete *build/banan-os.img* and build system will automatically create you a new one or you can run the following command.
 ```sh
-./script/build.sh image-full
+./bos image-full
 ```
-
-If you feel like ```./script/build.sh``` is too verbose, there exists a symlink _bos_ in this projects root directory. All build commands can be used with ```./bos args...``` instead.
 
 I have also created shell completion script for zsh. You can either copy the file in _script/shell-completion/zsh/\_bos_ to _/usr/share/zsh/site-functions/_ or add the _script/shell-completion/zsh_ to your fpath in _.zshrc_.
 
-### Contributing
+## Contributing
 
 Currently I don't accept contributions to this repository unless explicitly told otherwise. This is a learning project for me and I want to do everything myself. Feel free to fork/clone this repo and tinker with it yourself.
