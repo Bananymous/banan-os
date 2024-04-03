@@ -1,6 +1,6 @@
 [![](https://tokei.rs/b1/github/Bananymous/banan-os)](https://git.bananymous.com/Bananymous/banan-os)
 [![](https://img.shields.io/github/commit-activity/m/Bananymous/banan-os)](https://git.bananymous.com/Bananymous/banan-os)
-[![](https://img.shields.io/github/license/bananymous/banan-os)](https://git.bananymous.com/Bananymous/banan-os/src/branch/main/LICENCE)
+[![](https://img.shields.io/github/license/bananymous/banan-os)](https://git.bananymous.com/Bananymous/banan-os/src/branch/main/LICENSE)
 
 # banan-os
 
