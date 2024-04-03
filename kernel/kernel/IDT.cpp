@@ -10,7 +10,7 @@
 #include <kernel/Timer/PIT.h>
 
 #define ISR_LIST_X X(0) X(1) X(2) X(3) X(4) X(5) X(6) X(7) X(8) X(9) X(10) X(11) X(12) X(13) X(14) X(15) X(16) X(17) X(18) X(19) X(20) X(21) X(22) X(23) X(24) X(25) X(26) X(27) X(28) X(29) X(30) X(31)
-#define IRQ_LIST_X X(0) X(1) X(2) X(3) X(4) X(5) X(6) X(7) X(8) X(9) X(10) X(11) X(12) X(13) X(14) X(15) X(16) X(17) X(18) X(19) X(20) X(21) X(22) X(23) X(24) X(25) X(26) X(27) X(28) X(29) X(30) X(31)
+#define IRQ_LIST_X X(0) X(1) X(2) X(3) X(4) X(5) X(6) X(7) X(8) X(9) X(10) X(11) X(12) X(13) X(14) X(15) X(16) X(17) X(18) X(19) X(20) X(21) X(22) X(23) X(24) X(25) X(26) X(27) X(28) X(29) X(30) X(31) X(32)
 
 namespace Kernel
 {
@@ -329,8 +329,10 @@ done:
 		return;
 	}
 
-	extern "C" void cpp_reschedule_handler(InterruptStack* interrupt_stack, InterruptRegisters* interrupt_registers)
+	extern "C" void cpp_yield_handler(InterruptStack* interrupt_stack, InterruptRegisters* interrupt_registers)
 	{
+		ASSERT(!InterruptController::get().is_in_service(IRQ_YIELD));
+
 		Processor::enter_interrupt(interrupt_stack, interrupt_registers);
 		Scheduler::get().irq_reschedule();
 		Processor::leave_interrupt();
@@ -346,8 +348,6 @@ done:
 			asm volatile("cli; 1: hlt; jmp 1b");
 		}
 
-		ASSERT(irq != IRQ_IPI);
-
 		if (!InterruptController::get().is_in_service(irq))
 			dprintln("spurious irq 0x{2H}", irq);
 		else
@@ -355,6 +355,8 @@ done:
 			InterruptController::get().eoi(irq);
 			if (auto* handler = s_interruptables[irq])
 				handler->handle_irq();
+			else if (irq == IRQ_IPI)
+				Scheduler::get().yield();
 			else
 				dprintln("no handler for irq 0x{2H}", irq);
 		}
@@ -400,8 +402,8 @@ done:
 	IRQ_LIST_X
 #undef X
 
-	extern "C" void asm_reschedule_handler();
-	extern "C" void syscall_asm();
+	extern "C" void asm_yield_handler();
+	extern "C" void asm_syscall_handler();
 
 	IDT* IDT::create()
 	{
@@ -418,9 +420,9 @@ done:
 		IRQ_LIST_X
 #undef X
 
-		idt->register_interrupt_handler(IRQ_VECTOR_BASE + IRQ_IPI, asm_reschedule_handler);
+		idt->register_interrupt_handler(IRQ_VECTOR_BASE + IRQ_YIELD, asm_yield_handler);
 
-		idt->register_syscall_handler(0x80, syscall_asm);
+		idt->register_syscall_handler(0x80, asm_syscall_handler);
 
 		return idt;
 	}

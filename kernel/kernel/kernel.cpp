@@ -218,7 +218,9 @@ extern "C" void ap_main()
 
 	dprintln("ap{} initialized", Processor::current_id());
 
-	while (!Scheduler::is_started())
-		__builtin_ia32_pause();
-	Scheduler::get().start();
+	// wait until scheduler is started and we get irq for reschedule
+	Processor::set_interrupt_state(InterruptState::Enabled);
+	while (true)
+		asm volatile("hlt");
+	ASSERT_NOT_REACHED();
 }

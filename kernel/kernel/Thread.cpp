@@ -265,7 +265,7 @@ namespace Kernel
 
 		m_interrupt_stack.ip = reinterpret_cast<vaddr_t>(start_kernel_thread);
 		m_interrupt_stack.cs = 0x08;
-		m_interrupt_stack.flags = 0x202;
+		m_interrupt_stack.flags = 0x002;
 		m_interrupt_stack.sp = kernel_stack_top() - 4 * sizeof(uintptr_t);
 		m_interrupt_stack.ss = 0x10;
 

@@ -12,7 +12,6 @@ namespace Kernel
 {
 
 	static Scheduler* s_instance = nullptr;
-	static BAN::Atomic<bool> s_started { false };
 
 	BAN::ErrorOr<void> Scheduler::initialize()
 	{
@@ -33,13 +32,12 @@ namespace Kernel
 	{
 		ASSERT(Processor::get_interrupt_state() == InterruptState::Disabled);
 		ASSERT(!m_active_threads.empty());
-		yield();
-		ASSERT_NOT_REACHED();
-	}
 
-	bool Scheduler::is_started()
-	{
-		return s_started;
+		// broadcast ipi (yield) for each processor
+		InterruptController::get().broadcast_ipi();
+		yield();
+
+		ASSERT_NOT_REACHED();
 	}
 
 	Thread& Scheduler::current_thread()
@@ -122,20 +120,21 @@ namespace Kernel
 
 	void Scheduler::timer_reschedule()
 	{
-		// Broadcast IPI to all other processors for them
-		// to perform reschedule
-		InterruptController::get().broadcast_ipi();
-
 		{
 			SpinLockGuard _(m_lock);
 			m_blocking_threads.remove_with_wake_time(m_active_threads, SystemTimer::get().ms_since_boot());
 		}
 
+		// Broadcast IPI to all other processors for them
+		// to perform reschedule
+		InterruptController::get().broadcast_ipi();
 		yield();
 	}
 
 	void Scheduler::yield()
 	{
+		ASSERT(!m_lock.current_processor_has_lock());
+
 		auto state = Processor::get_interrupt_state();
 		Processor::set_interrupt_state(InterruptState::Disabled);
 
@@ -143,24 +142,24 @@ namespace Kernel
 		asm volatile(
 			"movq %%rsp, %%rcx;"
 			"movq %[load_sp], %%rsp;"
-			"int %[ipi];"
+			"int %[yield];"
 			"movq %%rcx, %%rsp;"
 			// NOTE: This is offset by 2 pointers since interrupt without PL change
 			//       does not push SP and SS. This allows accessing "whole" interrupt stack.
 			:: [load_sp]"r"(Processor::current_stack_top() - 2 * sizeof(uintptr_t)),
-			   [ipi]"i"(IRQ_VECTOR_BASE + IRQ_IPI)
+			   [yield]"i"(IRQ_VECTOR_BASE + IRQ_YIELD)
 			:  "memory", "rcx"
 		);
 #elif ARCH(i686)
 		asm volatile(
 			"movl %%esp, %%ecx;"
 			"movl %[load_sp], %%esp;"
-			"int %[ipi];"
+			"int %[yield];"
 			"movl %%ecx, %%esp;"
 			// NOTE: This is offset by 2 pointers since interrupt without PL change
 			//       does not push SP and SS. This allows accessing "whole" interrupt stack.
 			:: [load_sp]"r"(Processor::current_stack_top() - 2 * sizeof(uintptr_t)),
-			   [ipi]"i"(IRQ_VECTOR_BASE + IRQ_IPI)
+			   [yield]"i"(IRQ_VECTOR_BASE + IRQ_YIELD)
 			:  "memory", "ecx"
 		);
 #else

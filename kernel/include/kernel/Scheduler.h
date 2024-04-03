@@ -12,7 +12,6 @@ namespace Kernel
 	public:
 		static BAN::ErrorOr<void> initialize();
 		static Scheduler& get();
-		static bool is_started();
 
 		[[noreturn]] void start();
 

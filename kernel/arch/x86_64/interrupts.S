@@ -34,23 +34,6 @@
 	popq %rax
 .endm
 
-.macro popaq_no_rax
-	popq %r15
-	popq %r14
-	popq %r13
-	popq %r12
-	popq %r11
-	popq %r10
-	popq %r9
-	popq %r8
-	popq %rdi
-	popq %rsi
-	popq %rbp
-	popq %rbx
-	popq %rdx
-	popq %rcx
-.endm
-
 isr_stub:
 	pushaq
 
@@ -76,6 +59,15 @@ irq_stub:
 	call cpp_irq_handler
 	popaq
 	addq $16, %rsp
+	iretq
+
+.global asm_yield_handler
+asm_yield_handler:
+	pushaq
+	leaq 120(%rsp), %rdi # interrupt stack ptr
+	movq     %rsp,  %rsi # interrupt register ptr
+	call cpp_yield_handler
+	popaq
 	iretq
 
 .macro isr n
@@ -166,31 +158,4 @@ irq 28
 irq 29
 irq 30
 irq 31
-
-.global asm_reschedule_handler
-asm_reschedule_handler:
-	pushaq
-	leaq 120(%rsp), %rdi # interrupt stack ptr
-	movq     %rsp,  %rsi # interrupt register ptr
-	call cpp_reschedule_handler
-	popaq
-	iretq
-
-// arguments in RAX, RBX, RCX, RDX, RSI, RDI
-// System V ABI: RDI, RSI, RDX, RCX, R8, R9
-.global syscall_asm
-syscall_asm:
-	pushaq
-	movq %rsi, %r8
-	movq %rdi, %r9
-	movq %rax, %rdi
-	movq %rbx, %rsi
-	xchgq %rcx, %rdx
-	movq %rsp, %rbx
-	addq $120, %rbx
-	pushq %rbx
-	call cpp_syscall_handler
-	addq $8, %rsp
-	popaq_no_rax
-	addq $8, %rsp
-	iretq
+irq 32
