@@ -1,0 +1,310 @@
+From 70cb1210ba2f6e1d922922f66f32efcf7bec51e1 Mon Sep 17 00:00:00 2001
+From: Bananymous <bananymousosq@gmail.com>
+Date: Wed, 3 Apr 2024 17:57:11 +0300
+Subject: [PATCH] Add support for banan-os
+
+Add Makefile and implement required functions.
+---
+ doomgeneric/Makefile.banan_os        |  58 +++++++
+ doomgeneric/doomgeneric_banan_os.cpp | 224 +++++++++++++++++++++++++++
+ 2 files changed, 282 insertions(+)
+ create mode 100644 doomgeneric/Makefile.banan_os
+ create mode 100644 doomgeneric/doomgeneric_banan_os.cpp
+
+diff --git a/doomgeneric/Makefile.banan_os b/doomgeneric/Makefile.banan_os
+new file mode 100644
+index 0000000..453bed7
+--- /dev/null
++++ b/doomgeneric/Makefile.banan_os
+@@ -0,0 +1,58 @@
++################################################################
++#
++# $Id:$
++#
++# $Log:$
++#
++
++ifeq ($(V),1)
++	VB=''
++else
++	VB=@
++endif
++
++CC=$(BANAN_TOOLCHAIN_PREFIX)/bin/$(BANAN_ARCH)-banan_os-gcc
++CXX=$(BANAN_TOOLCHAIN_PREFIX)/bin/$(BANAN_ARCH)-banan_os-g++
++CFLAGS+=-O2 -g
++CFLAGS+=-Wall -DNORMALUNIX -DLINUX -DSNDSERV -D_DEFAULT_SOURCE
++CXXFLAGS+=$(CFLAGS) --std=c++20
++LDFLAGS+=
++LIBS+=
++
++# subdirectory for objects
++OBJDIR=build-$(BANAN_ARCH)
++OUTPUT=$(OBJDIR)/doomgeneric
++
++SRC_DOOM = dummy.o am_map.o doomdef.o doomstat.o dstrings.o d_event.o d_items.o d_iwad.o d_loop.o d_main.o d_mode.o d_net.o f_finale.o f_wipe.o g_game.o hu_lib.o hu_stuff.o info.o i_cdmus.o i_endoom.o i_joystick.o i_scale.o i_sound.o i_system.o i_timer.o memio.o m_argv.o m_bbox.o m_cheat.o m_config.o m_controls.o m_fixed.o m_menu.o m_misc.o m_random.o p_ceilng.o p_doors.o p_enemy.o p_floor.o p_inter.o p_lights.o p_map.o p_maputl.o p_mobj.o p_plats.o p_pspr.o p_saveg.o p_setup.o p_sight.o p_spec.o p_switch.o p_telept.o p_tick.o p_user.o r_bsp.o r_data.o r_draw.o r_main.o r_plane.o r_segs.o r_sky.o r_things.o sha1.o sounds.o statdump.o st_lib.o st_stuff.o s_sound.o tables.o v_video.o wi_stuff.o w_checksum.o w_file.o w_main.o w_wad.o z_zone.o w_file_stdc.o i_input.o i_video.o doomgeneric.o doomgeneric_banan_os.o
++OBJS += $(addprefix $(OBJDIR)/, $(SRC_DOOM))
++
++all:	 $(OUTPUT)
++
++clean:
++	rm -rf $(OBJDIR)
++	rm -f $(OUTPUT)
++	rm -f $(OUTPUT).gdb
++	rm -f $(OUTPUT).map
++
++$(OUTPUT):	$(OBJS)
++	@echo [Linking $@]
++	$(VB)$(CC) $(CFLAGS) $(LDFLAGS) $(OBJS) \
++	-o $(OUTPUT) $(LIBS) -Wl,-Map,$(OUTPUT).map
++	@echo [Size]
++	-$(CROSS_COMPILE)size $(OUTPUT)
++
++$(OBJS): | $(OBJDIR)
++
++$(OBJDIR):
++	mkdir -p $(OBJDIR)
++
++$(OBJDIR)/%.o:	%.c
++	@echo [Compiling $<]
++	$(VB)$(CC) $(CFLAGS) -c $< -o $@
++
++$(OBJDIR)/%.o:	%.cpp
++	@echo [Compiling $<]
++	$(VB)$(CXX) $(CXXFLAGS) -c $< -o $@
++
++print:
++	@echo OBJS: $(OBJS)
+diff --git a/doomgeneric/doomgeneric_banan_os.cpp b/doomgeneric/doomgeneric_banan_os.cpp
+new file mode 100644
+index 0000000..e32c861
+--- /dev/null
++++ b/doomgeneric/doomgeneric_banan_os.cpp
+@@ -0,0 +1,224 @@
++extern "C"
++{
++#include "doomgeneric.h"
++#include "doomkeys.h"
++}
++
++#include <assert.h>
++#include <ctype.h>
++#include <fcntl.h>
++#include <stdint.h>
++#include <string.h>
++#include <sys/banan-os.h>
++#include <sys/framebuffer.h>
++#include <sys/mman.h>
++#include <time.h>
++
++#include <BAN/Math.h>
++#include <kernel/Input/KeyEvent.h>
++
++extern "C"
++{
++
++static struct framebuffer_info_t s_fb_info;
++static uint32_t* s_framebuffer = NULL;
++
++static int s_input_fd;
++
++static constexpr size_t s_key_queue_size = 16;
++static unsigned short s_key_queue[s_key_queue_size];
++static size_t s_key_read_index = 0;
++static size_t s_key_write_index = 0;
++
++void handle_key_input()
++{
++	Kernel::Input::KeyEvent event;
++	if (read(s_input_fd, &event, sizeof(event)) <= 0)
++		return;
++
++	unsigned short doom_key = 0;
++
++	switch (event.keycode)
++	{
++		case 109:
++			doom_key = KEY_ENTER;
++			break;
++		case 0:
++			doom_key = KEY_ESCAPE;
++			break;
++		case 193:
++			doom_key = KEY_LEFTARROW;
++			break;
++		case 192:
++			doom_key = KEY_UPARROW;
++			break;
++		case 195:
++			doom_key = KEY_RIGHTARROW;
++			break;
++		case 194:
++			doom_key = KEY_DOWNARROW;
++			break;
++		case 160:
++		case 165:
++			doom_key = KEY_FIRE;
++			break;
++		case 163:
++			doom_key = KEY_USE;
++			break;
++		case 128:
++		case 140:
++			doom_key = KEY_RSHIFT;
++			break;
++
++		case 65: doom_key = tolower('Q'); break;
++		case 66: doom_key = tolower('W'); break;
++		case 67: doom_key = tolower('E'); break;
++		case 68: doom_key = tolower('R'); break;
++		case 69: doom_key = tolower('T'); break;
++		case 70: doom_key = tolower('Y'); break;
++		case 71: doom_key = tolower('U'); break;
++		case 72: doom_key = tolower('I'); break;
++		case 73: doom_key = tolower('O'); break;
++		case 74: doom_key = tolower('P'); break;
++
++		case 97:  doom_key = tolower('A'); break;
++		case 98:  doom_key = tolower('S'); break;
++		case 99:  doom_key = tolower('D'); break;
++		case 100: doom_key = tolower('F'); break;
++		case 101: doom_key = tolower('G'); break;
++		case 102: doom_key = tolower('H'); break;
++		case 103: doom_key = tolower('J'); break;
++		case 104: doom_key = tolower('K'); break;
++		case 105: doom_key = tolower('L'); break;
++
++		case 130: doom_key = tolower('Z'); break;
++		case 131: doom_key = tolower('X'); break;
++		case 132: doom_key = tolower('C'); break;
++		case 133: doom_key = tolower('V'); break;
++		case 134: doom_key = tolower('B'); break;
++		case 135: doom_key = tolower('N'); break;
++		case 136: doom_key = tolower('M'); break;
++	}
++
++	doom_key |= (int)event.pressed() << 8;
++
++	s_key_queue[s_key_write_index] = doom_key;
++	s_key_write_index = (s_key_write_index + 1) % s_key_queue_size;
++}
++
++void DG_Init()
++{
++	s_input_fd = open("/dev/input0", O_RDONLY | O_NONBLOCK);
++	if (s_input_fd == -1)
++	{
++		perror("open");
++		exit(1);
++	}
++
++	int fd = open("/dev/fb0", O_RDWR);
++	if (fd == -1)
++	{
++		perror("open");
++		exit(1);
++	}
++
++	if (pread(fd, &s_fb_info, sizeof(s_fb_info), -1) == -1)
++	{
++		perror("pread");
++		exit(1);
++	}
++
++	size_t bytes = s_fb_info.width * s_fb_info.height * (BANAN_FB_BPP / 8);
++
++	s_framebuffer = (uint32_t*)mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
++	if (s_framebuffer == NULL)
++	{
++		perror("mmap");
++		exit(1);
++	}
++
++	memset(s_framebuffer, 0, bytes);
++	msync(s_framebuffer, bytes, MS_SYNC);
++
++	if (tty_ctrl(STDIN_FILENO, TTY_CMD_UNSET, TTY_FLAG_ENABLE_INPUT) == -1)
++	{
++		perror("tty_ctrl");
++		exit(1);
++	}
++
++	atexit([]() { tty_ctrl(STDIN_FILENO, TTY_CMD_SET, TTY_FLAG_ENABLE_INPUT); });
++}
++
++void DG_DrawFrame()
++{
++	if (s_framebuffer == NULL)
++		return;
++
++	assert(BANAN_FB_BPP == 32);
++
++	for (size_t y = 0; y < BAN::Math::min<uint32_t>(s_fb_info.height, DOOMGENERIC_RESY); y++)
++	{
++		memcpy(
++			s_framebuffer	+ y * s_fb_info.width,
++			DG_ScreenBuffer	+ y * DOOMGENERIC_RESX,
++			BAN::Math::min<uint32_t>(s_fb_info.width, DOOMGENERIC_RESX) * sizeof(uint32_t)
++		);
++	}
++
++	int ret = msync(s_framebuffer, s_fb_info.width * s_fb_info.height * 4, MS_SYNC);
++	assert(ret != -1);
++
++	handle_key_input();
++}
++
++void DG_SleepMs(uint32_t ms)
++{
++	struct timespec ts;
++	ts.tv_sec  =  ms / 1000;
++	ts.tv_nsec = (ms % 1000) * 1000000;
++	nanosleep(&ts, NULL);
++}
++
++uint32_t DG_GetTicksMs()
++{
++	struct timespec ts;
++	clock_gettime(CLOCK_MONOTONIC, &ts);
++	return (ts.tv_sec * 1000) + (ts.tv_nsec / 1000000);
++}
++
++int DG_GetKey(int* pressed, unsigned char* doomKey)
++{
++	if (s_key_read_index == s_key_write_index)
++		return 0;
++
++	unsigned short key_data = s_key_queue[s_key_read_index];
++	s_key_read_index = (s_key_read_index + 1) % s_key_queue_size;
++
++	*pressed = key_data >> 8;
++	*doomKey = key_data & 0xFF;
++
++	return 1;
++}
++
++void DG_SetWindowTitle(const char* title)
++{
++	(void)title;
++}
++
++int main(int argc, char** argv)
++{
++	doomgeneric_Create(argc, argv);
++
++	for (;;)
++		doomgeneric_Tick();
++
++	return 0;
++}
++
++int rename(const char* oldp, const char* newp)
++{
++	fprintf(stderr, "rename(\"%s\", \"%s\")\n", oldp, newp);
++	exit(1);
++}
++
++}
+-- 
+2.44.0
+

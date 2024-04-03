@@ -49,6 +49,8 @@ build_toolchain () {
 create_image () {
 	build_target bootloader
 	build_target install-sysroot
+	$BANAN_ROOT_DIR/ports/build.sh
+	build_target package-sysroot
 	$BANAN_SCRIPT_DIR/image.sh "$1"
 }
 

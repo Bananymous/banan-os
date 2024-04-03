@@ -1,0 +1,34 @@
+From eafb5f1d01e3edd3035fc405de808b1a2e2151d2 Mon Sep 17 00:00:00 2001
+From: Bananymous <bananymousosq@gmail.com>
+Date: Wed, 3 Apr 2024 19:08:08 +0300
+Subject: [PATCH] Call exit() on I_Error() and I_Quit()
+
+---
+ doomgeneric/i_system.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/doomgeneric/i_system.c b/doomgeneric/i_system.c
+index 5d00091..b71aa23 100644
+--- a/doomgeneric/i_system.c
++++ b/doomgeneric/i_system.c
+@@ -257,6 +257,8 @@ void I_Quit (void)
+         entry = entry->next;
+     }
+ 
++    exit(0);
++
+ #if ORIGCODE
+     SDL_Quit();
+ 
+@@ -454,6 +456,8 @@ void I_Error (char *error, ...)
+     }
+ #endif
+ 
++    exit(1);
++
+     // abort();
+ #if ORIGCODE
+     SDL_Quit();
+-- 
+2.44.0
+

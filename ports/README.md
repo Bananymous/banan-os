@@ -1,0 +1,1 @@
+Here are all of the ports for banan-os. To build a port and run it in banan-os; add a line containing directory name from here into a file called *installed*. When you create banan-os image, all directories listed in *installed* are built.

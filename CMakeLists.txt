@@ -36,10 +36,14 @@ add_custom_target(headers
 )
 
 add_custom_target(install-sysroot
-	COMMAND cd ${BANAN_SYSROOT} && tar cf ${BANAN_SYSROOT_TAR} *
 	DEPENDS kernel-install
 	DEPENDS ban-install
 	DEPENDS libc-install
 	DEPENDS userspace-install
 	DEPENDS libelf-install
+)
+
+add_custom_target(package-sysroot
+	COMMAND cd ${BANAN_SYSROOT} && tar cf ${BANAN_SYSROOT_TAR} *
+	DEPENDS install-sysroot
 )
