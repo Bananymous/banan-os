@@ -332,6 +332,7 @@ done:
 	extern "C" void cpp_yield_handler(InterruptStack* interrupt_stack, InterruptRegisters* interrupt_registers)
 	{
 		ASSERT(!InterruptController::get().is_in_service(IRQ_YIELD));
+		ASSERT(!GDT::is_user_segment(interrupt_stack->cs));
 
 		Processor::enter_interrupt(interrupt_stack, interrupt_registers);
 		Scheduler::get().irq_reschedule();

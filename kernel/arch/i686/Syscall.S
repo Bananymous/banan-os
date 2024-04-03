@@ -1,3 +1,57 @@
+// arguments in EAX, EBX, ECX, EDX, ESI, EDI
+.global asm_syscall_handler
+asm_syscall_handler:
+	# save segment registers
+	pushw %ds
+	pushw %es
+	pushw %fs
+	pushw %gs
+
+	# save general purpose registers
+	pushl %ebx
+	pushl %ecx
+	pushl %edx
+	pushl %edi
+	pushl %esi
+	pushl %ebp
+
+	# align stack and push arguments
+	pushl %esp
+	addl $32, (%esp)
+	pushl %edi
+	pushl %esi
+	pushl %edx
+	pushl %ecx
+	pushl %ebx
+	pushl %eax
+
+	# load kernel segments
+	movw $0x10, %ax
+	movw %ax, %ds
+	movw %ax, %es
+	movw %ax, %fs
+	movw $0x28, %ax
+	movw %ax, %gs
+
+	call cpp_syscall_handler
+	addl $28, %esp
+
+	# restore general purpose registers
+	popl %ebp
+	popl %esi
+	popl %edi
+	popl %edx
+	popl %ecx
+	popl %ebx
+
+	# restore segment registers
+	popw %gs
+	popw %fs
+	popw %es
+	popw %ds
+
+	iret
+
 .global sys_fork_trampoline
 sys_fork_trampoline:
 	pushl %ebp

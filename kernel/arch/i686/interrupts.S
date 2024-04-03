@@ -24,22 +24,6 @@
 	popw %gs
 .endm
 
-.macro pop_userspace_skip_eax
-	popl %edi
-	popl %esi
-	popl %ebp
-	addl $4, %esp
-	popl %ebx
-	popl %edx
-	popl %ecx
-	addl $4, %esp
-
-	popw %ds
-	popw %es
-	popw %fs
-	popw %gs
-.endm
-
 isr_stub:
 	push_userspace
 	load_kernel_segments
@@ -81,46 +65,21 @@ irq_stub:
 	addl $8, %esp
 	iret
 
-.global asm_reschedule_handler
-asm_reschedule_handler:
-	push_userspace
-	load_kernel_segments
+.global asm_yield_handler
+asm_yield_handler:
+	# This can only be called from kernel, so no segment saving is needed
+	pushal
 
 	movl %esp,     %eax # interrupt registers ptr
-	leal 40(%esp), %ebx # interrupt stack ptr
+	leal 32(%esp), %ebx # interrupt stack ptr
 
-	subl $12, %esp
+	subl $4, %esp
 	pushl %eax
 	pushl %ebx
-	call cpp_reschedule_handler
-	addl $20, %esp
+	call cpp_yield_handler
+	addl $12, %esp
 
-	pop_userspace
-	iret
-
-// arguments in EAX, EBX, ECX, EDX, ESI, EDI
-.global syscall_asm
-syscall_asm:
-	push_userspace
-
-	subl $8, %esp
-
-	pushl %esp
-	addl $48, (%esp)
-
-	pushl %edi
-	pushl %esi
-	pushl %edx
-	pushl %ecx
-	pushl %ebx
-	pushl %eax
-
-	load_kernel_segments
-
-	call cpp_syscall_handler
-	addl $36, %esp
-
-	pop_userspace_skip_eax
+	popal
 	iret
 
 .macro isr n
@@ -211,3 +170,4 @@ irq 28
 irq 29
 irq 30
 irq 31
+irq 32
