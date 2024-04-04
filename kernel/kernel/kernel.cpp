@@ -1,4 +1,4 @@
-#include <kernel/ACPI.h>
+#include <kernel/ACPI/ACPI.h>
 #include <kernel/Arch.h>
 #include <kernel/BootInfo.h>
 #include <kernel/Debug.h>
@@ -116,7 +116,7 @@ extern "C" void kernel_main(uint32_t boot_magic, uint32_t boot_info)
 	parse_command_line();
 	dprintln("command line parsed, root='{}', console='{}'", cmdline.root, cmdline.console);
 
-	MUST(ACPI::initialize());
+	MUST(ACPI::ACPI::initialize());
 	dprintln("ACPI initialized");
 
 	InterruptController::initialize(cmdline.force_pic);

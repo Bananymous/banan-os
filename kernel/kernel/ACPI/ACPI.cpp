@@ -1,6 +1,6 @@
 #include <BAN/ScopeGuard.h>
 #include <BAN/StringView.h>
-#include <kernel/ACPI.h>
+#include <kernel/ACPI/ACPI.h>
 #include <kernel/BootInfo.h>
 #include <kernel/Memory/PageTable.h>
 
@@ -9,15 +9,15 @@
 #define RSPD_SIZE	20
 #define RSPDv2_SIZE	36
 
-namespace Kernel
+namespace Kernel::ACPI
 {
 
-	struct RSDT : public ACPI::SDTHeader
+	struct RSDT : public SDTHeader
 	{
 		uint32_t entries[];
 	} __attribute__((packed));
 
-	struct XSDT : public ACPI::SDTHeader
+	struct XSDT : public SDTHeader
 	{
 		uint64_t entries[];
 	} __attribute__((packed));
@@ -82,7 +82,7 @@ namespace Kernel
 		return nullptr;
 	}
 
-	static bool is_valid_std_header(const ACPI::SDTHeader* header)
+	static bool is_valid_std_header(const SDTHeader* header)
 	{
 		uint8_t sum = 0;
 		for (uint32_t i = 0; i < header->length; i++)
@@ -225,7 +225,7 @@ namespace Kernel
 		return {};
 	}
 
-	const ACPI::SDTHeader* ACPI::get_header(BAN::StringView signature, uint32_t index)
+	const SDTHeader* ACPI::get_header(BAN::StringView signature, uint32_t index)
 	{
 		if (signature.size() != 4)
 		{

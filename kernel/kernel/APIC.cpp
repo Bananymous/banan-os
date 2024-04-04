@@ -1,5 +1,5 @@
 #include <BAN/ScopeGuard.h>
-#include <kernel/ACPI.h>
+#include <kernel/ACPI/ACPI.h>
 #include <kernel/APIC.h>
 #include <kernel/CPUID.h>
 #include <kernel/Debug.h>
@@ -132,7 +132,7 @@ namespace Kernel
 			return nullptr;
 		}
 
-		const MADT* madt = (const MADT*)Kernel::ACPI::get().get_header("APIC"sv, 0);
+		const MADT* madt = (const MADT*)ACPI::ACPI::get().get_header("APIC"sv, 0);
 		if (madt == nullptr)
 		{
 			dprintln("Could not find MADT header");

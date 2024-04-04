@@ -1,4 +1,4 @@
-#include <kernel/ACPI.h>
+#include <kernel/ACPI/ACPI.h>
 #include <kernel/IO.h>
 #include <kernel/Memory/kmalloc.h>
 #include <kernel/Memory/PageTable.h>
@@ -51,7 +51,7 @@ void laihost_panic(const char* msg)
 
 void* laihost_scan(const char* sig, size_t index)
 {
-	return (void*)ACPI::get().get_header(sig, index);
+	return (void*)ACPI::ACPI::get().get_header(sig, index);
 }
 
 void* laihost_map(size_t address, size_t count)
