@@ -93,7 +93,7 @@ namespace Kernel
 		void on_exit();
 
 	private:
-		static constexpr size_t		m_kernel_stack_size		= PAGE_SIZE * 4;
+		static constexpr size_t		m_kernel_stack_size		= PAGE_SIZE * 64;
 		static constexpr size_t		m_userspace_stack_size	= PAGE_SIZE * 4;
 		BAN::UniqPtr<VirtualRange>	m_kernel_stack;
 		BAN::UniqPtr<VirtualRange>	m_userspace_stack;

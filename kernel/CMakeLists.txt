@@ -11,6 +11,11 @@ endif()
 set(KERNEL_SOURCES
 	font/prefs.psf.o
 	kernel/ACPI/ACPI.cpp
+	kernel/ACPI/AML.cpp
+	kernel/ACPI/AML/DataObject.cpp
+	kernel/ACPI/AML/MiscObject.cpp
+	kernel/ACPI/AML/NameObject.cpp
+	kernel/ACPI/AML/TermObject.cpp
 	kernel/APIC.cpp
 	kernel/BootInfo.cpp
 	kernel/CPUID.cpp

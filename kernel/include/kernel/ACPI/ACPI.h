@@ -1,7 +1,6 @@
 #pragma once
 
 #include <BAN/Vector.h>
-#include <kernel/ACPI/AML.h>
 #include <kernel/ACPI/Headers.h>
 #include <kernel/Memory/Types.h>
 

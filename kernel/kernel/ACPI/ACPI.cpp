@@ -1,6 +1,7 @@
 #include <BAN/ScopeGuard.h>
 #include <BAN/StringView.h>
 #include <kernel/ACPI/ACPI.h>
+#include <kernel/ACPI/AML.h>
 #include <kernel/BootInfo.h>
 #include <kernel/Memory/PageTable.h>
 
@@ -31,6 +32,11 @@ namespace Kernel::ACPI
 		if (s_instance == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
 		TRY(s_instance->initialize_impl());
+
+		auto dsdt = s_instance->get_header("DSDT", 0);
+		ASSERT(dsdt);
+		AMLParser::parse_table(*dsdt);
+
 #if ARCH(x86_64)
 		lai_create_namespace();
 #endif

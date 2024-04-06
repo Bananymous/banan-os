@@ -54,7 +54,7 @@ bananboot_end:
 
 .section .bss, "aw", @nobits
 	boot_stack_bottom:
-		.skip 4096 * 4
+		.skip 4096 * 64
 	boot_stack_top:
 
 	.global g_kernel_cmdline
