@@ -79,15 +79,9 @@ namespace Kernel::ACPI
 
 		AML_TRY_PARSE(buffer_size, AML::Integer, buffer_span);
 
-		if (buffer_span.size() < buffer_size->value)
-		{
-			AML_DEBUG_ERROR("Buffer size {} bytes and span only {} bytes", buffer_size->value, buffer_span.size());
-			return {};
-		}
-
 		BAN::Vector<uint8_t> data;
-		MUST(data.resize(buffer_size->value));
-		for (size_t i = 0; i < buffer_size->value; i++)
+		MUST(data.resize(BAN::Math::max(buffer_size->value, buffer_span.size())));
+		for (size_t i = 0; i < buffer_span.size(); i++)
 			data[i] = buffer_span[i];
 
 		return Buffer { .buffer_size = buffer_size.release_value(), .data = BAN::move(data) };
