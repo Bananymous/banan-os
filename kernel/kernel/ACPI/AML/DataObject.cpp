@@ -198,7 +198,7 @@ namespace Kernel::ACPI
 		AML_DEBUG_PRINT("Count: {}", count);													\
 																								\
 		BAN::Vector<PackageElement> elements;													\
-		for (uint8_t i = 0; i < count; i++)														\
+		for (uint8_t i = 0; package_span.size() > 0 && i < count; i++)							\
 		{																						\
 			if (DataRefObject::can_parse(package_span))											\
 			{																					\
@@ -220,6 +220,9 @@ namespace Kernel::ACPI
 				return {};																		\
 			}																					\
 		}																						\
+																								\
+		while (elements.size() < count)															\
+			MUST(elements.push_back(PackageElement { Uninitialized {} }));						\
 																								\
 		return NAME { .elements = BAN::move(elements) };										\
 	}

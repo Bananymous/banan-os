@@ -58,9 +58,10 @@ namespace Kernel::ACPI::AML
 	};
 
 	struct DataRefObject;
+	struct Uninitialized {};
 
 	// PackageElement := DataRefObject | NameString
-	using PackageElement = BAN::Variant<BAN::UniqPtr<DataRefObject>, NameString>;
+	using PackageElement = BAN::Variant<BAN::UniqPtr<DataRefObject>, NameString, Uninitialized>;
 
 	// DefPackage := PackageOp PkgLength NumElements PackageElementList
 	struct Package
