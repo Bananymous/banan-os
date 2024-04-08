@@ -1,6 +1,7 @@
 #pragma once
 
 #include <kernel/ACPI/Headers.h>
+#include <kernel/ACPI/AML/Namespace.h>
 
 namespace Kernel::ACPI
 {
@@ -10,7 +11,7 @@ namespace Kernel::ACPI
 	public:
 		~AMLParser();
 
-		static AMLParser parse_table(const SDTHeader& header);
+		static BAN::RefPtr<AML::Namespace> parse_table(const SDTHeader& header);
 
 	private:
 		AMLParser();

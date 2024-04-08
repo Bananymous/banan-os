@@ -12,10 +12,11 @@ set(KERNEL_SOURCES
 	font/prefs.psf.o
 	kernel/ACPI/ACPI.cpp
 	kernel/ACPI/AML.cpp
-	kernel/ACPI/AML/DataObject.cpp
-	kernel/ACPI/AML/MiscObject.cpp
-	kernel/ACPI/AML/NameObject.cpp
-	kernel/ACPI/AML/TermObject.cpp
+	kernel/ACPI/AML/Field.cpp
+	kernel/ACPI/AML/NamedObject.cpp
+	kernel/ACPI/AML/Namespace.cpp
+	kernel/ACPI/AML/Node.cpp
+	kernel/ACPI/AML/Scope.cpp
 	kernel/APIC.cpp
 	kernel/BootInfo.cpp
 	kernel/CPUID.cpp

@@ -35,7 +35,7 @@ namespace Kernel::ACPI
 
 		auto dsdt = s_instance->get_header("DSDT", 0);
 		ASSERT(dsdt);
-		AMLParser::parse_table(*dsdt);
+		s_instance->m_namespace = AMLParser::parse_table(*dsdt);
 
 #if ARCH(x86_64)
 		lai_create_namespace();

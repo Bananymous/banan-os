@@ -1,6 +1,7 @@
 #pragma once
 
 #include <BAN/Vector.h>
+#include <kernel/ACPI/AML/Namespace.h>
 #include <kernel/ACPI/Headers.h>
 #include <kernel/Memory/Types.h>
 
@@ -32,6 +33,8 @@ namespace Kernel::ACPI
 			SDTHeader* as_header() { return (SDTHeader*)vaddr; }
 		};
 		BAN::Vector<MappedPage> m_mapped_headers;
+
+		BAN::RefPtr<AML::Namespace> m_namespace;
 	};
 
 }
