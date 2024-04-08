@@ -46,6 +46,12 @@ namespace BAN
 	}
 
 	template<integral T>
+	constexpr T little_endian_to_host(T value)
+	{
+		return host_to_little_endian(value);
+	}
+
+	template<integral T>
 	constexpr T host_to_big_endian(T value)
 	{
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
@@ -53,6 +59,12 @@ namespace BAN
 #else
 		return swap_endianness(value);
 #endif
+	}
+
+	template<integral T>
+	constexpr T big_endian_to_host(T value)
+	{
+		return host_to_big_endian(value);
 	}
 
 	template<integral T>
