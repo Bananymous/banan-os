@@ -6,10 +6,7 @@
 namespace Kernel::ACPI
 {
 
-	AMLParser::AMLParser() = default;
-	AMLParser::~AMLParser() = default;
-
-	BAN::RefPtr<AML::Namespace> AMLParser::parse_table(const SDTHeader& header)
+	BAN::RefPtr<AML::Namespace> AML::initialize_namespace(const SDTHeader& header)
 	{
 		dprintln("Parsing {}, {} bytes of AML", header, header.length);
 

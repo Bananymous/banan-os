@@ -20,7 +20,7 @@ namespace Kernel::ACPI
 		if (!name_string.has_value())
 			return ParseResult::Failure;
 
-		auto named_object = context.root_namespace->find_object(context.scope, name_string.value());
+		auto named_object = Namespace::root_namespace()->find_object(context.scope, name_string.value());
 		if (!named_object)
 		{
 			AML_ERROR("Scope name {} not found in namespace", name_string.value());
@@ -38,17 +38,22 @@ namespace Kernel::ACPI
 
 	AML::ParseResult AML::Scope::enter_context_and_parse_term_list(ParseContext& outer_context, const AML::NameString& name_string, BAN::ConstByteSpan aml_data)
 	{
-		auto scope = outer_context.root_namespace->resolve_path(outer_context.scope, name_string);
-		if (!scope.has_value())
+		auto resolved_scope = Namespace::root_namespace()->resolve_path(outer_context.scope, name_string);
+		if (!resolved_scope.has_value())
 			return ParseResult::Failure;
 
 		ParseContext scope_context;
-		scope_context.root_namespace = outer_context.root_namespace;
-		scope_context.scope = scope.release_value();
+		scope_context.scope = resolved_scope.release_value();
 		scope_context.aml_data = aml_data;
+		scope_context.method_args = outer_context.method_args;
 		while (scope_context.aml_data.size() > 0)
 		{
 			auto object_result = AML::parse_object(scope_context);
+			if (object_result.returned())
+			{
+				AML_ERROR("Unexpected return from scope {}", scope_context.scope);
+				return ParseResult::Failure;
+			}
 			if (!object_result.success())
 				return ParseResult::Failure;
 		}

@@ -3,18 +3,9 @@
 #include <kernel/ACPI/Headers.h>
 #include <kernel/ACPI/AML/Namespace.h>
 
-namespace Kernel::ACPI
+namespace Kernel::ACPI::AML
 {
 
-	class AMLParser
-	{
-	public:
-		~AMLParser();
-
-		static BAN::RefPtr<AML::Namespace> parse_table(const SDTHeader& header);
-
-	private:
-		AMLParser();
-	};
+	BAN::RefPtr<AML::Namespace> initialize_namespace(const SDTHeader& header);
 
 }

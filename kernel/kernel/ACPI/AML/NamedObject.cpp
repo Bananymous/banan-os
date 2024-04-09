@@ -19,7 +19,7 @@ namespace Kernel::ACPI
 			return ParseResult::Failure;
 
 		auto name = MUST(BAN::RefPtr<Name>::create(name_string.value().path.back(), object.node()));
-		if (!context.root_namespace->add_named_object(context, name_string.value(), name))
+		if (!Namespace::root_namespace()->add_named_object(context, name_string.value(), name))
 			return ParseResult::Failure;
 
 #if AML_DEBUG_LEVEL >= 2

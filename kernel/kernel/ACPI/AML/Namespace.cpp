@@ -5,6 +5,14 @@
 namespace Kernel::ACPI
 {
 
+	static BAN::RefPtr<AML::Namespace> s_root_namespace;
+
+	BAN::RefPtr<AML::Namespace> AML::Namespace::root_namespace()
+	{
+		ASSERT(s_root_namespace);
+		return s_root_namespace;
+	}
+
 	BAN::Optional<AML::NameString> AML::Namespace::resolve_path(const AML::NameString& relative_base, const AML::NameString& relative_path)
 	{
 		// Base must be non-empty absolute path
@@ -143,6 +151,8 @@ namespace Kernel::ACPI
 			return false;
 		}
 
+		object->parent = parent_scope;
+
 		MUST(parent_scope->objects.insert(object->name, object));
 
 		auto canonical_scope = resolve_path(parse_context.scope, object_path);
@@ -159,66 +169,39 @@ namespace Kernel::ACPI
 
 	bool AML::Namespace::remove_named_object(const AML::NameString& absolute_path)
 	{
-		auto canonical_path = resolve_path({}, absolute_path);
-		if (!canonical_path.has_value())
+		auto object = find_object({}, absolute_path);
+		if (!object)
 		{
-			AML_ERROR("Failed to resolve path");
+			AML_ERROR("Object {} not found", absolute_path);
 			return false;
 		}
 
-		if (canonical_path->path.empty())
+		if (object.ptr() == this)
 		{
 			AML_ERROR("Trying to remove root object");
 			return false;
 		}
 
-		BAN::RefPtr<NamedObject> parent_object = this;
+		auto parent = object->parent;
+		ASSERT(parent->is_scope());
 
-		for (size_t i = 0; i < canonical_path->path.size() - 1; i++)
-		{
-			if (!parent_object->is_scope())
-			{
-				AML_ERROR("Parent object is not a scope");
-				return false;
-			}
-
-			auto* parent_scope = static_cast<Scope*>(parent_object.ptr());
-
-			auto it = parent_scope->objects.find(canonical_path->path[i]);
-			if (it == parent_scope->objects.end())
-			{
-				AML_ERROR("Object not found");
-				return false;
-			}
-
-			parent_object = it->value;
-			ASSERT(parent_object);
-		}
-
-		if (!parent_object->is_scope())
-		{
-			AML_ERROR("Parent object is not a scope");
-			return false;
-		}
-
-		auto* parent_scope = static_cast<Scope*>(parent_object.ptr());
-		parent_scope->objects.remove(canonical_path->path.back());
+		auto* parent_scope = static_cast<Scope*>(parent.ptr());
+		parent_scope->objects.remove(object->name);
 
 		return true;
 	}
 
 	BAN::RefPtr<AML::Namespace> AML::Namespace::parse(BAN::ConstByteSpan aml_data)
 	{
-		auto result = MUST(BAN::RefPtr<Namespace>::create(NameSeg("\\"sv)));
+		s_root_namespace = MUST(BAN::RefPtr<Namespace>::create(NameSeg("\\"sv)));
 
 		AML::ParseContext context;
 		context.scope = AML::NameString("\\"sv);
 		context.aml_data = aml_data;
-		context.root_namespace = result.ptr();
 
 		// Add predefined namespaces
 #define ADD_PREDEFIED_NAMESPACE(NAME) \
-			ASSERT(result->add_named_object(context, AML::NameString("\\" NAME), MUST(BAN::RefPtr<AML::Namespace>::create(NameSeg(NAME)))));
+			ASSERT(s_root_namespace->add_named_object(context, AML::NameString("\\" NAME), MUST(BAN::RefPtr<AML::Namespace>::create(NameSeg(NAME)))));
 		ADD_PREDEFIED_NAMESPACE("_GPE"sv);
 		ADD_PREDEFIED_NAMESPACE("_PR"sv);
 		ADD_PREDEFIED_NAMESPACE("_SB"sv);
@@ -236,7 +219,7 @@ namespace Kernel::ACPI
 			}
 		}
 
-		return result;
+		return s_root_namespace;
 	}
 
 }

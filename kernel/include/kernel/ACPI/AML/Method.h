@@ -11,6 +11,8 @@ namespace Kernel::ACPI::AML
 
 	struct Method : public AML::Scope
 	{
+		using Arguments = BAN::Array<BAN::RefPtr<AML::Register>, 7>;
+
 		uint8_t arg_count;
 		bool serialized;
 		uint8_t sync_level;
@@ -49,10 +51,10 @@ namespace Kernel::ACPI::AML
 				(method_flags >> 3) & 0x01,
 				method_flags >> 4
 			));
-			if (!context.root_namespace->add_named_object(context, name_string.value(), method))
+			if (!Namespace::root_namespace()->add_named_object(context, name_string.value(), method))
 				return ParseResult::Failure;
 
-			auto method_scope = context.root_namespace->resolve_path(context.scope, name_string.value());
+			auto method_scope = Namespace::root_namespace()->resolve_path(context.scope, name_string.value());
 			if (!method_scope.has_value())
 				return ParseResult::Failure;
 			method->term_list = method_pkg.value();
@@ -66,37 +68,32 @@ namespace Kernel::ACPI::AML
 			return ParseResult::Success;
 		}
 
-		BAN::Optional<BAN::RefPtr<AML::Node>> evaluate(BAN::RefPtr<AML::Namespace> root_namespace)
+		BAN::Optional<BAN::RefPtr<AML::Node>> evaluate(Arguments args)
 		{
 			ParseContext context;
-			context.root_namespace = root_namespace.ptr();
 			context.aml_data = term_list;
 			context.scope = scope;
-
-			AML_DEBUG_PRINTLN("Evaluating method {}", scope);
+			context.method_args = args;
+			for (auto& local : context.method_locals)
+				local = MUST(BAN::RefPtr<AML::Register>::create());
 
 			BAN::Optional<BAN::RefPtr<AML::Node>> return_value;
 
-			ASSERT(arg_count == 0);
 			while (context.aml_data.size() > 0)
 			{
-				if (static_cast<AML::Byte>(context.aml_data[0]) == AML::Byte::ReturnOp)
+				auto parse_result = AML::parse_object(context);
+				if (parse_result.returned())
 				{
-					context.aml_data = context.aml_data.slice(1);
-					auto result = AML::parse_object(context);
-					if (result.success())
-						return_value = result.node();
+					return_value = parse_result.node();
 					break;
 				}
-
-				auto object_result = AML::parse_object(context);
-				if (!object_result.success())
+				if (!parse_result.success())
 					break;
 			}
 
 			while (!context.created_objects.empty())
 			{
-				root_namespace->remove_named_object(context.created_objects.back());
+				Namespace::root_namespace()->remove_named_object(context.created_objects.back());
 				context.created_objects.pop_back();
 			}
 

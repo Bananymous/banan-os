@@ -7,6 +7,8 @@ namespace Kernel::ACPI::AML
 
 	struct Namespace : public AML::Scope
 	{
+		static BAN::RefPtr<AML::Namespace> root_namespace();
+
 		Namespace(NameSeg name) : AML::Scope(Node::Type::Namespace, name) {}
 
 		static BAN::RefPtr<Namespace> parse(BAN::ConstByteSpan aml);

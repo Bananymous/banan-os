@@ -23,12 +23,15 @@ namespace Kernel::ACPI::AML
 			GenericSerialBus = 9,
 			PCC = 10,
 		};
-		RegionSpace space;
-		uint64_t offset;
-		uint64_t length;
+		RegionSpace region_space;
+		uint64_t region_offset;
+		uint64_t region_length;
 
-		OpRegion(NameSeg name, RegionSpace space, uint64_t offset, uint64_t length)
-			: NamedObject(Node::Type::OpRegion, name), space(space), offset(offset), length(length)
+		OpRegion(NameSeg name, RegionSpace region_space, uint64_t region_offset, uint64_t region_length)
+			: NamedObject(Node::Type::OpRegion, name)
+			, region_space(region_space)
+			, region_offset(region_offset)
+			, region_length(region_length)
 		{}
 
 		static ParseResult parse(AML::ParseContext& context)
@@ -74,7 +77,7 @@ namespace Kernel::ACPI::AML
 				length.value()
 			));
 
-			if (!context.root_namespace->add_named_object(context, name.value(), op_region))
+			if (!Namespace::root_namespace()->add_named_object(context, name.value(), op_region))
 				return ParseResult::Failure;
 
 #if AML_DEBUG_LEVEL >= 2
@@ -88,7 +91,7 @@ namespace Kernel::ACPI::AML
 		virtual void debug_print(int indent) const override
 		{
 			BAN::StringView region_space_name;
-			switch (space)
+			switch (region_space)
 			{
 				case RegionSpace::SystemMemory:			region_space_name = "SystemMemory"sv; break;
 				case RegionSpace::SystemIO:				region_space_name = "SystemIO"sv; break;
@@ -106,7 +109,7 @@ namespace Kernel::ACPI::AML
 			AML_DEBUG_PRINT_INDENT(indent);
 			AML_DEBUG_PRINT("OperationRegion(");
 			name.debug_print();
-			AML_DEBUG_PRINT(", {}, 0x{H}, 0x{H})", region_space_name, offset, length);
+			AML_DEBUG_PRINT(", {}, 0x{H}, 0x{H})", region_space_name, region_offset, region_length);
 		}
 
 	};

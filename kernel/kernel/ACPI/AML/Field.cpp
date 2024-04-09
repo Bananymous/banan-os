@@ -1,4 +1,5 @@
 #include <kernel/ACPI/AML/Field.h>
+#include <kernel/ACPI/AML/Integer.h>
 
 namespace Kernel::ACPI
 {
@@ -93,7 +94,7 @@ namespace Kernel::ACPI
 		if (!name_string.has_value())
 			return ParseResult::Failure;
 
-		auto op_region = context.root_namespace->find_object(context.scope, name_string.value());
+		auto op_region = Namespace::root_namespace()->find_object(context.scope, name_string.value());
 		if (!op_region || op_region->type != AML::Node::Type::OpRegion)
 		{
 			AML_ERROR("FieldOp: {} does not name a valid OpRegion", name_string.value());
@@ -121,7 +122,7 @@ namespace Kernel::ACPI
 
 			NameString element_name;
 			MUST(element_name.path.push_back(element->name));
-			if (!context.root_namespace->add_named_object(context, element_name, element))
+			if (!Namespace::root_namespace()->add_named_object(context, element_name, element))
 				return ParseResult::Failure;
 
 #if AML_DEBUG_LEVEL >= 2
@@ -131,6 +132,72 @@ namespace Kernel::ACPI
 		}
 
 		return ParseResult::Success;
+	}
+
+	BAN::RefPtr<AML::Node> AML::FieldElement::evaluate()
+	{
+		// Field LockRule only applies to modifying the field, not reading it
+
+		uint32_t access_size = 0;
+		switch (access_rules.access_type)
+		{
+			case FieldRules::AccessType::Any:
+			case FieldRules::AccessType::Byte:
+				access_size = 1;
+				break;
+			case FieldRules::AccessType::Word:
+				access_size = 2;
+				break;
+			case FieldRules::AccessType::DWord:
+				access_size = 4;
+				break;
+			case FieldRules::AccessType::QWord:
+				access_size = 8;
+				break;
+			case FieldRules::AccessType::Buffer:
+				AML_TODO("FieldElement evaluate with access type Buffer");
+				return {};
+		}
+
+		switch (op_region->region_space)
+		{
+			case OpRegion::RegionSpace::SystemMemory:
+			{
+				uint64_t byte_offset = op_region->region_offset + (bit_offset / 8);
+				if (auto rem = byte_offset % access_size)
+					byte_offset -= rem;
+
+				if ((bit_offset % access_size) + bit_count > access_size * 8)
+				{
+					AML_ERROR("FieldElement evaluate over multiple access sizes");
+					return {};
+				}
+
+				if (byte_offset + access_size > op_region->region_offset + op_region->region_length)
+				{
+					AML_ERROR("FieldElement evaluate out of bounds");
+					return {};
+				}
+
+				uint64_t result = 0;
+				PageTable::with_fast_page(byte_offset & PAGE_ADDR_MASK, [&] {
+					switch (access_size)
+					{
+						case 1: result = PageTable::fast_page_as_sized<uint8_t> ((byte_offset % PAGE_SIZE) / access_size); break;
+						case 2: result = PageTable::fast_page_as_sized<uint16_t>((byte_offset % PAGE_SIZE) / access_size); break;
+						case 4: result = PageTable::fast_page_as_sized<uint32_t>((byte_offset % PAGE_SIZE) / access_size); break;
+						case 8: result = PageTable::fast_page_as_sized<uint64_t>((byte_offset % PAGE_SIZE) / access_size); break;
+					}
+				});
+
+				result >>= bit_offset % access_size;
+				result &= ((uint64_t)1 << bit_count) - 1;
+				return MUST(BAN::RefPtr<Integer>::create(result));
+			}
+			default:
+				AML_TODO("FieldElement evaluate with region space {}", static_cast<uint8_t>(op_region->region_space));
+				return {};
+		}
 	}
 
 	void AML::FieldElement::debug_print(int indent) const
@@ -158,7 +225,7 @@ namespace Kernel::ACPI
 		auto index_field_element_name = NameString::parse(field_pkg);
 		if (!index_field_element_name.has_value())
 			return ParseResult::Failure;
-		auto index_field_element = context.root_namespace->find_object(context.scope, index_field_element_name.value());
+		auto index_field_element = Namespace::root_namespace()->find_object(context.scope, index_field_element_name.value());
 		if (!index_field_element || index_field_element->type != AML::Node::Type::FieldElement)
 		{
 			AML_ERROR("IndexField IndexName does not name a valid FieldElement");
@@ -168,7 +235,7 @@ namespace Kernel::ACPI
 		auto data_field_element_name = NameString::parse(field_pkg);
 		if (!data_field_element_name.has_value())
 			return ParseResult::Failure;
-		auto data_field_element = context.root_namespace->find_object(context.scope, data_field_element_name.value());
+		auto data_field_element = Namespace::root_namespace()->find_object(context.scope, data_field_element_name.value());
 		if (!data_field_element || data_field_element->type != AML::Node::Type::FieldElement)
 		{
 			AML_ERROR("IndexField DataName does not name a valid FieldElement");
@@ -197,7 +264,7 @@ namespace Kernel::ACPI
 
 			NameString element_name;
 			MUST(element_name.path.push_back(element->name));
-			if (!context.root_namespace->add_named_object(context, element_name, element))
+			if (!Namespace::root_namespace()->add_named_object(context, element_name, element))
 				return ParseResult::Failure;
 
 #if AML_DEBUG_LEVEL >= 2

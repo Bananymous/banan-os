@@ -30,22 +30,27 @@ namespace Kernel::ACPI::AML
 				return ParseResult::Failure;
 
 			auto device = MUST(BAN::RefPtr<Device>::create(name_string->path.back()));
-			if (!context.root_namespace->add_named_object(context, name_string.value(), device))
+			if (!Namespace::root_namespace()->add_named_object(context, name_string.value(), device))
 				return ParseResult::Failure;
 
 			return device->enter_context_and_parse_term_list(context, name_string.value(), device_pkg.value());
 		}
 
-		void initialize(BAN::RefPtr<AML::Namespace> root_namespace)
+		void initialize()
 		{
 			bool run_ini = true;
 			bool init_children = true;
 
-			auto _sta = root_namespace->find_object(scope, NameString("_STA"sv));
+			auto _sta = Namespace::root_namespace()->find_object(scope, NameString("_STA"sv));
 			if (_sta && _sta->type == Node::Type::Method)
 			{
 				auto* method = static_cast<Method*>(_sta.ptr());
-				auto result = method->evaluate(root_namespace);
+				if (method->arg_count != 0)
+				{
+					AML_ERROR("Method {}._STA has {} arguments, expected 0", scope, method->arg_count);
+					return;
+				}
+				auto result = method->evaluate({});
 				if (!result.has_value())
 				{
 					AML_ERROR("Failed to evaluate {}._STA", scope);
@@ -60,6 +65,8 @@ namespace Kernel::ACPI::AML
 				if (!result_val.has_value())
 				{
 					AML_ERROR("Failed to evaluate {}._STA, return value could not be resolved to integer", scope);
+					AML_ERROR("  Return value: ");
+					result.value()->debug_print(0);
 					return;
 				}
 				run_ini = (result_val.value() & 0x01);
@@ -68,11 +75,16 @@ namespace Kernel::ACPI::AML
 
 			if (run_ini)
 			{
-				auto _ini = root_namespace->find_object(scope, NameString("_INI"sv));
+				auto _ini = Namespace::root_namespace()->find_object(scope, NameString("_INI"sv));
 				if (_ini && _ini->type == Node::Type::Method)
 				{
 					auto* method = static_cast<Method*>(_ini.ptr());
-					method->evaluate(root_namespace);
+					if (method->arg_count != 0)
+					{
+						AML_ERROR("Method {}._INI has {} arguments, expected 0", scope, method->arg_count);
+						return;
+					}
+					method->evaluate({});
 				}
 			}
 
@@ -83,7 +95,7 @@ namespace Kernel::ACPI::AML
 					if (child->type == Node::Type::Device)
 					{
 						auto* device = static_cast<Device*>(child.ptr());
-						device->initialize(root_namespace);
+						device->initialize();
 					}
 				}
 			}

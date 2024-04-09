@@ -1,7 +1,9 @@
 #include <kernel/ACPI/AML/Buffer.h>
 #include <kernel/ACPI/AML/Bytes.h>
 #include <kernel/ACPI/AML/Device.h>
+#include <kernel/ACPI/AML/Expression.h>
 #include <kernel/ACPI/AML/Field.h>
+#include <kernel/ACPI/AML/IfElse.h>
 #include <kernel/ACPI/AML/Integer.h>
 #include <kernel/ACPI/AML/Method.h>
 #include <kernel/ACPI/AML/Mutex.h>
@@ -11,6 +13,7 @@
 #include <kernel/ACPI/AML/ParseContext.h>
 #include <kernel/ACPI/AML/Processor.h>
 #include <kernel/ACPI/AML/Region.h>
+#include <kernel/ACPI/AML/Store.h>
 #include <kernel/ACPI/AML/String.h>
 #include <kernel/ACPI/AML/Utils.h>
 
@@ -19,6 +22,18 @@ namespace Kernel::ACPI
 
 	AML::ParseResult AML::ParseResult::Failure = AML::ParseResult(AML::ParseResult::Result::Failure);
 	AML::ParseResult AML::ParseResult::Success = AML::ParseResult(AML::ParseResult::Result::Success);
+
+	BAN::Optional<uint64_t> AML::Node::as_integer()
+	{
+		if (type == Type::Integer)
+			return static_cast<const Integer*>(this)->value;
+		auto evaluated = evaluate();
+		if (!evaluated)
+			return {};
+		if (evaluated->type == Type::Integer)
+			return static_cast<const Integer*>(this)->value;
+		return {};
+	}
 
 	AML::ParseResult AML::parse_object(AML::ParseContext& context)
 	{
@@ -64,6 +79,53 @@ namespace Kernel::ACPI
 				return AML::Integer::parse(context.aml_data);
 			case AML::Byte::StringPrefix:
 				return AML::String::parse(context);
+			case AML::Byte::Arg0:
+			case AML::Byte::Arg1:
+			case AML::Byte::Arg2:
+			case AML::Byte::Arg3:
+			case AML::Byte::Arg4:
+			case AML::Byte::Arg5:
+			case AML::Byte::Arg6:
+			{
+				uint8_t index = context.aml_data[0] - static_cast<uint8_t>(AML::Byte::Arg0);
+				context.aml_data = context.aml_data.slice(1);
+				return ParseResult(context.method_args[index]);
+			}
+			case AML::Byte::Local0:
+			case AML::Byte::Local1:
+			case AML::Byte::Local2:
+			case AML::Byte::Local3:
+			case AML::Byte::Local4:
+			case AML::Byte::Local5:
+			case AML::Byte::Local6:
+			case AML::Byte::Local7:
+			{
+				uint8_t index = context.aml_data[0] - static_cast<uint8_t>(AML::Byte::Local0);
+				context.aml_data = context.aml_data.slice(1);
+				return ParseResult(context.method_locals[index]);
+			}
+			case AML::Byte::AddOp:
+			case AML::Byte::AndOp:
+			case AML::Byte::DecrementOp:
+			case AML::Byte::DivideOp:
+			case AML::Byte::IncrementOp:
+			case AML::Byte::LAndOp:
+			case AML::Byte::LEqualOp:
+			case AML::Byte::LGreaterOp:
+			case AML::Byte::LLessOp:
+			case AML::Byte::LNotOp:
+			case AML::Byte::LOrOp:
+			case AML::Byte::ModOp:
+			case AML::Byte::MultiplyOp:
+			case AML::Byte::NandOp:
+			case AML::Byte::NorOp:
+			case AML::Byte::NotOp:
+			case AML::Byte::OrOp:
+			case AML::Byte::ShiftLeftOp:
+			case AML::Byte::ShiftRightOp:
+			case AML::Byte::SubtractOp:
+			case AML::Byte::XorOp:
+				return AML::Expression::parse(context);
 			case AML::Byte::NameOp:
 				return AML::Name::parse(context);
 			case AML::Byte::PackageOp:
@@ -74,6 +136,19 @@ namespace Kernel::ACPI
 				return AML::Buffer::parse(context);
 			case AML::Byte::ScopeOp:
 				return AML::Scope::parse(context);
+			case AML::Byte::IfOp:
+				return AML::IfElse::parse(context);
+			case AML::Byte::StoreOp:
+				return AML::Store::parse(context);
+			case AML::Byte::ReturnOp:
+			{
+				context.aml_data = context.aml_data.slice(1);
+				auto result = AML::parse_object(context);
+				if (result.success())
+					return ParseResult(ParseResult::Result::Returned, result.node());
+				AML_ERROR("Failed to parse return value for method {}", context.scope);
+				return ParseResult::Failure;
+			}
 			default:
 				break;
 		}
@@ -86,11 +161,35 @@ namespace Kernel::ACPI
 			auto name_string = AML::NameString::parse(context.aml_data);
 			if (!name_string.has_value())
 				return ParseResult::Failure;
-			auto aml_object = context.root_namespace->find_object(context.scope, name_string.value());
+			auto aml_object = Namespace::root_namespace()->find_object(context.scope, name_string.value());
 			if (!aml_object)
 			{
 				AML_ERROR("NameString {} not found in namespace", name_string.value());
 				return ParseResult::Failure;
+			}
+			if (aml_object->type == AML::Node::Type::Method)
+			{
+				auto* method = static_cast<AML::Method*>(aml_object.ptr());
+
+				Method::Arguments args;
+				for (uint8_t i = 0; i < method->arg_count; i++)
+				{
+					auto arg = AML::parse_object(context);
+					if (!arg.success())
+					{
+						AML_ERROR("Failed to parse argument {} for method {}", i, name_string.value());
+						return ParseResult::Failure;
+					}
+					args[i] = MUST(BAN::RefPtr<AML::Register>::create(arg.node()));
+				}
+
+				auto result = method->evaluate(args);
+				if (!result.has_value())
+				{
+					AML_ERROR("Failed to evaluate {}", name_string.value());
+					return ParseResult::Failure;
+				}
+				return ParseResult(result.value());
 			}
 			return ParseResult(aml_object);
 		}

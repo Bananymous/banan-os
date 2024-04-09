@@ -8,6 +8,7 @@ namespace Kernel::ACPI::AML
 
 	struct NamedObject : public Node
 	{
+		BAN::RefPtr<NamedObject> parent;
 		NameSeg name;
 
 		NamedObject(Node::Type type, NameSeg name) : Node(type), name(name) {}

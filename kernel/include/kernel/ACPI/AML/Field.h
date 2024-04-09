@@ -44,7 +44,7 @@ namespace Kernel::ACPI::AML
 
 		FieldRules access_rules;
 
-		OpRegion* op_region = nullptr;
+		BAN::RefPtr<OpRegion> op_region = nullptr;
 
 		FieldElement(NameSeg name, uint64_t bit_offset, uint32_t bit_count, FieldRules access_rules)
 			: NamedObject(Node::Type::FieldElement, name)
@@ -52,6 +52,8 @@ namespace Kernel::ACPI::AML
 			, bit_count(bit_count)
 			, access_rules(access_rules)
 		{}
+
+		BAN::RefPtr<Node> evaluate() override;
 
 		void debug_print(int indent) const override;
 	};
@@ -68,8 +70,8 @@ namespace Kernel::ACPI::AML
 
 		FieldRules access_rules;
 
-		FieldElement* index_element = nullptr;
-		FieldElement* data_element = nullptr;
+		BAN::RefPtr<FieldElement> index_element = nullptr;
+		BAN::RefPtr<FieldElement> data_element = nullptr;
 
 		IndexFieldElement(NameSeg name, uint64_t bit_offset, uint32_t bit_count, FieldRules access_rules)
 			: NamedObject(Node::Type::IndexFieldElement, name)

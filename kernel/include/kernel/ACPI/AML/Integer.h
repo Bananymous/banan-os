@@ -18,9 +18,9 @@ namespace Kernel::ACPI::AML
 
 		Integer(uint64_t value) : Node(Node::Type::Integer), value(value) {}
 
-		BAN::Optional<uint64_t> as_integer() const override
+		BAN::RefPtr<AML::Node> evaluate() override
 		{
-			return value;
+			return MUST(BAN::RefPtr<Integer>::create(value));
 		}
 
 		static ParseResult parse(BAN::ConstByteSpan& aml_data)
