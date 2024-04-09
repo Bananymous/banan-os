@@ -16,7 +16,7 @@ namespace Kernel::ACPI::AML
 		uint8_t pblk_len;
 
 		Processor(NameSeg name, uint8_t id, uint32_t pblk_addr, uint8_t pblk_len)
-			: Scope(name, Node::Type::Processor)
+			: Scope(Node::Type::Processor, name)
 			, id(id)
 			, pblk_addr(pblk_addr)
 			, pblk_len(pblk_len)
@@ -53,7 +53,7 @@ namespace Kernel::ACPI::AML
 			processor_pkg = processor_pkg->slice(1);
 
 			auto processor = MUST(BAN::RefPtr<Processor>::create(name->path.back(), id, pblk_addr, pblk_len));
-			if (!context.root_namespace->add_named_object(context.scope.span(), name.value(), processor))
+			if (!context.root_namespace->add_named_object(context, name.value(), processor))
 				return ParseResult::Failure;
 
 			return processor->enter_context_and_parse_term_list(context, name.value(), processor_pkg.value());

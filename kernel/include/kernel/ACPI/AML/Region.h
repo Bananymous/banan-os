@@ -74,7 +74,7 @@ namespace Kernel::ACPI::AML
 				length.value()
 			));
 
-			if (!context.root_namespace->add_named_object(context.scope.span(), name.value(), op_region))
+			if (!context.root_namespace->add_named_object(context, name.value(), op_region))
 				return ParseResult::Failure;
 
 #if AML_DEBUG_LEVEL >= 2

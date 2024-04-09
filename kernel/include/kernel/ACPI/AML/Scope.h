@@ -10,8 +10,11 @@ namespace Kernel::ACPI::AML
 	struct Scope : public AML::NamedObject
 	{
 		BAN::HashMap<NameSeg, BAN::RefPtr<NamedObject>> objects;
+		AML::NameString scope;
 
-		Scope(NameSeg name, Node::Type type = Node::Type::Scope) : NamedObject(type, name) {}
+		Scope(Node::Type type, NameSeg name)
+			: NamedObject(type, name)
+		{}
 
 		virtual bool is_scope() const override { return true; }
 

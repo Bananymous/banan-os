@@ -20,10 +20,10 @@ namespace Kernel::ACPI::AML
 			Method,
 			Mutex,
 			Name,
+			Namespace,
 			OpRegion,
 			Package,
 			Processor,
-			Scope,
 			String,
 		};
 		const Type type;

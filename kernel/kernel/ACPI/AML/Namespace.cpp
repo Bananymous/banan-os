@@ -5,69 +5,117 @@
 namespace Kernel::ACPI
 {
 
-	BAN::Optional<BAN::Vector<AML::NameSeg>> AML::Namespace::resolve_path(BAN::Span<const AML::NameSeg> parsing_scope, const AML::NameString& relative_path)
+	BAN::Optional<AML::NameString> AML::Namespace::resolve_path(const AML::NameString& relative_base, const AML::NameString& relative_path)
 	{
-		BAN::Vector<NameSeg> canonical_path;
+		// Base must be non-empty absolute path
+		ASSERT(relative_base.prefix == "\\"sv || relative_base.path.empty());
 
-		if (!relative_path.prefix.empty())
+		// Do absolute path lookup
+		if (!relative_path.prefix.empty() || relative_path.path.size() != 1)
 		{
-			if (relative_path.prefix[0] == '\\')
+			AML::NameString absolute_path;
+			MUST(absolute_path.prefix.push_back('\\'));
+
+			// Resolve root and parent references
+			if (relative_path.prefix == "\\"sv)
 				;
 			else
 			{
-				if (parsing_scope.size() < relative_path.prefix.size())
+				if (relative_path.prefix.size() > relative_base.path.size())
 				{
 					AML_ERROR("Trying to resolve parent of root object");
 					return {};
 				}
-				for (size_t i = 0; i < parsing_scope.size() - relative_path.prefix.size(); i++)
-					MUST(canonical_path.push_back(parsing_scope[i]));
+				for (size_t i = 0; i < relative_base.path.size() - relative_path.prefix.size(); i++)
+					MUST(absolute_path.path.push_back(relative_base.path[i]));
+			}
+
+			// Append relative path
+			for (const auto& seg : relative_path.path)
+				MUST(absolute_path.path.push_back(seg));
+
+			// Validate path
+			BAN::RefPtr<AML::NamedObject> current_node = this;
+			for (const auto& seg : absolute_path.path)
+			{
+				if (!current_node->is_scope())
+					return {};
+
+				auto* current_scope = static_cast<AML::Scope*>(current_node.ptr());
+				auto it = current_scope->objects.find(seg);
+				if (it == current_scope->objects.end())
+					return {};
+
+				current_node = it->value;
+			}
+			return absolute_path;
+		}
+
+
+		// Resolve with namespace search rules (ACPI Spec 6.4 - Section 5.3)
+
+		AML::NameString last_match_path;
+		AML::NameSeg target_seg = relative_path.path.back();
+
+		BAN::RefPtr<AML::Scope> current_scope = this;
+		AML::NameString current_path;
+
+		// Check root namespace
+		{
+			// If scope contains object with the same name as the segment, update last match
+			if (current_scope->objects.contains(target_seg))
+			{
+				last_match_path = current_path;
+				MUST(last_match_path.path.push_back(target_seg));
 			}
 		}
-		else
+
+		// Check base base path
+		for (const auto& seg : relative_base.path)
 		{
-			for (auto seg : parsing_scope)
-				MUST(canonical_path.push_back(seg));
+			auto next_node = current_scope->objects[seg];
+			ASSERT(next_node && next_node->is_scope());
+
+			current_scope = static_cast<AML::Scope*>(next_node.ptr());
+			MUST(current_path.path.push_back(seg));
+
+			// If scope contains object with the same name as the segment, update last match
+			if (current_scope->objects.contains(target_seg))
+			{
+				last_match_path = current_path;
+				MUST(last_match_path.path.push_back(target_seg));
+			}
 		}
 
-		for (const auto& seg : relative_path.path)
-			MUST(canonical_path.push_back(seg));
+		if (!last_match_path.path.empty())
+		{
+			MUST(last_match_path.prefix.push_back('\\'));
+			return last_match_path;
+		}
 
-		return canonical_path;
+		return {};
 	}
 
-	BAN::RefPtr<AML::NamedObject> AML::Namespace::find_object(BAN::Span<const AML::NameSeg> parsing_scope, const AML::NameString& relative_path)
+	BAN::RefPtr<AML::NamedObject> AML::Namespace::find_object(const AML::NameString& relative_base, const AML::NameString& relative_path)
 	{
-		auto canonical_path = resolve_path(parsing_scope, relative_path);
+		auto canonical_path = resolve_path(relative_base, relative_path);
 		if (!canonical_path.has_value())
 			return nullptr;
-		if (canonical_path->empty())
+		if (canonical_path->path.empty())
 			return this;
 
-		BAN::RefPtr<NamedObject> parent_object = this;
-
-		for (const auto& seg : canonical_path.value())
+		BAN::RefPtr<NamedObject> node = this;
+		for (const auto& seg : canonical_path->path)
 		{
-			if (!parent_object->is_scope())
-			{
-				AML_ERROR("Parent object is not a scope");
-				return nullptr;
-			}
-
-			auto* parent_scope = static_cast<Scope*>(parent_object.ptr());
-
-			auto it = parent_scope->objects.find(seg);
-			if (it == parent_scope->objects.end())
-				return nullptr;
-
-			parent_object = it->value;
-			ASSERT(parent_object);
+			// Resolve path validates that all nodes are scopes
+			ASSERT(node->is_scope());
+			node = static_cast<Scope*>(node.ptr())->objects[seg];
 		}
 
-		return parent_object;
+		return node;
 	}
 
-	bool AML::Namespace::add_named_object(BAN::Span<const NameSeg> parsing_scope, const AML::NameString& object_path, BAN::RefPtr<NamedObject> object)
+	bool AML::Namespace::add_named_object(ParseContext& parse_context, const AML::NameString& object_path, BAN::RefPtr<NamedObject> object)
 	{
 		ASSERT(!object_path.path.empty());
 		ASSERT(object_path.path.back() == object->name);
@@ -75,7 +123,7 @@ namespace Kernel::ACPI
 		auto parent_path = object_path;
 		parent_path.path.pop_back();
 
-		auto parent_object = find_object(parsing_scope, parent_path);
+		auto parent_object = find_object(parse_context.scope, parent_path);
 		if (!parent_object)
 		{
 			AML_ERROR("Parent object not found");
@@ -96,16 +144,87 @@ namespace Kernel::ACPI
 		}
 
 		MUST(parent_scope->objects.insert(object->name, object));
+
+		auto canonical_scope = resolve_path(parse_context.scope, object_path);
+		ASSERT(canonical_scope.has_value());
+		if (object->is_scope())
+		{
+			auto* scope = static_cast<Scope*>(object.ptr());
+			scope->scope = canonical_scope.value();
+		}
+		MUST(parse_context.created_objects.push_back(BAN::move(canonical_scope.release_value())));
+
+		return true;
+	}
+
+	bool AML::Namespace::remove_named_object(const AML::NameString& absolute_path)
+	{
+		auto canonical_path = resolve_path({}, absolute_path);
+		if (!canonical_path.has_value())
+		{
+			AML_ERROR("Failed to resolve path");
+			return false;
+		}
+
+		if (canonical_path->path.empty())
+		{
+			AML_ERROR("Trying to remove root object");
+			return false;
+		}
+
+		BAN::RefPtr<NamedObject> parent_object = this;
+
+		for (size_t i = 0; i < canonical_path->path.size() - 1; i++)
+		{
+			if (!parent_object->is_scope())
+			{
+				AML_ERROR("Parent object is not a scope");
+				return false;
+			}
+
+			auto* parent_scope = static_cast<Scope*>(parent_object.ptr());
+
+			auto it = parent_scope->objects.find(canonical_path->path[i]);
+			if (it == parent_scope->objects.end())
+			{
+				AML_ERROR("Object not found");
+				return false;
+			}
+
+			parent_object = it->value;
+			ASSERT(parent_object);
+		}
+
+		if (!parent_object->is_scope())
+		{
+			AML_ERROR("Parent object is not a scope");
+			return false;
+		}
+
+		auto* parent_scope = static_cast<Scope*>(parent_object.ptr());
+		parent_scope->objects.remove(canonical_path->path.back());
+
 		return true;
 	}
 
 	BAN::RefPtr<AML::Namespace> AML::Namespace::parse(BAN::ConstByteSpan aml_data)
 	{
-		auto result = MUST(BAN::RefPtr<Namespace>::create());
+		auto result = MUST(BAN::RefPtr<Namespace>::create(NameSeg("\\"sv)));
 
 		AML::ParseContext context;
+		context.scope = AML::NameString("\\"sv);
 		context.aml_data = aml_data;
 		context.root_namespace = result.ptr();
+
+		// Add predefined namespaces
+#define ADD_PREDEFIED_NAMESPACE(NAME) \
+			ASSERT(result->add_named_object(context, AML::NameString("\\" NAME), MUST(BAN::RefPtr<AML::Namespace>::create(NameSeg(NAME)))));
+		ADD_PREDEFIED_NAMESPACE("_GPE"sv);
+		ADD_PREDEFIED_NAMESPACE("_PR"sv);
+		ADD_PREDEFIED_NAMESPACE("_SB"sv);
+		ADD_PREDEFIED_NAMESPACE("_SI"sv);
+		ADD_PREDEFIED_NAMESPACE("_TZ"sv);
+#undef ADD_PREDEFIED_NAMESPACE
 
 		while (context.aml_data.size() > 0)
 		{

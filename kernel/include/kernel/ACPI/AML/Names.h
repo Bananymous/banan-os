@@ -70,6 +70,42 @@ namespace Kernel::ACPI::AML
 		BAN::String prefix;
 		BAN::Vector<NameSeg> path;
 
+		NameString() = default;
+		NameString(BAN::StringView str)
+		{
+			if (!str.empty() && str.front() == '\\')
+			{
+				MUST(prefix.push_back('\\'));
+				str = str.substring(1);
+			}
+			else
+			{
+				while (str.size() > 0 && str.front() == '^')
+				{
+					MUST(prefix.push_back('^'));
+					str = str.substring(1);
+				}
+			}
+
+			while (!str.empty())
+			{
+				ASSERT(str[0] != '.');
+				size_t len = 1;
+				while (len < str.size() && str[len] != '.')
+					len++;
+				ASSERT(len <= 4);
+
+				MUST(path.push_back(NameSeg(str.substring(0, len))));
+				str = str.substring(len);
+
+				if (!str.empty())
+				{
+					ASSERT(str[0] == '.');
+					str = str.substring(1);
+				}
+			}
+		}
+
 		static BAN::Optional<NameString> parse(BAN::ConstByteSpan& aml_data)
 		{
 			if (aml_data.size() == 0)
@@ -153,5 +189,28 @@ namespace BAN
 			return hash<uint32_t>()(name.u32);
 		}
 	};
+
+	template<typename F>
+	void Formatter::print_argument(F putc, const Kernel::ACPI::AML::NameSeg& name_seg, const ValueFormat&)
+	{
+		size_t len = 4;
+		while (len > 0 && name_seg.chars[len - 1] == '_')
+			len--;
+		for (size_t i = 0; i < len; i++)
+			putc(name_seg.chars[i]);
+	}
+
+	template<typename F>
+	void Formatter::print_argument(F putc, const Kernel::ACPI::AML::NameString& name_string, const ValueFormat&)
+	{
+		print_argument(putc, name_string.prefix, {});
+		if (!name_string.path.empty())
+			print_argument(putc, name_string.path.front(), {});
+		for (size_t i = 1; i < name_string.path.size(); i++)
+		{
+			putc('.');
+			print_argument(putc, name_string.path[i], {});
+		}
+	}
 
 }

@@ -93,10 +93,10 @@ namespace Kernel::ACPI
 		if (!name_string.has_value())
 			return ParseResult::Failure;
 
-		auto op_region = context.root_namespace->find_object(context.scope.span(), name_string.value());
+		auto op_region = context.root_namespace->find_object(context.scope, name_string.value());
 		if (!op_region || op_region->type != AML::Node::Type::OpRegion)
 		{
-			AML_ERROR("Field RegionName does not name a valid OpRegion");
+			AML_ERROR("FieldOp: {} does not name a valid OpRegion", name_string.value());
 			return ParseResult::Failure;
 		}
 
@@ -121,7 +121,7 @@ namespace Kernel::ACPI
 
 			NameString element_name;
 			MUST(element_name.path.push_back(element->name));
-			if (!context.root_namespace->add_named_object(context.scope.span(), element_name, element))
+			if (!context.root_namespace->add_named_object(context, element_name, element))
 				return ParseResult::Failure;
 
 #if AML_DEBUG_LEVEL >= 2
@@ -158,7 +158,7 @@ namespace Kernel::ACPI
 		auto index_field_element_name = NameString::parse(field_pkg);
 		if (!index_field_element_name.has_value())
 			return ParseResult::Failure;
-		auto index_field_element = context.root_namespace->find_object(context.scope.span(), index_field_element_name.value());
+		auto index_field_element = context.root_namespace->find_object(context.scope, index_field_element_name.value());
 		if (!index_field_element || index_field_element->type != AML::Node::Type::FieldElement)
 		{
 			AML_ERROR("IndexField IndexName does not name a valid FieldElement");
@@ -168,7 +168,7 @@ namespace Kernel::ACPI
 		auto data_field_element_name = NameString::parse(field_pkg);
 		if (!data_field_element_name.has_value())
 			return ParseResult::Failure;
-		auto data_field_element = context.root_namespace->find_object(context.scope.span(), data_field_element_name.value());
+		auto data_field_element = context.root_namespace->find_object(context.scope, data_field_element_name.value());
 		if (!data_field_element || data_field_element->type != AML::Node::Type::FieldElement)
 		{
 			AML_ERROR("IndexField DataName does not name a valid FieldElement");
@@ -197,7 +197,7 @@ namespace Kernel::ACPI
 
 			NameString element_name;
 			MUST(element_name.path.push_back(element->name));
-			if (!context.root_namespace->add_named_object(context.scope.span(), element_name, element))
+			if (!context.root_namespace->add_named_object(context, element_name, element))
 				return ParseResult::Failure;
 
 #if AML_DEBUG_LEVEL >= 2

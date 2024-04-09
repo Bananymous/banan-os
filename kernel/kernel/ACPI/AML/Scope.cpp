@@ -20,33 +20,30 @@ namespace Kernel::ACPI
 		if (!name_string.has_value())
 			return ParseResult::Failure;
 
-		BAN::RefPtr<Scope> scope;
-		if (auto named_object = context.root_namespace->find_object(context.scope.span(), name_string.value()))
+		auto named_object = context.root_namespace->find_object(context.scope, name_string.value());
+		if (!named_object)
 		{
-			if (!named_object->is_scope())
-			{
-				AML_ERROR("Scope name already exists and is not a scope");
-				return ParseResult::Failure;
-			}
-			scope = static_cast<Scope*>(named_object.ptr());
+			AML_ERROR("Scope name {} not found in namespace", name_string.value());
+			return ParseResult::Failure;
 		}
-		else
+		if (!named_object->is_scope())
 		{
-			scope = MUST(BAN::RefPtr<Scope>::create(name_string->path.back()));
-			if (!context.root_namespace->add_named_object(context.scope.span(), name_string.value(), scope))
-				return ParseResult::Failure;
+			AML_ERROR("Scope name {} does not name a namespace", name_string.value());
+			return ParseResult::Failure;
 		}
 
+		auto* scope = static_cast<Scope*>(named_object.ptr());
 		return scope->enter_context_and_parse_term_list(context, name_string.value(), scope_pkg.value());
 	}
 
 	AML::ParseResult AML::Scope::enter_context_and_parse_term_list(ParseContext& outer_context, const AML::NameString& name_string, BAN::ConstByteSpan aml_data)
 	{
-		auto scope = outer_context.root_namespace->resolve_path(outer_context.scope.span(), name_string);
+		auto scope = outer_context.root_namespace->resolve_path(outer_context.scope, name_string);
 		if (!scope.has_value())
 			return ParseResult::Failure;
 
-		ParseContext scope_context = outer_context;
+		ParseContext scope_context;
+		scope_context.root_namespace = outer_context.root_namespace;
 		scope_context.scope = scope.release_value();
 		scope_context.aml_data = aml_data;
 		while (scope_context.aml_data.size() > 0)
@@ -55,6 +52,9 @@ namespace Kernel::ACPI
 			if (!object_result.success())
 				return ParseResult::Failure;
 		}
+
+		for (auto& name : scope_context.created_objects)
+			MUST(outer_context.created_objects.push_back(BAN::move(name)));
 
 		return ParseResult::Success;
 	}
