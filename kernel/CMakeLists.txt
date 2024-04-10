@@ -119,13 +119,6 @@ if("${BANAN_ARCH}" STREQUAL "x86_64")
 		arch/x86_64/Syscall.S
 		arch/x86_64/Thread.S
 	)
-	file(GLOB_RECURSE LAI_SOURCES
-		lai/*.c
-	)
-	set(LAI_SOURCES
-		${LAI_SOURCES}
-		kernel/lai_host.cpp
-	)
 elseif("${BANAN_ARCH}" STREQUAL "i686")
 	set(KERNEL_SOURCES
 		${KERNEL_SOURCES}
@@ -197,7 +190,6 @@ set_source_files_properties(${LAI_SOURCES} PROPERTIES COMPILE_FLAGS -Wno-stack-u
 
 add_custom_target(kernel-headers
 	COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different ${CMAKE_CURRENT_SOURCE_DIR}/include/ ${BANAN_INCLUDE}/
-	COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different ${CMAKE_CURRENT_SOURCE_DIR}/lai/include/ ${BANAN_INCLUDE}/
 	DEPENDS sysroot
 )
 

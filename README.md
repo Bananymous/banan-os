@@ -14,9 +14,9 @@ This is my hobby operating system written in C++. Currently supports x86\_64 and
 - [x] Linear framebuffer (VESA and GOP)
 - [x] Network stack
 - [x] ELF executable loading
+- [x] AML interpreter (partial)
 - [ ] ELF dynamic linking
 - [ ] Graphical desktop
-- [ ] AML interpreter (currenly using [lai](https://github.com/managarm/lai))
 
 #### Drivers
 - [x] NVMe disks

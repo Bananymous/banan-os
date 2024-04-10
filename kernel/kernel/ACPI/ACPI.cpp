@@ -10,8 +10,6 @@
 #include <kernel/IO.h>
 #include <kernel/Memory/PageTable.h>
 
-#include <lai/core.h>
-
 #define RSPD_SIZE	20
 #define RSPDv2_SIZE	36
 
@@ -42,9 +40,6 @@ namespace Kernel::ACPI
 		ASSERT(dsdt);
 		s_instance->m_namespace = AML::initialize_namespace(*dsdt);
 
-#if ARCH(x86_64)
-		lai_create_namespace();
-#endif
 		return {};
 	}
 
@@ -106,9 +101,6 @@ namespace Kernel::ACPI
 		const RSDP* rsdp = locate_rsdp();
 		if (rsdp == nullptr)
 			return BAN::Error::from_error_code(ErrorCode::ACPI_NoRootSDT);
-#if ARCH(x86_64)
-		lai_set_acpi_revision(rsdp->revision);
-#endif
 
 		uint32_t root_entry_count = 0;
 

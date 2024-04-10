@@ -30,8 +30,6 @@ namespace Kernel
 
 		bool is_using_apic() const { return m_using_apic; }
 
-		void enter_acpi_mode();
-
 	private:
 		bool m_using_apic { false };
 	};

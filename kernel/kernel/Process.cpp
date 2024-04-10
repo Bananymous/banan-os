@@ -1,5 +1,6 @@
 #include <BAN/ScopeGuard.h>
 #include <BAN/StringView.h>
+#include <kernel/ACPI/ACPI.h>
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/FS/ProcFS/FileSystem.h>
 #include <kernel/FS/VirtualFileSystem.h>
@@ -16,8 +17,6 @@
 #include <kernel/Timer/Timer.h>
 
 #include <LibELF/LoadableELF.h>
-
-#include <lai/helpers/pm.h>
 
 #include <fcntl.h>
 #include <stdio.h>
@@ -1191,11 +1190,7 @@ namespace Kernel
 
 	[[noreturn]] static void reset_system()
 	{
-#if ARCH(x86_64)
-		lai_acpi_reset();
-#endif
-
-		// acpi reset did not work
+		// TODO: ACPI reset
 
 		dwarnln("Could not reset with ACPI, crashing the cpu");
 
@@ -1215,13 +1210,7 @@ namespace Kernel
 		if (command == POWEROFF_REBOOT)
 			reset_system();
 
-#if ARCH(x86_64)
-		auto error = lai_enter_sleep(5);
-		// If we reach here, there was an error
-		dprintln("{}", lai_api_error_to_string(error));
-#else
-		dprintln("poweroff available only on x86_64");
-#endif
+		ACPI::ACPI::get().poweroff();
 
 		return BAN::Error::from_errno(EUNKNOWN);
 	}
