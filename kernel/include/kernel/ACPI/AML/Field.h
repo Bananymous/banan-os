@@ -54,8 +54,21 @@ namespace Kernel::ACPI::AML
 		{}
 
 		BAN::RefPtr<Node> evaluate() override;
+		bool store(BAN::RefPtr<Node> source) override;
 
 		void debug_print(int indent) const override;
+
+	private:
+		struct AccessType
+		{
+			uint64_t offset;
+			uint64_t mask;
+			uint32_t access_size;
+			uint32_t shift;
+		};
+		BAN::Optional<AccessType> determine_access_type() const;
+		BAN::Optional<uint64_t> read_field(uint64_t offset, uint32_t access_size) const;
+		bool write_field(uint64_t offset, uint32_t access_size, uint64_t value) const;
 	};
 
 	struct Field

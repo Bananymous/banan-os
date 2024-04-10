@@ -16,6 +16,12 @@ namespace Kernel::ACPI
 
 		const SDTHeader* get_header(BAN::StringView signature, uint32_t index);
 
+		// mode
+		//   0: PIC
+		//   1: APIC
+		//   2: SAPIC
+		BAN::ErrorOr<void> enter_acpi_mode(uint8_t mode);
+
 	private:
 		ACPI() = default;
 		BAN::ErrorOr<void> initialize_impl();

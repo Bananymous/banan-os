@@ -2,6 +2,9 @@
 #include <BAN/StringView.h>
 #include <kernel/ACPI/ACPI.h>
 #include <kernel/ACPI/AML.h>
+#include <kernel/ACPI/AML/Device.h>
+#include <kernel/ACPI/AML/Integer.h>
+#include <kernel/ACPI/AML/Method.h>
 #include <kernel/BootInfo.h>
 #include <kernel/Memory/PageTable.h>
 
@@ -247,6 +250,63 @@ namespace Kernel::ACPI
 					return header;
 		}
 		return nullptr;
+	}
+
+	BAN::ErrorOr<void> ACPI::enter_acpi_mode(uint8_t mode)
+	{
+		if (!m_namespace)
+		{
+			dwarnln("ACPI namespace not initialized");
+			return BAN::Error::from_errno(EFAULT);
+		}
+
+		// Evaluate \\_SB._INI
+		auto _sb_ini = m_namespace->find_object({}, AML::NameString("\\_SB._INI"));
+		if (_sb_ini && _sb_ini->type == AML::Node::Type::Method)
+		{
+			auto* method = static_cast<AML::Method*>(_sb_ini.ptr());
+			if (method->arg_count != 0)
+			{
+				dwarnln("Method \\_SB._INI has {} arguments, expected 0", method->arg_count);
+				return BAN::Error::from_errno(EINVAL);
+			}
+			method->evaluate({});
+		}
+
+		// Initialize devices
+		auto _sb = m_namespace->find_object({}, AML::NameString("\\_SB"));
+		if (_sb && _sb->is_scope())
+		{
+			auto* scope = static_cast<AML::Scope*>(_sb.ptr());
+			for (auto& [name, object] : scope->objects)
+			{
+				if (object->type == AML::Node::Type::Device)
+				{
+					auto* device = static_cast<AML::Device*>(object.ptr());
+					device->initialize();
+				}
+			}
+		}
+
+		// Evaluate \\_PIC (mode)
+		auto _pic = m_namespace->find_object({}, AML::NameString("\\_PIC"));
+		if (_pic && _pic->type == AML::Node::Type::Method)
+		{
+			auto* method = static_cast<AML::Method*>(_pic.ptr());
+			if (method->arg_count != 1)
+			{
+				dwarnln("Method \\_PIC has {} arguments, expected 1", method->arg_count);
+				return BAN::Error::from_errno(EINVAL);
+			}
+
+			AML::Method::Arguments args;
+			args[0] = MUST(BAN::RefPtr<AML::Register>::create(MUST(BAN::RefPtr<AML::Integer>::create(mode))));
+			method->evaluate(args);
+		}
+
+		dprintln("Entered ACPI mode");
+
+		return {};
 	}
 
 }

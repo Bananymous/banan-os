@@ -183,7 +183,7 @@ namespace Kernel::ACPI
 					args[i] = MUST(BAN::RefPtr<AML::Register>::create(arg.node()));
 				}
 
-				auto result = method->evaluate(args);
+				auto result = method->evaluate(args, context.sync_level);
 				if (!result.has_value())
 				{
 					AML_ERROR("Failed to evaluate {}", name_string.value());

@@ -154,6 +154,9 @@ extern "C" void kernel_main(uint32_t boot_magic, uint32_t boot_info)
 		dprintln("Virtual TTY initialized");
 	}
 
+	if (ACPI::ACPI::get().enter_acpi_mode(InterruptController::get().is_using_apic()).is_error())
+		dprintln("Failed to enter ACPI mode");
+
 	Random::initialize();
 	dprintln("RNG initialized");
 
@@ -173,8 +176,6 @@ static void init2(void*)
 	using namespace Kernel::Input;
 
 	dprintln("Scheduler started");
-
-	InterruptController::get().enter_acpi_mode();
 
 	auto console = MUST(DevFileSystem::get().root_inode()->find_inode(cmdline.console));
 	ASSERT(console->is_tty());

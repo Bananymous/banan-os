@@ -13,6 +13,7 @@ namespace Kernel::ACPI::AML
 	{
 		using Arguments = BAN::Array<BAN::RefPtr<AML::Register>, 7>;
 
+		Mutex mutex;
 		uint8_t arg_count;
 		bool serialized;
 		uint8_t sync_level;
@@ -68,17 +69,23 @@ namespace Kernel::ACPI::AML
 			return ParseResult::Success;
 		}
 
-		BAN::Optional<BAN::RefPtr<AML::Node>> evaluate(Arguments args)
+		BAN::Optional<BAN::RefPtr<AML::Node>> evaluate(Arguments args, uint8_t old_sync_level = 0)
 		{
 			ParseContext context;
 			context.aml_data = term_list;
 			context.scope = scope;
 			context.method_args = args;
+			context.sync_level = old_sync_level;
 			for (auto& local : context.method_locals)
 				local = MUST(BAN::RefPtr<AML::Register>::create());
 
-			BAN::Optional<BAN::RefPtr<AML::Node>> return_value;
+			if (serialized)
+			{
+				mutex.lock();
+				context.sync_level = BAN::Math::max(sync_level, old_sync_level);
+			}
 
+			BAN::Optional<BAN::RefPtr<AML::Node>> return_value;
 			while (context.aml_data.size() > 0)
 			{
 				auto parse_result = AML::parse_object(context);
@@ -88,7 +95,10 @@ namespace Kernel::ACPI::AML
 					break;
 				}
 				if (!parse_result.success())
+				{
+					AML_ERROR("Method {} evaluate failed", scope);
 					break;
+				}
 			}
 
 			while (!context.created_objects.empty())
@@ -96,6 +106,9 @@ namespace Kernel::ACPI::AML
 				Namespace::root_namespace()->remove_named_object(context.created_objects.back());
 				context.created_objects.pop_back();
 			}
+
+			if (serialized)
+				mutex.unlock();
 
 			return return_value;
 		}

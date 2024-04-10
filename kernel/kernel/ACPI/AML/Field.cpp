@@ -1,5 +1,8 @@
+#include <BAN/ScopeGuard.h>
 #include <kernel/ACPI/AML/Field.h>
 #include <kernel/ACPI/AML/Integer.h>
+#include <kernel/IO.h>
+#include <kernel/PCI.h>
 
 namespace Kernel::ACPI
 {
@@ -134,10 +137,9 @@ namespace Kernel::ACPI
 		return ParseResult::Success;
 	}
 
-	BAN::RefPtr<AML::Node> AML::FieldElement::evaluate()
-	{
-		// Field LockRule only applies to modifying the field, not reading it
 
+	BAN::Optional<AML::FieldElement::AccessType> AML::FieldElement::determine_access_type() const
+	{
 		uint32_t access_size = 0;
 		switch (access_rules.access_type)
 		{
@@ -155,49 +157,211 @@ namespace Kernel::ACPI
 				access_size = 8;
 				break;
 			case FieldRules::AccessType::Buffer:
-				AML_TODO("FieldElement evaluate with access type Buffer");
+				AML_TODO("FieldElement with access type Buffer");
 				return {};
 		}
 
+		uint64_t byte_offset = op_region->region_offset + (bit_offset / 8);
+		if (auto rem = byte_offset % access_size)
+			byte_offset -= rem;
+
+		if ((bit_offset % access_size) + bit_count > access_size * 8)
+		{
+			AML_ERROR("FieldElement over multiple access sizes");
+			return {};
+		}
+
+		if (byte_offset + access_size > op_region->region_offset + op_region->region_length)
+		{
+			AML_ERROR("FieldElement out of bounds");
+			return {};
+		}
+
+		uint32_t shift = bit_offset % access_size;
+		uint64_t mask = ((uint64_t)1 << bit_count) - 1;
+
+		return AccessType {
+			.offset = byte_offset,
+			.mask = mask,
+			.access_size = access_size,
+			.shift = shift
+		};
+	}
+
+	BAN::Optional<uint64_t> AML::FieldElement::read_field(uint64_t access_offset, uint32_t access_size) const
+	{
 		switch (op_region->region_space)
 		{
 			case OpRegion::RegionSpace::SystemMemory:
 			{
-				uint64_t byte_offset = op_region->region_offset + (bit_offset / 8);
-				if (auto rem = byte_offset % access_size)
-					byte_offset -= rem;
-
-				if ((bit_offset % access_size) + bit_count > access_size * 8)
-				{
-					AML_ERROR("FieldElement evaluate over multiple access sizes");
-					return {};
-				}
-
-				if (byte_offset + access_size > op_region->region_offset + op_region->region_length)
-				{
-					AML_ERROR("FieldElement evaluate out of bounds");
-					return {};
-				}
-
 				uint64_t result = 0;
-				PageTable::with_fast_page(byte_offset & PAGE_ADDR_MASK, [&] {
+				PageTable::with_fast_page(access_offset & PAGE_ADDR_MASK, [&] {
 					switch (access_size)
 					{
-						case 1: result = PageTable::fast_page_as_sized<uint8_t> ((byte_offset % PAGE_SIZE) / access_size); break;
-						case 2: result = PageTable::fast_page_as_sized<uint16_t>((byte_offset % PAGE_SIZE) / access_size); break;
-						case 4: result = PageTable::fast_page_as_sized<uint32_t>((byte_offset % PAGE_SIZE) / access_size); break;
-						case 8: result = PageTable::fast_page_as_sized<uint64_t>((byte_offset % PAGE_SIZE) / access_size); break;
+						case 1: result = PageTable::fast_page_as_sized<uint8_t> ((access_offset % PAGE_SIZE) / access_size); break;
+						case 2: result = PageTable::fast_page_as_sized<uint16_t>((access_offset % PAGE_SIZE) / access_size); break;
+						case 4: result = PageTable::fast_page_as_sized<uint32_t>((access_offset % PAGE_SIZE) / access_size); break;
+						case 8: result = PageTable::fast_page_as_sized<uint64_t>((access_offset % PAGE_SIZE) / access_size); break;
 					}
 				});
+				return result;
+			}
+			case OpRegion::RegionSpace::SystemIO:
+			{
+				uint64_t result = 0;
+				switch (access_size)
+				{
+					case 1: result = IO::inb(access_offset); break;
+					case 2: result = IO::inw(access_offset); break;
+					case 4: result = IO::inl(access_offset); break;
+					default:
+						AML_ERROR("FieldElement read_field (SystemIO) with access size {}", access_size);
+						return {};
+				}
+				return result;
+			}
+			case OpRegion::RegionSpace::PCIConfig:
+			{
+				// https://uefi.org/htmlspecs/ACPI_Spec_6_4_html/05_ACPI_Software_Programming_Model/ACPI_Software_Programming_Model.html#address-space-format
+				// PCI configuration space is confined to segment 0, bus 0
 
-				result >>= bit_offset % access_size;
-				result &= ((uint64_t)1 << bit_count) - 1;
-				return MUST(BAN::RefPtr<Integer>::create(result));
+				uint16_t device		= (access_offset >> 32) & 0xFFFF;
+				uint16_t function	= (access_offset >> 16) & 0xFFFF;
+				uint16_t offset		= access_offset & 0xFFFF;
+
+				uint64_t result = 0;
+				switch (access_size)
+				{
+					case 1: result = PCI::PCIManager::read_config_byte(0, device, function, offset); break;
+					case 2: result = PCI::PCIManager::read_config_word(0, device, function, offset); break;
+					case 4: result = PCI::PCIManager::read_config_dword(0, device, function, offset); break;
+					default:
+						AML_ERROR("FieldElement read_field (PCIConfig) with access size {}", access_size);
+						return {};
+				}
+				return result;
 			}
 			default:
-				AML_TODO("FieldElement evaluate with region space {}", static_cast<uint8_t>(op_region->region_space));
+				AML_TODO("FieldElement read_field with region space {}", static_cast<uint8_t>(op_region->region_space));
 				return {};
 		}
+	}
+
+	bool AML::FieldElement::write_field(uint64_t access_offset, uint32_t access_size, uint64_t value) const
+	{
+		switch (op_region->region_space)
+		{
+			case OpRegion::RegionSpace::SystemMemory:
+			{
+				PageTable::with_fast_page(access_offset & PAGE_ADDR_MASK, [&] {
+					switch (access_size)
+					{
+						case 1: PageTable::fast_page_as_sized<uint8_t> ((access_offset % PAGE_SIZE) / access_size) = value; break;
+						case 2: PageTable::fast_page_as_sized<uint16_t>((access_offset % PAGE_SIZE) / access_size) = value; break;
+						case 4: PageTable::fast_page_as_sized<uint32_t>((access_offset % PAGE_SIZE) / access_size) = value; break;
+						case 8: PageTable::fast_page_as_sized<uint64_t>((access_offset % PAGE_SIZE) / access_size) = value; break;
+					}
+				});
+				return true;
+			}
+			case OpRegion::RegionSpace::SystemIO:
+			{
+				switch (access_size)
+				{
+					case 1: IO::outb(access_offset, value); break;
+					case 2: IO::outw(access_offset, value); break;
+					case 4: IO::outl(access_offset, value); break;
+					default:
+						AML_ERROR("FieldElement write_field (SystemIO) with access size {}", access_size);
+						return false;
+				}
+				return true;
+			}
+			case OpRegion::RegionSpace::PCIConfig:
+			{
+				// https://uefi.org/htmlspecs/ACPI_Spec_6_4_html/05_ACPI_Software_Programming_Model/ACPI_Software_Programming_Model.html#address-space-format
+				// PCI configuration space is confined to segment 0, bus 0
+
+				uint16_t device		= (access_offset >> 32) & 0xFFFF;
+				uint16_t function	= (access_offset >> 16) & 0xFFFF;
+				uint16_t offset		= access_offset & 0xFFFF;
+
+				switch (access_size)
+				{
+					case 1: PCI::PCIManager::write_config_byte(0, device, function, offset, value); break;
+					case 2: PCI::PCIManager::write_config_word(0, device, function, offset, value); break;
+					case 4: PCI::PCIManager::write_config_dword(0, device, function, offset, value); break;
+					default:
+						AML_ERROR("FieldElement write_field (PCIConfig) with access size {}", access_size);
+						return false;
+				}
+				return true;
+			}
+			default:
+				AML_TODO("FieldElement write_field with region space {}", static_cast<uint8_t>(op_region->region_space));
+				return false;
+		}
+	}
+
+	BAN::RefPtr<AML::Node> AML::FieldElement::evaluate()
+	{
+		// Field LockRule only applies to modifying the field, not reading it
+
+		auto access_type = determine_access_type();
+		if (!access_type.has_value())
+			return {};
+
+		auto result = read_field(access_type->offset, access_type->access_size);
+		if (!result.has_value())
+			return {};
+
+		return MUST(BAN::RefPtr<Integer>::create((result.value() >> access_type->shift) & access_type->mask));
+	}
+
+	bool AML::FieldElement::store(BAN::RefPtr<AML::Node> source)
+	{
+		auto source_integer = source->as_integer();
+		if (!source_integer.has_value())
+		{
+			AML_TODO("FieldElement store with non-integer source, type {}", static_cast<uint8_t>(source->type));
+			return false;
+		}
+
+		auto access_type = determine_access_type();
+		if (!access_type.has_value())
+			return false;
+
+		if (access_rules.lock_rule == FieldRules::LockRule::Lock)
+			Namespace::root_namespace()->global_lock.lock();
+		BAN::ScopeGuard unlock_guard([&] {
+			if (access_rules.lock_rule == FieldRules::LockRule::Lock)
+				Namespace::root_namespace()->global_lock.unlock();
+		});
+
+		uint64_t to_write = 0;
+		switch (access_rules.update_rule)
+		{
+			case FieldRules::UpdateRule::Preserve:
+			{
+				auto read_result = read_field(access_type->offset, access_type->access_size);
+				if (!read_result.has_value())
+					return false;
+				to_write = read_result.value();
+				to_write &= ~(access_type->mask << access_type->shift);
+				to_write |= (source_integer.value() & access_type->mask) << access_type->shift;
+				break;
+			}
+			case FieldRules::UpdateRule::WriteAsOnes:
+				to_write = ~(access_type->mask << access_type->shift);
+				to_write |= (source_integer.value() & access_type->mask) << access_type->shift;
+				break;
+			case FieldRules::UpdateRule::WriteAsZeros:
+				to_write = 0;
+				to_write |= (source_integer.value() & access_type->mask) << access_type->shift;
+				break;
+		}
+
+		return write_field(access_type->offset, access_type->access_size, to_write);
 	}
 
 	void AML::FieldElement::debug_print(int indent) const
