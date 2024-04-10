@@ -9,12 +9,34 @@
 #include <kernel/BootInfo.h>
 #include <kernel/IO.h>
 #include <kernel/Memory/PageTable.h>
+#include <kernel/Timer/Timer.h>
 
 #define RSPD_SIZE	20
 #define RSPDv2_SIZE	36
 
 namespace Kernel::ACPI
 {
+
+	enum PM1Event : uint16_t
+	{
+		PM1_EVN_TMR_EN = 1 << 0,
+		PM1_EVN_GBL_EN = 1 << 5,
+		PM1_EVN_PWRBTN_EN = 1 << 8,
+		PM1_EVN_SLPBTN_EN = 1 << 8,
+		PM1_EVN_RTC_EN = 1 << 10,
+		PM1_EVN_PCIEXP_WAKE_DIS = 1 << 14,
+	};
+
+	enum PM1Control : uint16_t
+	{
+		PM1_CNT_SCI_EN = 1 << 0,
+		PM1_CNT_BM_RLD = 1 << 1,
+		PM1_CNT_GBL_RLS = 1 << 2,
+		PM1_CNT_SLP_EN = 1 << 13,
+
+		PM1_CNT_SLP_TYP_MASK = 0b111,
+		PM1_CNT_SLP_TYP_SHIFT = 10,
+	};
 
 	struct RSDT : public SDTHeader
 	{
@@ -276,6 +298,14 @@ namespace Kernel::ACPI
 			return;
 		}
 
+		auto slp_typa = s5_package->elements[0]->as_integer();
+		auto slp_typb = s5_package->elements[1]->as_integer();
+		if (!slp_typa.has_value() || !slp_typb.has_value())
+		{
+			dwarnln("Failed to get SLP_TYPx values");
+			return;
+		}
+
 		auto pts_object = m_namespace->find_object({}, AML::NameString("\\_PTS"));
 		if (pts_object && pts_object->type == AML::Node::Type::Method)
 		{
@@ -297,20 +327,24 @@ namespace Kernel::ACPI
 			dprintln("Executed \\_PTS");
 		}
 
-		auto* fadt = static_cast<const FADT*>(get_header("FACP", 0));
-
-		uint16_t SLP_EN = 1 << 13;
-		uint16_t PM1a_CNT = fadt->pm1a_cnt_blk;
-		uint16_t PM1b_CNT = fadt->pm1b_cnt_blk;
-
-		uint32_t SLP_TYPa = s5_package->elements[0];
-		uint32_t SLP_TYPb = s5_package->elements[1];
-
 		dprintln("Entering sleep state S5");
 
-		IO::outw(PM1a_CNT, SLP_TYPa | SLP_EN);
-		if (PM1b_CNT != 0)
-			IO::outw(PM1b_CNT, SLP_TYPb | SLP_EN);
+		auto* fadt = static_cast<const FADT*>(get_header("FACP", 0));
+
+		uint16_t pm1a_data = IO::inw(fadt->pm1a_cnt_blk);
+		pm1a_data &= ~(PM1_CNT_SLP_TYP_MASK << PM1_CNT_SLP_TYP_SHIFT);
+		pm1a_data |= (slp_typa.value() & PM1_CNT_SLP_TYP_MASK) << PM1_CNT_SLP_TYP_SHIFT;
+		pm1a_data |= PM1_CNT_SLP_EN;
+		IO::outw(fadt->pm1a_cnt_blk, pm1a_data);
+
+		if (fadt->pm1b_cnt_blk != 0)
+		{
+			uint16_t pm1b_data = IO::inw(fadt->pm1b_cnt_blk);
+			pm1b_data &= ~(PM1_CNT_SLP_TYP_MASK << PM1_CNT_SLP_TYP_SHIFT);
+			pm1b_data |= (slp_typb.value() & PM1_CNT_SLP_TYP_MASK) << PM1_CNT_SLP_TYP_SHIFT;
+			pm1b_data |= PM1_CNT_SLP_EN;
+			IO::outw(fadt->pm1b_cnt_blk, pm1b_data);
+		}
 	}
 
 	BAN::ErrorOr<void> ACPI::enter_acpi_mode(uint8_t mode)
@@ -320,6 +354,38 @@ namespace Kernel::ACPI
 			dwarnln("ACPI namespace not initialized");
 			return BAN::Error::from_errno(EFAULT);
 		}
+
+		// https://uefi.org/htmlspecs/ACPI_Spec_6_4_html/16_Waking_and_Sleeping/initialization.html#placing-the-system-in-acpi-mode
+		auto* fadt = static_cast<const FADT*>(get_header("FACP", 0));
+
+		// If not hardware-reduced ACPI and SCI_EN is not set
+		if (!(fadt->flags & (1 << 20)) && IO::inw(fadt->pm1a_cnt_blk) & PM1_CNT_SCI_EN)
+		{
+			// https://uefi.org/htmlspecs/ACPI_Spec_6_4_html/04_ACPI_Hardware_Specification/ACPI_Hardware_Specification.html#legacy-acpi-select-and-the-sci-interrupt
+			IO::outb(fadt->smi_cmd, fadt->acpi_enable);
+
+			// Spec says to poll until SCI_EN is set, but doesn't specify timeout
+			for (size_t i = 0; i < 100; i++)
+			{
+				if (IO::inw(fadt->pm1a_cnt_blk) & PM1_CNT_SCI_EN)
+					break;
+				SystemTimer::get().sleep(10);
+			}
+
+			if (!(IO::inw(fadt->pm1a_cnt_blk) & PM1_CNT_SCI_EN))
+			{
+				dwarnln("Failed to enable ACPI mode");
+				return BAN::Error::from_errno(EINVAL);
+			}
+
+			// Enable power and sleep buttons
+			IO::outw(fadt->pm1a_evt_blk + fadt->pm1_evt_len / 2, PM1_EVN_PWRBTN_EN | PM1_EVN_SLPBTN_EN);
+			IO::outw(fadt->pm1b_evt_blk + fadt->pm1_evt_len / 2, PM1_EVN_PWRBTN_EN | PM1_EVN_SLPBTN_EN);
+		}
+
+		dprintln("Entered ACPI mode");
+
+		dprintln("Initializing devices");
 
 		// Evaluate \\_SB._INI
 		auto _sb_ini = m_namespace->find_object({}, AML::NameString("\\_SB._INI"));
@@ -365,7 +431,7 @@ namespace Kernel::ACPI
 			method->evaluate(args);
 		}
 
-		dprintln("Entered ACPI mode");
+		dprintln("Devices are initialized");
 
 		return {};
 	}
