@@ -36,71 +36,6 @@ namespace Kernel::ACPI::AML
 			return device->enter_context_and_parse_term_list(context, name_string.value(), device_pkg.value());
 		}
 
-		void initialize()
-		{
-			bool run_ini = true;
-			bool init_children = true;
-
-			auto _sta = Namespace::root_namespace()->find_object(scope, NameString("_STA"sv));
-			if (_sta && _sta->type == Node::Type::Method)
-			{
-				auto* method = static_cast<Method*>(_sta.ptr());
-				if (method->arg_count != 0)
-				{
-					AML_ERROR("Method {}._STA has {} arguments, expected 0", scope, method->arg_count);
-					return;
-				}
-				auto result = method->evaluate({});
-				if (!result.has_value())
-				{
-					AML_ERROR("Failed to evaluate {}._STA", scope);
-					return;
-				}
-				if (!result.value())
-				{
-					AML_ERROR("Failed to evaluate {}._STA, return value is null", scope);
-					return;
-				}
-				auto result_val = result.value()->as_integer();
-				if (!result_val.has_value())
-				{
-					AML_ERROR("Failed to evaluate {}._STA, return value could not be resolved to integer", scope);
-					AML_ERROR("  Return value: ");
-					result.value()->debug_print(0);
-					return;
-				}
-				run_ini = (result_val.value() & 0x01);
-				init_children = run_ini || (result_val.value() & 0x02);
-			}
-
-			if (run_ini)
-			{
-				auto _ini = Namespace::root_namespace()->find_object(scope, NameString("_INI"sv));
-				if (_ini && _ini->type == Node::Type::Method)
-				{
-					auto* method = static_cast<Method*>(_ini.ptr());
-					if (method->arg_count != 0)
-					{
-						AML_ERROR("Method {}._INI has {} arguments, expected 0", scope, method->arg_count);
-						return;
-					}
-					method->evaluate({});
-				}
-			}
-
-			if (init_children)
-			{
-				for (auto& [_, child] : objects)
-				{
-					if (child->type == Node::Type::Device)
-					{
-						auto* device = static_cast<Device*>(child.ptr());
-						device->initialize();
-					}
-				}
-			}
-		}
-
 		virtual void debug_print(int indent) const override
 		{
 			AML_DEBUG_PRINT_INDENT(indent);
@@ -116,5 +51,7 @@ namespace Kernel::ACPI::AML
 			AML_DEBUG_PRINT("}");
 		}
 	};
+
+	bool initialize_device(BAN::RefPtr<NamedObject> device);
 
 }

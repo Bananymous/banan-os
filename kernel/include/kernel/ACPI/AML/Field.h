@@ -40,13 +40,13 @@ namespace Kernel::ACPI::AML
 	struct FieldElement : public NamedObject
 	{
 		uint64_t bit_offset;
-		uint32_t bit_count;
+		uint64_t bit_count;
 
 		FieldRules access_rules;
 
-		BAN::RefPtr<OpRegion> op_region = nullptr;
+		BAN::RefPtr<OpRegion> op_region;
 
-		FieldElement(NameSeg name, uint64_t bit_offset, uint32_t bit_count, FieldRules access_rules)
+		FieldElement(NameSeg name, uint64_t bit_offset, uint64_t bit_count, FieldRules access_rules)
 			: NamedObject(Node::Type::FieldElement, name)
 			, bit_offset(bit_offset)
 			, bit_count(bit_count)
@@ -59,16 +59,10 @@ namespace Kernel::ACPI::AML
 		void debug_print(int indent) const override;
 
 	private:
-		struct AccessType
-		{
-			uint64_t offset;
-			uint64_t mask;
-			uint32_t access_size;
-			uint32_t shift;
-		};
-		BAN::Optional<AccessType> determine_access_type() const;
-		BAN::Optional<uint64_t> read_field(uint64_t offset, uint32_t access_size) const;
-		bool write_field(uint64_t offset, uint32_t access_size, uint64_t value) const;
+		BAN::Optional<uint64_t> evaluate_internal();
+		bool store_internal(uint64_t value);
+
+		friend struct IndexFieldElement;
 	};
 
 	struct Field
@@ -79,19 +73,22 @@ namespace Kernel::ACPI::AML
 	struct IndexFieldElement : public NamedObject
 	{
 		uint64_t bit_offset;
-		uint32_t bit_count;
+		uint64_t bit_count;
 
 		FieldRules access_rules;
 
-		BAN::RefPtr<FieldElement> index_element = nullptr;
-		BAN::RefPtr<FieldElement> data_element = nullptr;
+		BAN::RefPtr<FieldElement> index_element;
+		BAN::RefPtr<FieldElement> data_element;
 
-		IndexFieldElement(NameSeg name, uint64_t bit_offset, uint32_t bit_count, FieldRules access_rules)
+		IndexFieldElement(NameSeg name, uint64_t bit_offset, uint64_t bit_count, FieldRules access_rules)
 			: NamedObject(Node::Type::IndexFieldElement, name)
 			, bit_offset(bit_offset)
 			, bit_count(bit_count)
 			, access_rules(access_rules)
 		{}
+
+		BAN::RefPtr<Node> evaluate() override;
+		bool store(BAN::RefPtr<Node> source) override;
 
 		void debug_print(int indent) const override;
 	};

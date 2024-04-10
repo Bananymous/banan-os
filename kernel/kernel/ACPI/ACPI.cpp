@@ -406,13 +406,8 @@ namespace Kernel::ACPI
 		{
 			auto* scope = static_cast<AML::Scope*>(_sb.ptr());
 			for (auto& [name, object] : scope->objects)
-			{
-				if (object->type == AML::Node::Type::Device)
-				{
-					auto* device = static_cast<AML::Device*>(object.ptr());
-					device->initialize();
-				}
-			}
+				if (object->type == AML::Node::Type::Device || object->type == AML::Node::Type::Processor)
+					AML::initialize_device(object);
 		}
 
 		// Evaluate \\_PIC (mode)
