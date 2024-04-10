@@ -69,20 +69,26 @@ namespace Kernel::ACPI::AML
 			return ParseResult::Success;
 		}
 
-		BAN::Optional<BAN::RefPtr<AML::Node>> evaluate(Arguments args, uint8_t old_sync_level = 0)
+		BAN::Optional<BAN::RefPtr<AML::Node>> evaluate(Arguments args, BAN::Vector<uint8_t>& current_sync_stack)
 		{
+			if (serialized && !current_sync_stack.empty() && sync_level < current_sync_stack.back())
+			{
+				AML_ERROR("Trying to evaluate method {} with lower sync level than current sync level", scope);
+				return {};
+			}
+
 			ParseContext context;
 			context.aml_data = term_list;
 			context.scope = scope;
 			context.method_args = args;
-			context.sync_level = old_sync_level;
+			context.sync_stack = BAN::move(current_sync_stack);
 			for (auto& local : context.method_locals)
 				local = MUST(BAN::RefPtr<AML::Register>::create());
 
 			if (serialized)
 			{
 				mutex.lock();
-				context.sync_level = BAN::Math::max(sync_level, old_sync_level);
+				MUST(context.sync_stack.push_back(sync_level));
 			}
 
 			BAN::Optional<BAN::RefPtr<AML::Node>> return_value;
@@ -108,7 +114,12 @@ namespace Kernel::ACPI::AML
 			}
 
 			if (serialized)
+			{
+				context.sync_stack.pop_back();
 				mutex.unlock();
+			}
+
+			current_sync_stack = BAN::move(context.sync_stack);
 
 			return return_value;
 		}

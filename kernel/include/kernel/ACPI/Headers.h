@@ -71,7 +71,7 @@ namespace Kernel::ACPI
 		uint8_t reset_value;
 		uint16_t arm_boot_arch;
 		uint8_t fadt_minor_version;
-		uint64_t x_firmware_version;
+		uint64_t x_firmware_ctrl;
 		uint64_t x_dsdt;
 		uint8_t x_pm1a_evt_blk[12];
 		uint8_t x_pm1b_evt_blk[12];
@@ -99,6 +99,22 @@ namespace Kernel::ACPI
 		uint16_t main_counter_minimum_clock_tick;
 		uint8_t page_protection_and_oem_attribute;
 	} __attribute__((packed));
+
+	struct FACS
+	{
+		uint8_t signature[4];
+		uint32_t length;
+		uint32_t hardware_signature;
+		uint32_t firmware_waking_vector;
+		uint32_t global_lock;
+		uint32_t flags;
+		uint64_t x_firmware_waking_vector;
+		uint8_t version;
+		uint8_t reserved[3];
+		uint32_t ospm_flags;
+		uint8_t reserved2[24];
+	};
+	static_assert(sizeof(FACS) == 64);
 
 }
 

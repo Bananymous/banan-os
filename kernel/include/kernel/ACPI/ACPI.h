@@ -14,6 +14,9 @@ namespace Kernel::ACPI
 		static BAN::ErrorOr<void> initialize();
 		static ACPI& get();
 
+		static void acquire_global_lock();
+		static void release_global_lock();
+
 		const SDTHeader* get_header(BAN::StringView signature, uint32_t index);
 
 		// mode

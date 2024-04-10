@@ -9,8 +9,6 @@ namespace Kernel::ACPI::AML
 
 	struct Namespace : public AML::Scope
 	{
-		Mutex global_lock;
-
 		static BAN::RefPtr<AML::Namespace> root_namespace();
 
 		Namespace(NameSeg name) : AML::Scope(Node::Type::Namespace, name) {}

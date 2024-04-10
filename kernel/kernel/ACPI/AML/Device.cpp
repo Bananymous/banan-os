@@ -21,7 +21,8 @@ namespace Kernel::ACPI
 				AML_ERROR("Method {}._STA has {} arguments, expected 0", scope, method->arg_count);
 				return false;
 			}
-			auto result = method->evaluate({});
+			BAN::Vector<uint8_t> sync_stack;
+			auto result = method->evaluate({}, sync_stack);
 			if (!result.has_value())
 			{
 				AML_ERROR("Failed to evaluate {}._STA", scope);
@@ -55,7 +56,8 @@ namespace Kernel::ACPI
 					AML_ERROR("Method {}._INI has {} arguments, expected 0", scope, method->arg_count);
 					return false;
 				}
-				method->evaluate({});
+				BAN::Vector<uint8_t> sync_stack;
+				method->evaluate({}, sync_stack);
 			}
 		}
 

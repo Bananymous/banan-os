@@ -20,7 +20,9 @@ namespace Kernel::ACPI::AML
 		//       we don't really need large contiguous memory
 		BAN::LinkedList<AML::NameString> created_objects;
 
-		uint8_t sync_level { 0 };
+		uint8_t sync_level() const {  return !sync_stack.empty() ? sync_stack.back() : 0; }
+		BAN::Vector<uint8_t> sync_stack;
+
 		BAN::Array<BAN::RefPtr<Register>, 7> method_args;
 		BAN::Array<BAN::RefPtr<Register>, 8> method_locals;
 	};

@@ -1,4 +1,5 @@
 #include <BAN/ScopeGuard.h>
+#include <kernel/ACPI/ACPI.h>
 #include <kernel/ACPI/AML/Field.h>
 #include <kernel/ACPI/AML/Integer.h>
 #include <kernel/IO.h>
@@ -436,10 +437,10 @@ namespace Kernel::ACPI
 		}
 
 		if (access_rules.lock_rule == FieldRules::LockRule::Lock)
-			Namespace::root_namespace()->global_lock.lock();
+			ACPI::acquire_global_lock();
 		BAN::ScopeGuard unlock_guard([&] {
 			if (access_rules.lock_rule == FieldRules::LockRule::Lock)
-				Namespace::root_namespace()->global_lock.unlock();
+				ACPI::release_global_lock();
 		});
 
 		return store_internal(source_integer.value());
@@ -539,10 +540,10 @@ namespace Kernel::ACPI
 		};
 
 		if (access_rules.lock_rule == FieldRules::LockRule::Lock)
-			Namespace::root_namespace()->global_lock.lock();
+			ACPI::acquire_global_lock();
 		BAN::ScopeGuard unlock_guard([&] {
 			if (access_rules.lock_rule == FieldRules::LockRule::Lock)
-				Namespace::root_namespace()->global_lock.unlock();
+				ACPI::release_global_lock();
 		});
 
 		auto result = perform_read_general(0, bit_count, bit_offset, access_size.value(), read_func);
@@ -582,10 +583,10 @@ namespace Kernel::ACPI
 		};
 
 		if (access_rules.lock_rule == FieldRules::LockRule::Lock)
-			Namespace::root_namespace()->global_lock.lock();
+			ACPI::acquire_global_lock();
 		BAN::ScopeGuard unlock_guard([&] {
 			if (access_rules.lock_rule == FieldRules::LockRule::Lock)
-				Namespace::root_namespace()->global_lock.unlock();
+				ACPI::release_global_lock();
 		});
 
 		if (!perform_write_general(0, bit_count, bit_offset, access_size.value(), source_integer.value(), access_rules.update_rule, read_func, write_func))

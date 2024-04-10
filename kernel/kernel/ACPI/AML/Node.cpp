@@ -56,6 +56,8 @@ namespace Kernel::ACPI
 				case AML::ExtOp::DeviceOp:
 					return AML::Device::parse(context);
 				case AML::ExtOp::MutexOp:
+				case AML::ExtOp::AcquireOp:
+				case AML::ExtOp::ReleaseOp:
 					return AML::Mutex::parse(context);
 				case AML::ExtOp::ProcessorOp:
 					return AML::Processor::parse(context);
@@ -183,7 +185,7 @@ namespace Kernel::ACPI
 					args[i] = MUST(BAN::RefPtr<AML::Register>::create(arg.node()));
 				}
 
-				auto result = method->evaluate(args, context.sync_level);
+				auto result = method->evaluate(args, context.sync_stack);
 				if (!result.has_value())
 				{
 					AML_ERROR("Failed to evaluate {}", name_string.value());

@@ -17,6 +17,64 @@
 namespace Kernel::ACPI
 {
 
+
+	static uint32_t* s_global_lock { nullptr };
+
+	// https://uefi.org/htmlspecs/ACPI_Spec_6_4_html/05_ACPI_Software_Programming_Model/ACPI_Software_Programming_Model.html#global-lock
+asm(R"(
+.global acpi_acquire_global_lock
+acpi_acquire_global_lock:
+	movl (%rdi), %edx
+	andl $(~1), %edx
+	btsl $1, %edx
+	adcl $0, %edx
+
+	lock cmpxchgl %edx, (%rdi)
+	jnz acpi_acquire_global_lock
+
+	cmpb $3, %dl
+	sbbq %rax, %rax
+	negq %rax
+
+	ret
+
+.global acpi_release_global_lock
+acpi_release_global_lock:
+	movl (%rdi), %eax
+	movl %eax, %edx
+
+	andl $(~3), %edx
+
+	lock cmpxchgl %edx, (%rdi)
+	jnz acpi_release_global_lock
+
+	andq $1, %rax
+
+	ret
+)");
+
+	// returns true if lock was acquired successfully
+	extern "C" bool acpi_acquire_global_lock(uint32_t* lock);
+
+	// returns true if lock was pending
+	extern "C" bool acpi_release_global_lock(uint32_t* lock);
+
+	void ACPI::acquire_global_lock()
+	{
+		if (!s_global_lock)
+			return;
+		derrorln("Acquiring ACPI global lock");
+		ASSERT(acpi_acquire_global_lock(s_global_lock));
+	}
+
+	void ACPI::release_global_lock()
+	{
+		if (!s_global_lock)
+			return;
+		derrorln("Releasing ACPI global lock");
+		ASSERT(!acpi_release_global_lock(s_global_lock));
+	}
+
 	enum PM1Event : uint16_t
 	{
 		PM1_EVN_TMR_EN = 1 << 0,
@@ -57,6 +115,22 @@ namespace Kernel::ACPI
 		if (s_instance == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
 		TRY(s_instance->initialize_impl());
+
+		{
+			ASSERT(!s_global_lock);
+			const auto* fadt = static_cast<const FADT*>(ACPI::get().get_header("FACP"sv, 0));
+			ASSERT(fadt);
+
+			uintptr_t facs_addr = fadt->firmware_ctrl;
+			if (fadt->length >= sizeof(FADT) && fadt->x_firmware_ctrl)
+				facs_addr = fadt->x_firmware_ctrl;
+
+			if (facs_addr)
+			{
+				auto* facs = reinterpret_cast<FACS*>(facs_addr);
+				s_global_lock = &facs->global_lock;
+			}
+		}
 
 		s_instance->m_namespace = AML::initialize_namespace();
 
@@ -318,7 +392,8 @@ namespace Kernel::ACPI
 
 			AML::Method::Arguments args;
 			args[0] = MUST(BAN::RefPtr<AML::Register>::create(MUST(BAN::RefPtr<AML::Integer>::create(5))));
-			if (!method->evaluate(args).has_value())
+			BAN::Vector<uint8_t> sync_stack;
+			if (!method->evaluate(args, sync_stack).has_value())
 			{
 				dwarnln("Failed to evaluate \\_PTS");
 				return;
@@ -397,7 +472,8 @@ namespace Kernel::ACPI
 				dwarnln("Method \\_SB._INI has {} arguments, expected 0", method->arg_count);
 				return BAN::Error::from_errno(EINVAL);
 			}
-			method->evaluate({});
+			BAN::Vector<uint8_t> sync_stack;
+			method->evaluate({}, sync_stack);
 		}
 
 		// Initialize devices
@@ -423,7 +499,8 @@ namespace Kernel::ACPI
 
 			AML::Method::Arguments args;
 			args[0] = MUST(BAN::RefPtr<AML::Register>::create(MUST(BAN::RefPtr<AML::Integer>::create(mode))));
-			method->evaluate(args);
+			BAN::Vector<uint8_t> sync_stack;
+			method->evaluate(args, sync_stack);
 		}
 
 		dprintln("Devices are initialized");
