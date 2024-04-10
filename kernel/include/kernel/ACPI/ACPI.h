@@ -22,6 +22,10 @@ namespace Kernel::ACPI
 		//   2: SAPIC
 		BAN::ErrorOr<void> enter_acpi_mode(uint8_t mode);
 
+		// This function will power off the system
+		// This function will return only if there was an error
+		void poweroff();
+
 	private:
 		ACPI() = default;
 		BAN::ErrorOr<void> initialize_impl();

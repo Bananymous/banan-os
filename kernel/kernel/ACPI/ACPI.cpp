@@ -5,7 +5,9 @@
 #include <kernel/ACPI/AML/Device.h>
 #include <kernel/ACPI/AML/Integer.h>
 #include <kernel/ACPI/AML/Method.h>
+#include <kernel/ACPI/AML/Package.h>
 #include <kernel/BootInfo.h>
+#include <kernel/IO.h>
 #include <kernel/Memory/PageTable.h>
 
 #include <lai/core.h>
@@ -250,6 +252,75 @@ namespace Kernel::ACPI
 					return header;
 		}
 		return nullptr;
+	}
+
+	void ACPI::poweroff()
+	{
+		if (!m_namespace)
+		{
+			dwarnln("ACPI namespace not initialized");
+			return;
+		}
+
+		auto s5_object = m_namespace->find_object({}, AML::NameString("\\_S5"));
+		if (!s5_object)
+		{
+			dwarnln("\\_S5 not found");
+			return;
+		}
+		auto s5_evaluated = s5_object->evaluate();
+		if (!s5_evaluated)
+		{
+			dwarnln("Failed to evaluate \\_S5");
+			return;
+		}
+		if (s5_evaluated->type != AML::Node::Type::Package)
+		{
+			dwarnln("\\_S5 is not a package");
+			return;
+		}
+		auto* s5_package = static_cast<AML::Package*>(s5_evaluated.ptr());
+		if (s5_package->elements.size() != 4)
+		{
+			dwarnln("\\_S5 package has {} elements, expected 4", s5_package->elements.size());
+			return;
+		}
+
+		auto pts_object = m_namespace->find_object({}, AML::NameString("\\_PTS"));
+		if (pts_object && pts_object->type == AML::Node::Type::Method)
+		{
+			auto* method = static_cast<AML::Method*>(pts_object.ptr());
+			if (method->arg_count != 1)
+			{
+				dwarnln("Method \\_PTS has {} arguments, expected 1", method->arg_count);
+				return;
+			}
+
+			AML::Method::Arguments args;
+			args[0] = MUST(BAN::RefPtr<AML::Register>::create(MUST(BAN::RefPtr<AML::Integer>::create(5))));
+			if (!method->evaluate(args).has_value())
+			{
+				dwarnln("Failed to evaluate \\_PTS");
+				return;
+			}
+
+			dprintln("Executed \\_PTS");
+		}
+
+		auto* fadt = static_cast<const FADT*>(get_header("FACP", 0));
+
+		uint16_t SLP_EN = 1 << 13;
+		uint16_t PM1a_CNT = fadt->pm1a_cnt_blk;
+		uint16_t PM1b_CNT = fadt->pm1b_cnt_blk;
+
+		uint32_t SLP_TYPa = s5_package->elements[0];
+		uint32_t SLP_TYPb = s5_package->elements[1];
+
+		dprintln("Entering sleep state S5");
+
+		IO::outw(PM1a_CNT, SLP_TYPa | SLP_EN);
+		if (PM1b_CNT != 0)
+			IO::outw(PM1b_CNT, SLP_TYPb | SLP_EN);
 	}
 
 	BAN::ErrorOr<void> ACPI::enter_acpi_mode(uint8_t mode)

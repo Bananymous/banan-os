@@ -22,6 +22,13 @@ namespace Kernel::ACPI::AML
 			: NamedObject(Node::Type::Name, name), object(BAN::move(object))
 		{}
 
+		BAN::RefPtr<AML::Node> evaluate() override
+		{
+			if (!object)
+				return {};
+			return object->evaluate();
+		}
+
 		static ParseResult parse(ParseContext& context);
 		virtual void debug_print(int indent) const override;
 	};

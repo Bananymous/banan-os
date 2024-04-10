@@ -14,6 +14,25 @@ namespace Kernel::ACPI::AML
 
 		Package() : Node(Node::Type::Package) {}
 
+		BAN::RefPtr<AML::Node> evaluate() override
+		{
+			BAN::Vector<BAN::RefPtr<AML::Node>> evaluated_elements;
+			for (auto& element : elements)
+			{
+				auto evaluated = element->evaluate();
+				if (!evaluated)
+				{
+					AML_ERROR("Failed to evaluate element in package");
+					return {};
+				}
+				evaluated_elements.push_back(evaluated);
+			}
+
+			auto package = MUST(BAN::RefPtr<Package>::create());
+			package->elements = BAN::move(evaluated_elements);
+			return package;
+		}
+
 		static ParseResult parse(AML::ParseContext& context)
 		{
 			ASSERT(context.aml_data.size() >= 1);
