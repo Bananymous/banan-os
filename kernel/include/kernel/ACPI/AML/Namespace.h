@@ -1,6 +1,7 @@
 #pragma once
 
 #include <kernel/ACPI/AML/Scope.h>
+#include <kernel/ACPI/Headers.h>
 #include <kernel/Lock/Mutex.h>
 
 namespace Kernel::ACPI::AML
@@ -14,7 +15,8 @@ namespace Kernel::ACPI::AML
 
 		Namespace(NameSeg name) : AML::Scope(Node::Type::Namespace, name) {}
 
-		static BAN::RefPtr<Namespace> parse(BAN::ConstByteSpan aml);
+		static BAN::RefPtr<AML::Namespace> create_root_namespace();
+		bool parse(const SDTHeader& header);
 
 		BAN::Optional<AML::NameString> resolve_path(const AML::NameString& relative_base, const AML::NameString& relative_path);
 

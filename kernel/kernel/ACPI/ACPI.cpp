@@ -36,9 +36,7 @@ namespace Kernel::ACPI
 			return BAN::Error::from_errno(ENOMEM);
 		TRY(s_instance->initialize_impl());
 
-		auto dsdt = s_instance->get_header("DSDT", 0);
-		ASSERT(dsdt);
-		s_instance->m_namespace = AML::initialize_namespace(*dsdt);
+		s_instance->m_namespace = AML::initialize_namespace();
 
 		return {};
 	}

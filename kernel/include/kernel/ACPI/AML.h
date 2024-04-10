@@ -6,6 +6,6 @@
 namespace Kernel::ACPI::AML
 {
 
-	BAN::RefPtr<AML::Namespace> initialize_namespace(const SDTHeader& header);
+	BAN::RefPtr<AML::Namespace> initialize_namespace();
 
 }

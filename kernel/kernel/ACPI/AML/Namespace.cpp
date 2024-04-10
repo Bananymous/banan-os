@@ -191,13 +191,13 @@ namespace Kernel::ACPI
 		return true;
 	}
 
-	BAN::RefPtr<AML::Namespace> AML::Namespace::parse(BAN::ConstByteSpan aml_data)
+	BAN::RefPtr<AML::Namespace> AML::Namespace::create_root_namespace()
 	{
+		ASSERT(!s_root_namespace);
 		s_root_namespace = MUST(BAN::RefPtr<Namespace>::create(NameSeg("\\"sv)));
 
 		AML::ParseContext context;
 		context.scope = AML::NameString("\\"sv);
-		context.aml_data = aml_data;
 
 		// Add predefined namespaces
 #define ADD_PREDEFIED_NAMESPACE(NAME) \
@@ -209,17 +209,30 @@ namespace Kernel::ACPI
 		ADD_PREDEFIED_NAMESPACE("_TZ"sv);
 #undef ADD_PREDEFIED_NAMESPACE
 
+		return s_root_namespace;
+	}
+
+	bool AML::Namespace::parse(const SDTHeader& header)
+	{
+		ASSERT(this == s_root_namespace.ptr());
+
+		dprintln("Parsing {}, {} bytes of AML", header, header.length);
+
+		AML::ParseContext context;
+		context.scope = AML::NameString("\\"sv);
+		context.aml_data = BAN::ConstByteSpan(reinterpret_cast<const uint8_t*>(&header), header.length).slice(sizeof(header));
+
 		while (context.aml_data.size() > 0)
 		{
 			auto result = AML::parse_object(context);
 			if (!result.success())
 			{
 				AML_ERROR("Failed to parse object");
-				return {};
+				return false;
 			}
 		}
 
-		return s_root_namespace;
+		return true;
 	}
 
 }
