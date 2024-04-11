@@ -14,13 +14,16 @@ namespace Kernel::ACPI::AML
 	struct Integer : public Node
 	{
 		static constexpr uint64_t Ones = -1;
-		uint64_t value;
+		const uint64_t value;
 
-		Integer(uint64_t value) : Node(Node::Type::Integer), value(value) {}
+		Integer(uint64_t value)
+			: Node(Node::Type::Integer)
+			, value(value)
+		{}
 
 		BAN::RefPtr<AML::Node> evaluate() override
 		{
-			return MUST(BAN::RefPtr<Integer>::create(value));
+			return this;
 		}
 
 		static ParseResult parse(BAN::ConstByteSpan& aml_data)

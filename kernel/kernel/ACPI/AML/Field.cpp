@@ -607,4 +607,100 @@ namespace Kernel::ACPI
 		);
 	}
 
+	AML::ParseResult AML::BankField::parse(ParseContext& context)
+	{
+		// BankFieldOp PkgLength NameString NameString BankValue FieldFlags FieldList
+
+		ASSERT(context.aml_data.size() >= 2);
+		ASSERT(static_cast<AML::Byte>(context.aml_data[0]) == AML::Byte::ExtOpPrefix);
+		ASSERT(static_cast<AML::ExtOp>(context.aml_data[1]) == AML::ExtOp::BankFieldOp);
+		context.aml_data = context.aml_data.slice(2);
+
+		auto opt_field_pkg = AML::parse_pkg(context.aml_data);
+		if (!opt_field_pkg.has_value())
+			return ParseResult::Failure;
+		auto field_pkg = opt_field_pkg.release_value();
+
+		auto op_region_name = NameString::parse(field_pkg);
+		if (!op_region_name.has_value())
+			return ParseResult::Failure;
+		auto op_region = Namespace::root_namespace()->find_object(context.scope, op_region_name.value());
+		if (!op_region || op_region->type != AML::Node::Type::OpRegion)
+		{
+			AML_ERROR("BankField RegionName {} does not name a valid OpRegion", op_region_name.value());
+			return ParseResult::Failure;
+		}
+
+		auto bank_selector_name = NameString::parse(field_pkg);
+		if (!bank_selector_name.has_value())
+			return ParseResult::Failure;
+		auto bank_selector = Namespace::root_namespace()->find_object(context.scope, bank_selector_name.value());
+		if (!bank_selector)
+		{
+			AML_ERROR("BankField BankSelector {} does not name a valid object", bank_selector_name.value());
+			return ParseResult::Failure;
+		}
+
+		auto temp_aml_data = context.aml_data;
+		context.aml_data = field_pkg;
+		auto bank_value_result = AML::parse_object(context);
+		field_pkg = context.aml_data;
+		context.aml_data = temp_aml_data;
+		if (!bank_value_result.success())
+			return ParseResult::Failure;
+		auto bank_value = bank_value_result.node() ? bank_value_result.node()->as_integer() : BAN::Optional<uint64_t>();
+		if (!bank_value.has_value())
+		{
+			AML_ERROR("BankField BankValue is not an integer");
+			return ParseResult::Failure;
+		}
+
+		if (field_pkg.size() < 1)
+			return ParseResult::Failure;
+		auto field_flags = field_pkg[0];
+		field_pkg = field_pkg.slice(1);
+
+		ParseFieldElementContext<BankFieldElement> field_context;
+		field_context.field_rules.access_type = static_cast<FieldRules::AccessType>(field_flags & 0x0F);
+		field_context.field_rules.lock_rule = static_cast<FieldRules::LockRule>((field_flags >> 4) & 0x01);
+		field_context.field_rules.update_rule = static_cast<FieldRules::UpdateRule>((field_flags >> 5) & 0x03);
+		field_context.field_bit_offset = 0;
+		field_context.field_pkg = field_pkg;
+		while (field_context.field_pkg.size() > 0)
+			if (!parse_field_element(field_context))
+				return ParseResult::Failure;
+
+		for (auto& [_, element] : field_context.elements)
+		{
+			element->op_region = static_cast<OpRegion*>(op_region.ptr());
+			element->bank_selector = bank_selector;
+			element->bank_value = bank_value.value();
+
+			NameString element_name;
+			MUST(element_name.path.push_back(element->name));
+			if (!Namespace::root_namespace()->add_named_object(context, element_name, element))
+				return ParseResult::Failure;
+
+#if AML_DEBUG_LEVEL >= 2
+			element->debug_print(0);
+			AML_DEBUG_PRINTLN("");
+#endif
+		}
+
+		return ParseResult::Success;
+	}
+
+	void AML::BankFieldElement::debug_print(int indent) const
+	{
+		AML_DEBUG_PRINT_INDENT(indent);
+		AML_DEBUG_PRINT("BankFieldElement {} ({}, offset {}, OpRegion {}, BankSelector {}, BankValue {H})",
+			name,
+			bit_count,
+			bit_offset,
+			op_region->name,
+			bank_selector->name,
+			bank_value
+		);
+	}
+
 }

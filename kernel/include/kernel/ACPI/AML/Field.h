@@ -35,6 +35,16 @@ namespace Kernel::ACPI::AML
 			WriteAsZeros = 2,
 		};
 		UpdateRule update_rule;
+
+		enum class AccessAttrib
+		{
+			Normal = 0,
+			Bytes = 1,
+			RawBytes = 2,
+			RawProcessBytes = 3,
+		};
+		AccessAttrib access_attrib = AccessAttrib::Normal;
+		uint8_t access_length = 0;
 	};
 
 	struct FieldElement : public NamedObject
@@ -94,6 +104,32 @@ namespace Kernel::ACPI::AML
 	};
 
 	struct IndexField
+	{
+		static ParseResult parse(ParseContext& context);
+	};
+
+	struct BankFieldElement : public NamedObject
+	{
+		uint64_t bit_offset;
+		uint64_t bit_count;
+
+		FieldRules access_rules;
+
+		BAN::RefPtr<OpRegion> op_region;
+		BAN::RefPtr<NamedObject> bank_selector;
+		uint64_t bank_value;
+
+		BankFieldElement(NameSeg name, uint64_t bit_offset, uint64_t bit_count, FieldRules access_rules)
+			: NamedObject(Node::Type::BankFieldElement, name)
+			, bit_offset(bit_offset)
+			, bit_count(bit_count)
+			, access_rules(access_rules)
+		{}
+
+		void debug_print(int indent) const override;
+	};
+
+	struct BankField
 	{
 		static ParseResult parse(ParseContext& context);
 	};

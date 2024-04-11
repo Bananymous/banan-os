@@ -106,6 +106,23 @@ namespace Kernel::ACPI::AML
 			}
 		}
 
+		static bool can_parse(BAN::ConstByteSpan aml_data)
+		{
+			if (aml_data.size() == 0)
+				return false;
+			switch (static_cast<AML::Byte>(aml_data[0]))
+			{
+				case AML::Byte::RootChar:
+				case AML::Byte::ParentPrefixChar:
+				case AML::Byte::NullName:
+				case AML::Byte::DualNamePrefix:
+				case AML::Byte::MultiNamePrefix:
+					return true;
+				default:
+					return is_lead_name_char(aml_data[0]);
+			}
+		}
+
 		static BAN::Optional<NameString> parse(BAN::ConstByteSpan& aml_data)
 		{
 			if (aml_data.size() == 0)

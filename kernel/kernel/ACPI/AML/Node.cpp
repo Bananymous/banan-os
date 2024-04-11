@@ -4,6 +4,7 @@
 #include <kernel/ACPI/AML/Expression.h>
 #include <kernel/ACPI/AML/Field.h>
 #include <kernel/ACPI/AML/IfElse.h>
+#include <kernel/ACPI/AML/Index.h>
 #include <kernel/ACPI/AML/Integer.h>
 #include <kernel/ACPI/AML/Method.h>
 #include <kernel/ACPI/AML/Mutex.h>
@@ -11,10 +12,13 @@
 #include <kernel/ACPI/AML/Node.h>
 #include <kernel/ACPI/AML/Package.h>
 #include <kernel/ACPI/AML/ParseContext.h>
+#include <kernel/ACPI/AML/PowerResource.h>
 #include <kernel/ACPI/AML/Processor.h>
+#include <kernel/ACPI/AML/Reference.h>
 #include <kernel/ACPI/AML/Region.h>
 #include <kernel/ACPI/AML/Store.h>
 #include <kernel/ACPI/AML/String.h>
+#include <kernel/ACPI/AML/ThermalZone.h>
 #include <kernel/ACPI/AML/Utils.h>
 
 namespace Kernel::ACPI
@@ -31,7 +35,7 @@ namespace Kernel::ACPI
 		if (!evaluated)
 			return {};
 		if (evaluated->type == Type::Integer)
-			return static_cast<const Integer*>(this)->value;
+			return static_cast<const Integer*>(evaluated.ptr())->value;
 		return {};
 	}
 
@@ -51,6 +55,8 @@ namespace Kernel::ACPI
 					return AML::Field::parse(context);
 				case AML::ExtOp::IndexFieldOp:
 					return AML::IndexField::parse(context);
+				case AML::ExtOp::BankFieldOp:
+					return AML::BankField::parse(context);
 				case AML::ExtOp::OpRegionOp:
 					return AML::OpRegion::parse(context);
 				case AML::ExtOp::DeviceOp:
@@ -61,6 +67,12 @@ namespace Kernel::ACPI
 					return AML::Mutex::parse(context);
 				case AML::ExtOp::ProcessorOp:
 					return AML::Processor::parse(context);
+				case AML::ExtOp::PowerResOp:
+					return AML::PowerResource::parse(context);
+				case AML::ExtOp::ThermalZoneOp:
+					return AML::ThermalZone::parse(context);
+				case AML::ExtOp::CondRefOfOp:
+					return AML::Reference::parse(context);
 				default:
 					break;
 			}
@@ -128,6 +140,12 @@ namespace Kernel::ACPI
 			case AML::Byte::SubtractOp:
 			case AML::Byte::XorOp:
 				return AML::Expression::parse(context);
+			case AML::Byte::CreateBitFieldOp:
+			case AML::Byte::CreateByteFieldOp:
+			case AML::Byte::CreateWordFieldOp:
+			case AML::Byte::CreateDWordFieldOp:
+			case AML::Byte::CreateQWordFieldOp:
+				return AML::BufferField::parse(context);
 			case AML::Byte::NameOp:
 				return AML::Name::parse(context);
 			case AML::Byte::PackageOp:
@@ -142,6 +160,11 @@ namespace Kernel::ACPI
 				return AML::IfElse::parse(context);
 			case AML::Byte::StoreOp:
 				return AML::Store::parse(context);
+			case AML::Byte::DerefOfOp:
+			case AML::Byte::RefOfOp:
+				return AML::Reference::parse(context);
+			case AML::Byte::IndexOp:
+				return AML::Index::parse(context);
 			case AML::Byte::ReturnOp:
 			{
 				context.aml_data = context.aml_data.slice(1);

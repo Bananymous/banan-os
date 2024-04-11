@@ -13,7 +13,9 @@ namespace Kernel::ACPI::AML
 	{
 		enum class Type
 		{
+			BankFieldElement,
 			Buffer,
+			BufferField,
 			Device,
 			FieldElement,
 			IndexFieldElement,
@@ -24,9 +26,12 @@ namespace Kernel::ACPI::AML
 			Namespace,
 			OpRegion,
 			Package,
+			PowerResource,
 			Processor,
+			Reference,
 			Register,
 			String,
+			ThermalZone,
 		};
 		const Type type;
 
@@ -35,9 +40,9 @@ namespace Kernel::ACPI::AML
 
 		virtual bool is_scope() const { return false; }
 
-		BAN::Optional<uint64_t> as_integer();
-		virtual BAN::RefPtr<AML::Node> evaluate() { AML_TODO("evaluate, type {}", static_cast<uint8_t>(type)); return nullptr; }
-		virtual bool store(BAN::RefPtr<AML::Node> source) { AML_TODO("store, type {}", static_cast<uint8_t>(type)); return false; }
+		[[nodiscard]] BAN::Optional<uint64_t> as_integer();
+		[[nodiscard]] virtual BAN::RefPtr<AML::Node> evaluate() { AML_TODO("evaluate, type {}", static_cast<uint8_t>(type)); return nullptr; }
+		[[nodiscard]] virtual bool store(BAN::RefPtr<AML::Node> source) { AML_TODO("store, type {}", static_cast<uint8_t>(type)); return false; }
 
 		virtual void debug_print(int indent) const = 0;
 	};
