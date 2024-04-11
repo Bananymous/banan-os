@@ -1,3 +1,4 @@
+#include <kernel/ACPI/AML/Method.h>
 #include <kernel/ACPI/AML/Namespace.h>
 #include <kernel/ACPI/AML/ParseContext.h>
 #include <kernel/ACPI/AML/Region.h>
@@ -6,6 +7,7 @@ namespace Kernel::ACPI
 {
 
 	static BAN::RefPtr<AML::Namespace> s_root_namespace;
+	static BAN::Vector<uint8_t> s_osi_aml_data;
 
 	BAN::RefPtr<AML::Namespace> AML::Namespace::root_namespace()
 	{
@@ -208,6 +210,13 @@ namespace Kernel::ACPI
 		ADD_PREDEFIED_NAMESPACE("_SI"sv);
 		ADD_PREDEFIED_NAMESPACE("_TZ"sv);
 #undef ADD_PREDEFIED_NAMESPACE
+
+		// Add dummy \_OSI
+		MUST(s_osi_aml_data.push_back(static_cast<uint8_t>(Byte::ReturnOp)));
+		MUST(s_osi_aml_data.push_back(static_cast<uint8_t>(Byte::ZeroOp)));
+		auto osi = MUST(BAN::RefPtr<AML::Method>::create(NameSeg("_OSI"sv), 1, false, 0));
+		osi->term_list = s_osi_aml_data.span();
+		ASSERT(s_root_namespace->add_named_object(context, AML::NameString("\\_OSI"), osi));
 
 		return s_root_namespace;
 	}
