@@ -53,10 +53,60 @@ namespace Kernel::ACPI
 				return true;
 			}
 			case 0x01:
+			{
+				context.field_pkg = context.field_pkg.slice(1);
+
+				if (context.field_pkg.size() < 2)
+				{
+					AML_ERROR("Invalid FieldElement length for access field");
+					return false;
+				}
+
+				context.field_rules.access_type = static_cast<AML::FieldRules::AccessType>(context.field_pkg[0] & 0x0F);
+				context.field_rules.access_attrib = static_cast<AML::FieldRules::AccessAttrib>((context.field_pkg[0] >> 6) & 0x03);
+				context.field_pkg = context.field_pkg.slice(1);
+
+				context.field_rules.access_length = context.field_pkg[0];
+				context.field_pkg = context.field_pkg.slice(1);
+
+				return true;
+			}
 			case 0x02:
-			case 0x03:
-				AML_TODO("Field element {2H}", context.field_pkg[0]);
+				AML_TODO("Field element Connection", context.field_pkg[0]);
 				return false;
+			case 0x03:
+			{
+				context.field_pkg = context.field_pkg.slice(1);
+
+				if (context.field_pkg.size() < 3)
+				{
+					AML_ERROR("Invalid FieldElement length for extended access field");
+					return false;
+				}
+
+				context.field_rules.access_type = static_cast<AML::FieldRules::AccessType>(context.field_pkg[0] & 0x0F);
+				context.field_rules.lock_rule = static_cast<AML::FieldRules::LockRule>((context.field_pkg[0] >> 4) & 0x01);
+				context.field_rules.update_rule = static_cast<AML::FieldRules::UpdateRule>((context.field_pkg[0] >> 5) & 0x03);
+				context.field_pkg = context.field_pkg.slice(1);
+
+				if (context.field_pkg[0] == 0x0B)
+					context.field_rules.access_attrib = AML::FieldRules::AccessAttrib::Bytes;
+				else if (context.field_pkg[0] == 0x0E)
+					context.field_rules.access_attrib = AML::FieldRules::AccessAttrib::RawBytes;
+				else if (context.field_pkg[0] == 0x0F)
+					context.field_rules.access_attrib = AML::FieldRules::AccessAttrib::RawProcessBytes;
+				else
+				{
+					AML_ERROR("Invalid FieldElement extended access field attribute");
+					return false;
+				}
+				context.field_pkg = context.field_pkg.slice(1);
+
+				context.field_rules.access_length = context.field_pkg[0];
+				context.field_pkg = context.field_pkg.slice(1);
+
+				return true;
+			}
 			default:
 			{
 				auto element_name = AML::NameSeg::parse(context.field_pkg);
@@ -396,6 +446,11 @@ namespace Kernel::ACPI
 
 	BAN::Optional<uint64_t> AML::FieldElement::evaluate_internal()
 	{
+		if (access_rules.access_attrib != FieldRules::AccessAttrib::Normal)
+		{
+			AML_TODO("FieldElement with access attribute {}", static_cast<uint8_t>(access_rules.access_attrib));
+			return {};
+		}
 		auto access_size = determine_access_size(access_rules.access_type);
 		if (!access_size.has_value())
 			return {};
@@ -407,6 +462,11 @@ namespace Kernel::ACPI
 
 	bool AML::FieldElement::store_internal(uint64_t value)
 	{
+		if (access_rules.access_attrib != FieldRules::AccessAttrib::Normal)
+		{
+			AML_TODO("FieldElement with access attribute {}", static_cast<uint8_t>(access_rules.access_attrib));
+			return {};
+		}
 		auto access_size = determine_access_size(access_rules.access_type);
 		if (!access_size.has_value())
 			return false;
@@ -525,6 +585,11 @@ namespace Kernel::ACPI
 
 	BAN::RefPtr<AML::Node> AML::IndexFieldElement::evaluate()
 	{
+		if (access_rules.access_attrib != FieldRules::AccessAttrib::Normal)
+		{
+			AML_TODO("FieldElement with access attribute {}", static_cast<uint8_t>(access_rules.access_attrib));
+			return {};
+		}
 		auto access_size = determine_access_size(access_rules.access_type);
 		if (!access_size.has_value())
 			return {};
@@ -554,6 +619,11 @@ namespace Kernel::ACPI
 
 	bool AML::IndexFieldElement::store(BAN::RefPtr<Node> source)
 	{
+		if (access_rules.access_attrib != FieldRules::AccessAttrib::Normal)
+		{
+			AML_TODO("FieldElement with access attribute {}", static_cast<uint8_t>(access_rules.access_attrib));
+			return {};
+		}
 		auto source_integer = source->as_integer();
 		if (!source_integer.has_value())
 		{
