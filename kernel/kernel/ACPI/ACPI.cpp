@@ -462,28 +462,12 @@ acpi_release_global_lock:
 
 		dprintln("Initializing devices");
 
-		// Evaluate \\_SB._INI
-		auto _sb_ini = m_namespace->find_object({}, AML::NameString("\\_SB._INI"));
-		if (_sb_ini && _sb_ini->type == AML::Node::Type::Method)
-		{
-			auto* method = static_cast<AML::Method*>(_sb_ini.ptr());
-			if (method->arg_count != 0)
-			{
-				dwarnln("Method \\_SB._INI has {} arguments, expected 0", method->arg_count);
-				return BAN::Error::from_errno(EINVAL);
-			}
-			BAN::Vector<uint8_t> sync_stack;
-			method->evaluate({}, sync_stack);
-		}
-
-		// Initialize devices
+		// Initialize \\_SB
 		auto _sb = m_namespace->find_object({}, AML::NameString("\\_SB"));
 		if (_sb && _sb->is_scope())
 		{
 			auto* scope = static_cast<AML::Scope*>(_sb.ptr());
-			for (auto& [name, object] : scope->objects)
-				if (object->type == AML::Node::Type::Device || object->type == AML::Node::Type::Processor)
-					AML::initialize_device(object);
+			AML::initialize_scope(scope);
 		}
 
 		// Evaluate \\_PIC (mode)

@@ -52,6 +52,4 @@ namespace Kernel::ACPI::AML
 		}
 	};
 
-	bool initialize_device(BAN::RefPtr<NamedObject> device);
-
 }

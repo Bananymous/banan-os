@@ -25,4 +25,6 @@ namespace Kernel::ACPI::AML
 		ParseResult enter_context_and_parse_term_list(ParseContext& outer_context, const AML::NameString& name, BAN::ConstByteSpan aml_data);
 	};
 
+	bool initialize_scope(BAN::RefPtr<Scope> scope);
+
 }

@@ -12,7 +12,6 @@ set(KERNEL_SOURCES
 	font/prefs.psf.o
 	kernel/ACPI/ACPI.cpp
 	kernel/ACPI/AML.cpp
-	kernel/ACPI/AML/Device.cpp
 	kernel/ACPI/AML/Field.cpp
 	kernel/ACPI/AML/NamedObject.cpp
 	kernel/ACPI/AML/Namespace.cpp
