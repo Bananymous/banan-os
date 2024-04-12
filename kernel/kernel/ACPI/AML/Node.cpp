@@ -16,6 +16,7 @@
 #include <kernel/ACPI/AML/Processor.h>
 #include <kernel/ACPI/AML/Reference.h>
 #include <kernel/ACPI/AML/Region.h>
+#include <kernel/ACPI/AML/Sleep.h>
 #include <kernel/ACPI/AML/Store.h>
 #include <kernel/ACPI/AML/String.h>
 #include <kernel/ACPI/AML/ThermalZone.h>
@@ -75,6 +76,8 @@ namespace Kernel::ACPI
 					return AML::ThermalZone::parse(context);
 				case AML::ExtOp::CondRefOfOp:
 					return AML::Reference::parse(context);
+				case AML::ExtOp::SleepOp:
+					return AML::Sleep::parse(context);
 				default:
 					break;
 			}
