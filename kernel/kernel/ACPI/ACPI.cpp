@@ -132,8 +132,6 @@ acpi_release_global_lock:
 			}
 		}
 
-		s_instance->m_namespace = AML::initialize_namespace();
-
 		return {};
 	}
 
@@ -424,11 +422,10 @@ acpi_release_global_lock:
 
 	BAN::ErrorOr<void> ACPI::enter_acpi_mode(uint8_t mode)
 	{
+		ASSERT(!m_namespace);
+		m_namespace = AML::initialize_namespace();
 		if (!m_namespace)
-		{
-			dwarnln("ACPI namespace not initialized");
 			return BAN::Error::from_errno(EFAULT);
-		}
 
 		// https://uefi.org/htmlspecs/ACPI_Spec_6_4_html/16_Waking_and_Sleeping/initialization.html#placing-the-system-in-acpi-mode
 		auto* fadt = static_cast<const FADT*>(get_header("FACP", 0));
