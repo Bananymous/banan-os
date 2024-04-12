@@ -71,7 +71,7 @@ namespace Kernel::ACPI::AML
 				BAN::RefPtr<AML::Node> element;
 
 				// Store name strings as references
-				if (AML::NameString::can_parse(package_context.aml_data))
+				if (package_context.aml_data[0] != 0x00 && AML::NameString::can_parse(package_context.aml_data))
 				{
 					auto name = AML::NameString::parse(package_context.aml_data);
 					if (!name.has_value())
