@@ -225,8 +225,6 @@ namespace Kernel::ACPI
 	{
 		ASSERT(this == s_root_namespace.ptr());
 
-		dprintln("Parsing {}, {} bytes of AML", header, header.length);
-
 		AML::ParseContext context;
 		context.scope = AML::NameString("\\"sv);
 		context.aml_data = BAN::ConstByteSpan(reinterpret_cast<const uint8_t*>(&header), header.length).slice(sizeof(header));
