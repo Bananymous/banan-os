@@ -17,10 +17,10 @@ namespace Kernel::ACPI::AML
 			auto source_result = AML::parse_object(context);
 			if (!source_result.success())
 				return ParseResult::Failure;
-			auto source = source_result.node();
+			auto source = source_result.node() ? source_result.node()->evaluate() : BAN::RefPtr<AML::Node>();
 			if (!source)
 			{
-				AML_ERROR("Store source is null");
+				AML_ERROR("Store source cannot be evaluated");
 				return ParseResult::Failure;
 			}
 
@@ -33,6 +33,16 @@ namespace Kernel::ACPI::AML
 				AML_ERROR("Store destination is null");
 				return ParseResult::Failure;
 			}
+
+#if AML_DEBUG_LEVEL >= 2
+			AML_DEBUG_PRINTLN("Storing {");
+			source->debug_print(1);
+			AML_DEBUG_PRINTLN("");
+			AML_DEBUG_PRINTLN("} to {");
+			destination->debug_print(1);
+			AML_DEBUG_PRINTLN("");
+			AML_DEBUG_PRINTLN("}");
+#endif
 
 			if (!destination->store(source))
 				return ParseResult::Failure;

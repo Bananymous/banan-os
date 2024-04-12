@@ -77,7 +77,7 @@ namespace Kernel::ACPI
 		AML_DEBUG_PRINTLN("");
 #endif
 
-		dprintln("Parsed ACPI namespace");
+		dprintln("Parsed ACPI namespace, total of {} nodes created", AML::Node::total_node_count);
 
 		return ns;
 	}

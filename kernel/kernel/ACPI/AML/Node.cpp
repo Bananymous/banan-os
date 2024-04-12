@@ -27,6 +27,8 @@ namespace Kernel::ACPI
 	AML::ParseResult AML::ParseResult::Failure = AML::ParseResult(AML::ParseResult::Result::Failure);
 	AML::ParseResult AML::ParseResult::Success = AML::ParseResult(AML::ParseResult::Result::Success);
 
+	uint64_t AML::Node::total_node_count = 0;
+
 	BAN::Optional<uint64_t> AML::Node::as_integer()
 	{
 		if (type == Type::Integer)
@@ -214,6 +216,8 @@ namespace Kernel::ACPI
 					AML_ERROR("Failed to evaluate {}", name_string.value());
 					return ParseResult::Failure;
 				}
+				if (!result.value())
+					return ParseResult::Success;
 				return ParseResult(result.value());
 			}
 			return ParseResult(aml_object);

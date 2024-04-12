@@ -102,7 +102,7 @@ namespace Kernel::ACPI::AML
 			AML_DEBUG_PRINTLN("");
 #endif
 
-			auto return_value = MUST(BAN::RefPtr<Integer>::create(object ? Integer::Ones : 0));
+			auto return_value = object ? Integer::Constants::Ones : Integer::Constants::Zero;
 			return AML::ParseResult(return_value);
 		}
 

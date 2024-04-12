@@ -1,3 +1,4 @@
+#include <kernel/ACPI/AML/Integer.h>
 #include <kernel/ACPI/AML/Method.h>
 #include <kernel/ACPI/AML/Namespace.h>
 #include <kernel/ACPI/AML/ParseContext.h>
@@ -8,6 +9,10 @@ namespace Kernel::ACPI
 
 	static BAN::RefPtr<AML::Namespace> s_root_namespace;
 	static BAN::Vector<uint8_t> s_osi_aml_data;
+
+	BAN::RefPtr<AML::Integer> AML::Integer::Constants::Zero;
+	BAN::RefPtr<AML::Integer> AML::Integer::Constants::One;
+	BAN::RefPtr<AML::Integer> AML::Integer::Constants::Ones;
 
 	BAN::RefPtr<AML::Namespace> AML::Namespace::root_namespace()
 	{
@@ -197,6 +202,10 @@ namespace Kernel::ACPI
 	{
 		ASSERT(!s_root_namespace);
 		s_root_namespace = MUST(BAN::RefPtr<Namespace>::create(NameSeg("\\"sv)));
+
+		Integer::Constants::Zero = MUST(BAN::RefPtr<Integer>::create(0, true));
+		Integer::Constants::One = MUST(BAN::RefPtr<Integer>::create(1, true));
+		Integer::Constants::Ones = MUST(BAN::RefPtr<Integer>::create(0xFFFFFFFFFFFFFFFF, true));
 
 		AML::ParseContext context;
 		context.scope = AML::NameString("\\"sv);

@@ -119,13 +119,13 @@ namespace Kernel::ACPI::AML
 				while (!mutex->mutex.try_lock())
 				{
 					if (SystemTimer::get().ms_since_boot() >= wake_time)
-						return ParseResult(MUST(BAN::RefPtr<AML::Integer>::create(AML::Integer::Ones)));
+						return ParseResult(Integer::Constants::Ones);
 					SystemTimer::get().sleep(1);
 				}
 			}
 
 			MUST(context.sync_stack.push_back(mutex->sync_level));
-			return ParseResult(MUST(BAN::RefPtr<AML::Integer>::create(0)));
+			return ParseResult(Integer::Constants::Zero);
 		}
 
 		static ParseResult parse_release(ParseContext& context)

@@ -13,17 +13,43 @@ namespace Kernel::ACPI::AML
 
 	struct Integer : public Node
 	{
-		static constexpr uint64_t Ones = -1;
-		const uint64_t value;
+		struct Constants
+		{
+			// Initialized in Namespace::create_root_namespace
+			static BAN::RefPtr<Integer> Zero;
+			static BAN::RefPtr<Integer> One;
+			static BAN::RefPtr<Integer> Ones;
+		};
 
-		Integer(uint64_t value)
+		const bool constant;
+		uint64_t value;
+
+		Integer(uint64_t value, bool constant = false)
 			: Node(Node::Type::Integer)
 			, value(value)
+			, constant(constant)
 		{}
 
 		BAN::RefPtr<AML::Node> evaluate() override
 		{
 			return this;
+		}
+
+		bool store(BAN::RefPtr<AML::Node> store_node) override
+		{
+			if (constant)
+			{
+				AML_ERROR("Cannot store to constant integer");
+				return false;
+			}
+			auto store_value = store_node->as_integer();
+			if (!store_value.has_value())
+			{
+				AML_ERROR("Cannot store non-integer to integer");
+				return false;
+			}
+			value = store_value.value();
+			return true;
 		}
 
 		static ParseResult parse(BAN::ConstByteSpan& aml_data)
@@ -32,13 +58,13 @@ namespace Kernel::ACPI::AML
 			{
 				case AML::Byte::ZeroOp:
 					aml_data = aml_data.slice(1);
-					return ParseResult(MUST(BAN::RefPtr<Integer>::create(0)));
+					return ParseResult(Constants::Zero);
 				case AML::Byte::OneOp:
 					aml_data = aml_data.slice(1);
-					return ParseResult(MUST(BAN::RefPtr<Integer>::create(1)));
+					return ParseResult(Constants::One);
 				case AML::Byte::OnesOp:
 					aml_data = aml_data.slice(1);
-					return ParseResult(MUST(BAN::RefPtr<Integer>::create(Ones)));
+					return ParseResult(Constants::Ones);
 				case AML::Byte::BytePrefix:
 				{
 					if (aml_data.size() < 2)
@@ -85,10 +111,20 @@ namespace Kernel::ACPI::AML
 		void debug_print(int indent) const override
 		{
 			AML_DEBUG_PRINT_INDENT(indent);
-			if (value == Ones)
-				AML_DEBUG_PRINT("Ones");
-			else
+			if (!constant)
 				AML_DEBUG_PRINT("0x{H}", value);
+			else
+			{
+				AML_DEBUG_PRINT("Const ");
+				if (value == Constants::Zero->value)
+					AML_DEBUG_PRINT("Zero");
+				else if (value == Constants::One->value)
+					AML_DEBUG_PRINT("One");
+				else if (value == Constants::Ones->value)
+					AML_DEBUG_PRINT("Ones");
+				else
+					ASSERT_NOT_REACHED();
+			}
 		}
 	};
 

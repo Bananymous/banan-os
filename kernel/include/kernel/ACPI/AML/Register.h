@@ -39,13 +39,15 @@ namespace Kernel::ACPI::AML
 		void debug_print(int indent) const override
 		{
 			AML_DEBUG_PRINT_INDENT(indent);
-			AML_DEBUG_PRINT("Register\n");
-			if (value)
-				value->debug_print(indent + 1);
+			if (!value)
+				AML_DEBUG_PRINT("Register { No value }");
 			else
 			{
-				AML_DEBUG_PRINT_INDENT(indent + 1);
-				AML_DEBUG_PRINT("No value\n");
+				AML_DEBUG_PRINTLN("Register { ");
+				value->debug_print(indent + 1);
+				AML_DEBUG_PRINTLN("");
+				AML_DEBUG_PRINT_INDENT(indent);
+				AML_DEBUG_PRINT(" }");
 			}
 		}
 	};

@@ -24,9 +24,15 @@ namespace Kernel::ACPI::AML
 
 		BAN::RefPtr<AML::Node> evaluate() override
 		{
-			if (!object)
-				return {};
+			ASSERT(object);
 			return object->evaluate();
+		}
+
+		bool store(BAN::RefPtr<AML::Node> node) override
+		{
+			ASSERT(object);
+			object = node;
+			return true;
 		}
 
 		static ParseResult parse(ParseContext& context);

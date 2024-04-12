@@ -91,7 +91,12 @@ namespace Kernel::ACPI::AML
 				MUST(context.sync_stack.push_back(sync_level));
 			}
 
-			BAN::Optional<BAN::RefPtr<AML::Node>> return_value;
+#if AML_DEBUG_LEVEL >= 2
+			AML_DEBUG_PRINTLN("Evaluating {}", scope);
+#endif
+
+
+			BAN::Optional<BAN::RefPtr<AML::Node>> return_value = BAN::RefPtr<AML::Node>();
 			while (context.aml_data.size() > 0)
 			{
 				auto parse_result = AML::parse_object(context);
@@ -103,6 +108,7 @@ namespace Kernel::ACPI::AML
 				if (!parse_result.success())
 				{
 					AML_ERROR("Method {} evaluate failed", scope);
+					return_value = {};
 					break;
 				}
 			}

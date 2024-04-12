@@ -101,24 +101,19 @@ namespace Kernel::ACPI
 			auto result = method->evaluate({}, sync_stack);
 			if (!result.has_value())
 			{
-				AML_ERROR("Failed to evaluate {}._STA", scope->scope);
-				return false;
+				AML_ERROR("Failed to evaluate {}._STA, ignoring device", scope->scope);
+				return true;
 			}
-			if (!result.value())
-			{
-				AML_ERROR("Failed to evaluate {}._STA, return value is null", scope->scope);
-				return false;
-			}
-			auto result_val = result.value()->as_integer();
-			if (!result_val.has_value())
+			auto result_value = result.has_value() ? result.value()->as_integer() : BAN::Optional<uint64_t>();
+			if (!result_value.has_value())
 			{
 				AML_ERROR("Failed to evaluate {}._STA, return value could not be resolved to integer", scope->scope);
 				AML_ERROR("  Return value: ");
 				result.value()->debug_print(0);
 				return false;
 			}
-			run_ini = (result_val.value() & 0x01);
-			init_children = run_ini || (result_val.value() & 0x02);
+			run_ini = (result_value.value() & 0x01);
+			init_children = run_ini || (result_value.value() & 0x02);
 		}
 
 		if (run_ini)

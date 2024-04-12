@@ -11,6 +11,8 @@ namespace Kernel::ACPI::AML
 
 	struct Node : public BAN::RefCounted<Node>
 	{
+		static uint64_t total_node_count;
+
 		enum class Type
 		{
 			BankFieldElement,
@@ -35,8 +37,8 @@ namespace Kernel::ACPI::AML
 		};
 		const Type type;
 
-		Node(Type type) : type(type) {}
-		virtual ~Node() = default;
+		Node(Type type) : type(type) { total_node_count++; }
+		virtual ~Node() { total_node_count--; }
 
 		virtual bool is_scope() const { return false; }
 
