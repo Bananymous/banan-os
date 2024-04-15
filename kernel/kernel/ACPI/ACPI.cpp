@@ -7,8 +7,10 @@
 #include <kernel/ACPI/AML/Method.h>
 #include <kernel/ACPI/AML/Package.h>
 #include <kernel/BootInfo.h>
+#include <kernel/InterruptController.h>
 #include <kernel/IO.h>
 #include <kernel/Memory/PageTable.h>
+#include <kernel/Process.h>
 #include <kernel/Timer/Timer.h>
 
 #define RSPD_SIZE	20
@@ -77,11 +79,11 @@ acpi_release_global_lock:
 
 	enum PM1Event : uint16_t
 	{
-		PM1_EVN_TMR_EN = 1 << 0,
-		PM1_EVN_GBL_EN = 1 << 5,
-		PM1_EVN_PWRBTN_EN = 1 << 8,
-		PM1_EVN_SLPBTN_EN = 1 << 8,
-		PM1_EVN_RTC_EN = 1 << 10,
+		PM1_EVN_TMR = 1 << 0,
+		PM1_EVN_GBL = 1 << 5,
+		PM1_EVN_PWRBTN = 1 << 8,
+		PM1_EVN_SLPBTN = 1 << 8,
+		PM1_EVN_RTC = 1 << 10,
 		PM1_EVN_PCIEXP_WAKE_DIS = 1 << 14,
 	};
 
@@ -315,9 +317,13 @@ acpi_release_global_lock:
 					.vaddr = dsdt_vaddr
 				}));
 
+				m_fadt = fadt;
 				m_hardware_reduced = fadt->flags & (1 << 20);
 			}
 		}
+
+		if (m_fadt == nullptr)
+			Kernel::panic("No FADT found");
 
 		return {};
 	}
@@ -404,21 +410,19 @@ acpi_release_global_lock:
 
 		dprintln("Entering sleep state S5");
 
-		auto* fadt = static_cast<const FADT*>(get_header("FACP", 0));
-
-		uint16_t pm1a_data = IO::inw(fadt->pm1a_cnt_blk);
+		uint16_t pm1a_data = IO::inw(fadt().pm1a_cnt_blk);
 		pm1a_data &= ~(PM1_CNT_SLP_TYP_MASK << PM1_CNT_SLP_TYP_SHIFT);
 		pm1a_data |= (slp_typa.value() & PM1_CNT_SLP_TYP_MASK) << PM1_CNT_SLP_TYP_SHIFT;
 		pm1a_data |= PM1_CNT_SLP_EN;
-		IO::outw(fadt->pm1a_cnt_blk, pm1a_data);
+		IO::outw(fadt().pm1a_cnt_blk, pm1a_data);
 
-		if (fadt->pm1b_cnt_blk != 0)
+		if (fadt().pm1b_cnt_blk != 0)
 		{
-			uint16_t pm1b_data = IO::inw(fadt->pm1b_cnt_blk);
+			uint16_t pm1b_data = IO::inw(fadt().pm1b_cnt_blk);
 			pm1b_data &= ~(PM1_CNT_SLP_TYP_MASK << PM1_CNT_SLP_TYP_SHIFT);
 			pm1b_data |= (slp_typb.value() & PM1_CNT_SLP_TYP_MASK) << PM1_CNT_SLP_TYP_SHIFT;
 			pm1b_data |= PM1_CNT_SLP_EN;
-			IO::outw(fadt->pm1b_cnt_blk, pm1b_data);
+			IO::outw(fadt().pm1b_cnt_blk, pm1b_data);
 		}
 	}
 
@@ -430,31 +434,30 @@ acpi_release_global_lock:
 			return BAN::Error::from_errno(EFAULT);
 
 		// https://uefi.org/htmlspecs/ACPI_Spec_6_4_html/16_Waking_and_Sleeping/initialization.html#placing-the-system-in-acpi-mode
-		auto* fadt = static_cast<const FADT*>(get_header("FACP", 0));
 
 		// If not hardware-reduced ACPI and SCI_EN is not set
-		if (!hardware_reduced() && !(IO::inw(fadt->pm1a_cnt_blk) & PM1_CNT_SCI_EN))
+		if (!hardware_reduced() && !(IO::inw(fadt().pm1a_cnt_blk) & PM1_CNT_SCI_EN))
 		{
 			// https://uefi.org/htmlspecs/ACPI_Spec_6_4_html/04_ACPI_Hardware_Specification/ACPI_Hardware_Specification.html#legacy-acpi-select-and-the-sci-interrupt
-			IO::outb(fadt->smi_cmd, fadt->acpi_enable);
+			IO::outb(fadt().smi_cmd, fadt().acpi_enable);
 
 			// Spec says to poll until SCI_EN is set, but doesn't specify timeout
 			for (size_t i = 0; i < 100; i++)
 			{
-				if (IO::inw(fadt->pm1a_cnt_blk) & PM1_CNT_SCI_EN)
+				if (IO::inw(fadt().pm1a_cnt_blk) & PM1_CNT_SCI_EN)
 					break;
 				SystemTimer::get().sleep(10);
 			}
 
-			if (!(IO::inw(fadt->pm1a_cnt_blk) & PM1_CNT_SCI_EN))
+			if (!(IO::inw(fadt().pm1a_cnt_blk) & PM1_CNT_SCI_EN))
 			{
 				dwarnln("Failed to enable ACPI mode");
 				return BAN::Error::from_errno(EINVAL);
 			}
 
 			// Enable power and sleep buttons
-			IO::outw(fadt->pm1a_evt_blk + fadt->pm1_evt_len / 2, PM1_EVN_PWRBTN_EN | PM1_EVN_SLPBTN_EN);
-			IO::outw(fadt->pm1b_evt_blk + fadt->pm1_evt_len / 2, PM1_EVN_PWRBTN_EN | PM1_EVN_SLPBTN_EN);
+			IO::outw(fadt().pm1a_evt_blk + fadt().pm1_evt_len / 2, PM1_EVN_PWRBTN | PM1_EVN_SLPBTN);
+			IO::outw(fadt().pm1b_evt_blk + fadt().pm1_evt_len / 2, PM1_EVN_PWRBTN | PM1_EVN_SLPBTN);
 		}
 
 		dprintln("Entered ACPI mode");
@@ -488,7 +491,67 @@ acpi_release_global_lock:
 
 		dprintln("Devices are initialized");
 
+		uint8_t irq = fadt().sci_int;
+		if (auto ret = InterruptController::get().reserve_irq(irq); ret.is_error())
+			dwarnln("Could not enable ACPI interrupt: {}", ret.error());
+		else
+		{
+			set_irq(irq);
+			enable_interrupt();
+			Process::create_kernel([](void*) { get().acpi_event_task(); }, nullptr);
+		}
+
 		return {};
+	}
+
+	void ACPI::acpi_event_task()
+	{
+		auto get_fixed_event =
+			[&](uint16_t sts_port)
+			{
+				auto sts = IO::inw(sts_port);
+				auto en = IO::inw(sts_port + fadt().pm1_evt_len / 2);
+				if (auto pending = sts & en)
+					return pending & ~(pending - 1);
+				return 0;
+			};
+
+		while (true)
+		{
+			uint16_t sts_port;
+			uint16_t pending;
+
+			sts_port = fadt().pm1a_evt_blk;
+			if (pending = get_fixed_event(sts_port); pending)
+				goto handle_event;
+
+			sts_port = fadt().pm1b_evt_blk;
+			if (pending = get_fixed_event(sts_port); pending)
+				goto handle_event;
+
+			// FIXME: this can cause missing of event if it happens between
+			//        reading the status and blocking
+			m_acpi_event_semaphore.block_with_timeout(100);
+			continue;
+
+handle_event:
+			if (pending & PM1_EVN_PWRBTN)
+			{
+				if (auto ret = Process::clean_poweroff(POWEROFF_SHUTDOWN); ret.is_error())
+					dwarnln("Failed to poweroff: {}", ret.error());
+			}
+			else
+			{
+				dwarnln("Unhandled ACPI fixed event {H}", pending);
+			}
+
+			IO::outw(sts_port, pending);
+		}
+	}
+
+	void ACPI::handle_irq()
+	{
+		m_acpi_event_semaphore.unblock();
 	}
 
 }

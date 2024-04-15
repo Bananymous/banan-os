@@ -8,7 +8,7 @@
 namespace Kernel::ACPI
 {
 
-	class ACPI
+	class ACPI : public Interruptable
 	{
 	public:
 		static BAN::ErrorOr<void> initialize();
@@ -31,9 +31,15 @@ namespace Kernel::ACPI
 		// This function will return only if there was an error
 		void poweroff();
 
+		void handle_irq() override;
+
 	private:
 		ACPI() = default;
 		BAN::ErrorOr<void> initialize_impl();
+
+		FADT& fadt() { return *m_fadt; }
+
+		void acpi_event_task();
 
 	private:
 		paddr_t m_header_table_paddr = 0;
@@ -48,6 +54,10 @@ namespace Kernel::ACPI
 			SDTHeader* as_header() { return (SDTHeader*)vaddr; }
 		};
 		BAN::Vector<MappedPage> m_mapped_headers;
+
+		FADT* m_fadt { nullptr };
+
+		Semaphore m_acpi_event_semaphore;
 
 		bool m_hardware_reduced { false };
 		BAN::RefPtr<AML::Namespace> m_namespace;

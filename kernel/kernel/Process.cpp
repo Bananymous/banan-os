@@ -1198,7 +1198,7 @@ namespace Kernel
 		IDT::force_triple_fault();
 	}
 
-	BAN::ErrorOr<long> Process::sys_poweroff(int command)
+	BAN::ErrorOr<long> Process::clean_poweroff(int command)
 	{
 		if (command != POWEROFF_REBOOT && command != POWEROFF_SHUTDOWN)
 			return BAN::Error::from_errno(EINVAL);
@@ -1213,6 +1213,11 @@ namespace Kernel
 		ACPI::ACPI::get().poweroff();
 
 		return BAN::Error::from_errno(EUNKNOWN);
+	}
+
+	BAN::ErrorOr<long> Process::sys_poweroff(int command)
+	{
+		return clean_poweroff(command);
 	}
 
 	BAN::ErrorOr<long> Process::sys_readdir(int fd, DirectoryEntryList* list, size_t list_size)
