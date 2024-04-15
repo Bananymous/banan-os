@@ -314,6 +314,8 @@ acpi_release_global_lock:
 					.paddr = dsdt_paddr,
 					.vaddr = dsdt_vaddr
 				}));
+
+				m_hardware_reduced = fadt->flags & (1 << 20);
 			}
 		}
 
@@ -431,7 +433,7 @@ acpi_release_global_lock:
 		auto* fadt = static_cast<const FADT*>(get_header("FACP", 0));
 
 		// If not hardware-reduced ACPI and SCI_EN is not set
-		if (!(fadt->flags & (1 << 20)) && IO::inw(fadt->pm1a_cnt_blk) & PM1_CNT_SCI_EN)
+		if (!hardware_reduced() && !(IO::inw(fadt->pm1a_cnt_blk) & PM1_CNT_SCI_EN))
 		{
 			// https://uefi.org/htmlspecs/ACPI_Spec_6_4_html/04_ACPI_Hardware_Specification/ACPI_Hardware_Specification.html#legacy-acpi-select-and-the-sci-interrupt
 			IO::outb(fadt->smi_cmd, fadt->acpi_enable);

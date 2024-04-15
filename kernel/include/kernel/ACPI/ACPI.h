@@ -17,6 +17,8 @@ namespace Kernel::ACPI
 		static void acquire_global_lock();
 		static void release_global_lock();
 
+		bool hardware_reduced() const { return m_hardware_reduced; }
+
 		const SDTHeader* get_header(BAN::StringView signature, uint32_t index);
 
 		// mode
@@ -47,6 +49,7 @@ namespace Kernel::ACPI
 		};
 		BAN::Vector<MappedPage> m_mapped_headers;
 
+		bool m_hardware_reduced { false };
 		BAN::RefPtr<AML::Namespace> m_namespace;
 	};
 
