@@ -509,6 +509,8 @@ acpi_release_global_lock:
 		auto get_fixed_event =
 			[&](uint16_t sts_port)
 			{
+				if (sts_port == 0)
+					return 0;
 				auto sts = IO::inw(sts_port);
 				auto en = IO::inw(sts_port + fadt().pm1_evt_len / 2);
 				if (auto pending = sts & en)
