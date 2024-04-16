@@ -61,7 +61,7 @@ namespace Kernel
 		vaddr_t kernel_stack_top() const	{ return m_kernel_stack->vaddr() + m_kernel_stack->size(); }
 		VirtualRange& kernel_stack() { return *m_kernel_stack; }
 
-		vaddr_t userspace_stack_bottom() const	{ return is_userspace() ? m_userspace_stack->vaddr() : 0; }
+		vaddr_t userspace_stack_bottom() const	{ return is_userspace() ? m_userspace_stack->vaddr() : UINTPTR_MAX; }
 		vaddr_t userspace_stack_top() const		{ return is_userspace() ? m_userspace_stack->vaddr() + m_userspace_stack->size() : 0; }
 		VirtualRange& userspace_stack() { ASSERT(is_userspace()); return *m_userspace_stack; }
 

@@ -194,23 +194,27 @@ namespace Kernel
 					goto done;
 				}
 
-				// Try demand paging on non present pages
-				PageFaultError page_fault_error;
-				page_fault_error.raw = error;
-				if (!page_fault_error.present)
+				// Demand paging is only supported in userspace
+				if (thread.is_userspace())
 				{
-					Processor::set_interrupt_state(InterruptState::Enabled);
-					auto result = Process::current().allocate_page_for_demand_paging(regs->cr2);
-					Processor::set_interrupt_state(InterruptState::Disabled);
-
-					if (!result.is_error() && result.value())
-						goto done;
-
-					if (result.is_error())
+					// Try demand paging on non present pages
+					PageFaultError page_fault_error;
+					page_fault_error.raw = error;
+					if (!page_fault_error.present)
 					{
-						dwarnln("Demand paging: {}", result.error());
-						Thread::current().handle_signal(SIGKILL);
-						goto done;
+						Processor::set_interrupt_state(InterruptState::Enabled);
+						auto result = Process::current().allocate_page_for_demand_paging(regs->cr2);
+						Processor::set_interrupt_state(InterruptState::Disabled);
+
+						if (!result.is_error() && result.value())
+							goto done;
+
+						if (result.is_error())
+						{
+							dwarnln("Demand paging: {}", result.error());
+							Thread::current().handle_signal(SIGKILL);
+							goto done;
+						}
 					}
 				}
 			}
