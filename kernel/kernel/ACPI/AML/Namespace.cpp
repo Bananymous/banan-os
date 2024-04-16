@@ -4,6 +4,7 @@
 #include <kernel/ACPI/AML/Namespace.h>
 #include <kernel/ACPI/AML/ParseContext.h>
 #include <kernel/ACPI/AML/Region.h>
+#include <kernel/ACPI/AML/String.h>
 #include <kernel/Lock/LockGuard.h>
 
 namespace Kernel::ACPI
@@ -211,11 +212,19 @@ namespace Kernel::ACPI
 		ADD_PREDEFIED_NAMESPACE("_TZ"sv);
 #undef ADD_PREDEFIED_NAMESPACE
 
-		// Add dummy \_OSI
-		MUST(s_osi_aml_data.push_back(static_cast<uint8_t>(Byte::ReturnOp)));
-		MUST(s_osi_aml_data.push_back(static_cast<uint8_t>(Byte::ZeroOp)));
+		// Add \_OSI that returns true for Linux compatibility
 		auto osi = MUST(BAN::RefPtr<AML::Method>::create(NameSeg("_OSI"sv), 1, false, 0));
-		osi->term_list = s_osi_aml_data.span();
+		osi->override_function = [](AML::ParseContext& context) -> BAN::RefPtr<AML::Node> {
+			ASSERT(context.method_args[0]);
+			auto arg = context.method_args[0]->evaluate();
+			if (!arg || arg->type != AML::Node::Type::String)
+			{
+				AML_ERROR("Invalid _OSI argument");
+				return {};
+			}
+			auto string = static_cast<AML::String*>(arg.ptr());
+			return string->string == "Linux" ? AML::Integer::Constants::Ones : AML::Integer::Constants::Zero;
+		};
 		ASSERT(s_root_namespace->add_named_object(context, AML::NameString("\\_OSI"), osi));
 
 		return s_root_namespace;

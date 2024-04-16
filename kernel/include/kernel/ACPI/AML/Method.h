@@ -1,5 +1,6 @@
 #pragma once
 
+#include <BAN/Function.h>
 #include <kernel/ACPI/AML/Bytes.h>
 #include <kernel/ACPI/AML/Namespace.h>
 #include <kernel/ACPI/AML/ParseContext.h>
@@ -16,6 +17,7 @@ namespace Kernel::ACPI::AML
 		bool serialized;
 		uint8_t sync_level;
 
+		BAN::Function<BAN::RefPtr<AML::Node>(ParseContext&)> override_function;
 		BAN::ConstByteSpan term_list;
 
 		Method(AML::NameSeg name, uint8_t arg_count, bool serialized, uint8_t sync_level)
@@ -117,21 +119,26 @@ namespace Kernel::ACPI::AML
 			AML_DEBUG_PRINTLN("Evaluating {}", scope);
 #endif
 
-
 			BAN::Optional<BAN::RefPtr<AML::Node>> return_value = BAN::RefPtr<AML::Node>();
-			while (context.aml_data.size() > 0)
+
+			if (override_function)
+				return_value = override_function(context);
+			else
 			{
-				auto parse_result = AML::parse_object(context);
-				if (parse_result.returned())
+				while (context.aml_data.size() > 0)
 				{
-					return_value = parse_result.node();
-					break;
-				}
-				if (!parse_result.success())
-				{
-					AML_ERROR("Method {} evaluate failed", scope);
-					return_value = {};
-					break;
+					auto parse_result = AML::parse_object(context);
+					if (parse_result.returned())
+					{
+						return_value = parse_result.node();
+						break;
+					}
+					if (!parse_result.success())
+					{
+						AML_ERROR("Method {} evaluate failed", scope);
+						return_value = {};
+						break;
+					}
 				}
 			}
 
