@@ -11,9 +11,7 @@ namespace Kernel::ACPI::AML
 
 	struct Method : public AML::Scope
 	{
-		using Arguments = BAN::Array<BAN::RefPtr<AML::Register>, 7>;
-
-		Mutex mutex;
+		Kernel::Mutex mutex;
 		uint8_t arg_count;
 		bool serialized;
 		uint8_t sync_level;
@@ -64,7 +62,30 @@ namespace Kernel::ACPI::AML
 			return ParseResult::Success;
 		}
 
-		BAN::Optional<BAN::RefPtr<AML::Node>> evaluate(Arguments args, BAN::Vector<uint8_t>& current_sync_stack)
+		BAN::Optional<BAN::RefPtr<AML::Node>> invoke(
+			BAN::RefPtr<AML::Node> arg0 = {},
+			BAN::RefPtr<AML::Node> arg1 = {},
+			BAN::RefPtr<AML::Node> arg2 = {},
+			BAN::RefPtr<AML::Node> arg3 = {},
+			BAN::RefPtr<AML::Node> arg4 = {},
+			BAN::RefPtr<AML::Node> arg5 = {},
+			BAN::RefPtr<AML::Node> arg6 = {}
+		)
+		{
+			BAN::Vector<uint8_t> sync_stack;
+			return invoke_with_sync_stack(sync_stack, arg0, arg1, arg2, arg3, arg4, arg5, arg6);
+		}
+
+		BAN::Optional<BAN::RefPtr<AML::Node>> invoke_with_sync_stack(
+			BAN::Vector<uint8_t>& current_sync_stack,
+			BAN::RefPtr<AML::Node> arg0 = {},
+			BAN::RefPtr<AML::Node> arg1 = {},
+			BAN::RefPtr<AML::Node> arg2 = {},
+			BAN::RefPtr<AML::Node> arg3 = {},
+			BAN::RefPtr<AML::Node> arg4 = {},
+			BAN::RefPtr<AML::Node> arg5 = {},
+			BAN::RefPtr<AML::Node> arg6 = {}
+		)
 		{
 			if (serialized && !current_sync_stack.empty() && sync_level < current_sync_stack.back())
 			{
@@ -75,7 +96,13 @@ namespace Kernel::ACPI::AML
 			ParseContext context;
 			context.aml_data = term_list;
 			context.scope = scope;
-			context.method_args = args;
+			context.method_args[0] = MUST(BAN::RefPtr<AML::Register>::create(arg0));
+			context.method_args[1] = MUST(BAN::RefPtr<AML::Register>::create(arg1));
+			context.method_args[2] = MUST(BAN::RefPtr<AML::Register>::create(arg2));
+			context.method_args[3] = MUST(BAN::RefPtr<AML::Register>::create(arg3));
+			context.method_args[4] = MUST(BAN::RefPtr<AML::Register>::create(arg4));
+			context.method_args[5] = MUST(BAN::RefPtr<AML::Register>::create(arg5));
+			context.method_args[6] = MUST(BAN::RefPtr<AML::Register>::create(arg6));
 			context.sync_stack = BAN::move(current_sync_stack);
 			for (auto& local : context.method_locals)
 				local = MUST(BAN::RefPtr<AML::Register>::create());

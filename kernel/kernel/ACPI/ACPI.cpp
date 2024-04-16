@@ -396,10 +396,7 @@ acpi_release_global_lock:
 				return;
 			}
 
-			AML::Method::Arguments args;
-			args[0] = MUST(BAN::RefPtr<AML::Register>::create(MUST(BAN::RefPtr<AML::Integer>::create(5))));
-			BAN::Vector<uint8_t> sync_stack;
-			if (!method->evaluate(args, sync_stack).has_value())
+			if (!method->invoke(MUST(BAN::RefPtr<AML::Integer>::create(5))).has_value())
 			{
 				dwarnln("Failed to evaluate \\_PTS");
 				return;
@@ -482,11 +479,7 @@ acpi_release_global_lock:
 				dwarnln("Method \\_PIC has {} arguments, expected 1", method->arg_count);
 				return BAN::Error::from_errno(EINVAL);
 			}
-
-			AML::Method::Arguments args;
-			args[0] = MUST(BAN::RefPtr<AML::Register>::create(MUST(BAN::RefPtr<AML::Integer>::create(mode))));
-			BAN::Vector<uint8_t> sync_stack;
-			method->evaluate(args, sync_stack);
+			method->invoke(MUST(BAN::RefPtr<AML::Integer>::create(mode)));
 		}
 
 		dprintln("Devices are initialized");

@@ -201,7 +201,7 @@ namespace Kernel::ACPI
 			{
 				auto* method = static_cast<AML::Method*>(aml_object.ptr());
 
-				Method::Arguments args;
+				BAN::Array<BAN::RefPtr<AML::Node>, 7> args;
 				for (uint8_t i = 0; i < method->arg_count; i++)
 				{
 					auto arg = AML::parse_object(context);
@@ -213,7 +213,16 @@ namespace Kernel::ACPI
 					args[i] = MUST(BAN::RefPtr<AML::Register>::create(arg.node()));
 				}
 
-				auto result = method->evaluate(args, context.sync_stack);
+				auto result = method->invoke_with_sync_stack(
+					context.sync_stack,
+					args[0],
+					args[1],
+					args[2],
+					args[3],
+					args[4],
+					args[5],
+					args[6]
+				);
 				if (!result.has_value())
 				{
 					AML_ERROR("Failed to evaluate {}", name_string.value());

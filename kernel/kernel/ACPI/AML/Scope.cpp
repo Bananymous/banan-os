@@ -78,8 +78,7 @@ namespace Kernel::ACPI
 			return {};
 		}
 
-		BAN::Vector<uint8_t> sync_stack;
-		auto result = method->evaluate({}, sync_stack);
+		auto result = method->invoke();
 		if (!result.has_value())
 		{
 			AML_ERROR("Failed to evaluate method");
@@ -125,11 +124,7 @@ namespace Kernel::ACPI
 
 				BAN::RefPtr<AML::Node> embedded_controller = MUST(BAN::RefPtr<AML::Integer>::create(static_cast<uint64_t>(AML::OpRegion::RegionSpace::EmbeddedController)));
 
-				Method::Arguments arguments;
-				arguments[0] = MUST(BAN::RefPtr<AML::Register>::create(embedded_controller));
-				arguments[1] = MUST(BAN::RefPtr<AML::Register>::create(AML::Integer::Constants::One));
-				BAN::Vector<uint8_t> sync_stack;
-				if (!method->evaluate(arguments, sync_stack).has_value())
+				if (!method->invoke(embedded_controller, AML::Integer::Constants::One).has_value())
 				{
 					AML_ERROR("Failed to evaluate {}._REG(EmbeddedController, 1), ignoring device", scope->scope);
 					return false;
@@ -171,8 +166,7 @@ namespace Kernel::ACPI
 					return false;
 				}
 
-				BAN::Vector<uint8_t> sync_stack;
-				auto result = method->evaluate({}, sync_stack);
+				auto result = method->invoke();
 				if (!result.has_value())
 				{
 					AML_ERROR("Failed to evaluate {}._INI, ignoring device", scope->scope);
