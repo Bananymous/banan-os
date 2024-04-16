@@ -23,17 +23,11 @@ namespace Kernel::ACPI::AML
 			auto outer_aml_data = context.aml_data;
 			context.aml_data = if_pkg.value();
 
-			auto predicate = AML::parse_object(context);
-			if (!predicate.success())
+			auto predicate_result = AML::parse_object(context);
+			if (!predicate_result.success())
 				return ParseResult::Failure;
-			auto predicate_node = predicate.node();
-			if (!predicate_node)
-			{
-				AML_ERROR("If predicate is not an integer");
-				return ParseResult::Failure;
-			}
-			auto predicate_integer = predicate_node->as_integer();
-			if (!predicate_integer.has_value())
+			auto predicate = predicate_result.node() ? predicate_result.node()->as_integer() : BAN::Optional<uint64_t>();
+			if (!predicate.has_value())
 			{
 				AML_ERROR("If predicate is not an integer");
 				return ParseResult::Failure;
@@ -41,7 +35,7 @@ namespace Kernel::ACPI::AML
 
 			// Else
 			BAN::ConstByteSpan else_pkg;
-			if (outer_aml_data.size() >= 1 && static_cast<Byte>(outer_aml_data[0]) == Byte::ElseOp)
+			if (outer_aml_data.size() >= 1 && static_cast<AML::Byte>(outer_aml_data[0]) == Byte::ElseOp)
 			{
 				outer_aml_data = outer_aml_data.slice(1);
 				auto else_pkg_result = AML::parse_pkg(outer_aml_data);
@@ -49,7 +43,7 @@ namespace Kernel::ACPI::AML
 					return ParseResult::Failure;
 				else_pkg = else_pkg_result.value();
 			}
-			if (!predicate_integer.value())
+			if (!predicate.value())
 				context.aml_data = else_pkg;
 
 			while (context.aml_data.size() > 0)
