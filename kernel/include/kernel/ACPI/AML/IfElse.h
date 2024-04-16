@@ -40,19 +40,17 @@ namespace Kernel::ACPI::AML
 			}
 
 			// Else
-			if (!predicate_integer.value())
+			BAN::ConstByteSpan else_pkg;
+			if (outer_aml_data.size() >= 1 && static_cast<Byte>(outer_aml_data[0]) == Byte::ElseOp)
 			{
-				if (outer_aml_data.size() < 1 || static_cast<Byte>(outer_aml_data[0]) != Byte::ElseOp)
-					context.aml_data = BAN::ConstByteSpan();
-				else
-				{
-					outer_aml_data = outer_aml_data.slice(1);
-					auto else_pkg = AML::parse_pkg(outer_aml_data);
-					if (!else_pkg.has_value())
-						return ParseResult::Failure;
-					context.aml_data = else_pkg.value();
-				}
+				outer_aml_data = outer_aml_data.slice(1);
+				auto else_pkg_result = AML::parse_pkg(outer_aml_data);
+				if (!else_pkg_result.has_value())
+					return ParseResult::Failure;
+				else_pkg = else_pkg_result.value();
 			}
+			if (!predicate_integer.value())
+				context.aml_data = else_pkg;
 
 			while (context.aml_data.size() > 0)
 			{
