@@ -1,6 +1,8 @@
 #include <kernel/ACPI/AML/Device.h>
+#include <kernel/ACPI/AML/Integer.h>
 #include <kernel/ACPI/AML/ParseContext.h>
 #include <kernel/ACPI/AML/Pkg.h>
+#include <kernel/ACPI/AML/Region.h>
 #include <kernel/ACPI/AML/Scope.h>
 
 namespace Kernel::ACPI
@@ -92,6 +94,48 @@ namespace Kernel::ACPI
 #if AML_DEBUG_LEVEL >= 2
 		AML_DEBUG_PRINTLN("Initializing {}", scope->scope);
 #endif
+
+		if (auto reg = Namespace::root_namespace()->find_object(scope->scope, AML::NameString("_REG"sv), Namespace::FindMode::ForceAbsolute))
+		{
+			bool embedded_controller = false;
+			Namespace::for_each_child(scope->scope,
+				[&](const auto&, auto& child)
+				{
+					if (child->type != AML::Node::Type::OpRegion)
+						return;
+					auto* region = static_cast<AML::OpRegion*>(child.ptr());
+					if (region->region_space == AML::OpRegion::RegionSpace::EmbeddedController)
+						embedded_controller = true;
+				}
+			);
+			if (embedded_controller)
+			{
+				if (reg->type != AML::Node::Type::Method)
+				{
+					AML_ERROR("Object {}._REG is not a method", scope->scope);
+					return false;
+				}
+
+				auto* method = static_cast<Method*>(reg.ptr());
+				if (method->arg_count != 2)
+				{
+					AML_ERROR("Method {}._REG has {} arguments, expected 2", scope->scope, method->arg_count);
+					return false;
+				}
+
+				BAN::RefPtr<AML::Node> embedded_controller = MUST(BAN::RefPtr<AML::Integer>::create(static_cast<uint64_t>(AML::OpRegion::RegionSpace::EmbeddedController)));
+
+				Method::Arguments arguments;
+				arguments[0] = MUST(BAN::RefPtr<AML::Register>::create(embedded_controller));
+				arguments[1] = MUST(BAN::RefPtr<AML::Register>::create(AML::Integer::Constants::One));
+				BAN::Vector<uint8_t> sync_stack;
+				if (!method->evaluate(arguments, sync_stack).has_value())
+				{
+					AML_ERROR("Failed to evaluate {}._REG(EmbeddedController, 1), ignoring device", scope->scope);
+					return false;
+				}
+			}
+		}
 
 		bool run_ini = true;
 		bool init_children = true;
