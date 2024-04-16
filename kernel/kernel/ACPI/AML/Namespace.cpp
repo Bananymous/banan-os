@@ -34,7 +34,6 @@ namespace Kernel::ACPI
 		}
 		AML_DEBUG_PRINT_INDENT(indent);
 		AML_DEBUG_PRINT("}");
-
 	}
 
 	BAN::Optional<BAN::String> AML::Namespace::resolve_path(const AML::NameString& relative_base, const AML::NameString& relative_path, FindMode mode, bool check_existence) const
@@ -77,7 +76,7 @@ namespace Kernel::ACPI
 			if (absolute_path.back() == '.')
 				absolute_path.pop_back();
 
-			if (!check_existence || m_objects.contains(absolute_path))
+			if (!check_existence || absolute_path == "\\"sv || m_objects.contains(absolute_path))
 				return absolute_path;
 			return {};
 		}
@@ -125,6 +124,9 @@ namespace Kernel::ACPI
 		auto canonical_path = resolve_path(relative_base, relative_path, mode);
 		if (!canonical_path.has_value())
 			return nullptr;
+
+		if (canonical_path->sv() == "\\"sv)
+			return this;
 
 		auto it = m_objects.find(canonical_path.value());
 		if (it == m_objects.end())
@@ -191,7 +193,6 @@ namespace Kernel::ACPI
 		ASSERT(!s_root_namespace);
 		s_root_namespace = MUST(BAN::RefPtr<Namespace>::create(NameSeg("\\"sv)));
 		s_root_namespace->scope = AML::NameString("\\"sv);
-		MUST(s_root_namespace->m_objects.insert("\\"sv, s_root_namespace));
 
 		Integer::Constants::Zero = MUST(BAN::RefPtr<Integer>::create(0, true));
 		Integer::Constants::One = MUST(BAN::RefPtr<Integer>::create(1, true));
