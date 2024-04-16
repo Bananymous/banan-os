@@ -354,7 +354,7 @@ acpi_release_global_lock:
 			return;
 		}
 
-		auto s5_object = m_namespace->find_object({}, AML::NameString("\\_S5"));
+		auto s5_object = m_namespace->find_object({}, AML::NameString("_S5"), AML::Namespace::FindMode::ForceAbsolute);
 		if (!s5_object)
 		{
 			dwarnln("\\_S5 not found");
@@ -386,7 +386,7 @@ acpi_release_global_lock:
 			return;
 		}
 
-		auto pts_object = m_namespace->find_object({}, AML::NameString("\\_PTS"));
+		auto pts_object = m_namespace->find_object({}, AML::NameString("_PTS"), AML::Namespace::FindMode::ForceAbsolute);
 		if (pts_object && pts_object->type == AML::Node::Type::Method)
 		{
 			auto* method = static_cast<AML::Method*>(pts_object.ptr());
@@ -465,7 +465,7 @@ acpi_release_global_lock:
 		dprintln("Initializing devices");
 
 		// Initialize \\_SB
-		auto _sb = m_namespace->find_object({}, AML::NameString("\\_SB"));
+		auto _sb = m_namespace->find_object({}, AML::NameString("_SB"), AML::Namespace::FindMode::ForceAbsolute);
 		if (_sb && _sb->is_scope())
 		{
 			auto* scope = static_cast<AML::Scope*>(_sb.ptr());
@@ -473,7 +473,7 @@ acpi_release_global_lock:
 		}
 
 		// Evaluate \\_PIC (mode)
-		auto _pic = m_namespace->find_object({}, AML::NameString("\\_PIC"));
+		auto _pic = m_namespace->find_object({}, AML::NameString("_PIC"), AML::Namespace::FindMode::ForceAbsolute);
 		if (_pic && _pic->type == AML::Node::Type::Method)
 		{
 			auto* method = static_cast<AML::Method*>(_pic.ptr());

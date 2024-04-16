@@ -54,7 +54,7 @@ namespace Kernel::ACPI::AML
 				auto name = NameString::parse(context.aml_data);
 				if (!name.has_value())
 					return ParseResult::Failure;
-				object = Namespace::root_namespace()->find_object(context.scope, name.value());
+				object = Namespace::root_namespace()->find_object(context.scope, name.value(), Namespace::FindMode::Normal);
 			}
 			else
 			{

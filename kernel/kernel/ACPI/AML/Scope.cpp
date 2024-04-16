@@ -20,7 +20,7 @@ namespace Kernel::ACPI
 		if (!name_string.has_value())
 			return ParseResult::Failure;
 
-		auto named_object = Namespace::root_namespace()->find_object(context.scope, name_string.value());
+		auto named_object = Namespace::root_namespace()->find_object(context.scope, name_string.value(), Namespace::FindMode::Normal);
 		if (!named_object)
 		{
 			AML_ERROR("Scope '{}' not found in namespace", name_string.value());
@@ -38,7 +38,7 @@ namespace Kernel::ACPI
 
 	AML::ParseResult AML::Scope::enter_context_and_parse_term_list(ParseContext& outer_context, const AML::NameString& name_string, BAN::ConstByteSpan aml_data)
 	{
-		auto resolved_scope = Namespace::root_namespace()->resolve_path(outer_context.scope, name_string);
+		auto resolved_scope = Namespace::root_namespace()->resolve_path(outer_context.scope, name_string, Namespace::FindMode::Normal);
 		if (!resolved_scope.has_value())
 			return ParseResult::Failure;
 
@@ -96,7 +96,7 @@ namespace Kernel::ACPI
 		bool run_ini = true;
 		bool init_children = true;
 
-		if (auto sta = Namespace::root_namespace()->find_object(scope->scope, AML::NameString("_STA"sv)))
+		if (auto sta = Namespace::root_namespace()->find_object(scope->scope, AML::NameString("_STA"sv), Namespace::FindMode::ForceAbsolute))
 		{
 			auto result = evaluate_or_invoke(sta);
 			if (!result.has_value())
@@ -111,7 +111,7 @@ namespace Kernel::ACPI
 
 		if (run_ini)
 		{
-			auto ini = Namespace::root_namespace()->find_object(scope->scope, AML::NameString("_INI"sv));
+			auto ini = Namespace::root_namespace()->find_object(scope->scope, AML::NameString("_INI"sv), Namespace::FindMode::ForceAbsolute);
 			if (ini)
 			{
 				if (ini->type != AML::Node::Type::Method)

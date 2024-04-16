@@ -15,7 +15,7 @@ namespace Kernel::ACPI::AML
 		template<typename F>
 		static void for_each_child(const AML::NameString& scope, const F& callback)
 		{
-			auto canonical_path = root_namespace()->resolve_path({}, scope);
+			auto canonical_path = root_namespace()->resolve_path(scope, {}, FindMode::ForceAbsolute);
 			ASSERT(canonical_path.has_value());
 
 			for (auto& [path, child] : root_namespace()->m_objects)
@@ -39,10 +39,15 @@ namespace Kernel::ACPI::AML
 
 		void debug_print(int indent) const override;
 
-		BAN::Optional<BAN::String> resolve_path(const AML::NameString& relative_base, const AML::NameString& relative_path, bool allow_nonexistent = false);
+		enum class FindMode
+		{
+			Normal,
+			ForceAbsolute,
+		};
+		BAN::Optional<BAN::String> resolve_path(const AML::NameString& relative_base, const AML::NameString& relative_path, FindMode mode, bool check_existence = true) const;
 
 		// Find an object in the namespace. Returns nullptr if the object is not found.
-		BAN::RefPtr<NamedObject> find_object(const AML::NameString& relative_base, const AML::NameString& relative_path);
+		BAN::RefPtr<NamedObject> find_object(const AML::NameString& relative_base, const AML::NameString& relative_path, FindMode mode);
 
 		// Add an object to the namespace. Returns false if the parent object could not be added.
 		bool add_named_object(ParseContext&, const AML::NameString& object_path, BAN::RefPtr<NamedObject> object);

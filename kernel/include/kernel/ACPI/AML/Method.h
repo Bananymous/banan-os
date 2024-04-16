@@ -54,12 +54,7 @@ namespace Kernel::ACPI::AML
 			));
 			if (!Namespace::root_namespace()->add_named_object(context, name_string.value(), method))
 				return ParseResult::Failure;
-
-			auto method_scope = Namespace::root_namespace()->resolve_path(context.scope, name_string.value());
-			if (!method_scope.has_value())
-				return ParseResult::Failure;
 			method->term_list = method_pkg.value();
-			method->scope = AML::NameString(method_scope.release_value());
 
 #if AML_DEBUG_LEVEL >= 2
 			method->debug_print(0);

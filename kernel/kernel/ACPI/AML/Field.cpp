@@ -404,7 +404,7 @@ namespace Kernel::ACPI
 		if (!name_string.has_value())
 			return ParseResult::Failure;
 
-		auto op_region = Namespace::root_namespace()->find_object(context.scope, name_string.value());
+		auto op_region = Namespace::root_namespace()->find_object(context.scope, name_string.value(), Namespace::FindMode::Normal);
 		if (!op_region || op_region->type != AML::Node::Type::OpRegion)
 		{
 			AML_ERROR("FieldOp: {} does not name a valid OpRegion", name_string.value());
@@ -532,7 +532,7 @@ namespace Kernel::ACPI
 		auto index_field_element_name = NameString::parse(field_pkg);
 		if (!index_field_element_name.has_value())
 			return ParseResult::Failure;
-		auto index_field_element = Namespace::root_namespace()->find_object(context.scope, index_field_element_name.value());
+		auto index_field_element = Namespace::root_namespace()->find_object(context.scope, index_field_element_name.value(), Namespace::FindMode::Normal);
 		if (!index_field_element || index_field_element->type != AML::Node::Type::FieldElement)
 		{
 			AML_ERROR("IndexField IndexName does not name a valid FieldElement");
@@ -542,7 +542,7 @@ namespace Kernel::ACPI
 		auto data_field_element_name = NameString::parse(field_pkg);
 		if (!data_field_element_name.has_value())
 			return ParseResult::Failure;
-		auto data_field_element = Namespace::root_namespace()->find_object(context.scope, data_field_element_name.value());
+		auto data_field_element = Namespace::root_namespace()->find_object(context.scope, data_field_element_name.value(), Namespace::FindMode::Normal);
 		if (!data_field_element || data_field_element->type != AML::Node::Type::FieldElement)
 		{
 			AML_ERROR("IndexField DataName does not name a valid FieldElement");
@@ -694,7 +694,7 @@ namespace Kernel::ACPI
 		auto op_region_name = NameString::parse(field_pkg);
 		if (!op_region_name.has_value())
 			return ParseResult::Failure;
-		auto op_region = Namespace::root_namespace()->find_object(context.scope, op_region_name.value());
+		auto op_region = Namespace::root_namespace()->find_object(context.scope, op_region_name.value(), Namespace::FindMode::Normal);
 		if (!op_region || op_region->type != AML::Node::Type::OpRegion)
 		{
 			AML_ERROR("BankField RegionName {} does not name a valid OpRegion", op_region_name.value());
@@ -704,7 +704,7 @@ namespace Kernel::ACPI
 		auto bank_selector_name = NameString::parse(field_pkg);
 		if (!bank_selector_name.has_value())
 			return ParseResult::Failure;
-		auto bank_selector = Namespace::root_namespace()->find_object(context.scope, bank_selector_name.value());
+		auto bank_selector = Namespace::root_namespace()->find_object(context.scope, bank_selector_name.value(), Namespace::FindMode::Normal);
 		if (!bank_selector)
 		{
 			AML_ERROR("BankField BankSelector {} does not name a valid object", bank_selector_name.value());

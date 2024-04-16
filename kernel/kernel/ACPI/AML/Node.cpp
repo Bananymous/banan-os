@@ -191,7 +191,7 @@ namespace Kernel::ACPI
 			auto name_string = AML::NameString::parse(context.aml_data);
 			if (!name_string.has_value())
 				return ParseResult::Failure;
-			auto aml_object = Namespace::root_namespace()->find_object(context.scope, name_string.value());
+			auto aml_object = Namespace::root_namespace()->find_object(context.scope, name_string.value(), Namespace::FindMode::Normal);
 			if (!aml_object)
 			{
 				AML_ERROR("NameString {} not found in namespace", name_string.value());

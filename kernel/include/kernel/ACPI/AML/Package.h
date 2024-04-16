@@ -32,7 +32,7 @@ namespace Kernel::ACPI::AML
 			// resolve references
 			for (auto& reference : unresolved_references)
 			{
-				auto object = Namespace::root_namespace()->find_object(scope, reference.name);
+				auto object = Namespace::root_namespace()->find_object(scope, reference.name, Namespace::FindMode::Normal);
 				if (!object)
 				{
 					AML_ERROR("Failed to resolve reference {} in package", reference.name);

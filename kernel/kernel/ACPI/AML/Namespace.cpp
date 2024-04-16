@@ -37,7 +37,7 @@ namespace Kernel::ACPI
 
 	}
 
-	BAN::Optional<BAN::String> AML::Namespace::resolve_path(const AML::NameString& relative_base, const AML::NameString& relative_path, bool allow_nonexistent)
+	BAN::Optional<BAN::String> AML::Namespace::resolve_path(const AML::NameString& relative_base, const AML::NameString& relative_path, FindMode mode, bool check_existence) const
 	{
 		LockGuard _(m_object_mutex);
 
@@ -45,7 +45,7 @@ namespace Kernel::ACPI
 		ASSERT(relative_base.prefix == "\\"sv || relative_base.path.empty());
 
 		// Do absolute path lookup
-		if (!relative_path.prefix.empty() || relative_path.path.size() != 1 || allow_nonexistent)
+		if (!relative_path.prefix.empty() || relative_path.path.size() != 1 || mode == FindMode::ForceAbsolute)
 		{
 			BAN::String absolute_path;
 			MUST(absolute_path.push_back('\\'));
@@ -77,7 +77,7 @@ namespace Kernel::ACPI
 			if (absolute_path.back() == '.')
 				absolute_path.pop_back();
 
-			if (allow_nonexistent || m_objects.contains(absolute_path))
+			if (!check_existence || m_objects.contains(absolute_path))
 				return absolute_path;
 			return {};
 		}
@@ -118,11 +118,11 @@ namespace Kernel::ACPI
 		return {};
 	}
 
-	BAN::RefPtr<AML::NamedObject> AML::Namespace::find_object(const AML::NameString& relative_base, const AML::NameString& relative_path)
+	BAN::RefPtr<AML::NamedObject> AML::Namespace::find_object(const AML::NameString& relative_base, const AML::NameString& relative_path, FindMode mode)
 	{
 		LockGuard _(m_object_mutex);
 
-		auto canonical_path = resolve_path(relative_base, relative_path);
+		auto canonical_path = resolve_path(relative_base, relative_path, mode);
 		if (!canonical_path.has_value())
 			return nullptr;
 
@@ -139,14 +139,9 @@ namespace Kernel::ACPI
 		ASSERT(!object_path.path.empty());
 		ASSERT(object_path.path.back() == object->name);
 
-		auto canonical_path = resolve_path(parse_context.scope, object_path, true);
+		auto canonical_path = resolve_path(parse_context.scope, object_path, FindMode::ForceAbsolute, false);
 		ASSERT(canonical_path.has_value());
-
-		if (canonical_path->empty())
-		{
-			AML_ERROR("Trying to add root namespace");
-			return false;
-		}
+		ASSERT(!canonical_path->empty());
 
 		if (m_objects.contains(canonical_path.value()))
 		{
@@ -172,7 +167,7 @@ namespace Kernel::ACPI
 	{
 		LockGuard _(m_object_mutex);
 
-		auto canonical_path = resolve_path({}, absolute_path);
+		auto canonical_path = resolve_path({}, absolute_path, FindMode::ForceAbsolute);
 		if (!canonical_path.has_value())
 		{
 			AML_ERROR("Trying to delete non-existent object '{}'", absolute_path);
