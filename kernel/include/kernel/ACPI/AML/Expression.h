@@ -104,6 +104,7 @@ namespace Kernel::ACPI::AML
 				AML_ERROR("BinaryOP {2H} LHS not an integer", static_cast<uint8_t>(opcode));
 				if (lhs_result.node())
 					lhs_result.node()->debug_print(1);
+				AML_DEBUG_PRINTLN("");
 				return ParseResult::Failure;
 			}
 
@@ -116,6 +117,7 @@ namespace Kernel::ACPI::AML
 				AML_ERROR("BinaryOP {2H} RHS not an integer", static_cast<uint8_t>(opcode));
 				if (rhs_result.node())
 					rhs_result.node()->debug_print(1);
+				AML_DEBUG_PRINTLN("");
 				return ParseResult::Failure;
 			}
 

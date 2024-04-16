@@ -13,6 +13,11 @@ namespace Kernel::ACPI::AML
 
 		String() : Node(Node::Type::String) {}
 
+		BAN::RefPtr<AML::Node> evaluate() override
+		{
+			return this;
+		}
+
 		static ParseResult parse(ParseContext& context)
 		{
 			ASSERT(context.aml_data.size() >= 1);
