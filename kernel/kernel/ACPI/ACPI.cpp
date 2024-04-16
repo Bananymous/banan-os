@@ -65,7 +65,6 @@ acpi_release_global_lock:
 	{
 		if (!s_global_lock)
 			return;
-		derrorln("Acquiring ACPI global lock");
 		ASSERT(acpi_acquire_global_lock(s_global_lock));
 	}
 
@@ -73,7 +72,6 @@ acpi_release_global_lock:
 	{
 		if (!s_global_lock)
 			return;
-		derrorln("Releasing ACPI global lock");
 		ASSERT(!acpi_release_global_lock(s_global_lock));
 	}
 
@@ -129,7 +127,23 @@ acpi_release_global_lock:
 
 			if (facs_addr)
 			{
-				auto* facs = reinterpret_cast<FACS*>(facs_addr);
+				size_t facs_size;
+				PageTable::with_fast_page(facs_addr & PAGE_ADDR_MASK, [&] {
+					facs_size = PageTable::fast_page_as<SDTHeader>(facs_addr % PAGE_SIZE).length;
+				});
+
+				size_t needed_pages = range_page_count(facs_addr, facs_size);
+				vaddr_t facs_vaddr = PageTable::kernel().reserve_free_contiguous_pages(needed_pages, KERNEL_OFFSET);
+				ASSERT(facs_vaddr);
+
+				PageTable::kernel().map_range_at(
+					facs_addr & PAGE_ADDR_MASK,
+					facs_vaddr,
+					needed_pages * PAGE_SIZE,
+					PageTable::Flags::ReadWrite | PageTable::Flags::Present
+				);
+
+				auto* facs = reinterpret_cast<FACS*>(facs_vaddr + (facs_addr % PAGE_SIZE));
 				s_global_lock = &facs->global_lock;
 			}
 		}
