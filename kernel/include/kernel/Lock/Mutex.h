@@ -43,6 +43,7 @@ namespace Kernel
 				ASSERT(m_lock_depth == 0);
 			}
 			m_lock_depth++;
+			return true;
 		}
 
 		void unlock()
