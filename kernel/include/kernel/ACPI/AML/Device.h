@@ -42,11 +42,13 @@ namespace Kernel::ACPI::AML
 			AML_DEBUG_PRINT("Device ");
 			name.debug_print();
 			AML_DEBUG_PRINTLN(" {");
-			for (const auto& [name, object] : objects)
-			{
-				object->debug_print(indent + 1);
-				AML_DEBUG_PRINTLN("");
-			}
+			Namespace::root_namespace()->for_each_child(scope,
+				[&](const auto&, const auto& child)
+				{
+					child->debug_print(indent + 1);
+					AML_DEBUG_PRINTLN("");
+				}
+			);
 			AML_DEBUG_PRINT_INDENT(indent);
 			AML_DEBUG_PRINT("}");
 		}

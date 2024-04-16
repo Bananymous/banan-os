@@ -1,8 +1,10 @@
+#include <kernel/ACPI/AML/Device.h>
 #include <kernel/ACPI/AML/Integer.h>
 #include <kernel/ACPI/AML/Method.h>
 #include <kernel/ACPI/AML/Namespace.h>
 #include <kernel/ACPI/AML/ParseContext.h>
 #include <kernel/ACPI/AML/Region.h>
+#include <kernel/Lock/LockGuard.h>
 
 namespace Kernel::ACPI
 {
@@ -20,16 +22,33 @@ namespace Kernel::ACPI
 		return s_root_namespace;
 	}
 
-	BAN::Optional<AML::NameString> AML::Namespace::resolve_path(const AML::NameString& relative_base, const AML::NameString& relative_path)
+	void AML::Namespace::debug_print(int indent) const
 	{
+		LockGuard _(m_object_mutex);
+		AML_DEBUG_PRINT_INDENT(indent);
+		AML_DEBUG_PRINTLN("Namespace {} {", name);
+		for (auto& [path, child] : m_objects)
+		{
+			child->debug_print(indent + 1);
+			AML_DEBUG_PRINTLN("");
+		}
+		AML_DEBUG_PRINT_INDENT(indent);
+		AML_DEBUG_PRINT("}");
+
+	}
+
+	BAN::Optional<BAN::String> AML::Namespace::resolve_path(const AML::NameString& relative_base, const AML::NameString& relative_path, bool allow_nonexistent)
+	{
+		LockGuard _(m_object_mutex);
+
 		// Base must be non-empty absolute path
 		ASSERT(relative_base.prefix == "\\"sv || relative_base.path.empty());
 
 		// Do absolute path lookup
-		if (!relative_path.prefix.empty() || relative_path.path.size() != 1)
+		if (!relative_path.prefix.empty() || relative_path.path.size() != 1 || allow_nonexistent)
 		{
-			AML::NameString absolute_path;
-			MUST(absolute_path.prefix.push_back('\\'));
+			BAN::String absolute_path;
+			MUST(absolute_path.push_back('\\'));
 
 			// Resolve root and parent references
 			if (relative_path.prefix == "\\"sv)
@@ -42,158 +61,132 @@ namespace Kernel::ACPI
 					return {};
 				}
 				for (size_t i = 0; i < relative_base.path.size() - relative_path.prefix.size(); i++)
-					MUST(absolute_path.path.push_back(relative_base.path[i]));
+				{
+					MUST(absolute_path.append(relative_base.path[i].sv()));
+					MUST(absolute_path.push_back('.'));
+				}
 			}
 
 			// Append relative path
 			for (const auto& seg : relative_path.path)
-				MUST(absolute_path.path.push_back(seg));
-
-			// Validate path
-			BAN::RefPtr<AML::NamedObject> current_node = this;
-			for (const auto& seg : absolute_path.path)
 			{
-				if (!current_node->is_scope())
-					return {};
-
-				auto* current_scope = static_cast<AML::Scope*>(current_node.ptr());
-				auto it = current_scope->objects.find(seg);
-				if (it == current_scope->objects.end())
-					return {};
-
-				current_node = it->value;
+				MUST(absolute_path.append(seg.sv()));
+				MUST(absolute_path.push_back('.'));
 			}
-			return absolute_path;
+
+			if (absolute_path.back() == '.')
+				absolute_path.pop_back();
+
+			if (allow_nonexistent || m_objects.contains(absolute_path))
+				return absolute_path;
+			return {};
 		}
 
 
 		// Resolve with namespace search rules (ACPI Spec 6.4 - Section 5.3)
 
-		AML::NameString last_match_path;
 		AML::NameSeg target_seg = relative_path.path.back();
 
-		BAN::RefPtr<AML::Scope> current_scope = this;
-		AML::NameString current_path;
+		BAN::String last_match_path;
+		BAN::String current_path;
+		MUST(current_path.push_back('\\'));
 
 		// Check root namespace
 		{
-			// If scope contains object with the same name as the segment, update last match
-			if (current_scope->objects.contains(target_seg))
-			{
-				last_match_path = current_path;
-				MUST(last_match_path.path.push_back(target_seg));
-			}
+			BAN::String tmp;
+			MUST(tmp.append(current_path));
+			MUST(tmp.append(target_seg.sv()));
+			if (m_objects.contains(tmp))
+				last_match_path = BAN::move(tmp);
 		}
 
 		// Check base base path
 		for (const auto& seg : relative_base.path)
 		{
-			auto next_node = current_scope->objects[seg];
-			ASSERT(next_node && next_node->is_scope());
+			MUST(current_path.append(seg.sv()));
+			MUST(current_path.push_back('.'));
 
-			current_scope = static_cast<AML::Scope*>(next_node.ptr());
-			MUST(current_path.path.push_back(seg));
-
-			// If scope contains object with the same name as the segment, update last match
-			if (current_scope->objects.contains(target_seg))
-			{
-				last_match_path = current_path;
-				MUST(last_match_path.path.push_back(target_seg));
-			}
+			BAN::String tmp;
+			MUST(tmp.append(current_path));
+			MUST(tmp.append(target_seg.sv()));
+			if (m_objects.contains(tmp))
+				last_match_path = BAN::move(tmp);
 		}
 
-		if (!last_match_path.path.empty())
-		{
-			MUST(last_match_path.prefix.push_back('\\'));
+		if (!last_match_path.empty())
 			return last_match_path;
-		}
-
 		return {};
 	}
 
 	BAN::RefPtr<AML::NamedObject> AML::Namespace::find_object(const AML::NameString& relative_base, const AML::NameString& relative_path)
 	{
+		LockGuard _(m_object_mutex);
+
 		auto canonical_path = resolve_path(relative_base, relative_path);
 		if (!canonical_path.has_value())
 			return nullptr;
-		if (canonical_path->path.empty())
-			return this;
 
-		BAN::RefPtr<NamedObject> node = this;
-		for (const auto& seg : canonical_path->path)
-		{
-			// Resolve path validates that all nodes are scopes
-			ASSERT(node->is_scope());
-			node = static_cast<Scope*>(node.ptr())->objects[seg];
-		}
-
-		return node;
+		auto it = m_objects.find(canonical_path.value());
+		if (it == m_objects.end())
+			return {};
+		return it->value;
 	}
 
 	bool AML::Namespace::add_named_object(ParseContext& parse_context, const AML::NameString& object_path, BAN::RefPtr<NamedObject> object)
 	{
+		LockGuard _(m_object_mutex);
+
 		ASSERT(!object_path.path.empty());
 		ASSERT(object_path.path.back() == object->name);
 
-		auto parent_path = object_path;
-		parent_path.path.pop_back();
+		auto canonical_path = resolve_path(parse_context.scope, object_path, true);
+		ASSERT(canonical_path.has_value());
 
-		auto parent_object = find_object(parse_context.scope, parent_path);
-		if (!parent_object)
+		if (canonical_path->empty())
 		{
-			AML_ERROR("Parent object not found");
+			AML_ERROR("Trying to add root namespace");
 			return false;
 		}
 
-		if (!parent_object->is_scope())
+		if (m_objects.contains(canonical_path.value()))
 		{
-			AML_ERROR("Parent object is not a scope");
+			AML_ERROR("Object '{}' already exists", canonical_path.value());
 			return false;
 		}
 
-		auto* parent_scope = static_cast<Scope*>(parent_object.ptr());
-		if (parent_scope->objects.contains(object->name))
-		{
-			AML_ERROR("Object already exists");
-			return false;
-		}
+		auto canonical_scope = AML::NameString(canonical_path.value());
 
-		object->parent = parent_scope;
-
-		MUST(parent_scope->objects.insert(object->name, object));
-
-		auto canonical_scope = resolve_path(parse_context.scope, object_path);
-		ASSERT(canonical_scope.has_value());
+		MUST(m_objects.insert(canonical_path.value(), object));
 		if (object->is_scope())
 		{
 			auto* scope = static_cast<Scope*>(object.ptr());
-			scope->scope = canonical_scope.value();
+			scope->scope = canonical_scope;
 		}
-		MUST(parse_context.created_objects.push_back(BAN::move(canonical_scope.release_value())));
+
+		MUST(parse_context.created_objects.push_back(canonical_scope));
 
 		return true;
 	}
 
 	bool AML::Namespace::remove_named_object(const AML::NameString& absolute_path)
 	{
-		auto object = find_object({}, absolute_path);
-		if (!object)
+		LockGuard _(m_object_mutex);
+
+		auto canonical_path = resolve_path({}, absolute_path);
+		if (!canonical_path.has_value())
 		{
-			AML_ERROR("Object {} not found", absolute_path);
+			AML_ERROR("Trying to delete non-existent object '{}'", absolute_path);
 			return false;
 		}
 
-		if (object.ptr() == this)
+		if (canonical_path->empty())
 		{
-			AML_ERROR("Trying to remove root object");
+			AML_ERROR("Trying to remove root namespace");
 			return false;
 		}
 
-		auto parent = object->parent;
-		ASSERT(parent->is_scope());
-
-		auto* parent_scope = static_cast<Scope*>(parent.ptr());
-		parent_scope->objects.remove(object->name);
+		ASSERT(m_objects.contains(canonical_path.value()));
+		m_objects.remove(canonical_path.value());
 
 		return true;
 	}
@@ -202,6 +195,8 @@ namespace Kernel::ACPI
 	{
 		ASSERT(!s_root_namespace);
 		s_root_namespace = MUST(BAN::RefPtr<Namespace>::create(NameSeg("\\"sv)));
+		s_root_namespace->scope = AML::NameString("\\"sv);
+		MUST(s_root_namespace->m_objects.insert("\\"sv, s_root_namespace));
 
 		Integer::Constants::Zero = MUST(BAN::RefPtr<Integer>::create(0, true));
 		Integer::Constants::One = MUST(BAN::RefPtr<Integer>::create(1, true));
@@ -212,7 +207,7 @@ namespace Kernel::ACPI
 
 		// Add predefined namespaces
 #define ADD_PREDEFIED_NAMESPACE(NAME) \
-			ASSERT(s_root_namespace->add_named_object(context, AML::NameString("\\" NAME), MUST(BAN::RefPtr<AML::Namespace>::create(NameSeg(NAME)))));
+			ASSERT(s_root_namespace->add_named_object(context, AML::NameString("\\" NAME), MUST(BAN::RefPtr<AML::Device>::create(NameSeg(NAME)))));
 		ADD_PREDEFIED_NAMESPACE("_GPE"sv);
 		ADD_PREDEFIED_NAMESPACE("_PR"sv);
 		ADD_PREDEFIED_NAMESPACE("_SB"sv);

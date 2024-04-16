@@ -36,6 +36,14 @@ namespace Kernel::ACPI::AML
 			aml_data = aml_data.slice(4);
 		}
 
+		BAN::StringView sv() const
+		{
+			size_t len = 4;
+			while (len > 0 && chars[len - 1] == '_')
+				len--;
+			return BAN::StringView(chars, len);
+		}
+
 		static BAN::Optional<NameSeg> parse(BAN::ConstByteSpan& aml_data)
 		{
 			if (aml_data.size() < 4)

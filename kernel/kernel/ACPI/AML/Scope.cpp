@@ -23,12 +23,12 @@ namespace Kernel::ACPI
 		auto named_object = Namespace::root_namespace()->find_object(context.scope, name_string.value());
 		if (!named_object)
 		{
-			AML_ERROR("Scope name {} not found in namespace", name_string.value());
+			AML_ERROR("Scope '{}' not found in namespace", name_string.value());
 			return ParseResult::Failure;
 		}
 		if (!named_object->is_scope())
 		{
-			AML_ERROR("Scope name {} does not name a namespace", name_string.value());
+			AML_ERROR("Scope '{}' does not name a namespace", name_string.value());
 			return ParseResult::Failure;
 		}
 
@@ -43,7 +43,7 @@ namespace Kernel::ACPI
 			return ParseResult::Failure;
 
 		ParseContext scope_context;
-		scope_context.scope = resolved_scope.release_value();
+		scope_context.scope = AML::NameString(resolved_scope.release_value());
 		scope_context.aml_data = aml_data;
 		scope_context.method_args = outer_context.method_args;
 		while (scope_context.aml_data.size() > 0)
@@ -64,19 +64,27 @@ namespace Kernel::ACPI
 		return ParseResult::Success;
 	}
 
-	void AML::Scope::debug_print(int indent) const
+	static BAN::Optional<uint64_t> evaluate_or_invoke(BAN::RefPtr<AML::Node> object)
 	{
-		AML_DEBUG_PRINT_INDENT(indent);
-		AML_DEBUG_PRINT("Scope ");
-		name.debug_print();
-		AML_DEBUG_PRINTLN(" {");
-		for (const auto& [name, object] : objects)
+		if (object->type != AML::Node::Type::Method)
+			return object->as_integer();
+
+		auto* method = static_cast<AML::Method*>(object.ptr());
+		if (method->arg_count != 0)
 		{
-			object->debug_print(indent + 1);
-			AML_DEBUG_PRINTLN("");
+			AML_ERROR("Method has {} arguments, expected 0", method->arg_count);
+			return {};
 		}
-		AML_DEBUG_PRINT_INDENT(indent);
-		AML_DEBUG_PRINT("}");
+
+		BAN::Vector<uint8_t> sync_stack;
+		auto result = method->evaluate({}, sync_stack);
+		if (!result.has_value())
+		{
+			AML_ERROR("Failed to evaluate method");
+			return {};
+		}
+
+		return result.value() ? result.value()->as_integer() : BAN::Optional<uint64_t>();
 	}
 
 	bool AML::initialize_scope(BAN::RefPtr<AML::Scope> scope)
@@ -88,61 +96,60 @@ namespace Kernel::ACPI
 		bool run_ini = true;
 		bool init_children = true;
 
-		auto it = scope->objects.find(NameSeg("_STA"sv));
-		if (scope->type != AML::Node::Type::Namespace && it != scope->objects.end() && it->value->type == Node::Type::Method)
+		if (auto sta = Namespace::root_namespace()->find_object(scope->scope, AML::NameString("_STA"sv)))
 		{
-			auto* method = static_cast<Method*>(it->value.ptr());
-			if (method->arg_count != 0)
-			{
-				AML_ERROR("Method {}._STA has {} arguments, expected 0", scope->scope, method->arg_count);
-				return false;
-			}
-			BAN::Vector<uint8_t> sync_stack;
-			auto result = method->evaluate({}, sync_stack);
+			auto result = evaluate_or_invoke(sta);
 			if (!result.has_value())
 			{
-				AML_ERROR("Failed to evaluate {}._STA, ignoring device", scope->scope);
-				return true;
-			}
-			auto result_value = result.has_value() ? result.value()->as_integer() : BAN::Optional<uint64_t>();
-			if (!result_value.has_value())
-			{
 				AML_ERROR("Failed to evaluate {}._STA, return value could not be resolved to integer", scope->scope);
-				AML_ERROR("  Return value: ");
-				result.value()->debug_print(0);
 				return false;
 			}
-			run_ini = (result_value.value() & 0x01);
-			init_children = run_ini || (result_value.value() & 0x02);
+
+			run_ini = (result.value() & 0x01);
+			init_children = run_ini || (result.value() & 0x02);
 		}
 
 		if (run_ini)
 		{
-			auto it = scope->objects.find(NameSeg("_STA"sv));
-			if (it != scope->objects.end() && it->value->type == Node::Type::Method)
+			auto ini = Namespace::root_namespace()->find_object(scope->scope, AML::NameString("_INI"sv));
+			if (ini)
 			{
-				auto* method = static_cast<Method*>(it->value.ptr());
+				if (ini->type != AML::Node::Type::Method)
+				{
+					AML_ERROR("Object {}._INI is not a method", scope->scope);
+					return false;
+				}
+
+				auto* method = static_cast<Method*>(ini.ptr());
 				if (method->arg_count != 0)
 				{
 					AML_ERROR("Method {}._INI has {} arguments, expected 0", scope->scope, method->arg_count);
 					return false;
 				}
+
 				BAN::Vector<uint8_t> sync_stack;
-				method->evaluate({}, sync_stack);
+				auto result = method->evaluate({}, sync_stack);
+				if (!result.has_value())
+				{
+					AML_ERROR("Failed to evaluate {}._INI, ignoring device", scope->scope);
+					return true;
+				}
 			}
 		}
 
 		bool success = true;
 		if (init_children)
 		{
-			for (auto& [_, child] : scope->objects)
-			{
-				if (!child->is_scope())
-					continue;
-				auto* child_scope = static_cast<Scope*>(child.ptr());
-				if (!initialize_scope(child_scope))
-					success = false;
-			}
+			Namespace::root_namespace()->for_each_child(scope->scope,
+				[&](const auto&, auto& child)
+				{
+					if (!child->is_scope())
+						return;
+					auto* child_scope = static_cast<Scope*>(child.ptr());
+					if (!initialize_scope(child_scope))
+						success = false;
+				}
+			);
 		}
 		return success;
 	}

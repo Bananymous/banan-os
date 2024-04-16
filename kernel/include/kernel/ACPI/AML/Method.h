@@ -59,7 +59,7 @@ namespace Kernel::ACPI::AML
 			if (!method_scope.has_value())
 				return ParseResult::Failure;
 			method->term_list = method_pkg.value();
-			method->scope = method_scope.release_value();
+			method->scope = AML::NameString(method_scope.release_value());
 
 #if AML_DEBUG_LEVEL >= 2
 			method->debug_print(0);
