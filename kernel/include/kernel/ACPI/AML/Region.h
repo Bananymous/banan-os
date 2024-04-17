@@ -27,6 +27,8 @@ namespace Kernel::ACPI::AML
 		uint64_t region_offset;
 		uint64_t region_length;
 
+		Kernel::Mutex mutex;
+
 		OpRegion(NameSeg name, RegionSpace region_space, uint64_t region_offset, uint64_t region_length)
 			: NamedObject(Node::Type::OpRegion, name)
 			, region_space(region_space)

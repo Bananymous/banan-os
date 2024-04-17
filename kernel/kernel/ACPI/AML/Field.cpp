@@ -481,6 +481,11 @@ namespace Kernel::ACPI
 
 	BAN::RefPtr<AML::Node> AML::FieldElement::evaluate()
 	{
+		op_region->mutex.lock();
+		BAN::ScopeGuard unlock_guard([&] {
+			op_region->mutex.unlock();
+		});
+
 		auto result = evaluate_internal();
 		if (!result.has_value())
 			return {};
@@ -496,9 +501,11 @@ namespace Kernel::ACPI
 			return false;
 		}
 
+		op_region->mutex.lock();
 		if (access_rules.lock_rule == FieldRules::LockRule::Lock)
 			ACPI::acquire_global_lock();
 		BAN::ScopeGuard unlock_guard([&] {
+			op_region->mutex.unlock();
 			if (access_rules.lock_rule == FieldRules::LockRule::Lock)
 				ACPI::release_global_lock();
 		});
@@ -587,7 +594,7 @@ namespace Kernel::ACPI
 	{
 		if (access_rules.access_attrib != FieldRules::AccessAttrib::Normal)
 		{
-			AML_TODO("FieldElement with access attribute {}", static_cast<uint8_t>(access_rules.access_attrib));
+			AML_TODO("IndexFieldElement with access attribute {}", static_cast<uint8_t>(access_rules.access_attrib));
 			return {};
 		}
 		auto access_size = determine_access_size(access_rules.access_type);
@@ -604,9 +611,11 @@ namespace Kernel::ACPI
 			return data_element->evaluate_internal();
 		};
 
+		index_element->op_region->mutex.lock();
 		if (access_rules.lock_rule == FieldRules::LockRule::Lock)
 			ACPI::acquire_global_lock();
 		BAN::ScopeGuard unlock_guard([&] {
+			index_element->op_region->mutex.unlock();
 			if (access_rules.lock_rule == FieldRules::LockRule::Lock)
 				ACPI::release_global_lock();
 		});
@@ -652,9 +661,11 @@ namespace Kernel::ACPI
 			return data_element->store_internal(value);
 		};
 
+		index_element->op_region->mutex.lock();
 		if (access_rules.lock_rule == FieldRules::LockRule::Lock)
 			ACPI::acquire_global_lock();
 		BAN::ScopeGuard unlock_guard([&] {
+			index_element->op_region->mutex.unlock();
 			if (access_rules.lock_rule == FieldRules::LockRule::Lock)
 				ACPI::release_global_lock();
 		});
