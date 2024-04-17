@@ -19,10 +19,10 @@
 namespace Kernel::ACPI
 {
 
-
 	static uint32_t* s_global_lock { nullptr };
 
 	// https://uefi.org/htmlspecs/ACPI_Spec_6_4_html/05_ACPI_Software_Programming_Model/ACPI_Software_Programming_Model.html#global-lock
+#if ARCH(x86_64)
 asm(R"(
 .global acpi_acquire_global_lock
 acpi_acquire_global_lock:
@@ -54,6 +54,41 @@ acpi_release_global_lock:
 
 	ret
 )");
+#elif ARCH(i686)
+asm(R"(
+.global acpi_acquire_global_lock
+acpi_acquire_global_lock:
+	movl 4(%esp), %ecx
+	movl (%ecx), %edx
+	andl $(~1), %edx
+	btsl $1, %edx
+	adcl $0, %edx
+
+	lock cmpxchgl %edx, (%ecx)
+	jnz acpi_acquire_global_lock
+
+	cmpb $3, %dl
+	sbbl %eax, %eax
+	negl %eax
+
+	ret
+
+.global acpi_release_global_lock
+acpi_release_global_lock:
+	movl 4(%esp), %ecx
+	movl (%ecx), %eax
+	movl %eax, %edx
+
+	andl $(~3), %edx
+
+	lock cmpxchgl %edx, (%ecx)
+	jnz acpi_release_global_lock
+
+	andl $1, %eax
+
+	ret
+)");
+#endif
 
 	// returns true if lock was acquired successfully
 	extern "C" bool acpi_acquire_global_lock(uint32_t* lock);

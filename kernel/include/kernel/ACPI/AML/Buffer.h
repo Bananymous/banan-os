@@ -43,7 +43,7 @@ namespace Kernel::ACPI::AML
 			if (!buffer_size.has_value())
 				return ParseResult::Failure;
 
-			uint32_t actual_buffer_size = BAN::Math::max(buffer_size.value(), buffer_context.aml_data.size());
+			uint32_t actual_buffer_size = BAN::Math::max<uint32_t>(buffer_size.value(), buffer_context.aml_data.size());
 
 			auto buffer = MUST(BAN::RefPtr<Buffer>::create());
 			MUST(buffer->buffer.resize(actual_buffer_size, 0));
