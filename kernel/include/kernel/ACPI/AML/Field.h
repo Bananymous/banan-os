@@ -73,6 +73,7 @@ namespace Kernel::ACPI::AML
 		bool store_internal(uint64_t value);
 
 		friend struct IndexFieldElement;
+		friend struct BankFieldElement;
 	};
 
 	struct Field
@@ -116,7 +117,7 @@ namespace Kernel::ACPI::AML
 		FieldRules access_rules;
 
 		BAN::RefPtr<OpRegion> op_region;
-		BAN::RefPtr<NamedObject> bank_selector;
+		BAN::RefPtr<FieldElement> bank_selector;
 		uint64_t bank_value;
 
 		BankFieldElement(NameSeg name, uint64_t bit_offset, uint64_t bit_count, FieldRules access_rules)
@@ -125,6 +126,9 @@ namespace Kernel::ACPI::AML
 			, bit_count(bit_count)
 			, access_rules(access_rules)
 		{}
+
+		BAN::RefPtr<Node> evaluate() override;
+		bool store(BAN::RefPtr<Node> source) override;
 
 		void debug_print(int indent) const override;
 	};

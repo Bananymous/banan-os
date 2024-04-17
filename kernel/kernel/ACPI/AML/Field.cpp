@@ -721,6 +721,11 @@ namespace Kernel::ACPI
 			AML_ERROR("BankField BankSelector {} does not name a valid object", bank_selector_name.value());
 			return ParseResult::Failure;
 		}
+		if (bank_selector->type != AML::Node::Type::FieldElement)
+		{
+			AML_TODO("BankField BankSelector {} type {2H}", static_cast<uint8_t>(bank_selector->type));
+			return ParseResult::Failure;
+		}
 
 		auto temp_aml_data = context.aml_data;
 		context.aml_data = field_pkg;
@@ -754,7 +759,7 @@ namespace Kernel::ACPI
 		for (auto& [_, element] : field_context.elements)
 		{
 			element->op_region = static_cast<OpRegion*>(op_region.ptr());
-			element->bank_selector = bank_selector;
+			element->bank_selector = static_cast<FieldElement*>(bank_selector.ptr());
 			element->bank_value = bank_value.value();
 
 			NameString element_name;
@@ -769,6 +774,85 @@ namespace Kernel::ACPI
 		}
 
 		return ParseResult::Success;
+	}
+
+	BAN::RefPtr<AML::Node> AML::BankFieldElement::evaluate()
+	{
+		if (access_rules.access_attrib != FieldRules::AccessAttrib::Normal)
+		{
+			AML_TODO("BankFieldElement with access attribute {}", static_cast<uint8_t>(access_rules.access_attrib));
+			return {};
+		}
+
+		auto access_size = determine_access_size(access_rules.access_type);
+		if (!access_size.has_value())
+			return {};
+		auto read_func = [&](uint64_t byte_offset) -> BAN::Optional<uint64_t> {
+			return perform_read(op_region->region_space, byte_offset, access_size.value());
+		};
+
+		bank_selector->op_region->mutex.lock();
+		if (access_rules.lock_rule == FieldRules::LockRule::Lock)
+			ACPI::acquire_global_lock();
+		BAN::ScopeGuard unlock_guard([&] {
+			bank_selector->op_region->mutex.unlock();
+			if (access_rules.lock_rule == FieldRules::LockRule::Lock)
+				ACPI::release_global_lock();
+		});
+
+		if (!bank_selector->store_internal(bank_value))
+		{
+			AML_ERROR("BankFieldElement failed to store BankValue");
+			return {};
+		}
+
+		auto result = perform_read_general(op_region->region_offset, bit_count, bit_offset, access_size.value(), read_func);
+		if (!result.has_value())
+			return {};
+		return MUST(BAN::RefPtr<Integer>::create(result.value()));
+	}
+
+	bool AML::BankFieldElement::store(BAN::RefPtr<AML::Node> source)
+	{
+		if (access_rules.access_attrib != FieldRules::AccessAttrib::Normal)
+		{
+			AML_TODO("BankFieldElement with access attribute {}", static_cast<uint8_t>(access_rules.access_attrib));
+			return {};
+		}
+
+		auto source_integer = source->as_integer();
+		if (!source_integer.has_value())
+		{
+			AML_TODO("BankFieldElement store with non-integer source, type {}", static_cast<uint8_t>(source->type));
+			return false;
+		}
+
+		auto access_size = determine_access_size(access_rules.access_type);
+		if (!access_size.has_value())
+			return false;
+		auto read_func = [&](uint64_t byte_offset) -> BAN::Optional<uint64_t> {
+			return perform_read(op_region->region_space, byte_offset, access_size.value());
+		};
+		auto write_func = [&](uint64_t byte_offset, uint64_t value) -> bool {
+			return perform_write(op_region->region_space, byte_offset, access_size.value(), value);
+		};
+
+		bank_selector->op_region->mutex.lock();
+		if (access_rules.lock_rule == FieldRules::LockRule::Lock)
+			ACPI::acquire_global_lock();
+		BAN::ScopeGuard unlock_guard([&] {
+			bank_selector->op_region->mutex.unlock();
+			if (access_rules.lock_rule == FieldRules::LockRule::Lock)
+				ACPI::release_global_lock();
+		});
+
+		if (!bank_selector->store_internal(bank_value))
+		{
+			AML_ERROR("BankFieldElement failed to store BankValue");
+			return {};
+		}
+
+		return perform_write_general(op_region->region_offset, bit_count, bit_offset, access_size.value(), source_integer.value(), access_rules.update_rule, read_func, write_func);
 	}
 
 	void AML::BankFieldElement::debug_print(int indent) const
