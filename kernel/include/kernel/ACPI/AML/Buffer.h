@@ -84,17 +84,18 @@ namespace Kernel::ACPI::AML
 			ASSERT(field_bit_offset + field_bit_size <= buffer->buffer.size() * 8);
 
 			uint64_t value = 0;
+
+			const size_t byte_offset = field_bit_offset / 8;
+			const size_t bit_offset = field_bit_offset % 8;
 			if (field_bit_size == 1)
 			{
-				size_t byte_offset = field_bit_offset / 8;
-				size_t bit_offset = field_bit_offset % 8;
 				value = (buffer->buffer[byte_offset] >> bit_offset) & 1;
 			}
 			else
 			{
-				ASSERT(field_bit_size % 8 == 0);
+				ASSERT(bit_offset == 0);
 				for (size_t byte = 0; byte < field_bit_size / 8; byte++)
-					value |= buffer->buffer[byte] << byte;
+					value |= buffer->buffer[byte_offset + byte] << byte;
 			}
 
 			return MUST(BAN::RefPtr<AML::Integer>::create(value));
@@ -109,18 +110,18 @@ namespace Kernel::ACPI::AML
 			if (!value.has_value())
 				return false;
 
+			const size_t byte_offset = field_bit_offset / 8;
+			const size_t bit_offset = field_bit_offset % 8;
 			if (field_bit_size == 1)
 			{
-				size_t byte_offset = field_bit_offset / 8;
-				size_t bit_offset = field_bit_offset % 8;
 				buffer->buffer[byte_offset] &= ~(1 << bit_offset);
 				buffer->buffer[byte_offset] |= (value.value() & 1) << bit_offset;
 			}
 			else
 			{
-				ASSERT(field_bit_size % 8 == 0);
+				ASSERT(bit_offset == 0);
 				for (size_t byte = 0; byte < field_bit_size / 8; byte++)
-					buffer->buffer[byte] = (value.value() >> (byte * 8)) & 0xFF;
+					buffer->buffer[byte_offset + byte] = (value.value() >> (byte * 8)) & 0xFF;
 			}
 
 			return true;
