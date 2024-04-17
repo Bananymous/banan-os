@@ -22,7 +22,7 @@ namespace Kernel::ACPI::AML
 			{
 				if (path.size() < canonical_path->size() + 1)
 					continue;
-				if (path[canonical_path->size()] != '.')
+				if (canonical_path->size() != 1 && path[canonical_path->size()] != '.')
 					continue;
 				if (path.sv().substring(0, canonical_path->size()) != canonical_path->sv())
 					continue;

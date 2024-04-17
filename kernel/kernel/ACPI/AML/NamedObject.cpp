@@ -33,8 +33,10 @@ namespace Kernel::ACPI
 	void AML::Name::debug_print(int indent) const
 	{
 		AML_DEBUG_PRINT_INDENT(indent);
-		AML_DEBUG_PRINT("Name {} { ", name);
-		object->debug_print(0);
+		AML_DEBUG_PRINTLN("Name {} { ", name);
+		object->debug_print(indent + 1);
+		AML_DEBUG_PRINTLN("");
+		AML_DEBUG_PRINT_INDENT(indent);
 		AML_DEBUG_PRINT("}");
 	}
 

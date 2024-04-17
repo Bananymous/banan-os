@@ -46,7 +46,16 @@ namespace Kernel::ACPI::AML
 		virtual void debug_print(int indent) const override
 		{
 			AML_DEBUG_PRINT_INDENT(indent);
-			AML_DEBUG_PRINT("ThermalZone {}", name);
+			AML_DEBUG_PRINT("ThermalZone {} {", name);
+			Namespace::root_namespace()->for_each_child(scope,
+				[&](const auto&, const auto& child)
+				{
+					child->debug_print(indent + 1);
+					AML_DEBUG_PRINTLN("");
+				}
+			);
+			AML_DEBUG_PRINT_INDENT(indent);
+			AML_DEBUG_PRINT("}");
 		}
 	};
 

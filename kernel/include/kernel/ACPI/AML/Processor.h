@@ -68,7 +68,16 @@ namespace Kernel::ACPI::AML
 		virtual void debug_print(int indent) const override
 		{
 			AML_DEBUG_PRINT_INDENT(indent);
-			AML_DEBUG_PRINT("Processor {} (ID: {}, PBlkAddr: 0x{H}, PBlkLen: {})", name, id, pblk_addr, pblk_len);
+			AML_DEBUG_PRINTLN("Processor {} (ID: {}, PBlkAddr: 0x{H}, PBlkLen: {}) {", name, id, pblk_addr, pblk_len);
+			Namespace::root_namespace()->for_each_child(scope,
+				[&](const auto&, const auto& child)
+				{
+					child->debug_print(indent + 1);
+					AML_DEBUG_PRINTLN("");
+				}
+			);
+			AML_DEBUG_PRINT_INDENT(indent);
+			AML_DEBUG_PRINT("}");
 		}
 	};
 

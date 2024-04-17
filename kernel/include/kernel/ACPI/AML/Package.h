@@ -102,11 +102,13 @@ namespace Kernel::ACPI::AML
 			AML_DEBUG_PRINTLN("");
 			for (const auto& element : elements)
 			{
-				AML_DEBUG_PRINT_INDENT(indent + 1);
 				if (element)
-					element->debug_print(0);
+					element->debug_print(indent + 1);
 				else
+				{
+					AML_DEBUG_PRINT_INDENT(indent + 1);
 					AML_DEBUG_PRINT("Uninitialized");
+				}
 				AML_DEBUG_PRINTLN("");
 			}
 			AML_DEBUG_PRINT_INDENT(indent);

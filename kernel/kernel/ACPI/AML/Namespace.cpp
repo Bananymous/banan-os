@@ -28,11 +28,10 @@ namespace Kernel::ACPI
 		LockGuard _(m_object_mutex);
 		AML_DEBUG_PRINT_INDENT(indent);
 		AML_DEBUG_PRINTLN("Namespace {} {", name);
-		for (auto& [path, child] : m_objects)
-		{
+		for_each_child(scope, [&](const auto&, const auto& child) {
 			child->debug_print(indent + 1);
 			AML_DEBUG_PRINTLN("");
-		}
+		});
 		AML_DEBUG_PRINT_INDENT(indent);
 		AML_DEBUG_PRINT("}");
 	}
