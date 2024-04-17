@@ -10,6 +10,7 @@
 #include <kernel/ACPI/AML/Mutex.h>
 #include <kernel/ACPI/AML/Names.h>
 #include <kernel/ACPI/AML/Node.h>
+#include <kernel/ACPI/AML/Notify.h>
 #include <kernel/ACPI/AML/Package.h>
 #include <kernel/ACPI/AML/ParseContext.h>
 #include <kernel/ACPI/AML/PowerResource.h>
@@ -173,6 +174,11 @@ namespace Kernel::ACPI
 				return AML::Reference::parse(context);
 			case AML::Byte::IndexOp:
 				return AML::Index::parse(context);
+			case AML::Byte::NotifyOp:
+				return AML::Notify::parse(context);
+			case AML::Byte::NoopOp:
+				context.aml_data = context.aml_data.slice(1);
+				return ParseResult::Success;
 			case AML::Byte::ReturnOp:
 			{
 				context.aml_data = context.aml_data.slice(1);
