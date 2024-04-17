@@ -503,6 +503,59 @@ acpi_release_global_lock:
 			dwarnln("Could not enable ACPI interrupt: {}", ret.error());
 		else
 		{
+			auto hex_sv_to_int =
+				[](BAN::StringView sv) -> BAN::Optional<uint32_t>
+				{
+					uint32_t ret = 0;
+					for (char c : sv)
+					{
+						ret <<= 4;
+						if (c >= '0' && c <= '9')
+							ret += c - '0';
+						else if (c >= 'A' && c <= 'F')
+							ret += c - 'A' + 10;
+						else if (c >= 'a' && c <= 'f')
+							ret += c - 'a' + 10;
+						else
+							return {};
+					}
+					return ret;
+				};
+
+			if (fadt().gpe0_blk)
+			{
+				// Enable all events in _GPE (_Lxx or _Exx)
+				m_namespace->for_each_child(AML::NameString("\\_GPE"),
+					[&](const auto& path, auto& node)
+					{
+						if (node->type != AML::Node::Type::Method)
+							return;
+						if (path.size() < 4)
+							return;
+
+						auto name = path.sv().substring(path.size() - 4);
+						if (name.substring(0, 2) != "_L"sv && name.substring(0, 2) != "_E"sv)
+							return;
+
+						auto index = hex_sv_to_int(name.substring(2));
+						if (!index.has_value())
+							return;
+
+						auto byte = index.value() / 8;
+						auto bit = index.value() % 8;
+						auto gpe0_en_port = fadt().gpe0_blk + (fadt().gpe0_blk_len / 2) + byte;
+						IO::outb(gpe0_en_port, IO::inb(gpe0_en_port) | (1 << bit));
+
+						auto* method = static_cast<AML::Method*>(node.ptr());
+						m_gpe_methods[index.value()] = method;
+
+						dprintln("Enabled GPE {}", index.value(), byte, bit);
+					}
+				);
+			}
+
+
+
 			set_irq(irq);
 			enable_interrupt();
 			Process::create_kernel([](void*) { get().acpi_event_task(); }, nullptr);
@@ -538,14 +591,38 @@ acpi_release_global_lock:
 			if (pending = get_fixed_event(sts_port); pending)
 				goto handle_event;
 
+			{
+				bool handled_event = false;
+				uint8_t gpe0_bytes = fadt().gpe0_blk_len / 2;
+				for (uint8_t i = 0; i < gpe0_bytes; i++)
+				{
+					uint8_t sts = IO::inb(fadt().gpe0_blk + i);
+					uint8_t en = IO::inb(fadt().gpe0_blk + gpe0_bytes + i);
+					pending = sts & en;
+					if (pending == 0)
+						continue;
+
+					auto index = i * 8 + (pending & ~(pending - 1));
+					if (m_gpe_methods[index])
+						m_gpe_methods[index]->invoke();
+
+					handled_event = true;
+					IO::outb(fadt().gpe0_blk + i, 1 << index);
+				}
+				if (handled_event)
+					continue;
+			}
+
+
 			// FIXME: this can cause missing of event if it happens between
 			//        reading the status and blocking
-			m_acpi_event_semaphore.block_with_timeout(100);
+			m_event_semaphore.block_with_timeout(100);
 			continue;
 
 handle_event:
 			if (pending & PM1_EVN_PWRBTN)
 			{
+				dprintln("Power button pressed");
 				if (auto ret = Process::clean_poweroff(POWEROFF_SHUTDOWN); ret.is_error())
 					dwarnln("Failed to poweroff: {}", ret.error());
 			}
@@ -560,7 +637,7 @@ handle_event:
 
 	void ACPI::handle_irq()
 	{
-		m_acpi_event_semaphore.unblock();
+		m_event_semaphore.unblock();
 	}
 
 }
