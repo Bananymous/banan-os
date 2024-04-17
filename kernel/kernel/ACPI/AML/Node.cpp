@@ -21,6 +21,7 @@
 #include <kernel/ACPI/AML/String.h>
 #include <kernel/ACPI/AML/ThermalZone.h>
 #include <kernel/ACPI/AML/Utils.h>
+#include <kernel/ACPI/AML/While.h>
 
 namespace Kernel::ACPI
 {
@@ -163,6 +164,8 @@ namespace Kernel::ACPI
 				return AML::Scope::parse(context);
 			case AML::Byte::IfOp:
 				return AML::IfElse::parse(context);
+			case AML::Byte::WhileOp:
+				return AML::While::parse(context);
 			case AML::Byte::StoreOp:
 				return AML::Store::parse(context);
 			case AML::Byte::DerefOfOp:
