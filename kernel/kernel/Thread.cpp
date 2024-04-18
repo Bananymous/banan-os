@@ -335,7 +335,9 @@ namespace Kernel
 		else if (signal_handler != (vaddr_t)SIG_DFL)
 		{
 			// call userspace signal handlers
+#if ARCH(x86_64)
 			interrupt_stack.sp -= 128; // skip possible red-zone
+#endif
 			write_to_stack(interrupt_stack.sp, interrupt_stack.ip);
 			write_to_stack(interrupt_stack.sp, signal);
 			write_to_stack(interrupt_stack.sp, signal_handler);
