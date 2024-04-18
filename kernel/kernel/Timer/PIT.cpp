@@ -47,6 +47,7 @@ namespace Kernel
 		IO::outb(TIMER0_CTL, (timer_reload >> 0) & 0xff);
 		IO::outb(TIMER0_CTL, (timer_reload >> 8) & 0xff);
 
+		MUST(InterruptController::get().reserve_irq(PIT_IRQ));
 		set_irq(PIT_IRQ);
 		enable_interrupt();
 	}
