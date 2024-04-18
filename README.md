@@ -6,6 +6,8 @@
 
 This is my hobby operating system written in C++. Currently supports x86\_64 and i686 architectures.
 
+You can find a live demo [here](https://bananymous.com/banan-os)
+
 ### Features
 
 #### General
