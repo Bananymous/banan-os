@@ -82,9 +82,18 @@ boot_pdpt:
 boot_pd:
 	.set i, 0
 	.rept 512
-		.long i + (PG_PAGE_SIZE | PG_READ_WRITE | PG_PRESENT)
+		.long V2P(boot_pts) + i + (PG_READ_WRITE | PG_PRESENT)
 		.long 0
-		.set i, i + 0x200000
+		.set i, i + 0x1000
+	.endr
+boot_pts:
+	.set i, 0
+	.rept 512
+		.rept 512
+			.long i + (PG_READ_WRITE | PG_PRESENT)
+			.long 0
+			.set i, i + 0x1000
+		.endr
 	.endr
 
 boot_gdt:
