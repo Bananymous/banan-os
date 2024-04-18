@@ -247,6 +247,13 @@ namespace Kernel
 		uint8_t bsp_id = Kernel::Processor::current_id();
 		dprintln("BSP lapic id: {}", bsp_id);
 
+		if (m_processors.size() == 1)
+		{
+			dprintln("Only one processor, skipping AP initialization");
+			*g_ap_startup_done = 1;
+			return;
+		}
+
 		for (auto& processor : m_processors)
 		{
 			if (processor.apic_id == bsp_id)
