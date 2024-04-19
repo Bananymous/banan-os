@@ -8,109 +8,124 @@
 namespace Kernel::ACPI::AML
 {
 
+	struct PackageElement;
+
 	struct Package : public AML::Node
 	{
-		struct UnresolvedReference
-		{
-			AML::NameString name;
-			size_t index;
-		};
-		BAN::Vector<UnresolvedReference> unresolved_references;
-		AML::NameString scope; // Used for resolving references
+		BAN::Vector<BAN::RefPtr<PackageElement>> elements;
+		AML::NameString scope;
 
-		BAN::Vector<BAN::RefPtr<AML::Node>> elements;
-
-		Package(BAN::Vector<BAN::RefPtr<AML::Node>>&& elements, BAN::Vector<UnresolvedReference>&& unresolved_references, AML::NameString scope)
+		Package(AML::NameString scope)
 			: Node(Node::Type::Package)
 			, elements(BAN::move(elements))
-			, unresolved_references(BAN::move(unresolved_references))
 			, scope(scope)
 		{}
 
 		BAN::RefPtr<AML::Node> evaluate() override
 		{
-			// resolve references
-			for (auto& reference : unresolved_references)
-			{
-				auto object = Namespace::root_namespace()->find_object(scope, reference.name, Namespace::FindMode::Normal);
-				if (!object)
-				{
-					AML_ERROR("Failed to resolve reference {} in package", reference.name);
-					return {};
-				}
-				ASSERT(!elements[reference.index]);
-				elements[reference.index] = object;
-			}
-			unresolved_references.clear();
-
 			return this;
 		}
 
-		static ParseResult parse(AML::ParseContext& context)
+		static ParseResult parse(AML::ParseContext& context);
+		virtual void debug_print(int indent) const override;
+	};
+
+	struct PackageElement : public AML::Node
+	{
+		BAN::RefPtr<AML::Package> parent;
+		BAN::RefPtr<AML::Node> element;
+		AML::NameString unresolved_name;
+		bool resolved = false;
+		bool initialized = false;
+
+		PackageElement(BAN::RefPtr<AML::Package> parent, BAN::RefPtr<AML::Node> element)
+			: Node(Node::Type::PackageElement)
+			, parent(parent)
+			, element(element)
 		{
-			ASSERT(context.aml_data.size() >= 1);
-			ASSERT(static_cast<Byte>(context.aml_data[0]) == Byte::PackageOp);
-			context.aml_data = context.aml_data.slice(1);
+			ASSERT(element);
+			resolved = true;
+			initialized = true;
+		}
 
-			auto package_pkg = AML::parse_pkg(context.aml_data);
-			if (!package_pkg.has_value())
-				return ParseResult::Failure;
+		PackageElement(BAN::RefPtr<AML::Package> parent, AML::NameString unresolved_name)
+			: Node(Node::Type::PackageElement)
+			, parent(parent)
+			, unresolved_name(unresolved_name)
+		{
+			resolved = false;
+			initialized = true;
+		}
 
-			auto package_context = context;
-			package_context.aml_data = package_pkg.value();
+		PackageElement(BAN::RefPtr<AML::Package> parent)
+			: Node(Node::Type::PackageElement)
+			, parent(parent)
+			, unresolved_name(unresolved_name)
+		{
+			resolved = false;
+			initialized = false;
+		}
 
-			if (package_pkg->size() < 1)
-				return ParseResult::Failure;
-			uint8_t num_elements = package_context.aml_data[0];
-			package_context.aml_data = package_context.aml_data.slice(1);
-
-			BAN::Vector<BAN::RefPtr<AML::Node>> elements;
-			BAN::Vector<UnresolvedReference> unresolved_references;
-			while (elements.size() < num_elements && package_context.aml_data.size() > 0)
+		BAN::RefPtr<AML::Node> evaluate() override
+		{
+			if (!initialized)
 			{
-				BAN::RefPtr<AML::Node> element;
-
-				// Store name strings as references
-				if (package_context.aml_data[0] != 0x00 && AML::NameString::can_parse(package_context.aml_data))
-				{
-					auto name = AML::NameString::parse(package_context.aml_data);
-					if (!name.has_value())
-						return ParseResult::Failure;
-					MUST(unresolved_references.push_back(UnresolvedReference { .name = name.value(), .index = elements.size() }));
-				}
-				else
-				{
-					auto element_result = AML::parse_object(package_context);
-					if (!element_result.success())
-						return ParseResult::Failure;
-					element = element_result.node();
-				}
-
-				MUST(elements.push_back(element));
+				AML_ERROR("Trying to evaluate uninitialized PackageElement");
+				return {};
 			}
-			while (elements.size() < num_elements)
-				MUST(elements.push_back(BAN::RefPtr<AML::Node>()));
+			if (!resolved)
+			{
+				auto object = Namespace::root_namespace()->find_object(parent->scope, unresolved_name, Namespace::FindMode::Normal);
+				if (!object)
+				{
+					AML_ERROR("Failed to resolve reference {} in package {}", unresolved_name, parent->scope);
+					return {};
+				}
+				element = object;
+				resolved = true;
+			}
+			return element->evaluate();
+		}
 
-			auto package = MUST(BAN::RefPtr<Package>::create(BAN::move(elements), BAN::move(unresolved_references), context.scope));
-			return ParseResult(package);
+		static ParseResult parse(AML::ParseContext& context, BAN::RefPtr<AML::Package> package)
+		{
+			BAN::RefPtr<AML::PackageElement> element;
+			if (context.aml_data[0] != 0x00 && AML::NameString::can_parse(context.aml_data))
+			{
+				auto name = AML::NameString::parse(context.aml_data);
+				if (!name.has_value())
+					return ParseResult::Failure;
+				element = MUST(BAN::RefPtr<PackageElement>::create(package, name.value()));
+			}
+			else
+			{
+				auto element_result = AML::parse_object(context);
+				if (!element_result.success())
+					return ParseResult::Failure;
+				element = MUST(BAN::RefPtr<PackageElement>::create(package, element_result.node()));
+			}
+			return ParseResult(element);
 		}
 
 		virtual void debug_print(int indent) const override
 		{
 			AML_DEBUG_PRINT_INDENT(indent);
-			AML_DEBUG_PRINT("Package {");
-			AML_DEBUG_PRINTLN("");
-			for (const auto& element : elements)
+			AML_DEBUG_PRINTLN("PackageElement {");
+			if (!initialized)
 			{
-				if (element)
-					element->debug_print(indent + 1);
-				else
-				{
-					AML_DEBUG_PRINT_INDENT(indent + 1);
-					AML_DEBUG_PRINT("Uninitialized");
-				}
-				AML_DEBUG_PRINTLN("");
+				AML_DEBUG_PRINT_INDENT(indent + 1);
+				AML_DEBUG_PRINT("Uninitialized");
 			}
+			else if (!resolved)
+			{
+				AML_DEBUG_PRINT_INDENT(indent + 1);
+				AML_DEBUG_PRINT("Unresolved {}", unresolved_name);
+			}
+			else
+			{
+				element->debug_print(indent + 1);
+			}
+			AML_DEBUG_PRINTLN("");
 			AML_DEBUG_PRINT_INDENT(indent);
 			AML_DEBUG_PRINT("}");
 		}

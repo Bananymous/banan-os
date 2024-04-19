@@ -2,6 +2,7 @@
 
 #include <kernel/ACPI/AML/Buffer.h>
 #include <kernel/ACPI/AML/Node.h>
+#include <kernel/ACPI/AML/Package.h>
 #include <kernel/ACPI/AML/ParseContext.h>
 #include <kernel/ACPI/AML/Reference.h>
 
@@ -52,8 +53,17 @@ namespace Kernel::ACPI::AML
 					break;
 				}
 				case AML::Node::Type::Package:
-					AML_TODO("IndexOp source Package");
-					return ParseResult::Failure;
+				{
+					auto package = static_cast<AML::Package*>(source.ptr());
+					if (index.value() >= package->elements.size())
+					{
+						AML_ERROR("IndexOp index is out of package bounds");
+						return ParseResult::Failure;
+					}
+					auto package_element = package->elements[index.value()];
+					result = MUST(BAN::RefPtr<AML::Reference>::create(package_element));
+					break;
+				}
 				case AML::Node::Type::String:
 					AML_TODO("IndexOp source String");
 					return ParseResult::Failure;

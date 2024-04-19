@@ -28,6 +28,7 @@ namespace Kernel::ACPI::AML
 			Namespace,
 			OpRegion,
 			Package,
+			PackageElement,
 			PowerResource,
 			Processor,
 			Reference,
