@@ -1,3 +1,5 @@
+.include "common.S"
+
 .code16
 
 #########################################
@@ -103,12 +105,12 @@ stage2_main:
 	movl %edx, %cr0
 
 	# jump to protected mode
-	ljmpl $0x18, $protected_mode
+	ljmpl $GDT_CODE32, $protected_mode
 
 .code32
 protected_mode:
 	# setup protected mode segments
-	movw $0x10, %dx
+	movw $GDT_DATA32, %dx
 	movw %dx, %ds
 	movw %dx, %es
 	movw %dx, %fs
@@ -127,15 +129,15 @@ enter_unreal_mode:
 	movl %cr0, %eax
 	orb $1, %al
 	movl %eax, %cr0
-	ljmpl $0x8, $.enter_unreal_mode_pmode
+	ljmpl $GDT_CODE16, $.enter_unreal_mode_pmode
 
  .enter_unreal_mode_pmode:
-	movw $0x10, %bx
+	movw $GDT_DATA32, %bx
 	movw %bx, %ds
 
 	andb $0xFE, %al
 	movl %eax, %cr0
-	ljmpl $0x0, $.enter_unreal_mode_unreal
+	ljmpl $0x00, $.enter_unreal_mode_unreal
 
  .enter_unreal_mode_unreal:
 	popw %ds

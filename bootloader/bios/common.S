@@ -1,0 +1,3 @@
+.set GDT_CODE16, 0x08
+.set GDT_DATA32, 0x10
+.set GDT_CODE32, 0x18

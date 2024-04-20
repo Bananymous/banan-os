@@ -1,3 +1,5 @@
+.include "common.S"
+
 .set SCREEN_WIDTH,	80
 .set SCREEN_HEIGHT,	25
 
@@ -271,6 +273,127 @@ isprint:
 	ret
  .isprint_not_printable:
 	movb $0, %al
+	ret
+
+
+# memset with 32 bit registers
+#   edi:    destination address
+#   ecx:    bytes count
+#   al:     value to set
+# return:
+#   edi:    destination address + bytes count
+#   ecx:    0
+#   other:  preserved
+.global memset32
+memset32:
+	testl %ecx, %ecx
+	jz .memset32_done
+
+	pushf; cli
+	pushw %es
+	pushl %eax
+	pushl %ebx
+	pushl %edx
+
+	movl %cr0, %ebx
+	orb $1, %bl
+	movl %ebx, %cr0
+
+	ljmpl $GDT_CODE32, $.memset32_pmode32
+
+ .code32
+ .memset32_pmode32:
+	movw $GDT_DATA32, %dx
+	movw %dx, %es
+
+	movl %ecx, %edx
+
+	andl $3, %ecx
+	rep stosb %es:(%edi)
+
+	movl %edx, %ecx
+	shrl $2, %ecx
+
+	movb %al, %ah
+	movw %ax, %dx
+	shll $16, %eax
+	movw %dx, %ax
+	rep stosl %es:(%edi)
+
+	ljmpl $GDT_CODE16, $.memset32_pmode16
+
+ .code16
+ .memset32_pmode16:
+	andb $0xFE, %bl
+	movl %ebx, %cr0
+	ljmpl $0x00, $.memset32_rmode16
+
+ .memset32_rmode16:
+	popl %edx
+	popl %ebx
+	popl %eax
+	popw %es
+	popf
+
+ .memset32_done:
+	ret
+
+# memcpy with 32 bit registers
+#   esi:    source address
+#   edi:    destination address
+#   ecx:    bytes count
+# return:
+#   esi:    source address + bytes count
+#   edi:    destination address + bytes count
+#   ecx:    0
+#   other:  preserved
+.global memcpy32
+memcpy32:
+	testl %ecx, %ecx
+	jz .memcpy32_done
+
+	pushf; cli
+	pushw %ds
+	pushw %es
+	pushl %ebx
+	pushl %edx
+
+	movl %cr0, %ebx
+	orb $1, %bl
+	movl %ebx, %cr0
+
+	ljmpl $GDT_CODE32, $.memcpy32_pmode32
+
+ .code32
+ .memcpy32_pmode32:
+	movw $GDT_DATA32, %dx
+	movw %dx, %ds
+	movw %dx, %es
+
+	movl %ecx, %edx
+	andl $3, %ecx
+	rep movsb %ds:(%esi), %es:(%edi)
+
+	movl %edx, %ecx
+	shrl $2, %ecx
+	rep movsl %ds:(%esi), %es:(%edi)
+
+	ljmpl $GDT_CODE16, $.memcpy32_pmode16
+
+ .code16
+ .memcpy32_pmode16:
+	andb $0xFE, %bl
+	movl %ebx, %cr0
+	ljmpl $0x00, $.memcpy32_rmode16
+
+ .memcpy32_rmode16:
+	popl %edx
+	popl %ebx
+	popw %es
+	popw %ds
+	popf
+
+ .memcpy32_done:
 	ret
 
 .section .bss

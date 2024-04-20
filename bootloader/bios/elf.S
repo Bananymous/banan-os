@@ -113,24 +113,6 @@ elf_validate_file_header:
 	movw $elf_validate_file_header_not_executable_msg, %si
 	jmp print_and_halt
 
-
-# sets memory to zero
-#   edi: start address
-#   ecx: byte count
-# on return
-#   edi: start address + byte count
-#   ecx: 0
-elf_memset_zero:
-	test %ecx, %ecx
-	jz .elf_memset_zero_done
- .elf_memset_zero_loop:
-	movb $0, (%edi)
-	incl %edi
-	decl %ecx
-	jnz .elf_memset_zero_loop
- .elf_memset_zero_done:
-	ret
-
 # reads memory specified by 32 bit elf_program_header to memory
 elf_read_program_header32_to_memory:
 	pushal
@@ -144,7 +126,7 @@ elf_read_program_header32_to_memory:
 	addl %ebx, %edi
 	movl (elf_program_header + p32_memsz),  %ecx
 	subl %ebx, %ecx
-	call elf_memset_zero
+	xorb %al, %al; call memset32
 
 	# read file specified in program header to memory
 	movl (elf_program_header + p32_offset), %eax
@@ -171,7 +153,7 @@ elf_read_program_header64_to_memory:
 	addl %ebx, %edi
 	movl (elf_program_header + p64_memsz),  %ecx
 	subl %ebx, %ecx
-	call elf_memset_zero
+	xorb %al, %al; call memset32
 
 	# read file specified in program header to memory
 	movl (elf_program_header + p64_offset), %eax
