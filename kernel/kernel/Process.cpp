@@ -1190,7 +1190,7 @@ namespace Kernel
 
 	[[noreturn]] static void reset_system()
 	{
-		// TODO: ACPI reset
+		ACPI::ACPI::get().reset();
 
 		dwarnln("Could not reset with ACPI, crashing the cpu");
 

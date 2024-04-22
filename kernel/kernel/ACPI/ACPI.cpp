@@ -3,6 +3,7 @@
 #include <kernel/ACPI/ACPI.h>
 #include <kernel/ACPI/AML.h>
 #include <kernel/ACPI/AML/Device.h>
+#include <kernel/ACPI/AML/Field.h>
 #include <kernel/ACPI/AML/Integer.h>
 #include <kernel/ACPI/AML/Method.h>
 #include <kernel/ACPI/AML/Package.h>
@@ -108,6 +109,66 @@ acpi_release_global_lock:
 		if (!s_global_lock)
 			return;
 		ASSERT(!acpi_release_global_lock(s_global_lock));
+	}
+
+	static BAN::Optional<AML::FieldRules::AccessType> get_access_type(uint8_t access_size)
+	{
+		switch (access_size)
+		{
+			case 0: return AML::FieldRules::AccessType::Any;
+			case 1: return AML::FieldRules::AccessType::Byte;
+			case 2: return AML::FieldRules::AccessType::Word;
+			case 3: return AML::FieldRules::AccessType::DWord;
+			case 4: return AML::FieldRules::AccessType::QWord;
+			default:
+				dwarnln("Unknown access size {}", access_size);
+				return {};
+		}
+	}
+
+	BAN::Optional<uint64_t> GAS::read()
+	{
+		auto access_type = get_access_type(access_size);
+		if (!access_type.has_value())
+			return {};
+
+		auto op_region = MUST(BAN::RefPtr<AML::OpRegion>::create(""sv, address_space_id, (uint64_t)address, 0xFFFFFFFF));
+
+		auto field_rules = AML::FieldRules {
+			.access_type = access_type.value(),
+			.lock_rule = AML::FieldRules::LockRule::NoLock,
+			.update_rule = AML::FieldRules::UpdateRule::Preserve,
+			.access_attrib = AML::FieldRules::AccessAttrib::Normal,
+			.access_length = 0
+		};
+		auto field_element = MUST(BAN::RefPtr<AML::FieldElement>::create(""sv, register_bit_offset, register_bit_width, field_rules));
+		field_element->op_region = op_region;
+
+		auto result = field_element->as_integer();
+		if (!result.has_value())
+			return {};
+		return result.value();
+	}
+
+	bool GAS::write(uint64_t value)
+	{
+		auto access_type = get_access_type(access_size);
+		if (!access_type.has_value())
+			return {};
+
+		auto op_region = MUST(BAN::RefPtr<AML::OpRegion>::create(""sv, address_space_id, (uint64_t)address, 0xFFFFFFFF));
+
+		auto field_rules = AML::FieldRules {
+			.access_type = access_type.value(),
+			.lock_rule = AML::FieldRules::LockRule::NoLock,
+			.update_rule = AML::FieldRules::UpdateRule::Preserve,
+			.access_attrib = AML::FieldRules::AccessAttrib::Normal,
+			.access_length = 0
+		};
+		auto field_element = MUST(BAN::RefPtr<AML::FieldElement>::create(""sv, register_bit_offset, register_bit_width, field_rules));
+		field_element->op_region = op_region;
+
+		return field_element->store(MUST(BAN::RefPtr<AML::Integer>::create(value)));
 	}
 
 	enum PM1Event : uint16_t
@@ -395,6 +456,30 @@ acpi_release_global_lock:
 		return nullptr;
 	}
 
+	bool ACPI::prepare_sleep(uint8_t sleep_state)
+	{
+		auto pts_object = m_namespace->find_object({}, AML::NameString("_PTS"), AML::Namespace::FindMode::ForceAbsolute);
+		if (pts_object && pts_object->type == AML::Node::Type::Method)
+		{
+			auto* method = static_cast<AML::Method*>(pts_object.ptr());
+			if (method->arg_count != 1)
+			{
+				dwarnln("Method \\_PTS has {} arguments, expected 1", method->arg_count);
+				return false;
+			}
+
+			if (!method->invoke(MUST(BAN::RefPtr<AML::Integer>::create(sleep_state))).has_value())
+			{
+				dwarnln("Failed to evaluate \\_PTS");
+				return false;
+			}
+
+			dprintln("Executed \\_PTS");
+		}
+
+		return true;
+	}
+
 	void ACPI::poweroff()
 	{
 		if (!m_namespace)
@@ -435,24 +520,8 @@ acpi_release_global_lock:
 			return;
 		}
 
-		auto pts_object = m_namespace->find_object({}, AML::NameString("_PTS"), AML::Namespace::FindMode::ForceAbsolute);
-		if (pts_object && pts_object->type == AML::Node::Type::Method)
-		{
-			auto* method = static_cast<AML::Method*>(pts_object.ptr());
-			if (method->arg_count != 1)
-			{
-				dwarnln("Method \\_PTS has {} arguments, expected 1", method->arg_count);
-				return;
-			}
-
-			if (!method->invoke(MUST(BAN::RefPtr<AML::Integer>::create(5))).has_value())
-			{
-				dwarnln("Failed to evaluate \\_PTS");
-				return;
-			}
-
-			dprintln("Executed \\_PTS");
-		}
+		if (!prepare_sleep(5))
+			return;
 
 		dprintln("Entering sleep state S5");
 
@@ -470,6 +539,47 @@ acpi_release_global_lock:
 			pm1b_data |= PM1_CNT_SLP_EN;
 			IO::outw(fadt().pm1b_cnt_blk, pm1b_data);
 		}
+
+		// system must not execute after sleep registers are written
+		g_paniced = true;
+		asm volatile("ud2");
+	}
+
+	void ACPI::reset()
+	{
+		// https://uefi.org/htmlspecs/ACPI_Spec_6_4_html/04_ACPI_Hardware_Specification/ACPI_Hardware_Specification.html#reset-register
+
+		auto& reset_reg = fadt().reset_reg;
+		switch (reset_reg.address_space_id)
+		{
+			case GAS::AddressSpaceID::SystemMemory:
+			case GAS::AddressSpaceID::SystemIO:
+			case GAS::AddressSpaceID::PCIConfig:
+				break;
+			default:
+				dwarnln("Reset register has invalid address space ID ({})", static_cast<uint8_t>(reset_reg.address_space_id));
+				return;
+		}
+		if (reset_reg.register_bit_offset != 0 || reset_reg.register_bit_width != 8)
+		{
+			dwarnln("Reset register has invalid location ({} bits at bit offset {})", reset_reg.register_bit_width, reset_reg.register_bit_offset);
+			return;
+		}
+
+		if (!prepare_sleep(5))
+			return;
+
+		dprintln("Resetting system");
+
+		if (!reset_reg.write(fadt().reset_value))
+		{
+			dwarnln("Could not write reset value");
+			return;
+		}
+
+		// system must not execute after reset register is written
+		g_paniced = true;
+		asm volatile("ud2");
 	}
 
 	BAN::ErrorOr<void> ACPI::enter_acpi_mode(uint8_t mode)

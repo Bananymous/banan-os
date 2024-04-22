@@ -9,20 +9,7 @@ namespace Kernel::ACPI::AML
 
 	struct OpRegion : public NamedObject
 	{
-		enum class RegionSpace
-		{
-			SystemMemory = 0,
-			SystemIO = 1,
-			PCIConfig = 2,
-			EmbeddedController = 3,
-			SMBus = 4,
-			SystemCMOS = 5,
-			PCIBarTarget = 6,
-			IPMI = 7,
-			GeneralPurposeIO = 8,
-			GenericSerialBus = 9,
-			PCC = 10,
-		};
+		using RegionSpace = GAS::AddressSpaceID;
 		RegionSpace region_space;
 		uint64_t region_offset;
 		uint64_t region_length;
@@ -95,17 +82,17 @@ namespace Kernel::ACPI::AML
 			BAN::StringView region_space_name;
 			switch (region_space)
 			{
-				case RegionSpace::SystemMemory:			region_space_name = "SystemMemory"sv; break;
-				case RegionSpace::SystemIO:				region_space_name = "SystemIO"sv; break;
-				case RegionSpace::PCIConfig:			region_space_name = "PCIConfig"sv; break;
-				case RegionSpace::EmbeddedController:	region_space_name = "EmbeddedController"sv; break;
-				case RegionSpace::SMBus:				region_space_name = "SMBus"sv; break;
-				case RegionSpace::SystemCMOS:			region_space_name = "SystemCMOS"sv; break;
-				case RegionSpace::PCIBarTarget:			region_space_name = "PCIBarTarget"sv; break;
-				case RegionSpace::IPMI:					region_space_name = "IPMI"sv; break;
-				case RegionSpace::GeneralPurposeIO:		region_space_name = "GeneralPurposeIO"sv; break;
-				case RegionSpace::GenericSerialBus:		region_space_name = "GenericSerialBus"sv; break;
-				case RegionSpace::PCC:					region_space_name = "PCC"sv; break;
+				case RegionSpace::SystemMemory:					region_space_name = "SystemMemory"sv; break;
+				case RegionSpace::SystemIO:						region_space_name = "SystemIO"sv; break;
+				case RegionSpace::PCIConfig:					region_space_name = "PCIConfig"sv; break;
+				case RegionSpace::EmbeddedController:			region_space_name = "EmbeddedController"sv; break;
+				case RegionSpace::SMBus:						region_space_name = "SMBus"sv; break;
+				case RegionSpace::SystemCMOS:					region_space_name = "SystemCMOS"sv; break;
+				case RegionSpace::PCIBarTarget:					region_space_name = "PCIBarTarget"sv; break;
+				case RegionSpace::IPMI:							region_space_name = "IPMI"sv; break;
+				case RegionSpace::GeneralPurposeIO:				region_space_name = "GeneralPurposeIO"sv; break;
+				case RegionSpace::GenericSerialBus:				region_space_name = "GenericSerialBus"sv; break;
+				case RegionSpace::PlatformCommunicationChannel:	region_space_name = "PlatformCommunicationChannel"sv; break;
 				default: region_space_name = "Unknown"sv; break;
 			}
 			AML_DEBUG_PRINT_INDENT(indent);

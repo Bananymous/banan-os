@@ -32,6 +32,10 @@ namespace Kernel::ACPI
 		// This function will return only if there was an error
 		void poweroff();
 
+		// This function will reset the system
+		// This function will return only if there was an error
+		void reset();
+
 		void handle_irq() override;
 
 	private:
@@ -40,6 +44,7 @@ namespace Kernel::ACPI
 
 		FADT& fadt() { return *m_fadt; }
 
+		bool prepare_sleep(uint8_t sleep_state);
 		void acpi_event_task();
 
 	private:

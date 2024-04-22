@@ -7,12 +7,31 @@ namespace Kernel::ACPI
 
 	struct GAS
 	{
-		uint8_t address_space_id;
+		enum class AddressSpaceID : uint8_t
+		{
+			SystemMemory = 0x00,
+			SystemIO = 0x01,
+			PCIConfig = 0x02,
+			EmbeddedController = 0x03,
+			SMBus = 0x04,
+			SystemCMOS = 0x05,
+			PCIBarTarget = 0x06,
+			IPMI = 0x07,
+			GeneralPurposeIO = 0x08,
+			GenericSerialBus = 0x09,
+			PlatformCommunicationChannel = 0x0A,
+		};
+
+		BAN::Optional<uint64_t> read();
+		bool write(uint64_t value);
+
+		AddressSpaceID address_space_id;
 		uint8_t register_bit_width;
 		uint8_t register_bit_offset;
 		uint8_t access_size;
 		uint64_t address;
 	} __attribute__((packed));
+	static_assert(sizeof(GAS) == 12);
 
 	struct SDTHeader
 	{
@@ -67,7 +86,7 @@ namespace Kernel::ACPI
 		uint16_t iapc_boot_arch;
 		uint8_t __reserved2;
 		uint32_t flags;
-		uint8_t reset_reg[12];
+		GAS reset_reg;
 		uint8_t reset_value;
 		uint16_t arm_boot_arch;
 		uint8_t fadt_minor_version;
