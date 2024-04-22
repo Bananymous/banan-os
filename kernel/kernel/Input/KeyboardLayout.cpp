@@ -273,6 +273,8 @@ namespace Kernel::Input
 		return {};
 	}
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstack-usage="
 	static BAN::ErrorOr<void> initialize_name_to_key()
 	{
 		ASSERT(s_name_to_key.empty());
@@ -431,5 +433,6 @@ namespace Kernel::Input
 		TRY(s_name_to_key.insert("Z"sv,						Key::Z));
 		return {};
 	}
+#pragma GCC diagnostic pop
 
 }
