@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 CURRENT_DIR=$(dirname $(realpath $0))
 pushd "$CURRENT_DIR" >/dev/null
