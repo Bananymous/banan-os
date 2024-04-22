@@ -2,12 +2,12 @@
 set -e
 
 BINUTILS_VERSION="binutils-2.39"
-BINUTILS_GIT="https://sourceware.org/git/binutils-gdb.git"
-BINUTILS_BRANCH="binutils-2_39"
+BINUTILS_TAR="$BINUTILS_VERSION.tar.gz"
+BINUTILS_URL="https://ftp.gnu.org/gnu/binutils/$BINUTILS_TAR"
 
 GCC_VERSION="gcc-12.2.0"
-GCC_GIT="https://gcc.gnu.org/git/gcc.git"
-GCC_BRANCH="releases/$GCC_VERSION"
+GCC_TAR="$GCC_VERSION.tar.gz"
+GCC_URL="https://ftp.gnu.org/gnu/gcc/$GCC_VERSION/$GCC_TAR"
 
 GRUB_VERSION="grub-2.06"
 
@@ -73,9 +73,10 @@ build_binutils () {
 	cd $BANAN_BUILD_DIR/toolchain
 
 	if [ ! -d $BINUTILS_VERSION ]; then
-		git clone --single-branch --branch $BINUTILS_BRANCH $BINUTILS_GIT $BINUTILS_VERSION
+		wget $BINUTILS_URL
+		tar xf $BINUTILS_TAR
 		cd $BINUTILS_VERSION
-		git apply $BANAN_TOOLCHAIN_DIR/$BINUTILS_VERSION.patch
+		patch -s -p1 < $BANAN_TOOLCHAIN_DIR/$BINUTILS_VERSION.patch
 	fi
 
 	cd $BANAN_BUILD_DIR/toolchain/$BINUTILS_VERSION
@@ -99,9 +100,10 @@ build_gcc () {
 	cd $BANAN_BUILD_DIR/toolchain
 
 	if [ ! -d $GCC_VERSION ]; then
-		git clone --single-branch --branch $GCC_BRANCH $GCC_GIT $GCC_VERSION
+		wget $GCC_URL
+		tar xf $GCC_TAR
 		cd $GCC_VERSION
-		git apply $BANAN_TOOLCHAIN_DIR/$GCC_VERSION.patch
+		patch -s -p1 < $BANAN_TOOLCHAIN_DIR/$GCC_VERSION.patch
 	fi
 
 	cd $BANAN_BUILD_DIR/toolchain/$GCC_VERSION
