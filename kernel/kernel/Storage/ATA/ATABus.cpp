@@ -19,6 +19,11 @@ namespace Kernel
 		if (bus_ptr == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
 		auto bus = BAN::RefPtr<ATABus>::adopt(bus_ptr);
+		if (bus->io_read(ATA_PORT_STATUS) == 0x00)
+		{
+			dprintln("Floating ATA bus on IO port 0x{H}", base);
+			return BAN::Error::from_errno(ENODEV);
+		}
 		bus->set_irq(irq);
 		TRY(bus->initialize());
 		return bus;
@@ -71,15 +76,6 @@ namespace Kernel
 	{
 		io_write(ATA_PORT_DRIVE_SELECT, 0xA0 | ((uint8_t)secondary << 4));
 		select_delay();
-	}
-
-	static bool identify_all_same(BAN::Span<const uint16_t> identify_data)
-	{
-		uint16_t value = identify_data[0];
-		for (size_t i = 1; i < 256; i++)
-			if (identify_data[i] != value)
-				return false;
-		return true;
 	}
 
 	BAN::ErrorOr<ATABus::DeviceType> ATABus::identify(bool secondary, BAN::Span<uint16_t> buffer)
@@ -145,10 +141,6 @@ namespace Kernel
 
 		ASSERT(buffer.size() >= 256);
 		read_buffer(ATA_PORT_DATA, buffer.data(), 256);
-
-		if (identify_all_same(buffer))
-			return BAN::Error::from_errno(ENODEV);
-
 		return type;
 	}
 
