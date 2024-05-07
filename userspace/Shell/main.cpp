@@ -1070,6 +1070,9 @@ int main(int argc, char** argv)
 			index = buffers.size() - 1;
 			col = 0;
 			break;
+		case '\t':
+			// FIXME: Implement tab completion or something
+			break;
 		default:
 			MUST(buffers[index].insert(ch, col++));
 			fprintf(stdout, "%c\e[s%s\e[u", ch, buffers[index].data() + col);
