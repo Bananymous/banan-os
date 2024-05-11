@@ -66,8 +66,6 @@ Each major component and library has its own subdirectory (kernel, userspace, li
 
 > ***NOTE:*** You need cmake version of atleast 2.26. If you are using cmake that is not found from PATH, you can set the CMAKE\_COMMAND environment variable to point to the correct cmake binary. Or you can let build script download correct version of cmake if you don't have one.
 
-When you clone this reposity, make sure to also clone submodules. This can be done by cloning with the command ```git clone --recurse-submodules https://git.bananymous.com/bananymous/banan-os.git``` or if you have already cloned this repo, run ```git submodule init && git submodule update```.
-
 To build the toolchain for this os. You can run the following command.
 > ***NOTE:*** The following step has to be done only once. This might take a long time since we are compiling binutils and gcc.
 ```sh
