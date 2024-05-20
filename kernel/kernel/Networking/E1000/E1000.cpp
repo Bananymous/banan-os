@@ -290,7 +290,7 @@ namespace Kernel
 
 	void E1000::handle_irq()
 	{
-		if (read32(REG_ICR) & ICR_RxQ0)
+		if (!(read32(REG_ICR) & ICR_RxQ0))
 			return;
 
 		SpinLockGuard _(m_lock);
