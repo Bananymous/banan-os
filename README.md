@@ -1,7 +1,7 @@
 [![](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fbananymous.com%2Fbanan-os%2Ftokei.json&query=%24.lines&label=total%20lines)](https://git.bananymous.com/Bananymous/banan-os)
 [![](https://img.shields.io/github/commit-activity/m/Bananymous/banan-os)](https://git.bananymous.com/Bananymous/banan-os)
 [![](https://img.shields.io/github/license/bananymous/banan-os)](https://git.bananymous.com/Bananymous/banan-os/src/branch/main/LICENSE)
-[![](https://img.shields.io/discord/1242165176032297040)](https://discord.gg/xMXKt9Wf)
+[![](https://img.shields.io/discord/1242165176032297040?logo=discord&label=discord)](https://discord.gg/ehjGySwYdK)
 
 # banan-os
 
