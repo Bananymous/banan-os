@@ -1,6 +1,7 @@
 [![](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fbananymous.com%2Fbanan-os%2Ftokei.json&query=%24.lines&label=total%20lines)](https://git.bananymous.com/Bananymous/banan-os)
 [![](https://img.shields.io/github/commit-activity/m/Bananymous/banan-os)](https://git.bananymous.com/Bananymous/banan-os)
 [![](https://img.shields.io/github/license/bananymous/banan-os)](https://git.bananymous.com/Bananymous/banan-os/src/branch/main/LICENSE)
+[![](https://img.shields.io/discord/1242165176032297040)](https://discord.gg/xMXKt9Wf)
 
 # banan-os
 
@@ -64,7 +65,8 @@ Each major component and library has its own subdirectory (kernel, userspace, li
 #### pacman
 ```# pacman -S --needed base-devel git wget cmake ninja parted qemu-system-x86```
 
-> ***NOTE:*** You need cmake version of atleast 2.26. If you are using cmake that is not found from PATH, you can set the CMAKE\_COMMAND environment variable to point to the correct cmake binary. Or you can let build script download correct version of cmake if you don't have one.
+
+### Compilation
 
 To build the toolchain for this os. You can run the following command.
 > ***NOTE:*** The following step has to be done only once. This might take a long time since we are compiling binutils and gcc.
@@ -101,4 +103,13 @@ I have also created shell completion script for zsh. You can either copy the fil
 
 ## Contributing
 
-Currently I don't accept contributions to this repository unless explicitly told otherwise. This is a learning project for me and I want to do everything myself. Feel free to fork/clone this repo and tinker with it yourself.
+As the upstream is hosted on my server https://git.bananymous.com/Bananymous/banan-os, please contact me about account creation ([email](mailto:oskari.alaranta@bananymous.com), [discord](https://discord.gg/xMXKt9Wf)) and I will add a account for you. This is done to limit the people with access to the server.
+
+As this is mostly a learning experience for me, I would appreciate if you first contacted me about adding new features (email, discord, issue, ...). Bug fixes are always welcome!
+
+Commit message should be formatted followingly
+
+  1. First line is of the form "_Subject: Description_", where _Subject_ tells the area touched (Kernel, Shell, BuildSystem, ...) and _Description_ is brief description of the change done. First line should fit fully in 70 characters.
+  2. Body of the message should further describe the change and reasoning behind the change.
+
+All commits should pass the pre-commit hook defined in _.pre-commit-config.yaml_. For instructions on how to setup pre-commit, please see https://pre-commit.com/#install.
