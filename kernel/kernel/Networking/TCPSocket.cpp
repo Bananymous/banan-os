@@ -438,10 +438,8 @@ namespace Kernel
 			{
 				LockGuard _(m_mutex);
 
-				if (m_should_ack)
+				if (m_should_ack.compare_exchange(true, false))
 				{
-					m_should_ack = false;
-
 					ASSERT(m_connection_info.has_value());
 					auto* target_address = reinterpret_cast<const sockaddr*>(&m_connection_info->address);
 					auto target_address_len = m_connection_info->address_len;
@@ -510,6 +508,7 @@ namespace Kernel
 				}
 			}
 
+			m_semaphore.unblock();
 			m_semaphore.block_with_wake_time(current_ms + retransmit_timeout_ms);
 		}
 
