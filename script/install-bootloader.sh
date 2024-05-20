@@ -25,8 +25,8 @@ if [ -z $BANAN_ROOT_DIR ]; then
 	exit 1
 fi
 
-if [ -z $CMAKE_COMMAND ]; then
-	echo "You must set the CMAKE_COMMAND environment variable" >&2
+if [ -z $BANAN_CMAKE ]; then
+	echo "You must set the BANAN_CMAKE environment variable" >&2
 	exit 1
 fi
 
@@ -77,7 +77,7 @@ install_banan_legacy() {
 	if [ ! -d $INSTALLER_BUILD_DIR ]; then
 		mkdir -p $INSTALLER_BUILD_DIR
 		cd $INSTALLER_BUILD_DIR
-		$CMAKE_COMMAND -G Ninja ../..
+		$BANAN_CMAKE -G Ninja ../..
 	fi
 
 	cd $INSTALLER_BUILD_DIR

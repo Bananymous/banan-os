@@ -10,6 +10,12 @@ GCC_TAR="$GCC_VERSION.tar.gz"
 GCC_URL="https://ftp.gnu.org/gnu/gcc/$GCC_VERSION/$GCC_TAR"
 
 GRUB_VERSION="grub-2.06"
+GRUB_TAR="$GRUB_VERSION.tar.xz"
+GRUB_URL="https://ftp.gnu.org/gnu/grub/$GRUB_TAR"
+
+CMAKE_VERSION="cmake-3.26.6-linux-x86_64"
+CMAKE_TAR="$CMAKE_VERSION.tar.gz"
+CMAKE_URL="https://cmake.org/files/v3.26/$CMAKE_TAR"
 
 if [[ -z $BANAN_SYSROOT ]]; then
 	echo "You must set the BANAN_SYSROOT environment variable" >&2
@@ -123,17 +129,28 @@ build_gcc () {
 	make install-target-libgcc
 }
 
+build_libstdcpp () {
+	if ! [[ -d $BANAN_BUILD_DIR/toolchain/$GCC_VERSION/build-$BANAN_ARCH ]]; then
+		echo "You have to build gcc first"
+		exit 1
+	fi
+
+	cd $BANAN_BUILD_DIR/toolchain/$GCC_VERSION/build-$BANAN_ARCH
+	make $MAKE_JOBS all-target-libstdc++-v3 CFLAGS_FOR_TARGET="$XCFLAGS"
+	make install-target-libstdc++-v3
+}
+
 build_grub () {
 	echo "Building ${GRUB_VERSION}"
 
 	cd $BANAN_BUILD_DIR/toolchain
 
-	if [ ! -f ${GRUB_VERSION}.tar.xz ]; then
-		wget https://ftp.gnu.org/gnu/grub/${GRUB_VERSION}.tar.xz
+	if [ ! -f $GRUB_TAR ]; then
+		wget $GRUB_URL
 	fi
 
 	if [ ! -d $GRUB_VERSION ]; then
-		tar xvf ${GRUB_VERSION}.tar.xz
+		tar xvf $GRUB_TAR
 	fi
 
 	cd $GRUB_VERSION
@@ -149,16 +166,63 @@ build_grub () {
 	make install
 }
 
-build_libstdcpp () {
-	if ! [[ -d $BANAN_BUILD_DIR/toolchain/$GCC_VERSION/build-$BANAN_ARCH ]]; then
-		echo "You have to build gcc first"
-		exit 1
+build_cmake() {
+	echo "Downloading ${CMAKE_VERSION}"
+
+	cd $BANAN_BUILD_DIR/toolchain
+
+	if [ ! -f $CMAKE_TAR ]; then
+		wget $CMAKE_URL
 	fi
 
-	cd $BANAN_BUILD_DIR/toolchain/$GCC_VERSION/build-$BANAN_ARCH
-	make $MAKE_JOBS all-target-libstdc++-v3 CFLAGS_FOR_TARGET="$XCFLAGS"
-	make install-target-libstdc++-v3
+	if [ ! -d $CMAKE_VERSION ]; then
+		tar xvf $CMAKE_TAR
+	fi
+
+	cd $CMAKE_VERSION
+
+	mkdir -p $BANAN_TOOLCHAIN_PREFIX/bin
+	mkdir -p $BANAN_TOOLCHAIN_PREFIX/share
+
+	cp -r ./bin/* $BANAN_TOOLCHAIN_PREFIX/bin/
+	cp -r ./share/* $BANAN_TOOLCHAIN_PREFIX/share/
 }
+
+BUILD_BINUTILS=1
+if [[ -f $BANAN_TOOLCHAIN_PREFIX/bin/$BANAN_TOOLCHAIN_TRIPLE_PREFIX-ld ]]; then
+	echo "You already seem to have a binutils installed."
+	read -e -p "Do you want to rebuild it [y/N]? " choice
+	if ! [[ "$choice" == [Yy]* ]]; then
+		BUILD_BINUTILS=0
+	fi
+fi
+
+BUILD_GCC=1
+if [[ -f $BANAN_TOOLCHAIN_PREFIX/bin/$BANAN_TOOLCHAIN_TRIPLE_PREFIX-gcc ]]; then
+	echo "You already seem to have a gcc installed."
+	read -e -p "Do you want to rebuild it [y/N]? " choice
+	if ! [[ "$choice" == [Yy]* ]]; then
+		BUILD_GCC=0
+	fi
+fi
+
+BUILD_GRUB=1
+if [[ -f $BANAN_TOOLCHAIN_PREFIX/bin/grub-mkstandalone ]]; then
+	echo "You already seem to have a grub installed."
+	read -e -p "Do you want to rebuild it [y/N]? " choice
+	if ! [[ "$choice" == [Yy]* ]]; then
+		BUILD_GRUB=0
+	fi
+fi
+
+BUILD_CMAKE=1
+if [[ -f $BANAN_TOOLCHAIN_PREFIX/bin/cmake ]]; then
+	echo "You already seem to have a cmake installed."
+	read -e -p "Do you want to rebuild it [y/N]? " choice
+	if ! [[ "$choice" == [Yy]* ]]; then
+		BUILD_CMAKE=0
+	fi
+fi
 
 # delete everything but toolchain
 mkdir -p $BANAN_BUILD_DIR
@@ -166,21 +230,31 @@ find $BANAN_BUILD_DIR -mindepth 1 -maxdepth 1 ! -name toolchain -exec rm -r {} +
 
 # NOTE: we have to manually create initial sysroot with libc headers
 #       since cmake cannot be invoked yet
-echo "Creating dummy sysroot"
 mkdir -p $BANAN_SYSROOT/usr
 cp -r $BANAN_ROOT_DIR/libc/include $BANAN_SYSROOT/usr/include
 
 mkdir -p $BANAN_BUILD_DIR/toolchain
-build_binutils
-build_gcc
 
-# Grub is only needed for UEFI (x86_64)
-if [ $BANAN_ARCH = "x86_64" ]; then
+if (($BUILD_BINUTILS)); then
+	build_binutils
+fi
+
+if (($BUILD_GCC)); then
+	build_gcc
+fi
+
+if (($BUILD_GRUB)); then
 	build_grub
 fi
 
-# delete sysroot and install libc
-rm -r $BANAN_SYSROOT
-$BANAN_SCRIPT_DIR/build.sh libc-install
+if (($BUILD_CMAKE)); then
+	build_cmake
+fi
 
-build_libstdcpp
+if (($BUILD_GCC)); then
+	# delete sysroot and install libc
+	rm -r $BANAN_SYSROOT
+	$BANAN_SCRIPT_DIR/build.sh libc-install
+
+	build_libstdcpp
+fi

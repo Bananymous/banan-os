@@ -6,11 +6,6 @@ source $BANAN_SCRIPT_DIR/config.sh
 
 FAKEROOT_FILE="$BANAN_BUILD_DIR/fakeroot-context"
 
-if [[ -z $CMAKE_COMMAND ]]; then
-	echo "No usable cmake binary found" >&2
-	exit 1
-fi
-
 run_fakeroot() {
 	fakeroot -i $FAKEROOT_FILE -s $FAKEROOT_FILE -- /bin/bash -c '$@' bash $@
 }
@@ -19,11 +14,21 @@ make_build_dir () {
 	mkdir -p $BANAN_BUILD_DIR
 	cd $BANAN_BUILD_DIR
 	if ! [[ -f "build.ninja" ]]; then
-		$CMAKE_COMMAND --toolchain=$BANAN_TOOLCHAIN_DIR/Toolchain.txt -G Ninja $BANAN_ROOT_DIR
+		$BANAN_CMAKE --toolchain=$BANAN_TOOLCHAIN_DIR/Toolchain.txt -G Ninja $BANAN_ROOT_DIR
 	fi
 }
 
 build_target () {
+	if ! [[ -f $BANAN_CMAKE ]]; then
+		echo "cmake not found, please re-run toolchain compilation script"
+		exit 1
+	fi
+
+	if ! type ninja &> /dev/null ; then
+		echo "ninja not found" >&2
+		exit 1
+	fi
+
 	make_build_dir
 	if [[ $# -eq 0 ]]; then
 		echo "No target provided"
@@ -34,15 +39,6 @@ build_target () {
 }
 
 build_toolchain () {
-	if [[ -f $BANAN_TOOLCHAIN_PREFIX/bin/$BANAN_TOOLCHAIN_TRIPLE_PREFIX-gcc ]]; then
-		echo "You already seem to have a toolchain."
-		read -e -p "Do you want to rebuild it [y/N]? " choice
-		if ! [[ "$choice" == [Yy]* ]]; then
-			echo "Aborting toolchain rebuild"
-			exit 0
-		fi
-	fi
-
 	$BANAN_TOOLCHAIN_DIR/build.sh
 }
 
