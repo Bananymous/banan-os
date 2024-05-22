@@ -432,9 +432,9 @@ namespace Kernel
 		return BAN::RefPtr<Inode>(inode);
 	}
 
-	BAN::ErrorOr<void> TmpDirectoryInode::list_next_inodes_impl(off_t data_block_index, DirectoryEntryList* list, size_t list_len)
+	BAN::ErrorOr<size_t> TmpDirectoryInode::list_next_inodes_impl(off_t data_block_index, struct dirent* list, size_t list_len)
 	{
-		if (list_len < (size_t)blksize())
+		if (list_len == 0)
 		{
 			dprintln("buffer is too small");
 			return BAN::Error::from_errno(ENOBUFS);
@@ -442,13 +442,12 @@ namespace Kernel
 
 		auto block_index = this->block_index(data_block_index);
 
-		list->entry_count = 0;
-
 		// if we reach a non-allocated block, it marks the end
 		if (!block_index.has_value())
-			return {};
+			return 0;
 
-		auto* dirp = list->array;
+		dirent* dirp = list;
+		size_t entry_count = 0;
 
 		const size_t byte_count = BAN::Math::min<size_t>(size() - data_block_index * blksize(), blksize());
 		m_fs.with_block_buffer(block_index.value(), [&](BAN::ByteSpan bytespan) {
@@ -462,21 +461,21 @@ namespace Kernel
 				{
 					// TODO: dirents should be aligned
 
-					dirp->dirent.d_ino = entry.ino;
-					dirp->dirent.d_type = entry.type;
-					strncpy(dirp->dirent.d_name, entry.name, entry.name_len);
-					dirp->dirent.d_name[entry.name_len] = '\0';
-					dirp->rec_len = sizeof(DirectoryEntry) + entry.name_len + 1;
-					dirp = dirp->next();
+					entry_count++;
+					if (entry_count > list_len)
+						return;
 
-					list->entry_count++;
+					dirp->d_ino = entry.ino;
+					dirp->d_type = entry.type;
+					strncpy(dirp->d_name, entry.name, entry.name_len);
+					dirp++;
 				}
 
 				bytespan = bytespan.slice(entry.rec_len);
 			}
 		});
 
-		return {};
+		return entry_count;
 	}
 
 	BAN::ErrorOr<void> TmpDirectoryInode::create_file_impl(BAN::StringView name, mode_t mode, uid_t uid, gid_t gid)

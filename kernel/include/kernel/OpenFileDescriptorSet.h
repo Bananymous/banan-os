@@ -47,7 +47,7 @@ namespace Kernel
 		BAN::ErrorOr<size_t> read(int fd, BAN::ByteSpan);
 		BAN::ErrorOr<size_t> write(int fd, BAN::ConstByteSpan);
 
-		BAN::ErrorOr<void> read_dir_entries(int fd, DirectoryEntryList* list, size_t list_size);
+		BAN::ErrorOr<size_t> read_dir_entries(int fd, struct dirent* list, size_t list_len);
 
 		BAN::ErrorOr<BAN::StringView> path_of(int) const;
 		BAN::ErrorOr<BAN::RefPtr<Inode>> inode_of(int);

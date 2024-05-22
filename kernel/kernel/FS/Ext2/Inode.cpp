@@ -299,16 +299,13 @@ done:
 		m_fs.delete_inode(ino());
 	}
 
-	BAN::ErrorOr<void> Ext2Inode::list_next_inodes_impl(off_t offset, DirectoryEntryList* list, size_t list_size)
+	BAN::ErrorOr<size_t> Ext2Inode::list_next_inodes_impl(off_t offset, struct dirent* list, size_t list_size)
 	{
 		ASSERT(mode().ifdir());
 		ASSERT(offset >= 0);
 
 		if (static_cast<BAN::make_unsigned_t<decltype(offset)>>(offset) >= max_used_data_block_count())
-		{
-			list->entry_count = 0;
-			return {};
-		}
+			return 0;
 
 		// FIXME: can we actually assume directories have all their blocks allocated
 		const uint32_t block_index = fs_block_of_data_block_index(offset).value();
@@ -318,26 +315,25 @@ done:
 		m_fs.read_block(block_index, block_buffer);
 
 		// First determine if we have big enough list
+		size_t entry_count = 0;
 		{
 			BAN::ConstByteSpan entry_span = block_buffer.span();
 
-			size_t needed_size = sizeof(DirectoryEntryList);
 			while (entry_span.size() >= sizeof(Ext2::LinkedDirectoryEntry))
 			{
 				auto& entry = entry_span.as<const Ext2::LinkedDirectoryEntry>();
 				if (entry.inode)
-					needed_size += sizeof(DirectoryEntry) + entry.name_len + 1;
+					entry_count++;
 				entry_span = entry_span.slice(entry.rec_len);
 			}
 
-			if (needed_size > list_size)
-				return BAN::Error::from_errno(EINVAL);
+			if (entry_count > list_size)
+				return BAN::Error::from_errno(ENOBUFS);
 		}
 
 		// Second fill the list
 		{
-			DirectoryEntry* ptr = list->array;
-			list->entry_count = 0;
+			dirent* dirp = list;
 
 			BAN::ConstByteSpan entry_span = block_buffer.span();
 			while (entry_span.size() >= sizeof(Ext2::LinkedDirectoryEntry))
@@ -345,20 +341,16 @@ done:
 				auto& entry = entry_span.as<const Ext2::LinkedDirectoryEntry>();
 				if (entry.inode)
 				{
-					ptr->dirent.d_ino = entry.inode;
-					ptr->dirent.d_type = entry.file_type;
-					ptr->rec_len = sizeof(DirectoryEntry) + entry.name_len + 1;
-					memcpy(ptr->dirent.d_name, entry.name, entry.name_len);
-					ptr->dirent.d_name[entry.name_len] = '\0';
-
-					ptr = ptr->next();
-					list->entry_count++;
+					dirp->d_ino = entry.inode;
+					dirp->d_type = entry.file_type;
+					strncpy(dirp->d_name, entry.name, entry.name_len);
+					dirp++;
 				}
 				entry_span = entry_span.slice(entry.rec_len);
 			}
 		}
 
-		return {};
+		return entry_count;
 	}
 
 	static bool mode_has_valid_type(mode_t mode)

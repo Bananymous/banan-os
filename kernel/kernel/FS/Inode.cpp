@@ -70,7 +70,7 @@ namespace Kernel
 		return find_inode_impl(name);
 	}
 
-	BAN::ErrorOr<void> Inode::list_next_inodes(off_t offset, DirectoryEntryList* list, size_t list_len)
+	BAN::ErrorOr<size_t> Inode::list_next_inodes(off_t offset, struct dirent* list, size_t list_len)
 	{
 		LockGuard _(m_mutex);
 		if (!mode().ifdir())

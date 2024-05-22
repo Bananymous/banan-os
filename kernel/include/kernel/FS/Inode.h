@@ -7,19 +7,17 @@
 #include <BAN/Vector.h>
 #include <BAN/WeakPtr.h>
 
-#include <kernel/API/DirectoryEntry.h>
 #include <kernel/Credentials.h>
 #include <kernel/Debug.h>
 #include <kernel/Lock/Mutex.h>
 
+#include <dirent.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <time.h>
 
 namespace Kernel
 {
-
-	using namespace API;
 
 	class FileBackedRegion;
 	class SharedFileData;
@@ -92,7 +90,7 @@ namespace Kernel
 
 		// Directory API
 		BAN::ErrorOr<BAN::RefPtr<Inode>> find_inode(BAN::StringView);
-		BAN::ErrorOr<void> list_next_inodes(off_t, DirectoryEntryList*, size_t);
+		BAN::ErrorOr<size_t> list_next_inodes(off_t, struct dirent* list, size_t list_size);
 		BAN::ErrorOr<void> create_file(BAN::StringView, mode_t, uid_t, gid_t);
 		BAN::ErrorOr<void> create_directory(BAN::StringView, mode_t, uid_t, gid_t);
 		BAN::ErrorOr<void> unlink(BAN::StringView);
@@ -127,7 +125,7 @@ namespace Kernel
 
 		// Directory API
 		virtual BAN::ErrorOr<BAN::RefPtr<Inode>> find_inode_impl(BAN::StringView)				{ return BAN::Error::from_errno(ENOTSUP); }
-		virtual BAN::ErrorOr<void> list_next_inodes_impl(off_t, DirectoryEntryList*, size_t)	{ return BAN::Error::from_errno(ENOTSUP); }
+		virtual BAN::ErrorOr<size_t> list_next_inodes_impl(off_t, struct dirent*, size_t)		{ return BAN::Error::from_errno(ENOTSUP); }
 		virtual BAN::ErrorOr<void> create_file_impl(BAN::StringView, mode_t, uid_t, gid_t)		{ return BAN::Error::from_errno(ENOTSUP); }
 		virtual BAN::ErrorOr<void> create_directory_impl(BAN::StringView, mode_t, uid_t, gid_t)	{ return BAN::Error::from_errno(ENOTSUP); }
 		virtual BAN::ErrorOr<void> unlink_impl(BAN::StringView)									{ return BAN::Error::from_errno(ENOTSUP); }

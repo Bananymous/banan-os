@@ -5,16 +5,14 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 
-#include <kernel/API/DirectoryEntry.h>
-
 struct __DIR
 {
 	int fd { -1 };
+	size_t entry_count { 0 };
 	size_t entry_index { 0 };
-	Kernel::API::DirectoryEntry* current { nullptr };
-
-	size_t buffer_size { 0 };
-	Kernel::API::DirectoryEntryList buffer[];
+	// FIXME: we should probably allocate entries dynamically
+	//        based if syscall returns ENOBUFS
+	dirent entries[128];
 };
 
 int closedir(DIR* dirp)
@@ -26,7 +24,6 @@ int closedir(DIR* dirp)
 	}
 
 	close(dirp->fd);
-	dirp->fd = -1;
 	free(dirp);
 
 	return 0;
@@ -45,13 +42,13 @@ int dirfd(DIR* dirp)
 
 DIR* fdopendir(int fd)
 {
-	DIR* dirp = (DIR*)malloc(sizeof(DIR) + 4096);
+	DIR* dirp = (DIR*)malloc(sizeof(DIR));
 	if (dirp == nullptr)
 		return nullptr;
 
 	dirp->fd = fd;
-	dirp->current = nullptr;
-	dirp->buffer_size = 4096;
+	dirp->entry_count = 0;
+	dirp->entry_index = 0;
 
 	return dirp;
 }
@@ -73,20 +70,15 @@ struct dirent* readdir(DIR* dirp)
 	}
 
 	dirp->entry_index++;
-	if (dirp->current && dirp->entry_index < dirp->buffer->entry_count)
-	{
-		dirp->current = dirp->current->next();
-		return &dirp->current->dirent;
-	}
+	if (dirp->entry_index < dirp->entry_count)
+		return &dirp->entries[dirp->entry_index];
 
-	if (syscall(SYS_READ_DIR, dirp->fd, dirp->buffer, dirp->buffer_size) == -1)
+	long entry_count = syscall(SYS_READ_DIR, dirp->fd, dirp->entries, sizeof(dirp->entries) / sizeof(dirp->entries[0]));
+	if (entry_count <= 0)
 		return nullptr;
 
-	if (dirp->buffer->entry_count == 0)
-		return nullptr;
-
+	dirp->entry_count = entry_count;
 	dirp->entry_index = 0;
-	dirp->current = dirp->buffer->array;
 
-	return &dirp->current->dirent;
+	return &dirp->entries[0];
 }

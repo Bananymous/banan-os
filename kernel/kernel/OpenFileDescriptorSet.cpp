@@ -351,15 +351,13 @@ namespace Kernel
 		return nwrite;
 	}
 
-	BAN::ErrorOr<void> OpenFileDescriptorSet::read_dir_entries(int fd, DirectoryEntryList* list, size_t list_size)
+	BAN::ErrorOr<size_t> OpenFileDescriptorSet::read_dir_entries(int fd, struct dirent* list, size_t list_len)
 	{
 		TRY(validate_fd(fd));
 		auto& open_file = m_open_files[fd];
 		if (!(open_file->flags & O_RDONLY))
 			return BAN::Error::from_errno(EACCES);
-		TRY(open_file->inode->list_next_inodes(open_file->offset, list, list_size));
-		open_file->offset++;
-		return {};
+		return TRY(open_file->inode->list_next_inodes(open_file->offset++, list, list_len));
 	}
 
 	BAN::ErrorOr<BAN::StringView> OpenFileDescriptorSet::path_of(int fd) const

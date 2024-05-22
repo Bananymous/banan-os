@@ -10,7 +10,6 @@ __BEGIN_DECLS
 #define __need_ino_t
 #include <sys/types.h>
 
-struct __DIR;
 typedef struct __DIR DIR;
 
 #define DT_UNKNOWN	0
@@ -26,7 +25,7 @@ struct dirent
 {
 	ino_t d_ino;			/* File serial number. */
 	unsigned char d_type;	/* File type. One of DT_* definitions. */
-	char d_name[];			/* Filename string of entry. */
+	char d_name[256];		/* Filename string of entry. */
 };
 
 int				alphasort(const struct dirent** d1, const struct dirent** d2);

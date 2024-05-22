@@ -1220,12 +1220,11 @@ namespace Kernel
 		return clean_poweroff(command);
 	}
 
-	BAN::ErrorOr<long> Process::sys_readdir(int fd, DirectoryEntryList* list, size_t list_size)
+	BAN::ErrorOr<long> Process::sys_readdir(int fd, struct dirent* list, size_t list_len)
 	{
 		LockGuard _(m_process_lock);
-		TRY(validate_pointer_access(list, list_size));
-		TRY(m_open_file_descriptors.read_dir_entries(fd, list, list_size));
-		return 0;
+		TRY(validate_pointer_access(list, sizeof(dirent) * list_len));
+		return TRY(m_open_file_descriptors.read_dir_entries(fd, list, list_len));
 	}
 
 	BAN::ErrorOr<long> Process::sys_setpwd(const char* path)

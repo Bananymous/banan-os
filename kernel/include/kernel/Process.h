@@ -149,7 +149,7 @@ namespace Kernel
 
 		BAN::ErrorOr<void> mount(BAN::StringView source, BAN::StringView target);
 
-		BAN::ErrorOr<long> sys_readdir(int fd, DirectoryEntryList* buffer, size_t buffer_size);
+		BAN::ErrorOr<long> sys_readdir(int fd, struct dirent* list, size_t list_len);
 
 		BAN::ErrorOr<long> sys_mmap(const sys_mmap_t*);
 		BAN::ErrorOr<long> sys_munmap(void* addr, size_t len);
