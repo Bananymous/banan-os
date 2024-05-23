@@ -1136,8 +1136,7 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_seek(int fd, off_t offset, int whence)
 	{
 		LockGuard _(m_process_lock);
-		TRY(m_open_file_descriptors.seek(fd, offset, whence));
-		return 0;
+		return TRY(m_open_file_descriptors.seek(fd, offset, whence));
 	}
 
 	BAN::ErrorOr<long> Process::sys_tell(int fd)

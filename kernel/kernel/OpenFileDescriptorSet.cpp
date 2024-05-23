@@ -207,7 +207,7 @@ namespace Kernel
 		return BAN::Error::from_errno(ENOTSUP);
 	}
 
-	BAN::ErrorOr<void> OpenFileDescriptorSet::seek(int fd, off_t offset, int whence)
+	BAN::ErrorOr<off_t> OpenFileDescriptorSet::seek(int fd, off_t offset, int whence)
 	{
 		TRY(validate_fd(fd));
 
@@ -233,7 +233,7 @@ namespace Kernel
 
 		m_open_files[fd]->offset = new_offset;
 
-		return {};
+		return new_offset;
 	}
 
 	BAN::ErrorOr<off_t> OpenFileDescriptorSet::tell(int fd) const

@@ -33,7 +33,7 @@ namespace Kernel
 
 		BAN::ErrorOr<int> fcntl(int fd, int cmd, int extra);
 
-		BAN::ErrorOr<void> seek(int fd, off_t offset, int whence);
+		BAN::ErrorOr<off_t> seek(int fd, off_t offset, int whence);
 		BAN::ErrorOr<off_t> tell(int) const;
 
 		BAN::ErrorOr<void> fstat(int fd, struct stat*) const;
