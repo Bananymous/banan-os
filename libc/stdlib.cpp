@@ -516,6 +516,52 @@ int putenv(char* string)
 	return 0;
 }
 
+static void qsort_swap(void* lhs, void* rhs, size_t width)
+{
+	uint8_t buffer[64];
+	size_t swapped = 0;
+	while (swapped < width)
+	{
+		const size_t to_swap = BAN::Math::min(width - swapped, sizeof(buffer));
+		memcpy(buffer, lhs, to_swap);
+		memcpy(lhs, rhs, to_swap);
+		memcpy(rhs, buffer, to_swap);
+		swapped += to_swap;
+	}
+}
+
+static uint8_t* qsort_partition(uint8_t* pbegin, uint8_t* pend, size_t width, int (*compar)(const void*, const void*))
+{
+	uint8_t* pivot = pend - width;
+	uint8_t* p1 = pbegin;
+	for (uint8_t* p2 = pbegin; p2 < pivot; p2 += width)
+	{
+		if (compar(p2, pivot) >= 0)
+			continue;
+		qsort_swap(p1, p2, width);
+		p1 += width;
+	}
+	qsort_swap(p1, pivot, width);
+	return p1;
+}
+
+static void qsort_impl(uint8_t* pbegin, uint8_t* pend, size_t width, int (*compar)(const void*, const void*))
+{
+	if ((pend - pbegin) / width <= 1)
+		return;
+	uint8_t* mid = qsort_partition(pbegin, pend, width, compar);
+	qsort_impl(pbegin, mid, width, compar);
+	qsort_impl(mid + width, pend, width, compar);
+}
+
+void qsort(void* base, size_t nel, size_t width, int (*compar)(const void*, const void*))
+{
+	if (width == 0)
+		return;
+	uint8_t* pbegin = static_cast<uint8_t*>(base);
+	qsort_impl(pbegin, pbegin + nel * width, width, compar);
+}
+
 // Constants and algorithm from https://en.wikipedia.org/wiki/Permuted_congruential_generator
 
 static uint64_t s_rand_state = 0x4d595df4d0f33173;
