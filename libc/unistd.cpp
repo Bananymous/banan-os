@@ -1,6 +1,7 @@
 #include <BAN/Assert.h>
 #include <kernel/Syscall.h>
 #include <errno.h>
+#include <pwd.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -464,4 +465,16 @@ int setpgid(pid_t pid, pid_t pgid)
 int tcsetpgrp(int fildes, pid_t pgid_id)
 {
 	return syscall(SYS_TCSETPGRP, fildes, pgid_id);
+}
+
+char* getlogin(void)
+{
+	static char buffer[LOGIN_NAME_MAX];
+	auto* pw = getpwuid(geteuid());
+	if (pw == nullptr)
+		return nullptr;
+	strncpy(buffer, pw->pw_name, LOGIN_NAME_MAX - 1);
+	buffer[LOGIN_NAME_MAX - 1] = '\0';
+	endpwent();
+	return buffer;
 }
