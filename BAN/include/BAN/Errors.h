@@ -1,7 +1,6 @@
 #pragma once
 
 #include <BAN/Formatter.h>
-#include <BAN/StringView.h>
 #include <BAN/Variant.h>
 
 #include <errno.h>
@@ -56,7 +55,7 @@ namespace BAN
 #endif
 
 		uint64_t get_error_code() const { return m_error_code; }
-		BAN::StringView get_message() const
+		const char* get_message() const
 		{
 #ifdef __is_kernel
 			if (m_error_code & kernel_error_mask)
@@ -64,7 +63,7 @@ namespace BAN
 #endif
 			if (auto* desc = strerrordesc_np(m_error_code))
 				return desc;
-			return "Unknown error"sv;
+			return "Unknown error";
 		}
 
 	private:

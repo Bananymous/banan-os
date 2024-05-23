@@ -1,4 +1,5 @@
 #include <BAN/HashMap.h>
+#include <BAN/StringView.h>
 #include <BAN/Vector.h>
 
 #include <inttypes.h>

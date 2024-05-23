@@ -5,7 +5,6 @@ project(BAN CXX)
 set(BAN_SOURCES
 	BAN/Assert.cpp
 	BAN/New.cpp
-	BAN/String.cpp
 	BAN/StringView.cpp
 	BAN/Time.cpp
 )

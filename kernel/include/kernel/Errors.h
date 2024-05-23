@@ -1,11 +1,9 @@
 #pragma once
 
-#include <BAN/StringView.h>
-
 namespace Kernel
 {
 
-	enum class ErrorCode : uint32_t
+	enum class ErrorCode
 	{
 		None,
 		ACPI_NoRootSDT,
@@ -31,6 +29,6 @@ namespace Kernel
 		Count
 	};
 
-	BAN::StringView error_string(ErrorCode);
+	const char* error_string(ErrorCode);
 
 }

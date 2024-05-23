@@ -1,5 +1,6 @@
-#include <BAN/Vector.h>
 #include <BAN/HashSet.h>
+#include <BAN/StringView.h>
+#include <BAN/Vector.h>
 
 #include <ctype.h>
 #include <inttypes.h>

@@ -1,7 +1,8 @@
 #pragma once
 
-#include <BAN/Vector.h>
+#include <BAN/StringView.h>
 #include <BAN/UniqPtr.h>
+#include <BAN/Vector.h>
 
 class Image
 {

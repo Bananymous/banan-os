@@ -2,6 +2,7 @@
 #include <BAN/Endianness.h>
 #include <BAN/IPv4.h>
 #include <BAN/MAC.h>
+#include <BAN/Optional.h>
 #include <BAN/Vector.h>
 
 #include <arpa/inet.h>
