@@ -61,7 +61,11 @@ run_bochs () {
 }
 
 if [[ -c /dev/kvm ]]; then
-	QEMU_ACCEL="-accel kvm"
+	if [[ -r /dev/kvm ]] && [[ -w /dev/kvm ]]; then
+		QEMU_ACCEL="-accel kvm"
+	else
+		echo "You don't have read/write permissions for /dev/kvm" >&2
+	fi
 fi
 
 if [[ $# -eq 0 ]]; then
