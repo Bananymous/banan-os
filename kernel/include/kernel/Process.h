@@ -198,6 +198,7 @@ namespace Kernel
 		BAN::ErrorOr<int> block_until_exit(pid_t pid);
 
 		BAN::ErrorOr<void> validate_string_access(const char*);
+		BAN::ErrorOr<void> validate_pointer_access_check(const void*, size_t);
 		BAN::ErrorOr<void> validate_pointer_access(const void*, size_t);
 
 		uint64_t signal_pending_mask() const

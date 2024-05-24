@@ -1857,7 +1857,7 @@ namespace Kernel
 		return validate_pointer_access(str, strlen(str) + 1);
 	}
 
-	BAN::ErrorOr<void> Process::validate_pointer_access(const void* ptr, size_t size)
+	BAN::ErrorOr<void> Process::validate_pointer_access_check(const void* ptr, size_t size)
 	{
 		ASSERT(&Process::current() == this);
 		auto& thread = Thread::current();
@@ -1892,6 +1892,29 @@ unauthorized_access:
 		Debug::dump_stack_trace();
 		MUST(sys_kill(pid(), SIGSEGV));
 		return BAN::Error::from_errno(EINTR);
+	}
+
+	BAN::ErrorOr<void> Process::validate_pointer_access(const void* ptr, size_t size)
+	{
+		// TODO: This seems very slow as we loop over the range twice
+
+		TRY(validate_pointer_access_check(ptr, size));
+
+		const vaddr_t vaddr = reinterpret_cast<vaddr_t>(ptr);
+
+		// Make sure all of the pages are mapped here, so demand paging does not happen
+		// while processing syscall.
+		const vaddr_t page_start = vaddr & PAGE_ADDR_MASK;
+		const size_t page_count = range_page_count(vaddr, size);
+		for (size_t i = 0; i < page_count; i++)
+		{
+			const vaddr_t current = page_start + i * PAGE_SIZE;
+			if (page_table().get_page_flags(current) & PageTable::Flags::Present)
+				continue;
+			TRY(Process::allocate_page_for_demand_paging(current));
+		}
+
+		return {};
 	}
 
 }
