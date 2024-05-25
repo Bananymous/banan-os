@@ -206,6 +206,15 @@ if [[ -f $BANAN_TOOLCHAIN_PREFIX/bin/$BANAN_TOOLCHAIN_TRIPLE_PREFIX-gcc ]]; then
 	fi
 fi
 
+BUILD_LIBSTDCPP=0
+#BUILD_LIBSTDCPP=$BUILD_GCC
+#if ! (($BUILD_LIBSTDCPP)); then
+#	read -e -p "Do you want to rebuild libstdc++ [y/N]? " choice
+#	if [[ "$choice" == [Yy]* ]]; then
+#		BUILD_LIBSTDCPP=1
+#	fi
+#fi
+
 BUILD_GRUB=1
 if [[ -f $BANAN_TOOLCHAIN_PREFIX/bin/grub-mkstandalone ]]; then
 	echo "You already seem to have a grub installed."
@@ -251,7 +260,7 @@ if (($BUILD_CMAKE)); then
 	build_cmake
 fi
 
-if (($BUILD_GCC)); then
+if (($BUILD_LIBSTDCPP)); then
 	# delete sysroot and install libc
 	rm -r $BANAN_SYSROOT
 	$BANAN_SCRIPT_DIR/build.sh libc-install
