@@ -211,9 +211,9 @@ namespace Kernel::ACPI
 				uint64_t result = 0;
 				switch (access_size)
 				{
-					case 1: result = PCI::PCIManager::read_config_byte(0, device, function, offset); break;
-					case 2: result = PCI::PCIManager::read_config_word(0, device, function, offset); break;
-					case 4: result = PCI::PCIManager::read_config_dword(0, device, function, offset); break;
+					case 1: result = PCI::PCIManager::get().read_config_byte(0, device, function, offset); break;
+					case 2: result = PCI::PCIManager::get().read_config_word(0, device, function, offset); break;
+					case 4: result = PCI::PCIManager::get().read_config_dword(0, device, function, offset); break;
 					default:
 						AML_ERROR("FieldElement read_field (PCIConfig) with access size {}", access_size);
 						return {};
@@ -268,9 +268,9 @@ namespace Kernel::ACPI
 
 				switch (access_size)
 				{
-					case 1: PCI::PCIManager::write_config_byte(0, device, function, offset, value); break;
-					case 2: PCI::PCIManager::write_config_word(0, device, function, offset, value); break;
-					case 4: PCI::PCIManager::write_config_dword(0, device, function, offset, value); break;
+					case 1: PCI::PCIManager::get().write_config_byte(0, device, function, offset, value); break;
+					case 2: PCI::PCIManager::get().write_config_word(0, device, function, offset, value); break;
+					case 4: PCI::PCIManager::get().write_config_dword(0, device, function, offset, value); break;
 					default:
 						AML_ERROR("FieldElement write_field (PCIConfig) with access size {}", access_size);
 						return false;

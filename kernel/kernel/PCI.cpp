@@ -1,3 +1,4 @@
+#include <kernel/ACPI/ACPI.h>
 #include <kernel/IDT.h>
 #include <kernel/IO.h>
 #include <kernel/Memory/PageTable.h>
@@ -43,61 +44,43 @@ namespace Kernel::PCI
 
 	uint32_t PCIManager::read_config_dword(uint8_t bus, uint8_t dev, uint8_t func, uint8_t offset)
 	{
-		ASSERT(offset % 4 == 0);
-		uint32_t config_addr = 0x80000000 | ((uint32_t)bus << 16) | ((uint32_t)dev << 11) | ((uint32_t)func << 8) | offset;
-		IO::outl(CONFIG_ADDRESS, config_addr);
-		return IO::inl(CONFIG_DATA);
+		return m_buses[bus][dev][func].read_dword(offset);
 	}
 
 	uint16_t PCIManager::read_config_word(uint8_t bus, uint8_t dev, uint8_t func, uint8_t offset)
 	{
-		ASSERT(offset % 2 == 0);
-		uint32_t dword = read_config_dword(bus, dev, func, offset & ~3);
-		return (dword >> ((offset & 3) * 8)) & 0xFFFF;
+		return m_buses[bus][dev][func].read_word(offset);
 	}
 
 	uint8_t PCIManager::read_config_byte(uint8_t bus, uint8_t dev, uint8_t func, uint8_t offset)
 	{
-		uint32_t dword = read_config_dword(bus, dev, func, offset & ~3);
-		return (dword >> ((offset & 3) * 8)) & 0xFF;
+		return m_buses[bus][dev][func].read_byte(offset);
 	}
 
 	void PCIManager::write_config_dword(uint8_t bus, uint8_t dev, uint8_t func, uint8_t offset, uint32_t value)
 	{
-		ASSERT(offset % 4 == 0);
-		uint32_t config_addr = 0x80000000 | ((uint32_t)bus << 16) | ((uint32_t)dev << 11) | ((uint32_t)func << 8) | offset;
-		IO::outl(CONFIG_ADDRESS, config_addr);
-		IO::outl(CONFIG_DATA, value);
+		m_buses[bus][dev][func].write_dword(offset, value);
 	}
 
 	void PCIManager::write_config_word(uint8_t bus, uint8_t dev, uint8_t func, uint8_t offset, uint16_t value)
 	{
-		ASSERT(offset % 2 == 0);
-		uint32_t byte = (offset & 3) * 8;
-		uint32_t temp = read_config_dword(bus, dev, func, offset & ~3);
-		temp &= ~(0xFFFF << byte);
-		temp |= (uint32_t)value << byte;
-		write_config_dword(bus, dev, func, offset & ~3, temp);
+		m_buses[bus][dev][func].write_word(offset, value);
 	}
 
 	void PCIManager::write_config_byte(uint8_t bus, uint8_t dev, uint8_t func, uint8_t offset, uint8_t value)
 	{
-		uint32_t byte = (offset & 3) * 8;
-		uint32_t temp = read_config_dword(bus, dev, func, offset & ~3);
-		temp &= ~(0xFF << byte);
-		temp |= (uint32_t)value << byte;
-		write_config_dword(bus, dev, func, offset & ~3, temp);
+		m_buses[bus][dev][func].write_byte(offset, value);
 	}
 
 	static uint16_t get_vendor_id(uint8_t bus, uint8_t dev, uint8_t func)
 	{
-		uint32_t dword = PCIManager::read_config_dword(bus, dev, func, 0x00);
+		uint32_t dword = PCIManager::get().read_config_dword(bus, dev, func, 0x00);
 		return dword & 0xFFFF;
 	}
 
 	static uint8_t get_header_type(uint8_t bus, uint8_t dev, uint8_t func)
 	{
-		uint32_t dword = PCIManager::read_config_dword(bus, dev, func, 0x0C);
+		uint32_t dword = PCIManager::get().read_config_dword(bus, dev, func, 0x0C);
 		return (dword >> 16) & 0xFF;
 	}
 
@@ -106,8 +89,45 @@ namespace Kernel::PCI
 		ASSERT(s_instance == nullptr);
 		s_instance = new PCIManager();
 		ASSERT(s_instance);
+		s_instance->initialize_impl();
+	}
+
+	void PCIManager::initialize_impl()
+	{
+		struct BAAS
+		{
+			uint64_t addr;
+			uint16_t segment;
+			uint8_t bus_start;
+			uint8_t bus_end;
+			uint32_t __reserved;
+		};
+		static_assert(sizeof(BAAS) == 16);
+
+		if (auto* mcfg = ACPI::ACPI::get().get_header("MCFG", 0))
+		{
+			const size_t count = (mcfg->length - 44) / 16;
+			const BAAS* baas = reinterpret_cast<BAAS*>(reinterpret_cast<vaddr_t>(mcfg) + 44);
+			for (size_t i = 0; i < count; i++, baas++)
+			{
+				// FIXME: support all segments
+				if (baas->segment != 0)
+					continue;
+				for (uint64_t bus = baas->bus_start; bus <= baas->bus_end; bus++)
+				{
+					ASSERT(m_bus_pcie_paddr[bus] == 0);
+					m_bus_pcie_paddr[bus] = baas->addr + (bus << 20);
+				}
+			}
+
+			m_is_pcie = true;
+		}
+
+		for (size_t bus = 0; bus < m_buses.size(); bus++)
+			for (size_t dev = 0; dev < m_buses[bus].size(); dev++)
+				for (size_t func = 0; func < m_buses[bus][dev].size(); func++)
+					m_buses[bus][dev][func].set_location(bus, dev, func);
 		s_instance->check_all_buses();
-		s_instance->initialize_devices();
 	}
 
 	PCIManager& PCIManager::get()
@@ -118,8 +138,9 @@ namespace Kernel::PCI
 
 	void PCIManager::check_function(uint8_t bus, uint8_t dev, uint8_t func)
 	{
-		MUST(m_devices.emplace_back(bus, dev, func));
-		auto& device = m_devices.back();
+		auto& device = m_buses[bus][dev][func];
+		const paddr_t pcie_paddr = m_is_pcie ? m_bus_pcie_paddr[bus] + (((paddr_t)dev << 15) | ((paddr_t)func << 12)) : 0;
+		device.initialize(pcie_paddr);
 		if (device.class_code() == 0x06 && device.subclass() == 0x04)
 			check_bus(device.read_byte(0x19));
 	}
@@ -157,190 +178,63 @@ namespace Kernel::PCI
 
 	void PCIManager::initialize_devices()
 	{
-		for (auto& pci_device : m_devices)
-		{
-			switch (pci_device.class_code())
+		for_each_device(
+			[&](PCI::Device& pci_device)
 			{
-				case 0x01:
+				switch (pci_device.class_code())
 				{
-					switch (pci_device.subclass())
+					case 0x01:
 					{
-						case 0x01:
-						case 0x05:
-						case 0x06:
-							if (auto res = ATAController::create(pci_device); res.is_error())
-								dprintln("ATA: {}", res.error());
-							break;
-						case 0x08:
-							if (auto res = NVMeController::create(pci_device); res.is_error())
-								dprintln("NVMe: {}", res.error());
-							break;
-						default:
-							dprintln("unsupported storage device (pci {2H}.{2H}.{2H})", pci_device.class_code(), pci_device.subclass(), pci_device.prog_if());
-							break;
+						switch (pci_device.subclass())
+						{
+							case 0x01:
+							case 0x05:
+							case 0x06:
+								if (auto res = ATAController::create(pci_device); res.is_error())
+									dprintln("ATA: {}", res.error());
+								break;
+							case 0x08:
+								if (auto res = NVMeController::create(pci_device); res.is_error())
+									dprintln("NVMe: {}", res.error());
+								break;
+							default:
+								dprintln("unsupported storage device (pci {2H}.{2H}.{2H})", pci_device.class_code(), pci_device.subclass(), pci_device.prog_if());
+								break;
+						}
+						break;
 					}
-					break;
+					case 0x02:
+					{
+						if (auto res = NetworkManager::get().add_interface(pci_device); res.is_error())
+							dprintln("{}", res.error());
+						break;
+					}
+					default:
+						break;
 				}
-				case 0x02:
-				{
-					if (auto res = NetworkManager::get().add_interface(pci_device); res.is_error())
-						dprintln("{}", res.error());
-					break;
-				}
-				default:
-					break;
 			}
-		}
-	}
-
-	BAN::ErrorOr<BAN::UniqPtr<BarRegion>> BarRegion::create(PCI::Device& device, uint8_t bar_num)
-	{
-		if (device.header_type() != 0x00)
-		{
-			dprintln("BAR regions for non general devices are not supported");
-			return BAN::Error::from_errno(ENOTSUP);
-		}
-
-		// disable io/mem space while reading bar
-		uint16_t command = device.read_word(PCI_REG_COMMAND);
-		device.write_word(PCI_REG_COMMAND, command & ~(PCI_CMD_IO_SPACE | PCI_CMD_MEM_SPACE));
-
-		uint8_t offset = 0x10 + bar_num * 4;
-
-		uint64_t addr = device.read_dword(offset);
-
-		device.write_dword(offset, 0xFFFFFFFF);
-		uint32_t size = device.read_dword(offset);
-		size = ~size + 1;
-		device.write_dword(offset, addr);
-
-		// determine bar type
-		BarType type = BarType::INVALID;
-		if (addr & 1)
-		{
-			type = BarType::IO;
-			addr &= 0xFFFFFFFC;
-		}
-		else if ((addr & 0b110) == 0b000)
-		{
-			type = BarType::MEM;
-			addr &= 0xFFFFFFF0;
-		}
-		else if ((addr & 0b110) == 0b100)
-		{
-			type = BarType::MEM;
-			addr &= 0xFFFFFFF0;
-			addr |= (uint64_t)device.read_dword(offset + 4) << 32;
-		}
-
-		if (type == BarType::INVALID)
-		{
-			dwarnln("invalid pci device bar");
-			return BAN::Error::from_errno(EINVAL);
-		}
-
-		auto* region_ptr = new BarRegion(type, addr, size);
-		ASSERT(region_ptr);
-
-		auto region = BAN::UniqPtr<BarRegion>::adopt(region_ptr);
-		TRY(region->initialize());
-
-		// restore old command register and enable correct IO/MEM space
-		command |= (type == BarType::IO) ? PCI_CMD_IO_SPACE : PCI_CMD_MEM_SPACE;
-		device.write_word(PCI_REG_COMMAND, command);
-
-#if DEBUG_PCI
-		dprintln("created BAR region for PCI {2H}:{2H}.{2H}",
-			device.bus(),
-			device.dev(),
-			device.func()
 		);
-		dprintln("  type: {}", region->type() == BarType::IO ? "IO" : "MEM");
-		if (region->type() == BarType::IO)
-			dprintln("  iobase {8H}", region->iobase());
-		else
+	}
+
+	void PCI::Device::set_location(uint8_t bus, uint8_t dev, uint8_t func)
+	{
+		m_bus = bus;
+		m_dev = dev;
+		m_func = func;
+	}
+
+	void PCI::Device::initialize(paddr_t pcie_paddr)
+	{
+		m_is_valid = true;
+
+		if (pcie_paddr)
 		{
-			dprintln("  paddr {}", (void*)region->paddr());
-			dprintln("  vaddr {}", (void*)region->vaddr());
+			vaddr_t vaddr = PageTable::kernel().reserve_free_page(KERNEL_OFFSET);
+			ASSERT(vaddr);
+			PageTable::kernel().map_page_at(pcie_paddr, vaddr, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
+			m_mmio_config = vaddr;
 		}
-		dprintln("  size  {}", region->size());
-#endif
 
-		return region;
-	}
-
-	BarRegion::BarRegion(BarType type, paddr_t paddr, size_t size)
-		: m_type(type)
-		, m_paddr(paddr)
-		, m_size(size)
-	{ }
-
-	BarRegion::~BarRegion()
-	{
-		if (m_type == BarType::MEM && m_vaddr)
-			PageTable::kernel().unmap_range(m_vaddr, m_size);
-		m_vaddr = 0;
-	}
-
-	BAN::ErrorOr<void> BarRegion::initialize()
-	{
-		if (m_type == BarType::IO)
-			return {};
-
-		size_t needed_pages = BAN::Math::div_round_up<size_t>(m_size, PAGE_SIZE);
-		m_vaddr = PageTable::kernel().reserve_free_contiguous_pages(needed_pages, KERNEL_OFFSET);
-		if (m_vaddr == 0)
-			return BAN::Error::from_errno(ENOMEM);
-		PageTable::kernel().map_range_at(m_paddr, m_vaddr, m_size, PageTable::Flags::CacheDisable | PageTable::Flags::ReadWrite | PageTable::Flags::Present);
-
-		return {};
-	}
-
-	void BarRegion::write8(off_t reg, uint8_t val)
-	{
-		if (m_type == BarType::IO)
-			return IO::outb(m_paddr + reg, val);
-		MMIO::write8(m_vaddr + reg, val);
-	}
-
-	void BarRegion::write16(off_t reg, uint16_t val)
-	{
-		if (m_type == BarType::IO)
-			return IO::outw(m_paddr + reg, val);
-		MMIO::write16(m_vaddr + reg, val);
-	}
-
-	void BarRegion::write32(off_t reg, uint32_t val)
-	{
-		if (m_type == BarType::IO)
-			return IO::outl(m_paddr + reg, val);
-		MMIO::write32(m_vaddr + reg, val);
-	}
-
-	uint8_t BarRegion::read8(off_t reg)
-	{
-		if (m_type == BarType::IO)
-			return IO::inb(m_paddr + reg);
-		return MMIO::read8(m_vaddr + reg);
-	}
-
-	uint16_t BarRegion::read16(off_t reg)
-	{
-		if (m_type == BarType::IO)
-			return IO::inw(m_paddr + reg);
-		return MMIO::read16(m_vaddr + reg);
-	}
-
-	uint32_t BarRegion::read32(off_t reg)
-	{
-		if (m_type == BarType::IO)
-			return IO::inl(m_paddr + reg);
-		return MMIO::read32(m_vaddr + reg);
-	}
-
-	PCI::Device::Device(uint8_t bus, uint8_t dev, uint8_t func)
-		: m_bus(bus), m_dev(dev), m_func(func)
-	{
 		uint32_t type = read_word(0x0A);
 		m_class_code  = (uint8_t)(type >> 8);
 		m_subclass    = (uint8_t)(type);
@@ -362,35 +256,61 @@ namespace Kernel::PCI
 	uint32_t PCI::Device::read_dword(uint8_t offset) const
 	{
 		ASSERT(offset % 4 == 0);
-		return PCIManager::read_config_dword(m_bus, m_dev, m_func, offset);
+		if (m_mmio_config)
+			return MMIO::read32(m_mmio_config + offset);
+		uint32_t config_addr = 0x80000000 | ((uint32_t)m_bus << 16) | ((uint32_t)m_dev << 11) | ((uint32_t)m_func << 8) | offset;
+		IO::outl(CONFIG_ADDRESS, config_addr);
+		return IO::inl(CONFIG_DATA);
 	}
 
 	uint16_t PCI::Device::read_word(uint8_t offset) const
 	{
 		ASSERT(offset % 2 == 0);
-		return PCIManager::read_config_word(m_bus, m_dev, m_func, offset);
+		if (m_mmio_config)
+			return MMIO::read16(m_mmio_config + offset);
+		uint32_t dword = read_dword(offset & ~3);
+		return (dword >> ((offset & 3) * 8)) & 0xFFFF;
 	}
 
 	uint8_t PCI::Device::read_byte(uint8_t offset) const
 	{
-		return PCIManager::read_config_byte(m_bus, m_dev, m_func, offset);
+		if (m_mmio_config)
+			return MMIO::read8(m_mmio_config + offset);
+		uint32_t dword = read_dword(offset & ~3);
+		return (dword >> ((offset & 3) * 8)) & 0xFF;
 	}
 
 	void PCI::Device::write_dword(uint8_t offset, uint32_t value)
 	{
 		ASSERT(offset % 4 == 0);
-		PCIManager::write_config_dword(m_bus, m_dev, m_func, offset, value);
+		if (m_mmio_config)
+			return MMIO::write32(m_mmio_config + offset, value);
+		uint32_t config_addr = 0x80000000 | ((uint32_t)m_bus << 16) | ((uint32_t)m_dev << 11) | ((uint32_t)m_func << 8) | offset;
+		IO::outl(CONFIG_ADDRESS, config_addr);
+		IO::outl(CONFIG_DATA, value);
 	}
 
 	void PCI::Device::write_word(uint8_t offset, uint16_t value)
 	{
 		ASSERT(offset % 2 == 0);
-		PCIManager::write_config_word(m_bus, m_dev, m_func, offset, value);
+		if (m_mmio_config)
+			return MMIO::write16(m_mmio_config + offset, value);
+		uint32_t byte = (offset & 3) * 8;
+		uint32_t temp = read_dword(offset & ~3);
+		temp &= ~(0xFFFF << byte);
+		temp |= (uint32_t)value << byte;
+		write_dword(offset & ~3, temp);
 	}
 
 	void PCI::Device::write_byte(uint8_t offset, uint8_t value)
 	{
-		PCIManager::write_config_byte(m_bus, m_dev, m_func, offset, value);
+		if (m_mmio_config)
+			return MMIO::write8(m_mmio_config + offset, value);
+		uint32_t byte = (offset & 3) * 8;
+		uint32_t temp = read_dword(offset & ~3);
+		temp &= ~(0xFF << byte);
+		temp |= (uint32_t)value << byte;
+		write_dword(offset & ~3, temp);
 	}
 
 	BAN::ErrorOr<BAN::UniqPtr<BarRegion>> PCI::Device::allocate_bar_region(uint8_t bar_num)
@@ -617,6 +537,151 @@ namespace Kernel::PCI
 	void PCI::Device::disable_pin_interrupts()
 	{
 		set_command_bits(PCI_CMD_INTERRUPT_DISABLE);
+	}
+
+	BAN::ErrorOr<BAN::UniqPtr<BarRegion>> BarRegion::create(PCI::Device& device, uint8_t bar_num)
+	{
+		if (device.header_type() != 0x00)
+		{
+			dprintln("BAR regions for non general devices are not supported");
+			return BAN::Error::from_errno(ENOTSUP);
+		}
+
+		// disable io/mem space while reading bar
+		uint16_t command = device.read_word(PCI_REG_COMMAND);
+		device.write_word(PCI_REG_COMMAND, command & ~(PCI_CMD_IO_SPACE | PCI_CMD_MEM_SPACE));
+
+		uint8_t offset = 0x10 + bar_num * 4;
+
+		uint64_t addr = device.read_dword(offset);
+
+		device.write_dword(offset, 0xFFFFFFFF);
+		uint32_t size = device.read_dword(offset);
+		size = ~size + 1;
+		device.write_dword(offset, addr);
+
+		// determine bar type
+		BarType type = BarType::INVALID;
+		if (addr & 1)
+		{
+			type = BarType::IO;
+			addr &= 0xFFFFFFFC;
+		}
+		else if ((addr & 0b110) == 0b000)
+		{
+			type = BarType::MEM;
+			addr &= 0xFFFFFFF0;
+		}
+		else if ((addr & 0b110) == 0b100)
+		{
+			type = BarType::MEM;
+			addr &= 0xFFFFFFF0;
+			addr |= (uint64_t)device.read_dword(offset + 4) << 32;
+		}
+
+		if (type == BarType::INVALID)
+		{
+			dwarnln("invalid pci device bar");
+			return BAN::Error::from_errno(EINVAL);
+		}
+
+		auto* region_ptr = new BarRegion(type, addr, size);
+		ASSERT(region_ptr);
+
+		auto region = BAN::UniqPtr<BarRegion>::adopt(region_ptr);
+		TRY(region->initialize());
+
+		// restore old command register and enable correct IO/MEM space
+		command |= (type == BarType::IO) ? PCI_CMD_IO_SPACE : PCI_CMD_MEM_SPACE;
+		device.write_word(PCI_REG_COMMAND, command);
+
+#if DEBUG_PCI
+		dprintln("created BAR region for PCI {2H}:{2H}.{2H}",
+			device.bus(),
+			device.dev(),
+			device.func()
+		);
+		dprintln("  type: {}", region->type() == BarType::IO ? "IO" : "MEM");
+		if (region->type() == BarType::IO)
+			dprintln("  iobase {8H}", region->iobase());
+		else
+		{
+			dprintln("  paddr {}", (void*)region->paddr());
+			dprintln("  vaddr {}", (void*)region->vaddr());
+		}
+		dprintln("  size  {}", region->size());
+#endif
+
+		return region;
+	}
+
+	BarRegion::BarRegion(BarType type, paddr_t paddr, size_t size)
+		: m_type(type)
+		, m_paddr(paddr)
+		, m_size(size)
+	{ }
+
+	BarRegion::~BarRegion()
+	{
+		if (m_type == BarType::MEM && m_vaddr)
+			PageTable::kernel().unmap_range(m_vaddr, m_size);
+		m_vaddr = 0;
+	}
+
+	BAN::ErrorOr<void> BarRegion::initialize()
+	{
+		if (m_type == BarType::IO)
+			return {};
+
+		size_t needed_pages = BAN::Math::div_round_up<size_t>(m_size, PAGE_SIZE);
+		m_vaddr = PageTable::kernel().reserve_free_contiguous_pages(needed_pages, KERNEL_OFFSET);
+		if (m_vaddr == 0)
+			return BAN::Error::from_errno(ENOMEM);
+		PageTable::kernel().map_range_at(m_paddr, m_vaddr, m_size, PageTable::Flags::CacheDisable | PageTable::Flags::ReadWrite | PageTable::Flags::Present);
+
+		return {};
+	}
+
+	void BarRegion::write8(off_t reg, uint8_t val)
+	{
+		if (m_type == BarType::IO)
+			return IO::outb(m_paddr + reg, val);
+		MMIO::write8(m_vaddr + reg, val);
+	}
+
+	void BarRegion::write16(off_t reg, uint16_t val)
+	{
+		if (m_type == BarType::IO)
+			return IO::outw(m_paddr + reg, val);
+		MMIO::write16(m_vaddr + reg, val);
+	}
+
+	void BarRegion::write32(off_t reg, uint32_t val)
+	{
+		if (m_type == BarType::IO)
+			return IO::outl(m_paddr + reg, val);
+		MMIO::write32(m_vaddr + reg, val);
+	}
+
+	uint8_t BarRegion::read8(off_t reg)
+	{
+		if (m_type == BarType::IO)
+			return IO::inb(m_paddr + reg);
+		return MMIO::read8(m_vaddr + reg);
+	}
+
+	uint16_t BarRegion::read16(off_t reg)
+	{
+		if (m_type == BarType::IO)
+			return IO::inw(m_paddr + reg);
+		return MMIO::read16(m_vaddr + reg);
+	}
+
+	uint32_t BarRegion::read32(off_t reg)
+	{
+		if (m_type == BarType::IO)
+			return IO::inl(m_paddr + reg);
+		return MMIO::read32(m_vaddr + reg);
 	}
 
 }

@@ -176,7 +176,12 @@ static void init2(void*)
 
 	auto console = MUST(DevFileSystem::get().root_inode()->find_inode(cmdline.console));
 	ASSERT(console->is_tty());
-	((TTY*)console.ptr())->set_as_current();
+	static_cast<Kernel::TTY*>(console.ptr())->set_as_current();
+
+	// This only initializes PCIManager by enumerating available devices and choosing PCIe/legacy
+	// ACPI might require PCI access during its namespace initialization
+	PCI::PCIManager::initialize();
+	dprintln("PCI initialized");
 
 	if (ACPI::ACPI::get().enter_acpi_mode(InterruptController::get().is_using_apic()).is_error())
 		dprintln("Failed to enter ACPI mode");
@@ -197,8 +202,8 @@ static void init2(void*)
 
 	// NOTE: PCI devices are the last ones to be initialized
 	//       so other devices can reserve predefined interrupts
-	PCI::PCIManager::initialize();
-	dprintln("PCI initialized");
+	PCI::PCIManager::get().initialize_devices();
+	dprintln("PCI devices initialized");
 
 	VirtualFileSystem::initialize(cmdline.root);
 	dprintln("VFS initialized");
