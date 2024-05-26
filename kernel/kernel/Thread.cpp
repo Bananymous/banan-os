@@ -272,14 +272,7 @@ namespace Kernel
 		memset(&m_interrupt_registers, 0, sizeof(InterruptRegisters));
 	}
 
-	bool Thread::is_interrupted_by_signal()
-	{
-		while (can_add_signal_to_execute())
-			handle_signal();
-		return will_execute_signal();
-	}
-
-	bool Thread::can_add_signal_to_execute() const
+	bool Thread::is_interrupted_by_signal() const
 	{
 		if (!is_userspace() || m_state != State::Executing)
 			return false;
@@ -288,6 +281,11 @@ namespace Kernel
 			return false;
 		uint64_t full_pending_mask = m_signal_pending_mask | process().signal_pending_mask();;
 		return full_pending_mask & ~m_signal_block_mask;
+	}
+
+	bool Thread::can_add_signal_to_execute() const
+	{
+		return is_interrupted_by_signal() && m_mutex_count == 0;
 	}
 
 	bool Thread::will_execute_signal() const

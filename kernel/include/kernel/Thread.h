@@ -38,9 +38,8 @@ namespace Kernel
 		void setup_exec();
 		void setup_process_cleanup();
 
-		// Adds pending signals to thread if possible and
-		// returns true, if thread is going to trigger signal
-		bool is_interrupted_by_signal();
+		// Returns true, if thread is going to trigger signal
+		bool is_interrupted_by_signal() const;
 
 		// Returns true if pending signal can be added to thread
 		bool can_add_signal_to_execute() const;
@@ -86,6 +85,9 @@ namespace Kernel
 		static Thread* sse_thread();
 #endif
 
+		void add_mutex() { m_mutex_count++; }
+		void remove_mutex() { m_mutex_count--; }
+
 	private:
 		Thread(pid_t tid, Process*);
 
@@ -110,6 +112,8 @@ namespace Kernel
 		uint64_t					m_signal_block_mask		{ 0 };
 		SpinLock					m_signal_lock;
 		static_assert(_SIGMAX < 64);
+
+		BAN::Atomic<uint32_t>		m_mutex_count { 0 };
 
 #if __enable_sse
 		alignas(16) uint8_t m_sse_storage[512] {};

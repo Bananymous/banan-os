@@ -27,6 +27,8 @@ namespace Kernel
 				while (!m_locker.compare_exchange(-1, tid))
 					Scheduler::get().yield();
 				ASSERT(m_lock_depth == 0);
+				if (Scheduler::current_tid())
+					Thread::current().add_mutex();
 			}
 			m_lock_depth++;
 		}
@@ -41,6 +43,8 @@ namespace Kernel
 				if (!m_locker.compare_exchange(-1, tid))
 					return false;
 				ASSERT(m_lock_depth == 0);
+				if (Scheduler::current_tid())
+					Thread::current().add_mutex();
 			}
 			m_lock_depth++;
 			return true;
@@ -51,7 +55,11 @@ namespace Kernel
 			ASSERT(m_locker == Scheduler::current_tid());
 			ASSERT(m_lock_depth > 0);
 			if (--m_lock_depth == 0)
+			{
 				m_locker = -1;
+				if (Scheduler::current_tid())
+					Thread::current().remove_mutex();
+			}
 		}
 
 		pid_t locker() const { return m_locker; }
@@ -84,6 +92,8 @@ namespace Kernel
 				while (!(has_priority || m_queue_length == 0) || !m_locker.compare_exchange(-1, tid))
 					Scheduler::get().yield();
 				ASSERT(m_lock_depth == 0);
+				if (Scheduler::current_tid())
+					Thread::current().add_mutex();
 			}
 			m_lock_depth++;
 		}
@@ -101,6 +111,8 @@ namespace Kernel
 				if (has_priority)
 					m_queue_length++;
 				ASSERT(m_lock_depth == 0);
+				if (Scheduler::current_tid())
+					Thread::current().add_mutex();
 			}
 			m_lock_depth++;
 			return true;
@@ -117,6 +129,8 @@ namespace Kernel
 				if (has_priority)
 					m_queue_length--;
 				m_locker = -1;
+				if (Scheduler::current_tid())
+					Thread::current().remove_mutex();
 			}
 		}
 
