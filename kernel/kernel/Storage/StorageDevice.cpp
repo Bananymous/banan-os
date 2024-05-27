@@ -224,20 +224,36 @@ namespace Kernel
 	{
 		ASSERT(buffer.size() >= sector_count * sector_size());
 
-		{
-			LockGuard _(m_mutex);
-			if (!m_disk_cache.has_value())
-				return read_sectors_impl(lba, sector_count, buffer);
-		}
+		LockGuard _(m_mutex);
 
-		for (uint64_t offset = 0; offset < sector_count; offset++)
+		if (!m_disk_cache.has_value())
+			return read_sectors_impl(lba, sector_count, buffer);
+
+		uint64_t sectors_done = 0;
+		while (sectors_done < sector_count)
 		{
-			LockGuard _(m_mutex);
-			auto sector_buffer = buffer.slice(offset * sector_size(), sector_size());
-			if (m_disk_cache->read_from_cache(lba + offset, sector_buffer))
-				continue;
-			TRY(read_sectors_impl(lba + offset, 1, sector_buffer));
-			(void)m_disk_cache->write_to_cache(lba + offset, sector_buffer, false);
+			const uint32_t segment_sector_count = BAN::Math::min<uint32_t>(sector_count - sectors_done, 64);
+			uint64_t needed_sector_bitmask = (static_cast<uint64_t>(1) << segment_sector_count) - 1;
+			for (uint32_t i = 0; i < segment_sector_count; i++)
+				if (m_disk_cache->read_from_cache(lba + sectors_done + i, buffer.slice((sectors_done + i) * sector_size(), sector_size())))
+					needed_sector_bitmask &= ~(static_cast<uint64_t>(1) << i);
+
+			for (uint32_t i = 0; i < segment_sector_count && needed_sector_bitmask; i++)
+			{
+				if (!(needed_sector_bitmask & (static_cast<uint64_t>(1) << i)))
+					continue;
+				uint32_t len = 1;
+				while (needed_sector_bitmask & (static_cast<uint64_t>(1) << (i + len)))
+					len++;
+				auto segment_buffer = buffer.slice((sectors_done + i) * sector_size(), len * sector_size());
+				TRY(read_sectors_impl(lba + sectors_done + i, len, segment_buffer));
+				for (uint32_t j = 0; j < len; j++)
+					(void)m_disk_cache->write_to_cache(lba + sectors_done + i + j, segment_buffer.slice(j * sector_size(), sector_size()), false);
+				needed_sector_bitmask &= ~(((static_cast<uint64_t>(1) << len) - 1) << i);
+				i += len;
+			}
+
+			sectors_done += segment_sector_count;
 		}
 
 		return {};
@@ -247,15 +263,13 @@ namespace Kernel
 	{
 		ASSERT(buffer.size() >= sector_count * sector_size());
 
-		{
-			LockGuard _(m_mutex);
-			if (!m_disk_cache.has_value())
-				return write_sectors_impl(lba, sector_count, buffer);
-		}
+		LockGuard _(m_mutex);
+
+		if (!m_disk_cache.has_value())
+			return write_sectors_impl(lba, sector_count, buffer);
 
 		for (uint8_t offset = 0; offset < sector_count; offset++)
 		{
-			LockGuard _(m_mutex);
 			auto sector_buffer = buffer.slice(offset * sector_size(), sector_size());
 			if (m_disk_cache->write_to_cache(lba + offset, sector_buffer, true).is_error())
 				TRY(write_sectors_impl(lba + offset, 1, sector_buffer));
