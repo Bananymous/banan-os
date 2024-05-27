@@ -73,6 +73,7 @@ __BEGIN_DECLS
 	O(SYS_CONNECT,			connect)		\
 	O(SYS_LISTEN,			listen)			\
 	O(SYS_PSELECT,			pselect)		\
+	O(SYS_TRUNCATE,			truncate)		\
 
 enum Syscall
 {

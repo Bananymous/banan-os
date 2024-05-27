@@ -242,6 +242,12 @@ namespace Kernel
 		return m_open_files[fd]->offset;
 	}
 
+	BAN::ErrorOr<void> OpenFileDescriptorSet::truncate(int fd, off_t length)
+	{
+		TRY(validate_fd(fd));
+		return m_open_files[fd]->inode->truncate(length);
+	}
+
 	static void read_stat_from_inode(BAN::RefPtr<Inode> inode, struct stat* out)
 	{
 		out->st_dev		= inode->dev();

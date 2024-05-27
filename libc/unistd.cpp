@@ -99,6 +99,11 @@ off_t lseek(int fildes, off_t offset, int whence)
 	return syscall(SYS_SEEK, fildes, offset, whence);
 }
 
+int ftruncate(int fildes, off_t length)
+{
+	return syscall(SYS_TRUNCATE, fildes, length);
+}
+
 int dup(int fildes)
 {
 	return syscall(SYS_DUP, fildes);

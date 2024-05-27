@@ -1145,6 +1145,13 @@ namespace Kernel
 		return TRY(m_open_file_descriptors.tell(fd));
 	}
 
+	BAN::ErrorOr<long> Process::sys_truncate(int fd, off_t length)
+	{
+		LockGuard _(m_process_lock);
+		TRY(m_open_file_descriptors.truncate(fd, length));
+		return 0;
+	}
+
 	BAN::ErrorOr<void> Process::mount(BAN::StringView source, BAN::StringView target)
 	{
 		BAN::String absolute_source, absolute_target;

@@ -36,6 +36,8 @@ namespace Kernel
 		BAN::ErrorOr<off_t> seek(int fd, off_t offset, int whence);
 		BAN::ErrorOr<off_t> tell(int) const;
 
+		BAN::ErrorOr<void> truncate(int fd, off_t length);
+
 		BAN::ErrorOr<void> fstat(int fd, struct stat*) const;
 		BAN::ErrorOr<void> fstatat(int fd, BAN::StringView path, struct stat* buf, int flag);
 		BAN::ErrorOr<void> stat(BAN::StringView absolute_path, struct stat* buf, int flag);
