@@ -32,9 +32,6 @@ namespace Kernel
 
 			virtual dev_t rdev() const override { return m_rdev; }
 
-			virtual BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan) override;
-			virtual BAN::ErrorOr<size_t> write_impl(off_t, BAN::ConstByteSpan) override;
-
 		protected:
 			ATABaseDevice();
 			BAN::ErrorOr<void> initialize(BAN::Span<const uint16_t> identify_data);

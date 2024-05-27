@@ -264,4 +264,24 @@ namespace Kernel
 		return {};
 	}
 
+	BAN::ErrorOr<size_t> StorageDevice::read_impl(off_t offset, BAN::ByteSpan buffer)
+	{
+		if (offset % sector_size())
+			return BAN::Error::from_errno(EINVAL);
+		if (buffer.size() % sector_size())
+			return BAN::Error::from_errno(EINVAL);
+		TRY(read_sectors(offset / sector_size(), buffer.size() / sector_size(), buffer));
+		return buffer.size();
+	}
+
+	BAN::ErrorOr<size_t> StorageDevice::write_impl(off_t offset, BAN::ConstByteSpan buffer)
+	{
+		if (offset % sector_size())
+			return BAN::Error::from_errno(EINVAL);
+		if (buffer.size() % sector_size())
+			return BAN::Error::from_errno(EINVAL);
+		TRY(write_sectors(offset / sector_size(), buffer.size() / sector_size(), buffer));
+		return buffer.size();
+	}
+
 }

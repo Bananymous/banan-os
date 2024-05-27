@@ -40,6 +40,9 @@ namespace Kernel
 		virtual BAN::ErrorOr<void> write_sectors_impl(uint64_t lba, uint64_t sector_count, BAN::ConstByteSpan) = 0;
 		void add_disk_cache();
 
+		virtual BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan) override;
+		virtual BAN::ErrorOr<size_t> write_impl(off_t, BAN::ConstByteSpan) override;
+
 		virtual bool can_read_impl() const override { return true; }
 		virtual bool can_write_impl() const override { return true; }
 		virtual bool has_error_impl() const override { return false; }

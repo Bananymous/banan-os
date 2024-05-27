@@ -77,26 +77,6 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<size_t> detail::ATABaseDevice::read_impl(off_t offset, BAN::ByteSpan buffer)
-	{
-		if (offset % sector_size())
-			return BAN::Error::from_errno(EINVAL);
-		if (buffer.size() % sector_size())
-			return BAN::Error::from_errno(EINVAL);
-		TRY(read_sectors(offset / sector_size(), buffer.size() / sector_size(), buffer));
-		return buffer.size();
-	}
-
-	BAN::ErrorOr<size_t> detail::ATABaseDevice::write_impl(off_t offset, BAN::ConstByteSpan buffer)
-	{
-		if (offset % sector_size())
-			return BAN::Error::from_errno(EINVAL);
-		if (buffer.size() % sector_size())
-			return BAN::Error::from_errno(EINVAL);
-		TRY(write_sectors(offset / sector_size(), buffer.size() / sector_size(), buffer));
-		return buffer.size();
-	}
-
 	BAN::ErrorOr<BAN::RefPtr<ATADevice>> ATADevice::create(BAN::RefPtr<ATABus> bus, ATABus::DeviceType type, bool is_secondary, BAN::Span<const uint16_t> identify_data)
 	{
 		auto* device_ptr = new ATADevice(bus, type, is_secondary);
