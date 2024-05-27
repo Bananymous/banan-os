@@ -13,35 +13,35 @@ namespace BAN
 	class Optional
 	{
 	public:
-		Optional();
-		Optional(Optional&&);
-		Optional(const Optional&);
-		Optional(const T&);
-		Optional(T&&);
+		constexpr Optional();
+		constexpr Optional(Optional&&);
+		constexpr Optional(const Optional&);
+		constexpr Optional(const T&);
+		constexpr Optional(T&&);
 		template<typename... Args>
-		Optional(Args&&...);
+		constexpr Optional(Args&&...);
 
 		~Optional();
 
-		Optional& operator=(Optional&&);
-		Optional& operator=(const Optional&);
+		constexpr Optional& operator=(Optional&&);
+		constexpr Optional& operator=(const Optional&);
 
 		template<typename... Args>
-		Optional& emplace(Args&&...);
+		constexpr Optional& emplace(Args&&...);
 
-		T* operator->();
-		const T* operator->() const;
+		constexpr T* operator->();
+		constexpr const T* operator->() const;
 
-		T& operator*();
-		const T& operator*() const;
+		constexpr T& operator*();
+		constexpr const T& operator*() const;
 
-		bool has_value() const;
+		constexpr bool has_value() const;
 
-		T release_value();
-		T& value();
-		const T& value() const;
+		constexpr T release_value();
+		constexpr T& value();
+		constexpr const T& value() const;
 
-		void clear();
+		constexpr void clear();
 
 	private:
 		alignas(T) uint8_t m_storage[sizeof(T)];
@@ -49,12 +49,12 @@ namespace BAN
 	};
 
 	template<typename T>
-	Optional<T>::Optional()
+	constexpr Optional<T>::Optional()
 		: m_has_value(false)
 	{}
 
 	template<typename T>
-	Optional<T>::Optional(Optional<T>&& other)
+	constexpr Optional<T>::Optional(Optional<T>&& other)
 		: m_has_value(other.has_value())
 	{
 		if (other.has_value())
@@ -62,7 +62,7 @@ namespace BAN
 	}
 
 	template<typename T>
-	Optional<T>::Optional(const Optional<T>& other)
+	constexpr Optional<T>::Optional(const Optional<T>& other)
 		: m_has_value(other.has_value())
 	{
 		if (other.has_value())
@@ -70,14 +70,14 @@ namespace BAN
 	}
 
 	template<typename T>
-	Optional<T>::Optional(const T& value)
+	constexpr Optional<T>::Optional(const T& value)
 		: m_has_value(true)
 	{
 		new (m_storage) T(value);
 	}
 
 	template<typename T>
-	Optional<T>::Optional(T&& value)
+	constexpr Optional<T>::Optional(T&& value)
 		: m_has_value(true)
 	{
 		new (m_storage) T(move(value));
@@ -85,7 +85,7 @@ namespace BAN
 
 	template<typename T>
 	template<typename... Args>
-	Optional<T>::Optional(Args&&... args)
+	constexpr Optional<T>::Optional(Args&&... args)
 		: m_has_value(true)
 	{
 		new (m_storage) T(forward<Args>(args)...);
@@ -98,7 +98,7 @@ namespace BAN
 	}
 
 	template<typename T>
-	Optional<T>& Optional<T>::operator=(Optional&& other)
+	constexpr Optional<T>& Optional<T>::operator=(Optional&& other)
 	{
 		clear();
 		m_has_value = other.has_value();
@@ -108,7 +108,7 @@ namespace BAN
 	}
 
 	template<typename T>
-	Optional<T>& Optional<T>::operator=(const Optional& other)
+	constexpr Optional<T>& Optional<T>::operator=(const Optional& other)
 	{
 		clear();
 		m_has_value = other.has_value();
@@ -119,7 +119,7 @@ namespace BAN
 
 	template<typename T>
 	template<typename... Args>
-	Optional<T>& Optional<T>::emplace(Args&&... args)
+	constexpr Optional<T>& Optional<T>::emplace(Args&&... args)
 	{
 		clear();
 		m_has_value = true;
@@ -128,41 +128,41 @@ namespace BAN
 	}
 
 	template<typename T>
-	T* Optional<T>::operator->()
+	constexpr T* Optional<T>::operator->()
 	{
 		ASSERT(has_value());
 		return &value();
 	}
 
 	template<typename T>
-	const T* Optional<T>::operator->() const
+	constexpr const T* Optional<T>::operator->() const
 	{
 		ASSERT(has_value());
 		return &value();
 	}
 
 	template<typename T>
-	T& Optional<T>::operator*()
+	constexpr T& Optional<T>::operator*()
 	{
 		ASSERT(has_value());
 		return value();
 	}
 
 	template<typename T>
-	const T& Optional<T>::operator*() const
+	constexpr const T& Optional<T>::operator*() const
 	{
 		ASSERT(has_value());
 		return value();
 	}
 
 	template<typename T>
-	bool Optional<T>::has_value() const
+	constexpr bool Optional<T>::has_value() const
 	{
 		return m_has_value;
 	}
 
 	template<typename T>
-	T Optional<T>::release_value()
+	constexpr T Optional<T>::release_value()
 	{
 		ASSERT(has_value());
 		T released_value = move(value());
@@ -172,21 +172,21 @@ namespace BAN
 	}
 
 	template<typename T>
-	T& Optional<T>::value()
+	constexpr T& Optional<T>::value()
 	{
 		ASSERT(has_value());
 		return (T&)m_storage;
 	}
 
 	template<typename T>
-	const T& Optional<T>::value() const
+	constexpr const T& Optional<T>::value() const
 	{
 		ASSERT(has_value());
 		return (const T&)m_storage;
 	}
 
 	template<typename T>
-	void Optional<T>::clear()
+	constexpr void Optional<T>::clear()
 	{
 		if (m_has_value)
 			value().~T();

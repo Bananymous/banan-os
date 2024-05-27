@@ -16,40 +16,44 @@ namespace BAN
 		using const_iterator = ConstIteratorSimple<char, StringView>;
 
 	public:
-		StringView() {}
-		StringView(const String&);
-		StringView(const char* string, size_type len = -1)
+		constexpr StringView() {}
+		constexpr StringView(const char* string, size_type len = -1)
 		{
 			if (len == size_type(-1))
 				len = strlen(string);
 			m_data = string;
 			m_size = len;
 		}
+		StringView(const String&);
 
-		const_iterator begin() const { return const_iterator(m_data); }
-		const_iterator end() const { return const_iterator(m_data + m_size); }
+		constexpr const_iterator begin() const { return const_iterator(m_data); }
+		constexpr const_iterator end() const { return const_iterator(m_data + m_size); }
 
-		char operator[](size_type index) const
+		constexpr char operator[](size_type index) const
 		{
 			ASSERT(index < m_size);
 			return m_data[index];
 		}
 
-		bool operator==(StringView other) const
+		constexpr bool operator==(StringView other) const
 		{
 			if (m_size != other.m_size)
 				return false;
-			return memcmp(m_data, other.m_data, m_size) == 0;
+			for (size_type i = 0; i < m_size; i++)
+				if (m_data[i] != other.m_data[i])
+					return false;
+			return true;
 		}
 
-		bool operator==(const char* other) const
+		constexpr bool operator==(const char* other) const
 		{
-			if (memcmp(m_data, other, m_size))
-				return false;
+			for (size_type i = 0; i < m_size; i++)
+				if (m_data[i] != other[i])
+					return false;
 			return other[m_size] == '\0';
 		}
 
-		StringView substring(size_type index, size_type len = -1) const
+		constexpr StringView substring(size_type index, size_type len = -1) const
 		{
 			ASSERT(index <= m_size);
 			if (len == size_type(-1))
@@ -133,13 +137,13 @@ namespace BAN
 			return result;
 		}
 
-		char back() const
+		constexpr char back() const
 		{
 			ASSERT(m_size > 0);
 			return m_data[m_size - 1];
 		}
 
-		char front() const
+		constexpr char front() const
 		{
 			ASSERT(m_size > 0);
 			return m_data[0];
@@ -161,7 +165,7 @@ namespace BAN
 			return {};
 		}
 
-		bool contains(char ch) const
+		constexpr bool contains(char ch) const
 		{
 			for (size_type i = 0; i < m_size; i++)
 				if (m_data[i] == ch)
@@ -169,7 +173,7 @@ namespace BAN
 			return false;
 		}
 
-		size_type count(char ch) const
+		constexpr size_type count(char ch) const
 		{
 			size_type result = 0;
 			for (size_type i = 0; i < m_size; i++)
@@ -178,9 +182,9 @@ namespace BAN
 			return result;
 		}
 
-		bool empty() const { return m_size == 0; }
-		size_type size() const { return m_size; }
-		const char* data() const { return m_data; }
+		constexpr bool empty() const { return m_size == 0; }
+		constexpr size_type size() const { return m_size; }
+		constexpr const char* data() const { return m_data; }
 
 	private:
 		const char*	m_data = nullptr;
@@ -189,7 +193,7 @@ namespace BAN
 
 }
 
-inline BAN::StringView operator""sv(const char* str, BAN::StringView::size_type len) { return BAN::StringView(str, len); }
+inline constexpr BAN::StringView operator""sv(const char* str, BAN::StringView::size_type len) { return BAN::StringView(str, len); }
 
 namespace BAN::Formatter
 {
