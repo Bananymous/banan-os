@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 
-namespace Kernel::Input
+namespace LibInput
 {
 
 	/*
@@ -53,6 +53,14 @@ namespace Kernel::Input
 		Count,
 	};
 
+	// KeyEvent with general keycode
+	struct RawKeyEvent
+	{
+		uint16_t modifier;
+		uint8_t keycode;
+	};
+
+	// KeyEvent with key parsed from keycode
 	struct KeyEvent
 	{
 		enum Modifier : uint16_t
@@ -89,10 +97,9 @@ namespace Kernel::Input
 		bool released()		const { return !pressed(); }
 
 		uint16_t modifier;
-		uint8_t keycode;
+		Key key;
 	};
 
-	Key key_event_to_key(KeyEvent);
 	const char* key_to_utf8(Key key, uint16_t modifier);
 
 }

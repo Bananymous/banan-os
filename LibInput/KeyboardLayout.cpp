@@ -1,10 +1,20 @@
+#include <BAN/Debug.h>
 #include <BAN/HashMap.h>
+#include <BAN/String.h>
+#include <BAN/StringView.h>
+#include <LibInput/KeyboardLayout.h>
+
+#if __is_kernel
 #include <kernel/FS/VirtualFileSystem.h>
-#include <kernel/Input/KeyboardLayout.h>
+#else
+#include <fcntl.h>
+#include <limits.h>
+#include <sys/stat.h>
+#endif
 
 #include <ctype.h>
 
-namespace Kernel::Input
+namespace LibInput
 {
 
 	struct StringViewLower
@@ -71,14 +81,17 @@ namespace Kernel::Input
 			key = Key::None;
 	}
 
-	Key KeyboardLayout::get_key_from_event(KeyEvent event)
+	KeyEvent KeyboardLayout::key_event_from_raw(RawKeyEvent event)
 	{
-		SpinLockGuard _(m_lock);
-		if (event.shift())
-			return m_keycode_to_key_shift[event.keycode];
-		if (event.ralt())
-			return m_keycode_to_key_altgr[event.keycode];
-		return m_keycode_to_key_normal[event.keycode];
+		KeyEvent result;
+		result.modifier = event.modifier;
+		if (result.shift())
+			result.key = m_keycode_to_key_shift[event.keycode];
+		else if (result.ralt())
+			result.key = m_keycode_to_key_altgr[event.keycode];
+		else
+			result.key = m_keycode_to_key_normal[event.keycode];
+		return result;
 	}
 
 	static BAN::Optional<uint8_t> parse_keycode(BAN::StringView str)
@@ -109,11 +122,36 @@ namespace Kernel::Input
 
 	static BAN::ErrorOr<BAN::Vector<BAN::String>> load_keymap_lines_and_parse_includes(BAN::StringView path)
 	{
-		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path({ 0, 0, 0, 0 }, path, 0));
-
 		BAN::String file_data;
-		TRY(file_data.resize(file.inode->size()));
-		TRY(file.inode->read(0, BAN::ByteSpan { reinterpret_cast<uint8_t*>(file_data.data()), file_data.size() }));
+		BAN::String canonical_path;
+
+#if __is_kernel
+		{
+			auto file = TRY(Kernel::VirtualFileSystem::get().file_from_absolute_path({ 0, 0, 0, 0 }, path, 0));
+			TRY(file_data.resize(file.inode->size()));
+			TRY(file.inode->read(0, BAN::ByteSpan { reinterpret_cast<uint8_t*>(file_data.data()), file_data.size() }));
+			canonical_path = file.canonical_path;
+		}
+#else
+		{
+			char null_path[PATH_MAX];
+			strncpy(null_path, path.data(), path.size());
+			null_path[path.size()] = '\0';
+
+			struct stat st;
+			if (stat(null_path, &st) == -1)
+				return BAN::Error::from_errno(errno);
+			TRY(file_data.resize(st.st_size));
+			int fd = open(null_path, O_RDONLY);
+			if (fd == -1)
+				return BAN::Error::from_errno(errno);
+			ssize_t nread = read(fd, file_data.data(), st.st_size);
+			close(fd);
+			if (nread != st.st_size)
+				return BAN::Error::from_errno(errno);
+			MUST(canonical_path.append(path));
+		}
+#endif
 
 		BAN::Vector<BAN::String> result;
 
@@ -142,7 +180,7 @@ namespace Kernel::Input
 				parts[1] = parts[1].substring(1, parts[1].size() - 2);
 
 				BAN::String include_path;
-				TRY(include_path.append(file.canonical_path));
+				TRY(include_path.append(canonical_path));
 				ASSERT(include_path.sv().contains('/'));
 				while (include_path.back() != '/')
 					include_path.pop_back();
@@ -255,8 +293,6 @@ namespace Kernel::Input
 				}
 			}
 		}
-
-		SpinLockGuard _(m_lock);
 
 		for (size_t i = 0; i < new_layout->m_keycode_to_key_normal.size(); i++)
 			if (new_layout->m_keycode_to_key_normal[i] != Key::None)

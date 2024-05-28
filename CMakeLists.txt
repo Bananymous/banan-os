@@ -21,6 +21,7 @@ add_subdirectory(bootloader)
 add_subdirectory(BAN)
 add_subdirectory(libc)
 add_subdirectory(LibELF)
+add_subdirectory(LibInput)
 add_subdirectory(userspace)
 
 add_custom_target(sysroot
@@ -33,6 +34,7 @@ add_custom_target(headers
 	DEPENDS ban-headers
 	DEPENDS libc-headers
 	DEPENDS libelf-headers
+	DEPENDS libinput-headers
 )
 
 add_custom_target(install-sysroot
@@ -41,6 +43,7 @@ add_custom_target(install-sysroot
 	DEPENDS libc-install
 	DEPENDS userspace-install
 	DEPENDS libelf-install
+	DEPENDS libinput-install
 )
 
 add_custom_target(package-sysroot

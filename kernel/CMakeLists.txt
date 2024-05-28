@@ -42,8 +42,6 @@ set(KERNEL_SOURCES
 	kernel/FS/VirtualFileSystem.cpp
 	kernel/GDT.cpp
 	kernel/IDT.cpp
-	kernel/Input/KeyboardLayout.cpp
-	kernel/Input/KeyEvent.cpp
 	kernel/Input/PS2/Controller.cpp
 	kernel/Input/PS2/Device.cpp
 	kernel/Input/PS2/Keyboard.cpp
@@ -150,12 +148,18 @@ set(LIBELF_SOURCES
 	../LibELF/LibELF/LoadableELF.cpp
 )
 
+set(LIBINPUT_SOURCE
+	../LibInput/KeyboardLayout.cpp
+	../LibInput/KeyEvent.cpp
+)
+
 set(KERNEL_SOURCES
 	${KERNEL_SOURCES}
 	${LAI_SOURCES}
 	${BAN_SOURCES}
 	${KLIBC_SOURCES}
 	${LIBELF_SOURCES}
+	${LIBINPUT_SOURCE}
 )
 
 add_executable(kernel ${KERNEL_SOURCES})

@@ -5,7 +5,6 @@
 #include <kernel/FS/ProcFS/FileSystem.h>
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/IDT.h>
-#include <kernel/Input/KeyboardLayout.h>
 #include <kernel/InterruptController.h>
 #include <kernel/Lock/LockGuard.h>
 #include <kernel/Memory/FileBackedRegion.h>
@@ -17,6 +16,7 @@
 #include <kernel/Timer/Timer.h>
 
 #include <LibELF/LoadableELF.h>
+#include <LibInput/KeyboardLayout.h>
 
 #include <fcntl.h>
 #include <stdio.h>
@@ -1460,7 +1460,7 @@ namespace Kernel
 			return BAN::Error::from_errno(EPERM);
 
 		auto absolute_path = TRY(absolute_path_of(path));
-		TRY(Input::KeyboardLayout::get().load_from_file(absolute_path));
+		TRY(LibInput::KeyboardLayout::get().load_from_file(absolute_path));
 		return 0;
 	}
 

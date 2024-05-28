@@ -2,10 +2,10 @@
 
 #include <BAN/Array.h>
 #include <BAN/CircularQueue.h>
-#include <kernel/Input/KeyEvent.h>
 #include <kernel/Input/PS2/Device.h>
 #include <kernel/Input/PS2/Keymap.h>
 #include <kernel/Semaphore.h>
+#include <LibInput/KeyEvent.h>
 
 namespace Kernel::Input
 {
@@ -40,7 +40,7 @@ namespace Kernel::Input
 
 		uint16_t m_modifiers { 0 };
 
-		BAN::CircularQueue<KeyEvent, 50> m_event_queue;
+		BAN::CircularQueue<LibInput::RawKeyEvent, 50> m_event_queue;
 		SpinLock m_event_lock;
 
 		PS2Keymap m_keymap;

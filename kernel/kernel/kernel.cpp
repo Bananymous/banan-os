@@ -8,7 +8,6 @@
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/GDT.h>
 #include <kernel/IDT.h>
-#include <kernel/Input/KeyboardLayout.h>
 #include <kernel/Input/PS2/Controller.h>
 #include <kernel/InterruptController.h>
 #include <kernel/kprint.h>
@@ -27,6 +26,8 @@
 #include <kernel/Terminal/Serial.h>
 #include <kernel/Terminal/VirtualTTY.h>
 #include <kernel/Timer/Timer.h>
+
+#include <LibInput/KeyboardLayout.h>
 
 struct ParsedCommandLine
 {
@@ -194,7 +195,7 @@ static void init2(void*)
 #endif
 
 	// Initialize empty keymap
-	MUST(Input::KeyboardLayout::initialize());
+	MUST(LibInput::KeyboardLayout::initialize());
 	if (auto res = PS2Controller::initialize(); res.is_error())
 		dprintln("{}", res.error());
 

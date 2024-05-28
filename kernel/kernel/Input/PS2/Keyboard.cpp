@@ -1,9 +1,9 @@
 #include <BAN/ScopeGuard.h>
 #include <kernel/FS/DevFS/FileSystem.h>
-#include <kernel/Input/KeyboardLayout.h>
 #include <kernel/Input/PS2/Config.h>
 #include <kernel/Input/PS2/Keyboard.h>
 #include <kernel/Thread.h>
+#include <LibInput/KeyboardLayout.h>
 
 namespace Kernel::Input
 {
@@ -44,6 +44,10 @@ namespace Kernel::Input
 
 	void PS2Keyboard::handle_byte(uint8_t byte)
 	{
+		using LibInput::Key;
+		using LibInput::RawKeyEvent;
+		using KeyModifier = LibInput::KeyEvent::Modifier;
+
 		if (byte == PS2::KBResponse::KEY_ERROR_OR_BUFFER_OVERRUN1 || byte == PS2::KBResponse::KEY_ERROR_OR_BUFFER_OVERRUN2)
 		{
 			dwarnln("Key detection error or internal buffer overrun");
@@ -123,25 +127,24 @@ namespace Kernel::Input
 		if (!keycode.has_value())
 			return;
 
-		auto key = KeyboardLayout::get().get_key_from_event(KeyEvent { .modifier = 0, .keycode = keycode.value() });
-
-		if (key == Key::F1)
+		auto dummy_event = LibInput::KeyboardLayout::get().key_event_from_raw(RawKeyEvent { .modifier = 0, .keycode = keycode.value() });
+		if (dummy_event.key == Key::F1)
 			panic("OOF");
 
 		uint16_t modifier_mask = 0;
 		uint16_t toggle_mask = 0;
-		switch (key)
+		switch (dummy_event.key)
 		{
-			case Key::LeftShift:	modifier_mask = KeyEvent::Modifier::LShift;	break;
-			case Key::RightShift:	modifier_mask = KeyEvent::Modifier::RShift;	break;
-			case Key::LeftCtrl:		modifier_mask = KeyEvent::Modifier::LCtrl;	break;
-			case Key::RightCtrl:	modifier_mask = KeyEvent::Modifier::RCtrl;	break;
-			case Key::LeftAlt:		modifier_mask = KeyEvent::Modifier::LAlt;	break;
-			case Key::RightAlt:		modifier_mask = KeyEvent::Modifier::RAlt;	break;
+			case Key::LeftShift:	modifier_mask = KeyModifier::LShift;	break;
+			case Key::RightShift:	modifier_mask = KeyModifier::RShift;	break;
+			case Key::LeftCtrl:		modifier_mask = KeyModifier::LCtrl;		break;
+			case Key::RightCtrl:	modifier_mask = KeyModifier::RCtrl;		break;
+			case Key::LeftAlt:		modifier_mask = KeyModifier::LAlt;		break;
+			case Key::RightAlt:		modifier_mask = KeyModifier::RAlt;		break;
 
-			case Key::ScrollLock:	toggle_mask = KeyEvent::Modifier::ScrollLock;	break;
-			case Key::NumLock:		toggle_mask = KeyEvent::Modifier::NumLock;		break;
-			case Key::CapsLock:		toggle_mask = KeyEvent::Modifier::CapsLock;		break;
+			case Key::ScrollLock:	toggle_mask = KeyModifier::ScrollLock;	break;
+			case Key::NumLock:		toggle_mask = KeyModifier::NumLock;		break;
+			case Key::CapsLock:		toggle_mask = KeyModifier::CapsLock;	break;
 
 			default: break;
 		}
@@ -160,8 +163,8 @@ namespace Kernel::Input
 			update_leds();
 		}
 
-		KeyEvent event;
-		event.modifier = m_modifiers | (released ? 0 : KeyEvent::Modifier::Pressed);
+		RawKeyEvent event;
+		event.modifier = m_modifiers | (released ? 0 : KeyModifier::Pressed);
 		event.keycode = keycode.value();
 
 		SpinLockGuard _(m_event_lock);
@@ -178,19 +181,23 @@ namespace Kernel::Input
 
 	void PS2Keyboard::update_leds()
 	{
+		using KeyModifier = LibInput::KeyEvent::Modifier;
+
 		uint8_t new_leds = 0;
-		if (m_modifiers & +KeyEvent::Modifier::ScrollLock)
+		if (m_modifiers & +KeyModifier::ScrollLock)
 			new_leds |= PS2::KBLeds::SCROLL_LOCK;
-		if (m_modifiers & +KeyEvent::Modifier::NumLock)
+		if (m_modifiers & +KeyModifier::NumLock)
 			new_leds |= PS2::KBLeds::NUM_LOCK;
-		if (m_modifiers & +KeyEvent::Modifier::CapsLock)
+		if (m_modifiers & +KeyModifier::CapsLock)
 			new_leds |= PS2::KBLeds::CAPS_LOCK;
 		append_command_queue(Command::SET_LEDS, new_leds, 0);
 	}
 
 	BAN::ErrorOr<size_t> PS2Keyboard::read_impl(off_t, BAN::ByteSpan buffer)
 	{
-		if (buffer.size() < sizeof(KeyEvent))
+		using LibInput::RawKeyEvent;
+
+		if (buffer.size() < sizeof(RawKeyEvent))
 			return BAN::Error::from_errno(ENOBUFS);
 
 		auto state = m_event_lock.lock();
@@ -201,12 +208,12 @@ namespace Kernel::Input
 			state = m_event_lock.lock();
 		}
 
-		buffer.as<KeyEvent>() = m_event_queue.front();
+		buffer.as<RawKeyEvent>() = m_event_queue.front();
 		m_event_queue.pop();
 
 		m_event_lock.unlock(state);
 
-		return sizeof(KeyEvent);
+		return sizeof(RawKeyEvent);
 	}
 
 }

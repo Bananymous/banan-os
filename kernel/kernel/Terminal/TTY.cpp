@@ -7,6 +7,7 @@
 #include <kernel/Lock/LockGuard.h>
 #include <kernel/Process.h>
 #include <kernel/Terminal/TTY.h>
+#include <LibInput/KeyboardLayout.h>
 
 #include <fcntl.h>
 #include <string.h>
@@ -94,10 +95,11 @@ namespace Kernel
 					while (!TTY::current()->m_tty_ctrl.receive_input)
 						TTY::current()->m_tty_ctrl.semaphore.block_indefinite();
 
-					Input::KeyEvent event;
+					LibInput::RawKeyEvent event;
 					size_t read = MUST(inode->read(0, BAN::ByteSpan::from(event)));
 					ASSERT(read == sizeof(event));
-					TTY::current()->on_key_event(event);
+
+					TTY::current()->on_key_event(LibInput::KeyboardLayout::get().key_event_from_raw(event));
 				}
 			}, nullptr
 		);
@@ -120,71 +122,70 @@ namespace Kernel
 		return {};
 	}
 
-	void TTY::on_key_event(Input::KeyEvent event)
+	void TTY::on_key_event(LibInput::KeyEvent event)
 	{
 		LockGuard _(m_mutex);
 
 		if (event.released())
 			return;
 
-		Input::Key key = Input::key_event_to_key(event);
-		const char* ansi_c_str = Input::key_to_utf8(key, event.modifier);
+		const char* ansi_c_str = LibInput::key_to_utf8(event.key, event.modifier);
 
 		if (event.ctrl())
 		{
 			ansi_c_str = nullptr;
-			switch (key)
+			switch (event.key)
 			{
-				case Input::Key::A: ansi_c_str = "\x01"; break;
-				case Input::Key::B: ansi_c_str = "\x02"; break;
-				case Input::Key::C: ansi_c_str = "\x03"; break;
-				case Input::Key::D: ansi_c_str = "\x04"; break;
-				case Input::Key::E: ansi_c_str = "\x05"; break;
-				case Input::Key::F: ansi_c_str = "\x06"; break;
-				case Input::Key::G: ansi_c_str = "\x07"; break;
-				case Input::Key::H: ansi_c_str = "\x08"; break;
-				case Input::Key::I: ansi_c_str = "\x09"; break;
-				case Input::Key::J: ansi_c_str = "\x0A"; break;
-				case Input::Key::K: ansi_c_str = "\x0B"; break;
-				case Input::Key::L: ansi_c_str = "\x0C"; break;
-				case Input::Key::M: ansi_c_str = "\x0D"; break;
-				case Input::Key::N: ansi_c_str = "\x0E"; break;
-				case Input::Key::O: ansi_c_str = "\x0F"; break;
-				case Input::Key::P: ansi_c_str = "\x10"; break;
-				case Input::Key::Q: ansi_c_str = "\x11"; break;
-				case Input::Key::R: ansi_c_str = "\x12"; break;
-				case Input::Key::S: ansi_c_str = "\x13"; break;
-				case Input::Key::T: ansi_c_str = "\x14"; break;
-				case Input::Key::U: ansi_c_str = "\x15"; break;
-				case Input::Key::V: ansi_c_str = "\x16"; break;
-				case Input::Key::W: ansi_c_str = "\x17"; break;
-				case Input::Key::X: ansi_c_str = "\x18"; break;
-				case Input::Key::Y: ansi_c_str = "\x19"; break;
-				case Input::Key::Z: ansi_c_str = "\x1A"; break;
+				case LibInput::Key::A: ansi_c_str = "\x01"; break;
+				case LibInput::Key::B: ansi_c_str = "\x02"; break;
+				case LibInput::Key::C: ansi_c_str = "\x03"; break;
+				case LibInput::Key::D: ansi_c_str = "\x04"; break;
+				case LibInput::Key::E: ansi_c_str = "\x05"; break;
+				case LibInput::Key::F: ansi_c_str = "\x06"; break;
+				case LibInput::Key::G: ansi_c_str = "\x07"; break;
+				case LibInput::Key::H: ansi_c_str = "\x08"; break;
+				case LibInput::Key::I: ansi_c_str = "\x09"; break;
+				case LibInput::Key::J: ansi_c_str = "\x0A"; break;
+				case LibInput::Key::K: ansi_c_str = "\x0B"; break;
+				case LibInput::Key::L: ansi_c_str = "\x0C"; break;
+				case LibInput::Key::M: ansi_c_str = "\x0D"; break;
+				case LibInput::Key::N: ansi_c_str = "\x0E"; break;
+				case LibInput::Key::O: ansi_c_str = "\x0F"; break;
+				case LibInput::Key::P: ansi_c_str = "\x10"; break;
+				case LibInput::Key::Q: ansi_c_str = "\x11"; break;
+				case LibInput::Key::R: ansi_c_str = "\x12"; break;
+				case LibInput::Key::S: ansi_c_str = "\x13"; break;
+				case LibInput::Key::T: ansi_c_str = "\x14"; break;
+				case LibInput::Key::U: ansi_c_str = "\x15"; break;
+				case LibInput::Key::V: ansi_c_str = "\x16"; break;
+				case LibInput::Key::W: ansi_c_str = "\x17"; break;
+				case LibInput::Key::X: ansi_c_str = "\x18"; break;
+				case LibInput::Key::Y: ansi_c_str = "\x19"; break;
+				case LibInput::Key::Z: ansi_c_str = "\x1A"; break;
 				default: break;
 			}
 		}
 		else
 		{
-			switch (key)
+			switch (event.key)
 			{
-				case Input::Key::Enter:
-				case Input::Key::NumpadEnter:
+				case LibInput::Key::Enter:
+				case LibInput::Key::NumpadEnter:
 					ansi_c_str = "\n";
 					break;
-				case Input::Key::Backspace:
+				case LibInput::Key::Backspace:
 					ansi_c_str = "\b";
 					break;
-				case Input::Key::ArrowUp:
+				case LibInput::Key::ArrowUp:
 					ansi_c_str = "\e[A";
 					break;
-				case Input::Key::ArrowDown:
+				case LibInput::Key::ArrowDown:
 					ansi_c_str = "\e[B";
 					break;
-				case Input::Key::ArrowRight:
+				case LibInput::Key::ArrowRight:
 					ansi_c_str = "\e[C";
 					break;
-				case Input::Key::ArrowLeft:
+				case LibInput::Key::ArrowLeft:
 					ansi_c_str = "\e[D";
 					break;
 				default:

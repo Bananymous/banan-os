@@ -1,8 +1,8 @@
 #pragma once
 
-#include <kernel/Input/MouseEvent.h>
 #include <kernel/Input/PS2/Device.h>
 #include <kernel/Semaphore.h>
+#include <LibInput/MouseEvent.h>
 
 namespace Kernel::Input
 {
@@ -36,7 +36,7 @@ namespace Kernel::Input
 		uint8_t m_mouse_id		{ 0x00 };
 		uint8_t m_button_mask	{ 0x00 };
 
-		BAN::CircularQueue<MouseEvent, 128> m_event_queue;
+		BAN::CircularQueue<LibInput::MouseEvent, 128> m_event_queue;
 		SpinLock m_event_lock;
 
 		Semaphore m_semaphore;

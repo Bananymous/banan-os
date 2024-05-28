@@ -71,6 +71,10 @@ namespace Kernel::Input
 
 	void PS2Mouse::handle_byte(uint8_t byte)
 	{
+		using LibInput::MouseButton;
+		using LibInput::MouseEvent;
+		using LibInput::MouseEventType;
+
 		if (!m_enabled)
 			return initialize_extensions(byte);
 
@@ -174,6 +178,8 @@ namespace Kernel::Input
 
 	BAN::ErrorOr<size_t> PS2Mouse::read_impl(off_t, BAN::ByteSpan buffer)
 	{
+		using LibInput::MouseEvent;
+
 		if (buffer.size() < sizeof(MouseEvent))
 			return BAN::Error::from_errno(ENOBUFS);
 

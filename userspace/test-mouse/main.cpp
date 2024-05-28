@@ -7,7 +7,7 @@
 #include <sys/mman.h>
 #include <termios.h>
 
-#include <kernel/Input/MouseEvent.h>
+#include <LibInput/MouseEvent.h>
 
 framebuffer_info_t fb_info;
 void* fb_mmap = nullptr;
@@ -137,7 +137,7 @@ int main(int argc, char** argv)
 
 	while (true)
 	{
-		using namespace Kernel::Input;
+		using namespace LibInput;
 
 		MouseEvent event;
 		if (read(mouse_fd, &event, sizeof(event)) == -1)

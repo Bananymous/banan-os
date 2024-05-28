@@ -1,11 +1,14 @@
 #include <kernel/Debug.h>
-#include <kernel/Input/KeyEvent.h>
 #include <kernel/Input/PS2/Keymap.h>
+#include <LibInput/KeyEvent.h>
 
 #include <string.h>
 
 namespace Kernel::Input
 {
+	using LibInput::keycode_function;
+	using LibInput::keycode_normal;
+	using LibInput::keycode_numpad;
 
 	void PS2Keymap::initialize(uint8_t scancode_set)
 	{

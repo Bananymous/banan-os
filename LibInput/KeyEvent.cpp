@@ -1,14 +1,8 @@
 #include <BAN/Array.h>
-#include <kernel/Input/KeyboardLayout.h>
-#include <kernel/Input/KeyEvent.h>
+#include <LibInput/KeyEvent.h>
 
-namespace Kernel::Input
+namespace LibInput
 {
-
-	Key key_event_to_key(KeyEvent event)
-	{
-		return KeyboardLayout::get().get_key_from_event(event);
-	}
 
 	const char* key_to_utf8(Key key, uint16_t modifier)
 	{
@@ -50,7 +44,7 @@ namespace Kernel::Input
 		};
 		static_assert((size_t)Key::Count == sizeof(utf8_upper) / sizeof(*utf8_lower));
 
-		KeyEvent event { .modifier = modifier, .keycode = 0x00 };
+		KeyEvent event { .modifier = modifier, .key = key };
 		return (event.shift() ^ event.caps_lock()) ? utf8_upper[static_cast<uint8_t>(key)] : utf8_lower[static_cast<uint8_t>(key)];
 	}
 

@@ -2,11 +2,11 @@
 
 #include <BAN/Array.h>
 #include <kernel/Device/Device.h>
-#include <kernel/Input/KeyEvent.h>
 #include <kernel/Lock/SpinLock.h>
 #include <kernel/Terminal/TerminalDriver.h>
 #include <kernel/Terminal/termios.h>
 #include <kernel/Semaphore.h>
+#include <LibInput/KeyEvent.h>
 
 namespace Kernel
 {
@@ -30,7 +30,7 @@ namespace Kernel
 		void set_as_current();
 
 		static void initialize_devices();
-		void on_key_event(Input::KeyEvent);
+		void on_key_event(LibInput::KeyEvent);
 		void handle_input_byte(uint8_t);
 
 		virtual bool is_tty() const override { return true; }

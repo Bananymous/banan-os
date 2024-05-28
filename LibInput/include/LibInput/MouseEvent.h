@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 
-namespace Kernel::Input
+namespace LibInput
 {
 
 	enum class MouseButton
