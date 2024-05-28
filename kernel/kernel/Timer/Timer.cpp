@@ -75,8 +75,9 @@ namespace Kernel
 			return;
 		uint64_t wake_time = ms_since_boot() + ms;
 		Scheduler::get().set_current_thread_sleeping(wake_time);
-		if (ms_since_boot() < wake_time)
-			dwarnln("sleep woke {} ms too soon", wake_time - ms_since_boot());
+		uint64_t current_time = ms_since_boot();
+		if (current_time < wake_time)
+			dwarnln("sleep woke {} ms too soon", wake_time - current_time);
 	}
 
 	timespec SystemTimer::real_time() const
