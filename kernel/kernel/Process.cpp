@@ -1062,10 +1062,6 @@ namespace Kernel
 						return;
 
 					auto inode = inode_or_error.release_value();
-					auto mode = inode->mode();
-					if (!mode.ifreg() && !mode.ififo() && !mode.ifsock() && !inode->is_pipe() && !inode->is_tty())
-						return;
-
 					if ((inode.ptr()->*func)())
 					{
 						FD_SET(fd, dest);
