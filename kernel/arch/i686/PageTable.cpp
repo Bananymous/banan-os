@@ -15,7 +15,7 @@ extern uint8_t g_userspace_end[];
 namespace Kernel
 {
 
-	RecursiveSpinLock PageTable::s_fast_page_lock;
+	SpinLock PageTable::s_fast_page_lock;
 
 	static PageTable* s_kernel = nullptr;
 	static bool s_has_nxe = false;
