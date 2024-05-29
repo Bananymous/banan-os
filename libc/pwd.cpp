@@ -1,6 +1,4 @@
-#include <BAN/String.h>
-#include <BAN/StringView.h>
-#include <BAN/Vector.h>
+#include <BAN/Assert.h>
 
 #include <ctype.h>
 #include <errno.h>
@@ -11,8 +9,6 @@
 
 static FILE* s_pwent_fp = nullptr;
 static passwd s_pwent_struct;
-
-#define TRY_LIBC(expr, ret) ({ auto&& e = expr; if (e.is_error()) { errno = e.error().get_error_code(); return ret; } e.release_value(); })
 
 static bool open_pwent()
 {
@@ -51,51 +47,67 @@ struct passwd* getpwent(void)
 			return nullptr;
 	clear_pwent(s_pwent_struct);
 
-	BAN::String line;
-	while (true)
+	static char buffer[4096];
+	if (!fgets(buffer, sizeof(buffer), s_pwent_fp))
+		return nullptr;
+
+	size_t buffer_len = strlen(buffer);
+
+	ASSERT(buffer[buffer_len - 1] == '\n');
+	buffer[buffer_len - 1] = '\0';
+	buffer_len--;
+
+	const char* ptr = buffer;
+	for (int i = 0; i < 7; i++)
 	{
-		char buffer[128];
-		if (!fgets(buffer, sizeof(buffer), s_pwent_fp))
-			return nullptr;
-		TRY_LIBC(line.append(buffer), nullptr);
+		char* end = strchr(ptr, ':');
+		ASSERT((i < 6) ? end != nullptr : end == nullptr);
+		if (!end)
+			end = buffer + buffer_len;
+		*end = '\0';
 
-		if (line.back() == '\n')
+		const size_t field_len = end - ptr;
+
+		switch (i)
 		{
-			line.pop_back();
-			break;
+			case 0:
+				s_pwent_struct.pw_name = (char*)malloc(field_len + 1);
+				if (!s_pwent_struct.pw_name)
+					return nullptr;
+				strcpy(s_pwent_struct.pw_name, ptr);
+				break;
+			case 1:
+				break;
+			case 2:
+				ASSERT(1 <= field_len && field_len <= 9);
+				for (size_t j = 0; j < field_len; j++)
+					ASSERT(isdigit(ptr[j]));
+				s_pwent_struct.pw_uid = atoi(ptr);
+				break;
+			case 3:
+				ASSERT(1 <= field_len && field_len <= 9);
+				for (size_t j = 0; j < field_len; j++)
+					ASSERT(isdigit(ptr[j]));
+				s_pwent_struct.pw_uid = atoi(ptr);
+				break;
+			case 4:
+				break;
+			case 5:
+				s_pwent_struct.pw_dir = (char*)malloc(field_len + 1);
+				if (!s_pwent_struct.pw_dir)
+					return nullptr;
+				strcpy(s_pwent_struct.pw_dir, ptr);
+				break;
+			case 6:
+				s_pwent_struct.pw_shell = (char*)malloc(field_len + 1);
+				if (!s_pwent_struct.pw_shell)
+					return nullptr;
+				strcpy(s_pwent_struct.pw_shell, ptr);
+				break;
 		}
+
+		ptr = end + 1;
 	}
-
-	auto parts = TRY_LIBC(line.sv().split(':', true), nullptr);
-	ASSERT(parts.size() == 7);
-
-	ASSERT(1 <= parts[2].size() && parts[2].size() <= 9);
-	for (char c : parts[2])
-		ASSERT(isdigit(c));
-	ASSERT(1 <= parts[3].size() && parts[3].size() <= 9);
-	for (char c : parts[3])
-		ASSERT(isdigit(c));
-
-	s_pwent_struct.pw_uid = atoi(parts[2].data());
-	s_pwent_struct.pw_gid = atoi(parts[3].data());
-
-	s_pwent_struct.pw_name = (char*)malloc(parts[0].size() + 1);
-	if (!s_pwent_struct.pw_name)
-		return nullptr;
-	memcpy(s_pwent_struct.pw_name, parts[0].data(), parts[0].size());
-	s_pwent_struct.pw_name[parts[0].size()] = '\0';
-
-	s_pwent_struct.pw_dir = (char*)malloc(parts[5].size() + 1);
-	if (!s_pwent_struct.pw_dir)
-		return nullptr;
-	memcpy(s_pwent_struct.pw_dir, parts[5].data(), parts[5].size());
-	s_pwent_struct.pw_dir[parts[5].size()] = '\0';
-
-	s_pwent_struct.pw_shell = (char*)malloc(parts[6].size() + 1);
-	if (!s_pwent_struct.pw_shell)
-		return nullptr;
-	memcpy(s_pwent_struct.pw_shell, parts[6].data(), parts[6].size());
-	s_pwent_struct.pw_shell[parts[6].size()] = '\0';
 
 	return &s_pwent_struct;
 }
