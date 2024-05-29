@@ -124,6 +124,9 @@ namespace BAN
 		T* operator->() { return ptr(); }
 		const T* operator->() const { return ptr(); }
 
+		bool operator==(RefPtr other) const { return m_pointer == other.m_pointer; }
+		bool operator!=(RefPtr other) const { return m_pointer != other.m_pointer; }
+
 		bool empty() const { return m_pointer == nullptr; }
 		operator bool() const { return m_pointer; }
 
