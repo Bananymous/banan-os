@@ -178,7 +178,7 @@ namespace Kernel
 		ASSERT(s_kernel);
 		ASSERT(paddr);
 
-		SpinLockGuard _(s_fast_page_lock);
+		ASSERT(s_fast_page_lock.current_processor_has_lock());
 
 		constexpr uint64_t pdpte = (fast_page() >> 30) & 0x1FF;
 		constexpr uint64_t pde   = (fast_page() >> 21) & 0x1FF;
@@ -198,7 +198,7 @@ namespace Kernel
 	{
 		ASSERT(s_kernel);
 
-		SpinLockGuard _(s_fast_page_lock);
+		ASSERT(s_fast_page_lock.current_processor_has_lock());
 
 		constexpr uint64_t pdpte = (fast_page() >> 30) & 0x1FF;
 		constexpr uint64_t pde   = (fast_page() >> 21) & 0x1FF;
