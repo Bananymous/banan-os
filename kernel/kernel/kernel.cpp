@@ -14,6 +14,7 @@
 #include <kernel/Memory/Heap.h>
 #include <kernel/Memory/kmalloc.h>
 #include <kernel/Memory/PageTable.h>
+#include <kernel/Memory/SharedMemoryObject.h>
 #include <kernel/Networking/NetworkManager.h>
 #include <kernel/PCI.h>
 #include <kernel/PIC.h>
@@ -142,6 +143,9 @@ extern "C" void kernel_main(uint32_t boot_magic, uint32_t boot_info)
 
 	ProcFileSystem::initialize();
 	dprintln("procfs initialized");
+
+	MUST(SharedMemoryObjectManager::initialize());
+	dprintln("Shared memory object system initialized");
 
 	if (Serial::has_devices())
 	{

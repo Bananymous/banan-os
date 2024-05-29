@@ -57,6 +57,7 @@ set(KERNEL_SOURCES
 	kernel/Memory/MemoryBackedRegion.cpp
 	kernel/Memory/MemoryRegion.cpp
 	kernel/Memory/PhysicalRange.cpp
+	kernel/Memory/SharedMemoryObject.cpp
 	kernel/Memory/VirtualRange.cpp
 	kernel/Networking/ARPTable.cpp
 	kernel/Networking/E1000/E1000.cpp

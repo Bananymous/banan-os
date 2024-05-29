@@ -16,3 +16,16 @@ int load_keymap(const char* path)
 {
 	return syscall(SYS_LOAD_KEYMAP, path);
 }
+
+long smo_create(size_t size, int prot)
+{
+	return syscall(SYS_SMO_CREATE, size, prot);
+}
+
+void* smo_map(long key)
+{
+	long ret = syscall(SYS_SMO_MAP, key);
+	if (ret < 0)
+		return nullptr;
+	return reinterpret_cast<void*>(ret);
+}

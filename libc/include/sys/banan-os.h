@@ -36,6 +36,11 @@ int poweroff(int command);
 
 int load_keymap(const char* path);
 
+// Create shared memory object and return its key or -1 on error
+long smo_create(size_t size, int prot);
+// Map shared memory object defined by its key and return address or null on error
+void* smo_map(long key);
+
 __END_DECLS
 
 #endif

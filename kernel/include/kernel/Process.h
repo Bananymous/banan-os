@@ -10,6 +10,7 @@
 #include <kernel/Lock/Mutex.h>
 #include <kernel/Memory/Heap.h>
 #include <kernel/Memory/MemoryRegion.h>
+#include <kernel/Memory/SharedMemoryObject.h>
 #include <kernel/OpenFileDescriptorSet.h>
 #include <kernel/Terminal/TTY.h>
 #include <kernel/Thread.h>
@@ -156,6 +157,9 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_mmap(const sys_mmap_t*);
 		BAN::ErrorOr<long> sys_munmap(void* addr, size_t len);
 		BAN::ErrorOr<long> sys_msync(void* addr, size_t len, int flags);
+
+		BAN::ErrorOr<long> sys_smo_create(size_t len, int prot);
+		BAN::ErrorOr<long> sys_smo_map(SharedMemoryObjectManager::Key);
 
 		BAN::ErrorOr<long> sys_tty_ctrl(int fildes, int command, int flags);
 

@@ -1392,6 +1392,41 @@ namespace Kernel
 		return 0;
 	}
 
+	BAN::ErrorOr<long> Process::sys_smo_create(size_t len, int prot)
+	{
+		if (len == 0)
+			return BAN::Error::from_errno(EINVAL);
+		if (prot & ~(PROT_READ | PROT_WRITE | PROT_EXEC | PROT_NONE))
+			return BAN::Error::from_errno(EINVAL);
+
+		if (auto rem = len % PAGE_SIZE)
+			len += PAGE_SIZE - rem;
+
+		PageTable::flags_t page_flags = 0;
+		if (prot & PROT_READ)
+			page_flags |= PageTable::Flags::Present;
+		if (prot & PROT_WRITE)
+			page_flags |= PageTable::Flags::ReadWrite | PageTable::Flags::Present;
+		if (prot & PROT_EXEC)
+			page_flags |= PageTable::Flags::Execute | PageTable::Flags::Present;
+
+		if (page_flags == 0)
+			page_flags |= PageTable::Flags::Reserved;
+		else
+			page_flags |= PageTable::Flags::UserSupervisor;
+
+		return TRY(SharedMemoryObjectManager::get().create_object(len, page_flags));
+	}
+
+	BAN::ErrorOr<long> Process::sys_smo_map(SharedMemoryObjectManager::Key key)
+	{
+		auto region = TRY(SharedMemoryObjectManager::get().map_object(key, page_table(), { .start = 0x400000, .end = KERNEL_OFFSET }));
+
+		LockGuard _(m_process_lock);
+		TRY(m_mapped_regions.push_back(BAN::move(region)));
+		return m_mapped_regions.back()->vaddr();
+	}
+
 	BAN::ErrorOr<long> Process::sys_tty_ctrl(int fildes, int command, int flags)
 	{
 		LockGuard _(m_process_lock);
