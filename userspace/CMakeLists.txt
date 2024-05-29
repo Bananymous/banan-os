@@ -39,9 +39,11 @@ set(USERSPACE_PROJECTS
 	test-tcp
 	test-udp
 	test-unix-socket
+	test-window
 	touch
 	u8sum
 	whoami
+	WindowServer
 	yes
 )
 
