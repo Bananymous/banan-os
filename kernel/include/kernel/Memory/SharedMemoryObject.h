@@ -14,7 +14,7 @@ namespace Kernel
 	class SharedMemoryObjectManager
 	{
 	public:
-		using Key = uint32_t;
+		using Key = size_t;
 
 	public:
 		static BAN::ErrorOr<void> initialize();

@@ -32,9 +32,12 @@ namespace Kernel
 
 		LockGuard _(m_mutex);
 
-		Key key = Random::get<Key>();
+		// NOTE: don't set the top bit so cast to signed is not negative
+		auto generate_key = []() { return Random::get<Key>() & (~(Key)0 >> 1); };
+
+		Key key = generate_key();
 		while (m_objects.contains(key))
-			key = Random::get<Key>();
+			key = generate_key();
 
 		TRY(m_objects.insert(key, object));
 		return key;
