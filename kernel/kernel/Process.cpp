@@ -1045,9 +1045,6 @@ namespace Kernel
 		int set_bits = 0;
 		for (;;)
 		{
-			if (arguments->timeout && SystemTimer::get().ms_since_boot() >= timedout_ms)
-				break;
-
 			auto update_fds =
 				[&](int fd, fd_set* source, fd_set* dest, bool (Inode::*func)() const)
 				{
@@ -1077,6 +1074,9 @@ namespace Kernel
 			}
 
 			if (set_bits > 0)
+				break;
+
+			if (arguments->timeout && SystemTimer::get().ms_since_boot() >= timedout_ms)
 				break;
 
 			LockFreeGuard free(m_process_lock);
