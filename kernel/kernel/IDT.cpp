@@ -245,6 +245,8 @@ namespace Kernel
 #endif
 		}
 
+		Debug::s_debug_lock.lock();
+
 		if (PageTable::current().get_page_flags(interrupt_stack->ip & PAGE_ADDR_MASK) & PageTable::Flags::Present)
 		{
 			auto* machine_code = (const uint8_t*)interrupt_stack->ip;
@@ -292,6 +294,8 @@ namespace Kernel
 		if (isr == ISR::PageFault)
 			PageTable::current().debug_dump();
 		Debug::dump_stack_trace();
+
+		Debug::s_debug_lock.unlock(InterruptState::Disabled);
 
 		if (tid && Thread::current().is_userspace())
 		{
