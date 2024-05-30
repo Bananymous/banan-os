@@ -1031,11 +1031,11 @@ namespace Kernel
 		if (arguments->sigmask)
 			return BAN::Error::from_errno(ENOTSUP);
 
-		uint64_t timedout_ms = SystemTimer::get().ms_since_boot();
+		uint64_t timedout_ns = SystemTimer::get().ns_since_boot();
 		if (arguments->timeout)
 		{
-			timedout_ms += arguments->timeout->tv_sec * 1000;
-			timedout_ms += arguments->timeout->tv_nsec / 1'000'000;
+			timedout_ns += arguments->timeout->tv_sec * 1'000'000'000;
+			timedout_ns += arguments->timeout->tv_nsec;
 		}
 
 		fd_set readfds;		FD_ZERO(&readfds);
@@ -1076,7 +1076,7 @@ namespace Kernel
 			if (set_bits > 0)
 				break;
 
-			if (arguments->timeout && SystemTimer::get().ms_since_boot() >= timedout_ms)
+			if (arguments->timeout && SystemTimer::get().ns_since_boot() >= timedout_ns)
 				break;
 
 			LockFreeGuard free(m_process_lock);
