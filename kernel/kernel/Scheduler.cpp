@@ -133,10 +133,10 @@ namespace Kernel
 
 	void Scheduler::yield()
 	{
-		ASSERT(!m_lock.current_processor_has_lock());
-
 		auto state = Processor::get_interrupt_state();
 		Processor::set_interrupt_state(InterruptState::Disabled);
+
+		ASSERT(!m_lock.current_processor_has_lock());
 
 #if ARCH(x86_64)
 		asm volatile(
