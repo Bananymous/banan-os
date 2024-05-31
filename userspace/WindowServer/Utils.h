@@ -56,4 +56,10 @@ struct Rectangle
 			.height = max_y - min_y,
 		};
 	}
+
+	bool operator==(const Rectangle& other) const
+	{
+		return x == other.x && y == other.y && width == other.width && height == other.height;
+	}
+
 };

@@ -228,9 +228,10 @@ int main()
 							static_cast<int32_t>(packet.create.height)
 						}, reinterpret_cast<uint32_t*>(smo_address));
 						window.set_position({
-							static_cast<int32_t>(window.width() / 2),
-							static_cast<int32_t>(window.height() / 2)
+							static_cast<int32_t>((framebuffer.width - window.client_width()) / 2),
+							static_cast<int32_t>((framebuffer.height - window.client_height()) / 2)
 						});
+						window_server.invalidate(window.full_area());
 
 						break;
 					}
@@ -241,15 +242,21 @@ int main()
 							dwarnln("Invalid Invalidate packet size");
 							break;
 						}
-						if (packet.invalidate.x + packet.invalidate.width > window.width() || packet.invalidate.y + packet.invalidate.height > window.height())
+
+						if (packet.invalidate.width == 0 || packet.invalidate.height == 0)
+							break;
+
+						const int32_t br_x = packet.invalidate.x + packet.invalidate.width - 1;
+						const int32_t br_y = packet.invalidate.y + packet.invalidate.height - 1;
+						if (!window.client_size().contains({ br_x, br_y }))
 						{
 							dwarnln("Invalid Invalidate packet parameters");
 							break;
 						}
 
 						window_server.invalidate({
-							window.x() + static_cast<int32_t>(packet.invalidate.x),
-							window.y() + static_cast<int32_t>(packet.invalidate.y),
+							window.client_x() + static_cast<int32_t>(packet.invalidate.x),
+							window.client_y() + static_cast<int32_t>(packet.invalidate.y),
 							static_cast<int32_t>(packet.invalidate.width),
 							static_cast<int32_t>(packet.invalidate.height),
 						});

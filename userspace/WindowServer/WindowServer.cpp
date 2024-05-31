@@ -69,7 +69,7 @@ void WindowServer::on_mouse_button(LibInput::MouseButtonEvent event)
 	BAN::RefPtr<Window> target_window;
 	for (size_t i = m_windows_ordered.size(); i > 0; i--)
 	{
-		if (m_windows_ordered[i - 1]->area().contains(m_cursor))
+		if (m_windows_ordered[i - 1]->full_area().contains(m_cursor))
 		{
 			target_window = m_windows_ordered[i - 1];
 			break;
@@ -82,28 +82,26 @@ void WindowServer::on_mouse_button(LibInput::MouseButtonEvent event)
 
 	set_focused_window(target_window);
 
-	// Handle window moving when mod key is held
-	if (m_is_mod_key_held && event.pressed && event.button == LibInput::MouseButton::Left && !m_is_moving_window)
+	// Handle window moving when mod key is held or mouse press on title bar
+	if (event.pressed && event.button == LibInput::MouseButton::Left && !m_is_moving_window && (target_window->title_bar_area().contains(m_cursor) || m_is_mod_key_held))
 		m_is_moving_window = true;
 	else if (m_is_moving_window && !event.pressed)
 		m_is_moving_window = false;
-	else
+	else if (target_window->client_area().contains(m_cursor))
 	{
 		// NOTE: we always have target window if code reaches here
 		LibGUI::EventPacket packet;
 		packet.type = LibGUI::EventPacket::Type::MouseButtonEvent;
 		packet.mouse_button_event.button = event.button;
 		packet.mouse_button_event.pressed = event.pressed;
-		packet.mouse_button_event.x = m_cursor.x - m_focused_window->x();
-		packet.mouse_button_event.y = m_cursor.y - m_focused_window->y();
+		packet.mouse_button_event.x = m_cursor.x - m_focused_window->client_x();
+		packet.mouse_button_event.y = m_cursor.y - m_focused_window->client_y();
 		send(m_focused_window->client_fd(), &packet, sizeof(packet), 0);
 	}
 }
 
 void WindowServer::on_mouse_move(LibInput::MouseMoveEvent event)
 {
-	Rectangle old_cursor { m_cursor.x, m_cursor.y, s_cursor_width, s_cursor_height };
-
 	const int32_t new_x = BAN::Math::clamp(m_cursor.x + event.rel_x, 0, m_framebuffer.width);
 	const int32_t new_y = BAN::Math::clamp(m_cursor.y - event.rel_y, 0, m_framebuffer.height);
 
@@ -112,22 +110,32 @@ void WindowServer::on_mouse_move(LibInput::MouseMoveEvent event)
 	if (event.rel_x == 0 && event.rel_y == 0)
 		return;
 
+	auto old_cursor = cursor_area();
 	m_cursor.x = new_x;
 	m_cursor.y = new_y;
+	auto new_cursor = cursor_area();
 
-	Rectangle new_cursor { m_cursor.x, m_cursor.y, s_cursor_width, s_cursor_height };
+	// TODO: Really no need to loop over every window
+	for (auto& window : m_windows_ordered)
+	{
+		auto title_bar = window->title_bar_area();
+		if (title_bar.get_overlap(old_cursor).has_value() || title_bar.get_overlap(new_cursor).has_value())
+			invalidate(title_bar);
+	}
+
 	invalidate(old_cursor.get_bounding_box(old_cursor));
 	invalidate(new_cursor.get_bounding_box(old_cursor));
 
 	if (m_is_moving_window)
 	{
-		auto old_window = m_focused_window->area();
+		auto old_window = m_focused_window->full_area();
 		m_focused_window->set_position({
-			m_focused_window->x() + event.rel_x,
-			m_focused_window->y() + event.rel_y,
+			m_focused_window->client_x() + event.rel_x,
+			m_focused_window->client_y() + event.rel_y,
 		});
+		auto new_window = m_focused_window->full_area();
 		invalidate(old_window);
-		invalidate(m_focused_window->area());
+		invalidate(new_window);
 		return;
 	}
 
@@ -135,8 +143,8 @@ void WindowServer::on_mouse_move(LibInput::MouseMoveEvent event)
 	{
 		LibGUI::EventPacket packet;
 		packet.type = LibGUI::EventPacket::Type::MouseMoveEvent;
-		packet.mouse_move_event.x = m_cursor.x - m_focused_window->x();
-		packet.mouse_move_event.y = m_cursor.y - m_focused_window->y();
+		packet.mouse_move_event.x = m_cursor.x - m_focused_window->client_x();
+		packet.mouse_move_event.y = m_cursor.y - m_focused_window->client_y();
 		send(m_focused_window->client_fd(), &packet, sizeof(packet), 0);
 	}
 }
@@ -164,7 +172,7 @@ void WindowServer::set_focused_window(BAN::RefPtr<Window> window)
 			m_focused_window = window;
 			m_windows_ordered.remove(i - 1);
 			MUST(m_windows_ordered.push_back(window));
-			invalidate(window->area());
+			invalidate(window->full_area());
 			break;
 		}
 	}
@@ -184,23 +192,41 @@ void WindowServer::invalidate(Rectangle area)
 	{
 		auto& window = *pwindow;
 
-		auto overlap = window.area().get_overlap(area);
-		if (!overlap.has_value())
-			continue;
+		// window title bar
+		if (auto overlap = window.title_bar_area().get_overlap(area); overlap.has_value())
+		{
+			for (int32_t y_off = 0; y_off < overlap->height; y_off++)
+			{
+				for (int32_t x_off = 0; x_off < overlap->width; x_off++)
+				{
+					uint32_t pixel = window.title_bar_pixel(
+						overlap->x + x_off,
+						overlap->y + y_off,
+						m_cursor
+					);
+					m_framebuffer.mmap[(overlap->y + y_off) * m_framebuffer.width + overlap->x + x_off] = pixel;
+				}
+			}
+		}
 
-		const int32_t src_x = overlap->x - window.x();
-		const int32_t src_y = overlap->y - window.y();
-		for (int32_t y_off = 0; y_off < overlap->height; y_off++)
-			memcpy(
-				&m_framebuffer.mmap[(overlap->y + y_off) * m_framebuffer.width + overlap->x],
-				&window.framebuffer()[(src_y + y_off) * window.width() + src_x],
-				overlap->width * 4
-			);
+		// window client area
+		if (auto overlap = window.client_area().get_overlap(area); overlap.has_value())
+		{
+			const int32_t src_x = overlap->x - window.client_x();
+			const int32_t src_y = overlap->y - window.client_y();
+			for (int32_t y_off = 0; y_off < overlap->height; y_off++)
+			{
+				memcpy(
+					&m_framebuffer.mmap[(overlap->y + y_off) * m_framebuffer.width + overlap->x],
+					&window.framebuffer()[(src_y + y_off) * window.client_width() + src_x],
+					overlap->width * 4
+				);
+			}
+		}
 	}
 
-	Rectangle cursor { m_cursor.x, m_cursor.y, s_cursor_width, s_cursor_height };
-	auto overlap = cursor.get_overlap(area);
-	if (overlap.has_value())
+	auto cursor = cursor_area();
+	if (auto overlap = cursor.get_overlap(area); overlap.has_value())
 	{
 		for (int32_t dy = overlap->y - cursor.y; dy < overlap->height; dy++)
 		{
@@ -221,4 +247,9 @@ void WindowServer::invalidate(Rectangle area)
 	uintptr_t mmap_end = mmap_start + (area.height + 1) * m_framebuffer.width * 4;
 	mmap_start &= ~(uintptr_t)0xFFF;
 	msync(reinterpret_cast<void*>(mmap_start), mmap_end - mmap_start, MS_SYNC);
+}
+
+Rectangle WindowServer::cursor_area() const
+{
+	return { m_cursor.x, m_cursor.y, s_cursor_width, s_cursor_height };
 }

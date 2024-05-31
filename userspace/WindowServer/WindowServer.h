@@ -32,6 +32,8 @@ public:
 	void set_focused_window(BAN::RefPtr<Window> window);
 	void invalidate(Rectangle area);
 
+	Rectangle cursor_area() const;
+
 private:
 	Framebuffer& m_framebuffer;
 	BAN::Vector<BAN::RefPtr<Window>> m_windows_ordered;
