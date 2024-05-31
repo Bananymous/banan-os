@@ -21,6 +21,7 @@ add_subdirectory(bootloader)
 add_subdirectory(BAN)
 add_subdirectory(libc)
 add_subdirectory(LibELF)
+add_subdirectory(LibFont)
 add_subdirectory(LibGUI)
 add_subdirectory(LibInput)
 add_subdirectory(userspace)
@@ -35,6 +36,7 @@ add_custom_target(headers
 	DEPENDS ban-headers
 	DEPENDS libc-headers
 	DEPENDS libelf-headers
+	DEPENDS libfont-headers
 	DEPENDS libgui-headers
 	DEPENDS libinput-headers
 )
@@ -45,6 +47,7 @@ add_custom_target(install-sysroot
 	DEPENDS libc-install
 	DEPENDS userspace-install
 	DEPENDS libelf-install
+	DEPENDS libfont-install
 	DEPENDS libgui-install
 	DEPENDS libinput-install
 )

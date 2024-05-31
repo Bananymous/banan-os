@@ -1,9 +1,13 @@
+#include <BAN/Debug.h>
 #include <BAN/Endianness.h>
 #include <BAN/ScopeGuard.h>
 #include <BAN/UTF8.h>
-#include <kernel/Font.h>
+
+#include <LibFont/Font.h>
+
+#if __is_kernel
 #include <kernel/FS/VirtualFileSystem.h>
-#include <kernel/Process.h>
+#endif
 
 #include <fcntl.h>
 
@@ -23,59 +27,86 @@
 #define PSF2_STARTSEQ			0xFE
 #define PSF2_SEPARATOR			0xFF
 
+#if __is_kernel
 extern uint8_t _binary_font_prefs_psf_start[];
 extern uint8_t _binary_font_prefs_psf_end[];
+#endif
 
-namespace Kernel
+namespace LibFont
 {
 
+#if __is_kernel
 	BAN::ErrorOr<Font> Font::prefs()
 	{
 		size_t font_data_size = _binary_font_prefs_psf_end - _binary_font_prefs_psf_start;
-		BAN::Span<const uint8_t> font_data(_binary_font_prefs_psf_start, font_data_size);
-		return parse_psf1(font_data);
+		return parse_psf1(BAN::ConstByteSpan(_binary_font_prefs_psf_start, font_data_size));
 	}
+#endif
 
 	BAN::ErrorOr<Font> Font::load(BAN::StringView path)
 	{
-		auto inode = TRY(VirtualFileSystem::get().file_from_absolute_path({ 0, 0, 0, 0 }, path, O_RDONLY)).inode;
-
 		BAN::Vector<uint8_t> file_data;
-		TRY(file_data.resize(inode->size()));
 
-		TRY(inode->read(0, file_data.span()));
+#if __is_kernel
+		auto inode = TRY(Kernel::VirtualFileSystem::get().file_from_absolute_path({ 0, 0, 0, 0 }, path, O_RDONLY)).inode;
+		TRY(file_data.resize(inode->size()));
+		TRY(inode->read(0, BAN::ByteSpan(file_data.span())));
+#else
+		char path_buffer[PATH_MAX];
+		strncpy(path_buffer, path.data(), path.size());
+		path_buffer[path.size()] = '\0';
+
+		int fd = open(path_buffer, O_RDONLY);
+		if (fd == -1)
+			return BAN::Error::from_errno(errno);
+		BAN::ScopeGuard file_closer([fd] { close(fd); });
+
+		struct stat st;
+		if (fstat(fd, &st) == -1)
+			return BAN::Error::from_errno(errno);
+		TRY(file_data.resize(st.st_size));
+
+		ssize_t total_read = 0;
+		while (total_read < st.st_size)
+		{
+			ssize_t nread = read(fd, file_data.data() + total_read, st.st_size - total_read);
+			if (nread == -1)
+				return BAN::Error::from_errno(errno);
+			total_read += nread;
+		}
+#endif
 
 		if (file_data.size() < 4)
-			return BAN::Error::from_error_code(ErrorCode::Font_FileTooSmall);
+			return BAN::Error::from_errno(EINVAL);
 
 		if (file_data[0] == PSF1_MAGIC0 && file_data[1] == PSF1_MAGIC1)
-			return TRY(parse_psf1(file_data.span()));
+			return TRY(parse_psf1(BAN::ConstByteSpan(file_data.span())));
 
 		if (file_data[0] == PSF2_MAGIC0 && file_data[1] == PSF2_MAGIC1 && file_data[2] == PSF2_MAGIC2 && file_data[3] == PSF2_MAGIC3)
-			return TRY(parse_psf2(file_data.span()));
+			return TRY(parse_psf2(BAN::ConstByteSpan(file_data.span())));
 
-		return BAN::Error::from_error_code(ErrorCode::Font_Unsupported);
+		return BAN::Error::from_errno(ENOTSUP);
 	}
 
-	BAN::ErrorOr<Font> Font::parse_psf1(BAN::Span<const uint8_t> font_data)
+	BAN::ErrorOr<Font> Font::parse_psf1(BAN::ConstByteSpan font_data)
 	{
-		if (font_data.size() < 4)
-			return BAN::Error::from_error_code(ErrorCode::Font_FileTooSmall);
-
 		struct PSF1Header
 		{
 			uint8_t magic[2];
 			uint8_t mode;
 			uint8_t char_size;
 		};
-		const PSF1Header& header = *(const PSF1Header*)font_data.data();
+
+		if (font_data.size() < sizeof(PSF1Header))
+			return BAN::Error::from_errno(EINVAL);
+		const auto& header = font_data.as<const PSF1Header>();
 
 		uint32_t glyph_count = header.mode & PSF1_MODE512 ? 512 : 256;
 		uint32_t glyph_size = header.char_size;
 		uint32_t glyph_data_size = glyph_size * glyph_count;
 
 		if (font_data.size() < sizeof(PSF1Header) + glyph_data_size)
-			return BAN::Error::from_error_code(ErrorCode::Font_FileTooSmall);
+			return BAN::Error::from_errno(EINVAL);
 
 		BAN::Vector<uint8_t> glyph_data;
 		TRY(glyph_data.resize(glyph_data_size));
@@ -125,7 +156,7 @@ namespace Kernel
 		}
 
 		if (codepoint_redef)
-			dwarnln("Font contsins multiple definitions for same codepoint(s)");
+			dwarnln("Font contains multiple definitions for same codepoint(s)");
 		if (codepoint_sequence)
 			dwarnln("Font contains codepoint sequences (not supported)");
 
@@ -138,7 +169,7 @@ namespace Kernel
 		return result;
 	}
 
-	BAN::ErrorOr<Font> Font::parse_psf2(BAN::Span<const uint8_t> font_data)
+	BAN::ErrorOr<Font> Font::parse_psf2(BAN::ConstByteSpan font_data)
 	{
 		struct PSF2Header
 		{
@@ -153,14 +184,13 @@ namespace Kernel
 		};
 
 		if (font_data.size() < sizeof(PSF2Header))
-			return BAN::Error::from_error_code(ErrorCode::Font_FileTooSmall);
-
-		const PSF2Header& header = *(const PSF2Header*)font_data.data();
+			return BAN::Error::from_errno(EINVAL);
+		const auto& header = font_data.as<const PSF2Header>();
 
 		uint32_t glyph_data_size = header.glyph_count * header.glyph_size;
 
 		if (font_data.size() < glyph_data_size + header.header_size)
-			return BAN::Error::from_error_code(ErrorCode::Font_FileTooSmall);
+			return BAN::Error::from_errno(EINVAL);
 
 		BAN::Vector<uint8_t> glyph_data;
 		TRY(glyph_data.resize(glyph_data_size));

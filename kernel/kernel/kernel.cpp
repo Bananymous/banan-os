@@ -77,7 +77,7 @@ static void parse_command_line()
 	}
 }
 
-TerminalDriver* g_terminal_driver = nullptr;
+Kernel::TerminalDriver* g_terminal_driver = nullptr;
 
 static void init2(void*);
 

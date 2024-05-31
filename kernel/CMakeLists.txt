@@ -29,7 +29,6 @@ set(KERNEL_SOURCES
 	kernel/Device/NullDevice.cpp
 	kernel/Device/ZeroDevice.cpp
 	kernel/Errors.cpp
-	kernel/Font.cpp
 	kernel/FS/DevFS/FileSystem.cpp
 	kernel/FS/Ext2/FileSystem.cpp
 	kernel/FS/Ext2/Inode.cpp
@@ -149,6 +148,10 @@ set(LIBELF_SOURCES
 	../LibELF/LibELF/LoadableELF.cpp
 )
 
+set(LIBFONT_SOURCES
+	../LibFont/Font.cpp
+)
+
 set(LIBINPUT_SOURCE
 	../LibInput/KeyboardLayout.cpp
 	../LibInput/KeyEvent.cpp
@@ -160,6 +163,7 @@ set(KERNEL_SOURCES
 	${BAN_SOURCES}
 	${KLIBC_SOURCES}
 	${LIBELF_SOURCES}
+	${LIBFONT_SOURCES}
 	${LIBINPUT_SOURCE}
 )
 

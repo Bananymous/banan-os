@@ -62,7 +62,7 @@ namespace Kernel
 		m_terminal_driver->clear(m_background);
 	}
 
-	void VirtualTTY::set_font(const Kernel::Font& font)
+	void VirtualTTY::set_font(const LibFont::Font& font)
 	{
 		m_terminal_driver->set_font(font);
 

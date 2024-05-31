@@ -8,7 +8,7 @@
 
 #include <ctype.h>
 
-extern TerminalDriver* g_terminal_driver;
+extern Kernel::TerminalDriver* g_terminal_driver;
 
 namespace Debug
 {
@@ -68,6 +68,8 @@ namespace Debug
 
 	void putchar(char ch)
 	{
+		using namespace Kernel;
+
 		if (Kernel::Serial::has_devices())
 			return Kernel::Serial::putchar_any(ch);
 		if (Kernel::TTY::is_initialized())

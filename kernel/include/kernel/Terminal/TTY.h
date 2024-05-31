@@ -16,7 +16,7 @@ namespace Kernel
 	public:
 		void set_termios(const termios& termios) { m_termios = termios; }
 		termios get_termios() const { return m_termios; }
-		virtual void set_font(const Font&) {};
+		virtual void set_font(const LibFont::Font&) {};
 
 		void set_foreground_pgrp(pid_t pgrp) { m_foreground_pgrp = pgrp; }
 		pid_t foreground_pgrp() const { return m_foreground_pgrp; }
