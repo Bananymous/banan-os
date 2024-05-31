@@ -115,6 +115,9 @@ void WindowServer::on_mouse_move(LibInput::MouseMoveEvent event)
 	m_cursor.y = new_y;
 	auto new_cursor = cursor_area();
 
+	invalidate(old_cursor);
+	invalidate(new_cursor);
+
 	// TODO: Really no need to loop over every window
 	for (auto& window : m_windows_ordered)
 	{
@@ -122,9 +125,6 @@ void WindowServer::on_mouse_move(LibInput::MouseMoveEvent event)
 		if (title_bar.get_overlap(old_cursor).has_value() || title_bar.get_overlap(new_cursor).has_value())
 			invalidate(title_bar);
 	}
-
-	invalidate(old_cursor.get_bounding_box(old_cursor));
-	invalidate(new_cursor.get_bounding_box(old_cursor));
 
 	if (m_is_moving_window)
 	{
@@ -228,17 +228,19 @@ void WindowServer::invalidate(Rectangle area)
 	auto cursor = cursor_area();
 	if (auto overlap = cursor.get_overlap(area); overlap.has_value())
 	{
-		for (int32_t dy = overlap->y - cursor.y; dy < overlap->height; dy++)
+		for (int32_t y_off = 0; y_off < overlap->height; y_off++)
 		{
-			for (int32_t dx = overlap->x - cursor.x; dx < overlap->width; dx++)
+			for (int32_t x_off = 0; x_off < overlap->width; x_off++)
 			{
-				const uint32_t offset = (dy * s_cursor_width + dx) * 4;
+				const int32_t rel_x = overlap->x - m_cursor.x + x_off;
+				const int32_t rel_y = overlap->y - m_cursor.y + y_off;
+				const uint32_t offset = (rel_y * s_cursor_width + rel_x) * 4;
 				uint32_t r = (((s_cursor_data[offset + 0] - 33) << 2) | ((s_cursor_data[offset + 1] - 33) >> 4));
 				uint32_t g = ((((s_cursor_data[offset + 1] - 33) & 0xF) << 4) | ((s_cursor_data[offset + 2] - 33) >> 2));
 				uint32_t b = ((((s_cursor_data[offset + 2] - 33) & 0x3) << 6) | ((s_cursor_data[offset + 3] - 33)));
 				uint32_t color = (r << 16) | (g << 8) | b;
 				if (color != 0xFF00FF)
-					m_framebuffer.mmap[(overlap->y + dy) * m_framebuffer.width + (overlap->x + dx)] = color;
+					m_framebuffer.mmap[(overlap->y + y_off) * m_framebuffer.width + (overlap->x + x_off)] = color;
 			}
 		}
 	}
