@@ -18,18 +18,20 @@
 		fflush(stddbg);											\
 	} while (false)
 
-#define dwarnln(...)										\
-	do {													\
-		BAN::Formatter::print(__debug_putchar, "\e[33m");	\
-		dprintln(__VA_ARGS__);								\
-		BAN::Formatter::print(__debug_putchar, "\e[m");		\
+#define dwarnln(...)											\
+	do {														\
+		BAN::Formatter::print(__debug_putchar, "\e[33m");		\
+		BAN::Formatter::print(__debug_putchar, __VA_ARGS__);	\
+		BAN::Formatter::print(__debug_putchar, "\e[m");			\
+		fflush(stddbg);											\
 	} while(false)
 
-#define derrorln(...)										\
-	do {													\
-		BAN::Formatter::print(__debug_putchar, "\e[31m");	\
-		dprintln(__VA_ARGS__);								\
-		BAN::Formatter::print(__debug_putchar, "\e[m");		\
+#define derrorln(...)											\
+	do {														\
+		BAN::Formatter::print(__debug_putchar, "\e[31m");		\
+		BAN::Formatter::print(__debug_putchar, __VA_ARGS__);	\
+		BAN::Formatter::print(__debug_putchar, "\e[m");			\
+		fflush(stddbg);											\
 	} while(false)
 
 #endif
