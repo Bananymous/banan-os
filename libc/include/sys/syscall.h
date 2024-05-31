@@ -75,6 +75,7 @@ __BEGIN_DECLS
 	O(SYS_PSELECT,			pselect)		\
 	O(SYS_TRUNCATE,			truncate)		\
 	O(SYS_SMO_CREATE,		smo_create)		\
+	O(SYS_SMO_DELETE,		smo_delete)		\
 	O(SYS_SMO_MAP,			smo_map)		\
 
 enum Syscall

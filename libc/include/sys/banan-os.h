@@ -38,7 +38,9 @@ int load_keymap(const char* path);
 
 // Create shared memory object and return its key or -1 on error
 long smo_create(size_t size, int prot);
-// Map shared memory object defined by its key and return address or null on error
+// Delete shared memory object such that it will be no longer accessible with smo_map(). Existing mappings are still valid
+int smo_delete(long key);
+// Map shared memory object defined by its key and return address or null on error. Mappings can be unmapped using munmap()
 void* smo_map(long key);
 
 __END_DECLS

@@ -21,6 +21,7 @@ namespace Kernel
 		static SharedMemoryObjectManager& get();
 
 		BAN::ErrorOr<Key> create_object(size_t size, PageTable::flags_t);
+		BAN::ErrorOr<void> delete_object(Key);
 		BAN::ErrorOr<BAN::UniqPtr<SharedMemoryObject>> map_object(Key, PageTable&, AddressRange);
 
 	private:
@@ -29,6 +30,8 @@ namespace Kernel
 	private:
 		struct Object : public BAN::RefCounted<Object>
 		{
+			~Object();
+
 			size_t size;
 			PageTable::flags_t flags;
 			BAN::Vector<paddr_t> paddrs;

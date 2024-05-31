@@ -21,6 +21,13 @@ namespace Kernel
 		return *s_instance;
 	}
 
+	SharedMemoryObjectManager::Object::~Object()
+	{
+		for (auto paddr : paddrs)
+			if (paddr)
+				Heap::get().release_page(paddr);
+	}
+
 	BAN::ErrorOr<SharedMemoryObjectManager::Key> SharedMemoryObjectManager::create_object(size_t size, PageTable::flags_t flags)
 	{
 		ASSERT(size % PAGE_SIZE == 0);
@@ -41,6 +48,18 @@ namespace Kernel
 
 		TRY(m_objects.insert(key, object));
 		return key;
+	}
+
+	BAN::ErrorOr<void> SharedMemoryObjectManager::delete_object(Key key)
+	{
+		LockGuard _(m_mutex);
+
+		auto it = m_objects.find(key);
+		if (it == m_objects.end())
+			return BAN::Error::from_errno(ENOENT);
+
+		m_objects.remove(it);
+		return {};
 	}
 
 	BAN::ErrorOr<BAN::UniqPtr<SharedMemoryObject>> SharedMemoryObjectManager::map_object(Key key, PageTable& page_table, AddressRange address_range)

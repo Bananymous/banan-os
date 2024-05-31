@@ -22,6 +22,11 @@ long smo_create(size_t size, int prot)
 	return syscall(SYS_SMO_CREATE, size, prot);
 }
 
+int smo_delete(long key)
+{
+	return syscall(SYS_SMO_DELETE, key);
+}
+
 void* smo_map(long key)
 {
 	long ret = syscall(SYS_SMO_MAP, key);

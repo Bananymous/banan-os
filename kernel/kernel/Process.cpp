@@ -1418,6 +1418,12 @@ namespace Kernel
 		return TRY(SharedMemoryObjectManager::get().create_object(len, page_flags));
 	}
 
+	BAN::ErrorOr<long> Process::sys_smo_delete(SharedMemoryObjectManager::Key key)
+	{
+		TRY(SharedMemoryObjectManager::get().delete_object(key));
+		return 0;
+	}
+
 	BAN::ErrorOr<long> Process::sys_smo_map(SharedMemoryObjectManager::Key key)
 	{
 		auto region = TRY(SharedMemoryObjectManager::get().map_object(key, page_table(), { .start = 0x400000, .end = KERNEL_OFFSET }));

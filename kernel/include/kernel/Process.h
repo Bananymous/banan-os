@@ -159,6 +159,7 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_msync(void* addr, size_t len, int flags);
 
 		BAN::ErrorOr<long> sys_smo_create(size_t len, int prot);
+		BAN::ErrorOr<long> sys_smo_delete(SharedMemoryObjectManager::Key);
 		BAN::ErrorOr<long> sys_smo_map(SharedMemoryObjectManager::Key);
 
 		BAN::ErrorOr<long> sys_tty_ctrl(int fildes, int command, int flags);
