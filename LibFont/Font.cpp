@@ -274,14 +274,4 @@ namespace LibFont
 		return result;
 	}
 
-	bool Font::has_glyph(uint32_t codepoint) const
-	{
-		return m_glyph_offsets.contains(codepoint);
-	}
-
-	const uint8_t* Font::glyph(uint32_t codepoint) const
-	{
-		return m_glyph_data.data() + m_glyph_offsets[codepoint];
-	}
-
 }
