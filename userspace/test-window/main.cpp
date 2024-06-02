@@ -20,14 +20,17 @@ int main()
 	clock_gettime(CLOCK_MONOTONIC, &ts);
 	srand(ts.tv_nsec);
 
-	auto window_or_error = LibGUI::Window::create(300, 200);
+	auto window_or_error = LibGUI::Window::create(300, 200, "test-window");
 	if (window_or_error.is_error())
 	{
 		dprintln("{}", window_or_error.error());
 		return 1;
 	}
 
+	bool running = true;
+
 	auto window = window_or_error.release_value();
+	window->set_close_window_event_callback([&] { running = false; });
 	window->set_mouse_button_event_callback(
 		[&](LibGUI::EventPacket::MouseButtonEvent event)
 		{
@@ -49,7 +52,7 @@ int main()
 
 	randomize_color(window);
 
-	for (;;)
+	while (running)
 	{
 		window->poll_events();
 

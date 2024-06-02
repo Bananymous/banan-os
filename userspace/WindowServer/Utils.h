@@ -63,3 +63,18 @@ struct Rectangle
 	}
 
 };
+
+struct Circle
+{
+	int32_t x;
+	int32_t y;
+	int32_t radius;
+
+	bool contains(Position position) const
+	{
+		int32_t dx = position.x - x;
+		int32_t dy = position.y - y;
+		return dx * dx + dy * dy <= radius * radius;
+	}
+
+};

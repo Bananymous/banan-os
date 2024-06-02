@@ -1,44 +1,110 @@
 #include "Cursor.h"
 #include "WindowServer.h"
 
+#include <BAN/Debug.h>
+
 #include <LibGUI/Window.h>
 #include <LibInput/KeyboardLayout.h>
 
 #include <stdlib.h>
+#include <sys/banan-os.h>
 #include <sys/mman.h>
 #include <sys/socket.h>
 
-void WindowServer::add_window(int fd, BAN::RefPtr<Window> window)
+void WindowServer::on_window_packet(int fd, LibGUI::WindowPacket packet)
 {
-	MUST(m_windows_ordered.insert(0, window));
-	MUST(m_windows.insert(fd, window));
-	set_focused_window(window);
-}
-
-void WindowServer::for_each_window(const BAN::Function<BAN::Iteration(int, Window&)>& callback)
-{
-	BAN::Vector<int> deleted_windows;
-	for (auto it = m_windows.begin(); it != m_windows.end(); it++)
+	switch (packet.type)
 	{
-		auto ret = callback(it->key, *it->value);
-		if (it->value->is_deleted())
-			MUST(deleted_windows.push_back(it->key));
-		if (ret == BAN::Iteration::Break)
-			break;
-		ASSERT(ret == BAN::Iteration::Continue);
-	}
-	for (int fd : deleted_windows)
-	{
-		auto window = m_windows[fd];
-		m_windows.remove(fd);
-		for (size_t i = 0; i < m_windows_ordered.size(); i++)
+		case LibGUI::WindowPacketType::CreateWindow:
 		{
-			if (m_windows_ordered[i] == window)
+			// FIXME: This should be probably allowed
+			for (auto& window : m_client_windows)
 			{
-				m_windows_ordered.remove(i);
+				if (window->client_fd() == fd)
+				{
+					dwarnln("client {} tried to create window while already owning a window", fd);
+					return;
+				}
+			}
+
+			const size_t window_fb_bytes = packet.create.width * packet.create.height * 4;
+
+			long smo_key = smo_create(window_fb_bytes, PROT_READ | PROT_WRITE);
+			if (smo_key == -1)
+			{
+				dwarnln("smo_create: {}", strerror(errno));
 				break;
 			}
+
+			Rectangle window_area {
+				static_cast<int32_t>((m_framebuffer.width - packet.create.width) / 2),
+				static_cast<int32_t>((m_framebuffer.height - packet.create.height) / 2),
+				static_cast<int32_t>(packet.create.width),
+				static_cast<int32_t>(packet.create.height)
+			};
+
+			packet.create.title[sizeof(packet.create.title) - 1] = '\0';
+
+			// Window::Window(int fd, Rectangle area, long smo_key, BAN::StringView title, const LibFont::Font& font)
+			auto window = MUST(BAN::RefPtr<Window>::create(
+				fd,
+				window_area,
+				smo_key,
+				packet.create.title,
+				m_font
+			));
+			MUST(m_client_windows.push_back(window));
+			set_focused_window(window);
+
+			LibGUI::WindowCreateResponse response;
+			response.framebuffer_smo_key = smo_key;
+			if (send(window->client_fd(), &response, sizeof(response), 0) != sizeof(response))
+			{
+				dwarnln("send: {}", strerror(errno));
+				break;
+			}
+
+			break;
 		}
+		case LibGUI::WindowPacketType::Invalidate:
+		{
+			if (packet.invalidate.width == 0 || packet.invalidate.height == 0)
+				break;
+
+			BAN::RefPtr<Window> target_window;
+			for (auto& window : m_client_windows)
+			{
+				if (window->client_fd() == fd)
+				{
+					target_window = window;
+					break;
+				}
+			}
+			if (!target_window)
+			{
+				dwarnln("client {} tried to invalidate window while not owning a window", fd);
+				break;
+			}
+
+			const int32_t br_x = packet.invalidate.x + packet.invalidate.width - 1;
+			const int32_t br_y = packet.invalidate.y + packet.invalidate.height - 1;
+			if (!target_window->client_size().contains({ br_x, br_y }))
+			{
+				dwarnln("Invalid Invalidate packet parameters");
+				break;
+			}
+
+			invalidate({
+				target_window->client_x() + static_cast<int32_t>(packet.invalidate.x),
+				target_window->client_y() + static_cast<int32_t>(packet.invalidate.y),
+				static_cast<int32_t>(packet.invalidate.width),
+				static_cast<int32_t>(packet.invalidate.height),
+			});
+
+			break;
+		}
+		default:
+			ASSERT_NOT_REACHED();
 	}
 }
 
@@ -53,7 +119,18 @@ void WindowServer::on_key_event(LibInput::KeyEvent event)
 
 	// Quick hack to stop the window server
 	if (event.pressed() && event.key == LibInput::Key::Escape)
-		exit(0);
+	{
+		m_is_stopped = true;
+		return;
+	}
+
+	// Kill window with mod+Q
+	if (m_is_mod_key_held && event.pressed() && event.key == LibInput::Key::Q)
+	{
+		if (m_focused_window)
+			remove_client_fd(m_focused_window->client_fd());
+		return;
+	}
 
 	if (m_focused_window)
 	{
@@ -67,11 +144,11 @@ void WindowServer::on_key_event(LibInput::KeyEvent event)
 void WindowServer::on_mouse_button(LibInput::MouseButtonEvent event)
 {
 	BAN::RefPtr<Window> target_window;
-	for (size_t i = m_windows_ordered.size(); i > 0; i--)
+	for (size_t i = m_client_windows.size(); i > 0; i--)
 	{
-		if (m_windows_ordered[i - 1]->full_area().contains(m_cursor))
+		if (m_client_windows[i - 1]->full_area().contains(m_cursor))
 		{
-			target_window = m_windows_ordered[i - 1];
+			target_window = m_client_windows[i - 1];
 			break;
 		}
 	}
@@ -83,10 +160,18 @@ void WindowServer::on_mouse_button(LibInput::MouseButtonEvent event)
 	set_focused_window(target_window);
 
 	// Handle window moving when mod key is held or mouse press on title bar
-	if (event.pressed && event.button == LibInput::MouseButton::Left && !m_is_moving_window && (target_window->title_bar_area().contains(m_cursor) || m_is_mod_key_held))
+	const bool can_start_move = m_is_mod_key_held || target_window->title_text_area().contains(m_cursor);
+	if (event.pressed && event.button == LibInput::MouseButton::Left && !m_is_moving_window && can_start_move)
 		m_is_moving_window = true;
 	else if (m_is_moving_window && !event.pressed)
 		m_is_moving_window = false;
+	else if (!event.pressed && event.button == LibInput::MouseButton::Left && target_window->close_button_area().contains(m_cursor))
+	{
+		// NOTE: we always have target window if code reaches here
+		LibGUI::EventPacket packet;
+		packet.type = LibGUI::EventPacket::Type::CloseWindow;
+		send(m_focused_window->client_fd(), &packet, sizeof(packet), 0);
+	}
 	else if (target_window->client_area().contains(m_cursor))
 	{
 		// NOTE: we always have target window if code reaches here
@@ -119,7 +204,7 @@ void WindowServer::on_mouse_move(LibInput::MouseMoveEvent event)
 	invalidate(new_cursor);
 
 	// TODO: Really no need to loop over every window
-	for (auto& window : m_windows_ordered)
+	for (auto& window : m_client_windows)
 	{
 		auto title_bar = window->title_bar_area();
 		if (title_bar.get_overlap(old_cursor).has_value() || title_bar.get_overlap(new_cursor).has_value())
@@ -165,13 +250,13 @@ void WindowServer::set_focused_window(BAN::RefPtr<Window> window)
 	if (m_focused_window == window)
 		return;
 
-	for (size_t i = m_windows_ordered.size(); i > 0; i--)
+	for (size_t i = m_client_windows.size(); i > 0; i--)
 	{
-		if (m_windows_ordered[i - 1] == window)
+		if (m_client_windows[i - 1] == window)
 		{
 			m_focused_window = window;
-			m_windows_ordered.remove(i - 1);
-			MUST(m_windows_ordered.push_back(window));
+			m_client_windows.remove(i - 1);
+			MUST(m_client_windows.push_back(window));
 			invalidate(window->full_area());
 			break;
 		}
@@ -188,7 +273,7 @@ void WindowServer::invalidate(Rectangle area)
 	for (int32_t y = area.y; y < area.y + area.height; y++)
 		memset(&m_framebuffer.mmap[y * m_framebuffer.width + area.x], 0, area.width * 4);
 
-	for (auto& pwindow : m_windows_ordered)
+	for (auto& pwindow : m_client_windows)
 	{
 		auto& window = *pwindow;
 
@@ -254,4 +339,66 @@ void WindowServer::invalidate(Rectangle area)
 Rectangle WindowServer::cursor_area() const
 {
 	return { m_cursor.x, m_cursor.y, s_cursor_width, s_cursor_height };
+}
+
+
+void WindowServer::add_client_fd(int fd)
+{
+	MUST(m_client_fds.push_back(fd));
+}
+
+void WindowServer::remove_client_fd(int fd)
+{
+	for (size_t i = 0; i < m_client_fds.size(); i++)
+	{
+		if (m_client_fds[i] == fd)
+		{
+			m_client_fds.remove(i);
+			break;
+		}
+	}
+
+	for (size_t i = 0; i < m_client_windows.size(); i++)
+	{
+		auto window = m_client_windows[i];
+		if (window->client_fd() == fd)
+		{
+			auto window_area = window->full_area();
+			m_client_windows.remove(i);
+			invalidate(window_area);
+
+			if (window == m_focused_window)
+			{
+				m_focused_window = nullptr;
+				if (!m_client_windows.empty())
+					set_focused_window(m_client_windows.back());
+			}
+
+			break;
+		}
+	}
+
+	m_deleted_window = true;
+}
+
+int WindowServer::get_client_fds(fd_set& fds) const
+{
+	int max_fd = 0;
+	for (int fd : m_client_fds)
+	{
+		FD_SET(fd, &fds);
+		max_fd = BAN::Math::max(max_fd, fd);
+	}
+	return max_fd;
+}
+
+void WindowServer::for_each_client_fd(const BAN::Function<BAN::Iteration(int)>& callback)
+{
+	m_deleted_window = false;
+	for (int fd : m_client_fds)
+	{
+		if (m_deleted_window)
+			break;
+		callback(fd);
+	}
 }

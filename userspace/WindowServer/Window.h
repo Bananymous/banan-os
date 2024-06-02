@@ -3,29 +3,21 @@
 #include "Utils.h"
 
 #include <BAN/RefPtr.h>
+#include <BAN/String.h>
+
+#include <LibFont/Font.h>
 
 class Window : public BAN::RefCounted<Window>
 {
 public:
-	Window(int fd)
-		: m_client_fd(fd)
-	{ }
+	Window(int fd, Rectangle area, long smo_key, BAN::StringView title, const LibFont::Font& font);
+	~Window();
 
 	void set_position(Position position)
 	{
 		m_client_area.x = position.x;
 		m_client_area.y = position.y;
 	}
-
-	void set_size(Position size, uint32_t* fb_addr)
-	{
-		m_client_area.width = size.x;
-		m_client_area.height = size.y;
-		m_fb_addr = fb_addr;
-	}
-
-	bool is_deleted() const { return m_deleted; }
-	void mark_deleted() { m_deleted = true; }
 
 	int client_fd() const { return m_client_fd; }
 
@@ -56,24 +48,29 @@ public:
 	{
 		ASSERT(title_bar_area().contains({ abs_x, abs_y }));
 
-		Rectangle close_button = {
-			title_bar_x() + title_bar_width() - title_bar_height() + 1,
-			title_bar_y() + 1,
-			title_bar_height() - 2,
-			title_bar_height() - 2
-		};
+		if (auto close_button = close_button_area(); close_button.contains({ abs_x, abs_y }))
+			return close_button.contains(cursor) ? 0xFF0000 : 0xD00000;
 
-		if (close_button.contains({ abs_x, abs_y }))
-			return close_button.contains(cursor) ? 0xFF0000 : 0xA00000;
-
-		return 0xFFFFFF;
+		int32_t rel_x = abs_x - title_bar_x();
+		int32_t rel_y = abs_y - title_bar_y();
+		return m_title_bar_data[rel_y * title_bar_width() + rel_x];
 	}
+
+	Circle close_button_area() const { return { title_bar_x() + title_bar_width() - title_bar_height() / 2, title_bar_y() + title_bar_height() / 2, title_bar_height() * 3 / 8 }; }
+	Rectangle title_text_area() const { return { title_bar_x(), title_bar_y(), title_bar_width() - title_bar_height(), title_bar_height() }; }
+
+private:
+	void prepare_title_bar(const LibFont::Font& font);
 
 private:
 	static constexpr int32_t m_title_bar_height { 20 };
 
 	const int	m_client_fd		{ -1 };
-	uint32_t*	m_fb_addr		{ nullptr };
 	Rectangle	m_client_area	{ 0, 0, 0, 0 };
-	bool		m_deleted		{ false };
+	long		m_smo_key		{ 0 };
+	uint32_t*	m_fb_addr		{ nullptr };
+	uint32_t*	m_title_bar_data { nullptr };
+	BAN::String m_title;
+
+	friend class BAN::RefPtr<Window>;
 };

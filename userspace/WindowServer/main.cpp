@@ -85,19 +85,16 @@ int main()
 
 	dprintln("Window server started");
 
-	for (int i = 0; i < 2; i++)
-	{
-		if (fork() == 0)
-		{
-			execl("/bin/test-window", "test-window", NULL);
-			exit(1);
-		}
-	}
+	size_t window_packet_sizes[LibGUI::WindowPacketType::COUNT] {};
+	window_packet_sizes[LibGUI::WindowPacketType::INVALID]		= 0;
+	window_packet_sizes[LibGUI::WindowPacketType::CreateWindow]	= sizeof(LibGUI::WindowCreatePacket);
+	window_packet_sizes[LibGUI::WindowPacketType::Invalidate]	= sizeof(LibGUI::WindowInvalidatePacket);
+	static_assert(LibGUI::WindowPacketType::COUNT == 3);
 
 	WindowServer window_server(framebuffer);
-	for (;;)
+	while (!window_server.is_stopped())
 	{
-		int max_socket = server_fd;
+		int max_fd = server_fd;
 
 		fd_set fds;
 		FD_ZERO(&fds);
@@ -105,23 +102,16 @@ int main()
 		if (keyboard_fd != -1)
 		{
 			FD_SET(keyboard_fd, &fds);
-			max_socket = BAN::Math::max(max_socket, keyboard_fd);
+			max_fd = BAN::Math::max(max_fd, keyboard_fd);
 		}
 		if (mouse_fd != -1)
 		{
 			FD_SET(mouse_fd, &fds);
-			max_socket = BAN::Math::max(max_socket, mouse_fd);
+			max_fd = BAN::Math::max(max_fd, mouse_fd);
 		}
-		window_server.for_each_window(
-			[&](int fd, Window&) -> BAN::Iteration
-			{
-				FD_SET(fd, &fds);
-				max_socket = BAN::Math::max(max_socket, fd);
-				return BAN::Iteration::Continue;
-			}
-		);
+		max_fd = BAN::Math::max(max_fd, window_server.get_client_fds(fds));
 
-		if (select(max_socket + 1, &fds, nullptr, nullptr, nullptr) == -1)
+		if (select(max_fd + 1, &fds, nullptr, nullptr, nullptr) == -1)
 		{
 			dwarnln("select: {}", strerror(errno));
 			break;
@@ -135,8 +125,7 @@ int main()
 				dwarnln("accept: {}", strerror(errno));
 				continue;
 			}
-			auto window = MUST(BAN::RefPtr<Window>::create(window_fd));
-			window_server.add_window(window_fd, window);
+			window_server.add_client_fd(window_fd);
 		}
 
 		if (keyboard_fd != -1 && FD_ISSET(keyboard_fd, &fds))
@@ -172,8 +161,8 @@ int main()
 			}
 		}
 
-		window_server.for_each_window(
-			[&](int fd, Window& window) -> BAN::Iteration
+		window_server.for_each_client_fd(
+			[&](int fd) -> BAN::Iteration
 			{
 				if (!FD_ISSET(fd, &fds))
 					return BAN::Iteration::Continue;
@@ -184,89 +173,16 @@ int main()
 					dwarnln("recv: {}", strerror(errno));
 				if (nrecv <= 0)
 				{
-					window.mark_deleted();
+					window_server.remove_client_fd(fd);
 					return BAN::Iteration::Continue;
 				}
 
-				switch (packet.type)
-				{
-					case LibGUI::WindowPacketType::CreateWindow:
-					{
-						if (nrecv != sizeof(LibGUI::WindowCreatePacket))
-						{
-							dwarnln("Invalid WindowCreate packet size");
-							break;
-						}
-
-						const size_t window_fb_bytes = packet.create.width * packet.create.height * 4;
-
-						long smo_key = smo_create(window_fb_bytes, PROT_READ | PROT_WRITE);
-						if (smo_key == -1)
-						{
-							dwarnln("smo_create: {}", strerror(errno));
-							break;
-						}
-
-						void* smo_address = smo_map(smo_key);
-						if (smo_address == nullptr)
-						{
-							dwarnln("smo_map: {}", strerror(errno));
-							break;
-						}
-						memset(smo_address, 0, window_fb_bytes);
-
-						LibGUI::WindowCreateResponse response;
-						response.framebuffer_smo_key = smo_key;
-						if (send(fd, &response, sizeof(response), 0) != sizeof(response))
-						{
-							dwarnln("send: {}", strerror(errno));
-							break;
-						}
-
-						window.set_size({
-							static_cast<int32_t>(packet.create.width),
-							static_cast<int32_t>(packet.create.height)
-						}, reinterpret_cast<uint32_t*>(smo_address));
-						window.set_position({
-							static_cast<int32_t>((framebuffer.width - window.client_width()) / 2),
-							static_cast<int32_t>((framebuffer.height - window.client_height()) / 2)
-						});
-						window_server.invalidate(window.full_area());
-
-						break;
-					}
-					case LibGUI::WindowPacketType::Invalidate:
-					{
-						if (nrecv != sizeof(LibGUI::WindowInvalidatePacket))
-						{
-							dwarnln("Invalid Invalidate packet size");
-							break;
-						}
-
-						if (packet.invalidate.width == 0 || packet.invalidate.height == 0)
-							break;
-
-						const int32_t br_x = packet.invalidate.x + packet.invalidate.width - 1;
-						const int32_t br_y = packet.invalidate.y + packet.invalidate.height - 1;
-						if (!window.client_size().contains({ br_x, br_y }))
-						{
-							dwarnln("Invalid Invalidate packet parameters");
-							break;
-						}
-
-						window_server.invalidate({
-							window.client_x() + static_cast<int32_t>(packet.invalidate.x),
-							window.client_y() + static_cast<int32_t>(packet.invalidate.y),
-							static_cast<int32_t>(packet.invalidate.width),
-							static_cast<int32_t>(packet.invalidate.height),
-						});
-
-						break;
-					}
-					default:
-						dwarnln("Invalid window packet from {}", fd);
-				}
-
+				if (packet.type == LibGUI::WindowPacketType::INVALID || packet.type >= LibGUI::WindowPacketType::COUNT)
+					dwarnln("Invalid WindowPacket (type {})", (int)packet.type);
+				if (static_cast<size_t>(nrecv) != window_packet_sizes[packet.type])
+					dwarnln("Invalid WindowPacket size (type {}, size {})", (int)packet.type, nrecv);
+				else
+					window_server.on_window_packet(fd, packet);
 				return BAN::Iteration::Continue;
 			}
 		);
