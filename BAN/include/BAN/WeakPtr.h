@@ -34,7 +34,7 @@ namespace BAN
 	class Weakable
 	{
 	public:
-		~Weakable()
+		virtual ~Weakable()
 		{
 			if (m_link)
 				m_link->invalidate();
@@ -82,7 +82,7 @@ namespace BAN
 
 		RefPtr<T> lock()
 		{
-			if (m_link->valid())
+			if (valid())
 				return m_link->lock();
 			return nullptr;
 		}

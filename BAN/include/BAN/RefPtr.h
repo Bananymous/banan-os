@@ -36,7 +36,7 @@ namespace BAN
 
 	protected:
 		RefCounted() = default;
-		~RefCounted() { ASSERT(m_ref_count == 0); }
+		virtual ~RefCounted() { ASSERT(m_ref_count == 0); }
 
 	private:
 		mutable uint32_t m_ref_count = 1;
