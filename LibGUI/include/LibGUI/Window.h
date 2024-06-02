@@ -20,6 +20,7 @@ namespace LibGUI
 		INVALID,
 		CreateWindow,
 		Invalidate,
+		COUNT
 	};
 
 	struct WindowCreatePacket
@@ -27,6 +28,7 @@ namespace LibGUI
 		WindowPacketType type = WindowPacketType::CreateWindow;
 		uint32_t width;
 		uint32_t height;
+		char title[52];
 	};
 
 	struct WindowInvalidatePacket
@@ -61,6 +63,8 @@ namespace LibGUI
 	{
 		enum class Type : uint8_t
 		{
+			DestroyWindow,
+			CloseWindow,
 			KeyEvent,
 			MouseButtonEvent,
 			MouseMoveEvent,
@@ -97,7 +101,7 @@ namespace LibGUI
 	public:
 		~Window();
 
-		static BAN::ErrorOr<BAN::UniqPtr<Window>> create(uint32_t width, uint32_t height);
+		static BAN::ErrorOr<BAN::UniqPtr<Window>> create(uint32_t width, uint32_t height, BAN::StringView title);
 
 		void set_pixel(uint32_t x, uint32_t y, uint32_t color)
 		{
@@ -112,6 +116,7 @@ namespace LibGUI
 		uint32_t height() const { return m_height; }
 
 		void poll_events();
+		void set_close_window_event_callback(BAN::Function<void()> callback)								{ m_close_window_event_callback = callback; }
 		void set_key_event_callback(BAN::Function<void(EventPacket::KeyEvent)> callback)					{ m_key_event_callback = callback; }
 		void set_mouse_button_event_callback(BAN::Function<void(EventPacket::MouseButtonEvent)> callback)	{ m_mouse_button_event_callback = callback; }
 		void set_mouse_move_event_callback(BAN::Function<void(EventPacket::MouseMoveEvent)> callback)		{ m_mouse_move_event_callback = callback; }
@@ -131,6 +136,7 @@ namespace LibGUI
 		uint32_t m_width;
 		uint32_t m_height;
 
+		BAN::Function<void()>								m_close_window_event_callback;
 		BAN::Function<void(EventPacket::KeyEvent)>			m_key_event_callback;
 		BAN::Function<void(EventPacket::MouseButtonEvent)>	m_mouse_button_event_callback;
 		BAN::Function<void(EventPacket::MouseMoveEvent)>	m_mouse_move_event_callback;
