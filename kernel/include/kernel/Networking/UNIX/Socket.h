@@ -46,6 +46,7 @@ namespace Kernel
 		{
 			bool										listening { false };
 			BAN::Atomic<bool>							connection_done { false };
+			mutable BAN::Atomic<bool>					target_closed { false };
 			BAN::WeakPtr<UnixDomainSocket>				connection;
 			BAN::Queue<BAN::RefPtr<UnixDomainSocket>>	pending_connections;
 			Semaphore									pending_semaphore;

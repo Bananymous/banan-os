@@ -55,7 +55,15 @@ namespace Kernel
 			auto it = s_bound_sockets.find(m_bound_path);
 			if (it != s_bound_sockets.end())
 				s_bound_sockets.remove(it);
+			m_bound_path.clear();
 		}
+		if (m_info.has<ConnectionInfo>())
+		{
+			auto& connection_info = m_info.get<ConnectionInfo>();
+			if (auto connection = connection_info.connection.lock(); connection && connection->m_info.has<ConnectionInfo>())
+				connection->m_info.get<ConnectionInfo>().target_closed = true;
+		}
+		m_info.clear();
 	}
 
 	BAN::ErrorOr<long> UnixDomainSocket::accept_impl(sockaddr* address, socklen_t* address_len)
@@ -256,6 +264,8 @@ namespace Kernel
 		if (m_info.has<ConnectionInfo>())
 		{
 			auto& connection_info = m_info.get<ConnectionInfo>();
+			if (connection_info.target_closed)
+				return true;
 			if (!connection_info.pending_connections.empty())
 				return true;
 			if (!connection_info.connection)
@@ -338,6 +348,8 @@ namespace Kernel
 		if (m_info.has<ConnectionInfo>())
 		{
 			auto& connection_info = m_info.get<ConnectionInfo>();
+			if (connection_info.target_closed.compare_exchange(true, false))
+				return 0;
 			if (!connection_info.connection)
 				return BAN::Error::from_errno(ENOTCONN);
 		}
