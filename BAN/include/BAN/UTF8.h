@@ -21,20 +21,21 @@ namespace BAN::UTF8
 		return 0;
 	}
 
-	constexpr uint32_t to_codepoint(uint8_t* bytes)
+	template<typename T> requires (sizeof(T) == 1)
+	constexpr uint32_t to_codepoint(const T* bytes)
 	{
 		uint32_t length = byte_length(bytes[0]);
 
 		for (uint32_t i = 1; i < length; i++)
-			if ((bytes[i] & 0xC0) != 0x80)
+			if (((uint8_t)bytes[i] & 0xC0) != 0x80)
 				return UTF8::invalid;
 
 		switch (length)
 		{
-			case 1: return ((bytes[0] & 0x80) != 0x00) ? UTF8::invalid :   bytes[0];
-			case 2: return ((bytes[0] & 0xE0) != 0xC0) ? UTF8::invalid : ((bytes[0] & 0x1F) <<  6) |  (bytes[1] & 0x3F);
-			case 3: return ((bytes[0] & 0xF0) != 0xE0) ? UTF8::invalid : ((bytes[0] & 0x0F) << 12) | ((bytes[1] & 0x3F) <<  6) |  (bytes[2] & 0x3F);
-			case 4: return ((bytes[0] & 0xF8) != 0xF0) ? UTF8::invalid : ((bytes[0] & 0x07) << 18) | ((bytes[1] & 0x3F) << 12) | ((bytes[2] & 0x3F) << 6) | (bytes[3] & 0x3F);
+			case 1: return (((uint8_t)bytes[0] & 0x80) != 0x00) ? UTF8::invalid :   (uint8_t)bytes[0];
+			case 2: return (((uint8_t)bytes[0] & 0xE0) != 0xC0) ? UTF8::invalid : (((uint8_t)bytes[0] & 0x1F) <<  6) |  ((uint8_t)bytes[1] & 0x3F);
+			case 3: return (((uint8_t)bytes[0] & 0xF0) != 0xE0) ? UTF8::invalid : (((uint8_t)bytes[0] & 0x0F) << 12) | (((uint8_t)bytes[1] & 0x3F) <<  6) |  ((uint8_t)bytes[2] & 0x3F);
+			case 4: return (((uint8_t)bytes[0] & 0xF8) != 0xF0) ? UTF8::invalid : (((uint8_t)bytes[0] & 0x07) << 18) | (((uint8_t)bytes[1] & 0x3F) << 12) | (((uint8_t)bytes[2] & 0x3F) << 6) | ((uint8_t)bytes[3] & 0x3F);
 		}
 
 		return UTF8::invalid;
