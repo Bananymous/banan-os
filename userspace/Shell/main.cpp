@@ -1064,7 +1064,7 @@ int main(int argc, char** argv)
 			buffers[index].clear();
 			col = 0;
 			break;
-		case '\x04':
+		case '\x04': // ^D
 			fprintf(stdout, "\n");
 			clean_exit();
 			break;
@@ -1086,7 +1086,10 @@ int main(int argc, char** argv)
 			break;
 		default:
 			MUST(buffers[index].insert(ch, col++));
-			fprintf(stdout, "%c\e[s%s\e[u", ch, buffers[index].data() + col);
+			if (col == buffers[index].size())
+				fputc(ch, stdout);
+			else
+				fprintf(stdout, "%c\e[s%s\e[u", ch, buffers[index].data() + col);
 			fflush(stdout);
 			break;
 		}
