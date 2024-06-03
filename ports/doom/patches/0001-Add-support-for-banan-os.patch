@@ -1,22 +1,21 @@
-From 70cb1210ba2f6e1d922922f66f32efcf7bec51e1 Mon Sep 17 00:00:00 2001
+From 0f37d9f2df042eb8ba021dd91b898c1f07d86b58 Mon Sep 17 00:00:00 2001
 From: Bananymous <bananymousosq@gmail.com>
-Date: Wed, 3 Apr 2024 17:57:11 +0300
+Date: Mon, 3 Jun 2024 20:01:40 +0300
 Subject: [PATCH] Add support for banan-os
 
-Add Makefile and implement required functions.
 ---
- doomgeneric/Makefile.banan_os        |  58 +++++++
- doomgeneric/doomgeneric_banan_os.cpp | 224 +++++++++++++++++++++++++++
- 2 files changed, 282 insertions(+)
+ doomgeneric/Makefile.banan_os        |  57 +++++++++++
+ doomgeneric/doomgeneric_banan_os.cpp | 144 +++++++++++++++++++++++++++
+ 2 files changed, 200 insertions(+)
  create mode 100644 doomgeneric/Makefile.banan_os
  create mode 100644 doomgeneric/doomgeneric_banan_os.cpp
 
 diff --git a/doomgeneric/Makefile.banan_os b/doomgeneric/Makefile.banan_os
 new file mode 100644
-index 0000000..453bed7
+index 0000000..0878148
 --- /dev/null
 +++ b/doomgeneric/Makefile.banan_os
-@@ -0,0 +1,58 @@
+@@ -0,0 +1,57 @@
 +################################################################
 +#
 +# $Id:$
@@ -32,11 +31,10 @@ index 0000000..453bed7
 +
 +CC=$(BANAN_TOOLCHAIN_PREFIX)/bin/$(BANAN_ARCH)-banan_os-gcc
 +CXX=$(BANAN_TOOLCHAIN_PREFIX)/bin/$(BANAN_ARCH)-banan_os-g++
-+CFLAGS+=-O2 -g
-+CFLAGS+=-Wall -DNORMALUNIX -DLINUX -DSNDSERV -D_DEFAULT_SOURCE
++CFLAGS+=-O3 -Wall -DNORMALUNIX -DLINUX -DSNDSERV -D_DEFAULT_SOURCE
 +CXXFLAGS+=$(CFLAGS) --std=c++20
 +LDFLAGS+=
-+LIBS+=
++LIBS+=-lgui -linput -lstdc++
 +
 +# subdirectory for objects
 +OBJDIR=build-$(BANAN_ARCH)
@@ -75,12 +73,13 @@ index 0000000..453bed7
 +
 +print:
 +	@echo OBJS: $(OBJS)
+\ No newline at end of file
 diff --git a/doomgeneric/doomgeneric_banan_os.cpp b/doomgeneric/doomgeneric_banan_os.cpp
 new file mode 100644
-index 0000000..e32c861
+index 0000000..9161771
 --- /dev/null
 +++ b/doomgeneric/doomgeneric_banan_os.cpp
-@@ -0,0 +1,224 @@
+@@ -0,0 +1,144 @@
 +extern "C"
 +{
 +#include "doomgeneric.h"
@@ -97,161 +96,81 @@ index 0000000..e32c861
 +#include <sys/mman.h>
 +#include <time.h>
 +
-+#include <BAN/Math.h>
-+#include <kernel/Input/KeyEvent.h>
++#include <LibGUI/Window.h>
 +
-+extern "C"
-+{
++#define MIN(a, b) ((a) < (b) ? (a) : (b))
 +
-+static struct framebuffer_info_t s_fb_info;
-+static uint32_t* s_framebuffer = NULL;
-+
-+static int s_input_fd;
++static BAN::UniqPtr<LibGUI::Window> s_window;
 +
 +static constexpr size_t s_key_queue_size = 16;
 +static unsigned short s_key_queue[s_key_queue_size];
 +static size_t s_key_read_index = 0;
 +static size_t s_key_write_index = 0;
 +
-+void handle_key_input()
++extern "C"
 +{
-+	Kernel::Input::KeyEvent event;
-+	if (read(s_input_fd, &event, sizeof(event)) <= 0)
-+		return;
-+
-+	unsigned short doom_key = 0;
-+
-+	switch (event.keycode)
-+	{
-+		case 109:
-+			doom_key = KEY_ENTER;
-+			break;
-+		case 0:
-+			doom_key = KEY_ESCAPE;
-+			break;
-+		case 193:
-+			doom_key = KEY_LEFTARROW;
-+			break;
-+		case 192:
-+			doom_key = KEY_UPARROW;
-+			break;
-+		case 195:
-+			doom_key = KEY_RIGHTARROW;
-+			break;
-+		case 194:
-+			doom_key = KEY_DOWNARROW;
-+			break;
-+		case 160:
-+		case 165:
-+			doom_key = KEY_FIRE;
-+			break;
-+		case 163:
-+			doom_key = KEY_USE;
-+			break;
-+		case 128:
-+		case 140:
-+			doom_key = KEY_RSHIFT;
-+			break;
-+
-+		case 65: doom_key = tolower('Q'); break;
-+		case 66: doom_key = tolower('W'); break;
-+		case 67: doom_key = tolower('E'); break;
-+		case 68: doom_key = tolower('R'); break;
-+		case 69: doom_key = tolower('T'); break;
-+		case 70: doom_key = tolower('Y'); break;
-+		case 71: doom_key = tolower('U'); break;
-+		case 72: doom_key = tolower('I'); break;
-+		case 73: doom_key = tolower('O'); break;
-+		case 74: doom_key = tolower('P'); break;
-+
-+		case 97:  doom_key = tolower('A'); break;
-+		case 98:  doom_key = tolower('S'); break;
-+		case 99:  doom_key = tolower('D'); break;
-+		case 100: doom_key = tolower('F'); break;
-+		case 101: doom_key = tolower('G'); break;
-+		case 102: doom_key = tolower('H'); break;
-+		case 103: doom_key = tolower('J'); break;
-+		case 104: doom_key = tolower('K'); break;
-+		case 105: doom_key = tolower('L'); break;
-+
-+		case 130: doom_key = tolower('Z'); break;
-+		case 131: doom_key = tolower('X'); break;
-+		case 132: doom_key = tolower('C'); break;
-+		case 133: doom_key = tolower('V'); break;
-+		case 134: doom_key = tolower('B'); break;
-+		case 135: doom_key = tolower('N'); break;
-+		case 136: doom_key = tolower('M'); break;
-+	}
-+
-+	doom_key |= (int)event.pressed() << 8;
-+
-+	s_key_queue[s_key_write_index] = doom_key;
-+	s_key_write_index = (s_key_write_index + 1) % s_key_queue_size;
-+}
 +
 +void DG_Init()
 +{
-+	s_input_fd = open("/dev/input0", O_RDONLY | O_NONBLOCK);
-+	if (s_input_fd == -1)
-+	{
-+		perror("open");
-+		exit(1);
-+	}
++	s_window = MUST(LibGUI::Window::create(DOOMGENERIC_RESX, DOOMGENERIC_RESY, "DOOM"sv));
++	s_window->set_key_event_callback(
++		[](LibGUI::EventPacket::KeyEvent event)
++		{
++			unsigned short doom_key = 0;
++			switch (event.key)
++			{
++				case LibInput::Key::Enter:
++					doom_key = KEY_ENTER;
++					break;
++				case LibInput::Key::Escape:
++					doom_key = KEY_ESCAPE;
++					break;
++				case LibInput::Key::ArrowLeft:
++					doom_key = KEY_LEFTARROW;
++					break;
++				case LibInput::Key::ArrowUp:
++					doom_key = KEY_UPARROW;
++					break;
++				case LibInput::Key::ArrowRight:
++					doom_key = KEY_RIGHTARROW;
++					break;
++				case LibInput::Key::ArrowDown:
++					doom_key = KEY_DOWNARROW;
++					break;
++				case LibInput::Key::LeftCtrl:
++				case LibInput::Key::RightCtrl:
++					doom_key = KEY_FIRE;
++					break;
++				case LibInput::Key::Space:
++					doom_key = KEY_USE;
++					break;
++				case LibInput::Key::RightShift:
++					doom_key = KEY_RSHIFT;
++					break;
++				default:
++				{
++					const char* utf8 = LibInput::key_to_utf8(event.key, event.modifier);
++					if (utf8 && strlen(utf8) == 1 && isalpha(*utf8))
++						doom_key = tolower(*utf8);
++				}
++			}
 +
-+	int fd = open("/dev/fb0", O_RDWR);
-+	if (fd == -1)
-+	{
-+		perror("open");
-+		exit(1);
-+	}
++			if (doom_key == 0)
++				return;
 +
-+	if (pread(fd, &s_fb_info, sizeof(s_fb_info), -1) == -1)
-+	{
-+		perror("pread");
-+		exit(1);
-+	}
-+
-+	size_t bytes = s_fb_info.width * s_fb_info.height * (BANAN_FB_BPP / 8);
-+
-+	s_framebuffer = (uint32_t*)mmap(NULL, bytes, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-+	if (s_framebuffer == NULL)
-+	{
-+		perror("mmap");
-+		exit(1);
-+	}
-+
-+	memset(s_framebuffer, 0, bytes);
-+	msync(s_framebuffer, bytes, MS_SYNC);
-+
-+	if (tty_ctrl(STDIN_FILENO, TTY_CMD_UNSET, TTY_FLAG_ENABLE_INPUT) == -1)
-+	{
-+		perror("tty_ctrl");
-+		exit(1);
-+	}
-+
-+	atexit([]() { tty_ctrl(STDIN_FILENO, TTY_CMD_SET, TTY_FLAG_ENABLE_INPUT); });
++			s_key_queue[s_key_write_index] = doom_key | (int)event.pressed() << 8;
++			s_key_write_index = (s_key_write_index + 1) % s_key_queue_size;
++		}
++	);
 +}
 +
 +void DG_DrawFrame()
 +{
-+	if (s_framebuffer == NULL)
-+		return;
-+
-+	assert(BANAN_FB_BPP == 32);
-+
-+	for (size_t y = 0; y < BAN::Math::min<uint32_t>(s_fb_info.height, DOOMGENERIC_RESY); y++)
-+	{
-+		memcpy(
-+			s_framebuffer	+ y * s_fb_info.width,
-+			DG_ScreenBuffer	+ y * DOOMGENERIC_RESX,
-+			BAN::Math::min<uint32_t>(s_fb_info.width, DOOMGENERIC_RESX) * sizeof(uint32_t)
-+		);
-+	}
-+
-+	int ret = msync(s_framebuffer, s_fb_info.width * s_fb_info.height * 4, MS_SYNC);
-+	assert(ret != -1);
-+
-+	handle_key_input();
++	for (size_t y = 0; y < DOOMGENERIC_RESY; y++)
++		for (size_t x = 0; x < DOOMGENERIC_RESX; x++)
++			s_window->set_pixel(x, y, DG_ScreenBuffer[y * DOOMGENERIC_RESX + x]);
++	s_window->invalidate();
++	s_window->poll_events();
 +}
 +
 +void DG_SleepMs(uint32_t ms)
@@ -306,5 +225,5 @@ index 0000000..e32c861
 +
 +}
 -- 
-2.44.0
+2.45.2
 
