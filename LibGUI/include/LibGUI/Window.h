@@ -133,6 +133,8 @@ namespace LibGUI
 		void set_mouse_move_event_callback(BAN::Function<void(EventPacket::MouseMoveEvent)> callback)		{ m_mouse_move_event_callback = callback; }
 		void set_mouse_scroll_event_callback(BAN::Function<void(EventPacket::MouseScrollEvent)> callback)	{ m_mouse_scroll_event_callback = callback; }
 
+		int server_fd() const { return m_server_fd; }
+
 	private:
 		Window(int server_fd, uint32_t* framebuffer, uint32_t width, uint32_t height)
 			: m_server_fd(server_fd)

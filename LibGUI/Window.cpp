@@ -29,6 +29,9 @@ namespace LibGUI
 		if (server_fd == -1)
 			return BAN::Error::from_errno(errno);
 
+		if (fcntl(server_fd, F_SETFL, fcntl(server_fd, F_GETFL) | O_CLOEXEC) == -1)
+			return BAN::Error::from_errno(errno);
+
 		timespec start_time;
 		clock_gettime(CLOCK_MONOTONIC, &start_time);
 
