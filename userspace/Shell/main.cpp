@@ -337,9 +337,7 @@ BAN::Optional<int> execute_builtin(BAN::Vector<BAN::String>& args, int fd_in, in
 		if (pid == 0)
 			execl("/bin/WindowServer", "WindowServer", NULL);
 		if (fork() == 0)
-			execl("/bin/test-window", "test-window", NULL);
-		if (fork() == 0)
-			execl("/bin/test-window", "test-window", NULL);
+			execl("/bin/Terminal", "Terminal", NULL);
 		waitpid(pid, nullptr, 0);
 	}
 	else if (args.front() == "page-fault-test"sv)

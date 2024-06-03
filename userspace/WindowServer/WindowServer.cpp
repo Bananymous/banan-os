@@ -271,7 +271,7 @@ void WindowServer::invalidate(Rectangle area)
 	area = fb_overlap.release_value();
 
 	for (int32_t y = area.y; y < area.y + area.height; y++)
-		memset(&m_framebuffer.mmap[y * m_framebuffer.width + area.x], 0, area.width * 4);
+		memset(&m_framebuffer.mmap[y * m_framebuffer.width + area.x], 0x10, area.width * 4);
 
 	for (auto& pwindow : m_client_windows)
 	{

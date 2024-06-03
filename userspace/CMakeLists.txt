@@ -30,6 +30,7 @@ set(USERSPACE_PROJECTS
 	sudo
 	sync
 	tee
+	Terminal
 	test
 	test-framebuffer
 	test-globals
