@@ -1,5 +1,7 @@
 #include "LibGUI/Window.h"
 
+#include <LibFont/Font.h>
+
 #include <fcntl.h>
 #include <stdlib.h>
 #include <sys/banan-os.h>
@@ -86,13 +88,92 @@ namespace LibGUI
 		));
 	}
 
-	bool Window::invalidate()
+	void Window::fill_rect(int32_t x, int32_t y, uint32_t width, uint32_t height, uint32_t color)
 	{
+		if (!clamp_to_framebuffer(x, y, width, height))
+			return;
+		for (uint32_t y_off = 0; y_off < height; y_off++)
+			for (uint32_t x_off = 0; x_off < width; x_off++)
+				set_pixel(x + x_off, y + y_off, color);
+	}
+
+	void Window::draw_character(uint32_t codepoint, const LibFont::Font& font, int32_t tl_x, int32_t tl_y, uint32_t color)
+	{
+		if (tl_y + (int32_t)font.height() < 0 || tl_y >= (int32_t)height())
+			return;
+		if (tl_x + (int32_t)font.width() < 0 || tl_x >= (int32_t)width())
+			return;
+
+		auto glyph = font.glyph(codepoint);
+		if (glyph == nullptr)
+			return;
+
+		for (int32_t off_y = 0; off_y < (int32_t)font.height(); off_y++)
+		{
+			if (tl_y + off_y < 0)
+				continue;
+			uint32_t abs_y = tl_y + off_y;
+			if (abs_y >= height())
+				break;
+			for (int32_t off_x = 0; off_x < (int32_t)font.width(); off_x++)
+			{
+				if (tl_x + off_x < 0)
+					continue;
+				uint32_t abs_x = tl_x + off_x;
+				if (abs_x >= width())
+					break;
+				const uint8_t bitmask = 1 << (font.width() - off_x - 1);
+				if (glyph[off_y * font.pitch()] & bitmask)
+					set_pixel(abs_x, abs_y, color);
+			}
+		}
+	}
+
+	void Window::draw_text(BAN::StringView text, const LibFont::Font& font, int32_t tl_x, int32_t tl_y, uint32_t color)
+	{
+		for (size_t i = 0; i < text.size(); i++)
+			draw_character(text[i], font, tl_x + (int32_t)(i * font.width()), tl_y, color);
+	}
+
+	void Window::shift_vertical(int32_t amount)
+	{
+		uint32_t amount_abs = BAN::Math::abs(amount);
+		if (amount_abs == 0 || amount_abs >= height())
+			return;
+		uint32_t* dst = (amount > 0) ? m_framebuffer + width() * amount_abs : m_framebuffer;
+		uint32_t* src = (amount < 0) ? m_framebuffer + width() * amount_abs : m_framebuffer;
+		memmove(dst, src, width() * (height() - amount_abs) * 4);
+	}
+
+	bool Window::clamp_to_framebuffer(int32_t& signed_x, int32_t& signed_y, uint32_t& width, uint32_t& height) const
+	{
+		int32_t min_x = BAN::Math::max<int32_t>(signed_x, 0);
+		int32_t min_y = BAN::Math::max<int32_t>(signed_y, 0);
+		int32_t max_x = BAN::Math::min<int32_t>(this->width(), signed_x + (int32_t)width);
+		int32_t max_y = BAN::Math::min<int32_t>(this->height(), signed_y + (int32_t)height);
+
+		if (min_x >= max_x)
+			return false;
+		if (min_y >= max_y)
+			return false;
+
+		signed_x = min_x;
+		signed_y = min_y;
+		width = max_x - min_x;
+		height = max_y - min_y;
+		return true;
+	}
+
+	bool Window::invalidate(int32_t x, int32_t y, uint32_t width, uint32_t height)
+	{
+		if (!clamp_to_framebuffer(x, y, width, height))
+			return true;
+
 		WindowInvalidatePacket packet;
-		packet.x = 0;
-		packet.y = 0;
-		packet.width = m_width;
-		packet.height = m_height;
+		packet.x = x;
+		packet.y = y;
+		packet.width = width;
+		packet.height = height;
 		return send(m_server_fd, &packet, sizeof(packet), 0) == sizeof(packet);
 	}
 

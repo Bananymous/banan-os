@@ -13,7 +13,7 @@ add_custom_target(libgui-headers
 
 add_library(libgui ${LIBGUI_SOURCES})
 add_dependencies(libgui headers libc-install)
-target_link_libraries(libgui PUBLIC libc)
+target_link_libraries(libgui PUBLIC libc libfont)
 
 add_custom_target(libgui-install
 	COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_BINARY_DIR}/libgui.a ${BANAN_LIB}/

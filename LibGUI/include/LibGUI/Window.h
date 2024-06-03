@@ -10,6 +10,8 @@
 #include <limits.h>
 #include <stdint.h>
 
+namespace LibFont { class Font; }
+
 namespace LibGUI
 {
 
@@ -110,7 +112,16 @@ namespace LibGUI
 			m_framebuffer[y * m_width + x] = color;
 		}
 
-		bool invalidate();
+		void fill_rect(int32_t x, int32_t y, uint32_t width, uint32_t height, uint32_t color);
+		void fill(uint32_t color) { return fill_rect(0, 0, width(), height(), color); }
+
+		void draw_character(uint32_t codepoint, const LibFont::Font& font, int32_t x, int32_t y, uint32_t color);
+		void draw_text(BAN::StringView text, const LibFont::Font& font, int32_t x, int32_t y, uint32_t color);
+
+		void shift_vertical(int32_t amount);
+
+		bool invalidate(int32_t x, int32_t y, uint32_t width, uint32_t height);
+		bool invalidate() { return invalidate(0, 0, width(), height()); }
 
 		uint32_t width() const { return m_width; }
 		uint32_t height() const { return m_height; }
@@ -129,6 +140,8 @@ namespace LibGUI
 			, m_width(width)
 			, m_height(height)
 		{ }
+
+		bool clamp_to_framebuffer(int32_t& x, int32_t& y, uint32_t& width, uint32_t& height) const;
 
 	private:
 		int m_server_fd;
