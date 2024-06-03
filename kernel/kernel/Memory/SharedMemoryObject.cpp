@@ -45,6 +45,7 @@ namespace Kernel
 		Key key = generate_key();
 		while (m_objects.contains(key))
 			key = generate_key();
+		object->key = key;
 
 		TRY(m_objects.insert(key, object));
 		return key;
@@ -78,6 +79,12 @@ namespace Kernel
 		auto smo = TRY(BAN::UniqPtr<SharedMemoryObject>::create(object, page_table));
 		TRY(smo->initialize(address_range));
 		return BAN::move(smo);
+	}
+
+	BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> SharedMemoryObject::clone(PageTable& new_page_table)
+	{
+		auto region = TRY(SharedMemoryObjectManager::get().map_object(m_object->key, new_page_table, { .start = vaddr(), .end = vaddr() + size() }));
+		return BAN::UniqPtr<MemoryRegion>(BAN::move(region));
 	}
 
 	BAN::ErrorOr<bool> SharedMemoryObject::allocate_page_containing_impl(vaddr_t address)

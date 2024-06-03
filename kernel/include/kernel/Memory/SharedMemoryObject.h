@@ -32,6 +32,7 @@ namespace Kernel
 		{
 			~Object();
 
+			Key key;
 			size_t size;
 			PageTable::flags_t flags;
 			BAN::Vector<paddr_t> paddrs;
@@ -54,7 +55,7 @@ namespace Kernel
 	public:
 		static BAN::ErrorOr<BAN::UniqPtr<SharedMemoryObject>> create(BAN::RefPtr<SharedMemoryObjectManager::Object>, PageTable&, AddressRange);
 
-		virtual BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> clone(PageTable& new_page_table) override { return BAN::Error::from_errno(ENOTSUP); }
+		virtual BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> clone(PageTable& new_page_table) override;
 		virtual BAN::ErrorOr<void> msync(vaddr_t, size_t, int) override { return {}; }
 
 	protected:
