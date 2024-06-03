@@ -34,8 +34,10 @@ namespace BAN
 	template<typename T1, typename T2> struct either_or<true, T1, T2> { using type = T1; };
 	template<bool B, typename T1, typename T2> using either_or_t = typename either_or<B, T1, T2>::type;
 
-	struct true_type { static constexpr bool value = true; };
-	struct false_type { static constexpr bool value = false; };
+	template<typename T, T V> struct integral_constant { static constexpr T value = V; };
+	template<typename T, T V > inline constexpr T integral_constant_v = integral_constant<T, V>::value;
+	using true_type = integral_constant<bool, true>;
+	using false_type = integral_constant<bool, false>;
 
 	template<typename T, typename S>	struct is_same			: false_type {};
 	template<typename T>				struct is_same<T, T>	: true_type {};
@@ -86,9 +88,6 @@ namespace BAN
 
 	template<typename Base, typename Derived> struct is_base_of { static constexpr bool value = __is_base_of(Base, Derived); };
 	template<typename Base, typename Derived> inline constexpr bool is_base_of_v = is_base_of<Base, Derived>::value;
-
-	template<typename T, T V> struct integral_constant { static constexpr T value = V; };
-	template<typename T, T V > inline constexpr T integral_constant_v = integral_constant<T, V>::value;
 
 	namespace detail
 	{
