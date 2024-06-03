@@ -612,7 +612,7 @@ pid_t execute_command_no_wait(BAN::Vector<BAN::String>& args, int fd_in, int fd_
 				perror("setpgid");
 				exit(1);
 			}
-			if (tcsetpgrp(0, getpgrp()) == -1)
+			if (isatty(0) && tcsetpgrp(0, getpgrp()) == -1)
 			{
 				perror("tcsetpgrp");
 				exit(1);
@@ -644,7 +644,7 @@ int execute_command(BAN::Vector<BAN::String>& args, int fd_in, int fd_out)
 	if (waitpid(pid, &status, 0) == -1)
 		ERROR_RETURN("waitpid", 1);
 
-	if (tcsetpgrp(0, getpgrp()) == -1)
+	if (isatty(0) && tcsetpgrp(0, getpgrp()) == -1)
 		ERROR_RETURN("tcsetpgrp", 1);
 
 	if (WIFSIGNALED(status))
@@ -722,7 +722,7 @@ int execute_piped_commands(BAN::Vector<BAN::Vector<BAN::String>>& commands)
 			exit_codes[i] = WEXITSTATUS(status);
 	}
 
-	if (tcsetpgrp(0, getpgrp()) == -1)
+	if (isatty(0) && tcsetpgrp(0, getpgrp()) == -1)
 		ERROR_RETURN("tcsetpgrp", 1);
 
 	return exit_codes.back();
