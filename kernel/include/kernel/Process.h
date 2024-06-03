@@ -162,6 +162,8 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_smo_delete(SharedMemoryObjectManager::Key);
 		BAN::ErrorOr<long> sys_smo_map(SharedMemoryObjectManager::Key);
 
+		BAN::ErrorOr<long> sys_isatty(int fildes);
+
 		BAN::ErrorOr<long> sys_tty_ctrl(int fildes, int command, int flags);
 
 		BAN::ErrorOr<long> sys_signal(int, void (*)(int));

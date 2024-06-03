@@ -114,6 +114,11 @@ int dup2(int fildes, int fildes2)
 	return syscall(SYS_DUP2, fildes, fildes2);
 }
 
+int isatty(int fildes)
+{
+	return syscall(SYS_ISATTY, fildes) >= 0;
+}
+
 int execl(const char* pathname, const char* arg0, ...)
 {
 	if (arg0 == nullptr)

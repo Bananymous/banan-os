@@ -1433,6 +1433,15 @@ namespace Kernel
 		return m_mapped_regions.back()->vaddr();
 	}
 
+	BAN::ErrorOr<long> Process::sys_isatty(int fildes)
+	{
+		LockGuard _(m_process_lock);
+		auto inode = TRY(m_open_file_descriptors.inode_of(fildes));
+		if (!inode->is_tty())
+			return BAN::Error::from_errno(ENOTTY);
+		return 0;
+	}
+
 	BAN::ErrorOr<long> Process::sys_tty_ctrl(int fildes, int command, int flags)
 	{
 		LockGuard _(m_process_lock);
