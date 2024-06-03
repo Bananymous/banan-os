@@ -33,6 +33,7 @@ namespace Kernel
 
 	private:
 		UnixDomainSocket(SocketType, ino_t, const TmpInodeInfo&);
+		~UnixDomainSocket() { on_close_impl(); }
 
 		BAN::ErrorOr<void> add_packet(BAN::ConstByteSpan);
 
