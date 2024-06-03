@@ -220,6 +220,11 @@ namespace Kernel
 			ASSERT(signal >= _SIGMIN);
 			ASSERT(signal <= _SIGMAX);
 			ASSERT(signal < 64);
+			vaddr_t handler = m_signal_handlers[signal];
+			if (handler == (vaddr_t)SIG_IGN)
+				return;
+			if (handler == (vaddr_t)SIG_DFL && (signal == SIGCHLD || signal == SIGURG))
+				return;
 			if (signal < 32)
 				m_signal_pending_mask[0] |= (uint32_t)1 << signal;
 			else

@@ -195,8 +195,12 @@ namespace Kernel
 		{
 			SpinLockGuard _(s_process_lock);
 			for (size_t i = 0; i < s_processes.size(); i++)
+			{
+				if (m_parent && s_processes[i]->pid() == m_parent)
+					s_processes[i]->add_pending_signal(SIGCHLD);
 				if (s_processes[i] == this)
 					s_processes.remove(i);
+			}
 		}
 
 		ProcFileSystem::get().on_process_delete(*this);

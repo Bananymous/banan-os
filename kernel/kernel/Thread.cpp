@@ -279,8 +279,21 @@ namespace Kernel
 		auto& interrupt_stack = *reinterpret_cast<InterruptStack*>(kernel_stack_top() - sizeof(InterruptStack));
 		if (!GDT::is_user_segment(interrupt_stack.cs))
 			return false;
-		uint64_t full_pending_mask = m_signal_pending_mask | process().signal_pending_mask();;
-		return full_pending_mask & ~m_signal_block_mask;
+
+		uint64_t full_pending_mask = m_signal_pending_mask | process().signal_pending_mask();
+		uint64_t signals = full_pending_mask & ~m_signal_block_mask;
+		for (uint8_t i = 0; i < _SIGMAX; i++)
+		{
+			if (!(signals & ((uint64_t)1 << i)))
+				continue;
+			vaddr_t handler = m_process->m_signal_handlers[i];
+			if (handler == (vaddr_t)SIG_IGN)
+				continue;
+			if (handler == (vaddr_t)SIG_DFL && (i == SIGCHLD || i == SIGURG))
+				continue;
+			return true;
+		}
+		return false;
 	}
 
 	bool Thread::can_add_signal_to_execute() const
@@ -395,7 +408,14 @@ namespace Kernel
 	bool Thread::add_signal(int signal)
 	{
 		SpinLockGuard _(m_signal_lock);
-
+		if (m_process)
+		{
+			vaddr_t handler = m_process->m_signal_handlers[signal];
+			if (handler == (vaddr_t)SIG_IGN)
+				return false;
+			if (handler == (vaddr_t)SIG_DFL && (signal == SIGCHLD || signal == SIGURG))
+				return false;
+		}
 		uint64_t mask = 1ull << signal;
 		if (!(m_signal_block_mask & mask))
 		{
