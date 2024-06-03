@@ -101,5 +101,6 @@ namespace LibInput
 	};
 
 	const char* key_to_utf8(Key key, uint16_t modifier);
+	const char* key_to_utf8_ansi(Key key, uint16_t modifier);
 
 }
