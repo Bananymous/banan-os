@@ -4,6 +4,7 @@ project(libfont CXX)
 
 set(LIBGUI_SOURCES
 	Font.cpp
+	PSF.cpp
 )
 
 add_custom_target(libfont-headers

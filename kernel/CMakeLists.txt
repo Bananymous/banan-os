@@ -150,6 +150,7 @@ set(LIBELF_SOURCES
 
 set(LIBFONT_SOURCES
 	../LibFont/Font.cpp
+	../LibFont/PSF.cpp
 )
 
 set(LIBINPUT_SOURCE

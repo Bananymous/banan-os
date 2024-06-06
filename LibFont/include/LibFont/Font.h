@@ -3,6 +3,7 @@
 #include <BAN/ByteSpan.h>
 #include <BAN/HashMap.h>
 #include <BAN/StringView.h>
+#include <BAN/Vector.h>
 
 namespace LibFont
 {
@@ -10,7 +11,17 @@ namespace LibFont
 	class Font
 	{
 	public:
+		Font() = default;
+		Font(BAN::HashMap<uint32_t, uint32_t>&& glyph_offsets, BAN::Vector<uint8_t>&& glyph_data, uint32_t width, uint32_t height, uint32_t pitch)
+			: m_glyph_offsets(BAN::move(glyph_offsets))
+			, m_glyph_data(BAN::move(glyph_data))
+			, m_width(width)
+			, m_height(height)
+			, m_pitch(pitch)
+		{ }
+
 		static BAN::ErrorOr<Font> load(BAN::StringView path);
+		static BAN::ErrorOr<Font> load(BAN::ConstByteSpan font_data);
 #if __is_kernel
 		static BAN::ErrorOr<Font> prefs();
 #endif
@@ -27,10 +38,6 @@ namespace LibFont
 				return nullptr;
 			return m_glyph_data.data() + it->value;
 		}
-
-	private:
-		static BAN::ErrorOr<Font> parse_psf1(BAN::ConstByteSpan);
-		static BAN::ErrorOr<Font> parse_psf2(BAN::ConstByteSpan);
 
 	private:
 		BAN::HashMap<uint32_t, uint32_t> m_glyph_offsets;
