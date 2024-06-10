@@ -165,6 +165,22 @@ namespace Kernel::Input
 
 		for (int i = 0; i < event_count; i++)
 		{
+			if (!m_event_queue.empty() && m_event_queue.back().type == events[i].type)
+			{
+				if (events[i].type == MouseEventType::MouseMoveEvent)
+				{
+					m_event_queue.back().move_event.rel_x += events[i].move_event.rel_x;
+					m_event_queue.back().move_event.rel_y += events[i].move_event.rel_y;
+					continue;
+				}
+
+				if (events[i].type == MouseEventType::MouseScrollEvent)
+				{
+					m_event_queue.back().scroll_event.scroll += events[i].scroll_event.scroll;
+					continue;
+				}
+			}
+
 			if (m_event_queue.full())
 			{
 				dwarnln("PS/2 event queue full");
