@@ -31,6 +31,9 @@ namespace BAN
 		const T& front() const;
 		T& front();
 
+		const T& back() const;
+		T& back();
+
 		size_type size() const { return m_size; }
 		bool empty() const { return size() == 0; }
 		bool full() const { return size() == capacity(); }
@@ -96,6 +99,20 @@ namespace BAN
 	{
 		ASSERT(!empty());
 		return *element_at(m_first);
+	}
+
+	template<typename T, size_t S>
+	const T& CircularQueue<T, S>::back() const
+	{
+		ASSERT(!empty());
+		return *element_at((m_first + m_size - 1) % capacity());
+	}
+
+	template<typename T, size_t S>
+	T& CircularQueue<T, S>::back()
+	{
+		ASSERT(!empty());
+		return *element_at((m_first + m_size - 1) % capacity());
 	}
 
 	template<typename T, size_t S>
