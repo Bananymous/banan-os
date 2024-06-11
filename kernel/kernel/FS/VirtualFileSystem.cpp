@@ -1,7 +1,6 @@
 #include <BAN/ScopeGuard.h>
 #include <BAN/StringView.h>
 #include <kernel/FS/DevFS/FileSystem.h>
-#include <kernel/FS/Ext2/FileSystem.h>
 #include <kernel/FS/ProcFS/FileSystem.h>
 #include <kernel/FS/TmpFS/FileSystem.h>
 #include <kernel/FS/VirtualFileSystem.h>
@@ -11,13 +10,12 @@
 namespace Kernel
 {
 
-	static VirtualFileSystem* s_instance = nullptr;
+	static BAN::RefPtr<VirtualFileSystem> s_instance;
 
 	void VirtualFileSystem::initialize(BAN::StringView root)
 	{
-		ASSERT(s_instance == nullptr);
-		s_instance = new VirtualFileSystem();
-		ASSERT(s_instance);
+		ASSERT(!s_instance);
+		s_instance = MUST(BAN::RefPtr<VirtualFileSystem>::create());
 
 		ASSERT(root.size() >= 5 && root.substring(0, 5) == "/dev/"sv);;
 		root = root.substring(5);
@@ -25,14 +23,14 @@ namespace Kernel
 		auto partition_inode = MUST(DevFileSystem::get().root_inode()->find_inode(root));
 		if (!partition_inode->is_device() || !static_cast<Device*>(partition_inode.ptr())->is_partition())
 			Kernel::panic("Specified root '/dev/{}' does not name a partition", root);
-		s_instance->m_root_fs = MUST(Ext2FS::create(static_cast<BlockDevice*>(partition_inode.ptr())));
+		s_instance->m_root_fs = MUST(FileSystem::from_block_device(static_cast<BlockDevice*>(partition_inode.ptr())));
 
 		Credentials root_creds { 0, 0, 0, 0 };
 		MUST(s_instance->mount(root_creds, &DevFileSystem::get(), "/dev"sv));
 
 		MUST(s_instance->mount(root_creds, &ProcFileSystem::get(), "/proc"sv));
 
-		auto* tmpfs = MUST(TmpFileSystem::create(1024, 0777, 0, 0));
+		auto tmpfs = MUST(TmpFileSystem::create(1024, 0777, 0, 0));
 		MUST(s_instance->mount(root_creds, tmpfs, "/tmp"sv));
 	}
 
@@ -52,19 +50,18 @@ namespace Kernel
 		if (!device->mode().ifblk())
 			return BAN::Error::from_errno(ENOTBLK);
 
-		auto* block_device = static_cast<BlockDevice*>(device);
-		auto* file_system = TRY(Ext2FS::create(block_device));
+		auto file_system = TRY(FileSystem::from_block_device(static_cast<BlockDevice*>(device)));
 		return mount(credentials, file_system, target);
 	}
 
-	BAN::ErrorOr<void> VirtualFileSystem::mount(const Credentials& credentials, FileSystem* file_system, BAN::StringView path)
+	BAN::ErrorOr<void> VirtualFileSystem::mount(const Credentials& credentials, BAN::RefPtr<FileSystem> file_system, BAN::StringView path)
 	{
 		auto file = TRY(file_from_absolute_path(credentials, path, true));
 		if (!file.inode->mode().ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
 
 		LockGuard _(m_mutex);
-		TRY(m_mount_points.push_back({ file, file_system }));
+		TRY(m_mount_points.push_back({ file_system, file  }));
 		return {};
 	}
 

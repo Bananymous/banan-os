@@ -9,15 +9,34 @@
 namespace Kernel
 {
 
-	BAN::ErrorOr<Ext2FS*> Ext2FS::create(BAN::RefPtr<BlockDevice> block_device)
+	BAN::ErrorOr<bool> Ext2FS::probe(BAN::RefPtr<BlockDevice> block_device)
 	{
-		Ext2FS* ext2fs = new Ext2FS(block_device);
-		if (ext2fs == nullptr)
-			return BAN::Error::from_errno(ENOMEM);
-		BAN::ScopeGuard guard([ext2fs] { delete ext2fs; });
+		Ext2::Superblock superblock;
+
+		// Read superblock from disk
+		{
+			const uint32_t sector_size = block_device->blksize();
+			ASSERT(1024 % sector_size == 0);
+
+			const uint32_t lba = 1024 / sector_size;
+			const uint32_t sector_count = BAN::Math::div_round_up<uint32_t>(sizeof(Ext2::Superblock), sector_size);
+
+			BAN::Vector<uint8_t> superblock_buffer;
+			TRY(superblock_buffer.resize(sector_count * sector_size));
+
+			TRY(block_device->read_blocks(lba, sector_count, BAN::ByteSpan(superblock_buffer.span())));
+
+			memcpy(&superblock, superblock_buffer.data(), sizeof(Ext2::Superblock));
+		}
+
+		return superblock.magic == Ext2::Enum::SUPER_MAGIC;
+	}
+
+	BAN::ErrorOr<BAN::RefPtr<Ext2FS>> Ext2FS::create(BAN::RefPtr<BlockDevice> block_device)
+	{
+		auto ext2fs = TRY(BAN::RefPtr<Ext2FS>::create(block_device));
 		TRY(ext2fs->initialize_superblock());
 		TRY(ext2fs->initialize_root_inode());
-		guard.disable();
 		return ext2fs;
 	}
 

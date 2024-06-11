@@ -45,7 +45,8 @@ namespace Kernel
 		};
 
 	public:
-		static BAN::ErrorOr<Ext2FS*> create(BAN::RefPtr<BlockDevice>);
+		static BAN::ErrorOr<bool> probe(BAN::RefPtr<BlockDevice>);
+		static BAN::ErrorOr<BAN::RefPtr<Ext2FS>> create(BAN::RefPtr<BlockDevice>);
 
 		virtual BAN::RefPtr<Inode> root_inode() override { return m_root_inode; }
 
@@ -120,6 +121,7 @@ namespace Kernel
 		Ext2::Superblock m_superblock;
 
 		friend class Ext2Inode;
+		friend class BAN::RefPtr<Ext2FS>;
 	};
 
 }

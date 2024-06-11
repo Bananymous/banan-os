@@ -32,6 +32,7 @@ set(KERNEL_SOURCES
 	kernel/FS/DevFS/FileSystem.cpp
 	kernel/FS/Ext2/FileSystem.cpp
 	kernel/FS/Ext2/Inode.cpp
+	kernel/FS/FileSystem.cpp
 	kernel/FS/Inode.cpp
 	kernel/FS/Pipe.cpp
 	kernel/FS/ProcFS/FileSystem.cpp
