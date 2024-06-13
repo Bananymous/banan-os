@@ -12,18 +12,18 @@ namespace Kernel
 
 	static BAN::RefPtr<VirtualFileSystem> s_instance;
 
-	void VirtualFileSystem::initialize(BAN::StringView root)
+	void VirtualFileSystem::initialize(BAN::StringView root_path)
 	{
 		ASSERT(!s_instance);
 		s_instance = MUST(BAN::RefPtr<VirtualFileSystem>::create());
 
-		ASSERT(root.size() >= 5 && root.substring(0, 5) == "/dev/"sv);;
-		root = root.substring(5);
+		ASSERT(root_path.size() >= 5 && root_path.substring(0, 5) == "/dev/"sv);;
+		root_path = root_path.substring(5);
 
-		auto partition_inode = MUST(DevFileSystem::get().root_inode()->find_inode(root));
-		if (!partition_inode->is_device() || !static_cast<Device*>(partition_inode.ptr())->is_partition())
-			Kernel::panic("Specified root '/dev/{}' does not name a partition", root);
-		s_instance->m_root_fs = MUST(FileSystem::from_block_device(static_cast<BlockDevice*>(partition_inode.ptr())));
+		auto root_inode = MUST(DevFileSystem::get().root_inode()->find_inode(root_path));
+		if (!root_inode->mode().ifblk())
+			Kernel::panic("Specified root '/dev/{}' does not name a block device", root_path);
+		s_instance->m_root_fs = MUST(FileSystem::from_block_device(static_cast<BlockDevice*>(root_inode.ptr())));
 
 		Credentials root_creds { 0, 0, 0, 0 };
 		MUST(s_instance->mount(root_creds, &DevFileSystem::get(), "/dev"sv));
