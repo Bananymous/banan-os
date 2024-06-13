@@ -138,10 +138,13 @@ namespace BAN
 	template<typename T>
 	Vector<T>& Vector<T>::operator=(const Vector<T>& other)
 	{
-		clear();
 		MUST(ensure_capacity(other.size()));
-		for (size_type i = 0; i < other.size(); i++)
+		for (size_type i = 0; i < BAN::Math::min(size(), other.size()); i++)
+			m_data[i] = other.m_data[i];
+		for (size_type i = size(); i < other.size(); i++)
 			new (m_data + i) T(other[i]);
+		for (size_type i = other.size(); i < size(); i++)
+			m_data[i].~T();
 		m_size = other.m_size;
 		return *this;
 	}
