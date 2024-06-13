@@ -66,7 +66,7 @@ int main(int argc, char** argv)
 
 		printf("  File: %s\n", argv[i]);
 		printf("  Size: %-15ld Blocks: %-10ld IO Block: %-6ld %s\n", st.st_size, st.st_blocks, st.st_blksize, type);
-		printf("Device: %lu,%-5lu Inode: %-11lu Links: %-5lu Device type: %lu,%lu\n", major(st.st_dev), minor(st.st_dev), st.st_ino, st.st_nlink, major(st.st_rdev), minor(st.st_rdev));
+		printf("Device: %lu,%-5lu Inode: %-11llu Links: %-5lu Device type: %lu,%lu\n", major(st.st_dev), minor(st.st_dev), st.st_ino, st.st_nlink, major(st.st_rdev), minor(st.st_rdev));
 		printf("Access: (%04o/%s)  Uid: %5d Gid: %5d\n", st.st_mode & (S_IRWXU | S_IRWXG | S_IRWXO | S_ISUID | S_ISGID | S_ISVTX), access, st.st_uid, st.st_gid);
 		printf("Access: "); print_timestamp(st.st_atim); printf("\n");
 		printf("Modify: "); print_timestamp(st.st_mtim); printf("\n");

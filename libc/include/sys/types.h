@@ -104,7 +104,7 @@ __BEGIN_DECLS
 
 #if !defined(__ino_t_defined) && (defined(__need_all_types) || defined(__need_ino_t))
 	#define __ino_t_defined 1
-	typedef unsigned long ino_t;
+	typedef unsigned long long ino_t;
 #endif
 #undef __need_ino_t
 
