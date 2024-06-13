@@ -42,6 +42,7 @@ namespace BAN
 	template<typename T, typename S>	struct is_same			: false_type {};
 	template<typename T>				struct is_same<T, T>	: true_type {};
 	template<typename T, typename S> inline constexpr bool is_same_v = is_same<T, S>::value;
+	template<typename T, typename S> concept same_as = BAN::is_same_v<T, S>;
 
 	template<typename T> struct is_lvalue_reference		: false_type {};
 	template<typename T> struct is_lvalue_reference<T&>	: true_type {};
