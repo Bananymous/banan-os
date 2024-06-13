@@ -39,6 +39,7 @@ You can find a live demo [here](https://bananymous.com/banan-os)
 #### Filesystems
 - [x] Virtual filesystem
 - [x] Ext2
+- [x] FAT12/16/32
 - [x] Dev
 - [x] Ram
 - [x] Proc

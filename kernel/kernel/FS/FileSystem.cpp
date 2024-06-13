@@ -1,4 +1,5 @@
 #include <kernel/FS/Ext2/FileSystem.h>
+#include <kernel/FS/FAT/FileSystem.h>
 #include <kernel/FS/FileSystem.h>
 
 namespace Kernel
@@ -8,6 +9,8 @@ namespace Kernel
     {
         if (auto res = Ext2FS::probe(block_device); !res.is_error() && res.value())
             return BAN::RefPtr<FileSystem>(TRY(Ext2FS::create(block_device)));
+        if (auto res = FATFS::probe(block_device); !res.is_error() && res.value())
+            return BAN::RefPtr<FileSystem>(TRY(FATFS::create(block_device)));
         dprintln("Unsupported filesystem");
         return BAN::Error::from_errno(ENOTSUP);
     }
