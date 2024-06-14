@@ -1,5 +1,6 @@
 #pragma once
 
+#include <BAN/Limits.h>
 #include <BAN/Traits.h>
 
 #include <stddef.h>
@@ -63,6 +64,27 @@ namespace BAN::Math
 		if (value == 0)
 			return false;
 		return (value & (value - 1)) == 0;
+	}
+
+	template<BAN::integral T>
+	static constexpr bool will_multiplication_overflow(T a, T b)
+	{
+		if (a == 0 || b == 0)
+			return false;
+		if ((a > 0) == (b > 0))
+			return a > BAN::numeric_limits<T>::max() / b;
+		else
+			return a < BAN::numeric_limits<T>::min() / b;
+	}
+
+	template<BAN::integral T>
+	static constexpr bool will_addition_overflow(T a, T b)
+	{
+		if (a > 0 && b > 0)
+			return a > BAN::numeric_limits<T>::max() - b;
+		if (a < 0 && b < 0)
+			return a < BAN::numeric_limits<T>::min() - b;
+		return false;
 	}
 
 	template<typename T>

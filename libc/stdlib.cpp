@@ -65,34 +65,13 @@ static constexpr int get_base_digit(char c, int base)
 }
 
 template<BAN::integral T>
-static constexpr bool will_multiplication_overflow(T a, T b)
-{
-	if (a == 0 || b == 0)
-		return false;
-	if ((a > 0) == (b > 0))
-		return a > BAN::numeric_limits<T>::max() / b;
-	else
-		return a < BAN::numeric_limits<T>::min() / b;
-}
-
-template<BAN::integral T>
-static constexpr bool will_addition_overflow(T a, T b)
-{
-	if (a > 0 && b > 0)
-		return a > BAN::numeric_limits<T>::max() - b;
-	if (a < 0 && b < 0)
-		return a < BAN::numeric_limits<T>::min() - b;
-	return false;
-}
-
-template<BAN::integral T>
 static constexpr bool will_digit_append_overflow(bool negative, T current, int digit, int base)
 {
 	if (BAN::is_unsigned_v<T> && negative && digit)
 		return true;
-	if (will_multiplication_overflow<T>(current, base))
+	if (BAN::Math::will_multiplication_overflow<T>(current, base))
 		return true;
-	if (will_addition_overflow<T>(current * base, current < 0 ? -digit : digit))
+	if (BAN::Math::will_addition_overflow<T>(current * base, current < 0 ? -digit : digit))
 		return true;
 	return false;
 }
@@ -286,7 +265,7 @@ static T strtoT(const char* str, char** endp, int& error)
 		int extra_exponent = strtoT<int>(str + 1, &maybe_end, 10, exp_error);
 		if (exp_error != EINVAL)
 		{
-			if (exp_error == ERANGE || will_addition_overflow(exponent, extra_exponent))
+			if (exp_error == ERANGE || BAN::Math::will_addition_overflow(exponent, extra_exponent))
 				exponent = negative ? BAN::numeric_limits<int>::min() : BAN::numeric_limits<int>::max();
 			else
 				exponent += extra_exponent;
