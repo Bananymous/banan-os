@@ -31,6 +31,11 @@ namespace LibImage
 					.a = static_cast<uint8_t>(a.a * a_mult + b.a * b_mult),
 				};
 			}
+
+			uint32_t as_rgba() const
+			{
+				return ((uint32_t)a << 24) | ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
+			}
 		};
 
 		enum class ResizeAlgorithm
