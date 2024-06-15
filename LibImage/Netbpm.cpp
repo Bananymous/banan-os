@@ -77,9 +77,9 @@ namespace LibImage
 		image_data = image_data.slice(1);
 		auto height = opt_height.value();
 
-		if (BAN::Math::will_multiplication_overflow<uint64_t>(width, height) || BAN::Math::will_multiplication_overflow<uint64_t>(width * height, 3))
+		if (!Image::validate_size(width, height))
 		{
-			fprintf(stddbg, "invalid Netbpm image (size is over 64 bits overflows)\n");
+			fprintf(stddbg, "invalid Netbpm image size\n");
 			return BAN::Error::from_errno(EINVAL);
 		}
 
