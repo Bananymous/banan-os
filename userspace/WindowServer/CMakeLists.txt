@@ -11,7 +11,7 @@ set(SOURCES
 
 add_executable(WindowServer ${SOURCES})
 target_compile_options(WindowServer PUBLIC -O2 -g)
-target_link_libraries(WindowServer PUBLIC libc ban libfont libgui libinput)
+target_link_libraries(WindowServer PUBLIC libc ban libfont libgui libimage libinput)
 
 add_custom_target(WindowServer-install
 	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/WindowServer ${BANAN_BIN}/

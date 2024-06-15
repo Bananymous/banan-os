@@ -11,6 +11,15 @@
 #include <sys/mman.h>
 #include <sys/socket.h>
 
+BAN::ErrorOr<void> WindowServer::set_background_image(BAN::UniqPtr<LibImage::Image> image)
+{
+	if (image->width() != (uint64_t)m_framebuffer.width || image->height() != (uint64_t)m_framebuffer.height)
+		image = TRY(image->resize(m_framebuffer.width, m_framebuffer.height));
+	m_background_image = BAN::move(image);
+	invalidate(m_framebuffer.area());
+	return {};
+}
+
 void WindowServer::on_window_packet(int fd, LibGUI::WindowPacket packet)
 {
 	switch (packet.type)
@@ -270,8 +279,19 @@ void WindowServer::invalidate(Rectangle area)
 		return;
 	area = fb_overlap.release_value();
 
-	for (int32_t y = area.y; y < area.y + area.height; y++)
-		memset(&m_framebuffer.mmap[y * m_framebuffer.width + area.x], 0x10, area.width * 4);
+	if (m_background_image)
+	{
+		ASSERT(m_background_image->width() == (uint64_t)m_framebuffer.width);
+		ASSERT(m_background_image->height() == (uint64_t)m_framebuffer.height);
+		for (int32_t y = area.y; y < area.y + area.height; y++)
+			for (int32_t x = area.x; x < area.x + area.width; x++)
+				m_framebuffer.mmap[y * m_framebuffer.width + x] = m_background_image->get_color(x, y).as_rgba();
+	}
+	else
+	{
+		for (int32_t y = area.y; y < area.y + area.height; y++)
+			memset(&m_framebuffer.mmap[y * m_framebuffer.width + area.x], 0x10, area.width * 4);
+	}
 
 	for (auto& pwindow : m_client_windows)
 	{

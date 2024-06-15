@@ -10,6 +10,7 @@
 
 #include <LibFont/Font.h>
 #include <LibGUI/Window.h>
+#include <LibImage/Image.h>
 #include <LibInput/KeyEvent.h>
 #include <LibInput/MouseEvent.h>
 
@@ -25,6 +26,8 @@ public:
 	{
 		invalidate(m_framebuffer.area());
 	}
+
+	BAN::ErrorOr<void> set_background_image(BAN::UniqPtr<LibImage::Image>);
 
 	void on_window_packet(int fd, LibGUI::WindowPacket);
 
@@ -49,6 +52,8 @@ private:
 	Framebuffer& m_framebuffer;
 	BAN::Vector<BAN::RefPtr<Window>> m_client_windows;
 	BAN::Vector<int> m_client_fds;
+
+	BAN::UniqPtr<LibImage::Image> m_background_image;
 
 	bool m_is_mod_key_held { false };
 	bool m_is_moving_window { false };

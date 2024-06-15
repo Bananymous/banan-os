@@ -1,6 +1,7 @@
 #include "WindowServer.h"
 
 #include <BAN/Debug.h>
+#include <BAN/ScopeGuard.h>
 
 #include <LibGUI/Window.h>
 #include <LibInput/KeyboardLayout.h>
@@ -14,6 +15,88 @@
 #include <sys/stat.h>
 #include <sys/un.h>
 #include <unistd.h>
+
+struct Config
+{
+	BAN::UniqPtr<LibImage::Image> background_image;
+};
+
+BAN::Optional<BAN::String> file_read_line(FILE* file)
+{
+	BAN::String line;
+
+	char buffer[128];
+	while (fgets(buffer, sizeof(buffer), file))
+	{
+		MUST(line.append(buffer));
+		if (line.back() == '\n')
+		{
+			line.pop_back();
+			return BAN::move(line);
+		}
+	}
+
+	if (line.empty())
+		return {};
+	return BAN::move(line);
+}
+
+Config parse_config()
+{
+	Config config;
+
+	auto home_env = getenv("HOME");
+	if (!home_env)
+	{
+		dprintln("HOME environment variable not set");
+		return config;
+	}
+
+	auto config_path = BAN::String::formatted("{}/.config/WindowServer.conf", home_env);
+	FILE* fconfig = fopen(config_path.data(), "r");
+	if (!fconfig)
+	{
+		dprintln("Could not open '{}'", config_path);
+		return config;
+	}
+
+	BAN::ScopeGuard _([fconfig] { fclose(fconfig); });
+
+	while (true)
+	{
+		auto line = file_read_line(fconfig);
+		if (!line.has_value())
+			break;
+		if (line->empty())
+			continue;
+
+		auto parts = MUST(line->sv().split('='));
+		if (parts.size() != 2)
+		{
+			dwarnln("Invalid config line: {}", line.value());
+			break;
+		}
+
+		auto variable = parts[0];
+		auto value = parts[1];
+
+		if (variable == "bg"sv)
+		{
+			auto image = LibImage::Image::load_from_file(value);
+			if (image.is_error())
+				dwarnln("Could not load image: {}", image.error());
+			else
+				config.background_image = image.release_value();
+		}
+		else
+		{
+			dwarnln("Unknown config variable: {}", variable);
+			break;
+		}
+	}
+
+	return config;
+}
 
 int open_server_fd()
 {
@@ -91,7 +174,13 @@ int main()
 	window_packet_sizes[LibGUI::WindowPacketType::Invalidate]	= sizeof(LibGUI::WindowInvalidatePacket);
 	static_assert(LibGUI::WindowPacketType::COUNT == 3);
 
+	auto config = parse_config();
+
 	WindowServer window_server(framebuffer);
+	if (config.background_image)
+		if (auto ret = window_server.set_background_image(BAN::move(config.background_image)); ret.is_error())
+			dwarnln("Could not set background image: {}", ret.error());
+
 	while (!window_server.is_stopped())
 	{
 		int max_fd = server_fd;
