@@ -36,13 +36,14 @@ namespace LibImage
 		enum class ResizeAlgorithm
 		{
 			Nearest,
-			Bilinear,
+			Linear,
+			Cubic,
 		};
 
 	public:
 		static BAN::ErrorOr<BAN::UniqPtr<Image>> load_from_file(BAN::StringView path);
 
-		BAN::ErrorOr<BAN::UniqPtr<Image>> resize(uint64_t new_width, uint64_t new_height, ResizeAlgorithm = ResizeAlgorithm::Bilinear);
+		BAN::ErrorOr<BAN::UniqPtr<Image>> resize(uint64_t new_width, uint64_t new_height, ResizeAlgorithm = ResizeAlgorithm::Cubic);
 
 		Color get_color(uint64_t x, uint64_t y) const { return m_bitmap[y * width() + x]; }
 		const BAN::Vector<Color> bitmap() const { return m_bitmap; }

@@ -76,6 +76,37 @@ namespace LibImage
 		return BAN::Error::from_errno(ENOTSUP);
 	}
 
+
+	struct FloatingColor
+	{
+		double r, g, b, a;
+
+		constexpr FloatingColor() {}
+		constexpr FloatingColor(double r, double g, double b, double a)
+			: r(r), g(g), b(b), a(a)
+		{}
+		constexpr FloatingColor(Image::Color c)
+			: r(c.r), g(c.g), b(c.b), a(c.a)
+		{}
+		constexpr FloatingColor operator*(double value) const
+		{
+			return FloatingColor(r * value, g * value, b * value, a * value);
+		}
+		constexpr FloatingColor operator+(FloatingColor other) const
+		{
+			return FloatingColor(r + other.r, g + other.g, b + other.b, a + other.a);
+		}
+		constexpr Image::Color as_color() const
+		{
+			return Image::Color {
+				.r = static_cast<uint8_t>(BAN::Math::clamp<double>(r, 0.0, 255.0)),
+				.g = static_cast<uint8_t>(BAN::Math::clamp<double>(g, 0.0, 255.0)),
+				.b = static_cast<uint8_t>(BAN::Math::clamp<double>(b, 0.0, 255.0)),
+				.a = static_cast<uint8_t>(BAN::Math::clamp<double>(a, 0.0, 255.0)),
+			};
+		}
+	};
+
 	BAN::ErrorOr<BAN::UniqPtr<Image>> Image::resize(uint64_t new_width, uint64_t new_height, ResizeAlgorithm algorithm)
 	{
 		if (!validate_size(new_width, new_height))
@@ -84,26 +115,26 @@ namespace LibImage
 		const double ratio_x = (double)width() / new_width;
 		const double ratio_y = (double)height() / new_height;
 
+		const auto get_clamped_color =
+			[this](int64_t x, int64_t y)
+			{
+				x = BAN::Math::clamp<int64_t>(x, 0, width() - 1);
+				y = BAN::Math::clamp<int64_t>(y, 0, height() - 1);
+				return get_color(x, y);
+			};
+
 		switch (algorithm)
 		{
 			case ResizeAlgorithm::Nearest:
 			{
 				BAN::Vector<Color> nearest_bitmap;
 				TRY(nearest_bitmap.resize(new_width * new_height));
-
 				for (uint64_t y = 0; y < new_height; y++)
-				{
 					for (uint64_t x = 0; x < new_width; x++)
-					{
-						const uint64_t nearest_x = BAN::Math::clamp<uint64_t>(x * ratio_x, 0, width() - 1);
-						const uint64_t nearest_y = BAN::Math::clamp<uint64_t>(y * ratio_y, 0, height() - 1);
-						nearest_bitmap[y * new_width + x] = get_color(nearest_x, nearest_y);
-					}
-				}
-
+						nearest_bitmap[y * new_width + x] = get_clamped_color(x * ratio_x, y * ratio_y);
 				return TRY(BAN::UniqPtr<Image>::create(new_width, new_height, BAN::move(nearest_bitmap)));
 			}
-			case ResizeAlgorithm::Bilinear:
+			case ResizeAlgorithm::Linear:
 			{
 				BAN::Vector<Color> bilinear_bitmap;
 				TRY(bilinear_bitmap.resize(new_width * new_height));
@@ -112,24 +143,67 @@ namespace LibImage
 				{
 					for (uint64_t x = 0; x < new_width; x++)
 					{
-						const double src_x_float = x * ratio_x;
-						const double src_y_float = y * ratio_y;
-						const double weight_x = src_x_float - floor(src_x_float);
-						const double weight_y = src_y_float - floor(src_y_float);
+						const double src_x = x * ratio_x;
+						const double src_y = y * ratio_y;
+						const double weight_x = src_x - floor(src_x);
+						const double weight_y = src_y - floor(src_y);
 
-						const uint64_t src_l = BAN::Math::clamp<uint64_t>(src_x_float, 0, width() - 1);
-						const uint64_t src_t = BAN::Math::clamp<uint64_t>(src_y_float, 0, height() - 1);
-
-						const uint64_t src_r = BAN::Math::clamp<uint64_t>(src_l + 1, 0, width() - 1);
-						const uint64_t src_b = BAN::Math::clamp<uint64_t>(src_t + 1, 0, height() - 1);
-
-						const Color avg_t = Color::average(get_color(src_l, src_t), get_color(src_r, src_t), weight_x);
-						const Color avg_b = Color::average(get_color(src_l, src_b), get_color(src_r, src_b), weight_x);
+						const Color avg_t = Color::average(
+							get_clamped_color(src_x + 0.0, src_y),
+							get_clamped_color(src_x + 1.0, src_y),
+							weight_x
+						);
+						const Color avg_b = Color::average(
+							get_clamped_color(src_x + 0.0, src_y + 1.0),
+							get_clamped_color(src_x + 0.0, src_y + 1.0),
+							weight_x
+						);
 						bilinear_bitmap[y * new_width + x] = Color::average(avg_t, avg_b, weight_y);
 					}
 				}
 
 				return TRY(BAN::UniqPtr<Image>::create(new_width, new_height, BAN::move(bilinear_bitmap)));
+			}
+			case ResizeAlgorithm::Cubic:
+			{
+				BAN::Vector<Color> bicubic_bitmap;
+				TRY(bicubic_bitmap.resize(new_width * new_height));
+
+				constexpr auto cubic_interpolate =
+					[](FloatingColor p[4], double x)
+					{
+						const auto a = (p[0] * -0.5) + (p[1] *  1.5) + (p[2] * -1.5) + (p[3] *  0.5);
+						const auto b =  p[0]         + (p[1] * -2.5) + (p[2] *  2.0) + (p[3] * -0.5);
+						const auto c = (p[0] * -0.5)                 + (p[2] *  0.5);
+						const auto d =                  p[1];
+						return (a * x * x * x) + (b * x * x) + (c * x) + d;
+					};
+
+				for (uint64_t y = 0; y < new_height; y++)
+				{
+					for (uint64_t x = 0; x < new_width; x++)
+					{
+						const double src_x = x * ratio_x;
+						const double src_y = y * ratio_y;
+						const double weight_x = src_x - floor(src_x);
+						const double weight_y = src_y - floor(src_y);
+
+						FloatingColor values[4];
+						for (int64_t m = -1; m <= 2; m++)
+						{
+							FloatingColor p[4];
+							p[0] = get_clamped_color(src_x - 1.0, src_y + m);
+							p[1] = get_clamped_color(src_x + 0.0, src_y + m);
+							p[2] = get_clamped_color(src_x + 1.0, src_y + m);
+							p[3] = get_clamped_color(src_x + 2.0, src_y + m);
+							values[m + 1] = cubic_interpolate(p, weight_x);
+						}
+
+						bicubic_bitmap[y * new_width + x] = cubic_interpolate(values, weight_y).as_color();
+					}
+				}
+
+				return TRY(BAN::UniqPtr<Image>::create(new_width, new_height, BAN::move(bicubic_bitmap)));
 			}
 		}
 
