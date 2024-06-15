@@ -7,7 +7,7 @@
 #include <sys/mman.h>
 #include <unistd.h>
 
-void render_to_framebuffer(const LibImage::Image& image)
+void render_to_framebuffer(BAN::UniqPtr<LibImage::Image> image, bool scale)
 {
 	int fd = open("/dev/fb0", O_RDWR);
 	if (fd == -1)
@@ -23,6 +23,9 @@ void render_to_framebuffer(const LibImage::Image& image)
 		exit(1);
 	}
 
+	if (scale)
+		image = MUST(image->resize(fb_info.width, fb_info.height));
+
 	ASSERT(BANAN_FB_BPP == 24 || BANAN_FB_BPP == 32);
 
 	size_t mmap_size = fb_info.height * fb_info.width * BANAN_FB_BPP / 8;
@@ -36,16 +39,16 @@ void render_to_framebuffer(const LibImage::Image& image)
 
 	uint8_t* u8_fb = reinterpret_cast<uint8_t*>(mmap_addr);
 
-	const auto& bitmap = image.bitmap();
-	for (uint64_t y = 0; y < BAN::Math::min<uint64_t>(image.height(), fb_info.height); y++)
+	const auto& bitmap = image->bitmap();
+	for (uint64_t y = 0; y < BAN::Math::min<uint64_t>(image->height(), fb_info.height); y++)
 	{
-		for (uint64_t x = 0; x < BAN::Math::min<uint64_t>(image.width(), fb_info.width); x++)
+		for (uint64_t x = 0; x < BAN::Math::min<uint64_t>(image->width(), fb_info.width); x++)
 		{
-			u8_fb[(y * fb_info.width + x) * BANAN_FB_BPP / 8 + 0] = bitmap[y * image.width() + x].r;
-			u8_fb[(y * fb_info.width + x) * BANAN_FB_BPP / 8 + 1] = bitmap[y * image.width() + x].g;
-			u8_fb[(y * fb_info.width + x) * BANAN_FB_BPP / 8 + 2] = bitmap[y * image.width() + x].b;
+			u8_fb[(y * fb_info.width + x) * BANAN_FB_BPP / 8 + 0] = bitmap[y * image->width() + x].b;
+			u8_fb[(y * fb_info.width + x) * BANAN_FB_BPP / 8 + 1] = bitmap[y * image->width() + x].g;
+			u8_fb[(y * fb_info.width + x) * BANAN_FB_BPP / 8 + 2] = bitmap[y * image->width() + x].r;
 			if constexpr(BANAN_FB_BPP == 32)
-				u8_fb[(y * fb_info.width + x) * BANAN_FB_BPP / 8 + 3] = bitmap[y * image.width() + x].a;
+				u8_fb[(y * fb_info.width + x) * BANAN_FB_BPP / 8 + 3] = bitmap[y * image->width() + x].a;
 		}
 	}
 
@@ -62,22 +65,31 @@ void render_to_framebuffer(const LibImage::Image& image)
 int usage(char* arg0, int ret)
 {
 	FILE* out = (ret == 0) ? stdout : stderr;
-	fprintf(out, "usage: %s IMAGE_PATH\n", arg0);
+	fprintf(out, "usage: %s [options]... IMAGE_PATH\n", arg0);
+	fprintf(out, "options:\n");
+	fprintf(out, "    -h, --help:   show this message and exit\n");
+	fprintf(out, "    -s, --scale:  scale image to framebuffer size\n");
 	return ret;
 }
 
 int main(int argc, char** argv)
 {
-	if (argc != 2)
+	if (argc < 2)
 		return usage(argv[0], 1);
 
-	auto image_or_error = LibImage::Image::load_from_file(argv[1]);
-	if (image_or_error.is_error())
-		return 1;
-	auto image = image_or_error.release_value();
-	ASSERT(image);
+	bool scale = false;
+	for (int i = 1; i < argc - 1; i++)
+	{
+		if (strcmp(argv[i], "-s") == 0 || strcmp(argv[i], "--scale") == 0)
+			scale = true;
+		else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0)
+			return usage(argv[0], 0);
+		else
+			return usage(argv[0], 1);
+	}
 
-	render_to_framebuffer(*image);
+	auto image = MUST(LibImage::Image::load_from_file(argv[argc - 1]));
+	render_to_framebuffer(BAN::move(image), scale);
 
 	for (;;)
 		sleep(1);
