@@ -10,6 +10,7 @@ set(LIBC_SOURCES
 	fcntl.cpp
 	grp.cpp
 	malloc.cpp
+	netdb.cpp
 	printf_impl.cpp
 	pwd.cpp
 	scanf_impl.cpp

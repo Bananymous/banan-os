@@ -90,6 +90,7 @@ void				endservent(void);
 void				freeaddrinfo(struct addrinfo* ai);
 const char*			gai_strerror(int ecode);
 int					getaddrinfo(const char* __restrict nodename, const char* __restrict servname, const struct addrinfo* __restrict hints, struct addrinfo** __restrict res);
+struct hostent*		gethostbyname(const char* name);
 struct hostent*		gethostent(void);
 int					getnameinfo(const struct sockaddr* __restrict sa, socklen_t salen, char* __restrict node, socklen_t nodelen, char* __restrict service, socklen_t servicelen, int flags);
 struct netent*		getnetbyaddr(uint32_t net, int type);
