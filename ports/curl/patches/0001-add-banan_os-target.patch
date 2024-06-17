@@ -1,0 +1,12 @@
+diff -ruN curl-8.8.0/config.sub curl-patched/config.sub
+--- curl-8.8.0/config.sub	2023-03-13 00:39:42.000000000 +0200
++++ curl-patched/config.sub	2024-06-17 21:16:00.348556957 +0300
+@@ -1754,7 +1754,7 @@
+ 	     | onefs* | tirtos* | phoenix* | fuchsia* | redox* | bme* \
+ 	     | midnightbsd* | amdhsa* | unleashed* | emscripten* | wasi* \
+ 	     | nsk* | powerunix* | genode* | zvmoe* | qnx* | emx* | zephyr* \
+-	     | fiwix* )
++	     | fiwix* | banan_os* )
+ 		;;
+ 	# This one is extra strict with allowed versions
+ 	sco3.2v2 | sco3.2v[4-9]* | sco5v6*)
