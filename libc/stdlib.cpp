@@ -495,6 +495,32 @@ int putenv(char* string)
 	return 0;
 }
 
+void* bsearch(const void* key, const void* base, size_t nel, size_t width, int (*compar)(const void*, const void*))
+{
+	if (nel == 0)
+		return nullptr;
+
+	const uint8_t* base_u8 = reinterpret_cast<const uint8_t*>(base);
+
+	size_t l = 0;
+	size_t r = nel - 1;
+	while (l <= r)
+	{
+		const size_t mid = (l + r) / 2;
+
+		int res = compar(key, base_u8 + mid * width);
+		if (res == 0)
+			return const_cast<uint8_t*>(base_u8 + mid * width);
+
+		if (res < 0)
+			r = mid - 1;
+		else
+			l = mid + 1;
+	}
+
+	return nullptr;
+}
+
 static void qsort_swap(void* lhs, void* rhs, size_t width)
 {
 	uint8_t buffer[64];
