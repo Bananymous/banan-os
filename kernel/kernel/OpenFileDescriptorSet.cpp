@@ -95,8 +95,7 @@ namespace Kernel
 
 	BAN::ErrorOr<int> OpenFileDescriptorSet::socket(int domain, int type, int protocol)
 	{
-		if (protocol != 0)
-			return BAN::Error::from_errno(EPROTONOSUPPORT);
+		bool valid_protocol = true;
 
 		SocketDomain sock_domain;
 		switch (domain)
@@ -109,6 +108,7 @@ namespace Kernel
 				break;
 			case AF_UNIX:
 				sock_domain = SocketDomain::UNIX;
+				valid_protocol = false;
 				break;
 			default:
 				return BAN::Error::from_errno(EPROTOTYPE);
@@ -119,16 +119,24 @@ namespace Kernel
 		{
 			case SOCK_STREAM:
 				sock_type = SocketType::STREAM;
+				if (protocol != IPPROTO_TCP)
+					valid_protocol = false;
 				break;
 			case SOCK_DGRAM:
 				sock_type = SocketType::DGRAM;
+				if (protocol != IPPROTO_UDP)
+					valid_protocol = false;
 				break;
 			case SOCK_SEQPACKET:
 				sock_type = SocketType::SEQPACKET;
+				valid_protocol = false;
 				break;
 			default:
 				return BAN::Error::from_errno(EPROTOTYPE);
 		}
+
+		if (protocol && !valid_protocol)
+			return BAN::Error::from_errno(EPROTONOSUPPORT);
 
 		auto socket = TRY(NetworkManager::get().create_socket(sock_domain, sock_type, 0777, m_credentials.euid(), m_credentials.egid()));
 

@@ -128,7 +128,7 @@ namespace BAN
 		bool operator!=(RefPtr other) const { return m_pointer != other.m_pointer; }
 
 		bool empty() const { return m_pointer == nullptr; }
-		operator bool() const { return m_pointer; }
+		explicit operator bool() const { return m_pointer; }
 
 		void clear()
 		{

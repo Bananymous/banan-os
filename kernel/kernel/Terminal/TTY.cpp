@@ -361,7 +361,7 @@ namespace Kernel
 
 	bool TTY::is_initialized()
 	{
-		return s_tty;
+		return !!s_tty;
 	}
 
 }
