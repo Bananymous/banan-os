@@ -88,8 +88,20 @@ int main(int argc, char** argv)
 			return usage(argv[0], 1);
 	}
 
-	auto image = MUST(LibImage::Image::load_from_file(argv[argc - 1]));
-	render_to_framebuffer(BAN::move(image), scale);
+	auto image_path = BAN::StringView(argv[argc - 1]);
+
+	auto image_or_error = LibImage::Image::load_from_file(image_path);
+	if (image_or_error.is_error())
+	{
+		fprintf(stderr, "Could not load image '%.*s': %s\n",
+			(int)image_path.size(),
+			image_path.data(),
+			strerror(image_or_error.error().get_error_code())
+		);
+		return 1;
+	}
+
+	render_to_framebuffer(image_or_error.release_value(), scale);
 
 	for (;;)
 		sleep(1);
