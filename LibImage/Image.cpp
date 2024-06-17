@@ -3,6 +3,7 @@
 
 #include <LibImage/Image.h>
 #include <LibImage/Netbpm.h>
+#include <LibImage/PNG.h>
 
 #include <fcntl.h>
 #include <stdlib.h>
@@ -54,6 +55,9 @@ namespace LibImage
 
 		if (probe_netbpm(image_data_span))
 			return TRY(load_netbpm(image_data_span));
+
+		if (probe_png(image_data_span))
+			return TRY(load_png(image_data_span));
 
 		fprintf(stderr, "unrecognized image format\n");
 		return BAN::Error::from_errno(ENOTSUP);

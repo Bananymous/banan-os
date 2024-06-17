@@ -5,6 +5,7 @@ project(libimage CXX)
 set(LIBIMAGE_SOURCES
 	Image.cpp
 	Netbpm.cpp
+	PNG.cpp
 )
 
 add_custom_target(libimage-headers
