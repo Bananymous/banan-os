@@ -119,6 +119,8 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_chown(const char*, uid_t, gid_t);
 
 		BAN::ErrorOr<long> sys_socket(int domain, int type, int protocol);
+		BAN::ErrorOr<long> sys_getsockname(int socket, sockaddr* address, socklen_t* address_len);
+
 		BAN::ErrorOr<long> sys_accept(int socket, sockaddr* address, socklen_t* address_len);
 		BAN::ErrorOr<long> sys_bind(int socket, const sockaddr* address, socklen_t address_len);
 		BAN::ErrorOr<long> sys_connect(int socket, const sockaddr* address, socklen_t address_len);

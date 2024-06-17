@@ -139,6 +139,28 @@ namespace Kernel
 		return {};
 	}
 
+	BAN::ErrorOr<void> IPv4Layer::get_socket_address(BAN::RefPtr<NetworkSocket> socket, sockaddr* address, socklen_t* address_len)
+	{
+		if (*address_len < (socklen_t)sizeof(sockaddr_in))
+			return BAN::Error::from_errno(ENOBUFS);
+
+		sockaddr_in* in_addr = reinterpret_cast<sockaddr_in*>(address);
+
+		SpinLockGuard _(m_bound_socket_lock);
+		for (auto& [bound_port, bound_socket] : m_bound_sockets)
+		{
+			if (socket != bound_socket.lock())
+				continue;
+			// FIXME: sockets should have bound address
+			in_addr->sin_family = AF_INET;
+			in_addr->sin_port = bound_port;
+			in_addr->sin_addr.s_addr = INADDR_ANY;
+			return {};
+		}
+
+		return {};
+	}
+
 	BAN::ErrorOr<size_t> IPv4Layer::sendto(NetworkSocket& socket, BAN::ConstByteSpan buffer, const sockaddr* address, socklen_t address_len)
 	{
 		if (address->sa_family != AF_INET)

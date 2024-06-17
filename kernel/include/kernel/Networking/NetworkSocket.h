@@ -42,6 +42,7 @@ namespace Kernel
 		NetworkSocket(NetworkLayer&, ino_t, const TmpInodeInfo&);
 
 		virtual BAN::ErrorOr<long> ioctl_impl(int request, void* arg) override;
+		virtual BAN::ErrorOr<void> getsockname_impl(sockaddr*, socklen_t*) override;
 
 	protected:
 		NetworkLayer&		m_network_layer;

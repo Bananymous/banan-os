@@ -164,6 +164,14 @@ namespace Kernel
 		return recvfrom_impl(buffer, address, address_len);
 	};
 
+	BAN::ErrorOr<void> Inode::getsockname(sockaddr* address, socklen_t* address_len)
+	{
+		LockGuard _(m_mutex);
+		if (!mode().ifsock())
+			return BAN::Error::from_errno(ENOTSOCK);
+		return getsockname_impl(address, address_len);
+	}
+
 	BAN::ErrorOr<size_t> Inode::read(off_t offset, BAN::ByteSpan buffer)
 	{
 		LockGuard _(m_mutex);

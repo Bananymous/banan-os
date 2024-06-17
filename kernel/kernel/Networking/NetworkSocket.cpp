@@ -100,4 +100,10 @@ namespace Kernel
 		}
 	}
 
+	BAN::ErrorOr<void> NetworkSocket::getsockname_impl(sockaddr* address, socklen_t* address_len)
+	{
+		TRY(m_network_layer.get_socket_address(this, address, address_len));
+		return {};
+	}
+
 }
