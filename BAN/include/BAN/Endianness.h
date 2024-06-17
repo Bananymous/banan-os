@@ -108,4 +108,10 @@ namespace BAN
 		return host_to_big_endian(value);
 	}
 
+	template<integral T>
+	constexpr T network_endian_to_host(T value)
+	{
+		return big_endian_to_host(value);
+	}
+
 }
