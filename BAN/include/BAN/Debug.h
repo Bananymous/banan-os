@@ -22,7 +22,7 @@
 	do {														\
 		BAN::Formatter::print(__debug_putchar, "\e[33m");		\
 		BAN::Formatter::print(__debug_putchar, __VA_ARGS__);	\
-		BAN::Formatter::print(__debug_putchar, "\e[m");			\
+		BAN::Formatter::print(__debug_putchar, "\e[m\r\n");		\
 		fflush(stddbg);											\
 	} while(false)
 
@@ -30,7 +30,7 @@
 	do {														\
 		BAN::Formatter::print(__debug_putchar, "\e[31m");		\
 		BAN::Formatter::print(__debug_putchar, __VA_ARGS__);	\
-		BAN::Formatter::print(__debug_putchar, "\e[m");			\
+		BAN::Formatter::print(__debug_putchar, "\e[m\r\n");		\
 		fflush(stddbg);											\
 	} while(false)
 
