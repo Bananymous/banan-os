@@ -6,9 +6,9 @@
 #include <sys/cdefs.h>
 
 #ifdef NDEBUG
-	#define assert(ignore)((void) 0)
+	#define assert(ignore) ((void)0)
 #else
-	#define assert(expr) do { if (!(expr)) __assert_fail(#expr, __FILE__, __LINE__, __func__); } while (0)
+	#define assert(expr) ((expr) ? (void)0 : __assert_fail(#expr, __FILE__, __LINE__, __func__))
 #endif
 
 __BEGIN_DECLS
