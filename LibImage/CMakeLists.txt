@@ -16,6 +16,7 @@ add_custom_target(libimage-headers
 add_library(libimage ${LIBIMAGE_SOURCES})
 add_dependencies(libimage headers libc-install)
 target_link_libraries(libimage PUBLIC libc)
+target_compile_options(libimage PRIVATE -O3)
 
 add_custom_target(libimage-install
 	COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_BINARY_DIR}/libimage.a ${BANAN_LIB}/
