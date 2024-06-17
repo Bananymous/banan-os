@@ -5,6 +5,12 @@
 
 #include <ctype.h>
 
+#define DEBUG_PNG 0
+
+// PNG     https://www.w3.org/TR/png-3/
+// ZLIB    https://www.rfc-editor.org/rfc/rfc1950
+// DEFLATE https://www.rfc-editor.org/rfc/rfc1951
+
 namespace LibImage
 {
 
@@ -34,6 +40,15 @@ namespace LibImage
 		Adaptive = 0,
 	};
 
+	enum class FilterType : uint8_t
+	{
+		None = 0,
+		Sub = 1,
+		Up = 2,
+		Average = 3,
+		Paeth = 4,
+	};
+
 	enum class InterlaceMethod : uint8_t
 	{
 		NoInterlace = 0,
@@ -51,13 +66,6 @@ namespace LibImage
 		InterlaceMethod            interlace_method;
 	} __attribute__((packed));
 
-	struct PaletteEntry
-	{
-		uint8_t red;
-		uint8_t green;
-		uint8_t blue;
-	};
-
 	struct ZLibStream
 	{
 		uint8_t cm : 4;
@@ -73,10 +81,10 @@ namespace LibImage
 		BAN::ConstByteSpan data;
 	};
 
-	class BinaryBuffer
+	class BitBuffer
 	{
 	public:
-		BinaryBuffer(BAN::Vector<BAN::ConstByteSpan> data)
+		BitBuffer(BAN::Vector<BAN::ConstByteSpan> data)
 			: m_data(data)
 		{}
 
@@ -134,7 +142,6 @@ namespace LibImage
 		return reverse;
 	}
 
-	// https://www.rfc-editor.org/rfc/rfc1951
 	class HuffmanTree
 	{
 	public:
@@ -237,17 +244,44 @@ namespace LibImage
 	{
 	public:
 		DeflateDecoder(BAN::Vector<BAN::ConstByteSpan> data)
-			: m_buffer(BinaryBuffer(BAN::move(data)))
+			: m_buffer(BitBuffer(BAN::move(data)))
 		{}
 
-		BAN::ErrorOr<BAN::ConstByteSpan> decode_stream()
+		BAN::ErrorOr<BAN::ByteSpan> decode_stream()
 		{
 			while (!TRY(decode_block()))
 				continue;
-			return BAN::ConstByteSpan(m_decoded.span());
+
+			m_buffer.skip_to_byte_boundary();
+
+			uint32_t checksum = 0;
+			for (int i = 0; i < 4; i++)
+				checksum = (checksum << 8) | TRY(m_buffer.get_bits(8));
+
+			if (decoded_adler32() != checksum)
+			{
+				dwarnln_if(DEBUG_PNG, "decode checksum does not match");
+				return BAN::Error::from_errno(EINVAL);
+			}
+
+			return BAN::ByteSpan(m_decoded.span());
 		}
 
 	private:
+		uint32_t decoded_adler32() const
+		{
+			uint32_t a = 1;
+			uint32_t b = 0;
+
+			for (uint8_t byte : m_decoded)
+			{
+				a = (a + byte) % 65521;
+				b = (b + a) % 65521;
+			}
+
+			return (b << 16) | a;
+		}
+
 		BAN::ErrorOr<bool> decode_block()
 		{
 			bool bfinal = TRY(m_buffer.get_bits(1));
@@ -259,7 +293,7 @@ namespace LibImage
 				case 1: TRY(decode_type1()); break;
 				case 2: TRY(decode_type2()); break;
 				default:
-					dwarnln("Deflate block has invalid method {}", btype);
+					dwarnln_if(DEBUG_PNG, "Deflate block has invalid method {}", btype);
 					return BAN::Error::from_errno(EINVAL);
 			}
 
@@ -274,7 +308,7 @@ namespace LibImage
 			uint16_t nlen = TRY(m_buffer.get_bits(16));
 			if (len != 0xFFFF - nlen)
 			{
-				dwarnln("Deflate block uncompressed data length is invalid");
+				dwarnln_if(DEBUG_PNG, "Deflate block uncompressed data length is invalid");
 				return BAN::Error::from_errno(EINVAL);
 			}
 
@@ -423,14 +457,14 @@ namespace LibImage
 
 	private:
 		BAN::Vector<uint8_t> m_decoded;
-		BinaryBuffer m_buffer;
+		BitBuffer m_buffer;
 	};
 
 	BAN::ErrorOr<PNGChunk> read_and_take_chunk(BAN::ConstByteSpan& image_data)
 	{
 		if (image_data.size() < 12)
 		{
-			dwarnln("PNG stream does not contain any more chunks");
+			dwarnln_if(DEBUG_PNG, "PNG stream does not contain any more chunks");
 			return BAN::Error::from_errno(EINVAL);
 		}
 
@@ -439,7 +473,7 @@ namespace LibImage
 
 		if (image_data.size() < length + 8)
 		{
-			dwarnln("PNG stream does not contain any more chunks");
+			dwarnln_if(DEBUG_PNG, "PNG stream does not contain any more chunks");
 			return BAN::Error::from_errno(EINVAL);
 		}
 
@@ -448,7 +482,6 @@ namespace LibImage
 		result.name = BAN::StringView(image_data.as_span<const char>().data(), 4);
 		image_data = image_data.slice(4);
 
-		// skip chunk data
 		result.data = image_data.slice(0, length);
 		image_data = image_data.slice(length);
 
@@ -501,7 +534,7 @@ namespace LibImage
 	{
 		if (!probe_png(image_data))
 		{
-			dwarnln("Invalid PNG data");
+			dwarnln_if(DEBUG_PNG, "Invalid PNG data");
 			return BAN::Error::from_errno(EINVAL);
 		}
 		image_data = image_data.slice(8);
@@ -509,50 +542,59 @@ namespace LibImage
 		auto ihdr_chunk = TRY(read_and_take_chunk(image_data));
 		if (ihdr_chunk.name != "IHDR")
 		{
-			dwarnln("PNG stream does not start with IHDR chunk");
+			dwarnln_if(DEBUG_PNG, "PNG stream does not start with IHDR chunk");
 			return BAN::Error::from_errno(EINVAL);
 		}
 		if (ihdr_chunk.data.size() != sizeof(IHDR))
 		{
-			dwarnln("PNG stream has invalid IHDR chunk size: {}, expected {}", ihdr_chunk.data.size(), sizeof(IHDR));
+			dwarnln_if(DEBUG_PNG, "PNG stream has invalid IHDR chunk size: {}, expected {}", ihdr_chunk.data.size(), sizeof(IHDR));
 			return BAN::Error::from_errno(EINVAL);
 		}
 
 		const auto& ihdr = ihdr_chunk.data.as<const IHDR>();
 		if (ihdr.width == 0 || ihdr.height == 0 || ihdr.width > 0x7FFFFFFF || ihdr.height > 0x7FFFFFFF)
 		{
-			dwarnln("PNG IHDR has invalid size {}x{}", (uint32_t)ihdr.width, (uint32_t)ihdr.height);
+			dwarnln_if(DEBUG_PNG, "PNG IHDR has invalid size {}x{}", (uint32_t)ihdr.width, (uint32_t)ihdr.height);
 			return BAN::Error::from_errno(EINVAL);
 		}
 		if (!validate_ihdr_colour_type_and_bit_depth(ihdr))
 		{
-			dwarnln("PNG IHDR has invalid bit depth {} for colour type {}", ihdr.bit_depth, static_cast<uint8_t>(ihdr.colour_type));
+			dwarnln_if(DEBUG_PNG, "PNG IHDR has invalid bit depth {} for colour type {}", ihdr.bit_depth, static_cast<uint8_t>(ihdr.colour_type));
 			return BAN::Error::from_errno(EINVAL);
 		}
 		if (ihdr.compression_method != CompressionMethod::Deflate)
 		{
-			dwarnln("PNG IHDR has invalid compression method {}", static_cast<uint8_t>(ihdr.compression_method));
+			dwarnln_if(DEBUG_PNG, "PNG IHDR has invalid compression method {}", static_cast<uint8_t>(ihdr.compression_method));
 			return BAN::Error::from_errno(EINVAL);
 		}
 		if (ihdr.filter_method != FilterMethod::Adaptive)
 		{
-			dwarnln("PNG IHDR has invalid filter method {}", static_cast<uint8_t>(ihdr.filter_method));
+			dwarnln_if(DEBUG_PNG, "PNG IHDR has invalid filter method {}", static_cast<uint8_t>(ihdr.filter_method));
 			return BAN::Error::from_errno(EINVAL);
 		}
 		if (ihdr.interlace_method != InterlaceMethod::NoInterlace && ihdr.interlace_method != InterlaceMethod::Adam7)
 		{
-			dwarnln("PNG IHDR has invalid interlace method {}", static_cast<uint8_t>(ihdr.interlace_method));
+			dwarnln_if(DEBUG_PNG, "PNG IHDR has invalid interlace method {}", static_cast<uint8_t>(ihdr.interlace_method));
 			return BAN::Error::from_errno(EINVAL);
 		}
 
-		dprintln("Decoding {}x{} PNG image", (uint32_t)ihdr.width, (uint32_t)ihdr.height);
-		dprintln("  bit depth:          {}", ihdr.bit_depth);
-		dprintln("  colour type:        {}", static_cast<uint8_t>(ihdr.colour_type));
-		dprintln("  compression method: {}", static_cast<uint8_t>(ihdr.compression_method));
-		dprintln("  filter method:      {}", static_cast<uint8_t>(ihdr.filter_method));
-		dprintln("  interlace method:   {}", static_cast<uint8_t>(ihdr.interlace_method));
+		if (ihdr.interlace_method == InterlaceMethod::Adam7)
+		{
+			dwarnln_if(DEBUG_PNG, "PNG with interlacing is not supported");
+			return BAN::Error::from_errno(ENOTSUP);
+		}
 
-		BAN::Vector<PaletteEntry> palette;
+		const uint64_t image_width = ihdr.width;
+		const uint64_t image_height = ihdr.height;
+
+		dprintln_if(DEBUG_PNG, "Decoding {}x{} PNG image", image_width, image_height);
+		dprintln_if(DEBUG_PNG, "  bit depth:          {}", ihdr.bit_depth);
+		dprintln_if(DEBUG_PNG, "  colour type:        {}", static_cast<uint8_t>(ihdr.colour_type));
+		dprintln_if(DEBUG_PNG, "  compression method: {}", static_cast<uint8_t>(ihdr.compression_method));
+		dprintln_if(DEBUG_PNG, "  filter method:      {}", static_cast<uint8_t>(ihdr.filter_method));
+		dprintln_if(DEBUG_PNG, "  interlace method:   {}", static_cast<uint8_t>(ihdr.interlace_method));
+
+		BAN::Vector<Image::Color> palette;
 		BAN::Vector<BAN::ConstByteSpan> zlib_stream;
 
 		while (true)
@@ -562,35 +604,40 @@ namespace LibImage
 				chunk = ret.release_value();
 			else
 			{
-				dwarnln("PNG stream does not end with IEND chunk");
+				dwarnln_if(DEBUG_PNG, "PNG stream does not end with IEND chunk");
 				return BAN::Error::from_errno(EINVAL);
 			}
 
 			if (chunk.name == "IHDR"sv)
 			{
-				dwarnln("PNG stream has IDHR chunk defined multiple times");
+				dwarnln_if(DEBUG_PNG, "PNG stream has IDHR chunk defined multiple times");
 				return BAN::Error::from_errno(EINVAL);
 			}
 			else if (chunk.name == "PLTE"sv)
 			{
 				if (chunk.data.size() == 0 || chunk.data.size() % 3)
 				{
-					dwarnln("PNG PLTE has invalid data size {}", chunk.data.size());
+					dwarnln_if(DEBUG_PNG, "PNG PLTE has invalid data size {}", chunk.data.size());
 					return BAN::Error::from_errno(EINVAL);
 				}
 				if (!palette.empty())
 				{
-					dwarnln("PNG PLTE defined multiple times");
+					dwarnln_if(DEBUG_PNG, "PNG PLTE defined multiple times");
 					return BAN::Error::from_errno(EINVAL);
 				}
 				if (ihdr.colour_type != ColourType::IndexedColour && ihdr.colour_type != ColourType::Truecolour && ihdr.colour_type != ColourType::TruecolourAlpha)
 				{
-					dwarnln("PNG PLTE defined for colour type {} which does not use palette", static_cast<uint8_t>(ihdr.colour_type));
+					dwarnln_if(DEBUG_PNG, "PNG PLTE defined for colour type {} which does not use palette", static_cast<uint8_t>(ihdr.colour_type));
 					return BAN::Error::from_errno(EINVAL);
 				}
 				TRY(palette.resize(chunk.data.size() / 3));
-				for (size_t i = 0; i < palette.size(); i++)
-					palette[i] = chunk.data.as_span<const PaletteEntry>()[i];
+				for (size_t i = 0; i < palette.size(); i += 3)
+				{
+					palette[i].r = chunk.data[i + 0];
+					palette[i].g = chunk.data[i + 1];
+					palette[i].b = chunk.data[i + 2];
+					palette[i].a = 0xFF;
+				}
 			}
 			else if (chunk.name == "IDAT"sv)
 			{
@@ -604,12 +651,12 @@ namespace LibImage
 			{
 				auto data_sv = BAN::StringView(chunk.data.as_span<const char>().data(), chunk.data.size());
 				if (auto idx = data_sv.find('\0'); !idx.has_value())
-					dwarnln("PNG tEXt chunk does not contain null-byte");
+					dwarnln_if(DEBUG_PNG, "PNG tEXt chunk does not contain null-byte");
 				else
 				{
 					auto keyword = data_sv.substring(0, idx.value());
 					auto text = data_sv.substring(idx.value() + 1);
-					dprintln("'{}': '{}'", keyword, text);
+					dprintln_if(DEBUG_PNG, "'{}': '{}'", keyword, text);
 				}
 			}
 			else
@@ -617,35 +664,34 @@ namespace LibImage
 				bool ancillary = islower(chunk.name[0]);
 				if (!ancillary)
 				{
-					dwarnln("Unsupported critical chunk '{}'", chunk.name);
+					dwarnln_if(DEBUG_PNG, "Unsupported critical chunk '{}'", chunk.name);
 					return BAN::Error::from_errno(ENOTSUP);
 				}
-				dwarnln("Skipping unsupported ancillary chunk '{}'", chunk.name);
+				dwarnln_if(DEBUG_PNG, "Skipping unsupported ancillary chunk '{}'", chunk.name);
 			}
 		}
-
 
 		{
 			if (zlib_stream.empty() || zlib_stream.front().size() < 2)
 			{
-				dwarnln("PNG does not have zlib stream");
+				dwarnln_if(DEBUG_PNG, "PNG does not have zlib stream");
 				return BAN::Error::from_errno(EINVAL);
 			}
 			if (zlib_stream[0].as<const BAN::BigEndian<uint16_t>>() % 31)
 			{
-				dwarnln("PNG zlib stream checksum failed");
+				dwarnln_if(DEBUG_PNG, "PNG zlib stream checksum failed");
 				return BAN::Error::from_errno(EINVAL);
 			}
 
 			auto zlib_header = zlib_stream[0].as<const ZLibStream>();
 			if (zlib_header.fdict)
 			{
-				dwarnln("PNG IDAT zlib stream has fdict set");
+				dwarnln_if(DEBUG_PNG, "PNG IDAT zlib stream has fdict set");
 				return BAN::Error::from_errno(EINVAL);
 			}
 			if (zlib_header.cm != 8)
 			{
-				dwarnln("PNG IDAT has invalid zlib compression method {}", (uint8_t)zlib_header.cm);
+				dwarnln_if(DEBUG_PNG, "PNG IDAT has invalid zlib compression method {}", (uint8_t)zlib_header.cm);
 				return BAN::Error::from_errno(EINVAL);
 			}
 			zlib_stream[0] = zlib_stream[0].slice(2);
@@ -654,15 +700,161 @@ namespace LibImage
 		uint64_t total_size = 0;
 		for (auto stream : zlib_stream)
 			total_size += stream.size();
-		dprintln("PNG has {} byte zlib stream", total_size);
+		dprintln_if(DEBUG_PNG, "PNG has {} byte zlib stream", total_size);
 
 		DeflateDecoder decoder(BAN::move(zlib_stream));
-		auto decoded = TRY(decoder.decode_stream());
+		auto inflated_data = TRY(decoder.decode_stream());
 
-		dprintln("  uncompressed size {}", decoded.size());
-		dprintln("  compression ratio {}", (double)decoded.size() / total_size);
+		dprintln_if(DEBUG_PNG, "  uncompressed size {}", inflated_data.size());
+		dprintln_if(DEBUG_PNG, "  compression ratio {}", (double)inflated_data.size() / total_size);
 
-		return BAN::Error::from_errno(ENOTSUP);
+		uint8_t bits_per_channel = ihdr.bit_depth;
+		uint8_t channels = 0;
+		switch (ihdr.colour_type)
+		{
+			case ColourType::Greyscale:       channels = 1; break;
+			case ColourType::Truecolour:      channels = 3; break;
+			case ColourType::IndexedColour:   channels = 1; break;
+			case ColourType::GreyscaleAlpha:  channels = 2; break;
+			case ColourType::TruecolourAlpha: channels = 4; break;
+			default:
+				ASSERT_NOT_REACHED();
+		}
+
+		const auto extract_channel =
+			[&](auto& bit_buffer) -> uint8_t
+			{
+				uint16_t tmp = MUST(bit_buffer.get_bits(bits_per_channel));
+				switch (bits_per_channel)
+				{
+					case 1:  return tmp * 0xFF;
+					case 2:  return tmp * 0xFF / 3;
+					case 4:  return tmp * 0xFF / 15;
+					case 8:  return tmp;
+					case 16: return tmp & 0xFF; // NOTE: stored in big endian
+				}
+				ASSERT_NOT_REACHED();
+			};
+
+		const auto extract_color =
+			[&](auto& bit_buffer) -> Image::Color
+			{
+				uint8_t tmp;
+				switch (ihdr.colour_type)
+				{
+					case ColourType::Greyscale:
+						tmp = extract_channel(bit_buffer);
+						return Image::Color {
+							.r = tmp,
+							.g = tmp,
+							.b = tmp,
+							.a = 0xFF
+						};
+					case ColourType::Truecolour:
+						return Image::Color {
+							.r = extract_channel(bit_buffer),
+							.g = extract_channel(bit_buffer),
+							.b = extract_channel(bit_buffer),
+							.a = 0xFF
+						};
+					case ColourType::IndexedColour:
+						return palette[MUST(bit_buffer.get_bits(bits_per_channel))];
+					case ColourType::GreyscaleAlpha:
+						tmp = extract_channel(bit_buffer);
+						return Image::Color {
+							.r = tmp,
+							.g = tmp,
+							.b = tmp,
+							.a = extract_channel(bit_buffer)
+						};
+					case ColourType::TruecolourAlpha:
+						return Image::Color {
+							.r = extract_channel(bit_buffer),
+							.g = extract_channel(bit_buffer),
+							.b = extract_channel(bit_buffer),
+							.a = extract_channel(bit_buffer)
+						};
+				}
+				ASSERT_NOT_REACHED();
+			};
+
+		constexpr auto paeth_predictor =
+			[](int16_t a, int16_t b, int16_t c) -> uint8_t
+			{
+				int16_t p = a + b - c;
+				int16_t pa = BAN::Math::abs(p - a);
+				int16_t pb = BAN::Math::abs(p - b);
+				int16_t pc = BAN::Math::abs(p - c);
+				if (pa <= pb && pa <= pc)
+					return a;
+				if (pb <= pc)
+					return b;
+				return c;
+			};
+
+		const uint64_t bytes_per_scanline = BAN::Math::div_round_up<uint64_t>(image_width * channels * bits_per_channel, 8);
+		const uint64_t pitch = bytes_per_scanline + 1;
+
+		if (inflated_data.size() < pitch * image_height)
+		{
+			dwarnln_if(DEBUG_PNG, "PNG does not contain enough image data");
+			return BAN::Error::from_errno(ENODATA);
+		}
+
+		BAN::Vector<uint8_t> zero_scanline;
+		TRY(zero_scanline.resize(bytes_per_scanline, 0));
+
+		BAN::Vector<Image::Color> color_bitmap;
+		TRY(color_bitmap.resize(image_width * image_height));
+
+		BAN::Vector<BAN::ConstByteSpan> inflated_data_wrapper;
+		TRY(inflated_data_wrapper.push_back({}));
+
+		const uint8_t filter_offset = (bits_per_channel < 8) ? 1 : channels * (bits_per_channel / 8);
+
+		for (uint64_t y = 0; y < image_height; y++)
+		{
+			auto scanline       =           inflated_data.slice((y - 0) * pitch + 1, bytes_per_scanline);
+			auto scanline_above = (y > 0) ? inflated_data.slice((y - 1) * pitch + 1, bytes_per_scanline) : BAN::ConstByteSpan(zero_scanline.span());
+
+			auto filter_type = static_cast<FilterType>(inflated_data[y * pitch]);
+			switch (filter_type)
+			{
+				case FilterType::None:
+					break;
+				case FilterType::Sub:
+					for (uint64_t x = filter_offset; x < bytes_per_scanline; x++)
+						scanline[x] += scanline[x - filter_offset];
+					break;
+				case FilterType::Up:
+					for (uint64_t x = 0; x < bytes_per_scanline; x++)
+						scanline[x] += scanline_above[x];
+					break;
+				case FilterType::Average:
+					for (uint8_t i = 0; i < filter_offset; i++)
+						scanline[i] += scanline_above[i] / 2;
+					for (uint64_t x = filter_offset; x < bytes_per_scanline; x++)
+						scanline[x] += ((uint16_t)scanline[x - filter_offset] + (uint16_t)scanline_above[x]) / 2;
+					break;
+				case FilterType::Paeth:
+					for (uint8_t i = 0; i < filter_offset; i++)
+						scanline[i] += paeth_predictor(0, scanline_above[i], 0);
+					for (uint64_t x = filter_offset; x < bytes_per_scanline; x++)
+						scanline[x] += paeth_predictor(scanline[x - filter_offset], scanline_above[x], scanline_above[x - filter_offset]);
+					break;
+				default:
+					dwarnln_if(DEBUG_PNG, "invalid filter type {}", static_cast<uint8_t>(filter_type));
+					return BAN::Error::from_errno(EINVAL);
+			}
+
+			inflated_data_wrapper[0] = scanline;
+			BitBuffer bit_buffer(inflated_data_wrapper);
+
+			for (uint64_t x = 0; x < image_width; x++)
+				color_bitmap[y * image_width + x] = extract_color(bit_buffer);
+		}
+
+		return TRY(BAN::UniqPtr<Image>::create(image_width, image_height, BAN::move(color_bitmap)));
 	}
 
 }
