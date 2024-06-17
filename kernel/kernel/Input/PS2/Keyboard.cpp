@@ -204,7 +204,10 @@ namespace Kernel::Input
 		while (m_event_queue.empty())
 		{
 			m_event_lock.unlock(state);
-			TRY(Thread::current().block_or_eintr_indefinite(m_semaphore));
+			{
+				LockFreeGuard _(m_mutex);
+				TRY(Thread::current().block_or_eintr_indefinite(m_semaphore));
+			}
 			state = m_event_lock.lock();
 		}
 
