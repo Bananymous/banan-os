@@ -25,11 +25,26 @@ namespace BAN
 			: m_data(other.data())
 			, m_size(other.size())
 		{ }
+		ByteSpanGeneral(ByteSpanGeneral&& other)
+			: m_data(other.data())
+			, m_size(other.size())
+		{
+			other.m_data = nullptr;
+			other.m_size = 0;
+		}
 		template<bool C2>
 		ByteSpanGeneral(const ByteSpanGeneral<C2>& other) requires(CONST)
 			: m_data(other.data())
 			, m_size(other.size())
 		{ }
+		template<bool C2>
+		ByteSpanGeneral(ByteSpanGeneral<C2>&& other) requires(CONST)
+			: m_data(other.data())
+			, m_size(other.size())
+		{
+			other.m_data = nullptr;
+			other.m_size = 0;
+		}
 		ByteSpanGeneral(Span<uint8_t> other)
 			: m_data(other.data())
 			, m_size(other.size())
@@ -134,6 +149,8 @@ namespace BAN
 	private:
 		value_type* m_data { nullptr };
 		size_type m_size { 0 };
+
+		friend class ByteSpanGeneral<!CONST>;
 	};
 
 	using ByteSpan = ByteSpanGeneral<false>;
