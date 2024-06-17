@@ -21,3 +21,57 @@ time_t time(time_t* tloc)
 		*tloc = tp.tv_sec;
 	return tp.tv_sec;
 }
+
+struct tm* gmtime(const time_t* timer)
+{
+	static struct tm tm;
+
+	constexpr auto is_leap_year =
+		[](time_t year) -> bool
+		{
+			if (year % 400 == 0)
+				return true;
+			if (year % 100 == 0)
+				return false;
+			if (year % 4 == 0)
+				return true;
+			return false;
+		};
+
+	constexpr uint64_t month_days[] { 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365 };
+
+	time_t time = *timer;
+
+	tm.tm_sec  = time % 60; time /= 60;
+	tm.tm_min  = time % 60; time /= 60;
+	tm.tm_hour = time % 24; time /= 24;
+
+	time_t total_days = time;
+	tm.tm_wday = (total_days + 4) % 7;
+	tm.tm_year = 1970;
+	while (total_days >= 365U + is_leap_year(tm.tm_year))
+	{
+		total_days -= 365U + is_leap_year(tm.tm_year);
+		tm.tm_year++;
+	}
+
+	bool is_leap_day = is_leap_year(tm.tm_year) && total_days == month_days[2];
+	bool had_leap_day = is_leap_year(tm.tm_year) && total_days > month_days[2];
+
+	for (tm.tm_mon = 0; tm.tm_mon < 12; tm.tm_mon++)
+		if (total_days < month_days[tm.tm_mon + 1] + (is_leap_day || had_leap_day))
+			break;
+
+	tm.tm_mday = total_days - month_days[tm.tm_mon] + !had_leap_day;
+	tm.tm_yday = total_days;
+	tm.tm_year -= 1900;
+	tm.tm_isdst = 0;
+
+	return &tm;
+}
+
+struct tm* localtime(const time_t* timer)
+{
+	// FIXME: support timezones
+	return gmtime(timer);
+}
