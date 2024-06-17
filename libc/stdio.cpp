@@ -1,3 +1,6 @@
+#include <BAN/Assert.h>
+#include <BAN/Debug.h>
+
 #include <bits/printf.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -603,7 +606,11 @@ int remove(const char* path)
 }
 
 // TODO
-int rename(const char*, const char*);
+int rename(const char* old, const char* _new)
+{
+    dwarnln("rename({}, {})", old, _new);
+    ASSERT_NOT_REACHED();
+}
 
 void rewind(FILE* file)
 {

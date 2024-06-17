@@ -1,3 +1,6 @@
+#include <BAN/Assert.h>
+#include <BAN/Debug.h>
+
 #include <sys/syscall.h>
 #include <time.h>
 #include <unistd.h>
@@ -74,4 +77,10 @@ struct tm* localtime(const time_t* timer)
 {
 	// FIXME: support timezones
 	return gmtime(timer);
+}
+
+size_t strftime(char* __restrict s, size_t maxsize, const char* __restrict format, const struct tm* __restrict timeptr)
+{
+    dwarnln("strftime({}, {}, {}, {})", s, maxsize, format, timeptr);
+    ASSERT_NOT_REACHED();
 }

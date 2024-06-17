@@ -5,7 +5,7 @@ Subject: [PATCH] Add support for banan-os
 
 ---
  doomgeneric/Makefile.banan_os        |  57 +++++++++++
- doomgeneric/doomgeneric_banan_os.cpp | 144 +++++++++++++++++++++++++++
+ doomgeneric/doomgeneric_banan_os.cpp | 138 +++++++++++++++++++++++++++
  2 files changed, 200 insertions(+)
  create mode 100644 doomgeneric/Makefile.banan_os
  create mode 100644 doomgeneric/doomgeneric_banan_os.cpp
@@ -79,7 +79,7 @@ new file mode 100644
 index 0000000..9161771
 --- /dev/null
 +++ b/doomgeneric/doomgeneric_banan_os.cpp
-@@ -0,0 +1,144 @@
+@@ -0,0 +1,138 @@
 +extern "C"
 +{
 +#include "doomgeneric.h"
@@ -215,12 +215,6 @@ index 0000000..9161771
 +		doomgeneric_Tick();
 +
 +	return 0;
-+}
-+
-+int rename(const char* oldp, const char* newp)
-+{
-+	fprintf(stderr, "rename(\"%s\", \"%s\")\n", oldp, newp);
-+	exit(1);
 +}
 +
 +}
