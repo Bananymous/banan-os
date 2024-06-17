@@ -61,6 +61,7 @@ __BEGIN_DECLS
 #define NAME_MAX 255
 #define PATH_MAX 256
 #define LOGIN_NAME_MAX 256
+#define HOST_NAME_MAX 255
 
 __END_DECLS
 
