@@ -34,6 +34,26 @@ namespace LibImage
 		return result;
 	}
 
+
+	bool probe_netbpm(BAN::ConstByteSpan image_data)
+	{
+		if (image_data.size() < 2)
+			return false;
+		uint16_t u16_signature = image_data.as<const uint16_t>();
+		switch (u16_signature)
+		{
+			case 0x3650:
+			case 0x3550:
+			case 0x3450:
+			case 0x3350:
+			case 0x3250:
+			case 0x3150:
+				return true;
+			default:
+				return false;
+		}
+	}
+
 	BAN::ErrorOr<BAN::UniqPtr<Image>> load_netbpm(BAN::ConstByteSpan image_data)
 	{
 		if (image_data.size() < 11)

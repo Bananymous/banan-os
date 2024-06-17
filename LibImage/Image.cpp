@@ -41,12 +41,6 @@ namespace LibImage
 			return BAN::Error::from_errno(errno);
 		}
 
-		if (st.st_size < 2)
-		{
-			fprintf(stddbg, "invalid image (too small)\n");
-			return BAN::Error::from_errno(EINVAL);
-		}
-
 		void* addr = mmap(nullptr, st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
 		if (addr == MAP_FAILED)
 		{
@@ -58,21 +52,10 @@ namespace LibImage
 
 		auto image_data_span = BAN::ConstByteSpan(reinterpret_cast<uint8_t*>(addr), st.st_size);
 
-		uint16_t u16_signature = image_data_span.as<const uint16_t>();
-		switch (u16_signature)
-		{
-			case 0x3650:
-			case 0x3550:
-			case 0x3450:
-			case 0x3350:
-			case 0x3250:
-			case 0x3150:
-				return TRY(load_netbpm(image_data_span));
-			default:
-				fprintf(stderr, "unrecognized image format\n");
-				break;
-		}
+		if (probe_netbpm(image_data_span))
+			return TRY(load_netbpm(image_data_span));
 
+		fprintf(stderr, "unrecognized image format\n");
 		return BAN::Error::from_errno(ENOTSUP);
 	}
 

@@ -5,6 +5,7 @@
 namespace LibImage
 {
 
+	bool probe_netbpm(BAN::ConstByteSpan);
 	BAN::ErrorOr<BAN::UniqPtr<Image>> load_netbpm(BAN::ConstByteSpan);
 
 }
