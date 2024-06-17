@@ -67,3 +67,13 @@ int getsockname(int socket, struct sockaddr* __restrict address, socklen_t* __re
 {
 	return syscall(SYS_GETSOCKNAME, socket, address, address_len);
 }
+
+int getsockopt(int socket, int level, int option_name, void* __restrict option_value, socklen_t* __restrict option_len)
+{
+	return syscall(SYS_GETSOCKOPT, socket, level, option_name, option_value, option_len);
+}
+
+int setsockopt(int socket, int level, int option_name, const void* option_value, socklen_t option_len)
+{
+	return syscall(SYS_SETSOCKOPT, socket, level, option_name, option_value, option_len);
+}

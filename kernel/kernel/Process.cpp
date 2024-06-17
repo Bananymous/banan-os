@@ -925,6 +925,42 @@ namespace Kernel
 		return 0;
 	}
 
+	BAN::ErrorOr<long> Process::sys_getsockopt(int socket, int level, int option_name, void* option_value, socklen_t* option_len)
+	{
+		LockGuard _(m_process_lock);
+		TRY(validate_pointer_access(option_len, sizeof(option_len)));
+		TRY(validate_pointer_access(option_value, *option_len));
+
+		auto inode = TRY(m_open_file_descriptors.inode_of(socket));
+		if (!inode->mode().ifsock())
+			return BAN::Error::from_errno(ENOTSOCK);
+
+		// Because all networking is synchronous, there can not be errors to report
+		if (level == SOL_SOCKET && option_name == SO_ERROR)
+		{
+			if (*option_len)
+				*reinterpret_cast<uint8_t*>(option_value) = 0;
+			*option_len = BAN::Math::min<socklen_t>(*option_len, sizeof(int));
+			return 0;
+		}
+
+		dprintln("SYS_GETSOCKOPT {}, {}, {}, {}, {}", socket, level, option_name, option_value, option_len);
+		return BAN::Error::from_errno(ENOTSUP);
+	}
+
+	BAN::ErrorOr<long> Process::sys_setsockopt(int socket, int level, int option_name, const void* option_value, socklen_t option_len)
+	{
+		LockGuard _(m_process_lock);
+		TRY(validate_pointer_access(option_value, option_len));
+
+		auto inode = TRY(m_open_file_descriptors.inode_of(socket));
+		if (!inode->mode().ifsock())
+			return BAN::Error::from_errno(ENOTSOCK);
+
+		dprintln("SYS_GETSOCKOPT {}, {}, {}, {}, {}", socket, level, option_name, option_value, option_len);
+		return BAN::Error::from_errno(ENOTSUP);
+	}
+
 	BAN::ErrorOr<long> Process::sys_accept(int socket, sockaddr* address, socklen_t* address_len)
 	{
 		if (address && !address_len)

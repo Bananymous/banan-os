@@ -79,6 +79,8 @@ __BEGIN_DECLS
 	O(SYS_SMO_MAP,			smo_map)		\
 	O(SYS_ISATTY,			isatty)			\
 	O(SYS_GETSOCKNAME,		getsockname)	\
+	O(SYS_GETSOCKOPT,		getsockopt)		\
+	O(SYS_SETSOCKOPT,		setsockopt)		\
 
 enum Syscall
 {
