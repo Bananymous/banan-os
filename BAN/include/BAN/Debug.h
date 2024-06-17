@@ -34,4 +34,22 @@
 		fflush(stddbg);											\
 	} while(false)
 
+#define dprintln_if(cond, ...)		\
+	do {							\
+		if constexpr(cond)			\
+			dprintln(__VA_ARGS__);	\
+	} while(false)
+
+#define dwarnln_if(cond, ...)		\
+	do {							\
+		if constexpr(cond)			\
+			dwarnln(__VA_ARGS__);	\
+	} while(false)
+
+#define derrorln_if(cond, ...)		\
+	do {							\
+		if constexpr(cond)			\
+			derrorln(__VA_ARGS__);	\
+	} while(false)
+
 #endif
