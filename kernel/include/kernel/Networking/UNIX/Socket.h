@@ -38,7 +38,7 @@ namespace Kernel
 		BAN::ErrorOr<void> add_packet(BAN::ConstByteSpan);
 
 		bool is_bound() const { return !m_bound_path.empty(); }
-		bool is_bound_to_unused() const { return m_bound_path == "X"sv; }
+		bool is_bound_to_unused() const { return m_bound_path == "X"_sv; }
 
 		bool is_streaming() const;
 

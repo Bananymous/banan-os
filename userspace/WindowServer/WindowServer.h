@@ -22,7 +22,7 @@ public:
 	WindowServer(Framebuffer& framebuffer)
 		: m_framebuffer(framebuffer)
 		, m_cursor({ framebuffer.width / 2, framebuffer.height / 2 })
-		, m_font(MUST(LibFont::Font::load("/usr/share/fonts/lat0-16.psfu"sv)))
+		, m_font(MUST(LibFont::Font::load("/usr/share/fonts/lat0-16.psfu"_sv)))
 	{
 		invalidate(m_framebuffer.area());
 	}

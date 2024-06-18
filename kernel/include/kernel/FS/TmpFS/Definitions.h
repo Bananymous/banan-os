@@ -14,9 +14,9 @@ namespace Kernel
 		mode_t		mode	{ 0 };
 		uid_t		uid		{ 0 };
 		gid_t		gid		{ 0 };
-		timespec	atime	{ 0 };
-		timespec	ctime	{ 0 };
-		timespec	mtime	{ 0 };
+		timespec	atime	{ 0, 0 };
+		timespec	ctime	{ 0, 0 };
+		timespec	mtime	{ 0, 0 };
 		nlink_t		nlink	{ 0 };
 		size_t		size	{ 0 };
 		blkcnt_t	blocks	{ 0 };

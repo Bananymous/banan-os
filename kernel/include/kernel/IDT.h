@@ -72,8 +72,8 @@ namespace Kernel
 	private:
 		BAN::Array<GateDescriptor, 0x100> m_idt;
 		IDTR m_idtr {
-			.size = m_idt.size() * sizeof(GateDescriptor) - 1,
-			.offset = reinterpret_cast<uint64_t>(m_idt.data())
+			.size = static_cast<uint16_t>(m_idt.size() * sizeof(GateDescriptor) - 1),
+			.offset = reinterpret_cast<uintptr_t>(m_idt.data())
 		};
 	};
 

@@ -131,7 +131,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> HPET::initialize(bool force_pic)
 	{
-		auto* header = static_cast<const ACPI::HPET*>(ACPI::ACPI::get().get_header("HPET"sv, 0));
+		auto* header = static_cast<const ACPI::HPET*>(ACPI::ACPI::get().get_header("HPET"_sv, 0));
 		if (header == nullptr)
 			return BAN::Error::from_errno(ENODEV);
 

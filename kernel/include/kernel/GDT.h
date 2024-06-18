@@ -154,7 +154,7 @@ namespace Kernel
 #endif
 		TaskStateSegment m_tss;
 		const GDTR m_gdtr {
-			.size = m_gdt.size() * sizeof(SegmentDescriptor) - 1,
+			.size = static_cast<uint16_t>(m_gdt.size() * sizeof(SegmentDescriptor) - 1),
 			.address = reinterpret_cast<uintptr_t>(m_gdt.data())
 		};
 	};

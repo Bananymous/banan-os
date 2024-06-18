@@ -36,7 +36,7 @@ BAN::Optional<BAN::String> parse_dollar(BAN::StringView command, size_t& i)
 	ASSERT(command[i] == '$');
 
 	if (++i >= command.size())
-		return "$"sv;
+		return "$"_sv;
 
 	if (command[i] == '?')
 	{
@@ -54,7 +54,7 @@ BAN::Optional<BAN::String> parse_dollar(BAN::StringView command, size_t& i)
 
 		if (const char* value = getenv(name.data()))
 			return BAN::StringView(value);
-		return ""sv;
+		return ""_sv;
 	}
 	else if (command[i] == '{')
 	{
@@ -75,7 +75,7 @@ BAN::Optional<BAN::String> parse_dollar(BAN::StringView command, size_t& i)
 
 		if (const char* value = getenv(name.data()))
 			return BAN::StringView(value);
-		return ""sv;
+		return ""_sv;
 	}
 	else if (command[i] == '[')
 	{
@@ -156,7 +156,7 @@ BAN::Optional<BAN::String> parse_dollar(BAN::StringView command, size_t& i)
 		return output;
 	}
 
-	BAN::String temp = "$"sv;
+	BAN::String temp = "$"_sv;
 	MUST(temp.push_back(command[i]));
 	return temp;
 }
@@ -288,16 +288,16 @@ BAN::Optional<int> execute_builtin(BAN::Vector<BAN::String>& args, int fd_in, in
 	}
 	BAN::ScopeGuard _([fout, should_close] { if (should_close) fclose(fout); });
 
-	if (args.front() == "clear"sv)
+	if (args.front() == "clear"_sv)
 	{
 		fprintf(fout, "\e[H\e[2J");
 		fflush(fout);
 	}
-	else if (args.front() == "exit"sv)
+	else if (args.front() == "exit"_sv)
 	{
 		clean_exit();
 	}
-	else if (args.front() == "export"sv)
+	else if (args.front() == "export"_sv)
 	{
 		bool first = false;
 		for (const auto& arg : args)
@@ -316,7 +316,7 @@ BAN::Optional<int> execute_builtin(BAN::Vector<BAN::String>& args, int fd_in, in
 				ERROR_RETURN("setenv", 1);
 		}
 	}
-	else if (args.front() == "source"sv)
+	else if (args.front() == "source"_sv)
 	{
 		if (args.size() != 2)
 		{
@@ -325,13 +325,13 @@ BAN::Optional<int> execute_builtin(BAN::Vector<BAN::String>& args, int fd_in, in
 		}
 		return source_script(args[1]);
 	}
-	else if (args.front() == "env"sv)
+	else if (args.front() == "env"_sv)
 	{
 		char** current = environ;
 		while (*current)
 			fprintf(fout, "%s\n", *current++);
 	}
-	else if (args.front() == "start-gui"sv)
+	else if (args.front() == "start-gui"_sv)
 	{
 		pid_t pid = fork();
 		if (pid == 0)
@@ -340,12 +340,12 @@ BAN::Optional<int> execute_builtin(BAN::Vector<BAN::String>& args, int fd_in, in
 			execl("/bin/Terminal", "Terminal", NULL);
 		waitpid(pid, nullptr, 0);
 	}
-	else if (args.front() == "page-fault-test"sv)
+	else if (args.front() == "page-fault-test"_sv)
 	{
 		volatile int* ptr = nullptr;
 		*ptr = 0;
 	}
-	else if (args.front() == "kill-test"sv)
+	else if (args.front() == "kill-test"_sv)
 	{
 		pid_t pid = fork();
 		if (pid == 0)
@@ -366,7 +366,7 @@ BAN::Optional<int> execute_builtin(BAN::Vector<BAN::String>& args, int fd_in, in
 			return 1;
 		}
 	}
-	else if (args.front() == "signal-test"sv)
+	else if (args.front() == "signal-test"_sv)
 	{
 		pid_t pid = fork();
 		if (pid == 0)
@@ -400,7 +400,7 @@ BAN::Optional<int> execute_builtin(BAN::Vector<BAN::String>& args, int fd_in, in
 			return 1;
 		}
 	}
-	else if (args.front() == "printf-test"sv)
+	else if (args.front() == "printf-test"_sv)
 	{
 		fprintf(fout, " 0.0:   %f\n", 0.0f);
 		fprintf(fout, " 123.0: %f\n", 123.0f);
@@ -409,7 +409,7 @@ BAN::Optional<int> execute_builtin(BAN::Vector<BAN::String>& args, int fd_in, in
 		fprintf(fout, "+INF:   %f\n", INFINITY);
 		fprintf(fout, "-INF:   %f\n", -INFINITY);
 	}
-	else if (args.front() == "cd"sv)
+	else if (args.front() == "cd"_sv)
 	{
 		if (args.size() > 2)
 		{
@@ -432,7 +432,7 @@ BAN::Optional<int> execute_builtin(BAN::Vector<BAN::String>& args, int fd_in, in
 		if (chdir(path.data()) == -1)
 			ERROR_RETURN("chdir", 1);
 	}
-	else if (args.front() == "time"sv)
+	else if (args.front() == "time"_sv)
 	{
 		args.remove(0);
 
@@ -783,7 +783,7 @@ int source_shellrc()
 	if (char* home = getenv("HOME"))
 	{
 		BAN::String path(home);
-		MUST(path.append("/.shellrc"sv));
+		MUST(path.append("/.shellrc"_sv));
 		if (exists(path))
 			return source_script(path);
 	}
@@ -816,7 +816,7 @@ BAN::String get_prompt()
 {
 	const char* raw_prompt = getenv("PS1");
 	if (raw_prompt == nullptr)
-		return "$ "sv;
+		return "$ "_sv;
 
 	BAN::String prompt;
 	for (int i = 0; raw_prompt[i]; i++)
@@ -962,7 +962,7 @@ int main(int argc, char** argv)
 	tcsetattr(0, TCSANOW, &new_termios);
 
 	BAN::Vector<BAN::String> buffers, history;
-	MUST(buffers.emplace_back(""sv));
+	MUST(buffers.emplace_back(""_sv));
 	size_t index = 0;
 	size_t col = 0;
 
@@ -1073,7 +1073,7 @@ int main(int argc, char** argv)
 				last_return = parse_and_execute_command(buffers[index]);
 				MUST(history.push_back(buffers[index]));
 				buffers = history;
-				MUST(buffers.emplace_back(""sv));
+				MUST(buffers.emplace_back(""_sv));
 			}
 			print_prompt();
 			index = buffers.size() - 1;

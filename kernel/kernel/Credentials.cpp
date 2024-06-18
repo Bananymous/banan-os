@@ -21,7 +21,7 @@ namespace Kernel
 
 	BAN::ErrorOr<BAN::String> Credentials::find_username() const
 	{
-		auto inode = TRY(VirtualFileSystem::get().file_from_absolute_path(*this, "/etc/passwd"sv, O_RDONLY)).inode;
+		auto inode = TRY(VirtualFileSystem::get().file_from_absolute_path(*this, "/etc/passwd"_sv, O_RDONLY)).inode;
 
 		BAN::String line;
 		off_t offset = 0;

@@ -118,7 +118,7 @@ namespace Kernel
 		TRY(process->m_cmdline.push_back({}));
 		TRY(process->m_cmdline.back().append(path));
 
-		process->m_loadable_elf = TRY(load_elf_for_exec(credentials, path, "/"sv, process->page_table()));
+		process->m_loadable_elf = TRY(load_elf_for_exec(credentials, path, "/"_sv, process->page_table()));
 		if (!process->m_loadable_elf->is_address_space_free())
 		{
 			dprintln("Could not load ELF address space");
@@ -1942,7 +1942,7 @@ namespace Kernel
 	{
 		LockGuard _(m_process_lock);
 
-		if (path.empty() || path == "."sv)
+		if (path.empty() || path == "."_sv)
 			return m_working_directory;
 
 		BAN::String absolute_path;

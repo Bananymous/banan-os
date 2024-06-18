@@ -212,6 +212,9 @@ int main(int, char**)
 
 	struct Client
 	{
+		Client(int socket)
+			: socket(socket)
+		{ }
 		const int	socket;
 		bool		close { false };
 		uint16_t	query_id { 0 };

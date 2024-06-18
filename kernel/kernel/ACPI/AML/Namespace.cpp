@@ -41,7 +41,7 @@ namespace Kernel::ACPI
 		LockGuard _(m_object_mutex);
 
 		// Base must be non-empty absolute path
-		ASSERT(relative_base.prefix == "\\"sv || relative_base.path.empty());
+		ASSERT(relative_base.prefix == "\\"_sv || relative_base.path.empty());
 
 		// Do absolute path lookup
 		if (!relative_path.prefix.empty() || relative_path.path.size() != 1 || mode == FindMode::ForceAbsolute)
@@ -50,7 +50,7 @@ namespace Kernel::ACPI
 			MUST(absolute_path.push_back('\\'));
 
 			// Resolve root and parent references
-			if (relative_path.prefix == "\\"sv)
+			if (relative_path.prefix == "\\"_sv)
 				;
 			else
 			{
@@ -76,7 +76,7 @@ namespace Kernel::ACPI
 			if (absolute_path.back() == '.')
 				absolute_path.pop_back();
 
-			if (!check_existence || absolute_path == "\\"sv || m_objects.contains(absolute_path))
+			if (!check_existence || absolute_path == "\\"_sv || m_objects.contains(absolute_path))
 				return absolute_path;
 			return {};
 		}
@@ -125,7 +125,7 @@ namespace Kernel::ACPI
 		if (!canonical_path.has_value())
 			return nullptr;
 
-		if (canonical_path->sv() == "\\"sv)
+		if (canonical_path->sv() == "\\"_sv)
 			return this;
 
 		auto it = m_objects.find(canonical_path.value());
@@ -191,28 +191,28 @@ namespace Kernel::ACPI
 	BAN::RefPtr<AML::Namespace> AML::Namespace::create_root_namespace()
 	{
 		ASSERT(!s_root_namespace);
-		s_root_namespace = MUST(BAN::RefPtr<Namespace>::create(NameSeg("\\"sv)));
-		s_root_namespace->scope = AML::NameString("\\"sv);
+		s_root_namespace = MUST(BAN::RefPtr<Namespace>::create(NameSeg("\\"_sv)));
+		s_root_namespace->scope = AML::NameString("\\"_sv);
 
 		Integer::Constants::Zero = MUST(BAN::RefPtr<Integer>::create(0, true));
 		Integer::Constants::One = MUST(BAN::RefPtr<Integer>::create(1, true));
 		Integer::Constants::Ones = MUST(BAN::RefPtr<Integer>::create(0xFFFFFFFFFFFFFFFF, true));
 
 		AML::ParseContext context;
-		context.scope = AML::NameString("\\"sv);
+		context.scope = AML::NameString("\\"_sv);
 
 		// Add predefined namespaces
 #define ADD_PREDEFIED_NAMESPACE(NAME) \
 			ASSERT(s_root_namespace->add_named_object(context, AML::NameString("\\" NAME), MUST(BAN::RefPtr<AML::Device>::create(NameSeg(NAME)))));
-		ADD_PREDEFIED_NAMESPACE("_GPE"sv);
-		ADD_PREDEFIED_NAMESPACE("_PR"sv);
-		ADD_PREDEFIED_NAMESPACE("_SB"sv);
-		ADD_PREDEFIED_NAMESPACE("_SI"sv);
-		ADD_PREDEFIED_NAMESPACE("_TZ"sv);
+		ADD_PREDEFIED_NAMESPACE("_GPE"_sv);
+		ADD_PREDEFIED_NAMESPACE("_PR"_sv);
+		ADD_PREDEFIED_NAMESPACE("_SB"_sv);
+		ADD_PREDEFIED_NAMESPACE("_SI"_sv);
+		ADD_PREDEFIED_NAMESPACE("_TZ"_sv);
 #undef ADD_PREDEFIED_NAMESPACE
 
 		// Add \_OSI that returns true for Linux compatibility
-		auto osi = MUST(BAN::RefPtr<AML::Method>::create(NameSeg("_OSI"sv), 1, false, 0));
+		auto osi = MUST(BAN::RefPtr<AML::Method>::create(NameSeg("_OSI"_sv), 1, false, 0));
 		osi->override_function = [](AML::ParseContext& context) -> BAN::RefPtr<AML::Node> {
 			ASSERT(context.method_args[0]);
 			auto arg = context.method_args[0]->evaluate();
@@ -234,7 +234,7 @@ namespace Kernel::ACPI
 		ASSERT(this == s_root_namespace.ptr());
 
 		AML::ParseContext context;
-		context.scope = AML::NameString("\\"sv);
+		context.scope = AML::NameString("\\"_sv);
 		context.aml_data = BAN::ConstByteSpan(reinterpret_cast<const uint8_t*>(&header), header.length).slice(sizeof(header));
 
 		while (context.aml_data.size() > 0)

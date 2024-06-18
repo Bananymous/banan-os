@@ -15,7 +15,7 @@ namespace LibFont { class Font; }
 namespace LibGUI
 {
 
-	static constexpr BAN::StringView s_window_server_socket = "/tmp/window-server.socket"sv;
+	static constexpr BAN::StringView s_window_server_socket = "/tmp/window-server.socket"_sv;
 
 	enum WindowPacketType : uint8_t
 	{

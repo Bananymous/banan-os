@@ -12,9 +12,9 @@ namespace Kernel
 			return BAN::Error::from_errno(ENOMEM);
 		auto inode = BAN::RefPtr<ProcPidInode>::adopt(inode_ptr);
 
-		TRY(inode->link_inode(*MUST(ProcROInode::create_new(process, &Process::proc_meminfo, fs, 0400, uid, gid)), "meminfo"sv));
-		TRY(inode->link_inode(*MUST(ProcROInode::create_new(process, &Process::proc_cmdline, fs, 0400, uid, gid)), "cmdline"sv));
-		TRY(inode->link_inode(*MUST(ProcROInode::create_new(process, &Process::proc_environ, fs, 0400, uid, gid)), "environ"sv));
+		TRY(inode->link_inode(*MUST(ProcROInode::create_new(process, &Process::proc_meminfo, fs, 0400, uid, gid)), "meminfo"_sv));
+		TRY(inode->link_inode(*MUST(ProcROInode::create_new(process, &Process::proc_cmdline, fs, 0400, uid, gid)), "cmdline"_sv));
+		TRY(inode->link_inode(*MUST(ProcROInode::create_new(process, &Process::proc_environ, fs, 0400, uid, gid)), "environ"_sv));
 
 		return inode;
 	}
@@ -27,9 +27,9 @@ namespace Kernel
 
 	void ProcPidInode::cleanup()
 	{
-		(void)TmpDirectoryInode::unlink_impl("meminfo"sv);
-		(void)TmpDirectoryInode::unlink_impl("cmdline"sv);
-		(void)TmpDirectoryInode::unlink_impl("environ"sv);
+		(void)TmpDirectoryInode::unlink_impl("meminfo"_sv);
+		(void)TmpDirectoryInode::unlink_impl("cmdline"_sv);
+		(void)TmpDirectoryInode::unlink_impl("environ"_sv);
 	}
 
 	BAN::ErrorOr<BAN::RefPtr<ProcROInode>> ProcROInode::create_new(Process& process, size_t (Process::*callback)(off_t, BAN::ByteSpan) const, TmpFileSystem& fs, mode_t mode, uid_t uid, gid_t gid)

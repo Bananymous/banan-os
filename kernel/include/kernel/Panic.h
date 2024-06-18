@@ -25,6 +25,7 @@ namespace Kernel
 			Debug::dump_stack_trace();
 		}
 		asm volatile("ud2");
+		__builtin_unreachable();
 	}
 
 }

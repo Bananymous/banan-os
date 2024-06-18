@@ -94,7 +94,7 @@ namespace Kernel::ACPI
 		AML_DEBUG_PRINTLN("Initializing {}", scope->scope);
 #endif
 
-		if (auto reg = Namespace::root_namespace()->find_object(scope->scope, AML::NameString("_REG"sv), Namespace::FindMode::ForceAbsolute))
+		if (auto reg = Namespace::root_namespace()->find_object(scope->scope, AML::NameString("_REG"_sv), Namespace::FindMode::ForceAbsolute))
 		{
 			bool embedded_controller = false;
 			Namespace::for_each_child(scope->scope,
@@ -135,7 +135,7 @@ namespace Kernel::ACPI
 		bool run_ini = true;
 		bool init_children = true;
 
-		if (auto sta = Namespace::root_namespace()->find_object(scope->scope, AML::NameString("_STA"sv), Namespace::FindMode::ForceAbsolute))
+		if (auto sta = Namespace::root_namespace()->find_object(scope->scope, AML::NameString("_STA"_sv), Namespace::FindMode::ForceAbsolute))
 		{
 			auto result = evaluate_or_invoke(sta);
 			if (!result.has_value())
@@ -150,7 +150,7 @@ namespace Kernel::ACPI
 
 		if (run_ini)
 		{
-			auto ini = Namespace::root_namespace()->find_object(scope->scope, AML::NameString("_INI"sv), Namespace::FindMode::ForceAbsolute);
+			auto ini = Namespace::root_namespace()->find_object(scope->scope, AML::NameString("_INI"_sv), Namespace::FindMode::ForceAbsolute);
 			if (ini)
 			{
 				if (ini->type != AML::Node::Type::Method)

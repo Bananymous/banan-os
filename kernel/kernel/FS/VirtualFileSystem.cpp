@@ -17,7 +17,7 @@ namespace Kernel
 		ASSERT(!s_instance);
 		s_instance = MUST(BAN::RefPtr<VirtualFileSystem>::create());
 
-		ASSERT(root_path.size() >= 5 && root_path.substring(0, 5) == "/dev/"sv);;
+		ASSERT(root_path.size() >= 5 && root_path.substring(0, 5) == "/dev/"_sv);;
 		root_path = root_path.substring(5);
 
 		auto root_inode = MUST(DevFileSystem::get().root_inode()->find_inode(root_path));
@@ -26,12 +26,12 @@ namespace Kernel
 		s_instance->m_root_fs = MUST(FileSystem::from_block_device(static_cast<BlockDevice*>(root_inode.ptr())));
 
 		Credentials root_creds { 0, 0, 0, 0 };
-		MUST(s_instance->mount(root_creds, &DevFileSystem::get(), "/dev"sv));
+		MUST(s_instance->mount(root_creds, &DevFileSystem::get(), "/dev"_sv));
 
-		MUST(s_instance->mount(root_creds, &ProcFileSystem::get(), "/proc"sv));
+		MUST(s_instance->mount(root_creds, &ProcFileSystem::get(), "/proc"_sv));
 
 		auto tmpfs = MUST(TmpFileSystem::create(1024, 0777, 0, 0));
-		MUST(s_instance->mount(root_creds, tmpfs, "/tmp"sv));
+		MUST(s_instance->mount(root_creds, tmpfs, "/tmp"_sv));
 	}
 
 	VirtualFileSystem& VirtualFileSystem::get()
@@ -109,16 +109,16 @@ namespace Kernel
 			const auto& path_part = path_parts.back();
 			auto orig = inode;
 
-			if (path_part.empty() || path_part == "."sv)
+			if (path_part.empty() || path_part == "."_sv)
 			{
 
 			}
-			else if (path_part == ".."sv)
+			else if (path_part == ".."_sv)
 			{
 				if (auto* mount_point = mount_from_root_inode(inode))
-					inode = TRY(mount_point->host.inode->find_inode(".."sv));
+					inode = TRY(mount_point->host.inode->find_inode(".."_sv));
 				else
-					inode = TRY(inode->find_inode(".."sv));
+					inode = TRY(inode->find_inode(".."_sv));
 
 				if (!canonical_path.empty())
 				{

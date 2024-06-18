@@ -137,7 +137,7 @@ i64 puzzle1(FILE* fp)
 
 	for (size_t i = 0; i < 1000; i++)
 	{
-		MUST(signal_queue.push({ "broadcaster"sv, ""sv, false }));
+		MUST(signal_queue.push({ "broadcaster"_sv, ""_sv, false }));
 		while (!signal_queue.empty())
 		{
 			auto signal = signal_queue.front();

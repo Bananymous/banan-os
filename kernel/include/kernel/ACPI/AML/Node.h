@@ -45,7 +45,7 @@ namespace Kernel::ACPI::AML
 
 		[[nodiscard]] BAN::Optional<uint64_t> as_integer();
 		[[nodiscard]] virtual BAN::RefPtr<AML::Node> evaluate() { AML_TODO("evaluate, type {}", static_cast<uint8_t>(type)); return nullptr; }
-		[[nodiscard]] virtual bool store(BAN::RefPtr<AML::Node> source) { AML_TODO("store, type {}", static_cast<uint8_t>(type)); return false; }
+		[[nodiscard]] virtual bool store(BAN::RefPtr<AML::Node>) { AML_TODO("store, type {}", static_cast<uint8_t>(type)); return false; }
 
 		virtual void debug_print(int indent) const = 0;
 	};

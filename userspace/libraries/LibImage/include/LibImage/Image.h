@@ -63,9 +63,9 @@ namespace LibImage
 				return false;
 			if (height > static_cast<uint64_t>(BAN::numeric_limits<int64_t>::max()))
 				return false;
-			if (BAN::Math::will_multiplication_overflow(width, height))
+			if (BAN::Math::will_multiplication_overflow<uint64_t>(width, height))
 				return false;
-			if (BAN::Math::will_multiplication_overflow(width * height, sizeof(Color)))
+			if (BAN::Math::will_multiplication_overflow<uint64_t>(width * height, sizeof(Color)))
 				return false;
 			return true;
 		}

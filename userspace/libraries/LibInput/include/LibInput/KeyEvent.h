@@ -11,7 +11,7 @@ namespace LibInput
 			bits 7:5 row    (from top)
 	*/
 
-	#define BANAN_CONSTEVAL_STATIC_ASSERT(cond) do { int dummy = 1 / (cond); } while (false)
+	#define BANAN_CONSTEVAL_STATIC_ASSERT(cond) do { int dummy = 1 / (cond); (void)dummy; } while (false)
 
 	consteval uint8_t keycode_function(uint8_t index)
 	{

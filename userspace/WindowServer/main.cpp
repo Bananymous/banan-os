@@ -80,7 +80,7 @@ Config parse_config()
 		auto variable = parts[0];
 		auto value = parts[1];
 
-		if (variable == "bg"sv)
+		if (variable == "bg"_sv)
 		{
 			auto image = LibImage::Image::load_from_file(value);
 			if (image.is_error())
@@ -156,7 +156,7 @@ int main()
 	atexit([]() { tty_ctrl(STDIN_FILENO, TTY_CMD_SET, TTY_FLAG_ENABLE_INPUT); });
 
 	MUST(LibInput::KeyboardLayout::initialize());
-	MUST(LibInput::KeyboardLayout::get().load_from_file("/usr/share/keymaps/us.keymap"sv));
+	MUST(LibInput::KeyboardLayout::get().load_from_file("/usr/share/keymaps/us.keymap"_sv));
 
 	int keyboard_fd = open("/dev/input0", O_RDONLY);
 	if (keyboard_fd == -1)

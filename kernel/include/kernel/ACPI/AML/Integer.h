@@ -21,8 +21,8 @@ namespace Kernel::ACPI::AML
 			static BAN::RefPtr<Integer> Ones;
 		};
 
-		const bool constant;
 		uint64_t value;
+		const bool constant;
 
 		Integer(uint64_t value, bool constant = false)
 			: Node(Node::Type::Integer)

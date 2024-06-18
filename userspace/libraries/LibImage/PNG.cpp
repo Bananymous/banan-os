@@ -608,12 +608,12 @@ namespace LibImage
 				return BAN::Error::from_errno(EINVAL);
 			}
 
-			if (chunk.name == "IHDR"sv)
+			if (chunk.name == "IHDR"_sv)
 			{
 				dwarnln_if(DEBUG_PNG, "PNG stream has IDHR chunk defined multiple times");
 				return BAN::Error::from_errno(EINVAL);
 			}
-			else if (chunk.name == "PLTE"sv)
+			else if (chunk.name == "PLTE"_sv)
 			{
 				if (chunk.data.size() == 0 || chunk.data.size() % 3)
 				{
@@ -639,15 +639,15 @@ namespace LibImage
 					palette[i].a = 0xFF;
 				}
 			}
-			else if (chunk.name == "IDAT"sv)
+			else if (chunk.name == "IDAT"_sv)
 			{
 				TRY(zlib_stream.push_back(chunk.data));
 			}
-			else if (chunk.name == "IEND"sv)
+			else if (chunk.name == "IEND"_sv)
 			{
 				break;
 			}
-			else if (chunk.name == "tEXt"sv)
+			else if (chunk.name == "tEXt"_sv)
 			{
 				auto data_sv = BAN::StringView(chunk.data.as_span<const char>().data(), chunk.data.size());
 				if (auto idx = data_sv.find('\0'); !idx.has_value())

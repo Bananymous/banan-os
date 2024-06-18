@@ -30,11 +30,11 @@ namespace Kernel
 		s_tty = this;
 		clear();
 
-		auto inode_or_error = DevFileSystem::get().root_inode()->find_inode("tty"sv);
+		auto inode_or_error = DevFileSystem::get().root_inode()->find_inode("tty"_sv);
 		if (inode_or_error.is_error())
 		{
 			if (inode_or_error.error().get_error_code() == ENOENT)
-				DevFileSystem::get().add_inode("tty"sv, MUST(TmpSymlinkInode::create_new(DevFileSystem::get(), 0666, 0, 0, s_tty->name())));
+				DevFileSystem::get().add_inode("tty"_sv, MUST(TmpSymlinkInode::create_new(DevFileSystem::get(), 0666, 0, 0, s_tty->name())));
 			else
 				dwarnln("{}", inode_or_error.error());
 			return;
@@ -82,7 +82,7 @@ namespace Kernel
 		Process::create_kernel(
 			[](void*)
 			{
-				auto file_or_error = VirtualFileSystem::get().file_from_absolute_path({ 0, 0, 0, 0 }, "/dev/input0"sv, O_RDONLY);
+				auto file_or_error = VirtualFileSystem::get().file_from_absolute_path({ 0, 0, 0, 0 }, "/dev/input0"_sv, O_RDONLY);
 				if (file_or_error.is_error())
 				{
 					dprintln("no input device found");

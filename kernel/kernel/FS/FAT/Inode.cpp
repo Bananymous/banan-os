@@ -212,9 +212,10 @@ namespace Kernel
 		return valid_entry_count;
 	}
 
-	BAN::ErrorOr<size_t> FATInode::read_impl(off_t offset, BAN::ByteSpan buffer)
+	BAN::ErrorOr<size_t> FATInode::read_impl(off_t s_offset, BAN::ByteSpan buffer)
 	{
-		ASSERT(offset >= 0);
+		ASSERT(s_offset >= 0);
+		uint32_t offset = s_offset;
 
 		if (offset >= m_entry.file_size)
 			return 0;

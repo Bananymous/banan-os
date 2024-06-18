@@ -103,7 +103,7 @@ namespace Kernel
 		LockGuard _(m_mutex);
 		if (!mode().ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
-		if (name == "."sv || name == ".."sv)
+		if (name == "."_sv || name == ".."_sv)
 			return BAN::Error::from_errno(EINVAL);
 		return unlink_impl(name);
 	}

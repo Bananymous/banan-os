@@ -162,7 +162,7 @@ namespace LibInput
 			if (parts.empty() || parts.front().front() == '#')
 				continue;
 
-			if (parts.front() == "include"sv)
+			if (parts.front() == "include"_sv)
 			{
 				if (parts.size() != 2)
 				{
@@ -228,7 +228,7 @@ namespace LibInput
 				return BAN::Error::from_errno(EINVAL);
 			}
 
-			if (parts.front() == "mod"sv)
+			if (parts.front() == "mod"_sv)
 			{
 				if (parts.size() != 2)
 				{
@@ -236,9 +236,9 @@ namespace LibInput
 					dprintln("  format: mod MODIFIER");
 					return BAN::Error::from_errno(EINVAL);
 				}
-				if (parts[1] == "shift"sv)
+				if (parts[1] == "shift"_sv)
 					shift_is_mod = true;
-				else if (parts[1] == "altgr"sv)
+				else if (parts[1] == "altgr"_sv)
 					altgr_is_mod = true;
 				else
 				{
@@ -282,9 +282,9 @@ namespace LibInput
 					return BAN::Error::from_errno(EINVAL);
 				}
 
-				if (shift_is_mod && pair.front() == "shift"sv)
+				if (shift_is_mod && pair.front() == "shift"_sv)
 					new_layout->m_keycode_to_key_shift[*keycode] = *key;
-				else if (altgr_is_mod && pair.front() == "altgr"sv)
+				else if (altgr_is_mod && pair.front() == "altgr"_sv)
 					new_layout->m_keycode_to_key_altgr[*keycode] = *key;
 				else
 				{
@@ -314,159 +314,159 @@ namespace LibInput
 	static BAN::ErrorOr<void> initialize_name_to_key()
 	{
 		ASSERT(s_name_to_key.empty());
-		TRY(s_name_to_key.insert("A_Ring"sv,				Key::A_Ring));
-		TRY(s_name_to_key.insert("A_Umlaut"sv,				Key::A_Umlaut));
-		TRY(s_name_to_key.insert("A"sv,						Key::A));
-		TRY(s_name_to_key.insert("Acute"sv,					Key::Acute));
-		TRY(s_name_to_key.insert("AltGr"sv,					Key::AltGr));
-		TRY(s_name_to_key.insert("Ampersand"sv,				Key::Ampersand));
-		TRY(s_name_to_key.insert("ArrowDown"sv,				Key::ArrowDown));
-		TRY(s_name_to_key.insert("ArrowLeft"sv,				Key::ArrowLeft));
-		TRY(s_name_to_key.insert("ArrowRight"sv,			Key::ArrowRight));
-		TRY(s_name_to_key.insert("ArrowUp"sv,				Key::ArrowUp));
-		TRY(s_name_to_key.insert("Asterix"sv,				Key::Asterix));
-		TRY(s_name_to_key.insert("AtSign"sv,				Key::AtSign));
-		TRY(s_name_to_key.insert("B"sv,						Key::B));
-		TRY(s_name_to_key.insert("BackSlash"sv,				Key::BackSlash));
-		TRY(s_name_to_key.insert("Backspace"sv,				Key::Backspace));
-		TRY(s_name_to_key.insert("BackTick"sv,				Key::BackTick));
-		TRY(s_name_to_key.insert("BrokenBar"sv,				Key::BrokenBar));
-		TRY(s_name_to_key.insert("C"sv,						Key::C));
-		TRY(s_name_to_key.insert("Calculator"sv,			Key::Calculator));
-		TRY(s_name_to_key.insert("CapsLock"sv,				Key::CapsLock));
-		TRY(s_name_to_key.insert("Caret"sv,					Key::Caret));
-		TRY(s_name_to_key.insert("Cedilla"sv,				Key::Cedilla));
-		TRY(s_name_to_key.insert("CloseCurlyBracket"sv,		Key::CloseCurlyBracket));
-		TRY(s_name_to_key.insert("CloseParenthesis"sv,		Key::CloseParenthesis));
-		TRY(s_name_to_key.insert("CloseSquareBracket"sv,	Key::CloseSquareBracket));
-		TRY(s_name_to_key.insert("Colon"sv,					Key::Colon));
-		TRY(s_name_to_key.insert("Comma"sv,					Key::Comma));
-		TRY(s_name_to_key.insert("Currency"sv,				Key::Currency));
-		TRY(s_name_to_key.insert("D"sv,						Key::D));
-		TRY(s_name_to_key.insert("Delete"sv,				Key::Delete));
-		TRY(s_name_to_key.insert("Dollar"sv,				Key::Dollar));
-		TRY(s_name_to_key.insert("DoubleQuote"sv,			Key::DoubleQuote));
-		TRY(s_name_to_key.insert("E"sv,						Key::E));
-		TRY(s_name_to_key.insert("End"sv,					Key::End));
-		TRY(s_name_to_key.insert("Enter"sv,					Key::Enter));
-		TRY(s_name_to_key.insert("Equals"sv,				Key::Equals));
-		TRY(s_name_to_key.insert("Escape"sv,				Key::Escape));
-		TRY(s_name_to_key.insert("Euro"sv,					Key::Euro));
-		TRY(s_name_to_key.insert("Exclamation"sv,			Key::ExclamationMark));
-		TRY(s_name_to_key.insert("ExclamationMark"sv,		Key::ExclamationMark));
-		TRY(s_name_to_key.insert("F"sv,						Key::F));
-		TRY(s_name_to_key.insert("F1"sv,					Key::F1));
-		TRY(s_name_to_key.insert("F10"sv,					Key::F10));
-		TRY(s_name_to_key.insert("F11"sv,					Key::F11));
-		TRY(s_name_to_key.insert("F12"sv,					Key::F12));
-		TRY(s_name_to_key.insert("F2"sv,					Key::F2));
-		TRY(s_name_to_key.insert("F3"sv,					Key::F3));
-		TRY(s_name_to_key.insert("F4"sv,					Key::F4));
-		TRY(s_name_to_key.insert("F5"sv,					Key::F5));
-		TRY(s_name_to_key.insert("F6"sv,					Key::F6));
-		TRY(s_name_to_key.insert("F7"sv,					Key::F7));
-		TRY(s_name_to_key.insert("F8"sv,					Key::F8));
-		TRY(s_name_to_key.insert("F9"sv,					Key::F9));
-		TRY(s_name_to_key.insert("G"sv,						Key::G));
-		TRY(s_name_to_key.insert("GreaterThan"sv,			Key::GreaterThan));
-		TRY(s_name_to_key.insert("H"sv,						Key::H));
-		TRY(s_name_to_key.insert("Half"sv,					Key::Half));
-		TRY(s_name_to_key.insert("Hashtag"sv,				Key::Hashtag));
-		TRY(s_name_to_key.insert("Home"sv,					Key::Home));
-		TRY(s_name_to_key.insert("Hyphen"sv,				Key::Hyphen));
-		TRY(s_name_to_key.insert("I"sv,						Key::I));
-		TRY(s_name_to_key.insert("Insert"sv,				Key::Insert));
-		TRY(s_name_to_key.insert("J"sv,						Key::J));
-		TRY(s_name_to_key.insert("K"sv,						Key::K));
-		TRY(s_name_to_key.insert("Key0"sv,					Key::_0));
-		TRY(s_name_to_key.insert("Key1"sv,					Key::_1));
-		TRY(s_name_to_key.insert("Key2"sv,					Key::_2));
-		TRY(s_name_to_key.insert("Key3"sv,					Key::_3));
-		TRY(s_name_to_key.insert("Key4"sv,					Key::_4));
-		TRY(s_name_to_key.insert("Key5"sv,					Key::_5));
-		TRY(s_name_to_key.insert("Key6"sv,					Key::_6));
-		TRY(s_name_to_key.insert("Key7"sv,					Key::_7));
-		TRY(s_name_to_key.insert("Key8"sv,					Key::_8));
-		TRY(s_name_to_key.insert("Key9"sv,					Key::_9));
-		TRY(s_name_to_key.insert("L"sv,						Key::L));
-		TRY(s_name_to_key.insert("LAlt"sv,					Key::LeftAlt));
-		TRY(s_name_to_key.insert("LControl"sv,				Key::LeftCtrl));
-		TRY(s_name_to_key.insert("LeftAlt"sv,				Key::LeftAlt));
-		TRY(s_name_to_key.insert("LeftControl"sv,			Key::LeftCtrl));
-		TRY(s_name_to_key.insert("LeftShift"sv,				Key::LeftShift));
-		TRY(s_name_to_key.insert("LessThan"sv,				Key::LessThan));
-		TRY(s_name_to_key.insert("LShift"sv,				Key::LeftShift));
-		TRY(s_name_to_key.insert("M"sv,						Key::M));
-		TRY(s_name_to_key.insert("MediaNext"sv,				Key::MediaNext));
-		TRY(s_name_to_key.insert("MediaPlayPause"sv,		Key::MediaPlayPause));
-		TRY(s_name_to_key.insert("MediaPrevious"sv,			Key::MediaPrevious));
-		TRY(s_name_to_key.insert("MediaStop"sv,				Key::MediaStop));
-		TRY(s_name_to_key.insert("N"sv,						Key::N));
-		TRY(s_name_to_key.insert("Negation"sv,				Key::Negation));
-		TRY(s_name_to_key.insert("None"sv,					Key::None));
-		TRY(s_name_to_key.insert("NumLock"sv,				Key::NumLock));
-		TRY(s_name_to_key.insert("Numpad0"sv,				Key::Numpad0));
-		TRY(s_name_to_key.insert("Numpad1"sv,				Key::Numpad1));
-		TRY(s_name_to_key.insert("Numpad2"sv,				Key::Numpad2));
-		TRY(s_name_to_key.insert("Numpad3"sv,				Key::Numpad3));
-		TRY(s_name_to_key.insert("Numpad4"sv,				Key::Numpad4));
-		TRY(s_name_to_key.insert("Numpad5"sv,				Key::Numpad5));
-		TRY(s_name_to_key.insert("Numpad6"sv,				Key::Numpad6));
-		TRY(s_name_to_key.insert("Numpad7"sv,				Key::Numpad7));
-		TRY(s_name_to_key.insert("Numpad8"sv,				Key::Numpad8));
-		TRY(s_name_to_key.insert("Numpad9"sv,				Key::Numpad9));
-		TRY(s_name_to_key.insert("NumpadDecimal"sv,			Key::NumpadDecimal));
-		TRY(s_name_to_key.insert("NumpadDivide"sv,			Key::NumpadDivide));
-		TRY(s_name_to_key.insert("NumpadEnter"sv,			Key::NumpadEnter));
-		TRY(s_name_to_key.insert("NumpadMinus"sv,			Key::NumpadMinus));
-		TRY(s_name_to_key.insert("NumpadMultiply"sv,		Key::NumpadMultiply));
-		TRY(s_name_to_key.insert("NumpadPlus"sv,			Key::NumpadPlus));
-		TRY(s_name_to_key.insert("O_Umlaut"sv,				Key::O_Umlaut));
-		TRY(s_name_to_key.insert("O"sv,						Key::O));
-		TRY(s_name_to_key.insert("OpenCurlyBracket"sv,		Key::OpenCurlyBracket));
-		TRY(s_name_to_key.insert("OpenParenthesis"sv,		Key::OpenParenthesis));
-		TRY(s_name_to_key.insert("OpenSquareBracket"sv,		Key::OpenSquareBracket));
-		TRY(s_name_to_key.insert("P"sv,						Key::P));
-		TRY(s_name_to_key.insert("PageDown"sv,				Key::PageDown));
-		TRY(s_name_to_key.insert("PageUp"sv,				Key::PageUp));
-		TRY(s_name_to_key.insert("Percent"sv,				Key::Percent));
-		TRY(s_name_to_key.insert("Period"sv,				Key::Period));
-		TRY(s_name_to_key.insert("Pipe"sv,					Key::Pipe));
-		TRY(s_name_to_key.insert("Plus"sv,					Key::Plus));
-		TRY(s_name_to_key.insert("Pound"sv,					Key::Pound));
-		TRY(s_name_to_key.insert("PrintScreen"sv,			Key::PrintScreen));
-		TRY(s_name_to_key.insert("Q"sv,						Key::Q));
-		TRY(s_name_to_key.insert("Question"sv,				Key::QuestionMark));
-		TRY(s_name_to_key.insert("QuestionMark"sv,			Key::QuestionMark));
-		TRY(s_name_to_key.insert("R"sv,						Key::R));
-		TRY(s_name_to_key.insert("RAlt"sv,					Key::RightAlt));
-		TRY(s_name_to_key.insert("RControl"sv,				Key::RightCtrl));
-		TRY(s_name_to_key.insert("RightAlt"sv,				Key::RightAlt));
-		TRY(s_name_to_key.insert("RightControl"sv,			Key::RightCtrl));
-		TRY(s_name_to_key.insert("RightShift"sv,			Key::RightShift));
-		TRY(s_name_to_key.insert("RShift"sv,				Key::RightShift));
-		TRY(s_name_to_key.insert("S"sv,						Key::S));
-		TRY(s_name_to_key.insert("ScrollLock"sv,			Key::ScrollLock));
-		TRY(s_name_to_key.insert("Section"sv,				Key::Section));
-		TRY(s_name_to_key.insert("Semicolon"sv,				Key::Semicolon));
-		TRY(s_name_to_key.insert("SingleQuote"sv,			Key::SingleQuote));
-		TRY(s_name_to_key.insert("Slash"sv,					Key::Slash));
-		TRY(s_name_to_key.insert("Space"sv,					Key::Space));
-		TRY(s_name_to_key.insert("Super"sv,					Key::Super));
-		TRY(s_name_to_key.insert("T"sv,						Key::T));
-		TRY(s_name_to_key.insert("Tab"sv,					Key::Tab));
-		TRY(s_name_to_key.insert("Tilde"sv,					Key::Tilde));
-		TRY(s_name_to_key.insert("TwoDots"sv,				Key::TwoDots));
-		TRY(s_name_to_key.insert("U"sv,						Key::U));
-		TRY(s_name_to_key.insert("Underscore"sv,			Key::Underscore));
-		TRY(s_name_to_key.insert("V"sv,						Key::V));
-		TRY(s_name_to_key.insert("VolumeDown"sv,			Key::VolumeDown));
-		TRY(s_name_to_key.insert("VolumeMute"sv,			Key::VolumeMute));
-		TRY(s_name_to_key.insert("VolumeUp"sv,				Key::VolumeUp));
-		TRY(s_name_to_key.insert("W"sv,						Key::W));
-		TRY(s_name_to_key.insert("X"sv,						Key::X));
-		TRY(s_name_to_key.insert("Y"sv,						Key::Y));
-		TRY(s_name_to_key.insert("Z"sv,						Key::Z));
+		TRY(s_name_to_key.insert("A_Ring"_sv,				Key::A_Ring));
+		TRY(s_name_to_key.insert("A_Umlaut"_sv,				Key::A_Umlaut));
+		TRY(s_name_to_key.insert("A"_sv,						Key::A));
+		TRY(s_name_to_key.insert("Acute"_sv,					Key::Acute));
+		TRY(s_name_to_key.insert("AltGr"_sv,					Key::AltGr));
+		TRY(s_name_to_key.insert("Ampersand"_sv,				Key::Ampersand));
+		TRY(s_name_to_key.insert("ArrowDown"_sv,				Key::ArrowDown));
+		TRY(s_name_to_key.insert("ArrowLeft"_sv,				Key::ArrowLeft));
+		TRY(s_name_to_key.insert("ArrowRight"_sv,			Key::ArrowRight));
+		TRY(s_name_to_key.insert("ArrowUp"_sv,				Key::ArrowUp));
+		TRY(s_name_to_key.insert("Asterix"_sv,				Key::Asterix));
+		TRY(s_name_to_key.insert("AtSign"_sv,				Key::AtSign));
+		TRY(s_name_to_key.insert("B"_sv,						Key::B));
+		TRY(s_name_to_key.insert("BackSlash"_sv,				Key::BackSlash));
+		TRY(s_name_to_key.insert("Backspace"_sv,				Key::Backspace));
+		TRY(s_name_to_key.insert("BackTick"_sv,				Key::BackTick));
+		TRY(s_name_to_key.insert("BrokenBar"_sv,				Key::BrokenBar));
+		TRY(s_name_to_key.insert("C"_sv,						Key::C));
+		TRY(s_name_to_key.insert("Calculator"_sv,			Key::Calculator));
+		TRY(s_name_to_key.insert("CapsLock"_sv,				Key::CapsLock));
+		TRY(s_name_to_key.insert("Caret"_sv,					Key::Caret));
+		TRY(s_name_to_key.insert("Cedilla"_sv,				Key::Cedilla));
+		TRY(s_name_to_key.insert("CloseCurlyBracket"_sv,		Key::CloseCurlyBracket));
+		TRY(s_name_to_key.insert("CloseParenthesis"_sv,		Key::CloseParenthesis));
+		TRY(s_name_to_key.insert("CloseSquareBracket"_sv,	Key::CloseSquareBracket));
+		TRY(s_name_to_key.insert("Colon"_sv,					Key::Colon));
+		TRY(s_name_to_key.insert("Comma"_sv,					Key::Comma));
+		TRY(s_name_to_key.insert("Currency"_sv,				Key::Currency));
+		TRY(s_name_to_key.insert("D"_sv,						Key::D));
+		TRY(s_name_to_key.insert("Delete"_sv,				Key::Delete));
+		TRY(s_name_to_key.insert("Dollar"_sv,				Key::Dollar));
+		TRY(s_name_to_key.insert("DoubleQuote"_sv,			Key::DoubleQuote));
+		TRY(s_name_to_key.insert("E"_sv,						Key::E));
+		TRY(s_name_to_key.insert("End"_sv,					Key::End));
+		TRY(s_name_to_key.insert("Enter"_sv,					Key::Enter));
+		TRY(s_name_to_key.insert("Equals"_sv,				Key::Equals));
+		TRY(s_name_to_key.insert("Escape"_sv,				Key::Escape));
+		TRY(s_name_to_key.insert("Euro"_sv,					Key::Euro));
+		TRY(s_name_to_key.insert("Exclamation"_sv,			Key::ExclamationMark));
+		TRY(s_name_to_key.insert("ExclamationMark"_sv,		Key::ExclamationMark));
+		TRY(s_name_to_key.insert("F"_sv,						Key::F));
+		TRY(s_name_to_key.insert("F1"_sv,					Key::F1));
+		TRY(s_name_to_key.insert("F10"_sv,					Key::F10));
+		TRY(s_name_to_key.insert("F11"_sv,					Key::F11));
+		TRY(s_name_to_key.insert("F12"_sv,					Key::F12));
+		TRY(s_name_to_key.insert("F2"_sv,					Key::F2));
+		TRY(s_name_to_key.insert("F3"_sv,					Key::F3));
+		TRY(s_name_to_key.insert("F4"_sv,					Key::F4));
+		TRY(s_name_to_key.insert("F5"_sv,					Key::F5));
+		TRY(s_name_to_key.insert("F6"_sv,					Key::F6));
+		TRY(s_name_to_key.insert("F7"_sv,					Key::F7));
+		TRY(s_name_to_key.insert("F8"_sv,					Key::F8));
+		TRY(s_name_to_key.insert("F9"_sv,					Key::F9));
+		TRY(s_name_to_key.insert("G"_sv,						Key::G));
+		TRY(s_name_to_key.insert("GreaterThan"_sv,			Key::GreaterThan));
+		TRY(s_name_to_key.insert("H"_sv,						Key::H));
+		TRY(s_name_to_key.insert("Half"_sv,					Key::Half));
+		TRY(s_name_to_key.insert("Hashtag"_sv,				Key::Hashtag));
+		TRY(s_name_to_key.insert("Home"_sv,					Key::Home));
+		TRY(s_name_to_key.insert("Hyphen"_sv,				Key::Hyphen));
+		TRY(s_name_to_key.insert("I"_sv,						Key::I));
+		TRY(s_name_to_key.insert("Insert"_sv,				Key::Insert));
+		TRY(s_name_to_key.insert("J"_sv,						Key::J));
+		TRY(s_name_to_key.insert("K"_sv,						Key::K));
+		TRY(s_name_to_key.insert("Key0"_sv,					Key::_0));
+		TRY(s_name_to_key.insert("Key1"_sv,					Key::_1));
+		TRY(s_name_to_key.insert("Key2"_sv,					Key::_2));
+		TRY(s_name_to_key.insert("Key3"_sv,					Key::_3));
+		TRY(s_name_to_key.insert("Key4"_sv,					Key::_4));
+		TRY(s_name_to_key.insert("Key5"_sv,					Key::_5));
+		TRY(s_name_to_key.insert("Key6"_sv,					Key::_6));
+		TRY(s_name_to_key.insert("Key7"_sv,					Key::_7));
+		TRY(s_name_to_key.insert("Key8"_sv,					Key::_8));
+		TRY(s_name_to_key.insert("Key9"_sv,					Key::_9));
+		TRY(s_name_to_key.insert("L"_sv,						Key::L));
+		TRY(s_name_to_key.insert("LAlt"_sv,					Key::LeftAlt));
+		TRY(s_name_to_key.insert("LControl"_sv,				Key::LeftCtrl));
+		TRY(s_name_to_key.insert("LeftAlt"_sv,				Key::LeftAlt));
+		TRY(s_name_to_key.insert("LeftControl"_sv,			Key::LeftCtrl));
+		TRY(s_name_to_key.insert("LeftShift"_sv,				Key::LeftShift));
+		TRY(s_name_to_key.insert("LessThan"_sv,				Key::LessThan));
+		TRY(s_name_to_key.insert("LShift"_sv,				Key::LeftShift));
+		TRY(s_name_to_key.insert("M"_sv,						Key::M));
+		TRY(s_name_to_key.insert("MediaNext"_sv,				Key::MediaNext));
+		TRY(s_name_to_key.insert("MediaPlayPause"_sv,		Key::MediaPlayPause));
+		TRY(s_name_to_key.insert("MediaPrevious"_sv,			Key::MediaPrevious));
+		TRY(s_name_to_key.insert("MediaStop"_sv,				Key::MediaStop));
+		TRY(s_name_to_key.insert("N"_sv,						Key::N));
+		TRY(s_name_to_key.insert("Negation"_sv,				Key::Negation));
+		TRY(s_name_to_key.insert("None"_sv,					Key::None));
+		TRY(s_name_to_key.insert("NumLock"_sv,				Key::NumLock));
+		TRY(s_name_to_key.insert("Numpad0"_sv,				Key::Numpad0));
+		TRY(s_name_to_key.insert("Numpad1"_sv,				Key::Numpad1));
+		TRY(s_name_to_key.insert("Numpad2"_sv,				Key::Numpad2));
+		TRY(s_name_to_key.insert("Numpad3"_sv,				Key::Numpad3));
+		TRY(s_name_to_key.insert("Numpad4"_sv,				Key::Numpad4));
+		TRY(s_name_to_key.insert("Numpad5"_sv,				Key::Numpad5));
+		TRY(s_name_to_key.insert("Numpad6"_sv,				Key::Numpad6));
+		TRY(s_name_to_key.insert("Numpad7"_sv,				Key::Numpad7));
+		TRY(s_name_to_key.insert("Numpad8"_sv,				Key::Numpad8));
+		TRY(s_name_to_key.insert("Numpad9"_sv,				Key::Numpad9));
+		TRY(s_name_to_key.insert("NumpadDecimal"_sv,			Key::NumpadDecimal));
+		TRY(s_name_to_key.insert("NumpadDivide"_sv,			Key::NumpadDivide));
+		TRY(s_name_to_key.insert("NumpadEnter"_sv,			Key::NumpadEnter));
+		TRY(s_name_to_key.insert("NumpadMinus"_sv,			Key::NumpadMinus));
+		TRY(s_name_to_key.insert("NumpadMultiply"_sv,		Key::NumpadMultiply));
+		TRY(s_name_to_key.insert("NumpadPlus"_sv,			Key::NumpadPlus));
+		TRY(s_name_to_key.insert("O_Umlaut"_sv,				Key::O_Umlaut));
+		TRY(s_name_to_key.insert("O"_sv,						Key::O));
+		TRY(s_name_to_key.insert("OpenCurlyBracket"_sv,		Key::OpenCurlyBracket));
+		TRY(s_name_to_key.insert("OpenParenthesis"_sv,		Key::OpenParenthesis));
+		TRY(s_name_to_key.insert("OpenSquareBracket"_sv,		Key::OpenSquareBracket));
+		TRY(s_name_to_key.insert("P"_sv,						Key::P));
+		TRY(s_name_to_key.insert("PageDown"_sv,				Key::PageDown));
+		TRY(s_name_to_key.insert("PageUp"_sv,				Key::PageUp));
+		TRY(s_name_to_key.insert("Percent"_sv,				Key::Percent));
+		TRY(s_name_to_key.insert("Period"_sv,				Key::Period));
+		TRY(s_name_to_key.insert("Pipe"_sv,					Key::Pipe));
+		TRY(s_name_to_key.insert("Plus"_sv,					Key::Plus));
+		TRY(s_name_to_key.insert("Pound"_sv,					Key::Pound));
+		TRY(s_name_to_key.insert("PrintScreen"_sv,			Key::PrintScreen));
+		TRY(s_name_to_key.insert("Q"_sv,						Key::Q));
+		TRY(s_name_to_key.insert("Question"_sv,				Key::QuestionMark));
+		TRY(s_name_to_key.insert("QuestionMark"_sv,			Key::QuestionMark));
+		TRY(s_name_to_key.insert("R"_sv,						Key::R));
+		TRY(s_name_to_key.insert("RAlt"_sv,					Key::RightAlt));
+		TRY(s_name_to_key.insert("RControl"_sv,				Key::RightCtrl));
+		TRY(s_name_to_key.insert("RightAlt"_sv,				Key::RightAlt));
+		TRY(s_name_to_key.insert("RightControl"_sv,			Key::RightCtrl));
+		TRY(s_name_to_key.insert("RightShift"_sv,			Key::RightShift));
+		TRY(s_name_to_key.insert("RShift"_sv,				Key::RightShift));
+		TRY(s_name_to_key.insert("S"_sv,						Key::S));
+		TRY(s_name_to_key.insert("ScrollLock"_sv,			Key::ScrollLock));
+		TRY(s_name_to_key.insert("Section"_sv,				Key::Section));
+		TRY(s_name_to_key.insert("Semicolon"_sv,				Key::Semicolon));
+		TRY(s_name_to_key.insert("SingleQuote"_sv,			Key::SingleQuote));
+		TRY(s_name_to_key.insert("Slash"_sv,					Key::Slash));
+		TRY(s_name_to_key.insert("Space"_sv,					Key::Space));
+		TRY(s_name_to_key.insert("Super"_sv,					Key::Super));
+		TRY(s_name_to_key.insert("T"_sv,						Key::T));
+		TRY(s_name_to_key.insert("Tab"_sv,					Key::Tab));
+		TRY(s_name_to_key.insert("Tilde"_sv,					Key::Tilde));
+		TRY(s_name_to_key.insert("TwoDots"_sv,				Key::TwoDots));
+		TRY(s_name_to_key.insert("U"_sv,						Key::U));
+		TRY(s_name_to_key.insert("Underscore"_sv,			Key::Underscore));
+		TRY(s_name_to_key.insert("V"_sv,						Key::V));
+		TRY(s_name_to_key.insert("VolumeDown"_sv,			Key::VolumeDown));
+		TRY(s_name_to_key.insert("VolumeMute"_sv,			Key::VolumeMute));
+		TRY(s_name_to_key.insert("VolumeUp"_sv,				Key::VolumeUp));
+		TRY(s_name_to_key.insert("W"_sv,						Key::W));
+		TRY(s_name_to_key.insert("X"_sv,						Key::X));
+		TRY(s_name_to_key.insert("Y"_sv,						Key::Y));
+		TRY(s_name_to_key.insert("Z"_sv,						Key::Z));
 		return {};
 	}
 #pragma GCC diagnostic pop

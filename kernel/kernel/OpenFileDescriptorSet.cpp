@@ -65,7 +65,7 @@ namespace Kernel
 
 		int fd = TRY(get_free_fd());
 		// FIXME: path?
-		m_open_files[fd] = TRY(BAN::RefPtr<OpenFileDescription>::create(inode, ""sv, 0, flags));
+		m_open_files[fd] = TRY(BAN::RefPtr<OpenFileDescription>::create(inode, ""_sv, 0, flags));
 
 		return fd;
 	}
@@ -141,7 +141,7 @@ namespace Kernel
 		auto socket = TRY(NetworkManager::get().create_socket(sock_domain, sock_type, 0777, m_credentials.euid(), m_credentials.egid()));
 
 		int fd = TRY(get_free_fd());
-		m_open_files[fd] = TRY(BAN::RefPtr<OpenFileDescription>::create(socket, "no-path"sv, 0, O_RDWR));
+		m_open_files[fd] = TRY(BAN::RefPtr<OpenFileDescription>::create(socket, "no-path"_sv, 0, O_RDWR));
 		return fd;
 	}
 
@@ -150,8 +150,8 @@ namespace Kernel
 		TRY(get_free_fd_pair(fds));
 
 		auto pipe = TRY(Pipe::create(m_credentials));
-		m_open_files[fds[0]] = TRY(BAN::RefPtr<OpenFileDescription>::create(pipe, ""sv, 0, O_RDONLY));
-		m_open_files[fds[1]] = TRY(BAN::RefPtr<OpenFileDescription>::create(pipe, ""sv, 0, O_WRONLY));
+		m_open_files[fds[0]] = TRY(BAN::RefPtr<OpenFileDescription>::create(pipe, ""_sv, 0, O_RDONLY));
+		m_open_files[fds[1]] = TRY(BAN::RefPtr<OpenFileDescription>::create(pipe, ""_sv, 0, O_WRONLY));
 
 		return {};
 	}

@@ -87,11 +87,11 @@ void Terminal::run()
 	signal(SIGCHLD, [](int) { s_shell_exited = true; });
 	start_shell();
 
-	m_window = MUST(LibGUI::Window::create(600, 400, "Terminal"sv));
+	m_window = MUST(LibGUI::Window::create(600, 400, "Terminal"_sv));
 	m_window->fill(m_bg_color);
 	m_window->invalidate();
 
-	m_font = MUST(LibFont::Font::load("/usr/share/fonts/lat0-16.psfu"sv));
+	m_font = MUST(LibFont::Font::load("/usr/share/fonts/lat0-16.psfu"_sv));
 
 	m_window->set_key_event_callback([&](LibGUI::EventPacket::KeyEvent event) { on_key_event(event); });
 

@@ -155,7 +155,7 @@ namespace Kernel
 		virtual bool can_write_impl() const = 0;
 		virtual bool has_error_impl() const = 0;
 
-		virtual BAN::ErrorOr<long> ioctl_impl(int request, void* arg)		{ return BAN::Error::from_errno(ENOTSUP); }
+		virtual BAN::ErrorOr<long> ioctl_impl(int, void*) { return BAN::Error::from_errno(ENOTSUP); }
 
 	protected:
 		mutable PriorityMutex m_mutex;

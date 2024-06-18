@@ -168,9 +168,9 @@ bool is_accepted(const Item& item, const BAN::String& name, const Workflows& wor
 	{
 		if (!satifies_rule(item, rule))
 			continue;
-		if (rule.target == "A"sv)
+		if (rule.target == "A"_sv)
 			return true;
-		if (rule.target == "R"sv)
+		if (rule.target == "R"_sv)
 			return false;
 		return is_accepted(item, rule.target, workflows);
 	}
@@ -185,7 +185,7 @@ i64 puzzle1(FILE* fp)
 	BAN::Vector<Item> accepted;
 
 	for (const auto& item : items)
-		if (is_accepted(item, "in"sv, workflows))
+		if (is_accepted(item, "in"_sv, workflows))
 			MUST(accepted.push_back(item));
 
 	i64 result = 0;
@@ -243,7 +243,7 @@ i64 puzzle2(FILE* fp)
 						values_sorted[2][ai],
 						values_sorted[3][si]
 					}};
-					if (!is_accepted(item, "in"sv, workflows))
+					if (!is_accepted(item, "in"_sv, workflows))
 						continue;
 
 					i64 x_count = values_sorted[0][xi + 1] - values_sorted[0][xi];

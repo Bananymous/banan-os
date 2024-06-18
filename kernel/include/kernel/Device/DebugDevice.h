@@ -10,7 +10,7 @@ namespace Kernel
 
 		virtual dev_t rdev() const override { return m_rdev; }
 
-		virtual BAN::StringView name() const override { return "debug"sv; }
+		virtual BAN::StringView name() const override { return "debug"_sv; }
 
 	protected:
 		DebugDevice(mode_t mode, uid_t uid, gid_t gid, dev_t rdev)

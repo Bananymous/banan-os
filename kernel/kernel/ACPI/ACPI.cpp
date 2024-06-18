@@ -132,7 +132,7 @@ acpi_release_global_lock:
 		if (!access_type.has_value())
 			return {};
 
-		auto op_region = MUST(BAN::RefPtr<AML::OpRegion>::create(""sv, address_space_id, (uint64_t)address, 0xFFFFFFFF));
+		auto op_region = MUST(BAN::RefPtr<AML::OpRegion>::create(""_sv, address_space_id, (uint64_t)address, 0xFFFFFFFF));
 
 		auto field_rules = AML::FieldRules {
 			.access_type = access_type.value(),
@@ -141,7 +141,7 @@ acpi_release_global_lock:
 			.access_attrib = AML::FieldRules::AccessAttrib::Normal,
 			.access_length = 0
 		};
-		auto field_element = MUST(BAN::RefPtr<AML::FieldElement>::create(""sv, register_bit_offset, register_bit_width, field_rules));
+		auto field_element = MUST(BAN::RefPtr<AML::FieldElement>::create(""_sv, register_bit_offset, register_bit_width, field_rules));
 		field_element->op_region = op_region;
 
 		auto result = field_element->as_integer();
@@ -156,7 +156,7 @@ acpi_release_global_lock:
 		if (!access_type.has_value())
 			return {};
 
-		auto op_region = MUST(BAN::RefPtr<AML::OpRegion>::create(""sv, address_space_id, (uint64_t)address, 0xFFFFFFFF));
+		auto op_region = MUST(BAN::RefPtr<AML::OpRegion>::create(""_sv, address_space_id, (uint64_t)address, 0xFFFFFFFF));
 
 		auto field_rules = AML::FieldRules {
 			.access_type = access_type.value(),
@@ -165,7 +165,7 @@ acpi_release_global_lock:
 			.access_attrib = AML::FieldRules::AccessAttrib::Normal,
 			.access_length = 0
 		};
-		auto field_element = MUST(BAN::RefPtr<AML::FieldElement>::create(""sv, register_bit_offset, register_bit_width, field_rules));
+		auto field_element = MUST(BAN::RefPtr<AML::FieldElement>::create(""_sv, register_bit_offset, register_bit_width, field_rules));
 		field_element->op_region = op_region;
 
 		return field_element->store(MUST(BAN::RefPtr<AML::Integer>::create(value)));
@@ -214,7 +214,7 @@ acpi_release_global_lock:
 
 		{
 			ASSERT(!s_global_lock);
-			const auto* fadt = static_cast<const FADT*>(ACPI::get().get_header("FACP"sv, 0));
+			const auto* fadt = static_cast<const FADT*>(ACPI::get().get_header("FACP"_sv, 0));
 			ASSERT(fadt);
 
 			uintptr_t facs_addr = fadt->firmware_ctrl;
@@ -679,7 +679,7 @@ acpi_release_global_lock:
 							return;
 
 						auto name = path.sv().substring(path.size() - 4);
-						if (name.substring(0, 2) != "_L"sv && name.substring(0, 2) != "_E"sv)
+						if (name.substring(0, 2) != "_L"_sv && name.substring(0, 2) != "_E"_sv)
 							return;
 
 						auto index = hex_sv_to_int(name.substring(2));

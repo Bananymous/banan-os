@@ -48,7 +48,7 @@ namespace Kernel::ACPI::AML
 						AML_ERROR("IndexOp index is out of buffer bounds");
 						return ParseResult::Failure;
 					}
-					auto buffer_field = MUST(BAN::RefPtr<BufferField>::create(NameSeg(""sv), buffer, index.value() * 8, 8));
+					auto buffer_field = MUST(BAN::RefPtr<BufferField>::create(NameSeg(""_sv), buffer, index.value() * 8, 8));
 					result = MUST(BAN::RefPtr<AML::Reference>::create(buffer_field));
 					break;
 				}

@@ -45,8 +45,8 @@ i64 puzzle1(FILE* fp)
 		}
 	}
 
-	u32 current = coord_to_u32("AAA"sv);
-	u32 target = coord_to_u32("ZZZ"sv);
+	u32 current = coord_to_u32("AAA"_sv);
+	u32 target = coord_to_u32("ZZZ"_sv);
 
 	i64 steps = 0;
 	for (; current != target; steps++)

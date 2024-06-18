@@ -41,20 +41,20 @@ namespace Kernel::ACPI::AML
 			switch (object->type)
 			{
 				case AML::Node::Type::Device:
-					object_type_sv = "Device"sv;
+					object_type_sv = "Device"_sv;
 					object_name_sv = static_cast<AML::Device*>(object.ptr())->name.sv();
 					break;
 				case AML::Node::Type::Processor:
-					object_type_sv = "Processor"sv;
+					object_type_sv = "Processor"_sv;
 					object_name_sv = static_cast<AML::Processor*>(object.ptr())->name.sv();
 					break;
 				case AML::Node::Type::ThermalZone:
-					object_type_sv = "ThermalZone"sv;
+					object_type_sv = "ThermalZone"_sv;
 					object_name_sv = static_cast<AML::ThermalZone*>(object.ptr())->name.sv();
 					break;
 				default:
-					object_type_sv = "Unknown"sv;
-					object_name_sv = "????"sv;
+					object_type_sv = "Unknown"_sv;
+					object_name_sv = "????"_sv;
 					break;
 			}
 

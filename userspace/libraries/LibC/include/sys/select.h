@@ -44,7 +44,7 @@ typedef struct {
 
 #define FD_ZERO(setp) \
 	do { \
-		for (int i = 0; i < FD_SETSIZE / __FD_MASK_SIZE; i++) \
+		for (int i = 0; i < (int)FD_SETSIZE / (int)__FD_MASK_SIZE; i++) \
 			(setp)->__bits[i] = (__fd_mask)0; \
 	} while (0)
 

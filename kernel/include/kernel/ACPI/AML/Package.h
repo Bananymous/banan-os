@@ -60,7 +60,6 @@ namespace Kernel::ACPI::AML
 		PackageElement(BAN::RefPtr<AML::Package> parent)
 			: Node(Node::Type::PackageElement)
 			, parent(parent)
-			, unresolved_name(unresolved_name)
 		{
 			resolved = false;
 			initialized = false;

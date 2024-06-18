@@ -74,7 +74,7 @@ __BEGIN_DECLS
 
 #if !defined(__dev_t_defined) && (defined(__need_all_types) || defined(__need_dev_t))
 	#define __dev_t_defined 1
-	typedef unsigned long dev_t;
+	typedef unsigned int dev_t;
 #endif
 #undef __need_dev_t
 

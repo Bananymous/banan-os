@@ -34,7 +34,7 @@ struct ParsedCommandLine
 {
 	bool force_pic		= false;
 	bool disable_serial	= false;
-	BAN::StringView console = "tty0"sv;
+	BAN::StringView console = "tty0"_sv;
 	BAN::StringView root;
 };
 
@@ -215,7 +215,7 @@ static void init2(void*)
 
 	TTY::initialize_devices();
 
-	MUST(Process::create_userspace({ 0, 0, 0, 0 }, "/usr/bin/init"sv));
+	MUST(Process::create_userspace({ 0, 0, 0, 0 }, "/usr/bin/init"_sv));
 }
 
 extern "C" void ap_main()

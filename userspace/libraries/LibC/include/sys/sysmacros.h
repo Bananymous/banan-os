@@ -8,10 +8,10 @@ __BEGIN_DECLS
 #define __need_pid_t
 #include <sys/types.h>
 
-#define makedev(maj, min) ((dev_t)(maj) << 32 | (dev_t)(min))
+#define makedev(maj, min) ((dev_t)(maj) << 16 | (dev_t)(min))
 
-#define major(dev) (((dev) >> 32) & 0xFFFFFFFF)
-#define minor(dev) ( (dev)        & 0xFFFFFFFF)
+#define major(dev) (((dev) >> 16) & 0xFFFF)
+#define minor(dev) ( (dev)        & 0xFFFF)
 
 __END_DECLS
 

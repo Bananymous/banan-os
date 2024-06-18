@@ -14,7 +14,7 @@ namespace Kernel
 
 	protected:
 		Interruptable() = default;
-		~Interruptable() {}
+		virtual ~Interruptable() {}
 
 	private:
 		int m_irq { -1 };

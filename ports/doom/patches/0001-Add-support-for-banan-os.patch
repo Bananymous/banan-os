@@ -112,7 +112,7 @@ index 0000000..9161771
 +
 +void DG_Init()
 +{
-+	s_window = MUST(LibGUI::Window::create(DOOMGENERIC_RESX, DOOMGENERIC_RESY, "DOOM"sv));
++	s_window = MUST(LibGUI::Window::create(DOOMGENERIC_RESX, DOOMGENERIC_RESY, "DOOM"_sv));
 +	s_window->set_key_event_callback(
 +		[](LibGUI::EventPacket::KeyEvent event)
 +		{

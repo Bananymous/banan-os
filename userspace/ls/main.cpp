@@ -297,7 +297,7 @@ int main(int argc, const char* argv[])
 	BAN::Vector<BAN::String> files;
 
 	if (i == argc)
-		MUST(files.emplace_back("."sv));
+		MUST(files.emplace_back("."_sv));
 	else for (; i < argc; i++)
 		MUST(files.emplace_back(BAN::StringView(argv[i])));
 

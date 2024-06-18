@@ -342,8 +342,8 @@ namespace Kernel
 			return BAN::Error::from_errno(ENOMEM);
 
 		auto inode = BAN::RefPtr<TmpDirectoryInode>::adopt(inode_ptr);
-		TRY(inode->link_inode(*inode, "."sv));
-		TRY(inode->link_inode(*inode, ".."sv));
+		TRY(inode->link_inode(*inode, "."_sv));
+		TRY(inode->link_inode(*inode, ".."_sv));
 
 		return inode;
 	}
@@ -358,8 +358,8 @@ namespace Kernel
 			return BAN::Error::from_errno(ENOMEM);
 
 		auto inode = BAN::RefPtr<TmpDirectoryInode>::adopt(inode_ptr);
-		TRY(inode->link_inode(*inode, "."sv));
-		TRY(inode->link_inode(parent, ".."sv));
+		TRY(inode->link_inode(*inode, "."_sv));
+		TRY(inode->link_inode(parent, ".."_sv));
 
 		return inode;
 	}
@@ -381,9 +381,9 @@ namespace Kernel
 
 		bool is_empty = true;
 		for_each_valid_entry([&](TmpDirectoryEntry& entry) {
-			if (entry.name_sv() == "."sv)
+			if (entry.name_sv() == "."_sv)
 				dot_ino = entry.ino;
-			else if (entry.name_sv() == ".."sv)
+			else if (entry.name_sv() == ".."_sv)
 				dotdot_ino = entry.ino;
 			else
 			{

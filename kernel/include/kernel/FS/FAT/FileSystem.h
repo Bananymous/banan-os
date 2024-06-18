@@ -53,11 +53,11 @@ namespace Kernel
 		uint32_t first_fat_sector() const   { return m_bpb.reserved_sector_count; }
 
 	private:
-		const FAT::BPB m_bpb;
-		const Type m_type;
-
 		BAN::RefPtr<BlockDevice> m_block_device;
 		BAN::RefPtr<FATInode> m_root_inode;
+
+		const FAT::BPB m_bpb;
+		const Type m_type;
 
 		BAN::HashMap<ino_t, BAN::WeakPtr<FATInode>> m_inode_cache;
 

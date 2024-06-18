@@ -436,8 +436,8 @@ done:
 		auto inode = inode_or_error.release_value();
 		BAN::ScopeGuard cleanup([&] { inode->cleanup_from_fs(); });
 
-		TRY(inode->link_inode_to_directory(*inode, "."sv));
-		TRY(inode->link_inode_to_directory(*this, ".."sv));
+		TRY(inode->link_inode_to_directory(*inode, "."_sv));
+		TRY(inode->link_inode_to_directory(*this, ".."_sv));
 
 		TRY(link_inode_to_directory(*inode, name));
 
@@ -569,7 +569,7 @@ needs_new_block:
 				if (entry.inode)
 				{
 					BAN::StringView entry_name(entry.name, entry.name_len);
-					if (entry_name != "."sv && entry_name != ".."sv)
+					if (entry_name != "."_sv && entry_name != ".."_sv)
 						return false;
 				}
 
@@ -608,12 +608,12 @@ needs_new_block:
 				{
 					BAN::StringView entry_name(entry.name, entry.name_len);
 
-					if (entry_name == "."sv)
+					if (entry_name == "."_sv)
 					{
 						m_inode.links_count--;
 						sync();
 					}
-					else if (entry_name == ".."sv)
+					else if (entry_name == ".."_sv)
 					{
 						auto parent = TRY(Ext2Inode::create(m_fs, entry.inode));
 						parent->m_inode.links_count--;
