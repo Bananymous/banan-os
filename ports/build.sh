@@ -1,10 +1,11 @@
 #!/bin/bash
 
-CURRENT_DIR=$(dirname $(realpath $0))
-pushd "$CURRENT_DIR" >/dev/null
+cd $(dirname $(realpath $0))
+
+if [ ! -f installed ]; then
+	exit 0
+fi
 
 while read port; do
 	${port}/build.sh
 done < installed
-
-popd >/dev/null
