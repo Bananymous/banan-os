@@ -32,7 +32,7 @@ set(LIBC_SOURCES
 	math.cpp
 	icxxabi.cpp
 
-	../BAN/BAN/Assert.cpp
+	../../../BAN/BAN/Assert.cpp
 )
 
 add_custom_target(libc-headers

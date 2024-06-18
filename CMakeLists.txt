@@ -19,12 +19,6 @@ set(BANAN_BOOT ${BANAN_SYSROOT}/boot)
 add_subdirectory(kernel)
 add_subdirectory(bootloader)
 add_subdirectory(BAN)
-add_subdirectory(libc)
-add_subdirectory(LibELF)
-add_subdirectory(LibFont)
-add_subdirectory(LibGUI)
-add_subdirectory(LibImage)
-add_subdirectory(LibInput)
 add_subdirectory(userspace)
 
 add_custom_target(sysroot
@@ -35,24 +29,13 @@ add_custom_target(sysroot
 add_custom_target(headers
 	DEPENDS kernel-headers
 	DEPENDS ban-headers
-	DEPENDS libc-headers
-	DEPENDS libelf-headers
-	DEPENDS libfont-headers
-	DEPENDS libgui-headers
-	DEPENDS libimage-headers
-	DEPENDS libinput-headers
+	DEPENDS userspace-headers
 )
 
 add_custom_target(install-sysroot
 	DEPENDS kernel-install
 	DEPENDS ban-install
-	DEPENDS libc-install
 	DEPENDS userspace-install
-	DEPENDS libelf-install
-	DEPENDS libfont-install
-	DEPENDS libgui-install
-	DEPENDS libimage-install
-	DEPENDS libinput-install
 )
 
 add_custom_target(package-sysroot

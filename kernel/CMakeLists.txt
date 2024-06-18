@@ -148,22 +148,21 @@ set(KLIBC_SOURCES
 )
 
 set(LIBELF_SOURCES
-	../LibELF/LibELF/LoadableELF.cpp
+	../userspace/libraries/LibELF/LibELF/LoadableELF.cpp
 )
 
 set(LIBFONT_SOURCES
-	../LibFont/Font.cpp
-	../LibFont/PSF.cpp
+	../userspace/libraries/LibFont/Font.cpp
+	../userspace/libraries/LibFont/PSF.cpp
 )
 
 set(LIBINPUT_SOURCE
-	../LibInput/KeyboardLayout.cpp
-	../LibInput/KeyEvent.cpp
+	../userspace/libraries/LibInput/KeyboardLayout.cpp
+	../userspace/libraries/LibInput/KeyEvent.cpp
 )
 
 set(KERNEL_SOURCES
 	${KERNEL_SOURCES}
-	${LAI_SOURCES}
 	${BAN_SOURCES}
 	${KLIBC_SOURCES}
 	${LIBELF_SOURCES}
@@ -198,8 +197,6 @@ elseif("${BANAN_ARCH}" STREQUAL "i686")
 endif()
 
 target_link_options(kernel PUBLIC -ffreestanding -nostdlib)
-
-set_source_files_properties(${LAI_SOURCES} PROPERTIES COMPILE_FLAGS -Wno-stack-usage)
 
 add_custom_target(kernel-headers
 	COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different ${CMAKE_CURRENT_SOURCE_DIR}/include/ ${BANAN_INCLUDE}/

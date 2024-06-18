@@ -48,12 +48,15 @@ set(USERSPACE_PROJECTS
 	yes
 )
 
+add_subdirectory(libraries)
+
 foreach(USERSPACE_PROJECT ${USERSPACE_PROJECTS})
 	add_subdirectory(${USERSPACE_PROJECT})
 endforeach()
 
-add_custom_target(userspace)
-add_custom_target(userspace-install DEPENDS userspace)
+add_custom_target(userspace DEPENDS libraries)
+add_custom_target(userspace-headers DEPENDS libraries-headers)
+add_custom_target(userspace-install DEPENDS userspace libraries-install)
 
 add_subdirectory(aoc2023)
 
