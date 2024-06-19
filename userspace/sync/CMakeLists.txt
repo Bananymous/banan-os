@@ -1,16 +1,8 @@
-cmake_minimum_required(VERSION 3.26)
-
-project(sync CXX)
-
 set(SOURCES
 	main.cpp
 )
 
 add_executable(sync ${SOURCES})
-target_compile_options(sync PUBLIC -O2 -g)
-target_link_libraries(sync PUBLIC libc)
+banan_link_library(sync libc)
 
-add_custom_target(sync-install
-	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/sync ${BANAN_BIN}/
-	DEPENDS sync
-)
+install(TARGETS sync)

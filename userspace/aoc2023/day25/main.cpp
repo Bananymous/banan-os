@@ -21,6 +21,9 @@ using u64 = uint64_t;
 
 struct Component
 {
+	Component(BAN::String name)
+		: name(BAN::move(name))
+	{}
 	BAN::String name;
 	BAN::Vector<BAN::String> connections;
 };

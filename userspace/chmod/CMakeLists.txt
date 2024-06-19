@@ -1,16 +1,8 @@
-cmake_minimum_required(VERSION 3.26)
-
-project(chmod CXX)
-
 set(SOURCES
 	main.cpp
 )
 
 add_executable(chmod ${SOURCES})
-target_compile_options(chmod PUBLIC -O2 -g)
-target_link_libraries(chmod PUBLIC libc)
+banan_link_library(chmod libc)
 
-add_custom_target(chmod-install
-	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/chmod ${BANAN_BIN}/
-	DEPENDS chmod
-)
+install(TARGETS chmod)

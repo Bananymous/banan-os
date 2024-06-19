@@ -1,16 +1,9 @@
-cmake_minimum_required(VERSION 3.26)
-
-project(getopt CXX)
-
 set(SOURCES
 	main.cpp
 )
 
 add_executable(getopt ${SOURCES})
-target_compile_options(getopt PUBLIC -O2 -g)
-target_link_libraries(getopt PUBLIC libc ban)
+banan_include_headers(getopt ban)
+banan_link_library(getopt libc)
 
-add_custom_target(getopt-install
-	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/getopt ${BANAN_BIN}/
-	DEPENDS getopt
-)
+install(TARGETS getopt)

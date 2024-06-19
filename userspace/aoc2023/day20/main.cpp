@@ -30,6 +30,8 @@ struct Module
 	BAN::String name;
 	BAN::Vector<BAN::String> targets;
 
+	virtual ~Module() {}
+
 	virtual void handle_signal(const Signal& signal, BAN::Queue<Signal>& signal_queue) = 0;
 };
 

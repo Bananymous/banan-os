@@ -1,12 +1,8 @@
-cmake_minimum_required(VERSION 3.26)
-
-project(LibELF CXX)
-
-add_custom_target(libelf-headers
-	COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different ${CMAKE_CURRENT_SOURCE_DIR}/include/ ${BANAN_INCLUDE}/
-	DEPENDS sysroot
+set(SOURCES
+	dummy.cpp
 )
 
-add_custom_target(libelf-install
-	DEPENDS libelf-headers
-)
+add_library(libelf ${SOURCES})
+
+banan_install_headers(libelf)
+install(TARGETS libelf)

@@ -1,7 +1,3 @@
-cmake_minimum_required(VERSION 3.26)
-
-project(libc CXX ASM)
-
 set(LIBC_SOURCES
 	arpa/inet.cpp
 	assert.cpp
@@ -35,34 +31,24 @@ set(LIBC_SOURCES
 	../../../BAN/BAN/Assert.cpp
 )
 
-add_custom_target(libc-headers
-	COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different ${CMAKE_CURRENT_SOURCE_DIR}/include/ ${BANAN_INCLUDE}/
-	DEPENDS sysroot
-)
-
-add_custom_target(crtx
-	COMMAND ${CMAKE_C_COMPILER} -c ${CMAKE_CURRENT_SOURCE_DIR}/arch/${BANAN_ARCH}/crt0.S -o crt0.o
-	COMMAND ${CMAKE_C_COMPILER} -c ${CMAKE_CURRENT_SOURCE_DIR}/arch/${BANAN_ARCH}/crti.S -o crti.o
-	COMMAND ${CMAKE_C_COMPILER} -c ${CMAKE_CURRENT_SOURCE_DIR}/arch/${BANAN_ARCH}/crtn.S -o crtn.o
-)
-
-add_custom_target(crtx-install
-	COMMAND ${CMAKE_COMMAND} -E copy crt0.o ${BANAN_LIB}/
-	COMMAND ${CMAKE_COMMAND} -E copy crti.o ${BANAN_LIB}/
-	COMMAND ${CMAKE_COMMAND} -E copy crtn.o ${BANAN_LIB}/
-	DEPENDS crtx
-)
-
 add_library(libc ${LIBC_SOURCES})
-add_dependencies(libc headers crtx-install)
-
 target_compile_options(libc PRIVATE -O2 -g -Wstack-usage=512 -fno-tree-loop-distribute-patterns)
 target_compile_options(libc PUBLIC -Wall -Wextra -Werror -Wno-error=stack-usage=)
 
-add_custom_target(libc-install
-	COMMAND ${CMAKE_COMMAND} -E copy_if_different ${CMAKE_CURRENT_BINARY_DIR}/libc.a ${BANAN_LIB}/
-	DEPENDS libc
-	BYPRODUCTS ${BANAN_LIB}/libc.a
+add_library(crt0 OBJECT arch/${BANAN_ARCH}/crt0.S)
+add_library(crti OBJECT arch/${BANAN_ARCH}/crti.S)
+add_library(crtn OBJECT arch/${BANAN_ARCH}/crtn.S)
+add_custom_target(crtx-install
+	COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_OBJECTS:crt0> ${CMAKE_INSTALL_LIBDIR}/crt0.o
+	COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_OBJECTS:crti> ${CMAKE_INSTALL_LIBDIR}/crti.o
+	COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_OBJECTS:crtn> ${CMAKE_INSTALL_LIBDIR}/crtn.o
+	DEPENDS crt0 crti crtn sysroot
 )
+
+banan_include_headers(libc ban)
+banan_include_headers(libc kernel)
+
+banan_install_headers(libc)
+install(TARGETS libc)
 
 set(CMAKE_STATIC_LIBRARY_PREFIX "")

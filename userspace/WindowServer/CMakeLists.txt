@@ -1,7 +1,3 @@
-cmake_minimum_required(VERSION 3.26)
-
-project(WindowServer CXX)
-
 set(SOURCES
 	main.cpp
 	Framebuffer.cpp
@@ -10,10 +6,11 @@ set(SOURCES
 )
 
 add_executable(WindowServer ${SOURCES})
-target_compile_options(WindowServer PUBLIC -O2 -g)
-target_link_libraries(WindowServer PUBLIC libc ban libfont libgui libimage libinput)
+banan_include_headers(WindowServer ban)
+banan_include_headers(WindowServer libgui)
+banan_link_library(WindowServer libc)
+banan_link_library(WindowServer libfont)
+banan_link_library(WindowServer libimage)
+banan_link_library(WindowServer libinput)
 
-add_custom_target(WindowServer-install
-	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/WindowServer ${BANAN_BIN}/
-	DEPENDS WindowServer
-)
+install(TARGETS WindowServer)

@@ -1,16 +1,9 @@
-cmake_minimum_required(VERSION 3.26)
-
-project(Shell CXX)
-
 set(SOURCES
 	main.cpp
 )
 
 add_executable(Shell ${SOURCES})
-target_compile_options(Shell PUBLIC -O2 -g)
-target_link_libraries(Shell PUBLIC libc ban)
+banan_link_library(Shell ban)
+banan_link_library(Shell libc)
 
-add_custom_target(Shell-install
-	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/Shell ${BANAN_BIN}/
-	DEPENDS Shell
-)
+install(TARGETS Shell)

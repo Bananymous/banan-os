@@ -1,17 +1,13 @@
-cmake_minimum_required(VERSION 3.26)
-
-project(Terminal CXX)
-
 set(SOURCES
 	main.cpp
 	Terminal.cpp
 )
 
 add_executable(Terminal ${SOURCES})
-target_compile_options(Terminal PUBLIC -O2 -g)
-target_link_libraries(Terminal PUBLIC libc ban libfont libgui libinput)
+banan_include_headers(Terminal ban)
+banan_link_library(Terminal libc)
+banan_link_library(Terminal libfont)
+banan_link_library(Terminal libgui)
+banan_link_library(Terminal libinput)
 
-add_custom_target(Terminal-install
-	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/Terminal ${BANAN_BIN}/
-	DEPENDS Terminal
-)
+install(TARGETS Terminal)

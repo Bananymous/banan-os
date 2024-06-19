@@ -10,11 +10,41 @@ add_compile_definitions(__enable_sse=1)
 project(banan-os CXX C ASM)
 
 set(BANAN_BASE_SYSROOT ${CMAKE_SOURCE_DIR}/base-sysroot.tar.gz)
+
 set(BANAN_INCLUDE ${BANAN_SYSROOT}/usr/include)
-set(BANAN_LIB ${BANAN_SYSROOT}/usr/lib)
-set(BANAN_BIN ${BANAN_SYSROOT}/usr/bin)
-set(BANAN_SHARE ${BANAN_SYSROOT}/usr/share)
-set(BANAN_BOOT ${BANAN_SYSROOT}/boot)
+set(BANAN_LIB     ${BANAN_SYSROOT}/usr/lib)
+set(BANAN_BIN     ${BANAN_SYSROOT}/usr/bin)
+set(BANAN_ETC     ${BANAN_SYSROOT}/usr/etc)
+set(BANAN_SHARE   ${BANAN_SYSROOT}/usr/share)
+set(BANAN_BOOT    ${BANAN_SYSROOT}/boot)
+
+set(CMAKE_INSTALL_BINDIR     ${BANAN_BIN})
+set(CMAKE_INSTALL_SBINDIR    ${BANAN_BIN})
+set(CMAKE_INSTALL_LIBDIR     ${BANAN_LIB})
+set(CMAKE_INSTALL_INCLUDEDIR ${BANAN_INCLUDE})
+set(CMAKE_INSTALL_SYSCONF    ${BANAN_ETC})
+set(CMAKE_INSTALL_MESSAGE    NEVER)
+
+# include headers of ${library} to ${target}
+function(banan_include_headers target library)
+	target_include_directories(${target} PRIVATE $<TARGET_PROPERTY:${library},SOURCE_DIR>/include)
+endfunction()
+
+# include headers and link ${library} to ${target}
+function(banan_link_library target library)
+	target_link_libraries(${target} PRIVATE ${library})
+	banan_include_headers(${target} ${library})
+endfunction()
+
+# add install step for all header files of target
+function(banan_install_headers target)
+	file(GLOB_RECURSE headers RELATIVE $<TARGET_PROPERTY:${target},SOURCE_DIR>/include "*.h")
+	foreach(header ${headers})
+		get_filename_component(subdirectory ${header} DIRECTORY)
+		install(FILES include/${header} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${subdirectory} OPTIONAL)
+	endforeach()
+	target_include_directories(${target} PRIVATE $<TARGET_PROPERTY:${target},SOURCE_DIR>/include)
+endfunction()
 
 add_subdirectory(kernel)
 add_subdirectory(bootloader)
@@ -24,21 +54,4 @@ add_subdirectory(userspace)
 add_custom_target(sysroot
 	COMMAND ${CMAKE_COMMAND} -E make_directory ${BANAN_SYSROOT}
 	COMMAND cd ${BANAN_SYSROOT} && tar xf ${BANAN_BASE_SYSROOT}
-)
-
-add_custom_target(headers
-	DEPENDS kernel-headers
-	DEPENDS ban-headers
-	DEPENDS userspace-headers
-)
-
-add_custom_target(install-sysroot
-	DEPENDS kernel-install
-	DEPENDS ban-install
-	DEPENDS userspace-install
-)
-
-add_custom_target(package-sysroot
-	COMMAND cd ${BANAN_SYSROOT} && tar cf ${BANAN_SYSROOT_TAR} *
-	DEPENDS install-sysroot
 )

@@ -1,13 +1,3 @@
-cmake_minimum_required(VERSION 3.26)
-
-project(kernel CXX C ASM)
-
-if("${BANAN_ARCH}" STREQUAL "x86_64")
-	set(ELF_FORMAT elf64-x86-64)
-elseif("${BANAN_ARCH}" STREQUAL "i686")
-	set(ELF_FORMAT elf32-i386)
-endif()
-
 set(KERNEL_SOURCES
 	font/prefs.psf.o
 	kernel/ACPI/ACPI.cpp
@@ -106,7 +96,7 @@ set(KERNEL_SOURCES
 	icxxabi.cpp
 )
 
-#set(ENABLE_KERNEL_UBSAN True)
+set(ENABLE_KERNEL_UBSAN False)
 
 if(ENABLE_KERNEL_UBSAN)
 	set(KERNEL_SOURCES ${KERNEL_SOURCES} ubsan.cpp)
@@ -172,7 +162,6 @@ set(KERNEL_SOURCES
 )
 
 add_executable(kernel ${KERNEL_SOURCES})
-add_dependencies(kernel headers)
 
 target_compile_definitions(kernel PUBLIC __is_kernel)
 target_compile_definitions(kernel PUBLIC __arch=${BANAN_ARCH})
@@ -199,16 +188,6 @@ endif()
 
 target_link_options(kernel PUBLIC -ffreestanding -nostdlib)
 
-add_custom_target(kernel-headers
-	COMMAND ${CMAKE_COMMAND} -E copy_directory_if_different ${CMAKE_CURRENT_SOURCE_DIR}/include/ ${BANAN_INCLUDE}/
-	DEPENDS sysroot
-)
-
-add_custom_target(kernel-install
-	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/kernel ${BANAN_BOOT}/banan-os.kernel
-	DEPENDS kernel
-)
-
 execute_process(COMMAND ${CMAKE_CXX_COMPILER} -print-file-name=crtbegin.o OUTPUT_VARIABLE CRTBEGIN OUTPUT_STRIP_TRAILING_WHITESPACE)
 execute_process(COMMAND ${CMAKE_CXX_COMPILER} -print-file-name=crtend.o OUTPUT_VARIABLE CRTEND OUTPUT_STRIP_TRAILING_WHITESPACE)
 
@@ -224,6 +203,22 @@ add_custom_command(
 #	TARGET kernel POST_BUILD
 #	COMMAND x86_64-banan_os-strip ${CMAKE_CURRENT_BINARY_DIR}/kernel
 #)
+
+banan_include_headers(kernel ban)
+banan_include_headers(kernel libc)
+banan_include_headers(kernel libfont)
+banan_include_headers(kernel libelf)
+banan_include_headers(kernel libinput)
+
+banan_install_headers(kernel)
+set_target_properties(kernel PROPERTIES OUTPUT_NAME banan-os.kernel)
+install(TARGETS kernel DESTINATION ${BANAN_BOOT})
+
+if("${BANAN_ARCH}" STREQUAL "x86_64")
+	set(ELF_FORMAT elf64-x86-64)
+elseif("${BANAN_ARCH}" STREQUAL "i686")
+	set(ELF_FORMAT elf32-i386)
+endif()
 
 add_custom_command(
 	OUTPUT font/prefs.psf.o

@@ -1,16 +1,8 @@
-cmake_minimum_required(VERSION 3.26)
-
-project(tee CXX)
-
 set(SOURCES
 	main.cpp
 )
 
 add_executable(tee ${SOURCES})
-target_compile_options(tee PUBLIC -O2 -g)
-target_link_libraries(tee PUBLIC libc)
+banan_link_library(tee libc)
 
-add_custom_target(tee-install
-	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/tee ${BANAN_BIN}/
-	DEPENDS tee
-)
+install(TARGETS tee)

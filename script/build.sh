@@ -7,6 +7,9 @@ source $BANAN_SCRIPT_DIR/config.sh
 FAKEROOT_FILE="$BANAN_BUILD_DIR/fakeroot-context"
 
 run_fakeroot() {
+	if [ ! -f $FAKEROOT_FILE ]; then
+		touch $FAKEROOT_FILE
+	fi
 	fakeroot -i $FAKEROOT_FILE -s $FAKEROOT_FILE -- /bin/bash -c '$@' bash $@
 }
 
@@ -44,9 +47,14 @@ build_toolchain () {
 
 create_image () {
 	build_target bootloader
-	build_target install-sysroot
+	build_target install
+
 	$BANAN_ROOT_DIR/ports/build.sh
-	build_target package-sysroot
+
+	pushd $BANAN_SYSROOT >/dev/null
+	run_fakeroot tar cf ${BANAN_SYSROOT_TAR} *
+	popd >/dev/null
+
 	$BANAN_SCRIPT_DIR/image.sh "$1"
 }
 
@@ -106,7 +114,11 @@ case $1 in
 		build_target clean
 		rm -f $FAKEROOT_FILE
 		rm -rf $BANAN_SYSROOT
+		rm -f $BANAN_SYSROOT.tar
 		rm -f $BANAN_DISK_IMAGE_PATH
+		;;
+	distclean)
+		rm -rf $BANAN_BUILD_DIR
 		;;
 	*)
 		build_target $1

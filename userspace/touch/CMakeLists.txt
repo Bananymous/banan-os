@@ -1,16 +1,8 @@
-cmake_minimum_required(VERSION 3.26)
-
-project(touch CXX)
-
 set(SOURCES
 	main.cpp
 )
 
 add_executable(touch ${SOURCES})
-target_compile_options(touch PUBLIC -O2 -g)
-target_link_libraries(touch PUBLIC libc)
+banan_link_library(touch libc)
 
-add_custom_target(touch-install
-	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/touch ${BANAN_BIN}/
-	DEPENDS touch
-)
+install(TARGETS touch)

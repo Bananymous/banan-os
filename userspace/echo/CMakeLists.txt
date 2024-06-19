@@ -1,16 +1,8 @@
-cmake_minimum_required(VERSION 3.26)
-
-project(echo CXX)
-
 set(SOURCES
 	main.cpp
 )
 
 add_executable(echo ${SOURCES})
-target_compile_options(echo PUBLIC -O2 -g)
-target_link_libraries(echo PUBLIC libc)
+banan_link_library(echo libc)
 
-add_custom_target(echo-install
-	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/echo ${BANAN_BIN}/
-	DEPENDS echo
-)
+install(TARGETS echo)

@@ -1,7 +1,3 @@
-cmake_minimum_required(VERSION 3.26)
-
-project(libraries CXX)
-
 set(USERSPACE_LIBRARIES
 	LibC
 	LibELF
@@ -11,23 +7,17 @@ set(USERSPACE_LIBRARIES
 	LibInput
 )
 
-foreach(LIBRARY ${USERSPACE_LIBRARIES})
-	add_subdirectory(${LIBRARY})
+foreach(library ${USERSPACE_LIBRARIES})
+	add_subdirectory(${library})
 endforeach()
 
 add_custom_target(libraries)
-add_custom_target(libraries-headers)
-add_custom_target(libraries-install)
 
-foreach(LIBRARY ${USERSPACE_LIBRARIES})
-	string(TOLOWER ${LIBRARY} LIBRARY_LOWER)
-
-	if (TARGET ${LIBRARY_LOWER})
-		add_dependencies(libraries ${LIBRARY_LOWER})
+foreach(library ${USERSPACE_LIBRARIES})
+	string(TOLOWER ${library} library_lower)
+	if (TARGET ${library_lower})
+		add_dependencies(libraries ${library_lower})
 		# This is to allow cmake to link when libc updates
-		target_link_options(${LIBRARY_LOWER} PRIVATE -nolibc)
+		target_link_options(${library_lower} PRIVATE -nolibc)
 	endif()
-
-	add_dependencies(libraries-headers ${LIBRARY_LOWER}-headers)
-	add_dependencies(libraries-install ${LIBRARY_LOWER}-install)
 endforeach()

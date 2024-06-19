@@ -1,16 +1,11 @@
-cmake_minimum_required(VERSION 3.26)
-
-project(test-window CXX)
-
 set(SOURCES
 	main.cpp
 )
 
 add_executable(test-window ${SOURCES})
-target_compile_options(test-window PUBLIC -O2 -g)
-target_link_libraries(test-window PUBLIC libc ban libgui)
+banan_include_headers(test-window ban)
+banan_include_headers(test-window libinput)
+banan_link_library(test-window libc)
+banan_link_library(test-window libgui)
 
-add_custom_target(test-window-install
-	COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_BINARY_DIR}/test-window ${BANAN_BIN}/
-	DEPENDS test-window
-)
+install(TARGETS test-window)

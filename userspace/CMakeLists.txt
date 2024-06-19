@@ -1,7 +1,3 @@
-cmake_minimum_required(VERSION 3.26)
-
-project(userspace CXX)
-
 set(USERSPACE_PROJECTS
 	cat
 	cat-mmap
@@ -18,7 +14,6 @@ set(USERSPACE_PROJECTS
 	ls
 	meminfo
 	mkdir
-	mmap-shared-test
 	nslookup
 	poweroff
 	resolver
@@ -34,6 +29,7 @@ set(USERSPACE_PROJECTS
 	test
 	test-framebuffer
 	test-globals
+	test-mmap-shared
 	test-mouse
 	test-popen
 	test-sort
@@ -50,20 +46,16 @@ set(USERSPACE_PROJECTS
 
 add_subdirectory(libraries)
 
-foreach(USERSPACE_PROJECT ${USERSPACE_PROJECTS})
-	add_subdirectory(${USERSPACE_PROJECT})
-endforeach()
+add_custom_target(userspace)
 
-add_custom_target(userspace DEPENDS libraries)
-add_custom_target(userspace-headers DEPENDS libraries-headers)
-add_custom_target(userspace-install DEPENDS userspace libraries-install)
+#add_subdirectory(aoc2023)
 
-add_subdirectory(aoc2023)
-
-foreach(USERSPACE_PROJECT ${USERSPACE_PROJECTS})
-	target_compile_options(${USERSPACE_PROJECT} PRIVATE -g)
-	add_dependencies(userspace ${USERSPACE_PROJECT})
-	add_dependencies(userspace-install ${USERSPACE_PROJECT}-install)
-
-	target_link_options(${USERSPACE_PROJECT} PRIVATE -nolibc)
+foreach(project ${USERSPACE_PROJECTS})
+	add_subdirectory(${project})
+	add_dependencies(${project} crtx-install)
+	add_dependencies(userspace ${project})
+	# This is to allow cmake to link when libc updates
+	target_link_options(${project} PRIVATE -nolibc)
+	# Default compile options
+	target_compile_options(${project} PRIVATE -g -O2)
 endforeach()
