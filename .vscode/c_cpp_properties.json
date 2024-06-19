@@ -1,0 +1,36 @@
+{
+    "configurations": [
+        {
+            "name": "banan-os",
+            "includePath": [
+                "${workspaceFolder}/BAN/include",
+                "${workspaceFolder}/kernel/include",
+                "${workspaceFolder}/userspace/libraries/*/include"
+            ],
+            "defines": [
+				"__arch=x86_64"
+			],
+            "compilerPath": "${workspaceFolder}/toolchain/local/bin/x86_64-banan_os-gcc",
+            "cStandard": "c17",
+            "cppStandard": "gnu++20",
+            "intelliSenseMode": "linux-gcc-x64"
+        },
+        {
+            "name": "banan-os-kernel",
+            "includePath": [
+                "${workspaceFolder}/BAN/include",
+                "${workspaceFolder}/kernel/include",
+                "${workspaceFolder}/userspace/libraries/*/include"
+            ],
+            "defines": [
+				"__arch=x86_64",
+				"__is_kernel"
+			],
+            "compilerPath": "${workspaceFolder}/toolchain/local/bin/x86_64-banan_os-gcc",
+            "cStandard": "c17",
+            "cppStandard": "gnu++20",
+            "intelliSenseMode": "linux-gcc-x64"
+        }
+    ],
+    "version": 4
+}
