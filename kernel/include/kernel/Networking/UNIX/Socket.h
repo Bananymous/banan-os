@@ -18,8 +18,6 @@ namespace Kernel
 		static BAN::ErrorOr<BAN::RefPtr<UnixDomainSocket>> create(SocketType, ino_t, const TmpInodeInfo&);
 
 	protected:
-		virtual void on_close_impl() override;
-
 		virtual BAN::ErrorOr<long> accept_impl(sockaddr*, socklen_t*) override;
 		virtual BAN::ErrorOr<void> connect_impl(const sockaddr*, socklen_t) override;
 		virtual BAN::ErrorOr<void> listen_impl(int) override;
@@ -33,7 +31,7 @@ namespace Kernel
 
 	private:
 		UnixDomainSocket(SocketType, ino_t, const TmpInodeInfo&);
-		~UnixDomainSocket() { on_close_impl(); }
+		~UnixDomainSocket();
 
 		BAN::ErrorOr<void> add_packet(BAN::ConstByteSpan);
 

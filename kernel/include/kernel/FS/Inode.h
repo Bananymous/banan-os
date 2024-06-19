@@ -86,8 +86,6 @@ namespace Kernel
 		virtual bool is_pipe() const { return false; }
 		virtual bool is_tty() const { return false; }
 
-		void on_close();
-
 		// Directory API
 		BAN::ErrorOr<BAN::RefPtr<Inode>> find_inode(BAN::StringView);
 		BAN::ErrorOr<size_t> list_next_inodes(off_t, struct dirent* list, size_t list_size);
@@ -122,8 +120,6 @@ namespace Kernel
 		BAN::ErrorOr<long> ioctl(int request, void* arg);
 
 	protected:
-		virtual void on_close_impl() {}
-
 		// Directory API
 		virtual BAN::ErrorOr<BAN::RefPtr<Inode>> find_inode_impl(BAN::StringView)				{ return BAN::Error::from_errno(ENOTSUP); }
 		virtual BAN::ErrorOr<size_t> list_next_inodes_impl(off_t, struct dirent*, size_t)		{ return BAN::Error::from_errno(ENOTSUP); }

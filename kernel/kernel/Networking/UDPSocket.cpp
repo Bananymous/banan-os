@@ -23,7 +23,7 @@ namespace Kernel
 		: NetworkSocket(network_layer, ino, inode_info)
 	{ }
 
-	void UDPSocket::on_close_impl()
+	UDPSocket::~UDPSocket()
 	{
 		if (is_bound())
 			m_network_layer.unbind_socket(this, m_port);

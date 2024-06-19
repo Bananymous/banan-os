@@ -47,7 +47,7 @@ namespace Kernel
 		}
 	}
 
-	void UnixDomainSocket::on_close_impl()
+	UnixDomainSocket::~UnixDomainSocket()
 	{
 		if (is_bound() && !is_bound_to_unused())
 		{

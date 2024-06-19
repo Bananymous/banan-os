@@ -49,8 +49,6 @@ namespace Kernel
 		virtual void add_protocol_header(BAN::ByteSpan packet, uint16_t dst_port, PseudoHeader) override;
 
 	protected:
-		virtual void on_close_impl() override;
-
 		virtual BAN::ErrorOr<void> connect_impl(const sockaddr*, socklen_t) override;
 
 		virtual void receive_packet(BAN::ConstByteSpan, const sockaddr_storage& sender) override;
@@ -111,6 +109,7 @@ namespace Kernel
 		TCPSocket(NetworkLayer&, ino_t, const TmpInodeInfo&);
 		void process_task();
 
+		void start_close_sequence();
 		void set_connection_as_closed();
 
 	private:

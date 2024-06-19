@@ -63,39 +63,6 @@ namespace Kernel
 	{
 		ASSERT(!is_bound());
 		ASSERT(m_process == nullptr);
-		dprintln_if(DEBUG_TCP, "socket destroyed");
-	}
-
-	void TCPSocket::on_close_impl()
-	{
-		LockGuard _(m_mutex);
-
-		if (!is_bound())
-			return;
-
-		switch (m_state)
-		{
-			case State::Established:
-				break;
-			case State::SynSent:
-				set_connection_as_closed();
-				// fall through
-			case State::SynReceived:
-			case State::FinWait1:
-			case State::FinWait2:
-			case State::CloseWait:
-			case State::Closing:
-			case State::TimeWait:
-			case State::LastAck:
-				return;
-			case State::Closed:		ASSERT_NOT_REACHED();
-			case State::Listen:		ASSERT_NOT_REACHED();
-		}
-
-		m_state = State::FinWait1;
-		m_should_ack = true;
-
-		dprintln_if(DEBUG_TCP, "Initiated close");
 	}
 
 	BAN::ErrorOr<void> TCPSocket::connect_impl(const sockaddr* address, socklen_t address_len)
@@ -407,6 +374,38 @@ namespace Kernel
 
 		m_semaphore.unblock();
 	}
+	
+	void TCPSocket::start_close_sequence()
+	{
+		LockGuard _(m_mutex);
+
+		if (!is_bound())
+			return;
+
+		switch (m_state)
+		{
+			case State::Established:
+				break;
+			case State::SynSent:
+				set_connection_as_closed();
+				return;
+			case State::SynReceived:
+			case State::FinWait1:
+			case State::FinWait2:
+			case State::CloseWait:
+			case State::Closing:
+			case State::TimeWait:
+			case State::LastAck:
+				return;
+			case State::Closed:		ASSERT_NOT_REACHED();
+			case State::Listen:		ASSERT_NOT_REACHED();
+		}
+
+		m_state = State::FinWait1;
+		m_should_ack = true;
+
+		dprintln_if(DEBUG_TCP, "Initiated close");
+	}
 
 	void TCPSocket::set_connection_as_closed()
 	{
@@ -427,13 +426,25 @@ namespace Kernel
 		static constexpr uint32_t retransmit_timeout_ms = 1000;
 
 		BAN::RefPtr<TCPSocket> keep_alive = this;
+		bool started_close_sequence = false;
 
 		while (m_process)
 		{
-			uint64_t current_ms = SystemTimer::get().ms_since_boot();
+			const uint64_t current_ms = SystemTimer::get().ms_since_boot();
 
 			if (m_state == State::TimeWait && current_ms >= m_time_wait_start_ms + 30'000)
+			{
 				set_connection_as_closed();
+				continue;
+			}
+
+			// This is the last instance
+			if (!started_close_sequence && ref_count() == 1)
+			{
+				start_close_sequence();
+				started_close_sequence = true;
+				continue;
+			}
 
 			{
 				LockGuard _(m_mutex);

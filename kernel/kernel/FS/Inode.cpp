@@ -56,12 +56,6 @@ namespace Kernel
 		return true;
 	}
 
-	void Inode::on_close()
-	{
-		LockGuard _(m_mutex);
-		on_close_impl();
-	}
-
 	BAN::ErrorOr<BAN::RefPtr<Inode>> Inode::find_inode(BAN::StringView name)
 	{
 		LockGuard _(m_mutex);
