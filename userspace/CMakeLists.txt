@@ -7,6 +7,7 @@ set(USERSPACE_PROJECTS
 	dhcp-client
 	echo
 	getopt
+	http-server
 	id
 	image
 	init
