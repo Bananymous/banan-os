@@ -9,4 +9,4 @@ add_library(ban ${BAN_SOURCES})
 banan_link_library(ban libc)
 
 banan_install_headers(ban)
-install(TARGETS ban)
+install(TARGETS ban OPTIONAL)

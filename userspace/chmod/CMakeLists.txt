@@ -5,4 +5,4 @@ set(SOURCES
 add_executable(chmod ${SOURCES})
 banan_link_library(chmod libc)
 
-install(TARGETS chmod)
+install(TARGETS chmod OPTIONAL)

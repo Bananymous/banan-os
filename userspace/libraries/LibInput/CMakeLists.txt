@@ -8,6 +8,6 @@ banan_include_headers(libinput ban)
 banan_link_library(libinput libc)
 
 banan_install_headers(libinput)
-install(TARGETS libinput)
+install(TARGETS libinput OPTIONAL)
 
 set(CMAKE_STATIC_LIBRARY_PREFIX "")

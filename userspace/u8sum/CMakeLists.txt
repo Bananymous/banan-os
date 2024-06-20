@@ -5,4 +5,4 @@ set(SOURCES
 add_executable(u8sum ${SOURCES})
 banan_link_library(u8sum libc)
 
-install(TARGETS u8sum)
+install(TARGETS u8sum OPTIONAL)

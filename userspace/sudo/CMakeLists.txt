@@ -5,4 +5,4 @@ set(SOURCES
 add_executable(sudo ${SOURCES})
 banan_link_library(sudo libc)
 
-install(TARGETS sudo)
+install(TARGETS sudo OPTIONAL)

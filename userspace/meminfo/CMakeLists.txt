@@ -5,4 +5,4 @@ set(SOURCES
 add_executable(meminfo ${SOURCES})
 banan_link_library(meminfo libc)
 
-install(TARGETS meminfo)
+install(TARGETS meminfo OPTIONAL)

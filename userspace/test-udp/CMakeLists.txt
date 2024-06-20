@@ -5,4 +5,4 @@ set(SOURCES
 add_executable(test-udp ${SOURCES})
 banan_link_library(test-udp libc)
 
-install(TARGETS test-udp)
+install(TARGETS test-udp OPTIONAL)

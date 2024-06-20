@@ -8,4 +8,4 @@ banan_include_headers(test-window libinput)
 banan_link_library(test-window libc)
 banan_link_library(test-window libgui)
 
-install(TARGETS test-window)
+install(TARGETS test-window OPTIONAL)

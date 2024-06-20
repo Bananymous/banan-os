@@ -5,4 +5,4 @@ set(SOURCES
 add_executable(cat ${SOURCES})
 banan_link_library(cat libc)
 
-install(TARGETS cat)
+install(TARGETS cat OPTIONAL)

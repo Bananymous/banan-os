@@ -5,4 +5,4 @@ set(SOURCES
 add_executable(test-popen ${SOURCES})
 banan_link_library(test-popen libc)
 
-install(TARGETS test-popen)
+install(TARGETS test-popen OPTIONAL)

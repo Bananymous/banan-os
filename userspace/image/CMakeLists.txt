@@ -7,4 +7,4 @@ banan_include_headers(image ban)
 banan_link_library(image libc)
 banan_link_library(image libimage)
 
-install(TARGETS image)
+install(TARGETS image OPTIONAL)

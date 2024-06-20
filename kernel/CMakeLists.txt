@@ -212,7 +212,7 @@ banan_include_headers(kernel libinput)
 
 banan_install_headers(kernel)
 set_target_properties(kernel PROPERTIES OUTPUT_NAME banan-os.kernel)
-install(TARGETS kernel DESTINATION ${BANAN_BOOT})
+install(TARGETS kernel DESTINATION ${BANAN_BOOT} OPTIONAL)
 
 if("${BANAN_ARCH}" STREQUAL "x86_64")
 	set(ELF_FORMAT elf64-x86-64)

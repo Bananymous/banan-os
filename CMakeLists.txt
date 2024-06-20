@@ -24,6 +24,7 @@ set(CMAKE_INSTALL_LIBDIR     ${BANAN_LIB})
 set(CMAKE_INSTALL_INCLUDEDIR ${BANAN_INCLUDE})
 set(CMAKE_INSTALL_SYSCONF    ${BANAN_ETC})
 set(CMAKE_INSTALL_MESSAGE    NEVER)
+set(CMAKE_SKIP_INSTALL_ALL_DEPENDENCY True)
 
 # include headers of ${library} to ${target}
 function(banan_include_headers target library)
@@ -38,12 +39,12 @@ endfunction()
 
 # add install step for all header files of target
 function(banan_install_headers target)
-	file(GLOB_RECURSE headers RELATIVE $<TARGET_PROPERTY:${target},SOURCE_DIR>/include "*.h")
+	file(GLOB_RECURSE headers RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/include *.h)
 	foreach(header ${headers})
 		get_filename_component(subdirectory ${header} DIRECTORY)
-		install(FILES include/${header} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${subdirectory} OPTIONAL)
+		install(FILES include/${header} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/${subdirectory})
 	endforeach()
-	target_include_directories(${target} PRIVATE $<TARGET_PROPERTY:${target},SOURCE_DIR>/include)
+	target_include_directories(${target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 endfunction()
 
 add_subdirectory(kernel)

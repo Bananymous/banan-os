@@ -13,4 +13,4 @@ banan_link_library(WindowServer libfont)
 banan_link_library(WindowServer libimage)
 banan_link_library(WindowServer libinput)
 
-install(TARGETS WindowServer)
+install(TARGETS WindowServer OPTIONAL)

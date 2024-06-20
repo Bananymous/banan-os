@@ -5,4 +5,4 @@ set(SOURCES
 add_executable(sleep ${SOURCES})
 banan_link_library(sleep libc)
 
-install(TARGETS sleep)
+install(TARGETS sleep OPTIONAL)

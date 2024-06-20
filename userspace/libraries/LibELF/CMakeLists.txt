@@ -5,4 +5,4 @@ set(SOURCES
 add_library(libelf ${SOURCES})
 
 banan_install_headers(libelf)
-install(TARGETS libelf)
+install(TARGETS libelf OPTIONAL)

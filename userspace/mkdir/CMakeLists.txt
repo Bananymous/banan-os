@@ -5,4 +5,4 @@ set(SOURCES
 add_executable(mkdir ${SOURCES})
 banan_link_library(mkdir libc)
 
-install(TARGETS mkdir)
+install(TARGETS mkdir OPTIONAL)

@@ -8,6 +8,6 @@ banan_link_library(libfont libc)
 banan_link_library(libfont ban)
 
 banan_install_headers(libfont)
-install(TARGETS libfont)
+install(TARGETS libfont OPTIONAL)
 
 set(CMAKE_STATIC_LIBRARY_PREFIX "")

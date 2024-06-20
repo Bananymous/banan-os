@@ -10,6 +10,6 @@ banan_link_library(libimage libc)
 banan_link_library(libimage ban)
 
 banan_install_headers(libimage)
-install(TARGETS libimage)
+install(TARGETS libimage OPTIONAL)
 
 set(CMAKE_STATIC_LIBRARY_PREFIX "")

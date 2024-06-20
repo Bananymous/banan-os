@@ -5,4 +5,4 @@ set(SOURCES
 add_executable(test-tcp ${SOURCES})
 banan_link_library(test-tcp libc)
 
-install(TARGETS test-tcp)
+install(TARGETS test-tcp OPTIONAL)

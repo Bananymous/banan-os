@@ -32,7 +32,7 @@ set(LIBC_SOURCES
 )
 
 add_library(libc ${LIBC_SOURCES})
-target_compile_options(libc PRIVATE -O2 -g -Wstack-usage=512 -fno-tree-loop-distribute-patterns)
+target_compile_options(libc PRIVATE -O2 -g -Wstack-usage=512 -fno-tree-loop-distribute-patterns -nostdlib)
 target_compile_options(libc PUBLIC -Wall -Wextra -Werror -Wno-error=stack-usage=)
 
 add_library(crt0 OBJECT arch/${BANAN_ARCH}/crt0.S)
@@ -49,6 +49,6 @@ banan_include_headers(libc ban)
 banan_include_headers(libc kernel)
 
 banan_install_headers(libc)
-install(TARGETS libc)
+install(TARGETS libc OPTIONAL)
 
 set(CMAKE_STATIC_LIBRARY_PREFIX "")

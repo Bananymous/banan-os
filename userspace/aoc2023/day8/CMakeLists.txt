@@ -6,4 +6,4 @@ add_executable(aoc2023_day8 ${SOURCES})
 banan_include_headers(aoc2023_day8 ban)
 banan_link_library(aoc2023_day8 libc)
 
-install(TARGETS aoc2023_day8)
+install(TARGETS aoc2023_day8 OPTIONAL)

@@ -5,4 +5,4 @@ set(SOURCES
 add_executable(echo ${SOURCES})
 banan_link_library(echo libc)
 
-install(TARGETS echo)
+install(TARGETS echo OPTIONAL)

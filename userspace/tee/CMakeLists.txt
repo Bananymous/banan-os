@@ -5,4 +5,4 @@ set(SOURCES
 add_executable(tee ${SOURCES})
 banan_link_library(tee libc)
 
-install(TARGETS tee)
+install(TARGETS tee OPTIONAL)

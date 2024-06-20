@@ -5,4 +5,4 @@ set(SOURCES
 add_executable(sync ${SOURCES})
 banan_link_library(sync libc)
 
-install(TARGETS sync)
+install(TARGETS sync OPTIONAL)

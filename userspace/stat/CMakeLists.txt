@@ -6,4 +6,4 @@ add_executable(stat ${SOURCES})
 banan_link_library(stat ban)
 banan_link_library(stat libc)
 
-install(TARGETS stat)
+install(TARGETS stat OPTIONAL)

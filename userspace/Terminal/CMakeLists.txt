@@ -10,4 +10,4 @@ banan_link_library(Terminal libfont)
 banan_link_library(Terminal libgui)
 banan_link_library(Terminal libinput)
 
-install(TARGETS Terminal)
+install(TARGETS Terminal OPTIONAL)

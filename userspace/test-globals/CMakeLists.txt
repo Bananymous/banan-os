@@ -5,4 +5,4 @@ set(SOURCES
 add_executable(test-globals ${SOURCES})
 banan_link_library(test-globals libc)
 
-install(TARGETS test-globals)
+install(TARGETS test-globals OPTIONAL)

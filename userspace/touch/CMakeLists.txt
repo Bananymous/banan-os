@@ -5,4 +5,4 @@ set(SOURCES
 add_executable(touch ${SOURCES})
 banan_link_library(touch libc)
 
-install(TARGETS touch)
+install(TARGETS touch OPTIONAL)

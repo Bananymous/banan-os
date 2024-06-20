@@ -46,7 +46,7 @@ build_toolchain () {
 }
 
 create_image () {
-	build_target bootloader
+	build_target all
 	build_target install
 
 	$BANAN_ROOT_DIR/ports/build.sh

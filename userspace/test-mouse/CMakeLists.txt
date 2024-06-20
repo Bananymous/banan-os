@@ -7,4 +7,4 @@ banan_include_headers(test-mouse ban)
 banan_include_headers(test-mouse libinput)
 banan_link_library(test-mouse libc)
 
-install(TARGETS test-mouse)
+install(TARGETS test-mouse OPTIONAL)

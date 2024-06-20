@@ -5,4 +5,4 @@ set(SOURCES
 add_executable(nslookup ${SOURCES})
 banan_link_library(nslookup libc)
 
-install(TARGETS nslookup)
+install(TARGETS nslookup OPTIONAL)

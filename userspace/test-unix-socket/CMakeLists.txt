@@ -5,4 +5,4 @@ set(SOURCES
 add_executable(test-unix-socket ${SOURCES})
 banan_link_library(test-unix-socket libc)
 
-install(TARGETS test-unix-socket)
+install(TARGETS test-unix-socket OPTIONAL)

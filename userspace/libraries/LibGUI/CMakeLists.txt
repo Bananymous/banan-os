@@ -9,6 +9,6 @@ banan_include_headers(libgui libinput)
 banan_link_library(libgui libc)
 
 banan_install_headers(libgui)
-install(TARGETS libgui)
+install(TARGETS libgui OPTIONAL)
 
 set(CMAKE_STATIC_LIBRARY_PREFIX "")

@@ -5,4 +5,4 @@ set(SOURCES
 add_executable(poweroff ${SOURCES})
 banan_link_library(poweroff libc)
 
-install(TARGETS poweroff)
+install(TARGETS poweroff OPTIONAL)

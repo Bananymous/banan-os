@@ -239,7 +239,7 @@ find $BANAN_BUILD_DIR -mindepth 1 -maxdepth 1 ! -name toolchain -exec rm -r {} +
 # NOTE: we have to manually create initial sysroot with libc headers
 #       since cmake cannot be invoked yet
 mkdir -p $BANAN_SYSROOT/usr
-cp -r $BANAN_ROOT_DIR/libc/include $BANAN_SYSROOT/usr/include
+cp -r $BANAN_ROOT_DIR/userspace/libraries/LibC/include $BANAN_SYSROOT/usr/include
 
 mkdir -p $BANAN_BUILD_DIR/toolchain
 
@@ -262,7 +262,8 @@ fi
 if (($BUILD_LIBSTDCPP)); then
 	# delete sysroot and install libc
 	rm -r $BANAN_SYSROOT
-	$BANAN_SCRIPT_DIR/build.sh libc-install
+	$BANAN_SCRIPT_DIR/build.sh libc
+	$BANAN_SCRIPT_DIR/build.sh install
 
 	build_libstdcpp
 fi
