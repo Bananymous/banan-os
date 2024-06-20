@@ -298,9 +298,9 @@ namespace Kernel
 
 		sockaddr_in sender;
 		sender.sin_family = AF_INET;
-		sender.sin_port = BAN::NetworkEndian<uint16_t>(src_port);
+		sender.sin_port = BAN::host_to_network_endian(src_port);
 		sender.sin_addr.s_addr = src_ipv4.raw;
-		bound_socket->receive_packet(ipv4_data, *reinterpret_cast<const sockaddr_storage*>(&sender));
+		bound_socket->receive_packet(ipv4_data, reinterpret_cast<const sockaddr*>(&sender), sizeof(sender));
 
 		return {};
 	}

@@ -34,7 +34,7 @@ namespace Kernel
 		virtual void add_protocol_header(BAN::ByteSpan packet, uint16_t dst_port, PseudoHeader) = 0;
 		virtual NetworkProtocol protocol() const = 0;
 
-		virtual void receive_packet(BAN::ConstByteSpan, const sockaddr_storage& sender) = 0;
+		virtual void receive_packet(BAN::ConstByteSpan, const sockaddr* sender, socklen_t sender_len) = 0;
 
 		bool is_bound() const { return m_interface != nullptr; }
 

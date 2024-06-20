@@ -40,8 +40,10 @@ namespace Kernel
 		header.checksum = 0;
 	}
 
-	void UDPSocket::receive_packet(BAN::ConstByteSpan packet, const sockaddr_storage& sender)
+	void UDPSocket::receive_packet(BAN::ConstByteSpan packet, const sockaddr* sender, socklen_t sender_len)
 	{
+		(void)sender_len;
+
 		//auto& header = packet.as<const UDPHeader>();
 		auto payload = packet.slice(sizeof(UDPHeader));
 
@@ -62,10 +64,10 @@ namespace Kernel
 		void* buffer = reinterpret_cast<void*>(m_packet_buffer->vaddr() + m_packet_total_size);
 		memcpy(buffer, payload.data(), payload.size());
 
-		m_packets.emplace(PacketInfo {
-			.sender = sender,
-			.packet_size = payload.size()
-		});
+		PacketInfo packet_info;
+		memcpy(&packet_info.sender, sender, sender_len);
+		packet_info.packet_size = payload.size();
+		m_packets.emplace(packet_info);
 		m_packet_total_size += payload.size();
 
 		m_packet_semaphore.unblock();

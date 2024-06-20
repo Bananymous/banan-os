@@ -31,7 +31,7 @@ namespace Kernel
 		virtual void add_protocol_header(BAN::ByteSpan packet, uint16_t dst_port, PseudoHeader) override;
 
 	protected:
-		virtual void receive_packet(BAN::ConstByteSpan, const sockaddr_storage& sender) override;
+		virtual void receive_packet(BAN::ConstByteSpan, const sockaddr* sender, socklen_t sender_len) override;
 
 		virtual BAN::ErrorOr<void> bind_impl(const sockaddr* address, socklen_t address_len) override;
 		virtual BAN::ErrorOr<size_t> sendto_impl(BAN::ConstByteSpan message, const sockaddr* address, socklen_t address_len) override;

@@ -15,6 +15,7 @@ namespace Kernel
 	static_assert(sizeof(PseudoHeader) == 12);
 
 	class NetworkSocket;
+	enum class SocketDomain;
 	enum class SocketType;
 
 	class NetworkLayer
@@ -29,6 +30,7 @@ namespace Kernel
 
 		virtual BAN::ErrorOr<size_t> sendto(NetworkSocket&, BAN::ConstByteSpan, const sockaddr*, socklen_t) = 0;
 
+		virtual SocketDomain domain() const = 0;
 		virtual size_t header_size() const = 0;
 
 	protected:
