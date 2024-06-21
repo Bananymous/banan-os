@@ -35,15 +35,15 @@ add_library(libc ${LIBC_SOURCES})
 target_compile_options(libc PRIVATE -O2 -g -Wstack-usage=512 -fno-tree-loop-distribute-patterns -nostdlib)
 target_compile_options(libc PUBLIC -Wall -Wextra -Werror -Wno-error=stack-usage=)
 
-add_library(crt0 OBJECT arch/${BANAN_ARCH}/crt0.S)
-add_library(crti OBJECT arch/${BANAN_ARCH}/crti.S)
-add_library(crtn OBJECT arch/${BANAN_ARCH}/crtn.S)
-add_custom_target(crtx-install
-	COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_OBJECTS:crt0> ${CMAKE_INSTALL_LIBDIR}/crt0.o
-	COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_OBJECTS:crti> ${CMAKE_INSTALL_LIBDIR}/crti.o
-	COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_OBJECTS:crtn> ${CMAKE_INSTALL_LIBDIR}/crtn.o
-	DEPENDS crt0 crti crtn sysroot
-)
+function(add_crtx crtx)
+	add_custom_target(${crtx} COMMAND ${CMAKE_CXX_COMPILER} -c -o ${crtx}.o ${CMAKE_CURRENT_SOURCE_DIR}/arch/${BANAN_ARCH}/${crtx}.S)
+	install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${crtx}.o DESTINATION ${CMAKE_INSTALL_LIBDIR} OPTIONAL)
+	add_dependencies(libc ${crtx})
+endfunction()
+
+add_crtx(crt0)
+add_crtx(crti)
+add_crtx(crtn)
 
 banan_include_headers(libc ban)
 banan_include_headers(libc kernel)

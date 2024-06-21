@@ -53,7 +53,6 @@ add_custom_target(userspace)
 
 foreach(project ${USERSPACE_PROJECTS})
 	add_subdirectory(${project})
-	add_dependencies(${project} crtx-install)
 	add_dependencies(userspace ${project})
 	# This is to allow cmake to link when libc updates
 	target_link_options(${project} PRIVATE -nolibc)
