@@ -36,8 +36,10 @@ target_compile_options(libc PRIVATE -O2 -g -Wstack-usage=512 -fno-tree-loop-dist
 target_compile_options(libc PUBLIC -Wall -Wextra -Werror -Wno-error=stack-usage=)
 
 function(add_crtx crtx)
-	add_custom_target(${crtx} COMMAND ${CMAKE_CXX_COMPILER} -c -o ${crtx}.o ${CMAKE_CURRENT_SOURCE_DIR}/arch/${BANAN_ARCH}/${crtx}.S)
-	install(FILES ${CMAKE_CURRENT_BINARY_DIR}/${crtx}.o DESTINATION ${CMAKE_INSTALL_LIBDIR} OPTIONAL)
+	add_custom_target(${crtx}
+		COMMAND ${CMAKE_CXX_COMPILER} -c -o ${CMAKE_INSTALL_LIBDIR}/${crtx}.o ${CMAKE_CURRENT_SOURCE_DIR}/arch/${BANAN_ARCH}/${crtx}.S
+		DEPENDS sysroot
+	)
 	add_dependencies(libc ${crtx})
 endfunction()
 
