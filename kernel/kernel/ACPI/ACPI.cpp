@@ -506,9 +506,9 @@ acpi_release_global_lock:
 			return;
 		}
 		auto* s5_package = static_cast<AML::Package*>(s5_evaluated.ptr());
-		if (s5_package->elements.size() != 4)
+		if (s5_package->elements.size() < 2)
 		{
-			dwarnln("\\_S5 package has {} elements, expected 4", s5_package->elements.size());
+			dwarnln("\\_S5 package has {} elements, expected atleast 2", s5_package->elements.size());
 			return;
 		}
 
