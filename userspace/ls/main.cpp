@@ -72,14 +72,14 @@ BAN::String build_access_string(mode_t mode)
 
 BAN::String build_hard_links_string(nlink_t links)
 {
-	return BAN::String::formatted("{}", links);
+	return MUST(BAN::String::formatted("{}", links));
 }
 
 BAN::String build_owner_name_string(uid_t uid)
 {
 	struct passwd* passwd = getpwuid(uid);
 	if (passwd == nullptr)
-		return BAN::String::formatted("{}", uid);
+		return MUST(BAN::String::formatted("{}", uid));
 	return BAN::String(BAN::StringView(passwd->pw_name));
 }
 
@@ -87,13 +87,13 @@ BAN::String build_owner_group_string(gid_t gid)
 {
 	struct group* grp = getgrgid(gid);
 	if (grp == nullptr)
-		return BAN::String::formatted("{}", gid);
+		return MUST(BAN::String::formatted("{}", gid));
 	return BAN::String(BAN::StringView(grp->gr_name));
 }
 
 BAN::String build_size_string(off_t size)
 {
-	return BAN::String::formatted("{}", size);
+	return MUST(BAN::String::formatted("{}", size));
 }
 
 BAN::String build_month_string(BAN::Time time)
@@ -104,15 +104,15 @@ BAN::String build_month_string(BAN::Time time)
 
 BAN::String build_day_string(BAN::Time time)
 {
-	return BAN::String::formatted("{}", time.day);
+	return MUST(BAN::String::formatted("{}", time.day));
 }
 
 BAN::String build_time_string(BAN::Time time)
 {
 	static uint32_t current_year = ({ timespec real_time; clock_gettime(CLOCK_REALTIME, &real_time); BAN::from_unix_time(real_time.tv_sec).year; });
 	if (time.year != current_year)
-		return BAN::String::formatted("{}", time.year);
-	return BAN::String::formatted("{2}:{2}", time.hour, time.minute);
+		return MUST(BAN::String::formatted("{}", time.year));
+	return MUST(BAN::String::formatted("{2}:{2}", time.hour, time.minute));
 }
 
 int list_directory(const BAN::String& path, config_t config)
@@ -213,7 +213,7 @@ int list_directory(const BAN::String& path, config_t config)
 		GET_ENTRY_STRING(day,	time);
 		GET_ENTRY_STRING(time,	time);
 
-		full_entry.full_name = BAN::String::formatted("{}{}\e[m", entry_color(entry.st.st_mode), entry.name);
+		full_entry.full_name = MUST(BAN::String::formatted("{}{}\e[m", entry_color(entry.st.st_mode), entry.name));
 
 		MUST(full_entries.push_back(BAN::move(full_entry)));
 	}

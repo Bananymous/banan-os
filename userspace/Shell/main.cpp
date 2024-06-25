@@ -41,7 +41,7 @@ BAN::Optional<BAN::String> parse_dollar(BAN::StringView command, size_t& i)
 	if (command[i] == '?')
 	{
 		i++;
-		return BAN::String::formatted("{}", last_return);
+		return MUST(BAN::String::formatted("{}", last_return));
 	}
 	if (isalnum(command[i]))
 	{

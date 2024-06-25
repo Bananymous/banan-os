@@ -26,10 +26,15 @@ namespace BAN
 		~String() { clear(); }
 
 		template<typename... Args>
-		static String formatted(const char* format, const Args&... args)
+		static BAN::ErrorOr<String> formatted(const char* format, Args&&... args)
 		{
+			size_type length = 0;
+			BAN::Formatter::print([&](char) { length++; }, format, BAN::forward<Args>(args)...);
+
 			String result;
-			BAN::Formatter::print([&](char c){ MUST(result.push_back(c)); }, format, args...);
+			TRY(result.reserve(length));
+			BAN::Formatter::print([&](char c){ MUST(result.push_back(c)); }, format, BAN::forward<Args>(args)...);
+
 			return result;
 		}
 

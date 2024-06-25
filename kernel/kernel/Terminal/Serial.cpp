@@ -179,11 +179,10 @@ namespace Kernel
 
 	SerialTTY::SerialTTY(Serial serial)
 		: TTY(0600, 0, 0)
+		, m_name(MUST(BAN::String::formatted("ttyS{}", minor(rdev()))))
 		, m_serial(serial)
 		, m_rdev(next_rdev())
-	{
-		m_name = BAN::String::formatted("ttyS{}", minor(rdev()));
-	}
+	{}
 
 	BAN::ErrorOr<BAN::RefPtr<SerialTTY>> SerialTTY::create(Serial serial)
 	{

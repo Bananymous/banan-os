@@ -21,7 +21,7 @@ namespace Kernel
 		, m_first_block(first_block)
 		, m_last_block(last_block)
 		, m_attributes(attr)
-		, m_name(BAN::String::formatted("{}{}", name_prefix, index))
+		, m_name(MUST(BAN::String::formatted("{}{}", name_prefix, index)))
 		, m_rdev(makedev(major(device->rdev()), index))
 	{
 		memcpy(m_label, label, sizeof(m_label));

@@ -41,7 +41,7 @@ namespace Kernel
 
 	FramebufferDevice::FramebufferDevice(mode_t mode, uid_t uid, gid_t gid, dev_t rdev, paddr_t paddr, uint32_t width, uint32_t height, uint32_t pitch, uint8_t bpp)
 		: CharacterDevice(mode, uid, gid)
-		, m_name(BAN::String::formatted("fb{}", minor(rdev)))
+		, m_name(MUST(BAN::String::formatted("fb{}", minor(rdev))))
 		, m_rdev(rdev)
 		, m_video_memory_paddr(paddr)
 		, m_width(width)

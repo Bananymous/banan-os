@@ -29,7 +29,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> ProcFileSystem::on_process_create(Process& process)
 	{
-		auto path = BAN::String::formatted("{}", process.pid());
+		auto path = TRY(BAN::String::formatted("{}", process.pid()));
 		auto inode = TRY(ProcPidInode::create_new(process, *this, 0555, process.credentials().ruid(), process.credentials().rgid()));
 		TRY(static_cast<TmpDirectoryInode*>(root_inode().ptr())->link_inode(*inode, path));
 		return {};
@@ -37,7 +37,7 @@ namespace Kernel
 
 	void ProcFileSystem::on_process_delete(Process& process)
 	{
-		auto path = BAN::String::formatted("{}", process.pid());
+		auto path = MUST(BAN::String::formatted("{}", process.pid()));
 
 		auto inode = MUST(root_inode()->find_inode(path));
 		static_cast<ProcPidInode*>(inode.ptr())->cleanup();

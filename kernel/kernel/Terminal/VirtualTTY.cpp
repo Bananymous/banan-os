@@ -43,11 +43,10 @@ namespace Kernel
 
 	VirtualTTY::VirtualTTY(TerminalDriver* driver)
 		: TTY(0600, 0, 0)
+		, m_name(MUST(BAN::String::formatted("tty{}", minor(rdev()))))
 		, m_terminal_driver(driver)
 		, m_rdev(next_rdev())
 	{
-		m_name = BAN::String::formatted("tty{}", minor(rdev()));
-
 		m_width = m_terminal_driver->width();
 		m_height = m_terminal_driver->height();
 

@@ -52,7 +52,7 @@ Config parse_config()
 		return config;
 	}
 
-	auto config_path = BAN::String::formatted("{}/.config/WindowServer.conf", home_env);
+	auto config_path = MUST(BAN::String::formatted("{}/.config/WindowServer.conf", home_env));
 	FILE* fconfig = fopen(config_path.data(), "r");
 	if (!fconfig)
 	{
