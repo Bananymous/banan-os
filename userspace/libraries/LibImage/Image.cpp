@@ -163,7 +163,7 @@ namespace LibImage
 						const auto b =  p[0]         + (p[1] * -2.5) + (p[2] *  2.0) + (p[3] * -0.5);
 						const auto c = (p[0] * -0.5)                 + (p[2] *  0.5);
 						const auto d =                  p[1];
-						return (a * x * x * x) + (b * x * x) + (c * x) + d;
+						return ((a * x + b) * x + c) * x + d;
 					};
 
 				for (uint64_t y = 0; y < new_height; y++)
