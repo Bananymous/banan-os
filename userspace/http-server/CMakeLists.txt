@@ -1,5 +1,6 @@
 set(SOURCES
 	main.cpp
+	HTTPServer.cpp
 )
 
 add_executable(http-server ${SOURCES})
