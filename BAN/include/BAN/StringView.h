@@ -2,6 +2,7 @@
 
 #include <BAN/Formatter.h>
 #include <BAN/ForwardList.h>
+#include <BAN/Hash.h>
 #include <BAN/Iterators.h>
 #include <BAN/Optional.h>
 #include <BAN/Vector.h>
@@ -220,6 +221,25 @@ namespace BAN
 	private:
 		const char*	m_data = nullptr;
 		size_type	m_size = 0;
+	};
+
+	template<>
+	struct hash<StringView>
+	{
+		hash_t operator()(StringView string) const
+		{
+			constexpr hash_t FNV_offset_basis = 0x811c9dc5;
+			constexpr hash_t FNV_prime = 0x01000193;
+
+			hash_t hash = FNV_offset_basis;
+			for (StringView::size_type i = 0; i < string.size(); i++)
+			{
+				hash *= FNV_prime;
+				hash ^= (uint8_t)string[i];
+			}
+
+			return hash;
+		}
 	};
 
 }
