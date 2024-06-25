@@ -10,8 +10,7 @@ if [ -z $BANAN_SYSROOT ]; then
 	exit 1
 fi
 
-CURRENT_DIR=$(dirname $(realpath $0))
-pushd $CURRENT_DIR >/dev/null
+cd $(dirname $(realpath $0))
 
 if [ ! -d "doomgeneric" ]; then
 	git clone https://github.com/ozkl/doomgeneric.git
@@ -25,7 +24,10 @@ if [ ! -d "doomgeneric" ]; then
 	grep -qxF doom ../installed || echo doom >> ../installed
 fi
 
+if [ ! -f doom1.wad ]; then
+	wget https://distro.ibiblio.org/slitaz/sources/packages/d/doom1.wad
+fi
+
 make --directory doomgeneric/doomgeneric --file Makefile.banan_os
 cp "doomgeneric/doomgeneric/build-${BANAN_ARCH}/doomgeneric" "${BANAN_SYSROOT}/bin/doom"
-
-popd >/dev/null
+cp doom1.wad $BANAN_SYSROOT/home/user/
