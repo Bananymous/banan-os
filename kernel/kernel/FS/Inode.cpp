@@ -39,7 +39,7 @@ namespace Kernel
 			}
 		}
 
-		if (flags & (O_EXEC | O_SEARCH))
+		if ((flags & O_EXEC) || (mode().ifdir() && (flags & O_SEARCH)))
 		{
 			if (mode().mode & S_IXOTH)
 			{ }
