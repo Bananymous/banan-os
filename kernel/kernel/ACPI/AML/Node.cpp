@@ -17,6 +17,7 @@
 #include <kernel/ACPI/AML/Processor.h>
 #include <kernel/ACPI/AML/Reference.h>
 #include <kernel/ACPI/AML/Region.h>
+#include <kernel/ACPI/AML/SizeOf.h>
 #include <kernel/ACPI/AML/Sleep.h>
 #include <kernel/ACPI/AML/Store.h>
 #include <kernel/ACPI/AML/String.h>
@@ -176,6 +177,8 @@ namespace Kernel::ACPI
 				return AML::Index::parse(context);
 			case AML::Byte::NotifyOp:
 				return AML::Notify::parse(context);
+			case AML::Byte::SizeOfOp:
+				return AML::SizeOf::parse(context);
 			case AML::Byte::NoopOp:
 				context.aml_data = context.aml_data.slice(1);
 				return ParseResult::Success;
