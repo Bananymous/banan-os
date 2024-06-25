@@ -165,6 +165,22 @@ namespace BAN
 			return {};
 		}
 
+		BAN::Optional<size_type> rfind(char ch) const
+		{
+			for (size_type i = m_size; i > 0; i--)
+				if (m_data[i - 1] == ch)
+					return i - 1;
+			return {};
+		}
+
+		BAN::Optional<size_type> rfind(bool(*comp)(char)) const
+		{
+			for (size_type i = m_size; i > 0; i--)
+				if (comp(m_data[i - 1]))
+					return i - 1;
+			return {};
+		}
+
 		constexpr bool starts_with(BAN::StringView target) const
 		{
 			if (target.size() > m_size)
