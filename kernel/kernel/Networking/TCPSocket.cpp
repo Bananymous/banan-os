@@ -259,7 +259,7 @@ namespace Kernel
 		const uint32_t target_ack = m_send_window.start_seq + m_send_window.data_size;
 		m_semaphore.unblock();
 
-		while (m_send_window.start_seq < target_ack)
+		while (m_send_window.current_ack < target_ack)
 		{
 			if (m_state != State::Established)
 				return return_with_maybe_zero();
