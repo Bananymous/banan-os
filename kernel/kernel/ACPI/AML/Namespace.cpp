@@ -222,7 +222,7 @@ namespace Kernel::ACPI
 				return {};
 			}
 			auto string = static_cast<AML::String*>(arg.ptr());
-			return string->string == "Linux" ? AML::Integer::Constants::Ones : AML::Integer::Constants::Zero;
+			return string->string_view() == "Linux"_sv ? AML::Integer::Constants::Ones : AML::Integer::Constants::Zero;
 		};
 		ASSERT(s_root_namespace->add_named_object(context, AML::NameString("\\_OSI"), osi));
 

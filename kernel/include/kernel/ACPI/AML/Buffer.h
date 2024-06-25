@@ -5,6 +5,7 @@
 #include <kernel/ACPI/AML/Node.h>
 #include <kernel/ACPI/AML/ParseContext.h>
 #include <kernel/ACPI/AML/Pkg.h>
+#include <kernel/ACPI/AML/String.h>
 
 namespace Kernel::ACPI::AML
 {
@@ -67,11 +68,12 @@ namespace Kernel::ACPI::AML
 
 	struct BufferField : AML::NamedObject
 	{
-		BAN::RefPtr<Buffer> buffer;
+		BAN::RefPtr<AML::Node> buffer;
 		size_t field_bit_offset;
 		size_t field_bit_size;
 
-		BufferField(AML::NameSeg name, BAN::RefPtr<Buffer> buffer, size_t field_bit_offset, size_t field_bit_size)
+		template<typename T> requires BAN::is_same_v<T, AML::Buffer> || BAN::is_same_v<T, AML::String>
+		BufferField(AML::NameSeg name, BAN::RefPtr<T> buffer, size_t field_bit_offset, size_t field_bit_size)
 			: AML::NamedObject(Node::Type::BufferField, name)
 			, buffer(buffer)
 			, field_bit_offset(field_bit_offset)
@@ -81,7 +83,11 @@ namespace Kernel::ACPI::AML
 		BAN::RefPtr<AML::Node> evaluate() override
 		{
 			ASSERT(buffer);
-			ASSERT(field_bit_offset + field_bit_size <= buffer->buffer.size() * 8);
+			ASSERT(buffer->type == AML::Node::Type::Buffer || buffer->type == AML::Node::Type::String);
+			const auto& buffer = (this->buffer->type == AML::Node::Type::Buffer)
+				? static_cast<AML::Buffer*>(this->buffer.ptr())->buffer
+				: static_cast<AML::String*>(this->buffer.ptr())->string;
+			ASSERT(field_bit_offset + field_bit_size <= buffer.size() * 8);
 
 			uint64_t value = 0;
 
@@ -89,13 +95,13 @@ namespace Kernel::ACPI::AML
 			const size_t bit_offset = field_bit_offset % 8;
 			if (field_bit_size == 1)
 			{
-				value = (buffer->buffer[byte_offset] >> bit_offset) & 1;
+				value = (buffer[byte_offset] >> bit_offset) & 1;
 			}
 			else
 			{
 				ASSERT(bit_offset == 0);
 				for (size_t byte = 0; byte < field_bit_size / 8; byte++)
-					value |= buffer->buffer[byte_offset + byte] << byte;
+					value |= buffer[byte_offset + byte] << byte;
 			}
 
 			return MUST(BAN::RefPtr<AML::Integer>::create(value));
@@ -104,7 +110,11 @@ namespace Kernel::ACPI::AML
 		bool store(BAN::RefPtr<AML::Node> node) override
 		{
 			ASSERT(buffer);
-			ASSERT(field_bit_offset + field_bit_size <= buffer->buffer.size() * 8);
+			ASSERT(buffer->type == AML::Node::Type::Buffer || buffer->type == AML::Node::Type::String);
+			auto& buffer = (this->buffer->type == AML::Node::Type::Buffer)
+				? static_cast<AML::Buffer*>(this->buffer.ptr())->buffer
+				: static_cast<AML::String*>(this->buffer.ptr())->string;
+			ASSERT(field_bit_offset + field_bit_size <= buffer.size() * 8);
 
 			auto value = node->as_integer();
 			if (!value.has_value())
@@ -114,14 +124,14 @@ namespace Kernel::ACPI::AML
 			const size_t bit_offset = field_bit_offset % 8;
 			if (field_bit_size == 1)
 			{
-				buffer->buffer[byte_offset] &= ~(1 << bit_offset);
-				buffer->buffer[byte_offset] |= (value.value() & 1) << bit_offset;
+				buffer[byte_offset] &= ~(1 << bit_offset);
+				buffer[byte_offset] |= (value.value() & 1) << bit_offset;
 			}
 			else
 			{
 				ASSERT(bit_offset == 0);
 				for (size_t byte = 0; byte < field_bit_size / 8; byte++)
-					buffer->buffer[byte_offset + byte] = (value.value() >> (byte * 8)) & 0xFF;
+					buffer[byte_offset + byte] = (value.value() >> (byte * 8)) & 0xFF;
 			}
 
 			return true;
@@ -163,7 +173,7 @@ namespace Kernel::ACPI::AML
 				AML_ERROR("Buffer source does not evaluate to a Buffer");
 				return ParseResult::Failure;
 			}
-			auto buffer = static_cast<Buffer*>(buffer_node.ptr());
+			auto buffer = BAN::RefPtr<AML::Buffer>(static_cast<AML::Buffer*>(buffer_node.ptr()));
 
 			auto index_result = AML::parse_object(context);
 			if (!index_result.success())

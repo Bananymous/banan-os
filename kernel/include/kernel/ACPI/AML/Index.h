@@ -42,7 +42,7 @@ namespace Kernel::ACPI::AML
 			{
 				case AML::Node::Type::Buffer:
 				{
-					auto buffer = static_cast<AML::Buffer*>(source.ptr());
+					auto buffer = BAN::RefPtr<AML::Buffer>(static_cast<AML::Buffer*>(source.ptr()));
 					if (index.value() >= buffer->buffer.size())
 					{
 						AML_ERROR("IndexOp index is out of buffer bounds");
@@ -65,8 +65,17 @@ namespace Kernel::ACPI::AML
 					break;
 				}
 				case AML::Node::Type::String:
-					AML_TODO("IndexOp source String");
-					return ParseResult::Failure;
+				{
+					auto string = BAN::RefPtr<AML::String>(static_cast<AML::String*>(source.ptr()));
+					if (index.value() >= string->string.size())
+					{
+						AML_ERROR("IndexOp index is out of string bounds");
+						return ParseResult::Failure;
+					}
+					auto buffer_field = MUST(BAN::RefPtr<BufferField>::create(NameSeg(""_sv), string, index.value() * 8, 8));
+					result = MUST(BAN::RefPtr<AML::Reference>::create(buffer_field));
+					break;
+				}
 				default:
 					AML_ERROR("IndexOp source is not a Buffer, Package, or String");
 					return ParseResult::Failure;
