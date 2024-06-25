@@ -226,6 +226,10 @@ namespace Kernel::ACPI
 		};
 		ASSERT(s_root_namespace->add_named_object(context, AML::NameString("\\_OSI"), osi));
 
+		auto os_string = MUST(BAN::RefPtr<AML::String>::create("banan-os"_sv));
+		auto os = MUST(BAN::RefPtr<AML::Name>::create("_OS"_sv, os_string));
+		ASSERT(s_root_namespace->add_named_object(context, AML::NameString("\\_OS"), os));
+
 		return s_root_namespace;
 	}
 
