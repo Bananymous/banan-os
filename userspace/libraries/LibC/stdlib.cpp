@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <sys/syscall.h>
 #include <unistd.h>
 
 #include <icxxabi.h>
@@ -366,6 +367,22 @@ char* getenv(const char* name)
 			if (environ[i][len] == '=')
 				return environ[i] + len + 1;
 	return nullptr;
+}
+
+char* realpath(const char* __restrict file_name, char* __restrict resolved_name)
+{
+	char buffer[PATH_MAX] {};
+	long canonical_length = syscall(SYS_REALPATH, file_name, buffer);
+	if (canonical_length == -1)
+		return NULL;
+	if (resolved_name == NULL)
+	{
+		resolved_name = static_cast<char*>(malloc(canonical_length + 1));
+		if (resolved_name == NULL)
+			return NULL;
+	}
+	strcpy(resolved_name, buffer);
+	return resolved_name;
 }
 
 int system(const char* command)

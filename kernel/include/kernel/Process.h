@@ -149,6 +149,8 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_fstatat(int fd, const char* path, struct stat* buf, int flag);
 		BAN::ErrorOr<long> sys_stat(const char* path, struct stat* buf, int flag);
 
+		BAN::ErrorOr<long> sys_realpath(const char* path, char* buffer);
+
 		BAN::ErrorOr<long> sys_sync(bool should_block);
 
 		static BAN::ErrorOr<long> clean_poweroff(int command);

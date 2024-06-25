@@ -1238,6 +1238,22 @@ namespace Kernel
 		return 0;
 	}
 
+	BAN::ErrorOr<long> Process::sys_realpath(const char* path, char* buffer)
+	{
+		LockGuard _(m_process_lock);
+		TRY(validate_string_access(path));
+		TRY(validate_pointer_access(buffer, PATH_MAX));
+
+		auto absolute_path = TRY(absolute_path_of(path));
+
+		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, O_SEARCH));
+		if (file.canonical_path.size() >= PATH_MAX)
+			return BAN::Error::from_errno(ENAMETOOLONG);
+
+		strcpy(buffer, file.canonical_path.data());
+		return file.canonical_path.size();
+	}
+
 	BAN::ErrorOr<long> Process::sys_sync(bool should_block)
 	{
 		DevFileSystem::get().initiate_sync(should_block);
