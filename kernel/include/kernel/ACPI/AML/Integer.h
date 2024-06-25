@@ -30,6 +30,8 @@ namespace Kernel::ACPI::AML
 			, constant(constant)
 		{}
 
+		BAN::RefPtr<Node> copy() override { return MUST(BAN::RefPtr<Integer>::create(value)); }
+
 		BAN::RefPtr<AML::Node> evaluate() override
 		{
 			return this;

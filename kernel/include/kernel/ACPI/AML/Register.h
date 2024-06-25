@@ -32,7 +32,7 @@ namespace Kernel::ACPI::AML
 				AML_ERROR("Failed to evaluate source for store");
 				return false;
 			}
-			value = evaluated;
+			value = evaluated->copy();
 			return true;
 		}
 
