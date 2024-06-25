@@ -165,6 +165,21 @@ namespace BAN
 			return {};
 		}
 
+		constexpr bool starts_with(BAN::StringView target) const
+		{
+			if (target.size() > m_size)
+				return false;
+			for (size_type i = 0; i < m_size - target.size(); i++)
+			{
+				bool valid = true;
+				for (size_type j = 0; j < target.size() && valid; j++)
+					valid = (m_data[i + j] == target[j]);
+				if (valid)
+					return true;
+			}
+			return false;
+		}
+
 		constexpr bool contains(char ch) const
 		{
 			for (size_type i = 0; i < m_size; i++)
