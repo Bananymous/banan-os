@@ -1,5 +1,7 @@
 #include "LibGUI/Window.h"
 
+#include <BAN/ScopeGuard.h>
+
 #include <LibFont/Font.h>
 
 #include <fcntl.h>
@@ -16,7 +18,7 @@ namespace LibGUI
 
 	Window::~Window()
 	{
-		munmap(m_framebuffer, m_width * m_height * 4);
+		munmap(m_framebuffer_smo, m_width * m_height * 4);
 		close(m_server_fd);
 	}
 
@@ -25,9 +27,13 @@ namespace LibGUI
 		if (title.size() >= sizeof(WindowCreatePacket::title))
 			return BAN::Error::from_errno(EINVAL);
 
+		BAN::Vector<uint32_t> framebuffer;
+		TRY(framebuffer.resize(width * height));
+
 		int server_fd = socket(AF_UNIX, SOCK_SEQPACKET, 0);
 		if (server_fd == -1)
 			return BAN::Error::from_errno(errno);
+		BAN::ScopeGuard server_closer([server_fd] { close(server_fd); });
 
 		if (fcntl(server_fd, F_SETFL, fcntl(server_fd, F_GETFL) | O_CLOEXEC) == -1)
 			return BAN::Error::from_errno(errno);
@@ -46,11 +52,8 @@ namespace LibGUI
 			timespec current_time;
 			clock_gettime(CLOCK_MONOTONIC, &current_time);
 			time_t duration_s = (current_time.tv_sec - start_time.tv_sec) + (current_time.tv_nsec >= start_time.tv_nsec);
-			if (duration_s > 10)
-			{
-				close(server_fd);
+			if (duration_s > 1)
 				return BAN::Error::from_errno(ETIMEDOUT);
-			}
 
 			timespec sleep_time;
 			sleep_time.tv_sec = 0;
@@ -64,28 +67,22 @@ namespace LibGUI
 		strncpy(packet.title, title.data(), title.size());
 		packet.title[title.size()] = '\0';
 		if (send(server_fd, &packet, sizeof(packet), 0) != sizeof(packet))
-		{
-			close(server_fd);
 			return BAN::Error::from_errno(errno);
-		}
 
 		WindowCreateResponse response;
 		if (recv(server_fd, &response, sizeof(response), 0) != sizeof(response))
-		{
-			close(server_fd);
 			return BAN::Error::from_errno(errno);
-		}
 
 		void* framebuffer_addr = smo_map(response.framebuffer_smo_key);
 		if (framebuffer_addr == nullptr)
-		{
-			close(server_fd);
 			return BAN::Error::from_errno(errno);
-		}
+
+		server_closer.disable();
 
 		return TRY(BAN::UniqPtr<Window>::create(
 			server_fd,
 			static_cast<uint32_t*>(framebuffer_addr),
+			BAN::move(framebuffer),
 			width,
 			height
 		));
@@ -143,8 +140,8 @@ namespace LibGUI
 		uint32_t amount_abs = BAN::Math::abs(amount);
 		if (amount_abs == 0 || amount_abs >= height())
 			return;
-		uint32_t* dst = (amount > 0) ? m_framebuffer + width() * amount_abs : m_framebuffer;
-		uint32_t* src = (amount < 0) ? m_framebuffer + width() * amount_abs : m_framebuffer;
+		uint32_t* dst = (amount > 0) ? m_framebuffer.data() + width() * amount_abs : m_framebuffer.data();
+		uint32_t* src = (amount < 0) ? m_framebuffer.data() + width() * amount_abs : m_framebuffer.data();
 		memmove(dst, src, width() * (height() - amount_abs) * 4);
 	}
 
@@ -171,6 +168,9 @@ namespace LibGUI
 	{
 		if (!clamp_to_framebuffer(x, y, width, height))
 			return true;
+
+		for (uint32_t i = 0; i < height; i++)
+			memcpy(&m_framebuffer_smo[(y + i) * m_width + x], &m_framebuffer[(y + i) * m_width + x], width * sizeof(uint32_t));
 
 		WindowInvalidatePacket packet;
 		packet.x = x;

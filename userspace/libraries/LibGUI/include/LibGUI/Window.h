@@ -136,9 +136,10 @@ namespace LibGUI
 		int server_fd() const { return m_server_fd; }
 
 	private:
-		Window(int server_fd, uint32_t* framebuffer, uint32_t width, uint32_t height)
+		Window(int server_fd, uint32_t* framebuffer_smo, BAN::Vector<uint32_t>&& framebuffer, uint32_t width, uint32_t height)
 			: m_server_fd(server_fd)
 			, m_framebuffer(framebuffer)
+			, m_framebuffer_smo(framebuffer_smo)
 			, m_width(width)
 			, m_height(height)
 		{ }
@@ -147,7 +148,9 @@ namespace LibGUI
 
 	private:
 		int m_server_fd;
-		uint32_t* m_framebuffer;
+
+		BAN::Vector<uint32_t> m_framebuffer;
+		uint32_t* m_framebuffer_smo;
 		uint32_t m_width;
 		uint32_t m_height;
 
