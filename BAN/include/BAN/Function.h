@@ -32,7 +32,7 @@ namespace BAN
 			new (m_storage) CallableMemberConst<Own>(function, owner);
 		}
 		template<typename Lambda>
-		Function(Lambda lambda) requires requires(Lambda lamda, Args... args) { { lambda(args...) } -> BAN::same_as<Ret>; }
+		Function(Lambda lambda) requires requires(Lambda lamda, Args&&... args) { { lambda(forward<Args>(args)...) } -> BAN::same_as<Ret>; }
 		{
 			static_assert(sizeof(CallableLambda<Lambda>) <= m_size);
 			new (m_storage) CallableLambda<Lambda>(lambda);
