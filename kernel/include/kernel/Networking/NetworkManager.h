@@ -1,10 +1,9 @@
 #pragma once
 
 #include <BAN/Vector.h>
-#include <kernel/FS/TmpFS/FileSystem.h>
+#include <kernel/FS/Socket.h>
 #include <kernel/Networking/IPv4Layer.h>
 #include <kernel/Networking/NetworkInterface.h>
-#include <kernel/Networking/NetworkSocket.h>
 #include <kernel/PCI.h>
 
 #include <netinet/in.h>
@@ -12,7 +11,7 @@
 namespace Kernel
 {
 
-	class NetworkManager : public TmpFileSystem
+	class NetworkManager
 	{
 		BAN_NON_COPYABLE(NetworkManager);
 		BAN_NON_MOVABLE(NetworkManager);
@@ -25,16 +24,18 @@ namespace Kernel
 
 		BAN::Vector<BAN::RefPtr<NetworkInterface>> interfaces() { return m_interfaces; }
 
-		BAN::ErrorOr<BAN::RefPtr<TmpInode>> create_socket(SocketDomain, SocketType, mode_t, uid_t, gid_t);
+		BAN::ErrorOr<BAN::RefPtr<Socket>> create_socket(Socket::Domain, Socket::Type, mode_t, uid_t, gid_t);
 
 		void on_receive(NetworkInterface&, BAN::ConstByteSpan);
 
 	private:
-		NetworkManager();
+		NetworkManager() {}
 
 	private:
 		BAN::UniqPtr<IPv4Layer>						m_ipv4_layer;
 		BAN::Vector<BAN::RefPtr<NetworkInterface>>	m_interfaces;
+
+		friend class BAN::UniqPtr<NetworkManager>;
 	};
 
 }

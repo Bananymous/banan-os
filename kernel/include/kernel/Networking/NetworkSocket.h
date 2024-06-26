@@ -2,7 +2,6 @@
 
 #include <BAN/WeakPtr.h>
 #include <kernel/FS/Socket.h>
-#include <kernel/FS/TmpFS/Inode.h>
 #include <kernel/Networking/NetworkInterface.h>
 #include <kernel/Networking/NetworkLayer.h>
 
@@ -16,7 +15,7 @@ namespace Kernel
 		UDP = 0x11,
 	};
 
-	class NetworkSocket : public TmpInode, public BAN::Weakable<NetworkSocket>
+	class NetworkSocket : public Socket, public BAN::Weakable<NetworkSocket>
 	{
 		BAN_NON_COPYABLE(NetworkSocket);
 		BAN_NON_MOVABLE(NetworkSocket);
@@ -39,7 +38,7 @@ namespace Kernel
 		bool is_bound() const { return m_interface != nullptr; }
 
 	protected:
-		NetworkSocket(NetworkLayer&, ino_t, const TmpInodeInfo&);
+		NetworkSocket(NetworkLayer&, const Socket::Info&);
 
 		virtual BAN::ErrorOr<long> ioctl_impl(int request, void* arg) override;
 		virtual BAN::ErrorOr<void> getsockname_impl(sockaddr*, socklen_t*) override;

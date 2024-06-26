@@ -1,20 +1,59 @@
 #pragma once
 
+#include <kernel/FS/Inode.h>
+
 namespace Kernel
 {
 
-	enum class SocketDomain
+	class Socket : public Inode
 	{
-		INET,
-		INET6,
-		UNIX,
-	};
+	public:
+		enum class Domain
+		{
+			INET,
+			INET6,
+			UNIX,
+		};
 
-	enum class SocketType
-	{
-		STREAM,
-		DGRAM,
-		SEQPACKET,
+		enum class Type
+		{
+			STREAM,
+			DGRAM,
+			SEQPACKET,
+		};
+
+		struct Info
+		{
+			mode_t mode;
+			uid_t uid;
+			gid_t gid;
+		};
+
+	public:
+		ino_t		ino()		const final override { ASSERT_NOT_REACHED(); }
+		Mode		mode()		const final override { return Mode(m_info.mode); }
+		nlink_t		nlink()		const final override { ASSERT_NOT_REACHED(); }
+		uid_t		uid()		const final override { return m_info.uid; }
+		gid_t		gid()		const final override { return m_info.gid; }
+		off_t		size()		const final override { ASSERT_NOT_REACHED(); }
+		timespec	atime()		const final override { ASSERT_NOT_REACHED(); }
+		timespec	mtime()		const final override { ASSERT_NOT_REACHED(); }
+		timespec	ctime()		const final override { ASSERT_NOT_REACHED(); }
+		blksize_t	blksize()	const final override { ASSERT_NOT_REACHED(); }
+		blkcnt_t	blocks()	const final override { ASSERT_NOT_REACHED(); }
+		dev_t		dev()		const final override { ASSERT_NOT_REACHED(); }
+		dev_t		rdev()		const final override { ASSERT_NOT_REACHED(); }
+
+	protected:
+		Socket(const Info& info)
+			: m_info(info)
+		{}
+
+		BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan buffer) override { return recvfrom_impl(buffer, nullptr, nullptr); }
+		BAN::ErrorOr<size_t> write_impl(off_t, BAN::ConstByteSpan buffer) override { return sendto_impl(buffer, nullptr, 0); }
+
+	private:
+		const Info m_info;
 	};
 
 }

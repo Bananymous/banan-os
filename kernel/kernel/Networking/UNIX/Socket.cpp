@@ -15,9 +15,9 @@ namespace Kernel
 
 	static constexpr size_t s_packet_buffer_size = 10 * PAGE_SIZE;
 
-	BAN::ErrorOr<BAN::RefPtr<UnixDomainSocket>> UnixDomainSocket::create(SocketType socket_type, ino_t ino, const TmpInodeInfo& inode_info)
+	BAN::ErrorOr<BAN::RefPtr<UnixDomainSocket>> UnixDomainSocket::create(Socket::Type socket_type, const Socket::Info& info)
 	{
-		auto socket = TRY(BAN::RefPtr<UnixDomainSocket>::create(socket_type, ino, inode_info));
+		auto socket = TRY(BAN::RefPtr<UnixDomainSocket>::create(socket_type, info));
 		socket->m_packet_buffer = TRY(VirtualRange::create_to_vaddr_range(
 			PageTable::kernel(),
 			KERNEL_OFFSET,
@@ -29,17 +29,17 @@ namespace Kernel
 		return socket;
 	}
 
-	UnixDomainSocket::UnixDomainSocket(SocketType socket_type, ino_t ino, const TmpInodeInfo& inode_info)
-		: TmpInode(NetworkManager::get(), ino, inode_info)
+	UnixDomainSocket::UnixDomainSocket(Socket::Type socket_type, const Socket::Info& info)
+		: Socket(info)
 		, m_socket_type(socket_type)
 	{
 		switch (socket_type)
 		{
-			case SocketType::STREAM:
-			case SocketType::SEQPACKET:
+			case Socket::Type::STREAM:
+			case Socket::Type::SEQPACKET:
 				m_info.emplace<ConnectionInfo>();
 				break;
-			case SocketType::DGRAM:
+			case Socket::Type::DGRAM:
 				m_info.emplace<ConnectionlessInfo>();
 				break;
 			default:
@@ -55,7 +55,6 @@ namespace Kernel
 			auto it = s_bound_sockets.find(m_bound_path);
 			if (it != s_bound_sockets.end())
 				s_bound_sockets.remove(it);
-			m_bound_path.clear();
 		}
 		if (m_info.has<ConnectionInfo>())
 		{
@@ -63,7 +62,6 @@ namespace Kernel
 			if (auto connection = connection_info.connection.lock(); connection && connection->m_info.has<ConnectionInfo>())
 				connection->m_info.get<ConnectionInfo>().target_closed = true;
 		}
-		m_info.clear();
 	}
 
 	BAN::ErrorOr<long> UnixDomainSocket::accept_impl(sockaddr* address, socklen_t* address_len)
@@ -89,7 +87,7 @@ namespace Kernel
 		BAN::RefPtr<UnixDomainSocket> return_inode;
 
 		{
-			auto return_inode_tmp = TRY(NetworkManager::get().create_socket(SocketDomain::UNIX, m_socket_type, mode().mode & ~Mode::TYPE_MASK, uid(), gid()));
+			auto return_inode_tmp = TRY(NetworkManager::get().create_socket(Socket::Domain::UNIX, m_socket_type, mode().mode & ~Mode::TYPE_MASK, uid(), gid()));
 			return_inode = reinterpret_cast<UnixDomainSocket*>(return_inode_tmp.ptr());
 		}
 
@@ -227,10 +225,10 @@ namespace Kernel
 	{
 		switch (m_socket_type)
 		{
-			case SocketType::STREAM:
+			case Socket::Type::STREAM:
 				return true;
-			case SocketType::SEQPACKET:
-			case SocketType::DGRAM:
+			case Socket::Type::SEQPACKET:
+			case Socket::Type::DGRAM:
 				return false;
 			default:
 				ASSERT_NOT_REACHED();

@@ -68,18 +68,12 @@ namespace Kernel
 		header.checksum			= calculate_internet_checksum(BAN::ConstByteSpan::from(header), {});
 	}
 
-	void IPv4Layer::unbind_socket(BAN::RefPtr<NetworkSocket> socket, uint16_t port)
+	void IPv4Layer::unbind_socket(uint16_t port)
 	{
-		{
-			SpinLockGuard _(m_bound_socket_lock);
-			auto it = m_bound_sockets.find(port);
-			if (it != m_bound_sockets.end())
-			{
-				ASSERT(it->value.lock() == socket);
-				m_bound_sockets.remove(it);
-			}
-		}
-		NetworkManager::get().TmpFileSystem::remove_from_cache(socket);
+		SpinLockGuard _(m_bound_socket_lock);
+		auto it = m_bound_sockets.find(port);
+		ASSERT(it != m_bound_sockets.end());
+		m_bound_sockets.remove(it);
 	}
 
 	BAN::ErrorOr<void> IPv4Layer::bind_socket_to_unused(BAN::RefPtr<NetworkSocket> socket, const sockaddr* address, socklen_t address_len)

@@ -19,11 +19,7 @@ namespace Kernel
 	BAN::ErrorOr<void> NetworkManager::initialize()
 	{
 		ASSERT(!s_instance);
-		NetworkManager* manager_ptr = new NetworkManager();
-		if (manager_ptr == nullptr)
-			return BAN::Error::from_errno(ENOMEM);
-		auto manager = BAN::UniqPtr<NetworkManager>::adopt(manager_ptr);
-		TRY(manager->TmpFileSystem::initialize(0777, 0, 0));
+		auto manager = TRY(BAN::UniqPtr<NetworkManager>::create());
 		manager->m_ipv4_layer = TRY(IPv4Layer::create());
 		s_instance = BAN::move(manager);
 		return {};
@@ -34,10 +30,6 @@ namespace Kernel
 		ASSERT(s_instance);
 		return *s_instance;
 	}
-
-	NetworkManager::NetworkManager()
-		: TmpFileSystem(128)
-	{ }
 
 	BAN::ErrorOr<void> NetworkManager::add_interface(PCI::Device& pci_device)
 	{
@@ -72,21 +64,21 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<BAN::RefPtr<TmpInode>> NetworkManager::create_socket(SocketDomain domain, SocketType type, mode_t mode, uid_t uid, gid_t gid)
+	BAN::ErrorOr<BAN::RefPtr<Socket>> NetworkManager::create_socket(Socket::Domain domain, Socket::Type type, mode_t mode, uid_t uid, gid_t gid)
 	{
 		switch (domain)
 		{
-			case SocketDomain::INET:
+			case Socket::Domain::INET:
 				switch (type)
 				{
-					case SocketType::DGRAM:
-					case SocketType::STREAM:
+					case Socket::Type::DGRAM:
+					case Socket::Type::STREAM:
 						break;
 					default:
 						return BAN::Error::from_errno(EPROTOTYPE);
 				}
 				break;
-			case SocketDomain::UNIX:
+			case Socket::Domain::UNIX:
 				break;
 			default:
 				return BAN::Error::from_errno(EAFNOSUPPORT);
@@ -95,30 +87,28 @@ namespace Kernel
 		ASSERT((mode & Inode::Mode::TYPE_MASK) == 0);
 		mode |= Inode::Mode::IFSOCK;
 
-		auto inode_info = create_inode_info(mode, uid, gid);
-		ino_t ino = TRY(allocate_inode(inode_info));
-
-		BAN::RefPtr<TmpInode> socket;
+		auto socket_info = Socket::Info { .mode = mode, .uid = uid, .gid = gid };
+		BAN::RefPtr<Socket> socket;
 		switch (domain)
 		{
-			case SocketDomain::INET:
+			case Socket::Domain::INET:
 			{
 				switch (type)
 				{
-					case SocketType::DGRAM:
-						socket = TRY(UDPSocket::create(*m_ipv4_layer, ino, inode_info));
+					case Socket::Type::DGRAM:
+						socket = TRY(UDPSocket::create(*m_ipv4_layer, socket_info));
 						break;
-					case SocketType::STREAM:
-						socket = TRY(TCPSocket::create(*m_ipv4_layer, ino, inode_info));
+					case Socket::Type::STREAM:
+						socket = TRY(TCPSocket::create(*m_ipv4_layer, socket_info));
 						break;
 					default:
 						ASSERT_NOT_REACHED();
 				}
 				break;
 			}
-			case SocketDomain::UNIX:
+			case Socket::Domain::UNIX:
 			{
-				socket = TRY(UnixDomainSocket::create(type, ino, inode_info));
+				socket = TRY(UnixDomainSocket::create(type, socket_info));
 				break;
 			}
 			default:

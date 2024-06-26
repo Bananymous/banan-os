@@ -23,9 +23,9 @@ namespace Kernel
 	static constexpr size_t s_window_buffer_size = 15 * PAGE_SIZE;
 	static_assert(s_window_buffer_size <= UINT16_MAX);
 
-	BAN::ErrorOr<BAN::RefPtr<TCPSocket>> TCPSocket::create(NetworkLayer& network_layer, ino_t ino, const TmpInodeInfo& inode_info)
+	BAN::ErrorOr<BAN::RefPtr<TCPSocket>> TCPSocket::create(NetworkLayer& network_layer, const Info& info)
 	{
-		auto socket = TRY(BAN::RefPtr<TCPSocket>::create(network_layer, ino, inode_info));
+		auto socket = TRY(BAN::RefPtr<TCPSocket>::create(network_layer, info));
 		socket->m_recv_window.buffer = TRY(VirtualRange::create_to_vaddr_range(
 			PageTable::kernel(),
 			KERNEL_OFFSET,
@@ -48,11 +48,13 @@ namespace Kernel
 				reinterpret_cast<TCPSocket*>(socket_ptr)->process_task();
 			}, socket.ptr()
 		);
+		// hack to keep socket alive until its process starts
+		socket->ref();
 		return socket;
 	}
 
-	TCPSocket::TCPSocket(NetworkLayer& network_layer, ino_t ino, const TmpInodeInfo& inode_info)
-		: NetworkSocket(network_layer, ino, inode_info)
+	TCPSocket::TCPSocket(NetworkLayer& network_layer, const Info& info)
+		: NetworkSocket(network_layer, info)
 	{
 		m_send_window.start_seq = Random::get_u32() & 0x7FFFFFFF;
 		m_send_window.current_seq = m_send_window.start_seq;
@@ -89,7 +91,7 @@ namespace Kernel
 
 		BAN::RefPtr<TCPSocket> return_inode;
 		{
-			auto return_inode_tmp = TRY(NetworkManager::get().create_socket(m_network_layer.domain(), SocketType::STREAM, mode().mode & ~Mode::TYPE_MASK, uid(), gid()));
+			auto return_inode_tmp = TRY(NetworkManager::get().create_socket(m_network_layer.domain(), Socket::Type::STREAM, mode().mode & ~Mode::TYPE_MASK, uid(), gid()));
 			return_inode = static_cast<TCPSocket*>(return_inode_tmp.ptr());
 		}
 
@@ -605,13 +607,9 @@ namespace Kernel
 			// NOTE: Only listen socket can unbind the socket as
 			//       listen socket is always alive to redirect packets
 			if (!m_listen_parent)
-				m_network_layer.unbind_socket(this, m_port);
+				m_network_layer.unbind_socket(m_port);
 			else
-			{
 				m_listen_parent->remove_listen_child(this);
-				// Listen children are not actually bound, so they have to be manually removed
-				NetworkManager::get().TmpFileSystem::remove_from_cache(this);
-			}
 			m_interface = nullptr;
 			m_port = PORT_NONE;
 			dprintln_if(DEBUG_TCP, "Socket unbound");
@@ -643,6 +641,7 @@ namespace Kernel
 		static constexpr uint32_t retransmit_timeout_ms = 1000;
 
 		BAN::RefPtr<TCPSocket> keep_alive { this };
+		this->unref();
 
 		while (m_process)
 		{
@@ -657,8 +656,8 @@ namespace Kernel
 					continue;
 				}
 
-				// This is the last instance (one instance in network manager and another keep_alive)
-				if (ref_count() == 2)
+				// This is the last instance
+				if (ref_count() == 1)
 				{
 					if (m_state == State::Listen)
 					{

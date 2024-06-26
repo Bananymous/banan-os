@@ -97,38 +97,38 @@ namespace Kernel
 	{
 		bool valid_protocol = true;
 
-		SocketDomain sock_domain;
+		Socket::Domain sock_domain;
 		switch (domain)
 		{
 			case AF_INET:
-				sock_domain = SocketDomain::INET;
+				sock_domain = Socket::Domain::INET;
 				break;
 			case AF_INET6:
-				sock_domain = SocketDomain::INET6;
+				sock_domain = Socket::Domain::INET6;
 				break;
 			case AF_UNIX:
-				sock_domain = SocketDomain::UNIX;
+				sock_domain = Socket::Domain::UNIX;
 				valid_protocol = false;
 				break;
 			default:
 				return BAN::Error::from_errno(EPROTOTYPE);
 		}
 
-		SocketType sock_type;
+		Socket::Type sock_type;
 		switch (type)
 		{
 			case SOCK_STREAM:
-				sock_type = SocketType::STREAM;
+				sock_type = Socket::Type::STREAM;
 				if (protocol != IPPROTO_TCP)
 					valid_protocol = false;
 				break;
 			case SOCK_DGRAM:
-				sock_type = SocketType::DGRAM;
+				sock_type = Socket::Type::DGRAM;
 				if (protocol != IPPROTO_UDP)
 					valid_protocol = false;
 				break;
 			case SOCK_SEQPACKET:
-				sock_type = SocketType::SEQPACKET;
+				sock_type = Socket::Type::SEQPACKET;
 				valid_protocol = false;
 				break;
 			default:

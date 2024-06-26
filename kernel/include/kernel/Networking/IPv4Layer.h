@@ -44,14 +44,14 @@ namespace Kernel
 
 		void add_ipv4_packet(NetworkInterface&, BAN::ConstByteSpan);
 
-		virtual void unbind_socket(BAN::RefPtr<NetworkSocket>, uint16_t port) override;
+		virtual void unbind_socket(uint16_t port) override;
 		virtual BAN::ErrorOr<void> bind_socket_to_unused(BAN::RefPtr<NetworkSocket>, const sockaddr* send_address, socklen_t send_address_len) override;
 		virtual BAN::ErrorOr<void> bind_socket_to_address(BAN::RefPtr<NetworkSocket>, const sockaddr* address, socklen_t address_len) override;
 		virtual BAN::ErrorOr<void> get_socket_address(BAN::RefPtr<NetworkSocket>, sockaddr* address, socklen_t* address_len) override;
 
 		virtual BAN::ErrorOr<size_t> sendto(NetworkSocket&, BAN::ConstByteSpan, const sockaddr*, socklen_t) override;
 
-		virtual SocketDomain domain() const override { return SocketDomain::INET ;}
+		virtual Socket::Domain domain() const override { return Socket::Domain::INET ;}
 		virtual size_t header_size() const override { return sizeof(IPv4Header); }
 
 	private:

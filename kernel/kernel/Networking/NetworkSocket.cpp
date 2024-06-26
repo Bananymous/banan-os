@@ -6,8 +6,8 @@
 namespace Kernel
 {
 
-	NetworkSocket::NetworkSocket(NetworkLayer& network_layer, ino_t ino, const TmpInodeInfo& inode_info)
-		: TmpInode(NetworkManager::get(), ino, inode_info)
+	NetworkSocket::NetworkSocket(NetworkLayer& network_layer, const Socket::Info& info)
+		: Socket(info)
 		, m_network_layer(network_layer)
 	{ }
 

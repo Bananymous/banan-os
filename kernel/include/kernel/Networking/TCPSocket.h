@@ -46,7 +46,7 @@ namespace Kernel
 		static constexpr size_t m_tcp_options_bytes = 4;
 
 	public:
-		static BAN::ErrorOr<BAN::RefPtr<TCPSocket>> create(NetworkLayer&, ino_t, const TmpInodeInfo&);
+		static BAN::ErrorOr<BAN::RefPtr<TCPSocket>> create(NetworkLayer&, const Info&);
 		~TCPSocket();
 
 		virtual NetworkProtocol protocol() const override { return NetworkProtocol::TCP; }
@@ -141,7 +141,7 @@ namespace Kernel
 		};
 
 	private:
-		TCPSocket(NetworkLayer&, ino_t, const TmpInodeInfo&);
+		TCPSocket(NetworkLayer&, const Info&);
 		void process_task();
 
 		void start_close_sequence();

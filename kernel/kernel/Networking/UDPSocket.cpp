@@ -5,9 +5,9 @@
 namespace Kernel
 {
 
-	BAN::ErrorOr<BAN::RefPtr<UDPSocket>> UDPSocket::create(NetworkLayer& network_layer, ino_t ino, const TmpInodeInfo& inode_info)
+	BAN::ErrorOr<BAN::RefPtr<UDPSocket>> UDPSocket::create(NetworkLayer& network_layer, const Socket::Info& info)
 	{
-		auto socket = TRY(BAN::RefPtr<UDPSocket>::create(network_layer, ino, inode_info));
+		auto socket = TRY(BAN::RefPtr<UDPSocket>::create(network_layer, info));
 		socket->m_packet_buffer = TRY(VirtualRange::create_to_vaddr_range(
 			PageTable::kernel(),
 			KERNEL_OFFSET,
@@ -19,14 +19,14 @@ namespace Kernel
 		return socket;
 	}
 
-	UDPSocket::UDPSocket(NetworkLayer& network_layer, ino_t ino, const TmpInodeInfo& inode_info)
-		: NetworkSocket(network_layer, ino, inode_info)
+	UDPSocket::UDPSocket(NetworkLayer& network_layer, const Socket::Info& info)
+		: NetworkSocket(network_layer, info)
 	{ }
 
 	UDPSocket::~UDPSocket()
 	{
 		if (is_bound())
-			m_network_layer.unbind_socket(this, m_port);
+			m_network_layer.unbind_socket(m_port);
 		m_port = PORT_NONE;
 		m_interface = nullptr;
 	}

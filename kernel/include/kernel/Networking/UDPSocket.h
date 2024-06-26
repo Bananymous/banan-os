@@ -23,7 +23,7 @@ namespace Kernel
 	class UDPSocket final : public NetworkSocket
 	{
 	public:
-		static BAN::ErrorOr<BAN::RefPtr<UDPSocket>> create(NetworkLayer&, ino_t, const TmpInodeInfo&);
+		static BAN::ErrorOr<BAN::RefPtr<UDPSocket>> create(NetworkLayer&, const Socket::Info&);
 
 		virtual NetworkProtocol protocol() const override { return NetworkProtocol::UDP; }
 
@@ -42,7 +42,7 @@ namespace Kernel
 		virtual bool has_error_impl() const override { return false; }
 
 	private:
-		UDPSocket(NetworkLayer&, ino_t, const TmpInodeInfo&);
+		UDPSocket(NetworkLayer&, const Socket::Info&);
 		~UDPSocket();
 
 		struct PacketInfo
