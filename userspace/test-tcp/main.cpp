@@ -99,10 +99,9 @@ int main(int argc, char** argv)
 	{
 		ssize_t nrecv = recv(socket, buffer, sizeof(buffer), 0);
 		if (nrecv == -1)
-		{
 			perror("recv");
+		if (nrecv <= 0)
 			break;
-		}
 		write(STDOUT_FILENO, buffer, nrecv);
 	}
 
