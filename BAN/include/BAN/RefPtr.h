@@ -1,5 +1,6 @@
 #pragma once
 
+#include <BAN/Atomic.h>
 #include <BAN/Errors.h>
 #include <BAN/Move.h>
 #include <BAN/NoCopyMove.h>
@@ -22,15 +23,27 @@ namespace BAN
 
 		void ref() const
 		{
-			ASSERT(m_ref_count > 0);
-			m_ref_count++;
+			uint32_t old = m_ref_count.fetch_add(1, MemoryOrder::memory_order_relaxed);
+			ASSERT(old > 0);
+		}
+
+		bool try_ref() const
+		{
+			uint32_t expected = m_ref_count.load(MemoryOrder::memory_order_relaxed);
+			for (;;)
+			{
+				if (expected == 0)
+					return false;
+				if (m_ref_count.compare_exchange(expected, expected + 1, MemoryOrder::memory_order_acquire))
+					return true;
+			}
 		}
 
 		void unref() const
 		{
-			ASSERT(m_ref_count > 0);
-			m_ref_count--;
-			if (m_ref_count == 0)
+			uint32_t old = m_ref_count.fetch_sub(1);
+			ASSERT(old > 0);
+			if (old == 1)
 				delete (const T*)this;
 		}
 
@@ -39,7 +52,7 @@ namespace BAN
 		virtual ~RefCounted() { ASSERT(m_ref_count == 0); }
 
 	private:
-		mutable uint32_t m_ref_count = 1;
+		mutable Atomic<uint32_t> m_ref_count = 1;
 	};
 
 	template<typename T>

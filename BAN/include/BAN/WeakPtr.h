@@ -2,6 +2,10 @@
 
 #include <BAN/RefPtr.h>
 
+#if __is_kernel
+#include <kernel/Lock/SpinLock.h>
+#endif
+
 namespace BAN
 {
 
@@ -11,22 +15,37 @@ namespace BAN
 	template<typename T>
 	class WeakPtr;
 
+	// FIXME: Write this without using locks...
 	template<typename T>
 	class WeakLink : public RefCounted<WeakLink<T>>
 	{
 	public:
-		RefPtr<T> lock() { ASSERT(m_ptr); return raw_ptr(); }
-		T* raw_ptr() { return m_ptr; }
-
+		RefPtr<T> try_lock()
+		{
+#if __is_kernel
+			Kernel::SpinLockGuard _(m_weak_lock);
+#endif
+			if (m_ptr && m_ptr->try_ref())
+				return RefPtr<T>::adopt(m_ptr);
+			return nullptr;
+		}
 		bool valid() const { return m_ptr; }
-		void invalidate() { m_ptr = nullptr; }
+		void invalidate()
+		{
+#if __is_kernel
+			Kernel::SpinLockGuard _(m_weak_lock);
+#endif
+			m_ptr = nullptr;
+		}
 
 	private:
 		WeakLink(T* ptr) : m_ptr(ptr) {}
 
 	private:
 		T* m_ptr;
-
+#if __is_kernel
+		Kernel::SpinLock m_weak_lock;
+#endif
 		friend class RefPtr<WeakLink<T>>;
 	};
 
@@ -82,8 +101,8 @@ namespace BAN
 
 		RefPtr<T> lock()
 		{
-			if (valid())
-				return m_link->lock();
+			if (m_link)
+				return m_link->try_lock();
 			return nullptr;
 		}
 
