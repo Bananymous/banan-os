@@ -99,8 +99,8 @@ namespace Kernel
 			render_from_buffer(last_x, last_y);
 		if (m_show_cursor)
 			m_terminal_driver->set_cursor_position(x, y);
-		last_x = m_column = x;
-		last_y = m_row = y;
+		last_x = x;
+		last_y = y;
 	}
 
 	void VirtualTTY::reset_ansi()
@@ -410,10 +410,18 @@ namespace Kernel
 			for (uint32_t x = 0; x < m_width; x++)
 				m_buffer[(m_height - 1) * m_width + x] = { .foreground = m_foreground, .background = m_background, .codepoint = ' ' };
 
-			// Render the whole buffer to the screen
-			for (uint32_t y = 0; y < m_height; y++)
-				for (uint32_t x = 0; x < m_width; x++)
-					render_from_buffer(x, y);
+			// hide cursor during scrolling
+			bool old_show_cursor = m_show_cursor;
+			m_show_cursor = false;
+			set_cursor_position(0, 0);
+			if (!m_terminal_driver->scroll(m_background))
+			{
+				// No fast scrolling, render the whole buffer to the screen
+				for (uint32_t y = 0; y < m_height; y++)
+					for (uint32_t x = 0; x < m_width; x++)
+						render_from_buffer(x, y);
+			}
+			m_show_cursor = old_show_cursor;
 
 			m_column = 0;
 			m_row--;

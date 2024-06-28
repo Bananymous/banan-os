@@ -17,6 +17,10 @@ namespace Kernel
 
 		void set_pixel(uint32_t x, uint32_t y, uint32_t rgb);
 
+		// positive rows -> empty pixels on bottom
+		// negative rows -> empty pixels on top
+		void scroll(int32_t rows, uint32_t rgb);
+
 		void sync_pixels_full();
 		void sync_pixels_linear(uint32_t first_pixel, uint32_t pixel_count);
 		void sync_pixels_rectangle(uint32_t top_right_x, uint32_t top_right_y, uint32_t width, uint32_t height);

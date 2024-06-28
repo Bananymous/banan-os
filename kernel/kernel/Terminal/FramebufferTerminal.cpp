@@ -33,6 +33,13 @@ namespace Kernel
 		m_framebuffer_device->sync_pixels_rectangle(x, y, font().width(), font().height());
 	}
 
+	bool FramebufferTerminalDriver::scroll(Color color)
+	{
+		m_framebuffer_device->scroll(font().height(), color.rgb);
+		m_framebuffer_device->sync_pixels_full();
+		return true;
+	}
+
 	void FramebufferTerminalDriver::clear(Color color)
 	{
 		for (uint32_t y = 0; y < m_framebuffer_device->height(); y++)

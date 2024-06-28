@@ -135,6 +135,25 @@ namespace Kernel
 			video_buffer_u8[(y * m_width + x) * (BANAN_FB_BPP / 8) + 3] = rgb >> 24;
 	}
 
+	void FramebufferDevice::scroll(int32_t rows, uint32_t rgb)
+	{
+		if (rows == 0)
+			return;
+		rows = BAN::Math::clamp<int32_t>(rows, -m_height, m_height);
+		const uint32_t abs_rows = BAN::Math::abs(rows);
+
+		auto* video_buffer_u8 = reinterpret_cast<uint8_t*>(m_video_buffer->vaddr());
+		uint8_t* src = (rows < 0) ? video_buffer_u8 : &video_buffer_u8[(abs_rows * m_width) * (BANAN_FB_BPP / 8)];
+		uint8_t* dst = (rows > 0) ? video_buffer_u8 : &video_buffer_u8[(abs_rows * m_width) * (BANAN_FB_BPP / 8)];
+		memmove(dst, src, (m_height - abs_rows) * m_width * (BANAN_FB_BPP / 8));
+
+		uint32_t start_y = (rows < 0) ? 0 : m_height - abs_rows;
+		uint32_t stop_y  = (rows < 0) ? abs_rows : m_height;
+		for (uint32_t y = start_y; y < stop_y; y++)
+			for (uint32_t x = 0; x < m_width; x++)
+				set_pixel(x, y, rgb);
+	}
+
 	void FramebufferDevice::sync_pixels_full()
 	{
 		auto* video_memory_u8 = reinterpret_cast<uint8_t*>(m_video_memory_vaddr);

@@ -31,6 +31,7 @@ namespace Kernel
 		virtual uint32_t height() const = 0;
 
 		virtual void putchar_at(uint16_t, uint32_t, uint32_t, Color, Color) = 0;
+		virtual bool scroll(Color) { return false; }
 		virtual void clear(Color) = 0;
 
 		virtual void set_cursor_position(uint32_t, uint32_t) = 0;
