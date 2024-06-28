@@ -346,7 +346,8 @@ namespace Kernel
 		if (m_info.has<ConnectionInfo>())
 		{
 			auto& connection_info = m_info.get<ConnectionInfo>();
-			if (connection_info.target_closed.compare_exchange(true, false))
+			bool expected = true;
+			if (connection_info.target_closed.compare_exchange(expected, false))
 				return 0;
 			if (!connection_info.connection)
 				return BAN::Error::from_errno(ENOTCONN);

@@ -45,8 +45,22 @@ namespace BAN
 		inline T operator--(int) volatile { return __atomic_fetch_sub(&m_value, 1, MEM_ORDER); }
 		inline T operator++(int) volatile { return __atomic_fetch_add(&m_value, 1, MEM_ORDER); }
 
-		inline bool compare_exchange(T expected, T desired, MemoryOrder mem_order = MEM_ORDER) volatile { return __atomic_compare_exchange_n(&m_value, &expected, desired, false, mem_order, mem_order); }
+		inline bool compare_exchange(T& expected, T desired, MemoryOrder mem_order = MEM_ORDER) volatile { return __atomic_compare_exchange_n(&m_value, &expected, desired, false, mem_order, mem_order); }
 		inline T exchange(T desired, MemoryOrder mem_order = MEM_ORDER) volatile { return __atomic_exchange_n(&m_value, desired, mem_order); };
+
+		inline T add_fetch (T val, MemoryOrder mem_order = MEM_ORDER) volatile { return __atomic_add_fetch (&m_value, val, mem_order); }
+		inline T sub_fetch (T val, MemoryOrder mem_order = MEM_ORDER) volatile { return __atomic_sub_fetch (&m_value, val, mem_order); }
+		inline T and_fetch (T val, MemoryOrder mem_order = MEM_ORDER) volatile { return __atomic_and_fetch (&m_value, val, mem_order); }
+		inline T xor_fetch (T val, MemoryOrder mem_order = MEM_ORDER) volatile { return __atomic_xor_fetch (&m_value, val, mem_order); }
+		inline T or_fetch  (T val, MemoryOrder mem_order = MEM_ORDER) volatile { return __atomic_or_fetch  (&m_value, val, mem_order); }
+		inline T nand_fetch(T val, MemoryOrder mem_order = MEM_ORDER) volatile { return __atomic_nand_fetch(&m_value, val, mem_order); }
+
+		inline T fetch_add (T val, MemoryOrder mem_order = MEM_ORDER) volatile { return __atomic_fetch_add (&m_value, val, mem_order); }
+		inline T fetch_sub (T val, MemoryOrder mem_order = MEM_ORDER) volatile { return __atomic_fetch_sub (&m_value, val, mem_order); }
+		inline T fetch_and (T val, MemoryOrder mem_order = MEM_ORDER) volatile { return __atomic_fetch_and (&m_value, val, mem_order); }
+		inline T fetch_xor (T val, MemoryOrder mem_order = MEM_ORDER) volatile { return __atomic_fetch_xor (&m_value, val, mem_order); }
+		inline T fetch_or  (T val, MemoryOrder mem_order = MEM_ORDER) volatile { return __atomic_fetch__or  (&m_value, val, mem_order); }
+		inline T fetch_nand(T val, MemoryOrder mem_order = MEM_ORDER) volatile { return __atomic_nfetch_and(&m_value, val, mem_order); }
 
 	private:
 		T m_value;

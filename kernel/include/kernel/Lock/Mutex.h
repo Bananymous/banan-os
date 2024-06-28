@@ -24,8 +24,12 @@ namespace Kernel
 				ASSERT(m_lock_depth > 0);
 			else
 			{
-				while (!m_locker.compare_exchange(-1, tid))
+				pid_t expected = -1;
+				while (!m_locker.compare_exchange(expected, tid))
+				{
 					Scheduler::get().yield();
+					expected = -1;
+				}
 				ASSERT(m_lock_depth == 0);
 				if (Scheduler::current_tid())
 					Thread::current().add_mutex();
@@ -40,7 +44,8 @@ namespace Kernel
 				ASSERT(m_lock_depth > 0);
 			else
 			{
-				if (!m_locker.compare_exchange(-1, tid))
+				pid_t expected = -1;
+				if (!m_locker.compare_exchange(expected, tid))
 					return false;
 				ASSERT(m_lock_depth == 0);
 				if (Scheduler::current_tid())
@@ -89,8 +94,12 @@ namespace Kernel
 				bool has_priority = tid ? !Thread::current().is_userspace() : true;
 				if (has_priority)
 					m_queue_length++;
-				while (!(has_priority || m_queue_length == 0) || !m_locker.compare_exchange(-1, tid))
+				pid_t expected = -1;
+				while (!(has_priority || m_queue_length == 0) || !m_locker.compare_exchange(expected, tid))
+				{
 					Scheduler::get().yield();
+					expected = -1;
+				}
 				ASSERT(m_lock_depth == 0);
 				if (Scheduler::current_tid())
 					Thread::current().add_mutex();
@@ -106,7 +115,8 @@ namespace Kernel
 			else
 			{
 				bool has_priority = tid ? !Thread::current().is_userspace() : true;
-				if (!(has_priority || m_queue_length == 0) || !m_locker.compare_exchange(-1, tid))
+				pid_t expected = -1;
+				if (!(has_priority || m_queue_length == 0) || !m_locker.compare_exchange(expected, tid))
 					return false;
 				if (has_priority)
 					m_queue_length++;

@@ -26,8 +26,12 @@ namespace Kernel
 			auto id = Processor::current_id();
 			ASSERT(m_locker != id);
 
-			while (!m_locker.compare_exchange(PROCESSOR_NONE, id, BAN::MemoryOrder::memory_order_acquire))
+			ProcessorID expected = PROCESSOR_NONE;
+			while (!m_locker.compare_exchange(expected, id, BAN::MemoryOrder::memory_order_acquire))
+			{
 				__builtin_ia32_pause();
+				expected = PROCESSOR_NONE;
+			}
 
 			return state;
 		}
@@ -67,8 +71,12 @@ namespace Kernel
 				ASSERT(m_lock_depth > 0);
 			else
 			{
-				while (!m_locker.compare_exchange(PROCESSOR_NONE, id, BAN::MemoryOrder::memory_order_acquire))
+				ProcessorID expected = PROCESSOR_NONE;
+				while (!m_locker.compare_exchange(expected, id, BAN::MemoryOrder::memory_order_acquire))
+				{
 					__builtin_ia32_pause();
+					expected = PROCESSOR_NONE;
+				}
 				ASSERT(m_lock_depth == 0);
 			}
 
