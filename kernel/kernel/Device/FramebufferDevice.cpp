@@ -156,18 +156,7 @@ namespace Kernel
 
 	void FramebufferDevice::sync_pixels_full()
 	{
-		auto* video_memory_u8 = reinterpret_cast<uint8_t*>(m_video_memory_vaddr);
-		auto* video_buffer_u8 = reinterpret_cast<uint8_t*>(m_video_buffer->vaddr());
-
-		for (uint32_t i = 0; i < m_width * m_height; i++)
-		{
-			uint32_t row = i / m_width;
-			uint32_t idx = i % m_width;
-
-			video_memory_u8[(row * m_pitch) + (idx * m_bpp / 8) + 0] = video_buffer_u8[i * (BANAN_FB_BPP / 8) + 0];
-			video_memory_u8[(row * m_pitch) + (idx * m_bpp / 8) + 1] = video_buffer_u8[i * (BANAN_FB_BPP / 8) + 1];
-			video_memory_u8[(row * m_pitch) + (idx * m_bpp / 8) + 2] = video_buffer_u8[i * (BANAN_FB_BPP / 8) + 2];
-		}
+		return sync_pixels_linear(0, m_width * m_height);
 	}
 
 	void FramebufferDevice::sync_pixels_linear(uint32_t first_pixel, uint32_t pixel_count)
@@ -179,6 +168,38 @@ namespace Kernel
 
 		auto* video_memory_u8 = reinterpret_cast<uint8_t*>(m_video_memory_vaddr);
 		auto* video_buffer_u8 = reinterpret_cast<uint8_t*>(m_video_buffer->vaddr());
+
+		if (m_bpp == BANAN_FB_BPP)
+		{
+			const uint32_t buffer_pitch = m_width * (BANAN_FB_BPP / 8);
+
+			uint32_t row = first_pixel / m_width;
+			if (auto rem = first_pixel % m_width)
+			{
+				const uint32_t to_copy = BAN::Math::min(pixel_count, m_width - rem);
+				memcpy(
+					&video_memory_u8[row * m_pitch      + rem * (BANAN_FB_BPP / 8)],
+					&video_buffer_u8[row * buffer_pitch + rem * (BANAN_FB_BPP / 8)],
+					to_copy * (BANAN_FB_BPP / 8)
+				);
+				pixel_count -= to_copy;
+				row++;
+			}
+
+			while (pixel_count)
+			{
+				const uint32_t to_copy = BAN::Math::min(pixel_count, m_width);
+				memcpy(
+					&video_memory_u8[row * m_pitch],
+					&video_buffer_u8[row * buffer_pitch],
+					to_copy * (BANAN_FB_BPP / 8)
+				);
+				pixel_count -= to_copy;
+				row++;
+			}
+
+			return;
+		}
 
 		for (uint32_t i = 0; i < pixel_count; i++)
 		{
@@ -200,18 +221,8 @@ namespace Kernel
 		if (top_right_y + height > m_height)
 			height = m_height - top_right_y;
 
-		auto* video_memory_u8 = reinterpret_cast<uint8_t*>(m_video_memory_vaddr);
-		auto* video_buffer_u8 = reinterpret_cast<uint8_t*>(m_video_buffer->vaddr());
-
 		for (uint32_t row = top_right_y; row < top_right_y + height; row++)
-		{
-			for (uint32_t idx = top_right_x; idx < top_right_x + width; idx++)
-			{
-				video_memory_u8[(row * m_pitch) + (idx * m_bpp / 8) + 0] = video_buffer_u8[(row * m_width + idx) * (BANAN_FB_BPP / 8) + 0];
-				video_memory_u8[(row * m_pitch) + (idx * m_bpp / 8) + 1] = video_buffer_u8[(row * m_width + idx) * (BANAN_FB_BPP / 8) + 1];
-				video_memory_u8[(row * m_pitch) + (idx * m_bpp / 8) + 2] = video_buffer_u8[(row * m_width + idx) * (BANAN_FB_BPP / 8) + 2];
-			}
-		}
+			sync_pixels_linear(row * m_width + top_right_x, width);
 	}
 
 	class FramebufferMemoryRegion : public MemoryRegion
