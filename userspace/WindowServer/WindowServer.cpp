@@ -11,6 +11,15 @@
 #include <sys/mman.h>
 #include <sys/socket.h>
 
+WindowServer::WindowServer(Framebuffer& framebuffer)
+	: m_framebuffer(framebuffer)
+	, m_cursor({ framebuffer.width / 2, framebuffer.height / 2 })
+	, m_font(MUST(LibFont::Font::load("/usr/share/fonts/lat0-16.psfu"_sv)))
+{
+	MUST(m_pages_to_sync_bitmap.resize(BAN::Math::div_round_up<size_t>(m_framebuffer.width * m_framebuffer.height * sizeof(uint32_t), 4096 * 8), 0));
+	invalidate(m_framebuffer.area());
+}
+
 BAN::ErrorOr<void> WindowServer::set_background_image(BAN::UniqPtr<LibImage::Image> image)
 {
 	if (image->width() != (uint64_t)m_framebuffer.width || image->height() != (uint64_t)m_framebuffer.height)
@@ -350,10 +359,52 @@ void WindowServer::invalidate(Rectangle area)
 		}
 	}
 
-	uintptr_t mmap_start = reinterpret_cast<uintptr_t>(m_framebuffer.mmap) + area.y * m_framebuffer.width * 4;
-	uintptr_t mmap_end = mmap_start + (area.height + 1) * m_framebuffer.width * 4;
-	mmap_start &= ~(uintptr_t)0xFFF;
-	msync(reinterpret_cast<void*>(mmap_start), mmap_end - mmap_start, MS_SYNC);
+	const uintptr_t mmap_start = reinterpret_cast<uintptr_t>(m_framebuffer.mmap) + area.y * m_framebuffer.width * 4;
+	const uintptr_t mmap_end = mmap_start + (area.height + 1) * m_framebuffer.width * 4;
+
+	uintptr_t mmap_addr = mmap_start & ~(uintptr_t)0xFFF;
+	while (mmap_addr < mmap_end)
+	{
+		size_t index = (mmap_addr - reinterpret_cast<uintptr_t>(m_framebuffer.mmap)) / 4096;
+		size_t byte = index / 8;
+		size_t bit  = index % 8;
+		m_pages_to_sync_bitmap[byte] |= 1 << bit;
+		mmap_addr += 4096;
+	}
+}
+
+void WindowServer::sync()
+{
+	size_t synced_pages = 0;
+
+	for (size_t i = 0; i < m_pages_to_sync_bitmap.size() * 8; i++)
+	{
+		size_t byte = i / 8;
+		size_t bit  = i % 8;
+		if (!(m_pages_to_sync_bitmap[byte] & (1 << bit)))
+			continue;
+
+		size_t len = 1;
+		while (i + len < m_pages_to_sync_bitmap.size() * 8)
+		{
+			size_t byte = (i + len) / 8;
+			size_t bit  = (i + len) % 8;
+			if (!(m_pages_to_sync_bitmap[byte] & (1 << bit)))
+				break;
+			len++;
+		}
+
+		msync(
+			reinterpret_cast<uint8_t*>(m_framebuffer.mmap) + i * 4096,
+			len * 4096,
+			MS_SYNC
+		);
+		synced_pages += len;
+
+		i += len;
+	}
+
+	memset(m_pages_to_sync_bitmap.data(), 0, m_pages_to_sync_bitmap.size());
 }
 
 Rectangle WindowServer::cursor_area() const

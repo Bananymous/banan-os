@@ -19,13 +19,7 @@
 class WindowServer
 {
 public:
-	WindowServer(Framebuffer& framebuffer)
-		: m_framebuffer(framebuffer)
-		, m_cursor({ framebuffer.width / 2, framebuffer.height / 2 })
-		, m_font(MUST(LibFont::Font::load("/usr/share/fonts/lat0-16.psfu"_sv)))
-	{
-		invalidate(m_framebuffer.area());
-	}
+	WindowServer(Framebuffer& framebuffer);
 
 	BAN::ErrorOr<void> set_background_image(BAN::UniqPtr<LibImage::Image>);
 
@@ -38,6 +32,7 @@ public:
 
 	void set_focused_window(BAN::RefPtr<Window> window);
 	void invalidate(Rectangle area);
+	void sync();
 
 	Rectangle cursor_area() const;
 
@@ -52,6 +47,8 @@ private:
 	Framebuffer& m_framebuffer;
 	BAN::Vector<BAN::RefPtr<Window>> m_client_windows;
 	BAN::Vector<int> m_client_fds;
+
+	BAN::Vector<uint8_t> m_pages_to_sync_bitmap;
 
 	BAN::UniqPtr<LibImage::Image> m_background_image;
 
