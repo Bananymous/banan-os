@@ -32,12 +32,14 @@ if [ ! -b $ROOT_PARTITION ]; then
 	exit 1
 fi
 
-sudo mount $ROOT_PARTITION $MOUNT_DIR
+if sudo mount $ROOT_PARTITION $MOUNT_DIR; then
+	cd $MOUNT_DIR
+	sudo tar xf $BANAN_SYSROOT_TAR
+	sudo rm -rf $MOUNT_DIR/var/www
+	sudo cp -r $BANAN_SCRIPT_DIR/../www $MOUNT_DIR/var
+	cd
 
-cd $MOUNT_DIR
-sudo tar xf $BANAN_SYSROOT_TAR
-cd
-
-sudo umount $MOUNT_DIR
+	sudo umount $MOUNT_DIR
+fi
 
 sudo losetup -d $LOOP_DEV
