@@ -17,7 +17,6 @@ namespace Kernel
 
 	public:
 		static BAN::ErrorOr<BAN::RefPtr<StorageController>> create(PCI::Device&);
-		~NVMeController() { ASSERT_NOT_REACHED(); }
 
 		NVMeQueue& io_queue() { return *m_io_queue; }
 
