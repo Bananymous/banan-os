@@ -68,7 +68,9 @@ run_bochs () {
 	$BANAN_SCRIPT_DIR/bochs.sh $@
 }
 
-if type kvm-ok &> /dev/null; then
+if [ -v QEMU_ACCEL ]; then
+	:
+elif type kvm-ok &> /dev/null; then
 	if kvm-ok &> /dev/null; then
 		QEMU_ACCEL="-accel kvm"
 	fi
