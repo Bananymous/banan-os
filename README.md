@@ -20,6 +20,7 @@ You can find a live demo [here](https://bananymous.com/banan-os)
 - [x] AML interpreter (partial)
 - [ ] ELF dynamic linking
 - [ ] Graphical desktop
+- [ ] copy-on-write memory
 
 #### Drivers
 - [x] NVMe disks
@@ -27,6 +28,8 @@ You can find a live demo [here](https://bananymous.com/banan-os)
 - [x] E1000 and E1000E NICs
 - [x] PS2 keyboard (all scancode sets)
 - [x] PS2 mouse
+- [ ] USB
+- [ ] virtio devices (network, storage)
 
 #### Network
 - [x] ARP
@@ -44,6 +47,7 @@ You can find a live demo [here](https://bananymous.com/banan-os)
 - [x] Ram
 - [x] Proc
 - [ ] Sys
+- [ ] 9P
 
 #### Bootloader support
 - [x] GRUB
