@@ -78,7 +78,8 @@ namespace Kernel::PCI
 		uint8_t subclass() const { return m_subclass; }
 		uint8_t prog_if() const { return m_prog_if; }
 
-		uint8_t header_type() const { return m_header_type; }
+		bool multi_function() const { return m_header_type & 0x80; }
+		uint8_t header_type() const { return m_header_type & 0x7F; }
 
 		uint16_t vendor_id() const { return m_vendor_id; }
 		uint16_t device_id() const { return m_device_id; }
