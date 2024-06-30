@@ -446,8 +446,8 @@ namespace Kernel::PCI
 			ASSERT((dword0 & 0xFF) == 0x11);
 
 			uint32_t dword1 = read_dword(*m_offset_msi_x + 0x04);
-			uint32_t offset = dword1 & ~3u;
-			uint8_t  bir    = dword1 &  3u;
+			uint32_t offset = dword1 & ~7u;
+			uint8_t  bir    = dword1 &  7u;
 
 			uint64_t msg_addr = msi_message_address();
 			uint32_t msg_data = msi_message_data(irq);
