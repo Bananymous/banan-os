@@ -35,8 +35,6 @@ fi
 if sudo mount $ROOT_PARTITION $MOUNT_DIR; then
 	cd $MOUNT_DIR
 	sudo tar xf $BANAN_SYSROOT_TAR
-	sudo rm -rf $MOUNT_DIR/var/www
-	sudo cp -r $BANAN_SCRIPT_DIR/../www $MOUNT_DIR/var
 	cd
 
 	sudo umount $MOUNT_DIR
