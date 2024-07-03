@@ -11,6 +11,7 @@ set(USERSPACE_PROJECTS
 	id
 	image
 	init
+	loadfont
 	loadkeys
 	ls
 	meminfo

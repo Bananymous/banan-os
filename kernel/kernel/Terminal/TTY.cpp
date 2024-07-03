@@ -11,6 +11,7 @@
 
 #include <fcntl.h>
 #include <string.h>
+#include <stropts.h>
 #include <sys/banan-os.h>
 #include <sys/sysmacros.h>
 
@@ -120,6 +121,22 @@ namespace Kernel
 		m_inode_info.uid = uid;
 		m_inode_info.gid = gid;
 		return {};
+	}
+
+	BAN::ErrorOr<long> TTY::ioctl_impl(int request, void* argument)
+	{
+		switch (request)
+		{
+			case KD_LOADFONT:
+			{
+				auto absolute_path = TRY(Process::current().absolute_path_of(BAN::StringView(reinterpret_cast<const char*>(argument))));
+				auto new_font = TRY(LibFont::Font::load(absolute_path));
+				set_font(new_font);
+				return 0;
+			}
+			default:
+				return BAN::Error::from_errno(EINVAL);
+		}
 	}
 
 	void TTY::on_key_event(LibInput::KeyEvent event)
