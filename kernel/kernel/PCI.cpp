@@ -8,6 +8,7 @@
 #include <kernel/Storage/ATA/AHCI/Controller.h>
 #include <kernel/Storage/ATA/ATAController.h>
 #include <kernel/Storage/NVMe/Controller.h>
+#include <kernel/USB/USBManager.h>
 
 #define INVALID_VENDOR 0xFFFF
 #define MULTI_FUNCTION 0x80
@@ -207,6 +208,20 @@ namespace Kernel::PCI
 					{
 						if (auto res = NetworkManager::get().add_interface(pci_device); res.is_error())
 							dprintln("{}", res.error());
+						break;
+					}
+					case 0x0C:
+					{
+						switch (pci_device.subclass())
+						{
+							case 0x03:
+								if (auto res = USBManager::get().add_controller(pci_device); res.is_error())
+									dprintln("{}", res.error());
+								break;
+							default:
+								dprintln("unsupported serail bus controller (pci {2H}.{2H}.{2H})", pci_device.class_code(), pci_device.subclass(), pci_device.prog_if());
+								break;
+						}
 						break;
 					}
 					default:

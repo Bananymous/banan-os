@@ -27,6 +27,7 @@
 #include <kernel/Terminal/Serial.h>
 #include <kernel/Terminal/VirtualTTY.h>
 #include <kernel/Timer/Timer.h>
+#include <kernel/USB/USBManager.h>
 
 #include <LibInput/KeyboardLayout.h>
 
@@ -204,6 +205,8 @@ static void init2(void*)
 		dprintln("{}", res.error());
 
 	MUST(NetworkManager::initialize());
+
+	MUST(USBManager::initialize());
 
 	// NOTE: PCI devices are the last ones to be initialized
 	//       so other devices can reserve predefined interrupts

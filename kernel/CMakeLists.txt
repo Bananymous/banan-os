@@ -93,6 +93,10 @@ set(KERNEL_SOURCES
 	kernel/Timer/PIT.cpp
 	kernel/Timer/RTC.cpp
 	kernel/Timer/Timer.cpp
+	kernel/USB/Device.cpp
+	kernel/USB/USBManager.cpp
+	kernel/USB/XHCI/Controller.cpp
+	kernel/USB/XHCI/Device.cpp
 	icxxabi.cpp
 )
 
@@ -169,7 +173,8 @@ target_compile_definitions(kernel PUBLIC __arch=${BANAN_ARCH})
 target_compile_options(kernel PUBLIC -O2 -g)
 target_compile_options(kernel PUBLIC $<$<COMPILE_LANGUAGE:CXX>:-Wno-literal-suffix -fno-rtti -fno-exceptions>)
 target_compile_options(kernel PUBLIC -fmacro-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}=.)
-target_compile_options(kernel PUBLIC -fstack-protector -ffreestanding -Wall -Wextra -Werror -Wstack-usage=1024 -fno-omit-frame-pointer -mgeneral-regs-only)
+target_compile_options(kernel PUBLIC -fstack-protector -ffreestanding -fno-omit-frame-pointer -fstrict-volatile-bitfields -mgeneral-regs-only)
+target_compile_options(kernel PUBLIC -Wall -Wextra -Werror -Wstack-usage=1024)
 
 # This might not work with other toolchains
 target_compile_options(kernel PUBLIC $<$<COMPILE_LANGUAGE:CXX>:-Wno-invalid-offsetof>)
