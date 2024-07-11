@@ -53,6 +53,18 @@ namespace Kernel
 			VendorSpecific                         = 0xFF,
 		};
 
+		enum DescriptorType : uint8_t
+		{
+			DEVICE                    = 1,
+			CONFIGURATION             = 2,
+			STRING                    = 3,
+			INTERFACE                 = 4,
+			ENDPOINT                  = 5,
+			DEVICE_QUALIFIER          = 6,
+			OTHER_SPEED_CONFIGURATION = 7,
+			INTERFACE_POWER           = 8,
+		};
+
 		enum RequestType : uint8_t
 		{
 			HostToDevice = 0b0 << 7,
@@ -117,7 +129,7 @@ namespace Kernel
 	static_assert(sizeof(USBConfigurationDescriptor) == 9);
 	static constexpr size_t foo = sizeof(USBConfigurationDescriptor);
 
-	struct USBInterfaceDescritor
+	struct USBInterfaceDescriptor
 	{
 		uint8_t bLength;
 		uint8_t bDescriptorType;
@@ -129,7 +141,7 @@ namespace Kernel
 		uint8_t bInterfaceProtocol;
 		uint8_t iInterface;
 	};
-	static_assert(sizeof(USBInterfaceDescritor) == 9);
+	static_assert(sizeof(USBInterfaceDescriptor) == 9);
 
 	struct USBEndpointDescriptor
 	{

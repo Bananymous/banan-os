@@ -11,7 +11,7 @@ namespace Kernel
 	{
 		TRY(initialize_control_endpoint());
 
-		auto buffer = TRY(DMARegion::create(PAGE_SIZE));
+		m_dma_buffer = TRY(DMARegion::create(1024));
 
 		USBDeviceRequest request;
 		request.bmRequestType = USB::RequestType::DeviceToHost | USB::RequestType::Standard | USB::RequestType::Device;
@@ -19,73 +19,20 @@ namespace Kernel
 		request.wValue        = 0x0100;
 		request.wIndex        = 0;
 		request.wLength       = sizeof(USBDeviceDescriptor);
-		TRY(send_request(request, buffer->paddr()));
+		auto transferred = TRY(send_request(request, m_dma_buffer->paddr()));
 
-		m_descriptor.descriptor = *reinterpret_cast<const USBDeviceDescriptor*>(buffer->vaddr());
+		m_descriptor.descriptor = *reinterpret_cast<const USBDeviceDescriptor*>(m_dma_buffer->vaddr());
+		if (transferred < sizeof(USBDeviceDescriptor) || transferred < m_descriptor.descriptor.bLength)
+		{
+			dprintln("invalid device descriptor response {}");
+			return BAN::Error::from_errno(EINVAL);
+		}
+
 		dprintln_if(DEBUG_USB, "device has {} configurations", m_descriptor.descriptor.bNumConfigurations);
 
 		for (uint32_t i = 0; i < m_descriptor.descriptor.bNumConfigurations; i++)
-		{
-			{
-				USBDeviceRequest request;
-				request.bmRequestType = USB::RequestType::DeviceToHost | USB::RequestType::Standard | USB::RequestType::Device;
-				request.bRequest      = USB::Request::GET_DESCRIPTOR;
-				request.wValue        = 0x0200 | i;
-				request.wIndex        = 0;
-				request.wLength       = sizeof(USBConfigurationDescriptor);
-				TRY(send_request(request, buffer->paddr()));
-
-				auto configuration = *reinterpret_cast<const USBConfigurationDescriptor*>(buffer->vaddr());
-
-				dprintln_if(DEBUG_USB, "  configuration {} is {} bytes", i, +configuration.wTotalLength);
-				if (configuration.wTotalLength > buffer->size())
-				{
-					dwarnln("  our buffer is only {} bytes, skipping some fields...");
-					configuration.wTotalLength = buffer->size();
-				}
-
-				if (configuration.wTotalLength > request.wLength)
-				{
-					request.wLength = configuration.wTotalLength;
-					TRY(send_request(request, buffer->paddr()));
-				}
-			}
-
-			auto configuration = *reinterpret_cast<const USBConfigurationDescriptor*>(buffer->vaddr());
-
-			BAN::Vector<InterfaceDescriptor> interfaces;
-			TRY(interfaces.reserve(configuration.bNumInterfaces));
-
-			dprintln_if(DEBUG_USB, "  configuration {} has {} interfaces", i, configuration.bNumInterfaces);
-
-			uintptr_t offset = configuration.bLength;
-			for (uint32_t j = 0; j < configuration.bNumInterfaces; j++)
-			{
-				if (offset + sizeof(USBInterfaceDescritor) > buffer->size())
-					break;
-				auto interface = *reinterpret_cast<const USBInterfaceDescritor*>(buffer->vaddr() + offset);
-
-				BAN::Vector<EndpointDescriptor> endpoints;
-				TRY(endpoints.reserve(interface.bNumEndpoints));
-
-				dprintln_if(DEBUG_USB, "    interface {} has {} endpoints", j, interface.bNumEndpoints);
-
-				offset += interface.bLength;
-				for (uint32_t k = 0; k < interface.bNumEndpoints; k++)
-				{
-					if (offset + sizeof(USBEndpointDescriptor) > buffer->size())
-						break;
-					auto endpoint = *reinterpret_cast<const USBEndpointDescriptor*>(buffer->vaddr() + offset);
-					offset += endpoint.bLength;
-
-					TRY(endpoints.emplace_back(endpoint));
-				}
-
-				TRY(interfaces.emplace_back(interface, BAN::move(endpoints)));
-			}
-
-			TRY(m_descriptor.configurations.emplace_back(configuration, BAN::move(interfaces)));
-		}
+			if (auto opt_configuration = parse_configuration(i); !opt_configuration.is_error())
+				TRY(m_descriptor.configurations.push_back(opt_configuration.release_value()));
 
 #if USB_DUMP_DESCRIPTORS
 		const auto& descriptor = m_descriptor.descriptor;
@@ -176,10 +123,14 @@ namespace Kernel
 			ASSERT_NOT_REACHED();
 		}
 
-		for (const auto& configuration : m_descriptor.configurations)
+		for (size_t i = 0; i < m_descriptor.configurations.size(); i++)
 		{
-			for (const auto& interface : configuration.interfaces)
+			const auto& configuration = m_descriptor.configurations[i];
+
+			for (size_t j = 0; j < configuration.interfaces.size(); j++)
 			{
+				const auto& interface = configuration.interfaces[j];
+
 				switch (static_cast<USB::InterfaceBaseClass>(interface.descriptor.bInterfaceClass))
 				{
 					case USB::InterfaceBaseClass::Audio:
@@ -256,6 +207,84 @@ namespace Kernel
 		}
 
 		return BAN::Error::from_errno(ENOTSUP);
+	}
+
+	BAN::ErrorOr<USBDevice::ConfigurationDescriptor> USBDevice::parse_configuration(size_t index)
+	{
+		{
+			USBDeviceRequest request;
+			request.bmRequestType = USB::RequestType::DeviceToHost | USB::RequestType::Standard | USB::RequestType::Device;
+			request.bRequest      = USB::Request::GET_DESCRIPTOR;
+			request.wValue        = 0x0200 | index;
+			request.wIndex        = 0;
+			request.wLength       = m_dma_buffer->size();
+			auto transferred = TRY(send_request(request, m_dma_buffer->paddr()));
+
+			auto configuration = *reinterpret_cast<const USBConfigurationDescriptor*>(m_dma_buffer->vaddr());
+
+			dprintln_if(DEBUG_USB, "configuration {} is {} bytes", index, +configuration.wTotalLength);
+			if (configuration.bLength < sizeof(USBConfigurationDescriptor) || transferred < configuration.wTotalLength)
+			{
+				dwarnln("invalid configuration descriptor size: {} length, {} total", configuration.bLength, +configuration.wTotalLength);
+				return BAN::Error::from_errno(EINVAL);
+			}
+		}
+
+		ConfigurationDescriptor configuration;
+		configuration.desciptor = *reinterpret_cast<const USBConfigurationDescriptor*>(m_dma_buffer->vaddr());
+
+		ptrdiff_t offset = configuration.desciptor.bLength;
+		while (offset < configuration.desciptor.wTotalLength)
+		{
+			const uint8_t length = *reinterpret_cast<const uint8_t*>(m_dma_buffer->vaddr() + offset + 0);
+			const uint8_t type   = *reinterpret_cast<const uint8_t*>(m_dma_buffer->vaddr() + offset + 1);
+
+			switch (type)
+			{
+				case USB::DescriptorType::INTERFACE:
+					if (length < sizeof(USBInterfaceDescriptor))
+					{
+						dwarnln("invalid interface descriptor size {}", length);
+						return BAN::Error::from_errno(EINVAL);
+					}
+					TRY(configuration.interfaces.emplace_back(
+						*reinterpret_cast<const USBInterfaceDescriptor*>(m_dma_buffer->vaddr() + offset),
+						BAN::Vector<EndpointDescriptor>(),
+						BAN::Vector<BAN::Vector<uint8_t>>()
+					));
+					break;
+				case USB::DescriptorType::ENDPOINT:
+					if (length < sizeof(USBEndpointDescriptor))
+					{
+						dwarnln("invalid interface descriptor size {}", length);
+						return BAN::Error::from_errno(EINVAL);
+					}
+					if (configuration.interfaces.empty())
+					{
+						dwarnln("invalid endpoint descriptor before interface descriptor");
+						return BAN::Error::from_errno(EINVAL);
+					}
+					TRY(configuration.interfaces.back().endpoints.emplace_back(
+						*reinterpret_cast<const USBEndpointDescriptor*>(m_dma_buffer->vaddr() + offset)
+					));
+					break;
+				default:
+					if (configuration.interfaces.empty())
+						dprintln_if(DEBUG_USB, "skipping descriptor type {}", type);
+					else
+					{
+						BAN::Vector<uint8_t> descriptor;
+						TRY(descriptor.resize(length));
+						memcpy(descriptor.data(), reinterpret_cast<const void*>(m_dma_buffer->vaddr() + offset), length);
+						TRY(configuration.interfaces.back().misc_descriptors.push_back(BAN::move(descriptor)));
+					}
+					break;
+			}
+
+			offset += length;
+		}
+
+		return BAN::move(configuration);
 	}
 
 	USB::SpeedClass USBDevice::determine_speed_class(uint64_t bits_per_second)

@@ -105,6 +105,8 @@ namespace Kernel
 
 	BAN::ErrorOr<void> XHCIDevice::update_actual_max_packet_size()
 	{
+		// FIXME: This is more or less generic USB code
+
 		dprintln_if(DEBUG_XHCI, "Retrieving actual max packet size of full speed device");
 
 		BAN::Vector<uint8_t> buffer;
@@ -159,6 +161,27 @@ namespace Kernel
 			return;
 		}
 
+		// Get received bytes from short packet
+		if (trb.transfer_event.completion_code == 13)
+		{
+			auto& endpoint = m_endpoints[trb.transfer_event.endpoint_id - 1];
+			auto* transfer_trb_arr = reinterpret_cast<volatile XHCI::TRB*>(endpoint.transfer_ring->vaddr());
+
+			const uint32_t trb_index = (trb.transfer_event.trb_pointer - endpoint.transfer_ring->paddr()) / sizeof(XHCI::TRB);
+
+			const uint32_t full_trbs_transferred = (trb_index >= endpoint.dequeue_index)
+				? trb_index                             - 1 - endpoint.dequeue_index
+				: trb_index + m_transfer_ring_trb_count - 2 - endpoint.dequeue_index;
+
+			const uint32_t full_trb_data = full_trbs_transferred * m_max_packet_size;
+			const uint32_t short_data    = transfer_trb_arr[trb_index].data_stage.trb_transfer_length - trb.transfer_event.trb_transfer_length;
+
+			endpoint.transfer_count = full_trb_data + short_data;
+
+			ASSERT(trb_index >= endpoint.dequeue_index);
+			return;
+		}
+
 		// NOTE: dword2 is last (and atomic) as that is what send_request is waiting for
 		auto& completion_trb = m_endpoints[trb.transfer_event.endpoint_id - 1].completion_trb;
 		completion_trb.raw.dword0 = trb.raw.dword0;
@@ -167,23 +190,35 @@ namespace Kernel
 		__atomic_store_n(&completion_trb.raw.dword2, trb.raw.dword2, __ATOMIC_SEQ_CST);
 	}
 
-	BAN::ErrorOr<void> XHCIDevice::send_request(const USBDeviceRequest& request, paddr_t buffer_paddr)
+	BAN::ErrorOr<size_t> XHCIDevice::send_request(const USBDeviceRequest& request, paddr_t buffer_paddr)
 	{
-		// minus 3: Setup, Status, Link
+		// FIXME: This is more or less generic USB code
+
+		// minus 3: Setup, Status, Link (this is probably too generous and will result in STALL)
 		if (request.wLength > (m_transfer_ring_trb_count - 3) * m_max_packet_size)
 			return BAN::Error::from_errno((ENOBUFS));
 
 		auto& endpoint = m_endpoints[0];
 		LockGuard _(endpoint.mutex);
 
+		uint8_t transfer_type =
+			[&request]() -> uint8_t
+			{
+				if (request.wLength == 0)
+					return 0;
+				if (request.bmRequestType & USB::RequestType::DeviceToHost)
+					return 3;
+				return 2;
+			}();
+
 		auto* transfer_trb_arr = reinterpret_cast<volatile XHCI::TRB*>(endpoint.transfer_ring->vaddr());
 
 		{
 			auto& trb = transfer_trb_arr[endpoint.enqueue_index];
-			memset((void*)&trb, 0, sizeof(XHCI::TRB));
+			memset(const_cast<XHCI::TRB*>(&trb), 0, sizeof(XHCI::TRB));
 
 			trb.setup_stage.trb_type                = XHCI::TRBType::SetupStage;
-			trb.setup_stage.transfer_type           = 3;
+			trb.setup_stage.transfer_type           = transfer_type;
 			trb.setup_stage.trb_transfer_length     = 8;
 			trb.setup_stage.interrupt_on_completion = 0;
 			trb.setup_stage.immediate_data          = 1;
@@ -198,31 +233,37 @@ namespace Kernel
 			advance_endpoint_enqueue(endpoint, false);
 		}
 
+		const uint32_t td_packet_count = BAN::Math::div_round_up<uint32_t>(request.wLength, m_max_packet_size);
+		uint32_t packets_transferred = 1;
+
 		uint32_t bytes_handled = 0;
 		while (bytes_handled < request.wLength)
 		{
 			const uint32_t to_handle = BAN::Math::min<uint32_t>(m_max_packet_size, request.wLength - bytes_handled);
 
 			auto& trb = transfer_trb_arr[endpoint.enqueue_index];
-			memset((void*)&trb, 0, sizeof(XHCI::TRB));
+			memset(const_cast<XHCI::TRB*>(&trb), 0, sizeof(XHCI::TRB));
 
-			trb.data_stage.trb_type                = XHCI::TRBType::DataStage;
-			trb.data_stage.direction               = 1;
-			trb.data_stage.trb_transfer_length     = to_handle;
-			trb.data_stage.chain_bit               = (bytes_handled + to_handle < request.wLength);
-			trb.data_stage.interrupt_on_completion = 0;
-			trb.data_stage.immediate_data          = 0;
-			trb.data_stage.data_buffer_pointer     = buffer_paddr + bytes_handled;
-			trb.data_stage.cycle_bit               = endpoint.cycle_bit;
+			trb.data_stage.trb_type                  = XHCI::TRBType::DataStage;
+			trb.data_stage.direction                 = 1;
+			trb.data_stage.trb_transfer_length       = to_handle;
+			trb.data_stage.td_size                   = BAN::Math::min<uint32_t>(td_packet_count - packets_transferred, 31);
+			trb.data_stage.chain_bit                 = (bytes_handled + to_handle < request.wLength);
+			trb.data_stage.interrupt_on_completion   = 0;
+			trb.data_stage.interrupt_on_short_packet = 1;
+			trb.data_stage.immediate_data            = 0;
+			trb.data_stage.data_buffer_pointer       = buffer_paddr + bytes_handled;
+			trb.data_stage.cycle_bit                 = endpoint.cycle_bit;
 
 			bytes_handled += to_handle;
+			packets_transferred++;
 
-			advance_endpoint_enqueue(endpoint, false);
+			advance_endpoint_enqueue(endpoint, trb.data_stage.chain_bit);
 		}
 
 		{
 			auto& trb = transfer_trb_arr[endpoint.enqueue_index];
-			memset((void*)&trb, 0, sizeof(XHCI::TRB));
+			memset(const_cast<XHCI::TRB*>(&trb), 0, sizeof(XHCI::TRB));
 
 			trb.status_stage.trb_type                = XHCI::TRBType::StatusStage;
 			trb.status_stage.direction               = 0;
@@ -239,6 +280,8 @@ namespace Kernel
 		completion_trb.raw.dword2 = 0;
 		completion_trb.raw.dword3 = 0;
 
+		endpoint.transfer_count = request.wLength;
+
 		m_controller.doorbell_reg(m_slot_id) = 1;
 
 		const uint64_t timeout_ms = SystemTimer::get().ms_since_boot() + 1000;
@@ -246,13 +289,15 @@ namespace Kernel
 			if (SystemTimer::get().ms_since_boot() > timeout_ms)
 				return BAN::Error::from_errno(ETIMEDOUT);
 
+		endpoint.dequeue_index = endpoint.enqueue_index;
+
 		if (completion_trb.transfer_event.completion_code != 1)
 		{
 			dwarnln("Completion error: {}", +completion_trb.transfer_event.completion_code);
 			return BAN::Error::from_errno(EFAULT);
 		}
 
-		return {};
+		return endpoint.transfer_count;
 	}
 
 	void XHCIDevice::advance_endpoint_enqueue(Endpoint& endpoint, bool chain)

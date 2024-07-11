@@ -227,7 +227,7 @@ namespace Kernel::XHCI
 				uint64_t data_buffer_pointer       : 64;
 
 				uint32_t trb_transfer_length       : 17;
-				uint32_t                           : 5;
+				uint32_t td_size                   : 5;
 				uint32_t interrupt_target          : 10;
 
 				uint32_t cycle_bit                 : 1;

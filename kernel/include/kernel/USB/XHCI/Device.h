@@ -18,21 +18,24 @@ namespace Kernel
 		struct Endpoint
 		{
 			BAN::UniqPtr<DMARegion> transfer_ring;
+			uint32_t dequeue_index { 0 };
 			uint32_t enqueue_index { 0 };
 			bool cycle_bit { 1 };
 
 			Mutex mutex;
+			volatile uint32_t transfer_count { 0 };
 			volatile XHCI::TRB completion_trb;
 		};
 
 	public:
 		static BAN::ErrorOr<BAN::UniqPtr<XHCIDevice>> create(XHCIController&, uint32_t port_id, uint32_t slot_id);
 
+		BAN::ErrorOr<size_t> send_request(const USBDeviceRequest&, paddr_t buffer) override;
+
 		void on_transfer_event(const volatile XHCI::TRB&);
 
 	protected:
 		BAN::ErrorOr<void> initialize_control_endpoint() override;
-		BAN::ErrorOr<void> send_request(const USBDeviceRequest&, paddr_t buffer) override;
 
 	private:
 		XHCIDevice(XHCIController& controller, uint32_t port_id, uint32_t slot_id)
@@ -46,7 +49,7 @@ namespace Kernel
 		void advance_endpoint_enqueue(Endpoint&, bool chain);
 
 	private:
-		static constexpr uint32_t m_transfer_ring_trb_count = 256;
+		static constexpr uint32_t m_transfer_ring_trb_count = PAGE_SIZE / sizeof(XHCI::TRB);
 
 		XHCIController& m_controller;
 		const uint32_t m_port_id;
