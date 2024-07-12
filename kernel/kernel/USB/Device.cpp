@@ -127,6 +127,18 @@ namespace Kernel
 		{
 			const auto& configuration = m_descriptor.configurations[i];
 
+			{
+				dprintln_if(DEBUG_USB, "Setting configuration 0x{2H}", configuration.desciptor.bConfigurationValue);
+
+				USBDeviceRequest request;
+				request.bmRequestType = USB::RequestType::HostToDevice | USB::RequestType::Standard | USB::RequestType::Device;
+				request.bRequest      = USB::Request::SET_CONFIGURATION;
+				request.wValue        = configuration.desciptor.bConfigurationValue;
+				request.wIndex        = 0;
+				request.wLength       = 0;
+				TRY(send_request(request, 0));
+			}
+
 			for (size_t j = 0; j < configuration.interfaces.size(); j++)
 			{
 				const auto& interface = configuration.interfaces[j];
