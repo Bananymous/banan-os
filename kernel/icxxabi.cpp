@@ -42,20 +42,20 @@ namespace __cxxabiv1
 {
 	using __guard = uint64_t;
 
-	int __cxa_guard_acquire (__guard* g)
+	extern "C" int __cxa_guard_acquire (__guard* g)
 	{
 		uint8_t* byte = reinterpret_cast<uint8_t*>(g);
 		uint8_t zero = 0;
 		return __atomic_compare_exchange_n(byte, &zero, 1, false, __ATOMIC_ACQUIRE, __ATOMIC_ACQUIRE);
 	}
 
-	void __cxa_guard_release (__guard* g)
+	extern "C" void __cxa_guard_release (__guard* g)
 	{
 		uint8_t* byte = reinterpret_cast<uint8_t*>(g);
 		__atomic_store_n(byte, 0, __ATOMIC_RELEASE);
 	}
 
-	void __cxa_guard_abort (__guard*)
+	extern "C" void __cxa_guard_abort (__guard*)
 	{
 		Kernel::panic("__cxa_guard_abort");
 	}
