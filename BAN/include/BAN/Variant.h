@@ -286,6 +286,16 @@ namespace BAN
 			return **reinterpret_cast<const remove_reference_t<T>**>(m_storage);
 		}
 
+		bool has_value() const
+		{
+			return m_index != invalid_index();
+		}
+
+		explicit operator bool() const
+		{
+			return has_value();
+		}
+
 		void clear()
 		{
 			if (m_index != invalid_index())
