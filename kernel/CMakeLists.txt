@@ -34,6 +34,7 @@ set(KERNEL_SOURCES
 	kernel/FS/VirtualFileSystem.cpp
 	kernel/GDT.cpp
 	kernel/IDT.cpp
+	kernel/Input/InputDevice.cpp
 	kernel/Input/PS2/Controller.cpp
 	kernel/Input/PS2/Device.cpp
 	kernel/Input/PS2/Keyboard.cpp

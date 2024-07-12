@@ -50,7 +50,7 @@ void cleanup()
 int main(int argc, char** argv)
 {
 	const char* fb_path = "/dev/fb0";
-	const char* mouse_path = "/dev/input1";
+	const char* mouse_path = "/dev/mouse0";
 
 	if (argc == 1)
 		;

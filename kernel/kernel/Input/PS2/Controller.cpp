@@ -89,9 +89,9 @@ namespace Kernel::Input
 	uint8_t PS2Controller::get_device_index(PS2Device* device) const
 	{
 		ASSERT(device);
-		if (m_devices[0] && device == m_devices[0].ptr())
+		if (m_devices[0].ptr() == device)
 			return 0;
-		if (m_devices[1] && device == m_devices[1].ptr())
+		if (m_devices[1].ptr() == device)
 			return 1;
 		ASSERT_NOT_REACHED();
 	}
@@ -359,12 +359,12 @@ namespace Kernel::Input
 		TRY(send_command(PS2::Command::WRITE_CONFIG, config));
 
 		// Send device initialization sequence after interrupts are enabled
-		for (uint8_t device = 0; device < 2; device++)
+		for (uint8_t i = 0; i < 2; i++)
 		{
-			if (!m_devices[device])
+			if (!m_devices[i])
 				continue;
-			m_devices[device]->send_initialize();
-			DevFileSystem::get().add_device(m_devices[device]);
+			m_devices[i]->send_initialize();
+			DevFileSystem::get().add_device(m_devices[i]);
 		}
 
 		return {};

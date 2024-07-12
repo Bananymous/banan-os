@@ -4,20 +4,18 @@
 #include <kernel/Input/PS2/Keyboard.h>
 #include <kernel/Thread.h>
 #include <LibInput/KeyboardLayout.h>
+#include <LibInput/KeyEvent.h>
 
 namespace Kernel::Input
 {
 
-	BAN::ErrorOr<PS2Keyboard*> PS2Keyboard::create(PS2Controller& controller)
+	BAN::ErrorOr<BAN::RefPtr<PS2Keyboard>> PS2Keyboard::create(PS2Controller& controller)
 	{
-		PS2Keyboard* keyboard = new PS2Keyboard(controller);
-		if (keyboard == nullptr)
-			return BAN::Error::from_errno(ENOMEM);
-		return keyboard;
+		return TRY(BAN::RefPtr<PS2Keyboard>::create(controller));
 	}
 
 	PS2Keyboard::PS2Keyboard(PS2Controller& controller)
-		: PS2Device(controller)
+		: PS2Device(controller, InputDevice::Type::Keyboard)
 	{ }
 
 	void PS2Keyboard::send_initialize()
@@ -166,17 +164,7 @@ namespace Kernel::Input
 		RawKeyEvent event;
 		event.modifier = m_modifiers | (released ? 0 : KeyModifier::Pressed);
 		event.keycode = keycode.value();
-
-		SpinLockGuard _(m_event_lock);
-
-		if (m_event_queue.full())
-		{
-			dwarnln("PS/2 event queue full");
-			m_event_queue.pop();
-		}
-		m_event_queue.push(event);
-
-		m_semaphore.unblock();
+		add_event(BAN::ConstByteSpan::from(event));
 	}
 
 	void PS2Keyboard::update_leds()
@@ -191,32 +179,6 @@ namespace Kernel::Input
 		if (m_modifiers & +KeyModifier::CapsLock)
 			new_leds |= PS2::KBLeds::CAPS_LOCK;
 		append_command_queue(Command::SET_LEDS, new_leds, 0);
-	}
-
-	BAN::ErrorOr<size_t> PS2Keyboard::read_impl(off_t, BAN::ByteSpan buffer)
-	{
-		using LibInput::RawKeyEvent;
-
-		if (buffer.size() < sizeof(RawKeyEvent))
-			return BAN::Error::from_errno(ENOBUFS);
-
-		auto state = m_event_lock.lock();
-		while (m_event_queue.empty())
-		{
-			m_event_lock.unlock(state);
-			{
-				LockFreeGuard _(m_mutex);
-				TRY(Thread::current().block_or_eintr_indefinite(m_semaphore));
-			}
-			state = m_event_lock.lock();
-		}
-
-		buffer.as<RawKeyEvent>() = m_event_queue.front();
-		m_event_queue.pop();
-
-		m_event_lock.unlock(state);
-
-		return sizeof(RawKeyEvent);
 	}
 
 }

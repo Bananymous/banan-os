@@ -1,11 +1,8 @@
 #pragma once
 
 #include <BAN/Array.h>
-#include <BAN/CircularQueue.h>
 #include <kernel/Input/PS2/Device.h>
 #include <kernel/Input/PS2/Keymap.h>
-#include <kernel/Semaphore.h>
-#include <LibInput/KeyEvent.h>
 
 namespace Kernel::Input
 {
@@ -20,12 +17,14 @@ namespace Kernel::Input
 		};
 
 	public:
-		static BAN::ErrorOr<PS2Keyboard*> create(PS2Controller&);
+		static BAN::ErrorOr<BAN::RefPtr<PS2Keyboard>> create(PS2Controller&);
 		virtual void send_initialize() override;
 
 		virtual void command_timedout(uint8_t* command_data, uint8_t command_size) final override;
 
 		virtual void handle_byte(uint8_t) final override;
+
+		virtual void update() final override { m_controller.update_command_queue(); }
 
 	private:
 		PS2Keyboard(PS2Controller& controller);
@@ -37,22 +36,11 @@ namespace Kernel::Input
 		uint8_t m_byte_index { 0 };
 
 		uint8_t m_scancode_set { 0xFF };
-
 		uint16_t m_modifiers { 0 };
-
-		BAN::CircularQueue<LibInput::RawKeyEvent, 50> m_event_queue;
-		SpinLock m_event_lock;
 
 		PS2Keymap m_keymap;
 
-		Semaphore m_semaphore;
-
-	protected:
-		virtual BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan) override;
-
-		virtual bool can_read_impl() const override { return !m_event_queue.empty(); }
-		virtual bool can_write_impl() const override { return false; }
-		virtual bool has_error_impl() const override { return false; }
+		friend class BAN::RefPtr<PS2Keyboard>;
 	};
 
 }

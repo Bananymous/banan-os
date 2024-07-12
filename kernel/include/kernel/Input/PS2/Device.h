@@ -1,16 +1,15 @@
 #pragma once
 
 #include <kernel/Input/PS2/Controller.h>
+#include <kernel/Input/InputDevice.h>
 #include <kernel/Interruptable.h>
 
 namespace Kernel::Input
 {
 
-	class PS2Device : public CharacterDevice, public Interruptable
+	class PS2Device : public Interruptable, public InputDevice
 	{
 	public:
-		virtual ~PS2Device() {}
-
 		virtual void send_initialize() = 0;
 
 		virtual void command_timedout(uint8_t* command_data, uint8_t command_size) = 0;
@@ -21,17 +20,10 @@ namespace Kernel::Input
 
 		virtual void handle_byte(uint8_t) = 0;
 
-		virtual BAN::StringView name() const final override { return m_name; }
-		virtual dev_t rdev() const final override { return m_rdev; }
-
-		virtual void update() final override { m_controller.update_command_queue(); }
+	protected:
+		PS2Device(PS2Controller&, InputDevice::Type type);
 
 	protected:
-		PS2Device(PS2Controller&);
-
-	private:
-		const dev_t m_rdev;
-		const BAN::String m_name;
 		PS2Controller& m_controller;
 	};
 

@@ -60,6 +60,7 @@ namespace Kernel::Input
 
 	private:
 		BAN::RefPtr<PS2Device> m_devices[2];
+
 		Mutex m_mutex;
 
 		BAN::CircularQueue<Command, 128> m_command_queue;

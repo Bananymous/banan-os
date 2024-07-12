@@ -1,8 +1,6 @@
 #pragma once
 
 #include <kernel/Input/PS2/Device.h>
-#include <kernel/Semaphore.h>
-#include <LibInput/MouseEvent.h>
 
 namespace Kernel::Input
 {
@@ -16,12 +14,14 @@ namespace Kernel::Input
 		};
 
 	public:
-		static BAN::ErrorOr<PS2Mouse*> create(PS2Controller&);
+		static BAN::ErrorOr<BAN::RefPtr<PS2Mouse>> create(PS2Controller&);
 		virtual void send_initialize() override;
 
 		virtual void command_timedout(uint8_t* command_data, uint8_t command_size) final override { (void)command_data; (void)command_size; }
 
 		virtual void handle_byte(uint8_t) final override;
+
+		virtual void update() final override { m_controller.update_command_queue(); }
 
 	private:
 		PS2Mouse(PS2Controller& controller);
@@ -36,17 +36,7 @@ namespace Kernel::Input
 		uint8_t m_mouse_id		{ 0x00 };
 		uint8_t m_button_mask	{ 0x00 };
 
-		BAN::CircularQueue<LibInput::MouseEvent, 128> m_event_queue;
-		SpinLock m_event_lock;
-
-		Semaphore m_semaphore;
-
-	protected:
-		virtual BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan) override;
-
-		virtual bool can_read_impl() const override { return !m_event_queue.empty(); }
-		virtual bool can_write_impl() const override { return false; }
-		virtual bool has_error_impl() const override { return false; }
+		friend class BAN::RefPtr<PS2Mouse>;
 	};
 
 }

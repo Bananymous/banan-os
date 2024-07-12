@@ -1,18 +1,13 @@
-#include <kernel/Device/DeviceNumbers.h>
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/Input/PS2/Config.h>
 #include <kernel/Input/PS2/Device.h>
 #include <kernel/IO.h>
 
-#include <sys/sysmacros.h>
-
 namespace Kernel::Input
 {
 
-	PS2Device::PS2Device(PS2Controller& controller)
-		: CharacterDevice(0440, 0, 901)
-		, m_rdev(makedev(DeviceNumber::Input, DevFileSystem::get().get_next_input_device()))
-		, m_name(MUST(BAN::String::formatted("input{}", minor(m_rdev))))
+	PS2Device::PS2Device(PS2Controller& controller, InputDevice::Type type)
+		: InputDevice(type)
 		, m_controller(controller)
 	{ }
 

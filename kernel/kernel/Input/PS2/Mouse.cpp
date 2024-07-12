@@ -3,6 +3,7 @@
 #include <kernel/Input/PS2/Config.h>
 #include <kernel/Input/PS2/Mouse.h>
 #include <kernel/Thread.h>
+#include <LibInput/MouseEvent.h>
 
 #define SET_MASK(byte, mask, on_off) ((on_off) ? ((byte) | (mask)) : ((byte) & ~(mask)))
 #define TOGGLE_MASK(byte, mask) ((byte) ^ (mask))
@@ -10,16 +11,13 @@
 namespace Kernel::Input
 {
 
-	BAN::ErrorOr<PS2Mouse*> PS2Mouse::create(PS2Controller& controller)
+	BAN::ErrorOr<BAN::RefPtr<PS2Mouse>> PS2Mouse::create(PS2Controller& controller)
 	{
-		PS2Mouse* mouse = new PS2Mouse(controller);
-		if (mouse == nullptr)
-			return BAN::Error::from_errno(ENOMEM);
-		return mouse;
+		return TRY(BAN::RefPtr<PS2Mouse>::create(controller));
 	}
 
 	PS2Mouse::PS2Mouse(PS2Controller& controller)
-		: PS2Device(controller)
+		: PS2Device(controller, InputDevice::Type::Mouse)
 	{ }
 
 	void PS2Mouse::send_initialize()
@@ -110,10 +108,6 @@ namespace Kernel::Input
 
 		m_byte_index = 0;
 
-		// Max 7 events, one for each (5) button, one for movement, one for scroll
-		BAN::Array<MouseEvent, 7> events;
-		int event_count = 0;
-
 		auto button_index_to_button =
 			[](int index) -> MouseButton
 			{
@@ -137,10 +131,11 @@ namespace Kernel::Input
 				if ((new_button_mask & (1 << i)) == (m_button_mask & (1 << i)))
 					continue;
 
-				auto& event = events[event_count++];
+				MouseEvent event;
 				event.type = MouseEventType::MouseButtonEvent;
 				event.button_event.button = button_index_to_button(i);
 				event.button_event.pressed = !!(new_button_mask & (1 << i));
+				add_event(BAN::ConstByteSpan::from(event));
 			}
 
 			m_button_mask = new_button_mask;
@@ -148,71 +143,20 @@ namespace Kernel::Input
 
 		if (rel_x || rel_y)
 		{
-			auto& event = events[event_count++];
+			MouseEvent event;
 			event.type = MouseEventType::MouseMoveEvent;
 			event.move_event.rel_x = rel_x;
 			event.move_event.rel_y = rel_y;
+			add_event(BAN::ConstByteSpan::from(event));
 		}
 
 		if (rel_z)
 		{
-			auto& event = events[event_count++];
+			MouseEvent event;
 			event.type = MouseEventType::MouseScrollEvent;
 			event.scroll_event.scroll = rel_z;
+			add_event(BAN::ConstByteSpan::from(event));
 		}
-
-		SpinLockGuard _(m_event_lock);
-
-		for (int i = 0; i < event_count; i++)
-		{
-			if (!m_event_queue.empty() && m_event_queue.back().type == events[i].type)
-			{
-				if (events[i].type == MouseEventType::MouseMoveEvent)
-				{
-					m_event_queue.back().move_event.rel_x += events[i].move_event.rel_x;
-					m_event_queue.back().move_event.rel_y += events[i].move_event.rel_y;
-					continue;
-				}
-
-				if (events[i].type == MouseEventType::MouseScrollEvent)
-				{
-					m_event_queue.back().scroll_event.scroll += events[i].scroll_event.scroll;
-					continue;
-				}
-			}
-
-			if (m_event_queue.full())
-			{
-				dwarnln("PS/2 event queue full");
-				m_event_queue.pop();
-			}
-			m_event_queue.push(events[i]);
-		}
-
-		m_semaphore.unblock();
-	}
-
-	BAN::ErrorOr<size_t> PS2Mouse::read_impl(off_t, BAN::ByteSpan buffer)
-	{
-		using LibInput::MouseEvent;
-
-		if (buffer.size() < sizeof(MouseEvent))
-			return BAN::Error::from_errno(ENOBUFS);
-
-		auto state = m_event_lock.lock();
-		while (m_event_queue.empty())
-		{
-			m_event_lock.unlock(state);
-			TRY(Thread::current().block_or_eintr_indefinite(m_semaphore));
-			state = m_event_lock.lock();
-		}
-
-		buffer.as<MouseEvent>() = m_event_queue.front();
-		m_event_queue.pop();
-
-		m_event_lock.unlock(state);
-
-		return sizeof(MouseEvent);
 	}
 
 }

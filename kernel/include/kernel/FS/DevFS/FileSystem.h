@@ -20,8 +20,6 @@ namespace Kernel
 		void add_device(BAN::RefPtr<Device>);
 		void add_inode(BAN::StringView path, BAN::RefPtr<TmpInode>);
 
-		int get_next_input_device() const;
-
 		void initiate_sync(bool should_block);
 
 	private:

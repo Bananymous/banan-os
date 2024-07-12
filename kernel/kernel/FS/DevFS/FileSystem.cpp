@@ -119,10 +119,4 @@ namespace Kernel
 		MUST(static_cast<TmpDirectoryInode*>(root_inode().ptr())->link_inode(*inode, path));
 	}
 
-	int DevFileSystem::get_next_input_device() const
-	{
-		static BAN::Atomic<dev_t> next_dev = 0;
-		return next_dev++;
-	}
-
 }

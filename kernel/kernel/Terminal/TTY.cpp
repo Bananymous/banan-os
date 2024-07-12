@@ -83,7 +83,7 @@ namespace Kernel
 		Process::create_kernel(
 			[](void*)
 			{
-				auto file_or_error = VirtualFileSystem::get().file_from_absolute_path({ 0, 0, 0, 0 }, "/dev/input0"_sv, O_RDONLY);
+				auto file_or_error = VirtualFileSystem::get().file_from_absolute_path({ 0, 0, 0, 0 }, "/dev/keyboard0"_sv, O_RDONLY);
 				if (file_or_error.is_error())
 				{
 					dprintln("no input device found");
