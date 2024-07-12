@@ -35,18 +35,18 @@ namespace Kernel
 		const uint32_t bits_per_second = m_controller.port(m_port_id).speed_id_to_speed[speed_id];
 		const auto speed_class = determine_speed_class(bits_per_second);
 
-		m_max_packet_size = 0;
+		m_endpoints[0].max_packet_size = 0;
 		switch (speed_class)
 		{
 			case USB::SpeedClass::LowSpeed:
 			case USB::SpeedClass::FullSpeed:
-				m_max_packet_size = 8;
+				m_endpoints[0].max_packet_size = 8;
 				break;
 			case USB::SpeedClass::HighSpeed:
-				m_max_packet_size = 64;
+				m_endpoints[0].max_packet_size = 64;
 				break;
 			case USB::SpeedClass::SuperSpeed:
-				m_max_packet_size = 512;
+				m_endpoints[0].max_packet_size = 512;
 				break;
 			default: ASSERT_NOT_REACHED();
 		}
@@ -74,13 +74,9 @@ namespace Kernel
 			slot_context.speed                = speed_id;
 
 			endpoint0_context.endpoint_type       = XHCI::EndpointType::Control;
-			endpoint0_context.max_packet_size     = m_max_packet_size;
-			endpoint0_context.max_burst_size      = 0;
-			endpoint0_context.tr_dequeue_pointer  = m_endpoints[0].transfer_ring->paddr() | 1;
-			endpoint0_context.interval            = 0;
-			endpoint0_context.max_primary_streams = 0;
-			endpoint0_context.mult                = 0;
+			endpoint0_context.max_packet_size     = m_endpoints[0].max_packet_size;
 			endpoint0_context.error_count         = 3;
+			endpoint0_context.tr_dequeue_pointer  = m_endpoints[0].transfer_ring->paddr() | 1;
 		}
 
 		m_controller.dcbaa_reg(m_slot_id) = m_output_context->paddr();
@@ -120,7 +116,7 @@ namespace Kernel
 		request.wLength       = 8;
 		TRY(send_request(request, kmalloc_paddr_of((vaddr_t)buffer.data()).value()));
 
-		m_max_packet_size = buffer.back();
+		m_endpoints[0].max_packet_size = buffer.back();
 
 		const uint32_t context_size = m_controller.context_size_set() ? 64 : 32;
 
@@ -131,7 +127,7 @@ namespace Kernel
 			input_control_context.add_context_flags = 0b10;
 
 			endpoint0_context.endpoint_type       = XHCI::EndpointType::Control;
-			endpoint0_context.max_packet_size     = m_max_packet_size;
+			endpoint0_context.max_packet_size     = m_endpoints[0].max_packet_size;
 			endpoint0_context.max_burst_size      = 0;
 			endpoint0_context.tr_dequeue_pointer  = (m_endpoints[0].transfer_ring->paddr() + (m_endpoints[0].enqueue_index * sizeof(XHCI::TRB))) | 1;
 			endpoint0_context.interval            = 0;
@@ -147,7 +143,7 @@ namespace Kernel
 		evaluate_context.address_device_command.slot_id                   = m_slot_id;
 		TRY(m_controller.send_command(evaluate_context));
 
-		dprintln_if(DEBUG_XHCI, "successfully updated max packet size to {}", m_max_packet_size);
+		dprintln_if(DEBUG_XHCI, "successfully updated max packet size to {}", m_endpoints[0].max_packet_size);
 
 		return {};
 	}
@@ -173,7 +169,7 @@ namespace Kernel
 				? trb_index                             - 1 - endpoint.dequeue_index
 				: trb_index + m_transfer_ring_trb_count - 2 - endpoint.dequeue_index;
 
-			const uint32_t full_trb_data = full_trbs_transferred * m_max_packet_size;
+			const uint32_t full_trb_data = full_trbs_transferred * endpoint.max_packet_size;
 			const uint32_t short_data    = transfer_trb_arr[trb_index].data_stage.trb_transfer_length - trb.transfer_event.trb_transfer_length;
 
 			endpoint.transfer_count = full_trb_data + short_data;
@@ -194,11 +190,12 @@ namespace Kernel
 	{
 		// FIXME: This is more or less generic USB code
 
+		auto& endpoint = m_endpoints[0];
+
 		// minus 3: Setup, Status, Link (this is probably too generous and will result in STALL)
-		if (request.wLength > (m_transfer_ring_trb_count - 3) * m_max_packet_size)
+		if (request.wLength > (m_transfer_ring_trb_count - 3) * endpoint.max_packet_size)
 			return BAN::Error::from_errno((ENOBUFS));
 
-		auto& endpoint = m_endpoints[0];
 		LockGuard _(endpoint.mutex);
 
 		uint8_t transfer_type =
@@ -233,13 +230,13 @@ namespace Kernel
 			advance_endpoint_enqueue(endpoint, false);
 		}
 
-		const uint32_t td_packet_count = BAN::Math::div_round_up<uint32_t>(request.wLength, m_max_packet_size);
+		const uint32_t td_packet_count = BAN::Math::div_round_up<uint32_t>(request.wLength, endpoint.max_packet_size);
 		uint32_t packets_transferred = 1;
 
 		uint32_t bytes_handled = 0;
 		while (bytes_handled < request.wLength)
 		{
-			const uint32_t to_handle = BAN::Math::min<uint32_t>(m_max_packet_size, request.wLength - bytes_handled);
+			const uint32_t to_handle = BAN::Math::min<uint32_t>(endpoint.max_packet_size, request.wLength - bytes_handled);
 
 			auto& trb = transfer_trb_arr[endpoint.enqueue_index];
 			memset(const_cast<XHCI::TRB*>(&trb), 0, sizeof(XHCI::TRB));

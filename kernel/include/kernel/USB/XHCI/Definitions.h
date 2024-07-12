@@ -201,6 +201,27 @@ namespace Kernel::XHCI
 
 			struct
 			{
+				uint64_t data_buffer_pointer       : 64;
+
+				uint32_t trb_transfer_length       : 17;
+				uint32_t td_size                   : 5;
+				uint32_t interrupt_target          : 10;
+
+				uint32_t cycle_bit                 : 1;
+				uint32_t evaluate_next_trb         : 1;
+				uint32_t interrupt_on_short_packet : 1;
+				uint32_t no_snoop                  : 1;
+				uint32_t chain_bit                 : 1;
+				uint32_t interrupt_on_completion   : 1;
+				uint32_t immediate_data            : 1;
+				uint32_t                           : 2;
+				uint32_t block_event_interrupt     : 1;
+				uint32_t trb_type                  : 6;
+				uint32_t                           : 16;
+			} normal;
+
+			struct
+			{
 				uint32_t bmRequestType           : 8;
 				uint32_t bRequest                : 8;
 				uint32_t wValue                  : 16;
@@ -342,6 +363,18 @@ namespace Kernel::XHCI
 
 			struct
 			{
+				uint64_t input_context_pointer : 64;
+				uint32_t                       : 32;
+				uint32_t cycle_bit             : 1;
+				uint32_t                       : 8;
+				uint32_t deconfigure           : 1;
+				uint32_t trb_type              : 6;
+				uint32_t                       : 8;
+				uint32_t slot_id               : 8;
+			} configure_endpoint_command;
+
+			struct
+			{
 				uint64_t ring_segment_ponter     : 64;
 
 				uint32_t                         : 22;
@@ -444,7 +477,7 @@ namespace Kernel::XHCI
 		uint64_t tr_dequeue_pointer;
 
 		uint32_t average_trb_length    : 16;
-		uint32_t max_esit_paylod_lo    : 16;
+		uint32_t max_esit_payload_lo   : 16;
 
 		uint32_t                       : 32;
 		uint32_t                       : 32;

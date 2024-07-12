@@ -18,6 +18,7 @@ namespace Kernel
 		struct Endpoint
 		{
 			BAN::UniqPtr<DMARegion> transfer_ring;
+			uint32_t max_packet_size { 0 };
 			uint32_t dequeue_index { 0 };
 			uint32_t enqueue_index { 0 };
 			bool cycle_bit { 1 };
@@ -56,8 +57,6 @@ namespace Kernel
 		const uint32_t m_slot_id;
 
 		Mutex m_mutex;
-
-		uint32_t m_max_packet_size { 0 };
 
 		BAN::UniqPtr<DMARegion> m_input_context;
 		BAN::UniqPtr<DMARegion> m_output_context;

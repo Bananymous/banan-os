@@ -465,8 +465,6 @@ namespace Kernel
 				{
 					m_event_dequeue = 0;
 					m_event_cycle = !m_event_cycle;
-
-					derrorln("WRAP");
 				}
 			}
 
