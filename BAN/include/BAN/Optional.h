@@ -40,6 +40,8 @@ namespace BAN
 		constexpr T release_value();
 		constexpr T& value();
 		constexpr const T& value() const;
+		constexpr T& value_or(T&);
+		constexpr const T& value_or(const T&) const;
 
 		constexpr void clear();
 
@@ -112,7 +114,7 @@ namespace BAN
 	{
 		clear();
 		m_has_value = other.has_value();
-		if (other.has_value)
+		if (other.has_value())
 			new (m_storage) T(other.value());
 		return *this;
 	}
@@ -182,6 +184,22 @@ namespace BAN
 	constexpr const T& Optional<T>::value() const
 	{
 		ASSERT(has_value());
+		return (const T&)m_storage;
+	}
+
+	template<typename T>
+	constexpr T& Optional<T>::value_or(T& empty)
+	{
+		if (!has_value())
+			return empty;
+		return (T&)m_storage;
+	}
+
+	template<typename T>
+	constexpr const T& Optional<T>::value_or(const T& empty) const
+	{
+		if (!has_value())
+			return empty;
 		return (const T&)m_storage;
 	}
 
