@@ -36,7 +36,7 @@ BAN::Optional<BAN::String> parse_dollar(BAN::StringView command, size_t& i)
 	ASSERT(command[i] == '$');
 
 	if (++i >= command.size())
-		return "$"_sv;
+		return BAN::String("$"_sv);
 
 	if (command[i] == '?')
 	{
@@ -53,8 +53,8 @@ BAN::Optional<BAN::String> parse_dollar(BAN::StringView command, size_t& i)
 		i += len - 1;
 
 		if (const char* value = getenv(name.data()))
-			return BAN::StringView(value);
-		return ""_sv;
+			return BAN::String(value);
+		return BAN::String();
 	}
 	else if (command[i] == '{')
 	{
@@ -74,8 +74,8 @@ BAN::Optional<BAN::String> parse_dollar(BAN::StringView command, size_t& i)
 		i += len;
 
 		if (const char* value = getenv(name.data()))
-			return BAN::StringView(value);
-		return ""_sv;
+			return BAN::String(value);
+		return BAN::String();
 	}
 	else if (command[i] == '[')
 	{

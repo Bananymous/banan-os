@@ -18,8 +18,6 @@ namespace BAN
 		constexpr Optional(const Optional&);
 		constexpr Optional(const T&);
 		constexpr Optional(T&&);
-		template<typename... Args>
-		constexpr Optional(Args&&...);
 
 		~Optional();
 
@@ -83,14 +81,6 @@ namespace BAN
 		: m_has_value(true)
 	{
 		new (m_storage) T(move(value));
-	}
-
-	template<typename T>
-	template<typename... Args>
-	constexpr Optional<T>::Optional(Args&&... args)
-		: m_has_value(true)
-	{
-		new (m_storage) T(forward<Args>(args)...);
 	}
 
 	template<typename T>
