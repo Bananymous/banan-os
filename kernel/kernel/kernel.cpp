@@ -201,8 +201,10 @@ static void init2(void*)
 
 	// Initialize empty keymap
 	MUST(LibInput::KeyboardLayout::initialize());
-	if (auto res = PS2Controller::initialize(); res.is_error())
-		dprintln("{}", res.error());
+
+	// FIXME: initialize PS/2 after USB
+	//if (auto res = PS2Controller::initialize(); res.is_error())
+	//	dprintln("{}", res.error());
 
 	MUST(NetworkManager::initialize());
 

@@ -2,6 +2,7 @@
 
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/USB/HID/HIDDriver.h>
+#include <kernel/USB/HID/Keyboard.h>
 
 #define DEBUG_HID 0
 
@@ -218,6 +219,9 @@ namespace Kernel
 
 		switch (collection.usage_id)
 		{
+			case 0x06:
+				m_hid_device = TRY(BAN::RefPtr<USBKeyboard>::create());
+				break;
 			default:
 				dwarnln("Unsupported generic descript page usage 0x{2H}", collection.usage_id);
 				return BAN::Error::from_errno(ENOTSUP);
