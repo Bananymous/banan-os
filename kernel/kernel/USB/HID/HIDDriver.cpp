@@ -3,6 +3,7 @@
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/USB/HID/HIDDriver.h>
 #include <kernel/USB/HID/Keyboard.h>
+#include <kernel/USB/HID/Mouse.h>
 
 #define DEBUG_HID 0
 
@@ -219,6 +220,9 @@ namespace Kernel
 
 		switch (collection.usage_id)
 		{
+			case 0x02:
+				m_hid_device = TRY(BAN::RefPtr<USBMouse>::create());
+				break;
 			case 0x06:
 				m_hid_device = TRY(BAN::RefPtr<USBKeyboard>::create());
 				break;
