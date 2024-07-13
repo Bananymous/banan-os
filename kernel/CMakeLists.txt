@@ -95,6 +95,7 @@ set(KERNEL_SOURCES
 	kernel/Timer/RTC.cpp
 	kernel/Timer/Timer.cpp
 	kernel/USB/Device.cpp
+	kernel/USB/HID/HIDDriver.cpp
 	kernel/USB/USBManager.cpp
 	kernel/USB/XHCI/Controller.cpp
 	kernel/USB/XHCI/Device.cpp

@@ -65,14 +65,18 @@ namespace Kernel
 			auto& slot_context          = *reinterpret_cast<XHCI::SlotContext*>        (m_input_context->vaddr() + 1 * context_size);
 			auto& endpoint0_context     = *reinterpret_cast<XHCI::EndpointContext*>    (m_input_context->vaddr() + 2 * context_size);
 
+			memset(&input_control_context, 0, context_size);
 			input_control_context.add_context_flags = 0b11;
 
-			slot_context.root_hub_port_number = m_port_id;
+			memset(&slot_context, 0, context_size);
 			slot_context.route_string         = 0;
+			slot_context.root_hub_port_number = m_port_id;
 			slot_context.context_entries      = 1;
 			slot_context.interrupter_target   = 0;
 			slot_context.speed                = speed_id;
+			// FIXME: 4.5.2 hub
 
+			memset(&endpoint0_context, 0, context_size);
 			endpoint0_context.endpoint_type       = XHCI::EndpointType::Control;
 			endpoint0_context.max_packet_size     = m_endpoints[0].max_packet_size;
 			endpoint0_context.error_count         = 3;
@@ -122,18 +126,21 @@ namespace Kernel
 
 		{
 			auto& input_control_context = *reinterpret_cast<XHCI::InputControlContext*>(m_input_context->vaddr() + 0 * context_size);
+			auto& slot_context          = *reinterpret_cast<XHCI::SlotContext*>        (m_input_context->vaddr() + 1 * context_size);
 			auto& endpoint0_context     = *reinterpret_cast<XHCI::EndpointContext*>    (m_input_context->vaddr() + 2 * context_size);
 
-			input_control_context.add_context_flags = 0b10;
+			memset(&input_control_context, 0, context_size);
+			input_control_context.add_context_flags = 0b11;
 
+			memset(&slot_context, 0, context_size);
+			slot_context.max_exit_latency   = 0; // FIXME:
+			slot_context.interrupter_target = 0;
+
+			memset(&endpoint0_context, 0, context_size);
 			endpoint0_context.endpoint_type       = XHCI::EndpointType::Control;
 			endpoint0_context.max_packet_size     = m_endpoints[0].max_packet_size;
-			endpoint0_context.max_burst_size      = 0;
-			endpoint0_context.tr_dequeue_pointer  = (m_endpoints[0].transfer_ring->paddr() + (m_endpoints[0].enqueue_index * sizeof(XHCI::TRB))) | 1;
-			endpoint0_context.interval            = 0;
-			endpoint0_context.max_primary_streams = 0;
-			endpoint0_context.mult                = 0;
 			endpoint0_context.error_count         = 3;
+			endpoint0_context.tr_dequeue_pointer  = m_endpoints[0].transfer_ring->paddr() | 1;
 		}
 
 		XHCI::TRB evaluate_context { .address_device_command = {} };
@@ -148,6 +155,114 @@ namespace Kernel
 		return {};
 	}
 
+	BAN::ErrorOr<void> XHCIDevice::initialize_endpoint(const USBEndpointDescriptor& endpoint_descriptor)
+	{
+		const uint32_t endpoint_id = (endpoint_descriptor.bEndpointAddress & 0x0F) * 2 + !!(endpoint_descriptor.bEndpointAddress & 0x80);
+
+		auto& endpoint = m_endpoints[endpoint_id - 1];
+		ASSERT(!endpoint.transfer_ring);
+
+		uint32_t last_valid_endpoint_id = endpoint_id;
+		for (size_t i = endpoint_id; i < m_endpoints.size(); i++)
+			if (m_endpoints[i].transfer_ring)
+				last_valid_endpoint_id = i + 1;
+
+		endpoint.transfer_ring   = TRY(DMARegion::create(m_transfer_ring_trb_count * sizeof(XHCI::TRB)));
+		endpoint.max_packet_size = endpoint_descriptor.wMaxPacketSize & 0x07FF;
+		endpoint.dequeue_index   = 0;
+		endpoint.enqueue_index   = 0;
+		endpoint.cycle_bit       = 1;
+		endpoint.callback        = &XHCIDevice::on_interrupt_endpoint_event;
+		endpoint.data_region     = TRY(DMARegion::create(endpoint.max_packet_size));
+
+		memset(reinterpret_cast<void*>(endpoint.transfer_ring->vaddr()), 0, endpoint.transfer_ring->size());
+
+		{
+			const uint32_t context_size = m_controller.context_size_set() ? 64 : 32;
+
+			auto& input_control_context = *reinterpret_cast<XHCI::InputControlContext*>(m_input_context->vaddr());
+			auto& slot_context          = *reinterpret_cast<XHCI::SlotContext*>        (m_input_context->vaddr() + context_size);
+			auto& endpoint_context      = *reinterpret_cast<XHCI::EndpointContext*>    (m_input_context->vaddr() + (endpoint_id + 1) * context_size);
+
+			memset(&input_control_context, 0, context_size);
+			input_control_context.add_context_flags = (1u << endpoint_id) | 1;
+
+			memset(&slot_context, 0, context_size);
+			slot_context.context_entries = last_valid_endpoint_id;
+			// FIXME: 4.5.2 hub
+
+			ASSERT(endpoint_descriptor.bEndpointAddress & 0x80);
+			ASSERT((endpoint_descriptor.bmAttributes & 0x03) == 3);
+			ASSERT(m_controller.port(m_port_id).revision_major == 2);
+
+			memset(&endpoint_context, 0, context_size);
+			endpoint_context.endpoint_type       = XHCI::EndpointType::InterruptIn;
+			endpoint_context.max_packet_size     = endpoint.max_packet_size;
+			endpoint_context.max_burst_size      = (endpoint_descriptor.wMaxPacketSize >> 11) & 0x0003;
+			endpoint_context.mult                = 0;
+			endpoint_context.error_count         = 3;
+			endpoint_context.tr_dequeue_pointer  = endpoint.transfer_ring->paddr() | 1;
+			const uint32_t max_esit_payload = endpoint_context.max_packet_size * (endpoint_context.max_burst_size + 1);
+			endpoint_context.max_esit_payload_lo = max_esit_payload & 0xFFFF;
+			endpoint_context.max_esit_payload_hi = max_esit_payload >> 16;
+		}
+
+		XHCI::TRB configure_endpoint { .configure_endpoint_command = {} };
+		configure_endpoint.configure_endpoint_command.trb_type              = XHCI::TRBType::ConfigureEndpointCommand;
+		configure_endpoint.configure_endpoint_command.input_context_pointer = m_input_context->paddr();
+		configure_endpoint.configure_endpoint_command.deconfigure           = 0;
+		configure_endpoint.configure_endpoint_command.slot_id               = m_slot_id;
+		TRY(m_controller.send_command(configure_endpoint));
+
+		auto& trb = *reinterpret_cast<volatile XHCI::TRB*>(endpoint.transfer_ring->vaddr());
+		memset(const_cast<XHCI::TRB*>(&trb), 0, sizeof(XHCI::TRB));
+		trb.normal.trb_type                  = XHCI::TRBType::Normal;
+		trb.normal.data_buffer_pointer       = endpoint.data_region->paddr();
+		trb.normal.trb_transfer_length       = endpoint.data_region->size();
+		trb.normal.td_size                   = 0;
+		trb.normal.interrupt_target          = 0;
+		trb.normal.cycle_bit                 = 1;
+		trb.normal.interrupt_on_completion   = 1;
+		trb.normal.interrupt_on_short_packet = 1;
+		advance_endpoint_enqueue(endpoint, false);
+
+		m_controller.doorbell_reg(m_slot_id) = endpoint_id;
+
+		return {};
+	}
+
+	void XHCIDevice::on_interrupt_endpoint_event(XHCI::TRB trb)
+	{
+		ASSERT(trb.trb_type == XHCI::TRBType::TransferEvent);
+		if (trb.transfer_event.completion_code != 1 && trb.transfer_event.completion_code != 13)
+		{
+			dwarnln("Interrupt endpoint got transfer event with completion code {}", +trb.transfer_event.completion_code);
+			return;
+		}
+
+		const uint32_t endpoint_id = trb.transfer_event.endpoint_id;
+		auto& endpoint = m_endpoints[endpoint_id - 1];
+		ASSERT(endpoint.transfer_ring && endpoint.data_region);
+
+		const uint32_t transfer_length = endpoint.max_packet_size - trb.transfer_event.trb_transfer_length;
+		auto received_data = BAN::ConstByteSpan(reinterpret_cast<uint8_t*>(endpoint.data_region->vaddr()), transfer_length);
+		handle_input_data(received_data, endpoint_id);
+
+		auto& new_trb = *reinterpret_cast<volatile XHCI::TRB*>(endpoint.transfer_ring->vaddr() + endpoint.enqueue_index * sizeof(XHCI::TRB));
+		memset(const_cast<XHCI::TRB*>(&new_trb), 0, sizeof(XHCI::TRB));
+		new_trb.normal.trb_type                  = XHCI::TRBType::Normal;
+		new_trb.normal.data_buffer_pointer       = endpoint.data_region->paddr();
+		new_trb.normal.trb_transfer_length       = endpoint.max_packet_size;
+		new_trb.normal.td_size                   = 0;
+		new_trb.normal.interrupt_target          = 0;
+		new_trb.normal.cycle_bit                 = endpoint.cycle_bit;
+		new_trb.normal.interrupt_on_completion   = 1;
+		new_trb.normal.interrupt_on_short_packet = 1;
+		advance_endpoint_enqueue(endpoint, false);
+
+		m_controller.doorbell_reg(m_slot_id) = endpoint_id;
+	}
+
 	void XHCIDevice::on_transfer_event(const volatile XHCI::TRB& trb)
 	{
 		ASSERT(trb.trb_type == XHCI::TRBType::TransferEvent);
@@ -157,10 +272,22 @@ namespace Kernel
 			return;
 		}
 
+		auto& endpoint = m_endpoints[trb.transfer_event.endpoint_id - 1];
+
+		if (endpoint.callback)
+		{
+			XHCI::TRB copy;
+			copy.raw.dword0 = trb.raw.dword0;
+			copy.raw.dword1 = trb.raw.dword1;
+			copy.raw.dword2 = trb.raw.dword2;
+			copy.raw.dword3 = trb.raw.dword3;
+			(this->*endpoint.callback)(copy);
+			return;
+		}
+
 		// Get received bytes from short packet
 		if (trb.transfer_event.completion_code == 13)
 		{
-			auto& endpoint = m_endpoints[trb.transfer_event.endpoint_id - 1];
 			auto* transfer_trb_arr = reinterpret_cast<volatile XHCI::TRB*>(endpoint.transfer_ring->vaddr());
 
 			const uint32_t trb_index = (trb.transfer_event.trb_pointer - endpoint.transfer_ring->paddr()) / sizeof(XHCI::TRB);
@@ -179,7 +306,7 @@ namespace Kernel
 		}
 
 		// NOTE: dword2 is last (and atomic) as that is what send_request is waiting for
-		auto& completion_trb = m_endpoints[trb.transfer_event.endpoint_id - 1].completion_trb;
+		auto& completion_trb = endpoint.completion_trb;
 		completion_trb.raw.dword0 = trb.raw.dword0;
 		completion_trb.raw.dword1 = trb.raw.dword1;
 		completion_trb.raw.dword3 = trb.raw.dword3;

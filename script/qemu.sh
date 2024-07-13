@@ -31,5 +31,6 @@ qemu-system-$QEMU_ARCH												\
 	-drive format=raw,id=disk,file=${BANAN_DISK_IMAGE_PATH},if=none	\
 	-device e1000e,netdev=net										\
 	-netdev user,id=net												\
+	-device qemu-xhci												\
 	$DISK_ARGS														\
 	$@																\

@@ -26,11 +26,15 @@ namespace Kernel
 			Mutex mutex;
 			volatile uint32_t transfer_count { 0 };
 			volatile XHCI::TRB completion_trb;
+
+			BAN::UniqPtr<DMARegion> data_region;
+			void(XHCIDevice::*callback)(XHCI::TRB);
 		};
 
 	public:
 		static BAN::ErrorOr<BAN::UniqPtr<XHCIDevice>> create(XHCIController&, uint32_t port_id, uint32_t slot_id);
 
+		BAN::ErrorOr<void> initialize_endpoint(const USBEndpointDescriptor&) override;
 		BAN::ErrorOr<size_t> send_request(const USBDeviceRequest&, paddr_t buffer) override;
 
 		void on_transfer_event(const volatile XHCI::TRB&);
@@ -46,6 +50,8 @@ namespace Kernel
 		{}
 		~XHCIDevice();
 		BAN::ErrorOr<void> update_actual_max_packet_size();
+
+		void on_interrupt_endpoint_event(XHCI::TRB);
 
 		void advance_endpoint_enqueue(Endpoint&, bool chain);
 

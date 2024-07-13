@@ -1,5 +1,6 @@
 #pragma once
 
+#include <BAN/ByteSpan.h>
 #include <BAN/NoCopyMove.h>
 
 #include <kernel/Memory/DMARegion.h>
@@ -8,6 +9,18 @@
 
 namespace Kernel
 {
+
+	class USBClassDriver
+	{
+		BAN_NON_COPYABLE(USBClassDriver);
+		BAN_NON_MOVABLE(USBClassDriver);
+
+	public:
+		USBClassDriver() = default;
+		virtual ~USBClassDriver() = default;
+
+		virtual void handle_input_data(BAN::ConstByteSpan, uint8_t endpoint_id) = 0;
+	};
 
 	class USBDevice
 	{
@@ -47,11 +60,13 @@ namespace Kernel
 
 		const BAN::Vector<ConfigurationDescriptor>& configurations() { return m_descriptor.configurations; }
 
+		virtual BAN::ErrorOr<void> initialize_endpoint(const USBEndpointDescriptor&) = 0;
 		virtual BAN::ErrorOr<size_t> send_request(const USBDeviceRequest&, paddr_t buffer) = 0;
 
 		static USB::SpeedClass determine_speed_class(uint64_t bits_per_second);
 
 	protected:
+		void handle_input_data(BAN::ConstByteSpan, uint8_t endpoint_id);
 		virtual BAN::ErrorOr<void> initialize_control_endpoint() = 0;
 
 	private:
@@ -60,6 +75,9 @@ namespace Kernel
 	private:
 		DeviceDescriptor m_descriptor;
 		BAN::UniqPtr<DMARegion> m_dma_buffer;
+
+		// FIXME: support more than one interface from a configuration
+		BAN::UniqPtr<USBClassDriver> m_class_driver;
 	};
 
 }

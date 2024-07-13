@@ -253,7 +253,8 @@ namespace Kernel
 					case 3:
 						if (!connection_change)
 							continue;
-						break;
+						dprintln_if(DEBUG_XHCI, "USB 3 devices not supported");
+						continue;
 					default:
 						continue;
 				}

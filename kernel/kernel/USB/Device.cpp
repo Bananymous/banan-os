@@ -1,5 +1,6 @@
 #include <kernel/Memory/DMARegion.h>
 #include <kernel/USB/Device.h>
+#include <kernel/USB/HID/HIDDriver.h>
 
 #define DEBUG_USB 0
 #define USB_DUMP_DESCRIPTORS 0
@@ -152,7 +153,8 @@ namespace Kernel
 						dprintln_if(DEBUG_USB, "Found CommunicationAndCDCControl interface");
 						break;
 					case USB::InterfaceBaseClass::HID:
-						dprintln_if(DEBUG_USB, "Found HID interface");
+						if (auto result = USBHIDDriver::create(*this, interface, j); !result.is_error())
+							m_class_driver = result.release_value();
 						break;
 					case USB::InterfaceBaseClass::Physical:
 						dprintln_if(DEBUG_USB, "Found Physical interface");
@@ -214,6 +216,12 @@ namespace Kernel
 					default:
 						dprintln_if(DEBUG_USB, "Invalid interface base class {2H}", interface.descriptor.bInterfaceClass);
 						break;
+				}
+
+				if (m_class_driver)
+				{
+					dprintln("Successfully initialized USB interface");
+					return {};
 				}
 			}
 		}
@@ -297,6 +305,12 @@ namespace Kernel
 		}
 
 		return BAN::move(configuration);
+	}
+
+	void USBDevice::handle_input_data(BAN::ConstByteSpan data, uint8_t endpoint_id)
+	{
+		if (m_class_driver)
+			m_class_driver->handle_input_data(data, endpoint_id);
 	}
 
 	USB::SpeedClass USBDevice::determine_speed_class(uint64_t bits_per_second)

@@ -213,6 +213,9 @@ static void init2(void*)
 	PCI::PCIManager::get().initialize_devices();
 	dprintln("PCI devices initialized");
 
+	// FIXME: This is very hacky way to wait until USB stack is initialized
+	SystemTimer::get().sleep(500);
+
 	VirtualFileSystem::initialize(cmdline.root);
 	dprintln("VFS initialized");
 
