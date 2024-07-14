@@ -22,7 +22,51 @@ namespace Kernel
 			m_port_updater->exit(0, SIGKILL);
 	}
 
-	BAN::ErrorOr<BAN::UniqPtr<XHCIController>> XHCIController::initialize(PCI::Device& pci_device)
+	BAN::ErrorOr<void> XHCIController::take_ownership(PCI::Device& pci_device)
+	{
+		auto bar = TRY(pci_device.allocate_bar_region(0));
+		if (bar->type() != PCI::BarType::MEM)
+		{
+			dwarnln("XHCI controller with non-memory configuration space");
+			return BAN::Error::from_errno(EINVAL);
+		}
+
+		auto& capabilities = *reinterpret_cast<volatile XHCI::CapabilityRegs*>(bar->vaddr());
+		const uint16_t ext_offset = capabilities.hccparams1.xhci_extended_capabilities_pointer;
+		if (ext_offset == 0)
+		{
+			dwarnln("XHCI controller does not have extended capabilities");
+			return BAN::Error::from_errno(EFAULT);
+		}
+
+		vaddr_t ext_addr = bar->vaddr() + ext_offset * 4;
+		while (true)
+		{
+			auto& ext_cap = *reinterpret_cast<volatile XHCI::ExtendedCap*>(ext_addr);
+
+			if (ext_cap.capability_id == XHCI::ExtendedCapabilityID::USBLegacySupport)
+			{
+				auto& legacy = *reinterpret_cast<volatile XHCI::USBLegacySupportCap*>(ext_addr);
+				if (!legacy.hc_bios_owned_semaphore)
+					return {};
+				legacy.hc_os_owned_semaphore = 1;
+
+				const uint64_t timeout_ms = SystemTimer::get().ms_since_boot() + 1000;
+				while (legacy.hc_bios_owned_semaphore)
+					if (SystemTimer::get().ms_since_boot() > timeout_ms)
+						return BAN::Error::from_errno(ETIMEDOUT);
+				return {};
+			}
+
+			if (ext_cap.next_capability == 0)
+				break;
+			ext_addr += ext_cap.next_capability * 4;
+		}
+
+		return {};
+	}
+
+	BAN::ErrorOr<BAN::UniqPtr<XHCIController>> XHCIController::create(PCI::Device& pci_device)
 	{
 		auto controller = TRY(BAN::UniqPtr<XHCIController>::create(pci_device));
 		TRY(controller->initialize_impl());

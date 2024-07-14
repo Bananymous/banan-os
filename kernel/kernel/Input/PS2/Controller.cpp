@@ -241,8 +241,6 @@ namespace Kernel::Input
 
 	BAN::ErrorOr<void> PS2Controller::initialize_impl()
 	{
-		// FIXME: Initialise USB Controllers
-
 		// Determine if the PS/2 Controller Exists
 		auto* fadt = static_cast<const ACPI::FADT*>(ACPI::ACPI::get().get_header("FACP"_sv, 0));
 		if (fadt && fadt->revision > 1 && !(fadt->iapc_boot_arch & (1 << 1)))

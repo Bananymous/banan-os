@@ -189,6 +189,9 @@ static void init2(void*)
 	PCI::PCIManager::initialize();
 	dprintln("PCI initialized");
 
+	MUST(USBManager::initialize());
+	dprintln("USBManager initialized");
+
 	if (ACPI::ACPI::get().enter_acpi_mode(InterruptController::get().is_using_apic()).is_error())
 		dprintln("Failed to enter ACPI mode");
 
@@ -202,13 +205,11 @@ static void init2(void*)
 	// Initialize empty keymap
 	MUST(LibInput::KeyboardLayout::initialize());
 
-	// FIXME: initialize PS/2 after USB
+	// FIXME: implement device hot plugging, so multiple devices is possible
 	//if (auto res = PS2Controller::initialize(); res.is_error())
 	//	dprintln("{}", res.error());
 
 	MUST(NetworkManager::initialize());
-
-	MUST(USBManager::initialize());
 
 	// NOTE: PCI devices are the last ones to be initialized
 	//       so other devices can reserve predefined interrupts

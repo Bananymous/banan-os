@@ -409,6 +409,17 @@ namespace Kernel::XHCI
 	};
 	static_assert(sizeof(ExtendedCap) == 4);
 
+	struct USBLegacySupportCap
+	{
+		uint32_t capability_id           : 8;
+		uint32_t next_capability         : 8;
+		uint32_t hc_bios_owned_semaphore : 1;
+		uint32_t                         : 7;
+		uint32_t hc_os_owned_semaphore   : 1;
+		uint32_t                         : 7;
+	};
+	static_assert(sizeof(USBLegacySupportCap) == 4);
+
 	struct SupportedPrococolCap
 	{
 		uint32_t capability_id           : 8;

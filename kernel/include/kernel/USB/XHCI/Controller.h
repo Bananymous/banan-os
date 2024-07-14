@@ -38,7 +38,8 @@ namespace Kernel
 		};
 
 	public:
-		static BAN::ErrorOr<BAN::UniqPtr<XHCIController>> initialize(PCI::Device&);
+		static BAN::ErrorOr<void> take_ownership(PCI::Device&);
+		static BAN::ErrorOr<BAN::UniqPtr<XHCIController>> create(PCI::Device&);
 
 		void handle_irq() final override;
 
