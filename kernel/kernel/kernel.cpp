@@ -205,9 +205,8 @@ static void init2(void*)
 	// Initialize empty keymap
 	MUST(LibInput::KeyboardLayout::initialize());
 
-	// FIXME: implement device hot plugging, so multiple devices is possible
-	//if (auto res = PS2Controller::initialize(); res.is_error())
-	//	dprintln("{}", res.error());
+	if (auto res = PS2Controller::initialize(); res.is_error())
+		dprintln("{}", res.error());
 
 	MUST(NetworkManager::initialize());
 
@@ -215,9 +214,6 @@ static void init2(void*)
 	//       so other devices can reserve predefined interrupts
 	PCI::PCIManager::get().initialize_devices();
 	dprintln("PCI devices initialized");
-
-	// FIXME: This is very hacky way to wait until USB stack is initialized
-	SystemTimer::get().sleep(500);
 
 	VirtualFileSystem::initialize(cmdline.root);
 	dprintln("VFS initialized");

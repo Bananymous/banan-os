@@ -158,11 +158,11 @@ int main()
 	MUST(LibInput::KeyboardLayout::initialize());
 	MUST(LibInput::KeyboardLayout::get().load_from_file("/usr/share/keymaps/us.keymap"_sv));
 
-	int keyboard_fd = open("/dev/keyboard0", O_RDONLY);
+	int keyboard_fd = open("/dev/keyboard", O_RDONLY);
 	if (keyboard_fd == -1)
 		perror("open");
 
-	int mouse_fd = open("/dev/mouse0", O_RDONLY);
+	int mouse_fd = open("/dev/mouse", O_RDONLY);
 	if (mouse_fd == -1)
 		perror("open");
 
