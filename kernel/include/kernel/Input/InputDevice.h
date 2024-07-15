@@ -35,6 +35,8 @@ namespace Kernel
 		const dev_t m_rdev;
 		const BAN::String m_name;
 
+		const Type m_type;
+
 		mutable SpinLock m_event_lock;
 		Semaphore m_event_semaphore;
 
