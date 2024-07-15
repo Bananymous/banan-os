@@ -68,6 +68,13 @@ namespace Kernel
 		BAN_NON_MOVABLE(USBHIDDriver);
 
 	public:
+		struct DeviceReport
+		{
+			BAN::Vector<USBHID::Report> inputs;
+			BAN::RefPtr<USBHIDDevice> device;
+		};
+
+	public:
 		static BAN::ErrorOr<BAN::UniqPtr<USBHIDDriver>> create(USBDevice&, const USBDevice::InterfaceDescriptor&, uint8_t interface_index);
 
 		void handle_input_data(BAN::ConstByteSpan, uint8_t endpoint_id) override;
@@ -78,7 +85,7 @@ namespace Kernel
 
 		BAN::ErrorOr<void> initialize();
 
-		void forward_collection_inputs(const USBHID::Collection&, BAN::Optional<uint8_t> report_id, BAN::ConstByteSpan& data, size_t bit_offset);
+		BAN::ErrorOr<BAN::Vector<DeviceReport>> initializes_device_reports(const BAN::Vector<USBHID::Collection>&);
 
 	private:
 		USBDevice& m_device;
@@ -88,8 +95,7 @@ namespace Kernel
 		bool m_uses_report_id { false };
 
 		uint8_t m_endpoint_id { 0 };
-		BAN::Vector<USBHID::Collection> m_collections;
-		BAN::RefPtr<USBHIDDevice> m_hid_device;
+		BAN::Vector<DeviceReport> m_device_inputs;
 
 		friend class BAN::UniqPtr<USBHIDDriver>;
 	};

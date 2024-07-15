@@ -79,8 +79,9 @@ namespace Kernel
 
 	USBHIDDriver::~USBHIDDriver()
 	{
-		if (m_hid_device)
-			DevFileSystem::get().remove_device(m_hid_device);
+		for (auto& device_input : m_device_inputs)
+			if (device_input.device)
+				DevFileSystem::get().remove_device(device_input.device);
 	}
 
 	BAN::ErrorOr<void> USBHIDDriver::initialize()
@@ -203,44 +204,99 @@ namespace Kernel
 			return BAN::Error::from_errno(EFAULT);
 		}
 
-		// FIXME: Handle other collections?
-
-		if (collections.front().usage_page != 0x01)
-		{
-			dwarnln("Top most collection is not generic desktop page");
-			return BAN::Error::from_errno(EFAULT);
-		}
-
-		switch (collections.front().usage_id)
-		{
-			case 0x02:
-				m_hid_device = TRY(BAN::RefPtr<USBMouse>::create());
-				dprintln("Initialized an USB Mouse");
-				break;
-			case 0x06:
-				m_hid_device = TRY(BAN::RefPtr<USBKeyboard>::create());
-				dprintln("Initialized an USB Keyboard");
-				break;
-			default:
-				dwarnln("Unsupported generic descript page usage 0x{2H}", collections.front().usage_id);
-				return BAN::Error::from_errno(ENOTSUP);
-		}
-		DevFileSystem::get().add_device(m_hid_device);
+		m_device_inputs = TRY(initializes_device_reports(collections));
 
 		const auto& endpoint_descriptor = m_interface.endpoints[endpoint_index].descriptor;
-
 		m_endpoint_id = (endpoint_descriptor.bEndpointAddress & 0x0F) * 2 + !!(endpoint_descriptor.bEndpointAddress & 0x80);
-		m_collections = BAN::move(collections);
-
 		TRY(m_device.initialize_endpoint(endpoint_descriptor));
 
 		return {};
 	}
 
-	void USBHIDDriver::forward_collection_inputs(const Collection& collection, BAN::Optional<uint8_t> report_id, BAN::ConstByteSpan& data, size_t bit_offset)
+	static BAN::ErrorOr<void> gather_collection_inputs(const USBHID::Collection& collection, BAN::Vector<USBHID::Report>& output)
 	{
+		for (const auto& entry : collection.entries)
+		{
+			if (entry.has<USBHID::Collection>())
+			{
+				TRY(gather_collection_inputs(entry.get<USBHID::Collection>(), output));
+				continue;
+			}
+
+			const auto& report = entry.get<USBHID::Report>();
+			if (report.type != USBHID::Report::Type::Input)
+				continue;
+
+			TRY(output.push_back(report));
+		}
+
+		return {};
+	}
+
+	BAN::ErrorOr<BAN::Vector<USBHIDDriver::DeviceReport>> USBHIDDriver::initializes_device_reports(const BAN::Vector<USBHID::Collection>& collection_list)
+	{
+		BAN::Vector<USBHIDDriver::DeviceReport> result;
+		TRY(result.reserve(collection_list.size()));
+
+		for (size_t i = 0; i < collection_list.size(); i++)
+		{
+			const auto& collection = collection_list[i];
+
+			USBHIDDriver::DeviceReport report;
+			TRY(gather_collection_inputs(collection, report.inputs));
+
+			if (collection.usage_page == 0x01)
+			{
+				switch (collection.usage_id)
+				{
+					case 0x02:
+						report.device = TRY(BAN::RefPtr<USBMouse>::create());
+						dprintln("Initialized an USB Mouse");
+						break;
+					case 0x06:
+						report.device = TRY(BAN::RefPtr<USBKeyboard>::create());
+						dprintln("Initialized an USB Keyboard");
+						break;
+					default:
+						dwarnln("Unsupported generic descript page usage 0x{2H}", collection.usage_id);
+						break;
+				}
+			}
+
+			TRY(result.push_back(BAN::move(report)));
+		}
+
+		for (auto& report : result)
+			if (report.device)
+				DevFileSystem::get().add_device(report.device);
+		return BAN::move(result);
+	}
+
+	void USBHIDDriver::handle_input_data(BAN::ConstByteSpan data, uint8_t endpoint_id)
+	{
+		// If this packet is not for us, skip it
+		if (m_endpoint_id != endpoint_id)
+			return;
+
+		if constexpr(DEBUG_HID)
+		{
+			const auto nibble_to_hex = [](uint8_t x) -> char { return x + (x < 10 ? '0' : 'A' - 10); };
+
+			char buffer[512];
+			char* ptr = buffer;
+			for (size_t i = 0; i < BAN::Math::min<size_t>((sizeof(buffer) - 1) / 3, data.size()); i++)
+			{
+				*ptr++ = nibble_to_hex(data[i] >> 4);
+				*ptr++ = nibble_to_hex(data[i] & 0xF);
+				*ptr++ = ' ';
+			}
+			*ptr = '\0';
+
+			dprintln_if(DEBUG_HID, "Received {} bytes from endpoint {}: {}", data.size(), endpoint_id, buffer);
+		}
+
 		const auto extract_bits =
-			[data](size_t bit_offset, size_t bit_count, bool as_unsigned) -> int64_t
+			[&data](size_t bit_offset, size_t bit_count, bool as_unsigned) -> int64_t
 			{
 				if (bit_offset >= data.size() * 8)
 					return 0;
@@ -272,78 +328,6 @@ namespace Kernel
 				return result;
 			};
 
-		for (const auto& entry : collection.entries)
-		{
-			if (entry.has<Collection>())
-			{
-				forward_collection_inputs(entry.get<Collection>(), report_id, data, bit_offset);
-				continue;
-			}
-
-			ASSERT(entry.has<Report>());
-			const auto& input = entry.get<Report>();
-			if (input.type != Report::Type::Input)
-				continue;
-			if (report_id.value_or(input.report_id) != input.report_id)
-				continue;
-
-			ASSERT(input.report_size <= 32);
-
-			if (input.usage_id == 0 && input.usage_minimum == 0 && input.usage_maximum == 0)
-			{
-				bit_offset += input.report_size * input.report_count;
-				continue;
-			}
-
-			for (uint32_t i = 0; i < input.report_count; i++)
-			{
-				const int64_t logical = extract_bits(bit_offset, input.report_size, input.logical_minimum >= 0);
-				if (logical < input.logical_minimum || logical > input.logical_maximum)
-				{
-					bit_offset += input.report_size;
-					continue;
-				}
-
-				const int64_t physical =
-					(input.physical_maximum - input.physical_minimum) *
-					(logical - input.logical_minimum) /
-					(input.logical_maximum - input.logical_minimum) +
-					input.physical_minimum;
-
-				const uint32_t usage_base = input.usage_id ? input.usage_id : input.usage_minimum;
-				if (input.flags & 0x02)
-					m_hid_device->handle_variable(input.usage_page, usage_base + i, physical);
-				else
-					m_hid_device->handle_array(input.usage_page, usage_base + physical);
-
-				bit_offset += input.report_size;
-			}
-		}
-	}
-
-	void USBHIDDriver::handle_input_data(BAN::ConstByteSpan data, uint8_t endpoint_id)
-	{
-		// If this packet is not for us, skip it
-		if (m_endpoint_id != endpoint_id)
-			return;
-
-		if constexpr(DEBUG_HID)
-		{
-			const auto nibble_to_hex = [](uint8_t x) -> char { return x + (x < 10 ? '0' : 'A' - 10); };
-
-			char buffer[512];
-			char* ptr = buffer;
-			for (size_t i = 0; i < BAN::Math::min<size_t>((sizeof(buffer) - 1) / 3, data.size()); i++)
-			{
-				*ptr++ = nibble_to_hex(data[i] >> 4);
-				*ptr++ = nibble_to_hex(data[i] & 0xF);
-				*ptr++ = ' ';
-			}
-			*ptr = '\0';
-
-			dprintln_if(DEBUG_HID, "Received {} bytes from endpoint {}: {}", data.size(), endpoint_id, buffer);
-		}
-
 		BAN::Optional<uint8_t> report_id;
 		if (m_uses_report_id)
 		{
@@ -351,10 +335,53 @@ namespace Kernel
 			data = data.slice(1);
 		}
 
-		m_hid_device->start_report();
-		// FIXME: Handle other collections?
-		forward_collection_inputs(m_collections.front(), report_id, data, 0);
-		m_hid_device->stop_report();
+		size_t bit_offset = 0;
+		for (auto& device_input : m_device_inputs)
+		{
+			if (device_input.device)
+				device_input.device->start_report();
+
+			for (const auto& input : device_input.inputs)
+			{
+				if (report_id.value_or(input.report_id) != input.report_id)
+					continue;
+
+				ASSERT(input.report_size <= 32);
+
+				if (!device_input.device || (input.usage_id == 0 && input.usage_minimum == 0 && input.usage_maximum == 0))
+				{
+					bit_offset += input.report_size * input.report_count;
+					continue;
+				}
+
+				for (uint32_t i = 0; i < input.report_count; i++)
+				{
+					const int64_t logical = extract_bits(bit_offset, input.report_size, input.logical_minimum >= 0);
+					if (logical < input.logical_minimum || logical > input.logical_maximum)
+					{
+						bit_offset += input.report_size;
+						continue;
+					}
+
+					const int64_t physical =
+						(input.physical_maximum - input.physical_minimum) *
+						(logical - input.logical_minimum) /
+						(input.logical_maximum - input.logical_minimum) +
+						input.physical_minimum;
+
+					const uint32_t usage_base = input.usage_id ? input.usage_id : input.usage_minimum;
+					if (input.flags & 0x02)
+						device_input.device->handle_variable(input.usage_page, usage_base + i, physical);
+					else
+						device_input.device->handle_array(input.usage_page, usage_base + physical);
+
+					bit_offset += input.report_size;
+				}
+			}
+
+			if (device_input.device)
+				device_input.device->stop_report();
+		}
 	}
 
 	BAN::ErrorOr<BAN::Vector<Collection>> parse_report_descriptor(BAN::ConstByteSpan report_data, bool& out_use_report_id)
