@@ -80,6 +80,8 @@ namespace Kernel
 			dprintln_if(DEBUG_KEYBOARD, "Unsupported keyboard usage page {2H}", usage_page);
 			return;
 		}
+		if (!state)
+			return;
 		if (usage >= 4 && usage < m_keyboard_state_temp.size())
 			m_keyboard_state_temp[usage] = state;
 	}
