@@ -17,6 +17,7 @@ namespace Kernel
 			uint16_t usage_id;
 			Type type;
 
+			uint8_t report_id;
 			uint32_t report_count;
 			uint32_t report_size;
 
@@ -77,15 +78,17 @@ namespace Kernel
 
 		BAN::ErrorOr<void> initialize();
 
-		void forward_collection_inputs(const USBHID::Collection&, BAN::ConstByteSpan& data, size_t bit_offset);
+		void forward_collection_inputs(const USBHID::Collection&, BAN::Optional<uint8_t> report_id, BAN::ConstByteSpan& data, size_t bit_offset);
 
 	private:
 		USBDevice& m_device;
 		USBDevice::InterfaceDescriptor m_interface;
 		const uint8_t m_interface_index;
 
+		bool m_uses_report_id { false };
+
 		uint8_t m_endpoint_id { 0 };
-		USBHID::Collection m_collection;
+		BAN::Vector<USBHID::Collection> m_collections;
 		BAN::RefPtr<USBHIDDevice> m_hid_device;
 
 		friend class BAN::UniqPtr<USBHIDDriver>;
