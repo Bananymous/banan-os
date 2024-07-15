@@ -20,6 +20,7 @@ namespace Kernel
 	static PageTable* s_kernel = nullptr;
 	static bool s_has_nxe = false;
 	static bool s_has_pge = false;
+	static bool s_has_pat = false;
 
 	static paddr_t s_global_pdpte = 0;
 
@@ -32,8 +33,6 @@ namespace Kernel
 			result |= Flags::Execute;
 		if (entry & Flags::Reserved)
 			result |= Flags::Reserved;
-		if (entry & Flags::CacheDisable)
-			result |= Flags::CacheDisable;
 		if (entry & Flags::UserSupervisor)
 			result |= Flags::UserSupervisor;
 		if (entry & Flags::ReadWrite)
@@ -50,6 +49,9 @@ namespace Kernel
 
 		if (CPUID::has_pge())
 			s_has_pge = true;
+
+		if (CPUID::has_pat())
+			s_has_pat = true;
 
 		ASSERT(s_kernel == nullptr);
 		s_kernel = new PageTable();
@@ -79,6 +81,17 @@ namespace Kernel
 				"orl $0x80, %%eax;"
 				"movl %%eax, %%cr4;"
 				::: "eax"
+			);
+		}
+
+		if (s_has_pat)
+		{
+			asm volatile(
+				"movl $0x277, %%ecx;"
+				"rdmsr;"
+				"movw $0x0401, %%dx;"
+				"wrmsr;"
+				::: "eax", "ecx", "edx", "memory"
 			);
 		}
 
@@ -316,7 +329,7 @@ namespace Kernel
 			unmap_page(page * PAGE_SIZE);
 	}
 
-	void PageTable::map_page_at(paddr_t paddr, vaddr_t vaddr, flags_t flags)
+	void PageTable::map_page_at(paddr_t paddr, vaddr_t vaddr, flags_t flags, MemoryType memory_type)
 	{
 		ASSERT(vaddr);
 		ASSERT(vaddr != fast_page());
@@ -338,8 +351,14 @@ namespace Kernel
 			extra_flags |= 1ull << 63;
 		if (flags & Flags::Reserved)
 			extra_flags |= Flags::Reserved;
-		if (flags & Flags::CacheDisable)
-			extra_flags |= Flags::CacheDisable;
+
+		if (s_has_pat)
+		{
+			if (memory_type == MemoryType::WriteCombining)
+				extra_flags |= (1ull << 7);
+			if (memory_type == MemoryType::WriteThrough)
+				extra_flags |= (1ull << 7) | (1ull << 3);
+		}
 
 		// NOTE: we add present here, since it has to be available in higher level structures
 		flags_t uwr_flags = (flags & (Flags::UserSupervisor | Flags::ReadWrite)) | Flags::Present;
@@ -367,7 +386,7 @@ namespace Kernel
 		invalidate(vaddr);
 	}
 
-	void PageTable::map_range_at(paddr_t paddr, vaddr_t vaddr, size_t size, flags_t flags)
+	void PageTable::map_range_at(paddr_t paddr, vaddr_t vaddr, size_t size, flags_t flags, MemoryType memory_type)
 	{
 		ASSERT(vaddr);
 		ASSERT(paddr % PAGE_SIZE == 0);
@@ -377,7 +396,7 @@ namespace Kernel
 
 		SpinLockGuard _(m_lock);
 		for (size_t page = 0; page < page_count; page++)
-			map_page_at(paddr + page * PAGE_SIZE, vaddr + page * PAGE_SIZE, flags);
+			map_page_at(paddr + page * PAGE_SIZE, vaddr + page * PAGE_SIZE, flags, memory_type);
 	}
 
 	uint64_t PageTable::get_page_data(vaddr_t vaddr) const

@@ -68,7 +68,8 @@ namespace Kernel
 			m_video_memory_paddr & PAGE_ADDR_MASK,
 			m_video_memory_vaddr,
 			video_memory_pages * PAGE_SIZE,
-			PageTable::Flags::ReadWrite | PageTable::Flags::Present
+			PageTable::Flags::ReadWrite | PageTable::Flags::Present,
+			PageTable::WriteCombining
 		);
 
 		m_video_buffer = TRY(VirtualRange::create_to_vaddr_range(

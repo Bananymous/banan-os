@@ -56,8 +56,6 @@ namespace Kernel
 			result |= Flags::Execute;
 		if (entry & Flags::Reserved)
 			result |= Flags::Reserved;
-		if (entry & Flags::CacheDisable)
-			result |= Flags::CacheDisable;
 		if (entry & Flags::UserSupervisor)
 			result |= Flags::UserSupervisor;
 		if (entry & Flags::ReadWrite)
@@ -105,6 +103,15 @@ namespace Kernel
 				::: "rax"
 			);
 		}
+
+		// 64-bit always has PAT, set PAT4 = WC, PAT5 = WT
+		asm volatile(
+			"movl $0x277, %%ecx;"
+			"rdmsr;"
+			"movw $0x0401, %%dx;"
+			"wrmsr;"
+			::: "eax", "ecx", "edx", "memory"
+		);
 
 		// enable write protect
 		asm volatile(
@@ -367,7 +374,7 @@ namespace Kernel
 			unmap_page(page * PAGE_SIZE);
 	}
 
-	void PageTable::map_page_at(paddr_t paddr, vaddr_t vaddr, flags_t flags)
+	void PageTable::map_page_at(paddr_t paddr, vaddr_t vaddr, flags_t flags, MemoryType memory_type)
 	{
 		ASSERT(vaddr);
 		ASSERT(vaddr != fast_page());
@@ -393,8 +400,11 @@ namespace Kernel
 			extra_flags |= 1ull << 63;
 		if (flags & Flags::Reserved)
 			extra_flags |= Flags::Reserved;
-		if (flags & Flags::CacheDisable)
-			extra_flags |= Flags::CacheDisable;
+
+		if (memory_type == MemoryType::WriteCombining)
+			extra_flags |= (1ull << 7);
+		if (memory_type == MemoryType::WriteThrough)
+			extra_flags |= (1ull << 7) | (1ull << 3);
 
 		// NOTE: we add present here, since it has to be available in higher level structures
 		flags_t uwr_flags = (flags & (Flags::UserSupervisor | Flags::ReadWrite)) | Flags::Present;
@@ -434,7 +444,7 @@ namespace Kernel
 		invalidate(vaddr);
 	}
 
-	void PageTable::map_range_at(paddr_t paddr, vaddr_t vaddr, size_t size, flags_t flags)
+	void PageTable::map_range_at(paddr_t paddr, vaddr_t vaddr, size_t size, flags_t flags, MemoryType memory_type)
 	{
 		ASSERT(is_canonical(vaddr));
 
@@ -446,7 +456,7 @@ namespace Kernel
 
 		SpinLockGuard _(m_lock);
 		for (size_t page = 0; page < page_count; page++)
-			map_page_at(paddr + page * PAGE_SIZE, vaddr + page * PAGE_SIZE, flags);
+			map_page_at(paddr + page * PAGE_SIZE, vaddr + page * PAGE_SIZE, flags, memory_type);
 	}
 
 	uint64_t PageTable::get_page_data(vaddr_t vaddr) const

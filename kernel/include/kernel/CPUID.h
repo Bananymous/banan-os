@@ -79,5 +79,6 @@ namespace CPUID
 	bool is_64_bit();
 	bool has_nxe();
 	bool has_pge();
+	bool has_pat();
 
 }

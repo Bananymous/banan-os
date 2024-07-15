@@ -26,7 +26,7 @@ namespace Kernel
 		vaddr_guard.disable();
 		paddr_guard.disable();
 
-		PageTable::kernel().map_range_at(paddr, vaddr, size, PageTable::Flags::CacheDisable | PageTable::Flags::ReadWrite | PageTable::Flags::Present);
+		PageTable::kernel().map_range_at(paddr, vaddr, size, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
 
 		return BAN::UniqPtr<DMARegion>::adopt(region_ptr);
 	}

@@ -29,11 +29,16 @@ namespace Kernel
 			Present			= (1 << 0),
 			ReadWrite		= (1 << 1),
 			UserSupervisor	= (1 << 2),
-			CacheDisable	= (1 << 4),
 			Reserved		= (1 << 9),
 
 			Execute			= (1 << 15),
 			Used = Present | Reserved,
+		};
+		enum MemoryType
+		{
+			Normal,
+			WriteCombining,
+			WriteThrough,
 		};
 
 	public:
@@ -93,8 +98,8 @@ namespace Kernel
 		void unmap_page(vaddr_t);
 		void unmap_range(vaddr_t, size_t bytes);
 
-		void map_range_at(paddr_t, vaddr_t, size_t bytes, flags_t);
-		void map_page_at(paddr_t, vaddr_t, flags_t);
+		void map_range_at(paddr_t, vaddr_t, size_t bytes, flags_t, MemoryType = MemoryType::Normal);
+		void map_page_at(paddr_t, vaddr_t, flags_t, MemoryType = MemoryType::Normal);
 
 		paddr_t physical_address_of(vaddr_t) const;
 		flags_t get_page_flags(vaddr_t) const;

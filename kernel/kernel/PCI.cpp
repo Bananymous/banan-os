@@ -652,7 +652,8 @@ namespace Kernel::PCI
 		m_vaddr = PageTable::kernel().reserve_free_contiguous_pages(needed_pages, KERNEL_OFFSET);
 		if (m_vaddr == 0)
 			return BAN::Error::from_errno(ENOMEM);
-		PageTable::kernel().map_range_at(m_paddr, m_vaddr, m_size, PageTable::Flags::CacheDisable | PageTable::Flags::ReadWrite | PageTable::Flags::Present);
+
+		PageTable::kernel().map_range_at(m_paddr, m_vaddr, m_size, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
 
 		return {};
 	}
