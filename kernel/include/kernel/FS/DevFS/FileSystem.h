@@ -18,6 +18,8 @@ namespace Kernel
 		void initialize_device_updater();
 
 		void add_device(BAN::RefPtr<Device>);
+		void remove_device(BAN::RefPtr<Device>);
+
 		void add_inode(BAN::StringView path, BAN::RefPtr<TmpInode>);
 
 		void initiate_sync(bool should_block);

@@ -112,6 +112,21 @@ namespace Kernel
 		MUST(m_devices.push_back(device));
 	}
 
+	void DevFileSystem::remove_device(BAN::RefPtr<Device> device)
+	{
+		LockGuard _(m_device_lock);
+		ASSERT(!device->name().contains('/'));
+		MUST(static_cast<TmpDirectoryInode*>(root_inode().ptr())->unlink(device->name()));
+		for (size_t i = 0; i < m_devices.size(); i++)
+		{
+			if (m_devices[i] == device)
+			{
+				m_devices.remove(i);
+				break;
+			}
+		}
+	}
+
 	void DevFileSystem::add_inode(BAN::StringView path, BAN::RefPtr<TmpInode> inode)
 	{
 		ASSERT(!inode->is_device());

@@ -78,7 +78,10 @@ namespace Kernel
 	{}
 
 	USBHIDDriver::~USBHIDDriver()
-	{}
+	{
+		if (m_hid_device)
+			DevFileSystem::get().remove_device(m_hid_device);
+	}
 
 	BAN::ErrorOr<void> USBHIDDriver::initialize()
 	{
