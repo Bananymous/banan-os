@@ -93,8 +93,6 @@ namespace Kernel
 		const uint8_t m_interface_index;
 
 		bool m_uses_report_id { false };
-
-		uint8_t m_endpoint_id { 0 };
 		BAN::Vector<DeviceReport> m_device_inputs;
 
 		friend class BAN::UniqPtr<USBHIDDriver>;

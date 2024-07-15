@@ -15,7 +15,6 @@ namespace Kernel
 		return TRY(BAN::UniqPtr<XHCIDevice>::create(controller, port_id, slot_id));
 	}
 
-
 	uint64_t XHCIDevice::calculate_port_bits_per_second(XHCIController& controller, uint32_t port_id)
 	{
 		const uint32_t portsc = controller.operational_regs().ports[port_id - 1].portsc;
@@ -203,7 +202,29 @@ namespace Kernel
 
 	BAN::ErrorOr<void> XHCIDevice::initialize_endpoint(const USBEndpointDescriptor& endpoint_descriptor)
 	{
-		const uint32_t endpoint_id = (endpoint_descriptor.bEndpointAddress & 0x0F) * 2 + !!(endpoint_descriptor.bEndpointAddress & 0x80);
+		ASSERT(m_controller.port(m_port_id).revision_major == 2);
+
+		const uint32_t endpoint_id        = (endpoint_descriptor.bEndpointAddress & 0x0F) * 2 + !!(endpoint_descriptor.bEndpointAddress & 0x80);
+		const uint32_t max_packet_size    = endpoint_descriptor.wMaxPacketSize & 0x07FF;
+		const uint32_t max_burst_size     = (endpoint_descriptor.wMaxPacketSize >> 11) & 0x0003;
+		const uint32_t max_esit_payload   = max_packet_size * (max_burst_size + 1);
+		const uint32_t interval           = determine_interval(endpoint_descriptor, m_speed_class);
+		const uint32_t average_trb_length = ((endpoint_descriptor.bmAttributes & 3) == 0b00) ? 8 : max_esit_payload;
+		const uint32_t error_count        = ((endpoint_descriptor.bmAttributes & 3) == 0b01) ? 0 : 3;
+
+		XHCI::EndpointType endpoint_type;
+		switch ((endpoint_descriptor.bEndpointAddress & 0x80) | (endpoint_descriptor.bmAttributes & 0x03))
+		{
+			case 0x00:
+			case 0x80: endpoint_type = XHCI::EndpointType::Control;      break;
+			case 0x01: endpoint_type = XHCI::EndpointType::IsochOut;     break;
+			case 0x81: endpoint_type = XHCI::EndpointType::IsochIn;      break;
+			case 0x02: endpoint_type = XHCI::EndpointType::BulkOut;      break;
+			case 0x82: endpoint_type = XHCI::EndpointType::BulkIn;       break;
+			case 0x03: endpoint_type = XHCI::EndpointType::InterruptOut; break;
+			case 0x83: endpoint_type = XHCI::EndpointType::InterruptIn;  break;
+			default: ASSERT_NOT_REACHED();
+		}
 
 		auto& endpoint = m_endpoints[endpoint_id - 1];
 		ASSERT(!endpoint.transfer_ring);
@@ -214,7 +235,7 @@ namespace Kernel
 				last_valid_endpoint_id = i + 1;
 
 		endpoint.transfer_ring   = TRY(DMARegion::create(m_transfer_ring_trb_count * sizeof(XHCI::TRB)));
-		endpoint.max_packet_size = endpoint_descriptor.wMaxPacketSize & 0x07FF;
+		endpoint.max_packet_size = max_packet_size;
 		endpoint.dequeue_index   = 0;
 		endpoint.enqueue_index   = 0;
 		endpoint.cycle_bit       = 1;
@@ -237,23 +258,16 @@ namespace Kernel
 			slot_context.context_entries = last_valid_endpoint_id;
 			// FIXME: 4.5.2 hub
 
-			ASSERT(endpoint_descriptor.bEndpointAddress & 0x80);
-			ASSERT((endpoint_descriptor.bmAttributes & 0x03) == 3);
-			ASSERT(m_controller.port(m_port_id).revision_major == 2);
-
-			const uint32_t max_esit_payload = endpoint_context.max_packet_size * (endpoint_context.max_burst_size + 1);
-			const uint32_t interval = determine_interval(endpoint_descriptor, m_speed_class);
-
 			memset(&endpoint_context, 0, context_size);
-			endpoint_context.endpoint_type       = XHCI::EndpointType::InterruptIn;
-			endpoint_context.max_packet_size     = endpoint.max_packet_size;
-			endpoint_context.max_burst_size      = (endpoint_descriptor.wMaxPacketSize >> 11) & 0x0003;
+			endpoint_context.endpoint_type       = endpoint_type;
+			endpoint_context.max_packet_size     = max_packet_size;
+			endpoint_context.max_burst_size      = max_burst_size;
 			endpoint_context.mult                = 0;
-			endpoint_context.error_count         = 3;
+			endpoint_context.error_count         = error_count;
 			endpoint_context.tr_dequeue_pointer  = endpoint.transfer_ring->paddr() | 1;
 			endpoint_context.max_esit_payload_lo = max_esit_payload & 0xFFFF;
 			endpoint_context.max_esit_payload_hi = max_esit_payload >> 16;
-			endpoint_context.average_trb_length  = max_esit_payload;
+			endpoint_context.average_trb_length  = average_trb_length;
 			endpoint_context.interval            = interval;
 		}
 
@@ -264,19 +278,28 @@ namespace Kernel
 		configure_endpoint.configure_endpoint_command.slot_id               = m_slot_id;
 		TRY(m_controller.send_command(configure_endpoint));
 
-		auto& trb = *reinterpret_cast<volatile XHCI::TRB*>(endpoint.transfer_ring->vaddr());
-		memset(const_cast<XHCI::TRB*>(&trb), 0, sizeof(XHCI::TRB));
-		trb.normal.trb_type                  = XHCI::TRBType::Normal;
-		trb.normal.data_buffer_pointer       = endpoint.data_region->paddr();
-		trb.normal.trb_transfer_length       = endpoint.data_region->size();
-		trb.normal.td_size                   = 0;
-		trb.normal.interrupt_target          = 0;
-		trb.normal.cycle_bit                 = 1;
-		trb.normal.interrupt_on_completion   = 1;
-		trb.normal.interrupt_on_short_packet = 1;
-		advance_endpoint_enqueue(endpoint, false);
+		if (endpoint_type == XHCI::EndpointType::InterruptIn)
+		{
+			auto& trb = *reinterpret_cast<volatile XHCI::TRB*>(endpoint.transfer_ring->vaddr());
+			memset(const_cast<XHCI::TRB*>(&trb), 0, sizeof(XHCI::TRB));
+			trb.normal.trb_type                  = XHCI::TRBType::Normal;
+			trb.normal.data_buffer_pointer       = endpoint.data_region->paddr();
+			trb.normal.trb_transfer_length       = endpoint.data_region->size();
+			trb.normal.td_size                   = 0;
+			trb.normal.interrupt_target          = 0;
+			trb.normal.cycle_bit                 = 1;
+			trb.normal.interrupt_on_completion   = 1;
+			trb.normal.interrupt_on_short_packet = 1;
+			advance_endpoint_enqueue(endpoint, false);
 
-		m_controller.doorbell_reg(m_slot_id) = endpoint_id;
+			m_controller.doorbell_reg(m_slot_id) = endpoint_id;
+		}
+		else
+		{
+			dwarnln("Configured unsupported endpoint {2H}",
+				(endpoint_descriptor.bEndpointAddress & 0x80) | (endpoint_descriptor.bmAttributes & 0x03)
+			);
+		}
 
 		return {};
 	}

@@ -90,24 +90,6 @@ namespace Kernel
 
 		ASSERT(static_cast<USB::InterfaceBaseClass>(m_interface.descriptor.bInterfaceClass) == USB::InterfaceBaseClass::HID);
 
-		size_t endpoint_index = static_cast<size_t>(-1);
-		for (size_t i = 0; i < m_interface.endpoints.size(); i++)
-		{
-			const auto& endpoint = m_interface.endpoints[i];
-			if (!(endpoint.descriptor.bEndpointAddress & 0x80))
-				continue;
-			if (endpoint.descriptor.bmAttributes != 0x03)
-				continue;
-			endpoint_index = i;
-			break;
-		}
-
-		if (endpoint_index >= m_interface.endpoints.size())
-		{
-			dwarnln("HID device does not contain IN interrupt endpoint");
-			return BAN::Error::from_errno(EFAULT);
-		}
-
 		bool hid_descriptor_invalid = false;
 		size_t hid_descriptor_index = static_cast<size_t>(-1);
 		for (size_t i = 0; i < m_interface.misc_descriptors.size(); i++)
@@ -206,9 +188,8 @@ namespace Kernel
 
 		m_device_inputs = TRY(initializes_device_reports(collections));
 
-		const auto& endpoint_descriptor = m_interface.endpoints[endpoint_index].descriptor;
-		m_endpoint_id = (endpoint_descriptor.bEndpointAddress & 0x0F) * 2 + !!(endpoint_descriptor.bEndpointAddress & 0x80);
-		TRY(m_device.initialize_endpoint(endpoint_descriptor));
+		for (const auto& endpoint : m_interface.endpoints)
+			TRY(m_device.initialize_endpoint(endpoint.descriptor));
 
 		return {};
 	}
@@ -274,9 +255,21 @@ namespace Kernel
 
 	void USBHIDDriver::handle_input_data(BAN::ConstByteSpan data, uint8_t endpoint_id)
 	{
-		// If this packet is not for us, skip it
-		if (m_endpoint_id != endpoint_id)
-			return;
+		{
+			bool found = false;
+			for (const auto& endpoint : m_interface.endpoints)
+			{
+				const auto& desc = endpoint.descriptor;
+				if (endpoint_id == (desc.bEndpointAddress & 0x0F) * 2 + !!(desc.bEndpointAddress & 0x80))
+				{
+					found = true;
+					break;
+				}
+			}
+			// If this packet is not for us, skip it
+			if (!found)
+				return;
+		}
 
 		if constexpr(DEBUG_HID)
 		{
