@@ -155,10 +155,10 @@ namespace Kernel
 		s_scancode_to_keycode[0x37] = keycode_normal(3, 10);
 		s_scancode_to_keycode[0x38] = keycode_normal(3, 11);
 		s_scancode_to_keycode[0xE5] = keycode_normal(3, 12);
-		s_scancode_to_keycode[0xE0] = keycode_normal(4,  1);
-		s_scancode_to_keycode[0xE3] = keycode_normal(4,  2);
-		s_scancode_to_keycode[0xE2] = keycode_normal(4,  3);
-		s_scancode_to_keycode[0x2C] = keycode_normal(4,  4);
+		s_scancode_to_keycode[0xE0] = keycode_normal(4,  0);
+		s_scancode_to_keycode[0xE3] = keycode_normal(4,  1);
+		s_scancode_to_keycode[0xE2] = keycode_normal(4,  2);
+		s_scancode_to_keycode[0x2C] = keycode_normal(4,  3);
 		s_scancode_to_keycode[0xE6] = keycode_normal(4,  5);
 		s_scancode_to_keycode[0xE4] = keycode_normal(4,  6);
 

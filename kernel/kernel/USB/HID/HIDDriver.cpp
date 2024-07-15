@@ -6,6 +6,7 @@
 #include <kernel/USB/HID/Mouse.h>
 
 #define DEBUG_HID 0
+#define DUMP_HID_REPORT 0
 
 namespace Kernel
 {
@@ -57,7 +58,7 @@ namespace Kernel
 
 	using namespace USBHID;
 
-#if DEBUG_HID
+#if DUMP_HID_REPORT
 	static void dump_hid_collection(const Collection& collection, size_t indent);
 #endif
 
@@ -211,7 +212,7 @@ namespace Kernel
 			return BAN::Error::from_errno(EFAULT);
 		}
 
-#if DEBUG_HID
+#if DUMP_HID_REPORT
 		{
 			SpinLockGuard _(Debug::s_debug_lock);
 			dump_hid_collection(collection, 0);
@@ -222,9 +223,11 @@ namespace Kernel
 		{
 			case 0x02:
 				m_hid_device = TRY(BAN::RefPtr<USBMouse>::create());
+				dprintln("Initialized an USB Mouse");
 				break;
 			case 0x06:
 				m_hid_device = TRY(BAN::RefPtr<USBKeyboard>::create());
+				dprintln("Initialized an USB Keyboard");
 				break;
 			default:
 				dwarnln("Unsupported generic descript page usage 0x{2H}", collection.usage_id);
@@ -326,7 +329,9 @@ namespace Kernel
 
 	void USBHIDDriver::handle_input_data(BAN::ConstByteSpan data, uint8_t endpoint_id)
 	{
-		ASSERT(m_endpoint_id == endpoint_id);
+		// If this packet is not for us, skip it
+		if (m_endpoint_id != endpoint_id)
+			return;
 
 		if constexpr(DEBUG_HID)
 		{
@@ -672,7 +677,7 @@ namespace Kernel
 		return result.release_value();
 	}
 
-#if DEBUG_HID
+#if DUMP_HID_REPORT
 	static void print_indent(size_t indent)
 	{
 		for (size_t i = 0; i < indent; i++)

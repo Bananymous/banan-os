@@ -154,7 +154,7 @@ namespace Kernel
 						break;
 					case USB::InterfaceBaseClass::HID:
 						if (auto result = USBHIDDriver::create(*this, interface, j); !result.is_error())
-							m_class_driver = result.release_value();
+							TRY(m_class_drivers.push_back(result.release_value()));
 						break;
 					case USB::InterfaceBaseClass::Physical:
 						dprintln_if(DEBUG_USB, "Found Physical interface");
@@ -218,7 +218,7 @@ namespace Kernel
 						break;
 				}
 
-				if (m_class_driver)
+				if (!m_class_drivers.empty())
 				{
 					dprintln("Successfully initialized USB interface");
 					return {};
@@ -309,8 +309,8 @@ namespace Kernel
 
 	void USBDevice::handle_input_data(BAN::ConstByteSpan data, uint8_t endpoint_id)
 	{
-		if (m_class_driver)
-			m_class_driver->handle_input_data(data, endpoint_id);
+		for (auto& driver : m_class_drivers)
+			driver->handle_input_data(data, endpoint_id);
 	}
 
 	USB::SpeedClass USBDevice::determine_speed_class(uint64_t bits_per_second)

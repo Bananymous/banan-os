@@ -81,8 +81,7 @@ namespace Kernel
 		DeviceDescriptor m_descriptor;
 		BAN::UniqPtr<DMARegion> m_dma_buffer;
 
-		// FIXME: support more than one interface from a configuration
-		BAN::UniqPtr<USBClassDriver> m_class_driver;
+		BAN::Vector<BAN::UniqPtr<USBClassDriver>> m_class_drivers;
 	};
 
 }
