@@ -43,17 +43,15 @@ namespace Kernel
 		BAN::ErrorOr<void> initialize_control_endpoint() override;
 
 	private:
-		XHCIDevice(XHCIController& controller, uint32_t port_id, uint32_t slot_id)
-			: m_controller(controller)
-			, m_port_id(port_id)
-			, m_slot_id(slot_id)
-		{}
+		XHCIDevice(XHCIController& controller, uint32_t port_id, uint32_t slot_id);
 		~XHCIDevice();
 		BAN::ErrorOr<void> update_actual_max_packet_size();
 
 		void on_interrupt_endpoint_event(XHCI::TRB);
 
 		void advance_endpoint_enqueue(Endpoint&, bool chain);
+
+		static uint64_t calculate_port_bits_per_second(XHCIController&, uint32_t port_id);
 
 	private:
 		static constexpr uint32_t m_transfer_ring_trb_count = PAGE_SIZE / sizeof(XHCI::TRB);

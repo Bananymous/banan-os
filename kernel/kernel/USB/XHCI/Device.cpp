@@ -15,6 +15,21 @@ namespace Kernel
 		return TRY(BAN::UniqPtr<XHCIDevice>::create(controller, port_id, slot_id));
 	}
 
+
+	uint64_t XHCIDevice::calculate_port_bits_per_second(XHCIController& controller, uint32_t port_id)
+	{
+		const uint32_t portsc = controller.operational_regs().ports[port_id - 1].portsc;
+		const uint32_t speed_id = (portsc >> XHCI::PORTSC::PORT_SPEED_SHIFT) & XHCI::PORTSC::PORT_SPEED_MASK;
+		return controller.port(port_id).speed_id_to_speed[speed_id];
+	}
+
+	XHCIDevice::XHCIDevice(XHCIController& controller, uint32_t port_id, uint32_t slot_id)
+		: USBDevice(determine_speed_class(calculate_port_bits_per_second(controller, port_id)))
+		, m_controller(controller)
+		, m_port_id(port_id)
+		, m_slot_id(slot_id)
+	{}
+
 	XHCIDevice::~XHCIDevice()
 	{
 		XHCI::TRB disable_slot { .disable_slot_command {} };
@@ -32,11 +47,9 @@ namespace Kernel
 
 		const uint32_t portsc = m_controller.operational_regs().ports[m_port_id - 1].portsc;
 		const uint32_t speed_id = (portsc >> XHCI::PORTSC::PORT_SPEED_SHIFT) & XHCI::PORTSC::PORT_SPEED_MASK;
-		const uint32_t bits_per_second = m_controller.port(m_port_id).speed_id_to_speed[speed_id];
-		const auto speed_class = determine_speed_class(bits_per_second);
 
 		m_endpoints[0].max_packet_size = 0;
-		switch (speed_class)
+		switch (m_speed_class)
 		{
 			case USB::SpeedClass::LowSpeed:
 			case USB::SpeedClass::FullSpeed:
@@ -97,7 +110,7 @@ namespace Kernel
 		}
 
 		// NOTE: Full speed devices can have other max packet sizes than 8
-		if (speed_class == USB::SpeedClass::FullSpeed)
+		if (m_speed_class == USB::SpeedClass::FullSpeed)
 			TRY(update_actual_max_packet_size());
 
 		return {};
@@ -155,6 +168,39 @@ namespace Kernel
 		return {};
 	}
 
+	// 6.2.3.6 Interval
+	static uint32_t determine_interval(const USBEndpointDescriptor& endpoint_descriptor, USB::SpeedClass speed_class)
+	{
+		auto ep_type = static_cast<USB::EndpointType>(endpoint_descriptor.bDescriptorType & 0x03);
+
+		switch (speed_class)
+		{
+			case USB::SpeedClass::HighSpeed:
+				// maximum NAK rate
+				if (ep_type == USB::EndpointType::Control || ep_type == USB::EndpointType::Bulk)
+					return (endpoint_descriptor.bInterval == 0) ? 0 : BAN::Math::clamp<uint32_t>(
+						BAN::Math::ilog2<uint32_t>(endpoint_descriptor.bInterval), 0, 15
+					);
+				// fall through
+			case USB::SpeedClass::SuperSpeed:
+				if (ep_type == USB::EndpointType::Isochronous || ep_type == USB::EndpointType::Interrupt)
+					return BAN::Math::clamp<uint32_t>(endpoint_descriptor.bInterval - 1, 0, 15);
+				return 0;
+			case USB::SpeedClass::FullSpeed:
+				if (ep_type == USB::EndpointType::Isochronous)
+					return BAN::Math::clamp<uint32_t>(endpoint_descriptor.bInterval + 2, 3, 18);
+				// fall through
+			case USB::SpeedClass::LowSpeed:
+				if (ep_type == USB::EndpointType::Isochronous || ep_type == USB::EndpointType::Interrupt)
+					return (endpoint_descriptor.bInterval == 0) ? 0 : BAN::Math::clamp<uint32_t>(
+						BAN::Math::ilog2<uint32_t>(endpoint_descriptor.bInterval * 8), 3, 10
+					);
+				return 0;
+		}
+
+		ASSERT_NOT_REACHED();
+	}
+
 	BAN::ErrorOr<void> XHCIDevice::initialize_endpoint(const USBEndpointDescriptor& endpoint_descriptor)
 	{
 		const uint32_t endpoint_id = (endpoint_descriptor.bEndpointAddress & 0x0F) * 2 + !!(endpoint_descriptor.bEndpointAddress & 0x80);
@@ -195,6 +241,9 @@ namespace Kernel
 			ASSERT((endpoint_descriptor.bmAttributes & 0x03) == 3);
 			ASSERT(m_controller.port(m_port_id).revision_major == 2);
 
+			const uint32_t max_esit_payload = endpoint_context.max_packet_size * (endpoint_context.max_burst_size + 1);
+			const uint32_t interval = determine_interval(endpoint_descriptor, m_speed_class);
+
 			memset(&endpoint_context, 0, context_size);
 			endpoint_context.endpoint_type       = XHCI::EndpointType::InterruptIn;
 			endpoint_context.max_packet_size     = endpoint.max_packet_size;
@@ -202,9 +251,10 @@ namespace Kernel
 			endpoint_context.mult                = 0;
 			endpoint_context.error_count         = 3;
 			endpoint_context.tr_dequeue_pointer  = endpoint.transfer_ring->paddr() | 1;
-			const uint32_t max_esit_payload = endpoint_context.max_packet_size * (endpoint_context.max_burst_size + 1);
 			endpoint_context.max_esit_payload_lo = max_esit_payload & 0xFFFF;
 			endpoint_context.max_esit_payload_hi = max_esit_payload >> 16;
+			endpoint_context.average_trb_length  = max_esit_payload;
+			endpoint_context.interval            = interval;
 		}
 
 		XHCI::TRB configure_endpoint { .configure_endpoint_command = {} };

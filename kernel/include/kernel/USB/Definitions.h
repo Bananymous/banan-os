@@ -10,11 +10,18 @@ namespace Kernel
 	{
 		enum class SpeedClass
 		{
-			None,
 			LowSpeed,
 			FullSpeed,
 			HighSpeed,
 			SuperSpeed,
+		};
+
+		enum class EndpointType
+		{
+			Control     = 0b00,
+			Isochronous = 0b01,
+			Bulk        = 0b10,
+			Interrupt   = 0b11,
 		};
 
 		enum class DeviceBaseClass : uint8_t

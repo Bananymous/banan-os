@@ -53,7 +53,9 @@ namespace Kernel
 		};
 
 	public:
-		USBDevice() = default;
+		USBDevice(USB::SpeedClass speed_class)
+			: m_speed_class(speed_class)
+		{}
 		virtual ~USBDevice() = default;
 
 		BAN::ErrorOr<void> initialize();
@@ -71,6 +73,9 @@ namespace Kernel
 
 	private:
 		BAN::ErrorOr<ConfigurationDescriptor> parse_configuration(size_t index);
+
+	protected:
+		const USB::SpeedClass m_speed_class;
 
 	private:
 		DeviceDescriptor m_descriptor;
