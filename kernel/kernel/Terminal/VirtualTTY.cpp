@@ -364,6 +364,10 @@ namespace Kernel
 				ASSERT_NOT_REACHED();
 		}
 
+		bool old_show_cursor = m_show_cursor;
+		m_show_cursor = false;
+		set_cursor_position(m_column, m_row);
+
 		switch (codepoint)
 		{
 			case BEL: // TODO
@@ -410,10 +414,6 @@ namespace Kernel
 			for (uint32_t x = 0; x < m_width; x++)
 				m_buffer[(m_height - 1) * m_width + x] = { .foreground = m_foreground, .background = m_background, .codepoint = ' ' };
 
-			// hide cursor during scrolling
-			bool old_show_cursor = m_show_cursor;
-			m_show_cursor = false;
-			set_cursor_position(0, 0);
 			if (!m_terminal_driver->scroll(m_background))
 			{
 				// No fast scrolling, render the whole buffer to the screen
@@ -421,13 +421,12 @@ namespace Kernel
 					for (uint32_t x = 0; x < m_width; x++)
 						render_from_buffer(x, y);
 			}
-			m_show_cursor = old_show_cursor;
-
 
 			m_column = 0;
 			m_row--;
 		}
 
+		m_show_cursor = old_show_cursor;
 		set_cursor_position(m_column, m_row);
 	}
 
