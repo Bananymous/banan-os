@@ -173,6 +173,10 @@ namespace Kernel
 
 		if (tid)
 		{
+#if __enable_sse
+			Thread::current().save_sse();
+#endif
+
 			if (isr == ISR::PageFault)
 			{
 				// Check if stack is OOB
@@ -218,31 +222,6 @@ namespace Kernel
 					}
 				}
 			}
-#if __enable_sse
-			else if (isr == ISR::DeviceNotAvailable)
-			{
-#if ARCH(x86_64)
-				asm volatile(
-					"movq %cr0, %rax;"
-					"andq $~(1 << 3), %rax;"
-					"movq %rax, %cr0;"
-				);
-#elif ARCH(i686)
-				asm volatile(
-					"movl %cr0, %eax;"
-					"andl $~(1 << 3), %eax;"
-					"movl %eax, %cr0;"
-				);
-#endif
-				if (auto* current = &Thread::current(); current != Thread::sse_thread())
-				{
-					if (auto* sse = Thread::sse_thread())
-						sse->save_sse();
-					current->load_sse();
-				}
-				goto done;
-			}
-#endif
 		}
 
 		Debug::s_debug_lock.lock();
@@ -334,7 +313,11 @@ namespace Kernel
 		ASSERT(Thread::current().state() != Thread::State::Terminated);
 
 done:
+#if __enable_sse
+		Thread::current().load_sse();
+#else
 		return;
+#endif
 	}
 
 	extern "C" void cpp_yield_handler(InterruptStack* interrupt_stack, InterruptRegisters* interrupt_registers)
@@ -357,6 +340,10 @@ done:
 			asm volatile("cli; 1: hlt; jmp 1b");
 		}
 
+#if __enable_sse
+		Thread::current().save_sse();
+#endif
+
 		if (!InterruptController::get().is_in_service(irq))
 			dprintln("spurious irq 0x{2H}", irq);
 		else
@@ -377,6 +364,10 @@ done:
 		Scheduler::get().reschedule_if_idling();
 
 		ASSERT(Thread::current().state() != Thread::State::Terminated);
+
+#if __enable_sse
+		Thread::current().load_sse();
+#endif
 	}
 
 	void IDT::register_interrupt_handler(uint8_t index, void (*handler)())

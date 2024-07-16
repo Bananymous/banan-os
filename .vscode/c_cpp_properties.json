@@ -8,8 +8,9 @@
                 "${workspaceFolder}/userspace/libraries/*/include"
             ],
             "defines": [
-				"__arch=x86_64"
-			],
+                "__arch=x86_64",
+                "__enable_sse=1"
+            ],
             "compilerPath": "${workspaceFolder}/toolchain/local/bin/x86_64-banan_os-gcc",
             "cStandard": "c17",
             "cppStandard": "gnu++20",
@@ -23,9 +24,10 @@
                 "${workspaceFolder}/userspace/libraries/*/include"
             ],
             "defines": [
-				"__arch=x86_64",
-				"__is_kernel"
-			],
+                "__arch=x86_64",
+                "__is_kernel",
+                "__enable_sse=1"
+            ],
             "compilerPath": "${workspaceFolder}/toolchain/local/bin/x86_64-banan_os-gcc",
             "cStandard": "c17",
             "cppStandard": "gnu++20",

@@ -113,33 +113,8 @@ namespace Kernel
 		: m_tid(tid), m_process(process)
 	{
 #if __enable_sse
-	#if ARCH(x86_64)
-		uintptr_t cr0;
-		asm volatile(
-			"movq %%cr0, %%rax;"
-			"movq %%rax, %[cr0];"
-			"andq $~(1 << 3), %%rax;"
-			"movq %%rax, %%cr0;"
-			: [cr0]"=r"(cr0)
-			:: "rax"
-		);
+		// initializes sse storage to valid state
 		save_sse();
-		asm volatile("movq %0, %%cr0" :: "r"(cr0));
-	#elif ARCH(i686)
-		uintptr_t cr0;
-		asm volatile(
-			"movl %%cr0, %%eax;"
-			"movl %%eax, %[cr0];"
-			"andl $~(1 << 3), %%eax;"
-			"movl %%eax, %%cr0;"
-			: [cr0]"=r"(cr0)
-			:: "eax"
-		);
-		save_sse();
-		asm volatile("movl %0, %%cr0" :: "r"(cr0));
-	#else
-		#error
-	#endif
 #endif
 	}
 
@@ -482,8 +457,6 @@ namespace Kernel
 	}
 
 #if __enable_sse
-	static Thread* s_sse_thread = nullptr;
-
 	void Thread::save_sse()
 	{
 		asm volatile("fxsave %0" :: "m"(m_sse_storage));
@@ -492,12 +465,6 @@ namespace Kernel
 	void Thread::load_sse()
 	{
 		asm volatile("fxrstor %0" :: "m"(m_sse_storage));
-		s_sse_thread = this;
-	}
-
-	Thread* Thread::sse_thread()
-	{
-		return s_sse_thread;
 	}
 #endif
 

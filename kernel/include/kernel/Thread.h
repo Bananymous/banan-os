@@ -82,7 +82,6 @@ namespace Kernel
 #if __enable_sse
 		void save_sse();
 		void load_sse();
-		static Thread* sse_thread();
 #endif
 
 		void add_mutex() { m_mutex_count++; }
