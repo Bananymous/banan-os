@@ -286,13 +286,23 @@ int main(int, char**)
 
 			if (!client.query.empty())
 			{
-				dprintln("Client already has a query");
+				static uint8_t buffer[4096];
+				ssize_t nrecv = recv(client.socket, buffer, sizeof(buffer), 0);
+				if (nrecv < 0)
+					dprintln("{}", strerror(errno));
+				if (nrecv <= 0)
+					client.close = true;
+				else
+					dprintln("Client already has a query");
 				continue;
 			}
 
 			auto query = read_service_query(client.socket);
 			if (!query.has_value())
+			{
+				client.close = true;
 				continue;
+			}
 
 			BAN::Optional<DNSEntry> result;
 
