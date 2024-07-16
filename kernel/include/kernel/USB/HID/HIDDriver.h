@@ -75,12 +75,12 @@ namespace Kernel
 		};
 
 	public:
-		static BAN::ErrorOr<BAN::UniqPtr<USBHIDDriver>> create(USBDevice&, const USBDevice::InterfaceDescriptor&, uint8_t interface_index);
+		static BAN::ErrorOr<BAN::UniqPtr<USBHIDDriver>> create(USBDevice&, const USBDevice::InterfaceDescriptor&);
 
 		void handle_input_data(BAN::ConstByteSpan, uint8_t endpoint_id) override;
 
 	private:
-		USBHIDDriver(USBDevice&, const USBDevice::InterfaceDescriptor&, uint8_t interface_index);
+		USBHIDDriver(USBDevice&, const USBDevice::InterfaceDescriptor&);
 		~USBHIDDriver();
 
 		BAN::ErrorOr<void> initialize();
@@ -90,7 +90,6 @@ namespace Kernel
 	private:
 		USBDevice& m_device;
 		USBDevice::InterfaceDescriptor m_interface;
-		const uint8_t m_interface_index;
 
 		bool m_uses_report_id { false };
 		BAN::Vector<DeviceReport> m_device_inputs;

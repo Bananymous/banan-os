@@ -140,10 +140,8 @@ namespace Kernel
 				TRY(send_request(request, 0));
 			}
 
-			for (size_t j = 0; j < configuration.interfaces.size(); j++)
+			for (const auto& interface : configuration.interfaces)
 			{
-				const auto& interface = configuration.interfaces[j];
-
 				switch (static_cast<USB::InterfaceBaseClass>(interface.descriptor.bInterfaceClass))
 				{
 					case USB::InterfaceBaseClass::Audio:
@@ -153,7 +151,7 @@ namespace Kernel
 						dprintln_if(DEBUG_USB, "Found CommunicationAndCDCControl interface");
 						break;
 					case USB::InterfaceBaseClass::HID:
-						if (auto result = USBHIDDriver::create(*this, interface, j); !result.is_error())
+						if (auto result = USBHIDDriver::create(*this, interface); !result.is_error())
 							TRY(m_class_drivers.push_back(result.release_value()));
 						break;
 					case USB::InterfaceBaseClass::Physical:
@@ -217,12 +215,15 @@ namespace Kernel
 						dprintln_if(DEBUG_USB, "Invalid interface base class {2H}", interface.descriptor.bInterfaceClass);
 						break;
 				}
+			}
 
-				if (!m_class_drivers.empty())
-				{
-					dprintln("Successfully initialized USB interface");
-					return {};
-				}
+			if (!m_class_drivers.empty())
+			{
+				dprintln("Successfully initialized USB device with {}/{} interfaces",
+					m_class_drivers.size(),
+					configuration.interfaces.size()
+				);
+				return {};
 			}
 		}
 

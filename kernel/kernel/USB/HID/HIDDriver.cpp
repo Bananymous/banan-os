@@ -11,6 +11,11 @@
 namespace Kernel
 {
 
+	enum HIDRequest : uint8_t
+	{
+		SET_PROTOCOL = 0x0B,
+	};
+
 	enum class HIDDescriptorType : uint8_t
 	{
 		HID      = 0x21,
@@ -64,17 +69,16 @@ namespace Kernel
 
 	static BAN::ErrorOr<BAN::Vector<Collection>> parse_report_descriptor(BAN::ConstByteSpan report_data, bool& out_use_report_id);
 
-	BAN::ErrorOr<BAN::UniqPtr<USBHIDDriver>> USBHIDDriver::create(USBDevice& device, const USBDevice::InterfaceDescriptor& interface, uint8_t interface_index)
+	BAN::ErrorOr<BAN::UniqPtr<USBHIDDriver>> USBHIDDriver::create(USBDevice& device, const USBDevice::InterfaceDescriptor& interface)
 	{
-		auto result = TRY(BAN::UniqPtr<USBHIDDriver>::create(device, interface, interface_index));
+		auto result = TRY(BAN::UniqPtr<USBHIDDriver>::create(device, interface));
 		TRY(result->initialize());
 		return result;
 	}
 
-	USBHIDDriver::USBHIDDriver(USBDevice& device, const USBDevice::InterfaceDescriptor& interface, uint8_t interface_index)
+	USBHIDDriver::USBHIDDriver(USBDevice& device, const USBDevice::InterfaceDescriptor& interface)
 		: m_device(device)
 		, m_interface(interface)
-		, m_interface_index(interface_index)
 	{}
 
 	USBHIDDriver::~USBHIDDriver()
@@ -119,17 +123,16 @@ namespace Kernel
 		}
 
 		// If this device supports boot protocol, make sure it is not used
-		if (m_interface.endpoints.front().descriptor.bDescriptorType & 0x80)
+		if (m_interface.descriptor.bInterfaceSubClass == 0x01)
 		{
 			USBDeviceRequest request;
 			request.bmRequestType = USB::RequestType::HostToDevice | USB::RequestType::Class | USB::RequestType::Interface;
-			request.bRequest      = USB::Request::SET_INTERFACE;
+			request.bRequest      = HIDRequest::SET_PROTOCOL;
 			request.wValue        = 1; // report protocol
-			request.wIndex        = m_interface_index;
+			request.wIndex        = m_interface.descriptor.bInterfaceNumber;
 			request.wLength       = 0;
 			TRY(m_device.send_request(request, 0));
 		}
-
 
 		const auto& hid_descriptor = *reinterpret_cast<const HIDDescriptor*>(m_interface.misc_descriptors[hid_descriptor_index].data());
 		dprintln_if(DEBUG_HID, "HID descriptor ({} bytes)", m_interface.misc_descriptors[hid_descriptor_index].size());
@@ -139,6 +142,7 @@ namespace Kernel
 		dprintln_if(DEBUG_HID, "  bCountryCode:    {}",       hid_descriptor.bCountryCode);
 		dprintln_if(DEBUG_HID, "  bNumDescriptors: {}",       hid_descriptor.bNumDescriptors);
 
+		uint32_t report_descriptor_index = 0;
 		BAN::Vector<Collection> collections;
 		for (size_t i = 0; i < hid_descriptor.bNumDescriptors; i++)
 		{
@@ -160,8 +164,8 @@ namespace Kernel
 				USBDeviceRequest request;
 				request.bmRequestType = USB::RequestType::DeviceToHost | USB::RequestType::Standard | USB::RequestType::Interface;
 				request.bRequest      = USB::Request::GET_DESCRIPTOR;
-				request.wValue        = static_cast<uint16_t>(HIDDescriptorType::Report) << 8;
-				request.wIndex        = m_interface_index;
+				request.wValue        = (static_cast<uint16_t>(HIDDescriptorType::Report) << 8) | report_descriptor_index++;
+				request.wIndex        = m_interface.descriptor.bInterfaceNumber;
 				request.wLength       = descriptor.wItemLength;
 				auto transferred = TRY(m_device.send_request(request, dma_buffer->paddr()));
 

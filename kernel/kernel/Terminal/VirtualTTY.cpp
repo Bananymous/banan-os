@@ -423,6 +423,7 @@ namespace Kernel
 			}
 			m_show_cursor = old_show_cursor;
 
+
 			m_column = 0;
 			m_row--;
 		}
