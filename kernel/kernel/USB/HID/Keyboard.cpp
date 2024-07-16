@@ -1,3 +1,4 @@
+#include <kernel/Timer/Timer.h>
 #include <kernel/USB/HID/Keyboard.h>
 #include <LibInput/KeyEvent.h>
 
@@ -6,13 +7,18 @@
 namespace Kernel
 {
 
+	static constexpr uint64_t s_repeat_initial_ms = 500;
+	static constexpr uint64_t s_repeat_interval_ms = 50;
+
 	static BAN::Optional<uint8_t> s_scancode_to_keycode[0x100] {};
 	static bool s_scancode_to_keycode_initialized = false;
 
 	static void initialize_scancode_to_keycode();
+	static constexpr bool is_repeatable_scancode(uint8_t scancode);
 
 	void USBKeyboard::start_report()
 	{
+		m_lock_state = m_keyboard_lock.lock();
 		for (auto& val : m_keyboard_state_temp)
 			val = false;
 	}
@@ -28,37 +34,39 @@ namespace Kernel
 		//        Modifier should be determined when converting to KeyEvent.
 
 		uint8_t modifier = 0;
-		if (m_keyboard_state_temp[0xE1])
-			modifier |= KeyModifier::LShift;
-		if (m_keyboard_state_temp[0xE5])
-			modifier |= KeyModifier::RShift;
-		if (m_keyboard_state_temp[0xE0])
-			modifier |= KeyModifier::LCtrl;
-		if (m_keyboard_state_temp[0xE4])
-			modifier |= KeyModifier::RCtrl;
-		if (m_keyboard_state_temp[0xE2])
-			modifier |= KeyModifier::LAlt;
-		if (m_keyboard_state_temp[0xE6])
-			modifier |= KeyModifier::RAlt;
 
-		if (m_keyboard_state_temp[0x39] && !m_keyboard_state[0x39])
-			m_toggle_mask ^= KeyModifier::CapsLock;
-		if (m_keyboard_state_temp[0x47] && !m_keyboard_state[0x47])
-			m_toggle_mask ^= KeyModifier::ScrollLock;
-		if (m_keyboard_state_temp[0x53] && !m_keyboard_state[0x53])
-			m_toggle_mask ^= KeyModifier::NumLock;
+#define READ_MODIFIER(scancode, key_modifier) \
+		if (m_keyboard_state_temp[scancode])  \
+			modifier |= key_modifier;
+		READ_MODIFIER(0xE1, KeyModifier::LShift);
+		READ_MODIFIER(0xE5, KeyModifier::RShift);
+		READ_MODIFIER(0xE0, KeyModifier::LCtrl);
+		READ_MODIFIER(0xE4, KeyModifier::RCtrl);
+		READ_MODIFIER(0xE2, KeyModifier::LAlt);
+		READ_MODIFIER(0xE6, KeyModifier::RAlt);
+#undef READ_MODIFIER
+
+#define READ_TOGGLE(scancode, key_modifier)                                 \
+		if (m_keyboard_state_temp[scancode] && !m_keyboard_state[scancode]) \
+			m_toggle_mask ^= key_modifier;
+		READ_TOGGLE(0x39, KeyModifier::CapsLock);
+		READ_TOGGLE(0x47, KeyModifier::ScrollLock);
+		READ_TOGGLE(0x53, KeyModifier::NumLock);
+#undef READ_TOGGLE
 
 		modifier |= m_toggle_mask;
 
+		BAN::Optional<uint8_t> new_scancode;
 		for (size_t i = 0; i < m_keyboard_state.size(); i++)
 		{
 			if (m_keyboard_state[i] == m_keyboard_state_temp[i])
 				continue;
+			if (m_keyboard_state_temp[i] && is_repeatable_scancode(i))
+				new_scancode = i;
 
 			const bool pressed = m_keyboard_state_temp[i];
-
 			if (pressed)
-				dprintln_if(DEBUG_KEYBOARD, "{2H}", i);
+				dprintln_if(DEBUG_KEYBOARD, "Pressed {2H}", i);
 
 			auto opt_keycode = s_scancode_to_keycode[i];
 			if (opt_keycode.has_value())
@@ -71,10 +79,27 @@ namespace Kernel
 
 			m_keyboard_state[i] = m_keyboard_state_temp[i];
 		}
+
+		if (m_repeat_scancode.has_value() && !m_keyboard_state_temp[m_repeat_scancode.value()])
+			m_repeat_scancode.clear();
+		m_repeat_modifier = modifier;
+
+		if (new_scancode.has_value())
+		{
+			if (!m_repeat_scancode.has_value() || m_repeat_scancode.value() != new_scancode.value())
+			{
+				m_repeat_scancode = new_scancode;
+				m_next_repeat_event_ms = SystemTimer::get().ms_since_boot() + s_repeat_initial_ms;
+			}
+		}
+
+		m_keyboard_lock.unlock(m_lock_state);
 	}
 
 	void USBKeyboard::handle_variable(uint16_t usage_page, uint16_t usage, int64_t state)
 	{
+		ASSERT(m_keyboard_lock.current_processor_has_lock());
+
 		if (usage_page != 0x07)
 		{
 			dprintln_if(DEBUG_KEYBOARD, "Unsupported keyboard usage page {2H}", usage_page);
@@ -88,6 +113,8 @@ namespace Kernel
 
 	void USBKeyboard::handle_array(uint16_t usage_page, uint16_t usage)
 	{
+		ASSERT(m_keyboard_lock.current_processor_has_lock());
+
 		if (usage_page != 0x07)
 		{
 			dprintln_if(DEBUG_KEYBOARD, "Unsupported keyboard usage page {2H}", usage_page);
@@ -97,11 +124,35 @@ namespace Kernel
 			m_keyboard_state_temp[usage] = true;
 	}
 
+	void USBKeyboard::update()
+	{
+		using KeyModifier = LibInput::KeyEvent::Modifier;
+
+		SpinLockGuard _(m_keyboard_lock);
+
+		if (!m_repeat_scancode.has_value() || SystemTimer::get().ms_since_boot() < m_next_repeat_event_ms)
+			return;
+
+		auto opt_keycode = s_scancode_to_keycode[m_repeat_scancode.value()];
+		if (!opt_keycode.has_value())
+			return;
+
+		LibInput::RawKeyEvent event;
+		event.keycode = opt_keycode.value();
+		event.modifier = m_repeat_modifier | KeyModifier::Pressed;
+		add_event(BAN::ConstByteSpan::from(event));
+
+		m_next_repeat_event_ms += s_repeat_interval_ms;
+	}
+
 	void initialize_scancode_to_keycode()
 	{
 		using LibInput::keycode_function;
 		using LibInput::keycode_normal;
 		using LibInput::keycode_numpad;
+
+		for (auto& mapping : s_scancode_to_keycode)
+			mapping.clear();
 
 		s_scancode_to_keycode[0x35] = keycode_normal(0,  0);
 		s_scancode_to_keycode[0x1E] = keycode_normal(0,  1);
@@ -209,6 +260,44 @@ namespace Kernel
 		s_scancode_to_keycode[0x63] = keycode_numpad(4, 1);
 
 		s_scancode_to_keycode_initialized = true;
+	}
+
+	constexpr bool is_repeatable_scancode(uint8_t scancode)
+	{
+		switch (scancode)
+		{
+			case 0x00: // reserved
+			case 0x01: // error roll over
+			case 0x02: // post fail
+			case 0x03: // error undefined
+			case 0x29: // escape
+			case 0x39: // caps lock
+			case 0x3A: // f1
+			case 0x3B: // f2
+			case 0x3C: // f3
+			case 0x3D: // f4
+			case 0x3E: // f5
+			case 0x3F: // f6
+			case 0x40: // f7
+			case 0x41: // f8
+			case 0x42: // f9
+			case 0x43: // f10
+			case 0x44: // f11
+			case 0x45: // f12
+			case 0x47: // scroll lock
+			case 0x53: // num lock
+			case 0xE0: // left control
+			case 0xE1: // left shift
+			case 0xE2: // left alt
+			case 0xE3: // left super
+			case 0xE4: // right control
+			case 0xE5: // right shift
+			case 0xE6: // right alt
+			case 0xE7: // right super
+				return false;
+			default:
+				return true;
+		}
 	}
 
 }
