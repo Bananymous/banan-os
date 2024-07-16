@@ -44,7 +44,7 @@ namespace BAN
 		constexpr void clear();
 
 	private:
-		alignas(T) uint8_t m_storage[sizeof(T)];
+		alignas(T) uint8_t m_storage[sizeof(T)] {};
 		bool m_has_value { false };
 	};
 
