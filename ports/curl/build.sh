@@ -31,7 +31,7 @@ if [ ! -d $CURL_VERSION ]; then
 		patch -ruN -d $CURL_VERSION < "$patch"
 	done
 
-	grep -qxF doom ../installed || echo curl >> ../installed
+	grep -qxF curl ../installed || echo curl >> ../installed
 fi
 
 cd $CURL_VERSION
@@ -55,4 +55,4 @@ fi
 
 cd "build-${BANAN_ARCH}"
 
-make && make install
+make -j $(nproc) && make install

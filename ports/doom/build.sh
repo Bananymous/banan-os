@@ -28,6 +28,6 @@ if [ ! -f doom1.wad ]; then
 	wget https://distro.ibiblio.org/slitaz/sources/packages/d/doom1.wad
 fi
 
-make --directory doomgeneric/doomgeneric --file Makefile.banan_os
+make --directory doomgeneric/doomgeneric --file Makefile.banan_os -j $(nproc)
 cp "doomgeneric/doomgeneric/build-${BANAN_ARCH}/doomgeneric" "${BANAN_SYSROOT}/bin/doom"
 cp doom1.wad $BANAN_SYSROOT/home/user/
