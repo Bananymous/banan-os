@@ -8,7 +8,6 @@
 __BEGIN_DECLS
 
 #include <limits.h>
-#include <math.h>
 #include <sys/wait.h>
 
 #define __need_NULL

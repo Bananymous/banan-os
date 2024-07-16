@@ -6,6 +6,7 @@
 #include <LibImage/PNG.h>
 
 #include <fcntl.h>
+#include <math.h>
 #include <stdlib.h>
 #include <sys/mman.h>
 
