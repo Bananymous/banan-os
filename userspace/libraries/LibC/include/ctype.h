@@ -40,8 +40,8 @@ int tolower_l(int, locale_t);
 int toupper(int);
 int toupper_l(int, locale_t);
 
-#define _toupper(val) ::toupper(val)
-#define _tolower(val) ::tolower(val)
+#define _toupper(val) toupper(val)
+#define _tolower(val) tolower(val)
 
 __END_DECLS
 
