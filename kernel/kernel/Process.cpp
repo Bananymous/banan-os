@@ -566,7 +566,13 @@ namespace Kernel
 			return BAN::Error::from_errno(ECHILD);
 
 		while (!target->m_exit_status.exited)
-			TRY(Thread::current().block_or_eintr_indefinite(target->m_exit_status.semaphore));
+		{
+			if (auto ret = Thread::current().block_or_eintr_indefinite(target->m_exit_status.thread_blocker); ret.is_error())
+			{
+				target->m_exit_status.waiting--;
+				return ret.release_error();
+			}
+		}
 
 		int exit_status = target->m_exit_status.exit_code;
 		target->m_exit_status.waiting--;
