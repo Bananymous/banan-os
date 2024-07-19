@@ -39,6 +39,7 @@ namespace BAN::Formatter
 		int base		= 10;
 		int percision	= 3;
 		int fill		= 0;
+		char fill_char  = '0';
 		bool upper		= false;
 	};
 
@@ -93,6 +94,12 @@ namespace BAN::Formatter
 			{
 				if (!format[i] || format[i] == '}')
 					break;
+
+				if (format[i] == ' ')
+				{
+					value_format.fill_char = ' ';
+					i++;
+				}
 
 				if ('0' <= format[i] && format[i] <= '9')
 				{
@@ -161,8 +168,9 @@ namespace BAN::Formatter
 		{
 			if (value == 0)
 			{
-				for (int i = 0; i < format.fill || i < 1; i++)
-					putc('0');
+				for (int i = 0; i < format.fill - 1; i++)
+					putc(format.fill_char);
+				putc('0');
 				return;
 			}
 
@@ -188,7 +196,7 @@ namespace BAN::Formatter
 			}
 
 			while (ptr >= buffer + sizeof(buffer) - format.fill)
-				*(--ptr) = '0';
+				*(--ptr) = format.fill_char;
 
 			if (sign)
 				*(--ptr) = '-';
