@@ -107,6 +107,20 @@ namespace Kernel
 			}
 		}
 
+		if (m_type == Type::Keyboard)
+		{
+			auto& key_event = event.as<const LibInput::RawKeyEvent>();
+			if (key_event.modifier & LibInput::KeyEvent::Modifier::Pressed)
+			{
+				switch (key_event.keycode)
+				{
+					case LibInput::keycode_function(12):
+						Kernel::panic("Keyboard kernel panic :)");
+						break;
+				}
+			}
+		}
+
 		if (m_event_count == m_max_event_count)
 		{
 			m_event_tail = (m_event_tail + 1) % m_max_event_count;

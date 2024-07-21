@@ -126,8 +126,6 @@ namespace Kernel::Input
 			return;
 
 		auto dummy_event = LibInput::KeyboardLayout::get().key_event_from_raw(RawKeyEvent { .modifier = 0, .keycode = keycode.value() });
-		if (dummy_event.key == Key::F1)
-			panic("OOF");
 
 		uint16_t modifier_mask = 0;
 		uint16_t toggle_mask = 0;
