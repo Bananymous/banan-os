@@ -38,13 +38,18 @@ isr_stub:
 	movl 60(%esp), %ecx // error code
 	movl 56(%esp), %edx // isr number
 
-	subl $12, %esp
+	movl %esp, %ebp
+	subl $15, %esp
+	andl $0xFFFFFFF0, %esp
+
 	pushl %eax
 	pushl %ebx
 	pushl %ecx
 	pushl %edx
 	call cpp_isr_handler
-	addl $44, %esp
+
+	movl %ebp, %esp
+	addl $16, %esp
 
 	pop_userspace
 	addl $8, %esp
@@ -56,10 +61,15 @@ irq_stub:
 
 	movl 40(%esp), %eax # interrupt number
 
+	movl %esp, %ebp
+	subl $15, %esp
+	andl $0xFFFFFFF0, %esp
+
 	subl $12, %esp
 	pushl %eax
 	call cpp_irq_handler
-	addl $16, %esp
+
+	movl %ebp, %esp
 
 	pop_userspace
 	addl $8, %esp
@@ -73,11 +83,16 @@ asm_yield_handler:
 	movl %esp,     %eax # interrupt registers ptr
 	leal 32(%esp), %ebx # interrupt stack ptr
 
-	subl $4, %esp
+	movl %esp, %ebp
+	subl $15, %esp
+	andl $0xFFFFFFF0, %esp
+
+	subl $8, %esp
 	pushl %eax
 	pushl %ebx
 	call cpp_yield_handler
-	addl $12, %esp
+
+	movl %ebp, %esp
 
 	popal
 	iret

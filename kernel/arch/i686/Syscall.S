@@ -15,8 +15,14 @@ asm_syscall_handler:
 	pushl %esi
 	pushl %ebp
 
-	# align stack and push arguments
-	pushl %esp
+	# align stack
+	movl %esp, %ebp
+	subl $15, %esp
+	andl $0xFFFFFFF0, %esp
+
+	# push arguments
+	subl $4, %esp
+	pushl %ebp
 	addl $32, (%esp)
 	pushl %edi
 	pushl %esi
@@ -34,7 +40,8 @@ asm_syscall_handler:
 	movw %ax, %gs
 
 	call cpp_syscall_handler
-	addl $28, %esp
+
+	movl %ebp, %esp
 
 	# restore general purpose registers
 	popl %ebp
