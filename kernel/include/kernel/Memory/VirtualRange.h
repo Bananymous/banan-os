@@ -30,19 +30,20 @@ namespace Kernel
 
 		BAN::ErrorOr<void> allocate_page_for_demand_paging(vaddr_t address);
 
-		void copy_from(size_t offset, const uint8_t* buffer, size_t bytes);
+	private:
+		VirtualRange(PageTable&, bool preallocated, vaddr_t, size_t, PageTable::flags_t);
+		BAN::ErrorOr<void> initialize();
 
 	private:
-		VirtualRange(PageTable&, bool preallocated);
+		PageTable&               m_page_table;
+		const bool               m_preallocated;
+		const vaddr_t            m_vaddr;
+		const size_t             m_size;
+		const PageTable::flags_t m_flags;
+		BAN::Vector<paddr_t>     m_paddrs;
+		SpinLock                 m_lock;
 
-		void set_zero();
-
-	private:
-		PageTable&				m_page_table;
-		const bool				m_preallocated;
-		vaddr_t					m_vaddr { 0 };
-		size_t					m_size { 0 };
-		PageTable::flags_t		m_flags { 0 };
+		friend class BAN::UniqPtr<VirtualRange>;
 	};
 
 }
