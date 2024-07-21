@@ -149,13 +149,17 @@ namespace Kernel
 		ASSERT(!m_has_got_irq);
 		if (io_read(ATA_PORT_STATUS) & ATA_STATUS_ERR)
 			dprintln("ATA Error: {}", error());
-		m_has_got_irq = true;
+		m_has_got_irq.store(true);
 	}
 
 	void ATABus::block_until_irq()
 	{
-		while (!__sync_bool_compare_and_swap(&m_has_got_irq, true, false))
-			__builtin_ia32_pause();
+		bool expected { true };
+		while (!m_has_got_irq.compare_exchange(expected, false))
+		{
+			Processor::pause();
+			expected = true;
+		}
 	}
 
 	uint8_t ATABus::io_read(uint16_t port)

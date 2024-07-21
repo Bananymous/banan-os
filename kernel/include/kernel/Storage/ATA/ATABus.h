@@ -53,7 +53,7 @@ namespace Kernel
 		const uint16_t m_ctrl;
 		Mutex m_mutex;
 
-		volatile bool m_has_got_irq { false };
+		BAN::Atomic<bool> m_has_got_irq { false };
 
 		// Non-owning pointers
 		BAN::Vector<ATADevice*> m_devices;
