@@ -54,23 +54,32 @@ namespace Kernel
 
 	void PIT::handle_irq()
 	{
-		m_system_time = m_system_time + 1;
+		{
+			SpinLockGuard _(m_lock);
+			m_system_time++;
+		}
 		Kernel::Scheduler::get().timer_reschedule();
+	}
+
+	uint64_t PIT::read_counter() const
+	{
+		SpinLockGuard _(m_lock);
+		return m_system_time;
 	}
 
 	uint64_t PIT::ms_since_boot() const
 	{
-		return m_system_time * (MS_PER_S / TICKS_PER_SECOND);
+		return read_counter() * (MS_PER_S / TICKS_PER_SECOND);
 	}
 
 	uint64_t PIT::ns_since_boot() const
 	{
-		return m_system_time * (NS_PER_S / TICKS_PER_SECOND);
+		return read_counter() * (NS_PER_S / TICKS_PER_SECOND);
 	}
 
 	timespec PIT::time_since_boot() const
 	{
-		uint64_t ticks = m_system_time;
+		uint64_t ticks = read_counter();
 		return timespec {
 			.tv_sec = ticks / TICKS_PER_SECOND,
 			.tv_nsec = (long)((ticks % TICKS_PER_SECOND) * (NS_PER_S / TICKS_PER_SECOND))

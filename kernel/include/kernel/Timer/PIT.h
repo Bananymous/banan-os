@@ -1,6 +1,7 @@
 #pragma once
 
 #include <kernel/Interruptable.h>
+#include <kernel/Lock/SpinLock.h>
 #include <kernel/Timer/Timer.h>
 
 namespace Kernel
@@ -19,9 +20,11 @@ namespace Kernel
 
 	private:
 		void initialize();
+		uint64_t read_counter() const;
 
 	private:
-		volatile uint64_t m_system_time { 0 };
+		mutable SpinLock m_lock;
+		uint64_t m_system_time { 0 };
 	};
 
 }
