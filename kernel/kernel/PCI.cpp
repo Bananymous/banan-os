@@ -219,7 +219,7 @@ namespace Kernel::PCI
 									dprintln("{}", res.error());
 								break;
 							default:
-								dprintln("unsupported serail bus controller (pci {2H}.{2H}.{2H})", pci_device.class_code(), pci_device.subclass(), pci_device.prog_if());
+								dprintln("unsupported serial bus controller (pci {2H}.{2H}.{2H})", pci_device.class_code(), pci_device.subclass(), pci_device.prog_if());
 								break;
 						}
 						break;
