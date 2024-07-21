@@ -177,6 +177,7 @@ namespace Kernel
 		static ProcessorID s_bsb_id;
 		static BAN::Atomic<uint8_t> s_processor_count;
 		static BAN::Atomic<bool>    s_is_smp_enabled;
+		static BAN::Atomic<bool>    s_should_print_cpu_load;
 
 		ProcessorID m_id { PROCESSOR_NONE };
 
@@ -187,6 +188,11 @@ namespace Kernel
 		IDT* m_idt { nullptr };
 
 		Scheduler* m_scheduler { nullptr };
+
+		uint64_t m_start_ns { 0 };
+		uint64_t m_idle_ns { 0 };
+		uint64_t m_last_update_ns { 0 };
+		uint64_t m_next_update_ns { 0 };
 
 		BAN::Atomic<bool> m_smp_pending_lock { false };
 		SMPMessage* m_smp_pending { nullptr };

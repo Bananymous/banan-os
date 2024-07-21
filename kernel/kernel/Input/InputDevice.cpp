@@ -114,6 +114,9 @@ namespace Kernel
 			{
 				switch (key_event.keycode)
 				{
+					case LibInput::keycode_function(1):
+						Processor::toggle_should_print_cpu_load();
+						break;
 					case LibInput::keycode_function(12):
 						Kernel::panic("Keyboard kernel panic :)");
 						break;

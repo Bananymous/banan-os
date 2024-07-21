@@ -332,6 +332,41 @@ namespace Kernel
 		auto state = get_interrupt_state();
 		set_interrupt_state(InterruptState::Disabled);
 
+		auto& processor_info = s_processors[current_id().as_u32()];
+
+		{
+			constexpr uint64_t load_update_interval_ns = 1'000'000'000;
+
+			const uint64_t current_ns = SystemTimer::get().ns_since_boot();
+
+			if (scheduler().is_idle())
+				processor_info.m_idle_ns += current_ns - processor_info.m_start_ns;
+
+			if (current_ns >= processor_info.m_next_update_ns)
+			{
+				if (s_should_print_cpu_load && g_terminal_driver)
+				{
+					const uint64_t duration_ns = current_ns - processor_info.m_last_update_ns;
+					const uint64_t load_x1000  = 100'000 * (duration_ns - processor_info.m_idle_ns) / duration_ns;
+
+					uint32_t x = g_terminal_driver->width() - 16;
+					uint32_t y = current_id().as_u32();
+					const auto proc_putc =
+						[&x, y](char ch)
+						{
+							if (x < g_terminal_driver->width() && y < g_terminal_driver->height())
+								g_terminal_driver->putchar_at(ch, x++, y, TerminalColor::BRIGHT_WHITE, TerminalColor::BLACK);
+						};
+
+					BAN::Formatter::print(proc_putc, "CPU { 2}: { 3}.{3}%", current_id(), load_x1000 / 1000, load_x1000 % 1000);
+				}
+
+				processor_info.m_idle_ns         = 0;
+				processor_info.m_last_update_ns  = current_ns;
+				processor_info.m_next_update_ns += load_update_interval_ns;
+			}
+		}
+
 #if ARCH(x86_64)
 		asm volatile(
 			"movq %%rsp, %%rcx;"
@@ -359,6 +394,8 @@ namespace Kernel
 #else
 		#error
 #endif
+
+		processor_info.m_start_ns = SystemTimer::get().ns_since_boot();
 
 		Processor::set_interrupt_state(state);
 	}
