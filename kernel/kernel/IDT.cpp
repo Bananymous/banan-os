@@ -173,15 +173,17 @@ namespace Kernel
 
 		if (tid)
 		{
+			auto& thread = Thread::current();
 #if __enable_sse
-			Thread::current().save_sse();
+			thread.save_sse();
 #endif
 
-			if (isr == ISR::PageFault)
+			if (isr == ISR::PageFault && Thread::current().is_userspace())
 			{
 				// Check if stack is OOB
-				auto& thread = Thread::current();
-				if (thread.userspace_stack_bottom() < interrupt_stack->sp && interrupt_stack->sp <= thread.userspace_stack_top())
+				if (ARCH(i686) && !GDT::is_user_segment(interrupt_stack->cs))
+					; // 32 bit does not push stack pointer when no CPL change happens
+				else if (thread.userspace_stack_bottom() < interrupt_stack->sp && interrupt_stack->sp <= thread.userspace_stack_top())
 					; // using userspace stack
 				else if (thread.kernel_stack_bottom() < interrupt_stack->sp && interrupt_stack->sp <= thread.kernel_stack_top())
 					; // using kernel stack
@@ -198,27 +200,23 @@ namespace Kernel
 					goto done;
 				}
 
-				// Demand paging is only supported in userspace
-				if (thread.is_userspace())
+				// Try demand paging on non present pages
+				PageFaultError page_fault_error;
+				page_fault_error.raw = error;
+				if (pid && !page_fault_error.present)
 				{
-					// Try demand paging on non present pages
-					PageFaultError page_fault_error;
-					page_fault_error.raw = error;
-					if (!page_fault_error.present)
+					Processor::set_interrupt_state(InterruptState::Enabled);
+					auto result = Process::current().allocate_page_for_demand_paging(regs->cr2);
+					Processor::set_interrupt_state(InterruptState::Disabled);
+
+					if (!result.is_error() && result.value())
+						goto done;
+
+					if (result.is_error())
 					{
-						Processor::set_interrupt_state(InterruptState::Enabled);
-						auto result = Process::current().allocate_page_for_demand_paging(regs->cr2);
-						Processor::set_interrupt_state(InterruptState::Disabled);
-
-						if (!result.is_error() && result.value())
-							goto done;
-
-						if (result.is_error())
-						{
-							dwarnln("Demand paging: {}", result.error());
-							Thread::current().handle_signal(SIGKILL);
-							goto done;
-						}
+						dwarnln("Demand paging: {}", result.error());
+						Thread::current().handle_signal(SIGKILL);
+						goto done;
 					}
 				}
 			}
