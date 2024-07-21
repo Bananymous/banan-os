@@ -319,8 +319,29 @@ namespace Kernel
 		dprintln("{} processors started", *g_ap_running_count);
 	}
 
+
+	void APIC::send_ipi(ProcessorID target)
+	{
+		ASSERT(Kernel::Processor::get_interrupt_state() == InterruptState::Disabled);
+		while ((read_from_local_apic(LAPIC_ICR_LO_REG) & ICR_LO_delivery_status_send_pending) == ICR_LO_delivery_status_send_pending)
+			__builtin_ia32_pause();
+		write_to_local_apic(LAPIC_ICR_HI_REG, (read_from_local_apic(LAPIC_ICR_HI_REG) & 0x00FFFFFF) | (target << 24));
+		write_to_local_apic(LAPIC_ICR_LO_REG,
+			(read_from_local_apic(LAPIC_ICR_LO_REG) & ICR_LO_reserved_mask)
+			| ICR_LO_delivery_mode_fixed
+			| ICR_LO_destination_mode_physical
+			| ICR_LO_level_assert
+			| ICR_LO_trigger_mode_level
+			| ICR_LO_destination_shorthand_none
+			| (IRQ_VECTOR_BASE + IRQ_IPI)
+		);
+	}
+
 	void APIC::broadcast_ipi()
 	{
+		ASSERT(Kernel::Processor::get_interrupt_state() == InterruptState::Disabled);
+		while ((read_from_local_apic(LAPIC_ICR_LO_REG) & ICR_LO_delivery_status_send_pending) == ICR_LO_delivery_status_send_pending)
+			__builtin_ia32_pause();
 		write_to_local_apic(LAPIC_ICR_HI_REG, (read_from_local_apic(LAPIC_ICR_HI_REG) & 0x00FFFFFF) | 0xFF000000);
 		write_to_local_apic(LAPIC_ICR_LO_REG,
 			(read_from_local_apic(LAPIC_ICR_LO_REG) & ICR_LO_reserved_mask)
@@ -331,8 +352,6 @@ namespace Kernel
 			| ICR_LO_destination_shorthand_all_excluding_self
 			| (IRQ_VECTOR_BASE + IRQ_IPI)
 		);
-		while ((read_from_local_apic(LAPIC_ICR_LO_REG) & ICR_LO_delivery_status_send_pending) == ICR_LO_delivery_status_send_pending)
-			__builtin_ia32_pause();
 	}
 
 	void APIC::enable()

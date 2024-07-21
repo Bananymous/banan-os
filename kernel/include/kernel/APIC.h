@@ -19,6 +19,7 @@ namespace Kernel
 		virtual BAN::Optional<uint8_t> get_free_irq() override;
 
 		virtual void initialize_multiprocessor() override;
+		virtual void send_ipi(ProcessorID target) override;
 		virtual void broadcast_ipi() override;
 		virtual void enable() override;
 

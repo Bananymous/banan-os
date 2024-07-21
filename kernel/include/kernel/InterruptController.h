@@ -22,6 +22,7 @@ namespace Kernel
 		static InterruptController& get();
 
 		virtual void initialize_multiprocessor() = 0;
+		virtual void send_ipi(ProcessorID target) = 0;
 		virtual void broadcast_ipi() = 0;
 		virtual void enable() = 0;
 
