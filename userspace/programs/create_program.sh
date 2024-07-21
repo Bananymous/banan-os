@@ -15,7 +15,7 @@ add_executable($PROGRAM_NAME \${SOURCES})
 banan_link_library($PROGRAM_NAME ban)
 banan_link_library($PROGRAM_NAME libc)
 
-install(TARGETS $PROGRAM_NAME)
+install(TARGETS $PROGRAM_NAME OPTIONAL)
 EOF
 
 cat > $PROGRAM_NAME/main.cpp << EOF
