@@ -33,8 +33,9 @@
 
 struct ParsedCommandLine
 {
-	bool force_pic		= false;
-	bool disable_serial	= false;
+	bool force_pic          = false;
+	bool disable_serial     = false;
+	bool disable_smp        = false;
 	BAN::StringView console = "tty0"_sv;
 	BAN::StringView root;
 };
@@ -71,6 +72,8 @@ static void parse_command_line()
 			cmdline.force_pic = true;
 		else if (argument == "noserial")
 			cmdline.disable_serial = true;
+		else if (argument == "nosmp")
+			cmdline.disable_smp = true;
 		else if (argument.size() > 5 && argument.substring(0, 5) == "root=")
 			cmdline.root = argument.substring(5);
 		else if (argument.size() > 8 && argument.substring(0, 8) == "console=")
@@ -140,7 +143,8 @@ extern "C" void kernel_main(uint32_t boot_magic, uint32_t boot_info)
 	if (g_terminal_driver)
 		dprintln("Framebuffer terminal initialized");
 
-	InterruptController::get().initialize_multiprocessor();
+	if (!cmdline.disable_smp)
+		InterruptController::get().initialize_multiprocessor();
 
 	ProcFileSystem::initialize();
 	dprintln("procfs initialized");
