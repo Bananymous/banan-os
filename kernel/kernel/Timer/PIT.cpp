@@ -1,7 +1,7 @@
 #include <kernel/IDT.h>
 #include <kernel/InterruptController.h>
 #include <kernel/IO.h>
-#include <kernel/Scheduler.h>
+#include <kernel/Processor.h>
 #include <kernel/Timer/PIT.h>
 
 #define PIT_IRQ 0
@@ -58,7 +58,7 @@ namespace Kernel
 			SpinLockGuard _(m_lock);
 			m_system_time++;
 		}
-		Kernel::Scheduler::get().timer_reschedule();
+		Processor::scheduler().timer_interrupt();
 	}
 
 	uint64_t PIT::read_counter() const

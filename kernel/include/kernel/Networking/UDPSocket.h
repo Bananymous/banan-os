@@ -6,7 +6,7 @@
 #include <kernel/Memory/VirtualRange.h>
 #include <kernel/Networking/NetworkInterface.h>
 #include <kernel/Networking/NetworkSocket.h>
-#include <kernel/Semaphore.h>
+#include <kernel/ThreadBlocker.h>
 
 namespace Kernel
 {
@@ -57,7 +57,7 @@ namespace Kernel
 		BAN::CircularQueue<PacketInfo, 32>	m_packets;
 		size_t								m_packet_total_size { 0 };
 		SpinLock							m_packet_lock;
-		Semaphore							m_packet_semaphore;
+		ThreadBlocker							m_packet_thread_blocker;
 
 		friend class BAN::RefPtr<UDPSocket>;
 	};

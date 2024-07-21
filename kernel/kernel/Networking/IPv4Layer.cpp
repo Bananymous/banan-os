@@ -308,7 +308,7 @@ namespace Kernel
 				while (m_pending_packets.empty())
 				{
 					m_pending_lock.unlock(state);
-					m_pending_semaphore.block_indefinite();
+					m_pending_thread_blocker.block_indefinite();
 					state = m_pending_lock.lock();
 				}
 				auto packet = m_pending_packets.front();
@@ -367,7 +367,7 @@ namespace Kernel
 		m_pending_total_size += ipv4_header.total_length;
 
 		m_pending_packets.push({ .interface = interface });
-		m_pending_semaphore.unblock();
+		m_pending_thread_blocker.unblock();
 	}
 
 }

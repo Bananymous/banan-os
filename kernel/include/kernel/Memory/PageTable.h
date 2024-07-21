@@ -95,11 +95,11 @@ namespace Kernel
 		static BAN::ErrorOr<PageTable*> create_userspace();
 		~PageTable();
 
-		void unmap_page(vaddr_t);
+		void unmap_page(vaddr_t, bool send_smp_message = true);
 		void unmap_range(vaddr_t, size_t bytes);
 
+		void map_page_at(paddr_t, vaddr_t, flags_t, MemoryType = MemoryType::Normal, bool send_smp_message = true);
 		void map_range_at(paddr_t, vaddr_t, size_t bytes, flags_t, MemoryType = MemoryType::Normal);
-		void map_page_at(paddr_t, vaddr_t, flags_t, MemoryType = MemoryType::Normal);
 
 		paddr_t physical_address_of(vaddr_t) const;
 		flags_t get_page_flags(vaddr_t) const;
@@ -127,7 +127,8 @@ namespace Kernel
 		void initialize_kernel();
 		void map_kernel_memory();
 		void prepare_fast_page();
-		static void invalidate(vaddr_t);
+
+		static void invalidate(vaddr_t, bool send_smp_message);
 
 		static void map_fast_page(paddr_t);
 		static void unmap_fast_page();

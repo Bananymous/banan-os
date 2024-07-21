@@ -73,7 +73,7 @@ namespace Kernel
 			return BAN::Error::from_errno(EINVAL);
 
 		while (connection_info.pending_connections.empty())
-			TRY(Thread::current().block_or_eintr_indefinite(connection_info.pending_semaphore));
+			TRY(Thread::current().block_or_eintr_indefinite(connection_info.pending_thread_blocker));
 
 		BAN::RefPtr<UnixDomainSocket> pending;
 
@@ -81,7 +81,7 @@ namespace Kernel
 			SpinLockGuard _(connection_info.pending_lock);
 			pending = connection_info.pending_connections.front();
 			connection_info.pending_connections.pop();
-			connection_info.pending_semaphore.unblock();
+			connection_info.pending_thread_blocker.unblock();
 		}
 
 		BAN::RefPtr<UnixDomainSocket> return_inode;
@@ -162,15 +162,15 @@ namespace Kernel
 				if (target_info.pending_connections.size() < target_info.pending_connections.capacity())
 				{
 					MUST(target_info.pending_connections.push(this));
-					target_info.pending_semaphore.unblock();
+					target_info.pending_thread_blocker.unblock();
 					break;
 				}
 			}
-			TRY(Thread::current().block_or_eintr_indefinite(target_info.pending_semaphore));
+			TRY(Thread::current().block_or_eintr_indefinite(target_info.pending_thread_blocker));
 		}
 
 		while (!connection_info.connection_done)
-			Scheduler::get().yield();
+			Processor::yield();
 
 		return {};
 	}
@@ -241,7 +241,7 @@ namespace Kernel
 		while (m_packet_sizes.full() || m_packet_size_total + packet.size() > s_packet_buffer_size)
 		{
 			m_packet_lock.unlock(state);
-			TRY(Thread::current().block_or_eintr_indefinite(m_packet_semaphore));
+			TRY(Thread::current().block_or_eintr_indefinite(m_packet_thread_blocker));
 			state = m_packet_lock.lock();
 		}
 
@@ -252,7 +252,7 @@ namespace Kernel
 		if (!is_streaming())
 			m_packet_sizes.push(packet.size());
 
-		m_packet_semaphore.unblock();
+		m_packet_thread_blocker.unblock();
 		m_packet_lock.unlock(state);
 		return {};
 	}
@@ -357,7 +357,7 @@ namespace Kernel
 		while (m_packet_size_total == 0)
 		{
 			m_packet_lock.unlock(state);
-			TRY(Thread::current().block_or_eintr_indefinite(m_packet_semaphore));
+			TRY(Thread::current().block_or_eintr_indefinite(m_packet_thread_blocker));
 			state = m_packet_lock.lock();
 		}
 
@@ -376,7 +376,7 @@ namespace Kernel
 		memmove(packet_buffer, packet_buffer + nread, m_packet_size_total - nread);
 		m_packet_size_total -= nread;
 
-		m_packet_semaphore.unblock();
+		m_packet_thread_blocker.unblock();
 		m_packet_lock.unlock(state);
 
 		return nread;

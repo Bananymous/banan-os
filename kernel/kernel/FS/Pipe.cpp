@@ -37,7 +37,7 @@ namespace Kernel
 		ASSERT(m_writing_count > 0);
 		m_writing_count--;
 		if (m_writing_count == 0)
-			m_semaphore.unblock();
+			m_thread_blocker.unblock();
 	}
 
 	BAN::ErrorOr<size_t> Pipe::read_impl(off_t, BAN::ByteSpan buffer)
@@ -48,7 +48,7 @@ namespace Kernel
 			if (m_writing_count == 0)
 				return 0;
 			LockFreeGuard lock_free(m_mutex);
-			TRY(Thread::current().block_or_eintr_indefinite(m_semaphore));
+			TRY(Thread::current().block_or_eintr_indefinite(m_thread_blocker));
 		}
 
 		size_t to_copy = BAN::Math::min<size_t>(buffer.size(), m_buffer.size());
@@ -59,7 +59,7 @@ namespace Kernel
 
 		m_atime = SystemTimer::get().real_time();
 
-		m_semaphore.unblock();
+		m_thread_blocker.unblock();
 
 		return to_copy;
 	}
@@ -77,7 +77,7 @@ namespace Kernel
 		m_mtime = current_time;
 		m_ctime = current_time;
 
-		m_semaphore.unblock();
+		m_thread_blocker.unblock();
 
 		return buffer.size();
 	}

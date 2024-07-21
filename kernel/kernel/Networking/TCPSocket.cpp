@@ -75,7 +75,7 @@ namespace Kernel
 		while (m_pending_connections.empty())
 		{
 			LockFreeGuard _(m_mutex);
-			TRY(Thread::current().block_or_eintr_indefinite(m_semaphore));
+			TRY(Thread::current().block_or_eintr_indefinite(m_thread_blocker));
 		}
 
 		auto connection = m_pending_connections.front();
@@ -113,7 +113,7 @@ namespace Kernel
 			if (SystemTimer::get().ms_since_boot() >= wake_time_ms)
 				return BAN::Error::from_errno(ECONNABORTED);
 			LockFreeGuard free(m_mutex);
-			TRY(Thread::current().block_or_eintr_or_waketime(return_inode->m_semaphore, wake_time_ms, true));
+			TRY(Thread::current().block_or_eintr_or_waketime_ms(return_inode->m_thread_blocker, wake_time_ms, true));
 		}
 
 		if (address)
@@ -170,7 +170,7 @@ namespace Kernel
 			if (SystemTimer::get().ms_since_boot() >= wake_time_ms)
 				return BAN::Error::from_errno(ECONNREFUSED);
 			LockFreeGuard free(m_mutex);
-			TRY(Thread::current().block_or_eintr_or_waketime(m_semaphore, wake_time_ms, true));
+			TRY(Thread::current().block_or_eintr_or_waketime_ms(m_thread_blocker, wake_time_ms, true));
 		}
 
 		return {};
@@ -207,7 +207,7 @@ namespace Kernel
 			if (m_state != State::Established)
 				return return_with_maybe_zero();
 			LockFreeGuard free(m_mutex);
-			TRY(Thread::current().block_or_eintr_indefinite(m_semaphore));
+			TRY(Thread::current().block_or_eintr_indefinite(m_thread_blocker));
 		}
 
 		const uint32_t to_recv = BAN::Math::min<uint32_t>(buffer.size(), m_recv_window.data_size);
@@ -249,7 +249,7 @@ namespace Kernel
 			if (m_send_window.data_size + message.size() <= m_send_window.buffer->size())
 				break;
 			LockFreeGuard free(m_mutex);
-			TRY(Thread::current().block_or_eintr_indefinite(m_semaphore));
+			TRY(Thread::current().block_or_eintr_indefinite(m_thread_blocker));
 		}
 
 		{
@@ -259,14 +259,14 @@ namespace Kernel
 		}
 
 		const uint32_t target_ack = m_send_window.start_seq + m_send_window.data_size;
-		m_semaphore.unblock();
+		m_thread_blocker.unblock();
 
 		while (m_send_window.current_ack < target_ack)
 		{
 			if (m_state != State::Established)
 				return return_with_maybe_zero();
 			LockFreeGuard free(m_mutex);
-			TRY(Thread::current().block_or_eintr_indefinite(m_semaphore));
+			TRY(Thread::current().block_or_eintr_indefinite(m_thread_blocker));
 		}
 
 		return message.size();
@@ -597,7 +597,7 @@ namespace Kernel
 			}
 		}
 
-		m_semaphore.unblock();
+		m_thread_blocker.unblock();
 	}
 
 	void TCPSocket::set_connection_as_closed()
@@ -743,11 +743,11 @@ namespace Kernel
 				}
 			}
 
-			m_semaphore.unblock();
-			m_semaphore.block_with_wake_time(current_ms + retransmit_timeout_ms);
+			m_thread_blocker.unblock();
+			m_thread_blocker.block_with_wake_time_ms(current_ms + retransmit_timeout_ms);
 		}
 
-		m_semaphore.unblock();
+		m_thread_blocker.unblock();
 	}
 
 }

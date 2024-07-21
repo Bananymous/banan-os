@@ -108,7 +108,7 @@ extern "C" void kernel_main(uint32_t boot_magic, uint32_t boot_info)
 	parse_boot_info(boot_magic, boot_info);
 	dprintln("boot info parsed");
 
-	Processor::create(0);
+	Processor::create(PROCESSOR_NONE);
 	Processor::initialize();
 	dprintln("BSP initialized");
 
@@ -167,12 +167,11 @@ extern "C" void kernel_main(uint32_t boot_magic, uint32_t boot_info)
 	Random::initialize();
 	dprintln("RNG initialized");
 
-	MUST(Scheduler::initialize());
-	dprintln("Scheduler initialized");
+	Processor::wait_until_processors_ready();
+	MUST(Processor::scheduler().initialize());
 
-	Scheduler& scheduler = Scheduler::get();
 	Process::create_kernel(init2, nullptr);
-	scheduler.start();
+	Processor::yield();
 
 	ASSERT_NOT_REACHED();
 }
@@ -233,14 +232,11 @@ extern "C" void ap_main()
 
 	Processor::initialize();
 	PageTable::kernel().initial_load();
-	Processor::allocate_idle_thread();
 	InterruptController::get().enable();
 
-	dprintln("ap{} initialized", Processor::current_id());
+	Processor::wait_until_processors_ready();
+	MUST(Processor::scheduler().initialize());
 
-	// wait until scheduler is started and we get irq for reschedule
-	Processor::set_interrupt_state(InterruptState::Enabled);
-	while (true)
-		asm volatile("hlt");
+	asm volatile("sti; 1: hlt; jmp 1b");
 	ASSERT_NOT_REACHED();
 }

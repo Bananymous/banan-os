@@ -131,7 +131,7 @@ namespace Kernel
 		m_event_head = (m_event_head + 1) % m_max_event_count;
 		m_event_count++;
 
-		m_event_semaphore.unblock();
+		m_event_thread_blocker.unblock();
 		if (m_type == Type::Keyboard && s_keyboard_device)
 			s_keyboard_device->notify();
 		if (m_type == Type::Mouse && s_mouse_device)
@@ -149,7 +149,7 @@ namespace Kernel
 			m_event_lock.unlock(state);
 			{
 				LockFreeGuard _(m_mutex);
-				TRY(Thread::current().block_or_eintr_indefinite(m_event_semaphore));
+				TRY(Thread::current().block_or_eintr_indefinite(m_event_thread_blocker));
 			}
 			state = m_event_lock.lock();
 		}
@@ -213,7 +213,7 @@ namespace Kernel
 			}
 
 			LockFreeGuard _(m_mutex);
-			TRY(Thread::current().block_or_eintr_indefinite(m_semaphore));
+			TRY(Thread::current().block_or_eintr_indefinite(m_thread_blocker));
 		}
 	}
 
@@ -259,7 +259,7 @@ namespace Kernel
 			}
 
 			LockFreeGuard _(m_mutex);
-			TRY(Thread::current().block_or_eintr_indefinite(m_semaphore));
+			TRY(Thread::current().block_or_eintr_indefinite(m_thread_blocker));
 		}
 	}
 

@@ -244,7 +244,7 @@ namespace Kernel
 
 		dprintln("System has {} processors", m_processors.size());
 
-		uint8_t bsp_id = Kernel::Processor::current_id();
+		uint8_t bsp_id = Kernel::Processor::current_id().as_u32();
 		dprintln("BSP lapic id: {}", bsp_id);
 
 		if (m_processors.size() == 1)
@@ -267,7 +267,7 @@ namespace Kernel
 
 			dprintln("Trying to enable processor (lapic id {})", processor.apic_id);
 
-			auto& proc = Kernel::Processor::create(processor.apic_id);
+			auto& proc = Kernel::Processor::create(ProcessorID(processor.apic_id));
 			PageTable::with_fast_page((paddr_t)g_ap_init_addr, [&] {
 				PageTable::fast_page_as_sized<uint32_t>(2) = V2P(proc.stack_top());
 			});
@@ -308,14 +308,24 @@ namespace Kernel
 			}
 
 			// give processor upto 100 * 100 us + 200 us to boot
-			for (int i = 0; *g_ap_stack_loaded == 0 && i < 100; i++)
+			for (int i = 0; i < 100; i++)
+			{
+				if (__atomic_load_n(&g_ap_stack_loaded[0], __ATOMIC_SEQ_CST))
+					break;
 				udelay(100);
+			}
 		}
 
-		*g_ap_startup_done = 1;
+		__atomic_store_n(&g_ap_startup_done[0], 1, __ATOMIC_SEQ_CST);
 
-		// give processors 100 us time to increment running count
-		udelay(100);
+		const size_t timeout_ms = SystemTimer::get().ms_since_boot() + 500;
+		while (__atomic_load_n(&g_ap_running_count[0], __ATOMIC_SEQ_CST) < m_processors.size() - 1)
+		{
+			if (SystemTimer::get().ms_since_boot() >= timeout_ms)
+				Kernel::panic("Could not start all processors");
+			__builtin_ia32_pause();
+		}
+
 		dprintln("{} processors started", *g_ap_running_count);
 	}
 
@@ -325,7 +335,7 @@ namespace Kernel
 		ASSERT(Kernel::Processor::get_interrupt_state() == InterruptState::Disabled);
 		while ((read_from_local_apic(LAPIC_ICR_LO_REG) & ICR_LO_delivery_status_send_pending) == ICR_LO_delivery_status_send_pending)
 			__builtin_ia32_pause();
-		write_to_local_apic(LAPIC_ICR_HI_REG, (read_from_local_apic(LAPIC_ICR_HI_REG) & 0x00FFFFFF) | (target << 24));
+		write_to_local_apic(LAPIC_ICR_HI_REG, (read_from_local_apic(LAPIC_ICR_HI_REG) & 0x00FFFFFF) | (target.as_u32() << 24));
 		write_to_local_apic(LAPIC_ICR_LO_REG,
 			(read_from_local_apic(LAPIC_ICR_LO_REG) & ICR_LO_reserved_mask)
 			| ICR_LO_delivery_mode_fixed
@@ -358,7 +368,6 @@ namespace Kernel
 	{
 		write_to_local_apic(LAPIC_SIV_REG, read_from_local_apic(LAPIC_SIV_REG) | 0x1FF);
 	}
-
 
 	uint32_t APIC::read_from_local_apic(ptrdiff_t offset)
 	{
@@ -418,7 +427,7 @@ namespace Kernel
 		redir.vector = IRQ_VECTOR_BASE + irq;
 		redir.mask = 0;
 		// FIXME: distribute IRQs more evenly?
-		redir.destination = Kernel::Processor::bsb_id();
+		redir.destination = Kernel::Processor::bsb_id().as_u32();
 
 		ioapic->write(IOAPIC_REDIRS + gsi * 2,		redir.lo_dword);
 		ioapic->write(IOAPIC_REDIRS + gsi * 2 + 1,	redir.hi_dword);

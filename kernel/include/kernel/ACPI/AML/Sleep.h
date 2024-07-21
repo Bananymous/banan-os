@@ -30,7 +30,7 @@ namespace Kernel::ACPI::AML
 			AML_DEBUG_PRINTLN("Sleeping for {} ms", sleep_time.value());
 #endif
 
-			SystemTimer::get().sleep(sleep_time.value());
+			SystemTimer::get().sleep_ms(sleep_time.value());
 			return ParseResult::Success;
 		}
 	};

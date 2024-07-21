@@ -70,6 +70,13 @@ asm_yield_handler:
 	popaq
 	iretq
 
+.global asm_ipi_handler
+asm_ipi_handler:
+	pushaq
+	call cpp_ipi_handler
+	popaq
+	iretq
+
 .macro isr n
 	.global isr\n
 	isr\n:
@@ -158,4 +165,3 @@ irq 28
 irq 29
 irq 30
 irq 31
-irq 32

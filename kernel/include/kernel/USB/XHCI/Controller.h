@@ -4,6 +4,7 @@
 
 #include <kernel/Lock/Mutex.h>
 #include <kernel/Memory/DMARegion.h>
+#include <kernel/ThreadBlocker.h>
 #include <kernel/USB/USBManager.h>
 #include <kernel/USB/XHCI/Definitions.h>
 
@@ -79,7 +80,7 @@ namespace Kernel
 		Mutex m_mutex;
 
 		Process* m_port_updater { nullptr };
-		Semaphore m_port_semaphore;
+		ThreadBlocker m_port_thread_blocker;
 		BAN::Atomic<bool> m_port_changed { false };
 
 		PCI::Device& m_pci_device;

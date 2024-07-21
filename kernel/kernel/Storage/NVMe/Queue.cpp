@@ -1,6 +1,6 @@
 #include <kernel/Lock/LockGuard.h>
-#include <kernel/Scheduler.h>
 #include <kernel/Storage/NVMe/Queue.h>
+#include <kernel/Thread.h>
 #include <kernel/Timer/Timer.h>
 
 namespace Kernel
@@ -44,7 +44,7 @@ namespace Kernel
 
 		m_doorbell.cq_head = m_cq_head;
 
-		m_semaphore.unblock();
+		m_thread_blocker.unblock();
 	}
 
 	uint16_t NVMeQueue::submit_command(NVMe::SubmissionQueueEntry& sqe)
@@ -66,15 +66,15 @@ namespace Kernel
 			m_doorbell.sq_tail = m_sq_tail;
 		}
 
-		const uint64_t start_time = SystemTimer::get().ms_since_boot();
-		while (!(m_done_mask & cid_mask) && SystemTimer::get().ms_since_boot() < start_time + s_nvme_command_poll_timeout_ms)
+		const uint64_t start_time_ms = SystemTimer::get().ms_since_boot();
+		while (!(m_done_mask & cid_mask) && SystemTimer::get().ms_since_boot() < start_time_ms + s_nvme_command_poll_timeout_ms)
 			continue;
 
 		// FIXME: Here is a possible race condition if done mask is set before
 		//        scheduler has put the current thread blocking.
 		//        EINTR should also be handled here.
-		while (!(m_done_mask & cid_mask) && SystemTimer::get().ms_since_boot() < start_time + s_nvme_command_timeout_ms)
-			Scheduler::get().block_current_thread(&m_semaphore, start_time + s_nvme_command_timeout_ms);
+		while (!(m_done_mask & cid_mask) && SystemTimer::get().ms_since_boot() < start_time_ms + s_nvme_command_timeout_ms)
+			m_thread_blocker.block_with_wake_time_ms(start_time_ms + s_nvme_command_timeout_ms);
 
 		if (m_done_mask & cid_mask)
 		{
@@ -93,7 +93,7 @@ namespace Kernel
 		while (~m_used_mask == 0)
 		{
 			m_lock.unlock(state);
-			m_semaphore.block_with_timeout(s_nvme_command_timeout_ms);
+			m_thread_blocker.block_with_timeout_ms(s_nvme_command_timeout_ms);
 			state = m_lock.lock();
 		}
 

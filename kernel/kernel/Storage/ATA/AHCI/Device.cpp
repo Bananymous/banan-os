@@ -8,7 +8,7 @@
 namespace Kernel
 {
 
-	static constexpr uint64_t s_ata_timeout = 1000;
+	static constexpr uint64_t s_ata_timeout_ms = 1000;
 
 	static void start_cmd(volatile HBAPortMemorySpace* port)
 	{
@@ -118,9 +118,9 @@ namespace Kernel
 		command.c = 1;
 		command.command = ATA_COMMAND_IDENTIFY;
 
-		uint64_t timeout = SystemTimer::get().ms_since_boot() + s_ata_timeout;
+		const uint64_t timeout_ms = SystemTimer::get().ms_since_boot() + s_ata_timeout_ms;
 		while (m_port->tfd & (ATA_STATUS_BSY | ATA_STATUS_DRQ))
-			if (SystemTimer::get().ms_since_boot() >= timeout)
+			if (SystemTimer::get().ms_since_boot() >= timeout_ms)
 				return BAN::Error::from_errno(ETIMEDOUT);
 
 		m_port->ci = 1 << slot.value();
@@ -158,17 +158,17 @@ namespace Kernel
 	{
 		static constexpr uint64_t poll_timeout_ms = 10;
 
-		auto start_time = SystemTimer::get().ms_since_boot();
+		const auto start_time_ms = SystemTimer::get().ms_since_boot();
 
-		while (SystemTimer::get().ms_since_boot() < start_time + poll_timeout_ms)
+		while (SystemTimer::get().ms_since_boot() < start_time_ms + poll_timeout_ms)
 			if (!(m_port->ci & (1 << command_slot)))
 				return {};
 
-		// FIXME: This should actually block once semaphores support blocking with timeout.
+		// FIXME: This should actually block once ThreadBlocker support blocking with timeout.
 		//        This doesn't allow scheduler to go properly idle.
-		while (SystemTimer::get().ms_since_boot() < start_time + s_ata_timeout)
+		while (SystemTimer::get().ms_since_boot() < start_time_ms + s_ata_timeout_ms)
 		{
-			Scheduler::get().yield();
+			Processor::yield();
 			if (!(m_port->ci & (1 << command_slot)))
 				return {};
 		}

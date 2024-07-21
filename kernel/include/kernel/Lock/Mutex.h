@@ -2,7 +2,7 @@
 
 #include <BAN/Atomic.h>
 #include <BAN/NoCopyMove.h>
-#include <kernel/Scheduler.h>
+#include <kernel/Thread.h>
 
 #include <sys/types.h>
 
@@ -19,7 +19,7 @@ namespace Kernel
 
 		void lock()
 		{
-			auto tid = Scheduler::current_tid();
+			const auto tid = Thread::current_tid();
 			if (tid == m_locker)
 				ASSERT(m_lock_depth > 0);
 			else
@@ -27,11 +27,11 @@ namespace Kernel
 				pid_t expected = -1;
 				while (!m_locker.compare_exchange(expected, tid))
 				{
-					Scheduler::get().yield();
+					Processor::yield();
 					expected = -1;
 				}
 				ASSERT(m_lock_depth == 0);
-				if (Scheduler::current_tid())
+				if (tid)
 					Thread::current().add_mutex();
 			}
 			m_lock_depth++;
@@ -39,7 +39,7 @@ namespace Kernel
 
 		bool try_lock()
 		{
-			auto tid = Scheduler::current_tid();
+			const auto tid = Thread::current_tid();
 			if (tid == m_locker)
 				ASSERT(m_lock_depth > 0);
 			else
@@ -48,7 +48,7 @@ namespace Kernel
 				if (!m_locker.compare_exchange(expected, tid))
 					return false;
 				ASSERT(m_lock_depth == 0);
-				if (Scheduler::current_tid())
+				if (tid)
 					Thread::current().add_mutex();
 			}
 			m_lock_depth++;
@@ -57,12 +57,13 @@ namespace Kernel
 
 		void unlock()
 		{
-			ASSERT(m_locker == Scheduler::current_tid());
+			const auto tid = Thread::current_tid();
+			ASSERT(m_locker == tid);
 			ASSERT(m_lock_depth > 0);
 			if (--m_lock_depth == 0)
 			{
 				m_locker = -1;
-				if (Scheduler::current_tid())
+				if (tid)
 					Thread::current().remove_mutex();
 			}
 		}
@@ -86,7 +87,7 @@ namespace Kernel
 
 		void lock()
 		{
-			auto tid = Scheduler::current_tid();
+			const auto tid = Thread::current_tid();
 			if (tid == m_locker)
 				ASSERT(m_lock_depth > 0);
 			else
@@ -97,11 +98,11 @@ namespace Kernel
 				pid_t expected = -1;
 				while (!(has_priority || m_queue_length == 0) || !m_locker.compare_exchange(expected, tid))
 				{
-					Scheduler::get().yield();
+					Processor::yield();
 					expected = -1;
 				}
 				ASSERT(m_lock_depth == 0);
-				if (Scheduler::current_tid())
+				if (tid)
 					Thread::current().add_mutex();
 			}
 			m_lock_depth++;
@@ -109,7 +110,7 @@ namespace Kernel
 
 		bool try_lock()
 		{
-			auto tid = Scheduler::current_tid();
+			const auto tid = Thread::current_tid();
 			if (tid == m_locker)
 				ASSERT(m_lock_depth > 0);
 			else
@@ -121,7 +122,7 @@ namespace Kernel
 				if (has_priority)
 					m_queue_length++;
 				ASSERT(m_lock_depth == 0);
-				if (Scheduler::current_tid())
+				if (tid)
 					Thread::current().add_mutex();
 			}
 			m_lock_depth++;
@@ -130,7 +131,7 @@ namespace Kernel
 
 		void unlock()
 		{
-			auto tid = Scheduler::current_tid();
+			const auto tid = Thread::current_tid();
 			ASSERT(m_locker == tid);
 			ASSERT(m_lock_depth > 0);
 			if (--m_lock_depth == 0)
@@ -139,7 +140,7 @@ namespace Kernel
 				if (has_priority)
 					m_queue_length--;
 				m_locker = -1;
-				if (Scheduler::current_tid())
+				if (tid)
 					Thread::current().remove_mutex();
 			}
 		}

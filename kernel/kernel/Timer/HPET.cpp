@@ -4,7 +4,7 @@
 #include <kernel/InterruptController.h>
 #include <kernel/Memory/PageTable.h>
 #include <kernel/MMIO.h>
-#include <kernel/Scheduler.h>
+#include <kernel/Processor.h>
 #include <kernel/Timer/HPET.h>
 
 #define HPET_PERIOD_MAX 0x05F5E100
@@ -272,7 +272,7 @@ namespace Kernel
 			m_last_ticks = current_ticks;
 		}
 
-		Scheduler::get().timer_reschedule();
+		Processor::scheduler().timer_interrupt();
 	}
 
 	uint64_t HPET::ms_since_boot() const

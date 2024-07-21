@@ -57,7 +57,7 @@ namespace Kernel
 				if ((flags & TTY_FLAG_ENABLE_INPUT) && !m_tty_ctrl.receive_input)
 				{
 					m_tty_ctrl.receive_input = true;
-					m_tty_ctrl.semaphore.unblock();
+					m_tty_ctrl.thread_blocker.unblock();
 				}
 				if (flags & TTY_FLAG_ENABLE_OUTPUT)
 					m_tty_ctrl.draw_graphics = true;
@@ -94,7 +94,7 @@ namespace Kernel
 				while (true)
 				{
 					while (!TTY::current()->m_tty_ctrl.receive_input)
-						TTY::current()->m_tty_ctrl.semaphore.block_indefinite();
+						TTY::current()->m_tty_ctrl.thread_blocker.block_indefinite();
 
 					LibInput::RawKeyEvent event;
 					size_t read = MUST(inode->read(0, BAN::ByteSpan::from(event)));
@@ -237,7 +237,7 @@ namespace Kernel
 		if (ch == '\x04' && m_termios.canonical)
 		{
 			m_output.flush = true;
-			m_output.semaphore.unblock();
+			m_output.thread_blocker.unblock();
 			return;
 		}
 
@@ -279,7 +279,7 @@ namespace Kernel
 		if (ch == '\n' || !m_termios.canonical)
 		{
 			m_output.flush = true;
-			m_output.semaphore.unblock();
+			m_output.thread_blocker.unblock();
 		}
 	}
 
@@ -338,7 +338,7 @@ namespace Kernel
 		while (!m_output.flush)
 		{
 			LockFreeGuard _(m_mutex);
-			TRY(Thread::current().block_or_eintr_indefinite(m_output.semaphore));
+			TRY(Thread::current().block_or_eintr_indefinite(m_output.thread_blocker));
 		}
 
 		if (m_output.bytes == 0)
@@ -356,7 +356,7 @@ namespace Kernel
 		if (m_output.bytes == 0)
 			m_output.flush = false;
 
-		m_output.semaphore.unblock();
+		m_output.thread_blocker.unblock();
 
 		return to_copy;
 	}

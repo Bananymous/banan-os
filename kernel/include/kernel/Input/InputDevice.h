@@ -3,6 +3,7 @@
 #include <BAN/ByteSpan.h>
 
 #include <kernel/Device/Device.h>
+#include <kernel/ThreadBlocker.h>
 
 namespace Kernel
 {
@@ -42,7 +43,7 @@ namespace Kernel
 		const Type m_type;
 
 		mutable SpinLock m_event_lock;
-		Semaphore m_event_semaphore;
+		ThreadBlocker m_event_thread_blocker;
 
 		static constexpr size_t m_max_event_count { 128 };
 
@@ -63,7 +64,7 @@ namespace Kernel
 	public:
 		static BAN::ErrorOr<BAN::RefPtr<KeyboardDevice>> create(mode_t mode, uid_t uid, gid_t gid);
 
-		void notify() { m_semaphore.unblock(); }
+		void notify() { m_thread_blocker.unblock(); }
 
 	private:
 		KeyboardDevice(mode_t mode, uid_t uid, gid_t gid);
@@ -79,7 +80,7 @@ namespace Kernel
 	private:
 		const dev_t m_rdev;
 		const BAN::StringView m_name;
-		Semaphore m_semaphore;
+		ThreadBlocker m_thread_blocker;
 
 		friend class BAN::RefPtr<KeyboardDevice>;
 	};
@@ -89,7 +90,7 @@ namespace Kernel
 	public:
 		static BAN::ErrorOr<BAN::RefPtr<MouseDevice>> create(mode_t mode, uid_t uid, gid_t gid);
 
-		void notify() { m_semaphore.unblock(); }
+		void notify() { m_thread_blocker.unblock(); }
 
 	private:
 		MouseDevice(mode_t mode, uid_t uid, gid_t gid);
@@ -105,7 +106,7 @@ namespace Kernel
 	private:
 		const dev_t m_rdev;
 		const BAN::StringView m_name;
-		Semaphore m_semaphore;
+		ThreadBlocker m_thread_blocker;
 
 		friend class BAN::RefPtr<MouseDevice>;
 	};

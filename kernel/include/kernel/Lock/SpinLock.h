@@ -23,34 +23,45 @@ namespace Kernel
 			auto state = Processor::get_interrupt_state();
 			Processor::set_interrupt_state(InterruptState::Disabled);
 
-			auto id = Processor::current_id();
-			ASSERT(m_locker != id);
+			auto id = Processor::current_id().as_u32();
+			ASSERT(m_locker.load(BAN::MemoryOrder::memory_order_relaxed) != id);
 
-			ProcessorID expected = PROCESSOR_NONE;
+			auto expected = PROCESSOR_NONE.as_u32();
 			while (!m_locker.compare_exchange(expected, id, BAN::MemoryOrder::memory_order_acquire))
 			{
-				__builtin_ia32_pause();
-				expected = PROCESSOR_NONE;
+				Processor::pause();
+				expected = PROCESSOR_NONE.as_u32();
 			}
 
 			return state;
 		}
 
+		bool try_lock_interrupts_disabled()
+		{
+			ASSERT(Processor::get_interrupt_state() == InterruptState::Disabled);
+
+			auto id = Processor::current_id().as_u32();
+			ASSERT(m_locker.load(BAN::MemoryOrder::memory_order_relaxed) != id);
+
+			auto expected = PROCESSOR_NONE.as_u32();
+			return m_locker.compare_exchange(expected, id, BAN::MemoryOrder::memory_order_acquire);
+		}
+
 		void unlock(InterruptState state)
 		{
 			ASSERT(Processor::get_interrupt_state() == InterruptState::Disabled);
-			ASSERT(m_locker == Processor::current_id());
-			m_locker.store(PROCESSOR_NONE, BAN::MemoryOrder::memory_order_release);
+			ASSERT(current_processor_has_lock());
+			m_locker.store(PROCESSOR_NONE.as_u32(), BAN::MemoryOrder::memory_order_release);
 			Processor::set_interrupt_state(state);
 		}
 
 		bool current_processor_has_lock() const
 		{
-			return m_locker == Processor::current_id();
+			return m_locker.load(BAN::MemoryOrder::memory_order_relaxed) == Processor::current_id().as_u32();
 		}
 
 	private:
-		BAN::Atomic<ProcessorID> m_locker { PROCESSOR_NONE };
+		BAN::Atomic<ProcessorID::value_type> m_locker { PROCESSOR_NONE.as_u32() };
 	};
 
 	class RecursiveSpinLock
@@ -66,18 +77,15 @@ namespace Kernel
 			auto state = Processor::get_interrupt_state();
 			Processor::set_interrupt_state(InterruptState::Disabled);
 
-			auto id = Processor::current_id();
-			if (m_locker == id)
-				ASSERT(m_lock_depth > 0);
-			else
+			auto id = Processor::current_id().as_u32();
+
+			ProcessorID::value_type expected = PROCESSOR_NONE.as_u32();
+			while (!m_locker.compare_exchange(expected, id, BAN::MemoryOrder::memory_order_acq_rel))
 			{
-				ProcessorID expected = PROCESSOR_NONE;
-				while (!m_locker.compare_exchange(expected, id, BAN::MemoryOrder::memory_order_acquire))
-				{
-					__builtin_ia32_pause();
-					expected = PROCESSOR_NONE;
-				}
-				ASSERT(m_lock_depth == 0);
+				if (expected == id)
+					break;
+				Processor::pause();
+				expected = PROCESSOR_NONE.as_u32();
 			}
 
 			m_lock_depth++;
@@ -88,21 +96,21 @@ namespace Kernel
 		void unlock(InterruptState state)
 		{
 			ASSERT(Processor::get_interrupt_state() == InterruptState::Disabled);
-			ASSERT(m_locker == Processor::current_id());
+			ASSERT(current_processor_has_lock());
 			ASSERT(m_lock_depth > 0);
 			if (--m_lock_depth == 0)
-				m_locker.store(PROCESSOR_NONE, BAN::MemoryOrder::memory_order_release);
+				m_locker.store(PROCESSOR_NONE.as_u32(), BAN::MemoryOrder::memory_order_release);
 			Processor::set_interrupt_state(state);
 		}
 
 		bool current_processor_has_lock() const
 		{
-			return m_locker == Processor::current_id();
+			return m_locker.load(BAN::MemoryOrder::memory_order_relaxed) == Processor::current_id().as_u32();
 		}
 
 	private:
-		BAN::Atomic<ProcessorID>	m_locker { PROCESSOR_NONE };
-		uint32_t					m_lock_depth { 0 };
+		BAN::Atomic<ProcessorID::value_type> m_locker { PROCESSOR_NONE.as_u32() };
+		uint32_t                             m_lock_depth { 0 };
 	};
 
 	template<typename Lock>

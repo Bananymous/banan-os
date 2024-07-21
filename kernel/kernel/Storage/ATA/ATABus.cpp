@@ -67,9 +67,7 @@ namespace Kernel
 
 	static void select_delay()
 	{
-		auto time = SystemTimer::get().ns_since_boot();
-		while (SystemTimer::get().ns_since_boot() < time + 400)
-			continue;
+		SystemTimer::get().sleep_ns(400);
 	}
 
 	void ATABus::select_device(bool secondary)
@@ -106,7 +104,7 @@ namespace Kernel
 		io_write(ATA_PORT_CONTROL, ATA_CONTROL_nIEN);
 
 		io_write(ATA_PORT_COMMAND, ATA_COMMAND_IDENTIFY);
-		SystemTimer::get().sleep(1);
+		SystemTimer::get().sleep_ms(1);
 
 		// No device on port
 		if (io_read(ATA_PORT_STATUS) == 0)
@@ -130,7 +128,7 @@ namespace Kernel
 			}
 
 			io_write(ATA_PORT_COMMAND, ATA_COMMAND_IDENTIFY_PACKET);
-			SystemTimer::get().sleep(1);
+			SystemTimer::get().sleep_ms(1);
 
 			if (auto res = wait(true); res.is_error())
 			{

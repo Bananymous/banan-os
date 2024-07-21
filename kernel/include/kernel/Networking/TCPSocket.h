@@ -7,7 +7,7 @@
 #include <kernel/Networking/NetworkInterface.h>
 #include <kernel/Networking/NetworkSocket.h>
 #include <kernel/Process.h>
-#include <kernel/Semaphore.h>
+#include <kernel/ThreadBlocker.h>
 
 namespace Kernel
 {
@@ -161,7 +161,7 @@ namespace Kernel
 
 		uint64_t m_time_wait_start_ms { 0 };
 
-		Semaphore m_semaphore;
+		ThreadBlocker m_thread_blocker;
 
 		RecvWindowInfo m_recv_window;
 		SendWindowInfo m_send_window;

@@ -1,7 +1,7 @@
 #pragma once
 
 #include <kernel/FS/Inode.h>
-#include <kernel/Semaphore.h>
+#include <kernel/ThreadBlocker.h>
 
 namespace Kernel
 {
@@ -47,7 +47,7 @@ namespace Kernel
 		timespec m_mtime {};
 		timespec m_ctime {};
 		BAN::Vector<uint8_t> m_buffer;
-		Semaphore m_semaphore;
+		ThreadBlocker m_thread_blocker;
 
 		uint32_t m_writing_count { 1 };
 	};

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <kernel/Arch.h>
+
 #include <stdint.h>
 
 namespace Kernel

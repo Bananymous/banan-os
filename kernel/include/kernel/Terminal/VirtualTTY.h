@@ -5,7 +5,7 @@
 #include <kernel/Terminal/TerminalDriver.h>
 #include <kernel/Terminal/termios.h>
 #include <kernel/Terminal/TTY.h>
-#include <kernel/Semaphore.h>
+#include <kernel/ThreadBlocker.h>
 
 namespace Kernel
 {

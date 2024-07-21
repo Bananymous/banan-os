@@ -251,7 +251,7 @@ namespace Kernel
 	private:
 		struct ExitStatus
 		{
-			Semaphore			semaphore;
+			ThreadBlocker		thread_blocker;
 			int					exit_code	{ 0 };
 			BAN::Atomic<bool>	exited		{ false };
 			BAN::Atomic<int>	waiting		{ 0 };

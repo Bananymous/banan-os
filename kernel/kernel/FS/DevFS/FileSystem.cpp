@@ -49,7 +49,7 @@ namespace Kernel
 						for (auto& device : s_instance->m_devices)
 							device->update();
 					}
-					SystemTimer::get().sleep(10);
+					SystemTimer::get().sleep_ms(10);
 				}
 			}, nullptr
 		);
@@ -65,7 +65,7 @@ namespace Kernel
 					while (!s_instance->m_should_sync)
 					{
 						LockFreeGuard _(s_instance->m_device_lock);
-						s_instance->m_sync_semaphore.block_indefinite();
+						s_instance->m_sync_thread_blocker.block_indefinite();
 					}
 
 					for (auto& device : s_instance->m_devices)
@@ -84,11 +84,11 @@ namespace Kernel
 			{
 				while (true)
 				{
-					SystemTimer::get().sleep(10000);
+					SystemTimer::get().sleep_ms(10'000);
 
 					LockGuard _(s_instance->m_device_lock);
 					s_instance->m_should_sync = true;
-					s_instance->m_sync_semaphore.unblock();
+					s_instance->m_sync_thread_blocker.unblock();
 				}
 			}, nullptr, sync_process
 		)));
@@ -101,7 +101,7 @@ namespace Kernel
 		{
 			LockGuard _(m_device_lock);
 			m_should_sync = true;
-			m_sync_semaphore.unblock();
+			m_sync_thread_blocker.unblock();
 		}
 		if (should_block)
 			m_sync_done.block_indefinite();

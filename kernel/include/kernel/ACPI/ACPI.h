@@ -5,6 +5,7 @@
 #include <kernel/ACPI/AML/Namespace.h>
 #include <kernel/ACPI/Headers.h>
 #include <kernel/Memory/Types.h>
+#include <kernel/ThreadBlocker.h>
 
 namespace Kernel::ACPI
 {
@@ -63,7 +64,7 @@ namespace Kernel::ACPI
 
 		FADT* m_fadt { nullptr };
 
-		Semaphore m_event_semaphore;
+		ThreadBlocker m_event_thread_blocker;
 		BAN::Array<BAN::RefPtr<AML::Method>, 0xFF> m_gpe_methods;
 
 		bool m_hardware_reduced { false };

@@ -4,7 +4,7 @@
 #include <kernel/Device/Device.h>
 #include <kernel/FS/TmpFS/FileSystem.h>
 #include <kernel/Lock/Mutex.h>
-#include <kernel/Semaphore.h>
+#include <kernel/ThreadBlocker.h>
 
 namespace Kernel
 {
@@ -34,8 +34,8 @@ namespace Kernel
 
 		BAN::Vector<BAN::RefPtr<Device>> m_devices;
 
-		Semaphore m_sync_done;
-		Semaphore m_sync_semaphore;
+		ThreadBlocker m_sync_done;
+		ThreadBlocker m_sync_thread_blocker;
 		volatile bool m_should_sync { false };
 	};
 

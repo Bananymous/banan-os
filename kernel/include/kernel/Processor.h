@@ -1,12 +1,14 @@
 #pragma once
 
+#include <BAN/Atomic.h>
+#include <BAN/Formatter.h>
 #include <BAN/ForwardList.h>
 
 #include <kernel/Arch.h>
 #include <kernel/GDT.h>
 #include <kernel/IDT.h>
 #include <kernel/InterruptStack.h>
-#include <kernel/SchedulerQueue.h>
+#include <kernel/Scheduler.h>
 
 namespace Kernel
 {
@@ -17,8 +19,28 @@ namespace Kernel
 		Enabled,
 	};
 
-	using ProcessorID = uint32_t;
-	constexpr ProcessorID PROCESSOR_NONE = 0xFFFFFFFF;
+	class ProcessorID
+	{
+	public:
+		using value_type = uint32_t;
+
+	public:
+		ProcessorID() = default;
+
+		uint32_t as_u32() const { return m_id; }
+		bool operator==(ProcessorID other) const { return m_id == other.m_id; }
+
+	private:
+		explicit ProcessorID(uint32_t id) : m_id(id) {}
+
+	private:
+		uint32_t m_id = static_cast<uint32_t>(-1);
+
+		friend class Processor;
+		friend class APIC;
+	};
+
+	constexpr ProcessorID PROCESSOR_NONE { };
 
 #if ARCH(x86_64) || ARCH(i686)
 	class Processor
@@ -27,11 +49,43 @@ namespace Kernel
 		BAN_NON_MOVABLE(Processor);
 
 	public:
+		struct SMPMessage
+		{
+			enum class Type
+			{
+				FlushTLB,
+				NewThread,
+				UnblockThread,
+				// FIXME: all processors should LAPIC for their preemption
+				SchedulerPreemption,
+			};
+			SMPMessage* next { nullptr };
+			Type type;
+			union
+			{
+				struct
+				{
+					uintptr_t vaddr;
+					size_t page_count;
+				} flush_tlb;
+				Scheduler::NewThreadRequest new_thread;
+				Scheduler::UnblockRequest unblock_thread;
+				uintptr_t scheduler_preemption;
+			};
+		};
+
+	public:
 		static Processor& create(ProcessorID id);
 		static Processor& initialize();
-		static void allocate_idle_thread();
 
 		static ProcessorID current_id() { return read_gs_sized<ProcessorID>(offsetof(Processor, m_id)); }
+		static ProcessorID id_from_index(size_t index);
+
+		static uint8_t count()       { return s_processor_count; }
+		static bool is_smp_enabled() { return s_is_smp_enabled; }
+		static void wait_until_processors_ready();
+
+		static void toggle_should_print_cpu_load() { s_should_print_cpu_load = !s_should_print_cpu_load; }
 
 		static ProcessorID bsb_id() { return s_bsb_id; }
 		static bool current_is_bsb() { return current_id() == bsb_id(); }
@@ -53,30 +107,39 @@ namespace Kernel
 			return InterruptState::Disabled;
 		};
 
-		static uintptr_t current_stack_bottom() { return reinterpret_cast<uintptr_t>(read_gs_ptr(offsetof(Processor, m_stack))); }
+		static void pause()
+		{
+			__builtin_ia32_pause();
+			if (is_smp_enabled())
+				handle_smp_messages();
+		}
+
+		static uintptr_t current_stack_bottom() { return read_gs_sized<uintptr_t>(offsetof(Processor, m_stack)); }
 		static uintptr_t current_stack_top()	{ return current_stack_bottom() + s_stack_size; }
 
 		uintptr_t stack_bottom() const	{ return reinterpret_cast<uintptr_t>(m_stack); }
 		uintptr_t stack_top() const		{ return stack_bottom() + s_stack_size; }
 
-		static GDT& gdt() { return *reinterpret_cast<GDT*>(read_gs_ptr(offsetof(Processor, m_gdt))); }
-		static IDT& idt() { return *reinterpret_cast<IDT*>(read_gs_ptr(offsetof(Processor, m_idt))); }
+		static GDT& gdt() { return *read_gs_sized<GDT*>(offsetof(Processor, m_gdt)); }
+		static IDT& idt() { return *read_gs_sized<IDT*>(offsetof(Processor, m_idt)); }
 
-		static void* get_current_page_table()					{ return read_gs_ptr(offsetof(Processor, m_current_page_table)); }
-		static void set_current_page_table(void* page_table)	{ write_gs_ptr(offsetof(Processor, m_current_page_table), page_table); }
+		static void* get_current_page_table()					{ return read_gs_sized<void*>(offsetof(Processor, m_current_page_table)); }
+		static void set_current_page_table(void* page_table)	{ write_gs_sized<void*>(offsetof(Processor, m_current_page_table), page_table); }
 
-		static Thread* idle_thread()									{ return reinterpret_cast<Thread*>(read_gs_ptr(offsetof(Processor, m_idle_thread))); }
-		static SchedulerQueue::Node* get_current_thread()				{ return reinterpret_cast<SchedulerQueue::Node*>(read_gs_ptr(offsetof(Processor, m_current_thread))); }
-		static void set_current_thread(SchedulerQueue::Node* thread)	{ write_gs_ptr(offsetof(Processor, m_current_thread), thread); }
+		static void yield();
+		static Scheduler& scheduler() { return *read_gs_sized<Scheduler*>(offsetof(Processor, m_scheduler)); }
 
-		static void enter_interrupt(InterruptStack*, InterruptRegisters*);
-		static void leave_interrupt();
-		static InterruptStack& get_interrupt_stack();
-		static InterruptRegisters& get_interrupt_registers();
+		static void handle_ipi();
+
+		static void handle_smp_messages();
+		static void send_smp_message(ProcessorID, const SMPMessage&, bool send_ipi = true);
+		static void broadcast_smp_message(const SMPMessage&);
 
 	private:
 		Processor() = default;
 		~Processor() { ASSERT_NOT_REACHED(); }
+
+		static ProcessorID read_processor_id();
 
 		template<typename T>
 		static T read_gs_sized(uintptr_t offset) requires(sizeof(T) <= 8)
@@ -110,11 +173,10 @@ namespace Kernel
 #undef __ASM_INPUT
 		}
 
-		static void* read_gs_ptr(uintptr_t offset) { return read_gs_sized<void*>(offset); }
-		static void write_gs_ptr(uintptr_t offset, void* value) { write_gs_sized<void*>(offset, value); }
-
 	private:
 		static ProcessorID s_bsb_id;
+		static BAN::Atomic<uint8_t> s_processor_count;
+		static BAN::Atomic<bool>    s_is_smp_enabled;
 
 		ProcessorID m_id { PROCESSOR_NONE };
 
@@ -124,11 +186,15 @@ namespace Kernel
 		GDT* m_gdt { nullptr };
 		IDT* m_idt { nullptr };
 
-		Thread* m_idle_thread { nullptr };
-		SchedulerQueue::Node* m_current_thread { nullptr };
+		Scheduler* m_scheduler { nullptr };
 
-		InterruptStack* m_interrupt_stack { nullptr };
-		InterruptRegisters* m_interrupt_registers { nullptr };
+		BAN::Atomic<bool> m_smp_pending_lock { false };
+		SMPMessage* m_smp_pending { nullptr };
+
+		BAN::Atomic<bool> m_smp_free_lock { false };
+		SMPMessage* m_smp_free    { nullptr };
+
+		SMPMessage* m_smp_message_storage;
 
 		void* m_current_page_table { nullptr };
 
@@ -137,5 +203,16 @@ namespace Kernel
 #else
 	#error
 #endif
+
+}
+
+namespace BAN::Formatter
+{
+
+	template<typename F>
+	void print_argument(F putc, Kernel::ProcessorID processor_id, const ValueFormat& format)
+	{
+		print_argument(putc, processor_id.as_u32(), format);
+	}
 
 }

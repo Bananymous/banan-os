@@ -77,7 +77,7 @@ namespace Kernel
 		static constexpr size_t pending_packet_buffer_size = 128 * PAGE_SIZE;
 		BAN::UniqPtr<VirtualRange>					m_pending_packet_buffer;
 		BAN::CircularQueue<PendingIPv4Packet, 128>	m_pending_packets;
-		Semaphore									m_pending_semaphore;
+		ThreadBlocker									m_pending_thread_blocker;
 		SpinLock									m_pending_lock;
 		size_t										m_pending_total_size { 0 };
 

@@ -47,10 +47,12 @@ namespace Kernel
 		void handle_signal(int signal = 0);
 		bool add_signal(int signal);
 
-		// blocks semaphore and returns either on unblock, eintr, spuriously or after timeout
-		BAN::ErrorOr<void> block_or_eintr_indefinite(Semaphore& semaphore);
-		BAN::ErrorOr<void> block_or_eintr_or_timeout(Semaphore& semaphore, uint64_t timeout_ms, bool etimedout);
-		BAN::ErrorOr<void> block_or_eintr_or_waketime(Semaphore& semaphore, uint64_t wake_time_ms, bool etimedout);
+		// blocks current thread and returns either on unblock, eintr, spuriously or after timeout
+		BAN::ErrorOr<void> block_or_eintr_indefinite(ThreadBlocker& thread_blocker);
+		BAN::ErrorOr<void> block_or_eintr_or_timeout_ms(ThreadBlocker& thread_blocker, uint64_t timeout_ms, bool etimedout) { return block_or_eintr_or_timeout_ns(thread_blocker, timeout_ms * 1'000'000, etimedout); }
+		BAN::ErrorOr<void> block_or_eintr_or_waketime_ms(ThreadBlocker& thread_blocker, uint64_t wake_time_ms, bool etimedout) { return block_or_eintr_or_waketime_ns(thread_blocker, wake_time_ms * 1'000'000, etimedout); }
+		BAN::ErrorOr<void> block_or_eintr_or_timeout_ns(ThreadBlocker& thread_blocker, uint64_t timeout_ns, bool etimedout);
+		BAN::ErrorOr<void> block_or_eintr_or_waketime_ns(ThreadBlocker& thread_blocker, uint64_t wake_time_ns, bool etimedout);
 
 		pid_t tid() const { return m_tid; }
 

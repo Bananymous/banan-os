@@ -5,7 +5,7 @@
 #include <BAN/UniqPtr.h>
 #include <kernel/Networking/NetworkInterface.h>
 #include <kernel/Process.h>
-#include <kernel/Semaphore.h>
+#include <kernel/ThreadBlocker.h>
 
 namespace Kernel
 {
@@ -58,7 +58,7 @@ namespace Kernel
 
 		Process*									m_process = nullptr;
 		BAN::CircularQueue<PendingArpPacket, 128>	m_pending_packets;
-		Semaphore									m_pending_semaphore;
+		ThreadBlocker									m_pending_thread_blocker;
 
 		friend class BAN::UniqPtr<ARPTable>;
 	};

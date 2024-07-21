@@ -70,7 +70,7 @@ namespace Kernel
 		m_packets.emplace(packet_info);
 		m_packet_total_size += payload.size();
 
-		m_packet_semaphore.unblock();
+		m_packet_thread_blocker.unblock();
 	}
 
 	BAN::ErrorOr<void> UDPSocket::bind_impl(const sockaddr* address, socklen_t address_len)
@@ -93,7 +93,7 @@ namespace Kernel
 		while (m_packets.empty())
 		{
 			m_packet_lock.unlock(state);
-			TRY(Thread::current().block_or_eintr_indefinite(m_packet_semaphore));
+			TRY(Thread::current().block_or_eintr_indefinite(m_packet_thread_blocker));
 			state = m_packet_lock.lock();
 		}
 

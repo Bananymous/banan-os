@@ -5,7 +5,7 @@
 #include <kernel/Lock/SpinLock.h>
 #include <kernel/Terminal/TerminalDriver.h>
 #include <kernel/Terminal/termios.h>
-#include <kernel/Semaphore.h>
+#include <kernel/ThreadBlocker.h>
 #include <LibInput/KeyEvent.h>
 
 namespace Kernel
@@ -74,7 +74,7 @@ namespace Kernel
 		{
 			bool draw_graphics { true };
 			bool receive_input { true };
-			Semaphore semaphore;
+			ThreadBlocker thread_blocker;
 		};
 		tty_ctrl_t m_tty_ctrl;
 
@@ -83,7 +83,7 @@ namespace Kernel
 			BAN::Array<uint8_t, 1024> buffer;
 			size_t bytes { 0 };
 			bool flush { false };
-			Semaphore semaphore;
+			ThreadBlocker thread_blocker;
 		};
 		Buffer m_output;
 

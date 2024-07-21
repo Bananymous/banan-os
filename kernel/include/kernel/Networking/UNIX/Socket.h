@@ -48,7 +48,7 @@ namespace Kernel
 			mutable BAN::Atomic<bool>					target_closed { false };
 			BAN::WeakPtr<UnixDomainSocket>				connection;
 			BAN::Queue<BAN::RefPtr<UnixDomainSocket>>	pending_connections;
-			Semaphore									pending_semaphore;
+			ThreadBlocker									pending_thread_blocker;
 			SpinLock									pending_lock;
 		};
 
@@ -67,7 +67,7 @@ namespace Kernel
 		size_t							m_packet_size_total { 0 };
 		BAN::UniqPtr<VirtualRange>		m_packet_buffer;
 		SpinLock						m_packet_lock;
-		Semaphore						m_packet_semaphore;
+		ThreadBlocker						m_packet_thread_blocker;
 
 		friend class BAN::RefPtr<UnixDomainSocket>;
 	};

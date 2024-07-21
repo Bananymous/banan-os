@@ -97,6 +97,22 @@ asm_yield_handler:
 	popal
 	iret
 
+.global asm_ipi_handler
+asm_ipi_handler:
+	push_userspace
+	load_kernel_segments
+
+	movl %esp, %ebp
+	subl $15, %esp
+	andl $0xFFFFFFF0, %esp
+
+	call cpp_ipi_handler
+
+	movl %ebp, %esp
+
+	pop_userspace
+	iret
+
 .macro isr n
 	.global isr\n
 	isr\n:
@@ -185,4 +201,3 @@ irq 28
 irq 29
 irq 30
 irq 31
-irq 32

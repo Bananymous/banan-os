@@ -69,15 +69,17 @@ namespace Kernel
 		return m_timer->time_since_boot();
 	}
 
-	void SystemTimer::sleep(uint64_t ms) const
+	void SystemTimer::sleep_ns(uint64_t ns) const
 	{
-		if (ms == 0)
+		if (ns == 0)
 			return;
-		uint64_t wake_time = ms_since_boot() + ms;
-		Scheduler::get().set_current_thread_sleeping(wake_time);
-		uint64_t current_time = ms_since_boot();
-		if (current_time < wake_time)
-			dwarnln("sleep woke {} ms too soon", wake_time - current_time);
+
+		const uint64_t wake_time_ns = ns_since_boot() + ns;
+		Processor::scheduler().block_current_thread(nullptr, wake_time_ns);
+
+		//const uint64_t current_time_ns = ns_since_boot();
+		//if (current_time_ns < wake_time_ns)
+		//	dwarnln("sleep woke {} ms too soon", BAN::Math::div_round_up<uint64_t>(wake_time_ns - current_time_ns, 1'000'000));
 	}
 
 	timespec SystemTimer::real_time() const

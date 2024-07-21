@@ -1,6 +1,6 @@
 #pragma once
 
-#include <kernel/Semaphore.h>
+#include <kernel/ThreadBlocker.h>
 #include <kernel/Storage/ATA/AHCI/Definitions.h>
 #include <kernel/Storage/ATA/ATADevice.h>
 

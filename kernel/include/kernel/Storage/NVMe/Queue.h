@@ -4,7 +4,7 @@
 #include <BAN/Vector.h>
 #include <kernel/Interruptable.h>
 #include <kernel/Memory/DMARegion.h>
-#include <kernel/Semaphore.h>
+#include <kernel/ThreadBlocker.h>
 #include <kernel/Storage/NVMe/Definitions.h>
 
 namespace Kernel
@@ -31,7 +31,7 @@ namespace Kernel
 		uint32_t m_cq_head { 0 };
 		uint16_t m_cq_valid_phase { 1 };
 
-		Semaphore			m_semaphore;
+		ThreadBlocker			m_thread_blocker;
 		SpinLock			m_lock;
 		BAN::Atomic<size_t>	m_used_mask			{ 0 };
 		BAN::Atomic<size_t>	m_done_mask			{ 0 };

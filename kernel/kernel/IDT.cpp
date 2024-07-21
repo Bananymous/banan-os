@@ -10,7 +10,7 @@
 #include <kernel/Timer/PIT.h>
 
 #define ISR_LIST_X X(0) X(1) X(2) X(3) X(4) X(5) X(6) X(7) X(8) X(9) X(10) X(11) X(12) X(13) X(14) X(15) X(16) X(17) X(18) X(19) X(20) X(21) X(22) X(23) X(24) X(25) X(26) X(27) X(28) X(29) X(30) X(31)
-#define IRQ_LIST_X X(0) X(1) X(2) X(3) X(4) X(5) X(6) X(7) X(8) X(9) X(10) X(11) X(12) X(13) X(14) X(15) X(16) X(17) X(18) X(19) X(20) X(21) X(22) X(23) X(24) X(25) X(26) X(27) X(28) X(29) X(30) X(31) X(32)
+#define IRQ_LIST_X X(0) X(1) X(2) X(3) X(4) X(5) X(6) X(7) X(8) X(9) X(10) X(11) X(12) X(13) X(14) X(15) X(16) X(17) X(18) X(19) X(20) X(21) X(22) X(23) X(24) X(25) X(26) X(27) X(28) X(29) X(30) X(31)
 
 namespace Kernel
 {
@@ -168,8 +168,8 @@ namespace Kernel
 			asm volatile("cli; 1: hlt; jmp 1b");
 		}
 
-		pid_t tid = Scheduler::current_tid();
-		pid_t pid = tid ? Process::current().pid() : 0;
+		const pid_t tid = Thread::current_tid();
+		const pid_t pid = (tid && Thread::current().has_process()) ? Process::current().pid() : 0;
 
 		if (tid)
 		{
@@ -241,13 +241,13 @@ namespace Kernel
 
 #if ARCH(x86_64)
 		dwarnln(
-			"{} (error code: 0x{8H}), pid {}, tid {}\r\n"
+			"CPU {}: {} (error code: 0x{8H}), pid {}, tid {}\r\n"
 			"Register dump\r\n"
 			"rax=0x{16H}, rbx=0x{16H}, rcx=0x{16H}, rdx=0x{16H}\r\n"
 			"rsp=0x{16H}, rbp=0x{16H}, rdi=0x{16H}, rsi=0x{16H}\r\n"
 			"rip=0x{16H}, rflags=0x{16H}\r\n"
 			"cr0=0x{16H}, cr2=0x{16H}, cr3=0x{16H}, cr4=0x{16H}",
-			isr_exceptions[isr], error, pid, tid,
+			Processor::current_id(), isr_exceptions[isr], error, pid, tid,
 			regs->rax, regs->rbx, regs->rcx, regs->rdx,
 			interrupt_stack->sp, regs->rbp, regs->rdi, regs->rsi,
 			interrupt_stack->ip, interrupt_stack->flags,
@@ -255,13 +255,13 @@ namespace Kernel
 		);
 #elif ARCH(i686)
 		dwarnln(
-			"{} (error code: 0x{8H}), pid {}, tid {}\r\n"
+			"CPU {}: {} (error code: 0x{8H}), pid {}, tid {}\r\n"
 			"Register dump\r\n"
 			"eax=0x{8H}, ebx=0x{8H}, ecx=0x{8H}, edx=0x{8H}\r\n"
 			"esp=0x{8H}, ebp=0x{8H}, edi=0x{8H}, esi=0x{8H}\r\n"
 			"eip=0x{8H}, eflags=0x{8H}\r\n"
 			"cr0=0x{8H}, cr2=0x{8H}, cr3=0x{8H}, cr4=0x{8H}",
-			isr_exceptions[isr], error, pid, tid,
+			Processor::current_id(), isr_exceptions[isr], error, pid, tid,
 			regs->eax, regs->ebx, regs->ecx, regs->edx,
 			interrupt_stack->sp, regs->ebp, regs->edi, regs->esi,
 			interrupt_stack->ip, interrupt_stack->flags,
@@ -320,12 +320,17 @@ done:
 
 	extern "C" void cpp_yield_handler(InterruptStack* interrupt_stack, InterruptRegisters* interrupt_registers)
 	{
+		// yield is raised through kernel software interrupt
 		ASSERT(!InterruptController::get().is_in_service(IRQ_YIELD));
 		ASSERT(!GDT::is_user_segment(interrupt_stack->cs));
+		Processor::scheduler().reschedule(interrupt_stack, interrupt_registers);
+	}
 
-		Processor::enter_interrupt(interrupt_stack, interrupt_registers);
-		Scheduler::get().irq_reschedule();
-		Processor::leave_interrupt();
+	extern "C" void cpp_ipi_handler()
+	{
+		ASSERT(InterruptController::get().is_in_service(IRQ_IPI));
+		InterruptController::get().eoi(IRQ_IPI);
+		Processor::handle_ipi();
 	}
 
 	extern "C" void cpp_irq_handler(uint32_t irq)
@@ -349,8 +354,6 @@ done:
 			InterruptController::get().eoi(irq);
 			if (auto* handler = s_interruptables[irq])
 				handler->handle_irq();
-			else if (irq == IRQ_IPI)
-				Scheduler::get().yield();
 			else
 				dprintln("no handler for irq 0x{2H}", irq);
 		}
@@ -359,7 +362,7 @@ done:
 		if (current_thread.can_add_signal_to_execute())
 			current_thread.handle_signal();
 
-		Scheduler::get().reschedule_if_idling();
+		Processor::scheduler().reschedule_if_idle();
 
 		ASSERT(Thread::current().state() != Thread::State::Terminated);
 
@@ -405,6 +408,7 @@ done:
 #undef X
 
 	extern "C" void asm_yield_handler();
+	extern "C" void asm_ipi_handler();
 	extern "C" void asm_syscall_handler();
 
 	IDT* IDT::create()
@@ -423,6 +427,7 @@ done:
 #undef X
 
 		idt->register_interrupt_handler(IRQ_VECTOR_BASE + IRQ_YIELD, asm_yield_handler);
+		idt->register_interrupt_handler(IRQ_VECTOR_BASE + IRQ_IPI,   asm_ipi_handler);
 
 		idt->register_syscall_handler(0x80, asm_syscall_handler);
 

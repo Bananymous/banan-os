@@ -120,7 +120,7 @@ namespace Kernel::ACPI::AML
 				{
 					if (SystemTimer::get().ms_since_boot() >= wake_time)
 						return ParseResult(Integer::Constants::Ones);
-					SystemTimer::get().sleep(1);
+					Processor::yield();
 				}
 			}
 

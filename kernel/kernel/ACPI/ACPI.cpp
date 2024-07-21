@@ -602,7 +602,7 @@ acpi_release_global_lock:
 			{
 				if (IO::inw(fadt().pm1a_cnt_blk) & PM1_CNT_SCI_EN)
 					break;
-				SystemTimer::get().sleep(10);
+				SystemTimer::get().sleep_ms(10);
 			}
 
 			if (!(IO::inw(fadt().pm1a_cnt_blk) & PM1_CNT_SCI_EN))
@@ -761,7 +761,7 @@ acpi_release_global_lock:
 
 			// FIXME: this can cause missing of event if it happens between
 			//        reading the status and blocking
-			m_event_semaphore.block_with_timeout(100);
+			m_event_thread_blocker.block_with_timeout_ms(100);
 			continue;
 
 handle_event:
@@ -782,7 +782,7 @@ handle_event:
 
 	void ACPI::handle_irq()
 	{
-		m_event_semaphore.unblock();
+		m_event_thread_blocker.unblock();
 	}
 
 }

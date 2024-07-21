@@ -82,12 +82,13 @@ namespace Kernel
 
 	void Process::register_to_scheduler()
 	{
+		// FIXME: Allow failing...
 		{
 			SpinLockGuard _(s_process_lock);
 			MUST(s_processes.push_back(this));
 		}
 		for (auto* thread : m_threads)
-			MUST(Scheduler::get().add_thread(thread));
+			MUST(Processor::scheduler().add_thread(thread));
 	}
 
 	Process* Process::create_kernel()
@@ -206,10 +207,10 @@ namespace Kernel
 		ProcFileSystem::get().on_process_delete(*this);
 
 		m_exit_status.exited = true;
-		m_exit_status.semaphore.unblock();
+		m_exit_status.thread_blocker.unblock();
 
 		while (m_exit_status.waiting > 0)
-			Scheduler::get().yield();
+			Processor::yield();
 
 		m_process_lock.lock();
 
@@ -250,16 +251,6 @@ namespace Kernel
 		m_exit_status.exit_code = __WGENEXITCODE(status, signal);
 		while (!m_threads.empty())
 			m_threads.front()->on_exit();
-		//for (auto* thread : m_threads)
-		//	if (thread != &Thread::current())
-		//		Scheduler::get().terminate_thread(thread);
-		//if (this == &Process::current())
-		//{
-		//	m_threads.clear();
-		//	Processor::set_interrupt_state(InterruptState::Disabled);
-		//	Thread::current().setup_process_cleanup();
-		//	Scheduler::get().yield();
-		//}
 	}
 
 	size_t Process::proc_meminfo(off_t offset, BAN::ByteSpan buffer) const
@@ -534,13 +525,13 @@ namespace Kernel
 			m_cmdline = BAN::move(str_argv);
 			m_environ = BAN::move(str_envp);
 
-			asm volatile("cli");
+			Processor::set_interrupt_state(InterruptState::Disabled);
 		}
 
 		m_has_called_exec = true;
 
 		m_threads.front()->setup_exec();
-		Scheduler::get().yield();
+		Processor::yield();
 		ASSERT_NOT_REACHED();
 	}
 
@@ -603,12 +594,12 @@ namespace Kernel
 		if (seconds == 0)
 			return 0;
 
-		uint64_t wake_time = SystemTimer::get().ms_since_boot() + seconds * 1000;
-		Scheduler::get().set_current_thread_sleeping(wake_time);
+		const uint64_t wake_time_ms = SystemTimer::get().ms_since_boot() + (seconds * 1000);
+		SystemTimer::get().sleep_ms(seconds * 1000);
 
-		uint64_t current_time = SystemTimer::get().ms_since_boot();
-		if (current_time < wake_time)
-			return BAN::Math::div_round_up<long>(wake_time - current_time, 1000);
+		const uint64_t current_ms = SystemTimer::get().ms_since_boot();
+		if (current_ms < wake_time_ms)
+			return BAN::Math::div_round_up<long>(wake_time_ms - current_ms, 1000);
 
 		return 0;
 	}
@@ -622,23 +613,21 @@ namespace Kernel
 				TRY(validate_pointer_access(rmtp, sizeof(timespec)));
 		}
 
-		uint64_t sleep_ms = rqtp->tv_sec * 1000 + BAN::Math::div_round_up<uint64_t>(rqtp->tv_nsec, 1'000'000);
-		if (sleep_ms == 0)
+		const uint64_t sleep_ns = (rqtp->tv_sec * 1'000'000'000) + rqtp->tv_nsec;
+		if (sleep_ns == 0)
 			return 0;
 
-		uint64_t wake_time_ms = SystemTimer::get().ms_since_boot() + sleep_ms;
+		const uint64_t wake_time_ns = SystemTimer::get().ns_since_boot() + sleep_ns;
+		SystemTimer::get().sleep_ns(sleep_ns);
 
-		Scheduler::get().set_current_thread_sleeping(wake_time_ms);
-
-		uint64_t current_ms = SystemTimer::get().ms_since_boot();
-
-		if (current_ms < wake_time_ms)
+		const uint64_t current_ns = SystemTimer::get().ns_since_boot();
+		if (current_ns < wake_time_ns)
 		{
 			if (rmtp)
 			{
-				uint64_t remaining_ms = wake_time_ms - current_ms;
-				rmtp->tv_sec = remaining_ms / 1000;
-				rmtp->tv_nsec = (remaining_ms % 1000) * 1'000'000;
+				const uint64_t remaining_ns = wake_time_ns - current_ns;
+				rmtp->tv_sec  = remaining_ns / 1'000'000'000;
+				rmtp->tv_nsec = remaining_ns % 1'000'000'000;
 			}
 			return BAN::Error::from_errno(EINTR);
 		}
@@ -1140,7 +1129,7 @@ namespace Kernel
 				break;
 
 			LockFreeGuard free(m_process_lock);
-			SystemTimer::get().sleep(1);
+			SystemTimer::get().sleep_ms(1);
 		}
 
 		if (arguments->readfds)
@@ -1347,7 +1336,7 @@ namespace Kernel
 			TRY(validate_pointer_access(args, sizeof(sys_mmap_t)));
 		}
 
-		if (args->prot != PROT_NONE && args->prot & ~(PROT_READ | PROT_WRITE | PROT_EXEC))
+		if (args->prot != PROT_NONE && (args->prot & ~(PROT_READ | PROT_WRITE | PROT_EXEC)))
 			return BAN::Error::from_errno(EINVAL);
 
 		if (args->flags & MAP_FIXED)
@@ -1628,7 +1617,7 @@ namespace Kernel
 					{
 						process.add_pending_signal(signal);
 						// FIXME: This feels hacky
-						Scheduler::get().unblock_thread(process.m_threads.front()->tid());
+						Processor::scheduler().unblock_thread(process.m_threads.front()->tid());
 					}
 					return (pid > 0) ? BAN::Iteration::Break : BAN::Iteration::Continue;
 				}

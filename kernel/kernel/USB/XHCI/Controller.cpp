@@ -250,7 +250,7 @@ namespace Kernel
 				bool expected { true };
 				while (!m_port_changed.compare_exchange(expected, false))
 				{
-					m_port_semaphore.block_with_timeout(100);
+					m_port_thread_blocker.block_with_timeout_ms(100);
 					expected = true;
 				}
 			}
@@ -482,7 +482,7 @@ namespace Kernel
 							break;
 						}
 						m_port_changed = true;
-						m_port_semaphore.unblock();
+						m_port_thread_blocker.unblock();
 						break;
 					}
 					case XHCI::TRBType::BandwidthRequestEvent:
