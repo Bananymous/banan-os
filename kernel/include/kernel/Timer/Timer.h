@@ -16,6 +16,16 @@ namespace Kernel
 		virtual uint64_t ms_since_boot() const = 0;
 		virtual uint64_t ns_since_boot() const = 0;
 		virtual timespec time_since_boot() const = 0;
+
+		virtual void pre_scheduler_sleep_ns(uint64_t) = 0;
+
+		void dont_invoke_scheduler() { m_should_invoke_scheduler = false; }
+
+	protected:
+		bool should_invoke_scheduler() const { return m_should_invoke_scheduler; }
+
+	private:
+		bool m_should_invoke_scheduler { true };
 	};
 
 	class SystemTimer : public Timer
@@ -28,6 +38,8 @@ namespace Kernel
 		virtual uint64_t ms_since_boot() const override;
 		virtual uint64_t ns_since_boot() const override;
 		virtual timespec time_since_boot() const override;
+
+		virtual void pre_scheduler_sleep_ns(uint64_t) override;
 
 		void sleep_ms(uint64_t ms) const { return sleep_ns(ms * 1'000'000); }
 		void sleep_ns(uint64_t ns) const;

@@ -56,8 +56,6 @@ namespace Kernel
 				FlushTLB,
 				NewThread,
 				UnblockThread,
-				// FIXME: all processors should LAPIC for their preemption
-				SchedulerPreemption,
 			};
 			SMPMessage* next { nullptr };
 			Type type;

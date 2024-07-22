@@ -20,7 +20,7 @@ namespace Kernel
 	static BAN::Atomic<uint8_t>  s_processors_created { 0 };
 
 	// 32 bit milli seconds are definitely enough as APs start on boot
-	static BAN::Atomic<uint32_t> s_first_ap_ready_ms { 0 };
+	static BAN::Atomic<uint32_t> s_first_ap_ready_ms { static_cast<uint32_t>(-1) };
 
 	static BAN::Array<Processor,   0xFF> s_processors;
 	static BAN::Array<ProcessorID, 0xFF> s_processor_ids { PROCESSOR_NONE };
@@ -130,7 +130,7 @@ namespace Kernel
 
 			// wait until first AP is ready
 			const uint64_t timeout_ms = SystemTimer::get().ms_since_boot() + 1000;
-			while (s_first_ap_ready_ms == 0)
+			while (s_first_ap_ready_ms == static_cast<uint32_t>(-1))
 			{
 				if (SystemTimer::get().ms_since_boot() >= timeout_ms)
 				{
@@ -150,7 +150,7 @@ namespace Kernel
 			ASSERT(s_processor_ids[lookup_index] == PROCESSOR_NONE);
 			s_processor_ids[lookup_index] = current_id();
 
-			uint32_t expected = 0;
+			uint32_t expected = static_cast<uint32_t>(-1);
 			s_first_ap_ready_ms.compare_exchange(expected, SystemTimer::get().ms_since_boot());
 		}
 
@@ -209,8 +209,6 @@ namespace Kernel
 			}
 		);
 
-		bool should_preempt = false;
-
 		if (pending)
 		{
 			// reverse smp message queue from LIFO to FIFO
@@ -245,9 +243,6 @@ namespace Kernel
 					case SMPMessage::Type::UnblockThread:
 						processor.m_scheduler->handle_unblock_request(message->unblock_thread);
 						break;
-					case SMPMessage::Type::SchedulerPreemption:
-						should_preempt = true;
-						break;
 				}
 
 				last_handled = message;
@@ -261,9 +256,6 @@ namespace Kernel
 				}
 			);
 		}
-
-		if (should_preempt)
-			processor.m_scheduler->preempt();
 
 		set_interrupt_state(state);
 	}

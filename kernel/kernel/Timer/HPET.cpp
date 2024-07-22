@@ -254,9 +254,9 @@ namespace Kernel
 
 	void HPET::handle_irq()
 	{
-		auto& regs = registers();
-
 		{
+			auto& regs = registers();
+
 			SpinLockGuard _(m_lock);
 
 			uint64_t current_ticks;
@@ -272,7 +272,8 @@ namespace Kernel
 			m_last_ticks = current_ticks;
 		}
 
-		Processor::scheduler().timer_interrupt();
+		if (should_invoke_scheduler())
+			Processor::scheduler().timer_interrupt();
 	}
 
 	uint64_t HPET::ms_since_boot() const
@@ -301,6 +302,35 @@ namespace Kernel
 			.tv_sec = seconds,
 			.tv_nsec = ns_this_second
 		};
+	}
+
+	void HPET::pre_scheduler_sleep_ns(uint64_t ns)
+	{
+		auto& regs = registers();
+
+		const uint64_t target_ticks = BAN::Math::div_round_up<uint64_t>(ns * FS_PER_NS, regs.counter_clk_period);
+
+		if (m_is_64bit)
+		{
+			const uint64_t target_counter = regs.main_counter.full + target_ticks;
+			while (regs.main_counter.full < target_counter)
+				__builtin_ia32_pause();
+		}
+		else
+		{
+			uint64_t elapsed_ticks = 0;
+			uint64_t last_counter = regs.main_counter.low;
+			while (elapsed_ticks < target_ticks)
+			{
+				const uint64_t current_counter = regs.main_counter.low;
+				if (last_counter <= current_counter)
+					elapsed_ticks += current_counter - last_counter;
+				else
+					elapsed_ticks += 0xFFFFFFFF + current_counter - last_counter;
+				last_counter = current_counter;
+				__builtin_ia32_pause();
+			}
+		}
 	}
 
 }

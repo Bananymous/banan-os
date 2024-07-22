@@ -19,6 +19,8 @@ namespace Kernel
 		virtual uint64_t ns_since_boot() const override;
 		virtual timespec time_since_boot() const override;
 
+		virtual void pre_scheduler_sleep_ns(uint64_t) override;
+
 		virtual void handle_irq() override;
 
 	private:

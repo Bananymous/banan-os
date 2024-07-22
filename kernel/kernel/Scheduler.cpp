@@ -294,7 +294,7 @@ namespace Kernel
 			Processor::yield();
 	}
 
-	void Scheduler::preempt()
+	void Scheduler::timer_interrupt()
 	{
 		ASSERT(Processor::get_interrupt_state() == InterruptState::Disabled);
 
@@ -319,23 +319,6 @@ namespace Kernel
 				Processor::yield();
 			}
 		}
-	}
-
-	void Scheduler::timer_interrupt()
-	{
-		ASSERT(Processor::get_interrupt_state() == InterruptState::Disabled);
-
-		// FIXME: all processors should LAPIC for their preemption
-		if (Processor::is_smp_enabled())
-		{
-			ASSERT(Processor::current_is_bsb());
-			Processor::broadcast_smp_message({
-				.type = Processor::SMPMessage::Type::SchedulerPreemption,
-				.scheduler_preemption = 0 // dummy value
-			});
-		}
-
-		preempt();
 	}
 
 	void Scheduler::handle_unblock_request(const UnblockRequest& request)

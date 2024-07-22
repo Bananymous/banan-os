@@ -333,6 +333,13 @@ done:
 		Processor::handle_ipi();
 	}
 
+	extern "C" void cpp_timer_handler()
+	{
+		ASSERT(InterruptController::get().is_in_service(IRQ_TIMER));
+		InterruptController::get().eoi(IRQ_TIMER);
+		Processor::scheduler().timer_interrupt();
+	}
+
 	extern "C" void cpp_irq_handler(uint32_t irq)
 	{
 		if (g_paniced)
@@ -409,6 +416,7 @@ done:
 
 	extern "C" void asm_yield_handler();
 	extern "C" void asm_ipi_handler();
+	extern "C" void asm_timer_handler();
 	extern "C" void asm_syscall_handler();
 
 	IDT* IDT::create()
@@ -428,6 +436,7 @@ done:
 
 		idt->register_interrupt_handler(IRQ_VECTOR_BASE + IRQ_YIELD, asm_yield_handler);
 		idt->register_interrupt_handler(IRQ_VECTOR_BASE + IRQ_IPI,   asm_ipi_handler);
+		idt->register_interrupt_handler(IRQ_VECTOR_BASE + IRQ_TIMER, asm_timer_handler);
 
 		idt->register_syscall_handler(0x80, asm_syscall_handler);
 

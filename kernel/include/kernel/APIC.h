@@ -23,6 +23,8 @@ namespace Kernel
 		virtual void broadcast_ipi() override;
 		virtual void enable() override;
 
+		void initialize_timer();
+
 	private:
 		uint32_t read_from_local_apic(ptrdiff_t);
 		void write_to_local_apic(ptrdiff_t, uint32_t);
@@ -58,13 +60,14 @@ namespace Kernel
 		};
 
 	private:
-		SpinLock				m_lock;
-		BAN::Vector<Processor>	m_processors;
-		Kernel::paddr_t			m_local_apic_paddr = 0;
-		Kernel::vaddr_t			m_local_apic_vaddr = 0;
-		BAN::Vector<IOAPIC>		m_io_apics;
-		uint8_t					m_irq_overrides[0x100] {};
-		uint8_t					m_reserved_gsis[0x100 / 8] {};
+		SpinLock               m_lock;
+		BAN::Vector<Processor> m_processors;
+		Kernel::paddr_t        m_local_apic_paddr = 0;
+		Kernel::vaddr_t        m_local_apic_vaddr = 0;
+		BAN::Vector<IOAPIC>    m_io_apics;
+		uint8_t                m_irq_overrides[0x100] {};
+		uint8_t                m_reserved_gsis[0x100 / 8] {};
+		uint64_t               m_lapic_timer_frequency_hz { 0 };
 	};
 
 }

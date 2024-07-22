@@ -113,6 +113,23 @@ asm_ipi_handler:
 	pop_userspace
 	iret
 
+
+.global asm_timer_handler
+asm_timer_handler:
+	push_userspace
+	load_kernel_segments
+
+	movl %esp, %ebp
+	subl $15, %esp
+	andl $0xFFFFFFF0, %esp
+
+	call cpp_timer_handler
+
+	movl %ebp, %esp
+
+	pop_userspace
+	iret
+
 .macro isr n
 	.global isr\n
 	isr\n:

@@ -17,6 +17,11 @@
 #define LAPIC_ICR_LO_REG	0x300
 #define LAPIC_ICR_HI_REG	0x310
 
+#define LAPIC_TIMER_LVT			0x320
+#define LAPIC_TIMER_INITIAL_REG	0x380
+#define LAPIC_TIMER_CURRENT_REG	0x390
+#define LAPIC_TIMER_DIVIDE_REG	0x3E0
+
 #define IOAPIC_MAX_REDIRS	0x01
 #define IOAPIC_REDIRS		0x10
 
@@ -58,6 +63,27 @@ namespace Kernel
 		ICR_LO_destination_shorthand_self				= 0b01 << 18,
 		ICR_LO_destination_shorthand_all_including_self	= 0b10 << 18,
 		ICR_LO_destination_shorthand_all_excluding_self	= 0b11 << 18,
+	};
+
+	enum TimerLVT : uint32_t
+	{
+		TimerModeOneShot     = 0b00 << 17,
+		TimerModePeriodic    = 0b01 << 17,
+		TimerModeTSCDeadline = 0b10 << 17,
+
+		TimerMask            = 1 << 16,
+	};
+
+	enum TimerDivideRegister : uint32_t
+	{
+		DivideBy2   = 0b0000,
+		DivideBy4   = 0b0001,
+		DivideBy8   = 0b0010,
+		DivideBy16  = 0b0011,
+		DivideBy32  = 0b1000,
+		DivideBy64  = 0b1001,
+		DivideBy128 = 0b1010,
+		DivideBy1   = 0b1011,
 	};
 
 	struct MADT : public Kernel::ACPI::SDTHeader
@@ -223,12 +249,7 @@ namespace Kernel
 
 	void APIC::initialize_multiprocessor()
 	{
-		constexpr auto udelay =
-			[](uint64_t us) {
-				uint64_t wake_time = SystemTimer::get().ns_since_boot() + us * 1000;
-				while (SystemTimer::get().ns_since_boot() < wake_time)
-					__builtin_ia32_pause();
-			};
+		constexpr auto udelay = [](uint64_t us) { SystemTimer::get().pre_scheduler_sleep_ns(us * 1000); };
 
 		const auto send_ipi =
 			[&](uint8_t processor, uint32_t data, uint64_t ud)
@@ -367,6 +388,31 @@ namespace Kernel
 	void APIC::enable()
 	{
 		write_to_local_apic(LAPIC_SIV_REG, read_from_local_apic(LAPIC_SIV_REG) | 0x1FF);
+		initialize_timer();
+	}
+
+	static SpinLock s_timer_init_lock;
+
+	void APIC::initialize_timer()
+	{
+		{
+			constexpr uint64_t measuring_duration_ms = 100;
+
+			SpinLockGuard _(s_timer_init_lock);
+
+			write_to_local_apic(LAPIC_TIMER_LVT,         TimerModeOneShot | TimerMask);
+			write_to_local_apic(LAPIC_TIMER_DIVIDE_REG,  DivideBy2);
+			write_to_local_apic(LAPIC_TIMER_INITIAL_REG, 0xFFFFFFFF);
+			SystemTimer::get().pre_scheduler_sleep_ns(measuring_duration_ms * 1'000'000);
+
+			const uint32_t counter = read_from_local_apic(LAPIC_TIMER_CURRENT_REG);
+			m_lapic_timer_frequency_hz = static_cast<uint64_t>(0xFFFFFFFF - counter) * 2 * (1000 / measuring_duration_ms);
+
+			dprintln("CPU {}: lapic timer frequency: {} Hz", Kernel::Processor::current_id(), m_lapic_timer_frequency_hz);
+		}
+
+		write_to_local_apic(LAPIC_TIMER_LVT,         TimerModePeriodic | (IRQ_VECTOR_BASE + IRQ_TIMER));
+		write_to_local_apic(LAPIC_TIMER_INITIAL_REG, m_lapic_timer_frequency_hz / 2 / 100);
 	}
 
 	uint32_t APIC::read_from_local_apic(ptrdiff_t offset)

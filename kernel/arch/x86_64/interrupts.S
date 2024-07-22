@@ -77,6 +77,13 @@ asm_ipi_handler:
 	popaq
 	iretq
 
+.global asm_timer_handler
+asm_timer_handler:
+	pushaq
+	call cpp_timer_handler
+	popaq
+	iretq
+
 .macro isr n
 	.global isr\n
 	isr\n:

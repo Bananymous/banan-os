@@ -69,6 +69,11 @@ namespace Kernel
 		return m_timer->time_since_boot();
 	}
 
+	void SystemTimer::pre_scheduler_sleep_ns(uint64_t ns)
+	{
+		return m_timer->pre_scheduler_sleep_ns(ns);
+	}
+
 	void SystemTimer::sleep_ns(uint64_t ns) const
 	{
 		if (ns == 0)
@@ -76,10 +81,6 @@ namespace Kernel
 
 		const uint64_t wake_time_ns = ns_since_boot() + ns;
 		Processor::scheduler().block_current_thread(nullptr, wake_time_ns);
-
-		//const uint64_t current_time_ns = ns_since_boot();
-		//if (current_time_ns < wake_time_ns)
-		//	dwarnln("sleep woke {} ms too soon", BAN::Math::div_round_up<uint64_t>(wake_time_ns - current_time_ns, 1'000'000));
 	}
 
 	timespec SystemTimer::real_time() const

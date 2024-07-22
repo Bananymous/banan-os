@@ -7,9 +7,10 @@
 
 #include <stdint.h>
 
-constexpr uint8_t IRQ_VECTOR_BASE = 0x20;
+constexpr uint8_t IRQ_VECTOR_BASE   = 0x20;
 constexpr uint8_t IRQ_YIELD         = 32;
 constexpr uint8_t IRQ_IPI           = 33;
+constexpr uint8_t IRQ_TIMER         = 34;
 
 namespace Kernel
 {

@@ -1,4 +1,5 @@
 #include <kernel/ACPI/ACPI.h>
+#include <kernel/APIC.h>
 #include <kernel/Arch.h>
 #include <kernel/BootInfo.h>
 #include <kernel/Debug.h>
@@ -166,6 +167,12 @@ extern "C" void kernel_main(uint32_t boot_magic, uint32_t boot_info)
 
 	Random::initialize();
 	dprintln("RNG initialized");
+
+	if (InterruptController::get().is_using_apic())
+	{
+		SystemTimer::get().dont_invoke_scheduler();
+		static_cast<APIC&>(InterruptController::get()).initialize_timer();
+	}
 
 	Processor::wait_until_processors_ready();
 	MUST(Processor::scheduler().initialize());

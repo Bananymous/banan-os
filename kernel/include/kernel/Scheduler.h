@@ -110,8 +110,6 @@ namespace Kernel
 
 		class ProcessorID find_least_loaded_processor() const;
 
-		void preempt();
-
 		void handle_unblock_request(const UnblockRequest&);
 		void handle_new_thread_request(const NewThreadRequest&);
 
