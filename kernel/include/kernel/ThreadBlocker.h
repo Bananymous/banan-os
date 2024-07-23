@@ -1,5 +1,8 @@
 #pragma once
 
+#include <kernel/Lock/SpinLock.h>
+#include <kernel/Scheduler.h>
+
 namespace Kernel
 {
 
@@ -12,6 +15,16 @@ namespace Kernel
 		void block_with_timeout_ns(uint64_t timeout_ns);
 		void block_with_wake_time_ns(uint64_t wake_time_ns);
 		void unblock();
+
+	private:
+		void add_thread_to_block_queue(SchedulerQueue::Node*);
+		void remove_blocked_thread(SchedulerQueue::Node*);
+
+	private:
+		SpinLock m_lock;
+		SchedulerQueue::Node* m_block_chain { nullptr };
+
+		friend class Scheduler;
 	};
 
 }

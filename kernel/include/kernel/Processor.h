@@ -1,13 +1,13 @@
 #pragma once
 
 #include <BAN/Atomic.h>
-#include <BAN/Formatter.h>
 #include <BAN/ForwardList.h>
 
 #include <kernel/Arch.h>
 #include <kernel/GDT.h>
 #include <kernel/IDT.h>
 #include <kernel/InterruptStack.h>
+#include <kernel/ProcessorID.h>
 #include <kernel/Scheduler.h>
 
 namespace Kernel
@@ -18,29 +18,6 @@ namespace Kernel
 		Disabled,
 		Enabled,
 	};
-
-	class ProcessorID
-	{
-	public:
-		using value_type = uint32_t;
-
-	public:
-		ProcessorID() = default;
-
-		uint32_t as_u32() const { return m_id; }
-		bool operator==(ProcessorID other) const { return m_id == other.m_id; }
-
-	private:
-		explicit ProcessorID(uint32_t id) : m_id(id) {}
-
-	private:
-		uint32_t m_id = static_cast<uint32_t>(-1);
-
-		friend class Processor;
-		friend class APIC;
-	};
-
-	constexpr ProcessorID PROCESSOR_NONE { };
 
 #if ARCH(x86_64) || ARCH(i686)
 	class Processor
@@ -66,9 +43,8 @@ namespace Kernel
 					uintptr_t vaddr;
 					size_t page_count;
 				} flush_tlb;
-				Scheduler::NewThreadRequest new_thread;
-				Scheduler::UnblockRequest unblock_thread;
-				uintptr_t scheduler_preemption;
+				SchedulerQueue::Node* new_thread;
+				SchedulerQueue::Node* unblock_thread;
 			};
 		};
 
@@ -207,16 +183,5 @@ namespace Kernel
 #else
 	#error
 #endif
-
-}
-
-namespace BAN::Formatter
-{
-
-	template<typename F>
-	void print_argument(F putc, Kernel::ProcessorID processor_id, const ValueFormat& format)
-	{
-		print_argument(putc, processor_id.as_u32(), format);
-	}
 
 }

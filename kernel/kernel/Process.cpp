@@ -1616,8 +1616,7 @@ namespace Kernel
 					if (signal)
 					{
 						process.add_pending_signal(signal);
-						// FIXME: This feels hacky
-						Processor::scheduler().unblock_thread(process.m_threads.front()->tid());
+						Processor::scheduler().unblock_thread(process.m_threads.front());
 					}
 					return (pid > 0) ? BAN::Iteration::Break : BAN::Iteration::Continue;
 				}

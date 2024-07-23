@@ -208,7 +208,7 @@ namespace Kernel
 		ASSERT(Processor::get_interrupt_state() == InterruptState::Disabled);
 
 		// If there are no other threads in run queue, reschedule can be no-op :)
-		if (m_run_queue.empty() && !m_current_will_block && current_thread().state() == Thread::State::Executing)
+		if (m_run_queue.empty() && (!m_current || !m_current->blocked) && current_thread().state() == Thread::State::Executing)
 			return;
 
 		if (m_current == nullptr)
@@ -230,18 +230,15 @@ namespace Kernel
 					m_current->thread->interrupt_stack()     = *interrupt_stack;
 					m_current->thread->interrupt_registers() = *interrupt_registers;
 					m_current->time_used_ns += current_ns - m_current->last_start_ns;
-					add_current_to_most_loaded(m_current_will_block ? &m_block_queue : &m_run_queue);
-					if (!m_current_will_block)
+					add_current_to_most_loaded(m_current->blocked ? &m_block_queue : &m_run_queue);
+					if (!m_current->blocked)
 						m_run_queue.add_thread_to_back(m_current);
 					else
-					{
-						m_current_will_block = false;
 						m_block_queue.add_thread_with_wake_time(m_current);
-					}
 					break;
 				}
 				case Thread::State::NotStarted:
-					ASSERT(!m_current_will_block);
+					ASSERT(!m_current->blocked);
 					m_current->time_used_ns = 0;
 					remove_node_from_most_loaded(m_current);
 					m_run_queue.add_thread_to_back(m_current);
@@ -306,6 +303,9 @@ namespace Kernel
 			while (!m_block_queue.empty() && current_ns >= m_block_queue.front()->wake_time_ns)
 			{
 				auto* node = m_block_queue.pop_front();
+				if (node->blocker)
+					node->blocker->remove_blocked_thread(node);
+				node->blocked = false;
 				update_most_loaded_node_queue(node, &m_run_queue);
 				m_run_queue.add_thread_to_back(node);
 			}
@@ -321,79 +321,44 @@ namespace Kernel
 		}
 	}
 
-	void Scheduler::handle_unblock_request(const UnblockRequest& request)
+	void Scheduler::unblock_thread(SchedulerQueue::Node* node)
 	{
-		ASSERT(Processor::get_interrupt_state() == InterruptState::Disabled);
+		auto state = Processor::get_interrupt_state();
+		Processor::set_interrupt_state(InterruptState::Disabled);
 
-		switch (request.type)
+		if (node->processor_id == Processor::current_id())
 		{
-			case UnblockRequest::Type::ThreadBlocker:
-				do_unblock(request.blocker);
-				break;
-			case UnblockRequest::Type::ThreadID:
-				do_unblock(request.tid);
-				break;
-			default:
-				ASSERT_NOT_REACHED();
+			ASSERT(node->blocked);
+			m_block_queue.remove_node(node);
+			if (node->blocker)
+				node->blocker->remove_blocked_thread(node);
+			node->blocked = false;
+			m_run_queue.add_thread_to_back(node);
 		}
-	}
-
-	void Scheduler::handle_new_thread_request(const NewThreadRequest& reqeuest)
-	{
-		ASSERT(Processor::get_interrupt_state() == InterruptState::Disabled);
-
-		if (reqeuest.blocked)
-			m_block_queue.add_thread_with_wake_time(reqeuest.node);
 		else
-			m_run_queue.add_thread_to_back(reqeuest.node);
+		{
+			Processor::send_smp_message(node->processor_id, {
+				.type = Processor::SMPMessage::Type::UnblockThread,
+				.unblock_thread = node
+			});
+		}
+
+		Processor::set_interrupt_state(state);
 	}
 
-	bool Scheduler::do_unblock(ThreadBlocker* blocker)
+	void Scheduler::add_thread(SchedulerQueue::Node* node)
 	{
-		ASSERT(Processor::get_interrupt_state() == InterruptState::Disabled);
+		auto state = Processor::get_interrupt_state();
+		Processor::set_interrupt_state(InterruptState::Disabled);
 
-		// FIXME: This could _easily_ be O(1)
+		ASSERT(node->processor_id == Processor::current_id());
 
-		bool did_unblock = false;
+		if (!node->blocked)
+			m_run_queue.add_thread_to_back(node);
+		else
+			m_block_queue.add_thread_with_wake_time(node);
 
-		if (m_current && m_current->blocker == blocker && m_current_will_block)
-		{
-			m_current_will_block = false;
-			did_unblock = true;
-		}
-
-		SchedulerQueue::Node* match;
-		while ((match = m_block_queue.remove_with_condition([blocker](const auto* node) { return node->blocker == blocker; })))
-		{
-			dprintln_if(DEBUG_SCHEDULER, "CPU {}: unblock blocker {} (tid {})", Processor::current_id(), blocker, match->thread->tid());
-			update_most_loaded_node_queue(match, &m_run_queue);
-			m_run_queue.add_thread_to_back(match);
-			did_unblock = true;
-		}
-
-		return did_unblock;
-	}
-
-	bool Scheduler::do_unblock(pid_t tid)
-	{
-		ASSERT(Processor::get_interrupt_state() == InterruptState::Disabled);
-
-		// FIXME: This could _easily_ be O(1)
-
-		if (m_current && m_current->thread->tid() == tid && m_current_will_block)
-		{
-			m_current_will_block = false;
-			return true;
-		}
-
-		auto* match = m_block_queue.remove_with_condition([tid](const auto* node) { return node->thread->tid() == tid; });
-		if (match == nullptr)
-			return false;
-
-		dprintln_if(DEBUG_SCHEDULER, "CPU {}: unblock tid {}", Processor::current_id(), tid);
-		update_most_loaded_node_queue(match, &m_run_queue);
-		m_run_queue.add_thread_to_back(match);
-		return true;
+		Processor::set_interrupt_state(state);
 	}
 
 	ProcessorID Scheduler::find_least_loaded_processor() const
@@ -561,12 +526,11 @@ namespace Kernel
 				m_thread_count--;
 			}
 
+			thread_info.node->processor_id = least_loaded_id;
+
 			Processor::send_smp_message(least_loaded_id, {
 				.type = Processor::SMPMessage::Type::NewThread,
-				.new_thread = {
-					.node = thread_info.node,
-					.blocked = thread_info.queue == &m_block_queue
-				}
+				.new_thread = thread_info.node
 			});
 
 			thread_info.node = nullptr;
@@ -601,22 +565,16 @@ namespace Kernel
 		const size_t processor_index = s_next_processor_index++ % Processor::count();
 		const auto processor_id = Processor::id_from_index(processor_index);
 
+		new_node->processor_id = processor_id;
+		thread->m_scheduler_node = new_node;
+
 		if (processor_id == Processor::current_id())
-		{
-			auto state = Processor::get_interrupt_state();
-			Processor::set_interrupt_state(InterruptState::Disabled);
-			m_run_queue.add_thread_to_back(new_node);
-			m_thread_count++;
-			Processor::set_interrupt_state(state);
-		}
+			add_thread(new_node);
 		else
 		{
 			Processor::send_smp_message(processor_id, {
 				.type = Processor::SMPMessage::Type::NewThread,
-				.new_thread = {
-					.node = new_node,
-					.blocked = false
-				}
+				.new_thread = new_node
 			});
 		}
 
@@ -628,48 +586,22 @@ namespace Kernel
 		auto state = Processor::get_interrupt_state();
 		Processor::set_interrupt_state(InterruptState::Disabled);
 
-		m_current->blocker      = blocker;
+		ASSERT(!m_current->blocked);
+
+		m_current->blocked = true;
 		m_current->wake_time_ns = wake_time_ns;
-		m_current_will_block    = true;
+		if (blocker)
+			blocker->add_thread_to_block_queue(m_current);
 		Processor::yield();
 
 		Processor::set_interrupt_state(state);
 	}
 
-	void Scheduler::unblock_threads(ThreadBlocker* blocker)
+	void Scheduler::unblock_thread(Thread* thread)
 	{
 		auto state = Processor::get_interrupt_state();
 		Processor::set_interrupt_state(InterruptState::Disabled);
-
-		do_unblock(blocker);
-
-		Processor::broadcast_smp_message({
-			.type = Processor::SMPMessage::Type::UnblockThread,
-			.unblock_thread = {
-				.type = UnblockRequest::Type::ThreadBlocker,
-				.blocker = blocker
-			}
-		});
-
-		Processor::set_interrupt_state(state);
-	}
-
-	void Scheduler::unblock_thread(pid_t tid)
-	{
-		auto state = Processor::get_interrupt_state();
-		Processor::set_interrupt_state(InterruptState::Disabled);
-
-		if (!do_unblock(tid))
-		{
-			Processor::broadcast_smp_message({
-				.type = Processor::SMPMessage::Type::UnblockThread,
-				.unblock_thread = {
-					.type = UnblockRequest::Type::ThreadID,
-					.tid = tid
-				}
-			});
-		}
-
+		unblock_thread(thread->m_scheduler_node);
 		Processor::set_interrupt_state(state);
 	}
 

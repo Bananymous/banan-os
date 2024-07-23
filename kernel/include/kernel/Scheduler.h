@@ -4,6 +4,7 @@
 #include <BAN/ForwardList.h>
 #include <BAN/NoCopyMove.h>
 #include <kernel/InterruptStack.h>
+#include <kernel/ProcessorID.h>
 
 #include <sys/types.h>
 
@@ -22,12 +23,19 @@ namespace Kernel
 				: thread(thread)
 			{}
 
+			Thread* const thread;
+
 			Node* next { nullptr };
 			Node* prev { nullptr };
 
-			Thread* thread;
-			ThreadBlocker* blocker { nullptr };
 			uint64_t wake_time_ns { static_cast<uint64_t>(-1) };
+
+			ThreadBlocker* blocker { nullptr };
+			Node* block_chain_next { nullptr };
+			Node* block_chain_prev { nullptr };
+
+			ProcessorID processor_id { PROCESSOR_NONE };
+			bool blocked { false };
 
 			uint64_t last_start_ns { 0 };
 			uint64_t time_used_ns  { 0 };
@@ -58,22 +66,11 @@ namespace Kernel
 		struct NewThreadRequest
 		{
 			SchedulerQueue::Node* node;
-			bool blocked;
 		};
 
 		struct UnblockRequest
 		{
-			enum class Type
-			{
-				ThreadBlocker,
-				ThreadID,
-			};
-			Type type;
-			union
-			{
-				ThreadBlocker* blocker;
-				pid_t tid;
-			};
+			SchedulerQueue::Node* node;
 		};
 
 	public:
@@ -88,8 +85,7 @@ namespace Kernel
 		BAN::ErrorOr<void> add_thread(Thread*);
 
 		void block_current_thread(ThreadBlocker* thread_blocker, uint64_t wake_time_ns);
-		void unblock_threads(ThreadBlocker*);
-		void unblock_thread(pid_t tid);
+		void unblock_thread(Thread*);
 
 		Thread& current_thread();
 		Thread& idle_thread();
@@ -104,20 +100,17 @@ namespace Kernel
 		void update_most_loaded_node_queue(SchedulerQueue::Node*, SchedulerQueue* target_queue);
 		void remove_node_from_most_loaded(SchedulerQueue::Node*);
 
-		bool do_unblock(ThreadBlocker*);
-		bool do_unblock(pid_t);
 		void do_load_balancing();
 
 		class ProcessorID find_least_loaded_processor() const;
 
-		void handle_unblock_request(const UnblockRequest&);
-		void handle_new_thread_request(const NewThreadRequest&);
+		void add_thread(SchedulerQueue::Node*);
+		void unblock_thread(SchedulerQueue::Node*);
 
 	private:
 		SchedulerQueue m_run_queue;
 		SchedulerQueue m_block_queue;
 		SchedulerQueue::Node* m_current { nullptr };
-		bool m_current_will_block { false };
 
 		uint32_t m_thread_count { 0 };
 
@@ -141,6 +134,7 @@ namespace Kernel
 
 		Thread* m_idle_thread { nullptr };
 
+		friend class ThreadBlocker;
 		friend class Processor;
 	};
 

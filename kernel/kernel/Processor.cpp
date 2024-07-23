@@ -238,10 +238,10 @@ namespace Kernel
 							asm volatile("invlpg (%0)" :: "r"(message->flush_tlb.vaddr + i * PAGE_SIZE) : "memory");
 						break;
 					case SMPMessage::Type::NewThread:
-						processor.m_scheduler->handle_new_thread_request(message->new_thread);
+						processor.m_scheduler->add_thread(message->new_thread);
 						break;
 					case SMPMessage::Type::UnblockThread:
-						processor.m_scheduler->handle_unblock_request(message->unblock_thread);
+						processor.m_scheduler->unblock_thread(message->unblock_thread);
 						break;
 				}
 

@@ -3,8 +3,9 @@
 #include <BAN/NoCopyMove.h>
 #include <BAN/RefPtr.h>
 #include <BAN/UniqPtr.h>
-#include <kernel/Memory/VirtualRange.h>
 #include <kernel/InterruptStack.h>
+#include <kernel/Memory/VirtualRange.h>
+#include <kernel/ThreadBlocker.h>
 
 #include <signal.h>
 #include <sys/types.h>
@@ -96,25 +97,27 @@ namespace Kernel
 		void on_exit();
 
 	private:
-		static constexpr size_t		m_kernel_stack_size		= PAGE_SIZE * 64;
-		static constexpr size_t		m_userspace_stack_size	= PAGE_SIZE * 64;
-		BAN::UniqPtr<VirtualRange>	m_kernel_stack;
-		BAN::UniqPtr<VirtualRange>	m_userspace_stack;
-		const pid_t					m_tid				{ 0 };
-		State						m_state				{ State::NotStarted };
-		Process*					m_process			{ nullptr };
-		bool						m_is_userspace		{ false };
-		bool						m_delete_process	{ false };
+		static constexpr size_t    m_kernel_stack_size    { PAGE_SIZE * 64 };
+		static constexpr size_t    m_userspace_stack_size { PAGE_SIZE * 64 };
+		BAN::UniqPtr<VirtualRange> m_kernel_stack;
+		BAN::UniqPtr<VirtualRange> m_userspace_stack;
+		const pid_t                m_tid                  { 0 };
+		State                      m_state                { State::NotStarted };
+		Process*                   m_process              { nullptr };
+		bool                       m_is_userspace         { false };
+		bool                       m_delete_process       { false };
 
-		InterruptStack				m_interrupt_stack		{ };
-		InterruptRegisters			m_interrupt_registers	{ };
+		SchedulerQueue::Node*      m_scheduler_node       { nullptr };
 
-		uint64_t					m_signal_pending_mask	{ 0 };
-		uint64_t					m_signal_block_mask		{ 0 };
-		SpinLock					m_signal_lock;
+		InterruptStack             m_interrupt_stack      { };
+		InterruptRegisters         m_interrupt_registers  { };
+
+		uint64_t                   m_signal_pending_mask  { 0 };
+		uint64_t                   m_signal_block_mask    { 0 };
+		SpinLock                   m_signal_lock;
 		static_assert(_SIGMAX < 64);
 
-		BAN::Atomic<uint32_t>		m_mutex_count { 0 };
+		BAN::Atomic<uint32_t>      m_mutex_count          { 0 };
 
 #if __enable_sse
 		alignas(16) uint8_t m_sse_storage[512] {};

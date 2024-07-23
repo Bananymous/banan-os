@@ -401,7 +401,7 @@ namespace Kernel
 		{
 			m_signal_pending_mask |= mask;
 			if (this != &Thread::current())
-				Processor::scheduler().unblock_thread(tid());
+				Processor::scheduler().unblock_thread(this);
 			return true;
 		}
 		return false;
