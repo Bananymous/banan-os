@@ -75,7 +75,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> XHCIController::initialize_impl()
 	{
-		dprintln_if(DEBUG_XHCI, "XHCI controller at PCI {2H}:{2H}:{2H}", m_pci_device.bus(), m_pci_device.dev(), m_pci_device.func());
+		dprintln("XHCI controller at PCI {2H}:{2H}:{2H}", m_pci_device.bus(), m_pci_device.dev(), m_pci_device.func());
 
 		m_pci_device.enable_bus_mastering();
 		m_pci_device.enable_memory_space();
@@ -94,14 +94,14 @@ namespace Kernel
 		}
 
 		auto& capabilities = capability_regs();
-		dprintln_if(DEBUG_XHCI, "  version {H}.{H}.{H}",
+		dprintln("  version {H}.{H}.{H}",
 			+capabilities.major_revision,
 			capabilities.minor_revision >> 4,
 			capabilities.minor_revision & 0x0F
 		);
-		dprintln_if(DEBUG_XHCI, "  max slots {}", +capabilities.hcsparams1.max_slots);
-		dprintln_if(DEBUG_XHCI, "  max intrs {}", +capabilities.hcsparams1.max_interrupters);
-		dprintln_if(DEBUG_XHCI, "  max ports {}", +capabilities.hcsparams1.max_ports);
+		dprintln("  max slots {}", +capabilities.hcsparams1.max_slots);
+		dprintln("  max intrs {}", +capabilities.hcsparams1.max_interrupters);
+		dprintln("  max ports {}", +capabilities.hcsparams1.max_ports);
 
 		TRY(m_slots.resize(capabilities.hcsparams1.max_slots));
 		TRY(m_ports.resize(capabilities.hcsparams1.max_ports));
