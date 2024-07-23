@@ -29,7 +29,7 @@ namespace Kernel
 
 	private:
 		SpinLock m_lock;
-		uint16_t m_reserved_irqs { 0 };
+		uint16_t m_reserved_irqs { 1u << 2 };
 
 		friend class InterruptController;
 	};

@@ -362,7 +362,16 @@ namespace Kernel::PCI
 
 	BAN::ErrorOr<void> PCI::Device::reserve_irqs(uint8_t count)
 	{
-		if (m_offset_msi_x.has_value())
+		if (!InterruptController::get().is_using_apic())
+		{
+			if (count > 1)
+			{
+				dwarnln("PIC: could not allocate {} interrupts, (currently) only {} supported", count, 1);
+				return BAN::Error::from_errno(EFAULT);
+			}
+			enable_pin_interrupts();
+		}
+		else if (m_offset_msi_x.has_value())
 		{
 			uint16_t msg_ctrl = read_word(*m_offset_msi_x + 0x02);
 			if (count > (msg_ctrl & 0x7FF) + 1)
@@ -386,15 +395,6 @@ namespace Kernel::PCI
 			msg_ctrl |= 1u << 0;		// Enable
 			write_word(*m_offset_msi + 0x02, msg_ctrl);
 			disable_pin_interrupts();
-		}
-		else if (!InterruptController::get().is_using_apic())
-		{
-			if (count > 1)
-			{
-				dwarnln("PIC: could not allocate {} interrupts, (currently) only {} supported", count, 1);
-				return BAN::Error::from_errno(EFAULT);
-			}
-			enable_pin_interrupts();
 		}
 		else
 		{
