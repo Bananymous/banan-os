@@ -667,8 +667,23 @@ char* tempnam(const char*, const char*);
 // TODO
 FILE* tmpfile(void);
 
-// TODO
-char* tmpnam(char*);
+char* tmpnam(char* storage)
+{
+	static int s_counter = rand();
+	static char s_storage[PATH_MAX];
+	if (storage == nullptr)
+		storage = s_storage;
+	for (int i = 0; i < TMP_MAX; i++)
+	{
+		sprintf(storage, "/tmp/tmp_%04x", s_counter);
+		s_counter = rand();
+
+		struct stat st;
+		if (stat(storage, &st) == -1 && errno == ENOENT)
+			break;
+	}
+	return storage;
+}
 
 // TODO
 int ungetc(int, FILE*);
