@@ -417,6 +417,8 @@ namespace Kernel
 		if (flags & Flags::Reserved)
 			extra_flags |= Flags::Reserved;
 
+		if (memory_type == MemoryType::Uncached)
+			extra_flags |= (1ull << 4);
 		if (memory_type == MemoryType::WriteCombining)
 			extra_flags |= (1ull << 7);
 		if (memory_type == MemoryType::WriteThrough)

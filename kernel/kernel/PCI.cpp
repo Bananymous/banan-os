@@ -246,7 +246,7 @@ namespace Kernel::PCI
 		{
 			vaddr_t vaddr = PageTable::kernel().reserve_free_page(KERNEL_OFFSET);
 			ASSERT(vaddr);
-			PageTable::kernel().map_page_at(pcie_paddr, vaddr, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
+			PageTable::kernel().map_page_at(pcie_paddr, vaddr, PageTable::Flags::ReadWrite | PageTable::Flags::Present, PageTable::MemoryType::Uncached);
 			m_mmio_config = vaddr;
 		}
 

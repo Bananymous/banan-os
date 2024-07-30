@@ -37,6 +37,7 @@ namespace Kernel
 		enum MemoryType
 		{
 			Normal,
+			Uncached,
 			WriteCombining,
 			WriteThrough,
 		};

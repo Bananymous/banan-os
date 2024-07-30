@@ -369,13 +369,12 @@ namespace Kernel
 		if (flags & Flags::Reserved)
 			extra_flags |= Flags::Reserved;
 
-		if (s_has_pat)
-		{
-			if (memory_type == MemoryType::WriteCombining)
-				extra_flags |= (1ull << 7);
-			if (memory_type == MemoryType::WriteThrough)
-				extra_flags |= (1ull << 7) | (1ull << 3);
-		}
+		if (memory_type == MemoryType::Uncached)
+			extra_flags |= (1ull << 4);
+		if (s_has_pat && memory_type == MemoryType::WriteCombining)
+			extra_flags |= (1ull << 7);
+		if (s_has_pat && memory_type == MemoryType::WriteThrough)
+			extra_flags |= (1ull << 7) | (1ull << 3);
 
 		// NOTE: we add present here, since it has to be available in higher level structures
 		flags_t uwr_flags = (flags & (Flags::UserSupervisor | Flags::ReadWrite)) | Flags::Present;
