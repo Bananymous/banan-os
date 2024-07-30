@@ -82,6 +82,7 @@ __BEGIN_DECLS
 	O(SYS_GETSOCKOPT,		getsockopt)		\
 	O(SYS_SETSOCKOPT,		setsockopt)		\
 	O(SYS_REALPATH,			realpath)		\
+	O(SYS_TTYNAME,			ttyname)		\
 
 enum Syscall
 {

@@ -488,3 +488,11 @@ char* getlogin(void)
 	endpwent();
 	return buffer;
 }
+
+char* ttyname(int fildes)
+{
+	static char storage[_POSIX_TTY_NAME_MAX];
+	if (syscall(SYS_TTYNAME, fildes, storage) == -1)
+		return nullptr;
+	return storage;
+}
