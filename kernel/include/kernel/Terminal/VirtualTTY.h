@@ -3,7 +3,6 @@
 #include <BAN/Array.h>
 #include <kernel/Device/Device.h>
 #include <kernel/Terminal/TerminalDriver.h>
-#include <kernel/Terminal/termios.h>
 #include <kernel/Terminal/TTY.h>
 #include <kernel/ThreadBlocker.h>
 

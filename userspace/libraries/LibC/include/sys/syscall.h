@@ -15,8 +15,8 @@ __BEGIN_DECLS
 	O(SYS_OPENAT,			openat)			\
 	O(SYS_SEEK,				seek)			\
 	O(SYS_TELL,				tell)			\
-	O(SYS_GET_TERMIOS,		gettermios)		\
-	O(SYS_SET_TERMIOS,		settermios)		\
+	O(SYS_TCGETATTR,		tcgetattr)		\
+	O(SYS_TCSETATTR,		tcsetattr)		\
 	O(SYS_FORK,				fork)			\
 	O(SYS_EXEC,				exec)			\
 	O(SYS_SLEEP,			sleep)			\

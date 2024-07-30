@@ -4,9 +4,10 @@
 #include <kernel/Device/Device.h>
 #include <kernel/Lock/SpinLock.h>
 #include <kernel/Terminal/TerminalDriver.h>
-#include <kernel/Terminal/termios.h>
 #include <kernel/ThreadBlocker.h>
 #include <LibInput/KeyEvent.h>
+
+#include <termios.h>
 
 namespace Kernel
 {
@@ -14,8 +15,6 @@ namespace Kernel
 	class TTY : public CharacterDevice
 	{
 	public:
-		void set_termios(const termios& termios) { m_termios = termios; }
-		termios get_termios() const { return m_termios; }
 		virtual void set_font(const LibFont::Font&) {};
 
 		void set_foreground_pgrp(pid_t pgrp) { m_foreground_pgrp = pgrp; }
@@ -32,6 +31,10 @@ namespace Kernel
 		static void initialize_devices();
 		void on_key_event(LibInput::KeyEvent);
 		void handle_input_byte(uint8_t);
+
+		void get_termios(termios* termios) { *termios = m_termios; }
+		// FIXME: validate termios
+		BAN::ErrorOr<void> set_termios(const termios* termios) { m_termios = *termios; return {}; }
 
 		virtual bool is_tty() const override { return true; }
 
@@ -53,7 +56,15 @@ namespace Kernel
 	protected:
 		TTY(mode_t mode, uid_t uid, gid_t gid)
 			: CharacterDevice(mode, uid, gid)
-		{ }
+		{
+			// FIXME: add correct baud and flags
+			m_termios.c_iflag = 0;
+			m_termios.c_oflag = 0;
+			m_termios.c_cflag = CS8;
+			m_termios.c_lflag = ECHO | ICANON;
+			m_termios.c_ospeed = B38400;
+			m_termios.c_ispeed = B38400;
+		}
 
 		virtual void putchar_impl(uint8_t ch) = 0;
 		virtual BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan) override;

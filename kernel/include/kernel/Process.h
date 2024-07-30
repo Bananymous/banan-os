@@ -68,8 +68,8 @@ namespace Kernel
 
 		BAN::ErrorOr<long> sys_exit(int status);
 
-		BAN::ErrorOr<long> sys_gettermios(::termios*);
-		BAN::ErrorOr<long> sys_settermios(const ::termios*);
+		BAN::ErrorOr<long> sys_tcgetattr(int fildes, termios*);
+		BAN::ErrorOr<long> sys_tcsetattr(int fildes, int optional_actions, const termios*);
 
 		BAN::ErrorOr<long> sys_fork(uintptr_t rsp, uintptr_t rip);
 		BAN::ErrorOr<long> sys_exec(const char* path, const char* const* argv, const char* const* envp);

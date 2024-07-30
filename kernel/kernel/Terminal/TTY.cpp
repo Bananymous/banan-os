@@ -234,7 +234,7 @@ namespace Kernel
 		}
 
 		// ^D + canonical
-		if (ch == '\x04' && m_termios.canonical)
+		if (ch == '\x04' && (m_termios.c_lflag & ICANON))
 		{
 			m_output.flush = true;
 			m_output.thread_blocker.unblock();
@@ -242,7 +242,7 @@ namespace Kernel
 		}
 
 		// backspace + canonical
-		if (ch == '\b' && m_termios.canonical)
+		if (ch == '\b' && (m_termios.c_lflag & ICANON))
 		{
 			do_backspace();
 			return;
@@ -250,7 +250,7 @@ namespace Kernel
 
 		m_output.buffer[m_output.bytes++] = ch;
 
-		if (m_termios.echo)
+		if (m_termios.c_lflag & ECHO)
 		{
 			if ((ch <= 31 || ch == 127) && ch != '\n')
 			{
@@ -276,7 +276,7 @@ namespace Kernel
 			}
 		}
 
-		if (ch == '\n' || !m_termios.canonical)
+		if (ch == '\n' || !(m_termios.c_lflag & ICANON))
 		{
 			m_output.flush = true;
 			m_output.thread_blocker.unblock();

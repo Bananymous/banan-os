@@ -35,6 +35,8 @@ struct termios
 	tcflag_t	c_cflag;	/* Control modes. */
 	tcflag_t	c_lflag;	/* Local modes. */
 	cc_t		c_cc[NCCS];	/* Control characters. */
+	speed_t     c_ospeed;
+	speed_t     c_ispeed;
 };
 
 #define BRKINT	0x001

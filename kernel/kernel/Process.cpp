@@ -332,39 +332,38 @@ namespace Kernel
 		ASSERT_NOT_REACHED();
 	}
 
-	BAN::ErrorOr<long> Process::sys_gettermios(::termios* termios)
+	BAN::ErrorOr<long> Process::sys_tcgetattr(int fildes, termios* termios)
 	{
 		LockGuard _(m_process_lock);
 
-		TRY(validate_pointer_access(termios, sizeof(::termios)));
+		TRY(validate_pointer_access(termios, sizeof(termios)));
 
-		if (!m_controlling_terminal)
+		auto inode = TRY(m_open_file_descriptors.inode_of(fildes));
+		if (!inode->is_tty())
 			return BAN::Error::from_errno(ENOTTY);
 
-		Kernel::termios ktermios = m_controlling_terminal->get_termios();
-		termios->c_lflag = 0;
-		if (ktermios.canonical)
-			termios->c_lflag |= ICANON;
-		if (ktermios.echo)
-			termios->c_lflag |= ECHO;
+		static_cast<TTY*>(inode.ptr())->get_termios(termios);
 
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_settermios(const ::termios* termios)
+	BAN::ErrorOr<long> Process::sys_tcsetattr(int fildes, int optional_actions, const termios* termios)
 	{
+		if (optional_actions != TCSANOW)
+			return BAN::Error::from_errno(EINVAL);
+
 		LockGuard _(m_process_lock);
 
-		TRY(validate_pointer_access(termios, sizeof(::termios)));
+		TRY(validate_pointer_access(termios, sizeof(termios)));
 
-		if (!m_controlling_terminal)
+		auto inode = TRY(m_open_file_descriptors.inode_of(fildes));
+		if (!inode->is_tty())
 			return BAN::Error::from_errno(ENOTTY);
 
-		Kernel::termios ktermios;
-		ktermios.echo = termios->c_lflag & ECHO;
-		ktermios.canonical = termios->c_lflag & ICANON;
+		TRY(static_cast<TTY*>(inode.ptr())->set_termios(termios));
 
-		m_controlling_terminal->set_termios(ktermios);
+		// FIXME: SIGTTOU
+
 		return 0;
 	}
 
