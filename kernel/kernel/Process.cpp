@@ -784,6 +784,32 @@ namespace Kernel
 		return TRY(m_open_file_descriptors.write(fd, BAN::ByteSpan((uint8_t*)buffer, count)));
 	}
 
+	BAN::ErrorOr<long> Process::sys_access(const char* path, int amode)
+	{
+		int flags = 0;
+		if (amode & F_OK)
+			flags |= O_SEARCH;
+		if (amode & R_OK)
+			flags |= O_RDONLY;
+		if (amode & W_OK)
+			flags |= O_WRONLY;
+		if (amode & X_OK)
+			flags |= O_EXEC;
+		static_assert((O_RDONLY | O_WRONLY) == O_RDWR);
+
+		LockGuard _(m_process_lock);
+		TRY(validate_string_access(path));
+
+		auto credentials = m_credentials;
+		credentials.set_euid(credentials.ruid());
+		credentials.set_egid(credentials.rgid());
+
+		auto absolute_path = TRY(absolute_path_of(path));
+
+		TRY(VirtualFileSystem::get().file_from_absolute_path(credentials, absolute_path, flags));
+		return 0;
+	}
+
 	BAN::ErrorOr<long> Process::sys_create(const char* path, mode_t mode)
 	{
 		LockGuard _(m_process_lock);

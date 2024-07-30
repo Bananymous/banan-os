@@ -496,3 +496,8 @@ char* ttyname(int fildes)
 		return nullptr;
 	return storage;
 }
+
+int access(const char* path, int amode)
+{
+	return syscall(SYS_ACCESS, path, amode);
+}
