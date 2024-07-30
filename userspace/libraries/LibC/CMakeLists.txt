@@ -5,7 +5,9 @@ set(LIBC_SOURCES
 	dirent.cpp
 	fcntl.cpp
 	grp.cpp
+	locale.cpp
 	malloc.cpp
+	math.cpp
 	netdb.cpp
 	printf_impl.cpp
 	pwd.cpp
@@ -25,7 +27,6 @@ set(LIBC_SOURCES
 	termios.cpp
 	time.cpp
 	unistd.cpp
-	math.cpp
 	icxxabi.cpp
 
 	../../../BAN/BAN/Assert.cpp
