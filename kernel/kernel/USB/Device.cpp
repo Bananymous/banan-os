@@ -10,14 +10,18 @@ namespace Kernel
 
 	BAN::ErrorOr<void> USBDevice::initialize()
 	{
+		dprintln_if(DEBUG_USB, "initializing control endpoint");
+
 		TRY(initialize_control_endpoint());
 
 		m_dma_buffer = TRY(DMARegion::create(1024));
 
+		dprintln_if(DEBUG_USB, "getting device descriptor");
+
 		USBDeviceRequest request;
 		request.bmRequestType = USB::RequestType::DeviceToHost | USB::RequestType::Standard | USB::RequestType::Device;
 		request.bRequest      = USB::Request::GET_DESCRIPTOR;
-		request.wValue        = 0x0100;
+		request.wValue        = static_cast<uint16_t>(USB::DescriptorType::DEVICE) << 8;
 		request.wIndex        = 0;
 		request.wLength       = sizeof(USBDeviceDescriptor);
 		auto transferred = TRY(send_request(request, m_dma_buffer->paddr()));
@@ -236,10 +240,16 @@ namespace Kernel
 			USBDeviceRequest request;
 			request.bmRequestType = USB::RequestType::DeviceToHost | USB::RequestType::Standard | USB::RequestType::Device;
 			request.bRequest      = USB::Request::GET_DESCRIPTOR;
-			request.wValue        = 0x0200 | index;
+			request.wValue        = (static_cast<uint16_t>(USB::DescriptorType::CONFIGURATION) << 8) | index;
 			request.wIndex        = 0;
 			request.wLength       = m_dma_buffer->size();
 			auto transferred = TRY(send_request(request, m_dma_buffer->paddr()));
+
+			if (transferred < sizeof(USBConfigurationDescriptor))
+			{
+				dwarnln("usb device responded with only {} bytes of configuration", transferred);
+				return BAN::Error::from_errno(EINVAL);
+			}
 
 			auto configuration = *reinterpret_cast<const USBConfigurationDescriptor*>(m_dma_buffer->vaddr());
 
