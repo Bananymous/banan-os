@@ -6,7 +6,7 @@
 
 int creat(const char* path, mode_t mode)
 {
-	return syscall(SYS_CREATE, path, S_IFREG | mode);
+	return syscall(SYS_CREATE, path, S_IFREG | __UMASKED_MODE(mode));
 }
 
 int open(const char* path, int oflag, ...)
@@ -16,7 +16,7 @@ int open(const char* path, int oflag, ...)
 	mode_t mode = va_arg(args, mode_t);
 	va_end(args);
 
-	return syscall(SYS_OPEN, path, oflag, mode);
+	return syscall(SYS_OPEN, path, oflag, __UMASKED_MODE(mode));
 }
 
 int openat(int fd, const char* path, int oflag, ...)
@@ -26,7 +26,7 @@ int openat(int fd, const char* path, int oflag, ...)
 	mode_t mode = va_arg(args, mode_t);
 	va_end(args);
 
-	return syscall(SYS_OPENAT, fd, path, oflag, mode);
+	return syscall(SYS_OPENAT, fd, path, oflag, __UMASKED_MODE(mode));
 }
 
 int fcntl(int fildes, int cmd, ...)

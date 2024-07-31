@@ -4,6 +4,8 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 
+mode_t __umask = 0;
+
 int chmod(const char* path, mode_t mode)
 {
 	return syscall(SYS_CHMOD, path, mode);
@@ -29,7 +31,14 @@ int stat(const char* __restrict path, struct stat* __restrict buf)
 	return syscall(SYS_STAT, path, buf, 0);
 }
 
+mode_t umask(mode_t cmask)
+{
+	mode_t old = __umask;
+	__umask = cmask;
+	return old;
+}
+
 int mkdir(const char* path, mode_t mode)
 {
-	return syscall(SYS_CREATE_DIR, path, mode);
+	return syscall(SYS_CREATE_DIR, path, __UMASKED_MODE(mode));
 }

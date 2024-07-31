@@ -42,6 +42,9 @@ struct stat
 #define st_ctime st_ctim.tv_sec
 #define st_mtime st_mtim.tv_sec
 
+extern mode_t __umask;
+#define __UMASKED_MODE(mode) ((mode) & ~__umask)
+
 #define S_IRWXU		00700
 #define S_IRUSR		00400
 #define S_IWUSR		00200
