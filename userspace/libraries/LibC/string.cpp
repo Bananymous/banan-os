@@ -136,6 +136,12 @@ char* strncat(char* __restrict__ dest, const char* __restrict__ src, size_t n)
 	return dest;
 }
 
+int strcoll(const char* s1, const char* s2)
+{
+	// FIXME: support locales
+	return strcmp(s1, s2);
+}
+
 char* strdup(const char* str)
 {
 	const size_t size = strlen(str) + 1;
