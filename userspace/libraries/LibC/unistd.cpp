@@ -119,6 +119,19 @@ int isatty(int fildes)
 	return syscall(SYS_ISATTY, fildes) >= 0;
 }
 
+int gethostname(char* name, size_t namelen)
+{
+	FILE* fp = fopen("/etc/hostname", "r");
+	if (fp == NULL)
+		return -1;
+	size_t nread = fread(name, namelen - 1, 1, fp);
+	while (nread > 0 && name[nread - 1] == '\n')
+		nread--;
+	name[nread] = '\0';
+	fclose(fp);
+	return 0;
+}
+
 int execl(const char* pathname, const char* arg0, ...)
 {
 	if (arg0 == nullptr)

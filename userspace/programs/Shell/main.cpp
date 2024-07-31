@@ -915,21 +915,9 @@ int main(int argc, char** argv)
 
 	tcgetattr(0, &old_termios);
 
-	{
-		FILE* fp = fopen("/etc/hostname", "r");
-		if (fp != NULL)
-		{
-			char buffer[512];
-			while (size_t nbyte = fread(buffer, 1, sizeof(buffer), fp))
-			{
-				if (nbyte == 0)
-					break;
-				MUST(hostname.append(BAN::StringView(buffer, nbyte)));
-			}
-			fclose(fp);
-		}
-		if (!hostname.empty() && hostname.back() == '\n')
-			hostname.pop_back();
+	char hostname_buffer[HOST_NAME_MAX];
+	if (gethostname(hostname_buffer, sizeof(hostname_buffer)) == 0) {
+		MUST(hostname.append(hostname_buffer));
 	}
 
 	if (argc >= 2)
