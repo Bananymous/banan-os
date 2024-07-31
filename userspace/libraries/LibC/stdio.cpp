@@ -1,5 +1,6 @@
 #include <BAN/Assert.h>
 #include <BAN/Debug.h>
+#include <BAN/Math.h>
 
 #include <bits/printf.h>
 #include <errno.h>
@@ -16,12 +17,15 @@ struct FILE
 {
 	int fd			{ -1 };
 	mode_t mode		{ 0 };
+	int buffer_type	{ _IOLBF };
 	bool eof		{ false };
 	bool error		{ false };
 
 	int pid			{ -1 };
 
-	unsigned char buffer[BUFSIZ] {};
+	unsigned char inline_buffer_storage[BUFSIZ] {};
+	unsigned char* buffer = inline_buffer_storage;
+	uint32_t buffer_size = BUFSIZ;
 	uint32_t buffer_index { 0 };
 };
 
@@ -44,7 +48,7 @@ struct ScopeLock
 static FILE s_files[FOPEN_MAX] {
 	{ .fd = STDIN_FILENO,	.mode = O_RDONLY },
 	{ .fd = STDOUT_FILENO,	.mode = O_WRONLY },
-	{ .fd = STDERR_FILENO,	.mode = O_WRONLY },
+	{ .fd = STDERR_FILENO,	.mode = O_WRONLY, .buffer_type = _IONBF },
 	{ .fd = STDDBG_FILENO,	.mode = O_WRONLY },
 };
 
@@ -73,7 +77,7 @@ int fclose(FILE* file)
 	ScopeLock _(file);
 	(void)fflush(file);
 	int ret = (close(file->fd) == -1) ? EOF : 0;
-	file->fd = -1;
+	file = {};
 	return ret;
 }
 
@@ -104,19 +108,18 @@ FILE* fdopen(int fd, const char* mode_str)
 		errno = EINVAL;
 		return nullptr;
 	}
-	mode &= ~O_TRUNC;
 
 	// FIXME: when threads are implemented
 	for (int i = 0; i < FOPEN_MAX; i++)
 	{
-		if (s_files[i].fd == -1)
-		{
-			s_files[i] = {
-				.fd = fd,
-				.mode = mode & O_ACCMODE,
-			};
-			return &s_files[i];
-		}
+		ScopeLock _(&s_files[i]);
+		if (s_files[i].fd != -1)
+			continue;
+		s_files[i].fd = fd;
+		s_files[i].mode = mode & O_ACCMODE;
+		ASSERT(s_files[i].buffer == s_files[i].inline_buffer_storage);
+		ASSERT(s_files[i].buffer_size == BUFSIZ);
+		return &s_files[i];
 	}
 
 	errno = EMFILE;
@@ -229,14 +232,14 @@ FILE* fopen(const char* pathname, const char* mode_str)
 	// FIXME: when threads are implemented
 	for (int i = 0; i < FOPEN_MAX; i++)
 	{
-		if (s_files[i].fd == -1)
-		{
-			s_files[i] = {
-				.fd = fd,
-				.mode = mode & O_ACCMODE
-			};
-			return &s_files[i];
-		}
+		ScopeLock _(&s_files[i]);
+		if (s_files[i].fd != -1)
+			continue;
+		s_files[i].fd = fd;
+		s_files[i].mode = mode & O_ACCMODE;
+		ASSERT(s_files[i].buffer == s_files[i].inline_buffer_storage);
+		ASSERT(s_files[i].buffer_size == BUFSIZ);
+		return &s_files[i];
 	}
 
 	errno = EMFILE;
@@ -308,11 +311,9 @@ FILE* freopen(const char* pathname, const char* mode_str, FILE* file)
 
 	ScopeLock _(file);
 
-	(void)fflush(file);
-
 	if (pathname)
 	{
-		close(file->fd);
+		fclose(file);
 		file->fd = open(pathname, mode, 0666);
 		file->mode = mode & O_ACCMODE;
 		if (file->fd == -1)
@@ -320,15 +321,13 @@ FILE* freopen(const char* pathname, const char* mode_str, FILE* file)
 	}
 	else
 	{
-		mode &= O_ACCMODE;
 		if ((file->mode & mode) != mode)
 		{
-			close(file->fd);
-			file->fd = -1;
+			fclose(file);
 			errno = EBADF;
 			return nullptr;
 		}
-		file->mode = mode;
+		file->mode = mode & O_ACCMODE;
 	}
 
 	return file;
@@ -537,15 +536,15 @@ FILE* popen(const char* command, const char* mode_str)
 	// FIXME: when threads are implemented
 	for (int i = 0; i < FOPEN_MAX; i++)
 	{
-		if (s_files[i].fd == -1)
-		{
-			s_files[i] = {
-				.fd = read ? fds[0] : fds[1],
-				.mode = (unsigned)(read ? O_RDONLY : O_WRONLY),
-				.pid = pid
-			};
-			return &s_files[i];
-		}
+		ScopeLock _(&s_files[i]);
+		if (s_files[i].fd != -1)
+			continue;
+		s_files[i].fd = read ? fds[0] : fds[1];
+		s_files[i].mode = (unsigned)(read ? O_RDONLY : O_WRONLY);
+		s_files[i].pid = pid;
+		ASSERT(s_files[i].buffer == s_files[i].inline_buffer_storage);
+		ASSERT(s_files[i].buffer_size == BUFSIZ);
+		return &s_files[i];
 	}
 
 	errno = EMFILE;
@@ -574,7 +573,7 @@ int putchar(int c)
 int putc_unlocked(int c, FILE* file)
 {
 	file->buffer[file->buffer_index++] = c;
-	if (c == '\n' || file->buffer_index == sizeof(file->buffer))
+	if (file->buffer_type == _IONBF || (file->buffer_type == _IOLBF && c == '\n') || file->buffer_index >= file->buffer_size)
 		if (fflush(file) == EOF)
 			return EOF;
 	return (unsigned char)c;
@@ -628,11 +627,32 @@ int scanf(const char* format, ...)
 	return ret;
 }
 
-// TODO
-void setbuf(FILE*, char*);
+void setbuf(FILE* file, char* buffer)
+{
+	int type = buffer ? _IOFBF : _IONBF;
+	setvbuf(file, buffer, type, BUFSIZ);
+}
 
-// TODO
-int setvbuf(FILE*, char*, int, size_t);
+int setvbuf(FILE* file, char* buffer, int type, size_t size)
+{
+	if (file->fd == -1)
+	{
+		errno = EBADF;
+		return -1;
+	}
+
+	if (buffer == nullptr)
+	{
+		buffer = reinterpret_cast<char*>(file->inline_buffer_storage);
+		size = BAN::Math::min<size_t>(size, BUFSIZ);
+	}
+
+	file->buffer_type = type;
+	file->buffer_size = size;
+	file->buffer = reinterpret_cast<unsigned char*>(buffer);
+
+	return 0;
+}
 
 int snprintf(char* buffer, size_t max_size, const char* format, ...)
 {
