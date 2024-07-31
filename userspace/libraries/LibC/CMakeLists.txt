@@ -24,6 +24,7 @@ set(LIBC_SOURCES
 	sys/socket.cpp
 	sys/stat.cpp
 	sys/time.cpp
+	sys/utsname.cpp
 	sys/wait.cpp
 	termios.cpp
 	time.cpp
