@@ -5,9 +5,35 @@
 #include <time.h>
 #include <unistd.h>
 
+// sample implementation from https://pubs.opengroup.org/onlinepubs/9699919799/functions/asctime.html
+char* asctime(const struct tm* timeptr)
+{
+	static constexpr char wday_name[][4] {
+		"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"
+	};
+	static constexpr char mon_name[][4] {
+		"Jan", "Feb", "Mar", "Apr", "May", "Jun",
+		"Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+	};
+
+	static char result[128];
+	sprintf(result, "%.3s %.3s%3d %.2d:%.2d:%.2d %d\n",
+		wday_name[timeptr->tm_wday],
+		mon_name[timeptr->tm_mon],
+		timeptr->tm_mday, timeptr->tm_hour,
+		timeptr->tm_min, timeptr->tm_sec,
+		1900 + timeptr->tm_year);
+	return result;
+}
+
 int clock_gettime(clockid_t clock_id, struct timespec* tp)
 {
 	return syscall(SYS_CLOCK_GETTIME, clock_id, tp);
+}
+
+char* ctime(const time_t* clock)
+{
+	return asctime(localtime(clock));
 }
 
 int nanosleep(const struct timespec* rqtp, struct timespec* rmtp)
