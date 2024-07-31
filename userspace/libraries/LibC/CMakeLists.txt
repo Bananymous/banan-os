@@ -34,7 +34,7 @@ set(LIBC_SOURCES
 )
 
 add_library(libc ${LIBC_SOURCES})
-target_compile_options(libc PRIVATE -O2 -g -Wstack-usage=512 -fno-tree-loop-distribute-patterns -nostdlib)
+target_compile_options(libc PRIVATE -O2 -g -Wstack-usage=512 -fno-tree-loop-distribute-patterns -fno-exceptions -nostdlib)
 target_compile_options(libc PUBLIC -Wall -Wextra -Werror -Wno-error=stack-usage=)
 
 function(add_crtx crtx)
