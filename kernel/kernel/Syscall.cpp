@@ -7,6 +7,8 @@
 
 #include <termios.h>
 
+#define DUMP_ALL_SYSCALLS 0
+
 namespace Kernel
 {
 
@@ -24,6 +26,12 @@ namespace Kernel
 
 	static const SyscallHandler s_syscall_handlers[] = {
 #define O(enum, name) BAN::bit_cast<SyscallHandler>(&Process::sys_ ## name),
+		__SYSCALL_LIST(O)
+#undef O
+	};
+
+	static constexpr const char* s_syscall_names[] {
+#define O(enum, name) #enum,
 		__SYSCALL_LIST(O)
 #undef O
 	};
@@ -46,7 +54,13 @@ namespace Kernel
 		asm volatile("cli");
 
 		if (ret.is_error() && ret.error().get_error_code() == ENOTSUP)
-			dprintln("ENOTSUP {}", syscall);
+			dprintln("{}: ENOTSUP", s_syscall_names[syscall]);
+#if DUMP_ALL_SYSCALLS
+		else if (ret.is_error())
+			dprintln("{}: {}", s_syscall_names[syscall], ret.error());
+		else
+			dprintln("{}: {}", s_syscall_names[syscall], ret.value());
+#endif
 
 		if (ret.is_error() && ret.error().is_kernel_error())
 			Kernel::panic("Kernel error while returning to userspace {}", ret.error());
