@@ -1762,7 +1762,8 @@ namespace Kernel
 
 		if (pid == m_pid)
 		{
-			add_pending_signal(signal);
+			if (signal)
+				add_pending_signal(signal);
 			return 0;
 		}
 
