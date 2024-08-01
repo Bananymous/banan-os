@@ -101,7 +101,14 @@ struct str_list
 #define I_SWROPT	28
 #define I_UNLINK	29
 
-#define KD_LOADFONT	30
+#define KDLOADFONT	30
+
+struct winsize
+{
+	unsigned short ws_row;
+	unsigned short ws_col;
+};
+#define TIOCGWINSZ	50
 
 #define FLUSHR	1
 #define FLUSHRW	2

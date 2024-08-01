@@ -127,16 +127,22 @@ namespace Kernel
 	{
 		switch (request)
 		{
-			case KD_LOADFONT:
+			case KDLOADFONT:
 			{
 				auto absolute_path = TRY(Process::current().absolute_path_of(BAN::StringView(reinterpret_cast<const char*>(argument))));
 				auto new_font = TRY(LibFont::Font::load(absolute_path));
 				set_font(new_font);
 				return 0;
 			}
-			default:
-				return BAN::Error::from_errno(EINVAL);
+			case TIOCGWINSZ:
+			{
+				auto* winsize = static_cast<struct winsize*>(argument);
+				winsize->ws_col = width();
+				winsize->ws_row = height();
+				return 0;
+			}
 		}
+		return BAN::Error::from_errno(ENOTSUP);
 	}
 
 	void TTY::on_key_event(LibInput::KeyEvent event)

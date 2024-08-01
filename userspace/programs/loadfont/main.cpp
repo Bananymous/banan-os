@@ -20,7 +20,7 @@ int main(int argc, char** argv)
 		return 1;
 	}
 
-	if (ioctl(STDOUT_FILENO, KD_LOADFONT, argv[1]) == -1)
+	if (ioctl(STDOUT_FILENO, KDLOADFONT, argv[1]) == -1)
 	{
 		perror("ioctl");
 		return 1;
