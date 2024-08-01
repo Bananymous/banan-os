@@ -193,6 +193,9 @@ namespace Kernel
 				case LibInput::Key::Backspace:
 					ansi_c_str = "\b";
 					break;
+				case LibInput::Key::Escape:
+					ansi_c_str = "\e";
+					break;
 				case LibInput::Key::ArrowUp:
 					ansi_c_str = "\e[A";
 					break;
