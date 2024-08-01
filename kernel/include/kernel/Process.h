@@ -19,6 +19,7 @@
 #include <sys/mman.h>
 #include <sys/select.h>
 #include <sys/socket.h>
+#include <sys/time.h>
 #include <termios.h>
 
 namespace LibELF { class LoadableELF; }
@@ -77,6 +78,7 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_wait(pid_t pid, int* stat_loc, int options);
 		BAN::ErrorOr<long> sys_sleep(int seconds);
 		BAN::ErrorOr<long> sys_nanosleep(const timespec* rqtp, timespec* rmtp);
+		BAN::ErrorOr<long> sys_setitimer(int which, const itimerval* value, itimerval* ovalue);
 
 		BAN::ErrorOr<long> sys_setpwd(const char* path);
 		BAN::ErrorOr<long> sys_getpwd(char* buffer, size_t size);
@@ -207,6 +209,9 @@ namespace Kernel
 
 		BAN::ErrorOr<BAN::String> absolute_path_of(BAN::StringView) const;
 
+		// ONLY CALLED BY TIMER INTERRUPT
+		static void update_alarm_queue();
+
 	private:
 		Process(const Credentials&, pid_t pid, pid_t parent, pid_t sid, pid_t pgrp);
 		static Process* create_process(const Credentials&, pid_t parent, pid_t sid = 0, pid_t pgrp = 0);
@@ -274,6 +279,9 @@ namespace Kernel
 
 		BAN::String m_working_directory;
 		BAN::Vector<Thread*> m_threads;
+
+		uint64_t m_alarm_interval_ns { 0 };
+		uint64_t m_alarm_wake_time_ns { 0 };
 
 		mutable SpinLock m_signal_lock;
 		struct sigaction m_signal_handlers[_SIGMAX + 1] { };

@@ -8,6 +8,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
+#include <sys/time.h>
 #include <unistd.h>
 
 char** environ;
@@ -513,4 +514,15 @@ char* ttyname(int fildes)
 int access(const char* path, int amode)
 {
 	return syscall(SYS_ACCESS, path, amode);
+}
+
+unsigned alarm(unsigned seconds)
+{
+	itimerval value, ovalue;
+	value.it_value.tv_sec = seconds;
+	value.it_value.tv_usec = 0;
+	value.it_interval.tv_sec = 0;
+	value.it_interval.tv_usec = 0;
+	setitimer(ITIMER_REAL, &value, &ovalue);
+	return ovalue.it_value.tv_sec;
 }

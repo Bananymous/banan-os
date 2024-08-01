@@ -337,6 +337,10 @@ done:
 	{
 		ASSERT(InterruptController::get().is_in_service(IRQ_TIMER));
 		InterruptController::get().eoi(IRQ_TIMER);
+
+		if (Processor::current_is_bsb())
+			Process::update_alarm_queue();
+
 		Processor::scheduler().timer_interrupt();
 
 		auto& current_thread = Thread::current();

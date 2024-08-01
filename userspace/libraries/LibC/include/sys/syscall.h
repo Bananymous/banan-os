@@ -86,6 +86,7 @@ __BEGIN_DECLS
 	O(SYS_SIGACTION,		sigaction)		\
 	O(SYS_SIGPENDING,		sigpending)		\
 	O(SYS_SIGPROCMASK,		sigprocmask)	\
+	O(SYS_SETITIMER,		setitimer)		\
 
 enum Syscall
 {

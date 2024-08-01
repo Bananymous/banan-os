@@ -27,6 +27,7 @@
 namespace Kernel
 {
 
+	static BAN::LinkedList<Process*> s_alarm_processes;
 	static BAN::Vector<Process*> s_processes;
 	static RecursiveSpinLock s_process_lock;
 
@@ -638,6 +639,112 @@ namespace Kernel
 		}
 
 		return 0;
+	}
+
+	BAN::ErrorOr<long> Process::sys_setitimer(int which, const itimerval* value, itimerval* ovalue)
+	{
+		switch (which)
+		{
+			case ITIMER_PROF:
+			case ITIMER_REAL:
+			case ITIMER_VIRTUAL:
+				break;
+			default:
+				return BAN::Error::from_errno(EINVAL);
+		}
+
+		LockGuard _(m_process_lock);
+
+		if (value)
+			TRY(validate_pointer_access(value, sizeof(itimerval)));
+		if (ovalue)
+			TRY(validate_pointer_access(ovalue, sizeof(itimerval)));
+
+		{
+			SpinLockGuard _(s_process_lock);
+
+			const uint64_t current_ns = SystemTimer::get().ns_since_boot();
+
+			if (m_alarm_wake_time_ns)
+			{
+				for (auto it = s_alarm_processes.begin(); it != s_alarm_processes.end(); it++)
+				{
+					if (*it != this)
+						continue;
+					s_alarm_processes.remove(it);
+					break;
+				}
+			}
+
+			if (m_alarm_wake_time_ns && ovalue)
+			{
+				const uint64_t interval_us = m_alarm_interval_ns / 1000;
+				ovalue->it_interval = {
+					.tv_sec = static_cast<time_t>(interval_us / 1'000'000),
+					.tv_usec = static_cast<suseconds_t>(interval_us % 1'000'000),
+				};
+
+				const uint64_t remaining_us = current_ns < m_alarm_wake_time_ns ? (current_ns - m_alarm_wake_time_ns) / 1000 : 1;
+				ovalue->it_value = {
+					.tv_sec = static_cast<time_t>(remaining_us / 1'000'000),
+					.tv_usec = static_cast<suseconds_t>(remaining_us % 1'000'000),
+				};
+
+				m_alarm_interval_ns = 0;
+				m_alarm_wake_time_ns = 0;
+			}
+
+			if (value)
+			{
+				const uint64_t value_us = value->it_value.tv_sec * 1'000'000 + value->it_value.tv_usec;
+				const uint64_t interval_us = value->it_interval.tv_sec * 1'000'000 + value->it_interval.tv_usec;
+				if (value_us)
+				{
+					const uint64_t wake_time_ns = current_ns + value_us * 1000;
+
+					auto it = s_alarm_processes.begin();
+					while (it != s_alarm_processes.end() && (*it)->m_alarm_wake_time_ns < wake_time_ns)
+						it++;
+					TRY(s_alarm_processes.insert(it, this));
+
+					m_alarm_wake_time_ns = wake_time_ns;
+					m_alarm_interval_ns = interval_us * 1000;
+				}
+			}
+		}
+
+		return 0;
+	}
+
+	void Process::update_alarm_queue()
+	{
+		ASSERT(Processor::current_is_bsb());
+
+		SpinLockGuard _(s_process_lock);
+
+		const uint64_t current_ns = SystemTimer::get().ns_since_boot();
+
+		while (!s_alarm_processes.empty())
+		{
+			auto* process = s_alarm_processes.front();
+			if (current_ns < process->m_alarm_wake_time_ns)
+				break;
+
+			process->add_pending_signal(SIGALRM);
+			Processor::scheduler().unblock_thread(process->m_threads.front());
+
+			s_alarm_processes.remove(s_alarm_processes.begin());
+
+			if (process->m_alarm_interval_ns == 0)
+				continue;
+
+			process->m_alarm_wake_time_ns = current_ns + process->m_alarm_interval_ns;
+
+			auto it = s_alarm_processes.begin();
+			while (it != s_alarm_processes.end() && (*it)->m_alarm_wake_time_ns < process->m_alarm_wake_time_ns)
+				it++;
+			MUST(s_alarm_processes.insert(it, process));
+		}
 	}
 
 	BAN::ErrorOr<void> Process::create_file_or_dir(BAN::StringView path, mode_t mode)
