@@ -22,7 +22,7 @@ __BEGIN_DECLS
 #include <sys/types.h>
 
 typedef int sig_atomic_t;
-typedef void* sigset_t;
+typedef unsigned long long sigset_t;
 
 union sigval
 {

@@ -266,10 +266,16 @@ namespace Kernel
 		{
 			if (!(signals & ((uint64_t)1 << i)))
 				continue;
-			vaddr_t handler = m_process->m_signal_handlers[i];
-			if (handler == (vaddr_t)SIG_IGN)
+
+			vaddr_t signal_handler;
+			{
+				SpinLockGuard _(m_process->m_signal_lock);
+				ASSERT(!(m_process->m_signal_handlers[i].sa_flags & SA_SIGINFO));
+				signal_handler = (vaddr_t)m_process->m_signal_handlers[i].sa_handler;
+			}
+			if (signal_handler == (vaddr_t)SIG_IGN)
 				continue;
-			if (handler == (vaddr_t)SIG_DFL && (i == SIGCHLD || i == SIGURG))
+			if (signal_handler == (vaddr_t)SIG_DFL && (i == SIGCHLD || i == SIGURG))
 				continue;
 			return true;
 		}
@@ -316,7 +322,12 @@ namespace Kernel
 			ASSERT(signal <= _SIGMAX);
 		}
 
-		vaddr_t signal_handler = process().m_signal_handlers[signal];
+		vaddr_t signal_handler;
+		{
+			SpinLockGuard _(m_process->m_signal_lock);
+			ASSERT(!(m_process->m_signal_handlers[signal].sa_flags & SA_SIGINFO));
+			signal_handler = (vaddr_t)m_process->m_signal_handlers[signal].sa_handler;
+		}
 
 		m_signal_pending_mask &= ~(1ull << signal);
 		process().remove_pending_signal(signal);
@@ -390,10 +401,15 @@ namespace Kernel
 		SpinLockGuard _(m_signal_lock);
 		if (m_process)
 		{
-			vaddr_t handler = m_process->m_signal_handlers[signal];
-			if (handler == (vaddr_t)SIG_IGN)
+			vaddr_t signal_handler;
+			{
+				SpinLockGuard _(m_process->m_signal_lock);
+				ASSERT(!(m_process->m_signal_handlers[signal].sa_flags & SA_SIGINFO));
+				signal_handler = (vaddr_t)m_process->m_signal_handlers[signal].sa_handler;
+			}
+			if (signal_handler == (vaddr_t)SIG_IGN)
 				return false;
-			if (handler == (vaddr_t)SIG_DFL && (signal == SIGCHLD || signal == SIGURG))
+			if (signal_handler == (vaddr_t)SIG_DFL && (signal == SIGCHLD || signal == SIGURG))
 				return false;
 		}
 		uint64_t mask = 1ull << signal;

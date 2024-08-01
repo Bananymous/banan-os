@@ -174,8 +174,10 @@ namespace Kernel
 
 		BAN::ErrorOr<long> sys_tty_ctrl(int fildes, int command, int flags);
 
-		BAN::ErrorOr<long> sys_signal(int, void (*)(int));
 		BAN::ErrorOr<long> sys_kill(pid_t pid, int signal);
+		BAN::ErrorOr<long> sys_sigaction(int signal, const struct sigaction* act, struct sigaction* oact);
+		BAN::ErrorOr<long> sys_sigpending(sigset_t* set);
+		BAN::ErrorOr<long> sys_sigprocmask(int how, const sigset_t* set, sigset_t* oset);
 
 		BAN::ErrorOr<long> sys_tcsetpgrp(int fd, pid_t pgid);
 
@@ -220,7 +222,8 @@ namespace Kernel
 
 		uint64_t signal_pending_mask() const
 		{
-			return ((uint64_t)m_signal_pending_mask[1].load() << 32) | m_signal_pending_mask[0].load();
+			SpinLockGuard _(m_signal_lock);
+			return m_signal_pending_mask;
 		}
 
 		void add_pending_signal(uint8_t signal)
@@ -228,15 +231,13 @@ namespace Kernel
 			ASSERT(signal >= _SIGMIN);
 			ASSERT(signal <= _SIGMAX);
 			ASSERT(signal < 64);
-			vaddr_t handler = m_signal_handlers[signal];
-			if (handler == (vaddr_t)SIG_IGN)
+			SpinLockGuard _(m_signal_lock);
+			auto handler = m_signal_handlers[signal].sa_handler;
+			if (handler == SIG_IGN)
 				return;
-			if (handler == (vaddr_t)SIG_DFL && (signal == SIGCHLD || signal == SIGURG))
+			if (handler == SIG_DFL && (signal == SIGCHLD || signal == SIGURG))
 				return;
-			if (signal < 32)
-				m_signal_pending_mask[0] |= (uint32_t)1 << signal;
-			else
-				m_signal_pending_mask[1] |= (uint32_t)1 << (signal - 32);
+			m_signal_pending_mask |= 1ull << signal;
 		}
 
 		void remove_pending_signal(uint8_t signal)
@@ -244,10 +245,8 @@ namespace Kernel
 			ASSERT(signal >= _SIGMIN);
 			ASSERT(signal <= _SIGMAX);
 			ASSERT(signal < 64);
-			if (signal < 32)
-				m_signal_pending_mask[0] &= ~((uint32_t)1 << signal);
-			else
-				m_signal_pending_mask[1] &= ~((uint32_t)1 << (signal - 32));
+			SpinLockGuard _(m_signal_lock);
+			m_signal_pending_mask &= ~(1ull << signal);
 		}
 
 	private:
@@ -276,9 +275,9 @@ namespace Kernel
 		BAN::String m_working_directory;
 		BAN::Vector<Thread*> m_threads;
 
-		BAN::Atomic<vaddr_t> m_signal_handlers[_SIGMAX + 1] { };
-		// This is 2 32 bit values to allow atomicity on 32 targets
-		BAN::Atomic<uint32_t> m_signal_pending_mask[2] { 0, 0 };
+		mutable SpinLock m_signal_lock;
+		struct sigaction m_signal_handlers[_SIGMAX + 1] { };
+		uint64_t m_signal_pending_mask { 0 };
 
 		BAN::Vector<BAN::String> m_cmdline;
 		BAN::Vector<BAN::String> m_environ;

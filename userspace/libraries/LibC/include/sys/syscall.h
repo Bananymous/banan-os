@@ -40,7 +40,6 @@ __BEGIN_DECLS
 	O(SYS_DUP,				dup)			\
 	O(SYS_DUP2,				dup2)			\
 	O(SYS_KILL,				kill)			\
-	O(SYS_SIGNAL,			signal)			\
 	O(SYS_TCSETPGRP,		tcsetpgrp)		\
 	O(SYS_GET_PID,			getpid)			\
 	O(SYS_GET_PGID,			getpgid)		\
@@ -84,6 +83,9 @@ __BEGIN_DECLS
 	O(SYS_REALPATH,			realpath)		\
 	O(SYS_TTYNAME,			ttyname)		\
 	O(SYS_ACCESS,			access)			\
+	O(SYS_SIGACTION,		sigaction)		\
+	O(SYS_SIGPENDING,		sigpending)		\
+	O(SYS_SIGPROCMASK,		sigprocmask)	\
 
 enum Syscall
 {

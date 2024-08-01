@@ -338,6 +338,10 @@ done:
 		ASSERT(InterruptController::get().is_in_service(IRQ_TIMER));
 		InterruptController::get().eoi(IRQ_TIMER);
 		Processor::scheduler().timer_interrupt();
+
+		auto& current_thread = Thread::current();
+		if (current_thread.can_add_signal_to_execute())
+			current_thread.handle_signal();
 	}
 
 	extern "C" void cpp_irq_handler(uint32_t irq)

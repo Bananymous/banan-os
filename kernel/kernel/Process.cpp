@@ -173,7 +173,10 @@ namespace Kernel
 		, m_parent(parent)
 	{
 		for (size_t i = 0; i < sizeof(m_signal_handlers) / sizeof(*m_signal_handlers); i++)
-			m_signal_handlers[i] = (vaddr_t)SIG_DFL;
+		{
+			m_signal_handlers[i].sa_handler = SIG_DFL;
+			m_signal_handlers[i].sa_flags = 0;
+		}
 	}
 
 	Process::~Process()
@@ -472,7 +475,10 @@ namespace Kernel
 			m_userspace_info.entry = m_loadable_elf->entry_point();
 
 			for (size_t i = 0; i < sizeof(m_signal_handlers) / sizeof(*m_signal_handlers); i++)
-				m_signal_handlers[i] = (vaddr_t)SIG_DFL;
+			{
+				m_signal_handlers[i].sa_handler = SIG_DFL;
+				m_signal_handlers[i].sa_flags = 0;
+			}
 
 			ASSERT(m_threads.size() == 1);
 			ASSERT(&Process::current() == this);
@@ -1640,20 +1646,6 @@ namespace Kernel
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_signal(int signal, void (*handler)(int))
-	{
-		if (signal < _SIGMIN || signal > _SIGMAX)
-			return BAN::Error::from_errno(EINVAL);
-
-		{
-			LockGuard _(m_process_lock);
-			TRY(validate_pointer_access((void*)handler, sizeof(handler)));
-		}
-
-		m_signal_handlers[signal] = (vaddr_t)handler;
-		return 0;
-	}
-
 	BAN::ErrorOr<long> Process::sys_kill(pid_t pid, int signal)
 	{
 		if (pid == 0 || pid == -1)
@@ -1688,6 +1680,81 @@ namespace Kernel
 		if (found)
 			return 0;
 		return BAN::Error::from_errno(ESRCH);
+	}
+
+	BAN::ErrorOr<long> Process::sys_sigaction(int signal, const struct sigaction* act, struct sigaction* oact)
+	{
+		if (signal < _SIGMIN || signal > _SIGMAX)
+			return BAN::Error::from_errno(EINVAL);
+
+		LockGuard _(m_process_lock);
+		if (act)
+			TRY(validate_pointer_access(act, sizeof(struct sigaction)));
+		if (oact)
+			TRY(validate_pointer_access(oact, sizeof(struct sigaction)));
+
+		SpinLockGuard signal_lock_guard(m_signal_lock);
+
+		if (oact)
+			*oact = m_signal_handlers[signal];
+
+		if (act)
+		{
+			if (act->sa_flags)
+				return BAN::Error::from_errno(ENOTSUP);
+			m_signal_handlers[signal] = *act;
+		}
+
+		return 0;
+	}
+
+	BAN::ErrorOr<long> Process::sys_sigpending(sigset_t* set)
+	{
+		LockGuard _(m_process_lock);
+		TRY(validate_pointer_access(set, sizeof(sigset_t)));
+		*set = (signal_pending_mask() | Thread::current().m_signal_pending_mask) & Thread::current().m_signal_block_mask;
+		return 0;
+	}
+
+	BAN::ErrorOr<long> Process::sys_sigprocmask(int how, const sigset_t* set, sigset_t* oset)
+	{
+		switch (how)
+		{
+			case SIG_BLOCK:
+			case SIG_SETMASK:
+			case SIG_UNBLOCK:
+				break;
+			default:
+				return BAN::Error::from_errno(EINVAL);
+		}
+
+		LockGuard _(m_process_lock);
+		if (set)
+			TRY(validate_pointer_access(set, sizeof(sigset_t)));
+		if (oset)
+			TRY(validate_pointer_access(oset, sizeof(sigset_t)));
+
+		if (oset)
+			*oset = Thread::current().m_signal_block_mask;
+
+		if (set)
+		{
+			const sigset_t mask = *set & ~(SIGKILL | SIGSTOP);
+			switch (how)
+			{
+				case SIG_BLOCK:
+					Thread::current().m_signal_block_mask |= mask;
+					break;
+				case SIG_SETMASK:
+					Thread::current().m_signal_block_mask  = mask;
+					break;
+				case SIG_UNBLOCK:
+					Thread::current().m_signal_block_mask &= mask;
+					break;
+			}
+		}
+
+		return 0;
 	}
 
 	BAN::ErrorOr<long> Process::sys_tcsetpgrp(int fd, pid_t pgrp)
