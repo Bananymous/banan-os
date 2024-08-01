@@ -328,7 +328,8 @@ namespace Kernel
 
 		if (node->processor_id == Processor::current_id())
 		{
-			ASSERT(node->blocked);
+			if (!node->blocked)
+				return;
 			m_block_queue.remove_node(node);
 			if (node->blocker)
 				node->blocker->remove_blocked_thread(node);
