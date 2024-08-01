@@ -664,9 +664,9 @@ namespace Kernel
 			return BAN::Error::from_errno(EEXIST);
 
 		if (Inode::Mode(mode).ifdir())
-			TRY(parent_inode->create_directory(file_name, mode, m_credentials.euid(), m_credentials.egid()));
+			TRY(parent_inode->create_directory(file_name, mode, m_credentials.euid(), parent_inode->gid()));
 		else
-			TRY(parent_inode->create_file(file_name, mode, m_credentials.euid(), m_credentials.egid()));
+			TRY(parent_inode->create_file(file_name, mode, m_credentials.euid(), parent_inode->gid()));
 
 		return {};
 	}
@@ -704,38 +704,51 @@ namespace Kernel
 	{
 		ASSERT(inode);
 		LockGuard _(m_process_lock);
-		return TRY(m_open_file_descriptors.open(inode, flags));
+		return TRY(m_open_file_descriptors.open(VirtualFileSystem::File { .inode = inode, .canonical_path = {} }, flags));
 	}
 
 	BAN::ErrorOr<long> Process::open_file(BAN::StringView path, int flags, mode_t mode)
 	{
+		if ((flags & (O_DIRECTORY | O_CREAT)) == (O_DIRECTORY | O_CREAT))
+			return BAN::Error::from_errno(EINVAL);
+
 		LockGuard _(m_process_lock);
 
 		BAN::String absolute_path = TRY(absolute_path_of(path));
 
-		if (flags & O_CREAT)
+		auto file_or_error = VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, flags | O_NOFOLLOW);
+
+		VirtualFileSystem::File file;
+		if (file_or_error.is_error())
 		{
-			if (flags & O_DIRECTORY)
-				return BAN::Error::from_errno(ENOTSUP);
-			auto file_or_error = VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, O_WRONLY);
-			if (!file_or_error.is_error() && (flags & O_EXCL))
+			if (!(flags & O_CREAT) || file_or_error.error().get_error_code() != ENOENT)
+				return file_or_error.release_error();
+
+			// FIXME: There is a race condition between these lines
+			TRY(create_file_or_dir(absolute_path, (mode & 0777) | Inode::Mode::IFREG));
+			file = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, flags));
+		}
+		else
+		{
+			if ((flags & O_CREAT) && (flags & O_EXCL))
 				return BAN::Error::from_errno(EEXIST);
-			if (file_or_error.is_error())
-			{
-				if (file_or_error.error().get_error_code() == ENOENT)
-					TRY(create_file_or_dir(path, Inode::Mode::IFREG | mode));
-				else
-					return file_or_error.release_error();
-			}
-			flags &= ~O_CREAT;
+
+			file = file_or_error.release_value();
+			if (file.inode->mode().ifdir() && (flags & O_WRONLY))
+				return BAN::Error::from_errno(EISDIR);
+			if (!file.inode->mode().ifdir() && (flags & O_DIRECTORY))
+				return BAN::Error::from_errno(ENOTDIR);
+			if (file.inode->mode().iflnk() && !(flags & O_NOFOLLOW))
+				file = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, flags));
 		}
 
-		int fd = TRY(m_open_file_descriptors.open(absolute_path, flags));
-		auto inode = MUST(m_open_file_descriptors.inode_of(fd));
+		ASSERT(file.inode);
+
+		int fd = TRY(m_open_file_descriptors.open(file, flags));
 
 		// Open controlling terminal
-		if ((flags & O_TTY_INIT) && !(flags & O_NOCTTY) && inode->is_tty() && is_session_leader() && !m_controlling_terminal)
-			m_controlling_terminal = (TTY*)inode.ptr();
+		if ((flags & O_TTY_INIT) && !(flags & O_NOCTTY) && file.inode->is_tty() && is_session_leader() && !m_controlling_terminal)
+			m_controlling_terminal = (TTY*)file.inode.ptr();
 
 		return fd;
 	}
@@ -753,10 +766,19 @@ namespace Kernel
 
 		TRY(validate_string_access(path));
 
-		// FIXME: handle O_SEARCH in fd
-
 		BAN::String absolute_path;
-		TRY(absolute_path.append(TRY(m_open_file_descriptors.path_of(fd))));
+
+		if (fd == AT_FDCWD)
+			TRY(absolute_path.append(m_working_directory));
+		else if (path[0] != '/')
+		{
+			int flags = TRY(m_open_file_descriptors.flags_of(fd));
+			if (!(flags & O_RDONLY) && !(flags & O_SEARCH))
+				return BAN::Error::from_errno(EBADF);
+			if (!TRY(m_open_file_descriptors.inode_of(fd))->mode().ifdir())
+				return BAN::Error::from_errno(ENOTDIR);
+			TRY(absolute_path.append(TRY(m_open_file_descriptors.path_of(fd))));
+		}
 		TRY(absolute_path.push_back('/'));
 		TRY(absolute_path.append(path));
 

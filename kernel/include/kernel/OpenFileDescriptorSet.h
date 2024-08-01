@@ -2,6 +2,7 @@
 
 #include <BAN/Array.h>
 #include <kernel/FS/Inode.h>
+#include <kernel/FS/VirtualFileSystem.h>
 
 #include <limits.h>
 #include <sys/stat.h>
@@ -21,7 +22,7 @@ namespace Kernel
 
 		BAN::ErrorOr<void> clone_from(const OpenFileDescriptorSet&);
 
-		BAN::ErrorOr<int> open(BAN::RefPtr<Inode>, int flags);
+		BAN::ErrorOr<int> open(VirtualFileSystem::File, int flags);
 		BAN::ErrorOr<int> open(BAN::StringView absolute_path, int flags);
 
 		BAN::ErrorOr<int> socket(int domain, int type, int protocol);

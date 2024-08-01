@@ -55,31 +55,15 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<int> OpenFileDescriptorSet::open(BAN::RefPtr<Inode> inode, int flags)
+	BAN::ErrorOr<int> OpenFileDescriptorSet::open(VirtualFileSystem::File file, int flags)
 	{
-		ASSERT(inode);
-		ASSERT(!inode->mode().ifdir());
+		ASSERT(file.inode);
 
-		if (flags & ~(O_RDONLY | O_WRONLY))
+		if (flags & ~(O_ACCMODE | O_NOFOLLOW | O_APPEND | O_TRUNC | O_CLOEXEC | O_TTY_INIT | O_DIRECTORY | O_CREAT | O_EXCL | O_NONBLOCK))
 			return BAN::Error::from_errno(ENOTSUP);
 
-		int fd = TRY(get_free_fd());
-		// FIXME: path?
-		m_open_files[fd] = TRY(BAN::RefPtr<OpenFileDescription>::create(inode, ""_sv, 0, flags));
-
-		return fd;
-	}
-
-	BAN::ErrorOr<int> OpenFileDescriptorSet::open(BAN::StringView absolute_path, int flags)
-	{
-		if (flags & ~(O_RDONLY | O_WRONLY | O_NOFOLLOW | O_SEARCH | O_APPEND | O_TRUNC | O_CLOEXEC | O_TTY_INIT | O_DIRECTORY | O_NONBLOCK))
-			return BAN::Error::from_errno(ENOTSUP);
-
-		int access_mask = O_EXEC | O_RDONLY | O_WRONLY | O_SEARCH;
-		if ((flags & access_mask) != O_RDWR && __builtin_popcount(flags & access_mask) != 1)
+		if ((flags & O_ACCMODE) != O_RDWR && __builtin_popcount(flags & O_ACCMODE) != 1)
 			return BAN::Error::from_errno(EINVAL);
-
-		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, flags));
 
 		if ((flags & O_DIRECTORY) && !file.inode->mode().ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
@@ -91,6 +75,11 @@ namespace Kernel
 		m_open_files[fd] = TRY(BAN::RefPtr<OpenFileDescription>::create(file.inode, BAN::move(file.canonical_path), 0, flags));
 
 		return fd;
+	}
+
+	BAN::ErrorOr<int> OpenFileDescriptorSet::open(BAN::StringView absolute_path, int flags)
+	{
+		return open(TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, flags)), flags);
 	}
 
 	BAN::ErrorOr<int> OpenFileDescriptorSet::socket(int domain, int type, int protocol)
