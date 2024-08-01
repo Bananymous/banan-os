@@ -242,6 +242,23 @@ namespace Kernel
 				else
 					dprintln("Unsupported ANSI CSI character K");
 				return reset_ansi();
+			case 'L': // Insert Line
+				if (m_ansi_state.nums[0] == -1)
+					m_ansi_state.nums[0] = 1;
+				for (uint32_t y_off = 0; y_off < (uint32_t)m_ansi_state.nums[0]; y_off++)
+				{
+					const uint32_t src_y = m_row + y_off;
+					const uint32_t dst_y = src_y + m_ansi_state.nums[0];
+					if (dst_y < m_height)
+					{
+						memcpy(&m_buffer[dst_y * m_width], &m_buffer[src_y * m_width], m_width * sizeof(Cell));
+						for (uint32_t x = 0; x < m_width; x++)
+							render_from_buffer(x, dst_y);
+					}
+					for (uint32_t x = 0; x < m_width; x++)
+						putchar_at(' ', x, src_y);
+				}
+				return reset_ansi();
 			case 'S': // Scroll Up
 				dprintln("Unsupported ANSI CSI character S");
 				return reset_ansi();
