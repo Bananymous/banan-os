@@ -1,3 +1,6 @@
+#include <BAN/Assert.h>
+#include <BAN/Debug.h>
+
 #include <errno.h>
 #include <sys/syscall.h>
 #include <termios.h>
@@ -65,7 +68,11 @@ int tcdrain(int);
 
 int tcflow(int, int);
 
-int tcflush(int, int);
+int tcflush(int fd, int queue_selector)
+{
+	dwarnln("FIXME: tcflush({}, {})", fd, queue_selector);
+	ASSERT_NOT_REACHED();
+}
 
 int tcgetattr(int fildes, struct termios* termios)
 {

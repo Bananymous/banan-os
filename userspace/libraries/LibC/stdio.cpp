@@ -705,8 +705,11 @@ char* tmpnam(char* storage)
 	return storage;
 }
 
-// TODO
-int ungetc(int, FILE*);
+int ungetc(int c, FILE* stream)
+{
+	dwarnln("FIXME: ungetc({}, {})", c, stream);
+	ASSERT_NOT_REACHED();
+}
 
 int vfprintf(FILE* file, const char* format, va_list arguments)
 {

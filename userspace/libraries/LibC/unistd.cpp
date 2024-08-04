@@ -1,5 +1,7 @@
 #include <BAN/Assert.h>
+#include <BAN/Debug.h>
 #include <kernel/Syscall.h>
+
 #include <errno.h>
 #include <pwd.h>
 #include <stdarg.h>
@@ -533,4 +535,10 @@ unsigned alarm(unsigned seconds)
 	value.it_interval.tv_usec = 0;
 	setitimer(ITIMER_REAL, &value, &ovalue);
 	return ovalue.it_value.tv_sec;
+}
+
+int symlink(const char* path1, const char* path2)
+{
+	dwarnln("FIXME: symlink({}, {})", path1, path2);
+	ASSERT_NOT_REACHED();
 }
