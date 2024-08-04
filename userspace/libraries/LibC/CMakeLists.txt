@@ -5,6 +5,7 @@ set(LIBC_SOURCES
 	dirent.cpp
 	fcntl.cpp
 	grp.cpp
+	inttypes.cpp
 	locale.cpp
 	malloc.cpp
 	math.cpp
