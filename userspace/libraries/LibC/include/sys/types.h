@@ -185,6 +185,12 @@ __BEGIN_DECLS
 #endif
 #undef __need_uid_t
 
+#if !defined(__useconds_t_defined) && (defined(__need_all_types) || defined(__need_useconds_t))
+	#define __useconds_t_defined 1
+	typedef unsigned long useconds_t;
+#endif
+#undef __need_useconds_t
+
 #ifdef __need_all_types
 	#include <stdint.h>
 #endif

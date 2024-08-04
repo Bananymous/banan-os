@@ -101,6 +101,7 @@ __BEGIN_DECLS
 #define __need_gid_t
 #define __need_off_t
 #define __need_pid_t
+#define __need_useconds_t
 #include <sys/types.h>
 
 // FIXME: _CS prefixed definitions
@@ -206,6 +207,7 @@ char*				ttyname(int fildes);
 int					ttyname_r(int fildes, char* name, size_t namesize);
 int					unlink(const char* path);
 int					unlinkat(int fd, const char* path, int flag);
+int					usleep(useconds_t usec);
 ssize_t				write(int fildes, const void* buf, size_t nbyte);
 
 extern char*	optarg;

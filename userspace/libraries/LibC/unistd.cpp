@@ -280,6 +280,14 @@ unsigned int sleep(unsigned int seconds)
 	return ret;
 }
 
+int usleep(useconds_t usec)
+{
+	timespec ts;
+	ts.tv_sec = usec / 1'000'000;
+	ts.tv_nsec = (usec % 1'000'000) * 1000;
+	return nanosleep(&ts, nullptr);
+}
+
 char* getcwd(char* buf, size_t size)
 {
 	if (size == 0)
