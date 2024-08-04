@@ -9,6 +9,8 @@
 #include <sys/un.h>
 #include <unistd.h>
 
+int h_errno = 0;
+
 struct hostent* gethostbyname(const char* name)
 {
 	static char name_buffer[HOST_NAME_MAX + 1];
