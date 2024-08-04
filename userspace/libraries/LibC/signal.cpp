@@ -1,5 +1,6 @@
 #include <BAN/Assert.h>
 #include <signal.h>
+#include <string.h>
 #include <sys/syscall.h>
 #include <unistd.h>
 
@@ -8,6 +9,14 @@ static_assert(sizeof(sigset_t) * 8 >= _SIGMAX);
 int kill(pid_t pid, int sig)
 {
 	return syscall(SYS_KILL, pid, sig);
+}
+
+void psignal(int signum, const char* message)
+{
+	if (message && *message)
+		fprintf(stderr, "%s: %s\n", message, strsignal(signum));
+	else
+		fprintf(stderr, "%s\n", strsignal(signum));
 }
 
 int raise(int sig)
