@@ -49,7 +49,7 @@ create_image () {
 	build_target all
 	build_target install
 
-	$BANAN_ROOT_DIR/ports/build.sh
+	$BANAN_ROOT_DIR/ports/update.sh
 
 	pushd $BANAN_SYSROOT >/dev/null
 	run_fakeroot tar cf ${BANAN_SYSROOT_TAR} *
@@ -121,6 +121,7 @@ case $1 in
 		;;
 	distclean)
 		rm -rf $BANAN_BUILD_DIR
+		rm $BANAN_ROOT_DIR/ports/*/.compile_hash*
 		;;
 	*)
 		build_target $1

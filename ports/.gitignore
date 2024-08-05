@@ -1,1 +1,3 @@
-installed
+*/*
+!*/patches/
+!*/build.sh
