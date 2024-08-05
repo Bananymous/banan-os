@@ -604,11 +604,55 @@ int remove(const char* path)
 	return unlink(path);
 }
 
-// TODO
 int rename(const char* old, const char* _new)
 {
-    dwarnln("rename({}, {})", old, _new);
-    ASSERT_NOT_REACHED();
+	struct stat st;
+	if (lstat(old, &st) == -1)
+		return -1;
+
+	if (!S_ISREG(st.st_mode))
+	{
+		errno = ENOTSUP;
+		return -1;
+	}
+
+	if (unlink(_new) == -1 && errno != ENOENT)
+		return -1;
+
+	int old_fd = open(old, O_RDWR);
+	int new_fd = open(_new, O_RDWR | O_CREAT | O_EXCL, st.st_mode);
+	if (old_fd == -1 || new_fd == -1)
+		goto error;
+
+	for (;;)
+	{
+		char buffer[512];
+		ssize_t nread = read(old_fd, buffer, sizeof(buffer));
+		if (nread == -1)
+		{
+			unlink(_new);
+			goto error;
+		}
+		if (nread == 0)
+			break;
+
+		if (write(new_fd, buffer, nread) != nread)
+		{
+			unlink(_new);
+			goto error;
+		}
+	}
+
+	unlink(old);
+
+	return 0;
+
+error:
+	if (old_fd != -1)
+		close(old_fd);
+	if (new_fd != -1)
+		close(new_fd);
+	return -1;
 }
 
 void rewind(FILE* file)
