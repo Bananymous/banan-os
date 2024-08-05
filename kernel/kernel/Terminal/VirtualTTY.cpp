@@ -245,19 +245,34 @@ namespace Kernel
 			case 'L': // Insert Line
 				if (m_ansi_state.nums[0] == -1)
 					m_ansi_state.nums[0] = 1;
-				for (uint32_t y_off = 0; y_off < (uint32_t)m_ansi_state.nums[0]; y_off++)
+				for (uint32_t row = m_height; row > m_row; row--)
 				{
-					const uint32_t src_y = m_row + y_off;
-					const uint32_t dst_y = src_y + m_ansi_state.nums[0];
-					if (dst_y < m_height)
-					{
-						memcpy(&m_buffer[dst_y * m_width], &m_buffer[src_y * m_width], m_width * sizeof(Cell));
-						for (uint32_t x = 0; x < m_width; x++)
-							render_from_buffer(x, dst_y);
-					}
+					const uint32_t dst_y = row - 1;
+					const uint32_t src_y = dst_y - m_ansi_state.nums[0];
+					memcpy(&m_buffer[dst_y * m_width], &m_buffer[src_y * m_width], m_width * sizeof(Cell));
 					for (uint32_t x = 0; x < m_width; x++)
-						putchar_at(' ', x, src_y);
+						render_from_buffer(x, dst_y);
 				}
+				for (uint32_t y_off = 0; y_off < (uint32_t)m_ansi_state.nums[0] && m_row + y_off < m_height; y_off++)
+					for (uint32_t x = 0; x < m_width; x++)
+						putchar_at(' ', x, m_row + y_off);
+				return reset_ansi();
+			case 'M':
+				if (m_ansi_state.nums[0] == -1)
+					m_ansi_state.nums[0] = 1;
+				if (m_row + m_ansi_state.nums[0] >= m_height)
+					m_ansi_state.nums[0] = m_height - m_row - 1;
+				for (uint32_t row = m_row; row < m_height; row++)
+				{
+					const uint32_t dst_y = row;
+					const uint32_t src_y = dst_y + m_ansi_state.nums[0];
+					memcpy(&m_buffer[dst_y * m_width], &m_buffer[src_y * m_width], m_width * sizeof(Cell));
+					for (uint32_t x = 0; x < m_width; x++)
+						render_from_buffer(x, dst_y);
+				}
+				for (uint32_t y_off = 0; y_off < (uint32_t)m_ansi_state.nums[0]; y_off++)
+					for (uint32_t x = 0; x < m_width; x++)
+						putchar_at(' ', x, m_height - y_off - 1);
 				return reset_ansi();
 			case 'S': // Scroll Up
 				dprintln("Unsupported ANSI CSI character S");
