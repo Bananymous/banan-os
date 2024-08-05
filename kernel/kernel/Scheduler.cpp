@@ -330,11 +330,13 @@ namespace Kernel
 		{
 			if (!node->blocked)
 				return;
-			m_block_queue.remove_node(node);
+			if (node != m_current)
+				m_block_queue.remove_node(node);
 			if (node->blocker)
 				node->blocker->remove_blocked_thread(node);
 			node->blocked = false;
-			m_run_queue.add_thread_to_back(node);
+			if (node != m_current)
+				m_run_queue.add_thread_to_back(node);
 		}
 		else
 		{
@@ -466,6 +468,9 @@ namespace Kernel
 			if (thread_info.node == nullptr)
 				break;
 			if (thread_info.node == m_current || thread_info.queue == nullptr)
+				continue;
+			// FIXME: allow load balancing with blocked threads, with this algorithm there is a race condition
+			if (thread_info.node->blocked)
 				continue;
 
 			auto least_loaded_id = find_least_loaded_processor();
