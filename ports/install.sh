@@ -5,9 +5,18 @@ if (( $# != 1 )); then
 	exit 1
 fi
 
-BANAN_ROOT_DIR="$(dirname $(realpath $0))/.."
+if [[ -z $BANAN_ROOT_DIR ]]; then
+	BANAN_ROOT_DIR="$(dirname $(realpath $0))/.."
+fi
+
 source "$BANAN_ROOT_DIR/script/config.sh"
+
 export PATH="$BANAN_TOOLCHAIN_PREFIX/bin:$PATH"
+
+export PKG_CONFIG='pkg-config --static'
+export PKG_CONFIG_SYSROOT_DIR="$BANAN_SYSROOT"
+export PKG_CONFIG_LIBDIR="$PKG_CONFIG_SYSROOT_DIR/usr/lib/pkgconfig"
+export PKG_CONFIG_PATH="$PKG_CONFIG_SYSROOT_DIR/usr/share/pkgconfig"
 
 if [ ! -f "$BANAN_SYSROOT/usr/lib/libc.a" ]; then
 	pushd "$BANAN_ROOT_DIR" >/dev/null
@@ -21,7 +30,7 @@ clean() {
 }
 
 build() {
-	configure_options=("--host=$BANAN_ARCH-banan_os" "--prefix=/usr" )
+	configure_options=("--host=$BANAN_ARCH-banan_os" '--prefix=/usr')
 	configure_options+=(${CONFIGURE_OPTIONS[*]})
 
 	./configure ${configure_options[*]} || exit 1
@@ -51,6 +60,10 @@ done
 
 build_dir="$NAME-$VERSION-$BANAN_ARCH"
 
+if [ ! -d "$build_dir" ]; then
+	rm -f ".compile_hash-$BANAN_ARCH"
+fi
+
 if [ "$VERSION" = "git" ]; then
 	regex="(.*/.*\.git)#(.*)"
 
@@ -71,7 +84,7 @@ if [ "$VERSION" = "git" ]; then
 
 			pushd "$build_dir" >/dev/null
 			git checkout "$COMMIT" || exit 1
-			if [ -d patches ]; then
+			if [ -d ../patches ]; then
 				for patch in ../patches/*; do
 					git apply "$patch" || exit 1
 				done
@@ -111,7 +124,7 @@ else
 
 			if [ -d patches ]; then
 				for patch in ./patches/*; do
-					patch -ruN -d "$build_dir" < "$patch" || exit 1
+					patch -ruN -p1 -d "$build_dir" < "$patch" || exit 1
 				done
 			fi
 		fi
@@ -123,7 +136,7 @@ fi
 
 needs_compile=1
 if [ -f ".compile_hash-$BANAN_ARCH" ]; then
-	cat ".compile_hash-$BANAN_ARCH" | sha256sum --check >/dev/null
+	sha256sum --check ".compile_hash-$BANAN_ARCH" &>/dev/null
 	needs_compile=$?
 fi
 

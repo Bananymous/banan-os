@@ -2,8 +2,8 @@
 
 cd $(dirname $(realpath $0))
 
-for port in ./*/.compile_hash*; do
+while IFS= read -r port; do
 	pushd $(dirname "$port") >/dev/null
 	./build.sh
 	popd >/dev/null
-done
+done < <(find . -name '.compile_hash*')
