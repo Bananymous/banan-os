@@ -13,6 +13,7 @@ set(LIBC_SOURCES
 	printf_impl.cpp
 	pwd.cpp
 	scanf_impl.cpp
+	setjmp.cpp
 	signal.cpp
 	stdio.cpp
 	stdlib.cpp
@@ -31,6 +32,8 @@ set(LIBC_SOURCES
 	time.cpp
 	unistd.cpp
 	icxxabi.cpp
+
+	arch/${BANAN_ARCH}/setjmp.S
 
 	../../../BAN/BAN/Assert.cpp
 )
