@@ -9,7 +9,7 @@ __BEGIN_DECLS
 
 #ifndef __locale_t_defined
 	#define __locale_t_defined 1
-	typedef int locale_t;
+	typedef enum { LOCALE_INVALID, LOCALE_POSIX, LOCALE_UTF8 } locale_t;
 #endif
 
 __END_DECLS

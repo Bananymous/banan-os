@@ -1,8 +1,10 @@
 #include <BAN/Assert.h>
 #include <BAN/Limits.h>
 #include <BAN/Math.h>
+#include <BAN/UTF8.h>
 #include <ctype.h>
 #include <errno.h>
+#include <locale.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -510,6 +512,41 @@ int putenv(char* string)
 	environ = new_envp;
 
 	return 0;
+}
+
+size_t mbstowcs(wchar_t* __restrict pwcs, const char* __restrict s, size_t n)
+{
+	auto* us = reinterpret_cast<const unsigned char*>(s);
+
+	size_t len = 0;
+
+	switch (__getlocale(LC_CTYPE))
+	{
+		case LOCALE_INVALID:
+			ASSERT_NOT_REACHED();
+		case LOCALE_POSIX:
+			while (*us && len < n)
+				pwcs[len++] = *us++;
+			break;
+		case LOCALE_UTF8:
+			while (*us && len < n)
+			{
+				auto wch = BAN::UTF8::to_codepoint(us);
+				if (wch == BAN::UTF8::invalid)
+				{
+					errno = EILSEQ;
+					return -1;
+				}
+				pwcs[len++] = wch;
+				us += BAN::UTF8::byte_length(*us);
+			}
+			break;
+	}
+
+	if (len < n)
+		pwcs[len] = 0;
+
+	return len;
 }
 
 void* bsearch(const void* key, const void* base, size_t nel, size_t width, int (*compar)(const void*, const void*))

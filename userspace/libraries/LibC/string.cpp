@@ -1,4 +1,8 @@
+#include <BAN/Assert.h>
+#include <BAN/UTF8.h>
+
 #include <errno.h>
+#include <locale.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -138,8 +142,38 @@ char* strncat(char* __restrict__ dest, const char* __restrict__ src, size_t n)
 
 int strcoll(const char* s1, const char* s2)
 {
-	// FIXME: support locales
-	return strcmp(s1, s2);
+	switch (__getlocale(LC_COLLATE))
+	{
+		case LOCALE_INVALID:
+			ASSERT_NOT_REACHED();
+		case LOCALE_POSIX:
+			return strcmp(s1, s2);
+		case LOCALE_UTF8:
+		{
+			const unsigned char* u1 = (unsigned char*)s1;
+			const unsigned char* u2 = (unsigned char*)s2;
+			if (!*u1 || !*u2)
+				return *u1 - *u2;
+
+			wchar_t wc1, wc2;
+			while (*u1 && *u2)
+			{
+				wc1 = BAN::UTF8::to_codepoint(u1);
+				wc2 = BAN::UTF8::to_codepoint(u2);
+				if (wc1 == (wchar_t)BAN::UTF8::invalid || wc2 == (wchar_t)BAN::UTF8::invalid)
+				{
+					errno = EINVAL;
+					return -1;
+				}
+				if (wc1 != wc2)
+					break;
+				u1 += BAN::UTF8::byte_length(*u1);
+				u2 += BAN::UTF8::byte_length(*u2);
+			}
+			return wc1 - wc2;
+		}
+	}
+	ASSERT_NOT_REACHED();
 }
 
 char* strdup(const char* str)

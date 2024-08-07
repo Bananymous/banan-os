@@ -68,6 +68,8 @@ locale_t		newlocale(int category_mask, const char* locale, locale_t base);
 char* 			setlocale(int category, const char* locale);
 locale_t		uselocale(locale_t newloc);
 
+locale_t __getlocale(int category);
+
 __END_DECLS
 
 #endif
