@@ -61,7 +61,7 @@ done
 build_dir="$NAME-$VERSION-$BANAN_ARCH"
 
 if [ ! -d "$build_dir" ]; then
-	rm -f ".compile_hash-$BANAN_ARCH"
+	rm -f ".compile_hash"
 fi
 
 if [ "$VERSION" = "git" ]; then
@@ -135,8 +135,8 @@ else
 fi
 
 needs_compile=1
-if [ -f ".compile_hash-$BANAN_ARCH" ]; then
-	sha256sum --check ".compile_hash-$BANAN_ARCH" &>/dev/null
+if [ -f ".compile_hash" ]; then
+	sha256sum --check ".compile_hash" &>/dev/null
 	needs_compile=$?
 fi
 
@@ -144,7 +144,7 @@ cd "$build_dir"
 
 if (( $needs_compile )); then
 	build
-	sha256sum "$BANAN_SYSROOT/usr/lib/libc.a" > "../.compile_hash-$BANAN_ARCH"
+	sha256sum "$BANAN_SYSROOT/usr/lib/libc.a" > "../.compile_hash"
 fi
 
 install

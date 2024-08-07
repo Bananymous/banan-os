@@ -121,7 +121,7 @@ case $1 in
 		;;
 	distclean)
 		rm -rf $BANAN_BUILD_DIR
-		rm $BANAN_ROOT_DIR/ports/*/.compile_hash*
+		find $BANAN_ROOT_DIR/ports -name '.compile_hash' -exec rm {} +
 		;;
 	*)
 		build_target $1
