@@ -19,6 +19,11 @@ void psignal(int signum, const char* message)
 		fprintf(stderr, "%s\n", strsignal(signum));
 }
 
+int pthread_sigmask(int how, const sigset_t* __restrict set, sigset_t* __restrict oset)
+{
+	return syscall(SYS_SIGPROCMASK, how, set, oset);
+}
+
 int raise(int sig)
 {
 	// FIXME: won't work after multithreaded
@@ -72,5 +77,5 @@ int sigpending(sigset_t* set)
 
 int sigprocmask(int how, const sigset_t* __restrict set, sigset_t* __restrict oset)
 {
-	return syscall(SYS_SIGPROCMASK, how, set, oset);
+	return pthread_sigmask(how, set, oset);
 }

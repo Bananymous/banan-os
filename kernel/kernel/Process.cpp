@@ -1826,16 +1826,6 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_sigprocmask(int how, const sigset_t* set, sigset_t* oset)
 	{
-		switch (how)
-		{
-			case SIG_BLOCK:
-			case SIG_SETMASK:
-			case SIG_UNBLOCK:
-				break;
-			default:
-				return BAN::Error::from_errno(EINVAL);
-		}
-
 		LockGuard _(m_process_lock);
 		if (set)
 			TRY(validate_pointer_access(set, sizeof(sigset_t)));
@@ -1857,8 +1847,10 @@ namespace Kernel
 					Thread::current().m_signal_block_mask  = mask;
 					break;
 				case SIG_UNBLOCK:
-					Thread::current().m_signal_block_mask &= mask;
+					Thread::current().m_signal_block_mask &= ~mask;
 					break;
+				default:
+					return BAN::Error::from_errno(EINVAL);
 			}
 		}
 
