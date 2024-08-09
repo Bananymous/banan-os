@@ -1,5 +1,6 @@
 #include <BAN/Assert.h>
 
+#include <limits.h>
 #include <locale.h>
 #include <stdio.h>
 #include <string.h>
@@ -33,6 +34,38 @@ static const char* locale_to_str(locale_t locale)
 	if (locale == LOCALE_UTF8)
 		return "C.UTF8";
 	ASSERT_NOT_REACHED();
+}
+
+struct lconv* localeconv(void)
+{
+	constexpr char CHAR_MAX = __SCHAR_MAX__;
+
+	static lconv lconv;
+	lconv.currency_symbol = const_cast<char*>("");
+	lconv.decimal_point = const_cast<char*>(".");
+	lconv.frac_digits = CHAR_MAX;
+	lconv.grouping = const_cast<char*>("");
+	lconv.int_curr_symbol = const_cast<char*>("");
+	lconv.int_frac_digits = CHAR_MAX;
+	lconv.int_n_cs_precedes = CHAR_MAX;
+	lconv.int_n_sep_by_space = CHAR_MAX;
+	lconv.int_n_sign_posn = CHAR_MAX;
+	lconv.int_p_cs_precedes = CHAR_MAX;
+	lconv.int_p_sep_by_space = CHAR_MAX;
+	lconv.int_p_sign_posn = CHAR_MAX;
+	lconv.mon_decimal_point = const_cast<char*>("");
+	lconv.mon_grouping = const_cast<char*>("");
+	lconv.mon_thousands_sep = const_cast<char*>("");
+	lconv.negative_sign = const_cast<char*>("");
+	lconv.n_cs_precedes = CHAR_MAX;
+	lconv.n_sep_by_space = CHAR_MAX;
+	lconv.n_sign_posn = CHAR_MAX;
+	lconv.positive_sign = const_cast<char*>("");
+	lconv.p_cs_precedes = CHAR_MAX;
+	lconv.p_sep_by_space = CHAR_MAX;
+	lconv.p_sign_posn = CHAR_MAX;
+	lconv.thousands_sep = const_cast<char*>("");
+	return &lconv;
 }
 
 char* setlocale(int category, const char* locale_str)
@@ -93,7 +126,6 @@ char* setlocale(int category, const char* locale_str)
 	strcpy(s_locale_buffer, locale_to_str(locale));
 	return s_locale_buffer;
 }
-
 
 locale_t __getlocale(int category)
 {
