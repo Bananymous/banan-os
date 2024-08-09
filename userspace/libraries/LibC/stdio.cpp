@@ -840,3 +840,8 @@ int vsscanf(const char* s, const char* format, va_list arguments)
 		}, &s
 	);
 }
+
+FILE* tmpfile(void)
+{
+	ASSERT_NOT_REACHED();
+}

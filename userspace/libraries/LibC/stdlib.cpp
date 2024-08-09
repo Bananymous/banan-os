@@ -514,6 +514,11 @@ int putenv(char* string)
 	return 0;
 }
 
+char* mktemp(char*)
+{
+	ASSERT_NOT_REACHED();
+}
+
 size_t mbstowcs(wchar_t* __restrict pwcs, const char* __restrict s, size_t n)
 {
 	auto* us = reinterpret_cast<const unsigned char*>(s);

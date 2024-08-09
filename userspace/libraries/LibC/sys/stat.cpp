@@ -1,3 +1,5 @@
+#include <BAN/Assert.h>
+
 #include <errno.h>
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -9,6 +11,11 @@ mode_t __umask = 0;
 int chmod(const char* path, mode_t mode)
 {
 	return syscall(SYS_CHMOD, path, mode);
+}
+
+int fchmod(int, mode_t)
+{
+	ASSERT_NOT_REACHED();
 }
 
 int fstat(int fildes, struct stat* buf)

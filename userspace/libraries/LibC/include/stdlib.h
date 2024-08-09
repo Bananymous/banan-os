@@ -73,6 +73,7 @@ int					mblen(const char* s, size_t n);
 size_t				mbstowcs(wchar_t* __restrict pwcs, const char* __restrict s, size_t n);
 int					mbtowc(wchar_t* __restrict pwc, const char* __restrict s, size_t n);
 char*				mkdtemp(char* _template);
+char*				mktemp(char* _template);
 int					mkstemp(char* _template);
 long				mrand48(void);
 long				nrand48(unsigned short xsubi[3]);
