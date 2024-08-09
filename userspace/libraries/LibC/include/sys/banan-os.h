@@ -24,6 +24,13 @@ struct proc_meminfo_t
 	size_t phys_pages;
 };
 
+struct full_meminfo_t
+{
+	size_t page_size;
+	size_t free_pages;
+	size_t used_pages;
+};
+
 /*
 fildes:		refers to valid tty device
 command:	one of TTY_CMD_* definitions

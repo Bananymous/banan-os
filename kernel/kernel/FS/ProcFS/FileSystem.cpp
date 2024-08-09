@@ -14,6 +14,26 @@ namespace Kernel
 		ASSERT(s_instance);
 
 		MUST(s_instance->TmpFileSystem::initialize(0555, 0, 0));
+
+		auto meminfo_inode = MUST(ProcROInode::create_new(
+			[](off_t offset, BAN::ByteSpan buffer) -> size_t
+			{
+				ASSERT(offset >= 0);
+				if ((size_t)offset >= sizeof(full_meminfo_t))
+					return 0;
+
+				full_meminfo_t meminfo;
+				meminfo.page_size = PAGE_SIZE;
+				meminfo.free_pages = Heap::get().free_pages();
+				meminfo.used_pages = Heap::get().used_pages();
+
+				size_t bytes = BAN::Math::min<size_t>(sizeof(full_meminfo_t) - offset, buffer.size());
+				memcpy(buffer.data(), (uint8_t*)&meminfo + offset, bytes);
+				return bytes;
+			},
+			*s_instance, 0444, 0, 0
+		));
+		MUST(static_cast<TmpDirectoryInode*>(s_instance->root_inode().ptr())->link_inode(*meminfo_inode, "meminfo"_sv));
 	}
 
 	ProcFileSystem& ProcFileSystem::get()
@@ -30,7 +50,7 @@ namespace Kernel
 	BAN::ErrorOr<void> ProcFileSystem::on_process_create(Process& process)
 	{
 		auto path = TRY(BAN::String::formatted("{}", process.pid()));
-		auto inode = TRY(ProcPidInode::create_new(process, *this, 0555, process.credentials().ruid(), process.credentials().rgid()));
+		auto inode = TRY(ProcPidInode::create_new(process, *this, 0555));
 		TRY(static_cast<TmpDirectoryInode*>(root_inode().ptr())->link_inode(*inode, path));
 		return {};
 	}

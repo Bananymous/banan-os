@@ -76,7 +76,7 @@ namespace Kernel
 
 		bool is_userspace() const { return m_is_userspace; }
 
-		size_t virtual_page_count() const { return (m_kernel_stack->size() / PAGE_SIZE) + (m_userspace_stack->size() / PAGE_SIZE); }
+		size_t virtual_page_count() const { return (m_kernel_stack ? (m_kernel_stack->size() / PAGE_SIZE) : 0) + (m_userspace_stack ? (m_userspace_stack->size() / PAGE_SIZE) : 0); }
 		size_t physical_page_count() const { return virtual_page_count(); }
 
 		InterruptStack& interrupt_stack() { return m_interrupt_stack; }
