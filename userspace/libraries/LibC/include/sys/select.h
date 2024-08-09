@@ -18,34 +18,34 @@ typedef unsigned long __fd_mask;
 #define __FD_MASK_SIZE (8 * sizeof(__fd_mask))
 
 typedef struct {
-	__fd_mask __bits[FD_SETSIZE / __FD_MASK_SIZE];
+	__fd_mask __fds_bits[FD_SETSIZE / __FD_MASK_SIZE];
 } fd_set;
 
 #define FD_CLR(fd, setp) \
 	do { \
 		__fd_mask off = (fd) / __FD_MASK_SIZE; \
 		__fd_mask bit = (fd) % __FD_MASK_SIZE; \
-		(setp)->__bits[off] &= ~((__fd_mask)1 << bit); \
+		(setp)->__fds_bits[off] &= ~((__fd_mask)1 << bit); \
 	} while (0)
 
 #define FD_ISSET(fd, setp) \
 	({ \
 		__fd_mask off = (fd) / __FD_MASK_SIZE; \
 		__fd_mask bit = (fd) % __FD_MASK_SIZE; \
-		(setp)->__bits[off] & ((__fd_mask)1 << bit); \
+		(setp)->__fds_bits[off] & ((__fd_mask)1 << bit); \
 	})
 
 #define FD_SET(fd, setp) \
 	do { \
 		__fd_mask off = (fd) / __FD_MASK_SIZE; \
 		__fd_mask bit = (fd) % __FD_MASK_SIZE; \
-		(setp)->__bits[off] |= ((__fd_mask)1 << bit); \
+		(setp)->__fds_bits[off] |= ((__fd_mask)1 << bit); \
 	} while (0)
 
 #define FD_ZERO(setp) \
 	do { \
 		for (int i = 0; i < (int)FD_SETSIZE / (int)__FD_MASK_SIZE; i++) \
-			(setp)->__bits[i] = (__fd_mask)0; \
+			(setp)->__fds_bits[i] = (__fd_mask)0; \
 	} while (0)
 
 struct sys_pselect_t
