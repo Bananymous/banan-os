@@ -7,6 +7,8 @@
 
 __BEGIN_DECLS
 
+#include <sys/ioctl.h>
+
 #define __need_uid_t
 #define __need_gid_t
 #include <sys/types.h>
@@ -71,45 +73,6 @@ struct str_list
 	int					sl_nmods;	/* Number of STREAMS module names. */
 };
 
-#define I_ATMARK	1
-#define I_CANPUT	2
-#define I_CKBAND	3
-#define I_FDINSERT	4
-#define I_FIND		5
-#define I_FLUSH		6
-#define I_FLUSHBAND	7
-#define I_GETBAND	8
-#define I_GETCLTIME	9
-#define I_GETSIG	10
-#define I_GRDOPT	11
-#define I_GWROPT	12
-#define I_LINK		13
-#define I_LIST		14
-#define I_LOOK		15
-#define I_NREAD		16
-#define I_PEEK		17
-#define I_PLINK		18
-#define I_POP		19
-#define I_PUNLINK	20
-#define I_PUSH		21
-#define I_RECVFD	22
-#define I_SENDFD	23
-#define I_SETCLTIME	24
-#define I_SETSIG	25
-#define I_SRDOPT	26
-#define I_STR		27
-#define I_SWROPT	28
-#define I_UNLINK	29
-
-#define KDLOADFONT	30
-
-struct winsize
-{
-	unsigned short ws_row;
-	unsigned short ws_col;
-};
-#define TIOCGWINSZ	50
-
 #define FLUSHR	1
 #define FLUSHRW	2
 #define FLUSHW	3
@@ -152,7 +115,6 @@ int fattach(int, const char*);
 int fdetach(const char*);
 int getmsg(int, struct strbuf* __restrict, struct strbuf* __restrict, int* __restrict);
 int getpmsg(int, struct strbuf* __restrict, struct strbuf* __restrict, int* __restrict, int* __restrict);
-int ioctl(int, int, ...);
 int isastream(int);
 int putmsg(int, const struct strbuf*, const struct strbuf*, int);
 int putpmsg(int, const struct strbuf*, const struct strbuf*, int, int);

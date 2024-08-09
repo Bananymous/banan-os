@@ -1,5 +1,5 @@
 #include <stdarg.h>
-#include <stropts.h>
+#include <sys/ioctl.h>
 #include <sys/syscall.h>
 #include <unistd.h>
 
