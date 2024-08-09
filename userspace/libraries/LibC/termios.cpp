@@ -71,7 +71,7 @@ int tcflow(int, int);
 int tcflush(int fd, int queue_selector)
 {
 	dwarnln("FIXME: tcflush({}, {})", fd, queue_selector);
-	ASSERT_NOT_REACHED();
+	return 0;
 }
 
 int tcgetattr(int fildes, struct termios* termios)
