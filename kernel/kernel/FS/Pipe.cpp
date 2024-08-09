@@ -3,6 +3,8 @@
 #include <kernel/Thread.h>
 #include <kernel/Timer/Timer.h>
 
+#include <kernel/Process.h>
+
 namespace Kernel
 {
 
@@ -26,24 +28,23 @@ namespace Kernel
 
 	void Pipe::clone_writing()
 	{
-		LockGuard _(m_mutex);
-		ASSERT(m_writing_count > 0);
-		m_writing_count++;
+		[[maybe_unused]] auto old_writing_count = m_writing_count.fetch_add(1);
+		ASSERT(old_writing_count > 0);
 	}
 
 	void Pipe::close_writing()
 	{
-		LockGuard _(m_mutex);
-		ASSERT(m_writing_count > 0);
-		m_writing_count--;
-		if (m_writing_count == 0)
+		auto old_writing_count = m_writing_count.fetch_sub(1);
+		ASSERT(old_writing_count > 0);
+		if (old_writing_count == 1)
 			m_thread_blocker.unblock();
 	}
 
 	BAN::ErrorOr<size_t> Pipe::read_impl(off_t, BAN::ByteSpan buffer)
 	{
 		LockGuard _(m_mutex);
-		while (m_buffer.empty())
+
+		while (m_buffer_size == 0)
 		{
 			if (m_writing_count == 0)
 				return 0;
@@ -51,11 +52,20 @@ namespace Kernel
 			TRY(Thread::current().block_or_eintr_indefinite(m_thread_blocker));
 		}
 
-		size_t to_copy = BAN::Math::min<size_t>(buffer.size(), m_buffer.size());
-		memcpy(buffer.data(), m_buffer.data(), to_copy);
+		const size_t to_copy = BAN::Math::min<size_t>(buffer.size(), m_buffer_size);
 
-		memmove(m_buffer.data(), m_buffer.data() + to_copy, m_buffer.size() - to_copy);
-		MUST(m_buffer.resize(m_buffer.size() - to_copy));
+		if (m_buffer_tail + to_copy <= m_buffer.size())
+			memcpy(buffer.data(), m_buffer.data() + m_buffer_tail, to_copy);
+		else
+		{
+			const size_t before_wrap = m_buffer.size() - m_buffer_tail;
+			const size_t after_wrap = to_copy - before_wrap;
+			memcpy(buffer.data(), m_buffer.data() + m_buffer_tail, before_wrap);
+			memcpy(buffer.data() + before_wrap, m_buffer.data(), after_wrap);
+		}
+
+		m_buffer_tail = (m_buffer_tail + to_copy) % m_buffer.size();
+		m_buffer_size -= to_copy;
 
 		m_atime = SystemTimer::get().real_time();
 
@@ -68,10 +78,29 @@ namespace Kernel
 	{
 		LockGuard _(m_mutex);
 
-		size_t old_size = m_buffer.size();
+		if (buffer.size() > m_buffer.size())
+			buffer = buffer.slice(0, m_buffer.size());
 
-		TRY(m_buffer.resize(old_size + buffer.size()));
-		memcpy(m_buffer.data() + old_size, buffer.data(), buffer.size());
+		while (m_buffer.size() - m_buffer_size < buffer.size())
+		{
+			LockFreeGuard lock_free(m_mutex);
+			TRY(Thread::current().block_or_eintr_indefinite(m_thread_blocker));
+		}
+
+		const size_t to_copy = buffer.size();
+		const size_t buffer_head = (m_buffer_tail + m_buffer_size) % m_buffer.size();
+
+		if (buffer_head + to_copy <= m_buffer.size())
+			memcpy(m_buffer.data() + buffer_head, buffer.data(), to_copy);
+		else
+		{
+			const size_t before_wrap = m_buffer.size() - buffer_head;
+			const size_t after_wrap = to_copy - before_wrap;
+			memcpy(m_buffer.data() + buffer_head, buffer.data(), before_wrap);
+			memcpy(m_buffer.data(), buffer.data() + before_wrap, after_wrap);
+		}
+
+		m_buffer_size += to_copy;
 
 		timespec current_time = SystemTimer::get().real_time();
 		m_mtime = current_time;
@@ -79,7 +108,7 @@ namespace Kernel
 
 		m_thread_blocker.unblock();
 
-		return buffer.size();
+		return to_copy;
 	}
 
 }

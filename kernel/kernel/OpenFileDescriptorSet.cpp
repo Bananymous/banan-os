@@ -48,8 +48,11 @@ namespace Kernel
 
 			m_open_files[fd] = result.release_value();
 
-			if (m_open_files[fd]->flags & O_WRONLY && m_open_files[fd]->inode->is_pipe())
-				((Pipe*)m_open_files[fd]->inode.ptr())->clone_writing();
+			if (m_open_files[fd]->path == "<pipe wr>"_sv)
+			{
+				ASSERT(m_open_files[fd]->inode->is_pipe());
+				static_cast<Pipe*>(m_open_files[fd]->inode.ptr())->clone_writing();
+			}
 		}
 
 		return {};
@@ -59,7 +62,7 @@ namespace Kernel
 	{
 		ASSERT(file.inode);
 
-		if (flags & ~(O_ACCMODE | O_NOFOLLOW | O_APPEND | O_TRUNC | O_CLOEXEC | O_TTY_INIT | O_DIRECTORY | O_CREAT | O_EXCL | O_NONBLOCK))
+		if (flags & ~(O_ACCMODE | O_NOFOLLOW | O_APPEND | O_TRUNC | O_CLOEXEC | O_TTY_INIT | O_NOCTTY | O_DIRECTORY | O_CREAT | O_EXCL | O_NONBLOCK))
 			return BAN::Error::from_errno(ENOTSUP);
 
 		if ((flags & O_ACCMODE) != O_RDWR && __builtin_popcount(flags & O_ACCMODE) != 1)
@@ -139,8 +142,8 @@ namespace Kernel
 		TRY(get_free_fd_pair(fds));
 
 		auto pipe = TRY(Pipe::create(m_credentials));
-		m_open_files[fds[0]] = TRY(BAN::RefPtr<OpenFileDescription>::create(pipe, ""_sv, 0, O_RDONLY));
-		m_open_files[fds[1]] = TRY(BAN::RefPtr<OpenFileDescription>::create(pipe, ""_sv, 0, O_WRONLY));
+		m_open_files[fds[0]] = TRY(BAN::RefPtr<OpenFileDescription>::create(pipe, "<pipe rd>"_sv, 0, O_RDONLY));
+		m_open_files[fds[1]] = TRY(BAN::RefPtr<OpenFileDescription>::create(pipe, "<pipe wr>"_sv, 0, O_WRONLY));
 
 		return {};
 	}
@@ -152,8 +155,11 @@ namespace Kernel
 		int result = TRY(get_free_fd());
 		m_open_files[result] = m_open_files[fildes];
 
-		if (m_open_files[result]->flags & O_WRONLY && m_open_files[result]->inode->is_pipe())
-			((Pipe*)m_open_files[result]->inode.ptr())->clone_writing();
+		if (m_open_files[result]->path == "<pipe wr>"_sv)
+		{
+			ASSERT(m_open_files[result]->inode->is_pipe());
+			static_cast<Pipe*>(m_open_files[result]->inode.ptr())->clone_writing();
+		}
 
 		return result;
 	}
@@ -172,8 +178,11 @@ namespace Kernel
 		m_open_files[fildes2] = m_open_files[fildes];
 		m_open_files[fildes2]->flags &= ~O_CLOEXEC;
 
-		if (m_open_files[fildes]->flags & O_WRONLY && m_open_files[fildes]->inode->is_pipe())
-			((Pipe*)m_open_files[fildes]->inode.ptr())->clone_writing();
+		if (m_open_files[fildes2]->path == "<pipe wr>"_sv)
+		{
+			ASSERT(m_open_files[fildes2]->inode->is_pipe());
+			static_cast<Pipe*>(m_open_files[fildes2]->inode.ptr())->clone_writing();
+		}
 
 		return fildes;
 	}
@@ -303,8 +312,11 @@ namespace Kernel
 	{
 		TRY(validate_fd(fd));
 
-		if (m_open_files[fd]->flags & O_WRONLY && m_open_files[fd]->inode->is_pipe())
-			((Pipe*)m_open_files[fd]->inode.ptr())->close_writing();
+		if (m_open_files[fd]->path == "<pipe wr>"_sv)
+		{
+			ASSERT(m_open_files[fd]->inode->is_pipe());
+			static_cast<Pipe*>(m_open_files[fd]->inode.ptr())->close_writing();
+		}
 
 		m_open_files[fd].clear();
 

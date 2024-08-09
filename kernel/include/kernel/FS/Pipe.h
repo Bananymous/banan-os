@@ -1,5 +1,6 @@
 #pragma once
 
+#include <BAN/Array.h>
 #include <kernel/FS/Inode.h>
 #include <kernel/ThreadBlocker.h>
 
@@ -33,7 +34,7 @@ namespace Kernel
 		virtual BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan) override;
 		virtual BAN::ErrorOr<size_t> write_impl(off_t, BAN::ConstByteSpan) override;
 
-		virtual bool can_read_impl() const override { return !m_buffer.empty(); }
+		virtual bool can_read_impl() const override { return m_buffer_size == 0; }
 		virtual bool can_write_impl() const override { return true; }
 		virtual bool has_error_impl() const override { return false; }
 
@@ -46,10 +47,13 @@ namespace Kernel
 		timespec m_atime {};
 		timespec m_mtime {};
 		timespec m_ctime {};
-		BAN::Vector<uint8_t> m_buffer;
 		ThreadBlocker m_thread_blocker;
 
-		uint32_t m_writing_count { 1 };
+		BAN::Array<uint8_t, PAGE_SIZE> m_buffer;
+		BAN::Atomic<size_t> m_buffer_size { 0 };
+		size_t m_buffer_tail { 0 };
+
+		BAN::Atomic<uint32_t> m_writing_count { 1 };
 	};
 
 }
