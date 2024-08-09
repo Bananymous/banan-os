@@ -1,3 +1,4 @@
+#include <BAN/Assert.h>
 #include <BAN/Bitcast.h>
 
 #include <arpa/inet.h>
@@ -10,6 +11,35 @@
 #include <unistd.h>
 
 int h_errno = 0;
+
+void freeaddrinfo(struct addrinfo*)
+{
+	ASSERT_NOT_REACHED();
+}
+
+const char* gai_strerror(int ecode)
+{
+	switch (ecode)
+	{
+		case 0:				return "Success";
+		case EAI_AGAIN:		return "The name could not be resolved at this time.";
+		case EAI_BADFLAGS:	return "The flags had an invalid value.";
+		case EAI_FAIL:		return "A non-recoverable error occurred.";
+		case EAI_FAMILY:	return "The address family was not recognized or the address length was invalid for the specified family.";
+		case EAI_MEMORY:	return "There was a memory allocation failure.";
+		case EAI_NONAME:	return "The name does not resolve for the supplied parameters. ";
+		case EAI_SERVICE:	return "The service passed was not recognized for the specified socket type.";
+		case EAI_SOCKTYPE:	return "The intended socket type was not recognized.";
+		case EAI_SYSTEM:	return "A system error occurred. The error code can be found in errno.";
+		case EAI_OVERFLOW:	return "An argument buffer overflowed.";
+		default:			return "Unknown error.";
+	}
+}
+
+int getaddrinfo(const char* __restrict, const char* __restrict, const struct addrinfo* __restrict, struct addrinfo** __restrict)
+{
+	ASSERT_NOT_REACHED();
+}
 
 struct hostent* gethostbyname(const char* name)
 {
