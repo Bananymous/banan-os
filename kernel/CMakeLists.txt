@@ -172,7 +172,11 @@ set(KERNEL_SOURCES
 add_executable(kernel ${KERNEL_SOURCES})
 
 target_compile_definitions(kernel PUBLIC __is_kernel)
-target_compile_definitions(kernel PUBLIC __arch=${BANAN_ARCH})
+target_compile_definitions(kernel PRIVATE __arch=${BANAN_ARCH})
+target_compile_definitions(kernel PRIVATE __enable_sse=${BANAN_ENABLE_SSE})
+if (NOT BANAN_ENABLE_SSE)
+	target_compile_options(kernel PRIVATE -mno-sse -mno-sse2)
+endif ()
 
 target_compile_options(kernel PUBLIC -O2 -g)
 target_compile_options(kernel PUBLIC $<$<COMPILE_LANGUAGE:CXX>:-Wno-literal-suffix -fno-rtti -fno-exceptions>)

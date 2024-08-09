@@ -4,8 +4,7 @@ if (NOT ${CMAKE_SYSTEM_NAME} STREQUAL "banan-os")
 	message(FATAL_ERROR "CMAKE_SYSTEM_NAME is not banan-os")
 endif ()
 
-#add_compile_options(-mno-sse -mno-sse2)
-add_compile_definitions(__enable_sse=1)
+set(BANAN_ENABLE_SSE 1)
 
 project(banan-os CXX C ASM)
 
