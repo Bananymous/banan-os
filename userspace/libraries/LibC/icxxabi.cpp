@@ -39,26 +39,3 @@ extern "C" void __cxa_finalize(void* f)
 		}
 	}
 };
-
-namespace __cxxabiv1
-{
-	using __guard = uint64_t;
-
-	extern "C" int __cxa_guard_acquire (__guard* g)
-	{
-		uint8_t* byte = reinterpret_cast<uint8_t*>(g);
-		uint8_t zero = 0;
-		return __atomic_compare_exchange_n(byte, &zero, 1, false, __ATOMIC_ACQUIRE, __ATOMIC_ACQUIRE);
-	}
-
-	extern "C" void __cxa_guard_release (__guard* g)
-	{
-		uint8_t* byte = reinterpret_cast<uint8_t*>(g);
-		__atomic_store_n(byte, 0, __ATOMIC_RELEASE);
-	}
-
-	extern "C" void __cxa_guard_abort (__guard*)
-	{
-		ASSERT_NOT_REACHED();
-	}
-}
