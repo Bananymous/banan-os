@@ -2278,7 +2278,7 @@ namespace Kernel
 
 		// FIXME: should we allow cross mapping access?
 		for (auto& mapped_region : m_mapped_regions)
-			mapped_region->contains_fully(vaddr, size);
+			if (mapped_region->contains_fully(vaddr, size))
 				return {};
 
 		// FIXME: elf should contain full range [vaddr, vaddr + size)
