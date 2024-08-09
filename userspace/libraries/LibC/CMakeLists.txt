@@ -3,7 +3,9 @@ set(LIBC_SOURCES
 	assert.cpp
 	ctype.cpp
 	dirent.cpp
+	dlfcn.cpp
 	fcntl.cpp
+	ftw.cpp
 	grp.cpp
 	inttypes.cpp
 	locale.cpp
@@ -31,6 +33,8 @@ set(LIBC_SOURCES
 	termios.cpp
 	time.cpp
 	unistd.cpp
+	utime.cpp
+	wchar.cpp
 	icxxabi.cpp
 
 	arch/${BANAN_ARCH}/setjmp.S
