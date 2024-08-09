@@ -6,7 +6,7 @@ if (( $# != 1 )); then
 fi
 
 if [[ -z $BANAN_ROOT_DIR ]]; then
-	BANAN_ROOT_DIR="$(dirname $(realpath $0))/.."
+	BANAN_ROOT_DIR="$(realpath $(dirname $(realpath $0))/..)"
 fi
 
 source "$BANAN_ROOT_DIR/script/config.sh"
@@ -17,6 +17,10 @@ export PKG_CONFIG='pkg-config --static'
 export PKG_CONFIG_SYSROOT_DIR="$BANAN_SYSROOT"
 export PKG_CONFIG_LIBDIR="$PKG_CONFIG_SYSROOT_DIR/usr/lib/pkgconfig"
 export PKG_CONFIG_PATH="$PKG_CONFIG_SYSROOT_DIR/usr/share/pkgconfig"
+
+export CC="$BANAN_TOOLCHAIN_TRIPLE-gcc"
+export CXX="$BANAN_TOOLCHAIN_TRIPLE-g++"
+export LD="$BANAN_TOOLCHAIN_TRIPLE-ld"
 
 if [ ! -f "$BANAN_SYSROOT/usr/lib/libc.a" ]; then
 	pushd "$BANAN_ROOT_DIR" >/dev/null
@@ -29,11 +33,13 @@ clean() {
 	find . -mindepth 1 -maxdepth 1 -not -name 'patches' -not -name 'build.sh' -exec rm -rf {} +
 }
 
-build() {
+configure() {
 	configure_options=("--host=$BANAN_ARCH-banan_os" '--prefix=/usr')
-	configure_options+=(${CONFIGURE_OPTIONS[*]})
+	configure_options+=("${CONFIGURE_OPTIONS[@]}")
+	./configure "${configure_options[@]}" || exit 1
+}
 
-	./configure ${configure_options[*]} || exit 1
+build() {
 	make -j$(nproc) || exit 1
 }
 
@@ -143,6 +149,7 @@ fi
 cd "$build_dir"
 
 if (( $needs_compile )); then
+	configure
 	build
 	sha256sum "$BANAN_SYSROOT/usr/lib/libc.a" > "../.compile_hash"
 fi

@@ -4,6 +4,10 @@ NAME='doom'
 VERSION='git'
 DOWNLOAD_URL="https://github.com/ozkl/doomgeneric.git#613f870b6fa83ede448a247de5a2571092fa729d"
 
+configure() {
+	:
+}
+
 build() {
 	if [ ! -f doom1.wad ]; then
 		wget https://distro.ibiblio.org/slitaz/sources/packages/d/doom1.wad || exit 1

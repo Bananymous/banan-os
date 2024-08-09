@@ -47,8 +47,8 @@ if [[ -z $BANAN_TOOLCHAIN_PREFIX ]]; then
 	exit 1
 fi
 
-if [[ -z $BANAN_TOOLCHAIN_TRIPLE_PREFIX ]]; then
-	echo "You must set the BANAN_TOOLCHAIN_TRIPLE_PREFIX environment variable" >&2
+if [[ -z $BANAN_TOOLCHAIN_TRIPLE ]]; then
+	echo "You must set the BANAN_TOOLCHAIN_TRIPLE environment variable" >&2
 	exit 1
 fi
 
@@ -89,7 +89,7 @@ build_binutils () {
 	enter_clean_build
 
 	../configure \
-		--target="$BANAN_TOOLCHAIN_TRIPLE_PREFIX" \
+		--target="$BANAN_TOOLCHAIN_TRIPLE" \
 		--prefix="$BANAN_TOOLCHAIN_PREFIX" \
 		--with-sysroot="$BANAN_SYSROOT" \
 		--disable-initfini-array \
@@ -116,7 +116,7 @@ build_gcc () {
 	enter_clean_build
 
 	../configure \
-		--target="$BANAN_TOOLCHAIN_TRIPLE_PREFIX" \
+		--target="$BANAN_TOOLCHAIN_TRIPLE" \
 		--prefix="$BANAN_TOOLCHAIN_PREFIX" \
 		--with-sysroot="$BANAN_SYSROOT" \
 		--disable-initfini-array \
@@ -189,7 +189,7 @@ build_cmake() {
 }
 
 BUILD_BINUTILS=1
-if [[ -f $BANAN_TOOLCHAIN_PREFIX/bin/$BANAN_TOOLCHAIN_TRIPLE_PREFIX-ld ]]; then
+if [[ -f $BANAN_TOOLCHAIN_PREFIX/bin/$BANAN_TOOLCHAIN_TRIPLE-ld ]]; then
 	echo "You already seem to have a binutils installed."
 	read -e -p "Do you want to rebuild it [y/N]? " choice
 	if ! [[ "$choice" == [Yy]* ]]; then
@@ -198,7 +198,7 @@ if [[ -f $BANAN_TOOLCHAIN_PREFIX/bin/$BANAN_TOOLCHAIN_TRIPLE_PREFIX-ld ]]; then
 fi
 
 BUILD_GCC=1
-if [[ -f $BANAN_TOOLCHAIN_PREFIX/bin/$BANAN_TOOLCHAIN_TRIPLE_PREFIX-gcc ]]; then
+if [[ -f $BANAN_TOOLCHAIN_PREFIX/bin/$BANAN_TOOLCHAIN_TRIPLE-gcc ]]; then
 	echo "You already seem to have a gcc installed."
 	read -e -p "Do you want to rebuild it [y/N]? " choice
 	if ! [[ "$choice" == [Yy]* ]]; then
