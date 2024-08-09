@@ -423,6 +423,16 @@ namespace Kernel
 		return false;
 	}
 
+	BAN::ErrorOr<void> Thread::sleep_or_eintr_ns(uint64_t ns)
+	{
+		if (is_interrupted_by_signal())
+			return BAN::Error::from_errno(EINTR);
+		SystemTimer::get().sleep_ns(ns);
+		if (is_interrupted_by_signal())
+			return BAN::Error::from_errno(EINTR);
+		return {};
+	}
+
 	BAN::ErrorOr<void> Thread::block_or_eintr_indefinite(ThreadBlocker& thread_blocker)
 	{
 		if (is_interrupted_by_signal())

@@ -219,8 +219,6 @@ namespace Kernel
 		// Load elf from a file
 		static BAN::ErrorOr<BAN::UniqPtr<LibELF::LoadableELF>> load_elf_for_exec(const Credentials&, BAN::StringView file_path, const BAN::String& cwd, Kernel::PageTable&);
 
-		BAN::ErrorOr<int> block_until_exit(pid_t pid);
-
 		BAN::ErrorOr<void> validate_string_access(const char*);
 		BAN::ErrorOr<void> validate_pointer_access_check(const void*, size_t);
 		BAN::ErrorOr<void> validate_pointer_access(const void*, size_t);
@@ -255,12 +253,12 @@ namespace Kernel
 		}
 
 	private:
-		struct ExitStatus
+		struct ChildExitStatus
 		{
-			ThreadBlocker		thread_blocker;
-			int					exit_code	{ 0 };
-			BAN::Atomic<bool>	exited		{ false };
-			BAN::Atomic<int>	waiting		{ 0 };
+			pid_t    pid       { 0 };
+			pid_t    pgrp      { 0 };
+			int      exit_code { 0 };
+			bool     exited    { false };
 		};
 
 		Credentials m_credentials;
@@ -292,7 +290,10 @@ namespace Kernel
 
 		bool m_is_userspace { false };
 		userspace_info_t m_userspace_info;
-		ExitStatus m_exit_status;
+
+		SpinLock m_child_exit_lock;
+		BAN::Vector<ChildExitStatus> m_child_exit_statuses;
+		ThreadBlocker m_child_exit_blocker;
 
 		bool m_has_called_exec { false };
 

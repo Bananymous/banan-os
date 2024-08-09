@@ -147,7 +147,7 @@ BAN::Optional<BAN::String> parse_dollar(BAN::StringView command, size_t& i)
 		close(fds[0]);
 
 		int status;
-		if (waitpid(pid, &status, 0) == -1 && errno != ECHILD)
+		if (waitpid(pid, &status, 0) == -1)
 			ERROR_RETURN("waitpid", {});
 
 		while (!output.empty() && output.back() == '\n')

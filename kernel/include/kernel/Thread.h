@@ -49,6 +49,8 @@ namespace Kernel
 		bool add_signal(int signal);
 
 		// blocks current thread and returns either on unblock, eintr, spuriously or after timeout
+		BAN::ErrorOr<void> sleep_or_eintr_ms(uint64_t ms) { return sleep_or_eintr_ns(ms * 1'000'000); }
+		BAN::ErrorOr<void> sleep_or_eintr_ns(uint64_t ns);
 		BAN::ErrorOr<void> block_or_eintr_indefinite(ThreadBlocker& thread_blocker);
 		BAN::ErrorOr<void> block_or_eintr_or_timeout_ms(ThreadBlocker& thread_blocker, uint64_t timeout_ms, bool etimedout) { return block_or_eintr_or_timeout_ns(thread_blocker, timeout_ms * 1'000'000, etimedout); }
 		BAN::ErrorOr<void> block_or_eintr_or_waketime_ms(ThreadBlocker& thread_blocker, uint64_t wake_time_ms, bool etimedout) { return block_or_eintr_or_waketime_ns(thread_blocker, wake_time_ms * 1'000'000, etimedout); }

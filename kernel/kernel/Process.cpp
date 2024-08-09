@@ -185,7 +185,6 @@ namespace Kernel
 		ASSERT(m_threads.empty());
 		ASSERT(m_mapped_regions.empty());
 		ASSERT(!m_loadable_elf);
-		ASSERT(m_exit_status.waiting == 0);
 		ASSERT(&PageTable::current() != m_page_table.ptr());
 	}
 
@@ -201,20 +200,14 @@ namespace Kernel
 			SpinLockGuard _(s_process_lock);
 			for (size_t i = 0; i < s_processes.size(); i++)
 			{
-				if (m_parent && s_processes[i]->pid() == m_parent)
-					s_processes[i]->add_pending_signal(SIGCHLD);
-				if (s_processes[i] == this)
-					s_processes.remove(i);
+				if (s_processes[i] != this)
+					continue;
+				s_processes.remove(i);
+				break;
 			}
 		}
 
 		ProcFileSystem::get().on_process_delete(*this);
-
-		m_exit_status.exited = true;
-		m_exit_status.thread_blocker.unblock();
-
-		while (m_exit_status.waiting > 0)
-			Processor::yield();
 
 		m_process_lock.lock();
 
@@ -252,7 +245,35 @@ namespace Kernel
 
 	void Process::exit(int status, int signal)
 	{
-		m_exit_status.exit_code = __WGENEXITCODE(status, signal);
+		if (m_parent)
+		{
+			for_each_process(
+				[&](Process& parent) -> BAN::Iteration
+				{
+					if (parent.pid() != m_parent)
+						return BAN::Iteration::Continue;
+
+					for (auto& child : parent.m_child_exit_statuses)
+					{
+						if (child.pid != pid())
+							continue;
+
+						child.exit_code = __WGENEXITCODE(status, signal);
+						child.exited = true;
+
+						parent.add_pending_signal(SIGCHLD);
+						Processor::scheduler().unblock_thread(parent.m_threads.front());
+
+						parent.m_child_exit_blocker.unblock();
+
+						break;
+					}
+
+					return BAN::Iteration::Break;
+				}
+			);
+		}
+
 		while (!m_threads.empty())
 			m_threads.front()->on_exit();
 	}
@@ -397,6 +418,20 @@ namespace Kernel
 
 		LockGuard _(m_process_lock);
 
+		ChildExitStatus* child_exit_status = nullptr;
+		for (auto& child : m_child_exit_statuses)
+		{
+			if (child.pid != 0)
+				continue;
+			child_exit_status = &child;
+			break;
+		}
+		if (child_exit_status == nullptr)
+		{
+			TRY(m_child_exit_statuses.emplace_back());
+			child_exit_status = &m_child_exit_statuses.back();
+		}
+
 		BAN::String working_directory;
 		TRY(working_directory.append(m_working_directory));
 
@@ -421,6 +456,10 @@ namespace Kernel
 		forked->m_userspace_info = m_userspace_info;
 		forked->m_has_called_exec = false;
 		memcpy(forked->m_signal_handlers, m_signal_handlers, sizeof(m_signal_handlers));
+
+		*child_exit_status = {};
+		child_exit_status->pid = forked->pid();
+		child_exit_status->pgrp = forked->pgrp();
 
 		ASSERT(this == &Process::current());
 		// FIXME: this should be able to fail
@@ -541,58 +580,72 @@ namespace Kernel
 		ASSERT_NOT_REACHED();
 	}
 
-	BAN::ErrorOr<int> Process::block_until_exit(pid_t pid)
-	{
-		ASSERT(this->pid() != pid);
-
-		Process* target = nullptr;
-		for_each_process(
-			[pid, &target](Process& process)
-			{
-				if (process.pid() == pid)
-				{
-					process.m_exit_status.waiting++;
-					target = &process;
-					return BAN::Iteration::Break;
-				}
-				return BAN::Iteration::Continue;
-			}
-		);
-
-		if (target == nullptr)
-			return BAN::Error::from_errno(ECHILD);
-
-		while (!target->m_exit_status.exited)
-		{
-			if (auto ret = Thread::current().block_or_eintr_indefinite(target->m_exit_status.thread_blocker); ret.is_error())
-			{
-				target->m_exit_status.waiting--;
-				return ret.release_error();
-			}
-		}
-
-		int exit_status = target->m_exit_status.exit_code;
-		target->m_exit_status.waiting--;
-
-		return exit_status;
-	}
-
 	BAN::ErrorOr<long> Process::sys_wait(pid_t pid, int* stat_loc, int options)
 	{
-		{
-			LockGuard _(m_process_lock);
-			TRY(validate_pointer_access(stat_loc, sizeof(int)));
-		}
-
-		// FIXME: support options
-		if (options)
+		if (options & ~(WCONTINUED | WNOHANG | WUNTRACED))
 			return BAN::Error::from_errno(EINVAL);
 
-		int stat = TRY(block_until_exit(pid));
-		if (stat_loc)
-			*stat_loc = stat;
+		// FIXME: support options stopped processes
+		if (options & ~(WCONTINUED | WUNTRACED))
+			return BAN::Error::from_errno(ENOTSUP);
 
-		return pid;
+		const auto pid_matches =
+			[&](const ChildExitStatus& child)
+			{
+				if (pid == -1)
+					return true;
+				if (pid == 0)
+					return child.pgrp == pgrp();
+				if (pid < 0)
+					return child.pgrp == -pid;
+				return child.pid == pid;
+			};
+
+		for (;;)
+		{
+			pid_t exited_pid = 0;
+			int exit_code = 0;
+			{
+				SpinLockGuard _(m_child_exit_lock);
+
+				bool found = false;
+				for (auto& child : m_child_exit_statuses)
+				{
+					if (!pid_matches(child))
+						continue;
+					found = true;
+					if (!child.exited)
+						continue;
+					exited_pid = child.pid;
+					exit_code = child.exit_code;
+					child = {};
+					break;
+				}
+
+				if (!found)
+					return BAN::Error::from_errno(ECHILD);
+			}
+
+			if (exited_pid != 0)
+			{
+				if (stat_loc)
+				{
+					LockGuard _(m_process_lock);
+					TRY(validate_pointer_access(stat_loc, sizeof(stat_loc)));
+					*stat_loc = exit_code;
+				}
+				remove_pending_signal(SIGCHLD);
+				return exited_pid;
+			}
+
+			if (Thread::current().is_interrupted_by_signal())
+				return BAN::Error::from_errno(EINTR);
+
+			if (options & WNOHANG)
+				return 0;
+
+			m_child_exit_blocker.block_indefinite();
+		}
 	}
 
 	BAN::ErrorOr<long> Process::sys_sleep(int seconds)
@@ -1289,7 +1342,7 @@ namespace Kernel
 				break;
 
 			LockFreeGuard free(m_process_lock);
-			SystemTimer::get().sleep_ms(1);
+			TRY(Thread::current().sleep_or_eintr_ms(1));
 		}
 
 		if (arguments->readfds)
