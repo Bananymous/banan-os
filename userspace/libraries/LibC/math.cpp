@@ -8,7 +8,12 @@
 #define BUILTINS2(func) \
 	float func##f(float a, float b) { return __builtin_##func##f(a, b); } \
 	double func(double a, double b) { return __builtin_##func(a, b); } \
-	long double func##l(long double a, long double b) { return __builtin_##func##l(a, b); } \
+	long double func##l(long double a, long double b) { return __builtin_##func##l(a, b); }
+
+#define BUILTINS2_TYPE(func, type) \
+	float func##f(float a, type b) { return __builtin_##func##f(a, b); } \
+	double func(double a, type b) { return __builtin_##func(a, b); } \
+	long double func##l(long double a, type b) { return __builtin_##func##l(a, b); }
 
 __BEGIN_DECLS
 
@@ -38,6 +43,7 @@ BUILTINS2(fmod)
 BUILTINS2(hypot)
 BUILTINS1(j0)
 BUILTINS1(j1)
+BUILTINS2_TYPE(ldexp, int)
 BUILTINS1(lgamma)
 BUILTINS1(log)
 BUILTINS1(log10)
