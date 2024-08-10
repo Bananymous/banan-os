@@ -361,6 +361,8 @@ namespace Kernel
 		else
 			m_block_queue.add_thread_with_wake_time(node);
 
+		m_thread_count++;
+
 		Processor::set_interrupt_state(state);
 	}
 
