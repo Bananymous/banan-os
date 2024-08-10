@@ -15,7 +15,7 @@ public:
 private:
 	void handle_csi(char ch);
 	void handle_sgr();
-	void putchar(uint32_t codepoint);
+	void putchar(uint8_t ch);
 	bool read_shell(int fd);
 
 	void on_key_event(LibGUI::EventPacket::KeyEvent);
@@ -57,6 +57,9 @@ private:
 	ShellInfo m_shell_info;
 	State m_state { State::Normal };
 	CSIInfo m_csi_info;
+
+	uint8_t m_utf8_index { 0 };
+	uint8_t m_utf8_bytes[4] { };
 
 	Cursor m_saved_cursor { 0, 0 };
 	uint32_t m_fg_color { 0xFFFFFF };

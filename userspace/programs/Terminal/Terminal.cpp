@@ -295,13 +295,13 @@ void Terminal::handle_csi(char ch)
 	m_state = State::Normal;
 }
 
-void Terminal::putchar(uint32_t codepoint)
+void Terminal::putchar(uint8_t ch)
 {
 	if (m_state == State::ESC)
 	{
-		if (codepoint != '[')
+		if (ch != '[')
 		{
-			dprintln("unknown escape character 0x{H}", codepoint);
+			dprintln("unknown escape character 0x{2H}", ch);
 			m_state = State::Normal;
 			return;
 		}
@@ -314,13 +314,46 @@ void Terminal::putchar(uint32_t codepoint)
 
 	if (m_state == State::CSI)
 	{
-		if (codepoint < 0x20 || codepoint > 0xFE)
+		if (ch < 0x20 || ch > 0xFE)
 		{
-			dprintln("invalid CSI 0x{H}", codepoint);
+			dprintln("invalid CSI 0x{2H}", ch);
 			m_state = State::Normal;
 			return;
 		}
-		handle_csi(codepoint);
+		handle_csi(ch);
+		return;
+	}
+
+	m_utf8_bytes[m_utf8_index++] = ch;
+
+	const size_t utf8_len = BAN::UTF8::byte_length(m_utf8_bytes[0]);
+	if (utf8_len == 0)
+	{
+		dwarnln("invalid utf8 leading byte 0x{2H}", ch);
+		m_utf8_index = 0;
+		return;
+	}
+	if (m_utf8_index < utf8_len)
+		return;
+
+	const uint32_t codepoint = BAN::UTF8::to_codepoint(m_utf8_bytes);
+	m_utf8_index = 0;
+
+	if (codepoint == BAN::UTF8::invalid)
+	{
+		char utf8_hex[20];
+		char* ptr = utf8_hex;
+		for (uint8_t i = 0; i < utf8_len; i++)
+		{
+			*ptr++ = '0';
+			*ptr++ = 'x';
+			*ptr++ = (m_utf8_bytes[i] >>  4) < 10 ? (m_utf8_bytes[i] >>  4) + '0' : (m_utf8_bytes[i] >>  4) - 10 + 'A';
+			*ptr++ = (m_utf8_bytes[i] & 0xF) < 10 ? (m_utf8_bytes[i] & 0xF) + '0' : (m_utf8_bytes[i] & 0xF) - 10 + 'A';
+			*ptr++ = ' ';
+		}
+		*--ptr = '\0';
+
+		dwarnln("invalid utf8 {}", utf8_hex);
 		return;
 	}
 
