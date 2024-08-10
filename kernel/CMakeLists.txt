@@ -86,6 +86,7 @@ set(KERNEL_SOURCES
 	kernel/Storage/StorageDevice.cpp
 	kernel/Syscall.cpp
 	kernel/Terminal/FramebufferTerminal.cpp
+	kernel/Terminal/PseudoTerminal.cpp
 	kernel/Terminal/Serial.cpp
 	kernel/Terminal/TTY.cpp
 	kernel/Terminal/VirtualTTY.cpp

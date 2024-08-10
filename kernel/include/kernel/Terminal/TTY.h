@@ -42,6 +42,8 @@ namespace Kernel
 		virtual uint32_t width() const = 0;
 		void putchar(uint8_t ch);
 
+		virtual dev_t rdev() const final override { return m_rdev; }
+
 		virtual void clear() = 0;
 
 		virtual BAN::ErrorOr<void> chmod_impl(mode_t) override;
@@ -54,17 +56,7 @@ namespace Kernel
 		virtual bool has_error_impl() const override { return false; }
 
 	protected:
-		TTY(mode_t mode, uid_t uid, gid_t gid)
-			: CharacterDevice(mode, uid, gid)
-		{
-			// FIXME: add correct baud and flags
-			m_termios.c_iflag = 0;
-			m_termios.c_oflag = 0;
-			m_termios.c_cflag = CS8;
-			m_termios.c_lflag = ECHO | ICANON;
-			m_termios.c_ospeed = B38400;
-			m_termios.c_ispeed = B38400;
-		}
+		TTY(mode_t mode, uid_t uid, gid_t gid);
 
 		virtual void putchar_impl(uint8_t ch) = 0;
 		virtual BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan) override;
@@ -79,6 +71,8 @@ namespace Kernel
 		termios m_termios;
 
 	private:
+		const dev_t m_rdev;
+
 		pid_t m_foreground_pgrp { 0 };
 
 		struct tty_ctrl_t

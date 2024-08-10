@@ -1,5 +1,4 @@
 #include <BAN/Array.h>
-#include <kernel/Device/DeviceNumbers.h>
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/IDT.h>
 #include <kernel/InterruptController.h>
@@ -7,7 +6,6 @@
 #include <kernel/Terminal/Serial.h>
 
 #include <ctype.h>
-#include <sys/sysmacros.h>
 
 #define MAX_BAUD 115200
 
@@ -33,18 +31,14 @@
 namespace Kernel
 {
 
+	static BAN::Atomic<uint32_t> s_next_tty_number = 0;
+
 	static constexpr uint16_t s_serial_ports[] = { 0x3F8, 0x2F8, 0x3E8, 0x2E8, 0x5F8, 0x4F8, 0x5E8, 0x4E8 };
 	static BAN::Array<Serial, sizeof(s_serial_ports) / sizeof(*s_serial_ports)> s_serial_drivers;
 	static bool s_has_devices { false };
 
 	static BAN::RefPtr<SerialTTY> s_com1;
 	static BAN::RefPtr<SerialTTY> s_com2;
-
-	static dev_t next_rdev()
-	{
-		static dev_t minor = 0;
-		return makedev(DeviceNumber::Serial, minor++);
-	}
 
 	void Serial::initialize()
 	{
@@ -179,9 +173,8 @@ namespace Kernel
 
 	SerialTTY::SerialTTY(Serial serial)
 		: TTY(0600, 0, 0)
-		, m_name(MUST(BAN::String::formatted("ttyS{}", minor(rdev()))))
+		, m_name(MUST(BAN::String::formatted("ttyS{}", s_next_tty_number++)))
 		, m_serial(serial)
-		, m_rdev(next_rdev())
 	{}
 
 	BAN::ErrorOr<BAN::RefPtr<SerialTTY>> SerialTTY::create(Serial serial)

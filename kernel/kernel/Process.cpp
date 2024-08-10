@@ -13,6 +13,7 @@
 #include <kernel/Process.h>
 #include <kernel/Scheduler.h>
 #include <kernel/Storage/StorageDevice.h>
+#include <kernel/Terminal/PseudoTerminal.h>
 #include <kernel/Timer/Timer.h>
 
 #include <LibELF/LoadableELF.h>
@@ -1734,6 +1735,50 @@ namespace Kernel
 		return 0;
 	}
 
+	BAN::ErrorOr<long> Process::sys_posix_openpt(int flags)
+	{
+		if (flags & ~(O_RDWR | O_NOCTTY))
+			return BAN::Error::from_errno(EINVAL);
+
+		mode_t mode = 0440;
+		if (flags & O_WRONLY)
+			mode = 0660;
+
+		auto pts_master = TRY(PseudoTerminalMaster::create(mode, m_credentials.ruid(), m_credentials.rgid()));
+		auto pts_slave = TRY(pts_master->slave());
+
+		VirtualFileSystem::File file;
+		file.inode = pts_master;
+		TRY(file.canonical_path.append(pts_master->name()));
+
+		LockGuard _(m_process_lock);
+
+		int pts_master_fd = TRY(m_open_file_descriptors.open(file, flags));
+
+		if (!(flags & O_NOCTTY) && is_session_leader() && !m_controlling_terminal)
+			m_controlling_terminal = (TTY*)pts_slave.ptr();
+
+		return pts_master_fd;
+	}
+
+	BAN::ErrorOr<long> Process::sys_ptsname(int fildes, char* buffer, size_t buffer_len)
+	{
+		LockGuard _(m_process_lock);
+		TRY(validate_pointer_access(buffer, buffer_len));
+
+		auto inode = TRY(m_open_file_descriptors.inode_of(fildes));
+		if (TRY(m_open_file_descriptors.path_of(fildes)) != "<ptmx>"_sv)
+			return BAN::Error::from_errno(ENOTTY);
+
+		auto ptsname = TRY(static_cast<PseudoTerminalMaster*>(inode.ptr())->ptsname());
+
+		const size_t to_copy = BAN::Math::min(ptsname.size() + 1, buffer_len);
+		memcpy(buffer, ptsname.data(), to_copy);
+		buffer[to_copy] = '\0';
+
+		return 0;
+	}
+
 	BAN::ErrorOr<long> Process::sys_tty_ctrl(int fildes, int command, int flags)
 	{
 		LockGuard _(m_process_lock);
@@ -1936,10 +1981,11 @@ namespace Kernel
 		if (!inode->is_tty())
 			return BAN::Error::from_errno(ENOTTY);
 
-		if ((TTY*)inode.ptr() != m_controlling_terminal.ptr())
+		auto* tty = static_cast<TTY*>(inode.ptr());
+		if (tty != m_controlling_terminal.ptr())
 			return BAN::Error::from_errno(ENOTTY);
 
-		((TTY*)inode.ptr())->set_foreground_pgrp(pgrp);
+		tty->set_foreground_pgrp(pgrp);
 		return 0;
 	}
 

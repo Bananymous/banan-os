@@ -83,11 +83,6 @@ namespace Kernel
 		bool m_show_cursor { true };
 
 		TerminalDriver* m_terminal_driver { nullptr };
-
-	public:
-		virtual dev_t rdev() const override { return m_rdev; }
-	private:
-		const dev_t m_rdev;
 	};
 
 }

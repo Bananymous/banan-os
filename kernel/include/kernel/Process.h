@@ -174,6 +174,8 @@ namespace Kernel
 
 		BAN::ErrorOr<long> sys_ttyname(int fildes, char* storage);
 		BAN::ErrorOr<long> sys_isatty(int fildes);
+		BAN::ErrorOr<long> sys_posix_openpt(int flags);
+		BAN::ErrorOr<long> sys_ptsname(int fildes, char* buffer, size_t buffer_len);
 
 		BAN::ErrorOr<long> sys_tty_ctrl(int fildes, int command, int flags);
 

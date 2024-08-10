@@ -519,6 +519,31 @@ char* mktemp(char*)
 	ASSERT_NOT_REACHED();
 }
 
+int posix_openpt(int oflag)
+{
+	return syscall(SYS_POSIX_OPENPT, oflag);
+}
+
+int grantpt(int)
+{
+	// currently posix_openpt() does this
+	return 0;
+}
+
+int unlockpt(int)
+{
+	// currently posix_openpt() does this
+	return 0;
+}
+
+char* ptsname(int fildes)
+{
+	static char buffer[PATH_MAX];
+	if (syscall(SYS_PTSNAME, fildes, buffer, sizeof(buffer)) == -1)
+		return nullptr;
+	return buffer;
+}
+
 size_t mbstowcs(wchar_t* __restrict pwcs, const char* __restrict s, size_t n)
 {
 	auto* us = reinterpret_cast<const unsigned char*>(s);

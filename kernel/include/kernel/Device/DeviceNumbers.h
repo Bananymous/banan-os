@@ -9,7 +9,7 @@ namespace Kernel
 	{
 		Framebuffer = 1,
 		TTY,
-		Serial,
+		PTSMaster,
 		Null,
 		Zero,
 		Debug,

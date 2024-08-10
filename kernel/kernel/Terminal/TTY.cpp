@@ -2,6 +2,7 @@
 #include <BAN/ScopeGuard.h>
 #include <BAN/UTF8.h>
 #include <kernel/Debug.h>
+#include <kernel/Device/DeviceNumbers.h>
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/Lock/LockGuard.h>
@@ -19,6 +20,25 @@ namespace Kernel
 {
 
 	static BAN::RefPtr<TTY> s_tty;
+
+	static dev_t next_tty_rdev()
+	{
+		static BAN::Atomic<dev_t> s_minor = 0;
+		return makedev(DeviceNumber::TTY, s_minor++);
+	}
+
+	TTY::TTY(mode_t mode, uid_t uid, gid_t gid)
+		: CharacterDevice(mode, uid, gid)
+		, m_rdev(next_tty_rdev())
+	{
+		// FIXME: add correct baud and flags
+		m_termios.c_iflag = 0;
+		m_termios.c_oflag = 0;
+		m_termios.c_cflag = CS8;
+		m_termios.c_lflag = ECHO | ICANON;
+		m_termios.c_ospeed = B38400;
+		m_termios.c_ispeed = B38400;
+	}
 
 	BAN::RefPtr<TTY> TTY::current()
 	{

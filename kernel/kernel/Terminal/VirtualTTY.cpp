@@ -2,7 +2,6 @@
 #include <BAN/ScopeGuard.h>
 #include <BAN/UTF8.h>
 #include <kernel/Debug.h>
-#include <kernel/Device/DeviceNumbers.h>
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/Lock/LockGuard.h>
 #include <kernel/Process.h>
@@ -10,7 +9,6 @@
 
 #include <fcntl.h>
 #include <string.h>
-#include <sys/sysmacros.h>
 
 #define BEL	0x07
 #define BS	0x08
@@ -25,11 +23,7 @@
 namespace Kernel
 {
 
-	static dev_t next_rdev()
-	{
-		static dev_t minor = 0;
-		return makedev(DeviceNumber::TTY, minor++);
-	}
+	static BAN::Atomic<uint32_t> s_next_tty_number = 0;
 
 	BAN::ErrorOr<BAN::RefPtr<VirtualTTY>> VirtualTTY::create(TerminalDriver* driver)
 	{
@@ -43,9 +37,8 @@ namespace Kernel
 
 	VirtualTTY::VirtualTTY(TerminalDriver* driver)
 		: TTY(0600, 0, 0)
-		, m_name(MUST(BAN::String::formatted("tty{}", minor(rdev()))))
+		, m_name(MUST(BAN::String::formatted("tty{}", s_next_tty_number++)))
 		, m_terminal_driver(driver)
-		, m_rdev(next_rdev())
 	{
 		m_width = m_terminal_driver->width();
 		m_height = m_terminal_driver->height();
