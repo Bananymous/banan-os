@@ -914,8 +914,8 @@ namespace Kernel
 		int fd = TRY(m_open_file_descriptors.open(file, flags));
 
 		// Open controlling terminal
-		if ((flags & O_TTY_INIT) && !(flags & O_NOCTTY) && file.inode->is_tty() && is_session_leader() && !m_controlling_terminal)
-			m_controlling_terminal = (TTY*)file.inode.ptr();
+		if (!(flags & O_NOCTTY) && file.inode->is_tty() && is_session_leader() && !m_controlling_terminal)
+			m_controlling_terminal = static_cast<TTY*>(file.inode.ptr());
 
 		return fd;
 	}
