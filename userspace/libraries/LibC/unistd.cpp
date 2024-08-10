@@ -475,6 +475,11 @@ int setgid(gid_t gid)
 	return syscall(SYS_SET_GID, gid);
 }
 
+int setsid(void)
+{
+	return syscall(SYS_SET_SID);
+}
+
 int setreuid(uid_t ruid, uid_t euid)
 {
 	return syscall(SYS_SET_REUID, ruid, euid);

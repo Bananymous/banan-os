@@ -25,6 +25,7 @@ __BEGIN_DECLS
 	O(SYS_READ_DIR,			readdir)		\
 	O(SYS_SET_UID,			setuid)			\
 	O(SYS_SET_GID,			setgid)			\
+	O(SYS_SET_SID,			setsid)			\
 	O(SYS_SET_EUID,			seteuid)		\
 	O(SYS_SET_EGID,			setegid)		\
 	O(SYS_SET_REUID,		setreuid)		\

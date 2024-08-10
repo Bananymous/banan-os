@@ -85,6 +85,7 @@ namespace Kernel
 
 		BAN::ErrorOr<long> sys_setuid(uid_t);
 		BAN::ErrorOr<long> sys_setgid(gid_t);
+		BAN::ErrorOr<long> sys_setsid();
 		BAN::ErrorOr<long> sys_seteuid(uid_t);
 		BAN::ErrorOr<long> sys_setegid(gid_t);
 		BAN::ErrorOr<long> sys_setreuid(uid_t, uid_t);

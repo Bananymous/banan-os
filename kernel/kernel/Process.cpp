@@ -2001,6 +2001,20 @@ namespace Kernel
 		return BAN::Error::from_errno(EPERM);
 	}
 
+	BAN::ErrorOr<long> Process::sys_setsid()
+	{
+		LockGuard _(m_process_lock);
+
+		if (is_session_leader() || m_pid == m_pgrp)
+			return BAN::Error::from_errno(EPERM);
+
+		m_sid = m_pid;
+		m_pgrp = m_pid;
+		m_controlling_terminal.clear();
+
+		return 0;
+	}
+
 	BAN::ErrorOr<long> Process::sys_seteuid(uid_t uid)
 	{
 		if (uid < 0 || uid >= 1'000'000'000)
