@@ -16,7 +16,7 @@ private:
 	void handle_csi(char ch);
 	void handle_sgr();
 	void putchar(uint8_t ch);
-	bool read_shell(int fd);
+	bool read_shell();
 
 	void on_key_event(LibGUI::EventPacket::KeyEvent);
 
@@ -31,9 +31,7 @@ private:
 
 	struct ShellInfo
 	{
-		int in;
-		int out;
-		int err;
+		int pts_master;
 		pid_t pid;
 	};
 

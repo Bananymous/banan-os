@@ -4,59 +4,63 @@
 #include <BAN/UTF8.h>
 
 #include <ctype.h>
+#include <fcntl.h>
 #include <stdlib.h>
 #include <sys/select.h>
 #include <unistd.h>
 
 void Terminal::start_shell()
 {
-	int shell_stdin[2];
-	if (pipe(shell_stdin) == -1)
+	int pts_master = posix_openpt(O_RDWR | O_NOCTTY);
+	if (pts_master == -1)
 	{
-		dwarnln("pipe: {}", strerror(errno));
+		dwarnln("posix_openpt: {}", strerror(errno));
 		exit(1);
 	}
 
-	int shell_stdout[2];
-	if (pipe(shell_stdout) == -1)
+	if (grantpt(pts_master) == -1)
 	{
-		dwarnln("pipe: {}", strerror(errno));
+		dwarnln("grantpt: {}", strerror(errno));
 		exit(1);
 	}
 
-	int shell_stderr[2];
-	if (pipe(shell_stderr) == -1)
+	if (unlockpt(pts_master) == -1)
 	{
-		dwarnln("pipe: {}", strerror(errno));
+		dwarnln("unlockpt: {}", strerror(errno));
 		exit(1);
 	}
 
 	pid_t shell_pid = fork();
 	if (shell_pid == 0)
 	{
-		if (dup2(shell_stdin[0], STDIN_FILENO) == -1)
+		if (setsid() == -1)
 		{
-			dwarnln("dup2: {}", strerror(errno));
+			dwarnln("setsid: {}", strerror(errno));
 			exit(1);
 		}
-		close(shell_stdin[0]);
-		close(shell_stdin[1]);
 
-		if (dup2(shell_stdout[1], STDOUT_FILENO) == -1)
+		char* pts_slave_name = ptsname(pts_master);
+		if (pts_slave_name == nullptr)
 		{
-			dwarnln("dup2: {}", strerror(errno));
+			dwarnln("ptsname: {}", strerror(errno));
 			exit(1);
 		}
-		close(shell_stdout[0]);
-		close(shell_stdout[1]);
 
-		if (dup2(shell_stderr[1], STDERR_FILENO) == -1)
+		int pts_slave = open(pts_slave_name, O_RDWR);
+		if (pts_slave == -1)
+		{
+			dwarnln("open: {}", strerror(errno));
+			exit(1);
+		}
+
+		if (dup2(pts_slave, STDIN_FILENO) == -1 || dup2(pts_slave, STDOUT_FILENO) == -1 || dup2(pts_slave, STDERR_FILENO) == -1)
 		{
 			dwarnln("dup2: {}", strerror(errno));
 			exit(1);
 		}
-		close(shell_stderr[0]);
-		close(shell_stderr[1]);
+
+		close(pts_slave);
+		close(pts_master);
 
 		execl("/bin/Shell", "Shell", NULL);
 		exit(1);
@@ -68,14 +72,8 @@ void Terminal::start_shell()
 		exit(1);
 	}
 
-	close(shell_stdin[0]);
-	close(shell_stdout[1]);
-	close(shell_stderr[1]);
-
 	m_shell_info = {
-		.in = shell_stdin[1],
-		.out = shell_stdout[0],
-		.err = shell_stderr[0],
+		.pts_master = pts_master,
 		.pid = shell_pid
 	};
 }
@@ -95,22 +93,18 @@ void Terminal::run()
 
 	m_window->set_key_event_callback([&](LibGUI::EventPacket::KeyEvent event) { on_key_event(event); });
 
-	const int max_fd = BAN::Math::max(BAN::Math::max(m_shell_info.out, m_shell_info.err), m_window->server_fd());
+	const int max_fd = BAN::Math::max(m_shell_info.pts_master, m_window->server_fd());
 	while (!s_shell_exited)
 	{
 		fd_set fds;
 		FD_ZERO(&fds);
-		FD_SET(m_shell_info.out, &fds);
-		FD_SET(m_shell_info.err, &fds);
+		FD_SET(m_shell_info.pts_master, &fds);
 		FD_SET(m_window->server_fd(), &fds);
 
 		select(max_fd + 1, &fds, nullptr, nullptr, nullptr);
 
-		if (FD_ISSET(m_shell_info.out, &fds))
-			if (!read_shell(m_shell_info.out))
-				break;
-		if (FD_ISSET(m_shell_info.err, &fds))
-			if (!read_shell(m_shell_info.err))
+		if (FD_ISSET(m_shell_info.pts_master, &fds))
+			if (!read_shell())
 				break;
 		if (FD_ISSET(m_window->server_fd(), &fds))
 			m_window->poll_events();
@@ -118,10 +112,10 @@ void Terminal::run()
 }
 
 
-bool Terminal::read_shell(int fd)
+bool Terminal::read_shell()
 {
 	char buffer[128];
-	ssize_t nread = read(fd, buffer, sizeof(buffer) - 1);
+	ssize_t nread = read(m_shell_info.pts_master, buffer, sizeof(buffer) - 1);
 	if (nread < 0)
 		dwarnln("read: {}", strerror(errno));
 	if (nread <= 0)
@@ -409,5 +403,5 @@ void Terminal::on_key_event(LibGUI::EventPacket::KeyEvent event)
 	if (event.released())
 		return;
 	if (const char* text = LibInput::key_to_utf8_ansi(event.key, event.modifier))
-		write(m_shell_info.in, text, strlen(text));
+		write(m_shell_info.pts_master, text, strlen(text));
 }
