@@ -18,6 +18,9 @@ private:
 	void putchar(uint8_t ch);
 	bool read_shell();
 
+	void hide_cursor();
+	void show_cursor();
+
 	void on_key_event(LibGUI::EventPacket::KeyEvent);
 
 	void start_shell();
@@ -46,15 +49,19 @@ private:
 	{
 		int32_t fields[2];
 		size_t index;
+		bool question;
 	};
 
 private:
 	BAN::UniqPtr<LibGUI::Window> m_window;
 	LibFont::Font m_font;
-	Cursor m_cursor { 0, 0 };
 	ShellInfo m_shell_info;
 	State m_state { State::Normal };
 	CSIInfo m_csi_info;
+
+	bool m_cursor_shown { true };
+	Cursor m_cursor { 0, 0 };
+	BAN::Vector<uint32_t> m_cursor_buffer;
 
 	uint8_t m_utf8_index { 0 };
 	uint8_t m_utf8_bytes[4] { };

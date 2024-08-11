@@ -91,6 +91,9 @@ void Terminal::run()
 
 	m_font = MUST(LibFont::Font::load("/usr/share/fonts/lat0-16.psfu"_sv));
 
+	MUST(m_cursor_buffer.resize(m_font.width() * m_font.height(), m_bg_color));
+	show_cursor();
+
 	m_window->set_key_event_callback([&](LibGUI::EventPacket::KeyEvent event) { on_key_event(event); });
 
 	const int max_fd = BAN::Math::max(m_shell_info.pts_master, m_window->server_fd());
@@ -111,9 +114,36 @@ void Terminal::run()
 	}
 }
 
+void Terminal::hide_cursor()
+{
+	const uint32_t cursor_base_x = m_cursor.x * m_font.width();
+	const uint32_t cursor_base_y = m_cursor.y * m_font.height();
+	for (uint32_t y = 0; y < m_font.height(); y++)
+		for (uint32_t x = 0; x < m_font.width(); x++)
+			m_window->set_pixel(cursor_base_x + x, cursor_base_y + y, m_cursor_buffer[y * m_font.width() + x]);
+	m_window->invalidate(cursor_base_x, cursor_base_y, m_font.width(), m_font.height());
+}
+
+void Terminal::show_cursor()
+{
+	const uint32_t cursor_base_x = m_cursor.x * m_font.width();
+	const uint32_t cursor_base_y = m_cursor.y * m_font.height();
+	for (uint32_t y = 0; y < m_font.height(); y++)
+		for (uint32_t x = 0; x < m_font.width(); x++)
+			m_cursor_buffer[y * m_font.width() + x] = m_window->get_pixel(cursor_base_x + x, cursor_base_y + y);
+	if (m_cursor_shown)
+	{
+		for (uint32_t y = m_font.height() * 13 / 16; y < m_font.height() - 1; y++)
+			for (uint32_t x = 0; x < m_font.width(); x++)
+				m_window->set_pixel(cursor_base_x + x, cursor_base_y + y, 0xFFFFFFFF);
+		m_window->invalidate(cursor_base_x, cursor_base_y, m_font.width(), m_font.height());
+	}
+}
 
 bool Terminal::read_shell()
 {
+	hide_cursor();
+
 	char buffer[128];
 	ssize_t nread = read(m_shell_info.pts_master, buffer, sizeof(buffer) - 1);
 	if (nread < 0)
@@ -122,6 +152,9 @@ bool Terminal::read_shell()
 		return false;
 	for (ssize_t i = 0; i < nread; i++)
 		putchar(buffer[i]);
+
+	show_cursor();
+
 	return true;
 }
 
@@ -182,7 +215,10 @@ void Terminal::handle_csi(char ch)
 	}
 
 	if (ch == '?')
+	{
+		m_csi_info.question = true;
 		return;
+	}
 
 	if (isdigit(ch))
 	{
@@ -282,6 +318,15 @@ void Terminal::handle_csi(char ch)
 		case 'u':
 			m_cursor = m_saved_cursor;
 			break;
+		case 'h':
+		case 'l':
+			if (!m_csi_info.question || m_csi_info.fields[0] != 25)
+			{
+				dprintln("invalid ANSI CSI ?{}{}", m_csi_info.fields[0], (char)ch);
+				break;
+			}
+			m_cursor_shown = (ch == 'h');
+			break;
 		default:
 			dprintln("TODO: CSI {}", ch);
 			break;
@@ -303,6 +348,7 @@ void Terminal::putchar(uint8_t ch)
 		m_csi_info.index = 0;
 		m_csi_info.fields[0] = -1;
 		m_csi_info.fields[1] = -1;
+		m_csi_info.question = false;
 		return;
 	}
 
