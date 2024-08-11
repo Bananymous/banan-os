@@ -112,6 +112,13 @@ namespace LibGUI
 			m_framebuffer[y * m_width + x] = color;
 		}
 
+		uint32_t get_pixel(uint32_t x, uint32_t y) const
+		{
+			ASSERT(x < m_width);
+			ASSERT(y < m_height);
+			return m_framebuffer[y * m_width + x];
+		}
+
 		void fill_rect(int32_t x, int32_t y, uint32_t width, uint32_t height, uint32_t color);
 		void fill(uint32_t color) { return fill_rect(0, 0, width(), height(), color); }
 
