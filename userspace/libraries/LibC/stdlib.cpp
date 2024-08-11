@@ -607,15 +607,19 @@ void* bsearch(const void* key, const void* base, size_t nel, size_t width, int (
 
 static void qsort_swap(void* lhs, void* rhs, size_t width)
 {
+	uint8_t* ulhs = static_cast<uint8_t*>(lhs);
+	uint8_t* urhs = static_cast<uint8_t*>(rhs);
+
 	uint8_t buffer[64];
-	size_t swapped = 0;
-	while (swapped < width)
+	while (width > 0)
 	{
-		const size_t to_swap = BAN::Math::min(width - swapped, sizeof(buffer));
-		memcpy(buffer, lhs, to_swap);
-		memcpy(lhs, rhs, to_swap);
-		memcpy(rhs, buffer, to_swap);
-		swapped += to_swap;
+		const size_t to_swap = BAN::Math::min(width, sizeof(buffer));
+		memcpy(buffer, ulhs, to_swap);
+		memcpy(ulhs, urhs, to_swap);
+		memcpy(urhs, buffer, to_swap);
+		width -= to_swap;
+		ulhs += to_swap;
+		urhs += to_swap;
 	}
 }
 
