@@ -18,8 +18,12 @@ You can find a live demo [here](https://bananymous.com/banan-os)
 - [x] Network stack
 - [x] ELF executable loading
 - [x] AML interpreter (partial)
+- [x] Basic graphical environment
+  - [x] Terminal emulator
+  - [ ] Task bar
+  - [ ] Program launcher
+  - [ ] Some nice apps
 - [ ] ELF dynamic linking
-- [ ] Graphical desktop
 - [ ] copy-on-write memory
 
 #### Drivers
@@ -28,7 +32,12 @@ You can find a live demo [here](https://bananymous.com/banan-os)
 - [x] E1000 and E1000E NICs
 - [x] PS2 keyboard (all scancode sets)
 - [x] PS2 mouse
-- [ ] USB
+- [x] USB
+  - [x] Keyboard
+  - [x] Mouse
+  - [ ] Hubs
+  - [ ] Mass storage
+  - [ ] ...
 - [ ] virtio devices (network, storage)
 
 #### Network
@@ -38,6 +47,7 @@ You can find a live demo [here](https://bananymous.com/banan-os)
 - [x] UDP
 - [x] TCP (partial and buggy)
 - [x] Unix domain sockets
+- [ ] SSL
 
 #### Filesystems
 - [x] Virtual filesystem
