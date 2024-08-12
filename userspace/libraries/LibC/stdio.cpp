@@ -23,6 +23,8 @@ struct FILE
 
 	int pid			{ -1 };
 
+	int unget_char { EOF };
+
 	unsigned char inline_buffer_storage[BUFSIZ] {};
 	unsigned char* buffer = inline_buffer_storage;
 	uint32_t buffer_size = BUFSIZ;
@@ -148,6 +150,8 @@ int fflush(FILE* file)
 	}
 
 	ScopeLock _(file);
+
+	file->unget_char = EOF;
 
 	if (file->buffer_index == 0)
 		return 0;
@@ -282,9 +286,16 @@ size_t fread(void* buffer, size_t size, size_t nitems, FILE* file)
 	size_t target = size * nitems;
 	size_t nread = 0;
 
+	if (file->unget_char != EOF)
+	{
+		*static_cast<unsigned char*>(buffer) = file->unget_char;
+		file->unget_char = EOF;
+		nread++;
+	}
+
 	while (nread < target)
 	{
-		ssize_t ret = syscall(SYS_READ, file->fd, (uint8_t*)buffer + nread, target - nread);
+		ssize_t ret = syscall(SYS_READ, file->fd, static_cast<unsigned char*>(buffer) + nread, target - nread);
 
 		if (ret < 0)
 			file->error = true;
@@ -350,6 +361,7 @@ int fseek(FILE* file, long offset, int whence)
 int fseeko(FILE* file, off_t offset, int whence)
 {
 	ScopeLock _(file);
+	file->unget_char = EOF;
 	long ret = syscall(SYS_SEEK, file->fd, offset, whence);
 	if (ret < 0)
 		return -1;
@@ -373,7 +385,7 @@ off_t ftello(FILE* file)
 	long ret = syscall(SYS_TELL, file->fd);
 	if (ret < 0)
 		return -1;
-	return ret;
+	return ret - (file->unget_char != EOF);
 }
 
 int ftrylockfile(FILE*)
@@ -412,6 +424,13 @@ int getc_unlocked(FILE* file)
 {
 	if (file->eof)
 		return EOF;
+
+	if (file->unget_char != EOF)
+	{
+		int ch = file->unget_char;
+		file->unget_char = EOF;
+		return (unsigned char)ch;
+	}
 
 	unsigned char c;
 	long ret = syscall(SYS_READ, file->fd, &c, 1);
@@ -749,8 +768,14 @@ char* tmpnam(char* storage)
 
 int ungetc(int c, FILE* stream)
 {
-	dwarnln("FIXME: ungetc({}, {})", c, stream);
-	ASSERT_NOT_REACHED();
+	if (c == EOF)
+		return EOF;
+	ScopeLock _(stream);
+	if (stream->unget_char != EOF)
+		return EOF;
+	stream->unget_char = c;
+	stream->eof = false;
+	return (unsigned char)c;
 }
 
 int vfprintf(FILE* file, const char* format, va_list arguments)
