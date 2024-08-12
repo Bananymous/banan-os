@@ -34,12 +34,14 @@ SECTIONS
 	}
 	.data ALIGN(4K) : AT(ADDR(.data) - KERNEL_OFFSET)
 	{
+		g_kernel_writable_start = .;
 		*(.data)
 	}
 	.bss ALIGN(4K) : AT(ADDR(.bss) - KERNEL_OFFSET)
 	{
 		*(COMMON)
 		*(.bss)
+		g_kernel_writable_end = .;
 	}
 	g_kernel_end = .;
 }

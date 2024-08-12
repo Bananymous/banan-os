@@ -9,6 +9,9 @@ extern uint8_t g_kernel_end[];
 extern uint8_t g_kernel_execute_start[];
 extern uint8_t g_kernel_execute_end[];
 
+extern uint8_t g_kernel_writable_start[];
+extern uint8_t g_kernel_writable_end[];
+
 extern uint8_t g_userspace_start[];
 extern uint8_t g_userspace_end[];
 
@@ -148,7 +151,7 @@ namespace Kernel
 			V2P(g_kernel_start),
 			(vaddr_t)g_kernel_start,
 			g_kernel_end - g_kernel_start,
-			Flags::ReadWrite | Flags::Present
+			Flags::Present
 		);
 
 		// Map executable kernel memory as executable
@@ -157,6 +160,14 @@ namespace Kernel
 			(vaddr_t)g_kernel_execute_start,
 			g_kernel_execute_end - g_kernel_execute_start,
 			Flags::Execute | Flags::Present
+		);
+
+		// Map writable kernel memory as writable
+		map_range_at(
+			V2P(g_kernel_writable_start),
+			(vaddr_t)g_kernel_writable_start,
+			g_kernel_writable_end - g_kernel_writable_start,
+			Flags::ReadWrite | Flags::Present
 		);
 
 		// Map userspace memory
