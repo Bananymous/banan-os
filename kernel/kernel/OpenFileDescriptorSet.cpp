@@ -217,23 +217,23 @@ namespace Kernel
 	{
 		TRY(validate_fd(fd));
 
-		off_t new_offset = 0;
-
+		off_t base_offset;
 		switch (whence)
 		{
+			case SEEK_SET:
+				base_offset = 0;
+				break;
 			case SEEK_CUR:
-				new_offset = m_open_files[fd]->offset + offset;
+				base_offset = m_open_files[fd]->offset;
 				break;
 			case SEEK_END:
-				new_offset = m_open_files[fd]->inode->size() - offset;
-				break;
-			case SEEK_SET:
-				new_offset = offset;
+				base_offset = m_open_files[fd]->inode->size();
 				break;
 			default:
 				return BAN::Error::from_errno(EINVAL);
 		}
 
+		const off_t new_offset = base_offset + offset;
 		if (new_offset < 0)
 			return BAN::Error::from_errno(EINVAL);
 
