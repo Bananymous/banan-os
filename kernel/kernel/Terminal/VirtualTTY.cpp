@@ -115,41 +115,41 @@ namespace Kernel
 				m_background = TerminalColor::BLACK;
 				break;
 
-			case 30: m_foreground = TerminalColor::BRIGHT_BLACK;	break;
-			case 31: m_foreground = TerminalColor::BRIGHT_RED;		break;
-			case 32: m_foreground = TerminalColor::BRIGHT_GREEN;	break;
-			case 33: m_foreground = TerminalColor::BRIGHT_YELLOW;	break;
-			case 34: m_foreground = TerminalColor::BRIGHT_BLUE;		break;
-			case 35: m_foreground = TerminalColor::BRIGHT_MAGENTA;	break;
-			case 36: m_foreground = TerminalColor::BRIGHT_CYAN;		break;
-			case 37: m_foreground = TerminalColor::BRIGHT_WHITE;	break;
+			case 30: m_foreground = TerminalColor::BLACK;	break;
+			case 31: m_foreground = TerminalColor::RED;		break;
+			case 32: m_foreground = TerminalColor::GREEN;	break;
+			case 33: m_foreground = TerminalColor::YELLOW;	break;
+			case 34: m_foreground = TerminalColor::BLUE;	break;
+			case 35: m_foreground = TerminalColor::MAGENTA;	break;
+			case 36: m_foreground = TerminalColor::CYAN;	break;
+			case 37: m_foreground = TerminalColor::WHITE;	break;
 
-			case 40: m_background = TerminalColor::BRIGHT_BLACK;	break;
-			case 41: m_background = TerminalColor::BRIGHT_RED;		break;
-			case 42: m_background = TerminalColor::BRIGHT_GREEN;	break;
-			case 43: m_background = TerminalColor::BRIGHT_YELLOW;	break;
-			case 44: m_background = TerminalColor::BRIGHT_BLUE;		break;
-			case 45: m_background = TerminalColor::BRIGHT_MAGENTA;	break;
-			case 46: m_background = TerminalColor::BRIGHT_CYAN;		break;
-			case 47: m_background = TerminalColor::BRIGHT_WHITE;	break;
+			case 40: m_background = TerminalColor::BLACK;	break;
+			case 41: m_background = TerminalColor::RED;		break;
+			case 42: m_background = TerminalColor::GREEN;	break;
+			case 43: m_background = TerminalColor::YELLOW;	break;
+			case 44: m_background = TerminalColor::BLUE;	break;
+			case 45: m_background = TerminalColor::MAGENTA;	break;
+			case 46: m_background = TerminalColor::CYAN;	break;
+			case 47: m_background = TerminalColor::WHITE;	break;
 
-			case 90: m_foreground = TerminalColor::BLACK;		break;
-			case 91: m_foreground = TerminalColor::RED;			break;
-			case 92: m_foreground = TerminalColor::GREEN;		break;
-			case 93: m_foreground = TerminalColor::YELLOW;		break;
-			case 94: m_foreground = TerminalColor::BLUE;		break;
-			case 95: m_foreground = TerminalColor::MAGENTA;		break;
-			case 96: m_foreground = TerminalColor::CYAN;		break;
-			case 97: m_foreground = TerminalColor::WHITE;		break;
+			case 90: m_foreground = TerminalColor::BRIGHT_BLACK;	break;
+			case 91: m_foreground = TerminalColor::BRIGHT_RED;		break;
+			case 92: m_foreground = TerminalColor::BRIGHT_GREEN;	break;
+			case 93: m_foreground = TerminalColor::BRIGHT_YELLOW;	break;
+			case 94: m_foreground = TerminalColor::BRIGHT_BLUE;		break;
+			case 95: m_foreground = TerminalColor::BRIGHT_MAGENTA;	break;
+			case 96: m_foreground = TerminalColor::BRIGHT_CYAN;		break;
+			case 97: m_foreground = TerminalColor::BRIGHT_WHITE;	break;
 
-			case 100: m_background = TerminalColor::BLACK;		break;
-			case 101: m_background = TerminalColor::RED;		break;
-			case 102: m_background = TerminalColor::GREEN;		break;
-			case 103: m_background = TerminalColor::YELLOW;		break;
-			case 104: m_background = TerminalColor::BLUE;		break;
-			case 105: m_background = TerminalColor::MAGENTA;	break;
-			case 106: m_background = TerminalColor::CYAN;		break;
-			case 107: m_background = TerminalColor::WHITE;		break;
+			case 100: m_background = TerminalColor::BRIGHT_BLACK;	break;
+			case 101: m_background = TerminalColor::BRIGHT_RED;		break;
+			case 102: m_background = TerminalColor::BRIGHT_GREEN;	break;
+			case 103: m_background = TerminalColor::BRIGHT_YELLOW;	break;
+			case 104: m_background = TerminalColor::BRIGHT_BLUE;	break;
+			case 105: m_background = TerminalColor::BRIGHT_MAGENTA;	break;
+			case 106: m_background = TerminalColor::BRIGHT_CYAN;	break;
+			case 107: m_background = TerminalColor::BRIGHT_WHITE;	break;
 		}
 	}
 

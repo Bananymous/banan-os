@@ -184,26 +184,26 @@ bool Terminal::read_shell()
 
 void Terminal::handle_sgr()
 {
-	constexpr uint32_t colors_default[] {
-		0x555555,
-		0xFF5555,
-		0x55FF55,
-		0xFFFF55,
-		0x5555FF,
-		0xFF55FF,
-		0x55FFFF,
-		0xFFFFFF,
+	constexpr uint32_t colors_dark[] {
+		0xFF'000000,
+		0xFF'FF0000,
+		0xFF'00FF00,
+		0xFF'FFFF00,
+		0xFF'0000FF,
+		0xFF'FF00FF,
+		0xFF'00FFFF,
+		0xFF'BFBFBF,
 	};
 
 	constexpr uint32_t colors_bright[] {
-		0xAAAAAA,
-		0xFFAAAA,
-		0xAAFFAA,
-		0xFFFFAA,
-		0xAAAAFF,
-		0xFFAAFF,
-		0xAAFFFF,
-		0xFFFFFF,
+		0xFF'3F3F3F,
+		0xFF'FF7F7F,
+		0xFF'7FFF7F,
+		0xFF'FFFF7F,
+		0xFF'7F7FFF,
+		0xFF'FF7FFF,
+		0xFF'7FFFFF,
+		0xFF'FFFFFF,
 	};
 
 	switch (m_csi_info.fields[0])
@@ -213,10 +213,10 @@ void Terminal::handle_sgr()
 			m_bg_color = 0x000000;
 			break;
 		case 30: case 31: case 32: case 33: case 34: case 35: case 36: case 37:
-			m_fg_color = colors_default[m_csi_info.fields[0] - 30];
+			m_fg_color = colors_dark[m_csi_info.fields[0] - 30];
 			break;
 		case 40: case 41: case 42: case 43: case 44: case 45: case 46: case 47:
-			m_bg_color = colors_default[m_csi_info.fields[0] - 40];
+			m_bg_color = colors_dark[m_csi_info.fields[0] - 40];
 			break;
 		case 90: case 91: case 92: case 93: case 94: case 95: case 96: case 97:
 			m_fg_color = colors_bright[m_csi_info.fields[0] - 90];

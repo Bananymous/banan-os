@@ -46,21 +46,21 @@ namespace Kernel
 	namespace TerminalColor
 	{
 		static constexpr TerminalDriver::Color BLACK			= 0x000000;
-		static constexpr TerminalDriver::Color BLUE				= 0x0000AA;
-		static constexpr TerminalDriver::Color GREEN			= 0x00AA00;
-		static constexpr TerminalDriver::Color CYAN				= 0x00AAAA;
-		static constexpr TerminalDriver::Color RED				= 0xAA0000;
-		static constexpr TerminalDriver::Color MAGENTA			= 0xAA00AA;
-		static constexpr TerminalDriver::Color YELLOW			= 0xAA5500;
-		static constexpr TerminalDriver::Color WHITE			= 0xAAAAAA;
+		static constexpr TerminalDriver::Color RED				= 0xFF0000;
+		static constexpr TerminalDriver::Color GREEN			= 0x00FF00;
+		static constexpr TerminalDriver::Color YELLOW			= 0xFFFF00;
+		static constexpr TerminalDriver::Color BLUE				= 0x0000FF;
+		static constexpr TerminalDriver::Color MAGENTA			= 0xFF00FF;
+		static constexpr TerminalDriver::Color CYAN				= 0x00FFFF;
+		static constexpr TerminalDriver::Color WHITE			= 0xBFBFBF;
 
-		static constexpr TerminalDriver::Color BRIGHT_BLACK		= 0x555555;
-		static constexpr TerminalDriver::Color BRIGHT_BLUE		= 0x5555FF;
-		static constexpr TerminalDriver::Color BRIGHT_GREEN		= 0x55FF55;
-		static constexpr TerminalDriver::Color BRIGHT_CYAN		= 0x55FFFF;
-		static constexpr TerminalDriver::Color BRIGHT_RED		= 0xFF5555;
-		static constexpr TerminalDriver::Color BRIGHT_MAGENTA	= 0xFF55FF;
-		static constexpr TerminalDriver::Color BRIGHT_YELLOW	= 0xFFFF55;
+		static constexpr TerminalDriver::Color BRIGHT_BLACK		= 0x3F3F3F;
+		static constexpr TerminalDriver::Color BRIGHT_RED		= 0xFF7F7F;
+		static constexpr TerminalDriver::Color BRIGHT_GREEN		= 0x7FFF7F;
+		static constexpr TerminalDriver::Color BRIGHT_YELLOW	= 0xFFFF7F;
+		static constexpr TerminalDriver::Color BRIGHT_BLUE		= 0x7F7FFF;
+		static constexpr TerminalDriver::Color BRIGHT_MAGENTA	= 0xFF7FFF;
+		static constexpr TerminalDriver::Color BRIGHT_CYAN		= 0x7FFFFF;
 		static constexpr TerminalDriver::Color BRIGHT_WHITE		= 0xFFFFFF;
 	}
 
