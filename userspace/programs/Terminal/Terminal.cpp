@@ -91,6 +91,13 @@ void Terminal::run()
 
 	m_font = MUST(LibFont::Font::load("/usr/share/fonts/lat0-16.psfu"_sv));
 
+	{
+		timespec ts;
+		clock_gettime(CLOCK_MONOTONIC, &ts);
+		m_cursor_blink_shown = true;
+		m_cursor_blink_ms = ts.tv_sec * 1'000 + ts.tv_nsec / 1'000'000;
+	}
+
 	MUST(m_cursor_buffer.resize(m_font.width() * m_font.height(), m_bg_color));
 	show_cursor();
 
@@ -104,13 +111,35 @@ void Terminal::run()
 		FD_SET(m_shell_info.pts_master, &fds);
 		FD_SET(m_window->server_fd(), &fds);
 
-		select(max_fd + 1, &fds, nullptr, nullptr, nullptr);
+		timespec ts;
+		clock_gettime(CLOCK_MONOTONIC, &ts);
+		const uint64_t current_ms = ts.tv_sec * 1'000 + ts.tv_nsec / 1'000'000;
 
+		const uint64_t ms_until_blink = 500 - BAN::Math::min<uint64_t>(current_ms - m_cursor_blink_ms, 500);
+
+		timeval timeout;
+		timeout.tv_sec = ms_until_blink / 1'000;
+		timeout.tv_usec = ms_until_blink * 1'000;
+		if (select(max_fd + 1, &fds, nullptr, nullptr, &timeout) == 0)
+		{
+			m_cursor_blink_shown = !m_cursor_blink_shown;
+			m_cursor_blink_ms = current_ms + ms_until_blink;
+		}
+
+		m_got_key_event = false;
+
+		hide_cursor();
 		if (FD_ISSET(m_shell_info.pts_master, &fds))
 			if (!read_shell())
 				break;
 		if (FD_ISSET(m_window->server_fd(), &fds))
 			m_window->poll_events();
+		if (m_got_key_event)
+		{
+			m_cursor_blink_shown = true;
+			m_cursor_blink_ms = current_ms;
+		}
+		show_cursor();
 	}
 }
 
@@ -131,7 +160,7 @@ void Terminal::show_cursor()
 	for (uint32_t y = 0; y < m_font.height(); y++)
 		for (uint32_t x = 0; x < m_font.width(); x++)
 			m_cursor_buffer[y * m_font.width() + x] = m_window->get_pixel(cursor_base_x + x, cursor_base_y + y);
-	if (m_cursor_shown)
+	if (m_cursor_shown && m_cursor_blink_shown)
 	{
 		for (uint32_t y = m_font.height() * 13 / 16; y < m_font.height() - 1; y++)
 			for (uint32_t x = 0; x < m_font.width(); x++)
@@ -142,8 +171,6 @@ void Terminal::show_cursor()
 
 bool Terminal::read_shell()
 {
-	hide_cursor();
-
 	char buffer[128];
 	ssize_t nread = read(m_shell_info.pts_master, buffer, sizeof(buffer) - 1);
 	if (nread < 0)
@@ -152,9 +179,6 @@ bool Terminal::read_shell()
 		return false;
 	for (ssize_t i = 0; i < nread; i++)
 		putchar(buffer[i]);
-
-	show_cursor();
-
 	return true;
 }
 
@@ -450,4 +474,5 @@ void Terminal::on_key_event(LibGUI::EventPacket::KeyEvent event)
 		return;
 	if (const char* text = LibInput::key_to_utf8_ansi(event.key, event.modifier))
 		write(m_shell_info.pts_master, text, strlen(text));
+	m_got_key_event = true;
 }

@@ -60,8 +60,11 @@ private:
 	CSIInfo m_csi_info;
 
 	bool m_cursor_shown { true };
+	bool m_cursor_blink_shown { true };
+	uint64_t m_cursor_blink_ms { 0 };
 	Cursor m_cursor { 0, 0 };
 	BAN::Vector<uint32_t> m_cursor_buffer;
+	bool m_got_key_event { false };
 
 	uint8_t m_utf8_index { 0 };
 	uint8_t m_utf8_bytes[4] { };
