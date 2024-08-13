@@ -19,10 +19,11 @@ namespace Kernel::ACPI::AML
 
 		enum class Type
 		{
-			Debug,
+			Alias,
 			BankFieldElement,
 			Buffer,
 			BufferField,
+			Debug,
 			Device,
 			FieldElement,
 			IndexFieldElement,

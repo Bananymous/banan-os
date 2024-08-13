@@ -1,3 +1,4 @@
+#include <kernel/ACPI/AML/Alias.h>
 #include <kernel/ACPI/AML/Buffer.h>
 #include <kernel/ACPI/AML/Bytes.h>
 #include <kernel/ACPI/AML/Device.h>
@@ -165,6 +166,8 @@ namespace Kernel::ACPI
 			case AML::Byte::CreateDWordFieldOp:
 			case AML::Byte::CreateQWordFieldOp:
 				return AML::BufferField::parse(context);
+			case AML::Byte::AliasOp:
+				return AML::Alias::parse(context);
 			case AML::Byte::NameOp:
 				return AML::Name::parse(context);
 			case AML::Byte::PackageOp:
