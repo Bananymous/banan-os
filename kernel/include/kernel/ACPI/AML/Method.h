@@ -53,7 +53,7 @@ namespace Kernel::ACPI::AML
 				method_flags >> 4
 			));
 			if (!Namespace::root_namespace()->add_named_object(context, name_string.value(), method))
-				return ParseResult::Failure;
+				return ParseResult::Success;
 			method->term_list = method_pkg.value();
 
 #if AML_DEBUG_LEVEL >= 2
@@ -141,6 +141,9 @@ namespace Kernel::ACPI::AML
 					}
 				}
 			}
+
+			if (return_value.has_value() && return_value.value())
+				return_value = return_value.value()->evaluate();
 
 			while (!context.created_objects.empty())
 			{

@@ -25,8 +25,8 @@ namespace Kernel::ACPI
 		auto named_object = Namespace::root_namespace()->find_object(context.scope, name_string.value(), Namespace::FindMode::Normal);
 		if (!named_object)
 		{
-			AML_ERROR("Scope '{}' not found in namespace", name_string.value());
-			return ParseResult::Failure;
+			AML_DEBUG_PRINT("Scope '{}' not found in namespace", name_string.value());
+			return ParseResult::Success;
 		}
 		if (!named_object->is_scope())
 		{
@@ -66,7 +66,7 @@ namespace Kernel::ACPI
 		return ParseResult::Success;
 	}
 
-	static BAN::Optional<uint64_t> evaluate_or_invoke(BAN::RefPtr<AML::Node> object)
+	static BAN::RefPtr<AML::Integer> evaluate_or_invoke(BAN::RefPtr<AML::Node> object)
 	{
 		if (object->type != AML::Node::Type::Method)
 			return object->as_integer();
@@ -85,7 +85,7 @@ namespace Kernel::ACPI
 			return {};
 		}
 
-		return result.value() ? result.value()->as_integer() : BAN::Optional<uint64_t>();
+		return result.value() ? result.value()->as_integer() : BAN::RefPtr<AML::Integer>();
 	}
 
 	bool AML::initialize_scope(BAN::RefPtr<AML::Scope> scope)
@@ -138,14 +138,14 @@ namespace Kernel::ACPI
 		if (auto sta = Namespace::root_namespace()->find_object(scope->scope, AML::NameString("_STA"_sv), Namespace::FindMode::ForceAbsolute))
 		{
 			auto result = evaluate_or_invoke(sta);
-			if (!result.has_value())
+			if (!result)
 			{
 				AML_ERROR("Failed to evaluate {}._STA, return value could not be resolved to integer", scope->scope);
 				return false;
 			}
 
-			run_ini = (result.value() & 0x01);
-			init_children = run_ini || (result.value() & 0x02);
+			run_ini = (result->value & 0x01);
+			init_children = run_ini || (result->value & 0x02);
 		}
 
 		if (run_ini)

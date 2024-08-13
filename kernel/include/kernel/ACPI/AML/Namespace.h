@@ -11,6 +11,7 @@ namespace Kernel::ACPI::AML
 	struct Namespace : public AML::Scope
 	{
 		static BAN::RefPtr<AML::Namespace> root_namespace();
+		static BAN::RefPtr<AML::Node> debug_node;
 
 		template<typename F>
 		static void for_each_child(const AML::NameString& scope, const F& callback)

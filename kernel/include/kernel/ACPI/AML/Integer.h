@@ -30,6 +30,29 @@ namespace Kernel::ACPI::AML
 			, constant(constant)
 		{}
 
+		BAN::Optional<bool> logical_compare(BAN::RefPtr<AML::Node> node, AML::Byte binaryop)
+		{
+			auto rhs = node ? node->as_integer() : BAN::RefPtr<AML::Integer>();
+			if (!rhs)
+			{
+				AML_ERROR("Integer logical compare RHS is not integer");
+				return {};
+			}
+
+			switch (binaryop)
+			{
+				case AML::Byte::LAndOp:		return value && rhs->value;
+				case AML::Byte::LEqualOp:	return value == rhs->value;
+				case AML::Byte::LGreaterOp:	return value > rhs->value;
+				case AML::Byte::LLessOp:	return value < rhs->value;
+				case AML::Byte::LOrOp:		return value || rhs->value;
+				default:
+					ASSERT_NOT_REACHED();
+			}
+		}
+
+		BAN::RefPtr<AML::Integer> as_integer() override { return this; }
+
 		BAN::RefPtr<Node> copy() override { return MUST(BAN::RefPtr<Integer>::create(value)); }
 
 		BAN::RefPtr<AML::Node> evaluate() override
@@ -45,12 +68,12 @@ namespace Kernel::ACPI::AML
 				return false;
 			}
 			auto store_value = store_node->as_integer();
-			if (!store_value.has_value())
+			if (!store_value)
 			{
 				AML_ERROR("Cannot store non-integer to integer");
 				return false;
 			}
-			value = store_value.value();
+			value = store_value->value;
 			return true;
 		}
 

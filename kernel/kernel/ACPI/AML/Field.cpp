@@ -479,7 +479,7 @@ namespace Kernel::ACPI
 		return perform_write_general(op_region->region_offset, bit_count, bit_offset, access_size.value(), value, access_rules.update_rule, read_func, write_func);
 	}
 
-	BAN::RefPtr<AML::Node> AML::FieldElement::evaluate()
+	BAN::RefPtr<AML::Integer> AML::FieldElement::as_integer()
 	{
 		op_region->mutex.lock();
 		BAN::ScopeGuard unlock_guard([&] {
@@ -495,7 +495,7 @@ namespace Kernel::ACPI
 	bool AML::FieldElement::store(BAN::RefPtr<AML::Node> source)
 	{
 		auto source_integer = source->as_integer();
-		if (!source_integer.has_value())
+		if (!source_integer)
 		{
 			AML_TODO("FieldElement store with non-integer source, type {}", static_cast<uint8_t>(source->type));
 			return false;
@@ -510,7 +510,7 @@ namespace Kernel::ACPI
 				ACPI::release_global_lock();
 		});
 
-		return store_internal(source_integer.value());
+		return store_internal(source_integer->value);
 	}
 
 	void AML::FieldElement::debug_print(int indent) const
@@ -590,7 +590,7 @@ namespace Kernel::ACPI
 		return AML::ParseResult::Success;
 	}
 
-	BAN::RefPtr<AML::Node> AML::IndexFieldElement::evaluate()
+	BAN::RefPtr<AML::Integer> AML::IndexFieldElement::as_integer()
 	{
 		if (access_rules.access_attrib != FieldRules::AccessAttrib::Normal)
 		{
@@ -634,7 +634,7 @@ namespace Kernel::ACPI
 			return {};
 		}
 		auto source_integer = source->as_integer();
-		if (!source_integer.has_value())
+		if (!source_integer)
 		{
 			AML_TODO("IndexFieldElement store with non-integer source, type {}", static_cast<uint8_t>(source->type));
 			return false;
@@ -670,7 +670,7 @@ namespace Kernel::ACPI
 				ACPI::release_global_lock();
 		});
 
-		if (!perform_write_general(0, bit_count, bit_offset, access_size.value(), source_integer.value(), access_rules.update_rule, read_func, write_func))
+		if (!perform_write_general(0, bit_count, bit_offset, access_size.value(), source_integer->value, access_rules.update_rule, read_func, write_func))
 			return false;
 
 		return true;
@@ -734,8 +734,8 @@ namespace Kernel::ACPI
 		context.aml_data = temp_aml_data;
 		if (!bank_value_result.success())
 			return ParseResult::Failure;
-		auto bank_value = bank_value_result.node() ? bank_value_result.node()->as_integer() : BAN::Optional<uint64_t>();
-		if (!bank_value.has_value())
+		auto bank_value = bank_value_result.node() ? bank_value_result.node()->as_integer() : BAN::RefPtr<AML::Integer>();
+		if (!bank_value)
 		{
 			AML_ERROR("BankField BankValue is not an integer");
 			return ParseResult::Failure;
@@ -760,7 +760,7 @@ namespace Kernel::ACPI
 		{
 			element->op_region = static_cast<OpRegion*>(op_region.ptr());
 			element->bank_selector = static_cast<FieldElement*>(bank_selector.ptr());
-			element->bank_value = bank_value.value();
+			element->bank_value = bank_value->value;
 
 			NameString element_name;
 			MUST(element_name.path.push_back(element->name));
@@ -821,7 +821,7 @@ namespace Kernel::ACPI
 		}
 
 		auto source_integer = source->as_integer();
-		if (!source_integer.has_value())
+		if (!source_integer)
 		{
 			AML_TODO("BankFieldElement store with non-integer source, type {}", static_cast<uint8_t>(source->type));
 			return false;
@@ -852,7 +852,7 @@ namespace Kernel::ACPI
 			return {};
 		}
 
-		return perform_write_general(op_region->region_offset, bit_count, bit_offset, access_size.value(), source_integer.value(), access_rules.update_rule, read_func, write_func);
+		return perform_write_general(op_region->region_offset, bit_count, bit_offset, access_size.value(), source_integer->value, access_rules.update_rule, read_func, write_func);
 	}
 
 	void AML::BankFieldElement::debug_print(int indent) const

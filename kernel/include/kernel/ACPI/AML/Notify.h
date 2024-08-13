@@ -29,8 +29,8 @@ namespace Kernel::ACPI::AML
 			auto value_result = AML::parse_object(context);
 			if (!value_result.success())
 				return ParseResult::Failure;
-			auto value = value_result.node() ? value_result.node()->as_integer() : BAN::Optional<uint64_t>();
-			if (!value.has_value())
+			auto value = value_result.node() ? value_result.node()->as_integer() : BAN::RefPtr<AML::Integer>();
+			if (!value)
 			{
 				AML_ERROR("Notify value is not an integer");
 				return ParseResult::Failure;
@@ -58,7 +58,7 @@ namespace Kernel::ACPI::AML
 					break;
 			}
 
-			AML_TODO("Notify: {} {}: {2H}", object_type_sv, object_name_sv, value.value());
+			AML_TODO("Notify: {} {}: {2H}", object_type_sv, object_name_sv, value->value);
 			return ParseResult::Success;
 		}
 	};

@@ -19,18 +19,18 @@ namespace Kernel::ACPI::AML
 			auto sleep_time_result = AML::parse_object(context);
 			if (!sleep_time_result.success())
 				return ParseResult::Failure;
-			auto sleep_time = sleep_time_result.node() ? sleep_time_result.node()->as_integer() : BAN::Optional<uint64_t>();
-			if (!sleep_time.has_value())
+			auto sleep_time = sleep_time_result.node() ? sleep_time_result.node()->as_integer() : BAN::RefPtr<AML::Integer>();
+			if (!sleep_time)
 			{
 				AML_ERROR("Sleep time cannot be evaluated to an integer");
 				return ParseResult::Failure;
 			}
 
 #if AML_DEBUG_LEVEL >= 2
-			AML_DEBUG_PRINTLN("Sleeping for {} ms", sleep_time.value());
+			AML_DEBUG_PRINTLN("Sleeping for {} ms", sleep_time->value);
 #endif
 
-			SystemTimer::get().sleep_ms(sleep_time.value());
+			SystemTimer::get().sleep_ms(sleep_time->value);
 			return ParseResult::Success;
 		}
 	};

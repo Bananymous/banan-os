@@ -17,6 +17,24 @@ namespace Kernel::ACPI
 	BAN::RefPtr<AML::Integer> AML::Integer::Constants::One;
 	BAN::RefPtr<AML::Integer> AML::Integer::Constants::Ones;
 
+	struct DebugNode : AML::Node
+	{
+		DebugNode() : AML::Node(AML::Node::Type::Debug) {}
+		bool store(BAN::RefPtr<AML::Node> node)
+		{
+			node->debug_print(0);
+			AML_DEBUG_PRINTLN("");
+			return true;
+		}
+		void debug_print(int indent) const override
+		{
+			AML_DEBUG_PRINT_INDENT(indent);
+			AML_DEBUG_PRINT("DEBUG");
+		}
+	};
+
+	BAN::RefPtr<AML::Node> AML::Namespace::debug_node;
+
 	BAN::RefPtr<AML::Namespace> AML::Namespace::root_namespace()
 	{
 		ASSERT(s_root_namespace);
@@ -147,7 +165,7 @@ namespace Kernel::ACPI
 
 		if (m_objects.contains(canonical_path.value()))
 		{
-			AML_ERROR("Object '{}' already exists", canonical_path.value());
+			AML_PRINT("Object '{}' already exists", canonical_path.value());
 			return false;
 		}
 
@@ -193,6 +211,9 @@ namespace Kernel::ACPI
 		ASSERT(!s_root_namespace);
 		s_root_namespace = MUST(BAN::RefPtr<Namespace>::create(NameSeg("\\"_sv)));
 		s_root_namespace->scope = AML::NameString("\\"_sv);
+
+		ASSERT(!Namespace::debug_node);
+		Namespace::debug_node = MUST(BAN::RefPtr<DebugNode>::create());
 
 		Integer::Constants::Zero = MUST(BAN::RefPtr<Integer>::create(0, true));
 		Integer::Constants::One = MUST(BAN::RefPtr<Integer>::create(1, true));

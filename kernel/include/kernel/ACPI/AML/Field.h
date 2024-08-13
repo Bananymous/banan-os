@@ -63,7 +63,9 @@ namespace Kernel::ACPI::AML
 			, access_rules(access_rules)
 		{}
 
-		BAN::RefPtr<Node> evaluate() override;
+		BAN::RefPtr<AML::Integer> as_integer() override;
+
+		BAN::RefPtr<Node> evaluate() override { return as_integer(); }
 		bool store(BAN::RefPtr<Node> source) override;
 
 		void debug_print(int indent) const override;
@@ -98,7 +100,9 @@ namespace Kernel::ACPI::AML
 			, access_rules(access_rules)
 		{}
 
-		BAN::RefPtr<Node> evaluate() override;
+		BAN::RefPtr<AML::Integer> as_integer() override;
+
+		BAN::RefPtr<AML::Node> evaluate() override { return as_integer(); }
 		bool store(BAN::RefPtr<Node> source) override;
 
 		void debug_print(int indent) const override;

@@ -17,6 +17,10 @@ namespace Kernel::ACPI::AML
 			, value(value)
 		{}
 
+		BAN::RefPtr<AML::Buffer> as_buffer() override;
+		BAN::RefPtr<AML::Integer> as_integer() override;
+		BAN::RefPtr<AML::String> as_string() override;
+
 		BAN::RefPtr<AML::Node> evaluate() override
 		{
 			if (value)
@@ -26,6 +30,9 @@ namespace Kernel::ACPI::AML
 
 		bool store(BAN::RefPtr<AML::Node> source) override
 		{
+			if (value && value->type == AML::Node::Type::Reference)
+				return value->store(source);
+
 			auto evaluated = source->evaluate();
 			if (!evaluated)
 			{

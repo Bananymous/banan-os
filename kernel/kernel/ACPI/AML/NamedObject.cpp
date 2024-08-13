@@ -1,8 +1,29 @@
+#include <kernel/ACPI/AML/Buffer.h>
+#include <kernel/ACPI/AML/Integer.h>
 #include <kernel/ACPI/AML/NamedObject.h>
 #include <kernel/ACPI/AML/ParseContext.h>
+#include <kernel/ACPI/AML/String.h>
 
 namespace Kernel::ACPI
 {
+
+	BAN::RefPtr<AML::Buffer> AML::Name::as_buffer()
+	{
+		ASSERT(object);
+		return object->as_buffer();
+	}
+
+	BAN::RefPtr<AML::Integer> AML::Name::as_integer()
+	{
+		ASSERT(object);
+		return object->as_integer();
+	}
+
+	BAN::RefPtr<AML::String> AML::Name::as_string()
+	{
+		ASSERT(object);
+		return object->as_string();
+	}
 
 	AML::ParseResult AML::Name::parse(ParseContext& context)
 	{
@@ -20,7 +41,7 @@ namespace Kernel::ACPI
 
 		auto name = MUST(BAN::RefPtr<Name>::create(name_string.value().path.back(), object.node()));
 		if (!Namespace::root_namespace()->add_named_object(context, name_string.value(), name))
-			return ParseResult::Failure;
+			return ParseResult::Success;
 
 #if AML_DEBUG_LEVEL >= 2
 		name->debug_print(0);

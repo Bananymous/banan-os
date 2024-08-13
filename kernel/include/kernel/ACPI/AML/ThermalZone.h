@@ -19,7 +19,7 @@ namespace Kernel::ACPI::AML
 		{
 			ASSERT(context.aml_data.size() >= 2);
 			ASSERT(static_cast<AML::Byte>(context.aml_data[0]) == AML::Byte::ExtOpPrefix);
-			ASSERT(static_cast<AML::ExtOp>(context.aml_data[1]) == AML::ExtOp::PowerResOp);
+			ASSERT(static_cast<AML::ExtOp>(context.aml_data[1]) == AML::ExtOp::ThermalZoneOp);
 			context.aml_data = context.aml_data.slice(2);
 
 			auto opt_thermal_zone_pkg = AML::parse_pkg(context.aml_data);

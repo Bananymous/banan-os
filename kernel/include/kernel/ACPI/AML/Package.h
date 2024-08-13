@@ -1,6 +1,7 @@
 #pragma once
 
 #include <kernel/ACPI/AML/Bytes.h>
+#include <kernel/ACPI/AML/Integer.h>
 #include <kernel/ACPI/AML/Node.h>
 #include <kernel/ACPI/AML/ParseContext.h>
 #include <kernel/ACPI/AML/Pkg.h>
@@ -65,6 +66,49 @@ namespace Kernel::ACPI::AML
 			initialized = false;
 		}
 
+		bool resolve()
+		{
+			ASSERT(!resolved);
+
+			auto object = Namespace::root_namespace()->find_object(parent->scope, unresolved_name, Namespace::FindMode::Normal);
+			if (!object)
+			{
+				AML_ERROR("Failed to resolve reference {} in package {}", unresolved_name, parent->scope);
+				return false;
+			}
+			element = object;
+			resolved = true;
+
+			return true;
+		}
+
+		bool store(BAN::RefPtr<AML::Node> node) override
+		{
+			if (!initialized)
+			{
+				AML_ERROR("Trying to store into uninitialized PackageElement");
+				return {};
+			}
+			if (!resolved && !resolve())
+				return {};
+			if (element->type == AML::Node::Type::Reference)
+				return element->store(node);
+			element = node->copy();
+			return true;
+		}
+
+		BAN::RefPtr<AML::Integer> as_integer() override
+		{
+			if (!initialized)
+			{
+				AML_ERROR("Trying to evaluate uninitialized PackageElement");
+				return {};
+			}
+			if (!resolved && !resolve())
+				return {};
+			return element->as_integer();
+		}
+
 		BAN::RefPtr<AML::Node> evaluate() override
 		{
 			if (!initialized)
@@ -72,17 +116,8 @@ namespace Kernel::ACPI::AML
 				AML_ERROR("Trying to evaluate uninitialized PackageElement");
 				return {};
 			}
-			if (!resolved)
-			{
-				auto object = Namespace::root_namespace()->find_object(parent->scope, unresolved_name, Namespace::FindMode::Normal);
-				if (!object)
-				{
-					AML_ERROR("Failed to resolve reference {} in package {}", unresolved_name, parent->scope);
-					return {};
-				}
-				element = object;
-				resolved = true;
-			}
+			if (!resolved && !resolve())
+				return {};
 			return element->evaluate();
 		}
 

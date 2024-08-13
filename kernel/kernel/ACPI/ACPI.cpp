@@ -145,9 +145,9 @@ acpi_release_global_lock:
 		field_element->op_region = op_region;
 
 		auto result = field_element->as_integer();
-		if (!result.has_value())
+		if (!result)
 			return {};
-		return result.value();
+		return result->value;
 	}
 
 	bool GAS::write(uint64_t value)
@@ -514,7 +514,7 @@ acpi_release_global_lock:
 
 		auto slp_typa = s5_package->elements[0]->as_integer();
 		auto slp_typb = s5_package->elements[1]->as_integer();
-		if (!slp_typa.has_value() || !slp_typb.has_value())
+		if (!slp_typa || !slp_typb)
 		{
 			dwarnln("Failed to get SLP_TYPx values");
 			return;
@@ -527,7 +527,7 @@ acpi_release_global_lock:
 
 		uint16_t pm1a_data = IO::inw(fadt().pm1a_cnt_blk);
 		pm1a_data &= ~(PM1_CNT_SLP_TYP_MASK << PM1_CNT_SLP_TYP_SHIFT);
-		pm1a_data |= (slp_typa.value() & PM1_CNT_SLP_TYP_MASK) << PM1_CNT_SLP_TYP_SHIFT;
+		pm1a_data |= (slp_typa->value & PM1_CNT_SLP_TYP_MASK) << PM1_CNT_SLP_TYP_SHIFT;
 		pm1a_data |= PM1_CNT_SLP_EN;
 		IO::outw(fadt().pm1a_cnt_blk, pm1a_data);
 
@@ -535,7 +535,7 @@ acpi_release_global_lock:
 		{
 			uint16_t pm1b_data = IO::inw(fadt().pm1b_cnt_blk);
 			pm1b_data &= ~(PM1_CNT_SLP_TYP_MASK << PM1_CNT_SLP_TYP_SHIFT);
-			pm1b_data |= (slp_typb.value() & PM1_CNT_SLP_TYP_MASK) << PM1_CNT_SLP_TYP_SHIFT;
+			pm1b_data |= (slp_typb->value & PM1_CNT_SLP_TYP_MASK) << PM1_CNT_SLP_TYP_SHIFT;
 			pm1b_data |= PM1_CNT_SLP_EN;
 			IO::outw(fadt().pm1b_cnt_blk, pm1b_data);
 		}

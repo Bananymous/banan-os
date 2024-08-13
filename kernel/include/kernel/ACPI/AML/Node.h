@@ -9,12 +9,17 @@
 namespace Kernel::ACPI::AML
 {
 
+	struct Buffer;
+	struct Integer;
+	struct String;
+
 	struct Node : public BAN::RefCounted<Node>
 	{
 		static uint64_t total_node_count;
 
 		enum class Type
 		{
+			Debug,
 			BankFieldElement,
 			Buffer,
 			BufferField,
@@ -45,7 +50,10 @@ namespace Kernel::ACPI::AML
 
 		virtual BAN::RefPtr<Node> copy() { return this; }
 
-		[[nodiscard]] BAN::Optional<uint64_t> as_integer();
+		[[nodiscard]] virtual BAN::RefPtr<AML::Buffer> as_buffer();
+		[[nodiscard]] virtual BAN::RefPtr<AML::Integer> as_integer();
+		[[nodiscard]] virtual BAN::RefPtr<AML::String> as_string();
+
 		[[nodiscard]] virtual BAN::RefPtr<AML::Node> evaluate() { AML_TODO("evaluate, type {}", static_cast<uint8_t>(type)); return nullptr; }
 		[[nodiscard]] virtual bool store(BAN::RefPtr<AML::Node>) { AML_TODO("store, type {}", static_cast<uint8_t>(type)); return false; }
 
@@ -84,7 +92,6 @@ namespace Kernel::ACPI::AML
 
 		BAN::RefPtr<Node> node()
 		{
-			ASSERT(m_node);
 			return m_node;
 		}
 

@@ -21,9 +21,26 @@ namespace Kernel::ACPI::AML
 			ASSERT(node);
 		}
 
+		BAN::RefPtr<AML::Integer> as_integer() override
+		{
+			if (node)
+				return node->as_integer();
+			return {};
+		}
+
 		BAN::RefPtr<AML::Node> evaluate() override
 		{
 			return this;
+		}
+
+		bool store(BAN::RefPtr<AML::Node> value) override
+		{
+			if (!node)
+			{
+				AML_ERROR("Storing to null reference");
+				return false;
+			}
+			return node->store(value);
 		}
 
 		static ParseResult parse(ParseContext& context)
@@ -127,7 +144,7 @@ namespace Kernel::ACPI::AML
 				auto parse_result = AML::parse_object(context);
 				if (!parse_result.success())
 					return ParseResult::Failure;
-				auto object = parse_result.node();
+				auto object = parse_result.node() ? parse_result.node()->evaluate() : BAN::RefPtr<AML::Node>();
 				if (!object || object->type != AML::Node::Type::Reference)
 				{
 					AML_TODO("DerefOf source is not a Reference, but a {}", object ? static_cast<uint8_t>(object->type) : 999);

@@ -33,15 +33,21 @@ namespace Kernel::ACPI
 
 	uint64_t AML::Node::total_node_count = 0;
 
-	BAN::Optional<uint64_t> AML::Node::as_integer()
+	BAN::RefPtr<AML::Buffer> AML::Node::as_buffer()
 	{
-		if (type == Type::Integer)
-			return static_cast<const Integer*>(this)->value;
-		auto evaluated = evaluate();
-		if (!evaluated)
-			return {};
-		if (evaluated->type == Type::Integer)
-			return static_cast<const Integer*>(evaluated.ptr())->value;
+		AML_TODO("Node type {} to buffer", static_cast<uint32_t>(type));
+		return {};
+	}
+
+	BAN::RefPtr<AML::Integer> AML::Node::as_integer()
+	{
+		AML_TODO("Node type {} to integer", static_cast<uint32_t>(type));
+		return {};
+	}
+
+	BAN::RefPtr<AML::String> AML::Node::as_string()
+	{
+		AML_TODO("Node type {} to string", static_cast<uint32_t>(type));
 		return {};
 	}
 
@@ -83,6 +89,9 @@ namespace Kernel::ACPI
 					return AML::Reference::parse(context);
 				case AML::ExtOp::SleepOp:
 					return AML::Sleep::parse(context);
+				case AML::ExtOp::DebugOp:
+					context.aml_data = context.aml_data.slice(2);
+					return ParseResult(AML::Namespace::debug_node);
 				default:
 					break;
 			}

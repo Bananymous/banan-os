@@ -22,6 +22,10 @@ namespace Kernel::ACPI::AML
 			: NamedObject(Node::Type::Name, name), object(BAN::move(object))
 		{}
 
+		BAN::RefPtr<AML::Buffer> as_buffer() override;
+		BAN::RefPtr<AML::Integer> as_integer() override;
+		BAN::RefPtr<AML::String> as_string() override;
+
 		BAN::RefPtr<AML::Node> evaluate() override
 		{
 			ASSERT(object);

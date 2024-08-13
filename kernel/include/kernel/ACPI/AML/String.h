@@ -20,6 +20,10 @@ namespace Kernel::ACPI::AML
 				this->string[i] = string[i];
 		}
 
+		BAN::Optional<bool> logical_compare(BAN::RefPtr<AML::Node> node, AML::Byte binaryop);
+
+		BAN::RefPtr<AML::Buffer> as_buffer() override;
+
 		BAN::RefPtr<AML::Node> evaluate() override
 		{
 			return this;
@@ -30,33 +34,7 @@ namespace Kernel::ACPI::AML
 			return BAN::StringView(reinterpret_cast<const char*>(string.data()), string.size());
 		}
 
-		static ParseResult parse(ParseContext& context)
-		{
-			ASSERT(context.aml_data.size() >= 1);
-			ASSERT(static_cast<AML::Byte>(context.aml_data[0]) == AML::Byte::StringPrefix);
-			context.aml_data = context.aml_data.slice(1);
-
-			BAN::Vector<uint8_t> string;
-
-			while (context.aml_data.size() > 0)
-			{
-				if (context.aml_data[0] == 0x00)
-					break;
-				MUST(string.push_back(context.aml_data[0]));
-				context.aml_data = context.aml_data.slice(1);
-			}
-
-			if (context.aml_data.size() == 0)
-				return ParseResult::Failure;
-			if (context.aml_data[0] != 0x00)
-				return ParseResult::Failure;
-			context.aml_data = context.aml_data.slice(1);
-
-			auto string_node = MUST(BAN::RefPtr<String>::create());
-			string_node->string = BAN::move(string);
-
-			return ParseResult(string_node);
-		}
+		static ParseResult parse(ParseContext& context);
 
 		virtual void debug_print(int indent) const override
 		{

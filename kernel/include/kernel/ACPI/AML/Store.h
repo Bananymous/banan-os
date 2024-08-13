@@ -46,7 +46,7 @@ namespace Kernel::ACPI::AML
 
 			if (!destination->store(source))
 				return ParseResult::Failure;
-			return ParseResult::Success;
+			return ParseResult(destination);
 		}
 	};
 

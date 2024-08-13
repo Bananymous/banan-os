@@ -25,22 +25,21 @@ namespace Kernel::ACPI::AML
 					auto source_result = AML::parse_object(context);
 					if (!source_result.success())
 						return ParseResult::Failure;
-					auto source_node = source_result.node() ? source_result.node()->evaluate() : BAN::RefPtr<AML::Node>();
-					if (!source_node || source_node->type != AML::Node::Type::Integer)
+					auto source_node = source_result.node() ? source_result.node()->as_integer(): BAN::RefPtr<AML::Integer>();
+					if (!source_node)
 					{
 						AML_ERROR("UnaryOp source not integer");
 						return ParseResult::Failure;
 					}
 
-					auto source_integer = static_cast<AML::Integer*>(source_node.ptr());
-					if (source_integer->constant)
+					if (source_node->constant)
 					{
 						AML_ERROR("UnaryOp source is constant");
 						return ParseResult::Failure;
 					}
 
-					source_integer->value += (opcode == AML::Byte::AddOp) ? 1 : -1;
-					return ParseResult(source_integer);
+					source_node->value += (opcode == AML::Byte::AddOp) ? 1 : -1;
+					return ParseResult(source_node);
 				}
 				case AML::Byte::NotOp:
 					AML_TODO("NotOp", context.aml_data[0]);
@@ -53,14 +52,14 @@ namespace Kernel::ACPI::AML
 					if (!node_result.success())
 						return ParseResult::Failure;
 
-					auto value = node_result.node() ? node_result.node()->as_integer() : BAN::Optional<uint64_t>();
-					if (!value.has_value())
+					auto value = node_result.node() ? node_result.node()->as_integer() : BAN::RefPtr<AML::Integer>();
+					if (!value)
 					{
 						AML_ERROR("Logical NotOp source is not integer");
 						return ParseResult::Failure;
 					}
 
-					auto result = value.value() ? Integer::Constants::Zero : Integer::Constants::Ones;
+					auto result = value->value ? Integer::Constants::Zero : Integer::Constants::Ones;
 					return ParseResult(result);
 				}
 				case AML::Byte::AddOp:
@@ -98,8 +97,8 @@ namespace Kernel::ACPI::AML
 			auto lhs_result = AML::parse_object(context);
 			if (!lhs_result.success())
 				return ParseResult::Failure;
-			auto lhs_value = lhs_result.node() ? lhs_result.node()->as_integer() : BAN::Optional<uint64_t>();
-			if (!lhs_value.has_value())
+			auto lhs_value = lhs_result.node() ? lhs_result.node()->as_integer() : BAN::RefPtr<AML::Integer>();
+			if (!lhs_value)
 			{
 				AML_ERROR("BinaryOP {2H} LHS not an integer", static_cast<uint8_t>(opcode));
 				if (lhs_result.node())
@@ -111,8 +110,8 @@ namespace Kernel::ACPI::AML
 			auto rhs_result = AML::parse_object(context);
 			if (!rhs_result.success())
 				return ParseResult::Failure;
-			auto rhs_value = lhs_result.node() ? rhs_result.node()->as_integer() : BAN::Optional<uint64_t>();
-			if (!rhs_value.has_value())
+			auto rhs_value = rhs_result.node() ? rhs_result.node()->as_integer() : BAN::RefPtr<AML::Integer>();
+			if (!rhs_value)
 			{
 				AML_ERROR("BinaryOP {2H} RHS not an integer", static_cast<uint8_t>(opcode));
 				if (rhs_result.node())
@@ -160,7 +159,7 @@ namespace Kernel::ACPI::AML
 					ASSERT_NOT_REACHED();
 			}
 
-			uint64_t result = func(lhs_value.value(), rhs_value.value());
+			uint64_t result = func(lhs_value->value, rhs_value->value);
 			auto result_node = MUST(BAN::RefPtr<AML::Integer>::create(result));
 
 			if (target_node && !target_node->store(result_node))
@@ -180,36 +179,37 @@ namespace Kernel::ACPI::AML
 			auto lhs_result = AML::parse_object(context);
 			if (!lhs_result.success())
 				return ParseResult::Failure;
-			auto lhs_value = lhs_result.node() ? lhs_result.node()->as_integer() : BAN::Optional<uint64_t>();
-			if (!lhs_value.has_value())
+			auto lhs_node = lhs_result.node() ? lhs_result.node()->evaluate() : BAN::RefPtr<AML::Node>();
+			if (!lhs_node)
 			{
-				AML_TODO("Logical BinaryOP {2H} LHS not integer", static_cast<uint8_t>(opcode));
+				AML_TODO("Logical BinaryOP {2H} LHS evaluated to nothing", static_cast<uint8_t>(opcode));
 				return ParseResult::Failure;
 			}
 
 			auto rhs_result = AML::parse_object(context);
 			if (!rhs_result.success())
 				return ParseResult::Failure;
-			auto rhs_value = rhs_result.node() ? rhs_result.node()->as_integer() : BAN::Optional<uint64_t>();
-			if (!rhs_value.has_value())
-			{
-				AML_TODO("Logical BinaryOP {2H} RHS not integer", static_cast<uint8_t>(opcode));
-				return ParseResult::Failure;
-			}
 
-			BAN::RefPtr<AML::Integer> (*func)(uint64_t, uint64_t) = nullptr;
-			switch (opcode)
+			BAN::Optional<bool> result = false;
+			switch (lhs_node->type)
 			{
-				case AML::Byte::LAndOp:			func = [](uint64_t a, uint64_t b) { return a && b ? Integer::Constants::Ones : Integer::Constants::Zero; }; break;
-				case AML::Byte::LEqualOp:		func = [](uint64_t a, uint64_t b) { return a == b ? Integer::Constants::Ones : Integer::Constants::Zero; }; break;
-				case AML::Byte::LGreaterOp:		func = [](uint64_t a, uint64_t b) { return a > b  ? Integer::Constants::Ones : Integer::Constants::Zero; }; break;
-				case AML::Byte::LLessOp:		func = [](uint64_t a, uint64_t b) { return a < b  ? Integer::Constants::Ones : Integer::Constants::Zero; }; break;
-				case AML::Byte::LOrOp:			func = [](uint64_t a, uint64_t b) { return a || b ? Integer::Constants::Ones : Integer::Constants::Zero; }; break;
+				case AML::Node::Type::Integer:
+					result = static_cast<AML::Integer*>(lhs_node.ptr())->logical_compare(rhs_result.node(), opcode);
+					break;
+				case AML::Node::Type::Buffer:
+					result = static_cast<AML::Buffer*>(lhs_node.ptr())->logical_compare(rhs_result.node(), opcode);
+					break;
+				case AML::Node::Type::String:
+					result = static_cast<AML::String*>(lhs_node.ptr())->logical_compare(rhs_result.node(), opcode);
+					break;
 				default:
 					ASSERT_NOT_REACHED();
 			}
 
-			return ParseResult(func(lhs_value.value(), rhs_value.value()));
+			if (!result.has_value())
+				return ParseResult::Failure;
+
+			return ParseResult(result.value() ? AML::Integer::Constants::Ones : AML::Integer::Constants::Zero);
 		}
 	};
 

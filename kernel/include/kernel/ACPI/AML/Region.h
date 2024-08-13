@@ -1,5 +1,6 @@
 #pragma once
 
+#include <kernel/ACPI/AML/Integer.h>
 #include <kernel/ACPI/AML/NamedObject.h>
 #include <kernel/ACPI/AML/Namespace.h>
 #include <kernel/ACPI/AML/ParseContext.h>
@@ -43,7 +44,7 @@ namespace Kernel::ACPI::AML
 			if (!offset_result.success())
 				return ParseResult::Failure;
 			auto offset = offset_result.node()->as_integer();
-			if (!offset.has_value())
+			if (!offset)
 			{
 				AML_ERROR("OpRegion offset must be an integer");
 				return ParseResult::Failure;
@@ -53,7 +54,7 @@ namespace Kernel::ACPI::AML
 			if (!length_result.success())
 				return ParseResult::Failure;
 			auto length = length_result.node()->as_integer();
-			if (!length.has_value())
+			if (!length)
 			{
 				AML_ERROR("OpRegion length must be an integer");
 				return ParseResult::Failure;
@@ -62,8 +63,8 @@ namespace Kernel::ACPI::AML
 			auto op_region = MUST(BAN::RefPtr<OpRegion>::create(
 				name->path.back(),
 				region_space,
-				offset.value(),
-				length.value()
+				offset->value,
+				length->value
 			));
 
 			if (!Namespace::root_namespace()->add_named_object(context, name.value(), op_region))
