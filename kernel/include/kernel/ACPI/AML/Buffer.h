@@ -38,7 +38,7 @@ namespace Kernel::ACPI::AML
 		{
 			uint64_t value = 0;
 			for (size_t i = 0; i < BAN::Math::min<size_t>(buffer.size(), 8); i++)
-				value |= buffer[i] << (8 * i);
+				value |= static_cast<uint64_t>(buffer[i]) << (8 * i);
 			return MUST(BAN::RefPtr<Integer>::create(value));
 		}
 
@@ -119,7 +119,7 @@ namespace Kernel::ACPI::AML
 			for (size_t i = 0; i < BAN::Math::min<size_t>(field_bit_size, 64); i++)
 			{
 				const size_t bit = field_bit_offset + i;
-				value |= ((buffer[bit / 8] >> (bit % 8)) & 1) << i;
+				value |= static_cast<uint64_t>((buffer[bit / 8] >> (bit % 8)) & 1) << i;
 			}
 
 			return MUST(BAN::RefPtr<Integer>::create(value));
@@ -140,7 +140,7 @@ namespace Kernel::ACPI::AML
 			for (size_t i = 0; i < field_bit_size; i++)
 			{
 				const size_t bit = field_bit_offset + i;
-				value |= ((buffer[bit / 8] >> (bit % 8)) & 1) << i;
+				value |= static_cast<uint64_t>((buffer[bit / 8] >> (bit % 8)) & 1) << i;
 			}
 
 			return MUST(BAN::RefPtr<AML::Integer>::create(value));

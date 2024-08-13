@@ -1,6 +1,5 @@
 #pragma once
 
-#include <BAN/Endianness.h>
 #include <BAN/Optional.h>
 #include <BAN/String.h>
 #include <BAN/Vector.h>
@@ -94,7 +93,7 @@ namespace Kernel::ACPI::AML
 				{
 					if (aml_data.size() < 2)
 						return ParseResult::Failure;
-					uint8_t value = aml_data[1];
+					const uint8_t value = aml_data[1];
 					aml_data = aml_data.slice(2);
 					return ParseResult(MUST(BAN::RefPtr<Integer>::create(value)));
 				}
@@ -102,9 +101,9 @@ namespace Kernel::ACPI::AML
 				{
 					if (aml_data.size() < 3)
 						return ParseResult::Failure;
-					uint16_t value = BAN::little_endian_to_host<uint16_t>(
-						*reinterpret_cast<const uint16_t*>(&aml_data[1])
-					);
+					uint16_t value = 0;
+					value |= aml_data[1] << 0;
+					value |= aml_data[2] << 8;
 					aml_data = aml_data.slice(3);
 					return ParseResult(MUST(BAN::RefPtr<Integer>::create(value)));
 				}
@@ -112,9 +111,11 @@ namespace Kernel::ACPI::AML
 				{
 					if (aml_data.size() < 5)
 						return ParseResult::Failure;
-					uint32_t value = BAN::little_endian_to_host<uint32_t>(
-						*reinterpret_cast<const uint32_t*>(&aml_data[1])
-					);
+					uint32_t value = 0;
+					value |= static_cast<uint32_t>(aml_data[1]) <<  0;
+					value |= static_cast<uint32_t>(aml_data[2]) <<  8;
+					value |= static_cast<uint32_t>(aml_data[3]) << 16;
+					value |= static_cast<uint32_t>(aml_data[4]) << 24;
 					aml_data = aml_data.slice(5);
 					return ParseResult(MUST(BAN::RefPtr<Integer>::create(value)));
 				}
@@ -122,9 +123,15 @@ namespace Kernel::ACPI::AML
 				{
 					if (aml_data.size() < 9)
 						return ParseResult::Failure;
-					uint64_t value = BAN::little_endian_to_host<uint64_t>(
-						*reinterpret_cast<const uint64_t*>(&aml_data[1])
-					);
+					uint64_t value = 0;
+					value |= static_cast<uint64_t>(aml_data[1]) <<  0;
+					value |= static_cast<uint64_t>(aml_data[2]) <<  8;
+					value |= static_cast<uint64_t>(aml_data[3]) << 16;
+					value |= static_cast<uint64_t>(aml_data[4]) << 24;
+					value |= static_cast<uint64_t>(aml_data[5]) << 32;
+					value |= static_cast<uint64_t>(aml_data[6]) << 40;
+					value |= static_cast<uint64_t>(aml_data[7]) << 48;
+					value |= static_cast<uint64_t>(aml_data[8]) << 56;
 					aml_data = aml_data.slice(9);
 					return ParseResult(MUST(BAN::RefPtr<Integer>::create(value)));
 				}
