@@ -63,6 +63,8 @@ namespace Kernel::ACPI
 					return AML::IndexField::parse(context);
 				case AML::ExtOp::BankFieldOp:
 					return AML::BankField::parse(context);
+				case AML::ExtOp::CreateFieldOp:
+					return AML::BufferField::parse(context);
 				case AML::ExtOp::OpRegionOp:
 					return AML::OpRegion::parse(context);
 				case AML::ExtOp::DeviceOp:

@@ -91,17 +91,11 @@ namespace Kernel::ACPI::AML
 
 			uint64_t value = 0;
 
-			const size_t byte_offset = field_bit_offset / 8;
-			const size_t bit_offset = field_bit_offset % 8;
-			if (field_bit_size == 1)
+			// TODO: optimize for whole byte accesses
+			for (size_t i = 0; i < field_bit_size; i++)
 			{
-				value = (buffer[byte_offset] >> bit_offset) & 1;
-			}
-			else
-			{
-				ASSERT(bit_offset == 0);
-				for (size_t byte = 0; byte < field_bit_size / 8; byte++)
-					value |= buffer[byte_offset + byte] << byte;
+				const size_t bit = field_bit_offset + i;
+				value |= ((buffer[bit / 8] >> (bit % 8)) & 1) << i;
 			}
 
 			return MUST(BAN::RefPtr<AML::Integer>::create(value));
@@ -120,18 +114,12 @@ namespace Kernel::ACPI::AML
 			if (!value.has_value())
 				return false;
 
-			const size_t byte_offset = field_bit_offset / 8;
-			const size_t bit_offset = field_bit_offset % 8;
-			if (field_bit_size == 1)
+			// TODO: optimize for whole byte accesses
+			for (size_t i = 0; i < field_bit_size; i++)
 			{
-				buffer[byte_offset] &= ~(1 << bit_offset);
-				buffer[byte_offset] |= (value.value() & 1) << bit_offset;
-			}
-			else
-			{
-				ASSERT(bit_offset == 0);
-				for (size_t byte = 0; byte < field_bit_size / 8; byte++)
-					buffer[byte_offset + byte] = (value.value() >> (byte * 8)) & 0xFF;
+				const size_t bit = field_bit_offset + 1;
+				buffer[bit / 8] &= ~(1 << (bit % 8));
+				buffer[bit / 8] |= ((value.value() >> i) & 1) << (bit % 8);
 			}
 
 			return true;
@@ -142,7 +130,7 @@ namespace Kernel::ACPI::AML
 			ASSERT(context.aml_data.size() >= 1);
 
 			size_t field_bit_size = 0;
-			switch (static_cast<Byte>(context.aml_data[0]))
+			switch (static_cast<AML::Byte>(context.aml_data[0]))
 			{
 				case AML::Byte::CreateBitFieldOp:
 					field_bit_size = 1;
@@ -159,10 +147,14 @@ namespace Kernel::ACPI::AML
 				case AML::Byte::CreateQWordFieldOp:
 					field_bit_size = 64;
 					break;
+				case AML::Byte::ExtOpPrefix:
+					ASSERT(context.aml_data.size() >= 2);
+					ASSERT(static_cast<AML::ExtOp>(context.aml_data[1]) == AML::ExtOp::CreateFieldOp);
+					break;
 				default:
 					ASSERT_NOT_REACHED();
 			}
-			context.aml_data = context.aml_data.slice(1);
+			context.aml_data = context.aml_data.slice(1 + (static_cast<AML::Byte>(context.aml_data[0]) == AML::Byte::ExtOpPrefix));
 
 			auto buffer_result = AML::parse_object(context);
 			if (!buffer_result.success())
@@ -187,6 +179,20 @@ namespace Kernel::ACPI::AML
 			size_t field_bit_offset = index.value();
 			if (field_bit_size != 1)
 				field_bit_offset *= 8;
+
+			if (field_bit_size == 0)
+			{
+				auto bit_count_result = AML::parse_object(context);
+				if (!index_result.success())
+					return ParseResult::Failure;
+				auto bit_count = bit_count_result.node() ? bit_count_result.node()->as_integer() : BAN::Optional<uint64_t>();
+				if (!bit_count.has_value())
+				{
+					AML_ERROR("Failed to parse bit count for BufferField");
+					return ParseResult::Failure;
+				}
+				field_bit_size = bit_count.value();
+			}
 
 			auto field_name = AML::NameString::parse(context.aml_data);
 			if (!field_name.has_value())
