@@ -33,7 +33,7 @@ namespace Kernel::ACPI::AML
 
 			auto thermal_zone = MUST(BAN::RefPtr<ThermalZone>::create(name->path.back()));
 			if (!Namespace::root_namespace()->add_named_object(context, name.value(), thermal_zone))
-				return ParseResult::Failure;
+				return ParseResult::Success;
 
 #if AML_DEBUG_LEVEL >= 2
 			thermal_zone->debug_print(0);

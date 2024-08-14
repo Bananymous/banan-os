@@ -71,7 +71,7 @@ namespace Kernel::ACPI::AML
 
 			auto mutex = MUST(BAN::RefPtr<Mutex>::create(name->path.back(), sync_level));
 			if (!Namespace::root_namespace()->add_named_object(context, name.value(), mutex))
-				return ParseResult::Failure;
+				return ParseResult::Success;
 
 #if AML_DEBUG_LEVEL >= 2
 			mutex->debug_print(0);

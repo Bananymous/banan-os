@@ -68,7 +68,7 @@ namespace Kernel::ACPI::AML
 			));
 
 			if (!Namespace::root_namespace()->add_named_object(context, name.value(), op_region))
-				return ParseResult::Failure;
+				return ParseResult::Success;
 
 #if AML_DEBUG_LEVEL >= 2
 			op_region->debug_print(0);

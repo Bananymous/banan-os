@@ -250,7 +250,7 @@ namespace Kernel::ACPI::AML
 
 			auto field = MUST(BAN::RefPtr<BufferField>::create(field_name->path.back(), buffer, field_bit_offset, field_bit_size));
 			if (!Namespace::root_namespace()->add_named_object(context, field_name.value(), field))
-				return ParseResult::Failure;
+				return ParseResult::Success;
 
 #if AML_DEBUG_LEVEL >= 2
 			field->debug_print(0);

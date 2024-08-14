@@ -38,15 +38,15 @@ namespace Kernel::ACPI::AML
 				return ParseResult::Failure;
 
 			auto source_object = AML::Namespace::root_namespace()->find_object(context.scope, source_string.value(), AML::Namespace::FindMode::Normal);
-			if (!source_object)
-			{
-				AML_ERROR("Alias target could not be found");
-				return ParseResult::Failure;
-			}
-
 			auto alias_string = AML::NameString::parse(context.aml_data);
 			if (!alias_string.has_value())
 				return ParseResult::Failure;
+
+			if (!source_object)
+			{
+				AML_PRINT("Alias target could not be found");
+				return ParseResult::Success;
+			}
 
 			auto alias = MUST(BAN::RefPtr<Alias>::create(alias_string.value().path.back(), source_object));
 			if (!Namespace::root_namespace()->add_named_object(context, alias_string.value(), alias))

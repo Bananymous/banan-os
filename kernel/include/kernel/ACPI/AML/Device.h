@@ -31,7 +31,7 @@ namespace Kernel::ACPI::AML
 
 			auto device = MUST(BAN::RefPtr<Device>::create(name_string->path.back()));
 			if (!Namespace::root_namespace()->add_named_object(context, name_string.value(), device))
-				return ParseResult::Failure;
+				return ParseResult::Success;
 
 			return device->enter_context_and_parse_term_list(context, name_string.value(), device_pkg.value());
 		}
