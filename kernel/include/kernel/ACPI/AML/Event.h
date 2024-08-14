@@ -10,7 +10,7 @@
 namespace Kernel::ACPI::AML
 {
 
-	struct Event : public AML::NamedObject
+	struct Event final : public AML::NamedObject
 	{
 		BAN::Atomic<uint32_t> signal_count { 0 };
 		ThreadBlocker thread_blocker;
@@ -18,6 +18,8 @@ namespace Kernel::ACPI::AML
 		Event(NameSeg name)
 			: NamedObject(Node::Type::Event, name)
 		{}
+
+		BAN::RefPtr<AML::Node> convert(uint8_t) override { return {}; }
 
 		static ParseResult parse(ParseContext& context)
 		{
@@ -43,7 +45,7 @@ namespace Kernel::ACPI::AML
 			if (!event_result.success())
 				return ParseResult::Failure;
 
-			auto general_node = event_result.node() ? event_result.node()->evaluate() : BAN::RefPtr<AML::Node>();
+			auto general_node = event_result.node();
 			if (!general_node || general_node->type != Node::Type::Event)
 			{
 				AML_ERROR("Release, Wait or Signal does not name an event");
@@ -58,12 +60,15 @@ namespace Kernel::ACPI::AML
 				if (!timeout_result.success())
 					return ParseResult::Failure;
 
-				auto timeout = timeout_result.node() ? timeout_result.node()->as_integer() : BAN::RefPtr<AML::Integer>();
-				if (!timeout)
+				auto timeout_node = timeout_result.node()
+					? timeout_result.node()->convert(AML::Node::ConvInteger)
+					: BAN::RefPtr<AML::Node>();
+				if (!timeout_node)
 				{
 					AML_ERROR("Wait timeout does not evaluate to integer");
 					return ParseResult::Failure;
 				}
+				const auto timeout_value = static_cast<AML::Integer*>(timeout_node.ptr())->value;
 
 				const uint64_t start_ms = SystemTimer::get().ms_since_boot();
 				while (true)
@@ -77,14 +82,14 @@ namespace Kernel::ACPI::AML
 							return ParseResult(Integer::Constants::Zero);
 					}
 
-					if (timeout->value >= 0xFFFF)
+					if (timeout_value >= 0xFFFF)
 						event_node->thread_blocker.block_indefinite();
 					else
 					{
 						const uint64_t current_ms = SystemTimer::get().ms_since_boot();
-						if (current_ms >= start_ms + timeout->value)
+						if (current_ms >= start_ms + timeout_value)
 							return ParseResult(Integer::Constants::Ones);
-						event_node->thread_blocker.block_with_timeout_ms(start_ms + timeout->value - current_ms);
+						event_node->thread_blocker.block_with_timeout_ms(start_ms + timeout_value - current_ms);
 					}
 				}
 

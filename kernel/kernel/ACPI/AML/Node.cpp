@@ -36,24 +36,6 @@ namespace Kernel::ACPI
 
 	uint64_t AML::Node::total_node_count = 0;
 
-	BAN::RefPtr<AML::Buffer> AML::Node::as_buffer()
-	{
-		AML_TODO("Node type {} to buffer", static_cast<uint32_t>(type));
-		return {};
-	}
-
-	BAN::RefPtr<AML::Integer> AML::Node::as_integer()
-	{
-		AML_TODO("Node type {} to integer", static_cast<uint32_t>(type));
-		return {};
-	}
-
-	BAN::RefPtr<AML::String> AML::Node::as_string()
-	{
-		AML_TODO("Node type {} to string", static_cast<uint32_t>(type));
-		return {};
-	}
-
 	AML::ParseResult AML::parse_object(AML::ParseContext& context)
 	{
 		if (context.aml_data.size() < 1)
@@ -204,6 +186,7 @@ namespace Kernel::ACPI
 				return AML::Notify::parse(context);
 			case AML::Byte::SizeOfOp:
 				return AML::SizeOf::parse(context);
+			case AML::Byte::BreakPointOp: // TODO: support breakpoints?
 			case AML::Byte::NoopOp:
 				context.aml_data = context.aml_data.slice(1);
 				return ParseResult::Success;
@@ -269,6 +252,9 @@ namespace Kernel::ACPI
 					return ParseResult::Success;
 				return ParseResult(result.value());
 			}
+
+			if (aml_object->type == AML::Node::Type::Name)
+				return ParseResult(static_cast<AML::Name*>(aml_object.ptr())->object);
 			return ParseResult(aml_object);
 		}
 

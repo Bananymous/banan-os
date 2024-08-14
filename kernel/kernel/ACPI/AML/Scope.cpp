@@ -25,7 +25,7 @@ namespace Kernel::ACPI
 		auto named_object = Namespace::root_namespace()->find_object(context.scope, name_string.value(), Namespace::FindMode::Normal);
 		if (!named_object)
 		{
-			AML_DEBUG_PRINT("Scope '{}' not found in namespace", name_string.value());
+			AML_PRINT("Scope '{}' not found in namespace", name_string.value());
 			return ParseResult::Success;
 		}
 		if (!named_object->is_scope())
@@ -69,7 +69,12 @@ namespace Kernel::ACPI
 	static BAN::RefPtr<AML::Integer> evaluate_or_invoke(BAN::RefPtr<AML::Node> object)
 	{
 		if (object->type != AML::Node::Type::Method)
-			return object->as_integer();
+		{
+			auto converted = object->convert(AML::Node::ConvInteger);
+			if (!converted)
+				return {};
+			return static_cast<AML::Integer*>(converted.ptr());
+		}
 
 		auto* method = static_cast<AML::Method*>(object.ptr());
 		if (method->arg_count != 0)
@@ -85,7 +90,10 @@ namespace Kernel::ACPI
 			return {};
 		}
 
-		return result.value() ? result.value()->as_integer() : BAN::RefPtr<AML::Integer>();
+		auto result_integer = result.value()
+			? result.value()->convert(AML::Node::ConvInteger)
+			: BAN::RefPtr<AML::Node>();
+		return static_cast<AML::Integer*>(result_integer.ptr());
 	}
 
 	bool AML::initialize_scope(BAN::RefPtr<AML::Scope> scope)

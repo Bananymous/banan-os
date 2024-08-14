@@ -9,7 +9,7 @@
 namespace Kernel::ACPI::AML
 {
 
-	struct PowerResource : public AML::Scope
+	struct PowerResource final : public AML::Scope
 	{
 		uint8_t system_level;
 		uint16_t resource_order;
@@ -19,6 +19,8 @@ namespace Kernel::ACPI::AML
 			, system_level(system_level)
 			, resource_order(resource_order)
 		{}
+
+		BAN::RefPtr<AML::Node> convert(uint8_t) override { return {}; }
 
 		static ParseResult parse(ParseContext& context)
 		{

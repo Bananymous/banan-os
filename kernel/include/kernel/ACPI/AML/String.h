@@ -7,7 +7,7 @@
 namespace Kernel::ACPI::AML
 {
 
-	struct String : public AML::Node
+	struct String final : public AML::Node
 	{
 		BAN::Vector<uint8_t> string;
 
@@ -22,12 +22,7 @@ namespace Kernel::ACPI::AML
 
 		BAN::Optional<bool> logical_compare(BAN::RefPtr<AML::Node> node, AML::Byte binaryop);
 
-		BAN::RefPtr<AML::Buffer> as_buffer() override;
-
-		BAN::RefPtr<AML::Node> evaluate() override
-		{
-			return this;
-		}
+		BAN::RefPtr<AML::Node> convert(uint8_t mask) override;
 
 		BAN::StringView string_view() const
 		{
@@ -41,6 +36,9 @@ namespace Kernel::ACPI::AML
 			AML_DEBUG_PRINT_INDENT(indent);
 			AML_DEBUG_PRINT("String \"{}\"", string_view());
 		}
+
+	private:
+		BAN::RefPtr<AML::Buffer> as_buffer();
 	};
 
 }

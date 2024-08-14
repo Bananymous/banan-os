@@ -9,11 +9,13 @@
 namespace Kernel::ACPI::AML
 {
 
-	struct ThermalZone : public AML::Scope
+	struct ThermalZone final : public AML::Scope
 	{
 		ThermalZone(NameSeg name)
 			: Scope(Node::Type::ThermalZone, name)
 		{}
+
+		BAN::RefPtr<AML::Node> convert(uint8_t) override { return {}; }
 
 		static ParseResult parse(ParseContext& context)
 		{

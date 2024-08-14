@@ -10,7 +10,7 @@
 namespace Kernel::ACPI::AML
 {
 
-	struct Buffer : public AML::Node
+	struct Buffer final : public AML::Node
 	{
 		BAN::Vector<uint8_t> buffer;
 
@@ -20,10 +20,10 @@ namespace Kernel::ACPI::AML
 
 		BAN::Optional<bool> logical_compare(BAN::RefPtr<AML::Node> node, AML::Byte binaryop)
 		{
-			auto rhs = node ? node->as_buffer() : BAN::RefPtr<AML::Buffer>();
-			if (!rhs)
+			auto rhs_node = node ? node->convert(AML::Node::ConvBuffer) : BAN::RefPtr<AML::Node>();
+			if (!rhs_node)
 			{
-				AML_ERROR("Buffer logical compare RHS is not buffer");
+				AML_ERROR("Buffer logical compare RHS cannot be converted to buffer");
 				return {};
 			}
 
@@ -32,19 +32,18 @@ namespace Kernel::ACPI::AML
 			return {};
 		}
 
-		BAN::RefPtr<AML::Buffer> as_buffer() override { return this; }
-
-		BAN::RefPtr<AML::Integer> as_integer() override
+		BAN::RefPtr<AML::Node> convert(uint8_t mask) override
 		{
-			uint64_t value = 0;
-			for (size_t i = 0; i < BAN::Math::min<size_t>(buffer.size(), 8); i++)
-				value |= static_cast<uint64_t>(buffer[i]) << (8 * i);
-			return MUST(BAN::RefPtr<Integer>::create(value));
-		}
-
-		BAN::RefPtr<AML::Node> evaluate() override
-		{
-			return this;
+			if (mask & AML::Node::ConvBuffer)
+				return this;
+			if (mask & AML::Node::ConvInteger)
+				return as_integer();
+			if (mask & AML::Node::ConvString)
+			{
+				AML_TODO("Convert BufferField to String");
+				return {};
+			}
+			return {};
 		}
 
 		static ParseResult parse(AML::ParseContext& context)
@@ -60,15 +59,21 @@ namespace Kernel::ACPI::AML
 			auto buffer_context = context;
 			buffer_context.aml_data = buffer_pkg.value();
 
-			auto buffer_size_object = AML::parse_object(buffer_context);
-			if (!buffer_size_object.success())
+			auto buffer_size_result = AML::parse_object(buffer_context);
+			if (!buffer_size_result.success())
 				return ParseResult::Failure;
 
-			auto buffer_size = buffer_size_object.node()->as_integer();
-			if (!buffer_size)
+			auto buffer_size_node = buffer_size_result.node() ? buffer_size_result.node()->convert(AML::Node::ConvInteger) : BAN::RefPtr<AML::Node>();
+			if (!buffer_size_node)
+			{
+				AML_ERROR("Buffer size is not an integer");
 				return ParseResult::Failure;
+			}
 
-			uint32_t actual_buffer_size = BAN::Math::max<uint32_t>(buffer_size->value, buffer_context.aml_data.size());
+			const uint32_t actual_buffer_size = BAN::Math::max<uint32_t>(
+				static_cast<AML::Integer*>(buffer_size_node.ptr())->value,
+				buffer_context.aml_data.size()
+			);
 
 			auto buffer = MUST(BAN::RefPtr<Buffer>::create());
 			MUST(buffer->buffer.resize(actual_buffer_size, 0));
@@ -88,9 +93,18 @@ namespace Kernel::ACPI::AML
 			AML_DEBUG_PRINT_INDENT(indent);
 			AML_DEBUG_PRINT("Buffer ({} bytes)", buffer.size());
 		}
+
+	private:
+		BAN::RefPtr<AML::Integer> as_integer()
+		{
+			uint64_t value = 0;
+			for (size_t i = 0; i < BAN::Math::min<size_t>(buffer.size(), 8); i++)
+				value |= static_cast<uint64_t>(buffer[i]) << (8 * i);
+			return MUST(BAN::RefPtr<Integer>::create(value));
+		}
 	};
 
-	struct BufferField : AML::NamedObject
+	struct BufferField final : AML::NamedObject
 	{
 		BAN::RefPtr<AML::Node> buffer;
 		size_t field_bit_offset;
@@ -104,49 +118,26 @@ namespace Kernel::ACPI::AML
 			, field_bit_size(field_bit_size)
 		{}
 
-		BAN::RefPtr<AML::Integer> as_integer() override
+		BAN::RefPtr<AML::Node> convert(uint8_t mask) override
 		{
-			ASSERT(buffer);
-			ASSERT(buffer->type == AML::Node::Type::Buffer || buffer->type == AML::Node::Type::String);
-
-			const auto& buffer = (this->buffer->type == AML::Node::Type::Buffer)
-				? static_cast<AML::Buffer*>(this->buffer.ptr())->buffer
-				: static_cast<AML::String*>(this->buffer.ptr())->string;
-
-			uint64_t value = 0;
-
-			// TODO: optimize for whole byte accesses
-			for (size_t i = 0; i < BAN::Math::min<size_t>(field_bit_size, 64); i++)
+			if (mask & AML::Node::ConvBufferField)
+				return this;
+			if (mask & AML::Node::ConvInteger)
+				return as_integer();
+			if (mask & AML::Node::ConvBuffer)
 			{
-				const size_t bit = field_bit_offset + i;
-				value |= static_cast<uint64_t>((buffer[bit / 8] >> (bit % 8)) & 1) << i;
+				AML_TODO("Convert BufferField to Buffer");
+				return {};
 			}
-
-			return MUST(BAN::RefPtr<Integer>::create(value));
+			if (mask & AML::Node::ConvString)
+			{
+				AML_TODO("Convert BufferField to String");
+				return {};
+			}
+			return {};
 		}
 
-		BAN::RefPtr<AML::Node> evaluate() override
-		{
-			ASSERT(buffer);
-			ASSERT(buffer->type == AML::Node::Type::Buffer || buffer->type == AML::Node::Type::String);
-			const auto& buffer = (this->buffer->type == AML::Node::Type::Buffer)
-				? static_cast<AML::Buffer*>(this->buffer.ptr())->buffer
-				: static_cast<AML::String*>(this->buffer.ptr())->string;
-			ASSERT(field_bit_offset + field_bit_size <= buffer.size() * 8);
-
-			uint64_t value = 0;
-
-			// TODO: optimize for whole byte accesses
-			for (size_t i = 0; i < field_bit_size; i++)
-			{
-				const size_t bit = field_bit_offset + i;
-				value |= static_cast<uint64_t>((buffer[bit / 8] >> (bit % 8)) & 1) << i;
-			}
-
-			return MUST(BAN::RefPtr<AML::Integer>::create(value));
-		}
-
-		bool store(BAN::RefPtr<AML::Node> node) override
+		BAN::RefPtr<AML::Node> store(BAN::RefPtr<AML::Node> node) override
 		{
 			ASSERT(buffer);
 			ASSERT(buffer->type == AML::Node::Type::Buffer || buffer->type == AML::Node::Type::String);
@@ -155,19 +146,20 @@ namespace Kernel::ACPI::AML
 				: static_cast<AML::String*>(this->buffer.ptr())->string;
 			ASSERT(field_bit_offset + field_bit_size <= buffer.size() * 8);
 
-			auto value = node->as_integer();
-			if (!value)
-				return false;
+			auto value_node = node ? node->convert(AML::Node::ConvInteger) : BAN::RefPtr<AML::Node>();
+			if (!value_node)
+				return {};
+			const auto value = static_cast<AML::Integer*>(value_node.ptr())->value;
 
 			// TODO: optimize for whole byte accesses
 			for (size_t i = 0; i < field_bit_size; i++)
 			{
 				const size_t bit = field_bit_offset + 1;
 				buffer[bit / 8] &= ~(1 << (bit % 8));
-				buffer[bit / 8] |= ((value->value >> i) & 1) << (bit % 8);
+				buffer[bit / 8] |= ((value >> i) & 1) << (bit % 8);
 			}
 
-			return true;
+			return value_node;
 		}
 
 		static ParseResult parse(AML::ParseContext& context)
@@ -204,7 +196,7 @@ namespace Kernel::ACPI::AML
 			auto buffer_result = AML::parse_object(context);
 			if (!buffer_result.success())
 				return ParseResult::Failure;
-			auto buffer_node = buffer_result.node() ? buffer_result.node()->as_buffer() : BAN::RefPtr<AML::Buffer>();
+			auto buffer_node = buffer_result.node() ? buffer_result.node()->convert(AML::Node::ConvBuffer) : BAN::RefPtr<AML::Node>();
 			if (!buffer_node || buffer_node->type != Node::Type::Buffer)
 			{
 				AML_ERROR("Buffer source does not evaluate to a Buffer");
@@ -215,28 +207,25 @@ namespace Kernel::ACPI::AML
 			auto index_result = AML::parse_object(context);
 			if (!index_result.success())
 				return ParseResult::Failure;
-			auto index = index_result.node() ? index_result.node()->as_integer() : BAN::RefPtr<AML::Integer>();
-			if (!index)
+			auto index_node = index_result.node() ? index_result.node()->convert(AML::Node::ConvInteger) : BAN::RefPtr<AML::Node>();
+			if (!index_node)
 			{
 				AML_ERROR("Failed to parse index for BufferField");
 				return ParseResult::Failure;
 			}
-			size_t field_bit_offset = index->value;
-			if (field_bit_size != 1)
-				field_bit_offset *= 8;
 
 			if (field_bit_size == 0)
 			{
 				auto bit_count_result = AML::parse_object(context);
-				if (!index_result.success())
+				if (!bit_count_result.success())
 					return ParseResult::Failure;
-				auto bit_count = bit_count_result.node() ? bit_count_result.node()->as_integer() : BAN::RefPtr<AML::Integer>();
-				if (!bit_count)
+				auto bit_count_node = bit_count_result.node() ? bit_count_result.node()->convert(AML::Node::ConvInteger) : BAN::RefPtr<AML::Node>();
+				if (!bit_count_node)
 				{
 					AML_ERROR("Failed to parse bit count for BufferField");
 					return ParseResult::Failure;
 				}
-				field_bit_size = bit_count->value;
+				field_bit_size = static_cast<AML::Integer*>(bit_count_node.ptr())->value;
 			}
 
 			auto field_name = AML::NameString::parse(context.aml_data);
@@ -247,6 +236,10 @@ namespace Kernel::ACPI::AML
 				AML_ERROR("Empty field name for BufferField");
 				return ParseResult::Failure;
 			}
+
+			size_t field_bit_offset = static_cast<AML::Integer*>(index_node.ptr())->value;
+			if (field_bit_size != 1)
+				field_bit_offset *= 8;
 
 			auto field = MUST(BAN::RefPtr<BufferField>::create(field_name->path.back(), buffer, field_bit_offset, field_bit_size));
 			if (!Namespace::root_namespace()->add_named_object(context, field_name.value(), field))
@@ -268,6 +261,27 @@ namespace Kernel::ACPI::AML
 			AML_DEBUG_PRINT(" }");
 		}
 
+	private:
+		BAN::RefPtr<AML::Integer> as_integer()
+		{
+			ASSERT(buffer);
+			ASSERT(buffer->type == AML::Node::Type::Buffer || buffer->type == AML::Node::Type::String);
+
+			const auto& buffer = (this->buffer->type == AML::Node::Type::Buffer)
+				? static_cast<AML::Buffer*>(this->buffer.ptr())->buffer
+				: static_cast<AML::String*>(this->buffer.ptr())->string;
+
+			uint64_t value = 0;
+
+			// TODO: optimize for whole byte accesses
+			for (size_t i = 0; i < BAN::Math::min<size_t>(field_bit_size, 64); i++)
+			{
+				const size_t bit = field_bit_offset + i;
+				value |= static_cast<uint64_t>((buffer[bit / 8] >> (bit % 8)) & 1) << i;
+			}
+
+			return MUST(BAN::RefPtr<Integer>::create(value));
+		}
 	};
 
 }

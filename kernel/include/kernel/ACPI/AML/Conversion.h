@@ -61,13 +61,13 @@ namespace Kernel::ACPI::AML
 			switch (opcode)
 			{
 				case AML::Byte::ToBufferOp:
-					converted = data_node->as_buffer();
+					converted = data_node->convert(AML::Node::ConvBuffer);
 					break;
 				case AML::Byte::ToIntegerOp:
-					converted = data_node->as_integer();
+					converted = data_node->convert(AML::Node::ConvInteger);
 					break;
 				case AML::Byte::ToStringOp:
-					converted = data_node->as_string();
+					converted = data_node->convert(AML::Node::ConvString);
 					break;
 				default:
 					ASSERT_NOT_REACHED();

@@ -10,7 +10,7 @@
 namespace Kernel::ACPI::AML
 {
 
-	struct Method : public AML::Scope
+	struct Method final : public AML::Scope
 	{
 		Kernel::Mutex mutex;
 		uint8_t arg_count;
@@ -26,6 +26,8 @@ namespace Kernel::ACPI::AML
 			, serialized(serialized)
 			, sync_level(sync_level)
 		{}
+
+		BAN::RefPtr<AML::Node> convert(uint8_t) override { return {}; }
 
 		static ParseResult parse(AML::ParseContext& context)
 		{
@@ -98,13 +100,13 @@ namespace Kernel::ACPI::AML
 			ParseContext context;
 			context.aml_data = term_list;
 			context.scope = scope;
-			context.method_args[0] = MUST(BAN::RefPtr<AML::Register>::create(arg0));
-			context.method_args[1] = MUST(BAN::RefPtr<AML::Register>::create(arg1));
-			context.method_args[2] = MUST(BAN::RefPtr<AML::Register>::create(arg2));
-			context.method_args[3] = MUST(BAN::RefPtr<AML::Register>::create(arg3));
-			context.method_args[4] = MUST(BAN::RefPtr<AML::Register>::create(arg4));
-			context.method_args[5] = MUST(BAN::RefPtr<AML::Register>::create(arg5));
-			context.method_args[6] = MUST(BAN::RefPtr<AML::Register>::create(arg6));
+			context.method_args[0] = MUST(BAN::RefPtr<AML::Register>::create(arg0 && arg0->type == AML::Node::Type::Register ? static_cast<AML::Register*>(arg0.ptr())->value : arg0));
+			context.method_args[1] = MUST(BAN::RefPtr<AML::Register>::create(arg1 && arg1->type == AML::Node::Type::Register ? static_cast<AML::Register*>(arg1.ptr())->value : arg1));
+			context.method_args[2] = MUST(BAN::RefPtr<AML::Register>::create(arg2 && arg2->type == AML::Node::Type::Register ? static_cast<AML::Register*>(arg2.ptr())->value : arg2));
+			context.method_args[3] = MUST(BAN::RefPtr<AML::Register>::create(arg3 && arg3->type == AML::Node::Type::Register ? static_cast<AML::Register*>(arg3.ptr())->value : arg3));
+			context.method_args[4] = MUST(BAN::RefPtr<AML::Register>::create(arg4 && arg4->type == AML::Node::Type::Register ? static_cast<AML::Register*>(arg4.ptr())->value : arg4));
+			context.method_args[5] = MUST(BAN::RefPtr<AML::Register>::create(arg5 && arg5->type == AML::Node::Type::Register ? static_cast<AML::Register*>(arg5.ptr())->value : arg5));
+			context.method_args[6] = MUST(BAN::RefPtr<AML::Register>::create(arg6 && arg6->type == AML::Node::Type::Register ? static_cast<AML::Register*>(arg6.ptr())->value : arg6));
 			context.sync_stack = BAN::move(current_sync_stack);
 			for (auto& local : context.method_locals)
 				local = MUST(BAN::RefPtr<AML::Register>::create());
@@ -142,8 +144,8 @@ namespace Kernel::ACPI::AML
 				}
 			}
 
-			if (return_value.has_value() && return_value.value())
-				return_value = return_value.value()->evaluate();
+			if (return_value.has_value() && return_value.value() && return_value.value()->type == AML::Node::Type::Register)
+				return_value.value() = static_cast<AML::Register*>(return_value.value().ptr())->value;
 
 			while (!context.created_objects.empty())
 			{

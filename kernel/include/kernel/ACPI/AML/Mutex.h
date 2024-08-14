@@ -10,7 +10,7 @@
 namespace Kernel::ACPI::AML
 {
 
-	struct Mutex : public AML::NamedObject
+	struct Mutex final : public AML::NamedObject
 	{
 		Kernel::Mutex mutex;
 		uint8_t sync_level;
@@ -19,6 +19,8 @@ namespace Kernel::ACPI::AML
 			: NamedObject(Node::Type::Mutex, name)
 			, sync_level(sync_level)
 		{}
+
+		BAN::RefPtr<AML::Node> convert(uint8_t) override { return {}; }
 
 		static ParseResult parse(ParseContext& context)
 		{

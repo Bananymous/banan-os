@@ -5,7 +5,7 @@
 namespace Kernel::ACPI::AML
 {
 
-	struct Register : public AML::Node
+	struct Register final : public AML::Node
 	{
 		BAN::RefPtr<AML::Node> value;
 
@@ -17,30 +17,22 @@ namespace Kernel::ACPI::AML
 			, value(value)
 		{}
 
-		BAN::RefPtr<AML::Buffer> as_buffer() override;
-		BAN::RefPtr<AML::Integer> as_integer() override;
-		BAN::RefPtr<AML::String> as_string() override;
-
-		BAN::RefPtr<AML::Node> evaluate() override
+		BAN::RefPtr<AML::Node> convert(uint8_t mask) override
 		{
-			if (value)
-				return value->evaluate();
-			return {};
+			if (!value)
+			{
+				AML_ERROR("Trying to convert null Register");
+				return {};
+			}
+			return value->convert(mask);
 		}
 
-		bool store(BAN::RefPtr<AML::Node> source) override
+		BAN::RefPtr<AML::Node> store(BAN::RefPtr<AML::Node> source) override
 		{
 			if (value && value->type == AML::Node::Type::Reference)
 				return value->store(source);
-
-			auto evaluated = source->evaluate();
-			if (!evaluated)
-			{
-				AML_ERROR("Failed to evaluate source for store");
-				return false;
-			}
-			value = evaluated->copy();
-			return true;
+			value = source->copy();
+			return value;
 		}
 
 		void debug_print(int indent) const override

@@ -11,7 +11,7 @@ namespace Kernel::ACPI::AML
 
 	struct PackageElement;
 
-	struct Package : public AML::Node
+	struct Package final : public AML::Node
 	{
 		BAN::Vector<BAN::RefPtr<PackageElement>> elements;
 		AML::NameString scope;
@@ -22,16 +22,13 @@ namespace Kernel::ACPI::AML
 			, scope(scope)
 		{}
 
-		BAN::RefPtr<AML::Node> evaluate() override
-		{
-			return this;
-		}
+		BAN::RefPtr<AML::Node> convert(uint8_t) override { return {}; }
 
 		static ParseResult parse(AML::ParseContext& context);
 		virtual void debug_print(int indent) const override;
 	};
 
-	struct PackageElement : public AML::Node
+	struct PackageElement final : public AML::Node
 	{
 		BAN::RefPtr<AML::Package> parent;
 		BAN::RefPtr<AML::Node> element;
@@ -82,7 +79,19 @@ namespace Kernel::ACPI::AML
 			return true;
 		}
 
-		bool store(BAN::RefPtr<AML::Node> node) override
+		BAN::RefPtr<AML::Node> convert(uint8_t mask) override
+		{
+			if (!initialized)
+			{
+				AML_ERROR("Trying to store into uninitialized PackageElement");
+				return {};
+			}
+			if (!resolved && !resolve())
+				return {};
+			return element->convert(mask);
+		}
+
+		BAN::RefPtr<AML::Node> store(BAN::RefPtr<AML::Node> node) override
 		{
 			if (!initialized)
 			{
@@ -94,31 +103,7 @@ namespace Kernel::ACPI::AML
 			if (element->type == AML::Node::Type::Reference)
 				return element->store(node);
 			element = node->copy();
-			return true;
-		}
-
-		BAN::RefPtr<AML::Integer> as_integer() override
-		{
-			if (!initialized)
-			{
-				AML_ERROR("Trying to evaluate uninitialized PackageElement");
-				return {};
-			}
-			if (!resolved && !resolve())
-				return {};
-			return element->as_integer();
-		}
-
-		BAN::RefPtr<AML::Node> evaluate() override
-		{
-			if (!initialized)
-			{
-				AML_ERROR("Trying to evaluate uninitialized PackageElement");
-				return {};
-			}
-			if (!resolved && !resolve())
-				return {};
-			return element->evaluate();
+			return element;
 		}
 
 		static ParseResult parse(AML::ParseContext& context, BAN::RefPtr<AML::Package> package)

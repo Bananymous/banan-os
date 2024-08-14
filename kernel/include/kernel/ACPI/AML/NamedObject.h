@@ -6,7 +6,7 @@
 namespace Kernel::ACPI::AML
 {
 
-	struct NamedObject : public Node
+	struct NamedObject : public AML::Node
 	{
 		BAN::RefPtr<NamedObject> parent;
 		NameSeg name;
@@ -14,7 +14,7 @@ namespace Kernel::ACPI::AML
 		NamedObject(Node::Type type, NameSeg name) : Node(type), name(name) {}
 	};
 
-	struct Name : public NamedObject
+	struct Name final : public AML::NamedObject
 	{
 		BAN::RefPtr<AML::Node> object;
 
@@ -22,21 +22,15 @@ namespace Kernel::ACPI::AML
 			: NamedObject(Node::Type::Name, name), object(BAN::move(object))
 		{}
 
-		BAN::RefPtr<AML::Buffer> as_buffer() override;
-		BAN::RefPtr<AML::Integer> as_integer() override;
-		BAN::RefPtr<AML::String> as_string() override;
+		BAN::RefPtr<AML::Node> convert(uint8_t) override { return {}; }
 
-		BAN::RefPtr<AML::Node> evaluate() override
+		BAN::RefPtr<AML::Node> store(BAN::RefPtr<AML::Node> node) override
 		{
 			ASSERT(object);
-			return object->evaluate();
-		}
-
-		bool store(BAN::RefPtr<AML::Node> node) override
-		{
-			ASSERT(object);
+			if (object->type == AML::Node::Type::Reference)
+				return object->store(node);
 			object = node;
-			return true;
+			return node;
 		}
 
 		static ParseResult parse(ParseContext& context);

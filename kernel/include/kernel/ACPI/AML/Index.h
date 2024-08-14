@@ -20,22 +20,32 @@ namespace Kernel::ACPI::AML
 			auto source_result = AML::parse_object(context);
 			if (!source_result.success())
 				return ParseResult::Failure;
-			auto source = source_result.node() ? source_result.node()->evaluate() : BAN::RefPtr<AML::Node>();
+			auto source = source_result.node()
+				? source_result.node()->convert(AML::Node::ConvBuffer | AML::Node::ConvInteger | AML::Node::ConvString)
+				: BAN::RefPtr<AML::Node>();
 			if (!source)
 			{
-				AML_ERROR("IndexOp source is null");
+				AML_ERROR("IndexOp source could not be converted");
+				if (source)
+				{
+					source->debug_print(0);
+					AML_DEBUG_PRINTLN("");
+				}
 				return ParseResult::Failure;
 			}
 
 			auto index_result = AML::parse_object(context);
 			if (!index_result.success())
 				return ParseResult::Failure;
-			auto index = index_result.node() ? index_result.node()->as_integer() : BAN::RefPtr<AML::Integer>();
-			if (!index)
+			auto index_node = source_result.node()
+				? source_result.node()->convert(AML::Node::ConvInteger)
+				: BAN::RefPtr<AML::Node>();
+			if (!index_node)
 			{
 				AML_ERROR("IndexOp index is not an integer");
 				return ParseResult::Failure;
 			}
+			const auto index = static_cast<AML::Integer*>(index_node.ptr())->value;
 
 			BAN::RefPtr<AML::Reference> result;
 			switch (source->type)
@@ -43,36 +53,36 @@ namespace Kernel::ACPI::AML
 				case AML::Node::Type::Buffer:
 				{
 					auto buffer = BAN::RefPtr<AML::Buffer>(static_cast<AML::Buffer*>(source.ptr()));
-					if (index->value >= buffer->buffer.size())
+					if (index >= buffer->buffer.size())
 					{
 						AML_ERROR("IndexOp index is out of buffer bounds");
 						return ParseResult::Failure;
 					}
-					auto buffer_field = MUST(BAN::RefPtr<BufferField>::create(NameSeg(""_sv), buffer, index->value * 8, 8));
+					auto buffer_field = MUST(BAN::RefPtr<BufferField>::create(NameSeg(""_sv), buffer, index * 8, 8));
 					result = MUST(BAN::RefPtr<AML::Reference>::create(buffer_field));
 					break;
 				}
 				case AML::Node::Type::Package:
 				{
 					auto package = static_cast<AML::Package*>(source.ptr());
-					if (index->value >= package->elements.size())
+					if (index >= package->elements.size())
 					{
 						AML_ERROR("IndexOp index is out of package bounds");
 						return ParseResult::Failure;
 					}
-					auto package_element = package->elements[index->value];
+					auto package_element = package->elements[index];
 					result = MUST(BAN::RefPtr<AML::Reference>::create(package_element));
 					break;
 				}
 				case AML::Node::Type::String:
 				{
 					auto string = BAN::RefPtr<AML::String>(static_cast<AML::String*>(source.ptr()));
-					if (index->value >= string->string.size())
+					if (index >= string->string.size())
 					{
 						AML_ERROR("IndexOp index is out of string bounds");
 						return ParseResult::Failure;
 					}
-					auto buffer_field = MUST(BAN::RefPtr<BufferField>::create(NameSeg(""_sv), string, index->value * 8, 8));
+					auto buffer_field = MUST(BAN::RefPtr<BufferField>::create(NameSeg(""_sv), string, index * 8, 8));
 					result = MUST(BAN::RefPtr<AML::Reference>::create(buffer_field));
 					break;
 				}
@@ -82,7 +92,7 @@ namespace Kernel::ACPI::AML
 			}
 
 #if AML_DEBUG_LEVEL >= 2
-			AML_DEBUG_PRINT("Index {}, ", index->value);
+			AML_DEBUG_PRINT("Index {}, ", index);
 			source->debug_print(0);
 			AML_DEBUG_PRINTLN("");
 #endif

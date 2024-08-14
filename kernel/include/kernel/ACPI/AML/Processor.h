@@ -9,7 +9,7 @@
 namespace Kernel::ACPI::AML
 {
 
-	struct Processor : public AML::Scope
+	struct Processor final : public AML::Scope
 	{
 		uint8_t id;
 		uint32_t pblk_addr;
@@ -21,6 +21,8 @@ namespace Kernel::ACPI::AML
 			, pblk_addr(pblk_addr)
 			, pblk_len(pblk_len)
 		{}
+
+		BAN::RefPtr<AML::Node> convert(uint8_t) override { return {}; }
 
 		static ParseResult parse(ParseContext& context)
 		{

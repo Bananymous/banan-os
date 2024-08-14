@@ -47,7 +47,7 @@ namespace Kernel::ACPI::AML
 		uint8_t access_length = 0;
 	};
 
-	struct FieldElement : public NamedObject
+	struct FieldElement final : public AML::NamedObject
 	{
 		uint64_t bit_offset;
 		uint64_t bit_count;
@@ -63,14 +63,30 @@ namespace Kernel::ACPI::AML
 			, access_rules(access_rules)
 		{}
 
-		BAN::RefPtr<AML::Integer> as_integer() override;
+		BAN::RefPtr<AML::Node> convert(uint8_t mask) override
+		{
+			if (mask & AML::Node::ConvInteger)
+				return as_integer();
+			if (mask & AML::Node::ConvBuffer)
+			{
+				AML_TODO("Convert BankFieldElement to Buffer");
+				return {};
+			}
+			if (mask & AML::Node::ConvString)
+			{
+				AML_TODO("Convert BankFieldElement to String");
+				return {};
+			}
+			return {};
+		}
 
-		BAN::RefPtr<Node> evaluate() override { return as_integer(); }
-		bool store(BAN::RefPtr<Node> source) override;
+		BAN::RefPtr<AML::Node> store(BAN::RefPtr<Node> source) override;
 
 		void debug_print(int indent) const override;
 
 	private:
+		BAN::RefPtr<AML::Integer> as_integer();
+
 		BAN::Optional<uint64_t> evaluate_internal();
 		bool store_internal(uint64_t value);
 
@@ -83,7 +99,7 @@ namespace Kernel::ACPI::AML
 		static ParseResult parse(ParseContext& context);
 	};
 
-	struct IndexFieldElement : public NamedObject
+	struct IndexFieldElement final : public AML::NamedObject
 	{
 		uint64_t bit_offset;
 		uint64_t bit_count;
@@ -100,12 +116,30 @@ namespace Kernel::ACPI::AML
 			, access_rules(access_rules)
 		{}
 
-		BAN::RefPtr<AML::Integer> as_integer() override;
+		BAN::RefPtr<AML::Node> convert(uint8_t mask) override
+		{
+			if (mask & AML::Node::ConvInteger)
+				if (auto node = as_integer())
+					return node;
+			if (mask & AML::Node::ConvBuffer)
+			{
+				AML_TODO("convert BankFieldElement to Buffer");
+				return {};
+			}
+			if (mask & AML::Node::ConvString)
+			{
+				AML_TODO("convert BankFieldElement to String");
+				return {};
+			}
+			return {};
+		}
 
-		BAN::RefPtr<AML::Node> evaluate() override { return as_integer(); }
-		bool store(BAN::RefPtr<Node> source) override;
+		BAN::RefPtr<AML::Node> store(BAN::RefPtr<Node> source) override;
 
 		void debug_print(int indent) const override;
+
+	private:
+		BAN::RefPtr<AML::Integer> as_integer();
 	};
 
 	struct IndexField
@@ -113,7 +147,7 @@ namespace Kernel::ACPI::AML
 		static ParseResult parse(ParseContext& context);
 	};
 
-	struct BankFieldElement : public NamedObject
+	struct BankFieldElement final : public AML::NamedObject
 	{
 		uint64_t bit_offset;
 		uint64_t bit_count;
@@ -131,10 +165,30 @@ namespace Kernel::ACPI::AML
 			, access_rules(access_rules)
 		{}
 
-		BAN::RefPtr<Node> evaluate() override;
-		bool store(BAN::RefPtr<Node> source) override;
+		BAN::RefPtr<AML::Node> convert(uint8_t mask) override
+		{
+			if (mask & AML::Node::ConvInteger)
+				if (auto node = as_integer())
+					return node;
+			if (mask & AML::Node::ConvBuffer)
+			{
+				AML_TODO("convert BankFieldElement to Buffer");
+				return {};
+			}
+			if (mask & AML::Node::ConvString)
+			{
+				AML_TODO("convert BankFieldElement to String");
+				return {};
+			}
+			return {};
+		}
+
+		BAN::RefPtr<AML::Node> store(BAN::RefPtr<Node> source) override;
 
 		void debug_print(int indent) const override;
+
+	private:
+		BAN::RefPtr<AML::Integer> as_integer();
 	};
 
 	struct BankField

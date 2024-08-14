@@ -8,11 +8,13 @@
 namespace Kernel::ACPI::AML
 {
 
-	struct Device : public AML::Scope
+	struct Device final : public AML::Scope
 	{
 		Device(NameSeg name)
 			: Scope(Node::Type::Device, name)
 		{}
+
+		BAN::RefPtr<AML::Node> convert(uint8_t) override { return {}; }
 
 		static ParseResult parse(ParseContext& context)
 		{

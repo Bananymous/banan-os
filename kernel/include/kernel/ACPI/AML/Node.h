@@ -17,8 +17,18 @@ namespace Kernel::ACPI::AML
 	{
 		static uint64_t total_node_count;
 
-		enum class Type
+		enum Conversion : uint8_t
 		{
+			ConvBuffer      = 1 << 0,
+			ConvBufferField = 1 << 1,
+			ConvFieldUnit   = 1 << 2,
+			ConvInteger     = 1 << 3,
+			ConvString      = 1 << 4,
+		};
+
+		enum class Type : uint8_t
+		{
+			None,
 			Alias,
 			BankFieldElement,
 			Buffer,
@@ -50,14 +60,9 @@ namespace Kernel::ACPI::AML
 
 		virtual bool is_scope() const { return false; }
 
-		virtual BAN::RefPtr<Node> copy() { return this; }
-
-		[[nodiscard]] virtual BAN::RefPtr<AML::Buffer> as_buffer();
-		[[nodiscard]] virtual BAN::RefPtr<AML::Integer> as_integer();
-		[[nodiscard]] virtual BAN::RefPtr<AML::String> as_string();
-
-		[[nodiscard]] virtual BAN::RefPtr<AML::Node> evaluate() { AML_TODO("evaluate, type {}", static_cast<uint8_t>(type)); return nullptr; }
-		[[nodiscard]] virtual bool store(BAN::RefPtr<AML::Node>) { AML_TODO("store, type {}", static_cast<uint8_t>(type)); return false; }
+		[[nodiscard]] virtual BAN::RefPtr<AML::Node> convert(uint8_t mask) = 0;
+		[[nodiscard]] virtual BAN::RefPtr<Node> copy() { return this; }
+		[[nodiscard]] virtual BAN::RefPtr<AML::Node> store(BAN::RefPtr<AML::Node>) { AML_TODO("store, type {}", static_cast<uint8_t>(type)); return {}; }
 
 		virtual void debug_print(int indent) const = 0;
 	};

@@ -8,7 +8,7 @@
 namespace Kernel::ACPI::AML
 {
 
-	struct OpRegion : public NamedObject
+	struct OpRegion final : public AML::NamedObject
 	{
 		using RegionSpace = GAS::AddressSpaceID;
 		RegionSpace region_space;
@@ -23,6 +23,8 @@ namespace Kernel::ACPI::AML
 			, region_offset(region_offset)
 			, region_length(region_length)
 		{}
+
+		BAN::RefPtr<AML::Node> convert(uint8_t) override { return {}; }
 
 		static ParseResult parse(AML::ParseContext& context)
 		{
@@ -43,8 +45,10 @@ namespace Kernel::ACPI::AML
 			auto offset_result = AML::parse_object(context);
 			if (!offset_result.success())
 				return ParseResult::Failure;
-			auto offset = offset_result.node()->as_integer();
-			if (!offset)
+			auto offset_node = offset_result.node()
+				? offset_result.node()->convert(AML::Node::ConvInteger)
+				: BAN::RefPtr<AML::Node>();
+			if (!offset_node)
 			{
 				AML_ERROR("OpRegion offset must be an integer");
 				return ParseResult::Failure;
@@ -53,18 +57,23 @@ namespace Kernel::ACPI::AML
 			auto length_result = AML::parse_object(context);
 			if (!length_result.success())
 				return ParseResult::Failure;
-			auto length = length_result.node()->as_integer();
-			if (!length)
+			auto length_node = length_result.node()
+				? length_result.node()->convert(AML::Node::ConvInteger)
+				: BAN::RefPtr<AML::Node>();
+			if (!length_node)
 			{
 				AML_ERROR("OpRegion length must be an integer");
 				return ParseResult::Failure;
 			}
 
+			const auto offset = static_cast<AML::Integer*>(offset_node.ptr())->value;
+			const auto length = static_cast<AML::Integer*>(length_node.ptr())->value;
+
 			auto op_region = MUST(BAN::RefPtr<OpRegion>::create(
 				name->path.back(),
 				region_space,
-				offset->value,
-				length->value
+				offset,
+				length
 			));
 
 			if (!Namespace::root_namespace()->add_named_object(context, name.value(), op_region))

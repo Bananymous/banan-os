@@ -8,8 +8,9 @@
 namespace Kernel::ACPI::AML
 {
 
-	struct Namespace : public AML::Scope
+	struct Namespace final : public AML::Scope
 	{
+		static BAN::RefPtr<AML::Namespace> create_root_namespace();
 		static BAN::RefPtr<AML::Namespace> root_namespace();
 		static BAN::RefPtr<AML::Node> debug_node;
 
@@ -35,7 +36,8 @@ namespace Kernel::ACPI::AML
 
 		Namespace(NameSeg name) : AML::Scope(Node::Type::Namespace, name) {}
 
-		static BAN::RefPtr<AML::Namespace> create_root_namespace();
+		BAN::RefPtr<AML::Node> convert(uint8_t) override { return {}; }
+
 		bool parse(const SDTHeader& header);
 
 		void debug_print(int indent) const override;

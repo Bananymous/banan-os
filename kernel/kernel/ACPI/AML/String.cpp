@@ -6,7 +6,7 @@ namespace Kernel::ACPI::AML
 
 	BAN::Optional<bool> String::logical_compare(BAN::RefPtr<AML::Node> node, AML::Byte binaryop)
 	{
-		auto rhs = node ? node->as_string() : BAN::RefPtr<AML::String>();
+		auto rhs = node ? node->convert(AML::Node::ConvString) : BAN::RefPtr<AML::Node>();
 		if (!rhs)
 		{
 			AML_ERROR("String logical compare RHS is not string");
@@ -25,6 +25,20 @@ namespace Kernel::ACPI::AML
 		for (size_t i = 0; i < string.size(); i++)
 			buffer->buffer[i] = string[i];
 		return buffer;
+	}
+
+	BAN::RefPtr<AML::Node> String::convert(uint8_t mask)
+	{
+		if (mask & AML::Node::ConvString)
+			return this;
+		if (mask & AML::Node::ConvInteger)
+		{
+			AML_TODO("Convert String to Integer");
+			return {};
+		}
+		if (mask & AML::Node::ConvBuffer)
+			return as_buffer();
+		return {};
 	}
 
 	ParseResult String::parse(ParseContext& context)

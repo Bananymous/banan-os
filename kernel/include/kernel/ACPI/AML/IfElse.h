@@ -26,12 +26,13 @@ namespace Kernel::ACPI::AML
 			auto predicate_result = AML::parse_object(context);
 			if (!predicate_result.success())
 				return ParseResult::Failure;
-			auto predicate = predicate_result.node() ? predicate_result.node()->as_integer() : BAN::RefPtr<AML::Integer>();
-			if (!predicate)
+			auto predicate_node = predicate_result.node() ? predicate_result.node()->convert(AML::Node::ConvInteger) : BAN::RefPtr<AML::Node>();
+			if (!predicate_node)
 			{
 				AML_ERROR("If predicate is not an integer");
 				return ParseResult::Failure;
 			}
+			const auto predicate_value = static_cast<AML::Integer*>(predicate_node.ptr())->value;
 
 			// Else
 			BAN::ConstByteSpan else_pkg;
@@ -43,7 +44,7 @@ namespace Kernel::ACPI::AML
 					return ParseResult::Failure;
 				else_pkg = else_pkg_result.value();
 			}
-			if (predicate->value == 0)
+			if (predicate_value == 0)
 				context.aml_data = else_pkg;
 
 			while (context.aml_data.size() > 0)

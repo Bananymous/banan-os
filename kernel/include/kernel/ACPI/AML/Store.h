@@ -17,10 +17,10 @@ namespace Kernel::ACPI::AML
 			auto source_result = AML::parse_object(context);
 			if (!source_result.success())
 				return ParseResult::Failure;
-			auto source = source_result.node() ? source_result.node()->evaluate() : BAN::RefPtr<AML::Node>();
+			auto source = source_result.node();
 			if (!source)
 			{
-				AML_ERROR("Store source cannot be evaluated");
+				AML_ERROR("Store source is null");
 				return ParseResult::Failure;
 			}
 

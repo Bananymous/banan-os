@@ -2,6 +2,7 @@
 #include <BAN/StringView.h>
 #include <kernel/ACPI/ACPI.h>
 #include <kernel/ACPI/AML.h>
+#include <kernel/ACPI/AML/Alias.h>
 #include <kernel/ACPI/AML/Device.h>
 #include <kernel/ACPI/AML/Field.h>
 #include <kernel/ACPI/AML/Integer.h>
@@ -144,10 +145,10 @@ acpi_release_global_lock:
 		auto field_element = MUST(BAN::RefPtr<AML::FieldElement>::create(""_sv, register_bit_offset, register_bit_width, field_rules));
 		field_element->op_region = op_region;
 
-		auto result = field_element->as_integer();
+		auto result = field_element->convert(AML::Node::ConvInteger);
 		if (!result)
 			return {};
-		return result->value;
+		return static_cast<AML::Integer*>(result.ptr())->value;
 	}
 
 	bool GAS::write(uint64_t value)
@@ -168,7 +169,7 @@ acpi_release_global_lock:
 		auto field_element = MUST(BAN::RefPtr<AML::FieldElement>::create(""_sv, register_bit_offset, register_bit_width, field_rules));
 		field_element->op_region = op_region;
 
-		return field_element->store(MUST(BAN::RefPtr<AML::Integer>::create(value)));
+		return !!field_element->store(MUST(BAN::RefPtr<AML::Integer>::create(value)));
 	}
 
 	enum PM1Event : uint16_t
@@ -494,7 +495,25 @@ acpi_release_global_lock:
 			dwarnln("\\_S5 not found");
 			return;
 		}
-		auto s5_evaluated = s5_object->evaluate();
+		BAN::RefPtr<AML::Node> s5_evaluated = s5_object;
+		while (true)
+		{
+			bool done = false;
+			switch (s5_evaluated->type)
+			{
+				case AML::Node::Type::Alias:
+					s5_evaluated = static_cast<AML::Alias*>(s5_evaluated.ptr())->target;
+					break;
+				case AML::Node::Type::Name:
+					s5_evaluated = static_cast<AML::Name*>(s5_evaluated.ptr())->object;
+					break;
+				default:
+					done = true;
+					break;
+			}
+			if (done)
+				break;
+		}
 		if (!s5_evaluated)
 		{
 			dwarnln("Failed to evaluate \\_S5");
@@ -512,9 +531,9 @@ acpi_release_global_lock:
 			return;
 		}
 
-		auto slp_typa = s5_package->elements[0]->as_integer();
-		auto slp_typb = s5_package->elements[1]->as_integer();
-		if (!slp_typa || !slp_typb)
+		auto slp_typa_node = s5_package->elements[0]->convert(AML::Node::ConvInteger);
+		auto slp_typb_node = s5_package->elements[1]->convert(AML::Node::ConvInteger);
+		if (!slp_typa_node || !slp_typb_node)
 		{
 			dwarnln("Failed to get SLP_TYPx values");
 			return;
@@ -525,9 +544,12 @@ acpi_release_global_lock:
 
 		dprintln("Entering sleep state S5");
 
+		const auto slp_typa_value = static_cast<AML::Integer*>(slp_typa_node.ptr())->value;
+		const auto slp_typb_value = static_cast<AML::Integer*>(slp_typb_node.ptr())->value;
+
 		uint16_t pm1a_data = IO::inw(fadt().pm1a_cnt_blk);
 		pm1a_data &= ~(PM1_CNT_SLP_TYP_MASK << PM1_CNT_SLP_TYP_SHIFT);
-		pm1a_data |= (slp_typa->value & PM1_CNT_SLP_TYP_MASK) << PM1_CNT_SLP_TYP_SHIFT;
+		pm1a_data |= (slp_typa_value & PM1_CNT_SLP_TYP_MASK) << PM1_CNT_SLP_TYP_SHIFT;
 		pm1a_data |= PM1_CNT_SLP_EN;
 		IO::outw(fadt().pm1a_cnt_blk, pm1a_data);
 
@@ -535,7 +557,7 @@ acpi_release_global_lock:
 		{
 			uint16_t pm1b_data = IO::inw(fadt().pm1b_cnt_blk);
 			pm1b_data &= ~(PM1_CNT_SLP_TYP_MASK << PM1_CNT_SLP_TYP_SHIFT);
-			pm1b_data |= (slp_typb->value & PM1_CNT_SLP_TYP_MASK) << PM1_CNT_SLP_TYP_SHIFT;
+			pm1b_data |= (slp_typb_value & PM1_CNT_SLP_TYP_MASK) << PM1_CNT_SLP_TYP_SHIFT;
 			pm1b_data |= PM1_CNT_SLP_EN;
 			IO::outw(fadt().pm1b_cnt_blk, pm1b_data);
 		}

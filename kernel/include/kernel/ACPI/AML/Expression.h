@@ -1,9 +1,10 @@
 #pragma once
 
+#include <kernel/ACPI/AML/Buffer.h>
 #include <kernel/ACPI/AML/Bytes.h>
 #include <kernel/ACPI/AML/Integer.h>
-#include <kernel/ACPI/AML/Node.h>
 #include <kernel/ACPI/AML/ParseContext.h>
+#include <kernel/ACPI/AML/String.h>
 
 namespace Kernel::ACPI::AML
 {
@@ -25,13 +26,14 @@ namespace Kernel::ACPI::AML
 					auto source_result = AML::parse_object(context);
 					if (!source_result.success())
 						return ParseResult::Failure;
-					auto source_node = source_result.node() ? source_result.node()->as_integer(): BAN::RefPtr<AML::Integer>();
-					if (!source_node)
+					auto conv_node = source_result.node() ? source_result.node()->convert(AML::Node::ConvInteger) : BAN::RefPtr<AML::Node>();
+					if (!conv_node)
 					{
-						AML_ERROR("UnaryOp source not integer");
+						AML_ERROR("UnaryOp source not integer, type {}", static_cast<uint8_t>(source_result.node()->type));
 						return ParseResult::Failure;
 					}
 
+					auto source_node = static_cast<AML::Integer*>(conv_node.ptr());
 					if (source_node->constant)
 					{
 						AML_ERROR("UnaryOp source is constant");
@@ -48,18 +50,23 @@ namespace Kernel::ACPI::AML
 				{
 					context.aml_data = context.aml_data.slice(1);
 
-					auto node_result = AML::parse_object(context);
-					if (!node_result.success())
+					auto source_result = AML::parse_object(context);
+					if (!source_result.success())
 						return ParseResult::Failure;
-
-					auto value = node_result.node() ? node_result.node()->as_integer() : BAN::RefPtr<AML::Integer>();
-					if (!value)
+					auto conv_node = source_result.node() ? source_result.node()->convert(AML::Node::ConvInteger) : BAN::RefPtr<AML::Node>();
+					if (!conv_node)
+					{
+						AML_ERROR("UnaryOp source not integer, type {}", static_cast<uint8_t>(source_result.node()->type));
+						return ParseResult::Failure;
+					}
+					auto source_node = static_cast<AML::Integer*>(conv_node.ptr());
+					if (!source_node)
 					{
 						AML_ERROR("Logical NotOp source is not integer");
 						return ParseResult::Failure;
 					}
 
-					auto result = value->value ? Integer::Constants::Zero : Integer::Constants::Ones;
+					auto result = source_node->value ? Integer::Constants::Zero : Integer::Constants::Ones;
 					return ParseResult(result);
 				}
 				case AML::Byte::AddOp:
@@ -97,21 +104,25 @@ namespace Kernel::ACPI::AML
 			auto lhs_result = AML::parse_object(context);
 			if (!lhs_result.success())
 				return ParseResult::Failure;
-			auto lhs_value = lhs_result.node() ? lhs_result.node()->as_integer() : BAN::RefPtr<AML::Integer>();
-			if (!lhs_value)
+			auto lhs_conv = lhs_result.node() ? lhs_result.node()->convert(AML::Node::ConvInteger) : BAN::RefPtr<AML::Node>();
+			if (!lhs_conv)
 			{
-				AML_ERROR("BinaryOP {2H} LHS not an integer", static_cast<uint8_t>(opcode));
+				AML_ERROR("BinaryOP {2H} LHS not an integer, type {}",
+					static_cast<uint8_t>(opcode),
+					static_cast<uint8_t>(lhs_result.node()->type)
+				);
 				if (lhs_result.node())
 					lhs_result.node()->debug_print(1);
 				AML_DEBUG_PRINTLN("");
 				return ParseResult::Failure;
 			}
+			const auto lhs_value = static_cast<AML::Integer*>(lhs_conv.ptr())->value;
 
 			auto rhs_result = AML::parse_object(context);
 			if (!rhs_result.success())
 				return ParseResult::Failure;
-			auto rhs_value = rhs_result.node() ? rhs_result.node()->as_integer() : BAN::RefPtr<AML::Integer>();
-			if (!rhs_value)
+			auto rhs_conv = rhs_result.node() ? rhs_result.node()->convert(AML::Node::ConvInteger) : BAN::RefPtr<AML::Node>();
+			if (!rhs_conv)
 			{
 				AML_ERROR("BinaryOP {2H} RHS not an integer", static_cast<uint8_t>(opcode));
 				if (rhs_result.node())
@@ -119,12 +130,14 @@ namespace Kernel::ACPI::AML
 				AML_DEBUG_PRINTLN("");
 				return ParseResult::Failure;
 			}
+			const auto rhs_value = static_cast<AML::Integer*>(rhs_conv.ptr())->value;
 
 			if (context.aml_data.size() < 1)
 			{
 				AML_ERROR("BinaryOP {2H} missing target", static_cast<uint8_t>(opcode));
 				return ParseResult::Failure;
 			}
+
 			BAN::RefPtr<AML::Node> target_node;
 			if (context.aml_data[0] == 0x00)
 				context.aml_data = context.aml_data.slice(1);
@@ -159,9 +172,7 @@ namespace Kernel::ACPI::AML
 					ASSERT_NOT_REACHED();
 			}
 
-			uint64_t result = func(lhs_value->value, rhs_value->value);
-			auto result_node = MUST(BAN::RefPtr<AML::Integer>::create(result));
-
+			auto result_node = MUST(BAN::RefPtr<AML::Integer>::create(func(lhs_value, rhs_value)));
 			if (target_node && !target_node->store(result_node))
 			{
 				AML_ERROR("BinaryOp {2H} failed to store result", static_cast<uint8_t>(opcode));
@@ -176,10 +187,26 @@ namespace Kernel::ACPI::AML
 			auto opcode = static_cast<AML::Byte>(context.aml_data[0]);
 			context.aml_data = context.aml_data.slice(1);
 
+			uint8_t mask;
+			switch (opcode)
+			{
+				case AML::Byte::LAndOp:
+				case AML::Byte::LOrOp:
+					mask = AML::Node::ConvInteger;
+					break;
+				case AML::Byte::LEqualOp:
+				case AML::Byte::LGreaterOp:
+				case AML::Byte::LLessOp:
+					mask = AML::Node::ConvInteger | AML::Node::ConvString | AML::Node::ConvBuffer;
+					break;
+				default:
+					ASSERT_NOT_REACHED();
+			}
+
 			auto lhs_result = AML::parse_object(context);
 			if (!lhs_result.success())
 				return ParseResult::Failure;
-			auto lhs_node = lhs_result.node() ? lhs_result.node()->evaluate() : BAN::RefPtr<AML::Node>();
+			auto lhs_node = lhs_result.node() ? lhs_result.node()->convert(mask) : BAN::RefPtr<AML::Node>();
 			if (!lhs_node)
 			{
 				AML_TODO("Logical BinaryOP {2H} LHS evaluated to nothing", static_cast<uint8_t>(opcode));

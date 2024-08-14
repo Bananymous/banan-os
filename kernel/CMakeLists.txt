@@ -7,7 +7,6 @@ set(KERNEL_SOURCES
 	kernel/ACPI/AML/Namespace.cpp
 	kernel/ACPI/AML/Node.cpp
 	kernel/ACPI/AML/Package.cpp
-	kernel/ACPI/AML/Register.cpp
 	kernel/ACPI/AML/Scope.cpp
 	kernel/ACPI/AML/String.cpp
 	kernel/APIC.cpp

@@ -7,24 +7,6 @@
 namespace Kernel::ACPI
 {
 
-	BAN::RefPtr<AML::Buffer> AML::Name::as_buffer()
-	{
-		ASSERT(object);
-		return object->as_buffer();
-	}
-
-	BAN::RefPtr<AML::Integer> AML::Name::as_integer()
-	{
-		ASSERT(object);
-		return object->as_integer();
-	}
-
-	BAN::RefPtr<AML::String> AML::Name::as_string()
-	{
-		ASSERT(object);
-		return object->as_string();
-	}
-
 	AML::ParseResult AML::Name::parse(ParseContext& context)
 	{
 		ASSERT(context.aml_data.size() >= 1);

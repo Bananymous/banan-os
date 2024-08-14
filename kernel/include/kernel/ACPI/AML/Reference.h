@@ -10,7 +10,7 @@
 namespace Kernel::ACPI::AML
 {
 
-	struct Reference : public AML::Node
+	struct Reference final : public AML::Node
 	{
 		BAN::RefPtr<AML::Node> node;
 
@@ -21,24 +21,22 @@ namespace Kernel::ACPI::AML
 			ASSERT(node);
 		}
 
-		BAN::RefPtr<AML::Integer> as_integer() override
-		{
-			if (node)
-				return node->as_integer();
-			return {};
-		}
-
-		BAN::RefPtr<AML::Node> evaluate() override
-		{
-			return this;
-		}
-
-		bool store(BAN::RefPtr<AML::Node> value) override
+		BAN::RefPtr<AML::Node> convert(uint8_t mask) override
 		{
 			if (!node)
 			{
-				AML_ERROR("Storing to null reference");
-				return false;
+				AML_ERROR("Trying to convert null Reference");
+				return {};
+			}
+			return node->convert(mask);
+		}
+
+		BAN::RefPtr<AML::Node> store(BAN::RefPtr<AML::Node> value) override
+		{
+			if (!node)
+			{
+				AML_ERROR("Storing to null Reference");
+				return {};
 			}
 			return node->store(value);
 		}
@@ -79,6 +77,8 @@ namespace Kernel::ACPI::AML
 				if (!parse_result.success())
 					return ParseResult::Failure;
 				object = parse_result.node();
+				if (object && object->type == AML::Node::Type::Register)
+					object = static_cast<AML::Register*>(object.ptr())->value;
 			}
 
 			if (!conditional)
@@ -96,18 +96,26 @@ namespace Kernel::ACPI::AML
 				return ParseResult(reference);
 			}
 
-			if (context.aml_data.size() >= 1 && context.aml_data[0] != 0x00)
+			if (context.aml_data.size() < 1)
+			{
+				AML_ERROR("CondRefOf missing target");
+				return ParseResult::Failure;
+			}
+
+			BAN::RefPtr<AML::Node> target_node;
+			if (context.aml_data[0] == 0x00)
+				context.aml_data = context.aml_data.slice(1);
+			else
 			{
 				auto target_result = AML::parse_object(context);
 				if (!target_result.success())
 					return ParseResult::Failure;
-				auto target_node = target_result.node();
+				target_node = target_result.node();
 				if (!target_node)
 				{
 					AML_ERROR("CondRefOf failed to resolve target");
 					return ParseResult::Failure;
 				}
-				target_node->store(MUST(BAN::RefPtr<Reference>::create(object)));
 			}
 
 #if AML_DEBUG_LEVEL >= 2
@@ -119,8 +127,16 @@ namespace Kernel::ACPI::AML
 			AML_DEBUG_PRINTLN("");
 #endif
 
-			auto return_value = object ? Integer::Constants::Ones : Integer::Constants::Zero;
-			return AML::ParseResult(return_value);
+			if (!object)
+				return AML::ParseResult(Integer::Constants::Zero);
+
+			if (target_node && !target_node->store(object))
+			{
+				AML_ERROR("CondRefOf failed to store into target");
+				return ParseResult::Failure;
+			}
+
+			return AML::ParseResult(Integer::Constants::Ones);
 		}
 
 		static ParseResult parse_dereference(ParseContext& context)
@@ -144,18 +160,20 @@ namespace Kernel::ACPI::AML
 				auto parse_result = AML::parse_object(context);
 				if (!parse_result.success())
 					return ParseResult::Failure;
-				auto object = parse_result.node() ? parse_result.node()->evaluate() : BAN::RefPtr<AML::Node>();
-				if (!object || object->type != AML::Node::Type::Reference)
+				auto node = parse_result.node();
+				if (node && node->type == AML::Node::Type::Register)
+					node = static_cast<AML::Register*>(node.ptr())->value;
+				if (!node || node->type != AML::Node::Type::Reference)
 				{
-					AML_TODO("DerefOf source is not a Reference, but a {}", object ? static_cast<uint8_t>(object->type) : 999);
+					AML_TODO("DerefOf source is not a Reference, but a {}", node ? static_cast<uint8_t>(node->type) : 999);
 					return ParseResult::Failure;
 				}
 #if AML_DEBUG_LEVEL >= 2
 				AML_DEBUG_PRINT("DerefOf ");
-				object->debug_print(0);
+				node->debug_print(0);
 				AML_DEBUG_PRINTLN("");
 #endif
-				return ParseResult(static_cast<Reference*>(object.ptr())->node);
+				return ParseResult(static_cast<Reference*>(node.ptr())->node);
 			}
 		}
 
@@ -164,6 +182,7 @@ namespace Kernel::ACPI::AML
 			AML_DEBUG_PRINT_INDENT(indent);
 			AML_DEBUG_PRINTLN("Reference {");
 			node->debug_print(indent + 1);
+			AML_DEBUG_PRINTLN("");
 			AML_DEBUG_PRINT_INDENT(indent);
 			AML_DEBUG_PRINT("}");
 		}

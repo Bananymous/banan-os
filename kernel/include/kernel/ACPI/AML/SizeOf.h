@@ -21,30 +21,34 @@ namespace Kernel::ACPI::AML
 			auto object_result = AML::parse_object(context);
 			if (!object_result.success())
 				return ParseResult::Failure;
-			auto object = object_result.node()->evaluate();
-			if (object && object->type == AML::Node::Type::Reference)
-				object = static_cast<AML::Reference*>(object.ptr())->node->evaluate();
-			if (!object)
+			auto object_node = object_result.node();
+			if (!object_node)
 			{
 				AML_ERROR("SizeOf object is null");
 				return ParseResult::Failure;
 			}
+			if (object_node->type != AML::Node::Type::Package)
+				object_node = object_node->convert(AML::Node::ConvBuffer | AML::Node::ConvString);
+			if (!object_node)
+			{
+				AML_ERROR("SizeOf object is not Buffer, String or Package");
+				return ParseResult::Failure;
+			}
 
 			uint64_t size = 0;
-			switch (object->type)
+			switch (object_node->type)
 			{
 				case AML::Node::Type::Buffer:
-					size = static_cast<AML::Buffer*>(object.ptr())->buffer.size();
+					size = static_cast<AML::Buffer*>(object_node.ptr())->buffer.size();
 					break;
 				case AML::Node::Type::String:
-					size = static_cast<AML::String*>(object.ptr())->string.size();
+					size = static_cast<AML::String*>(object_node.ptr())->string.size();
 					break;
 				case AML::Node::Type::Package:
-					size = static_cast<AML::Package*>(object.ptr())->elements.size();
+					size = static_cast<AML::Package*>(object_node.ptr())->elements.size();
 					break;
 				default:
-					AML_ERROR("SizeOf object is not a buffer, string or package ({})", static_cast<uint8_t>(object->type));
-					return ParseResult::Failure;
+					ASSERT_NOT_REACHED();
 			}
 
 			return ParseResult(MUST(BAN::RefPtr<Integer>::create(size)));

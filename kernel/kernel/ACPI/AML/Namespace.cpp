@@ -20,11 +20,12 @@ namespace Kernel::ACPI
 	struct DebugNode : AML::Node
 	{
 		DebugNode() : AML::Node(AML::Node::Type::Debug) {}
-		bool store(BAN::RefPtr<AML::Node> node)
+		BAN::RefPtr<AML::Node> convert(uint8_t) override { return {}; }
+		BAN::RefPtr<AML::Node> store(BAN::RefPtr<AML::Node> node)
 		{
 			node->debug_print(0);
 			AML_DEBUG_PRINTLN("");
-			return true;
+			return node;
 		}
 		void debug_print(int indent) const override
 		{
@@ -236,7 +237,7 @@ namespace Kernel::ACPI
 		auto osi = MUST(BAN::RefPtr<AML::Method>::create(NameSeg("_OSI"_sv), 1, false, 0));
 		osi->override_function = [](AML::ParseContext& context) -> BAN::RefPtr<AML::Node> {
 			ASSERT(context.method_args[0]);
-			auto arg = context.method_args[0]->evaluate();
+			auto arg = context.method_args[0]->convert(AML::Node::ConvString);
 			if (!arg || arg->type != AML::Node::Type::String)
 			{
 				AML_ERROR("Invalid _OSI argument");

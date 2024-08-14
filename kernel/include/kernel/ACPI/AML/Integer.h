@@ -10,7 +10,7 @@
 namespace Kernel::ACPI::AML
 {
 
-	struct Integer : public Node
+	struct Integer final : public AML::Node
 	{
 		struct Constants
 		{
@@ -31,49 +31,70 @@ namespace Kernel::ACPI::AML
 
 		BAN::Optional<bool> logical_compare(BAN::RefPtr<AML::Node> node, AML::Byte binaryop)
 		{
-			auto rhs = node ? node->as_integer() : BAN::RefPtr<AML::Integer>();
-			if (!rhs)
+			auto rhs_node = node ? node->convert(AML::Node::ConvInteger) : BAN::RefPtr<AML::Node>();
+			if (!rhs_node)
 			{
-				AML_ERROR("Integer logical compare RHS is not integer");
+				AML_ERROR("Integer logical compare RHS cannot be converted to");
 				return {};
 			}
+			const auto rhs_value = static_cast<AML::Integer*>(rhs_node.ptr())->value;
 
 			switch (binaryop)
 			{
-				case AML::Byte::LAndOp:		return value && rhs->value;
-				case AML::Byte::LEqualOp:	return value == rhs->value;
-				case AML::Byte::LGreaterOp:	return value > rhs->value;
-				case AML::Byte::LLessOp:	return value < rhs->value;
-				case AML::Byte::LOrOp:		return value || rhs->value;
+				case AML::Byte::LAndOp:		return value && rhs_value;
+				case AML::Byte::LEqualOp:	return value == rhs_value;
+				case AML::Byte::LGreaterOp:	return value > rhs_value;
+				case AML::Byte::LLessOp:	return value < rhs_value;
+				case AML::Byte::LOrOp:		return value || rhs_value;
 				default:
 					ASSERT_NOT_REACHED();
 			}
 		}
 
-		BAN::RefPtr<AML::Integer> as_integer() override { return this; }
+		BAN::RefPtr<AML::Node> convert(uint8_t mask) override
+		{
+			if (mask & AML::Node::ConvInteger)
+				return this;
+			if (mask & AML::Node::ConvBuffer)
+			{
+				AML_TODO("Convert Integer to Buffer");
+				return {};
+			}
+			if (mask & AML::Node::ConvBufferField)
+			{
+				AML_TODO("Convert Integer to BufferField");
+				return {};
+			}
+			if (mask & AML::Node::ConvFieldUnit)
+			{
+				AML_TODO("Convert Integer to FieldUnit");
+				return {};
+			}
+			if (mask & AML::Node::ConvString)
+			{
+				AML_TODO("Convert Integer to String");
+				return {};
+			}
+			return {};
+		}
 
 		BAN::RefPtr<Node> copy() override { return MUST(BAN::RefPtr<Integer>::create(value)); }
 
-		BAN::RefPtr<AML::Node> evaluate() override
-		{
-			return this;
-		}
-
-		bool store(BAN::RefPtr<AML::Node> store_node) override
+		BAN::RefPtr<AML::Node> store(BAN::RefPtr<AML::Node> store_node) override
 		{
 			if (constant)
 			{
 				AML_ERROR("Cannot store to constant integer");
-				return false;
+				return {};
 			}
-			auto store_value = store_node->as_integer();
-			if (!store_value)
+			auto conv_node = store_node ? store_node->convert(AML::Node::ConvInteger) : BAN::RefPtr<AML::Node>();
+			if (!conv_node)
 			{
 				AML_ERROR("Cannot store non-integer to integer");
-				return false;
+				return {};
 			}
-			value = store_value->value;
-			return true;
+			value = static_cast<AML::Integer*>(conv_node.ptr())->value;
+			return MUST(BAN::RefPtr<AML::Integer>::create(value));
 		}
 
 		static ParseResult parse(BAN::ConstByteSpan& aml_data)

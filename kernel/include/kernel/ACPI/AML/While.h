@@ -29,14 +29,16 @@ namespace Kernel::ACPI::AML
 				auto predicate_result = AML::parse_object(context);
 				if (!predicate_result.success())
 					return ParseResult::Failure;
-				auto predicate = predicate_result.node() ? predicate_result.node()->as_integer() : BAN::RefPtr<AML::Integer>();
-				if (!predicate)
+				auto predicate_node = predicate_result.node()
+					? predicate_result.node()->convert(AML::Node::ConvInteger)
+					: BAN::RefPtr<AML::Node>();
+				if (!predicate_node)
 				{
 					AML_ERROR("While predicate is not an integer");
 					return ParseResult::Failure;
 				}
 
-				if (!predicate->value)
+				if (!static_cast<AML::Integer*>(predicate_node.ptr())->value)
 					break;
 
 				while (context.aml_data.size() > 0)

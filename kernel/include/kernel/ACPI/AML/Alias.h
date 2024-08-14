@@ -7,7 +7,7 @@
 namespace Kernel::ACPI::AML
 {
 
-	struct Alias : public AML::NamedObject
+	struct Alias final : public AML::NamedObject
 	{
 		BAN::RefPtr<AML::Node> target;
 
@@ -18,14 +18,11 @@ namespace Kernel::ACPI::AML
 
 		bool is_scope() const override { return target->is_scope(); }
 
+		BAN::RefPtr<AML::Node> convert(uint8_t) override { return {}; }
+
 		BAN::RefPtr<Node> copy() override { return target->copy(); }
 
-		BAN::RefPtr<AML::Buffer> as_buffer() override { return target->as_buffer(); }
-		BAN::RefPtr<AML::Integer> as_integer() override { return target->as_integer(); }
-		BAN::RefPtr<AML::String> as_string() override { return target->as_string(); }
-
-		BAN::RefPtr<AML::Node> evaluate() override { return target->evaluate(); }
-		bool store(BAN::RefPtr<AML::Node> node) override { return target->store(node); }
+		BAN::RefPtr<AML::Node> store(BAN::RefPtr<AML::Node> node) override { ASSERT(target); return target->store(node); }
 
 		static ParseResult parse(ParseContext& context)
 		{
