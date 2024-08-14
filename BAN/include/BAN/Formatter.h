@@ -11,21 +11,21 @@ namespace BAN::Formatter
 	struct ValueFormat;
 
 	template<typename F>
-	static void print(F putc, const char* format);
+	inline void print(F putc, const char* format);
 
 	template<typename F, typename Arg, typename... Args>
-	static void print(F putc, const char* format, Arg&& arg, Args&&... args);
+	inline void print(F putc, const char* format, Arg&& arg, Args&&... args);
 
 	template<typename F, typename... Args>
-	static void println(F putc, const char* format, Args&&... args);
+	inline void println(F putc, const char* format, Args&&... args);
 
 	template<typename F, typename T>
-	static void print_argument(F putc, T value, const ValueFormat& format);
+	inline void print_argument(F putc, T value, const ValueFormat& format);
 
 	namespace detail
 	{
 		template<typename F, typename T>
-		static size_t parse_format_and_print_argument(F putc, const char* format, T&& arg);
+		inline size_t parse_format_and_print_argument(F putc, const char* format, T&& arg);
 	}
 
 	/*
@@ -44,7 +44,7 @@ namespace BAN::Formatter
 	};
 
 	template<typename F>
-	void print(F putc, const char* format)
+	inline void print(F putc, const char* format)
 	{
 		while (*format)
 		{
@@ -54,7 +54,7 @@ namespace BAN::Formatter
 	}
 
 	template<typename F, typename Arg, typename... Args>
-	void print(F putc, const char* format, Arg&& arg, Args&&... args)
+	inline void print(F putc, const char* format, Arg&& arg, Args&&... args)
 	{
 		while (*format && *format != '{')
 		{
@@ -72,7 +72,7 @@ namespace BAN::Formatter
 	}
 
 	template<typename F, typename... Args>
-	void println(F putc, const char* format, Args&&... args)
+	inline void println(F putc, const char* format, Args&&... args)
 	{
 		print(putc, format, args...);
 		putc('\n');
@@ -82,7 +82,7 @@ namespace BAN::Formatter
 	{
 
 		template<typename F, typename Arg>
-		size_t parse_format_and_print_argument(F putc, const char* format, Arg&& argument)
+		inline size_t parse_format_and_print_argument(F putc, const char* format, Arg&& argument)
 		{
 			ValueFormat value_format;
 
@@ -150,7 +150,7 @@ namespace BAN::Formatter
 			return i + 1;
 		}
 
-		static char value_to_base_char(uint8_t value, int base, bool upper)
+		inline char value_to_base_char(uint8_t value, int base, bool upper)
 		{
 			if (base <= 10)
 				return value + '0';
@@ -164,7 +164,7 @@ namespace BAN::Formatter
 		}
 
 		template<typename F, typename T>
-		void print_integer(F putc, T value, const ValueFormat& format)
+		inline void print_integer(F putc, T value, const ValueFormat& format)
 		{
 			if (value == 0)
 			{
@@ -205,7 +205,7 @@ namespace BAN::Formatter
 		}
 
 		template<typename F, typename T>
-		void print_floating(F putc, T value, const ValueFormat& format)
+		inline void print_floating(F putc, T value, const ValueFormat& format)
 		{
 			int64_t int_part = (int64_t)value;
 			T frac_part = value - (T)int_part;
@@ -228,7 +228,7 @@ namespace BAN::Formatter
 		}
 
 		template<typename F>
-		void print_pointer(F putc, void* ptr, const ValueFormat& format)
+		inline void print_pointer(F putc, void* ptr, const ValueFormat& format)
 		{
 			uintptr_t value = (uintptr_t)ptr;
 			print(putc, "0x");
@@ -244,13 +244,13 @@ namespace BAN::Formatter
 
 	*/
 
-	template<typename F, integral		T> void print_argument(F putc, T value, const ValueFormat& format) { detail::print_integer(putc, value, format); }
-	template<typename F, floating_point	T> void print_argument(F putc, T value, const ValueFormat& format) { detail::print_floating(putc, value, format); }
-	template<typename F, pointer		T> void print_argument(F putc, T value, const ValueFormat& format) { detail::print_pointer(putc, (void*)value, format); }
+	template<typename F, integral		T> inline void print_argument(F putc, T value, const ValueFormat& format) { detail::print_integer(putc, value, format); }
+	template<typename F, floating_point	T> inline void print_argument(F putc, T value, const ValueFormat& format) { detail::print_floating(putc, value, format); }
+	template<typename F, pointer		T> inline void print_argument(F putc, T value, const ValueFormat& format) { detail::print_pointer(putc, (void*)value, format); }
 
-	template<typename F> void print_argument(F putc, char			value, const ValueFormat&)	{ putc(value); }
-	template<typename F> void print_argument(F putc, bool			value, const ValueFormat&)	{ print(putc, value ? "true" : "false"); }
-	template<typename F> void print_argument(F putc, const char*	value, const ValueFormat&)	{ print(putc, value); }
-	template<typename F> void print_argument(F putc, char*			value, const ValueFormat&)	{ print(putc, value); }
+	template<typename F> inline void print_argument(F putc, char			value, const ValueFormat&)	{ putc(value); }
+	template<typename F> inline void print_argument(F putc, bool			value, const ValueFormat&)	{ print(putc, value ? "true" : "false"); }
+	template<typename F> inline void print_argument(F putc, const char*	value, const ValueFormat&)	{ print(putc, value); }
+	template<typename F> inline void print_argument(F putc, char*			value, const ValueFormat&)	{ print(putc, value); }
 
 }
