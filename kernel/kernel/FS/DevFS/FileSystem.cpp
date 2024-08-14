@@ -113,6 +113,8 @@ namespace Kernel
 		ASSERT(!device->name().contains('/'));
 		MUST(static_cast<TmpDirectoryInode*>(root_inode().ptr())->link_inode(*device, device->name()));
 		MUST(m_devices.push_back(device));
+
+		dprintln("Added device /dev/{}", device->name());
 	}
 
 	void DevFileSystem::remove_device(BAN::RefPtr<Device> device)
@@ -128,6 +130,8 @@ namespace Kernel
 				break;
 			}
 		}
+
+		dprintln("Removed device /dev/{}", device->name());
 	}
 
 	void DevFileSystem::add_inode(BAN::StringView path, BAN::RefPtr<TmpInode> inode)
