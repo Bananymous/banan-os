@@ -118,13 +118,13 @@ I have also created shell completion script for zsh. You can either copy the fil
 
 ## Contributing
 
-As the upstream is hosted on my server https://git.bananymous.com/Bananymous/banan-os, please contact me about account creation ([email](mailto:oskari.alaranta@bananymous.com), [discord](https://discord.gg/ehjGySwYdK)) and I will add a account for you. This is done to limit the people with access to the server.
+As the upstream is hosted on my server https://git.bananymous.com/Bananymous/banan-os, merging contributions is not as trivial as it would be on GitHub. You can still send PRs in GitHub in which case I should be able to download the diff and apply it manually. If you want, I can also provide you an account to my git server. In this case please contact me ([email](mailto:oskari.alaranta@bananymous.com), [discord](https://discord.gg/ehjGySwYdK)).
 
-As this is mostly a learning experience for me, I would appreciate if you first contacted me about adding new features (email, discord, issue, ...). Bug fixes are always welcome!
+As this is mostly a learning experience for me, I would appreciate if you first contacted me about adding new features (email, discord, issue, ...). If you send a PR about something I was planning on doing myself and you didn't ask me, I will probably just close it. Bug fixes are always welcome!
 
 Commit message should be formatted followingly
 
-  1. First line is of the form "_Subject: Description_", where _Subject_ tells the area touched (Kernel, Shell, BuildSystem, ...) and _Description_ is brief description of the change done. First line should fit fully in 70 characters.
+  1. First line is of the form "_Subject: Description_", where _Subject_ tells the area touched (Kernel, Shell, BuildSystem, ...) and _Description_ is brief description of the change done. First line should fit fully in 72 characters.
   2. Body of the message should further describe the change and reasoning behind the change.
 
 All commits should pass the pre-commit hook defined in _.pre-commit-config.yaml_. For instructions on how to setup pre-commit, please see https://pre-commit.com/#install.
