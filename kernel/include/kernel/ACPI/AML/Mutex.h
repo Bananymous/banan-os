@@ -14,10 +14,12 @@ namespace Kernel::ACPI::AML
 	{
 		Kernel::Mutex mutex;
 		uint8_t sync_level;
+		bool global;
 
-		Mutex(NameSeg name, uint8_t sync_level)
+		Mutex(NameSeg name, uint8_t sync_level, bool global = false)
 			: NamedObject(Node::Type::Mutex, name)
 			, sync_level(sync_level)
+			, global(global)
 		{}
 
 		BAN::RefPtr<AML::Node> convert(uint8_t) override { return {}; }

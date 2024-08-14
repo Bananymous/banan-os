@@ -1,6 +1,7 @@
 #include <kernel/ACPI/AML/Device.h>
 #include <kernel/ACPI/AML/Integer.h>
 #include <kernel/ACPI/AML/Method.h>
+#include <kernel/ACPI/AML/Mutex.h>
 #include <kernel/ACPI/AML/Namespace.h>
 #include <kernel/ACPI/AML/ParseContext.h>
 #include <kernel/ACPI/AML/Region.h>
@@ -232,6 +233,9 @@ namespace Kernel::ACPI
 		ADD_PREDEFIED_NAMESPACE("_SI"_sv);
 		ADD_PREDEFIED_NAMESPACE("_TZ"_sv);
 #undef ADD_PREDEFIED_NAMESPACE
+
+		auto gl = MUST(BAN::RefPtr<AML::Mutex>::create(NameSeg("_GL"_sv), 0, true));
+		ASSERT(s_root_namespace->add_named_object(context, AML::NameString("\\_GL"), gl));
 
 		// Add \_OSI that returns true for Linux compatibility
 		auto osi = MUST(BAN::RefPtr<AML::Method>::create(NameSeg("_OSI"_sv), 1, false, 0));
