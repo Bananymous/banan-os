@@ -44,7 +44,7 @@ namespace BAN
 			uint32_t old = m_ref_count.fetch_sub(1);
 			ASSERT(old > 0);
 			if (old == 1)
-				delete (const T*)this;
+				delete static_cast<const T*>(this);
 		}
 
 	protected:
