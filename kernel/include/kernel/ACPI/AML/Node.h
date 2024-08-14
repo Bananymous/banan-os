@@ -25,6 +25,7 @@ namespace Kernel::ACPI::AML
 			BufferField,
 			Debug,
 			Device,
+			Event,
 			FieldElement,
 			IndexFieldElement,
 			Integer,

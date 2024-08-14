@@ -3,6 +3,7 @@
 #include <kernel/ACPI/AML/Bytes.h>
 #include <kernel/ACPI/AML/Device.h>
 #include <kernel/ACPI/AML/Expression.h>
+#include <kernel/ACPI/AML/Event.h>
 #include <kernel/ACPI/AML/Field.h>
 #include <kernel/ACPI/AML/IfElse.h>
 #include <kernel/ACPI/AML/Index.h>
@@ -76,6 +77,11 @@ namespace Kernel::ACPI
 					return AML::OpRegion::parse(context);
 				case AML::ExtOp::DeviceOp:
 					return AML::Device::parse(context);
+				case AML::ExtOp::EventOp:
+				case AML::ExtOp::ResetOp:
+				case AML::ExtOp::SignalOp:
+				case AML::ExtOp::WaitOp:
+					return AML::Event::parse(context);
 				case AML::ExtOp::MutexOp:
 				case AML::ExtOp::AcquireOp:
 				case AML::ExtOp::ReleaseOp:
