@@ -1,6 +1,7 @@
 #include <kernel/ACPI/AML/Alias.h>
 #include <kernel/ACPI/AML/Buffer.h>
 #include <kernel/ACPI/AML/Bytes.h>
+#include <kernel/ACPI/AML/Conversion.h>
 #include <kernel/ACPI/AML/Device.h>
 #include <kernel/ACPI/AML/Expression.h>
 #include <kernel/ACPI/AML/Event.h>
@@ -166,6 +167,10 @@ namespace Kernel::ACPI
 			case AML::Byte::SubtractOp:
 			case AML::Byte::XorOp:
 				return AML::Expression::parse(context);
+			case AML::Byte::ToBufferOp:
+			case AML::Byte::ToIntegerOp:
+			case AML::Byte::ToStringOp:
+				return AML::Conversion::parse(context);
 			case AML::Byte::CreateBitFieldOp:
 			case AML::Byte::CreateByteFieldOp:
 			case AML::Byte::CreateWordFieldOp:
