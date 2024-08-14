@@ -5,6 +5,8 @@
 #include <kernel/FS/TmpFS/FileSystem.h>
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/Lock/LockGuard.h>
+#include <kernel/Storage/Partition.h>
+
 #include <fcntl.h>
 
 namespace Kernel
@@ -17,13 +19,57 @@ namespace Kernel
 		ASSERT(!s_instance);
 		s_instance = MUST(BAN::RefPtr<VirtualFileSystem>::create());
 
-		ASSERT(root_path.size() >= 5 && root_path.substring(0, 5) == "/dev/"_sv);;
-		root_path = root_path.substring(5);
+		BAN::RefPtr<BlockDevice> root_device;
+		if (root_path.size() >= 5 && root_path.substring(0, 5) == "UUID="_sv)
+		{
+			auto uuid = root_path.substring(5);
+			if (uuid.size() != 36)
+				panic("Invalid UUID specified for root '{}'", uuid);
 
-		auto root_inode = MUST(DevFileSystem::get().root_inode()->find_inode(root_path));
-		if (!root_inode->mode().ifblk())
-			Kernel::panic("Specified root '/dev/{}' does not name a block device", root_path);
-		s_instance->m_root_fs = MUST(FileSystem::from_block_device(static_cast<BlockDevice*>(root_inode.ptr())));
+			BAN::RefPtr<Partition> root_partition;
+			DevFileSystem::get().for_each_inode(
+				[&root_partition, uuid](BAN::RefPtr<Inode> inode) -> BAN::Iteration
+				{
+					if (!inode->is_device())
+						return BAN::Iteration::Continue;
+					if (!static_cast<Device*>(inode.ptr())->is_partition())
+						return BAN::Iteration::Continue;
+					auto* partition = static_cast<Partition*>(inode.ptr());
+					dprintln("compare '{}' vs '{}'", partition->uuid(), uuid);
+					if (partition->uuid() != uuid)
+						return BAN::Iteration::Continue;
+					dprintln("FOUND");
+					root_partition = partition;
+					return BAN::Iteration::Break;
+				}
+			);
+			if (!root_partition)
+				panic("Could not find partition with UUID '{}'", uuid);
+			root_device = root_partition;
+		}
+		else if (root_path.size() >= 5 && root_path.substring(0, 5) == "/dev/"_sv)
+		{
+			auto device_name = root_path.substring(5);
+
+			auto device_result = DevFileSystem::get().root_inode()->find_inode(device_name);
+			if (device_result.is_error())
+				panic("Could not open root device '{}': {}", root_path, device_result.error());
+
+			auto device_inode = device_result.release_value();
+			if (!device_inode->mode().ifblk())
+				panic("Root inode '{}' is not an block device", root_path);
+
+			root_device = static_cast<BlockDevice*>(device_inode.ptr());
+		}
+		else
+		{
+			panic("Unknown root path format '{}' specified", root_path);
+		}
+
+		auto filesystem_result = FileSystem::from_block_device(root_device);
+		if (filesystem_result.is_error())
+			panic("Could not create filesystem from '{}': {}", root_path, filesystem_result.error());
+		s_instance->m_root_fs = filesystem_result.release_value();
 
 		Credentials root_creds { 0, 0, 0, 0 };
 		MUST(s_instance->mount(root_creds, &DevFileSystem::get(), "/dev"_sv));

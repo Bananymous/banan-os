@@ -25,6 +25,8 @@ namespace Kernel
 
 		virtual BAN::StringView name() const override { return m_name; }
 
+		BAN::StringView uuid() const { return m_guid_string; }
+
 	private:
 		Partition(BAN::RefPtr<BlockDevice>, const BAN::GUID&, const BAN::GUID&, uint64_t, uint64_t, uint64_t, const char*, uint32_t, BAN::StringView);
 
@@ -32,6 +34,7 @@ namespace Kernel
 		BAN::RefPtr<BlockDevice> m_device;
 		const BAN::GUID m_type;
 		const BAN::GUID m_guid;
+		const BAN::String m_guid_string;
 		const uint64_t m_first_block;
 		const uint64_t m_last_block;
 		const uint64_t m_attributes;

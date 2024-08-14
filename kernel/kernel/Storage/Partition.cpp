@@ -18,6 +18,7 @@ namespace Kernel
 		, m_device(device)
 		, m_type(type)
 		, m_guid(guid)
+		, m_guid_string(MUST(guid.to_string()))
 		, m_first_block(first_block)
 		, m_last_block(last_block)
 		, m_attributes(attr)
