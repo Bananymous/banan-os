@@ -33,8 +33,11 @@ namespace Kernel::ACPI::AML
 			return this;
 		if (mask & AML::Node::ConvInteger)
 		{
-			AML_TODO("Convert String to Integer");
-			return {};
+			// Apparently this is what NT does, but its definitely not spec compliant :D
+			uint64_t value = 0;
+			const size_t bytes = BAN::Math::min<size_t>(string.size(), sizeof(value));
+			memcpy(&value, string.data(), bytes);
+			return MUST(BAN::RefPtr<AML::Integer>::create(value));
 		}
 		if (mask & AML::Node::ConvBuffer)
 			return as_buffer();
