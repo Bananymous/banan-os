@@ -173,6 +173,8 @@ namespace Kernel::ACPI
 				return AML::Scope::parse(context);
 			case AML::Byte::IfOp:
 				return AML::IfElse::parse(context);
+			case AML::Byte::BreakOp:
+			case AML::Byte::ContinueOp:
 			case AML::Byte::WhileOp:
 				return AML::While::parse(context);
 			case AML::Byte::StoreOp:

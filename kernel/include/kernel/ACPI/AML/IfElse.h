@@ -50,8 +50,8 @@ namespace Kernel::ACPI::AML
 			while (context.aml_data.size() > 0)
 			{
 				auto object_result = AML::parse_object(context);
-				if (object_result.returned())
-					return ParseResult(ParseResult::Result::Returned, object_result.node());
+				if (object_result.returned() || object_result.breaked() || object_result.continued())
+					return object_result;
 				if (!object_result.success())
 					return ParseResult::Failure;
 			}

@@ -12,8 +12,21 @@ namespace Kernel::ACPI::AML
 		static ParseResult parse(ParseContext& context)
 		{
 			ASSERT(context.aml_data.size() >= 1);
-			ASSERT(static_cast<Byte>(context.aml_data[0]) == Byte::WhileOp);
+
+			AML::Byte opcode = static_cast<Byte>(context.aml_data[0]);
 			context.aml_data = context.aml_data.slice(1);
+
+			switch (opcode)
+			{
+				case AML::Byte::BreakOp:
+					return ParseResult(ParseResult::Result::Breaked);
+				case AML::Byte::ContinueOp:
+					return ParseResult(ParseResult::Result::Continued);
+				case AML::Byte::WhileOp:
+					break;
+				default:
+					ASSERT_NOT_REACHED();
+			}
 
 			auto while_pkg = AML::parse_pkg(context.aml_data);
 			if (!while_pkg.has_value())
@@ -43,16 +56,13 @@ namespace Kernel::ACPI::AML
 
 				while (context.aml_data.size() > 0)
 				{
-					// NOTE: we can just parse BreakOp here, since this is the only legal place for BreakOp
-					if (static_cast<AML::Byte>(context.aml_data[0]) == AML::Byte::BreakOp)
-					{
-						context.aml_data = context.aml_data.slice(1);
-						breaked = true;
-						break;
-					}
 					auto object_result = AML::parse_object(context);
 					if (object_result.returned())
 						return ParseResult(ParseResult::Result::Returned, object_result.node());
+					if (object_result.breaked())
+						breaked = true;
+					if (object_result.breaked() || object_result.continued())
+						break;
 					if (!object_result.success())
 						return ParseResult::Failure;
 				}

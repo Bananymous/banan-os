@@ -78,6 +78,8 @@ namespace Kernel::ACPI::AML
 			Success,
 			Failure,
 			Returned,
+			Breaked,
+			Continued,
 		};
 
 		ParseResult(Result success)
@@ -96,6 +98,8 @@ namespace Kernel::ACPI::AML
 
 		bool success() const { return m_result == Result::Success; }
 		bool returned() const { return m_result == Result::Returned; }
+		bool breaked() const { return m_result == Result::Breaked; }
+		bool continued() const { return m_result == Result::Continued; }
 
 		BAN::RefPtr<Node> node()
 		{
