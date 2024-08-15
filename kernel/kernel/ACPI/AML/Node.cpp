@@ -222,10 +222,16 @@ namespace Kernel::ACPI
 				AML_ERROR("NameString {} not found in namespace", name_string.value());
 				return ParseResult::Failure;
 			}
-			if (aml_object->type != AML::Node::Type::Method)
+
+			auto underlying = aml_object->to_underlying();
+			if (aml_object->type != AML::Node::Type::Method && underlying->type != AML::Node::Type::Method)
 				return ParseResult(aml_object);
 
-			auto* method = static_cast<AML::Method*>(aml_object.ptr());
+			auto* method = static_cast<AML::Method*>(
+				aml_object->type == AML::Node::Type::Method
+					? aml_object.ptr()
+					: underlying.ptr()
+			);
 
 			BAN::Array<BAN::RefPtr<AML::Node>, 7> args;
 			for (uint8_t i = 0; i < method->arg_count; i++)
