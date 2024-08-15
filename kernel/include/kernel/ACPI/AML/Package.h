@@ -5,6 +5,7 @@
 #include <kernel/ACPI/AML/Node.h>
 #include <kernel/ACPI/AML/ParseContext.h>
 #include <kernel/ACPI/AML/Pkg.h>
+#include <kernel/ACPI/AML/Reference.h>
 
 namespace Kernel::ACPI::AML
 {
@@ -100,9 +101,11 @@ namespace Kernel::ACPI::AML
 			}
 			if (!resolved && !resolve())
 				return {};
-			if (element->type == AML::Node::Type::Reference)
-				return element->store(node);
-			element = node->copy();
+			ASSERT(element->type != AML::Node::Type::Reference);
+			if (node->type == AML::Node::Type::Reference)
+				element = static_cast<AML::Reference*>(element.ptr())->node;
+			else
+				element = element->copy();
 			return element;
 		}
 

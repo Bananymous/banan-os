@@ -171,7 +171,7 @@ namespace Kernel::ACPI::AML
 			// TODO: optimize for whole byte accesses
 			for (size_t i = 0; i < field_bit_size; i++)
 			{
-				const size_t bit = field_bit_offset + 1;
+				const size_t bit = field_bit_offset + i;
 				buffer[bit / 8] &= ~(1 << (bit % 8));
 				buffer[bit / 8] |= ((value >> i) & 1) << (bit % 8);
 			}

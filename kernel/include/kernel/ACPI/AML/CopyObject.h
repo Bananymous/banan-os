@@ -51,13 +51,13 @@ namespace Kernel::ACPI::AML
 			switch (destination->type)
 			{
 				case AML::Node::Type::Alias:
-					static_cast<AML::Alias*>(destination.ptr())->target = source;
+					static_cast<AML::Alias*>(destination.ptr())->target = source->copy();
 					return source;
 				case AML::Node::Type::Name:
-					static_cast<AML::Name*>(destination.ptr())->object = source;
+					static_cast<AML::Name*>(destination.ptr())->object = source->copy();
 					return source;
 				case AML::Node::Type::Register:
-					static_cast<AML::Register*>(destination.ptr())->value = source;
+					static_cast<AML::Register*>(destination.ptr())->value = source->copy();
 					return source;
 				default:
 					ASSERT_NOT_REACHED();

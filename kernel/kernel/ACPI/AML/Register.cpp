@@ -20,7 +20,7 @@ namespace Kernel::ACPI
 		{
 			if (node->type == AML::Node::Type::Reference)
 				node = static_cast<AML::Reference*>(node.ptr())->node;
-			else if (node)
+			else if (node->type != AML::Node::Type::Buffer && node->type != AML::Node::Type::Package)
 				node = node->copy();
 			if (node->type == AML::Node::Type::Register)
 			{

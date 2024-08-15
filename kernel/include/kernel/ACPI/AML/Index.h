@@ -5,6 +5,7 @@
 #include <kernel/ACPI/AML/Package.h>
 #include <kernel/ACPI/AML/ParseContext.h>
 #include <kernel/ACPI/AML/Reference.h>
+#include <kernel/ACPI/AML/Register.h>
 
 namespace Kernel::ACPI::AML
 {
@@ -20,25 +21,20 @@ namespace Kernel::ACPI::AML
 			auto source_result = AML::parse_object(context);
 			if (!source_result.success())
 				return ParseResult::Failure;
-			auto source = source_result.node()
-				? source_result.node()->convert(AML::Node::ConvBuffer | AML::Node::ConvInteger | AML::Node::ConvString)
-				: BAN::RefPtr<AML::Node>();
+			auto source = source_result.node() ? source_result.node()->to_underlying() : BAN::RefPtr<AML::Node>();
+			if (source && source->type != AML::Node::Type::Package)
+				source = source->convert(AML::Node::ConvBuffer | AML::Node::ConvInteger | AML::Node::ConvString);
 			if (!source)
 			{
 				AML_ERROR("IndexOp source could not be converted");
-				if (source)
-				{
-					source->debug_print(0);
-					AML_DEBUG_PRINTLN("");
-				}
 				return ParseResult::Failure;
 			}
 
 			auto index_result = AML::parse_object(context);
 			if (!index_result.success())
 				return ParseResult::Failure;
-			auto index_node = source_result.node()
-				? source_result.node()->convert(AML::Node::ConvInteger)
+			auto index_node = index_result.node()
+				? index_result.node()->convert(AML::Node::ConvInteger)
 				: BAN::RefPtr<AML::Node>();
 			if (!index_node)
 			{
