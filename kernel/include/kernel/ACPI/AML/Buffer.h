@@ -46,6 +46,23 @@ namespace Kernel::ACPI::AML
 			return {};
 		}
 
+		BAN::RefPtr<AML::Node> store(BAN::RefPtr<AML::Node> node) override
+		{
+			ASSERT(node);
+			auto conv_node = node->convert(AML::Node::ConvBuffer);
+			if (!conv_node)
+			{
+				AML_ERROR("Buffer store could not convert to buffer");
+				return {};
+			}
+
+			auto& conv_buffer = static_cast<AML::Buffer*>(conv_node.ptr())->buffer;
+			MUST(buffer.resize(conv_buffer.size()));
+			for (size_t i = 0; i < buffer.size(); i++)
+				buffer[i] = conv_buffer[i];
+			return this;
+		}
+
 		static ParseResult parse(AML::ParseContext& context)
 		{
 			ASSERT(context.aml_data.size() >= 1);
