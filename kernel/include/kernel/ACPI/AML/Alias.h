@@ -16,13 +16,27 @@ namespace Kernel::ACPI::AML
 			, target(target)
 		{}
 
+		BAN::RefPtr<AML::Node> named_target() override { return target; }
+
 		bool is_scope() const override { return target->is_scope(); }
 
-		BAN::RefPtr<AML::Node> convert(uint8_t) override { return {}; }
+		BAN::RefPtr<AML::Node> convert(uint8_t mask) override
+		{
+			ASSERT(target);
+			return target->convert(mask);
+		}
 
-		BAN::RefPtr<Node> copy() override { return target->copy(); }
+		BAN::RefPtr<Node> copy() override
+		{
+			ASSERT(target);
+			return target->copy();
+		}
 
-		BAN::RefPtr<AML::Node> store(BAN::RefPtr<AML::Node> node) override { ASSERT(target); return target->store(node); }
+		BAN::RefPtr<AML::Node> store(BAN::RefPtr<AML::Node> node) override
+		{
+			ASSERT(target);
+			return target->store(node);
+		}
 
 		static ParseResult parse(ParseContext& context)
 		{
@@ -45,7 +59,7 @@ namespace Kernel::ACPI::AML
 				return ParseResult::Success;
 			}
 
-			auto alias = MUST(BAN::RefPtr<Alias>::create(alias_string.value().path.back(), source_object));
+			auto alias = MUST(BAN::RefPtr<Alias>::create(alias_string.value().path.back(), source_object->named_target()));
 			if (!Namespace::root_namespace()->add_named_object(context, alias_string.value(), alias))
 				return ParseResult::Success;
 

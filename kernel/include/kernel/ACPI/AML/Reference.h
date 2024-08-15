@@ -23,21 +23,13 @@ namespace Kernel::ACPI::AML
 
 		BAN::RefPtr<AML::Node> convert(uint8_t mask) override
 		{
-			if (!node)
-			{
-				AML_ERROR("Trying to convert null Reference");
-				return {};
-			}
+			ASSERT(node);
 			return node->convert(mask);
 		}
 
 		BAN::RefPtr<AML::Node> store(BAN::RefPtr<AML::Node> value) override
 		{
-			if (!node)
-			{
-				AML_ERROR("Storing to null Reference");
-				return {};
-			}
+			ASSERT(node);
 			return node->store(value);
 		}
 

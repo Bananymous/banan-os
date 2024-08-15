@@ -12,6 +12,8 @@ namespace Kernel::ACPI::AML
 		NameSeg name;
 
 		NamedObject(Node::Type type, NameSeg name) : Node(type), name(name) {}
+
+		[[nodiscard]] virtual BAN::RefPtr<AML::Node> named_target() { return this; }
 	};
 
 	struct Name final : public AML::NamedObject
@@ -22,15 +24,19 @@ namespace Kernel::ACPI::AML
 			: NamedObject(Node::Type::Name, name), object(BAN::move(object))
 		{}
 
-		BAN::RefPtr<AML::Node> convert(uint8_t) override { return {}; }
+		BAN::RefPtr<AML::Node> named_target() override { return object; }
+
+		BAN::RefPtr<AML::Node> convert(uint8_t mask) override
+		{
+			ASSERT(object);
+			return object->convert(mask);
+		}
 
 		BAN::RefPtr<AML::Node> store(BAN::RefPtr<AML::Node> node) override
 		{
 			ASSERT(object);
-			if (object->type == AML::Node::Type::Reference)
-				return object->store(node);
-			object = node;
-			return node;
+			ASSERT(object->type != AML::Node::Type::Reference);
+			return object->store(node);
 		}
 
 		static ParseResult parse(ParseContext& context);
