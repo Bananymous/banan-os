@@ -166,27 +166,35 @@ namespace Kernel::ACPI::AML
 		{
 			ASSERT(context.aml_data.size() >= 1);
 
-			size_t field_bit_size = 0;
+			bool offset_in_bytes;
+			size_t field_bit_size;
 			switch (static_cast<AML::Byte>(context.aml_data[0]))
 			{
 				case AML::Byte::CreateBitFieldOp:
 					field_bit_size = 1;
+					offset_in_bytes = false;
 					break;
 				case AML::Byte::CreateByteFieldOp:
 					field_bit_size = 8;
+					offset_in_bytes = true;
 					break;
 				case AML::Byte::CreateWordFieldOp:
 					field_bit_size = 16;
+					offset_in_bytes = true;
 					break;
 				case AML::Byte::CreateDWordFieldOp:
 					field_bit_size = 32;
+					offset_in_bytes = true;
 					break;
 				case AML::Byte::CreateQWordFieldOp:
 					field_bit_size = 64;
+					offset_in_bytes = true;
 					break;
 				case AML::Byte::ExtOpPrefix:
 					ASSERT(context.aml_data.size() >= 2);
 					ASSERT(static_cast<AML::ExtOp>(context.aml_data[1]) == AML::ExtOp::CreateFieldOp);
+					field_bit_size = 0;
+					offset_in_bytes = false;
 					break;
 				default:
 					ASSERT_NOT_REACHED();
@@ -238,7 +246,7 @@ namespace Kernel::ACPI::AML
 			}
 
 			size_t field_bit_offset = static_cast<AML::Integer*>(index_node.ptr())->value;
-			if (field_bit_size != 1)
+			if (offset_in_bytes)
 				field_bit_offset *= 8;
 
 			auto field = MUST(BAN::RefPtr<BufferField>::create(field_name->path.back(), buffer, field_bit_offset, field_bit_size));
