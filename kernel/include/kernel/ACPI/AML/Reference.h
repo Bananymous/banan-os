@@ -69,9 +69,12 @@ namespace Kernel::ACPI::AML
 				if (!parse_result.success())
 					return ParseResult::Failure;
 				object = parse_result.node();
-				if (object && object->type == AML::Node::Type::Register)
-					object = static_cast<AML::Register*>(object.ptr())->value;
 			}
+
+			if (object && object->type == AML::Node::Type::Reference)
+				object = static_cast<AML::Reference*>(object.ptr())->node;
+			if (object && object->type == AML::Node::Type::Register)
+				object = static_cast<AML::Register*>(object.ptr())->value;
 
 			if (!conditional)
 			{

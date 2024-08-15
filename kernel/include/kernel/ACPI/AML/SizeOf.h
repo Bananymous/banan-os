@@ -22,6 +22,8 @@ namespace Kernel::ACPI::AML
 			if (!object_result.success())
 				return ParseResult::Failure;
 			auto object_node = object_result.node();
+			if (object_node && object_node->type == AML::Node::Type::Register)
+				object_node = static_cast<AML::Register*>(object_node.ptr())->value;
 			if (!object_node)
 			{
 				AML_ERROR("SizeOf object is null");

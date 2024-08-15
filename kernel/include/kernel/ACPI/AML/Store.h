@@ -44,9 +44,9 @@ namespace Kernel::ACPI::AML
 			AML_DEBUG_PRINTLN("}");
 #endif
 
-			if (!destination->store(source))
-				return ParseResult::Failure;
-			return ParseResult(destination);
+			if (auto stored = destination->store(source))
+				return ParseResult(stored);
+			return ParseResult::Failure;
 		}
 	};
 
