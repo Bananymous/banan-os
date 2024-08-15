@@ -219,45 +219,41 @@ namespace Kernel::ACPI
 				AML_ERROR("NameString {} not found in namespace", name_string.value());
 				return ParseResult::Failure;
 			}
-			if (aml_object->type == AML::Node::Type::Method)
+			if (aml_object->type != AML::Node::Type::Method)
+				return ParseResult(aml_object);
+
+			auto* method = static_cast<AML::Method*>(aml_object.ptr());
+
+			BAN::Array<BAN::RefPtr<AML::Node>, 7> args;
+			for (uint8_t i = 0; i < method->arg_count; i++)
 			{
-				auto* method = static_cast<AML::Method*>(aml_object.ptr());
-
-				BAN::Array<BAN::RefPtr<AML::Node>, 7> args;
-				for (uint8_t i = 0; i < method->arg_count; i++)
+				auto arg_result = AML::parse_object(context);
+				if (!arg_result.success() || !arg_result.node())
 				{
-					auto arg = AML::parse_object(context);
-					if (!arg.success())
-					{
-						AML_ERROR("Failed to parse argument {} for method {}", i, name_string.value());
-						return ParseResult::Failure;
-					}
-					args[i] = MUST(BAN::RefPtr<AML::Register>::create(arg.node()));
-				}
-
-				auto result = method->invoke_with_sync_stack(
-					context.sync_stack,
-					args[0],
-					args[1],
-					args[2],
-					args[3],
-					args[4],
-					args[5],
-					args[6]
-				);
-				if (!result.has_value())
-				{
-					AML_ERROR("Failed to evaluate {}", name_string.value());
+					AML_ERROR("Failed to parse argument {} for method {}", i, name_string.value());
 					return ParseResult::Failure;
 				}
-				if (!result.value())
-					return ParseResult::Success;
-				return ParseResult(result.value());
+				args[i] = arg_result.node();
 			}
 
-			if (aml_object->type == AML::Node::Type::Name)
-				return ParseResult(static_cast<AML::Name*>(aml_object.ptr())->object);
-			return ParseResult(aml_object);
+			auto result = method->invoke_with_sync_stack(
+				context.sync_stack,
+				args[0],
+				args[1],
+				args[2],
+				args[3],
+				args[4],
+				args[5],
+				args[6]
+			);
+			if (!result.has_value())
+			{
+				AML_ERROR("Failed to evaluate {}", name_string.value());
+				return ParseResult::Failure;
+			}
+			if (!result.value())
+				return ParseResult::Success;
+			return ParseResult(result.value());
 		}
 
 		AML_TODO("{2H}", context.aml_data[0]);
