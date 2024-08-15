@@ -2,6 +2,7 @@
 #include <kernel/ACPI/AML/Buffer.h>
 #include <kernel/ACPI/AML/Bytes.h>
 #include <kernel/ACPI/AML/Conversion.h>
+#include <kernel/ACPI/AML/CopyObject.h>
 #include <kernel/ACPI/AML/Device.h>
 #include <kernel/ACPI/AML/Expression.h>
 #include <kernel/ACPI/AML/Event.h>
@@ -179,6 +180,8 @@ namespace Kernel::ACPI
 				return AML::While::parse(context);
 			case AML::Byte::StoreOp:
 				return AML::Store::parse(context);
+			case AML::Byte::CopyObjectOp:
+				return AML::CopyObject::parse(context);
 			case AML::Byte::DerefOfOp:
 			case AML::Byte::RefOfOp:
 				return AML::Reference::parse(context);
