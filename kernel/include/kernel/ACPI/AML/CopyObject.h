@@ -19,7 +19,9 @@ namespace Kernel::ACPI::AML
 			auto source_result = AML::parse_object(context);
 			if (!source_result.success())
 				return ParseResult::Failure;
-			auto source = source_result.node();
+			auto source = source_result.node()
+				? source_result.node()->to_underlying()
+				: BAN::RefPtr<AML::Node>();
 			if (!source)
 			{
 				AML_ERROR("CopyObject source is null");

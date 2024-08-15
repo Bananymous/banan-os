@@ -16,7 +16,7 @@ namespace Kernel::ACPI::AML
 			, target(target)
 		{}
 
-		BAN::RefPtr<AML::Node> named_target() override { return target; }
+		BAN::RefPtr<AML::Node> to_underlying() override { return target; }
 
 		bool is_scope() const override { return target->is_scope(); }
 
@@ -59,7 +59,7 @@ namespace Kernel::ACPI::AML
 				return ParseResult::Success;
 			}
 
-			auto alias = MUST(BAN::RefPtr<Alias>::create(alias_string.value().path.back(), source_object->named_target()));
+			auto alias = MUST(BAN::RefPtr<Alias>::create(alias_string.value().path.back(), source_object->to_underlying()));
 			if (!Namespace::root_namespace()->add_named_object(context, alias_string.value(), alias))
 				return ParseResult::Success;
 

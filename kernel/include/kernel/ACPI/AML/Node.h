@@ -60,6 +60,7 @@ namespace Kernel::ACPI::AML
 
 		virtual bool is_scope() const { return false; }
 
+		[[nodiscard]] virtual BAN::RefPtr<AML::Node> to_underlying() { return this; }
 		[[nodiscard]] virtual BAN::RefPtr<AML::Node> convert(uint8_t mask) = 0;
 		[[nodiscard]] virtual BAN::RefPtr<Node> copy() { return this; }
 		[[nodiscard]] virtual BAN::RefPtr<AML::Node> store(BAN::RefPtr<AML::Node>) { AML_TODO("store, type {}", static_cast<uint8_t>(type)); return {}; }

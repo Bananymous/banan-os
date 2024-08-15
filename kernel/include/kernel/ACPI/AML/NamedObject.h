@@ -12,8 +12,6 @@ namespace Kernel::ACPI::AML
 		NameSeg name;
 
 		NamedObject(Node::Type type, NameSeg name) : Node(type), name(name) {}
-
-		[[nodiscard]] virtual BAN::RefPtr<AML::Node> named_target() { return this; }
 	};
 
 	struct Name final : public AML::NamedObject
@@ -24,7 +22,7 @@ namespace Kernel::ACPI::AML
 			: NamedObject(Node::Type::Name, name), object(BAN::move(object))
 		{}
 
-		BAN::RefPtr<AML::Node> named_target() override { return object; }
+		BAN::RefPtr<AML::Node> to_underlying() override { return object; }
 
 		BAN::RefPtr<AML::Node> convert(uint8_t mask) override
 		{
