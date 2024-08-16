@@ -37,6 +37,7 @@ struct ParsedCommandLine
 	bool force_pic          = false;
 	bool disable_serial     = false;
 	bool disable_smp        = false;
+	bool disable_usb        = false;
 	BAN::StringView console = "tty0"_sv;
 	BAN::StringView root;
 };
@@ -75,6 +76,8 @@ static void parse_command_line()
 			cmdline.disable_serial = true;
 		else if (argument == "nosmp")
 			cmdline.disable_smp = true;
+		else if (argument == "nousb")
+			cmdline.disable_usb = true;
 		else if (argument.size() > 5 && argument.substring(0, 5) == "root=")
 			cmdline.root = argument.substring(5);
 		else if (argument.size() > 8 && argument.substring(0, 8) == "console=")
@@ -199,8 +202,11 @@ static void init2(void*)
 	PCI::PCIManager::initialize();
 	dprintln("PCI initialized");
 
-	MUST(USBManager::initialize());
-	dprintln("USBManager initialized");
+	if (!cmdline.disable_usb)
+	{
+		MUST(USBManager::initialize());
+		dprintln("USBManager initialized");
+	}
 
 	if (ACPI::ACPI::get().enter_acpi_mode(InterruptController::get().is_using_apic()).is_error())
 		dprintln("Failed to enter ACPI mode");
@@ -222,7 +228,7 @@ static void init2(void*)
 
 	// NOTE: PCI devices are the last ones to be initialized
 	//       so other devices can reserve predefined interrupts
-	PCI::PCIManager::get().initialize_devices();
+	PCI::PCIManager::get().initialize_devices(cmdline.disable_usb);
 	dprintln("PCI devices initialized");
 
 	VirtualFileSystem::initialize(cmdline.root);

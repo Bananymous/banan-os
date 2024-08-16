@@ -139,7 +139,7 @@ namespace Kernel::PCI
 		static void initialize();
 		static PCIManager& get();
 
-		void initialize_devices();
+		void initialize_devices(bool disable_usb);
 
 		template<typename F>
 		void for_each_device(F callback)

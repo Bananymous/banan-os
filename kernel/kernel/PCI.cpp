@@ -177,7 +177,7 @@ namespace Kernel::PCI
 		}
 	}
 
-	void PCIManager::initialize_devices()
+	void PCIManager::initialize_devices(bool disable_usb)
 	{
 		for_each_device(
 			[&](PCI::Device& pci_device)
@@ -215,7 +215,9 @@ namespace Kernel::PCI
 						switch (pci_device.subclass())
 						{
 							case 0x03:
-								if (auto res = USBManager::get().add_controller(pci_device); res.is_error())
+								if (disable_usb)
+									dprintln("USB support disabled, will not initialize {2H}.{2H}.{2H}", pci_device.class_code(), pci_device.subclass(), pci_device.prog_if());
+								else if (auto res = USBManager::get().add_controller(pci_device); res.is_error())
 									dprintln("{}", res.error());
 								break;
 							default:
