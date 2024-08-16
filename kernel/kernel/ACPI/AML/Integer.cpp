@@ -100,13 +100,16 @@ namespace Kernel::ACPI
 		{
 			case AML::Byte::ZeroOp:
 				aml_data = aml_data.slice(1);
-				return ParseResult(Constants::Zero);
+				// FIXME: no copy
+				return ParseResult(Constants::Zero->copy());
 			case AML::Byte::OneOp:
 				aml_data = aml_data.slice(1);
-				return ParseResult(Constants::One);
+				// FIXME: no copy
+				return ParseResult(Constants::One->copy());
 			case AML::Byte::OnesOp:
 				aml_data = aml_data.slice(1);
-				return ParseResult(Constants::Ones);
+				// FIXME: no copy
+				return ParseResult(Constants::Ones->copy());
 			case AML::Byte::BytePrefix:
 			{
 				if (aml_data.size() < 2)
