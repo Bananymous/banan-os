@@ -65,13 +65,16 @@ Point get_random_point()
 
 void update_apple()
 {
-regenerate:
-	g_apple = get_random_point();
-	if (g_head == g_apple)
-		goto regenerate;
-	for (auto point : g_tail)
-		if (point == g_apple)
-			goto regenerate;
+	for (;;)
+	{
+		g_apple = get_random_point();
+		if (g_head == g_apple)
+			continue;
+		for (auto point : g_tail)
+			if (point == g_apple)
+				continue;
+		break;
+	}
 	set_grid_tile(g_apple, "\e[31mO");
 }
 
