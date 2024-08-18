@@ -14,9 +14,9 @@ namespace Kernel
 		return minor++;
 	}
 
-	BAN::ErrorOr<BAN::RefPtr<NVMeNamespace>> NVMeNamespace::create(NVMeController& controller, uint32_t nsid, uint64_t block_count, uint32_t block_size)
+	BAN::ErrorOr<BAN::RefPtr<NVMeNamespace>> NVMeNamespace::create(NVMeController& controller, uint32_t ns_index, uint32_t nsid, uint64_t block_count, uint32_t block_size)
 	{
-		auto* namespace_ptr = new NVMeNamespace(controller, nsid, block_count, block_size);
+		auto* namespace_ptr = new NVMeNamespace(controller, ns_index, nsid, block_count, block_size);
 		if (namespace_ptr == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
 		auto ns = BAN::RefPtr<NVMeNamespace>::adopt(namespace_ptr);
@@ -24,7 +24,7 @@ namespace Kernel
 		return ns;
 	}
 
-	NVMeNamespace::NVMeNamespace(NVMeController& controller, uint32_t nsid, uint64_t block_count, uint32_t block_size)
+	NVMeNamespace::NVMeNamespace(NVMeController& controller, uint32_t ns_index, uint32_t nsid, uint64_t block_count, uint32_t block_size)
 		: m_controller(controller)
 		, m_nsid(nsid)
 		, m_block_size(block_size)
@@ -35,7 +35,7 @@ namespace Kernel
 		ASSERT(m_controller.name().size() + 2 < sizeof(m_name));
 		memcpy(m_name, m_controller.name().data(), m_controller.name().size());
 		m_name[m_controller.name().size() + 0] = 'n';
-		m_name[m_controller.name().size() + 1] = '1' + minor(m_rdev);
+		m_name[m_controller.name().size() + 1] = '1' + ns_index;
 		m_name[m_controller.name().size() + 2] = '\0';
 	}
 

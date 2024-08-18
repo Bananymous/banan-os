@@ -213,7 +213,7 @@ namespace Kernel
 			dprintln("   block size  {} B",   block_size);
 			dprintln("   total       {} MiB", block_count * block_size / (1 << 20));
 
-			auto ns = TRY(NVMeNamespace::create(*this, nsid, block_count, block_size));
+			auto ns = TRY(NVMeNamespace::create(*this, m_namespaces.size(), nsid, block_count, block_size));
 			TRY(m_namespaces.push_back(BAN::move(ns)));
 		}
 
