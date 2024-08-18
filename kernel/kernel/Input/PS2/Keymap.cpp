@@ -200,12 +200,12 @@ namespace Kernel::Input
 		m_scancode_to_keycode_normal[0x49]   = keycode_normal(3, 10);
 		m_scancode_to_keycode_normal[0x4A]   = keycode_normal(3, 11);
 		m_scancode_to_keycode_normal[0x59]   = keycode_normal(3, 12);
-		m_scancode_to_keycode_normal[0x14]   = keycode_normal(4,  1);
-		m_scancode_to_keycode_extended[0x1F] = keycode_normal(4,  2);
-		m_scancode_to_keycode_normal[0x11]   = keycode_normal(4,  3);
-		m_scancode_to_keycode_normal[0x29]   = keycode_normal(4,  4);
-		m_scancode_to_keycode_extended[0x11] = keycode_normal(4,  5);
-		m_scancode_to_keycode_extended[0x14] = keycode_normal(4,  6);
+		m_scancode_to_keycode_normal[0x14]   = keycode_normal(4,  0);
+		m_scancode_to_keycode_extended[0x1F] = keycode_normal(4,  1);
+		m_scancode_to_keycode_normal[0x11]   = keycode_normal(4,  2);
+		m_scancode_to_keycode_normal[0x29]   = keycode_normal(4,  3);
+		m_scancode_to_keycode_extended[0x11] = keycode_normal(4,  4);
+		m_scancode_to_keycode_extended[0x14] = keycode_normal(4,  5);
 
 		m_scancode_to_keycode_normal[0x77]   = keycode_numpad(0, 0);
 		m_scancode_to_keycode_extended[0x4A] = keycode_numpad(0, 1);
