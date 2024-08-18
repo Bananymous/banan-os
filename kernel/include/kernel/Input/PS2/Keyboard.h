@@ -17,7 +17,7 @@ namespace Kernel::Input
 		};
 
 	public:
-		static BAN::ErrorOr<BAN::RefPtr<PS2Keyboard>> create(PS2Controller&);
+		static BAN::ErrorOr<BAN::RefPtr<PS2Keyboard>> create(PS2Controller&, uint8_t scancode_set);
 		virtual void send_initialize() override;
 
 		virtual void command_timedout(uint8_t* command_data, uint8_t command_size) final override;
@@ -27,13 +27,14 @@ namespace Kernel::Input
 		virtual void update() final override { m_controller.update_command_queue(); }
 
 	private:
-		PS2Keyboard(PS2Controller& controller);
+		PS2Keyboard(PS2Controller& controller, bool basic);
 
 		void update_leds();
 
 	private:
 		BAN::Array<uint8_t, 3> m_byte_buffer;
 		uint8_t m_byte_index { 0 };
+		bool m_basic { false };
 
 		uint8_t m_scancode_set { 0xFF };
 		uint16_t m_modifiers { 0 };

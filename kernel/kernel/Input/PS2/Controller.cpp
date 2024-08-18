@@ -221,14 +221,14 @@ namespace Kernel::Input
 		ASSERT_NOT_REACHED();
 	}
 
-	BAN::ErrorOr<void> PS2Controller::initialize()
+	BAN::ErrorOr<void> PS2Controller::initialize(uint8_t scancode_set)
 	{
 		ASSERT(s_instance == nullptr);
 		s_instance = new PS2Controller;
 		if (s_instance == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
 		BAN::ScopeGuard guard([] { delete s_instance; });
-		TRY(s_instance->initialize_impl());
+		TRY(s_instance->initialize_impl(scancode_set));
 		guard.disable();
 		return {};
 	}
@@ -239,7 +239,7 @@ namespace Kernel::Input
 		return *s_instance;
 	}
 
-	BAN::ErrorOr<void> PS2Controller::initialize_impl()
+	BAN::ErrorOr<void> PS2Controller::initialize_impl(uint8_t scancode_set)
 	{
 		// Determine if the PS/2 Controller Exists
 		auto* fadt = static_cast<const ACPI::FADT*>(ACPI::ACPI::get().get_header("FACP"_sv, 0));
@@ -317,7 +317,7 @@ namespace Kernel::Input
 				dwarnln_if(DEBUG_PS2, "PS/2 device enable failed: {}", ret.error());
 				continue;
 			}
-			if (auto res = initialize_device(device); res.is_error())
+			if (auto res = initialize_device(device, scancode_set); res.is_error())
 			{
 				dwarnln_if(DEBUG_PS2, "PS/2 device initialization failed: {}", res.error());
 				(void)send_command(device == 0 ? PS2::Command::DISABLE_FIRST_PORT : PS2::Command::DISABLE_SECOND_PORT);
@@ -368,7 +368,7 @@ namespace Kernel::Input
 		return {};
 	}
 
-	BAN::ErrorOr<void> PS2Controller::initialize_device(uint8_t device)
+	BAN::ErrorOr<void> PS2Controller::initialize_device(uint8_t device, uint8_t scancode_set)
 	{
 		// Reset device
 		TRY(device_send_byte_and_wait_ack(device, PS2::DeviceCommand::RESET));
@@ -411,7 +411,7 @@ namespace Kernel::Input
 		if (index == 2 && (bytes[0] == 0xAB && (bytes[1] == 0x83 || bytes[1] == 0x41)))
 		{
 			dprintln_if(DEBUG_PS2, "PS/2 found keyboard");
-			m_devices[device] = TRY(PS2Keyboard::create(*this));
+			m_devices[device] = TRY(PS2Keyboard::create(*this, scancode_set));
 			return {};
 		}
 

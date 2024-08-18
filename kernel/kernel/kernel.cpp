@@ -32,12 +32,15 @@
 
 #include <LibInput/KeyboardLayout.h>
 
+#include <ctype.h>
+
 struct ParsedCommandLine
 {
-	bool force_pic          = false;
-	bool disable_serial     = false;
-	bool disable_smp        = false;
-	bool disable_usb        = false;
+	bool force_pic       = false;
+	bool disable_serial  = false;
+	bool disable_smp     = false;
+	bool disable_usb     = false;
+	uint8_t ps2_override = 0;
 	BAN::StringView console = "tty0"_sv;
 	BAN::StringView root;
 };
@@ -78,6 +81,12 @@ static void parse_command_line()
 			cmdline.disable_smp = true;
 		else if (argument == "nousb")
 			cmdline.disable_usb = true;
+		else if (argument.starts_with("ps2="))
+		{
+			if (argument.size() != 5 || !isdigit(argument[4]))
+				dprintln("Invalid ps2= command line argument format '{}'", argument);
+			cmdline.ps2_override = argument[4] - '0';
+		}
 		else if (argument.size() > 5 && argument.substring(0, 5) == "root=")
 			cmdline.root = argument.substring(5);
 		else if (argument.size() > 8 && argument.substring(0, 8) == "console=")
@@ -221,7 +230,7 @@ static void init2(void*)
 	// Initialize empty keymap
 	MUST(LibInput::KeyboardLayout::initialize());
 
-	if (auto res = PS2Controller::initialize(); res.is_error())
+	if (auto res = PS2Controller::initialize(cmdline.ps2_override); res.is_error())
 		dprintln("{}", res.error());
 
 	MUST(NetworkManager::initialize());

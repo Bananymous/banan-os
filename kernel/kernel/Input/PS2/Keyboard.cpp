@@ -9,21 +9,41 @@
 namespace Kernel::Input
 {
 
-	BAN::ErrorOr<BAN::RefPtr<PS2Keyboard>> PS2Keyboard::create(PS2Controller& controller)
+	BAN::ErrorOr<BAN::RefPtr<PS2Keyboard>> PS2Keyboard::create(PS2Controller& controller, uint8_t scancode_set)
 	{
-		return TRY(BAN::RefPtr<PS2Keyboard>::create(controller));
+		auto keyboard = TRY(BAN::RefPtr<PS2Keyboard>::create(controller, scancode_set != 0));
+		if (scancode_set)
+		{
+			if (scancode_set > 3)
+			{
+				dwarnln("Invalid scancode set {}, using scan code set 2 instead", scancode_set);
+				scancode_set = 2;
+			}
+			keyboard->m_scancode_set = scancode_set;
+			keyboard->m_keymap.initialize(scancode_set);
+			dprintln("Skipping scancode detection, using scan code set {}", scancode_set);
+		}
+		return keyboard;
 	}
 
-	PS2Keyboard::PS2Keyboard(PS2Controller& controller)
+	PS2Keyboard::PS2Keyboard(PS2Controller& controller, bool basic)
 		: PS2Device(controller, InputDevice::Type::Keyboard)
+		, m_basic(basic)
 	{ }
 
 	void PS2Keyboard::send_initialize()
 	{
 		constexpr uint8_t wanted_scancode_set = 3;
-		append_command_queue(Command::SET_LEDS, 0x00, 0);
-		append_command_queue(Command::CONFIG_SCANCODE_SET, wanted_scancode_set, 0);
-		append_command_queue(Command::CONFIG_SCANCODE_SET, 0, 1);
+		update_leds();
+		if (m_scancode_set == 0xFF)
+		{
+			append_command_queue(Command::CONFIG_SCANCODE_SET, wanted_scancode_set, 0);
+			append_command_queue(Command::CONFIG_SCANCODE_SET, 0, 1);
+		}
+		else
+		{
+			append_command_queue(PS2::DeviceCommand::ENABLE_SCANNING, 0);
+		}
 	}
 
 	void PS2Keyboard::command_timedout(uint8_t* command_data, uint8_t command_size)
@@ -33,8 +53,8 @@ namespace Kernel::Input
 
 		if (command_data[0] == Command::CONFIG_SCANCODE_SET && m_scancode_set >= 0xFE)
 		{
-			dwarnln("Could not detect scancode set, assuming 1");
-			m_scancode_set = 1;
+			dwarnln("Could not detect scancode set, assuming 2");
+			m_scancode_set = 2;
 			m_keymap.initialize(m_scancode_set);
 			append_command_queue(PS2::DeviceCommand::ENABLE_SCANNING, 0);
 		}
@@ -168,6 +188,9 @@ namespace Kernel::Input
 	void PS2Keyboard::update_leds()
 	{
 		using KeyModifier = LibInput::KeyEvent::Modifier;
+
+		if (m_basic)
+			return;
 
 		uint8_t new_leds = 0;
 		if (m_modifiers & +KeyModifier::ScrollLock)

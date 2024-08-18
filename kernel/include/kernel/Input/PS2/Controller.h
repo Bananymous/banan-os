@@ -15,7 +15,7 @@ namespace Kernel::Input
 	class PS2Controller
 	{
 	public:
-		static BAN::ErrorOr<void> initialize();
+		static BAN::ErrorOr<void> initialize(uint8_t scancode_set);
 		static PS2Controller& get();
 
 		bool append_command_queue(PS2Device*, uint8_t command, uint8_t response_size);
@@ -26,8 +26,8 @@ namespace Kernel::Input
 
 	private:
 		PS2Controller() = default;
-		BAN::ErrorOr<void> initialize_impl();
-		BAN::ErrorOr<void> initialize_device(uint8_t);
+		BAN::ErrorOr<void> initialize_impl(uint8_t scancode_set);
+		BAN::ErrorOr<void> initialize_device(uint8_t, uint8_t scancode_set);
 
 		BAN::ErrorOr<uint8_t> read_byte();
 		BAN::ErrorOr<void> send_byte(uint16_t port, uint8_t byte);
