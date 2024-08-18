@@ -7,12 +7,12 @@
 
 struct BananBootFramebufferInfo
 {
-	uint32_t	address;
-	uint32_t	pitch;
-	uint32_t	width;
-	uint32_t	height;
-	uint8_t		bpp;
-	uint8_t		type;
+	uint32_t address;
+	uint32_t pitch;
+	uint32_t width;
+	uint32_t height;
+	uint8_t bpp;
+	uint8_t type;
 };
 
 struct BananBootloaderMemoryMapEntry
@@ -24,8 +24,8 @@ struct BananBootloaderMemoryMapEntry
 
 struct BananBootloaderMemoryMapInfo
 {
-	uint32_t						entry_count;
-	BananBootloaderMemoryMapEntry	entries[];
+	uint32_t entry_count;
+	struct BananBootloaderMemoryMapEntry entries[];
 } __attribute__((packed));
 
 struct BananBootloaderInfo
