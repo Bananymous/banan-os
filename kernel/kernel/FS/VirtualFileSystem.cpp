@@ -35,10 +35,8 @@ namespace Kernel
 					if (!static_cast<Device*>(inode.ptr())->is_partition())
 						return BAN::Iteration::Continue;
 					auto* partition = static_cast<Partition*>(inode.ptr());
-					dprintln("compare '{}' vs '{}'", partition->uuid(), uuid);
 					if (partition->uuid() != uuid)
 						return BAN::Iteration::Continue;
-					dprintln("FOUND");
 					root_partition = partition;
 					return BAN::Iteration::Break;
 				}
