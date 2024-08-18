@@ -15,6 +15,7 @@
 #include <kernel/ACPI/AML/Names.h>
 #include <kernel/ACPI/AML/Node.h>
 #include <kernel/ACPI/AML/Notify.h>
+#include <kernel/ACPI/AML/ObjectType.h>
 #include <kernel/ACPI/AML/Package.h>
 #include <kernel/ACPI/AML/ParseContext.h>
 #include <kernel/ACPI/AML/PowerResource.h>
@@ -191,6 +192,8 @@ namespace Kernel::ACPI
 				return AML::Notify::parse(context);
 			case AML::Byte::SizeOfOp:
 				return AML::SizeOf::parse(context);
+			case AML::Byte::ObjectTypeOp:
+				return AML::ObjectType::parse(context);
 			case AML::Byte::BreakPointOp: // TODO: support breakpoints?
 			case AML::Byte::NoopOp:
 				context.aml_data = context.aml_data.slice(1);
