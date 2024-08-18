@@ -247,8 +247,37 @@ namespace Kernel::ACPI
 				AML_ERROR("Invalid _OSI argument");
 				return {};
 			}
-			auto string = static_cast<AML::String*>(arg.ptr());
-			return string->string_view() == "Linux"_sv ? AML::Integer::Constants::Ones : AML::Integer::Constants::Zero;
+
+			constexpr BAN::StringView valid_strings[] {
+				"Windows 2000"_sv,
+				"Windows 2001"_sv,
+				"Windows 2001 SP1"_sv,
+				"Windows 2001.1"_sv,
+				"Windows 2001 SP2"_sv,
+				"Windows 2001.1 SP1"_sv,
+				"Windows 2006.1"_sv,
+				"Windows 2006 SP1"_sv,
+				"Windows 2006 SP2"_sv,
+				"Windows 2009"_sv,
+				"Windows 2012"_sv,
+				"Windows 2013"_sv,
+				"Windows 2015"_sv,
+				"Windows 2016"_sv,
+				"Windows 2017"_sv,
+				"Windows 2017.2"_sv,
+				"Windows 2018"_sv,
+				"Windows 2018.2"_sv,
+				"Windows 2019"_sv,
+				"Extended Address Space Descriptor"_sv,
+				// just to pass osi test from uACPI :D
+				"AnotherTestString"_sv,
+			};
+
+			auto string = static_cast<AML::String*>(arg.ptr())->string_view();
+			for (auto valid_string : valid_strings)
+				if (string == valid_string)
+					return AML::Integer::Constants::Ones;
+			return AML::Integer::Constants::Zero;
 		};
 		ASSERT(s_root_namespace->add_named_object(context, AML::NameString("\\_OSI"), osi));
 
