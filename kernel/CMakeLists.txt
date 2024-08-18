@@ -175,35 +175,42 @@ set(KERNEL_SOURCES
 
 add_executable(kernel ${KERNEL_SOURCES})
 
-target_compile_definitions(kernel PUBLIC __is_kernel)
+target_compile_definitions(kernel PRIVATE __is_kernel)
 target_compile_definitions(kernel PRIVATE __arch=${BANAN_ARCH})
 target_compile_definitions(kernel PRIVATE __enable_sse=${BANAN_ENABLE_SSE})
-if (NOT BANAN_ENABLE_SSE)
-	target_compile_options(kernel PRIVATE -mno-sse -mno-sse2)
-endif ()
 
-target_compile_options(kernel PUBLIC -O2 -g)
-target_compile_options(kernel PUBLIC $<$<COMPILE_LANGUAGE:CXX>:-Wno-literal-suffix -fno-rtti -fno-exceptions>)
-target_compile_options(kernel PUBLIC -fmacro-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}=.)
-target_compile_options(kernel PUBLIC -fstack-protector -ffreestanding -fno-omit-frame-pointer -fstrict-volatile-bitfields -mgeneral-regs-only)
-target_compile_options(kernel PUBLIC -Wall -Wextra -Werror -Wstack-usage=1024)
+target_compile_options(kernel PRIVATE
+	-O2 -g
+	-fmacro-prefix-map=${CMAKE_CURRENT_SOURCE_DIR}=.
+	-fstack-protector
+	-ffreestanding
+	-fno-omit-frame-pointer
+	-fstrict-volatile-bitfields
+	-mgeneral-regs-only
+	-Wall -Wextra -Werror -Wstack-usage=1024
+)
 
 # This might not work with other toolchains
-target_compile_options(kernel PUBLIC $<$<COMPILE_LANGUAGE:CXX>:-Wno-invalid-offsetof>)
+target_compile_options(kernel PRIVATE $<$<COMPILE_LANGUAGE:CXX>:
+	-Wno-literal-suffix
+	-Wno-invalid-offsetof
+	-fno-rtti
+	-fno-exceptions>
+)
 
 if(ENABLE_KERNEL_UBSAN)
-	target_compile_options(kernel PUBLIC -fsanitize=undefined)
+	target_compile_options(kernel PRIVATE -fsanitize=undefined)
 endif()
 
 if("${BANAN_ARCH}" STREQUAL "x86_64")
-	target_compile_options(kernel PUBLIC -mcmodel=kernel -mno-red-zone)
-	target_link_options(kernel PUBLIC LINKER:-z,max-page-size=4096)
-	target_link_options(kernel PUBLIC LINKER:-T,${CMAKE_CURRENT_SOURCE_DIR}/arch/x86_64/linker.ld)
+	target_compile_options(kernel PRIVATE -mcmodel=kernel -mno-red-zone)
+	target_link_options(kernel PRIVATE LINKER:-z,max-page-size=4096)
+	target_link_options(kernel PRIVATE LINKER:-T,${CMAKE_CURRENT_SOURCE_DIR}/arch/x86_64/linker.ld)
 elseif("${BANAN_ARCH}" STREQUAL "i686")
-	target_link_options(kernel PUBLIC LINKER:-T,${CMAKE_CURRENT_SOURCE_DIR}/arch/i686/linker.ld)
+	target_link_options(kernel PRIVATE LINKER:-T,${CMAKE_CURRENT_SOURCE_DIR}/arch/i686/linker.ld)
 endif()
 
-target_link_options(kernel PUBLIC -ffreestanding -nostdlib)
+target_link_options(kernel PRIVATE -ffreestanding -nostdlib)
 
 execute_process(COMMAND ${CMAKE_CXX_COMPILER} -print-file-name=crtbegin.o OUTPUT_VARIABLE CRTBEGIN OUTPUT_STRIP_TRAILING_WHITESPACE)
 execute_process(COMMAND ${CMAKE_CXX_COMPILER} -print-file-name=crtend.o OUTPUT_VARIABLE CRTEND OUTPUT_STRIP_TRAILING_WHITESPACE)
