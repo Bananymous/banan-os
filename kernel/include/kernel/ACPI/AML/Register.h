@@ -12,7 +12,7 @@ namespace Kernel::ACPI::AML
 		Register();
 		Register(BAN::RefPtr<AML::Node> node);
 
-		BAN::RefPtr<AML::Node> to_underlying() override { return value; }
+		BAN::RefPtr<AML::Node> to_underlying() override { return value->to_underlying(); }
 
 		BAN::RefPtr<AML::Node> convert(uint8_t mask) override;
 		BAN::RefPtr<AML::Node> store(BAN::RefPtr<AML::Node> source) override;

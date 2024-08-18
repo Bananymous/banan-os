@@ -67,7 +67,7 @@ namespace Kernel::ACPI::AML
 						return ParseResult::Failure;
 					}
 					auto package_element = package->elements[index];
-					result = MUST(BAN::RefPtr<AML::Reference>::create(package_element));
+					result = MUST(BAN::RefPtr<AML::Reference>::create(package_element->to_underlying()));
 					break;
 				}
 				case AML::Node::Type::String:

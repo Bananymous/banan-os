@@ -92,6 +92,18 @@ namespace Kernel::ACPI::AML
 			return element->convert(mask);
 		}
 
+		BAN::RefPtr<AML::Node> to_underlying() override
+		{
+			if (!initialized)
+			{
+				AML_ERROR("Trying to store into uninitialized PackageElement");
+				return {};
+			}
+			if (!resolved && !resolve())
+				return {};
+			return element;
+		}
+
 		BAN::RefPtr<AML::Node> store(BAN::RefPtr<AML::Node> node) override
 		{
 			if (!initialized)
