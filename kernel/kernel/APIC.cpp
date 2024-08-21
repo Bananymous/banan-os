@@ -31,7 +31,6 @@ extern uint8_t g_ap_init_addr[];
 
 extern volatile uint8_t g_ap_startup_done[];
 extern volatile uint8_t g_ap_running_count[];
-extern volatile uint8_t g_ap_stack_loaded[];
 
 namespace Kernel
 {
@@ -261,8 +260,6 @@ namespace Kernel
 					__builtin_ia32_pause();
 			};
 
-		const size_t ap_init_page = reinterpret_cast<vaddr_t>(g_ap_init_addr) / PAGE_SIZE;
-
 		dprintln("System has {} processors", m_processors.size());
 
 		uint8_t bsp_id = Kernel::Processor::current_id().as_u32();
@@ -274,6 +271,11 @@ namespace Kernel
 			*g_ap_startup_done = 1;
 			return;
 		}
+
+		constexpr paddr_t ap_init_paddr = 0xF000;
+		PageTable::with_fast_page(ap_init_paddr, [&] {
+			memcpy(PageTable::fast_page_as_ptr(), g_ap_init_addr, PAGE_SIZE);
+		});
 
 		for (auto& processor : m_processors)
 		{
@@ -289,10 +291,10 @@ namespace Kernel
 			dprintln("Trying to enable processor (lapic id {})", processor.apic_id);
 
 			auto& proc = Kernel::Processor::create(ProcessorID(processor.apic_id));
-			PageTable::with_fast_page((paddr_t)g_ap_init_addr, [&] {
-				PageTable::fast_page_as_sized<uint32_t>(2) = V2P(proc.stack_top());
+			PageTable::with_fast_page(ap_init_paddr, [&] {
+				PageTable::fast_page_as_sized<uint32_t>(2) = kmalloc_paddr_of(proc.stack_top()).value();
+				PageTable::fast_page_as_sized<uint8_t>(13) = 0;
 			});
-			*g_ap_stack_loaded = 0;
 
 			write_to_local_apic(LAPIC_ERROR_REG, 0x00);
 
@@ -323,18 +325,20 @@ namespace Kernel
 					| ICR_LO_level_assert
 					| ICR_LO_trigger_mode_edge
 					| ICR_LO_destination_shorthand_none
-					| ap_init_page
+					| (ap_init_paddr / PAGE_SIZE)
 					, 200
 				);
 			}
 
 			// give processor upto 100 * 100 us + 200 us to boot
-			for (int i = 0; i < 100; i++)
-			{
-				if (__atomic_load_n(&g_ap_stack_loaded[0], __ATOMIC_SEQ_CST))
-					break;
-				udelay(100);
-			}
+			PageTable::with_fast_page(ap_init_paddr, [&] {
+				for (int i = 0; i < 100; i++)
+				{
+					if (__atomic_load_n(&PageTable::fast_page_as_sized<uint8_t>(13), __ATOMIC_SEQ_CST))
+						break;
+					udelay(100);
+				}
+			});
 		}
 
 		__atomic_store_n(&g_ap_startup_done[0], 1, __ATOMIC_SEQ_CST);

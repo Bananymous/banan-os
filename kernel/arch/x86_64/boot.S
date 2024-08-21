@@ -108,9 +108,6 @@ g_ap_startup_done:
 .global g_ap_running_count
 g_ap_running_count:
 	.byte 0
-.global g_ap_stack_loaded
-g_ap_stack_loaded:
-	.byte 0
 
 .section .text
 
@@ -194,7 +191,6 @@ _start:
 
 	call check_requirements
 	call enable_sse
-
 	call initialize_paging
 
 	# flush gdt and jump to 64 bit
@@ -237,26 +233,31 @@ system_halt:
 	jmp 1b
 
 
+#define AP_V2P(vaddr) ((vaddr) - ap_trampoline + 0xF000)
+
 .section .ap_init, "ax"
 
 .code16
 .global ap_trampoline
 ap_trampoline:
 	jmp 1f
+
 .align 8
 ap_stack_ptr:
 	.skip 4
-1:
-	cli; cld
-	ljmpl $0x00, $ap_cs_clear
-ap_cs_clear:
+ap_stack_loaded:
+	.skip 1
 
+1:	cli; cld
+	ljmpl $0x00, $AP_V2P(ap_cs_clear)
+
+ap_cs_clear:
 	# load ap gdt and enter protected mode
-	lgdt ap_gdtr
+	lgdt AP_V2P(ap_gdtr)
 	movl %cr0, %eax
 	orb $1, %al
 	movl %eax, %cr0
-	ljmpl $0x08, $ap_protected_mode
+	ljmpl $0x08, $AP_V2P(ap_protected_mode)
 
 .code32
 ap_protected_mode:
@@ -265,16 +266,15 @@ ap_protected_mode:
 	movw %ax, %ss
 	movw %ax, %es
 
-	movl ap_stack_ptr, %esp
-	movb $1, V2P(g_ap_stack_loaded)
+	movl AP_V2P(ap_stack_ptr), %esp
+	movb $1, AP_V2P(ap_stack_loaded)
 
-	call V2P(enable_sse)
-
-	call V2P(initialize_paging)
+	leal V2P(enable_sse),        %ecx; call *%ecx
+	leal V2P(initialize_paging), %ecx; call *%ecx
 
 	# load boot gdt and enter long mode
 	lgdt V2P(boot_gdtr)
-	ljmpl $0x08, $ap_long_mode
+	ljmpl $0x08, $AP_V2P(ap_long_mode)
 
 .code64
 ap_long_mode:
@@ -282,22 +282,20 @@ ap_long_mode:
 	movl %esp, %esp
 	addq $KERNEL_OFFSET, %rsp
 
-	# jump to higher half
-	movabsq $ap_higher_half, %rcx
-	jmp *%rcx
-
-ap_higher_half:
 	# clear rbp for stacktrace
 	xorq %rbp, %rbp
 
+	xorb %al, %al
 1:	pause
-	cmpb $0, g_ap_startup_done
+	cmpb %al, g_ap_startup_done
 	jz 1b
 
 	lock incb g_ap_running_count
 
-	call ap_main
-	jmp system_halt
+	# jump to ap_main in higher half
+	movabsq $ap_main, %rcx
+	call *%rcx
+	jmp V2P(system_halt)
 
 ap_gdt:
 	.quad 0x0000000000000000 # null descriptor

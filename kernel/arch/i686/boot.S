@@ -235,26 +235,31 @@ system_halt:
 	jmp 1b
 
 
+#define AP_V2P(vaddr) ((vaddr) - ap_trampoline + 0xF000)
+
 .section .ap_init, "ax"
 
 .code16
 .global ap_trampoline
 ap_trampoline:
 	jmp 1f
+
 .align 8
 ap_stack_ptr:
 	.skip 4
-1:
-	cli; cld
-	ljmpl $0x00, $ap_cs_clear
-ap_cs_clear:
+ap_stack_loaded:
+	.skip 1
 
+1:	cli; cld
+	ljmpl $0x00, $AP_V2P(ap_cs_clear)
+
+ap_cs_clear:
 	# load ap gdt and enter protected mode
-	lgdt ap_gdtr
+	lgdt AP_V2P(ap_gdtr)
 	movl %cr0, %eax
 	orb $1, %al
 	movl %eax, %cr0
-	ljmpl $0x08, $ap_protected_mode
+	ljmpl $0x08, $AP_V2P(ap_protected_mode)
 
 .code32
 ap_protected_mode:
@@ -263,16 +268,15 @@ ap_protected_mode:
 	movw %ax, %ss
 	movw %ax, %es
 
-	movl ap_stack_ptr, %esp
-	movb $1, V2P(g_ap_stack_loaded)
+	movl AP_V2P(ap_stack_ptr), %esp
+	movb $1, AP_V2P(ap_stack_loaded)
 
-	call V2P(enable_sse)
-
-	call V2P(initialize_paging)
+	leal V2P(enable_sse),        %ecx; call *%ecx
+	leal V2P(initialize_paging), %ecx; call *%ecx
 
 	# load boot gdt and enter long mode
 	lgdt V2P(boot_gdtr)
-	ljmpl $0x08, $ap_flush_gdt
+	ljmpl $0x08, $AP_V2P(ap_flush_gdt)
 
 ap_flush_gdt:
 	# move stack pointer to higher half

@@ -1,4 +1,4 @@
-.section .userspace, "aw"
+.section .userspace, "ax"
 
 // stack contains
 //    return address
