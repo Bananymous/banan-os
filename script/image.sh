@@ -16,7 +16,7 @@ if [ -z $BANAN_BUILD_DIR ]; then
 fi
 
 if [ "$1" == "full" ] || [ ! -f $BANAN_DISK_IMAGE_PATH ]; then
-	$BANAN_SCRIPT_DIR/image-create.sh
+	$BANAN_SCRIPT_DIR/image-create.sh || exit 1
 fi
 
 set -u

@@ -13,7 +13,7 @@ source "$BANAN_ROOT_DIR/script/config.sh"
 
 export PATH="$BANAN_TOOLCHAIN_PREFIX/bin:$PATH"
 
-export PKG_CONFIG='pkg-config --static'
+export PKG_CONFIG_DIR=''
 export PKG_CONFIG_SYSROOT_DIR="$BANAN_SYSROOT"
 export PKG_CONFIG_LIBDIR="$PKG_CONFIG_SYSROOT_DIR/usr/lib/pkgconfig"
 export PKG_CONFIG_PATH="$PKG_CONFIG_SYSROOT_DIR/usr/share/pkgconfig"
@@ -21,6 +21,13 @@ export PKG_CONFIG_PATH="$PKG_CONFIG_SYSROOT_DIR/usr/share/pkgconfig"
 export CC="$BANAN_TOOLCHAIN_TRIPLE-gcc"
 export CXX="$BANAN_TOOLCHAIN_TRIPLE-g++"
 export LD="$BANAN_TOOLCHAIN_TRIPLE-ld"
+export AR="$BANAN_TOOLCHAIN_TRIPLE-ar"
+export RANLIB="$BANAN_TOOLCHAIN_TRIPLE-ranlib"
+export READELF="$BANAN_TOOLCHAIN_TRIPLE-readelf"
+export OBJCOPY="$BANAN_TOOLCHAIN_TRIPLE-objcopy"
+export OBJDUMP="$BANAN_TOOLCHAIN_TRIPLE-objdump"
+export STRIP="$BANAN_TOOLCHAIN_TRIPLE-strip"
+export CXXFILT="$BANAN_TOOLCHAIN_TRIPLE-c++filt"
 
 if [ ! -f "$BANAN_SYSROOT/usr/lib/libc.a" ]; then
 	pushd "$BANAN_ROOT_DIR" >/dev/null
@@ -102,28 +109,29 @@ if [ "$VERSION" = "git" ]; then
 		exit 1
 	fi
 else
-	regex=".*/(.*\.tar\..*)#(.*)"
+	regex='.*/(.*)#(.*)'
 	if [[ $DOWNLOAD_URL =~ $regex ]]; then
-		TAR_NAME="${BASH_REMATCH[1]}"
-		TAR_HASH="${BASH_REMATCH[2]}"
+		FILE_NAME="${BASH_REMATCH[1]}"
+		FILE_HASH="${BASH_REMATCH[2]}"
 
-		if [ -f "$TAR_NAME" ]; then
-			if ! echo "$TAR_HASH $TAR_NAME" | sha256sum --check >/dev/null; then
+		if [ -f "$FILE_NAME" ]; then
+			if ! echo "$FILE_HASH $FILE_NAME" | sha256sum --check >/dev/null; then
 				clean
 			fi
 		fi
 
-		if [ ! -f "$TAR_NAME" ]; then
+		if [ ! -f "$FILE_NAME" ]; then
 			wget "$DOWNLOAD_URL" || exit 1
 		fi
 
-		if ! echo "$TAR_HASH $TAR_NAME" | sha256sum --check >/dev/null; then
-			echo "Tar hash does not match" >&2
+		if ! echo "$FILE_HASH $FILE_NAME" | sha256sum --check >/dev/null; then
+			echo "File hash does not match" >&2
 			exit 1
 		fi
 
-		if [ ! -d "$build_dir" ]; then
-			tar xf "$TAR_NAME" || exit 1
+		regex='(.*\.tar\..*)'
+		if [[ $FILE_NAME =~ $regex ]] && [ ! -d "$build_dir" ]; then
+			tar xf "$FILE_NAME" || exit 1
 
 			: "${TAR_CONTENT:=$NAME-$VERSION}"
 			mv "$TAR_CONTENT" "$build_dir" || exit 1
@@ -132,6 +140,10 @@ else
 				for patch in ./patches/*; do
 					patch -ruN -p1 -d "$build_dir" < "$patch" || exit 1
 				done
+			fi
+		else
+			if [ ! -d "$build_dir" ]; then
+				mkdir -p "$build_dir" || exit 1
 			fi
 		fi
 	else

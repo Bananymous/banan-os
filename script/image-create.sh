@@ -63,4 +63,4 @@ sudo mkfs.ext2 -q $PARTITION2
 sudo losetup -d $LOOP_DEV
 
 # install bootloader
-$BANAN_SCRIPT_DIR/install-bootloader.sh
+$BANAN_SCRIPT_DIR/install-bootloader.sh || exit 1
