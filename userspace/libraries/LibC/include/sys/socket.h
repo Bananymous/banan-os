@@ -67,10 +67,10 @@ struct linger
 	int l_linger;	/* Linger time, in seconds. */
 };
 
-#define SOCK_DGRAM		0
-#define SOCK_RAW		1
-#define SOCK_SEQPACKET	2
-#define SOCK_STREAM		3
+#define SOCK_DGRAM		1
+#define SOCK_RAW		2
+#define SOCK_SEQPACKET	3
+#define SOCK_STREAM		4
 
 #define SOL_SOCKET 1
 

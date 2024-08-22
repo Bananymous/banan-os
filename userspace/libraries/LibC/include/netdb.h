@@ -28,6 +28,9 @@ __BEGIN_DECLS
 #define NI_NUMERICSCOPE	0x10
 #define NI_DGRAM		0x20
 
+#define NI_MAXHOST		1025
+#define NI_MAXSERV		32
+
 #define EAI_AGAIN		1
 #define EAI_BADFLAGS	2
 #define EAI_FAIL		3
@@ -106,6 +109,8 @@ void				sethostent(int stayopen);
 void				setnetent(int stayopen);
 void				setprotoent(int stayopen);
 void				setservent(int stayopen);
+
+extern int h_errno;
 
 __END_DECLS
 

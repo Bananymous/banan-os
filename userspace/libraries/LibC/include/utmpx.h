@@ -20,6 +20,7 @@ struct utmpx
 	pid_t			ut_pid;			/* Process ID. */
 	short			ut_type;		/* Type of entry. */
 	struct timeval	ut_tv;			/* Time entry was made. */
+	char			ut_host[32];
 };
 
 #define EMPTY			0
