@@ -1154,7 +1154,6 @@ namespace Kernel
 			return 0;
 		}
 
-		dprintln("SYS_GETSOCKOPT {}, {}, {}, {}, {}", socket, level, option_name, option_value, option_len);
 		return BAN::Error::from_errno(ENOTSUP);
 	}
 
@@ -1243,6 +1242,10 @@ namespace Kernel
 		if (!inode->mode().ifsock())
 			return BAN::Error::from_errno(ENOTSOCK);
 
+		auto flags = TRY(m_open_file_descriptors.flags_of(arguments->socket));
+		if ((flags & O_NONBLOCK) && !inode->can_write())
+			return BAN::Error::from_errno(EAGAIN);
+
 		BAN::ConstByteSpan message { reinterpret_cast<const uint8_t*>(arguments->message), arguments->length };
 		return TRY(inode->sendto(message, arguments->dest_addr, arguments->dest_len));
 	}
@@ -1266,6 +1269,10 @@ namespace Kernel
 		auto inode = TRY(m_open_file_descriptors.inode_of(arguments->socket));
 		if (!inode->mode().ifsock())
 			return BAN::Error::from_errno(ENOTSOCK);
+
+		auto flags = TRY(m_open_file_descriptors.flags_of(arguments->socket));
+		if ((flags & O_NONBLOCK) && !inode->can_read())
+			return BAN::Error::from_errno(EAGAIN);
 
 		BAN::ByteSpan buffer { reinterpret_cast<uint8_t*>(arguments->buffer), arguments->length };
 		return TRY(inode->recvfrom(buffer, arguments->address, arguments->address_len));
