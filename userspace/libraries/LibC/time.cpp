@@ -452,3 +452,18 @@ size_t strftime(char* __restrict s, size_t maxsize, const char* __restrict forma
 	s[len++] = '\0';
 	return len;
 }
+
+
+
+#include <BAN/Assert.h>
+
+long timezone;
+void tzset()
+{
+	ASSERT_NOT_REACHED();
+}
+
+time_t mktime(struct tm*)
+{
+	ASSERT_NOT_REACHED();
+}

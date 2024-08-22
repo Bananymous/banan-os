@@ -77,3 +77,17 @@ int setsockopt(int socket, int level, int option_name, const void* option_value,
 {
 	return syscall(SYS_SETSOCKOPT, socket, level, option_name, option_value, option_len);
 }
+
+
+
+#include <BAN/Assert.h>
+
+int getpeername(int, struct sockaddr* __restrict, socklen_t* __restrict)
+{
+	ASSERT_NOT_REACHED();
+}
+
+int shutdown(int, int)
+{
+	ASSERT_NOT_REACHED();
+}

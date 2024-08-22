@@ -27,3 +27,16 @@ int msync(void* addr, size_t len, int flags)
 {
 	return syscall(SYS_MSYNC, addr, len, flags);
 }
+
+
+#include <BAN/Assert.h>
+
+int mlock(const void*, size_t)
+{
+	ASSERT_NOT_REACHED();
+}
+
+int mprotect(void*, size_t, int)
+{
+	ASSERT_NOT_REACHED();
+}

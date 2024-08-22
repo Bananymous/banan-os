@@ -25,12 +25,14 @@ set(LIBC_SOURCES
 	sys/banan-os.cpp
 	sys/ioctl.cpp
 	sys/mman.cpp
+	sys/resource.cpp
 	sys/select.cpp
 	sys/socket.cpp
 	sys/stat.cpp
 	sys/time.cpp
 	sys/utsname.cpp
 	sys/wait.cpp
+	syslog.cpp
 	termios.cpp
 	time.cpp
 	unistd.cpp
