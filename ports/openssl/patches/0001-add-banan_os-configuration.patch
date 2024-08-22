@@ -1,0 +1,26 @@
+diff -ruN openssl-3.3.1/Configurations/10-main.conf openssl-3.3.1-banan_os/Configurations/10-main.conf
+--- openssl-3.3.1/Configurations/10-main.conf	2024-06-04 15:53:04.000000000 +0300
++++ openssl-3.3.1-banan_os/Configurations/10-main.conf	2024-08-21 15:45:36.605293938 +0300
+@@ -668,6 +668,22 @@
+         shared_extension => ".so",
+     },
+ 
++### banan_os
++    "banan_os-generic" => {
++        inherit_from     => [ "BASE_unix" ],
++        CC               => "gcc",
++        CXX              => "g++",
++        CFLAGS           => picker(default => "-Wall",
++                                   debug   => "-O0 -g",
++                                   release => "-O3"),
++        CXXFLAGS         => picker(default => "-Wall",
++                                   debug   => "-O0 -g",
++                                   release => "-O3"),
++        cxxflags         => "-std=c++11",
++        lib_cppflags     => "-DOPENSSL_USE_NODELETE",
++        bn_ops           => "BN_LLONG RC4_CHAR",
++    },
++
+ ####
+ #### Variety of LINUX:-)
+ ####

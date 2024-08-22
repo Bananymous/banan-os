@@ -1,0 +1,11 @@
+diff -ruN openssl-3.3.1/util/mkdef.pl openssl-3.3.1-banan_os/util/mkdef.pl
+--- openssl-3.3.1/util/mkdef.pl	2024-06-04 15:53:04.000000000 +0300
++++ openssl-3.3.1-banan_os/util/mkdef.pl	2024-08-21 15:47:21.496046916 +0300
+@@ -113,6 +113,7 @@
+                      platforms  => { UNIX                       => 1 } },
+     "solaris-gcc" => 'solaris', # alias
+     linux       => 'solaris',   # alias
++    banan_os    => 'solaris',   # alias
+     "bsd-gcc"   => 'solaris',   # alias
+     aix         => { writer     => \&writer_aix,
+                      sort       => sorter_unix(),
