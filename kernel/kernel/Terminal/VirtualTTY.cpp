@@ -305,7 +305,31 @@ namespace Kernel
 				m_row = m_saved_row;
 				m_column = m_saved_column;
 				return reset_ansi();
-
+			case '@':
+				if (m_ansi_state.nums[0] == -1)
+					m_ansi_state.nums[0] = 1;
+				reset_ansi();
+				for (int i = 0; i < m_ansi_state.nums[0]; i++)
+					putchar_impl(' ');
+				return;
+			case 'b':
+				if (m_ansi_state.nums[0] == -1)
+					m_ansi_state.nums[0] = 1;
+				reset_ansi();
+				if (m_last_graphic_char)
+				{
+					char buffer[5] {};
+					BAN::UTF8::from_codepoints(&m_last_graphic_char, 1, buffer);
+					for (int i = 0; i < m_ansi_state.nums[0]; i++)
+						for (int j = 0; buffer[j]; j++)
+							putchar_impl(buffer[j]);
+				}
+				return;
+			case 'd':
+				if (m_ansi_state.nums[0] == -1)
+					m_ansi_state.nums[0] = 1;
+				m_row = BAN::Math::clamp<uint32_t>(m_ansi_state.nums[0], 1, m_height) - 1;
+				return reset_ansi();
 			case '?':
 				if (m_ansi_state.index != 0 || m_ansi_state.nums[0] != -1)
 				{
@@ -439,6 +463,7 @@ namespace Kernel
 				break;;
 			default:
 				putchar_at(codepoint, m_column, m_row);
+				m_last_graphic_char = codepoint;
 				m_column++;
 				break;
 		}
