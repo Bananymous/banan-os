@@ -375,8 +375,9 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_tcsetattr(int fildes, int optional_actions, const termios* termios)
 	{
-		if (optional_actions != TCSANOW)
-			return BAN::Error::from_errno(EINVAL);
+		//if (optional_actions != TCSANOW)
+		//	return BAN::Error::from_errno(EINVAL);
+		(void)optional_actions;
 
 		LockGuard _(m_process_lock);
 
@@ -1166,7 +1167,9 @@ namespace Kernel
 		if (!inode->mode().ifsock())
 			return BAN::Error::from_errno(ENOTSOCK);
 
-		dprintln("SYS_GETSOCKOPT {}, {}, {}, {}, {}", socket, level, option_name, option_value, option_len);
+		(void)level;
+		(void)option_name;
+
 		return BAN::Error::from_errno(ENOTSUP);
 	}
 
