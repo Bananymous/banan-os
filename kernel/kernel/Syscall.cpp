@@ -44,6 +44,16 @@ namespace Kernel
 
 		BAN::ErrorOr<long> ret = BAN::Error::from_errno(ENOSYS);
 
+		const char* process_path = nullptr;
+		if (Process::current().userspace_info().argc > 0 && Process::current().userspace_info().argv)
+			process_path = Process::current().userspace_info().argv[0];
+		if (process_path == nullptr)
+			process_path = "<null>";
+
+#if DUMP_ALL_SYSCALLS
+		dprintln("{} pid {}: {}", process_path, Process::current().pid(), s_syscall_names[syscall]);
+#endif
+
 		if (syscall < 0 || syscall >= __SYSCALL_COUNT)
 			dwarnln("No syscall {}", syscall);
 		else if (syscall == SYS_FORK)
@@ -53,13 +63,14 @@ namespace Kernel
 
 		asm volatile("cli");
 
-		if (ret.is_error() && ret.error().get_error_code() == ENOTSUP)
-			dprintln("{}: ENOTSUP", s_syscall_names[syscall]);
 #if DUMP_ALL_SYSCALLS
-		else if (ret.is_error())
-			dprintln("{}: {}", s_syscall_names[syscall], ret.error());
+		if (ret.is_error())
+			dprintln("{} pid {}: {}: {}", process_path, Process::current().pid(), s_syscall_names[syscall], ret.error());
 		else
-			dprintln("{}: {}", s_syscall_names[syscall], ret.value());
+			dprintln("{} pid {}: {}: {}", process_path, Process::current().pid(), s_syscall_names[syscall], ret.value());
+#else
+		if (ret.is_error() && ret.error().get_error_code() == ENOTSUP)
+			dwarnln("{} pid {}: {}: ENOTSUP", process_path, Process::current().pid(), s_syscall_names[syscall]);
 #endif
 
 		if (ret.is_error() && ret.error().is_kernel_error())
