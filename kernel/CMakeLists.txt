@@ -20,6 +20,7 @@ set(KERNEL_SOURCES
 	kernel/Device/Device.cpp
 	kernel/Device/FramebufferDevice.cpp
 	kernel/Device/NullDevice.cpp
+	kernel/Device/RandomDevice.cpp
 	kernel/Device/ZeroDevice.cpp
 	kernel/Errors.cpp
 	kernel/FS/DevFS/FileSystem.cpp

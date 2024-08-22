@@ -2,6 +2,7 @@
 #include <kernel/Device/DebugDevice.h>
 #include <kernel/Device/FramebufferDevice.h>
 #include <kernel/Device/NullDevice.h>
+#include <kernel/Device/RandomDevice.h>
 #include <kernel/Device/ZeroDevice.h>
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/FS/TmpFS/Inode.h>
@@ -26,6 +27,7 @@ namespace Kernel
 		MUST(s_instance->TmpFileSystem::initialize(0755, 0, 0));
 		s_instance->add_device(MUST(DebugDevice::create(0666, 0, 0)));
 		s_instance->add_device(MUST(NullDevice::create(0666, 0, 0)));
+		s_instance->add_device(MUST(RandomDevice::create(0666, 0, 0)));
 		s_instance->add_device(MUST(ZeroDevice::create(0666, 0, 0)));
 		s_instance->add_device(MUST(KeyboardDevice::create(0440, 0, 901)));
 		s_instance->add_device(MUST(MouseDevice::create(0440, 0, 901)));

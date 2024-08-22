@@ -12,6 +12,7 @@ namespace Kernel
 		PTSMaster,
 		Null,
 		Zero,
+		Random,
 		Debug,
 		Keyboard,
 		Mouse,
