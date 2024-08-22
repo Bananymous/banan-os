@@ -2,9 +2,11 @@
 #include <BAN/Bitcast.h>
 
 #include <arpa/inet.h>
+#include <ctype.h>
 #include <limits.h>
 #include <netdb.h>
 #include <netinet/in.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -12,9 +14,14 @@
 
 int h_errno = 0;
 
-void freeaddrinfo(struct addrinfo*)
+void freeaddrinfo(struct addrinfo* ai)
 {
-	ASSERT_NOT_REACHED();
+	while (ai)
+	{
+		auto* next = ai->ai_next;
+		free(ai);
+		ai = next;
+	}
 }
 
 const char* gai_strerror(int ecode)
@@ -36,7 +43,111 @@ const char* gai_strerror(int ecode)
 	}
 }
 
-int getaddrinfo(const char* __restrict, const char* __restrict, const struct addrinfo* __restrict, struct addrinfo** __restrict)
+int getaddrinfo(const char* __restrict nodename, const char* __restrict servname, const struct addrinfo* __restrict hints, struct addrinfo** __restrict res)
+{
+	int flags = 0;
+	int family = AF_UNSPEC;
+	int socktype = 0;
+	if (hints)
+	{
+		flags = hints->ai_flags;
+		family = hints->ai_family;
+		socktype = hints->ai_socktype;
+	}
+
+	if (family != AF_UNSPEC && family != AF_INET)
+		return EAI_FAMILY;
+
+	switch (socktype)
+	{
+		case 0:
+			socktype = SOCK_STREAM;
+			break;
+		case SOCK_DGRAM:
+		case SOCK_STREAM:
+			break;
+		default:
+			return EAI_SOCKTYPE;
+	}
+
+	if (!nodename)
+		return EAI_NONAME;
+
+	int port = 0;
+	if (servname)
+	{
+		for (size_t i = 0; servname[i]; i++)
+			if (!isdigit(servname[i]))
+				return EAI_SERVICE;
+		port = atoi(servname);
+		if (port > 0xFFFF)
+			return EAI_SERVICE;
+	}
+
+	int resolver_sock;
+	in_addr_t ipv4_addr = INADDR_ANY;
+	if (nodename)
+		ipv4_addr = inet_addr(nodename);
+	if (nodename && ipv4_addr == static_cast<in_addr_t>(-1))
+	{
+		if (flags & AI_NUMERICHOST)
+			return EAI_NONAME;
+
+		resolver_sock = socket(AF_UNIX, SOCK_SEQPACKET, 0);
+		if (resolver_sock == -1)
+			return EAI_FAIL;
+
+		sockaddr_un addr;
+		addr.sun_family = AF_UNIX;
+		strcpy(addr.sun_path, "/tmp/resolver.sock");
+		if (connect(resolver_sock, (sockaddr*)&addr, sizeof(addr)) == -1)
+			goto error_close_socket;
+
+		if (send(resolver_sock, nodename, strlen(nodename), 0) == -1)
+			goto error_close_socket;
+
+		sockaddr_storage storage;
+		if (recv(resolver_sock, &storage, sizeof(storage), 0) == -1)
+			goto error_close_socket;
+
+		close(resolver_sock);
+
+		if (storage.ss_family != AF_INET)
+			return EAI_FAIL;
+
+		ipv4_addr = *reinterpret_cast<in_addr_t*>(storage.ss_storage);
+	}
+
+	{
+		addrinfo* ai = (addrinfo*)malloc(sizeof(addrinfo) + sizeof(sockaddr_in));
+		if (*res == nullptr)
+			return EAI_MEMORY;
+
+		sockaddr_in* sa_in = reinterpret_cast<sockaddr_in*>(reinterpret_cast<uintptr_t>(ai) + sizeof(addrinfo));
+		sa_in->sin_addr.s_addr = ipv4_addr;
+		sa_in->sin_family = AF_INET;
+		sa_in->sin_port = htons(port);
+
+		ai->ai_addr = reinterpret_cast<sockaddr*>(sa_in);
+		ai->ai_addrlen = sizeof(sockaddr_in);
+		ai->ai_canonname = (flags & AI_CANONNAME) ? const_cast<char*>(nodename) : nullptr;
+		ai->ai_family = AF_INET;
+		ai->ai_flags = 0;
+		ai->ai_next = nullptr;
+		ai->ai_protocol = 0;
+		ai->ai_socktype = socktype;
+
+		*res = ai;
+
+		return 0;
+	}
+
+error_close_socket:
+	close(resolver_sock);
+	return EAI_FAIL;
+}
+
+int getnameinfo(const struct sockaddr* __restrict, socklen_t, char* __restrict, socklen_t, char* __restrict, socklen_t, int)
 {
 	ASSERT_NOT_REACHED();
 }
