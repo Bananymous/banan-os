@@ -335,6 +335,14 @@ done:
 
 	extern "C" void cpp_timer_handler()
 	{
+		if (g_paniced)
+		{
+			dprintln("Processor {} halted", Processor::current_id());
+			if (InterruptController::is_initialized())
+				InterruptController::get().broadcast_ipi();
+			asm volatile("cli; 1: hlt; jmp 1b");
+		}
+
 		ASSERT(InterruptController::get().is_in_service(IRQ_TIMER));
 		InterruptController::get().eoi(IRQ_TIMER);
 
