@@ -254,7 +254,7 @@ acpi_release_global_lock:
 		return *s_instance;
 	}
 
-	static bool is_rsdp(uintptr_t rsdp_addr)
+	static bool is_rsdp(vaddr_t rsdp_addr)
 	{
 		const RSDP* rsdp = (const RSDP*)rsdp_addr;
 
@@ -287,7 +287,7 @@ acpi_release_global_lock:
 			return &g_boot_info.rsdp;
 
 		// Look in main BIOS area below 1 MB
-		for (uintptr_t addr = P2V(0x000E0000); addr < P2V(0x000FFFFF); addr += 16)
+		for (vaddr_t addr = 0x000E0000 + KERNEL_OFFSET; addr < 0x000FFFFF + KERNEL_OFFSET; addr += 16)
 			if (is_rsdp(addr))
 				return reinterpret_cast<const RSDP*>(addr);
 		return nullptr;

@@ -1,8 +1,7 @@
 #include <BAN/Errors.h>
 #include <kernel/kprint.h>
+#include <kernel/BootInfo.h>
 #include <kernel/Memory/kmalloc.h>
-
-#include <kernel/Thread.h>
 
 #define MB (1 << 20)
 
@@ -424,7 +423,7 @@ BAN::Optional<Kernel::paddr_t> kmalloc_paddr_of(Kernel::vaddr_t vaddr)
 	using namespace Kernel;
 
 	if ((vaddr_t)s_kmalloc_storage <= vaddr && vaddr < (vaddr_t)s_kmalloc_storage + sizeof(s_kmalloc_storage))
-		return V2P(vaddr);
+		return vaddr - KERNEL_OFFSET + g_boot_info.kernel_paddr;
 
 	return {};
 }

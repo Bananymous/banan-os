@@ -172,3 +172,5 @@ banan_boot_info:
 		.long framebuffer
 	boot_memory_map:
 		.long memory_map
+	boot_kernel_paddr:
+		.long 0

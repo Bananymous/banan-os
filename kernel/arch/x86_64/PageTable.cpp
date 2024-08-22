@@ -1,6 +1,5 @@
-#include <kernel/Arch.h>
+#include <kernel/BootInfo.h>
 #include <kernel/CPUID.h>
-#include <kernel/InterruptController.h>
 #include <kernel/Lock/SpinLock.h>
 #include <kernel/Memory/kmalloc.h>
 #include <kernel/Memory/PageTable.h>
@@ -145,6 +144,18 @@ namespace Kernel
 		ASSERT(page);
 		memset(page, 0, PAGE_SIZE);
 		return (uint64_t*)page;
+	}
+
+	template<typename T>
+	static paddr_t V2P(const T vaddr)
+	{
+		return (vaddr_t)vaddr - KERNEL_OFFSET + g_boot_info.kernel_paddr;
+	}
+
+	template<typename T>
+	static vaddr_t P2V(const T paddr)
+	{
+		return (paddr_t)paddr - g_boot_info.kernel_paddr + KERNEL_OFFSET;
 	}
 
 	void PageTable::initialize_kernel()

@@ -40,8 +40,8 @@ namespace Kernel
 				continue;
 
 			paddr_t start = entry.address;
-			if (start < V2P(g_kernel_end))
-				start = V2P(g_kernel_end);
+			if (start < (vaddr_t)g_kernel_end - KERNEL_OFFSET + g_boot_info.kernel_paddr)
+				start = (vaddr_t)g_kernel_end - KERNEL_OFFSET + g_boot_info.kernel_paddr;
 			if (auto rem = start % PAGE_SIZE)
 				start += PAGE_SIZE - rem;
 

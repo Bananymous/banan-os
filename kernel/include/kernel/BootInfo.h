@@ -37,6 +37,7 @@ namespace Kernel
 		BAN::String					command_line;
 		FramebufferInfo				framebuffer			{};
 		RSDP						rsdp				{};
+		paddr_t                     kernel_paddr        {};
 		BAN::Vector<MemoryMapEntry>	memory_map_entries;
 	};
 

@@ -33,4 +33,5 @@ struct BananBootloaderInfo
 	uint32_t command_line_addr;
 	uint32_t framebuffer_addr;
 	uint32_t memory_map_addr;
+	uint32_t kernel_paddr;
 } __attribute__((packed));

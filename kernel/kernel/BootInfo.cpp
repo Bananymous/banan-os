@@ -66,6 +66,8 @@ namespace Kernel
 				memcpy(&g_boot_info.rsdp, &rsdp, BAN::Math::min<uint32_t>(rsdp.length, sizeof(g_boot_info.rsdp)));
 			}
 		}
+
+		g_boot_info.kernel_paddr = 0;
 	}
 
 	static BAN::StringView get_early_boot_command_line_multiboot2(uint32_t info)
@@ -104,6 +106,8 @@ namespace Kernel
 			g_boot_info.memory_map_entries[i].length	= mmap_entry.length;
 			g_boot_info.memory_map_entries[i].type		= mmap_entry.type;
 		}
+
+		g_boot_info.kernel_paddr = banan_bootloader_info.kernel_paddr;
 	}
 
 	static BAN::StringView get_early_boot_command_line_banan_bootloader(uint32_t info)
