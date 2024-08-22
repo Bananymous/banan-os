@@ -64,6 +64,18 @@ __BEGIN_DECLS
 #define HOST_NAME_MAX 255
 #define TTY_NAME_MAX PATH_MAX
 
+#define SHRT_MAX __INT16_MAX__
+#define INT_MAX __INT32_MAX__
+#define LONG_MAX __INT64_MAX__
+
+#define SHRT_MIN (-SHRT_MAX - 1)
+#define INT_MIN (-INT_MAX - 1)
+#define LONG_MIN (-LONG_MAX - 1)
+
+#define USHRT_MAX __UINT16_MAX__
+#define UINT_MAX __UINT32_MAX__
+#define ULONG_MAX __UINT64_MAX__
+
 __END_DECLS
 
 #endif
