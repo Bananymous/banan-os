@@ -12,6 +12,7 @@ set(LIBC_SOURCES
 	malloc.cpp
 	math.cpp
 	netdb.cpp
+	poll.cpp
 	printf_impl.cpp
 	pwd.cpp
 	scanf_impl.cpp
