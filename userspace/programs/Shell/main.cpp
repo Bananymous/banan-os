@@ -197,6 +197,18 @@ BAN::Vector<BAN::Vector<BAN::String>> parse_command(BAN::StringView command_view
 	{
 		char c = command_view[i];
 
+		if (i + 1 < command_view.size() && c == '\\')
+		{
+			char next = command_view[i + 1];
+			if (next == '\'' || next == '"')
+			{
+				if (i + 1 < command_view.size())
+					MUST(current_arg.push_back(next));
+				i++;
+				continue;
+			}
+		}
+
 		switch (state)
 		{
 			case State::Normal:
