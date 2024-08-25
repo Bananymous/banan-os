@@ -65,6 +65,7 @@ static bool should_disable_serial(BAN::StringView full_command_line)
 	return false;
 }
 
+extern bool g_disable_debug;
 static ParsedCommandLine cmdline;
 
 static void parse_command_line()
@@ -81,6 +82,8 @@ static void parse_command_line()
 			cmdline.disable_smp = true;
 		else if (argument == "nousb")
 			cmdline.disable_usb = true;
+		else if (argument == "nodebug")
+			g_disable_debug = true;
 		else if (argument.starts_with("ps2="))
 		{
 			if (argument.size() != 5 || !isdigit(argument[4]))

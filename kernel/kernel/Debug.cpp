@@ -8,6 +8,7 @@
 
 #include <ctype.h>
 
+bool g_disable_debug = false;
 extern Kernel::TerminalDriver* g_terminal_driver;
 
 namespace Debug
@@ -69,6 +70,9 @@ namespace Debug
 	void putchar(char ch)
 	{
 		using namespace Kernel;
+
+		if (g_disable_debug)
+			return;
 
 		if (Kernel::Serial::has_devices())
 			return Kernel::Serial::putchar_any(ch);
