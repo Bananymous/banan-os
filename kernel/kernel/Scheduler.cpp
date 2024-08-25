@@ -8,6 +8,7 @@
 
 #define DEBUG_SCHEDULER 0
 #define SCHEDULER_ASSERT 1
+#define SCHEDULER_LOAD_BALANCE 0
 
 #if SCHEDULER_ASSERT == 0
 #undef ASSERT
@@ -295,8 +296,9 @@ namespace Kernel
 	{
 		ASSERT(Processor::get_interrupt_state() == InterruptState::Disabled);
 
-		if (Processor::is_smp_enabled())
-			do_load_balancing();
+		if constexpr(SCHEDULER_LOAD_BALANCE)
+			if (Processor::is_smp_enabled())
+				do_load_balancing();
 
 		{
 			const uint64_t current_ns = SystemTimer::get().ns_since_boot();
@@ -386,6 +388,7 @@ namespace Kernel
 		return least_loaded_id;
 	}
 
+#if SCHEDULER_LOAD_BALANCE
 	void Scheduler::do_load_balancing()
 	{
 		ASSERT(Processor::get_interrupt_state() == InterruptState::Disabled);
@@ -563,6 +566,7 @@ namespace Kernel
 
 		m_last_load_balance_ns += s_load_balance_interval_ns;
 	}
+#endif
 
 	BAN::ErrorOr<void> Scheduler::add_thread(Thread* thread)
 	{
