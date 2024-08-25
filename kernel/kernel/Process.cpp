@@ -1103,6 +1103,18 @@ namespace Kernel
 		return 0;
 	}
 
+	BAN::ErrorOr<long> Process::sys_fchmod(int fildes, mode_t mode)
+	{
+		if (mode & S_IFMASK)
+			return BAN::Error::from_errno(EINVAL);
+
+		LockGuard _(m_process_lock);
+		auto inode = TRY(m_open_file_descriptors.inode_of(fildes));
+		TRY(inode->chmod(mode));
+
+		return 0;
+	}
+
 	BAN::ErrorOr<long> Process::sys_chown(const char* path, uid_t uid, gid_t gid)
 	{
 		LockGuard _(m_process_lock);

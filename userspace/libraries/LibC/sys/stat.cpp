@@ -13,9 +13,9 @@ int chmod(const char* path, mode_t mode)
 	return syscall(SYS_CHMOD, path, mode);
 }
 
-int fchmod(int, mode_t)
+int fchmod(int fildes, mode_t mode)
 {
-	ASSERT_NOT_REACHED();
+	return syscall(SYS_FCHMOD, fildes, mode);
 }
 
 int fstat(int fildes, struct stat* buf)
