@@ -221,8 +221,9 @@ namespace Kernel
 					for (uint32_t row = 0; row < m_height; row++)
 						for (uint32_t col = 0; col < m_width; col++)
 							putchar_at(' ', col, row);
+					return reset_ansi();
 				}
-				else if (m_ansi_state.nums[0] == 1)
+				if (m_ansi_state.nums[0] == 1)
 				{
 					// Clear from cursor to the beginning of screen
 					for (uint32_t row = 0; row < m_row; row++)
@@ -230,29 +231,27 @@ namespace Kernel
 							putchar_at(' ', col, row);
 					for (uint32_t i = 0; i <= m_column; i++)
 						putchar_at(' ', i, m_row);
+					return reset_ansi();
 				}
-				else if (m_ansi_state.nums[0] == 2 || m_ansi_state.nums[0] == 3)
+				if (m_ansi_state.nums[0] == 2 || m_ansi_state.nums[0] == 3)
 				{
-					// Clean entire screen
+					// FIXME: if num == 3 clear scrollback buffer
 					clear();
+					return reset_ansi();
 				}
-				else
-				{
-					dprintln("Unsupported ANSI CSI character J");
-				}
-
-				if (m_ansi_state.nums[0] == 3)
-				{
-					// FIXME: Clear scroll backbuffer if/when added
-				}
-				return reset_ansi();
+				reset_ansi();
+				dprintln("Unsupported ANSI CSI character J");
+				return;
 			case 'K': // Erase in Line
 				if (m_ansi_state.nums[0] == -1 || m_ansi_state.nums[0] == 0)
+				{
 					for (uint32_t i = m_column; i < m_width; i++)
 						putchar_at(' ', i, m_row);
-				else
-					dprintln("Unsupported ANSI CSI character K");
-				return reset_ansi();
+					return reset_ansi();
+				}
+				reset_ansi();
+				dprintln("Unsupported ANSI CSI character K");
+				return;
 			case 'L': // Insert Line
 				if (m_ansi_state.nums[0] == -1)
 					m_ansi_state.nums[0] = 1;
@@ -286,14 +285,17 @@ namespace Kernel
 						putchar_at(' ', x, m_height - y_off - 1);
 				return reset_ansi();
 			case 'S': // Scroll Up
+				reset_ansi();
 				dprintln("Unsupported ANSI CSI character S");
-				return reset_ansi();
+				return;
 			case 'T': // Scroll Down
+				reset_ansi();
 				dprintln("Unsupported ANSI CSI character T");
-				return reset_ansi();
+				return;
 			case 'f': // Horizontal Vertical Position
+				reset_ansi();
 				dprintln("Unsupported ANSI CSI character f");
-				return reset_ansi();
+				return;
 			case 'm':
 				handle_ansi_csi_color();
 				return reset_ansi();
@@ -331,25 +333,28 @@ namespace Kernel
 				m_row = BAN::Math::clamp<uint32_t>(m_ansi_state.nums[0], 1, m_height) - 1;
 				return reset_ansi();
 			case '?':
-				if (m_ansi_state.index != 0 || m_ansi_state.nums[0] != -1)
+				if (m_ansi_state.index == 0 || m_ansi_state.nums[0] == -1)
 				{
-					dprintln("invalid ANSI CSI ?");
+					m_ansi_state.question = true;
 					return reset_ansi();
 				}
-				m_ansi_state.question = true;
+				reset_ansi();
+				dprintln("invalid ANSI CSI ?");
 				return;
 			case 'h':
 			case 'l':
-				if (!m_ansi_state.question || m_ansi_state.nums[0] != 25)
+				if (m_ansi_state.question && m_ansi_state.nums[0] == 25)
 				{
-					dprintln("invalid ANSI CSI ?{}{}", m_ansi_state.nums[0], (char)ch);
+					m_show_cursor = (ch == 'h');
 					return reset_ansi();
 				}
-				m_show_cursor = (ch == 'h');
-				return reset_ansi();
+				reset_ansi();
+				dprintln("invalid ANSI CSI ?{}{}", m_ansi_state.nums[0], (char)ch);
+				return;
 			default:
+				reset_ansi();
 				dprintln("Unsupported ANSI CSI character {}", ch);
-				return reset_ansi();
+				return;
 		}
 	}
 
