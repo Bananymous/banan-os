@@ -15,10 +15,12 @@
 
 char** environ;
 
-extern void init_malloc();
+extern void _init_malloc();
+extern void _init_stdio();
 extern "C" void _init_libc(char** _environ)
 {
-	init_malloc();
+	_init_malloc();
+	_init_stdio();
 
 	if (!_environ)
 		return;

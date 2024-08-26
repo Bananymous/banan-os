@@ -22,6 +22,14 @@ _start:
 	# call global constructors
 	call _init
 
+	movq $__init_array_start, %rbx
+	jmp 2f
+ 1: movq (%rbx), %rax
+    call *%rax
+	addq $8, %rbx
+ 2: cmpq $__init_array_end, %rbx
+	jne 1b
+
 	# call main
 	movq 16(%rsp), %rdi
 	movq  8(%rsp), %rsi

@@ -15,20 +15,20 @@
 
 struct FILE
 {
-	int fd			{ -1 };
-	mode_t mode		{ 0 };
-	int buffer_type	{ _IOLBF };
-	bool eof		{ false };
-	bool error		{ false };
+	int fd;
+	mode_t mode;
+	int buffer_type;
+	bool eof;
+	bool error;
 
-	int pid			{ -1 };
+	int pid;
 
-	int unget_char { EOF };
+	int unget_char;
 
-	unsigned char inline_buffer_storage[BUFSIZ] {};
-	unsigned char* buffer = inline_buffer_storage;
-	uint32_t buffer_size = BUFSIZ;
-	uint32_t buffer_index { 0 };
+	unsigned char inline_buffer_storage[BUFSIZ];
+	unsigned char* buffer;
+	uint32_t buffer_size;
+	uint32_t buffer_index;
 };
 
 struct ScopeLock
@@ -47,17 +47,45 @@ struct ScopeLock
 	FILE* m_file;
 };
 
-static FILE s_files[FOPEN_MAX] {
-	{ .fd = STDIN_FILENO,	.mode = O_RDONLY },
-	{ .fd = STDOUT_FILENO,	.mode = O_WRONLY },
-	{ .fd = STDERR_FILENO,	.mode = O_WRONLY, .buffer_type = _IONBF },
-	{ .fd = STDDBG_FILENO,	.mode = O_WRONLY },
-};
+static FILE s_files[FOPEN_MAX];
 
 FILE* stdin  = &s_files[0];
 FILE* stdout = &s_files[1];
 FILE* stderr = &s_files[2];
 FILE* stddbg = &s_files[3];
+
+static void init_closed_file(FILE* file)
+{
+	file->fd           = -1;
+	file->mode         = 0;
+	file->buffer_type  = _IOLBF;
+	file->eof          = false;
+	file->error        = false;
+	file->pid          = -1;
+	file->unget_char   = EOF;
+	file->buffer       = file->inline_buffer_storage;
+	file->buffer_size  = BUFSIZ;
+	file->buffer_index = 0;
+}
+
+void _init_stdio()
+{
+	for (size_t i = 0; i < FOPEN_MAX; i++)
+		init_closed_file(&s_files[i]);
+
+	s_files[STDIN_FILENO].fd   = STDIN_FILENO;
+	s_files[STDIN_FILENO].mode = O_RDONLY;
+
+	s_files[STDOUT_FILENO].fd   = STDOUT_FILENO;
+	s_files[STDOUT_FILENO].mode = O_WRONLY;
+
+	s_files[STDERR_FILENO].fd   = STDERR_FILENO;
+	s_files[STDERR_FILENO].mode = O_WRONLY;
+	s_files[STDERR_FILENO].buffer_type = _IONBF;
+
+	s_files[STDDBG_FILENO].fd   = STDDBG_FILENO;
+	s_files[STDDBG_FILENO].mode = O_WRONLY;
+}
 
 void clearerr(FILE* file)
 {
@@ -79,7 +107,7 @@ int fclose(FILE* file)
 	ScopeLock _(file);
 	(void)fflush(file);
 	int ret = (close(file->fd) == -1) ? EOF : 0;
-	file = {};
+	init_closed_file(file);
 	return ret;
 }
 

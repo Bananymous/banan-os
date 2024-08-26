@@ -104,7 +104,7 @@ case $1 in
 		run_qemu -nographic $QEMU_ACCEL
 		;;
 	qemu-debug)
-		run_qemu -serial stdio -d int -no-reboot
+		run_qemu -serial stdio -d int -action reboot=shutdown,shutdown=pause
 		;;
 	bochs)
 		run_bochs

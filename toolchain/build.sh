@@ -92,7 +92,7 @@ build_binutils () {
 		--target="$BANAN_TOOLCHAIN_TRIPLE" \
 		--prefix="$BANAN_TOOLCHAIN_PREFIX" \
 		--with-sysroot="$BANAN_SYSROOT" \
-		--disable-initfini-array \
+		--enable-initfini-array \
 		--disable-nls \
 		--disable-werror
 
@@ -119,7 +119,7 @@ build_gcc () {
 		--target="$BANAN_TOOLCHAIN_TRIPLE" \
 		--prefix="$BANAN_TOOLCHAIN_PREFIX" \
 		--with-sysroot="$BANAN_SYSROOT" \
-		--disable-initfini-array \
+		--enable-initfini-array \
 		--disable-nls \
 		--enable-languages=c,c++
 

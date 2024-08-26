@@ -216,6 +216,14 @@ higher_half:
 	# call global constuctors
 	call _init
 
+	movq $__init_array_start, %rbx
+	jmp 2f
+ 1: movq (%rbx), %rax
+    call *%rax
+	addq $8, %rbx
+ 2: cmpq $__init_array_end, %rbx
+	jne 1b
+
 	# call to the kernel itself (clear rbp for stacktrace)
 	xorq %rbp, %rbp
 

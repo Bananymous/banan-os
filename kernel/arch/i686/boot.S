@@ -216,6 +216,14 @@ higher_half:
 	# call global constuctors
 	call _init
 
+	movl $__init_array_start, %ebx
+	jmp 2f
+ 1: movl (%ebx), %eax
+    call *%eax
+	addl $4, %ebx
+ 2: cmpl $__init_array_end, %ebx
+	jne 1b
+
 	# call to the kernel itself (clear ebp for stacktrace)
 	xorl %ebp, %ebp
 

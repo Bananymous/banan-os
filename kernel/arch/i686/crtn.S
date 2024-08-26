@@ -1,4 +1,4 @@
-/* x86 crtn.s */
+/* i686 crtn.s */
 .section .init
 	/* gcc will nicely put the contents of crtend.o's .init section here. */
 	popl %ebp
@@ -8,3 +8,11 @@
 	/* gcc will nicely put the contents of crtend.o's .fini section here. */
 	popl %ebp
 	ret
+
+.section .init_array
+.global __init_array_end
+__init_array_end:
+
+.section .fini_array
+.global __fini_array_end
+__fini_array_end:

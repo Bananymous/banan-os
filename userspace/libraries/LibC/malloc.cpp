@@ -48,7 +48,7 @@ struct malloc_pool_t
 
 static malloc_pool_t s_malloc_pools[s_malloc_pool_count];
 
-void init_malloc()
+void _init_malloc()
 {
 	size_t pool_size = s_malloc_pool_size_initial;
 	for (size_t i = 0; i < s_malloc_pool_count; i++)
