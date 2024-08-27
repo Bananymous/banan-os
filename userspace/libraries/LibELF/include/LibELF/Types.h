@@ -80,6 +80,16 @@ namespace LibELF
 		Elf32Word p_align;
 	};
 
+	struct Elf32Dynamic
+	{
+		Elf32Sword d_tag;
+		union
+		{
+			Elf32Word d_val;
+			Elf32Addr d_ptr;
+		} d_un;
+	};
+
 	using Elf64Addr = uint64_t;
 	using Elf64Off = uint64_t;
 	using Elf64Half = uint16_t;
@@ -155,6 +165,16 @@ namespace LibELF
 		Elf64Xword p_align;
 	};
 
+	struct Elf64Dynamic
+	{
+		Elf64Sxword d_tag;
+		union
+		{
+			Elf64Xword d_val;
+			Elf64Addr d_ptr;
+		} d_un;
+	};
+
 #if ARCH(i686)
 	using ElfNativeAddr = Elf32Addr;
 	using ElfNativeOff = Elf32Off;
@@ -167,6 +187,7 @@ namespace LibELF
 	using ElfNativeRelocation = Elf32Relocation;
 	using ElfNativeRelocationA = Elf32RelocationA;
 	using ElfNativeProgramHeader = Elf32ProgramHeader;
+	using ElfNativeDynamic = Elf32Dynamic;
 #elif ARCH(x86_64)
 	using ElfNativeAddr = Elf64Addr;
 	using ElfNativeOff = Elf64Off;
@@ -181,6 +202,7 @@ namespace LibELF
 	using ElfNativeRelocation = Elf64Relocation;
 	using ElfNativeRelocationA = Elf64RelocationA;
 	using ElfNativeProgramHeader = Elf64ProgramHeader;
+	using ElfNativeDynamic = Elf64Dynamic;
 #endif
 
 }

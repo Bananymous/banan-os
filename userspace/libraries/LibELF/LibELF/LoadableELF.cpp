@@ -1,6 +1,7 @@
 #include <BAN/ScopeGuard.h>
-#include <kernel/Memory/Heap.h>
 #include <kernel/Lock/LockGuard.h>
+#include <kernel/Memory/Heap.h>
+#include <kernel/Random.h>
 #include <LibELF/LoadableELF.h>
 #include <LibELF/Values.h>
 
@@ -96,10 +97,10 @@ namespace LibELF
 			return BAN::Error::from_errno(EINVAL);
 		}
 
-		if (m_file_header.e_type != ET_EXEC)
+		if (m_file_header.e_type != ET_EXEC && m_file_header.e_type != ET_DYN)
 		{
-			dprintln("Only executable files are supported");
-			return BAN::Error::from_errno(EINVAL);
+			dprintln("Unsupported file header type {}", m_file_header.e_type);
+			return BAN::Error::from_errno(ENOTSUP);
 		}
 
 		if (m_file_header.e_version != EV_CURRENT)
@@ -110,24 +111,36 @@ namespace LibELF
 
 		ASSERT(m_file_header.e_phentsize <= sizeof(ElfNativeProgramHeader));
 
-		TRY(m_program_headers.resize(m_file_header.e_phnum));
+		BAN::Vector<uint8_t> pheader_buffer;
+		TRY(pheader_buffer.resize(m_file_header.e_phnum * m_file_header.e_phentsize));
+		TRY(m_inode->read(m_file_header.e_phoff, BAN::ByteSpan(pheader_buffer.span())));
+
+		const vaddr_t dyn_base = (m_file_header.e_type == ET_DYN) ? 0x40000000 + (Random::get_u32() & 0x3FFFF000) : 0;
+		m_file_header.e_entry += dyn_base;
+
 		for (size_t i = 0; i < m_file_header.e_phnum; i++)
 		{
-			TRY(m_inode->read(m_file_header.e_phoff + m_file_header.e_phentsize * i, BAN::ByteSpan::from(m_program_headers[i])));
-
-			const auto& pheader = m_program_headers[i];
-			if (pheader.p_type != PT_NULL && pheader.p_type != PT_LOAD)
-			{
-				dprintln("Unsupported program header type {}", pheader.p_type);
-				return BAN::Error::from_errno(ENOTSUP);
-			}
+			const auto& pheader = *reinterpret_cast<ElfNativeProgramHeader*>(pheader_buffer.data() + i * m_file_header.e_phentsize);
 			if (pheader.p_memsz < pheader.p_filesz)
 			{
 				dprintln("Invalid program header");
 				return BAN::Error::from_errno(EINVAL);
 			}
 
-			m_virtual_page_count += BAN::Math::div_round_up<size_t>((pheader.p_vaddr % PAGE_SIZE) + pheader.p_memsz, PAGE_SIZE);
+			switch (pheader.p_type)
+			{
+				case PT_NULL:
+				case PT_DYNAMIC:
+					break;
+				case PT_LOAD:
+					TRY(m_program_headers.push_back(pheader));
+					m_program_headers.back().p_vaddr += dyn_base;
+					m_virtual_page_count += BAN::Math::div_round_up<size_t>((pheader.p_vaddr % PAGE_SIZE) + pheader.p_memsz, PAGE_SIZE);
+					break;
+				default:
+					dprintln("Unsupported program header type {}", pheader.p_type);
+					return BAN::Error::from_errno(ENOTSUP);
+			}
 		}
 
 		return {};
@@ -142,17 +155,9 @@ namespace LibELF
 	{
 		for (const auto& program_header : m_program_headers)
 		{
-			switch (program_header.p_type)
-			{
-				case PT_NULL:
-					continue;
-				case PT_LOAD:
-					if (program_header.p_vaddr <= address && address < program_header.p_vaddr + program_header.p_memsz)
-						return true;
-					break;
-				default:
-					ASSERT_NOT_REACHED();
-			}
+			ASSERT(program_header.p_type == PT_LOAD);
+			if (program_header.p_vaddr <= address && address < program_header.p_vaddr + program_header.p_memsz)
+				return true;
 		}
 		return false;
 	}
@@ -161,21 +166,11 @@ namespace LibELF
 	{
 		for (const auto& program_header : m_program_headers)
 		{
-			switch (program_header.p_type)
-			{
-				case PT_NULL:
-					break;
-				case PT_LOAD:
-				{
-					vaddr_t page_vaddr = program_header.p_vaddr & PAGE_ADDR_MASK;
-					size_t pages = range_page_count(program_header.p_vaddr, program_header.p_memsz);
-					if (!m_page_table.is_range_free(page_vaddr, pages * PAGE_SIZE))
-						return false;
-					break;
-				}
-				default:
-					ASSERT_NOT_REACHED();
-			}
+			ASSERT(program_header.p_type == PT_LOAD);
+			const vaddr_t page_vaddr = program_header.p_vaddr & PAGE_ADDR_MASK;
+			const size_t pages = range_page_count(program_header.p_vaddr, program_header.p_memsz);
+			if (!m_page_table.is_range_free(page_vaddr, pages * PAGE_SIZE))
+				return false;
 		}
 		return true;
 	}
@@ -184,20 +179,11 @@ namespace LibELF
 	{
 		for (const auto& program_header : m_program_headers)
 		{
-			switch (program_header.p_type)
-			{
-				case PT_NULL:
-					break;
-				case PT_LOAD:
-				{
-					vaddr_t page_vaddr = program_header.p_vaddr & PAGE_ADDR_MASK;
-					size_t pages = range_page_count(program_header.p_vaddr, program_header.p_memsz);
-					ASSERT(m_page_table.reserve_range(page_vaddr, pages * PAGE_SIZE));
-					break;
-				}
-				default:
-					ASSERT_NOT_REACHED();
-			}
+			ASSERT(program_header.p_type == PT_LOAD);
+			const vaddr_t page_vaddr = program_header.p_vaddr & PAGE_ADDR_MASK;
+			const size_t pages = range_page_count(program_header.p_vaddr, program_header.p_memsz);
+			if (!m_page_table.reserve_range(page_vaddr, pages * PAGE_SIZE))
+				ASSERT_NOT_REACHED();
 		}
 		m_loaded = true;
 	}
@@ -214,58 +200,49 @@ namespace LibELF
 	{
 		for (const auto& program_header : m_program_headers)
 		{
-			switch (program_header.p_type)
+			ASSERT(program_header.p_type == PT_LOAD);
+
+			if (!(program_header.p_vaddr <= address && address < program_header.p_vaddr + program_header.p_memsz))
+				continue;
+
+			PageTable::flags_t flags = PageTable::Flags::UserSupervisor | PageTable::Flags::Present;
+			if (program_header.p_flags & LibELF::PF_W)
+				flags |= PageTable::Flags::ReadWrite;
+			if (program_header.p_flags & LibELF::PF_X)
+				flags |= PageTable::Flags::Execute;
+
+			const vaddr_t vaddr = address & PAGE_ADDR_MASK;
+			const paddr_t paddr = Heap::get().take_free_page();
+			if (paddr == 0)
+				return BAN::Error::from_errno(ENOMEM);
+
+			// Temporarily map page as RW so kernel can write to it
+			m_page_table.map_page_at(paddr, vaddr, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
+			m_physical_page_count++;
+
+			memset((void*)vaddr, 0x00, PAGE_SIZE);
+
+			if (vaddr / PAGE_SIZE < BAN::Math::div_round_up<size_t>(program_header.p_vaddr + program_header.p_filesz, PAGE_SIZE))
 			{
-				case PT_NULL:
-					break;
-				case PT_LOAD:
-				{
-					if (!(program_header.p_vaddr <= address && address < program_header.p_vaddr + program_header.p_memsz))
-						continue;
+				size_t vaddr_offset = 0;
+				if (vaddr < program_header.p_vaddr)
+					vaddr_offset = program_header.p_vaddr - vaddr;
 
-					PageTable::flags_t flags = PageTable::Flags::UserSupervisor | PageTable::Flags::Present;
-					if (program_header.p_flags & LibELF::PF_W)
-						flags |= PageTable::Flags::ReadWrite;
-					if (program_header.p_flags & LibELF::PF_X)
-						flags |= PageTable::Flags::Execute;
+				size_t file_offset = 0;
+				if (vaddr > program_header.p_vaddr)
+					file_offset = vaddr - program_header.p_vaddr;
 
-					vaddr_t vaddr = address & PAGE_ADDR_MASK;
-					paddr_t paddr = Heap::get().take_free_page();
-					if (paddr == 0)
-						return BAN::Error::from_errno(ENOMEM);
-
-					// Temporarily map page as RW so kernel can write to it
-					m_page_table.map_page_at(paddr, vaddr, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
-					m_physical_page_count++;
-
-					memset((void*)vaddr, 0x00, PAGE_SIZE);
-
-					if (vaddr / PAGE_SIZE < BAN::Math::div_round_up<size_t>(program_header.p_vaddr + program_header.p_filesz, PAGE_SIZE))
-					{
-						size_t vaddr_offset = 0;
-						if (vaddr < program_header.p_vaddr)
-							vaddr_offset = program_header.p_vaddr - vaddr;
-
-						size_t file_offset = 0;
-						if (vaddr > program_header.p_vaddr)
-							file_offset = vaddr - program_header.p_vaddr;
-
-						size_t bytes = BAN::Math::min<size_t>(PAGE_SIZE - vaddr_offset, program_header.p_filesz - file_offset);
-						TRY(m_inode->read(program_header.p_offset + file_offset, { (uint8_t*)vaddr + vaddr_offset, bytes }));
-					}
-
-					// Map page with the correct flags
-					m_page_table.map_page_at(paddr, vaddr, flags);
-
-					return {};
-				}
-				default:
-					ASSERT_NOT_REACHED();
+				size_t bytes = BAN::Math::min<size_t>(PAGE_SIZE - vaddr_offset, program_header.p_filesz - file_offset);
+				TRY(m_inode->read(program_header.p_offset + file_offset, { (uint8_t*)vaddr + vaddr_offset, bytes }));
 			}
+
+			// Map page with the correct flags
+			m_page_table.map_page_at(paddr, vaddr, flags);
+
+			return {};
 		}
 		ASSERT_NOT_REACHED();
 	}
-
 
 	BAN::ErrorOr<BAN::UniqPtr<LoadableELF>> LoadableELF::clone(Kernel::PageTable& new_page_table)
 	{
@@ -283,45 +260,35 @@ namespace LibELF
 
 		for (const auto& program_header : m_program_headers)
 		{
-			switch (program_header.p_type)
+			ASSERT(program_header.p_type == PT_LOAD);
+
+			if (!(program_header.p_flags & LibELF::PF_W))
+				continue;
+
+			PageTable::flags_t flags = PageTable::Flags::UserSupervisor | PageTable::Flags::Present;
+			if (program_header.p_flags & LibELF::PF_W)
+				flags |= PageTable::Flags::ReadWrite;
+			if (program_header.p_flags & LibELF::PF_X)
+				flags |= PageTable::Flags::Execute;
+
+			vaddr_t start = program_header.p_vaddr & PAGE_ADDR_MASK;
+			size_t pages = range_page_count(program_header.p_vaddr, program_header.p_memsz);
+
+			for (size_t i = 0; i < pages; i++)
 			{
-				case PT_NULL:
-					break;
-				case PT_LOAD:
-				{
-					if (!(program_header.p_flags & LibELF::PF_W))
-						continue;
+				if (m_page_table.physical_address_of(start + i * PAGE_SIZE) == 0)
+					continue;
 
-					PageTable::flags_t flags = PageTable::Flags::UserSupervisor | PageTable::Flags::Present;
-					if (program_header.p_flags & LibELF::PF_W)
-						flags |= PageTable::Flags::ReadWrite;
-					if (program_header.p_flags & LibELF::PF_X)
-						flags |= PageTable::Flags::Execute;
+				paddr_t paddr = Heap::get().take_free_page();
+				if (paddr == 0)
+					return BAN::Error::from_errno(ENOMEM);
 
-					vaddr_t start = program_header.p_vaddr & PAGE_ADDR_MASK;
-					size_t pages = range_page_count(program_header.p_vaddr, program_header.p_memsz);
+				PageTable::with_fast_page(paddr, [&] {
+					memcpy(PageTable::fast_page_as_ptr(), (void*)(start + i * PAGE_SIZE), PAGE_SIZE);
+				});
 
-					for (size_t i = 0; i < pages; i++)
-					{
-						if (m_page_table.physical_address_of(start + i * PAGE_SIZE) == 0)
-							continue;
-
-						paddr_t paddr = Heap::get().take_free_page();
-						if (paddr == 0)
-							return BAN::Error::from_errno(ENOMEM);
-
-						PageTable::with_fast_page(paddr, [&] {
-							memcpy(PageTable::fast_page_as_ptr(), (void*)(start + i * PAGE_SIZE), PAGE_SIZE);
-						});
-
-						new_page_table.map_page_at(paddr, start + i * PAGE_SIZE, flags);
-						elf->m_physical_page_count++;
-					}
-
-					break;
-				}
-				default:
-					ASSERT_NOT_REACHED();
+				new_page_table.map_page_at(paddr, start + i * PAGE_SIZE, flags);
+				elf->m_physical_page_count++;
 			}
 		}
 
