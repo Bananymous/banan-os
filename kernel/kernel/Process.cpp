@@ -1575,9 +1575,6 @@ namespace Kernel
 		if (args->prot != PROT_NONE && (args->prot & ~(PROT_READ | PROT_WRITE | PROT_EXEC)))
 			return BAN::Error::from_errno(EINVAL);
 
-		if (args->flags & MAP_FIXED)
-			return BAN::Error::from_errno(ENOTSUP);
-
 		if (!(args->flags & MAP_PRIVATE) == !(args->flags & MAP_SHARED))
 			return BAN::Error::from_errno(EINVAL);
 		auto region_type = (args->flags & MAP_PRIVATE) ? MemoryRegion::Type::PRIVATE : MemoryRegion::Type::SHARED;
@@ -1595,17 +1592,23 @@ namespace Kernel
 		else
 			page_flags |= PageTable::Flags::UserSupervisor;
 
+		AddressRange address_range { .start = 0x400000, .end = KERNEL_OFFSET };
+		if (args->flags & MAP_FIXED)
+		{
+			vaddr_t base_addr = reinterpret_cast<vaddr_t>(args->addr);
+			address_range.start = BAN::Math::div_round_up<vaddr_t>(base_addr, PAGE_SIZE) * PAGE_SIZE;
+			address_range.end = BAN::Math::div_round_up<vaddr_t>(base_addr + args->len, PAGE_SIZE) * PAGE_SIZE;
+		}
+
 		if (args->flags & MAP_ANONYMOUS)
 		{
-			if (args->addr != nullptr)
-				return BAN::Error::from_errno(ENOTSUP);
 			if (args->off != 0)
 				return BAN::Error::from_errno(EINVAL);
 
 			auto region = TRY(MemoryBackedRegion::create(
 				page_table(),
 				args->len,
-				{ .start = 0x400000, .end = KERNEL_OFFSET },
+				address_range,
 				region_type, page_flags
 			));
 
@@ -1613,9 +1616,6 @@ namespace Kernel
 			TRY(m_mapped_regions.push_back(BAN::move(region)));
 			return m_mapped_regions.back()->vaddr();
 		}
-
-		if (args->addr != nullptr)
-			return BAN::Error::from_errno(ENOTSUP);
 
 		LockGuard _(m_process_lock);
 
@@ -1635,7 +1635,7 @@ namespace Kernel
 				inode,
 				page_table(),
 				args->off, args->len,
-				{ .start = 0x400000, .end = KERNEL_OFFSET },
+				address_range,
 				region_type, page_flags
 			));
 		}
@@ -1644,7 +1644,7 @@ namespace Kernel
 			memory_region = TRY(static_cast<Device&>(*inode).mmap_region(
 				page_table(),
 				args->off, args->len,
-				{ .start = 0x400000, .end = KERNEL_OFFSET },
+				address_range,
 				region_type, page_flags
 			));
 		}
