@@ -539,7 +539,7 @@ namespace Kernel
 					auto region = TRY(MemoryBackedRegion::create(
 						page_table(),
 						bytes,
-						{ .start = 0x400000, .end = KERNEL_OFFSET },
+						{ .start = m_userspace_info.entry, .end = KERNEL_OFFSET },
 						MemoryRegion::Type::PRIVATE,
 						PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present
 					));
