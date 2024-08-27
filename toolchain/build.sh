@@ -79,10 +79,11 @@ build_binutils () {
 	cd $BANAN_BUILD_DIR/toolchain
 
 	if [ ! -d $BINUTILS_VERSION ]; then
-		wget $BINUTILS_URL
+		if [ ! -f $BINUTILS_TAR ]; then
+			wget $BINUTILS_URL
+		fi
 		tar xf $BINUTILS_TAR
-		cd $BINUTILS_VERSION
-		patch -s -p1 < $BANAN_TOOLCHAIN_DIR/$BINUTILS_VERSION.patch
+		patch -ruN -p1 -d "$BINUTILS_VERSION" < "$BANAN_TOOLCHAIN_DIR/$BINUTILS_VERSION.patch"
 	fi
 
 	cd $BANAN_BUILD_DIR/toolchain/$BINUTILS_VERSION
@@ -93,6 +94,8 @@ build_binutils () {
 		--prefix="$BANAN_TOOLCHAIN_PREFIX" \
 		--with-sysroot="$BANAN_SYSROOT" \
 		--enable-initfini-array \
+		--enable-shared \
+		--enable-lto \
 		--disable-nls \
 		--disable-werror
 
@@ -106,10 +109,11 @@ build_gcc () {
 	cd $BANAN_BUILD_DIR/toolchain
 
 	if [ ! -d $GCC_VERSION ]; then
-		wget $GCC_URL
+		if [ ! -f $GCC_TAR ]; then
+			wget $GCC_URL
+		fi
 		tar xf $GCC_TAR
-		cd $GCC_VERSION
-		patch -s -p1 < $BANAN_TOOLCHAIN_DIR/$GCC_VERSION.patch
+		patch -ruN -p1 -d "$GCC_VERSION" < "$BANAN_TOOLCHAIN_DIR/$GCC_VERSION.patch"
 	fi
 
 	cd $BANAN_BUILD_DIR/toolchain/$GCC_VERSION
@@ -120,6 +124,8 @@ build_gcc () {
 		--prefix="$BANAN_TOOLCHAIN_PREFIX" \
 		--with-sysroot="$BANAN_SYSROOT" \
 		--enable-initfini-array \
+		--enable-shared \
+		--enable-lto \
 		--disable-nls \
 		--enable-languages=c,c++
 
