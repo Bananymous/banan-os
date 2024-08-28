@@ -6,6 +6,7 @@ set(USERSPACE_TESTS
 	test-mouse
 	test-popen
 	test-setjmp
+	test-shared
 	test-sort
 	test-tcp
 	test-udp
