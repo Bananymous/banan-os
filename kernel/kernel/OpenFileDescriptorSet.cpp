@@ -58,7 +58,7 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<int> OpenFileDescriptorSet::open(VirtualFileSystem::File file, int flags)
+	BAN::ErrorOr<int> OpenFileDescriptorSet::open(VirtualFileSystem::File&& file, int flags)
 	{
 		ASSERT(file.inode);
 

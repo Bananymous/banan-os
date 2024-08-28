@@ -910,13 +910,14 @@ namespace Kernel
 				file = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, flags));
 		}
 
-		ASSERT(file.inode);
+		auto inode = file.inode;
+		ASSERT(inode);
 
-		int fd = TRY(m_open_file_descriptors.open(file, flags));
+		int fd = TRY(m_open_file_descriptors.open(BAN::move(file), flags));
 
 		// Open controlling terminal
-		if (!(flags & O_NOCTTY) && file.inode->is_tty() && is_session_leader() && !m_controlling_terminal)
-			m_controlling_terminal = static_cast<TTY*>(file.inode.ptr());
+		if (!(flags & O_NOCTTY) && inode->is_tty() && is_session_leader() && !m_controlling_terminal)
+			m_controlling_terminal = static_cast<TTY*>(inode.ptr());
 
 		return fd;
 	}
@@ -1775,7 +1776,7 @@ namespace Kernel
 
 		LockGuard _(m_process_lock);
 
-		int pts_master_fd = TRY(m_open_file_descriptors.open(file, flags));
+		int pts_master_fd = TRY(m_open_file_descriptors.open(BAN::move(file), flags));
 
 		if (!(flags & O_NOCTTY) && is_session_leader() && !m_controlling_terminal)
 			m_controlling_terminal = (TTY*)pts_slave.ptr();

@@ -22,7 +22,7 @@ namespace Kernel
 
 		BAN::ErrorOr<void> clone_from(const OpenFileDescriptorSet&);
 
-		BAN::ErrorOr<int> open(VirtualFileSystem::File, int flags);
+		BAN::ErrorOr<int> open(VirtualFileSystem::File&&, int flags);
 		BAN::ErrorOr<int> open(BAN::StringView absolute_path, int flags);
 
 		BAN::ErrorOr<int> socket(int domain, int type, int protocol);
