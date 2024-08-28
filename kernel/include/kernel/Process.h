@@ -41,6 +41,7 @@ namespace Kernel
 			int argc { 0 };
 			char** argv { nullptr };
 			char** envp { nullptr };
+			int file_fd { -1 };
 		};
 
 	public:

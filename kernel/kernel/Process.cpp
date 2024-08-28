@@ -411,7 +411,7 @@ namespace Kernel
 		}
 
 		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(credentials, absolute_path, O_EXEC));
-		return TRY(LibELF::LoadableELF::load_from_inode(page_table, file.inode));
+		return TRY(LibELF::LoadableELF::load_from_inode(page_table, credentials, file.inode));
 	}
 
 	BAN::ErrorOr<long> Process::sys_fork(uintptr_t sp, uintptr_t ip)
@@ -515,6 +515,13 @@ namespace Kernel
 			m_loadable_elf->reserve_address_space();
 			m_loadable_elf->update_suid_sgid(m_credentials);
 			m_userspace_info.entry = m_loadable_elf->entry_point();
+			if (m_loadable_elf->has_interpreter())
+			{
+				VirtualFileSystem::File file;
+				TRY(file.canonical_path.append("<self>"));
+				file.inode = m_loadable_elf->inode();
+				m_userspace_info.file_fd = TRY(m_open_file_descriptors.open(BAN::move(file), O_EXEC));
+			}
 
 			for (size_t i = 0; i < sizeof(m_signal_handlers) / sizeof(*m_signal_handlers); i++)
 			{

@@ -55,14 +55,15 @@ start_userspace_thread:
 	movw %bx, %gs
 	xorw %bx, %bx
 
-	popl %edx
-	popl %esi
 	popl %edi
+	popl %esi
+	popl %edx
 	popl %ecx
+	popl %ebx
 
 	pushl $(0x20 | 3)
 	pushl %eax
 	pushl $0x202
 	pushl $(0x18 | 3)
-	pushl %ecx
+	pushl %ebx
 	iret

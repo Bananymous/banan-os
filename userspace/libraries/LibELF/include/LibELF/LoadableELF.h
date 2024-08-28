@@ -22,10 +22,13 @@ namespace LibELF
 		BAN_NON_MOVABLE(LoadableELF);
 
 	public:
-		static BAN::ErrorOr<BAN::UniqPtr<LoadableELF>> load_from_inode(Kernel::PageTable&, BAN::RefPtr<Kernel::Inode>);
+		static BAN::ErrorOr<BAN::UniqPtr<LoadableELF>> load_from_inode(Kernel::PageTable&, const Kernel::Credentials&, BAN::RefPtr<Kernel::Inode>);
 		~LoadableELF();
 
 		Kernel::vaddr_t entry_point() const;
+
+		bool has_interpreter() const { return !!m_interpreter.inode; }
+		BAN::RefPtr<Kernel::Inode> inode() { return m_executable.inode; }
 
 		bool contains(Kernel::vaddr_t address) const;
 		bool is_address_space_free() const;
@@ -41,17 +44,36 @@ namespace LibELF
 		size_t physical_page_count() const { return m_physical_page_count; }
 
 	private:
-		LoadableELF(Kernel::PageTable&, BAN::RefPtr<Kernel::Inode>);
-		BAN::ErrorOr<void> initialize();
+		struct LoadableElfFile
+		{
+			BAN::RefPtr<Kernel::Inode> inode;
+			ElfNativeFileHeader file_header;
+			BAN::Vector<ElfNativeProgramHeader>	program_headers;
+			Kernel::vaddr_t dynamic_base;
+		};
+
+		struct LoadResult
+		{
+			LoadableElfFile elf_file;
+			BAN::RefPtr<Kernel::Inode> interp;
+		};
 
 	private:
-		BAN::RefPtr<Kernel::Inode>			m_inode;
-		Kernel::PageTable&					m_page_table;
-		ElfNativeFileHeader					m_file_header;
-		BAN::Vector<ElfNativeProgramHeader>	m_program_headers;
-		size_t m_virtual_page_count = 0;
-		size_t m_physical_page_count = 0;
-		bool m_loaded { false };
+		LoadableELF(Kernel::PageTable&);
+		BAN::ErrorOr<void> initialize(const Kernel::Credentials&, BAN::RefPtr<Kernel::Inode>);
+
+		bool does_executable_and_interpreter_overlap() const;
+		BAN::ErrorOr<LoadResult> load_elf_file(const Kernel::Credentials&, BAN::RefPtr<Kernel::Inode>) const;
+
+	private:
+		LoadableElfFile    m_executable;
+		LoadableElfFile    m_interpreter;
+		Kernel::PageTable& m_page_table;
+		size_t             m_virtual_page_count  { 0 };
+		size_t             m_physical_page_count { 0 };
+		bool               m_is_loaded           { false };
+
+		friend class BAN::UniqPtr<LoadableELF>;
 	};
 
 }

@@ -39,14 +39,15 @@ start_userspace_thread:
 
 	call get_userspace_thread_stack_top
 
-	popq %rdx
-	popq %rsi
 	popq %rdi
+	popq %rsi
+	popq %rdx
 	popq %rcx
+	popq %rbx
 
 	pushq $(0x20 | 3)
 	pushq %rax
 	pushq $0x202
 	pushq $(0x18 | 3)
-	pushq %rcx
+	pushq %rbx
 	iretq
