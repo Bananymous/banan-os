@@ -519,8 +519,8 @@ namespace Kernel
 			{
 				VirtualFileSystem::File file;
 				TRY(file.canonical_path.append("<self>"));
-				file.inode = m_loadable_elf->inode();
-				m_userspace_info.file_fd = TRY(m_open_file_descriptors.open(BAN::move(file), O_EXEC));
+				file.inode = m_loadable_elf->executable();
+				m_userspace_info.file_fd = TRY(m_open_file_descriptors.open(BAN::move(file), O_RDONLY));
 			}
 
 			for (size_t i = 0; i < sizeof(m_signal_handlers) / sizeof(*m_signal_handlers); i++)

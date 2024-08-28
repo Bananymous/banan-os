@@ -26,26 +26,20 @@ namespace LibELF
 
 	LoadableELF::~LoadableELF()
 	{
-		const auto cleanup_program_headers =
-			[&](BAN::Span<const ElfNativeProgramHeader> headers)
-			{
-				for (const auto& header : headers)
-				{
-					ASSERT(header.p_type == PT_LOAD);
-
-					const vaddr_t vaddr = header.p_vaddr & PAGE_ADDR_MASK;
-					const size_t pages = range_page_count(header.p_vaddr, header.p_memsz);
-					for (size_t i = 0; i < pages; i++)
-						if (paddr_t paddr = m_page_table.physical_address_of(vaddr + i * PAGE_SIZE))
-							Heap::get().release_page(paddr);
-					m_page_table.unmap_range(vaddr, pages * PAGE_SIZE);
-				}
-			};
-
 		if (!m_is_loaded)
 			return;
-		cleanup_program_headers(m_executable.program_headers.span());
-		cleanup_program_headers(m_interpreter.program_headers.span());
+
+		for (const auto& header : m_program_headers)
+		{
+			ASSERT(header.p_type == PT_LOAD);
+
+			const vaddr_t vaddr = header.p_vaddr & PAGE_ADDR_MASK;
+			const size_t pages = range_page_count(header.p_vaddr, header.p_memsz);
+			for (size_t i = 0; i < pages; i++)
+				if (paddr_t paddr = m_page_table.physical_address_of(vaddr + i * PAGE_SIZE))
+					Heap::get().release_page(paddr);
+			m_page_table.unmap_range(vaddr, pages * PAGE_SIZE);
+		}
 	}
 
 	static BAN::ErrorOr<ElfNativeFileHeader> read_and_validate_file_header(BAN::RefPtr<Inode> inode)
@@ -166,30 +160,26 @@ namespace LibELF
 		}
 
 		return LoadResult {
-			.elf_file = {
-				.inode = inode,
-				.file_header = file_header,
-				.program_headers = BAN::move(program_headers),
-				.dynamic_base = 0
-			},
-			.interp = interp
+			.inode = inode,
+			.interp = interp,
+			.file_header = file_header,
+			.program_headers = BAN::move(program_headers)
 		};
 	}
 
-	bool LoadableELF::does_executable_and_interpreter_overlap() const
+	static bool do_program_headers_overlap(BAN::Span<const ElfNativeProgramHeader> pheaders1, BAN::Span<const ElfNativeProgramHeader> pheaders2, vaddr_t base2)
 	{
-		ASSERT(m_executable.inode);
-		ASSERT(m_interpreter.inode);
-
-		for (const auto& epheader : m_executable.program_headers)
+		for (const auto& pheader1 : pheaders1)
 		{
-			for (const auto& ipheader : m_interpreter.program_headers)
+			for (const auto& pheader2 : pheaders2)
 			{
-				const vaddr_t e1 =  epheader.p_vaddr & PAGE_ADDR_MASK;
-				const vaddr_t i1 =  ipheader.p_vaddr & PAGE_ADDR_MASK;
-				const vaddr_t e2 = (epheader.p_vaddr + epheader.p_memsz + PAGE_SIZE - 1) & PAGE_ADDR_MASK;
-				const vaddr_t i2 = (ipheader.p_vaddr + ipheader.p_memsz + PAGE_SIZE - 1) & PAGE_ADDR_MASK;
-				if (e1 < i2 && i1 < e2)
+				const vaddr_t s1 =  pheader1.p_vaddr & PAGE_ADDR_MASK;
+				const vaddr_t e1 = (pheader1.p_vaddr + pheader1.p_memsz + PAGE_SIZE - 1) & PAGE_ADDR_MASK;
+
+				const vaddr_t s2 =  pheader2.p_vaddr & PAGE_ADDR_MASK;
+				const vaddr_t e2 = (pheader2.p_vaddr + pheader2.p_memsz + PAGE_SIZE - 1) & PAGE_ADDR_MASK;
+
+				if (s1 < e2 + base2 && s2 + base2 < e1)
 					return true;
 			}
 		}
@@ -199,74 +189,95 @@ namespace LibELF
 
 	BAN::ErrorOr<void> LoadableELF::initialize(const Credentials& credentials, BAN::RefPtr<Inode> inode)
 	{
+		const auto generate_random_dynamic_base =
+			[]() -> vaddr_t
+			{
+				// 1 MiB -> 2 GiB + 1 MiB
+				return (Random::get_u32() & 0x7FFFF000) + 0x100000;
+			};
+
+
 		auto executable_load_result = TRY(load_elf_file(credentials, inode));
-		m_executable = executable_load_result.elf_file;
 
-		if (m_executable.file_header.e_type == ET_DYN)
+		m_executable = executable_load_result.inode;
+		m_interpreter = executable_load_result.interp;
+
+		vaddr_t dynamic_base = 0;
+
+		if (m_interpreter)
 		{
-			m_executable.dynamic_base = (Random::get_u32() & 0x7FFFF000) + 0x100000;
-			m_executable.file_header.e_entry += m_executable.dynamic_base;
-			for (auto& program_header : m_executable.program_headers)
-				program_header.p_vaddr += m_executable.dynamic_base;
-		}
-
-		if (executable_load_result.interp)
-		{
-			auto interp_load_result = TRY(load_elf_file(credentials, executable_load_result.interp));
-			m_interpreter = interp_load_result.elf_file;
-
+			auto interp_load_result = TRY(load_elf_file(credentials, m_interpreter));
 			if (interp_load_result.interp)
 			{
-				dwarnln("Executable has specified interpreter for its interpreter");
+				dwarnln("ELF interpreter has an interpreter");
 				return BAN::Error::from_errno(EINVAL);
 			}
 
-			if (m_interpreter.file_header.e_type == ET_DYN)
+			if (executable_load_result.file_header.e_type == ET_EXEC)
 			{
-				for (int attempt = 0; attempt < 100; attempt++)
+				if (interp_load_result.file_header.e_type == ET_EXEC)
 				{
-					const vaddr_t dynamic_base = (Random::get_u32() & 0x3FFFF000) + 0x40000000;
-					for (auto& program_header : m_interpreter.program_headers)
-						program_header.p_vaddr += dynamic_base;
-					if (does_executable_and_interpreter_overlap())
+					const bool has_overlap = do_program_headers_overlap(
+						executable_load_result.program_headers.span(),
+						interp_load_result.program_headers.span(),
+						0
+					);
+
+					if (has_overlap)
 					{
-						for (auto& program_header : m_interpreter.program_headers)
-							program_header.p_vaddr -= dynamic_base;
-						continue;
+						dwarnln("Executable and interpreter LOAD segments overlap");
+						return BAN::Error::from_errno(EINVAL);
 					}
-					m_interpreter.dynamic_base = dynamic_base;
-					m_interpreter.file_header.e_entry += dynamic_base;
-					break;
+				}
+				else
+				{
+					for (int attempt = 0; attempt < 100; attempt++)
+					{
+						const vaddr_t test_dynamic_base = generate_random_dynamic_base();
+						const bool has_overlap = do_program_headers_overlap(
+							executable_load_result.program_headers.span(),
+							interp_load_result.program_headers.span(),
+							test_dynamic_base
+						);
+						if (has_overlap)
+							continue;
+						dynamic_base = test_dynamic_base;
+						break;
+					}
+
+					if (dynamic_base == 0)
+					{
+						dwarnln("Could not find space to load interpreter");
+						return BAN::Error::from_errno(EINVAL);
+					}
 				}
 			}
 
-			const bool can_load_interpreter = (m_interpreter.file_header.e_type == ET_DYN)
-				? (m_interpreter.dynamic_base != 0)
-				: !does_executable_and_interpreter_overlap();
+			m_file_header = interp_load_result.file_header;
+			m_program_headers = BAN::move(interp_load_result.program_headers);
+		}
+		else
+		{
+			m_file_header = executable_load_result.file_header;
+			m_program_headers = BAN::move(executable_load_result.program_headers);
+		}
 
-			if (!can_load_interpreter)
-			{
-				dwarnln("Could not find space to load interpreter");
-				return BAN::Error::from_errno(EINVAL);
-			}
+		if (m_file_header.e_type == ET_DYN && dynamic_base == 0)
+			dynamic_base = generate_random_dynamic_base();
+
+		if (dynamic_base)
+		{
+			m_file_header.e_entry += dynamic_base;
+			for (auto& program_header : m_program_headers)
+				program_header.p_vaddr += dynamic_base;
 		}
 
 		return {};
 	}
 
-	vaddr_t LoadableELF::entry_point() const
-	{
-		if (m_interpreter.inode)
-			return m_interpreter.file_header.e_entry;
-		return m_executable.file_header.e_entry;
-	}
-
 	bool LoadableELF::contains(vaddr_t address) const
 	{
-		for (const auto& program_header : m_executable.program_headers)
-			if (program_header.p_vaddr <= address && address < program_header.p_vaddr + program_header.p_memsz)
-				return true;
-		for (const auto& program_header : m_interpreter.program_headers)
+		for (const auto& program_header : m_program_headers)
 			if (program_header.p_vaddr <= address && address < program_header.p_vaddr + program_header.p_memsz)
 				return true;
 		return false;
@@ -274,112 +285,88 @@ namespace LibELF
 
 	bool LoadableELF::is_address_space_free() const
 	{
-		const auto are_program_headers_free =
-			[&](BAN::Span<const ElfNativeProgramHeader> program_headers) -> bool
-			{
-				for (const auto& program_header : program_headers)
-				{
-					ASSERT(program_header.p_type == PT_LOAD);
-					const vaddr_t page_vaddr = program_header.p_vaddr & PAGE_ADDR_MASK;
-					const size_t pages = range_page_count(program_header.p_vaddr, program_header.p_memsz);
-					if (!m_page_table.is_range_free(page_vaddr, pages * PAGE_SIZE))
-						return false;
-				}
-				return true;
-			};
-		if (!are_program_headers_free(m_executable.program_headers.span()))
-			return false;
-		if (!are_program_headers_free(m_interpreter.program_headers.span()))
-			return false;
+		for (const auto& program_header : m_program_headers)
+		{
+			ASSERT(program_header.p_type == PT_LOAD);
+			const vaddr_t page_vaddr = program_header.p_vaddr & PAGE_ADDR_MASK;
+			const size_t pages = range_page_count(program_header.p_vaddr, program_header.p_memsz);
+			if (!m_page_table.is_range_free(page_vaddr, pages * PAGE_SIZE))
+				return false;
+		}
 		return true;
 	}
 
 	void LoadableELF::reserve_address_space()
 	{
-		const auto reserve_program_headers =
-			[&](BAN::Span<const ElfNativeProgramHeader> program_headers)
-			{
-				for (const auto& program_header : program_headers)
-				{
-					ASSERT(program_header.p_type == PT_LOAD);
-					const vaddr_t page_vaddr = program_header.p_vaddr & PAGE_ADDR_MASK;
-					const size_t pages = range_page_count(program_header.p_vaddr, program_header.p_memsz);
-					if (!m_page_table.reserve_range(page_vaddr, pages * PAGE_SIZE))
-						ASSERT_NOT_REACHED();
-					m_virtual_page_count += pages;
-				}
-			};
-		reserve_program_headers(m_executable.program_headers.span());
-		reserve_program_headers(m_interpreter.program_headers.span());
+		for (const auto& program_header : m_program_headers)
+		{
+			ASSERT(program_header.p_type == PT_LOAD);
+			const vaddr_t page_vaddr = program_header.p_vaddr & PAGE_ADDR_MASK;
+			const size_t pages = range_page_count(program_header.p_vaddr, program_header.p_memsz);
+			if (!m_page_table.reserve_range(page_vaddr, pages * PAGE_SIZE))
+				ASSERT_NOT_REACHED();
+			m_virtual_page_count += pages;
+		}
 		m_is_loaded = true;
 	}
 
 	void LoadableELF::update_suid_sgid(Kernel::Credentials& credentials)
 	{
-		auto inode = m_executable.inode;
-		ASSERT(inode);
-
-		if (inode->mode().mode & +Inode::Mode::ISUID)
-			credentials.set_euid(inode->uid());
-		if (inode->mode().mode & +Inode::Mode::ISGID)
-			credentials.set_egid(inode->gid());
+		if (m_executable->mode().mode & +Inode::Mode::ISUID)
+			credentials.set_euid(m_executable->uid());
+		if (m_executable->mode().mode & +Inode::Mode::ISGID)
+			credentials.set_egid(m_executable->gid());
 	}
 
 	BAN::ErrorOr<void> LoadableELF::load_page_to_memory(vaddr_t address)
 	{
-		const auto load_page_from_program_header =
-			[&](BAN::RefPtr<Inode> inode, BAN::Span<const ElfNativeProgramHeader> program_headers) -> BAN::ErrorOr<bool>
+		auto inode = has_interpreter() ? m_interpreter : m_executable;
+
+		// FIXME: use MemoryBackedRegion/FileBackedRegion instead of manually mapping and allocating pages
+
+		for (const auto& program_header : m_program_headers)
+		{
+			ASSERT(program_header.p_type == PT_LOAD);
+			if (!(program_header.p_vaddr <= address && address < program_header.p_vaddr + program_header.p_memsz))
+				continue;
+
+			PageTable::flags_t flags = PageTable::Flags::UserSupervisor | PageTable::Flags::Present;
+			if (program_header.p_flags & LibELF::PF_W)
+				flags |= PageTable::Flags::ReadWrite;
+			if (program_header.p_flags & LibELF::PF_X)
+				flags |= PageTable::Flags::Execute;
+
+			const vaddr_t vaddr = address & PAGE_ADDR_MASK;
+			const paddr_t paddr = Heap::get().take_free_page();
+			if (paddr == 0)
+				return BAN::Error::from_errno(ENOMEM);
+
+			// Temporarily map page as RW so kernel can write to it
+			m_page_table.map_page_at(paddr, vaddr, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
+			m_physical_page_count++;
+
+			memset((void*)vaddr, 0x00, PAGE_SIZE);
+
+			if (vaddr / PAGE_SIZE < BAN::Math::div_round_up<size_t>(program_header.p_vaddr + program_header.p_filesz, PAGE_SIZE))
 			{
-				for (const auto& program_header : program_headers)
-				{
-					ASSERT(program_header.p_type == PT_LOAD);
-					if (!(program_header.p_vaddr <= address && address < program_header.p_vaddr + program_header.p_memsz))
-						continue;
+				size_t vaddr_offset = 0;
+				if (vaddr < program_header.p_vaddr)
+					vaddr_offset = program_header.p_vaddr - vaddr;
 
-					PageTable::flags_t flags = PageTable::Flags::UserSupervisor | PageTable::Flags::Present;
-					if (program_header.p_flags & LibELF::PF_W)
-						flags |= PageTable::Flags::ReadWrite;
-					if (program_header.p_flags & LibELF::PF_X)
-						flags |= PageTable::Flags::Execute;
+				size_t file_offset = 0;
+				if (vaddr > program_header.p_vaddr)
+					file_offset = vaddr - program_header.p_vaddr;
 
-					const vaddr_t vaddr = address & PAGE_ADDR_MASK;
-					const paddr_t paddr = Heap::get().take_free_page();
-					if (paddr == 0)
-						return BAN::Error::from_errno(ENOMEM);
+				size_t bytes = BAN::Math::min<size_t>(PAGE_SIZE - vaddr_offset, program_header.p_filesz - file_offset);
+				TRY(inode->read(program_header.p_offset + file_offset, { (uint8_t*)vaddr + vaddr_offset, bytes }));
+			}
 
-					// Temporarily map page as RW so kernel can write to it
-					m_page_table.map_page_at(paddr, vaddr, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
-					m_physical_page_count++;
+			// Map page with the correct flags
+			m_page_table.map_page_at(paddr, vaddr, flags);
 
-					memset((void*)vaddr, 0x00, PAGE_SIZE);
-
-					if (vaddr / PAGE_SIZE < BAN::Math::div_round_up<size_t>(program_header.p_vaddr + program_header.p_filesz, PAGE_SIZE))
-					{
-						size_t vaddr_offset = 0;
-						if (vaddr < program_header.p_vaddr)
-							vaddr_offset = program_header.p_vaddr - vaddr;
-
-						size_t file_offset = 0;
-						if (vaddr > program_header.p_vaddr)
-							file_offset = vaddr - program_header.p_vaddr;
-
-						size_t bytes = BAN::Math::min<size_t>(PAGE_SIZE - vaddr_offset, program_header.p_filesz - file_offset);
-						TRY(inode->read(program_header.p_offset + file_offset, { (uint8_t*)vaddr + vaddr_offset, bytes }));
-					}
-
-					// Map page with the correct flags
-					m_page_table.map_page_at(paddr, vaddr, flags);
-
-					return true;
-				}
-
-				return false;
-			};
-
-		if (TRY(load_page_from_program_header(m_executable.inode, m_executable.program_headers.span())))
 			return {};
-		if (TRY(load_page_from_program_header(m_interpreter.inode, m_interpreter.program_headers.span())))
-			return {};
+		}
+
 		ASSERT_NOT_REACHED();
 	}
 
@@ -387,68 +374,47 @@ namespace LibELF
 	{
 		auto elf = TRY(BAN::UniqPtr<LoadableELF>::create(new_page_table));
 
-		const auto clone_loadable_file =
-			[](const LoadableElfFile& source, LoadableElfFile& destination) -> BAN::ErrorOr<void>
-			{
-				if (!source.inode)
-					return {};
-
-				destination.inode = source.inode;
-				destination.file_header = source.file_header;
-				destination.dynamic_base = source.dynamic_base;
-
-				TRY(destination.program_headers.reserve(source.program_headers.size()));
-				for (const auto& program_header : source.program_headers)
-					MUST(destination.program_headers.emplace_back(program_header));
-
-				return {};
-			};
-
-		const auto map_loadable_file =
-			[&](BAN::Span<const ElfNativeProgramHeader> program_headers) -> BAN::ErrorOr<void>
-			{
-				for (const auto& program_header : program_headers)
-				{
-					ASSERT(program_header.p_type == PT_LOAD);
-					if (!(program_header.p_flags & LibELF::PF_W))
-						continue;
-
-					PageTable::flags_t flags = PageTable::Flags::UserSupervisor | PageTable::Flags::Present;
-					if (program_header.p_flags & LibELF::PF_W)
-						flags |= PageTable::Flags::ReadWrite;
-					if (program_header.p_flags & LibELF::PF_X)
-						flags |= PageTable::Flags::Execute;
-
-					vaddr_t start = program_header.p_vaddr & PAGE_ADDR_MASK;
-					size_t pages = range_page_count(program_header.p_vaddr, program_header.p_memsz);
-
-					for (size_t i = 0; i < pages; i++)
-					{
-						if (m_page_table.physical_address_of(start + i * PAGE_SIZE) == 0)
-							continue;
-
-						paddr_t paddr = Heap::get().take_free_page();
-						if (paddr == 0)
-							return BAN::Error::from_errno(ENOMEM);
-
-						PageTable::with_fast_page(paddr, [&] {
-							memcpy(PageTable::fast_page_as_ptr(), (void*)(start + i * PAGE_SIZE), PAGE_SIZE);
-						});
-
-						new_page_table.map_page_at(paddr, start + i * PAGE_SIZE, flags);
-						elf->m_physical_page_count++;
-					}
-				}
-				return {};
-			};
-
-		TRY(clone_loadable_file(m_executable, elf->m_executable));
-		TRY(clone_loadable_file(m_interpreter, elf->m_interpreter));
+		elf->m_executable = m_executable;
+		elf->m_interpreter = m_interpreter;
+		elf->m_file_header = m_file_header;
+		TRY(elf->m_program_headers.reserve(m_program_headers.size()));
+		for (const auto& program_header : m_program_headers)
+			MUST(elf->m_program_headers.emplace_back(program_header));
 
 		elf->reserve_address_space();
 
-		TRY(map_loadable_file(elf->m_executable.program_headers.span()));
-		TRY(map_loadable_file(elf->m_interpreter.program_headers.span()));
+		for (const auto& program_header : m_program_headers)
+		{
+			ASSERT(program_header.p_type == PT_LOAD);
+			if (!(program_header.p_flags & LibELF::PF_W))
+				continue;
+
+			PageTable::flags_t flags = PageTable::Flags::UserSupervisor | PageTable::Flags::Present;
+			if (program_header.p_flags & LibELF::PF_W)
+				flags |= PageTable::Flags::ReadWrite;
+			if (program_header.p_flags & LibELF::PF_X)
+				flags |= PageTable::Flags::Execute;
+
+			vaddr_t start = program_header.p_vaddr & PAGE_ADDR_MASK;
+			size_t pages = range_page_count(program_header.p_vaddr, program_header.p_memsz);
+
+			for (size_t i = 0; i < pages; i++)
+			{
+				if (m_page_table.physical_address_of(start + i * PAGE_SIZE) == 0)
+					continue;
+
+				paddr_t paddr = Heap::get().take_free_page();
+				if (paddr == 0)
+					return BAN::Error::from_errno(ENOMEM);
+
+				PageTable::with_fast_page(paddr, [&] {
+					memcpy(PageTable::fast_page_as_ptr(), (void*)(start + i * PAGE_SIZE), PAGE_SIZE);
+				});
+
+				new_page_table.map_page_at(paddr, start + i * PAGE_SIZE, flags);
+				elf->m_physical_page_count++;
+			}
+		}
 
 		return elf;
 	}
