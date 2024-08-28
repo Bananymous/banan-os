@@ -10,5 +10,5 @@ foo_t foo;
 
 int main()
 {
-
+	printf("main\n");
 }
