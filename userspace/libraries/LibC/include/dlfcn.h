@@ -12,6 +12,9 @@ __BEGIN_DECLS
 #define RTLD_GLOBAL	3
 #define RTLD_LOCAL	4
 
+#define RTLD_NEXT    ((void*)-1)
+#define RTLD_DEFAULT ((void*) 0)
+
 int		dlclose(void* handle);
 char*	dlerror(void);
 void*	dlopen(const char* file, int mode);

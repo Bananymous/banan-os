@@ -149,15 +149,7 @@ __BEGIN_DECLS
 
 #if !defined(__ssize_t_defined) && (defined(__need_all_types) || defined(__need_ssize_t))
 	#define __ssize_t_defined 1
-	#if __SIZEOF_SIZE_T__ == __SIZEOF_INT__
-		typedef int ssize_t;
-	#elif __SIZEOF_SIZE_T__ == __SIZEOF_LONG__
-		typedef long ssize_t;
-	#elif __SIZEOF_SIZE_T__ == __SIZEOF_LONG_LONG__
-		typedef long long ssize_t;
-	#else
-		#error "unsupported sizeof(size_t)"
-	#endif
+	typedef __PTRDIFF_TYPE__ ssize_t;
 #endif
 #undef __need_ssize_t
 

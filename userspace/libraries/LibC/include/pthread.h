@@ -52,11 +52,9 @@ __BEGIN_DECLS
 #define PTHREAD_SCOPE_PROCESS			23
 #define PTHREAD_SCOPE_SYSTEM			24
 
-#if 0
-#define PTHREAD_COND_INITIALIZER
-#define PTHREAD_MUTEX_INITIALIZER
-#define PTHREAD_RWLOCK_INITIALIZER
-#endif
+#define PTHREAD_COND_INITIALIZER   (pthread_cond_t)0
+#define PTHREAD_MUTEX_INITIALIZER  (pthread_mutex_t)0
+#define PTHREAD_RWLOCK_INITIALIZER (pthread_rwlock_t)0
 
 int			pthread_atfork(void (*prepare)(void), void (*parent)(void), void(*child)(void));
 int			pthread_attr_destroy(pthread_attr_t* attr);
