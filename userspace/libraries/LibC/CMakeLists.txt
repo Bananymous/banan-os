@@ -45,32 +45,43 @@ set(LIBC_SOURCES
 	../../../BAN/BAN/Assert.cpp
 )
 
-add_library(libc ${LIBC_SOURCES})
-target_compile_definitions(libc PRIVATE __arch=${BANAN_ARCH})
-target_compile_definitions(libc PRIVATE __enable_sse=${BANAN_ENABLE_SSE})
+add_library(objlibc OBJECT ${LIBC_SOURCES})
+target_compile_definitions(objlibc PRIVATE __arch=${BANAN_ARCH})
+target_compile_definitions(objlibc PRIVATE __enable_sse=${BANAN_ENABLE_SSE})
 if (NOT BANAN_ENABLE_SSE)
-	target_compile_options(libc PRIVATE -mno-sse -mno-sse2)
+	target_compile_options(objlibc PRIVATE -mno-sse -mno-sse2)
 endif ()
 
-target_compile_options(libc PRIVATE -O2 -g -Wstack-usage=512 -fno-tree-loop-distribute-patterns -fno-exceptions -nostdlib)
-target_compile_options(libc PUBLIC -Wall -Wextra -Werror -Wno-error=stack-usage=)
+target_compile_options(objlibc PRIVATE -O2 -g -Wstack-usage=512 -fno-tree-loop-distribute-patterns -fno-exceptions -fpic -nolibc)
+target_compile_options(objlibc PUBLIC -Wall -Wextra -Werror -Wno-error=stack-usage=)
 
 function(add_crtx crtx)
 	add_custom_target(${crtx}
 		COMMAND ${CMAKE_CXX_COMPILER} -c -o ${CMAKE_INSTALL_LIBDIR}/${crtx}.o ${CMAKE_CURRENT_SOURCE_DIR}/arch/${BANAN_ARCH}/${crtx}.S
 		DEPENDS sysroot
 	)
-	add_dependencies(libc ${crtx})
+	add_dependencies(objlibc ${crtx})
 endfunction()
 
 add_crtx(crt0)
 add_crtx(crti)
 add_crtx(crtn)
 
-banan_include_headers(libc ban)
-banan_include_headers(libc kernel)
+banan_include_headers(objlibc ban)
+banan_include_headers(objlibc kernel)
 
-banan_install_headers(libc)
+banan_install_headers(objlibc)
+
+add_library(libc STATIC $<TARGET_OBJECTS:objlibc>)
+add_library(libc-shared SHARED $<TARGET_OBJECTS:objlibc>)
+
+target_link_options(libc PRIVATE -nolibc)
+target_link_options(libc-shared PRIVATE -nolibc)
+
 install(TARGETS libc OPTIONAL)
+install(TARGETS libc-shared OPTIONAL)
+
+set_target_properties(libc-shared PROPERTIES OUTPUT_NAME libc)
 
 set(CMAKE_STATIC_LIBRARY_PREFIX "")
+set(CMAKE_SHARED_LIBRARY_PREFIX "")
