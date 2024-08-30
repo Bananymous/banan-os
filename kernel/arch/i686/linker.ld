@@ -21,19 +21,19 @@ SECTIONS
 		g_userspace_end = .;
 		g_kernel_execute_end = .;
 	}
-	.ap_init ALIGN(4K) : AT(ADDR(.ap_init))
+	.ap_init ALIGN(4K) : AT(ADDR(.ap_init) - KERNEL_OFFSET)
 	{
 		g_ap_init_addr = .;
 		*(.ap_init)
+	}
+	.rodata ALIGN(4K) : AT(ADDR(.rodata) - KERNEL_OFFSET)
+	{
+		*(.rodata.*)
 	}
 	.data ALIGN(4K) : AT(ADDR(.data) - KERNEL_OFFSET)
 	{
 		g_kernel_writable_start = .;
 		*(.data)
-	}
-	.rodata ALIGN(4K) : AT(ADDR(.rodata) - KERNEL_OFFSET)
-	{
-		*(.rodata.*)
 	}
 	.bss ALIGN(4K) : AT(ADDR(.bss) - KERNEL_OFFSET)
 	{

@@ -211,7 +211,7 @@ elseif("${BANAN_ARCH}" STREQUAL "i686")
 	target_link_options(kernel PRIVATE LINKER:-T,${CMAKE_CURRENT_SOURCE_DIR}/arch/i686/linker.ld)
 endif()
 
-target_link_options(kernel PRIVATE -ffreestanding -nostdlib)
+target_link_options(kernel PRIVATE -ffreestanding -nostdlib -orphan-handling=error)
 
 execute_process(COMMAND ${CMAKE_CXX_COMPILER} -print-file-name=crtbegin.o OUTPUT_VARIABLE CRTBEGIN OUTPUT_STRIP_TRAILING_WHITESPACE)
 execute_process(COMMAND ${CMAKE_CXX_COMPILER} -print-file-name=crtend.o OUTPUT_VARIABLE CRTEND OUTPUT_STRIP_TRAILING_WHITESPACE)
