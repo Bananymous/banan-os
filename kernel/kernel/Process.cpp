@@ -2376,7 +2376,7 @@ namespace Kernel
 			return {};
 
 unauthorized_access:
-		dwarnln("process {}, thread {} attempted to make an invalid pointer access", pid(), Thread::current().tid());
+		dwarnln("process {}, thread {} attempted to make an invalid pointer access to 0x{H}->0x{H}", pid(), Thread::current().tid(), vaddr, vaddr + size);
 		Debug::dump_stack_trace();
 		MUST(sys_kill(pid(), SIGSEGV));
 		return BAN::Error::from_errno(EINTR);
