@@ -30,6 +30,12 @@ SECTIONS
 	{
 		*(.rodata.*)
 	}
+	.init_array ALIGN(4K) : AT(ADDR(.init_array) - KERNEL_OFFSET)
+	{
+		g_init_array_start = .;
+		*(.init_array)
+		g_init_array_end = .;
+	}
 	.data ALIGN(4K) : AT(ADDR(.data) - KERNEL_OFFSET)
 	{
 		g_kernel_writable_start = .;
