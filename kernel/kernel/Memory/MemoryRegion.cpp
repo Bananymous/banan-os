@@ -35,7 +35,7 @@ namespace Kernel
 
 	bool MemoryRegion::contains_fully(vaddr_t address, size_t size) const
 	{
-		return m_vaddr <= address && address + size < m_vaddr + m_size;
+		return m_vaddr <= address && address + size <= m_vaddr + m_size;
 	}
 
 	bool MemoryRegion::overlaps(vaddr_t address, size_t size) const
