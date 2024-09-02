@@ -25,6 +25,9 @@ set(CMAKE_INSTALL_SYSCONF    ${BANAN_ETC})
 set(CMAKE_INSTALL_MESSAGE    NEVER)
 set(CMAKE_SKIP_INSTALL_ALL_DEPENDENCY True)
 
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+
 # include headers of ${library} to ${target}
 function(banan_include_headers target library)
 	target_include_directories(${target} PRIVATE $<TARGET_PROPERTY:${library},SOURCE_DIR>/include)
