@@ -72,16 +72,19 @@ banan_include_headers(objlibc kernel)
 
 banan_install_headers(objlibc)
 
-add_library(libc STATIC $<TARGET_OBJECTS:objlibc>)
+add_library(libc-static STATIC $<TARGET_OBJECTS:objlibc>)
 add_library(libc-shared SHARED $<TARGET_OBJECTS:objlibc>)
 
-target_link_options(libc PRIVATE -nolibc)
+target_link_options(libc-static PRIVATE -nolibc)
 target_link_options(libc-shared PRIVATE -nolibc)
 
-install(TARGETS libc OPTIONAL)
+install(TARGETS libc-static OPTIONAL)
 install(TARGETS libc-shared OPTIONAL)
 
+set_target_properties(libc-static PROPERTIES OUTPUT_NAME libc)
 set_target_properties(libc-shared PROPERTIES OUTPUT_NAME libc)
+
+add_library(libc ALIAS libc-static)
 
 set(CMAKE_STATIC_LIBRARY_PREFIX "")
 set(CMAKE_SHARED_LIBRARY_PREFIX "")
