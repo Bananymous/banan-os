@@ -499,6 +499,7 @@ BAN::Optional<int> execute_builtin(BAN::Vector<BAN::String>& args, int fd_in, in
 		TEST("ffffffffffffffff", 16);
 		TEST("10000000000000000", 16);
 #undef TEST
+#if __enable_sse
 #define TEST(num) do { errno = 0; printf("strtod(\"" num "\", nullptr) = %e ", strtod(num, nullptr)); puts(errno ? strerrorname_np(errno) : ""); } while (false)
 		TEST("0");
 		TEST(".1");
@@ -531,6 +532,7 @@ BAN::Optional<int> execute_builtin(BAN::Vector<BAN::String>& args, int fd_in, in
 		TEST("-inf");
 		TEST("nan");
 #undef TEST
+#endif
 	}
 	else
 	{

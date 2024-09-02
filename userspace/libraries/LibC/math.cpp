@@ -17,6 +17,7 @@
 
 __BEGIN_DECLS
 
+#if __enable_sse
 BUILTINS1(acos)
 BUILTINS1(acosh)
 BUILTINS1(asin)
@@ -65,5 +66,6 @@ BUILTINS1(tgamma)
 BUILTINS1(trunc)
 BUILTINS1(y0)
 BUILTINS1(y1)
+#endif
 
 __END_DECLS

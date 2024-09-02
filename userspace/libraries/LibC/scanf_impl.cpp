@@ -262,6 +262,7 @@ int scanf_impl(const char* format, va_list arguments, int (*__getc_fun)(void*), 
 			}
 		};
 
+#if __enable_sse
 	auto parse_floating_point_internal =
 		[&parse_integer_internal, &get_input, &in]<int BASE, typename T>(BASE_TYPE<BASE>, bool negative, int width, T* out, bool require_start = true) -> ConversionResult
 		{
@@ -436,6 +437,7 @@ int scanf_impl(const char* format, va_list arguments, int (*__getc_fun)(void*), 
 					return ConversionResult::MATCH_FAILURE;
 			}
 		};
+#endif
 
 	auto parse_string =
 		[&arguments, &get_input, &in](uint8_t* mask, bool exclude, bool suppress, bool allocate, int min_len, int max_len, bool terminate) -> ConversionResult
@@ -520,9 +522,11 @@ int scanf_impl(const char* format, va_list arguments, int (*__getc_fun)(void*), 
 				case 'x': result = parse_integer(BASE_TYPE<16>{}, IS_UNSIGNED<true> {}, conversion.suppress, conversion.field_width, conversion.length); break;
 				case 'X': result = parse_integer(BASE_TYPE<16>{}, IS_UNSIGNED<true> {}, conversion.suppress, conversion.field_width, conversion.length); break;
 				case 'p': result = parse_integer(BASE_TYPE<16>{}, IS_UNSIGNED<true> {}, conversion.suppress, conversion.field_width, LengthModifier::j); break;
+#if __enable_sse
 				case 'a': case 'e': case 'f': case 'g':
 					result = parse_floating_point(conversion.suppress, conversion.field_width, conversion.length);
 					break;
+#endif
 				case 'S':
 					conversion.length = LengthModifier::l;
 					// fall through

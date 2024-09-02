@@ -22,7 +22,7 @@ namespace LibImage
 			//   weight of 0.0 returns a and weight of 1.0 returns b
 			static Color average(Color a, Color b, double weight)
 			{
-				const double b_mult = BAN::Math::clamp(weight, 0.0, 1.0);
+				const double b_mult = weight < 0.0 ? 0.0 : weight > 1.0 ? 1.0 : weight;
 				const double a_mult = 1.0 - b_mult;
 				return Color {
 					.r = static_cast<uint8_t>(a.r * a_mult + b.r * b_mult),

@@ -87,10 +87,10 @@ namespace LibImage
 		constexpr Image::Color as_color() const
 		{
 			return Image::Color {
-				.r = static_cast<uint8_t>(BAN::Math::clamp<double>(r, 0.0, 255.0)),
-				.g = static_cast<uint8_t>(BAN::Math::clamp<double>(g, 0.0, 255.0)),
-				.b = static_cast<uint8_t>(BAN::Math::clamp<double>(b, 0.0, 255.0)),
-				.a = static_cast<uint8_t>(BAN::Math::clamp<double>(a, 0.0, 255.0)),
+				.r = static_cast<uint8_t>(r < 0.0 ? 0.0 : r > 255.0 ? 255.0 : r),
+				.g = static_cast<uint8_t>(g < 0.0 ? 0.0 : g > 255.0 ? 255.0 : g),
+				.b = static_cast<uint8_t>(b < 0.0 ? 0.0 : b > 255.0 ? 255.0 : b),
+				.a = static_cast<uint8_t>(a < 0.0 ? 0.0 : a > 255.0 ? 255.0 : a),
 			};
 		}
 	};
@@ -133,8 +133,13 @@ namespace LibImage
 					{
 						const double src_x = x * ratio_x;
 						const double src_y = y * ratio_y;
+#if __enable_sse
 						const double weight_x = src_x - floor(src_x);
 						const double weight_y = src_y - floor(src_y);
+#else
+						const double weight_x = src_x - (uint64_t)src_x;
+						const double weight_y = src_y - (uint64_t)src_y;
+#endif
 
 						const Color avg_t = Color::average(
 							get_clamped_color(src_x + 0.0, src_y),
@@ -173,8 +178,13 @@ namespace LibImage
 					{
 						const double src_x = x * ratio_x;
 						const double src_y = y * ratio_y;
+#if __enable_sse
 						const double weight_x = src_x - floor(src_x);
 						const double weight_y = src_y - floor(src_y);
+#else
+						const double weight_x = src_x - (uint64_t)src_x;
+						const double weight_y = src_y - (uint64_t)src_y;
+#endif
 
 						FloatingColor values[4];
 						for (int64_t m = -1; m <= 2; m++)
