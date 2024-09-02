@@ -89,6 +89,7 @@ namespace LibELF
 		SHN_COMMON	= 0xFFF2,
 	};
 
+#define ELF_ST_BIND(i) ((i) >> 4)
 	enum ELF_STB
 	{
 		STB_LOCAL	= 0,
@@ -100,6 +101,7 @@ namespace LibELF
 		STB_HIPROC	= 15,
 	};
 
+#define ELF_ST_TYPE(i) ((i) & 0xF)
 	enum ELF_STT
 	{
 		STT_NOTYPE	= 0,
@@ -172,6 +174,62 @@ namespace LibELF
 		DT_HIOS			= 0x6FFFFFFF,
 		DT_LOPROC		= 0x70000000,
 		DT_HIPROC		= 0x7FFFFFFF,
+	};
+
+#define ELF32_R_SYM(i) ((i) >> 8)
+#define ELF32_R_TYPE(i) ((i) & 0xFF)
+	enum ELF_R_386
+	{
+		R_386_NONE     = 0,
+		R_386_32       = 1,
+		R_386_PC32     = 2,
+		R_386_GOT32    = 3,
+		R_386_PLT32    = 4,
+		R_386_COPY     = 5,
+		R_386_GLOB_DAT = 6,
+		R_386_JMP_SLOT = 7,
+		R_386_RELATIVE = 8,
+		R_386_GOTOFF   = 9,
+		R_386_GOTPC    = 10,
+	};
+
+#define ELF64_R_SYM(i) ((i) >> 32)
+#define ELF64_R_TYPE(i) ((i) & 0xFFFFFFFF)
+	enum ELF_R_X86_64
+	{
+		R_X86_64_NONE            = 0,
+		R_X86_64_64              = 1,
+		R_X86_64_PC32            = 2,
+		R_X86_64_GOT32           = 3,
+		R_X86_64_PLT32           = 4,
+		R_X86_64_COPY            = 5,
+		R_X86_64_GLOB_DAT        = 6,
+		R_X86_64_JUMP_SLOT       = 7,
+		R_X86_64_RELATIVE        = 8,
+		R_X86_64_GOTPCREL        = 9,
+		R_X86_64_32              = 10,
+		R_X86_64_32S             = 11,
+		R_X86_64_16              = 12,
+		R_X86_64_PC16            = 13,
+		R_X86_64_8               = 14,
+		R_X86_64_PC8             = 15,
+		R_X86_64_DTPMOD64        = 16,
+		R_X86_64_DTPOFF64        = 17,
+		R_X86_64_TPOFF64         = 18,
+		R_X86_64_TLSGD           = 19,
+		R_X86_64_TLSLD           = 20,
+		R_X86_64_DTPOFF32        = 21,
+		R_X86_64_GOTTPOFF        = 22,
+		R_X86_64_TPOFF32         = 23,
+		R_X86_64_PC64            = 24,
+		R_X86_64_GOTOFF64        = 25,
+		R_X86_64_GOTPC32         = 26,
+		R_X86_64_SIZE32          = 32,
+		R_X86_64_SIZE64          = 33,
+		R_X86_64_GOTPC32_TLSDESC = 34,
+		R_X86_64_TLSDESC_CALL    = 35,
+		R_X86_64_TLSDESC         = 36,
+		R_X86_64_IRELATIVE       = 37,
 	};
 
 }
