@@ -67,14 +67,16 @@ namespace Kernel
 	{
 		ASSERT(&PageTable::current() == &m_page_table);
 
-		auto result = TRY(MemoryBackedRegion::create(new_page_table, m_size, { .start = m_vaddr, .end = m_vaddr + m_size }, m_type, m_flags));
+		const size_t aligned_size = (m_size + PAGE_SIZE - 1) & PAGE_ADDR_MASK;
+		auto result = TRY(MemoryBackedRegion::create(new_page_table, m_size, { .start = m_vaddr, .end = m_vaddr + aligned_size }, m_type, m_flags));
 
 		for (size_t offset = 0; offset < m_size; offset += PAGE_SIZE)
 		{
 			paddr_t paddr = m_page_table.physical_address_of(m_vaddr + offset);
 			if (paddr == 0)
 				continue;
-			TRY(result->copy_data_to_region(offset, (const uint8_t*)(m_vaddr + offset), PAGE_SIZE));
+			const size_t to_copy = BAN::Math::min<size_t>(PAGE_SIZE, m_size - offset);
+			TRY(result->copy_data_to_region(offset, (const uint8_t*)(m_vaddr + offset), to_copy));
 		}
 
 		return BAN::UniqPtr<MemoryRegion>(BAN::move(result));
