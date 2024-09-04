@@ -93,9 +93,9 @@ __BEGIN_DECLS
 
 #define EUNKNOWN		0xFF
 
-#define errno __errno
+#define errno (*__errno_location())
 
-extern int __errno;
+int* __errno_location(void);
 
 __END_DECLS
 

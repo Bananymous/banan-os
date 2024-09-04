@@ -4,6 +4,7 @@ set(LIBC_SOURCES
 	ctype.cpp
 	dirent.cpp
 	dlfcn.cpp
+	errno.cpp
 	fcntl.cpp
 	ftw.cpp
 	grp.cpp

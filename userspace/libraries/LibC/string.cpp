@@ -8,8 +8,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-int errno = 0;
-
 void* memccpy(void* __restrict s1, const void* __restrict s2, int c, size_t n)
 {
 	unsigned char* dst = static_cast<unsigned char*>(s1);
