@@ -13,8 +13,20 @@ namespace Kernel
 
 		if (offset < 0 || offset % PAGE_SIZE || size == 0)
 			return BAN::Error::from_errno(EINVAL);
-		if (size > (size_t)inode->size() || (size_t)offset > (size_t)inode->size() - size)
-			return BAN::Error::from_errno(EOVERFLOW);
+		switch (type)
+		{
+			case Type::PRIVATE:
+				if (offset >= inode->size())
+					return BAN::Error::from_errno(EOVERFLOW);
+				break;
+			case Type::SHARED:
+				if ((size > (size_t)inode->size() || (size_t)offset > (size_t)inode->size() - size))
+					return BAN::Error::from_errno(EOVERFLOW);
+				break;
+			default:
+				ASSERT_NOT_REACHED();
+				break;
+		}
 
 		auto* region_ptr = new FileBackedRegion(inode, page_table, offset, size, type, flags);
 		if (region_ptr == nullptr)
@@ -112,7 +124,7 @@ namespace Kernel
 		ASSERT(contains(address));
 
 		// Check if address is already mapped
-		vaddr_t vaddr = address & PAGE_ADDR_MASK;
+		const vaddr_t vaddr = address & PAGE_ADDR_MASK;
 		if (m_page_table.physical_address_of(vaddr) != 0)
 			return false;
 
@@ -126,25 +138,30 @@ namespace Kernel
 			// Temporarily force mapping to be writable so kernel can write to it
 			m_page_table.map_page_at(paddr, vaddr, m_flags | PageTable::Flags::ReadWrite);
 
-			size_t file_offset = m_offset + (vaddr - m_vaddr);
-			size_t bytes = BAN::Math::min<size_t>(m_size - file_offset, PAGE_SIZE);
-
 			ASSERT(&PageTable::current() == &m_page_table);
-			auto read_ret = m_inode->read(file_offset, BAN::ByteSpan((uint8_t*)vaddr, bytes));
+			memset(reinterpret_cast<void*>(vaddr), 0x00, PAGE_SIZE);
 
-			if (read_ret.is_error())
-			{
-				Heap::get().release_page(paddr);
-				m_page_table.unmap_page(vaddr);
-				return read_ret.release_error();
-			}
+			const size_t file_offset = m_offset + (vaddr - m_vaddr);
 
-			if (read_ret.value() < bytes)
+			if (file_offset < static_cast<size_t>(m_inode->size()))
 			{
-				dwarnln("Only {}/{} bytes read", read_ret.value(), bytes);
-				Heap::get().release_page(paddr);
-				m_page_table.unmap_page(vaddr);
-				return BAN::Error::from_errno(EIO);
+				const size_t bytes = BAN::Math::min<size_t>(BAN::Math::min<size_t>(m_offset + m_size, m_inode->size()) - file_offset, PAGE_SIZE);
+				auto read_ret = m_inode->read(file_offset, BAN::ByteSpan((uint8_t*)vaddr, bytes));
+
+				if (read_ret.is_error())
+				{
+					Heap::get().release_page(paddr);
+					m_page_table.unmap_page(vaddr);
+					return read_ret.release_error();
+				}
+
+				if (read_ret.value() < bytes)
+				{
+					dwarnln("Only {}/{} bytes read", read_ret.value(), bytes);
+					Heap::get().release_page(paddr);
+					m_page_table.unmap_page(vaddr);
+					return BAN::Error::from_errno(EIO);
+				}
 			}
 
 			// Disable writable if not wanted
@@ -172,7 +189,8 @@ namespace Kernel
 				TRY(m_inode->read(offset, BAN::ByteSpan(m_shared_data->page_buffer, bytes)));
 
 				PageTable::with_fast_page(pages[page_index], [&] {
-					memcpy(PageTable::fast_page_as_ptr(), m_shared_data->page_buffer, PAGE_SIZE);
+					memcpy(PageTable::fast_page_as_ptr(), m_shared_data->page_buffer, bytes);
+					memset(PageTable::fast_page_as_ptr(bytes), 0x00, PAGE_SIZE - bytes);
 				});
 			}
 
