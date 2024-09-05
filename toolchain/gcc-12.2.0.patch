@@ -1,6 +1,6 @@
 diff -ruN gcc-12.2.0/config.sub gcc-12.2.0-banan_os/config.sub
 --- gcc-12.2.0/config.sub	2022-08-19 11:09:52.128656687 +0300
-+++ gcc-12.2.0-banan_os/config.sub	2024-08-26 16:10:21.057075425 +0300
++++ gcc-12.2.0-banan_os/config.sub	2024-09-03 23:09:34.347772496 +0300
 @@ -1749,7 +1749,7 @@
  	     | onefs* | tirtos* | phoenix* | fuchsia* | redox* | bme* \
  	     | midnightbsd* | amdhsa* | unleashed* | emscripten* | wasi* \
@@ -12,7 +12,7 @@ diff -ruN gcc-12.2.0/config.sub gcc-12.2.0-banan_os/config.sub
  	sco3.2v2 | sco3.2v[4-9]* | sco5v6*)
 diff -ruN gcc-12.2.0/fixincludes/mkfixinc.sh gcc-12.2.0-banan_os/fixincludes/mkfixinc.sh
 --- gcc-12.2.0/fixincludes/mkfixinc.sh	2022-08-19 11:09:52.160657095 +0300
-+++ gcc-12.2.0-banan_os/fixincludes/mkfixinc.sh	2024-08-26 16:26:29.728558199 +0300
++++ gcc-12.2.0-banan_os/fixincludes/mkfixinc.sh	2024-09-03 23:09:34.461106020 +0300
 @@ -11,6 +11,7 @@
  
  # Check for special fix rules for particular targets
@@ -23,7 +23,7 @@ diff -ruN gcc-12.2.0/fixincludes/mkfixinc.sh gcc-12.2.0-banan_os/fixincludes/mkf
      x86_64-*-mingw32* | \
 diff -ruN gcc-12.2.0/gcc/config/banan_os.h gcc-12.2.0-banan_os/gcc/config/banan_os.h
 --- gcc-12.2.0/gcc/config/banan_os.h	1970-01-01 02:00:00.000000000 +0200
-+++ gcc-12.2.0-banan_os/gcc/config/banan_os.h	2024-08-26 16:20:51.429017406 +0300
++++ gcc-12.2.0-banan_os/gcc/config/banan_os.h	2024-09-03 23:09:34.461106020 +0300
 @@ -0,0 +1,35 @@
 +/* Useful if you wish to make target-specific GCC changes. */
 +#undef TARGET_BANAN_OS
@@ -37,11 +37,11 @@ diff -ruN gcc-12.2.0/gcc/config/banan_os.h gcc-12.2.0-banan_os/gcc/config/banan_
 +/* Files that are linked before user code.
 +   The %s tells GCC to look for these files in the library directory. */
 +#undef STARTFILE_SPEC
-+#define STARTFILE_SPEC "%{!shared:crt0.o%s} crti.o%s crtbegin.o%s"
++#define STARTFILE_SPEC "%{!shared:crt0.o%s} crti.o%s %{shared|static-pie|!no-pie:crtbeginS.o%s; :crtbegin.o%s}"
 +
 +/* Files that are linked after user code. */
 +#undef ENDFILE_SPEC
-+#define ENDFILE_SPEC "crtend.o%s crtn.o%s"
++#define ENDFILE_SPEC "%{shared|static-pie|!no-pie:crtendS.o%s; :crtend.o%s} crtn.o%s"
 +
 +#undef LINK_SPEC
 +#define LINK_SPEC "%{shared:-shared} %{static:-static} %{!shared: %{!static: %{rdynamic:-export-dynamic}}}"
@@ -62,8 +62,8 @@ diff -ruN gcc-12.2.0/gcc/config/banan_os.h gcc-12.2.0-banan_os/gcc/config/banan_
 +  } while(0);
 diff -ruN gcc-12.2.0/gcc/config.gcc gcc-12.2.0-banan_os/gcc/config.gcc
 --- gcc-12.2.0/gcc/config.gcc	2022-08-19 11:09:52.552662114 +0300
-+++ gcc-12.2.0-banan_os/gcc/config.gcc	2024-08-26 16:12:58.904718171 +0300
-@@ -673,6 +673,12 @@
++++ gcc-12.2.0-banan_os/gcc/config.gcc	2024-09-03 23:09:34.461106020 +0300
+@@ -673,6 +673,13 @@
  
  # Common parts for widely ported systems.
  case ${target} in
@@ -72,6 +72,7 @@ diff -ruN gcc-12.2.0/gcc/config.gcc gcc-12.2.0-banan_os/gcc/config.gcc
 +  gnu_ld=yes
 +  default_use_cxa_atexit=yes
 +  use_gcc_stdint=provide
++  tmake_file="t-slibgcc"
 +  ;;
  *-*-darwin*)
    tmake_file="t-darwin "
@@ -91,25 +92,36 @@ diff -ruN gcc-12.2.0/gcc/config.gcc gcc-12.2.0-banan_os/gcc/config.gcc
  	;;
 diff -ruN gcc-12.2.0/libgcc/config.host gcc-12.2.0-banan_os/libgcc/config.host
 --- gcc-12.2.0/libgcc/config.host	2022-08-19 11:09:54.664689148 +0300
-+++ gcc-12.2.0-banan_os/libgcc/config.host	2024-08-26 16:25:09.397768608 +0300
++++ gcc-12.2.0-banan_os/libgcc/config.host	2024-09-03 23:09:34.474439376 +0300
 @@ -698,6 +698,14 @@
  hppa*-*-netbsd*)
  	tmake_file="$tmake_file pa/t-netbsd"
  	;;
 +i[34567]86-*-banan_os*)
-+	extra_parts="$extra_parts crti.o crtbegin.o crtend.o crtn.o"
-+	tmake_file="$tmake_file i386/t-crtstuff t-crtstuff-pic t-libgcc-pic"
++	extra_parts="$extra_parts crti.o crtbegin.o crtbeginS.o crtend.o crtendS.o crtn.o"
++	tmake_file="$tmake_file i386/t-crtstuff t-crtstuff-pic t-libgcc-pic t-slibgcc"
 +	;;
 +x86_64-*-banan_os*)
-+	extra_parts="$extra_parts crti.o crtbegin.o crtend.o crtn.o"
-+	tmake_file="$tmake_file i386/t-crtstuff t-crtstuff-pic t-libgcc-pic"
++	extra_parts="$extra_parts crti.o crtbegin.o crtbeginS.o crtend.o crtendS.o crtn.o"
++	tmake_file="$tmake_file i386/t-crtstuff t-crtstuff-pic t-libgcc-pic t-slibgcc"
 +	;;
  i[34567]86-*-darwin*)
  	tmake_file="$tmake_file i386/t-crtpc t-crtfm i386/t-msabi"
  	tm_file="$tm_file i386/darwin-lib.h"
+diff -ruN gcc-12.2.0/libgcc/config/t-slibgcc gcc-12.2.0-banan_os/libgcc/config/t-slibgcc
+--- gcc-12.2.0/libgcc/config/t-slibgcc	2022-08-19 11:09:54.724689916 +0300
++++ gcc-12.2.0-banan_os/libgcc/config/t-slibgcc	2024-09-04 23:06:14.275389818 +0300
+@@ -26,7 +26,6 @@
+ SHLIB_OBJS = @shlib_objs@
+ SHLIB_DIR = @multilib_dir@
+ SHLIB_SLIBDIR_QUAL = @shlib_slibdir_qual@
+-SHLIB_LC = -lc
+ SHLIB_MAKE_SOLINK = $(LN_S) $(SHLIB_SONAME) $(SHLIB_DIR)/$(SHLIB_SOLINK)
+ SHLIB_INSTALL_SOLINK = $(LN_S) $(SHLIB_SONAME) \
+ 	$(DESTDIR)$(slibdir)$(SHLIB_SLIBDIR_QUAL)/$(SHLIB_SOLINK)
 diff -ruN gcc-12.2.0/libstdc++-v3/acinclude.m4 gcc-12.2.0-banan_os/libstdc++-v3/acinclude.m4
 --- gcc-12.2.0/libstdc++-v3/acinclude.m4	2022-08-19 11:09:55.380698313 +0300
-+++ gcc-12.2.0-banan_os/libstdc++-v3/acinclude.m4	2024-08-26 19:03:18.261183636 +0300
++++ gcc-12.2.0-banan_os/libstdc++-v3/acinclude.m4	2024-09-03 23:09:34.477772715 +0300
 @@ -1380,7 +1380,7 @@
          ac_has_nanosleep=yes
          ac_has_sched_yield=yes
@@ -121,7 +133,7 @@ diff -ruN gcc-12.2.0/libstdc++-v3/acinclude.m4 gcc-12.2.0-banan_os/libstdc++-v3/
          ac_has_nanosleep=yes
 diff -ruN gcc-12.2.0/libstdc++-v3/configure gcc-12.2.0-banan_os/libstdc++-v3/configure
 --- gcc-12.2.0/libstdc++-v3/configure	2022-08-19 11:09:55.416698774 +0300
-+++ gcc-12.2.0-banan_os/libstdc++-v3/configure	2024-08-26 19:09:19.671026813 +0300
++++ gcc-12.2.0-banan_os/libstdc++-v3/configure	2024-09-03 23:09:34.487772732 +0300
 @@ -11904,6 +11904,11 @@
      lt_cv_dlopen_self=yes
      ;;
@@ -134,6 +146,17 @@ diff -ruN gcc-12.2.0/libstdc++-v3/configure gcc-12.2.0-banan_os/libstdc++-v3/con
    mingw* | pw32* | cegcc*)
      lt_cv_dlopen="LoadLibrary"
      lt_cv_dlopen_libs=
+@@ -15603,8 +15608,8 @@
+   glibcxx_compiler_shared_flag="-D_GLIBCXX_SHARED"
+ 
+ else
+-  glibcxx_lt_pic_flag=
+-  glibcxx_compiler_pic_flag=
++  glibcxx_lt_pic_flag="-prefer-pic"
++  glibcxx_compiler_pic_flag="$lt_prog_compiler_pic_CXX"
+   glibcxx_compiler_shared_flag=
+ fi
+ 
 @@ -20575,7 +20580,7 @@
          ac_has_nanosleep=yes
          ac_has_sched_yield=yes
@@ -154,7 +177,7 @@ diff -ruN gcc-12.2.0/libstdc++-v3/configure gcc-12.2.0-banan_os/libstdc++-v3/con
      $as_echo "#define HAVE_ASINF 1" >>confdefs.h
 diff -ruN gcc-12.2.0/libstdc++-v3/crossconfig.m4 gcc-12.2.0-banan_os/libstdc++-v3/crossconfig.m4
 --- gcc-12.2.0/libstdc++-v3/crossconfig.m4	2022-08-19 11:09:55.420698825 +0300
-+++ gcc-12.2.0-banan_os/libstdc++-v3/crossconfig.m4	2024-08-26 18:53:31.865865576 +0300
++++ gcc-12.2.0-banan_os/libstdc++-v3/crossconfig.m4	2024-09-03 23:09:34.531106138 +0300
 @@ -9,7 +9,7 @@
      # This is a freestanding configuration; there is nothing to do here.
      ;;

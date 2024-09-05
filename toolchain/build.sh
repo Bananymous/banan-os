@@ -61,12 +61,6 @@ if [[ -z ${MAKE_JOBS:x} ]]; then
 	MAKE_JOBS="-j$(nproc)"
 fi
 
-if [ $BANAN_ARCH = "x86_64" ]; then
-	XCFLAGS="-g -O2 -mcmodel=large -mno-red-zone"
-else
-	XCFLAGS="-g -O2"
-fi
-
 enter_clean_build () {
 	rm -rf build-$BANAN_ARCH
 	mkdir build-$BANAN_ARCH
@@ -129,6 +123,11 @@ build_gcc () {
 		--disable-nls \
 		--enable-languages=c,c++
 
+	XCFLAGS=""
+	if [ $BANAN_ARCH = "x86_64" ]; then
+		XCFLAGS="-mcmodel=large -mno-red-zone"
+	fi
+
 	make $MAKE_JOBS all-gcc
 	make $MAKE_JOBS all-target-libgcc CFLAGS_FOR_TARGET="$XCFLAGS"
 	make install-gcc
@@ -142,7 +141,7 @@ build_libstdcpp () {
 	fi
 
 	cd $BANAN_BUILD_DIR/toolchain/$GCC_VERSION/build-$BANAN_ARCH
-	make $MAKE_JOBS all-target-libstdc++-v3 CFLAGS_FOR_TARGET="$XCFLAGS"
+	make $MAKE_JOBS all-target-libstdc++-v3
 	make install-target-libstdc++-v3
 }
 
@@ -268,7 +267,8 @@ fi
 if (($BUILD_LIBSTDCPP)); then
 	# delete sysroot and install libc
 	rm -r $BANAN_SYSROOT
-	$BANAN_SCRIPT_DIR/build.sh libc
+	$BANAN_SCRIPT_DIR/build.sh libc-static
+	$BANAN_SCRIPT_DIR/build.sh libc-shared
 	$BANAN_SCRIPT_DIR/build.sh install
 
 	build_libstdcpp
