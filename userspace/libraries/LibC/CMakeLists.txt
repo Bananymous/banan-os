@@ -85,7 +85,7 @@ install(TARGETS libc-shared OPTIONAL)
 set_target_properties(libc-static PROPERTIES OUTPUT_NAME libc)
 set_target_properties(libc-shared PROPERTIES OUTPUT_NAME libc)
 
-add_library(libc ALIAS libc-static)
+add_library(libc ALIAS libc-shared)
 
 execute_process(COMMAND ${CMAKE_CXX_COMPILER} -print-file-name=libgcc_s.so OUTPUT_VARIABLE LIBGCC_S_LINK OUTPUT_STRIP_TRAILING_WHITESPACE)
 file(REAL_PATH ${LIBGCC_S_LINK} LIBGCC_S)
