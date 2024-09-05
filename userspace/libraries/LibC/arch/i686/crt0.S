@@ -23,8 +23,7 @@ _start:
 
 	movl $__init_array_start, %ebx
 	jmp 2f
- 1: movl (%ebx), %eax
-    call *%eax
+ 1: call *(%ebx)
 	addl $4, %ebx
  2: cmpl $__init_array_end, %ebx
 	jne 1b

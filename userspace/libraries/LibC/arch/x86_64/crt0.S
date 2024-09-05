@@ -24,8 +24,7 @@ _start:
 
 	movq $__init_array_start, %rbx
 	jmp 2f
- 1: movq (%rbx), %rax
-    call *%rax
+ 1: call *(%rbx)
 	addq $8, %rbx
  2: cmpq $__init_array_end, %rbx
 	jne 1b
