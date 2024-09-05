@@ -23,7 +23,7 @@ You can find a live demo [here](https://bananymous.com/banan-os)
   - [ ] Task bar
   - [ ] Program launcher
   - [ ] Some nice apps
-- [ ] ELF dynamic linking
+- [x] ELF dynamic linking
 - [ ] copy-on-write memory
 
 #### Drivers

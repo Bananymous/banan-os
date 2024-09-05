@@ -6,6 +6,7 @@ set(USERSPACE_PROGRAMS
 	cp
 	dd
 	dhcp-client
+	DynamicLoader
 	echo
 	getopt
 	http-server
