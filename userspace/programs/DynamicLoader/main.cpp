@@ -622,7 +622,7 @@ static void load_program_header(const ElfNativeProgramHeader& program_header, in
 			return result;
 		}();
 
-	if ((program_header.p_vaddr & 0xFFF) || (program_header.p_offset & 0xFFF))
+	if ((program_header.p_vaddr & 0xFFF) || (program_header.p_offset & 0xFFF) || program_header.p_filesz == 0)
 	{
 		const uintptr_t aligned_addr = program_header.p_vaddr & ~(uintptr_t)0xFFF;
 
