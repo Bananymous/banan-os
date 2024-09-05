@@ -191,12 +191,12 @@ target_compile_options(kernel PRIVATE
 	-Wall -Wextra -Werror -Wstack-usage=1024
 )
 
-# This might not work with other toolchains
-target_compile_options(kernel PRIVATE $<$<COMPILE_LANGUAGE:CXX>:
+# C++ specific
+target_compile_options(kernel PRIVATE
 	-Wno-literal-suffix
 	-Wno-invalid-offsetof
 	-fno-rtti
-	-fno-exceptions>
+	-fno-exceptions
 )
 
 if(ENABLE_KERNEL_UBSAN)
@@ -213,8 +213,9 @@ endif()
 
 target_link_options(kernel PRIVATE -ffreestanding -nostdlib -orphan-handling=error)
 
-execute_process(COMMAND ${CMAKE_CXX_COMPILER} -print-file-name=crtbegin.o OUTPUT_VARIABLE CRTBEGIN OUTPUT_STRIP_TRAILING_WHITESPACE)
-execute_process(COMMAND ${CMAKE_CXX_COMPILER} -print-file-name=crtend.o OUTPUT_VARIABLE CRTEND OUTPUT_STRIP_TRAILING_WHITESPACE)
+get_target_property(KERNEL_COMPILE_OPTIONS kernel COMPILE_OPTIONS)
+execute_process(COMMAND ${CMAKE_CXX_COMPILER} ${KERNEL_COMPILE_OPTIONS} -print-file-name=crtbegin.o OUTPUT_VARIABLE CRTBEGIN OUTPUT_STRIP_TRAILING_WHITESPACE)
+execute_process(COMMAND ${CMAKE_CXX_COMPILER} ${KERNEL_COMPILE_OPTIONS} -print-file-name=crtend.o OUTPUT_VARIABLE CRTEND OUTPUT_STRIP_TRAILING_WHITESPACE)
 
 add_custom_command(
 	TARGET kernel PRE_LINK
