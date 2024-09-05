@@ -189,9 +189,39 @@ namespace Kernel
 		return true;
 	}
 
-	BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> FileBackedRegion::clone(PageTable&)
+	BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> FileBackedRegion::clone(PageTable& page_table)
 	{
-		ASSERT_NOT_REACHED();
+		const size_t aligned_size = (m_size + PAGE_SIZE - 1) & PAGE_ADDR_MASK;
+		auto result = TRY(FileBackedRegion::create(m_inode, page_table, m_offset, m_size, { .start = m_vaddr, .end = m_vaddr + aligned_size }, m_type, m_flags));
+
+		// shared regions can just go through demand paging
+		if (m_type == Type::SHARED)
+			return BAN::UniqPtr<MemoryRegion>(BAN::move(result));
+
+		ASSERT(m_type == Type::PRIVATE);
+
+		for (size_t offset = 0; offset < m_size; offset += PAGE_SIZE)
+		{
+			const vaddr_t vaddr = m_vaddr + offset;
+			if (m_page_table.physical_address_of(vaddr) == 0)
+				continue;
+
+			ASSERT(&PageTable::current() == &m_page_table);
+
+			const paddr_t paddr = Heap::get().take_free_page();
+			if (paddr == 0)
+				return BAN::Error::from_errno(ENOMEM);
+
+			page_table.map_page_at(paddr, vaddr, m_flags);
+
+			const size_t to_copy = BAN::Math::min<size_t>(PAGE_SIZE, m_size - offset);
+			PageTable::with_fast_page(paddr, [&] {
+				memcpy(PageTable::fast_page_as_ptr(), reinterpret_cast<void*>(vaddr), to_copy);
+				memset(PageTable::fast_page_as_ptr(to_copy), 0, PAGE_SIZE - to_copy);
+			});
+		}
+
+		return BAN::UniqPtr<MemoryRegion>(BAN::move(result));
 	}
 
 }
