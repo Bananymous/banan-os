@@ -42,7 +42,9 @@ inline void print_uint(int fd, T val, uint8_t base = 10)
 
 int strcmp(const char* s1, const char* s2);
 char* strcpy(char* __restrict s1, const char* __restrict s2);
+
 void* memcpy(void* __restrict s1, const void* __restrict s2, size_t n);
+void* memset(void* s, int c, size_t n);
 
 void init_random();
 void fini_random();

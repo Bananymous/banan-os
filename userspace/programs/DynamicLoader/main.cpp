@@ -622,97 +622,56 @@ static void load_program_header(const ElfNativeProgramHeader& program_header, in
 			return result;
 		}();
 
-	const uintptr_t aligned_vaddr = program_header.p_vaddr & ~(uintptr_t)0xFFF;
-
-	sys_mmap_t mmap_args;
-	mmap_args.addr = reinterpret_cast<void*>(aligned_vaddr);
-	mmap_args.fildes = -1;
-	mmap_args.flags = MAP_ANONYMOUS | MAP_PRIVATE | MAP_FIXED;
-	mmap_args.len = (program_header.p_vaddr + program_header.p_memsz) - aligned_vaddr;
-	mmap_args.off = 0;
-	mmap_args.prot = prot | PROT_WRITE;
-
-	if (auto ret = syscall(SYS_MMAP, &mmap_args); ret != static_cast<long>(aligned_vaddr))
-		print_error_and_exit("could not load program header", ret);
-	if (auto ret = syscall(SYS_PREAD, fd, program_header.p_vaddr, program_header.p_filesz, program_header.p_offset); ret != static_cast<long>(program_header.p_filesz))
-		print_error_and_exit("could not load program header", ret);
-
-	return;
-
-	uintptr_t filesz = program_header.p_filesz;
-
-	if (program_header.p_filesz != program_header.p_memsz)
+	if ((program_header.p_vaddr & 0xFFF) || (program_header.p_offset & 0xFFF))
 	{
-		const uintptr_t data_end_vaddr = program_header.p_vaddr + program_header.p_filesz;
-		const uintptr_t zero_end_vaddr = program_header.p_vaddr + program_header.p_memsz;
+		const uintptr_t aligned_addr = program_header.p_vaddr & ~(uintptr_t)0xFFF;
 
-		uintptr_t start_vaddr = data_end_vaddr & ~(uintptr_t)0xFFF;
-		if (program_header.p_vaddr & 0xFFF)
-			start_vaddr = program_header.p_vaddr & ~(uintptr_t)0xFFF;
+		// unaligned addresses, cannot use file mmap
+		sys_mmap_t mmap_args;
+		mmap_args.addr = reinterpret_cast<void*>(aligned_addr);
+		mmap_args.fildes = -1;
+		mmap_args.flags = MAP_ANONYMOUS | MAP_PRIVATE | MAP_FIXED;
+		mmap_args.len = (program_header.p_vaddr + program_header.p_memsz) - aligned_addr;
+		mmap_args.off = 0;
+		mmap_args.prot = prot | PROT_WRITE;
 
-		if (start_vaddr != data_end_vaddr)
-		{
-			const uintptr_t end_vaddr = (data_end_vaddr + 4095) & ~(uintptr_t)0xFFF;
-			const ptrdiff_t length = min(end_vaddr - start_vaddr, zero_end_vaddr - start_vaddr);
+		if (auto ret = syscall(SYS_MMAP, &mmap_args); ret != static_cast<long>(aligned_addr))
+			print_error_and_exit("could not load program header", ret);
 
-			sys_mmap_t mmap_args;
-			mmap_args.addr = reinterpret_cast<void*>(start_vaddr);
-			mmap_args.fildes = -1;
-			mmap_args.flags = MAP_ANONYMOUS | MAP_PRIVATE | MAP_FIXED;
-			mmap_args.len = length;
-			mmap_args.off = 0;
-			mmap_args.prot = prot | PROT_WRITE;
-
-			if (auto ret = syscall(SYS_MMAP, &mmap_args); ret != static_cast<long>(start_vaddr))
-				print_error_and_exit("could not load program header", ret);
-
-			uintptr_t dummy_bytes = program_header.p_vaddr - start_vaddr;
-			if (program_header.p_vaddr & 0xFFF)
-				dummy_bytes = 0;
-
-			const uintptr_t data_vaddr = program_header.p_vaddr + dummy_bytes;
-			const ptrdiff_t data_bytes = data_end_vaddr - data_vaddr;
-			const uintptr_t data_offset = program_header.p_offset + dummy_bytes;
-			if (auto ret = syscall(SYS_PREAD, fd, data_vaddr, data_bytes, data_offset); ret != data_bytes)
-				print_error_and_exit("could not load program header", ret);
-
-			if (!(prot & PROT_WRITE) && !needs_writable)
-			{
-				// FIXME: Implement mprotect so PROT_WRITE can be removed
-				//syscall(SYS_MPROTECT, start_vaddr, length, prot);
-			}
-
-			filesz -= data_bytes;
-			start_vaddr += 4096;
-		}
-
-		if (start_vaddr < zero_end_vaddr)
-		{
-			sys_mmap_t mmap_args;
-			mmap_args.addr = reinterpret_cast<void*>(start_vaddr);
-			mmap_args.fildes = -1;
-			mmap_args.flags = MAP_ANONYMOUS | MAP_PRIVATE | MAP_FIXED;
-			mmap_args.len = zero_end_vaddr - start_vaddr;
-			mmap_args.off = 0;
-			mmap_args.prot = prot | (needs_writable ? PROT_WRITE : 0);
-
-			if (auto ret = syscall(SYS_MMAP, &mmap_args); ret != static_cast<long>(start_vaddr))
-				print_error_and_exit("could not load program header", ret);
-		}
+		const uintptr_t addr = program_header.p_vaddr;
+		const uintptr_t size = program_header.p_filesz;
+		const size_t offset = program_header.p_offset;
+		if (auto ret = syscall(SYS_PREAD, fd, addr, size, offset); ret != static_cast<long>(size))
+			print_error_and_exit("could not load program header", ret);
 	}
-
-	if (filesz)
+	else
 	{
+		// aligned addresses, use file mmap
 		sys_mmap_t mmap_args;
 		mmap_args.addr = reinterpret_cast<void*>(program_header.p_vaddr);
 		mmap_args.fildes = fd;
 		mmap_args.flags = MAP_PRIVATE | MAP_FIXED;
-		mmap_args.len = filesz;
+		mmap_args.len = program_header.p_memsz;
 		mmap_args.off = program_header.p_offset;
-		mmap_args.prot = prot | (needs_writable ? PROT_WRITE : 0);
+		mmap_args.prot = prot | PROT_WRITE;
 
 		if (auto ret = syscall(SYS_MMAP, &mmap_args); ret != static_cast<long>(program_header.p_vaddr))
 			print_error_and_exit("could not load program header", ret);
+	}
+
+	if (program_header.p_filesz != program_header.p_memsz)
+	{
+		memset(
+			reinterpret_cast<void*>(program_header.p_vaddr + program_header.p_filesz),
+			0x00,
+			program_header.p_memsz - program_header.p_filesz
+		);
+	}
+
+	if (!(prot & PROT_WRITE) && !needs_writable)
+	{
+		// FIXME: Implement mprotect so PROT_WRITE can be removed
+		//syscall(SYS_MPROTECT, start_vaddr, length, prot);
 	}
 }
 
