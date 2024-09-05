@@ -36,6 +36,10 @@ if [ ! -f "$BANAN_SYSROOT/usr/lib/libc.a" ]; then
 	popd >/dev/null
 fi
 
+if [ "$BANAN_ARCH" = "i686" ]; then
+	export LDFLAGS="-shared-libgcc"
+fi
+
 clean() {
 	find . -mindepth 1 -maxdepth 1 -not -name 'patches' -not -name 'build.sh' -exec rm -rf {} +
 }
