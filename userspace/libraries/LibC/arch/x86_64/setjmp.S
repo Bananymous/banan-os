@@ -10,6 +10,7 @@ setjmp:
 	xorq %rax, %rax
 
 	ret
+ .size setjmp, . - setjmp
 
 // void longjmp(jmp_buf env, int val)
 .global longjmp
@@ -21,3 +22,4 @@ longjmp:
 	movq 0(%rdi), %rsp
 	movq 8(%rdi), %rcx
 	jmp *%rcx
+ .size longjmp, . - longjmp

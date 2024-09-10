@@ -13,6 +13,8 @@ setjmp:
 
 	ret
 
+ .size setjmp, . - setjmp
+
 // void longjmp(jmp_buf env, int val)
 .global longjmp
 longjmp:
@@ -26,3 +28,5 @@ longjmp:
 	movl 0(%edx), %esp
 	movl 4(%edx), %ecx
 	jmp *%ecx
+
+ .size longjmp, . - longjmp
