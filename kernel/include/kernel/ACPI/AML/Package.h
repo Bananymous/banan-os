@@ -84,7 +84,7 @@ namespace Kernel::ACPI::AML
 		{
 			if (!initialized)
 			{
-				AML_ERROR("Trying to store into uninitialized PackageElement");
+				AML_ERROR("Trying to convert uninitialized PackageElement");
 				return {};
 			}
 			if (!resolved && !resolve())
@@ -96,7 +96,7 @@ namespace Kernel::ACPI::AML
 		{
 			if (!initialized)
 			{
-				AML_ERROR("Trying to store into uninitialized PackageElement");
+				AML_ERROR("Trying to read uninitialized PackageElement");
 				return {};
 			}
 			if (!resolved && !resolve())
@@ -108,17 +108,17 @@ namespace Kernel::ACPI::AML
 		{
 			if (!initialized)
 			{
-				AML_ERROR("Trying to store into uninitialized PackageElement");
-				return {};
+				initialized = true;
+				resolved = true;
 			}
 			if (!resolved && !resolve())
 				return {};
-			ASSERT(element->type != AML::Node::Type::Reference);
+			ASSERT(!element || element->type != AML::Node::Type::Reference);
 			if (node->type == AML::Node::Type::Reference)
-				element = static_cast<AML::Reference*>(element.ptr())->node;
+				element = static_cast<AML::Reference*>(node.ptr())->node;
 			else
-				element = element->copy();
-			return element;
+				element = node->copy();
+			return node;
 		}
 
 		static ParseResult parse(AML::ParseContext& context, BAN::RefPtr<AML::Package> package)

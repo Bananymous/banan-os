@@ -50,9 +50,6 @@ namespace Kernel::ACPI::AML
 
 			switch (destination->type)
 			{
-				case AML::Node::Type::Alias:
-					static_cast<AML::Alias*>(destination.ptr())->target = source->copy();
-					return source;
 				case AML::Node::Type::Name:
 					static_cast<AML::Name*>(destination.ptr())->object = source->copy();
 					return source;

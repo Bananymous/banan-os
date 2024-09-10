@@ -159,7 +159,6 @@ namespace Kernel::ACPI
 		LockGuard _(m_object_mutex);
 
 		ASSERT(!object_path.path.empty());
-		ASSERT(object_path.path.back() == object->name);
 
 		auto canonical_path = resolve_path(parse_context.scope, object_path, FindMode::ForceAbsolute, false);
 		ASSERT(canonical_path.has_value());

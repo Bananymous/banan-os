@@ -31,7 +31,6 @@ namespace Kernel::ACPI::AML
 				switch (object->type)
 				{
 					case AML::Node::Type::None:
-					case AML::Node::Type::Alias:
 					case AML::Node::Type::Name:
 					case AML::Node::Type::PackageElement:
 					case AML::Node::Type::Reference:

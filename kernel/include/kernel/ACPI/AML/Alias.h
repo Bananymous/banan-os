@@ -7,37 +7,8 @@
 namespace Kernel::ACPI::AML
 {
 
-	struct Alias final : public AML::NamedObject
+	struct Alias
 	{
-		BAN::RefPtr<AML::Node> target;
-
-		Alias(NameSeg name, BAN::RefPtr<AML::Node> target)
-			: NamedObject(Node::Type::Alias, name)
-			, target(target)
-		{}
-
-		BAN::RefPtr<AML::Node> to_underlying() override { return target; }
-
-		bool is_scope() const override { return target->is_scope(); }
-
-		BAN::RefPtr<AML::Node> convert(uint8_t mask) override
-		{
-			ASSERT(target);
-			return target->convert(mask);
-		}
-
-		BAN::RefPtr<Node> copy() override
-		{
-			ASSERT(target);
-			return target->copy();
-		}
-
-		BAN::RefPtr<AML::Node> store(BAN::RefPtr<AML::Node> node) override
-		{
-			ASSERT(target);
-			return target->store(node);
-		}
-
 		static ParseResult parse(ParseContext& context)
 		{
 			ASSERT(context.aml_data.size() >= 1);
@@ -59,26 +30,18 @@ namespace Kernel::ACPI::AML
 				return ParseResult::Success;
 			}
 
-			auto alias = MUST(BAN::RefPtr<Alias>::create(alias_string.value().path.back(), source_object->to_underlying()));
-			if (!Namespace::root_namespace()->add_named_object(context, alias_string.value(), alias))
+			if (!Namespace::root_namespace()->add_named_object(context, alias_string.value(), source_object))
 				return ParseResult::Success;
 
 	#if AML_DEBUG_LEVEL >= 2
-			alias->debug_print(0);
+			AML_DEBUG_PRINT("Alias \"");
+			alias_string->debug_print();
+			AML_DEBUG_PRINT("\" => ");
+			source_object->debug_print(0);
 			AML_DEBUG_PRINTLN("");
 	#endif
 
 			return ParseResult::Success;
-		}
-
-		void debug_print(int indent) const override
-		{
-			AML_DEBUG_PRINT_INDENT(indent);
-			AML_DEBUG_PRINTLN("Alias {} { ", name);
-			target->debug_print(indent + 1);
-			AML_DEBUG_PRINTLN("");
-			AML_DEBUG_PRINT_INDENT(indent);
-			AML_DEBUG_PRINT("}");
 		}
 	};
 

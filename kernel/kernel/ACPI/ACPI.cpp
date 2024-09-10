@@ -495,25 +495,7 @@ acpi_release_global_lock:
 			dwarnln("\\_S5 not found");
 			return;
 		}
-		BAN::RefPtr<AML::Node> s5_evaluated = s5_object;
-		while (true)
-		{
-			bool done = false;
-			switch (s5_evaluated->type)
-			{
-				case AML::Node::Type::Alias:
-					s5_evaluated = static_cast<AML::Alias*>(s5_evaluated.ptr())->target;
-					break;
-				case AML::Node::Type::Name:
-					s5_evaluated = static_cast<AML::Name*>(s5_evaluated.ptr())->object;
-					break;
-				default:
-					done = true;
-					break;
-			}
-			if (done)
-				break;
-		}
+		auto s5_evaluated = s5_object->to_underlying();
 		if (!s5_evaluated)
 		{
 			dwarnln("Failed to evaluate \\_S5");

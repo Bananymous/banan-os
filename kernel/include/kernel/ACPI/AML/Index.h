@@ -67,7 +67,12 @@ namespace Kernel::ACPI::AML
 						return ParseResult::Failure;
 					}
 					auto package_element = package->elements[index];
-					result = MUST(BAN::RefPtr<AML::Reference>::create(package_element->to_underlying()));
+					if (!package_element)
+					{
+						AML_ERROR("IndexOp target is null package element");
+						return ParseResult::Failure;
+					}
+					result = MUST(BAN::RefPtr<AML::Reference>::create(package_element));
 					break;
 				}
 				case AML::Node::Type::String:

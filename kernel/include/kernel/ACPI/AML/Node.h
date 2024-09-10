@@ -29,7 +29,6 @@ namespace Kernel::ACPI::AML
 		enum class Type : uint8_t
 		{
 			None,
-			Alias,
 			BankFieldElement,
 			Buffer,
 			BufferField,

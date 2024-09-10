@@ -93,6 +93,8 @@ namespace Kernel::ACPI
 		auto result_integer = result.value()
 			? result.value()->convert(AML::Node::ConvInteger)
 			: BAN::RefPtr<AML::Node>();
+		if (!result_integer)
+			return {};
 		return static_cast<AML::Integer*>(result_integer.ptr());
 	}
 
