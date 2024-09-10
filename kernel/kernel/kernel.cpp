@@ -37,6 +37,7 @@
 struct ParsedCommandLine
 {
 	bool force_pic       = false;
+	bool disable_acpi    = false;
 	bool disable_serial  = false;
 	bool disable_smp     = false;
 	bool disable_usb     = false;
@@ -82,6 +83,8 @@ static void parse_command_line()
 			cmdline.disable_smp = true;
 		else if (argument == "nousb")
 			cmdline.disable_usb = true;
+		else if (argument == "noacpi")
+			cmdline.disable_acpi = true;
 		else if (argument == "nodebug")
 			g_disable_debug = true;
 		else if (argument.starts_with("ps2="))
@@ -220,7 +223,7 @@ static void init2(void*)
 		dprintln("USBManager initialized");
 	}
 
-	if (ACPI::ACPI::get().enter_acpi_mode(InterruptController::get().is_using_apic()).is_error())
+	if (!cmdline.disable_acpi && ACPI::ACPI::get().enter_acpi_mode(InterruptController::get().is_using_apic()).is_error())
 		dprintln("Failed to enter ACPI mode");
 
 	DevFileSystem::get().initialize_device_updater();
