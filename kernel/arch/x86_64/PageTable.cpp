@@ -37,9 +37,7 @@ namespace Kernel
 
 	static constexpr inline uintptr_t uncanonicalize(uintptr_t addr)
 	{
-		if (addr & 0x0000800000000000)
-			return addr & ~0xFFFF000000000000;
-		return addr;
+		return addr & 0x0000FFFFFFFFFFFF;
 	}
 
 	static constexpr inline uintptr_t canonicalize(uintptr_t addr)
