@@ -277,6 +277,7 @@ namespace Kernel
 			memcpy(PageTable::fast_page_as_ptr(), g_ap_init_addr, PAGE_SIZE);
 		});
 
+		uint8_t initialized_aps = 0;
 		for (auto& processor : m_processors)
 		{
 			if (processor.apic_id == bsp_id)
@@ -339,15 +340,17 @@ namespace Kernel
 					udelay(100);
 				}
 			});
+
+			initialized_aps++;
 		}
 
 		__atomic_store_n(&g_ap_startup_done[0], 1, __ATOMIC_SEQ_CST);
 
 		const size_t timeout_ms = SystemTimer::get().ms_since_boot() + 500;
-		while (__atomic_load_n(&g_ap_running_count[0], __ATOMIC_SEQ_CST) < m_processors.size() - 1)
+		while (__atomic_load_n(&g_ap_running_count[0], __ATOMIC_SEQ_CST) < initialized_aps)
 		{
 			if (SystemTimer::get().ms_since_boot() >= timeout_ms)
-				Kernel::panic("Could not start all processors");
+				Kernel::panic("Could not start all APs ({}/{} started)", g_ap_running_count[0], initialized_aps);
 			__builtin_ia32_pause();
 		}
 
