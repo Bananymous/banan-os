@@ -622,9 +622,34 @@ static void load_program_header(const ElfNativeProgramHeader& program_header, in
 			return result;
 		}();
 
-	if ((program_header.p_vaddr & 0xFFF) || (program_header.p_offset & 0xFFF) || program_header.p_filesz == 0)
+	const size_t file_backed_size =
+		[&program_header]() -> size_t
+		{
+			if ((program_header.p_vaddr & 0xFFF) || (program_header.p_offset & 0xFFF))
+				return 0;
+			if (program_header.p_filesz == program_header.p_memsz)
+				return program_header.p_filesz;
+			return program_header.p_filesz & ~(uintptr_t)0xFFF;
+		}();
+
+	if (file_backed_size)
 	{
-		const uintptr_t aligned_addr = program_header.p_vaddr & ~(uintptr_t)0xFFF;
+		// aligned addresses, use file mmap
+		sys_mmap_t mmap_args;
+		mmap_args.addr = reinterpret_cast<void*>(program_header.p_vaddr);
+		mmap_args.fildes = fd;
+		mmap_args.flags = MAP_PRIVATE | MAP_FIXED;
+		mmap_args.len = file_backed_size;
+		mmap_args.off = program_header.p_offset;
+		mmap_args.prot = prot | PROT_WRITE;
+
+		if (auto ret = syscall(SYS_MMAP, &mmap_args); ret != static_cast<long>(program_header.p_vaddr))
+			print_error_and_exit("could not load program header", ret);
+	}
+
+	if (file_backed_size < program_header.p_memsz)
+	{
+		const uintptr_t aligned_addr = (program_header.p_vaddr + file_backed_size) & ~(uintptr_t)0xFFF;
 
 		// unaligned addresses, cannot use file mmap
 		sys_mmap_t mmap_args;
@@ -638,29 +663,15 @@ static void load_program_header(const ElfNativeProgramHeader& program_header, in
 		if (auto ret = syscall(SYS_MMAP, &mmap_args); ret != static_cast<long>(aligned_addr))
 			print_error_and_exit("could not load program header", ret);
 
-		const uintptr_t addr = program_header.p_vaddr;
-		const uintptr_t size = program_header.p_filesz;
-		const size_t offset = program_header.p_offset;
-		if (auto ret = syscall(SYS_PREAD, fd, addr, size, offset); ret != static_cast<long>(size))
-			print_error_and_exit("could not load program header", ret);
-	}
-	else
-	{
-		// aligned addresses, use file mmap
-		sys_mmap_t mmap_args;
-		mmap_args.addr = reinterpret_cast<void*>(program_header.p_vaddr);
-		mmap_args.fildes = fd;
-		mmap_args.flags = MAP_PRIVATE | MAP_FIXED;
-		mmap_args.len = program_header.p_memsz;
-		mmap_args.off = program_header.p_offset;
-		mmap_args.prot = prot | PROT_WRITE;
+		if (file_backed_size < program_header.p_filesz)
+		{
+			const uintptr_t addr = program_header.p_vaddr + file_backed_size;
+			const uintptr_t size = program_header.p_filesz - file_backed_size;
+			const size_t offset = program_header.p_offset + file_backed_size;
+			if (auto ret = syscall(SYS_PREAD, fd, addr, size, offset); ret != static_cast<long>(size))
+				print_error_and_exit("could not load program header", ret);
+		}
 
-		if (auto ret = syscall(SYS_MMAP, &mmap_args); ret != static_cast<long>(program_header.p_vaddr))
-			print_error_and_exit("could not load program header", ret);
-	}
-
-	if (program_header.p_filesz != program_header.p_memsz)
-	{
 		memset(
 			reinterpret_cast<void*>(program_header.p_vaddr + program_header.p_filesz),
 			0x00,
