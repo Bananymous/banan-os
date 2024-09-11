@@ -24,7 +24,9 @@ You can find a live demo [here](https://bananymous.com/banan-os)
   - [ ] Program launcher
   - [ ] Some nice apps
 - [x] ELF dynamic linking
-- [ ] copy-on-write memory
+- [x] copy-on-write memory
+  - [x] file mappings
+  - [ ] anonymous mappings
 
 #### Drivers
 - [x] NVMe disks

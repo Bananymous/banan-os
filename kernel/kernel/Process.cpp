@@ -362,7 +362,7 @@ namespace Kernel
 	{
 		LockGuard _(m_process_lock);
 
-		TRY(validate_pointer_access(termios, sizeof(termios)));
+		TRY(validate_pointer_access(termios, sizeof(termios), true));
 
 		auto inode = TRY(m_open_file_descriptors.inode_of(fildes));
 		if (!inode->is_tty())
@@ -381,7 +381,7 @@ namespace Kernel
 
 		LockGuard _(m_process_lock);
 
-		TRY(validate_pointer_access(termios, sizeof(termios)));
+		TRY(validate_pointer_access(termios, sizeof(termios), false));
 
 		auto inode = TRY(m_open_file_descriptors.inode_of(fildes));
 		if (!inode->is_tty())
@@ -484,7 +484,7 @@ namespace Kernel
 			BAN::Vector<BAN::String> str_argv;
 			for (int i = 0; argv && argv[i]; i++)
 			{
-				TRY(validate_pointer_access(argv + i, sizeof(char*)));
+				TRY(validate_pointer_access(argv + i, sizeof(char*), false));
 				TRY(validate_string_access(argv[i]));
 				TRY(str_argv.emplace_back(argv[i]));
 			}
@@ -492,7 +492,7 @@ namespace Kernel
 			BAN::Vector<BAN::String> str_envp;
 			for (int i = 0; envp && envp[i]; i++)
 			{
-				TRY(validate_pointer_access(envp + 1, sizeof(char*)));
+				TRY(validate_pointer_access(envp + 1, sizeof(char*), false));
 				TRY(validate_string_access(envp[i]));
 				TRY(str_envp.emplace_back(envp[i]));
 			}
@@ -640,7 +640,7 @@ namespace Kernel
 				if (stat_loc)
 				{
 					LockGuard _(m_process_lock);
-					TRY(validate_pointer_access(stat_loc, sizeof(stat_loc)));
+					TRY(validate_pointer_access(stat_loc, sizeof(stat_loc), true));
 					*stat_loc = exit_code;
 				}
 				remove_pending_signal(SIGCHLD);
@@ -676,9 +676,9 @@ namespace Kernel
 	{
 		{
 			LockGuard _(m_process_lock);
-			TRY(validate_pointer_access(rqtp, sizeof(timespec)));
+			TRY(validate_pointer_access(rqtp, sizeof(timespec), false));
 			if (rmtp)
-				TRY(validate_pointer_access(rmtp, sizeof(timespec)));
+				TRY(validate_pointer_access(rmtp, sizeof(timespec), true));
 		}
 
 		const uint64_t sleep_ns = (rqtp->tv_sec * 1'000'000'000) + rqtp->tv_nsec;
@@ -718,9 +718,9 @@ namespace Kernel
 		LockGuard _(m_process_lock);
 
 		if (value)
-			TRY(validate_pointer_access(value, sizeof(itimerval)));
+			TRY(validate_pointer_access(value, sizeof(itimerval), false));
 		if (ovalue)
-			TRY(validate_pointer_access(ovalue, sizeof(itimerval)));
+			TRY(validate_pointer_access(ovalue, sizeof(itimerval), true));
 
 		{
 			SpinLockGuard _(s_process_lock);
@@ -846,7 +846,7 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<bool> Process::allocate_page_for_demand_paging(vaddr_t address)
+	BAN::ErrorOr<bool> Process::allocate_page_for_demand_paging(vaddr_t address, bool wants_write)
 	{
 		ASSERT(&Process::current() == this);
 
@@ -862,7 +862,7 @@ namespace Kernel
 		{
 			if (!region->contains(address))
 				continue;
-			TRY(region->allocate_page_containing(address));
+			TRY(region->allocate_page_containing(address, wants_write));
 			return true;
 		}
 
@@ -971,14 +971,14 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_read(int fd, void* buffer, size_t count)
 	{
 		LockGuard _(m_process_lock);
-		TRY(validate_pointer_access(buffer, count));
+		TRY(validate_pointer_access(buffer, count, true));
 		return TRY(m_open_file_descriptors.read(fd, BAN::ByteSpan((uint8_t*)buffer, count)));
 	}
 
 	BAN::ErrorOr<long> Process::sys_write(int fd, const void* buffer, size_t count)
 	{
 		LockGuard _(m_process_lock);
-		TRY(validate_pointer_access(buffer, count));
+		TRY(validate_pointer_access(buffer, count, false));
 		return TRY(m_open_file_descriptors.write(fd, BAN::ByteSpan((uint8_t*)buffer, count)));
 	}
 
@@ -1064,7 +1064,7 @@ namespace Kernel
 	{
 		LockGuard _(m_process_lock);
 		TRY(validate_string_access(path));
-		TRY(validate_pointer_access(buffer, bufsize));
+		TRY(validate_pointer_access(buffer, bufsize, true));
 
 		auto absolute_path = TRY(absolute_path_of(path));
 
@@ -1075,7 +1075,7 @@ namespace Kernel
 	{
 		LockGuard _(m_process_lock);
 		TRY(validate_string_access(path));
-		TRY(validate_pointer_access(buffer, bufsize));
+		TRY(validate_pointer_access(buffer, bufsize, true));
 
 		// FIXME: handle O_SEARCH in fd
 		auto parent_path = TRY(m_open_file_descriptors.path_of(fd));
@@ -1091,7 +1091,7 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_pread(int fd, void* buffer, size_t count, off_t offset)
 	{
 		LockGuard _(m_process_lock);
-		TRY(validate_pointer_access(buffer, count));
+		TRY(validate_pointer_access(buffer, count, true));
 		auto inode = TRY(m_open_file_descriptors.inode_of(fd));
 		return TRY(inode->read(offset, { (uint8_t*)buffer, count }));
 	}
@@ -1144,8 +1144,8 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_getsockname(int socket, sockaddr* address, socklen_t* address_len)
 	{
 		LockGuard _(m_process_lock);
-		TRY(validate_pointer_access(address_len, sizeof(address_len)));
-		TRY(validate_pointer_access(address, *address_len));
+		TRY(validate_pointer_access(address_len, sizeof(address_len), true));
+		TRY(validate_pointer_access(address, *address_len, true));
 
 		auto inode = TRY(m_open_file_descriptors.inode_of(socket));
 		if (!inode->mode().ifsock())
@@ -1158,8 +1158,8 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_getsockopt(int socket, int level, int option_name, void* option_value, socklen_t* option_len)
 	{
 		LockGuard _(m_process_lock);
-		TRY(validate_pointer_access(option_len, sizeof(option_len)));
-		TRY(validate_pointer_access(option_value, *option_len));
+		TRY(validate_pointer_access(option_len, sizeof(option_len), true));
+		TRY(validate_pointer_access(option_value, *option_len, true));
 
 		auto inode = TRY(m_open_file_descriptors.inode_of(socket));
 		if (!inode->mode().ifsock())
@@ -1180,7 +1180,7 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_setsockopt(int socket, int level, int option_name, const void* option_value, socklen_t option_len)
 	{
 		LockGuard _(m_process_lock);
-		TRY(validate_pointer_access(option_value, option_len));
+		TRY(validate_pointer_access(option_value, option_len, false));
 
 		auto inode = TRY(m_open_file_descriptors.inode_of(socket));
 		if (!inode->mode().ifsock())
@@ -1202,8 +1202,8 @@ namespace Kernel
 		LockGuard _(m_process_lock);
 		if (address)
 		{
-			TRY(validate_pointer_access(address_len, sizeof(*address_len)));
-			TRY(validate_pointer_access(address, *address_len));
+			TRY(validate_pointer_access(address_len, sizeof(*address_len), true));
+			TRY(validate_pointer_access(address, *address_len, true));
 		}
 
 		auto inode = TRY(m_open_file_descriptors.inode_of(socket));
@@ -1216,7 +1216,7 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_bind(int socket, const sockaddr* address, socklen_t address_len)
 	{
 		LockGuard _(m_process_lock);
-		TRY(validate_pointer_access(address, address_len));
+		TRY(validate_pointer_access(address, address_len, false));
 
 		auto inode = TRY(m_open_file_descriptors.inode_of(socket));
 		if (!inode->mode().ifsock())
@@ -1229,7 +1229,7 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_connect(int socket, const sockaddr* address, socklen_t address_len)
 	{
 		LockGuard _(m_process_lock);
-		TRY(validate_pointer_access(address, address_len));
+		TRY(validate_pointer_access(address, address_len, false));
 
 		auto inode = TRY(m_open_file_descriptors.inode_of(socket));
 		if (!inode->mode().ifsock())
@@ -1254,9 +1254,9 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_sendto(const sys_sendto_t* arguments)
 	{
 		LockGuard _(m_process_lock);
-		TRY(validate_pointer_access(arguments, sizeof(sys_sendto_t)));
-		TRY(validate_pointer_access(arguments->message, arguments->length));
-		TRY(validate_pointer_access(arguments->dest_addr, arguments->dest_len));
+		TRY(validate_pointer_access(arguments, sizeof(sys_sendto_t), false));
+		TRY(validate_pointer_access(arguments->message, arguments->length, false));
+		TRY(validate_pointer_access(arguments->dest_addr, arguments->dest_len, false));
 
 		auto inode = TRY(m_open_file_descriptors.inode_of(arguments->socket));
 		if (!inode->mode().ifsock())
@@ -1278,12 +1278,12 @@ namespace Kernel
 			return BAN::Error::from_errno(EINVAL);
 
 		LockGuard _(m_process_lock);
-		TRY(validate_pointer_access(arguments, sizeof(sys_recvfrom_t)));
-		TRY(validate_pointer_access(arguments->buffer, arguments->length));
+		TRY(validate_pointer_access(arguments, sizeof(sys_recvfrom_t), false));
+		TRY(validate_pointer_access(arguments->buffer, arguments->length, true));
 		if (arguments->address)
 		{
-			TRY(validate_pointer_access(arguments->address_len, sizeof(*arguments->address_len)));
-			TRY(validate_pointer_access(arguments->address, *arguments->address_len));
+			TRY(validate_pointer_access(arguments->address_len, sizeof(*arguments->address_len), true));
+			TRY(validate_pointer_access(arguments->address, *arguments->address_len, true));
 		}
 
 		auto inode = TRY(m_open_file_descriptors.inode_of(arguments->socket));
@@ -1309,17 +1309,17 @@ namespace Kernel
 	{
 		LockGuard _(m_process_lock);
 
-		TRY(validate_pointer_access(arguments, sizeof(sys_pselect_t)));
+		TRY(validate_pointer_access(arguments, sizeof(sys_pselect_t), false));
 		if (arguments->readfds)
-			TRY(validate_pointer_access(arguments->readfds, sizeof(fd_set)));
+			TRY(validate_pointer_access(arguments->readfds, sizeof(fd_set), true));
 		if (arguments->writefds)
-			TRY(validate_pointer_access(arguments->writefds, sizeof(fd_set)));
+			TRY(validate_pointer_access(arguments->writefds, sizeof(fd_set), true));
 		if (arguments->errorfds)
-			TRY(validate_pointer_access(arguments->errorfds, sizeof(fd_set)));
+			TRY(validate_pointer_access(arguments->errorfds, sizeof(fd_set), true));
 		if (arguments->timeout)
-			TRY(validate_pointer_access(arguments->timeout, sizeof(timespec)));
+			TRY(validate_pointer_access(arguments->timeout, sizeof(timespec), false));
 		if (arguments->sigmask)
-			TRY(validate_pointer_access(arguments->sigmask, sizeof(sigset_t)));
+			TRY(validate_pointer_access(arguments->sigmask, sizeof(sigset_t), false));
 
 		if (arguments->sigmask)
 			return BAN::Error::from_errno(ENOTSUP);
@@ -1399,7 +1399,7 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_pipe(int fildes[2])
 	{
 		LockGuard _(m_process_lock);
-		TRY(validate_pointer_access(fildes, sizeof(int) * 2));
+		TRY(validate_pointer_access(fildes, sizeof(int) * 2, true));
 		TRY(m_open_file_descriptors.pipe(fildes));
 		return 0;
 	}
@@ -1456,7 +1456,7 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_fstat(int fd, struct stat* buf)
 	{
 		LockGuard _(m_process_lock);
-		TRY(validate_pointer_access(buf, sizeof(struct stat)));
+		TRY(validate_pointer_access(buf, sizeof(struct stat), true));
 		TRY(m_open_file_descriptors.fstat(fd, buf));
 		return 0;
 	}
@@ -1464,7 +1464,7 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_fstatat(int fd, const char* path, struct stat* buf, int flag)
 	{
 		LockGuard _(m_process_lock);
-		TRY(validate_pointer_access(buf, sizeof(struct stat)));
+		TRY(validate_pointer_access(buf, sizeof(struct stat), true));
 		TRY(m_open_file_descriptors.fstatat(fd, path, buf, flag));
 		return 0;
 	}
@@ -1472,7 +1472,7 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_stat(const char* path, struct stat* buf, int flag)
 	{
 		LockGuard _(m_process_lock);
-		TRY(validate_pointer_access(buf, sizeof(struct stat)));
+		TRY(validate_pointer_access(buf, sizeof(struct stat), true));
 		TRY(m_open_file_descriptors.stat(TRY(absolute_path_of(path)), buf, flag));
 		return 0;
 	}
@@ -1481,7 +1481,7 @@ namespace Kernel
 	{
 		LockGuard _(m_process_lock);
 		TRY(validate_string_access(path));
-		TRY(validate_pointer_access(buffer, PATH_MAX));
+		TRY(validate_pointer_access(buffer, PATH_MAX, true));
 
 		auto absolute_path = TRY(absolute_path_of(path));
 
@@ -1534,7 +1534,7 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_readdir(int fd, struct dirent* list, size_t list_len)
 	{
 		LockGuard _(m_process_lock);
-		TRY(validate_pointer_access(list, sizeof(dirent) * list_len));
+		TRY(validate_pointer_access(list, sizeof(dirent) * list_len, true));
 		return TRY(m_open_file_descriptors.read_dir_entries(fd, list, list_len));
 	}
 
@@ -1562,7 +1562,7 @@ namespace Kernel
 	{
 		LockGuard _(m_process_lock);
 
-		TRY(validate_pointer_access(buffer, size));
+		TRY(validate_pointer_access(buffer, size, true));
 
 		if (size < m_working_directory.size() + 1)
 			return BAN::Error::from_errno(ERANGE);
@@ -1577,7 +1577,7 @@ namespace Kernel
 	{
 		{
 			LockGuard _(m_process_lock);
-			TRY(validate_pointer_access(args, sizeof(sys_mmap_t)));
+			TRY(validate_pointer_access(args, sizeof(sys_mmap_t), true));
 		}
 
 		if (args->prot != PROT_NONE && (args->prot & ~(PROT_READ | PROT_WRITE | PROT_EXEC)))
@@ -1745,7 +1745,7 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_ttyname(int fildes, char* storage)
 	{
 		LockGuard _(m_process_lock);
-		TRY(validate_pointer_access(storage, TTY_NAME_MAX));
+		TRY(validate_pointer_access(storage, TTY_NAME_MAX, true));
 		auto inode = TRY(m_open_file_descriptors.inode_of(fildes));
 		if (!inode->is_tty())
 			return BAN::Error::from_errno(ENOTTY);
@@ -1794,7 +1794,7 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_ptsname(int fildes, char* buffer, size_t buffer_len)
 	{
 		LockGuard _(m_process_lock);
-		TRY(validate_pointer_access(buffer, buffer_len));
+		TRY(validate_pointer_access(buffer, buffer_len, true));
 
 		auto inode = TRY(m_open_file_descriptors.inode_of(fildes));
 		if (TRY(m_open_file_descriptors.path_of(fildes)) != "<ptmx>"_sv)
@@ -1846,7 +1846,7 @@ namespace Kernel
 	{
 		{
 			LockGuard _(m_process_lock);
-			TRY(validate_pointer_access(tp, sizeof(timespec)));
+			TRY(validate_pointer_access(tp, sizeof(timespec), true));
 		}
 
 		switch (clock_id)
@@ -1925,9 +1925,9 @@ namespace Kernel
 
 		LockGuard _(m_process_lock);
 		if (act)
-			TRY(validate_pointer_access(act, sizeof(struct sigaction)));
+			TRY(validate_pointer_access(act, sizeof(struct sigaction), false));
 		if (oact)
-			TRY(validate_pointer_access(oact, sizeof(struct sigaction)));
+			TRY(validate_pointer_access(oact, sizeof(struct sigaction), true));
 
 		SpinLockGuard signal_lock_guard(m_signal_lock);
 
@@ -1947,7 +1947,7 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_sigpending(sigset_t* set)
 	{
 		LockGuard _(m_process_lock);
-		TRY(validate_pointer_access(set, sizeof(sigset_t)));
+		TRY(validate_pointer_access(set, sizeof(sigset_t), true));
 		*set = (signal_pending_mask() | Thread::current().m_signal_pending_mask) & Thread::current().m_signal_block_mask;
 		return 0;
 	}
@@ -1956,9 +1956,9 @@ namespace Kernel
 	{
 		LockGuard _(m_process_lock);
 		if (set)
-			TRY(validate_pointer_access(set, sizeof(sigset_t)));
+			TRY(validate_pointer_access(set, sizeof(sigset_t), false));
 		if (oset)
-			TRY(validate_pointer_access(oset, sizeof(sigset_t)));
+			TRY(validate_pointer_access(oset, sizeof(sigset_t), true));
 
 		if (oset)
 			*oset = Thread::current().m_signal_block_mask;
@@ -2342,10 +2342,10 @@ namespace Kernel
 	{
 		// NOTE: we will page fault here, if str is not actually mapped
 		//       outcome is still the same; SIGSEGV
-		return validate_pointer_access(str, strlen(str) + 1);
+		return validate_pointer_access(str, strlen(str) + 1, false);
 	}
 
-	BAN::ErrorOr<void> Process::validate_pointer_access_check(const void* ptr, size_t size)
+	BAN::ErrorOr<void> Process::validate_pointer_access_check(const void* ptr, size_t size, bool needs_write)
 	{
 		ASSERT(&Process::current() == this);
 		auto& thread = Thread::current();
@@ -2368,10 +2368,15 @@ namespace Kernel
 
 		// FIXME: should we allow cross mapping access?
 		for (auto& mapped_region : m_mapped_regions)
-			if (mapped_region->contains_fully(vaddr, size))
-				return {};
+		{
+			if (!mapped_region->contains_fully(vaddr, size))
+				continue;
+			if (needs_write && !mapped_region->writable())
+				goto unauthorized_access;
+			return {};
+		}
 
-		// FIXME: elf should contain full range [vaddr, vaddr + size)
+		// FIXME: elf should use MemoryRegions instead of mapping executables itself
 		if (m_loadable_elf->contains(vaddr))
 			return {};
 
@@ -2382,11 +2387,11 @@ unauthorized_access:
 		return BAN::Error::from_errno(EINTR);
 	}
 
-	BAN::ErrorOr<void> Process::validate_pointer_access(const void* ptr, size_t size)
+	BAN::ErrorOr<void> Process::validate_pointer_access(const void* ptr, size_t size, bool needs_write)
 	{
 		// TODO: This seems very slow as we loop over the range twice
 
-		TRY(validate_pointer_access_check(ptr, size));
+		TRY(validate_pointer_access_check(ptr, size, needs_write));
 
 		const vaddr_t vaddr = reinterpret_cast<vaddr_t>(ptr);
 
@@ -2399,7 +2404,7 @@ unauthorized_access:
 			const vaddr_t current = page_start + i * PAGE_SIZE;
 			if (page_table().get_page_flags(current) & PageTable::Flags::Present)
 				continue;
-			TRY(Process::allocate_page_for_demand_paging(current));
+			TRY(Process::allocate_page_for_demand_paging(current, needs_write));
 		}
 
 		return {};

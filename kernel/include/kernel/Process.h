@@ -210,7 +210,7 @@ namespace Kernel
 		// Returns error if page could not be allocated
 		// Returns true if the page was allocated successfully
 		// Return false if access was page violation (segfault)
-		BAN::ErrorOr<bool> allocate_page_for_demand_paging(vaddr_t addr);
+		BAN::ErrorOr<bool> allocate_page_for_demand_paging(vaddr_t addr, bool wants_write);
 
 		BAN::ErrorOr<BAN::String> absolute_path_of(BAN::StringView) const;
 
@@ -225,8 +225,8 @@ namespace Kernel
 		static BAN::ErrorOr<BAN::UniqPtr<LibELF::LoadableELF>> load_elf_for_exec(const Credentials&, BAN::StringView file_path, const BAN::String& cwd, Kernel::PageTable&);
 
 		BAN::ErrorOr<void> validate_string_access(const char*);
-		BAN::ErrorOr<void> validate_pointer_access_check(const void*, size_t);
-		BAN::ErrorOr<void> validate_pointer_access(const void*, size_t);
+		BAN::ErrorOr<void> validate_pointer_access_check(const void*, size_t, bool needs_write);
+		BAN::ErrorOr<void> validate_pointer_access(const void*, size_t, bool needs_write);
 
 		uint64_t signal_pending_mask() const
 		{

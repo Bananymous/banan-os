@@ -12,6 +12,8 @@ namespace Kernel
 
 		void sync(size_t page_index);
 
+		Mutex mutex;
+
 		// FIXME: this should probably be ordered tree like map
 		//        for fast lookup and less memory usage
 		BAN::Vector<paddr_t> pages;
@@ -33,7 +35,7 @@ namespace Kernel
 		virtual BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> clone(PageTable& new_page_table) override;
 
 	protected:
-		virtual BAN::ErrorOr<bool> allocate_page_containing_impl(vaddr_t vaddr) override;
+		virtual BAN::ErrorOr<bool> allocate_page_containing_impl(vaddr_t vaddr, bool wants_write) override;
 
 	private:
 		FileBackedRegion(BAN::RefPtr<Inode>, PageTable&, off_t offset, ssize_t size, Type flags, PageTable::flags_t page_flags);
@@ -42,7 +44,7 @@ namespace Kernel
 		BAN::RefPtr<Inode> m_inode;
 		const off_t m_offset;
 
-		// FIXME: is this even synchronized?
+		BAN::Vector<paddr_t> m_dirty_pages;
 		BAN::RefPtr<SharedFileData> m_shared_data;
 	};
 

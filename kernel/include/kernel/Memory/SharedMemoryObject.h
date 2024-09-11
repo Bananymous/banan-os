@@ -59,7 +59,7 @@ namespace Kernel
 		virtual BAN::ErrorOr<void> msync(vaddr_t, size_t, int) override { return {}; }
 
 	protected:
-		virtual BAN::ErrorOr<bool> allocate_page_containing_impl(vaddr_t vaddr) override;
+		virtual BAN::ErrorOr<bool> allocate_page_containing_impl(vaddr_t vaddr, bool wants_write) override;
 
 	private:
 		SharedMemoryObject(BAN::RefPtr<SharedMemoryObjectManager::Object> object, PageTable& page_table)

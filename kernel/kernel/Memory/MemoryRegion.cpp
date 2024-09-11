@@ -47,9 +47,12 @@ namespace Kernel
 		return true;
 	}
 
-	BAN::ErrorOr<bool> MemoryRegion::allocate_page_containing(vaddr_t address)
+	BAN::ErrorOr<bool> MemoryRegion::allocate_page_containing(vaddr_t address, bool wants_write)
 	{
-		auto ret = allocate_page_containing_impl(address);
+		ASSERT(contains(address));
+		if (wants_write && !writable())
+			return false;
+		auto ret = allocate_page_containing_impl(address, wants_write);
 		if (!ret.is_error() && ret.value())
 			m_physical_page_count++;
 		return ret;

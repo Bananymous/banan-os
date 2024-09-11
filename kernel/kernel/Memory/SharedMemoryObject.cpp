@@ -87,9 +87,10 @@ namespace Kernel
 		return BAN::UniqPtr<MemoryRegion>(BAN::move(region));
 	}
 
-	BAN::ErrorOr<bool> SharedMemoryObject::allocate_page_containing_impl(vaddr_t address)
+	BAN::ErrorOr<bool> SharedMemoryObject::allocate_page_containing_impl(vaddr_t address, bool wants_write)
 	{
 		ASSERT(contains(address));
+		(void)wants_write;
 
 		// Check if address is already mapped
 		vaddr_t vaddr = address & PAGE_ADDR_MASK;

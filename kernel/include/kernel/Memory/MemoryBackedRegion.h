@@ -23,7 +23,7 @@ namespace Kernel
 		BAN::ErrorOr<void> copy_data_to_region(size_t offset_into_region, const uint8_t* buffer, size_t buffer_size);
 
 	protected:
-		virtual BAN::ErrorOr<bool> allocate_page_containing_impl(vaddr_t vaddr) override;
+		virtual BAN::ErrorOr<bool> allocate_page_containing_impl(vaddr_t vaddr, bool wants_write) override;
 
 	private:
 		MemoryBackedRegion(PageTable&, size_t size, Type, PageTable::flags_t);

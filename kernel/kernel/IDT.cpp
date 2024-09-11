@@ -200,13 +200,13 @@ namespace Kernel
 					goto done;
 				}
 
-				// Try demand paging on non present pages
-				PageFaultError page_fault_error;
-				page_fault_error.raw = error;
-				if (pid && !page_fault_error.present)
+				if (pid)
 				{
+					PageFaultError page_fault_error;
+					page_fault_error.raw = error;
+
 					Processor::set_interrupt_state(InterruptState::Enabled);
-					auto result = Process::current().allocate_page_for_demand_paging(regs->cr2);
+					auto result = Process::current().allocate_page_for_demand_paging(regs->cr2, page_fault_error.write);
 					Processor::set_interrupt_state(InterruptState::Disabled);
 
 					if (!result.is_error() && result.value())

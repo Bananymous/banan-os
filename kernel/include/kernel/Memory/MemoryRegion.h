@@ -34,6 +34,8 @@ namespace Kernel
 		bool contains_fully(vaddr_t address, size_t size) const;
 		bool overlaps(vaddr_t address, size_t size) const;
 
+		bool writable() const { return m_flags & PageTable::Flags::ReadWrite; }
+
 		size_t size() const { return m_size; }
 		vaddr_t vaddr() const { return m_vaddr; }
 
@@ -45,7 +47,7 @@ namespace Kernel
 		// Returns error if no memory was available
 		// Returns true if page was succesfully allocated
 		// Returns false if page was already allocated
-		BAN::ErrorOr<bool> allocate_page_containing(vaddr_t address);
+		BAN::ErrorOr<bool> allocate_page_containing(vaddr_t address, bool wants_write);
 
 		virtual BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> clone(PageTable& new_page_table) = 0;
 
@@ -53,7 +55,7 @@ namespace Kernel
 		MemoryRegion(PageTable&, size_t size, Type type, PageTable::flags_t flags);
 		BAN::ErrorOr<void> initialize(AddressRange);
 
-		virtual BAN::ErrorOr<bool> allocate_page_containing_impl(vaddr_t address) = 0;
+		virtual BAN::ErrorOr<bool> allocate_page_containing_impl(vaddr_t address, bool wants_write) = 0;
 
 	protected:
 		PageTable& m_page_table;

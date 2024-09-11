@@ -280,8 +280,10 @@ namespace Kernel
 		// Returns error if no memory was available
 		// Returns true if page was succesfully allocated
 		// Returns false if page was already allocated
-		virtual BAN::ErrorOr<bool> allocate_page_containing_impl(vaddr_t vaddr) override
+		virtual BAN::ErrorOr<bool> allocate_page_containing_impl(vaddr_t vaddr, bool wants_write) override
 		{
+			(void)wants_write;
+
 			vaddr &= PAGE_ADDR_MASK;
 			if (m_page_table.physical_address_of(vaddr))
 				return false;

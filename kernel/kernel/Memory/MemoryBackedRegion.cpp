@@ -38,11 +38,12 @@ namespace Kernel
 		}
 	}
 
-	BAN::ErrorOr<bool> MemoryBackedRegion::allocate_page_containing_impl(vaddr_t address)
+	BAN::ErrorOr<bool> MemoryBackedRegion::allocate_page_containing_impl(vaddr_t address, bool wants_write)
 	{
 		ASSERT(m_type == Type::PRIVATE);
 
 		ASSERT(contains(address));
+		(void)wants_write;
 
 		// Check if address is already mapped
 		vaddr_t vaddr = address & PAGE_ADDR_MASK;
@@ -93,7 +94,7 @@ namespace Kernel
 			vaddr_t page_offset = write_vaddr % PAGE_SIZE;
 			size_t bytes = BAN::Math::min<size_t>(buffer_size - written, PAGE_SIZE - page_offset);
 
-			TRY(allocate_page_containing(write_vaddr));
+			TRY(allocate_page_containing(write_vaddr, true));
 
 			PageTable::with_fast_page(m_page_table.physical_address_of(write_vaddr & PAGE_ADDR_MASK), [&] {
 				memcpy(PageTable::fast_page_as_ptr(page_offset), (void*)(buffer + written), bytes);
