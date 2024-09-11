@@ -114,7 +114,12 @@ int main()
 			setenv("HOME", pwd->pw_dir, 1);
 			chdir(pwd->pw_dir);
 
-			execl(pwd->pw_shell, pwd->pw_shell, nullptr);
+			char shell_path[PATH_MAX];
+			strcpy(shell_path, pwd->pw_shell);
+
+			endpwent();
+
+			execl(shell_path, shell_path, nullptr);
 			perror("execl");
 
 			exit(1);
