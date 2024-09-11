@@ -104,7 +104,7 @@ int open_server_fd()
 	if (stat(LibGUI::s_window_server_socket.data(), &st) != -1)
 		unlink(LibGUI::s_window_server_socket.data());
 
-	int server_fd = socket(AF_UNIX, SOCK_SEQPACKET, 0);
+	int server_fd = socket(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0);
 	if (server_fd == -1)
 	{
 		perror("socket");
@@ -158,11 +158,11 @@ int main()
 	MUST(LibInput::KeyboardLayout::initialize());
 	MUST(LibInput::KeyboardLayout::get().load_from_file("/usr/share/keymaps/us.keymap"_sv));
 
-	int keyboard_fd = open("/dev/keyboard", O_RDONLY);
+	int keyboard_fd = open("/dev/keyboard", O_RDONLY | O_CLOEXEC);
 	if (keyboard_fd == -1)
 		perror("open");
 
-	int mouse_fd = open("/dev/mouse", O_RDONLY);
+	int mouse_fd = open("/dev/mouse", O_RDONLY | O_CLOEXEC);
 	if (mouse_fd == -1)
 		perror("open");
 
@@ -228,7 +228,7 @@ int main()
 
 		if (FD_ISSET(server_fd, &fds))
 		{
-			int window_fd = accept(server_fd, nullptr, nullptr);
+			int window_fd = accept4(server_fd, nullptr, nullptr, SOCK_CLOEXEC);
 			if (window_fd == -1)
 			{
 				dwarnln("accept: {}", strerror(errno));

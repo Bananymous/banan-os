@@ -9,7 +9,7 @@
 
 Framebuffer open_framebuffer()
 {
-	int framebuffer_fd = open("/dev/fb0", O_RDWR);
+	int framebuffer_fd = open("/dev/fb0", O_RDWR | O_CLOEXEC);
 	if (framebuffer_fd == -1)
 	{
 		perror("open");
