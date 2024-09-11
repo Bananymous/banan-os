@@ -11,6 +11,8 @@
 #include <sys/mman.h>
 #include <sys/socket.h>
 
+#include <unistd.h>
+
 WindowServer::WindowServer(Framebuffer& framebuffer)
 	: m_framebuffer(framebuffer)
 	, m_cursor({ framebuffer.width / 2, framebuffer.height / 2 })
@@ -135,10 +137,24 @@ void WindowServer::on_key_event(LibInput::KeyEvent event)
 		return;
 	}
 
-	// Quick hack to stop the window server
-	if (event.pressed() && event.key == LibInput::Key::Escape)
+	// Stop WindowServer with mod+shift+E
+	if (m_is_mod_key_held && event.pressed() && event.shift() && event.key == LibInput::Key::E)
 	{
 		m_is_stopped = true;
+		return;
+	}
+
+	// Start terminal with mod+Enter
+	if (m_is_mod_key_held && event.pressed() && event.key == LibInput::Key::Enter)
+	{
+		pid_t pid = fork();
+		if (pid == 0)
+		{
+			execl("/usr/bin/Terminal", "Terminal", nullptr);
+			exit(1);
+		}
+		if (pid == -1)
+			perror("fork");
 		return;
 	}
 
