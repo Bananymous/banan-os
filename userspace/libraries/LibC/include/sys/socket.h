@@ -71,6 +71,8 @@ struct linger
 #define SOCK_RAW		2
 #define SOCK_SEQPACKET	3
 #define SOCK_STREAM		4
+#define SOCK_CLOEXEC	0x10
+#define SOCK_NONBLOCK	0x20
 
 #define SOL_SOCKET 1
 
@@ -137,6 +139,7 @@ struct sys_recvfrom_t
 };
 
 int		accept(int socket, struct sockaddr* __restrict address, socklen_t* __restrict address_len);
+int		accept4(int socket, struct sockaddr* __restrict address, socklen_t* __restrict address_len, int flags);
 int		bind(int socket, const struct sockaddr* address, socklen_t address_len);
 int		connect(int socket, const struct sockaddr* address, socklen_t address_len);
 int		getpeername(int socket, struct sockaddr* __restrict address, socklen_t* __restrict address_len);

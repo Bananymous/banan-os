@@ -1192,11 +1192,13 @@ namespace Kernel
 		return BAN::Error::from_errno(ENOTSUP);
 	}
 
-	BAN::ErrorOr<long> Process::sys_accept(int socket, sockaddr* address, socklen_t* address_len)
+	BAN::ErrorOr<long> Process::sys_accept(int socket, sockaddr* address, socklen_t* address_len, int flags)
 	{
 		if (address && !address_len)
 			return BAN::Error::from_errno(EINVAL);
 		if (!address && address_len)
+			return BAN::Error::from_errno(EINVAL);
+		if (flags & ~(SOCK_NONBLOCK | SOCK_CLOEXEC))
 			return BAN::Error::from_errno(EINVAL);
 
 		LockGuard _(m_process_lock);
@@ -1210,7 +1212,13 @@ namespace Kernel
 		if (!inode->mode().ifsock())
 			return BAN::Error::from_errno(ENOTSOCK);
 
-		return TRY(inode->accept(address, address_len));
+		int open_flags = 0;
+		if (flags & SOCK_NONBLOCK)
+			open_flags |= O_NONBLOCK;
+		if (flags & SOCK_CLOEXEC)
+			open_flags |= O_CLOEXEC;
+
+		return TRY(inode->accept(address, address_len, open_flags));
 	}
 
 	BAN::ErrorOr<long> Process::sys_bind(int socket, const sockaddr* address, socklen_t address_len)

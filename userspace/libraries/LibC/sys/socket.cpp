@@ -4,7 +4,12 @@
 
 int accept(int socket, struct sockaddr* __restrict address, socklen_t* __restrict address_len)
 {
-	return syscall(SYS_ACCEPT, socket, address, address_len);
+	return accept4(socket, address, address_len, 0);
+}
+
+int accept4(int socket, struct sockaddr* __restrict address, socklen_t* __restrict address_len, int flags)
+{
+	return syscall(SYS_ACCEPT, socket, address, address_len, flags);
 }
 
 int bind(int socket, const struct sockaddr* address, socklen_t address_len)

@@ -106,6 +106,13 @@ namespace Kernel
 				return BAN::Error::from_errno(EPROTOTYPE);
 		}
 
+		int extra_flags = 0;
+		if (type & SOCK_NONBLOCK)
+			extra_flags |= O_NONBLOCK;
+		if (type & SOCK_CLOEXEC)
+			extra_flags |= O_CLOEXEC;
+		type &= ~(SOCK_NONBLOCK | SOCK_CLOEXEC);
+
 		Socket::Type sock_type;
 		switch (type)
 		{
@@ -133,7 +140,7 @@ namespace Kernel
 		auto socket = TRY(NetworkManager::get().create_socket(sock_domain, sock_type, 0777, m_credentials.euid(), m_credentials.egid()));
 
 		int fd = TRY(get_free_fd());
-		m_open_files[fd] = TRY(BAN::RefPtr<OpenFileDescription>::create(socket, "no-path"_sv, 0, O_RDWR));
+		m_open_files[fd] = TRY(BAN::RefPtr<OpenFileDescription>::create(socket, "<socket>"_sv, 0, O_RDWR | extra_flags));
 		return fd;
 	}
 

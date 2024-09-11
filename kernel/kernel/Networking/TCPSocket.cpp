@@ -67,7 +67,7 @@ namespace Kernel
 		dprintln_if(DEBUG_TCP, "Socket destroyed");
 	}
 
-	BAN::ErrorOr<long> TCPSocket::accept_impl(sockaddr* address, socklen_t* address_len)
+	BAN::ErrorOr<long> TCPSocket::accept_impl(sockaddr* address, socklen_t* address_len, int flags)
 	{
 		if (m_state != State::Listen)
 			return BAN::Error::from_errno(EINVAL);
@@ -123,7 +123,7 @@ namespace Kernel
 			memcpy(address, &connection.target.address, *address_len);
 		}
 
-		return TRY(Process::current().open_inode(return_inode, O_RDWR));
+		return TRY(Process::current().open_inode(return_inode, O_RDWR | flags));
 	}
 
 	BAN::ErrorOr<void> TCPSocket::connect_impl(const sockaddr* address, socklen_t address_len)

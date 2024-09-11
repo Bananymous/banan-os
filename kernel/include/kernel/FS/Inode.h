@@ -97,7 +97,7 @@ namespace Kernel
 		BAN::ErrorOr<BAN::String> link_target();
 
 		// Socket API
-		BAN::ErrorOr<long> accept(sockaddr* address, socklen_t* address_len);
+		BAN::ErrorOr<long> accept(sockaddr* address, socklen_t* address_len, int flags);
 		BAN::ErrorOr<void> bind(const sockaddr* address, socklen_t address_len);
 		BAN::ErrorOr<void> connect(const sockaddr* address, socklen_t address_len);
 		BAN::ErrorOr<void> listen(int backlog);
@@ -131,7 +131,7 @@ namespace Kernel
 		virtual BAN::ErrorOr<BAN::String> link_target_impl()				{ return BAN::Error::from_errno(ENOTSUP); }
 
 		// Socket API
-		virtual BAN::ErrorOr<long> accept_impl(sockaddr*, socklen_t*)								{ return BAN::Error::from_errno(ENOTSUP); }
+		virtual BAN::ErrorOr<long> accept_impl(sockaddr*, socklen_t*, int)							{ return BAN::Error::from_errno(ENOTSUP); }
 		virtual BAN::ErrorOr<void> connect_impl(const sockaddr*, socklen_t)							{ return BAN::Error::from_errno(ENOTSUP); }
 		virtual BAN::ErrorOr<void> listen_impl(int)													{ return BAN::Error::from_errno(ENOTSUP); }
 		virtual BAN::ErrorOr<void> bind_impl(const sockaddr*, socklen_t)							{ return BAN::Error::from_errno(ENOTSUP); }

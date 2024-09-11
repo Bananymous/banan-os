@@ -110,12 +110,12 @@ namespace Kernel
 		return link_target_impl();
 	}
 
-	BAN::ErrorOr<long> Inode::accept(sockaddr* address, socklen_t* address_len)
+	BAN::ErrorOr<long> Inode::accept(sockaddr* address, socklen_t* address_len, int flags)
 	{
 		LockGuard _(m_mutex);
 		if (!mode().ifsock())
 			return BAN::Error::from_errno(ENOTSOCK);
-		return accept_impl(address, address_len);
+		return accept_impl(address, address_len, flags);
 	}
 
 	BAN::ErrorOr<void> Inode::bind(const sockaddr* address, socklen_t address_len)

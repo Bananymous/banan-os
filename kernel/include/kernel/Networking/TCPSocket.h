@@ -55,7 +55,7 @@ namespace Kernel
 		virtual void add_protocol_header(BAN::ByteSpan packet, uint16_t dst_port, PseudoHeader) override;
 
 	protected:
-		virtual BAN::ErrorOr<long> accept_impl(sockaddr*, socklen_t*) override;
+		virtual BAN::ErrorOr<long> accept_impl(sockaddr*, socklen_t*, int) override;
 		virtual BAN::ErrorOr<void> connect_impl(const sockaddr*, socklen_t) override;
 		virtual BAN::ErrorOr<void> listen_impl(int) override;
 		virtual BAN::ErrorOr<void> bind_impl(const sockaddr*, socklen_t) override;

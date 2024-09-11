@@ -64,7 +64,7 @@ namespace Kernel
 		}
 	}
 
-	BAN::ErrorOr<long> UnixDomainSocket::accept_impl(sockaddr* address, socklen_t* address_len)
+	BAN::ErrorOr<long> UnixDomainSocket::accept_impl(sockaddr* address, socklen_t* address_len, int flags)
 	{
 		if (!m_info.has<ConnectionInfo>())
 			return BAN::Error::from_errno(EOPNOTSUPP);
@@ -104,7 +104,7 @@ namespace Kernel
 			strncpy(sockaddr_un.sun_path, pending->m_bound_path.data(), copy_len);
 		}
 
-		return TRY(Process::current().open_inode(return_inode, O_RDWR));
+		return TRY(Process::current().open_inode(return_inode, O_RDWR | flags));
 	}
 
 	BAN::ErrorOr<void> UnixDomainSocket::connect_impl(const sockaddr* address, socklen_t address_len)
