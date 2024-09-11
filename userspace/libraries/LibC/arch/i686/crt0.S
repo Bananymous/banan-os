@@ -19,7 +19,11 @@ _start:
 	call _init_libc
 
 	# call global constructors
-	call _init
+	movl $_init, %eax
+	testl %eax, %eax
+	jz 1f
+	call *%eax
+ 1:
 
 	movl $__init_array_start, %ebx
 	jmp 2f

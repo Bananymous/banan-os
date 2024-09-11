@@ -20,7 +20,11 @@ _start:
 	call _init_libc
 
 	# call global constructors
-	call _init
+	movq $_init, %rax
+	testq %rax, %rax
+	jz 1f
+	call *%rax
+ 1:
 
 	movq $__init_array_start, %rbx
 	jmp 2f

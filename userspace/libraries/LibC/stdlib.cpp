@@ -16,7 +16,7 @@
 
 extern "C" char** environ;
 
-extern "C" void _fini();
+extern "C" __attribute__((weak)) void _fini();
 
 static void (*at_exit_funcs[64])();
 static uint32_t at_exit_funcs_count = 0;
@@ -34,7 +34,7 @@ void exit(int status)
 		at_exit_funcs[i - 1]();
 	fflush(nullptr);
 	__cxa_finalize(nullptr);
-	_fini();
+	if (_fini) _fini();
 	_exit(status);
 	ASSERT_NOT_REACHED();
 }
