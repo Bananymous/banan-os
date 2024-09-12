@@ -9,6 +9,28 @@
 #include <sys/select.h>
 #include <unistd.h>
 
+static constexpr uint32_t s_colors_dark[] {
+	0xCC'000000,
+	0xCC'FF0000,
+	0xCC'00FF00,
+	0xCC'FFFF00,
+	0xCC'0000FF,
+	0xCC'FF00FF,
+	0xCC'00FFFF,
+	0xCC'BFBFBF,
+};
+
+static constexpr uint32_t s_colors_bright[] {
+	0xCC'3F3F3F,
+	0xCC'FF7F7F,
+	0xCC'7FFF7F,
+	0xCC'FFFF7F,
+	0xCC'7F7FFF,
+	0xCC'FF7FFF,
+	0xCC'7FFFFF,
+	0xCC'FFFFFF,
+};
+
 void Terminal::start_shell()
 {
 	int pts_master = posix_openpt(O_RDWR | O_NOCTTY);
@@ -84,6 +106,9 @@ void Terminal::run()
 {
 	signal(SIGCHLD, [](int) { s_shell_exited = true; });
 	start_shell();
+
+	m_bg_color = s_colors_dark[0];
+	m_fg_color = s_colors_bright[7];
 
 	m_window = MUST(LibGUI::Window::create(600, 400, "Terminal"_sv));
 	m_window->fill(m_bg_color);
@@ -184,45 +209,23 @@ bool Terminal::read_shell()
 
 void Terminal::handle_sgr()
 {
-	constexpr uint32_t colors_dark[] {
-		0xFF'000000,
-		0xFF'FF0000,
-		0xFF'00FF00,
-		0xFF'FFFF00,
-		0xFF'0000FF,
-		0xFF'FF00FF,
-		0xFF'00FFFF,
-		0xFF'BFBFBF,
-	};
-
-	constexpr uint32_t colors_bright[] {
-		0xFF'3F3F3F,
-		0xFF'FF7F7F,
-		0xFF'7FFF7F,
-		0xFF'FFFF7F,
-		0xFF'7F7FFF,
-		0xFF'FF7FFF,
-		0xFF'7FFFFF,
-		0xFF'FFFFFF,
-	};
-
 	switch (m_csi_info.fields[0])
 	{
 		case -1: case 0:
-			m_fg_color = 0xFFFFFF;
-			m_bg_color = 0x000000;
+			m_bg_color = s_colors_dark[0];
+			m_fg_color = s_colors_bright[7];
 			break;
 		case 30: case 31: case 32: case 33: case 34: case 35: case 36: case 37:
-			m_fg_color = colors_dark[m_csi_info.fields[0] - 30];
+			m_fg_color = s_colors_dark[m_csi_info.fields[0] - 30];
 			break;
 		case 40: case 41: case 42: case 43: case 44: case 45: case 46: case 47:
-			m_bg_color = colors_dark[m_csi_info.fields[0] - 40];
+			m_bg_color = s_colors_dark[m_csi_info.fields[0] - 40];
 			break;
 		case 90: case 91: case 92: case 93: case 94: case 95: case 96: case 97:
-			m_fg_color = colors_bright[m_csi_info.fields[0] - 90];
+			m_fg_color = s_colors_bright[m_csi_info.fields[0] - 90];
 			break;
 		case 100: case 101: case 102: case 103: case 104: case 105: case 106: case 107:
-			m_bg_color = colors_bright[m_csi_info.fields[0] - 100];
+			m_bg_color = s_colors_bright[m_csi_info.fields[0] - 100];
 			break;
 		default:
 			dprintln("TODO: SGR {}", m_csi_info.fields[0]);

@@ -70,6 +70,6 @@ private:
 	uint8_t m_utf8_bytes[4] { };
 
 	Cursor m_saved_cursor { 0, 0 };
-	uint32_t m_fg_color { 0xFFFFFF };
-	uint32_t m_bg_color { 0x000000 };
+	uint32_t m_fg_color { 0 };
+	uint32_t m_bg_color { 0 };
 };
