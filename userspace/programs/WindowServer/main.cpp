@@ -19,6 +19,7 @@
 struct Config
 {
 	BAN::UniqPtr<LibImage::Image> background_image;
+	int32_t corner_radius = 0;
 };
 
 BAN::Optional<BAN::String> file_read_line(FILE* file)
@@ -87,6 +88,15 @@ Config parse_config()
 				dwarnln("Could not load image: {}", image.error());
 			else
 				config.background_image = image.release_value();
+		}
+		else if (variable == "corner-radius"_sv)
+		{
+			char* endptr = nullptr;
+			long corner_radius = strtol(value.data(), &endptr, 0);
+			if (corner_radius < 0 || corner_radius == LONG_MAX || corner_radius >= INT32_MAX)
+				dwarnln("invalid corner-radius: '{}'", value);
+			else
+				config.corner_radius = corner_radius;
 		}
 		else
 		{
@@ -176,7 +186,7 @@ int main()
 
 	auto config = parse_config();
 
-	WindowServer window_server(framebuffer);
+	WindowServer window_server(framebuffer, config.corner_radius);
 	if (config.background_image)
 		if (auto ret = window_server.set_background_image(BAN::move(config.background_image)); ret.is_error())
 			dwarnln("Could not set background image: {}", ret.error());

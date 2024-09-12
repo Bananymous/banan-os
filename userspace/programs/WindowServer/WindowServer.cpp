@@ -13,8 +13,9 @@
 
 #include <unistd.h>
 
-WindowServer::WindowServer(Framebuffer& framebuffer)
+WindowServer::WindowServer(Framebuffer& framebuffer, int32_t corner_radius)
 	: m_framebuffer(framebuffer)
+	, m_corner_radius(corner_radius)
 	, m_cursor({ framebuffer.width / 2, framebuffer.height / 2 })
 	, m_font(MUST(LibFont::Font::load("/usr/share/fonts/lat0-16.psfu"_sv)))
 {
@@ -338,45 +339,43 @@ void WindowServer::invalidate(Rectangle area)
 	{
 		auto& window = *pwindow;
 
-		const int32_t corner_radius = 5;
-
 		const Rectangle fast_areas[] {
 			{
-				window.full_x() + corner_radius,
+				window.full_x() + m_corner_radius,
 				window.full_y(),
-				window.full_width() - 2 * corner_radius,
-				corner_radius
+				window.full_width() - 2 * m_corner_radius,
+				m_corner_radius
 			},
 			{
 				window.full_x(),
-				window.full_y() + corner_radius,
+				window.full_y() + m_corner_radius,
 				window.full_width(),
-				window.full_height() - 2 * corner_radius
+				window.full_height() - 2 * m_corner_radius
 			},
 			{
-				window.full_x() + corner_radius,
-				window.full_y() + window.full_height() - corner_radius,
-				window.full_width() - 2 * corner_radius,
-				corner_radius
+				window.full_x() + m_corner_radius,
+				window.full_y() + window.full_height() - m_corner_radius,
+				window.full_width() - 2 * m_corner_radius,
+				m_corner_radius
 			}
 		};
 
 		const Position corner_centers[] {
 			{
-				window.full_x()                              + corner_radius,
-				window.full_y()                              + corner_radius,
+				window.full_x()                              + m_corner_radius,
+				window.full_y()                              + m_corner_radius,
 			},
 			{
-				window.full_x() + (window.full_width() - 1)  - corner_radius,
-				window.full_y()                              + corner_radius,
+				window.full_x() + (window.full_width() - 1)  - m_corner_radius,
+				window.full_y()                              + m_corner_radius,
 			},
 			{
-				window.full_x()                              + corner_radius,
-				window.full_y() + (window.full_height() - 1) - corner_radius,
+				window.full_x()                              + m_corner_radius,
+				window.full_y() + (window.full_height() - 1) - m_corner_radius,
 			},
 			{
-				window.full_x() + (window.full_width()  - 1) - corner_radius,
-				window.full_y() + (window.full_height() - 1) - corner_radius,
+				window.full_x() + (window.full_width()  - 1) - m_corner_radius,
+				window.full_y() + (window.full_height() - 1) - m_corner_radius,
 			},
 		};
 
@@ -384,26 +383,26 @@ void WindowServer::invalidate(Rectangle area)
 			{
 				window.full_x(),
 				window.full_y(),
-				corner_radius,
-				corner_radius
+				m_corner_radius,
+				m_corner_radius
 			},
 			{
-				window.full_x() + window.full_width() - corner_radius,
+				window.full_x() + window.full_width() - m_corner_radius,
 				window.full_y(),
-				corner_radius,
-				corner_radius
+				m_corner_radius,
+				m_corner_radius
 			},
 			{
 				window.full_x(),
-				window.full_y() + window.full_height() - corner_radius,
-				corner_radius,
-				corner_radius
+				window.full_y() + window.full_height() - m_corner_radius,
+				m_corner_radius,
+				m_corner_radius
 			},
 			{
-				window.full_x() + window.full_width() - corner_radius,
-				window.full_y() + window.full_height() - corner_radius,
-				corner_radius,
-				corner_radius
+				window.full_x() + window.full_width() - m_corner_radius,
+				window.full_y() + window.full_height() - m_corner_radius,
+				m_corner_radius,
+				m_corner_radius
 			}
 		};
 
@@ -418,7 +417,7 @@ void WindowServer::invalidate(Rectangle area)
 					const int32_t dy = pos.y - corner_centers[i].y;
 					if (2 * (dy > 0) + (dx > 0) != i)
 						continue;
-					if (dx * dx + dy * dy >= corner_radius * corner_radius)
+					if (dx * dx + dy * dy >= m_corner_radius * m_corner_radius)
 						return true;
 				}
 				return false;

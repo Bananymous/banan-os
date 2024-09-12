@@ -19,7 +19,7 @@
 class WindowServer
 {
 public:
-	WindowServer(Framebuffer& framebuffer);
+	WindowServer(Framebuffer& framebuffer, int32_t corner_radius);
 
 	BAN::ErrorOr<void> set_background_image(BAN::UniqPtr<LibImage::Image>);
 
@@ -47,6 +47,8 @@ private:
 	Framebuffer& m_framebuffer;
 	BAN::Vector<BAN::RefPtr<Window>> m_client_windows;
 	BAN::Vector<int> m_client_fds;
+
+	const int32_t m_corner_radius;
 
 	BAN::Vector<uint8_t> m_pages_to_sync_bitmap;
 
