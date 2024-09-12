@@ -167,6 +167,10 @@ void WindowServer::on_key_event(LibInput::KeyEvent event)
 		return;
 	}
 
+	// Toggle window bounce with F2
+	if (event.pressed() && event.key == LibInput::Key::F2)
+		m_is_bouncing_window = !m_is_bouncing_window;
+
 	if (m_focused_window)
 	{
 		LibGUI::EventPacket packet;
@@ -535,6 +539,25 @@ void WindowServer::invalidate(Rectangle area)
 
 void WindowServer::sync()
 {
+	if (m_focused_window && m_is_bouncing_window)
+	{
+		static int32_t dir_x = 7;
+		static int32_t dir_y = 4;
+		auto old_window = m_focused_window->full_area();
+		m_focused_window->set_position({
+			m_focused_window->client_x() + dir_x,
+			m_focused_window->client_y() + dir_y,
+		});
+		auto new_window = m_focused_window->full_area();
+		invalidate(old_window);
+		invalidate(new_window);
+
+		if ((m_focused_window->full_x() < 0 && dir_x < 0) || (m_focused_window->full_x() + m_focused_window->full_width() >= m_framebuffer.width && dir_x > 0))
+			dir_x = -dir_x;
+		if ((m_focused_window->full_y() < 0 && dir_y < 0) || (m_focused_window->full_y() + m_focused_window->full_height() >= m_framebuffer.height && dir_y > 0))
+			dir_y = -dir_y;
+	}
+
 	size_t synced_pages = 0;
 
 	for (size_t i = 0; i < m_pages_to_sync_bitmap.size() * 8; i++)

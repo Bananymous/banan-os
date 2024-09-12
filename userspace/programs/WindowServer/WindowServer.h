@@ -61,6 +61,7 @@ private:
 
 	bool m_deleted_window { false };
 	bool m_is_stopped { false };
+	bool m_is_bouncing_window = false;
 
 	LibFont::Font m_font;
 };
