@@ -39,7 +39,7 @@ void Window::prepare_title_bar(const LibFont::Font& font)
 	uint32_t* title_bar_data = new uint32_t[title_bar_bytes];
 	ASSERT(title_bar_data);
 	for (size_t i = 0; i < title_bar_bytes; i++)
-		title_bar_data[i] = 0xFFFFFF;
+		title_bar_data[i] = 0xFFFFFFFF;
 
 	const auto text_area = title_text_area();
 
@@ -61,7 +61,7 @@ void Window::prepare_title_bar(const LibFont::Font& font)
 					break;
 				const uint8_t bitmask = 1 << (font.width() - x - 1);
 				if (glyph[y * font.pitch()] & bitmask)
-					title_bar_data[(y_off + y) * title_bar_width() + (x_off + x)] = 0x000000;
+					title_bar_data[(y_off + y) * title_bar_width() + (x_off + x)] = 0xFF000000;
 			}
 		}
 	}

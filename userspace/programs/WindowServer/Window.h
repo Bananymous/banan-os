@@ -49,7 +49,7 @@ public:
 		ASSERT(title_bar_area().contains({ abs_x, abs_y }));
 
 		if (auto close_button = close_button_area(); close_button.contains({ abs_x, abs_y }))
-			return close_button.contains(cursor) ? 0xFF0000 : 0xD00000;
+			return close_button.contains(cursor) ? 0xFFFF0000 : 0xFFD00000;
 
 		int32_t rel_x = abs_x - title_bar_x();
 		int32_t rel_y = abs_y - title_bar_y();

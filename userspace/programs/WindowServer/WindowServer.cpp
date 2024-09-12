@@ -297,6 +297,21 @@ void WindowServer::set_focused_window(BAN::RefPtr<Window> window)
 	}
 }
 
+static uint32_t alpha_blend(uint32_t color_a, uint32_t color_b)
+{
+	const uint32_t a_a =   color_a >> 24;
+	const uint32_t a_b = ((color_b >> 24) * (256 - a_a)) >> 8;
+	const uint32_t a = a_a + a_b;
+
+	const uint32_t rb1 = (a_a * (color_a & 0xFF00FF)) >> 8;
+	const uint32_t rb2 = (a_b * (color_b & 0xFF00FF)) >> 8;
+
+	const uint32_t g1  = (a_a * (color_a & 0x00FF00)) >> 8;
+	const uint32_t g2  = (a_b * (color_b & 0x00FF00)) >> 8;
+
+	return (a << 24) | ((rb1 | rb2) & 0xFF00FF) | ((g1 | g2) & 0x00FF00);
+}
+
 void WindowServer::invalidate(Rectangle area)
 {
 	auto fb_overlap = area.get_overlap(m_framebuffer.area());
@@ -315,42 +330,172 @@ void WindowServer::invalidate(Rectangle area)
 	else
 	{
 		for (int32_t y = area.y; y < area.y + area.height; y++)
-			memset(&m_framebuffer.mmap[y * m_framebuffer.width + area.x], 0x10, area.width * 4);
+			for (int32_t x = area.x; x < area.x + area.width; x++)
+				m_framebuffer.mmap[y * m_framebuffer.width + x] = 0xFF101010;
 	}
 
 	for (auto& pwindow : m_client_windows)
 	{
 		auto& window = *pwindow;
 
-		// window title bar
-		if (auto overlap = window.title_bar_area().get_overlap(area); overlap.has_value())
-		{
-			for (int32_t y_off = 0; y_off < overlap->height; y_off++)
+		const int32_t corner_radius = 5;
+
+		const Rectangle fast_areas[] {
 			{
-				for (int32_t x_off = 0; x_off < overlap->width; x_off++)
+				window.full_x() + corner_radius,
+				window.full_y(),
+				window.full_width() - 2 * corner_radius,
+				corner_radius
+			},
+			{
+				window.full_x(),
+				window.full_y() + corner_radius,
+				window.full_width(),
+				window.full_height() - 2 * corner_radius
+			},
+			{
+				window.full_x() + corner_radius,
+				window.full_y() + window.full_height() - corner_radius,
+				window.full_width() - 2 * corner_radius,
+				corner_radius
+			}
+		};
+
+		const Position corner_centers[] {
+			{
+				window.full_x()                              + corner_radius,
+				window.full_y()                              + corner_radius,
+			},
+			{
+				window.full_x() + (window.full_width() - 1)  - corner_radius,
+				window.full_y()                              + corner_radius,
+			},
+			{
+				window.full_x()                              + corner_radius,
+				window.full_y() + (window.full_height() - 1) - corner_radius,
+			},
+			{
+				window.full_x() + (window.full_width()  - 1) - corner_radius,
+				window.full_y() + (window.full_height() - 1) - corner_radius,
+			},
+		};
+
+		const Rectangle corner_areas[] {
+			{
+				window.full_x(),
+				window.full_y(),
+				corner_radius,
+				corner_radius
+			},
+			{
+				window.full_x() + window.full_width() - corner_radius,
+				window.full_y(),
+				corner_radius,
+				corner_radius
+			},
+			{
+				window.full_x(),
+				window.full_y() + window.full_height() - corner_radius,
+				corner_radius,
+				corner_radius
+			},
+			{
+				window.full_x() + window.full_width() - corner_radius,
+				window.full_y() + window.full_height() - corner_radius,
+				corner_radius,
+				corner_radius
+			}
+		};
+
+		const auto is_rounded_off =
+			[&](Position pos) -> bool
+			{
+				for (size_t i = 0; i < 4; i++)
 				{
-					uint32_t pixel = window.title_bar_pixel(
-						overlap->x + x_off,
-						overlap->y + y_off,
-						m_cursor
-					);
-					m_framebuffer.mmap[(overlap->y + y_off) * m_framebuffer.width + overlap->x + x_off] = pixel;
+					if (!corner_areas[i].contains(pos))
+						continue;
+					const int32_t dx = pos.x - corner_centers[i].x;
+					const int32_t dy = pos.y - corner_centers[i].y;
+					if (2 * (dy > 0) + (dx > 0) != i)
+						continue;
+					if (dx * dx + dy * dy >= corner_radius * corner_radius)
+						return true;
+				}
+				return false;
+			};
+
+		// window title bar
+		if (auto title_overlap = window.title_bar_area().get_overlap(area); title_overlap.has_value())
+		{
+			for (int32_t y_off = 0; y_off < title_overlap->height; y_off++)
+			{
+				for (int32_t x_off = 0; x_off < title_overlap->width; x_off++)
+				{
+					const int32_t abs_x = title_overlap->x + x_off;
+					const int32_t abs_y = title_overlap->y + y_off;
+					if (is_rounded_off({ abs_x, abs_y }))
+						continue;
+
+					const uint32_t color = window.title_bar_pixel(abs_x, abs_y, m_cursor);
+					m_framebuffer.mmap[abs_y * m_framebuffer.width + abs_x] = color;
 				}
 			}
 		}
 
 		// window client area
-		if (auto overlap = window.client_area().get_overlap(area); overlap.has_value())
+		if (auto client_overlap = window.client_area().get_overlap(area); client_overlap.has_value())
 		{
-			const int32_t src_x = overlap->x - window.client_x();
-			const int32_t src_y = overlap->y - window.client_y();
-			for (int32_t y_off = 0; y_off < overlap->height; y_off++)
+			for (const auto& fast_area : fast_areas)
 			{
-				memcpy(
-					&m_framebuffer.mmap[(overlap->y + y_off) * m_framebuffer.width + overlap->x],
-					&window.framebuffer()[(src_y + y_off) * window.client_width() + src_x],
-					overlap->width * 4
-				);
+				auto fast_overlap = client_overlap->get_overlap(fast_area);
+				if (!fast_overlap.has_value())
+					continue;
+				for (int32_t y_off = 0; y_off < fast_overlap->height; y_off++)
+				{
+					const int32_t abs_row_y = fast_overlap->y + y_off;
+					const int32_t abs_row_x = fast_overlap->x;
+
+					const int32_t src_row_y = abs_row_y - window.client_y();
+					const int32_t src_row_x = abs_row_x - window.client_x();
+
+					auto* window_row = &window.framebuffer()[src_row_y * window.client_width() + src_row_x];
+					auto* frameb_row = &m_framebuffer.mmap[  abs_row_y * m_framebuffer.width   + abs_row_x];
+
+					for (int32_t i = 0; i < fast_overlap->width; i++)
+					{
+						const uint32_t color_a = *window_row;
+						const uint32_t color_b = *frameb_row;
+						*frameb_row = alpha_blend(color_a, color_b);
+
+						window_row++;
+						frameb_row++;
+					}
+				}
+			}
+
+			for (const auto& corner_area : corner_areas)
+			{
+				auto corner_overlap = client_overlap->get_overlap(corner_area);
+				if (!corner_overlap.has_value())
+					continue;
+				for (int32_t y_off = 0; y_off < corner_overlap->height; y_off++)
+				{
+					for (int32_t x_off = 0; x_off < corner_overlap->width; x_off++)
+					{
+						const int32_t abs_x = corner_overlap->x + x_off;
+						const int32_t abs_y = corner_overlap->y + y_off;
+						if (is_rounded_off({ abs_x, abs_y }))
+							continue;
+
+						const int32_t src_x = abs_x - window.client_x();
+						const int32_t src_y = abs_y - window.client_y();
+
+						const uint32_t color_a = window.framebuffer()[src_y * window.client_width() + src_x];
+						const uint32_t color_b = m_framebuffer.mmap[abs_y * m_framebuffer.width + abs_x];
+
+						m_framebuffer.mmap[abs_y * m_framebuffer.width + abs_x] = alpha_blend(color_a, color_b);
+					}
+				}
 			}
 		}
 	}
