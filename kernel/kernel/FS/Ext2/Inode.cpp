@@ -343,7 +343,9 @@ done:
 				{
 					dirp->d_ino = entry.inode;
 					dirp->d_type = entry.file_type;
-					strncpy(dirp->d_name, entry.name, entry.name_len);
+					const size_t name_len = BAN::Math::min<size_t>(entry.name_len, sizeof(dirp->d_name) - 1);
+					strncpy(dirp->d_name, entry.name, name_len);
+					dirp->d_name[name_len] = '\0';
 					dirp++;
 				}
 				entry_span = entry_span.slice(entry.rec_len);
