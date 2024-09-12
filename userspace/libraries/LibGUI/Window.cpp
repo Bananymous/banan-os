@@ -28,7 +28,7 @@ namespace LibGUI
 			return BAN::Error::from_errno(EINVAL);
 
 		BAN::Vector<uint32_t> framebuffer;
-		TRY(framebuffer.resize(width * height));
+		TRY(framebuffer.resize(width * height, 0xFF000000));
 
 		int server_fd = socket(AF_UNIX, SOCK_SEQPACKET, 0);
 		if (server_fd == -1)

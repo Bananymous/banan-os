@@ -10,7 +10,7 @@ void randomize_color(BAN::UniqPtr<LibGUI::Window>& window)
 	uint32_t color = ((rand() % 255) << 16) | ((rand() % 255) << 8) | ((rand() % 255) << 0);
 	for (uint32_t y = 0; y < window->height(); y++)
 		for (uint32_t x = 0; x < window->width(); x++)
-			window->set_pixel(x, y, color);
+			window->set_pixel(x, y, 0xFF000000 | color);
 	window->invalidate();
 }
 
