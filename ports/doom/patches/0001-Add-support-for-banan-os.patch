@@ -168,7 +168,7 @@ index 0000000..9161771
 +{
 +	for (size_t y = 0; y < DOOMGENERIC_RESY; y++)
 +		for (size_t x = 0; x < DOOMGENERIC_RESX; x++)
-+			s_window->set_pixel(x, y, DG_ScreenBuffer[y * DOOMGENERIC_RESX + x]);
++			s_window->set_pixel(x, y, 0xFF000000 | DG_ScreenBuffer[y * DOOMGENERIC_RESX + x]);
 +	s_window->invalidate();
 +	s_window->poll_events();
 +}
