@@ -6,7 +6,7 @@
 namespace Kernel
 {
 
-	bool Inode::can_access(const Credentials& credentials, int flags)
+	bool Inode::can_access(const Credentials& credentials, int flags) const
 	{
 		if (credentials.is_superuser())
 			return true;

@@ -64,7 +64,7 @@ namespace Kernel
 	public:
 		virtual ~Inode() {}
 
-		bool can_access(const Credentials&, int);
+		bool can_access(const Credentials&, int) const;
 
 		bool operator==(const Inode& other) const { return dev() == other.dev() && ino() == other.ino(); }
 
