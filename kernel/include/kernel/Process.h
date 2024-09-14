@@ -103,8 +103,8 @@ namespace Kernel
 
 		BAN::ErrorOr<long> open_inode(VirtualFileSystem::File&&, int flags);
 
-		BAN::ErrorOr<void> create_file_or_dir(BAN::StringView name, mode_t mode);
-		BAN::ErrorOr<long> open_file(BAN::StringView path, int oflag, mode_t = 0);
+		BAN::ErrorOr<void> create_file_or_dir(const VirtualFileSystem::File& parent, BAN::StringView path, mode_t mode) const;
+		BAN::ErrorOr<long> open_file_impl(const VirtualFileSystem::File& parent, BAN::StringView path, int oflag, mode_t = 0);
 		BAN::ErrorOr<long> sys_open(const char* path, int, mode_t);
 		BAN::ErrorOr<long> sys_openat(int, const char* path, int, mode_t);
 		BAN::ErrorOr<long> sys_close(int fd);
@@ -114,7 +114,7 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_create(const char*, mode_t);
 		BAN::ErrorOr<long> sys_create_dir(const char*, mode_t);
 		BAN::ErrorOr<long> sys_unlink(const char*);
-		BAN::ErrorOr<long> readlink_impl(BAN::StringView absolute_path, char* buffer, size_t bufsize);
+		BAN::ErrorOr<long> readlink_impl(BAN::RefPtr<Inode>, char* buffer, size_t bufsize);
 		BAN::ErrorOr<long> sys_readlink(const char* path, char* buffer, size_t bufsize);
 		BAN::ErrorOr<long> sys_readlinkat(int fd, const char* path, char* buffer, size_t bufsize);
 
@@ -217,12 +217,11 @@ namespace Kernel
 		// ONLY CALLED BY TIMER INTERRUPT
 		static void update_alarm_queue();
 
+		const VirtualFileSystem::File& working_directory() const { return m_working_directory; }
+
 	private:
 		Process(const Credentials&, pid_t pid, pid_t parent, pid_t sid, pid_t pgrp);
 		static Process* create_process(const Credentials&, pid_t parent, pid_t sid = 0, pid_t pgrp = 0);
-
-		// Load elf from a file
-		static BAN::ErrorOr<BAN::UniqPtr<LibELF::LoadableELF>> load_elf_for_exec(const Credentials&, BAN::StringView file_path, const BAN::String& cwd, Kernel::PageTable&);
 
 		BAN::ErrorOr<void> validate_string_access(const char*);
 		BAN::ErrorOr<void> validate_pointer_access_check(const void*, size_t, bool needs_write);
@@ -280,7 +279,8 @@ namespace Kernel
 
 		mutable Mutex m_process_lock;
 
-		BAN::String m_working_directory;
+		VirtualFileSystem::File m_working_directory;
+
 		BAN::Vector<Thread*> m_threads;
 
 		uint64_t m_alarm_interval_ns { 0 };

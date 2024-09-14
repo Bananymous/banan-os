@@ -47,9 +47,22 @@ namespace Kernel
 				return *this;
 			}
 
+			BAN::ErrorOr<File> clone() const
+			{
+				File result;
+				result.inode = inode;
+				TRY(result.canonical_path.append(canonical_path));
+				return BAN::move(result);
+			}
+
 			BAN::RefPtr<Inode> inode;
 			BAN::String canonical_path;
 		};
+
+		File root_file()
+		{
+			return File(root_inode(), "/"_sv);
+		}
 
 		BAN::ErrorOr<File> file_from_relative_path(const File& parent, const Credentials&, BAN::StringView, int);
 		BAN::ErrorOr<File> file_from_absolute_path(const Credentials& credentials, BAN::StringView path, int flags)

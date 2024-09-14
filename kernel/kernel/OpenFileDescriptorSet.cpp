@@ -265,60 +265,6 @@ namespace Kernel
 		return m_open_files[fd]->inode()->truncate(length);
 	}
 
-	static void read_stat_from_inode(BAN::RefPtr<Inode> inode, struct stat* out)
-	{
-		out->st_dev		= inode->dev();
-		out->st_ino		= inode->ino();
-		out->st_mode	= inode->mode().mode;
-		out->st_nlink	= inode->nlink();
-		out->st_uid		= inode->uid();
-		out->st_gid		= inode->gid();
-		out->st_rdev	= inode->rdev();
-		out->st_size	= inode->size();
-		out->st_atim	= inode->atime();
-		out->st_mtim	= inode->mtime();
-		out->st_ctim	= inode->ctime();
-		out->st_blksize	= inode->blksize();
-		out->st_blocks	= inode->blocks();
-	}
-
-	BAN::ErrorOr<void> OpenFileDescriptorSet::fstat(int fd, struct stat* out) const
-	{
-		TRY(validate_fd(fd));
-		read_stat_from_inode(m_open_files[fd]->inode(), out);
-		return {};
-	}
-
-	BAN::ErrorOr<void> OpenFileDescriptorSet::fstatat(int fd, BAN::StringView path, struct stat* out, int flag)
-	{
-		if (flag & ~AT_SYMLINK_NOFOLLOW)
-			return BAN::Error::from_errno(EINVAL);
-		if (flag == AT_SYMLINK_NOFOLLOW)
-			flag = O_NOFOLLOW;
-
-		BAN::String absolute_path;
-		TRY(absolute_path.append(TRY(path_of(fd))));
-		TRY(absolute_path.push_back('/'));
-		TRY(absolute_path.append(path));
-
-		// FIXME: handle O_SEARCH in fd
-		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, flag));
-		read_stat_from_inode(file.inode, out);
-
-		return {};
-	}
-
-	BAN::ErrorOr<void> OpenFileDescriptorSet::stat(BAN::StringView absolute_path, struct stat* out, int flag)
-	{
-		if (flag & ~AT_SYMLINK_NOFOLLOW)
-			return BAN::Error::from_errno(EINVAL);
-		if (flag == AT_SYMLINK_NOFOLLOW)
-			flag = O_NOFOLLOW;
-		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, flag));
-		read_stat_from_inode(file.inode, out);
-		return {};
-	}
-
 	BAN::ErrorOr<void> OpenFileDescriptorSet::close(int fd)
 	{
 		TRY(validate_fd(fd));
@@ -384,10 +330,10 @@ namespace Kernel
 		return TRY(open_file->inode()->list_next_inodes(open_file->offset++, list, list_len));
 	}
 
-	BAN::ErrorOr<const VirtualFileSystem::File&> OpenFileDescriptorSet::file_of(int fd) const
+	BAN::ErrorOr<VirtualFileSystem::File> OpenFileDescriptorSet::file_of(int fd) const
 	{
 		TRY(validate_fd(fd));
-		return m_open_files[fd]->file;
+		return TRY(m_open_files[fd]->file.clone());
 	}
 
 	BAN::ErrorOr<BAN::StringView> OpenFileDescriptorSet::path_of(int fd) const

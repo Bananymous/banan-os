@@ -39,10 +39,6 @@ namespace Kernel
 
 		BAN::ErrorOr<void> truncate(int fd, off_t length);
 
-		BAN::ErrorOr<void> fstat(int fd, struct stat*) const;
-		BAN::ErrorOr<void> fstatat(int fd, BAN::StringView path, struct stat* buf, int flag);
-		BAN::ErrorOr<void> stat(BAN::StringView absolute_path, struct stat* buf, int flag);
-
 		BAN::ErrorOr<void> close(int);
 		void close_all();
 		void close_cloexec();
@@ -52,7 +48,7 @@ namespace Kernel
 
 		BAN::ErrorOr<size_t> read_dir_entries(int fd, struct dirent* list, size_t list_len);
 
-		BAN::ErrorOr<const VirtualFileSystem::File&> file_of(int) const;
+		BAN::ErrorOr<VirtualFileSystem::File> file_of(int) const;
 		BAN::ErrorOr<BAN::StringView> path_of(int) const;
 		BAN::ErrorOr<BAN::RefPtr<Inode>> inode_of(int);
 		BAN::ErrorOr<int> flags_of(int) const;

@@ -200,16 +200,24 @@ namespace Kernel
 		if (sockaddr_un.sun_family != AF_UNIX)
 			return BAN::Error::from_errno(EAFNOSUPPORT);
 
-		auto absolute_path = TRY(Process::current().absolute_path_of(sockaddr_un.sun_path));
-		if (auto ret = Process::current().create_file_or_dir(absolute_path, 0755 | S_IFSOCK); ret.is_error())
+		auto bind_path = BAN::StringView(sockaddr_un.sun_path);
+		if (bind_path.empty())
+			return BAN::Error::from_errno(EINVAL);
+
+		// FIXME: This feels sketchy
+		auto parent_file = bind_path.front() == '/'
+			? VirtualFileSystem::get().root_file()
+			: TRY(Process::current().working_directory().clone());
+		if (auto ret = Process::current().create_file_or_dir(parent_file, bind_path, 0755 | S_IFSOCK); ret.is_error())
 		{
 			if (ret.error().get_error_code() == EEXIST)
 				return BAN::Error::from_errno(EADDRINUSE);
 			return ret.release_error();
 		}
-		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(
+		auto file = TRY(VirtualFileSystem::get().file_from_relative_path(
+			parent_file,
 			Process::current().credentials(),
-			absolute_path,
+			bind_path,
 			O_RDWR
 		));
 

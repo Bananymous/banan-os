@@ -96,14 +96,12 @@ namespace Kernel
 	Process* Process::create_kernel()
 	{
 		auto* process = create_process({ 0, 0, 0, 0 }, 0);
-		MUST(process->m_working_directory.push_back('/'));
 		return process;
 	}
 
 	Process* Process::create_kernel(entry_t entry, void* data)
 	{
 		auto* process = create_process({ 0, 0, 0, 0 }, 0);
-		MUST(process->m_working_directory.push_back('/'));
 		auto* thread = MUST(Thread::create_kernel(entry, data, process));
 		process->add_thread(thread);
 		process->register_to_scheduler();
@@ -115,13 +113,15 @@ namespace Kernel
 		auto* process = create_process(credentials, 0);
 		TRY(process->m_credentials.initialize_supplementary_groups());
 
-		MUST(process->m_working_directory.push_back('/'));
+		process->m_working_directory = VirtualFileSystem::get().root_file();
 		process->m_page_table = BAN::UniqPtr<PageTable>::adopt(MUST(PageTable::create_userspace()));
 
 		TRY(process->m_cmdline.push_back({}));
 		TRY(process->m_cmdline.back().append(path));
 
-		process->m_loadable_elf = TRY(load_elf_for_exec(credentials, path, "/"_sv, process->page_table()));
+		auto absolute_path = TRY(process->absolute_path_of(path));
+		auto executable_inode = TRY(VirtualFileSystem::get().file_from_absolute_path(process->m_credentials, absolute_path, O_EXEC)).inode;
+		process->m_loadable_elf = TRY(LibELF::LoadableELF::load_from_inode(process->page_table(), process->m_credentials, executable_inode));
 		if (!process->m_loadable_elf->is_address_space_free())
 		{
 			dprintln("Could not load ELF address space");
@@ -394,26 +394,6 @@ namespace Kernel
 		return 0;
 	}
 
-	BAN::ErrorOr<BAN::UniqPtr<LibELF::LoadableELF>> Process::load_elf_for_exec(const Credentials& credentials, BAN::StringView file_path, const BAN::String& cwd, PageTable& page_table)
-	{
-		if (file_path.empty())
-			return BAN::Error::from_errno(ENOENT);
-
-		BAN::String absolute_path;
-
-		if (file_path.front() == '/')
-			TRY(absolute_path.append(file_path));
-		else
-		{
-			TRY(absolute_path.append(cwd));
-			TRY(absolute_path.push_back('/'));
-			TRY(absolute_path.append(file_path));
-		}
-
-		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(credentials, absolute_path, O_EXEC));
-		return TRY(LibELF::LoadableELF::load_from_inode(page_table, credentials, file.inode));
-	}
-
 	BAN::ErrorOr<long> Process::sys_fork(uintptr_t sp, uintptr_t ip)
 	{
 		auto page_table = BAN::UniqPtr<PageTable>::adopt(TRY(PageTable::create_userspace()));
@@ -434,8 +414,7 @@ namespace Kernel
 			child_exit_status = &m_child_exit_statuses.back();
 		}
 
-		BAN::String working_directory;
-		TRY(working_directory.append(m_working_directory));
+		auto working_directory = TRY(m_working_directory.clone());
 
 		OpenFileDescriptorSet open_file_descriptors(m_credentials);
 		TRY(open_file_descriptors.clone_from(m_open_file_descriptors));
@@ -479,7 +458,10 @@ namespace Kernel
 			LockGuard _(m_process_lock);
 
 			TRY(validate_string_access(path));
-			auto loadable_elf = TRY(load_elf_for_exec(m_credentials, path, m_working_directory, page_table()));
+
+			auto absolute_path = TRY(absolute_path_of(path));
+			auto executable_inode = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, O_EXEC)).inode;
+			auto loadable_elf = TRY(LibELF::LoadableELF::load_from_inode(page_table(), m_credentials, executable_inode));
 
 			BAN::Vector<BAN::String> str_argv;
 			for (int i = 0; argv && argv[i]; i++)
@@ -809,7 +791,7 @@ namespace Kernel
 		}
 	}
 
-	BAN::ErrorOr<void> Process::create_file_or_dir(BAN::StringView path, mode_t mode)
+	BAN::ErrorOr<void> Process::create_file_or_dir(const VirtualFileSystem::File& parent, BAN::StringView path, mode_t mode) const
 	{
 		switch (mode & Inode::Mode::TYPE_MASK)
 		{
@@ -821,22 +803,19 @@ namespace Kernel
 				return BAN::Error::from_errno(ENOTSUP);
 		}
 
-		LockGuard _(m_process_lock);
+		BAN::RefPtr<Inode> parent_inode;
+		BAN::StringView file_name;
 
-		auto absolute_path = TRY(absolute_path_of(path));
-
-		size_t index;
-		for (index = absolute_path.size(); index > 0; index--)
-			if (absolute_path[index - 1] == '/')
-				break;
-
-		auto directory = absolute_path.sv().substring(0, index);
-		auto file_name = absolute_path.sv().substring(index);
-
-		auto parent_inode = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, directory, O_EXEC | O_WRONLY)).inode;
-
-		if (auto ret = parent_inode->find_inode(file_name); !ret.is_error())
-			return BAN::Error::from_errno(EEXIST);
+		if (auto index = path.rfind('/'); index.has_value())
+		{
+			parent_inode = TRY(VirtualFileSystem::get().file_from_relative_path(parent, m_credentials, path.substring(0, index.value()), O_EXEC | O_WRONLY)).inode;
+			file_name = path.substring(index.value() + 1);
+		}
+		else
+		{
+			parent_inode = parent.inode;
+			file_name = path;
+		}
 
 		if (Inode::Mode(mode).ifdir())
 			TRY(parent_inode->create_directory(file_name, mode, m_credentials.euid(), parent_inode->gid()));
@@ -882,16 +861,14 @@ namespace Kernel
 		return TRY(m_open_file_descriptors.open(BAN::move(file), flags));
 	}
 
-	BAN::ErrorOr<long> Process::open_file(BAN::StringView path, int flags, mode_t mode)
+	BAN::ErrorOr<long> Process::open_file_impl(const VirtualFileSystem::File& parent, BAN::StringView path, int flags, mode_t mode)
 	{
 		if ((flags & (O_DIRECTORY | O_CREAT)) == (O_DIRECTORY | O_CREAT))
 			return BAN::Error::from_errno(EINVAL);
 
 		LockGuard _(m_process_lock);
 
-		BAN::String absolute_path = TRY(absolute_path_of(path));
-
-		auto file_or_error = VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, flags | O_NOFOLLOW);
+		auto file_or_error = VirtualFileSystem::get().file_from_relative_path(parent, m_credentials, path, flags | O_NOFOLLOW);
 
 		VirtualFileSystem::File file;
 		if (file_or_error.is_error())
@@ -899,9 +876,9 @@ namespace Kernel
 			if (!(flags & O_CREAT) || file_or_error.error().get_error_code() != ENOENT)
 				return file_or_error.release_error();
 
-			// FIXME: There is a race condition between these lines
-			TRY(create_file_or_dir(absolute_path, (mode & 0777) | Inode::Mode::IFREG));
-			file = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, flags));
+			// FIXME: There is a race condition between next two lines
+			TRY(create_file_or_dir(parent, path, (mode & 0777) | Inode::Mode::IFREG));
+			file = TRY(VirtualFileSystem::get().file_from_relative_path(parent, m_credentials, path, flags));
 		}
 		else
 		{
@@ -914,7 +891,7 @@ namespace Kernel
 			if (!file.inode->mode().ifdir() && (flags & O_DIRECTORY))
 				return BAN::Error::from_errno(ENOTDIR);
 			if (file.inode->mode().iflnk() && !(flags & O_NOFOLLOW))
-				file = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, flags));
+				file = TRY(VirtualFileSystem::get().file_from_relative_path(parent, m_credentials, path, flags));
 		}
 
 		auto inode = file.inode;
@@ -933,7 +910,9 @@ namespace Kernel
 	{
 		LockGuard _(m_process_lock);
 		TRY(validate_string_access(path));
-		return open_file(path, flags, mode);
+		if (path[0] == '/')
+			return open_file_impl(VirtualFileSystem::get().root_file(), path, flags, mode);
+		return open_file_impl(m_working_directory, path, flags, mode);
 	}
 
 	BAN::ErrorOr<long> Process::sys_openat(int fd, const char* path, int flags, mode_t mode)
@@ -942,10 +921,9 @@ namespace Kernel
 
 		TRY(validate_string_access(path));
 
-		BAN::String absolute_path;
-
+		VirtualFileSystem::File parent_file;
 		if (fd == AT_FDCWD)
-			TRY(absolute_path.append(m_working_directory));
+			parent_file = TRY(m_working_directory.clone());
 		else if (path[0] != '/')
 		{
 			int flags = TRY(m_open_file_descriptors.flags_of(fd));
@@ -953,12 +931,10 @@ namespace Kernel
 				return BAN::Error::from_errno(EBADF);
 			if (!TRY(m_open_file_descriptors.inode_of(fd))->mode().ifdir())
 				return BAN::Error::from_errno(ENOTDIR);
-			TRY(absolute_path.append(TRY(m_open_file_descriptors.path_of(fd))));
+			parent_file = TRY(m_open_file_descriptors.file_of(fd));
 		}
-		TRY(absolute_path.push_back('/'));
-		TRY(absolute_path.append(path));
 
-		return open_file(absolute_path, flags, mode);
+		return open_file_impl(parent_file, path, flags, mode);
 	}
 
 	BAN::ErrorOr<long> Process::sys_close(int fd)
@@ -1012,7 +988,7 @@ namespace Kernel
 	{
 		LockGuard _(m_process_lock);
 		TRY(validate_string_access(path));
-		TRY(create_file_or_dir(path, mode));
+		TRY(create_file_or_dir(VirtualFileSystem::get().root_file(), path, mode));
 		return 0;
 	}
 
@@ -1023,7 +999,7 @@ namespace Kernel
 		BAN::StringView path_sv(path);
 		if (!path_sv.empty() && path_sv.back() == '/')
 			path_sv = path_sv.substring(0, path_sv.size() - 1);
-		TRY(create_file_or_dir(path_sv, Inode::Mode::IFDIR | mode));
+		TRY(create_file_or_dir(VirtualFileSystem::get().root_file(), path_sv, Inode::Mode::IFDIR | mode));
 		return 0;
 	}
 
@@ -1047,10 +1023,8 @@ namespace Kernel
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::readlink_impl(BAN::StringView absolute_path, char* buffer, size_t bufsize)
+	BAN::ErrorOr<long> Process::readlink_impl(BAN::RefPtr<Inode> inode, char* buffer, size_t bufsize)
 	{
-		auto inode = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, O_NOFOLLOW | O_RDONLY)).inode;
-
 		// FIXME: no allocation needed
 		auto link_target = TRY(inode->link_target());
 
@@ -1067,8 +1041,8 @@ namespace Kernel
 		TRY(validate_pointer_access(buffer, bufsize, true));
 
 		auto absolute_path = TRY(absolute_path_of(path));
-
-		return readlink_impl(absolute_path.sv(), buffer, bufsize);
+		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, O_NOFOLLOW | O_RDONLY));
+		return readlink_impl(file.inode, buffer, bufsize);
 	}
 
 	BAN::ErrorOr<long> Process::sys_readlinkat(int fd, const char* path, char* buffer, size_t bufsize)
@@ -1077,15 +1051,9 @@ namespace Kernel
 		TRY(validate_string_access(path));
 		TRY(validate_pointer_access(buffer, bufsize, true));
 
-		// FIXME: handle O_SEARCH in fd
-		auto parent_path = TRY(m_open_file_descriptors.path_of(fd));
-
-		BAN::String absolute_path;
-		TRY(absolute_path.append(parent_path));
-		TRY(absolute_path.push_back('/'));
-		TRY(absolute_path.append(path));
-
-		return readlink_impl(absolute_path.sv(), buffer, bufsize);
+		auto parent_file = TRY(m_open_file_descriptors.file_of(fd));
+		auto file = TRY(VirtualFileSystem::get().file_from_relative_path(parent_file, m_credentials, path, O_NOFOLLOW | O_RDONLY));
+		return readlink_impl(file.inode, buffer, bufsize);
 	}
 
 	BAN::ErrorOr<long> Process::sys_pread(int fd, void* buffer, size_t count, off_t offset)
@@ -1461,27 +1429,62 @@ namespace Kernel
 		return {};
 	}
 
+	static void read_stat_from_inode(BAN::RefPtr<Inode> inode, struct stat* out)
+	{
+		out->st_dev		= inode->dev();
+		out->st_ino		= inode->ino();
+		out->st_mode	= inode->mode().mode;
+		out->st_nlink	= inode->nlink();
+		out->st_uid		= inode->uid();
+		out->st_gid		= inode->gid();
+		out->st_rdev	= inode->rdev();
+		out->st_size	= inode->size();
+		out->st_atim	= inode->atime();
+		out->st_mtim	= inode->mtime();
+		out->st_ctim	= inode->ctime();
+		out->st_blksize	= inode->blksize();
+		out->st_blocks	= inode->blocks();
+	}
+
 	BAN::ErrorOr<long> Process::sys_fstat(int fd, struct stat* buf)
 	{
 		LockGuard _(m_process_lock);
 		TRY(validate_pointer_access(buf, sizeof(struct stat), true));
-		TRY(m_open_file_descriptors.fstat(fd, buf));
+
+		auto inode = TRY(m_open_file_descriptors.inode_of(fd));
+		read_stat_from_inode(inode, buf);
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_fstatat(int fd, const char* path, struct stat* buf, int flag)
+	BAN::ErrorOr<long> Process::sys_fstatat(int fd, const char* path, struct stat* buf, int flags)
 	{
+		if (flags & ~AT_SYMLINK_NOFOLLOW)
+			return BAN::Error::from_errno(EINVAL);
+		if (flags == AT_SYMLINK_NOFOLLOW)
+			flags = O_NOFOLLOW;
+
 		LockGuard _(m_process_lock);
 		TRY(validate_pointer_access(buf, sizeof(struct stat), true));
-		TRY(m_open_file_descriptors.fstatat(fd, path, buf, flag));
+
+		auto parent_file = TRY(m_open_file_descriptors.file_of(fd));
+		auto inode = TRY(VirtualFileSystem::get().file_from_relative_path(parent_file, m_credentials, path, flags)).inode;
+		read_stat_from_inode(inode, buf);
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_stat(const char* path, struct stat* buf, int flag)
+	BAN::ErrorOr<long> Process::sys_stat(const char* path, struct stat* buf, int flags)
 	{
+		if (flags & ~AT_SYMLINK_NOFOLLOW)
+			return BAN::Error::from_errno(EINVAL);
+		if (flags == AT_SYMLINK_NOFOLLOW)
+			flags = O_NOFOLLOW;
+
 		LockGuard _(m_process_lock);
 		TRY(validate_pointer_access(buf, sizeof(struct stat), true));
-		TRY(m_open_file_descriptors.stat(TRY(absolute_path_of(path)), buf, flag));
+
+		auto absolute_path = TRY(absolute_path_of(path));
+		auto inode = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, flags)).inode;
+		read_stat_from_inode(inode, buf);
 		return 0;
 	}
 
@@ -1561,7 +1564,7 @@ namespace Kernel
 			return BAN::Error::from_errno(ENOTDIR);
 
 		LockGuard _(m_process_lock);
-		m_working_directory = BAN::move(file.canonical_path);
+		m_working_directory = BAN::move(file);
 
 		return 0;
 	}
@@ -1572,11 +1575,11 @@ namespace Kernel
 
 		TRY(validate_pointer_access(buffer, size, true));
 
-		if (size < m_working_directory.size() + 1)
+		if (size < m_working_directory.canonical_path.size() + 1)
 			return BAN::Error::from_errno(ERANGE);
 
-		memcpy(buffer, m_working_directory.data(), m_working_directory.size());
-		buffer[m_working_directory.size()] = '\0';
+		memcpy(buffer, m_working_directory.canonical_path.data(), m_working_directory.canonical_path.size());
+		buffer[m_working_directory.canonical_path.size()] = '\0';
 
 		return (long)buffer;
 	}
@@ -2332,11 +2335,11 @@ namespace Kernel
 		LockGuard _(m_process_lock);
 
 		if (path.empty() || path == "."_sv)
-			return m_working_directory;
+			return m_working_directory.canonical_path;
 
 		BAN::String absolute_path;
 		if (path.front() != '/')
-			TRY(absolute_path.append(m_working_directory));
+			TRY(absolute_path.append(m_working_directory.canonical_path));
 
 		if (!absolute_path.empty() && absolute_path.back() != '/')
 			TRY(absolute_path.push_back('/'));
