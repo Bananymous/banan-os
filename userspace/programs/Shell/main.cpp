@@ -892,6 +892,16 @@ int main(int argc, char** argv)
 			putchar('\n');
 			clean_exit(0);
 			break;
+		case '\x7F': // delete
+			if (col < buffers[index].size())
+			{
+				buffers[index].remove(col);
+				while (col < buffers[index].size() && (buffers[index][col] & 0xC0) == 0x80)
+					buffers[index].remove(col);
+				printf("\e[s%s \e[u", buffers[index].data() + col);
+				fflush(stdout);
+			}
+			break;
 		case '\n':
 			putchar('\n');
 			if (!buffers[index].empty())

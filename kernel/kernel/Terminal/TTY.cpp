@@ -222,6 +222,9 @@ namespace Kernel
 				case LibInput::Key::Escape:
 					ansi_c_str = "\e";
 					break;
+				case LibInput::Key::Delete:
+					ansi_c_str = "\x7F";
+					break;
 				case LibInput::Key::ArrowUp:
 					ansi_c_str = "\e[A";
 					break;
