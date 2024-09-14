@@ -4,8 +4,6 @@
 #include <BAN/Vector.h>
 
 #include <ctype.h>
-#include <inttypes.h>
-#include <math.h>
 #include <pwd.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -735,7 +733,7 @@ int prompt_length()
 void print_prompt()
 {
 	auto prompt = get_prompt();
-	fprintf(stdout, "%.*s", (int)prompt.size(), prompt.data());
+	printf("%.*s", (int)prompt.size(), prompt.data());
 	fflush(stdout);
 }
 
@@ -807,7 +805,7 @@ int main(int argc, char** argv)
 			buffers = history;
 			MUST(buffers.emplace_back(""_sv));
 			col = 0;
-			printf("\n");
+			putchar('\n');
 			print_prompt();
 			continue;
 		}
@@ -820,11 +818,11 @@ int main(int argc, char** argv)
 
 			ASSERT((ch & 0xC0) == 0x80);
 
-			fputc(ch, stdout);
+			putchar(ch);
 			MUST(buffers[index].insert(ch, col++));
 			if (waiting_utf8 == 0)
 			{
-				fprintf(stdout, "\e[s%s\e[u", buffers[index].data() + col);
+				printf("\e[s%s\e[u", buffers[index].data() + col);
 				fflush(stdout);
 			}
 			continue;
@@ -840,7 +838,7 @@ int main(int argc, char** argv)
 			else
 				ASSERT_NOT_REACHED();
 
-			fputc(ch, stdout);
+			putchar(ch);
 			MUST(buffers[index].insert(ch, col++));
 			continue;
 		}
@@ -854,18 +852,18 @@ int main(int argc, char** argv)
 			ch = getchar();
 			switch (ch)
 			{
-				case 'A': if (index > 0)					{ index--; col = buffers[index].size(); fprintf(stdout, "\e[%dG%s\e[K", prompt_length() + 1, buffers[index].data()); fflush(stdout); } break;
-				case 'B': if (index < buffers.size() - 1)	{ index++; col = buffers[index].size(); fprintf(stdout, "\e[%dG%s\e[K", prompt_length() + 1, buffers[index].data()); fflush(stdout); } break;
-				case 'C': if (col < buffers[index].size())	{ col++; while ((buffers[index][col - 1] & 0xC0) == 0x80) col++; fprintf(stdout, "\e[C"); fflush(stdout); } break;
-				case 'D': if (col > 0)						{ while ((buffers[index][col - 1] & 0xC0) == 0x80) col--; col--; fprintf(stdout, "\e[D"); fflush(stdout); } break;
+				case 'A': if (index > 0)					{ index--; col = buffers[index].size(); printf("\e[%dG%s\e[K", prompt_length() + 1, buffers[index].data()); fflush(stdout); } break;
+				case 'B': if (index < buffers.size() - 1)	{ index++; col = buffers[index].size(); printf("\e[%dG%s\e[K", prompt_length() + 1, buffers[index].data()); fflush(stdout); } break;
+				case 'C': if (col < buffers[index].size())	{ col++; while ((buffers[index][col - 1] & 0xC0) == 0x80) col++; printf("\e[C"); fflush(stdout); } break;
+				case 'D': if (col > 0)						{ while ((buffers[index][col - 1] & 0xC0) == 0x80) col--; col--; printf("\e[D"); fflush(stdout); } break;
 			}
 			break;
 		case '\x0C': // ^L
 		{
 			int x = prompt_length() + character_length(buffers[index].sv().substring(col)) + 1;
-			fprintf(stdout, "\e[H\e[J");
+			printf("\e[H\e[J");
 			print_prompt();
-			fprintf(stdout, "%s\e[u\e[1;%dH", buffers[index].data(), x);
+			printf("%s\e[u\e[1;%dH", buffers[index].data(), x);
 			fflush(stdout);
 			break;
 		}
@@ -875,27 +873,27 @@ int main(int argc, char** argv)
 				while ((buffers[index][col - 1] & 0xC0) == 0x80)
 					buffers[index].remove(--col);
 				buffers[index].remove(--col);
-				fprintf(stdout, "\b\e[s%s \e[u", buffers[index].data() + col);
+				printf("\b\e[s%s \e[u", buffers[index].data() + col);
 				fflush(stdout);
 			}
 			break;
 		case '\x01': // ^A
 			col = 0;
-			fprintf(stdout, "\e[%dG", prompt_length() + 1);
+			printf("\e[%dG", prompt_length() + 1);
 			fflush(stdout);
 			break;
 		case '\x03': // ^C
-			fputc('\n', stdout);
+			putchar('\n');
 			print_prompt();
 			buffers[index].clear();
 			col = 0;
 			break;
 		case '\x04': // ^D
-			fprintf(stdout, "\n");
+			putchar('\n');
 			clean_exit(0);
 			break;
 		case '\n':
-			fputc('\n', stdout);
+			putchar('\n');
 			if (!buffers[index].empty())
 			{
 				last_return = parse_and_execute_command(buffers[index]);
@@ -913,9 +911,9 @@ int main(int argc, char** argv)
 		default:
 			MUST(buffers[index].insert(ch, col++));
 			if (col == buffers[index].size())
-				fputc(ch, stdout);
+				putchar(ch);
 			else
-				fprintf(stdout, "%c\e[s%s\e[u", ch, buffers[index].data() + col);
+				printf("%c\e[s%s\e[u", ch, buffers[index].data() + col);
 			fflush(stdout);
 			break;
 		}
