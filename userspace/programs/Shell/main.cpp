@@ -24,10 +24,10 @@ static int last_return = 0;
 
 static BAN::String hostname;
 
-static void clean_exit()
+static void clean_exit(int exit_code)
 {
 	tcsetattr(0, TCSANOW, &old_termios);
-	exit(0);
+	exit(exit_code);
 }
 
 BAN::Vector<BAN::Vector<BAN::String>> parse_command(BAN::StringView);
@@ -308,7 +308,7 @@ BAN::Optional<int> execute_builtin(BAN::Vector<BAN::String>& args, int fd_in, in
 	}
 	else if (args.front() == "exit"_sv)
 	{
-		clean_exit();
+		clean_exit(0);
 	}
 	else if (args.front() == "export"_sv)
 	{
@@ -978,13 +978,19 @@ int main(int argc, char** argv)
 		int chi = getchar();
 		if (chi == EOF)
 		{
-			if (errno == EINTR)
+			if (errno != EINTR)
 			{
-				clearerr(stdin);
-				continue;
+				perror("getchar");
+				clean_exit(1);
 			}
-			perror("getchar");
-			return 1;
+
+			clearerr(stdin);
+			buffers = history;
+			MUST(buffers.emplace_back(""_sv));
+			col = 0;
+			printf("\n");
+			print_prompt();
+			continue;
 		}
 
 		uint8_t ch = chi;
@@ -1067,7 +1073,7 @@ int main(int argc, char** argv)
 			break;
 		case '\x04': // ^D
 			fprintf(stdout, "\n");
-			clean_exit();
+			clean_exit(0);
 			break;
 		case '\n':
 			fputc('\n', stdout);
@@ -1096,5 +1102,5 @@ int main(int argc, char** argv)
 		}
 	}
 
-	clean_exit();
+	clean_exit(0);
 }
