@@ -7,6 +7,7 @@
 #include <BAN/New.h>
 #include <BAN/PlacementNew.h>
 #include <BAN/Span.h>
+#include <BAN/Swap.h>
 
 namespace BAN
 {
@@ -64,6 +65,8 @@ namespace BAN
 		T& back();
 		const T& front() const;
 		T& front();
+
+		void reverse();
 
 		ErrorOr<void> resize(size_type)				requires is_default_constructible_v<T>;
 		ErrorOr<void> resize(size_type, const T&)	requires is_copy_constructible_v<T>;
@@ -299,6 +302,13 @@ namespace BAN
 	{
 		ASSERT(m_size > 0);
 		return m_data[0];
+	}
+
+	template<typename T>
+	void Vector<T>::reverse()
+	{
+		for (size_type i = 0; i < m_size / 2; i++)
+			BAN::swap(m_data[i], m_data[m_size - i - 1]);
 	}
 
 	template<typename T>
