@@ -67,7 +67,7 @@ namespace Kernel
 		BAN::ErrorOr<File> file_from_relative_path(const File& parent, const Credentials&, BAN::StringView, int);
 		BAN::ErrorOr<File> file_from_absolute_path(const Credentials& credentials, BAN::StringView path, int flags)
 		{
-			return file_from_relative_path(File(root_inode()), credentials, path, flags);
+			return file_from_relative_path(root_file(), credentials, path, flags);
 		}
 
 	private:
