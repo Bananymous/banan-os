@@ -362,7 +362,7 @@ namespace Kernel
 	{
 		LockGuard _(m_process_lock);
 
-		TRY(validate_pointer_access(termios, sizeof(termios), true));
+		TRY(validate_pointer_access(termios, sizeof(struct termios), true));
 
 		auto inode = TRY(m_open_file_descriptors.inode_of(fildes));
 		if (!inode->is_tty())
@@ -381,7 +381,7 @@ namespace Kernel
 
 		LockGuard _(m_process_lock);
 
-		TRY(validate_pointer_access(termios, sizeof(termios), false));
+		TRY(validate_pointer_access(termios, sizeof(struct termios), false));
 
 		auto inode = TRY(m_open_file_descriptors.inode_of(fildes));
 		if (!inode->is_tty())
