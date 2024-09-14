@@ -104,7 +104,7 @@ namespace Kernel
 			strncpy(sockaddr_un.sun_path, pending->m_bound_path.data(), copy_len);
 		}
 
-		return TRY(Process::current().open_inode(return_inode, O_RDWR | flags));
+		return TRY(Process::current().open_inode(VirtualFileSystem::File(return_inode, "<unix socket>"_sv), O_RDWR | flags));
 	}
 
 	BAN::ErrorOr<void> UnixDomainSocket::connect_impl(const sockaddr* address, socklen_t address_len)

@@ -875,11 +875,11 @@ namespace Kernel
 		return false;
 	}
 
-	BAN::ErrorOr<long> Process::open_inode(BAN::RefPtr<Inode> inode, int flags)
+	BAN::ErrorOr<long> Process::open_inode(VirtualFileSystem::File&& file, int flags)
 	{
-		ASSERT(inode);
+		ASSERT(file.inode);
 		LockGuard _(m_process_lock);
-		return TRY(m_open_file_descriptors.open(VirtualFileSystem::File { .inode = inode, .canonical_path = {} }, flags));
+		return TRY(m_open_file_descriptors.open(BAN::move(file), flags));
 	}
 
 	BAN::ErrorOr<long> Process::open_file(BAN::StringView path, int flags, mode_t mode)

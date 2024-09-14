@@ -24,6 +24,29 @@ namespace Kernel
 
 		struct File
 		{
+			File() = default;
+			explicit File(BAN::RefPtr<Inode> inode)
+				: inode(BAN::move(inode))
+			{ }
+			explicit File(BAN::RefPtr<Inode> inode, BAN::String&& canonical_path)
+				: inode(BAN::move(inode))
+				, canonical_path(BAN::move(canonical_path))
+			{ }
+
+			File(const File&) = delete;
+			File(File&& other)
+				: inode(BAN::move(other.inode))
+				, canonical_path(BAN::move(other.canonical_path))
+			{ }
+
+			File& operator=(const File&) = delete;
+			File& operator=(File&& other)
+			{
+				inode = BAN::move(other.inode);
+				canonical_path = BAN::move(other.canonical_path);
+				return *this;
+			}
+
 			BAN::RefPtr<Inode> inode;
 			BAN::String canonical_path;
 		};
@@ -31,7 +54,7 @@ namespace Kernel
 		BAN::ErrorOr<File> file_from_relative_path(const File& parent, const Credentials&, BAN::StringView, int);
 		BAN::ErrorOr<File> file_from_absolute_path(const Credentials& credentials, BAN::StringView path, int flags)
 		{
-			return file_from_relative_path({ .inode = root_inode(), .canonical_path = {} }, credentials, path, flags);
+			return file_from_relative_path(File(root_inode()), credentials, path, flags);
 		}
 
 	private:
