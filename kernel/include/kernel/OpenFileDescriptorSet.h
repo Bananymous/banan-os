@@ -52,6 +52,7 @@ namespace Kernel
 
 		BAN::ErrorOr<size_t> read_dir_entries(int fd, struct dirent* list, size_t list_len);
 
+		BAN::ErrorOr<const VirtualFileSystem::File&> file_of(int) const;
 		BAN::ErrorOr<BAN::StringView> path_of(int) const;
 		BAN::ErrorOr<BAN::RefPtr<Inode>> inode_of(int);
 		BAN::ErrorOr<int> flags_of(int) const;
@@ -59,15 +60,16 @@ namespace Kernel
 	private:
 		struct OpenFileDescription : public BAN::RefCounted<OpenFileDescription>
 		{
-			OpenFileDescription(BAN::RefPtr<Inode> inode, BAN::String path, off_t offset, int flags)
-				: inode(inode)
-				, path(BAN::move(path))
+			OpenFileDescription(VirtualFileSystem::File file, off_t offset, int flags)
+				: file(BAN::move(file))
 				, offset(offset)
 				, flags(flags)
 			{ }
 
-			BAN::RefPtr<Inode> inode;
-			BAN::String path;
+			BAN::RefPtr<Inode> inode() const { return file.inode; }
+			BAN::StringView path() const { return file.canonical_path.sv(); }
+
+			VirtualFileSystem::File file;
 			off_t offset { 0 };
 			int flags { 0 };
 
