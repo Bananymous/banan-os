@@ -27,7 +27,12 @@ namespace Kernel
 			BAN::RefPtr<Inode> inode;
 			BAN::String canonical_path;
 		};
-		BAN::ErrorOr<File> file_from_absolute_path(const Credentials&, BAN::StringView, int);
+
+		BAN::ErrorOr<File> file_from_relative_path(const File& parent, const Credentials&, BAN::StringView, int);
+		BAN::ErrorOr<File> file_from_absolute_path(const Credentials& credentials, BAN::StringView path, int flags)
+		{
+			return file_from_relative_path({ .inode = root_inode(), .canonical_path = {} }, credentials, path, flags);
+		}
 
 	private:
 		VirtualFileSystem() = default;

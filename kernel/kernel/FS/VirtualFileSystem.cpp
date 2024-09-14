@@ -105,7 +105,7 @@ namespace Kernel
 			return BAN::Error::from_errno(ENOTDIR);
 
 		LockGuard _(m_mutex);
-		TRY(m_mount_points.push_back({ file_system, file  }));
+		TRY(m_mount_points.emplace_back(file_system, BAN::move(file)));
 		return {};
 	}
 
@@ -127,81 +127,91 @@ namespace Kernel
 		return nullptr;
 	}
 
-	BAN::ErrorOr<VirtualFileSystem::File> VirtualFileSystem::file_from_absolute_path(const Credentials& credentials, BAN::StringView path, int flags)
+	BAN::ErrorOr<VirtualFileSystem::File> VirtualFileSystem::file_from_relative_path(const File& parent, const Credentials& credentials, BAN::StringView path, int flags)
 	{
 		LockGuard _(m_mutex);
 
-		ASSERT(path.front() == '/');
-
-		auto inode = root_inode();
+		auto inode = parent.inode;
 		ASSERT(inode);
 
 		BAN::String canonical_path;
+		TRY(canonical_path.append(parent.canonical_path));
+		if (!canonical_path.empty() && canonical_path.back() == '/')
+			canonical_path.pop_back();
+		ASSERT(canonical_path.empty() || canonical_path.back() != '/');
 
 		BAN::Vector<BAN::String> path_parts;
 
-		{
-			auto temp = TRY(path.split('/'));
-			for (size_t i = 0; i < temp.size(); i++)
-				TRY(path_parts.emplace_back(temp[temp.size() - i - 1]));
-		}
+		const auto append_string_view_in_reverse =
+			[&path_parts](BAN::StringView path) -> BAN::ErrorOr<void>
+			{
+				auto split_path = TRY(path.split('/'));
+				split_path.reverse();
+				for (auto part : split_path)
+				{
+					TRY(path_parts.emplace_back());
+					TRY(path_parts.back().append(part));
+				}
+				return {};
+			};
+		TRY(append_string_view_in_reverse(path));
 
 		size_t link_depth = 0;
 
 		while (!path_parts.empty())
 		{
-			const auto& path_part = path_parts.back();
-			auto orig = inode;
-
-			if (path_part.empty() || path_part == "."_sv)
-			{
-
-			}
-			else if (path_part == ".."_sv)
-			{
-				if (auto* mount_point = mount_from_root_inode(inode))
-					inode = TRY(mount_point->host.inode->find_inode(".."_sv));
-				else
-					inode = TRY(inode->find_inode(".."_sv));
-
-				if (!canonical_path.empty())
-				{
-					ASSERT(canonical_path.front() == '/');
-					while (canonical_path.back() != '/')
-						canonical_path.pop_back();
-					canonical_path.pop_back();
-				}
-			}
-			else
-			{
-				if (!inode->can_access(credentials, O_SEARCH))
-					return BAN::Error::from_errno(EACCES);
-
-				inode = TRY(inode->find_inode(path_part));
-
-				if (auto* mount_point = mount_from_host_inode(inode))
-					inode = mount_point->target->root_inode();
-
-				TRY(canonical_path.push_back('/'));
-				TRY(canonical_path.append(path_part));
-			}
-
+			BAN::String path_part = BAN::move(path_parts.back());
 			path_parts.pop_back();
 
-			if (inode->mode().iflnk() && (!(flags & O_NOFOLLOW) || !path_parts.empty()))
+			if (path_part.empty() || path_part == "."_sv)
+				continue;
+
+			auto orig = inode;
+
+			// resolve file name
 			{
-				auto target = TRY(inode->link_target());
-				if (target.empty())
+				auto parent_inode = inode;
+				if (path_part == ".."_sv)
+					if (auto* mount_point = mount_from_root_inode(inode))
+						parent_inode = mount_point->host.inode;
+				if (!parent_inode->can_access(credentials, O_SEARCH))
+					return BAN::Error::from_errno(EACCES);
+				inode = TRY(parent_inode->find_inode(path_part));
+
+				if (path_part == ".."_sv)
+				{
+					if (!canonical_path.empty())
+					{
+						ASSERT(canonical_path.front() == '/');
+						while (canonical_path.back() != '/')
+							canonical_path.pop_back();
+						canonical_path.pop_back();
+					}
+				}
+				else
+				{
+					if (auto* mount_point = mount_from_host_inode(inode))
+						inode = mount_point->target->root_inode();
+					TRY(canonical_path.push_back('/'));
+					TRY(canonical_path.append(path_part));
+				}
+			}
+
+			if (!inode->mode().iflnk())
+				continue;
+			if ((flags & O_NOFOLLOW) && path_parts.empty())
+				continue;
+
+			// resolve symbolic links
+			{
+				auto link_target = TRY(inode->link_target());
+				if (link_target.empty())
 					return BAN::Error::from_errno(ENOENT);
 
-				if (target.front() == '/')
+				if (link_target.front() == '/')
 				{
 					inode = root_inode();
 					canonical_path.clear();
-
-					auto temp = TRY(target.sv().split('/'));
-					for (size_t i = 0; i < temp.size(); i++)
-						TRY(path_parts.emplace_back(temp[temp.size() - i - 1]));
 				}
 				else
 				{
@@ -210,11 +220,9 @@ namespace Kernel
 					while (canonical_path.back() != '/')
 						canonical_path.pop_back();
 					canonical_path.pop_back();
-
-					auto new_parts = TRY(target.sv().split('/'));
-					for (size_t i = 0; i < new_parts.size(); i++)
-						TRY(path_parts.emplace_back(new_parts[new_parts.size() - i - 1]));
 				}
+
+				TRY(append_string_view_in_reverse(link_target.sv()));
 
 				link_depth++;
 				if (link_depth > 100)
