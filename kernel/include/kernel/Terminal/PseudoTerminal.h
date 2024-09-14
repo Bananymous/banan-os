@@ -51,8 +51,6 @@ namespace Kernel
 	class PseudoTerminalSlave final : public TTY, public BAN::Weakable<PseudoTerminalSlave>
 	{
 	public:
-		static BAN::ErrorOr<BAN::RefPtr<PseudoTerminalSlave>> create(BAN::String&& name, mode_t, uid_t, gid_t);
-
 		BAN::StringView name() const override { return m_name; }
 
 		uint32_t height() const override { return m_height; }
@@ -64,16 +62,12 @@ namespace Kernel
 		void putchar_impl(uint8_t ch) override;
 
 	private:
-		PseudoTerminalSlave(BAN::UniqPtr<VirtualRange>, BAN::String&& name, mode_t, uid_t, gid_t);
+		PseudoTerminalSlave(BAN::String&& name, mode_t, uid_t, gid_t);
 
 	private:
 		BAN::String m_name;
 
 		BAN::WeakPtr<PseudoTerminalMaster> m_master;
-		BAN::UniqPtr<VirtualRange> m_buffer;
-		size_t m_buffer_tail { 0 };
-		size_t m_buffer_size { 0 };
-
 		uint32_t m_width { 0 };
 		uint32_t m_height { 0 };
 

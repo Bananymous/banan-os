@@ -20,14 +20,8 @@ namespace Kernel
 		));
 		auto pts_master = TRY(BAN::RefPtr<PseudoTerminalMaster>::create(BAN::move(pts_master_buffer), mode, uid, gid));
 
-		auto pts_slave_buffer = TRY(VirtualRange::create_to_vaddr_range(
-			PageTable::kernel(),
-			KERNEL_OFFSET, static_cast<vaddr_t>(-1),
-			16 * PAGE_SIZE,
-			PageTable::Flags::ReadWrite | PageTable::Flags::Present, true
-		));
 		auto pts_slave_name = TRY(BAN::String::formatted("pts{}", s_pts_slave_number++));
-		auto pts_slave = TRY(BAN::RefPtr<PseudoTerminalSlave>::create(BAN::move(pts_slave_buffer), BAN::move(pts_slave_name), 0610, uid, gid));
+		auto pts_slave = TRY(BAN::RefPtr<PseudoTerminalSlave>::create(BAN::move(pts_slave_name), 0610, uid, gid));
 
 		pts_master->m_slave = TRY(pts_slave->get_weak_ptr());
 		pts_slave->m_master = TRY(pts_master->get_weak_ptr());
@@ -67,15 +61,12 @@ namespace Kernel
 	{
 		SpinLockGuard _(m_buffer_lock);
 
-		if (m_buffer_size == m_buffer->size())
-		{
-			dwarnln("PseudoTerminalMaster buffer full");
-			m_buffer_tail = (m_buffer_tail + 1) % m_buffer->size();
-			m_buffer_size--;
-		}
+		reinterpret_cast<uint8_t*>(m_buffer->vaddr())[(m_buffer_tail + m_buffer_size) % m_buffer->size()] = ch;
 
-		*reinterpret_cast<uint8_t*>(m_buffer->vaddr() + (m_buffer_tail + m_buffer_size) % m_buffer->size()) = ch;
-		m_buffer_size++;
+		if (m_buffer_size < m_buffer->size())
+			m_buffer_size++;
+		else
+			m_buffer_tail = (m_buffer_tail + 1) % m_buffer->size();
 	}
 
 	BAN::ErrorOr<size_t> PseudoTerminalMaster::read_impl(off_t, BAN::ByteSpan buffer)
@@ -91,11 +82,11 @@ namespace Kernel
 
 		const size_t to_copy = BAN::Math::min(buffer.size(), m_buffer_size);
 
-		if (m_buffer_tail + to_copy < m_buffer->size())
+		if (m_buffer_tail + to_copy <= m_buffer->size())
 			memcpy(buffer.data(), reinterpret_cast<void*>(m_buffer->vaddr() + m_buffer_tail), to_copy);
 		else
 		{
-			const size_t before_wrap = m_buffer_size - m_buffer_tail;
+			const size_t before_wrap = m_buffer->size() - m_buffer_tail;
 			const size_t after_wrap = to_copy - before_wrap;
 
 			memcpy(buffer.data(), reinterpret_cast<void*>(m_buffer->vaddr() + m_buffer_tail), before_wrap);
@@ -121,10 +112,9 @@ namespace Kernel
 		return buffer.size();
 	}
 
-	PseudoTerminalSlave::PseudoTerminalSlave(BAN::UniqPtr<VirtualRange> buffer, BAN::String&& name, mode_t mode, uid_t uid, gid_t gid)
+	PseudoTerminalSlave::PseudoTerminalSlave(BAN::String&& name, mode_t mode, uid_t uid, gid_t gid)
 		: TTY(mode, uid, gid)
 		, m_name(BAN::move(name))
-		, m_buffer(BAN::move(buffer))
 	{}
 
 	void PseudoTerminalSlave::clear()
