@@ -215,26 +215,29 @@ namespace BAN
 		}
 	};
 
-	template<typename F>
-	void Formatter::print_argument(F putc, const Kernel::ACPI::AML::NameSeg& name_seg, const ValueFormat&)
+	namespace Formatter
 	{
-		size_t len = 4;
-		while (len > 0 && name_seg.chars[len - 1] == '_')
-			len--;
-		for (size_t i = 0; i < len; i++)
-			putc(name_seg.chars[i]);
-	}
-
-	template<typename F>
-	void Formatter::print_argument(F putc, const Kernel::ACPI::AML::NameString& name_string, const ValueFormat&)
-	{
-		print_argument(putc, name_string.prefix, {});
-		if (!name_string.path.empty())
-			print_argument(putc, name_string.path.front(), {});
-		for (size_t i = 1; i < name_string.path.size(); i++)
+		template<typename F>
+		void print_argument(F putc, const Kernel::ACPI::AML::NameSeg& name_seg, const ValueFormat&)
 		{
-			putc('.');
-			print_argument(putc, name_string.path[i], {});
+			size_t len = 4;
+			while (len > 0 && name_seg.chars[len - 1] == '_')
+				len--;
+			for (size_t i = 0; i < len; i++)
+				putc(name_seg.chars[i]);
+		}
+
+		template<typename F>
+		void print_argument(F putc, const Kernel::ACPI::AML::NameString& name_string, const ValueFormat&)
+		{
+			print_argument(putc, name_string.prefix, {});
+			if (!name_string.path.empty())
+				print_argument(putc, name_string.path.front(), {});
+			for (size_t i = 1; i < name_string.path.size(); i++)
+			{
+				putc('.');
+				print_argument(putc, name_string.path[i], {});
+			}
 		}
 	}
 
