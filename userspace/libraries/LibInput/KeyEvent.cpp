@@ -1,7 +1,6 @@
 #include <BAN/Array.h>
 #include <LibInput/KeyEvent.h>
 
-#include <ctype.h>
 #include <string.h>
 
 namespace LibInput
@@ -59,7 +58,7 @@ namespace LibInput
 			"å", "ä", "ö",
 			"0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
 			nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
-			/*"Insert", "PrintScreen", "Delete", "Home", "End", "PageUp", "PageDown",*/ nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, "\n", " ",
+			/*"Insert", "PrintScreen", "Delete", "Home", "End", "PageUp", "PageDown",*/ nullptr, nullptr, "\x7F", nullptr, nullptr, nullptr, nullptr, "\n", " ",
 			"!", "\"", "#", "¤", "%", "&", "/", "§", "½",
 			"(", ")", "[", "]", "{", "}",
 			"=", "?", "+", "\\", "´", "`", "¨", "¸", "\b \b", "@", "£", "$", "€",
@@ -78,7 +77,7 @@ namespace LibInput
 			"Å", "Ä", "Ö",
 			"0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
 			nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
-			/*"Insert", "PrintScreen", "Delete", "Home", "End", "PageUp", "PageDown",*/ nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, "\n", " ",
+			/*"Insert", "PrintScreen", "Delete", "Home", "End", "PageUp", "PageDown",*/ nullptr, nullptr, "\x7F", nullptr, nullptr, nullptr, nullptr, "\n", " ",
 			"!", "\"", "#", "¤", "%", "&", "/", "§", "½",
 			"(", ")", "[", "]", "{", "}",
 			"=", "?", "+", "\\", "´", "`", "¨", "¸", "\b \b", "@", "£", "$", "€",
@@ -97,7 +96,7 @@ namespace LibInput
 			"Å", "Ä", "Ö",
 			"0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
 			nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
-			/*"Insert", "PrintScreen", "Delete", "Home", "End", "PageUp", "PageDown",*/ nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, "\n", " ",
+			/*"Insert", "PrintScreen", "Delete", "Home", "End", "PageUp", "PageDown",*/ nullptr, nullptr, "\x7F", nullptr, nullptr, nullptr, nullptr, "\n", " ",
 			"!", "\"", "#", "¤", "%", "&", "/", "§", "½",
 			"(", ")", "[", "]", "{", "}",
 			"=", "?", "+", "\\", "´", "`", "¨", "¸", "\b \b", "@", "£", "$", "€",
