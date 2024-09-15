@@ -94,9 +94,19 @@ namespace Kernel
 			vaddr_t page_offset = write_vaddr % PAGE_SIZE;
 			size_t bytes = BAN::Math::min<size_t>(buffer_size - written, PAGE_SIZE - page_offset);
 
-			TRY(allocate_page_containing(write_vaddr, true));
+			paddr_t paddr = m_page_table.physical_address_of(write_vaddr & PAGE_ADDR_MASK);
+			if (paddr == 0)
+			{
+				if (!TRY(allocate_page_containing(write_vaddr, false)))
+				{
+					dwarnln("Could not allocate page for data copying");
+					return BAN::Error::from_errno(EFAULT);
+				}
+				paddr = m_page_table.physical_address_of(write_vaddr & PAGE_ADDR_MASK);
+				ASSERT(paddr);
+			}
 
-			PageTable::with_fast_page(m_page_table.physical_address_of(write_vaddr & PAGE_ADDR_MASK), [&] {
+			PageTable::with_fast_page(paddr, [&] {
 				memcpy(PageTable::fast_page_as_ptr(page_offset), (void*)(buffer + written), bytes);
 			});
 

@@ -23,7 +23,7 @@ namespace Kernel
 		m_vaddr = m_page_table.reserve_free_contiguous_pages(needed_pages, address_range.start);
 		if (m_vaddr == 0)
 			return BAN::Error::from_errno(ENOMEM);
-		if (m_vaddr + needed_pages * PAGE_SIZE > address_range.end)
+		if (m_vaddr + m_size > address_range.end)
 			return BAN::Error::from_errno(ENOMEM);
 		return {};
 	}
