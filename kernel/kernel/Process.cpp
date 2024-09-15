@@ -1,6 +1,7 @@
 #include <BAN/ScopeGuard.h>
 #include <BAN/StringView.h>
 #include <kernel/ACPI/ACPI.h>
+#include <kernel/ELF.h>
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/FS/ProcFS/FileSystem.h>
 #include <kernel/FS/VirtualFileSystem.h>
@@ -16,7 +17,6 @@
 #include <kernel/Terminal/PseudoTerminal.h>
 #include <kernel/Timer/Timer.h>
 
-#include <LibELF/LoadableELF.h>
 #include <LibInput/KeyboardLayout.h>
 
 #include <fcntl.h>
@@ -121,13 +121,8 @@ namespace Kernel
 
 		auto absolute_path = TRY(process->absolute_path_of(path));
 		auto executable_inode = TRY(VirtualFileSystem::get().file_from_absolute_path(process->m_credentials, absolute_path, O_EXEC)).inode;
-		process->m_loadable_elf = TRY(LibELF::LoadableELF::load_from_inode(process->page_table(), process->m_credentials, executable_inode));
-		if (!process->m_loadable_elf->is_address_space_free())
-		{
-			dprintln("Could not load ELF address space");
-			return BAN::Error::from_errno(ENOEXEC);
-		}
-		process->m_loadable_elf->reserve_address_space();
+		auto executable = TRY(ELF::load_from_inode(executable_inode, process->m_credentials, process->page_table()));
+		process->m_mapped_regions = BAN::move(executable.regions);
 
 		char** argv = nullptr;
 		{
@@ -154,8 +149,21 @@ namespace Kernel
 			MUST(process->m_mapped_regions.push_back(BAN::move(argv_region)));
 		}
 
+		if (executable_inode->mode().mode & +Inode::Mode::ISUID)
+			process->m_credentials.set_euid(executable_inode->uid());
+		if (executable_inode->mode().mode & +Inode::Mode::ISGID)
+			process->m_credentials.set_egid(executable_inode->gid());
+
+		if (executable.has_interpreter)
+		{
+			VirtualFileSystem::File file;
+			TRY(file.canonical_path.append("<self>"));
+			file.inode = executable_inode;
+			process->m_userspace_info.file_fd = TRY(process->m_open_file_descriptors.open(BAN::move(file), O_RDONLY));
+		}
+
 		process->m_is_userspace = true;
-		process->m_userspace_info.entry = process->m_loadable_elf->entry_point();
+		process->m_userspace_info.entry = executable.entry_point;
 		process->m_userspace_info.argc = 1;
 		process->m_userspace_info.argv = argv;
 		process->m_userspace_info.envp = nullptr;
@@ -185,7 +193,6 @@ namespace Kernel
 	{
 		ASSERT(m_threads.empty());
 		ASSERT(m_mapped_regions.empty());
-		ASSERT(!m_loadable_elf);
 		ASSERT(&PageTable::current() != m_page_table.ptr());
 	}
 
@@ -216,7 +223,6 @@ namespace Kernel
 
 		// NOTE: We must unmap ranges while the page table is still alive
 		m_mapped_regions.clear();
-		m_loadable_elf.clear();
 	}
 
 	bool Process::on_thread_exit(Thread& thread)
@@ -301,11 +307,6 @@ namespace Kernel
 			{
 				meminfo.virt_pages += region->virtual_page_count();
 				meminfo.phys_pages += region->physical_page_count();
-			}
-			if (m_loadable_elf)
-			{
-				meminfo.virt_pages += m_loadable_elf->virtual_page_count();
-				meminfo.phys_pages += m_loadable_elf->physical_page_count();
 			}
 		}
 
@@ -424,15 +425,12 @@ namespace Kernel
 		for (auto& mapped_region : m_mapped_regions)
 			MUST(mapped_regions.push_back(TRY(mapped_region->clone(*page_table))));
 
-		auto loadable_elf = TRY(m_loadable_elf->clone(*page_table));
-
 		Process* forked = create_process(m_credentials, m_pid, m_sid, m_pgrp);
 		forked->m_controlling_terminal = m_controlling_terminal;
 		forked->m_working_directory = BAN::move(working_directory);
 		forked->m_page_table = BAN::move(page_table);
 		forked->m_open_file_descriptors = BAN::move(open_file_descriptors);
 		forked->m_mapped_regions = BAN::move(mapped_regions);
-		forked->m_loadable_elf = BAN::move(loadable_elf);
 		forked->m_is_userspace = m_is_userspace;
 		forked->m_userspace_info = m_userspace_info;
 		forked->m_has_called_exec = false;
@@ -461,7 +459,6 @@ namespace Kernel
 
 			auto absolute_path = TRY(absolute_path_of(path));
 			auto executable_inode = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, O_EXEC)).inode;
-			auto loadable_elf = TRY(LibELF::LoadableELF::load_from_inode(page_table(), m_credentials, executable_inode));
 
 			BAN::Vector<BAN::String> str_argv;
 			for (int i = 0; argv && argv[i]; i++)
@@ -479,29 +476,24 @@ namespace Kernel
 				TRY(str_envp.emplace_back(envp[i]));
 			}
 
-			BAN::String executable_path;
-			TRY(executable_path.append(path));
-
 			m_open_file_descriptors.close_cloexec();
 
 			m_mapped_regions.clear();
 
-			m_loadable_elf = BAN::move(loadable_elf);
-			if (!m_loadable_elf->is_address_space_free())
-			{
-				dprintln("ELF has unloadable address space");
-				MUST(sys_kill(pid(), SIGKILL));
-				// NOTE: signal will only execute after return from syscall
-				return BAN::Error::from_errno(EINTR);
-			}
-			m_loadable_elf->reserve_address_space();
-			m_loadable_elf->update_suid_sgid(m_credentials);
-			m_userspace_info.entry = m_loadable_elf->entry_point();
-			if (m_loadable_elf->has_interpreter())
+			auto executable = TRY(ELF::load_from_inode(executable_inode, m_credentials, page_table()));
+			m_mapped_regions = BAN::move(executable.regions);
+
+			if (executable_inode->mode().mode & +Inode::Mode::ISUID)
+				m_credentials.set_euid(executable_inode->uid());
+			if (executable_inode->mode().mode & +Inode::Mode::ISGID)
+				m_credentials.set_egid(executable_inode->gid());
+
+			m_userspace_info.entry = executable.entry_point;
+			if (executable.has_interpreter)
 			{
 				VirtualFileSystem::File file;
 				TRY(file.canonical_path.append("<self>"));
-				file.inode = m_loadable_elf->executable();
+				file.inode = executable_inode;
 				m_userspace_info.file_fd = TRY(m_open_file_descriptors.open(BAN::move(file), O_RDONLY));
 			}
 
@@ -842,12 +834,6 @@ namespace Kernel
 			if (!region->contains(address))
 				continue;
 			TRY(region->allocate_page_containing(address, wants_write));
-			return true;
-		}
-
-		if (m_loadable_elf && m_loadable_elf->contains(address))
-		{
-			TRY(m_loadable_elf->load_page_to_memory(address));
 			return true;
 		}
 
@@ -2386,10 +2372,6 @@ namespace Kernel
 				goto unauthorized_access;
 			return {};
 		}
-
-		// FIXME: elf should use MemoryRegions instead of mapping executables itself
-		if (m_loadable_elf->contains(vaddr))
-			return {};
 
 unauthorized_access:
 		dwarnln("process {}, thread {} attempted to make an invalid pointer access to 0x{H}->0x{H}", pid(), Thread::current().tid(), vaddr, vaddr + size);

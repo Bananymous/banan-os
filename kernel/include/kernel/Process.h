@@ -22,8 +22,6 @@
 #include <sys/time.h>
 #include <termios.h>
 
-namespace LibELF { class LoadableELF; }
-
 namespace Kernel
 {
 
@@ -269,7 +267,6 @@ namespace Kernel
 
 		OpenFileDescriptorSet m_open_file_descriptors;
 
-		BAN::UniqPtr<LibELF::LoadableELF> m_loadable_elf;
 		BAN::Vector<BAN::UniqPtr<MemoryRegion>> m_mapped_regions;
 
 		pid_t m_sid;

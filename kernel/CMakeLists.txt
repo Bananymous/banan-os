@@ -22,6 +22,7 @@ set(KERNEL_SOURCES
 	kernel/Device/NullDevice.cpp
 	kernel/Device/RandomDevice.cpp
 	kernel/Device/ZeroDevice.cpp
+	kernel/ELF.cpp
 	kernel/Errors.cpp
 	kernel/FS/DevFS/FileSystem.cpp
 	kernel/FS/Ext2/FileSystem.cpp
@@ -151,10 +152,6 @@ set(KLIBC_SOURCES
 	klibc/string.cpp
 )
 
-set(LIBELF_SOURCES
-	../userspace/libraries/LibELF/LibELF/LoadableELF.cpp
-)
-
 set(LIBFONT_SOURCES
 	../userspace/libraries/LibFont/Font.cpp
 	../userspace/libraries/LibFont/PSF.cpp
@@ -169,7 +166,6 @@ set(KERNEL_SOURCES
 	${KERNEL_SOURCES}
 	${BAN_SOURCES}
 	${KLIBC_SOURCES}
-	${LIBELF_SOURCES}
 	${LIBFONT_SOURCES}
 	${LIBINPUT_SOURCE}
 )
