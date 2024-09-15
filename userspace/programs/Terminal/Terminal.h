@@ -4,6 +4,28 @@
 
 #include <LibGUI/Window.h>
 
+struct Rectangle
+{
+	uint32_t x      { 0 };
+	uint32_t y      { 0 };
+	uint32_t width  { 0 };
+	uint32_t height { 0 };
+
+	Rectangle get_bounding_box(Rectangle other) const
+	{
+		const auto min_x = BAN::Math::min(x, other.x);
+		const auto min_y = BAN::Math::min(y, other.y);
+		const auto max_x = BAN::Math::max(x + width, other.x + other.width);
+		const auto max_y = BAN::Math::max(y + height, other.y + other.height);
+		return Rectangle {
+			.x = min_x,
+			.y = min_y,
+			.width = max_x - min_x,
+			.height = max_y - min_y,
+		};
+	}
+};
+
 class Terminal
 {
 public:
@@ -15,7 +37,7 @@ public:
 private:
 	void handle_csi(char ch);
 	void handle_sgr();
-	void putchar(uint8_t ch);
+	Rectangle putchar(uint8_t ch);
 	bool read_shell();
 
 	void hide_cursor();

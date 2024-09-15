@@ -196,14 +196,69 @@ void Terminal::show_cursor()
 
 bool Terminal::read_shell()
 {
-	char buffer[128];
-	ssize_t nread = read(m_shell_info.pts_master, buffer, sizeof(buffer) - 1);
+	char buffer[512];
+	ssize_t nread = read(m_shell_info.pts_master, buffer, sizeof(buffer));
 	if (nread < 0)
 		dwarnln("read: {}", strerror(errno));
 	if (nread <= 0)
 		return false;
-	for (ssize_t i = 0; i < nread; i++)
-		putchar(buffer[i]);
+
+	Rectangle should_invalidate;
+
+	ssize_t i = 0;
+	while (i < nread)
+	{
+		// all ansi escape codes must be handled
+		if (buffer[i] == '\e')
+		{
+			while (i < nread)
+			{
+				char ch = buffer[i++];
+				should_invalidate = should_invalidate.get_bounding_box(putchar(ch));
+				if (isalpha(ch))
+					break;
+			}
+			continue;
+		}
+
+		// find the next ansi escape code or end of buffer
+		size_t non_ansi_end = i;
+		while (non_ansi_end < nread && buffer[non_ansi_end] != '\e')
+			non_ansi_end++;
+
+		// we only need to process maximum of `rows()` newlines.
+		// anything before that would get overwritten anyway
+		size_t start = non_ansi_end;
+		size_t newline_count = 0;
+		while (start > i && newline_count < rows())
+			newline_count += (buffer[--start] == '\n');
+
+		// do possible scrolling already in here, so `putchar()` doesnt
+		// have to scroll up to `rows()` times
+		if (m_cursor.y + newline_count >= rows())
+		{
+			const uint32_t scroll = m_cursor.y + newline_count - rows() + 1;
+			m_cursor.y -= scroll;
+			m_window->shift_vertical(-scroll * (int32_t)m_font.height());
+			m_window->fill_rect(0, m_window->height() - scroll * m_font.height(), m_window->width(), scroll * m_font.height(), m_bg_color);
+			should_invalidate = { 0, 0, m_window->width(), m_window->height() };
+		}
+
+		i = start;
+		for (i = start; i < non_ansi_end; i++)
+			should_invalidate = should_invalidate.get_bounding_box(putchar(buffer[i]));
+	}
+
+	if (should_invalidate.height && should_invalidate.width)
+	{
+		m_window->invalidate(
+			should_invalidate.x,
+			should_invalidate.y,
+			should_invalidate.width,
+			should_invalidate.height
+		);
+	}
+
 	return true;
 }
 
@@ -361,7 +416,7 @@ void Terminal::handle_csi(char ch)
 	m_state = State::Normal;
 }
 
-void Terminal::putchar(uint8_t ch)
+Rectangle Terminal::putchar(uint8_t ch)
 {
 	if (m_state == State::ESC)
 	{
@@ -369,14 +424,14 @@ void Terminal::putchar(uint8_t ch)
 		{
 			dprintln("unknown escape character 0x{2H}", ch);
 			m_state = State::Normal;
-			return;
+			return {};
 		}
 		m_state = State::CSI;
 		m_csi_info.index = 0;
 		m_csi_info.fields[0] = -1;
 		m_csi_info.fields[1] = -1;
 		m_csi_info.question = false;
-		return;
+		return {};
 	}
 
 	if (m_state == State::CSI)
@@ -385,10 +440,10 @@ void Terminal::putchar(uint8_t ch)
 		{
 			dprintln("invalid CSI 0x{2H}", ch);
 			m_state = State::Normal;
-			return;
+			return {};
 		}
 		handle_csi(ch);
-		return;
+		return {};
 	}
 
 	m_utf8_bytes[m_utf8_index++] = ch;
@@ -398,10 +453,10 @@ void Terminal::putchar(uint8_t ch)
 	{
 		dwarnln("invalid utf8 leading byte 0x{2H}", ch);
 		m_utf8_index = 0;
-		return;
+		return {};
 	}
 	if (m_utf8_index < utf8_len)
-		return;
+		return {};
 
 	const uint32_t codepoint = BAN::UTF8::to_codepoint(m_utf8_bytes);
 	m_utf8_index = 0;
@@ -421,8 +476,10 @@ void Terminal::putchar(uint8_t ch)
 		*--ptr = '\0';
 
 		dwarnln("invalid utf8 {}", utf8_hex);
-		return;
+		return {};
 	}
+
+	Rectangle should_invalidate;
 
 	switch (codepoint)
 	{
@@ -449,7 +506,7 @@ void Terminal::putchar(uint8_t ch)
 
 			m_window->fill_rect(cell_x, cell_y, cell_w, cell_h, m_bg_color);
 			m_window->draw_character(codepoint, m_font, cell_x, cell_y, m_fg_color);
-			m_window->invalidate(cell_x, cell_y, cell_w, cell_h);
+			should_invalidate = { cell_x, cell_y, cell_w, cell_h };
 			m_cursor.x++;
 			break;
 		}
@@ -461,14 +518,10 @@ void Terminal::putchar(uint8_t ch)
 		m_cursor.y++;
 	}
 
-	if (m_cursor.y >= rows())
-	{
-		uint32_t scroll = m_cursor.y - rows() + 1;
-		m_cursor.y -= scroll;
-		m_window->shift_vertical(-scroll * (int32_t)m_font.height());
-		m_window->fill_rect(0, m_window->height() - scroll * m_font.height(), m_window->width(), scroll * m_font.height(), m_bg_color);
-		m_window->invalidate();
-	}
+	// scrolling is already handled in `read_shell()`
+	ASSERT(m_cursor.y < rows());
+
+	return should_invalidate;
 }
 
 void Terminal::on_key_event(LibGUI::EventPacket::KeyEvent event)
