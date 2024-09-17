@@ -315,7 +315,22 @@ int chdir(const char* path)
 
 int chown(const char* path, uid_t owner, gid_t group)
 {
-	return syscall(SYS_CHOWN, path, owner, group);
+	return fchownat(AT_FDCWD, path, owner, group, 0);
+}
+
+int lchown(const char* path, uid_t owner, gid_t group)
+{
+	return fchownat(AT_FDCWD, path, owner, group, AT_SYMLINK_NOFOLLOW);
+}
+
+int fchown(int fildes, uid_t owner, gid_t group)
+{
+	return fchownat(fildes, nullptr, owner, group, 0);
+}
+
+int fchownat(int fd, const char* path, uid_t owner, gid_t group, int flag)
+{
+	return syscall(SYS_FCHOWNAT, fd, path, owner, group, flag);
 }
 
 void sync(void)

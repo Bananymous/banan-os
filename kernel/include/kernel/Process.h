@@ -114,7 +114,7 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_pread(int fd, void* buffer, size_t count, off_t offset);
 
 		BAN::ErrorOr<long> sys_fchmodat(int fd, const char* path, mode_t mode, int flag);
-		BAN::ErrorOr<long> sys_chown(const char* path, uid_t uid, gid_t gid);
+		BAN::ErrorOr<long> sys_fchownat(int fd, const char* path, uid_t uid, gid_t gid, int flag);
 
 		BAN::ErrorOr<long> sys_socket(int domain, int type, int protocol);
 		BAN::ErrorOr<long> sys_getsockname(int socket, sockaddr* address, socklen_t* address_len);

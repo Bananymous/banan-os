@@ -1062,14 +1062,39 @@ namespace Kernel
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_chown(const char* path, uid_t uid, gid_t gid)
+	BAN::ErrorOr<long> Process::sys_fchownat(int fd, const char* path, uid_t uid, gid_t gid, int flag)
 	{
-		LockGuard _(m_process_lock);
-		TRY(validate_string_access(path));
+		if (flag & ~AT_SYMLINK_NOFOLLOW)
+			return BAN::Error::from_errno(EINVAL);
+		if (flag == AT_SYMLINK_NOFOLLOW)
+			flag = O_NOFOLLOW;
 
-		auto absolute_path = TRY(absolute_path_of(path));
-		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, O_WRONLY));
-		TRY(file.inode->chown(uid, gid));
+		LockGuard _(m_process_lock);
+		if (path)
+			TRY(validate_string_access(path));
+
+		VirtualFileSystem::File parent_file;
+		if (path && path[0] == '/')
+			parent_file = VirtualFileSystem::get().root_file();
+		else if (fd == AT_FDCWD)
+			parent_file = TRY(m_working_directory.clone());
+		else
+			parent_file = TRY(m_open_file_descriptors.file_of(fd));
+
+		auto inode = path
+			? TRY(VirtualFileSystem::get().file_from_relative_path(parent_file, m_credentials, path, flag)).inode
+			: parent_file.inode;
+
+		if (uid != -1 && !m_credentials.is_superuser())
+			return BAN::Error::from_errno(EPERM);
+		if (gid != -1 && !m_credentials.is_superuser() && (m_credentials.euid() != uid || !m_credentials.has_egid(gid)))
+			return BAN::Error::from_errno(EPERM);
+
+		if (uid == -1)
+			uid = inode->uid();
+		if (gid == -1)
+			gid = inode->gid();
+		TRY(inode->chown(uid, gid));
 
 		return 0;
 	}
