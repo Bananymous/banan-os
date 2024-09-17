@@ -21,6 +21,7 @@ struct simple_entry_t
 {
 	BAN::String name;
 	struct stat st;
+	BAN::String link;
 };
 
 struct full_entry_t
@@ -117,6 +118,8 @@ BAN::String build_time_string(BAN::Time time)
 
 int list_directory(const BAN::String& path, config_t config)
 {
+	static char link_buffer[PATH_MAX];
+
 	BAN::Vector<simple_entry_t> entries;
 
 	struct stat st;
@@ -131,7 +134,16 @@ int list_directory(const BAN::String& path, config_t config)
 	int ret = 0;
 
 	if (!S_ISDIR(st.st_mode))
+	{
 		MUST(entries.emplace_back(path, st));
+		if (S_ISLNK(st.st_mode))
+		{
+			if (readlink(path.data(), link_buffer, sizeof(link_buffer)) == -1)
+				perror("readlink");
+			else
+				MUST(entries.back().link.append(link_buffer));
+		}
+	}
 	else
 	{
 		DIR* dirp = opendir(path.data());
@@ -155,6 +167,13 @@ int list_directory(const BAN::String& path, config_t config)
 			}
 
 			MUST(entries.emplace_back(BAN::StringView(dirent->d_name), st));
+			if (S_ISLNK(st.st_mode))
+			{
+				if (readlinkat(dirfd(dirp), dirent->d_name, link_buffer, sizeof(link_buffer)) == -1)
+					perror("readlink");
+				else
+					MUST(entries.back().link.append(link_buffer));
+			}
 		}
 
 		closedir(dirp);
@@ -214,6 +233,11 @@ int list_directory(const BAN::String& path, config_t config)
 		GET_ENTRY_STRING(time,	time);
 
 		full_entry.full_name = MUST(BAN::String::formatted("{}{}\e[m", entry_color(entry.st.st_mode), entry.name));
+		if (S_ISLNK(entry.st.st_mode))
+		{
+			MUST(full_entry.full_name.append(" -> "_sv));
+			MUST(full_entry.full_name.append(entry.link));
+		}
 
 		MUST(full_entries.push_back(BAN::move(full_entry)));
 	}
