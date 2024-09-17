@@ -342,6 +342,54 @@ BAN::Optional<int> execute_builtin(BAN::Vector<BAN::String>& args, int fd_in, in
 		while (*current)
 			fprintf(fout, "%s\n", *current++);
 	}
+	else if (args.front() == "cd"_sv)
+	{
+		if (args.size() > 2)
+		{
+			fprintf(fout, "cd: too many arguments\n");
+			return 1;
+		}
+
+		BAN::StringView path;
+
+		if (args.size() == 1)
+		{
+			if (const char* path_env = getenv("HOME"))
+				path = path_env;
+			else
+				return 0;
+		}
+		else
+			path = args[1];
+
+		if (chdir(path.data()) == -1)
+			ERROR_RETURN("chdir", 1);
+	}
+	else if (args.front() == "time"_sv)
+	{
+		args.remove(0);
+
+		timespec start, end;
+
+		if (clock_gettime(CLOCK_MONOTONIC, &start) == -1)
+			ERROR_RETURN("clock_gettime", 1);
+
+		int ret = execute_command(args, fd_in, fd_out);
+
+		if (clock_gettime(CLOCK_MONOTONIC, &end) == -1)
+			ERROR_RETURN("clock_gettime", 1);
+
+		uint64_t total_ns = 0;
+		total_ns += (end.tv_sec - start.tv_sec) * 1'000'000'000;
+		total_ns += end.tv_nsec - start.tv_nsec;
+
+		int secs  =  total_ns / 1'000'000'000;
+		int msecs = (total_ns % 1'000'000'000) / 1'000'000;
+
+		fprintf(fout, "took %d.%03d s\n", secs, msecs);
+
+		return ret;
+	}
 	else if (args.front() == "start-gui"_sv)
 	{
 		pid_t pid = fork();
