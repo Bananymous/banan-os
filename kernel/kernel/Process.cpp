@@ -970,14 +970,6 @@ namespace Kernel
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_create(const char* path, mode_t mode)
-	{
-		LockGuard _(m_process_lock);
-		TRY(validate_string_access(path));
-		TRY(create_file_or_dir(VirtualFileSystem::get().root_file(), path, mode));
-		return 0;
-	}
-
 	BAN::ErrorOr<long> Process::sys_create_dir(const char* path, mode_t mode)
 	{
 		LockGuard _(m_process_lock);

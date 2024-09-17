@@ -1,12 +1,11 @@
 #include <fcntl.h>
-#include <errno.h>
 #include <stdarg.h>
 #include <sys/syscall.h>
 #include <unistd.h>
 
 int creat(const char* path, mode_t mode)
 {
-	return syscall(SYS_CREATE, path, S_IFREG | __UMASKED_MODE(mode));
+	return open(path, O_WRONLY | O_CREAT | O_TRUNC, mode);
 }
 
 int open(const char* path, int oflag, ...)
