@@ -51,8 +51,7 @@ __BEGIN_DECLS
 	O(SYS_MUNMAP,			munmap) 		\
 	O(SYS_TTY_CTRL,			tty_ctrl)		\
 	O(SYS_POWEROFF,			poweroff)		\
-	O(SYS_CHMOD,			chmod)			\
-	O(SYS_FCHMOD,			fchmod)			\
+	O(SYS_FCHMODAT,			fchmodat)		\
 	O(SYS_CREATE_DIR,		create_dir)		\
 	O(SYS_UNLINK,			unlink) 		\
 	O(SYS_READLINKAT,		readlinkat)		\

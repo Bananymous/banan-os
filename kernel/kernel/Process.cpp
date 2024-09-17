@@ -1026,28 +1026,37 @@ namespace Kernel
 		return TRY(inode->read(offset, { (uint8_t*)buffer, count }));
 	}
 
-	BAN::ErrorOr<long> Process::sys_chmod(const char* path, mode_t mode)
+	BAN::ErrorOr<long> Process::sys_fchmodat(int fd, const char* path, mode_t mode, int flag)
 	{
 		if (mode & S_IFMASK)
 			return BAN::Error::from_errno(EINVAL);
-
-		LockGuard _(m_process_lock);
-		TRY(validate_string_access(path));
-
-		auto absolute_path = TRY(absolute_path_of(path));
-		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, O_WRONLY));
-		TRY(file.inode->chmod(mode));
-
-		return 0;
-	}
-
-	BAN::ErrorOr<long> Process::sys_fchmod(int fildes, mode_t mode)
-	{
-		if (mode & S_IFMASK)
+		if (flag & ~AT_SYMLINK_NOFOLLOW)
 			return BAN::Error::from_errno(EINVAL);
+		if (flag == AT_SYMLINK_NOFOLLOW)
+			flag = O_NOFOLLOW;
 
 		LockGuard _(m_process_lock);
-		auto inode = TRY(m_open_file_descriptors.inode_of(fildes));
+		if (path)
+			TRY(validate_string_access(path));
+
+		VirtualFileSystem::File parent_file;
+		if (path && path[0] == '/')
+			parent_file = VirtualFileSystem::get().root_file();
+		else if (fd == AT_FDCWD)
+			parent_file = TRY(m_working_directory.clone());
+		else
+			parent_file = TRY(m_open_file_descriptors.file_of(fd));
+
+		auto inode = path
+			? TRY(VirtualFileSystem::get().file_from_relative_path(parent_file, m_credentials, path, flag)).inode
+			: parent_file.inode;
+
+		if (!m_credentials.is_superuser() && inode->uid() != m_credentials.euid())
+		{
+			dwarnln("cannot chmod uid {} vs {}", inode->uid(), m_credentials.euid());
+			return BAN::Error::from_errno(EPERM);
+		}
+
 		TRY(inode->chmod(mode));
 
 		return 0;

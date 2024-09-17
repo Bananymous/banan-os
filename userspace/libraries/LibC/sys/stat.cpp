@@ -9,12 +9,17 @@ mode_t __umask = 0;
 
 int chmod(const char* path, mode_t mode)
 {
-	return syscall(SYS_CHMOD, path, mode);
+	return fchmodat(AT_FDCWD, path, mode, 0);
 }
 
 int fchmod(int fildes, mode_t mode)
 {
-	return syscall(SYS_FCHMOD, fildes, mode);
+	return fchmodat(fildes, nullptr, mode, 0);
+}
+
+int fchmodat(int fildes, const char* path, mode_t mode, int flag)
+{
+	return syscall(SYS_FCHMODAT, fildes, path, mode, flag);
 }
 
 int fstat(int fildes, struct stat* buf)
