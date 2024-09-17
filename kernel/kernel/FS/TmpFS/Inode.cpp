@@ -475,6 +475,8 @@ namespace Kernel
 			}
 		});
 
+		if (entry_count == 0)
+			return BAN::Error::from_errno(ENODATA);
 		return entry_count;
 	}
 

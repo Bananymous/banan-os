@@ -331,6 +331,9 @@ done:
 				return BAN::Error::from_errno(ENOBUFS);
 		}
 
+		if (entry_count == 0)
+			return BAN::Error::from_errno(ENODATA);
+
 		// Second fill the list
 		{
 			dirent* dirp = list;

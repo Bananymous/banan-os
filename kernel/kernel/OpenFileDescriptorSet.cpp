@@ -327,7 +327,13 @@ namespace Kernel
 		auto& open_file = m_open_files[fd];
 		if (!(open_file->flags & O_RDONLY))
 			return BAN::Error::from_errno(EACCES);
-		return TRY(open_file->inode()->list_next_inodes(open_file->offset++, list, list_len));
+		for (;;)
+		{
+			auto ret = open_file->inode()->list_next_inodes(open_file->offset++, list, list_len);
+			if (ret.is_error() && ret.error().get_error_code() == ENODATA)
+				continue;
+			return ret;
+		}
 	}
 
 	BAN::ErrorOr<VirtualFileSystem::File> OpenFileDescriptorSet::file_of(int fd) const
