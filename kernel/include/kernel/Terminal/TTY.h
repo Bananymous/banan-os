@@ -92,6 +92,7 @@ namespace Kernel
 		};
 		Buffer m_output;
 
+	protected:
 		RecursiveSpinLock m_write_lock;
 	};
 
