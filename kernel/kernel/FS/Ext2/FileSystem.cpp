@@ -63,7 +63,7 @@ namespace Kernel
 
 		if (m_superblock.rev_level == Ext2::Enum::GOOD_OLD_REV)
 		{
-			memset(m_superblock.__extension_start, 0, sizeof(Ext2::Superblock) - offsetof(Ext2::Superblock, Ext2::Superblock::__extension_start));
+			memset(m_superblock.__extension_start, 0, sizeof(Ext2::Superblock) - offsetof(Ext2::Superblock, __extension_start));
 			m_superblock.first_ino = Ext2::Enum::GOOD_OLD_FIRST_INO;
 			m_superblock.inode_size = Ext2::Enum::GOOD_OLD_INODE_SIZE;
 		}
@@ -140,7 +140,7 @@ namespace Kernel
 
 			for (uint32_t bg : m_superblock_backups)
 			{
-				read_block(superblock().first_data_block + superblock().blocks_per_group * bg, block_buffer);
+				TRY(read_block(superblock().first_data_block + superblock().blocks_per_group * bg, block_buffer));
 				Ext2::Superblock& superblock_backup = *(Ext2::Superblock*)block_buffer.data();
 				if (superblock_backup.magic != Ext2::Enum::SUPER_MAGIC)
 					derrorln("superblock backup at block {} is invalid ({4H})", bg, superblock_backup.magic);
@@ -184,7 +184,7 @@ namespace Kernel
 				current_group = ino_group;
 
 				bgd_location = locate_block_group_descriptior(current_group);
-				read_block(bgd_location.block, bgd_buffer);
+				TRY(read_block(bgd_location.block, bgd_buffer));
 
 				bgd = (Ext2::BlockGroupDescriptor*)(bgd_buffer.data() + bgd_location.offset);
 				if (bgd->free_inodes_count == 0)
@@ -193,7 +193,7 @@ namespace Kernel
 					continue;
 				}
 
-				read_block(bgd->inode_bitmap, inode_bitmap);
+				TRY(read_block(bgd->inode_bitmap, inode_bitmap));
 			}
 
 			const uint32_t ino_bitmap_byte = ino_index / 8;
@@ -202,16 +202,15 @@ namespace Kernel
 				continue;
 
 			inode_bitmap[ino_bitmap_byte] |= 1 << ino_bitmap_bit;
-			write_block(bgd->inode_bitmap, inode_bitmap);
+			TRY(write_block(bgd->inode_bitmap, inode_bitmap));
 
 			bgd->free_inodes_count--;
 			if (Inode::Mode(ext2_inode.mode).ifdir())
 				bgd->used_dirs_count++;
-			write_block(bgd_location.block, bgd_buffer);
+			TRY(write_block(bgd_location.block, bgd_buffer));
 
 			const uint32_t inode_table_offset = ino_index * superblock().inode_size;
-			const BlockLocation inode_location
-			{
+			const BlockLocation inode_location {
 				.block  = inode_table_offset / block_size + bgd->inode_table,
 				.offset = inode_table_offset % block_size
 			};
@@ -219,14 +218,14 @@ namespace Kernel
 			// NOTE: we don't need inode bitmap anymore, so we can reuse it
 			auto& inode_buffer = inode_bitmap;
 
-			read_block(inode_location.block, inode_buffer);
+			TRY(read_block(inode_location.block, inode_buffer));
 			memcpy(inode_buffer.data() + inode_location.offset, &ext2_inode, sizeof(Ext2::Inode));
 			if (superblock().inode_size > sizeof(Ext2::Inode))
 				memset(inode_buffer.data() + inode_location.offset + sizeof(Ext2::Inode), 0, superblock().inode_size - sizeof(Ext2::Inode));
-			write_block(inode_location.block, inode_buffer);
+			TRY(write_block(inode_location.block, inode_buffer));
 
 			m_superblock.free_inodes_count--;
-			sync_superblock();
+			TRY(sync_superblock());
 
 			return ino;
 		}
@@ -235,7 +234,7 @@ namespace Kernel
 		return BAN::Error::from_error_code(ErrorCode::Ext2_Corrupted);
 	}
 
-	void Ext2FS::delete_inode(uint32_t ino)
+	BAN::ErrorOr<void> Ext2FS::delete_inode(uint32_t ino)
 	{
 		LockGuard _(m_mutex);
 
@@ -250,20 +249,20 @@ namespace Kernel
 		const uint32_t inode_index = (ino - 1) % superblock().inodes_per_group;
 
 		auto bgd_location = locate_block_group_descriptior(inode_group);
-		read_block(bgd_location.block, bgd_buffer);
+		TRY(read_block(bgd_location.block, bgd_buffer));
 		auto& bgd = bgd_buffer.span().slice(bgd_location.offset).as<Ext2::BlockGroupDescriptor>();
 
 		// update inode bitmap
-		read_block(bgd.inode_bitmap, bitmap_buffer);
+		TRY(read_block(bgd.inode_bitmap, bitmap_buffer));
 		const uint32_t byte = inode_index / 8;
 		const uint32_t bit  = inode_index % 8;
 		ASSERT(bitmap_buffer[byte] & (1 << bit));
 		bitmap_buffer[byte] &= ~(1 << bit);
-		write_block(bgd.inode_bitmap, bitmap_buffer);
+		TRY(write_block(bgd.inode_bitmap, bitmap_buffer));
 
 		// memset inode to zero or fsck will complain
-		auto inode_location = locate_inode(ino);
-		read_block(inode_location.block, inode_buffer);
+		auto inode_location = TRY(locate_inode(ino));
+		TRY(read_block(inode_location.block, inode_buffer));
 		auto& inode = inode_buffer.span().slice(inode_location.offset).as<Ext2::Inode>();
 #if EXT2_VERIFY_NO_BLOCKS
 		static const char zero_buffer[sizeof(inode.block)] {};
@@ -271,24 +270,26 @@ namespace Kernel
 #endif
 		bool is_directory = Inode::Mode(inode.mode).ifdir();
 		memset(&inode, 0x00, m_superblock.inode_size);
-		write_block(inode_location.block, inode_buffer);
+		TRY(write_block(inode_location.block, inode_buffer));
 
 		// update bgd counts
 		bgd.free_inodes_count++;
 		if (is_directory)
 			bgd.used_dirs_count--;
-		write_block(bgd_location.block, bgd_buffer);
+		TRY(write_block(bgd_location.block, bgd_buffer));
 
 		// update superblock inode count
 		m_superblock.free_inodes_count++;
-		sync_superblock();
+		TRY(sync_superblock());
 
 		// remove inode from cache
 		if (m_inode_cache.contains(ino))
 			m_inode_cache.remove(ino);
+
+		return {};
 	}
 
-	void Ext2FS::read_block(uint32_t block, BlockBufferWrapper& buffer)
+	BAN::ErrorOr<void> Ext2FS::read_block(uint32_t block, BlockBufferWrapper& buffer)
 	{
 		LockGuard _(m_mutex);
 
@@ -298,10 +299,12 @@ namespace Kernel
 
 		ASSERT(block >= superblock().first_data_block + 1);
 		ASSERT(buffer.size() >= block_size);
-		MUST(m_block_device->read_blocks(block * sectors_per_block, sectors_per_block, buffer.span()));
+		TRY(m_block_device->read_blocks(block * sectors_per_block, sectors_per_block, buffer.span()));
+
+		return {};
 	}
 
-	void Ext2FS::write_block(uint32_t block, const BlockBufferWrapper& buffer)
+	BAN::ErrorOr<void> Ext2FS::write_block(uint32_t block, const BlockBufferWrapper& buffer)
 	{
 		LockGuard _(m_mutex);
 
@@ -311,10 +314,12 @@ namespace Kernel
 
 		ASSERT(block >= superblock().first_data_block + 1);
 		ASSERT(buffer.size() >= block_size);
-		MUST(m_block_device->write_blocks(block * sectors_per_block, sectors_per_block, buffer.span()));
+		TRY(m_block_device->write_blocks(block * sectors_per_block, sectors_per_block, buffer.span()));
+
+		return {};
 	}
 
-	void Ext2FS::sync_superblock()
+	BAN::ErrorOr<void> Ext2FS::sync_superblock()
 	{
 		LockGuard _(m_mutex);
 
@@ -331,12 +336,14 @@ namespace Kernel
 
 		auto superblock_buffer = get_block_buffer();
 
-		MUST(m_block_device->read_blocks(lba, sector_count, superblock_buffer.span()));
+		TRY(m_block_device->read_blocks(lba, sector_count, superblock_buffer.span()));
 		if (memcmp(superblock_buffer.data(), &m_superblock, superblock_bytes))
 		{
 			memcpy(superblock_buffer.data(), &m_superblock, superblock_bytes);
-			MUST(m_block_device->write_blocks(lba, sector_count, superblock_buffer.span()));
+			TRY(m_block_device->write_blocks(lba, sector_count, superblock_buffer.span()));
 		}
+
+		return {};
 	}
 
 	Ext2FS::BlockBufferWrapper Ext2FS::get_block_buffer()
@@ -356,16 +363,16 @@ namespace Kernel
 		auto block_bitmap = m_buffer_manager.get_buffer();
 
 		auto check_block_group =
-			[&](uint32_t block_group) -> uint32_t
+			[&](uint32_t block_group) -> BAN::ErrorOr<uint32_t>
 			{
 				auto bgd_location = locate_block_group_descriptior(block_group);
-				read_block(bgd_location.block, bgd_buffer);
+				TRY(read_block(bgd_location.block, bgd_buffer));
 
 				auto& bgd = *(Ext2::BlockGroupDescriptor*)(bgd_buffer.data() + bgd_location.offset);
 				if (bgd.free_blocks_count == 0)
 					return 0;
 
-				read_block(bgd.block_bitmap, block_bitmap);
+				TRY(read_block(bgd.block_bitmap, block_bitmap));
 				for (uint32_t block_offset = 0; block_offset < m_superblock.blocks_per_group; block_offset++)
 				{
 					const uint32_t fs_block_index = m_superblock.first_data_block + m_superblock.blocks_per_group * block_group + block_offset;
@@ -378,13 +385,13 @@ namespace Kernel
 						continue;
 
 					block_bitmap[byte] |= 1 << bit;
-					write_block(bgd.block_bitmap, block_bitmap);
+					TRY(write_block(bgd.block_bitmap, block_bitmap));
 
 					bgd.free_blocks_count--;
-					write_block(bgd_location.block, bgd_buffer);
+					TRY(write_block(bgd_location.block, bgd_buffer));
 
 					m_superblock.free_blocks_count--;
-					sync_superblock();
+					TRY(sync_superblock());
 
 					return fs_block_index;
 				}
@@ -393,20 +400,20 @@ namespace Kernel
 				return 0;
 			};
 
-		if (auto ret = check_block_group(primary_bgd))
+		if (auto ret = TRY(check_block_group(primary_bgd)))
 			return ret;
 
 		uint32_t number_of_block_groups = BAN::Math::div_round_up(m_superblock.blocks_count, m_superblock.blocks_per_group);
 		for (uint32_t block_group = 0; block_group < number_of_block_groups; block_group++)
 			if (block_group != primary_bgd)
-				if (auto ret = check_block_group(block_group))
+				if (auto ret = TRY(check_block_group(block_group)))
 					return ret;
 
 		derrorln("Corrupted file system. Superblock indicates free blocks but none were found.");
 		return BAN::Error::from_error_code(ErrorCode::Ext2_Corrupted);
 	}
 
-	void Ext2FS::release_block(uint32_t block)
+	BAN::ErrorOr<void> Ext2FS::release_block(uint32_t block)
 	{
 		LockGuard _(m_mutex);
 
@@ -420,26 +427,28 @@ namespace Kernel
 		auto bitmap_buffer = get_block_buffer();
 
 		auto bgd_location = locate_block_group_descriptior(block_group);
-		read_block(bgd_location.block, bgd_buffer);
+		TRY(read_block(bgd_location.block, bgd_buffer));
 
 		auto& bgd = bgd_buffer.span().slice(bgd_location.offset).as<Ext2::BlockGroupDescriptor>();
-		read_block(bgd.block_bitmap, bitmap_buffer);
+		TRY(read_block(bgd.block_bitmap, bitmap_buffer));
 
 		const uint32_t byte = block_offset / 8;
 		const uint32_t bit  = block_offset % 8;
 		ASSERT(bitmap_buffer[byte] & (1 << bit));
 
 		bitmap_buffer[byte] &= ~(1 << bit);
-		write_block(bgd.block_bitmap, bitmap_buffer);
+		TRY(write_block(bgd.block_bitmap, bitmap_buffer));
 
 		bgd.free_blocks_count++;
-		write_block(bgd_location.block, bgd_buffer);
+		TRY(write_block(bgd_location.block, bgd_buffer));
 
 		m_superblock.free_blocks_count++;
-		sync_superblock();
+		TRY(sync_superblock());
+
+		return {};
 	}
 
-	Ext2FS::BlockLocation Ext2FS::locate_inode(uint32_t ino)
+	BAN::ErrorOr<Ext2FS::BlockLocation> Ext2FS::locate_inode(uint32_t ino)
 	{
 		LockGuard _(m_mutex);
 
@@ -454,7 +463,7 @@ namespace Kernel
 
 		auto bgd_location = locate_block_group_descriptior(inode_group);
 
-		read_block(bgd_location.block, bgd_buffer);
+		TRY(read_block(bgd_location.block, bgd_buffer));
 
 		auto& bgd = *(Ext2::BlockGroupDescriptor*)(bgd_buffer.data() + bgd_location.offset);
 

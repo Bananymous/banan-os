@@ -27,10 +27,10 @@ namespace Kernel
 		if (fs.inode_cache().contains(inode_ino))
 			return fs.inode_cache()[inode_ino];
 
-		auto inode_location = fs.locate_inode(inode_ino);
+		auto inode_location = TRY(fs.locate_inode(inode_ino));
 
 		auto block_buffer = fs.get_block_buffer();
-		fs.read_block(inode_location.block, block_buffer);
+		TRY(fs.read_block(inode_location.block, block_buffer));
 
 		auto& inode = block_buffer.span().slice(inode_location.offset).as<Ext2::Inode>();
 
@@ -41,18 +41,20 @@ namespace Kernel
 
 	Ext2Inode::~Ext2Inode()
 	{
-		if (m_inode.links_count == 0)
-			cleanup_from_fs();
+		if (m_inode.links_count > 0)
+			return;
+		if (auto ret = cleanup_from_fs(); ret.is_error())
+			dwarnln("Could not cleanup inode from FS: {}", ret.error());
 	}
 
-	BAN::Optional<uint32_t> Ext2Inode::block_from_indirect_block(uint32_t block, uint32_t index, uint32_t depth)
+	BAN::ErrorOr<BAN::Optional<uint32_t>> Ext2Inode::block_from_indirect_block(uint32_t block, uint32_t index, uint32_t depth)
 	{
 		if (block == 0)
-			return {};
+			return BAN::Optional<uint32_t>();
 		ASSERT(depth >= 1);
 
 		auto block_buffer = m_fs.get_block_buffer();
-		m_fs.read_block(block, block_buffer);
+		TRY(m_fs.read_block(block, block_buffer));
 
 		const uint32_t indices_per_block = blksize() / sizeof(uint32_t);
 
@@ -60,22 +62,22 @@ namespace Kernel
 
 		const uint32_t next_block = block_buffer.span().as_span<uint32_t>()[(index / divisor) % indices_per_block];
 		if (next_block == 0)
-			return {};
+			return BAN::Optional<uint32_t>();
 		if (depth == 1)
-			return next_block;
+			return BAN::Optional<uint32_t>(next_block);
 
 		return block_from_indirect_block(next_block, index, depth - 1);
 	}
 
-	BAN::Optional<uint32_t> Ext2Inode::fs_block_of_data_block_index(uint32_t data_block_index)
+	BAN::ErrorOr<BAN::Optional<uint32_t>> Ext2Inode::fs_block_of_data_block_index(uint32_t data_block_index)
 	{
 		const uint32_t indices_per_block = blksize() / sizeof(uint32_t);
 
 		if (data_block_index < 12)
 		{
 			if (m_inode.block[data_block_index] == 0)
-				return {};
-			return m_inode.block[data_block_index];
+				return BAN::Optional<uint32_t>();
+			return BAN::Optional<uint32_t>(m_inode.block[data_block_index]);
 		}
 		data_block_index -= 12;
 
@@ -129,9 +131,9 @@ namespace Kernel
 
 		for (uint32_t data_block_index = first_block; data_block_index < last_block; data_block_index++)
 		{
-			auto block_index = fs_block_of_data_block_index(data_block_index);
+			auto block_index = TRY(fs_block_of_data_block_index(data_block_index));
 			if (block_index.has_value())
-				m_fs.read_block(block_index.value(), block_buffer);
+				TRY(m_fs.read_block(block_index.value(), block_buffer));
 			else
 				memset(block_buffer.data(), 0x00, block_buffer.size());
 
@@ -168,9 +170,9 @@ namespace Kernel
 		// Write partial block
 		if (offset % block_size)
 		{
-			auto block_index = fs_block_of_data_block_index(offset / block_size);
+			auto block_index = TRY(fs_block_of_data_block_index(offset / block_size));
 			if (block_index.has_value())
-				m_fs.read_block(block_index.value(), block_buffer);
+				TRY(m_fs.read_block(block_index.value(), block_buffer));
 			else
 			{
 				block_index = TRY(allocate_new_block(offset / block_size));;
@@ -181,7 +183,7 @@ namespace Kernel
 			uint32_t to_copy = BAN::Math::min<uint32_t>(block_size - block_offset, to_write);
 
 			memcpy(block_buffer.data() + block_offset, buffer.data(), to_copy);
-			m_fs.write_block(block_index.value(), block_buffer);
+			TRY(m_fs.write_block(block_index.value(), block_buffer));
 
 			written += to_copy;
 			offset += to_copy;
@@ -190,12 +192,12 @@ namespace Kernel
 
 		while (to_write >= block_size)
 		{
-			auto block_index = fs_block_of_data_block_index(offset / block_size);
+			auto block_index = TRY(fs_block_of_data_block_index(offset / block_size));
 			if (!block_index.has_value())
 				block_index = TRY(allocate_new_block(offset / block_size));
 
 			memcpy(block_buffer.data(), buffer.data() + written, block_buffer.size());
-			m_fs.write_block(block_index.value(), block_buffer);
+			TRY(m_fs.write_block(block_index.value(), block_buffer));
 
 			written += block_size;
 			offset += block_size;
@@ -204,9 +206,9 @@ namespace Kernel
 
 		if (to_write > 0)
 		{
-			auto block_index = fs_block_of_data_block_index(offset / block_size);
+			auto block_index = TRY(fs_block_of_data_block_index(offset / block_size));
 			if (block_index.has_value())
-				m_fs.read_block(block_index.value(), block_buffer);
+				TRY(m_fs.read_block(block_index.value(), block_buffer));
 			else
 			{
 				block_index = TRY(allocate_new_block(offset / block_size));
@@ -214,7 +216,7 @@ namespace Kernel
 			}
 
 			memcpy(block_buffer.data(), buffer.data() + written, to_write);
-			m_fs.write_block(block_index.value(), block_buffer);
+			TRY(m_fs.write_block(block_index.value(), block_buffer));
 		}
 
 		return buffer.size();
@@ -227,8 +229,14 @@ namespace Kernel
 
 		// TODO: we should remove unused blocks on shrink
 
+		const auto old_size = m_inode.size;
+
 		m_inode.size = new_size;
-		sync();
+		if (auto ret = sync(); ret.is_error())
+		{
+			m_inode.size = old_size;
+			return ret.release_error();
+		}
 
 		return {};
 	}
@@ -238,23 +246,31 @@ namespace Kernel
 		ASSERT((mode & Inode::Mode::TYPE_MASK) == 0);
 		if (m_inode.mode == mode)
 			return {};
+
+		const auto old_mode = m_inode.mode;
+
 		m_inode.mode = (m_inode.mode & Inode::Mode::TYPE_MASK) | mode;
-		sync();
+		if (auto ret = sync(); ret.is_error())
+		{
+			m_inode.mode = old_mode;
+			return ret.release_error();
+		}
+
 		return {};
 	}
 
-	void Ext2Inode::cleanup_indirect_block(uint32_t block, uint32_t depth)
+	BAN::ErrorOr<void> Ext2Inode::cleanup_indirect_block(uint32_t block, uint32_t depth)
 	{
 		ASSERT(block);
 
 		if (depth == 0)
 		{
-			m_fs.release_block(block);
-			return;
+			TRY(m_fs.release_block(block));
+			return {};
 		}
 
 		auto block_buffer = m_fs.get_block_buffer();
-		m_fs.read_block(block, block_buffer);
+		TRY(m_fs.read_block(block, block_buffer));
 
 		const uint32_t ids_per_block = blksize() / sizeof(uint32_t);
 		for (uint32_t i = 0; i < ids_per_block; i++)
@@ -262,13 +278,14 @@ namespace Kernel
 			const uint32_t next_block = block_buffer.span().as_span<uint32_t>()[i];
 			if (next_block == 0)
 				continue;
-			cleanup_indirect_block(next_block, depth - 1);
+			TRY(cleanup_indirect_block(next_block, depth - 1));
 		}
 
-		m_fs.release_block(block);
+		TRY(m_fs.release_block(block));
+		return {};
 	}
 
-	void Ext2Inode::cleanup_from_fs()
+	BAN::ErrorOr<void> Ext2Inode::cleanup_from_fs()
 	{
 		ASSERT(m_inode.links_count == 0);
 
@@ -278,15 +295,15 @@ namespace Kernel
 		// cleanup direct blocks
 		for (uint32_t i = 0; i < 12; i++)
 			if (m_inode.block[i])
-				m_fs.release_block(m_inode.block[i]);
+				TRY(m_fs.release_block(m_inode.block[i]));
 
 		// cleanup indirect blocks
 		if (m_inode.block[12])
-			cleanup_indirect_block(m_inode.block[12], 1);
+			TRY(cleanup_indirect_block(m_inode.block[12], 1));
 		if (m_inode.block[13])
-			cleanup_indirect_block(m_inode.block[13], 2);
+			TRY(cleanup_indirect_block(m_inode.block[13], 2));
 		if (m_inode.block[14])
-			cleanup_indirect_block(m_inode.block[14], 3);
+			TRY(cleanup_indirect_block(m_inode.block[14], 3));
 
 done:
 		// mark blocks as deleted
@@ -294,9 +311,11 @@ done:
 
 		// FIXME: this is only required since fs does not get
 		//        deleting inode from its cache
-		sync();
+		TRY(sync());
 
-		m_fs.delete_inode(ino());
+		TRY(m_fs.delete_inode(ino()));
+
+		return {};
 	}
 
 	BAN::ErrorOr<size_t> Ext2Inode::list_next_inodes_impl(off_t offset, struct dirent* list, size_t list_size)
@@ -308,11 +327,11 @@ done:
 			return 0;
 
 		// FIXME: can we actually assume directories have all their blocks allocated
-		const uint32_t block_index = fs_block_of_data_block_index(offset).value();
+		const uint32_t block_index = TRY(fs_block_of_data_block_index(offset)).value();
 
 		auto block_buffer = m_fs.get_block_buffer();
 
-		m_fs.read_block(block_index, block_buffer);
+		TRY(m_fs.read_block(block_index, block_buffer));
 
 		// First determine if we have big enough list
 		size_t entry_count = 0;
@@ -413,7 +432,7 @@ done:
 		auto inode_or_error = Ext2Inode::create(m_fs, new_ino);
 		if (inode_or_error.is_error())
 		{
-			m_fs.delete_inode(new_ino);
+			TRY(m_fs.delete_inode(new_ino));
 			return inode_or_error.release_error();
 		}
 
@@ -434,19 +453,21 @@ done:
 		auto inode_or_error = Ext2Inode::create(m_fs, new_ino);
 		if (inode_or_error.is_error())
 		{
-			m_fs.delete_inode(new_ino);
+			TRY(m_fs.delete_inode(new_ino));
 			return inode_or_error.release_error();
 		}
 
 		auto inode = inode_or_error.release_value();
-		BAN::ScopeGuard cleanup([&] { inode->cleanup_from_fs(); });
 
-		TRY(inode->link_inode_to_directory(*inode, "."_sv));
-		TRY(inode->link_inode_to_directory(*this, ".."_sv));
+		// link . and ..
+		if (auto ret = inode->link_inode_to_directory(*inode, "."_sv); ret.is_error())
+			return ({ TRY(inode->cleanup_from_fs()); ret.release_error(); });
+		if (auto ret = inode->link_inode_to_directory(*this, ".."_sv); ret.is_error())
+			return ({ TRY(inode->cleanup_from_fs()); ret.release_error(); });
 
-		TRY(link_inode_to_directory(*inode, name));
-
-		cleanup.disable();
+		// link to parent
+		if (auto ret = link_inode_to_directory(*inode, name); ret.is_error())
+			return ({ TRY(inode->cleanup_from_fs()); ret.release_error(); });
 
 		return {};
 	}
@@ -475,29 +496,32 @@ done:
 
 		auto block_buffer = m_fs.get_block_buffer();
 
-		auto write_inode = [&](uint32_t entry_offset, uint32_t entry_rec_len)
-		{
-			auto typed_mode = inode.mode();
-			uint8_t file_type = (m_fs.superblock().rev_level == Ext2::Enum::GOOD_OLD_REV) ? 0
-				: typed_mode.ifreg()  ? Ext2::Enum::REG_FILE
-				: typed_mode.ifdir()  ? Ext2::Enum::DIR
-				: typed_mode.ifchr()  ? Ext2::Enum::CHRDEV
-				: typed_mode.ifblk()  ? Ext2::Enum::BLKDEV
-				: typed_mode.ififo()  ? Ext2::Enum::FIFO
-				: typed_mode.ifsock() ? Ext2::Enum::SOCK
-				: typed_mode.iflnk()  ? Ext2::Enum::SYMLINK
-				: 0;
+		auto write_inode =
+			[&](uint32_t entry_offset, uint32_t entry_rec_len) -> BAN::ErrorOr<void>
+			{
+				auto typed_mode = inode.mode();
+				uint8_t file_type = (m_fs.superblock().rev_level == Ext2::Enum::GOOD_OLD_REV) ? 0
+					: typed_mode.ifreg()  ? Ext2::Enum::REG_FILE
+					: typed_mode.ifdir()  ? Ext2::Enum::DIR
+					: typed_mode.ifchr()  ? Ext2::Enum::CHRDEV
+					: typed_mode.ifblk()  ? Ext2::Enum::BLKDEV
+					: typed_mode.ififo()  ? Ext2::Enum::FIFO
+					: typed_mode.ifsock() ? Ext2::Enum::SOCK
+					: typed_mode.iflnk()  ? Ext2::Enum::SYMLINK
+					: 0;
 
-			auto& new_entry = block_buffer.span().slice(entry_offset).as<Ext2::LinkedDirectoryEntry>();
-			new_entry.inode = inode.ino();
-			new_entry.rec_len = entry_rec_len;
-			new_entry.name_len = name.size();
-			new_entry.file_type = file_type;
-			memcpy(new_entry.name, name.data(), name.size());
+				auto& new_entry = block_buffer.span().slice(entry_offset).as<Ext2::LinkedDirectoryEntry>();
+				new_entry.inode = inode.ino();
+				new_entry.rec_len = entry_rec_len;
+				new_entry.name_len = name.size();
+				new_entry.file_type = file_type;
+				memcpy(new_entry.name, name.data(), name.size());
 
-			inode.m_inode.links_count++;
-			inode.sync();
-		};
+				inode.m_inode.links_count++;
+				TRY(inode.sync());
+
+				return {};
+			};
 
 		uint32_t block_index = 0;
 		uint32_t entry_offset = 0;
@@ -512,8 +536,8 @@ done:
 			goto needs_new_block;
 
 		// Try to insert inode to last data block
-		block_index = fs_block_of_data_block_index(data_block_count - 1).value();
-		m_fs.read_block(block_index, block_buffer);
+		block_index = TRY(fs_block_of_data_block_index(data_block_count - 1)).value();
+		TRY(m_fs.read_block(block_index, block_buffer));
 
 		while (entry_offset < block_size)
 		{
@@ -525,8 +549,8 @@ done:
 
 			if (entry.inode == 0 && needed_entry_len <= entry.rec_len)
 			{
-				write_inode(entry_offset, entry.rec_len);
-				m_fs.write_block(block_index, block_buffer);
+				TRY(write_inode(entry_offset, entry.rec_len));
+				TRY(m_fs.write_block(block_index, block_buffer));
 				return {};
 			}
 			else if (needed_entry_len <= entry.rec_len - entry_min_rec_len)
@@ -534,8 +558,8 @@ done:
 				uint32_t new_rec_len = entry.rec_len - entry_min_rec_len;
 				entry.rec_len = entry_min_rec_len;
 
-				write_inode(entry_offset + entry.rec_len, new_rec_len);
-				m_fs.write_block(block_index, block_buffer);
+				TRY(write_inode(entry_offset + entry.rec_len, new_rec_len));
+				TRY(m_fs.write_block(block_index, block_buffer));
 				return {};
 			}
 
@@ -547,8 +571,8 @@ needs_new_block:
 		m_inode.size += blksize();
 
 		memset(block_buffer.data(), 0x00, block_buffer.size());
-		write_inode(0, block_size);
-		m_fs.write_block(block_index, block_buffer);
+		TRY(write_inode(0, block_size));
+		TRY(m_fs.write_block(block_index, block_buffer));
 
 		return {};
 	}
@@ -563,8 +587,8 @@ needs_new_block:
 		for (uint32_t i = 0; i < max_used_data_block_count(); i++)
 		{
 			// FIXME: can we actually assume directories have all their blocks allocated
-			const uint32_t block_index = fs_block_of_data_block_index(i).value();
-			m_fs.read_block(block_index, block_buffer);
+			const uint32_t block_index = TRY(fs_block_of_data_block_index(i)).value();
+			TRY(m_fs.read_block(block_index, block_buffer));
 
 			blksize_t offset = 0;
 			while (offset < blksize())
@@ -599,8 +623,8 @@ needs_new_block:
 		for (uint32_t i = 0; i < max_used_data_block_count(); i++)
 		{
 			// FIXME: can we actually assume directories have all their blocks allocated
-			const uint32_t block_index = fs_block_of_data_block_index(i).value();
-			m_fs.read_block(block_index, block_buffer);
+			const uint32_t block_index = TRY(fs_block_of_data_block_index(i)).value();
+			TRY(m_fs.read_block(block_index, block_buffer));
 
 			bool modified = false;
 
@@ -616,13 +640,13 @@ needs_new_block:
 					if (entry_name == "."_sv)
 					{
 						m_inode.links_count--;
-						sync();
+						TRY(sync());
 					}
 					else if (entry_name == ".."_sv)
 					{
 						auto parent = TRY(Ext2Inode::create(m_fs, entry.inode));
 						parent->m_inode.links_count--;
-						parent->sync();
+						TRY(parent->sync());
 					}
 					else
 						ASSERT_NOT_REACHED();
@@ -635,7 +659,7 @@ needs_new_block:
 			}
 
 			if (modified)
-				m_fs.write_block(block_index, block_buffer);
+				TRY(m_fs.write_block(block_index, block_buffer));
 		}
 
 		return {};
@@ -655,8 +679,8 @@ needs_new_block:
 		for (uint32_t i = 0; i < max_used_data_block_count(); i++)
 		{
 			// FIXME: can we actually assume directories have all their blocks allocated
-			const uint32_t block_index = fs_block_of_data_block_index(i).value();
-			m_fs.read_block(block_index, block_buffer);
+			const uint32_t block_index = TRY(fs_block_of_data_block_index(i)).value();
+			TRY(m_fs.read_block(block_index, block_buffer));
 
 			blksize_t offset = 0;
 			while (offset < blksize())
@@ -677,7 +701,7 @@ needs_new_block:
 					else
 						inode->m_inode.links_count--;
 
-					sync();
+					TRY(sync());
 
 					// NOTE: If this was the last link to inode we must
 					//       remove it from inode cache to trigger cleanup
@@ -690,7 +714,7 @@ needs_new_block:
 
 					// FIXME: This should expand the last inode if exists
 					entry.inode = 0;
-					m_fs.write_block(block_index, block_buffer);
+					TRY(m_fs.write_block(block_index, block_buffer));
 				}
 				offset += entry.rec_len;
 			}
@@ -714,14 +738,14 @@ needs_new_block:
 
 			auto block_buffer = m_fs.get_block_buffer();
 			memset(block_buffer.data(), 0x00, block_buffer.size());
-			m_fs.write_block(block, block_buffer);
+			TRY(m_fs.write_block(block, block_buffer));
 		}
 
 		if (depth == 0)
 			return block;
 
 		auto block_buffer = m_fs.get_block_buffer();
-		m_fs.read_block(block, block_buffer);
+		TRY(m_fs.read_block(block, block_buffer));
 
 		uint32_t divisor = 1;
 		for (uint32_t i = 1; i < depth; i++)
@@ -730,7 +754,9 @@ needs_new_block:
 		uint32_t& new_block = block_buffer.span().as_span<uint32_t>()[(index / divisor) % indices_per_fs_block];
 
 		uint32_t allocated_block = TRY(allocate_new_block_to_indirect_block(new_block, index, depth - 1));
-		m_fs.write_block(block, block_buffer);
+		TRY(m_fs.write_block(block, block_buffer));
+
+		TRY(sync());
 
 		return allocated_block;
 	}
@@ -740,13 +766,12 @@ needs_new_block:
 		const uint32_t inode_blocks_per_fs_block = blksize() / 512;
 		const uint32_t indices_per_fs_block = blksize() / sizeof(uint32_t);
 
-		BAN::ScopeGuard syncer([&] { sync(); });
-
 		if (data_block_index < 12)
 		{
 			ASSERT(m_inode.block[data_block_index] == 0);
 			m_inode.block[data_block_index] = TRY(m_fs.reserve_free_block(block_group()));
 			m_inode.blocks += inode_blocks_per_fs_block;
+			TRY(sync());
 			return m_inode.block[data_block_index];
 		}
 		data_block_index -= 12;
@@ -765,17 +790,19 @@ needs_new_block:
 		ASSERT_NOT_REACHED();
 	}
 
-	void Ext2Inode::sync()
+	BAN::ErrorOr<void> Ext2Inode::sync()
 	{
-		auto inode_location = m_fs.locate_inode(ino());
+		auto inode_location = TRY(m_fs.locate_inode(ino()));
 		auto block_buffer = m_fs.get_block_buffer();
 
-		m_fs.read_block(inode_location.block, block_buffer);
+		TRY(m_fs.read_block(inode_location.block, block_buffer));
 		if (memcmp(block_buffer.data() + inode_location.offset, &m_inode, sizeof(Ext2::Inode)))
 		{
 			memcpy(block_buffer.data() + inode_location.offset, &m_inode, sizeof(Ext2::Inode));
-			m_fs.write_block(inode_location.block, block_buffer);
+			TRY(m_fs.write_block(inode_location.block, block_buffer));
 		}
+
+		return {};
 	}
 
 	BAN::ErrorOr<BAN::RefPtr<Inode>> Ext2Inode::find_inode_impl(BAN::StringView file_name)
@@ -787,8 +814,8 @@ needs_new_block:
 		for (uint32_t i = 0; i < max_used_data_block_count(); i++)
 		{
 			// FIXME: can we actually assume directories have all their blocks allocated
-			const uint32_t block_index = fs_block_of_data_block_index(i).value();
-			m_fs.read_block(block_index, block_buffer);
+			const uint32_t block_index = TRY(fs_block_of_data_block_index(i)).value();
+			TRY(m_fs.read_block(block_index, block_buffer));
 
 			BAN::ConstByteSpan entry_span = block_buffer.span();
 			while (entry_span.size() >= sizeof(Ext2::LinkedDirectoryEntry))

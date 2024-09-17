@@ -61,17 +61,17 @@ namespace Kernel
 		BAN::ErrorOr<void> initialize_root_inode();
 
 		BAN::ErrorOr<uint32_t> create_inode(const Ext2::Inode&);
-		void delete_inode(uint32_t ino);
+		BAN::ErrorOr<void> delete_inode(uint32_t ino);
 		BAN::ErrorOr<void> resize_inode(uint32_t, size_t);
 
-		void read_block(uint32_t, BlockBufferWrapper&);
-		void write_block(uint32_t, const BlockBufferWrapper&);
-		void sync_superblock();
+		BAN::ErrorOr<void> read_block(uint32_t, BlockBufferWrapper&);
+		BAN::ErrorOr<void> write_block(uint32_t, const BlockBufferWrapper&);
+		BAN::ErrorOr<void> sync_superblock();
 
 		BlockBufferWrapper get_block_buffer();
 
 		BAN::ErrorOr<uint32_t> reserve_free_block(uint32_t primary_bgd);
-		void release_block(uint32_t block);
+		BAN::ErrorOr<void> release_block(uint32_t block);
 
 		BAN::HashMap<ino_t, BAN::RefPtr<Ext2Inode>>& inode_cache() { return m_inode_cache; }
 
@@ -82,7 +82,7 @@ namespace Kernel
 			uint32_t block;
 			uint32_t offset;
 		};
-		BlockLocation locate_inode(uint32_t);
+		BAN::ErrorOr<BlockLocation> locate_inode(uint32_t);
 		BlockLocation locate_block_group_descriptior(uint32_t);
 
 		uint32_t block_size() const { return 1024 << superblock().log_block_size; }
