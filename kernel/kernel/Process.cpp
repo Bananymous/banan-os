@@ -1051,7 +1051,7 @@ namespace Kernel
 
 		LockGuard _(m_process_lock);
 
-		auto inode = TRY(find_file(fd, path, O_SEARCH | flag)).inode;
+		auto inode = TRY(find_file(fd, path, flag)).inode;
 
 		if (!m_credentials.is_superuser() && inode->uid() != m_credentials.euid())
 		{
@@ -1073,7 +1073,7 @@ namespace Kernel
 
 		LockGuard _(m_process_lock);
 
-		auto inode = TRY(find_file(fd, path, O_SEARCH | flag)).inode;
+		auto inode = TRY(find_file(fd, path, flag)).inode;
 
 		if (uid != -1 && !m_credentials.is_superuser())
 			return BAN::Error::from_errno(EPERM);
@@ -1425,7 +1425,7 @@ namespace Kernel
 		LockGuard _(m_process_lock);
 		TRY(validate_pointer_access(buf, sizeof(struct stat), true));
 
-		auto inode = TRY(find_file(fd, path, O_SEARCH | flag)).inode;
+		auto inode = TRY(find_file(fd, path, flag)).inode;
 		buf->st_dev		= inode->dev();
 		buf->st_ino		= inode->ino();
 		buf->st_mode	= inode->mode().mode;
@@ -1451,7 +1451,7 @@ namespace Kernel
 
 		auto absolute_path = TRY(absolute_path_of(path));
 
-		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, O_SEARCH));
+		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, O_RDONLY));
 		if (file.canonical_path.size() >= PATH_MAX)
 			return BAN::Error::from_errno(ENAMETOOLONG);
 
