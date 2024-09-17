@@ -807,6 +807,8 @@ namespace Kernel
 		{
 			parent_inode = parent.inode;
 			file_name = path;
+			if (!parent_inode->can_access(m_credentials, O_WRONLY))
+				return BAN::Error::from_errno(EACCES);
 		}
 
 		if (Inode::Mode(mode).ifdir())
@@ -977,7 +979,12 @@ namespace Kernel
 		BAN::StringView path_sv(path);
 		if (!path_sv.empty() && path_sv.back() == '/')
 			path_sv = path_sv.substring(0, path_sv.size() - 1);
-		TRY(create_file_or_dir(VirtualFileSystem::get().root_file(), path_sv, Inode::Mode::IFDIR | mode));
+		if (path_sv.empty())
+			return BAN::Error::from_errno(EINVAL);
+		if (path[0] == '/')
+			TRY(create_file_or_dir(VirtualFileSystem::get().root_file(), path_sv, Inode::Mode::IFDIR | mode));
+		else
+			TRY(create_file_or_dir(m_working_directory, path_sv, Inode::Mode::IFDIR | mode));
 		return 0;
 	}
 
