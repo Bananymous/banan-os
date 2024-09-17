@@ -1400,33 +1400,6 @@ namespace Kernel
 		return {};
 	}
 
-	static void read_stat_from_inode(BAN::RefPtr<Inode> inode, struct stat* out)
-	{
-		out->st_dev		= inode->dev();
-		out->st_ino		= inode->ino();
-		out->st_mode	= inode->mode().mode;
-		out->st_nlink	= inode->nlink();
-		out->st_uid		= inode->uid();
-		out->st_gid		= inode->gid();
-		out->st_rdev	= inode->rdev();
-		out->st_size	= inode->size();
-		out->st_atim	= inode->atime();
-		out->st_mtim	= inode->mtime();
-		out->st_ctim	= inode->ctime();
-		out->st_blksize	= inode->blksize();
-		out->st_blocks	= inode->blocks();
-	}
-
-	BAN::ErrorOr<long> Process::sys_fstat(int fd, struct stat* buf)
-	{
-		LockGuard _(m_process_lock);
-		TRY(validate_pointer_access(buf, sizeof(struct stat), true));
-
-		auto inode = TRY(m_open_file_descriptors.inode_of(fd));
-		read_stat_from_inode(inode, buf);
-		return 0;
-	}
-
 	BAN::ErrorOr<long> Process::sys_fstatat(int fd, const char* path, struct stat* buf, int flags)
 	{
 		if (flags & ~AT_SYMLINK_NOFOLLOW)
@@ -1435,27 +1408,35 @@ namespace Kernel
 			flags = O_NOFOLLOW;
 
 		LockGuard _(m_process_lock);
+		if (path)
+			TRY(validate_string_access(path));
 		TRY(validate_pointer_access(buf, sizeof(struct stat), true));
 
-		auto parent_file = TRY(m_open_file_descriptors.file_of(fd));
-		auto inode = TRY(VirtualFileSystem::get().file_from_relative_path(parent_file, m_credentials, path, flags)).inode;
-		read_stat_from_inode(inode, buf);
-		return 0;
-	}
+		VirtualFileSystem::File parent_file;
+		if (path && path[0] == '/')
+			parent_file = VirtualFileSystem::get().root_file();
+		else if (fd == AT_FDCWD)
+			parent_file = TRY(m_working_directory.clone());
+		else
+			parent_file = TRY(m_open_file_descriptors.file_of(fd));
 
-	BAN::ErrorOr<long> Process::sys_stat(const char* path, struct stat* buf, int flags)
-	{
-		if (flags & ~AT_SYMLINK_NOFOLLOW)
-			return BAN::Error::from_errno(EINVAL);
-		if (flags == AT_SYMLINK_NOFOLLOW)
-			flags = O_NOFOLLOW;
+		const auto inode = path
+			? TRY(VirtualFileSystem::get().file_from_relative_path(parent_file, m_credentials, path, flags)).inode
+			: parent_file.inode;
+		buf->st_dev		= inode->dev();
+		buf->st_ino		= inode->ino();
+		buf->st_mode	= inode->mode().mode;
+		buf->st_nlink	= inode->nlink();
+		buf->st_uid		= inode->uid();
+		buf->st_gid		= inode->gid();
+		buf->st_rdev	= inode->rdev();
+		buf->st_size	= inode->size();
+		buf->st_atim	= inode->atime();
+		buf->st_mtim	= inode->mtime();
+		buf->st_ctim	= inode->ctime();
+		buf->st_blksize	= inode->blksize();
+		buf->st_blocks	= inode->blocks();
 
-		LockGuard _(m_process_lock);
-		TRY(validate_pointer_access(buf, sizeof(struct stat), true));
-
-		auto absolute_path = TRY(absolute_path_of(path));
-		auto inode = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, flags)).inode;
-		read_stat_from_inode(inode, buf);
 		return 0;
 	}
 

@@ -1,6 +1,5 @@
 #include <BAN/Assert.h>
 
-#include <errno.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
@@ -20,7 +19,7 @@ int fchmod(int fildes, mode_t mode)
 
 int fstat(int fildes, struct stat* buf)
 {
-	return syscall(SYS_FSTAT, fildes, buf);
+	return fstatat(fildes, nullptr, buf, 0);
 }
 
 int fstatat(int fd, const char* __restrict path, struct stat* __restrict buf, int flag)
@@ -30,12 +29,12 @@ int fstatat(int fd, const char* __restrict path, struct stat* __restrict buf, in
 
 int lstat(const char* __restrict path, struct stat* __restrict buf)
 {
-	return syscall(SYS_STAT, path, buf, AT_SYMLINK_NOFOLLOW);
+	return fstatat(AT_FDCWD, path, buf, AT_SYMLINK_NOFOLLOW);
 }
 
 int stat(const char* __restrict path, struct stat* __restrict buf)
 {
-	return syscall(SYS_STAT, path, buf, 0);
+	return fstatat(AT_FDCWD, path, buf, 0);
 }
 
 mode_t umask(mode_t cmask)

@@ -20,7 +20,6 @@ __BEGIN_DECLS
 	O(SYS_EXEC,				exec)			\
 	O(SYS_SLEEP,			sleep)			\
 	O(SYS_WAIT,				wait)			\
-	O(SYS_FSTAT,			fstat)			\
 	O(SYS_READ_DIR,			readdir)		\
 	O(SYS_SET_UID,			setuid)			\
 	O(SYS_SET_GID,			setgid)			\
@@ -47,7 +46,6 @@ __BEGIN_DECLS
 	O(SYS_FCNTL,			fcntl)			\
 	O(SYS_NANOSLEEP,		nanosleep)		\
 	O(SYS_FSTATAT,			fstatat)		\
-	O(SYS_STAT,				stat)			\
 	O(SYS_SYNC,				sync)			\
 	O(SYS_MMAP,				mmap)			\
 	O(SYS_MUNMAP,			munmap) 		\
