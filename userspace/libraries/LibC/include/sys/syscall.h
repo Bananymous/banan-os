@@ -55,7 +55,6 @@ __BEGIN_DECLS
 	O(SYS_FCHMOD,			fchmod)			\
 	O(SYS_CREATE_DIR,		create_dir)		\
 	O(SYS_UNLINK,			unlink) 		\
-	O(SYS_READLINK,			readlink)		\
 	O(SYS_READLINKAT,		readlinkat)		\
 	O(SYS_MSYNC,			msync)			\
 	O(SYS_PREAD,			pread)			\

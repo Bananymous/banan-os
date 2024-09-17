@@ -3,6 +3,7 @@
 #include <kernel/Syscall.h>
 
 #include <errno.h>
+#include <fcntl.h>
 #include <pwd.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -86,7 +87,7 @@ ssize_t write(int fildes, const void* buf, size_t nbyte)
 
 ssize_t readlink(const char* __restrict path, char* __restrict buf, size_t bufsize)
 {
-	return syscall(SYS_READLINK, path, buf, bufsize);
+	return readlinkat(AT_FDCWD, path, buf, bufsize);
 }
 
 ssize_t readlinkat(int fd, const char* __restrict path, char* __restrict buf, size_t bufsize)

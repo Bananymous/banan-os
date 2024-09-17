@@ -994,37 +994,28 @@ namespace Kernel
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::readlink_impl(BAN::RefPtr<Inode> inode, char* buffer, size_t bufsize)
-	{
-		// FIXME: no allocation needed
-		auto link_target = TRY(inode->link_target());
-
-		size_t byte_count = BAN::Math::min<size_t>(link_target.size(), bufsize);
-		memcpy(buffer, link_target.data(), byte_count);
-
-		return byte_count;
-	}
-
-	BAN::ErrorOr<long> Process::sys_readlink(const char* path, char* buffer, size_t bufsize)
-	{
-		LockGuard _(m_process_lock);
-		TRY(validate_string_access(path));
-		TRY(validate_pointer_access(buffer, bufsize, true));
-
-		auto absolute_path = TRY(absolute_path_of(path));
-		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, O_NOFOLLOW | O_RDONLY));
-		return readlink_impl(file.inode, buffer, bufsize);
-	}
-
 	BAN::ErrorOr<long> Process::sys_readlinkat(int fd, const char* path, char* buffer, size_t bufsize)
 	{
 		LockGuard _(m_process_lock);
 		TRY(validate_string_access(path));
 		TRY(validate_pointer_access(buffer, bufsize, true));
 
-		auto parent_file = TRY(m_open_file_descriptors.file_of(fd));
-		auto file = TRY(VirtualFileSystem::get().file_from_relative_path(parent_file, m_credentials, path, O_NOFOLLOW | O_RDONLY));
-		return readlink_impl(file.inode, buffer, bufsize);
+		VirtualFileSystem::File parent_file;
+		if (path[0] == '/')
+			parent_file = VirtualFileSystem::get().root_file();
+		else if (fd == AT_FDCWD)
+			parent_file = TRY(m_working_directory.clone());
+		else
+			parent_file = TRY(m_open_file_descriptors.file_of(fd));
+
+		auto inode = TRY(VirtualFileSystem::get().file_from_relative_path(parent_file, m_credentials, path, O_NOFOLLOW | O_RDONLY)).inode;
+
+		// FIXME: no allocation needed
+		auto link_target = TRY(inode->link_target());
+
+		const size_t byte_count = BAN::Math::min<size_t>(link_target.size(), bufsize);
+		memcpy(buffer, link_target.data(), byte_count);
+		return byte_count;
 	}
 
 	BAN::ErrorOr<long> Process::sys_pread(int fd, void* buffer, size_t count, off_t offset)

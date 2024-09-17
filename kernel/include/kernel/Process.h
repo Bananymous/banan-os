@@ -109,8 +109,6 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_access(const char* path, int amode);
 		BAN::ErrorOr<long> sys_create_dir(const char*, mode_t);
 		BAN::ErrorOr<long> sys_unlink(const char*);
-		BAN::ErrorOr<long> readlink_impl(BAN::RefPtr<Inode>, char* buffer, size_t bufsize);
-		BAN::ErrorOr<long> sys_readlink(const char* path, char* buffer, size_t bufsize);
 		BAN::ErrorOr<long> sys_readlinkat(int fd, const char* path, char* buffer, size_t bufsize);
 
 		BAN::ErrorOr<long> sys_pread(int fd, void* buffer, size_t count, off_t offset);
