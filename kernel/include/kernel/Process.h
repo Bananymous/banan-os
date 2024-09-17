@@ -213,6 +213,8 @@ namespace Kernel
 		Process(const Credentials&, pid_t pid, pid_t parent, pid_t sid, pid_t pgrp);
 		static Process* create_process(const Credentials&, pid_t parent, pid_t sid = 0, pid_t pgrp = 0);
 
+		BAN::ErrorOr<VirtualFileSystem::File> find_file(int fd, const char* path, int flags);
+
 		BAN::ErrorOr<void> validate_string_access(const char*);
 		BAN::ErrorOr<void> validate_pointer_access_check(const void*, size_t, bool needs_write);
 		BAN::ErrorOr<void> validate_pointer_access(const void*, size_t, bool needs_write);

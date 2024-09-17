@@ -351,6 +351,28 @@ namespace Kernel
 		return read_from_vec_of_str(m_environ, offset, buffer);
 	}
 
+	BAN::ErrorOr<VirtualFileSystem::File> Process::find_file(int fd, const char* path, int flags)
+	{
+		ASSERT(m_process_lock.is_locked());
+
+		if (path)
+			TRY(validate_string_access(path));
+
+		VirtualFileSystem::File parent_file;
+		if (path && path[0] == '/')
+			parent_file = VirtualFileSystem::get().root_file();
+		else if (fd == AT_FDCWD)
+			parent_file = TRY(m_working_directory.clone());
+		else
+			parent_file = TRY(m_open_file_descriptors.file_of(fd));
+
+		auto file = path
+			? TRY(VirtualFileSystem::get().file_from_relative_path(parent_file, m_credentials, path, flags))
+			: BAN::move(parent_file);
+
+		return file;
+	}
+
 	BAN::ErrorOr<long> Process::sys_exit(int status)
 	{
 		ASSERT(this == &Process::current());
@@ -1000,15 +1022,7 @@ namespace Kernel
 		TRY(validate_string_access(path));
 		TRY(validate_pointer_access(buffer, bufsize, true));
 
-		VirtualFileSystem::File parent_file;
-		if (path[0] == '/')
-			parent_file = VirtualFileSystem::get().root_file();
-		else if (fd == AT_FDCWD)
-			parent_file = TRY(m_working_directory.clone());
-		else
-			parent_file = TRY(m_open_file_descriptors.file_of(fd));
-
-		auto inode = TRY(VirtualFileSystem::get().file_from_relative_path(parent_file, m_credentials, path, O_NOFOLLOW | O_RDONLY)).inode;
+		auto inode = TRY(find_file(fd, path, O_NOFOLLOW | O_RDONLY)).inode;
 
 		// FIXME: no allocation needed
 		auto link_target = TRY(inode->link_target());
@@ -1036,20 +1050,8 @@ namespace Kernel
 			flag = O_NOFOLLOW;
 
 		LockGuard _(m_process_lock);
-		if (path)
-			TRY(validate_string_access(path));
 
-		VirtualFileSystem::File parent_file;
-		if (path && path[0] == '/')
-			parent_file = VirtualFileSystem::get().root_file();
-		else if (fd == AT_FDCWD)
-			parent_file = TRY(m_working_directory.clone());
-		else
-			parent_file = TRY(m_open_file_descriptors.file_of(fd));
-
-		auto inode = path
-			? TRY(VirtualFileSystem::get().file_from_relative_path(parent_file, m_credentials, path, flag)).inode
-			: parent_file.inode;
+		auto inode = TRY(find_file(fd, path, O_SEARCH | flag)).inode;
 
 		if (!m_credentials.is_superuser() && inode->uid() != m_credentials.euid())
 		{
@@ -1070,20 +1072,8 @@ namespace Kernel
 			flag = O_NOFOLLOW;
 
 		LockGuard _(m_process_lock);
-		if (path)
-			TRY(validate_string_access(path));
 
-		VirtualFileSystem::File parent_file;
-		if (path && path[0] == '/')
-			parent_file = VirtualFileSystem::get().root_file();
-		else if (fd == AT_FDCWD)
-			parent_file = TRY(m_working_directory.clone());
-		else
-			parent_file = TRY(m_open_file_descriptors.file_of(fd));
-
-		auto inode = path
-			? TRY(VirtualFileSystem::get().file_from_relative_path(parent_file, m_credentials, path, flag)).inode
-			: parent_file.inode;
+		auto inode = TRY(find_file(fd, path, O_SEARCH | flag)).inode;
 
 		if (uid != -1 && !m_credentials.is_superuser())
 			return BAN::Error::from_errno(EPERM);
@@ -1425,29 +1415,17 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<long> Process::sys_fstatat(int fd, const char* path, struct stat* buf, int flags)
+	BAN::ErrorOr<long> Process::sys_fstatat(int fd, const char* path, struct stat* buf, int flag)
 	{
-		if (flags & ~AT_SYMLINK_NOFOLLOW)
+		if (flag & ~AT_SYMLINK_NOFOLLOW)
 			return BAN::Error::from_errno(EINVAL);
-		if (flags == AT_SYMLINK_NOFOLLOW)
-			flags = O_NOFOLLOW;
+		if (flag == AT_SYMLINK_NOFOLLOW)
+			flag = O_NOFOLLOW;
 
 		LockGuard _(m_process_lock);
-		if (path)
-			TRY(validate_string_access(path));
 		TRY(validate_pointer_access(buf, sizeof(struct stat), true));
 
-		VirtualFileSystem::File parent_file;
-		if (path && path[0] == '/')
-			parent_file = VirtualFileSystem::get().root_file();
-		else if (fd == AT_FDCWD)
-			parent_file = TRY(m_working_directory.clone());
-		else
-			parent_file = TRY(m_open_file_descriptors.file_of(fd));
-
-		const auto inode = path
-			? TRY(VirtualFileSystem::get().file_from_relative_path(parent_file, m_credentials, path, flags)).inode
-			: parent_file.inode;
+		auto inode = TRY(find_file(fd, path, O_SEARCH | flag)).inode;
 		buf->st_dev		= inode->dev();
 		buf->st_ino		= inode->ino();
 		buf->st_mode	= inode->mode().mode;
