@@ -15,7 +15,7 @@ int open(const char* path, int oflag, ...)
 	mode_t mode = va_arg(args, mode_t);
 	va_end(args);
 
-	return syscall(SYS_OPEN, path, oflag, __UMASKED_MODE(mode));
+	return openat(AT_FDCWD, path, oflag, mode);
 }
 
 int openat(int fd, const char* path, int oflag, ...)

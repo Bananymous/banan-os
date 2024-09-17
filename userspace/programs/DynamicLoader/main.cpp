@@ -557,7 +557,7 @@ static void handle_dynamic(LoadedElf& elf)
 		if (auto ret = syscall(SYS_REALPATH, path_buffer, realpath); ret < 0)
 			print_error_and_exit("realpath", ret);
 
-		int library_fd = syscall(SYS_OPEN, realpath, O_RDONLY);
+		int library_fd = syscall(SYS_OPENAT, AT_FDCWD, realpath, O_RDONLY);
 		if (library_fd < 0)
 			print_error_and_exit("could not open library", library_fd);
 
@@ -882,7 +882,7 @@ int _entry(int argc, char** argv, char** envp, int fd)
 		argc--;
 		argv++;
 
-		fd = syscall(SYS_OPEN, argv[0], O_RDONLY);
+		fd = syscall(SYS_OPENAT, AT_FDCWD, argv[0], O_RDONLY);
 		if (fd < 0)
 			print_error_and_exit("could not open program", fd);
 	}

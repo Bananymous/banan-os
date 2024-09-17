@@ -849,14 +849,31 @@ namespace Kernel
 		return TRY(m_open_file_descriptors.open(BAN::move(file), flags));
 	}
 
-	BAN::ErrorOr<long> Process::open_file_impl(const VirtualFileSystem::File& parent, BAN::StringView path, int flags, mode_t mode)
+	BAN::ErrorOr<long> Process::sys_openat(int fd, const char* path, int flags, mode_t mode)
 	{
 		if ((flags & (O_DIRECTORY | O_CREAT)) == (O_DIRECTORY | O_CREAT))
 			return BAN::Error::from_errno(EINVAL);
 
 		LockGuard _(m_process_lock);
 
-		auto file_or_error = VirtualFileSystem::get().file_from_relative_path(parent, m_credentials, path, flags | O_NOFOLLOW);
+		TRY(validate_string_access(path));
+
+		VirtualFileSystem::File parent_file;
+		if (path[0] == '/')
+			parent_file = VirtualFileSystem::get().root_file();
+		else if (fd == AT_FDCWD)
+			parent_file = TRY(m_working_directory.clone());
+		else
+		{
+			int flags = TRY(m_open_file_descriptors.flags_of(fd));
+			if (!(flags & O_RDONLY) && !(flags & O_SEARCH))
+				return BAN::Error::from_errno(EBADF);
+			if (!TRY(m_open_file_descriptors.inode_of(fd))->mode().ifdir())
+				return BAN::Error::from_errno(ENOTDIR);
+			parent_file = TRY(m_open_file_descriptors.file_of(fd));
+		}
+
+		auto file_or_error = VirtualFileSystem::get().file_from_relative_path(parent_file, m_credentials, path, flags | O_NOFOLLOW);
 
 		VirtualFileSystem::File file;
 		if (file_or_error.is_error())
@@ -865,8 +882,8 @@ namespace Kernel
 				return file_or_error.release_error();
 
 			// FIXME: There is a race condition between next two lines
-			TRY(create_file_or_dir(parent, path, (mode & 0777) | Inode::Mode::IFREG));
-			file = TRY(VirtualFileSystem::get().file_from_relative_path(parent, m_credentials, path, flags));
+			TRY(create_file_or_dir(parent_file, path, (mode & 0777) | Inode::Mode::IFREG));
+			file = TRY(VirtualFileSystem::get().file_from_relative_path(parent_file, m_credentials, path, flags));
 		}
 		else
 		{
@@ -879,50 +896,19 @@ namespace Kernel
 			if (!file.inode->mode().ifdir() && (flags & O_DIRECTORY))
 				return BAN::Error::from_errno(ENOTDIR);
 			if (file.inode->mode().iflnk() && !(flags & O_NOFOLLOW))
-				file = TRY(VirtualFileSystem::get().file_from_relative_path(parent, m_credentials, path, flags));
+				file = TRY(VirtualFileSystem::get().file_from_relative_path(parent_file, m_credentials, path, flags));
 		}
 
 		auto inode = file.inode;
 		ASSERT(inode);
 
-		int fd = TRY(m_open_file_descriptors.open(BAN::move(file), flags));
+		fd = TRY(m_open_file_descriptors.open(BAN::move(file), flags));
 
 		// Open controlling terminal
 		if (!(flags & O_NOCTTY) && inode->is_tty() && is_session_leader() && !m_controlling_terminal)
 			m_controlling_terminal = static_cast<TTY*>(inode.ptr());
 
 		return fd;
-	}
-
-	BAN::ErrorOr<long> Process::sys_open(const char* path, int flags, mode_t mode)
-	{
-		LockGuard _(m_process_lock);
-		TRY(validate_string_access(path));
-		if (path[0] == '/')
-			return open_file_impl(VirtualFileSystem::get().root_file(), path, flags, mode);
-		return open_file_impl(m_working_directory, path, flags, mode);
-	}
-
-	BAN::ErrorOr<long> Process::sys_openat(int fd, const char* path, int flags, mode_t mode)
-	{
-		LockGuard _(m_process_lock);
-
-		TRY(validate_string_access(path));
-
-		VirtualFileSystem::File parent_file;
-		if (fd == AT_FDCWD)
-			parent_file = TRY(m_working_directory.clone());
-		else if (path[0] != '/')
-		{
-			int flags = TRY(m_open_file_descriptors.flags_of(fd));
-			if (!(flags & O_RDONLY) && !(flags & O_SEARCH))
-				return BAN::Error::from_errno(EBADF);
-			if (!TRY(m_open_file_descriptors.inode_of(fd))->mode().ifdir())
-				return BAN::Error::from_errno(ENOTDIR);
-			parent_file = TRY(m_open_file_descriptors.file_of(fd));
-		}
-
-		return open_file_impl(parent_file, path, flags, mode);
 	}
 
 	BAN::ErrorOr<long> Process::sys_close(int fd)

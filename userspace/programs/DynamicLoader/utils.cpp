@@ -68,7 +68,7 @@ static int s_random_fd;
 
 void init_random()
 {
-	s_random_fd = syscall(SYS_OPEN, "/dev/random", O_RDONLY);
+	s_random_fd = syscall(SYS_OPENAT, AT_FDCWD, "/dev/random", O_RDONLY);
 	if (s_random_fd < 0)
 		print_error_and_exit("could not open /dev/random", s_random_fd);
 }
