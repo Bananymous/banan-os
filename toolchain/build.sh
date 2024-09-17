@@ -273,3 +273,5 @@ if (($BUILD_LIBSTDCPP)); then
 
 	build_libstdcpp
 fi
+
+find "$BANAN_TOOLCHAIN_PREFIX" -type f -executable -exec strip --strip-unneeded {} + 2>/dev/null
