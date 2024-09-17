@@ -130,7 +130,7 @@ int open_server_fd()
 		exit(1);
 	}
 
-	if (chmod("/tmp/resolver.sock", 0777) == -1)
+	if (chmod(LibGUI::s_window_server_socket.data(), 0777) == -1)
 	{
 		perror("chmod");
 		exit(1);
