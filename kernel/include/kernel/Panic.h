@@ -17,7 +17,11 @@ namespace Kernel
 	static void panic_impl(const char* location, const char* message, Args&&... args)
 	{
 		asm volatile("cli");
+
+		const bool had_debug_lock = Debug::s_debug_lock.current_processor_has_lock();
 		derrorln("Kernel panic at {}", location);
+		if (had_debug_lock)
+			derrorln("  while having debug lock...");
 		derrorln(message, BAN::forward<Args>(args)...);
 		if (!g_paniced)
 		{

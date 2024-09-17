@@ -360,6 +360,8 @@ done:
 	{
 		if (g_paniced)
 		{
+			while (Debug::s_debug_lock.current_processor_has_lock())
+				Debug::s_debug_lock.unlock(InterruptState::Disabled);
 			dprintln("Processor {} halted", Processor::current_id());
 			if (InterruptController::is_initialized())
 				InterruptController::get().broadcast_ipi();
