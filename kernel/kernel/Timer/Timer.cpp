@@ -69,6 +69,11 @@ namespace Kernel
 		return m_timer->time_since_boot();
 	}
 
+	bool SystemTimer::pre_scheduler_sleep_needs_lock() const
+	{
+		return m_timer->pre_scheduler_sleep_needs_lock();
+	}
+
 	void SystemTimer::pre_scheduler_sleep_ns(uint64_t ns)
 	{
 		return m_timer->pre_scheduler_sleep_ns(ns);

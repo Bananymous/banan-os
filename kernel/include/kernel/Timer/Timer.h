@@ -17,6 +17,7 @@ namespace Kernel
 		virtual uint64_t ns_since_boot() const = 0;
 		virtual timespec time_since_boot() const = 0;
 
+		virtual bool pre_scheduler_sleep_needs_lock() const = 0;
 		virtual void pre_scheduler_sleep_ns(uint64_t) = 0;
 
 		void dont_invoke_scheduler() { m_should_invoke_scheduler = false; }
@@ -39,6 +40,7 @@ namespace Kernel
 		virtual uint64_t ns_since_boot() const override;
 		virtual timespec time_since_boot() const override;
 
+		virtual bool pre_scheduler_sleep_needs_lock() const override;
 		virtual void pre_scheduler_sleep_ns(uint64_t) override;
 
 		void sleep_ms(uint64_t ms) const { return sleep_ns(ms * 1'000'000); }

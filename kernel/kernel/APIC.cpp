@@ -253,11 +253,11 @@ namespace Kernel
 		const auto send_ipi =
 			[&](uint8_t processor, uint32_t data, uint64_t ud)
 			{
+				while ((read_from_local_apic(LAPIC_ICR_LO_REG) & ICR_LO_delivery_status_send_pending) == ICR_LO_delivery_status_send_pending)
+					__builtin_ia32_pause();
 				write_to_local_apic(LAPIC_ICR_HI_REG, (read_from_local_apic(LAPIC_ICR_HI_REG) & 0x00FFFFFF) | (processor << 24));
 				write_to_local_apic(LAPIC_ICR_LO_REG, data);
 				udelay(ud);
-				while ((read_from_local_apic(LAPIC_ICR_LO_REG) & ICR_LO_delivery_status_send_pending) == ICR_LO_delivery_status_send_pending)
-					__builtin_ia32_pause();
 			};
 
 		dprintln("System has {} processors", m_processors.size());
@@ -402,21 +402,26 @@ namespace Kernel
 
 	void APIC::initialize_timer()
 	{
-		{
-			constexpr uint64_t measuring_duration_ms = 100;
+		ASSERT(Kernel::Processor::get_interrupt_state() == InterruptState::Disabled);
 
-			SpinLockGuard _(s_timer_init_lock);
+		constexpr uint64_t measuring_duration_ms = 100;
 
-			write_to_local_apic(LAPIC_TIMER_LVT,         TimerModeOneShot | TimerMask);
-			write_to_local_apic(LAPIC_TIMER_DIVIDE_REG,  DivideBy2);
-			write_to_local_apic(LAPIC_TIMER_INITIAL_REG, 0xFFFFFFFF);
-			SystemTimer::get().pre_scheduler_sleep_ns(measuring_duration_ms * 1'000'000);
+		const bool needs_lock = SystemTimer::get().pre_scheduler_sleep_needs_lock();
+		if (needs_lock)
+			s_timer_init_lock.lock();
 
-			const uint32_t counter = read_from_local_apic(LAPIC_TIMER_CURRENT_REG);
-			m_lapic_timer_frequency_hz = static_cast<uint64_t>(0xFFFFFFFF - counter) * 2 * (1000 / measuring_duration_ms);
+		write_to_local_apic(LAPIC_TIMER_LVT,         TimerModeOneShot | TimerMask);
+		write_to_local_apic(LAPIC_TIMER_DIVIDE_REG,  DivideBy2);
+		write_to_local_apic(LAPIC_TIMER_INITIAL_REG, 0xFFFFFFFF);
+		SystemTimer::get().pre_scheduler_sleep_ns(measuring_duration_ms * 1'000'000);
 
-			dprintln("CPU {}: lapic timer frequency: {} Hz", Kernel::Processor::current_id(), m_lapic_timer_frequency_hz);
-		}
+		const uint32_t counter = read_from_local_apic(LAPIC_TIMER_CURRENT_REG);
+		m_lapic_timer_frequency_hz = static_cast<uint64_t>(0xFFFFFFFF - counter) * 2 * (1000 / measuring_duration_ms);
+
+		if (needs_lock)
+			s_timer_init_lock.unlock(InterruptState::Disabled);
+
+		dprintln("CPU {}: lapic timer frequency: {} Hz", Kernel::Processor::current_id(), m_lapic_timer_frequency_hz);
 
 		write_to_local_apic(LAPIC_TIMER_LVT,         TimerModePeriodic | (IRQ_VECTOR_BASE + IRQ_TIMER));
 		write_to_local_apic(LAPIC_TIMER_INITIAL_REG, m_lapic_timer_frequency_hz / 2 / 100);
