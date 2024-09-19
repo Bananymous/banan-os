@@ -121,6 +121,8 @@ namespace Kernel
 
 	void NetworkManager::on_receive(NetworkInterface& interface, BAN::ConstByteSpan packet)
 	{
+		if (packet.size() < sizeof(EthernetHeader))
+			return;
 		auto ethernet_header = packet.as<const EthernetHeader>();
 
 		switch (ethernet_header.ether_type)
