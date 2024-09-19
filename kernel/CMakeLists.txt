@@ -65,6 +65,7 @@ set(KERNEL_SOURCES
 	kernel/Networking/NetworkLayer.cpp
 	kernel/Networking/NetworkManager.cpp
 	kernel/Networking/NetworkSocket.cpp
+	kernel/Networking/RTL8169/RTL8169.cpp
 	kernel/Networking/TCPSocket.cpp
 	kernel/Networking/UDPSocket.cpp
 	kernel/Networking/UNIX/Socket.cpp

@@ -5,6 +5,7 @@
 #include <kernel/Networking/E1000/E1000E.h>
 #include <kernel/Networking/ICMP.h>
 #include <kernel/Networking/NetworkManager.h>
+#include <kernel/Networking/RTL8169/RTL8169.h>
 #include <kernel/Networking/TCPSocket.h>
 #include <kernel/Networking/UDPSocket.h>
 #include <kernel/Networking/UNIX/Socket.h>
@@ -46,6 +47,11 @@ namespace Kernel
 				if (E1000E::probe(pci_device))
 				{
 					interface = TRY(E1000E::create(pci_device));
+					break;
+				}
+				if (RTL8169::probe(pci_device))
+				{
+					interface = TRY(RTL8169::create(pci_device));
 					break;
 				}
 				// fall through
