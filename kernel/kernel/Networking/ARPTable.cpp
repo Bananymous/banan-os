@@ -2,6 +2,8 @@
 #include <kernel/Scheduler.h>
 #include <kernel/Timer/Timer.h>
 
+#define DEBUG_ARP 0
+
 namespace Kernel
 {
 
@@ -167,13 +169,18 @@ namespace Kernel
 
 	void ARPTable::add_arp_packet(NetworkInterface& interface, BAN::ConstByteSpan buffer)
 	{
+		if (buffer.size() < sizeof(ARPPacket))
+		{
+			dwarnln_if(DEBUG_ARP, "ARP packet too small");
+			return;
+		}
 		auto& arp_packet = buffer.as<const ARPPacket>();
 
 		SpinLockGuard _(m_pending_lock);
 
 		if (m_pending_packets.full())
 		{
-			dprintln("arp packet queue full");
+			dwarnln_if(DEBUG_ARP, "ARP packet queue full");
 			return;
 		}
 

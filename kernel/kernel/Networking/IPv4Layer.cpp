@@ -201,6 +201,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> IPv4Layer::handle_ipv4_packet(NetworkInterface& interface, BAN::ByteSpan packet)
 	{
+		ASSERT(packet.size() >= sizeof(IPv4Header));
 		auto& ipv4_header = packet.as<const IPv4Header>();
 		auto ipv4_data = packet.slice(sizeof(IPv4Header));
 
@@ -213,6 +214,11 @@ namespace Kernel
 		{
 			case NetworkProtocol::ICMP:
 			{
+				if (ipv4_data.size() < sizeof(ICMPHeader))
+				{
+					dwarnln("IPv4 packet too small for ICMP");
+					return {};
+				}
 				auto& icmp_header = ipv4_data.as<const ICMPHeader>();
 				switch (icmp_header.type)
 				{
@@ -245,6 +251,11 @@ namespace Kernel
 			}
 			case NetworkProtocol::UDP:
 			{
+				if (ipv4_data.size() < sizeof(UDPHeader))
+				{
+					dwarnln("IPv4 packet too small for UDP");
+					return {};
+				}
 				auto& udp_header = ipv4_data.as<const UDPHeader>();
 				dst_port = udp_header.dst_port;
 				src_port = udp_header.src_port;
@@ -252,6 +263,11 @@ namespace Kernel
 			}
 			case NetworkProtocol::TCP:
 			{
+				if (ipv4_data.size() < sizeof(TCPHeader))
+				{
+					dwarnln("IPv4 packet too small for TCP");
+					return {};
+				}
 				auto& tcp_header = ipv4_data.as<const TCPHeader>();
 				dst_port = tcp_header.dst_port;
 				src_port = tcp_header.src_port;
@@ -322,7 +338,7 @@ namespace Kernel
 			const size_t ipv4_packet_size = reinterpret_cast<const IPv4Header*>(buffer_start)->total_length;
 
 			if (auto ret = handle_ipv4_packet(pending.interface, BAN::ByteSpan(buffer_start, ipv4_packet_size)); ret.is_error())
-				dwarnln("{}", ret.error());
+				dwarnln_if(DEBUG_IPV4, "{}", ret.error());
 
 			SpinLockGuard _(m_pending_lock);
 			m_pending_total_size -= ipv4_packet_size;
@@ -333,32 +349,38 @@ namespace Kernel
 
 	void IPv4Layer::add_ipv4_packet(NetworkInterface& interface, BAN::ConstByteSpan buffer)
 	{
+		if (buffer.size() < sizeof(IPv4Header))
+		{
+			dwarnln_if(DEBUG_IPV4, "IPv4 packet too small");
+			return;
+		}
+
 		SpinLockGuard _(m_pending_lock);
 
 		if (m_pending_packets.full())
 		{
-			dwarnln("IPv4 packet queue full");
+			dwarnln_if(DEBUG_IPV4, "IPv4 packet queue full");
 			return;
 		}
 
 		if (m_pending_total_size + buffer.size() > m_pending_packet_buffer->size())
 		{
-			dwarnln("IPv4 packet queue full");
+			dwarnln_if(DEBUG_IPV4, "IPv4 packet queue full");
 			return;
 		}
 
 		auto& ipv4_header = buffer.as<const IPv4Header>();
 		if (calculate_internet_checksum(BAN::ConstByteSpan::from(ipv4_header), {}) != 0)
 		{
-			dwarnln("Invalid IPv4 packet");
+			dwarnln_if(DEBUG_IPV4, "Invalid IPv4 packet");
 			return;
 		}
 		if (ipv4_header.total_length > buffer.size() || ipv4_header.total_length > interface.payload_mtu())
 		{
 			if (ipv4_header.flags_frament & IPv4Flags::DF)
-				dwarnln("Invalid IPv4 packet");
+				dwarnln_if(DEBUG_IPV4, "Invalid IPv4 packet");
 			else
-				dwarnln("IPv4 fragmentation not supported");
+				dwarnln_if(DEBUG_IPV4, "IPv4 fragmentation not supported");
 			return;
 		}
 
