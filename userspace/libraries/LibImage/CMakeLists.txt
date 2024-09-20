@@ -5,7 +5,6 @@ set(LIBIMAGE_SOURCES
 )
 
 add_library(libimage ${LIBIMAGE_SOURCES})
-target_compile_options(libimage PRIVATE -O3)
 banan_link_library(libimage libc)
 banan_link_library(libimage ban)
 
