@@ -1,8 +1,6 @@
 #include <kernel/USB/HID/Mouse.h>
 #include <LibInput/MouseEvent.h>
 
-#define DEBUG_MOUSE 0
-
 namespace Kernel
 {
 
@@ -16,7 +14,7 @@ namespace Kernel
 	{
 		if (m_pointer_x || m_pointer_y)
 		{
-			dprintln_if(DEBUG_MOUSE, "Mouse move event {}, {}", m_pointer_x, m_pointer_y);
+			dprintln_if(DEBUG_USB_MOUSE, "Mouse move event {}, {}", m_pointer_x, m_pointer_y);
 
 			LibInput::MouseEvent event;
 			event.type = LibInput::MouseEventType::MouseMoveEvent;
@@ -30,7 +28,7 @@ namespace Kernel
 
 		if (m_wheel)
 		{
-			dprintln_if(DEBUG_MOUSE, "Mouse scroll event {}", m_wheel);
+			dprintln_if(DEBUG_USB_MOUSE, "Mouse scroll event {}", m_wheel);
 
 			LibInput::MouseEvent event;
 			event.type = LibInput::MouseEventType::MouseScrollEvent;
@@ -47,7 +45,7 @@ namespace Kernel
 
 			const bool pressed = m_button_state_temp[i];
 
-			dprintln_if(DEBUG_MOUSE, "Mouse button event {}: {}", i, pressed);
+			dprintln_if(DEBUG_USB_MOUSE, "Mouse button event {}: {}", i, pressed);
 
 			LibInput::MouseEvent event;
 			event.type = LibInput::MouseEventType::MouseButtonEvent;
@@ -76,7 +74,7 @@ namespace Kernel
 						m_wheel = state;
 						break;
 					default:
-						dprintln_if(DEBUG_MOUSE, "Unsupported mouse usage {2H} on page {2H}", usage, usage_page);
+						dprintln_if(DEBUG_USB_MOUSE, "Unsupported mouse usage {2H} on page {2H}", usage, usage_page);
 						break;
 				}
 				break;
@@ -86,14 +84,14 @@ namespace Kernel
 				m_button_state_temp[usage - 1] = state;
 				break;
 			default:
-				dprintln_if(DEBUG_MOUSE, "Unsupported mouse usage page {2H}", usage_page);
+				dprintln_if(DEBUG_USB_MOUSE, "Unsupported mouse usage page {2H}", usage_page);
 				break;
 		}
 	}
 
 	void USBMouse::handle_array(uint16_t usage_page, uint16_t usage)
 	{
-		dprintln_if(DEBUG_MOUSE, "Unhandled array report {2H}:{2H}", usage_page, usage);
+		dprintln_if(DEBUG_USB_MOUSE, "Unhandled array report {2H}:{2H}", usage_page, usage);
 	}
 
 }

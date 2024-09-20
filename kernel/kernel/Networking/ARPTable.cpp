@@ -2,8 +2,6 @@
 #include <kernel/Scheduler.h>
 #include <kernel/Timer/Timer.h>
 
-#define DEBUG_ARP 0
-
 namespace Kernel
 {
 

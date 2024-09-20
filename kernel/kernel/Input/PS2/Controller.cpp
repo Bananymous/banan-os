@@ -9,8 +9,6 @@
 #include <kernel/IO.h>
 #include <kernel/Timer/Timer.h>
 
-#define DEBUG_PS2 1
-
 namespace Kernel::Input
 {
 

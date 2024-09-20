@@ -7,8 +7,6 @@
 #include <kernel/USB/XHCI/Controller.h>
 #include <kernel/USB/XHCI/Device.h>
 
-#define DEBUG_XHCI 0
-
 namespace Kernel
 {
 

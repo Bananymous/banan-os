@@ -4,8 +4,6 @@
 #include <kernel/Storage/DiskCache.h>
 #include <kernel/Storage/StorageDevice.h>
 
-#define DEBUG_SYNC 0
-
 namespace Kernel
 {
 
@@ -127,7 +125,7 @@ namespace Kernel
 					sector_start++;
 				else
 				{
-					dprintln_if(DEBUG_SYNC, "syncing {}->{}", cache.first_sector + sector_start, cache.first_sector + sector_start + sector_count);
+					dprintln_if(DEBUG_DISK_SYNC, "syncing {}->{}", cache.first_sector + sector_start, cache.first_sector + sector_start + sector_count);
 					auto data_slice = m_sync_cache.span().slice(sector_start * m_sector_size, sector_count * m_sector_size);
 					TRY(m_device.write_sectors_impl(cache.first_sector + sector_start, sector_count, data_slice));
 					sector_start += sector_count + 1;
@@ -137,7 +135,7 @@ namespace Kernel
 
 			if (sector_count > 0)
 			{
-				dprintln_if(DEBUG_SYNC, "syncing {}->{}", cache.first_sector + sector_start, cache.first_sector + sector_start + sector_count);
+				dprintln_if(DEBUG_DISK_SYNC, "syncing {}->{}", cache.first_sector + sector_start, cache.first_sector + sector_start + sector_count);
 				auto data_slice = m_sync_cache.span().slice(sector_start * m_sector_size, sector_count * m_sector_size);
 				TRY(m_device.write_sectors_impl(cache.first_sector + sector_start, sector_count, data_slice));
 			}

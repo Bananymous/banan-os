@@ -27,8 +27,6 @@
 #define PCI_CMD_BUS_MASTER (1 << 2)
 #define PCI_CMD_INTERRUPT_DISABLE (1 << 10)
 
-#define DEBUG_PCI 0
-
 namespace Kernel::PCI
 {
 

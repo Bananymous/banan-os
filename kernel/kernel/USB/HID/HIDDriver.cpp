@@ -5,7 +5,6 @@
 #include <kernel/USB/HID/Keyboard.h>
 #include <kernel/USB/HID/Mouse.h>
 
-#define DEBUG_HID 0
 #define DUMP_HID_REPORT 0
 
 namespace Kernel
@@ -135,12 +134,12 @@ namespace Kernel
 		}
 
 		const auto& hid_descriptor = *reinterpret_cast<const HIDDescriptor*>(m_interface.misc_descriptors[hid_descriptor_index].data());
-		dprintln_if(DEBUG_HID, "HID descriptor ({} bytes)", m_interface.misc_descriptors[hid_descriptor_index].size());
-		dprintln_if(DEBUG_HID, "  bLength:         {}",       hid_descriptor.bLength);
-		dprintln_if(DEBUG_HID, "  bDescriptorType: {}",       hid_descriptor.bDescriptorType);
-		dprintln_if(DEBUG_HID, "  bcdHID:          {H}.{2H}", hid_descriptor.bcdHID >> 8, hid_descriptor.bcdHID & 0xFF);
-		dprintln_if(DEBUG_HID, "  bCountryCode:    {}",       hid_descriptor.bCountryCode);
-		dprintln_if(DEBUG_HID, "  bNumDescriptors: {}",       hid_descriptor.bNumDescriptors);
+		dprintln_if(DEBUG_USB_HID, "HID descriptor ({} bytes)", m_interface.misc_descriptors[hid_descriptor_index].size());
+		dprintln_if(DEBUG_USB_HID, "  bLength:         {}",       hid_descriptor.bLength);
+		dprintln_if(DEBUG_USB_HID, "  bDescriptorType: {}",       hid_descriptor.bDescriptorType);
+		dprintln_if(DEBUG_USB_HID, "  bcdHID:          {H}.{2H}", hid_descriptor.bcdHID >> 8, hid_descriptor.bcdHID & 0xFF);
+		dprintln_if(DEBUG_USB_HID, "  bCountryCode:    {}",       hid_descriptor.bCountryCode);
+		dprintln_if(DEBUG_USB_HID, "  bNumDescriptors: {}",       hid_descriptor.bNumDescriptors);
 
 		uint32_t report_descriptor_index = 0;
 		BAN::Vector<Collection> collections;
@@ -150,7 +149,7 @@ namespace Kernel
 
 			if (static_cast<HIDDescriptorType>(descriptor.bDescriptorType) != HIDDescriptorType::Report)
 			{
-				dprintln_if(DEBUG_HID, "Skipping HID descriptor type 0x{2H}", descriptor.bDescriptorType);
+				dprintln_if(DEBUG_USB_HID, "Skipping HID descriptor type 0x{2H}", descriptor.bDescriptorType);
 				continue;
 			}
 
@@ -176,7 +175,7 @@ namespace Kernel
 				}
 			}
 
-			dprintln_if(DEBUG_HID, "Parsing {} byte report descriptor", +descriptor.wItemLength);
+			dprintln_if(DEBUG_USB_HID, "Parsing {} byte report descriptor", +descriptor.wItemLength);
 
 			auto report_data = BAN::ConstByteSpan(reinterpret_cast<uint8_t*>(dma_buffer->vaddr()), descriptor.wItemLength);
 			auto new_collections = TRY(parse_report_descriptor(report_data, m_uses_report_id));
@@ -275,7 +274,7 @@ namespace Kernel
 				return;
 		}
 
-		if constexpr(DEBUG_HID)
+		if constexpr(DEBUG_USB_HID)
 		{
 			const auto nibble_to_hex = [](uint8_t x) -> char { return x + (x < 10 ? '0' : 'A' - 10); };
 
@@ -289,7 +288,7 @@ namespace Kernel
 			}
 			*ptr = '\0';
 
-			dprintln_if(DEBUG_HID, "Received {} bytes from endpoint {}: {}", data.size(), endpoint_id, buffer);
+			dprintln_if(DEBUG_USB_HID, "Received {} bytes from endpoint {}: {}", data.size(), endpoint_id, buffer);
 		}
 
 		const auto extract_bits =

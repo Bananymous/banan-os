@@ -2,8 +2,6 @@
 #include <kernel/USB/HID/Keyboard.h>
 #include <LibInput/KeyEvent.h>
 
-#define DEBUG_KEYBOARD 0
-
 namespace Kernel
 {
 
@@ -66,7 +64,7 @@ namespace Kernel
 
 			const bool pressed = m_keyboard_state_temp[i];
 			if (pressed)
-				dprintln_if(DEBUG_KEYBOARD, "Pressed {2H}", i);
+				dprintln_if(DEBUG_USB_KEYBOARD, "Pressed {2H}", i);
 
 			auto opt_keycode = s_scancode_to_keycode[i];
 			if (opt_keycode.has_value())
@@ -102,7 +100,7 @@ namespace Kernel
 
 		if (usage_page != 0x07)
 		{
-			dprintln_if(DEBUG_KEYBOARD, "Unsupported keyboard usage page {2H}", usage_page);
+			dprintln_if(DEBUG_USB_KEYBOARD, "Unsupported keyboard usage page {2H}", usage_page);
 			return;
 		}
 		if (!state)
@@ -117,7 +115,7 @@ namespace Kernel
 
 		if (usage_page != 0x07)
 		{
-			dprintln_if(DEBUG_KEYBOARD, "Unsupported keyboard usage page {2H}", usage_page);
+			dprintln_if(DEBUG_USB_KEYBOARD, "Unsupported keyboard usage page {2H}", usage_page);
 			return;
 		}
 		if (usage >= 4 && usage < m_keyboard_state_temp.size())

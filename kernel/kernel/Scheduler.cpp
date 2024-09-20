@@ -6,7 +6,6 @@
 #include <kernel/Thread.h>
 #include <kernel/Timer/Timer.h>
 
-#define DEBUG_SCHEDULER 0
 #define SCHEDULER_ASSERT 1
 #define SCHEDULER_LOAD_BALANCE 0
 

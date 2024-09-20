@@ -9,8 +9,6 @@
 
 #include <netinet/in.h>
 
-#define DEBUG_IPV4 0
-
 namespace Kernel
 {
 

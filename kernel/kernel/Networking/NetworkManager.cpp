@@ -10,8 +10,6 @@
 #include <kernel/Networking/UDPSocket.h>
 #include <kernel/Networking/UNIX/Socket.h>
 
-#define DEBUG_ETHERTYPE 0
-
 namespace Kernel
 {
 

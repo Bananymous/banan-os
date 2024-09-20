@@ -7,8 +7,6 @@
 #include <fcntl.h>
 #include <netinet/in.h>
 
-#define DEBUG_TCP 0
-
 namespace Kernel
 {
 

@@ -6,8 +6,6 @@
 #include <kernel/Networking/E1000/E1000.h>
 #include <kernel/Networking/NetworkManager.h>
 
-#define DEBUG_E1000 1
-
 namespace Kernel
 {
 
@@ -68,10 +66,8 @@ namespace Kernel
 
 		detect_eeprom();
 		TRY(read_mac_address());
-#if DEBUG_E1000
 		dprintln("E1000 at PCI {}:{}.{}", m_pci_device.bus(), m_pci_device.dev(), m_pci_device.func());
 		dprintln("  MAC: {}", m_mac_address);
-#endif
 
 		TRY(initialize_rx());
 		TRY(initialize_tx());
@@ -81,14 +77,12 @@ namespace Kernel
 
 		m_link_up = !!(read32(REG_STATUS) & STATUS_LU);
 
-#if DEBUG_E1000
 		dprintln("  link up: {}", link_up());
 		if (link_up())
 		{
 			int speed = link_speed();
 			dprintln("  link speed: {} Mbps", speed);
 		}
-#endif
 
 		return {};
 	}
@@ -285,6 +279,8 @@ namespace Kernel
 		while (descriptor.status == 0)
 			continue;
 
+		dprintln_if(DEBUG_E1000, "sent {} bytes", sizeof(EthernetHeader) + buffer.size());
+
 		return {};
 	}
 
@@ -302,6 +298,8 @@ namespace Kernel
 			if (!(descriptor.status & 1))
 				break;
 			ASSERT(descriptor.length <= E1000_RX_BUFFER_SIZE);
+
+			dprintln_if(DEBUG_E1000, "got {} bytes", (uint16_t)descriptor.length);
 
 			NetworkManager::get().on_receive(*this, BAN::ConstByteSpan {
 				reinterpret_cast<const uint8_t*>(m_rx_buffer_region->vaddr() + rx_current * E1000_RX_BUFFER_SIZE),

@@ -2,7 +2,6 @@
 #include <kernel/USB/Device.h>
 #include <kernel/USB/HID/HIDDriver.h>
 
-#define DEBUG_USB 0
 #define USB_DUMP_DESCRIPTORS 0
 
 namespace Kernel

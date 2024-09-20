@@ -7,8 +7,6 @@
 
 #include <sys/sysmacros.h>
 
-#define DEBUG_NVMe 1
-
 namespace Kernel
 {
 
@@ -65,8 +63,8 @@ namespace Kernel
 			return BAN::Error::from_errno(ENOTSUP);
 		}
 
-		dprintln_if(DEBUG_NVMe, "NVMe controller");
-		dprintln_if(DEBUG_NVMe, "  version: {}.{}", (uint16_t)vs.major, (uint8_t)vs.minor);
+		dprintln("NVMe controller");
+		dprintln("  version: {}.{}", (uint16_t)vs.major, (uint8_t)vs.minor);
 
 		auto& cap = m_controller_registers->cap;
 		if (!(cap.css & NVMe::CAP_CSS_NVME))
@@ -160,7 +158,7 @@ namespace Kernel
 			return BAN::Error::from_errno(EFAULT);
 		}
 
-		dprintln_if(DEBUG_NVMe, " model: '{}'", BAN::StringView { (char*)dma_page->vaddr() + 24, 20 });
+		dprintln(" model: '{}'", BAN::StringView { (char*)dma_page->vaddr() + 24, 20 });
 
 		return {};
 	}

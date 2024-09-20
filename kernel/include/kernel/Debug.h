@@ -47,6 +47,27 @@
 
 #define BOCHS_BREAK() asm volatile("xchgw %bx, %bx")
 
+
+#define DEBUG_PCI 0
+#define DEBUG_SCHEDULER 0
+#define DEBUG_PS2 1
+
+#define DEBUG_ARP 0
+#define DEBUG_IPV4 0
+#define DEBUG_ETHERTYPE 0
+#define DEBUG_TCP 0
+#define DEBUG_E1000 0
+
+#define DEBUG_DISK_SYNC 0
+#define DEBUG_NVMe 0
+
+#define DEBUG_XHCI 0
+#define DEBUG_USB 0
+#define DEBUG_USB_HID 0
+#define DEBUG_USB_KEYBOARD 0
+#define DEBUG_USB_MOUSE 0
+
+
 namespace Debug
 {
 	void dump_stack_trace();
