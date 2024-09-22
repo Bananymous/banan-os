@@ -59,7 +59,10 @@ namespace Kernel
 		else if (syscall == SYS_FORK)
 			ret = sys_fork_trampoline();
 		else
+#pragma GCC diagnostic push
+#pragma GCC diagnostic warning "-Wmaybe-uninitialized"
 			ret = (Process::current().*s_syscall_handlers[syscall])(arg1, arg2, arg3, arg4, arg5);
+#pragma GCC diagnostic pop
 
 		asm volatile("cli");
 
