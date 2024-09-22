@@ -116,7 +116,9 @@ namespace Kernel
 			return BAN::Error::from_errno(EAFNOSUPPORT);
 
 		auto& sockaddr_in = *reinterpret_cast<const struct sockaddr_in*>(address);
-		uint16_t port = BAN::host_to_network_endian(sockaddr_in.sin_port);
+		const uint16_t port = BAN::host_to_network_endian(sockaddr_in.sin_port);
+		if (port == NetworkSocket::PORT_NONE)
+			return bind_socket_to_unused(socket, address, address_len);
 
 		SpinLockGuard _(m_bound_socket_lock);
 
