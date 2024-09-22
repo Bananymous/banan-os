@@ -28,6 +28,7 @@ namespace Kernel
 		static BAN::RefPtr<TTY> current();
 		void set_as_current();
 
+		static void keyboard_task(void*);
 		static void initialize_devices();
 		void on_key_event(LibInput::KeyEvent);
 		void handle_input_byte(uint8_t);

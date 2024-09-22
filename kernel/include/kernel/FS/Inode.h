@@ -160,6 +160,7 @@ namespace Kernel
 		BAN::WeakPtr<SharedFileData> m_shared_region;
 		friend class FileBackedRegion;
 		friend class SharedFileData;
+		friend class TTY;
 	};
 
 }

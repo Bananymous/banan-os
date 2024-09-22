@@ -8,6 +8,7 @@
 #include <kernel/Lock/LockGuard.h>
 #include <kernel/Process.h>
 #include <kernel/Terminal/TTY.h>
+#include <kernel/Timer/Timer.h>
 #include <LibInput/KeyboardLayout.h>
 
 #include <fcntl.h>
@@ -95,35 +96,47 @@ namespace Kernel
 		return {};
 	}
 
+	void TTY::keyboard_task(void*)
+	{
+		BAN::RefPtr<Inode> keyboard_inode;
+		if (auto ret = VirtualFileSystem::get().file_from_absolute_path({ 0, 0, 0, 0 }, "/dev/keyboard"_sv, O_RDONLY); !ret.is_error())
+			keyboard_inode = ret.value().inode;
+		else
+		{
+			dprintln("could not open keyboard device: {}", ret.error());
+			return;
+		}
+
+		while (true)
+		{
+			while (!TTY::current()->m_tty_ctrl.receive_input)
+				TTY::current()->m_tty_ctrl.thread_blocker.block_indefinite();
+
+			while (TTY::current()->m_tty_ctrl.receive_input)
+			{
+				LockGuard _(keyboard_inode->m_mutex);
+				if (!keyboard_inode->can_read())
+				{
+					SystemTimer::get().sleep_ms(1);
+					continue;
+				}
+
+				LibInput::RawKeyEvent event;
+				[[maybe_unused]] const size_t read = MUST(keyboard_inode->read(0, BAN::ByteSpan::from(event)));
+				ASSERT(read == sizeof(event));
+
+				TTY::current()->on_key_event(LibInput::KeyboardLayout::get().key_event_from_raw(event));
+			}
+		}
+	}
+
 	void TTY::initialize_devices()
 	{
 		static bool initialized = false;
 		ASSERT(!initialized);
 
-		Process::create_kernel(
-			[](void*)
-			{
-				auto file_or_error = VirtualFileSystem::get().file_from_absolute_path({ 0, 0, 0, 0 }, "/dev/keyboard"_sv, O_RDONLY);
-				if (file_or_error.is_error())
-				{
-					dprintln("no keyboard found");
-					return;
-				}
-
-				auto inode = file_or_error.value().inode;
-				while (true)
-				{
-					while (!TTY::current()->m_tty_ctrl.receive_input)
-						TTY::current()->m_tty_ctrl.thread_blocker.block_indefinite();
-
-					LibInput::RawKeyEvent event;
-					size_t read = MUST(inode->read(0, BAN::ByteSpan::from(event)));
-					ASSERT(read == sizeof(event));
-
-					TTY::current()->on_key_event(LibInput::KeyboardLayout::get().key_event_from_raw(event));
-				}
-			}, nullptr
-		);
+		auto* thread = MUST(Thread::create_kernel(&TTY::keyboard_task, nullptr, nullptr));
+		MUST(Processor::scheduler().add_thread(thread));
 
 		initialized = true;
 	}
