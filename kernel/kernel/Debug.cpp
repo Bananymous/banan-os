@@ -41,6 +41,12 @@ namespace Debug
 		BAN::Formatter::print(Debug::putchar, "\e[36mStack trace:\r\n");
 		while (frame)
 		{
+			if (!PageTable::is_valid_pointer((vaddr_t)frame))
+			{
+				derrorln("invalid pointer {H}", (vaddr_t)frame);
+				break;
+			}
+
 			if (PageTable::current().is_page_free((vaddr_t)frame & PAGE_ADDR_MASK))
 			{
 				derrorln("    {} not mapped", frame);
