@@ -518,8 +518,14 @@ Rectangle Terminal::putchar(uint8_t ch)
 		m_cursor.y++;
 	}
 
-	// scrolling is already handled in `read_shell()`
-	ASSERT(m_cursor.y < rows());
+	if (m_cursor.y >= rows())
+	{
+		const uint32_t scroll = m_cursor.y - rows() + 1;
+		m_cursor.y -= scroll;
+		m_window->shift_vertical(-scroll * (int32_t)m_font.height());
+		m_window->fill_rect(0, m_window->height() - scroll * m_font.height(), m_window->width(), scroll * m_font.height(), m_bg_color);
+		should_invalidate = { 0, 0, m_window->width(), m_window->height() };
+	}
 
 	return should_invalidate;
 }
