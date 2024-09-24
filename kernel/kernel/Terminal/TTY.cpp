@@ -273,7 +273,7 @@ namespace Kernel
 		// ^C
 		if (ch == '\x03')
 		{
-			if (auto ret = Process::current().sys_kill(-m_foreground_pgrp, SIGINT); ret.is_error())
+			if (auto ret = Process::kill(-m_foreground_pgrp, SIGINT); ret.is_error())
 				dwarnln("TTY: {}", ret.error());
 			return;
 		}

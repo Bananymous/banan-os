@@ -1847,19 +1847,12 @@ namespace Kernel
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_kill(pid_t pid, int signal)
+	BAN::ErrorOr<void> Process::kill(pid_t pid, int signal)
 	{
 		if (pid == 0 || pid == -1)
 			return BAN::Error::from_errno(ENOTSUP);
 		if (signal != 0 && (signal < _SIGMIN || signal > _SIGMAX))
 			return BAN::Error::from_errno(EINVAL);
-
-		if (pid == m_pid)
-		{
-			if (signal)
-				add_pending_signal(signal);
-			return 0;
-		}
 
 		bool found = false;
 		for_each_process(
@@ -1880,8 +1873,26 @@ namespace Kernel
 		);
 
 		if (found)
-			return 0;
+			return {};
 		return BAN::Error::from_errno(ESRCH);
+	}
+
+	BAN::ErrorOr<long> Process::sys_kill(pid_t pid, int signal)
+	{
+		if (pid == 0 || pid == -1)
+			return BAN::Error::from_errno(ENOTSUP);
+		if (signal != 0 && (signal < _SIGMIN || signal > _SIGMAX))
+			return BAN::Error::from_errno(EINVAL);
+
+		if (pid == m_pid)
+		{
+			if (signal)
+				add_pending_signal(signal);
+			return 0;
+		}
+
+		TRY(kill(pid, signal));
+		return 0;
 	}
 
 	BAN::ErrorOr<long> Process::sys_sigaction(int signal, const struct sigaction* act, struct sigaction* oact)

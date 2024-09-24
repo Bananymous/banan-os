@@ -171,6 +171,7 @@ namespace Kernel
 
 		BAN::ErrorOr<long> sys_tty_ctrl(int fildes, int command, int flags);
 
+		static BAN::ErrorOr<void> kill(pid_t pid, int signal);
 		BAN::ErrorOr<long> sys_kill(pid_t pid, int signal);
 		BAN::ErrorOr<long> sys_sigaction(int signal, const struct sigaction* act, struct sigaction* oact);
 		BAN::ErrorOr<long> sys_sigpending(sigset_t* set);
