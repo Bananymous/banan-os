@@ -74,7 +74,7 @@ namespace Kernel
 		return thread;
 	}
 
-	BAN::ErrorOr<Thread*> Thread::create_userspace(Process* process)
+	BAN::ErrorOr<Thread*> Thread::create_userspace(Process* process, PageTable& page_table)
 	{
 		ASSERT(process);
 
@@ -87,7 +87,7 @@ namespace Kernel
 		thread->m_is_userspace = true;
 
 		thread->m_kernel_stack = TRY(VirtualRange::create_to_vaddr_range(
-			process->page_table(),
+			page_table,
 			0x300000, KERNEL_OFFSET,
 			m_kernel_stack_size,
 			PageTable::Flags::ReadWrite | PageTable::Flags::Present,
@@ -95,7 +95,7 @@ namespace Kernel
 		));
 
 		thread->m_userspace_stack = TRY(VirtualRange::create_to_vaddr_range(
-			process->page_table(),
+			page_table,
 			0x300000, KERNEL_OFFSET,
 			m_userspace_stack_size,
 			PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present,

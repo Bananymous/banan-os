@@ -168,7 +168,7 @@ namespace Kernel
 		process->m_userspace_info.argv = argv;
 		process->m_userspace_info.envp = nullptr;
 
-		auto* thread = MUST(Thread::create_userspace(process));
+		auto* thread = MUST(Thread::create_userspace(process, process->page_table()));
 		process->add_thread(thread);
 		process->register_to_scheduler();
 		return process;
@@ -477,10 +477,13 @@ namespace Kernel
 		{
 			LockGuard _(m_process_lock);
 
+			auto new_page_table = BAN::UniqPtr<PageTable>::adopt(TRY(PageTable::create_userspace()));
+
 			TRY(validate_string_access(path));
 
 			auto absolute_path = TRY(absolute_path_of(path));
-			auto executable_inode = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, O_EXEC)).inode;
+			auto executable_file = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, O_EXEC));
+			auto executable_inode = executable_file.inode;
 
 			BAN::Vector<BAN::String> str_argv;
 			for (int i = 0; argv && argv[i]; i++)
@@ -498,35 +501,18 @@ namespace Kernel
 				TRY(str_envp.emplace_back(envp[i]));
 			}
 
-			m_open_file_descriptors.close_cloexec();
+			auto executable = TRY(ELF::load_from_inode(executable_inode, m_credentials, *new_page_table));
+			auto new_mapped_regions = BAN::move(executable.regions);
 
-			m_mapped_regions.clear();
-
-			auto executable = TRY(ELF::load_from_inode(executable_inode, m_credentials, page_table()));
-			m_mapped_regions = BAN::move(executable.regions);
-
-			if (executable_inode->mode().mode & +Inode::Mode::ISUID)
-				m_credentials.set_euid(executable_inode->uid());
-			if (executable_inode->mode().mode & +Inode::Mode::ISGID)
-				m_credentials.set_egid(executable_inode->gid());
-
-			m_userspace_info.entry = executable.entry_point;
+			int file_fd = -1;
 			if (executable.has_interpreter)
 			{
 				VirtualFileSystem::File file;
-				TRY(file.canonical_path.append("<self>"));
+				file.canonical_path = BAN::move(executable_file.canonical_path);
 				file.inode = executable_inode;
-				m_userspace_info.file_fd = TRY(m_open_file_descriptors.open(BAN::move(file), O_RDONLY));
+				file_fd = TRY(m_open_file_descriptors.open(BAN::move(file), O_RDONLY));
 			}
-
-			for (size_t i = 0; i < sizeof(m_signal_handlers) / sizeof(*m_signal_handlers); i++)
-			{
-				m_signal_handlers[i].sa_handler = SIG_DFL;
-				m_signal_handlers[i].sa_flags = 0;
-			}
-
-			ASSERT(m_threads.size() == 1);
-			ASSERT(&Process::current() == this);
+			BAN::ScopeGuard file_closer([&] { if (file_fd != -1) MUST(m_open_file_descriptors.close(file_fd)); });
 
 			// allocate memory on the new process for arguments and environment
 			auto create_region =
@@ -540,9 +526,9 @@ namespace Kernel
 						bytes += PAGE_SIZE - rem;
 
 					auto region = TRY(MemoryBackedRegion::create(
-						page_table(),
+						*new_page_table,
 						bytes,
-						{ .start = m_userspace_info.entry, .end = KERNEL_OFFSET },
+						{ .start = executable.entry_point, .end = KERNEL_OFFSET },
 						MemoryRegion::Type::PRIVATE,
 						PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present
 					));
@@ -562,20 +548,62 @@ namespace Kernel
 					return BAN::UniqPtr<MemoryRegion>(BAN::move(region));
 				};
 
-			auto argv_region = MUST(create_region(str_argv.span()));
-			m_userspace_info.argv = (char**)argv_region->vaddr();
-			MUST(m_mapped_regions.push_back(BAN::move(argv_region)));
+			TRY(new_mapped_regions.reserve(new_mapped_regions.size() + 2));
+			MUST(new_mapped_regions.push_back(TRY(create_region(str_argv.span()))));
+			MUST(new_mapped_regions.push_back(TRY(create_region(str_envp.span()))));
 
-			auto envp_region = MUST(create_region(str_envp.span()));
-			m_userspace_info.envp = (char**)envp_region->vaddr();
-			MUST(m_mapped_regions.push_back(BAN::move(envp_region)));
+			auto* new_thread = TRY(Thread::create_userspace(this, *new_page_table));
+
+			ASSERT(Processor::get_interrupt_state() == InterruptState::Enabled);
+			Processor::set_interrupt_state(InterruptState::Disabled);
+
+			// NOTE: bind new thread to this processor so it wont be rescheduled before end of this function
+			if (auto ret = Scheduler::bind_thread_to_processor(new_thread, Processor::current_id()); ret.is_error())
+			{
+				Processor::set_interrupt_state(InterruptState::Enabled);
+				return ret.release_error();
+			}
+
+			// after this point, everything is initialized and nothing can fail!
+
+			ASSERT(m_threads.size() == 1);
+			ASSERT(&Thread::current() == m_threads.front());
+
+			// Make current thread standalone and terminated
+			// We need to give it the current page table to keep it alive
+			// while its kernel stack is in use
+			m_threads.front()->m_state = Thread::State::Terminated;
+			m_threads.front()->m_process = nullptr;
+			m_threads.front()->give_keep_alive_page_table(BAN::move(m_page_table));
+
+			m_threads.front() = new_thread;
+			MUST(Processor::scheduler().add_thread(m_threads.front()));
+
+			for (size_t i = 0; i < sizeof(m_signal_handlers) / sizeof(*m_signal_handlers); i++)
+			{
+				m_signal_handlers[i].sa_handler = SIG_DFL;
+				m_signal_handlers[i].sa_flags = 0;
+			}
+
+			if (executable_inode->mode().mode & +Inode::Mode::ISUID)
+				m_credentials.set_euid(executable_inode->uid());
+			if (executable_inode->mode().mode & +Inode::Mode::ISGID)
+				m_credentials.set_egid(executable_inode->gid());
+
+			m_open_file_descriptors.close_cloexec();
+			m_mapped_regions = BAN::move(new_mapped_regions);
+			m_page_table = BAN::move(new_page_table);
+
+			file_closer.disable();
 
 			m_userspace_info.argc = str_argv.size();
+			m_userspace_info.argv = reinterpret_cast<char**>(m_mapped_regions[m_mapped_regions.size() - 2]->vaddr());
+			m_userspace_info.envp = reinterpret_cast<char**>(m_mapped_regions[m_mapped_regions.size() - 1]->vaddr());
+			m_userspace_info.entry = executable.entry_point;
+			m_userspace_info.file_fd = file_fd;
 
 			m_cmdline = BAN::move(str_argv);
 			m_environ = BAN::move(str_envp);
-
-			Processor::set_interrupt_state(InterruptState::Disabled);
 		}
 
 		m_has_called_exec = true;

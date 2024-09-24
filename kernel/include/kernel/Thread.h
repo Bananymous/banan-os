@@ -32,7 +32,7 @@ namespace Kernel
 
 	public:
 		static BAN::ErrorOr<Thread*> create_kernel(entry_t, void*, Process*);
-		static BAN::ErrorOr<Thread*> create_userspace(Process*);
+		static BAN::ErrorOr<Thread*> create_userspace(Process*, PageTable&);
 		~Thread();
 
 		BAN::ErrorOr<Thread*> clone(Process*, uintptr_t sp, uintptr_t ip);
@@ -72,6 +72,8 @@ namespace Kernel
 		static Thread& current();
 		static pid_t current_tid();
 
+		void give_keep_alive_page_table(BAN::UniqPtr<PageTable>&& page_table) { m_keep_alive_page_table = BAN::move(page_table); }
+
 		Process& process();
 		const Process& process() const;
 		bool has_process() const { return m_process; }
@@ -99,6 +101,10 @@ namespace Kernel
 		void on_exit();
 
 	private:
+		// NOTE: this is the first member to force it being last destructed
+		//       {kernel,userspace}_stack has to be destroyed before page table
+		BAN::UniqPtr<PageTable>    m_keep_alive_page_table;
+
 		static constexpr size_t    m_kernel_stack_size    { PAGE_SIZE * 64 };
 		static constexpr size_t    m_userspace_stack_size { PAGE_SIZE * 64 };
 		BAN::UniqPtr<VirtualRange> m_kernel_stack;
