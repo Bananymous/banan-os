@@ -82,6 +82,8 @@ namespace Kernel
 
 		void timer_interrupt();
 
+		static BAN::ErrorOr<void> bind_thread_to_processor(Thread*, ProcessorID);
+		// if thread is already bound, this will never fail
 		BAN::ErrorOr<void> add_thread(Thread*);
 
 		void block_current_thread(ThreadBlocker* thread_blocker, uint64_t wake_time_ns);

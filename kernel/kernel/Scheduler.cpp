@@ -567,25 +567,37 @@ namespace Kernel
 	}
 #endif
 
-	BAN::ErrorOr<void> Scheduler::add_thread(Thread* thread)
+	BAN::ErrorOr<void> Scheduler::bind_thread_to_processor(Thread* thread, ProcessorID processor_id)
 	{
+		ASSERT(thread->m_scheduler_node == nullptr);
 		auto* new_node = new SchedulerQueue::Node(thread);
 		if (new_node == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
 
-		const size_t processor_index = s_next_processor_index++ % Processor::count();
-		const auto processor_id = Processor::id_from_index(processor_index);
-
+		ASSERT(processor_id != PROCESSOR_NONE);
 		new_node->processor_id = processor_id;
 		thread->m_scheduler_node = new_node;
 
-		if (processor_id == Processor::current_id())
-			add_thread(new_node);
+		return {};
+	}
+
+	BAN::ErrorOr<void> Scheduler::add_thread(Thread* thread)
+	{
+		if (thread->m_scheduler_node == nullptr)
+		{
+			const size_t processor_index = s_next_processor_index++ % Processor::count();
+			const auto processor_id = Processor::id_from_index(processor_index);
+			TRY(bind_thread_to_processor(thread, processor_id));
+		}
+
+		auto* node = thread->m_scheduler_node;
+		if (node->processor_id == Processor::current_id())
+			add_thread(node);
 		else
 		{
-			Processor::send_smp_message(processor_id, {
+			Processor::send_smp_message(node->processor_id, {
 				.type = Processor::SMPMessage::Type::NewThread,
-				.new_thread = new_node
+				.new_thread = node
 			});
 		}
 
