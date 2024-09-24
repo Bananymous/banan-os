@@ -43,7 +43,7 @@ namespace Kernel
 		virtual bool pre_scheduler_sleep_needs_lock() const override;
 		virtual void pre_scheduler_sleep_ns(uint64_t) override;
 
-		void sleep_ms(uint64_t ms) const { return sleep_ns(ms * 1'000'000); }
+		void sleep_ms(uint64_t ms) const { ASSERT(!BAN::Math::will_multiplication_overflow<uint64_t>(ms, 1'000'000)); return sleep_ns(ms * 1'000'000); }
 		void sleep_ns(uint64_t ns) const;
 
 		timespec real_time() const;
