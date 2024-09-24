@@ -20,6 +20,11 @@ extern void _init_malloc();
 extern void _init_stdio();
 extern "C" void _init_libc(char** _environ)
 {
+	static bool is_initialized = false;
+	if (is_initialized)
+		return;
+	is_initialized = true;
+
 	_init_malloc();
 	_init_stdio();
 
