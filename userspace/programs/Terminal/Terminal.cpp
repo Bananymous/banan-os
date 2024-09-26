@@ -269,6 +269,12 @@ void Terminal::handle_sgr()
 			m_bg_color = s_colors_dark[0];
 			m_fg_color = s_colors_bright[7];
 			break;
+		case 1:
+			// FIXME: bold
+			break;
+		case 7:
+			BAN::swap(m_fg_color, m_bg_color);
+			break;
 		case 30: case 31: case 32: case 33: case 34: case 35: case 36: case 37:
 			m_fg_color = s_colors_dark[m_csi_info.fields[0] - 30];
 			break;
@@ -394,6 +400,40 @@ Rectangle Terminal::handle_csi(char ch)
 
 			m_window->fill_rect(rect.x, rect.y, rect.width, rect.height, m_bg_color);
 			should_invalidate = rect;
+
+			break;
+		}
+		case 'L':
+		{
+			const uint32_t count = (m_csi_info.fields[0] == -1) ? 1 : m_csi_info.fields[0];
+			const uint32_t src_y = m_cursor.y * m_font.height();
+			const uint32_t dst_y = src_y + count * m_font.height();
+
+			m_window->copy_horizontal_slice(dst_y, src_y, m_window->height() - dst_y, m_bg_color);
+			m_window->fill_rect(0, src_y, m_window->width(), count * m_font.height(), m_bg_color);
+			should_invalidate = {
+				0,
+				src_y,
+				m_window->width(),
+				m_window->height() - src_y
+			};
+
+			break;
+		}
+		case 'M':
+		{
+			const uint32_t count = (m_csi_info.fields[0] == -1) ? 1 : m_csi_info.fields[0];
+			const uint32_t dst_y = m_cursor.y * m_font.height();
+			const uint32_t src_y = dst_y + count * m_font.height();
+
+			m_window->copy_horizontal_slice(dst_y, src_y, m_window->height() - dst_y, m_bg_color);
+			m_window->fill_rect(0, m_window->height() - count * m_font.height(), m_window->width(), count * m_font.height(), m_bg_color);
+			should_invalidate = {
+				0,
+				src_y,
+				m_window->width(),
+				m_window->height() - src_y
+			};
 
 			break;
 		}
