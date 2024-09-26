@@ -522,6 +522,159 @@ namespace LibImage
 		}
 	}
 
+	static BAN::ErrorOr<uint64_t> parse_pixel_data(BAN::Vector<Image::Color>& color_bitmap, uint64_t image_width, uint64_t image_height, const IHDR& ihdr, const BAN::Vector<Image::Color>& palette, BAN::ByteSpan encoded_data)
+	{
+		ASSERT(color_bitmap.size() >= image_height * image_width);
+
+		const uint8_t bits_per_channel = ihdr.bit_depth;
+		const uint8_t channels =
+			[&]() -> uint8_t
+			{
+				switch (ihdr.colour_type)
+				{
+					case ColourType::Greyscale:       return 1;
+					case ColourType::Truecolour:      return 3;
+					case ColourType::IndexedColour:   return 1;
+					case ColourType::GreyscaleAlpha:  return 2;
+					case ColourType::TruecolourAlpha: return 4;
+					default:
+						ASSERT_NOT_REACHED();
+				}
+			}();
+
+		const auto extract_channel =
+			[&](auto& bit_buffer) -> uint8_t
+			{
+				uint16_t tmp = MUST(bit_buffer.get_bits(bits_per_channel));
+				switch (bits_per_channel)
+				{
+					case 1:  return tmp * 0xFF;
+					case 2:  return tmp * 0xFF / 3;
+					case 4:  return tmp * 0xFF / 15;
+					case 8:  return tmp;
+					case 16: return tmp & 0xFF; // NOTE: stored in big endian
+				}
+				ASSERT_NOT_REACHED();
+			};
+
+		const auto extract_color =
+			[&](auto& bit_buffer) -> Image::Color
+			{
+				uint8_t tmp;
+				switch (ihdr.colour_type)
+				{
+					case ColourType::Greyscale:
+						tmp = extract_channel(bit_buffer);
+						return Image::Color {
+							.r = tmp,
+							.g = tmp,
+							.b = tmp,
+							.a = 0xFF
+						};
+					case ColourType::Truecolour:
+						return Image::Color {
+							.r = extract_channel(bit_buffer),
+							.g = extract_channel(bit_buffer),
+							.b = extract_channel(bit_buffer),
+							.a = 0xFF
+						};
+					case ColourType::IndexedColour:
+						return palette[MUST(bit_buffer.get_bits(bits_per_channel))];
+					case ColourType::GreyscaleAlpha:
+						tmp = extract_channel(bit_buffer);
+						return Image::Color {
+							.r = tmp,
+							.g = tmp,
+							.b = tmp,
+							.a = extract_channel(bit_buffer)
+						};
+					case ColourType::TruecolourAlpha:
+						return Image::Color {
+							.r = extract_channel(bit_buffer),
+							.g = extract_channel(bit_buffer),
+							.b = extract_channel(bit_buffer),
+							.a = extract_channel(bit_buffer)
+						};
+				}
+				ASSERT_NOT_REACHED();
+			};
+
+		constexpr auto paeth_predictor =
+			[](int16_t a, int16_t b, int16_t c) -> uint8_t
+			{
+				int16_t p = a + b - c;
+				int16_t pa = BAN::Math::abs(p - a);
+				int16_t pb = BAN::Math::abs(p - b);
+				int16_t pc = BAN::Math::abs(p - c);
+				if (pa <= pb && pa <= pc)
+					return a;
+				if (pb <= pc)
+					return b;
+				return c;
+			};
+
+		const uint64_t bytes_per_scanline = BAN::Math::div_round_up<uint64_t>(image_width * channels * bits_per_channel, 8);
+		const uint64_t pitch = bytes_per_scanline + 1;
+
+		if (encoded_data.size() < pitch * image_height)
+		{
+			dwarnln_if(DEBUG_PNG, "PNG does not contain enough image data");
+			return BAN::Error::from_errno(ENODATA);
+		}
+
+		BAN::Vector<uint8_t> zero_scanline;
+		TRY(zero_scanline.resize(bytes_per_scanline, 0));
+
+		BAN::Vector<BAN::ConstByteSpan> encoded_data_wrapper;
+		TRY(encoded_data_wrapper.push_back({}));
+
+		const uint8_t filter_offset = (bits_per_channel < 8) ? 1 : channels * (bits_per_channel / 8);
+
+		for (uint64_t y = 0; y < image_height; y++)
+		{
+			auto scanline       =           encoded_data.slice((y - 0) * pitch + 1, bytes_per_scanline);
+			auto scanline_above = (y > 0) ? encoded_data.slice((y - 1) * pitch + 1, bytes_per_scanline) : BAN::ConstByteSpan(zero_scanline.span());
+
+			auto filter_type = static_cast<FilterType>(encoded_data[y * pitch]);
+			switch (filter_type)
+			{
+				case FilterType::None:
+					break;
+				case FilterType::Sub:
+					for (uint64_t x = filter_offset; x < bytes_per_scanline; x++)
+						scanline[x] += scanline[x - filter_offset];
+					break;
+				case FilterType::Up:
+					for (uint64_t x = 0; x < bytes_per_scanline; x++)
+						scanline[x] += scanline_above[x];
+					break;
+				case FilterType::Average:
+					for (uint8_t i = 0; i < filter_offset; i++)
+						scanline[i] += scanline_above[i] / 2;
+					for (uint64_t x = filter_offset; x < bytes_per_scanline; x++)
+						scanline[x] += ((uint16_t)scanline[x - filter_offset] + (uint16_t)scanline_above[x]) / 2;
+					break;
+				case FilterType::Paeth:
+					for (uint8_t i = 0; i < filter_offset; i++)
+						scanline[i] += paeth_predictor(0, scanline_above[i], 0);
+					for (uint64_t x = filter_offset; x < bytes_per_scanline; x++)
+						scanline[x] += paeth_predictor(scanline[x - filter_offset], scanline_above[x], scanline_above[x - filter_offset]);
+					break;
+				default:
+					dwarnln_if(DEBUG_PNG, "invalid filter type {}", static_cast<uint8_t>(filter_type));
+					return BAN::Error::from_errno(EINVAL);
+			}
+
+			encoded_data_wrapper[0] = scanline;
+			BitBuffer bit_buffer(encoded_data_wrapper);
+
+			for (uint64_t x = 0; x < image_width; x++)
+				color_bitmap[y * image_width + x] = extract_color(bit_buffer);
+		}
+
+		return pitch * image_height;
+	}
+
 	bool probe_png(BAN::ConstByteSpan image_data)
 	{
 		if (image_data.size() < 8)
@@ -576,12 +729,6 @@ namespace LibImage
 		{
 			dwarnln_if(DEBUG_PNG, "PNG IHDR has invalid interlace method {}", static_cast<uint8_t>(ihdr.interlace_method));
 			return BAN::Error::from_errno(EINVAL);
-		}
-
-		if (ihdr.interlace_method == InterlaceMethod::Adam7)
-		{
-			dwarnln_if(DEBUG_PNG, "PNG with interlacing is not supported");
-			return BAN::Error::from_errno(ENOTSUP);
 		}
 
 		const uint64_t image_width = ihdr.width;
@@ -708,153 +855,52 @@ namespace LibImage
 		dprintln_if(DEBUG_PNG, "  uncompressed size {}", inflated_data.size());
 		dprintln_if(DEBUG_PNG, "  compression ratio {}", (double)inflated_data.size() / total_size);
 
-		uint8_t bits_per_channel = ihdr.bit_depth;
-		uint8_t channels = 0;
-		switch (ihdr.colour_type)
+		BAN::Vector<Image::Color> pixel_data;
+		TRY(pixel_data.resize(image_width * image_height));
+
+		switch (ihdr.interlace_method)
 		{
-			case ColourType::Greyscale:       channels = 1; break;
-			case ColourType::Truecolour:      channels = 3; break;
-			case ColourType::IndexedColour:   channels = 1; break;
-			case ColourType::GreyscaleAlpha:  channels = 2; break;
-			case ColourType::TruecolourAlpha: channels = 4; break;
+			case InterlaceMethod::NoInterlace:
+				TRY(parse_pixel_data(pixel_data, image_width, image_height, ihdr, palette, inflated_data));
+				break;
+			case InterlaceMethod::Adam7:
+			{
+				constexpr uint8_t x_start[]     { 0, 4, 0, 2, 0, 1, 0 };
+				constexpr uint8_t x_increment[] { 8, 8, 4, 4, 2, 2, 1 };
+
+				constexpr uint8_t y_start[]     { 0, 0, 4, 0, 2, 0, 1 };
+				constexpr uint8_t y_increment[] { 8, 8, 8, 4, 4, 2, 2 };
+
+				BAN::Vector<Image::Color> pass_pixel_data;
+				TRY(pass_pixel_data.resize(((image_height + 1) / 2) * image_width));
+
+				for (int pass = 0; pass < 7; pass++)
+				{
+					const uint64_t pass_width  = BAN::Math::div_round_up<uint64_t>(image_width  - x_start[pass], x_increment[pass]);
+					const uint64_t pass_height = BAN::Math::div_round_up<uint64_t>(image_height - y_start[pass], y_increment[pass]);
+					const uint64_t nparsed = TRY(parse_pixel_data(pass_pixel_data, pass_width, pass_height, ihdr, palette, inflated_data));
+
+					for (uint64_t y = 0; y < pass_height; y++)
+					{
+						for (uint64_t x = 0; x < pass_width; x++)
+						{
+							const uint64_t abs_x = x * x_increment[pass] + x_start[pass];
+							const uint64_t abs_y = y * y_increment[pass] + y_start[pass];
+							pixel_data[abs_y * image_width + abs_x] = pass_pixel_data[y * pass_width + x];
+						}
+					}
+
+					dprintln_if(DEBUG_PNG, "Adam7 pass {} done ({}x{})", pass + 1, pass_width, pass_height);
+					inflated_data = inflated_data.slice(nparsed);
+				}
+
+				break;
+			}
 			default:
 				ASSERT_NOT_REACHED();
 		}
 
-		const auto extract_channel =
-			[&](auto& bit_buffer) -> uint8_t
-			{
-				uint16_t tmp = MUST(bit_buffer.get_bits(bits_per_channel));
-				switch (bits_per_channel)
-				{
-					case 1:  return tmp * 0xFF;
-					case 2:  return tmp * 0xFF / 3;
-					case 4:  return tmp * 0xFF / 15;
-					case 8:  return tmp;
-					case 16: return tmp & 0xFF; // NOTE: stored in big endian
-				}
-				ASSERT_NOT_REACHED();
-			};
-
-		const auto extract_color =
-			[&](auto& bit_buffer) -> Image::Color
-			{
-				uint8_t tmp;
-				switch (ihdr.colour_type)
-				{
-					case ColourType::Greyscale:
-						tmp = extract_channel(bit_buffer);
-						return Image::Color {
-							.r = tmp,
-							.g = tmp,
-							.b = tmp,
-							.a = 0xFF
-						};
-					case ColourType::Truecolour:
-						return Image::Color {
-							.r = extract_channel(bit_buffer),
-							.g = extract_channel(bit_buffer),
-							.b = extract_channel(bit_buffer),
-							.a = 0xFF
-						};
-					case ColourType::IndexedColour:
-						return palette[MUST(bit_buffer.get_bits(bits_per_channel))];
-					case ColourType::GreyscaleAlpha:
-						tmp = extract_channel(bit_buffer);
-						return Image::Color {
-							.r = tmp,
-							.g = tmp,
-							.b = tmp,
-							.a = extract_channel(bit_buffer)
-						};
-					case ColourType::TruecolourAlpha:
-						return Image::Color {
-							.r = extract_channel(bit_buffer),
-							.g = extract_channel(bit_buffer),
-							.b = extract_channel(bit_buffer),
-							.a = extract_channel(bit_buffer)
-						};
-				}
-				ASSERT_NOT_REACHED();
-			};
-
-		constexpr auto paeth_predictor =
-			[](int16_t a, int16_t b, int16_t c) -> uint8_t
-			{
-				int16_t p = a + b - c;
-				int16_t pa = BAN::Math::abs(p - a);
-				int16_t pb = BAN::Math::abs(p - b);
-				int16_t pc = BAN::Math::abs(p - c);
-				if (pa <= pb && pa <= pc)
-					return a;
-				if (pb <= pc)
-					return b;
-				return c;
-			};
-
-		const uint64_t bytes_per_scanline = BAN::Math::div_round_up<uint64_t>(image_width * channels * bits_per_channel, 8);
-		const uint64_t pitch = bytes_per_scanline + 1;
-
-		if (inflated_data.size() < pitch * image_height)
-		{
-			dwarnln_if(DEBUG_PNG, "PNG does not contain enough image data");
-			return BAN::Error::from_errno(ENODATA);
-		}
-
-		BAN::Vector<uint8_t> zero_scanline;
-		TRY(zero_scanline.resize(bytes_per_scanline, 0));
-
-		BAN::Vector<Image::Color> color_bitmap;
-		TRY(color_bitmap.resize(image_width * image_height));
-
-		BAN::Vector<BAN::ConstByteSpan> inflated_data_wrapper;
-		TRY(inflated_data_wrapper.push_back({}));
-
-		const uint8_t filter_offset = (bits_per_channel < 8) ? 1 : channels * (bits_per_channel / 8);
-
-		for (uint64_t y = 0; y < image_height; y++)
-		{
-			auto scanline       =           inflated_data.slice((y - 0) * pitch + 1, bytes_per_scanline);
-			auto scanline_above = (y > 0) ? inflated_data.slice((y - 1) * pitch + 1, bytes_per_scanline) : BAN::ConstByteSpan(zero_scanline.span());
-
-			auto filter_type = static_cast<FilterType>(inflated_data[y * pitch]);
-			switch (filter_type)
-			{
-				case FilterType::None:
-					break;
-				case FilterType::Sub:
-					for (uint64_t x = filter_offset; x < bytes_per_scanline; x++)
-						scanline[x] += scanline[x - filter_offset];
-					break;
-				case FilterType::Up:
-					for (uint64_t x = 0; x < bytes_per_scanline; x++)
-						scanline[x] += scanline_above[x];
-					break;
-				case FilterType::Average:
-					for (uint8_t i = 0; i < filter_offset; i++)
-						scanline[i] += scanline_above[i] / 2;
-					for (uint64_t x = filter_offset; x < bytes_per_scanline; x++)
-						scanline[x] += ((uint16_t)scanline[x - filter_offset] + (uint16_t)scanline_above[x]) / 2;
-					break;
-				case FilterType::Paeth:
-					for (uint8_t i = 0; i < filter_offset; i++)
-						scanline[i] += paeth_predictor(0, scanline_above[i], 0);
-					for (uint64_t x = filter_offset; x < bytes_per_scanline; x++)
-						scanline[x] += paeth_predictor(scanline[x - filter_offset], scanline_above[x], scanline_above[x - filter_offset]);
-					break;
-				default:
-					dwarnln_if(DEBUG_PNG, "invalid filter type {}", static_cast<uint8_t>(filter_type));
-					return BAN::Error::from_errno(EINVAL);
-			}
-
-			inflated_data_wrapper[0] = scanline;
-			BitBuffer bit_buffer(inflated_data_wrapper);
-
-			for (uint64_t x = 0; x < image_width; x++)
-				color_bitmap[y * image_width + x] = extract_color(bit_buffer);
-		}
-
-		return TRY(BAN::UniqPtr<Image>::create(image_width, image_height, BAN::move(color_bitmap)));
+		return TRY(BAN::UniqPtr<Image>::create(image_width, image_height, BAN::move(pixel_data)));
 	}
 
 }
