@@ -239,8 +239,7 @@ bool Terminal::read_shell()
 		{
 			const uint32_t scroll = m_cursor.y + newline_count - rows() + 1;
 			m_cursor.y -= scroll;
-			m_window->shift_vertical(-scroll * (int32_t)m_font.height());
-			m_window->fill_rect(0, m_window->height() - scroll * m_font.height(), m_window->width(), scroll * m_font.height(), m_bg_color);
+			m_window->shift_vertical(-scroll * (int32_t)m_font.height(), m_bg_color);
 			should_invalidate = { 0, 0, m_window->width(), m_window->height() };
 		}
 
@@ -522,8 +521,7 @@ Rectangle Terminal::putchar(uint8_t ch)
 	{
 		const uint32_t scroll = m_cursor.y - rows() + 1;
 		m_cursor.y -= scroll;
-		m_window->shift_vertical(-scroll * (int32_t)m_font.height());
-		m_window->fill_rect(0, m_window->height() - scroll * m_font.height(), m_window->width(), scroll * m_font.height(), m_bg_color);
+		m_window->shift_vertical(-scroll * (int32_t)m_font.height(), m_bg_color);
 		should_invalidate = { 0, 0, m_window->width(), m_window->height() };
 	}
 

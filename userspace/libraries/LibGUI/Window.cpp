@@ -135,14 +135,53 @@ namespace LibGUI
 			draw_character(text[i], font, tl_x + (int32_t)(i * font.width()), tl_y, color);
 	}
 
-	void Window::shift_vertical(int32_t amount)
+	void Window::shift_vertical(int32_t amount, uint32_t fill_color)
 	{
-		uint32_t amount_abs = BAN::Math::abs(amount);
+		const uint32_t amount_abs = BAN::Math::abs(amount);
 		if (amount_abs == 0 || amount_abs >= height())
 			return;
+
 		uint32_t* dst = (amount > 0) ? m_framebuffer.data() + width() * amount_abs : m_framebuffer.data();
 		uint32_t* src = (amount < 0) ? m_framebuffer.data() + width() * amount_abs : m_framebuffer.data();
 		memmove(dst, src, width() * (height() - amount_abs) * 4);
+
+		const uint32_t y_lo = (amount < 0) ? height() - amount_abs : 0;
+		const uint32_t y_hi = (amount < 0) ? height()              : amount_abs;
+		for (uint32_t y = y_lo; y < y_hi; y++)
+			for (uint32_t x = 0; x < width(); x++)
+				set_pixel(x, y, fill_color);
+	}
+
+	void Window::copy_horizontal_slice(int32_t dst_y, int32_t src_y, uint32_t uamount, uint32_t fill_color)
+	{
+		int32_t amount = uamount;
+		if (dst_y < 0)
+		{
+			amount -= -dst_y;
+			src_y  += -dst_y;
+			dst_y   =  0;
+		}
+
+		amount = BAN::Math::min<int32_t>(amount, height() - dst_y);
+		if (amount <= 0)
+			return;
+
+		const uint32_t copy_src_y  = BAN::Math::clamp<int32_t>(src_y, 0, height());
+		const int32_t copy_amount = BAN::Math::clamp<int32_t>(src_y + amount, 0, height()) - copy_src_y;
+		if (copy_amount > 0)
+		{
+			memmove(
+				&m_framebuffer[width() * (dst_y + (copy_src_y - src_y))],
+				&m_framebuffer[width() * copy_src_y],
+				copy_amount * width() * 4
+			);
+		}
+
+		const uint32_t fill_y_off = (src_y < copy_src_y) ? 0 : copy_amount;
+		const uint32_t fill_amount = amount - copy_amount;
+		for (uint32_t i = 0; i < fill_amount; i++)
+			for (uint32_t x = 0; x < width(); x++)
+				set_pixel(x, dst_y + fill_y_off + i, fill_color);
 	}
 
 	bool Window::clamp_to_framebuffer(int32_t& signed_x, int32_t& signed_y, uint32_t& width, uint32_t& height) const
