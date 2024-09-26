@@ -20,7 +20,7 @@ foreach(library ${USERSPACE_LIBRARIES})
 		# This is to allow cmake to link when libc updates
 		target_link_options(${library_lower} PRIVATE -nolibc)
 		# Default compile options
-		target_compile_options(${library_lower} PRIVATE -g -O2)
+		target_compile_options(${library_lower} PRIVATE -g -O2 -Wall -Wextra -Werror)
 
 		target_compile_definitions(${library_lower} PRIVATE __enable_sse=${BANAN_ENABLE_SSE})
 		if (NOT BANAN_ENABLE_SSE)

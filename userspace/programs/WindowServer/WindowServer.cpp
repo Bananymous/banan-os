@@ -413,7 +413,7 @@ void WindowServer::invalidate(Rectangle area)
 		const auto is_rounded_off =
 			[&](Position pos) -> bool
 			{
-				for (size_t i = 0; i < 4; i++)
+				for (int32_t i = 0; i < 4; i++)
 				{
 					if (!corner_areas[i].contains(pos))
 						continue;
@@ -558,8 +558,6 @@ void WindowServer::sync()
 			dir_y = -dir_y;
 	}
 
-	size_t synced_pages = 0;
-
 	for (size_t i = 0; i < m_pages_to_sync_bitmap.size() * 8; i++)
 	{
 		size_t byte = i / 8;
@@ -582,7 +580,6 @@ void WindowServer::sync()
 			len * 4096,
 			MS_SYNC
 		);
-		synced_pages += len;
 
 		i += len;
 	}

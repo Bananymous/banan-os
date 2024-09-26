@@ -135,7 +135,7 @@ int list_directory(const BAN::String& path, config_t config)
 
 	if (!S_ISDIR(st.st_mode))
 	{
-		MUST(entries.emplace_back(path, st));
+		MUST(entries.emplace_back(path, st, BAN::String()));
 		if (S_ISLNK(st.st_mode))
 		{
 			if (readlink(path.data(), link_buffer, sizeof(link_buffer)) == -1)
@@ -166,7 +166,7 @@ int list_directory(const BAN::String& path, config_t config)
 				continue;
 			}
 
-			MUST(entries.emplace_back(BAN::StringView(dirent->d_name), st));
+			MUST(entries.emplace_back(BAN::StringView(dirent->d_name), st, BAN::String()));
 			if (S_ISLNK(st.st_mode))
 			{
 				if (readlinkat(dirfd(dirp), dirent->d_name, link_buffer, sizeof(link_buffer)) == -1)

@@ -222,13 +222,13 @@ bool Terminal::read_shell()
 		}
 
 		// find the next ansi escape code or end of buffer
-		size_t non_ansi_end = i;
+		ssize_t non_ansi_end = i;
 		while (non_ansi_end < nread && buffer[non_ansi_end] != '\e')
 			non_ansi_end++;
 
 		// we only need to process maximum of `rows()` newlines.
 		// anything before that would get overwritten anyway
-		size_t start = non_ansi_end;
+		ssize_t start = non_ansi_end;
 		size_t newline_count = 0;
 		while (start > i && newline_count < rows())
 			newline_count += (buffer[--start] == '\n');

@@ -166,7 +166,7 @@ namespace LibGUI
 		if (amount <= 0)
 			return;
 
-		const uint32_t copy_src_y  = BAN::Math::clamp<int32_t>(src_y, 0, height());
+		const int32_t copy_src_y  = BAN::Math::clamp<int32_t>(src_y, 0, height());
 		const int32_t copy_amount = BAN::Math::clamp<int32_t>(src_y + amount, 0, height()) - copy_src_y;
 		if (copy_amount > 0)
 		{
