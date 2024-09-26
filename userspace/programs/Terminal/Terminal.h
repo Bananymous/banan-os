@@ -35,8 +35,8 @@ public:
 	uint32_t rows() const { return m_window->height() / m_font.height(); }
 
 private:
-	void handle_csi(char ch);
 	void handle_sgr();
+	Rectangle handle_csi(char ch);
 	Rectangle putchar(uint8_t ch);
 	bool read_shell();
 

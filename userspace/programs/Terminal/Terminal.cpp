@@ -287,18 +287,18 @@ void Terminal::handle_sgr()
 	}
 }
 
-void Terminal::handle_csi(char ch)
+Rectangle Terminal::handle_csi(char ch)
 {
 	if (ch == ';')
 	{
 		m_csi_info.index++;
-		return;
+		return {};
 	}
 
 	if (ch == '?')
 	{
 		m_csi_info.question = true;
-		return;
+		return {};
 	}
 
 	if (isdigit(ch))
@@ -308,9 +308,10 @@ void Terminal::handle_csi(char ch)
 			auto& field = m_csi_info.fields[m_csi_info.index];
 			field = (BAN::Math::max(field, 0) * 10) + (ch - '0');
 		}
-		return;
+		return {};
 	}
 
+	Rectangle should_invalidate;
 	switch (ch)
 	{
 		case 'C':
@@ -327,66 +328,72 @@ void Terminal::handle_csi(char ch)
 			m_cursor.x = BAN::Math::clamp<int32_t>(m_csi_info.fields[0], 1, cols()) - 1;
 			break;
 		case 'H':
-			m_cursor.y = BAN::Math::clamp<int32_t>(m_csi_info.fields[0], 1, rows()) - 1;
 			m_cursor.x = BAN::Math::clamp<int32_t>(m_csi_info.fields[1], 1, cols()) - 1;
+			m_cursor.y = BAN::Math::clamp<int32_t>(m_csi_info.fields[0], 1, rows()) - 1;
 			break;
 		case 'J':
 		{
-			uint32_t rects[2][4] { { (uint32_t)-1 }, { (uint32_t)-1 } };
+			Rectangle rects[2];
+			size_t rect_count = 0;
 
 			if (m_csi_info.fields[0] == -1 || m_csi_info.fields[0] == 0)
 			{
-				rects[0][0] = m_cursor.x * m_font.width();
-				rects[0][1] = m_cursor.y * m_font.height();
-				rects[0][2] = m_window->width() - rects[0][0];
-				rects[0][3] = m_font.height();
+				rects[0].x      = m_cursor.x * m_font.width();
+				rects[0].y      = m_cursor.y * m_font.height();
+				rects[0].width  = m_window->width() - rects[0].x;
+				rects[0].height = m_font.height();
 
-				rects[1][0] = 0;
-				rects[1][1] = (m_cursor.y + 1) * m_font.height();
-				rects[1][2] = m_window->width();
-				rects[1][3] = m_window->height() - rects[1][1];
+				rects[1].x      = 0;
+				rects[1].y      = (m_cursor.y + 1) * m_font.height();
+				rects[1].width  = m_window->width();
+				rects[1].height = m_window->height() - rects[1].y;
+
+				rect_count = 2;
 			}
 			else if (m_csi_info.fields[0] == 1)
 			{
-				rects[0][0] = 0;
-				rects[0][1] = m_cursor.y * m_font.height();
-				rects[0][2] = m_cursor.x * m_font.width();
-				rects[0][3] = m_font.height();
+				rects[0].x      = 0;
+				rects[0].y      = m_cursor.y * m_font.height();
+				rects[0].width  = m_cursor.x * m_font.width();
+				rects[0].height = m_font.height();
 
-				rects[1][0] = 0;
-				rects[1][1] = 0;
-				rects[1][2] = m_window->width();
-				rects[1][3] = m_cursor.y * m_font.height();
+				rects[1].x      = 0;
+				rects[1].y      = 0;
+				rects[1].width  = m_window->width();
+				rects[1].height = m_cursor.y * m_font.height();
+
+				rect_count = 2;
 			}
 			else
 			{
-				rects[0][0] = 0;
-				rects[0][1] = 0;
-				rects[0][2] = m_window->width();
-				rects[0][3] = m_window->height();
+				rects[0].x      = 0;
+				rects[0].y      = 0;
+				rects[0].width  = m_window->width();
+				rects[0].height = m_window->height();
+
+				rect_count = 1;
 			}
 
-			for (int i = 0; i < 2; i++)
+			for (size_t i = 0; i < rect_count; i++)
 			{
-				if (rects[i][0] == (uint32_t)-1)
-					continue;
-				m_window->fill_rect(rects[i][0], rects[i][1], rects[i][2], rects[i][3], m_bg_color);
-				m_window->invalidate(rects[i][0], rects[i][1], rects[i][2], rects[i][3]);
+				m_window->fill_rect(rects[i].x, rects[i].y, rects[i].width, rects[i].height, m_bg_color);
+				should_invalidate = should_invalidate.get_bounding_box(rects[i]);
 			}
+
 			break;
 		}
 		case 'K':
 		{
 			m_csi_info.fields[0] = BAN::Math::max(m_csi_info.fields[0], 0);
 
-			uint32_t rect[4];
-			rect[0] = (m_csi_info.fields[0] == 0) ? m_cursor.x * m_font.width() : 0;
-			rect[1] = m_cursor.y * m_font.height();
-			rect[2] = (m_csi_info.fields[0] == 1) ? m_cursor.x * m_font.width() : m_window->width() - rect[0];
-			rect[3] = m_font.height();
+			Rectangle rect;
+			rect.x      = (m_csi_info.fields[0] == 0) ? m_cursor.x * m_font.width() : 0;
+			rect.y      = m_cursor.y * m_font.height();
+			rect.width  = (m_csi_info.fields[0] == 1) ? m_cursor.x * m_font.width() : m_window->width() - rect.x;
+			rect.height = m_font.height();
 
-			m_window->fill_rect(rect[0], rect[1], rect[2], rect[3], m_bg_color);
-			m_window->invalidate(rect[0], rect[1], rect[2], rect[3]);
+			m_window->fill_rect(rect.x, rect.y, rect.width, rect.height, m_bg_color);
+			should_invalidate = rect;
 
 			break;
 		}
@@ -412,7 +419,9 @@ void Terminal::handle_csi(char ch)
 			dprintln("TODO: CSI {}", ch);
 			break;
 	}
+
 	m_state = State::Normal;
+	return should_invalidate;
 }
 
 Rectangle Terminal::putchar(uint8_t ch)
@@ -441,8 +450,7 @@ Rectangle Terminal::putchar(uint8_t ch)
 			m_state = State::Normal;
 			return {};
 		}
-		handle_csi(ch);
-		return {};
+		return handle_csi(ch);
 	}
 
 	m_utf8_bytes[m_utf8_index++] = ch;
