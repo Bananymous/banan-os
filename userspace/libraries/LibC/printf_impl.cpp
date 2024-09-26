@@ -50,6 +50,16 @@ static void integer_to_string(char* buffer, T value, int base, bool upper, forma
 		options.zero_padded = false;
 	}
 
+	if (value == 0 && options.alternate_form)
+	{
+		if (digits == 0 && base == 8)
+			digits = 1;
+		for (int i = 0; i < digits; i++)
+			buffer[i] = '0';
+		buffer[digits] = '\0';
+		return;
+	}
+
 	auto digit_char = [](int digit, bool upper)
 	{
 		if (digit < 10)
@@ -83,6 +93,7 @@ static void integer_to_string(char* buffer, T value, int base, bool upper, forma
 		{
 			prefix_length = 1;
 			prefix[0] = '0';
+			digits--;
 		}
 		else if (options.alternate_form && base == 16)
 		{
@@ -361,7 +372,9 @@ extern "C" int printf_impl(const char* format, va_list arguments, int (*putc_fun
 				format--;
 			format++;
 
-			char conversion[128];
+			// FIXME: this should be thread-local to keep
+			//        satisfy multithreaded requirement
+			static char conversion[4096];
 			const char* string = nullptr;
 
 			int length = -1;
