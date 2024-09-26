@@ -121,6 +121,10 @@ namespace Kernel
 				m_background = TerminalColor::BLACK;
 				break;
 
+			case 7:
+				BAN::swap(m_foreground, m_background);
+				break;
+
 			case 30: m_foreground = TerminalColor::BLACK;	break;
 			case 31: m_foreground = TerminalColor::RED;		break;
 			case 32: m_foreground = TerminalColor::GREEN;	break;
