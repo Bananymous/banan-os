@@ -92,7 +92,7 @@ Config parse_config()
 		else if (variable == "corner-radius"_sv)
 		{
 			char* endptr = nullptr;
-			long corner_radius = strtol(value.data(), &endptr, 0);
+			long long corner_radius = strtoll(value.data(), &endptr, 0);
 			if (corner_radius < 0 || corner_radius == LONG_MAX || corner_radius >= INT32_MAX)
 				dwarnln("invalid corner-radius: '{}'", value);
 			else
