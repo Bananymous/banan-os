@@ -25,14 +25,13 @@ namespace Kernel
 			return BAN::Error::from_errno(ENODEV);
 		}
 		bus->set_irq(irq);
+		InterruptController::get().enable_irq(irq);
 		TRY(bus->initialize());
 		return bus;
 	}
 
 	BAN::ErrorOr<void> ATABus::initialize()
 	{
-		enable_interrupt();
-
 		BAN::Vector<uint16_t> identify_buffer;
 		MUST(identify_buffer.resize(256));
 

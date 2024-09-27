@@ -703,10 +703,9 @@ acpi_release_global_lock:
 				);
 			}
 
-
-
 			set_irq(irq);
-			enable_interrupt();
+			InterruptController::get().enable_irq(irq);
+
 			Process::create_kernel([](void*) { get().acpi_event_task(); }, nullptr);
 		}
 

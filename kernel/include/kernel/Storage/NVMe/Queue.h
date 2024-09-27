@@ -13,7 +13,7 @@ namespace Kernel
 	class NVMeQueue : public Interruptable
 	{
 	public:
-		NVMeQueue(BAN::UniqPtr<Kernel::DMARegion>&& cq, BAN::UniqPtr<Kernel::DMARegion>&& sq, volatile NVMe::DoorbellRegisters& db, uint32_t qdepth, uint8_t irq);
+		NVMeQueue(BAN::UniqPtr<Kernel::DMARegion>&& cq, BAN::UniqPtr<Kernel::DMARegion>&& sq, volatile NVMe::DoorbellRegisters& db, uint32_t qdepth);
 
 		uint16_t submit_command(NVMe::SubmissionQueueEntry& sqe);
 
@@ -31,11 +31,11 @@ namespace Kernel
 		uint32_t m_cq_head { 0 };
 		uint16_t m_cq_valid_phase { 1 };
 
-		ThreadBlocker			m_thread_blocker;
-		SpinLock			m_lock;
-		BAN::Atomic<size_t>	m_used_mask			{ 0 };
-		BAN::Atomic<size_t>	m_done_mask			{ 0 };
-		volatile uint16_t	m_status_codes[64]	{ };
+		ThreadBlocker       m_thread_blocker;
+		SpinLock            m_lock;
+		BAN::Atomic<size_t> m_used_mask			{ 0 };
+		BAN::Atomic<size_t> m_done_mask			{ 0 };
+		volatile uint16_t   m_status_codes[64]	{ };
 
 		static constexpr size_t m_mask_bits = sizeof(size_t) * 8;
 	};

@@ -161,9 +161,8 @@ namespace Kernel
 
 	BAN::ErrorOr<void> RTL8169::enable_interrupt()
 	{
-		TRY(m_pci_device.reserve_irqs(1));
-		set_irq(m_pci_device.get_irq(0));
-		Interruptable::enable_interrupt();
+		TRY(m_pci_device.reserve_interrupts(1));
+		m_pci_device.enable_interrupt(0, *this);
 
 		m_io_bar_region->write16(RTL8169_IO_IMR,
 			RTL8169_IR_ROK

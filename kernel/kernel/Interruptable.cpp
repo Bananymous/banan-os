@@ -14,15 +14,4 @@ namespace Kernel
 		Processor::idt().register_irq_handler(irq, this);
 	}
 
-	void Interruptable::enable_interrupt()
-	{
-		ASSERT(m_irq != -1);
-		InterruptController::get().enable_irq(m_irq);
-	}
-
-	void Interruptable::disable_interrupt()
-	{
-		ASSERT_NOT_REACHED();
-	}
-
 }

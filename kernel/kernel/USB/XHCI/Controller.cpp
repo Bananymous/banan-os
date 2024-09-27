@@ -204,7 +204,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> XHCIController::initialize_primary_interrupter()
 	{
-		TRY(m_pci_device.reserve_irqs(1));
+		TRY(m_pci_device.reserve_interrupts(1));
 
 		auto& runtime = runtime_regs();
 
@@ -227,8 +227,7 @@ namespace Kernel
 
 		primary_interrupter.iman = primary_interrupter.iman | XHCI::IMAN::InterruptPending | XHCI::IMAN::InterruptEnable;
 
-		set_irq(m_pci_device.get_irq(0));
-		enable_interrupt();
+		m_pci_device.enable_interrupt(0, *this);
 
 		return {};
 	}

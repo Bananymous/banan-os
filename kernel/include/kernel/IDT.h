@@ -7,13 +7,21 @@
 
 #include <stdint.h>
 
-constexpr uint8_t IRQ_VECTOR_BASE   = 0x20;
-constexpr uint8_t IRQ_YIELD         = 32;
-constexpr uint8_t IRQ_IPI           = 33;
-constexpr uint8_t IRQ_TIMER         = 34;
-
 namespace Kernel
 {
+
+	// IDT entries
+	//   0x00->0x1F (32):  ISR
+	//   0x20->0x7F (96):  PIC/IOAPIC
+	//   0x80->0xEF (112): MSI
+	//   0xF0->0xFE (15):  internal
+
+	constexpr uint8_t IRQ_VECTOR_BASE   = 0x20;
+	constexpr uint8_t IRQ_MSI_BASE      = 0x80;
+	constexpr uint8_t IRQ_SYSCALL       = 0xF0;
+	constexpr uint8_t IRQ_YIELD         = 0xF1;
+	constexpr uint8_t IRQ_IPI           = 0xF2;
+	constexpr uint8_t IRQ_TIMER         = 0xF3;
 
 #if ARCH(x86_64)
 	struct GateDescriptor

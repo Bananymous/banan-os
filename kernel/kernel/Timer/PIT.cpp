@@ -48,7 +48,7 @@ namespace Kernel
 
 		MUST(InterruptController::get().reserve_irq(PIT_IRQ));
 		set_irq(PIT_IRQ);
-		enable_interrupt();
+		InterruptController::get().enable_irq(PIT_IRQ);
 	}
 
 	void PIT::handle_irq()

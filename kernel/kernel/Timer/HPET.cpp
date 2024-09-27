@@ -223,7 +223,7 @@ namespace Kernel
 
 		TRY(InterruptController::get().reserve_irq(0));
 		set_irq(0);
-		enable_interrupt();
+		InterruptController::get().enable_irq(0);
 
 		return {};
 	}

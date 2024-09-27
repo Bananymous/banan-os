@@ -371,7 +371,7 @@ namespace Kernel
 			| ICR_LO_level_assert
 			| ICR_LO_trigger_mode_level
 			| ICR_LO_destination_shorthand_none
-			| (IRQ_VECTOR_BASE + IRQ_IPI)
+			| IRQ_IPI
 		);
 	}
 
@@ -388,7 +388,7 @@ namespace Kernel
 			| ICR_LO_level_assert
 			| ICR_LO_trigger_mode_level
 			| ICR_LO_destination_shorthand_all_excluding_self
-			| (IRQ_VECTOR_BASE + IRQ_IPI)
+			| IRQ_IPI
 		);
 	}
 
@@ -423,7 +423,7 @@ namespace Kernel
 
 		dprintln("CPU {}: lapic timer frequency: {} Hz", Kernel::Processor::current_id(), m_lapic_timer_frequency_hz);
 
-		write_to_local_apic(LAPIC_TIMER_LVT,         TimerModePeriodic | (IRQ_VECTOR_BASE + IRQ_TIMER));
+		write_to_local_apic(LAPIC_TIMER_LVT,         TimerModePeriodic | IRQ_TIMER);
 		write_to_local_apic(LAPIC_TIMER_INITIAL_REG, m_lapic_timer_frequency_hz / 2 / 100);
 	}
 
@@ -536,9 +536,9 @@ namespace Kernel
 	BAN::Optional<uint8_t> APIC::get_free_irq()
 	{
 		SpinLockGuard _(m_lock);
-		for (int irq = 0; irq <= 0xFF; irq++)
+		for (uint8_t irq = 0; irq < m_irq_count; irq++)
 		{
-			uint32_t gsi = m_irq_overrides[irq];
+			const uint8_t gsi = m_irq_overrides[irq];
 
 			IOAPIC* ioapic = nullptr;
 			for (IOAPIC& io : m_io_apics)
@@ -553,8 +553,8 @@ namespace Kernel
 			if (!ioapic)
 				continue;
 
-			int byte = gsi / 8;
-			int bit  = gsi % 8;
+			const uint8_t byte = gsi / 8;
+			const uint8_t bit  = gsi % 8;
 			if (m_reserved_gsis[byte] & (1 << bit))
 				continue;
 			m_reserved_gsis[byte] |= 1 << bit;

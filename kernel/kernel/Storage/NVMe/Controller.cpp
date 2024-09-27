@@ -82,7 +82,7 @@ namespace Kernel
 		}
 
 		// One for aq and one for ioq
-		TRY(m_pci_device.reserve_irqs(2));
+		TRY(m_pci_device.reserve_interrupts(2));
 
 		auto& cc = m_controller_registers->cc;
 
@@ -237,12 +237,12 @@ namespace Kernel
 		m_controller_registers->acq = completion_queue->paddr();
 		m_controller_registers->asq = submission_queue->paddr();
 
-		uint8_t irq = m_pci_device.get_irq(0);
-		dprintln_if(DEBUG_NVMe, " admin queue using irq {}", irq);
+		dprintln_if(DEBUG_NVMe, " admin queue using irq {}", m_pci_device.get_interrupt(0));
 
 		auto& doorbell = *reinterpret_cast<volatile NVMe::DoorbellRegisters*>(m_bar0->vaddr() + NVMe::ControllerRegisters::SQ0TDBL);
 
-		m_admin_queue = TRY(BAN::UniqPtr<NVMeQueue>::create(BAN::move(completion_queue), BAN::move(submission_queue), doorbell, admin_queue_depth, irq));
+		m_admin_queue = TRY(BAN::UniqPtr<NVMeQueue>::create(BAN::move(completion_queue), BAN::move(submission_queue), doorbell, admin_queue_depth));
+		m_pci_device.enable_interrupt(0, *m_admin_queue);
 
 		return {};
 	}
@@ -290,14 +290,14 @@ namespace Kernel
 			}
 		}
 
-		uint8_t irq = m_pci_device.get_irq(1);
-		dprintln_if(DEBUG_NVMe, " io queue using irq {}", irq);
+		dprintln_if(DEBUG_NVMe, " io queue using irq {}", m_pci_device.get_interrupt(1));
 
 		const uint32_t doorbell_stride = 1 << (2 + m_controller_registers->cap.dstrd);
 		const uint32_t doorbell_offset = 2 * doorbell_stride;
 		auto& doorbell = *reinterpret_cast<volatile NVMe::DoorbellRegisters*>(m_bar0->vaddr() + NVMe::ControllerRegisters::SQ0TDBL + doorbell_offset);
 
-		m_io_queue = TRY(BAN::UniqPtr<NVMeQueue>::create(BAN::move(completion_queue), BAN::move(submission_queue), doorbell, queue_elems, irq));
+		m_io_queue = TRY(BAN::UniqPtr<NVMeQueue>::create(BAN::move(completion_queue), BAN::move(submission_queue), doorbell, queue_elems));
+		m_pci_device.enable_interrupt(1, *m_io_queue);
 
 		return {};
 	}

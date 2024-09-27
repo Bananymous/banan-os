@@ -175,6 +175,23 @@ namespace Kernel::PCI
 		}
 	}
 
+	BAN::Optional<uint8_t> PCIManager::reserve_msi()
+	{
+		SpinLockGuard _(m_reserved_msi_lock);
+
+		for (uint8_t i = 0; i < m_msi_count; i++)
+		{
+			const uint8_t byte = i / 8;
+			const uint8_t bit  = i % 8;
+			if (m_reserved_msi_bitmap[byte] & (1 << bit))
+				continue;
+			m_reserved_msi_bitmap[byte] |= 1 << bit;
+			return IRQ_MSI_BASE - IRQ_VECTOR_BASE + i;
+		}
+
+		return {};
+	}
+
 	void PCIManager::initialize_devices(bool disable_usb)
 	{
 		for_each_device(
@@ -360,63 +377,24 @@ namespace Kernel::PCI
 		}
 	}
 
-	BAN::ErrorOr<void> PCI::Device::reserve_irqs(uint8_t count)
+	uint8_t PCI::Device::get_interrupt(uint8_t index) const
 	{
-		if (!InterruptController::get().is_using_apic())
+		ASSERT(m_offset_msi.has_value() || m_offset_msi_x.has_value() || !InterruptController::get().is_using_apic());
+		ASSERT(index < m_reserved_interrupt_count);
+
+		uint8_t count_found = 0;
+		for (uint32_t irq = 0; irq < 0x100; irq++)
 		{
-			if (count > 1)
-			{
-				dwarnln("PIC: could not allocate {} interrupts, (currently) only {} supported", count, 1);
-				return BAN::Error::from_errno(EFAULT);
-			}
-			enable_pin_interrupts();
-		}
-		else if (m_offset_msi_x.has_value())
-		{
-			uint16_t msg_ctrl = read_word(*m_offset_msi_x + 0x02);
-			if (count > (msg_ctrl & 0x7FF) + 1)
-			{
-				dwarnln("MSI-X: could not allocate {} interrupts, only {} supported", count, (msg_ctrl & 0x7FF) + 1);
-				return BAN::Error::from_errno(EFAULT);
-			}
-			msg_ctrl |= 1 << 15; // Enable
-			write_word(*m_offset_msi_x + 0x02, msg_ctrl);
-			disable_pin_interrupts();
-		}
-		else if (m_offset_msi.has_value())
-		{
-			if (count > 1)
-			{
-				dwarnln("MSI: could not allocate {} interrupts, (currently) only {} supported", count, 1);
-				return BAN::Error::from_errno(EFAULT);
-			}
-			uint16_t msg_ctrl = read_word(*m_offset_msi + 0x02);
-			msg_ctrl &= ~(0x07 << 4);	// Only one interrupt
-			msg_ctrl |= 1u << 0;		// Enable
-			write_word(*m_offset_msi + 0x02, msg_ctrl);
-			disable_pin_interrupts();
-		}
-		else
-		{
-			dwarnln("Could not reserve interrupt for PCI device. No MSI, MSI-X or interrupt line is used");
-			return BAN::Error::from_errno(EFAULT);
+			const uint8_t byte = irq / 8;
+			const uint8_t bit  = irq % 8;
+
+			if (m_reserved_interrupts[byte] & (1 << bit))
+				count_found++;
+			if (index + 1 == count_found)
+				return irq;
 		}
 
-		for (; m_reserved_irq_count < count; m_reserved_irq_count++)
-		{
-			auto irq = InterruptController::get().get_free_irq();
-			if (!irq.has_value())
-			{
-				dwarnln("Could not reserve interrupt for PCI {}:{}.{}", m_bus, m_dev, m_func);
-				return BAN::Error::from_errno(EFAULT);
-			}
-
-			ASSERT(*irq < 32);
-			ASSERT(!(m_reserved_irqs & (1 << *irq)));
-			m_reserved_irqs |= 1 << *irq;
-		}
-
-		return {};
+		ASSERT_NOT_REACHED();
 	}
 
 	static constexpr uint64_t msi_message_address()
@@ -429,79 +407,145 @@ namespace Kernel::PCI
 		return (IRQ_VECTOR_BASE + irq) & 0xFF;
 	}
 
-	uint8_t PCI::Device::get_irq(uint8_t index)
+	void PCI::Device::enable_interrupt(uint8_t index, Interruptable& interruptable)
 	{
-		ASSERT(m_offset_msi.has_value() || m_offset_msi_x.has_value() || !InterruptController::get().is_using_apic());
-		ASSERT(index < m_reserved_irq_count);
+		const uint8_t irq = get_interrupt(index);
+		interruptable.set_irq(irq);
 
-		uint8_t count_found = 0;
-		uint8_t irq = 0xFF;
-		for (uint8_t i = 0; i < 32; i++)
+		switch (m_interrupt_mechanism)
 		{
-			if (m_reserved_irqs & (1 << i))
-				count_found++;
-			if (count_found > index)
+			case InterruptMechanism::NONE:
+				ASSERT_NOT_REACHED();
+			case InterruptMechanism::PIN:
+				enable_pin_interrupts();
+				write_byte(PCI_REG_IRQ_LINE, irq);
+				InterruptController::get().enable_irq(irq);
+				break;
+			case InterruptMechanism::MSI:
 			{
-				irq = i;
+				disable_pin_interrupts();
+
+				uint16_t msg_ctrl = read_word(*m_offset_msi + 0x02);
+				msg_ctrl &= ~(0x07 << 4);	// Only one interrupt
+				msg_ctrl |= 1u << 0;		// Enable
+				write_word(*m_offset_msi + 0x02, msg_ctrl);
+
+				const uint64_t msg_addr = msi_message_address();
+				const uint32_t msg_data = msi_message_data(irq);
+
+				if (msg_ctrl & (1 << 7))
+				{
+					write_dword(*m_offset_msi + 0x04, msg_addr & 0xFFFFFFFF);
+					write_dword(*m_offset_msi + 0x08, msg_addr >> 32);
+					write_word(*m_offset_msi  + 0x12, msg_data);
+				}
+				else
+				{
+					write_dword(*m_offset_msi + 0x04, msg_addr & 0xFFFFFFFF);
+					write_word(*m_offset_msi  + 0x08, msg_data);
+				}
+
+				break;
+			}
+			case InterruptMechanism::MSIX:
+			{
+				disable_pin_interrupts();
+
+				uint16_t msg_ctrl = read_word(*m_offset_msi_x + 0x02);
+				msg_ctrl |= 1 << 15; // Enable
+				write_word(*m_offset_msi_x + 0x02, msg_ctrl);
+
+				const uint32_t dword1 = read_dword(*m_offset_msi_x + 0x04);
+				const uint32_t offset = dword1 & ~7u;
+				const uint8_t  bir    = dword1 &  7u;
+
+				const uint64_t msg_addr = msi_message_address();
+				const uint32_t msg_data = msi_message_data(irq);
+
+				auto bar = MUST(allocate_bar_region(bir));
+				ASSERT(bar->type() == BarType::MEM);
+
+				auto& msi_x_entry = reinterpret_cast<volatile MSIXEntry*>(bar->vaddr() + offset)[index];
+				msi_x_entry.msg_addr_low  = msg_addr & 0xFFFFFFFF;
+				msi_x_entry.msg_addr_high = msg_addr >> 32;;
+				msi_x_entry.msg_data      = msg_data;
+				msi_x_entry.vector_ctrl   = msi_x_entry.vector_ctrl & ~1u;
+
 				break;
 			}
 		}
-		ASSERT(irq != 0xFF);
+	}
 
-		// Legacy PIC just uses the interrupt line field
-		if (!InterruptController::get().is_using_apic())
-		{
-			write_byte(PCI_REG_IRQ_LINE, irq);
-			return irq;
-		}
+	BAN::ErrorOr<void> PCI::Device::reserve_interrupts(uint8_t count)
+	{
+		// FIXME: Allow "late" interrupt reserving
+		ASSERT(m_reserved_interrupt_count == 0);
 
-		if (m_offset_msi_x.has_value())
-		{
-			uint32_t dword0 = read_dword(*m_offset_msi_x);
-			ASSERT((dword0 & 0xFF) == 0x11);
-
-			uint32_t dword1 = read_dword(*m_offset_msi_x + 0x04);
-			uint32_t offset = dword1 & ~7u;
-			uint8_t  bir    = dword1 &  7u;
-
-			uint64_t msg_addr = msi_message_address();
-			uint32_t msg_data = msi_message_data(irq);
-
-			auto bar = MUST(allocate_bar_region(bir));
-			ASSERT(bar->type() == BarType::MEM);
-			auto& msi_x_entry = reinterpret_cast<volatile MSIXEntry*>(bar->vaddr() + offset)[index];
-			msi_x_entry.msg_addr_low  = msg_addr & 0xFFFFFFFF;
-			msi_x_entry.msg_addr_high = msg_addr >> 32;;
-			msi_x_entry.msg_data      = msg_data;
-			msi_x_entry.vector_ctrl   = msi_x_entry.vector_ctrl & ~1u;
-
-			return irq;
-		}
-
-		if (m_offset_msi.has_value())
-		{
-			uint32_t dword0 = read_dword(*m_offset_msi);
-			ASSERT((dword0 & 0xFF) == 0x05);
-
-			uint64_t msg_addr = msi_message_address();
-			uint32_t msg_data = msi_message_data(irq);
-
-			if (dword0 & (1 << 23))
+		const auto mechanism =
+			[&]() -> InterruptMechanism
 			{
-				write_dword(*m_offset_msi + 0x04, msg_addr & 0xFFFFFFFF);
-				write_dword(*m_offset_msi + 0x08, msg_addr >> 32);
-				write_word(*m_offset_msi  + 0x12, msg_data);
-			}
-			else
-			{
-				write_dword(*m_offset_msi + 0x04, msg_addr & 0xFFFFFFFF);
-				write_word(*m_offset_msi  + 0x08, msg_data);
-			}
+				if (!InterruptController::get().is_using_apic())
+				{
+					// FIXME: support multiple PIN interrupts
+					if (count == 1)
+						return InterruptMechanism::PIN;
 
-			return irq;
+					// MSI cannot be used without LAPIC
+					return InterruptMechanism::NONE;
+				}
+
+				if (m_offset_msi_x.has_value())
+				{
+					const uint16_t msg_ctrl = read_word(*m_offset_msi_x + 0x02);
+					if (count <= (msg_ctrl & 0x7FF) + 1)
+						return InterruptMechanism::MSIX;
+				}
+
+				if (m_offset_msi.has_value())
+				{
+					if (count == 1)
+						return InterruptMechanism::MSI;
+					// FIXME: support multiple message
+				}
+
+				// FIXME: support ioapic
+
+				return InterruptMechanism::NONE;
+			}();
+
+		auto get_interrupt_func =
+			[mechanism]() -> BAN::Optional<uint8_t>
+			{
+				switch (mechanism)
+				{
+					case InterruptMechanism::NONE:
+						return {};
+					case InterruptMechanism::PIN:
+						return InterruptController::get().get_free_irq();
+					case InterruptMechanism::MSI:
+					case InterruptMechanism::MSIX:
+						return PCIManager::get().reserve_msi();
+				}
+				ASSERT_NOT_REACHED();
+			};
+
+		for (uint8_t i = 0; i < count; i++)
+		{
+			const auto irq = get_interrupt_func();
+			if (!irq.has_value())
+			{
+				dwarnln("Could not reserve {} MSI(-X) interrupts", count);
+				return BAN::Error::from_errno(EFAULT);
+			}
+			const uint8_t byte = irq.value() / 8;
+			const uint8_t bit  = irq.value() % 8;
+			m_reserved_interrupts[byte] |= 1 << bit;
 		}
 
-		ASSERT_NOT_REACHED();
+		m_interrupt_mechanism = mechanism;
+		m_reserved_interrupt_count = count;
+
+		return {};
 	}
 
 	void PCI::Device::set_command_bits(uint16_t mask)

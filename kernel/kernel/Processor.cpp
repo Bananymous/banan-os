@@ -368,7 +368,7 @@ namespace Kernel
 			// NOTE: This is offset by 2 pointers since interrupt without PL change
 			//       does not push SP and SS. This allows accessing "whole" interrupt stack.
 			:: [load_sp]"r"(Processor::current_stack_top() - 2 * sizeof(uintptr_t)),
-			   [yield]"i"(IRQ_VECTOR_BASE + IRQ_YIELD)
+			   [yield]"i"(IRQ_YIELD)
 			:  "memory", "rcx"
 		);
 #elif ARCH(i686)
@@ -380,7 +380,7 @@ namespace Kernel
 			// NOTE: This is offset by 2 pointers since interrupt without PL change
 			//       does not push SP and SS. This allows accessing "whole" interrupt stack.
 			:: [load_sp]"r"(Processor::current_stack_top() - 2 * sizeof(uintptr_t)),
-			   [yield]"i"(IRQ_VECTOR_BASE + IRQ_YIELD)
+			   [yield]"i"(IRQ_YIELD)
 			:  "memory", "ecx"
 		);
 #else

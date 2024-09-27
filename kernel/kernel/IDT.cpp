@@ -10,7 +10,15 @@
 #include <kernel/Timer/PIT.h>
 
 #define ISR_LIST_X X(0) X(1) X(2) X(3) X(4) X(5) X(6) X(7) X(8) X(9) X(10) X(11) X(12) X(13) X(14) X(15) X(16) X(17) X(18) X(19) X(20) X(21) X(22) X(23) X(24) X(25) X(26) X(27) X(28) X(29) X(30) X(31)
-#define IRQ_LIST_X X(0) X(1) X(2) X(3) X(4) X(5) X(6) X(7) X(8) X(9) X(10) X(11) X(12) X(13) X(14) X(15) X(16) X(17) X(18) X(19) X(20) X(21) X(22) X(23) X(24) X(25) X(26) X(27) X(28) X(29) X(30) X(31)
+#define IRQ_LIST_X  X(  0) X(  1) X(  2) X(  3) X(  4) X(  5) X(  6) X(  7) X(  8) X(  9) X( 10) X( 11) X( 12) X( 13) X( 14) X( 15) X( 16) X( 17) X( 18) X( 19) X( 20) X( 21) X( 22) X( 23) X( 24) X( 25) X( 26) X( 27) X( 28) X( 29) X( 30) X( 31) \
+					X( 32) X( 33) X( 34) X( 35) X( 36) X( 37) X( 38) X( 39) X( 40) X( 41) X( 42) X( 43) X( 44) X( 45) X( 46) X( 47) X( 48) X( 49) X( 50) X( 51) X( 52) X( 53) X( 54) X( 55) X( 56) X( 57) X( 58) X( 59) X( 60) X( 61) X( 62) X( 63) \
+					X( 64) X( 65) X( 66) X( 67) X( 68) X( 69) X( 70) X( 71) X( 72) X( 73) X( 74) X( 75) X( 76) X( 77) X( 78) X( 79) X( 80) X( 81) X( 82) X( 83) X( 84) X( 85) X( 86) X( 87) X( 88) X( 89) X( 90) X( 91) X( 92) X( 93) X( 94) X( 95) \
+					X( 96) X( 97) X( 98) X( 99) X(100) X(101) X(102) X(103) X(104) X(105) X(106) X(107) X(108) X(109) X(110) X(111) X(112) X(113) X(114) X(115) X(116) X(117) X(118) X(119) X(120) X(121) X(122) X(123) X(124) X(125) X(126) X(127) \
+					X(128) X(129) X(130) X(131) X(132) X(133) X(134) X(135) X(136) X(137) X(138) X(139) X(140) X(141) X(142) X(143) X(144) X(145) X(146) X(147) X(148) X(149) X(150) X(151) X(152) X(153) X(154) X(155) X(156) X(157) X(158) X(159) \
+					X(160) X(161) X(162) X(163) X(164) X(165) X(166) X(167) X(168) X(169) X(170) X(171) X(172) X(173) X(174) X(175) X(176) X(177) X(178) X(179) X(180) X(181) X(182) X(183) X(184) X(185) X(186) X(187) X(188) X(189) X(190) X(191) \
+					X(192) X(193) X(194) X(195) X(196) X(197) X(198) X(199) X(200) X(201) X(202) X(203) X(204) X(205) X(206) X(207)
+
+static_assert(Kernel::IRQ_SYSCALL == Kernel::IRQ_VECTOR_BASE + 208);
 
 namespace Kernel
 {
@@ -321,15 +329,15 @@ done:
 	extern "C" void cpp_yield_handler(InterruptStack* interrupt_stack, InterruptRegisters* interrupt_registers)
 	{
 		// yield is raised through kernel software interrupt
-		ASSERT(!InterruptController::get().is_in_service(IRQ_YIELD));
+		ASSERT(!InterruptController::get().is_in_service(IRQ_YIELD - IRQ_VECTOR_BASE));
 		ASSERT(!GDT::is_user_segment(interrupt_stack->cs));
 		Processor::scheduler().reschedule(interrupt_stack, interrupt_registers);
 	}
 
 	extern "C" void cpp_ipi_handler()
 	{
-		ASSERT(InterruptController::get().is_in_service(IRQ_IPI));
-		InterruptController::get().eoi(IRQ_IPI);
+		ASSERT(InterruptController::get().is_in_service(IRQ_IPI - IRQ_VECTOR_BASE));
+		InterruptController::get().eoi(IRQ_IPI - IRQ_VECTOR_BASE);
 		Processor::handle_ipi();
 	}
 
@@ -343,8 +351,8 @@ done:
 			asm volatile("cli; 1: hlt; jmp 1b");
 		}
 
-		ASSERT(InterruptController::get().is_in_service(IRQ_TIMER));
-		InterruptController::get().eoi(IRQ_TIMER);
+		ASSERT(InterruptController::get().is_in_service(IRQ_TIMER - IRQ_VECTOR_BASE));
+		InterruptController::get().eoi(IRQ_TIMER - IRQ_VECTOR_BASE);
 
 		if (Processor::current_is_bsb())
 			Process::update_alarm_queue();
@@ -452,11 +460,10 @@ done:
 		IRQ_LIST_X
 #undef X
 
-		idt->register_interrupt_handler(IRQ_VECTOR_BASE + IRQ_YIELD, asm_yield_handler);
-		idt->register_interrupt_handler(IRQ_VECTOR_BASE + IRQ_IPI,   asm_ipi_handler);
-		idt->register_interrupt_handler(IRQ_VECTOR_BASE + IRQ_TIMER, asm_timer_handler);
-
-		idt->register_syscall_handler(0x80, asm_syscall_handler);
+		idt->register_interrupt_handler(IRQ_YIELD, asm_yield_handler);
+		idt->register_interrupt_handler(IRQ_IPI,   asm_ipi_handler);
+		idt->register_interrupt_handler(IRQ_TIMER, asm_timer_handler);
+		idt->register_syscall_handler(IRQ_SYSCALL, asm_syscall_handler);
 
 		return idt;
 	}

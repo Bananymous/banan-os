@@ -7,8 +7,6 @@ namespace Kernel
 	{
 	public:
 		void set_irq(int irq);
-		void enable_interrupt();
-		void disable_interrupt();
 
 		virtual void handle_irq() = 0;
 

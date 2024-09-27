@@ -9,7 +9,7 @@ namespace Kernel
 	static constexpr uint64_t s_nvme_command_timeout_ms = 1000;
 	static constexpr uint64_t s_nvme_command_poll_timeout_ms = 20;
 
-	NVMeQueue::NVMeQueue(BAN::UniqPtr<Kernel::DMARegion>&& cq, BAN::UniqPtr<Kernel::DMARegion>&& sq, volatile NVMe::DoorbellRegisters& db, uint32_t qdepth, uint8_t irq)
+	NVMeQueue::NVMeQueue(BAN::UniqPtr<Kernel::DMARegion>&& cq, BAN::UniqPtr<Kernel::DMARegion>&& sq, volatile NVMe::DoorbellRegisters& db, uint32_t qdepth)
 		: m_completion_queue(BAN::move(cq))
 		, m_submission_queue(BAN::move(sq))
 		, m_doorbell(db)
@@ -17,8 +17,6 @@ namespace Kernel
 	{
 		for (uint32_t i = qdepth; i < m_mask_bits; i++)
 			m_used_mask |= (size_t)1 << i;
-		set_irq(irq);
-		enable_interrupt();
 	}
 
 	void NVMeQueue::handle_irq()

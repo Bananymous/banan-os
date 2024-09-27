@@ -342,13 +342,13 @@ namespace Kernel::Input
 		if (m_devices[0])
 		{
 			m_devices[0]->set_irq(PS2::IRQ::DEVICE0);
-			m_devices[0]->enable_interrupt();
+			InterruptController::get().enable_irq(PS2::IRQ::DEVICE0);
 			config |= PS2::Config::INTERRUPT_FIRST_PORT;
 		}
 		if (m_devices[1])
 		{
 			m_devices[1]->set_irq(PS2::IRQ::DEVICE1);
-			m_devices[1]->enable_interrupt();
+			InterruptController::get().enable_irq(PS2::IRQ::DEVICE1);
 			config |= PS2::Config::INTERRUPT_SECOND_PORT;
 		}
 

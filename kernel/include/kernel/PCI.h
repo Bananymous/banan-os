@@ -56,6 +56,15 @@ namespace Kernel::PCI
 	class Device
 	{
 	public:
+		enum class InterruptMechanism
+		{
+			NONE,
+			MSIX,
+			MSI,
+			PIN,
+		};
+
+	public:
 		Device() = default;
 
 		void set_location(uint8_t bus, uint8_t dev, uint8_t func);
@@ -84,8 +93,9 @@ namespace Kernel::PCI
 		uint16_t vendor_id() const { return m_vendor_id; }
 		uint16_t device_id() const { return m_device_id; }
 
-		BAN::ErrorOr<void> reserve_irqs(uint8_t count);
-		uint8_t get_irq(uint8_t index);
+		uint8_t get_interrupt(uint8_t index) const;
+		BAN::ErrorOr<void> reserve_interrupts(uint8_t count);
+		void enable_interrupt(uint8_t index, Interruptable&);
 
 		BAN::ErrorOr<BAN::UniqPtr<BarRegion>> allocate_bar_region(uint8_t bar_num);
 
@@ -123,8 +133,9 @@ namespace Kernel::PCI
 		uint16_t m_vendor_id	{ 0 };
 		uint16_t m_device_id	{ 0 };
 
-		uint32_t m_reserved_irqs { 0 };
-		uint8_t m_reserved_irq_count { 0 };
+		InterruptMechanism m_interrupt_mechanism { InterruptMechanism::NONE };
+		uint8_t m_reserved_interrupts[0x100 / 8] {};
+		uint8_t m_reserved_interrupt_count { 0 };
 
 		BAN::Optional<uint8_t> m_offset_msi;
 		BAN::Optional<uint8_t> m_offset_msi_x;
@@ -159,6 +170,8 @@ namespace Kernel::PCI
 		void write_config_word(uint8_t bus, uint8_t dev, uint8_t func, uint8_t offset, uint16_t value);
 		void write_config_byte(uint8_t bus, uint8_t dev, uint8_t func, uint8_t offset, uint8_t value);
 
+		BAN::Optional<uint8_t> reserve_msi();
+
 	private:
 		PCIManager() : m_bus_pcie_paddr(0) {}
 		void check_function(uint8_t bus, uint8_t dev, uint8_t func);
@@ -168,10 +181,14 @@ namespace Kernel::PCI
 		void initialize_impl();
 
 	private:
+		static constexpr uint8_t m_msi_count = IRQ_SYSCALL - IRQ_MSI_BASE;
 		using PCIBus = BAN::Array<BAN::Array<Device, 8>, 32>;
-		BAN::Array<PCIBus, 256>		m_buses;
-		BAN::Array<paddr_t, 256>	m_bus_pcie_paddr;
-		bool						m_is_pcie { false };
+		BAN::Array<PCIBus, 256>  m_buses;
+		BAN::Array<paddr_t, 256> m_bus_pcie_paddr;
+		bool                     m_is_pcie { false };
+
+		SpinLock                             m_reserved_msi_lock;
+		BAN::Array<uint8_t, m_msi_count / 8> m_reserved_msi_bitmap;
 	};
 
 }
