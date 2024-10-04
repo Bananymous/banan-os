@@ -4,11 +4,14 @@
 #include <BAN/Vector.h>
 
 #include <ctype.h>
+#include <limits.h>
 #include <pwd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <termios.h>
+#include <time.h>
 #include <unistd.h>
 
 #define ERROR_RETURN(__msg, __ret) do { perror(__msg); return __ret; } while (false)
@@ -483,24 +486,6 @@ pid_t execute_command_no_wait(BAN::Vector<BAN::String>& args, int fd_in, int fd_
 			close(fd_out);
 		}
 
-		if (pgrp == 0)
-		{
-			if(setpgid(0, 0) == -1)
-			{
-				perror("setpgid");
-				exit(1);
-			}
-			if (isatty(0) && tcsetpgrp(0, getpgrp()) == -1)
-			{
-				perror("tcsetpgrp");
-				exit(1);
-			}
-		}
-		else
-		{
-			setpgid(0, pgrp);
-		}
-
 		execv(executable_file.data(), cmd_args.data());
 		perror("execv");
 		exit(1);
@@ -508,6 +493,18 @@ pid_t execute_command_no_wait(BAN::Vector<BAN::String>& args, int fd_in, int fd_
 
 	if (pid == -1)
 		ERROR_RETURN("fork", -1);
+
+	if (pgrp == 0 && isatty(0))
+	{
+		if(setpgid(pid, pid) == -1)
+			perror("setpgid");
+		if (tcsetpgrp(0, pid) == -1)
+			perror("tcsetpgrp");
+	}
+	else
+	{
+		setpgid(pid, pgrp);
+	}
 
 	return pid;
 }
@@ -790,6 +787,8 @@ int main(int argc, char** argv)
 	argv0 = argv[0];
 
 	if (signal(SIGINT, [](int) {}) == SIG_ERR)
+		perror("signal");
+	if (signal(SIGTTOU, SIG_IGN) == SIG_ERR)
 		perror("signal");
 
 	tcgetattr(0, &old_termios);
