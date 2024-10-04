@@ -894,18 +894,41 @@ int main(int argc, char** argv)
 		switch (ch)
 		{
 		case '\e':
+		{
 			ch = getchar();
 			if (ch != '[')
 				break;
 			ch = getchar();
+
+			int value = 0;
+			while (isdigit(ch))
+			{
+				value = (value * 10) + (ch - '0');
+				ch = getchar();
+			}
+
 			switch (ch)
 			{
 				case 'A': if (index > 0)					{ index--; col = buffers[index].size(); printf("\e[%dG%s\e[K", prompt_length() + 1, buffers[index].data()); fflush(stdout); } break;
 				case 'B': if (index < buffers.size() - 1)	{ index++; col = buffers[index].size(); printf("\e[%dG%s\e[K", prompt_length() + 1, buffers[index].data()); fflush(stdout); } break;
 				case 'C': if (col < buffers[index].size())	{ col++; while ((buffers[index][col - 1] & 0xC0) == 0x80) col++; printf("\e[C"); fflush(stdout); } break;
 				case 'D': if (col > 0)						{ while ((buffers[index][col - 1] & 0xC0) == 0x80) col--; col--; printf("\e[D"); fflush(stdout); } break;
+				case '~':
+					switch (value)
+					{
+						case 3: // delete
+							if (col >= buffers[index].size())
+								break;
+							buffers[index].remove(col);
+							while (col < buffers[index].size() && (buffers[index][col] & 0xC0) == 0x80)
+								buffers[index].remove(col);
+							printf("\e[s%s \e[u", buffers[index].data() + col);
+							fflush(stdout);
+							break;
+					}
 			}
 			break;
+		}
 		case '\x0C': // ^L
 		{
 			int x = prompt_length() + character_length(buffers[index].sv().substring(col)) + 1;
@@ -916,14 +939,13 @@ int main(int argc, char** argv)
 			break;
 		}
 		case '\b':
-			if (col > 0)
-			{
-				while ((buffers[index][col - 1] & 0xC0) == 0x80)
-					buffers[index].remove(--col);
-				buffers[index].remove(--col);
-				printf("\b\e[s%s \e[u", buffers[index].data() + col);
-				fflush(stdout);
-			}
+			if (col <= 0)
+				break;
+			while ((buffers[index][col - 1] & 0xC0) == 0x80)
+				col--;
+			col--;
+			printf("\e[D");
+			fflush(stdout);
 			break;
 		case '\x01': // ^A
 			col = 0;
@@ -940,15 +962,14 @@ int main(int argc, char** argv)
 			putchar('\n');
 			clean_exit(0);
 			break;
-		case '\x7F': // delete
-			if (col < buffers[index].size())
-			{
-				buffers[index].remove(col);
-				while (col < buffers[index].size() && (buffers[index][col] & 0xC0) == 0x80)
-					buffers[index].remove(col);
-				printf("\e[s%s \e[u", buffers[index].data() + col);
-				fflush(stdout);
-			}
+		case '\x7F': // backspace
+			if (col <= 0)
+				break;
+			while ((buffers[index][col - 1] & 0xC0) == 0x80)
+				buffers[index].remove(--col);
+			buffers[index].remove(--col);
+			printf("\b\e[s%s \e[u", buffers[index].data() + col);
+			fflush(stdout);
 			break;
 		case '\n':
 			putchar('\n');

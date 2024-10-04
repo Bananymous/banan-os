@@ -185,79 +185,10 @@ namespace Kernel
 		if (event.released())
 			return;
 
-		const char* ansi_c_str = LibInput::key_to_utf8(event.key, event.modifier);
-
-		if (event.ctrl())
-		{
-			ansi_c_str = nullptr;
-			switch (event.key)
-			{
-				case LibInput::Key::A: ansi_c_str = "\x01"; break;
-				case LibInput::Key::B: ansi_c_str = "\x02"; break;
-				case LibInput::Key::C: ansi_c_str = "\x03"; break;
-				case LibInput::Key::D: ansi_c_str = "\x04"; break;
-				case LibInput::Key::E: ansi_c_str = "\x05"; break;
-				case LibInput::Key::F: ansi_c_str = "\x06"; break;
-				case LibInput::Key::G: ansi_c_str = "\x07"; break;
-				case LibInput::Key::H: ansi_c_str = "\x08"; break;
-				case LibInput::Key::I: ansi_c_str = "\x09"; break;
-				case LibInput::Key::J: ansi_c_str = "\x0A"; break;
-				case LibInput::Key::K: ansi_c_str = "\x0B"; break;
-				case LibInput::Key::L: ansi_c_str = "\x0C"; break;
-				case LibInput::Key::M: ansi_c_str = "\x0D"; break;
-				case LibInput::Key::N: ansi_c_str = "\x0E"; break;
-				case LibInput::Key::O: ansi_c_str = "\x0F"; break;
-				case LibInput::Key::P: ansi_c_str = "\x10"; break;
-				case LibInput::Key::Q: ansi_c_str = "\x11"; break;
-				case LibInput::Key::R: ansi_c_str = "\x12"; break;
-				case LibInput::Key::S: ansi_c_str = "\x13"; break;
-				case LibInput::Key::T: ansi_c_str = "\x14"; break;
-				case LibInput::Key::U: ansi_c_str = "\x15"; break;
-				case LibInput::Key::V: ansi_c_str = "\x16"; break;
-				case LibInput::Key::W: ansi_c_str = "\x17"; break;
-				case LibInput::Key::X: ansi_c_str = "\x18"; break;
-				case LibInput::Key::Y: ansi_c_str = "\x19"; break;
-				case LibInput::Key::Z: ansi_c_str = "\x1A"; break;
-				default: break;
-			}
-		}
-		else
-		{
-			switch (event.key)
-			{
-				case LibInput::Key::Enter:
-				case LibInput::Key::NumpadEnter:
-					ansi_c_str = "\n";
-					break;
-				case LibInput::Key::Backspace:
-					ansi_c_str = "\b";
-					break;
-				case LibInput::Key::Escape:
-					ansi_c_str = "\e";
-					break;
-				case LibInput::Key::Delete:
-					ansi_c_str = "\x7F";
-					break;
-				case LibInput::Key::ArrowUp:
-					ansi_c_str = "\e[A";
-					break;
-				case LibInput::Key::ArrowDown:
-					ansi_c_str = "\e[B";
-					break;
-				case LibInput::Key::ArrowRight:
-					ansi_c_str = "\e[C";
-					break;
-				case LibInput::Key::ArrowLeft:
-					ansi_c_str = "\e[D";
-					break;
-				default:
-					break;
-			}
-		}
-
+		const char* ansi_c_str = LibInput::key_to_utf8_ansi(event.key, event.modifier);
 		if (ansi_c_str)
 		{
-			auto* ptr = (const uint8_t*)ansi_c_str;
+			auto* ptr = reinterpret_cast<const uint8_t*>(ansi_c_str);
 			while (*ptr)
 				handle_input_byte(*ptr++);
 		}

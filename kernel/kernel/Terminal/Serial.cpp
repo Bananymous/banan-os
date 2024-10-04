@@ -237,8 +237,6 @@ namespace Kernel
 				*ptr = m_input.front();
 				if (*ptr == '\r')
 					*ptr = '\n';
-				if (*ptr == 127)
-					*ptr++ = '\b', *ptr++ = ' ', *ptr = '\b';
 				m_input.pop();
 				ptr++;
 			}
