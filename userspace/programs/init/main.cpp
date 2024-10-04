@@ -114,6 +114,7 @@ int main()
 			setenv("HOME", pwd->pw_dir, 1);
 			chdir(pwd->pw_dir);
 
+			setenv("SHELL", pwd->pw_shell, 1);
 			char shell_path[PATH_MAX];
 			strcpy(shell_path, pwd->pw_shell);
 

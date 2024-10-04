@@ -819,9 +819,6 @@ int main(int argc, char** argv)
 		return 1;
 	}
 
-	if (argc >= 1)
-		setenv("SHELL", argv[0], true);
-
 	source_shellrc();
 
 	new_termios = old_termios;
