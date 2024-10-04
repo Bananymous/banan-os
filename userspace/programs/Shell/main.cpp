@@ -20,16 +20,10 @@ struct termios old_termios, new_termios;
 
 extern char** environ;
 
-static const char* argv0 = nullptr;
+static char s_shell_path[PATH_MAX];
 static int last_return = 0;
 
 static BAN::String hostname;
-
-static void clean_exit(int exit_code)
-{
-	tcsetattr(0, TCSANOW, &old_termios);
-	exit(exit_code);
-}
 
 BAN::Vector<BAN::Vector<BAN::String>> parse_command(BAN::StringView);
 
@@ -104,7 +98,7 @@ BAN::Optional<BAN::String> parse_dollar(BAN::StringView command, size_t& i)
 
 		char temp[3] { '-', 'c', '\0' };
 		BAN::Vector<char*> argv;
-		MUST(argv.push_back((char*)argv0));
+		MUST(argv.push_back(s_shell_path));
 		MUST(argv.push_back(temp));
 		MUST(argv.push_back((char*)subcommand.data()));
 		MUST(argv.push_back(nullptr));
@@ -309,7 +303,7 @@ BAN::Optional<int> execute_builtin(BAN::Vector<BAN::String>& args, int fd_in, in
 	}
 	else if (args.front() == "exit"_sv)
 	{
-		clean_exit(0);
+		exit(0);
 	}
 	else if (args.front() == "export"_sv)
 	{
@@ -784,7 +778,7 @@ void print_prompt()
 
 int main(int argc, char** argv)
 {
-	argv0 = argv[0];
+	realpath(argv[0], s_shell_path);
 
 	if (signal(SIGINT, [](int) {}) == SIG_ERR)
 		perror("signal");
@@ -798,32 +792,49 @@ int main(int argc, char** argv)
 		MUST(hostname.append(hostname_buffer));
 	}
 
-	if (argc >= 2)
+	new_termios = old_termios;
+	new_termios.c_lflag &= ~(ECHO | ICANON);
+	tcsetattr(0, TCSANOW, &new_termios);
+
+	atexit([]() { tcsetattr(0, TCSANOW, &old_termios); });
+
+	for (int i = 1; i < argc; i++)
 	{
-		if (strcmp(argv[1], "-c") == 0)
+		if (argv[i][0] != '-')
+			return source_script(BAN::String(argv[i]));
+
+		if (strcmp(argv[i], "-c") == 0)
 		{
-			if (argc == 2)
+			if (i + 1 >= argc)
 			{
 				printf("-c requires an argument\n");
 				return 1;
 			}
 
-			BAN::String command;
-			MUST(command.append(argv[2]));
-
-			auto commands = parse_command(command);
+			auto commands = parse_command(BAN::String(argv[i + 1]));
 			return execute_piped_commands(commands);
 		}
-
-		printf("unknown argument '%s'\n", argv[1]);
-		return 1;
+		else if (strcmp(argv[i], "-v") == 0 || strcmp(argv[i], "--version") == 0)
+		{
+			printf("banan-sh 1.0\n");
+			return 0;
+		}
+		else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0)
+		{
+			printf("usage: %s [options...]\n", argv[0]);
+			printf("  -c             run following argument as an argument\n");
+			printf("  -v, --version  print version information and exit\n");
+			printf("  -h, --help     print this message and exit\n");
+			return 0;
+		}
+		else
+		{
+			printf("unknown argument '%s'\n", argv[i]);
+			return 1;
+		}
 	}
 
 	source_shellrc();
-
-	new_termios = old_termios;
-	new_termios.c_lflag &= ~(ECHO | ICANON);
-	tcsetattr(0, TCSANOW, &new_termios);
 
 	BAN::Vector<BAN::String> buffers, history;
 	MUST(buffers.emplace_back(""_sv));
@@ -842,7 +853,7 @@ int main(int argc, char** argv)
 			if (errno != EINTR)
 			{
 				perror("getchar");
-				clean_exit(1);
+				return 1;
 			}
 
 			clearerr(stdin);
@@ -956,8 +967,7 @@ int main(int argc, char** argv)
 			break;
 		case '\x04': // ^D
 			putchar('\n');
-			clean_exit(0);
-			break;
+			return 0;
 		case '\x7F': // backspace
 			if (col <= 0)
 				break;
@@ -993,6 +1003,4 @@ int main(int argc, char** argv)
 			break;
 		}
 	}
-
-	clean_exit(0);
 }
