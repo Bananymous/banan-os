@@ -389,7 +389,14 @@ static BAN::Optional<int> execute_builtin(const SingleCommand& command, int fd_i
 	}
 	else if (command.arguments.front() == "exit"_sv)
 	{
-		exit(0);
+		int exit_code = 0;
+		if (command.arguments.size() > 1)
+		{
+			auto exit_string = command.arguments[1].sv();
+			for (size_t i = 0; i < exit_string.size() && isdigit(exit_string[i]); i++)
+				exit_code = (exit_code * 10) + (exit_string[i] - '0');
+		}
+		exit(exit_code);
 	}
 	else if (command.arguments.front() == "export"_sv)
 	{
