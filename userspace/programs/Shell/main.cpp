@@ -780,10 +780,14 @@ int main(int argc, char** argv)
 {
 	realpath(argv[0], s_shell_path);
 
-	if (signal(SIGINT, [](int) {}) == SIG_ERR)
-		perror("signal");
-	if (signal(SIGTTOU, SIG_IGN) == SIG_ERR)
-		perror("signal");
+	struct sigaction sa;
+	sa.sa_flags = 0;
+
+	sa.sa_handler = [](int) {};
+	sigaction(SIGINT, &sa, nullptr);
+
+	sa.sa_handler = SIG_IGN;
+	sigaction(SIGTTOU, &sa, nullptr);
 
 	tcgetattr(0, &old_termios);
 
