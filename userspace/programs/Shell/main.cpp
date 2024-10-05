@@ -254,6 +254,12 @@ static PipedCommand parse_piped_command(BAN::StringView command_view)
 					MUST(result.commands.push_back(current_command));
 					current_command.arguments.clear();
 				}
+				else if (c == '~' && (i == 0 || isspace(command_view[i - 1])))
+				{
+					const char* home_env = getenv("HOME");
+					if (home_env)
+						MUST(current_argument.append(home_env));
+				}
 				else if (!isspace(c))
 					MUST(current_argument.push_back(c));
 				else
