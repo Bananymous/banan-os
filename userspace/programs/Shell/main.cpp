@@ -16,18 +16,18 @@
 
 #define ERROR_RETURN(__msg, __ret) do { perror(__msg); return __ret; } while (false)
 
-struct termios old_termios, new_termios;
-
 extern char** environ;
+
+static struct termios old_termios, new_termios;
 
 static char s_shell_path[PATH_MAX];
 static int last_return = 0;
 
 static BAN::String hostname;
 
-BAN::Vector<BAN::Vector<BAN::String>> parse_command(BAN::StringView);
+static BAN::Vector<BAN::Vector<BAN::String>> parse_command(BAN::StringView);
 
-BAN::Optional<BAN::String> parse_dollar(BAN::StringView command, size_t& i)
+static BAN::Optional<BAN::String> parse_dollar(BAN::StringView command, size_t& i)
 {
 	ASSERT(command[i] == '$');
 
@@ -157,7 +157,7 @@ BAN::Optional<BAN::String> parse_dollar(BAN::StringView command, size_t& i)
 	return temp;
 }
 
-BAN::StringView strip_whitespace(BAN::StringView sv)
+static BAN::StringView strip_whitespace(BAN::StringView sv)
 {
 	size_t leading = 0;
 	while (leading < sv.size() && isspace(sv[leading]))
@@ -172,7 +172,7 @@ BAN::StringView strip_whitespace(BAN::StringView sv)
 	return sv;
 }
 
-BAN::Vector<BAN::Vector<BAN::String>> parse_command(BAN::StringView command_view)
+static BAN::Vector<BAN::Vector<BAN::String>> parse_command(BAN::StringView command_view)
 {
 	enum class State
 	{
@@ -273,11 +273,11 @@ BAN::Vector<BAN::Vector<BAN::String>> parse_command(BAN::StringView command_view
 	return result;
 }
 
-int execute_command(BAN::Vector<BAN::String>& args, int fd_in, int fd_out);
+static int execute_command(BAN::Vector<BAN::String>& args, int fd_in, int fd_out);
 
-int source_script(const BAN::String& path);
+static int source_script(const BAN::String& path);
 
-BAN::Optional<int> execute_builtin(BAN::Vector<BAN::String>& args, int fd_in, int fd_out)
+static BAN::Optional<int> execute_builtin(BAN::Vector<BAN::String>& args, int fd_in, int fd_out)
 {
 	if (args.empty())
 		return 0;
@@ -404,7 +404,7 @@ BAN::Optional<int> execute_builtin(BAN::Vector<BAN::String>& args, int fd_in, in
 	return 0;
 }
 
-pid_t execute_command_no_wait(BAN::Vector<BAN::String>& args, int fd_in, int fd_out, pid_t pgrp)
+static pid_t execute_command_no_wait(BAN::Vector<BAN::String>& args, int fd_in, int fd_out, pid_t pgrp)
 {
 	if (args.empty())
 		return 0;
@@ -503,7 +503,7 @@ pid_t execute_command_no_wait(BAN::Vector<BAN::String>& args, int fd_in, int fd_
 	return pid;
 }
 
-int execute_command(BAN::Vector<BAN::String>& args, int fd_in, int fd_out)
+static int execute_command(BAN::Vector<BAN::String>& args, int fd_in, int fd_out)
 {
 	pid_t pid = execute_command_no_wait(args, fd_in, fd_out, 0);
 	if (pid == -1)
@@ -522,7 +522,7 @@ int execute_command(BAN::Vector<BAN::String>& args, int fd_in, int fd_out)
 	return WEXITSTATUS(status);
 }
 
-int execute_piped_commands(BAN::Vector<BAN::Vector<BAN::String>>& commands)
+static int execute_piped_commands(BAN::Vector<BAN::Vector<BAN::String>>& commands)
 {
 	if (commands.empty())
 		return 0;
@@ -597,7 +597,7 @@ int execute_piped_commands(BAN::Vector<BAN::Vector<BAN::String>>& commands)
 	return exit_codes.back();
 }
 
-int parse_and_execute_command(BAN::StringView command)
+static int parse_and_execute_command(BAN::StringView command)
 {
 	if (command.empty())
 		return 0;
@@ -610,7 +610,7 @@ int parse_and_execute_command(BAN::StringView command)
 	return ret;
 }
 
-int source_script(const BAN::String& path)
+static int source_script(const BAN::String& path)
 {
 	FILE* fp = fopen(path.data(), "r");
 	if (fp == nullptr)
@@ -643,13 +643,13 @@ int source_script(const BAN::String& path)
 	return ret;
 }
 
-bool exists(const BAN::String& path)
+static bool exists(const BAN::String& path)
 {
 	struct stat st;
 	return stat(path.data(), &st) == 0;
 }
 
-int source_shellrc()
+static int source_shellrc()
 {
 	if (char* home = getenv("HOME"))
 	{
@@ -661,7 +661,7 @@ int source_shellrc()
 	return 0;
 }
 
-int character_length(BAN::StringView prompt)
+static int character_length(BAN::StringView prompt)
 {
 	int length { 0 };
 	bool in_escape { false };
@@ -683,7 +683,7 @@ int character_length(BAN::StringView prompt)
 	return length;
 }
 
-BAN::String get_prompt()
+static BAN::String get_prompt()
 {
 	const char* raw_prompt = getenv("PS1");
 	if (raw_prompt == nullptr)
@@ -764,12 +764,12 @@ BAN::String get_prompt()
 	return prompt;
 }
 
-int prompt_length()
+static int prompt_length()
 {
 	return character_length(get_prompt());
 }
 
-void print_prompt()
+static void print_prompt()
 {
 	auto prompt = get_prompt();
 	printf("%.*s", (int)prompt.size(), prompt.data());
