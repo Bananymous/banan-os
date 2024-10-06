@@ -167,14 +167,14 @@ namespace BAN
 	constexpr T& Optional<T>::value()
 	{
 		ASSERT(has_value());
-		return (T&)m_storage;
+		return *reinterpret_cast<T*>(&m_storage);
 	}
 
 	template<typename T>
 	constexpr const T& Optional<T>::value() const
 	{
 		ASSERT(has_value());
-		return (const T&)m_storage;
+		return *reinterpret_cast<const T*>(&m_storage);
 	}
 
 	template<typename T>
@@ -182,7 +182,7 @@ namespace BAN
 	{
 		if (!has_value())
 			return empty;
-		return (T&)m_storage;
+		return value();
 	}
 
 	template<typename T>
@@ -190,7 +190,7 @@ namespace BAN
 	{
 		if (!has_value())
 			return empty;
-		return (const T&)m_storage;
+		return value();
 	}
 
 	template<typename T>
