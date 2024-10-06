@@ -225,7 +225,7 @@ static PipedCommand parse_piped_command(BAN::StringView command_view)
 		if (i + 1 < command_view.size() && c == '\\')
 		{
 			char next = command_view[i + 1];
-			if (next == '\'' || next == '"')
+			if (next == '\'' || next == '"' || next == ' ')
 			{
 				if (i + 1 < command_view.size())
 					MUST(current_argument.push_back(next));
