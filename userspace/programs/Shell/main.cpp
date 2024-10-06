@@ -1,5 +1,5 @@
+#include <BAN/HashMap.h>
 #include <BAN/Optional.h>
-#include <BAN/ScopeGuard.h>
 #include <BAN/String.h>
 #include <BAN/Vector.h>
 
@@ -51,6 +51,12 @@ struct CommandList
 	};
 	BAN::Vector<Command> commands;
 };
+
+struct BuiltinCommand
+{
+	int (*function)(const SingleCommand&, FILE* fout, int fd_in, int fd_out);
+};
+static BAN::HashMap<BAN::String, BuiltinCommand> s_builtin_commands;
 
 static BAN::StringView strip_whitespace(BAN::StringView sv)
 {
@@ -374,6 +380,10 @@ static BAN::Optional<int> execute_builtin(const SingleCommand& command, int fd_i
 	if (command.arguments.empty())
 		return 0;
 
+	auto it = s_builtin_commands.find(command.arguments.front());
+	if (it == s_builtin_commands.end())
+		return {};
+
 	FILE* fout = stdout;
 	bool should_close = false;
 	if (fd_out != STDOUT_FILENO)
@@ -386,124 +396,159 @@ static BAN::Optional<int> execute_builtin(const SingleCommand& command, int fd_i
 			ERROR_RETURN("fdopen", 1);
 		should_close = true;
 	}
-	BAN::ScopeGuard _([fout, should_close] { if (should_close) fclose(fout); });
 
-	if (command.arguments.front() == "clear"_sv)
-	{
-		fprintf(fout, "\e[H\e[2J");
-		fflush(fout);
-	}
-	else if (command.arguments.front() == "exit"_sv)
-	{
-		int exit_code = 0;
-		if (command.arguments.size() > 1)
+	int ret = it->value.function(command, fout, fd_in, fd_out);
+
+	if (should_close)
+		fclose(fout);
+
+	return ret;
+}
+
+static void install_builtin_commands()
+{
+	MUST(s_builtin_commands.emplace("clear"_sv,
+		[](const SingleCommand&, FILE* fout, int, int) -> int
 		{
-			auto exit_string = command.arguments[1].sv();
-			for (size_t i = 0; i < exit_string.size() && isdigit(exit_string[i]); i++)
-				exit_code = (exit_code * 10) + (exit_string[i] - '0');
+			fprintf(fout, "\e[H\e[3J");
+			fflush(fout);
+			return 0;
 		}
-		exit(exit_code);
-	}
-	else if (command.arguments.front() == "export"_sv)
-	{
-		bool first = false;
-		for (const auto& argument : command.arguments)
+	));
+
+	MUST(s_builtin_commands.emplace("exit"_sv,
+		[](const SingleCommand& command, FILE*, int, int) -> int
 		{
-			if (first)
+			int exit_code = 0;
+			if (command.arguments.size() > 1)
 			{
-				first = false;
-				continue;
+				auto exit_string = command.arguments[1].sv();
+				for (size_t i = 0; i < exit_string.size() && isdigit(exit_string[i]); i++)
+					exit_code = (exit_code * 10) + (exit_string[i] - '0');
+			}
+			exit(exit_code);
+			ASSERT_NOT_REACHED();
+		}
+	));
+
+	MUST(s_builtin_commands.emplace("export"_sv,
+		[](const SingleCommand& command, FILE*, int, int) -> int
+		{
+			bool first = false;
+			for (const auto& argument : command.arguments)
+			{
+				if (first)
+				{
+					first = false;
+					continue;
+				}
+
+				auto split = MUST(argument.sv().split('=', true));
+				if (split.size() != 2)
+					continue;
+
+				if (setenv(BAN::String(split[0]).data(), BAN::String(split[1]).data(), true) == -1)
+					ERROR_RETURN("setenv", 1);
+			}
+			return 0;
+		}
+	));
+
+	MUST(s_builtin_commands.emplace("source"_sv,
+		[](const SingleCommand& command, FILE* fout, int, int) -> int
+		{
+			if (command.arguments.size() != 2)
+			{
+				fprintf(fout, "usage: source FILE\n");
+				return 1;
+			}
+			return source_script(command.arguments[1]);
+		}
+	));
+
+	MUST(s_builtin_commands.emplace("env"_sv,
+		[](const SingleCommand&, FILE* fout, int, int) -> int
+		{
+			char** current = environ;
+			while (current && *current)
+				fprintf(fout, "%s\n", *current++);
+			return 0;
+		}
+	));
+
+	MUST(s_builtin_commands.emplace("cd"_sv,
+		[](const SingleCommand& command, FILE* fout, int, int) -> int
+		{
+			if (command.arguments.size() > 2)
+			{
+				fprintf(fout, "cd: too many arguments\n");
+				return 1;
 			}
 
-			auto split = MUST(argument.sv().split('=', true));
-			if (split.size() != 2)
-				continue;
+			BAN::StringView path;
 
-			if (setenv(BAN::String(split[0]).data(), BAN::String(split[1]).data(), true) == -1)
-				ERROR_RETURN("setenv", 1);
-		}
-	}
-	else if (command.arguments.front() == "source"_sv)
-	{
-		if (command.arguments.size() != 2)
-		{
-			fprintf(fout, "usage: source FILE\n");
-			return 1;
-		}
-		return source_script(command.arguments[1]);
-	}
-	else if (command.arguments.front() == "env"_sv)
-	{
-		char** current = environ;
-		while (*current)
-			fprintf(fout, "%s\n", *current++);
-	}
-	else if (command.arguments.front() == "cd"_sv)
-	{
-		if (command.arguments.size() > 2)
-		{
-			fprintf(fout, "cd: too many arguments\n");
-			return 1;
-		}
-
-		BAN::StringView path;
-
-		if (command.arguments.size() == 1)
-		{
-			if (const char* path_env = getenv("HOME"))
-				path = path_env;
+			if (command.arguments.size() == 1)
+			{
+				if (const char* path_env = getenv("HOME"))
+					path = path_env;
+				else
+					return 0;
+			}
 			else
-				return 0;
+				path = command.arguments[1];
+
+			if (chdir(path.data()) == -1)
+				ERROR_RETURN("chdir", 1);
+
+			return 0;
 		}
-		else
-			path = command.arguments[1];
+	));
 
-		if (chdir(path.data()) == -1)
-			ERROR_RETURN("chdir", 1);
-	}
-	else if (command.arguments.front() == "time"_sv)
-	{
-		SingleCommand timed_command;
-		MUST(timed_command.arguments.reserve(command.arguments.size() - 1));
-		for (size_t i = 1; i < command.arguments.size(); i++)
-			timed_command.arguments[i - 1] = command.arguments[i];
+	MUST(s_builtin_commands.emplace("time"_sv,
+		[](const SingleCommand& command, FILE* fout, int fd_in, int fd_out) -> int
+		{
+			SingleCommand timed_command;
+			MUST(timed_command.arguments.reserve(command.arguments.size() - 1));
+			for (size_t i = 1; i < command.arguments.size(); i++)
+				MUST(timed_command.arguments.emplace_back(command.arguments[i]));
 
-		timespec start, end;
+			timespec start, end;
 
-		if (clock_gettime(CLOCK_MONOTONIC, &start) == -1)
-			ERROR_RETURN("clock_gettime", 1);
+			if (clock_gettime(CLOCK_MONOTONIC, &start) == -1)
+				ERROR_RETURN("clock_gettime", 1);
 
-		int ret = execute_command(timed_command, fd_in, fd_out);
+			int ret = execute_command(timed_command, fd_in, fd_out);
 
-		if (clock_gettime(CLOCK_MONOTONIC, &end) == -1)
-			ERROR_RETURN("clock_gettime", 1);
+			if (clock_gettime(CLOCK_MONOTONIC, &end) == -1)
+				ERROR_RETURN("clock_gettime", 1);
 
-		uint64_t total_ns = 0;
-		total_ns += (end.tv_sec - start.tv_sec) * 1'000'000'000;
-		total_ns += end.tv_nsec - start.tv_nsec;
+			uint64_t total_ns = 0;
+			total_ns += (end.tv_sec - start.tv_sec) * 1'000'000'000;
+			total_ns += end.tv_nsec - start.tv_nsec;
 
-		int secs  =  total_ns / 1'000'000'000;
-		int msecs = (total_ns % 1'000'000'000) / 1'000'000;
+			int secs  =  total_ns / 1'000'000'000;
+			int msecs = (total_ns % 1'000'000'000) / 1'000'000;
 
-		fprintf(fout, "took %d.%03d s\n", secs, msecs);
+			fprintf(fout, "took %d.%03d s\n", secs, msecs);
 
-		return ret;
-	}
-	else if (command.arguments.front() == "start-gui"_sv)
-	{
-		pid_t pid = fork();
-		if (pid == 0)
-			execl("/bin/WindowServer", "WindowServer", NULL);
-		if (fork() == 0)
-			execl("/bin/Terminal", "Terminal", NULL);
-		waitpid(pid, nullptr, 0);
-	}
-	else
-	{
-		return {};
-	}
+			return ret;
+		}
+	));
 
-	return 0;
+	MUST(s_builtin_commands.emplace("start-gui"_sv,
+		[](const SingleCommand&, FILE*, int, int) -> int
+		{
+			const pid_t pid = fork();
+			if (pid == -1)
+				return 1;
+			if (pid == 0)
+				execl("/bin/WindowServer", "WindowServer", NULL);
+			if (fork() == 0)
+				execl("/bin/Terminal", "Terminal", NULL);
+			waitpid(pid, nullptr, 0);
+			return 0;
+		}
+	));
 }
 
 static pid_t execute_command_no_wait(const SingleCommand& command, int fd_in, int fd_out, pid_t pgrp)
@@ -929,6 +974,8 @@ int main(int argc, char** argv)
 	tcsetattr(0, TCSANOW, &new_termios);
 
 	atexit([]() { tcsetattr(0, TCSANOW, &old_termios); });
+
+	install_builtin_commands();
 
 	for (int i = 1; i < argc; i++)
 	{
