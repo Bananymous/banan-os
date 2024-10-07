@@ -401,10 +401,10 @@ static CommandList parse_command_list(BAN::StringView command_view)
 			case '"':
 				while (++i < command_view.size())
 				{
+					if (command_view[i] == current)
+						break;
 					if (command_view[i] == '\\')
 						i++;
-					else if (command_view[i] == current)
-						break;
 				}
 				break;
 			case ';':
@@ -486,7 +486,7 @@ static void install_builtin_commands()
 	MUST(s_builtin_commands.emplace("clear"_sv,
 		[](const SingleCommand&, FILE* fout, int, int) -> int
 		{
-			fprintf(fout, "\e[H\e[3J");
+			fprintf(fout, "\e[H\e[3J\e[2J");
 			fflush(fout);
 			return 0;
 		}
@@ -1334,6 +1334,7 @@ int main(int argc, char** argv)
 			clearerr(stdin);
 			buffers = history;
 			MUST(buffers.emplace_back(""_sv));
+			index = buffers.size() - 1;
 			col = 0;
 			putchar('\n');
 			print_prompt();
@@ -1500,6 +1501,22 @@ int main(int argc, char** argv)
 			tab_completion_keep = col;
 			auto [should_escape_spaces, prefix, completions] = list_tab_completion_entries(buffers[index].sv().substring(0, tab_completion_keep));
 
+			BAN::sort::sort(completions.begin(), completions.end(),
+				[](const BAN::String& a, const BAN::String& b) {
+					if (auto cmp = strcmp(a.data(), b.data()))
+						return cmp < 0;
+					return a.size() < b.size();
+				}
+			);
+
+			for (size_t i = 0; i < completions.size() - 1; i++)
+			{
+				if (completions[i] != completions[i + 1])
+					continue;
+				completions.remove(i + 1);
+				i--;
+			}
+
 			if (completions.empty())
 				break;
 
@@ -1538,14 +1555,6 @@ int main(int argc, char** argv)
 				ASSERT(all_match_len == completions.front().size());
 				break;
 			}
-
-			BAN::sort::sort(completions.begin(), completions.end(),
-				[](const BAN::String& a, const BAN::String& b) {
-					if (auto cmp = strcmp(a.data(), b.data()))
-						return cmp < 0;
-					return a.size() < b.size();
-				}
-			);
 
 			printf("\n");
 			for (size_t i = 0; i < completions.size(); i++)
