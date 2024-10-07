@@ -1543,9 +1543,28 @@ int main(int argc, char** argv)
 
 			if (all_match_len)
 			{
-				col += all_match_len;
-				MUST(buffers[index].append(completions.front().sv().substring(0, all_match_len)));
-				printf("%.*s", (int)all_match_len, completions.front().data());
+				auto completion = completions.front().sv().substring(0, all_match_len);
+
+				BAN::String temp_escaped;
+				if (should_escape_spaces)
+				{
+					MUST(temp_escaped.append(completion));
+					for (size_t i = 0; i < temp_escaped.size(); i++)
+					{
+						if (!isspace(temp_escaped[i]))
+							continue;
+						MUST(temp_escaped.insert('\\', i));
+						i++;
+					}
+					completion = temp_escaped.sv();
+
+					if (!buffers[index].empty() && buffers[index].back() == '\\' && completion.front() == '\\')
+						completion = completion.substring(1);
+				}
+
+				col += completion.size();
+				MUST(buffers[index].append(completion));
+				printf("%.*s", (int)completion.size(), completion.data());
 				fflush(stdout);
 				break;
 			}
