@@ -720,21 +720,6 @@ static void install_builtin_commands()
 			return ret;
 		}
 	));
-
-	MUST(s_builtin_commands.emplace("start-gui"_sv,
-		[](const SingleCommand&, FILE*, int, int) -> int
-		{
-			const pid_t pid = fork();
-			if (pid == -1)
-				return 1;
-			if (pid == 0)
-				execl("/bin/WindowServer", "WindowServer", NULL);
-			if (fork() == 0)
-				execl("/bin/Terminal", "Terminal", NULL);
-			waitpid(pid, nullptr, 0);
-			return 0;
-		}
-	));
 }
 
 static pid_t execute_command_no_wait(const SingleCommand& command, int fd_in, int fd_out, pid_t pgrp, bool background)
