@@ -36,6 +36,7 @@ struct SingleCommand
 
 struct PipedCommand
 {
+	bool background;
 	BAN::Vector<SingleCommand> commands;
 };
 
@@ -353,7 +354,14 @@ static SingleCommand parse_single_command(BAN::StringView command_view, bool par
 
 static PipedCommand parse_piped_command(BAN::StringView command_view)
 {
+	while (!command_view.empty() && isspace(command_view.back()))
+		command_view = command_view.substring(0, command_view.size() - 1);
+	const bool background = !command_view.empty() && command_view.back() == '&';
+	if (background)
+		command_view = command_view.substring(0, command_view.size() - 1);
+
 	PipedCommand result;
+	result.background = background;
 
 	for (size_t i = 0; i < command_view.size(); i++)
 	{
@@ -448,7 +456,7 @@ static CommandList parse_command_list(BAN::StringView command_view)
 	return BAN::move(result);
 }
 
-static int execute_command(const SingleCommand& command, int fd_in, int fd_out);
+static int execute_command(const SingleCommand& command, int fd_in, int fd_out, bool background);
 
 static int source_script(const BAN::String& path);
 
@@ -644,7 +652,7 @@ static void install_builtin_commands()
 			if (clock_gettime(CLOCK_MONOTONIC, &start) == -1)
 				ERROR_RETURN("clock_gettime", 1);
 
-			int ret = execute_command(timed_command, fd_in, fd_out);
+			int ret = execute_command(timed_command, fd_in, fd_out, false);
 
 			if (clock_gettime(CLOCK_MONOTONIC, &end) == -1)
 				ERROR_RETURN("clock_gettime", 1);
@@ -678,7 +686,7 @@ static void install_builtin_commands()
 	));
 }
 
-static pid_t execute_command_no_wait(const SingleCommand& command, int fd_in, int fd_out, pid_t pgrp)
+static pid_t execute_command_no_wait(const SingleCommand& command, int fd_in, int fd_out, pid_t pgrp, bool background)
 {
 	ASSERT(!command.arguments.empty());
 
@@ -761,7 +769,9 @@ static pid_t execute_command_no_wait(const SingleCommand& command, int fd_in, in
 	if (pid == -1)
 		ERROR_RETURN("fork", -1);
 
-	if (pgrp == 0 && isatty(0))
+	if (background)
+		;
+	else if (pgrp == 0 && isatty(0))
 	{
 		if(setpgid(pid, pid) == -1)
 			perror("setpgid");
@@ -776,11 +786,13 @@ static pid_t execute_command_no_wait(const SingleCommand& command, int fd_in, in
 	return pid;
 }
 
-static int execute_command(const SingleCommand& command, int fd_in, int fd_out)
+static int execute_command(const SingleCommand& command, int fd_in, int fd_out, bool background)
 {
-	const pid_t pid = execute_command_no_wait(command, fd_in, fd_out, 0);
+	const pid_t pid = execute_command_no_wait(command, fd_in, fd_out, 0, background);
 	if (pid == -1)
 		return 1;
+	if (background)
+		return 0;
 
 	int status;
 	if (waitpid(pid, &status, 0) == -1)
@@ -805,7 +817,7 @@ static int execute_piped_commands(const PipedCommand& piped_command)
 		auto& command = piped_command.commands.front();
 		if (auto ret = execute_builtin(command, STDIN_FILENO, STDOUT_FILENO); ret.has_value())
 			return ret.value();
-		return execute_command(command, STDIN_FILENO, STDOUT_FILENO);
+		return execute_command(command, STDIN_FILENO, STDOUT_FILENO, piped_command.background);
 	}
 
 	BAN::Vector<int> exit_codes(piped_command.commands.size(), 0);
@@ -831,7 +843,7 @@ static int execute_piped_commands(const PipedCommand& piped_command)
 			exit_codes[i] = builtin_ret.value();
 		else
 		{
-			pid_t pid = execute_command_no_wait(piped_command.commands[i], next_stdin, pipefd[1], pgrp);
+			const pid_t pid = execute_command_no_wait(piped_command.commands[i], next_stdin, pipefd[1], pgrp, piped_command.background);
 			processes[i] = pid;
 			if (pgrp == 0)
 				pgrp = pid;
@@ -843,6 +855,9 @@ static int execute_piped_commands(const PipedCommand& piped_command)
 			close(pipefd[1]);
 		next_stdin = pipefd[0];
 	}
+
+	if (piped_command.background)
+		return 0;
 
 	for (size_t i = 0; i < piped_command.commands.size(); i++)
 	{
@@ -883,8 +898,18 @@ static int parse_and_execute_command(BAN::StringView command)
 	tcsetattr(0, TCSANOW, &old_termios);
 
 	last_return = 0;
-	for (const auto& [expression, condition] : command_list.commands)
+
+	for (size_t i = 0; i < command_list.commands.size(); i++)
 	{
+		const auto& [expression, condition] = command_list.commands[i];
+
+		const auto parsed_command = parse_piped_command(expression);
+		if (parsed_command.background && i + 1 < command_list.commands.size() && command_list.commands[i + 1].condition != CommandList::Condition::Always)
+		{
+			printf("invalid background command with conditional execution\n");
+			break;
+		}
+
 		bool should_run = false;
 		switch (condition)
 		{
@@ -902,7 +927,9 @@ static int parse_and_execute_command(BAN::StringView command)
 		if (!should_run)
 			continue;
 
-		last_return = execute_piped_commands(parse_piped_command(expression));
+		int return_value = execute_piped_commands(parsed_command);
+		if (!parsed_command.background)
+			last_return = return_value;
 	}
 
 	tcsetattr(0, TCSANOW, &new_termios);
