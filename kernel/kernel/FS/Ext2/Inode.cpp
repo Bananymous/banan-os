@@ -424,6 +424,9 @@ done:
 	{
 		ASSERT(this->mode().ifdir());
 
+		if (!find_inode_impl(name).is_error())
+			return BAN::Error::from_errno(EEXIST);
+
 		if (!(Mode(mode).ifreg()))
 			return BAN::Error::from_errno(ENOTSUP);
 
@@ -447,6 +450,9 @@ done:
 	{
 		ASSERT(this->mode().ifdir());
 		ASSERT(Mode(mode).ifdir());
+
+		if (!find_inode_impl(name).is_error())
+			return BAN::Error::from_errno(EEXIST);
 
 		const uint32_t new_ino = TRY(m_fs.create_inode(initialize_new_inode_info(mode, uid, gid)));
 
