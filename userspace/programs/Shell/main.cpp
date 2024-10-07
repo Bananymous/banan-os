@@ -1,4 +1,5 @@
 #include <BAN/HashMap.h>
+#include <BAN/HashSet.h>
 #include <BAN/Optional.h>
 #include <BAN/Sort.h>
 #include <BAN/String.h>
@@ -59,6 +60,8 @@ struct BuiltinCommand
 	int (*function)(const SingleCommand&, FILE* fout, int fd_in, int fd_out);
 };
 static BAN::HashMap<BAN::String, BuiltinCommand> s_builtin_commands;
+
+static BAN::HashMap<BAN::String, BAN::Vector<BAN::String>> s_aliases;
 
 static BAN::StringView strip_whitespace(BAN::StringView sv)
 {
@@ -205,108 +208,179 @@ static BAN::Optional<BAN::String> parse_dollar(BAN::StringView command, size_t& 
 	return temp;
 }
 
-static PipedCommand parse_piped_command(BAN::StringView command_view)
+static SingleCommand parse_single_command(BAN::StringView command_view, bool parse_aliases = true)
 {
-	enum class State
-	{
-		Normal,
-		SingleQuote,
-		DoubleQuote,
-	};
+	constexpr auto can_escape =
+		[](char c)
+		{
+			switch (c)
+			{
+				case 'e':
+				case 'n':
+				case 't':
+				case 'r':
+				case '"':
+				case '\'':
+				case ' ':
+					return true;
+			}
+			return false;
+		};
 
-	command_view = strip_whitespace(command_view);
+	constexpr auto parse_escaped =
+		[](char c) -> char
+		{
+			switch (c)
+			{
+				case 'e':  return '\e';
+				case 'n':  return '\n';
+				case 't':  return '\t';
+				case 'r':  return '\r';
+				case '"':  return '"';
+				case '\'': return '\'';
+				case ' ':  return ' ';
+			}
+			ASSERT_NOT_REACHED();
+		};
 
-	State state = State::Normal;
-	SingleCommand current_command;
+	while (!command_view.empty() && isspace(command_view.front()))
+		command_view = command_view.substring(1);
+	while (!command_view.empty() && isspace(command_view.back()))
+		command_view = command_view.substring(0, command_view.size() - 1);
+
+	SingleCommand result;
 	BAN::String current_argument;
-	PipedCommand result;
 	for (size_t i = 0; i < command_view.size(); i++)
 	{
-		char c = command_view[i];
+		const char current = command_view[i];
 
-		if (i + 1 < command_view.size() && c == '\\')
+		if (isspace(current))
 		{
-			char next = command_view[i + 1];
-			if (next == '\'' || next == '"' || next == ' ')
-			{
-				if (i + 1 < command_view.size())
-					MUST(current_argument.push_back(next));
+			MUST(result.arguments.push_back(BAN::move(current_argument)));
+			current_argument.clear();
+			while (i + 1 < command_view.size() && isspace(command_view[i + 1]))
 				i++;
-				continue;
-			}
+			continue;
 		}
 
-		switch (state)
+		switch (current)
 		{
-			case State::Normal:
-				if (c == '\'')
-					state = State::SingleQuote;
-				else if (c == '"')
-					state = State::DoubleQuote;
-				else if (c == '$')
+			case '\\':
+				if (i + 1 < command_view.size() && can_escape(command_view[i + 1]))
+					MUST(current_argument.push_back(parse_escaped(command_view[++i])));
+				else
+					MUST(current_argument.push_back('\\'));
+				break;
+			case '$':
+				if (auto expansion = parse_dollar(command_view, i); expansion.has_value())
+					MUST(current_argument.append(expansion.release_value()));
+				else
 				{
-					auto expansion = parse_dollar(command_view, i);
-					if (!expansion.has_value())
-					{
-						fprintf(stderr, "bad substitution\n");
-						return {};
-					}
-					MUST(current_argument.append(expansion.value()));
+					fprintf(stderr, "bad substitution\n");
+					return {};
 				}
-				else if (c == '|')
-				{
-					if (!current_argument.empty())
-						MUST(current_command.arguments.push_back(current_argument));
-					current_argument.clear();
-
-					MUST(result.commands.push_back(current_command));
-					current_command.arguments.clear();
-				}
-				else if (c == '~' && (i == 0 || isspace(command_view[i - 1])))
+				break;
+			case '~':
+				if (i == 0 || (isspace(command_view[i - 1]) && (i == 1 || command_view[i - 2] != '\\')))
 				{
 					const char* home_env = getenv("HOME");
 					if (home_env)
+					{
 						MUST(current_argument.append(home_env));
+						break;
+					}
 				}
-				else if (!isspace(c))
-					MUST(current_argument.push_back(c));
-				else
+				MUST(current_argument.push_back('~'));
+				break;
+			case '\'':
+				while (++i < command_view.size())
 				{
-					if (!current_argument.empty())
+					if (command_view[i] == current)
+						break;
+					if (command_view[i] == '\\' && i + 1 < command_view.size() && can_escape(command_view[i + 1]))
+						MUST(current_argument.push_back(parse_escaped(command_view[++i])));
+					else
+						MUST(current_argument.push_back(command_view[i]));
+				}
+				break;
+			case '"':
+				while (++i < command_view.size())
+				{
+					if (command_view[i] == current)
+						break;
+					if (command_view[i] == '\\' && i + 1 < command_view.size() && can_escape(command_view[i + 1]))
+						MUST(current_argument.push_back(parse_escaped(command_view[++i])));
+					else if (!(current == '"' && command_view[i] == '$'))
+						MUST(current_argument.push_back(command_view[i]));
+					else
 					{
-						MUST(current_command.arguments.push_back(current_argument));
-						current_argument.clear();
+						if (auto expansion = parse_dollar(command_view, i); expansion.has_value())
+							MUST(current_argument.append(expansion.release_value()));
+						else
+						{
+							fprintf(stderr, "bad substitution\n");
+							return {};
+						}
 					}
 				}
 				break;
-			case State::SingleQuote:
-				if (c == '\'')
-					state = State::Normal;
-				else
-					MUST(current_argument.push_back(c));
-				break;
-			case State::DoubleQuote:
-				if (c == '"')
-					state = State::Normal;
-				else if (c != '$')
-					MUST(current_argument.push_back(c));
-				else
-				{
-					auto expansion = parse_dollar(command_view, i);
-					if (!expansion.has_value())
-					{
-						fprintf(stderr, "bad substitution\n");
-						return {};
-					}
-					MUST(current_argument.append(expansion.value()));
-				}
+			default:
+				MUST(current_argument.push_back(command_view[i]));
 				break;
 		}
 	}
 
-	// FIXME: handle state != State::Normal
-	MUST(current_command.arguments.push_back(BAN::move(current_argument)));
-	MUST(result.commands.push_back(BAN::move(current_command)));
+	MUST(result.arguments.push_back(BAN::move(current_argument)));
+
+	if (parse_aliases)
+	{
+		BAN::HashSet<BAN::String> matched_aliases;
+		while (!result.arguments.empty() && !matched_aliases.contains(result.arguments.front()))
+		{
+			auto it = s_aliases.find(result.arguments.front());
+			if (it == s_aliases.end())
+				break;
+			MUST(matched_aliases.insert(result.arguments.front()));
+			result.arguments.remove(0);
+			for (size_t i = 0; i < it->value.size(); i++)
+				MUST(result.arguments.insert(i, it->value[i]));
+		}
+	}
+
+	return BAN::move(result);
+}
+
+static PipedCommand parse_piped_command(BAN::StringView command_view)
+{
+	PipedCommand result;
+
+	for (size_t i = 0; i < command_view.size(); i++)
+	{
+		const char current = command_view[i];
+		switch (current)
+		{
+			case '\\':
+				i++;
+				break;
+			case '\'':
+			case '"':
+				while (++i < command_view.size())
+				{
+					if (command_view[i] == current)
+						break;
+					if (command_view[i] == '\\')
+						i++;
+				}
+				break;
+			case '|':
+				MUST(result.commands.emplace_back(parse_single_command(command_view.substring(0, i))));
+				command_view = command_view.substring(i + 1);
+				i = -1;
+				break;
+		}
+	}
+
+	MUST(result.commands.emplace_back(parse_single_command(command_view)));
 
 	return BAN::move(result);
 }
@@ -452,6 +526,56 @@ static void install_builtin_commands()
 				if (setenv(BAN::String(split[0]).data(), BAN::String(split[1]).data(), true) == -1)
 					ERROR_RETURN("setenv", 1);
 			}
+			return 0;
+		}
+	));
+
+	MUST(s_builtin_commands.emplace("alias"_sv,
+		[](const SingleCommand& command, FILE* fout, int, int) -> int
+		{
+			const auto print_alias =
+				[fout](const BAN::String& alias, const BAN::Vector<BAN::String>& value)
+				{
+					fprintf(fout, "%s='", alias.data());
+					for (size_t i = 0; i < value.size(); i++)
+					{
+						if (i != 0)
+							fprintf(fout, " ");
+						fprintf(fout, "%s", value[i].data());
+					}
+					fprintf(fout, "'\n");
+				};
+
+			if (command.arguments.size() == 1)
+			{
+				for (const auto& [alias, value] : s_aliases)
+					print_alias(alias, value);
+				return 0;
+			}
+
+			for (size_t i = 1; i < command.arguments.size(); i++)
+			{
+				auto idx = command.arguments[i].sv().find('=');
+				if (idx.has_value() && idx.value() == 0)
+					continue;
+				if (!idx.has_value())
+				{
+					auto it = s_aliases.find(command.arguments[i]);
+					if (it != s_aliases.end())
+						print_alias(command.arguments[i], it->value);
+				}
+				else
+				{
+					auto alias = command.arguments[i].sv().substring(0, idx.value());
+					auto value = command.arguments[i].sv().substring(idx.value() + 1);
+					auto parsed_alias = parse_single_command(value, false);
+
+					if (s_aliases.contains(alias))
+						s_aliases.remove(alias);
+					MUST(s_aliases.insert(alias, BAN::move(parsed_alias.arguments)));
+				}
+			}
+
 			return 0;
 		}
 	));
@@ -961,7 +1085,12 @@ static TabCompletion list_tab_completion_entries(BAN::StringView command)
 				MUST(result.emplace_back(builtin_name.sv().substring(last_argument.size())));
 			}
 
-			// TODO: match aliases when added
+			for (const auto& [alias_name, _] : s_aliases)
+			{
+				if (!alias_name.sv().starts_with(last_argument))
+					continue;
+				MUST(result.emplace_back(alias_name.sv().substring(last_argument.size())));
+			}
 
 			break;
 		}
