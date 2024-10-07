@@ -1509,12 +1509,12 @@ int main(int argc, char** argv)
 				}
 			);
 
-			for (size_t i = 0; i < completions.size() - 1; i++)
+			for (size_t i = 1; i < completions.size();)
 			{
-				if (completions[i] != completions[i + 1])
-					continue;
-				completions.remove(i + 1);
-				i--;
+				if (completions[i - 1] == completions[i])
+					completions.remove(i);
+				else
+					i++;
 			}
 
 			if (completions.empty())
