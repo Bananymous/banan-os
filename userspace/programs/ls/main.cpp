@@ -202,7 +202,8 @@ int list_directory(const BAN::String& path, config_t config)
 		{
 			if (i > 0)
 				printf(" ");
-			printf("%s%s\e[m", entry_color(entries[i].st.st_mode), entries[i].name.data());
+			const char* format = entries[i].name.sv().contains(' ') ? "'%s%s\e[m'" : "%s%s\e[m";
+			printf(format, entry_color(entries[i].st.st_mode), entries[i].name.data());
 		}
 		printf("\n");
 		return ret;
