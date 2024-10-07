@@ -63,7 +63,7 @@ struct BuiltinCommand
 };
 static BAN::HashMap<BAN::String, BuiltinCommand> s_builtin_commands;
 
-static BAN::HashMap<BAN::String, BAN::Vector<BAN::String>> s_aliases;
+static BAN::HashMap<BAN::String, BAN::String> s_aliases;
 
 static BAN::StringView strip_whitespace(BAN::StringView sv)
 {
@@ -210,7 +210,7 @@ static BAN::Optional<BAN::String> parse_dollar(BAN::StringView command, size_t& 
 	return temp;
 }
 
-static SingleCommand parse_single_command(BAN::StringView command_view, bool parse_aliases = true)
+static SingleCommand parse_single_command(BAN::StringView command_view)
 {
 	constexpr auto can_escape =
 		[](char c)
@@ -334,21 +334,6 @@ static SingleCommand parse_single_command(BAN::StringView command_view, bool par
 
 	MUST(result.arguments.push_back(BAN::move(current_argument)));
 
-	if (parse_aliases)
-	{
-		BAN::HashSet<BAN::String> matched_aliases;
-		while (!result.arguments.empty() && !matched_aliases.contains(result.arguments.front()))
-		{
-			auto it = s_aliases.find(result.arguments.front());
-			if (it == s_aliases.end())
-				break;
-			MUST(matched_aliases.insert(result.arguments.front()));
-			result.arguments.remove(0);
-			for (size_t i = 0; i < it->value.size(); i++)
-				MUST(result.arguments.insert(i, it->value[i]));
-		}
-	}
-
 	return BAN::move(result);
 }
 
@@ -394,8 +379,88 @@ static PipedCommand parse_piped_command(BAN::StringView command_view)
 	return BAN::move(result);
 }
 
+static BAN::String parse_aliases(BAN::StringView command_view)
+{
+	while (!command_view.empty() && isspace(command_view.front()))
+		command_view = command_view.substring(1);
+
+	BAN::String result;
+	MUST(result.append(command_view));
+
+	BAN::HashSet<BAN::String> matched_aliases;
+
+	for (size_t i = 0; i < result.size();)
+	{
+		size_t command_len = 0;
+		for (; command_len < result.size() - i; command_len++)
+			if (isspace(result[i + command_len]))
+				break;
+		auto command = result.sv().substring(i, command_len);
+
+		if (!matched_aliases.contains(command))
+		{
+			auto it = s_aliases.find(command);
+			if (it != s_aliases.end())
+			{
+				MUST(matched_aliases.insert(command));
+				for (size_t j = 0; j < command_len; j++)
+					result.remove(i);
+				MUST(result.insert(it->value, i));
+				continue;
+			}
+		}
+
+		matched_aliases.clear();
+
+		for (; i < result.size(); i++)
+		{
+			bool should_break = false;
+
+			const char current = result[i];
+			switch (current)
+			{
+				case '\\':
+					i++;
+					break;
+				case '\'':
+				case '"':
+					while (++i < result.size())
+					{
+						if (result[i] == current)
+							break;
+						if (result[i] == '\\')
+							i++;
+					}
+					break;
+				case '|':
+				case '&':
+					if (i + 1 < result.size() && result[i + 1] == current)
+						i++;
+					else if (current == '&')
+						break;
+					// fall through
+				case ';':
+					i++;
+					should_break = true;
+					break;
+			}
+
+			if (should_break)
+				break;
+		}
+
+		while (i < result.size() && isspace(result[i]))
+			i++;
+	}
+
+	return BAN::move(result);
+}
+
 static CommandList parse_command_list(BAN::StringView command_view)
 {
+	const auto command_with_aliases_parsed = parse_aliases(command_view);
+	command_view = command_with_aliases_parsed.sv();
+
 	CommandList result;
 	CommandList::Condition next_condition = CommandList::Condition::Always;
 	for (size_t i = 0; i < command_view.size(); i++)
@@ -542,23 +607,10 @@ static void install_builtin_commands()
 	MUST(s_builtin_commands.emplace("alias"_sv,
 		[](const SingleCommand& command, FILE* fout, int, int) -> int
 		{
-			const auto print_alias =
-				[fout](const BAN::String& alias, const BAN::Vector<BAN::String>& value)
-				{
-					fprintf(fout, "%s='", alias.data());
-					for (size_t i = 0; i < value.size(); i++)
-					{
-						if (i != 0)
-							fprintf(fout, " ");
-						fprintf(fout, "%s", value[i].data());
-					}
-					fprintf(fout, "'\n");
-				};
-
 			if (command.arguments.size() == 1)
 			{
 				for (const auto& [alias, value] : s_aliases)
-					print_alias(alias, value);
+					fprintf(fout, "%s='%s'\n", alias.data(), value.data());
 				return 0;
 			}
 
@@ -571,17 +623,16 @@ static void install_builtin_commands()
 				{
 					auto it = s_aliases.find(command.arguments[i]);
 					if (it != s_aliases.end())
-						print_alias(command.arguments[i], it->value);
+						fprintf(fout, "%s='%s'\n", command.arguments[i].data(), it->value.data());
 				}
 				else
 				{
 					auto alias = command.arguments[i].sv().substring(0, idx.value());
 					auto value = command.arguments[i].sv().substring(idx.value() + 1);
-					auto parsed_alias = parse_single_command(value, false);
 
 					if (s_aliases.contains(alias))
 						s_aliases.remove(alias);
-					MUST(s_aliases.insert(alias, BAN::move(parsed_alias.arguments)));
+					MUST(s_aliases.insert(alias, value));
 				}
 			}
 
