@@ -36,7 +36,14 @@ namespace BAN
 		{
 			return Error((uint64_t)error | kernel_error_mask);
 		}
+#else
+		template<size_t N>
+		consteval static Error from_literal(const char (&message)[N])
+		{
+			return Error(message);
+		}
 #endif
+
 		static Error from_errno(int error)
 		{
 			return Error(error);
@@ -54,12 +61,15 @@ namespace BAN
 		}
 #endif
 
-		uint64_t get_error_code() const { return m_error_code; }
+		constexpr uint64_t get_error_code() const { return m_error_code; }
 		const char* get_message() const
 		{
 #ifdef __is_kernel
 			if (m_error_code & kernel_error_mask)
 				return Kernel::error_string(kernel_error());
+#else
+			if (m_message)
+				return m_message;
 #endif
 			if (auto* desc = strerrordesc_np(m_error_code))
 				return desc;
@@ -67,11 +77,21 @@ namespace BAN
 		}
 
 	private:
-		Error(uint64_t error)
+		constexpr Error(uint64_t error)
 			: m_error_code(error)
 		{}
 
-		uint64_t m_error_code;
+#ifndef __is_kernel
+		constexpr Error(const char* message)
+			: m_message(message)
+		{}
+#endif
+
+		uint64_t m_error_code { 0 };
+
+#ifndef __is_kernel
+		const char* m_message { nullptr };
+#endif
 	};
 
 	template<typename T>
