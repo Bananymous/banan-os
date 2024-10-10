@@ -35,9 +35,9 @@ namespace BAN
 		ErrorOr<void> push_back(T&&);
 		ErrorOr<void> push_back(const T&);
 		template<typename... Args>
-		ErrorOr<void> emplace_back(Args&&...);
+		ErrorOr<void> emplace_back(Args&&...) requires is_constructible_v<T, Args...>;
 		template<typename... Args>
-		ErrorOr<void> emplace(size_type, Args&&...);
+		ErrorOr<void> emplace(size_type, Args&&...) requires is_constructible_v<T, Args...>;
 		ErrorOr<void> insert(size_type, T&&);
 		ErrorOr<void> insert(size_type, const T&);
 
@@ -169,7 +169,7 @@ namespace BAN
 
 	template<typename T>
 	template<typename... Args>
-	ErrorOr<void> Vector<T>::emplace_back(Args&&... args)
+	ErrorOr<void> Vector<T>::emplace_back(Args&&... args) requires is_constructible_v<T, Args...>
 	{
 		TRY(ensure_capacity(m_size + 1));
 		new (m_data + m_size) T(forward<Args>(args)...);
@@ -179,7 +179,7 @@ namespace BAN
 
 	template<typename T>
 	template<typename... Args>
-	ErrorOr<void> Vector<T>::emplace(size_type index, Args&&... args)
+	ErrorOr<void> Vector<T>::emplace(size_type index, Args&&... args) requires is_constructible_v<T, Args...>
 	{
 		ASSERT(index <= m_size);
 		TRY(ensure_capacity(m_size + 1));

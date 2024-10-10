@@ -25,7 +25,7 @@ namespace BAN
 		constexpr Optional& operator=(const Optional&);
 
 		template<typename... Args>
-		constexpr Optional& emplace(Args&&...);
+		constexpr Optional& emplace(Args&&...) requires is_constructible_v<T, Args...>;
 
 		constexpr T* operator->();
 		constexpr const T* operator->() const;
@@ -111,7 +111,7 @@ namespace BAN
 
 	template<typename T>
 	template<typename... Args>
-	constexpr Optional<T>& Optional<T>::emplace(Args&&... args)
+	constexpr Optional<T>& Optional<T>::emplace(Args&&... args) requires is_constructible_v<T, Args...>
 	{
 		clear();
 		m_has_value = true;

@@ -76,8 +76,9 @@ namespace BAN
 			return ptr;
 		}
 
+		// NOTE: don't use is_constructible_v<T, Args...> as RefPtr<T> is allowed with friends
 		template<typename... Args>
-		static ErrorOr<RefPtr> create(Args&&... args)
+		static ErrorOr<RefPtr> create(Args&&... args) requires requires(Args&&... args) { T(forward<Args>(args)...); }
 		{
 			T* pointer = new T(forward<Args>(args)...);
 			if (pointer == nullptr)

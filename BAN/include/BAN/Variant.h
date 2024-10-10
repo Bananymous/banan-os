@@ -217,7 +217,7 @@ namespace BAN
 		}
 
 		template<typename T, typename... Args>
-		void emplace(Args&&... args) requires (can_have<T>())
+		void emplace(Args&&... args) requires (can_have<T>() && is_constructible_v<T, Args...>)
 		{
 			clear();
 			m_index = detail::index<T, Ts...>();

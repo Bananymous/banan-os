@@ -34,9 +34,9 @@ namespace BAN
 		ErrorOr<void> insert(iterator, const T&);
 		ErrorOr<void> insert(iterator, T&&);
 		template<typename... Args>
-		ErrorOr<void> emplace_back(Args&&...);
+		ErrorOr<void> emplace_back(Args&&...) requires is_constructible_v<T, Args...>;
 		template<typename... Args>
-		ErrorOr<void> emplace(iterator, Args&&...);
+		ErrorOr<void> emplace(iterator, Args&&...) requires is_constructible_v<T, Args...>;
 
 		void pop_back();
 		iterator remove(iterator);
@@ -196,14 +196,14 @@ namespace BAN
 
 	template<typename T>
 	template<typename... Args>
-	ErrorOr<void> LinkedList<T>::emplace_back(Args&&... args)
+	ErrorOr<void> LinkedList<T>::emplace_back(Args&&... args) requires is_constructible_v<T, Args...>
 	{
 		return emplace(end(), forward<Args>(args)...);
 	}
 
 	template<typename T>
 	template<typename... Args>
-	ErrorOr<void> LinkedList<T>::emplace(iterator iter, Args&&... args)
+	ErrorOr<void> LinkedList<T>::emplace(iterator iter, Args&&... args) requires is_constructible_v<T, Args...>
 	{
 		Node* new_node = TRY(allocate_node(forward<Args>(args)...));
 		insert_node(iter, new_node);

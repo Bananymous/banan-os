@@ -33,8 +33,9 @@ namespace BAN
 			return uniq;
 		}
 
+		// NOTE: don't use is_constructible_v<T, Args...> as UniqPtr<T> is allowed with friends
 		template<typename... Args>
-		static BAN::ErrorOr<UniqPtr> create(Args&&... args)
+		static BAN::ErrorOr<UniqPtr> create(Args&&... args) requires requires(Args&&... args) { T(forward<Args>(args)...); }
 		{
 			UniqPtr uniq;
 			uniq.m_pointer = new T(BAN::forward<Args>(args)...);

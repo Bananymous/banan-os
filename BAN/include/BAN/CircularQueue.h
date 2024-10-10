@@ -24,7 +24,7 @@ namespace BAN
 		void push(const T&);
 		void push(T&&);
 		template<typename... Args>
-		void emplace(Args&&... args);
+		void emplace(Args&&... args) requires is_constructible_v<T, Args...>;
 
 		void pop();
 
@@ -71,7 +71,7 @@ namespace BAN
 
 	template<typename T, size_t S>
 	template<typename... Args>
-	void CircularQueue<T, S>::emplace(Args&&... args)
+	void CircularQueue<T, S>::emplace(Args&&... args) requires is_constructible_v<T, Args...>
 	{
 		ASSERT(!full());
 		new (element_at(((m_first + m_size) % capacity()))) T(BAN::forward<Args>(args)...);

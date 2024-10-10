@@ -31,7 +31,7 @@ namespace BAN
 		ErrorOr<void> push(T&&);
 		ErrorOr<void> push(const T&);
 		template<typename... Args>
-		ErrorOr<void> emplace(Args&&...);
+		ErrorOr<void> emplace(Args&&...) requires is_constructible_v<T, Args...>;
 
 		ErrorOr<void> reserve(size_type);
 		ErrorOr<void> shrink_to_fit();
@@ -131,7 +131,7 @@ namespace BAN
 
 	template<typename T>
 	template<typename... Args>
-	ErrorOr<void> Queue<T>::emplace(Args&&... args)
+	ErrorOr<void> Queue<T>::emplace(Args&&... args) requires is_constructible_v<T, Args...>
 	{
 		TRY(ensure_capacity(m_size + 1));
 		new (m_data + m_size) T(forward<Args>(args)...);

@@ -14,7 +14,7 @@ namespace BAN
 		struct Entry
 		{
 			template<typename... Args>
-			Entry(const Key& key, Args&&... args)
+			Entry(const Key& key, Args&&... args) requires is_constructible_v<T, Args...>
 				: key(key)
 				, value(forward<Args>(args)...)
 			{}
@@ -42,7 +42,7 @@ namespace BAN
 		ErrorOr<void> insert(const Key&, const T&);
 		ErrorOr<void> insert(const Key&, T&&);
 		template<typename... Args>
-		ErrorOr<void> emplace(const Key&, Args&&...);
+		ErrorOr<void> emplace(const Key&, Args&&...) requires is_constructible_v<T, Args...>;
 
 		iterator begin() { return iterator(m_buckets.end(), m_buckets.begin()); }
 		iterator end()   { return iterator(m_buckets.end(), m_buckets.end()); }
@@ -130,7 +130,7 @@ namespace BAN
 
 	template<typename Key, typename T, typename HASH>
 	template<typename... Args>
-	ErrorOr<void> HashMap<Key, T, HASH>::emplace(const Key& key, Args&&... args)
+	ErrorOr<void> HashMap<Key, T, HASH>::emplace(const Key& key, Args&&... args) requires is_constructible_v<T, Args...>
 	{
 		ASSERT(!contains(key));
 		TRY(rebucket(m_size + 1));
