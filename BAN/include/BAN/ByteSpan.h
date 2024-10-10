@@ -21,75 +21,56 @@ namespace BAN
 			, m_size(size)
 		{ }
 
-		ByteSpanGeneral(ByteSpanGeneral& other)
+		template<bool SRC_CONST>
+		ByteSpanGeneral(const ByteSpanGeneral<SRC_CONST>& other) requires(CONST || !SRC_CONST)
 			: m_data(other.data())
 			, m_size(other.size())
 		{ }
-		ByteSpanGeneral(ByteSpanGeneral&& other)
+		template<bool SRC_CONST>
+		ByteSpanGeneral(ByteSpanGeneral<SRC_CONST>&& other) requires(CONST || !SRC_CONST)
 			: m_data(other.data())
 			, m_size(other.size())
 		{
-			other.m_data = nullptr;
-			other.m_size = 0;
+			other.clear();
 		}
-		template<bool C2>
-		ByteSpanGeneral(const ByteSpanGeneral<C2>& other) requires(CONST)
-			: m_data(other.data())
-			, m_size(other.size())
-		{ }
-		template<bool C2>
-		ByteSpanGeneral(ByteSpanGeneral<C2>&& other) requires(CONST)
-			: m_data(other.data())
-			, m_size(other.size())
-		{
-			other.m_data = nullptr;
-			other.m_size = 0;
-		}
-		ByteSpanGeneral(Span<uint8_t> other)
-			: m_data(other.data())
-			, m_size(other.size())
-		{ }
-		ByteSpanGeneral(const Span<const uint8_t>& other) requires(CONST)
-			: m_data(other.data())
-			, m_size(other.size())
-		{ }
 
-		ByteSpanGeneral& operator=(ByteSpanGeneral other)
+		template<typename T>
+		ByteSpanGeneral(const Span<T>& other) requires(is_same_v<T, uint8_t> || (is_same_v<T, const uint8_t> && CONST))
+			: m_data(other.data())
+			, m_size(other.size())
+		{ }
+		template<typename T>
+		ByteSpanGeneral(Span<T>&& other) requires(is_same_v<T, uint8_t> || (is_same_v<T, const uint8_t> && CONST))
+			: m_data(other.data())
+			, m_size(other.size())
+		{
+			other.clear();
+		}
+
+		template<bool SRC_CONST>
+		ByteSpanGeneral& operator=(const ByteSpanGeneral<SRC_CONST>& other) requires(CONST || !SRC_CONST)
 		{
 			m_data = other.data();
 			m_size = other.size();
 			return *this;
 		}
-		template<bool C2>
-		ByteSpanGeneral& operator=(const ByteSpanGeneral<C2>& other) requires(CONST)
+		template<bool SRC_CONST>
+		ByteSpanGeneral& operator=(ByteSpanGeneral<SRC_CONST>&& other) requires(CONST || !SRC_CONST)
 		{
 			m_data = other.data();
 			m_size = other.size();
-			return *this;
-		}
-		ByteSpanGeneral& operator=(Span<uint8_t> other)
-		{
-			m_data = other.data();
-			m_size = other.size();
-			return *this;
-		}
-		ByteSpanGeneral& operator=(const Span<const uint8_t>& other) requires(CONST)
-		{
-			m_data = other.data();
-			m_size = other.size();
+			other.clear();
 			return *this;
 		}
 
 		template<typename S>
-		requires(CONST || !is_const_v<S>)
-		static ByteSpanGeneral from(S& value)
+		static ByteSpanGeneral from(S& value) requires(CONST || !is_const_v<S>)
 		{
 			return ByteSpanGeneral(reinterpret_cast<value_type*>(&value), sizeof(S));
 		}
 
 		template<typename S>
-		requires(!CONST && !is_const_v<S>)
-		S& as()
+		S& as() const requires(!CONST || is_const_v<S>)
 		{
 			ASSERT(m_data);
 			ASSERT(m_size >= sizeof(S));
@@ -97,30 +78,13 @@ namespace BAN
 		}
 
 		template<typename S>
-		requires(is_const_v<S>)
-		S& as() const
-		{
-			ASSERT(m_data);
-			ASSERT(m_size >= sizeof(S));
-			return *reinterpret_cast<S*>(m_data);
-		}
-
-		template<typename S>
-		requires(!CONST && !is_const_v<S>)
-		Span<S> as_span()
+		Span<S> as_span() const requires(!CONST || is_const_v<S>)
 		{
 			ASSERT(m_data);
 			return Span<S>(reinterpret_cast<S*>(m_data), m_size / sizeof(S));
 		}
 
-		template<typename S>
-		const Span<S> as_span() const
-		{
-			ASSERT(m_data);
-			return Span<S>(reinterpret_cast<S*>(m_data), m_size / sizeof(S));
-		}
-
-		ByteSpanGeneral slice(size_type offset, size_type length = size_type(-1))
+		ByteSpanGeneral slice(size_type offset, size_type length = size_type(-1)) const
 		{
 			ASSERT(m_data);
 			ASSERT(m_size >= offset);
@@ -130,21 +94,22 @@ namespace BAN
 			return ByteSpanGeneral(m_data + offset, length);
 		}
 
-		value_type& operator[](size_type offset)
-		{
-			ASSERT(offset < m_size);
-			return m_data[offset];
-		}
-		const value_type& operator[](size_type offset) const
+		value_type& operator[](size_type offset) const
 		{
 			ASSERT(offset < m_size);
 			return m_data[offset];
 		}
 
-		value_type* data() { return m_data; }
-		const value_type* data() const { return m_data; }
+		value_type* data() const { return m_data; }
 
+		bool empty() const { return m_size == 0; }
 		size_type size() const { return m_size; }
+
+		void clear()
+		{
+			m_data = nullptr;
+			m_size = 0;
+		}
 
 	private:
 		value_type* m_data { nullptr };
