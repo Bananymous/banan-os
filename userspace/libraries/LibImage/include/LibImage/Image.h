@@ -13,9 +13,9 @@ namespace LibImage
 	public:
 		struct Color
 		{
-			uint8_t r;
-			uint8_t g;
 			uint8_t b;
+			uint8_t g;
+			uint8_t r;
 			uint8_t a;
 
 			// Calculate weighted average of colors
@@ -25,14 +25,14 @@ namespace LibImage
 				const double b_mult = weight < 0.0 ? 0.0 : weight > 1.0 ? 1.0 : weight;
 				const double a_mult = 1.0 - b_mult;
 				return Color {
-					.r = static_cast<uint8_t>(a.r * a_mult + b.r * b_mult),
-					.g = static_cast<uint8_t>(a.g * a_mult + b.g * b_mult),
 					.b = static_cast<uint8_t>(a.b * a_mult + b.b * b_mult),
+					.g = static_cast<uint8_t>(a.g * a_mult + b.g * b_mult),
+					.r = static_cast<uint8_t>(a.r * a_mult + b.r * b_mult),
 					.a = static_cast<uint8_t>(a.a * a_mult + b.a * b_mult),
 				};
 			}
 
-			uint32_t as_rgba() const
+			uint32_t as_argb() const
 			{
 				return ((uint32_t)a << 24) | ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
 			}

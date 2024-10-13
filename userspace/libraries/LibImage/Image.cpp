@@ -7,7 +7,6 @@
 
 #include <fcntl.h>
 #include <math.h>
-#include <stdlib.h>
 #include <sys/mman.h>
 
 namespace LibImage
@@ -87,9 +86,9 @@ namespace LibImage
 		constexpr Image::Color as_color() const
 		{
 			return Image::Color {
-				.r = static_cast<uint8_t>(r < 0.0 ? 0.0 : r > 255.0 ? 255.0 : r),
-				.g = static_cast<uint8_t>(g < 0.0 ? 0.0 : g > 255.0 ? 255.0 : g),
 				.b = static_cast<uint8_t>(b < 0.0 ? 0.0 : b > 255.0 ? 255.0 : b),
+				.g = static_cast<uint8_t>(g < 0.0 ? 0.0 : g > 255.0 ? 255.0 : g),
+				.r = static_cast<uint8_t>(r < 0.0 ? 0.0 : r > 255.0 ? 255.0 : r),
 				.a = static_cast<uint8_t>(a < 0.0 ? 0.0 : a > 255.0 ? 255.0 : a),
 			};
 		}

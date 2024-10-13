@@ -330,7 +330,7 @@ void WindowServer::invalidate(Rectangle area)
 		ASSERT(m_background_image->height() == (uint64_t)m_framebuffer.height);
 		for (int32_t y = area.y; y < area.y + area.height; y++)
 			for (int32_t x = area.x; x < area.x + area.width; x++)
-				m_framebuffer.mmap[y * m_framebuffer.width + x] = m_background_image->get_color(x, y).as_rgba();
+				m_framebuffer.mmap[y * m_framebuffer.width + x] = m_background_image->get_color(x, y).as_argb();
 	}
 	else
 	{

@@ -560,52 +560,47 @@ namespace LibImage
 		const auto extract_color =
 			[&](auto& bit_buffer) -> Image::Color
 			{
-				uint8_t tmp;
+				Image::Color color;
 				switch (ihdr.colour_type)
 				{
 					case ColourType::Greyscale:
-						tmp = extract_channel(bit_buffer);
-						return Image::Color {
-							.r = tmp,
-							.g = tmp,
-							.b = tmp,
-							.a = 0xFF
-						};
+						color.r = extract_channel(bit_buffer);
+						color.g = color.r;
+						color.b = color.r;
+						color.a = 0xFF;
+						break;
 					case ColourType::Truecolour:
-						return Image::Color {
-							.r = extract_channel(bit_buffer),
-							.g = extract_channel(bit_buffer),
-							.b = extract_channel(bit_buffer),
-							.a = 0xFF
-						};
+						color.r = extract_channel(bit_buffer);
+						color.g = extract_channel(bit_buffer);
+						color.b = extract_channel(bit_buffer);
+						color.a = 0xFF;
+						break;
 					case ColourType::IndexedColour:
-						return palette[MUST(bit_buffer.get_bits(bits_per_channel))];
+						color = palette[MUST(bit_buffer.get_bits(bits_per_channel))];
+						break;
 					case ColourType::GreyscaleAlpha:
-						tmp = extract_channel(bit_buffer);
-						return Image::Color {
-							.r = tmp,
-							.g = tmp,
-							.b = tmp,
-							.a = extract_channel(bit_buffer)
-						};
+						color.r = extract_channel(bit_buffer);
+						color.g = color.r;
+						color.b = color.r;
+						color.a = extract_channel(bit_buffer);
+						break;
 					case ColourType::TruecolourAlpha:
-						return Image::Color {
-							.r = extract_channel(bit_buffer),
-							.g = extract_channel(bit_buffer),
-							.b = extract_channel(bit_buffer),
-							.a = extract_channel(bit_buffer)
-						};
+						color.r = extract_channel(bit_buffer);
+						color.g = extract_channel(bit_buffer);
+						color.b = extract_channel(bit_buffer);
+						color.a = extract_channel(bit_buffer);
+						break;
 				}
-				ASSERT_NOT_REACHED();
+				return color;
 			};
 
 		constexpr auto paeth_predictor =
 			[](int16_t a, int16_t b, int16_t c) -> uint8_t
 			{
-				int16_t p = a + b - c;
-				int16_t pa = BAN::Math::abs(p - a);
-				int16_t pb = BAN::Math::abs(p - b);
-				int16_t pc = BAN::Math::abs(p - c);
+				const int16_t p = a + b - c;
+				const int16_t pa = BAN::Math::abs(p - a);
+				const int16_t pb = BAN::Math::abs(p - b);
+				const int16_t pc = BAN::Math::abs(p - c);
 				if (pa <= pb && pa <= pc)
 					return a;
 				if (pb <= pc)
