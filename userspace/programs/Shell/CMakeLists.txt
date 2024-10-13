@@ -1,5 +1,13 @@
 set(SOURCES
 	main.cpp
+	Alias.cpp
+	Builtin.cpp
+	CommandTypes.cpp
+	Execute.cpp
+	Input.cpp
+	Lexer.cpp
+	Token.cpp
+	TokenParser.cpp
 )
 
 add_executable(Shell ${SOURCES})
