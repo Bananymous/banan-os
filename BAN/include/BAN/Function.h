@@ -20,13 +20,13 @@ namespace BAN
 			new (m_storage) CallablePointer(function);
 		}
 		template<typename Own>
-		Function(Ret(Own::*function)(Args...), Own* owner)
+		Function(Ret(Own::*function)(Args...), Own& owner)
 		{
 			static_assert(sizeof(CallableMember<Own>) <= m_size);
 			new (m_storage) CallableMember<Own>(function, owner);
 		}
 		template<typename Own>
-		Function(Ret(Own::*function)(Args...) const, const Own* owner)
+		Function(Ret(Own::*function)(Args...) const, const Own& owner)
 		{
 			static_assert(sizeof(CallableMemberConst<Own>) <= m_size);
 			new (m_storage) CallableMemberConst<Own>(function, owner);
@@ -91,36 +91,36 @@ namespace BAN
 		template<typename Own>
 		struct CallableMember : public CallableBase
 		{
-			CallableMember(Ret(Own::*function)(Args...), Own* owner)
+			CallableMember(Ret(Own::*function)(Args...), Own& owner)
 				: m_owner(owner)
 				, m_function(function)
 			{ }
 
 			virtual Ret call(Args... args) const override
 			{
-				return (m_owner->*m_function)(forward<Args>(args)...);
+				return (m_owner.*m_function)(forward<Args>(args)...);
 			}
 
 		private:
-			Own* m_owner = nullptr;
+			Own& m_owner;
 			Ret(Own::*m_function)(Args...) = nullptr;
 		};
 
 		template<typename Own>
 		struct CallableMemberConst : public CallableBase
 		{
-			CallableMemberConst(Ret(Own::*function)(Args...) const, const Own* owner)
+			CallableMemberConst(Ret(Own::*function)(Args...) const, const Own& owner)
 				: m_owner(owner)
 				, m_function(function)
 			{ }
 
 			virtual Ret call(Args... args) const override
 			{
-				return (m_owner->*m_function)(forward<Args>(args)...);
+				return (m_owner.*m_function)(forward<Args>(args)...);
 			}
 
 		private:
-			const Own* m_owner = nullptr;
+			const Own& m_owner;
 			Ret(Own::*m_function)(Args...) const = nullptr;
 		};
 
