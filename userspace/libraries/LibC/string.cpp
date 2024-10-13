@@ -87,6 +87,8 @@ int strcmp(const char* s1, const char* s2)
 
 int strncmp(const char* s1, const char* s2, size_t n)
 {
+	if (n == 0)
+		return 0;
 	const unsigned char* u1 = (unsigned char*)s1;
 	const unsigned char* u2 = (unsigned char*)s2;
 	for (; --n && *u1 && *u2; u1++, u2++)
@@ -220,11 +222,11 @@ char* strchr(const char* str, int c)
 {
 	while (*str)
 	{
-		if (*str == c)
+		if (*str == (char)c)
 			return (char*)str;
 		str++;
 	}
-	return (*str == c) ? (char*)str : nullptr;
+	return (*str == (char)c) ? (char*)str : nullptr;
 }
 
 char* strchrnul(const char* str, int c)
@@ -252,7 +254,9 @@ char* strrchr(const char* str, int c)
 
 char* strstr(const char* haystack, const char* needle)
 {
-	size_t needle_len = strlen(needle);
+	const size_t needle_len = strlen(needle);
+	if (needle_len == 0)
+		return const_cast<char*>(haystack);
 	for (size_t i = 0; haystack[i]; i++)
 		if (strncmp(haystack + i, needle, needle_len) == 0)
 			return const_cast<char*>(haystack + i);
