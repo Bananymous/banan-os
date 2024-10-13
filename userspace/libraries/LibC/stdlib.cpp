@@ -2,13 +2,16 @@
 #include <BAN/Limits.h>
 #include <BAN/Math.h>
 #include <BAN/UTF8.h>
+
 #include <ctype.h>
 #include <errno.h>
 #include <locale.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <sys/stat.h>
 #include <sys/syscall.h>
 #include <unistd.h>
 
@@ -26,6 +29,7 @@ void abort(void)
 	fflush(nullptr);
 	fprintf(stderr, "abort()\n");
 	exit(1);
+	ASSERT_NOT_REACHED();
 }
 
 void exit(int status)
@@ -395,22 +399,58 @@ char* realpath(const char* __restrict file_name, char* __restrict resolved_name)
 
 int system(const char* command)
 {
-	// FIXME
+	// FIXME: maybe implement POSIX compliant shell?
+	constexpr const char* shell_path = "/bin/Shell";
+
 	if (command == nullptr)
-		return 1;
+	{
+		struct stat st;
+		if (stat(shell_path, &st) == -1)
+			return 0;
+		if (S_ISDIR(st.st_mode))
+			return 0;
+		return !!(st.st_mode & (S_IXUSR | S_IXGRP | S_IXOTH));
+	}
+
+	struct sigaction sa;
+	sa.sa_flags = 0;
+	sa.sa_handler = SIG_IGN;
+	sigemptyset(&sa.sa_mask);
+
+	struct sigaction sigint_save, sigquit_save;
+	sigaction(SIGINT, &sa, &sigint_save);
+	sigaction(SIGQUIT, &sa, &sigquit_save);
+
+	sigset_t sigchld_save;
+	sigaddset(&sa.sa_mask, SIGCHLD);
+	sigprocmask(SIG_BLOCK, &sa.sa_mask, &sigchld_save);
 
 	int pid = fork();
 	if (pid == 0)
 	{
-		execl("/bin/Shell", "Shell", "-c", command, (char*)0);
-		exit(1);
+		sigaction(SIGINT, &sigint_save, nullptr);
+		sigaction(SIGQUIT, &sigquit_save, nullptr);
+		sigprocmask(SIG_SETMASK, &sigchld_save, nullptr);
+		execl(shell_path, "sh", "-c", command, nullptr);
+		exit(127);
 	}
 
-	if (pid == -1)
-		return -1;
+	int stat_val = -1;
+	if (pid != -1)
+	{
+		while (waitpid(pid, &stat_val, 0) == -1)
+		{
+			if (errno == EINTR)
+				continue;
+			stat_val = -1;
+			break;
+		}
+	}
 
-	int stat_val;
-	waitpid(pid, &stat_val, 0);
+	sigaction(SIGINT, &sigint_save, nullptr);
+	sigaction(SIGQUIT, &sigquit_save, nullptr);
+	sigprocmask(SIG_SETMASK, &sigchld_save, nullptr);
+
 	return stat_val;
 }
 
