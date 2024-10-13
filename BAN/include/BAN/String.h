@@ -127,7 +127,7 @@ namespace BAN
 		void remove(size_type index)
 		{
 			ASSERT(index < m_size);
-			memcpy(data() + index, data() + index + 1, m_size - index);
+			memmove(data() + index, data() + index + 1, m_size - index);
 			m_size--;
 			data()[m_size] = '\0';
 		}
