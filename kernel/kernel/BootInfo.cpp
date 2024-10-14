@@ -7,6 +7,18 @@ namespace Kernel
 
 	BootInfo g_boot_info;
 
+	static MemoryMapEntry::Type bios_number_to_memory_type(uint32_t number)
+	{
+		switch (number)
+		{
+			case 1: return MemoryMapEntry::Type::Available;
+			case 2: return MemoryMapEntry::Type::Reserved;
+			case 3: return MemoryMapEntry::Type::ACPIReclaim;
+			case 4: return MemoryMapEntry::Type::ACPINVS;
+		}
+		return MemoryMapEntry::Type::Reserved;
+	}
+
 	static void parse_boot_info_multiboot2(uint32_t info)
 	{
 		const auto& multiboot2_info = *reinterpret_cast<const multiboot2_info_t*>(info);
@@ -27,9 +39,9 @@ namespace Kernel
 				g_boot_info.framebuffer.height	= framebuffer_tag.framebuffer_height;
 				g_boot_info.framebuffer.bpp		= framebuffer_tag.framebuffer_bpp;
 				if (framebuffer_tag.framebuffer_type == MULTIBOOT2_FRAMEBUFFER_TYPE_RGB)
-					g_boot_info.framebuffer.type = FramebufferType::RGB;
+					g_boot_info.framebuffer.type = FramebufferInfo::Type::RGB;
 				else
-					g_boot_info.framebuffer.type = FramebufferType::UNKNOWN;
+					g_boot_info.framebuffer.type = FramebufferInfo::Type::Unknown;
 			}
 			else if (tag->type == MULTIBOOT2_TAG_MMAP)
 			{
@@ -47,9 +59,9 @@ namespace Kernel
 						(uint64_t)mmap_entry.length,
 						(uint64_t)mmap_entry.type
 					);
-					g_boot_info.memory_map_entries[i].address	= mmap_entry.base_addr;
-					g_boot_info.memory_map_entries[i].length	= mmap_entry.length;
-					g_boot_info.memory_map_entries[i].type		= mmap_entry.type;
+					g_boot_info.memory_map_entries[i].address = mmap_entry.base_addr;
+					g_boot_info.memory_map_entries[i].length  = mmap_entry.length;
+					g_boot_info.memory_map_entries[i].type    = bios_number_to_memory_type(mmap_entry.type);
 				}
 			}
 			else if (tag->type == MULTIBOOT2_TAG_OLD_RSDP)
@@ -87,24 +99,24 @@ namespace Kernel
 		MUST(g_boot_info.command_line.append(command_line));
 
 		const auto& framebuffer = *reinterpret_cast<BananBootFramebufferInfo*>(banan_bootloader_info.framebuffer_addr);
+		g_boot_info.framebuffer.address	= framebuffer.address;
+		g_boot_info.framebuffer.width	= framebuffer.width;
+		g_boot_info.framebuffer.height	= framebuffer.height;
+		g_boot_info.framebuffer.pitch	= framebuffer.pitch;
+		g_boot_info.framebuffer.bpp		= framebuffer.bpp;
 		if (framebuffer.type == BANAN_BOOTLOADER_FB_RGB)
-		{
-			g_boot_info.framebuffer.address	= framebuffer.address;
-			g_boot_info.framebuffer.width	= framebuffer.width;
-			g_boot_info.framebuffer.height	= framebuffer.height;
-			g_boot_info.framebuffer.pitch	= framebuffer.pitch;
-			g_boot_info.framebuffer.bpp		= framebuffer.bpp;
-			g_boot_info.framebuffer.type	= FramebufferType::RGB;
-		}
+			g_boot_info.framebuffer.type = FramebufferInfo::Type::RGB;
+		else
+			g_boot_info.framebuffer.type = FramebufferInfo::Type::Unknown;
 
 		const auto& memory_map =  *reinterpret_cast<BananBootloaderMemoryMapInfo*>(banan_bootloader_info.memory_map_addr);
 		MUST(g_boot_info.memory_map_entries.resize(memory_map.entry_count));
 		for (size_t i = 0; i < memory_map.entry_count; i++)
 		{
 			const auto& mmap_entry = memory_map.entries[i];
-			g_boot_info.memory_map_entries[i].address	= mmap_entry.address;
-			g_boot_info.memory_map_entries[i].length	= mmap_entry.length;
-			g_boot_info.memory_map_entries[i].type		= mmap_entry.type;
+			g_boot_info.memory_map_entries[i].address = mmap_entry.address;
+			g_boot_info.memory_map_entries[i].length  = mmap_entry.length;
+			g_boot_info.memory_map_entries[i].type    = bios_number_to_memory_type(mmap_entry.type);
 		}
 
 		g_boot_info.kernel_paddr = banan_bootloader_info.kernel_paddr;

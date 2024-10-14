@@ -26,17 +26,36 @@ namespace Kernel
 	void Heap::initialize_impl()
 	{
 		if (g_boot_info.memory_map_entries.empty())
-			Kernel::panic("Bootloader did not provide a memory map");
+			panic("Bootloader did not provide a memory map");
 
 		for (const auto& entry : g_boot_info.memory_map_entries)
 		{
-			dprintln("{16H}, {16H}, {8H}",
+			const char* entry_type_string = nullptr;
+			switch (entry.type)
+			{
+				case MemoryMapEntry::Type::Available:
+					entry_type_string = "available";
+					break;
+				case MemoryMapEntry::Type::Reserved:
+					entry_type_string = "reserved";
+					break;
+				case MemoryMapEntry::Type::ACPIReclaim:
+					entry_type_string = "acpi reclaim";
+					break;
+				case MemoryMapEntry::Type::ACPINVS:
+					entry_type_string = "acpi nvs";
+					break;
+				default:
+					ASSERT_NOT_REACHED();
+			}
+
+			dprintln("{16H}, {16H}, {}",
 				entry.address,
 				entry.length,
-				entry.type
+				entry_type_string
 			);
 
-			if (entry.type != 1)
+			if (entry.type != MemoryMapEntry::Type::Available)
 				continue;
 
 			paddr_t start = entry.address;
@@ -79,7 +98,7 @@ namespace Kernel
 		for (auto& range : m_physical_ranges)
 			if (range.contains(paddr))
 				return range.release_page(paddr);
-		ASSERT_NOT_REACHED();
+		panic("tried to free invalid paddr {16H}", paddr);
 	}
 
 	paddr_t Heap::take_free_contiguous_pages(size_t pages)

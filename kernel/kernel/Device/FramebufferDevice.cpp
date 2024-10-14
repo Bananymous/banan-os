@@ -19,7 +19,7 @@ namespace Kernel
 
 	BAN::ErrorOr<BAN::RefPtr<FramebufferDevice>> FramebufferDevice::create_from_boot_framebuffer()
 	{
-		if (g_boot_info.framebuffer.type != FramebufferType::RGB)
+		if (g_boot_info.framebuffer.type != FramebufferInfo::Type::RGB)
 			return BAN::Error::from_errno(ENODEV);
 		if (g_boot_info.framebuffer.bpp != 24 && g_boot_info.framebuffer.bpp != 32)
 			return BAN::Error::from_errno(ENOTSUP);

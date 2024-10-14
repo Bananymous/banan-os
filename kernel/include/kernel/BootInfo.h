@@ -8,36 +8,45 @@
 namespace Kernel
 {
 
-	enum class FramebufferType
-	{
-		NONE,
-		UNKNOWN,
-		RGB
-	};
-
 	struct FramebufferInfo
 	{
-		paddr_t			address;
-		uint32_t		pitch;
-		uint32_t		width;
-		uint32_t		height;
-		uint8_t			bpp;
-		FramebufferType type = FramebufferType::NONE;
+		enum class Type
+		{
+			None,
+			Unknown,
+			RGB,
+		};
+
+		paddr_t  address;
+		uint32_t pitch;
+		uint32_t width;
+		uint32_t height;
+		uint8_t  bpp;
+		Type     type;
 	};
 
 	struct MemoryMapEntry
 	{
-		uint32_t	type;
-		paddr_t		address;
-		uint64_t	length;
+		enum class Type
+		{
+			Available,
+			Reserved,
+			ACPIReclaim,
+			ACPINVS,
+		};
+
+		paddr_t  address;
+		uint64_t length;
+		Type     type;
 	};
 
 	struct BootInfo
 	{
-		BAN::String					command_line;
-		FramebufferInfo				framebuffer			{};
-		RSDP						rsdp				{};
-		paddr_t                     kernel_paddr        {};
+		BAN::String     command_line;
+		FramebufferInfo framebuffer  {};
+		RSDP            rsdp         {};
+		paddr_t         kernel_paddr {};
+
 		BAN::Vector<MemoryMapEntry>	memory_map_entries;
 	};
 
