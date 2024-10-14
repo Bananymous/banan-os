@@ -208,7 +208,6 @@ namespace Kernel
 		constexpr uint64_t pml4e = (uc_vaddr >> 39) & 0x1FF;
 		constexpr uint64_t pdpte = (uc_vaddr >> 30) & 0x1FF;
 		constexpr uint64_t pde   = (uc_vaddr >> 21) & 0x1FF;
-		constexpr uint64_t pte   = (uc_vaddr >> 12) & 0x1FF;
 
 		uint64_t* pml4 = (uint64_t*)P2V(m_highest_paging_struct);
 		ASSERT(!(pml4[pml4e] & Flags::Present));
@@ -221,10 +220,6 @@ namespace Kernel
 		uint64_t* pd = (uint64_t*)P2V(pdpt[pdpte] & PAGE_ADDR_MASK);
 		ASSERT(!(pd[pde] & Flags::Present));
 		pd[pde] = V2P(allocate_zeroed_page_aligned_page()) | Flags::ReadWrite | Flags::Present;
-
-		uint64_t* pt = (uint64_t*)P2V(pd[pde] & PAGE_ADDR_MASK);
-		ASSERT(!(pt[pte] & Flags::Present));
-		pt[pte] = V2P(allocate_zeroed_page_aligned_page());
 	}
 
 	void PageTable::map_fast_page(paddr_t paddr)

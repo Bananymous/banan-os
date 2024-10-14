@@ -188,7 +188,6 @@ namespace Kernel
 	{
 		constexpr uint64_t pdpte = (fast_page() >> 30) & 0x1FF;
 		constexpr uint64_t pde   = (fast_page() >> 21) & 0x1FF;
-		constexpr uint64_t pte   = (fast_page() >> 12) & 0x1FF;
 
 		uint64_t* pdpt = reinterpret_cast<uint64_t*>(P2V(m_highest_paging_struct));
 		ASSERT(pdpt[pdpte] & Flags::Present);
@@ -196,10 +195,6 @@ namespace Kernel
 		uint64_t* pd = reinterpret_cast<uint64_t*>(P2V(pdpt[pdpte]) & PAGE_ADDR_MASK);
 		ASSERT(!(pd[pde] & Flags::Present));
 		pd[pde] = V2P(allocate_zeroed_page_aligned_page()) | Flags::ReadWrite | Flags::Present;
-
-		uint64_t* pt = reinterpret_cast<uint64_t*>(P2V(pd[pde]) & PAGE_ADDR_MASK);
-		ASSERT(!(pt[pte] & Flags::Present));
-		pt[pte] = V2P(allocate_zeroed_page_aligned_page());
 	}
 
 	void PageTable::map_fast_page(paddr_t paddr)
