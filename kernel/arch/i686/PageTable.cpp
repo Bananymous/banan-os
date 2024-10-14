@@ -150,14 +150,6 @@ namespace Kernel
 
 		prepare_fast_page();
 
-		// Map main bios area below 1 MiB
-		map_range_at(
-			0x000E0000,
-			P2V(0x000E0000),
-			0x00100000 - 0x000E0000,
-			PageTable::Flags::Present
-		);
-
 		// Map (phys_kernel_start -> phys_kernel_end) to (virt_kernel_start -> virt_kernel_end)
 		ASSERT((vaddr_t)g_kernel_start % PAGE_SIZE == 0);
 		map_range_at(

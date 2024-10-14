@@ -281,16 +281,32 @@ acpi_release_global_lock:
 		return true;
 	}
 
-	static const RSDP* locate_rsdp()
+	static BAN::Optional<RSDP> locate_rsdp()
 	{
 		if (g_boot_info.rsdp.length)
-			return &g_boot_info.rsdp;
+			return g_boot_info.rsdp;
 
 		// Look in main BIOS area below 1 MB
-		for (vaddr_t addr = 0x000E0000 + KERNEL_OFFSET; addr < 0x000FFFFF + KERNEL_OFFSET; addr += 16)
-			if (is_rsdp(addr))
-				return reinterpret_cast<const RSDP*>(addr);
-		return nullptr;
+		for (paddr_t paddr = 0x000E0000; paddr < 0x00100000; paddr += PAGE_SIZE)
+		{
+			BAN::Optional<RSDP> rsdp;
+
+			PageTable::with_fast_page(paddr, [&rsdp] {
+				for (size_t offset = 0; offset + sizeof(RSDP) <= PAGE_SIZE; offset += 16)
+				{
+					if (is_rsdp(PageTable::fast_page() + offset))
+					{
+						rsdp = PageTable::fast_page_as<RSDP>(offset);
+						break;
+					}
+				}
+			});
+
+			if (rsdp.has_value())
+				return rsdp.release_value();
+		}
+
+		return {};
 	}
 
 	static bool is_valid_std_header(const SDTHeader* header)
@@ -303,24 +319,25 @@ acpi_release_global_lock:
 
 	BAN::ErrorOr<void> ACPI::initialize_impl()
 	{
-		const RSDP* rsdp = locate_rsdp();
-		if (rsdp == nullptr)
+		auto opt_rsdp = locate_rsdp();
+		if (!opt_rsdp.has_value())
 			return BAN::Error::from_error_code(ErrorCode::ACPI_NoRootSDT);
+		const RSDP rsdp = opt_rsdp.release_value();
 
 		uint32_t root_entry_count = 0;
 
-		if (rsdp->revision >= 2)
+		if (rsdp.revision >= 2)
 		{
-			TRY(PageTable::with_fast_page(rsdp->xsdt_address & PAGE_ADDR_MASK,
+			TRY(PageTable::with_fast_page(rsdp.xsdt_address & PAGE_ADDR_MASK,
 				[&]() -> BAN::ErrorOr<void>
 				{
-					auto& xsdt = PageTable::fast_page_as<const XSDT>(rsdp->xsdt_address % PAGE_SIZE);
+					auto& xsdt = PageTable::fast_page_as<const XSDT>(rsdp.xsdt_address % PAGE_SIZE);
 					if (memcmp(xsdt.signature, "XSDT", 4) != 0)
 						return BAN::Error::from_error_code(ErrorCode::ACPI_RootInvalid);
 					if (!is_valid_std_header(&xsdt))
 						return BAN::Error::from_error_code(ErrorCode::ACPI_RootInvalid);
 
-					m_header_table_paddr = rsdp->xsdt_address + offsetof(XSDT, entries);
+					m_header_table_paddr = rsdp.xsdt_address + offsetof(XSDT, entries);
 					m_entry_size = 8;
 					root_entry_count = (xsdt.length - sizeof(SDTHeader)) / 8;
 					return {};
@@ -329,16 +346,16 @@ acpi_release_global_lock:
 		}
 		else
 		{
-			TRY(PageTable::with_fast_page(rsdp->rsdt_address & PAGE_ADDR_MASK,
+			TRY(PageTable::with_fast_page(rsdp.rsdt_address & PAGE_ADDR_MASK,
 				[&]() -> BAN::ErrorOr<void>
 				{
-					auto& rsdt = PageTable::fast_page_as<const RSDT>(rsdp->rsdt_address % PAGE_SIZE);
+					auto& rsdt = PageTable::fast_page_as<const RSDT>(rsdp.rsdt_address % PAGE_SIZE);
 					if (memcmp(rsdt.signature, "RSDT", 4) != 0)
 						return BAN::Error::from_error_code(ErrorCode::ACPI_RootInvalid);
 					if (!is_valid_std_header(&rsdt))
 						return BAN::Error::from_error_code(ErrorCode::ACPI_RootInvalid);
 
-					m_header_table_paddr = rsdp->rsdt_address + offsetof(RSDT, entries);
+					m_header_table_paddr = rsdp.rsdt_address + offsetof(RSDT, entries);
 					m_entry_size = 4;
 					root_entry_count = (rsdt.length - sizeof(SDTHeader)) / 4;
 					return {};
