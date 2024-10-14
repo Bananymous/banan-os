@@ -80,5 +80,6 @@ namespace CPUID
 	bool has_nxe();
 	bool has_pge();
 	bool has_pat();
+	bool has_1gib_pages();
 
 }
