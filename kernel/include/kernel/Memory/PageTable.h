@@ -43,7 +43,8 @@ namespace Kernel
 		};
 
 	public:
-		static void initialize();
+		static void initialize_pre_heap();
+		static void initialize_post_heap();
 
 		static PageTable& kernel();
 		static PageTable& current() { return *reinterpret_cast<PageTable*>(Processor::get_current_page_table()); }

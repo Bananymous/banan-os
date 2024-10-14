@@ -131,12 +131,15 @@ extern "C" void kernel_main(uint32_t boot_magic, uint32_t boot_info)
 	Processor::initialize();
 	dprintln("BSP initialized");
 
-	PageTable::initialize();
+	PageTable::initialize_pre_heap();
 	PageTable::kernel().initial_load();
-	dprintln("PageTable initialized");
+	dprintln("PageTable stage1 initialized");
 
 	Heap::initialize();
 	dprintln("Heap initialzed");
+
+	PageTable::initialize_post_heap();
+	dprintln("PageTable stage2 initialized");
 
 	parse_command_line();
 	dprintln("command line parsed, root='{}', console='{}'", cmdline.root, cmdline.console);

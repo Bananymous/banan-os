@@ -46,7 +46,7 @@ namespace Kernel
 		return result;
 	}
 
-	void PageTable::initialize()
+	void PageTable::initialize_pre_heap()
 	{
 		if (CPUID::has_nxe())
 			s_has_nxe = true;
@@ -63,6 +63,11 @@ namespace Kernel
 
 		s_kernel->initialize_kernel();
 		s_kernel->initial_load();
+	}
+
+	void PageTable::initialize_post_heap()
+	{
+		// NOTE: this is no-op as our 32 bit target does not use hhdm
 	}
 
 	void PageTable::initial_load()
