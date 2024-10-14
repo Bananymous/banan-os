@@ -191,15 +191,17 @@ namespace Kernel
 
 		paddr_t page_containing = find_indirect(m_data_pages, index_of_page, 2);
 
+		paddr_t paddr_to_free = 0;
 		PageTable::with_fast_page(page_containing, [&] {
 			auto& page_info = PageTable::fast_page_as_sized<PageInfo>(index_in_page);
 			ASSERT(page_info.flags() & PageInfo::Flags::Present);
-			Heap::get().release_page(page_info.paddr());
+			paddr_to_free = page_info.paddr();
 			m_used_pages--;
 
 			page_info.set_paddr(0);
 			page_info.set_flags(0);
 		});
+		Heap::get().release_page(paddr_to_free);
 	}
 
 	BAN::ErrorOr<size_t> TmpFileSystem::allocate_block()
