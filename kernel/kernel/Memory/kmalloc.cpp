@@ -418,12 +418,29 @@ void kfree(void* address)
 
 }
 
+static bool is_kmalloc_vaddr(Kernel::vaddr_t vaddr)
+{
+	using namespace Kernel;
+	if (vaddr < reinterpret_cast<vaddr_t>(s_kmalloc_storage))
+		return false;
+	if (vaddr >= reinterpret_cast<vaddr_t>(s_kmalloc_storage) + sizeof(s_kmalloc_storage))
+		return false;
+	return true;
+}
+
 BAN::Optional<Kernel::paddr_t> kmalloc_paddr_of(Kernel::vaddr_t vaddr)
 {
 	using namespace Kernel;
+	if (!is_kmalloc_vaddr(vaddr))
+		return {};
+	return vaddr - KERNEL_OFFSET + g_boot_info.kernel_paddr;
+}
 
-	if ((vaddr_t)s_kmalloc_storage <= vaddr && vaddr < (vaddr_t)s_kmalloc_storage + sizeof(s_kmalloc_storage))
-		return vaddr - KERNEL_OFFSET + g_boot_info.kernel_paddr;
-
-	return {};
+BAN::Optional<Kernel::vaddr_t> kmalloc_vaddr_of(Kernel::paddr_t paddr)
+{
+	using namespace Kernel;
+	const vaddr_t vaddr = paddr + KERNEL_OFFSET - g_boot_info.kernel_paddr;
+	if (!is_kmalloc_vaddr(vaddr))
+		return {};
+	return vaddr;
 }
