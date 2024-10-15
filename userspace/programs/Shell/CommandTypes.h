@@ -60,9 +60,15 @@ struct CommandArgument
 
 struct SingleCommand
 {
-	BAN::ErrorOr<BAN::Vector<BAN::String>> evaluate_arguments(Execute& execute) const;
+	struct EnvironmentVariable
+	{
+		COMMAND_RULE5(EnvironmentVariable, name, value);
+		BAN::String name;
+		CommandArgument value;
+	};
 
-	COMMAND_RULE5(SingleCommand, arguments);
+	COMMAND_RULE5(SingleCommand, environment, arguments);
+	BAN::Vector<EnvironmentVariable> environment;
 	BAN::Vector<CommandArgument> arguments;
 };
 

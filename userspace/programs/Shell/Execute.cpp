@@ -86,6 +86,9 @@ BAN::ErrorOr<Execute::ExecuteResult> Execute::execute_command_no_wait(const Inte
 			exit(builtin_ret.value());
 		}
 
+		for (const auto& environment : command.environments)
+			setenv(environment.name.data(), environment.value.data(), true);
+
 		BAN::Vector<const char*> exec_args;
 		TRY_OR_EXIT(exec_args.reserve(command.arguments.size() + 1));
 		for (const auto& argument : command.arguments)
@@ -119,6 +122,7 @@ BAN::ErrorOr<int> Execute::execute_command_sync(BAN::Span<const BAN::String> arg
 	InternalCommand command {
 		.command = {},
 		.arguments = arguments,
+		.environments = {},
 		.fd_in = fd_in,
 		.fd_out = fd_out,
 		.background = false,
@@ -168,6 +172,26 @@ BAN::ErrorOr<void> Execute::execute_command(const PipedCommand& piped_command)
 	BAN::Vector<int> child_codes;
 	TRY(child_codes.resize(piped_command.commands.size(), 126));
 
+	const auto evaluate_arguments =
+		[this](BAN::Span<const CommandArgument> arguments) -> BAN::ErrorOr<BAN::Vector<BAN::String>>
+		{
+			BAN::Vector<BAN::String> result;
+			TRY(result.reserve(arguments.size()));
+			for (const auto& argument : arguments)
+				TRY(result.push_back(TRY(argument.evaluate(*this))));
+			return result;
+		};
+
+	const auto evaluate_environment =
+		[this](BAN::Span<const SingleCommand::EnvironmentVariable> environments) -> BAN::ErrorOr<BAN::Vector<InternalCommand::Environment>>
+		{
+			BAN::Vector<InternalCommand::Environment> result;
+			TRY(result.reserve(environments.size()));
+			for (const auto& environment : environments)
+				TRY(result.emplace_back(environment.name, TRY(environment.value.evaluate(*this))));
+			return result;
+		};
+
 	for (size_t i = 0; i < piped_command.commands.size(); i++)
 	{
 		int new_pipe[2] { STDIN_FILENO, STDOUT_FILENO };
@@ -189,11 +213,13 @@ BAN::ErrorOr<void> Execute::execute_command(const PipedCommand& piped_command)
 		const int fd_in  = last_pipe_rd;
 		const int fd_out = new_pipe[1];
 
-		auto arguments = TRY_OR_PERROR_AND_BREAK(piped_command.commands[i].evaluate_arguments(*this));
+		const auto arguments = TRY_OR_PERROR_AND_BREAK(evaluate_arguments(piped_command.commands[i].arguments.span()));
+		const auto environments = TRY_OR_PERROR_AND_BREAK(evaluate_environment(piped_command.commands[i].environment.span()));
 
 		InternalCommand command {
 			.command = {},
 			.arguments = arguments.span(),
+			.environments = environments.span(),
 			.fd_in = fd_in,
 			.fd_out = fd_out,
 			.background = piped_command.background,

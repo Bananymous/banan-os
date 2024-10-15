@@ -25,14 +25,23 @@ public:
 private:
 	struct InternalCommand
 	{
+		using Command = BAN::Variant<Builtin::BuiltinCommand, BAN::String>;
+
 		enum class Type
 		{
 			Builtin,
 			External,
 		};
 
-		BAN::Variant<Builtin::BuiltinCommand, BAN::String> command;
+		struct Environment
+		{
+			BAN::String name;
+			BAN::String value;
+		};
+
+		Command command;
 		BAN::Span<const BAN::String> arguments;
+		BAN::Span<const Environment> environments;
 		int fd_in;
 		int fd_out;
 		bool background;

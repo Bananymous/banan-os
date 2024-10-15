@@ -469,6 +469,43 @@ BAN::ErrorOr<SingleCommand> TokenParser::parse_single_command()
 {
 	SingleCommand result;
 
+	while (peek_token().type() == Token::Type::Whitespace)
+		consume_token();
+
+	while (peek_token().type() == Token::Type::String)
+	{
+		BAN::String env_name;
+
+		const auto& string = peek_token().string();
+		if (!isalpha(string.front()))
+			break;
+
+		const auto env_len = string.sv().find([](char ch) { return !(isalnum(ch) || ch == '_'); });
+		if (!env_len.has_value() || string[*env_len] != '=')
+			break;
+		TRY(env_name.append(string.sv().substring(0, *env_len)));
+
+		auto full_value = TRY(parse_argument());
+		ASSERT(!full_value.parts.empty());
+		ASSERT(full_value.parts.front().has<CommandArgument::FixedString>());
+
+		auto& first_arg = full_value.parts.front().get<CommandArgument::FixedString>();
+		ASSERT(first_arg.value.sv().starts_with(env_name));
+		ASSERT(first_arg.value[*env_len] == '=');
+		for (size_t i = 0; i < *env_len + 1; i++)
+			first_arg.value.remove(0);
+		if (first_arg.value.empty())
+			full_value.parts.remove(0);
+
+		SingleCommand::EnvironmentVariable environment_variable;
+		environment_variable.name = BAN::move(env_name);
+		environment_variable.value = BAN::move(full_value);
+		TRY(result.environment.emplace_back(BAN::move(environment_variable)));
+
+		while (peek_token().type() == Token::Type::Whitespace)
+			consume_token();
+	}
+
 	BAN::HashSet<BAN::String> used_aliases;
 	while (peek_token().type() == Token::Type::String)
 	{
@@ -519,6 +556,9 @@ BAN::ErrorOr<SingleCommand> TokenParser::parse_single_command()
 		for (size_t i = tokenized_alias.size(); i > 0; i--)
 			TRY(unget_token(BAN::move(tokenized_alias[i - 1])));
 		TRY(used_aliases.insert(TRY(BAN::String::formatted("{}", token.string()))));
+
+		while (peek_token().type() == Token::Type::Whitespace)
+			consume_token();
 	}
 
 	while (peek_token().type() != Token::Type::EOF_)
