@@ -8,6 +8,7 @@ set(USERSPACE_PROGRAMS
 	dhcp-client
 	DynamicLoader
 	echo
+	env
 	getopt
 	http-server
 	id
