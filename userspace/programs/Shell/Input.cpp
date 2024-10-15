@@ -707,7 +707,7 @@ Input::Input()
 
 		FILE* history_fp = fopen(s_history_path.data(), "r");
 		if (history_fp == nullptr)
-			return;
+			goto history_initialized;
 
 		char buffer[128];
 		BAN::String current_line;
@@ -733,6 +733,7 @@ Input::Input()
 				s_history.remove(0);
 		}
 	}
+history_initialized:
 
 	m_buffers = s_history;
 	MUST(m_buffers.emplace_back(""_sv));
