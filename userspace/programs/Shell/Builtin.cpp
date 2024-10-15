@@ -3,12 +3,12 @@
 #include "Execute.h"
 
 #include <ctype.h>
+#include <limits.h>
+#include <sys/stat.h>
 #include <time.h>
 #include <unistd.h>
 
 #define ERROR_RETURN(__msg, __ret) do { perror(__msg); return __ret; } while (false)
-
-extern char** environ;
 
 void Builtin::initialize()
 {
@@ -125,16 +125,6 @@ void Builtin::initialize()
 		}, true
 	));
 
-	MUST(m_builtin_commands.emplace("env"_sv,
-		[](Execute&, BAN::Span<const BAN::String>, FILE*, FILE* fout) -> int
-		{
-			char** current = environ;
-			while (current && *current)
-				fprintf(fout, "%s\n", *current++);
-			return 0;
-		}, true
-	));
-
 	MUST(m_builtin_commands.emplace("cd"_sv,
 		[](Execute&, BAN::Span<const BAN::String> arguments, FILE*, FILE* fout) -> int
 		{
@@ -163,6 +153,81 @@ void Builtin::initialize()
 		}, true
 	));
 
+	MUST(m_builtin_commands.emplace("type"_sv,
+		[](Execute&, BAN::Span<const BAN::String> arguments, FILE*, FILE* fout) -> int
+		{
+			const auto is_executable_file =
+				[](const char* path) -> bool
+				{
+					struct stat st;
+					if (stat(path, &st) == -1)
+						return false;
+					if (!(st.st_mode & (S_IXUSR | S_IXGRP | S_IXOTH)))
+						return false;
+					return true;
+				};
+
+			if (!arguments.empty())
+				arguments = arguments.slice(1);
+
+			BAN::Vector<BAN::StringView> path_dirs;
+			if (const char* path_env = getenv("PATH"))
+				if (auto split_ret = BAN::StringView(path_env ? path_env : "").split(':'); !split_ret.is_error())
+					path_dirs = split_ret.release_value();
+
+			for (const auto& argument : arguments)
+			{
+				if (auto alias = Alias::get().get_alias(argument); alias.has_value())
+				{
+					fprintf(fout, "%s is an alias for %s\n", argument.data(), alias->data());
+					continue;
+				}
+
+				if (Builtin::get().find_builtin(argument))
+				{
+					fprintf(fout, "%s is a shell builtin\n", argument.data());
+					continue;
+				}
+
+				if (argument.sv().contains('/'))
+				{
+					if (is_executable_file(argument.data()))
+					{
+						fprintf(fout, "%s is %s\n", argument.data(), argument.data());
+						continue;
+					}
+				}
+				else
+				{
+					bool found = false;
+					for (const auto& path_dir : path_dirs)
+					{
+						char path_buffer[PATH_MAX];
+						memcpy(path_buffer,                   path_dir.data(), path_dir.size());
+						memcpy(path_buffer + path_dir.size(), argument.data(), argument.size());
+						path_buffer[path_dir.size() + argument.size()] = '\0';
+
+						if (is_executable_file(path_buffer))
+						{
+							fprintf(fout, "%s is %s\n", argument.data(), path_buffer);
+							found = true;
+							break;
+						}
+					}
+					if (found)
+						continue;
+
+				}
+
+				fprintf(fout, "%s not found\n", argument.data());
+			}
+
+			return 0;
+		}, true
+	));
+
+	// FIXME: time should not actually be a builtin command but a shell reserved keyword
+	//        e.g. `time foobar=lol sh -c 'echo $foobar'` should resolve set foobar env
 	MUST(m_builtin_commands.emplace("time"_sv,
 		[](Execute& execute, BAN::Span<const BAN::String> arguments, FILE* fin, FILE* fout) -> int
 		{
