@@ -15,6 +15,10 @@ static struct termios s_original_termios;
 static struct termios s_raw_termios;
 static bool s_termios_initialized { false };
 
+static BAN::String s_history_path;
+static BAN::Vector<BAN::String> s_history;
+static constexpr size_t s_history_max_size = 1000;
+
 static BAN::Vector<BAN::String> list_matching_entries(BAN::StringView path, BAN::StringView start, bool require_executable)
 {
 	ASSERT(path.size() < PATH_MAX);
@@ -330,7 +334,7 @@ BAN::Optional<BAN::String> Input::get_input(BAN::Optional<BAN::StringView> custo
 			}
 
 			clearerr(stdin);
-			m_buffers = m_history;
+			m_buffers = s_history;
 			MUST(m_buffers.emplace_back(""_sv));
 			m_buffer_index = m_buffers.size() - 1;
 			m_buffer_col = 0;
@@ -502,8 +506,10 @@ BAN::Optional<BAN::String> Input::get_input(BAN::Optional<BAN::StringView> custo
 
 			if (!m_buffers[m_buffer_index].empty())
 			{
-				MUST(m_history.push_back(m_buffers[m_buffer_index]));
-				m_buffers = m_history;
+				MUST(s_history.push_back(m_buffers[m_buffer_index]));
+				if (s_history.size() > s_history_max_size)
+					s_history.remove(0);
+				m_buffers = s_history;
 				MUST(m_buffers.emplace_back(""_sv));
 			}
 			m_buffer_index = m_buffers.size() - 1;
@@ -679,4 +685,56 @@ Input::Input()
 	if (gethostname(hostname_buffer, sizeof(hostname_buffer)) == 0) {
 		MUST(m_hostname.append(hostname_buffer));
 	}
+
+	if (const char* home_env = getenv("HOME"))
+	{
+		MUST(s_history_path.append(home_env));
+		MUST(s_history_path.append("/.shell_history"));
+
+		atexit([] {
+			FILE* history_fp = fopen(s_history_path.data(), "w");
+			if (history_fp == nullptr)
+				return;
+
+			for (const auto& line : s_history)
+			{
+				fwrite(line.data(), line.size(), 1, history_fp);
+				fputc('\n', history_fp);
+			}
+
+			fclose(history_fp);
+		});
+
+		FILE* history_fp = fopen(s_history_path.data(), "r");
+		if (history_fp == nullptr)
+			return;
+
+		char buffer[128];
+		BAN::String current_line;
+		while (fgets(buffer, sizeof(buffer), history_fp))
+		{
+			MUST(current_line.append(buffer));
+			if (current_line.back() != '\n')
+				continue;
+			current_line.pop_back();
+
+			MUST(s_history.push_back(BAN::move(current_line)));
+			if (s_history.size() > s_history_max_size)
+				s_history.remove(0);
+			current_line.clear();
+		}
+
+		fclose(history_fp);
+
+		if (!current_line.empty())
+		{
+			MUST(s_history.push_back(BAN::move(current_line)));
+			if (s_history.size() > s_history_max_size)
+				s_history.remove(0);
+		}
+	}
+
+	m_buffers = s_history;
+	MUST(m_buffers.emplace_back(""_sv));
+	m_buffer_index = m_buffers.size() - 1;
 }

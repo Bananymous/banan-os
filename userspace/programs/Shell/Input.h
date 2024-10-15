@@ -23,8 +23,7 @@ private:
 private:
 	BAN::String m_hostname;
 
-	BAN::Vector<BAN::String> m_buffers { 1, ""_sv };
-	BAN::Vector<BAN::String> m_history;
+	BAN::Vector<BAN::String> m_buffers;
 	size_t m_buffer_index { 0 };
 	size_t m_buffer_col { 0 };
 
