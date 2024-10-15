@@ -24,26 +24,26 @@
 struct CommandTree;
 class Execute;
 
-struct FixedString
-{
-	COMMAND_RULE5(FixedString, value);
-	BAN::String value;
-};
-
-struct EnvironmentVariable
-{
-	COMMAND_RULE5(EnvironmentVariable, value);
-	BAN::String value;
-};
-
-struct BuiltinVariable
-{
-	COMMAND_RULE5(BuiltinVariable, value);
-	BAN::String value;
-};
-
 struct CommandArgument
 {
+	struct FixedString
+	{
+		COMMAND_RULE5(FixedString, value);
+		BAN::String value;
+	};
+
+	struct EnvironmentVariable
+	{
+		COMMAND_RULE5(EnvironmentVariable, value);
+		BAN::String value;
+	};
+
+	struct BuiltinVariable
+	{
+		COMMAND_RULE5(BuiltinVariable, value);
+		BAN::String value;
+	};
+
 	using ArgumentPart =
 		BAN::Variant<
 			FixedString,

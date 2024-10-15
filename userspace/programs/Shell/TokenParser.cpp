@@ -171,7 +171,7 @@ BAN::ErrorOr<CommandArgument::ArgumentPart> TokenParser::parse_backslash(bool is
 
 	auto token = read_token();
 
-	FixedString fixed_string;
+	CommandArgument::FixedString fixed_string;
 	switch (token.type())
 	{
 		case Token::Type::EOF_:
@@ -218,14 +218,14 @@ BAN::ErrorOr<CommandArgument::ArgumentPart> TokenParser::parse_dollar()
 		[](BAN::String& string) -> BAN::ErrorOr<CommandArgument::ArgumentPart>
 		{
 			if (string.empty())
-				return CommandArgument::ArgumentPart(EnvironmentVariable());
+				return CommandArgument::ArgumentPart(CommandArgument::EnvironmentVariable());
 			if (isdigit(string.front()))
 			{
 				size_t number_len = 1;
 				while (number_len < string.size() && isdigit(string[number_len]))
 					number_len++;
 
-				BuiltinVariable builtin;
+				CommandArgument::BuiltinVariable builtin;
 				TRY(builtin.value.append(string.sv().substring(0, number_len)));
 				for (size_t i = 0; i < number_len; i++)
 					string.remove(0);
@@ -243,7 +243,7 @@ BAN::ErrorOr<CommandArgument::ArgumentPart> TokenParser::parse_dollar()
 				case '?':
 				case '!':
 				{
-					BuiltinVariable builtin;
+					CommandArgument::BuiltinVariable builtin;
 					TRY(builtin.value.push_back(string.front()));
 					string.remove(0);
 					return CommandArgument::ArgumentPart(BAN::move(builtin));
@@ -255,7 +255,7 @@ BAN::ErrorOr<CommandArgument::ArgumentPart> TokenParser::parse_dollar()
 				while (env_len < string.size() && (isalnum(string[env_len]) || string[env_len] == '_'))
 					env_len++;
 
-				EnvironmentVariable environment;
+				CommandArgument::EnvironmentVariable environment;
 				TRY(environment.value.append(string.sv().substring(0, env_len)));
 				for (size_t i = 0; i < env_len; i++)
 					string.remove(0);
@@ -263,7 +263,7 @@ BAN::ErrorOr<CommandArgument::ArgumentPart> TokenParser::parse_dollar()
 				return CommandArgument::ArgumentPart(BAN::move(environment));
 			}
 
-			FixedString fixed_string;
+			CommandArgument::FixedString fixed_string;
 			TRY(fixed_string.value.push_back('$'));
 			return CommandArgument::ArgumentPart(BAN::move(fixed_string));
 		};
@@ -281,7 +281,7 @@ BAN::ErrorOr<CommandArgument::ArgumentPart> TokenParser::parse_dollar()
 		case Token::Type::SingleQuote:
 		case Token::Type::Whitespace:
 		{
-			FixedString fixed_string;
+			CommandArgument::FixedString fixed_string;
 			TRY(fixed_string.value.push_back('$'));
 			return CommandArgument::ArgumentPart(BAN::move(fixed_string));
 		}
@@ -289,7 +289,7 @@ BAN::ErrorOr<CommandArgument::ArgumentPart> TokenParser::parse_dollar()
 		{
 			consume_token();
 
-			BuiltinVariable builtin_variable;
+			CommandArgument::BuiltinVariable builtin_variable;
 			TRY(builtin_variable.value.push_back('$'));
 			return CommandArgument::ArgumentPart(BAN::move(builtin_variable));
 		}
@@ -348,7 +348,7 @@ BAN::ErrorOr<CommandArgument::ArgumentPart> TokenParser::parse_single_quote()
 {
 	ASSERT(read_token().type() == Token::Type::SingleQuote);
 
-	FixedString fixed_string;
+	CommandArgument::FixedString fixed_string;
 	for (auto token = read_token();; token = read_token())
 	{
 		switch (token.type())
@@ -380,6 +380,8 @@ BAN::ErrorOr<CommandArgument::ArgumentPart> TokenParser::parse_single_quote()
 
 BAN::ErrorOr<CommandArgument> TokenParser::parse_argument()
 {
+	using FixedString = CommandArgument::FixedString;
+
 	const auto token_type = peek_token().type();
 	if (!can_parse_argument_from_token_type(token_type))
 		return unexpected_token_error(token_type);

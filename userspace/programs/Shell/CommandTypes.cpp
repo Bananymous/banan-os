@@ -139,12 +139,3 @@ BAN::ErrorOr<BAN::String> CommandArgument::evaluate(Execute& execute) const
 
 	return evaluated;
 }
-
-BAN::ErrorOr<BAN::Vector<BAN::String>> SingleCommand::evaluate_arguments(Execute& execute) const
-{
-	BAN::Vector<BAN::String> result;
-	TRY(result.reserve(arguments.size()));
-	for (const auto& arugment : arguments)
-		TRY(result.push_back(TRY(arugment.evaluate(execute))));
-	return result;
-}
