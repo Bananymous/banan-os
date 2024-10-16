@@ -90,6 +90,9 @@ namespace BAN
 	template<typename Base, typename Derived> struct is_base_of { static constexpr bool value = __is_base_of(Base, Derived); };
 	template<typename Base, typename Derived> inline constexpr bool is_base_of_v = is_base_of<Base, Derived>::value;
 
+	template<typename T> struct is_pod { static constexpr bool value = __is_pod(T); };
+	template<typename T> inline constexpr bool is_pod_v = is_pod<T>::value;
+
 	namespace detail
 	{
 		template<typename T, bool = is_arithmetic_v<T>> struct is_signed { static constexpr bool value = T(-1) < T(0); };
