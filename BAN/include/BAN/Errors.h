@@ -12,9 +12,9 @@
 	#define MUST(expr)		 ({ auto&& e = expr; if (e.is_error()) Kernel::panic("{}", e.error()); e.release_value(); })
 	#define MUST_REF(expr)	*({ auto&& e = expr; if (e.is_error()) Kernel::panic("{}", e.error()); &e.release_value(); })
 #else
-	#include <assert.h>
-	#define MUST(expr)		 ({ auto&& e = expr; assert(!e.is_error()); e.release_value(); })
-	#define MUST_REF(expr)	*({ auto&& e = expr; assert(!e.is_error()); &e.release_value(); })
+	#include <BAN/Debug.h>
+	#define MUST(expr)		 ({ auto&& e = expr; if (e.is_error()) { derrorln("MUST(" #expr "): {}", e.error()); __builtin_trap(); } e.release_value(); })
+	#define MUST_REF(expr)	*({ auto&& e = expr; if (e.is_error()) { derrorln("MUST(" #expr "): {}", e.error()); __builtin_trap(); } &e.release_value(); })
 #endif
 
 #define TRY(expr)		 ({ auto&& e = expr; if (e.is_error()) return e.release_error(); e.release_value(); })
