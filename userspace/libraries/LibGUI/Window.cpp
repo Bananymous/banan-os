@@ -16,6 +16,47 @@
 namespace LibGUI
 {
 
+	struct ReceivePacket
+	{
+		PacketType type;
+		BAN::Vector<uint8_t> data_with_type;
+	};
+
+	static BAN::ErrorOr<ReceivePacket> recv_packet(int socket)
+	{
+		uint32_t packet_size;
+
+		{
+			const ssize_t nrecv = recv(socket, &packet_size, sizeof(uint32_t), 0);
+			if (nrecv < 0)
+				return BAN::Error::from_errno(errno);
+			if (nrecv == 0)
+				return BAN::Error::from_errno(ECONNRESET);
+		}
+
+		if (packet_size < sizeof(uint32_t))
+			return BAN::Error::from_literal("invalid packet, does not fit packet id");
+
+		BAN::Vector<uint8_t> packet_data;
+		TRY(packet_data.resize(packet_size));
+
+		size_t total_recv = 0;
+		while (total_recv < packet_size)
+		{
+			const ssize_t nrecv = recv(socket, packet_data.data() + total_recv, packet_size - total_recv, 0);
+			if (nrecv < 0)
+				return BAN::Error::from_errno(errno);
+			if (nrecv == 0)
+				return BAN::Error::from_errno(ECONNRESET);
+			total_recv += nrecv;
+		}
+
+		return ReceivePacket {
+			*reinterpret_cast<PacketType*>(packet_data.data()),
+			packet_data
+		};
+	}
+
 	Window::~Window()
 	{
 		munmap(m_framebuffer_smo, m_width * m_height * 4);
@@ -24,13 +65,10 @@ namespace LibGUI
 
 	BAN::ErrorOr<BAN::UniqPtr<Window>> Window::create(uint32_t width, uint32_t height, BAN::StringView title)
 	{
-		if (title.size() >= sizeof(WindowCreatePacket::title))
-			return BAN::Error::from_errno(EINVAL);
-
 		BAN::Vector<uint32_t> framebuffer;
 		TRY(framebuffer.resize(width * height, 0xFF000000));
 
-		int server_fd = socket(AF_UNIX, SOCK_SEQPACKET, 0);
+		int server_fd = socket(AF_UNIX, SOCK_STREAM, 0);
 		if (server_fd == -1)
 			return BAN::Error::from_errno(errno);
 		BAN::ScopeGuard server_closer([server_fd] { close(server_fd); });
@@ -61,31 +99,32 @@ namespace LibGUI
 			nanosleep(&sleep_time, nullptr);
 		}
 
-		WindowCreatePacket packet;
-		packet.width = width;
-		packet.height = height;
-		strncpy(packet.title, title.data(), title.size());
-		packet.title[title.size()] = '\0';
-		if (send(server_fd, &packet, sizeof(packet), 0) != sizeof(packet))
-			return BAN::Error::from_errno(errno);
+		WindowPacket::WindowCreate create_packet;
+		create_packet.width = width;
+		create_packet.height = height;
+		TRY(create_packet.title.append(title));
+		TRY(create_packet.send_serialized(server_fd));
 
-		WindowCreateResponse response;
-		if (recv(server_fd, &response, sizeof(response), 0) != sizeof(response))
-			return BAN::Error::from_errno(errno);
+		const auto [response_type, response_data ] = TRY(recv_packet(server_fd));
+		if (response_type != PacketType::WindowCreateResponse)
+			return BAN::Error::from_literal("Server responded with invalid packet");
 
-		void* framebuffer_addr = smo_map(response.framebuffer_smo_key);
+		const auto create_response = TRY(WindowPacket::WindowCreateResponse::deserialize(response_data.span()));
+		void* framebuffer_addr = smo_map(create_response.smo_key);
 		if (framebuffer_addr == nullptr)
 			return BAN::Error::from_errno(errno);
 
-		server_closer.disable();
-
-		return TRY(BAN::UniqPtr<Window>::create(
+		auto window = TRY(BAN::UniqPtr<Window>::create(
 			server_fd,
 			static_cast<uint32_t*>(framebuffer_addr),
 			BAN::move(framebuffer),
 			width,
 			height
 		));
+
+		server_closer.disable();
+
+		return window;
 	}
 
 	void Window::fill_rect(int32_t x, int32_t y, uint32_t width, uint32_t height, uint32_t color)
@@ -211,13 +250,22 @@ namespace LibGUI
 		for (uint32_t i = 0; i < height; i++)
 			memcpy(&m_framebuffer_smo[(y + i) * m_width + x], &m_framebuffer[(y + i) * m_width + x], width * sizeof(uint32_t));
 
-		WindowInvalidatePacket packet;
+		WindowPacket::WindowInvalidate packet;
 		packet.x = x;
 		packet.y = y;
 		packet.width = width;
 		packet.height = height;
-		return send(m_server_fd, &packet, sizeof(packet), 0) == sizeof(packet);
+
+		if (auto ret = packet.send_serialized(m_server_fd); ret.is_error())
+		{
+			dprintln("Failed to send packet: {}", ret.error().get_message());
+			return false;
+		}
+
+		return true;
 	}
+
+#define TRY_OR_BREAK(...) ({ auto&& e = (__VA_ARGS__); if (e.is_error()) break; e.release_value(); })
 
 	void Window::poll_events()
 	{
@@ -232,35 +280,38 @@ namespace LibGUI
 			if (!FD_ISSET(m_server_fd, &fds))
 				break;
 
-			EventPacket packet;
-			if (recv(m_server_fd, &packet, sizeof(packet), 0) <= 0)
+			auto packet_or_error = recv_packet(m_server_fd);
+			if (packet_or_error.is_error())
 				break;
 
-			switch (packet.type)
+			const auto [packet_type, packet_data] = packet_or_error.release_value();
+			switch (packet_type)
 			{
-				case EventPacket::Type::DestroyWindow:
+				case PacketType::DestroyWindowEvent:
 					exit(1);
-				case EventPacket::Type::CloseWindow:
+				case PacketType::CloseWindowEvent:
 					if (m_close_window_event_callback)
 						m_close_window_event_callback();
 					else
 						exit(0);
 					break;
-				case EventPacket::Type::KeyEvent:
+				case PacketType::KeyEvent:
 					if (m_key_event_callback)
-						m_key_event_callback(packet.key_event);
+						m_key_event_callback(TRY_OR_BREAK(EventPacket::KeyEvent::deserialize(packet_data.span())).event);
 					break;
-				case EventPacket::Type::MouseButtonEvent:
+				case PacketType::MouseButtonEvent:
 					if (m_mouse_button_event_callback)
-						m_mouse_button_event_callback(packet.mouse_button_event);
+						m_mouse_button_event_callback(TRY_OR_BREAK(EventPacket::MouseButtonEvent::deserialize(packet_data.span())).event);
 					break;
-				case EventPacket::Type::MouseMoveEvent:
+				case PacketType::MouseMoveEvent:
 					if (m_mouse_move_event_callback)
-						m_mouse_move_event_callback(packet.mouse_move_event);
+						m_mouse_move_event_callback(TRY_OR_BREAK(EventPacket::MouseMoveEvent::deserialize(packet_data.span())).event);
 					break;
-				case EventPacket::Type::MouseScrollEvent:
+				case PacketType::MouseScrollEvent:
 					if (m_mouse_scroll_event_callback)
-						m_mouse_scroll_event_callback(packet.mouse_scroll_event);
+						m_mouse_scroll_event_callback(TRY_OR_BREAK(EventPacket::MouseScrollEvent::deserialize(packet_data.span())).event);
+					break;
+				default:
 					break;
 			}
 		}

@@ -27,9 +27,8 @@ Window::~Window()
 	munmap(m_fb_addr, client_width() * client_height() * 4);
 	smo_delete(m_smo_key);
 
-	LibGUI::EventPacket event;
-	event.type = LibGUI::EventPacket::Type::DestroyWindow;
-	send(m_client_fd, &event, sizeof(event), 0);
+	LibGUI::EventPacket::DestroyWindowEvent packet;
+	(void)packet.send_serialized(m_client_fd);
 	close(m_client_fd);
 }
 

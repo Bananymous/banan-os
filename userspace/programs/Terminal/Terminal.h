@@ -43,7 +43,7 @@ private:
 	void hide_cursor();
 	void show_cursor();
 
-	void on_key_event(LibGUI::EventPacket::KeyEvent);
+	void on_key_event(LibGUI::EventPacket::KeyEvent::event_t);
 
 	void start_shell();
 

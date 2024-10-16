@@ -126,7 +126,7 @@ void Terminal::run()
 	MUST(m_cursor_buffer.resize(m_font.width() * m_font.height(), m_bg_color));
 	show_cursor();
 
-	m_window->set_key_event_callback([&](LibGUI::EventPacket::KeyEvent event) { on_key_event(event); });
+	m_window->set_key_event_callback([&](LibGUI::EventPacket::KeyEvent::event_t event) { on_key_event(event); });
 
 	const int max_fd = BAN::Math::max(m_shell_info.pts_master, m_window->server_fd());
 	while (!s_shell_exited)
@@ -576,7 +576,7 @@ Rectangle Terminal::putchar(uint8_t ch)
 	return should_invalidate;
 }
 
-void Terminal::on_key_event(LibGUI::EventPacket::KeyEvent event)
+void Terminal::on_key_event(LibGUI::EventPacket::KeyEvent::event_t event)
 {
 	if (event.released())
 		return;

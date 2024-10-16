@@ -114,7 +114,7 @@ int open_server_fd()
 	if (stat(LibGUI::s_window_server_socket.data(), &st) != -1)
 		unlink(LibGUI::s_window_server_socket.data());
 
-	int server_fd = socket(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0);
+	int server_fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
 	if (server_fd == -1)
 	{
 		perror("socket");
@@ -177,12 +177,6 @@ int main()
 		perror("open");
 
 	dprintln("Window server started");
-
-	size_t window_packet_sizes[LibGUI::WindowPacketType::COUNT] {};
-	window_packet_sizes[LibGUI::WindowPacketType::INVALID]		= 0;
-	window_packet_sizes[LibGUI::WindowPacketType::CreateWindow]	= sizeof(LibGUI::WindowCreatePacket);
-	window_packet_sizes[LibGUI::WindowPacketType::Invalidate]	= sizeof(LibGUI::WindowInvalidatePacket);
-	static_assert(LibGUI::WindowPacketType::COUNT == 3);
 
 	auto config = parse_config();
 
@@ -281,13 +275,49 @@ int main()
 		}
 
 		window_server.for_each_client_fd(
-			[&](int fd) -> BAN::Iteration
+			[&](int fd, WindowServer::ClientData& client_data) -> BAN::Iteration
 			{
 				if (!FD_ISSET(fd, &fds))
 					return BAN::Iteration::Continue;
 
-				LibGUI::WindowPacket packet;
-				ssize_t nrecv = recv(fd, &packet, sizeof(packet), 0);
+				if (client_data.packet_buffer.empty())
+				{
+					uint32_t packet_size;
+					const ssize_t nrecv = recv(fd, &packet_size, sizeof(uint32_t), 0);
+					if (nrecv < 0)
+						dwarnln("recv: {}", strerror(errno));
+					if (nrecv > 0 && nrecv != sizeof(uint32_t))
+						dwarnln("could not read packet size with a single recv call, closing connection...");
+					if (nrecv != sizeof(uint32_t))
+					{
+						window_server.remove_client_fd(fd);
+						return BAN::Iteration::Continue;
+					}
+
+					if (packet_size < 4)
+					{
+						dwarnln("client sent invalid packet, closing connection...");
+						return BAN::Iteration::Continue;
+					}
+
+					// this is a bit harsh, but i don't want to work on skipping streaming packets
+					if (client_data.packet_buffer.resize(packet_size).is_error())
+					{
+						dwarnln("could not allocate memory for client packet, closing connection...");
+						window_server.remove_client_fd(fd);
+						return BAN::Iteration::Continue;
+					}
+
+					client_data.packet_buffer_nread = 0;
+					return BAN::Iteration::Continue;
+				}
+
+				const ssize_t nrecv = recv(
+					fd,
+					client_data.packet_buffer.data() + client_data.packet_buffer_nread,
+					client_data.packet_buffer.size() - client_data.packet_buffer_nread,
+					0
+				);
 				if (nrecv < 0)
 					dwarnln("recv: {}", strerror(errno));
 				if (nrecv <= 0)
@@ -296,12 +326,30 @@ int main()
 					return BAN::Iteration::Continue;
 				}
 
-				if (packet.type == LibGUI::WindowPacketType::INVALID || packet.type >= LibGUI::WindowPacketType::COUNT)
-					dwarnln("Invalid WindowPacket (type {})", (int)packet.type);
-				if (static_cast<size_t>(nrecv) != window_packet_sizes[packet.type])
-					dwarnln("Invalid WindowPacket size (type {}, size {})", (int)packet.type, nrecv);
-				else
-					window_server.on_window_packet(fd, packet);
+				client_data.packet_buffer_nread += nrecv;
+				if (client_data.packet_buffer_nread < client_data.packet_buffer.size())
+					return BAN::Iteration::Continue;
+
+				ASSERT(client_data.packet_buffer.size() >= sizeof(uint32_t));
+
+				switch (*reinterpret_cast<LibGUI::PacketType*>(client_data.packet_buffer.data()))
+				{
+					case LibGUI::PacketType::WindowCreate:
+					{
+						if (auto ret = LibGUI::WindowPacket::WindowCreate::deserialize(client_data.packet_buffer.span()); !ret.is_error())
+							window_server.on_window_create(fd, ret.release_value());
+						break;
+					}
+					case LibGUI::PacketType::WindowInvalidate:
+						if (auto ret = LibGUI::WindowPacket::WindowInvalidate::deserialize(client_data.packet_buffer.span()); !ret.is_error())
+							window_server.on_window_invalidate(fd, ret.release_value());
+						break;
+					default:
+						dprintln("unhandled packet type: {}", *reinterpret_cast<uint32_t*>(client_data.packet_buffer.data()));
+				}
+
+				client_data.packet_buffer.clear();
+				client_data.packet_buffer_nread = 0;
 				return BAN::Iteration::Continue;
 			}
 		);

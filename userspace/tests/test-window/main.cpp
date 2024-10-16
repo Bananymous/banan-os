@@ -32,19 +32,19 @@ int main()
 	auto window = window_or_error.release_value();
 	window->set_close_window_event_callback([&] { running = false; });
 	window->set_mouse_button_event_callback(
-		[&](LibGUI::EventPacket::MouseButtonEvent event)
+		[&](LibGUI::EventPacket::MouseButtonEvent::event_t event)
 		{
-			if (event.pressed && event.button == LibGUI::EventPacket::MouseButton::Left)
+			if (event.pressed && event.button == LibInput::MouseButton::Left)
 				randomize_color(window);
 
 			const char* button;
 			switch (event.button)
 			{
-				case LibGUI::EventPacket::MouseButton::Left: button = "left"; break;
-				case LibGUI::EventPacket::MouseButton::Right: button = "right"; break;
-				case LibGUI::EventPacket::MouseButton::Middle: button = "middle"; break;
-				case LibGUI::EventPacket::MouseButton::Extra1: button = "extra1"; break;
-				case LibGUI::EventPacket::MouseButton::Extra2: button = "extra2"; break;
+				case LibInput::MouseButton::Left: button = "left"; break;
+				case LibInput::MouseButton::Right: button = "right"; break;
+				case LibInput::MouseButton::Middle: button = "middle"; break;
+				case LibInput::MouseButton::Extra1: button = "extra1"; break;
+				case LibInput::MouseButton::Extra2: button = "extra2"; break;
 			}
 			dprintln("mouse button '{}' {} at {}, {}", button, event.pressed ? "pressed" : "released", event.x, event.y);
 		}

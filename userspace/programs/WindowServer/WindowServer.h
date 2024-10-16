@@ -19,11 +19,19 @@
 class WindowServer
 {
 public:
+	struct ClientData
+	{
+		size_t packet_buffer_nread = 0;
+		BAN::Vector<uint8_t> packet_buffer;
+	};
+
+public:
 	WindowServer(Framebuffer& framebuffer, int32_t corner_radius);
 
 	BAN::ErrorOr<void> set_background_image(BAN::UniqPtr<LibImage::Image>);
 
-	void on_window_packet(int fd, LibGUI::WindowPacket);
+	void on_window_create(int fd, const LibGUI::WindowPacket::WindowCreate&);
+	void on_window_invalidate(int fd, const LibGUI::WindowPacket::WindowInvalidate&);
 
 	void on_key_event(LibInput::KeyEvent event);
 	void on_mouse_button(LibInput::MouseButtonEvent event);
@@ -39,14 +47,15 @@ public:
 	void add_client_fd(int fd);
 	void remove_client_fd(int fd);
 	int get_client_fds(fd_set& fds) const;
-	void for_each_client_fd(const BAN::Function<BAN::Iteration(int)>& callback);
+	void for_each_client_fd(const BAN::Function<BAN::Iteration(int, ClientData&)>& callback);
 
 	bool is_stopped() const { return m_is_stopped; }
 
 private:
 	Framebuffer& m_framebuffer;
 	BAN::Vector<BAN::RefPtr<Window>> m_client_windows;
-	BAN::Vector<int> m_client_fds;
+
+	BAN::HashMap<int, ClientData> m_client_data;
 
 	const int32_t m_corner_radius;
 

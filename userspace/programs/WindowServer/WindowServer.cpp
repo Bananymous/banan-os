@@ -2,6 +2,7 @@
 #include "WindowServer.h"
 
 #include <BAN/Debug.h>
+#include <BAN/ScopeGuard.h>
 
 #include <LibGUI/Window.h>
 #include <LibInput/KeyboardLayout.h>
@@ -26,107 +27,109 @@ WindowServer::WindowServer(Framebuffer& framebuffer, int32_t corner_radius)
 BAN::ErrorOr<void> WindowServer::set_background_image(BAN::UniqPtr<LibImage::Image> image)
 {
 	if (image->width() != (uint64_t)m_framebuffer.width || image->height() != (uint64_t)m_framebuffer.height)
-		image = TRY(image->resize(m_framebuffer.width, m_framebuffer.height));
+		image = TRY(image->resize(m_framebuffer.width, m_framebuffer.height, LibImage::Image::ResizeAlgorithm::Linear));
 	m_background_image = BAN::move(image);
 	invalidate(m_framebuffer.area());
 	return {};
 }
 
-void WindowServer::on_window_packet(int fd, LibGUI::WindowPacket packet)
+void WindowServer::on_window_create(int fd, const LibGUI::WindowPacket::WindowCreate& packet)
 {
-	switch (packet.type)
+	for (auto& window : m_client_windows)
 	{
-		case LibGUI::WindowPacketType::CreateWindow:
-		{
-			// FIXME: This should be probably allowed
-			for (auto& window : m_client_windows)
-			{
-				if (window->client_fd() == fd)
-				{
-					dwarnln("client {} tried to create window while already owning a window", fd);
-					return;
-				}
-			}
-
-			const size_t window_fb_bytes = packet.create.width * packet.create.height * 4;
-
-			long smo_key = smo_create(window_fb_bytes, PROT_READ | PROT_WRITE);
-			if (smo_key == -1)
-			{
-				dwarnln("smo_create: {}", strerror(errno));
-				break;
-			}
-
-			Rectangle window_area {
-				static_cast<int32_t>((m_framebuffer.width - packet.create.width) / 2),
-				static_cast<int32_t>((m_framebuffer.height - packet.create.height) / 2),
-				static_cast<int32_t>(packet.create.width),
-				static_cast<int32_t>(packet.create.height)
-			};
-
-			packet.create.title[sizeof(packet.create.title) - 1] = '\0';
-
-			// Window::Window(int fd, Rectangle area, long smo_key, BAN::StringView title, const LibFont::Font& font)
-			auto window = MUST(BAN::RefPtr<Window>::create(
-				fd,
-				window_area,
-				smo_key,
-				packet.create.title,
-				m_font
-			));
-			MUST(m_client_windows.push_back(window));
-			set_focused_window(window);
-
-			LibGUI::WindowCreateResponse response;
-			response.framebuffer_smo_key = smo_key;
-			if (send(window->client_fd(), &response, sizeof(response), 0) != sizeof(response))
-			{
-				dwarnln("send: {}", strerror(errno));
-				break;
-			}
-
-			break;
-		}
-		case LibGUI::WindowPacketType::Invalidate:
-		{
-			if (packet.invalidate.width == 0 || packet.invalidate.height == 0)
-				break;
-
-			BAN::RefPtr<Window> target_window;
-			for (auto& window : m_client_windows)
-			{
-				if (window->client_fd() == fd)
-				{
-					target_window = window;
-					break;
-				}
-			}
-			if (!target_window)
-			{
-				dwarnln("client {} tried to invalidate window while not owning a window", fd);
-				break;
-			}
-
-			const int32_t br_x = packet.invalidate.x + packet.invalidate.width - 1;
-			const int32_t br_y = packet.invalidate.y + packet.invalidate.height - 1;
-			if (!target_window->client_size().contains({ br_x, br_y }))
-			{
-				dwarnln("Invalid Invalidate packet parameters");
-				break;
-			}
-
-			invalidate({
-				target_window->client_x() + static_cast<int32_t>(packet.invalidate.x),
-				target_window->client_y() + static_cast<int32_t>(packet.invalidate.y),
-				static_cast<int32_t>(packet.invalidate.width),
-				static_cast<int32_t>(packet.invalidate.height),
-			});
-
-			break;
-		}
-		default:
-			ASSERT_NOT_REACHED();
+		if (window->client_fd() != fd)
+			continue;
+		dwarnln("client with window tried to create another one");
+		return;
 	}
+
+	const size_t window_fb_bytes = packet.width * packet.height * 4;
+
+	long smo_key = smo_create(window_fb_bytes, PROT_READ | PROT_WRITE);
+	if (smo_key == -1)
+	{
+		dwarnln("smo_create: {}", strerror(errno));
+		return;
+	}
+	BAN::ScopeGuard smo_deleter([smo_key] { smo_delete(smo_key); });
+
+	Rectangle window_area {
+		static_cast<int32_t>((m_framebuffer.width - packet.width) / 2),
+		static_cast<int32_t>((m_framebuffer.height - packet.height) / 2),
+		static_cast<int32_t>(packet.width),
+		static_cast<int32_t>(packet.height)
+	};
+
+	// Window::Window(int fd, Rectangle area, long smo_key, BAN::StringView title, const LibFont::Font& font)
+	auto window_or_error = (BAN::RefPtr<Window>::create(
+		fd,
+		window_area,
+		smo_key,
+		packet.title,
+		m_font
+	));
+	if (window_or_error.is_error())
+	{
+		dwarnln("could not create window for client: {}", window_or_error.error());
+		return;
+	}
+	auto window = window_or_error.release_value();
+
+	if (auto ret = m_client_windows.push_back(window); ret.is_error())
+	{
+		dwarnln("could not create window for client: {}", ret.error());
+		return;
+	}
+	BAN::ScopeGuard window_popper([&] { m_client_windows.pop_back(); });
+
+	LibGUI::WindowPacket::WindowCreateResponse response;
+	response.smo_key = smo_key;
+	if (auto ret = response.send_serialized(fd); ret.is_error())
+	{
+		dwarnln("could not respond to window create request: {}", ret.error());
+		return;
+	}
+
+	smo_deleter.disable();
+	window_popper.disable();
+
+	set_focused_window(window);
+}
+
+void WindowServer::on_window_invalidate(int fd, const LibGUI::WindowPacket::WindowInvalidate& packet)
+{
+	if (packet.width == 0 || packet.height == 0)
+		return;
+
+	BAN::RefPtr<Window> target_window;
+	for (auto& window : m_client_windows)
+	{
+		if (window->client_fd() != fd)
+			continue;
+		target_window = window;
+		break;
+	}
+
+	if (!target_window)
+	{
+		dwarnln("client tried to invalidate window while not owning a window");
+		return;
+	}
+
+	const int32_t br_x = packet.x + packet.width - 1;
+	const int32_t br_y = packet.y + packet.height - 1;
+	if (!target_window->client_size().contains({ br_x, br_y }))
+	{
+		dwarnln("invalid Invalidate packet parameters");
+		return;
+	}
+
+	invalidate({
+		target_window->client_x() + static_cast<int32_t>(packet.x),
+		target_window->client_y() + static_cast<int32_t>(packet.y),
+		static_cast<int32_t>(packet.width),
+		static_cast<int32_t>(packet.height),
+	});
 }
 
 void WindowServer::on_key_event(LibInput::KeyEvent event)
@@ -173,10 +176,10 @@ void WindowServer::on_key_event(LibInput::KeyEvent event)
 
 	if (m_focused_window)
 	{
-		LibGUI::EventPacket packet;
-		packet.type = LibGUI::EventPacket::Type::KeyEvent;
-		packet.key_event = event;
-		send(m_focused_window->client_fd(), &packet, sizeof(packet), 0);
+		LibGUI::EventPacket::KeyEvent packet;
+		packet.event = event;
+		if (auto ret = packet.send_serialized(m_focused_window->client_fd()); ret.is_error())
+			dwarnln("could not send key event: {}", ret.error());
 	}
 }
 
@@ -207,20 +210,26 @@ void WindowServer::on_mouse_button(LibInput::MouseButtonEvent event)
 	else if (!event.pressed && event.button == LibInput::MouseButton::Left && target_window->close_button_area().contains(m_cursor))
 	{
 		// NOTE: we always have target window if code reaches here
-		LibGUI::EventPacket packet;
-		packet.type = LibGUI::EventPacket::Type::CloseWindow;
-		send(m_focused_window->client_fd(), &packet, sizeof(packet), 0);
+		LibGUI::EventPacket::CloseWindowEvent packet;
+		if (auto ret = packet.send_serialized(m_focused_window->client_fd()); ret.is_error())
+		{
+			dwarnln("could not send close window event: {}", ret.error());
+			return;
+		}
 	}
 	else if (target_window->client_area().contains(m_cursor))
 	{
 		// NOTE: we always have target window if code reaches here
-		LibGUI::EventPacket packet;
-		packet.type = LibGUI::EventPacket::Type::MouseButtonEvent;
-		packet.mouse_button_event.button = event.button;
-		packet.mouse_button_event.pressed = event.pressed;
-		packet.mouse_button_event.x = m_cursor.x - m_focused_window->client_x();
-		packet.mouse_button_event.y = m_cursor.y - m_focused_window->client_y();
-		send(m_focused_window->client_fd(), &packet, sizeof(packet), 0);
+		LibGUI::EventPacket::MouseButtonEvent packet;
+		packet.event.button = event.button;
+		packet.event.pressed = event.pressed;
+		packet.event.x = m_cursor.x - m_focused_window->client_x();
+		packet.event.y = m_cursor.y - m_focused_window->client_y();
+		if (auto ret = packet.send_serialized(m_focused_window->client_fd()); ret.is_error())
+		{
+			dwarnln("could not send mouse button event event: {}", ret.error());
+			return;
+		}
 	}
 }
 
@@ -265,11 +274,14 @@ void WindowServer::on_mouse_move(LibInput::MouseMoveEvent event)
 
 	if (m_focused_window)
 	{
-		LibGUI::EventPacket packet;
-		packet.type = LibGUI::EventPacket::Type::MouseMoveEvent;
-		packet.mouse_move_event.x = m_cursor.x - m_focused_window->client_x();
-		packet.mouse_move_event.y = m_cursor.y - m_focused_window->client_y();
-		send(m_focused_window->client_fd(), &packet, sizeof(packet), 0);
+		LibGUI::EventPacket::MouseMoveEvent packet;
+		packet.event.x = m_cursor.x - m_focused_window->client_x();
+		packet.event.y = m_cursor.y - m_focused_window->client_y();
+		if (auto ret = packet.send_serialized(m_focused_window->client_fd()); ret.is_error())
+		{
+			dwarnln("could not send mouse move event event: {}", ret.error());
+			return;
+		}
 	}
 }
 
@@ -277,10 +289,13 @@ void WindowServer::on_mouse_scroll(LibInput::MouseScrollEvent event)
 {
 	if (m_focused_window)
 	{
-		LibGUI::EventPacket packet;
-		packet.type = LibGUI::EventPacket::Type::MouseScrollEvent;
-		packet.mouse_scroll_event = event;
-		send(m_focused_window->client_fd(), &packet, sizeof(packet), 0);
+		LibGUI::EventPacket::MouseScrollEvent packet;
+		packet.event.scroll = event.scroll;
+		if (auto ret = packet.send_serialized(m_focused_window->client_fd()); ret.is_error())
+		{
+			dwarnln("could not send mouse scroll event event: {}", ret.error());
+			return;
+		}
 	}
 }
 
@@ -595,19 +610,19 @@ Rectangle WindowServer::cursor_area() const
 
 void WindowServer::add_client_fd(int fd)
 {
-	MUST(m_client_fds.push_back(fd));
+	if (auto ret = m_client_data.emplace(fd); ret.is_error())
+	{
+		dwarnln("could not add client: {}", ret.error());
+		return;
+	}
 }
 
 void WindowServer::remove_client_fd(int fd)
 {
-	for (size_t i = 0; i < m_client_fds.size(); i++)
-	{
-		if (m_client_fds[i] == fd)
-		{
-			m_client_fds.remove(i);
-			break;
-		}
-	}
+	auto it = m_client_data.find(fd);
+	if (it == m_client_data.end())
+		return;
+	m_client_data.remove(it);
 
 	for (size_t i = 0; i < m_client_windows.size(); i++)
 	{
@@ -635,7 +650,7 @@ void WindowServer::remove_client_fd(int fd)
 int WindowServer::get_client_fds(fd_set& fds) const
 {
 	int max_fd = 0;
-	for (int fd : m_client_fds)
+	for (const auto& [fd, _] : m_client_data)
 	{
 		FD_SET(fd, &fds);
 		max_fd = BAN::Math::max(max_fd, fd);
@@ -643,13 +658,13 @@ int WindowServer::get_client_fds(fd_set& fds) const
 	return max_fd;
 }
 
-void WindowServer::for_each_client_fd(const BAN::Function<BAN::Iteration(int)>& callback)
+void WindowServer::for_each_client_fd(const BAN::Function<BAN::Iteration(int, ClientData&)>& callback)
 {
 	m_deleted_window = false;
-	for (int fd : m_client_fds)
+	for (auto& [fd, cliend_data] : m_client_data)
 	{
 		if (m_deleted_window)
 			break;
-		callback(fd);
+		callback(fd, cliend_data);
 	}
 }
