@@ -19,11 +19,14 @@ int main()
 	attributes.alpha_channel = false;
 	attributes.rounded_corners = false;
 	window->set_attributes(attributes);
+	window->set_close_window_event_callback([]() {});
 
 	window->set_position(0, 0);
 
 	window->fill(bg_color);
 	window->invalidate();
+
+	bool is_running = true;
 
 	time_t last_update;
 	const auto update_time_string =
@@ -40,10 +43,11 @@ int main()
 
 			window->fill_rect(text_x, text_y, text_w, text_h, bg_color);
 			window->draw_text(time_sv, font, text_x, text_y, fg_color);
-			window->invalidate(text_x, text_y, text_w, text_h);
+			if (!window->invalidate(text_x, text_y, text_w, text_h))
+				is_running = false;
 		};
 
-	for (;;)
+	while (is_running)
 	{
 		update_time_string();
 
