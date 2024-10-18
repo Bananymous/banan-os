@@ -19,7 +19,8 @@ Window::Window(int fd, Rectangle area, long smo_key, BAN::StringView title, cons
 
 	m_fb_addr = static_cast<uint32_t*>(smo_map(smo_key));
 	ASSERT(m_fb_addr);
-	memset(m_fb_addr, 0, client_width() * client_height() * 4);
+
+	memset(m_fb_addr, 0xFF, client_width() * client_height() * 4);
 }
 
 Window::~Window()

@@ -160,6 +160,8 @@ namespace LibGUI
 		WindowCreate,
 		WindowCreateResponse,
 		WindowInvalidate,
+		WindowSetPosition,
+		WindowSetAttributes,
 
 		DestroyWindowEvent,
 		CloseWindowEvent,
@@ -179,6 +181,8 @@ namespace LibGUI
 		);
 
 		DEFINE_PACKET(WindowCreateResponse,
+			uint32_t, width,
+			uint32_t, height,
 			long, smo_key
 		);
 
@@ -187,6 +191,18 @@ namespace LibGUI
 			uint32_t, y,
 			uint32_t, width,
 			uint32_t, height
+		);
+
+		DEFINE_PACKET(WindowSetPosition,
+			int32_t, x,
+			int32_t, y
+		);
+
+		DEFINE_PACKET(WindowSetAttributes,
+			bool, title_bar,
+			bool, rounded_corners,
+			bool, movable,
+			bool, alpha_channel
 		);
 
 	}

@@ -29,6 +29,8 @@ struct Rectangle
 
 	BAN::Optional<Rectangle> get_overlap(Rectangle other) const
 	{
+		if (height == 0 || width == 0 || other.width == 0 || other.height == 0)
+			return {};
 		const auto min_x = BAN::Math::max(x, other.x);
 		const auto min_y = BAN::Math::max(y, other.y);
 		const auto max_x = BAN::Math::min(x + width, other.x + other.width);

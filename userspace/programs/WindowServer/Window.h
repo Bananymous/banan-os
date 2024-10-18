@@ -6,6 +6,7 @@
 #include <BAN/String.h>
 
 #include <LibFont/Font.h>
+#include <LibGUI/Window.h>
 
 class Window : public BAN::RefCounted<Window>
 {
@@ -29,9 +30,9 @@ public:
 	Rectangle client_area() const { return m_client_area; }
 
 	int32_t title_bar_x() const { return client_x(); }
-	int32_t title_bar_y() const { return client_y() - title_bar_height(); }
+	int32_t title_bar_y() const { return m_attributes.title_bar ? client_y() - title_bar_height() : client_y(); }
 	int32_t title_bar_width() const { return client_width(); }
-	int32_t title_bar_height() const { return m_title_bar_height; }
+	int32_t title_bar_height() const { return m_attributes.title_bar ? m_title_bar_height : 0; }
 	Rectangle title_bar_size() const { return { 0, 0, title_bar_width(), title_bar_height() }; }
 	Rectangle title_bar_area() const { return { title_bar_x(), title_bar_y(), title_bar_width(), title_bar_height() }; }
 
@@ -41,6 +42,9 @@ public:
 	int32_t full_height() const { return client_height() + title_bar_height(); }
 	Rectangle full_size() const { return { 0, 0, full_width(), full_height() }; }
 	Rectangle full_area() const { return { full_x(), full_y(), full_width(), full_height() }; }
+
+	LibGUI::Window::Attributes get_attributes() const { return m_attributes; };
+	void set_attributes(LibGUI::Window::Attributes attributes) { m_attributes = attributes; };
 
 	const uint32_t* framebuffer() const { return m_fb_addr; }
 
@@ -65,12 +69,14 @@ private:
 private:
 	static constexpr int32_t m_title_bar_height { 20 };
 
-	const int	m_client_fd		{ -1 };
-	Rectangle	m_client_area	{ 0, 0, 0, 0 };
-	long		m_smo_key		{ 0 };
-	uint32_t*	m_fb_addr		{ nullptr };
-	uint32_t*	m_title_bar_data { nullptr };
+	const int   m_client_fd      { -1 };
+	Rectangle   m_client_area    { 0, 0, 0, 0 };
+	long        m_smo_key        { 0 };
+	uint32_t*   m_fb_addr        { nullptr };
+	uint32_t*   m_title_bar_data { nullptr };
 	BAN::String m_title;
+
+	LibGUI::Window::Attributes m_attributes;
 
 	friend class BAN::RefPtr<Window>;
 };

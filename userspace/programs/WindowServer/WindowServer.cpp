@@ -27,7 +27,7 @@ WindowServer::WindowServer(Framebuffer& framebuffer, int32_t corner_radius)
 BAN::ErrorOr<void> WindowServer::set_background_image(BAN::UniqPtr<LibImage::Image> image)
 {
 	if (image->width() != (uint64_t)m_framebuffer.width || image->height() != (uint64_t)m_framebuffer.height)
-		image = TRY(image->resize(m_framebuffer.width, m_framebuffer.height, LibImage::Image::ResizeAlgorithm::Linear));
+		image = TRY(image->resize(m_framebuffer.width, m_framebuffer.height));
 	m_background_image = BAN::move(image);
 	invalidate(m_framebuffer.area());
 	return {};
@@ -43,7 +43,10 @@ void WindowServer::on_window_create(int fd, const LibGUI::WindowPacket::WindowCr
 		return;
 	}
 
-	const size_t window_fb_bytes = packet.width * packet.height * 4;
+	const uint32_t width  = packet.width  ? packet.width  : m_framebuffer.width;
+	const uint32_t height = packet.height ? packet.height : m_framebuffer.height;
+
+	const size_t window_fb_bytes = width * height * 4;
 
 	long smo_key = smo_create(window_fb_bytes, PROT_READ | PROT_WRITE);
 	if (smo_key == -1)
@@ -54,10 +57,10 @@ void WindowServer::on_window_create(int fd, const LibGUI::WindowPacket::WindowCr
 	BAN::ScopeGuard smo_deleter([smo_key] { smo_delete(smo_key); });
 
 	Rectangle window_area {
-		static_cast<int32_t>((m_framebuffer.width - packet.width) / 2),
-		static_cast<int32_t>((m_framebuffer.height - packet.height) / 2),
-		static_cast<int32_t>(packet.width),
-		static_cast<int32_t>(packet.height)
+		static_cast<int32_t>((m_framebuffer.width - width) / 2),
+		static_cast<int32_t>((m_framebuffer.height - height) / 2),
+		static_cast<int32_t>(width),
+		static_cast<int32_t>(height)
 	};
 
 	// Window::Window(int fd, Rectangle area, long smo_key, BAN::StringView title, const LibFont::Font& font)
@@ -83,6 +86,8 @@ void WindowServer::on_window_create(int fd, const LibGUI::WindowPacket::WindowCr
 	BAN::ScopeGuard window_popper([&] { m_client_windows.pop_back(); });
 
 	LibGUI::WindowPacket::WindowCreateResponse response;
+	response.width = width;
+	response.height = height;
 	response.smo_key = smo_key;
 	if (auto ret = response.send_serialized(fd); ret.is_error())
 	{
@@ -130,6 +135,60 @@ void WindowServer::on_window_invalidate(int fd, const LibGUI::WindowPacket::Wind
 		static_cast<int32_t>(packet.width),
 		static_cast<int32_t>(packet.height),
 	});
+}
+
+void WindowServer::on_window_set_position(int fd, const LibGUI::WindowPacket::WindowSetPosition& packet)
+{
+	BAN::RefPtr<Window> target_window;
+	for (auto& window : m_client_windows)
+	{
+		if (window->client_fd() != fd)
+			continue;
+		target_window = window;
+		break;
+	}
+
+	if (!target_window)
+	{
+		dwarnln("client tried to set window position while not owning a window");
+		return;
+	}
+
+	const auto old_client_area = target_window->full_area();
+	target_window->set_position({
+		.x = packet.x,
+		.y = packet.y,
+	});
+	const auto new_client_area = target_window->full_area();
+	invalidate(new_client_area.get_bounding_box(old_client_area));
+}
+
+void WindowServer::on_window_set_attributes(int fd, const LibGUI::WindowPacket::WindowSetAttributes& packet)
+{
+	BAN::RefPtr<Window> target_window;
+	for (auto& window : m_client_windows)
+	{
+		if (window->client_fd() != fd)
+			continue;
+		target_window = window;
+		break;
+	}
+
+	if (!target_window)
+	{
+		dwarnln("client tried to set window attributes while not owning a window");
+		return;
+	}
+
+	const auto old_client_area = target_window->full_area();
+	target_window->set_attributes({
+		.title_bar       = packet.title_bar,
+		.movable         = packet.movable,
+		.rounded_corners = packet.rounded_corners,
+		.alpha_channel   = packet.alpha_channel,
+	});
+	const auto new_client_area = target_window->full_area();
+	invalidate(new_client_area.get_bounding_box(old_client_area));
 }
 
 void WindowServer::on_key_event(LibInput::KeyEvent event)
@@ -204,7 +263,7 @@ void WindowServer::on_mouse_button(LibInput::MouseButtonEvent event)
 	// Handle window moving when mod key is held or mouse press on title bar
 	const bool can_start_move = m_is_mod_key_held || target_window->title_text_area().contains(m_cursor);
 	if (event.pressed && event.button == LibInput::MouseButton::Left && !m_is_moving_window && can_start_move)
-		m_is_moving_window = true;
+		m_is_moving_window = target_window->get_attributes().movable;
 	else if (m_is_moving_window && !event.pressed)
 		m_is_moving_window = false;
 	else if (!event.pressed && event.button == LibInput::MouseButton::Left && target_window->close_button_area().contains(m_cursor))
@@ -354,6 +413,8 @@ void WindowServer::invalidate(Rectangle area)
 				m_framebuffer.mmap[y * m_framebuffer.width + x] = 0xFF101010;
 	}
 
+	// FIXME: this loop should be inverse order and terminate
+	//        after window without alpha channel is found
 	for (auto& pwindow : m_client_windows)
 	{
 		auto& window = *pwindow;
@@ -426,8 +487,10 @@ void WindowServer::invalidate(Rectangle area)
 		};
 
 		const auto is_rounded_off =
-			[&](Position pos) -> bool
+			[&](const Window& window, Position pos) -> bool
 			{
+				if (!window.get_attributes().rounded_corners)
+					return false;
 				for (int32_t i = 0; i < 4; i++)
 				{
 					if (!corner_areas[i].contains(pos))
@@ -451,7 +514,7 @@ void WindowServer::invalidate(Rectangle area)
 				{
 					const int32_t abs_x = title_overlap->x + x_off;
 					const int32_t abs_y = title_overlap->y + y_off;
-					if (is_rounded_off({ abs_x, abs_y }))
+					if (is_rounded_off(window, { abs_x, abs_y }))
 						continue;
 
 					const uint32_t color = window.title_bar_pixel(abs_x, abs_y, m_cursor);
@@ -479,12 +542,14 @@ void WindowServer::invalidate(Rectangle area)
 					auto* window_row = &window.framebuffer()[src_row_y * window.client_width() + src_row_x];
 					auto* frameb_row = &m_framebuffer.mmap[  abs_row_y * m_framebuffer.width   + abs_row_x];
 
+					const bool should_alpha_blend = window.get_attributes().alpha_channel;
 					for (int32_t i = 0; i < fast_overlap->width; i++)
 					{
 						const uint32_t color_a = *window_row;
 						const uint32_t color_b = *frameb_row;
-						*frameb_row = alpha_blend(color_a, color_b);
-
+						*frameb_row = should_alpha_blend
+							? alpha_blend(color_a, color_b)
+							: color_a;
 						window_row++;
 						frameb_row++;
 					}
@@ -502,7 +567,7 @@ void WindowServer::invalidate(Rectangle area)
 					{
 						const int32_t abs_x = corner_overlap->x + x_off;
 						const int32_t abs_y = corner_overlap->y + y_off;
-						if (is_rounded_off({ abs_x, abs_y }))
+						if (is_rounded_off(window, { abs_x, abs_y }))
 							continue;
 
 						const int32_t src_x = abs_x - window.client_x();
@@ -511,7 +576,10 @@ void WindowServer::invalidate(Rectangle area)
 						const uint32_t color_a = window.framebuffer()[src_y * window.client_width() + src_x];
 						const uint32_t color_b = m_framebuffer.mmap[abs_y * m_framebuffer.width + abs_x];
 
-						m_framebuffer.mmap[abs_y * m_framebuffer.width + abs_x] = alpha_blend(color_a, color_b);
+						const bool should_alpha_blend = window.get_attributes().alpha_channel;
+						m_framebuffer.mmap[abs_y * m_framebuffer.width + abs_x] = should_alpha_blend
+							? alpha_blend(color_a, color_b)
+							: color_a;
 					}
 				}
 			}

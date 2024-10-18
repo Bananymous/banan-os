@@ -65,9 +65,6 @@ namespace LibGUI
 
 	BAN::ErrorOr<BAN::UniqPtr<Window>> Window::create(uint32_t width, uint32_t height, BAN::StringView title)
 	{
-		BAN::Vector<uint32_t> framebuffer;
-		TRY(framebuffer.resize(width * height, 0xFF000000));
-
 		int server_fd = socket(AF_UNIX, SOCK_STREAM, 0);
 		if (server_fd == -1)
 			return BAN::Error::from_errno(errno);
@@ -113,6 +110,11 @@ namespace LibGUI
 		void* framebuffer_addr = smo_map(create_response.smo_key);
 		if (framebuffer_addr == nullptr)
 			return BAN::Error::from_errno(errno);
+		width = create_response.width;
+		height = create_response.height;
+
+		BAN::Vector<uint32_t> framebuffer;
+		TRY(framebuffer.resize(width * height, 0xFFFFFFFF));
 
 		auto window = TRY(BAN::UniqPtr<Window>::create(
 			server_fd,
@@ -258,10 +260,43 @@ namespace LibGUI
 
 		if (auto ret = packet.send_serialized(m_server_fd); ret.is_error())
 		{
-			dprintln("Failed to send packet: {}", ret.error().get_message());
+			dprintln("failed to invalidate window: {}", ret.error());
 			return false;
 		}
 
+		return true;
+	}
+
+	bool Window::set_position(int32_t x, int32_t y)
+	{
+		WindowPacket::WindowSetPosition packet;
+		packet.x = x;
+		packet.y = y;
+
+		if (auto ret = packet.send_serialized(m_server_fd); ret.is_error())
+		{
+			dprintln("failed to set window position: {}", ret.error());
+			return false;
+		}
+
+		return true;
+	}
+
+	bool Window::set_attributes(Attributes attributes)
+	{
+		WindowPacket::WindowSetAttributes packet;
+		packet.title_bar = attributes.title_bar;
+		packet.movable = attributes.movable;
+		packet.rounded_corners = attributes.rounded_corners;
+		packet.alpha_channel = attributes.alpha_channel;
+
+		if (auto ret = packet.send_serialized(m_server_fd); ret.is_error())
+		{
+			dprintln("failed to set window attributes: {}", ret.error());
+			return false;
+		}
+
+		m_attributes = attributes;
 		return true;
 	}
 

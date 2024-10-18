@@ -32,6 +32,8 @@ public:
 
 	void on_window_create(int fd, const LibGUI::WindowPacket::WindowCreate&);
 	void on_window_invalidate(int fd, const LibGUI::WindowPacket::WindowInvalidate&);
+	void on_window_set_position(int fd, const LibGUI::WindowPacket::WindowSetPosition&);
+	void on_window_set_attributes(int fd, const LibGUI::WindowPacket::WindowSetAttributes&);
 
 	void on_key_event(LibInput::KeyEvent event);
 	void on_mouse_button(LibInput::MouseButtonEvent event);

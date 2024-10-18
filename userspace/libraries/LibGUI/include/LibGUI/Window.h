@@ -14,6 +14,15 @@ namespace LibGUI
 	class Window
 	{
 	public:
+		struct Attributes
+		{
+			bool title_bar       { true };
+			bool movable         { true };
+			bool rounded_corners { true };
+			bool alpha_channel   { false };
+		};
+
+	public:
 		~Window();
 
 		static BAN::ErrorOr<BAN::UniqPtr<Window>> create(uint32_t width, uint32_t height, BAN::StringView title);
@@ -49,6 +58,11 @@ namespace LibGUI
 		bool invalidate(int32_t x, int32_t y, uint32_t width, uint32_t height);
 		bool invalidate() { return invalidate(0, 0, width(), height()); }
 
+		bool set_position(int32_t x, int32_t y);
+
+		Attributes get_attributes() const { return m_attributes; }
+		bool set_attributes(Attributes attributes);
+
 		uint32_t width() const { return m_width; }
 		uint32_t height() const { return m_height; }
 
@@ -74,6 +88,8 @@ namespace LibGUI
 
 	private:
 		int m_server_fd;
+
+		Attributes m_attributes;
 
 		BAN::Vector<uint32_t> m_framebuffer;
 		uint32_t* m_framebuffer_smo;

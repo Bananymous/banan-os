@@ -335,14 +335,20 @@ int main()
 				switch (*reinterpret_cast<LibGUI::PacketType*>(client_data.packet_buffer.data()))
 				{
 					case LibGUI::PacketType::WindowCreate:
-					{
 						if (auto ret = LibGUI::WindowPacket::WindowCreate::deserialize(client_data.packet_buffer.span()); !ret.is_error())
 							window_server.on_window_create(fd, ret.release_value());
 						break;
-					}
 					case LibGUI::PacketType::WindowInvalidate:
 						if (auto ret = LibGUI::WindowPacket::WindowInvalidate::deserialize(client_data.packet_buffer.span()); !ret.is_error())
 							window_server.on_window_invalidate(fd, ret.release_value());
+						break;
+					case LibGUI::PacketType::WindowSetPosition:
+						if (auto ret = LibGUI::WindowPacket::WindowSetPosition::deserialize(client_data.packet_buffer.span()); !ret.is_error())
+							window_server.on_window_set_position(fd, ret.release_value());
+						break;
+					case LibGUI::PacketType::WindowSetAttributes:
+						if (auto ret = LibGUI::WindowPacket::WindowSetAttributes::deserialize(client_data.packet_buffer.span()); !ret.is_error())
+							window_server.on_window_set_attributes(fd, ret.release_value());
 						break;
 					default:
 						dprintln("unhandled packet type: {}", *reinterpret_cast<uint32_t*>(client_data.packet_buffer.data()));
