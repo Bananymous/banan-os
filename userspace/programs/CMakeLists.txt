@@ -30,6 +30,7 @@ set(USERSPACE_PROGRAMS
 	sudo
 	sync
 	tee
+	TaskBar
 	Terminal
 	touch
 	u8sum
