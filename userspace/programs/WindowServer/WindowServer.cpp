@@ -224,8 +224,11 @@ void WindowServer::on_key_event(LibInput::KeyEvent event)
 	// Kill window with mod+Q
 	if (m_is_mod_key_held && event.pressed() && event.key == LibInput::Key::Q)
 	{
-		if (m_focused_window)
-			remove_client_fd(m_focused_window->client_fd());
+		if (!m_focused_window)
+			return;
+		LibGUI::EventPacket::CloseWindowEvent packet;
+		if (auto ret = packet.send_serialized(m_focused_window->client_fd()); ret.is_error())
+			dwarnln("could not send window close event: {}", ret.error());
 		return;
 	}
 
