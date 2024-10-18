@@ -1,6 +1,6 @@
 From 0f37d9f2df042eb8ba021dd91b898c1f07d86b58 Mon Sep 17 00:00:00 2001
 From: Bananymous <bananymousosq@gmail.com>
-Date: Mon, 3 Jun 2024 20:01:40 +0300
+Date: Fri, 18 Oct 2024 03:44:10 +0300
 Subject: [PATCH] Add support for banan-os
 
 ---
@@ -114,7 +114,7 @@ index 0000000..9161771
 +{
 +	s_window = MUST(LibGUI::Window::create(DOOMGENERIC_RESX, DOOMGENERIC_RESY, "DOOM"_sv));
 +	s_window->set_key_event_callback(
-+		[](LibGUI::EventPacket::KeyEvent event)
++		[](LibGUI::EventPacket::KeyEvent::event_t event)
 +		{
 +			unsigned short doom_key = 0;
 +			switch (event.key)
