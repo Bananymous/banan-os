@@ -794,16 +794,21 @@ char* tmpnam(char* storage)
 	return storage;
 }
 
-int ungetc(int c, FILE* stream)
+int ungetc_unlocked(int c, FILE* stream)
 {
 	if (c == EOF)
 		return EOF;
-	ScopeLock _(stream);
 	if (stream->unget_char != EOF)
 		return EOF;
 	stream->unget_char = c;
 	stream->eof = false;
 	return (unsigned char)c;
+}
+
+int ungetc(int c, FILE* stream)
+{
+	ScopeLock _(stream);
+	return ungetc_unlocked(c, stream);
 }
 
 int vfprintf(FILE* file, const char* format, va_list arguments)
@@ -815,7 +820,18 @@ int vfprintf(FILE* file, const char* format, va_list arguments)
 int vfscanf(FILE* file, const char* format, va_list arguments)
 {
 	ScopeLock _(file);
-	return scanf_impl(format, arguments, [](void* file) { return getc_unlocked(static_cast<FILE*>(file)); }, file);
+	return scanf_impl(format, arguments,
+		[](bool advance, void* data)
+		{
+			FILE* fp = static_cast<FILE*>(data);
+
+			if (advance)
+				getc_unlocked(fp);
+			const int ret = getc_unlocked(fp);
+			ungetc_unlocked(ret, fp);
+			return ret;
+		}, file
+	);
 }
 
 int vprintf(const char* format, va_list arguments)
@@ -883,12 +899,15 @@ int vsprintf(char* buffer, const char* format, va_list arguments)
 int vsscanf(const char* s, const char* format, va_list arguments)
 {
 	return scanf_impl(format, arguments,
-		[](void* data) -> int
+		[](bool advance, void* data) -> int
 		{
-			char ret = **static_cast<char**>(data);
-			(*static_cast<char**>(data))++;
+			const char** ptr = static_cast<const char**>(data);
+
+			if (advance)
+				(*ptr)++;
+			const char ret = **ptr;
 			if (ret == '\0')
-				return -1;
+				return EOF;
 			return ret;
 		}, &s
 	);

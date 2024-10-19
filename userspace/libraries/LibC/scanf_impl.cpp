@@ -112,9 +112,9 @@ using BASE_TYPE = BAN::integral_constant<int, BASE>;
 template<bool UNSIGNED>
 using IS_UNSIGNED = BAN::integral_constant<bool, UNSIGNED>;
 
-int scanf_impl(const char* format, va_list arguments, int (*__getc_fun)(void*), void* data)
+int scanf_impl(const char* format, va_list arguments, int (*__getc_fun)(bool advance, void*), void* data)
 {
-	static constexpr int DONE = -1;
+	static constexpr int DONE = EOF;
 	static constexpr int NONE = -2;
 
 	int nread = 0;
@@ -134,11 +134,9 @@ int scanf_impl(const char* format, va_list arguments, int (*__getc_fun)(void*), 
 		{
 			if (in == DONE)
 				return;
-			if (advance || in == NONE)
-			{
-				in = __getc_fun(data);
+			in = __getc_fun(advance, data);
+			if (advance)
 				nread++;
-			}
 		};
 
 	auto parse_integer_internal =
