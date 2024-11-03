@@ -6,7 +6,6 @@
 #include <LibImage/PNG.h>
 
 #include <fcntl.h>
-#include <math.h>
 #include <sys/mman.h>
 
 namespace LibImage
@@ -132,13 +131,8 @@ namespace LibImage
 					{
 						const double src_x = x * ratio_x;
 						const double src_y = y * ratio_y;
-#if __enable_sse
-						const double weight_x = src_x - floor(src_x);
-						const double weight_y = src_y - floor(src_y);
-#else
-						const double weight_x = src_x - (uint64_t)src_x;
-						const double weight_y = src_y - (uint64_t)src_y;
-#endif
+						const double weight_x = src_x - BAN::Math::floor(src_x);
+						const double weight_y = src_y - BAN::Math::floor(src_y);
 
 						const Color avg_t = Color::average(
 							get_clamped_color(src_x + 0.0, src_y),
@@ -177,13 +171,8 @@ namespace LibImage
 					{
 						const double src_x = x * ratio_x;
 						const double src_y = y * ratio_y;
-#if __enable_sse
-						const double weight_x = src_x - floor(src_x);
-						const double weight_y = src_y - floor(src_y);
-#else
-						const double weight_x = src_x - (uint64_t)src_x;
-						const double weight_y = src_y - (uint64_t)src_y;
-#endif
+						const double weight_x = src_x - BAN::Math::floor(src_x);
+						const double weight_y = src_y - BAN::Math::floor(src_y);
 
 						FloatingColor values[4];
 						for (int64_t m = -1; m <= 2; m++)

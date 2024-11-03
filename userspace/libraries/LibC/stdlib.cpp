@@ -162,7 +162,6 @@ static T strtoT(const char* str, char** endp, int base, int& error)
 	return result;
 }
 
-#if __enable_sse
 template<BAN::floating_point T>
 static T strtoT(const char* str, char** endp, int& error)
 {
@@ -306,16 +305,13 @@ static T strtoT(const char* str, char** endp, int& error)
 
 	if (exponent)
 		result *= BAN::Math::pow<T>((base == 10) ? 10 : 2, exponent);
-	return result;
+	return negative ? -result : result;
 }
-#endif
 
-#if __enable_sse
 double atof(const char* str)
 {
 	return strtod(str, nullptr);
 }
-#endif
 
 int atoi(const char* str)
 {
@@ -332,7 +328,6 @@ long long atoll(const char* str)
 	return strtoll(str, nullptr, 10);
 }
 
-#if __enable_sse
 float strtof(const char* __restrict str, char** __restrict endp)
 {
 	return strtoT<float>(str, endp, errno);
@@ -347,7 +342,6 @@ long double strtold(const char* __restrict str, char** __restrict endp)
 {
 	return strtoT<long double>(str, endp, errno);
 }
-#endif
 
 long strtol(const char* __restrict str, char** __restrict endp, int base)
 {

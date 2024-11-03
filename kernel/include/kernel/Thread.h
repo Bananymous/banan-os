@@ -86,10 +86,8 @@ namespace Kernel
 		InterruptStack& interrupt_stack() { return m_interrupt_stack; }
 		InterruptRegisters& interrupt_registers() { return m_interrupt_registers; }
 
-#if __enable_sse
 		void save_sse();
 		void load_sse();
-#endif
 
 		void add_mutex() { m_mutex_count++; }
 		void remove_mutex() { m_mutex_count--; }
@@ -127,9 +125,7 @@ namespace Kernel
 
 		BAN::Atomic<uint32_t>      m_mutex_count          { 0 };
 
-#if __enable_sse
 		alignas(16) uint8_t m_sse_storage[512] {};
-#endif
 
 		friend class Process;
 		friend class Scheduler;

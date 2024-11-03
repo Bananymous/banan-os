@@ -175,7 +175,6 @@ add_executable(kernel ${KERNEL_SOURCES})
 
 target_compile_definitions(kernel PRIVATE __is_kernel)
 target_compile_definitions(kernel PRIVATE __arch=${BANAN_ARCH})
-target_compile_definitions(kernel PRIVATE __enable_sse=${BANAN_ENABLE_SSE})
 
 target_compile_options(kernel PRIVATE
 	-O2 -g

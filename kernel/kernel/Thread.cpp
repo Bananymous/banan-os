@@ -36,7 +36,6 @@ namespace Kernel
 
 	static pid_t s_next_tid = 1;
 
-#if __enable_sse
 	alignas(16) static uint8_t s_default_sse_storage[512];
 	static bool s_default_sse_storage_initialized = false;
 
@@ -51,7 +50,6 @@ namespace Kernel
 			: [mxcsr]"m"(mxcsr)
 		);
 	}
-#endif
 
 	BAN::ErrorOr<Thread*> Thread::create_kernel(entry_t entry, void* data, Process* process)
 	{
@@ -129,14 +127,12 @@ namespace Kernel
 	Thread::Thread(pid_t tid, Process* process)
 		: m_tid(tid), m_process(process)
 	{
-#if __enable_sse
 		if (!s_default_sse_storage_initialized)
 		{
 			initialize_default_sse_storage();
 			s_default_sse_storage_initialized = true;
 		}
 		memcpy(m_sse_storage, s_default_sse_storage, sizeof(m_sse_storage));
-#endif
 	}
 
 	Thread& Thread::current()
@@ -506,7 +502,6 @@ namespace Kernel
 		ASSERT_NOT_REACHED();
 	}
 
-#if __enable_sse
 	void Thread::save_sse()
 	{
 		asm volatile("fxsave %0" :: "m"(m_sse_storage));
@@ -516,6 +511,5 @@ namespace Kernel
 	{
 		asm volatile("fxrstor %0" :: "m"(m_sse_storage));
 	}
-#endif
 
 }

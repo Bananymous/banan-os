@@ -182,9 +182,7 @@ namespace Kernel
 		if (tid)
 		{
 			auto& thread = Thread::current();
-#if __enable_sse
 			thread.save_sse();
-#endif
 
 			if (isr == ISR::PageFault && Thread::current().is_userspace())
 			{
@@ -318,12 +316,8 @@ namespace Kernel
 
 		ASSERT(Thread::current().state() != Thread::State::Terminated);
 
-done:
-#if __enable_sse
+	done:
 		Thread::current().load_sse();
-#else
-		return;
-#endif
 	}
 
 	extern "C" void cpp_yield_handler(InterruptStack* interrupt_stack, InterruptRegisters* interrupt_registers)
@@ -376,9 +370,7 @@ done:
 			asm volatile("cli; 1: hlt; jmp 1b");
 		}
 
-#if __enable_sse
 		Thread::current().save_sse();
-#endif
 
 		if (!InterruptController::get().is_in_service(irq))
 			dprintln("spurious irq 0x{2H}", irq);
@@ -399,9 +391,7 @@ done:
 
 		ASSERT(Thread::current().state() != Thread::State::Terminated);
 
-#if __enable_sse
 		Thread::current().load_sse();
-#endif
 	}
 
 	void IDT::register_interrupt_handler(uint8_t index, void (*handler)())

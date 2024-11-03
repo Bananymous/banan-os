@@ -46,9 +46,4 @@ foreach(project ${USERSPACE_PROGRAMS})
 	target_link_options(${project} PRIVATE -nolibc)
 	# Default compile options
 	target_compile_options(${project} PRIVATE -g -O2 -Wall -Wextra -Werror)
-
-	target_compile_definitions(${project} PRIVATE __enable_sse=${BANAN_ENABLE_SSE})
-	if (NOT BANAN_ENABLE_SSE)
-		target_compile_options(${project} PRIVATE -mno-sse -mno-sse2)
-	endif ()
 endforeach()

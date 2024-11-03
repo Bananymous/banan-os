@@ -4,8 +4,6 @@ if (NOT ${CMAKE_SYSTEM_NAME} STREQUAL "banan-os")
 	message(FATAL_ERROR "CMAKE_SYSTEM_NAME is not banan-os")
 endif ()
 
-set(BANAN_ENABLE_SSE 1)
-
 project(banan-os CXX C ASM)
 
 set(BANAN_BASE_SYSROOT ${CMAKE_SOURCE_DIR}/base-sysroot.tar.gz)
