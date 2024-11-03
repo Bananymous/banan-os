@@ -87,10 +87,7 @@ namespace Kernel
 				while (true)
 				{
 					SystemTimer::get().sleep_ms(10'000);
-
-					LockGuard _(s_instance->m_device_lock);
-					s_instance->m_should_sync = true;
-					s_instance->m_sync_thread_blocker.unblock();
+					s_instance->initiate_sync(false);
 				}
 			}, nullptr, sync_process
 		)));

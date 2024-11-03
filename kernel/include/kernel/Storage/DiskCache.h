@@ -2,6 +2,7 @@
 
 #include <BAN/Array.h>
 #include <BAN/ByteSpan.h>
+#include <BAN/Vector.h>
 #include <kernel/Memory/Types.h>
 
 namespace Kernel
