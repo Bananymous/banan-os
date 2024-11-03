@@ -36,6 +36,23 @@ namespace Kernel
 
 	static pid_t s_next_tid = 1;
 
+#if __enable_sse
+	alignas(16) static uint8_t s_default_sse_storage[512];
+	static bool s_default_sse_storage_initialized = false;
+
+	static void initialize_default_sse_storage()
+	{
+		const uint32_t mxcsr = 0x1F80;
+		asm volatile(
+			"finit;"
+			"ldmxcsr %[mxcsr];"
+			"fxsave %[storage];"
+			: [storage]"=m"(s_default_sse_storage)
+			: [mxcsr]"m"(mxcsr)
+		);
+	}
+#endif
+
 	BAN::ErrorOr<Thread*> Thread::create_kernel(entry_t entry, void* data, Process* process)
 	{
 		// Create the thread object
@@ -113,8 +130,12 @@ namespace Kernel
 		: m_tid(tid), m_process(process)
 	{
 #if __enable_sse
-		// initializes sse storage to valid state
-		save_sse();
+		if (!s_default_sse_storage_initialized)
+		{
+			initialize_default_sse_storage();
+			s_default_sse_storage_initialized = true;
+		}
+		memcpy(m_sse_storage, s_default_sse_storage, sizeof(m_sse_storage));
 #endif
 	}
 
