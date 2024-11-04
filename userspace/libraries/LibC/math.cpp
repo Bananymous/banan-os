@@ -48,23 +48,10 @@
 	double func(double a, type b) { return __VA_ARGS__; } \
 	long double func##l(long double a, type b) { return __VA_ARGS__; }
 
-template<BAN::floating_point T>
-struct integral_atleast;
-
-template<BAN::floating_point T> requires(sizeof(T) <= sizeof(uint8_t))
-struct integral_atleast<T> { using type = uint8_t; };
-
-template<BAN::floating_point T> requires(sizeof(T) > sizeof(uint8_t) && sizeof(T) <= sizeof(uint16_t))
-struct integral_atleast<T> { using type = uint16_t; };
-
-template<BAN::floating_point T> requires(sizeof(T) > sizeof(uint16_t) && sizeof(T) <= sizeof(uint32_t))
-struct integral_atleast<T> { using type = uint32_t; };
-
-template<BAN::floating_point T> requires(sizeof(T) > sizeof(uint32_t) && sizeof(T) <= sizeof(uint64_t))
-struct integral_atleast<T> { using type = uint64_t; };
-
-template<BAN::floating_point T> requires(sizeof(T) > sizeof(uint64_t) && sizeof(T) <= sizeof(__uint128_t))
-struct integral_atleast<T> { using type = __uint128_t; };
+template<BAN::floating_point T> struct float_underlying;
+template<> struct float_underlying<float>       { using type = uint32_t; };
+template<> struct float_underlying<double>      { using type = uint64_t; };
+template<> struct float_underlying<long double> { using type = uint64_t; };
 
 template<BAN::integral T, size_t mantissa_bits, size_t exponent_bits, bool integral>
 struct __FloatDecompose;
@@ -89,7 +76,7 @@ struct __FloatDecompose<T, mantissa_bits, exponent_bits, false>
 template<BAN::floating_point T>
 struct FloatDecompose
 {
-	using value_type = integral_atleast<T>::type;
+	using value_type = float_underlying<T>::type;
 
 	static constexpr size_t mantissa_bits
 		= BAN::is_same_v<T, float>       ?  FLT_MANT_DIG - 1
