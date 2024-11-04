@@ -2,16 +2,41 @@
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/Terminal/PseudoTerminal.h>
 
+#include <BAN/ScopeGuard.h>
+
 #include <sys/sysmacros.h>
 
 namespace Kernel
 {
 
-	BAN::Atomic<uint32_t> s_pts_master_minor = 0;
-	BAN::Atomic<uint32_t> s_pts_slave_number = 0;
+	static BAN::Atomic<uint32_t> s_pts_master_minor = 0;
+
+	static SpinLock s_pts_slave_bitmap_lock;
+	static uint64_t s_pts_slave_bitmap = 0;
 
 	BAN::ErrorOr<BAN::RefPtr<PseudoTerminalMaster>> PseudoTerminalMaster::create(mode_t mode, uid_t uid, gid_t gid)
 	{
+		size_t pts_slave_number = 0;
+		{
+			SpinLockGuard _(s_pts_slave_bitmap_lock);
+			for (pts_slave_number = 0; pts_slave_number < sizeof(s_pts_slave_bitmap) * 8; pts_slave_number++)
+			{
+				if (s_pts_slave_bitmap & ((uint64_t)1 << pts_slave_number))
+					continue;
+				s_pts_slave_bitmap |= (uint64_t)1 << pts_slave_number;
+				break;
+			}
+		}
+		if (pts_slave_number >= sizeof(s_pts_slave_bitmap) * 8)
+			return BAN::Error::from_errno(ENODEV);
+		BAN::ScopeGuard slave_number_clearer(
+			[pts_slave_number]()
+			{
+				SpinLockGuard _(s_pts_slave_bitmap_lock);
+				s_pts_slave_bitmap &= ~((uint64_t)1 << pts_slave_number);
+			}
+		);
+
 		auto pts_master_buffer = TRY(VirtualRange::create_to_vaddr_range(
 			PageTable::kernel(),
 			KERNEL_OFFSET, static_cast<vaddr_t>(-1),
@@ -19,9 +44,11 @@ namespace Kernel
 			PageTable::Flags::ReadWrite | PageTable::Flags::Present, true
 		));
 		auto pts_master = TRY(BAN::RefPtr<PseudoTerminalMaster>::create(BAN::move(pts_master_buffer), mode, uid, gid));
+		DevFileSystem::get().remove_from_cache(pts_master);
 
-		auto pts_slave_name = TRY(BAN::String::formatted("pts{}", s_pts_slave_number++));
-		auto pts_slave = TRY(BAN::RefPtr<PseudoTerminalSlave>::create(BAN::move(pts_slave_name), 0610, uid, gid));
+		auto pts_slave_name = TRY(BAN::String::formatted("pts{}", pts_slave_number));
+		auto pts_slave = TRY(BAN::RefPtr<PseudoTerminalSlave>::create(BAN::move(pts_slave_name), pts_slave_number, 0610, uid, gid));
+		slave_number_clearer.disable();
 
 		pts_master->m_slave = TRY(pts_slave->get_weak_ptr());
 		pts_slave->m_master = TRY(pts_master->get_weak_ptr());
@@ -112,10 +139,17 @@ namespace Kernel
 		return buffer.size();
 	}
 
-	PseudoTerminalSlave::PseudoTerminalSlave(BAN::String&& name, mode_t mode, uid_t uid, gid_t gid)
+	PseudoTerminalSlave::PseudoTerminalSlave(BAN::String&& name, uint32_t number, mode_t mode, uid_t uid, gid_t gid)
 		: TTY(mode, uid, gid)
 		, m_name(BAN::move(name))
+		, m_number(number)
 	{}
+
+	PseudoTerminalSlave::~PseudoTerminalSlave()
+	{
+		SpinLockGuard _(s_pts_slave_bitmap_lock);
+		s_pts_slave_bitmap &= ~((uint64_t)1 << m_number);
+	}
 
 	void PseudoTerminalSlave::clear()
 	{

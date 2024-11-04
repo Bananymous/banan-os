@@ -62,10 +62,12 @@ namespace Kernel
 		void putchar_impl(uint8_t ch) override;
 
 	private:
-		PseudoTerminalSlave(BAN::String&& name, mode_t, uid_t, gid_t);
+		PseudoTerminalSlave(BAN::String&& name, uint32_t number, mode_t, uid_t, gid_t);
+		~PseudoTerminalSlave();
 
 	private:
-		BAN::String m_name;
+		const BAN::String m_name;
+		const uint32_t m_number;
 
 		BAN::WeakPtr<PseudoTerminalMaster> m_master;
 		uint32_t m_width { 0 };

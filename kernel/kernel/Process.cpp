@@ -1790,13 +1790,13 @@ namespace Kernel
 		LockGuard _(m_process_lock);
 		TRY(validate_pointer_access(buffer, buffer_len, true));
 
-		auto inode = TRY(m_open_file_descriptors.inode_of(fildes));
 		if (TRY(m_open_file_descriptors.path_of(fildes)) != "<ptmx>"_sv)
 			return BAN::Error::from_errno(ENOTTY);
 
+		auto inode = TRY(m_open_file_descriptors.inode_of(fildes));
 		auto ptsname = TRY(static_cast<PseudoTerminalMaster*>(inode.ptr())->ptsname());
 
-		const size_t to_copy = BAN::Math::min(ptsname.size() + 1, buffer_len);
+		const size_t to_copy = BAN::Math::min(ptsname.size(), buffer_len - 1);
 		memcpy(buffer, ptsname.data(), to_copy);
 		buffer[to_copy] = '\0';
 
