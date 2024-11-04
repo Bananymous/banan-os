@@ -325,7 +325,6 @@ namespace BAN::Math
 	template<floating_point T>
 	inline constexpr T sin(T x)
 	{
-		x = fmod<T>(x, (T)2.0 * numbers::pi_v<T>);
 		asm("fsin" : "+t"(x));
 		return x;
 	}
@@ -333,10 +332,14 @@ namespace BAN::Math
 	template<floating_point T>
 	inline constexpr T cos(T x)
 	{
-		if (abs(x) >= (T)9223372036854775808.0)
-			x = fmod<T>(x, (T)2.0 * numbers::pi_v<T>);
 		asm("fcos" : "+t"(x));
 		return x;
+	}
+
+	template<floating_point T>
+	inline constexpr void sincos(T x, T& sin, T& cos)
+	{
+		asm("fsincos" : "=t"(cos), "=u"(sin) : "0"(x));
 	}
 
 	template<floating_point T>
