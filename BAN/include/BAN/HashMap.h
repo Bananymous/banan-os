@@ -153,8 +153,13 @@ namespace BAN
 			return emplace(move(key), forward<Args>(args)...);
 		auto& bucket = get_bucket(key);
 		for (Entry& entry : bucket)
+		{
 			if (entry.key == key)
+			{
+				entry.value = T(forward<Args>(args)...);
 				return {};
+			}
+		}
 		TRY(bucket.emplace_back(move(key), forward<Args>(args)...));
 		m_size++;
 		return {};
