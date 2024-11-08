@@ -191,9 +191,9 @@ long		lroundl(long double);
 double		modf(double, double*);
 float		modff(float, float*);
 long double modfl(long double, long double*);
-#define nan(tagp) __builtin_nan(tagp)
-#define nanf(tagp) __builtin_nanf(tagp)
-#define nanl(tagp) __builtin_nanl(tagp)
+double		nan(const char*);
+float		nanf(const char*);
+long double	nanl(const char*);
 double		nearbyint(double);
 float		nearbyintf(float);
 long double nearbyintl(long double);

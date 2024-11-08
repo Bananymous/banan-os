@@ -249,6 +249,9 @@ BAN_FUNC1(logb)
 FUNC_EXPR1_RET(lrint,  long, BAN::Math::rint(a))
 FUNC_EXPR1_RET(lround, long, BAN::Math::round(a))
 BAN_FUNC2_PTR(modf)
+double      nan(const char* tagp)  { return __builtin_nan(tagp); }
+float       nanf(const char* tagp) { return __builtin_nanf(tagp); }
+long double nanl(const char* tagp) { return __builtin_nanl(tagp); }
 FUNC_EXPR1(nearbyint, BAN::Math::rint(a))
 FUNC_EXPR2(nextafter, nextafter_impl(a, b))
 FUNC_EXPR2_TYPE(nexttoward, long double, nextafter_impl(a, b))
