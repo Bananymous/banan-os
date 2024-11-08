@@ -43,6 +43,11 @@ void exit(int status)
 	ASSERT_NOT_REACHED();
 }
 
+void _Exit(int status)
+{
+	_exit(status);
+}
+
 int abs(int val)
 {
 	return val < 0 ? -val : val;
