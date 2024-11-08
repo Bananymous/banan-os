@@ -76,7 +76,7 @@ private:
 	uint32_t*   m_title_bar_data { nullptr };
 	BAN::String m_title;
 
-	LibGUI::Window::Attributes m_attributes;
+	LibGUI::Window::Attributes m_attributes { LibGUI::Window::default_attributes };
 
 	friend class BAN::RefPtr<Window>;
 };

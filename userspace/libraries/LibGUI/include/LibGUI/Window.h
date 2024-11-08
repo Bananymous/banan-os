@@ -14,12 +14,14 @@ namespace LibGUI
 	class Window
 	{
 	public:
-		struct Attributes
-		{
-			bool title_bar       { true };
-			bool movable         { true };
-			bool rounded_corners { true };
-			bool alpha_channel   { false };
+		using Attributes = WindowPacket::WindowSetAttributes::Attributes;
+
+		static constexpr Attributes default_attributes = {
+			.title_bar       = true,
+			.movable         = true,
+			.focusable       = true,
+			.rounded_corners = true,
+			.alpha_channel   = false,
 		};
 
 	public:
@@ -57,6 +59,8 @@ namespace LibGUI
 
 		bool invalidate(int32_t x, int32_t y, uint32_t width, uint32_t height);
 		bool invalidate() { return invalidate(0, 0, width(), height()); }
+
+		bool set_mouse_capture(bool captured);
 
 		bool set_position(int32_t x, int32_t y);
 

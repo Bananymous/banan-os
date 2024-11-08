@@ -181,14 +181,55 @@ void WindowServer::on_window_set_attributes(int fd, const LibGUI::WindowPacket::
 	}
 
 	const auto old_client_area = target_window->full_area();
-	target_window->set_attributes({
-		.title_bar       = packet.title_bar,
-		.movable         = packet.movable,
-		.rounded_corners = packet.rounded_corners,
-		.alpha_channel   = packet.alpha_channel,
-	});
+	target_window->set_attributes(packet.attributes);
 	const auto new_client_area = target_window->full_area();
 	invalidate(new_client_area.get_bounding_box(old_client_area));
+
+	if (!packet.attributes.focusable && m_focused_window == target_window)
+	{
+		m_focused_window = nullptr;
+		for (size_t i = m_client_windows.size(); i > 0; i--)
+		{
+			if (auto& window = m_client_windows[i - 1]; window->get_attributes().focusable)
+			{
+				set_focused_window(window);
+				break;
+			}
+		}
+	}
+}
+
+void WindowServer::on_window_set_mouse_capture(int fd, const LibGUI::WindowPacket::WindowSetMouseCapture& packet)
+{
+	if (m_is_mouse_captured && packet.captured)
+	{
+		ASSERT(m_focused_window);
+		if (fd != m_focused_window->client_fd())
+			dwarnln("client tried to set mouse capture while other window has it already captured");
+		return;
+	}
+
+	BAN::RefPtr<Window> target_window;
+	for (auto& window : m_client_windows)
+	{
+		if (window->client_fd() != fd)
+			continue;
+		target_window = window;
+		break;
+	}
+
+	if (!target_window)
+	{
+		dwarnln("client tried to set mouse capture while not owning a window");
+		return;
+	}
+
+	if (packet.captured == m_is_mouse_captured)
+		return;
+
+	set_focused_window(target_window);
+	m_is_mouse_captured = packet.captured;
+	invalidate(cursor_area());
 }
 
 void WindowServer::on_key_event(LibInput::KeyEvent event)
@@ -247,6 +288,20 @@ void WindowServer::on_key_event(LibInput::KeyEvent event)
 
 void WindowServer::on_mouse_button(LibInput::MouseButtonEvent event)
 {
+	if (m_is_mouse_captured)
+	{
+		ASSERT(m_focused_window);
+
+		LibGUI::EventPacket::MouseButtonEvent packet;
+		packet.event.button = event.button;
+		packet.event.pressed = event.pressed;
+		packet.event.x = 0;
+		packet.event.y = 0;
+		if (auto ret = packet.send_serialized(m_focused_window->client_fd()); ret.is_error())
+			dwarnln("could not send mouse button event: {}", ret.error());
+		return;
+	}
+
 	BAN::RefPtr<Window> target_window;
 	for (size_t i = m_client_windows.size(); i > 0; i--)
 	{
@@ -261,7 +316,8 @@ void WindowServer::on_mouse_button(LibInput::MouseButtonEvent event)
 	if (!target_window)
 		return;
 
-	set_focused_window(target_window);
+	if (target_window->get_attributes().focusable)
+		set_focused_window(target_window);
 
 	// Handle window moving when mod key is held or mouse press on title bar
 	const bool can_start_move = m_is_mod_key_held || target_window->title_text_area().contains(m_cursor);
@@ -289,7 +345,7 @@ void WindowServer::on_mouse_button(LibInput::MouseButtonEvent event)
 		packet.event.y = m_cursor.y - m_focused_window->client_y();
 		if (auto ret = packet.send_serialized(m_focused_window->client_fd()); ret.is_error())
 		{
-			dwarnln("could not send mouse button event event: {}", ret.error());
+			dwarnln("could not send mouse button event: {}", ret.error());
 			return;
 		}
 	}
@@ -297,6 +353,18 @@ void WindowServer::on_mouse_button(LibInput::MouseButtonEvent event)
 
 void WindowServer::on_mouse_move(LibInput::MouseMoveEvent event)
 {
+	if (m_is_mouse_captured)
+	{
+		ASSERT(m_focused_window);
+
+		LibGUI::EventPacket::MouseMoveEvent packet;
+		packet.event.x =  event.rel_x;
+		packet.event.y = -event.rel_y;
+		if (auto ret = packet.send_serialized(m_focused_window->client_fd()); ret.is_error())
+			dwarnln("could not send mouse move event: {}", ret.error());
+		return;
+	}
+
 	const int32_t new_x = BAN::Math::clamp(m_cursor.x + event.rel_x, 0, m_framebuffer.width);
 	const int32_t new_y = BAN::Math::clamp(m_cursor.y - event.rel_y, 0, m_framebuffer.height);
 
@@ -341,7 +409,7 @@ void WindowServer::on_mouse_move(LibInput::MouseMoveEvent event)
 		packet.event.y = m_cursor.y - m_focused_window->client_y();
 		if (auto ret = packet.send_serialized(m_focused_window->client_fd()); ret.is_error())
 		{
-			dwarnln("could not send mouse move event event: {}", ret.error());
+			dwarnln("could not send mouse move event: {}", ret.error());
 			return;
 		}
 	}
@@ -355,7 +423,7 @@ void WindowServer::on_mouse_scroll(LibInput::MouseScrollEvent event)
 		packet.event.scroll = event.scroll;
 		if (auto ret = packet.send_serialized(m_focused_window->client_fd()); ret.is_error())
 		{
-			dwarnln("could not send mouse scroll event event: {}", ret.error());
+			dwarnln("could not send mouse scroll event: {}", ret.error());
 			return;
 		}
 	}
@@ -365,6 +433,12 @@ void WindowServer::set_focused_window(BAN::RefPtr<Window> window)
 {
 	if (m_focused_window == window)
 		return;
+
+	if (m_is_mouse_captured)
+	{
+		m_is_mouse_captured = false;
+		invalidate(cursor_area());
+	}
 
 	for (size_t i = m_client_windows.size(); i > 0; i--)
 	{
@@ -589,22 +663,25 @@ void WindowServer::invalidate(Rectangle area)
 		}
 	}
 
-	auto cursor = cursor_area();
-	if (auto overlap = cursor.get_overlap(area); overlap.has_value())
+	if (!m_is_mouse_captured)
 	{
-		for (int32_t y_off = 0; y_off < overlap->height; y_off++)
+		auto cursor = cursor_area();
+		if (auto overlap = cursor.get_overlap(area); overlap.has_value())
 		{
-			for (int32_t x_off = 0; x_off < overlap->width; x_off++)
+			for (int32_t y_off = 0; y_off < overlap->height; y_off++)
 			{
-				const int32_t rel_x = overlap->x - m_cursor.x + x_off;
-				const int32_t rel_y = overlap->y - m_cursor.y + y_off;
-				const uint32_t offset = (rel_y * s_cursor_width + rel_x) * 4;
-				uint32_t r = (((s_cursor_data[offset + 0] - 33) << 2) | ((s_cursor_data[offset + 1] - 33) >> 4));
-				uint32_t g = ((((s_cursor_data[offset + 1] - 33) & 0xF) << 4) | ((s_cursor_data[offset + 2] - 33) >> 2));
-				uint32_t b = ((((s_cursor_data[offset + 2] - 33) & 0x3) << 6) | ((s_cursor_data[offset + 3] - 33)));
-				uint32_t color = (r << 16) | (g << 8) | b;
-				if (color != 0xFF00FF)
-					m_framebuffer.mmap[(overlap->y + y_off) * m_framebuffer.width + (overlap->x + x_off)] = color;
+				for (int32_t x_off = 0; x_off < overlap->width; x_off++)
+				{
+					const int32_t rel_x = overlap->x - m_cursor.x + x_off;
+					const int32_t rel_y = overlap->y - m_cursor.y + y_off;
+					const uint32_t offset = (rel_y * s_cursor_width + rel_x) * 4;
+					uint32_t r = (((s_cursor_data[offset + 0] - 33) << 2) | ((s_cursor_data[offset + 1] - 33) >> 4));
+					uint32_t g = ((((s_cursor_data[offset + 1] - 33) & 0xF) << 4) | ((s_cursor_data[offset + 2] - 33) >> 2));
+					uint32_t b = ((((s_cursor_data[offset + 2] - 33) & 0x3) << 6) | ((s_cursor_data[offset + 3] - 33)));
+					uint32_t color = (r << 16) | (g << 8) | b;
+					if (color != 0xFF00FF)
+						m_framebuffer.mmap[(overlap->y + y_off) * m_framebuffer.width + (overlap->x + x_off)] = color;
+				}
 			}
 		}
 	}
@@ -618,7 +695,9 @@ void WindowServer::invalidate(Rectangle area)
 		size_t index = (mmap_addr - reinterpret_cast<uintptr_t>(m_framebuffer.mmap)) / 4096;
 		size_t byte = index / 8;
 		size_t bit  = index % 8;
-		m_pages_to_sync_bitmap[byte] |= 1 << bit;
+		//dprintln("{}/{}", byte, m_pages_to_sync_bitmap.size());
+		if (byte < m_pages_to_sync_bitmap.size())
+			m_pages_to_sync_bitmap[byte] |= 1 << bit;
 		mmap_addr += 4096;
 	}
 }

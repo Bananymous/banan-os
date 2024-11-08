@@ -34,6 +34,7 @@ public:
 	void on_window_invalidate(int fd, const LibGUI::WindowPacket::WindowInvalidate&);
 	void on_window_set_position(int fd, const LibGUI::WindowPacket::WindowSetPosition&);
 	void on_window_set_attributes(int fd, const LibGUI::WindowPacket::WindowSetAttributes&);
+	void on_window_set_mouse_capture(int fd, const LibGUI::WindowPacket::WindowSetMouseCapture&);
 
 	void on_key_event(LibInput::KeyEvent event);
 	void on_mouse_button(LibInput::MouseButtonEvent event);
@@ -69,6 +70,8 @@ private:
 	bool m_is_moving_window { false };
 	BAN::RefPtr<Window> m_focused_window;
 	Position m_cursor;
+
+	bool m_is_mouse_captured { false };
 
 	bool m_deleted_window { false };
 	bool m_is_stopped { false };

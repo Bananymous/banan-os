@@ -162,6 +162,7 @@ namespace LibGUI
 		WindowInvalidate,
 		WindowSetPosition,
 		WindowSetAttributes,
+		WindowSetMouseCapture,
 
 		DestroyWindowEvent,
 		CloseWindowEvent,
@@ -174,35 +175,49 @@ namespace LibGUI
 	namespace WindowPacket
 	{
 
-		DEFINE_PACKET(WindowCreate,
+		DEFINE_PACKET(
+			WindowCreate,
 			uint32_t, width,
 			uint32_t, height,
 			BAN::String, title
 		);
 
-		DEFINE_PACKET(WindowCreateResponse,
+		DEFINE_PACKET(
+			WindowCreateResponse,
 			uint32_t, width,
 			uint32_t, height,
 			long, smo_key
 		);
 
-		DEFINE_PACKET(WindowInvalidate,
+		DEFINE_PACKET(
+			WindowInvalidate,
 			uint32_t, x,
 			uint32_t, y,
 			uint32_t, width,
 			uint32_t, height
 		);
 
-		DEFINE_PACKET(WindowSetPosition,
+		DEFINE_PACKET(
+			WindowSetPosition,
 			int32_t, x,
 			int32_t, y
 		);
 
-		DEFINE_PACKET(WindowSetAttributes,
-			bool, title_bar,
-			bool, rounded_corners,
-			bool, movable,
-			bool, alpha_channel
+		DEFINE_PACKET_EXTRA(
+			WindowSetAttributes,
+			struct Attributes {
+				bool title_bar;
+				bool movable;
+				bool focusable;
+				bool rounded_corners;
+				bool alpha_channel;
+			},
+			Attributes, attributes
+		);
+
+		DEFINE_PACKET(
+			WindowSetMouseCapture,
+			bool, captured
 		);
 
 	}

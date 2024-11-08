@@ -267,6 +267,20 @@ namespace LibGUI
 		return true;
 	}
 
+	bool Window::set_mouse_capture(bool captured)
+	{
+		WindowPacket::WindowSetMouseCapture packet;
+		packet.captured = captured;
+
+		if (auto ret = packet.send_serialized(m_server_fd); ret.is_error())
+		{
+			dprintln("failed to set mouse capture: {}", ret.error());
+			return false;
+		}
+
+		return true;
+	}
+
 	bool Window::set_position(int32_t x, int32_t y)
 	{
 		WindowPacket::WindowSetPosition packet;
@@ -285,10 +299,7 @@ namespace LibGUI
 	bool Window::set_attributes(Attributes attributes)
 	{
 		WindowPacket::WindowSetAttributes packet;
-		packet.title_bar = attributes.title_bar;
-		packet.movable = attributes.movable;
-		packet.rounded_corners = attributes.rounded_corners;
-		packet.alpha_channel = attributes.alpha_channel;
+		packet.attributes = attributes;
 
 		if (auto ret = packet.send_serialized(m_server_fd); ret.is_error())
 		{

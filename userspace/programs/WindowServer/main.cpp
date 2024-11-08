@@ -350,6 +350,10 @@ int main()
 						if (auto ret = LibGUI::WindowPacket::WindowSetAttributes::deserialize(client_data.packet_buffer.span()); !ret.is_error())
 							window_server.on_window_set_attributes(fd, ret.release_value());
 						break;
+					case LibGUI::PacketType::WindowSetMouseCapture:
+						if (auto ret = LibGUI::WindowPacket::WindowSetMouseCapture::deserialize(client_data.packet_buffer.span()); !ret.is_error())
+							window_server.on_window_set_mouse_capture(fd, ret.release_value());
+						break;
 					default:
 						dprintln("unhandled packet type: {}", *reinterpret_cast<uint32_t*>(client_data.packet_buffer.data()));
 				}

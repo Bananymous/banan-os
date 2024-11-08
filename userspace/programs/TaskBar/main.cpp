@@ -13,12 +13,14 @@ int main()
 
 	auto window = MUST(LibGUI::Window::create(0, font.height() + 2 * padding, "TaskBar"));
 
-	auto attributes = window->get_attributes();
+	auto attributes = LibGUI::Window::default_attributes;
 	attributes.title_bar = false;
 	attributes.movable = false;
+	attributes.focusable = false;
 	attributes.alpha_channel = false;
 	attributes.rounded_corners = false;
 	window->set_attributes(attributes);
+
 	window->set_close_window_event_callback([]() {});
 
 	window->set_position(0, 0);

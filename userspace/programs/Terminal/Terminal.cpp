@@ -112,7 +112,7 @@ void Terminal::run()
 
 	m_window = MUST(LibGUI::Window::create(600, 400, "Terminal"_sv));
 
-	auto attributes = m_window->get_attributes();
+	auto attributes = LibGUI::Window::default_attributes;
 	attributes.alpha_channel = true;
 	m_window->set_attributes(attributes);
 
