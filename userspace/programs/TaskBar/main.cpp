@@ -3,6 +3,17 @@
 
 #include <time.h>
 
+static BAN::String get_task_bar_string()
+{
+	BAN::String result;
+
+	const time_t current_time = time(nullptr);
+	if (!result.append(ctime(&current_time)).is_error())
+		result.pop_back();
+
+	return result;
+}
+
 int main()
 {
 	constexpr uint32_t padding = 3;
@@ -30,21 +41,18 @@ int main()
 
 	bool is_running = true;
 
-	time_t last_update;
 	const auto update_time_string =
 		[&]()
 		{
-			last_update = time(nullptr);
-			BAN::StringView time_sv = ctime(&last_update);
-			time_sv = time_sv.substring(0, time_sv.size() - 1); // new line
+			const auto text = get_task_bar_string();
 
-			const uint32_t text_w = time_sv.size() * font.width();
+			const uint32_t text_w = text.size() * font.width();
 			const uint32_t text_h = font.height();
 			const uint32_t text_x = window->width() - text_w - padding;
 			const uint32_t text_y = padding;
 
 			window->fill_rect(text_x, text_y, text_w, text_h, bg_color);
-			window->draw_text(time_sv, font, text_x, text_y, fg_color);
+			window->draw_text(text, font, text_x, text_y, fg_color);
 			if (!window->invalidate(text_x, text_y, text_w, text_h))
 				is_running = false;
 		};
