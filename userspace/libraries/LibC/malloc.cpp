@@ -1,3 +1,5 @@
+#include <BAN/Debug.h>
+
 #include <assert.h>
 #include <errno.h>
 #include <stdlib.h>
@@ -5,6 +7,8 @@
 #include <sys/mman.h>
 #include <sys/syscall.h>
 #include <unistd.h>
+
+#define DEBUG_MALLOC 0
 
 static consteval size_t log_size_t(size_t value, size_t base)
 {
@@ -174,6 +178,8 @@ static malloc_pool_t& pool_from_node(malloc_node_t* node)
 
 void* malloc(size_t size)
 {
+	dprintln_if(DEBUG_MALLOC, "malloc({})", size);
+
 	// align size to s_malloc_default_align boundary
 	if (size_t ret = size % s_malloc_default_align)
 		size += s_malloc_default_align - ret;
@@ -207,6 +213,8 @@ void* malloc(size_t size)
 
 void* realloc(void* ptr, size_t size)
 {
+	dprintln_if(DEBUG_MALLOC, "realloc({}, {})", ptr, size);
+
 	if (ptr == nullptr)
 		return malloc(size);
 
@@ -237,6 +245,8 @@ void* realloc(void* ptr, size_t size)
 
 void free(void* ptr)
 {
+	dprintln_if(DEBUG_MALLOC, "free({})", ptr);
+
 	if (ptr == nullptr)
 		return;
 
@@ -265,6 +275,8 @@ void free(void* ptr)
 
 void* calloc(size_t nmemb, size_t size)
 {
+	dprintln_if(DEBUG_MALLOC, "calloc({}, {})", nmemb, size);
+
 	size_t total = nmemb * size;
 	if (size != 0 && total / size != nmemb)
 	{
