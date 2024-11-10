@@ -59,8 +59,7 @@ namespace LibGUI
 
 	Window::~Window()
 	{
-		munmap(m_framebuffer_smo, m_width * m_height * 4);
-		close(m_server_fd);
+		clear();
 	}
 
 	BAN::ErrorOr<BAN::UniqPtr<Window>> Window::create(uint32_t width, uint32_t height, BAN::StringView title)
@@ -244,10 +243,10 @@ namespace LibGUI
 		return true;
 	}
 
-	bool Window::invalidate(int32_t x, int32_t y, uint32_t width, uint32_t height)
+	void Window::invalidate(int32_t x, int32_t y, uint32_t width, uint32_t height)
 	{
 		if (!clamp_to_framebuffer(x, y, width, height))
-			return true;
+			return;
 
 		for (uint32_t i = 0; i < height; i++)
 			memcpy(&m_framebuffer_smo[(y + i) * m_width + x], &m_framebuffer[(y + i) * m_width + x], width * sizeof(uint32_t));
@@ -259,56 +258,59 @@ namespace LibGUI
 		packet.height = height;
 
 		if (auto ret = packet.send_serialized(m_server_fd); ret.is_error())
-		{
-			dprintln("failed to invalidate window: {}", ret.error());
-			return false;
-		}
-
-		return true;
+			return on_socket_error(__FUNCTION__);
 	}
 
-	bool Window::set_mouse_capture(bool captured)
+	void Window::set_mouse_capture(bool captured)
 	{
 		WindowPacket::WindowSetMouseCapture packet;
 		packet.captured = captured;
 
 		if (auto ret = packet.send_serialized(m_server_fd); ret.is_error())
-		{
-			dprintln("failed to set mouse capture: {}", ret.error());
-			return false;
-		}
-
-		return true;
+			return on_socket_error(__FUNCTION__);
 	}
 
-	bool Window::set_position(int32_t x, int32_t y)
+	void Window::set_position(int32_t x, int32_t y)
 	{
 		WindowPacket::WindowSetPosition packet;
 		packet.x = x;
 		packet.y = y;
 
 		if (auto ret = packet.send_serialized(m_server_fd); ret.is_error())
-		{
-			dprintln("failed to set window position: {}", ret.error());
-			return false;
-		}
-
-		return true;
+			return on_socket_error(__FUNCTION__);
 	}
 
-	bool Window::set_attributes(Attributes attributes)
+	void Window::set_attributes(Attributes attributes)
 	{
 		WindowPacket::WindowSetAttributes packet;
 		packet.attributes = attributes;
 
 		if (auto ret = packet.send_serialized(m_server_fd); ret.is_error())
-		{
-			dprintln("failed to set window attributes: {}", ret.error());
-			return false;
-		}
+			return on_socket_error(__FUNCTION__);
 
 		m_attributes = attributes;
-		return true;
+	}
+
+	void Window::on_socket_error(BAN::StringView function)
+	{
+		if (m_handling_socket_error)
+			return;
+		m_handling_socket_error = true;
+
+		dprintln("Socket error while running Window::{}", function);
+
+		if (!m_socket_error_callback)
+			exit(1);
+
+		m_socket_error_callback();
+		clear();
+	}
+
+	void Window::clear()
+	{
+		munmap(m_framebuffer_smo, m_width * m_height * 4);
+		close(m_server_fd);
+		m_server_fd = -1;
 	}
 
 #define TRY_OR_BREAK(...) ({ auto&& e = (__VA_ARGS__); if (e.is_error()) break; e.release_value(); })
@@ -328,7 +330,7 @@ namespace LibGUI
 
 			auto packet_or_error = recv_packet(m_server_fd);
 			if (packet_or_error.is_error())
-				break;
+				return on_socket_error(__FUNCTION__);
 
 			const auto [packet_type, packet_data] = packet_or_error.release_value();
 			switch (packet_type)

@@ -57,20 +57,21 @@ namespace LibGUI
 		// fill_color is used when copying data outside of window bounds
 		void copy_horizontal_slice(int32_t dst_y, int32_t src_y, uint32_t amount, uint32_t fill_color);
 
-		bool invalidate(int32_t x, int32_t y, uint32_t width, uint32_t height);
-		bool invalidate() { return invalidate(0, 0, width(), height()); }
+		void invalidate(int32_t x, int32_t y, uint32_t width, uint32_t height);
+		void invalidate() { return invalidate(0, 0, width(), height()); }
 
-		bool set_mouse_capture(bool captured);
+		void set_mouse_capture(bool captured);
 
-		bool set_position(int32_t x, int32_t y);
+		void set_position(int32_t x, int32_t y);
 
 		Attributes get_attributes() const { return m_attributes; }
-		bool set_attributes(Attributes attributes);
+		void set_attributes(Attributes attributes);
 
 		uint32_t width() const { return m_width; }
 		uint32_t height() const { return m_height; }
 
 		void poll_events();
+		void set_socket_error_callback(BAN::Function<void()> callback)                                             { m_socket_error_callback = callback; }
 		void set_close_window_event_callback(BAN::Function<void()> callback)                                       { m_close_window_event_callback = callback; }
 		void set_key_event_callback(BAN::Function<void(EventPacket::KeyEvent::event_t)> callback)                  { m_key_event_callback = callback; }
 		void set_mouse_button_event_callback(BAN::Function<void(EventPacket::MouseButtonEvent::event_t)> callback) { m_mouse_button_event_callback = callback; }
@@ -90,8 +91,13 @@ namespace LibGUI
 
 		bool clamp_to_framebuffer(int32_t& x, int32_t& y, uint32_t& width, uint32_t& height) const;
 
+		void on_socket_error(BAN::StringView function);
+		void clear();
+
 	private:
 		int m_server_fd;
+
+		bool m_handling_socket_error { false };
 
 		Attributes m_attributes;
 
@@ -100,6 +106,7 @@ namespace LibGUI
 		uint32_t m_width;
 		uint32_t m_height;
 
+		BAN::Function<void()>                                       m_socket_error_callback;
 		BAN::Function<void()>                                       m_close_window_event_callback;
 		BAN::Function<void(EventPacket::KeyEvent::event_t)>         m_key_event_callback;
 		BAN::Function<void(EventPacket::MouseButtonEvent::event_t)> m_mouse_button_event_callback;

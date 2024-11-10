@@ -53,8 +53,7 @@ int main()
 
 			window->fill_rect(text_x, text_y, text_w, text_h, bg_color);
 			window->draw_text(text, font, text_x, text_y, fg_color);
-			if (!window->invalidate(text_x, text_y, text_w, text_h))
-				is_running = false;
+			window->invalidate(text_x, text_y, text_w, text_h);
 		};
 
 	while (is_running)
