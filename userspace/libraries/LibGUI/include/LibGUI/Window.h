@@ -61,6 +61,7 @@ namespace LibGUI
 		void invalidate() { return invalidate(0, 0, width(), height()); }
 
 		void set_mouse_capture(bool captured);
+		void set_fullscreen(bool fullscreen);
 
 		void set_position(int32_t x, int32_t y);
 

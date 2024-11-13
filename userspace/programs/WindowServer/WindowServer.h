@@ -36,6 +36,7 @@ public:
 	void on_window_set_attributes(int fd, const LibGUI::WindowPacket::WindowSetAttributes&);
 	void on_window_set_mouse_capture(int fd, const LibGUI::WindowPacket::WindowSetMouseCapture&);
 	void on_window_set_size(int fd, const LibGUI::WindowPacket::WindowSetSize&);
+	void on_window_set_fullscreen(int fd, const LibGUI::WindowPacket::WindowSetFullscreen&);
 
 	void on_key_event(LibInput::KeyEvent event);
 	void on_mouse_button(LibInput::MouseButtonEvent event);
@@ -56,6 +57,9 @@ public:
 	bool is_stopped() const { return m_is_stopped; }
 
 private:
+	void mark_pending_sync(Rectangle area);
+
+private:
 	Framebuffer& m_framebuffer;
 	BAN::Vector<BAN::RefPtr<Window>> m_client_windows;
 
@@ -69,6 +73,7 @@ private:
 
 	bool m_is_mod_key_held { false };
 	bool m_is_moving_window { false };
+	bool m_is_fullscreen_window { false };
 	BAN::RefPtr<Window> m_focused_window;
 	Position m_cursor;
 

@@ -256,6 +256,15 @@ namespace LibGUI
 			return on_socket_error(__FUNCTION__);
 	}
 
+	void Window::set_fullscreen(bool fullscreen)
+	{
+		WindowPacket::WindowSetFullscreen packet;
+		packet.fullscreen = fullscreen;
+
+		if (auto ret = packet.send_serialized(m_server_fd); ret.is_error())
+			return on_socket_error(__FUNCTION__);
+	}
+
 	void Window::set_position(int32_t x, int32_t y)
 	{
 		WindowPacket::WindowSetPosition packet;

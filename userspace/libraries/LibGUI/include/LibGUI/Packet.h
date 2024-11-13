@@ -164,6 +164,7 @@ namespace LibGUI
 		WindowSetAttributes,
 		WindowSetMouseCapture,
 		WindowSetSize,
+		WindowSetFullscreen,
 
 		DestroyWindowEvent,
 		CloseWindowEvent,
@@ -219,6 +220,11 @@ namespace LibGUI
 			WindowSetSize,
 			uint32_t, width,
 			uint32_t, height
+		);
+
+		DEFINE_PACKET(
+			WindowSetFullscreen,
+			bool, fullscreen
 		);
 
 	}

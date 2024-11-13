@@ -125,6 +125,9 @@ void WindowServer::on_window_invalidate(int fd, const LibGUI::WindowPacket::Wind
 
 void WindowServer::on_window_set_position(int fd, const LibGUI::WindowPacket::WindowSetPosition& packet)
 {
+	if (m_is_fullscreen_window && m_focused_window->client_fd() == fd)
+		return;
+
 	BAN::RefPtr<Window> target_window;
 	for (auto& window : m_client_windows)
 	{
@@ -259,6 +262,45 @@ void WindowServer::on_window_set_size(int fd, const LibGUI::WindowPacket::Window
 	invalidate(target_window->full_area().get_bounding_box(old_area));
 }
 
+void WindowServer::on_window_set_fullscreen(int fd, const LibGUI::WindowPacket::WindowSetFullscreen& packet)
+{
+	if (m_is_fullscreen_window)
+	{
+		ASSERT(m_focused_window);
+		if (m_focused_window->client_fd() != fd)
+			dwarnln("client tried to set fullscreen window size while another window is already fullscreen");
+		else if (!packet.fullscreen)
+		{
+			m_is_fullscreen_window = false;
+			invalidate(m_framebuffer.area());
+		}
+		return;
+	}
+
+	if (!packet.fullscreen)
+		return;
+
+	BAN::RefPtr<Window> target_window;
+	for (auto& window : m_client_windows)
+	{
+		if (window->client_fd() != fd)
+			continue;
+		target_window = window;
+		break;
+	}
+
+	if (!target_window)
+	{
+		dwarnln("client tried to set window size while not owning a window");
+		return;
+	}
+
+	m_is_fullscreen_window = true;
+	set_focused_window(target_window);
+	target_window->set_position({ 0, 0 });
+	invalidate(m_framebuffer.area());
+}
+
 void WindowServer::on_key_event(LibInput::KeyEvent event)
 {
 	// Mod key is not passed to clients
@@ -301,7 +343,7 @@ void WindowServer::on_key_event(LibInput::KeyEvent event)
 	}
 
 	// Toggle window bounce with F2
-	if (event.pressed() && event.key == LibInput::Key::F2)
+	if (!m_is_fullscreen_window && event.pressed() && event.key == LibInput::Key::F2)
 		m_is_bouncing_window = !m_is_bouncing_window;
 
 	if (m_focused_window)
@@ -376,6 +418,9 @@ void WindowServer::on_mouse_button(LibInput::MouseButtonEvent event)
 			return;
 		}
 	}
+
+	if (m_is_fullscreen_window)
+		m_is_moving_window = false;
 }
 
 void WindowServer::on_mouse_move(LibInput::MouseMoveEvent event)
@@ -497,6 +542,47 @@ static uint32_t alpha_blend(uint32_t color_a, uint32_t color_b)
 
 void WindowServer::invalidate(Rectangle area)
 {
+	if (m_is_fullscreen_window)
+	{
+		ASSERT(m_focused_window);
+
+		auto focused_overlap = area.get_overlap(m_focused_window->client_area());
+		if (!focused_overlap.has_value())
+			return;
+		area = focused_overlap.release_value();
+
+		if (m_focused_window->client_area() == m_framebuffer.area())
+		{
+			for (int32_t y = area.y; y < area.y + area.height; y++)
+				for (int32_t x = area.x; x < area.x + area.width; x++)
+					m_framebuffer.mmap[y * m_framebuffer.width + x] = m_focused_window->framebuffer()[y * m_focused_window->client_width() + x];
+			mark_pending_sync(area);
+		}
+		else
+		{
+			const Rectangle dst_area {
+				.x = area.x * m_framebuffer.width  / m_focused_window->client_width(),
+				.y = area.y * m_framebuffer.height / m_focused_window->client_height(),
+				.width  = BAN::Math::div_round_up(area.width  * m_framebuffer.width,  m_focused_window->client_width()),
+				.height = BAN::Math::div_round_up(area.height * m_framebuffer.height, m_focused_window->client_height())
+			};
+
+			for (int32_t dst_y = dst_area.y; dst_y < dst_area.y + dst_area.height; dst_y++)
+			{
+				for (int32_t dst_x = dst_area.x; dst_x < dst_area.x + dst_area.width; dst_x++)
+				{
+					const int32_t src_x = dst_x * m_focused_window->client_width()  / m_framebuffer.width;
+					const int32_t src_y = dst_y * m_focused_window->client_height() / m_framebuffer.height;
+					m_framebuffer.mmap[dst_y * m_framebuffer.width + dst_x] = m_focused_window->framebuffer()[src_y * m_focused_window->client_width() + src_x];
+				}
+			}
+
+			mark_pending_sync(dst_area);
+		}
+
+		return;
+	}
+
 	auto fb_overlap = area.get_overlap(m_framebuffer.area());
 	if (!fb_overlap.has_value())
 		return;
@@ -713,6 +799,13 @@ void WindowServer::invalidate(Rectangle area)
 		}
 	}
 
+	mark_pending_sync(area);
+}
+
+void WindowServer::mark_pending_sync(Rectangle area)
+{
+	// FIXME: this marks too many pages
+
 	const uintptr_t mmap_start = reinterpret_cast<uintptr_t>(m_framebuffer.mmap) + area.y * m_framebuffer.width * 4;
 	const uintptr_t mmap_end = mmap_start + (area.height + 1) * m_framebuffer.width * 4;
 
@@ -800,6 +893,12 @@ void WindowServer::remove_client_fd(int fd)
 	if (it == m_client_data.end())
 		return;
 	m_client_data.remove(it);
+
+	if (m_is_fullscreen_window && m_focused_window->client_fd() == fd)
+	{
+		m_is_fullscreen_window = false;
+		invalidate(m_framebuffer.area());
+	}
 
 	for (size_t i = 0; i < m_client_windows.size(); i++)
 	{
