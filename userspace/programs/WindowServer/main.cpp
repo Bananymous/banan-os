@@ -165,6 +165,19 @@ int main()
 
 	atexit([]() { tty_ctrl(STDIN_FILENO, TTY_CMD_SET, TTY_FLAG_ENABLE_INPUT); });
 
+	constexpr int non_terminating_signals[] {
+		SIGCHLD,
+		SIGCONT,
+		SIGSTOP,
+		SIGTSTP,
+		SIGTTIN,
+		SIGTTOU,
+	};
+	for (int sig = _SIGMIN; sig <= _SIGMAX; sig++)
+		signal(sig, exit);
+	for (int sig : non_terminating_signals)
+		signal(sig, SIG_DFL);
+
 	MUST(LibInput::KeyboardLayout::initialize());
 	MUST(LibInput::KeyboardLayout::get().load_from_file("/usr/share/keymaps/us.keymap"_sv));
 
