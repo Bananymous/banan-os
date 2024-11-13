@@ -35,6 +35,7 @@ public:
 	void on_window_set_position(int fd, const LibGUI::WindowPacket::WindowSetPosition&);
 	void on_window_set_attributes(int fd, const LibGUI::WindowPacket::WindowSetAttributes&);
 	void on_window_set_mouse_capture(int fd, const LibGUI::WindowPacket::WindowSetMouseCapture&);
+	void on_window_set_size(int fd, const LibGUI::WindowPacket::WindowSetSize&);
 
 	void on_key_event(LibInput::KeyEvent event);
 	void on_mouse_button(LibInput::MouseButtonEvent event);

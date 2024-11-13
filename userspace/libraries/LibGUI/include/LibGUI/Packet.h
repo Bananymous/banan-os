@@ -163,9 +163,11 @@ namespace LibGUI
 		WindowSetPosition,
 		WindowSetAttributes,
 		WindowSetMouseCapture,
+		WindowSetSize,
 
 		DestroyWindowEvent,
 		CloseWindowEvent,
+		ResizeWindowEvent,
 		KeyEvent,
 		MouseButtonEvent,
 		MouseMoveEvent,
@@ -180,13 +182,6 @@ namespace LibGUI
 			uint32_t, width,
 			uint32_t, height,
 			BAN::String, title
-		);
-
-		DEFINE_PACKET(
-			WindowCreateResponse,
-			uint32_t, width,
-			uint32_t, height,
-			long, smo_key
 		);
 
 		DEFINE_PACKET(
@@ -220,6 +215,12 @@ namespace LibGUI
 			bool, captured
 		);
 
+		DEFINE_PACKET(
+			WindowSetSize,
+			uint32_t, width,
+			uint32_t, height
+		);
+
 	}
 
 	namespace EventPacket
@@ -231,6 +232,13 @@ namespace LibGUI
 
 		DEFINE_PACKET(
 			CloseWindowEvent
+		);
+
+		DEFINE_PACKET(
+			ResizeWindowEvent,
+			uint32_t, width,
+			uint32_t, height,
+			long, smo_key
 		);
 
 		DEFINE_PACKET_EXTRA(

@@ -4,6 +4,7 @@
 
 #include <BAN/RefPtr.h>
 #include <BAN/String.h>
+#include <BAN/Vector.h>
 
 #include <LibFont/Font.h>
 #include <LibGUI/Window.h>
@@ -11,7 +12,11 @@
 class Window : public BAN::RefCounted<Window>
 {
 public:
-	Window(int fd, Rectangle area, long smo_key, BAN::StringView title, const LibFont::Font& font);
+	Window(int fd, const LibFont::Font& font)
+		: m_font(font)
+		, m_client_fd(fd)
+	{ }
+
 	~Window();
 
 	void set_position(Position position)
@@ -21,6 +26,7 @@ public:
 	}
 
 	int client_fd() const { return m_client_fd; }
+	long smo_key() const { return m_smo_key; }
 
 	int32_t client_x() const { return m_client_area.x; }
 	int32_t client_y() const { return m_client_area.y; }
@@ -63,18 +69,24 @@ public:
 	Circle close_button_area() const { return { title_bar_x() + title_bar_width() - title_bar_height() / 2, title_bar_y() + title_bar_height() / 2, title_bar_height() * 3 / 8 }; }
 	Rectangle title_text_area() const { return { title_bar_x(), title_bar_y(), title_bar_width() - title_bar_height(), title_bar_height() }; }
 
+	BAN::ErrorOr<void> initialize(BAN::StringView title, uint32_t width, uint32_t height);
+	BAN::ErrorOr<void> resize(uint32_t width, uint32_t height);
+
 private:
-	void prepare_title_bar(const LibFont::Font& font);
+	BAN::ErrorOr<void> prepare_title_bar();
 
 private:
 	static constexpr int32_t m_title_bar_height { 20 };
+
+	const LibFont::Font& m_font;
 
 	const int   m_client_fd      { -1 };
 	Rectangle   m_client_area    { 0, 0, 0, 0 };
 	long        m_smo_key        { 0 };
 	uint32_t*   m_fb_addr        { nullptr };
-	uint32_t*   m_title_bar_data { nullptr };
 	BAN::String m_title;
+
+	BAN::Vector<uint32_t> m_title_bar_data;
 
 	LibGUI::Window::Attributes m_attributes { LibGUI::Window::default_attributes };
 

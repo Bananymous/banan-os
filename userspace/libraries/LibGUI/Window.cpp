@@ -59,7 +59,7 @@ namespace LibGUI
 
 	Window::~Window()
 	{
-		clear();
+		cleanup();
 	}
 
 	BAN::ErrorOr<BAN::UniqPtr<Window>> Window::create(uint32_t width, uint32_t height, BAN::StringView title)
@@ -101,27 +101,13 @@ namespace LibGUI
 		TRY(create_packet.title.append(title));
 		TRY(create_packet.send_serialized(server_fd));
 
-		const auto [response_type, response_data ] = TRY(recv_packet(server_fd));
-		if (response_type != PacketType::WindowCreateResponse)
-			return BAN::Error::from_literal("Server responded with invalid packet");
+		auto window = TRY(BAN::UniqPtr<Window>::create(server_fd));
 
-		const auto create_response = TRY(WindowPacket::WindowCreateResponse::deserialize(response_data.span()));
-		void* framebuffer_addr = smo_map(create_response.smo_key);
-		if (framebuffer_addr == nullptr)
-			return BAN::Error::from_errno(errno);
-		width = create_response.width;
-		height = create_response.height;
-
-		BAN::Vector<uint32_t> framebuffer;
-		TRY(framebuffer.resize(width * height, 0xFFFFFFFF));
-
-		auto window = TRY(BAN::UniqPtr<Window>::create(
-			server_fd,
-			static_cast<uint32_t*>(framebuffer_addr),
-			BAN::move(framebuffer),
-			width,
-			height
-		));
+		bool resized = false;
+		window->set_resize_window_event_callback([&]() { resized = true; });
+		while (!resized)
+			window->poll_events();
+		window->set_resize_window_event_callback({});
 
 		server_closer.disable();
 
@@ -291,6 +277,16 @@ namespace LibGUI
 		m_attributes = attributes;
 	}
 
+	void Window::request_resize(uint32_t width, uint32_t height)
+	{
+		WindowPacket::WindowSetSize packet;
+		packet.width = width;
+		packet.height = height;
+
+		if (auto ret = packet.send_serialized(m_server_fd); ret.is_error())
+			return on_socket_error(__FUNCTION__);
+	}
+
 	void Window::on_socket_error(BAN::StringView function)
 	{
 		if (m_handling_socket_error)
@@ -303,14 +299,42 @@ namespace LibGUI
 			exit(1);
 
 		m_socket_error_callback();
-		clear();
+		cleanup();
 	}
 
-	void Window::clear()
+	void Window::cleanup()
 	{
 		munmap(m_framebuffer_smo, m_width * m_height * 4);
 		close(m_server_fd);
-		m_server_fd = -1;
+	}
+
+	BAN::ErrorOr<void> Window::handle_resize_event(const EventPacket::ResizeWindowEvent& event)
+	{
+		if (m_framebuffer_smo)
+			munmap(m_framebuffer_smo, m_width * m_height * 4);
+		m_framebuffer_smo = nullptr;
+
+		BAN::Vector<uint32_t> framebuffer;
+		TRY(framebuffer.resize(event.width * event.height, 0xFFFFFFFF));
+
+		void* framebuffer_addr = smo_map(event.smo_key);
+		if (framebuffer_addr == nullptr)
+			return BAN::Error::from_errno(errno);
+
+		const uint32_t min_x = BAN::Math::min(m_width, event.width);
+		const uint32_t min_y = BAN::Math::min(m_height, event.height);
+		for (uint32_t y = 0; y < min_y; y++)
+			for (uint32_t x = 0; x < min_x; x++)
+				framebuffer[y * event.width + x] = m_framebuffer[y * m_width + x];
+
+		m_framebuffer_smo = static_cast<uint32_t*>(framebuffer_addr);
+		m_framebuffer = BAN::move(framebuffer);
+		m_width = event.width;
+		m_height = event.height;
+
+		invalidate();
+
+		return {};
 	}
 
 #define TRY_OR_BREAK(...) ({ auto&& e = (__VA_ARGS__); if (e.is_error()) break; e.release_value(); })
@@ -343,6 +367,13 @@ namespace LibGUI
 					else
 						exit(0);
 					break;
+				case PacketType::ResizeWindowEvent:
+				{
+					MUST(handle_resize_event(TRY_OR_BREAK(EventPacket::ResizeWindowEvent::deserialize(packet_data.span()))));
+					if (m_resize_window_event_callback)
+						m_resize_window_event_callback();
+					break;
+				}
 				case PacketType::KeyEvent:
 					if (m_key_event_callback)
 						m_key_event_callback(TRY_OR_BREAK(EventPacket::KeyEvent::deserialize(packet_data.span())).event);

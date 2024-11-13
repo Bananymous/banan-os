@@ -43,34 +43,10 @@ void WindowServer::on_window_create(int fd, const LibGUI::WindowPacket::WindowCr
 		return;
 	}
 
-	const uint32_t width  = packet.width  ? packet.width  : m_framebuffer.width;
+	const uint32_t width = packet.width ? packet.width : m_framebuffer.width;
 	const uint32_t height = packet.height ? packet.height : m_framebuffer.height;
 
-	const size_t window_fb_bytes = width * height * 4;
-
-	long smo_key = smo_create(window_fb_bytes, PROT_READ | PROT_WRITE);
-	if (smo_key == -1)
-	{
-		dwarnln("smo_create: {}", strerror(errno));
-		return;
-	}
-	BAN::ScopeGuard smo_deleter([smo_key] { smo_delete(smo_key); });
-
-	Rectangle window_area {
-		static_cast<int32_t>((m_framebuffer.width - width) / 2),
-		static_cast<int32_t>((m_framebuffer.height - height) / 2),
-		static_cast<int32_t>(width),
-		static_cast<int32_t>(height)
-	};
-
-	// Window::Window(int fd, Rectangle area, long smo_key, BAN::StringView title, const LibFont::Font& font)
-	auto window_or_error = (BAN::RefPtr<Window>::create(
-		fd,
-		window_area,
-		smo_key,
-		packet.title,
-		m_font
-	));
+	auto window_or_error = BAN::RefPtr<Window>::create(fd, m_font);
 	if (window_or_error.is_error())
 	{
 		dwarnln("could not create window for client: {}", window_or_error.error());
@@ -85,17 +61,27 @@ void WindowServer::on_window_create(int fd, const LibGUI::WindowPacket::WindowCr
 	}
 	BAN::ScopeGuard window_popper([&] { m_client_windows.pop_back(); });
 
-	LibGUI::WindowPacket::WindowCreateResponse response;
-	response.width = width;
-	response.height = height;
-	response.smo_key = smo_key;
+	if (auto ret = window->initialize(packet.title, width, height); ret.is_error())
+	{
+		dwarnln("could not create window for client: {}", ret.error());
+		return;
+	}
+
+	window->set_position({
+		static_cast<int32_t>((m_framebuffer.width - window->client_width()) / 2),
+		static_cast<int32_t>((m_framebuffer.height - window->client_height()) / 2),
+	});
+
+	LibGUI::EventPacket::ResizeWindowEvent response;
+	response.width = window->client_width();
+	response.height = window->client_height();
+	response.smo_key = window->smo_key();
 	if (auto ret = response.send_serialized(fd); ret.is_error())
 	{
 		dwarnln("could not respond to window create request: {}", ret.error());
 		return;
 	}
 
-	smo_deleter.disable();
 	window_popper.disable();
 
 	set_focused_window(window);
@@ -230,6 +216,47 @@ void WindowServer::on_window_set_mouse_capture(int fd, const LibGUI::WindowPacke
 	set_focused_window(target_window);
 	m_is_mouse_captured = packet.captured;
 	invalidate(cursor_area());
+}
+
+void WindowServer::on_window_set_size(int fd, const LibGUI::WindowPacket::WindowSetSize& packet)
+{
+	BAN::RefPtr<Window> target_window;
+	for (auto& window : m_client_windows)
+	{
+		if (window->client_fd() != fd)
+			continue;
+		target_window = window;
+		break;
+	}
+
+	if (!target_window)
+	{
+		dwarnln("client tried to set window size while not owning a window");
+		return;
+	}
+
+	const auto old_area = target_window->full_area();
+
+	const uint32_t width = packet.width ? packet.width : m_framebuffer.width;
+	const uint32_t height = packet.height ? packet.height : m_framebuffer.height;
+
+	if (auto ret = target_window->resize(width, height); ret.is_error())
+	{
+		dwarnln("could not resize client window {}", ret.error());
+		return;
+	}
+
+	LibGUI::EventPacket::ResizeWindowEvent response;
+	response.width = target_window->client_width();
+	response.height = target_window->client_height();
+	response.smo_key = target_window->smo_key();
+	if (auto ret = response.send_serialized(fd); ret.is_error())
+	{
+		dwarnln("could not respond to window resize request: {}", ret.error());
+		return;
+	}
+
+	invalidate(target_window->full_area().get_bounding_box(old_area));
 }
 
 void WindowServer::on_key_event(LibInput::KeyEvent event)
