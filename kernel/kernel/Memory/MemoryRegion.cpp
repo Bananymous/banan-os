@@ -40,7 +40,7 @@ namespace Kernel
 
 	bool MemoryRegion::overlaps(vaddr_t address, size_t size) const
 	{
-		if (address + size < m_vaddr)
+		if (address + size <= m_vaddr)
 			return false;
 		if (address >= m_vaddr + m_size)
 			return false;
