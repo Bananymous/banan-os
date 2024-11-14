@@ -178,10 +178,20 @@ namespace LibGUI
 	namespace WindowPacket
 	{
 
+		struct Attributes
+		{
+			bool title_bar;
+			bool movable;
+			bool focusable;
+			bool rounded_corners;
+			bool alpha_channel;
+		};
+
 		DEFINE_PACKET(
 			WindowCreate,
 			uint32_t, width,
 			uint32_t, height,
+			Attributes, attributes,
 			BAN::String, title
 		);
 
@@ -199,15 +209,8 @@ namespace LibGUI
 			int32_t, y
 		);
 
-		DEFINE_PACKET_EXTRA(
+		DEFINE_PACKET(
 			WindowSetAttributes,
-			struct Attributes {
-				bool title_bar;
-				bool movable;
-				bool focusable;
-				bool rounded_corners;
-				bool alpha_channel;
-			},
 			Attributes, attributes
 		);
 

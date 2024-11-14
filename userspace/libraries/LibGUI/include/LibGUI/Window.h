@@ -14,7 +14,7 @@ namespace LibGUI
 	class Window
 	{
 	public:
-		using Attributes = WindowPacket::WindowSetAttributes::Attributes;
+		using Attributes = WindowPacket::Attributes;
 
 		static constexpr Attributes default_attributes = {
 			.title_bar       = true,
@@ -27,7 +27,7 @@ namespace LibGUI
 	public:
 		~Window();
 
-		static BAN::ErrorOr<BAN::UniqPtr<Window>> create(uint32_t width, uint32_t height, BAN::StringView title);
+		static BAN::ErrorOr<BAN::UniqPtr<Window>> create(uint32_t width, uint32_t height, BAN::StringView title, Attributes attributes = default_attributes);
 
 		void set_pixel(uint32_t x, uint32_t y, uint32_t color)
 		{
@@ -87,8 +87,9 @@ namespace LibGUI
 		int server_fd() const { return m_server_fd; }
 
 	private:
-		Window(int server_fd)
+		Window(int server_fd, Attributes attributes)
 			: m_server_fd(server_fd)
+			, m_attributes(attributes)
 		{ }
 
 		bool clamp_to_framebuffer(int32_t& x, int32_t& y, uint32_t& width, uint32_t& height) const;

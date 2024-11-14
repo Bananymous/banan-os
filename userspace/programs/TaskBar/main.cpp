@@ -22,15 +22,14 @@ int main()
 
 	auto font = MUST(LibFont::Font::load("/usr/share/fonts/lat0-16.psfu"_sv));
 
-	auto window = MUST(LibGUI::Window::create(0, font.height() + 2 * padding, "TaskBar"));
-
 	auto attributes = LibGUI::Window::default_attributes;
 	attributes.title_bar = false;
 	attributes.movable = false;
 	attributes.focusable = false;
 	attributes.alpha_channel = false;
 	attributes.rounded_corners = false;
-	window->set_attributes(attributes);
+
+	auto window = MUST(LibGUI::Window::create(0, font.height() + 2 * padding, "TaskBar", attributes));
 
 	window->set_close_window_event_callback([]() {});
 

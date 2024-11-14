@@ -67,6 +67,7 @@ void WindowServer::on_window_create(int fd, const LibGUI::WindowPacket::WindowCr
 		return;
 	}
 
+	window->set_attributes(packet.attributes);
 	window->set_position({
 		static_cast<int32_t>((m_framebuffer.width - window->client_width()) / 2),
 		static_cast<int32_t>((m_framebuffer.height - window->client_height()) / 2),

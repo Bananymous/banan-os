@@ -110,12 +110,10 @@ void Terminal::run()
 	m_bg_color = s_colors_dark[0];
 	m_fg_color = s_colors_bright[7];
 
-	m_window = MUST(LibGUI::Window::create(600, 400, "Terminal"_sv));
-
 	auto attributes = LibGUI::Window::default_attributes;
 	attributes.alpha_channel = true;
-	m_window->set_attributes(attributes);
 
+	m_window = MUST(LibGUI::Window::create(600, 400, "Terminal"_sv, attributes));
 	m_window->fill(m_bg_color);
 	m_window->invalidate();
 

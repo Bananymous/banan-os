@@ -62,7 +62,7 @@ namespace LibGUI
 		cleanup();
 	}
 
-	BAN::ErrorOr<BAN::UniqPtr<Window>> Window::create(uint32_t width, uint32_t height, BAN::StringView title)
+	BAN::ErrorOr<BAN::UniqPtr<Window>> Window::create(uint32_t width, uint32_t height, BAN::StringView title, Attributes attributes)
 	{
 		int server_fd = socket(AF_UNIX, SOCK_STREAM, 0);
 		if (server_fd == -1)
@@ -101,7 +101,7 @@ namespace LibGUI
 		TRY(create_packet.title.append(title));
 		TRY(create_packet.send_serialized(server_fd));
 
-		auto window = TRY(BAN::UniqPtr<Window>::create(server_fd));
+		auto window = TRY(BAN::UniqPtr<Window>::create(server_fd, attributes));
 
 		bool resized = false;
 		window->set_resize_window_event_callback([&]() { resized = true; });
