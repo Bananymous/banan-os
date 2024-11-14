@@ -98,6 +98,7 @@ namespace LibGUI
 		WindowPacket::WindowCreate create_packet;
 		create_packet.width = width;
 		create_packet.height = height;
+		create_packet.attributes = attributes;
 		TRY(create_packet.title.append(title));
 		TRY(create_packet.send_serialized(server_fd));
 
