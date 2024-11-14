@@ -1,0 +1,481 @@
+From f900c2967edc684334b663e522aeec79e8fee10d Mon Sep 17 00:00:00 2001
+From: Bananymous <bananymousosq@gmail.com>
+Date: Thu, 14 Nov 2024 12:33:39 +0200
+Subject: [PATCH] Add support for banan-os
+
+---
+ Makefile               | 106 +++-------------
+ port_soft_banan_os.cpp | 277 +++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 295 insertions(+), 88 deletions(-)
+ create mode 100644 port_soft_banan_os.cpp
+
+diff --git a/Makefile b/Makefile
+index 46142df..4437418 100644
+--- a/Makefile
++++ b/Makefile
+@@ -1,7 +1,3 @@
+-
+-SDL_CFLAGS = `sdl2-config --cflags`
+-SDL_LIBS = `sdl2-config --cflags --libs` -lSDL2_mixer
+-
+ MOUNT_DIR=.
+ 
+ BUILDDIR=build
+@@ -18,21 +14,19 @@ GAME_DIR=$(MOUNT_DIR)/game
+ CTF_DIR=$(MOUNT_DIR)/ctf
+ XATRIX_DIR=$(MOUNT_DIR)/xatrix
+ 
+-CC=clang #emcc
++CC=$(BANAN_ARCH)-banan_os-gcc
+ BASE_CFLAGS=-Dstricmp=strcasecmp
+ 
++CXX=$(BANAN_ARCH)-banan_os-g++
++CXXFLAGS=--std=c++20
+ 
+ RELEASE_CFLAGS=$(BASE_CFLAGS) -O6 -ffast-math -funroll-loops \
+ 	-fomit-frame-pointer -fexpensive-optimizations -malign-loops=2 \
+ 	-malign-jumps=2 -malign-functions=2
+ 
+ DEBUG_CFLAGS=$(BASE_CFLAGS) -g
+-LDFLAGS=-ldl -lm
+-XCFLAGS=-I/opt/X11/include
+-
+-GLLDFLAGS=-L/usr/X11/lib -L/usr/local/lib \
+-	$(SDL_LIBS) -lGL
+-GLCFLAGS=$(SDL_CFLAGS)
++LDFLAGS=-lgui -linput
++XCFLAGS=
+ 
+ SHLIBEXT=so
+ 
+@@ -43,6 +37,10 @@ DO_CC=$(CC) $(CFLAGS) -o $@ -c $<
+ DO_SHLIB_CC=$(CC) $(CFLAGS) $(SHLIBCFLAGS) -o $@ -c $<
+ DO_GL_SHLIB_CC=$(CC) $(CFLAGS) $(SHLIBCFLAGS) $(GLCFLAGS) $(XCFLAGS) -o $@ -c $<
+ 
++DO_CXX=$(CXX) $(CFLAGS) $(CXXFLAGS) -o $@ -c $<
++DO_SHLIB_CXX=$(CXX) $(CFLAGS) $(CXXFLAGS) $(SHLIBCFLAGS) -o $@ -c $<
++DO_GL_SHLIB_CXX=$(CXX) $(CFLAGS) $(CXXFLAGS) $(SHLIBCFLAGS) $(GLCFLAGS) $(XCFLAGS) -o $@ -c $<
++
+ #############################################################################
+ # SETUP AND BUILD
+ #############################################################################
+@@ -61,14 +59,12 @@ createdirs:
+ 	@-mkdir -p $(BUILDDIR) \
+ 		$(BUILDDIR)/client \
+ 		$(BUILDDIR)/ref_soft \
+-		$(BUILDDIR)/ref_softsdl \
+-		$(BUILDDIR)/ref_gl \
+ 		$(BUILDDIR)/net \
+ 		$(BUILDDIR)/sound \
+ 		$(BUILDDIR)/game
+ 
+ 
+-TARGETS: $(BUILDDIR)/quake2-soft $(BUILDDIR)/quake2-gl
++TARGETS: $(BUILDDIR)/quake2
+ 
+ #############################################################################
+ # CLIENT/SERVER
+@@ -122,7 +118,7 @@ QUAKE2_OBJS = \
+ 	\
+ 	$(BUILDDIR)/client/pmove.o \
+ 	\
+-	$(BUILDDIR)/net/net_unix.o \
++	$(BUILDDIR)/net/net_loopback.o \
+ 	\
+ 	$(BUILDDIR)/sound/snddma_null.o \
+ 	\
+@@ -200,38 +196,11 @@ REF_SOFT_OBJS = \
+ 	$(BUILDDIR)/ref_soft/r_rast.o \
+ 	$(BUILDDIR)/ref_soft/r_scan.o \
+ 	$(BUILDDIR)/ref_soft/r_sprite.o \
+-	$(BUILDDIR)/ref_soft/r_surf.o
+-
+-
+-REF_SOFT_SDL_OBJS = \
+-	$(BUILDDIR)/ref_soft/port_soft_sdl.o
+-
+-
+-#############################################################################
+-# REF_GL
+-#############################################################################
+-
+-REF_GL_OBJS = \
+-	$(BUILDDIR)/ref_gl/gl_draw.o \
+-	$(BUILDDIR)/ref_gl/gl_image.o \
+-	$(BUILDDIR)/ref_gl/gl_light.o \
+-	$(BUILDDIR)/ref_gl/gl_mesh.o \
+-	$(BUILDDIR)/ref_gl/gl_model.o \
+-	$(BUILDDIR)/ref_gl/gl_rmain.o \
+-	$(BUILDDIR)/ref_gl/gl_rmisc.o \
+-	$(BUILDDIR)/ref_gl/gl_rsurf.o \
+-	$(BUILDDIR)/ref_gl/gl_warp.o \
+-	\
+-	$(BUILDDIR)/ref_gl/qgl_system.o \
+-	$(BUILDDIR)/ref_gl/port_gl_sdl.o
+-
+-
+-$(BUILDDIR)/quake2-soft : $(QUAKE2_OBJS) $(GAME_OBJS) $(REF_SOFT_OBJS) $(REF_SOFT_SDL_OBJS)
+-	$(CC) $(CFLAGS) -o $@ $(QUAKE2_OBJS) $(GAME_OBJS) $(REF_SOFT_OBJS) $(REF_SOFT_SDL_OBJS) $(LDFLAGS) $(GLLDFLAGS)
+-
+-$(BUILDDIR)/quake2-gl : $(QUAKE2_OBJS) $(GAME_OBJS) $(REF_GL_OBJS)
+-	$(CC) $(CFLAGS) -o $@ $(QUAKE2_OBJS) $(GAME_OBJS) $(REF_GL_OBJS) $(LDFLAGS) $(GLLDFLAGS)
++	$(BUILDDIR)/ref_soft/r_surf.o \
++	$(BUILDDIR)/ref_soft/port_soft_banan_os.o
+ 
++$(BUILDDIR)/quake2 : $(QUAKE2_OBJS) $(GAME_OBJS) $(REF_SOFT_OBJS)
++	$(CC) $(CFLAGS) -o $@ $(QUAKE2_OBJS) $(GAME_OBJS) $(REF_SOFT_OBJS) $(LDFLAGS)
+ 
+ $(BUILDDIR)/client/cl_cin.o :     $(CLIENT_DIR)/cl_cin.c
+ 	$(DO_CC)
+@@ -362,7 +331,7 @@ $(BUILDDIR)/client/q_system.o :  $(OTHER_DIR)/q_system.c
+ $(BUILDDIR)/client/glob.o :       $(OTHER_DIR)/glob.c
+ 	$(DO_CC)
+ 
+-$(BUILDDIR)/net/net_unix.o :    $(NET_DIR)/net_unix.c
++$(BUILDDIR)/net/net_loopback.o :    $(NET_DIR)/net_loopback.c
+ 	$(DO_CC)
+ 
+ $(BUILDDIR)/port_platform_unix.o :    $(MOUNT_DIR)/port_platform_unix.c
+@@ -689,45 +658,8 @@ $(BUILDDIR)/ref_soft/r_sprite.o :     $(REF_SOFT_DIR)/r_sprite.c
+ $(BUILDDIR)/ref_soft/r_surf.o :       $(REF_SOFT_DIR)/r_surf.c
+ 	$(DO_GL_SHLIB_CC)
+ 
+-$(BUILDDIR)/ref_soft/port_soft_sdl.o :       $(MOUNT_DIR)/port_soft_sdl.c
+-	$(DO_GL_SHLIB_CC)
+-
+-#############################################################################
+-# REF_GL
+-#############################################################################
+-
+-$(BUILDDIR)/ref_gl/gl_draw.o :        $(REF_GL_DIR)/gl_draw.c
+-	$(DO_GL_SHLIB_CC)
+-
+-$(BUILDDIR)/ref_gl/gl_image.o :       $(REF_GL_DIR)/gl_image.c
+-	$(DO_GL_SHLIB_CC)
+-
+-$(BUILDDIR)/ref_gl/gl_light.o :       $(REF_GL_DIR)/gl_light.c
+-	$(DO_GL_SHLIB_CC)
+-
+-$(BUILDDIR)/ref_gl/gl_mesh.o :        $(REF_GL_DIR)/gl_mesh.c
+-	$(DO_GL_SHLIB_CC)
+-
+-$(BUILDDIR)/ref_gl/gl_model.o :       $(REF_GL_DIR)/gl_model.c
+-	$(DO_GL_SHLIB_CC)
+-
+-$(BUILDDIR)/ref_gl/gl_rmain.o :       $(REF_GL_DIR)/gl_rmain.c
+-	$(DO_GL_SHLIB_CC)
+-
+-$(BUILDDIR)/ref_gl/gl_rmisc.o :       $(REF_GL_DIR)/gl_rmisc.c
+-	$(DO_GL_SHLIB_CC)
+-
+-$(BUILDDIR)/ref_gl/gl_rsurf.o :       $(REF_GL_DIR)/gl_rsurf.c
+-	$(DO_GL_SHLIB_CC)
+-
+-$(BUILDDIR)/ref_gl/gl_warp.o :        $(REF_GL_DIR)/gl_warp.c
+-	$(DO_GL_SHLIB_CC)
+-
+-$(BUILDDIR)/ref_gl/qgl_system.o :      $(REF_GL_DIR)/qgl_system.c
+-	$(DO_GL_SHLIB_CC)
+-
+-$(BUILDDIR)/ref_gl/port_gl_sdl.o :         $(MOUNT_DIR)/port_gl_sdl.c
+-	$(DO_GL_SHLIB_CC)
++$(BUILDDIR)/ref_soft/port_soft_banan_os.o :       $(MOUNT_DIR)/port_soft_banan_os.cpp
++	$(DO_GL_SHLIB_CXX)
+ 
+ 
+ #############################################################################
+@@ -738,8 +670,6 @@ clean:
+ 	-rm -rf \
+ 	$(BUILDDIR)/client \
+ 	$(BUILDDIR)/ref_soft \
+-	$(BUILDDIR)/ref_softsdl \
+-	$(BUILDDIR)/ref_gl \
+ 	$(BUILDDIR)/game \
+ 	$(BUILDDIR)/net \
+ 	$(BUILDDIR)/sound \
+diff --git a/port_soft_banan_os.cpp b/port_soft_banan_os.cpp
+new file mode 100644
+index 0000000..c7d7e16
+--- /dev/null
++++ b/port_soft_banan_os.cpp
+@@ -0,0 +1,277 @@
++#include <LibGUI/Window.h>
++#include <LibInput/KeyEvent.h>
++#include <LibInput/MouseEvent.h>
++#include <LibImage/Image.h>
++
++#include <BAN/Debug.h>
++
++extern "C" {
++
++#include "ref_soft/r_local.h"
++#include "client/keys.h"
++
++#include "quake2.h"
++
++static LibImage::Image::Color s_palette[256];
++
++static int s_mouse_dx { 0 };
++static int s_mouse_dy { 0 };
++static bool s_relative_mouse { false };
++
++static BAN::Vector<uint8_t> s_buffer;
++static BAN::UniqPtr<LibGUI::Window> s_window;
++static bool s_is_fullscreen { false };
++
++static int key_to_quake_key(LibInput::Key key)
++{
++	using namespace LibInput;
++
++	switch (key)
++	{
++		case Key::PageUp:     return K_PGUP;
++		case Key::PageDown:   return K_PGDN;
++		case Key::Home:       return K_HOME;
++		case Key::End:        return K_END;
++		case Key::ArrowLeft:  return K_LEFTARROW;
++		case Key::ArrowRight: return K_RIGHTARROW;
++		case Key::ArrowDown:  return K_DOWNARROW;
++		case Key::ArrowUp:    return K_UPARROW;
++		case Key::Escape:     return K_ESCAPE;
++		case Key::Enter:      return K_ENTER;
++		case Key::Tab:        return K_TAB;
++		case Key::F1:         return K_F1;
++		case Key::F2:         return K_F2;
++		case Key::F3:         return K_F3;
++		case Key::F4:         return K_F4;
++		case Key::F5:         return K_F5;
++		case Key::F6:         return K_F6;
++		case Key::F7:         return K_F7;
++		case Key::F8:         return K_F8;
++		case Key::F9:         return K_F9;
++		case Key::F10:        return K_F10;
++		case Key::F11:        return K_F11;
++		case Key::F12:        return K_F12;
++		case Key::Backspace:  return K_BACKSPACE;
++		case Key::Delete:     return K_DEL;
++		case Key::LeftShift:
++		case Key::RightShift: return K_SHIFT;
++		case Key::LeftCtrl:
++		case Key::RightCtrl:  return K_CTRL;
++		case Key::LeftAlt:
++		case Key::RightAlt:   return K_ALT;
++		case Key::Insert:     return K_INS;
++		default:
++			if (const char* ascii = key_to_utf8(key, 0); ascii && strlen(ascii) == 1)
++				return *ascii;
++			break;
++	}
++
++	return 0;
++}
++
++static int button_to_quake_button(LibInput::MouseButton button)
++{
++	using namespace LibInput;
++
++	switch (button)
++	{
++		case LibInput::MouseButton::Left:   return K_MOUSE1;
++		case LibInput::MouseButton::Right:  return K_MOUSE2;
++		case LibInput::MouseButton::Middle: return K_MOUSE3;
++		default:
++			break;
++	}
++
++	return 0;
++}
++
++static void create_window(uint32_t width, uint32_t height)
++{
++	ASSERT(!s_window);
++	s_window = MUST(LibGUI::Window::create(width, height, "Quake2"_sv));
++
++	s_window->set_mouse_move_event_callback(
++		[](auto event)
++		{
++			if (!s_relative_mouse)
++				return;
++			s_mouse_dx += event.x;
++			s_mouse_dy += event.y;
++		}
++	);
++
++	s_window->set_mouse_button_event_callback(
++		[](auto event)
++		{
++			if (int button = button_to_quake_button(event.button))
++				Quake2_SendKey(button, event.pressed);
++		}
++	);
++
++	s_window->set_key_event_callback(
++		[](auto event)
++		{
++			if (int key = key_to_quake_key(event.key))
++				Quake2_SendKey(key, event.pressed());
++		}
++	);
++
++	s_window->set_close_window_event_callback(
++		[]()
++		{
++			char command[] = "quit";
++			ri.Cmd_ExecuteText(EXEC_NOW, command);
++		}
++	);
++}
++
++rserr_t SWimp_SetMode(int* pwidth, int* pheight, int mode, qboolean fullscreen)
++{
++	int width, height;
++
++	if (!ri.Vid_GetModeInfo(&width, &height, mode))
++		return rserr_invalid_mode;
++
++	if (!s_window)
++		create_window(width, height);
++	else if (s_window->width() != width || s_window->height() != height)
++	{
++		s_window->request_resize(width, height);
++
++		bool resized { false };
++		s_window->set_resize_window_event_callback([&]() { resized = true; });
++		while (!resized)
++			s_window->poll_events();
++		s_window->set_resize_window_event_callback({});
++
++		ASSERT(s_window->width() == width && s_window->height() == height);
++	}
++
++	if (s_is_fullscreen != fullscreen)
++	{
++		s_is_fullscreen = fullscreen;
++		s_window->set_fullscreen(fullscreen);
++	}
++
++	MUST(s_buffer.resize(s_window->width() * s_window->height()));
++	vid.rowbytes = s_window->width();
++	vid.buffer = s_buffer.data();
++
++	*pwidth = s_window->width();
++	*pheight = s_window->height();
++
++	ri.Vid_NewWindow(s_window->width(), s_window->height());
++
++	return rserr_ok;
++}
++
++void SWimp_Shutdown(void)
++{
++}
++
++int SWimp_Init(void* hInstance, void* wndProc)
++{
++	return true;
++}
++
++static qboolean SWimp_InitGraphics(qboolean fullscreen)
++{
++	return rserr_ok;
++}
++
++void SWimp_SetPalette(const unsigned char* palette)
++{
++	for (int i = 0; i < 256; i++)
++    {
++        s_palette[i].r = *palette++;
++        s_palette[i].g = *palette++;
++        s_palette[i].b = *palette++;
++        s_palette[i].a = *palette++;
++    }
++}
++
++void SWimp_BeginFrame(float camera_seperation)
++{
++}
++
++void SWimp_EndFrame(void)
++{
++	const uint32_t width  = s_window->width();
++	const uint32_t height = s_window->height();
++	for (int y = 0; y < height; y++)
++		for (int x = 0; x < width; x++)
++			s_window->set_pixel(x, y, s_palette[s_buffer[y * width + x]].as_argb());
++	s_window->invalidate();
++}
++
++void SWimp_AppActivate(qboolean active)
++{
++}
++
++int QG_Milliseconds(void)
++{
++	struct timespec ts;
++	clock_gettime(CLOCK_MONOTONIC, &ts);
++	return (ts.tv_sec * 1'000) + (ts.tv_nsec / 1'000'000);
++}
++
++void QG_GetMouseDiff(int* dx, int* dy)
++{
++	*dx = s_mouse_dx;
++	s_mouse_dx = 0;
++
++	*dy = s_mouse_dy;
++	s_mouse_dy = 0;
++}
++
++void QG_CaptureMouse(void)
++{
++	s_relative_mouse = true;
++	s_window->set_mouse_capture(true);
++}
++
++void QG_ReleaseMouse(void)
++{
++	s_relative_mouse = false;
++	s_window->set_mouse_capture(false);
++}
++
++static uint64_t get_current_ns()
++{
++	timespec last_ts;
++	clock_gettime(CLOCK_MONOTONIC, &last_ts);
++	return (uint64_t)last_ts.tv_sec * 1'000'000'000 + last_ts.tv_nsec;
++}
++
++int main(int argc, char** argv)
++{
++	Quake2_Init(argc, argv);
++
++	uint64_t last_ns = get_current_ns();
++	for (;;)
++	{
++		s_window->poll_events();
++
++		const uint64_t current_ns = get_current_ns();
++		uint64_t duration_ns = current_ns - last_ns;
++
++		if (duration_ns < 1'000'000)
++		{
++			timespec sleep_ts {
++				.tv_sec = 0,
++				.tv_nsec = (long)(1'000'000 - duration_ns)
++			};
++			while (nanosleep(&sleep_ts, &sleep_ts))
++				continue;
++			duration_ns = get_current_ns() - last_ns;
++		}
++
++		Quake2_Frame(duration_ns / 1'000'000);
++
++		last_ns = current_ns;
++	}
++
++	return 0;
++}
++
++}
+-- 
+2.47.0
+
