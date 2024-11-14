@@ -103,8 +103,8 @@ namespace Kernel
 		//       {kernel,userspace}_stack has to be destroyed before page table
 		BAN::UniqPtr<PageTable>    m_keep_alive_page_table;
 
-		static constexpr size_t    m_kernel_stack_size    { PAGE_SIZE * 64 };
-		static constexpr size_t    m_userspace_stack_size { PAGE_SIZE * 64 };
+		static constexpr size_t    m_kernel_stack_size    { PAGE_SIZE * 8 };
+		static constexpr size_t    m_userspace_stack_size { PAGE_SIZE * 128 };
 		BAN::UniqPtr<VirtualRange> m_kernel_stack;
 		BAN::UniqPtr<VirtualRange> m_userspace_stack;
 		const pid_t                m_tid                  { 0 };
