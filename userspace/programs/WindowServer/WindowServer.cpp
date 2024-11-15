@@ -96,6 +96,13 @@ void WindowServer::on_window_invalidate(int fd, const LibGUI::WindowPacket::Wind
 	if (packet.width == 0 || packet.height == 0)
 		return;
 
+	if (m_is_fullscreen_window)
+	{
+		ASSERT(m_focused_window);
+		if (m_focused_window->client_fd() != fd)
+			return;
+	}
+
 	BAN::RefPtr<Window> target_window;
 	for (auto& window : m_client_windows)
 	{
