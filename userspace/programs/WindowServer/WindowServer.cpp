@@ -352,6 +352,15 @@ void WindowServer::on_key_event(LibInput::KeyEvent event)
 		return;
 	}
 
+	if (m_is_mod_key_held && event.pressed() && event.key == LibInput::Key::F)
+	{
+		if (!m_focused_window)
+			return;
+		m_is_fullscreen_window = !m_is_fullscreen_window;
+		invalidate(m_framebuffer.area());
+		return;
+	}
+
 	// Toggle window bounce with F2
 	if (!m_is_fullscreen_window && event.pressed() && event.key == LibInput::Key::F2)
 		m_is_bouncing_window = !m_is_bouncing_window;
