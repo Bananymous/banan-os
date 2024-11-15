@@ -85,7 +85,10 @@ void WindowServer::on_window_create(int fd, const LibGUI::WindowPacket::WindowCr
 
 	window_popper.disable();
 
-	set_focused_window(window);
+	if (packet.attributes.focusable)
+		set_focused_window(window);
+	else if (m_client_windows.size() > 1)
+		BAN::swap(m_client_windows[m_client_windows.size() - 1], m_client_windows[m_client_windows.size() - 2]);
 }
 
 void WindowServer::on_window_invalidate(int fd, const LibGUI::WindowPacket::WindowInvalidate& packet)
