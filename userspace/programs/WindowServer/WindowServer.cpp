@@ -565,6 +565,19 @@ static uint32_t alpha_blend(uint32_t color_a, uint32_t color_b)
 
 void WindowServer::invalidate(Rectangle area)
 {
+	const auto get_cursor_pixel =
+		[](int32_t rel_x, int32_t rel_y) -> BAN::Optional<uint32_t>
+		{
+			const uint32_t offset = (rel_y * s_cursor_width + rel_x) * 4;
+			uint32_t r = (((s_cursor_data[offset + 0] - 33) << 2) | ((s_cursor_data[offset + 1] - 33) >> 4));
+			uint32_t g = ((((s_cursor_data[offset + 1] - 33) & 0xF) << 4) | ((s_cursor_data[offset + 2] - 33) >> 2));
+			uint32_t b = ((((s_cursor_data[offset + 2] - 33) & 0x3) << 6) | ((s_cursor_data[offset + 3] - 33)));
+			uint32_t color = (r << 16) | (g << 8) | b;
+			if (color == 0xFF00FF)
+				return {};
+			return color;
+		};
+
 	if (m_is_fullscreen_window)
 	{
 		ASSERT(m_focused_window);
@@ -613,6 +626,43 @@ void WindowServer::invalidate(Rectangle area)
 			}
 
 			mark_pending_sync(dst_area);
+		}
+
+		if (!m_is_mouse_captured)
+		{
+			const Rectangle cursor_area {
+				.x = m_cursor.x - m_focused_window->client_x(),
+				.y = m_cursor.y - m_focused_window->client_y(),
+				.width  = s_cursor_width,
+				.height = s_cursor_height,
+			};
+
+			if (!area.get_overlap(cursor_area).has_value())
+				return;
+
+			const int32_t cursor_tl_dst_x = cursor_area.x * m_framebuffer.width  / m_focused_window->client_width();
+			const int32_t cursor_tl_dst_y = cursor_area.y * m_framebuffer.height / m_focused_window->client_height();
+
+			for (int32_t rel_y = 0; rel_y < s_cursor_height; rel_y++)
+			{
+				for (int32_t rel_x = 0; rel_x < s_cursor_width; rel_x++)
+				{
+					const auto pixel = get_cursor_pixel(rel_x, rel_y);
+					if (!pixel.has_value())
+						continue;
+
+					const int32_t dst_x = cursor_tl_dst_x + rel_x;
+					const int32_t dst_y = cursor_tl_dst_y + rel_y;
+					if (dst_x < 0 || dst_x >= m_framebuffer.width)
+						continue;
+					if (dst_y < 0 || dst_y >= m_framebuffer.height)
+						continue;
+
+					m_framebuffer.mmap[dst_y * m_framebuffer.width + dst_x] = pixel.value();
+				}
+			}
+
+			mark_pending_sync(cursor_area);
 		}
 
 		return;
@@ -813,7 +863,7 @@ void WindowServer::invalidate(Rectangle area)
 
 	if (!m_is_mouse_captured)
 	{
-		auto cursor = cursor_area();
+		const auto cursor = cursor_area();
 		if (auto overlap = cursor.get_overlap(area); overlap.has_value())
 		{
 			for (int32_t y_off = 0; y_off < overlap->height; y_off++)
@@ -822,13 +872,9 @@ void WindowServer::invalidate(Rectangle area)
 				{
 					const int32_t rel_x = overlap->x - m_cursor.x + x_off;
 					const int32_t rel_y = overlap->y - m_cursor.y + y_off;
-					const uint32_t offset = (rel_y * s_cursor_width + rel_x) * 4;
-					uint32_t r = (((s_cursor_data[offset + 0] - 33) << 2) | ((s_cursor_data[offset + 1] - 33) >> 4));
-					uint32_t g = ((((s_cursor_data[offset + 1] - 33) & 0xF) << 4) | ((s_cursor_data[offset + 2] - 33) >> 2));
-					uint32_t b = ((((s_cursor_data[offset + 2] - 33) & 0x3) << 6) | ((s_cursor_data[offset + 3] - 33)));
-					uint32_t color = (r << 16) | (g << 8) | b;
-					if (color != 0xFF00FF)
-						m_framebuffer.mmap[(overlap->y + y_off) * m_framebuffer.width + (overlap->x + x_off)] = color;
+					const auto pixel = get_cursor_pixel(rel_x, rel_y);
+					if (pixel.has_value())
+						m_framebuffer.mmap[(overlap->y + y_off) * m_framebuffer.width + (overlap->x + x_off)] = pixel.value();
 				}
 			}
 		}
