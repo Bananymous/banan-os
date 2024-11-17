@@ -20,7 +20,10 @@ WindowServer::WindowServer(Framebuffer& framebuffer, int32_t corner_radius)
 	, m_cursor({ framebuffer.width / 2, framebuffer.height / 2 })
 	, m_font(MUST(LibFont::Font::load("/usr/share/fonts/lat0-16.psfu"_sv)))
 {
-	MUST(m_pages_to_sync_bitmap.resize(BAN::Math::div_round_up<size_t>(m_framebuffer.width * m_framebuffer.height * sizeof(uint32_t), 4096 * 8), 0));
+	BAN::Vector<LibImage::Image::Color> bitmap;
+	MUST(bitmap.resize(m_framebuffer.width * m_framebuffer.height, { 0x10, 0x10, 0x10, 0xFF }));
+	m_background_image = MUST(BAN::UniqPtr<LibImage::Image>::create(m_framebuffer.width, m_framebuffer.height, BAN::move(bitmap)));
+
 	invalidate(m_framebuffer.area());
 }
 
@@ -574,6 +577,9 @@ static uint32_t alpha_blend(uint32_t color_a, uint32_t color_b)
 
 void WindowServer::invalidate(Rectangle area)
 {
+	ASSERT(m_background_image->width() == (uint64_t)m_framebuffer.width);
+	ASSERT(m_background_image->height() == (uint64_t)m_framebuffer.height);
+
 	const auto get_cursor_pixel =
 		[](int32_t rel_x, int32_t rel_y) -> BAN::Optional<uint32_t>
 		{
@@ -605,11 +611,28 @@ void WindowServer::invalidate(Rectangle area)
 			return;
 		area = focused_overlap.release_value();
 
+		const bool should_alpha_blend = m_focused_window->get_attributes().alpha_channel;
+
 		if (client_area == m_framebuffer.area())
 		{
-			for (int32_t y = area.y; y < area.y + area.height; y++)
-				for (int32_t x = area.x; x < area.x + area.width; x++)
-					m_framebuffer.mmap[y * m_framebuffer.width + x] = m_focused_window->framebuffer()[y * m_focused_window->client_width() + x];
+			if (!should_alpha_blend)
+			{
+				for (int32_t y = area.y; y < area.y + area.height; y++)
+					for (int32_t x = area.x; x < area.x + area.width; x++)
+						m_framebuffer.mmap[y * m_framebuffer.width + x] = m_focused_window->framebuffer()[y * m_focused_window->client_width() + x];
+			}
+			else
+			{
+				for (int32_t y = area.y; y < area.y + area.height; y++)
+				{
+					for (int32_t x = area.x; x < area.x + area.width; x++)
+					{
+						const uint32_t src_pixel = m_focused_window->framebuffer()[y * m_focused_window->client_width() + x];
+						const uint32_t bg_pixel = m_background_image->get_color(x, y).as_argb();
+						m_framebuffer.mmap[y * m_framebuffer.width + x] = alpha_blend(src_pixel, bg_pixel);
+					}
+				}
+			}
 			mark_pending_sync(area);
 		}
 		else
@@ -630,7 +653,12 @@ void WindowServer::invalidate(Rectangle area)
 				{
 					const int32_t src_x = BAN::Math::clamp<int32_t>(dst_x * m_focused_window->client_width()  / m_framebuffer.width,  0, m_focused_window->client_width());
 					const int32_t src_y = BAN::Math::clamp<int32_t>(dst_y * m_focused_window->client_height() / m_framebuffer.height, 0, m_focused_window->client_height());
-					m_framebuffer.mmap[dst_y * m_framebuffer.width + dst_x] = m_focused_window->framebuffer()[src_y * m_focused_window->client_width() + src_x];
+
+					const uint32_t src_pixel = m_focused_window->framebuffer()[src_y * m_focused_window->client_width() + src_x];
+					const uint32_t bg_pixel = m_background_image->get_color(dst_x, dst_y).as_argb();
+
+					uint32_t& dst_pixel = m_framebuffer.mmap[dst_y * m_framebuffer.width + dst_x];
+					dst_pixel = should_alpha_blend ? alpha_blend(src_pixel, bg_pixel) : src_pixel;
 				}
 			}
 
@@ -682,20 +710,9 @@ void WindowServer::invalidate(Rectangle area)
 		return;
 	area = fb_overlap.release_value();
 
-	if (m_background_image)
-	{
-		ASSERT(m_background_image->width() == (uint64_t)m_framebuffer.width);
-		ASSERT(m_background_image->height() == (uint64_t)m_framebuffer.height);
-		for (int32_t y = area.y; y < area.y + area.height; y++)
-			for (int32_t x = area.x; x < area.x + area.width; x++)
-				m_framebuffer.mmap[y * m_framebuffer.width + x] = m_background_image->get_color(x, y).as_argb();
-	}
-	else
-	{
-		for (int32_t y = area.y; y < area.y + area.height; y++)
-			for (int32_t x = area.x; x < area.x + area.width; x++)
-				m_framebuffer.mmap[y * m_framebuffer.width + x] = 0xFF101010;
-	}
+	for (int32_t y = area.y; y < area.y + area.height; y++)
+		for (int32_t x = area.x; x < area.x + area.width; x++)
+			m_framebuffer.mmap[y * m_framebuffer.width + x] = m_background_image->get_color(x, y).as_argb();
 
 	// FIXME: this loop should be inverse order and terminate
 	//        after window without alpha channel is found
