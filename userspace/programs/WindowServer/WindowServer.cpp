@@ -538,6 +538,7 @@ void WindowServer::on_mouse_scroll(LibInput::MouseScrollEvent event)
 
 void WindowServer::set_focused_window(BAN::RefPtr<Window> window)
 {
+	ASSERT(window->get_attributes().focusable);
 	if (m_focused_window == window)
 		return;
 
@@ -1019,8 +1020,14 @@ void WindowServer::remove_client_fd(int fd)
 			if (window == m_focused_window)
 			{
 				m_focused_window = nullptr;
-				if (!m_client_windows.empty())
-					set_focused_window(m_client_windows.back());
+				for (size_t j = m_client_windows.size(); j > 0; j--)
+				{
+					auto& client_window = m_client_windows[j - 1];
+					if (!client_window->get_attributes().focusable)
+						continue;
+					set_focused_window(client_window);
+					break;
+				}
 			}
 
 			break;
