@@ -20,6 +20,42 @@
 namespace Kernel
 {
 
+	class DevTTY : public TmpInode
+	{
+	public:
+		static BAN::ErrorOr<BAN::RefPtr<DevTTY>> create(mode_t mode, uid_t uid, gid_t gid)
+		{
+			return TRY(BAN::RefPtr<DevTTY>::create(mode | Inode::Mode::IFLNK, uid, gid));
+		}
+
+	protected:
+		BAN::ErrorOr<BAN::String> link_target_impl() override
+		{
+			auto terminal = Process::current().controlling_terminal();
+			if (!terminal)
+				return BAN::Error::from_errno(ENODEV);
+			return TRY(BAN::String::formatted("/dev/{}", terminal->name()));
+		}
+
+		bool can_read_impl() const override { return false; }
+		bool can_write_impl() const override { return false; }
+		bool has_error_impl() const override { return false; }
+
+	private:
+		DevTTY(mode_t mode, uid_t uid, gid_t gid)
+			: TmpInode(
+				DevFileSystem::get(),
+				MUST(DevFileSystem::get().allocate_inode(create_inode_info(mode, uid, gid))),
+				create_inode_info(mode, uid, gid)
+			)
+		{
+			ASSERT(this->mode().iflnk());
+		}
+
+	private:
+		friend class BAN::RefPtr<DevTTY>;
+	};
+
 	static BAN::RefPtr<TTY> s_tty;
 
 	static dev_t next_tty_rdev()
@@ -51,20 +87,6 @@ namespace Kernel
 	{
 		s_tty = this;
 		clear();
-
-		auto inode_or_error = DevFileSystem::get().root_inode()->find_inode("tty"_sv);
-		if (inode_or_error.is_error())
-		{
-			if (inode_or_error.error().get_error_code() == ENOENT)
-				DevFileSystem::get().add_inode("tty"_sv, MUST(TmpSymlinkInode::create_new(DevFileSystem::get(), 0666, 0, 0, s_tty->name())));
-			else
-				dwarnln("{}", inode_or_error.error());
-			return;
-		}
-
-		auto inode = inode_or_error.release_value();
-		if (inode->mode().iflnk())
-			MUST(static_cast<TmpSymlinkInode&>(*inode.ptr()).set_link_target(name()));
 	}
 
 	BAN::ErrorOr<void> TTY::tty_ctrl(int command, int flags)
@@ -137,6 +159,8 @@ namespace Kernel
 
 		auto* thread = MUST(Thread::create_kernel(&TTY::keyboard_task, nullptr, nullptr));
 		MUST(Processor::scheduler().add_thread(thread));
+
+		DevFileSystem::get().add_inode("tty", MUST(DevTTY::create(0666, 0, 0)));
 
 		initialized = true;
 	}

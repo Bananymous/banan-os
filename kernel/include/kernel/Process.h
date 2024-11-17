@@ -185,7 +185,7 @@ namespace Kernel
 
 		BAN::ErrorOr<long> sys_load_keymap(const char* path);
 
-		TTY& tty() { ASSERT(m_controlling_terminal); return *m_controlling_terminal; }
+		BAN::RefPtr<TTY> controlling_terminal() { return m_controlling_terminal; }
 
 		static Process& current() { return Thread::current().process(); }
 

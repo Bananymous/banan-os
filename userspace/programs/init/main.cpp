@@ -2,7 +2,6 @@
 #include <BAN/Optional.h>
 #include <BAN/Vector.h>
 
-#include <ctype.h>
 #include <fcntl.h>
 #include <pwd.h>
 #include <stdio.h>
@@ -11,18 +10,16 @@
 #include <sys/banan-os.h>
 #include <termios.h>
 
-void initialize_stdio()
+int main(int argc, char** argv)
 {
-	const char* tty = "/dev/tty";
-	if (open(tty, O_RDONLY | O_TTY_INIT) != 0) _exit(1);
-	if (open(tty, O_WRONLY) != 1) _exit(1);
-	if (open(tty, O_WRONLY) != 2) _exit(1);
-	if (open("/dev/debug", O_WRONLY) != 3) _exit(1);
-}
+	ASSERT(argc == 2);
 
-int main()
-{
-	initialize_stdio();
+	const char* tty_name = argv[1];
+
+	if (open(tty_name, O_RDONLY | O_TTY_INIT) != 0) _exit(1);
+	if (open(tty_name, O_WRONLY) != 1) _exit(1);
+	if (open(tty_name, O_WRONLY) != 2) _exit(1);
+	if (open("/dev/debug", O_WRONLY) != 3) _exit(1);
 
 	if (signal(SIGINT, [](int) {}) == SIG_ERR)
 		perror("signal");
@@ -79,18 +76,6 @@ int main()
 		auto* pwd = getpwnam(name_buffer);
 		if (pwd == nullptr)
 			continue;
-
-		if (chown("/dev/tty", pwd->pw_uid, pwd->pw_gid) == -1)
-		{
-			perror("chown");
-			continue;
-		}
-
-		if (chmod("/dev/tty", 0600) == -1)
-		{
-			perror("chmod");
-			continue;
-		}
 
 		pid_t pid = fork();
 		if (pid == 0)
