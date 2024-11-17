@@ -179,6 +179,8 @@ namespace Kernel
 		const pid_t tid = Thread::current_tid();
 		const pid_t pid = (tid && Thread::current().has_process()) ? Process::current().pid() : 0;
 
+		const char* process_name = "";
+
 		if (tid)
 		{
 			auto& thread = Thread::current();
@@ -245,15 +247,22 @@ namespace Kernel
 			);
 		}
 
+		if (Thread::current().has_process() && Process::current().is_userspace())
+		{
+			const char* const* argv = Process::current().userspace_info().argv;
+			if (argv && *argv)
+				process_name = *argv;
+		}
+
 #if ARCH(x86_64)
 		dwarnln(
-			"CPU {}: {} (error code: 0x{8H}), pid {}, tid {}\r\n"
+			"CPU {}: {} (error code: 0x{8H}), pid {}, tid {}: {}\r\n"
 			"Register dump\r\n"
 			"rax=0x{16H}, rbx=0x{16H}, rcx=0x{16H}, rdx=0x{16H}\r\n"
 			"rsp=0x{16H}, rbp=0x{16H}, rdi=0x{16H}, rsi=0x{16H}\r\n"
 			"rip=0x{16H}, rflags=0x{16H}\r\n"
 			"cr0=0x{16H}, cr2=0x{16H}, cr3=0x{16H}, cr4=0x{16H}",
-			Processor::current_id(), isr_exceptions[isr], error, pid, tid,
+			Processor::current_id(), isr_exceptions[isr], error, pid, tid, process_name,
 			regs->rax, regs->rbx, regs->rcx, regs->rdx,
 			interrupt_stack->sp, regs->rbp, regs->rdi, regs->rsi,
 			interrupt_stack->ip, interrupt_stack->flags,
@@ -261,13 +270,13 @@ namespace Kernel
 		);
 #elif ARCH(i686)
 		dwarnln(
-			"CPU {}: {} (error code: 0x{8H}), pid {}, tid {}\r\n"
+			"CPU {}: {} (error code: 0x{8H}), pid {}, tid {}: {}\r\n"
 			"Register dump\r\n"
 			"eax=0x{8H}, ebx=0x{8H}, ecx=0x{8H}, edx=0x{8H}\r\n"
 			"esp=0x{8H}, ebp=0x{8H}, edi=0x{8H}, esi=0x{8H}\r\n"
 			"eip=0x{8H}, eflags=0x{8H}\r\n"
 			"cr0=0x{8H}, cr2=0x{8H}, cr3=0x{8H}, cr4=0x{8H}",
-			Processor::current_id(), isr_exceptions[isr], error, pid, tid,
+			Processor::current_id(), isr_exceptions[isr], error, pid, tid, process_name,
 			regs->eax, regs->ebx, regs->ecx, regs->edx,
 			interrupt_stack->sp, regs->ebp, regs->edi, regs->esi,
 			interrupt_stack->ip, interrupt_stack->flags,
