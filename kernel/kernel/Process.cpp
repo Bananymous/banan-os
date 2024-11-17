@@ -108,7 +108,7 @@ namespace Kernel
 		return process;
 	}
 
-	BAN::ErrorOr<Process*> Process::create_userspace(const Credentials& credentials, BAN::StringView path)
+	BAN::ErrorOr<Process*> Process::create_userspace(const Credentials& credentials, BAN::StringView path, BAN::Span<BAN::StringView> arguments)
 	{
 		auto* process = create_process(credentials, 0);
 		TRY(process->m_credentials.initialize_supplementary_groups());
@@ -124,9 +124,13 @@ namespace Kernel
 		auto executable = TRY(ELF::load_from_inode(executable_inode, process->m_credentials, process->page_table()));
 		process->m_mapped_regions = BAN::move(executable.regions);
 
-		char** argv = nullptr;
+		char** argv_addr = nullptr;
 		{
-			size_t needed_bytes = sizeof(char*) * 2 + path.size() + 1;
+			size_t needed_bytes = sizeof(char*) + path.size() + 1;
+			for (auto argument : arguments)
+				needed_bytes += sizeof(char*) + argument.size() + 1;
+			needed_bytes += sizeof(char*);
+
 			if (auto rem = needed_bytes % PAGE_SIZE)
 				needed_bytes += PAGE_SIZE - rem;
 
@@ -135,18 +139,33 @@ namespace Kernel
 				needed_bytes,
 				{ .start = 0x400000, .end = KERNEL_OFFSET },
 				MemoryRegion::Type::PRIVATE,
-				PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present
+				PageTable::Flags::UserSupervisor | PageTable::Flags::Present
 			));
+			argv_addr = reinterpret_cast<char**>(argv_region->vaddr());
 
-			uintptr_t temp = argv_region->vaddr() + sizeof(char*) * 2;
-			MUST(argv_region->copy_data_to_region(0, (const uint8_t*)&temp, sizeof(char*)));
+			uintptr_t offset = sizeof(char*) * (1 + arguments.size() + 1);
+			for (size_t i = 0; i <= arguments.size(); i++)
+			{
+				const uintptr_t addr = argv_region->vaddr() + offset;
+				TRY(argv_region->copy_data_to_region(i * sizeof(char*), reinterpret_cast<const uint8_t*>(&addr), sizeof(char*)));
 
-			temp = 0;
-			MUST(argv_region->copy_data_to_region(sizeof(char*), (const uint8_t*)&temp, sizeof(char*)));
+				dprintln("argv[{}] = {H}", i * sizeof(char*), addr);
 
-			MUST(argv_region->copy_data_to_region(sizeof(char*) * 2, (const uint8_t*)path.data(), path.size()));
+				const auto current = (i == 0) ? path : arguments[i - 1];
+				TRY(argv_region->copy_data_to_region(offset, reinterpret_cast<const uint8_t*>(current.data()), current.size()));
 
-			MUST(process->m_mapped_regions.push_back(BAN::move(argv_region)));
+				dprintln("  argv[{}] = '{}'", offset, current);
+
+				const uint8_t zero = 0;
+				TRY(argv_region->copy_data_to_region(offset + current.size(), &zero, 1));
+
+				offset += current.size() + 1;
+			}
+
+			const uintptr_t zero = 0;
+			TRY(argv_region->copy_data_to_region((1 + arguments.size()) * sizeof(char*), reinterpret_cast<const uint8_t*>(&zero), sizeof(char*)));
+
+			TRY(process->m_mapped_regions.push_back(BAN::move(argv_region)));
 		}
 
 		if (executable_inode->mode().mode & +Inode::Mode::ISUID)
@@ -164,8 +183,8 @@ namespace Kernel
 
 		process->m_is_userspace = true;
 		process->m_userspace_info.entry = executable.entry_point;
-		process->m_userspace_info.argc = 1;
-		process->m_userspace_info.argv = argv;
+		process->m_userspace_info.argc = 1 + arguments.size();
+		process->m_userspace_info.argv = argv_addr;
 		process->m_userspace_info.envp = nullptr;
 
 		auto* thread = MUST(Thread::create_userspace(process, process->page_table()));

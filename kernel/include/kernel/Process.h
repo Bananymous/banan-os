@@ -45,7 +45,7 @@ namespace Kernel
 	public:
 		static Process* create_kernel();
 		static Process* create_kernel(entry_t, void*);
-		static BAN::ErrorOr<Process*> create_userspace(const Credentials&, BAN::StringView);
+		static BAN::ErrorOr<Process*> create_userspace(const Credentials&, BAN::StringView path, BAN::Span<BAN::StringView> arguments);
 		~Process();
 		void cleanup_function();
 

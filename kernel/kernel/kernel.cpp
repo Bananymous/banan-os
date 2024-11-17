@@ -254,7 +254,7 @@ static void init2(void*)
 
 	TTY::initialize_devices();
 
-	MUST(Process::create_userspace({ 0, 0, 0, 0 }, "/usr/bin/init"_sv));
+	MUST(Process::create_userspace({ 0, 0, 0, 0 }, "/usr/bin/init"_sv, {}));
 }
 
 extern "C" void ap_main()
