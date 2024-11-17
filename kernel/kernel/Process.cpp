@@ -1682,12 +1682,9 @@ namespace Kernel
 		if (flags != MS_SYNC && flags != MS_ASYNC && flags != MS_INVALIDATE)
 			return BAN::Error::from_errno(EINVAL);
 
-		vaddr_t vaddr = (vaddr_t)addr;
-		if (vaddr % PAGE_SIZE != 0)
-			return BAN::Error::from_errno(EINVAL);
-
 		LockGuard _(m_process_lock);
 
+		const vaddr_t vaddr = reinterpret_cast<vaddr_t>(addr);
 		for (auto& mapped_region : m_mapped_regions)
 			if (mapped_region->overlaps(vaddr, len))
 				TRY(mapped_region->msync(vaddr, len, flags));
