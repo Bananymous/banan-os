@@ -198,19 +198,23 @@ int main()
 		if (auto ret = window_server.set_background_image(BAN::move(config.background_image)); ret.is_error())
 			dwarnln("Could not set background image: {}", ret.error());
 
+	const auto get_current_us =
+		[]() -> uint64_t
+		{
+			timespec current_ts;
+			clock_gettime(CLOCK_MONOTONIC, &current_ts);
+			return (current_ts.tv_sec * 1'000'000) + (current_ts.tv_nsec / 1'000);
+		};
+
 	constexpr uint64_t sync_interval_us = 1'000'000 / 60;
-	timespec last_sync { .tv_sec = 0, .tv_nsec = 0 };
+	uint64_t last_sync_us = 0;
 	while (!window_server.is_stopped())
 	{
-		timespec current_ts;
-		clock_gettime(CLOCK_MONOTONIC, &current_ts);
-
-		uint64_t us_since_last_sync = (current_ts.tv_sec - last_sync.tv_sec) * 1'000'000 + (current_ts.tv_nsec - last_sync.tv_nsec) / 1000;
-		if (us_since_last_sync > sync_interval_us)
+		const auto current_us = get_current_us();
+		if (current_us - last_sync_us > sync_interval_us)
 		{
 			window_server.sync();
-			us_since_last_sync = 0;
-			last_sync = current_ts;
+			last_sync_us += sync_interval_us;
 		}
 
 		int max_fd = server_fd;
@@ -230,10 +234,10 @@ int main()
 		}
 		max_fd = BAN::Math::max(max_fd, window_server.get_client_fds(fds));
 
-		timeval select_timeout {
-			.tv_sec = 0,
-			.tv_usec = static_cast<long>(sync_interval_us - us_since_last_sync)
-		};
+		timeval select_timeout {};
+		if (auto current_us = get_current_us(); current_us - last_sync_us < sync_interval_us)
+			select_timeout.tv_usec = sync_interval_us - (current_us - last_sync_us);
+
 		int nselect = select(max_fd + 1, &fds, nullptr, nullptr, &select_timeout);
 		if (nselect == 0)
 			continue;
