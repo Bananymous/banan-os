@@ -60,6 +60,7 @@ namespace Kernel
 		static void wait_until_processors_ready();
 
 		static void toggle_should_print_cpu_load() { s_should_print_cpu_load = !s_should_print_cpu_load; }
+		static bool get_should_print_cpu_load() { return s_should_print_cpu_load; }
 
 		static ProcessorID bsb_id() { return s_bsb_id; }
 		static bool current_is_bsb() { return current_id() == bsb_id(); }

@@ -3,10 +3,13 @@
 #include <kernel/Device/FramebufferDevice.h>
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/Memory/Heap.h>
+#include <kernel/Terminal/TerminalDriver.h>
 
 #include <sys/framebuffer.h>
 #include <sys/mman.h>
 #include <sys/sysmacros.h>
+
+extern Kernel::TerminalDriver* g_terminal_driver;
 
 namespace Kernel
 {
@@ -250,16 +253,21 @@ namespace Kernel
 		{
 			if (flags != MS_SYNC)
 				return BAN::Error::from_errno(ENOTSUP);
+			if (vaddr % (BANAN_FB_BPP / 8))
+				return BAN::Error::from_errno(EINVAL);
 
-			if (vaddr < m_vaddr)
-				vaddr = m_vaddr;
-			if (vaddr + size > m_vaddr + m_size)
-				size = (vaddr - m_vaddr) + m_size;
+			if (auto rem = size % (BANAN_FB_BPP / 8))
+				size += (BANAN_FB_BPP / 8) - rem;
 
-			m_framebuffer->sync_pixels_linear(
-				(vaddr - m_vaddr) / (BANAN_FB_BPP / 8),
-				BAN::Math::div_round_up<uint32_t>((vaddr % (BANAN_FB_BPP / 8)) + size, (BANAN_FB_BPP / 8))
-			);
+			const vaddr_t start = BAN::Math::max(vaddr, m_vaddr);
+			const size_t  end   = BAN::Math::min(vaddr + size, m_vaddr + m_size);
+			if (start < end)
+			{
+				do_msync(
+					(start - m_vaddr) / (BANAN_FB_BPP / 8),
+					(end   - start)   / (BANAN_FB_BPP / 8)
+				);
+			}
 
 			return {};
 		}
@@ -299,6 +307,53 @@ namespace Kernel
 			: MemoryRegion(page_table, size, region_type, page_flags)
 			, m_framebuffer(framebuffer)
 		{ }
+
+		void do_msync(uint32_t first_pixel, uint32_t pixel_count)
+		{
+			if (!Processor::get_should_print_cpu_load())
+				return m_framebuffer->sync_pixels_linear(first_pixel, pixel_count);
+
+			const uint32_t fb_width = m_framebuffer->width();
+
+			const auto& font = g_terminal_driver->font();
+
+			const uint32_t x = first_pixel % fb_width;
+			const uint32_t y = first_pixel / fb_width;
+
+			const uint32_t load_w = 16                 * font.width();
+			const uint32_t load_h = Processor::count() * font.height();
+
+			if (y >= load_h || x + pixel_count <= fb_width - load_w)
+				return m_framebuffer->sync_pixels_linear(first_pixel, pixel_count);
+
+			if (x >= fb_width - load_w && x + pixel_count <= fb_width)
+				return;
+
+			if (x < fb_width - load_w)
+				m_framebuffer->sync_pixels_linear(first_pixel, fb_width - load_w - x);
+
+			if (x + pixel_count > fb_width)
+			{
+				const uint32_t past_last_pixel = first_pixel + pixel_count;
+
+				first_pixel = (y + 1) * fb_width;
+				pixel_count = past_last_pixel - first_pixel;
+
+				const uint32_t cpu_load_end = load_h * fb_width;
+
+				while (pixel_count && first_pixel < cpu_load_end)
+				{
+					m_framebuffer->sync_pixels_linear(first_pixel, BAN::Math::min(pixel_count, fb_width - load_w));
+
+					const uint32_t advance = BAN::Math::min(pixel_count, fb_width);
+					pixel_count -= advance;
+					first_pixel += advance;
+				}
+
+				if (pixel_count)
+					m_framebuffer->sync_pixels_linear(first_pixel, pixel_count);
+			}
+		}
 
 	private:
 		BAN::RefPtr<FramebufferDevice> m_framebuffer;
