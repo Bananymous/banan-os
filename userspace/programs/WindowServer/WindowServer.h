@@ -3,6 +3,7 @@
 #include "Framebuffer.h"
 #include "Window.h"
 
+#include <BAN/Array.h>
 #include <BAN/Function.h>
 #include <BAN/Iteration.h>
 #include <BAN/Vector.h>
@@ -60,6 +61,14 @@ private:
 	void mark_pending_sync(Rectangle area);
 
 private:
+	struct RangeList
+	{
+		size_t range_count { 0 };
+		BAN::Array<Range, 32> ranges;
+		void add_range(const Range& range);
+	};
+
+private:
 	Framebuffer& m_framebuffer;
 	BAN::Vector<BAN::RefPtr<Window>> m_client_windows;
 
@@ -67,7 +76,7 @@ private:
 
 	const int32_t m_corner_radius;
 
-	BAN::Vector<uint8_t> m_pages_to_sync_bitmap;
+	BAN::Vector<RangeList> m_pending_syncs;
 
 	BAN::UniqPtr<LibImage::Image> m_background_image;
 

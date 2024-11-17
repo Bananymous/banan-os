@@ -80,3 +80,32 @@ struct Circle
 	}
 
 };
+
+struct Range
+{
+	uint32_t start { 0 };
+	uint32_t count { 0 };
+
+	bool is_continuous_with(const Range& range) const
+	{
+		return start <= range.start + range.count && range.start <= start + count;
+	}
+
+	uint32_t distance_between(const Range& range) const
+	{
+		if (is_continuous_with(range))
+			return 0;
+		if (start < range.start)
+			return range.start - (start + count);
+		return start - (range.start + range.count);
+	}
+
+	void merge_with(const Range& range)
+	{
+		const uint32_t new_start = BAN::Math::min(start, range.start);
+		const uint32_t new_end   = BAN::Math::max(start + count, range.start + range.count);
+
+		start = new_start;
+		count = new_end - new_start;
+	}
+};

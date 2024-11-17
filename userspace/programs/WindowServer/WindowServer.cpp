@@ -24,6 +24,8 @@ WindowServer::WindowServer(Framebuffer& framebuffer, int32_t corner_radius)
 	MUST(bitmap.resize(m_framebuffer.width * m_framebuffer.height, { 0x10, 0x10, 0x10, 0xFF }));
 	m_background_image = MUST(BAN::UniqPtr<LibImage::Image>::create(m_framebuffer.width, m_framebuffer.height, BAN::move(bitmap)));
 
+	MUST(m_pending_syncs.resize(m_framebuffer.height));
+
 	invalidate(m_framebuffer.area());
 }
 
@@ -910,24 +912,71 @@ void WindowServer::invalidate(Rectangle area)
 	mark_pending_sync(area);
 }
 
-void WindowServer::mark_pending_sync(Rectangle area)
+void WindowServer::RangeList::add_range(const Range& range)
 {
-	// FIXME: this marks too many pages
-
-	const uintptr_t mmap_start = reinterpret_cast<uintptr_t>(m_framebuffer.mmap) + area.y * m_framebuffer.width * 4;
-	const uintptr_t mmap_end = mmap_start + (area.height + 1) * m_framebuffer.width * 4;
-
-	uintptr_t mmap_addr = mmap_start & ~(uintptr_t)0xFFF;
-	while (mmap_addr < mmap_end)
+	if (range_count == 0)
 	{
-		size_t index = (mmap_addr - reinterpret_cast<uintptr_t>(m_framebuffer.mmap)) / 4096;
-		size_t byte = index / 8;
-		size_t bit  = index % 8;
-		//dprintln("{}/{}", byte, m_pages_to_sync_bitmap.size());
-		if (byte < m_pages_to_sync_bitmap.size())
-			m_pages_to_sync_bitmap[byte] |= 1 << bit;
-		mmap_addr += 4096;
+		ranges[0] = range;
+		range_count++;
+		return;
 	}
+
+	size_t min_distance_value = SIZE_MAX;
+	size_t min_distance_index = 0;
+	for (size_t i = 0; i < range_count; i++)
+	{
+		if (ranges[i].is_continuous_with(range))
+		{
+			ranges[i].merge_with(range);
+
+			size_t last_continuous = i;
+			for (size_t j = i + 1; j < range_count; j++)
+			{
+				if (!ranges[i].is_continuous_with(ranges[j]))
+					break;
+				last_continuous = j;
+			}
+
+			if (last_continuous != i)
+			{
+				ranges[i].merge_with(ranges[last_continuous]);
+				for (size_t j = 1; last_continuous + j < range_count; j++)
+					ranges[i + j] = ranges[last_continuous + j];
+				range_count -= last_continuous - i;
+			}
+
+			return;
+		}
+
+		const auto distance = ranges[i].distance_between(range);
+		if (distance < min_distance_value)
+		{
+			min_distance_value = distance;
+			min_distance_index = i;
+		}
+	}
+
+	if (range_count >= ranges.size())
+	{
+		ranges[min_distance_index].merge_with(range);
+		return;
+	}
+
+	size_t insert_idx = 0;
+	for (; insert_idx < range_count; insert_idx++)
+		if (range.start < ranges[insert_idx].start)
+			break;
+	for (size_t i = range_count; i > insert_idx; i--)
+		ranges[i] = ranges[i - 1];
+	ranges[insert_idx] = range;
+	range_count++;
+}
+
+void WindowServer::mark_pending_sync(Rectangle to_sync)
+{
+	ASSERT(to_sync == to_sync.get_overlap(m_framebuffer.area()).value());
+	for (int32_t y_off = 0; y_off < to_sync.height; y_off++)
+		m_pending_syncs[to_sync.y + y_off].add_range({ static_cast<uint32_t>(to_sync.x), static_cast<uint32_t>(to_sync.width) });
 }
 
 void WindowServer::sync()
@@ -951,33 +1000,44 @@ void WindowServer::sync()
 			dir_y = -dir_y;
 	}
 
-	for (size_t i = 0; i < m_pages_to_sync_bitmap.size() * 8; i++)
+	size_t range_start = 0;
+	size_t range_count = 0;
+	for (int32_t y = 0; y < m_framebuffer.height; y++)
 	{
-		size_t byte = i / 8;
-		size_t bit  = i % 8;
-		if (!(m_pages_to_sync_bitmap[byte] & (1 << bit)))
-			continue;
+		auto& range_list = m_pending_syncs[y];
 
-		size_t len = 1;
-		while (i + len < m_pages_to_sync_bitmap.size() * 8)
+		for (size_t i = 0; i < range_list.range_count; i++)
 		{
-			size_t byte = (i + len) / 8;
-			size_t bit  = (i + len) % 8;
-			if (!(m_pages_to_sync_bitmap[byte] & (1 << bit)))
-				break;
-			len++;
+			const size_t cur_start = y * m_framebuffer.width + range_list.ranges[i].start;
+			const size_t cur_count =                           range_list.ranges[i].count;
+
+			if (range_count == 0)
+			{
+				range_start = cur_start;
+				range_count = cur_count;
+			}
+			else
+			{
+				const size_t distance = cur_start - (range_start + range_count);
+
+				// combine nearby ranges to reduce msync calls
+				// NOTE: value of 128 is an arbitary constant that *just* felt nice
+				if (distance <= 128)
+					range_count = (cur_start + cur_count) - range_start;
+				else
+				{
+					msync(m_framebuffer.mmap + range_start, range_count * 4, MS_SYNC);
+					range_start = cur_start;
+					range_count = cur_count;
+				}
+			}
 		}
 
-		msync(
-			reinterpret_cast<uint8_t*>(m_framebuffer.mmap) + i * 4096,
-			len * 4096,
-			MS_SYNC
-		);
-
-		i += len;
+		range_list.range_count = 0;
 	}
 
-	memset(m_pages_to_sync_bitmap.data(), 0, m_pages_to_sync_bitmap.size());
+	if (range_count)
+		msync(m_framebuffer.mmap + range_start, range_count * 4, MS_SYNC);
 }
 
 Rectangle WindowServer::cursor_area() const
