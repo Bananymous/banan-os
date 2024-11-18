@@ -70,18 +70,19 @@ namespace Kernel::Input
 	BAN::ErrorOr<void> PS2Controller::device_send_byte_and_wait_ack(uint8_t device_index, uint8_t byte)
 	{
 		LockGuard _(m_mutex);
-		for (;;)
+		for (size_t attempt = 0; attempt < 10; attempt++)
 		{
 			TRY(device_send_byte(device_index, byte));
 			uint8_t response = TRY(read_byte());
 			if (response == PS2::Response::RESEND)
 				continue;
 			if (response == PS2::Response::ACK)
-				break;
+				return {};
 			dwarnln_if(DEBUG_PS2, "PS/2 device on port {} did not respond with expected ACK, got {2H}", device_index, byte);
 			return BAN::Error::from_errno(EBADMSG);
 		}
-		return {};
+		dwarnln_if(DEBUG_PS2, "PS/2 device on port {} is in resend loop", device_index, byte);
+		return BAN::Error::from_errno(EBADMSG);
 	}
 
 	uint8_t PS2Controller::get_device_index(PS2Device* device) const
@@ -244,7 +245,7 @@ namespace Kernel::Input
 		if (fadt && fadt->revision > 1 && !(fadt->iapc_boot_arch & (1 << 1)))
 		{
 			dwarnln_if(DEBUG_PS2, "No PS/2 available");
-			return {};
+			return BAN::Error::from_errno(ENODEV);
 		}
 
 		// Disable Devices
