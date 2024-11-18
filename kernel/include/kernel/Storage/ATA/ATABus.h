@@ -35,11 +35,10 @@ namespace Kernel
 		{}
 		BAN::ErrorOr<void> initialize();
 
-		void select_device(bool secondary);
-		BAN::ErrorOr<DeviceType> identify(bool secondary, BAN::Span<uint16_t> buffer);
+		void select_device(bool is_secondary);
+		BAN::ErrorOr<DeviceType> identify(bool is_secondary, BAN::Span<uint16_t> buffer);
 
-		void block_until_irq();
-		//uint8_t device_index(const ATADevice&) const;
+		BAN::ErrorOr<void> block_until_irq();
 
 		uint8_t io_read(uint16_t);
 		void io_write(uint16_t, uint8_t);

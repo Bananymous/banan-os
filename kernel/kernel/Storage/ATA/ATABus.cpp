@@ -19,7 +19,7 @@ namespace Kernel
 		if (bus_ptr == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
 		auto bus = BAN::RefPtr<ATABus>::adopt(bus_ptr);
-		if (bus->io_read(ATA_PORT_STATUS) == 0x00)
+		if (bus->io_read(ATA_PORT_STATUS) == 0xFF)
 		{
 			dprintln("Floating ATA bus on IO port 0x{H}", base);
 			return BAN::Error::from_errno(ENODEV);
@@ -69,94 +69,83 @@ namespace Kernel
 		SystemTimer::get().sleep_ns(400);
 	}
 
-	void ATABus::select_device(bool secondary)
+	void ATABus::select_device(bool is_secondary)
 	{
-		io_write(ATA_PORT_DRIVE_SELECT, 0xA0 | ((uint8_t)secondary << 4));
+		io_write(ATA_PORT_DRIVE_SELECT, 0xA0 | ((uint8_t)is_secondary << 4));
 		select_delay();
 	}
 
-	BAN::ErrorOr<ATABus::DeviceType> ATABus::identify(bool secondary, BAN::Span<uint16_t> buffer)
+	BAN::ErrorOr<ATABus::DeviceType> ATABus::identify(bool is_secondary, BAN::Span<uint16_t> buffer)
 	{
-		// Try to detect whether port contains device
-		uint8_t status = io_read(ATA_PORT_STATUS);
-		if (status & ATA_STATUS_BSY)
-		{
-			uint64_t timeout = SystemTimer::get().ms_since_boot() + s_ata_timeout_ms;
-			while ((status = io_read(ATA_PORT_STATUS)) & ATA_STATUS_BSY)
-			{
-				if (SystemTimer::get().ms_since_boot() >= timeout)
-				{
-					dprintln("BSY flag clear timeout, assuming no drive on port");
-					return BAN::Error::from_errno(ETIMEDOUT);
-				}
-			}
-		}
-		if (__builtin_popcount(status) >= 4)
-		{
-			dprintln("STATUS contains garbage, assuming no drive on port");
-			return BAN::Error::from_errno(EINVAL);
-		}
-
-		select_device(secondary);
+		select_device(is_secondary);
 
 		// Disable interrupts
 		io_write(ATA_PORT_CONTROL, ATA_CONTROL_nIEN);
 
+		io_write(ATA_PORT_SECTOR_COUNT, 0);
+		io_write(ATA_PORT_LBA0, 0);
+		io_write(ATA_PORT_LBA1, 0);
+		io_write(ATA_PORT_LBA2, 0);
 		io_write(ATA_PORT_COMMAND, ATA_COMMAND_IDENTIFY);
 		SystemTimer::get().sleep_ms(1);
 
 		// No device on port
 		if (io_read(ATA_PORT_STATUS) == 0)
-			return BAN::Error::from_errno(EINVAL);
+			return BAN::Error::from_errno(ENODEV);
 
-		DeviceType type = DeviceType::ATA;
+		TRY(wait(false));
 
-		if (wait(true).is_error())
+		const uint8_t lba1 = io_read(ATA_PORT_LBA1);
+		const uint8_t lba2 = io_read(ATA_PORT_LBA2);
+
+		auto device_type = DeviceType::ATA;
+		if (lba1 || lba2)
 		{
-			uint8_t lba1 = io_read(ATA_PORT_LBA1);
-			uint8_t lba2 = io_read(ATA_PORT_LBA2);
-
 			if (lba1 == 0x14 && lba2 == 0xEB)
-				type = DeviceType::ATAPI;
+				device_type = DeviceType::ATAPI;
 			else if (lba1 == 0x69 && lba2 == 0x96)
-				type = DeviceType::ATAPI;
+				device_type = DeviceType::ATAPI;
 			else
 			{
-				dprintln("Unsupported device type");
+				dprintln("Unsupported device type {2H} {2H}", lba1, lba2);
 				return BAN::Error::from_errno(EINVAL);
 			}
 
 			io_write(ATA_PORT_COMMAND, ATA_COMMAND_IDENTIFY_PACKET);
 			SystemTimer::get().sleep_ms(1);
-
-			if (auto res = wait(true); res.is_error())
-			{
-				dprintln("Fatal error: {}", res.error());
-				return BAN::Error::from_errno(EINVAL);
-			}
 		}
+
+		TRY(wait(true));
 
 		ASSERT(buffer.size() >= 256);
 		read_buffer(ATA_PORT_DATA, buffer.data(), 256);
-		return type;
+		return device_type;
 	}
 
 	void ATABus::handle_irq()
 	{
-		ASSERT(!m_has_got_irq);
 		if (io_read(ATA_PORT_STATUS) & ATA_STATUS_ERR)
 			dprintln("ATA Error: {}", error());
-		m_has_got_irq.store(true);
+
+		bool expected { false };
+		[[maybe_unused]] bool success = m_has_got_irq.compare_exchange(expected, true);
+		ASSERT(success);
 	}
 
-	void ATABus::block_until_irq()
+	BAN::ErrorOr<void> ATABus::block_until_irq()
 	{
+		const uint64_t timeout_ms = SystemTimer::get().ms_since_boot() + s_ata_timeout_ms;
+
 		bool expected { true };
 		while (!m_has_got_irq.compare_exchange(expected, false))
 		{
+			if (SystemTimer::get().ms_since_boot() >= timeout_ms)
+				return BAN::Error::from_errno(ETIMEDOUT);
 			Processor::pause();
 			expected = true;
 		}
+
+		return {};
 	}
 
 	uint8_t ATABus::io_read(uint16_t port)
