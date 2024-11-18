@@ -14,7 +14,6 @@ namespace Kernel
 		Ext2_NoInodes,
 		Storage_Boundaries,
 		Storage_GPTHeader,
-		ATA_NoLBA,
 		ATA_AMNF,
 		ATA_TKZNF,
 		ATA_ABRT,

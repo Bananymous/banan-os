@@ -27,21 +27,20 @@ namespace Kernel
 	{
 		ASSERT(identify_data.size() >= 256);
 
-		m_signature = identify_data[ATA_IDENTIFY_SIGNATURE];
+		m_signature    = identify_data[ATA_IDENTIFY_SIGNATURE];
 		m_capabilities = identify_data[ATA_IDENTIFY_CAPABILITIES];
 
-		m_command_set = 0;
-		m_command_set |= (uint32_t)(identify_data[ATA_IDENTIFY_COMMAND_SET + 0] <<  0);
-		m_command_set |= (uint32_t)(identify_data[ATA_IDENTIFY_COMMAND_SET + 1] << 16);
+		m_command_set  = static_cast<uint32_t>(identify_data[ATA_IDENTIFY_COMMAND_SET + 0]) <<  0;
+		m_command_set |= static_cast<uint32_t>(identify_data[ATA_IDENTIFY_COMMAND_SET + 1]) << 16;
 
-		if (!(m_capabilities & ATA_CAPABILITIES_LBA))
-			return BAN::Error::from_error_code(ErrorCode::ATA_NoLBA);
+		m_has_lba = !!(m_capabilities & ATA_CAPABILITIES_LBA);
 
 		if ((identify_data[ATA_IDENTIFY_SECTOR_INFO] & (1 << 15)) == 0 &&
 			(identify_data[ATA_IDENTIFY_SECTOR_INFO] & (1 << 14)) != 0 &&
 			(identify_data[ATA_IDENTIFY_SECTOR_INFO] & (1 << 12)) != 0)
 		{
-			m_sector_words = *(uint32_t*)(identify_data.data() + ATA_IDENTIFY_SECTOR_WORDS);
+			m_sector_words  = static_cast<uint32_t>(identify_data[ATA_IDENTIFY_SECTOR_WORDS + 0]) <<  0;
+			m_sector_words |= static_cast<uint32_t>(identify_data[ATA_IDENTIFY_SECTOR_WORDS + 1]) << 16;
 		}
 		else
 		{
@@ -50,9 +49,17 @@ namespace Kernel
 
 		m_lba_count = 0;
 		if (m_command_set & ATA_COMMANDSET_LBA48_SUPPORTED)
-			m_lba_count = *(uint64_t*)(identify_data.data() + ATA_IDENTIFY_LBA_COUNT_EXT);
+		{
+			m_lba_count  = static_cast<uint64_t>(identify_data[ATA_IDENTIFY_LBA_COUNT_EXT + 0]) <<  0;
+			m_lba_count |= static_cast<uint64_t>(identify_data[ATA_IDENTIFY_LBA_COUNT_EXT + 1]) << 16;
+			m_lba_count |= static_cast<uint64_t>(identify_data[ATA_IDENTIFY_LBA_COUNT_EXT + 2]) << 32;
+			m_lba_count |= static_cast<uint64_t>(identify_data[ATA_IDENTIFY_LBA_COUNT_EXT + 3]) << 48;
+		}
 		if (m_lba_count < (1 << 28))
-			m_lba_count = *(uint32_t*)(identify_data.data() + ATA_IDENTIFY_LBA_COUNT);
+		{
+			m_lba_count  = static_cast<uint32_t>(identify_data[ATA_IDENTIFY_LBA_COUNT + 0]) <<  0;
+			m_lba_count |= static_cast<uint32_t>(identify_data[ATA_IDENTIFY_LBA_COUNT + 1]) << 16;
+		}
 
 		for (int i = 0; i < 20; i++)
 		{

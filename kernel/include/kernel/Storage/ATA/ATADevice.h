@@ -26,11 +26,12 @@ namespace Kernel
 
 			uint32_t words_per_sector() const { return m_sector_words; }
 			uint64_t sector_count() const { return m_lba_count; }
+			bool has_lba() const { return m_has_lba; }
 
 			BAN::StringView model() const { return m_model; }
-			BAN::StringView name() const { return m_name; }
+			BAN::StringView name() const override { return m_name; }
 
-			virtual dev_t rdev() const override { return m_rdev; }
+			dev_t rdev() const override { return m_rdev; }
 
 		protected:
 			ATABaseDevice();
@@ -42,6 +43,7 @@ namespace Kernel
 			uint32_t m_command_set;
 			uint32_t m_sector_words;
 			uint64_t m_lba_count;
+			bool m_has_lba;
 			char m_model[41];
 			char m_name[4] {};
 

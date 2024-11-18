@@ -17,7 +17,6 @@ namespace Kernel
 		"Ext2 filesystem out of inodes",
 		"Attempted to access outside of device boundaries",
 		"Device has invalid GPT header",
-		"Device does not support LBA addressing",
 		"Address mark not found",
 		"Track zero not found",
 		"Aborted command",

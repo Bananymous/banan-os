@@ -35,6 +35,8 @@ namespace Kernel
 		{}
 		BAN::ErrorOr<void> initialize();
 
+		BAN::ErrorOr<void> send_command(ATADevice&, uint64_t lba, uint64_t sector_count, bool write);
+
 		void select_device(bool is_secondary);
 		BAN::ErrorOr<DeviceType> identify(bool is_secondary, BAN::Span<uint16_t> buffer);
 

@@ -245,29 +245,12 @@ namespace Kernel
 
 		LockGuard _(m_mutex);
 
-		if (lba < (1 << 28))
-		{
-			// LBA28
-			io_write(ATA_PORT_DRIVE_SELECT, 0xE0 | ((uint8_t)device.is_secondary() << 4) | ((lba >> 24) & 0x0F));
-			select_delay();
-			io_write(ATA_PORT_CONTROL, 0);
+		TRY(send_command(device, lba, sector_count, false));
 
-			io_write(ATA_PORT_SECTOR_COUNT, sector_count);
-			io_write(ATA_PORT_LBA0, (uint8_t)(lba >>  0));
-			io_write(ATA_PORT_LBA1, (uint8_t)(lba >>  8));
-			io_write(ATA_PORT_LBA2, (uint8_t)(lba >> 16));
-			io_write(ATA_PORT_COMMAND, ATA_COMMAND_READ_SECTORS);
-
-			for (uint32_t sector = 0; sector < sector_count; sector++)
-			{
-				block_until_irq();
-				read_buffer(ATA_PORT_DATA, (uint16_t*)buffer.data() + sector * device.words_per_sector(), device.words_per_sector());
-			}
-		}
-		else
+		for (uint32_t sector = 0; sector < sector_count; sector++)
 		{
-			// LBA48
-			ASSERT(false);
+			TRY(block_until_irq());
+			read_buffer(ATA_PORT_DATA, (uint16_t*)buffer.data() + sector * device.words_per_sector(), device.words_per_sector());
 		}
 
 		return {};
@@ -282,33 +265,60 @@ namespace Kernel
 
 		LockGuard _(m_mutex);
 
-		if (lba < (1 << 28))
-		{
-			// LBA28
-			io_write(ATA_PORT_DRIVE_SELECT, 0xE0 | ((uint8_t)device.is_secondary() << 4) | ((lba >> 24) & 0x0F));
-			select_delay();
-			io_write(ATA_PORT_CONTROL, 0);
+		TRY(send_command(device, lba, sector_count, true));
 
-			io_write(ATA_PORT_SECTOR_COUNT, sector_count);
-			io_write(ATA_PORT_LBA0, (uint8_t)(lba >>  0));
-			io_write(ATA_PORT_LBA1, (uint8_t)(lba >>  8));
-			io_write(ATA_PORT_LBA2, (uint8_t)(lba >> 16));
-			io_write(ATA_PORT_COMMAND, ATA_COMMAND_WRITE_SECTORS);
-
-			for (uint32_t sector = 0; sector < sector_count; sector++)
-			{
-				write_buffer(ATA_PORT_DATA, (uint16_t*)buffer.data() + sector * device.words_per_sector(), device.words_per_sector());
-				block_until_irq();
-			}
-		}
-		else
+		for (uint32_t sector = 0; sector < sector_count; sector++)
 		{
-			// LBA48
-			ASSERT(false);
+			write_buffer(ATA_PORT_DATA, (uint16_t*)buffer.data() + sector * device.words_per_sector(), device.words_per_sector());
+			TRY(block_until_irq());
 		}
 
 		io_write(ATA_PORT_COMMAND, ATA_COMMAND_CACHE_FLUSH);
-		block_until_irq();
+		TRY(block_until_irq());
+
+		return {};
+	}
+
+	BAN::ErrorOr<void> ATABus::send_command(ATADevice& device, uint64_t lba, uint64_t sector_count, bool write)
+	{
+		uint8_t io_select = 0;
+		uint8_t io_lba0 = 0;
+		uint8_t io_lba1 = 0;
+		uint8_t io_lba2 = 0;
+
+		if (lba >= (1 << 28))
+		{
+			dwarnln("LBA48 addressing not supported");
+			return BAN::Error::from_errno(ENOTSUP);
+		}
+		else if (device.has_lba())
+		{
+			io_select = 0xE0 | ((uint8_t)device.is_secondary() << 4) | ((lba >> 24) & 0x0F);
+			io_lba0   = (lba >>  0) & 0xFF;
+			io_lba1   = (lba >>  8) & 0xFF;
+			io_lba2   = (lba >> 16) & 0xFF;
+		}
+		else
+		{
+			const uint8_t  sector   = (lba % 63) + 1;
+			const uint8_t  head     = (lba + 1 - sector) % (16 * 63) / 63;
+			const uint16_t cylinder = (lba + 1 - sector) / (16 * 63);
+
+			io_select = 0xA0 | ((uint8_t)device.is_secondary() << 4) | head;
+			io_lba0   = sector;
+			io_lba1   = (cylinder >> 0) & 0xFF;
+			io_lba2   = (cylinder >> 8) & 0xFF;
+		}
+
+		io_write(ATA_PORT_DRIVE_SELECT, io_select);
+		select_delay();
+		io_write(ATA_PORT_CONTROL, 0);
+
+		io_write(ATA_PORT_SECTOR_COUNT, sector_count);
+		io_write(ATA_PORT_LBA0, io_lba0);
+		io_write(ATA_PORT_LBA1, io_lba1);
+		io_write(ATA_PORT_LBA2, io_lba2);
+		io_write(ATA_PORT_COMMAND, write ? ATA_COMMAND_WRITE_SECTORS : ATA_COMMAND_READ_SECTORS);
 
 		return {};
 	}
