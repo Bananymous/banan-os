@@ -149,12 +149,8 @@ namespace Kernel
 				const uintptr_t addr = argv_region->vaddr() + offset;
 				TRY(argv_region->copy_data_to_region(i * sizeof(char*), reinterpret_cast<const uint8_t*>(&addr), sizeof(char*)));
 
-				dprintln("argv[{}] = {H}", i * sizeof(char*), addr);
-
 				const auto current = (i == 0) ? path : arguments[i - 1];
 				TRY(argv_region->copy_data_to_region(offset, reinterpret_cast<const uint8_t*>(current.data()), current.size()));
-
-				dprintln("  argv[{}] = '{}'", offset, current);
 
 				const uint8_t zero = 0;
 				TRY(argv_region->copy_data_to_region(offset + current.size(), &zero, 1));
