@@ -254,8 +254,6 @@ static void init2(void*)
 
 	TTY::initialize_devices();
 
-	MUST(Process::create_userspace({ 0, 0, 0, 0 }, "/usr/bin/init"_sv, {}));
-
 	auto console_path = MUST(BAN::String::formatted("/dev/{}", cmdline.console));
 	auto console_path_sv = console_path.sv();
 	MUST(Process::create_userspace({ 0, 0, 0, 0 }, "/usr/bin/init"_sv, BAN::Span<BAN::StringView>(&console_path_sv, 1)));
