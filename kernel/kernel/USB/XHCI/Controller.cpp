@@ -268,6 +268,7 @@ namespace Kernel
 				// read and clear needed change flags
 				const bool reset_change      = op_port.portsc & XHCI::PORTSC::PRC;
 				const bool connection_change = op_port.portsc & XHCI::PORTSC::CSC;
+				const bool port_enabled      = op_port.portsc & XHCI::PORTSC::PED;
 				op_port.portsc = XHCI::PORTSC::CSC | XHCI::PORTSC::PRC | XHCI::PORTSC::PP;
 
 				if (!(op_port.portsc & XHCI::PORTSC::CCS))
@@ -284,18 +285,18 @@ namespace Kernel
 				switch (my_port.revision_major)
 				{
 					case 2:
-						if (!reset_change)
-						{
-							if (connection_change)
-								op_port.portsc = XHCI::PORTSC::PR | XHCI::PORTSC::PP;
-							continue;
-						}
-						break;
-					case 3:
-						if (!connection_change)
-							continue;
-						dprintln_if(DEBUG_XHCI, "USB 3 devices not supported");
+						// USB2 ports advance to Enabled state after a reset
+						if (port_enabled && reset_change)
+							break;
+						// reset port
+						if (connection_change)
+							op_port.portsc = XHCI::PORTSC::PR | XHCI::PORTSC::PP;
 						continue;
+					case 3:
+						if (!connection_change || !port_enabled)
+							continue;
+						// USB3 ports advance to Enabled state automatically
+						break;
 					default:
 						continue;
 				}
