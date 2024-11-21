@@ -59,14 +59,14 @@ namespace Kernel
 		BAN::StringView entry;
 		RootType type;
 
-		if (root_path.size() >= 5 && root_path.substring(0, 5) == "UUID="_sv)
+		if (root_path.starts_with("PARTUUID="_sv))
 		{
-			entry = root_path.substring(5);
+			entry = root_path.substring(9);
 			if (entry.size() != 36)
 				panic("Invalid UUID '{}'", entry);
 			type = RootType::PartitionUUID;
 		}
-		else if (root_path.size() >= 5 && root_path.substring(0, 5) == "/dev/"_sv)
+		else if (root_path.starts_with("/dev/"_sv))
 		{
 			entry = root_path.substring(5);
 			if (entry.empty() || entry.contains('/'))

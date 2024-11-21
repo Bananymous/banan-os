@@ -110,7 +110,7 @@ if [ $BANAN_BOOTLOADER = "GRUB" ]; then
 	root_part_uuid=${root_part_uuid:10:36}
 
 	cp "$BANAN_TOOLCHAIN_DIR"/grub-*.cfg "$BANAN_BUILD_DIR/"
-	sed -i "s/<ROOT>/UUID=$root_part_uuid/" "$BANAN_BUILD_DIR"/grub-*.cfg
+	sed -i "s/<ROOT>/PARTUUID=$root_part_uuid/" "$BANAN_BUILD_DIR"/grub-*.cfg
 	sed -i "s/<ROOT_FS>/$root_fs_uuid/" "$BANAN_BUILD_DIR"/grub-*.cfg
 
 	if (($BANAN_UEFI_BOOT)); then
