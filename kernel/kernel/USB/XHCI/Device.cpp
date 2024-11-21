@@ -200,20 +200,20 @@ namespace Kernel
 
 	BAN::ErrorOr<void> XHCIDevice::initialize_endpoint(const USBEndpointDescriptor& endpoint_descriptor)
 	{
-		ASSERT(m_controller.port(m_port_id).revision_major == 2);
+		const bool is_control   { (endpoint_descriptor.bmAttributes & 0x03) == 0x00 };
+		const bool is_isoch     { (endpoint_descriptor.bmAttributes & 0x03) == 0x01 };
+		const bool is_bulk      { (endpoint_descriptor.bmAttributes & 0x03) == 0x02 };
+		const bool is_interrupt { (endpoint_descriptor.bmAttributes & 0x03) == 0x03 };
 
-		const uint32_t endpoint_id        = (endpoint_descriptor.bEndpointAddress & 0x0F) * 2 + !!(endpoint_descriptor.bEndpointAddress & 0x80);
-		const uint32_t max_packet_size    = endpoint_descriptor.wMaxPacketSize & 0x07FF;
-		const uint32_t max_burst_size     = (endpoint_descriptor.wMaxPacketSize >> 11) & 0x0003;
-		const uint32_t max_esit_payload   = max_packet_size * (max_burst_size + 1);
-		const uint32_t interval           = determine_interval(endpoint_descriptor, m_speed_class);
-		const uint32_t average_trb_length = ((endpoint_descriptor.bmAttributes & 3) == 0b00) ? 8 : max_esit_payload;
-		const uint32_t error_count        = ((endpoint_descriptor.bmAttributes & 3) == 0b01) ? 0 : 3;
+		(void)is_control;
+		(void)is_isoch;
+		(void)is_bulk;
+		(void)is_interrupt;
 
 		XHCI::EndpointType endpoint_type;
 		switch ((endpoint_descriptor.bEndpointAddress & 0x80) | (endpoint_descriptor.bmAttributes & 0x03))
 		{
-			case 0x00:
+			case 0x00: ASSERT_NOT_REACHED();
 			case 0x80: endpoint_type = XHCI::EndpointType::Control;      break;
 			case 0x01: endpoint_type = XHCI::EndpointType::IsochOut;     break;
 			case 0x81: endpoint_type = XHCI::EndpointType::IsochIn;      break;
@@ -223,6 +223,16 @@ namespace Kernel
 			case 0x83: endpoint_type = XHCI::EndpointType::InterruptIn;  break;
 			default: ASSERT_NOT_REACHED();
 		}
+
+		// FIXME: Streams
+
+		const uint32_t endpoint_id        = (endpoint_descriptor.bEndpointAddress & 0x0F) * 2 + !!(endpoint_descriptor.bEndpointAddress & 0x80);
+		const uint32_t max_packet_size    = (is_control || is_bulk) ? endpoint_descriptor.wMaxPacketSize :  endpoint_descriptor.wMaxPacketSize & 0x07FF;
+		const uint32_t max_burst_size     = (is_control || is_bulk) ? 0                                  : (endpoint_descriptor.wMaxPacketSize & 0x1800) >> 11;
+		const uint32_t max_esit_payload   = max_packet_size * (max_burst_size + 1);
+		const uint32_t interval           = determine_interval(endpoint_descriptor, m_speed_class);
+		const uint32_t average_trb_length = (is_control) ? 8 : max_esit_payload;
+		const uint32_t error_count        = (is_isoch)   ? 0 : 3;
 
 		auto& endpoint = m_endpoints[endpoint_id - 1];
 		ASSERT(!endpoint.transfer_ring);
@@ -237,8 +247,7 @@ namespace Kernel
 		endpoint.dequeue_index   = 0;
 		endpoint.enqueue_index   = 0;
 		endpoint.cycle_bit       = 1;
-		endpoint.callback        = &XHCIDevice::on_interrupt_endpoint_event;
-		endpoint.data_region     = TRY(DMARegion::create(endpoint.max_packet_size));
+		endpoint.callback        = (is_interrupt || is_bulk) ? &XHCIDevice::on_interrupt_or_bulk_endpoint_event : nullptr;
 
 		memset(reinterpret_cast<void*>(endpoint.transfer_ring->vaddr()), 0, endpoint.transfer_ring->size());
 
@@ -276,62 +285,27 @@ namespace Kernel
 		configure_endpoint.configure_endpoint_command.slot_id               = m_slot_id;
 		TRY(m_controller.send_command(configure_endpoint));
 
-		if (endpoint_type == XHCI::EndpointType::InterruptIn)
-		{
-			auto& trb = *reinterpret_cast<volatile XHCI::TRB*>(endpoint.transfer_ring->vaddr());
-			memset(const_cast<XHCI::TRB*>(&trb), 0, sizeof(XHCI::TRB));
-			trb.normal.trb_type                  = XHCI::TRBType::Normal;
-			trb.normal.data_buffer_pointer       = endpoint.data_region->paddr();
-			trb.normal.trb_transfer_length       = endpoint.data_region->size();
-			trb.normal.td_size                   = 0;
-			trb.normal.interrupt_target          = 0;
-			trb.normal.cycle_bit                 = 1;
-			trb.normal.interrupt_on_completion   = 1;
-			trb.normal.interrupt_on_short_packet = 1;
-			advance_endpoint_enqueue(endpoint, false);
-
-			m_controller.doorbell_reg(m_slot_id) = endpoint_id;
-		}
-		else
-		{
-			dwarnln("Configured unsupported endpoint {2H}",
-				(endpoint_descriptor.bEndpointAddress & 0x80) | (endpoint_descriptor.bmAttributes & 0x03)
-			);
-		}
-
 		return {};
 	}
 
-	void XHCIDevice::on_interrupt_endpoint_event(XHCI::TRB trb)
+	void XHCIDevice::on_interrupt_or_bulk_endpoint_event(XHCI::TRB trb)
 	{
 		ASSERT(trb.trb_type == XHCI::TRBType::TransferEvent);
 		if (trb.transfer_event.completion_code != 1 && trb.transfer_event.completion_code != 13)
 		{
-			dwarnln("Interrupt endpoint got transfer event with completion code {}", +trb.transfer_event.completion_code);
+			dwarnln("Interrupt or bulk endpoint got transfer event with completion code {}", +trb.transfer_event.completion_code);
 			return;
 		}
 
 		const uint32_t endpoint_id = trb.transfer_event.endpoint_id;
 		auto& endpoint = m_endpoints[endpoint_id - 1];
-		ASSERT(endpoint.transfer_ring && endpoint.data_region);
 
-		const uint32_t transfer_length = endpoint.max_packet_size - trb.transfer_event.trb_transfer_length;
-		auto received_data = BAN::ConstByteSpan(reinterpret_cast<uint8_t*>(endpoint.data_region->vaddr()), transfer_length);
-		handle_input_data(received_data, endpoint_id);
+		const auto* transfer_trb_arr = reinterpret_cast<volatile XHCI::TRB*>(endpoint.transfer_ring->vaddr());
+		const uint32_t transfer_trb_index = (trb.transfer_event.trb_pointer - endpoint.transfer_ring->paddr()) / sizeof(XHCI::TRB);
+		const uint32_t original_len = transfer_trb_arr[transfer_trb_index].normal.trb_transfer_length;
 
-		auto& new_trb = *reinterpret_cast<volatile XHCI::TRB*>(endpoint.transfer_ring->vaddr() + endpoint.enqueue_index * sizeof(XHCI::TRB));
-		memset(const_cast<XHCI::TRB*>(&new_trb), 0, sizeof(XHCI::TRB));
-		new_trb.normal.trb_type                  = XHCI::TRBType::Normal;
-		new_trb.normal.data_buffer_pointer       = endpoint.data_region->paddr();
-		new_trb.normal.trb_transfer_length       = endpoint.max_packet_size;
-		new_trb.normal.td_size                   = 0;
-		new_trb.normal.interrupt_target          = 0;
-		new_trb.normal.cycle_bit                 = endpoint.cycle_bit;
-		new_trb.normal.interrupt_on_completion   = 1;
-		new_trb.normal.interrupt_on_short_packet = 1;
-		advance_endpoint_enqueue(endpoint, false);
-
-		m_controller.doorbell_reg(m_slot_id) = endpoint_id;
+		const uint32_t transfer_length = original_len - trb.transfer_event.trb_transfer_length;
+		handle_input_data(transfer_length, endpoint_id);
 	}
 
 	void XHCIDevice::on_transfer_event(const volatile XHCI::TRB& trb)
@@ -493,6 +467,28 @@ namespace Kernel
 		}
 
 		return endpoint.transfer_count;
+	}
+
+	void XHCIDevice::send_data_buffer(uint8_t endpoint_id, paddr_t buffer, size_t buffer_len)
+	{
+		ASSERT(endpoint_id != 0);
+		auto& endpoint = m_endpoints[endpoint_id - 1];
+
+		ASSERT(buffer_len <= endpoint.max_packet_size);
+
+		auto& trb = *reinterpret_cast<volatile XHCI::TRB*>(endpoint.transfer_ring->vaddr() + endpoint.enqueue_index * sizeof(XHCI::TRB));
+		memset(const_cast<XHCI::TRB*>(&trb), 0, sizeof(XHCI::TRB));
+		trb.normal.trb_type                  = XHCI::TRBType::Normal;
+		trb.normal.data_buffer_pointer       = buffer;
+		trb.normal.trb_transfer_length       = buffer_len;
+		trb.normal.td_size                   = 0;
+		trb.normal.interrupt_target          = 0;
+		trb.normal.cycle_bit                 = endpoint.cycle_bit;
+		trb.normal.interrupt_on_completion   = 1;
+		trb.normal.interrupt_on_short_packet = 1;
+		advance_endpoint_enqueue(endpoint, false);
+
+		m_controller.doorbell_reg(m_slot_id) = endpoint_id;
 	}
 
 	void XHCIDevice::advance_endpoint_enqueue(Endpoint& endpoint, bool chain)

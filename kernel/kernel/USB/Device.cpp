@@ -154,7 +154,7 @@ namespace Kernel
 						dprintln_if(DEBUG_USB, "Found CommunicationAndCDCControl interface");
 						break;
 					case USB::InterfaceBaseClass::HID:
-						if (auto result = USBHIDDriver::create(*this, interface); !result.is_error())
+						if (auto result = BAN::UniqPtr<USBHIDDriver>::create(*this, interface); !result.is_error())
 							TRY(m_class_drivers.push_back(result.release_value()));
 						break;
 					case USB::InterfaceBaseClass::Physical:
@@ -217,6 +217,15 @@ namespace Kernel
 					default:
 						dprintln_if(DEBUG_USB, "Invalid interface base class {2H}", interface.descriptor.bInterfaceClass);
 						break;
+				}
+			}
+
+			for (size_t i = 0; i < m_class_drivers.size(); i++)
+			{
+				if (auto ret = m_class_drivers[i]->initialize(); ret.is_error())
+				{
+					dwarnln("Could not initialize USB interface {}", ret.error());
+					m_class_drivers.remove(i--);
 				}
 			}
 
@@ -317,10 +326,10 @@ namespace Kernel
 		return BAN::move(configuration);
 	}
 
-	void USBDevice::handle_input_data(BAN::ConstByteSpan data, uint8_t endpoint_id)
+	void USBDevice::handle_input_data(size_t byte_count, uint8_t endpoint_id)
 	{
 		for (auto& driver : m_class_drivers)
-			driver->handle_input_data(data, endpoint_id);
+			driver->handle_input_data(byte_count, endpoint_id);
 	}
 
 	USB::SpeedClass USBDevice::determine_speed_class(uint64_t bits_per_second)

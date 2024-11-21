@@ -19,7 +19,9 @@ namespace Kernel
 		USBClassDriver() = default;
 		virtual ~USBClassDriver() = default;
 
-		virtual void handle_input_data(BAN::ConstByteSpan, uint8_t endpoint_id) = 0;
+		virtual BAN::ErrorOr<void> initialize() { return {}; };
+
+		virtual void handle_input_data(size_t byte_count, uint8_t endpoint_id) = 0;
 	};
 
 	class USBDevice
@@ -64,11 +66,12 @@ namespace Kernel
 
 		virtual BAN::ErrorOr<void> initialize_endpoint(const USBEndpointDescriptor&) = 0;
 		virtual BAN::ErrorOr<size_t> send_request(const USBDeviceRequest&, paddr_t buffer) = 0;
+		virtual void send_data_buffer(uint8_t endpoint_id, paddr_t buffer, size_t buffer_len) = 0;
 
 		static USB::SpeedClass determine_speed_class(uint64_t bits_per_second);
 
 	protected:
-		void handle_input_data(BAN::ConstByteSpan, uint8_t endpoint_id);
+		void handle_input_data(size_t byte_count, uint8_t endpoint_id);
 		virtual BAN::ErrorOr<void> initialize_control_endpoint() = 0;
 
 	private:

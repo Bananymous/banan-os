@@ -1,4 +1,5 @@
 #include <BAN/ByteSpan.h>
+#include <BAN/ScopeGuard.h>
 
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/USB/HID/HIDDriver.h>
@@ -67,13 +68,6 @@ namespace Kernel
 #endif
 
 	static BAN::ErrorOr<BAN::Vector<Collection>> parse_report_descriptor(BAN::ConstByteSpan report_data, bool& out_use_report_id);
-
-	BAN::ErrorOr<BAN::UniqPtr<USBHIDDriver>> USBHIDDriver::create(USBDevice& device, const USBDevice::InterfaceDescriptor& interface)
-	{
-		auto result = TRY(BAN::UniqPtr<USBHIDDriver>::create(device, interface));
-		TRY(result->initialize());
-		return result;
-	}
 
 	USBHIDDriver::USBHIDDriver(USBDevice& device, const USBDevice::InterfaceDescriptor& interface)
 		: m_device(device)
@@ -192,7 +186,29 @@ namespace Kernel
 		m_device_inputs = TRY(initializes_device_reports(collections));
 
 		for (const auto& endpoint : m_interface.endpoints)
-			TRY(m_device.initialize_endpoint(endpoint.descriptor));
+		{
+			const auto& desc = endpoint.descriptor;
+
+			if (!(desc.bEndpointAddress & 0x80))
+				continue;
+			if ((desc.bmAttributes & 0x03) != 0x03)
+				continue;
+
+			TRY(m_device.initialize_endpoint(desc));
+			m_data_buffer = TRY(DMARegion::create(desc.wMaxPacketSize & 0x07FF));
+
+			m_data_endpoint_id = (desc.bEndpointAddress & 0x0F) * 2 + !!(desc.bEndpointAddress & 0x80);
+
+			break;
+		}
+
+		if (m_data_endpoint_id == 0)
+		{
+			dwarnln("HID device does not an interrupt IN endpoints");
+			return BAN::Error::from_errno(EINVAL);
+		}
+
+		m_device.send_data_buffer(m_data_endpoint_id, m_data_buffer->paddr(), m_data_buffer->size());
 
 		return {};
 	}
@@ -256,23 +272,15 @@ namespace Kernel
 		return BAN::move(result);
 	}
 
-	void USBHIDDriver::handle_input_data(BAN::ConstByteSpan data, uint8_t endpoint_id)
+	void USBHIDDriver::handle_input_data(size_t byte_count, uint8_t endpoint_id)
 	{
-		{
-			bool found = false;
-			for (const auto& endpoint : m_interface.endpoints)
-			{
-				const auto& desc = endpoint.descriptor;
-				if (endpoint_id == (desc.bEndpointAddress & 0x0F) * 2 + !!(desc.bEndpointAddress & 0x80))
-				{
-					found = true;
-					break;
-				}
-			}
-			// If this packet is not for us, skip it
-			if (!found)
-				return;
-		}
+		if (m_data_endpoint_id != endpoint_id)
+			return;
+
+		auto data = BAN::ConstByteSpan(reinterpret_cast<uint8_t*>(m_data_buffer->vaddr()), byte_count);
+		BAN::ScopeGuard _([&] {
+			m_device.send_data_buffer(m_data_endpoint_id, m_data_buffer->paddr(), m_data_buffer->size());
+		});
 
 		if constexpr(DEBUG_USB_HID)
 		{
