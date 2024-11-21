@@ -44,7 +44,7 @@ install_grub_legacy() {
 		--boot-directory="$MOUNT_DIR/boot"	\
 		$LOOP_DEV
 	sudo mkdir -p "$MOUNT_DIR/boot/grub"
-	sudo cp "$BANAN_TOOLCHAIN_DIR/grub-legacy-boot.cfg" "$MOUNT_DIR/boot/grub/grub.cfg"
+	sed "s/<ROOT>/UUID=$BANAN_ROOT_PART_UUID/" "$BANAN_TOOLCHAIN_DIR/grub-legacy-boot.cfg" | sudo tee "$MOUNT_DIR/boot/grub/grub.cfg" >/dev/null
 	sudo umount "$MOUNT_DIR"
 }
 
@@ -57,7 +57,7 @@ install_grub_uefi() {
 
 	sudo mount $PARTITION2 "$MOUNT_DIR"
 	sudo mkdir -p "$MOUNT_DIR/boot/grub"
-	sudo cp "$BANAN_TOOLCHAIN_DIR/grub-uefi.cfg" "$MOUNT_DIR/boot/grub/grub.cfg"
+	sed "s/<ROOT>/UUID=$BANAN_ROOT_PART_UUID/" "$BANAN_TOOLCHAIN_DIR/grub-uefi.cfg" | sudo tee "$MOUNT_DIR/boot/grub/grub.cfg" >/dev/null
 	sudo umount "$MOUNT_DIR"
 }
 
