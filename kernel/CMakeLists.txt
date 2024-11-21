@@ -89,6 +89,7 @@ set(KERNEL_SOURCES
 	kernel/Storage/NVMe/Namespace.cpp
 	kernel/Storage/NVMe/Queue.cpp
 	kernel/Storage/Partition.cpp
+	kernel/Storage/SCSI.cpp
 	kernel/Storage/StorageDevice.cpp
 	kernel/Syscall.cpp
 	kernel/Terminal/FramebufferTerminal.cpp

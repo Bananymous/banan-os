@@ -19,7 +19,7 @@ namespace Kernel
 			};
 
 		public:
-			virtual ~ATABaseDevice() {};
+			virtual ~ATABaseDevice();
 
 			virtual uint32_t sector_size() const override { return m_sector_words * 2; }
 			virtual uint64_t total_size() const override { return m_lba_count * sector_size(); }

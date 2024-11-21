@@ -4,23 +4,23 @@
 #include <kernel/Storage/ATA/ATABus.h>
 #include <kernel/Storage/ATA/ATADefinitions.h>
 #include <kernel/Storage/ATA/ATADevice.h>
+#include <kernel/Storage/SCSI.h>
 
 #include <sys/sysmacros.h>
 
 namespace Kernel
 {
 
-	static dev_t get_ata_dev_minor()
-	{
-		static dev_t minor = 0;
-		return minor++;
-	}
-
 	detail::ATABaseDevice::ATABaseDevice()
-		: m_rdev(makedev(DeviceNumber::SCSI, get_ata_dev_minor()))
+		: m_rdev(scsi_get_rdev())
 	{
 		strcpy(m_name, "sda");
 		m_name[2] += minor(m_rdev);
+	}
+
+	detail::ATABaseDevice::~ATABaseDevice()
+	{
+		scsi_free_rdev(m_rdev);
 	}
 
 	BAN::ErrorOr<void> detail::ATABaseDevice::initialize(BAN::Span<const uint16_t> identify_data)
