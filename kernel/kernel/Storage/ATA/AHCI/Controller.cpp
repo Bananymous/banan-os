@@ -82,8 +82,10 @@ namespace Kernel
 		{
 			if (is & (1 << i))
 			{
-				ASSERT(m_devices[i]);
-				m_devices[i]->handle_irq();
+				if (m_devices[i])
+					m_devices[i]->handle_irq();
+				else
+					dwarnln("ignoring interrupt to device {}", i);
 			}
 		}
 
