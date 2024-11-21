@@ -106,9 +106,7 @@ namespace Kernel
 			TRY(m_controller.send_command(address_device));
 		}
 
-		// NOTE: Full speed devices can have other max packet sizes than 8
-		if (m_speed_class == USB::SpeedClass::FullSpeed)
-			TRY(update_actual_max_packet_size());
+		TRY(update_actual_max_packet_size());
 
 		return {};
 	}
@@ -117,7 +115,7 @@ namespace Kernel
 	{
 		// FIXME: This is more or less generic USB code
 
-		dprintln_if(DEBUG_XHCI, "Retrieving actual max packet size of full speed device");
+		dprintln_if(DEBUG_XHCI, "Retrieving actual max packet size");
 
 		BAN::Vector<uint8_t> buffer;
 		TRY(buffer.resize(8, 0));
@@ -130,7 +128,13 @@ namespace Kernel
 		request.wLength       = 8;
 		TRY(send_request(request, kmalloc_paddr_of((vaddr_t)buffer.data()).value()));
 
-		m_endpoints[0].max_packet_size = buffer.back();
+		const bool is_usb3 = m_controller.port(m_port_id).revision_major == 3;
+		const uint32_t new_max_packet_size = is_usb3 ? 1u << buffer.back() : buffer.back();
+
+		if (m_endpoints[0].max_packet_size == new_max_packet_size)
+			return {};
+
+		m_endpoints[0].max_packet_size = new_max_packet_size;
 
 		const uint32_t context_size = m_controller.context_size_set() ? 64 : 32;
 
