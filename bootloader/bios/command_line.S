@@ -83,5 +83,5 @@ command_line_enter_msg:
 command_line:
 # 100 character command line
 command_line_buffer:
-	.ascii "root=UUID=9C87D2AF-566A-4517-971A-57BA86EEA88D"
+	.ascii "root=/dev/sda2"
 	.skip 100 - (. - command_line_buffer)

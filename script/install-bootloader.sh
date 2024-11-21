@@ -32,58 +32,58 @@ fi
 
 set -u
 
-MOUNT_DIR="$BANAN_BUILD_DIR/mount"
-mkdir -p $MOUNT_DIR
+mount_dir="$BANAN_BUILD_DIR/mount"
+mkdir -p $mount_dir
 
 install_grub_legacy() {
-	sudo mount $PARTITION2 "$MOUNT_DIR"
+	sudo mount $partition2 "$mount_dir"
 	sudo grub-install						\
 		--no-floppy							\
 		--target=i386-pc					\
 		--modules="normal ext2 multiboot"	\
-		--boot-directory="$MOUNT_DIR/boot"	\
-		$LOOP_DEV
-	sudo mkdir -p "$MOUNT_DIR/boot/grub"
-	sed "s/<ROOT>/UUID=$BANAN_ROOT_PART_UUID/" "$BANAN_TOOLCHAIN_DIR/grub-legacy-boot.cfg" | sudo tee "$MOUNT_DIR/boot/grub/grub.cfg" >/dev/null
-	sudo umount "$MOUNT_DIR"
+		--boot-directory="$mount_dir/boot"	\
+		$loop_dev
+	sudo mkdir -p "$mount_dir/boot/grub"
+	sudo cp "$BANAN_BUILD_DIR/grub-legacy-boot.cfg" "$mount_dir/boot/grub/grub.cfg"
+	sudo umount "$mount_dir"
 }
 
 install_grub_uefi() {
-	sudo mkfs.fat $PARTITION1 > /dev/null
-	sudo mount $PARTITION1 "$MOUNT_DIR"
-	sudo mkdir -p "$MOUNT_DIR/EFI/BOOT"
-	sudo "$BANAN_TOOLCHAIN_PREFIX/bin/grub-mkstandalone" -O "$BANAN_ARCH-efi" -o "$MOUNT_DIR/EFI/BOOT/BOOTX64.EFI" "boot/grub/grub.cfg=$BANAN_TOOLCHAIN_DIR/grub-memdisk.cfg"
-	sudo umount "$MOUNT_DIR"
+	sudo mkfs.fat $partition1 > /dev/null
+	sudo mount $partition1 "$mount_dir"
+	sudo mkdir -p "$mount_dir/EFI/BOOT"
+	sudo "$BANAN_TOOLCHAIN_PREFIX/bin/grub-mkstandalone" -O "$BANAN_ARCH-efi" -o "$mount_dir/EFI/BOOT/BOOTX64.EFI" "boot/grub/grub.cfg=$BANAN_BUILD_DIR/grub-memdisk.cfg"
+	sudo umount "$mount_dir"
 
-	sudo mount $PARTITION2 "$MOUNT_DIR"
-	sudo mkdir -p "$MOUNT_DIR/boot/grub"
-	sed "s/<ROOT>/UUID=$BANAN_ROOT_PART_UUID/" "$BANAN_TOOLCHAIN_DIR/grub-uefi.cfg" | sudo tee "$MOUNT_DIR/boot/grub/grub.cfg" >/dev/null
-	sudo umount "$MOUNT_DIR"
+	sudo mount $partition2 "$mount_dir"
+	sudo mkdir -p "$mount_dir/boot/grub"
+	sudo cp "$BANAN_BUILD_DIR/grub-uefi.cfg" "$mount_dir/boot/grub/grub.cfg"
+	sudo umount "$mount_dir"
 }
 
 install_banan_legacy() {
-	ROOT_DISK_INFO=$(fdisk -x "$BANAN_DISK_IMAGE_PATH" | tr -s ' ')
-	ROOT_PART_GUID=$(echo "$ROOT_DISK_INFO" | grep "^$BANAN_DISK_IMAGE_PATH" | head -2 | tail -1 | cut -d' ' -f6)
+	root_disk_info=$(fdisk -x "$BANAN_DISK_IMAGE_PATH" | tr -s ' ')
+	root_part_guid=$(echo "$root_disk_info" | grep "^$BANAN_DISK_IMAGE_PATH" | head -2 | tail -1 | cut -d' ' -f6)
 
-	INSTALLER_BUILD_DIR=$BANAN_ROOT_DIR/bootloader/installer/build/$BANAN_ARCH
-	BOOTLOADER_ELF=$BANAN_BUILD_DIR/bootloader/bios/bootloader
+	installer_build_dir=$BANAN_ROOT_DIR/bootloader/installer/build/$BANAN_ARCH
+	bootloader_elf=$BANAN_BUILD_DIR/bootloader/bios/bootloader
 
-	if [ ! -f $BOOTLOADER_ELF ]; then
+	if [ ! -f $bootloader_elf ]; then
 		echo "You must build the bootloader first" >&2
 		exit 1
 	fi
 
-	if [ ! -d $INSTALLER_BUILD_DIR ]; then
-		mkdir -p $INSTALLER_BUILD_DIR
-		cd $INSTALLER_BUILD_DIR
+	if [ ! -d $installer_build_dir ]; then
+		mkdir -p $installer_build_dir
+		cd $installer_build_dir
 		$BANAN_CMAKE -G Ninja ../..
 	fi
 
-	cd $INSTALLER_BUILD_DIR
+	cd $installer_build_dir
 	ninja
 
 	echo installing bootloader
-	$INSTALLER_BUILD_DIR/banan_os-bootloader-installer "$BOOTLOADER_ELF" "$BANAN_DISK_IMAGE_PATH" "$ROOT_PART_GUID"
+	$installer_build_dir/banan_os-bootloader-installer "$bootloader_elf" "$BANAN_DISK_IMAGE_PATH" "$root_part_guid"
 }
 
 install_banan_uefi() {
@@ -92,15 +92,26 @@ install_banan_uefi() {
 }
 
 if [ $BANAN_BOOTLOADER = "GRUB" ]; then
-
-	LOOP_DEV=$(sudo losetup --show -fP $BANAN_DISK_IMAGE_PATH || exit 1)
-	PARTITION1=${LOOP_DEV}p1
-	PARTITION2=${LOOP_DEV}p2
-	if [ ! -b $PARTITION1 ] || [ ! -b $PARTITION2 ]; then
+	loop_dev=$(sudo losetup --show -fP $BANAN_DISK_IMAGE_PATH || exit 1)
+	partition1=${loop_dev}p1
+	partition2=${loop_dev}p2
+	if [ ! -b $partition1 ] || [ ! -b $partition2 ]; then
 		echo "Failed to probe partitions for banan disk image." >&2
-		sudo losetup -d $LOOP_DEV
+		sudo losetup -d $loop_dev
 		exit 1
 	fi
+
+	root_part_info=$(sudo blkid $partition2)
+
+	root_fs_uuid=$(grep -Pwo 'UUID=".*?"' <<< "$root_part_info")
+	root_fs_uuid=${root_fs_uuid:6:36}
+
+	root_part_uuid=$(grep -Pwo 'PARTUUID=".*?"' <<< "$root_part_info")
+	root_part_uuid=${root_part_uuid:10:36}
+
+	cp "$BANAN_TOOLCHAIN_DIR"/grub-*.cfg "$BANAN_BUILD_DIR/"
+	sed -i "s/<ROOT>/UUID=$root_part_uuid/" "$BANAN_BUILD_DIR"/grub-*.cfg
+	sed -i "s/<ROOT_FS>/$root_fs_uuid/" "$BANAN_BUILD_DIR"/grub-*.cfg
 
 	if (($BANAN_UEFI_BOOT)); then
 		install_grub_uefi
@@ -108,7 +119,7 @@ if [ $BANAN_BOOTLOADER = "GRUB" ]; then
 		install_grub_legacy
 	fi
 
-	sudo losetup -d $LOOP_DEV
+	sudo losetup -d $loop_dev
 
 elif [ $BANAN_BOOTLOADER = "BANAN" ]; then
 	if (($BANAN_UEFI_BOOT)); then

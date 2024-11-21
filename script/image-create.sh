@@ -46,15 +46,6 @@ else
 		mkpart root ext2 2M 100%
 fi
 
-fdisk "$BANAN_DISK_IMAGE_PATH" >/dev/null << EOF
-x
-u
-2
-$BANAN_ROOT_PART_UUID
-r
-w
-EOF
-
 # create loop device
 LOOP_DEV=$(sudo losetup --show  -fP "$BANAN_DISK_IMAGE_PATH" || exit 1 )
 PARTITION1=${LOOP_DEV}p1
