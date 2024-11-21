@@ -6,6 +6,7 @@
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/Lock/LockGuard.h>
 #include <kernel/Storage/Partition.h>
+#include <kernel/Timer/Timer.h>
 
 #include <fcntl.h>
 
@@ -14,55 +15,105 @@ namespace Kernel
 
 	static BAN::RefPtr<VirtualFileSystem> s_instance;
 
+	static BAN::ErrorOr<BAN::RefPtr<BlockDevice>> find_partition_by_uuid(BAN::StringView uuid)
+	{
+		ASSERT(uuid.size() == 36);
+
+		BAN::RefPtr<BlockDevice> result;
+		DevFileSystem::get().for_each_inode(
+			[&result, uuid](BAN::RefPtr<Inode> inode) -> BAN::Iteration
+			{
+				if (!inode->is_device())
+					return BAN::Iteration::Continue;
+				if (!static_cast<Device*>(inode.ptr())->is_partition())
+					return BAN::Iteration::Continue;
+				auto* partition = static_cast<Partition*>(inode.ptr());
+				if (partition->uuid() != uuid)
+					return BAN::Iteration::Continue;
+				result = partition;
+				return BAN::Iteration::Break;
+			}
+		);
+
+		if (!result)
+			return BAN::Error::from_errno(ENOENT);
+		return result;
+	}
+
+	static BAN::ErrorOr<BAN::RefPtr<BlockDevice>> find_block_device_by_name(BAN::StringView name)
+	{
+		auto device_inode = TRY(DevFileSystem::get().root_inode()->find_inode(name));
+		if (!device_inode->mode().ifblk())
+			return BAN::Error::from_errno(ENOTBLK);
+		return BAN::RefPtr<BlockDevice>(static_cast<BlockDevice*>(device_inode.ptr()));
+	}
+
+	static BAN::RefPtr<BlockDevice> find_root_device(BAN::StringView root_path)
+	{
+		enum class RootType
+		{
+			PartitionUUID,
+			BlockDeviceName,
+		};
+
+		BAN::StringView entry;
+		RootType type;
+
+		if (root_path.size() >= 5 && root_path.substring(0, 5) == "UUID="_sv)
+		{
+			entry = root_path.substring(5);
+			if (entry.size() != 36)
+				panic("Invalid UUID '{}'", entry);
+			type = RootType::PartitionUUID;
+		}
+		else if (root_path.size() >= 5 && root_path.substring(0, 5) == "/dev/"_sv)
+		{
+			entry = root_path.substring(5);
+			if (entry.empty() || entry.contains('/'))
+				panic("Invalid root path '{}'", root_path);
+			type = RootType::BlockDeviceName;
+		}
+		else
+		{
+			panic("Unsupported root path format '{}'", root_path);
+		}
+
+		constexpr size_t timeout_ms = 10'000;
+		constexpr size_t sleep_ms = 500;
+
+		for (size_t i = 0; i < timeout_ms / sleep_ms; i++)
+		{
+			BAN::ErrorOr<BAN::RefPtr<BlockDevice>> ret = BAN::Error::from_errno(EINVAL);
+
+			switch (type)
+			{
+				case RootType::PartitionUUID:
+					ret = find_partition_by_uuid(entry);
+					break;
+				case RootType::BlockDeviceName:
+					ret = find_block_device_by_name(entry);
+					break;
+			}
+
+			if (!ret.is_error())
+				return ret.release_value();
+
+			if (ret.error().get_error_code() != ENOENT)
+				panic("could not open root device '{}': {}", root_path, ret.error());
+
+			SystemTimer::get().sleep_ms(sleep_ms);
+		}
+
+		panic("could not find root device '{}' after {} ms", root_path, timeout_ms);
+	}
+
 	void VirtualFileSystem::initialize(BAN::StringView root_path)
 	{
 		ASSERT(!s_instance);
 		s_instance = MUST(BAN::RefPtr<VirtualFileSystem>::create());
 
-		BAN::RefPtr<BlockDevice> root_device;
-		if (root_path.size() >= 5 && root_path.substring(0, 5) == "UUID="_sv)
-		{
-			auto uuid = root_path.substring(5);
-			if (uuid.size() != 36)
-				panic("Invalid UUID specified for root '{}'", uuid);
-
-			BAN::RefPtr<Partition> root_partition;
-			DevFileSystem::get().for_each_inode(
-				[&root_partition, uuid](BAN::RefPtr<Inode> inode) -> BAN::Iteration
-				{
-					if (!inode->is_device())
-						return BAN::Iteration::Continue;
-					if (!static_cast<Device*>(inode.ptr())->is_partition())
-						return BAN::Iteration::Continue;
-					auto* partition = static_cast<Partition*>(inode.ptr());
-					if (partition->uuid() != uuid)
-						return BAN::Iteration::Continue;
-					root_partition = partition;
-					return BAN::Iteration::Break;
-				}
-			);
-			if (!root_partition)
-				panic("Could not find partition with UUID '{}'", uuid);
-			root_device = root_partition;
-		}
-		else if (root_path.size() >= 5 && root_path.substring(0, 5) == "/dev/"_sv)
-		{
-			auto device_name = root_path.substring(5);
-
-			auto device_result = DevFileSystem::get().root_inode()->find_inode(device_name);
-			if (device_result.is_error())
-				panic("Could not open root device '{}': {}", root_path, device_result.error());
-
-			auto device_inode = device_result.release_value();
-			if (!device_inode->mode().ifblk())
-				panic("Root inode '{}' is not an block device", root_path);
-
-			root_device = static_cast<BlockDevice*>(device_inode.ptr());
-		}
-		else
-		{
-			panic("Unknown root path format '{}' specified", root_path);
-		}
+		auto root_device = find_root_device(root_path);
+		ASSERT(root_device);
 
 		auto filesystem_result = FileSystem::from_block_device(root_device);
 		if (filesystem_result.is_error())
