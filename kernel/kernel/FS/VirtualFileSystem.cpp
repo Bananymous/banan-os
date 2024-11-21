@@ -8,6 +8,7 @@
 #include <kernel/Storage/Partition.h>
 #include <kernel/Timer/Timer.h>
 
+#include <ctype.h>
 #include <fcntl.h>
 
 namespace Kernel
@@ -28,8 +29,10 @@ namespace Kernel
 				if (!static_cast<Device*>(inode.ptr())->is_partition())
 					return BAN::Iteration::Continue;
 				auto* partition = static_cast<Partition*>(inode.ptr());
-				if (partition->uuid() != uuid)
-					return BAN::Iteration::Continue;
+				ASSERT(partition->uuid().size() == uuid.size());
+				for (size_t i = 0; i < uuid.size(); i++)
+					if (tolower(uuid[i]) != tolower(partition->uuid()[i]))
+						return BAN::Iteration::Continue;
 				result = partition;
 				return BAN::Iteration::Break;
 			}
