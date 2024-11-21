@@ -70,15 +70,19 @@ namespace BAN
 	template<integral T>
 	struct LittleEndian
 	{
+		constexpr LittleEndian()
+			: raw(0)
+		{ }
+
 		constexpr LittleEndian(T value)
-		{
-			raw = host_to_little_endian(value);
-		}
+			: raw(host_to_little_endian(value))
+		{ }
 
 		constexpr operator T() const
 		{
 			return host_to_little_endian(raw);
 		}
+
 	private:
 		T raw;
 	};
@@ -86,15 +90,19 @@ namespace BAN
 	template<integral T>
 	struct BigEndian
 	{
+		constexpr BigEndian()
+			: raw(0)
+		{ }
+
 		constexpr BigEndian(T value)
-		{
-			raw = host_to_big_endian(value);
-		}
+			: raw(host_to_big_endian(value))
+		{ }
 
 		constexpr operator T() const
 		{
 			return host_to_big_endian(raw);
 		}
+
 	private:
 		T raw;
 	};
