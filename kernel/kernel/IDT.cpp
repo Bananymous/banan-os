@@ -381,9 +381,7 @@ namespace Kernel
 
 		Thread::current().save_sse();
 
-		if (!InterruptController::get().is_in_service(irq))
-			dprintln("spurious irq 0x{2H}", irq);
-		else
+		if (InterruptController::get().is_in_service(irq))
 		{
 			InterruptController::get().eoi(irq);
 			if (auto* handler = s_interruptables[irq])
