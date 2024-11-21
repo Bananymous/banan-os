@@ -159,7 +159,13 @@ namespace Kernel
 				{
 					auto& protocol = reinterpret_cast<volatile XHCI::SupportedPrococolCap&>(ext_cap);
 
-					if (protocol.name_string != *reinterpret_cast<const uint32_t*>("USB "))
+					const uint32_t target_name_string {
+						('U' <<  0) |
+						('S' <<  8) |
+						('B' << 16) |
+						(' ' << 24)
+					};
+					if (protocol.name_string != target_name_string)
 					{
 						dwarnln("Invalid port protocol name string");
 						return BAN::Error::from_errno(EFAULT);
