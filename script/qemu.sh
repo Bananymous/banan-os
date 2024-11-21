@@ -15,6 +15,10 @@ fi
 
 if [[ $BANAN_DISK_TYPE == "NVME" ]]; then
 	DISK_ARGS="-device nvme,serial=deadbeef,drive=disk"
+elif [[ $BANAN_DISK_TYPE == "IDE" ]]; then
+	DISK_ARGS="-device piix3-ide,id=ide -device ide-hd,drive=disk,bus=ide.0"
+elif [[ $BANAN_DISK_TYPE == "USB" ]]; then
+	DISK_ARGS="-device usb-storage,drive=disk"
 else
 	DISK_ARGS="-device ahci,id=ahci -device ide-hd,drive=disk,bus=ahci.0"
 fi
