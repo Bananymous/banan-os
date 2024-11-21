@@ -106,6 +106,8 @@ set(KERNEL_SOURCES
 	kernel/USB/HID/HIDDriver.cpp
 	kernel/USB/HID/Keyboard.cpp
 	kernel/USB/HID/Mouse.cpp
+	kernel/USB/MassStorage/MassStorageDriver.cpp
+	kernel/USB/MassStorage/SCSIDevice.cpp
 	kernel/USB/USBManager.cpp
 	kernel/USB/XHCI/Controller.cpp
 	kernel/USB/XHCI/Device.cpp

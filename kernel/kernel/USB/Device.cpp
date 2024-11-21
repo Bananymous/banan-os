@@ -1,6 +1,7 @@
 #include <kernel/Memory/DMARegion.h>
 #include <kernel/USB/Device.h>
 #include <kernel/USB/HID/HIDDriver.h>
+#include <kernel/USB/MassStorage/MassStorageDriver.h>
 
 #define USB_DUMP_DESCRIPTORS 0
 
@@ -167,7 +168,8 @@ namespace Kernel
 						dprintln_if(DEBUG_USB, "Found Printer interface");
 						break;
 					case USB::InterfaceBaseClass::MassStorage:
-						dprintln_if(DEBUG_USB, "Found MassStorage interface");
+						if (auto result = BAN::UniqPtr<USBMassStorageDriver>::create(*this, interface); !result.is_error())
+							TRY(m_class_drivers.push_back(result.release_value()));
 						break;
 					case USB::InterfaceBaseClass::CDCData:
 						dprintln_if(DEBUG_USB, "Found CDCData interface");

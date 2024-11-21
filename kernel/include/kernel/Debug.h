@@ -66,6 +66,7 @@
 #define DEBUG_USB_HID 0
 #define DEBUG_USB_KEYBOARD 0
 #define DEBUG_USB_MOUSE 0
+#define DEBUG_USB_MASS_STORAGE 0
 
 
 namespace Debug
