@@ -1,8 +1,10 @@
 #pragma once
 
 #include <BAN/Array.h>
+#include <BAN/StringView.h>
 #include <kernel/Memory/Types.h>
 
+#include <dirent.h>
 #include <sys/types.h>
 #include <time.h>
 

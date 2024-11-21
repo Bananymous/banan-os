@@ -543,7 +543,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> TmpDirectoryInode::link_inode(TmpInode& inode, BAN::StringView name)
 	{
-		static constexpr size_t directory_entry_alignment = 16;
+		static constexpr size_t directory_entry_alignment = sizeof(TmpDirectoryEntry);
 
 		auto find_result = find_inode_impl(name);
 		if (!find_result.is_error())
