@@ -51,6 +51,7 @@ namespace Kernel
 		BAN::ErrorOr<void> initialize_impl();
 		BAN::ErrorOr<void> initialize_ports();
 		BAN::ErrorOr<void> initialize_primary_interrupter();
+		BAN::ErrorOr<void> initialize_scratchpad();
 
 		BAN::ErrorOr<void> reset_controller();
 
@@ -90,6 +91,9 @@ namespace Kernel
 		BAN::UniqPtr<DMARegion> m_command_ring_region;
 		uint32_t m_command_enqueue { 0 };
 		bool m_command_cycle { 1 };
+
+		BAN::UniqPtr<DMARegion> m_scratchpad_buffer_array;
+		BAN::Vector<paddr_t> m_scratchpad_buffers;
 
 		BAN::UniqPtr<DMARegion> m_event_ring_region;
 		uint32_t m_event_dequeue { 0 };

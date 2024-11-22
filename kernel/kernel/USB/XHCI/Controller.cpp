@@ -18,6 +18,10 @@ namespace Kernel
 	{
 		if (m_port_updater)
 			m_port_updater->exit(0, SIGKILL);
+
+		for (auto paddr : m_scratchpad_buffers)
+			if (paddr)
+				Heap::get().release_page(paddr);
 	}
 
 	BAN::ErrorOr<void> XHCIController::take_ownership(PCI::Device& pci_device)
@@ -122,6 +126,8 @@ namespace Kernel
 		operational.crcr_hi = m_command_ring_region->paddr() >> 32;
 
 		TRY(initialize_primary_interrupter());
+
+		TRY(initialize_scratchpad());
 
 		// enable the controller
 		operational.usbcmd.run_stop = 1;
@@ -234,6 +240,33 @@ namespace Kernel
 		primary_interrupter.iman = primary_interrupter.iman | XHCI::IMAN::InterruptPending | XHCI::IMAN::InterruptEnable;
 
 		m_pci_device.enable_interrupt(0, *this);
+
+		return {};
+	}
+
+	BAN::ErrorOr<void> XHCIController::initialize_scratchpad()
+	{
+		auto& capabilities = capability_regs();
+
+		const uint32_t max_scratchpads = (capabilities.hcsparams2.max_scratchpad_buffers_hi << 5) | capabilities.hcsparams2.max_scratchpad_buffers_lo;
+		if (max_scratchpads == 0)
+			return {};
+
+		m_scratchpad_buffer_array = TRY(DMARegion::create(max_scratchpads * sizeof(uint64_t)));
+		TRY(m_scratchpad_buffers.resize(max_scratchpads));
+
+		auto* scratchpad_buffer_array = reinterpret_cast<uint64_t*>(m_scratchpad_buffer_array->vaddr());
+		for (size_t i = 0; i < max_scratchpads; i++)
+		{
+			const paddr_t paddr = Heap::get().take_free_page();
+			if (paddr == 0)
+				return BAN::Error::from_errno(ENOMEM);
+			m_scratchpad_buffers[i] = paddr;
+			scratchpad_buffer_array[i] = paddr;
+		}
+
+		ASSERT(m_dcbaa_region);
+		*reinterpret_cast<uint64_t*>(m_dcbaa_region->vaddr()) = m_scratchpad_buffer_array->paddr();
 
 		return {};
 	}
