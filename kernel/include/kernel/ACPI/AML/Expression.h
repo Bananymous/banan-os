@@ -44,8 +44,48 @@ namespace Kernel::ACPI::AML
 					return ParseResult(source_node);
 				}
 				case AML::Byte::NotOp:
-					AML_TODO("NotOp", context.aml_data[0]);
-					return ParseResult::Failure;
+				{
+					auto source_result = AML::parse_object(context);
+					if (!source_result.success())
+						return ParseResult::Failure;
+					auto source_conv = source_result.node() ? source_result.node()->convert(AML::Node::ConvInteger) : BAN::RefPtr<AML::Node>();
+					if (!source_conv)
+					{
+						AML_ERROR("NotOp source not an integer, type {}",
+							static_cast<uint8_t>(source_result.node()->type)
+						);
+						if (source_result.node())
+							source_result.node()->debug_print(1);
+						AML_DEBUG_PRINTLN("");
+						return ParseResult::Failure;
+					}
+					const auto source_value = static_cast<AML::Integer*>(source_conv.ptr())->value;
+
+					BAN::RefPtr<AML::Node> target_node;
+					if (context.aml_data[0] == 0x00)
+						context.aml_data = context.aml_data.slice(1);
+					else
+					{
+						auto target_result = AML::parse_object(context);
+						if (!target_result.success())
+							return ParseResult::Failure;
+						target_node = target_result.node();
+						if (!target_node)
+						{
+							AML_ERROR("NotOp target invalid");
+							return ParseResult::Failure;
+						}
+					}
+
+					auto result_node = MUST(BAN::RefPtr<AML::Integer>::create(~source_value));
+					if (target_node && !target_node->store(result_node))
+					{
+						AML_ERROR("NotOp failed to store result");
+						return ParseResult::Failure;
+					}
+
+					return ParseResult(result_node);
+				}
 				case AML::Byte::LNotOp:
 				{
 					context.aml_data = context.aml_data.slice(1);
