@@ -271,8 +271,6 @@ namespace Kernel
 		return {};
 	}
 
-	static Mutex s_port_mutex;
-
 	void XHCIController::port_updater_task()
 	{
 		// allow initial pass of port iteration because controller
@@ -293,8 +291,6 @@ namespace Kernel
 
 			for (size_t i = 0; i < m_ports.size(); i++)
 			{
-				LockGuard _(s_port_mutex);
-
 				auto& my_port = m_ports[i];
 				if (my_port.revision_major == 0)
 					continue;
