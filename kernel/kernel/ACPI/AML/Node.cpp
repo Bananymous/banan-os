@@ -1,6 +1,7 @@
 #include <kernel/ACPI/AML/Alias.h>
 #include <kernel/ACPI/AML/Buffer.h>
 #include <kernel/ACPI/AML/Bytes.h>
+#include <kernel/ACPI/AML/Concat.h>
 #include <kernel/ACPI/AML/Conversion.h>
 #include <kernel/ACPI/AML/CopyObject.h>
 #include <kernel/ACPI/AML/Device.h>
@@ -162,6 +163,8 @@ namespace Kernel::ACPI
 			case AML::Byte::CreateDWordFieldOp:
 			case AML::Byte::CreateQWordFieldOp:
 				return AML::BufferField::parse(context);
+			case AML::Byte::ConcatOp:
+				return AML::Concat::parse(context);
 			case AML::Byte::AliasOp:
 				return AML::Alias::parse(context);
 			case AML::Byte::NameOp:
