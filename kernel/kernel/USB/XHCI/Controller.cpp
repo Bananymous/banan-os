@@ -463,98 +463,95 @@ namespace Kernel
 
 	void XHCIController::handle_irq()
 	{
+		auto& primary_interrupter = runtime_regs().irs[0];
+		primary_interrupter.iman = primary_interrupter.iman | XHCI::IMAN::InterruptPending | XHCI::IMAN::InterruptEnable;
+
 		auto& operational = operational_regs();
 		if (!(operational.usbsts & XHCI::USBSTS::EventInterrupt))
 			return;
 		operational.usbsts = XHCI::USBSTS::EventInterrupt;
 
-		auto& primary_interrupter = runtime_regs().irs[0];
-		primary_interrupter.iman = primary_interrupter.iman | XHCI::IMAN::InterruptPending | XHCI::IMAN::InterruptEnable;
-
-		if (current_event_trb().cycle == m_event_cycle)
+		for (;;)
 		{
-			for (;;)
+			auto& trb = current_event_trb();
+			if (trb.cycle != m_event_cycle)
+				break;
+
+			switch (trb.trb_type)
 			{
-				auto& trb = current_event_trb();
-				if (trb.cycle != m_event_cycle)
+				case XHCI::TRBType::TransferEvent:
+				{
+					dprintln_if(DEBUG_XHCI, "TransferEvent");
+
+					const uint32_t slot_id = trb.transfer_event.slot_id;
+					if (slot_id == 0 || slot_id > m_slots.size() || !m_slots[slot_id - 1])
+					{
+						dwarnln("TransferEvent for invalid slot {}", slot_id);
+						dwarnln("Completion error: {}", +trb.transfer_event.completion_code);
+						break;
+					}
+
+					m_slots[slot_id - 1]->on_transfer_event(trb);
+
 					break;
-
-				switch (trb.trb_type)
-				{
-					case XHCI::TRBType::TransferEvent:
-					{
-						dprintln_if(DEBUG_XHCI, "TransferEvent");
-
-						const uint32_t slot_id = trb.transfer_event.slot_id;
-						if (slot_id == 0 || slot_id > m_slots.size() || !m_slots[slot_id - 1])
-						{
-							dwarnln("TransferEvent for invalid slot {}", slot_id);
-							dwarnln("Completion error: {}", +trb.transfer_event.completion_code);
-							break;
-						}
-
-						m_slots[slot_id - 1]->on_transfer_event(trb);
-
-						break;
-					}
-					case XHCI::TRBType::CommandCompletionEvent:
-					{
-						dprintln_if(DEBUG_XHCI, "CommandCompletionEvent");
-
-						const uint32_t trb_index = (trb.command_completion_event.command_trb_pointer - m_command_ring_region->paddr()) / sizeof(XHCI::TRB);
-
-						// NOTE: dword2 is last (and atomic) as that is what send_command is waiting for
-						auto& completion_trb = const_cast<volatile XHCI::TRB&>(m_command_completions[trb_index]);
-						completion_trb.raw.dword0 = trb.raw.dword0;
-						completion_trb.raw.dword1 = trb.raw.dword1;
-						completion_trb.raw.dword3 = trb.raw.dword3;
-						__atomic_store_n(&completion_trb.raw.dword2, trb.raw.dword2, __ATOMIC_SEQ_CST);
-
-						break;
-					}
-					case XHCI::TRBType::PortStatusChangeEvent:
-					{
-						dprintln_if(DEBUG_XHCI, "PortStatusChangeEvent");
-						uint8_t port_id = trb.port_status_chage_event.port_id;
-						if (port_id > capability_regs().hcsparams1.max_ports)
-						{
-							dwarnln("PortStatusChangeEvent on non-existent port {}", port_id);
-							break;
-						}
-						m_port_changed = true;
-						m_port_thread_blocker.unblock();
-						break;
-					}
-					case XHCI::TRBType::BandwidthRequestEvent:
-						dwarnln("Unhandled BandwidthRequestEvent");
-						break;
-					case XHCI::TRBType::DoorbellEvent:
-						dwarnln("Unhandled DoorbellEvent");
-						break;
-					case XHCI::TRBType::HostControllerEvent:
-						dwarnln("Unhandled HostControllerEvent");
-						break;
-					case XHCI::TRBType::DeviceNotificationEvent:
-						dwarnln("Unhandled DeviceNotificationEvent");
-						break;
-					case XHCI::TRBType::MFINDEXWrapEvent:
-						dwarnln("Unhandled MFINDEXWrapEvent");
-						break;
-					default:
-						dwarnln("Unrecognized event TRB type {}", +trb.trb_type);
-						break;
 				}
-
-				m_event_dequeue++;
-				if (m_event_dequeue >= m_event_ring_trb_count)
+				case XHCI::TRBType::CommandCompletionEvent:
 				{
-					m_event_dequeue = 0;
-					m_event_cycle = !m_event_cycle;
+					dprintln_if(DEBUG_XHCI, "CommandCompletionEvent");
+
+					const uint32_t trb_index = (trb.command_completion_event.command_trb_pointer - m_command_ring_region->paddr()) / sizeof(XHCI::TRB);
+
+					// NOTE: dword2 is last (and atomic) as that is what send_command is waiting for
+					auto& completion_trb = const_cast<volatile XHCI::TRB&>(m_command_completions[trb_index]);
+					completion_trb.raw.dword0 = trb.raw.dword0;
+					completion_trb.raw.dword1 = trb.raw.dword1;
+					completion_trb.raw.dword3 = trb.raw.dword3;
+					__atomic_store_n(&completion_trb.raw.dword2, trb.raw.dword2, __ATOMIC_SEQ_CST);
+
+					break;
 				}
+				case XHCI::TRBType::PortStatusChangeEvent:
+				{
+					dprintln_if(DEBUG_XHCI, "PortStatusChangeEvent");
+					uint8_t port_id = trb.port_status_chage_event.port_id;
+					if (port_id > capability_regs().hcsparams1.max_ports)
+					{
+						dwarnln("PortStatusChangeEvent on non-existent port {}", port_id);
+						break;
+					}
+					m_port_changed = true;
+					m_port_thread_blocker.unblock();
+					break;
+				}
+				case XHCI::TRBType::BandwidthRequestEvent:
+					dwarnln("Unhandled BandwidthRequestEvent");
+					break;
+				case XHCI::TRBType::DoorbellEvent:
+					dwarnln("Unhandled DoorbellEvent");
+					break;
+				case XHCI::TRBType::HostControllerEvent:
+					dwarnln("Unhandled HostControllerEvent");
+					break;
+				case XHCI::TRBType::DeviceNotificationEvent:
+					dwarnln("Unhandled DeviceNotificationEvent");
+					break;
+				case XHCI::TRBType::MFINDEXWrapEvent:
+					dwarnln("Unhandled MFINDEXWrapEvent");
+					break;
+				default:
+					dwarnln("Unrecognized event TRB type {}", +trb.trb_type);
+					break;
 			}
 
-			primary_interrupter.erdp = (m_event_ring_region->paddr() + (m_event_dequeue * sizeof(XHCI::TRB))) | XHCI::ERDP::EventHandlerBusy;
+			m_event_dequeue++;
+			if (m_event_dequeue >= m_event_ring_trb_count)
+			{
+				m_event_dequeue = 0;
+				m_event_cycle = !m_event_cycle;
+			}
 		}
+
+		primary_interrupter.erdp = (m_event_ring_region->paddr() + (m_event_dequeue * sizeof(XHCI::TRB))) | XHCI::ERDP::EventHandlerBusy;
 	}
 
 	volatile XHCI::CapabilityRegs& XHCIController::capability_regs()
