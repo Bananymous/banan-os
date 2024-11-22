@@ -152,6 +152,7 @@ namespace Kernel::ACPI
 			case AML::Byte::XorOp:
 				return AML::Expression::parse(context);
 			case AML::Byte::ToBufferOp:
+			case AML::Byte::ToHexStringOp:
 			case AML::Byte::ToIntegerOp:
 			case AML::Byte::ToStringOp:
 				return AML::Conversion::parse(context);

@@ -17,8 +17,9 @@ namespace Kernel::ACPI::AML
 
 			switch (opcode)
 			{
-				case AML::Byte::ToIntegerOp:
 				case AML::Byte::ToBufferOp:
+				case AML::Byte::ToHexStringOp:
+				case AML::Byte::ToIntegerOp:
 				case AML::Byte::ToStringOp:
 					break;
 				default:
@@ -28,7 +29,7 @@ namespace Kernel::ACPI::AML
 			auto data_result = AML::parse_object(context);
 			if (!data_result.success())
 				return ParseResult::Failure;
-			auto data_node = data_result.node();
+			auto data_node = data_result.node() ? data_result.node()->to_underlying() : BAN::RefPtr<AML::Node>();
 			if (!data_node)
 			{
 				AML_ERROR("Conversion {2H} data could not be evaluated", static_cast<uint8_t>(opcode));
@@ -69,6 +70,37 @@ namespace Kernel::ACPI::AML
 				case AML::Byte::ToStringOp:
 					converted = data_node->convert(AML::Node::ConvString);
 					break;
+				case AML::Byte::ToHexStringOp:
+				{
+					switch (data_node->type)
+					{
+						case AML::Node::Type::Integer:
+							converted = MUST(BAN::RefPtr<AML::String>::create(
+								MUST(BAN::String::formatted("0x{H}", static_cast<AML::Integer*>(data_node.ptr())->value))
+							));
+							break;
+						case AML::Node::Type::String:
+							converted = data_node->copy();
+							break;
+						case AML::Node::Type::Buffer:
+						{
+							const auto& buffer = static_cast<AML::Buffer*>(data_node.ptr())->buffer;
+
+							BAN::String temp;
+							for (size_t i = 0; i < buffer.size(); i++)
+							{
+								const char* format = (i == 0) ? "0x{H}" : ", 0x{H}";
+								MUST(temp.append(MUST(BAN::String::formatted(format, buffer[i]))));
+							}
+
+							converted = MUST(BAN::RefPtr<AML::String>::create(temp));
+							break;
+						}
+						default:
+							break;
+					}
+					break;
+				}
 				default:
 					ASSERT_NOT_REACHED();
 			}
