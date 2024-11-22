@@ -1,7 +1,6 @@
 #include <BAN/Endianness.h>
 
 #include <kernel/Storage/SCSI.h>
-#include <kernel/USB/MassStorage/Definitions.h>
 #include <kernel/USB/MassStorage/SCSIDevice.h>
 
 #include <sys/sysmacros.h>
@@ -72,8 +71,6 @@ namespace Kernel
 
 	BAN::ErrorOr<BAN::RefPtr<USBSCSIDevice>> USBSCSIDevice::create(USBMassStorageDriver& driver, uint8_t lun, uint32_t max_packet_size)
 	{
-		auto dma_region = TRY(DMARegion::create(max_packet_size));
-
 		dprintln("USB SCSI device");
 
 		{
@@ -85,14 +82,14 @@ namespace Kernel
 				0x00
 			};
 			SCSI::InquiryRes inquiry_res;
-			TRY(send_scsi_command_impl<true>(driver, *dma_region, lun, BAN::ConstByteSpan::from(scsi_inquiry_req), BAN::ByteSpan::from(inquiry_res)));
+			TRY(driver.send_command<true>(lun, BAN::ConstByteSpan::from(scsi_inquiry_req), BAN::ByteSpan::from(inquiry_res)));
 
 			dprintln("  vendor:   {}", BAN::StringView(reinterpret_cast<const char*>(inquiry_res.t10_vendor_identification), 8));
 			dprintln("  product:  {}", BAN::StringView(reinterpret_cast<const char*>(inquiry_res.product_identification), 16));
 			dprintln("  revision: {}", BAN::StringView(reinterpret_cast<const char*>(inquiry_res.product_revision_level), 4));
 		}
 
-		uint32_t block_count;
+		uint64_t block_count;
 		uint32_t block_size;
 
 		{
@@ -105,7 +102,7 @@ namespace Kernel
 				0x00
 			};
 			SCSI::ReadCapacity10 read_capacity_res;
-			TRY(send_scsi_command_impl<true>(driver, *dma_region, lun, BAN::ConstByteSpan::from(scsi_read_capacity_req), BAN::ByteSpan::from(read_capacity_res)));
+			TRY(driver.send_command<true>(lun, BAN::ConstByteSpan::from(scsi_read_capacity_req), BAN::ByteSpan::from(read_capacity_res)));
 
 			block_count = read_capacity_res.logical_block_address + 1;
 			block_size  = read_capacity_res.block_length;
@@ -121,7 +118,7 @@ namespace Kernel
 			dprintln("  total size: {} MiB", block_count * block_size / 1024 / 1024);
 		}
 
-		auto result = TRY(BAN::RefPtr<USBSCSIDevice>::create(driver, lun, BAN::move(dma_region), block_count, block_size));
+		auto result = TRY(BAN::RefPtr<USBSCSIDevice>::create(driver, lun, max_packet_size, block_count, block_size));
 		result->add_disk_cache();
 		DevFileSystem::get().add_device(result);
 		if (auto res = result->initialize_partitions(result->name()); res.is_error())
@@ -129,9 +126,9 @@ namespace Kernel
 		return result;
 	}
 
-	USBSCSIDevice::USBSCSIDevice(USBMassStorageDriver& driver, uint8_t lun, BAN::UniqPtr<DMARegion>&& dma_region, uint64_t block_count, uint32_t block_size)
+	USBSCSIDevice::USBSCSIDevice(USBMassStorageDriver& driver, uint8_t lun, uint32_t max_packet_size, uint64_t block_count, uint32_t block_size)
 		: m_driver(driver)
-		, m_dma_region(BAN::move(dma_region))
+		, m_max_packet_size(max_packet_size)
 		, m_lun(lun)
 		, m_block_count(block_count)
 		, m_block_size(block_size)
@@ -144,75 +141,11 @@ namespace Kernel
 		scsi_free_rdev(m_rdev);
 	}
 
-	template<bool IN, typename SPAN>
-	BAN::ErrorOr<size_t> USBSCSIDevice::send_scsi_command(BAN::ConstByteSpan scsi_command, SPAN data)
-	{
-		return TRY(send_scsi_command_impl<IN>(m_driver, *m_dma_region, m_lun, scsi_command, data));
-	}
-
-	template<bool IN, typename SPAN>
-	BAN::ErrorOr<size_t> USBSCSIDevice::send_scsi_command_impl(USBMassStorageDriver& driver, DMARegion& dma_region, uint8_t lun, BAN::ConstByteSpan scsi_command, SPAN data)
-	{
-		ASSERT(scsi_command.size() <= 16);
-
-		LockGuard _(driver);
-
-		auto& cbw = *reinterpret_cast<USBMassStorage::CBW*>(dma_region.vaddr());
-		cbw = {
-			.dCBWSignature          = 0x43425355,
-			.dCBWTag                = 0x00000000,
-			.dCBWDataTransferLength = static_cast<uint32_t>(data.size()),
-			.bmCBWFlags             = IN ? 0x80 : 0x00,
-			.bCBWLUN                = lun,
-			.bCBWCBLength           = static_cast<uint8_t>(scsi_command.size()),
-			.CBWCB                  = {},
-		};
-		memcpy(cbw.CBWCB, scsi_command.data(), scsi_command.size());
-
-		if (TRY(driver.send_bytes(dma_region.paddr(), sizeof(USBMassStorage::CBW))) != sizeof(USBMassStorage::CBW))
-		{
-			dwarnln("failed to send full CBW");
-			return BAN::Error::from_errno(EFAULT);
-		}
-
-		const size_t ntransfer =
-			TRY([&]() -> BAN::ErrorOr<size_t>
-			{
-				if (data.empty())
-					return 0;
-				if constexpr(IN)
-					return TRY(driver.recv_bytes(dma_region.paddr(), data.size()));
-				memcpy(reinterpret_cast<void*>(dma_region.vaddr()), data.data(), data.size());
-				return TRY(driver.send_bytes(dma_region.paddr(), data.size()));
-			}());
-
-		if (ntransfer != data.size())
-		{
-			dwarnln("device responded with {}/{} bytes", ntransfer, data.size());
-			return BAN::Error::from_errno(EFAULT);
-		}
-
-		if constexpr (IN)
-			memcpy(data.data(), reinterpret_cast<void*>(dma_region.vaddr()), ntransfer);
-
-		if (TRY(driver.recv_bytes(dma_region.paddr(), sizeof(USBMassStorage::CSW))) != sizeof(USBMassStorage::CSW))
-		{
-			dwarnln("could not receive full CSW");
-			return BAN::Error::from_errno(EFAULT);
-		}
-
-		if (auto status = reinterpret_cast<USBMassStorage::CSW*>(dma_region.vaddr())->bmCSWStatus)
-		{
-			dwarnln("CSW status {2H}", status);
-			return BAN::Error::from_errno(EFAULT);
-		}
-
-		return ntransfer;
-	}
-
 	BAN::ErrorOr<void> USBSCSIDevice::read_sectors_impl(uint64_t first_lba, uint64_t sector_count, BAN::ByteSpan buffer)
 	{
-		const size_t max_blocks_per_read = m_dma_region->size() / m_block_size;
+		dprintln_if(DEBUG_USB_MASS_STORAGE, "read_blocks({}, {})", first_lba, sector_count);
+
+		const size_t max_blocks_per_read = m_max_packet_size / m_block_size;
 		ASSERT(max_blocks_per_read <= 0xFFFF);
 
 		for (uint64_t i = 0; i < sector_count;)
@@ -228,7 +161,10 @@ namespace Kernel
 				(uint8_t)(count >> 8), (uint8_t)(count >> 0),
 				0x00
 			};
-			TRY(send_scsi_command<true>(BAN::ConstByteSpan::from(scsi_read_req), buffer.slice(i * m_block_size, count * m_block_size)));
+
+			const size_t nread = TRY(m_driver.send_command<true>(m_lun, BAN::ConstByteSpan::from(scsi_read_req), buffer.slice(i * m_block_size, count * m_block_size)));
+			if (nread != count * m_block_size)
+				return BAN::Error::from_errno(EIO);
 
 			i += count;
 		}
@@ -238,9 +174,9 @@ namespace Kernel
 
 	BAN::ErrorOr<void> USBSCSIDevice::write_sectors_impl(uint64_t first_lba, uint64_t sector_count, BAN::ConstByteSpan buffer)
 	{
-		dprintln("write_sectors_impl({}, {})", first_lba, sector_count);
+		dprintln_if(DEBUG_USB_MASS_STORAGE, "write_blocks({}, {})", first_lba, sector_count);
 
-		const size_t max_blocks_per_write = m_dma_region->size() / m_block_size;
+		const size_t max_blocks_per_write = m_max_packet_size / m_block_size;
 		ASSERT(max_blocks_per_write <= 0xFFFF);
 
 		for (uint64_t i = 0; i < sector_count;)
@@ -256,7 +192,9 @@ namespace Kernel
 				(uint8_t)(count >> 8), (uint8_t)(count >> 0),
 				0x00
 			};
-			TRY(send_scsi_command<false>(BAN::ConstByteSpan::from(scsi_write_req), buffer.slice(i * m_block_size, count * m_block_size)));
+			const size_t nwrite = TRY(m_driver.send_command<false>(m_lun, BAN::ConstByteSpan::from(scsi_write_req), buffer.slice(i * m_block_size, count * m_block_size)));
+			if (nwrite != count * m_block_size)
+				return BAN::Error::from_errno(EIO);
 
 			i += count;
 		}
