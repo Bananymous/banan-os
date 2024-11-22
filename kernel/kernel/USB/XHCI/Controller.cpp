@@ -230,8 +230,8 @@ namespace Kernel
 		event_ring_table_entry.rsz = m_event_ring_trb_count;
 
 		auto& primary_interrupter = runtime.irs[0];
-		primary_interrupter.erstsz = 1;
-		primary_interrupter.erdp = m_event_ring_region->paddr();
+		primary_interrupter.erstsz = (primary_interrupter.erstsz & 0xFFFF0000) | 1;
+		primary_interrupter.erdp = m_event_ring_region->paddr() | XHCI::ERDP::EventHandlerBusy;
 		primary_interrupter.erstba = m_event_ring_region->paddr() + event_ring_table_offset;
 
 		auto& operational = operational_regs();
