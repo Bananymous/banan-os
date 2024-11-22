@@ -404,6 +404,13 @@ namespace Kernel
 	{
 		LockGuard _(m_mutex);
 
+		auto& operational = operational_regs();
+		if (operational.usbsts & XHCI::USBSTS::HCHalted)
+		{
+			dwarnln("Trying to send a command on a halted controller");
+			return BAN::Error::from_errno(EFAULT);
+		}
+
 		auto& command_trb = reinterpret_cast<volatile XHCI::TRB*>(m_command_ring_region->vaddr())[m_command_enqueue];
 		command_trb.raw.dword0 = trb.raw.dword0;
 		command_trb.raw.dword1 = trb.raw.dword1;
