@@ -437,7 +437,7 @@ namespace Kernel::PCI
 				{
 					write_dword(*m_offset_msi + 0x04, msg_addr & 0xFFFFFFFF);
 					write_dword(*m_offset_msi + 0x08, msg_addr >> 32);
-					write_word(*m_offset_msi  + 0x12, msg_data);
+					write_word(*m_offset_msi  + 0x0C, msg_data);
 				}
 				else
 				{
