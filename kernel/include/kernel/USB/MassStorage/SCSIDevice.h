@@ -22,8 +22,11 @@ namespace Kernel
 		USBSCSIDevice(USBMassStorageDriver& driver, uint8_t lun, BAN::UniqPtr<DMARegion>&&, uint64_t block_count, uint32_t block_size);
 		~USBSCSIDevice();
 
-		static BAN::ErrorOr<size_t> send_scsi_command_impl(USBMassStorageDriver&, DMARegion& dma_region, uint8_t lun, BAN::ConstByteSpan command, BAN::ByteSpan data, bool in);
-		BAN::ErrorOr<size_t> send_scsi_command(BAN::ConstByteSpan command, BAN::ByteSpan data, bool in);
+		template<bool IN, typename SPAN = BAN::either_or_t<IN, BAN::ByteSpan, BAN::ConstByteSpan>>
+		BAN::ErrorOr<size_t> send_scsi_command(BAN::ConstByteSpan command, SPAN data);
+
+		template<bool IN, typename SPAN = BAN::either_or_t<IN, BAN::ByteSpan, BAN::ConstByteSpan>>
+		static BAN::ErrorOr<size_t> send_scsi_command_impl(USBMassStorageDriver&, DMARegion& dma_region, uint8_t lun, BAN::ConstByteSpan command, SPAN data);
 
 		BAN::ErrorOr<void> read_sectors_impl(uint64_t first_lba, uint64_t sector_count, BAN::ByteSpan buffer) override;
 		BAN::ErrorOr<void> write_sectors_impl(uint64_t lba, uint64_t sector_count, BAN::ConstByteSpan buffer) override;
