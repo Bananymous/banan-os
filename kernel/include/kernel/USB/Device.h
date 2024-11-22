@@ -21,6 +21,7 @@ namespace Kernel
 
 		virtual BAN::ErrorOr<void> initialize() { return {}; };
 
+		virtual void handle_stall(uint8_t endpoint_id) = 0;
 		virtual void handle_input_data(size_t byte_count, uint8_t endpoint_id) = 0;
 	};
 
@@ -71,6 +72,7 @@ namespace Kernel
 		static USB::SpeedClass determine_speed_class(uint64_t bits_per_second);
 
 	protected:
+		void handle_stall(uint8_t endpoint_id);
 		void handle_input_data(size_t byte_count, uint8_t endpoint_id);
 		virtual BAN::ErrorOr<void> initialize_control_endpoint() = 0;
 

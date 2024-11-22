@@ -15,6 +15,7 @@ namespace Kernel
 		BAN_NON_MOVABLE(USBMassStorageDriver);
 
 	public:
+		void handle_stall(uint8_t endpoint_id) override;
 		void handle_input_data(size_t byte_count, uint8_t endpoint_id) override;
 
 		BAN::ErrorOr<size_t> send_bytes(paddr_t, size_t count);

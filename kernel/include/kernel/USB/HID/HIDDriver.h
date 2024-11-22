@@ -75,6 +75,7 @@ namespace Kernel
 		};
 
 	public:
+		void handle_stall(uint8_t endpoint_id) override;
 		void handle_input_data(size_t byte_count, uint8_t endpoint_id) override;
 
 	private:

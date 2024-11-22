@@ -328,6 +328,12 @@ namespace Kernel
 		return BAN::move(configuration);
 	}
 
+	void USBDevice::handle_stall(uint8_t endpoint_id)
+	{
+		for (auto& driver : m_class_drivers)
+			driver->handle_stall(endpoint_id);
+	}
+
 	void USBDevice::handle_input_data(size_t byte_count, uint8_t endpoint_id)
 	{
 		for (auto& driver : m_class_drivers)

@@ -169,6 +169,12 @@ namespace Kernel
 		return static_cast<size_t>(bytes_recv);
 	}
 
+	void USBMassStorageDriver::handle_stall(uint8_t endpoint_id)
+	{
+		(void)endpoint_id;
+		// FIXME: do something :)
+	}
+
 	void USBMassStorageDriver::handle_input_data(size_t byte_count, uint8_t endpoint_id)
 	{
 		if (endpoint_id != m_in_endpoint_id && endpoint_id != m_out_endpoint_id)

@@ -295,14 +295,18 @@ namespace Kernel
 	void XHCIDevice::on_interrupt_or_bulk_endpoint_event(XHCI::TRB trb)
 	{
 		ASSERT(trb.trb_type == XHCI::TRBType::TransferEvent);
+
+		const uint32_t endpoint_id = trb.transfer_event.endpoint_id;
+		auto& endpoint = m_endpoints[endpoint_id - 1];
+
+		if (trb.transfer_event.completion_code == 6)
+			return handle_stall(endpoint_id);
+
 		if (trb.transfer_event.completion_code != 1 && trb.transfer_event.completion_code != 13)
 		{
 			dwarnln("Interrupt or bulk endpoint got transfer event with completion code {}", +trb.transfer_event.completion_code);
 			return;
 		}
-
-		const uint32_t endpoint_id = trb.transfer_event.endpoint_id;
-		auto& endpoint = m_endpoints[endpoint_id - 1];
 
 		const auto* transfer_trb_arr = reinterpret_cast<volatile XHCI::TRB*>(endpoint.transfer_ring->vaddr());
 		const uint32_t transfer_trb_index = (trb.transfer_event.trb_pointer - endpoint.transfer_ring->paddr()) / sizeof(XHCI::TRB);

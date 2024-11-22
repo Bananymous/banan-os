@@ -272,6 +272,12 @@ namespace Kernel
 		return BAN::move(result);
 	}
 
+	void USBHIDDriver::handle_stall(uint8_t endpoint_id)
+	{
+		(void)endpoint_id;
+		// FIXME: do something :)
+	}
+
 	void USBHIDDriver::handle_input_data(size_t byte_count, uint8_t endpoint_id)
 	{
 		if (m_data_endpoint_id != endpoint_id)
