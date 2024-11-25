@@ -10,14 +10,11 @@ namespace BAN::Formatter
 
 	struct ValueFormat;
 
-	template<typename F>
-	inline void print(F putc, const char* format);
-
-	template<typename F, typename Arg, typename... Args>
-	inline void print(F putc, const char* format, Arg&& arg, Args&&... args);
-
 	template<typename F, typename... Args>
-	inline void println(F putc, const char* format, Args&&... args);
+	concept PrintableArguments = requires(F putc, Args&&... args, const ValueFormat& format)
+	{
+		(print_argument(putc, BAN::forward<Args>(args), format), ...);
+	};
 
 	template<typename F, typename T>
 	inline void print_argument(F putc, T value, const ValueFormat& format);
@@ -53,7 +50,7 @@ namespace BAN::Formatter
 		}
 	}
 
-	template<typename F, typename Arg, typename... Args>
+	template<typename F, typename Arg, typename... Args> requires PrintableArguments<F, Arg, Args...>
 	inline void print(F putc, const char* format, Arg&& arg, Args&&... args)
 	{
 		while (*format && *format != '{')
