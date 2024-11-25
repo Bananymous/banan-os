@@ -208,7 +208,7 @@ namespace Kernel
 	{
 		ASSERT(m_threads.empty());
 		ASSERT(m_mapped_regions.empty());
-		ASSERT(&PageTable::current() != m_page_table.ptr());
+		ASSERT(!m_page_table);
 	}
 
 	void Process::add_thread(Thread* thread)
@@ -217,7 +217,7 @@ namespace Kernel
 		MUST(m_threads.push_back(thread));
 	}
 
-	void Process::cleanup_function()
+	void Process::cleanup_function(Thread* thread)
 	{
 		{
 			SpinLockGuard _(s_process_lock);
@@ -238,6 +238,8 @@ namespace Kernel
 
 		// NOTE: We must unmap ranges while the page table is still alive
 		m_mapped_regions.clear();
+
+		thread->give_keep_alive_page_table(BAN::move(m_page_table));
 	}
 
 	bool Process::on_thread_exit(Thread& thread)

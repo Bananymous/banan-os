@@ -242,7 +242,7 @@ namespace Kernel
 
 				ASSERT(thread->m_process == process);
 
-				process->cleanup_function();
+				process->cleanup_function(thread);
 
 				thread->m_delete_process = true;
 
