@@ -174,6 +174,8 @@ namespace Kernel
 
 	BAN::ErrorOr<void> USBSCSIDevice::write_sectors_impl(uint64_t first_lba, uint64_t sector_count, BAN::ConstByteSpan buffer)
 	{
+		return BAN::Error::from_errno(ENOTSUP);
+
 		dprintln_if(DEBUG_USB_MASS_STORAGE, "write_blocks({}, {})", first_lba, sector_count);
 
 		const size_t max_blocks_per_write = m_max_packet_size / m_block_size;
