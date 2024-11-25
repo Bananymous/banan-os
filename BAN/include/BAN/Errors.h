@@ -1,6 +1,7 @@
 #pragma once
 
 #include <BAN/Formatter.h>
+#include <BAN/NoCopyMove.h>
 #include <BAN/Variant.h>
 
 #include <errno.h>
@@ -97,6 +98,7 @@ namespace BAN
 	template<typename T>
 	class [[nodiscard]] ErrorOr
 	{
+		BAN_NON_COPYABLE(ErrorOr);
 	public:
 		ErrorOr(const T& value)
 			: m_data(value)
@@ -110,6 +112,14 @@ namespace BAN
 		ErrorOr(Error&& error)
 			: m_data(move(error))
 		{}
+		ErrorOr(ErrorOr&& other)
+			: m_data(move(other.m_data))
+		{}
+		ErrorOr& operator=(ErrorOr&& other)
+		{
+			m_data = move(other.m_data);
+			return *this;
+		}
 
 		bool is_error() const			{ return m_data.template has<Error>(); }
 		const Error& error() const		{ return m_data.template get<Error>(); }
