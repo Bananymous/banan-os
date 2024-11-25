@@ -149,8 +149,12 @@ namespace Kernel
 
 	void AHCIDevice::handle_irq()
 	{
-		uint16_t err = m_port->serr & 0xFFFF;
-		if (err)
+		const uint32_t is = m_port->is;
+		m_port->is = is;
+
+		const uint32_t serr = m_port->serr;
+		m_port->serr = serr;
+		if (auto err = serr & 0xFFFF)
 			print_error(err);
 	}
 

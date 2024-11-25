@@ -77,7 +77,9 @@ namespace Kernel
 	{
 		auto& abar_mem = *(volatile HBAGeneralMemorySpace*)m_abar->vaddr();
 
-		uint32_t is = abar_mem.is;
+		const uint32_t is = abar_mem.is;
+		abar_mem.is = is;
+
 		for (uint8_t i = 0; i < 32; i++)
 		{
 			if (is & (1 << i))
@@ -88,8 +90,6 @@ namespace Kernel
 					dwarnln("ignoring interrupt to device {}", i);
 			}
 		}
-
-		abar_mem.is = is;
 	}
 
 	BAN::Optional<AHCIPortType> AHCIController::check_port_type(volatile HBAPortMemorySpace& port)
