@@ -84,7 +84,7 @@ namespace BAN
 			return Span<S>(reinterpret_cast<S*>(m_data), m_size / sizeof(S));
 		}
 
-		ByteSpanGeneral slice(size_type offset, size_type length = size_type(-1)) const
+		[[nodiscard]] ByteSpanGeneral slice(size_type offset, size_type length = size_type(-1)) const
 		{
 			ASSERT(m_data);
 			ASSERT(m_size >= offset);
