@@ -576,6 +576,9 @@ namespace Kernel
 
 	PageTable::~PageTable()
 	{
+		if (m_highest_paging_struct == 0)
+			return;
+
 		// NOTE: we only loop until 256 since after that is hhdm
 		const uint64_t* pml4 = P2V(m_highest_paging_struct);
 		for (uint64_t pml4e = 0; pml4e < 256; pml4e++)

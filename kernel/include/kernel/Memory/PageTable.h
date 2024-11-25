@@ -22,6 +22,9 @@ namespace Kernel
 
 	class PageTable
 	{
+		BAN_NON_COPYABLE(PageTable);
+		BAN_NON_MOVABLE(PageTable);
+
 	public:
 		using flags_t = uint16_t;
 		enum Flags : flags_t

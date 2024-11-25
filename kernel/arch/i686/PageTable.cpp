@@ -272,6 +272,9 @@ namespace Kernel
 
 	PageTable::~PageTable()
 	{
+		if (m_highest_paging_struct == 0)
+			return;
+
 		uint64_t* pdpt = reinterpret_cast<uint64_t*>(P2V(m_highest_paging_struct));
 
 		for (uint32_t pdpte = 0; pdpte < 3; pdpte++)
