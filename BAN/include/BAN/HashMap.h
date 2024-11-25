@@ -19,6 +19,12 @@ namespace BAN
 				, value(forward<Args>(args)...)
 			{}
 
+			template<typename... Args>
+			Entry(Key&& key, Args&&... args) requires is_constructible_v<T, Args...>
+				: key(BAN::move(key))
+				, value(forward<Args>(args)...)
+			{}
+
 			Key key;
 			T value;
 		};
