@@ -43,6 +43,8 @@ namespace LibGUI
 			return m_framebuffer[y * m_width + x];
 		}
 
+		BAN::Span<uint32_t> pixels() { return m_framebuffer.span(); }
+
 		void fill_rect(int32_t x, int32_t y, uint32_t width, uint32_t height, uint32_t color);
 		void fill(uint32_t color) { return fill_rect(0, 0, width(), height(), color); }
 
