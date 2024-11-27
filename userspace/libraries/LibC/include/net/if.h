@@ -24,7 +24,7 @@ struct ifreq
 		struct sockaddr ifru_netmask;
 		struct sockaddr ifru_gwaddr;
 		struct sockaddr ifru_hwaddr;
-		unsigned char __min_storage[sizeof(sockaddr) + 6];
+		unsigned char __min_storage[sizeof(struct sockaddr) + 6];
 	} ifr_ifru;
 };
 

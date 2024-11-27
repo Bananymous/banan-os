@@ -5,7 +5,7 @@
 
 __BEGIN_DECLS
 
-#define __need_size_t 1
+#define __need_size_t
 #include <stddef.h>
 
 #define TTY_CMD_SET		0x01
