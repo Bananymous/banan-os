@@ -102,6 +102,15 @@ char* ctermid(char* buffer)
 	return target;
 }
 
+int dprintf(int fildes, const char* __restrict format, ...)
+{
+	va_list arguments;
+	va_start(arguments, format);
+	int ret = vdprintf(fildes, format, arguments);
+	va_end(arguments);
+	return ret;
+}
+
 int fclose(FILE* file)
 {
 	ScopeLock _(file);
@@ -809,6 +818,41 @@ int ungetc(int c, FILE* stream)
 {
 	ScopeLock _(stream);
 	return ungetc_unlocked(c, stream);
+}
+
+int vdprintf(int fildes, const char* __restrict format, va_list arguments)
+{
+	struct print_info
+	{
+		int fildes;
+		size_t offset;
+		char buffer[512];
+	};
+
+	print_info info {
+		.fildes = fildes,
+		.offset = 0,
+		.buffer = {},
+	};
+
+	const int ret = printf_impl(format, arguments,
+		[](int c, void* _info) -> int
+		{
+			auto* info = static_cast<print_info*>(_info);
+			info->buffer[info->offset++] = c;
+			if (info->offset >= sizeof(info->buffer))
+			{
+				write(info->fildes, info->buffer, info->offset);
+				info->offset = 0;
+			}
+			return 0;
+		}, static_cast<void*>(&info)
+	);
+
+	if (info.offset)
+		write(info.fildes, info.buffer, info.offset);
+
+	return ret;
 }
 
 int vfprintf(FILE* file, const char* format, va_list arguments)
