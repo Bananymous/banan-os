@@ -85,6 +85,8 @@ static void parse_command_line()
 			cmdline.disable_usb = true;
 		else if (argument == "noacpi")
 			cmdline.disable_acpi = true;
+		else if (argument == "readonly")
+			Kernel::g_disable_disk_write = true;
 		else if (argument == "nodebug")
 			g_disable_debug = true;
 		else if (argument.starts_with("ps2="))

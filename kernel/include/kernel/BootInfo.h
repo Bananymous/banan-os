@@ -55,5 +55,6 @@ namespace Kernel
 	BAN::StringView get_early_boot_command_line(uint32_t magic, uint32_t info);
 
 	extern BootInfo g_boot_info;
+	extern bool g_disable_disk_write;
 
 }

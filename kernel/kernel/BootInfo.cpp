@@ -6,6 +6,7 @@ namespace Kernel
 {
 
 	BootInfo g_boot_info;
+	bool g_disable_disk_write { false };
 
 	static MemoryMapEntry::Type bios_number_to_memory_type(uint32_t number)
 	{

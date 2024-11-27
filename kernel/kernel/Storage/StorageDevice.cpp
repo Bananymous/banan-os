@@ -2,6 +2,7 @@
 #include <BAN/ScopeGuard.h>
 #include <BAN/StringView.h>
 #include <BAN/UTF8.h>
+#include <kernel/BootInfo.h>
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/Lock/LockGuard.h>
@@ -264,6 +265,13 @@ namespace Kernel
 		ASSERT(buffer.size() >= sector_count * sector_size());
 
 		LockGuard _(m_mutex);
+
+		if (g_disable_disk_write)
+		{
+			if (!m_disk_cache.has_value())
+				return BAN::Error::from_errno(EIO);
+			return m_disk_cache->write_to_cache(lba, buffer, true);
+		}
 
 		if (!m_disk_cache.has_value())
 			return write_sectors_impl(lba, sector_count, buffer);

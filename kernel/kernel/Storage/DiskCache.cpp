@@ -1,3 +1,4 @@
+#include <kernel/BootInfo.h>
 #include <kernel/Lock/LockGuard.h>
 #include <kernel/Memory/Heap.h>
 #include <kernel/Memory/PageTable.h>
@@ -105,6 +106,9 @@ namespace Kernel
 
 	BAN::ErrorOr<void> DiskCache::sync()
 	{
+		if (g_disable_disk_write)
+			return {};
+
 		for (auto& cache : m_cache)
 		{
 			if (cache.dirty_mask == 0)
