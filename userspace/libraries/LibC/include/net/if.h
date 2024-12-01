@@ -31,6 +31,11 @@ struct ifreq
 		unsigned char __min_storage[sizeof(struct sockaddr) + 6];
 	} ifr_ifru;
 };
+#define ifr_name    ifr_ifrn.ifrn_name
+#define ifr_addr    ifr_ifru.ifru_addr
+#define ifr_netmask ifr_ifru.ifru_addrnetmask
+#define ifr_gwaddr  ifr_ifru.ifru_addrgwaddr
+#define ifr_hwaddr  ifr_ifru.ifru_addrhwaddr
 
 #define SIOCGIFADDR		1	/* Get interface address */
 #define SIOCSIFADDR		2	/* Set interface address */
