@@ -108,6 +108,8 @@ struct sigevent
 #define SIGRTMIN  30
 #define SIGRTMAX  (SIGRTMIN+32)
 
+#define NSIG SIGRTMAX
+
 #define SI_USER    10
 #define SI_QUEUE   11
 #define SI_TIMER   12

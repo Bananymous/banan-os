@@ -42,6 +42,11 @@ __BEGIN_DECLS
 #define EAI_SYSTEM		9
 #define EAI_OVERFLOW	10
 
+#define HOST_NOT_FOUND	1
+#define NO_DATA			2
+#define NO_RECOVERY		3
+#define TRY_AGAIN		4
+
 struct hostent
 {
 	char*	h_name;			/* Official name of the host. */
