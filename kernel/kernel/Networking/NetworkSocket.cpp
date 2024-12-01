@@ -95,6 +95,14 @@ namespace Kernel
 				memcpy(ifreq->ifr_ifru.ifru_hwaddr.sa_data, &mac_address, sizeof(mac_address));
 				return 0;
 			}
+			case SIOCGIFNAME:
+			{
+				auto& ifrn_name = ifreq->ifr_ifrn.ifrn_name;
+				ASSERT(m_interface->name().size() < sizeof(ifrn_name));
+				memcpy(ifrn_name, m_interface->name().data(), m_interface->name().size());
+				ifrn_name[m_interface->name().size()] = '\0';
+				return 0;
+			}
 			default:
 				return BAN::Error::from_errno(EINVAL);
 		}

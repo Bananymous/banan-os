@@ -20,6 +20,10 @@ struct if_nameindex
 struct ifreq
 {
 	union {
+		char ifrn_name[IF_NAMESIZE];
+	} ifr_ifrn;
+
+	union {
 		struct sockaddr ifru_addr;
 		struct sockaddr ifru_netmask;
 		struct sockaddr ifru_gwaddr;
@@ -35,6 +39,7 @@ struct ifreq
 #define SIOCGIFGWADDR	5	/* Get gateway address */
 #define SIOCSIFGWADDR	6	/* Set gateway address */
 #define SIOCGIFHWADDR	7	/* Get hardware address */
+#define SIOCGIFNAME		8	/* Get interface name */
 
 void					if_freenameindex(struct if_nameindex* ptr);
 char*					if_indextoname(unsigned ifindex, char* ifname);
