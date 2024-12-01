@@ -43,26 +43,21 @@ i64 part2(FILE* fp)
 	BAN::HashMap<i64, i64> lhs;
 	BAN::HashMap<i64, i64> rhs;
 
+	constexpr auto increment_count =
+		[](auto& map, i64 key) {
+			auto it = map.find(key);
+			if (it == map.end())
+				MUST(map.insert(key, 1));
+			else
+				it->value++;
+		};
+
 	for (;;) {
 		i64 l, r;
 		if (fscanf(fp, "%" SCNd64 " %" SCNd64 "\n", &l, &r) != 2)
 			break;
-
-		{
-			auto it = lhs.find(l);
-			if (it == lhs.end())
-				MUST(lhs.insert(l, 1));
-			else
-				it->value++;
-		}
-
-		{
-			auto it = rhs.find(r);
-			if (it == rhs.end())
-				MUST(rhs.insert(r, 1));
-			else
-				it->value++;
-		}
+		increment_count(lhs, l);
+		increment_count(rhs, r);
 	}
 
 	i64 result = 0;
