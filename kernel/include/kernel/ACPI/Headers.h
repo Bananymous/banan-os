@@ -1,6 +1,6 @@
 #pragma once
 
-#include <stdint.h>
+#include <BAN/Optional.h>
 
 namespace Kernel::ACPI
 {
