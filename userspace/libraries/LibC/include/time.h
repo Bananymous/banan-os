@@ -20,7 +20,7 @@ __BEGIN_DECLS
 
 #include <bits/types/locale_t.h>
 
-#include <signal.h>
+struct sigevent;
 
 struct tm
 {
