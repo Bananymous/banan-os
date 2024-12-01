@@ -1,0 +1,22 @@
+set(AOC2024_PROJECTS
+	full
+)
+
+set(BANAN_AOC2024_BIN   ${CMAKE_INSTALL_BINDIR}/aoc2024)
+set(BANAN_AOC2024_INPUT ${BANAN_SHARE}/aoc2024)
+
+set(CMAKE_INSTALL_BINDIR ${BANAN_AOC2024_BIN})
+
+add_custom_target(aoc2024)
+
+file(GLOB_RECURSE input_files "input/*")
+foreach(file ${input_files})
+	install(FILES ${file} DESTINATION ${BANAN_AOC2024_INPUT})
+endforeach()
+
+foreach(AOC2024_PROJECT ${AOC2024_PROJECTS})
+	add_subdirectory(${AOC2024_PROJECT})
+	add_dependencies(aoc2024 aoc2024_${AOC2024_PROJECT})
+endforeach()
+
+add_dependencies(userspace aoc2024)
