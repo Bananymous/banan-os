@@ -77,6 +77,9 @@ int main(int argc, char** argv)
 		if (pwd == nullptr)
 			continue;
 
+		if (chown(tty_name, pwd->pw_uid, 0) == -1)
+			perror("chown");
+
 		pid_t pid = fork();
 		if (pid == 0)
 		{
@@ -124,6 +127,9 @@ int main(int argc, char** argv)
 
 		if (tcsetpgrp(0, getpgrp()) == -1)
 			perror("tcsetpgrp");
+
+		if (chown(tty_name, 0, 0) == -1)
+			perror("chown");
 	}
 
 }
