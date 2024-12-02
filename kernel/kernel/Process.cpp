@@ -2012,6 +2012,24 @@ namespace Kernel
 		return 0;
 	}
 
+	BAN::ErrorOr<long> Process::sys_tcgetpgrp(int fd)
+	{
+		LockGuard _(m_process_lock);
+
+		if (!m_controlling_terminal)
+			return BAN::Error::from_errno(ENOTTY);
+
+		auto inode = TRY(m_open_file_descriptors.inode_of(fd));
+		if (!inode->is_tty())
+			return BAN::Error::from_errno(ENOTTY);
+
+		auto* tty = static_cast<TTY*>(inode.ptr());
+		if (tty != m_controlling_terminal.ptr())
+			return BAN::Error::from_errno(ENOTTY);
+
+		return tty->foreground_pgrp();
+	}
+
 	BAN::ErrorOr<long> Process::sys_tcsetpgrp(int fd, pid_t pgrp)
 	{
 		LockGuard _(m_process_lock);

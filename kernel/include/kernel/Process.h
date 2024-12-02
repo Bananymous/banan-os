@@ -179,6 +179,7 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_sigpending(sigset_t* set);
 		BAN::ErrorOr<long> sys_sigprocmask(int how, const sigset_t* set, sigset_t* oset);
 
+		BAN::ErrorOr<long> sys_tcgetpgrp(int fd);
 		BAN::ErrorOr<long> sys_tcsetpgrp(int fd, pid_t pgid);
 
 		BAN::ErrorOr<long> sys_termid(char*);

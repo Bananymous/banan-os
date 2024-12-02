@@ -39,6 +39,7 @@ __BEGIN_DECLS
 	O(SYS_DUP,				dup)			\
 	O(SYS_DUP2,				dup2)			\
 	O(SYS_KILL,				kill)			\
+	O(SYS_TCGETPGRP,		tcgetpgrp)		\
 	O(SYS_TCSETPGRP,		tcsetpgrp)		\
 	O(SYS_GET_PID,			getpid)			\
 	O(SYS_GET_PGID,			getpgid)		\

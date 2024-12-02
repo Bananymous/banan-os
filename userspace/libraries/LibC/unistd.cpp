@@ -483,6 +483,11 @@ pid_t getpgid(pid_t pid)
 	return syscall(SYS_GET_PGID, pid);
 }
 
+int tcgetpgrp(int fildes)
+{
+	return syscall(SYS_TCGETPGRP, fildes);
+}
+
 int seteuid(uid_t uid)
 {
 	return syscall(SYS_SET_EUID, uid);
