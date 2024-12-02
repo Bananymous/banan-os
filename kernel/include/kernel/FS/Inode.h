@@ -111,6 +111,7 @@ namespace Kernel
 		BAN::ErrorOr<void> truncate(size_t);
 		BAN::ErrorOr<void> chmod(mode_t);
 		BAN::ErrorOr<void> chown(uid_t, gid_t);
+		BAN::ErrorOr<void> fsync();
 
 		// Select/Non blocking API
 		bool can_read() const;
@@ -145,6 +146,7 @@ namespace Kernel
 		virtual BAN::ErrorOr<void> truncate_impl(size_t)					{ return BAN::Error::from_errno(ENOTSUP); }
 		virtual BAN::ErrorOr<void> chmod_impl(mode_t)						{ return BAN::Error::from_errno(ENOTSUP); }
 		virtual BAN::ErrorOr<void> chown_impl(uid_t, gid_t)					{ return BAN::Error::from_errno(ENOTSUP); }
+		virtual BAN::ErrorOr<void> fsync_impl() = 0;
 
 		// Select/Non blocking API
 		virtual bool can_read_impl() const = 0;

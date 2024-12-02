@@ -259,6 +259,14 @@ namespace Kernel
 		return {};
 	}
 
+	BAN::ErrorOr<void> Ext2Inode::fsync_impl()
+	{
+		for (size_t i = 0; i < max_used_data_block_count(); i++)
+			if (const auto fs_block = TRY(fs_block_of_data_block_index(i)); fs_block.has_value())
+				TRY(m_fs.sync_block(fs_block.value()));
+		return {};
+	}
+
 	BAN::ErrorOr<void> Ext2Inode::cleanup_indirect_block(uint32_t block, uint32_t depth)
 	{
 		ASSERT(block);

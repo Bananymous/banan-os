@@ -1,5 +1,6 @@
 #include <kernel/FS/Inode.h>
 #include <kernel/Lock/LockGuard.h>
+#include <kernel/Memory/FileBackedRegion.h>
 
 #include <fcntl.h>
 
@@ -201,6 +202,15 @@ namespace Kernel
 	{
 		LockGuard _(m_mutex);
 		return chown_impl(uid, gid);
+	}
+
+	BAN::ErrorOr<void> Inode::fsync()
+	{
+		LockGuard _(m_mutex);
+		if (auto shared = m_shared_region.lock())
+			for (size_t i = 0; i < shared->pages.size(); i++)
+				shared->sync(i);
+		return fsync_impl();
 	}
 
 	bool Inode::can_read() const

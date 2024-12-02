@@ -48,6 +48,15 @@ namespace Kernel
 		return {};
 	}
 
+	BAN::ErrorOr<void> Partition::sync_blocks(uint64_t block, size_t block_count)
+	{
+		const uint32_t blocks_in_partition = m_last_block - m_first_block + 1;
+		if (block + block_count > blocks_in_partition)
+			return BAN::Error::from_error_code(ErrorCode::Storage_Boundaries);
+		TRY(m_device->sync_blocks(m_first_block + block, block_count));
+		return {};
+	}
+
 	BAN::ErrorOr<size_t> Partition::read_impl(off_t offset, BAN::ByteSpan buffer)
 	{
 		ASSERT(offset >= 0);

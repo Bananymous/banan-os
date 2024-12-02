@@ -115,6 +115,11 @@ int ftruncate(int fildes, off_t length)
 	return syscall(SYS_TRUNCATE, fildes, length);
 }
 
+int fsync(int fildes)
+{
+	return syscall(SYS_FSYNC, fildes);
+}
+
 int dup(int fildes)
 {
 	return syscall(SYS_DUP, fildes);

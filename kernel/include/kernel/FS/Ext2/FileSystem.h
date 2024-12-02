@@ -67,6 +67,7 @@ namespace Kernel
 		BAN::ErrorOr<void> read_block(uint32_t, BlockBufferWrapper&);
 		BAN::ErrorOr<void> write_block(uint32_t, const BlockBufferWrapper&);
 		BAN::ErrorOr<void> sync_superblock();
+		BAN::ErrorOr<void> sync_block(uint32_t block);
 
 		BlockBufferWrapper get_block_buffer();
 

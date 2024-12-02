@@ -1448,6 +1448,14 @@ namespace Kernel
 		return 0;
 	}
 
+	BAN::ErrorOr<long> Process::sys_fsync(int fd)
+	{
+		LockGuard _(m_process_lock);
+		auto inode = TRY(m_open_file_descriptors.inode_of(fd));
+		TRY(inode->fsync());
+		return 0;
+	}
+
 	BAN::ErrorOr<void> Process::mount(BAN::StringView source, BAN::StringView target)
 	{
 		BAN::String absolute_source, absolute_target;

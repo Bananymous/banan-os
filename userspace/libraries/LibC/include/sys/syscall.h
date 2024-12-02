@@ -85,6 +85,7 @@ __BEGIN_DECLS
 	O(SYS_SETITIMER,		setitimer)		\
 	O(SYS_POSIX_OPENPT,		posix_openpt)	\
 	O(SYS_PTSNAME,			ptsname)		\
+	O(SYS_FSYNC,			fsync)			\
 
 enum Syscall
 {

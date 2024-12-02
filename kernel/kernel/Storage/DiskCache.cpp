@@ -32,7 +32,7 @@ namespace Kernel
 
 		for (auto& cache : m_cache)
 		{
-			if (cache.first_sector < page_cache_start)
+			if (cache.first_sector + sectors_per_page <= page_cache_start)
 				continue;
 			if (cache.first_sector > page_cache_start)
 				break;
@@ -64,7 +64,7 @@ namespace Kernel
 		{
 			auto& cache = m_cache[index];
 
-			if (cache.first_sector < page_cache_start)
+			if (cache.first_sector + sectors_per_page <= page_cache_start)
 				continue;
 			if (cache.first_sector > page_cache_start)
 				break;
@@ -104,47 +104,73 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<void> DiskCache::sync()
+	BAN::ErrorOr<void> DiskCache::sync_cache_index(size_t index)
 	{
-		if (g_disable_disk_write)
+		auto& cache = m_cache[index];
+		if (cache.dirty_mask == 0)
 			return {};
 
-		for (auto& cache : m_cache)
+		PageTable::with_fast_page(cache.paddr, [&] {
+			memcpy(m_sync_cache.data(), PageTable::fast_page_as_ptr(), PAGE_SIZE);
+		});
+
+		uint8_t sector_start = 0;
+		uint8_t sector_count = 0;
+
+		while (sector_start + sector_count <= PAGE_SIZE / m_sector_size)
 		{
-			if (cache.dirty_mask == 0)
-				continue;
-
-			PageTable::with_fast_page(cache.paddr, [&] {
-				memcpy(m_sync_cache.data(), PageTable::fast_page_as_ptr(), PAGE_SIZE);
-			});
-
-			uint8_t sector_start = 0;
-			uint8_t sector_count = 0;
-
-			while (sector_start + sector_count <= PAGE_SIZE / m_sector_size)
-			{
-				if (cache.dirty_mask & (1 << (sector_start + sector_count)))
-					sector_count++;
-				else if (sector_count == 0)
-					sector_start++;
-				else
-				{
-					dprintln_if(DEBUG_DISK_SYNC, "syncing {}->{}", cache.first_sector + sector_start, cache.first_sector + sector_start + sector_count);
-					auto data_slice = m_sync_cache.span().slice(sector_start * m_sector_size, sector_count * m_sector_size);
-					TRY(m_device.write_sectors_impl(cache.first_sector + sector_start, sector_count, data_slice));
-					sector_start += sector_count + 1;
-					sector_count = 0;
-				}
-			}
-
-			if (sector_count > 0)
+			if (cache.dirty_mask & (1 << (sector_start + sector_count)))
+				sector_count++;
+			else if (sector_count == 0)
+				sector_start++;
+			else
 			{
 				dprintln_if(DEBUG_DISK_SYNC, "syncing {}->{}", cache.first_sector + sector_start, cache.first_sector + sector_start + sector_count);
 				auto data_slice = m_sync_cache.span().slice(sector_start * m_sector_size, sector_count * m_sector_size);
 				TRY(m_device.write_sectors_impl(cache.first_sector + sector_start, sector_count, data_slice));
+				sector_start += sector_count + 1;
+				sector_count = 0;
 			}
+		}
 
-			cache.dirty_mask = 0;
+		if (sector_count > 0)
+		{
+			dprintln_if(DEBUG_DISK_SYNC, "syncing {}->{}", cache.first_sector + sector_start, cache.first_sector + sector_start + sector_count);
+			auto data_slice = m_sync_cache.span().slice(sector_start * m_sector_size, sector_count * m_sector_size);
+			TRY(m_device.write_sectors_impl(cache.first_sector + sector_start, sector_count, data_slice));
+		}
+
+		cache.dirty_mask = 0;
+
+		return {};
+	}
+
+	BAN::ErrorOr<void> DiskCache::sync()
+	{
+		if (g_disable_disk_write)
+			return {};
+		for (size_t i = 0; i < m_cache.size(); i++)
+			TRY(sync_cache_index(i));
+		return {};
+	}
+
+	BAN::ErrorOr<void> DiskCache::sync(uint64_t sector, size_t block_count)
+	{
+		if (g_disable_disk_write)
+			return {};
+
+		uint64_t sectors_per_page = PAGE_SIZE / m_sector_size;
+		uint64_t page_cache_offset = sector % sectors_per_page;
+		uint64_t page_cache_start = sector - page_cache_offset;
+
+		for (size_t i = 0; i < m_cache.size(); i++)
+		{
+			auto& cache = m_cache[i];
+			if (cache.first_sector + sectors_per_page <= page_cache_start)
+				continue;
+			if (cache.first_sector * sectors_per_page >= page_cache_start * sectors_per_page + block_count)
+				break;
+			TRY(sync_cache_index(i));
 		}
 
 		return {};

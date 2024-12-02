@@ -20,9 +20,13 @@ namespace Kernel
 		BAN::ErrorOr<void> write_to_cache(uint64_t sector, BAN::ConstByteSpan, bool dirty);
 
 		BAN::ErrorOr<void> sync();
+		BAN::ErrorOr<void> sync(uint64_t sector, size_t sector_count);
 		size_t release_clean_pages(size_t);
 		size_t release_pages(size_t);
 		void release_all_pages();
+
+	private:
+		BAN::ErrorOr<void> sync_cache_index(size_t index);
 
 	private:
 		struct PageCache

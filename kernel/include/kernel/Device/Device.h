@@ -24,6 +24,8 @@ namespace Kernel
 
 	protected:
 		Device(mode_t, uid_t, gid_t);
+
+		virtual BAN::ErrorOr<void> fsync_impl() final override { return BAN::Error::from_errno(EINVAL); }
 	};
 
 	class BlockDevice : public Device
@@ -31,6 +33,7 @@ namespace Kernel
 	public:
 		virtual BAN::ErrorOr<void> read_blocks(uint64_t first_block, size_t block_count, BAN::ByteSpan) = 0;
 		virtual BAN::ErrorOr<void> write_blocks(uint64_t first_block, size_t block_count, BAN::ConstByteSpan) = 0;
+		virtual BAN::ErrorOr<void> sync_blocks(uint64_t block, size_t block_count) = 0;
 
 		virtual blksize_t blksize() const = 0;
 

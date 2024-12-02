@@ -346,6 +346,17 @@ namespace Kernel
 		return {};
 	}
 
+	BAN::ErrorOr<void> Ext2FS::sync_block(uint32_t block)
+	{
+		LockGuard _(m_mutex);
+
+		const uint32_t sector_size = m_block_device->blksize();
+		const uint32_t block_size = this->block_size();
+		const uint32_t sectors_per_block = block_size / sector_size;
+
+		return m_block_device->sync_blocks(block * sectors_per_block, sectors_per_block);
+	}
+
 	Ext2FS::BlockBufferWrapper Ext2FS::get_block_buffer()
 	{
 		LockGuard _(m_mutex);

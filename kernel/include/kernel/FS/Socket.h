@@ -51,6 +51,7 @@ namespace Kernel
 
 		BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan buffer) override { return recvfrom_impl(buffer, nullptr, nullptr); }
 		BAN::ErrorOr<size_t> write_impl(off_t, BAN::ConstByteSpan buffer) override { return sendto_impl(buffer, nullptr, 0); }
+		BAN::ErrorOr<void> fsync_impl() final override { return {}; }
 
 	private:
 		const Info m_info;

@@ -15,13 +15,14 @@ namespace Kernel
 		const BAN::GUID& partition_guid() const { return m_guid; }
 		const BAN::RefPtr<BlockDevice> device() const { return m_device; }
 
-		virtual blksize_t blksize() const { return m_device->blksize(); }
+		virtual blksize_t blksize() const override { return m_device->blksize(); }
 
 		BAN::ErrorOr<void> read_sectors(uint64_t first_block, size_t block_count, BAN::ByteSpan buffer)			{ return read_blocks(first_block, block_count, buffer); }
 		BAN::ErrorOr<void> write_sectors(uint64_t first_block, size_t block_count, BAN::ConstByteSpan buffer)	{ return write_blocks(first_block, block_count, buffer); }
 
 		virtual BAN::ErrorOr<void> read_blocks(uint64_t first_block, size_t block_count, BAN::ByteSpan) override;
 		virtual BAN::ErrorOr<void> write_blocks(uint64_t first_block, size_t block_count, BAN::ConstByteSpan) override;
+		virtual BAN::ErrorOr<void> sync_blocks(uint64_t block, size_t block_count) override;
 
 		virtual BAN::StringView name() const override { return m_name; }
 

@@ -33,6 +33,7 @@ namespace Kernel
 	protected:
 		virtual BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan) override;
 		virtual BAN::ErrorOr<size_t> write_impl(off_t, BAN::ConstByteSpan) override;
+		virtual BAN::ErrorOr<void> fsync_impl() final override { return {}; }
 
 		virtual bool can_read_impl() const override { return m_buffer_size > 0; }
 		virtual bool can_write_impl() const override { return true; }

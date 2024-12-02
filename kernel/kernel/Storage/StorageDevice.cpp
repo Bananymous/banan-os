@@ -286,6 +286,13 @@ namespace Kernel
 		return {};
 	}
 
+	BAN::ErrorOr<void> StorageDevice::sync_blocks(uint64_t block, size_t block_count)
+	{
+		if (!m_disk_cache.has_value())
+			return {};
+		return m_disk_cache->sync(block, block_count);
+	}
+
 	BAN::ErrorOr<size_t> StorageDevice::read_impl(off_t offset, BAN::ByteSpan buffer)
 	{
 		if (offset % sector_size())

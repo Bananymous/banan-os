@@ -21,11 +21,12 @@ namespace Kernel
 
 		virtual BAN::ErrorOr<void> read_blocks(uint64_t lba, size_t sector_count, BAN::ByteSpan buffer) override		{ return read_sectors(lba, sector_count, buffer); }
 		virtual BAN::ErrorOr<void> write_blocks(uint64_t lba, size_t sector_count, BAN::ConstByteSpan buffer) override	{ return write_sectors(lba, sector_count, buffer); }
+		virtual BAN::ErrorOr<void> sync_blocks(uint64_t block, size_t block_count) override;
 
 		BAN::ErrorOr<void> read_sectors(uint64_t lba, size_t sector_count, BAN::ByteSpan);
 		BAN::ErrorOr<void> write_sectors(uint64_t lba, size_t sector_count, BAN::ConstByteSpan);
 
-		virtual blksize_t blksize() const { return sector_size(); }
+		virtual blksize_t blksize() const override { return sector_size(); }
 		virtual uint32_t sector_size() const = 0;
 		virtual uint64_t total_size() const = 0;
 

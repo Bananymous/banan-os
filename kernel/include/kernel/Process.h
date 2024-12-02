@@ -143,6 +143,8 @@ namespace Kernel
 
 		BAN::ErrorOr<long> sys_truncate(int fd, off_t length);
 
+		BAN::ErrorOr<long> sys_fsync(int fd);
+
 		BAN::ErrorOr<long> sys_fstatat(int fd, const char* path, struct stat* buf, int flag);
 
 		BAN::ErrorOr<long> sys_realpath(const char* path, char* buffer);

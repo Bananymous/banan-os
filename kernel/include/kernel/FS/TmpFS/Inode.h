@@ -45,6 +45,8 @@ namespace Kernel
 	protected:
 		TmpInode(TmpFileSystem&, ino_t, const TmpInodeInfo&);
 
+		virtual BAN::ErrorOr<void> fsync_impl() override { return {}; }
+
 		void sync();
 		void free_all_blocks();
 		virtual BAN::ErrorOr<void> prepare_unlink() { return {}; };
