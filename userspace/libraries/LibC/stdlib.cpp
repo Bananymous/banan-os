@@ -5,6 +5,7 @@
 
 #include <ctype.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <locale.h>
 #include <signal.h>
 #include <stdio.h>
@@ -559,9 +560,86 @@ int putenv(char* string)
 	return 0;
 }
 
-char* mktemp(char*)
+static size_t temp_template_count_x(const char* _template)
 {
-	ASSERT_NOT_REACHED();
+	const size_t len = strlen(_template);
+	for (size_t i = 0; i < len; i++)
+		if (_template[len - i - 1] != 'X')
+			return i;
+	return len;
+}
+
+static void generate_temp_template(char* _template, size_t x_count)
+{
+	const size_t len = strlen(_template);
+	for (size_t i = 0; i < x_count; i++)
+	{
+		const uint8_t nibble = rand() & 0xF;
+		_template[len - i - 1] = (nibble < 10)
+			? ('0' + nibble)
+			: ('a' + nibble - 10);
+	}
+}
+
+char* mktemp(char* _template)
+{
+	const size_t x_count = temp_template_count_x(_template);
+	if (x_count < 6)
+	{
+		errno = EINVAL;
+		_template[0] = '\0';
+		return _template;
+	}
+
+	for (;;)
+	{
+		generate_temp_template(_template, x_count);
+
+		struct stat st;
+		if (stat(_template, &st) == 0)
+			return _template;
+	}
+}
+
+char* mkdtemp(char* _template)
+{
+	const size_t x_count = temp_template_count_x(_template);
+	if (x_count < 6)
+	{
+		errno = EINVAL;
+		return nullptr;
+	}
+
+	for (;;)
+	{
+		generate_temp_template(_template, x_count);
+
+		if (mkdir(_template, S_IRUSR | S_IWUSR | S_IXUSR) != -1)
+			return _template;
+		if (errno != EEXIST)
+			return nullptr;
+	}
+}
+
+int mkstemp(char* _template)
+{
+	const size_t x_count = temp_template_count_x(_template);
+	if (x_count < 6)
+	{
+		errno = EINVAL;
+		return -1;
+	}
+
+	for (;;)
+	{
+		generate_temp_template(_template, x_count);
+
+		int fd = open(_template, O_RDWR | O_CREAT | O_EXCL, S_IRUSR | S_IWUSR);
+		if (fd != -1)
+			return fd;
+		if (errno != EEXIST)
+			return -1;
+	}
 }
 
 int posix_openpt(int oflag)
