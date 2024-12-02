@@ -150,90 +150,11 @@ int gethostname(char* name, size_t namelen)
 	return 0;
 }
 
-int execl(const char* pathname, const char* arg0, ...)
+static int exec_impl(const char* pathname, char* const* argv, char* const* envp, bool do_path_resolution)
 {
-	if (arg0 == nullptr)
-	{
-		char* temp = nullptr;
-		return execv(pathname, &temp);
-	}
+	char buffer[PATH_MAX];
 
-	va_list ap;
-	va_start(ap, arg0);
-	int argc = 1;
-	while (va_arg(ap, const char*))
-		argc++;
-	va_end(ap);
-
-	char** argv = (char**)malloc(sizeof(char*) * (argc + 1));
-	if (argv == nullptr)
-	{
-		errno = ENOMEM;
-		return -1;
-	}
-
-	va_start(ap, arg0);
-	argv[0] = (char*)arg0;
-	for (int i = 1; i < argc; i++)
-		argv[i] = va_arg(ap, char*);
-	argv[argc] = nullptr;
-	va_end(ap);
-
-	return execv(pathname, argv);
-}
-
-int execle(const char* pathname, const char* arg0, ...)
-{
-	va_list ap;
-
-	int argc = 0;
-
-	if (arg0)
-	{
-		va_start(ap, arg0);
-		argc = 1;
-		while (va_arg(ap, const char*))
-			argc++;
-		va_end(ap);
-	}
-
-	char** argv = (char**)malloc(sizeof(char*) * (argc + 1));
-	if (argv == nullptr)
-	{
-		errno = ENOMEM;
-		return -1;
-	}
-
-	char** envp = nullptr;
-
-	va_start(ap, arg0);
-	argv[0] = (char*)arg0;
-	for (int i = 1; i < argc; i++)
-		argv[i] = va_arg(ap, char*);
-	argv[argc] = nullptr;
-	envp = va_arg(ap, char**);
-	va_end(ap);
-
-	return execve(pathname, argv, envp);
-}
-
-int execv(const char* pathname, char* const argv[])
-{
-	return execve(pathname, argv, environ);
-}
-
-int execve(const char* pathname, char* const argv[], char* const envp[])
-{
-	return syscall(SYS_EXEC, pathname, argv, envp);
-}
-
-int execvp(const char* file, char* const argv[])
-{
-	char buffer[1024];
-	const char* pathname = NULL;
-
-	// do path resolution if file doesn't contain /
-	if (strchr(file, '/') == nullptr)
+	if (do_path_resolution && strchr(pathname, '/') == nullptr)
 	{
 		const char* cur = getenv("PATH");
 		if (!cur)
@@ -242,21 +163,22 @@ int execvp(const char* file, char* const argv[])
 			return -1;
 		}
 
+		char* resolved = nullptr;
 		while (*cur)
 		{
 			const char* end = strchrnul(cur, ':');
 			size_t len = end - cur;
 
-			ASSERT(strlen(file) + 1 + len < sizeof(buffer));
+			ASSERT(strlen(pathname) + 1 + len < sizeof(buffer));
 
 			strncpy(buffer, cur, len);
 			strcat(buffer, "/");
-			strcat(buffer, file);
+			strcat(buffer, pathname);
 
 			struct stat st;
 			if (stat(buffer, &st) == 0)
 			{
-				pathname = buffer;
+				resolved = buffer;
 				break;
 			}
 
@@ -264,19 +186,91 @@ int execvp(const char* file, char* const argv[])
 			if (*cur)
 				cur++;
 		}
-	}
-	else
-	{
-		pathname = file;
+
+		if (!resolved)
+		{
+			errno = ENOENT;
+			return -1;
+		}
+
+		pathname = resolved;
 	}
 
-	if (!pathname)
+	return syscall(SYS_EXEC, pathname, argv, envp);
+}
+
+static int execl_impl(const char* pathname, const char* arg0, va_list ap, bool has_env, bool do_path_resolution)
+{
+	int argc = 1;
+
+	va_list ap2;
+	va_copy(ap2, ap);
+	while (va_arg(ap2, char*))
+		argc++;
+	va_end(ap2);
+
+	char** argv = static_cast<char**>(malloc((argc + 1) * sizeof(char*)));
+	if (argv == nullptr)
 	{
-		errno = ENOENT;
+		errno = ENOMEM;
 		return -1;
 	}
 
-	return execve(pathname, argv, environ);
+	argv[0] = const_cast<char*>(arg0);
+	for (int i = 1; i < argc; i++)
+		argv[i] = va_arg(ap, char*);
+	argv[argc] = nullptr;
+
+	char** envp = environ;
+	if (has_env)
+	{
+		va_arg(ap, char*);
+		envp = va_arg(ap, char**);;
+	}
+
+	return exec_impl(pathname, argv, envp, do_path_resolution);
+}
+
+int execl(const char* pathname, const char* arg0, ...)
+{
+	va_list ap;
+	va_start(ap, arg0);
+	int ret = execl_impl(pathname, arg0, ap, false, false);
+	va_end(ap);
+	return ret;
+}
+
+int execlp(const char* pathname, const char* arg0, ...)
+{
+	va_list ap;
+	va_start(ap, arg0);
+	int ret = execl_impl(pathname, arg0, ap, false, true);
+	va_end(ap);
+	return ret;
+}
+
+int execle(const char* pathname, const char* arg0, ...)
+{
+	va_list ap;
+	va_start(ap, arg0);
+	int ret = execl_impl(pathname, arg0, ap, true, false);
+	va_end(ap);
+	return ret;
+}
+
+int execv(const char* pathname, char* const argv[])
+{
+	return exec_impl(pathname, argv, environ, false);
+}
+
+int execve(const char* pathname, char* const argv[], char* const envp[])
+{
+	return exec_impl(pathname, argv, envp, false);
+}
+
+int execvp(const char* pathname, char* const argv[])
+{
+	return exec_impl(pathname, argv, environ, true);
 }
 
 pid_t fork(void)
