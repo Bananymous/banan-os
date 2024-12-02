@@ -492,7 +492,6 @@ const char* strerrorname_np(int error)
 		case ETXTBSY:			return "ETXTBSY";
 		case EWOULDBLOCK:		return "EWOULDBLOCK";
 		case EXDEV:				return "EXDEV";
-		case EEXISTS:			return "EEXISTS";
 		case ENOTBLK:			return "ENOTBLK";
 		case EUNKNOWN:			return "EUNKNOWN";
 	}
@@ -587,7 +586,6 @@ const char* strerrordesc_np(int error)
 		case ETXTBSY:			return "Text file busy.";
 		case EWOULDBLOCK:		return "Operation would block.";
 		case EXDEV:				return "Cross-device link.";
-		case EEXISTS:			return "File exists";
 		case ENOTBLK:			return "Block device required";
 		case EUNKNOWN:			return "Unknown error";
 	}

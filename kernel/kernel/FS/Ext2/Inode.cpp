@@ -534,7 +534,7 @@ done:
 
 		auto error_or = find_inode_impl(name);
 		if (!error_or.is_error())
-			return BAN::Error::from_errno(EEXISTS);
+			return BAN::Error::from_errno(EEXIST);
 		if (error_or.error().get_error_code() != ENOENT)
 			return error_or.error();
 

@@ -89,7 +89,6 @@ __BEGIN_DECLS
 #define EWOULDBLOCK		80
 #define EXDEV			81
 #define ENOTBLK			82
-#define EEXISTS			83
 
 #define EUNKNOWN		0xFF
 
