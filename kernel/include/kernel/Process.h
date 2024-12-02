@@ -97,6 +97,7 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_getegid() const { return m_credentials.egid(); }
 		BAN::ErrorOr<long> sys_getpgid(pid_t);
 
+		BAN::ErrorOr<long> sys_getppid() const { return m_parent; }
 		BAN::ErrorOr<long> sys_getpid() const { return pid(); }
 
 		BAN::ErrorOr<long> open_inode(VirtualFileSystem::File&&, int flags);

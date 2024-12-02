@@ -489,6 +489,11 @@ error:
 	return ret;
 }
 
+pid_t getppid(void)
+{
+	return syscall(SYS_GET_PPID);
+}
+
 pid_t getpid(void)
 {
 	return syscall(SYS_GET_PID);

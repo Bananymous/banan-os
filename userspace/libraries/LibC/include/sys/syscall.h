@@ -41,6 +41,7 @@ __BEGIN_DECLS
 	O(SYS_KILL,				kill)			\
 	O(SYS_TCGETPGRP,		tcgetpgrp)		\
 	O(SYS_TCSETPGRP,		tcsetpgrp)		\
+	O(SYS_GET_PPID,			getppid)		\
 	O(SYS_GET_PID,			getpid)			\
 	O(SYS_GET_PGID,			getpgid)		\
 	O(SYS_SET_PGID,			setpgid)		\
