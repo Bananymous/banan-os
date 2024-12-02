@@ -104,7 +104,27 @@ namespace Kernel
 	{
 		ASSERT(mode().iflnk());
 		if (m_inode.size < sizeof(m_inode.block))
-			return BAN::String((const char*)m_inode.block);
+		{
+			BAN::String result;
+			TRY(result.append(BAN::StringView(reinterpret_cast<const char*>(m_inode.block), m_inode.size)));
+			return result;
+		}
+		dwarnln("TODO: ext2 get symlink target from {} byte inode", m_inode.size);
+		return BAN::Error::from_errno(ENOTSUP);
+	}
+
+	BAN::ErrorOr<void> Ext2Inode::set_link_target_impl(BAN::StringView target)
+	{
+		ASSERT(mode().iflnk());
+		if (m_inode.size < sizeof(m_inode.block) && target.size() < sizeof(m_inode.block))
+		{
+			memset(m_inode.block, 0, sizeof(m_inode.block));
+			memcpy(m_inode.block, target.data(), target.size());
+			m_inode.size = target.size();
+			TRY(sync());
+			return {};
+		}
+		dwarnln("TODO: ext2 set symlink target to {} bytes from {} byte inode", target.size(), m_inode.size);
 		return BAN::Error::from_errno(ENOTSUP);
 	}
 
@@ -440,8 +460,15 @@ done:
 		if (!find_inode_impl(name).is_error())
 			return BAN::Error::from_errno(EEXIST);
 
-		if (!(Mode(mode).ifreg()))
+		switch (mode & Inode::Mode::TYPE_MASK)
+		{
+			case Inode::Mode::IFLNK:
+			case Inode::Mode::IFREG:
+			case Inode::Mode::IFIFO:
+			case Inode::Mode::IFSOCK:
+				break;
 			return BAN::Error::from_errno(ENOTSUP);
+		}
 
 		const uint32_t new_ino = TRY(m_fs.create_inode(initialize_new_inode_info(mode, uid, gid)));
 

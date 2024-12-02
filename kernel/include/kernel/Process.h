@@ -113,6 +113,8 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_unlink(const char*);
 		BAN::ErrorOr<long> sys_readlinkat(int fd, const char* path, char* buffer, size_t bufsize);
 
+		BAN::ErrorOr<long> sys_symlinkat(const char* path1, int fd, const char* path2);
+
 		BAN::ErrorOr<long> sys_pread(int fd, void* buffer, size_t count, off_t offset);
 
 		BAN::ErrorOr<long> sys_fchmodat(int fd, const char* path, mode_t mode, int flag);
@@ -221,6 +223,7 @@ namespace Kernel
 		static Process* create_process(const Credentials&, pid_t parent, pid_t sid = 0, pid_t pgrp = 0);
 
 		BAN::ErrorOr<VirtualFileSystem::File> find_file(int fd, const char* path, int flags);
+		BAN::ErrorOr<VirtualFileSystem::File> find_parent(int fd, const char* path);
 
 		BAN::ErrorOr<void> validate_string_access(const char*);
 		BAN::ErrorOr<void> validate_pointer_access_check(const void*, size_t, bool needs_write);

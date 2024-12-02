@@ -111,6 +111,14 @@ namespace Kernel
 		return link_target_impl();
 	}
 
+	BAN::ErrorOr<void> Inode::set_link_target(BAN::StringView target)
+	{
+		LockGuard _(m_mutex);
+		if (!mode().iflnk())
+			return BAN::Error::from_errno(EINVAL);
+		return set_link_target_impl(target);
+	}
+
 	BAN::ErrorOr<long> Inode::accept(sockaddr* address, socklen_t* address_len, int flags)
 	{
 		LockGuard _(m_mutex);

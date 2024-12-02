@@ -39,6 +39,7 @@ namespace Kernel
 		virtual BAN::ErrorOr<void> unlink_impl(BAN::StringView) override;
 
 		virtual BAN::ErrorOr<BAN::String> link_target_impl() override;
+		virtual BAN::ErrorOr<void> set_link_target_impl(BAN::StringView) override;
 
 		virtual BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan) override;
 		virtual BAN::ErrorOr<size_t> write_impl(off_t, BAN::ConstByteSpan) override;

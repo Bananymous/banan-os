@@ -623,6 +623,10 @@ unsigned alarm(unsigned seconds)
 
 int symlink(const char* path1, const char* path2)
 {
-	dwarnln("FIXME: symlink({}, {})", path1, path2);
-	ASSERT_NOT_REACHED();
+	return symlinkat(path1, AT_FDCWD, path2);
+}
+
+int symlinkat(const char* path1, int fd, const char* path2)
+{
+	return syscall(SYS_SYMLINKAT, path1, fd, path2);
 }

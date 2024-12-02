@@ -99,6 +99,7 @@ namespace Kernel
 
 		// Link API
 		BAN::ErrorOr<BAN::String> link_target();
+		BAN::ErrorOr<void> set_link_target(BAN::StringView);
 
 		// Socket API
 		BAN::ErrorOr<long> accept(sockaddr* address, socklen_t* address_len, int flags);
@@ -134,6 +135,7 @@ namespace Kernel
 
 		// Link API
 		virtual BAN::ErrorOr<BAN::String> link_target_impl()				{ return BAN::Error::from_errno(ENOTSUP); }
+		virtual BAN::ErrorOr<void> set_link_target_impl(BAN::StringView)	{ return BAN::Error::from_errno(ENOTSUP); }
 
 		// Socket API
 		virtual BAN::ErrorOr<long> accept_impl(sockaddr*, socklen_t*, int)							{ return BAN::Error::from_errno(ENOTSUP); }

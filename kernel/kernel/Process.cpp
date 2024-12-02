@@ -368,6 +368,26 @@ namespace Kernel
 		return read_from_vec_of_str(m_environ, offset, buffer);
 	}
 
+	BAN::ErrorOr<VirtualFileSystem::File> Process::find_parent(int fd, const char* path)
+	{
+		ASSERT(m_process_lock.is_locked());
+
+		if (path)
+			TRY(validate_string_access(path));
+
+		if (path && path[0] == '/')
+			return VirtualFileSystem::get().root_file();
+
+		if (fd == AT_FDCWD)
+			return TRY(m_working_directory.clone());
+
+		int flags = TRY(m_open_file_descriptors.flags_of(fd));
+		if (!(flags & O_RDONLY) && !(flags & O_SEARCH))
+			return BAN::Error::from_errno(EBADF);
+
+		return TRY(m_open_file_descriptors.file_of(fd));
+	}
+
 	BAN::ErrorOr<VirtualFileSystem::File> Process::find_file(int fd, const char* path, int flags)
 	{
 		ASSERT(m_process_lock.is_locked());
@@ -375,14 +395,7 @@ namespace Kernel
 		if (path)
 			TRY(validate_string_access(path));
 
-		VirtualFileSystem::File parent_file;
-		if (path && path[0] == '/')
-			parent_file = VirtualFileSystem::get().root_file();
-		else if (fd == AT_FDCWD)
-			parent_file = TRY(m_working_directory.clone());
-		else
-			parent_file = TRY(m_open_file_descriptors.file_of(fd));
-
+		auto parent_file = TRY(find_parent(fd, path));
 		auto file = path
 			? TRY(VirtualFileSystem::get().file_from_relative_path(parent_file, m_credentials, path, flags))
 			: BAN::move(parent_file);
@@ -854,10 +867,12 @@ namespace Kernel
 	{
 		switch (mode & Inode::Mode::TYPE_MASK)
 		{
-			case Inode::Mode::IFREG: break;
-			case Inode::Mode::IFDIR: break;
-			case Inode::Mode::IFIFO: break;
-			case Inode::Mode::IFSOCK: break;
+			case Inode::Mode::IFREG:
+			case Inode::Mode::IFDIR:
+			case Inode::Mode::IFLNK:
+			case Inode::Mode::IFIFO:
+			case Inode::Mode::IFSOCK:
+				break;
 			default:
 				return BAN::Error::from_errno(ENOTSUP);
 		}
@@ -925,21 +940,7 @@ namespace Kernel
 
 		TRY(validate_string_access(path));
 
-		VirtualFileSystem::File parent_file;
-		if (path[0] == '/')
-			parent_file = VirtualFileSystem::get().root_file();
-		else if (fd == AT_FDCWD)
-			parent_file = TRY(m_working_directory.clone());
-		else
-		{
-			int flags = TRY(m_open_file_descriptors.flags_of(fd));
-			if (!(flags & O_RDONLY) && !(flags & O_SEARCH))
-				return BAN::Error::from_errno(EBADF);
-			if (!TRY(m_open_file_descriptors.inode_of(fd))->mode().ifdir())
-				return BAN::Error::from_errno(ENOTDIR);
-			parent_file = TRY(m_open_file_descriptors.file_of(fd));
-		}
-
+		auto parent_file = TRY(find_parent(fd, path));
 		auto file_or_error = VirtualFileSystem::get().file_from_relative_path(parent_file, m_credentials, path, flags | O_NOFOLLOW);
 
 		VirtualFileSystem::File file;
@@ -1075,6 +1076,25 @@ namespace Kernel
 		const size_t byte_count = BAN::Math::min<size_t>(link_target.size(), bufsize);
 		memcpy(buffer, link_target.data(), byte_count);
 		return byte_count;
+	}
+
+	BAN::ErrorOr<long> Process::sys_symlinkat(const char* path1, int fd, const char* path2)
+	{
+		LockGuard _(m_process_lock);
+		TRY(validate_string_access(path1));
+		TRY(validate_string_access(path2));
+
+		auto parent_file = TRY(find_parent(fd, path2));
+		auto file_or_error = VirtualFileSystem::get().file_from_relative_path(parent_file, m_credentials, path2, O_NOFOLLOW);
+		if (!file_or_error.is_error())
+			return BAN::Error::from_errno(EEXIST);
+
+		TRY(create_file_or_dir(parent_file, path2, 0777 | Inode::Mode::IFLNK));
+
+		auto symlink = TRY(VirtualFileSystem::get().file_from_relative_path(parent_file, m_credentials, path2, O_NOFOLLOW));
+		TRY(symlink.inode->set_link_target(path1));
+
+		return 0;
 	}
 
 	BAN::ErrorOr<long> Process::sys_pread(int fd, void* buffer, size_t count, off_t offset)
