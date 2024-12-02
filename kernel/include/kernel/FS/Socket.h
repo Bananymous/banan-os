@@ -44,6 +44,8 @@ namespace Kernel
 		dev_t		dev()		const final override { ASSERT_NOT_REACHED(); }
 		dev_t		rdev()		const final override { ASSERT_NOT_REACHED(); }
 
+		const FileSystem* filesystem() const final override { return nullptr; }
+
 	protected:
 		Socket(const Info& info)
 			: m_info(info)

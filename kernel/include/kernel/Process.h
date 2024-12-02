@@ -19,6 +19,7 @@
 #include <sys/mman.h>
 #include <sys/select.h>
 #include <sys/socket.h>
+#include <sys/statvfs.h>
 #include <sys/time.h>
 #include <termios.h>
 
@@ -147,6 +148,7 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_fsync(int fd);
 
 		BAN::ErrorOr<long> sys_fstatat(int fd, const char* path, struct stat* buf, int flag);
+		BAN::ErrorOr<long> sys_fstatvfsat(int fd, const char* path, struct statvfs* buf);
 
 		BAN::ErrorOr<long> sys_realpath(const char* path, char* buffer);
 

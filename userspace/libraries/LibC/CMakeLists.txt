@@ -32,6 +32,7 @@ set(LIBC_SOURCES
 	sys/select.cpp
 	sys/socket.cpp
 	sys/stat.cpp
+	sys/statvfs.cpp
 	sys/time.cpp
 	sys/utsname.cpp
 	sys/wait.cpp

@@ -40,6 +40,19 @@ namespace Kernel
 		static constexpr size_t no_page_limit = SIZE_MAX;
 
 	public:
+		// FIXME: basically all of these :)
+		virtual unsigned long bsize()   const override { return PAGE_SIZE; }
+		virtual unsigned long frsize()  const override { return PAGE_SIZE; }
+		virtual fsblkcnt_t    blocks()  const override { return m_max_pages; }
+		virtual fsblkcnt_t    bfree()   const override { return m_max_pages - m_used_pages; }
+		virtual fsblkcnt_t    bavail()  const override { return m_max_pages - m_used_pages; }
+		virtual fsfilcnt_t    files()   const override { return PAGE_SIZE * blocks() / sizeof(TmpDirectoryEntry); }
+		virtual fsfilcnt_t    ffree()   const override { return PAGE_SIZE * bfree()  / sizeof(TmpDirectoryEntry); }
+		virtual fsfilcnt_t    favail()  const override { return PAGE_SIZE * bavail() / sizeof(TmpDirectoryEntry); }
+		virtual unsigned long fsid()    const override { return reinterpret_cast<uintptr_t>(this); }
+		virtual unsigned long flag()    const override { return 0; }
+		virtual unsigned long namemax() const override { return PAGE_SIZE; }
+
 		static BAN::ErrorOr<TmpFileSystem*> create(size_t max_pages, mode_t, uid_t, gid_t);
 		~TmpFileSystem();
 

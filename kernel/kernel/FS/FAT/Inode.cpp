@@ -46,6 +46,11 @@ namespace Kernel
 		return timespec { .tv_sec = epoch, .tv_nsec = 0 };
 	}
 
+	const FileSystem* FATInode::filesystem() const
+	{
+		return &m_fs;
+	}
+
 	BAN::ErrorOr<void> FATInode::for_each_directory_entry(BAN::ConstByteSpan entry_span, BAN::Function<BAN::Iteration(const FAT::DirectoryEntry&)> callback)
 	{
 		ASSERT(mode().ifdir());

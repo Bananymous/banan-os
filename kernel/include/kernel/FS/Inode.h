@@ -19,6 +19,8 @@
 namespace Kernel
 {
 
+	class FileSystem;
+
 	class FileBackedRegion;
 	class SharedFileData;
 
@@ -85,6 +87,8 @@ namespace Kernel
 		virtual bool is_device() const { return false; }
 		virtual bool is_pipe() const { return false; }
 		virtual bool is_tty() const { return false; }
+
+		virtual const FileSystem* filesystem() const = 0;
 
 		// Directory API
 		BAN::ErrorOr<BAN::RefPtr<Inode>> find_inode(BAN::StringView);

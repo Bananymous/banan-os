@@ -30,6 +30,8 @@ namespace Kernel
 		virtual dev_t dev() const override { return 0; } // FIXME
 		virtual dev_t rdev() const override { return 0; } // FIXME
 
+		virtual const FileSystem* filesystem() const override { return nullptr; }
+
 	protected:
 		virtual BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan) override;
 		virtual BAN::ErrorOr<size_t> write_impl(off_t, BAN::ConstByteSpan) override;

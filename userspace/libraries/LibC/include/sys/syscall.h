@@ -48,6 +48,7 @@ __BEGIN_DECLS
 	O(SYS_FCNTL,			fcntl)			\
 	O(SYS_NANOSLEEP,		nanosleep)		\
 	O(SYS_FSTATAT,			fstatat)		\
+	O(SYS_FSTATVFSAT,		fstatvfsat)		\
 	O(SYS_SYNC,				sync)			\
 	O(SYS_MMAP,				mmap)			\
 	O(SYS_MUNMAP,			munmap) 		\

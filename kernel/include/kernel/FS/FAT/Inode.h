@@ -29,6 +29,8 @@ namespace Kernel
 		virtual dev_t dev() const override { return 0; }
 		virtual dev_t rdev() const override { return 0; }
 
+		virtual const FileSystem* filesystem() const override;
+
 		const FAT::DirectoryEntry& entry() const { return m_entry; }
 
 	protected:

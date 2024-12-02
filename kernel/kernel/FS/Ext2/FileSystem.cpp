@@ -32,6 +32,18 @@ namespace Kernel
 		return superblock.magic == Ext2::Enum::SUPER_MAGIC;
 	}
 
+	unsigned long Ext2FS::bsize()   const { return block_size(); }
+	unsigned long Ext2FS::frsize()  const { return block_size(); }
+	fsblkcnt_t    Ext2FS::blocks()  const { return m_superblock.blocks_count; }
+	fsblkcnt_t    Ext2FS::bfree()   const { return m_superblock.free_blocks_count; }
+	fsblkcnt_t    Ext2FS::bavail()  const { return m_superblock.free_blocks_count; } // FIXME
+	fsfilcnt_t    Ext2FS::files()   const { return m_superblock.inodes_count; }
+	fsfilcnt_t    Ext2FS::ffree()   const { return m_superblock.free_inodes_count; }
+	fsfilcnt_t    Ext2FS::favail()  const { return m_superblock.free_inodes_count; } // FIXME
+	unsigned long Ext2FS::fsid()    const { return *reinterpret_cast<const unsigned long*>(m_superblock.uuid); } // FIXME?
+	unsigned long Ext2FS::flag()    const { return 0; }
+	unsigned long Ext2FS::namemax() const { return 0xFF; }
+
 	BAN::ErrorOr<BAN::RefPtr<Ext2FS>> Ext2FS::create(BAN::RefPtr<BlockDevice> block_device)
 	{
 		auto ext2fs = TRY(BAN::RefPtr<Ext2FS>::create(block_device));

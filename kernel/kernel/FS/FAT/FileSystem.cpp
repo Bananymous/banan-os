@@ -64,6 +64,18 @@ namespace Kernel
 		return validate_bpb(bpb_span.as<const FAT::BPB>());
 	}
 
+	unsigned long FATFS::bsize()   const { return m_bpb.bytes_per_sector; }
+	unsigned long FATFS::frsize()  const { return m_bpb.bytes_per_sector; }
+	fsblkcnt_t    FATFS::blocks()  const { return data_sector_count(); }
+	fsblkcnt_t    FATFS::bfree()   const { return 0; } // FIXME
+	fsblkcnt_t    FATFS::bavail()  const { return 0; } // FIXME
+	fsfilcnt_t    FATFS::files()   const { return m_bpb.number_of_fats * fat_size() * 8 / bits_per_fat_entry(); }
+	fsfilcnt_t    FATFS::ffree()   const { return 0; } // FIXME
+	fsfilcnt_t    FATFS::favail()  const { return 0; } // FIXME
+	unsigned long FATFS::fsid()    const { return m_type == Type::FAT32 ? m_bpb.ext_32.volume_id : m_bpb.ext_12_16.volume_id; }
+	unsigned long FATFS::flag()    const { return 0; }
+	unsigned long FATFS::namemax() const { return 255; }
+
 	BAN::ErrorOr<BAN::RefPtr<FATFS>> FATFS::create(BAN::RefPtr<BlockDevice> block_device)
 	{
 		// support only block devices with sectors at least 512 bytes
@@ -226,7 +238,7 @@ namespace Kernel
 				{
 					if (index >= root_sector_count())
 						return BAN::Error::from_errno(ENOENT);
-					const uint32_t first_root_sector = m_bpb.reserved_sector_count + (m_bpb.number_of_fats * fat_sector_count());
+					const uint32_t first_root_sector = m_bpb.reserved_sector_count + (m_bpb.number_of_fats * fat_size());
 					TRY(m_block_device->read_blocks(first_root_sector + index, 1, buffer));
 					return {};
 				}

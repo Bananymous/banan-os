@@ -8,9 +8,22 @@
 namespace Kernel
 {
 
-	class VirtualFileSystem : public FileSystem
+	class VirtualFileSystem final : public FileSystem
 	{
 	public:
+		virtual unsigned long bsize()   const override { return 0; }
+		virtual unsigned long frsize()  const override { return 0; }
+		virtual fsblkcnt_t    blocks()  const override { return 0; }
+		virtual fsblkcnt_t    bfree()   const override { return 0; }
+		virtual fsblkcnt_t    bavail()  const override { return 0; }
+		virtual fsfilcnt_t    files()   const override { return 0; }
+		virtual fsfilcnt_t    ffree()   const override { return 0; }
+		virtual fsfilcnt_t    favail()  const override { return 0; }
+		virtual unsigned long fsid()    const override { return 0; }
+		virtual unsigned long flag()    const override { return 0; }
+		virtual unsigned long namemax() const override { return 0; }
+
+
 		static void initialize(BAN::StringView);
 		static VirtualFileSystem& get();
 

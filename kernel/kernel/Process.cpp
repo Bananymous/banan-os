@@ -1496,6 +1496,35 @@ namespace Kernel
 		return 0;
 	}
 
+	BAN::ErrorOr<long> Process::sys_fstatvfsat(int fd, const char* path, struct statvfs* buf)
+	{
+		LockGuard _(m_process_lock);
+		TRY(validate_pointer_access(buf, sizeof(struct statvfs), true));
+
+		auto inode = TRY(find_file(fd, path, 0)).inode;
+		auto* fs = inode->filesystem();
+		if (fs == nullptr)
+		{
+			ASSERT(inode->mode().ifsock() || inode->mode().ififo());
+			dwarnln("TODO: fstatvfs on sockets or pipe?");
+			return BAN::Error::from_errno(EINVAL);
+		}
+
+		buf->f_bsize   = fs->bsize();
+		buf->f_frsize  = fs->frsize();
+		buf->f_blocks  = fs->blocks();
+		buf->f_bfree   = fs->bfree();
+		buf->f_bavail  = fs->bavail();
+		buf->f_files   = fs->files();
+		buf->f_ffree   = fs->ffree();
+		buf->f_favail  = fs->favail();
+		buf->f_fsid    = fs->fsid();
+		buf->f_flag    = fs->flag();
+		buf->f_namemax = fs->namemax();
+
+		return 0;
+	}
+
 	BAN::ErrorOr<long> Process::sys_realpath(const char* path, char* buffer)
 	{
 		LockGuard _(m_process_lock);

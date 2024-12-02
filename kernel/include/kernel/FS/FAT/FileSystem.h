@@ -20,6 +20,18 @@ namespace Kernel
 		};
 
 	public:
+		virtual unsigned long bsize()   const override;
+		virtual unsigned long frsize()  const override;
+		virtual fsblkcnt_t    blocks()  const override;
+		virtual fsblkcnt_t    bfree()   const override;
+		virtual fsblkcnt_t    bavail()  const override;
+		virtual fsfilcnt_t    files()   const override;
+		virtual fsfilcnt_t    ffree()   const override;
+		virtual fsfilcnt_t    favail()  const override;
+		virtual unsigned long fsid()    const override;
+		virtual unsigned long flag()    const override;
+		virtual unsigned long namemax() const override;
+
 		static BAN::ErrorOr<bool> probe(BAN::RefPtr<BlockDevice>);
 		static BAN::ErrorOr<BAN::RefPtr<FATFS>> create(BAN::RefPtr<BlockDevice>);
 
@@ -45,12 +57,14 @@ namespace Kernel
 
 		// TODO: These probably should be constant variables
 		uint32_t root_sector_count() const   { return BAN::Math::div_round_up<uint32_t>(m_bpb.root_entry_count * 32, m_bpb.bytes_per_sector); }
-		uint32_t fat_sector_count() const   { return m_bpb.fat_size16 ? m_bpb.fat_size16 : m_bpb.ext_32.fat_size32; }
+		uint32_t fat_size() const            { return m_bpb.fat_size16 ? m_bpb.fat_size16 : m_bpb.ext_32.fat_size32; }
 		uint32_t total_sector_count() const { return m_bpb.total_sectors16 ? m_bpb.total_sectors16 : m_bpb.total_sectors32; }
-		uint32_t data_sector_count() const  { return total_sector_count() - (m_bpb.reserved_sector_count + (m_bpb.number_of_fats * fat_sector_count()) + root_sector_count()); }
+		uint32_t data_sector_count() const  { return total_sector_count() - (m_bpb.reserved_sector_count + (m_bpb.number_of_fats * fat_size()) + root_sector_count()); }
 		uint32_t cluster_count() const      { return data_sector_count() / m_bpb.sectors_per_cluster; }
-		uint32_t first_data_sector() const  { return m_bpb.reserved_sector_count + (m_bpb.number_of_fats * fat_sector_count()) + root_sector_count(); }
+		uint32_t first_data_sector() const  { return m_bpb.reserved_sector_count + (m_bpb.number_of_fats * fat_size()) + root_sector_count(); }
 		uint32_t first_fat_sector() const   { return m_bpb.reserved_sector_count; }
+
+		uint8_t bits_per_fat_entry() const  { return static_cast<uint8_t>(m_type); }
 
 	private:
 		BAN::RefPtr<BlockDevice> m_block_device;

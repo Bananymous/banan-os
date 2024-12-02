@@ -11,6 +11,18 @@ namespace Kernel
 	class Ext2FS final : public FileSystem
 	{
 	public:
+		virtual unsigned long bsize()   const override;
+		virtual unsigned long frsize()  const override;
+		virtual fsblkcnt_t    blocks()  const override;
+		virtual fsblkcnt_t    bfree()   const override;
+		virtual fsblkcnt_t    bavail()  const override;
+		virtual fsfilcnt_t    files()   const override;
+		virtual fsfilcnt_t    ffree()   const override;
+		virtual fsfilcnt_t    favail()  const override;
+		virtual unsigned long fsid()    const override;
+		virtual unsigned long flag()    const override;
+		virtual unsigned long namemax() const override;
+
 		class BlockBufferWrapper
 		{
 			BAN_NON_COPYABLE(BlockBufferWrapper);

@@ -47,6 +47,11 @@ namespace Kernel
 			dwarnln("Could not cleanup inode from FS: {}", ret.error());
 	}
 
+	const FileSystem* Ext2Inode::filesystem() const
+	{
+		return &m_fs;
+	}
+
 	BAN::ErrorOr<BAN::Optional<uint32_t>> Ext2Inode::block_from_indirect_block(uint32_t block, uint32_t index, uint32_t depth)
 	{
 		if (block == 0)

@@ -42,6 +42,8 @@ namespace Kernel
 		static BAN::ErrorOr<BAN::RefPtr<TmpInode>> create_from_existing(TmpFileSystem&, ino_t, const TmpInodeInfo&);
 		~TmpInode();
 
+		virtual const FileSystem* filesystem() const override;
+
 	protected:
 		TmpInode(TmpFileSystem&, ino_t, const TmpInodeInfo&);
 

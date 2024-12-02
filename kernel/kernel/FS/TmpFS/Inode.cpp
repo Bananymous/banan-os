@@ -41,6 +41,11 @@ namespace Kernel
 
 	/* GENERAL INODE */
 
+	const FileSystem* TmpInode::filesystem() const
+	{
+		return &m_fs;
+	}
+
 	dev_t TmpInode::dev() const
 	{
 		return m_fs.dev();
