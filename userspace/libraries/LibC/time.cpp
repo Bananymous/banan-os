@@ -7,35 +7,9 @@
 #include <time.h>
 #include <unistd.h>
 
-// sample implementation from https://pubs.opengroup.org/onlinepubs/9699919799/functions/asctime.html
-char* asctime(const struct tm* timeptr)
-{
-	static constexpr char wday_name[][4] {
-		"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"
-	};
-	static constexpr char mon_name[][4] {
-		"Jan", "Feb", "Mar", "Apr", "May", "Jun",
-		"Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-	};
-
-	static char result[128];
-	sprintf(result, "%.3s %.3s%3d %.2d:%.2d:%.2d %d\n",
-		wday_name[timeptr->tm_wday],
-		mon_name[timeptr->tm_mon],
-		timeptr->tm_mday, timeptr->tm_hour,
-		timeptr->tm_min, timeptr->tm_sec,
-		1900 + timeptr->tm_year);
-	return result;
-}
-
 int clock_gettime(clockid_t clock_id, struct timespec* tp)
 {
 	return syscall(SYS_CLOCK_GETTIME, clock_id, tp);
-}
-
-char* ctime(const time_t* clock)
-{
-	return asctime(localtime(clock));
 }
 
 int nanosleep(const struct timespec* rqtp, struct timespec* rmtp)
@@ -53,10 +27,45 @@ time_t time(time_t* tloc)
 	return tp.tv_sec;
 }
 
-struct tm* gmtime(const time_t* timer)
+// sample implementation from https://pubs.opengroup.org/onlinepubs/9699919799/functions/asctime.html
+char* asctime_r(const struct tm* __restrict tm, char* __restrict buf)
 {
-	static struct tm tm;
+	static constexpr char wday_name[][4] {
+		"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"
+	};
+	static constexpr char mon_name[][4] {
+		"Jan", "Feb", "Mar", "Apr", "May", "Jun",
+		"Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+	};
+	sprintf(buf, "%.3s %.3s%3d %.2d:%.2d:%.2d %d\n",
+		wday_name[tm->tm_wday],
+		mon_name[tm->tm_mon],
+		tm->tm_mday, tm->tm_hour,
+		tm->tm_min, tm->tm_sec,
+		1900 + tm->tm_year);
+	return buf;
+}
 
+char* asctime(const struct tm* timeptr)
+{
+	static char buf[26];
+	return asctime_r(timeptr, buf);
+}
+
+char* ctime_r(const time_t* clock, char* buf)
+{
+	struct tm local;
+	return asctime_r(localtime_r(clock, &local), buf);
+}
+
+char* ctime(const time_t* clock)
+{
+	static char buf[26];
+	return ctime_r(clock, buf);
+}
+
+struct tm* gmtime_r(const time_t* timer, struct tm* __restrict result)
+{
 	constexpr auto is_leap_year =
 		[](time_t year) -> bool
 		{
@@ -73,38 +82,50 @@ struct tm* gmtime(const time_t* timer)
 
 	time_t time = *timer;
 
-	tm.tm_sec  = time % 60; time /= 60;
-	tm.tm_min  = time % 60; time /= 60;
-	tm.tm_hour = time % 24; time /= 24;
+	result->tm_sec  = time % 60; time /= 60;
+	result->tm_min  = time % 60; time /= 60;
+	result->tm_hour = time % 24; time /= 24;
 
 	time_t total_days = time;
-	tm.tm_wday = (total_days + 4) % 7;
-	tm.tm_year = 1970;
-	while (total_days >= 365U + is_leap_year(tm.tm_year))
+	result->tm_wday = (total_days + 4) % 7;
+	result->tm_year = 1970;
+	while (total_days >= 365U + is_leap_year(result->tm_year))
 	{
-		total_days -= 365U + is_leap_year(tm.tm_year);
-		tm.tm_year++;
+		total_days -= 365U + is_leap_year(result->tm_year);
+		result->tm_year++;
 	}
 
-	bool is_leap_day = is_leap_year(tm.tm_year) && total_days == month_days[2];
-	bool had_leap_day = is_leap_year(tm.tm_year) && total_days > month_days[2];
+	bool is_leap_day = is_leap_year(result->tm_year) && total_days == month_days[2];
+	bool had_leap_day = is_leap_year(result->tm_year) && total_days > month_days[2];
 
-	for (tm.tm_mon = 0; tm.tm_mon < 12; tm.tm_mon++)
-		if (total_days < month_days[tm.tm_mon + 1] + (is_leap_day || had_leap_day))
+	for (result->tm_mon = 0; result->tm_mon < 12; result->tm_mon++)
+		if (total_days < month_days[result->tm_mon + 1] + (is_leap_day || had_leap_day))
 			break;
 
-	tm.tm_mday = total_days - month_days[tm.tm_mon] + !had_leap_day;
-	tm.tm_yday = total_days;
-	tm.tm_year -= 1900;
-	tm.tm_isdst = 0;
+	result->tm_mday = total_days - month_days[result->tm_mon] + !had_leap_day;
+	result->tm_yday = total_days;
+	result->tm_year -= 1900;
+	result->tm_isdst = 0;
 
-	return &tm;
+	return result;
+}
+
+struct tm* gmtime(const time_t* timer)
+{
+	static struct tm tm;
+	return gmtime_r(timer, &tm);
+}
+
+struct tm* localtime_r(const time_t* timer, struct tm* result)
+{
+	// FIXME: support timezones
+	return gmtime_r(timer, result);
 }
 
 struct tm* localtime(const time_t* timer)
 {
-	// FIXME: support timezones
-	return gmtime(timer);
+	static struct tm tm;
+	return localtime_r(timer, &tm);
 }
 
 size_t strftime(char* __restrict s, size_t maxsize, const char* __restrict format, const struct tm* __restrict timeptr)
