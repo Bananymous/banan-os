@@ -1,5 +1,6 @@
 #include <BAN/Assert.h>
 #include <BAN/Debug.h>
+#include <kernel/Memory/Types.h>
 #include <kernel/Syscall.h>
 
 #include <errno.h>
@@ -446,6 +447,11 @@ int getopt(int argc, char* const argv[], const char* optstring)
 	}
 
 	return '?';
+}
+
+int getpagesize(void)
+{
+	return PAGE_SIZE;
 }
 
 pid_t getpid(void)

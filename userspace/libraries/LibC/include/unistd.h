@@ -233,6 +233,8 @@ int					unlinkat(int fd, const char* path, int flag);
 int					usleep(useconds_t usec);
 ssize_t				write(int fildes, const void* buf, size_t nbyte);
 
+int					getpagesize(void);
+
 extern char*	optarg;
 extern int		opterr, optind, optopt;
 
