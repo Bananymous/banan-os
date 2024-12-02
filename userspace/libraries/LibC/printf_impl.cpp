@@ -580,6 +580,7 @@ extern "C" int printf_impl(const char* format, va_list arguments, int (*putc_fun
 			case 'm':
 			{
 				// NOTE: this is a glibc extension
+				// NOTE: syslog() requires %m to be handled
 				if (options.alternate_form)
 					string = strerrorname_np(errno);
 				else
