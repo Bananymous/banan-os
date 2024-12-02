@@ -13,6 +13,7 @@
 #include <sys/stat.h>
 #include <sys/syscall.h>
 #include <sys/time.h>
+#include <termios.h>
 #include <unistd.h>
 
 char** environ;
@@ -452,6 +453,46 @@ int getopt(int argc, char* const argv[], const char* optstring)
 int getpagesize(void)
 {
 	return PAGE_SIZE;
+}
+
+char* getpass(const char* prompt)
+{
+	static char buffer[PASS_MAX];
+
+	int fd = open("/dev/tty", O_RDWR);
+	if (fd == -1)
+		return NULL;
+
+	termios orig, temp;
+	tcgetattr(fd, &orig);
+
+	char* ret = nullptr;
+	ssize_t total_read = 0;
+
+	if (write(fd, prompt, strlen(prompt)) < 0)
+		goto error;
+
+	temp = orig;
+	temp.c_lflag &= ~ECHO;
+	tcsetattr(fd, TCSANOW, &temp);
+
+	while (total_read == 0 || buffer[total_read - 1] != '\n')
+	{
+		ssize_t nread = read(fd, buffer + total_read, sizeof(buffer) - total_read - 1);
+		if (nread < 0)
+			goto error;
+		total_read += nread;
+	}
+
+	buffer[total_read - 1] = '\0';
+	ret = buffer;
+
+	write(fd, "\n", 1);
+
+error:
+	tcsetattr(fd, TCSANOW, &orig);
+	close(fd);
+	return ret;
 }
 
 pid_t getpid(void)

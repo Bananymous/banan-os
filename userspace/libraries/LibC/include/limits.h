@@ -60,6 +60,7 @@ __BEGIN_DECLS
 #define OPEN_MAX 64
 #define NAME_MAX 255
 #define PATH_MAX 256
+#define PASS_MAX 256
 #define LOGIN_NAME_MAX 256
 #define HOST_NAME_MAX 255
 #define TTY_NAME_MAX PATH_MAX

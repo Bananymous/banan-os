@@ -234,6 +234,7 @@ int					usleep(useconds_t usec);
 ssize_t				write(int fildes, const void* buf, size_t nbyte);
 
 int					getpagesize(void);
+char*				getpass(const char* prompt);
 
 extern char*	optarg;
 extern int		opterr, optind, optopt;
