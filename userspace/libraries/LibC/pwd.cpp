@@ -88,7 +88,7 @@ struct passwd* getpwent(void)
 				ASSERT(1 <= field_len && field_len <= 9);
 				for (size_t j = 0; j < field_len; j++)
 					ASSERT(isdigit(ptr[j]));
-				s_pwent_struct.pw_uid = atoi(ptr);
+				s_pwent_struct.pw_gid = atoi(ptr);
 				break;
 			case 4:
 				break;
