@@ -1,7 +1,7 @@
 diff -ruN openssl-3.3.1/Configurations/10-main.conf openssl-3.3.1-banan_os/Configurations/10-main.conf
 --- openssl-3.3.1/Configurations/10-main.conf	2024-06-04 15:53:04.000000000 +0300
-+++ openssl-3.3.1-banan_os/Configurations/10-main.conf	2024-08-21 15:45:36.605293938 +0300
-@@ -668,6 +668,22 @@
++++ openssl-3.3.1-banan_os/Configurations/10-main.conf	2024-12-03 01:31:59.218821407 +0200
+@@ -668,6 +668,26 @@
          shared_extension => ".so",
      },
  
@@ -19,8 +19,27 @@ diff -ruN openssl-3.3.1/Configurations/10-main.conf openssl-3.3.1-banan_os/Confi
 +        cxxflags         => "-std=c++11",
 +        lib_cppflags     => "-DOPENSSL_USE_NODELETE",
 +        bn_ops           => "BN_LLONG RC4_CHAR",
++		shared_target    => "banan_os-shared",
++		shared_cflag     => "-fPIC",
++        shared_ldflag    => sub { $disabled{pinshared} ? () : "-Wl,-znodelete" },
++        shared_extension => ".so.\$(SHLIB_VERSION_NUMBER)",
 +    },
 +
  ####
  #### Variety of LINUX:-)
  ####
+diff -ruN openssl-3.3.1/Configurations/shared-info.pl openssl-3.3.1-banan_os/Configurations/shared-info.pl
+--- openssl-3.3.1/Configurations/shared-info.pl	2024-06-04 15:53:04.000000000 +0300
++++ openssl-3.3.1-banan_os/Configurations/shared-info.pl	2024-12-03 01:34:21.382067497 +0200
+@@ -39,6 +39,11 @@
+                 : '-Wl,-z,defs',
+         };
+     },
++    'banan_os-shared' => {
++        shared_ldflag         => '-shared',
++        shared_sonameflag     => '-Wl,-soname=',
++        shared_defflag        => '-Wl,--version-script=',
++    },
+     'bsd-gcc-shared' => sub { return $shared_info{'linux-shared'}; },
+     'bsd-gcc-nodef-shared' => sub { 
+         return {
