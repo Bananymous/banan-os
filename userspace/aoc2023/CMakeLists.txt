@@ -41,6 +41,9 @@ endforeach()
 foreach(AOC2023_PROJECT ${AOC2023_PROJECTS})
 	add_subdirectory(${AOC2023_PROJECT})
 	add_dependencies(aoc2023 aoc2023_${AOC2023_PROJECT})
+
+	target_link_options(aoc2023_${AOC2023_PROJECT} PRIVATE -nolibc)
+	target_compile_options(aoc2023_${AOC2023_PROJECT} PRIVATE -g -O2 -Wall -Wextra -Werror)
 endforeach()
 
 add_dependencies(userspace aoc2023)
