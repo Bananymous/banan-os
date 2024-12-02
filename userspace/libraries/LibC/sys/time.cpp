@@ -6,7 +6,8 @@
 int gettimeofday(struct timeval* __restrict tp, void* __restrict tzp)
 {
 	// If tzp is not a null pointer, the behavior is unspecified.
-	(void)tzp;
+	if (tzp != nullptr)
+		*static_cast<struct timezone*>(tzp) = {};
 
 	timespec ts;
 	clock_gettime(CLOCK_REALTIME, &ts);

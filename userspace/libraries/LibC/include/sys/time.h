@@ -22,6 +22,12 @@ struct itimerval
 #define ITIMER_VIRTUAL	1
 #define ITIMER_PROF		2
 
+struct timezone
+{
+	int tz_minuteswest;	/* minutes west of Greenwich */
+	int tz_dsttime;		/* type of DST correction */
+};
+
 int getitimer(int which, struct itimerval* value);
 int gettimeofday(struct timeval* __restrict tp, void* __restrict tzp);
 int setitimer(int which, const struct itimerval* __restrict value, struct itimerval* __restrict ovalue);
