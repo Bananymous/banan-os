@@ -963,7 +963,7 @@ namespace Kernel
 
 			// FIXME: There is a race condition between next two lines
 			TRY(create_file_or_dir(parent_file, path, (mode & 0777) | Inode::Mode::IFREG));
-			file = TRY(VirtualFileSystem::get().file_from_relative_path(parent_file, m_credentials, path, flags));
+			file = TRY(VirtualFileSystem::get().file_from_relative_path(parent_file, m_credentials, path, flags & ~O_RDWR));
 		}
 		else
 		{
