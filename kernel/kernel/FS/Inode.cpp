@@ -93,6 +93,16 @@ namespace Kernel
 		return create_directory_impl(name, mode, uid, gid);
 	}
 
+	BAN::ErrorOr<void> Inode::link_inode(BAN::StringView name, BAN::RefPtr<Inode> inode)
+	{
+		LockGuard _(m_mutex);
+		if (!this->mode().ifdir())
+			return BAN::Error::from_errno(ENOTDIR);
+		if (inode->mode().ifdir())
+			return BAN::Error::from_errno(EINVAL);
+		return link_inode_impl(name, inode);
+	}
+
 	BAN::ErrorOr<void> Inode::unlink(BAN::StringView name)
 	{
 		LockGuard _(m_mutex);

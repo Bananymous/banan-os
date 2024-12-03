@@ -110,6 +110,7 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_write(int fd, const void* buffer, size_t count);
 		BAN::ErrorOr<long> sys_access(const char* path, int amode);
 		BAN::ErrorOr<long> sys_create_dir(const char*, mode_t);
+		BAN::ErrorOr<long> sys_hardlinkat(int fd1, const char* path1, int fd2, const char* path2, int flag);
 		BAN::ErrorOr<long> sys_unlink(const char*);
 		BAN::ErrorOr<long> sys_readlinkat(int fd, const char* path, char* buffer, size_t bufsize);
 

@@ -518,6 +518,23 @@ done:
 		return {};
 	}
 
+	BAN::ErrorOr<void> Ext2Inode::link_inode_impl(BAN::StringView name, BAN::RefPtr<Inode> inode)
+	{
+		ASSERT(this->mode().ifdir());
+		ASSERT(!inode->mode().ifdir());
+
+		if (&m_fs != inode->filesystem())
+			return BAN::Error::from_errno(EXDEV);
+
+		if (!find_inode_impl(name).is_error())
+			return BAN::Error::from_errno(EEXIST);
+
+		auto ext2_inode = static_cast<Ext2Inode*>(inode.ptr());
+		TRY(link_inode_to_directory(*ext2_inode, name));
+
+		return {};
+	}
+
 	BAN::ErrorOr<void> Ext2Inode::link_inode_to_directory(Ext2Inode& inode, BAN::StringView name)
 	{
 		if (!this->mode().ifdir())

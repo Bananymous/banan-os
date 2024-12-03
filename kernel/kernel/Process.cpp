@@ -1042,6 +1042,40 @@ namespace Kernel
 		return 0;
 	}
 
+	BAN::ErrorOr<long> Process::sys_hardlinkat(int fd1, const char* path1, int fd2, const char* path2, int flag)
+	{
+		LockGuard _(m_process_lock);
+		TRY(validate_string_access(path1));
+		TRY(validate_string_access(path2));
+
+		auto inode = TRY(find_file(fd1, path1, flag)).inode;
+		if (inode->mode().ifdir())
+			return BAN::Error::from_errno(EISDIR);
+
+		auto parent = TRY(find_parent(fd2, path2));
+
+		BAN::RefPtr<Inode> parent_inode;
+		BAN::StringView file_name;
+
+		BAN::StringView path2_sv = path2;
+		if (auto index = path2_sv.rfind('/'); index.has_value())
+		{
+			parent_inode = TRY(VirtualFileSystem::get().file_from_relative_path(parent, m_credentials, path2_sv.substring(0, index.value()), O_EXEC | O_WRONLY)).inode;
+			file_name = path2_sv.substring(index.value() + 1);
+		}
+		else
+		{
+			parent_inode = parent.inode;
+			file_name = path2_sv;
+			if (!parent_inode->can_access(m_credentials, O_WRONLY))
+				return BAN::Error::from_errno(EACCES);
+		}
+
+		ASSERT(parent_inode->mode().ifdir());
+		TRY(parent_inode->link_inode(file_name, inode));
+		return 0;
+	}
+
 	BAN::ErrorOr<long> Process::sys_unlink(const char* path)
 	{
 		LockGuard _(m_process_lock);

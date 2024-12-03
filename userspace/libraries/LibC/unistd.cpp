@@ -630,3 +630,13 @@ int symlinkat(const char* path1, int fd, const char* path2)
 {
 	return syscall(SYS_SYMLINKAT, path1, fd, path2);
 }
+
+int link(const char* path1, const char* path2)
+{
+	return linkat(AT_FDCWD, path1, AT_FDCWD, path2, 0);
+}
+
+int linkat(int fd1, const char *path1, int fd2, const char *path2, int flag)
+{
+	return syscall(SYS_HARDLINKAT, fd1, path1, fd2, path2, flag);
+}

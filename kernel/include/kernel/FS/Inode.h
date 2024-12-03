@@ -95,6 +95,7 @@ namespace Kernel
 		BAN::ErrorOr<size_t> list_next_inodes(off_t, struct dirent* list, size_t list_size);
 		BAN::ErrorOr<void> create_file(BAN::StringView, mode_t, uid_t, gid_t);
 		BAN::ErrorOr<void> create_directory(BAN::StringView, mode_t, uid_t, gid_t);
+		BAN::ErrorOr<void> link_inode(BAN::StringView, BAN::RefPtr<Inode>);
 		BAN::ErrorOr<void> unlink(BAN::StringView);
 
 		// Link API
@@ -131,6 +132,7 @@ namespace Kernel
 		virtual BAN::ErrorOr<size_t> list_next_inodes_impl(off_t, struct dirent*, size_t)		{ return BAN::Error::from_errno(ENOTSUP); }
 		virtual BAN::ErrorOr<void> create_file_impl(BAN::StringView, mode_t, uid_t, gid_t)		{ return BAN::Error::from_errno(ENOTSUP); }
 		virtual BAN::ErrorOr<void> create_directory_impl(BAN::StringView, mode_t, uid_t, gid_t)	{ return BAN::Error::from_errno(ENOTSUP); }
+		virtual BAN::ErrorOr<void> link_inode_impl(BAN::StringView, BAN::RefPtr<Inode>)			{ return BAN::Error::from_errno(ENOTSUP); }
 		virtual BAN::ErrorOr<void> unlink_impl(BAN::StringView)									{ return BAN::Error::from_errno(ENOTSUP); }
 
 		// Link API
