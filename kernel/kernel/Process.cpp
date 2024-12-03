@@ -228,6 +228,13 @@ namespace Kernel
 				s_processes.remove(i);
 				break;
 			}
+			for (auto it = s_alarm_processes.begin(); it != s_alarm_processes.end();)
+			{
+				if (*it == this)
+					it = s_alarm_processes.remove(it);
+				else
+					it++;
+			}
 		}
 
 		ProcFileSystem::get().on_process_delete(*this);
