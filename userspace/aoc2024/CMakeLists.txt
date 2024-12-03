@@ -1,6 +1,7 @@
 set(AOC2024_PROJECTS
 	day1
 	day2
+	day3
 	full
 )
 
