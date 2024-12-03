@@ -31,6 +31,10 @@ namespace Kernel
 		s_instance->add_device(MUST(ZeroDevice::create(0666, 0, 0)));
 		s_instance->add_device(MUST(KeyboardDevice::create(0440, 0, 901)));
 		s_instance->add_device(MUST(MouseDevice::create(0440, 0, 901)));
+
+		// create symlink urandom -> random
+		auto urandom = MUST(TmpSymlinkInode::create_new(DevFileSystem::get(), 0777, 0, 0, "random"_sv));
+		s_instance->add_inode("urandom"_sv, urandom);
 	}
 
 	DevFileSystem& DevFileSystem::get()
