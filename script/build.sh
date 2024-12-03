@@ -49,8 +49,6 @@ create_image () {
 	build_target all
 	build_target install
 
-	$BANAN_ROOT_DIR/ports/update.sh
-
 	pushd $BANAN_SYSROOT >/dev/null
 	run_fakeroot tar cf ${BANAN_SYSROOT_TAR} *
 	popd >/dev/null
