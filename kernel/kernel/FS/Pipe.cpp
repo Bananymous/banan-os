@@ -49,7 +49,7 @@ namespace Kernel
 			if (m_writing_count == 0)
 				return 0;
 			LockFreeGuard lock_free(m_mutex);
-			TRY(Thread::current().block_or_eintr_indefinite(m_thread_blocker));
+			TRY(Thread::current().block_or_eintr_or_timeout_ms(m_thread_blocker, 100, false));
 		}
 
 		const size_t to_copy = BAN::Math::min<size_t>(buffer.size(), m_buffer_size);
@@ -84,7 +84,7 @@ namespace Kernel
 		while (m_buffer.size() - m_buffer_size < buffer.size())
 		{
 			LockFreeGuard lock_free(m_mutex);
-			TRY(Thread::current().block_or_eintr_indefinite(m_thread_blocker));
+			TRY(Thread::current().block_or_eintr_or_timeout_ms(m_thread_blocker, 100, false));
 		}
 
 		const size_t to_copy = buffer.size();
