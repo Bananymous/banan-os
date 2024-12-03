@@ -81,7 +81,8 @@ namespace Kernel
 			memcpy(page_buffer, PageTable::fast_page_as_ptr(), PAGE_SIZE);
 		});
 
-		if (auto ret = inode->write(page_index * PAGE_SIZE, BAN::ConstByteSpan::from(page_buffer)); ret.is_error())
+		const size_t write_size = BAN::Math::min<size_t>(PAGE_SIZE, inode->size() - page_index * PAGE_SIZE);
+		if (auto ret = inode->write(page_index * PAGE_SIZE, BAN::ConstByteSpan::from(page_buffer).slice(0, write_size)); ret.is_error())
 			dwarnln("{}", ret.error());
 	}
 
