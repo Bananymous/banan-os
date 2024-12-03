@@ -26,9 +26,13 @@ struct FILE
 	int unget_char;
 
 	unsigned char inline_buffer_storage[BUFSIZ];
-	unsigned char* buffer;
-	uint32_t buffer_size;
-	uint32_t buffer_index;
+	unsigned char* write_buffer;
+	uint32_t wr_buf_size;
+	uint32_t wr_buf_index;
+
+	unsigned char read_buffer[BUFSIZ];
+	uint32_t rd_buf_size;
+	uint32_t rd_buf_index;
 };
 
 struct ScopeLock
@@ -63,9 +67,11 @@ static void init_closed_file(FILE* file)
 	file->error        = false;
 	file->pid          = -1;
 	file->unget_char   = EOF;
-	file->buffer       = file->inline_buffer_storage;
-	file->buffer_size  = BUFSIZ;
-	file->buffer_index = 0;
+	file->write_buffer       = file->inline_buffer_storage;
+	file->wr_buf_size  = BUFSIZ;
+	file->wr_buf_index = 0;
+	file->rd_buf_size  = 0;
+	file->rd_buf_index = 0;
 }
 
 void _init_stdio()
@@ -156,8 +162,9 @@ FILE* fdopen(int fd, const char* mode_str)
 			continue;
 		s_files[i].fd = fd;
 		s_files[i].mode = mode & O_ACCMODE;
-		ASSERT(s_files[i].buffer == s_files[i].inline_buffer_storage);
-		ASSERT(s_files[i].buffer_size == BUFSIZ);
+		ASSERT(s_files[i].write_buffer == s_files[i].inline_buffer_storage);
+		ASSERT(s_files[i].wr_buf_size == BUFSIZ);
+		ASSERT(s_files[i].rd_buf_size == 0);
 		return &s_files[i];
 	}
 
@@ -190,16 +197,16 @@ int fflush(FILE* file)
 
 	file->unget_char = EOF;
 
-	if (file->buffer_index == 0)
+	if (file->wr_buf_index == 0)
 		return 0;
 
-	if (syscall(SYS_WRITE, file->fd, file->buffer, file->buffer_index) < 0)
+	if (syscall(SYS_WRITE, file->fd, file->write_buffer, file->wr_buf_index) < 0)
 	{
 		file->error = true;
 		return EOF;
 	}
 
-	file->buffer_index = 0;
+	file->wr_buf_index = 0;
 	return 0;
 }
 
@@ -278,8 +285,9 @@ FILE* fopen(const char* pathname, const char* mode_str)
 			continue;
 		s_files[i].fd = fd;
 		s_files[i].mode = mode & O_ACCMODE;
-		ASSERT(s_files[i].buffer == s_files[i].inline_buffer_storage);
-		ASSERT(s_files[i].buffer_size == BUFSIZ);
+		ASSERT(s_files[i].write_buffer == s_files[i].inline_buffer_storage);
+		ASSERT(s_files[i].wr_buf_size == BUFSIZ);
+		ASSERT(s_files[i].rd_buf_size == 0);
 		return &s_files[i];
 	}
 
@@ -323,26 +331,15 @@ size_t fread(void* buffer, size_t size, size_t nitems, FILE* file)
 	size_t target = size * nitems;
 	size_t nread = 0;
 
-	if (file->unget_char != EOF)
-	{
-		*static_cast<unsigned char*>(buffer) = file->unget_char;
-		file->unget_char = EOF;
-		nread++;
-	}
+	if (target == 0)
+		return 0;
 
 	while (nread < target)
 	{
-		ssize_t ret = syscall(SYS_READ, file->fd, static_cast<unsigned char*>(buffer) + nread, target - nread);
-
-		if (ret < 0)
-			file->error = true;
-		else if (ret == 0)
-			file->eof = true;
-
-		if (ret <= 0)
-			return nread;
-
-		nread += ret;
+		int ch = getc_unlocked(file);
+		if (ch == EOF)
+			break;
+		static_cast<unsigned char*>(buffer)[nread++] = ch;
 	}
 
 	return nread / size;
@@ -403,6 +400,8 @@ int fseeko(FILE* file, off_t offset, int whence)
 	if (ret < 0)
 		return -1;
 	file->eof = false;
+	file->rd_buf_size = 0;
+	file->rd_buf_index = 0;
 	return 0;
 }
 
@@ -422,7 +421,7 @@ off_t ftello(FILE* file)
 	long ret = syscall(SYS_TELL, file->fd);
 	if (ret < 0)
 		return -1;
-	return ret - (file->unget_char != EOF);
+	return ret - (file->unget_char != EOF) - (file->rd_buf_size - file->rd_buf_index);
 }
 
 int ftrylockfile(FILE*)
@@ -469,22 +468,28 @@ int getc_unlocked(FILE* file)
 		return (unsigned char)ch;
 	}
 
-	unsigned char c;
-	long ret = syscall(SYS_READ, file->fd, &c, 1);
+	if (file->rd_buf_index < file->rd_buf_size)
+		return file->read_buffer[file->rd_buf_index++];
+	file->rd_buf_size = 0;
+	file->rd_buf_index = 0;
 
-	if (ret < 0)
+	ssize_t nread = read(file->fd, file->read_buffer, sizeof(file->read_buffer));
+
+	if (nread < 0)
 	{
 		file->error = true;
 		return EOF;
 	}
 
-	if (ret == 0)
+	if (nread == 0)
 	{
 		file->eof = true;
 		return EOF;
 	}
 
-	return c;
+	file->rd_buf_size = nread;
+	file->rd_buf_index = 1;
+	return file->read_buffer[0];
 }
 
 int getchar_unlocked(void)
@@ -598,8 +603,9 @@ FILE* popen(const char* command, const char* mode_str)
 		s_files[i].fd = read ? fds[0] : fds[1];
 		s_files[i].mode = (unsigned)(read ? O_RDONLY : O_WRONLY);
 		s_files[i].pid = pid;
-		ASSERT(s_files[i].buffer == s_files[i].inline_buffer_storage);
-		ASSERT(s_files[i].buffer_size == BUFSIZ);
+		ASSERT(s_files[i].write_buffer == s_files[i].inline_buffer_storage);
+		ASSERT(s_files[i].wr_buf_size == BUFSIZ);
+		ASSERT(s_files[i].rd_buf_size == 0);
 		return &s_files[i];
 	}
 
@@ -628,8 +634,8 @@ int putchar(int c)
 
 int putc_unlocked(int c, FILE* file)
 {
-	file->buffer[file->buffer_index++] = c;
-	if (file->buffer_type == _IONBF || (file->buffer_type == _IOLBF && c == '\n') || file->buffer_index >= file->buffer_size)
+	file->write_buffer[file->wr_buf_index++] = c;
+	if (file->buffer_type == _IONBF || (file->buffer_type == _IOLBF && c == '\n') || file->wr_buf_index >= file->wr_buf_size)
 		if (fflush(file) == EOF)
 			return EOF;
 	return (unsigned char)c;
@@ -748,8 +754,8 @@ int setvbuf(FILE* file, char* buffer, int type, size_t size)
 	}
 
 	file->buffer_type = type;
-	file->buffer_size = size;
-	file->buffer = reinterpret_cast<unsigned char*>(buffer);
+	file->wr_buf_size = size;
+	file->write_buffer = reinterpret_cast<unsigned char*>(buffer);
 
 	return 0;
 }
