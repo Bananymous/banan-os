@@ -8,9 +8,14 @@ CONFIGURE_OPTIONS=(
 	'--disable-threaded-resolver'
 	'--disable-ipv6'
 	'--disable-docs'
+	'--disable-ntlm'
 	'--with-openssl'
 	'--with-zlib'
-	'--with-random=/dev/random'
 	'--with-ca-bundle=/etc/ssl/certs/ca-certificates.crt'
 	'--without-ca-path'
 )
+
+install() {
+	make install DESTDIR="$BANAN_SYSROOT" || exit 1
+	rm -f $BANAN_SYSROOT/usr/lib/libcurl.la
+}
