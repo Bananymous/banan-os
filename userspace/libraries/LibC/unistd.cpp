@@ -16,7 +16,8 @@
 #include <termios.h>
 #include <unistd.h>
 
-char** environ;
+char** __environ;
+extern char** environ __attribute__((weak, alias("__environ")));
 
 extern void _init_malloc();
 extern void _init_stdio();
