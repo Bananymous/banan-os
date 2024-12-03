@@ -293,7 +293,8 @@ namespace Kernel
 						child.exited = true;
 
 						parent.add_pending_signal(SIGCHLD);
-						Processor::scheduler().unblock_thread(parent.m_threads.front());
+						if (!parent.m_threads.empty())
+							Processor::scheduler().unblock_thread(parent.m_threads.front());
 
 						parent.m_child_exit_blocker.unblock();
 
@@ -307,6 +308,8 @@ namespace Kernel
 
 		while (!m_threads.empty())
 			m_threads.front()->on_exit();
+
+		ASSERT_NOT_REACHED();
 	}
 
 	size_t Process::proc_meminfo(off_t offset, BAN::ByteSpan buffer) const
@@ -854,6 +857,8 @@ namespace Kernel
 				break;
 
 			process->add_pending_signal(SIGALRM);
+
+			ASSERT(!process->m_threads.empty());
 			Processor::scheduler().unblock_thread(process->m_threads.front());
 
 			s_alarm_processes.remove(s_alarm_processes.begin());
@@ -2004,7 +2009,8 @@ namespace Kernel
 					if (signal)
 					{
 						process.add_pending_signal(signal);
-						Processor::scheduler().unblock_thread(process.m_threads.front());
+						if (!process.m_threads.empty())
+							Processor::scheduler().unblock_thread(process.m_threads.front());
 					}
 					return (pid > 0) ? BAN::Iteration::Break : BAN::Iteration::Continue;
 				}
