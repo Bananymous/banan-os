@@ -202,20 +202,23 @@ namespace Kernel
 	{
 		TRY(validate_fd(fd));
 
-		constexpr int creation_flags = O_CLOEXEC | O_CREAT | O_DIRECTORY | O_EXCL | O_NOCTTY | O_NOFOLLOW | O_TRUNC | O_TTY_INIT;
+		dprintln("fcntl({} ('{}'), {}, {H})", fd, m_open_files[fd]->path(), cmd, extra);
 
 		switch (cmd)
 		{
 			case F_GETFD:
-				return m_open_files[fd]->flags;
+				return m_open_files[fd]->flags & FD_CLOEXEC;
 			case F_SETFD:
-				// FIXME: validate permissions to set access flags
-				m_open_files[fd]->flags = extra;
+				m_open_files[fd]->flags &= ~FD_CLOEXEC;
+				m_open_files[fd]->flags |= extra & FD_CLOEXEC;
+				dprintln("  set CLOEXEC to {}", !!(m_open_files[fd]->flags & FD_CLOEXEC));
 				return 0;
 			case F_GETFL:
-				return m_open_files[fd]->flags & ~creation_flags;
+				return m_open_files[fd]->flags & ~(O_APPEND | O_DSYNC | O_NONBLOCK | O_RSYNC | O_SYNC | O_ACCMODE);
 			case F_SETFL:
-				m_open_files[fd]->flags |= extra & ~(O_ACCMODE | creation_flags);
+				m_open_files[fd]->flags &= ~O_NONBLOCK;
+				m_open_files[fd]->flags |= extra & O_NONBLOCK;
+				dprintln("  set NONBLOCK to {}", !!(m_open_files[fd]->flags & O_NONBLOCK));
 				return 0;
 			default:
 				break;

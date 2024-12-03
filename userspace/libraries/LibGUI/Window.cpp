@@ -69,7 +69,7 @@ namespace LibGUI
 			return BAN::Error::from_errno(errno);
 		BAN::ScopeGuard server_closer([server_fd] { close(server_fd); });
 
-		if (fcntl(server_fd, F_SETFL, fcntl(server_fd, F_GETFL) | O_CLOEXEC) == -1)
+		if (fcntl(server_fd, F_SETFD, fcntl(server_fd, F_GETFD) | FD_CLOEXEC) == -1)
 			return BAN::Error::from_errno(errno);
 
 		timespec start_time;

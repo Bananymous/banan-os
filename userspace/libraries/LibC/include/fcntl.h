@@ -27,8 +27,6 @@ __BEGIN_DECLS
 #define F_GETOWN		10
 #define F_SETOWN		11
 
-#define FD_CLOEXEC 1
-
 #define F_RDLCK 1
 #define F_UNLCK 2
 #define F_WRLCK 3
@@ -37,6 +35,14 @@ __BEGIN_DECLS
 #define SEEK_SET 1
 #define SEEK_CUR 2
 #define SEEK_END 3
+
+/* bits 0-3 */
+#define O_RDONLY	0x00001
+#define O_WRONLY	0x00002
+#define O_RDWR		(O_RDONLY | O_WRONLY)
+#define O_SEARCH	0x00004
+#define O_EXEC		0x00008
+#define O_ACCMODE	0x0000F
 
 /* bits 4-11 */
 #define O_CLOEXEC	0x00010
@@ -47,6 +53,7 @@ __BEGIN_DECLS
 #define O_NOFOLLOW	0x00200
 #define O_TRUNC		0x00400
 #define O_TTY_INIT	0x00800
+#define FD_CLOEXEC	O_CLOEXEC
 
 /* bits 12-16 */
 #define O_APPEND	0x01000
@@ -54,14 +61,6 @@ __BEGIN_DECLS
 #define O_NONBLOCK	0x04000
 #define O_RSYNC		0x08000
 #define O_SYNC		0x10000
-
-/* bits 0-3 */
-#define O_RDONLY	0x00001
-#define O_WRONLY	0x00002
-#define O_RDWR		(O_RDONLY | O_WRONLY)
-#define O_SEARCH	0x00004
-#define O_EXEC		0x00008
-#define O_ACCMODE	0x0000F
 
 /* bit 17 */
 #define AT_FDCWD	0x20000

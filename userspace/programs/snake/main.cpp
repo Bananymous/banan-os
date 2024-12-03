@@ -202,7 +202,7 @@ void update()
 int main()
 {
 	// Make stdin non blocking
-	if (fcntl(STDIN_FILENO, F_SETFL, O_NONBLOCK))
+	if (fcntl(STDIN_FILENO, F_SETFL, fcntl(STDIN_FILENO, F_GETFL) | O_NONBLOCK))
 	{
 		perror("fcntl");
 		return 1;
