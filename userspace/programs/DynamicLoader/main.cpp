@@ -567,6 +567,9 @@ static void handle_dynamic(LoadedElf& elf)
 		syscall(SYS_CLOSE, library_fd);
 	}
 
+	if (pltgot == 0)
+		return;
+
 	// setup required GOT entries
 	reinterpret_cast<uintptr_t*>(pltgot)[0] = reinterpret_cast<uintptr_t>(elf.dynamics);
 	reinterpret_cast<uintptr_t*>(pltgot)[1] = reinterpret_cast<uintptr_t>(&elf);
