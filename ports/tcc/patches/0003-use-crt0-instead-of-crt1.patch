@@ -1,0 +1,17 @@
+diff -ruN tcc-0.9.27/libtcc.c tcc-0.9.27-banan_os/libtcc.c
+--- tcc-0.9.27/libtcc.c	2017-12-17 10:27:05.000000000 +0200
++++ tcc-0.9.27-banan_os/libtcc.c	2024-08-26 01:26:52.175524270 +0300
+@@ -971,11 +971,11 @@
+ #else
+     /* paths for crt objects */
+     tcc_split_path(s, &s->crt_paths, &s->nb_crt_paths, CONFIG_TCC_CRTPREFIX);
+-    /* add libc crt1/crti objects */
++    /* add libc crt0/crti objects */
+     if ((output_type == TCC_OUTPUT_EXE || output_type == TCC_OUTPUT_DLL) &&
+         !s->nostdlib) {
+         if (output_type != TCC_OUTPUT_DLL)
+-            tcc_add_crt(s, "crt1.o");
++            tcc_add_crt(s, "crt0.o");
+         tcc_add_crt(s, "crti.o");
+     }
+ #endif

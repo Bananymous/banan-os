@@ -1,0 +1,30 @@
+diff -ruN tcc-0.9.27/configure tcc-0.9.27-banan_os/configure
+--- tcc-0.9.27/configure	2017-12-17 10:27:05.000000000 +0200
++++ tcc-0.9.27-banan_os/configure	2024-08-25 18:43:00.329466309 +0300
+@@ -49,8 +49,11 @@
+ gcc_minor=0
+ 
+ # OS specific
+-targetos=`uname`
++targetos='banan_os'
+ case $targetos in
++  banan_os)
++    confvars="$confvars ldl=no lm=no"
++	;;
+   Darwin)
+     confvars="$confvars OSX"
+     DLLSUF=".dylib"
+diff -ruN tcc-0.9.27/Makefile tcc-0.9.27-banan_os/Makefile
+--- tcc-0.9.27/Makefile	2017-12-17 10:27:05.000000000 +0200
++++ tcc-0.9.27-banan_os/Makefile	2024-08-25 18:43:44.996196450 +0300
+@@ -30,7 +30,9 @@
+  CFGWIN = -win
+  NATIVE_TARGET = $(ARCH)-win$(if $(findstring arm,$(ARCH)),ce,32)
+ else
+- LIBS=-lm
++ ifneq ($(CONFIG_lm),no)
++  LIBS=-lm
++ endif
+  ifneq ($(CONFIG_ldl),no)
+   LIBS+=-ldl
+  endif

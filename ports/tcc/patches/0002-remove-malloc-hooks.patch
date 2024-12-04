@@ -1,0 +1,23 @@
+diff -ruN tcc-0.9.27/lib/bcheck.c tcc-0.9.27-banan_os/lib/bcheck.c
+--- tcc-0.9.27/lib/bcheck.c	2017-12-17 10:27:05.000000000 +0200
++++ tcc-0.9.27-banan_os/lib/bcheck.c	2024-08-25 22:29:43.193883000 +0300
+@@ -26,7 +26,8 @@
+  && !defined(__FreeBSD_kernel__) \
+  && !defined(__DragonFly__) \
+  && !defined(__OpenBSD__) \
+- && !defined(__NetBSD__)
++ && !defined(__NetBSD__) \
++ && !defined(__banan_os__)
+ #include <malloc.h>
+ #endif
+ 
+@@ -56,7 +57,8 @@
+  || defined(__OpenBSD__) \
+  || defined(__NetBSD__) \
+  || defined(__dietlibc__) \
+- || defined(_WIN32)
++ || defined(_WIN32) \
++ || defined(__banan_os__)
+ //#warning Bound checking does not support malloc (etc.) in this environment.
+ #undef CONFIG_TCC_MALLOC_HOOKS
+ #undef HAVE_MEMALIGN
