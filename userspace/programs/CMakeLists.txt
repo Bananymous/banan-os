@@ -7,6 +7,7 @@ set(USERSPACE_PROGRAMS
 	cp
 	dd
 	dhcp-client
+	dirname
 	DynamicLoader
 	echo
 	env
