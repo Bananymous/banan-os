@@ -187,7 +187,7 @@ size_t strftime(char* __restrict s, size_t maxsize, const char* __restrict forma
 
 	struct conversion_t
 	{
-		char flag = '\0';
+		int flag = '\0';
 		int width = -1;
 		char modifier = '\0';
 	};
@@ -207,9 +207,9 @@ size_t strftime(char* __restrict s, size_t maxsize, const char* __restrict forma
 	};
 
 	const auto append_string =
-		[&](const char* string) -> bool
+		[&s, &len, &maxsize](const char* string) -> bool
 		{
-			size_t string_len = strlen(string);
+			const size_t string_len = strlen(string);
 			if (len + string_len >= maxsize)
 				return false;
 			strcpy(s + len, string);
@@ -218,7 +218,7 @@ size_t strftime(char* __restrict s, size_t maxsize, const char* __restrict forma
 		};
 
 	const auto append_string_from_list =
-		[&]<size_t LIST_SIZE>(int index, const char* const (&list)[LIST_SIZE]) -> bool
+		[&append_string]<size_t LIST_SIZE>(int index, const char* const (&list)[LIST_SIZE]) -> bool
 		{
 			const char* string = "INVALID";
 			if (index >= 0 && index < (int)LIST_SIZE)
@@ -227,13 +227,41 @@ size_t strftime(char* __restrict s, size_t maxsize, const char* __restrict forma
 		};
 
 	const auto append_value =
-		[&](const char* format, int value) -> bool
+		[&s, &len, &maxsize]<typename T>(const char* format, T value) -> bool
 		{
-			int written = snprintf(s + len, maxsize - len, format, value);
+			const int written = snprintf(s + len, maxsize - len, format, value);
 			if (len + written >= maxsize)
 				return false;
 			len += written;
 			return true;
+		};
+
+	const auto append_value_weird =
+		[&append_string, &append_value](long long value, int flag, int width) -> bool
+		{
+			char format[32];
+			char* ptr = format;
+			*ptr++ = '%';
+			if (flag == '+')
+				*ptr++ = '+';
+			*ptr++ = '0';
+			if (width != -1)
+				ptr += sprintf(ptr, "%d", width);
+			*ptr++ = 'l';
+			*ptr++ = 'l';
+			*ptr++ = 'd';
+			*ptr++ = '\0';
+
+			// idk why but musl libc test says that +4Y -> 2016 and +10F -> 2016-01-03
+			// i have no idea why the + is not printed in those cases :)
+			if (width < 11 && flag == '+')
+			{
+				char temp_buffer[12];
+				int nprint = sprintf(temp_buffer, format, value);
+				return append_string(temp_buffer + (nprint == width + 1));
+			}
+
+			return append_value(format, value);
 		};
 
 	while (*format && len < maxsize)
@@ -247,20 +275,14 @@ size_t strftime(char* __restrict s, size_t maxsize, const char* __restrict forma
 		format++;
 
 		conversion_t conversion;
-		switch (*format)
-		{
-			case '+':
-			case '0':
-				conversion.flag = *format;
-				format++;
-				break;
-		}
+		if (*format == '0' || *format == '+')
+			conversion.flag = *format++;
 		if (isdigit(*format))
 		{
 			conversion.width = 0;
 			while (isdigit(*format))
 			{
-				conversion.width = (conversion.width * 10) + (*format + '0');
+				conversion.width = (conversion.width * 10) + (*format - '0');
 				format++;
 			}
 		}
@@ -300,16 +322,15 @@ size_t strftime(char* __restrict s, size_t maxsize, const char* __restrict forma
 				break;
 			case 'C':
 			{
-				if (conversion.flag == '\0')
-					conversion.flag = ' ';
-				if (conversion.flag == '+' && conversion.width <= 2)
-					conversion.flag = '0';
-				if (conversion.width < 2)
+				if (conversion.width == -1)
 					conversion.width = 2;
 
 				char new_format[32];
-				sprintf(new_format, "%%%c%dd", conversion.flag, conversion.width);
-				if (!append_value(new_format, timeptr->tm_year % 100))
+				if (conversion.flag == '+')
+					sprintf(new_format, "%%+0%dd", conversion.width);
+				else
+					sprintf(new_format, "%%0%dd", conversion.width);
+				if (!append_value(new_format, (1900 + timeptr->tm_year) / 100))
 					return 0;
 				break;
 			}
@@ -323,20 +344,24 @@ size_t strftime(char* __restrict s, size_t maxsize, const char* __restrict forma
 				else return 0;
 				break;
 			case 'e':
-				if (!append_value("% 2d", timeptr->tm_mday))
+				if (!append_value("%2d", timeptr->tm_mday))
 					return 0;
 				break;
 			case 'F':
 			{
-				if (conversion.flag == '\0')
-					conversion.flag = '+';
-				if (conversion.width == -1)
-					conversion.width = 10;
-				if (conversion.width < 6)
-					conversion.width = 6;
+				// remove trailing "-mm-dd" from width
+				if (conversion.width >= 6)
+					conversion.width -= 6;
 
 				char new_format[32];
-				sprintf(new_format, "%%%c%dY-%%m-%%d", conversion.flag, conversion.width - 6);
+				char* ptr = new_format;
+
+				*ptr++ = '%';
+				if (conversion.flag)
+					*ptr++ = conversion.flag;
+				if (conversion.width != -1)
+					ptr += sprintf(ptr, "%d", conversion.width);
+				strcpy(ptr, "Y-%m-%d");
 
 				if (size_t ret = strftime(s + len, maxsize - len, new_format, timeptr))
 					len += ret;
@@ -380,6 +405,13 @@ size_t strftime(char* __restrict s, size_t maxsize, const char* __restrict forma
 					len += ret;
 				else return 0;
 				break;
+			case 's':
+			{
+				struct tm tm_copy = *timeptr;
+				if (!append_value("%llu", mktime(&tm_copy)))
+					return 0;
+				break;
+			}
 			case 'S':
 				if (!append_value("%02d", timeptr->tm_sec))
 					return 0;
@@ -406,22 +438,10 @@ size_t strftime(char* __restrict s, size_t maxsize, const char* __restrict forma
 			{
 				// Adapted from GNU libc implementation
 
-				constexpr auto is_leap_year =
-					[](int year) -> bool
-					{
-						if (year % 400 == 0)
-							return true;
-						if (year % 100 == 0)
-							return false;
-						if (year % 4 == 0)
-							return true;
-						return false;
-					};
-
 				constexpr auto iso_week_days =
 					[](int yday, int wday) -> int
 					{
-						return yday - (wday + 382) % 7 + 3;
+						return yday - (yday - wday + 382) % 7 + 3;
 					};
 
 				int year = timeptr->tm_year + 1900;
@@ -449,20 +469,13 @@ size_t strftime(char* __restrict s, size_t maxsize, const char* __restrict forma
 							return 0;
 						break;
 					case 'G':
-					{
-						if (conversion.flag == '\0')
-							conversion.flag = ' ';
-						if (conversion.flag == '+' && conversion.width <= 4)
-							conversion.flag = '0';
+						if (conversion.flag == '\0' && 1900 + year > 9999)
+							conversion.flag = '+';
 						if (conversion.width == -1)
-							conversion.width = 0;
-
-						char new_format[32];
-						sprintf(new_format, "%%%c%dd", conversion.flag, conversion.width);
-						if (!append_value(new_format, year))
+							conversion.width = 4;
+						if (!append_value_weird(year, conversion.flag, conversion.width))
 							return 0;
 						break;
-					}
 					case 'V':
 						if (!append_value("%02d", days / 7 + 1))
 							return 0;
@@ -489,24 +502,17 @@ size_t strftime(char* __restrict s, size_t maxsize, const char* __restrict forma
 				else return 0;
 				break;
 			case 'y':
-				if (!append_value("%d", timeptr->tm_yday % 100))
+				if (!append_value("%02d", timeptr->tm_year % 100))
 					return 0;
 				break;
 			case 'Y':
-			{
-				if (conversion.flag == '\0')
-					conversion.flag = ' ';
-				if (conversion.flag == '+' && conversion.width <= 4)
-					conversion.flag = '0';
+				if (conversion.flag == '\0' && timeptr->tm_year > 9999 - 1900)
+					conversion.flag = '+';
 				if (conversion.width == -1)
-					conversion.width = 0;
-
-				char new_format[32];
-				sprintf(new_format, "%%%c%dd", conversion.flag, conversion.width);
-				if (!append_value(new_format, 1900 + timeptr->tm_year))
+					conversion.width = 4;
+				if (!append_value_weird(1900ll + timeptr->tm_year, conversion.flag, conversion.width))
 					return 0;
 				break;
-			}
 			case 'z':
 				// FIXME: support timezones
 				break;
