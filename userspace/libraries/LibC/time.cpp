@@ -2,6 +2,7 @@
 #include <BAN/Math.h>
 
 #include <ctype.h>
+#include <errno.h>
 #include <string.h>
 #include <sys/syscall.h>
 #include <time.h>
@@ -64,20 +65,72 @@ char* ctime(const time_t* clock)
 	return ctime_r(clock, buf);
 }
 
+static constexpr bool is_leap_year(uint64_t year)
+{
+	if (year % 400 == 0)
+		return true;
+	if (year % 100 == 0)
+		return false;
+	if (year % 4 == 0)
+		return true;
+	return false;
+}
+
+time_t mktime(struct tm* tm)
+{
+	if (tm->tm_year < 70)
+	{
+		errno = EOVERFLOW;
+		return -1;
+	}
+
+	tm->tm_min += tm->tm_sec / 60;
+	tm->tm_sec %= 60;
+
+	tm->tm_hour += tm->tm_min / 60;
+	tm->tm_min %= 60;
+
+	tm->tm_mday += tm->tm_hour / 24;
+	tm->tm_hour %= 24;
+
+	static constexpr int month_days[] { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+
+	for (;;)
+	{
+		int days_in_month = month_days[tm->tm_mon];
+		if (tm->tm_mon == 1 && is_leap_year(tm->tm_year))
+			days_in_month++;
+
+		if (tm->tm_mday <= days_in_month)
+			break;
+
+		tm->tm_mday -= days_in_month;
+		tm->tm_mon++;
+	}
+
+	tm->tm_year += tm->tm_mon / 12;
+	tm->tm_mon %= 12;
+
+	tm->tm_yday = tm->tm_mday - 1;
+	if (tm->tm_mon > 0)
+		tm->tm_yday += month_days[tm->tm_mon - 1];
+
+	const time_t num_febs = (tm->tm_mon > 1) ? tm->tm_year + 1 : tm->tm_year;
+	const time_t leap_years = (num_febs - 69) / 4 - (num_febs - 1) / 100 + (num_febs + 299) / 400;
+
+	const time_t years = tm->tm_year - 70;
+	const time_t days = years * 365 + leap_years + tm->tm_yday;
+	const time_t hours = days * 24 + tm->tm_hour;
+	const time_t minutes = hours * 60 + tm->tm_min;
+	const time_t seconds = minutes * 60 + tm->tm_sec;
+
+	tm->tm_wday = (days + 4) % 7;
+
+	return seconds;
+}
+
 struct tm* gmtime_r(const time_t* timer, struct tm* __restrict result)
 {
-	constexpr auto is_leap_year =
-		[](time_t year) -> bool
-		{
-			if (year % 400 == 0)
-				return true;
-			if (year % 100 == 0)
-				return false;
-			if (year % 4 == 0)
-				return true;
-			return false;
-		};
-
 	constexpr uint64_t month_days[] { 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365 };
 
 	time_t time = *timer;
@@ -480,11 +533,6 @@ size_t strftime(char* __restrict s, size_t maxsize, const char* __restrict forma
 
 long timezone;
 void tzset()
-{
-	ASSERT_NOT_REACHED();
-}
-
-time_t mktime(struct tm*)
 {
 	ASSERT_NOT_REACHED();
 }
