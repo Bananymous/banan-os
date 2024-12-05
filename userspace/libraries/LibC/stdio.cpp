@@ -529,11 +529,8 @@ int pclose(FILE* file)
 		return -1;
 	}
 
-	pid_t pid = file->pid;
-	(void)fclose(file);
-
 	int stat;
-	while (waitpid(pid, &stat, 0) != -1)
+	while (waitpid(file->pid, &stat, 0) == -1)
 	{
 		if (errno != EINTR)
 		{
@@ -541,6 +538,8 @@ int pclose(FILE* file)
 			break;
 		}
 	}
+
+	(void)fclose(file);
 	return stat;
 }
 
