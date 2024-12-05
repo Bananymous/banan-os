@@ -1,5 +1,6 @@
 set(USERSPACE_PROGRAMS
 	bananfetch
+	basename
 	cat
 	cat-mmap
 	chmod
