@@ -202,8 +202,6 @@ namespace Kernel
 	{
 		TRY(validate_fd(fd));
 
-		dprintln("fcntl({} ('{}'), {}, {H})", fd, m_open_files[fd]->path(), cmd, extra);
-
 		switch (cmd)
 		{
 			case F_GETFD:
@@ -211,14 +209,12 @@ namespace Kernel
 			case F_SETFD:
 				m_open_files[fd]->flags &= ~FD_CLOEXEC;
 				m_open_files[fd]->flags |= extra & FD_CLOEXEC;
-				dprintln("  set CLOEXEC to {}", !!(m_open_files[fd]->flags & FD_CLOEXEC));
 				return 0;
 			case F_GETFL:
 				return m_open_files[fd]->flags & ~(O_APPEND | O_DSYNC | O_NONBLOCK | O_RSYNC | O_SYNC | O_ACCMODE);
 			case F_SETFL:
 				m_open_files[fd]->flags &= ~O_NONBLOCK;
 				m_open_files[fd]->flags |= extra & O_NONBLOCK;
-				dprintln("  set NONBLOCK to {}", !!(m_open_files[fd]->flags & O_NONBLOCK));
 				return 0;
 			default:
 				break;
