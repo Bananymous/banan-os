@@ -461,7 +461,7 @@ namespace Kernel
 				break;
 			case BS:
 				if (m_column > 0)
-					m_column--;
+					putchar_at(' ', --m_column, m_row);
 				break;
 			case HT:
 				m_column++;
@@ -480,7 +480,7 @@ namespace Kernel
 				break;
 			case ESC:
 				m_state = State::WaitingAnsiEscape;
-				break;;
+				break;
 			default:
 				putchar_at(codepoint, m_column, m_row);
 				m_last_graphic_char = codepoint;

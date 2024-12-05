@@ -468,9 +468,9 @@ BAN::Optional<BAN::String> Input::get_input(BAN::Optional<BAN::StringView> custo
 			if (m_buffer_col <= 0)
 				break;
 			while ((m_buffers[m_buffer_index][m_buffer_col - 1] & 0xC0) == 0x80)
-				m_buffer_col--;
-			m_buffer_col--;
-			printf("\e[D");
+				m_buffers[m_buffer_index].remove(--m_buffer_col);
+			m_buffers[m_buffer_index].remove(--m_buffer_col);
+			printf("\b\e[s%s \e[u", m_buffers[m_buffer_index].data() + m_buffer_col);
 			fflush(stdout);
 			break;
 		case '\x01': // ^A
@@ -490,13 +490,13 @@ BAN::Optional<BAN::String> Input::get_input(BAN::Optional<BAN::StringView> custo
 				break;
 			putchar('\n');
 			return {};
-		case '\x7F': // backspace
-			if (m_buffer_col <= 0)
+		case '\x7F':
+			if (m_buffer_col >= m_buffers[m_buffer_index].size())
 				break;
-			while ((m_buffers[m_buffer_index][m_buffer_col - 1] & 0xC0) == 0x80)
-				m_buffers[m_buffer_index].remove(--m_buffer_col);
-			m_buffers[m_buffer_index].remove(--m_buffer_col);
-			printf("\b\e[s%s \e[u", m_buffers[m_buffer_index].data() + m_buffer_col);
+			m_buffers[m_buffer_index].remove(m_buffer_col);
+			while (m_buffer_col < m_buffers[m_buffer_index].size() && (m_buffers[m_buffer_index][m_buffer_col] & 0xC0) == 0x80)
+				m_buffers[m_buffer_index].remove(m_buffer_col);
+			printf("\e[s%s \e[u", m_buffers[m_buffer_index].data() + m_buffer_col);
 			fflush(stdout);
 			break;
 		case '\n':

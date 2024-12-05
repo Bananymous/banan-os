@@ -285,14 +285,6 @@ namespace Kernel
 
 	void TTY::do_backspace()
 	{
-		auto print_backspace =
-			[this]
-			{
-				putchar('\b');
-				putchar(' ');
-				putchar('\b');
-			};
-
 		if (m_output.bytes > 0)
 		{
 			uint8_t last = m_output.buffer[m_output.bytes - 1];
@@ -308,20 +300,20 @@ namespace Kernel
 				}
 				ASSERT(m_output.bytes > 0);
 				m_output.bytes--;
-				print_backspace();
+				putchar('\b');
 			}
 			// Caret notation
 			else if (last < 32 || last == 127)
 			{
 				m_output.bytes--;
-				print_backspace();
-				print_backspace();
+				putchar('\b');
+				putchar('\b');
 			}
 			// Ascii
 			else
 			{
 				m_output.bytes--;
-				print_backspace();
+				putchar('\b');
 			}
 		}
 	}

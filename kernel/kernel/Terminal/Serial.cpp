@@ -210,6 +210,8 @@ namespace Kernel
 	void SerialTTY::handle_irq()
 	{
 		uint8_t ch = IO::inb(m_serial.port());
+		if (ch == 0x7F)
+			ch = '\b';
 
 		SpinLockGuard _(m_input_lock);
 		if (m_input.full())
