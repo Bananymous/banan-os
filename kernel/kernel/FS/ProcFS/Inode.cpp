@@ -12,6 +12,8 @@ namespace Kernel
 			return BAN::Error::from_errno(ENOMEM);
 		auto inode = BAN::RefPtr<ProcPidInode>::adopt(inode_ptr);
 
+		TRY(inode->link_inode(*inode, "."_sv));
+		TRY(inode->link_inode(static_cast<TmpInode&>(*fs.root_inode()), ".."_sv));
 		TRY(inode->link_inode(*MUST(ProcROProcessInode::create_new(process, &Process::proc_meminfo, fs, 0400)), "meminfo"_sv));
 		TRY(inode->link_inode(*MUST(ProcROProcessInode::create_new(process, &Process::proc_cmdline, fs, 0400)), "cmdline"_sv));
 		TRY(inode->link_inode(*MUST(ProcROProcessInode::create_new(process, &Process::proc_environ, fs, 0400)), "environ"_sv));
