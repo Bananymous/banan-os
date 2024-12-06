@@ -9,6 +9,8 @@ This is my hobby operating system written in C++. Currently supports x86\_64 and
 
 You can find a live demo [here](https://bananymous.com/banan-os)
 
+If you want to try out DOOM, you should first enter the GUI environment using the `start-gui` command. Then you can run `doom` in the GUI terminal.
+
 ### Features
 
 #### General
