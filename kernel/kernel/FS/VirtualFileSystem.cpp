@@ -200,11 +200,11 @@ namespace Kernel
 			[&path_parts](BAN::StringView path) -> BAN::ErrorOr<void>
 			{
 				auto split_path = TRY(path.split('/'));
-				split_path.reverse();
-				for (auto part : split_path)
+				TRY(path_parts.reserve(path_parts.size() + split_path.size()));
+				for (size_t i = split_path.size(); i > 0; i--)
 				{
 					TRY(path_parts.emplace_back());
-					TRY(path_parts.back().append(part));
+					TRY(path_parts.back().append(split_path[i - 1]));
 				}
 				return {};
 			};
