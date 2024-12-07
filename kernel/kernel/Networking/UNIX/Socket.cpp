@@ -208,7 +208,7 @@ namespace Kernel
 		auto parent_file = bind_path.front() == '/'
 			? VirtualFileSystem::get().root_file()
 			: TRY(Process::current().working_directory().clone());
-		if (auto ret = Process::current().create_file_or_dir(parent_file, bind_path, 0755 | S_IFSOCK); ret.is_error())
+		if (auto ret = Process::current().create_file_or_dir(AT_FDCWD, bind_path.data(), 0755 | S_IFSOCK); ret.is_error())
 		{
 			if (ret.error().get_error_code() == EEXIST)
 				return BAN::Error::from_errno(EADDRINUSE);

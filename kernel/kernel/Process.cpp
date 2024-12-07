@@ -119,8 +119,9 @@ namespace Kernel
 		TRY(process->m_cmdline.push_back({}));
 		TRY(process->m_cmdline.back().append(path));
 
-		auto absolute_path = TRY(process->absolute_path_of(path));
-		auto executable_inode = TRY(VirtualFileSystem::get().file_from_absolute_path(process->m_credentials, absolute_path, O_EXEC)).inode;
+		LockGuard _(process->m_process_lock);
+
+		auto executable_inode = TRY(process->find_file(AT_FDCWD, path.data(), O_EXEC)).inode;
 		auto executable = TRY(ELF::load_from_inode(executable_inode, process->m_credentials, process->page_table()));
 		process->m_mapped_regions = BAN::move(executable.regions);
 
@@ -378,12 +379,61 @@ namespace Kernel
 		return read_from_vec_of_str(m_environ, offset, buffer);
 	}
 
-	BAN::ErrorOr<VirtualFileSystem::File> Process::find_parent(int fd, const char* path)
+	BAN::ErrorOr<VirtualFileSystem::File> Process::find_file(int fd, const char* path, int flags) const
 	{
 		ASSERT(m_process_lock.is_locked());
 
-		if (path)
-			TRY(validate_string_access(path));
+		auto parent_file = TRY(find_relative_parent(fd, path));
+		auto file = path
+			? TRY(VirtualFileSystem::get().file_from_relative_path(parent_file, m_credentials, path, flags))
+			: BAN::move(parent_file);
+
+		return file;
+	}
+
+	BAN::ErrorOr<Process::FileParent> Process::find_parent_file(int fd, const char* path, int flags) const
+	{
+		ASSERT(m_process_lock.is_locked());
+
+		auto relative_parent = TRY(find_relative_parent(fd, path));
+
+		VirtualFileSystem::File parent;
+		BAN::StringView file_name;
+
+		auto path_sv = path ? BAN::StringView(path) : ""_sv;
+		while (!path_sv.empty() && path_sv.back() == '/')
+			path_sv = path_sv.substring(0, path_sv.size() - 1);
+
+		if (auto index = path_sv.rfind('/'); index.has_value())
+		{
+			parent = TRY(VirtualFileSystem::get().file_from_relative_path(relative_parent, m_credentials, path_sv.substring(0, index.value()), flags));
+			file_name = path_sv.substring(index.value() + 1);
+		}
+		else
+		{
+			parent = BAN::move(relative_parent);
+			file_name = path_sv;
+		}
+
+		if (!parent.inode->can_access(m_credentials, flags))
+			return BAN::Error::from_errno(EACCES);
+		if (!parent.inode->mode().ifdir())
+			return BAN::Error::from_errno(ENOTDIR);
+
+		while (!file_name.empty() && file_name.front() == '/')
+			file_name = file_name.substring(1);
+		while (!file_name.empty() && file_name.back() == '/')
+			file_name = file_name.substring(0, file_name.size() - 1);
+
+		return FileParent {
+			.parent = BAN::move(parent),
+			.file_name = file_name,
+		};
+	}
+
+	BAN::ErrorOr<VirtualFileSystem::File> Process::find_relative_parent(int fd, const char* path) const
+	{
+		ASSERT(m_process_lock.is_locked());
 
 		if (path && path[0] == '/')
 			return VirtualFileSystem::get().root_file();
@@ -396,21 +446,6 @@ namespace Kernel
 			return BAN::Error::from_errno(EBADF);
 
 		return TRY(m_open_file_descriptors.file_of(fd));
-	}
-
-	BAN::ErrorOr<VirtualFileSystem::File> Process::find_file(int fd, const char* path, int flags)
-	{
-		ASSERT(m_process_lock.is_locked());
-
-		if (path)
-			TRY(validate_string_access(path));
-
-		auto parent_file = TRY(find_parent(fd, path));
-		auto file = path
-			? TRY(VirtualFileSystem::get().file_from_relative_path(parent_file, m_credentials, path, flags))
-			: BAN::move(parent_file);
-
-		return file;
 	}
 
 	BAN::ErrorOr<long> Process::sys_exit(int status)
@@ -521,8 +556,7 @@ namespace Kernel
 
 			TRY(validate_string_access(path));
 
-			auto absolute_path = TRY(absolute_path_of(path));
-			auto executable_file = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, O_EXEC));
+			auto executable_file = TRY(find_file(AT_FDCWD, path, O_EXEC));
 			auto executable_inode = executable_file.inode;
 
 			BAN::Vector<BAN::String> str_argv;
@@ -875,7 +909,7 @@ namespace Kernel
 		}
 	}
 
-	BAN::ErrorOr<void> Process::create_file_or_dir(const VirtualFileSystem::File& parent, BAN::StringView path, mode_t mode) const
+	BAN::ErrorOr<void> Process::create_file_or_dir(int fd, const char* path, mode_t mode) const
 	{
 		switch (mode & Inode::Mode::TYPE_MASK)
 		{
@@ -889,26 +923,12 @@ namespace Kernel
 				return BAN::Error::from_errno(ENOTSUP);
 		}
 
-		BAN::RefPtr<Inode> parent_inode;
-		BAN::StringView file_name;
-
-		if (auto index = path.rfind('/'); index.has_value())
-		{
-			parent_inode = TRY(VirtualFileSystem::get().file_from_relative_path(parent, m_credentials, path.substring(0, index.value()), O_EXEC | O_WRONLY)).inode;
-			file_name = path.substring(index.value() + 1);
-		}
-		else
-		{
-			parent_inode = parent.inode;
-			file_name = path;
-			if (!parent_inode->can_access(m_credentials, O_WRONLY))
-				return BAN::Error::from_errno(EACCES);
-		}
+		auto [parent, file_name] = TRY(find_parent_file(fd, path, O_EXEC | O_WRONLY));
 
 		if (Inode::Mode(mode).ifdir())
-			TRY(parent_inode->create_directory(file_name, mode, m_credentials.euid(), parent_inode->gid()));
+			TRY(parent.inode->create_directory(file_name, mode, m_credentials.euid(), parent.inode->gid()));
 		else
-			TRY(parent_inode->create_file(file_name, mode, m_credentials.euid(), parent_inode->gid()));
+			TRY(parent.inode->create_file(file_name, mode, m_credentials.euid(), parent.inode->gid()));
 
 		return {};
 	}
@@ -952,8 +972,8 @@ namespace Kernel
 
 		TRY(validate_string_access(path));
 
-		auto parent_file = TRY(find_parent(fd, path));
-		auto file_or_error = VirtualFileSystem::get().file_from_relative_path(parent_file, m_credentials, path, flags | O_NOFOLLOW);
+		auto [parent, file_name] = TRY(find_parent_file(fd, path, O_RDONLY));
+		auto file_or_error = VirtualFileSystem::get().file_from_relative_path(parent, m_credentials, file_name, flags);
 
 		VirtualFileSystem::File file;
 		if (file_or_error.is_error())
@@ -962,8 +982,8 @@ namespace Kernel
 				return file_or_error.release_error();
 
 			// FIXME: There is a race condition between next two lines
-			TRY(create_file_or_dir(parent_file, path, (mode & 0777) | Inode::Mode::IFREG));
-			file = TRY(VirtualFileSystem::get().file_from_relative_path(parent_file, m_credentials, path, flags & ~O_RDWR));
+			TRY(parent.inode->create_file(file_name, (mode & 0777) | Inode::Mode::IFREG, m_credentials.euid(), m_credentials.egid()));
+			file = TRY(VirtualFileSystem::get().file_from_relative_path(parent, m_credentials, file_name, flags & ~O_RDWR));
 		}
 		else
 		{
@@ -975,8 +995,6 @@ namespace Kernel
 				return BAN::Error::from_errno(EISDIR);
 			if (!file.inode->mode().ifdir() && (flags & O_DIRECTORY))
 				return BAN::Error::from_errno(ENOTDIR);
-			if (file.inode->mode().iflnk() && !(flags & O_NOFOLLOW))
-				file = TRY(VirtualFileSystem::get().file_from_relative_path(parent_file, m_credentials, path, flags));
 		}
 
 		auto inode = file.inode;
@@ -1032,9 +1050,9 @@ namespace Kernel
 		credentials.set_euid(credentials.ruid());
 		credentials.set_egid(credentials.rgid());
 
-		auto absolute_path = TRY(absolute_path_of(path));
+		auto relative_parent = TRY(find_relative_parent(AT_FDCWD, path));
+		TRY(VirtualFileSystem::get().file_from_relative_path(relative_parent, credentials, path, flags));
 
-		TRY(VirtualFileSystem::get().file_from_absolute_path(credentials, absolute_path, flags));
 		return 0;
 	}
 
@@ -1042,15 +1060,10 @@ namespace Kernel
 	{
 		LockGuard _(m_process_lock);
 		TRY(validate_string_access(path));
-		BAN::StringView path_sv(path);
-		if (!path_sv.empty() && path_sv.back() == '/')
-			path_sv = path_sv.substring(0, path_sv.size() - 1);
-		if (path_sv.empty())
-			return BAN::Error::from_errno(EINVAL);
-		if (path[0] == '/')
-			TRY(create_file_or_dir(VirtualFileSystem::get().root_file(), path_sv, Inode::Mode::IFDIR | mode));
-		else
-			TRY(create_file_or_dir(m_working_directory, path_sv, Inode::Mode::IFDIR | mode));
+
+		auto [parent, file_name] = TRY(find_parent_file(AT_FDCWD, path, O_WRONLY));
+		TRY(parent.inode->create_directory(file_name, (mode & 0777) | Inode::Mode::IFDIR, m_credentials.euid(), m_credentials.egid()));
+
 		return 0;
 	}
 
@@ -1064,27 +1077,12 @@ namespace Kernel
 		if (inode->mode().ifdir())
 			return BAN::Error::from_errno(EISDIR);
 
-		auto parent = TRY(find_parent(fd2, path2));
+		auto [parent, file_name] = TRY(find_parent_file(fd2, path2, O_WRONLY));
+		if (!parent.inode->mode().ifdir())
+			return BAN::Error::from_errno(ENOTDIR);
 
-		BAN::RefPtr<Inode> parent_inode;
-		BAN::StringView file_name;
+		TRY(parent.inode->link_inode(file_name, inode));
 
-		BAN::StringView path2_sv = path2;
-		if (auto index = path2_sv.rfind('/'); index.has_value())
-		{
-			parent_inode = TRY(VirtualFileSystem::get().file_from_relative_path(parent, m_credentials, path2_sv.substring(0, index.value()), O_EXEC | O_WRONLY)).inode;
-			file_name = path2_sv.substring(index.value() + 1);
-		}
-		else
-		{
-			parent_inode = parent.inode;
-			file_name = path2_sv;
-			if (!parent_inode->can_access(m_credentials, O_WRONLY))
-				return BAN::Error::from_errno(EACCES);
-		}
-
-		ASSERT(parent_inode->mode().ifdir());
-		TRY(parent_inode->link_inode(file_name, inode));
 		return 0;
 	}
 
@@ -1093,17 +1091,8 @@ namespace Kernel
 		LockGuard _(m_process_lock);
 		TRY(validate_string_access(path));
 
-		auto absolute_path = TRY(absolute_path_of(path));
-
-		size_t index = absolute_path.size();
-		for (; index > 0; index--)
-			if (absolute_path[index - 1] == '/')
-				break;
-		auto directory = absolute_path.sv().substring(0, index);
-		auto file_name = absolute_path.sv().substring(index);
-
-		auto parent = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, directory, O_EXEC | O_WRONLY)).inode;
-		TRY(parent->unlink(file_name));
+		auto [parent, file_name] = TRY(find_parent_file(AT_FDCWD, path, O_WRONLY));
+		TRY(parent.inode->unlink(file_name));
 
 		return 0;
 	}
@@ -1130,14 +1119,12 @@ namespace Kernel
 		TRY(validate_string_access(path1));
 		TRY(validate_string_access(path2));
 
-		auto parent_file = TRY(find_parent(fd, path2));
-		auto file_or_error = VirtualFileSystem::get().file_from_relative_path(parent_file, m_credentials, path2, O_NOFOLLOW);
-		if (!file_or_error.is_error())
+		if (!find_file(fd, path2, O_NOFOLLOW).is_error())
 			return BAN::Error::from_errno(EEXIST);
 
-		TRY(create_file_or_dir(parent_file, path2, 0777 | Inode::Mode::IFLNK));
+		TRY(create_file_or_dir(fd, path2, 0777 | Inode::Mode::IFLNK));
 
-		auto symlink = TRY(VirtualFileSystem::get().file_from_relative_path(parent_file, m_credentials, path2, O_NOFOLLOW));
+		auto symlink = TRY(find_file(fd, path2, O_NOFOLLOW));
 		TRY(symlink.inode->set_link_target(path1));
 
 		return 0;
@@ -1522,18 +1509,6 @@ namespace Kernel
 		return 0;
 	}
 
-	BAN::ErrorOr<void> Process::mount(BAN::StringView source, BAN::StringView target)
-	{
-		BAN::String absolute_source, absolute_target;
-		{
-			LockGuard _(m_process_lock);
-			TRY(absolute_source.append(TRY(absolute_path_of(source))));
-			TRY(absolute_target.append(TRY(absolute_path_of(target))));
-		}
-		TRY(VirtualFileSystem::get().mount(m_credentials, absolute_source, absolute_target));
-		return {};
-	}
-
 	BAN::ErrorOr<long> Process::sys_fstatat(int fd, const char* path, struct stat* buf, int flag)
 	{
 		if (flag & ~AT_SYMLINK_NOFOLLOW)
@@ -1597,9 +1572,7 @@ namespace Kernel
 		TRY(validate_string_access(path));
 		TRY(validate_pointer_access(buffer, PATH_MAX, true));
 
-		auto absolute_path = TRY(absolute_path_of(path));
-
-		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, O_RDONLY));
+		auto file = TRY(find_file(AT_FDCWD, path, O_RDONLY));
 		if (file.canonical_path.size() >= PATH_MAX)
 			return BAN::Error::from_errno(ENAMETOOLONG);
 
@@ -1654,19 +1627,9 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_setpwd(const char* path)
 	{
-		BAN::String absolute_path;
-
-		{
-			LockGuard _(m_process_lock);
-			TRY(validate_string_access(path));
-			absolute_path = TRY(absolute_path_of(path));
-		}
-
-		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, O_SEARCH));
-		if (!file.inode->mode().ifdir())
-			return BAN::Error::from_errno(ENOTDIR);
-
 		LockGuard _(m_process_lock);
+
+		auto file = TRY(find_file(AT_FDCWD, path, O_SEARCH));
 		m_working_directory = BAN::move(file);
 
 		return 0;

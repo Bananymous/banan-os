@@ -103,7 +103,7 @@ namespace Kernel
 
 		BAN::ErrorOr<long> open_inode(VirtualFileSystem::File&&, int flags);
 
-		BAN::ErrorOr<void> create_file_or_dir(const VirtualFileSystem::File& parent, BAN::StringView path, mode_t mode) const;
+		BAN::ErrorOr<void> create_file_or_dir(int fd, const char* path, mode_t mode) const;
 		BAN::ErrorOr<long> sys_openat(int, const char* path, int, mode_t);
 		BAN::ErrorOr<long> sys_close(int fd);
 		BAN::ErrorOr<long> sys_read(int fd, void* buffer, size_t count);
@@ -160,8 +160,6 @@ namespace Kernel
 		static BAN::ErrorOr<long> clean_poweroff(int command);
 		BAN::ErrorOr<long> sys_poweroff(int command);
 
-		BAN::ErrorOr<void> mount(BAN::StringView source, BAN::StringView target);
-
 		BAN::ErrorOr<long> sys_readdir(int fd, struct dirent* list, size_t list_len);
 
 		BAN::ErrorOr<long> sys_mmap(const sys_mmap_t*);
@@ -212,6 +210,7 @@ namespace Kernel
 		// Return false if access was page violation (segfault)
 		BAN::ErrorOr<bool> allocate_page_for_demand_paging(vaddr_t addr, bool wants_write);
 
+		// FIXME: remove this API
 		BAN::ErrorOr<BAN::String> absolute_path_of(BAN::StringView) const;
 
 		// ONLY CALLED BY TIMER INTERRUPT
@@ -223,8 +222,15 @@ namespace Kernel
 		Process(const Credentials&, pid_t pid, pid_t parent, pid_t sid, pid_t pgrp);
 		static Process* create_process(const Credentials&, pid_t parent, pid_t sid = 0, pid_t pgrp = 0);
 
-		BAN::ErrorOr<VirtualFileSystem::File> find_file(int fd, const char* path, int flags);
-		BAN::ErrorOr<VirtualFileSystem::File> find_parent(int fd, const char* path);
+		struct FileParent
+		{
+			VirtualFileSystem::File parent;
+			BAN::StringView file_name;
+		};
+
+		BAN::ErrorOr<VirtualFileSystem::File> find_file(int fd, const char* path, int flags) const;
+		BAN::ErrorOr<FileParent> find_parent_file(int fd, const char* path, int flags) const;
+		BAN::ErrorOr<VirtualFileSystem::File> find_relative_parent(int fd, const char* path) const;
 
 		BAN::ErrorOr<void> validate_string_access(const char*);
 		BAN::ErrorOr<void> validate_pointer_access_check(const void*, size_t, bool needs_write);
