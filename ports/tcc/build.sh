@@ -18,6 +18,7 @@ configure() {
 }
 
 build() {
+	touch $BANAN_SYSROOT/usr/include/sys/ucontext.h
 	make -j$(nproc) cross-$BANAN_ARCH $BANAN_ARCH-libtcc1-usegcc=yes || exit 1
 }
 
