@@ -251,7 +251,7 @@ namespace Kernel
 					return reset_ansi();
 				}
 				reset_ansi();
-				dprintln("Unsupported ANSI CSI character J");
+				dprintln_if(DEBUG_VTTY, "Unsupported ANSI CSI character J");
 				return;
 			case 'K': // Erase in Line
 				if (m_ansi_state.nums[0] == -1 || m_ansi_state.nums[0] == 0)
@@ -261,7 +261,7 @@ namespace Kernel
 					return reset_ansi();
 				}
 				reset_ansi();
-				dprintln("Unsupported ANSI CSI character K");
+				dprintln_if(DEBUG_VTTY, "Unsupported ANSI CSI character K");
 				return;
 			case 'L': // Insert Line
 				if (m_ansi_state.nums[0] == -1)
@@ -297,15 +297,15 @@ namespace Kernel
 				return reset_ansi();
 			case 'S': // Scroll Up
 				reset_ansi();
-				dprintln("Unsupported ANSI CSI character S");
+				dprintln_if(DEBUG_VTTY, "Unsupported ANSI CSI character S");
 				return;
 			case 'T': // Scroll Down
 				reset_ansi();
-				dprintln("Unsupported ANSI CSI character T");
+				dprintln_if(DEBUG_VTTY, "Unsupported ANSI CSI character T");
 				return;
 			case 'f': // Horizontal Vertical Position
 				reset_ansi();
-				dprintln("Unsupported ANSI CSI character f");
+				dprintln_if(DEBUG_VTTY, "Unsupported ANSI CSI character f");
 				return;
 			case 'm':
 				handle_ansi_csi_color();
@@ -350,7 +350,7 @@ namespace Kernel
 					return reset_ansi();
 				}
 				reset_ansi();
-				dprintln("invalid ANSI CSI ?");
+				dprintln_if(DEBUG_VTTY, "invalid ANSI CSI ?");
 				return;
 			case 'h':
 			case 'l':
@@ -360,11 +360,11 @@ namespace Kernel
 					return reset_ansi();
 				}
 				reset_ansi();
-				dprintln("invalid ANSI CSI ?{}{}", m_ansi_state.nums[0], (char)ch);
+				dprintln_if(DEBUG_VTTY, "invalid ANSI CSI ?{}{}", m_ansi_state.nums[0], (char)ch);
 				return;
 			default:
 				reset_ansi();
-				dprintln("Unsupported ANSI CSI character {}", ch);
+				dprintln_if(DEBUG_VTTY, "Unsupported ANSI CSI character {}", ch);
 				return;
 		}
 	}
@@ -416,7 +416,9 @@ namespace Kernel
 				}
 				else
 				{
-					dprintln("invalid utf8");
+					reset_ansi();
+					dprintln_if(DEBUG_VTTY, "invalid utf8");
+					return;
 				}
 				m_state = State::WaitingUTF8;
 				return;
@@ -425,8 +427,8 @@ namespace Kernel
 					m_state = State::WaitingAnsiCSI;
 				else
 				{
-					dprintln("unsupported byte after ansi escape {2H}", (uint8_t)ch);
 					reset_ansi();
+					dprintln_if(DEBUG_VTTY, "unsupported byte after ansi escape {2H}", (uint8_t)ch);
 				}
 				return;
 			case State::WaitingAnsiCSI:
@@ -436,8 +438,8 @@ namespace Kernel
 			case State::WaitingUTF8:
 				if ((ch & 0xC0) != 0x80)
 				{
-					dprintln("invalid utf8");
 					m_state = State::Normal;
+					dprintln_if(DEBUG_VTTY, "invalid utf8");
 					return;
 				}
 				m_utf8_state.codepoint = (m_utf8_state.codepoint << 6) | (ch & 0x3F);

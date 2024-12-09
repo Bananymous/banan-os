@@ -47,6 +47,7 @@
 
 #define BOCHS_BREAK() asm volatile("xchgw %bx, %bx")
 
+#define DEBUG_VTTY 1
 
 #define DEBUG_PCI 0
 #define DEBUG_SCHEDULER 0
