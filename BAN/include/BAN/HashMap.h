@@ -45,27 +45,27 @@ namespace BAN
 		HashMap<Key, T, HASH>& operator=(const HashMap<Key, T, HASH>&);
 		HashMap<Key, T, HASH>& operator=(HashMap<Key, T, HASH>&&);
 
-		ErrorOr<void> insert(const Key& key, const T& value)           { return emplace(key, value); }
-		ErrorOr<void> insert(const Key& key, T&& value)                { return emplace(key, move(value)); }
-		ErrorOr<void> insert(Key&& key, const T& value)                { return emplace(move(key), value); }
-		ErrorOr<void> insert(Key&& key, T&& value)                     { return emplace(move(key), move(value)); }
+		ErrorOr<iterator> insert(const Key& key, const T& value)           { return emplace(key, value); }
+		ErrorOr<iterator> insert(const Key& key, T&& value)                { return emplace(key, move(value)); }
+		ErrorOr<iterator> insert(Key&& key, const T& value)                { return emplace(move(key), value); }
+		ErrorOr<iterator> insert(Key&& key, T&& value)                     { return emplace(move(key), move(value)); }
 
-		ErrorOr<void> insert_or_assign(const Key& key, const T& value) { return emplace_or_assign(key, value); }
-		ErrorOr<void> insert_or_assign(const Key& key, T&& value)      { return emplace_or_assign(key, move(value)); }
-		ErrorOr<void> insert_or_assign(Key&& key, const T& value)      { return emplace_or_assign(move(key), value); }
-		ErrorOr<void> insert_or_assign(Key&& key, T&& value)           { return emplace_or_assign(move(key), move(value)); }
+		ErrorOr<iterator> insert_or_assign(const Key& key, const T& value) { return emplace_or_assign(key, value); }
+		ErrorOr<iterator> insert_or_assign(const Key& key, T&& value)      { return emplace_or_assign(key, move(value)); }
+		ErrorOr<iterator> insert_or_assign(Key&& key, const T& value)      { return emplace_or_assign(move(key), value); }
+		ErrorOr<iterator> insert_or_assign(Key&& key, T&& value)           { return emplace_or_assign(move(key), move(value)); }
 
 		template<typename... Args>
-		ErrorOr<void> emplace(const Key& key, Args&&... args) requires is_constructible_v<T, Args...>
+		ErrorOr<iterator> emplace(const Key& key, Args&&... args) requires is_constructible_v<T, Args...>
 		{ return emplace(Key(key), forward<Args>(args)...); }
 		template<typename... Args>
-		ErrorOr<void> emplace(Key&&, Args&&...) requires is_constructible_v<T, Args...>;
+		ErrorOr<iterator> emplace(Key&&, Args&&...) requires is_constructible_v<T, Args...>;
 
 		template<typename... Args>
-		ErrorOr<void> emplace_or_assign(const Key& key, Args&&... args) requires is_constructible_v<T, Args...>
+		ErrorOr<iterator> emplace_or_assign(const Key& key, Args&&... args) requires is_constructible_v<T, Args...>
 		{ return emplace_or_assign(Key(key), forward<Args>(args)...); }
 		template<typename... Args>
-		ErrorOr<void> emplace_or_assign(Key&&, Args&&...) requires is_constructible_v<T, Args...>;
+		ErrorOr<iterator> emplace_or_assign(Key&&, Args&&...) requires is_constructible_v<T, Args...>;
 
 		iterator begin() { return iterator(m_buckets.end(), m_buckets.begin()); }
 		iterator end()   { return iterator(m_buckets.end(), m_buckets.end()); }
@@ -141,34 +141,35 @@ namespace BAN
 
 	template<typename Key, typename T, typename HASH>
 	template<typename... Args>
-	ErrorOr<void> HashMap<Key, T, HASH>::emplace(Key&& key, Args&&... args) requires is_constructible_v<T, Args...>
+	ErrorOr<typename HashMap<Key, T, HASH>::iterator> HashMap<Key, T, HASH>::emplace(Key&& key, Args&&... args) requires is_constructible_v<T, Args...>
 	{
 		ASSERT(!contains(key));
 		TRY(rebucket(m_size + 1));
-		auto& bucket = get_bucket(key);
-		TRY(bucket.emplace_back(move(key), forward<Args>(args)...));
+
+		auto bucket_it = get_bucket_iterator(key);
+		TRY(bucket_it->emplace_back(move(key), forward<Args>(args)...));
 		m_size++;
-		return {};
+
+		return iterator(m_buckets.end(), bucket_it, prev(bucket_it->end(), 1));
 	}
 
 	template<typename Key, typename T, typename HASH>
 	template<typename... Args>
-	ErrorOr<void> HashMap<Key, T, HASH>::emplace_or_assign(Key&& key, Args&&... args) requires is_constructible_v<T, Args...>
+	ErrorOr<typename HashMap<Key, T, HASH>::iterator> HashMap<Key, T, HASH>::emplace_or_assign(Key&& key, Args&&... args) requires is_constructible_v<T, Args...>
 	{
 		if (empty())
 			return emplace(move(key), forward<Args>(args)...);
-		auto& bucket = get_bucket(key);
-		for (Entry& entry : bucket)
+
+		auto bucket_it = get_bucket_iterator(key);
+		for (auto entry_it = bucket_it->begin(); entry_it != bucket_it->end(); entry_it++)
 		{
-			if (entry.key == key)
-			{
-				entry.value = T(forward<Args>(args)...);
-				return {};
-			}
+			if (entry_it->key != key)
+				continue;
+			entry_it->value = T(forward<Args>(args)...);
+			return iterator(m_buckets.end(), bucket_it, entry_it);
 		}
-		TRY(bucket.emplace_back(move(key), forward<Args>(args)...));
-		m_size++;
-		return {};
+
+		return emplace(move(key), forward<Args>(args)...);
 	}
 
 	template<typename Key, typename T, typename HASH>
@@ -208,7 +209,7 @@ namespace BAN
 		for (Entry& entry : bucket)
 			if (entry.key == key)
 				return entry.value;
-		ASSERT(false);
+		ASSERT_NOT_REACHED();
 	}
 
 	template<typename Key, typename T, typename HASH>
@@ -219,7 +220,7 @@ namespace BAN
 		for (const Entry& entry : bucket)
 			if (entry.key == key)
 				return entry.value;
-		ASSERT(false);
+		ASSERT_NOT_REACHED();
 	}
 
 	template<typename Key, typename T, typename HASH>
