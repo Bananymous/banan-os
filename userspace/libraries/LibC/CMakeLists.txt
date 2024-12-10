@@ -58,7 +58,6 @@ target_compile_options(objlibc PUBLIC -Wall -Wextra -Werror -Wno-error=stack-usa
 function(add_crtx crtx)
 	add_custom_target(${crtx}
 		COMMAND ${CMAKE_CXX_COMPILER} -c -o ${CMAKE_INSTALL_LIBDIR}/${crtx}.o ${CMAKE_CURRENT_SOURCE_DIR}/arch/${BANAN_ARCH}/${crtx}.S
-		DEPENDS sysroot
 	)
 	add_dependencies(objlibc ${crtx})
 endfunction()

@@ -66,6 +66,14 @@ run_bochs () {
 	$BANAN_SCRIPT_DIR/bochs.sh $@
 }
 
+if [ ! -d $BANAN_SYSROOT ]; then
+	mkdir -p $BANAN_SYSROOT
+
+	pushd $BANAN_SYSROOT
+	run_fakeroot tar xf ${BANAN_ROOT_DIR}/base-sysroot.tar.gz
+	popd
+fi
+
 if [ -v QEMU_ACCEL ]; then
 	:
 elif type kvm-ok &> /dev/null; then
