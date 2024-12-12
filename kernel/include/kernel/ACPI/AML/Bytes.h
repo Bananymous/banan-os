@@ -145,19 +145,35 @@ namespace Kernel::ACPI::AML
 		DataRegionOp = 0x88,
 	};
 
-	static constexpr bool is_digit_char(uint8_t ch)
+	inline constexpr bool is_digit_char(uint8_t ch)
 	{
 		return '0' <= ch && ch <= '9';
 	}
 
-	static constexpr bool is_lead_name_char(uint8_t ch)
+	inline constexpr bool is_lead_name_char(uint8_t ch)
 	{
 		return ('A' <= ch && ch <= 'Z') || ch == '_';
 	}
 
-	static constexpr bool is_name_char(uint8_t ch)
+	inline constexpr bool is_name_char(uint8_t ch)
 	{
 		return is_lead_name_char(ch) || is_digit_char(ch);
+	}
+
+	inline constexpr bool is_name_string_start(uint8_t ch)
+	{
+		if (is_lead_name_char(ch))
+			return true;
+		switch (static_cast<AML::Byte>(ch))
+		{
+			case AML::Byte::RootChar:
+			case AML::Byte::ParentPrefixChar:
+			case AML::Byte::MultiNamePrefix:
+			case AML::Byte::DualNamePrefix:
+				return true;
+			default:
+				return false;
+		}
 	}
 
 }

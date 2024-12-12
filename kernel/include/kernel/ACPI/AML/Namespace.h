@@ -1,66 +1,64 @@
 #pragma once
 
+#include <BAN/Bitcast.h>
+#include <BAN/ByteSpan.h>
+#include <BAN/Function.h>
 #include <BAN/HashMap.h>
-#include <kernel/ACPI/AML/Scope.h>
-#include <kernel/ACPI/Headers.h>
-#include <kernel/Lock/Mutex.h>
+#include <BAN/Iteration.h>
+
+#include <kernel/ACPI/AML/Node.h>
 
 namespace Kernel::ACPI::AML
 {
 
-	struct Namespace final : public AML::Scope
+	struct Namespace
 	{
-		static BAN::RefPtr<AML::Namespace> create_root_namespace();
-		static BAN::RefPtr<AML::Namespace> root_namespace();
-		static BAN::RefPtr<AML::Node> debug_node;
+		BAN_NON_COPYABLE(Namespace);
+		BAN_NON_MOVABLE(Namespace);
+	public:
+		Namespace() = default;
+		~Namespace();
 
-		template<typename F>
-		static void for_each_child(const AML::NameString& scope, const F& callback)
+		static BAN::ErrorOr<void> initialize_root_namespace();
+		static Namespace& root_namespace();
+
+		// this has to be called after initalizing ACPI namespace
+		BAN::ErrorOr<void> initalize_op_regions();
+
+		BAN::ErrorOr<void> parse(BAN::ConstByteSpan);
+
+		BAN::ErrorOr<Node> evaluate(BAN::StringView);
+
+		// returns empty scope if object already exited
+		BAN::ErrorOr<Scope> add_named_object(const Scope& scope, const NameString& name_string, Node&& node);
+		BAN::ErrorOr<Scope> add_named_object(const Scope& scope, const NameString& name_string, Reference* reference);
+
+		BAN::ErrorOr<void> remove_named_object(const Scope& absolute_path);
+
+		BAN::ErrorOr<void> initialize_devices();
+
+		// node is nullptr if it is not found
+		struct FindResult
 		{
-			auto canonical_path = root_namespace()->resolve_path(scope, {}, FindMode::ForceAbsolute);
-			ASSERT(canonical_path.has_value());
-
-			for (auto& [path, child] : root_namespace()->m_objects)
-			{
-				if (path.size() < canonical_path->size() + 1)
-					continue;
-				if (canonical_path->size() != 1 && path[canonical_path->size()] != '.')
-					continue;
-				if (path.sv().substring(0, canonical_path->size()) != canonical_path->sv())
-					continue;
-				if (path.sv().substring(canonical_path->size() + 1).contains('.'))
-					continue;
-				callback(path, child);
-			}
-		}
-
-		Namespace(NameSeg name) : AML::Scope(Node::Type::Namespace, name) {}
-
-		BAN::RefPtr<AML::Node> convert(uint8_t) override { return {}; }
-
-		bool parse(const SDTHeader& header);
-
-		void debug_print(int indent) const override;
-
-		enum class FindMode
-		{
-			Normal,
-			ForceAbsolute,
+			Scope path;
+			Reference* node { nullptr };
 		};
-		BAN::Optional<BAN::String> resolve_path(const AML::NameString& relative_base, const AML::NameString& relative_path, FindMode mode, bool check_existence = true) const;
+		BAN::ErrorOr<FindResult> find_named_object(const Scope& scope, const NameString& name_string, bool force_absolute = false);
 
-		// Find an object in the namespace. Returns nullptr if the object is not found.
-		BAN::RefPtr<NamedObject> find_object(const AML::NameString& relative_base, const AML::NameString& relative_path, FindMode mode);
-
-		// Add an object to the namespace. Returns false if the parent object could not be added.
-		bool add_named_object(ParseContext&, const AML::NameString& object_path, BAN::RefPtr<NamedObject> object);
-
-		// Remove an object from the namespace. Returns false if the object could not be removed.
-		bool remove_named_object(const AML::NameString& absolute_path);
+		BAN::ErrorOr<void> for_each_child(const Scope&, const BAN::Function<BAN::Iteration(BAN::StringView, Reference*)>&);
+		BAN::ErrorOr<void> for_each_child(const Scope&, const BAN::Function<BAN::Iteration(const Scope&, Reference*)>&);
 
 	private:
-		BAN::HashMap<BAN::String, BAN::RefPtr<NamedObject>> m_objects;
-		mutable Mutex m_object_mutex;
+		BAN::ErrorOr<Scope> resolve_path(const Scope& scope, const NameString& name_string);
+
+		BAN::ErrorOr<void> initialize_scope(const Scope& scope);
+
+		BAN::ErrorOr<void> opregion_call_reg(const Scope& scope, const Node& opregion);
+
+	private:
+		bool m_has_parsed_namespace { false };
+		BAN::HashMap<Scope, Reference*> m_named_objects;
+		BAN::HashMap<Scope, uint32_t> m_called_reg_bitmaps;
 	};
 
 }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <BAN/Errors.h>
 #include <BAN/Optional.h>
 
 namespace Kernel::ACPI
@@ -22,8 +23,8 @@ namespace Kernel::ACPI
 			PlatformCommunicationChannel = 0x0A,
 		};
 
-		BAN::Optional<uint64_t> read();
-		bool write(uint64_t value);
+		BAN::ErrorOr<uint64_t> read();
+		BAN::ErrorOr<void> write(uint64_t value);
 
 		AddressSpaceID address_space_id;
 		uint8_t register_bit_width;

@@ -1,7 +1,6 @@
 #pragma once
 
 #include <BAN/Vector.h>
-#include <kernel/ACPI/AML/Method.h>
 #include <kernel/ACPI/AML/Namespace.h>
 #include <kernel/ACPI/Headers.h>
 #include <kernel/Memory/Types.h>
@@ -29,13 +28,8 @@ namespace Kernel::ACPI
 		//   2: SAPIC
 		BAN::ErrorOr<void> enter_acpi_mode(uint8_t mode);
 
-		// This function will power off the system
-		// This function will return only if there was an error
-		void poweroff();
-
-		// This function will reset the system
-		// This function will return only if there was an error
-		void reset();
+		BAN::ErrorOr<void> poweroff();
+		BAN::ErrorOr<void> reset();
 
 		void handle_irq() override;
 
@@ -45,8 +39,10 @@ namespace Kernel::ACPI
 
 		FADT& fadt() { return *m_fadt; }
 
-		bool prepare_sleep(uint8_t sleep_state);
+		BAN::ErrorOr<void> prepare_sleep(uint8_t sleep_state);
 		void acpi_event_task();
+
+		BAN::ErrorOr<void> load_aml_tables(BAN::StringView name, bool all);
 
 	private:
 		paddr_t m_header_table_paddr = 0;
@@ -65,10 +61,12 @@ namespace Kernel::ACPI
 		FADT* m_fadt { nullptr };
 
 		ThreadBlocker m_event_thread_blocker;
-		BAN::Array<BAN::RefPtr<AML::Method>, 0xFF> m_gpe_methods;
+
+		AML::Scope m_gpe_scope;
+		BAN::Array<AML::Reference*, 0xFF> m_gpe_methods { nullptr };
 
 		bool m_hardware_reduced { false };
-		BAN::RefPtr<AML::Namespace> m_namespace;
+		AML::Namespace* m_namespace { nullptr };
 	};
 
 }

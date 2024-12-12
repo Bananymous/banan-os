@@ -1,13 +1,7 @@
 #include <BAN/ScopeGuard.h>
 #include <BAN/StringView.h>
 #include <kernel/ACPI/ACPI.h>
-#include <kernel/ACPI/AML.h>
-#include <kernel/ACPI/AML/Alias.h>
-#include <kernel/ACPI/AML/Device.h>
-#include <kernel/ACPI/AML/Field.h>
-#include <kernel/ACPI/AML/Integer.h>
-#include <kernel/ACPI/AML/Method.h>
-#include <kernel/ACPI/AML/Package.h>
+#include <kernel/ACPI/AML/OpRegion.h>
 #include <kernel/BootInfo.h>
 #include <kernel/InterruptController.h>
 #include <kernel/IO.h>
@@ -112,64 +106,62 @@ acpi_release_global_lock:
 		ASSERT(!acpi_release_global_lock(s_global_lock));
 	}
 
-	static BAN::Optional<AML::FieldRules::AccessType> get_access_type(uint8_t access_size)
+	static BAN::ErrorOr<uint8_t> get_access_type(uint8_t access_size)
 	{
 		switch (access_size)
 		{
-			case 0: return AML::FieldRules::AccessType::Any;
-			case 1: return AML::FieldRules::AccessType::Byte;
-			case 2: return AML::FieldRules::AccessType::Word;
-			case 3: return AML::FieldRules::AccessType::DWord;
-			case 4: return AML::FieldRules::AccessType::QWord;
+			case 0: return 0;
+			case 1: return 1;
+			case 2: return 2;
+			case 3: return 3;
+			case 4: return 4;
 			default:
 				dwarnln("Unknown access size {}", access_size);
-				return {};
+				return BAN::Error::from_errno(EFAULT);
 		}
 	}
 
-	BAN::Optional<uint64_t> GAS::read()
+	BAN::ErrorOr<uint64_t> GAS::read()
 	{
-		auto access_type = get_access_type(access_size);
-		if (!access_type.has_value())
-			return {};
+		AML::OpRegion opregion;
+		opregion.address_space = address_space_id;
+		opregion.offset = address;
+		opregion.length = 0xFFFFFFFF;
 
-		auto op_region = MUST(BAN::RefPtr<AML::OpRegion>::create(""_sv, address_space_id, (uint64_t)address, 0xFFFFFFFF));
+		AML::Node field_unit;
+		field_unit.type = AML::Node::Type::FieldUnit;
+		field_unit.as.field_unit.type = AML::FieldUnit::Type::Field;
+		field_unit.as.field_unit.as.field.opregion = opregion;
+		field_unit.as.field_unit.length = register_bit_width;
+		field_unit.as.field_unit.offset = register_bit_offset;
+		field_unit.as.field_unit.flags = TRY(get_access_type(access_size));
 
-		auto field_rules = AML::FieldRules {
-			.access_type = access_type.value(),
-			.lock_rule = AML::FieldRules::LockRule::NoLock,
-			.update_rule = AML::FieldRules::UpdateRule::Preserve,
-			.access_attrib = AML::FieldRules::AccessAttrib::Normal,
-			.access_length = 0
-		};
-		auto field_element = MUST(BAN::RefPtr<AML::FieldElement>::create(""_sv, register_bit_offset, register_bit_width, field_rules));
-		field_element->op_region = op_region;
-
-		auto result = field_element->convert(AML::Node::ConvInteger);
-		if (!result)
-			return {};
-		return static_cast<AML::Integer*>(result.ptr())->value;
+		auto result = TRY(AML::convert_from_field_unit(field_unit, AML::ConvInteger, sizeof(uint64_t)));
+		return result.as.integer.value;
 	}
 
-	bool GAS::write(uint64_t value)
+	BAN::ErrorOr<void> GAS::write(uint64_t value)
 	{
-		auto access_type = get_access_type(access_size);
-		if (!access_type.has_value())
-			return {};
+		AML::OpRegion opregion;
+		opregion.address_space = address_space_id;
+		opregion.offset = address;
+		opregion.length = 0xFFFFFFFF;
 
-		auto op_region = MUST(BAN::RefPtr<AML::OpRegion>::create(""_sv, address_space_id, (uint64_t)address, 0xFFFFFFFF));
+		AML::Node field_unit;
+		field_unit.type = AML::Node::Type::FieldUnit;
+		field_unit.as.field_unit.type = AML::FieldUnit::Type::Field;
+		field_unit.as.field_unit.as.field.opregion = opregion;
+		field_unit.as.field_unit.length = register_bit_width;
+		field_unit.as.field_unit.offset = register_bit_offset;
+		field_unit.as.field_unit.flags = TRY(get_access_type(access_size));
 
-		auto field_rules = AML::FieldRules {
-			.access_type = access_type.value(),
-			.lock_rule = AML::FieldRules::LockRule::NoLock,
-			.update_rule = AML::FieldRules::UpdateRule::Preserve,
-			.access_attrib = AML::FieldRules::AccessAttrib::Normal,
-			.access_length = 0
-		};
-		auto field_element = MUST(BAN::RefPtr<AML::FieldElement>::create(""_sv, register_bit_offset, register_bit_width, field_rules));
-		field_element->op_region = op_region;
+		AML::Node source;
+		source.type = AML::Node::Type::Integer;
+		source.as.integer.value = value;
 
-		return !!field_element->store(MUST(BAN::RefPtr<AML::Integer>::create(value)));
+		TRY(AML::store_to_field_unit(source, field_unit));
+
+		return {};
 	}
 
 	enum PM1Event : uint16_t
@@ -474,77 +466,81 @@ acpi_release_global_lock:
 		return nullptr;
 	}
 
-	bool ACPI::prepare_sleep(uint8_t sleep_state)
+	BAN::ErrorOr<void> ACPI::prepare_sleep(uint8_t sleep_state)
 	{
-		auto pts_object = m_namespace->find_object({}, AML::NameString("_PTS"), AML::Namespace::FindMode::ForceAbsolute);
-		if (pts_object && pts_object->type == AML::Node::Type::Method)
+		auto [pts_path, pts_object] = TRY(m_namespace->find_named_object({}, MUST(AML::NameString::from_string("\\_PTS"))));
+		if (pts_object == nullptr)
+			return {};
+
+		auto& pts_node = pts_object->node;
+		if (pts_node.type != AML::Node::Type::Method)
 		{
-			auto* method = static_cast<AML::Method*>(pts_object.ptr());
-			if (method->arg_count != 1)
-			{
-				dwarnln("Method \\_PTS has {} arguments, expected 1", method->arg_count);
-				return false;
-			}
-
-			if (!method->invoke(MUST(BAN::RefPtr<AML::Integer>::create(sleep_state))).has_value())
-			{
-				dwarnln("Failed to evaluate \\_PTS");
-				return false;
-			}
-
-			dprintln("Executed \\_PTS");
+			dwarnln("Object \\_PTS is not a method");
+			return BAN::Error::from_errno(EFAULT);
 		}
 
-		return true;
+		if (pts_node.as.method.arg_count != 1)
+		{
+			dwarnln("Method \\_PTS has {} arguments, expected 1", pts_node.as.method.arg_count);
+			return BAN::Error::from_errno(EFAULT);
+		}
+
+		AML::Reference arg_ref;
+		arg_ref.node.type = AML::Node::Type::Integer;
+		arg_ref.node.as.integer.value = sleep_state;
+		arg_ref.ref_count = 2;
+
+		BAN::Array<AML::Reference*, 7> arguments(nullptr);
+		arguments[0] = &arg_ref; // method call should not delete argument
+		TRY(AML::method_call(pts_path, pts_node, BAN::move(arguments)));
+
+		dprintln("Executed \\_PTS({})", sleep_state);
+
+		return {};
 	}
 
-	void ACPI::poweroff()
+	BAN::ErrorOr<void> ACPI::poweroff()
 	{
 		if (!m_namespace)
 		{
 			dwarnln("ACPI namespace not initialized");
-			return;
+			return BAN::Error::from_errno(EFAULT);
 		}
 
-		auto s5_object = m_namespace->find_object({}, AML::NameString("_S5"), AML::Namespace::FindMode::ForceAbsolute);
+		auto [_, s5_object] = TRY(m_namespace->find_named_object({}, TRY(AML::NameString::from_string("\\_S5_"_sv))));
 		if (!s5_object)
 		{
 			dwarnln("\\_S5 not found");
-			return;
+			return BAN::Error::from_errno(EFAULT);
 		}
-		auto s5_evaluated = s5_object->to_underlying();
-		if (!s5_evaluated)
-		{
-			dwarnln("Failed to evaluate \\_S5");
-			return;
-		}
-		if (s5_evaluated->type != AML::Node::Type::Package)
+
+		auto& s5_node = s5_object->node;
+		if (s5_node.type != AML::Node::Type::Package)
 		{
 			dwarnln("\\_S5 is not a package");
-			return;
+			return BAN::Error::from_errno(EFAULT);
 		}
-		auto* s5_package = static_cast<AML::Package*>(s5_evaluated.ptr());
-		if (s5_package->elements.size() < 2)
+		if (s5_node.as.package->num_elements < 2)
 		{
-			dwarnln("\\_S5 package has {} elements, expected atleast 2", s5_package->elements.size());
-			return;
+			dwarnln("\\_S5 package has {} elements, expected atleast 2", s5_node.as.package->num_elements);
+			return BAN::Error::from_errno(EFAULT);
 		}
 
-		auto slp_typa_node = s5_package->elements[0]->convert(AML::Node::ConvInteger);
-		auto slp_typb_node = s5_package->elements[1]->convert(AML::Node::ConvInteger);
-		if (!slp_typa_node || !slp_typb_node)
+		if (!s5_node.as.package->elements[0].resolved || !s5_node.as.package->elements[1].resolved)
 		{
-			dwarnln("Failed to get SLP_TYPx values");
-			return;
+			dwarnln("TODO: lazy evaluate package \\_S5 elements");
+			return BAN::Error::from_errno(ENOTSUP);
 		}
 
-		if (!prepare_sleep(5))
-			return;
+		auto slp_typa_node = TRY(AML::convert_node(TRY(s5_node.as.package->elements[0].value.node->copy()), AML::ConvInteger, sizeof(uint64_t)));
+		auto slp_typb_node = TRY(AML::convert_node(TRY(s5_node.as.package->elements[1].value.node->copy()), AML::ConvInteger, sizeof(uint64_t)));
+
+		TRY(prepare_sleep(5));
 
 		dprintln("Entering sleep state S5");
 
-		const auto slp_typa_value = static_cast<AML::Integer*>(slp_typa_node.ptr())->value;
-		const auto slp_typb_value = static_cast<AML::Integer*>(slp_typb_node.ptr())->value;
+		const auto slp_typa_value = slp_typa_node.as.integer.value;
+		const auto slp_typb_value = slp_typb_node.as.integer.value;
 
 		uint16_t pm1a_data = IO::inw(fadt().pm1a_cnt_blk);
 		pm1a_data &= ~(PM1_CNT_SLP_TYP_MASK << PM1_CNT_SLP_TYP_SHIFT);
@@ -562,11 +558,10 @@ acpi_release_global_lock:
 		}
 
 		// system must not execute after sleep registers are written
-		g_paniced = true;
-		asm volatile("ud2");
+		ASSERT_NOT_REACHED();
 	}
 
-	void ACPI::reset()
+	BAN::ErrorOr<void> ACPI::reset()
 	{
 		// https://uefi.org/htmlspecs/ACPI_Spec_6_4_html/04_ACPI_Hardware_Specification/ACPI_Hardware_Specification.html#reset-register
 
@@ -579,36 +574,64 @@ acpi_release_global_lock:
 				break;
 			default:
 				dwarnln("Reset register has invalid address space ID ({})", static_cast<uint8_t>(reset_reg.address_space_id));
-				return;
+				return BAN::Error::from_errno(EFAULT);
 		}
+
 		if (reset_reg.register_bit_offset != 0 || reset_reg.register_bit_width != 8)
 		{
 			dwarnln("Reset register has invalid location ({} bits at bit offset {})", reset_reg.register_bit_width, reset_reg.register_bit_offset);
-			return;
+			return BAN::Error::from_errno(EFAULT);
 		}
 
-		if (!prepare_sleep(5))
-			return;
+		TRY(prepare_sleep(5));
 
 		dprintln("Resetting system");
 
-		if (!reset_reg.write(fadt().reset_value))
-		{
-			dwarnln("Could not write reset value");
-			return;
-		}
+		TRY(reset_reg.write(fadt().reset_value));
 
 		// system must not execute after reset register is written
-		g_paniced = true;
-		asm volatile("ud2");
+		ASSERT_NOT_REACHED();
+	}
+
+	BAN::ErrorOr<void> ACPI::load_aml_tables(BAN::StringView name, bool all)
+	{
+		BAN::ErrorOr<void> result {};
+
+		for (uint32_t i = 0;; i++)
+		{
+			auto* header = get_header(name, i);
+			if (header == nullptr)
+				break;
+
+			if (all)
+				dprintln("Parsing {}{}, {} bytes", name, i + 1, header->length);
+			else
+				dprintln("Parsing {}, {} bytes", name, header->length);
+
+			auto header_span = BAN::ConstByteSpan(reinterpret_cast<const uint8_t*>(header), header->length);
+			if (auto parse_ret = m_namespace->parse(header_span); parse_ret.is_error())
+				result = parse_ret.release_error();
+
+			if (!all)
+				break;
+		}
+
+		return result;
 	}
 
 	BAN::ErrorOr<void> ACPI::enter_acpi_mode(uint8_t mode)
 	{
 		ASSERT(!m_namespace);
-		m_namespace = AML::initialize_namespace();
-		if (!m_namespace)
-			return BAN::Error::from_errno(EFAULT);
+
+		TRY(AML::Namespace::initialize_root_namespace());
+		m_namespace = &AML::Namespace::root_namespace();
+
+		if (auto ret = load_aml_tables("DSDT"_sv, false); ret.is_error())
+			dwarnln("Could not load DSDT: {}", ret.error());
+		if (auto ret = load_aml_tables("SSDT"_sv, true); ret.is_error())
+			dwarnln("Could not load all SSDTs: {}", ret.error());
+		if (auto ret = load_aml_tables("PSDT"_sv, true); ret.is_error())
+			dwarnln("Could not load all PSDTs: {}", ret.error());
 
 		// https://uefi.org/htmlspecs/ACPI_Spec_6_4_html/16_Waking_and_Sleeping/initialization.html#placing-the-system-in-acpi-mode
 
@@ -639,30 +662,43 @@ acpi_release_global_lock:
 
 		dprintln("Entered ACPI mode");
 
-		dprintln("Initializing devices");
+		dprintln("Calling opregion _REG methods");
+
+		if (auto ret = m_namespace->initalize_op_regions(); ret.is_error())
+			dwarnln("failed to call _REG methods: {}", ret.error());
+
+		dprintln("Initializing \\_SB");
 
 		// Initialize \\_SB
-		auto _sb = m_namespace->find_object({}, AML::NameString("_SB"), AML::Namespace::FindMode::ForceAbsolute);
-		if (_sb && _sb->is_scope())
-		{
-			auto* scope = static_cast<AML::Scope*>(_sb.ptr());
-			AML::initialize_scope(scope);
-		}
+		auto [sb_path, sb_obj] = TRY(m_namespace->find_named_object({}, TRY(AML::NameString::from_string("\\_SB_"_sv))));
+		if (sb_obj && sb_obj->node.is_scope())
+			if (auto ret = AML::initialize_scope(sb_path); ret.is_error())
+				dwarnln("Failed to initialize \\_SB: {}", ret.error());
+
+		dprintln("Evaluating \\_PIC");
 
 		// Evaluate \\_PIC (mode)
-		auto _pic = m_namespace->find_object({}, AML::NameString("_PIC"), AML::Namespace::FindMode::ForceAbsolute);
-		if (_pic && _pic->type == AML::Node::Type::Method)
+		auto [pic_path, pic_obj] = TRY(m_namespace->find_named_object({}, TRY(AML::NameString::from_string("\\_PIC"_sv))));
+		if (pic_obj && pic_obj->node.type == AML::Node::Type::Method)
 		{
-			auto* method = static_cast<AML::Method*>(_pic.ptr());
-			if (method->arg_count != 1)
+			auto& pic_node = pic_obj->node;
+			if (pic_node.as.method.arg_count != 1)
 			{
-				dwarnln("Method \\_PIC has {} arguments, expected 1", method->arg_count);
+				dwarnln("Method \\_PIC has {} arguments, expected 1", pic_node.as.method.arg_count);
 				return BAN::Error::from_errno(EINVAL);
 			}
-			method->invoke(MUST(BAN::RefPtr<AML::Integer>::create(mode)));
+
+			AML::Reference arg_ref;
+			arg_ref.node.type = AML::Node::Type::Integer;
+			arg_ref.node.as.integer.value = mode;
+			arg_ref.ref_count = 2;
+
+			BAN::Array<AML::Reference*, 7> arguments(nullptr);
+			arguments[0] = &arg_ref; // method call should not delete argument
+			TRY(AML::method_call(pic_path, pic_node, BAN::move(arguments)));
 		}
 
-		dprintln("Devices are initialized");
+		dprintln("Initializing ACPI interrupts");
 
 		uint8_t irq = fadt().sci_int;
 		if (auto ret = InterruptController::get().reserve_irq(irq); ret.is_error())
@@ -690,34 +726,43 @@ acpi_release_global_lock:
 
 			if (fadt().gpe0_blk)
 			{
-				// Enable all events in _GPE (_Lxx or _Exx)
-				m_namespace->for_each_child(AML::NameString("\\_GPE"),
-					[&](const auto& path, auto& node)
-					{
-						if (node->type != AML::Node::Type::Method)
-							return;
-						if (path.size() < 4)
-							return;
+				auto [gpe_scope, gpe_obj] = TRY(m_namespace->find_named_object({}, TRY(AML::NameString::from_string("\\_GPE"))));
+				if (gpe_obj && gpe_obj->node.is_scope())
+				{
+					m_gpe_scope = BAN::move(gpe_scope);
 
-						auto name = path.sv().substring(path.size() - 4);
-						if (name.substring(0, 2) != "_L"_sv && name.substring(0, 2) != "_E"_sv)
-							return;
+					// Enable all events in _GPE (_Lxx or _Exx)
+					TRY(m_namespace->for_each_child(m_gpe_scope,
+						[&](BAN::StringView name, AML::Reference* node_ref) -> BAN::Iteration
+						{
+							if (node_ref->node.type != AML::Node::Type::Method)
+								return BAN::Iteration::Continue;
 
-						auto index = hex_sv_to_int(name.substring(2));
-						if (!index.has_value())
-							return;
+							ASSERT(name.size() == 4);
+							if (!name.starts_with("_L"_sv) && !name.starts_with("_E"_sv))
+								return BAN::Iteration::Continue;
 
-						auto byte = index.value() / 8;
-						auto bit = index.value() % 8;
-						auto gpe0_en_port = fadt().gpe0_blk + (fadt().gpe0_blk_len / 2) + byte;
-						IO::outb(gpe0_en_port, IO::inb(gpe0_en_port) | (1 << bit));
+							auto index = hex_sv_to_int(name.substring(2));
+							if (!index.has_value())
+							{
+								dwarnln("invalid GPE number '{}'", name);
+								return BAN::Iteration::Continue;
+							}
 
-						auto* method = static_cast<AML::Method*>(node.ptr());
-						m_gpe_methods[index.value()] = method;
+							auto byte = index.value() / 8;
+							auto bit = index.value() % 8;
+							auto gpe0_en_port = fadt().gpe0_blk + (fadt().gpe0_blk_len / 2) + byte;
+							IO::outb(gpe0_en_port, IO::inb(gpe0_en_port) | (1 << bit));
 
-						dprintln("Enabled GPE {}", index.value(), byte, bit);
-					}
-				);
+							m_gpe_methods[index.value()] = node_ref;
+							node_ref->ref_count++;
+
+							dprintln("Enabled GPE {}", index.value(), byte, bit);
+
+							return BAN::Iteration::Continue;
+						}
+					));
+				}
 			}
 
 			set_irq(irq);
@@ -769,7 +814,8 @@ acpi_release_global_lock:
 
 					auto index = i * 8 + (pending & ~(pending - 1));
 					if (m_gpe_methods[index])
-						m_gpe_methods[index]->invoke();
+						if (auto ret = AML::method_call(m_gpe_scope, m_gpe_methods[index]->node, {}); ret.is_error())
+							dwarnln("Failed to evaluate _GPE {}: ", index, ret.error());
 
 					handled_event = true;
 					IO::outb(fadt().gpe0_blk + i, 1 << index);

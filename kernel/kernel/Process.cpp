@@ -1588,7 +1588,7 @@ namespace Kernel
 
 	[[noreturn]] static void reset_system()
 	{
-		ACPI::ACPI::get().reset();
+		(void)ACPI::ACPI::get().reset();
 
 		dwarnln("Could not reset with ACPI, crashing the cpu");
 
@@ -1608,9 +1608,8 @@ namespace Kernel
 		if (command == POWEROFF_REBOOT)
 			reset_system();
 
-		ACPI::ACPI::get().poweroff();
-
-		return BAN::Error::from_errno(EUNKNOWN);
+		TRY(ACPI::ACPI::get().poweroff());
+		ASSERT_NOT_REACHED();
 	}
 
 	BAN::ErrorOr<long> Process::sys_poweroff(int command)
