@@ -1,7 +1,6 @@
-#include <BAN/HashMap.h>
-#include <BAN/HashSet.h>
-#include <BAN/Vector.h>
 #include <BAN/Queue.h>
+#include <BAN/Sort.h>
+#include <BAN/Vector.h>
 
 #include <inttypes.h>
 #include <stdio.h>
@@ -25,33 +24,6 @@ struct Position
 	constexpr bool operator==(Position other) const
 	{
 		return x == other.x && y == other.y;
-	}
-};
-
-struct PositionHash
-{
-	constexpr BAN::hash_t operator()(Position state) const
-	{
-		return BAN::hash<u64>{}((u64)state.x << 32 | (u64)state.y);
-	}
-};
-
-struct PosDir
-{
-	Position pos;
-	u8 dir;
-
-	constexpr bool operator==(PosDir other) const
-	{
-		return pos == other.pos && dir == other.dir;
-	}
-};
-
-struct PosDirHash
-{
-	constexpr BAN::hash_t operator()(PosDir state) const
-	{
-		return PositionHash{}(state.pos) ^ BAN::hash<uint8_t>{}(state.dir);
 	}
 };
 
@@ -106,7 +78,8 @@ i64 part1(FILE* fp)
 {
 	auto map = read_grid2d(fp);
 
-	BAN::HashSet<Position, PositionHash> checked;
+	BAN::Vector<bool> checked;
+	MUST(checked.resize(map.width * map.height, false));
 
 	i64 result = 0;
 
@@ -115,7 +88,7 @@ i64 part1(FILE* fp)
 		for (u32 x = 0; x < map.width; x++)
 		{
 			const auto pos = Position { .x = x, .y = y };
-			if (checked.contains(pos))
+			if (checked[map.width * pos.y + pos.x])
 				continue;
 
 			const char target = map.get(pos.x, pos.y);
@@ -137,9 +110,9 @@ i64 part1(FILE* fp)
 					continue;
 				}
 
-				if (checked.contains(pos))
+				if (checked[map.width * pos.y + pos.x])
 					continue;
-				MUST(checked.insert(pos));
+				checked[map.width * pos.y + pos.x] = true;
 
 				area++;
 
@@ -160,7 +133,8 @@ i64 part2(FILE* fp)
 {
 	auto map = read_grid2d(fp);
 
-	BAN::HashSet<Position, PositionHash> checked;
+	BAN::Vector<bool> checked;
+	MUST(checked.resize(map.width * map.height, false));
 
 	i64 result = 0;
 
@@ -169,67 +143,82 @@ i64 part2(FILE* fp)
 		for (u32 x = 0; x < map.width; x++)
 		{
 			const auto pos = Position { .x = x, .y = y };
-			if (checked.contains(pos))
+			if (checked[map.width * pos.y + pos.x])
 				continue;
 
 			const char target = map.get(pos.x, pos.y);
 
-			u32 area = 0;
-			BAN::HashMap<PosDir, bool, PosDirHash> perimiter;
+			struct PerimeterEntry
+			{
+				Position pos;
+				bool counted;
+			};
+			BAN::Vector<PerimeterEntry> perimiters[4];
 
-			BAN::Queue<PosDir> checking;
+			struct CheckEntry
+			{
+				Position pos;
+				uint8_t dir;
+			};
+			BAN::Queue<CheckEntry> checking;
 			MUST(checking.push({ .pos = pos, .dir = 0 }));
+
+			u32 area = 0;
 
 			while (!checking.empty())
 			{
-				auto pos_dir = checking.front();
+				const auto [pos, dir] = checking.front();
 				checking.pop();
 
-				if (pos_dir.pos.x >= map.width || pos_dir.pos.y >= map.height || map.get(pos_dir.pos.x, pos_dir.pos.y) != target)
+				if (pos.x >= map.width || pos.y >= map.height || map.get(pos.x, pos.y) != target)
 				{
-					MUST(perimiter.insert(pos_dir, true));
+					MUST(perimiters[dir].emplace_back(pos, true));
 					continue;
 				}
 
-				if (checked.contains(pos_dir.pos))
+				if (checked[map.width * pos.y + pos.x])
 					continue;
-				MUST(checked.insert(pos_dir.pos));
+				checked[map.width * pos.y + pos.x] = true;
 
 				area++;
 
-				const auto pos = pos_dir.pos;
 				MUST(checking.push({ .pos { .x = pos.x + 1, .y = pos.y + 0 }, .dir = 0 }));
 				MUST(checking.push({ .pos { .x = pos.x - 1, .y = pos.y + 0 }, .dir = 1 }));
 				MUST(checking.push({ .pos { .x = pos.x + 0, .y = pos.y + 1 }, .dir = 2 }));
 				MUST(checking.push({ .pos { .x = pos.x + 0, .y = pos.y - 1 }, .dir = 3 }));
 			}
 
-			for (auto it1 = perimiter.begin(); it1 != perimiter.end(); it1++)
+			for (auto& perimiter : perimiters)
 			{
-				for (auto it2 = BAN::next(it1, 1); it2 != perimiter.end(); it2++)
+				BAN::sort::sort(perimiter.begin(), perimiter.end(),
+					[](const auto& a, const auto& b) -> bool
+					{
+						if (a.pos.x != b.pos.x)
+							return a.pos.x < b.pos.x;
+						return a.pos.y < b.pos.y;
+					}
+				);
+
+				for (auto it1 = perimiter.begin(); it1 != perimiter.end(); it1++)
 				{
-					if (it1->key.dir != it2->key.dir)
-						continue;
-					if (it1->key.pos.x != it2->key.pos.x && it1->key.pos.y != it2->key.pos.y)
-						continue;
-
-					auto min_it = it1, max_it = it2;
-					if (min_it->key.pos.x > max_it->key.pos.x || min_it->key.pos.y > max_it->key.pos.y)
-						BAN::swap(min_it, max_it);
-
-					if (!max_it->value)
-						continue;
-
-					const u32 diff_x = max_it->key.pos.x - min_it->key.pos.x;
-					const u32 diff_y = max_it->key.pos.y - min_it->key.pos.y;
-					if ((diff_x == 0 && diff_y == 1) || (diff_x == 1 && diff_y == 0))
-						max_it->value = false;
+					for (auto it2 = it1 + 1; it2 != perimiter.end(); it2++)
+					{
+						if (it1->pos.x != it2->pos.x && it1->pos.y != it2->pos.y)
+							continue;
+						if (!it2->counted)
+							continue;
+						const u32 diff_x = it2->pos.x - it1->pos.x;
+						const u32 diff_y = it2->pos.y - it1->pos.y;
+						if ((diff_x == 0 && diff_y == 1) || (diff_x == 1 && diff_y == 0))
+							it2->counted = false;
+					}
 				}
 			}
 
 			u32 sides = 0;
-			for (auto [_, count] : perimiter)
-				sides += count;
+			for (const auto& perimiter : perimiters)
+				for (auto [_, counted] : perimiter)
+					sides += counted;
 
 			result += area * sides;
 		}
