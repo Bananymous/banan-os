@@ -300,6 +300,8 @@ namespace Kernel
 	{
 		TRY(validate_fd(fd));
 		auto& open_file = m_open_files[fd];
+		if (!(open_file->flags & O_RDONLY))
+			return BAN::Error::from_errno(EBADF);
 		if ((open_file->flags & O_NONBLOCK) && !open_file->inode()->can_read())
 			return 0;
 		size_t nread = TRY(open_file->inode()->read(open_file->offset, buffer));
@@ -311,6 +313,8 @@ namespace Kernel
 	{
 		TRY(validate_fd(fd));
 		auto& open_file = m_open_files[fd];
+		if (!(open_file->flags & O_WRONLY))
+			return BAN::Error::from_errno(EBADF);
 		if ((open_file->flags & O_NONBLOCK) && !open_file->inode()->can_write())
 			return 0;
 		if (open_file->flags & O_APPEND)
