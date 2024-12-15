@@ -295,8 +295,9 @@ namespace Kernel
 		TRY(sync_superblock());
 
 		// remove inode from cache
-		if (m_inode_cache.contains(ino))
-			m_inode_cache.remove(ino);
+		auto it = m_inode_cache.find(ino);
+		if (it != m_inode_cache.end())
+			m_inode_cache.remove(it);
 
 		return {};
 	}

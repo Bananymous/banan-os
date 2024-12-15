@@ -68,8 +68,9 @@ namespace Kernel
 	{
 		LockGuard _(m_mutex);
 
-		if (m_inode_cache.contains(ino))
-			return m_inode_cache[ino];
+		auto it = m_inode_cache.find(ino);
+		if (it != m_inode_cache.end())
+			return it->value;
 
 		TmpInodeInfo inode_info;
 

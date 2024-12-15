@@ -24,8 +24,9 @@ namespace Kernel
 
 	BAN::ErrorOr<BAN::RefPtr<Ext2Inode>> Ext2Inode::create(Ext2FS& fs, uint32_t inode_ino)
 	{
-		if (fs.inode_cache().contains(inode_ino))
-			return fs.inode_cache()[inode_ino];
+		auto it = fs.inode_cache().find(inode_ino);
+		if (it != fs.inode_cache().end())
+			return it->value;
 
 		auto inode_location = TRY(fs.locate_inode(inode_ino));
 
