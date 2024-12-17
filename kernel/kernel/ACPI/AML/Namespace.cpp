@@ -4,6 +4,8 @@
 #include <kernel/ACPI/AML/Node.h>
 #include <kernel/ACPI/Headers.h>
 
+#include <ctype.h>
+
 namespace Kernel::ACPI::AML
 {
 
@@ -382,6 +384,80 @@ namespace Kernel::ACPI::AML
 		}
 
 		return {};
+	}
+
+	static bool is_valid_eisa_id(BAN::StringView eisa_id)
+	{
+		if (eisa_id.size() != 7)
+			return false;
+		for (size_t i = 0; i < 3; i++)
+			if (!isupper(eisa_id[i]))
+				return false;
+		for (size_t i = 3; i < 7; i++)
+			if (!isxdigit(eisa_id[i]))
+				return false;
+		return true;
+	}
+
+	static uint32_t encode_eisa_id(BAN::StringView eisa_id)
+	{
+		constexpr auto char_to_hex =
+			[](char ch) -> uint32_t
+			{
+				if (isdigit(ch))
+					return ch - '0';
+				return tolower(ch) - 'a' + 10;
+			};
+
+		uint16_t code = 0;
+		code |= (eisa_id[2] - 0x40) << 0;
+		code |= (eisa_id[1] - 0x40) << 5;
+		code |= (eisa_id[0] - 0x40) << 10;
+
+		uint32_t encoded = 0;
+		encoded |= code >> 8;
+		encoded |= (code & 0xFF) << 8;
+		encoded |= (char_to_hex(eisa_id[3]) << 20) | (char_to_hex(eisa_id[4]) << 16);
+		encoded |= (char_to_hex(eisa_id[5]) << 28) | (char_to_hex(eisa_id[6]) << 24);
+		return encoded;
+	}
+
+	BAN::ErrorOr<BAN::Vector<Scope>> Namespace::find_device_with_eisa_id(BAN::StringView eisa_id)
+	{
+		if (!is_valid_eisa_id(eisa_id))
+		{
+			dwarnln("Invalid EISA id '{}'", eisa_id);
+			return BAN::Error::from_errno(EINVAL);
+		}
+
+		const uint32_t encoded = encode_eisa_id(eisa_id);
+
+		BAN::Vector<Scope> result;
+
+		for (const auto& [obj_path, obj_ref] : m_named_objects)
+		{
+			if (obj_ref->node.type != Node::Type::Device)
+				continue;
+
+			auto [_, hid] = TRY(find_named_object(obj_path, TRY(NameString::from_string("_HID"_sv)), true));
+			if (hid == nullptr)
+				continue;
+
+			uint32_t device_hid = 0;
+			if (hid->node.type == Node::Type::Integer)
+				device_hid = hid->node.as.integer.value;
+			else if (hid->node.type == Node::Type::String && is_valid_eisa_id(hid->node.as.str_buf->as_sv()))
+				device_hid = encode_eisa_id(hid->node.as.str_buf->as_sv());
+			else
+				continue;
+
+			if (device_hid != encoded)
+				continue;
+
+			TRY(result.push_back(TRY(obj_path.copy())));
+		}
+
+		return result;
 	}
 
 	BAN::ErrorOr<Node> Namespace::evaluate(BAN::StringView path)
