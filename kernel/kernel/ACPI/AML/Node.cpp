@@ -1507,10 +1507,7 @@ namespace Kernel::ACPI::AML
 							return {};
 					};
 
-					auto source_sv = BAN::StringView(
-						reinterpret_cast<const char*>(source.as.str_buf->bytes),
-						source.as.str_buf->size
-					);
+					auto source_sv = source.as.str_buf->as_sv();
 
 					while (!source_sv.empty() && !isdigit(source_sv[0]) && source_sv[0] != '-' && source_sv[0] != '+')
 						source_sv = source_sv.substring(1);

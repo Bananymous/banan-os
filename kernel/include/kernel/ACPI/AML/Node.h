@@ -72,6 +72,11 @@ namespace Kernel::ACPI::AML
 
 	struct Buffer
 	{
+		BAN::StringView as_sv() const
+		{
+			return BAN::StringView(reinterpret_cast<const char*>(bytes), size);
+		}
+
 		uint64_t size;
 		uint32_t ref_count;
 		uint8_t bytes[];
@@ -335,12 +340,7 @@ namespace BAN::Formatter
 				print(putc, "<integer 0x{H}>", node.as.integer.value);
 				break;
 			case Kernel::ACPI::AML::Node::Type::String:
-				print(putc, "<string '{}'>",
-					BAN::StringView(
-						reinterpret_cast<const char*>(node.as.str_buf->bytes),
-						node.as.str_buf->size
-					)
-				);
+				print(putc, "<string '{}'>", node.as.str_buf->as_sv());
 				break;
 			case Kernel::ACPI::AML::Node::Type::Package:
 				print(putc, "{}", *node.as.package);
