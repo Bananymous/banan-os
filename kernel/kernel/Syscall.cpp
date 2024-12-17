@@ -60,7 +60,9 @@ namespace Kernel
 			ret = sys_fork_trampoline();
 		else
 #pragma GCC diagnostic push
+#if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic warning "-Wmaybe-uninitialized"
+#endif
 			ret = (Process::current().*s_syscall_handlers[syscall])(arg1, arg2, arg3, arg4, arg5);
 #pragma GCC diagnostic pop
 
