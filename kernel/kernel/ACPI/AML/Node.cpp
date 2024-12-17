@@ -1564,6 +1564,42 @@ namespace Kernel::ACPI::AML
 		return result;
 	}
 
+	static BAN::ErrorOr<Node> parse_to_string_op(ParseContext& context)
+	{
+		dprintln_if(AML_DUMP_FUNCTION_CALLS, "parse_to_string_op");
+
+		ASSERT(!context.aml_data.empty());
+		ASSERT(static_cast<AML::Byte>(context.aml_data[0]) == AML::Byte::ToStringOp);
+		context.aml_data = context.aml_data.slice(1);
+
+		auto source = TRY(convert_node(TRY(parse_node(context)), ConvBuffer, ONES));
+		auto length = TRY(convert_node(TRY(parse_node(context)), ConvInteger, sizeof(uint64_t))).as.integer.value;
+
+		if (source.as.str_buf->size < length)
+			length = source.as.str_buf->size;
+
+		for (size_t i = 0; i < length; i++)
+		{
+			if (source.as.str_buf->bytes[i] != 0x00)
+				continue;
+			length = i;
+			break;
+		}
+
+		Node result;
+		result.type = Node::Type::String;
+		result.as.str_buf = static_cast<Buffer*>(kmalloc(sizeof(Buffer) + length));
+		if (result.as.str_buf == nullptr)
+			return BAN::Error::from_errno(ENOMEM);
+		memcpy(result.as.str_buf->bytes, source.as.str_buf->bytes, length);
+		result.as.str_buf->size = length;
+		result.as.str_buf->ref_count = 1;
+
+		TRY(store_into_target(context, source));
+
+		return result;
+	}
+
 	static BAN::ErrorOr<void> parse_alias_op(ParseContext& context)
 	{
 		dprintln_if(AML_DUMP_FUNCTION_CALLS, "parse_alias_op");
@@ -2626,6 +2662,8 @@ namespace Kernel::ACPI::AML
 			case AML::Byte::ToHexStringOp:
 			case AML::Byte::ToIntegerOp:
 				return TRY(parse_explicit_conversion(context));
+			case AML::Byte::ToStringOp:
+				return TRY(parse_to_string_op(context));
 			case AML::Byte::IncrementOp:
 			case AML::Byte::DecrementOp:
 				return TRY(parse_inc_dec_op(context));
