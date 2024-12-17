@@ -429,10 +429,4 @@ namespace Kernel::ACPI::AML
 
 		return {};
 	}
-
-	BAN::ErrorOr<void> Namespace::initialize_devices()
-	{
-		return {};
-	}
-
 }

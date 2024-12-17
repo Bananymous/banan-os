@@ -35,8 +35,6 @@ namespace Kernel::ACPI::AML
 
 		BAN::ErrorOr<void> remove_named_object(const Scope& absolute_path);
 
-		BAN::ErrorOr<void> initialize_devices();
-
 		// node is nullptr if it is not found
 		struct FindResult
 		{
