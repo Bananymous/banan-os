@@ -28,6 +28,8 @@ namespace Kernel::ACPI
 		//   2: SAPIC
 		BAN::ErrorOr<void> enter_acpi_mode(uint8_t mode);
 
+		BAN::ErrorOr<void> initialize_acpi_devices();
+
 		BAN::ErrorOr<void> poweroff();
 		BAN::ErrorOr<void> reset();
 

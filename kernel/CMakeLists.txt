@@ -1,6 +1,7 @@
 set(KERNEL_SOURCES
 	font/prefs.psf.o
 	kernel/ACPI/ACPI.cpp
+	kernel/ACPI/BatterySystem.cpp
 	kernel/ACPI/AML/Namespace.cpp
 	kernel/ACPI/AML/Node.cpp
 	kernel/ACPI/AML/OpRegion.cpp

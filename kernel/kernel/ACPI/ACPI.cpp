@@ -1,6 +1,7 @@
 #include <BAN/ScopeGuard.h>
 #include <BAN/StringView.h>
 #include <kernel/ACPI/ACPI.h>
+#include <kernel/ACPI/BatterySystem.h>
 #include <kernel/ACPI/AML/OpRegion.h>
 #include <kernel/BootInfo.h>
 #include <kernel/InterruptController.h>
@@ -771,6 +772,13 @@ acpi_release_global_lock:
 			Process::create_kernel([](void*) { get().acpi_event_task(); }, nullptr);
 		}
 
+		return {};
+	}
+
+	BAN::ErrorOr<void> ACPI::initialize_acpi_devices()
+	{
+		ASSERT(m_namespace);
+		TRY(BatterySystem::initialize(*m_namespace));
 		return {};
 	}
 
