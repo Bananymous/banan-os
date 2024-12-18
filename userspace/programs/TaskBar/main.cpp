@@ -38,7 +38,7 @@ static BAN::String get_battery_percentage()
 
 		sprintf(buffer, "/dev/batteries/%s/capacity_full", dirent->d_name);
 		auto cap_full = read_integer_from_file(buffer);
-		if (cap_full.is_error())
+		if (cap_full.is_error() || cap_full.value() == 0)
 			continue;
 
 		sprintf(buffer, "/dev/batteries/%s/capacity_now", dirent->d_name);
