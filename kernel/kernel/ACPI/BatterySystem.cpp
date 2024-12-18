@@ -119,6 +119,17 @@ namespace Kernel::ACPI
 		auto batteries = TRY(m_acpi_namespace.find_device_with_eisa_id("PNP0C0A"_sv));
 		for (const auto& battery : batteries)
 		{
+			auto [_0, sta_ref] = TRY(m_acpi_namespace.find_named_object(battery, TRY(AML::NameString::from_string("_STA"_sv))));
+			if (sta_ref != nullptr)
+			{
+				auto sta_result = AML::evaluate_node(_0, sta_ref->node);
+				if (sta_result.is_error() || sta_result.value().type != AML::Node::Type::Integer)
+					continue;
+				// "battery is present"
+				if (!(sta_result.value().as.integer.value & 0x10))
+					continue;
+			}
+
 			auto [_1, bif_ref] = TRY(m_acpi_namespace.find_named_object(battery, TRY(AML::NameString::from_string("_BIF"_sv))));
 			if (!bif_ref || bif_ref->node.type != AML::Node::Type::Method || bif_ref->node.as.method.arg_count != 0)
 			{
