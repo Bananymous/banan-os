@@ -4,8 +4,8 @@
 #include <kernel/ACPI/AML/Node.h>
 #include <kernel/ACPI/Headers.h>
 
-#define STA_PRESENT  0x01
-#define STA_FUNCTION 0x08
+#define STA_PRESENT    0x01
+#define STA_FUNCTIONAL 0x08
 
 #include <ctype.h>
 
@@ -150,6 +150,10 @@ namespace Kernel::ACPI::AML
 
 	BAN::ErrorOr<void> Namespace::post_load_initialize()
 	{
+		auto [sb_path, sb_ref] = TRY(find_named_object({}, TRY(NameString::from_string("\\_SB_"_sv))));
+		if (sb_ref != nullptr)
+			TRY(evaluate_ini(sb_path));
+
 		BAN::Vector<Scope> to_init;
 		TRY(to_init.push_back({}));
 
@@ -176,20 +180,6 @@ namespace Kernel::ACPI::AML
 								return BAN::Iteration::Continue;
 						}
 
-						auto sta_ret = evaluate_sta(child_path);
-						if (sta_ret.is_error())
-							return BAN::Iteration::Continue;
-
-						if (sta_ret.value() & STA_PRESENT)
-							(void)evaluate_ini(child_path);
-
-						if ((sta_ret.value() & STA_PRESENT) || (sta_ret.value() & STA_FUNCTION))
-						{
-							auto child_path_copy = child_path.copy();
-							if (!child_path_copy.is_error())
-								(void)to_init_next.push_back(child_path_copy.release_value());
-						}
-
 						(void)for_each_child(current,
 							[&](const Scope& opregion_path, Reference* opregion_ref) -> BAN::Iteration
 							{
@@ -198,6 +188,20 @@ namespace Kernel::ACPI::AML
 								return BAN::Iteration::Continue;
 							}
 						);
+
+						auto sta_ret = evaluate_sta(child_path);
+						if (sta_ret.is_error())
+							return BAN::Iteration::Continue;
+
+						if (sta_ret.value() & STA_PRESENT)
+							(void)evaluate_ini(child_path);
+
+						if ((sta_ret.value() & STA_PRESENT) || (sta_ret.value() & STA_FUNCTIONAL))
+						{
+							auto child_path_copy = child_path.copy();
+							if (!child_path_copy.is_error())
+								(void)to_init_next.push_back(child_path_copy.release_value());
+						}
 
 						return BAN::Iteration::Continue;
 					}

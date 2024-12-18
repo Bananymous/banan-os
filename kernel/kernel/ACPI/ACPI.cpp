@@ -624,16 +624,6 @@ acpi_release_global_lock:
 	{
 		ASSERT(!m_namespace);
 
-		TRY(AML::Namespace::prepare_root_namespace());
-		m_namespace = &AML::Namespace::root_namespace();
-
-		if (auto ret = load_aml_tables("DSDT"_sv, false); ret.is_error())
-			dwarnln("Could not load DSDT: {}", ret.error());
-		if (auto ret = load_aml_tables("SSDT"_sv, true); ret.is_error())
-			dwarnln("Could not load all SSDTs: {}", ret.error());
-		if (auto ret = load_aml_tables("PSDT"_sv, true); ret.is_error())
-			dwarnln("Could not load all PSDTs: {}", ret.error());
-
 		// https://uefi.org/htmlspecs/ACPI_Spec_6_4_html/16_Waking_and_Sleeping/initialization.html#placing-the-system-in-acpi-mode
 
 		// If not hardware-reduced ACPI and SCI_EN is not set
@@ -662,6 +652,18 @@ acpi_release_global_lock:
 		}
 
 		dprintln("Entered ACPI mode");
+
+		TRY(AML::Namespace::prepare_root_namespace());
+		m_namespace = &AML::Namespace::root_namespace();
+
+		if (auto ret = load_aml_tables("DSDT"_sv, false); ret.is_error())
+			dwarnln("Could not load DSDT: {}", ret.error());
+		if (auto ret = load_aml_tables("SSDT"_sv, true); ret.is_error())
+			dwarnln("Could not load all SSDTs: {}", ret.error());
+		if (auto ret = load_aml_tables("PSDT"_sv, true); ret.is_error())
+			dwarnln("Could not load all PSDTs: {}", ret.error());
+
+		dprintln("Loaded ACPI tables");
 
 		if (auto ret = m_namespace->post_load_initialize(); ret.is_error())
 			dwarnln("Failed to initialize ACPI namespace: {}", ret.error());
