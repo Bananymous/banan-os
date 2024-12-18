@@ -803,7 +803,7 @@ namespace Kernel::ACPI::AML
 					if (pkg_element.value.node->type == Node::Type::Reference)
 						*pkg_element.value.node = TRY(convert_node(BAN::move(source_copy), pkg_element.value.node->as.reference->node));
 					else
-						*pkg_element.value.node = BAN::move(source_copy);
+						*pkg_element.value.node = TRY(convert_node(BAN::move(source_copy), *pkg_element.value.node));
 					break;
 				}
 				default:
@@ -816,7 +816,11 @@ namespace Kernel::ACPI::AML
 		if (target_type == TargetType::Reference)
 			target->node = TRY(convert_node(BAN::move(source_copy), target->node));
 		else
+		{
+			if (source_copy.type == Node::Type::FieldUnit)
+				source_copy = TRY(convert_from_field_unit(source_copy, ConvInteger | ConvBuffer, ONES));
 			target->node = BAN::move(source_copy);
+		}
 
 		return {};
 	}
@@ -2949,8 +2953,11 @@ namespace Kernel::ACPI::AML
 			name = name.substring(result.base);
 		}
 
-		ASSERT((name.size() % 4) == 0);
-		TRY(result.parts.reserve(name.size() / 4));
+		if (name.empty())
+			return result;
+
+		ASSERT((name.size() % 5) == 4);
+		TRY(result.parts.reserve((name.size() / 5) + 1));
 
 		while (!name.empty())
 		{
@@ -2962,6 +2969,11 @@ namespace Kernel::ACPI::AML
 			};
 			TRY(result.parts.push_back(name_seg));
 			name = name.substring(4);
+			if (!name.empty())
+			{
+				ASSERT(name.front() == '.');
+				name = name.substring(1);
+			}
 		}
 
 		return result;
