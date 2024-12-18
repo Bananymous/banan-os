@@ -624,7 +624,7 @@ acpi_release_global_lock:
 	{
 		ASSERT(!m_namespace);
 
-		TRY(AML::Namespace::initialize_root_namespace());
+		TRY(AML::Namespace::prepare_root_namespace());
 		m_namespace = &AML::Namespace::root_namespace();
 
 		if (auto ret = load_aml_tables("DSDT"_sv, false); ret.is_error())
@@ -663,22 +663,9 @@ acpi_release_global_lock:
 
 		dprintln("Entered ACPI mode");
 
-		dprintln("Calling opregion _REG methods");
+		if (auto ret = m_namespace->post_load_initialize(); ret.is_error())
+			dwarnln("Failed to initialize ACPI namespace: {}", ret.error());
 
-		if (auto ret = m_namespace->initalize_op_regions(); ret.is_error())
-			dwarnln("failed to call _REG methods: {}", ret.error());
-
-		dprintln("Initializing \\_SB");
-
-		// Initialize \\_SB
-		auto [sb_path, sb_obj] = TRY(m_namespace->find_named_object({}, TRY(AML::NameString::from_string("\\_SB_"_sv))));
-		if (sb_obj && sb_obj->node.is_scope())
-			if (auto ret = AML::initialize_scope(sb_path); ret.is_error())
-				dwarnln("Failed to initialize \\_SB: {}", ret.error());
-
-		dprintln("Evaluating \\_PIC");
-
-		// Evaluate \\_PIC (mode)
 		auto [pic_path, pic_obj] = TRY(m_namespace->find_named_object({}, TRY(AML::NameString::from_string("\\_PIC"_sv))));
 		if (pic_obj && pic_obj->node.type == AML::Node::Type::Method)
 		{
@@ -699,7 +686,7 @@ acpi_release_global_lock:
 			TRY(AML::method_call(pic_path, pic_node, BAN::move(arguments)));
 		}
 
-		dprintln("Initializing ACPI interrupts");
+		dprintln("Evaluated \\_PIC({})", mode);
 
 		uint8_t irq = fadt().sci_int;
 		if (auto ret = InterruptController::get().reserve_irq(irq); ret.is_error())
@@ -771,6 +758,8 @@ acpi_release_global_lock:
 
 			Process::create_kernel([](void*) { get().acpi_event_task(); }, nullptr);
 		}
+
+		dprintln("Initialized ACPI interrupts");
 
 		return {};
 	}

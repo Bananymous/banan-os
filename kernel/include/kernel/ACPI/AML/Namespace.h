@@ -4,6 +4,7 @@
 #include <BAN/ByteSpan.h>
 #include <BAN/Function.h>
 #include <BAN/HashMap.h>
+#include <BAN/HashSet.h>
 #include <BAN/Iteration.h>
 
 #include <kernel/ACPI/AML/Node.h>
@@ -19,11 +20,10 @@ namespace Kernel::ACPI::AML
 		Namespace() = default;
 		~Namespace();
 
-		static BAN::ErrorOr<void> initialize_root_namespace();
+		static BAN::ErrorOr<void> prepare_root_namespace();
 		static Namespace& root_namespace();
 
-		// this has to be called after initalizing ACPI namespace
-		BAN::ErrorOr<void> initalize_op_regions();
+		BAN::ErrorOr<void> post_load_initialize();
 
 		BAN::ErrorOr<void> parse(BAN::ConstByteSpan);
 
@@ -31,7 +31,7 @@ namespace Kernel::ACPI::AML
 
 		// returns empty scope if object already exited
 		BAN::ErrorOr<Scope> add_named_object(const Scope& scope, const NameString& name_string, Node&& node);
-		BAN::ErrorOr<Scope> add_named_object(const Scope& scope, const NameString& name_string, Reference* reference);
+		BAN::ErrorOr<Scope> add_alias(const Scope& scope, const NameString& name_string, Reference* reference);
 
 		BAN::ErrorOr<void> remove_named_object(const Scope& absolute_path);
 
@@ -55,10 +55,16 @@ namespace Kernel::ACPI::AML
 
 		BAN::ErrorOr<void> opregion_call_reg(const Scope& scope, const Node& opregion);
 
+		BAN::ErrorOr<uint64_t> evaluate_sta(const Scope& scope);
+		BAN::ErrorOr<void> evaluate_ini(const Scope& scope);
+
+		BAN::ErrorOr<void> initialize_op_regions();
+
 	private:
-		bool m_has_parsed_namespace { false };
+		bool m_has_initialized_namespace { false };
 		BAN::HashMap<Scope, Reference*> m_named_objects;
 		BAN::HashMap<Scope, uint32_t> m_called_reg_bitmaps;
+		BAN::HashSet<Scope> m_aliases;
 	};
 
 }

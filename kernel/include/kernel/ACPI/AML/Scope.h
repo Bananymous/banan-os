@@ -37,8 +37,6 @@ namespace Kernel::ACPI::AML
 		}
 	};
 
-	BAN::ErrorOr<void> initialize_scope(const Scope&);
-
 }
 
 namespace BAN

@@ -4,6 +4,9 @@
 #include <kernel/ACPI/AML/Node.h>
 #include <kernel/ACPI/Headers.h>
 
+#define STA_PRESENT  0x01
+#define STA_FUNCTION 0x08
+
 #include <ctype.h>
 
 namespace Kernel::ACPI::AML
@@ -43,7 +46,7 @@ namespace Kernel::ACPI::AML
 				delete reference;
 	}
 
-	BAN::ErrorOr<void> Namespace::initialize_root_namespace()
+	BAN::ErrorOr<void> Namespace::prepare_root_namespace()
 	{
 		// https://uefi.org/htmlspecs/ACPI_Spec_6_4_html/05_ACPI_Software_Programming_Model/ACPI_Software_Programming_Model.html?highlight=predefined#predefined-root-namespaces
 
@@ -88,15 +91,11 @@ namespace Kernel::ACPI::AML
 						return BAN::Error::from_errno(EINVAL);
 					}
 
-					const auto arg0 = BAN::StringView(
-						reinterpret_cast<const char*>(args[0]->node.as.str_buf->bytes),
-						args[0]->node.as.str_buf->size
-					);
-
 					Node result {};
 					result.type = Node::Type::Integer;
 					result.as.integer.value = 0;
 
+					const auto arg0 = args[0]->node.as.str_buf->as_sv();
 					for (auto supported : s_supported_osi_strings)
 					{
 						if (supported != arg0)
@@ -132,10 +131,92 @@ namespace Kernel::ACPI::AML
 		return s_root_namespace;
 	}
 
-	BAN::ErrorOr<void> Namespace::initalize_op_regions()
+	BAN::ErrorOr<uint64_t> Namespace::evaluate_sta(const Scope& scope)
 	{
-		m_has_parsed_namespace = true;
+		auto [child_path, child_ref] = TRY(find_named_object(scope, TRY(NameString::from_string("_STA"_sv))));
+		if (child_ref == nullptr)
+			return 0x0F;
+		return TRY(convert_node(TRY(evaluate_node(child_path, child_ref->node)), ConvInteger, sizeof(uint64_t))).as.integer.value;
+	}
 
+	BAN::ErrorOr<void> Namespace::evaluate_ini(const Scope& scope)
+	{
+		auto [child_path, child_ref] = TRY(find_named_object(scope, TRY(NameString::from_string("_INI"_sv))));
+		if (child_ref == nullptr)
+			return {};
+		TRY(evaluate_node(child_path, child_ref->node));
+		return {};
+	}
+
+	BAN::ErrorOr<void> Namespace::post_load_initialize()
+	{
+		BAN::Vector<Scope> to_init;
+		TRY(to_init.push_back({}));
+
+		while (!to_init.empty())
+		{
+			BAN::Vector<Scope> to_init_next;
+
+			for (const Scope& current : to_init)
+			{
+				TRY(for_each_child(current,
+					[&](const Scope& child_path, Reference* child_ref) -> BAN::Iteration
+					{
+						if (m_aliases.contains(child_path))
+							return BAN::Iteration::Continue;
+
+						switch (child_ref->node.type)
+						{
+							case Node::Type::Device:
+							case Node::Type::Processor:
+							case Node::Type::ThermalZone:
+							case Node::Type::PredefinedScope:
+								break;
+							default:
+								return BAN::Iteration::Continue;
+						}
+
+						auto sta_ret = evaluate_sta(child_path);
+						if (sta_ret.is_error())
+							return BAN::Iteration::Continue;
+
+						if (sta_ret.value() & STA_PRESENT)
+							(void)evaluate_ini(child_path);
+
+						if ((sta_ret.value() & STA_PRESENT) || (sta_ret.value() & STA_FUNCTION))
+						{
+							auto child_path_copy = child_path.copy();
+							if (!child_path_copy.is_error())
+								(void)to_init_next.push_back(child_path_copy.release_value());
+						}
+
+						(void)for_each_child(current,
+							[&](const Scope& opregion_path, Reference* opregion_ref) -> BAN::Iteration
+							{
+								if (opregion_ref->node.type == Node::Type::OpRegion)
+									(void)opregion_call_reg(opregion_path, opregion_ref->node);
+								return BAN::Iteration::Continue;
+							}
+						);
+
+						return BAN::Iteration::Continue;
+					}
+				));
+			}
+
+			to_init = BAN::move(to_init_next);
+		}
+
+		m_has_initialized_namespace = true;
+
+		if (auto ret = initialize_op_regions(); ret.is_error())
+			dwarnln("Failed to initialize all opregions: {}", ret.error());
+
+		return {};
+	}
+
+	BAN::ErrorOr<void> Namespace::initialize_op_regions()
+	{
 		for (const auto& [obj_path, obj_ref] : m_named_objects)
 		{
 			if (obj_ref->node.type != Node::Type::OpRegion)
@@ -249,15 +330,15 @@ namespace Kernel::ACPI::AML
 
 		TRY(m_named_objects.insert(TRY(resolved_path.copy()), reference));
 
-		if (m_has_parsed_namespace && reference->node.type == Node::Type::OpRegion)
+		if (m_has_initialized_namespace && reference->node.type == Node::Type::OpRegion)
 			(void)opregion_call_reg(resolved_path, reference->node);
 
 		return resolved_path;
 	}
 
-	BAN::ErrorOr<Scope> Namespace::add_named_object(const Scope& scope, const NameString& name_string, Reference* reference)
+	BAN::ErrorOr<Scope> Namespace::add_alias(const Scope& scope, const NameString& name_string, Reference* reference)
 	{
-		dprintln_if(AML_DUMP_FUNCTION_CALLS, "add_named_object('{}', '{}', {})", scope, name_string, reference->node);
+		dprintln_if(AML_DUMP_FUNCTION_CALLS, "add_alias('{}', '{}', {})", scope, name_string, reference->node);
 
 		auto resolved_path = TRY(resolve_path(scope, name_string));
 		if (m_named_objects.contains(resolved_path))
@@ -267,6 +348,8 @@ namespace Kernel::ACPI::AML
 		reference->ref_count++;
 
 		TRY(m_named_objects.insert(TRY(resolved_path.copy()), reference));
+		TRY(m_aliases.insert(TRY(resolved_path.copy())));
+
 		return resolved_path;
 	}
 

@@ -1622,7 +1622,7 @@ namespace Kernel::ACPI::AML
 			return {};
 		}
 
-		TRY(Namespace::root_namespace().add_named_object(context.scope, object_name_string, source_ref));
+		TRY(Namespace::root_namespace().add_alias(context.scope, object_name_string, source_ref));
 
 		return {};
 	}
