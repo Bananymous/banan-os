@@ -1020,6 +1020,81 @@ namespace Kernel::ACPI::AML
 		return result;
 	}
 
+	static bool match_compare(const Package::Element& element, uint8_t opcode, uint64_t target)
+	{
+		if (!element.resolved || element.value.node == nullptr)
+			return false;
+
+		auto element_copy = element.value.node->copy();
+		if (element_copy.is_error())
+			return false;
+
+		auto element_conv = convert_node(element_copy.release_value(), ConvInteger, sizeof(uint64_t));
+		if (element_conv.is_error())
+			return false;
+
+		switch (opcode)
+		{
+			case 0: return true;
+			case 1: return element_conv.value().as.integer.value == target;
+			case 2: return element_conv.value().as.integer.value <= target;
+			case 3: return element_conv.value().as.integer.value <  target;
+			case 4: return element_conv.value().as.integer.value >= target;
+			case 5: return element_conv.value().as.integer.value >  target;
+		}
+
+		return false;
+	}
+
+	static BAN::ErrorOr<Node> parse_match_op(ParseContext& context)
+	{
+		dprintln_if(AML_DUMP_FUNCTION_CALLS, "parse_match_op");
+
+		ASSERT(!context.aml_data.empty());
+		ASSERT(static_cast<AML::Byte>(context.aml_data[0]) == AML::Byte::MatchOp);
+		context.aml_data = context.aml_data.slice(1);
+
+		auto search = TRY(parse_node(context));
+		if (search.type != Node::Type::Package)
+		{
+			dwarnln("Match search package is {}", search);
+			return BAN::Error::from_errno(EINVAL);
+		}
+
+		if (context.aml_data.empty())
+			return BAN::Error::from_errno(ENODATA);
+		const uint8_t opcode1 = context.aml_data[0];
+		const uint64_t operand1 = TRY(convert_node(TRY(parse_node(context)), ConvInteger, sizeof(uint64_t))).as.integer.value;
+
+		if (context.aml_data.empty())
+			return BAN::Error::from_errno(ENODATA);
+		const uint8_t opcode2 = context.aml_data[0];
+		const uint64_t operand2 = TRY(convert_node(TRY(parse_node(context)), ConvInteger, sizeof(uint64_t))).as.integer.value;
+
+		const uint64_t start_idx = TRY(convert_node(TRY(parse_node(context)), ConvInteger, sizeof(uint64_t))).as.integer.value;
+
+		Node result;
+		result.type = Node::Type::Integer;
+		result.as.integer.value = ONES;
+
+		for (uint64_t i = start_idx; i < search.as.package->num_elements; i++)
+		{
+			auto& element = search.as.package->elements[i];
+			if (!element.resolved)
+				TRY(resolve_package_element(element, false));
+
+			if (!match_compare(element, opcode1, operand1))
+				continue;
+			if (!match_compare(element, opcode2, operand2))
+				continue;
+
+			result.as.integer.value = i;
+			break;
+		}
+
+		return result;
+	}
+
 	static BAN::ErrorOr<Node> sizeof_impl(const Node& node)
 	{
 		Node result {};
@@ -2661,6 +2736,8 @@ namespace Kernel::ACPI::AML
 				return TRY(parse_index_op(context));
 			case AML::Byte::ObjectTypeOp:
 				return TRY(parse_object_type_op(context));
+			case AML::Byte::MatchOp:
+				return TRY(parse_match_op(context));
 			case AML::Byte::ToBufferOp:
 			case AML::Byte::ToDecimalStringOp:
 			case AML::Byte::ToHexStringOp:
