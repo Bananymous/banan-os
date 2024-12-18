@@ -24,10 +24,12 @@ namespace Kernel::ACPI::AML
 	public:
 		NameString() = default;
 		NameString(NameString&& other)
-			: parts(BAN::move(other.parts))
+			: base(other.base)
+			, parts(BAN::move(other.parts))
 		{}
 		NameString& operator=(NameString&& other)
 		{
+			base = other.base;
 			parts = BAN::move(other.parts);
 			return *this;
 		}
