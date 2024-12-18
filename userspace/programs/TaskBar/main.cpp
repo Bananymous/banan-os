@@ -1,15 +1,70 @@
 #include <LibFont/Font.h>
 #include <LibGUI/Window.h>
 
+#include <dirent.h>
+#include <fcntl.h>
 #include <time.h>
 
-static BAN::String get_task_bar_string()
+static BAN::ErrorOr<long long> read_integer_from_file(const char* file)
+{
+	char buffer[128];
+
+	int fd = open(file, O_RDONLY);
+	if (fd == -1)
+		return BAN::Error::from_errno(errno);
+	const ssize_t nread = read(fd, buffer, sizeof(buffer));
+	close(fd);
+
+	if (nread < 0)
+		return BAN::Error::from_errno(errno);
+	if (nread == 0)
+		return BAN::Error::from_errno(ENODATA);
+
+	buffer[nread] = '\0';
+	return atoll(buffer);
+}
+
+static BAN::String get_battery_percentage()
+{
+	DIR* dirp = opendir("/dev/batteries");
+
+	BAN::String result;
+	while (dirent* dirent = readdir(dirp))
+	{
+		if (strcmp(dirent->d_name, ".") == 0 || strcmp(dirent->d_name, "..") == 0)
+			continue;
+
+		char buffer[PATH_MAX + 32];
+
+		sprintf(buffer, "/dev/batteries/%s/capacity_full", dirent->d_name);
+		auto cap_full = read_integer_from_file(buffer);
+		if (cap_full.is_error())
+			continue;
+
+		sprintf(buffer, "/dev/batteries/%s/capacity_now", dirent->d_name);
+		auto cap_now = read_integer_from_file(buffer);
+		if (cap_now.is_error())
+			continue;
+
+		auto string = BAN::String::formatted("{} {}% | ", dirent->d_name, cap_now.value() * 100 / cap_full.value());
+		if (string.is_error())
+			continue;
+
+		(void)result.append(string.value());
+	}
+
+	return result;
+}
+
+static BAN::ErrorOr<BAN::String> get_task_bar_string()
 {
 	BAN::String result;
 
+	TRY(result.append(get_battery_percentage()));
+
 	const time_t current_time = time(nullptr);
-	if (!result.append(ctime(&current_time)).is_error())
-		result.pop_back();
+	TRY(result.append(ctime(&current_time)));
+	result.pop_back();
 
 	return result;
 }
@@ -43,7 +98,10 @@ int main()
 	const auto update_time_string =
 		[&]()
 		{
-			const auto text = get_task_bar_string();
+			auto text_or_error = get_task_bar_string();
+			if (text_or_error.is_error())
+				return;
+			const auto text = text_or_error.release_value();
 
 			const uint32_t text_w = text.size() * font.width();
 			const uint32_t text_h = font.height();
