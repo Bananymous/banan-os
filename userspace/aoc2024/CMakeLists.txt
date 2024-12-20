@@ -18,6 +18,7 @@ set(AOC2024_PROJECTS
 	day17
 	day18
 	day19
+	day20
 	full
 )
 
