@@ -6,6 +6,7 @@
 #include <ctype.h>
 #include <fcntl.h>
 #include <stdlib.h>
+#include <sys/ioctl.h>
 #include <sys/select.h>
 #include <unistd.h>
 
@@ -118,6 +119,14 @@ void Terminal::run()
 	m_window->invalidate();
 
 	m_font = MUST(LibFont::Font::load("/usr/share/fonts/lat0-16.psfu"_sv));
+
+	{
+		winsize winsize;
+		winsize.ws_col = cols();
+		winsize.ws_row = rows();
+		if (ioctl(m_shell_info.pts_master, TIOCSWINSZ, &winsize) == -1)
+			perror("ioctl");
+	}
 
 	{
 		timespec ts;
