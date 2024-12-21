@@ -4,6 +4,7 @@
 
 #include <BAN/ScopeGuard.h>
 
+#include <sys/ioctl.h>
 #include <sys/sysmacros.h>
 
 namespace Kernel
@@ -139,6 +140,14 @@ namespace Kernel
 		return buffer.size();
 	}
 
+	BAN::ErrorOr<long> PseudoTerminalMaster::ioctl_impl(int request, void* argument)
+	{
+		auto slave = m_slave.lock();
+		if (!slave)
+			return BAN::Error::from_errno(ENODEV);
+		return slave->ioctl(request, argument);
+	}
+
 	PseudoTerminalSlave::PseudoTerminalSlave(BAN::String&& name, uint32_t number, mode_t mode, uid_t uid, gid_t gid)
 		: TTY(mode, uid, gid)
 		, m_name(BAN::move(name))
@@ -161,6 +170,22 @@ namespace Kernel
 	{
 		if (auto master = m_master.lock())
 			master->putchar(ch);
+	}
+
+	BAN::ErrorOr<long> PseudoTerminalSlave::ioctl_impl(int request, void* argument)
+	{
+		switch (request)
+		{
+			case TIOCSWINSZ:
+			{
+				const auto* winsize = static_cast<struct winsize*>(argument);
+				m_width = winsize->ws_col;
+				m_height = winsize->ws_row;
+				return 0;
+			}
+		}
+
+		return TTY::ioctl_impl(request, argument);
 	}
 
 }

@@ -30,6 +30,8 @@ namespace Kernel
 		bool can_write_impl() const override { SpinLockGuard _(m_buffer_lock); return m_buffer_size < m_buffer->size(); }
 		bool has_error_impl() const override { return false; }
 
+		BAN::ErrorOr<long> ioctl_impl(int, void*) override;
+
 	private:
 		PseudoTerminalMaster(BAN::UniqPtr<VirtualRange>, mode_t, uid_t, gid_t);
 		~PseudoTerminalMaster();
@@ -60,6 +62,8 @@ namespace Kernel
 
 	protected:
 		void putchar_impl(uint8_t ch) override;
+
+		BAN::ErrorOr<long> ioctl_impl(int, void*) override;
 
 	private:
 		PseudoTerminalSlave(BAN::String&& name, uint32_t number, mode_t, uid_t, gid_t);
