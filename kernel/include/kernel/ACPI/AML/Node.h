@@ -278,7 +278,7 @@ namespace Kernel::ACPI::AML
 	BAN::ErrorOr<NameString> parse_name_string(BAN::ConstByteSpan& aml_data);
 	BAN::ErrorOr<BAN::ConstByteSpan> parse_pkg(BAN::ConstByteSpan& aml_data);
 
-	BAN::ErrorOr<Node> convert_node(Node&& source, uint8_t conversion, size_t max_length);
+	BAN::ErrorOr<Node> convert_node(Node&& source, uint8_t conversion, uint64_t max_length);
 	BAN::ErrorOr<Node> convert_node(Node&& source, const Node& target);
 
 	BAN::ErrorOr<Node> evaluate_node(const Scope& node_path, const Node& node);

@@ -652,7 +652,7 @@ namespace Kernel::ACPI::AML
 		return {};
 	}
 
-	BAN::ErrorOr<Node> convert_from_field_unit(const Node& source, uint8_t conversion, size_t max_length)
+	BAN::ErrorOr<Node> convert_from_field_unit(const Node& source, uint8_t conversion, uint64_t max_length)
 	{
 		ASSERT(source.type == Node::Type::FieldUnit);
 

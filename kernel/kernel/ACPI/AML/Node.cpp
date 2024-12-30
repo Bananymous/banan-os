@@ -551,7 +551,7 @@ namespace Kernel::ACPI::AML
 		}
 	}
 
-	BAN::ErrorOr<Node> convert_node(Node&& source, uint8_t conversion, size_t max_length)
+	BAN::ErrorOr<Node> convert_node(Node&& source, uint8_t conversion, uint64_t max_length)
 	{
 		dprintln_if(AML_DUMP_FUNCTION_CALLS, "convert_node {} -> 0b{3b}", source, conversion);
 
