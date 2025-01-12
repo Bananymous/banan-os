@@ -473,6 +473,7 @@ namespace Kernel
 					dirp->d_ino = entry.ino;
 					dirp->d_type = entry.type;
 					strncpy(dirp->d_name, entry.name, entry.name_len);
+					dirp->d_name[entry.name_len] = '\0';
 					dirp++;
 				}
 
