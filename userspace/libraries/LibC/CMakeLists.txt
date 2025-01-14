@@ -45,6 +45,7 @@ set(LIBC_SOURCES
 	icxxabi.cpp
 
 	arch/${BANAN_ARCH}/setjmp.S
+	arch/${BANAN_ARCH}/string.S
 
 	../../../BAN/BAN/Assert.cpp
 )
