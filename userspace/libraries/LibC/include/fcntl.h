@@ -32,9 +32,9 @@ __BEGIN_DECLS
 #define F_WRLCK 3
 
 // NOTE: also defined in stdio.h
-#define SEEK_SET 1
-#define SEEK_CUR 2
-#define SEEK_END 3
+#define SEEK_SET 0
+#define SEEK_CUR 1
+#define SEEK_END 2
 
 /* bits 0-3 */
 #define O_RDONLY	0x00001

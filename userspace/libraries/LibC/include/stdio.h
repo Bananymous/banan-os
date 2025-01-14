@@ -35,9 +35,9 @@ typedef off_t fpos_t;
 #define _IONBF 3
 
 // NOTE: also defined in fcntl.h
-#define SEEK_SET 1
-#define SEEK_CUR 2
-#define SEEK_END 3
+#define SEEK_SET 0
+#define SEEK_CUR 1
+#define SEEK_END 2
 
 #define FILENAME_MAX 256
 #define FOPEN_MAX 16
