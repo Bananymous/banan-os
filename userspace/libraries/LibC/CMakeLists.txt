@@ -52,7 +52,7 @@ set(LIBC_SOURCES
 add_library(objlibc OBJECT ${LIBC_SOURCES})
 target_compile_definitions(objlibc PRIVATE __arch=${BANAN_ARCH})
 
-target_compile_options(objlibc PRIVATE -O2 -g -Wstack-usage=512 -fno-tree-loop-distribute-patterns -fno-exceptions -fpic -nolibc)
+target_compile_options(objlibc PRIVATE -O2 -g -Wstack-usage=512 -fno-exceptions -fpic -nolibc)
 target_compile_options(objlibc PUBLIC -Wall -Wextra -Werror -Wno-error=stack-usage=)
 
 function(add_crtx crtx)

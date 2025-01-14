@@ -8,6 +8,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC optimize "no-tree-loop-distribute-patterns"
+#endif
+
 void* memccpy(void* __restrict s1, const void* __restrict s2, int c, size_t n)
 {
 	unsigned char* dst = static_cast<unsigned char*>(s1);
