@@ -2,12 +2,13 @@
 
 namespace CPUID
 {
-	void get_cpuid(uint32_t code, uint32_t* out)
+
+	static inline void get_cpuid(uint32_t code, uint32_t* out)
 	{
 		asm volatile("cpuid" : "=a"(out[0]), "=b"(out[1]), "=c"(out[2]), "=d"(out[3]) : "a"(code));
 	}
 
-	void get_cpuid_string(uint32_t code, uint32_t* out)
+	static inline void get_cpuid_string(uint32_t code, uint32_t* out)
 	{
 		asm volatile ("cpuid": "=a"(out[0]), "=b"(out[0]), "=d"(out[1]), "=c"(out[2]) : "a"(code));
 	}
