@@ -7,12 +7,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/weak_alias.h>
 
 #if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC optimize "no-tree-loop-distribute-patterns"
 #endif
 
-void* memccpy(void* __restrict s1, const void* __restrict s2, int c, size_t n)
+extern "C" void* _memccpy(void* __restrict s1, const void* __restrict s2, int c, size_t n)
 {
 	unsigned char* dst = static_cast<unsigned char*>(s1);
 	const unsigned char* src = static_cast<const unsigned char*>(s2);
@@ -21,8 +22,9 @@ void* memccpy(void* __restrict s1, const void* __restrict s2, int c, size_t n)
 			return dst + i + 1;
 	return nullptr;
 }
+weak_alias(_memccpy, memccpy);
 
-void* memchr(const void* s, int c, size_t n)
+extern "C" void* _memchr(const void* s, int c, size_t n)
 {
 	const unsigned char* u = static_cast<const unsigned char*>(s);
 	for (size_t i = 0; i < n; i++)
@@ -30,20 +32,20 @@ void* memchr(const void* s, int c, size_t n)
 			return const_cast<unsigned char*>(u + i);
 	return nullptr;
 }
+weak_alias(_memchr, memchr);
 
-int memcmp(const void* s1, const void* s2, size_t n)
+extern "C" int _memcmp(const void* s1, const void* s2, size_t n)
 {
 	const unsigned char* a = static_cast<const unsigned char*>(s1);
 	const unsigned char* b = static_cast<const unsigned char*>(s2);
-
 	for (size_t i = 0; i < n; i++)
 		if (a[i] != b[i])
 			return a[i] - b[i];
-
 	return 0;
 }
+weak_alias(_memcmp, memcmp);
 
-void* memcpy(void* __restrict__ dstp, const void* __restrict__ srcp, size_t n)
+extern "C" void* _memcpy(void* __restrict__ dstp, const void* __restrict__ srcp, size_t n)
 {
 	unsigned char* dst = static_cast<unsigned char*>(dstp);
 	const unsigned char* src = static_cast<const unsigned char*>(srcp);
@@ -51,12 +53,12 @@ void* memcpy(void* __restrict__ dstp, const void* __restrict__ srcp, size_t n)
 		dst[i] = src[i];
 	return dstp;
 }
+weak_alias(_memcpy, memcpy);
 
-void* memmove(void* destp, const void* srcp, size_t n)
+extern "C" void* _memmove(void* destp, const void* srcp, size_t n)
 {
 	unsigned char* dest = static_cast<unsigned char*>(destp);
 	const unsigned char* src = static_cast<const unsigned char*>(srcp);
-
 	if (dest < src)
 	{
 		for (size_t i = 0; i < n; i++)
@@ -67,19 +69,20 @@ void* memmove(void* destp, const void* srcp, size_t n)
 		for (size_t i = 1; i <= n; i++)
 			dest[n - i] = src[n - i];
 	}
-
 	return destp;
 }
+weak_alias(_memmove, memmove);
 
-void* memset(void* s, int c, size_t n)
+extern "C" void* _memset(void* s, int c, size_t n)
 {
 	unsigned char* p = static_cast<unsigned char*>(s);
 	for (size_t i = 0; i < n; i++)
 		p[i] = c;
 	return s;
 }
+weak_alias(_memset, memset);
 
-int strcmp(const char* s1, const char* s2)
+extern "C" int _strcmp(const char* s1, const char* s2)
 {
 	const unsigned char* u1 = (unsigned char*)s1;
 	const unsigned char* u2 = (unsigned char*)s2;
@@ -88,8 +91,9 @@ int strcmp(const char* s1, const char* s2)
 			break;
 	return *u1 - *u2;
 }
+weak_alias(_strcmp, strcmp);
 
-int strncmp(const char* s1, const char* s2, size_t n)
+extern "C" int _strncmp(const char* s1, const char* s2, size_t n)
 {
 	if (n == 0)
 		return 0;
@@ -100,8 +104,9 @@ int strncmp(const char* s1, const char* s2, size_t n)
 			break;
 	return *u1 - *u2;
 }
+weak_alias(_strncmp, strncmp);
 
-char* stpcpy(char* __restrict__ dest, const char* __restrict__ src)
+extern "C" char* _stpcpy(char* __restrict__ dest, const char* __restrict__ src)
 {
 	size_t i = 0;
 	for (; src[i]; i++)
@@ -109,8 +114,9 @@ char* stpcpy(char* __restrict__ dest, const char* __restrict__ src)
 	dest[i] = '\0';
 	return &dest[i];
 }
+weak_alias(_stpcpy, stpcpy);
 
-char* stpncpy(char* __restrict__ dest, const char* __restrict__ src, size_t n)
+extern "C" char* _stpncpy(char* __restrict__ dest, const char* __restrict__ src, size_t n)
 {
 	size_t i = 0;
 	for (; src[i] && n; i++, n--)
@@ -119,6 +125,7 @@ char* stpncpy(char* __restrict__ dest, const char* __restrict__ src, size_t n)
 		dest[i] = '\0';
 	return &dest[i];
 }
+weak_alias(_stpncpy, stpncpy);
 
 char* strcpy(char* __restrict__ dest, const char* __restrict__ src)
 {
@@ -206,31 +213,30 @@ char* strndup(const char* str, size_t size)
 	return new_str;
 }
 
-size_t strlen(const char* str)
+extern "C" size_t _strlen(const char* str)
 {
 	size_t len = 0;
 	while (str[len])
 		len++;
 	return len;
 }
+weak_alias(_strlen, strlen);
 
-size_t strnlen(const char* str, size_t maxlen)
+extern "C" size_t _strnlen(const char* str, size_t maxlen)
 {
 	size_t len = 0;
 	while (len < maxlen && str[len])
 		len++;
 	return len;
 }
+weak_alias(_strnlen, strnlen);
 
 char* strchr(const char* str, int c)
 {
-	while (*str)
-	{
-		if (*str == (char)c)
-			return (char*)str;
-		str++;
-	}
-	return (*str == (char)c) ? (char*)str : nullptr;
+	if (c == '\0')
+		return const_cast<char*>(str + strlen(str));
+	char* result = strchrnul(str, c);
+	return *result ? result : nullptr;
 }
 
 char* strchrnul(const char* str, int c)
@@ -241,7 +247,7 @@ char* strchrnul(const char* str, int c)
 			return (char*)str;
 		str++;
 	}
-	return (char*)str;
+	return const_cast<char*>(str);
 }
 
 char* strrchr(const char* str, int c)
