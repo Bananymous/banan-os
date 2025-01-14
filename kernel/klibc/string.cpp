@@ -1,7 +1,8 @@
 #include <errno.h>
 #include <string.h>
+#include <sys/weak_alias.h>
 
-int memcmp(const void* s1, const void* s2, size_t n)
+extern "C" int _memcmp(const void* s1, const void* s2, size_t n)
 {
 	auto* u1 = static_cast<const unsigned char*>(s1);
 	auto* u2 = static_cast<const unsigned char*>(s2);
@@ -10,8 +11,9 @@ int memcmp(const void* s1, const void* s2, size_t n)
 			return u1[i] - u2[i];
 	return 0;
 }
+weak_alias(_memcmp, memcmp);
 
-void* memcpy(void* __restrict s1, const void* __restrict s2, size_t n)
+extern "C" void* _memcpy(void* __restrict s1, const void* __restrict s2, size_t n)
 {
 	auto* dst = static_cast<unsigned char*>(s1);
 	auto* src = static_cast<const unsigned char*>(s2);
@@ -19,8 +21,9 @@ void* memcpy(void* __restrict s1, const void* __restrict s2, size_t n)
 		dst[i] = src[i];
 	return s1;
 }
+weak_alias(_memcpy, memcpy);
 
-void* memmove(void* s1, const void* s2, size_t n)
+extern "C" void* _memmove(void* s1, const void* s2, size_t n)
 {
 	auto* dst = static_cast<unsigned char*>(s1);
 	auto* src = static_cast<const unsigned char*>(s2);
@@ -36,40 +39,57 @@ void* memmove(void* s1, const void* s2, size_t n)
 	}
 	return s1;
 }
+weak_alias(_memmove, memmove);
 
-void* memset(void* s, int c, size_t n)
+extern "C" void* _memset(void* s, int c, size_t n)
 {
 	auto* u = static_cast<unsigned char*>(s);
 	for (size_t i = 0; i < n; i++)
 		u[i] = c;
 	return s;
 }
+weak_alias(_memset, memset);
 
-size_t strlen(const char* str)
+extern "C" size_t _strlen(const char* str)
 {
 	size_t len = 0;
 	while (str[len])
 		len++;
 	return len;
 }
+weak_alias(_strlen, strlen);
 
-char* strcpy(char* __restrict dst, const char* __restrict src)
+extern "C" char* _stpcpy(char* __restrict dst, const char* __restrict src)
 {
 	size_t i = 0;
 	for (; src[i]; i++)
 		dst[i] = src[i];
 	dst[i] = '\0';
-	return dst;
+	return &dst[i];
 }
+weak_alias(_stpcpy, stpcpy);
 
-char* strncpy(char* __restrict dst, const char* __restrict src, size_t len)
+extern "C" char* _stpncpy(char* __restrict dst, const char* __restrict src, size_t n)
 {
 	size_t i = 0;
-	for (; i < len && src[i]; i++)
+	for (; src[i] && n; i++, n--)
 		dst[i] = src[i];
-	if (i < len)
+	for (; n; i++, n--)
 		dst[i] = '\0';
-	return dst;
+	return &dst[i];
+}
+weak_alias(_stpncpy, stpncpy);
+
+char* strcpy(char* __restrict__ dest, const char* __restrict__ src)
+{
+	stpcpy(dest, src);
+	return dest;
+}
+
+char* strncpy(char* __restrict__ dest, const char* __restrict__ src, size_t n)
+{
+	stpncpy(dest, src, n);
+	return dest;
 }
 
 const char* strerrordesc_np(int error)
