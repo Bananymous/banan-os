@@ -270,7 +270,9 @@ namespace Kernel
 		{
 			if (!m_disk_cache.has_value())
 				return BAN::Error::from_errno(EIO);
-			return m_disk_cache->write_to_cache(lba, buffer, true);
+			for (size_t i = 0; i < sector_count; i++)
+				TRY(m_disk_cache->write_to_cache(lba + i, buffer.slice(i * sector_size(), sector_size()), true));
+			return {};
 		}
 
 		if (!m_disk_cache.has_value())
