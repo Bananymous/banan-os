@@ -50,25 +50,43 @@ namespace Kernel
 		BAN::ErrorOr<VirtualFileSystem::File> file_of(int) const;
 		BAN::ErrorOr<BAN::StringView> path_of(int) const;
 		BAN::ErrorOr<BAN::RefPtr<Inode>> inode_of(int);
-		BAN::ErrorOr<int> flags_of(int) const;
+		BAN::ErrorOr<int> status_flags_of(int) const;
 
 	private:
 		struct OpenFileDescription : public BAN::RefCounted<OpenFileDescription>
 		{
-			OpenFileDescription(VirtualFileSystem::File file, off_t offset, int flags)
+			OpenFileDescription(VirtualFileSystem::File file, off_t offset, int status_flags)
 				: file(BAN::move(file))
 				, offset(offset)
-				, flags(flags)
+				, status_flags(status_flags)
 			{ }
-
-			BAN::RefPtr<Inode> inode() const { return file.inode; }
-			BAN::StringView path() const { return file.canonical_path.sv(); }
 
 			VirtualFileSystem::File file;
 			off_t offset { 0 };
-			int flags { 0 };
+			int status_flags;
 
 			friend class BAN::RefPtr<OpenFileDescription>;
+		};
+
+		struct OpenFile
+		{
+			OpenFile() = default;
+			OpenFile(BAN::RefPtr<OpenFileDescription> description, int descriptor_flags)
+				: description(BAN::move(description))
+				, descriptor_flags(descriptor_flags)
+			{ }
+
+			BAN::RefPtr<Inode> inode() const { ASSERT(description); return description->file.inode; }
+			BAN::StringView    path()  const { ASSERT(description); return description->file.canonical_path.sv(); }
+
+			int& status_flags() { ASSERT(description); return description->status_flags; }
+			const int& status_flags() const { ASSERT(description); return description->status_flags; }
+
+			off_t& offset() { ASSERT(description); return description->offset; }
+			const off_t& offset() const { ASSERT(description); return description->offset; }
+
+			BAN::RefPtr<OpenFileDescription> description;
+			int descriptor_flags { 0 };
 		};
 
 		BAN::ErrorOr<void> validate_fd(int) const;
@@ -78,7 +96,7 @@ namespace Kernel
 	private:
 		const Credentials& m_credentials;
 
-		BAN::Array<BAN::RefPtr<OpenFileDescription>, OPEN_MAX> m_open_files;
+		BAN::Array<OpenFile, OPEN_MAX> m_open_files;
 	};
 
 }

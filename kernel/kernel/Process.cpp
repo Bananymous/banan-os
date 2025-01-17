@@ -441,8 +441,8 @@ namespace Kernel
 		if (fd == AT_FDCWD)
 			return TRY(m_working_directory.clone());
 
-		int flags = TRY(m_open_file_descriptors.flags_of(fd));
-		if (!(flags & O_RDONLY) && !(flags & O_SEARCH))
+		const auto status_flags = TRY(m_open_file_descriptors.status_flags_of(fd));
+		if (!(status_flags & O_RDONLY) && !(status_flags & O_SEARCH))
 			return BAN::Error::from_errno(EBADF);
 
 		return TRY(m_open_file_descriptors.file_of(fd));
@@ -514,8 +514,8 @@ namespace Kernel
 
 		auto working_directory = TRY(m_working_directory.clone());
 
-		OpenFileDescriptorSet open_file_descriptors(m_credentials);
-		TRY(open_file_descriptors.clone_from(m_open_file_descriptors));
+		auto open_file_descriptors = TRY(BAN::UniqPtr<OpenFileDescriptorSet>::create(m_credentials));
+		TRY(open_file_descriptors->clone_from(m_open_file_descriptors));
 
 		BAN::Vector<BAN::UniqPtr<MemoryRegion>> mapped_regions;
 		TRY(mapped_regions.reserve(m_mapped_regions.size()));
@@ -526,7 +526,7 @@ namespace Kernel
 		forked->m_controlling_terminal = m_controlling_terminal;
 		forked->m_working_directory = BAN::move(working_directory);
 		forked->m_page_table = BAN::move(page_table);
-		forked->m_open_file_descriptors = BAN::move(open_file_descriptors);
+		forked->m_open_file_descriptors = BAN::move(*open_file_descriptors);
 		forked->m_mapped_regions = BAN::move(mapped_regions);
 		forked->m_is_userspace = m_is_userspace;
 		forked->m_userspace_info = m_userspace_info;
@@ -1320,8 +1320,8 @@ namespace Kernel
 		if (!inode->mode().ifsock())
 			return BAN::Error::from_errno(ENOTSOCK);
 
-		auto flags = TRY(m_open_file_descriptors.flags_of(arguments->socket));
-		if ((flags & O_NONBLOCK) && !inode->can_write())
+		const auto status_flags = TRY(m_open_file_descriptors.status_flags_of(arguments->socket));
+		if ((status_flags & O_NONBLOCK) && !inode->can_write())
 			return BAN::Error::from_errno(EAGAIN);
 
 		BAN::ConstByteSpan message { reinterpret_cast<const uint8_t*>(arguments->message), arguments->length };
@@ -1348,8 +1348,8 @@ namespace Kernel
 		if (!inode->mode().ifsock())
 			return BAN::Error::from_errno(ENOTSOCK);
 
-		auto flags = TRY(m_open_file_descriptors.flags_of(arguments->socket));
-		if ((flags & O_NONBLOCK) && !inode->can_read())
+		const auto status_flags = TRY(m_open_file_descriptors.status_flags_of(arguments->socket));
+		if ((status_flags & O_NONBLOCK) && !inode->can_read())
 			return BAN::Error::from_errno(EAGAIN);
 
 		BAN::ByteSpan buffer { reinterpret_cast<uint8_t*>(arguments->buffer), arguments->length };
@@ -1697,11 +1697,11 @@ namespace Kernel
 
 		auto inode = TRY(m_open_file_descriptors.inode_of(args->fildes));
 
-		auto inode_flags = TRY(m_open_file_descriptors.flags_of(args->fildes));
-		if (!(inode_flags & O_RDONLY))
+		const auto status_flags = TRY(m_open_file_descriptors.status_flags_of(args->fildes));
+		if (!(status_flags & O_RDONLY))
 			return BAN::Error::from_errno(EACCES);
 		if (region_type == MemoryRegion::Type::SHARED)
-			if ((args->prot & PROT_WRITE) && !(inode_flags & O_WRONLY))
+			if ((args->prot & PROT_WRITE) && !(status_flags & O_WRONLY))
 				return BAN::Error::from_errno(EACCES);
 
 		BAN::UniqPtr<MemoryRegion> memory_region;
