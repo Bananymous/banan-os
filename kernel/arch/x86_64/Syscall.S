@@ -16,6 +16,7 @@ asm_syscall_handler:
 	pushq %r13
 	pushq %r14
 	pushq %r15
+	cld
 
 	movq %rsi, %r8
 	movq %rdi, %r9

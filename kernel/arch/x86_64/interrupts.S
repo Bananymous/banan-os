@@ -36,7 +36,7 @@
 
 isr_stub:
 	pushaq
-
+	cld
 	movq %cr0, %rax; pushq %rax
 	movq %cr2, %rax; pushq %rax
 	movq %cr3, %rax; pushq %rax
@@ -55,6 +55,7 @@ isr_stub:
 
 irq_stub:
 	pushaq
+	cld
 	movq 120(%rsp), %rdi	# irq number
 	call cpp_irq_handler
 	popaq
@@ -64,6 +65,7 @@ irq_stub:
 .global asm_yield_handler
 asm_yield_handler:
 	pushaq
+	cld
 	leaq 120(%rsp), %rdi # interrupt stack ptr
 	movq     %rsp,  %rsi # interrupt register ptr
 	call cpp_yield_handler
@@ -73,6 +75,7 @@ asm_yield_handler:
 .global asm_ipi_handler
 asm_ipi_handler:
 	pushaq
+	cld
 	call cpp_ipi_handler
 	popaq
 	iretq
@@ -80,6 +83,7 @@ asm_ipi_handler:
 .global asm_timer_handler
 asm_timer_handler:
 	pushaq
+	cld
 	call cpp_timer_handler
 	popaq
 	iretq

@@ -14,6 +14,7 @@ asm_syscall_handler:
 	pushl %edi
 	pushl %esi
 	pushl %ebp
+	cld
 
 	# align stack
 	movl %esp, %ebp

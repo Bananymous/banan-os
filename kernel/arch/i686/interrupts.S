@@ -27,6 +27,7 @@
 isr_stub:
 	push_userspace
 	load_kernel_segments
+	cld
 
 	movl %cr0, %eax; pushl %eax
 	movl %cr2, %eax; pushl %eax
@@ -58,6 +59,7 @@ isr_stub:
 irq_stub:
 	push_userspace
 	load_kernel_segments
+	cld
 
 	movl 40(%esp), %eax # interrupt number
 
@@ -79,6 +81,7 @@ irq_stub:
 asm_yield_handler:
 	# This can only be called from kernel, so no segment saving is needed
 	pushal
+	cld
 
 	movl %esp,     %eax # interrupt registers ptr
 	leal 32(%esp), %ebx # interrupt stack ptr
@@ -101,6 +104,7 @@ asm_yield_handler:
 asm_ipi_handler:
 	push_userspace
 	load_kernel_segments
+	cld
 
 	movl %esp, %ebp
 	subl $15, %esp
@@ -118,6 +122,7 @@ asm_ipi_handler:
 asm_timer_handler:
 	push_userspace
 	load_kernel_segments
+	cld
 
 	movl %esp, %ebp
 	subl $15, %esp
