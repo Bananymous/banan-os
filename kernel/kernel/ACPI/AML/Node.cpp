@@ -283,16 +283,14 @@ namespace Kernel::ACPI::AML
 		switch (opcode)
 		{
 			case AML::Byte::PackageOp:
+				if (context.aml_data.empty())
+					return BAN::Error::from_errno(ENODATA);
 				num_elements = context.aml_data[0];
 				context.aml_data = context.aml_data.slice(1);
 				break;
 			case AML::Byte::VarPackageOp:
-			{
-				auto node = TRY(parse_node(context));
-				node = TRY(convert_node(BAN::move(node), ConvInteger, sizeof(uint64_t)));
-				num_elements = node.as.integer.value;
+				num_elements = TRY(convert_node(TRY(parse_node(context)), ConvInteger, sizeof(uint64_t))).as.integer.value;
 				break;
-			}
 			default:
 				ASSERT_NOT_REACHED();
 		}
@@ -1868,10 +1866,13 @@ namespace Kernel::ACPI::AML
 		ASSERT(static_cast<AML::Byte>(context.aml_data[0]) == AML::Byte::NotifyOp);
 		context.aml_data = context.aml_data.slice(1);
 
-		auto object = TRY(parse_super_name(context, true));
+		auto [obj_path, obj_ref] = TRY(parse_super_name(context, true));
 		auto value = TRY(convert_node(TRY(parse_node(context)), ConvInteger, sizeof(uint64_t)));
 
-		dwarnln("TODO: handle notify({}, {})", object.elem2->node, value);
+		if (obj_ref == nullptr)
+			return {};
+
+		dwarnln("TODO: handle notify({}, {})", obj_ref->node, value);
 
 		return {};
 	}
