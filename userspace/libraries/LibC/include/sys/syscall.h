@@ -36,7 +36,6 @@ __BEGIN_DECLS
 	O(SYS_SET_PWD,			setpwd)			\
 	O(SYS_CLOCK_GETTIME,	clock_gettime)	\
 	O(SYS_PIPE,				pipe)			\
-	O(SYS_DUP,				dup)			\
 	O(SYS_DUP2,				dup2)			\
 	O(SYS_KILL,				kill)			\
 	O(SYS_TCGETPGRP,		tcgetpgrp)		\

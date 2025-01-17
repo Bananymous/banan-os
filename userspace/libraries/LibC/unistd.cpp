@@ -125,7 +125,7 @@ int fsync(int fildes)
 
 int dup(int fildes)
 {
-	return syscall(SYS_DUP, fildes);
+	return fcntl(fildes, F_DUPFD, 0);
 }
 
 int dup2(int fildes, int fildes2)

@@ -159,22 +159,6 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<int> OpenFileDescriptorSet::dup(int fildes)
-	{
-		TRY(validate_fd(fildes));
-
-		int result = TRY(get_free_fd());
-		m_open_files[result] = m_open_files[fildes];
-
-		if (m_open_files[result]->path() == "<pipe wr>"_sv)
-		{
-			ASSERT(m_open_files[result]->inode()->is_pipe());
-			static_cast<Pipe*>(m_open_files[result]->inode().ptr())->clone_writing();
-		}
-
-		return result;
-	}
-
 	BAN::ErrorOr<int> OpenFileDescriptorSet::dup2(int fildes, int fildes2)
 	{
 		if (fildes2 < 0 || fildes2 >= (int)m_open_files.size())
@@ -204,6 +188,26 @@ namespace Kernel
 
 		switch (cmd)
 		{
+			case F_DUPFD:
+			case F_DUPFD_CLOEXEC:
+			{
+				const int new_fd = TRY(get_free_fd());
+
+				auto new_file = TRY(BAN::RefPtr<OpenFileDescription>::create(
+					TRY(m_open_files[fd]->file.clone()),
+					m_open_files[fd]->offset,
+					m_open_files[fd]->flags | (cmd == F_DUPFD_CLOEXEC ? O_CLOEXEC : 0)
+				));
+
+				if (new_file->path() == "<pipe wr>"_sv)
+				{
+					ASSERT(new_file->inode()->is_pipe());
+					static_cast<Pipe*>(new_file->inode().ptr())->clone_writing();
+				}
+
+				m_open_files[new_fd] = BAN::move(new_file);
+				return new_fd;
+			}
 			case F_GETFD:
 				return m_open_files[fd]->flags & FD_CLOEXEC;
 			case F_SETFD:
@@ -220,6 +224,7 @@ namespace Kernel
 				break;
 		}
 
+		dwarnln("TODO: fcntl command {}", cmd);
 		return BAN::Error::from_errno(ENOTSUP);
 	}
 

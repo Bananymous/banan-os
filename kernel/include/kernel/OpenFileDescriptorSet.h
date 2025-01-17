@@ -29,7 +29,6 @@ namespace Kernel
 
 		BAN::ErrorOr<void> pipe(int fds[2]);
 
-		BAN::ErrorOr<int> dup(int);
 		BAN::ErrorOr<int> dup2(int, int);
 
 		BAN::ErrorOr<int> fcntl(int fd, int cmd, int extra);
