@@ -692,9 +692,7 @@ namespace Kernel
 		if (options & ~(WCONTINUED | WNOHANG | WUNTRACED))
 			return BAN::Error::from_errno(EINVAL);
 
-		// FIXME: support options stopped processes
-		if (options & ~(WCONTINUED | WUNTRACED))
-			return BAN::Error::from_errno(ENOTSUP);
+		// FIXME: Add WCONTINUED and WUNTRACED when stopped/continued processes are added
 
 		const auto pid_matches =
 			[&](const ChildExitStatus& child)
