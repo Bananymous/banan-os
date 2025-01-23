@@ -3,10 +3,11 @@ memchr:
 	xchgl 4(%esp), %edi
 	movl  8(%esp), %eax
 	movl 12(%esp), %ecx
+	movl $1, %edx
+	cmpl $1, %ecx # clear ZF if count is zero
 	repne scasb
-	xorl %eax, %eax
-	testl %ecx, %ecx
-	cmovnzl %edi, %eax
+	cmovel %edi, %edx
+	leal -1(%edx), %eax
 	movl 4(%esp), %edi
 	ret
 
@@ -15,6 +16,7 @@ memcmp:
 	xchgl 4(%esp), %edi
 	xchgl 8(%esp), %esi
 	movl 12(%esp), %ecx
+	testl %ecx, %ecx # set ZF if count is zero
 	repe cmpsb
 	jne .memcmp_not_equal
 	xorl %eax, %eax

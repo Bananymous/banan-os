@@ -2,15 +2,17 @@
 memchr:
 	movb %sil, %al
 	movq %rdx, %rcx
+	movq $1, %rdx
+	cmpq $1, %rcx # clear ZF if count is zero
 	repne scasb
-	xorq %rax, %rax
-	testq %rcx, %rcx
-	cmovnzq %rdi, %rax
+	cmoveq %rdi, %rdx
+	leaq -1(%rdx), %rax
 	ret
 
 .global memcmp
 memcmp:
 	movq %rdx, %rcx
+	testq %rcx, %rcx # set ZF if count is zero
 	repe cmpsb
 	jne .memcmp_not_equal
 	xorq %rax, %rax
