@@ -20,8 +20,11 @@ int nanosleep(const struct timespec* rqtp, struct timespec* rmtp)
 
 clock_t clock(void)
 {
-	dwarnln("TODO: clock");
-	return -1;
+	timespec ts;
+	if (clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts) == -1)
+		return -1;
+	return ((uint64_t)ts.tv_sec  * CLOCKS_PER_SEC)
+	     + ((uint64_t)ts.tv_nsec * CLOCKS_PER_SEC / 1'000'000'000);
 }
 
 time_t time(time_t* tloc)
