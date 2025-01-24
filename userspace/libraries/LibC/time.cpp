@@ -18,6 +18,12 @@ int nanosleep(const struct timespec* rqtp, struct timespec* rmtp)
 	return syscall(SYS_NANOSLEEP, rqtp, rmtp);
 }
 
+clock_t clock(void)
+{
+	dwarnln("TODO: clock");
+	return -1;
+}
+
 time_t time(time_t* tloc)
 {
 	timespec tp;
