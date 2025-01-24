@@ -169,6 +169,9 @@ struct LoadedElf
 	char path[PATH_MAX];
 };
 
+static LoadedElf s_loaded_files[128];
+static size_t s_loaded_file_count = 0;
+
 constexpr uintptr_t SYM_NOT_FOUND = -1;
 
 static uint32_t elf_hash(const char* name)
@@ -203,64 +206,98 @@ static ElfNativeSymbol* find_symbol(const LoadedElf& elf, const char* name)
 	return nullptr;
 }
 
-static uintptr_t get_symbol_address(const LoadedElf& elf, const char* name)
-{
-	auto* symbol = find_symbol(elf, name);
-	if (symbol == nullptr)
-		return SYM_NOT_FOUND;
-	return elf.base + symbol->st_value;
-}
-
-static LoadedElf* get_libc_elf();
-static LoadedElf* get_libgcc_elf();
-
 template<typename RelocT> requires BAN::is_same_v<RelocT, ElfNativeRelocation> || BAN::is_same_v<RelocT, ElfNativeRelocationA>
-static uintptr_t handle_relocation(const LoadedElf& elf, const RelocT& reloc)
+static void handle_copy_relocation(const LoadedElf& elf, const RelocT& reloc)
 {
-	uintptr_t symbol_address = 0;
-	size_t symbol_size = 0;
-
 #if defined(__x86_64__)
-	const bool is_copy = (ELF64_R_TYPE(reloc.r_info) == R_X86_64_COPY);
-	if (const uint32_t symbol_index = ELF64_R_SYM(reloc.r_info))
+	if (ELF64_R_TYPE(reloc.r_info) != R_X86_64_COPY)
+		return;
+	const uint32_t symbol_index = ELF64_R_SYM(reloc.r_info);
 #elif defined(__i686__)
-	const bool is_copy = (ELF32_R_TYPE(reloc.r_info) == R_386_COPY);
-	if (const uint32_t symbol_index = ELF32_R_SYM(reloc.r_info))
+	if (ELF32_R_TYPE(reloc.r_info) != R_386_COPY)
+		return;
+	const uint32_t symbol_index = ELF32_R_SYM(reloc.r_info);
 #else
 	#error "unsupported architecture"
 #endif
+
+	if (symbol_index == 0)
+		print_error_and_exit("copy relocation without a symbol", 0);
+
+	const auto& symbol = *reinterpret_cast<ElfNativeSymbol*>(elf.symtab + symbol_index * elf.syment);
+	const char* symbol_name = reinterpret_cast<const char*>(elf.strtab + symbol.st_name);
+
+	ElfNativeSymbol* src_sym = nullptr;
+	const LoadedElf* src_elf = nullptr;
+
+	for (size_t i = 0; i < s_loaded_file_count; i++)
+	{
+		if (&elf == &s_loaded_files[i])
+			continue;
+		auto* match = find_symbol(s_loaded_files[i], symbol_name);
+		if (match == nullptr)
+			continue;
+		if (src_sym == nullptr || ELF_ST_BIND(match->st_info) != STB_WEAK)
+		{
+			src_sym = match;
+			src_elf = &s_loaded_files[i];
+		}
+		if (ELF_ST_BIND(match->st_info) != STB_WEAK)
+			break;
+	}
+
+	if (src_sym == nullptr)
+		print_error_and_exit("copy relocation source not found", 0);
+
+	memcpy(
+		reinterpret_cast<void*>(elf.base + reloc.r_offset),
+		reinterpret_cast<void*>(src_elf->base + src_sym->st_value),
+		symbol.st_size
+	);
+
+	src_sym->st_value = (elf.base + reloc.r_offset) - src_elf->base;
+}
+
+template<typename RelocT> requires BAN::is_same_v<RelocT, ElfNativeRelocation> || BAN::is_same_v<RelocT, ElfNativeRelocationA>
+static uintptr_t handle_relocation(const LoadedElf& elf, const RelocT& reloc, bool resolve_symbols)
+{
+	uintptr_t symbol_address = 0;
+
+#if defined(__x86_64__)
+	if (ELF64_R_TYPE(reloc.r_info) == R_X86_64_COPY)
+		return 0;
+	const uint32_t symbol_index = ELF64_R_SYM(reloc.r_info);
+#elif defined(__i686__)
+	if (ELF32_R_TYPE(reloc.r_info) == R_386_COPY)
+		return 0;
+	const uint32_t symbol_index = ELF32_R_SYM(reloc.r_info);
+#else
+	#error "unsupported architecture"
+#endif
+
+	if (resolve_symbols == !symbol_index)
+		return 0;
+
+	if (symbol_index)
 	{
 		const auto& symbol = *reinterpret_cast<ElfNativeSymbol*>(elf.symtab + symbol_index * elf.syment);
 		const char* symbol_name = reinterpret_cast<const char*>(elf.strtab + symbol.st_name);
 
-		symbol_size = symbol.st_size;
-
-		if (!is_copy && symbol.st_shndx)
+		if (symbol.st_shndx && ELF_ST_BIND(symbol.st_info) != STB_WEAK)
 			symbol_address = elf.base + symbol.st_value;
 		else
 		{
-			// external symbol
 			symbol_address = SYM_NOT_FOUND;
-			for (size_t i = 0; symbol_address == SYM_NOT_FOUND; i++)
+			for (size_t i = 0; i < s_loaded_file_count; i++)
 			{
-				auto& dynamic = elf.dynamics[i];
-				if (dynamic.d_tag == DT_NULL)
-					break;
-				if (dynamic.d_tag != DT_NEEDED)
+				const auto* match = find_symbol(s_loaded_files[i], symbol_name);
+				if (match == nullptr)
 					continue;
-				const auto& lib_elf = *reinterpret_cast<LoadedElf*>(dynamic.d_un.d_ptr);
-				symbol_address = get_symbol_address(lib_elf, symbol_name);
+				if (symbol_address == SYM_NOT_FOUND || ELF_ST_BIND(match->st_info) != STB_WEAK)
+					symbol_address = s_loaded_files[i].base + match->st_value;
+				if (ELF_ST_BIND(match->st_info) != STB_WEAK)
+					break;
 			}
-
-			// libgcc_s.so needs symbols from libc, but we can't link it as toolchain
-			// has to be built before libc. This hack allows resolving symbols from
-			// libc even if its not specified as dependency, but is loaded
-			if (symbol_address == SYM_NOT_FOUND)
-				if (const auto* libc_elf = get_libc_elf())
-					symbol_address = get_symbol_address(*libc_elf, symbol_name);
-			if (symbol_address == SYM_NOT_FOUND)
-				if (const auto* libgcc_elf = get_libgcc_elf())
-					symbol_address = get_symbol_address(*libgcc_elf, symbol_name);
 
 			if (symbol_address == SYM_NOT_FOUND)
 			{
@@ -289,15 +326,6 @@ static uintptr_t handle_relocation(const LoadedElf& elf, const RelocT& reloc)
 			size = 8;
 			value = symbol_address;
 			add_addend = true;
-			break;
-		case R_X86_64_COPY:
-			if (symbol_address == 0)
-				print_error_and_exit("copy undefined weak symbol?", 0);
-			memcpy(
-				reinterpret_cast<void*>(elf.base + reloc.r_offset),
-				reinterpret_cast<void*>(symbol_address),
-				symbol_size
-			);
 			break;
 		case R_X86_64_GLOB_DAT:
 			size = 8;
@@ -334,13 +362,6 @@ static uintptr_t handle_relocation(const LoadedElf& elf, const RelocT& reloc)
 			value = symbol_address - reloc.r_offset;
 			add_addend = true;
 			break;
-		case R_386_COPY:
-			memcpy(
-				reinterpret_cast<void*>(elf.base + reloc.r_offset),
-				reinterpret_cast<void*>(symbol_address),
-				symbol_size
-			);
-			break;
 		case R_386_GLOB_DAT:
 			size = 4;
 			value = symbol_address;
@@ -357,6 +378,8 @@ static uintptr_t handle_relocation(const LoadedElf& elf, const RelocT& reloc)
 		default:
 			print(STDERR_FILENO, "unsupported reloc type ");
 			print_uint(STDERR_FILENO, ELF32_R_TYPE(reloc.r_info));
+			print(STDERR_FILENO, " in ");
+			print(STDERR_FILENO, elf.path);
 			print_error_and_exit("", 0);
 	}
 #else
@@ -394,8 +417,18 @@ static uintptr_t handle_relocation(const LoadedElf& elf, const RelocT& reloc)
 
 static void relocate_elf(LoadedElf& elf, bool lazy_load)
 {
+	// FIXME: handle circular dependencies
+
 	if (elf.is_relocated)
 		return;
+
+	// do copy relocations
+	if (elf.rel && elf.relent)
+		for (size_t i = 0; i < elf.relsz / elf.relent; i++)
+			handle_copy_relocation(elf, *reinterpret_cast<ElfNativeRelocation*>(elf.rel + i * elf.relent));
+	if (elf.rela && elf.relaent)
+		for (size_t i = 0; i < elf.relasz / elf.relaent; i++)
+			handle_copy_relocation(elf, *reinterpret_cast<ElfNativeRelocationA*>(elf.rela + i * elf.relaent));
 
 	// relocate libraries
 	for (size_t i = 0;; i++)
@@ -408,16 +441,13 @@ static void relocate_elf(LoadedElf& elf, bool lazy_load)
 		relocate_elf(*reinterpret_cast<LoadedElf*>(dynamic.d_un.d_ptr), lazy_load);
 	}
 
-	if (elf.is_relocated)
-		return;
-
 	// do "normal" relocations
 	if (elf.rel && elf.relent)
 		for (size_t i = 0; i < elf.relsz / elf.relent; i++)
-			handle_relocation(elf, *reinterpret_cast<ElfNativeRelocation*>(elf.rel + i * elf.relent));
+			handle_relocation(elf, *reinterpret_cast<ElfNativeRelocation*>(elf.rel + i * elf.relent), true);
 	if (elf.rela && elf.relaent)
 		for (size_t i = 0; i < elf.relasz / elf.relaent; i++)
-			handle_relocation(elf, *reinterpret_cast<ElfNativeRelocationA*>(elf.rela + i * elf.relaent));
+			handle_relocation(elf, *reinterpret_cast<ElfNativeRelocationA*>(elf.rela + i * elf.relaent), true);
 
 	// do jumprel relocations
 	if (elf.jmprel && elf.pltrelsz)
@@ -431,11 +461,11 @@ static void relocate_elf(LoadedElf& elf, bool lazy_load)
 			{
 				case DT_REL:
 					for (size_t i = 0; i < elf.pltrelsz / sizeof(ElfNativeRelocation); i++)
-						handle_relocation(elf, reinterpret_cast<ElfNativeRelocation*>(elf.jmprel)[i]);
+						handle_relocation(elf, reinterpret_cast<ElfNativeRelocation*>(elf.jmprel)[i], true);
 					break;
 				case DT_RELA:
 					for (size_t i = 0; i < elf.pltrelsz / sizeof(ElfNativeRelocationA); i++)
-						handle_relocation(elf, reinterpret_cast<ElfNativeRelocationA*>(elf.jmprel)[i]);
+						handle_relocation(elf, reinterpret_cast<ElfNativeRelocationA*>(elf.jmprel)[i], true);
 					break;
 			}
 		}
@@ -477,9 +507,9 @@ __attribute__((used))
 uintptr_t resolve_symbol(const LoadedElf& elf, uintptr_t plt_entry)
 {
 	if (elf.pltrel == DT_REL)
-		return handle_relocation(elf, *reinterpret_cast<ElfNativeRelocation*>(elf.jmprel + plt_entry));
+		return handle_relocation(elf, *reinterpret_cast<ElfNativeRelocation*>(elf.jmprel + plt_entry), true);
 	if (elf.pltrel == DT_RELA)
-		return handle_relocation(elf, reinterpret_cast<ElfNativeRelocationA*>(elf.jmprel)[plt_entry]);
+		return handle_relocation(elf, reinterpret_cast<ElfNativeRelocationA*>(elf.jmprel)[plt_entry], true);
 	print_error_and_exit("invalid value for DT_PLTREL", 0);
 }
 
@@ -566,6 +596,14 @@ static void handle_dynamic(LoadedElf& elf)
 
 		syscall(SYS_CLOSE, library_fd);
 	}
+
+	// do relocations without symbols
+	if (elf.rel && elf.relent)
+		for (size_t i = 0; i < elf.relsz / elf.relent; i++)
+			handle_relocation(elf, *reinterpret_cast<ElfNativeRelocation*>(elf.rel + i * elf.relent), false);
+	if (elf.rela && elf.relaent)
+		for (size_t i = 0; i < elf.relasz / elf.relaent; i++)
+			handle_relocation(elf, *reinterpret_cast<ElfNativeRelocationA*>(elf.rela + i * elf.relaent), false);
 
 	if (pltgot == 0)
 		return;
@@ -689,25 +727,6 @@ static void load_program_header(const ElfNativeProgramHeader& program_header, in
 	}
 }
 
-static LoadedElf s_loaded_files[128];
-static size_t s_loaded_file_count = 0;
-
-static LoadedElf* get_libc_elf()
-{
-	for (size_t i = 0; i < s_loaded_file_count; i++)
-		if (strcmp(s_loaded_files[i].path, "/usr/lib/libc.so") == 0)
-			return &s_loaded_files[i];
-	return nullptr;
-}
-
-static LoadedElf* get_libgcc_elf()
-{
-	for (size_t i = 0; i < s_loaded_file_count; i++)
-		if (strcmp(s_loaded_files[i].path, "/usr/lib/libgcc_s.so") == 0)
-			return &s_loaded_files[i];
-	return nullptr;
-}
-
 static LoadedElf& load_elf(const char* path, int fd)
 {
 	for (size_t i = 0; i < s_loaded_file_count; i++)
@@ -732,9 +751,9 @@ static LoadedElf& load_elf(const char* path, int fd)
 #endif
 
 		// FIXME: This is very hacky :D
-		do {
+		do
 			base = (get_random_uptr() & base_mask) + 0x100000;
-		} while (!can_load_elf(fd, file_header, base));
+		while (!can_load_elf(fd, file_header, base));
 	}
 
 	bool needs_writable = false;
@@ -793,6 +812,11 @@ static LoadedElf& load_elf(const char* path, int fd)
 			case PT_NOTE:
 			case PT_PHDR:
 				break;
+			case PT_GNU_EH_FRAME:
+			case PT_GNU_STACK:
+			case PT_GNU_RELRO:
+				print(STDDBG_FILENO, "TODO: PT_GNU_*\n");
+				break;
 			case PT_LOAD:
 				program_header.p_vaddr += base;
 				load_program_header(program_header, fd, needs_writable);
@@ -833,6 +857,15 @@ static LoadedElf& load_elf(const char* path, int fd)
 	return elf;
 }
 
+static void call_init_libc(LoadedElf& elf, char** envp)
+{
+	const auto* _init_libc = find_symbol(elf, "_init_libc");
+	if (_init_libc == nullptr)
+		return;
+	using _init_libc_t = void(*)(char**);
+	reinterpret_cast<_init_libc_t>(elf.base + _init_libc->st_value)(envp);
+}
+
 static void call_init_funcs(LoadedElf& elf, char** envp, bool skip)
 {
 	if (elf.has_called_init)
@@ -860,14 +893,7 @@ static void call_init_funcs(LoadedElf& elf, char** envp, bool skip)
 		reinterpret_cast<init_t*>(elf.init_array)[i]();
 
 	if (strcmp(elf.path, "/usr/lib/libc.so") == 0)
-	{
-		const uintptr_t init_libc = get_symbol_address(elf, "_init_libc");
-		if (init_libc != SYM_NOT_FOUND)
-		{
-			using init_libc_t = void(*)(char**);
-			reinterpret_cast<init_libc_t>(init_libc)(envp);
-		}
-	}
+		call_init_libc(elf, envp);
 
 	elf.has_called_init = true;
 }
@@ -891,7 +917,7 @@ int _entry(int argc, char** argv, char** envp, int fd)
 	}
 
 	init_random();
-	auto elf = load_elf(argv[0], fd);
+	auto& elf = load_elf(argv[0], fd);
 	syscall(SYS_CLOSE, fd);
 	fini_random();
 
