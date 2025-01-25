@@ -1917,16 +1917,13 @@ namespace Kernel
 		switch (clock_id)
 		{
 			case CLOCK_MONOTONIC:
-			{
 				*tp = SystemTimer::get().time_since_boot();
 				break;
-			}
 			case CLOCK_REALTIME:
-			{
 				*tp = SystemTimer::get().real_time();
 				break;
-			}
 			default:
+				dwarnln("TODO: clock_gettime({})", clock_id);
 				return BAN::Error::from_errno(ENOTSUP);
 		}
 		return 0;
