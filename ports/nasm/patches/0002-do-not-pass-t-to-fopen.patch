@@ -1,0 +1,50 @@
+diff -ruN nasm-2.16.03/nasmlib/file.c nasm-2.16.03-banan_os/nasmlib/file.c
+--- nasm-2.16.03/nasmlib/file.c	2024-04-17 20:04:08.000000000 +0300
++++ nasm-2.16.03-banan_os/nasmlib/file.c	2025-01-25 23:07:51.415526537 +0200
+@@ -160,30 +160,7 @@
+ 
+     osfname = os_mangle_filename(filename);
+     if (osfname) {
+-        os_fopenflag fopen_flags[4];
+-        memset(fopen_flags, 0, sizeof fopen_flags);
+-
+-        fopen_flags[0] = 'r';
+-        fopen_flags[1] = (flags & NF_TEXT) ? 't' : 'b';
+-
+-#if defined(__GLIBC__) || defined(__linux__)
+-        /*
+-         * Try to open this file with memory mapping for speed, unless we are
+-         * going to do it "manually" with nasm_map_file()
+-         */
+-        if (!(flags & NF_FORMAP))
+-            fopen_flags[2] = 'm';
+-#endif
+-
+-        while (true) {
+-            f = os_fopen(osfname, fopen_flags);
+-            if (f || errno != EINVAL || !fopen_flags[2])
+-                break;
+-
+-            /* We got EINVAL but with 'm'; try again without 'm' */
+-            fopen_flags[2] = '\0';
+-        }
+-
++		f = os_fopen(osfname, "r");
+         os_free_filename(osfname);
+     }
+ 
+@@ -201,13 +178,7 @@
+ 
+     osfname = os_mangle_filename(filename);
+     if (osfname) {
+-        os_fopenflag fopen_flags[3];
+-
+-        fopen_flags[0] = 'w';
+-        fopen_flags[1] = (flags & NF_TEXT) ? 't' : 'b';
+-        fopen_flags[2] = '\0';
+-
+-        f = os_fopen(osfname, fopen_flags);
++        f = os_fopen(osfname, "w");
+         os_free_filename(osfname);
+     }
+ 
