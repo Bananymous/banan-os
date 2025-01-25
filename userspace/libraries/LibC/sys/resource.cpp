@@ -61,3 +61,17 @@ int getrusage(int who, struct rusage* r_usage)
 
 	return 0;
 }
+
+int setrlimit(int resource, const struct rlimit* rlp)
+{
+	dwarnln("TODO: setrlimit({}, {})", resource, rlp);
+	errno = ENOTSUP;
+	return -1;
+}
+
+int setpriority(int which, id_t who, int value)
+{
+	dwarnln("TODO: setpriority({}, {}, {})", which, who, value);
+	errno = ENOTSUP;
+	return -1;
+}
