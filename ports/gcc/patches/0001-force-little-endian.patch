@@ -1,0 +1,11 @@
+diff -ruN gcc-12.2.0/gcc/configure gcc-12.2.0-banan_os/gcc/configure
+--- gcc-12.2.0/gcc/configure	2022-08-19 11:09:52.736664469 +0300
++++ gcc-12.2.0-banan_os/gcc/configure	2024-08-08 09:30:58.730876253 +0300
+@@ -9426,6 +9426,7 @@
+ fi
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking whether byte ordering is bigendian" >&5
+ $as_echo_n "checking whether byte ordering is bigendian... " >&6; }
++ac_cv_c_bigendian=no
+ if ${ac_cv_c_bigendian+:} false; then :
+   $as_echo_n "(cached) " >&6
+ else
