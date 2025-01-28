@@ -189,27 +189,28 @@ int strcoll(const char* s1, const char* s2)
 
 char* strdup(const char* str)
 {
-	const size_t size = strlen(str) + 1;
+	const size_t size = strlen(str);
 
-	char* new_str = (char*)malloc(size);
+	char* new_str = (char*)malloc(size + 1);
 	if (new_str == nullptr)
 		return nullptr;
 
 	memcpy(new_str, str, size);
+	new_str[size] = '\0';
 	return new_str;
 }
 
 char* strndup(const char* str, size_t size)
 {
-	if (strlen(str) < size)
-		size = strlen(str);
-	size += 1;
+	if (size_t len = strlen(str); len < size)
+		size = len;
 
-	char* new_str = (char*)malloc(size);
+	char* new_str = (char*)malloc(size + 1);
 	if (new_str == nullptr)
 		return nullptr;
 
 	memcpy(new_str, str, size);
+	new_str[size] = '\0';
 	return new_str;
 }
 
