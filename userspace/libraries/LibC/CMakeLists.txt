@@ -76,13 +76,19 @@ add_library(libc-static STATIC $<TARGET_OBJECTS:objlibc>)
 add_library(libc-shared SHARED $<TARGET_OBJECTS:objlibc>)
 
 target_link_options(libc-static PRIVATE -nostdlib)
+target_link_libraries(libc-static PRIVATE -lgcc)
+
 target_link_options(libc-shared PRIVATE -nostdlib)
+target_link_libraries(libc-shared PRIVATE -lgcc)
 
 install(TARGETS libc-static OPTIONAL)
 install(TARGETS libc-shared OPTIONAL)
 
 set_target_properties(libc-static PROPERTIES OUTPUT_NAME libc)
 set_target_properties(libc-shared PROPERTIES OUTPUT_NAME libc)
+
+# set SONAME as cmake doesn't set it for some reason??
+set_target_properties(libc-shared PROPERTIES LINK_FLAGS "-Wl,-soname,libc.so")
 
 add_library(libc ALIAS libc-shared)
 

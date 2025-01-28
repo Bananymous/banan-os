@@ -27,9 +27,6 @@ set(BUILD_SHARED_LIBS True)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
-
 # include headers of ${library} to ${target}
 function(banan_include_headers target library)
 	target_include_directories(${target} PRIVATE $<TARGET_PROPERTY:${library},SOURCE_DIR>/include)

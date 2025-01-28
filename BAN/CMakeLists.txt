@@ -11,5 +11,8 @@ banan_link_library(ban libc)
 
 set_target_properties(ban PROPERTIES OUTPUT_NAME libban)
 
+# set SONAME as cmake doesn't set it for some reason??
+set_target_properties(ban PROPERTIES LINK_FLAGS "-Wl,-soname,libban.so")
+
 banan_install_headers(ban)
 install(TARGETS ban OPTIONAL)
