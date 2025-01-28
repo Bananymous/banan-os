@@ -1379,8 +1379,10 @@ namespace Kernel
 		if (arguments->sigmask)
 			TRY(validate_pointer_access(arguments->sigmask, sizeof(sigset_t), false));
 
+		const auto old_sigmask = Thread::current().m_signal_block_mask;
 		if (arguments->sigmask)
-			return BAN::Error::from_errno(ENOTSUP);
+			Thread::current().m_signal_block_mask = *arguments->sigmask;
+		BAN::ScopeGuard sigmask_restore([old_sigmask] { Thread::current().m_signal_block_mask = old_sigmask; });
 
 		uint64_t timedout_ns = SystemTimer::get().ns_since_boot();
 		if (arguments->timeout)
