@@ -1,0 +1,12 @@
+diff -ruN make-4.4.1/build-aux/config.sub make-4.4.1-banan_os/build-aux/config.sub
+--- make-4.4.1/build-aux/config.sub	2023-02-18 17:38:13.000000000 +0200
++++ make-4.4.1-banan_os/build-aux/config.sub	2024-12-04 23:15:11.865989888 +0200
+@@ -1758,7 +1758,7 @@
+ 	     | onefs* | tirtos* | phoenix* | fuchsia* | redox* | bme* \
+ 	     | midnightbsd* | amdhsa* | unleashed* | emscripten* | wasi* \
+ 	     | nsk* | powerunix* | genode* | zvmoe* | qnx* | emx* | zephyr* \
+-	     | fiwix* | mlibc* )
++	     | fiwix* | mlibc* | banan_os* )
+ 		;;
+ 	# This one is extra strict with allowed versions
+ 	sco3.2v2 | sco3.2v[4-9]* | sco5v6*)

@@ -1,0 +1,12 @@
+diff -ruN make-4.4.1/src/arscan.c make-4.4.1-banan_os/src/arscan.c
+--- make-4.4.1/src/arscan.c	2023-01-08 17:45:38.000000000 +0200
++++ make-4.4.1-banan_os/src/arscan.c	2024-12-04 23:49:39.898722479 +0200
+@@ -331,7 +331,7 @@
+ #endif
+ 
+ #ifndef WINDOWS32
+-# if !defined (__ANDROID__) && !defined (__BEOS__) && !defined(MK_OS_ZOS)
++# if !defined (__ANDROID__) && !defined (__BEOS__) && !defined(MK_OS_ZOS) && !defined(__banan_os__)
+ #  include <ar.h>
+ # else
+    /* These platforms don't have <ar.h> but have archives in the same format
