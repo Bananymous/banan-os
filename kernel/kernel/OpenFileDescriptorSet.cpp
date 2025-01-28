@@ -330,8 +330,11 @@ namespace Kernel
 			return BAN::Error::from_errno(EACCES);
 		for (;;)
 		{
-			auto ret = open_file.inode()->list_next_inodes(open_file.offset()++, list, list_len);
-			if (ret.is_error() && ret.error().get_error_code() == ENODATA)
+			auto ret = open_file.inode()->list_next_inodes(open_file.offset(), list, list_len);
+			if (ret.is_error() && ret.error().get_error_code() != ENODATA)
+				return ret;
+			open_file.offset()++;
+			if (ret.is_error())
 				continue;
 			return ret;
 		}
