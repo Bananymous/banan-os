@@ -43,7 +43,7 @@ int main(int argc, const char* argv[])
 	const char* target = argv[i++];
 
 	struct stat st;
-	if (stat(target, &st) == -1)
+	if (!do_symlink && stat(target, &st) == -1)
 	{
 		perror("stat");
 		return 1;
