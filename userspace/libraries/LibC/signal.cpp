@@ -1,4 +1,5 @@
 #include <BAN/Assert.h>
+#include <errno.h>
 #include <signal.h>
 #include <string.h>
 #include <sys/syscall.h>
@@ -6,9 +7,27 @@
 
 static_assert(sizeof(sigset_t) * 8 >= _SIGMAX);
 
+static int validate_signal(int sig)
+{
+	if (_SIGMIN <= sig && sig <= _SIGMAX)
+		return 0;
+	errno = EINVAL;
+	return -1;
+}
+
 int kill(pid_t pid, int sig)
 {
 	return syscall(SYS_KILL, pid, sig);
+}
+
+int killpg(pid_t pgrp, int sig)
+{
+	if (pgrp <= 1)
+	{
+		errno = EINVAL;
+		return -1;
+	}
+	return kill(-pgrp, sig);
 }
 
 void psignal(int signum, const char* message)
@@ -37,7 +56,17 @@ int sigaction(int sig, const struct sigaction* __restrict act, struct sigaction*
 
 int sigaddset(sigset_t* set, int signo)
 {
+	if (validate_signal(signo) == -1)
+		return -1;
 	*set |= 1ull << signo;
+	return 0;
+}
+
+int sigdelset(sigset_t* set, int signo)
+{
+	if (validate_signal(signo) == -1)
+		return -1;
+	*set &= ~(1ull << signo);
 	return 0;
 }
 
@@ -53,8 +82,40 @@ int sigfillset(sigset_t* set)
 	return 0;
 }
 
+int sighold(int sig)
+{
+	if (validate_signal(sig) == -1)
+		return -1;
+	sigset_t set;
+	(void)sigemptyset(&set);
+	(void)sigaddset(&set, sig);
+	return sigprocmask(SIG_BLOCK, &set, nullptr);
+}
+
+int sigignore(int sig)
+{
+	if (signal(sig, SIG_IGN) == SIG_ERR)
+		return -1;
+	return 0;
+}
+
+int siginterrupt(int sig, int flag)
+{
+	if (validate_signal(sig) == -1)
+		return -1;
+    struct sigaction act;
+    (void)sigaction(sig, nullptr, &act);
+    if (flag)
+        act.sa_flags &= ~SA_RESTART;
+    else
+        act.sa_flags |= SA_RESTART;
+    return sigaction(sig, &act, nullptr);
+}
+
 int sigismember(const sigset_t* set, int signo)
 {
+	if (validate_signal(signo) == -1)
+		return -1;
 	return (*set >> signo) & 1;
 }
 
@@ -78,4 +139,14 @@ int sigpending(sigset_t* set)
 int sigprocmask(int how, const sigset_t* __restrict set, sigset_t* __restrict oset)
 {
 	return pthread_sigmask(how, set, oset);
+}
+
+int sigrelse(int sig)
+{
+	if (validate_signal(sig) == -1)
+		return -1;
+	sigset_t set;
+	(void)sigemptyset(&set);
+	(void)sigaddset(&set, sig);
+	return sigprocmask(SIG_UNBLOCK, &set, nullptr);
 }
