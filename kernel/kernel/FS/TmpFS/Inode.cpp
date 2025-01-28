@@ -562,39 +562,86 @@ namespace Kernel
 			new_entry_size += directory_entry_alignment - rem;
 		ASSERT(new_entry_size < (size_t)blksize());
 
-		size_t new_entry_offset = size() % blksize();
-
-		// Target is the last block, or if it doesn't fit the new entry, the next one.
-		size_t target_data_block = size() / blksize();
-		if (blksize() - new_entry_offset < new_entry_size)
+		for (size_t data_block_index = 0; data_block_index * blksize() < (size_t)size(); data_block_index++)
 		{
-			// insert an empty entry at the end of current block
-			m_fs.with_block_buffer(block_index(target_data_block).value(), [&](BAN::ByteSpan bytespan) {
-				auto& empty_entry = bytespan.slice(new_entry_offset).as<TmpDirectoryEntry>();
-				empty_entry.type = DT_UNKNOWN;
-				empty_entry.ino = 0;
-				empty_entry.rec_len = blksize() - new_entry_offset;
-			});
-			m_inode_info.size += blksize() - new_entry_offset;
+			const size_t block_index = this->block_index(data_block_index).value();
 
-			target_data_block++;
-			new_entry_offset = 0;
+			bool done = false;
+			m_fs.with_block_buffer(block_index, [&](BAN::ByteSpan bytespan) {
+				bytespan = bytespan.slice(0, blksize());
+				while (bytespan.size() > 0)
+				{
+					auto& entry = bytespan.as<TmpDirectoryEntry>();
+
+					while (entry.ino == 0 && entry.rec_len < bytespan.size())
+					{
+						auto& next_entry = bytespan.slice(entry.rec_len).as<TmpDirectoryEntry>();
+						if (next_entry.ino)
+							break;
+						entry.rec_len += next_entry.rec_len;
+					}
+
+					if (entry.ino != 0 || entry.rec_len < new_entry_size)
+					{
+						bytespan = bytespan.slice(entry.rec_len);
+						continue;
+					}
+
+					if (entry.rec_len <= new_entry_size + sizeof(TmpDirectoryEntry))
+						new_entry_size = entry.rec_len;
+					else
+					{
+						auto& new_entry = bytespan.slice(new_entry_size).as<TmpDirectoryEntry>();
+						new_entry.type = DT_UNKNOWN;
+						new_entry.ino = 0;
+						new_entry.rec_len = entry.rec_len - new_entry_size;
+					}
+
+					ASSERT(entry.type == DT_UNKNOWN);
+					entry.type = inode_mode_to_dt_type(inode.mode());
+					entry.ino = inode.ino();
+					entry.name_len = name.size();
+					entry.rec_len = new_entry_size;
+					memcpy(entry.name, name.data(), name.size());
+
+					done = true;
+					break;
+				}
+			});
+
+			if (done)
+			{
+				// add link to linked inode
+				inode.m_inode_info.nlink++;
+				return {};
+			}
 		}
 
-		size_t block_index = TRY(block_index_with_allocation(target_data_block));
+		const size_t data_block_index = size() / blksize();
+		const size_t block_index = TRY(block_index_with_allocation(data_block_index));
 
 		m_fs.with_block_buffer(block_index, [&](BAN::ByteSpan bytespan) {
-			auto& new_entry = bytespan.slice(new_entry_offset).as<TmpDirectoryEntry>();
-			ASSERT(new_entry.type == DT_UNKNOWN);
-			new_entry.type = inode_mode_to_dt_type(inode.mode());
-			new_entry.ino = inode.ino();
-			new_entry.name_len = name.size();
-			new_entry.rec_len = new_entry_size;
-			memcpy(new_entry.name, name.data(), name.size());
+			// insert new inode
+			{
+				auto& entry = bytespan.as<TmpDirectoryEntry>();
+				entry.type = inode_mode_to_dt_type(inode.mode());
+				entry.ino = inode.ino();
+				entry.name_len = name.size();
+				entry.rec_len = new_entry_size;
+				memcpy(entry.name, name.data(), name.size());
+			}
+
+			// insert null entry
+			{
+				auto& entry = bytespan.slice(new_entry_size).as<TmpDirectoryEntry>();
+				entry.type = DT_UNKNOWN;
+				entry.ino = 0;
+				entry.rec_len = blksize() - new_entry_size;
+			}
 		});
 
 		// increase current size
-		m_inode_info.size += new_entry_size;
+		m_inode_info.size += blksize();
 
 		// add link to linked inode
 		inode.m_inode_info.nlink++;
@@ -616,7 +663,7 @@ namespace Kernel
 				while (bytespan.size() > 0)
 				{
 					auto& entry = bytespan.as<TmpDirectoryEntry>();
-					if (entry.type != DT_UNKNOWN)
+					if (entry.ino != 0)
 					{
 						switch (callback(entry))
 						{
