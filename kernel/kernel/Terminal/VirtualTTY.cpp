@@ -269,8 +269,8 @@ namespace Kernel
 				for (uint32_t row = m_height; row > m_row; row--)
 				{
 					const uint32_t dst_y = row - 1;
-					const uint32_t src_y = dst_y - m_ansi_state.nums[0];
-					memcpy(&m_buffer[dst_y * m_width], &m_buffer[src_y * m_width], m_width * sizeof(Cell));
+					if (const uint32_t src_y = dst_y - m_ansi_state.nums[0]; src_y < dst_y)
+						memcpy(&m_buffer[dst_y * m_width], &m_buffer[src_y * m_width], m_width * sizeof(Cell));
 					for (uint32_t x = 0; x < m_width; x++)
 						render_from_buffer(x, dst_y);
 				}
