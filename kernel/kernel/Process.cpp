@@ -1739,16 +1739,29 @@ namespace Kernel
 		if (len == 0)
 			return BAN::Error::from_errno(EINVAL);
 
-		vaddr_t vaddr = (vaddr_t)addr;
+		const vaddr_t vaddr = reinterpret_cast<vaddr_t>(addr);
 		if (vaddr % PAGE_SIZE != 0)
 			return BAN::Error::from_errno(EINVAL);
 
+		if (auto rem = len % PAGE_SIZE)
+			len += PAGE_SIZE - rem;
+
 		LockGuard _(m_process_lock);
 
-		// FIXME: We should only map partial regions
+		// FIXME: We should unmap partial regions.
+		//        This is a hack to only unmap if the whole mmap region
+		//        is contained within [addr, addr + len]
 		for (size_t i = 0; i < m_mapped_regions.size(); i++)
-			if (m_mapped_regions[i]->overlaps(vaddr, len))
-				m_mapped_regions.remove(i);
+		{
+			auto& region = m_mapped_regions[i];
+
+			const vaddr_t region_s = region->vaddr();
+			const vaddr_t region_e = region->vaddr() + region->size();
+			if (vaddr <= region_s && region_e <= vaddr + len)
+				m_mapped_regions.remove(i--);
+			else if (region->overlaps(vaddr, len))
+				dwarnln("TODO: partial region munmap");
+		}
 
 		return 0;
 	}
