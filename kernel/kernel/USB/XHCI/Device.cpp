@@ -156,7 +156,7 @@ namespace Kernel
 	// 6.2.3.6 Interval
 	static uint32_t determine_interval(const USBEndpointDescriptor& endpoint_descriptor, USB::SpeedClass speed_class)
 	{
-		auto ep_type = static_cast<USB::EndpointType>(endpoint_descriptor.bDescriptorType & 0x03);
+		const auto ep_type = static_cast<USB::EndpointType>(endpoint_descriptor.bmAttributes & 0x03);
 
 		switch (speed_class)
 		{
