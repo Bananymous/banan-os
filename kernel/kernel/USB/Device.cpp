@@ -146,6 +146,10 @@ namespace Kernel
 
 			for (const auto& interface : configuration.interfaces)
 			{
+				// FIXME: support alternate settings
+				if (interface.descriptor.bAlternateSetting != 0)
+					continue;
+
 				switch (static_cast<USB::InterfaceBaseClass>(interface.descriptor.bInterfaceClass))
 				{
 					case USB::InterfaceBaseClass::Audio:
