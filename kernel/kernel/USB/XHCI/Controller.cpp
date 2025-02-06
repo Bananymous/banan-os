@@ -185,6 +185,12 @@ namespace Kernel
 						return BAN::Error::from_errno(EFAULT);
 					}
 
+					if (protocol.protocol_slot_type != 0)
+					{
+						dwarnln("Invalid slot type specified in SupportedProtocols");
+						return BAN::Error::from_errno(EFAULT);
+					}
+
 					if (protocol.protocol_speed_id_count != 0)
 						overrides_speed_ids = true;
 
@@ -193,7 +199,6 @@ namespace Kernel
 						auto& port = m_ports[protocol.compatible_port_offset + i - 1];
 						port.revision_major = protocol.major_revision;
 						port.revision_minor = protocol.minor_revision;
-						port.slot_type      = protocol.protocol_slot_type;
 					}
 				}
 
@@ -377,13 +382,14 @@ namespace Kernel
 
 		XHCI::TRB enable_slot { .enable_slot_command {} };
 		enable_slot.enable_slot_command.trb_type  = XHCI::TRBType::EnableSlotCommand;
-		enable_slot.enable_slot_command.slot_type = my_port.slot_type;
+		// 7.2.2.1.4: The Protocol Slot Type field of a USB3 or USB2 xHCI Supported Protocol Capability shall be set to ‘0’.
+		enable_slot.enable_slot_command.slot_type = 0;
 		auto result = TRY(send_command(enable_slot));
 
-		uint8_t slot_id = result.command_completion_event.slot_id;
+		const uint8_t slot_id = result.command_completion_event.slot_id;
 		if (slot_id == 0 || slot_id > capability_regs().hcsparams1.max_slots)
 		{
-			dwarnln("EnableSlot gave an invalid slot {}", slot_id);
+			dwarnln("EnableSlotCommand returned an invalid slot {}", slot_id);
 			return BAN::Error::from_errno(EFAULT);
 		}
 		dprintln_if(DEBUG_XHCI, "allocated slot {} for port {}", slot_id, port_index + 1);

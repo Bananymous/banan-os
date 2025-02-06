@@ -24,7 +24,6 @@ namespace Kernel
 		{
 			uint8_t revision_major { 0 };
 			uint8_t revision_minor { 0 };
-			uint8_t slot_type { 0 };
 			uint8_t slot_id { 0 };
 		};
 
