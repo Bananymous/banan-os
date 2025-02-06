@@ -110,12 +110,11 @@ namespace Kernel
 		m_state = State::Normal;
 	}
 
-	void VirtualTTY::handle_ansi_csi_color()
+	void VirtualTTY::handle_ansi_csi_color(uint8_t ch)
 	{
 		ASSERT(m_write_lock.current_processor_has_lock());
-		switch (m_ansi_state.nums[0])
+		switch (ch)
 		{
-			case -1:
 			case 0:
 				m_foreground = TerminalColor::BRIGHT_WHITE;
 				m_background = TerminalColor::BLACK;
@@ -165,18 +164,25 @@ namespace Kernel
 
 	void VirtualTTY::handle_ansi_csi(uint8_t ch)
 	{
+		constexpr size_t max_ansi_args = sizeof(m_ansi_state.nums) / sizeof(*m_ansi_state.nums);
+
 		ASSERT(m_write_lock.current_processor_has_lock());
 		switch (ch)
 		{
 			case '0': case '1': case '2': case '3': case '4':
 			case '5': case '6': case '7': case '8': case '9':
 			{
-				int32_t& val = m_ansi_state.nums[m_ansi_state.index];
-				val = (val == -1) ? (ch - '0') : (val * 10 + ch - '0');
+				if ((size_t)m_ansi_state.index >= max_ansi_args)
+					dwarnln("Only {} arguments supported with ANSI codes", max_ansi_args);
+				else
+				{
+					int32_t& val = m_ansi_state.nums[m_ansi_state.index];
+					val = (val == -1) ? (ch - '0') : (val * 10 + ch - '0');
+				}
 				return;
 			}
 			case ';':
-				m_ansi_state.index++;
+				m_ansi_state.index = BAN::Math::min<size_t>(m_ansi_state.index + 1, max_ansi_args);
 				return;
 			case 'A': // Cursor Up
 				if (m_ansi_state.nums[0] == -1)
@@ -308,7 +314,9 @@ namespace Kernel
 				dprintln_if(DEBUG_VTTY, "Unsupported ANSI CSI character f");
 				return;
 			case 'm':
-				handle_ansi_csi_color();
+				handle_ansi_csi_color(BAN::Math::max(m_ansi_state.nums[0], 0));
+				for (int i = 1; i < m_ansi_state.index; i++)
+					handle_ansi_csi_color(BAN::Math::max(m_ansi_state.nums[i], 0));
 				return reset_ansi();
 			case 's':
 				m_saved_row = m_row;

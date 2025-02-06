@@ -30,7 +30,7 @@ namespace Kernel
 
 		void reset_ansi();
 		void handle_ansi_csi(uint8_t ch);
-		void handle_ansi_csi_color();
+		void handle_ansi_csi_color(uint8_t ch);
 		void putchar_at(uint32_t codepoint, uint32_t x, uint32_t y);
 		void render_from_buffer(uint32_t x, uint32_t y);
 		void set_cursor_position(uint32_t x, uint32_t y);
