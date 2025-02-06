@@ -74,8 +74,8 @@ namespace Kernel
 				return BAN::Error::from_errno(EFAULT);
 			}
 
-			TRY(m_device.initialize_endpoint(m_interface.endpoints[bulk_in_index].descriptor));
-			TRY(m_device.initialize_endpoint(m_interface.endpoints[bulk_out_index].descriptor));
+			TRY(m_device.configure_endpoint(m_interface.endpoints[bulk_in_index].descriptor));
+			TRY(m_device.configure_endpoint(m_interface.endpoints[bulk_out_index].descriptor));
 
 			{
 				const auto& desc = m_interface.endpoints[bulk_in_index].descriptor;

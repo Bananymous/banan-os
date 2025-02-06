@@ -195,17 +195,12 @@ namespace Kernel
 		ASSERT_NOT_REACHED();
 	}
 
-	BAN::ErrorOr<void> XHCIDevice::initialize_endpoint(const USBEndpointDescriptor& endpoint_descriptor)
+	BAN::ErrorOr<void> XHCIDevice::configure_endpoint(const USBEndpointDescriptor& endpoint_descriptor)
 	{
 		const bool is_control   { (endpoint_descriptor.bmAttributes & 0x03) == 0x00 };
 		const bool is_isoch     { (endpoint_descriptor.bmAttributes & 0x03) == 0x01 };
 		const bool is_bulk      { (endpoint_descriptor.bmAttributes & 0x03) == 0x02 };
 		const bool is_interrupt { (endpoint_descriptor.bmAttributes & 0x03) == 0x03 };
-
-		(void)is_control;
-		(void)is_isoch;
-		(void)is_bulk;
-		(void)is_interrupt;
 
 		XHCI::EndpointType endpoint_type;
 		switch ((endpoint_descriptor.bEndpointAddress & 0x80) | (endpoint_descriptor.bmAttributes & 0x03))
@@ -231,20 +226,29 @@ namespace Kernel
 		const uint32_t average_trb_length = (is_control) ? 8 : max_esit_payload;
 		const uint32_t error_count        = (is_isoch)   ? 0 : 3;
 
-		auto& endpoint = m_endpoints[endpoint_id - 1];
-		ASSERT(!endpoint.transfer_ring);
-
 		uint32_t last_valid_endpoint_id = endpoint_id;
 		for (size_t i = endpoint_id; i < m_endpoints.size(); i++)
 			if (m_endpoints[i].transfer_ring)
 				last_valid_endpoint_id = i + 1;
 
-		endpoint.transfer_ring   = TRY(DMARegion::create(m_transfer_ring_trb_count * sizeof(XHCI::TRB)));
-		endpoint.max_packet_size = max_packet_size;
-		endpoint.dequeue_index   = 0;
-		endpoint.enqueue_index   = 0;
-		endpoint.cycle_bit       = 1;
-		endpoint.callback        = (is_interrupt || is_bulk) ? &XHCIDevice::on_interrupt_or_bulk_endpoint_event : nullptr;
+		auto& endpoint = m_endpoints[endpoint_id - 1];
+		LockGuard _(endpoint.mutex);
+
+		if (!endpoint.transfer_ring)
+		{
+			endpoint.transfer_ring   = TRY(DMARegion::create(m_transfer_ring_trb_count * sizeof(XHCI::TRB)));
+			endpoint.max_packet_size = max_packet_size;
+			endpoint.dequeue_index   = 0;
+			endpoint.enqueue_index   = 0;
+			endpoint.cycle_bit       = 1;
+			endpoint.callback        = (is_interrupt || is_bulk) ? &XHCIDevice::on_interrupt_or_bulk_endpoint_event : nullptr;
+		}
+		else
+		{
+			endpoint.dequeue_index = 0;
+			endpoint.enqueue_index = 0;
+			endpoint.cycle_bit = 1;
+		}
 
 		memset(reinterpret_cast<void*>(endpoint.transfer_ring->vaddr()), 0, endpoint.transfer_ring->size());
 
@@ -256,9 +260,8 @@ namespace Kernel
 			auto& endpoint_context      = *reinterpret_cast<XHCI::EndpointContext*>    (m_input_context->vaddr() + (endpoint_id + 1) * context_size);
 
 			memset(&input_control_context, 0, context_size);
-			input_control_context.add_context_flags = (1u << endpoint_id) | 1;
+			input_control_context.add_context_flags = (1u << endpoint_id) | (1 << 0);
 
-			memset(&slot_context, 0, context_size);
 			slot_context.context_entries = last_valid_endpoint_id;
 			// FIXME: 4.5.2 hub
 

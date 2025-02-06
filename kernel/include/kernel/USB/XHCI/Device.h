@@ -33,7 +33,7 @@ namespace Kernel
 	public:
 		static BAN::ErrorOr<BAN::UniqPtr<XHCIDevice>> create(XHCIController&, uint32_t port_id, uint32_t slot_id);
 
-		BAN::ErrorOr<void> initialize_endpoint(const USBEndpointDescriptor&) override;
+		BAN::ErrorOr<void> configure_endpoint(const USBEndpointDescriptor&) override;
 		BAN::ErrorOr<size_t> send_request(const USBDeviceRequest&, paddr_t buffer) override;
 		void send_data_buffer(uint8_t endpoint_id, paddr_t buffer, size_t buffer_size) override;
 

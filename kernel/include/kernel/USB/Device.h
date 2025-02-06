@@ -68,7 +68,7 @@ namespace Kernel
 
 		const BAN::Vector<ConfigurationDescriptor>& configurations() { return m_descriptor.configurations; }
 
-		virtual BAN::ErrorOr<void> initialize_endpoint(const USBEndpointDescriptor&) = 0;
+		virtual BAN::ErrorOr<void> configure_endpoint(const USBEndpointDescriptor&) = 0;
 		virtual BAN::ErrorOr<size_t> send_request(const USBDeviceRequest&, paddr_t buffer) = 0;
 		virtual void send_data_buffer(uint8_t endpoint_id, paddr_t buffer, size_t buffer_len) = 0;
 

@@ -194,7 +194,7 @@ namespace Kernel
 			if ((desc.bmAttributes & 0x03) != 0x03)
 				continue;
 
-			TRY(m_device.initialize_endpoint(desc));
+			TRY(m_device.configure_endpoint(desc));
 			m_data_buffer = TRY(DMARegion::create(desc.wMaxPacketSize & 0x07FF));
 
 			m_data_endpoint_id = (desc.bEndpointAddress & 0x0F) * 2 + !!(desc.bEndpointAddress & 0x80);
