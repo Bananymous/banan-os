@@ -336,10 +336,9 @@ namespace Kernel
 
 				if (!(op_port.portsc & XHCI::PORTSC::CCS))
 				{
-					// if device detached, clear the port
 					if (my_port.slot_id != 0)
 					{
-						m_slots[my_port.slot_id - 1].clear();
+						deinitialize_slot(my_port.slot_id);
 						my_port.slot_id = 0;
 					}
 					continue;
@@ -364,7 +363,9 @@ namespace Kernel
 						continue;
 				}
 
-				if (auto ret = initialize_slot(i); ret.is_error())
+				if (auto ret = initialize_slot(i); !ret.is_error())
+					my_port.slot_id = ret.value();
+				else
 				{
 					dwarnln("Could not initialize USB {H}.{H} device: {}",
 						my_port.revision_major,
@@ -376,7 +377,7 @@ namespace Kernel
 		}
 	}
 
-	BAN::ErrorOr<void> XHCIController::initialize_slot(int port_index)
+	BAN::ErrorOr<uint8_t> XHCIController::initialize_slot(int port_index)
 	{
 		auto& my_port = m_ports[port_index];
 
@@ -406,7 +407,15 @@ namespace Kernel
 
 		dprintln_if(DEBUG_XHCI, "device on slot {} initialized", slot_id);
 
-		return {};
+		return slot_id;
+	}
+
+	void XHCIController::deinitialize_slot(uint8_t slot_id)
+	{
+		ASSERT(0 < slot_id && slot_id <= m_slots.size());
+		ASSERT(m_slots[slot_id - 1]);
+		m_slots[slot_id - 1]->destroy();
+		m_slots[slot_id - 1].clear();
 	}
 
 	BAN::ErrorOr<void> XHCIController::reset_controller()

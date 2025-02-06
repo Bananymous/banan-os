@@ -61,6 +61,9 @@ namespace Kernel
 		{}
 		virtual ~USBDevice() = default;
 
+		// Class drivers have to be destroyed before derived class destructor is called
+		void destroy() { m_class_drivers.clear(); }
+
 		BAN::ErrorOr<void> initialize();
 
 		const BAN::Vector<ConfigurationDescriptor>& configurations() { return m_descriptor.configurations; }
