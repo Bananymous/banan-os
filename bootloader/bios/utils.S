@@ -306,19 +306,7 @@ memset32:
 	movw $GDT_DATA32, %dx
 	movw %dx, %es
 
-	movl %ecx, %edx
-
-	andl $3, %ecx
 	rep stosb %es:(%edi)
-
-	movl %edx, %ecx
-	shrl $2, %ecx
-
-	movb %al, %ah
-	movw %ax, %dx
-	shll $16, %eax
-	movw %dx, %ax
-	rep stosl %es:(%edi)
 
 	ljmpl $GDT_CODE16, $.memset32_pmode16
 
@@ -370,13 +358,7 @@ memcpy32:
 	movw %dx, %ds
 	movw %dx, %es
 
-	movl %ecx, %edx
-	andl $3, %ecx
 	rep movsb %ds:(%esi), %es:(%edi)
-
-	movl %edx, %ecx
-	shrl $2, %ecx
-	rep movsl %ds:(%esi), %es:(%edi)
 
 	ljmpl $GDT_CODE16, $.memcpy32_pmode16
 
