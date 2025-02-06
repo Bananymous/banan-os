@@ -13,15 +13,8 @@ namespace Kernel
 		return TRY(BAN::UniqPtr<XHCIDevice>::create(controller, port_id, slot_id));
 	}
 
-	uint64_t XHCIDevice::calculate_port_bits_per_second(XHCIController& controller, uint32_t port_id)
-	{
-		const uint32_t portsc = controller.operational_regs().ports[port_id - 1].portsc;
-		const uint32_t speed_id = (portsc >> XHCI::PORTSC::PORT_SPEED_SHIFT) & XHCI::PORTSC::PORT_SPEED_MASK;
-		return controller.port(port_id).speed_id_to_speed[speed_id];
-	}
-
 	XHCIDevice::XHCIDevice(XHCIController& controller, uint32_t port_id, uint32_t slot_id)
-		: USBDevice(determine_speed_class(calculate_port_bits_per_second(controller, port_id)))
+		: USBDevice(controller.speed_id_to_class((controller.operational_regs().ports[port_id - 1].portsc >> XHCI::PORTSC::PORT_SPEED_SHIFT) & XHCI::PORTSC::PORT_SPEED_MASK))
 		, m_controller(controller)
 		, m_port_id(port_id)
 		, m_slot_id(slot_id)

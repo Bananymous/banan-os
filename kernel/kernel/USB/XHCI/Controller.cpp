@@ -148,6 +148,8 @@ namespace Kernel
 
 		ASSERT(m_ports.size() == max_ports);
 
+		bool overrides_speed_ids = false;
+
 		{
 			uint16_t ext_offset = capabilities.hccparams1.xhci_extended_capabilities_pointer;
 			if (ext_offset == 0)
@@ -159,11 +161,11 @@ namespace Kernel
 			vaddr_t ext_addr = m_configuration_bar->vaddr() + ext_offset * 4;
 			while (true)
 			{
-				auto& ext_cap = *reinterpret_cast<volatile XHCI::ExtendedCap*>(ext_addr);
+				const auto& ext_cap = *reinterpret_cast<volatile XHCI::ExtendedCap*>(ext_addr);
 
 				if (ext_cap.capability_id == XHCI::ExtendedCapabilityID::SupportedProtocol)
 				{
-					auto& protocol = reinterpret_cast<volatile XHCI::SupportedPrococolCap&>(ext_cap);
+					const auto& protocol = reinterpret_cast<const volatile XHCI::SupportedPrococolCap&>(ext_cap);
 
 					const uint32_t target_name_string {
 						('U' <<  0) |
@@ -183,21 +185,15 @@ namespace Kernel
 						return BAN::Error::from_errno(EFAULT);
 					}
 
+					if (protocol.protocol_speed_id_count != 0)
+						overrides_speed_ids = true;
+
 					for (size_t i = 0; i < protocol.compatible_port_count; i++)
 					{
 						auto& port = m_ports[protocol.compatible_port_offset + i - 1];
 						port.revision_major = protocol.major_revision;
 						port.revision_minor = protocol.minor_revision;
 						port.slot_type      = protocol.protocol_slot_type;
-
-						for (size_t j = 0; j < protocol.protocol_speed_id_count; j++)
-						{
-							uint32_t speed_info = reinterpret_cast<const volatile uint32_t*>(ext_addr + sizeof(XHCI::SupportedPrococolCap))[j];
-							uint32_t port_speed = speed_info >> 16;
-							for (size_t exp = 0; exp < ((speed_info >> 4) & 0x03); exp++)
-								port_speed *= 1000;
-							port.speed_id_to_speed[speed_info & 0x0F] = port_speed;
-						}
 					}
 				}
 
@@ -207,11 +203,38 @@ namespace Kernel
 			}
 		}
 
+		if (overrides_speed_ids)
+			dwarnln("xHCI overrides default speed ids, USB may not work");
+
 		// set max slots enabled
 		auto& operational = operational_regs();
 		operational.config.max_device_slots_enabled = capabilities.hcsparams1.max_slots;
 
 		return {};
+	}
+
+	uint8_t XHCIController::speed_class_to_id(USB::SpeedClass speed_class) const
+	{
+		switch (speed_class)
+		{
+			case USB::SpeedClass::LowSpeed:   return 2;
+			case USB::SpeedClass::FullSpeed:  return 1;
+			case USB::SpeedClass::HighSpeed:  return 3;
+			case USB::SpeedClass::SuperSpeed: return 4;
+		}
+		ASSERT_NOT_REACHED();
+	}
+
+	USB::SpeedClass XHCIController::speed_id_to_class(uint8_t speed_id) const
+	{
+		switch (speed_id)
+		{
+			case 2: return USB::SpeedClass::LowSpeed;
+			case 1: return USB::SpeedClass::FullSpeed;
+			case 3: return USB::SpeedClass::HighSpeed;
+			case 4: return USB::SpeedClass::SuperSpeed;
+		}
+		ASSERT_NOT_REACHED();
 	}
 
 	BAN::ErrorOr<void> XHCIController::initialize_primary_interrupter()

@@ -51,8 +51,6 @@ namespace Kernel
 
 		void advance_endpoint_enqueue(Endpoint&, bool chain);
 
-		static uint64_t calculate_port_bits_per_second(XHCIController&, uint32_t port_id);
-
 	private:
 		static constexpr uint32_t m_transfer_ring_trb_count = PAGE_SIZE / sizeof(XHCI::TRB);
 

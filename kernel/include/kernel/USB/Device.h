@@ -4,8 +4,8 @@
 #include <BAN/NoCopyMove.h>
 
 #include <kernel/Memory/DMARegion.h>
-#include <kernel/USB/USBManager.h>
 #include <kernel/USB/Controller.h>
+#include <kernel/USB/USBManager.h>
 
 namespace Kernel
 {
@@ -69,7 +69,8 @@ namespace Kernel
 		virtual BAN::ErrorOr<size_t> send_request(const USBDeviceRequest&, paddr_t buffer) = 0;
 		virtual void send_data_buffer(uint8_t endpoint_id, paddr_t buffer, size_t buffer_len) = 0;
 
-		static USB::SpeedClass determine_speed_class(uint64_t bits_per_second);
+		USB::SpeedClass speed_class() const { return m_speed_class; }
+		uint8_t depth() const { return m_depth; }
 
 	protected:
 		void handle_stall(uint8_t endpoint_id);

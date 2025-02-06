@@ -340,15 +340,4 @@ namespace Kernel
 			driver->handle_input_data(byte_count, endpoint_id);
 	}
 
-	USB::SpeedClass USBDevice::determine_speed_class(uint64_t bits_per_second)
-	{
-		if (bits_per_second <= 1'500'000)
-			return USB::SpeedClass::LowSpeed;
-		if (bits_per_second <= 12'000'000)
-			return USB::SpeedClass::FullSpeed;
-		else if (bits_per_second <= 480'000'000)
-			return USB::SpeedClass::HighSpeed;
-		return USB::SpeedClass::SuperSpeed;
-	}
-
 }

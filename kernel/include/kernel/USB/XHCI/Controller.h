@@ -5,6 +5,7 @@
 #include <kernel/Lock/Mutex.h>
 #include <kernel/Memory/DMARegion.h>
 #include <kernel/ThreadBlocker.h>
+#include <kernel/USB/Definitions.h>
 #include <kernel/USB/USBManager.h>
 #include <kernel/USB/XHCI/Definitions.h>
 
@@ -25,17 +26,6 @@ namespace Kernel
 			uint8_t revision_minor { 0 };
 			uint8_t slot_type { 0 };
 			uint8_t slot_id { 0 };
-
-			uint64_t speed_id_to_speed[0x10] {
-				             0,
-				    12'000'000,
-				     1'500'000,
-				   480'000'000,
-				 5'000'000'000,
-				10'000'000'000,
-				 5'000'000'000,
-				10'000'000'000,
-			};
 		};
 
 	public:
@@ -73,6 +63,9 @@ namespace Kernel
 		volatile uint64_t& dcbaa_reg(uint32_t slot_id);
 
 		const volatile XHCI::TRB& current_event_trb();
+
+		uint8_t speed_class_to_id(USB::SpeedClass speed_class) const;
+		USB::SpeedClass speed_id_to_class(uint8_t) const;
 
 	private:
 		static constexpr uint32_t m_command_ring_trb_count = 256;
