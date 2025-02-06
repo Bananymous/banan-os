@@ -107,41 +107,38 @@ namespace Kernel
 		while (*ptr)
 			putchar(*ptr++);
 
-		if (getchar() != '\033')
+		if (auto ch = getchar(); !ch.has_value() || ch.value() != '\033')
 			return false;
-		if (getchar() != '[')
+		if (auto ch = getchar(); !ch.has_value() || ch.value() != '[')
 			return false;
 
 		auto read_number =
-			[&](char end)
+			[&](uint8_t end) -> BAN::Optional<uint32_t>
 			{
 				uint32_t number = 0;
 				while (true)
 				{
-					char c = getchar();
-					if (c == end)
-						break;
-					if (!isdigit(c))
-						return UINT32_MAX;
-					number = (number * 10) + (c - '0');
+					const auto ch = getchar();
+					if (!ch.has_value())
+						return {};
+					if (ch.value() == end)
+						return number;
+					if (!isdigit(ch.value()))
+						return {};
+					number = (number * 10) + (ch.value() - '0');
 				}
-				return number;
 			};
 
-		m_height = read_number(';');
-		if (m_height == UINT32_MAX)
-		{
-			m_port = 0;
+		const auto height = read_number(';');
+		if (!height.has_value())
 			return false;
-		}
 
-		m_width = read_number('R');
-		if (m_width == UINT32_MAX)
-		{
-			m_port = 0;
+		const auto width = read_number('R');
+		if (!width.has_value())
 			return false;
-		}
 
+		m_height = height.value();
+		m_width = width.value();
 		return true;
 	}
 
@@ -150,25 +147,26 @@ namespace Kernel
 		return s_has_devices;
 	}
 
-	void Serial::putchar(char c)
+	void Serial::putchar(uint8_t ch)
 	{
 		while (!(IO::inb(m_port + 5) & 0x20))
 			continue;
-		IO::outb(m_port, c);
+		IO::outb(m_port, ch);
 	}
 
-	char Serial::getchar()
+	BAN::Optional<uint8_t> Serial::getchar()
 	{
-		while (!(IO::inb(m_port + 5) & 0x01))
-			continue;
-		return IO::inb(m_port);
+		for (size_t i = 0; i < 10'000'000; i++)
+			if (IO::inb(m_port + 5) & 0x01)
+				return IO::inb(m_port);
+		return {};
 	}
 
-	void Serial::putchar_any(char c)
+	void Serial::putchar_any(uint8_t ch)
 	{
 		for (auto& device : s_serial_drivers)
 			if (device.is_valid())
-				device.putchar(c);
+				return device.putchar(ch);
 	}
 
 	SerialTTY::SerialTTY(Serial serial)

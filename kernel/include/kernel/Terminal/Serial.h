@@ -2,6 +2,7 @@
 
 #include <BAN/CircularQueue.h>
 #include <BAN/Errors.h>
+#include <BAN/Optional.h>
 #include <kernel/Interruptable.h>
 #include <kernel/Terminal/TTY.h>
 
@@ -13,12 +14,12 @@ namespace Kernel
 	public:
 		static void initialize();
 		static bool has_devices();
-		static void putchar_any(char);
+		static void putchar_any(uint8_t);
 
 		static void initialize_devices();
 
-		void putchar(char);
-		char getchar();
+		void putchar(uint8_t);
+		BAN::Optional<uint8_t> getchar();
 
 		bool is_valid() const { return m_port != 0; }
 
