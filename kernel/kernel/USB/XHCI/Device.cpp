@@ -8,35 +8,32 @@
 namespace Kernel
 {
 
-	BAN::ErrorOr<BAN::UniqPtr<XHCIDevice>> XHCIDevice::create(XHCIController& controller, uint32_t port_id, uint32_t slot_id)
+	BAN::ErrorOr<BAN::UniqPtr<XHCIDevice>> XHCIDevice::create(XHCIController& controller, const Info& info)
 	{
-		return TRY(BAN::UniqPtr<XHCIDevice>::create(controller, port_id, slot_id));
+		return TRY(BAN::UniqPtr<XHCIDevice>::create(controller, info));
 	}
 
-	XHCIDevice::XHCIDevice(XHCIController& controller, uint32_t port_id, uint32_t slot_id)
-		: USBDevice(controller.speed_id_to_class((controller.operational_regs().ports[port_id - 1].portsc >> XHCI::PORTSC::PORT_SPEED_SHIFT) & XHCI::PORTSC::PORT_SPEED_MASK))
+	XHCIDevice::XHCIDevice(XHCIController& controller, const Info& info)
+		: USBDevice(info.speed_class)
 		, m_controller(controller)
-		, m_port_id(port_id)
-		, m_slot_id(slot_id)
+		, m_info(info)
 	{}
 
 	XHCIDevice::~XHCIDevice()
 	{
 		XHCI::TRB disable_slot { .disable_slot_command {} };
 		disable_slot.disable_slot_command.trb_type = XHCI::TRBType::DisableSlotCommand;
-		disable_slot.disable_slot_command.slot_id = m_slot_id;
+		disable_slot.disable_slot_command.slot_id = m_info.slot_id;
 		if (auto ret = m_controller.send_command(disable_slot); ret.is_error())
-			dwarnln("Could not disable slot {}: {}", m_slot_id, ret.error());
+			dwarnln("Could not disable slot {}: {}", m_info.slot_id, ret.error());
 		else
-			dprintln_if(DEBUG_XHCI, "Slot {} disabled", m_slot_id);
+			dprintln_if(DEBUG_XHCI, "Slot {} disabled", m_info.slot_id);
 	}
 
 	BAN::ErrorOr<void> XHCIDevice::initialize_control_endpoint()
 	{
 		const uint32_t context_size = m_controller.context_size_set() ? 64 : 32;
 
-		const uint32_t portsc = m_controller.operational_regs().ports[m_port_id - 1].portsc;
-		const uint32_t speed_id = (portsc >> XHCI::PORTSC::PORT_SPEED_SHIFT) & XHCI::PORTSC::PORT_SPEED_MASK;
 
 		m_endpoints[0].max_packet_size = 0;
 		switch (m_speed_class)
@@ -68,25 +65,27 @@ namespace Kernel
 			auto& slot_context          = *reinterpret_cast<XHCI::SlotContext*>        (m_input_context->vaddr() + 1 * context_size);
 			auto& endpoint0_context     = *reinterpret_cast<XHCI::EndpointContext*>    (m_input_context->vaddr() + 2 * context_size);
 
-			memset(&input_control_context, 0, context_size);
-			input_control_context.add_context_flags = 0b11;
+			input_control_context.add_context_flags = (1 << 1) | (1 << 0);
 
-			memset(&slot_context, 0, context_size);
-			slot_context.route_string         = 0;
-			slot_context.root_hub_port_number = m_port_id;
+			slot_context.route_string         = m_info.route_string >> 4;
+			slot_context.root_hub_port_number = m_info.route_string & 0x0F;
 			slot_context.context_entries      = 1;
 			slot_context.interrupter_target   = 0;
-			slot_context.speed                = speed_id;
+			slot_context.speed                = m_controller.speed_class_to_id(m_info.speed_class);
 			// FIXME: 4.5.2 hub
 
-			memset(&endpoint0_context, 0, context_size);
 			endpoint0_context.endpoint_type       = XHCI::EndpointType::Control;
 			endpoint0_context.max_packet_size     = m_endpoints[0].max_packet_size;
-			endpoint0_context.error_count         = 3;
+			endpoint0_context.max_burst_size      = 0; // FIXME: SuperSpeed
+			endpoint0_context.interval            = 0;
 			endpoint0_context.tr_dequeue_pointer  = m_endpoints[0].transfer_ring->paddr() | 1;
+			endpoint0_context.max_primary_streams = 0;
+			endpoint0_context.error_count         = 3;
 		}
 
-		m_controller.dcbaa_reg(m_slot_id) = m_output_context->paddr();
+		m_controller.dcbaa_reg(m_info.slot_id) = m_output_context->paddr();
+
+		dprintln_if(DEBUG_XHCI, "Addressing device on slot {}", m_info.slot_id);
 
 		for (int i = 0; i < 2; i++)
 		{
@@ -95,7 +94,7 @@ namespace Kernel
 			address_device.address_device_command.input_context_pointer     = m_input_context->paddr();
 			// NOTE: some legacy devices require sending request with BSR=1 before actual BSR=0
 			address_device.address_device_command.block_set_address_request = (i == 0);
-			address_device.address_device_command.slot_id                   = m_slot_id;
+			address_device.address_device_command.slot_id                   = m_info.slot_id;
 			TRY(m_controller.send_command(address_device));
 		}
 
@@ -116,12 +115,12 @@ namespace Kernel
 		USBDeviceRequest request;
 		request.bmRequestType = USB::RequestType::DeviceToHost | USB::RequestType::Standard | USB::RequestType::Device;
 		request.bRequest      = USB::Request::GET_DESCRIPTOR;
-		request.wValue        = 0x0100;
+		request.wValue        = USB::DescriptorType::DEVICE << 8;
 		request.wIndex        = 0;
 		request.wLength       = 8;
 		TRY(send_request(request, kmalloc_paddr_of((vaddr_t)buffer.data()).value()));
 
-		const bool is_usb3 = m_controller.port(m_port_id).revision_major == 3;
+		const bool is_usb3 = (m_speed_class == USB::SpeedClass::SuperSpeed);
 		const uint32_t new_max_packet_size = is_usb3 ? 1u << buffer.back() : buffer.back();
 
 		if (m_endpoints[0].max_packet_size == new_max_packet_size)
@@ -133,31 +132,23 @@ namespace Kernel
 
 		{
 			auto& input_control_context = *reinterpret_cast<XHCI::InputControlContext*>(m_input_context->vaddr() + 0 * context_size);
-			auto& slot_context          = *reinterpret_cast<XHCI::SlotContext*>        (m_input_context->vaddr() + 1 * context_size);
 			auto& endpoint0_context     = *reinterpret_cast<XHCI::EndpointContext*>    (m_input_context->vaddr() + 2 * context_size);
 
 			memset(&input_control_context, 0, context_size);
-			input_control_context.add_context_flags = 0b11;
+			input_control_context.add_context_flags = (1 << 1);
 
-			memset(&slot_context, 0, context_size);
-			slot_context.max_exit_latency   = 0; // FIXME:
-			slot_context.interrupter_target = 0;
-
-			memset(&endpoint0_context, 0, context_size);
-			endpoint0_context.endpoint_type       = XHCI::EndpointType::Control;
-			endpoint0_context.max_packet_size     = m_endpoints[0].max_packet_size;
-			endpoint0_context.error_count         = 3;
-			endpoint0_context.tr_dequeue_pointer  = m_endpoints[0].transfer_ring->paddr() | 1;
+			// Only update max packet size. Other fields should be fine from initial configuration
+			endpoint0_context.max_packet_size = new_max_packet_size;
 		}
 
 		XHCI::TRB evaluate_context { .address_device_command = {} };
 		evaluate_context.address_device_command.trb_type                  = XHCI::TRBType::EvaluateContextCommand;
 		evaluate_context.address_device_command.input_context_pointer     = m_input_context->paddr();
 		evaluate_context.address_device_command.block_set_address_request = 0;
-		evaluate_context.address_device_command.slot_id                   = m_slot_id;
+		evaluate_context.address_device_command.slot_id                   = m_info.slot_id;
 		TRY(m_controller.send_command(evaluate_context));
 
-		dprintln_if(DEBUG_XHCI, "successfully updated max packet size to {}", m_endpoints[0].max_packet_size);
+		dprintln_if(DEBUG_XHCI, "Updated max packet size to {}", new_max_packet_size);
 
 		return {};
 	}
@@ -282,7 +273,7 @@ namespace Kernel
 		configure_endpoint.configure_endpoint_command.trb_type              = XHCI::TRBType::ConfigureEndpointCommand;
 		configure_endpoint.configure_endpoint_command.input_context_pointer = m_input_context->paddr();
 		configure_endpoint.configure_endpoint_command.deconfigure           = 0;
-		configure_endpoint.configure_endpoint_command.slot_id               = m_slot_id;
+		configure_endpoint.configure_endpoint_command.slot_id               = m_info.slot_id;
 		TRY(m_controller.send_command(configure_endpoint));
 
 		return {};
@@ -455,7 +446,7 @@ namespace Kernel
 
 		endpoint.transfer_count = request.wLength;
 
-		m_controller.doorbell_reg(m_slot_id) = 1;
+		m_controller.doorbell_reg(m_info.slot_id) = 1;
 
 		const uint64_t timeout_ms = SystemTimer::get().ms_since_boot() + 1000;
 		while ((__atomic_load_n(&completion_trb.raw.dword2, __ATOMIC_SEQ_CST) >> 24) == 0)
@@ -492,7 +483,7 @@ namespace Kernel
 		trb.normal.interrupt_on_short_packet = 1;
 		advance_endpoint_enqueue(endpoint, false);
 
-		m_controller.doorbell_reg(m_slot_id) = endpoint_id;
+		m_controller.doorbell_reg(m_info.slot_id) = endpoint_id;
 	}
 
 	void XHCIDevice::advance_endpoint_enqueue(Endpoint& endpoint, bool chain)

@@ -46,7 +46,7 @@ namespace Kernel
 
 		void port_updater_task();
 
-		BAN::ErrorOr<uint8_t> initialize_slot(int port_index);
+		BAN::ErrorOr<uint8_t> initialize_device(uint32_t route_string, USB::SpeedClass speed_class);
 		void deinitialize_slot(uint8_t slot_id);
 
 		BAN::ErrorOr<XHCI::TRB> send_command(const XHCI::TRB&);

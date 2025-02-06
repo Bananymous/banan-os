@@ -30,8 +30,15 @@ namespace Kernel
 			void(XHCIDevice::*callback)(XHCI::TRB);
 		};
 
+		struct Info
+		{
+			USB::SpeedClass speed_class;
+			uint8_t slot_id;
+			uint32_t route_string;
+		};
+
 	public:
-		static BAN::ErrorOr<BAN::UniqPtr<XHCIDevice>> create(XHCIController&, uint32_t port_id, uint32_t slot_id);
+		static BAN::ErrorOr<BAN::UniqPtr<XHCIDevice>> create(XHCIController&, const Info& info);
 
 		BAN::ErrorOr<void> configure_endpoint(const USBEndpointDescriptor&) override;
 		BAN::ErrorOr<size_t> send_request(const USBDeviceRequest&, paddr_t buffer) override;
@@ -43,8 +50,9 @@ namespace Kernel
 		BAN::ErrorOr<void> initialize_control_endpoint() override;
 
 	private:
-		XHCIDevice(XHCIController& controller, uint32_t port_id, uint32_t slot_id);
+		XHCIDevice(XHCIController& controller, const Info& info);
 		~XHCIDevice();
+
 		BAN::ErrorOr<void> update_actual_max_packet_size();
 
 		void on_interrupt_or_bulk_endpoint_event(XHCI::TRB);
@@ -55,8 +63,7 @@ namespace Kernel
 		static constexpr uint32_t m_transfer_ring_trb_count = PAGE_SIZE / sizeof(XHCI::TRB);
 
 		XHCIController& m_controller;
-		const uint32_t m_port_id;
-		const uint32_t m_slot_id;
+		Info m_info;
 
 		Mutex m_mutex;
 

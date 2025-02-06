@@ -363,7 +363,8 @@ namespace Kernel
 						continue;
 				}
 
-				if (auto ret = initialize_slot(i); !ret.is_error())
+				const uint8_t speed_id = (op_port.portsc >> XHCI::PORTSC::PORT_SPEED_SHIFT) & XHCI::PORTSC::PORT_SPEED_MASK;
+				if (auto ret = initialize_device(i + 1, speed_id_to_class(speed_id)); !ret.is_error())
 					my_port.slot_id = ret.value();
 				else
 				{
@@ -377,10 +378,8 @@ namespace Kernel
 		}
 	}
 
-	BAN::ErrorOr<uint8_t> XHCIController::initialize_slot(int port_index)
+	BAN::ErrorOr<uint8_t> XHCIController::initialize_device(uint32_t route_string, USB::SpeedClass speed_class)
 	{
-		auto& my_port = m_ports[port_index];
-
 		XHCI::TRB enable_slot { .enable_slot_command {} };
 		enable_slot.enable_slot_command.trb_type  = XHCI::TRBType::EnableSlotCommand;
 		// 7.2.2.1.4: The Protocol Slot Type field of a USB3 or USB2 xHCI Supported Protocol Capability shall be set to ‘0’.
@@ -393,9 +392,24 @@ namespace Kernel
 			dwarnln("EnableSlotCommand returned an invalid slot {}", slot_id);
 			return BAN::Error::from_errno(EFAULT);
 		}
-		dprintln_if(DEBUG_XHCI, "allocated slot {} for port {}", slot_id, port_index + 1);
 
-		m_slots[slot_id - 1] = TRY(XHCIDevice::create(*this, port_index + 1, slot_id));
+#if DEBUG_XHCI
+		const auto& root_port = m_ports[(route_string & 0x0F) - 1];
+
+		dprintln("Initializing USB {H}.{H} device on slot {}",
+			root_port.revision_major,
+			root_port.revision_minor,
+			slot_id
+		);
+#endif
+
+		const XHCIDevice::Info info {
+			.speed_class = speed_class,
+			.slot_id = slot_id,
+			.route_string = route_string,
+		};
+
+		m_slots[slot_id - 1] = TRY(XHCIDevice::create(*this, info));
 		if (auto ret = m_slots[slot_id - 1]->initialize(); ret.is_error())
 		{
 			dwarnln("Could not initialize device on slot {}: {}", slot_id, ret.error());
@@ -403,9 +417,13 @@ namespace Kernel
 			return ret.release_error();
 		}
 
-		my_port.slot_id = slot_id;
-
-		dprintln_if(DEBUG_XHCI, "device on slot {} initialized", slot_id);
+#if DEBUG_XHCI
+		dprintln("USB {H}.{H} device on slot {} initialized",
+			root_port.revision_major,
+			root_port.revision_minor,
+			slot_id
+		);
+#endif
 
 		return slot_id;
 	}
