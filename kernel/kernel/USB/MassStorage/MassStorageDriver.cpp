@@ -20,7 +20,11 @@ namespace Kernel
 	{ }
 
 	USBMassStorageDriver::~USBMassStorageDriver()
-	{ }
+	{
+		for (auto& device : m_storage_devices)
+			if (device)
+				DevFileSystem::get().remove_device(device);
+	}
 
 	BAN::ErrorOr<void> USBMassStorageDriver::initialize()
 	{

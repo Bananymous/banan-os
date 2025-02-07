@@ -204,6 +204,9 @@ namespace Kernel
 
 	StorageDevice::~StorageDevice()
 	{
+		for (auto& partition : m_partitions)
+			if (partition)
+				DevFileSystem::get().remove_device(partition);
 	}
 
 	void StorageDevice::add_disk_cache()

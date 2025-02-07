@@ -28,7 +28,7 @@ namespace Kernel
 		virtual BAN::ErrorOr<void> fsync_impl() final override { return BAN::Error::from_errno(EINVAL); }
 	};
 
-	class BlockDevice : public Device
+	class BlockDevice : public Device, public BAN::Weakable<BlockDevice>
 	{
 	public:
 		virtual BAN::ErrorOr<void> read_blocks(uint64_t first_block, size_t block_count, BAN::ByteSpan) = 0;

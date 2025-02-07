@@ -13,9 +13,8 @@ namespace Kernel
 
 		const BAN::GUID& partition_type() const { return m_type; }
 		const BAN::GUID& partition_guid() const { return m_guid; }
-		const BAN::RefPtr<BlockDevice> device() const { return m_device; }
 
-		virtual blksize_t blksize() const override { return m_device->blksize(); }
+		virtual blksize_t blksize() const override { return m_block_size; }
 
 		BAN::ErrorOr<void> read_sectors(uint64_t first_block, size_t block_count, BAN::ByteSpan buffer)			{ return read_blocks(first_block, block_count, buffer); }
 		BAN::ErrorOr<void> write_sectors(uint64_t first_block, size_t block_count, BAN::ConstByteSpan buffer)	{ return write_blocks(first_block, block_count, buffer); }
@@ -32,7 +31,8 @@ namespace Kernel
 		Partition(BAN::RefPtr<BlockDevice>, const BAN::GUID&, const BAN::GUID&, uint64_t, uint64_t, uint64_t, const char*, uint32_t, BAN::StringView);
 
 	private:
-		BAN::RefPtr<BlockDevice> m_device;
+		mutable BAN::WeakPtr<BlockDevice> m_device;
+		const uint64_t m_block_size;
 		const BAN::GUID m_type;
 		const BAN::GUID m_guid;
 		const BAN::String m_guid_string;
