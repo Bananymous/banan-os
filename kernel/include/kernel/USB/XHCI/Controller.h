@@ -73,10 +73,11 @@ namespace Kernel
 
 		Mutex m_mutex;
 
-		Process* m_port_updater { nullptr };
+		BAN::Atomic<Process*> m_port_updater { nullptr };
 		ThreadBlocker m_port_thread_blocker;
 		BAN::Atomic<bool> m_port_changed { false };
 
+		bool m_running { true };
 		bool m_ports_initialized { false };
 
 		PCI::Device& m_pci_device;

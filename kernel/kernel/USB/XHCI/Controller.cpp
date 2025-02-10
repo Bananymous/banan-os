@@ -16,8 +16,9 @@ namespace Kernel
 
 	XHCIController::~XHCIController()
 	{
-		if (m_port_updater)
-			m_port_updater->exit(0, SIGKILL);
+		m_running = false;
+		while (m_port_updater)
+			Processor::yield();
 
 		for (auto paddr : m_scratchpad_buffers)
 			if (paddr)
@@ -308,7 +309,7 @@ namespace Kernel
 
 		uint64_t last_port_update = SystemTimer::get().ms_since_boot();
 
-		while (true)
+		while (m_running)
 		{
 			{
 				bool expected { true };
@@ -389,6 +390,8 @@ namespace Kernel
 				}
 			}
 		}
+
+		m_port_updater = nullptr;
 	}
 
 	BAN::ErrorOr<uint8_t> XHCIController::initialize_device(uint32_t route_string, uint8_t depth, USB::SpeedClass speed_class, XHCIDevice* parent_hub, uint8_t parent_port_id)
