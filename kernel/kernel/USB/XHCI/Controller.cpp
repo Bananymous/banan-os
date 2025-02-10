@@ -536,7 +536,8 @@ namespace Kernel
 	void XHCIController::handle_irq()
 	{
 		auto& primary_interrupter = runtime_regs().irs[0];
-		primary_interrupter.iman = primary_interrupter.iman | XHCI::IMAN::InterruptPending | XHCI::IMAN::InterruptEnable;
+		if (m_pci_device.interrupt_mechanism() != PCI::Device::InterruptMechanism::MSI && m_pci_device.interrupt_mechanism() != PCI::Device::InterruptMechanism::MSIX)
+			primary_interrupter.iman = primary_interrupter.iman | XHCI::IMAN::InterruptPending | XHCI::IMAN::InterruptEnable;
 
 		auto& operational = operational_regs();
 		if (!(operational.usbsts & XHCI::USBSTS::EventInterrupt))
