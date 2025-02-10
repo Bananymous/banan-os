@@ -97,6 +97,8 @@ namespace Kernel::PCI
 		BAN::ErrorOr<void> reserve_interrupts(uint8_t count);
 		void enable_interrupt(uint8_t index, Interruptable&);
 
+		InterruptMechanism interrupt_mechanism() const { return m_interrupt_mechanism; }
+
 		BAN::ErrorOr<BAN::UniqPtr<BarRegion>> allocate_bar_region(uint8_t bar_num);
 
 		void enable_bus_mastering();
