@@ -55,9 +55,18 @@ namespace Kernel
 			BAN::Vector<ConfigurationDescriptor> configurations;
 		};
 
+		struct HubInfo
+		{
+			uint8_t number_of_ports;
+			bool multi_tt;
+			uint8_t tt_think_time;
+		};
+
 	public:
-		USBDevice(USB::SpeedClass speed_class)
-			: m_speed_class(speed_class)
+		USBDevice(USBController& controller, USB::SpeedClass speed_class, uint8_t depth)
+			: m_controller(controller)
+			, m_speed_class(speed_class)
+			, m_depth(depth)
 		{}
 		virtual ~USBDevice() = default;
 
@@ -68,12 +77,19 @@ namespace Kernel
 
 		const BAN::Vector<ConfigurationDescriptor>& configurations() { return m_descriptor.configurations; }
 
-		virtual BAN::ErrorOr<void> configure_endpoint(const USBEndpointDescriptor&) = 0;
+		virtual BAN::ErrorOr<uint8_t> initialize_device_on_hub_port(uint8_t port_id, USB::SpeedClass) = 0;
+		virtual void deinitialize_device_slot(uint8_t slot_id) = 0;
+
+		virtual BAN::ErrorOr<void> configure_endpoint(const USBEndpointDescriptor&, const HubInfo& = {}) = 0;
 		virtual BAN::ErrorOr<size_t> send_request(const USBDeviceRequest&, paddr_t buffer) = 0;
 		virtual void send_data_buffer(uint8_t endpoint_id, paddr_t buffer, size_t buffer_len) = 0;
 
 		USB::SpeedClass speed_class() const { return m_speed_class; }
 		uint8_t depth() const { return m_depth; }
+
+		bool can_start_hub_init() const { return m_controller.current_hub_init_tier() >= m_depth + 1; }
+		void register_hub_to_init() { m_controller.register_hub_to_init(m_depth + 1); };
+		void mark_hub_init_done() { m_controller.mark_hub_init_done(m_depth + 1); };
 
 	protected:
 		void handle_stall(uint8_t endpoint_id);
@@ -83,8 +99,12 @@ namespace Kernel
 	private:
 		BAN::ErrorOr<ConfigurationDescriptor> parse_configuration(size_t index);
 
+	private:
+		USBController& m_controller;
+
 	protected:
 		const USB::SpeedClass m_speed_class;
+		const uint8_t m_depth;
 
 	private:
 		DeviceDescriptor m_descriptor;

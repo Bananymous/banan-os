@@ -32,15 +32,21 @@ namespace Kernel
 
 		struct Info
 		{
+			XHCIDevice* parent_hub;
+			uint8_t parent_port_id;
 			USB::SpeedClass speed_class;
 			uint8_t slot_id;
 			uint32_t route_string;
+			uint8_t depth;
 		};
 
 	public:
 		static BAN::ErrorOr<BAN::UniqPtr<XHCIDevice>> create(XHCIController&, const Info& info);
 
-		BAN::ErrorOr<void> configure_endpoint(const USBEndpointDescriptor&) override;
+		BAN::ErrorOr<uint8_t> initialize_device_on_hub_port(uint8_t port_id, USB::SpeedClass) override;
+		void deinitialize_device_slot(uint8_t slot_id) override;
+
+		BAN::ErrorOr<void> configure_endpoint(const USBEndpointDescriptor&, const HubInfo&) override;
 		BAN::ErrorOr<size_t> send_request(const USBDeviceRequest&, paddr_t buffer) override;
 		void send_data_buffer(uint8_t endpoint_id, paddr_t buffer, size_t buffer_size) override;
 
@@ -54,6 +60,8 @@ namespace Kernel
 		~XHCIDevice();
 
 		BAN::ErrorOr<void> update_actual_max_packet_size();
+
+		bool is_multi_tt() const;
 
 		void on_interrupt_or_bulk_endpoint_event(XHCI::TRB);
 

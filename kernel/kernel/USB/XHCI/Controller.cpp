@@ -306,16 +306,27 @@ namespace Kernel
 		// attached ports
 		m_port_changed = true;
 
+		uint64_t last_port_update = SystemTimer::get().ms_since_boot();
+
 		while (true)
 		{
 			{
 				bool expected { true };
 				while (!m_port_changed.compare_exchange(expected, false))
 				{
+					// If there has been no port activity in 100 ms, mark root hub as initialized
+					if (!m_ports_initialized && SystemTimer::get().ms_since_boot() - last_port_update >= 100)
+					{
+						mark_hub_init_done(0);
+						m_ports_initialized = true;
+					}
+
 					m_port_thread_blocker.block_with_timeout_ms(100);
 					expected = true;
 				}
 			}
+
+			last_port_update = SystemTimer::get().ms_since_boot();;
 
 			for (size_t i = 0; i < m_ports.size(); i++)
 			{
@@ -364,7 +375,9 @@ namespace Kernel
 				}
 
 				const uint8_t speed_id = (op_port.portsc >> XHCI::PORTSC::PORT_SPEED_SHIFT) & XHCI::PORTSC::PORT_SPEED_MASK;
-				if (auto ret = initialize_device(i + 1, speed_id_to_class(speed_id)); !ret.is_error())
+				if (auto temp = speed_class_to_id(speed_id_to_class(speed_id)); temp != speed_id)
+					dwarnln("FIXME: Using incorrect speed id, {} instead of {}", temp, speed_id);
+				if (auto ret = initialize_device(i + 1, 0, speed_id_to_class(speed_id), nullptr, 0); !ret.is_error())
 					my_port.slot_id = ret.value();
 				else
 				{
@@ -378,7 +391,7 @@ namespace Kernel
 		}
 	}
 
-	BAN::ErrorOr<uint8_t> XHCIController::initialize_device(uint32_t route_string, USB::SpeedClass speed_class)
+	BAN::ErrorOr<uint8_t> XHCIController::initialize_device(uint32_t route_string, uint8_t depth, USB::SpeedClass speed_class, XHCIDevice* parent_hub, uint8_t parent_port_id)
 	{
 		XHCI::TRB enable_slot { .enable_slot_command {} };
 		enable_slot.enable_slot_command.trb_type  = XHCI::TRBType::EnableSlotCommand;
@@ -404,9 +417,12 @@ namespace Kernel
 #endif
 
 		const XHCIDevice::Info info {
+			.parent_hub = parent_hub,
+			.parent_port_id = parent_port_id,
 			.speed_class = speed_class,
 			.slot_id = slot_id,
 			.route_string = route_string,
+			.depth = depth
 		};
 
 		m_slots[slot_id - 1] = TRY(XHCIDevice::create(*this, info));

@@ -46,7 +46,7 @@ namespace Kernel
 
 		void port_updater_task();
 
-		BAN::ErrorOr<uint8_t> initialize_device(uint32_t route_string, USB::SpeedClass speed_class);
+		BAN::ErrorOr<uint8_t> initialize_device(uint32_t route_string, uint8_t depth, USB::SpeedClass speed_class, XHCIDevice* parent_hub, uint8_t parent_port_id);
 		void deinitialize_slot(uint8_t slot_id);
 
 		BAN::ErrorOr<XHCI::TRB> send_command(const XHCI::TRB&);
@@ -76,6 +76,8 @@ namespace Kernel
 		Process* m_port_updater { nullptr };
 		ThreadBlocker m_port_thread_blocker;
 		BAN::Atomic<bool> m_port_changed { false };
+
+		bool m_ports_initialized { false };
 
 		PCI::Device& m_pci_device;
 		BAN::UniqPtr<PCI::BarRegion> m_configuration_bar;

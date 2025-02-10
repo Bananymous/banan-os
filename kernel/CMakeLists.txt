@@ -96,10 +96,12 @@ set(KERNEL_SOURCES
 	kernel/Timer/PIT.cpp
 	kernel/Timer/RTC.cpp
 	kernel/Timer/Timer.cpp
+	kernel/USB/Controller.cpp
 	kernel/USB/Device.cpp
 	kernel/USB/HID/HIDDriver.cpp
 	kernel/USB/HID/Keyboard.cpp
 	kernel/USB/HID/Mouse.cpp
+	kernel/USB/Hub/HubDriver.cpp
 	kernel/USB/MassStorage/MassStorageDriver.cpp
 	kernel/USB/MassStorage/SCSIDevice.cpp
 	kernel/USB/USBManager.cpp

@@ -65,6 +65,7 @@
 #define DEBUG_XHCI 0
 #define DEBUG_USB 0
 #define DEBUG_USB_HID 0
+#define DEBUG_USB_HUB 0
 #define DEBUG_USB_KEYBOARD 0
 #define DEBUG_USB_MOUSE 0
 #define DEBUG_USB_MASS_STORAGE 0

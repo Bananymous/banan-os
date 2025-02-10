@@ -14,7 +14,7 @@ namespace Kernel
 	}
 
 	XHCIDevice::XHCIDevice(XHCIController& controller, const Info& info)
-		: USBDevice(info.speed_class)
+		: USBDevice(controller, info.speed_class, info.depth)
 		, m_controller(controller)
 		, m_info(info)
 	{}
@@ -34,6 +34,7 @@ namespace Kernel
 	{
 		const uint32_t context_size = m_controller.context_size_set() ? 64 : 32;
 
+		bool is_ls_or_fs_device_on_hs_hub = false;
 
 		m_endpoints[0].max_packet_size = 0;
 		switch (m_speed_class)
@@ -41,6 +42,7 @@ namespace Kernel
 			case USB::SpeedClass::LowSpeed:
 			case USB::SpeedClass::FullSpeed:
 				m_endpoints[0].max_packet_size = 8;
+				is_ls_or_fs_device_on_hs_hub = m_info.parent_hub && (m_info.parent_hub->speed_class() == USB::SpeedClass::HighSpeed);
 				break;
 			case USB::SpeedClass::HighSpeed:
 				m_endpoints[0].max_packet_size = 64;
@@ -72,7 +74,12 @@ namespace Kernel
 			slot_context.context_entries      = 1;
 			slot_context.interrupter_target   = 0;
 			slot_context.speed                = m_controller.speed_class_to_id(m_info.speed_class);
-			// FIXME: 4.5.2 hub
+			if (is_ls_or_fs_device_on_hs_hub)
+			{
+				slot_context.parent_hub_slot_id = m_info.parent_hub->m_info.slot_id;
+				slot_context.parent_port_number = m_info.parent_port_id;
+				slot_context.multi_tt           = m_info.parent_hub->is_multi_tt();
+			}
 
 			endpoint0_context.endpoint_type       = XHCI::EndpointType::Control;
 			endpoint0_context.max_packet_size     = m_endpoints[0].max_packet_size;
@@ -120,6 +127,8 @@ namespace Kernel
 		request.wLength       = 8;
 		TRY(send_request(request, kmalloc_paddr_of((vaddr_t)buffer.data()).value()));
 
+		dprintln_if(DEBUG_XHCI, "Got device descriptor");
+
 		const bool is_usb3 = (m_speed_class == USB::SpeedClass::SuperSpeed);
 		const uint32_t new_max_packet_size = is_usb3 ? 1u << buffer.back() : buffer.back();
 
@@ -151,6 +160,13 @@ namespace Kernel
 		dprintln_if(DEBUG_XHCI, "Updated max packet size to {}", new_max_packet_size);
 
 		return {};
+	}
+
+	bool XHCIDevice::is_multi_tt() const
+	{
+		const uint32_t context_size = m_controller.context_size_set() ? 64 : 32;
+		const auto& slot_context = *reinterpret_cast<const XHCI::SlotContext*>(m_input_context->vaddr() + context_size);
+		return slot_context.multi_tt;
 	}
 
 	// 6.2.3.6 Interval
@@ -186,7 +202,25 @@ namespace Kernel
 		ASSERT_NOT_REACHED();
 	}
 
-	BAN::ErrorOr<void> XHCIDevice::configure_endpoint(const USBEndpointDescriptor& endpoint_descriptor)
+	BAN::ErrorOr<uint8_t> XHCIDevice::initialize_device_on_hub_port(uint8_t port_id, USB::SpeedClass speed_class)
+	{
+		if (m_info.depth + 1 > 5)
+		{
+			dwarnln("Invalid USB hub on depth {}", m_info.depth);
+			return BAN::Error::from_errno(EFAULT);
+		}
+
+		uint32_t route_string = m_info.route_string;
+		route_string |= static_cast<uint32_t>(port_id) << ((m_info.depth + 1) * 4);
+		return m_controller.initialize_device(route_string, m_info.depth + 1, speed_class, this, port_id);
+	}
+
+	void XHCIDevice::deinitialize_device_slot(uint8_t slot_id)
+	{
+		m_controller.deinitialize_slot(slot_id);
+	}
+
+	BAN::ErrorOr<void> XHCIDevice::configure_endpoint(const USBEndpointDescriptor& endpoint_descriptor, const HubInfo& hub_info)
 	{
 		const bool is_control   { (endpoint_descriptor.bmAttributes & 0x03) == 0x00 };
 		const bool is_isoch     { (endpoint_descriptor.bmAttributes & 0x03) == 0x01 };
@@ -254,7 +288,13 @@ namespace Kernel
 			input_control_context.add_context_flags = (1u << endpoint_id) | (1 << 0);
 
 			slot_context.context_entries = last_valid_endpoint_id;
-			// FIXME: 4.5.2 hub
+			slot_context.hub             = (hub_info.number_of_ports > 0);
+			slot_context.number_of_ports = hub_info.number_of_ports;
+			if (m_speed_class == USB::SpeedClass::HighSpeed)
+			{
+				slot_context.multi_tt        = hub_info.multi_tt;
+				slot_context.tt_think_time   = hub_info.tt_think_time;
+			}
 
 			memset(&endpoint_context, 0, context_size);
 			endpoint_context.endpoint_type       = endpoint_type;

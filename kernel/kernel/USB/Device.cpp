@@ -1,6 +1,7 @@
 #include <kernel/Memory/DMARegion.h>
 #include <kernel/USB/Device.h>
 #include <kernel/USB/HID/HIDDriver.h>
+#include <kernel/USB/Hub/HubDriver.h>
 #include <kernel/USB/MassStorage/MassStorageDriver.h>
 
 #define USB_DUMP_DESCRIPTORS 0
@@ -107,8 +108,26 @@ namespace Kernel
 					dprintln_if(DEBUG_USB, "Found CommunicationAndCDCControl device");
 					return BAN::Error::from_errno(ENOTSUP);
 				case USB::DeviceBaseClass::Hub:
-					dprintln_if(DEBUG_USB, "Found Hub device");
-					return BAN::Error::from_errno(ENOTSUP);
+				{
+					if (auto ret = BAN::UniqPtr<USBHubDriver>::create(*this, m_descriptor); !ret.is_error())
+						TRY(m_class_drivers.push_back(ret.release_value()));
+					else
+					{
+						dwarnln("Failed to create USB Hub: {}", ret.error());
+						return ret.release_error();
+					}
+
+					if (auto ret = m_class_drivers[0]->initialize(); ret.is_error())
+					{
+						dwarnln("Failed to initialize USB Hub: {}", ret.error());
+						m_class_drivers.clear();
+						return ret.release_error();
+					}
+
+					dprintln_if(DEBUG_USB, "Successfully initialized USB hub");
+
+					return {};
+				}
 				case USB::DeviceBaseClass::BillboardDeviceClass:
 					dprintln_if(DEBUG_USB, "Found BillboardDeviceClass device");
 					return BAN::Error::from_errno(ENOTSUP);
