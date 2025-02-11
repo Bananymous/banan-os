@@ -469,6 +469,9 @@ acpi_release_global_lock:
 
 	BAN::ErrorOr<void> ACPI::prepare_sleep(uint8_t sleep_state)
 	{
+		if (!m_namespace)
+			return BAN::Error::from_errno(EFAULT);
+
 		auto [pts_path, pts_object] = TRY(m_namespace->find_named_object({}, MUST(AML::NameString::from_string("\\_PTS"))));
 		if (pts_object == nullptr)
 			return {};
@@ -584,7 +587,10 @@ acpi_release_global_lock:
 			return BAN::Error::from_errno(EFAULT);
 		}
 
-		TRY(prepare_sleep(5));
+		if (!m_namespace)
+			dwarnln("ACPI namespace not initialized, will not evaluate \\_S5");
+		else
+			TRY(prepare_sleep(5));
 
 		dprintln("Resetting system");
 
