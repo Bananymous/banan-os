@@ -78,6 +78,9 @@ namespace Kernel
 		void handle_stall(uint8_t endpoint_id) override;
 		void handle_input_data(size_t byte_count, uint8_t endpoint_id) override;
 
+		USBDevice& device() { return m_device; }
+		const USBDevice::InterfaceDescriptor& interface() const { return m_interface; }
+
 	private:
 		USBHIDDriver(USBDevice&, const USBDevice::InterfaceDescriptor&);
 		~USBHIDDriver();

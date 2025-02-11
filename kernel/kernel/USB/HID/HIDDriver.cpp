@@ -213,18 +213,18 @@ namespace Kernel
 		return {};
 	}
 
-	static BAN::ErrorOr<void> gather_collection_inputs(const USBHID::Collection& collection, BAN::Vector<USBHID::Report>& output)
+	static BAN::ErrorOr<void> gather_collection_reports(const USBHID::Collection& collection, BAN::Vector<USBHID::Report>& output, USBHID::Report::Type type)
 	{
 		for (const auto& entry : collection.entries)
 		{
 			if (entry.has<USBHID::Collection>())
 			{
-				TRY(gather_collection_inputs(entry.get<USBHID::Collection>(), output));
+				TRY(gather_collection_reports(entry.get<USBHID::Collection>(), output, type));
 				continue;
 			}
 
 			const auto& report = entry.get<USBHID::Report>();
-			if (report.type != USBHID::Report::Type::Input)
+			if (report.type != type)
 				continue;
 
 			TRY(output.push_back(report));
@@ -243,7 +243,10 @@ namespace Kernel
 			const auto& collection = collection_list[i];
 
 			USBHIDDriver::DeviceReport report;
-			TRY(gather_collection_inputs(collection, report.inputs));
+			TRY(gather_collection_reports(collection, report.inputs,  USBHID::Report::Type::Input));
+
+			BAN::Vector<USBHID::Report> outputs;
+			TRY(gather_collection_reports(collection, outputs, USBHID::Report::Type::Output));
 
 			if (collection.usage_page == 0x01)
 			{
@@ -254,7 +257,7 @@ namespace Kernel
 						dprintln("Initialized an USB Mouse");
 						break;
 					case 0x06:
-						report.device = TRY(BAN::RefPtr<USBKeyboard>::create());
+						report.device = TRY(BAN::RefPtr<USBKeyboard>::create(*this, BAN::move(outputs)));
 						dprintln("Initialized an USB Keyboard");
 						break;
 					default:
