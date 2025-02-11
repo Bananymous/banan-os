@@ -31,7 +31,7 @@ namespace Kernel
 		// FIXME: RawKeyEvent probably should only contain keycode.
 		//        Modifier should be determined when converting to KeyEvent.
 
-		uint8_t modifier = 0;
+		uint16_t modifier = 0;
 
 #define READ_MODIFIER(scancode, key_modifier) \
 		if (m_keyboard_state_temp[scancode])  \
@@ -238,6 +238,7 @@ namespace Kernel
 		s_scancode_to_keycode[0x4D] = keycode_function(17);
 		s_scancode_to_keycode[0x4B] = keycode_function(18);
 		s_scancode_to_keycode[0x4E] = keycode_function(19);
+		s_scancode_to_keycode[0x47] = keycode_function(20);
 
 		s_scancode_to_keycode[0x53] = keycode_numpad(0, 0);
 		s_scancode_to_keycode[0x54] = keycode_numpad(0, 1);

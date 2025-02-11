@@ -31,7 +31,7 @@ namespace Kernel
 
 		BAN::Array<bool, 0x100> m_keyboard_state      { false };
 		BAN::Array<bool, 0x100> m_keyboard_state_temp { false };
-		uint8_t m_toggle_mask { 0 };
+		uint16_t m_toggle_mask { 0 };
 
 		BAN::Optional<uint8_t> m_repeat_scancode;
 		uint8_t m_repeat_modifier { 0 };
