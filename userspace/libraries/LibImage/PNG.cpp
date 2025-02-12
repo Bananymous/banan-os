@@ -773,11 +773,11 @@ namespace LibImage
 					return BAN::Error::from_errno(EINVAL);
 				}
 				TRY(palette.resize(chunk.data.size() / 3));
-				for (size_t i = 0; i < palette.size(); i += 3)
+				for (size_t i = 0; i < palette.size(); i++)
 				{
-					palette[i].r = chunk.data[i + 0];
-					palette[i].g = chunk.data[i + 1];
-					palette[i].b = chunk.data[i + 2];
+					palette[i].r = chunk.data[3 * i + 0];
+					palette[i].g = chunk.data[3 * i + 1];
+					palette[i].b = chunk.data[3 * i + 2];
 					palette[i].a = 0xFF;
 				}
 			}
