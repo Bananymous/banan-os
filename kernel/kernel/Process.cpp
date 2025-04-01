@@ -185,6 +185,8 @@ namespace Kernel
 		process->m_userspace_info.envp = nullptr;
 
 		auto* thread = MUST(Thread::create_userspace(process, process->page_table()));
+		thread->setup_exec();
+
 		process->add_thread(thread);
 		process->register_to_scheduler();
 		return process;
@@ -208,6 +210,7 @@ namespace Kernel
 	Process::~Process()
 	{
 		ASSERT(m_threads.empty());
+		ASSERT(m_exited_pthreads.empty());
 		ASSERT(m_mapped_regions.empty());
 		ASSERT(!m_page_table);
 	}
@@ -237,6 +240,8 @@ namespace Kernel
 					it++;
 			}
 		}
+
+		m_exited_pthreads.clear();
 
 		ProcFileSystem::get().on_process_delete(*this);
 
@@ -2077,6 +2082,43 @@ namespace Kernel
 		}
 
 		return 0;
+	}
+
+	BAN::ErrorOr<long> Process::sys_pthread_create(const pthread_attr_t* __restrict attr, void (*entry)(void*), void* arg)
+	{
+		if (attr != nullptr)
+		{
+			dwarnln("pthread attr not supported");
+			return BAN::Error::from_errno(ENOTSUP);
+		}
+
+		LockGuard _(m_process_lock);
+
+		auto* new_thread = TRY(Thread::current().pthread_create(entry, arg));
+		MUST(m_threads.push_back(new_thread));
+		MUST(Processor::scheduler().add_thread(new_thread));
+
+		return new_thread->tid();
+	}
+
+	BAN::ErrorOr<long> Process::sys_pthread_exit(void* value)
+	{
+		LockGuard _(m_process_lock);
+
+		// main thread cannot call pthread_exit
+		if (&Thread::current() == m_threads.front())
+			return BAN::Error::from_errno(EINVAL);
+
+		TRY(m_exited_pthreads.emplace_back(&Thread::current(), value));
+		for (auto* thread : m_threads)
+		{
+			if (thread != &Thread::current())
+				continue;
+			m_process_lock.unlock();
+			thread->on_exit();
+		}
+
+		ASSERT_NOT_REACHED();
 	}
 
 	BAN::ErrorOr<long> Process::sys_tcgetpgrp(int fd)

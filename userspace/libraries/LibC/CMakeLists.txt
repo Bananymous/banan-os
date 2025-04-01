@@ -17,6 +17,7 @@ set(LIBC_SOURCES
 	netdb.cpp
 	poll.cpp
 	printf_impl.cpp
+	pthread.cpp
 	pwd.cpp
 	scanf_impl.cpp
 	setjmp.cpp

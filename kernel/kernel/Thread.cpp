@@ -117,8 +117,6 @@ namespace Kernel
 			true
 		));
 
-		thread->setup_exec();
-
 		thread_deleter.disable();
 
 		return thread;
@@ -166,6 +164,21 @@ namespace Kernel
 		}
 	}
 
+	BAN::ErrorOr<Thread*> Thread::pthread_create(entry_t entry, void* arg)
+	{
+		auto* thread = TRY(create_userspace(m_process, m_process->page_table()));
+
+		memcpy(thread->m_sse_storage, m_sse_storage, sizeof(m_sse_storage));
+
+		thread->setup_exec_impl(
+			reinterpret_cast<uintptr_t>(entry),
+			reinterpret_cast<uintptr_t>(arg),
+			0, 0, 0
+		);
+
+		return thread;
+	}
+
 	BAN::ErrorOr<Thread*> Thread::clone(Process* new_process, uintptr_t sp, uintptr_t ip)
 	{
 		ASSERT(m_is_userspace);
@@ -189,6 +202,8 @@ namespace Kernel
 		thread->m_interrupt_stack.sp = sp;
 		thread->m_interrupt_stack.ss = 0x10;
 
+		memcpy(thread->m_sse_storage, m_sse_storage, sizeof(m_sse_storage));
+
 #if ARCH(x86_64)
 		thread->m_interrupt_registers.rax = 0;
 #elif ARCH(i686)
@@ -202,22 +217,33 @@ namespace Kernel
 
 	void Thread::setup_exec()
 	{
+		const auto& userspace_info = process().userspace_info();
+		ASSERT(userspace_info.entry);
+
+		setup_exec_impl(
+			userspace_info.entry,
+			userspace_info.argc,
+			reinterpret_cast<uintptr_t>(userspace_info.argv),
+			reinterpret_cast<uintptr_t>(userspace_info.envp),
+			userspace_info.file_fd
+		);
+	}
+
+	void Thread::setup_exec_impl(uintptr_t entry, uintptr_t arg0, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3)
+	{
 		ASSERT(is_userspace());
 		m_state = State::NotStarted;
 
 		// Signal mask is inherited
 
-		const auto& userspace_info = process().userspace_info();
-		ASSERT(userspace_info.entry);
-
 		// Initialize stack for returning
 		PageTable::with_fast_page(process().page_table().physical_address_of(kernel_stack_top() - PAGE_SIZE), [&] {
 			uintptr_t sp = PageTable::fast_page() + PAGE_SIZE;
-			write_to_stack(sp, userspace_info.entry);
-			write_to_stack(sp, userspace_info.file_fd);
-			write_to_stack(sp, userspace_info.envp);
-			write_to_stack(sp, userspace_info.argv);
-			write_to_stack(sp, userspace_info.argc);
+			write_to_stack(sp, entry);
+			write_to_stack(sp, arg3);
+			write_to_stack(sp, arg2);
+			write_to_stack(sp, arg1);
+			write_to_stack(sp, arg0);
 		});
 
 		m_interrupt_stack.ip = reinterpret_cast<vaddr_t>(start_userspace_thread);

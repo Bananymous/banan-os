@@ -182,6 +182,9 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_sigpending(sigset_t* set);
 		BAN::ErrorOr<long> sys_sigprocmask(int how, const sigset_t* set, sigset_t* oset);
 
+		BAN::ErrorOr<long> sys_pthread_create(const pthread_attr_t* __restrict attr, void (*entry)(void*), void* arg);
+		BAN::ErrorOr<long> sys_pthread_exit(void* value);
+
 		BAN::ErrorOr<long> sys_tcgetpgrp(int fd);
 		BAN::ErrorOr<long> sys_tcsetpgrp(int fd, pid_t pgid);
 
@@ -289,6 +292,13 @@ namespace Kernel
 		VirtualFileSystem::File m_working_directory;
 
 		BAN::Vector<Thread*> m_threads;
+
+		struct pthread_info_t
+		{
+			Thread* thread;
+			void* value;
+		};
+		BAN::Vector<pthread_info_t> m_exited_pthreads;
 
 		uint64_t m_alarm_interval_ns { 0 };
 		uint64_t m_alarm_wake_time_ns { 0 };
