@@ -115,6 +115,24 @@ namespace Kernel::ACPI::AML
 		}
 
 		{
+			auto os_string = TRY(NameString::from_string("\\_OS_"));
+
+			Node os_node = TRY(Node::create_string("Microsoft Windows NT"_sv));
+
+			TRY(s_root_namespace.add_named_object(dummy_context, os_string, BAN::move(os_node)));
+		}
+
+		{
+			auto rev_string = TRY(NameString::from_string("\\_REV"));
+
+			Node rev_node {};
+			rev_node.type = Node::Type::Integer;
+			rev_node.as.integer.value = 2;
+
+			TRY(s_root_namespace.add_named_object(dummy_context, rev_string, BAN::move(rev_node)));
+		}
+
+		{
 			auto gl_string = TRY(NameString::from_string("\\_GL_"));
 
 			Node mutex {};
