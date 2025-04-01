@@ -106,9 +106,9 @@ namespace Kernel
 		ASSERT(&PageTable::current() == &m_page_table);
 		ASSERT(&m_page_table != &page_table);
 
-		auto result = TRY(create_to_vaddr(page_table, m_vaddr, m_size, m_flags, m_preallocated));
-
 		SpinLockGuard _(m_lock);
+
+		auto result = TRY(create_to_vaddr(page_table, m_vaddr, m_size, m_flags, m_preallocated));
 
 		const size_t page_count = m_size / PAGE_SIZE;
 		for (size_t i = 0; i < page_count; i++)
