@@ -626,6 +626,127 @@ acpi_release_global_lock:
 		return result;
 	}
 
+#pragma GCC diagnostic push
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic ignored "-Wstack-usage="
+#endif
+	BAN::ErrorOr<void> ACPI::route_interrupt_link_device(const AML::Scope& device, uint64_t& routed_irq_mask)
+	{
+		ASSERT(m_namespace);
+
+		auto prs_node = TRY(AML::convert_node(TRY(m_namespace->evaluate(device, "_PRS"_sv)), AML::ConvBuffer, -1));
+		auto prs_span = BAN::ConstByteSpan(prs_node.as.str_buf->bytes, prs_node.as.str_buf->size);
+
+		auto [srs_path, srs_node] = TRY(m_namespace->find_named_object(device, TRY(AML::NameString::from_string("_SRS"_sv))));
+		if (srs_node == nullptr || srs_node->node.type != AML::Node::Type::Method)
+		{
+			dwarnln("interrupt link device does not have _SRS method");
+			return BAN::Error::from_errno(EINVAL);
+		}
+
+		while (!prs_span.empty())
+		{
+			if (!(prs_span[0] & 0x80))
+			{
+				const uint8_t name = (prs_span[0] >> 3) & 0x0F;
+				const uint8_t length = prs_span[0] & 0x07;
+				if (prs_span.size() < static_cast<size_t>(1 + length))
+					return BAN::Error::from_errno(EINVAL);
+
+				if (name == 0x04)
+				{
+					if (length < 2)
+						return BAN::Error::from_errno(EINVAL);
+					const uint16_t irq_mask = prs_span[1] | (prs_span[2] << 8);
+
+					for (uint8_t pass = 0; pass < 2; pass++)
+					{
+						for (uint8_t irq = 0; irq < 16; irq++)
+						{
+							if (!(irq_mask & (1 << irq)))
+								continue;
+							if (pass == 0 && (routed_irq_mask & (static_cast<uint64_t>(1) << irq)))
+								continue;
+
+							BAN::Array<uint8_t, 4> setting;
+							setting[0] = 0x22 | (length > 2); // small, irq, data len
+							setting[1] = (1 << irq) >> 0;     // irq low
+							setting[2] = (1 << irq) >> 8;     // irq high
+							if (length > 2)
+								setting[3] = prs_span[3]; // flags
+
+							auto setting_span = BAN::ConstByteSpan(setting.data(), (length > 2) ? 4 : 3);
+							TRY(AML::method_call(srs_path, srs_node->node, TRY(AML::Node::create_buffer(setting_span))));
+
+							dprintln("routed {} -> irq {}", device, irq);
+
+							routed_irq_mask |= static_cast<uint64_t>(1) << irq;
+							return {};
+						}
+					}
+				}
+
+				prs_span = prs_span.slice(1 + length);
+			}
+			else
+			{
+				if (prs_span.size() < 3)
+					return BAN::Error::from_errno(EINVAL);
+				const uint8_t name = prs_span[0] & 0x7F;
+				const uint16_t length = (prs_span[2] << 8) | prs_span[1];
+				if (prs_span.size() < static_cast<size_t>(3 + length))
+					return BAN::Error::from_errno(EINVAL);
+
+				// Extended Interrupt Descriptor
+				if (name == 0x09)
+				{
+					const uint8_t irq_count = prs_span[4];
+					if (irq_count == 0 || length < 2 + 4*irq_count)
+						return BAN::Error::from_errno(EINVAL);
+
+					for (uint8_t pass = 0; pass < 2; pass++)
+					{
+						for (uint32_t i = 0; i < irq_count; i++)
+						{
+							// TODO: support irq over 64 irqs?
+							if (prs_span[6 + 4*i] || prs_span[7 + 4*i] || prs_span[8 + 4*i])
+								continue;
+							const uint8_t irq = prs_span[5 + 4*i];
+							if (irq >= 64)
+								continue;
+							if (pass == 0 && (routed_irq_mask & (static_cast<uint64_t>(1) << irq)))
+								continue;
+
+							BAN::Array<uint8_t, 9> setting;
+							setting[0] = 0x89;            // large, irq
+							setting[1] = 0x06;            // data len
+							setting[2] = 0x00;
+							setting[3] = prs_span[3]; // flags
+							setting[4] = 0x01;            // table size
+							setting[5] = irq;             // irq
+							setting[6] = 0x00;
+							setting[7] = 0x00;
+							setting[8] = 0x00;
+
+							TRY(AML::method_call(srs_path, srs_node->node, TRY(AML::Node::create_buffer(setting.span()))));
+
+							dprintln("routed {} -> irq {}", device, irq);
+
+							routed_irq_mask |= static_cast<uint64_t>(1) << irq;
+							return {};
+						}
+					}
+				}
+
+				prs_span = prs_span.slice(3 + length);
+			}
+		}
+
+		dwarnln("No routable interrupt found in _PRS");
+		return {};
+	}
+#pragma GCC diagnostic pop
+
 	BAN::ErrorOr<void> ACPI::enter_acpi_mode(uint8_t mode)
 	{
 		ASSERT(!m_namespace);
@@ -768,6 +889,16 @@ acpi_release_global_lock:
 		}
 
 		dprintln("Initialized ACPI interrupts");
+
+		if (auto interrupt_link_devices_or_error = m_namespace->find_device_with_eisa_id("PNP0C0F"_sv); !interrupt_link_devices_or_error.is_error())
+		{
+			uint64_t routed_irq_mask = 0;
+			auto interrupt_link_devices = interrupt_link_devices_or_error.release_value();
+			for (const auto& device : interrupt_link_devices)
+				if (auto ret = route_interrupt_link_device(device, routed_irq_mask); ret.is_error())
+					dwarnln("failed to route interrupt link device: {}", ret.error());
+			dprintln("Routed interrupt link devices");
+		}
 
 		return {};
 	}

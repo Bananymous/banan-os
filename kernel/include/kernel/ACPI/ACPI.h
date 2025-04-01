@@ -48,6 +48,8 @@ namespace Kernel::ACPI
 
 		BAN::ErrorOr<void> load_aml_tables(BAN::StringView name, bool all);
 
+		BAN::ErrorOr<void> route_interrupt_link_device(const AML::Scope& device, uint64_t& routed_irq_mask);
+
 	private:
 		paddr_t m_header_table_paddr = 0;
 		vaddr_t m_header_table_vaddr = 0;
