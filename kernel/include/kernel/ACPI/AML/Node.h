@@ -150,6 +150,27 @@ namespace Kernel::ACPI::AML
 		Node(Node&& other) { *this = BAN::move(other); }
 		Node& operator=(Node&&);
 
+		static BAN::ErrorOr<Node> create_string(BAN::StringView string)
+		{
+			const auto* u8_data = reinterpret_cast<const uint8_t*>(string.data());
+			auto result = TRY(create_buffer({ u8_data, string.size() }));
+			result.type = Node::Type::String;
+			return result;
+		}
+
+		static BAN::ErrorOr<Node> create_buffer(BAN::ConstByteSpan buffer)
+		{
+			Node node;
+			node.type = Node::Type::Buffer;
+			node.as.str_buf = static_cast<Buffer*>(kmalloc(sizeof(Buffer) + buffer.size()));
+			if (node.as.str_buf == nullptr)
+				return BAN::Error::from_errno(ENOMEM);
+			node.as.str_buf->ref_count = 1;
+			node.as.str_buf->size = buffer.size();
+			memcpy(node.as.str_buf->bytes, buffer.data(), buffer.size());
+			return node;
+		}
+
 		enum class Type
 		{
 			Uninitialized,
