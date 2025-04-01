@@ -108,21 +108,13 @@ namespace Kernel::Input
 
 		m_byte_index = 0;
 
-		auto button_index_to_button =
-			[](int index) -> MouseButton
-			{
-				if (index == 0)
-					return MouseButton::Left;
-				if (index == 1)
-					return MouseButton::Right;
-				if (index == 2)
-					return MouseButton::Middle;
-				if (index == 3)
-					return MouseButton::Extra1;
-				if (index == 4)
-					return MouseButton::Extra2;
-				ASSERT_NOT_REACHED();
-			};
+		constexpr MouseButton bit_to_button[] {
+			MouseButton::Left,
+			MouseButton::Right,
+			MouseButton::Middle,
+			MouseButton::Extra1,
+			MouseButton::Extra2,
+		};
 
 		if (new_button_mask != m_button_mask)
 		{
@@ -133,7 +125,7 @@ namespace Kernel::Input
 
 				MouseEvent event;
 				event.type = MouseEventType::MouseButtonEvent;
-				event.button_event.button = button_index_to_button(i);
+				event.button_event.button = bit_to_button[i];
 				event.button_event.pressed = !!(new_button_mask & (1 << i));
 				add_event(BAN::ConstByteSpan::from(event));
 			}
