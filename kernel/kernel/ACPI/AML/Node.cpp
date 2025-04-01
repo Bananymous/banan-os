@@ -1201,7 +1201,12 @@ namespace Kernel::ACPI::AML
 		buffer_field.as.buffer_field.bit_count = bit_count;
 		buffer_field.as.buffer_field.bit_offset = index_in_bits ? index_node.as.integer.value : index_node.as.integer.value * 8;
 
-		TRY(Namespace::root_namespace().add_named_object(context.scope, field_name_string, BAN::move(buffer_field)));
+		auto absolte_path = TRY(Namespace::root_namespace().add_named_object(context, field_name_string, BAN::move(buffer_field)));
+		if (absolte_path.parts.empty())
+		{
+			dwarnln("Could not add Buffer Field '{}'.'{}' to namespace", context.scope, field_name_string);
+			return {};
+		}
 
 		return {};
 	}
@@ -1695,7 +1700,7 @@ namespace Kernel::ACPI::AML
 			return {};
 		}
 
-		TRY(Namespace::root_namespace().add_alias(context.scope, object_name_string, source_ref));
+		TRY(Namespace::root_namespace().add_alias(context, object_name_string, source_ref));
 
 		return {};
 	}
@@ -1711,9 +1716,12 @@ namespace Kernel::ACPI::AML
 		auto name_string = TRY(parse_name_string(context.aml_data));
 		auto object      = TRY(parse_node(context));
 
-		auto path = TRY(Namespace::root_namespace().add_named_object(context.scope, name_string, BAN::move(object)));
-		if (!path.parts.empty())
-			TRY(context.created_nodes.push_back(BAN::move(path)));
+		auto absolute_path = TRY(Namespace::root_namespace().add_named_object(context, name_string, BAN::move(object)));
+		if (absolute_path.parts.empty())
+		{
+			dwarnln("Could not add Name '{}'.'{}' to namespace", context.scope, name_string);
+			return {};
+		}
 
 		return {};
 	}
@@ -1892,10 +1900,10 @@ namespace Kernel::ACPI::AML
 		event_node.type = Node::Type::Event;
 		event_node.as.event.signal_count = 0;
 
-		auto absolute_path = TRY(Namespace::root_namespace().add_named_object(context.scope, event_name, BAN::move(event_node)));
+		auto absolute_path = TRY(Namespace::root_namespace().add_named_object(context, event_name, BAN::move(event_node)));
 		if (absolute_path.parts.empty())
 		{
-			dwarnln("Could not add Device '{}'.'{}' to namespace", context.scope, event_name);
+			dwarnln("Could not add Event '{}'.'{}' to namespace", context.scope, event_name);
 			return {};
 		}
 
@@ -2045,7 +2053,7 @@ namespace Kernel::ACPI::AML
 		Node device_node {};
 		device_node.type = Node::Type::Device;
 
-		auto absolute_path = TRY(Namespace::root_namespace().add_named_object(context.scope, device_name, BAN::move(device_node)));
+		auto absolute_path = TRY(Namespace::root_namespace().add_named_object(context, device_name, BAN::move(device_node)));
 		if (absolute_path.parts.empty())
 		{
 			dwarnln("Could not add Device '{}'.'{}' to namespace", context.scope, device_name);
@@ -2076,7 +2084,7 @@ namespace Kernel::ACPI::AML
 		Node processor_node {};
 		processor_node.type = Node::Type::Processor;
 
-		auto absolute_path = TRY(Namespace::root_namespace().add_named_object(context.scope, processor_name, BAN::move(processor_node)));
+		auto absolute_path = TRY(Namespace::root_namespace().add_named_object(context, processor_name, BAN::move(processor_node)));
 		if (absolute_path.parts.empty())
 		{
 			dwarnln("Could not add Processor '{}'.'{}' to namespace", context.scope, processor_name);
@@ -2107,10 +2115,10 @@ namespace Kernel::ACPI::AML
 		Node power_resource_node {};
 		power_resource_node.type = Node::Type::PowerResource;
 
-		auto absolute_path = TRY(Namespace::root_namespace().add_named_object(context.scope, power_resource_name, BAN::move(power_resource_node)));
+		auto absolute_path = TRY(Namespace::root_namespace().add_named_object(context, power_resource_name, BAN::move(power_resource_node)));
 		if (absolute_path.parts.empty())
 		{
-			dwarnln("Could not add Processor '{}'.'{}' to namespace", context.scope, power_resource_name);
+			dwarnln("Could not add Power Resource '{}'.'{}' to namespace", context.scope, power_resource_name);
 			return {};
 		}
 
@@ -2133,7 +2141,7 @@ namespace Kernel::ACPI::AML
 		Node thermal_zone_node {};
 		thermal_zone_node.type = Node::Type::ThermalZone;
 
-		auto absolute_path = TRY(Namespace::root_namespace().add_named_object(context.scope, thermal_zone_name, BAN::move(thermal_zone_node)));
+		auto absolute_path = TRY(Namespace::root_namespace().add_named_object(context, thermal_zone_name, BAN::move(thermal_zone_node)));
 		if (absolute_path.parts.empty())
 		{
 			dwarnln("Could not add Thermal Zone '{}'.'{}' to namespace", context.scope, thermal_zone_name);
@@ -2173,7 +2181,13 @@ namespace Kernel::ACPI::AML
 		mutex.as.mutex->sync_level = mutex_flags;
 		mutex.as.mutex->global_lock = false;
 
-		TRY(Namespace::root_namespace().add_named_object(context.scope, mutex_name, BAN::move(mutex)));
+		auto absolute_path = TRY(Namespace::root_namespace().add_named_object(context, mutex_name, BAN::move(mutex)));
+		if (absolute_path.parts.empty())
+		{
+			dwarnln("Could not add Mutex '{}'.'{}' to namespace", context.scope, mutex);
+			return {};
+		}
+
 		return {};
 	}
 
@@ -2321,9 +2335,12 @@ namespace Kernel::ACPI::AML
 			method_node.as.method.mutex->ref_count   = 1;
 		}
 
-		auto path = TRY(Namespace::root_namespace().add_named_object(context.scope, method_name, BAN::move(method_node)));
-		if (!path.parts.empty())
-			TRY(context.created_nodes.push_back(BAN::move(path)));
+		auto absolute_path = TRY(Namespace::root_namespace().add_named_object(context, method_name, BAN::move(method_node)));
+		if (absolute_path.parts.empty())
+		{
+			dwarnln("Could not add Method '{}'.'{}' to namespace", context.scope, method_name);
+			return {};
+		}
 
 		return {};
 	}

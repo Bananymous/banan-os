@@ -92,13 +92,13 @@ namespace Kernel::ACPI::AML
 		opregion.as.opregion.offset = region_offset.as.integer.value;
 		opregion.as.opregion.length = region_length.as.integer.value;
 
-		TRY(Namespace::root_namespace().add_named_object(context.scope, region_name, BAN::move(opregion)));
+		TRY(Namespace::root_namespace().add_named_object(context, region_name, BAN::move(opregion)));
 
 		return {};
 	}
 
 	template<typename F>
-	static BAN::ErrorOr<void> parse_field_list(const Scope& scope, BAN::ConstByteSpan field_list_pkg, const F& create_element, uint8_t field_flags)
+	static BAN::ErrorOr<void> parse_field_list(ParseContext& context, BAN::ConstByteSpan field_list_pkg, const F& create_element, uint8_t field_flags)
 	{
 		uint64_t offset = 0;
 		while (!field_list_pkg.empty())
@@ -144,7 +144,7 @@ namespace Kernel::ACPI::AML
 
 					Node field_node = create_element(offset, field_length, field_flags);
 
-					TRY(Namespace::root_namespace().add_named_object(scope, field_name, BAN::move(field_node)));
+					TRY(Namespace::root_namespace().add_named_object(context, field_name, BAN::move(field_node)));
 
 					offset += field_length;
 
@@ -197,7 +197,7 @@ namespace Kernel::ACPI::AML
 				return field_node;
 			};
 
-		TRY(parse_field_list(context.scope, field_pkg, create_element, default_flags));
+		TRY(parse_field_list(context, field_pkg, create_element, default_flags));
 
 		return {};
 	}
@@ -260,7 +260,7 @@ namespace Kernel::ACPI::AML
 				return field_node;
 			};
 
-		TRY(parse_field_list(context.scope, field_pkg, create_element, default_flags));
+		TRY(parse_field_list(context, field_pkg, create_element, default_flags));
 
 		return {};
 	}
@@ -331,7 +331,7 @@ namespace Kernel::ACPI::AML
 				return field_node;
 			};
 
-		TRY(parse_field_list(context.scope, field_pkg, create_element, default_flags));
+		TRY(parse_field_list(context, field_pkg, create_element, default_flags));
 
 		return {};
 	}

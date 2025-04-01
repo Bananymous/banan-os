@@ -53,9 +53,11 @@ namespace Kernel::ACPI::AML
 		const auto add_predefined_root_namespace =
 			[](const char* name) -> BAN::ErrorOr<void>
 			{
+				ParseContext dummy_context {};
+
 				Node predefined {};
 				predefined.type = Node::Type::PredefinedScope;
-				TRY(s_root_namespace.add_named_object({}, TRY(NameString::from_string(name)), BAN::move(predefined)));
+				TRY(s_root_namespace.add_named_object(dummy_context, TRY(NameString::from_string(name)), BAN::move(predefined)));
 				return {};
 			};
 
@@ -66,11 +68,13 @@ namespace Kernel::ACPI::AML
 		TRY(add_predefined_root_namespace("\\_SI_"));
 		TRY(add_predefined_root_namespace("\\_TZ_"));
 
+		ParseContext dummy_context {};
+
 		{
 			Node revision;
 			revision.type = Node::Type::Integer;
 			revision.as.integer.value = 2;
-			TRY(s_root_namespace.add_named_object({}, TRY(NameString::from_string("_REV")), BAN::move(revision)));
+			TRY(s_root_namespace.add_named_object(dummy_context, TRY(NameString::from_string("_REV")), BAN::move(revision)));
 		}
 
 		{
@@ -107,7 +111,7 @@ namespace Kernel::ACPI::AML
 					return result;
 				};
 
-			TRY(s_root_namespace.add_named_object({}, osi_string, BAN::move(method)));
+			TRY(s_root_namespace.add_named_object(dummy_context, osi_string, BAN::move(method)));
 		}
 
 		{
@@ -120,7 +124,7 @@ namespace Kernel::ACPI::AML
 			mutex.as.mutex->sync_level = 0;
 			mutex.as.mutex->global_lock = true;
 
-			TRY(s_root_namespace.add_named_object({}, gl_string, BAN::move(mutex)));
+			TRY(s_root_namespace.add_named_object(dummy_context, gl_string, BAN::move(mutex)));
 		}
 
 		return {};
@@ -318,11 +322,11 @@ namespace Kernel::ACPI::AML
 		return resolved_path;
 	}
 
-	BAN::ErrorOr<Scope> Namespace::add_named_object(const Scope& scope, const NameString& name_string, Node&& node)
+	BAN::ErrorOr<Scope> Namespace::add_named_object(ParseContext& context, const NameString& name_string, Node&& node)
 	{
-		dprintln_if(AML_DUMP_FUNCTION_CALLS, "add_named_object('{}', '{}', {})", scope, name_string, node);
+		dprintln_if(AML_DUMP_FUNCTION_CALLS, "add_named_object('{}', '{}', {})", context.scope, name_string, node);
 
-		auto resolved_path = TRY(resolve_path(scope, name_string));
+		auto resolved_path = TRY(resolve_path(context.scope, name_string));
 		if (m_named_objects.contains(resolved_path))
 			return Scope();
 
@@ -337,14 +341,16 @@ namespace Kernel::ACPI::AML
 		if (m_has_initialized_namespace && reference->node.type == Node::Type::OpRegion)
 			(void)opregion_call_reg(resolved_path, reference->node);
 
+		TRY(context.created_nodes.push_back(TRY(resolved_path.copy())));
+
 		return resolved_path;
 	}
 
-	BAN::ErrorOr<Scope> Namespace::add_alias(const Scope& scope, const NameString& name_string, Reference* reference)
+	BAN::ErrorOr<Scope> Namespace::add_alias(ParseContext& context, const NameString& name_string, Reference* reference)
 	{
-		dprintln_if(AML_DUMP_FUNCTION_CALLS, "add_alias('{}', '{}', {})", scope, name_string, reference->node);
+		dprintln_if(AML_DUMP_FUNCTION_CALLS, "add_alias('{}', '{}', {})", context.scope, name_string, reference->node);
 
-		auto resolved_path = TRY(resolve_path(scope, name_string));
+		auto resolved_path = TRY(resolve_path(context.scope, name_string));
 		if (m_named_objects.contains(resolved_path))
 			return Scope();
 
@@ -353,6 +359,8 @@ namespace Kernel::ACPI::AML
 
 		TRY(m_named_objects.insert(TRY(resolved_path.copy()), reference));
 		TRY(m_aliases.insert(TRY(resolved_path.copy())));
+
+		TRY(context.created_nodes.push_back(TRY(resolved_path.copy())));
 
 		return resolved_path;
 	}

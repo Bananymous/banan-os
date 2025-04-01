@@ -31,8 +31,8 @@ namespace Kernel::ACPI::AML
 		BAN::ErrorOr<Node> evaluate(const Scope& scope, BAN::StringView);
 
 		// returns empty scope if object already exited
-		BAN::ErrorOr<Scope> add_named_object(const Scope& scope, const NameString& name_string, Node&& node);
-		BAN::ErrorOr<Scope> add_alias(const Scope& scope, const NameString& name_string, Reference* reference);
+		BAN::ErrorOr<Scope> add_named_object(ParseContext& context, const NameString& name_string, Node&& node);
+		BAN::ErrorOr<Scope> add_alias(ParseContext& scope, const NameString& name_string, Reference* reference);
 
 		BAN::ErrorOr<void> remove_named_object(const Scope& absolute_path);
 
