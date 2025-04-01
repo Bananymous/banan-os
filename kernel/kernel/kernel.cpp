@@ -91,9 +91,14 @@ static void parse_command_line()
 			g_disable_debug = true;
 		else if (argument.starts_with("ps2="))
 		{
-			if (argument.size() != 5 || !isdigit(argument[4]))
-				dprintln("Invalid ps2= command line argument format '{}'", argument);
-			cmdline.ps2_override = argument[4] - '0';
+			if (argument == "ps2=auto"_sv)
+				cmdline.ps2_override = 0xFF;
+			else
+			{
+				if (argument.size() != 5 || !isdigit(argument[4]))
+					dprintln("Invalid ps2= command line argument format '{}'", argument);
+				cmdline.ps2_override = argument[4] - '0';
+			}
 		}
 		else if (argument.size() > 5 && argument.substring(0, 5) == "root=")
 			cmdline.root = argument.substring(5);

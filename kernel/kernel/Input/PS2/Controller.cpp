@@ -240,12 +240,21 @@ namespace Kernel::Input
 
 	BAN::ErrorOr<void> PS2Controller::initialize_impl(uint8_t scancode_set)
 	{
-		// Determine if the PS/2 Controller Exists
-		auto* fadt = static_cast<const ACPI::FADT*>(ACPI::ACPI::get().get_header("FACP"_sv, 0));
-		if (fadt && fadt->revision > 1 && !(fadt->iapc_boot_arch & (1 << 1)))
+		constexpr size_t iapc_flag_off = offsetof(ACPI::FADT, iapc_boot_arch);
+		constexpr size_t iapc_flag_end = iapc_flag_off + sizeof(ACPI::FADT::iapc_boot_arch);
+
+		// If user provided scan code set, skip FADT detection
+		if (scancode_set == 0xFF)
+			scancode_set = 0;
+		else if (scancode_set == 0)
 		{
-			dwarnln_if(DEBUG_PS2, "No PS/2 available");
-			return BAN::Error::from_errno(ENODEV);
+			// Determine if the PS/2 Controller Exists
+			auto* fadt = static_cast<const ACPI::FADT*>(ACPI::ACPI::get().get_header("FACP"_sv, 0));
+			if (fadt && fadt->revision >= 3 && fadt->length >= iapc_flag_end && !(fadt->iapc_boot_arch & (1 << 1)))
+			{
+				dwarnln_if(DEBUG_PS2, "No PS/2 available");
+				return BAN::Error::from_errno(ENODEV);
+			}
 		}
 
 		// Disable Devices
