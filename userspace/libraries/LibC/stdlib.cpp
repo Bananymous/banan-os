@@ -27,9 +27,15 @@ static uint32_t at_exit_funcs_count = 0;
 
 void abort(void)
 {
-	fflush(nullptr);
-	fprintf(stderr, "abort()\n");
-	exit(1);
+	sigset_t set;
+	sigemptyset(&set);
+	sigaddset(&set, SIGABRT);
+	sigprocmask(SIG_UNBLOCK, &set, nullptr);
+	raise(SIGABRT);
+
+	signal(SIGABRT, SIG_DFL);
+	raise(SIGABRT);
+
 	ASSERT_NOT_REACHED();
 }
 
