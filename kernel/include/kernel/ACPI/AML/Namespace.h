@@ -27,7 +27,8 @@ namespace Kernel::ACPI::AML
 
 		BAN::ErrorOr<void> parse(BAN::ConstByteSpan);
 
-		BAN::ErrorOr<Node> evaluate(BAN::StringView);
+		BAN::ErrorOr<Node> evaluate(BAN::StringView path) { return evaluate(Scope {}, path); }
+		BAN::ErrorOr<Node> evaluate(const Scope& scope, BAN::StringView);
 
 		// returns empty scope if object already exited
 		BAN::ErrorOr<Scope> add_named_object(const Scope& scope, const NameString& name_string, Node&& node);

@@ -547,11 +547,10 @@ namespace Kernel::ACPI::AML
 		return result;
 	}
 
-	BAN::ErrorOr<Node> Namespace::evaluate(BAN::StringView path)
+	BAN::ErrorOr<Node> Namespace::evaluate(const Scope& scope, BAN::StringView path)
 	{
-		Scope root_scope;
 		auto name_string = TRY(NameString::from_string(path));
-		auto [object_path, object] = TRY(find_named_object(root_scope, name_string));
+		auto [object_path, object] = TRY(find_named_object(scope, name_string));
 		if (object == nullptr)
 			return BAN::Error::from_errno(ENOENT);
 		return evaluate_node(object_path, object->node);
