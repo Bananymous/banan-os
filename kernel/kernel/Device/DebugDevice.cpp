@@ -21,9 +21,10 @@ namespace Kernel
 	{
 		auto ms_since_boot = SystemTimer::get().ms_since_boot();
 		SpinLockGuard _(Debug::s_debug_lock);
-		BAN::Formatter::print(Debug::putchar, "[{5}.{3}] {}: ",
+		BAN::Formatter::print(Debug::putchar, "[{5}.{3}] {} {}: ",
 			ms_since_boot / 1000,
 			ms_since_boot % 1000,
+			Kernel::Process::current().pid(),
 			Kernel::Process::current().name()
 		);
 		for (size_t i = 0; i < buffer.size(); i++)
