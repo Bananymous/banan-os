@@ -30,6 +30,8 @@ namespace Kernel::ACPI
 
 		BAN::ErrorOr<void> initialize_acpi_devices();
 
+		AML::Namespace* acpi_namespace() { return m_namespace; }
+
 		BAN::ErrorOr<void> poweroff();
 		BAN::ErrorOr<void> reset();
 
