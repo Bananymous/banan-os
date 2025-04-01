@@ -558,6 +558,57 @@ int getchar_unlocked(void)
 	return getc_unlocked(stdin);
 }
 
+ssize_t getdelim(char** __restrict lineptr, size_t* __restrict n, int delimeter, FILE* __restrict stream)
+{
+	if (n == nullptr || lineptr == nullptr)
+	{
+		errno = EINVAL;
+		return -1;
+	}
+
+	ScopeLock _(stream);
+
+	size_t capacity = *lineptr ? *n : 0;
+	size_t length = 0;
+
+	for (;;)
+	{
+		if (length + 2 > capacity)
+		{
+			const size_t new_capacity = BAN::Math::max(capacity * 2, length + 2);
+			void* temp = realloc(*lineptr, new_capacity);
+			if (temp == nullptr)
+				return -1;
+			*lineptr = static_cast<char*>(temp);
+			capacity = new_capacity;
+		}
+
+		int ch = getc_unlocked(stream);
+		if (ch == EOF)
+		{
+			(*lineptr)[length] = '\0';
+			*n = length;
+			if (ferror(stream) || length == 0)
+				return -1;
+			return length;
+		}
+
+		(*lineptr)[length++] = ch;
+
+		if (ch == delimeter)
+		{
+			(*lineptr)[length] = '\0';
+			*n = length;
+			return length;
+		}
+	}
+}
+
+ssize_t getline(char** __restrict lineptr, size_t* __restrict n, FILE* __restrict stream)
+{
+	return getdelim(lineptr, n, '\n', stream);
+}
+
 char* gets(char* buffer)
 {
 	if (stdin->eof)
