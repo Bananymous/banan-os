@@ -713,24 +713,26 @@ void* bsearch(const void* key, const void* base, size_t nel, size_t width, int (
 	if (nel == 0)
 		return nullptr;
 
-	const uint8_t* base_u8 = reinterpret_cast<const uint8_t*>(base);
+	const uint8_t* base_u8 = static_cast<const uint8_t*>(base);
 
 	size_t l = 0;
 	size_t r = nel - 1;
-	while (l <= r)
+	while (l < r)
 	{
-		const size_t mid = (l + r) / 2;
+		const size_t mid = l + (r - l) / 2;
 
 		int res = compar(key, base_u8 + mid * width);
 		if (res == 0)
 			return const_cast<uint8_t*>(base_u8 + mid * width);
 
-		if (res < 0)
-			r = mid - 1;
-		else
+		if (res > 0)
 			l = mid + 1;
+		else
+			r = mid ? mid - 1 : 0;
 	}
 
+	if (l < nel && compar(key, base_u8 + l * width) == 0)
+		return const_cast<uint8_t*>(base_u8 + l * width);
 	return nullptr;
 }
 
