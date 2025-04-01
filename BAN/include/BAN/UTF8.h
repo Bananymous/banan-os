@@ -76,6 +76,8 @@ namespace BAN::UTF8
 			}
 		}
 
+		*ptr = '\0';
+
 		return true;
 	}
 
