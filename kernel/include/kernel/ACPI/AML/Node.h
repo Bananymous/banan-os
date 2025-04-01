@@ -309,6 +309,8 @@ namespace Kernel::ACPI::AML
 	BAN::ErrorOr<Node> method_call(const Scope& scope, const Node& method,
 		Node&& arg0 = {}, Node&& arg1 = {}, Node&& arg2 = {}, Node&& arg3 = {}, Node&& arg4 = {}, Node&& arg5 = {}, Node&& arg6 = {});
 
+	BAN::ErrorOr<void> resolve_package_element(Package::Element& element, bool error_if_not_exists);
+
 }
 
 namespace BAN::Formatter

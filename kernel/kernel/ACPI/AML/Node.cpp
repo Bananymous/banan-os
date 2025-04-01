@@ -210,7 +210,7 @@ namespace Kernel::ACPI::AML
 		return result;
 	}
 
-	static BAN::ErrorOr<void> resolve_package_element(Package::Element& element, bool error_if_not_exists)
+	BAN::ErrorOr<void> resolve_package_element(Package::Element& element, bool error_if_not_exists)
 	{
 		if (element.resolved)
 		{
