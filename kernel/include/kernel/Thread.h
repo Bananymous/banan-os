@@ -98,6 +98,8 @@ namespace Kernel
 	private:
 		Thread(pid_t tid, Process*);
 
+		void setup_exec_impl(uintptr_t entry, uintptr_t arg0, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3);
+
 		static void on_exit_trampoline(Thread*);
 		void on_exit();
 

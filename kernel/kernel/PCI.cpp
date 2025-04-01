@@ -1,3 +1,6 @@
+#include <BAN/ScopeGuard.h>
+
+#include <kernel/APIC.h>
 #include <kernel/ACPI/ACPI.h>
 #include <kernel/IDT.h>
 #include <kernel/IO.h>
@@ -379,7 +382,7 @@ namespace Kernel::PCI
 
 	uint8_t PCI::Device::get_interrupt(uint8_t index) const
 	{
-		ASSERT(m_offset_msi.has_value() || m_offset_msi_x.has_value() || !InterruptController::get().is_using_apic());
+		ASSERT(m_interrupt_mechanism != InterruptMechanism::NONE);
 		ASSERT(index < m_reserved_interrupt_count);
 
 		uint8_t count_found = 0;
@@ -418,7 +421,8 @@ namespace Kernel::PCI
 				ASSERT_NOT_REACHED();
 			case InterruptMechanism::PIN:
 				enable_pin_interrupts();
-				write_byte(PCI_REG_IRQ_LINE, irq);
+				if (!InterruptController::get().is_using_apic())
+					write_byte(PCI_REG_IRQ_LINE, irq);
 				InterruptController::get().enable_irq(irq);
 				break;
 			case InterruptMechanism::MSI:
@@ -476,13 +480,229 @@ namespace Kernel::PCI
 		}
 	}
 
+#pragma GCC diagnostic push
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic ignored "-Wstack-usage="
+#endif
+	BAN::ErrorOr<uint8_t> PCI::Device::route_prt_entry(const ACPI::AML::Node& prt_entry)
+	{
+		ASSERT(prt_entry.type == ACPI::AML::Node::Type::Package);
+		ASSERT(prt_entry.as.package->num_elements == 4);
+		for (size_t i = 0; i < 4; i++)
+			ASSERT(prt_entry.as.package->elements[i].value.node);
+
+		auto& prt_entry_fields = prt_entry.as.package->elements;
+
+		auto& source_node = *prt_entry_fields[2].value.node;
+		if (source_node.type != ACPI::AML::Node::Type::Reference || source_node.as.reference->node.type != ACPI::AML::Node::Type::Device)
+		{
+			BAN::ScopeGuard debug_guard([] { dwarnln("unknown or invalid _PRT format"); });
+
+			const auto source_value = TRY(ACPI::AML::convert_node(TRY(source_node.copy()), ACPI::AML::ConvInteger, -1)).as.integer.value;
+			if (source_value != 0x00)
+				return BAN::Error::from_errno(EINVAL);
+
+			auto& gsi_node = *prt_entry_fields[3].value.node;
+			const auto gsi_value = TRY(ACPI::AML::convert_node(TRY(gsi_node.copy()), ACPI::AML::ConvInteger, -1)).as.integer.value;
+
+			debug_guard.disable();
+
+			auto& apic = static_cast<APIC&>(InterruptController::get());
+			return TRY(apic.reserve_gsi(gsi_value));
+		}
+		else
+		{
+			BAN::ScopeGuard debug_guard([] { dwarnln("unknown or invalid _PRT format"); });
+
+			auto& acpi_namespace = *ACPI::ACPI::get().acpi_namespace();
+
+			auto source_scope = TRY(acpi_namespace.find_reference_scope(source_node.as.reference));
+
+			auto crs_node = TRY(ACPI::AML::convert_node(TRY(acpi_namespace.evaluate(source_scope, "_CRS"_sv)), ACPI::AML::ConvBuffer, -1));
+
+			auto crs_buffer = BAN::ConstByteSpan(crs_node.as.str_buf->bytes, crs_node.as.str_buf->size);
+			while (!crs_buffer.empty())
+			{
+				if (!(crs_buffer[0] & 0x80))
+				{
+					const uint8_t name = ((crs_buffer[0] >> 3) & 0x0F);
+					const uint8_t length = (crs_buffer[0] & 0x07);
+					if (crs_buffer.size() < static_cast<size_t>(1 + length))
+						return BAN::Error::from_errno(EINVAL);
+
+					// IRQ Format Descriptor
+					if (name == 0x04)
+					{
+						if (length < 2)
+							return BAN::Error::from_errno(EINVAL);
+
+						const uint16_t irq_mask = crs_buffer[1] | (crs_buffer[2] << 8);
+						if (irq_mask == 0)
+							return BAN::Error::from_errno(EINVAL);
+
+						debug_guard.disable();
+
+						uint8_t irq;
+						for (irq = 0; irq < 16; irq++)
+							if (irq_mask & (1 << irq))
+								break;
+
+						if (auto ret = InterruptController::get().reserve_irq(irq); ret.is_error())
+						{
+							dwarnln("FIXME: irq sharing");
+							return ret.release_error();
+						}
+
+						return irq;
+					}
+
+					crs_buffer = crs_buffer.slice(1 + length);
+				}
+				else
+				{
+					if (crs_buffer.size() < 3)
+						return BAN::Error::from_errno(EINVAL);
+					const uint8_t  name = (crs_buffer[0] & 0x7F);
+					const uint16_t length = (crs_buffer[2] << 8) | crs_buffer[1];
+					if (crs_buffer.size() < static_cast<size_t>(3 + length))
+						return BAN::Error::from_errno(EINVAL);
+
+					// Extended Interrupt Descriptor
+					if (name == 0x09)
+					{
+						if (length < 6 || crs_buffer[4] != 1)
+							return BAN::Error::from_errno(EINVAL);
+
+						const uint32_t irq  =
+							(static_cast<uint32_t>(crs_buffer[5]) <<  0) |
+							(static_cast<uint32_t>(crs_buffer[6]) <<  8) |
+							(static_cast<uint32_t>(crs_buffer[7]) << 16) |
+							(static_cast<uint32_t>(crs_buffer[8]) << 24);
+
+						debug_guard.disable();
+
+						if (auto ret = InterruptController::get().reserve_irq(irq); ret.is_error())
+						{
+							dwarnln("FIXME: irq sharing");
+							return ret.release_error();
+						}
+
+						return irq;
+					}
+
+					crs_buffer = crs_buffer.slice(3 + length);
+				}
+			}
+		}
+
+		return BAN::Error::from_errno(EFAULT);
+	}
+#pragma GCC diagnostic pop
+
+	static BAN::ErrorOr<ACPI::AML::Scope> find_pci_bus(uint16_t seg, uint8_t bus)
+	{
+		constexpr BAN::StringView pci_root_bus_ids[] {
+			"PNP0A03"_sv, // PCI
+			"PNP0A08"_sv, // PCIe
+		};
+
+		ASSERT(ACPI::ACPI::get().acpi_namespace());
+		auto& acpi_namespace = *ACPI::ACPI::get().acpi_namespace();
+
+		for (const auto eisa_id : pci_root_bus_ids)
+		{
+			auto root_buses = TRY(acpi_namespace.find_device_with_eisa_id(eisa_id));
+
+			for (const auto& root_bus : root_buses)
+			{
+				uint64_t bbn_value = 0;
+				if (auto bbn_node_or_error = acpi_namespace.evaluate(root_bus, "_BBN"_sv); !bbn_node_or_error.is_error())
+					bbn_value = TRY(ACPI::AML::convert_node(bbn_node_or_error.release_value(), ACPI::AML::ConvInteger, -1)).as.integer.value;
+
+				uint64_t seg_value = 0;
+				if (auto seg_node_or_error = acpi_namespace.evaluate(root_bus, "_SEG"_sv); !seg_node_or_error.is_error())
+					seg_value = TRY(ACPI::AML::convert_node(seg_node_or_error.release_value(), ACPI::AML::ConvInteger, -1)).as.integer.value;
+
+				if (seg_value == seg && bbn_value == bus)
+					return TRY(root_bus.copy());
+			}
+		}
+
+		return BAN::Error::from_errno(ENOENT);
+	}
+
+#pragma GCC diagnostic push
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic ignored "-Wstack-usage="
+#endif
+	// TODO: maybe move this code to ACPI related file?
+	BAN::ErrorOr<uint8_t> PCI::Device::find_intx_interrupt()
+	{
+		ASSERT(InterruptController::get().is_using_apic());
+
+		const uint32_t acpi_device_id = (static_cast<uint32_t>(m_dev) << 16) | 0xFFFF;
+		const uint8_t acpi_pin = read_byte(0x3D) - 1;
+		if (acpi_pin > 0x03)
+		{
+			dwarnln("PCI device is not using PIN interrupts");
+			return BAN::Error::from_errno(EINVAL);
+		}
+
+		if (ACPI::ACPI::get().acpi_namespace() == nullptr)
+			return BAN::Error::from_errno(EFAULT);
+		auto& acpi_namespace = *ACPI::ACPI::get().acpi_namespace();
+
+		// FIXME: support segments
+		auto pci_root_bus = TRY(find_pci_bus(0, m_bus));
+
+		auto prt_node = TRY(acpi_namespace.evaluate(pci_root_bus, "_PRT"));
+		if (prt_node.type != ACPI::AML::Node::Type::Package)
+		{
+			dwarnln("{}\\_PRT did not evaluate to package");
+			return BAN::Error::from_errno(EINVAL);
+		}
+
+		for (size_t i = 0; i < prt_node.as.package->num_elements; i++)
+		{
+			if (ACPI::AML::resolve_package_element(prt_node.as.package->elements[i], true).is_error())
+				continue;
+
+			auto& prt_entry = *prt_node.as.package->elements[i].value.node;
+			if (prt_entry.type != ACPI::AML::Node::Type::Package)
+				continue;
+			if (prt_entry.as.package->num_elements != 4)
+				continue;
+
+			bool resolved = true;
+			for (size_t j = 0; j < 4 && resolved; j++)
+				if (ACPI::AML::resolve_package_element(prt_entry.as.package->elements[j], true).is_error())
+					resolved = false;
+			if (!resolved)
+				continue;
+
+			auto& prt_entry_fields = prt_entry.as.package->elements;
+			if (TRY(ACPI::AML::convert_node(TRY(prt_entry_fields[0].value.node->copy()), ACPI::AML::ConvInteger, -1)).as.integer.value != acpi_device_id)
+				return BAN::Error::from_errno(ENOENT);
+			if (TRY(ACPI::AML::convert_node(TRY(prt_entry_fields[1].value.node->copy()), ACPI::AML::ConvInteger, -1)).as.integer.value != acpi_pin)
+				return BAN::Error::from_errno(ENOENT);
+
+			auto ret = route_prt_entry(prt_entry);
+			if (!ret.is_error())
+				return ret;
+		}
+
+		dwarnln("No routable PCI interrupt found");
+		return BAN::Error::from_errno(EFAULT);
+	}
+#pragma GCC diagnostic pop
+
 	BAN::ErrorOr<void> PCI::Device::reserve_interrupts(uint8_t count)
 	{
 		// FIXME: Allow "late" interrupt reserving
 		ASSERT(m_reserved_interrupt_count == 0);
 
 		const auto mechanism =
-			[&]() -> InterruptMechanism
+			[this, count]() -> InterruptMechanism
 			{
 				if (!InterruptController::get().is_using_apic())
 				{
@@ -494,34 +714,46 @@ namespace Kernel::PCI
 					return InterruptMechanism::NONE;
 				}
 
-				if (m_offset_msi_x.has_value())
+				const bool is_xhci = false && m_class_code == 0x0C && m_subclass == 0x03 && m_prog_if == 0x30;
+
+				if (!is_xhci && m_offset_msi_x.has_value())
 				{
 					const uint16_t msg_ctrl = read_word(*m_offset_msi_x + 0x02);
 					if (count <= (msg_ctrl & 0x7FF) + 1)
 						return InterruptMechanism::MSIX;
 				}
 
-				if (m_offset_msi.has_value())
+				if (!is_xhci && m_offset_msi.has_value())
 				{
 					if (count == 1)
 						return InterruptMechanism::MSI;
-					// FIXME: support multiple message
+					// FIXME: support multiple MSIs
 				}
 
-				// FIXME: support ioapic
-
+				if (count == 1)
+					return InterruptMechanism::PIN;
 				return InterruptMechanism::NONE;
 			}();
 
+		if (mechanism == InterruptMechanism::NONE)
+		{
+			dwarnln("No supported interrupt mechanism available");
+			return BAN::Error::from_errno(ENOTSUP);
+		}
+
 		auto get_interrupt_func =
-			[mechanism]() -> BAN::Optional<uint8_t>
+			[this, mechanism]() -> BAN::Optional<uint8_t>
 			{
 				switch (mechanism)
 				{
 					case InterruptMechanism::NONE:
-						return {};
+						ASSERT_NOT_REACHED();
 					case InterruptMechanism::PIN:
-						return InterruptController::get().get_free_irq();
+						if (!InterruptController::get().is_using_apic())
+							return InterruptController::get().get_free_irq();
+						if (auto ret = find_intx_interrupt(); !ret.is_error())
+							return ret.release_value();
+						return {};
 					case InterruptMechanism::MSI:
 					case InterruptMechanism::MSIX:
 						return PCIManager::get().reserve_msi();
@@ -534,7 +766,7 @@ namespace Kernel::PCI
 			const auto irq = get_interrupt_func();
 			if (!irq.has_value())
 			{
-				dwarnln("Could not reserve {} MSI(-X) interrupts", count);
+				dwarnln("Could not reserve {} interrupts", count);
 				return BAN::Error::from_errno(EFAULT);
 			}
 			const uint8_t byte = irq.value() / 8;

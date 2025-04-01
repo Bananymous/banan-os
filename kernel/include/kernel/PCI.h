@@ -2,6 +2,7 @@
 
 #include <BAN/UniqPtr.h>
 #include <BAN/Vector.h>
+#include <kernel/ACPI/AML/Node.h>
 #include <kernel/Memory/Types.h>
 #include <kernel/Storage/StorageController.h>
 
@@ -118,6 +119,9 @@ namespace Kernel::PCI
 
 		void enable_pin_interrupts();
 		void disable_pin_interrupts();
+
+		BAN::ErrorOr<uint8_t> route_prt_entry(const ACPI::AML::Node& routing_entry);
+		BAN::ErrorOr<uint8_t> find_intx_interrupt();
 
 	private:
 		bool m_is_valid	{ false };
