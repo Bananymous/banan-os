@@ -611,6 +611,7 @@ ssize_t getline(char** __restrict lineptr, size_t* __restrict n, FILE* __restric
 
 char* gets(char* buffer)
 {
+	ScopeLock _(stdin);
 	if (stdin->eof)
 		return nullptr;
 
