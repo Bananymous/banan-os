@@ -18,8 +18,8 @@ namespace Kernel
 		WindowScale			= 0x03,
 	};
 
-	static constexpr size_t s_window_buffer_size = 15 * PAGE_SIZE;
-	static_assert(s_window_buffer_size <= UINT16_MAX);
+	static constexpr size_t s_recv_window_buffer_size = 16 * PAGE_SIZE;
+	static constexpr size_t s_send_window_buffer_size = 16 * PAGE_SIZE;
 
 	BAN::ErrorOr<BAN::RefPtr<TCPSocket>> TCPSocket::create(NetworkLayer& network_layer, const Info& info)
 	{
@@ -28,15 +28,16 @@ namespace Kernel
 			PageTable::kernel(),
 			KERNEL_OFFSET,
 			~(vaddr_t)0,
-			s_window_buffer_size,
+			s_recv_window_buffer_size,
 			PageTable::Flags::ReadWrite | PageTable::Flags::Present,
 			true
 		));
+		socket->m_recv_window.scale = 12; // use PAGE_SIZE windows
 		socket->m_send_window.buffer = TRY(VirtualRange::create_to_vaddr_range(
 			PageTable::kernel(),
 			KERNEL_OFFSET,
 			~(vaddr_t)0,
-			s_window_buffer_size,
+			s_send_window_buffer_size,
 			PageTable::Flags::ReadWrite | PageTable::Flags::Present,
 			true
 		));
@@ -73,7 +74,7 @@ namespace Kernel
 		while (m_pending_connections.empty())
 		{
 			LockFreeGuard _(m_mutex);
-			TRY(Thread::current().block_or_eintr_indefinite(m_thread_blocker));
+			TRY(Thread::current().block_or_eintr_or_timeout_ms(m_thread_blocker, 100, false));
 		}
 
 		auto connection = m_pending_connections.front();
@@ -205,7 +206,7 @@ namespace Kernel
 			if (m_state != State::Established)
 				return return_with_maybe_zero();
 			LockFreeGuard free(m_mutex);
-			TRY(Thread::current().block_or_eintr_indefinite(m_thread_blocker));
+			TRY(Thread::current().block_or_eintr_or_timeout_ms(m_thread_blocker, 100, false));
 		}
 
 		const uint32_t to_recv = BAN::Math::min<uint32_t>(buffer.size(), m_recv_window.data_size);
@@ -247,7 +248,7 @@ namespace Kernel
 			if (m_send_window.data_size + message.size() <= m_send_window.buffer->size())
 				break;
 			LockFreeGuard free(m_mutex);
-			TRY(Thread::current().block_or_eintr_indefinite(m_thread_blocker));
+			TRY(Thread::current().block_or_eintr_or_timeout_ms(m_thread_blocker, 100, false));
 		}
 
 		{
@@ -264,7 +265,7 @@ namespace Kernel
 			if (m_state != State::Established)
 				return return_with_maybe_zero();
 			LockFreeGuard free(m_mutex);
-			TRY(Thread::current().block_or_eintr_indefinite(m_thread_blocker));
+			TRY(Thread::current().block_or_eintr_or_timeout_ms(m_thread_blocker, 100, false));
 		}
 
 		return message.size();
@@ -376,18 +377,18 @@ namespace Kernel
 		header.seq_number = m_send_window.current_seq + m_send_window.has_ghost_byte;
 		header.ack_number = m_recv_window.start_seq + m_recv_window.data_size + m_recv_window.has_ghost_byte;
 		header.data_offset = (sizeof(TCPHeader) + m_tcp_options_bytes) / sizeof(uint32_t);
-		header.window_size = m_recv_window.buffer->size();
+		header.window_size = BAN::Math::min<size_t>(0xFFFF, m_recv_window.buffer->size() >> m_recv_window.scale);
 		header.flags = m_next_flags;
 		if (header.flags & FIN)
 			m_send_window.has_ghost_byte = true;
 		m_next_flags = 0;
 
-		ASSERT(m_recv_window.buffer->size() < (1 << (8 * sizeof(header.window_size))));
-
 		if (m_state == State::Closed)
 		{
 			add_tcp_header_option<0, TCPOption::MaximumSeqmentSize>(header, m_interface->payload_mtu() - m_network_layer.header_size());
-			add_tcp_header_option<4, TCPOption::WindowScale>(header, 0);
+			add_tcp_header_option<4, TCPOption::WindowScale>(header, m_recv_window.scale);
+			header.window_size = BAN::Math::min<size_t>(0xFFFF, m_recv_window.buffer->size());
+
 			m_send_window.mss = 1440;
 			m_send_window.start_seq++;
 			m_send_window.current_seq = m_send_window.start_seq;
@@ -463,6 +464,8 @@ namespace Kernel
 					m_send_window.mss = *options.maximum_seqment_size;
 				if (options.window_scale.has_value())
 					m_send_window.scale = *options.window_scale;
+				else
+					m_recv_window.scale = 1;
 
 				m_send_window.start_seq = m_send_window.current_seq;
 				m_send_window.current_ack = m_send_window.current_seq;

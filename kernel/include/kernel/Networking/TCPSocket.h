@@ -43,7 +43,7 @@ namespace Kernel
 	class TCPSocket final : public NetworkSocket
 	{
 	public:
-		static constexpr size_t m_tcp_options_bytes = 4;
+		static constexpr size_t m_tcp_options_bytes = 8;
 
 	public:
 		static BAN::ErrorOr<BAN::RefPtr<TCPSocket>> create(NetworkLayer&, const Info&);
@@ -91,6 +91,7 @@ namespace Kernel
 			bool						has_ghost_byte { false };
 
 			uint32_t					data_size	{ 0 }; // number of bytes in this buffer
+			uint8_t						scale		{ 1 }; // window scale
 			BAN::UniqPtr<VirtualRange>	buffer;
 		};
 
