@@ -20,6 +20,7 @@ set(LIBC_SOURCES
 	pthread.cpp
 	pwd.cpp
 	scanf_impl.cpp
+	sched.cpp
 	setjmp.cpp
 	signal.cpp
 	stdio.cpp

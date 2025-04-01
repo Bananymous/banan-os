@@ -2084,6 +2084,12 @@ namespace Kernel
 		return 0;
 	}
 
+	BAN::ErrorOr<long> Process::sys_yield()
+	{
+		Processor::yield();
+		return 0;
+	}
+
 	BAN::ErrorOr<long> Process::sys_pthread_create(const pthread_attr_t* __restrict attr, void (*entry)(void*), void* arg)
 	{
 		if (attr != nullptr)

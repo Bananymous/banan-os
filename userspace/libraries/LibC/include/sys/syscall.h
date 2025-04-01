@@ -90,6 +90,7 @@ __BEGIN_DECLS
 	O(SYS_FSYNC,			fsync)			\
 	O(SYS_SYMLINKAT,		symlinkat)		\
 	O(SYS_HARDLINKAT,		hardlinkat)		\
+	O(SYS_YIELD,			yield)			\
 	O(SYS_PTHREAD_CREATE,	pthread_create)	\
 	O(SYS_PTHREAD_EXIT,		pthread_exit)	\
 	O(SYS_PTHREAD_SELF,		pthread_self)	\
