@@ -23,6 +23,8 @@ namespace Kernel
 		virtual void broadcast_ipi() override;
 		virtual void enable() override;
 
+		BAN::ErrorOr<uint8_t> reserve_gsi(uint32_t gsi);
+
 		void initialize_timer();
 
 	private:

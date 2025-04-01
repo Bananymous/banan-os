@@ -458,7 +458,7 @@ namespace Kernel
 	{
 		SpinLockGuard _(m_lock);
 
-		uint32_t gsi = m_irq_overrides[irq];
+		const uint32_t gsi = m_irq_overrides[irq];
 
 		{
 			int byte = gsi / 8;
@@ -477,9 +477,11 @@ namespace Kernel
 		}
 		ASSERT(ioapic);
 
+		const uint32_t pin = gsi - ioapic->gsi_base;
+
 		RedirectionEntry redir;
-		redir.lo_dword = ioapic->read(IOAPIC_REDIRS + gsi * 2);
-		redir.hi_dword = ioapic->read(IOAPIC_REDIRS + gsi * 2 + 1);
+		redir.lo_dword = ioapic->read(IOAPIC_REDIRS + pin * 2);
+		redir.hi_dword = ioapic->read(IOAPIC_REDIRS + pin * 2 + 1);
 		ASSERT(redir.mask); // TODO: handle overlapping interrupts
 
 		redir.vector = IRQ_VECTOR_BASE + irq;
@@ -487,8 +489,8 @@ namespace Kernel
 		// FIXME: distribute IRQs more evenly?
 		redir.destination = Kernel::Processor::bsb_id().as_u32();
 
-		ioapic->write(IOAPIC_REDIRS + gsi * 2,		redir.lo_dword);
-		ioapic->write(IOAPIC_REDIRS + gsi * 2 + 1,	redir.hi_dword);
+		ioapic->write(IOAPIC_REDIRS + pin * 2,		redir.lo_dword);
+		ioapic->write(IOAPIC_REDIRS + pin * 2 + 1,	redir.hi_dword);
 	}
 
 	bool APIC::is_in_service(uint8_t irq)
@@ -504,33 +506,57 @@ namespace Kernel
 	{
 		SpinLockGuard _(m_lock);
 
-		uint32_t gsi = m_irq_overrides[irq];
+		const uint32_t gsi = m_irq_overrides[irq];
 
-		IOAPIC* ioapic = nullptr;
-		for (IOAPIC& io : m_io_apics)
+		bool found_ioapic = false;
+		for (const auto& io : m_io_apics)
 		{
 			if (io.gsi_base <= gsi && gsi <= io.gsi_base + io.max_redirs)
 			{
-				ioapic = &io;
+				found_ioapic = true;
 				break;
 			}
 		}
 
-		if (!ioapic)
+		if (!found_ioapic)
 		{
-			dwarnln("Cannot enable irq {} for APIC", irq);
-			return BAN::Error::from_errno(EFAULT);
+			dwarnln("No IOAPIC for GSI {}", gsi);
+			return BAN::Error::from_errno(EINVAL);
 		}
 
 		int byte = gsi / 8;
 		int bit  = gsi % 8;
 		if (m_reserved_gsis[byte] & (1 << bit))
 		{
-			dwarnln("irq {} is already reserved", irq);
+			dwarnln("GSI {} is already reserved", gsi);
 			return BAN::Error::from_errno(EFAULT);
 		}
 		m_reserved_gsis[byte] |= 1 << bit;
 		return {};
+	}
+
+	// FIXME: rewrite gsi and vector reserving
+	//        this is a hack to allow direct GSI reservation
+	BAN::ErrorOr<uint8_t> APIC::reserve_gsi(uint32_t gsi)
+	{
+		dwarnln("TRYING TO RESERVE GSI {}", gsi);
+
+		size_t irq = 0;
+		for (; irq < 0x100; irq++)
+			if (m_irq_overrides[irq] == gsi)
+				break;
+
+		if (irq == 0x100)
+		{
+			dwarnln("TODO: reserve GSI not accessible through overrides");
+			return BAN::Error::from_errno(ENOTSUP);
+		}
+
+		dwarnln("  matches IRQ {}", irq);
+
+		TRY(reserve_irq(irq));
+
+		return irq;
 	}
 
 	BAN::Optional<uint8_t> APIC::get_free_irq()
