@@ -204,10 +204,14 @@ namespace BAN::Formatter
 		template<typename F, typename T>
 		inline void print_floating(F putc, T value, const ValueFormat& format)
 		{
+			if (value < 0)
+			{
+				putc('-');
+				return print_floating(putc, -value, format);
+			}
+
 			int64_t int_part = (int64_t)value;
 			T frac_part = value - (T)int_part;
-			if (frac_part < 0)
-				frac_part = -frac_part;
 
 			print_integer(putc, int_part, format);
 
