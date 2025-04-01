@@ -47,3 +47,8 @@ void pthread_exit(void* value_ptr)
 	syscall(SYS_PTHREAD_EXIT, value_ptr);
 	ASSERT_NOT_REACHED();
 }
+
+pthread_t pthread_self(void)
+{
+	return syscall(SYS_PTHREAD_SELF);
+}

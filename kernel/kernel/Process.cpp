@@ -2121,6 +2121,11 @@ namespace Kernel
 		ASSERT_NOT_REACHED();
 	}
 
+	BAN::ErrorOr<long> Process::sys_pthread_self()
+	{
+		return Thread::current().tid();
+	}
+
 	BAN::ErrorOr<long> Process::sys_tcgetpgrp(int fd)
 	{
 		LockGuard _(m_process_lock);
