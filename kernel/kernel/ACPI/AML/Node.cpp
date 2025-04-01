@@ -1167,16 +1167,17 @@ namespace Kernel::ACPI::AML
 			}
 		}
 
-		auto buffer_node = TRY(parse_node(context));
-		if (buffer_node.type != Node::Type::Buffer)
+		auto buffer_node_ref = TRY(parse_node(context, true));
+
+		auto* buffer_node = &buffer_node_ref;
+		if (buffer_node->type == Node::Type::Reference)
+			buffer_node = &buffer_node->as.reference->node;
+
+		if (buffer_node->type != Node::Type::Buffer)
 		{
 			dwarnln("CreateField buffer is {}", buffer_node);
 			return BAN::Error::from_errno(EINVAL);
 		}
-
-		Node dummy_integer {};
-		dummy_integer.type = Node::Type::Integer;
-		dummy_integer.as.integer.value = 0;
 
 		auto index_node = TRY(convert_node(TRY(parse_node(context)), ConvInteger, sizeof(uint64_t)));
 
@@ -1196,7 +1197,7 @@ namespace Kernel::ACPI::AML
 
 		Node buffer_field;
 		buffer_field.type = Node::Type::BufferField;
-		buffer_field.as.buffer_field.buffer = buffer_node.as.str_buf;
+		buffer_field.as.buffer_field.buffer = buffer_node->as.str_buf;
 		buffer_field.as.buffer_field.buffer->ref_count++;
 		buffer_field.as.buffer_field.bit_count = bit_count;
 		buffer_field.as.buffer_field.bit_offset = index_in_bits ? index_node.as.integer.value : index_node.as.integer.value * 8;
