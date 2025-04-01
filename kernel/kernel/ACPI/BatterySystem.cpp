@@ -41,7 +41,7 @@ namespace Kernel::ACPI
 				if (method_ref == nullptr)
 					return BAN::Error::from_errno(EFAULT);
 
-				auto result = TRY(AML::method_call(method_path, method_ref->node, {}));
+				auto result = TRY(AML::method_call(method_path, method_ref->node, BAN::Array<AML::Reference*, 7>{}));
 				if (result.type != AML::Node::Type::Package || result.as.package->num_elements < m_result_index)
 					return BAN::Error::from_errno(EFAULT);
 

@@ -2571,7 +2571,7 @@ namespace Kernel::ACPI::AML
 			case Node::Type::Method:
 				if (node.as.method.arg_count != 0)
 					return BAN::Error::from_errno(EFAULT);
-				return TRY(method_call(node_path, node, {}));
+				return TRY(method_call(node_path, node, BAN::Array<Reference*, 7>{}));
 		}
 
 		dwarnln("evaluate {}", node);
@@ -2679,6 +2679,33 @@ namespace Kernel::ACPI::AML
 
 		return result;
 	}
+
+	BAN::ErrorOr<Node> method_call(const Scope& scope, const Node& method, Node&& arg0, Node&& arg1, Node&& arg2, Node&& arg3, Node&& arg4, Node&& arg5, Node&& arg6)
+	{
+		BAN::Array<Reference*, 7> args(nullptr);
+
+#define INIT_ARGn(n)                                    \
+		if (arg ## n.type != Node::Type::Uninitialized) \
+		{                                               \
+			args[n] = new Reference();                  \
+			if (args[n] == nullptr)                     \
+				return BAN::Error::from_errno(ENOMEM);  \
+			args[n]->ref_count = 1;                     \
+			args[n]->node = BAN::move(arg ## n);        \
+		}
+
+		INIT_ARGn(0);
+		INIT_ARGn(1);
+		INIT_ARGn(2);
+		INIT_ARGn(3);
+		INIT_ARGn(4);
+		INIT_ARGn(5);
+		INIT_ARGn(6);
+#undef INIT_ARGn
+
+		return method_call(scope, method, BAN::move(args));
+	}
+
 
 	BAN::ErrorOr<Node> parse_node(ParseContext& context, bool return_ref)
 	{

@@ -306,6 +306,8 @@ namespace Kernel::ACPI::AML
 
 	// If method has no return, it will return <integer 0>
 	BAN::ErrorOr<Node> method_call(const Scope& scope, const Node& method, BAN::Array<Reference*, 7>&& args, uint32_t call_depth = 0);
+	BAN::ErrorOr<Node> method_call(const Scope& scope, const Node& method,
+		Node&& arg0 = {}, Node&& arg1 = {}, Node&& arg2 = {}, Node&& arg3 = {}, Node&& arg4 = {}, Node&& arg5 = {}, Node&& arg6 = {});
 
 }
 

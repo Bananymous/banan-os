@@ -819,7 +819,7 @@ acpi_release_global_lock:
 
 					auto index = i * 8 + (pending & ~(pending - 1));
 					if (m_gpe_methods[index])
-						if (auto ret = AML::method_call(m_gpe_scope, m_gpe_methods[index]->node, {}); ret.is_error())
+						if (auto ret = AML::method_call(m_gpe_scope, m_gpe_methods[index]->node, BAN::Array<AML::Reference*, 7>{}); ret.is_error())
 							dwarnln("Failed to evaluate _GPE {}: ", index, ret.error());
 
 					handled_event = true;
