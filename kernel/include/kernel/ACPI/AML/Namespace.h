@@ -44,6 +44,8 @@ namespace Kernel::ACPI::AML
 		};
 		BAN::ErrorOr<FindResult> find_named_object(const Scope& scope, const NameString& name_string, bool force_absolute = false);
 
+		BAN::ErrorOr<Scope> find_reference_scope(const Reference* reference);
+
 		BAN::ErrorOr<void> for_each_child(const Scope&, const BAN::Function<BAN::Iteration(BAN::StringView, Reference*)>&);
 		BAN::ErrorOr<void> for_each_child(const Scope&, const BAN::Function<BAN::Iteration(const Scope&, Reference*)>&);
 

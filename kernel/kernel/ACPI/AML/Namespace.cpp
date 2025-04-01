@@ -454,6 +454,18 @@ namespace Kernel::ACPI::AML
 		};
 	}
 
+	BAN::ErrorOr<Scope> Namespace::find_reference_scope(const Reference* reference)
+	{
+		for (const auto& [obj_path, obj_ref] : m_named_objects)
+		{
+			if (obj_ref != reference)
+				continue;
+			return obj_path.copy();
+		}
+
+		return BAN::Error::from_errno(ENOENT);
+	}
+
 	BAN::ErrorOr<void> Namespace::for_each_child(const Scope& scope, const BAN::Function<BAN::Iteration(BAN::StringView, Reference*)>& callback)
 	{
 		for (const auto& [obj_path, obj_ref] : m_named_objects)
