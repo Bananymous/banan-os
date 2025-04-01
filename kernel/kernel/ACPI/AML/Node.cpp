@@ -1425,6 +1425,49 @@ namespace Kernel::ACPI::AML
 		return result;
 	}
 
+	static BAN::ErrorOr<Node> parse_find_set_bit_op(ParseContext& context)
+	{
+		dprintln_if(AML_DUMP_FUNCTION_CALLS, "parse_find_set_bit_op");
+
+		ASSERT(!context.aml_data.empty());
+		const auto opcode = context.aml_data[0];
+		context.aml_data = context.aml_data.slice(1);
+
+		uint64_t (*function)(uint64_t) = nullptr;
+
+		switch (static_cast<AML::Byte>(opcode))
+		{
+			case AML::Byte::FindSetLeftBitOp:
+				function = [](uint64_t a) -> uint64_t {
+					for (int i = 63; i >= 0; i--)
+						if ((a >> i) & 1)
+							return i + 1;
+					return 0;
+				};
+				break;
+			case AML::Byte::FindSetRightBitOp:
+				function = [](uint64_t a) -> uint64_t {
+					for (int i = 0; i < 64; i++)
+						if ((a >> i) & 1)
+							return i + 1;
+					return 0;
+				};
+				break;
+			default:
+				ASSERT_NOT_REACHED();
+		}
+
+		auto value = TRY(convert_node(TRY(parse_node(context)), ConvInteger, sizeof(uint64_t)));
+
+		Node result {};
+		result.type = Node::Type::Integer;
+		result.as.integer.value = function(value.as.integer.value);
+
+		TRY(store_into_target(context, result));
+
+		return result;
+	}
+
 	static BAN::ErrorOr<Node> parse_mid_op(ParseContext& context)
 	{
 		dprintln_if(AML_DUMP_FUNCTION_CALLS, "parse_mid_op");
@@ -2816,6 +2859,9 @@ namespace Kernel::ACPI::AML
 			case AML::Byte::LNotOp:
 			case AML::Byte::LOrOp:
 				return TRY(parse_logical_op(context));
+			case AML::Byte::FindSetLeftBitOp:
+			case AML::Byte::FindSetRightBitOp:
+				return TRY(parse_find_set_bit_op(context));
 			case AML::Byte::Local0:
 			case AML::Byte::Local1:
 			case AML::Byte::Local2:
