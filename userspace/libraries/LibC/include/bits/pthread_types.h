@@ -70,16 +70,16 @@ __BEGIN_DECLS
 #endif
 #undef __need_pthread_rwlockattr_t
 
-#if !defined(__pthread_spinlock_t_defined) && (defined(__need_all_types) || defined(__need_pthread_spinlock_t))
-	#define __pthread_spinlock_t_defined 1
-	typedef int pthread_spinlock_t;
-#endif
-#undef __need_pthread_spinlock_t
-
 #if !defined(__pthread_t_defined) && (defined(__need_all_types) || defined(__need_pthread_t))
 	#define __pthread_t_defined 1
 	typedef pid_t pthread_t;
 #endif
 #undef __need_pthread_t
+
+#if !defined(__pthread_spinlock_t_defined) && (defined(__need_all_types) || defined(__need_pthread_spinlock_t))
+	#define __pthread_spinlock_t_defined 1
+	typedef pthread_t pthread_spinlock_t;
+#endif
+#undef __need_pthread_spinlock_t
 
 __END_DECLS
