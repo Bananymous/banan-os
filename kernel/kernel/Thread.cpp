@@ -34,6 +34,11 @@ namespace Kernel
 		return Thread::current().userspace_stack_top() - 4 * sizeof(uintptr_t);
 	}
 
+	extern "C" void load_thread_sse()
+	{
+		Thread::current().load_sse();
+	}
+
 	static pid_t s_next_tid = 1;
 
 	alignas(16) static uint8_t s_default_sse_storage[512];
@@ -168,6 +173,7 @@ namespace Kernel
 	{
 		auto* thread = TRY(create_userspace(m_process, m_process->page_table()));
 
+		save_sse();
 		memcpy(thread->m_sse_storage, m_sse_storage, sizeof(m_sse_storage));
 
 		thread->setup_exec_impl(
@@ -202,6 +208,7 @@ namespace Kernel
 		thread->m_interrupt_stack.sp = sp;
 		thread->m_interrupt_stack.ss = 0x10;
 
+		save_sse();
 		memcpy(thread->m_sse_storage, m_sse_storage, sizeof(m_sse_storage));
 
 #if ARCH(x86_64)

@@ -354,6 +354,8 @@ namespace Kernel
 			asm volatile("cli; 1: hlt; jmp 1b");
 		}
 
+		Thread::current().save_sse();
+
 		ASSERT(InterruptController::get().is_in_service(IRQ_TIMER - IRQ_VECTOR_BASE));
 		InterruptController::get().eoi(IRQ_TIMER - IRQ_VECTOR_BASE);
 
@@ -365,6 +367,8 @@ namespace Kernel
 		auto& current_thread = Thread::current();
 		if (current_thread.can_add_signal_to_execute())
 			current_thread.handle_signal();
+
+		Thread::current().load_sse();
 	}
 
 	extern "C" void cpp_irq_handler(uint32_t irq)
