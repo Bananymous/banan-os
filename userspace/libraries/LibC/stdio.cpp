@@ -1,10 +1,12 @@
 #include <BAN/Assert.h>
-#include <BAN/Debug.h>
+#include <BAN/Atomic.h>
 #include <BAN/Math.h>
+#include <BAN/PlacementNew.h>
 
 #include <bits/printf.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <pthread.h>
 #include <scanf_impl.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -31,7 +33,14 @@ struct FILE
 
 	unsigned char unget_buffer[12];
 	uint32_t unget_buf_idx;
+
+	// TODO: use recursive pthread_mutex when implemented?
+	//       this storage hack is to keep FILE pod (init order)
+	BAN::Atomic<pthread_t>& locker() { return *reinterpret_cast<BAN::Atomic<pthread_t>*>(locker_storage); }
+	unsigned char locker_storage[sizeof(pthread_t)];
+	uint32_t lock_depth;
 };
+static_assert(BAN::is_pod_v<FILE>);
 
 struct ScopeLock
 {
@@ -88,7 +97,13 @@ static int drop_read_buffer(FILE* file)
 void _init_stdio()
 {
 	for (size_t i = 0; i < FOPEN_MAX; i++)
+	{
 		init_closed_file(&s_files[i]);
+
+		new (&s_files[i].locker()) BAN::Atomic<pthread_t>();
+		s_files[i].locker() = -1;
+		s_files[i].lock_depth = 0;
+	}
 
 	s_files[STDIN_FILENO].fd          = STDIN_FILENO;
 	s_files[STDIN_FILENO].mode        = O_RDONLY;
@@ -170,7 +185,6 @@ FILE* fdopen(int fd, const char* mode_str)
 		return nullptr;
 	}
 
-	// FIXME: when threads are implemented
 	for (int i = 0; i < FOPEN_MAX; i++)
 	{
 		ScopeLock _(&s_files[i]);
@@ -292,9 +306,20 @@ int fileno(FILE* fp)
 	return fp->fd;
 }
 
-void flockfile(FILE*)
+void flockfile(FILE* fp)
 {
-	// FIXME: when threads are implemented
+	const pthread_t tid = pthread_self();
+
+	pthread_t expected = -1;
+	while (!fp->locker().compare_exchange(expected, tid, BAN::MemoryOrder::memory_order_acq_rel))
+	{
+		if (expected == tid)
+			break;
+		sched_yield();
+		expected = -1;
+	}
+
+	fp->lock_depth++;
 }
 
 FILE* fopen(const char* pathname, const char* mode_str)
@@ -310,7 +335,6 @@ FILE* fopen(const char* pathname, const char* mode_str)
 	if (fd == -1)
 		return nullptr;
 
-	// FIXME: when threads are implemented
 	for (int i = 0; i < FOPEN_MAX; i++)
 	{
 		ScopeLock _(&s_files[i]);
@@ -458,15 +482,25 @@ off_t ftello(FILE* file)
 	return ret;
 }
 
-int ftrylockfile(FILE*)
+int ftrylockfile(FILE* fp)
 {
-	// FIXME: when threads are implemented
+	const pthread_t tid = pthread_self();
+
+	pthread_t expected = -1;
+	if (!fp->locker().compare_exchange(expected, tid, BAN::MemoryOrder::memory_order_acq_rel))
+		if (expected != tid)
+			return 1;
+
+	fp->lock_depth++;
 	return 0;
 }
 
-void funlockfile(FILE*)
+void funlockfile(FILE* fp)
 {
-	// FIXME: when threads are implemented
+	ASSERT(fp->locker() == pthread_self());
+	ASSERT(fp->lock_depth > 0);
+	if (--fp->lock_depth == 0)
+		fp->locker().store(-1, BAN::MemoryOrder::memory_order_release);
 }
 
 size_t fwrite(const void* buffer, size_t size, size_t nitems, FILE* file)
@@ -706,7 +740,6 @@ FILE* popen(const char* command, const char* mode_str)
 
 	close(read ? fds[1] : fds[0]);
 
-	// FIXME: when threads are implemented
 	for (int i = 0; i < FOPEN_MAX; i++)
 	{
 		ScopeLock _(&s_files[i]);
