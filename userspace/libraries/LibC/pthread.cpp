@@ -15,7 +15,11 @@ struct pthread_trampoline_info_t
 	void* arg;
 };
 
-static void pthread_trampoline(void* arg)
+// stack is 16 byte aligned on entry, this `call` is used to align it
+extern "C" void pthread_trampoline(void*);
+asm("pthread_trampoline: call pthread_trampoline_cpp");
+
+extern "C" void pthread_trampoline_cpp(void* arg)
 {
 	pthread_trampoline_info_t info;
 	memcpy(&info, arg, sizeof(pthread_trampoline_info_t));
