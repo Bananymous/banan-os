@@ -185,6 +185,7 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_yield();
 		BAN::ErrorOr<long> sys_pthread_create(const pthread_attr_t* __restrict attr, void (*entry)(void*), void* arg);
 		BAN::ErrorOr<long> sys_pthread_exit(void* value);
+		BAN::ErrorOr<long> sys_pthread_join(pthread_t thread, void** value);
 		BAN::ErrorOr<long> sys_pthread_self();
 
 		BAN::ErrorOr<long> sys_tcgetpgrp(int fd);
@@ -297,10 +298,11 @@ namespace Kernel
 
 		struct pthread_info_t
 		{
-			Thread* thread;
+			pthread_t thread;
 			void* value;
 		};
 		BAN::Vector<pthread_info_t> m_exited_pthreads;
+		ThreadBlocker m_pthread_exit_blocker;
 
 		uint64_t m_alarm_interval_ns { 0 };
 		uint64_t m_alarm_wake_time_ns { 0 };

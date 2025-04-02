@@ -2115,16 +2115,69 @@ namespace Kernel
 		if (&Thread::current() == m_threads.front())
 			return BAN::Error::from_errno(EINVAL);
 
-		TRY(m_exited_pthreads.emplace_back(&Thread::current(), value));
+		TRY(m_exited_pthreads.emplace_back(Thread::current().tid(), value));
 		for (auto* thread : m_threads)
 		{
 			if (thread != &Thread::current())
 				continue;
+			m_pthread_exit_blocker.unblock();
 			m_process_lock.unlock();
 			thread->on_exit();
 		}
 
 		ASSERT_NOT_REACHED();
+	}
+
+	BAN::ErrorOr<long> Process::sys_pthread_join(pthread_t thread, void** value)
+	{
+		LockGuard _(m_process_lock);
+
+		if (value)
+			TRY(validate_pointer_access(value, sizeof(void*), true));
+
+		if (thread == Thread::current().tid())
+			return BAN::Error::from_errno(EINVAL);
+
+		const auto wait_thread =
+			[&]() -> bool
+			{
+				for (size_t i = 0; i < m_exited_pthreads.size(); i++)
+				{
+					if (m_exited_pthreads[i].thread != thread)
+						continue;
+
+					if (value)
+						*value = m_exited_pthreads[i].value;
+					m_exited_pthreads.remove(i);
+
+					return true;
+				}
+
+				return false;
+			};
+
+		if (wait_thread())
+			return 0;
+
+		{
+			bool found = false;
+			for (auto* _thread : m_threads)
+				if (_thread->tid() == thread)
+					found = true;
+			if (!found)
+				return BAN::Error::from_errno(EINVAL);
+		}
+
+		for (;;)
+		{
+			{
+				LockFreeGuard _(m_process_lock);
+				m_pthread_exit_blocker.block_with_timeout_ms(100);
+			}
+
+			if (wait_thread())
+				return 0;
+		}
 	}
 
 	BAN::ErrorOr<long> Process::sys_pthread_self()

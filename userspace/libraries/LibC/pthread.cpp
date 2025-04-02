@@ -55,6 +55,11 @@ void pthread_exit(void* value_ptr)
 	ASSERT_NOT_REACHED();
 }
 
+int pthread_join(pthread_t thread, void** value_ptr)
+{
+	return syscall(SYS_PTHREAD_JOIN, thread, value_ptr);
+}
+
 pthread_t pthread_self(void)
 {
 	return syscall(SYS_PTHREAD_SELF);
