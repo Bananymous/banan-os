@@ -78,7 +78,7 @@ __BEGIN_DECLS
 
 #if !defined(__pthread_t_defined) && (defined(__need_all_types) || defined(__need_pthread_t))
 	#define __pthread_t_defined 1
-	typedef int pthread_t;
+	typedef pid_t pthread_t;
 #endif
 #undef __need_pthread_t
 

@@ -132,6 +132,10 @@ __BEGIN_DECLS
 #endif
 #undef __need_off_t
 
+#ifdef __need_pthread_t
+#define __need_pid_t
+#endif
+
 #if !defined(__pid_t_defined) && (defined(__need_all_types) || defined(__need_pid_t))
 	#define __pid_t_defined 1
 	typedef int pid_t;
