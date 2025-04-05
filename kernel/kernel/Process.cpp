@@ -1321,16 +1321,8 @@ namespace Kernel
 		TRY(validate_pointer_access(arguments->message, arguments->length, false));
 		TRY(validate_pointer_access(arguments->dest_addr, arguments->dest_len, false));
 
-		auto inode = TRY(m_open_file_descriptors.inode_of(arguments->socket));
-		if (!inode->mode().ifsock())
-			return BAN::Error::from_errno(ENOTSOCK);
-
-		const auto status_flags = TRY(m_open_file_descriptors.status_flags_of(arguments->socket));
-		if ((status_flags & O_NONBLOCK) && !inode->can_write())
-			return BAN::Error::from_errno(EAGAIN);
-
-		BAN::ConstByteSpan message { reinterpret_cast<const uint8_t*>(arguments->message), arguments->length };
-		return TRY(inode->sendto(message, arguments->dest_addr, arguments->dest_len));
+		auto message = BAN::ConstByteSpan(static_cast<const uint8_t*>(arguments->message), arguments->length);
+		return TRY(m_open_file_descriptors.sendto(arguments->socket, message, arguments->dest_addr, arguments->dest_len));
 	}
 
 	BAN::ErrorOr<long> Process::sys_recvfrom(sys_recvfrom_t* arguments)
@@ -1349,16 +1341,8 @@ namespace Kernel
 			TRY(validate_pointer_access(arguments->address, *arguments->address_len, true));
 		}
 
-		auto inode = TRY(m_open_file_descriptors.inode_of(arguments->socket));
-		if (!inode->mode().ifsock())
-			return BAN::Error::from_errno(ENOTSOCK);
-
-		const auto status_flags = TRY(m_open_file_descriptors.status_flags_of(arguments->socket));
-		if ((status_flags & O_NONBLOCK) && !inode->can_read())
-			return BAN::Error::from_errno(EAGAIN);
-
-		BAN::ByteSpan buffer { reinterpret_cast<uint8_t*>(arguments->buffer), arguments->length };
-		return TRY(inode->recvfrom(buffer, arguments->address, arguments->address_len));
+		auto message = BAN::ByteSpan(static_cast<uint8_t*>(arguments->buffer), arguments->length);
+		return TRY(m_open_file_descriptors.recvfrom(arguments->socket, message, arguments->address, arguments->address_len));
 	}
 
 	BAN::ErrorOr<long> Process::sys_ioctl(int fildes, int request, void* arg)

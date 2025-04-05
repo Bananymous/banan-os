@@ -226,51 +226,33 @@ namespace Kernel
 
 	BAN::ErrorOr<size_t> TCPSocket::sendto_impl(BAN::ConstByteSpan message, const sockaddr* address, socklen_t address_len)
 	{
+		(void)address;
+		(void)address_len;
+
 		if (address)
 			return BAN::Error::from_errno(EISCONN);
 		if (!m_has_connected)
 			return BAN::Error::from_errno(ENOTCONN);
 
-		if (message.size() > m_send_window.buffer->size())
-		{
-			size_t nsent = 0;
-			while (nsent < message.size())
-			{
-				const size_t to_send = BAN::Math::min<size_t>(message.size() - nsent, m_send_window.buffer->size());
-				TRY(sendto_impl(message.slice(nsent, to_send), address, address_len));
-				nsent += to_send;
-			}
-			return nsent;
-		}
-
-		while (true)
+		while (m_send_window.data_size == m_send_window.buffer->size())
 		{
 			if (m_state != State::Established)
 				return return_with_maybe_zero();
-			if (m_send_window.data_size + message.size() <= m_send_window.buffer->size())
-				break;
 			LockFreeGuard free(m_mutex);
 			TRY(Thread::current().block_or_eintr_or_timeout_ms(m_thread_blocker, 100, false));
 		}
+
+		const size_t to_send = BAN::Math::min<size_t>(message.size(), m_send_window.buffer->size() - m_send_window.data_size);
 
 		{
 			auto* buffer = reinterpret_cast<uint8_t*>(m_send_window.buffer->vaddr());
-			memcpy(buffer + m_send_window.data_size, message.data(), message.size());
-			m_send_window.data_size += message.size();
+			memcpy(buffer + m_send_window.data_size, message.data(), to_send);
+			m_send_window.data_size += to_send;
 		}
 
-		const uint32_t target_ack = m_send_window.start_seq + m_send_window.data_size;
 		m_thread_blocker.unblock();
 
-		while (m_send_window.current_ack < target_ack)
-		{
-			if (m_state != State::Established)
-				return return_with_maybe_zero();
-			LockFreeGuard free(m_mutex);
-			TRY(Thread::current().block_or_eintr_or_timeout_ms(m_thread_blocker, 100, false));
-		}
-
-		return message.size();
+		return to_send;
 	}
 
 	bool TCPSocket::can_read_impl() const
