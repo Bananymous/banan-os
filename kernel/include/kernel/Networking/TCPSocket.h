@@ -91,7 +91,7 @@ namespace Kernel
 			bool						has_ghost_byte { false };
 
 			uint32_t					data_size	{ 0 }; // number of bytes in this buffer
-			uint8_t						scale		{ 1 }; // window scale
+			uint8_t						scale_shift	{ 0 }; // window scale
 			BAN::UniqPtr<VirtualRange>	buffer;
 		};
 
@@ -99,8 +99,8 @@ namespace Kernel
 		{
 			uint32_t					mss				{ 0 }; // maximum segment size
 			uint16_t					non_scaled_size	{ 0 }; // window size without scaling
-			uint8_t						scale			{ 0 }; // window scale
-			uint32_t 					scaled_size() const { return (uint32_t)non_scaled_size << scale; }
+			uint8_t						scale_shift		{ 0 }; // window scale
+			uint32_t 					scaled_size() const { return (uint32_t)non_scaled_size << scale_shift; }
 
 			uint32_t					start_seq		{ 0 }; // sequence number of first byte in buffer
 			uint32_t					current_seq		{ 0 }; // sequence number of next send
@@ -118,6 +118,7 @@ namespace Kernel
 		{
 			sockaddr_storage	address;
 			socklen_t			address_len;
+			bool				has_window_scale;
 		};
 
 		struct PendingConnection

@@ -32,7 +32,7 @@ namespace Kernel
 			PageTable::Flags::ReadWrite | PageTable::Flags::Present,
 			true
 		));
-		socket->m_recv_window.scale = 12; // use PAGE_SIZE windows
+		socket->m_recv_window.scale_shift = PAGE_SIZE_SHIFT; // use PAGE_SIZE windows
 		socket->m_send_window.buffer = TRY(VirtualRange::create_to_vaddr_range(
 			PageTable::kernel(),
 			KERNEL_OFFSET,
@@ -80,7 +80,6 @@ namespace Kernel
 		auto connection = m_pending_connections.front();
 		m_pending_connections.pop();
 
-
 		auto listen_key = ListenKey(
 			reinterpret_cast<const sockaddr*>(&connection.target.address),
 			connection.target.address_len
@@ -103,6 +102,9 @@ namespace Kernel
 		return_inode->m_next_flags = SYN | ACK;
 		return_inode->m_next_state = State::SynReceived;
 		return_inode->m_mutex.unlock();
+
+		if (!return_inode->m_connection_info->has_window_scale)
+			return_inode->m_recv_window.scale_shift = 0;
 
 		TRY(m_listen_children.emplace(listen_key, return_inode));
 
@@ -155,7 +157,7 @@ namespace Kernel
 		if (!is_bound())
 			TRY(m_network_layer.bind_socket_to_unused(this, address, address_len));
 
-		m_connection_info.emplace(sockaddr_storage {}, address_len);
+		m_connection_info.emplace(sockaddr_storage {}, address_len, true);
 		memcpy(&m_connection_info->address, address, address_len);
 
 		m_next_flags = SYN;
@@ -377,16 +379,18 @@ namespace Kernel
 		header.seq_number = m_send_window.current_seq + m_send_window.has_ghost_byte;
 		header.ack_number = m_recv_window.start_seq + m_recv_window.data_size + m_recv_window.has_ghost_byte;
 		header.data_offset = (sizeof(TCPHeader) + m_tcp_options_bytes) / sizeof(uint32_t);
-		header.window_size = BAN::Math::min<size_t>(0xFFFF, m_recv_window.buffer->size() >> m_recv_window.scale);
+		header.window_size = BAN::Math::min<size_t>(0xFFFF, m_recv_window.buffer->size() >> m_recv_window.scale_shift);
 		header.flags = m_next_flags;
 		if (header.flags & FIN)
 			m_send_window.has_ghost_byte = true;
 		m_next_flags = 0;
 
-		if (m_state == State::Closed)
+		if (m_state == State::Closed || m_state == State::SynReceived)
 		{
 			add_tcp_header_option<0, TCPOption::MaximumSeqmentSize>(header, m_interface->payload_mtu() - m_network_layer.header_size());
-			add_tcp_header_option<4, TCPOption::WindowScale>(header, m_recv_window.scale);
+
+			if (m_connection_info->has_window_scale)
+				add_tcp_header_option<4, TCPOption::WindowScale>(header, m_recv_window.scale_shift);
 			header.window_size = BAN::Math::min<size_t>(0xFFFF, m_recv_window.buffer->size());
 
 			m_send_window.mss = 1440;
@@ -463,9 +467,12 @@ namespace Kernel
 				if (options.maximum_seqment_size.has_value())
 					m_send_window.mss = *options.maximum_seqment_size;
 				if (options.window_scale.has_value())
-					m_send_window.scale = *options.window_scale;
+					m_send_window.scale_shift = *options.window_scale;
 				else
-					m_recv_window.scale = 1;
+				{
+					m_recv_window.scale_shift = 0;
+					m_connection_info->has_window_scale = false;
+				}
 
 				m_send_window.start_seq = m_send_window.current_seq;
 				m_send_window.current_ack = m_send_window.current_seq;
@@ -492,6 +499,7 @@ namespace Kernel
 						ConnectionInfo connection_info;
 						memcpy(&connection_info.address, sender, sender_len);
 						connection_info.address_len = sender_len;
+						connection_info.has_window_scale = parse_tcp_options(header).window_scale.has_value();
 						MUST(m_pending_connections.emplace(
 							connection_info,
 							header.seq_number + 1
