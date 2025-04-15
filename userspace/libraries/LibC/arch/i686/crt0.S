@@ -3,9 +3,9 @@
 .global _start
 _start:
 	pushl $0
-	pushl %edi
-	pushl %esi
 	pushl %edx
+	pushl %esi
+	pushl %edi
 
 	# STACK LAYOUT
 	#   null
@@ -15,27 +15,21 @@ _start:
 
 	xorl %ebp, %ebp
 
-	# init libc (envp already as argument)
+	pushl $__fini_array_end
+	pushl $__fini_array_start
+	pushl $_fini
+
+	pushl $__init_array_end
+	pushl $__init_array_start
+	pushl $_init
+
+	pushl %edx
+
 	call _init_libc
 
-	# call global constructors
-	movl $_init, %eax
-	testl %eax, %eax
-	jz 1f
-	call *%eax
- 1:
+	addl $(4 * 8), %esp
 
-	movl $__init_array_start, %ebx
-	jmp 2f
- 1: call *(%ebx)
-	addl $4, %ebx
- 2: cmpl $__init_array_end, %ebx
-	jne 1b
-
-	# call main
-	movl 0(%esp), %eax
-	xchgl %eax, 8(%esp)
-	movl %eax, (%esp)
+	# argc, argv, envp already on stack
 	call main
 
 	subl $12, %esp

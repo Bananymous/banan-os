@@ -17,21 +17,18 @@ _start:
 
 	# init libc
 	movq 0(%rsp), %rdi
+
+	pushq $__fini_array_end
+	pushq $__fini_array_start
+	pushq $_fini
+
+	pushq $__init_array_end
+	pushq $__init_array_start
+	pushq $_init
+
 	call _init_libc
 
-	# call global constructors
-	movq $_init, %rax
-	testq %rax, %rax
-	jz 1f
-	call *%rax
- 1:
-
-	movq $__init_array_start, %rbx
-	jmp 2f
- 1: call *(%rbx)
-	addq $8, %rbx
- 2: cmpq $__init_array_end, %rbx
-	jne 1b
+	addq $(6 * 8), %rsp
 
 	# call main
 	movq 16(%rsp), %rdi

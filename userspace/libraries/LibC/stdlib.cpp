@@ -23,8 +23,6 @@ char** __environ;
 weak_alias(__environ, environ);
 static bool s_environ_malloced = false;
 
-extern "C" __attribute__((weak)) void _fini();
-
 void abort(void)
 {
 	sigset_t set;
@@ -43,7 +41,6 @@ void exit(int status)
 {
 	fflush(nullptr);
 	__cxa_finalize(nullptr);
-	if (_fini) _fini();
 	_exit(status);
 	ASSERT_NOT_REACHED();
 }

@@ -16,12 +16,33 @@
 #include <termios.h>
 #include <unistd.h>
 
+struct init_funcs_t
+{
+	void (*func)();
+	void (**array_start)();
+	void (**array_end)();
+};
+
 extern "C" char** environ;
 
-extern "C" void _init_libc(char** _environ)
+extern "C" void _init_libc(char** environ, init_funcs_t init_funcs, init_funcs_t fini_funcs)
 {
 	if (::environ == nullptr)
 		::environ = environ;
+
+	// call global constructors
+	if (init_funcs.func)
+		init_funcs.func();
+	const size_t init_array_count = init_funcs.array_end - init_funcs.array_start;
+	for (size_t i = 0; i < init_array_count; i++)
+		init_funcs.array_start[i]();
+
+	// register global destructors
+	const size_t fini_array_count = fini_funcs.array_end - fini_funcs.array_start;
+	for (size_t i = 0; i < fini_array_count; i++)
+		atexit(fini_funcs.array_start[i]);
+	if (fini_funcs.func)
+		atexit(fini_funcs.func);
 }
 
 void _exit(int status)
