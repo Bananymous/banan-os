@@ -40,8 +40,7 @@ isr_stub:
 	movl 56(%esp), %edx // isr number
 
 	movl %esp, %ebp
-	subl $15, %esp
-	andl $0xFFFFFFF0, %esp
+	andl $-16, %esp
 
 	pushl %eax
 	pushl %ebx
@@ -61,14 +60,13 @@ irq_stub:
 	load_kernel_segments
 	cld
 
-	movl 40(%esp), %eax # interrupt number
+	movl 40(%esp), %edi # interrupt number
 
 	movl %esp, %ebp
-	subl $15, %esp
-	andl $0xFFFFFFF0, %esp
+	andl $-16, %esp
 
 	subl $12, %esp
-	pushl %eax
+	pushl %edi
 	call cpp_irq_handler
 
 	movl %ebp, %esp
@@ -83,16 +81,15 @@ asm_yield_handler:
 	pushal
 	cld
 
-	movl %esp,     %eax # interrupt registers ptr
-	leal 32(%esp), %ebx # interrupt stack ptr
+	leal 32(%esp), %edi # interrupt stack ptr
+	movl %esp,     %esi # interrupt registers ptr
 
 	movl %esp, %ebp
-	subl $15, %esp
-	andl $0xFFFFFFF0, %esp
+	andl $-16, %esp
 
 	subl $8, %esp
-	pushl %eax
-	pushl %ebx
+	pushl %esi
+	pushl %edi
 	call cpp_yield_handler
 
 	movl %ebp, %esp
@@ -107,8 +104,7 @@ asm_ipi_handler:
 	cld
 
 	movl %esp, %ebp
-	subl $15, %esp
-	andl $0xFFFFFFF0, %esp
+	andl $-16, %esp
 
 	call cpp_ipi_handler
 
@@ -117,7 +113,6 @@ asm_ipi_handler:
 	pop_userspace
 	iret
 
-
 .global asm_timer_handler
 asm_timer_handler:
 	push_userspace
@@ -125,8 +120,7 @@ asm_timer_handler:
 	cld
 
 	movl %esp, %ebp
-	subl $15, %esp
-	andl $0xFFFFFFF0, %esp
+	andl $-16, %esp
 
 	call cpp_timer_handler
 
