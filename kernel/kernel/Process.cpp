@@ -1622,7 +1622,7 @@ namespace Kernel
 		else
 			page_flags |= PageTable::Flags::UserSupervisor;
 
-		AddressRange address_range { .start = 0x400000, .end = KERNEL_OFFSET };
+		AddressRange address_range { .start = 0x400000, .end = USERSPACE_END };
 		if (args->flags & MAP_FIXED)
 		{
 			vaddr_t base_addr = reinterpret_cast<vaddr_t>(args->addr);
@@ -1767,7 +1767,7 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_smo_map(SharedMemoryObjectManager::Key key)
 	{
-		auto region = TRY(SharedMemoryObjectManager::get().map_object(key, page_table(), { .start = 0x400000, .end = KERNEL_OFFSET }));
+		auto region = TRY(SharedMemoryObjectManager::get().map_object(key, page_table(), { .start = 0x400000, .end = USERSPACE_END }));
 
 		LockGuard _(m_process_lock);
 		TRY(m_mapped_regions.push_back(BAN::move(region)));
@@ -2522,7 +2522,7 @@ namespace Kernel
 			goto unauthorized_access;
 
 		// trying to access kernel space memory
-		if (vaddr + size > KERNEL_OFFSET)
+		if (vaddr + size > USERSPACE_END)
 			goto unauthorized_access;
 
 		if (vaddr == 0)

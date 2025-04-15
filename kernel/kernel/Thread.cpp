@@ -103,7 +103,7 @@ namespace Kernel
 
 		thread->m_kernel_stack = TRY(VirtualRange::create_to_vaddr_range(
 			page_table,
-			0x200000, KERNEL_OFFSET,
+			0x200000, USERSPACE_END,
 			kernel_stack_size,
 			PageTable::Flags::ReadWrite | PageTable::Flags::Present,
 			true
@@ -111,7 +111,7 @@ namespace Kernel
 
 		thread->m_userspace_stack = TRY(VirtualRange::create_to_vaddr_range(
 			page_table,
-			0x200000, KERNEL_OFFSET,
+			0x200000, USERSPACE_END,
 			userspace_stack_size,
 			PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present,
 			true
