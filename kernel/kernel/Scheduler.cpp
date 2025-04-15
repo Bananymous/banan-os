@@ -278,6 +278,7 @@ namespace Kernel
 			thread->m_state = Thread::State::Executing;
 
 		Processor::gdt().set_tss_stack(thread->kernel_stack_top());
+		Processor::load_tls();
 		*interrupt_stack     = thread->interrupt_stack();
 		*interrupt_registers = thread->interrupt_registers();
 

@@ -174,6 +174,8 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_sigprocmask(int how, const sigset_t* set, sigset_t* oset);
 
 		BAN::ErrorOr<long> sys_yield();
+		BAN::ErrorOr<long> sys_set_tls(void*);
+		BAN::ErrorOr<long> sys_get_tls();
 		BAN::ErrorOr<long> sys_pthread_create(const pthread_attr_t* attr, void (*entry)(void*), void* arg);
 		BAN::ErrorOr<long> sys_pthread_exit(void* value);
 		BAN::ErrorOr<long> sys_pthread_join(pthread_t thread, void** value);

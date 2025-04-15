@@ -196,6 +196,8 @@ namespace Kernel
 		thread->m_kernel_stack = TRY(m_kernel_stack->clone(new_process->page_table()));
 		thread->m_userspace_stack = TRY(m_userspace_stack->clone(new_process->page_table()));
 
+		thread->m_tls = m_tls;
+
 		thread->m_state = State::NotStarted;
 
 		thread->m_interrupt_stack.ip = ip;

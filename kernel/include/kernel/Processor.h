@@ -110,6 +110,8 @@ namespace Kernel
 		static void send_smp_message(ProcessorID, const SMPMessage&, bool send_ipi = true);
 		static void broadcast_smp_message(const SMPMessage&);
 
+		static void load_tls();
+
 	private:
 		Processor() = default;
 		~Processor() { ASSERT_NOT_REACHED(); }

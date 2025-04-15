@@ -2037,6 +2037,18 @@ namespace Kernel
 		return 0;
 	}
 
+	BAN::ErrorOr<long> Process::sys_set_tls(void* addr)
+	{
+		Thread::current().set_tls(reinterpret_cast<vaddr_t>(addr));
+		Processor::load_tls();
+		return 0;
+	}
+
+	BAN::ErrorOr<long> Process::sys_get_tls()
+	{
+		return Thread::current().get_tls();
+	}
+
 	BAN::ErrorOr<long> Process::sys_pthread_create(const pthread_attr_t* attr, void (*entry)(void*), void* arg)
 	{
 		if (attr != nullptr)

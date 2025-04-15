@@ -41,11 +41,15 @@ start_userspace_thread:
 	call get_thread_start_sp
 	movl %eax, %esp
 
+	# ds, es = user data
 	movw $(0x20 | 3), %bx
 	movw %bx, %ds
 	movw %bx, %es
-	movw %bx, %fs
+	# gs = thread local
+	movw $(0x30 | 3), %bx
 	movw %bx, %gs
+	# fs = 0
 	xorw %bx, %bx
+	movw %bx, %fs
 
 	iret

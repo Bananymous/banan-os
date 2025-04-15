@@ -10,7 +10,10 @@ extern Kernel::TerminalDriver* g_terminal_driver;
 namespace Kernel
 {
 
+#if ARCH(x86_64)
+	static constexpr uint32_t MSR_IA32_FS_BASE = 0xC0000100;
 	static constexpr uint32_t MSR_IA32_GS_BASE = 0xC0000101;
+#endif
 
 	ProcessorID          Processor::s_bsb_id                { PROCESSOR_NONE };
 	BAN::Atomic<uint8_t> Processor::s_processor_count       { 0 };
@@ -258,6 +261,18 @@ namespace Kernel
 		}
 
 		set_interrupt_state(state);
+	}
+
+	void Processor::load_tls()
+	{
+		const auto addr = scheduler().current_thread().get_tls();
+#if ARCH(x86_64)
+		uint32_t ptr_hi = addr >> 32;
+		uint32_t ptr_lo = addr & 0xFFFFFFFF;
+		asm volatile("wrmsr" :: "d"(ptr_hi), "a"(ptr_lo), "c"(MSR_IA32_FS_BASE));
+#elif ARCH(i686)
+		gdt().set_tls(addr);
+#endif
 	}
 
 	void Processor::send_smp_message(ProcessorID processor_id, const SMPMessage& message, bool send_ipi)

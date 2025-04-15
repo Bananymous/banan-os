@@ -88,6 +88,9 @@ namespace Kernel
 
 		bool is_userspace() const { return m_is_userspace; }
 
+		void set_tls(vaddr_t tls) { m_tls = tls; }
+		vaddr_t get_tls() const { return m_tls; }
+
 		size_t virtual_page_count() const { return (m_kernel_stack ? (m_kernel_stack->size() / PAGE_SIZE) : 0) + (m_userspace_stack ? (m_userspace_stack->size() / PAGE_SIZE) : 0); }
 		size_t physical_page_count() const { return virtual_page_count(); }
 
@@ -120,6 +123,8 @@ namespace Kernel
 		Process*                   m_process              { nullptr };
 		bool                       m_is_userspace         { false };
 		bool                       m_delete_process       { false };
+
+		vaddr_t                    m_tls                  { 0 };
 
 		SchedulerQueue::Node*      m_scheduler_node       { nullptr };
 
