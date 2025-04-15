@@ -17,6 +17,11 @@ int gettimeofday(struct timeval* __restrict tp, void* __restrict tzp)
 	return 0;
 }
 
+int getitimer(int which, struct itimerval* value)
+{
+	return setitimer(which, nullptr, value);
+}
+
 int setitimer(int which, const struct itimerval* __restrict value, struct itimerval* __restrict ovalue)
 {
 	return syscall(SYS_SETITIMER, which, value, ovalue);
