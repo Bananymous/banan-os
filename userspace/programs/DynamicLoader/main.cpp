@@ -163,8 +163,8 @@ struct LoadedElf
 	uintptr_t init_array;
 	size_t init_arraysz;
 
-	bool has_called_init;
-	bool is_relocated;
+	bool is_calling_init;
+	bool is_relocating;
 
 	char path[PATH_MAX];
 };
@@ -417,10 +417,9 @@ static uintptr_t handle_relocation(const LoadedElf& elf, const RelocT& reloc, bo
 
 static void relocate_elf(LoadedElf& elf, bool lazy_load)
 {
-	// FIXME: handle circular dependencies
-
-	if (elf.is_relocated)
+	if (elf.is_relocating)
 		return;
+	elf.is_relocating = true;
 
 	// do copy relocations
 	if (elf.rel && elf.relent)
@@ -498,8 +497,6 @@ static void relocate_elf(LoadedElf& elf, bool lazy_load)
 			}
 		}
 	}
-
-	elf.is_relocated = true;
 }
 
 extern "C"
@@ -879,8 +876,9 @@ static void initialize_environ(char** envp)
 
 static void call_init_funcs(LoadedElf& elf, bool is_main_elf)
 {
-	if (elf.has_called_init)
+	if (elf.is_calling_init)
 		return;
+	elf.is_calling_init = true;
 
 	if (elf.dynamics)
 	{
@@ -895,7 +893,7 @@ static void call_init_funcs(LoadedElf& elf, bool is_main_elf)
 	}
 
 	// main executable calls its init functions in _start
-	if (elf.has_called_init || is_main_elf)
+	if (is_main_elf)
 		return;
 
 	using init_t = void(*)();
