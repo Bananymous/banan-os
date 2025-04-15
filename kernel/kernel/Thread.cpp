@@ -29,11 +29,6 @@ namespace Kernel
 		return Thread::current().interrupt_stack().sp;
 	}
 
-	extern "C" uintptr_t get_userspace_thread_stack_top()
-	{
-		return Thread::current().userspace_stack_top() - 4 * sizeof(uintptr_t);
-	}
-
 	extern "C" void load_thread_sse()
 	{
 		Thread::current().load_sse();
@@ -176,11 +171,12 @@ namespace Kernel
 		save_sse();
 		memcpy(thread->m_sse_storage, m_sse_storage, sizeof(m_sse_storage));
 
-		thread->setup_exec_impl(
-			reinterpret_cast<uintptr_t>(entry),
-			reinterpret_cast<uintptr_t>(arg),
-			0, 0, 0
-		);
+		PageTable::with_fast_page(thread->userspace_stack().paddr_of(thread->userspace_stack_top() - PAGE_SIZE), [=] {
+			PageTable::fast_page_as<void*>(PAGE_SIZE - sizeof(uintptr_t)) = arg;
+		});
+
+		const vaddr_t entry_addr = reinterpret_cast<vaddr_t>(entry);
+		thread->setup_exec(entry_addr, thread->userspace_stack_top() - sizeof(uintptr_t));
 
 		return thread;
 	}
@@ -222,21 +218,112 @@ namespace Kernel
 		return thread;
 	}
 
-	void Thread::setup_exec()
+	BAN::ErrorOr<void> Thread::initialize_userspace(vaddr_t entry, BAN::Span<BAN::String> argv, BAN::Span<BAN::String> envp, BAN::Span<LibELF::AuxiliaryVector> auxv)
 	{
-		const auto& userspace_info = process().userspace_info();
-		ASSERT(userspace_info.entry);
+		// System V ABI: Initial process stack
 
-		setup_exec_impl(
-			userspace_info.entry,
-			userspace_info.argc,
-			reinterpret_cast<uintptr_t>(userspace_info.argv),
-			reinterpret_cast<uintptr_t>(userspace_info.envp),
-			userspace_info.file_fd
-		);
+		ASSERT(m_is_userspace);
+		ASSERT(m_userspace_stack);
+
+		size_t needed_size = 0;
+
+		// argc
+		needed_size += sizeof(uintptr_t);
+
+		// argv
+		needed_size += (argv.size() + 1) * sizeof(uintptr_t);
+		for (auto arg : argv)
+			needed_size += arg.size() + 1;
+
+		// envp
+		needed_size += (envp.size() + 1) * sizeof(uintptr_t);
+		for (auto env : envp)
+			needed_size += env.size() + 1;
+
+		// auxv
+		needed_size += auxv.size() * sizeof(LibELF::AuxiliaryVector);
+
+		if (needed_size > m_userspace_stack->size())
+			return BAN::Error::from_errno(ENOBUFS);
+
+		vaddr_t vaddr = userspace_stack_top() - needed_size;
+
+		const auto stack_copy_buf =
+			[this](BAN::ConstByteSpan buffer, vaddr_t vaddr) -> void
+			{
+				ASSERT(vaddr + buffer.size() <= userspace_stack_top());
+
+				size_t bytes_copied = 0;
+				while (bytes_copied < buffer.size())
+				{
+					const size_t to_copy = BAN::Math::min<size_t>(buffer.size() - bytes_copied, PAGE_SIZE - (vaddr % PAGE_SIZE));
+
+					PageTable::with_fast_page(userspace_stack().paddr_of(vaddr & PAGE_ADDR_MASK), [=]() {
+						memcpy(PageTable::fast_page_as_ptr(vaddr % PAGE_SIZE), buffer.data() + bytes_copied, to_copy);
+					});
+
+					vaddr += to_copy;
+					bytes_copied += to_copy;
+				}
+			};
+
+		const auto stack_push_buf =
+			[&stack_copy_buf, &vaddr](BAN::ConstByteSpan buffer) -> void
+			{
+				stack_copy_buf(buffer, vaddr);
+				vaddr += buffer.size();
+			};
+
+		const auto stack_push_uint =
+			[&stack_push_buf](uintptr_t value) -> void
+			{
+				stack_push_buf(BAN::ConstByteSpan::from(value));
+			};
+
+		const auto stack_push_str =
+			[&stack_push_buf](BAN::StringView string) -> void
+			{
+				const uint8_t* string_u8 = reinterpret_cast<const uint8_t*>(string.data());
+				stack_push_buf(BAN::ConstByteSpan(string_u8, string.size() + 1));
+			};
+
+		// argc
+		stack_push_uint(argv.size());
+
+		// argv
+		const vaddr_t argv_vaddr = vaddr;
+		vaddr += argv.size() * sizeof(uintptr_t);
+		stack_push_uint(0);
+
+		// envp
+		const vaddr_t envp_vaddr = vaddr;
+		vaddr += envp.size() * sizeof(uintptr_t);
+		stack_push_uint(0);
+
+		// auxv
+		for (auto aux : auxv)
+			stack_push_buf(BAN::ConstByteSpan::from(aux));
+
+		// information
+		for (size_t i = 0; i < argv.size(); i++)
+		{
+			stack_copy_buf(BAN::ConstByteSpan::from(vaddr), argv_vaddr + i * sizeof(uintptr_t));
+			stack_push_str(argv[i]);
+		}
+		for (size_t i = 0; i < envp.size(); i++)
+		{
+			stack_copy_buf(BAN::ConstByteSpan::from(vaddr), envp_vaddr + i * sizeof(uintptr_t));
+			stack_push_str(envp[i]);
+		}
+
+		ASSERT(vaddr == userspace_stack_top());
+
+		setup_exec(entry, userspace_stack_top() - needed_size);
+
+		return {};
 	}
 
-	void Thread::setup_exec_impl(uintptr_t entry, uintptr_t arg0, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3)
+	void Thread::setup_exec(vaddr_t ip, vaddr_t sp)
 	{
 		ASSERT(is_userspace());
 		m_state = State::NotStarted;
@@ -244,13 +331,13 @@ namespace Kernel
 		// Signal mask is inherited
 
 		// Initialize stack for returning
-		PageTable::with_fast_page(process().page_table().physical_address_of(kernel_stack_top() - PAGE_SIZE), [&] {
-			uintptr_t sp = PageTable::fast_page() + PAGE_SIZE;
-			write_to_stack(sp, entry);
-			write_to_stack(sp, arg3);
-			write_to_stack(sp, arg2);
-			write_to_stack(sp, arg1);
-			write_to_stack(sp, arg0);
+		PageTable::with_fast_page(kernel_stack().paddr_of(kernel_stack_top() - PAGE_SIZE), [=] {
+			uintptr_t cur_sp = PageTable::fast_page() + PAGE_SIZE;
+			write_to_stack(cur_sp, 0x20 | 3);
+			write_to_stack(cur_sp, sp);
+			write_to_stack(cur_sp, 0x202);
+			write_to_stack(cur_sp, 0x18 | 3);
+			write_to_stack(cur_sp, ip);
 		});
 
 		m_interrupt_stack.ip = reinterpret_cast<vaddr_t>(start_userspace_thread);
@@ -286,7 +373,7 @@ namespace Kernel
 		m_signal_pending_mask = 0;
 		m_signal_block_mask = ~0ull;
 
-		PageTable::with_fast_page(process().page_table().physical_address_of(kernel_stack_top() - PAGE_SIZE), [&] {
+		PageTable::with_fast_page(kernel_stack().paddr_of(kernel_stack_top() - PAGE_SIZE), [&] {
 			uintptr_t sp = PageTable::fast_page() + PAGE_SIZE;
 			write_to_stack(sp, this);
 			write_to_stack(sp, &Thread::on_exit_trampoline);

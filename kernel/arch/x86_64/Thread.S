@@ -32,24 +32,4 @@ start_userspace_thread:
 	call get_thread_start_sp
 	movq %rax, %rsp
 
-	# STACK LAYOUT
-	#   entry
-	#   argc
-	#   argv
-	#   envp
-	#   userspace stack
-
-	call get_userspace_thread_stack_top
-
-	popq %rdi
-	popq %rsi
-	popq %rdx
-	popq %rcx
-	popq %rbx
-
-	pushq $(0x20 | 3)
-	pushq %rax
-	pushq $0x202
-	pushq $(0x18 | 3)
-	pushq %rbx
 	iretq

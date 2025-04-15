@@ -2,21 +2,22 @@
 
 .global _start
 _start:
-	pushq $0
+	# get argc, argv, envp
+	movq  (%rsp), %rdi
+	leaq 8(%rsp), %rsi
+	leaq 8(%rsi, %rdi, 8), %rdx
+
+	# align stack
+	andq $-16, %rsp
+	xorq %rbp, %rbp
+
+	# save argc, argv, envp
+	subq $8, %rsp
 	pushq %rdi
 	pushq %rsi
 	pushq %rdx
 
-	# STACK LAYOUT
-	#   null
-	#   argc
-	#   argv
-	#   envp
-
-	xorq %rbp, %rbp
-
-	# init libc
-	movq 0(%rsp), %rdi
+	movq %rdx, %rdi # environ
 
 	pushq $__fini_array_end
 	pushq $__fini_array_start
@@ -31,9 +32,10 @@ _start:
 	addq $(6 * 8), %rsp
 
 	# call main
-	movq 16(%rsp), %rdi
-	movq  8(%rsp), %rsi
-	movq  0(%rsp), %rdx
+	popq %rdx
+	popq %rsi
+	popq %rdi
+	addq $8, %rsp
 	call main
 
 	# call exit

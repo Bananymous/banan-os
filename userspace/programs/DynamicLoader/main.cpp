@@ -1,5 +1,6 @@
 #include "utils.h"
 
+#include <LibELF/AuxiliaryVector.h>
 #include <LibELF/Types.h>
 #include <LibELF/Values.h>
 
@@ -15,42 +16,44 @@ void _start()
 {
 #if defined(__x86_64__)
 	asm volatile(
-		"xorq %rbp, %rbp;"
+		"movq  (%rsp), %rdi;"
+		"leaq 8(%rsp), %rsi;"
+		"leaq 8(%rsi, %rdi, 8), %rdx;"
+
+		"movq %rsp, %rbp;"
+		"andq $-16, %rsp;"
+
 		"call _entry;"
+
+		"movq %rbp, %rsp;"
+		"xorq %rbp, %rbp;"
+
+		"jmp *%rax;"
+
 		"ud2;"
 	);
 #elif defined(__i686__)
 	asm volatile(
-		"xorl %ebp, %ebp;"
-		"pushl %ecx;"
+		"movl  (%esp), %edi;"
+		"leal 4(%esp), %esi;"
+		"leal 4(%esi, %edi, 4), %edx;"
+
+		"movl %esp, %ebp;"
+		"andl $-16, %esp;"
+
+		"subl $4, %esp;"
 		"pushl %edx;"
 		"pushl %esi;"
 		"pushl %edi;"
-		"call _entry;"
-		"ud2;"
-	);
-#else
-	#error "unsupported architecture"
-#endif
-}
 
-__attribute__((naked, noreturn))
-static void call_entry_point(int, char**, char**, uintptr_t)
-{
-#if defined(__x86_64__)
-	asm volatile(
-		"andq $-16, %rsp;"
-		"jmp *%rcx;"
-	);
-#elif defined(__i686__)
-	asm volatile(
-		"addl $4, %esp;"
-		"popl %edi;"
-		"popl %esi;"
-		"popl %edx;"
-		"popl %ecx;"
-		"andl $-16, %esp;"
-		"jmp *%ecx;"
+		"call _entry;"
+
+		"movl %ebp, %esp;"
+		"xorl %ebp, %ebp;"
+
+		"jmp *%eax;"
+
+		"ud2;"
 	);
 #else
 	#error "unsupported architecture"
@@ -901,16 +904,33 @@ static void call_init_funcs(LoadedElf& elf, bool is_main_elf)
 		reinterpret_cast<init_t>(elf.init)();
 	for (size_t i = 0; i < elf.init_arraysz / sizeof(init_t); i++)
 		reinterpret_cast<init_t*>(elf.init_array)[i]();
+}
 
+static LibELF::AuxiliaryVector* find_auxv(char** envp)
+{
+	if (envp == nullptr)
+		return nullptr;
 
+	char** null_env = envp;
+	while (*null_env)
+		null_env++;
+
+	return reinterpret_cast<LibELF::AuxiliaryVector*>(null_env + 1);
 }
 
 extern "C"
-__attribute__((used, noreturn))
-int _entry(int argc, char** argv, char** envp, int fd)
+__attribute__((used))
+uintptr_t _entry(int argc, char* argv[], char* envp[])
 {
-	const bool invoked_directly = (fd < 0);
-	if (invoked_directly)
+	int execfd = -1;
+	if (auto* auxv = find_auxv(envp))
+		for (auto* aux = auxv; aux->a_type != LibELF::AT_NULL; aux++)
+			if (aux->a_type == LibELF::AT_EXECFD) {
+				execfd = aux->a_un.a_val;
+				aux->a_type = LibELF::AT_IGNORE;
+			}
+
+	if (execfd == -1)
 	{
 		if (argc < 2)
 			print_error_and_exit("missing program name", 0);
@@ -918,18 +938,19 @@ int _entry(int argc, char** argv, char** envp, int fd)
 		argc--;
 		argv++;
 
-		fd = syscall(SYS_OPENAT, AT_FDCWD, argv[0], O_RDONLY);
-		if (fd < 0)
-			print_error_and_exit("could not open program", fd);
+		execfd = syscall(SYS_OPENAT, AT_FDCWD, argv[0], O_RDONLY);
+		if (execfd < 0)
+			print_error_and_exit("could not open program", execfd);
 	}
 
 	init_random();
-	auto& elf = load_elf(argv[0], fd);
+	auto& elf = load_elf(argv[0], execfd);
 	syscall(SYS_CLOSE, fd);
 	fini_random();
 
 	relocate_elf(elf, true);
 	initialize_environ(envp);
 	call_init_funcs(elf, true);
-	call_entry_point(argc, argv, envp, elf.base + elf.file_header.e_entry);
+
+	return elf.base + elf.file_header.e_entry;
 }

@@ -17,6 +17,8 @@
 #include <kernel/Terminal/PseudoTerminal.h>
 #include <kernel/Timer/Timer.h>
 
+#include <LibELF/AuxiliaryVector.h>
+
 #include <LibInput/KeyboardLayout.h>
 
 #include <fcntl.h>
@@ -116,76 +118,51 @@ namespace Kernel
 		process->m_working_directory = VirtualFileSystem::get().root_file();
 		process->m_page_table = BAN::UniqPtr<PageTable>::adopt(MUST(PageTable::create_userspace()));
 
-		TRY(process->m_cmdline.push_back({}));
+		TRY(process->m_cmdline.emplace_back());
 		TRY(process->m_cmdline.back().append(path));
+		for (auto argument : arguments)
+		{
+			TRY(process->m_cmdline.emplace_back());
+			TRY(process->m_cmdline.back().append(argument));
+		}
 
 		LockGuard _(process->m_process_lock);
 
-		auto executable_inode = TRY(process->find_file(AT_FDCWD, path.data(), O_EXEC)).inode;
+		auto executable_file = TRY(process->find_file(AT_FDCWD, path.data(), O_EXEC));
+		auto executable_inode = executable_file.inode;
+
 		auto executable = TRY(ELF::load_from_inode(executable_inode, process->m_credentials, process->page_table()));
 		process->m_mapped_regions = BAN::move(executable.regions);
-
-		char** argv_addr = nullptr;
-		{
-			size_t needed_bytes = sizeof(char*) + path.size() + 1;
-			for (auto argument : arguments)
-				needed_bytes += sizeof(char*) + argument.size() + 1;
-			needed_bytes += sizeof(char*);
-
-			if (auto rem = needed_bytes % PAGE_SIZE)
-				needed_bytes += PAGE_SIZE - rem;
-
-			auto argv_region = MUST(MemoryBackedRegion::create(
-				process->page_table(),
-				needed_bytes,
-				{ .start = 0x400000, .end = KERNEL_OFFSET },
-				MemoryRegion::Type::PRIVATE,
-				PageTable::Flags::UserSupervisor | PageTable::Flags::Present
-			));
-			argv_addr = reinterpret_cast<char**>(argv_region->vaddr());
-
-			uintptr_t offset = sizeof(char*) * (1 + arguments.size() + 1);
-			for (size_t i = 0; i <= arguments.size(); i++)
-			{
-				const uintptr_t addr = argv_region->vaddr() + offset;
-				TRY(argv_region->copy_data_to_region(i * sizeof(char*), reinterpret_cast<const uint8_t*>(&addr), sizeof(char*)));
-
-				const auto current = (i == 0) ? path : arguments[i - 1];
-				TRY(argv_region->copy_data_to_region(offset, reinterpret_cast<const uint8_t*>(current.data()), current.size()));
-
-				const uint8_t zero = 0;
-				TRY(argv_region->copy_data_to_region(offset + current.size(), &zero, 1));
-
-				offset += current.size() + 1;
-			}
-
-			const uintptr_t zero = 0;
-			TRY(argv_region->copy_data_to_region((1 + arguments.size()) * sizeof(char*), reinterpret_cast<const uint8_t*>(&zero), sizeof(char*)));
-
-			TRY(process->m_mapped_regions.push_back(BAN::move(argv_region)));
-		}
 
 		if (executable_inode->mode().mode & +Inode::Mode::ISUID)
 			process->m_credentials.set_euid(executable_inode->uid());
 		if (executable_inode->mode().mode & +Inode::Mode::ISGID)
 			process->m_credentials.set_egid(executable_inode->gid());
 
+		BAN::Vector<LibELF::AuxiliaryVector> auxiliary_vector;
+		TRY(auxiliary_vector.reserve(1 + executable.open_execfd));
+
 		if (executable.has_interpreter)
 		{
-			VirtualFileSystem::File file;
-			TRY(file.canonical_path.append("<self>"));
-			file.inode = executable_inode;
-			process->m_userspace_info.file_fd = TRY(process->m_open_file_descriptors.open(BAN::move(file), O_RDONLY));
+			const int execfd = TRY(process->m_open_file_descriptors.open(BAN::move(executable_file), O_RDONLY));
+			TRY(auxiliary_vector.push_back({
+				.a_type = LibELF::AT_EXECFD,
+				.a_un = { .a_val = static_cast<uint32_t>(execfd) },
+			}));
 		}
 
-		process->m_is_userspace = true;
-		process->m_userspace_info.entry = executable.entry_point;
-		process->m_userspace_info.argc = 1 + arguments.size();
-		process->m_userspace_info.argv = argv_addr;
-		process->m_userspace_info.envp = nullptr;
+		TRY(auxiliary_vector.push_back({
+			.a_type = LibELF::AT_NULL,
+			.a_un = { .a_val = 0 },
+		}));
 
 		auto* thread = MUST(Thread::create_userspace(process, process->page_table()));
-		thread->setup_exec();
+		MUST(thread->initialize_userspace(
+			executable.entry_point,
+			process->m_cmdline.span(),
+			process->m_environ.span(),
+			auxiliary_vector.span()
+		));
 
 		process->add_thread(thread);
 		process->register_to_scheduler();
@@ -534,7 +511,6 @@ namespace Kernel
 		forked->m_open_file_descriptors = BAN::move(*open_file_descriptors);
 		forked->m_mapped_regions = BAN::move(mapped_regions);
 		forked->m_is_userspace = m_is_userspace;
-		forked->m_userspace_info = m_userspace_info;
 		forked->m_has_called_exec = false;
 		memcpy(forked->m_signal_handlers, m_signal_handlers, sizeof(m_signal_handlers));
 
@@ -561,77 +537,62 @@ namespace Kernel
 
 			TRY(validate_string_access(path));
 
-			auto executable_file = TRY(find_file(AT_FDCWD, path, O_EXEC));
-			auto executable_inode = executable_file.inode;
-
 			BAN::Vector<BAN::String> str_argv;
 			for (int i = 0; argv && argv[i]; i++)
 			{
 				TRY(validate_pointer_access(argv + i, sizeof(char*), false));
 				TRY(validate_string_access(argv[i]));
-				TRY(str_argv.emplace_back(argv[i]));
+				TRY(str_argv.emplace_back());
+				TRY(str_argv.back().append(argv[i]));
 			}
 
 			BAN::Vector<BAN::String> str_envp;
 			for (int i = 0; envp && envp[i]; i++)
 			{
-				TRY(validate_pointer_access(envp + 1, sizeof(char*), false));
+				TRY(validate_pointer_access(envp + i, sizeof(char*), false));
 				TRY(validate_string_access(envp[i]));
-				TRY(str_envp.emplace_back(envp[i]));
+				TRY(str_envp.emplace_back());
+				TRY(str_envp.back().append(envp[i]));
 			}
+
+			auto executable_file = TRY(find_file(AT_FDCWD, path, O_EXEC));
+			auto executable_inode = executable_file.inode;
 
 			auto executable = TRY(ELF::load_from_inode(executable_inode, m_credentials, *new_page_table));
 			auto new_mapped_regions = BAN::move(executable.regions);
 
-			int file_fd = -1;
+			BAN::Vector<LibELF::AuxiliaryVector> auxiliary_vector;
+			TRY(auxiliary_vector.reserve(1 + executable.open_execfd));
+
+			BAN::ScopeGuard execfd_guard([this, &auxiliary_vector] {
+				if (auxiliary_vector.empty())
+					return;
+				if (auxiliary_vector.front().a_type != LibELF::AT_EXECFD)
+					return;
+				MUST(m_open_file_descriptors.close(auxiliary_vector.front().a_un.a_val));
+			});
+
 			if (executable.has_interpreter)
 			{
-				VirtualFileSystem::File file;
-				file.canonical_path = BAN::move(executable_file.canonical_path);
-				file.inode = executable_inode;
-				file_fd = TRY(m_open_file_descriptors.open(BAN::move(file), O_RDONLY));
+				const int execfd = TRY(m_open_file_descriptors.open(BAN::move(executable_file), O_RDONLY));
+				TRY(auxiliary_vector.push_back({
+					.a_type = LibELF::AT_EXECFD,
+					.a_un = { .a_val = static_cast<uint32_t>(execfd) },
+				}));
 			}
-			BAN::ScopeGuard file_closer([&] { if (file_fd != -1) MUST(m_open_file_descriptors.close(file_fd)); });
 
-			// allocate memory on the new process for arguments and environment
-			auto create_region =
-				[&](BAN::Span<BAN::String> container) -> BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>>
-				{
-					size_t bytes = sizeof(char*);
-					for (auto& elem : container)
-						bytes += sizeof(char*) + elem.size() + 1;
-
-					if (auto rem = bytes % PAGE_SIZE)
-						bytes += PAGE_SIZE - rem;
-
-					auto region = TRY(MemoryBackedRegion::create(
-						*new_page_table,
-						bytes,
-						{ .start = executable.entry_point, .end = KERNEL_OFFSET },
-						MemoryRegion::Type::PRIVATE,
-						PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present
-					));
-
-					size_t data_offset = sizeof(char*) * (container.size() + 1);
-					for (size_t i = 0; i < container.size(); i++)
-					{
-						uintptr_t ptr_addr = region->vaddr() + data_offset;
-						TRY(region->copy_data_to_region(sizeof(char*) * i, (const uint8_t*)&ptr_addr, sizeof(char*)));
-						TRY(region->copy_data_to_region(data_offset, (const uint8_t*)container[i].data(), container[i].size()));
-						data_offset += container[i].size() + 1;
-					}
-
-					uintptr_t null = 0;
-					TRY(region->copy_data_to_region(sizeof(char*) * container.size(), (const uint8_t*)&null, sizeof(char*)));
-
-					return BAN::UniqPtr<MemoryRegion>(BAN::move(region));
-				};
-
-			TRY(new_mapped_regions.reserve(new_mapped_regions.size() + 2));
-			MUST(new_mapped_regions.push_back(TRY(create_region(str_argv.span()))));
-			MUST(new_mapped_regions.push_back(TRY(create_region(str_envp.span()))));
+			TRY(auxiliary_vector.push_back({
+				.a_type = LibELF::AT_NULL,
+				.a_un = { .a_val = 0 },
+			}));
 
 			auto* new_thread = TRY(Thread::create_userspace(this, *new_page_table));
+			TRY(new_thread->initialize_userspace(
+				executable.entry_point,
+				str_argv.span(),
+				str_envp.span(),
+				auxiliary_vector.span()
+			));
 
 			ASSERT(Processor::get_interrupt_state() == InterruptState::Enabled);
 			Processor::set_interrupt_state(InterruptState::Disabled);
@@ -655,8 +616,8 @@ namespace Kernel
 			m_threads.front()->m_process = nullptr;
 			m_threads.front()->give_keep_alive_page_table(BAN::move(m_page_table));
 
+			MUST(Processor::scheduler().add_thread(new_thread));
 			m_threads.front() = new_thread;
-			MUST(Processor::scheduler().add_thread(m_threads.front()));
 
 			for (size_t i = 0; i < sizeof(m_signal_handlers) / sizeof(*m_signal_handlers); i++)
 			{
@@ -673,21 +634,13 @@ namespace Kernel
 			m_mapped_regions = BAN::move(new_mapped_regions);
 			m_page_table = BAN::move(new_page_table);
 
-			file_closer.disable();
-
-			m_userspace_info.argc = str_argv.size();
-			m_userspace_info.argv = reinterpret_cast<char**>(m_mapped_regions[m_mapped_regions.size() - 2]->vaddr());
-			m_userspace_info.envp = reinterpret_cast<char**>(m_mapped_regions[m_mapped_regions.size() - 1]->vaddr());
-			m_userspace_info.entry = executable.entry_point;
-			m_userspace_info.file_fd = file_fd;
+			execfd_guard.disable();
 
 			m_cmdline = BAN::move(str_argv);
 			m_environ = BAN::move(str_envp);
 		}
 
 		m_has_called_exec = true;
-
-		m_threads.front()->setup_exec();
 		Processor::yield();
 		ASSERT_NOT_REACHED();
 	}
@@ -2084,7 +2037,7 @@ namespace Kernel
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_pthread_create(const pthread_attr_t* __restrict attr, void (*entry)(void*), void* arg)
+	BAN::ErrorOr<long> Process::sys_pthread_create(const pthread_attr_t* attr, void (*entry)(void*), void* arg)
 	{
 		if (attr != nullptr)
 		{

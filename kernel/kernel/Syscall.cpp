@@ -44,11 +44,7 @@ namespace Kernel
 
 		BAN::ErrorOr<long> ret = BAN::Error::from_errno(ENOSYS);
 
-		const char* process_path = nullptr;
-		if (Process::current().userspace_info().argc > 0 && Process::current().userspace_info().argv)
-			process_path = Process::current().userspace_info().argv[0];
-		if (process_path == nullptr)
-			process_path = "<null>";
+		const char* process_path = Process::current().name();
 
 #if DUMP_ALL_SYSCALLS
 		dprintln("{} pid {}: {}", process_path, Process::current().pid(), s_syscall_names[syscall]);

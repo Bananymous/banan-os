@@ -41,15 +41,6 @@ start_userspace_thread:
 	call get_thread_start_sp
 	movl %eax, %esp
 
-	# STACK LAYOUT
-	#   entry
-	#   argc
-	#   argv
-	#   envp
-	#   userspace stack
-
-	call get_userspace_thread_stack_top
-
 	movw $(0x20 | 3), %bx
 	movw %bx, %ds
 	movw %bx, %es
@@ -57,15 +48,4 @@ start_userspace_thread:
 	movw %bx, %gs
 	xorw %bx, %bx
 
-	popl %edi
-	popl %esi
-	popl %edx
-	popl %ecx
-	popl %ebx
-
-	pushl $(0x20 | 3)
-	pushl %eax
-	pushl $0x202
-	pushl $(0x18 | 3)
-	pushl %ebx
 	iret

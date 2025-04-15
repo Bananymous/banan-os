@@ -7,6 +7,8 @@
 #include <kernel/Memory/VirtualRange.h>
 #include <kernel/ThreadBlocker.h>
 
+#include <LibELF/AuxiliaryVector.h>
+
 #include <signal.h>
 #include <sys/types.h>
 
@@ -41,8 +43,9 @@ namespace Kernel
 		BAN::ErrorOr<Thread*> pthread_create(entry_t, void*);
 
 		BAN::ErrorOr<Thread*> clone(Process*, uintptr_t sp, uintptr_t ip);
-		void setup_exec();
 		void setup_process_cleanup();
+
+		BAN::ErrorOr<void> initialize_userspace(vaddr_t entry, BAN::Span<BAN::String> argv, BAN::Span<BAN::String> envp, BAN::Span<LibELF::AuxiliaryVector> auxv);
 
 		// Returns true, if thread is going to trigger signal
 		bool is_interrupted_by_signal() const;
@@ -100,7 +103,7 @@ namespace Kernel
 	private:
 		Thread(pid_t tid, Process*);
 
-		void setup_exec_impl(uintptr_t entry, uintptr_t arg0, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3);
+		void setup_exec(vaddr_t ip, vaddr_t sp);
 
 		static void on_exit_trampoline(Thread*);
 		void on_exit();

@@ -2,6 +2,8 @@
 #include <BAN/Atomic.h>
 #include <BAN/PlacementNew.h>
 
+#include <kernel/Arch.h>
+
 #include <errno.h>
 #include <pthread.h>
 #include <stdlib.h>
@@ -16,15 +18,30 @@ struct pthread_trampoline_info_t
 };
 
 // stack is 16 byte aligned on entry, this `call` is used to align it
-extern "C" void pthread_trampoline(void*);
-asm("pthread_trampoline: call pthread_trampoline_cpp");
+extern "C" void _pthread_trampoline(void*);
+asm(
+#if ARCH(x86_64)
+"_pthread_trampoline:"
+	"popq %rdi;"
+	"andq $-16, %rsp;"
+	"xorq %rbp, %rbp;"
+	"call _pthread_trampoline_cpp"
+#elif ARCH(i686)
+"_pthread_trampoline:"
+	"ud2;"
+	"popl %edi;"
+	"andl $-16, %esp;"
+	"xorl %ebp, %ebp;"
+	"subl $12, %esp;"
+	"pushl %edi;"
+	"call _pthread_trampoline_cpp"
+#endif
+);
 
-extern "C" void pthread_trampoline_cpp(void* arg)
+extern "C" void _pthread_trampoline_cpp(void* arg)
 {
-	pthread_trampoline_info_t info;
-	memcpy(&info, arg, sizeof(pthread_trampoline_info_t));
+	auto info = *reinterpret_cast<pthread_trampoline_info_t*>(arg);
 	free(arg);
-
 	pthread_exit(info.start_routine(info.arg));
 	ASSERT_NOT_REACHED();
 }
@@ -63,24 +80,30 @@ void pthread_cleanup_push(void (*routine)(void*), void* arg)
 	s_cleanup_stack = cleanup;
 }
 
-int pthread_create(pthread_t* __restrict thread, const pthread_attr_t* __restrict attr, void* (*start_routine)(void*), void* __restrict arg)
+int pthread_create(pthread_t* __restrict thread_id, const pthread_attr_t* __restrict attr, void* (*start_routine)(void*), void* __restrict arg)
 {
 	auto* info = static_cast<pthread_trampoline_info_t*>(malloc(sizeof(pthread_trampoline_info_t)));
 	if (info == nullptr)
-		return -1;
-	info->start_routine = start_routine;
-	info->arg = arg;
+		return errno;
+
+	*info = {
+		.start_routine = start_routine,
+		.arg = arg,
+	};
 
 	const auto ret = syscall(SYS_PTHREAD_CREATE, attr, pthread_trampoline, info);
 	if (ret == -1)
-	{
-		free(info);
-		return -1;
-	}
+		goto pthread_create_error;
 
-	if (thread)
-		*thread = ret;
+
+	if (thread_id)
+		*thread_id = ret;
 	return 0;
+
+pthread_create_error:
+	const int return_code = errno;
+	free(info);
+	return return_code;
 }
 
 void pthread_exit(void* value_ptr)

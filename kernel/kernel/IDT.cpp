@@ -248,11 +248,7 @@ namespace Kernel
 		}
 
 		if (Thread::current().has_process() && Process::current().is_userspace())
-		{
-			const char* const* argv = Process::current().userspace_info().argv;
-			if (argv && *argv)
-				process_name = *argv;
-		}
+			process_name = Process::current().name();
 
 #if ARCH(x86_64)
 		dwarnln(

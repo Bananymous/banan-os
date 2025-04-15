@@ -34,15 +34,6 @@ namespace Kernel
 	public:
 		using entry_t = Thread::entry_t;
 
-		struct userspace_info_t
-		{
-			uintptr_t entry { 0 };
-			int argc { 0 };
-			char** argv { nullptr };
-			char** envp { nullptr };
-			int file_fd { -1 };
-		};
-
 	public:
 		static Process* create_kernel();
 		static Process* create_kernel(entry_t, void*);
@@ -183,7 +174,7 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_sigprocmask(int how, const sigset_t* set, sigset_t* oset);
 
 		BAN::ErrorOr<long> sys_yield();
-		BAN::ErrorOr<long> sys_pthread_create(const pthread_attr_t* __restrict attr, void (*entry)(void*), void* arg);
+		BAN::ErrorOr<long> sys_pthread_create(const pthread_attr_t* attr, void (*entry)(void*), void* arg);
 		BAN::ErrorOr<long> sys_pthread_exit(void* value);
 		BAN::ErrorOr<long> sys_pthread_join(pthread_t thread, void** value);
 		BAN::ErrorOr<long> sys_pthread_self();
@@ -208,7 +199,6 @@ namespace Kernel
 		size_t proc_environ(off_t offset, BAN::ByteSpan) const;
 
 		bool is_userspace() const { return m_is_userspace; }
-		const userspace_info_t& userspace_info() const { return m_userspace_info; }
 
 		// Returns error if page could not be allocated
 		// Returns true if the page was allocated successfully
@@ -315,7 +305,6 @@ namespace Kernel
 		BAN::Vector<BAN::String> m_environ;
 
 		bool m_is_userspace { false };
-		userspace_info_t m_userspace_info;
 
 		SpinLock m_child_exit_lock;
 		BAN::Vector<ChildExitStatus> m_child_exit_statuses;
