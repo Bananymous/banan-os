@@ -54,6 +54,7 @@ struct hostent
 	int		h_addrtype;		/* Address type. */
 	int		h_length;		/* The length, in bytes, of the address. */
 	char**	h_addr_list;	/* A pointer to an array of pointers to network addresses (in network byte order) for the host, terminated by a null pointer. */
+#define h_addr h_addr_list[0] /* Backwards compatibility */
 };
 
 struct netent
