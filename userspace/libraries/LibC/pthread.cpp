@@ -29,6 +29,40 @@ extern "C" void pthread_trampoline_cpp(void* arg)
 	ASSERT_NOT_REACHED();
 }
 
+struct pthread_cleanup_t
+{
+	void (*routine)(void*);
+	void* arg;
+	pthread_cleanup_t* next;
+};
+
+static thread_local pthread_cleanup_t* s_cleanup_stack = nullptr;
+
+void pthread_cleanup_pop(int execute)
+{
+	ASSERT(s_cleanup_stack);
+
+	auto* cleanup = s_cleanup_stack;
+	s_cleanup_stack = cleanup->next;
+
+	if (execute)
+		cleanup->routine(cleanup->arg);
+
+	free(cleanup);
+}
+
+void pthread_cleanup_push(void (*routine)(void*), void* arg)
+{
+	auto* cleanup = static_cast<pthread_cleanup_t*>(malloc(sizeof(pthread_cleanup_t)));
+	ASSERT(cleanup);
+
+	cleanup->routine = routine;
+	cleanup->arg = arg;
+	cleanup->next = s_cleanup_stack;
+
+	s_cleanup_stack = cleanup;
+}
+
 int pthread_create(pthread_t* __restrict thread, const pthread_attr_t* __restrict attr, void* (*start_routine)(void*), void* __restrict arg)
 {
 	auto* info = static_cast<pthread_trampoline_info_t*>(malloc(sizeof(pthread_trampoline_info_t)));
@@ -51,6 +85,8 @@ int pthread_create(pthread_t* __restrict thread, const pthread_attr_t* __restric
 
 void pthread_exit(void* value_ptr)
 {
+	while (s_cleanup_stack)
+		pthread_cleanup_pop(1);
 	syscall(SYS_PTHREAD_EXIT, value_ptr);
 	ASSERT_NOT_REACHED();
 }
