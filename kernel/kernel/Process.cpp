@@ -1022,6 +1022,11 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_read(int fd, void* buffer, size_t count)
 	{
 		LockGuard _(m_process_lock);
+		if (count == 0)
+		{
+			TRY(m_open_file_descriptors.inode_of(fd));
+			return 0;
+		}
 		TRY(validate_pointer_access(buffer, count, true));
 		return TRY(m_open_file_descriptors.read(fd, BAN::ByteSpan((uint8_t*)buffer, count)));
 	}
@@ -1136,6 +1141,11 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_pread(int fd, void* buffer, size_t count, off_t offset)
 	{
 		LockGuard _(m_process_lock);
+		if (count == 0)
+		{
+			TRY(m_open_file_descriptors.inode_of(fd));
+			return 0;
+		}
 		TRY(validate_pointer_access(buffer, count, true));
 		auto inode = TRY(m_open_file_descriptors.inode_of(fd));
 		return TRY(inode->read(offset, { (uint8_t*)buffer, count }));
