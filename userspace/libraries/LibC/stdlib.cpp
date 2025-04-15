@@ -25,9 +25,6 @@ static bool s_environ_malloced = false;
 
 extern "C" __attribute__((weak)) void _fini();
 
-static void (*at_exit_funcs[64])();
-static uint32_t at_exit_funcs_count = 0;
-
 void abort(void)
 {
 	sigset_t set;
@@ -44,8 +41,6 @@ void abort(void)
 
 void exit(int status)
 {
-	for (uint32_t i = at_exit_funcs_count; i > 0; i--)
-		at_exit_funcs[i - 1]();
 	fflush(nullptr);
 	__cxa_finalize(nullptr);
 	if (_fini) _fini();
@@ -65,13 +60,8 @@ int abs(int val)
 
 int atexit(void (*func)(void))
 {
-	if (at_exit_funcs_count > sizeof(at_exit_funcs) / sizeof(*at_exit_funcs))
-	{
-		errno = ENOBUFS;
-		return -1;
-	}
-	at_exit_funcs[at_exit_funcs_count++] = func;
-	return 0;
+	void* func_addr = reinterpret_cast<void*>(func);
+	return __cxa_atexit([](void* func_ptr) { reinterpret_cast<void (*)(void)>(func_ptr)(); }, func_addr, nullptr);
 }
 
 static constexpr int get_base_digit(char c, int base)
