@@ -94,7 +94,8 @@ static int drop_read_buffer(FILE* file)
 	return 0;
 }
 
-void _init_stdio()
+__attribute__((constructor))
+static void _init_stdio()
 {
 	for (size_t i = 0; i < FOPEN_MAX; i++)
 	{

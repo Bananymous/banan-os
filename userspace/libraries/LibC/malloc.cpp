@@ -50,19 +50,27 @@ struct malloc_pool_t
 	bool contains(malloc_node_t* node) { return start <= (uint8_t*)node && (uint8_t*)node < end(); }
 };
 
-static malloc_pool_t s_malloc_pools[s_malloc_pool_count];
-
-void _init_malloc()
+struct malloc_info_t
 {
-	size_t pool_size = s_malloc_pool_size_initial;
-	for (size_t i = 0; i < s_malloc_pool_count; i++)
+	consteval malloc_info_t()
 	{
-		s_malloc_pools[i].start = nullptr;
-		s_malloc_pools[i].size = pool_size;
-		s_malloc_pools[i].free_list = nullptr;;
-		pool_size *= s_malloc_pool_size_multiplier;
+		size_t pool_size = s_malloc_pool_size_initial;
+		for (auto& pool : pools)
+		{
+			pool = {
+				.start = nullptr,
+				.size = pool_size,
+				.free_list = nullptr,
+			};
+			pool_size *= s_malloc_pool_size_multiplier;
+		}
 	}
-}
+
+	malloc_pool_t pools[s_malloc_pool_count];
+};
+
+static malloc_info_t s_malloc_info;
+static auto& s_malloc_pools = s_malloc_info.pools;
 
 static bool allocate_pool(size_t pool_index)
 {
