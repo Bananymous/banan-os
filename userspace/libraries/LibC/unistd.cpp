@@ -1,10 +1,12 @@
 #include <BAN/Assert.h>
 #include <BAN/Debug.h>
+
 #include <kernel/Memory/Types.h>
 #include <kernel/Syscall.h>
 
 #include <errno.h>
 #include <fcntl.h>
+#include <pthread.h>
 #include <pwd.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -29,6 +31,21 @@ extern "C" void _init_libc(char** environ, init_funcs_t init_funcs, init_funcs_t
 {
 	if (::environ == nullptr)
 		::environ = environ;
+
+	if (syscall(SYS_GET_TLS) == 0)
+	{
+		alignas(uthread) static uint8_t storage[sizeof(uthread) + sizeof(uintptr_t)];
+
+		uthread& uthread = *reinterpret_cast<struct uthread*>(storage);
+		uthread = {
+			.self = &uthread,
+			.master_tls_addr = nullptr,
+			.master_tls_size = 0,
+		};
+		uthread.dtv[0] = 0;
+
+		syscall(SYS_SET_TLS, &uthread);
+	}
 
 	// call global constructors
 	if (init_funcs.func)

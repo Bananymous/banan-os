@@ -58,6 +58,10 @@ target_compile_definitions(objlibc PRIVATE __arch=${BANAN_ARCH})
 target_compile_options(objlibc PRIVATE -O2 -g -Wstack-usage=512 -fno-exceptions -fpic -nolibc)
 target_compile_options(objlibc PUBLIC -Wall -Wextra -Werror -Wno-error=stack-usage=)
 
+if("${BANAN_ARCH}" STREQUAL "i686")
+	target_compile_definitions(objlibc PRIVATE __disable_thread_local_storage)
+endif()
+
 function(add_crtx crtx)
 	add_custom_target(${crtx}
 		COMMAND ${CMAKE_CXX_COMPILER} -c -o ${CMAKE_INSTALL_LIBDIR}/${crtx}.o ${CMAKE_CURRENT_SOURCE_DIR}/arch/${BANAN_ARCH}/${crtx}.S
@@ -71,6 +75,7 @@ add_crtx(crtn)
 
 banan_include_headers(objlibc ban)
 banan_include_headers(objlibc kernel)
+banan_include_headers(objlibc libelf)
 
 banan_install_headers(objlibc)
 

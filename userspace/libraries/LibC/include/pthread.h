@@ -8,6 +8,7 @@
 __BEGIN_DECLS
 
 #include <sched.h>
+#include <stdint.h>
 #include <time.h>
 
 #define __need_size_t
@@ -26,6 +27,14 @@ __BEGIN_DECLS
 #define __need_pthread_spinlock_t
 #define __need_pthread_t
 #include <sys/types.h>
+
+struct uthread
+{
+	struct uthread* self;
+	void* master_tls_addr;
+	size_t master_tls_size;
+	uintptr_t dtv[];
+};
 
 #define PTHREAD_BARRIER_SERIAL_THREAD	1
 #define PTHREAD_CANCEL_ASYNCHRONOUS		2

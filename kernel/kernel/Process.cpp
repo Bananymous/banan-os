@@ -22,6 +22,7 @@
 #include <LibInput/KeyboardLayout.h>
 
 #include <fcntl.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <sys/banan-os.h>
 #include <sys/sysmacros.h>
@@ -142,7 +143,7 @@ namespace Kernel
 		BAN::Vector<LibELF::AuxiliaryVector> auxiliary_vector;
 		TRY(auxiliary_vector.reserve(1 + executable.open_execfd));
 
-		if (executable.has_interpreter)
+		if (executable.open_execfd)
 		{
 			const int execfd = TRY(process->m_open_file_descriptors.open(BAN::move(executable_file), O_RDONLY));
 			TRY(auxiliary_vector.push_back({
@@ -156,6 +157,14 @@ namespace Kernel
 			.a_un = { .a_val = 0 },
 		}));
 
+		BAN::Optional<vaddr_t> tls_addr;
+		if (executable.master_tls.has_value())
+		{
+			auto tls_result = TRY(process->initialize_thread_local_storage(process->page_table(), *executable.master_tls));
+			TRY(process->m_mapped_regions.emplace_back(BAN::move(tls_result.region)));
+			tls_addr = tls_result.addr;
+		}
+
 		auto* thread = MUST(Thread::create_userspace(process, process->page_table()));
 		MUST(thread->initialize_userspace(
 			executable.entry_point,
@@ -163,6 +172,8 @@ namespace Kernel
 			process->m_environ.span(),
 			auxiliary_vector.span()
 		));
+		if (tls_addr.has_value())
+			thread->set_tls(*tls_addr);
 
 		process->add_thread(thread);
 		process->register_to_scheduler();
@@ -293,6 +304,63 @@ namespace Kernel
 			m_threads.front()->on_exit();
 
 		ASSERT_NOT_REACHED();
+	}
+
+	BAN::ErrorOr<Process::TLSResult> Process::initialize_thread_local_storage(PageTable& page_table, ELF::LoadResult::TLS master_tls)
+	{
+		const auto [master_addr, master_size] = master_tls;
+		ASSERT(master_size % alignof(uthread) == 0);
+
+		const size_t tls_size = master_size + PAGE_SIZE;
+
+		auto region = TRY(MemoryBackedRegion::create(
+			page_table,
+			tls_size,
+			{ .start = master_addr, .end = USERSPACE_END },
+			MemoryRegion::Type::PRIVATE,
+			PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present
+		));
+
+		BAN::Vector<uint8_t> temp_buffer;
+		TRY(temp_buffer.resize(BAN::Math::min<size_t>(master_size, PAGE_SIZE)));
+
+		size_t bytes_copied = 0;
+		while (bytes_copied < master_size)
+		{
+			const size_t to_copy = BAN::Math::min(master_size - bytes_copied, temp_buffer.size());
+
+			const vaddr_t vaddr = master_addr + bytes_copied;
+			const paddr_t paddr = page_table.physical_address_of(vaddr & PAGE_ADDR_MASK);
+			PageTable::with_fast_page(paddr, [&] {
+				memcpy(temp_buffer.data(), PageTable::fast_page_as_ptr(vaddr % PAGE_SIZE), to_copy);
+			});
+
+			TRY(region->copy_data_to_region(bytes_copied, temp_buffer.data(), to_copy));
+			bytes_copied += to_copy;
+		}
+
+		const uthread uthread {
+			.self = reinterpret_cast<struct uthread*>(region->vaddr() + master_size),
+			.master_tls_addr = reinterpret_cast<void*>(master_addr),
+			.master_tls_size = master_size,
+		};
+		const uintptr_t dtv[2] { 1, region->vaddr() };
+
+		TRY(region->copy_data_to_region(
+			master_size,
+			reinterpret_cast<const uint8_t*>(&uthread),
+			sizeof(uthread)
+		));
+		TRY(region->copy_data_to_region(
+			master_size + sizeof(uthread),
+			reinterpret_cast<const uint8_t*>(&dtv),
+			sizeof(dtv)
+		));
+
+		TLSResult result;
+		result.addr = region->vaddr() + master_size;;
+		result.region = BAN::move(region);
+		return result;
 	}
 
 	size_t Process::proc_meminfo(off_t offset, BAN::ByteSpan buffer) const
@@ -572,7 +640,7 @@ namespace Kernel
 				MUST(m_open_file_descriptors.close(auxiliary_vector.front().a_un.a_val));
 			});
 
-			if (executable.has_interpreter)
+			if (executable.open_execfd)
 			{
 				const int execfd = TRY(m_open_file_descriptors.open(BAN::move(executable_file), O_RDONLY));
 				TRY(auxiliary_vector.push_back({
@@ -593,6 +661,13 @@ namespace Kernel
 				str_envp.span(),
 				auxiliary_vector.span()
 			));
+
+			if (executable.master_tls.has_value())
+			{
+				auto tls_result = TRY(initialize_thread_local_storage(*new_page_table, *executable.master_tls));
+				TRY(new_mapped_regions.emplace_back(BAN::move(tls_result.region)));
+				new_thread->set_tls(tls_result.addr);
+			}
 
 			ASSERT(Processor::get_interrupt_state() == InterruptState::Enabled);
 			Processor::set_interrupt_state(InterruptState::Disabled);

@@ -6,6 +6,7 @@
 #include <BAN/StringView.h>
 #include <BAN/Vector.h>
 #include <kernel/Credentials.h>
+#include <kernel/ELF.h>
 #include <kernel/FS/Inode.h>
 #include <kernel/Lock/Mutex.h>
 #include <kernel/Memory/Heap.h>
@@ -218,6 +219,13 @@ namespace Kernel
 	private:
 		Process(const Credentials&, pid_t pid, pid_t parent, pid_t sid, pid_t pgrp);
 		static Process* create_process(const Credentials&, pid_t parent, pid_t sid = 0, pid_t pgrp = 0);
+
+		struct TLSResult
+		{
+			BAN::UniqPtr<MemoryRegion> region;
+			vaddr_t addr;
+		};
+		static BAN::ErrorOr<TLSResult> initialize_thread_local_storage(PageTable&, ELF::LoadResult::TLS master_tls);
 
 		struct FileParent
 		{

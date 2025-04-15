@@ -8,11 +8,13 @@
 #include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/mman.h>
 #include <sys/syscall.h>
 #include <unistd.h>
 
 struct pthread_trampoline_info_t
 {
+	struct uthread* uthread;
 	void* (*start_routine)(void*);
 	void* arg;
 };
@@ -41,11 +43,36 @@ asm(
 extern "C" void _pthread_trampoline_cpp(void* arg)
 {
 	auto info = *reinterpret_cast<pthread_trampoline_info_t*>(arg);
+	syscall(SYS_SET_TLS, info.uthread);
 	free(arg);
 	pthread_exit(info.start_routine(info.arg));
 	ASSERT_NOT_REACHED();
 }
 
+static uthread* get_uthread()
+{
+	uthread* result;
+#if ARCH(x86_64)
+	asm volatile("movq %%fs:0, %0" : "=r"(result));
+#elif ARCH(i686)
+	asm volatile("movl %%gs:0, %0" : "=r"(result));
+#endif
+	return result;
+}
+
+static void free_uthread(uthread* uthread)
+{
+	if (uthread->dtv[0] == 0)
+		return free(uthread);
+
+	uint8_t* tls_addr = reinterpret_cast<uint8_t*>(uthread) - uthread->master_tls_size;
+	const size_t tls_size = uthread->master_tls_size
+		+ sizeof(struct uthread)
+		+ (uthread->dtv[0] + 1) * sizeof(uintptr_t);
+	munmap(tls_addr, tls_size);
+}
+
+#if not __disable_thread_local_storage
 struct pthread_cleanup_t
 {
 	void (*routine)(void*);
@@ -79,6 +106,7 @@ void pthread_cleanup_push(void (*routine)(void*), void* arg)
 
 	s_cleanup_stack = cleanup;
 }
+#endif
 
 int pthread_attr_init(pthread_attr_t* attr)
 {
@@ -93,29 +121,76 @@ int pthread_create(pthread_t* __restrict thread_id, const pthread_attr_t* __rest
 		return errno;
 
 	*info = {
+		.uthread = nullptr,
 		.start_routine = start_routine,
 		.arg = arg,
 	};
 
-	const auto ret = syscall(SYS_PTHREAD_CREATE, attr, pthread_trampoline, info);
-	if (ret == -1)
+	long syscall_ret = 0;
+
+	if (uthread* self = get_uthread(); self->master_tls_addr == nullptr)
+	{
+		uthread* uthread = static_cast<struct uthread*>(malloc(sizeof(struct uthread) + sizeof(uintptr_t)));
+		if (uthread == nullptr)
+			goto pthread_create_error;
+		uthread->self = uthread;
+		uthread->master_tls_addr = nullptr;
+		uthread->master_tls_size = 0;
+		uthread->dtv[0] = 0;
+
+		info->uthread = uthread;
+	}
+	else
+	{
+		const size_t module_count = self->dtv[0];
+
+		const size_t tls_size = self->master_tls_size
+			+ sizeof(uthread)
+			+ (module_count + 1) * sizeof(uintptr_t);
+
+		uint8_t* tls_addr = static_cast<uint8_t*>(mmap(nullptr, tls_size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0));
+		if (tls_addr == MAP_FAILED)
+			goto pthread_create_error;
+		memcpy(tls_addr, self->master_tls_addr, self->master_tls_size);
+
+		uthread* uthread = reinterpret_cast<struct uthread*>(tls_addr + self->master_tls_size);
+		uthread->self = uthread;
+		uthread->master_tls_addr = self->master_tls_addr;
+		uthread->master_tls_size = self->master_tls_size;
+
+		const uintptr_t self_addr = reinterpret_cast<uintptr_t>(self);
+		const uintptr_t uthread_addr = reinterpret_cast<uintptr_t>(uthread);
+
+		uthread->dtv[0] = module_count;
+		for (size_t i = 1; i <= module_count; i++)
+			uthread->dtv[i] = self->dtv[i] - self_addr + uthread_addr;
+
+		info->uthread = uthread;
+	}
+
+	syscall_ret = syscall(SYS_PTHREAD_CREATE, attr, _pthread_trampoline, info);
+	if (syscall_ret == -1)
 		goto pthread_create_error;
 
-
 	if (thread_id)
-		*thread_id = ret;
+		*thread_id = syscall_ret;
 	return 0;
 
 pthread_create_error:
 	const int return_code = errno;
+	if (info->uthread)
+		free_uthread(info->uthread);
 	free(info);
 	return return_code;
 }
 
 void pthread_exit(void* value_ptr)
 {
+#if not __disable_thread_local_storage
 	while (s_cleanup_stack)
 		pthread_cleanup_pop(1);
+#endif
+	free_uthread(get_uthread());
 	syscall(SYS_PTHREAD_EXIT, value_ptr);
 	ASSERT_NOT_REACHED();
 }
@@ -127,7 +202,14 @@ int pthread_join(pthread_t thread, void** value_ptr)
 
 pthread_t pthread_self(void)
 {
+#if __disable_thread_local_storage
 	return syscall(SYS_PTHREAD_SELF);
+#else
+	static thread_local pthread_t s_pthread_self { -1 };
+	if (s_pthread_self == -1) [[unlikely]]
+		s_pthread_self = syscall(SYS_PTHREAD_SELF);
+	return s_pthread_self;
+#endif
 }
 
 static inline BAN::Atomic<pthread_t>& pthread_spin_get_atomic(pthread_spinlock_t* lock)
@@ -188,3 +270,21 @@ int pthread_spin_unlock(pthread_spinlock_t* lock)
 	atomic.store(0, BAN::MemoryOrder::memory_order_release);
 	return 0;
 }
+
+struct tls_index
+{
+	unsigned long int ti_module;
+	unsigned long int ti_offset;
+};
+
+extern "C" void* __tls_get_addr(tls_index* ti)
+{
+	return reinterpret_cast<void*>(get_uthread()->dtv[ti->ti_module] + ti->ti_offset);
+}
+
+#if ARCH(i686)
+extern "C" void* __attribute__((__regparm__(1))) ___tls_get_addr(tls_index* ti)
+{
+	return reinterpret_cast<void*>(get_uthread()->dtv[ti->ti_module] + ti->ti_offset);
+}
+#endif

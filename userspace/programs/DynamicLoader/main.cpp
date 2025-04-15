@@ -6,6 +6,7 @@
 
 #include <fcntl.h>
 #include <limits.h>
+#include <pthread.h>
 #include <sys/mman.h>
 #include <sys/syscall.h>
 #include <unistd.h>
@@ -145,7 +146,12 @@ static void resolve_symbol_trampoline()
 struct LoadedElf
 {
 	ElfNativeFileHeader file_header;
+	ElfNativeProgramHeader tls_header;
 	ElfNativeDynamic* dynamics;
+
+	uint8_t* tls_addr;
+	size_t tls_module;
+	size_t tls_offset;
 
 	int fd;
 
@@ -326,9 +332,19 @@ static void handle_tls_relocation(const LoadedElf& elf, const RelocT& reloc)
 	if (!is_tls_relocation(reloc))
 		return;
 
+	if (ELF_R_SYM(reloc.r_info))
+		print_error_and_exit("tls relocation with symbol index", 0);
+
+	if (elf.tls_addr == nullptr)
+		print_error_and_exit("tls relocation without tls", 0);
+
+
 #if defined(__x86_64__)
 	switch (ELF64_R_TYPE(reloc.r_info))
 	{
+		case R_X86_64_DTPMOD64:
+			*reinterpret_cast<uint64_t*>(elf.base + reloc.r_offset) = elf.tls_module;
+			break;
 		default:
 			print(STDERR_FILENO, "unsupported tls reloc type ");
 			print_uint(STDERR_FILENO, ELF64_R_TYPE(reloc.r_info));
@@ -339,6 +355,9 @@ static void handle_tls_relocation(const LoadedElf& elf, const RelocT& reloc)
 #elif defined(__i686__)
 	switch (ELF32_R_TYPE(reloc.r_info))
 	{
+		case R_386_TLS_DTPMOD32:
+			*reinterpret_cast<uint32_t*>(elf.base + reloc.r_offset) = elf.tls_module;
+			break;
 		default:
 			print(STDERR_FILENO, "unsupported tls reloc type ");
 			print_uint(STDERR_FILENO, ELF64_R_TYPE(reloc.r_info));
@@ -890,6 +909,9 @@ static LoadedElf& load_elf(const char* path, int fd)
 		break;
 	}
 
+	ElfNativeProgramHeader tls_header {};
+	tls_header.p_type = PT_NULL;
+
 	for (size_t i = 0; i < file_header.e_phnum; i++)
 	{
 		ElfNativeProgramHeader program_header;
@@ -909,6 +931,9 @@ static LoadedElf& load_elf(const char* path, int fd)
 			case PT_GNU_RELRO:
 				print(STDDBG_FILENO, "TODO: PT_GNU_*\n");
 				break;
+			case PT_TLS:
+				tls_header = program_header;
+				break;
 			case PT_LOAD:
 				program_header.p_vaddr += base;
 				load_program_header(program_header, fd, needs_writable);
@@ -921,6 +946,7 @@ static LoadedElf& load_elf(const char* path, int fd)
 	}
 
 	auto& elf = s_loaded_files[s_loaded_file_count++];
+	elf.tls_header = tls_header;
 	elf.base = base;
 	elf.fd = fd;
 	elf.dynamics = nullptr;
@@ -948,6 +974,139 @@ static LoadedElf& load_elf(const char* path, int fd)
 	}
 
 	return elf;
+}
+
+struct MasterTLS
+{
+	uint8_t* addr;
+	size_t size;
+	size_t module_count;
+};
+
+static MasterTLS initialize_master_tls()
+{
+	constexpr auto round =
+		[](size_t a, size_t b) -> size_t
+		{
+			return b * ((a + b - 1) / b);
+		};
+
+	size_t max_align = alignof(uthread);
+	size_t tls_m_offset = 0;
+	size_t tls_m_size = 0;
+	size_t module_count = 0;
+	for (size_t i = 0; i < s_loaded_file_count; i++)
+	{
+		const auto& tls_header = s_loaded_files[i].tls_header;
+		if (tls_header.p_type != PT_TLS)
+			continue;
+		if (tls_header.p_align == 0)
+			print_error_and_exit("TLS alignment is 0", 0);
+
+		max_align = max<size_t>(max_align, tls_header.p_align);
+		tls_m_offset = round(tls_m_offset + tls_header.p_memsz, tls_header.p_align);
+		tls_m_size = tls_header.p_memsz;
+
+		module_count++;
+	}
+
+	if (module_count == 0)
+		return { .addr = nullptr, .size = 0, .module_count = 0 };
+
+	size_t master_tls_size = tls_m_offset + tls_m_size;
+	if (auto rem = master_tls_size % max_align)
+		master_tls_size += max_align - rem;
+
+	uint8_t* master_tls_addr;
+
+	{
+		const sys_mmap_t mmap_args {
+			.addr = nullptr,
+			.len = master_tls_size,
+			.prot = PROT_READ | PROT_WRITE,
+			.flags = MAP_ANONYMOUS | MAP_PRIVATE,
+			.fildes = -1,
+			.off = 0,
+		};
+
+		const auto ret = syscall(SYS_MMAP, &mmap_args);
+		if (ret < 0)
+			print_error_and_exit("failed to allocate master TLS", ret);
+		master_tls_addr = reinterpret_cast<uint8_t*>(ret);
+	}
+
+	for (size_t i = 0, tls_offset = 0, tls_module = 1; i < s_loaded_file_count; i++)
+	{
+		const auto& tls_header = s_loaded_files[i].tls_header;
+		if (tls_header.p_type != PT_TLS)
+			continue;
+
+		tls_offset = round(tls_offset + tls_header.p_memsz, tls_header.p_align);
+
+		uint8_t* tls_buffer = master_tls_addr + master_tls_size - tls_offset;
+
+		if (tls_header.p_filesz > 0)
+		{
+			const int fd = s_loaded_files[i].fd;
+			if (auto ret = syscall(SYS_PREAD, fd, tls_buffer, tls_header.p_filesz, tls_header.p_offset); ret != static_cast<long>(tls_header.p_filesz))
+				print_error_and_exit("failed to read TLS data", ret);
+		}
+
+		memset(tls_buffer + tls_header.p_filesz, 0, tls_header.p_memsz - tls_header.p_filesz);
+
+		auto& elf = s_loaded_files[i];
+		elf.tls_addr = tls_buffer;
+		elf.tls_module = tls_module++;
+		elf.tls_offset = master_tls_size - tls_offset;
+	}
+
+	return { .addr = master_tls_addr, .size = master_tls_size, .module_count = module_count };
+}
+
+static void initialize_tls(MasterTLS master_tls)
+{
+	if (master_tls.addr == nullptr)
+		return;
+
+	const size_t tls_size = master_tls.size
+		+ sizeof(uthread)
+		+ (master_tls.module_count + 1) * sizeof(uintptr_t);
+
+	uint8_t* tls_addr;
+
+	{
+		const sys_mmap_t mmap_args {
+			.addr = nullptr,
+			.len = tls_size,
+			.prot = PROT_READ | PROT_WRITE,
+			.flags = MAP_ANONYMOUS | MAP_PRIVATE,
+			.fildes = -1,
+			.off = 0,
+		};
+
+		const auto ret = syscall(SYS_MMAP, &mmap_args);
+		if (ret < 0)
+			print_error_and_exit("failed to allocate master TLS", ret);
+		tls_addr = reinterpret_cast<uint8_t*>(ret);
+	}
+
+	memcpy(tls_addr, master_tls.addr, master_tls.size);
+
+	uthread* uthread = reinterpret_cast<struct uthread*>(tls_addr + master_tls.size);
+	uthread->self = uthread;
+	uthread->master_tls_addr = master_tls.addr;
+	uthread->master_tls_size = master_tls.size;
+
+	uthread->dtv[0] = master_tls.module_count;
+	for (size_t i = 0; i < s_loaded_file_count; i++)
+	{
+		const auto& elf = s_loaded_files[i];
+		if (elf.tls_addr == nullptr)
+			continue;
+		uthread->dtv[elf.tls_module] = reinterpret_cast<uintptr_t>(tls_addr) + elf.tls_offset;
+	}
+
+	syscall(SYS_SET_TLS, uthread);
 }
 
 static void initialize_environ(char** envp)
@@ -1040,7 +1199,9 @@ uintptr_t _entry(int argc, char* argv[], char* envp[])
 	auto& elf = load_elf(argv[0], execfd);
 	fini_random();
 
+	const auto master_tls = initialize_master_tls();
 	relocate_elf(elf, true);
+	initialize_tls(master_tls);
 	initialize_environ(envp);
 	call_init_funcs(elf, true);
 

@@ -8,6 +8,7 @@
 
 #include <ctype.h>
 #include <fcntl.h>
+#include <pthread.h>
 
 namespace Kernel::ELF
 {
@@ -108,13 +109,13 @@ namespace Kernel::ELF
 		auto file_header = TRY(read_and_validate_file_header(inode));
 		auto program_headers = TRY(read_program_headers(inode, file_header));
 
-		vaddr_t executable_end = 0;
+		size_t exec_max_offset { 0 };
 		BAN::String interpreter;
 
 		for (const auto& program_header : program_headers)
 		{
 			if (program_header.p_type == PT_LOAD)
-				executable_end = BAN::Math::max<vaddr_t>(executable_end, program_header.p_vaddr + program_header.p_memsz);
+				exec_max_offset = BAN::Math::max<vaddr_t>(exec_max_offset, program_header.p_vaddr + program_header.p_memsz);
 			else if (program_header.p_type == PT_INTERP)
 			{
 				BAN::Vector<uint8_t> interp_buffer;
@@ -140,9 +141,6 @@ namespace Kernel::ELF
 			}
 		}
 
-		if (file_header.e_type == ET_DYN)
-			executable_end = 0x400000;
-
 		if (!interpreter.empty())
 		{
 			auto interpreter_inode = TRY(VirtualFileSystem::get().file_from_absolute_path(credentials, interpreter, O_EXEC)).inode;
@@ -164,15 +162,16 @@ namespace Kernel::ELF
 		}
 
 		const vaddr_t load_base_vaddr =
-			[&file_header, executable_end]() -> vaddr_t
+			[&file_header, exec_max_offset]() -> vaddr_t
 			{
 				if (file_header.e_type == ET_EXEC)
 					return 0;
 				if (file_header.e_type == ET_DYN)
-					return (executable_end + PAGE_SIZE - 1) & PAGE_ADDR_MASK;
+					return (exec_max_offset + PAGE_SIZE - 1) & PAGE_ADDR_MASK;
 				ASSERT_NOT_REACHED();
 			}();
 
+		vaddr_t last_loaded_address = 0;
 		BAN::Vector<BAN::UniqPtr<MemoryRegion>> memory_regions;
 		for (const auto& program_header : program_headers)
 		{
@@ -241,10 +240,57 @@ namespace Kernel::ELF
 
 				TRY(memory_regions.emplace_back(BAN::move(region)));
 			}
+
+			last_loaded_address = BAN::Math::max(last_loaded_address, pheader_base + program_header.p_memsz);
 		}
 
 		LoadResult result;
-		result.has_interpreter = !interpreter.empty();
+
+		for (const auto& program_header : program_headers)
+		{
+			if (program_header.p_type != PT_TLS)
+				continue;
+
+			if (!BAN::Math::is_power_of_two(program_header.p_align))
+				return BAN::Error::from_errno(EINVAL);
+
+			size_t region_size = program_header.p_memsz;
+			if (auto rem = region_size % program_header.p_align)
+				region_size += program_header.p_align - rem;
+
+			size_t offset = 0;
+			if (auto rem = region_size % alignof(uthread))
+				offset = alignof(uthread) - rem;
+
+			auto region = TRY(MemoryBackedRegion::create(
+				page_table,
+				offset + region_size,
+				{ .start = last_loaded_address, .end = USERSPACE_END },
+				MemoryRegion::Type::PRIVATE,
+				PageTable::Flags::UserSupervisor | PageTable::Flags::Present
+			));
+
+			for (vaddr_t vaddr = region->vaddr(); vaddr < region->vaddr() + offset + region->size(); vaddr += PAGE_SIZE)
+				TRY(region->allocate_page_containing(vaddr, false));
+
+			if (program_header.p_filesz > 0)
+			{
+				BAN::Vector<uint8_t> file_data_buffer;
+				TRY(file_data_buffer.resize(program_header.p_filesz));
+				if (TRY(inode->read(program_header.p_offset, file_data_buffer.span())) != file_data_buffer.size())
+					return BAN::Error::from_errno(EFAULT);
+				TRY(region->copy_data_to_region(offset, file_data_buffer.data(), file_data_buffer.size()));
+			}
+
+			result.master_tls = LoadResult::TLS {
+				.addr = region->vaddr(),
+				.size = region->size(),
+			};
+
+			TRY(memory_regions.emplace_back(BAN::move(region)));
+		}
+
+		result.open_execfd = !interpreter.empty();
 		result.entry_point = load_base_vaddr + file_header.e_entry;
 		result.regions = BAN::move(memory_regions);
 		return BAN::move(result);

@@ -8,8 +8,15 @@ namespace Kernel::ELF
 
 	struct LoadResult
 	{
-		bool has_interpreter;
+		struct TLS
+		{
+			vaddr_t addr;
+			size_t size;
+		};
+
+		bool open_execfd;
 		vaddr_t entry_point;
+		BAN::Optional<TLS> master_tls;
 		BAN::Vector<BAN::UniqPtr<MemoryRegion>> regions;
 	};
 
