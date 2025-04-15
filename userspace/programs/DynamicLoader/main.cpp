@@ -10,6 +10,12 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 
+#if defined(__x86_64__)
+	#define ELF_R_SYM ELF64_R_SYM
+#elif defined(__i686__)
+	#define ELF_R_SYM ELF32_R_SYM
+#endif
+
 extern "C"
 __attribute__((naked))
 void _start()
@@ -141,6 +147,8 @@ struct LoadedElf
 	ElfNativeFileHeader file_header;
 	ElfNativeDynamic* dynamics;
 
+	int fd;
+
 	uintptr_t base;
 
 	uintptr_t hash;
@@ -210,20 +218,71 @@ static ElfNativeSymbol* find_symbol(const LoadedElf& elf, const char* name)
 }
 
 template<typename RelocT> requires BAN::is_same_v<RelocT, ElfNativeRelocation> || BAN::is_same_v<RelocT, ElfNativeRelocationA>
-static void handle_copy_relocation(const LoadedElf& elf, const RelocT& reloc)
+static bool is_tls_relocation(const RelocT& reloc)
 {
 #if defined(__x86_64__)
-	if (ELF64_R_TYPE(reloc.r_info) != R_X86_64_COPY)
-		return;
-	const uint32_t symbol_index = ELF64_R_SYM(reloc.r_info);
+	switch (ELF64_R_TYPE(reloc.r_info))
+	{
+		case R_X86_64_DTPMOD64:
+		case R_X86_64_DTPOFF64:
+		case R_X86_64_TPOFF64:
+		case R_X86_64_TLSGD:
+		case R_X86_64_TLSLD:
+		case R_X86_64_DTPOFF32:
+		case R_X86_64_GOTTPOFF:
+		case R_X86_64_TPOFF32:
+			return true;
+	}
 #elif defined(__i686__)
-	if (ELF32_R_TYPE(reloc.r_info) != R_386_COPY)
-		return;
-	const uint32_t symbol_index = ELF32_R_SYM(reloc.r_info);
+	switch (ELF32_R_TYPE(reloc.r_info))
+	{
+		case R_386_TLS_TPOFF:
+		case R_386_TLS_IE:
+		case R_386_TLS_GOTIE:
+		case R_386_TLS_LE:
+		case R_386_TLS_GD:
+		case R_386_TLS_LDM:
+		case R_386_TLS_GD_32:
+		case R_386_TLS_GD_PUSH:
+		case R_386_TLS_GD_CALL:
+		case R_386_TLS_GD_POP:
+		case R_386_TLS_LDM_32:
+		case R_386_TLS_LDM_PUSH:
+		case R_386_TLS_LDM_CALL:
+		case R_386_TLS_LDM_POP:
+		case R_386_TLS_LDO_32:
+		case R_386_TLS_IE_32:
+		case R_386_TLS_LE_32:
+		case R_386_TLS_DTPMOD32:
+		case R_386_TLS_DTPOFF32:
+		case R_386_TLS_TPOFF32:
+			return true;
+	}
 #else
 	#error "unsupported architecture"
 #endif
+	return false;
+}
 
+template<typename RelocT> requires BAN::is_same_v<RelocT, ElfNativeRelocation> || BAN::is_same_v<RelocT, ElfNativeRelocationA>
+static bool is_copy_relocation(const RelocT& reloc)
+{
+#if defined(__x86_64__)
+	return ELF64_R_TYPE(reloc.r_info) == R_X86_64_COPY;
+#elif defined(__i686__)
+	return ELF32_R_TYPE(reloc.r_info) == R_386_COPY;
+#else
+	#error "unsupported architecture"
+#endif
+}
+
+template<typename RelocT> requires BAN::is_same_v<RelocT, ElfNativeRelocation> || BAN::is_same_v<RelocT, ElfNativeRelocationA>
+static void handle_copy_relocation(const LoadedElf& elf, const RelocT& reloc)
+{
+	if (!is_copy_relocation(reloc))
+		return;
+
+	const uint32_t symbol_index = ELF_R_SYM(reloc.r_info);
 	if (symbol_index == 0)
 		print_error_and_exit("copy relocation without a symbol", 0);
 
@@ -262,25 +321,47 @@ static void handle_copy_relocation(const LoadedElf& elf, const RelocT& reloc)
 }
 
 template<typename RelocT> requires BAN::is_same_v<RelocT, ElfNativeRelocation> || BAN::is_same_v<RelocT, ElfNativeRelocationA>
-static uintptr_t handle_relocation(const LoadedElf& elf, const RelocT& reloc, bool resolve_symbols)
+static void handle_tls_relocation(const LoadedElf& elf, const RelocT& reloc)
 {
-	uintptr_t symbol_address = 0;
+	if (!is_tls_relocation(reloc))
+		return;
 
 #if defined(__x86_64__)
-	if (ELF64_R_TYPE(reloc.r_info) == R_X86_64_COPY)
-		return 0;
-	const uint32_t symbol_index = ELF64_R_SYM(reloc.r_info);
+	switch (ELF64_R_TYPE(reloc.r_info))
+	{
+		default:
+			print(STDERR_FILENO, "unsupported tls reloc type ");
+			print_uint(STDERR_FILENO, ELF64_R_TYPE(reloc.r_info));
+			print(STDERR_FILENO, " in ");
+			print(STDERR_FILENO, elf.path);
+			print_error_and_exit("", 0);
+	}
 #elif defined(__i686__)
-	if (ELF32_R_TYPE(reloc.r_info) == R_386_COPY)
-		return 0;
-	const uint32_t symbol_index = ELF32_R_SYM(reloc.r_info);
+	switch (ELF32_R_TYPE(reloc.r_info))
+	{
+		default:
+			print(STDERR_FILENO, "unsupported tls reloc type ");
+			print_uint(STDERR_FILENO, ELF64_R_TYPE(reloc.r_info));
+			print(STDERR_FILENO, " in ");
+			print(STDERR_FILENO, elf.path);
+			print_error_and_exit("", 0);
+	}
 #else
 	#error "unsupported architecture"
 #endif
+}
 
+template<typename RelocT> requires BAN::is_same_v<RelocT, ElfNativeRelocation> || BAN::is_same_v<RelocT, ElfNativeRelocationA>
+static uintptr_t handle_relocation(const LoadedElf& elf, const RelocT& reloc, bool resolve_symbols)
+{
+	if (is_copy_relocation(reloc) || is_tls_relocation(reloc))
+		return 0;
+
+	const uint32_t symbol_index = ELF_R_SYM(reloc.r_info);
 	if (resolve_symbols == !symbol_index)
 		return 0;
 
+	uintptr_t symbol_address = 0;
 	if (symbol_index)
 	{
 		const auto& symbol = *reinterpret_cast<ElfNativeSymbol*>(elf.symtab + symbol_index * elf.syment);
@@ -314,6 +395,9 @@ static uintptr_t handle_relocation(const LoadedElf& elf, const RelocT& reloc, bo
 				symbol_address = 0;
 			}
 		}
+
+		if (ELF_ST_TYPE(symbol.st_info) == STT_TLS)
+			print_error_and_exit("relocating TLS symbol", 0);
 	}
 
 	size_t size = 0;
@@ -451,6 +535,14 @@ static void relocate_elf(LoadedElf& elf, bool lazy_load)
 		for (size_t i = 0; i < elf.relasz / elf.relaent; i++)
 			handle_relocation(elf, *reinterpret_cast<ElfNativeRelocationA*>(elf.rela + i * elf.relaent), true);
 
+	// do tls relocations
+	if (elf.rel && elf.relent)
+		for (size_t i = 0; i < elf.relsz / elf.relent; i++)
+			handle_tls_relocation(elf, *reinterpret_cast<ElfNativeRelocation*>(elf.rel + i * elf.relent));
+	if (elf.rela && elf.relaent)
+		for (size_t i = 0; i < elf.relasz / elf.relaent; i++)
+			handle_tls_relocation(elf, *reinterpret_cast<ElfNativeRelocationA*>(elf.rela + i * elf.relaent));
+
 	// do jumprel relocations
 	if (elf.jmprel && elf.pltrelsz)
 	{
@@ -527,17 +619,19 @@ static void handle_dynamic(LoadedElf& elf)
 
 		switch (dynamic.d_tag)
 		{
-			case DT_PLTGOT:     dynamic.d_un.d_ptr += elf.base; break;
-			case DT_HASH:       dynamic.d_un.d_ptr += elf.base; break;
-			case DT_STRTAB:     dynamic.d_un.d_ptr += elf.base; break;
-			case DT_SYMTAB:     dynamic.d_un.d_ptr += elf.base; break;
-			case DT_RELA:       dynamic.d_un.d_ptr += elf.base; break;
-			case DT_INIT:       dynamic.d_un.d_ptr += elf.base; break;
-			case DT_FINI:       dynamic.d_un.d_ptr += elf.base; break;
-			case DT_REL:        dynamic.d_un.d_ptr += elf.base; break;
-			case DT_JMPREL:     dynamic.d_un.d_ptr += elf.base; break;
-			case DT_INIT_ARRAY: dynamic.d_un.d_ptr += elf.base; break;
-			case DT_FINI_ARRAY: dynamic.d_un.d_ptr += elf.base; break;
+			case DT_PLTGOT:
+			case DT_HASH:
+			case DT_STRTAB:
+			case DT_SYMTAB:
+			case DT_RELA:
+			case DT_INIT:
+			case DT_FINI:
+			case DT_REL:
+			case DT_JMPREL:
+			case DT_INIT_ARRAY:
+			case DT_FINI_ARRAY:
+				dynamic.d_un.d_ptr += elf.base;
+				break;
 		}
 
 		switch (dynamic.d_tag)
@@ -593,8 +687,6 @@ static void handle_dynamic(LoadedElf& elf)
 
 		const auto& loaded_elf = load_elf(realpath, library_fd);
 		dynamic.d_un.d_ptr = reinterpret_cast<uintptr_t>(&loaded_elf);
-
-		syscall(SYS_CLOSE, library_fd);
 	}
 
 	// do relocations without symbols
@@ -830,6 +922,7 @@ static LoadedElf& load_elf(const char* path, int fd)
 
 	auto& elf = s_loaded_files[s_loaded_file_count++];
 	elf.base = base;
+	elf.fd = fd;
 	elf.dynamics = nullptr;
 	memcpy(&elf.file_header, &file_header, sizeof(file_header));
 	strcpy(elf.path, path);
@@ -945,12 +1038,14 @@ uintptr_t _entry(int argc, char* argv[], char* envp[])
 
 	init_random();
 	auto& elf = load_elf(argv[0], execfd);
-	syscall(SYS_CLOSE, fd);
 	fini_random();
 
 	relocate_elf(elf, true);
 	initialize_environ(envp);
 	call_init_funcs(elf, true);
+
+	for (size_t i = 0; i < s_loaded_file_count; i++)
+		syscall(SYS_CLOSE, s_loaded_files[i].fd);
 
 	return elf.base + elf.file_header.e_entry;
 }
