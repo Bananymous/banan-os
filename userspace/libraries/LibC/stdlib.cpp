@@ -14,11 +14,14 @@
 #include <strings.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
+#include <sys/weak_alias.h>
 #include <unistd.h>
 
 #include <icxxabi.h>
 
-extern "C" char** environ;
+char** __environ;
+weak_alias(__environ, environ);
+static bool s_environ_malloced = false;
 
 extern "C" __attribute__((weak)) void _fini();
 
@@ -516,27 +519,35 @@ int putenv(char* string)
 		return -1;
 	}
 
-	if (!environ)
+	if (!s_environ_malloced)
 	{
-		environ = (char**)malloc(sizeof(char*) * 2);
-		if (!environ)
+		size_t env_count = 0;
+		while (environ[env_count])
+			env_count++;
+
+		char** new_environ = static_cast<char**>(malloc((env_count + 1) * sizeof(char*)));
+		if (new_environ == nullptr)
 			return -1;
-		environ[0] = string;
-		environ[1] = nullptr;
-		return 0;
+		for (size_t i = 0; i < env_count; i++)
+		{
+			const size_t bytes = strlen(environ[i]) + 1;
+			new_environ[i] = (char*)malloc(bytes);
+			memcpy(new_environ[i], environ[i], bytes);
+		}
+		new_environ[env_count] = nullptr;
+
+		environ = new_environ;
+		s_environ_malloced = true;
 	}
 
-	int cnt = 0;
-	for (int i = 0; string[i]; i++)
-		if (string[i] == '=')
-			cnt++;
-	if (cnt != 1)
+	const char* eq_addr = strchr(string, '=');
+	if (eq_addr == nullptr)
 	{
 		errno = EINVAL;
 		return -1;
 	}
 
-	int namelen = strchr(string, '=') - string;
+	size_t namelen = eq_addr - string;
 	for (int i = 0; environ[i]; i++)
 	{
 		if (strncmp(environ[i], string, namelen + 1) == 0)
@@ -547,15 +558,15 @@ int putenv(char* string)
 		}
 	}
 
-	int env_count = 0;
+	size_t env_count = 0;
 	while (environ[env_count])
 		env_count++;
 
-	char** new_envp = (char**)malloc(sizeof(char*) * (env_count + 2));
+	char** new_envp = static_cast<char**>(malloc(sizeof(char*) * (env_count + 2)));
 	if (new_envp == nullptr)
 		return -1;
 
-	for (int i = 0; i < env_count; i++)
+	for (size_t i = 0; i < env_count; i++)
 		new_envp[i] = environ[i];
 	new_envp[env_count] = string;
 	new_envp[env_count + 1] = nullptr;

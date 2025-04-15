@@ -857,16 +857,27 @@ static LoadedElf& load_elf(const char* path, int fd)
 	return elf;
 }
 
-static void call_init_libc(LoadedElf& elf, char** envp)
+static void initialize_environ(char** envp)
 {
-	const auto* _init_libc = find_symbol(elf, "_init_libc");
-	if (_init_libc == nullptr)
+	uintptr_t environ = SYM_NOT_FOUND;
+	for (size_t i = 0; i < s_loaded_file_count; i++)
+	{
+		const auto* match = find_symbol(s_loaded_files[i], "environ");
+		if (match == nullptr)
+			continue;
+		if (environ == SYM_NOT_FOUND || ELF_ST_BIND(match->st_info) != STB_WEAK)
+			environ = s_loaded_files[i].base + match->st_value;
+		if (ELF_ST_BIND(match->st_info) != STB_WEAK)
+			break;
+	}
+
+	if (environ == SYM_NOT_FOUND)
 		return;
-	using _init_libc_t = void(*)(char**);
-	reinterpret_cast<_init_libc_t>(elf.base + _init_libc->st_value)(envp);
+
+	*reinterpret_cast<char***>(environ) = envp;
 }
 
-static void call_init_funcs(LoadedElf& elf, char** envp, bool skip)
+static void call_init_funcs(LoadedElf& elf, bool is_main_elf)
 {
 	if (elf.has_called_init)
 		return;
@@ -879,11 +890,12 @@ static void call_init_funcs(LoadedElf& elf, char** envp, bool skip)
 			if (dynamic.d_tag == DT_NULL)
 				break;
 			if (dynamic.d_tag == DT_NEEDED)
-				call_init_funcs(*reinterpret_cast<LoadedElf*>(dynamic.d_un.d_ptr), envp, false);
+				call_init_funcs(*reinterpret_cast<LoadedElf*>(dynamic.d_un.d_ptr), false);
 		}
 	}
 
-	if (elf.has_called_init || skip)
+	// main executable calls its init functions in _start
+	if (elf.has_called_init || is_main_elf)
 		return;
 
 	using init_t = void(*)();
@@ -892,10 +904,7 @@ static void call_init_funcs(LoadedElf& elf, char** envp, bool skip)
 	for (size_t i = 0; i < elf.init_arraysz / sizeof(init_t); i++)
 		reinterpret_cast<init_t*>(elf.init_array)[i]();
 
-	if (strcmp(elf.path, "/usr/lib/libc.so") == 0)
-		call_init_libc(elf, envp);
 
-	elf.has_called_init = true;
 }
 
 extern "C"
@@ -922,6 +931,7 @@ int _entry(int argc, char** argv, char** envp, int fd)
 	fini_random();
 
 	relocate_elf(elf, true);
-	call_init_funcs(elf, envp, true);
+	initialize_environ(envp);
+	call_init_funcs(elf, true);
 	call_entry_point(argc, argv, envp, elf.base + elf.file_header.e_entry);
 }
