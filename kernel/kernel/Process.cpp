@@ -2051,10 +2051,14 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_pthread_create(const pthread_attr_t* attr, void (*entry)(void*), void* arg)
 	{
-		if (attr != nullptr)
+		if (attr)
 		{
-			dwarnln("pthread attr not supported");
-			return BAN::Error::from_errno(ENOTSUP);
+			TRY(validate_pointer_access(attr, sizeof(*attr), false));
+			if (*attr)
+			{
+				dwarnln("pthread attr not supported");
+				return BAN::Error::from_errno(ENOTSUP);
+			}
 		}
 
 		LockGuard _(m_process_lock);

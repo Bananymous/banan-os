@@ -80,6 +80,12 @@ void pthread_cleanup_push(void (*routine)(void*), void* arg)
 	s_cleanup_stack = cleanup;
 }
 
+int pthread_attr_init(pthread_attr_t* attr)
+{
+	*attr = 0;
+	return 0;
+}
+
 int pthread_create(pthread_t* __restrict thread_id, const pthread_attr_t* __restrict attr, void* (*start_routine)(void*), void* __restrict arg)
 {
 	auto* info = static_cast<pthread_trampoline_info_t*>(malloc(sizeof(pthread_trampoline_info_t)));
