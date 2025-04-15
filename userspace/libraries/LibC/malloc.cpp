@@ -2,6 +2,7 @@
 
 #include <assert.h>
 #include <errno.h>
+#include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
@@ -71,6 +72,8 @@ struct malloc_info_t
 
 static malloc_info_t s_malloc_info;
 static auto& s_malloc_pools = s_malloc_info.pools;
+
+static pthread_spinlock_t s_malloc_lock;
 
 static bool allocate_pool(size_t pool_index)
 {
@@ -200,19 +203,31 @@ void* malloc(size_t size)
 
 	// try to find any already existing pools that we can allocate in
 	for (size_t i = first_usable_pool; i < s_malloc_pool_count; i++)
-		if (s_malloc_pools[i].start != nullptr)
-			if (void* ret = allocate_from_pool(i, size))
-				return ret;
+	{
+		if (s_malloc_pools[i].start == nullptr)
+			continue;
+		pthread_spin_lock(&s_malloc_lock);
+		void* ret = allocate_from_pool(i, size);
+		pthread_spin_unlock(&s_malloc_lock);
+		if (ret != nullptr)
+			return ret;
+	}
 
 	// allocate new pool
 	for (size_t i = first_usable_pool; i < s_malloc_pool_count; i++)
 	{
 		if (s_malloc_pools[i].start != nullptr)
 			continue;
-		if (!allocate_pool(i))
+
+		pthread_spin_lock(&s_malloc_lock);
+		void* ret = nullptr;
+		if (allocate_pool(i))
+			ret = allocate_from_pool(i, size);
+		pthread_spin_unlock(&s_malloc_lock);
+
+		if (ret == nullptr)
 			break;
-		// NOTE: always works since we just created the pool
-		return allocate_from_pool(i, size);
+		return ret;
 	}
 
 	errno = ENOMEM;
@@ -258,6 +273,8 @@ void free(void* ptr)
 	if (ptr == nullptr)
 		return;
 
+	pthread_spin_lock(&s_malloc_lock);
+
 	auto* node = node_from_data_pointer(ptr);
 
 	node->allocated = false;
@@ -279,6 +296,8 @@ void free(void* ptr)
 	node->prev_free = nullptr;
 	node->next_free = pool.free_list;
 	pool.free_list = node;
+
+	pthread_spin_unlock(&s_malloc_lock);
 }
 
 void* calloc(size_t nmemb, size_t size)
