@@ -26,6 +26,16 @@ namespace Kernel
 		size_t size() const { return m_size; }
 		PageTable::flags_t flags() const { return m_flags; }
 
+		paddr_t paddr_of(vaddr_t vaddr) const
+		{
+			ASSERT(vaddr % PAGE_SIZE == 0);
+			const size_t index = (vaddr - m_vaddr) / PAGE_SIZE;
+			ASSERT(index < m_paddrs.size());
+			const paddr_t paddr = m_paddrs[index];
+			ASSERT(paddr);
+			return paddr;
+		}
+
 		bool contains(vaddr_t address) const { return vaddr() <= address && address < vaddr() + size(); }
 
 		BAN::ErrorOr<void> allocate_page_for_demand_paging(vaddr_t address);
