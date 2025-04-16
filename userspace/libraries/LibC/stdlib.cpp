@@ -14,14 +14,9 @@
 #include <strings.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
-#include <sys/weak_alias.h>
 #include <unistd.h>
 
 #include <icxxabi.h>
-
-char** __environ;
-weak_alias(__environ, environ);
-static bool s_environ_malloced = false;
 
 void abort(void)
 {
@@ -365,18 +360,6 @@ unsigned long long strtoull(const char* __restrict str, char** __restrict endp, 
 	return strtoT<unsigned long long>(str, endp, base, errno);
 }
 
-char* getenv(const char* name)
-{
-	if (environ == nullptr)
-		return nullptr;
-	size_t len = strlen(name);
-	for (int i = 0; environ[i]; i++)
-		if (strncmp(name, environ[i], len) == 0)
-			if (environ[i][len] == '=')
-				return environ[i] + len + 1;
-	return nullptr;
-}
-
 char* realpath(const char* __restrict file_name, char* __restrict resolved_name)
 {
 	char buffer[PATH_MAX] {};
@@ -448,120 +431,6 @@ int system(const char* command)
 	sigprocmask(SIG_SETMASK, &sigchld_save, nullptr);
 
 	return stat_val;
-}
-
-int setenv(const char* name, const char* val, int overwrite)
-{
-	if (name == nullptr || !name[0] || strchr(name, '='))
-	{
-		errno = EINVAL;
-		return -1;
-	}
-
-	if (!overwrite && getenv(name))
-		return 0;
-
-	size_t namelen = strlen(name);
-	size_t vallen = strlen(val);
-
-	char* string = (char*)malloc(namelen + vallen + 2);
-	memcpy(string, name, namelen);
-	string[namelen] = '=';
-	memcpy(string + namelen + 1, val, vallen);
-	string[namelen + vallen + 1] = '\0';
-
-	return putenv(string);
-}
-
-int unsetenv(const char* name)
-{
-	if (name == nullptr || !name[0] || strchr(name, '='))
-	{
-		errno = EINVAL;
-		return -1;
-	}
-
-	size_t len = strlen(name);
-
-	bool found = false;
-	for (int i = 0; environ[i]; i++)
-	{
-		if (!found && strncmp(environ[i], name, len) == 0 && environ[i][len] == '=')
-		{
-			free(environ[i]);
-			found = true;
-		}
-		if (found)
-			environ[i] = environ[i + 1];
-	}
-
-	return 0;
-}
-
-int putenv(char* string)
-{
-	if (string == nullptr || !string[0])
-	{
-		errno = EINVAL;
-		return -1;
-	}
-
-	if (!s_environ_malloced)
-	{
-		size_t env_count = 0;
-		while (environ[env_count])
-			env_count++;
-
-		char** new_environ = static_cast<char**>(malloc((env_count + 1) * sizeof(char*)));
-		if (new_environ == nullptr)
-			return -1;
-		for (size_t i = 0; i < env_count; i++)
-		{
-			const size_t bytes = strlen(environ[i]) + 1;
-			new_environ[i] = (char*)malloc(bytes);
-			memcpy(new_environ[i], environ[i], bytes);
-		}
-		new_environ[env_count] = nullptr;
-
-		environ = new_environ;
-		s_environ_malloced = true;
-	}
-
-	const char* eq_addr = strchr(string, '=');
-	if (eq_addr == nullptr)
-	{
-		errno = EINVAL;
-		return -1;
-	}
-
-	size_t namelen = eq_addr - string;
-	for (int i = 0; environ[i]; i++)
-	{
-		if (strncmp(environ[i], string, namelen + 1) == 0)
-		{
-			free(environ[i]);
-			environ[i] = string;
-			return 0;
-		}
-	}
-
-	size_t env_count = 0;
-	while (environ[env_count])
-		env_count++;
-
-	char** new_envp = static_cast<char**>(malloc(sizeof(char*) * (env_count + 2)));
-	if (new_envp == nullptr)
-		return -1;
-
-	for (size_t i = 0; i < env_count; i++)
-		new_envp[i] = environ[i];
-	new_envp[env_count] = string;
-	new_envp[env_count + 1] = nullptr;
-
-	free(environ);
-	environ = new_envp;
-
-	return 0;
 }
 
 static size_t temp_template_count_x(const char* _template)
