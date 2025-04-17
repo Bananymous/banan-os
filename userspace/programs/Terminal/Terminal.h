@@ -37,6 +37,7 @@ public:
 private:
 	void handle_sgr();
 	Rectangle handle_csi(char ch);
+	Rectangle putcodepoint(uint32_t codepoint);
 	Rectangle putchar(uint8_t ch);
 	bool read_shell();
 
@@ -90,6 +91,8 @@ private:
 
 	uint8_t m_utf8_index { 0 };
 	uint8_t m_utf8_bytes[4] { };
+
+	uint32_t m_last_graphic_char { 0 };
 
 	Cursor m_saved_cursor { 0, 0 };
 	uint32_t m_fg_color { 0 };

@@ -344,15 +344,25 @@ Rectangle Terminal::handle_csi(char ch)
 	Rectangle should_invalidate;
 	switch (ch)
 	{
+		case 'A':
+			if (m_csi_info.fields[0] == -1)
+				m_csi_info.fields[0] = 1;
+			m_cursor.y = BAN::Math::max<int32_t>(m_cursor.y - m_csi_info.fields[0], 0);
+			break;
+		case 'B':
+			if (m_csi_info.fields[0] == -1)
+				m_csi_info.fields[0] = 1;
+			m_cursor.y = BAN::Math::min<int32_t>(m_cursor.y + m_csi_info.fields[0], rows() - 1);
+			break;
 		case 'C':
 			if (m_csi_info.fields[0] == -1)
 				m_csi_info.fields[0] = 1;
-			m_cursor.x = BAN::Math::clamp<int32_t>(m_cursor.x + m_csi_info.fields[0], 0, cols() - 1);
+			m_cursor.x = BAN::Math::min<int32_t>(m_cursor.x + m_csi_info.fields[0], cols() - 1);
 			break;
 		case 'D':
 			if (m_csi_info.fields[0] == -1)
 				m_csi_info.fields[0] = 1;
-			m_cursor.x = BAN::Math::clamp<int32_t>((int32_t)m_cursor.x - m_csi_info.fields[0], 0, cols() - 1);
+			m_cursor.x = BAN::Math::max<int32_t>(m_cursor.x - m_csi_info.fields[0], 0);
 			break;
 		case 'G':
 			m_cursor.x = BAN::Math::clamp<int32_t>(m_csi_info.fields[0], 1, cols()) - 1;
@@ -461,6 +471,34 @@ Rectangle Terminal::handle_csi(char ch)
 
 			break;
 		}
+		case '@':
+		{
+			const uint32_t count = (m_csi_info.fields[0] == -1) ? 1 : m_csi_info.fields[0];
+			const uint32_t dst_x = (m_cursor.x + count) * m_font.width();
+			const uint32_t src_x = m_cursor.x * m_font.width();
+			const uint32_t y = m_cursor.y * m_font.height();
+
+			m_window->copy_rect(dst_x, y, src_x, y, m_window->width() - dst_x, m_font.height(), m_bg_color);
+			m_window->fill_rect(src_x, y, count * m_font.width(), m_font.height(), m_bg_color);
+			should_invalidate = {
+				src_x,
+				y,
+				m_window->width() - src_x,
+				m_font.height()
+			};
+
+			break;
+		}
+		case 'b':
+			if (m_csi_info.fields[0] == -1)
+				m_csi_info.fields[0] = 1;
+			if (m_last_graphic_char)
+				for (int32_t i = 0; i < m_csi_info.fields[0]; i++)
+					should_invalidate = should_invalidate.get_bounding_box(putcodepoint(m_last_graphic_char));
+			break;
+		case 'd':
+			m_cursor.y = BAN::Math::clamp<int32_t>(m_csi_info.fields[0], 1, rows()) - 1;
+			break;
 		case 'm':
 			handle_sgr();
 			break;
@@ -485,6 +523,59 @@ Rectangle Terminal::handle_csi(char ch)
 	}
 
 	m_state = State::Normal;
+	return should_invalidate;
+}
+
+Rectangle Terminal::putcodepoint(uint32_t codepoint)
+{
+	Rectangle should_invalidate;
+
+	switch (codepoint)
+	{
+		case '\e':
+			m_state = State::ESC;
+			break;
+		case '\n':
+			m_cursor.x = 0;
+			m_cursor.y++;
+			break;
+		case '\r':
+			m_cursor.x = 0;
+			break;
+		case '\b':
+			if (m_cursor.x > 0)
+				m_cursor.x--;
+			break;
+		default:
+		{
+			const uint32_t cell_w = m_font.width();
+			const uint32_t cell_h = m_font.height();
+			const uint32_t cell_x = m_cursor.x * cell_w;
+			const uint32_t cell_y = m_cursor.y * cell_h;
+
+			m_window->fill_rect(cell_x, cell_y, cell_w, cell_h, m_bg_color);
+			m_window->draw_character(codepoint, m_font, cell_x, cell_y, m_fg_color);
+			m_last_graphic_char = codepoint;
+			should_invalidate = { cell_x, cell_y, cell_w, cell_h };
+			m_cursor.x++;
+			break;
+		}
+	}
+
+	if (m_cursor.x >= cols())
+	{
+		m_cursor.x = 0;
+		m_cursor.y++;
+	}
+
+	if (m_cursor.y >= rows())
+	{
+		const uint32_t scroll = m_cursor.y - rows() + 1;
+		m_cursor.y -= scroll;
+		m_window->shift_vertical(-scroll * (int32_t)m_font.height(), m_bg_color);
+		should_invalidate = { 0, 0, m_window->width(), m_window->height() };
+	}
+
 	return should_invalidate;
 }
 
@@ -550,54 +641,7 @@ Rectangle Terminal::putchar(uint8_t ch)
 		return {};
 	}
 
-	Rectangle should_invalidate;
-
-	switch (codepoint)
-	{
-		case '\e':
-			m_state = State::ESC;
-			break;
-		case '\n':
-			m_cursor.x = 0;
-			m_cursor.y++;
-			break;
-		case '\r':
-			m_cursor.x = 0;
-			break;
-		case '\b':
-			if (m_cursor.x > 0)
-				m_cursor.x--;
-			break;
-		default:
-		{
-			const uint32_t cell_w = m_font.width();
-			const uint32_t cell_h = m_font.height();
-			const uint32_t cell_x = m_cursor.x * cell_w;
-			const uint32_t cell_y = m_cursor.y * cell_h;
-
-			m_window->fill_rect(cell_x, cell_y, cell_w, cell_h, m_bg_color);
-			m_window->draw_character(codepoint, m_font, cell_x, cell_y, m_fg_color);
-			should_invalidate = { cell_x, cell_y, cell_w, cell_h };
-			m_cursor.x++;
-			break;
-		}
-	}
-
-	if (m_cursor.x >= cols())
-	{
-		m_cursor.x = 0;
-		m_cursor.y++;
-	}
-
-	if (m_cursor.y >= rows())
-	{
-		const uint32_t scroll = m_cursor.y - rows() + 1;
-		m_cursor.y -= scroll;
-		m_window->shift_vertical(-scroll * (int32_t)m_font.height(), m_bg_color);
-		should_invalidate = { 0, 0, m_window->width(), m_window->height() };
-	}
-
-	return should_invalidate;
+	return putcodepoint(codepoint);
 }
 
 void Terminal::on_key_event(LibGUI::EventPacket::KeyEvent::event_t event)
