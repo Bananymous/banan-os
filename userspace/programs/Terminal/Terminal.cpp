@@ -32,6 +32,9 @@ static constexpr uint32_t s_colors_bright[] {
 	0xCC'FFFFFF,
 };
 
+static constexpr auto s_default_bg_color = s_colors_dark[0];
+static constexpr auto s_default_fg_color = s_colors_bright[7];
+
 void Terminal::start_shell()
 {
 	int pts_master = posix_openpt(O_RDWR | O_NOCTTY);
@@ -108,8 +111,8 @@ void Terminal::run()
 	signal(SIGCHLD, [](int) { s_shell_exited = true; });
 	start_shell();
 
-	m_bg_color = s_colors_dark[0];
-	m_fg_color = s_colors_bright[7];
+	m_bg_color = s_default_bg_color;
+	m_fg_color = s_default_fg_color;
 
 	auto attributes = LibGUI::Window::default_attributes;
 	attributes.alpha_channel = true;
@@ -278,8 +281,8 @@ void Terminal::handle_sgr()
 	switch (m_csi_info.fields[0])
 	{
 		case -1: case 0:
-			m_bg_color = s_colors_dark[0];
-			m_fg_color = s_colors_bright[7];
+			m_bg_color = s_default_bg_color;
+			m_fg_color = s_default_fg_color;
 			break;
 		case 1:
 			// FIXME: bold
@@ -287,11 +290,20 @@ void Terminal::handle_sgr()
 		case 7:
 			BAN::swap(m_fg_color, m_bg_color);
 			break;
+		case 10:
+			// default font
+			break;
 		case 30: case 31: case 32: case 33: case 34: case 35: case 36: case 37:
 			m_fg_color = s_colors_dark[m_csi_info.fields[0] - 30];
 			break;
+		case 39:
+			m_fg_color = s_default_fg_color;
+			break;
 		case 40: case 41: case 42: case 43: case 44: case 45: case 46: case 47:
 			m_bg_color = s_colors_dark[m_csi_info.fields[0] - 40];
+			break;
+		case 49:
+			m_bg_color = s_default_bg_color;
 			break;
 		case 90: case 91: case 92: case 93: case 94: case 95: case 96: case 97:
 			m_fg_color = s_colors_bright[m_csi_info.fields[0] - 90];
