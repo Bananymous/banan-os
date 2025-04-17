@@ -147,7 +147,10 @@ char* strcat(char* __restrict__ dest, const char* __restrict__ src)
 
 char* strncat(char* __restrict__ dest, const char* __restrict__ src, size_t n)
 {
-	strncpy(dest + strlen(dest), src, n);
+	dest += strlen(dest);
+	while (*src && n--)
+		*dest++ = *src++;
+	*dest = '\0';
 	return dest;
 }
 
