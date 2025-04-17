@@ -211,6 +211,27 @@ namespace LibGUI
 				set_pixel(x, dst_y + fill_y_off + i, fill_color);
 	}
 
+	void Window::copy_rect(int32_t dst_x, int32_t dst_y, int32_t src_x, int32_t src_y, uint32_t width, uint32_t height, uint32_t fill_color)
+	{
+		fill_rect(dst_x, dst_y, width, height, fill_color);
+
+		if (!clamp_to_framebuffer(dst_x, dst_y, width, height))
+			return;
+		if (!clamp_to_framebuffer(src_x, src_y, width, height))
+			return;
+
+		const bool copy_dir = dst_y < src_y;
+		for (uint32_t i = 0; i < height; i++)
+		{
+			const uint32_t y_off = copy_dir ? i : height - i - 1;
+			memmove(
+				&m_framebuffer[(dst_y + y_off) * this->width()],
+				&m_framebuffer[(src_y + y_off) * this->width()],
+				width * 4
+			);
+		}
+	}
+
 	bool Window::clamp_to_framebuffer(int32_t& signed_x, int32_t& signed_y, uint32_t& width, uint32_t& height) const
 	{
 		int32_t min_x = BAN::Math::max<int32_t>(signed_x, 0);

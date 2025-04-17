@@ -59,6 +59,10 @@ namespace LibGUI
 		// fill_color is used when copying data outside of window bounds
 		void copy_horizontal_slice(int32_t dst_y, int32_t src_y, uint32_t amount, uint32_t fill_color);
 
+		// copy rect (src_x, src_y, width, height) to (dst_x, dst_y, width, height)
+		// fill_color is used when copying data outside of window bounds
+		void copy_rect(int32_t dst_x, int32_t dst_y, int32_t src_x, int32_t src_y, uint32_t width, uint32_t height, uint32_t fill_color);
+
 		void invalidate(int32_t x, int32_t y, uint32_t width, uint32_t height);
 		void invalidate() { return invalidate(0, 0, width(), height()); }
 
