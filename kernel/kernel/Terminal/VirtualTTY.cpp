@@ -329,23 +329,24 @@ namespace Kernel
 			case '@':
 				if (m_ansi_state.nums[0] == -1)
 					m_ansi_state.nums[0] = 1;
-				reset_ansi();
+				m_ansi_state.nums[0] = BAN::Math::min<uint32_t>(m_ansi_state.nums[0], m_width - m_column);
+				memmove(
+					&m_buffer[m_row * m_width + m_column],
+					&m_buffer[m_row * m_width + m_column + m_ansi_state.nums[0]],
+					m_width - m_column - m_ansi_state.nums[0]
+				);
 				for (int i = 0; i < m_ansi_state.nums[0]; i++)
-					putchar_impl(' ');
-				return;
+					putchar_at(' ', m_column + i, m_row);
+				for (uint32_t x = m_column + m_ansi_state.nums[0]; x < m_width; x++)
+					render_from_buffer(x, m_row);
+				return reset_ansi();
 			case 'b':
 				if (m_ansi_state.nums[0] == -1)
 					m_ansi_state.nums[0] = 1;
-				reset_ansi();
 				if (m_last_graphic_char)
-				{
-					char buffer[5] {};
-					BAN::UTF8::from_codepoints(&m_last_graphic_char, 1, buffer);
 					for (int i = 0; i < m_ansi_state.nums[0]; i++)
-						for (int j = 0; buffer[j]; j++)
-							putchar_impl(buffer[j]);
-				}
-				return;
+						putcodepoint(m_last_graphic_char);
+				return reset_ansi();
 			case 'd':
 				if (m_ansi_state.nums[0] == -1)
 					m_ansi_state.nums[0] = 1;
@@ -394,6 +395,70 @@ namespace Kernel
 		cell.foreground = m_foreground;
 		cell.background = m_background;
 		m_terminal_driver->putchar_at(codepoint, x, y, m_foreground, m_background);
+	}
+
+	void VirtualTTY::putcodepoint(uint32_t codepoint)
+	{
+		ASSERT(m_write_lock.current_processor_has_lock());
+
+		switch (codepoint)
+		{
+			case BEL: // TODO
+				break;
+			case BS:
+				if (m_column > 0)
+					putchar_at(' ', --m_column, m_row);
+				break;
+			case HT:
+				m_column++;
+				while (m_column % 8)
+					m_column++;
+				break;
+			case LF:
+				m_column = 0;
+				m_row++;
+				break;
+			case FF:
+				m_row++;
+				break;
+			case CR:
+				m_column = 0;
+				break;
+			case ESC:
+				m_state = State::WaitingAnsiEscape;
+				break;
+			default:
+				putchar_at(codepoint, m_column, m_row);
+				m_last_graphic_char = codepoint;
+				m_column++;
+				break;
+		}
+
+		if (m_column >= m_width)
+		{
+			m_column = 0;
+			m_row++;
+		}
+
+		while (m_row >= m_height)
+		{
+			memmove(m_buffer, m_buffer + m_width, m_width * (m_height - 1) * sizeof(Cell));
+
+			// Clear last line in buffer
+			for (uint32_t x = 0; x < m_width; x++)
+				m_buffer[(m_height - 1) * m_width + x] = { .foreground = m_foreground, .background = m_background, .codepoint = ' ' };
+
+			if (!m_terminal_driver->scroll(m_background))
+			{
+				// No fast scrolling, render the whole buffer to the screen
+				for (uint32_t y = 0; y < m_height; y++)
+					for (uint32_t x = 0; x < m_width; x++)
+						render_from_buffer(x, y);
+			}
+
+			m_column = 0;
+			m_row--;
+		}
 	}
 
 	void VirtualTTY::putchar_impl(uint8_t ch)
@@ -465,64 +530,7 @@ namespace Kernel
 		m_show_cursor = false;
 		set_cursor_position(m_column, m_row);
 
-		switch (codepoint)
-		{
-			case BEL: // TODO
-				break;
-			case BS:
-				if (m_column > 0)
-					putchar_at(' ', --m_column, m_row);
-				break;
-			case HT:
-				m_column++;
-				while (m_column % 8)
-					m_column++;
-				break;
-			case LF:
-				m_column = 0;
-				m_row++;
-				break;
-			case FF:
-				m_row++;
-				break;
-			case CR:
-				m_column = 0;
-				break;
-			case ESC:
-				m_state = State::WaitingAnsiEscape;
-				break;
-			default:
-				putchar_at(codepoint, m_column, m_row);
-				m_last_graphic_char = codepoint;
-				m_column++;
-				break;
-		}
-
-		if (m_column >= m_width)
-		{
-			m_column = 0;
-			m_row++;
-		}
-
-		while (m_row >= m_height)
-		{
-			memmove(m_buffer, m_buffer + m_width, m_width * (m_height - 1) * sizeof(Cell));
-
-			// Clear last line in buffer
-			for (uint32_t x = 0; x < m_width; x++)
-				m_buffer[(m_height - 1) * m_width + x] = { .foreground = m_foreground, .background = m_background, .codepoint = ' ' };
-
-			if (!m_terminal_driver->scroll(m_background))
-			{
-				// No fast scrolling, render the whole buffer to the screen
-				for (uint32_t y = 0; y < m_height; y++)
-					for (uint32_t x = 0; x < m_width; x++)
-						render_from_buffer(x, y);
-			}
-
-			m_column = 0;
-			m_row--;
-		}
+		putcodepoint(codepoint);
 
 		m_show_cursor = old_show_cursor;
 		set_cursor_position(m_column, m_row);
