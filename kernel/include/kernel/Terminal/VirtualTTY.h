@@ -34,7 +34,6 @@ namespace Kernel
 		void putcodepoint(uint32_t codepoint);
 		void putchar_at(uint32_t codepoint, uint32_t x, uint32_t y);
 		void render_from_buffer(uint32_t x, uint32_t y);
-		void set_cursor_position(uint32_t x, uint32_t y);
 
 	private:
 		enum class State
@@ -82,7 +81,6 @@ namespace Kernel
 		uint32_t m_row { 0 };
 		uint32_t m_column { 0 };
 		Cell* m_buffer { nullptr };
-		bool m_show_cursor { true };
 
 		BAN::RefPtr<TerminalDriver> m_terminal_driver;
 	};

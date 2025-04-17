@@ -34,6 +34,7 @@ namespace Kernel
 		virtual bool scroll(Color) { return false; }
 		virtual void clear(Color) = 0;
 
+		virtual void set_cursor_shown(bool) = 0;
 		virtual void set_cursor_position(uint32_t, uint32_t) = 0;
 
 		virtual bool has_font() const { return false; }

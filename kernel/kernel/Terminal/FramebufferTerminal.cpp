@@ -5,15 +5,14 @@ namespace Kernel
 
 	BAN::ErrorOr<BAN::RefPtr<FramebufferTerminalDriver>> FramebufferTerminalDriver::create(BAN::RefPtr<FramebufferDevice> framebuffer_device)
 	{
-		auto font = TRY(LibFont::Font::prefs());;
-
-		auto* driver = new FramebufferTerminalDriver(framebuffer_device);
-		if (driver == nullptr)
+		auto* driver_ptr = new FramebufferTerminalDriver(framebuffer_device);
+		if (driver_ptr == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
-		driver->m_font = BAN::move(font);
+		auto driver = BAN::RefPtr<FramebufferTerminalDriver>::adopt(driver_ptr);
+		TRY(driver->set_font(BAN::move(TRY(LibFont::Font::prefs()))));
 		driver->set_cursor_position(0, 0);
 		driver->clear(TerminalColor::BLACK);
-		return BAN::RefPtr<FramebufferTerminalDriver>::adopt(driver);
+		return driver;
 	}
 
 	void FramebufferTerminalDriver::putchar_at(uint16_t ch, uint32_t x, uint32_t y, Color fg, Color bg)
@@ -34,6 +33,12 @@ namespace Kernel
 		}
 
 		m_framebuffer_device->sync_pixels_rectangle(x, y, m_font.width(), m_font.height());
+
+		if (x == m_cursor_x && y == m_cursor_y)
+		{
+			read_cursor();
+			show_cursor(false);
+		}
 	}
 
 	bool FramebufferTerminalDriver::scroll(Color color)
@@ -45,24 +50,96 @@ namespace Kernel
 
 	void FramebufferTerminalDriver::clear(Color color)
 	{
+		for (auto& pixel : m_cursor_data)
+			pixel = color.rgb;
+
 		for (uint32_t y = 0; y < m_framebuffer_device->height(); y++)
 			for (uint32_t x = 0; x < m_framebuffer_device->width(); x++)
 				m_framebuffer_device->set_pixel(x, y, color.rgb);
 		m_framebuffer_device->sync_pixels_full();
 	}
 
-	void FramebufferTerminalDriver::set_cursor_position(uint32_t x, uint32_t y)
+	void FramebufferTerminalDriver::read_cursor()
 	{
 		const uint32_t cursor_h = m_font.height() / 8;
 		const uint32_t cursor_top = m_font.height() * 13 / 16;
 
-		x *= m_font.width();
-		y *= m_font.height();
+		const uint32_t x = m_cursor_x * m_font.width();
+		const uint32_t y = m_cursor_y * m_font.height();
 
 		for (uint32_t dy = 0; dy < cursor_h; dy++)
 			for (uint32_t dx = 0; dx < m_font.width(); dx++)
-				m_framebuffer_device->set_pixel(x + dx, y + cursor_top + dy, s_cursor_color.rgb);
-		m_framebuffer_device->sync_pixels_rectangle(x, y + cursor_top, m_font.width(), cursor_h);
+				m_cursor_data[dy * m_font.width() + dx] = m_framebuffer_device->get_pixel(x + dx, y + cursor_top + dy);
+	}
+
+	void FramebufferTerminalDriver::show_cursor(bool use_data)
+	{
+		const auto get_color =
+			[this, use_data](uint32_t x, uint32_t y) -> uint32_t
+			{
+				if (!use_data)
+					return m_cursor_color.rgb;
+				return m_cursor_data[y * m_font.width() + x];
+			};
+
+		const uint32_t cursor_h = m_font.height() / 8;
+		const uint32_t cursor_w = m_font.width();
+		const uint32_t cursor_top = m_font.height() * 13 / 16;
+
+		const uint32_t x = m_cursor_x * m_font.width();
+		const uint32_t y = m_cursor_y * m_font.height();
+
+		for (uint32_t dy = 0; dy < cursor_h; dy++)
+			for (uint32_t dx = 0; dx < cursor_w; dx++)
+				m_framebuffer_device->set_pixel(x + dx, y + cursor_top + dy, get_color(dx, dy));
+		m_framebuffer_device->sync_pixels_rectangle(x, y + cursor_top, cursor_w, cursor_h);
+	}
+
+	void FramebufferTerminalDriver::set_cursor_shown(bool shown)
+	{
+		if (m_cursor_shown == shown)
+			return;
+		m_cursor_shown = shown;
+
+		if (m_cursor_shown)
+		{
+			read_cursor();
+			show_cursor(false);
+		}
+		else
+		{
+			show_cursor(true);
+		}
+	}
+
+	void FramebufferTerminalDriver::set_cursor_position(uint32_t x, uint32_t y)
+	{
+		if (!m_cursor_shown)
+		{
+			m_cursor_x = x;
+			m_cursor_y = y;
+			return;
+		}
+
+		show_cursor(true);
+		m_cursor_x = x;
+		m_cursor_y = y;
+		read_cursor();
+		show_cursor(false);
+	}
+
+	BAN::ErrorOr<void> FramebufferTerminalDriver::set_font(LibFont::Font&& font)
+	{
+		const uint32_t cursor_h = font.height() / 8;
+		const uint32_t cursor_w = font.width();
+		TRY(m_cursor_data.resize(cursor_h * cursor_w));
+		for (auto& val : m_cursor_data)
+			val = TerminalColor::BLACK.rgb;
+
+		m_font = BAN::move(font);
+		m_cursor_x = BAN::Math::clamp<uint32_t>(m_cursor_x, 0, width() - 1);
+		m_cursor_y = BAN::Math::clamp<uint32_t>(m_cursor_y, 0, height() - 1);
+		return {};
 	}
 
 }

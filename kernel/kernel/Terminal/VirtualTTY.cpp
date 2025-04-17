@@ -92,19 +92,6 @@ namespace Kernel
 		return {};
 	}
 
-	void VirtualTTY::set_cursor_position(uint32_t x, uint32_t y)
-	{
-		ASSERT(m_write_lock.current_processor_has_lock());
-		static uint32_t last_x = -1;
-		static uint32_t last_y = -1;
-		if (last_x != uint32_t(-1) && last_y != uint32_t(-1))
-			render_from_buffer(last_x, last_y);
-		if (m_show_cursor)
-			m_terminal_driver->set_cursor_position(x, y);
-		last_x = x;
-		last_y = y;
-	}
-
 	void VirtualTTY::reset_ansi()
 	{
 		ASSERT(m_write_lock.current_processor_has_lock());
@@ -370,7 +357,7 @@ namespace Kernel
 			case 'l':
 				if (m_ansi_state.question && m_ansi_state.nums[0] == 25)
 				{
-					m_show_cursor = (ch == 'h');
+					m_terminal_driver->set_cursor_shown(ch == 'h');
 					return reset_ansi();
 				}
 				reset_ansi();
@@ -511,7 +498,6 @@ namespace Kernel
 				return;
 			case State::WaitingAnsiCSI:
 				handle_ansi_csi(ch);
-				set_cursor_position(m_column, m_row);
 				return;
 			case State::WaitingUTF8:
 				if ((ch & 0xC0) != 0x80)
@@ -531,14 +517,9 @@ namespace Kernel
 				ASSERT_NOT_REACHED();
 		}
 
-		bool old_show_cursor = m_show_cursor;
-		m_show_cursor = false;
-		set_cursor_position(m_column, m_row);
-
 		putcodepoint(codepoint);
 
-		m_show_cursor = old_show_cursor;
-		set_cursor_position(m_column, m_row);
+		m_terminal_driver->set_cursor_position(m_column, m_row);
 	}
 
 }
