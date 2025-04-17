@@ -89,6 +89,7 @@ set(KERNEL_SOURCES
 	kernel/Terminal/FramebufferTerminal.cpp
 	kernel/Terminal/PseudoTerminal.cpp
 	kernel/Terminal/Serial.cpp
+	kernel/Terminal/TerminalDriver.cpp
 	kernel/Terminal/TTY.cpp
 	kernel/Terminal/VirtualTTY.cpp
 	kernel/Thread.cpp

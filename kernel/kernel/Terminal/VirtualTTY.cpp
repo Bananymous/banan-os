@@ -25,7 +25,7 @@ namespace Kernel
 
 	static BAN::Atomic<uint32_t> s_next_tty_number = 0;
 
-	BAN::ErrorOr<BAN::RefPtr<VirtualTTY>> VirtualTTY::create(TerminalDriver* driver)
+	BAN::ErrorOr<BAN::RefPtr<VirtualTTY>> VirtualTTY::create(BAN::RefPtr<TerminalDriver> driver)
 	{
 		auto* tty_ptr = new VirtualTTY(driver);
 		ASSERT(tty_ptr);
@@ -35,7 +35,7 @@ namespace Kernel
 		return tty;
 	}
 
-	VirtualTTY::VirtualTTY(TerminalDriver* driver)
+	VirtualTTY::VirtualTTY(BAN::RefPtr<TerminalDriver> driver)
 		: TTY(0600, 0, 0)
 		, m_name(MUST(BAN::String::formatted("tty{}", s_next_tty_number++)))
 		, m_terminal_driver(driver)
@@ -58,6 +58,12 @@ namespace Kernel
 	void VirtualTTY::set_font(const LibFont::Font& font)
 	{
 		SpinLockGuard _(m_write_lock);
+
+		if (!m_terminal_driver->has_font())
+		{
+			dwarnln("terminal driver does not have a font");
+			return;
+		}
 
 		m_terminal_driver->set_font(font);
 

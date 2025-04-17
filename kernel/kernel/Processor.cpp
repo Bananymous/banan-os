@@ -5,8 +5,6 @@
 #include <kernel/Thread.h>
 #include <kernel/Timer/Timer.h>
 
-extern Kernel::TerminalDriver* g_terminal_driver;
-
 namespace Kernel
 {
 

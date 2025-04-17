@@ -3,13 +3,11 @@
 #include <kernel/Device/FramebufferDevice.h>
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/Memory/Heap.h>
-#include <kernel/Terminal/TerminalDriver.h>
+#include <kernel/Terminal/FramebufferTerminal.h>
 
 #include <sys/framebuffer.h>
 #include <sys/mman.h>
 #include <sys/sysmacros.h>
-
-extern Kernel::TerminalDriver* g_terminal_driver;
 
 namespace Kernel
 {
@@ -22,8 +20,7 @@ namespace Kernel
 
 	BAN::ErrorOr<BAN::RefPtr<FramebufferDevice>> FramebufferDevice::create_from_boot_framebuffer()
 	{
-		if (g_boot_info.framebuffer.type != FramebufferInfo::Type::RGB)
-			return BAN::Error::from_errno(ENODEV);
+		ASSERT(g_boot_info.framebuffer.type == FramebufferInfo::Type::RGB);
 		if (g_boot_info.framebuffer.bpp != 24 && g_boot_info.framebuffer.bpp != 32)
 			return BAN::Error::from_errno(ENOTSUP);
 		auto* device_ptr = new FramebufferDevice(
@@ -39,6 +36,7 @@ namespace Kernel
 			return BAN::Error::from_errno(ENOMEM);
 		auto device = BAN::RefPtr<FramebufferDevice>::adopt(device_ptr);
 		TRY(device->initialize());
+		DevFileSystem::get().add_device(device);
 		return device;
 	}
 
@@ -315,6 +313,8 @@ namespace Kernel
 
 			const uint32_t fb_width = m_framebuffer->width();
 
+			// If we are here (in FramebufferMemoryRegion), our terminal driver is FramebufferTerminalDriver
+			ASSERT(g_terminal_driver->has_font());
 			const auto& font = g_terminal_driver->font();
 
 			const uint32_t x = first_pixel % fb_width;

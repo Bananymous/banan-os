@@ -9,7 +9,6 @@
 #include <ctype.h>
 
 bool g_disable_debug = false;
-extern Kernel::TerminalDriver* g_terminal_driver;
 
 namespace Debug
 {

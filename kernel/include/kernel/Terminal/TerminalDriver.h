@@ -1,13 +1,13 @@
 #pragma once
 
-#include <LibFont/Font.h>
+#include <BAN/RefPtr.h>
 
-#include <stdint.h>
+#include <LibFont/Font.h>
 
 namespace Kernel
 {
 
-	class TerminalDriver
+	class TerminalDriver : public BAN::RefCounted<TerminalDriver>
 	{
 	public:
 		struct Color
@@ -25,7 +25,7 @@ namespace Kernel
 		};
 
 	public:
-		TerminalDriver() : m_font(MUST(LibFont::Font::prefs())) {}
+		static BAN::ErrorOr<void> initialize_from_boot_info();
 		virtual ~TerminalDriver() {}
 		virtual uint32_t width() const = 0;
 		virtual uint32_t height() const = 0;
@@ -36,12 +36,12 @@ namespace Kernel
 
 		virtual void set_cursor_position(uint32_t, uint32_t) = 0;
 
-		void set_font(const LibFont::Font& font) { m_font = font; };
-		const LibFont::Font& font() const { return m_font; }
-
-	private:
-		LibFont::Font m_font;
+		virtual bool has_font() const { return false; }
+		virtual void set_font(const LibFont::Font&) { ASSERT_NOT_REACHED(); };
+		virtual const LibFont::Font& font() const { ASSERT_NOT_REACHED(); };
 	};
+
+	extern BAN::RefPtr<TerminalDriver> g_terminal_driver;
 
 	namespace TerminalColor
 	{

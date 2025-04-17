@@ -12,7 +12,7 @@ namespace Kernel
 	class VirtualTTY : public TTY
 	{
 	public:
-		static BAN::ErrorOr<BAN::RefPtr<VirtualTTY>> create(TerminalDriver*);
+		static BAN::ErrorOr<BAN::RefPtr<VirtualTTY>> create(BAN::RefPtr<TerminalDriver>);
 
 		virtual void set_font(const LibFont::Font&) override;
 
@@ -26,7 +26,7 @@ namespace Kernel
 		virtual void putchar_impl(uint8_t ch) override;
 
 	private:
-		VirtualTTY(TerminalDriver*);
+		VirtualTTY(BAN::RefPtr<TerminalDriver>);
 
 		void reset_ansi();
 		void handle_ansi_csi(uint8_t ch);
@@ -84,7 +84,7 @@ namespace Kernel
 		Cell* m_buffer { nullptr };
 		bool m_show_cursor { true };
 
-		TerminalDriver* m_terminal_driver { nullptr };
+		BAN::RefPtr<TerminalDriver> m_terminal_driver;
 	};
 
 }

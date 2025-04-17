@@ -107,8 +107,6 @@ static void parse_command_line()
 	}
 }
 
-Kernel::TerminalDriver* g_terminal_driver = nullptr;
-
 static void init2(void*);
 
 extern "C" void kernel_main(uint32_t boot_magic, uint32_t boot_info)
@@ -163,14 +161,10 @@ extern "C" void kernel_main(uint32_t boot_magic, uint32_t boot_info)
 	DevFileSystem::initialize();
 	dprintln("devfs initialized");
 
-	auto framebuffer_device = FramebufferDevice::create_from_boot_framebuffer();
-	if (!framebuffer_device.is_error())
-	{
-		DevFileSystem::get().add_device(framebuffer_device.value());
-		g_terminal_driver = FramebufferTerminalDriver::create(framebuffer_device.value());
-	}
-	if (g_terminal_driver)
-		dprintln("Framebuffer terminal initialized");
+	if (auto ret = TerminalDriver::initialize_from_boot_info(); ret.is_error())
+		dprintln("failed to initialize terminal driver: {}", ret.error());
+	else
+		dprintln("terminal driver initialized");
 
 	if (!cmdline.disable_smp)
 		InterruptController::get().initialize_multiprocessor();
