@@ -15,6 +15,7 @@ namespace Kernel
 			None,
 			Unknown,
 			RGB,
+			Text,
 		};
 
 		paddr_t  address;

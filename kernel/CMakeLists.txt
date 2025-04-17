@@ -90,6 +90,7 @@ set(KERNEL_SOURCES
 	kernel/Terminal/PseudoTerminal.cpp
 	kernel/Terminal/Serial.cpp
 	kernel/Terminal/TerminalDriver.cpp
+	kernel/Terminal/TextModeTerminal.cpp
 	kernel/Terminal/TTY.cpp
 	kernel/Terminal/VirtualTTY.cpp
 	kernel/Thread.cpp

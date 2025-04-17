@@ -1,5 +1,6 @@
 #include <kernel/BootInfo.h>
 #include <kernel/Terminal/FramebufferTerminal.h>
+#include <kernel/Terminal/TextModeTerminal.h>
 
 namespace Kernel
 {
@@ -17,6 +18,9 @@ namespace Kernel
 				g_terminal_driver = TRY(FramebufferTerminalDriver::create(
 					TRY(FramebufferDevice::create_from_boot_framebuffer())
 				));
+				break;
+			case FramebufferInfo::Type::Text:
+				g_terminal_driver = TRY(TextModeTerminalDriver::create_from_boot_info());
 				break;
 		}
 		return {};

@@ -3,7 +3,8 @@
 #include <stdint.h>
 
 #define BANAN_BOOTLOADER_MAGIC	0xD3C60CFF
-#define BANAN_BOOTLOADER_FB_RGB	1
+#define BANAN_BOOTLOADER_FB_RGB		1
+#define BANAN_BOOTLOADER_FB_TEXT	2
 
 struct BananBootFramebufferInfo
 {

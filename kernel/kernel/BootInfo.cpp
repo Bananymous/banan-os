@@ -41,6 +41,8 @@ namespace Kernel
 				g_boot_info.framebuffer.bpp		= framebuffer_tag.framebuffer_bpp;
 				if (framebuffer_tag.framebuffer_type == MULTIBOOT2_FRAMEBUFFER_TYPE_RGB)
 					g_boot_info.framebuffer.type = FramebufferInfo::Type::RGB;
+				else if (framebuffer_tag.framebuffer_type == MULTIBOOT2_FRAMEBUFFER_TYPE_TEXT)
+					g_boot_info.framebuffer.type = FramebufferInfo::Type::Text;
 				else
 					g_boot_info.framebuffer.type = FramebufferInfo::Type::Unknown;
 			}
@@ -107,6 +109,8 @@ namespace Kernel
 		g_boot_info.framebuffer.bpp		= framebuffer.bpp;
 		if (framebuffer.type == BANAN_BOOTLOADER_FB_RGB)
 			g_boot_info.framebuffer.type = FramebufferInfo::Type::RGB;
+		else if (framebuffer.type == BANAN_BOOTLOADER_FB_TEXT)
+			g_boot_info.framebuffer.type = FramebufferInfo::Type::Text;
 		else
 			g_boot_info.framebuffer.type = FramebufferInfo::Type::Unknown;
 
