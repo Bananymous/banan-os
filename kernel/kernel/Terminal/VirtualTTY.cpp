@@ -361,7 +361,7 @@ namespace Kernel
 				if (m_ansi_state.index == 0 || m_ansi_state.nums[0] == -1)
 				{
 					m_ansi_state.question = true;
-					return reset_ansi();
+					return;
 				}
 				reset_ansi();
 				dprintln_if(DEBUG_VTTY, "invalid ANSI CSI ?");
