@@ -15,6 +15,7 @@ namespace Kernel
 		uint32_t width() const { return m_width; }
 		uint32_t height() const { return m_height; }
 
+		uint32_t get_pixel(uint32_t x, uint32_t y) const;
 		void set_pixel(uint32_t x, uint32_t y, uint32_t rgb);
 
 		// positive rows -> empty pixels on bottom

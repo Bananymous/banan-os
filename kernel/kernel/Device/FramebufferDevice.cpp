@@ -125,6 +125,15 @@ namespace Kernel
 		return bytes_to_copy;
 	}
 
+	uint32_t FramebufferDevice::get_pixel(uint32_t x, uint32_t y) const
+	{
+		ASSERT(x < m_width && y < m_height);
+		const auto* video_buffer_u8 = reinterpret_cast<const uint8_t*>(m_video_buffer->vaddr());
+		return (video_buffer_u8[(y * m_width + x) * (BANAN_FB_BPP / 8) + 0] << 0)
+		     | (video_buffer_u8[(y * m_width + x) * (BANAN_FB_BPP / 8) + 1] << 8)
+		     | (video_buffer_u8[(y * m_width + x) * (BANAN_FB_BPP / 8) + 2] << 16);
+	}
+
 	void FramebufferDevice::set_pixel(uint32_t x, uint32_t y, uint32_t rgb)
 	{
 		if (x >= m_width || y >= m_height)
