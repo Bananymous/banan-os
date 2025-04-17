@@ -210,7 +210,7 @@ namespace Kernel
 				return m_open_files[fd].status_flags();
 			case F_SETFL:
 				extra &= O_APPEND | O_DSYNC | O_NONBLOCK | O_RSYNC | O_SYNC;
-				m_open_files[fd].status_flags() &= ~O_ACCMODE;
+				m_open_files[fd].status_flags() &= O_ACCMODE;
 				m_open_files[fd].status_flags() |= extra;
 				return 0;
 			default:
