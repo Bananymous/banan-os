@@ -55,17 +55,14 @@ namespace Kernel
 		m_terminal_driver->clear(m_background);
 	}
 
-	void VirtualTTY::set_font(const LibFont::Font& font)
+	BAN::ErrorOr<void> VirtualTTY::set_font(LibFont::Font&& font)
 	{
+		if (!m_terminal_driver->has_font())
+			return BAN::Error::from_errno(EINVAL);
+
 		SpinLockGuard _(m_write_lock);
 
-		if (!m_terminal_driver->has_font())
-		{
-			dwarnln("terminal driver does not have a font");
-			return;
-		}
-
-		m_terminal_driver->set_font(font);
+		TRY(m_terminal_driver->set_font(BAN::move(font)));
 
 		uint32_t new_width = m_terminal_driver->width();
 		uint32_t new_height = m_terminal_driver->height();
@@ -91,6 +88,8 @@ namespace Kernel
 		for (uint32_t y = 0; y < m_height; y++)
 			for (uint32_t x = 0; x < m_width; x++)
 				render_from_buffer(x, y);
+
+		return {};
 	}
 
 	void VirtualTTY::set_cursor_position(uint32_t x, uint32_t y)

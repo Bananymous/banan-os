@@ -37,8 +37,8 @@ namespace Kernel
 		virtual void set_cursor_position(uint32_t, uint32_t) = 0;
 
 		virtual bool has_font() const { return false; }
-		virtual void set_font(const LibFont::Font&) { ASSERT_NOT_REACHED(); };
-		virtual const LibFont::Font& font() const { ASSERT_NOT_REACHED(); };
+		virtual BAN::ErrorOr<void> set_font(LibFont::Font&&) { return BAN::Error::from_errno(EINVAL); }
+		virtual const LibFont::Font& font() const { ASSERT_NOT_REACHED(); }
 	};
 
 	extern BAN::RefPtr<TerminalDriver> g_terminal_driver;

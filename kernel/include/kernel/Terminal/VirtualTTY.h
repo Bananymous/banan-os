@@ -14,7 +14,7 @@ namespace Kernel
 	public:
 		static BAN::ErrorOr<BAN::RefPtr<VirtualTTY>> create(BAN::RefPtr<TerminalDriver>);
 
-		virtual void set_font(const LibFont::Font&) override;
+		virtual BAN::ErrorOr<void> set_font(LibFont::Font&&) override;
 
 		virtual uint32_t height() const override { return m_height; }
 		virtual uint32_t width() const override { return m_width; }

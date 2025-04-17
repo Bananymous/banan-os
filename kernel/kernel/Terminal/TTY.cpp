@@ -188,7 +188,7 @@ namespace Kernel
 			{
 				auto absolute_path = TRY(Process::current().absolute_path_of(BAN::StringView(reinterpret_cast<const char*>(argument))));
 				auto new_font = TRY(LibFont::Font::load(absolute_path));
-				set_font(new_font);
+				TRY(set_font(BAN::move(new_font)));
 				return 0;
 			}
 			case TIOCGWINSZ:

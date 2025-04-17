@@ -22,7 +22,7 @@ namespace Kernel
 
 		virtual bool has_font() const override { return true; }
 
-		virtual void set_font(const LibFont::Font& font) override { m_font = font; };
+		virtual void set_font(LibFont::Font&& font) override { m_font = BAN::move(font); };
 		virtual const LibFont::Font& font() const override { return m_font; };
 
 	private:

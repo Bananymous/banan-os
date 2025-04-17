@@ -15,7 +15,7 @@ namespace Kernel
 	class TTY : public CharacterDevice
 	{
 	public:
-		virtual void set_font(const LibFont::Font&) {};
+		virtual BAN::ErrorOr<void> set_font(LibFont::Font&&) { return BAN::Error::from_errno(EINVAL); }
 
 		void set_foreground_pgrp(pid_t pgrp) { m_foreground_pgrp = pgrp; }
 		pid_t foreground_pgrp() const { return m_foreground_pgrp; }
