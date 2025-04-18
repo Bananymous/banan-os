@@ -78,16 +78,13 @@ namespace Kernel
 	{
 		LockGuard _(m_mutex);
 
-		if (buffer.size() > m_buffer.size())
-			buffer = buffer.slice(0, m_buffer.size());
-
-		while (m_buffer.size() - m_buffer_size < buffer.size())
+		while (m_buffer_size >= m_buffer.size())
 		{
 			LockFreeGuard lock_free(m_mutex);
 			TRY(Thread::current().block_or_eintr_or_timeout_ms(m_thread_blocker, 100, false));
 		}
 
-		const size_t to_copy = buffer.size();
+		const size_t to_copy = BAN::Math::min(buffer.size(), m_buffer.size() - m_buffer_size);
 		const size_t buffer_head = (m_buffer_tail + m_buffer_size) % m_buffer.size();
 
 		if (buffer_head + to_copy <= m_buffer.size())
