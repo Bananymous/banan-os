@@ -593,7 +593,7 @@ namespace Kernel
 	{
 		if (is_interrupted_by_signal())
 			return BAN::Error::from_errno(EINTR);
-		thread_blocker.block_with_timeout_ns(wake_time_ns);
+		thread_blocker.block_with_wake_time_ns(wake_time_ns);
 		if (is_interrupted_by_signal())
 			return BAN::Error::from_errno(EINTR);
 		if (etimedout && SystemTimer::get().ms_since_boot() >= wake_time_ns)
