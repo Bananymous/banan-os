@@ -283,15 +283,19 @@ void Terminal::handle_sgr()
 		case -1: case 0:
 			m_bg_color = s_default_bg_color;
 			m_fg_color = s_default_fg_color;
+			m_colors_inverted = false;
 			break;
 		case 1:
 			// FIXME: bold
 			break;
 		case 7:
-			BAN::swap(m_fg_color, m_bg_color);
+			m_colors_inverted = true;
 			break;
 		case 10:
 			// default font
+			break;
+		case 27:
+			m_colors_inverted = false;
 			break;
 		case 30: case 31: case 32: case 33: case 34: case 35: case 36: case 37:
 			m_fg_color = s_colors_dark[m_csi_info.fields[0] - 30];
@@ -553,8 +557,11 @@ Rectangle Terminal::putcodepoint(uint32_t codepoint)
 			const uint32_t cell_x = m_cursor.x * cell_w;
 			const uint32_t cell_y = m_cursor.y * cell_h;
 
-			m_window->fill_rect(cell_x, cell_y, cell_w, cell_h, m_bg_color);
-			m_window->draw_character(codepoint, m_font, cell_x, cell_y, m_fg_color);
+			const auto fg_color = m_colors_inverted ? m_bg_color : m_fg_color;
+			const auto bg_color = m_colors_inverted ? m_fg_color : m_bg_color;
+
+			m_window->fill_rect(cell_x, cell_y, cell_w, cell_h, bg_color);
+			m_window->draw_character(codepoint, m_font, cell_x, cell_y, fg_color);
 			m_last_graphic_char = codepoint;
 			should_invalidate = { cell_x, cell_y, cell_w, cell_h };
 			m_cursor.x++;

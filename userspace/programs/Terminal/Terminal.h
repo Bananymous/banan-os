@@ -97,4 +97,5 @@ private:
 	Cursor m_saved_cursor { 0, 0 };
 	uint32_t m_fg_color { 0 };
 	uint32_t m_bg_color { 0 };
+	bool m_colors_inverted { false };
 };
