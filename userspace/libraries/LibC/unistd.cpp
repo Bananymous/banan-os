@@ -243,7 +243,9 @@ static int execl_impl(const char* pathname, const char* arg0, va_list ap, bool h
 		envp = va_arg(ap, char**);;
 	}
 
-	return exec_impl(pathname, argv, envp, do_path_resolution);
+	exec_impl(pathname, argv, envp, do_path_resolution);
+	free(argv);
+	return -1;
 }
 
 int execl(const char* pathname, const char* arg0, ...)
