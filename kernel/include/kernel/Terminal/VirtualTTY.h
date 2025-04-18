@@ -84,6 +84,10 @@ namespace Kernel
 		uint32_t m_column { 0 };
 		Cell* m_buffer { nullptr };
 
+		TerminalDriver::Color m_foreground { TerminalColor::BRIGHT_WHITE };
+		TerminalDriver::Color m_background { TerminalColor::BLACK };
+		bool m_colors_inverted { false };
+
 		BAN::RefPtr<TerminalDriver> m_terminal_driver;
 	};
 

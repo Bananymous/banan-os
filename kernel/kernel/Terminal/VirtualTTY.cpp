@@ -110,11 +110,11 @@ namespace Kernel
 			case 0:
 				m_foreground = TerminalColor::BRIGHT_WHITE;
 				m_background = TerminalColor::BLACK;
+				m_colors_inverted = false;
 				break;
 
-			case 7:
-				BAN::swap(m_foreground, m_background);
-				break;
+			case 7:  m_colors_inverted = true;  break;
+			case 27: m_colors_inverted = false; break;
 
 			case 30: m_foreground = TerminalColor::BLACK;	break;
 			case 31: m_foreground = TerminalColor::RED;		break;
@@ -384,9 +384,9 @@ namespace Kernel
 		ASSERT(x < m_width && y < m_height);
 		auto& cell = m_buffer[y * m_width + x];
 		cell.codepoint = codepoint;
-		cell.foreground = m_foreground;
-		cell.background = m_background;
-		m_terminal_driver->putchar_at(codepoint, x, y, m_foreground, m_background);
+		cell.foreground = m_colors_inverted ? m_background : m_foreground;
+		cell.background = m_colors_inverted ? m_foreground : m_background;
+		m_terminal_driver->putchar_at(codepoint, x, y, cell.foreground, cell.background);
 	}
 
 	void VirtualTTY::putcodepoint(uint32_t codepoint)
