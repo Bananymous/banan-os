@@ -57,6 +57,7 @@ __BEGIN_DECLS
 #define _XOPEN_NAME_MAX 255
 #define _XOPEN_PATH_MAX 1024
 
+#define ARG_MAX _POSIX_ARG_MAX
 #define OPEN_MAX 64
 #define NAME_MAX 255
 #define PATH_MAX 256
