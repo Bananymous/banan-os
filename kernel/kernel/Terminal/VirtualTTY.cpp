@@ -357,7 +357,7 @@ namespace Kernel
 			case 'l':
 				if (m_ansi_state.question && m_ansi_state.nums[0] == 25)
 				{
-					m_terminal_driver->set_cursor_shown(ch == 'h');
+					m_cursor_shown = (ch == 'h');
 					return reset_ansi();
 				}
 				reset_ansi();
@@ -518,8 +518,21 @@ namespace Kernel
 		}
 
 		putcodepoint(codepoint);
+	}
 
-		m_terminal_driver->set_cursor_position(m_column, m_row);
+	void VirtualTTY::update_cursor()
+	{
+		static bool last_shown = !m_cursor_shown;
+		if (m_cursor_shown != last_shown)
+			m_terminal_driver->set_cursor_shown(m_cursor_shown);
+		last_shown = m_cursor_shown;
+
+		static uint32_t last_column = -1;
+		static uint32_t last_row = -1;
+		if (last_column != m_column || last_row != m_row)
+			m_terminal_driver->set_cursor_position(m_column, m_row);
+		last_column = m_column;
+		last_row = m_row;
 	}
 
 }

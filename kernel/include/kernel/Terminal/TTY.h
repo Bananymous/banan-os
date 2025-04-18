@@ -41,7 +41,6 @@ namespace Kernel
 
 		virtual uint32_t height() const = 0;
 		virtual uint32_t width() const = 0;
-		void putchar(uint8_t ch);
 
 		virtual dev_t rdev() const final override { return m_rdev; }
 
@@ -60,10 +59,13 @@ namespace Kernel
 		TTY(mode_t mode, uid_t uid, gid_t gid);
 
 		virtual void putchar_impl(uint8_t ch) = 0;
+		virtual void update_cursor() {}
+
 		virtual BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan) override;
 		virtual BAN::ErrorOr<size_t> write_impl(off_t, BAN::ConstByteSpan) override;
 
 	private:
+		void putchar(uint8_t ch);
 		void do_backspace();
 
 	protected:

@@ -24,6 +24,7 @@ namespace Kernel
 	protected:
 		virtual BAN::StringView name() const override { return m_name; }
 		virtual void putchar_impl(uint8_t ch) override;
+		void update_cursor() override;
 
 	private:
 		VirtualTTY(BAN::RefPtr<TerminalDriver>);
@@ -78,6 +79,7 @@ namespace Kernel
 		uint32_t m_saved_row { 0 };
 		uint32_t m_saved_column { 0 };
 
+		bool m_cursor_shown { true };
 		uint32_t m_row { 0 };
 		uint32_t m_column { 0 };
 		Cell* m_buffer { nullptr };

@@ -215,6 +215,7 @@ namespace Kernel
 			auto* ptr = reinterpret_cast<const uint8_t*>(ansi_c_str);
 			while (*ptr)
 				handle_input_byte(*ptr++);
+			update_cursor();
 		}
 	}
 
@@ -358,6 +359,7 @@ namespace Kernel
 		SpinLockGuard _(m_write_lock);
 		for (size_t i = 0; i < buffer.size(); i++)
 			putchar(buffer[i]);
+		update_cursor();
 		return buffer.size();
 	}
 
@@ -366,6 +368,7 @@ namespace Kernel
 		ASSERT(s_tty);
 		SpinLockGuard _(s_tty->m_write_lock);
 		s_tty->putchar(ch);
+		s_tty->update_cursor();
 	}
 
 	bool TTY::is_initialized()
