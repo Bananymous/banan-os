@@ -19,6 +19,8 @@ namespace Kernel
 	{
 		const uint8_t* glyph = m_font.has_glyph(ch) ? m_font.glyph(ch) : m_font.glyph('?');
 
+		const bool update_cursor = m_cursor_shown && x == m_cursor_x && y == m_cursor_y;
+
 		x *= m_font.width();
 		y *= m_font.height();
 
@@ -34,17 +36,18 @@ namespace Kernel
 
 		m_framebuffer_device->sync_pixels_rectangle(x, y, m_font.width(), m_font.height());
 
-		if (x == m_cursor_x && y == m_cursor_y)
-		{
-			read_cursor();
+		if (update_cursor)
 			show_cursor(false);
-		}
 	}
 
 	bool FramebufferTerminalDriver::scroll(Color color)
 	{
+		if (m_cursor_shown)
+			show_cursor(true);
 		m_framebuffer_device->scroll(m_font.height(), color.rgb);
 		m_framebuffer_device->sync_pixels_full();
+		if (m_cursor_shown)
+			show_cursor(false);
 		return true;
 	}
 
@@ -62,25 +65,21 @@ namespace Kernel
 	void FramebufferTerminalDriver::read_cursor()
 	{
 		const uint32_t cursor_h = m_font.height() / 8;
+		const uint32_t cursor_w = m_font.width();
 		const uint32_t cursor_top = m_font.height() * 13 / 16;
 
 		const uint32_t x = m_cursor_x * m_font.width();
 		const uint32_t y = m_cursor_y * m_font.height();
 
 		for (uint32_t dy = 0; dy < cursor_h; dy++)
-			for (uint32_t dx = 0; dx < m_font.width(); dx++)
-				m_cursor_data[dy * m_font.width() + dx] = m_framebuffer_device->get_pixel(x + dx, y + cursor_top + dy);
+			for (uint32_t dx = 0; dx < cursor_w; dx++)
+				m_cursor_data[dy * cursor_w + dx] = m_framebuffer_device->get_pixel(x + dx, y + cursor_top + dy);
 	}
 
 	void FramebufferTerminalDriver::show_cursor(bool use_data)
 	{
-		const auto get_color =
-			[this, use_data](uint32_t x, uint32_t y) -> uint32_t
-			{
-				if (!use_data)
-					return m_cursor_color.rgb;
-				return m_cursor_data[y * m_font.width() + x];
-			};
+		if (!use_data)
+			read_cursor();
 
 		const uint32_t cursor_h = m_font.height() / 8;
 		const uint32_t cursor_w = m_font.width();
@@ -88,6 +87,14 @@ namespace Kernel
 
 		const uint32_t x = m_cursor_x * m_font.width();
 		const uint32_t y = m_cursor_y * m_font.height();
+
+		const auto get_color =
+			[&](uint32_t x, uint32_t y) -> uint32_t
+			{
+				if (!use_data)
+					return m_cursor_color.rgb;
+				return m_cursor_data[y * cursor_w + x];
+			};
 
 		for (uint32_t dy = 0; dy < cursor_h; dy++)
 			for (uint32_t dx = 0; dx < cursor_w; dx++)
@@ -100,20 +107,14 @@ namespace Kernel
 		if (m_cursor_shown == shown)
 			return;
 		m_cursor_shown = shown;
-
-		if (m_cursor_shown)
-		{
-			read_cursor();
-			show_cursor(false);
-		}
-		else
-		{
-			show_cursor(true);
-		}
+		show_cursor(!m_cursor_shown);
 	}
 
 	void FramebufferTerminalDriver::set_cursor_position(uint32_t x, uint32_t y)
 	{
+		if (x == m_cursor_x && y == m_cursor_y)
+			return;
+
 		if (!m_cursor_shown)
 		{
 			m_cursor_x = x;
@@ -124,7 +125,6 @@ namespace Kernel
 		show_cursor(true);
 		m_cursor_x = x;
 		m_cursor_y = y;
-		read_cursor();
 		show_cursor(false);
 	}
 
