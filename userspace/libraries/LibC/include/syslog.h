@@ -41,6 +41,7 @@ __BEGIN_DECLS
 #define LOG_LOCAL7	(16 << 3)
 
 #define LOG_MASK(pri) (1 << (pri))
+#define LOG_UPTO(pri) (LOG_MASK((pri) + 1) - 1)
 
 void	closelog(void);
 void	openlog(const char* ident, int logopt, int facility);
