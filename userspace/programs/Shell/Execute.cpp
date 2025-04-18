@@ -100,6 +100,7 @@ BAN::ErrorOr<Execute::ExecuteResult> Execute::execute_command_no_wait(const Inte
 		CHECK_FD_OR_PERROR_AND_EXIT(command.fd_out, STDOUT_FILENO);
 
 		execv(command.command.get<BAN::String>().data(), const_cast<char* const*>(exec_args.data()));
+		perror("execv");
 		exit(errno);
 	}
 
