@@ -32,6 +32,12 @@ __BEGIN_DECLS
 #define POSIX_MADV_SEQUENTIAL	4
 #define POSIX_MADV_WILLNEED		5
 
+#define MADV_DONTNEED	POSIX_MADV_DONTNEED
+#define MADV_NORMAL		POSIX_MADV_NORMAL
+#define MADV_RANDOM		POSIX_MADV_RANDOM
+#define MADV_SEQUENTIAL	POSIX_MADV_SEQUENTIAL
+#define MADV_WILLNEED	POSIX_MADV_WILLNEED
+
 #define POSIX_TYPED_MEM_ALLOCATE		0x01
 #define POSIX_TYPED_MEM_ALLOCATE_CONTIG	0x02
 #define POSIX_TYPED_MEM_MAP_ALLOCATABLE	0x04
@@ -70,6 +76,8 @@ int		posix_typed_mem_get_info(int fildes, struct posix_typed_mem_info* info);
 int		posix_typed_mem_open(const char* name, int oflag, int tflag);
 int		shm_open(const char* name, int oflag, mode_t mode);
 int		shm_unlink(const char* name);
+
+#define madvise posix_madvise
 
 __END_DECLS
 

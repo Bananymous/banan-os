@@ -28,6 +28,14 @@ int msync(void* addr, size_t len, int flags)
 	return syscall(SYS_MSYNC, addr, len, flags);
 }
 
+int posix_madvise(void* addr, size_t len, int advice)
+{
+	(void)addr;
+	(void)len;
+	(void)advice;
+	fprintf(stddbg, "TODO: posix_madvise");
+	return 0;
+}
 
 #include <BAN/Assert.h>
 
