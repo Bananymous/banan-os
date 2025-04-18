@@ -4,6 +4,7 @@
 
 #include <BAN/ScopeGuard.h>
 
+#include <fcntl.h>
 #include <limits.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
@@ -192,6 +193,10 @@ BAN::ErrorOr<void> Execute::execute_command(const PipedCommand& piped_command)
 			return result;
 		};
 
+	const int stdin_flags = fcntl(STDIN_FILENO, F_GETFL);
+	if (stdin_flags == -1)
+		perror("fcntl");
+
 	for (size_t i = 0; i < piped_command.commands.size(); i++)
 	{
 		int new_pipe[2] { STDIN_FILENO, STDOUT_FILENO };
@@ -278,8 +283,13 @@ BAN::ErrorOr<void> Execute::execute_command(const PipedCommand& piped_command)
 			ASSERT_NOT_REACHED();
 	}
 
-	if (isatty(STDIN_FILENO) && tcsetpgrp(0, getpgrp()) == -1)
-		perror("tcsetpgrp");
+	if (isatty(STDIN_FILENO))
+	{
+		if (tcsetpgrp(0, getpgrp()) == -1)
+			perror("tcsetpgrp");
+		if (stdin_flags != -1 && fcntl(STDIN_FILENO, F_SETFL, stdin_flags) == -1)
+			perror("fcntl");
+	}
 	m_last_return_value = child_codes.back();
 
 	return {};
