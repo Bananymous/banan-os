@@ -1,9 +1,11 @@
 #include <BAN/Assert.h>
 #include <BAN/Debug.h>
+#include <BAN/StringView.h>
 
 #include <kernel/Memory/Types.h>
 #include <kernel/Syscall.h>
 
+#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <pthread.h>
@@ -165,8 +167,16 @@ int gethostname(char* name, size_t namelen)
 	return 0;
 }
 
-static int exec_impl(const char* pathname, char* const* argv, char* const* envp, bool do_path_resolution)
+static int exec_impl_shebang(FILE* fp, const char* pathname, char* const* argv, char* const* envp, int shebang_depth);
+
+static int exec_impl(const char* pathname, char* const* argv, char* const* envp, bool do_path_resolution, int shebang_depth = 0)
 {
+	if (shebang_depth > 100)
+	{
+		errno = ELOOP;
+		return -1;
+	}
+
 	char buffer[PATH_MAX];
 
 	if (do_path_resolution && strchr(pathname, '/') == nullptr)
@@ -211,7 +221,99 @@ static int exec_impl(const char* pathname, char* const* argv, char* const* envp,
 		pathname = resolved;
 	}
 
+	if (access(pathname, X_OK) == -1)
+		return -1;
+
+	if (FILE* fp = fopen(pathname, "r"))
+	{
+		char shebang[2];
+		if (fread(shebang, 1, 2, fp) == 2 && shebang[0] == '#' && shebang[1] == '!')
+			return exec_impl_shebang(fp, pathname, argv, envp, shebang_depth);
+		fclose(fp);
+	}
+
 	return syscall(SYS_EXEC, pathname, argv, envp);
+}
+
+static int exec_impl_shebang(FILE* fp, const char* pathname, char* const* argv, char* const* envp, int shebang_depth)
+{
+	constexpr size_t buffer_len = PATH_MAX + 1 + ARG_MAX + 1;
+	char* buffer = static_cast<char*>(malloc(buffer_len));
+	if (buffer == nullptr)
+	{
+		fclose(fp);
+		return -1;
+	}
+
+	if (fgets(buffer, buffer_len, fp) == nullptr)
+	{
+		free(buffer);
+		return -1;
+	}
+
+	const auto sv_trim_whitespace =
+		[](BAN::StringView sv) -> BAN::StringView
+		{
+			while (!sv.empty() && isspace(sv.front()))
+				sv = sv.substring(1);
+			while (!sv.empty() && isspace(sv.back()))
+				sv = sv.substring(0, sv.size() - 1);
+			return sv;
+		};
+
+	BAN::StringView buffer_sv = buffer;
+	if (buffer_sv.back() != '\n')
+	{
+		free(buffer);
+		errno = ENOEXEC;
+		return -1;
+	}
+	buffer_sv = sv_trim_whitespace(buffer_sv);
+
+	BAN::StringView interpreter, argument;
+	if (auto space = buffer_sv.find([](char ch) -> bool { return isspace(ch); }); !space.has_value())
+		interpreter = buffer_sv;
+	else
+	{
+		interpreter = sv_trim_whitespace(buffer_sv.substring(0, space.value()));
+		argument = sv_trim_whitespace(buffer_sv.substring(space.value()));
+	}
+
+	if (interpreter.empty())
+	{
+		free(buffer);
+		errno = ENOEXEC;
+		return -1;
+	}
+
+	// null terminate interpreter and argument
+	const_cast<char*>(interpreter.data())[interpreter.size()] = '\0';
+	if (!argument.empty())
+		const_cast<char*>(argument.data())[argument.size()] = '\0';
+
+	size_t old_argc = 0;
+	while (argv[old_argc])
+		old_argc++;
+
+	const size_t extra_args = 1 + !argument.empty();
+	char** new_argv = static_cast<char**>(malloc((extra_args + old_argc + 1) * sizeof(char*)));;
+	if (new_argv == nullptr)
+	{
+		free(buffer);
+		return -1;
+	}
+
+	new_argv[0] = const_cast<char*>(pathname);
+	if (!argument.empty())
+		new_argv[1] = const_cast<char*>(argument.data());
+	for (size_t i = 0; i < old_argc; i++)
+		new_argv[i + extra_args] = argv[i];
+	new_argv[old_argc + extra_args] = nullptr;
+
+	exec_impl(interpreter.data(), new_argv, envp, true, shebang_depth + 1);
+	free(new_argv);
+	free(buffer);
+	return -1;
 }
 
 static int execl_impl(const char* pathname, const char* arg0, va_list ap, bool has_env, bool do_path_resolution)
