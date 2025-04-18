@@ -21,6 +21,7 @@ typedef unsigned int rlim_t;
 #define RLIM_INFINITY	((rlim_t)-1)
 #define RLIM_SAVED_MAX	RLIM_INFINITY
 #define RLIM_SAVED_CUR	RLIM_INFINITY
+#define RLIM_NLIMITS    7
 
 #define RUSAGE_SELF		0
 #define RUSAGE_CHILDREN 1
