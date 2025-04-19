@@ -1,4 +1,5 @@
 #include <BAN/Assert.h>
+#include <BAN/Debug.h>
 #include <BAN/Atomic.h>
 #include <BAN/PlacementNew.h>
 
@@ -164,9 +165,23 @@ int pthread_setspecific(pthread_key_t key, const void* value)
 }
 #endif
 
+int pthread_attr_destroy(pthread_attr_t* attr)
+{
+	(void)attr;
+	return 0;
+}
+
 int pthread_attr_init(pthread_attr_t* attr)
 {
 	*attr = 0;
+	return 0;
+}
+
+int pthread_attr_setstacksize(pthread_attr_t* attr, size_t stacksize)
+{
+	(void)attr;
+	(void)stacksize;
+	dwarnln("TODO: ignoring pthread_attr_setstacksize");
 	return 0;
 }
 
