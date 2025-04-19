@@ -255,6 +255,13 @@ pthread_create_error:
 	return return_code;
 }
 
+int pthread_detach(pthread_t thread)
+{
+	(void)thread;
+	dwarnln("TODO: pthread_detach");
+	return ENOTSUP;
+}
+
 void pthread_exit(void* value_ptr)
 {
 #if not __disable_thread_local_storage
