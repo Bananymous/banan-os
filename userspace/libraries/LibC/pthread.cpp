@@ -323,8 +323,7 @@ int pthread_spin_destroy(pthread_spinlock_t* lock)
 int pthread_spin_init(pthread_spinlock_t* lock, int pshared)
 {
 	(void)pshared;
-	new (lock) BAN::Atomic<pthread_t>();
-	pthread_spin_get_atomic(lock) = false;
+	new (lock) BAN::Atomic<pthread_t>(0);
 	return 0;
 }
 
@@ -337,10 +336,7 @@ int pthread_spin_lock(pthread_spinlock_t* lock)
 
 	pthread_t expected = 0;
 	while (!atomic.compare_exchange(expected, tid, BAN::MemoryOrder::memory_order_acquire))
-	{
-		sched_yield();
 		expected = 0;
-	}
 
 	return 0;
 }
