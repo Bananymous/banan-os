@@ -3,6 +3,7 @@
 
 #include <ctype.h>
 #include <errno.h>
+#include <langinfo.h>
 #include <string.h>
 #include <sys/syscall.h>
 #include <time.h>
@@ -201,20 +202,6 @@ size_t strftime(char* __restrict s, size_t maxsize, const char* __restrict forma
 		char modifier = '\0';
 	};
 
-	static constexpr const char* abbr_wday[] {
-		"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"
-	};
-	static constexpr const char* full_wday[] {
-		"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"
-	};
-
-	static constexpr const char* abbr_mon[] {
-		"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
-	};
-	static constexpr const char* full_mon[] {
-		"January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"
-	};
-
 	const auto append_string =
 		[&s, &len, &maxsize](const char* string) -> bool
 		{
@@ -226,12 +213,23 @@ size_t strftime(char* __restrict s, size_t maxsize, const char* __restrict forma
 			return true;
 		};
 
-	const auto append_string_from_list =
-		[&append_string]<size_t LIST_SIZE>(int index, const char* const (&list)[LIST_SIZE]) -> bool
+	const auto append_month =
+		[&append_string](int index, bool abbreviated)
 		{
+			const nl_item base = abbreviated ? ABMON_1 : MON_1;
 			const char* string = "INVALID";
-			if (index >= 0 && index < (int)LIST_SIZE)
-				string = list[index];
+			if (index >= 0 && index < 12)
+				string = nl_langinfo(base + index);
+			return append_string(string);
+		};
+
+	const auto append_weekday =
+		[&append_string](int index, bool abbreviated)
+		{
+			const nl_item base = abbreviated ? ABDAY_1 : DAY_1;
+			const char* string = "INVALID";
+			if (index >= 0 && index < 7)
+				string = nl_langinfo(base + index);
 			return append_string(string);
 		};
 
@@ -308,24 +306,24 @@ size_t strftime(char* __restrict s, size_t maxsize, const char* __restrict forma
 		switch (*format)
 		{
 			case 'a':
-				if (!append_string_from_list(timeptr->tm_wday, abbr_wday))
+				if (!append_weekday(timeptr->tm_wday, true))
 					return 0;
 				break;
 			case 'A':
-				if (!append_string_from_list(timeptr->tm_wday, full_wday))
+				if (!append_weekday(timeptr->tm_wday, false))
 					return 0;
 				break;
 			case 'b':
 			case 'h':
-				if (!append_string_from_list(timeptr->tm_mon, abbr_mon))
+				if (!append_month(timeptr->tm_mon, true))
 					return 0;
 				break;
 			case 'B':
-				if (!append_string_from_list(timeptr->tm_mon, full_mon))
+				if (!append_month(timeptr->tm_mon, false))
 					return 0;
 				break;
 			case 'c':
-				if (size_t ret = strftime(s + len, maxsize - len, "%a %b %e %H:%M:%S %Y", timeptr))
+				if (size_t ret = strftime(s + len, maxsize - len, nl_langinfo(D_T_FMT), timeptr))
 					len += ret;
 				else return 0;
 				break;
@@ -401,11 +399,11 @@ size_t strftime(char* __restrict s, size_t maxsize, const char* __restrict forma
 				s[len++] = '\n';
 				break;
 			case 'p':
-				if (!append_string(timeptr->tm_hour < 12 ? "AM" : "PM"))
+				if (!append_string(timeptr->tm_hour < 12 ? nl_langinfo(AM_STR) : nl_langinfo(PM_STR)))
 					return 0;
 				break;
 			case 'r':
-				if (size_t ret = strftime(s + len, maxsize - len, "%I:%M:%S %p", timeptr))
+				if (size_t ret = strftime(s + len, maxsize - len, nl_langinfo(T_FMT_AMPM), timeptr))
 					len += ret;
 				else return 0;
 				break;
@@ -501,12 +499,12 @@ size_t strftime(char* __restrict s, size_t maxsize, const char* __restrict forma
 					return 0;
 				break;
 			case 'x':
-				if (size_t ret = strftime(s + len, maxsize - len, "%m/%d/%y", timeptr))
+				if (size_t ret = strftime(s + len, maxsize - len, nl_langinfo(D_FMT), timeptr))
 					len += ret;
 				else return 0;
 				break;
 			case 'X':
-				if (size_t ret = strftime(s + len, maxsize - len, "%H:%M:%S", timeptr))
+				if (size_t ret = strftime(s + len, maxsize - len, nl_langinfo(T_FMT), timeptr))
 					len += ret;
 				else return 0;
 				break;
