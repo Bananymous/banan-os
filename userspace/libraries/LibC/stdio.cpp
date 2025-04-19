@@ -382,25 +382,22 @@ int fputs(const char* str, FILE* file)
 size_t fread(void* buffer, size_t size, size_t nitems, FILE* file)
 {
 	ScopeLock _(file);
-	if (file->eof || nitems * size == 0)
+	if (file->eof || size == 0 || nitems == 0)
 		return 0;
 
-	size_t target = size * nitems;
-	size_t nread = 0;
-
-	if (target == 0)
-		return 0;
-
-	unsigned char* ubuffer = static_cast<unsigned char*>(buffer);
-	while (nread < target)
+	auto* ubuffer = static_cast<unsigned char*>(buffer);
+	for (size_t item = 0; item < nitems; item++)
 	{
-		int ch = getc_unlocked(file);
-		if (ch == EOF)
-			break;
-		ubuffer[nread++] = ch;
+		for (size_t byte = 0; byte < size; byte++)
+		{
+			int ch = getc_unlocked(file);
+			if (ch == EOF)
+				return item;
+			*ubuffer++ = ch;
+		}
 	}
 
-	return nread / size;
+	return nitems;
 }
 
 FILE* freopen(const char* pathname, const char* mode_str, FILE* file)
@@ -507,10 +504,14 @@ void funlockfile(FILE* fp)
 size_t fwrite(const void* buffer, size_t size, size_t nitems, FILE* file)
 {
 	ScopeLock _(file);
-	unsigned char* ubuffer = (unsigned char*)buffer;
-	for (size_t byte = 0; byte < nitems * size; byte++)
-		if (putc_unlocked(ubuffer[byte], file) == EOF)
-			return byte / size;
+	if (size == 0 || nitems == 0)
+		return 0;
+
+	const auto* ubuffer = static_cast<const unsigned char*>(buffer);
+	for (size_t item = 0; item < nitems; item++)
+		for (size_t byte = 0; byte < size; byte++)
+			if (putc_unlocked(*ubuffer++, file) == EOF)
+				return item;
 	return nitems;
 }
 
