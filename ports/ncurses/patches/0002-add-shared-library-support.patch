@@ -1,0 +1,13 @@
+diff -ruN ncurses-6.5/configure ncurses-6.5-banan_os/configure
+--- ncurses-6.5/configure	2024-04-10 11:09:48.000000000 +0300
++++ ncurses-6.5-banan_os/configure	2025-04-19 05:54:18.828084370 +0300
+@@ -6646,6 +6646,9 @@
+ 			MK_SHARED_LIB='${CC} ${LDFLAGS} ${CFLAGS} -G -Wl,-brtl -Wl,-blibpath:${RPATH_LIST}:/usr/lib -o $@'
+ 		fi
+ 		;;
++	(banan_os*)
++		MK_SHARED_LIB='${CC} ${LDFLAGS} ${CFLAGS} -shared -Wl,-soname,`basename $@` -o $@'
++		;;
+ 	(beos*)
+ 		MK_SHARED_LIB='${CC} ${LDFLAGS} ${CFLAGS} -o $@ -Xlinker -soname=`basename $@` -nostart -e 0'
+ 		;;

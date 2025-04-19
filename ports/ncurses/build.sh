@@ -9,6 +9,7 @@ CONFIGURE_OPTIONS=(
 	'--enable-pc-files'
 	'--enable-sigwinch'
 	'--disable-widec'
+	'--with-shared'
 	'--without-ada'
 	'--without-manpages'
 	'--without-dlsym'
