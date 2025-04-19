@@ -39,20 +39,17 @@ void Builtin::initialize()
 	MUST(m_builtin_commands.emplace("export"_sv,
 		[](Execute&, BAN::Span<const BAN::String> arguments, FILE*, FILE*) -> int
 		{
-			bool first = false;
-			for (const auto& argument : arguments)
+			for (size_t i = 1; i < arguments.size(); i++)
 			{
-				if (first)
-				{
-					first = false;
-					continue;
-				}
+				const auto argument = arguments[i].sv();
 
-				auto split = MUST(argument.sv().split('=', true));
-				if (split.size() != 2)
+				const auto idx = argument.find('=');
+				if (!idx.has_value())
 					continue;
 
-				if (setenv(BAN::String(split[0]).data(), BAN::String(split[1]).data(), true) == -1)
+				auto name = BAN::String(argument.substring(0, idx.value()));
+				const char* value = argument.data() + idx.value() + 1;
+				if (setenv(name.data(), value, true) == -1)
 					ERROR_RETURN("setenv", 1);
 			}
 			return 0;
