@@ -307,58 +307,45 @@ pthread_t pthread_self(void)
 #endif
 }
 
-static inline BAN::Atomic<pthread_t>& pthread_spin_get_atomic(pthread_spinlock_t* lock)
-{
-	static_assert(sizeof(pthread_spinlock_t) <= sizeof(BAN::Atomic<pthread_t>));
-	static_assert(alignof(pthread_spinlock_t) <= alignof(BAN::Atomic<pthread_t>));
-	return *reinterpret_cast<BAN::Atomic<pthread_t>*>(lock);
-}
-
 int pthread_spin_destroy(pthread_spinlock_t* lock)
 {
-	pthread_spin_get_atomic(lock).~Atomic<pthread_t>();
+	(void)lock;
 	return 0;
 }
 
 int pthread_spin_init(pthread_spinlock_t* lock, int pshared)
 {
 	(void)pshared;
-	new (lock) BAN::Atomic<pthread_t>(0);
+	*lock = 0;
 	return 0;
 }
 
 int pthread_spin_lock(pthread_spinlock_t* lock)
 {
-	auto& atomic = pthread_spin_get_atomic(lock);
-
-	const pthread_t tid = pthread_self();
-	ASSERT(atomic.load(BAN::MemoryOrder::memory_order_relaxed) != tid);
+	const auto tid = pthread_self();
+	ASSERT(BAN::atomic_load(*lock, BAN::MemoryOrder::memory_order_relaxed) != tid);
 
 	pthread_t expected = 0;
-	while (!atomic.compare_exchange(expected, tid, BAN::MemoryOrder::memory_order_acquire))
+	while (!BAN::atomic_compare_exchange(*lock, expected, tid, BAN::MemoryOrder::memory_order_acquire))
 		expected = 0;
-
 	return 0;
 }
 
 int pthread_spin_trylock(pthread_spinlock_t* lock)
 {
-	auto& atomic = pthread_spin_get_atomic(lock);
-
-	const pthread_t tid = pthread_self();
-	ASSERT(atomic.load(BAN::MemoryOrder::memory_order_relaxed) != tid);
+	const auto tid = pthread_self();
+	ASSERT(BAN::atomic_load(*lock, BAN::MemoryOrder::memory_order_relaxed) != tid);
 
 	pthread_t expected = 0;
-	if (atomic.compare_exchange(expected, tid, BAN::MemoryOrder::memory_order_acquire))
-		return 0;
-	return EBUSY;
+	if (!BAN::atomic_compare_exchange(*lock, expected, tid, BAN::MemoryOrder::memory_order_acquire))
+		return EBUSY;
+	return 0;
 }
 
 int pthread_spin_unlock(pthread_spinlock_t* lock)
 {
-	auto& atomic = pthread_spin_get_atomic(lock);
-	ASSERT(atomic.load(BAN::MemoryOrder::memory_order_relaxed) == pthread_self());
-	atomic.store(0, BAN::MemoryOrder::memory_order_release);
+	ASSERT(BAN::atomic_load(*lock, BAN::MemoryOrder::memory_order_relaxed) == pthread_self());
+	BAN::atomic_store(*lock, 0, BAN::MemoryOrder::memory_order_release);
 	return 0;
 }
 
