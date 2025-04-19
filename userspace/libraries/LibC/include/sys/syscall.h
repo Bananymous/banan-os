@@ -32,8 +32,9 @@ __BEGIN_DECLS
 	O(SYS_GET_GID,			getgid)			\
 	O(SYS_GET_EUID,			geteuid)		\
 	O(SYS_GET_EGID,			getegid)		\
-	O(SYS_GET_PWD,			getpwd)			\
-	O(SYS_SET_PWD,			setpwd)			\
+	O(SYS_GETCWD,			getcwd)			\
+	O(SYS_CHDIR,			chdir)			\
+	O(SYS_FCHDIR,			fchdir)			\
 	O(SYS_CLOCK_GETTIME,	clock_gettime)	\
 	O(SYS_PIPE,				pipe)			\
 	O(SYS_DUP2,				dup2)			\

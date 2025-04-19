@@ -72,8 +72,9 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_nanosleep(const timespec* rqtp, timespec* rmtp);
 		BAN::ErrorOr<long> sys_setitimer(int which, const itimerval* value, itimerval* ovalue);
 
-		BAN::ErrorOr<long> sys_setpwd(const char* path);
-		BAN::ErrorOr<long> sys_getpwd(char* buffer, size_t size);
+		BAN::ErrorOr<long> sys_getcwd(char* buffer, size_t size);
+		BAN::ErrorOr<long> sys_chdir(const char* path);
+		BAN::ErrorOr<long> sys_fchdir(int fildes);
 
 		BAN::ErrorOr<long> sys_setuid(uid_t);
 		BAN::ErrorOr<long> sys_setgid(gid_t);

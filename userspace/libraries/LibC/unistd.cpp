@@ -426,7 +426,7 @@ char* getcwd(char* buf, size_t size)
 		return nullptr;
 	}
 
-	if (syscall(SYS_GET_PWD, buf, size) == 0)
+	if (syscall(SYS_GETCWD, buf, size) == 0)
 		return nullptr;
 
 	return buf;
@@ -434,7 +434,12 @@ char* getcwd(char* buf, size_t size)
 
 int chdir(const char* path)
 {
-	return syscall(SYS_SET_PWD, path);
+	return syscall(SYS_CHDIR, path);
+}
+
+int fchdir(int fildes)
+{
+	return syscall(SYS_FCHDIR, fildes);
 }
 
 int chown(const char* path, uid_t owner, gid_t group)

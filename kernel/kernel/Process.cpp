@@ -1648,17 +1648,7 @@ namespace Kernel
 		return TRY(m_open_file_descriptors.read_dir_entries(fd, list, list_len));
 	}
 
-	BAN::ErrorOr<long> Process::sys_setpwd(const char* path)
-	{
-		LockGuard _(m_process_lock);
-
-		auto file = TRY(find_file(AT_FDCWD, path, O_SEARCH));
-		m_working_directory = BAN::move(file);
-
-		return 0;
-	}
-
-	BAN::ErrorOr<long> Process::sys_getpwd(char* buffer, size_t size)
+	BAN::ErrorOr<long> Process::sys_getcwd(char* buffer, size_t size)
 	{
 		LockGuard _(m_process_lock);
 
@@ -1671,6 +1661,28 @@ namespace Kernel
 		buffer[m_working_directory.canonical_path.size()] = '\0';
 
 		return (long)buffer;
+	}
+
+	BAN::ErrorOr<long> Process::sys_chdir(const char* path)
+	{
+		LockGuard _(m_process_lock);
+
+		TRY(validate_string_access(path));
+
+		auto file = TRY(find_file(AT_FDCWD, path, O_SEARCH));
+		m_working_directory = BAN::move(file);
+
+		return 0;
+	}
+
+	BAN::ErrorOr<long> Process::sys_fchdir(int fildes)
+	{
+		LockGuard _(m_process_lock);
+
+		auto file = TRY(m_open_file_descriptors.file_of(fildes));
+		m_working_directory = BAN::move(file);
+
+		return 0;
 	}
 
 	BAN::ErrorOr<long> Process::sys_mmap(const sys_mmap_t* args)
