@@ -426,10 +426,9 @@ char* getcwd(char* buf, size_t size)
 		return nullptr;
 	}
 
-	if ((char*)syscall(SYS_GET_PWD, buf, size) == nullptr)
+	if (syscall(SYS_GET_PWD, buf, size) == 0)
 		return nullptr;
 
-	setenv("PWD", buf, 1);
 	return buf;
 }
 

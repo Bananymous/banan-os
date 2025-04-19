@@ -134,20 +134,19 @@ void Builtin::initialize()
 				return 1;
 			}
 
-			BAN::StringView path;
-
-			if (arguments.size() == 1)
-			{
-				if (const char* path_env = getenv("HOME"))
-					path = path_env;
-				else
-					return 0;
-			}
+			const char* path = nullptr;
+			if (arguments.size() == 2)
+				path = arguments[1].data();
 			else
-				path = arguments[1];
+				path = getenv("HOME");
 
-			if (chdir(path.data()) == -1)
+			if (path == nullptr)
+				return 0;
+
+			if (chdir(path) == -1)
 				ERROR_RETURN("chdir", 1);
+
+			setenv("PWD", path, 1);
 
 			return 0;
 		}, true

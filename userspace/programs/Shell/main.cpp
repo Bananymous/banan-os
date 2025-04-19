@@ -28,6 +28,12 @@ int main(int argc, char** argv)
 		sigaction(SIGTTOU, &sa, nullptr);
 	}
 
+	{
+		char cwd_buffer[PATH_MAX];
+		if (getcwd(cwd_buffer, sizeof(cwd_buffer)))
+			setenv("PWD", cwd_buffer, 1);
+	}
+
 	Builtin::get().initialize();
 
 	for (int i = 1; i < argc; i++)
