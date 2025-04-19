@@ -36,7 +36,7 @@ __BEGIN_DECLS
 
 #if !defined(__pthread_key_t_defined) && (defined(__need_all_types) || defined(__need_pthread_key_t))
 	#define __pthread_key_t_defined 1
-	typedef int pthread_key_t;
+	typedef unsigned pthread_key_t;
 #endif
 #undef __need_pthread_key_t
 

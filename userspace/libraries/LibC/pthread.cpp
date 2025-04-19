@@ -108,6 +108,62 @@ void pthread_cleanup_push(void (*routine)(void*), void* arg)
 }
 #endif
 
+#if not __disable_thread_local_storage
+static thread_local struct {
+	void* value;
+	void (*destructor)(void*);
+} s_pthread_keys[PTHREAD_KEYS_MAX] {};
+static thread_local uint8_t s_pthread_keys_allocated[(PTHREAD_KEYS_MAX + 7) / 8];
+
+static inline bool is_pthread_key_allocated(pthread_key_t key)
+{
+	if (key >= PTHREAD_KEYS_MAX)
+		return false;
+	return s_pthread_keys_allocated[key / 8] & (1 << (key % 8));
+}
+
+int pthread_key_create(pthread_key_t* key, void (*destructor)(void*))
+{
+	for (pthread_key_t i = 0; i < PTHREAD_KEYS_MAX; i++)
+	{
+		if (is_pthread_key_allocated(i))
+			continue;
+		s_pthread_keys[i].value = nullptr;
+		s_pthread_keys[i].destructor = destructor;
+		s_pthread_keys_allocated[i / 8] |= 1 << (i % 8);
+		*key = i;
+		return 0;
+	}
+
+	return EAGAIN;
+}
+
+int pthread_key_delete(pthread_key_t key)
+{
+	if (!is_pthread_key_allocated(key))
+		return EINVAL;
+	s_pthread_keys[key].value = nullptr;
+	s_pthread_keys[key].destructor = nullptr;
+	s_pthread_keys_allocated[key / 8] &= ~(1 << (key % 8));
+	return 0;
+}
+
+void* pthread_getspecific(pthread_key_t key)
+{
+	if (!is_pthread_key_allocated(key))
+		return nullptr;
+	return s_pthread_keys[key].value;
+}
+
+int pthread_setspecific(pthread_key_t key, const void* value)
+{
+	if (!is_pthread_key_allocated(key))
+		return EINVAL;
+	s_pthread_keys[key].value = const_cast<void*>(value);
+	return 0;
+}
+#endif
+
 int pthread_attr_init(pthread_attr_t* attr)
 {
 	*attr = 0;
@@ -189,6 +245,23 @@ void pthread_exit(void* value_ptr)
 #if not __disable_thread_local_storage
 	while (s_cleanup_stack)
 		pthread_cleanup_pop(1);
+	for (size_t iteration = 0; iteration < PTHREAD_DESTRUCTOR_ITERATIONS; iteration++)
+	{
+		bool called = false;
+		for (pthread_key_t i = 0; i < PTHREAD_KEYS_MAX; i++)
+		{
+			if (!is_pthread_key_allocated(i))
+				continue;
+			if (!s_pthread_keys[i].value || !s_pthread_keys[i].destructor)
+				continue;
+			void* old_value = s_pthread_keys[i].value;
+			s_pthread_keys[i].value = nullptr;
+			s_pthread_keys[i].destructor(old_value);
+			called = true;
+		}
+		if (!called)
+			break;
+	}
 #endif
 	free_uthread(get_uthread());
 	syscall(SYS_PTHREAD_EXIT, value_ptr);
