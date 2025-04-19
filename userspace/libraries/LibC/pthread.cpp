@@ -362,6 +362,7 @@ int pthread_spin_unlock(pthread_spinlock_t* lock)
 	return 0;
 }
 
+#if not __disable_thread_local_storage
 struct tls_index
 {
 	unsigned long int ti_module;
@@ -378,4 +379,5 @@ extern "C" void* __attribute__((__regparm__(1))) ___tls_get_addr(tls_index* ti)
 {
 	return reinterpret_cast<void*>(get_uthread()->dtv[ti->ti_module] + ti->ti_offset);
 }
+#endif
 #endif
