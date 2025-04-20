@@ -700,11 +700,7 @@ static void handle_dynamic(LoadedElf& elf)
 		if (auto ret = syscall(SYS_REALPATH, path_buffer, realpath); ret < 0)
 			print_error_and_exit("realpath", ret);
 
-		int library_fd = syscall(SYS_OPENAT, AT_FDCWD, realpath, O_RDONLY);
-		if (library_fd < 0)
-			print_error_and_exit("could not open library", library_fd);
-
-		const auto& loaded_elf = load_elf(realpath, library_fd);
+		const auto& loaded_elf = load_elf(realpath, -1);
 		dynamic.d_un.d_ptr = reinterpret_cast<uintptr_t>(&loaded_elf);
 	}
 
@@ -843,6 +839,9 @@ static LoadedElf& load_elf(const char* path, int fd)
 	for (size_t i = 0; i < s_loaded_file_count; i++)
 		if (strcmp(s_loaded_files[i].path, path) == 0)
 			return s_loaded_files[i];
+
+	if (fd == -1 && (fd = syscall(SYS_OPENAT, AT_FDCWD, path, O_RDONLY)) < 0)
+		print_error_and_exit("could not open library", fd);
 
 	ElfNativeFileHeader file_header;
 	if (auto ret = syscall(SYS_READ, fd, &file_header, sizeof(file_header)); ret != sizeof(file_header))
