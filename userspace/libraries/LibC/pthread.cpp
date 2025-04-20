@@ -290,6 +290,11 @@ void pthread_exit(void* value_ptr)
 	ASSERT_NOT_REACHED();
 }
 
+int pthread_equal(pthread_t t1, pthread_t t2)
+{
+	return t1 == t2;
+}
+
 int pthread_join(pthread_t thread, void** value_ptr)
 {
 	return syscall(SYS_PTHREAD_JOIN, thread, value_ptr);
