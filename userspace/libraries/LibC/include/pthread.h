@@ -46,23 +46,26 @@ struct uthread
 #define PTHREAD_CREATE_JOINABLE			8
 #define PTHREAD_EXPLICIT_SCHED			9
 #define PTHREAD_INHERIT_SCHED			10
-#define PTHREAD_MUTEX_DEFAULT			11
-#define PTHREAD_MUTEX_ERRORCHECK		12
-#define PTHREAD_MUTEX_NORMAL			13
-#define PTHREAD_MUTEX_RECURSIVE			14
-#define PTHREAD_MUTEX_ROBUST			15
-#define PTHREAD_MUTEX_STALLED			16
 #define PTHREAD_ONCE_INIT				17
 #define PTHREAD_PRIO_INHERIT			18
 #define PTHREAD_PRIO_NONE				19
 #define PTHREAD_PRIO_PROTECT			20
-#define PTHREAD_PROCESS_SHARED			21
-#define PTHREAD_PROCESS_PRIVATE			22
 #define PTHREAD_SCOPE_PROCESS			23
 #define PTHREAD_SCOPE_SYSTEM			24
 
+#define PTHREAD_PROCESS_SHARED			0
+#define PTHREAD_PROCESS_PRIVATE			1
+
+#define PTHREAD_MUTEX_ROBUST			0
+#define PTHREAD_MUTEX_STALLED			1
+
+#define PTHREAD_MUTEX_DEFAULT			0
+#define PTHREAD_MUTEX_ERRORCHECK		1
+#define PTHREAD_MUTEX_NORMAL			2
+#define PTHREAD_MUTEX_RECURSIVE			3
+
 #define PTHREAD_COND_INITIALIZER   (pthread_cond_t)0
-#define PTHREAD_MUTEX_INITIALIZER  (pthread_mutex_t)0
+#define PTHREAD_MUTEX_INITIALIZER  (pthread_mutex_t){ { PTHREAD_MUTEX_DEFAULT, false }, 0, 0 }
 #define PTHREAD_RWLOCK_INITIALIZER (pthread_rwlock_t)0
 
 int			pthread_atfork(void (*prepare)(void), void (*parent)(void), void(*child)(void));

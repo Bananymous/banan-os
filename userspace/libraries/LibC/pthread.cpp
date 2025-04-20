@@ -1,6 +1,6 @@
 #include <BAN/Assert.h>
-#include <BAN/Debug.h>
 #include <BAN/Atomic.h>
+#include <BAN/Debug.h>
 #include <BAN/PlacementNew.h>
 
 #include <kernel/Arch.h>
@@ -346,6 +346,180 @@ int pthread_spin_unlock(pthread_spinlock_t* lock)
 {
 	ASSERT(BAN::atomic_load(*lock, BAN::MemoryOrder::memory_order_relaxed) == pthread_self());
 	BAN::atomic_store(*lock, 0, BAN::MemoryOrder::memory_order_release);
+	return 0;
+}
+
+int pthread_mutexattr_destroy(pthread_mutexattr_t* attr)
+{
+	(void)attr;
+	return 0;
+}
+
+int pthread_mutexattr_init(pthread_mutexattr_t* attr)
+{
+	*attr = {
+		.type = PTHREAD_MUTEX_DEFAULT,
+		.shared = false,
+	};
+	return 0;
+}
+
+int pthread_mutexattr_getpshared(const pthread_mutexattr_t* __restrict attr, int* __restrict pshared)
+{
+	*pshared = attr->shared ? PTHREAD_PROCESS_SHARED : PTHREAD_PROCESS_PRIVATE;
+	return 0;
+}
+
+int pthread_mutexattr_setpshared(pthread_mutexattr_t* attr, int pshared)
+{
+	switch (pshared)
+	{
+		case PTHREAD_PROCESS_PRIVATE:
+			attr->shared = false;
+			return 0;
+		case PTHREAD_PROCESS_SHARED:
+			attr->shared = true;
+			return 0;
+	}
+	return EINVAL;
+}
+
+int pthread_mutexattr_gettype(const pthread_mutexattr_t* __restrict attr, int* __restrict type)
+{
+	*type = attr->type;
+	return 0;
+}
+
+int pthread_mutexattr_settype(pthread_mutexattr_t* attr, int type)
+{
+	switch (type)
+	{
+		case PTHREAD_MUTEX_DEFAULT:
+		case PTHREAD_MUTEX_ERRORCHECK:
+		case PTHREAD_MUTEX_NORMAL:
+		case PTHREAD_MUTEX_RECURSIVE:
+			attr->type = type;
+			return 0;
+	}
+	return EINVAL;
+}
+
+int pthread_mutex_destroy(pthread_mutex_t* mutex)
+{
+	(void)mutex;
+	return 0;
+}
+
+int pthread_mutex_init(pthread_mutex_t* __restrict mutex, const pthread_mutexattr_t* __restrict attr)
+{
+	const pthread_mutexattr_t default_attr = {
+		.type = PTHREAD_MUTEX_DEFAULT,
+		.shared = false,
+	};
+	if (attr == nullptr)
+		attr = &default_attr;
+	*mutex = {
+		.attr = *attr,
+		.locker = 0,
+		.lock_depth = 0,
+	};
+	return 0;
+}
+
+int pthread_mutex_lock(pthread_mutex_t* mutex)
+{
+	// NOTE: current yielding implementation supports shared
+
+	const auto tid = pthread_self();
+
+	switch (mutex->attr.type)
+	{
+		case PTHREAD_MUTEX_RECURSIVE:
+			if (mutex->locker != tid)
+				break;
+			mutex->lock_depth++;
+			return 0;
+		case PTHREAD_MUTEX_ERRORCHECK:
+			if (mutex->locker != tid)
+				break;
+			return EDEADLK;
+	}
+
+	pthread_t expected = 0;
+	while (!BAN::atomic_compare_exchange(mutex->locker, expected, tid, BAN::MemoryOrder::memory_order_acquire))
+	{
+		sched_yield();
+		expected = 0;
+	}
+
+	mutex->lock_depth = 1;
+	return 0;
+}
+
+int pthread_mutex_timedlock(pthread_mutex_t* __restrict mutex, const struct timespec* __restrict abstime)
+{
+	if (pthread_mutex_trylock(mutex) == 0)
+		return 0;
+
+	constexpr auto has_timed_out =
+		[](const struct timespec* abstime) -> bool
+		{
+			struct timespec curtime;
+			clock_gettime(CLOCK_REALTIME, &curtime);
+			if (curtime.tv_sec < abstime->tv_sec)
+				return false;
+			if (curtime.tv_sec > abstime->tv_sec)
+				return true;
+			return curtime.tv_nsec >= abstime->tv_nsec;
+		};
+
+	while (!has_timed_out(abstime))
+	{
+		if (pthread_mutex_trylock(mutex) == 0)
+			return 0;
+		sched_yield();
+	}
+
+	return ETIMEDOUT;
+}
+
+int pthread_mutex_trylock(pthread_mutex_t* mutex)
+{
+	// NOTE: current yielding implementation supports shared
+
+	const auto tid = pthread_self();
+
+	switch (mutex->attr.type)
+	{
+		case PTHREAD_MUTEX_RECURSIVE:
+			if (mutex->locker != tid)
+				break;
+			mutex->lock_depth++;
+			return 0;
+		case PTHREAD_MUTEX_ERRORCHECK:
+			if (mutex->locker != tid)
+				break;
+			return EDEADLK;
+	}
+
+	pthread_t expected = 0;
+	if (!BAN::atomic_compare_exchange(mutex->locker, expected, tid, BAN::MemoryOrder::memory_order_acquire))
+		return EBUSY;
+
+	mutex->lock_depth = 1;
+	return 0;
+}
+
+int pthread_mutex_unlock(pthread_mutex_t* mutex)
+{
+	// NOTE: current yielding implementation supports shared
+
+	ASSERT(mutex->locker == pthread_self());
+
+	mutex->lock_depth--;
+	if (mutex->lock_depth == 0)
+		BAN::atomic_store(mutex->locker, 0, BAN::MemoryOrder::memory_order_release);
+
 	return 0;
 }
 

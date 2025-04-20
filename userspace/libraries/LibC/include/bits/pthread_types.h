@@ -40,17 +40,23 @@ __BEGIN_DECLS
 #endif
 #undef __need_pthread_key_t
 
-#if !defined(__pthread_mutex_t_defined) && (defined(__need_all_types) || defined(__need_pthread_mutex_t))
-	#define __pthread_mutex_t_defined 1
-	typedef int pthread_mutex_t;
+#if !defined(__pthread_t_defined) && (defined(__need_all_types) || defined(__need_pthread_t))
+	#define __pthread_t_defined 1
+	typedef pid_t pthread_t;
 #endif
-#undef __need_pthread_mutex_t
+#undef __need_pthread_t
 
 #if !defined(__pthread_mutexattr_t_defined) && (defined(__need_all_types) || defined(__need_pthread_mutexattr_t))
 	#define __pthread_mutexattr_t_defined 1
-	typedef int pthread_mutexattr_t;
+	typedef struct { int type; bool shared; } pthread_mutexattr_t;
 #endif
 #undef __need_pthread_mutexattr_t
+
+#if !defined(__pthread_mutex_t_defined) && (defined(__need_all_types) || defined(__need_pthread_mutex_t))
+	#define __pthread_mutex_t_defined 1
+	typedef struct { pthread_mutexattr_t attr; pthread_t locker; unsigned lock_depth; } pthread_mutex_t;
+#endif
+#undef __need_pthread_mutex_t
 
 #if !defined(__pthread_once_t_defined) && (defined(__need_all_types) || defined(__need_pthread_once_t))
 	#define __pthread_once_t_defined 1
@@ -69,12 +75,6 @@ __BEGIN_DECLS
 	typedef int pthread_rwlockattr_t;
 #endif
 #undef __need_pthread_rwlockattr_t
-
-#if !defined(__pthread_t_defined) && (defined(__need_all_types) || defined(__need_pthread_t))
-	#define __pthread_t_defined 1
-	typedef pid_t pthread_t;
-#endif
-#undef __need_pthread_t
 
 #if !defined(__pthread_spinlock_t_defined) && (defined(__need_all_types) || defined(__need_pthread_spinlock_t))
 	#define __pthread_spinlock_t_defined 1
