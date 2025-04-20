@@ -16,9 +16,8 @@ signal_trampoline:
 	movl 36(%esp), %eax
 
 	// align stack to 16 bytes
-	movl %esp, %ebx
-	andl $0x0F, %ebx
-	subl %ebx, %esp
+	movl %esp, %ebp
+	andl $-16, %esp
 
 	subl $12, %esp
 	pushl %edi
@@ -26,7 +25,7 @@ signal_trampoline:
 	addl $16, %esp
 
 	// restore stack
-	addl %ebx, %esp
+	movl %ebp, %esp
 	popa
 
 	leave

@@ -27,14 +27,13 @@ signal_trampoline:
 	movq 120(%rsp), %rax
 
 	// align stack to 16 bytes
-	movq %rsp, %rbx
-	andq $0x0F, %rbx
-	subq %rbx, %rsp
+	movq %rsp, %rbp
+	andq $-16, %rsp
 
 	call *%rax
 
 	// restore stack
-	addq %rbx, %rsp
+	movq %rbp, %rsp
 	popq %r15
 	popq %r14
 	popq %r13
