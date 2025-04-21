@@ -53,6 +53,7 @@ struct uthread
 #define PTHREAD_MUTEX_NORMAL			2
 #define PTHREAD_MUTEX_RECURSIVE			3
 
+#define PTHREAD_SPIN_INITIALIZER   (pthread_spinlock_t)0
 #define PTHREAD_COND_INITIALIZER   (pthread_cond_t)0
 #define PTHREAD_MUTEX_INITIALIZER  (pthread_mutex_t){ { PTHREAD_MUTEX_DEFAULT, false }, 0, 0 }
 #define PTHREAD_RWLOCK_INITIALIZER (pthread_rwlock_t){ { false }, 0, 0 }
