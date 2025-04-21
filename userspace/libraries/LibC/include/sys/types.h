@@ -22,18 +22,8 @@ __BEGIN_DECLS
 	&& !defined(__need_off_t) \
 	&& !defined(__need_pid_t) \
 	&& !defined(__need_pthread_attr_t) \
-	&& !defined(__need_pthread_barrier_t) \
-	&& !defined(__need_pthread_barrierattr_t) \
-	&& !defined(__need_pthread_cond_t) \
-	&& !defined(__need_pthread_condattr_t) \
-	&& !defined(__need_pthread_key_t) \
-	&& !defined(__need_pthread_mutex_t) \
-	&& !defined(__need_pthread_mutexattr_t) \
-	&& !defined(__need_pthread_once_t) \
-	&& !defined(__need_pthread_rwlock_t) \
-	&& !defined(__need_pthread_rwlockattr_t) \
-	&& !defined(__need_pthread_spinlock_t) \
 	&& !defined(__need_pthread_t) \
+	&& !defined(__need_pthread_types) \
 	&& !defined(__need_size_t) \
 	&& !defined(__need_ssize_t) \
 	&& !defined(__need_suseconds_t) \

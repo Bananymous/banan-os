@@ -13,19 +13,7 @@ __BEGIN_DECLS
 
 #define __need_size_t
 #define __need_clockid_t
-#define __need_pthread_attr_t
-#define __need_pthread_barrier_t
-#define __need_pthread_barrierattr_t
-#define __need_pthread_cond_t
-#define __need_pthread_condattr_t
-#define __need_pthread_key_t
-#define __need_pthread_mutex_t
-#define __need_pthread_mutexattr_t
-#define __need_pthread_once_t
-#define __need_pthread_rwlock_t
-#define __need_pthread_rwlockattr_t
-#define __need_pthread_spinlock_t
-#define __need_pthread_t
+#define __need_pthread_types
 #include <sys/types.h>
 
 struct uthread
