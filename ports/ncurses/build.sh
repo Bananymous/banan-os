@@ -15,3 +15,11 @@ CONFIGURE_OPTIONS=(
 	'--without-dlsym'
 	'--without-cxx-binding'
 )
+
+install() {
+	make install "DESTDIR=$BANAN_SYSROOT" || exit 1
+
+	shellrc="$BANAN_SYSROOT/home/user/.shellrc"
+	grep -q 'export TERM=' "$shellrc"                || echo 'export TERM=ansi'             >> "$shellrc"
+	grep -q 'export NCURSES_NO_UTF8_ACS=' "$shellrc" || echo 'export NCURSES_NO_UTF8_ACS=1' >> "$shellrc"
+}

@@ -27,6 +27,9 @@ int main(int argc, char** argv)
 	if (load_keymap("/usr/share/keymaps/us.keymap") == -1)
 		perror("load_keymap");
 
+	setenv("TERM", "ansi", 1);
+	setenv("NCURSES_NO_UTF8_ACS", "1", 1);
+
 	if (fork() == 0)
 	{
 		execl("/bin/dhcp-client", "dhcp-client", NULL);
