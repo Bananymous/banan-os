@@ -187,6 +187,28 @@ int pthread_attr_setstacksize(pthread_attr_t* attr, size_t stacksize)
 	return 0;
 }
 
+int pthread_attr_getdetachstate(const pthread_attr_t* attr, int* detachstate)
+{
+	(void)attr;
+	*detachstate = PTHREAD_CREATE_JOINABLE;
+	return 0;
+}
+
+int pthread_attr_setdetachstate(pthread_attr_t* attr, int detachstate)
+{
+	(void)attr;
+	switch (detachstate)
+	{
+		case PTHREAD_CREATE_DETACHED:
+			dwarnln("TODO: pthread_attr_setdetachstate");
+			return ENOTSUP;
+		case PTHREAD_CREATE_JOINABLE:
+			return 0;
+		default:
+			return EINVAL;
+	}
+}
+
 int pthread_create(pthread_t* __restrict thread_id, const pthread_attr_t* __restrict attr, void* (*start_routine)(void*), void* __restrict arg)
 {
 	auto* info = static_cast<pthread_trampoline_info_t*>(malloc(sizeof(pthread_trampoline_info_t)));
