@@ -308,6 +308,8 @@ namespace Kernel
 			descriptor.status = 0;
 			write32(REG_RDT0, rx_current);
 		}
+
+		write32(REG_ICR, 0xFFFFFFFF);
 	}
 
 }
