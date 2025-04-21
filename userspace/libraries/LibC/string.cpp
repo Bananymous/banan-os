@@ -156,7 +156,12 @@ char* strncat(char* __restrict__ dest, const char* __restrict__ src, size_t n)
 
 int strcoll(const char* s1, const char* s2)
 {
-	switch (__getlocale(LC_COLLATE))
+	return strcoll_l(s1, s2, __getlocale(LC_COLLATE));
+}
+
+int strcoll_l(const char *s1, const char *s2, locale_t locale)
+{
+	switch (locale)
 	{
 		case LOCALE_INVALID:
 			ASSERT_NOT_REACHED();
