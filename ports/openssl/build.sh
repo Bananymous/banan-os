@@ -6,7 +6,7 @@ DOWNLOAD_URL="https://github.com/openssl/openssl/releases/download/openssl-$VERS
 DEPENDENCIES=('zlib')
 
 configure() {
-	./Configure --prefix=/usr --openssldir=/etc/ssl -DOPENSSL_USE_IPV6=0 no-asm no-tests no-threads banan_os-generic zlib
+	./Configure --prefix=/usr --openssldir=/etc/ssl -DOPENSSL_USE_IPV6=0 no-asm no-tests banan_os-generic threads zlib
 }
 
 install() {
