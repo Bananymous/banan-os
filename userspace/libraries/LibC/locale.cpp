@@ -22,7 +22,7 @@ static locale_t str_to_locale(const char* locale)
 
 	if (strcmp(locale, "C") == 0 || strcmp(locale, "LOCALE_POSIX") == 0)
 		return LOCALE_POSIX;
-	if (strcmp(locale, "C.UTF8") == 0)
+	if (strcmp(locale, "C.UTF-8") == 0)
 		return LOCALE_UTF8;
 	return LOCALE_INVALID;
 }
@@ -32,14 +32,12 @@ static const char* locale_to_str(locale_t locale)
 	if (locale == LOCALE_POSIX)
 		return "C";
 	if (locale == LOCALE_UTF8)
-		return "C.UTF8";
+		return "C.UTF-8";
 	ASSERT_NOT_REACHED();
 }
 
 struct lconv* localeconv(void)
 {
-	constexpr char CHAR_MAX = __SCHAR_MAX__;
-
 	static lconv lconv;
 	lconv.currency_symbol = const_cast<char*>("");
 	lconv.decimal_point = const_cast<char*>(".");
