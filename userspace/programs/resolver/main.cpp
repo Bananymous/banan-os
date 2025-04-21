@@ -127,7 +127,7 @@ BAN::Optional<DNSResponse> read_dns_response(int socket)
 	DNSAnswer& answer = *reinterpret_cast<DNSAnswer*>(&reply.data[idx]);
 	if (answer.type() != QTYPE::A)
 	{
-		dprintln("Not A record");
+		dprintln("Not A record, but {}", static_cast<uint16_t>(answer.type()));
 		return {};
 	}
 	if (answer.data_len() != 4)
@@ -196,6 +196,10 @@ BAN::Optional<BAN::String> read_service_query(int socket)
 int main(int, char**)
 {
 	srand(time(nullptr));
+
+	char hostname[HOST_NAME_MAX];
+	if (gethostname(hostname, sizeof(hostname)) == -1)
+		hostname[0] = '\0';
 
 	int service_socket = create_service_socket();
 	if (service_socket == -1)
@@ -306,7 +310,14 @@ int main(int, char**)
 
 			BAN::Optional<DNSEntry> result;
 
-			if (dns_cache.contains(*query))
+			if (*hostname && strcmp(query->data(), hostname) == 0)
+			{
+				result = DNSEntry {
+					.valid_until = time(nullptr),
+					.address = ntohl(INADDR_LOOPBACK),
+				};
+			}
+			else if (dns_cache.contains(*query))
 			{
 				auto& cached = dns_cache[*query];
 				if (time(nullptr) <= cached.valid_until)
