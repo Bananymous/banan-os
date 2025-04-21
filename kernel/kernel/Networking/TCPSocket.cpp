@@ -531,9 +531,9 @@ namespace Kernel
 					break;
 				if ((header.flags & (FIN | ACK)) == (FIN | ACK))
 					m_next_state = State::TimeWait;
-				if (header.flags & FIN)
+				else if (header.flags & FIN)
 					m_next_state = State::Closing;
-				if (header.flags & ACK)
+				else if (header.flags & ACK)
 					m_state = State::FinWait2;
 				else
 					m_next_flags = ACK;
