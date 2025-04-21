@@ -15,4 +15,5 @@ build() {
 install() {
 	mkdir -p "$BANAN_SYSROOT/etc/ssl/certs"
 	cp -v "../cacert-$VERSION.pem" "$BANAN_SYSROOT/etc/ssl/certs/ca-certificates.crt"
+	ln -svf "certs/ca-certificates.crt" "$BANAN_SYSROOT/etc/ssl/cert.pem"
 }
