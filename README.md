@@ -38,10 +38,14 @@ If you want to try out DOOM, you should first enter the GUI environment using th
 - [x] PS2 keyboard (all scancode sets)
 - [x] PS2 mouse
 - [x] USB
+  - [x] xHCI
+  - [ ] EHCI
+  - [ ] OHCI
+  - [ ] UHCI
   - [x] Keyboard
   - [x] Mouse
   - [x] Mass storage
-  - [ ] Hubs
+  - [x] Hubs
   - [ ] ...
 - [ ] virtio devices (network, storage)
 
