@@ -34,8 +34,8 @@ typedef int pthread_barrier_t;
 typedef int pthread_condattr_t;
 typedef int pthread_cond_t;
 
-typedef int pthread_rwlockattr_t;
-typedef int pthread_rwlock_t;
+typedef struct { int shared; } pthread_rwlockattr_t;
+typedef struct { pthread_rwlockattr_t attr; unsigned lockers; unsigned writers; } pthread_rwlock_t;
 
 #endif
 #undef __need_pthread_types

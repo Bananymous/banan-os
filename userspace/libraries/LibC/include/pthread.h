@@ -55,7 +55,7 @@ struct uthread
 
 #define PTHREAD_COND_INITIALIZER   (pthread_cond_t)0
 #define PTHREAD_MUTEX_INITIALIZER  (pthread_mutex_t){ { PTHREAD_MUTEX_DEFAULT, false }, 0, 0 }
-#define PTHREAD_RWLOCK_INITIALIZER (pthread_rwlock_t)0
+#define PTHREAD_RWLOCK_INITIALIZER (pthread_rwlock_t){ { false }, 0, 0 }
 
 int			pthread_atfork(void (*prepare)(void), void (*parent)(void), void(*child)(void));
 int			pthread_attr_destroy(pthread_attr_t* attr);

@@ -20,6 +20,8 @@ struct pthread_trampoline_info_t
 	void* arg;
 };
 
+static constexpr unsigned rwlock_writer_locked = -1;
+
 // stack is 16 byte aligned on entry, this `call` is used to align it
 extern "C" void _pthread_trampoline(void*);
 asm(
@@ -370,6 +372,34 @@ int pthread_spin_unlock(pthread_spinlock_t* lock)
 	return 0;
 }
 
+template<typename T>
+static int _pthread_timedlock(T* __restrict lock, const struct timespec* __restrict abstime, int (*trylock)(T*))
+{
+	if (trylock(lock) == 0)
+		return 0;
+
+	constexpr auto has_timed_out =
+		[](const struct timespec* abstime) -> bool
+		{
+			struct timespec curtime;
+			clock_gettime(CLOCK_REALTIME, &curtime);
+			if (curtime.tv_sec < abstime->tv_sec)
+				return false;
+			if (curtime.tv_sec > abstime->tv_sec)
+				return true;
+			return curtime.tv_nsec >= abstime->tv_nsec;
+		};
+
+	while (!has_timed_out(abstime))
+	{
+		if (trylock(lock) == 0)
+			return 0;
+		sched_yield();
+	}
+
+	return ETIMEDOUT;
+}
+
 int pthread_mutexattr_destroy(pthread_mutexattr_t* attr)
 {
 	(void)attr;
@@ -477,33 +507,6 @@ int pthread_mutex_lock(pthread_mutex_t* mutex)
 	return 0;
 }
 
-int pthread_mutex_timedlock(pthread_mutex_t* __restrict mutex, const struct timespec* __restrict abstime)
-{
-	if (pthread_mutex_trylock(mutex) == 0)
-		return 0;
-
-	constexpr auto has_timed_out =
-		[](const struct timespec* abstime) -> bool
-		{
-			struct timespec curtime;
-			clock_gettime(CLOCK_REALTIME, &curtime);
-			if (curtime.tv_sec < abstime->tv_sec)
-				return false;
-			if (curtime.tv_sec > abstime->tv_sec)
-				return true;
-			return curtime.tv_nsec >= abstime->tv_nsec;
-		};
-
-	while (!has_timed_out(abstime))
-	{
-		if (pthread_mutex_trylock(mutex) == 0)
-			return 0;
-		sched_yield();
-	}
-
-	return ETIMEDOUT;
-}
-
 int pthread_mutex_trylock(pthread_mutex_t* mutex)
 {
 	// NOTE: current yielding implementation supports shared
@@ -531,6 +534,11 @@ int pthread_mutex_trylock(pthread_mutex_t* mutex)
 	return 0;
 }
 
+int pthread_mutex_timedlock(pthread_mutex_t* __restrict mutex, const struct timespec* __restrict abstime)
+{
+	return _pthread_timedlock(mutex, abstime, &pthread_mutex_trylock);
+}
+
 int pthread_mutex_unlock(pthread_mutex_t* mutex)
 {
 	// NOTE: current yielding implementation supports shared
@@ -541,6 +549,123 @@ int pthread_mutex_unlock(pthread_mutex_t* mutex)
 	if (mutex->lock_depth == 0)
 		BAN::atomic_store(mutex->locker, 0, BAN::MemoryOrder::memory_order_release);
 
+	return 0;
+}
+
+int pthread_rwlockattr_destroy(pthread_rwlockattr_t* attr)
+{
+	(void)attr;
+	return 0;
+}
+
+int pthread_rwlockattr_init(pthread_rwlockattr_t* attr)
+{
+	*attr = {
+		.shared = false,
+	};
+	return 0;
+}
+
+int pthread_rwlockattr_getpshared(const pthread_rwlockattr_t* __restrict attr, int* __restrict pshared)
+{
+	*pshared = attr->shared ? PTHREAD_PROCESS_SHARED : PTHREAD_PROCESS_PRIVATE;
+	return 0;
+}
+
+int pthread_rwlockattr_setpshared(pthread_rwlockattr_t* attr, int pshared)
+{
+	switch (pshared)
+	{
+		case PTHREAD_PROCESS_PRIVATE:
+			attr->shared = false;
+			return 0;
+		case PTHREAD_PROCESS_SHARED:
+			attr->shared = true;
+			return 0;
+	}
+	return EINVAL;
+}
+
+int pthread_rwlock_destroy(pthread_rwlock_t* rwlock)
+{
+	(void)rwlock;
+	return 0;
+}
+
+int pthread_rwlock_init(pthread_rwlock_t* __restrict rwlock, const pthread_rwlockattr_t* __restrict attr)
+{
+	const pthread_rwlockattr_t default_attr = {
+		.shared = false,
+	};
+	if (attr == nullptr)
+		attr = &default_attr;
+	*rwlock = {
+		.attr = *attr,
+		.lockers = 0,
+		.writers = 0,
+	};
+	return 0;
+}
+
+int pthread_rwlock_rdlock(pthread_rwlock_t* rwlock)
+{
+	unsigned expected = BAN::atomic_load(rwlock->lockers);
+	for (;;)
+	{
+		if (expected == rwlock_writer_locked || BAN::atomic_load(rwlock->writers))
+			sched_yield();
+		else if (BAN::atomic_compare_exchange(rwlock->lockers, expected, expected + 1))
+			break;
+	}
+	return 0;
+}
+
+int pthread_rwlock_tryrdlock(pthread_rwlock_t* rwlock)
+{
+	unsigned expected = BAN::atomic_load(rwlock->lockers);
+	while (expected != rwlock_writer_locked && BAN::atomic_load(rwlock->writers) == 0)
+		if (BAN::atomic_compare_exchange(rwlock->lockers, expected, expected + 1))
+			return 0;
+	return EBUSY;
+}
+
+int pthread_rwlock_timedrdlock(pthread_rwlock_t* __restrict rwlock, const struct timespec* __restrict abstime)
+{
+	return _pthread_timedlock(rwlock, abstime, &pthread_rwlock_tryrdlock);
+}
+
+int pthread_rwlock_wrlock(pthread_rwlock_t* rwlock)
+{
+	BAN::atomic_add_fetch(rwlock->writers, 1);
+	unsigned expected = 0;
+	while (!BAN::atomic_compare_exchange(rwlock->lockers, expected, rwlock_writer_locked))
+	{
+		sched_yield();
+		expected = 0;
+	}
+	BAN::atomic_sub_fetch(rwlock->writers, 1);
+	return 0;
+}
+
+int pthread_rwlock_trywrlock(pthread_rwlock_t* rwlock)
+{
+	unsigned expected = 0;
+	if (!BAN::atomic_compare_exchange(rwlock->lockers, expected, rwlock_writer_locked))
+		return EBUSY;
+	return 0;
+}
+
+int pthread_rwlock_timedwrlock(pthread_rwlock_t* __restrict rwlock, const struct timespec* __restrict abstime)
+{
+	return _pthread_timedlock(rwlock, abstime, &pthread_rwlock_trywrlock);
+}
+
+int pthread_rwlock_unlock(pthread_rwlock_t* rwlock)
+{
+	if (BAN::atomic_load(rwlock->lockers) == rwlock_writer_locked)
+		BAN::atomic_store(rwlock->lockers, 0);
+	else
+		BAN::atomic_sub_fetch(rwlock->lockers, 1);
 	return 0;
 }
 
