@@ -47,8 +47,8 @@ struct malloc_pool_t
 
 	malloc_node_t* free_list;
 
-	uint8_t* end() { return start + size; }
-	bool contains(malloc_node_t* node) { return start <= (uint8_t*)node && (uint8_t*)node < end(); }
+	uint8_t* end() const { return start + size; }
+	bool contains(malloc_node_t* node) const { return start <= (uint8_t*)node && (uint8_t*)node->next() <= end(); }
 };
 
 struct malloc_info_t
@@ -73,7 +73,7 @@ struct malloc_info_t
 static malloc_info_t s_malloc_info;
 static auto& s_malloc_pools = s_malloc_info.pools;
 
-static pthread_spinlock_t s_malloc_lock;
+static pthread_mutex_t s_malloc_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 static bool allocate_pool(size_t pool_index)
 {
@@ -117,6 +117,42 @@ static void remove_node_from_pool_free_list(malloc_pool_t& pool, malloc_node_t* 
 	}
 }
 
+static void merge_following_free_nodes(malloc_pool_t& pool, malloc_node_t* node)
+{
+	while (!node->last && !node->next()->allocated)
+	{
+		auto* next = node->next();
+		remove_node_from_pool_free_list(pool, next);
+		node->last = next->last;
+		node->size += next->size;
+	}
+}
+
+static void shrink_node_if_needed(malloc_pool_t& pool, malloc_node_t* node, size_t size)
+{
+	assert(size <= node->data_size());
+	if (node->data_size() - size < sizeof(malloc_node_t) + s_malloc_shrink_threshold)
+		return;
+
+	uint8_t* node_end = (uint8_t*)node->next();
+
+	node->size = sizeof(malloc_node_t) + size;
+
+	auto* next = node->next();
+	next->allocated = false;
+	next->size = node_end - (uint8_t*)next;
+	next->last = node->last;
+
+	node->last = false;
+
+	// insert excess node to free list
+	if (pool.free_list)
+		pool.free_list->prev_free = next;
+	next->next_free = pool.free_list;
+	next->prev_free = nullptr;
+	pool.free_list = next;
+}
+
 static void* allocate_from_pool(size_t pool_index, size_t size)
 {
 	assert(size % s_malloc_default_align == 0);
@@ -131,43 +167,14 @@ static void* allocate_from_pool(size_t pool_index, size_t size)
 	{
 		assert(!node->allocated);
 
-		// merge nodes right after current one
-		while (!node->last && !node->next()->allocated)
-		{
-			auto* next = node->next();
-			remove_node_from_pool_free_list(pool, next);
-			node->last = next->last;
-			node->size += next->size;
-		}
-
+		merge_following_free_nodes(pool, node);
 		if (node->data_size() < size)
 			continue;
 
 		node->allocated = true;
 		remove_node_from_pool_free_list(pool, node);
 
-		// shrink node if needed
-		if (node->data_size() - size >= sizeof(malloc_node_t) + s_malloc_shrink_threshold)
-		{
-			uint8_t* node_end = (uint8_t*)node->next();
-
-			node->size = sizeof(malloc_node_t) + size;
-
-			auto* next = node->next();
-			next->allocated = false;
-			next->size = node_end - (uint8_t*)next;
-			next->last = node->last;
-
-			node->last = false;
-
-			// insert excess node to free list
-			if (pool.free_list)
-				pool.free_list->prev_free = next;
-			next->next_free = pool.free_list;
-			next->prev_free = nullptr;
-			pool.free_list = next;
-		}
-
+		shrink_node_if_needed(pool, node, size);
 		return node->data;
 	}
 
@@ -199,18 +206,19 @@ void* malloc(size_t size)
 	size_t first_usable_pool = 0;
 	while (s_malloc_pools[first_usable_pool].size - sizeof(malloc_node_t) < size)
 		first_usable_pool++;
-	// first_usable_pool = ceil(log(size/s_malloc_smallest_pool, s_malloc_pool_size_mult))
+
+	pthread_mutex_lock(&s_malloc_mutex);
 
 	// try to find any already existing pools that we can allocate in
 	for (size_t i = first_usable_pool; i < s_malloc_pool_count; i++)
 	{
 		if (s_malloc_pools[i].start == nullptr)
 			continue;
-		pthread_spin_lock(&s_malloc_lock);
 		void* ret = allocate_from_pool(i, size);
-		pthread_spin_unlock(&s_malloc_lock);
-		if (ret != nullptr)
-			return ret;
+		if (ret == nullptr)
+			continue;
+		pthread_mutex_unlock(&s_malloc_mutex);
+		return ret;
 	}
 
 	// allocate new pool
@@ -218,17 +226,16 @@ void* malloc(size_t size)
 	{
 		if (s_malloc_pools[i].start != nullptr)
 			continue;
-
-		pthread_spin_lock(&s_malloc_lock);
-		void* ret = nullptr;
-		if (allocate_pool(i))
-			ret = allocate_from_pool(i, size);
-		pthread_spin_unlock(&s_malloc_lock);
-
+		void* ret = allocate_pool(i)
+			? allocate_from_pool(i, size)
+			: nullptr;
 		if (ret == nullptr)
 			break;
+		pthread_mutex_unlock(&s_malloc_mutex);
 		return ret;
 	}
+
+	pthread_mutex_unlock(&s_malloc_mutex);
 
 	errno = ENOMEM;
 	return nullptr;
@@ -245,13 +252,27 @@ void* realloc(void* ptr, size_t size)
 	if (size_t ret = size % s_malloc_default_align)
 		size += s_malloc_default_align - ret;
 
+	pthread_mutex_lock(&s_malloc_mutex);
+
 	auto* node = node_from_data_pointer(ptr);
-	size_t oldsize = node->data_size();
+	auto& pool = pool_from_node(node);
 
-	if (oldsize == size)
+	assert(node->allocated);
+
+	const size_t oldsize = node->data_size();
+
+	// try to grow the node if needed
+	if (size > oldsize)
+		merge_following_free_nodes(pool, node);
+
+	const bool needs_allocation = node->data_size() < size;
+
+	shrink_node_if_needed(pool, node, needs_allocation ? oldsize : size);
+
+	pthread_mutex_unlock(&s_malloc_mutex);
+
+	if (!needs_allocation)
 		return ptr;
-
-	// TODO: try to shrink or expand allocation
 
 	// allocate new pointer
 	void* new_ptr = malloc(size);
@@ -259,7 +280,7 @@ void* realloc(void* ptr, size_t size)
 		return nullptr;
 
 	// move data to the new pointer
-	size_t bytes_to_copy = oldsize < size ? oldsize : size;
+	const size_t bytes_to_copy = (oldsize < size) ? oldsize : size;
 	memcpy(new_ptr, ptr, bytes_to_copy);
 	free(ptr);
 
@@ -273,22 +294,15 @@ void free(void* ptr)
 	if (ptr == nullptr)
 		return;
 
-	pthread_spin_lock(&s_malloc_lock);
+	pthread_mutex_lock(&s_malloc_mutex);
 
 	auto* node = node_from_data_pointer(ptr);
-
-	node->allocated = false;
-
 	auto& pool = pool_from_node(node);
 
-	// merge nodes right after freed one
-	while (!node->last && !node->next()->allocated)
-	{
-		auto* next = node->next();
-		remove_node_from_pool_free_list(pool, next);
-		node->last = next->last;
-		node->size += next->size;
-	}
+	assert(node->allocated);
+	node->allocated = false;
+
+	merge_following_free_nodes(pool, node);
 
 	// add node to free list
 	if (pool.free_list)
@@ -297,22 +311,24 @@ void free(void* ptr)
 	node->next_free = pool.free_list;
 	pool.free_list = node;
 
-	pthread_spin_unlock(&s_malloc_lock);
+	pthread_mutex_unlock(&s_malloc_mutex);
 }
 
 void* calloc(size_t nmemb, size_t size)
 {
 	dprintln_if(DEBUG_MALLOC, "calloc({}, {})", nmemb, size);
 
-	size_t total = nmemb * size;
+	const size_t total = nmemb * size;
 	if (size != 0 && total / size != nmemb)
 	{
 		errno = ENOMEM;
 		return nullptr;
 	}
+
 	void* ptr = malloc(total);
 	if (ptr == nullptr)
 		return nullptr;
+
 	memset(ptr, 0, total);
 	return ptr;
 }
