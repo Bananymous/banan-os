@@ -435,7 +435,7 @@ namespace Kernel
 		return interrupt_stack.ip == (uintptr_t)signal_trampoline;
 	}
 
-	void Thread::handle_signal(int signal)
+	bool Thread::handle_signal(int signal)
 	{
 		ASSERT(&Thread::current() == this);
 		ASSERT(is_userspace());
@@ -463,10 +463,12 @@ namespace Kernel
 		}
 
 		vaddr_t signal_handler;
+		bool has_sa_restart;
 		{
 			SpinLockGuard _(m_process->m_signal_lock);
 			ASSERT(!(m_process->m_signal_handlers[signal].sa_flags & SA_SIGINFO));
 			signal_handler = (vaddr_t)m_process->m_signal_handlers[signal].sa_handler;
+			has_sa_restart = !!(m_process->m_signal_handlers[signal].sa_flags & SA_RESTART);
 		}
 
 		m_signal_pending_mask &= ~(1ull << signal);
@@ -534,6 +536,8 @@ namespace Kernel
 					ASSERT_NOT_REACHED();
 			}
 		}
+
+		return has_sa_restart;
 	}
 
 	bool Thread::add_signal(int signal)

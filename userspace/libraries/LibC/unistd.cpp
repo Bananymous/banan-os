@@ -83,7 +83,10 @@ long syscall(long syscall, ...)
 
 	va_end(args);
 
-	long ret = Kernel::syscall(syscall, arg1, arg2, arg3, arg4, arg5);
+	long ret;
+	do
+		ret = Kernel::syscall(syscall, arg1, arg2, arg3, arg4, arg5);
+	while (ret == -ERESTART);
 
 	if (ret < 0)
 	{

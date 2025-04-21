@@ -90,6 +90,7 @@ __BEGIN_DECLS
 #define EXDEV			81
 #define ENOTBLK			82
 
+#define ERESTART        0xFE /* internal errno for SA_RESTART */
 #define EUNKNOWN		0xFF
 
 #define errno (*__errno_location())

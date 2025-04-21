@@ -2073,9 +2073,7 @@ namespace Kernel
 
 		if (act)
 		{
-			if (act->sa_flags == SA_RESTART)
-				dwarnln("FIXME: sigaction ignoring SA_RESTART", signal, act->sa_flags);
-			else if (act->sa_flags)
+			if (act->sa_flags & ~(SA_RESTART))
 			{
 				dwarnln("TODO: sigaction({}, {H})", signal, act->sa_flags);
 				return BAN::Error::from_errno(ENOTSUP);

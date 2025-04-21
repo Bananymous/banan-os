@@ -53,7 +53,8 @@ namespace Kernel
 		// Returns true if pending signal can be added to thread
 		bool can_add_signal_to_execute() const;
 		bool will_execute_signal() const;
-		void handle_signal(int signal = 0);
+		// Returns true if handled signal had SA_RESTART
+		bool handle_signal(int signal = 0);
 		bool add_signal(int signal);
 
 		// blocks current thread and returns either on unblock, eintr, spuriously or after timeout

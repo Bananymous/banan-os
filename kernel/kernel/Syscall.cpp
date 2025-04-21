@@ -79,7 +79,9 @@ namespace Kernel
 
 		auto& current_thread = Thread::current();
 		if (current_thread.can_add_signal_to_execute())
-			current_thread.handle_signal();
+			if (current_thread.handle_signal())
+				if (ret.is_error() && ret.error().get_error_code() == EINTR)
+					ret = BAN::Error::from_errno(ERESTART);
 
 		ASSERT(Kernel::Thread::current().state() == Kernel::Thread::State::Executing);
 
