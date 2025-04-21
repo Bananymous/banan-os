@@ -31,8 +31,9 @@ typedef struct { pthread_mutexattr_t attr; pthread_t locker; unsigned lock_depth
 typedef int pthread_barrierattr_t;
 typedef int pthread_barrier_t;
 
-typedef int pthread_condattr_t;
-typedef int pthread_cond_t;
+typedef struct { int clock; int shared; } pthread_condattr_t;
+struct _pthread_cond_block { struct _pthread_cond_block* next; int signaled; };
+typedef struct { pthread_condattr_t attr; pthread_spinlock_t lock; struct _pthread_cond_block* block_list; } pthread_cond_t;
 
 typedef struct { int shared; } pthread_rwlockattr_t;
 typedef struct { pthread_rwlockattr_t attr; unsigned lockers; unsigned writers; } pthread_rwlock_t;

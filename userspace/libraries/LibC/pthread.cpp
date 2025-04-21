@@ -669,6 +669,155 @@ int pthread_rwlock_unlock(pthread_rwlock_t* rwlock)
 	return 0;
 }
 
+int pthread_condattr_destroy(pthread_condattr_t* attr)
+{
+	(void)attr;
+	return 0;
+}
+
+int pthread_condattr_init(pthread_condattr_t* attr)
+{
+	*attr = {
+		.clock = CLOCK_REALTIME,
+		.shared = false,
+	};
+	return 0;
+}
+
+int pthread_condattr_getclock(const pthread_condattr_t* __restrict attr, clockid_t* __restrict clock_id)
+{
+	*clock_id = attr->clock;
+	return 0;
+}
+
+int pthread_condattr_setclock(pthread_condattr_t* attr, clockid_t clock_id)
+{
+	switch (clock_id)
+	{
+		case CLOCK_MONOTONIC:
+		case CLOCK_REALTIME:
+			break;
+		default:
+			return EINVAL;
+	}
+	attr->clock = clock_id;
+	return 0;
+}
+
+int pthread_condattr_getpshared(const pthread_condattr_t* __restrict attr, int* __restrict pshared)
+{
+	*pshared = attr->shared ? PTHREAD_PROCESS_SHARED : PTHREAD_PROCESS_PRIVATE;
+	return 0;
+}
+
+int pthread_condattr_setpshared(pthread_barrierattr_t* attr, int pshared)
+{
+	switch (pshared)
+	{
+		case PTHREAD_PROCESS_PRIVATE:
+			attr->shared = false;
+			return 0;
+		case PTHREAD_PROCESS_SHARED:
+			attr->shared = true;
+			return 0;
+	}
+	return EINVAL;
+}
+
+int pthread_cond_destroy(pthread_cond_t* cond)
+{
+	(void)cond;
+	return 0;
+}
+
+int pthread_cond_init(pthread_cond_t* __restrict cond, const pthread_condattr_t* __restrict attr)
+{
+	const pthread_condattr_t default_attr = {
+		.clock = CLOCK_MONOTONIC,
+		.shared = false,
+	};
+	if (attr == nullptr)
+		attr = &default_attr;
+	*cond = {
+		.attr = *attr,
+		.lock = PTHREAD_SPIN_INITIALIZER,
+		.block_list = nullptr,
+	};
+	return 0;
+}
+
+int pthread_cond_broadcast(pthread_cond_t* cond)
+{
+	pthread_spin_lock(&cond->lock);
+	for (auto* block = cond->block_list; block; block = block->next)
+		BAN::atomic_store(block->signaled, 1);
+	pthread_spin_unlock(&cond->lock);
+	return 0;
+}
+
+int pthread_cond_signal(pthread_cond_t* cond)
+{
+	pthread_spin_lock(&cond->lock);
+	if (cond->block_list)
+		BAN::atomic_store(cond->block_list->signaled, 1);
+	pthread_spin_unlock(&cond->lock);
+	return 0;
+}
+
+int pthread_cond_wait(pthread_cond_t* __restrict cond, pthread_mutex_t* __restrict mutex)
+{
+	return pthread_cond_timedwait(cond, mutex, nullptr);
+}
+
+int pthread_cond_timedwait(pthread_cond_t* __restrict cond, pthread_mutex_t* __restrict mutex, const struct timespec* __restrict abstime)
+{
+	constexpr auto has_timed_out =
+		[](const struct timespec* abstime, clockid_t clock_id) -> bool
+		{
+			if (abstime == nullptr)
+				return false;
+			struct timespec curtime;
+			clock_gettime(clock_id, &curtime);
+			if (curtime.tv_sec < abstime->tv_sec)
+				return false;
+			if (curtime.tv_sec > abstime->tv_sec)
+				return true;
+			return curtime.tv_nsec >= abstime->tv_nsec;
+		};
+
+	pthread_spin_lock(&cond->lock);
+	_pthread_cond_block block = {
+		.next = cond->block_list,
+		.signaled = 0,
+	};
+	cond->block_list = &block;
+	pthread_spin_unlock(&cond->lock);
+
+	pthread_mutex_unlock(mutex);
+
+	while (BAN::atomic_load(block.signaled) == 0)
+	{
+		if (has_timed_out(abstime, cond->attr.clock))
+			return ETIMEDOUT;
+		sched_yield();
+	}
+
+	pthread_spin_lock(&cond->lock);
+	if (&block == cond->block_list)
+		cond->block_list = block.next;
+	else
+	{
+		_pthread_cond_block* prev = cond->block_list;
+		while (prev->next != &block)
+			prev = prev->next;
+		prev->next = block.next;
+	}
+	pthread_spin_unlock(&cond->lock);
+
+	pthread_mutex_lock(mutex);
+	return 0;
+}
+
 #if not __disable_thread_local_storage
 struct tls_index
 {
