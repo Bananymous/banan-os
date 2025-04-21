@@ -818,6 +818,82 @@ int pthread_cond_timedwait(pthread_cond_t* __restrict cond, pthread_mutex_t* __r
 	return 0;
 }
 
+int pthread_barrierattr_destroy(pthread_barrierattr_t* attr)
+{
+	(void)attr;
+	return 0;
+}
+
+int pthread_barrierattr_init(pthread_barrierattr_t* attr)
+{
+	*attr = {
+		.shared = false,
+	};
+	return 0;
+}
+
+int pthread_barrierattr_getpshared(const pthread_barrierattr_t* __restrict attr, int* __restrict pshared)
+{
+	*pshared = attr->shared ? PTHREAD_PROCESS_SHARED : PTHREAD_PROCESS_PRIVATE;
+	return 0;
+}
+
+int pthread_barrierattr_setpshared(pthread_barrierattr_t* attr, int pshared)
+{
+	switch (pshared)
+	{
+		case PTHREAD_PROCESS_PRIVATE:
+			attr->shared = false;
+			return 0;
+		case PTHREAD_PROCESS_SHARED:
+			attr->shared = true;
+			return 0;
+	}
+	return EINVAL;
+}
+
+int pthread_barrier_destroy(pthread_barrier_t* barrier)
+{
+	(void)barrier;
+	return 0;
+}
+
+int pthread_barrier_init(pthread_barrier_t* __restrict barrier, const pthread_barrierattr_t* __restrict attr, unsigned count)
+{
+	if (count == 0)
+		return EINVAL;
+	const pthread_barrierattr_t default_attr = {
+		.shared = false,
+	};
+	if (attr == nullptr)
+		attr = &default_attr;
+	*barrier = {
+		.attr = *attr,
+		.target = count,
+		.waiting = 0,
+	};
+	return 0;
+}
+
+int pthread_barrier_wait(pthread_barrier_t* barrier)
+{
+	const unsigned index = BAN::atomic_add_fetch(barrier->waiting, 1);
+
+	// FIXME: this case should be handled, but should be relatively uncommon
+	//        so i'll just roll with the easy implementation
+	ASSERT(index <= barrier->target);
+
+	if (index == barrier->target)
+	{
+		BAN::atomic_store(barrier->waiting, 0);
+		return PTHREAD_BARRIER_SERIAL_THREAD;
+	}
+
+	while (BAN::atomic_load(barrier->waiting))
+		sched_yield();
+	return 0;
+}
+
 #if not __disable_thread_local_storage
 struct tls_index
 {

@@ -24,7 +24,6 @@ struct uthread
 	uintptr_t dtv[];
 };
 
-#define PTHREAD_BARRIER_SERIAL_THREAD	1
 #define PTHREAD_CANCEL_ASYNCHRONOUS		2
 #define PTHREAD_CANCEL_ENABLE			3
 #define PTHREAD_CANCEL_DEFERRED			4
@@ -39,6 +38,8 @@ struct uthread
 #define PTHREAD_PRIO_PROTECT			20
 #define PTHREAD_SCOPE_PROCESS			23
 #define PTHREAD_SCOPE_SYSTEM			24
+
+#define PTHREAD_BARRIER_SERIAL_THREAD	1
 
 #define PTHREAD_ONCE_INIT				0
 
