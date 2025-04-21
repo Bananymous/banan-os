@@ -312,6 +312,22 @@ pthread_t pthread_self(void)
 #endif
 }
 
+int pthread_once(pthread_once_t* once_control, void (*init_routine)(void))
+{
+	static_assert(PTHREAD_ONCE_INIT == 0);
+
+	pthread_once_t expected = 0;
+	if (BAN::atomic_compare_exchange(*once_control, expected, 1))
+	{
+		init_routine();
+		BAN::atomic_store(*once_control, 2);
+	}
+
+	while (BAN::atomic_load(*once_control) != 2)
+		sched_yield();
+	return 0;
+}
+
 int pthread_spin_destroy(pthread_spinlock_t* lock)
 {
 	(void)lock;
