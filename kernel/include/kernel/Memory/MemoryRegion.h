@@ -3,8 +3,7 @@
 #include <BAN/UniqPtr.h>
 #include <kernel/Memory/PageTable.h>
 #include <kernel/Memory/Types.h>
-
-#include <stddef.h>
+#include <kernel/ThreadBlocker.h>
 
 namespace Kernel
 {
@@ -42,6 +41,10 @@ namespace Kernel
 		size_t virtual_page_count() const { return BAN::Math::div_round_up<size_t>(m_size, PAGE_SIZE); }
 		size_t physical_page_count() const { return m_physical_page_count; }
 
+		void pin() { m_pinned_count++; }
+		void unpin() { if (--m_pinned_count == 0) m_pinned_blocker.unblock(); }
+		void wait_not_pinned() { while (m_pinned_count) m_pinned_blocker.block_with_timeout_ms(100); }
+
 		virtual BAN::ErrorOr<void> msync(vaddr_t, size_t, int) = 0;
 
 		// Returns error if no memory was available
@@ -64,6 +67,9 @@ namespace Kernel
 		const PageTable::flags_t m_flags;
 		vaddr_t m_vaddr { 0 };
 		size_t m_physical_page_count { 0 };
+
+		BAN::Atomic<size_t> m_pinned_count { 0 };
+		ThreadBlocker m_pinned_blocker;
 	};
 
 }

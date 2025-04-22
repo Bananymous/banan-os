@@ -13,6 +13,7 @@ namespace Kernel
 
 	MemoryRegion::~MemoryRegion()
 	{
+		ASSERT(m_pinned_count == 0);
 		if (m_vaddr)
 			m_page_table.unmap_range(m_vaddr, m_size);
 	}

@@ -1806,7 +1806,10 @@ namespace Kernel
 			const vaddr_t region_s = region->vaddr();
 			const vaddr_t region_e = region->vaddr() + region->size();
 			if (vaddr <= region_s && region_e <= vaddr + len)
+			{
+				region->wait_not_pinned();
 				m_mapped_regions.remove(i--);
+			}
 			else if (region->overlaps(vaddr, len))
 				dwarnln("TODO: partial region munmap");
 		}
