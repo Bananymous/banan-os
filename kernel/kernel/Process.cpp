@@ -1051,28 +1051,36 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_close(int fd)
 	{
-		LockGuard _(m_process_lock);
 		TRY(m_open_file_descriptors.close(fd));
 		return 0;
 	}
 
 	BAN::ErrorOr<long> Process::sys_read(int fd, void* buffer, size_t count)
 	{
-		LockGuard _(m_process_lock);
 		if (count == 0)
 		{
 			TRY(m_open_file_descriptors.inode_of(fd));
 			return 0;
 		}
-		TRY(validate_pointer_access(buffer, count, true));
-		return TRY(m_open_file_descriptors.read(fd, BAN::ByteSpan((uint8_t*)buffer, count)));
+
+		// FIXME: buffer_region can be null as stack is not MemoryRegion
+		auto* buffer_region = TRY(validate_and_pin_pointer_access(buffer, count, true));
+		BAN::ScopeGuard _([&] { if (buffer_region) buffer_region->unpin(); });
+		return TRY(m_open_file_descriptors.read(fd, BAN::ByteSpan(static_cast<uint8_t*>(buffer), count)));
 	}
 
 	BAN::ErrorOr<long> Process::sys_write(int fd, const void* buffer, size_t count)
 	{
-		LockGuard _(m_process_lock);
-		TRY(validate_pointer_access(buffer, count, false));
-		return TRY(m_open_file_descriptors.write(fd, BAN::ByteSpan((uint8_t*)buffer, count)));
+		if (count == 0)
+		{
+			TRY(m_open_file_descriptors.inode_of(fd));
+			return 0;
+		}
+
+		// FIXME: buffer_region can be null as stack is not MemoryRegion
+		auto* buffer_region = TRY(validate_and_pin_pointer_access(buffer, count, false));
+		BAN::ScopeGuard _([&] { if (buffer_region) buffer_region->unpin(); });
+		return TRY(m_open_file_descriptors.write(fd, BAN::ConstByteSpan(static_cast<const uint8_t*>(buffer), count)));
 	}
 
 	BAN::ErrorOr<long> Process::sys_access(const char* path, int amode)
@@ -1296,19 +1304,24 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_accept(int socket, sockaddr* address, socklen_t* address_len, int flags)
 	{
-		if (address && !address_len)
-			return BAN::Error::from_errno(EINVAL);
-		if (!address && address_len)
+		if (!address != !address_len)
 			return BAN::Error::from_errno(EINVAL);
 		if (flags & ~(SOCK_NONBLOCK | SOCK_CLOEXEC))
 			return BAN::Error::from_errno(EINVAL);
 
-		LockGuard _(m_process_lock);
-		if (address)
-		{
-			TRY(validate_pointer_access(address_len, sizeof(*address_len), true));
-			TRY(validate_pointer_access(address, *address_len, true));
-		}
+		MemoryRegion* address_region1 = nullptr;
+		MemoryRegion* address_region2 = nullptr;
+
+		BAN::ScopeGuard _([&] {
+			if (address_region1)
+				address_region1->unpin();
+			if (address_region2)
+				address_region2->unpin();
+		});
+
+		address_region1 = TRY(validate_and_pin_pointer_access(address_len, sizeof(address_len), true));
+		const socklen_t address_len_safe = address_len ? *address_len : 0;
+		address_region2 = TRY(validate_and_pin_pointer_access(address, address_len_safe, true));
 
 		auto inode = TRY(m_open_file_descriptors.inode_of(socket));
 		if (!inode->mode().ifsock())
@@ -1338,12 +1351,12 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_connect(int socket, const sockaddr* address, socklen_t address_len)
 	{
-		LockGuard _(m_process_lock);
-		TRY(validate_pointer_access(address, address_len, false));
-
 		auto inode = TRY(m_open_file_descriptors.inode_of(socket));
 		if (!inode->mode().ifsock())
 			return BAN::Error::from_errno(ENOTSOCK);
+
+		auto* address_region = TRY(validate_and_pin_pointer_access(address, address_len, true));
+		BAN::ScopeGuard _([&] { if (address_region) address_region->unpin(); });
 
 		TRY(inode->connect(address, address_len));
 		return 0;
@@ -1361,35 +1374,69 @@ namespace Kernel
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_sendto(const sys_sendto_t* arguments)
+	BAN::ErrorOr<long> Process::sys_sendto(const sys_sendto_t* _arguments)
 	{
-		LockGuard _(m_process_lock);
-		TRY(validate_pointer_access(arguments, sizeof(sys_sendto_t), false));
-		TRY(validate_pointer_access(arguments->message, arguments->length, false));
-		TRY(validate_pointer_access(arguments->dest_addr, arguments->dest_len, false));
-
-		auto message = BAN::ConstByteSpan(static_cast<const uint8_t*>(arguments->message), arguments->length);
-		return TRY(m_open_file_descriptors.sendto(arguments->socket, message, arguments->dest_addr, arguments->dest_len));
-	}
-
-	BAN::ErrorOr<long> Process::sys_recvfrom(sys_recvfrom_t* arguments)
-	{
-		if (arguments->address && !arguments->address_len)
-			return BAN::Error::from_errno(EINVAL);
-		if (!arguments->address && arguments->address_len)
-			return BAN::Error::from_errno(EINVAL);
-
-		LockGuard _(m_process_lock);
-		TRY(validate_pointer_access(arguments, sizeof(sys_recvfrom_t), false));
-		TRY(validate_pointer_access(arguments->buffer, arguments->length, true));
-		if (arguments->address)
+		sys_sendto_t arguments;
 		{
-			TRY(validate_pointer_access(arguments->address_len, sizeof(*arguments->address_len), true));
-			TRY(validate_pointer_access(arguments->address, *arguments->address_len, true));
+			LockGuard _(m_process_lock);
+			TRY(validate_pointer_access(_arguments, sizeof(sys_sendto_t), false));
+			arguments = *_arguments;
 		}
 
-		auto message = BAN::ByteSpan(static_cast<uint8_t*>(arguments->buffer), arguments->length);
-		return TRY(m_open_file_descriptors.recvfrom(arguments->socket, message, arguments->address, arguments->address_len));
+		if (arguments.length == 0)
+			return BAN::Error::from_errno(EINVAL);
+
+		MemoryRegion* message_region = nullptr;
+		MemoryRegion* address_region = nullptr;
+
+		BAN::ScopeGuard _([&] {
+			if (message_region)
+				message_region->unpin();
+			if (address_region)
+				address_region->unpin();
+		});
+
+		message_region = TRY(validate_and_pin_pointer_access(arguments.message, arguments.length, false));
+		address_region = TRY(validate_and_pin_pointer_access(arguments.dest_addr, arguments.dest_len, false));
+
+		auto message = BAN::ConstByteSpan(static_cast<const uint8_t*>(arguments.message), arguments.length);
+		return TRY(m_open_file_descriptors.sendto(arguments.socket, message, arguments.dest_addr, arguments.dest_len));
+	}
+
+	BAN::ErrorOr<long> Process::sys_recvfrom(sys_recvfrom_t* _arguments)
+	{
+		sys_recvfrom_t arguments;
+		{
+			LockGuard _(m_process_lock);
+			TRY(validate_pointer_access(_arguments, sizeof(sys_sendto_t), false));
+			arguments = *_arguments;
+		}
+
+		if (!arguments.address != !arguments.address_len)
+			return BAN::Error::from_errno(EINVAL);
+		if (arguments.length == 0)
+			return BAN::Error::from_errno(EINVAL);
+
+		MemoryRegion* buffer_region = nullptr;
+		MemoryRegion* address_region1 = nullptr;
+		MemoryRegion* address_region2 = nullptr;
+
+		BAN::ScopeGuard _([&] {
+			if (buffer_region)
+				buffer_region->unpin();
+			if (address_region1)
+				address_region1->unpin();
+			if (address_region2)
+				address_region2->unpin();
+		});
+
+		buffer_region = TRY(validate_and_pin_pointer_access(arguments.buffer, arguments.length, true));
+		address_region1 = TRY(validate_and_pin_pointer_access(arguments.address_len, sizeof(*arguments.address_len), true));
+		const socklen_t address_len_safe = arguments.address_len ? *arguments.address_len : 0;
+		address_region2 = TRY(validate_and_pin_pointer_access(arguments.address, address_len_safe, true));
+
+		auto message = BAN::ByteSpan(static_cast<uint8_t*>(arguments.buffer), arguments.length);
+		return TRY(m_open_file_descriptors.recvfrom(arguments.socket, message, arguments.address, arguments.address_len));
 	}
 
 	BAN::ErrorOr<long> Process::sys_ioctl(int fildes, int request, void* arg)
@@ -1399,37 +1446,56 @@ namespace Kernel
 		return TRY(inode->ioctl(request, arg));
 	}
 
-	BAN::ErrorOr<long> Process::sys_pselect(sys_pselect_t* arguments)
+	BAN::ErrorOr<long> Process::sys_pselect(sys_pselect_t* _arguments)
 	{
-		LockGuard _(m_process_lock);
+		sys_pselect_t arguments;
 
-		TRY(validate_pointer_access(arguments, sizeof(sys_pselect_t), false));
-		if (arguments->readfds)
-			TRY(validate_pointer_access(arguments->readfds, sizeof(fd_set), true));
-		if (arguments->writefds)
-			TRY(validate_pointer_access(arguments->writefds, sizeof(fd_set), true));
-		if (arguments->errorfds)
-			TRY(validate_pointer_access(arguments->errorfds, sizeof(fd_set), true));
-		if (arguments->timeout)
-			TRY(validate_pointer_access(arguments->timeout, sizeof(timespec), false));
-		if (arguments->sigmask)
-			TRY(validate_pointer_access(arguments->sigmask, sizeof(sigset_t), false));
+		{
+			LockGuard _(m_process_lock);
+			TRY(validate_pointer_access(_arguments, sizeof(sys_pselect_t), false));
+			arguments = *_arguments;
+		}
+
+		MemoryRegion* readfd_region = nullptr;
+		MemoryRegion* writefd_region = nullptr;
+		MemoryRegion* errorfd_region = nullptr;
+		MemoryRegion* timeout_region = nullptr;
+		MemoryRegion* sigmask_region = nullptr;
+
+		BAN::ScopeGuard _([&] {
+			if (readfd_region)
+				readfd_region->unpin();
+			if (writefd_region)
+				writefd_region->unpin();
+			if (errorfd_region)
+				errorfd_region->unpin();
+			if (timeout_region)
+				timeout_region->unpin();
+			if (sigmask_region)
+				sigmask_region->unpin();
+		});
+
+		readfd_region = TRY(validate_and_pin_pointer_access(arguments.readfds, sizeof(fd_set), true));
+		writefd_region = TRY(validate_and_pin_pointer_access(arguments.writefds, sizeof(fd_set), true));
+		errorfd_region = TRY(validate_and_pin_pointer_access(arguments.errorfds, sizeof(fd_set), true));
+		timeout_region = TRY(validate_and_pin_pointer_access(arguments.timeout, sizeof(timespec), false));
+		sigmask_region = TRY(validate_and_pin_pointer_access(arguments.sigmask, sizeof(sigset_t), false));
 
 		const auto old_sigmask = Thread::current().m_signal_block_mask;
-		if (arguments->sigmask)
-			Thread::current().m_signal_block_mask = *arguments->sigmask;
+		if (arguments.sigmask)
+			Thread::current().m_signal_block_mask = *arguments.sigmask;
 		BAN::ScopeGuard sigmask_restore([old_sigmask] { Thread::current().m_signal_block_mask = old_sigmask; });
 
 		uint64_t timedout_ns = SystemTimer::get().ns_since_boot();
-		if (arguments->timeout)
+		if (arguments.timeout)
 		{
-			timedout_ns += arguments->timeout->tv_sec * 1'000'000'000;
-			timedout_ns += arguments->timeout->tv_nsec;
+			timedout_ns += arguments.timeout->tv_sec * 1'000'000'000;
+			timedout_ns += arguments.timeout->tv_nsec;
 		}
 
-		fd_set readfds;		FD_ZERO(&readfds);
-		fd_set writefds;	FD_ZERO(&writefds);
-		fd_set errorfds;	FD_ZERO(&errorfds);
+		fd_set readfds;  FD_ZERO(&readfds);
+		fd_set writefds; FD_ZERO(&writefds);
+		fd_set errorfds; FD_ZERO(&errorfds);
 
 		int set_bits = 0;
 		for (;;)
@@ -1455,38 +1521,38 @@ namespace Kernel
 					}
 				};
 
-			for (int i = 0; i < arguments->nfds; i++)
+			for (int i = 0; i < arguments.nfds; i++)
 			{
-				update_fds(i, arguments->readfds, &readfds, &Inode::can_read);
-				update_fds(i, arguments->writefds, &writefds, &Inode::can_write);
-				update_fds(i, arguments->errorfds, &errorfds, &Inode::has_error);
+				update_fds(i, arguments.readfds, &readfds, &Inode::can_read);
+				update_fds(i, arguments.writefds, &writefds, &Inode::can_write);
+				update_fds(i, arguments.errorfds, &errorfds, &Inode::has_error);
 			}
 
 			if (set_bits > 0)
 				break;
 
-			if (arguments->timeout && SystemTimer::get().ns_since_boot() >= timedout_ns)
+			if (arguments.timeout && SystemTimer::get().ns_since_boot() >= timedout_ns)
 				break;
 
-			LockFreeGuard free(m_process_lock);
+			// FIXME: implement some multi thread blocker system?
 			TRY(Thread::current().sleep_or_eintr_ms(1));
 		}
 
-		if (arguments->readfds)
-			FD_ZERO(arguments->readfds);
-		if (arguments->writefds)
-			FD_ZERO(arguments->writefds);
-		if (arguments->errorfds)
-			FD_ZERO(arguments->errorfds);
+		if (arguments.readfds)
+			FD_ZERO(arguments.readfds);
+		if (arguments.writefds)
+			FD_ZERO(arguments.writefds);
+		if (arguments.errorfds)
+			FD_ZERO(arguments.errorfds);
 
-		for (int i = 0; i < arguments->nfds; i++)
+		for (int i = 0; i < arguments.nfds; i++)
 		{
-			if (arguments->readfds && FD_ISSET(i, &readfds))
-				FD_SET(i, arguments->readfds);
-			if (arguments->writefds && FD_ISSET(i, &writefds))
-				FD_SET(i, arguments->writefds);
-			if (arguments->errorfds && FD_ISSET(i, &errorfds))
-				FD_SET(i, arguments->errorfds);
+			if (arguments.readfds && FD_ISSET(i, &readfds))
+				FD_SET(i, arguments.readfds);
+			if (arguments.writefds && FD_ISSET(i, &writefds))
+				FD_SET(i, arguments.writefds);
+			if (arguments.errorfds && FD_ISSET(i, &errorfds))
+				FD_SET(i, arguments.errorfds);
 		}
 
 		return set_bits;
@@ -2682,6 +2748,21 @@ unauthorized_access:
 		}
 
 		return {};
+	}
+
+	BAN::ErrorOr<MemoryRegion*> Process::validate_and_pin_pointer_access(const void* ptr, size_t size, bool needs_write)
+	{
+		LockGuard _(m_process_lock);
+		TRY(validate_pointer_access(ptr, size, needs_write));
+		for (auto& region : m_mapped_regions)
+		{
+			if (!region->contains_fully(reinterpret_cast<vaddr_t>(ptr), size))
+				continue;
+			region->pin();
+			return region.ptr();
+		}
+		// FIXME: Make stack MemoryRegion?
+		return nullptr;
 	}
 
 }

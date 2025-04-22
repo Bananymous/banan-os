@@ -241,6 +241,7 @@ namespace Kernel
 		BAN::ErrorOr<void> validate_string_access(const char*);
 		BAN::ErrorOr<void> validate_pointer_access_check(const void*, size_t, bool needs_write);
 		BAN::ErrorOr<void> validate_pointer_access(const void*, size_t, bool needs_write);
+		BAN::ErrorOr<MemoryRegion*> validate_and_pin_pointer_access(const void*, size_t, bool needs_write);
 
 		uint64_t signal_pending_mask() const
 		{
