@@ -60,7 +60,10 @@ namespace Kernel
 		{
 			auto& connection_info = m_info.get<ConnectionInfo>();
 			if (auto connection = connection_info.connection.lock(); connection && connection->m_info.has<ConnectionInfo>())
+			{
 				connection->m_info.get<ConnectionInfo>().target_closed = true;
+				connection->m_packet_thread_blocker.unblock();
+			}
 		}
 	}
 
@@ -351,19 +354,19 @@ namespace Kernel
 
 	BAN::ErrorOr<size_t> UnixDomainSocket::recvfrom_impl(BAN::ByteSpan buffer, sockaddr*, socklen_t*)
 	{
-		if (m_info.has<ConnectionInfo>())
-		{
-			auto& connection_info = m_info.get<ConnectionInfo>();
-			bool expected = true;
-			if (connection_info.target_closed.compare_exchange(expected, false))
-				return 0;
-			if (!connection_info.connection)
-				return BAN::Error::from_errno(ENOTCONN);
-		}
-
 		auto state = m_packet_lock.lock();
 		while (m_packet_size_total == 0)
 		{
+			if (m_info.has<ConnectionInfo>())
+			{
+				auto& connection_info = m_info.get<ConnectionInfo>();
+				bool expected = true;
+				if (connection_info.target_closed.compare_exchange(expected, false))
+					return 0;
+				if (!connection_info.connection)
+					return BAN::Error::from_errno(ENOTCONN);
+			}
+
 			m_packet_lock.unlock(state);
 			TRY(Thread::current().block_or_eintr_indefinite(m_packet_thread_blocker));
 			state = m_packet_lock.lock();
