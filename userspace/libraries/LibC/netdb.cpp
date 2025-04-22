@@ -107,7 +107,7 @@ int getaddrinfo(const char* __restrict nodename, const char* __restrict servname
 			goto error_close_socket;
 
 		sockaddr_storage storage;
-		if (recv(resolver_sock, &storage, sizeof(storage), 0) == -1)
+		if (recv(resolver_sock, &storage, sizeof(storage), 0) < static_cast<ssize_t>(sizeof(sockaddr_in)))
 			goto error_close_socket;
 
 		close(resolver_sock);
@@ -115,12 +115,12 @@ int getaddrinfo(const char* __restrict nodename, const char* __restrict servname
 		if (storage.ss_family != AF_INET)
 			return EAI_FAIL;
 
-		ipv4_addr = *reinterpret_cast<in_addr_t*>(storage.ss_storage);
+		ipv4_addr = reinterpret_cast<sockaddr_in&>(storage).sin_addr.s_addr;
 	}
 
 	{
 		addrinfo* ai = (addrinfo*)malloc(sizeof(addrinfo) + sizeof(sockaddr_in));
-		if (*res == nullptr)
+		if (ai == nullptr)
 			return EAI_MEMORY;
 
 		sockaddr_in* sa_in = reinterpret_cast<sockaddr_in*>(reinterpret_cast<uintptr_t>(ai) + sizeof(addrinfo));
@@ -193,7 +193,7 @@ struct hostent* gethostbyname(const char* name)
 			goto error_close_socket;
 
 		sockaddr_storage storage;
-		if (recv(socket, &storage, sizeof(storage), 0) == -1)
+		if (recv(socket, &storage, sizeof(storage), 0) < static_cast<ssize_t>(sizeof(sockaddr_in)))
 			goto error_close_socket;
 
 		close(socket);
@@ -201,7 +201,7 @@ struct hostent* gethostbyname(const char* name)
 		if (storage.ss_family != AF_INET)
 			return nullptr;
 
-		addr_buffer = *reinterpret_cast<in_addr_t*>(storage.ss_storage);
+		addr_buffer = reinterpret_cast<sockaddr_in&>(storage).sin_addr.s_addr;
 	}
 
 	return &hostent;

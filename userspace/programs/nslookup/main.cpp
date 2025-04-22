@@ -1,10 +1,7 @@
 #include <arpa/inet.h>
+#include <netdb.h>
 #include <netinet/in.h>
 #include <stdio.h>
-#include <string.h>
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <unistd.h>
 
 #define MAX(a, b) ((a) < (b) ? (b) : (a))
 
@@ -16,39 +13,37 @@ int main(int argc, char** argv)
 		return 1;
 	}
 
-	int socket = ::socket(AF_UNIX, SOCK_SEQPACKET, 0);
-	if (socket == -1)
+	const addrinfo hints {
+		.ai_flags = 0,
+		.ai_family = AF_INET,
+		.ai_socktype = SOCK_STREAM,
+		.ai_protocol = 0,
+		.ai_addrlen = 0,
+		.ai_addr = nullptr,
+		.ai_canonname = nullptr,
+		.ai_next = nullptr,
+	};
+
+	addrinfo* result;
+	if (int ret = getaddrinfo(argv[1], nullptr, &hints, &result); ret != 0)
 	{
-		perror("socket");
+		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(ret));
 		return 1;
 	}
 
-	sockaddr_un addr;
-	addr.sun_family = AF_UNIX;
-	strcpy(addr.sun_path, "/tmp/resolver.sock");
-	if (connect(socket, (sockaddr*)&addr, sizeof(addr)) == -1)
+	for (addrinfo* ai = result; ai; ai = ai->ai_next)
 	{
-		perror("connect");
-		return 1;
+		if (ai->ai_family != AF_INET)
+			continue;
+
+		char buffer[NI_MAXHOST];
+		if (inet_ntop(ai->ai_family, &reinterpret_cast<sockaddr_in*>(ai->ai_addr)->sin_addr, buffer, sizeof(buffer)) == nullptr)
+			continue;
+
+		printf("%s\n", buffer);
+		return 0;
 	}
 
-	if (send(socket, argv[1], strlen(argv[1]), 0) == -1)
-	{
-		perror("send");
-		return 1;
-	}
-
-	sockaddr_storage storage;
-	if (recv(socket, &storage, sizeof(storage), 0) == -1)
-	{
-		perror("recv");
-		return 1;
-	}
-
-	close(socket);
-
-	char buffer[MAX(INET_ADDRSTRLEN, INET6_ADDRSTRLEN)];
-	printf("%s\n", inet_ntop(storage.ss_family, storage.ss_storage, buffer, sizeof(buffer)));
-
+	fprintf(stderr, "no address information available\n");
 	return 0;
 }

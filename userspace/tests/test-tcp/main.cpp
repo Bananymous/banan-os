@@ -1,4 +1,5 @@
 #include <arpa/inet.h>
+#include <netdb.h>
 #include <netinet/in.h>
 #include <stdio.h>
 #include <string.h>
@@ -8,44 +9,26 @@
 
 in_addr_t get_ipv4_address(const char* query)
 {
-	if (in_addr_t ipv4 = inet_addr(query); ipv4 != (in_addr_t)(-1))
-		return ipv4;
+	const addrinfo hints {
+		.ai_flags = 0,
+		.ai_family = AF_INET,
+		.ai_socktype = SOCK_STREAM,
+		.ai_protocol = 0,
+		.ai_addrlen = 0,
+		.ai_addr = nullptr,
+		.ai_canonname = nullptr,
+		.ai_next = nullptr,
+	};
 
-	int socket = ::socket(AF_UNIX, SOCK_SEQPACKET, 0);
-	if (socket == -1)
-	{
-		perror("socket");
+	addrinfo* result;
+	if (getaddrinfo(query, nullptr, &hints, &result) != 0)
 		return -1;
-	}
 
-	sockaddr_un addr;
-	addr.sun_family = AF_UNIX;
-	strcpy(addr.sun_path, "/tmp/resolver.sock");
-	if (connect(socket, (sockaddr*)&addr, sizeof(addr)) == -1)
-	{
-		perror("connect");
-		close(socket);
-		return -1;
-	}
+	for (addrinfo* ai = result; ai; ai = ai->ai_next)
+		if (ai->ai_family != AF_INET)
+			return reinterpret_cast<sockaddr_in*>(ai->ai_addr)->sin_addr.s_addr;
 
-	if (send(socket, query, strlen(query), 0) == -1)
-	{
-		perror("send");
-		close(socket);
-		return -1;
-	}
-
-	sockaddr_storage storage;
-	if (recv(socket, &storage, sizeof(storage), 0) == -1)
-	{
-		perror("recv");
-		close(socket);
-		return -1;
-	}
-
-	close(socket);
-
-	return *reinterpret_cast<in_addr_t*>(storage.ss_storage);
+	return -1;
 }
 
 int main(int argc, char** argv)
