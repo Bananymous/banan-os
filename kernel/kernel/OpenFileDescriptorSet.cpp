@@ -23,6 +23,7 @@ namespace Kernel
 
 	OpenFileDescriptorSet& OpenFileDescriptorSet::operator=(OpenFileDescriptorSet&& other)
 	{
+		LockGuard _(m_mutex);
 		for (size_t i = 0; i < m_open_files.size(); i++)
 			m_open_files[i] = BAN::move(other.m_open_files[i]);
 		return *this;
@@ -30,6 +31,8 @@ namespace Kernel
 
 	BAN::ErrorOr<void> OpenFileDescriptorSet::clone_from(const OpenFileDescriptorSet& other)
 	{
+		LockGuard _(m_mutex);
+
 		close_all();
 
 		for (int fd = 0; fd < (int)other.m_open_files.size(); fd++)
@@ -67,11 +70,11 @@ namespace Kernel
 		if ((flags & O_TRUNC) && (flags & O_WRONLY) && file.inode->mode().ifreg())
 			TRY(file.inode->truncate(0));
 
+		LockGuard _(m_mutex);
 		constexpr int status_mask = O_APPEND | O_DSYNC | O_NONBLOCK | O_RSYNC | O_SYNC | O_ACCMODE;
 		int fd = TRY(get_free_fd());
 		m_open_files[fd].description = TRY(BAN::RefPtr<OpenFileDescription>::create(BAN::move(file), 0, flags & status_mask));
 		m_open_files[fd].descriptor_flags = flags & O_CLOEXEC;
-
 		return fd;
 	}
 
@@ -135,6 +138,7 @@ namespace Kernel
 
 		auto socket = TRY(NetworkManager::get().create_socket(sock_domain, sock_type, 0777, m_credentials.euid(), m_credentials.egid()));
 
+		LockGuard _(m_mutex);
 		int fd = TRY(get_free_fd());
 		m_open_files[fd].description = TRY(BAN::RefPtr<OpenFileDescription>::create(VirtualFileSystem::File(socket, "<socket>"_sv), 0, O_RDWR | status_flags));
 		m_open_files[fd].descriptor_flags = descriptor_flags;
@@ -143,6 +147,8 @@ namespace Kernel
 
 	BAN::ErrorOr<void> OpenFileDescriptorSet::pipe(int fds[2])
 	{
+		LockGuard _(m_mutex);
+
 		TRY(get_free_fd_pair(fds));
 
 		auto pipe = TRY(Pipe::create(m_credentials));
@@ -158,6 +164,8 @@ namespace Kernel
 	{
 		if (fildes2 < 0 || fildes2 >= (int)m_open_files.size())
 			return BAN::Error::from_errno(EBADF);
+
+		LockGuard _(m_mutex);
 
 		TRY(validate_fd(fildes));
 		if (fildes == fildes2)
@@ -179,6 +187,8 @@ namespace Kernel
 
 	BAN::ErrorOr<int> OpenFileDescriptorSet::fcntl(int fd, int cmd, int extra)
 	{
+		LockGuard _(m_mutex);
+
 		TRY(validate_fd(fd));
 
 		switch (cmd)
@@ -223,6 +233,8 @@ namespace Kernel
 
 	BAN::ErrorOr<off_t> OpenFileDescriptorSet::seek(int fd, off_t offset, int whence)
 	{
+		LockGuard _(m_mutex);
+
 		TRY(validate_fd(fd));
 
 		off_t base_offset;
@@ -252,18 +264,22 @@ namespace Kernel
 
 	BAN::ErrorOr<off_t> OpenFileDescriptorSet::tell(int fd) const
 	{
+		LockGuard _(m_mutex);
 		TRY(validate_fd(fd));
 		return m_open_files[fd].offset();
 	}
 
 	BAN::ErrorOr<void> OpenFileDescriptorSet::truncate(int fd, off_t length)
 	{
+		LockGuard _(m_mutex);
 		TRY(validate_fd(fd));
 		return m_open_files[fd].inode()->truncate(length);
 	}
 
 	BAN::ErrorOr<void> OpenFileDescriptorSet::close(int fd)
 	{
+		LockGuard _(m_mutex);
+
 		TRY(validate_fd(fd));
 
 		if (m_open_files[fd].path() == "<pipe wr>"_sv)
@@ -280,12 +296,14 @@ namespace Kernel
 
 	void OpenFileDescriptorSet::close_all()
 	{
+		LockGuard _(m_mutex);
 		for (int fd = 0; fd < (int)m_open_files.size(); fd++)
 			(void)close(fd);
 	}
 
 	void OpenFileDescriptorSet::close_cloexec()
 	{
+		LockGuard _(m_mutex);
 		for (int fd = 0; fd < (int)m_open_files.size(); fd++)
 		{
 			if (validate_fd(fd).is_error())
@@ -297,83 +315,155 @@ namespace Kernel
 
 	BAN::ErrorOr<size_t> OpenFileDescriptorSet::read(int fd, BAN::ByteSpan buffer)
 	{
-		TRY(validate_fd(fd));
-		auto& open_file = m_open_files[fd];
-		if (open_file.inode()->mode().ifsock())
+		BAN::RefPtr<Inode> inode;
+		bool is_nonblock;
+		off_t offset;
+
+		{
+			LockGuard _(m_mutex);
+			TRY(validate_fd(fd));
+			auto& open_file = m_open_files[fd];
+			if (open_file.inode()->mode().ifsock())
+				return recvfrom(fd, buffer, nullptr, nullptr);
+			if (!(open_file.status_flags() & O_RDONLY))
+				return BAN::Error::from_errno(EBADF);
+			inode = open_file.inode();
+			is_nonblock = !!(open_file.status_flags() & O_NONBLOCK);
+			offset = open_file.offset();
+		}
+
+		if (inode->mode().ifsock())
 			return recvfrom(fd, buffer, nullptr, nullptr);
-		if (!(open_file.status_flags() & O_RDONLY))
-			return BAN::Error::from_errno(EBADF);
-		if ((open_file.status_flags() & O_NONBLOCK) && !open_file.inode()->can_read())
-			return 0;
-		const size_t nread = TRY(open_file.inode()->read(open_file.offset(), buffer));
-		open_file.offset() += nread;
+
+		size_t nread;
+		{
+			LockGuard _(inode->m_mutex);
+			if (is_nonblock && !inode->can_read())
+				return 0;
+			nread = TRY(inode->read(offset, buffer));
+		}
+
+		LockGuard _(m_mutex);
+		// NOTE: race condition with offset, its UB per POSIX
+		if (!validate_fd(fd).is_error())
+			m_open_files[fd].offset() = offset + nread;
 		return nread;
 	}
 
 	BAN::ErrorOr<size_t> OpenFileDescriptorSet::write(int fd, BAN::ConstByteSpan buffer)
 	{
-		TRY(validate_fd(fd));
-		auto& open_file = m_open_files[fd];
-		if (open_file.inode()->mode().ifsock())
+		BAN::RefPtr<Inode> inode;
+		bool is_nonblock;
+		off_t offset;
+
+		{
+			LockGuard _(m_mutex);
+			TRY(validate_fd(fd));
+			auto& open_file = m_open_files[fd];
+			if (!(open_file.status_flags() & O_WRONLY))
+				return BAN::Error::from_errno(EBADF);
+			inode = open_file.inode();
+			is_nonblock = !!(open_file.status_flags() & O_NONBLOCK);
+			offset = (open_file.status_flags() & O_APPEND) ? inode->size() : open_file.offset();
+		}
+
+		if (inode->mode().ifsock())
 			return sendto(fd, buffer, nullptr, 0);
-		if (!(open_file.status_flags() & O_WRONLY))
-			return BAN::Error::from_errno(EBADF);
-		if ((open_file.status_flags() & O_NONBLOCK) && !open_file.inode()->can_write())
-			return BAN::Error::from_errno(EWOULDBLOCK);
-		if (open_file.status_flags() & O_APPEND)
-			open_file.offset() = open_file.inode()->size();
-		const size_t nwrite = TRY(open_file.inode()->write(open_file.offset(), buffer));
-		open_file.offset() += nwrite;
+
+		size_t nwrite;
+		{
+			LockGuard _(inode->m_mutex);
+			if (is_nonblock && !inode->can_write())
+				return BAN::Error::from_errno(EWOULDBLOCK);
+			nwrite = TRY(inode->write(offset, buffer));
+		}
+
+		LockGuard _(m_mutex);
+		// NOTE: race condition with offset, its UB per POSIX
+		if (!validate_fd(fd).is_error())
+			m_open_files[fd].offset() = offset + nwrite;
 		return nwrite;
 	}
 
 	BAN::ErrorOr<size_t> OpenFileDescriptorSet::read_dir_entries(int fd, struct dirent* list, size_t list_len)
 	{
-		TRY(validate_fd(fd));
-		auto& open_file = m_open_files[fd];
-		if (!(open_file.status_flags() & O_RDONLY))
-			return BAN::Error::from_errno(EACCES);
+		BAN::RefPtr<Inode> inode;
+		off_t offset;
+
+		{
+			LockGuard _(m_mutex);
+			TRY(validate_fd(fd));
+			auto& open_file = m_open_files[fd];
+			if (!(open_file.status_flags() & O_RDONLY))
+				return BAN::Error::from_errno(EACCES);
+			inode = open_file.inode();
+			offset = open_file.offset();
+		}
+
 		for (;;)
 		{
-			auto ret = open_file.inode()->list_next_inodes(open_file.offset(), list, list_len);
+			auto ret = inode->list_next_inodes(offset, list, list_len);
 			if (ret.is_error() && ret.error().get_error_code() != ENODATA)
 				return ret;
-			open_file.offset()++;
+			offset++;
 			if (ret.is_error())
 				continue;
+
+			LockGuard _(m_mutex);
+			// NOTE: race condition with offset, its UB per POSIX
+			if (!validate_fd(fd).is_error())
+				m_open_files[fd].offset() = offset;
 			return ret;
 		}
 	}
 
 	BAN::ErrorOr<size_t> OpenFileDescriptorSet::recvfrom(int fd, BAN::ByteSpan buffer, sockaddr* address, socklen_t* address_len)
 	{
-		TRY(validate_fd(fd));
-		auto& open_file = m_open_files[fd];
-		if (!open_file.inode()->mode().ifsock())
-			return BAN::Error::from_errno(ENOTSOCK);
-		LockGuard _(open_file.inode()->m_mutex);
-		if ((open_file.status_flags() & O_NONBLOCK) && !open_file.inode()->can_read())
+		BAN::RefPtr<Inode> inode;
+		bool is_nonblock;
+
+		{
+			LockGuard _(m_mutex);
+			TRY(validate_fd(fd));
+			auto& open_file = m_open_files[fd];
+			if (!open_file.inode()->mode().ifsock())
+				return BAN::Error::from_errno(ENOTSOCK);
+			inode = open_file.inode();
+			is_nonblock = !!(open_file.status_flags() & O_NONBLOCK);
+		}
+
+		LockGuard _(inode->m_mutex);
+		if (is_nonblock && !inode->can_read())
 			return BAN::Error::from_errno(EWOULDBLOCK);
-		return open_file.inode()->recvfrom(buffer, address, address_len);
+		return inode->recvfrom(buffer, address, address_len);
 	}
 
 	BAN::ErrorOr<size_t> OpenFileDescriptorSet::sendto(int fd, BAN::ConstByteSpan buffer, const sockaddr* address, socklen_t address_len)
 	{
-		TRY(validate_fd(fd));
-		auto& open_file = m_open_files[fd];
-		if (!open_file.inode()->mode().ifsock())
-			return BAN::Error::from_errno(ENOTSOCK);
-		if ((open_file.status_flags() & O_NONBLOCK) && !open_file.inode()->can_write())
-			return BAN::Error::from_errno(EWOULDBLOCK);
+		BAN::RefPtr<Inode> inode;
+		bool is_nonblock;
 
-		LockGuard _(open_file.inode()->m_mutex);
+		{
+			LockGuard _(m_mutex);
+			TRY(validate_fd(fd));
+			auto& open_file = m_open_files[fd];
+			if (!open_file.inode()->mode().ifsock())
+				return BAN::Error::from_errno(ENOTSOCK);
+			inode = open_file.inode();
+			is_nonblock = !!(open_file.status_flags() & O_NONBLOCK);
+		}
+
+		LockGuard _(inode->m_mutex);
+
+		if (is_nonblock && !inode->can_write())
+			return BAN::Error::from_errno(EWOULDBLOCK);
 
 		size_t total_sent = 0;
 		while (total_sent < buffer.size())
 		{
-			if ((open_file.status_flags() & O_NONBLOCK) && !open_file.inode()->can_write())
+			if (is_nonblock && !inode->can_write())
 				return total_sent;
-			const size_t nsend = TRY(open_file.inode()->sendto(buffer.slice(total_sent), address, address_len));
+			const size_t nsend = TRY(inode->sendto(buffer.slice(total_sent), address, address_len));
 			if (nsend == 0)
 				return 0;
 			total_sent += nsend;
@@ -384,30 +474,37 @@ namespace Kernel
 
 	BAN::ErrorOr<VirtualFileSystem::File> OpenFileDescriptorSet::file_of(int fd) const
 	{
+		LockGuard _(m_mutex);
 		TRY(validate_fd(fd));
 		return TRY(m_open_files[fd].description->file.clone());
 	}
 
-	BAN::ErrorOr<BAN::StringView> OpenFileDescriptorSet::path_of(int fd) const
+	BAN::ErrorOr<BAN::String> OpenFileDescriptorSet::path_of(int fd) const
 	{
+		LockGuard _(m_mutex);
 		TRY(validate_fd(fd));
-		return m_open_files[fd].path();
+		BAN::String path;
+		TRY(path.append(m_open_files[fd].path()));
+		return path;
 	}
 
 	BAN::ErrorOr<BAN::RefPtr<Inode>> OpenFileDescriptorSet::inode_of(int fd)
 	{
+		LockGuard _(m_mutex);
 		TRY(validate_fd(fd));
 		return m_open_files[fd].inode();
 	}
 
 	BAN::ErrorOr<int> OpenFileDescriptorSet::status_flags_of(int fd) const
 	{
+		LockGuard _(m_mutex);
 		TRY(validate_fd(fd));
 		return m_open_files[fd].status_flags();
 	}
 
 	BAN::ErrorOr<void> OpenFileDescriptorSet::validate_fd(int fd) const
 	{
+		LockGuard _(m_mutex);
 		if (fd < 0 || fd >= (int)m_open_files.size())
 			return BAN::Error::from_errno(EBADF);
 		if (!m_open_files[fd].description)
@@ -417,6 +514,7 @@ namespace Kernel
 
 	BAN::ErrorOr<int> OpenFileDescriptorSet::get_free_fd() const
 	{
+		LockGuard _(m_mutex);
 		for (int fd = 0; fd < (int)m_open_files.size(); fd++)
 			if (!m_open_files[fd].description)
 				return fd;
@@ -425,6 +523,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> OpenFileDescriptorSet::get_free_fd_pair(int fds[2]) const
 	{
+		LockGuard _(m_mutex);
 		size_t found = 0;
 		for (int fd = 0; fd < (int)m_open_files.size(); fd++)
 		{

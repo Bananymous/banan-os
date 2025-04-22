@@ -51,7 +51,7 @@ namespace Kernel
 		BAN::ErrorOr<size_t> sendto(int fd, BAN::ConstByteSpan buffer, const sockaddr* address, socklen_t address_len);
 
 		BAN::ErrorOr<VirtualFileSystem::File> file_of(int) const;
-		BAN::ErrorOr<BAN::StringView> path_of(int) const;
+		BAN::ErrorOr<BAN::String> path_of(int) const;
 		BAN::ErrorOr<BAN::RefPtr<Inode>> inode_of(int);
 		BAN::ErrorOr<int> status_flags_of(int) const;
 
@@ -98,6 +98,7 @@ namespace Kernel
 
 	private:
 		const Credentials& m_credentials;
+		mutable Mutex m_mutex;
 
 		BAN::Array<OpenFile, OPEN_MAX> m_open_files;
 	};
