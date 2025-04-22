@@ -26,10 +26,22 @@ uint16_t ntohs(uint16_t netshort)
 
 in_addr_t inet_addr(const char* cp)
 {
-	uint32_t a = 0, b = 0, c = 0, d = 0;
-	int ret = sscanf(cp, "%u.%u.%u.%u", &a, &b, &c, &d);
-	if (ret < 1 || ret > 4)
-		return (in_addr_t)(-1);
+	uint32_t a, b, c, d, n;
+	const int ret = sscanf(cp, "%i%n.%i%n.%i%n.%i%n",
+		&a, &n, &b, &n, &c, &n, &d, &n
+	);
+
+	if (ret < 1 || ret > 4 || cp[n] != '\0')
+		return INADDR_NONE;
+	if (ret == 1 && (a > 0xFFFFFFFF))
+		return INADDR_NONE;
+	if (ret == 2 && (a > 0xFF || b > 0xFFFFFF))
+		return INADDR_NONE;
+	if (ret == 3 && (a > 0xFF || b > 0xFF || c > 0xFFFF))
+		return INADDR_NONE;
+	if (ret == 4 && (a > 0xFF || b > 0xFF || c > 0xFF || d > 0xFF))
+		return INADDR_NONE;
+
 	uint32_t result = 0;
 	result |= (ret == 1) ? a : a << 24;
 	result |= (ret == 2) ? b : b << 16;
