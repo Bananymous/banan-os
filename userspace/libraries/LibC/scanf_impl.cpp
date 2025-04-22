@@ -596,7 +596,7 @@ int scanf_impl(const char* format, va_list arguments, int (*__getc_fun)(bool adv
 				}
 				case 'n':
 					if (!conversion.suppress)
-						*va_arg(arguments, int*) = nread - (in != NONE);
+						*va_arg(arguments, int*) = nread;
 					conversion.suppress = true; // Dont count this as conversion
 					result = ConversionResult::SUCCESS;
 					break;
