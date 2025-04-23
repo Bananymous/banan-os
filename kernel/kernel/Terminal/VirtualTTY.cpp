@@ -411,7 +411,7 @@ namespace Kernel
 				break;
 			case BS:
 				if (m_column > 0)
-					putchar_at(' ', --m_column, m_row);
+					m_column--;
 				break;
 			case HT:
 				m_column++;

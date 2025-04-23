@@ -302,6 +302,8 @@ namespace Kernel
 				ASSERT(m_output.bytes > 0);
 				m_output.bytes--;
 				putchar('\b');
+				putchar(' ');
+				putchar('\b');
 			}
 			// Caret notation
 			else if (last < 32 || last == 127)
@@ -309,11 +311,17 @@ namespace Kernel
 				m_output.bytes--;
 				putchar('\b');
 				putchar('\b');
+				putchar(' ');
+				putchar(' ');
+				putchar('\b');
+				putchar('\b');
 			}
 			// Ascii
 			else
 			{
 				m_output.bytes--;
+				putchar('\b');
+				putchar(' ');
 				putchar('\b');
 			}
 		}
