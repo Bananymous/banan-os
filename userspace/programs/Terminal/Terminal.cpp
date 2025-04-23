@@ -325,6 +325,42 @@ void Terminal::handle_sgr(int32_t value)
 	}
 }
 
+BAN::Optional<uint32_t> Terminal::get_8bit_color()
+{
+	ASSERT(m_csi_info.fields[1] == 5);
+	if (m_csi_info.fields[2] < 1)
+		return {};
+
+	const uint8_t code = BAN::Math::min(m_csi_info.fields[2], 256) - 1;
+	if (code < 8)
+		return s_colors_dark[code];
+	if (code < 16)
+		return s_colors_bright[code - 8];
+
+	if (code < 232)
+	{
+		const uint8_t r = (code - 16) / 36 % 6 * 40 + 55;
+		const uint8_t g = (code - 16) /  6 % 6 * 40 + 55;
+		const uint8_t b = (code - 16) /  1 % 6 * 40 + 55;
+		return b | (g << 8) | (r << 16) | (0xCC << 24);
+	}
+
+	const uint8_t gray = (code - 232) * 10 + 8;
+	return gray | (gray << 8) | (gray << 16) | (0xCC << 24);
+}
+
+BAN::Optional<uint32_t> Terminal::get_24bit_color()
+{
+	ASSERT(m_csi_info.fields[1] == 2);
+	if (m_csi_info.fields[2] < 1) return {};
+	if (m_csi_info.fields[3] < 1) return {};
+	if (m_csi_info.fields[4] < 1) return {};
+	const uint8_t r = BAN::Math::min(m_csi_info.fields[2], 256) - 1;
+	const uint8_t g = BAN::Math::min(m_csi_info.fields[3], 256) - 1;
+	const uint8_t b = BAN::Math::min(m_csi_info.fields[4], 256) - 1;
+	return b | (g << 8) | (r << 16) | (0xCC << 24);
+}
+
 Rectangle Terminal::handle_csi(char ch)
 {
 	if (ch == ';')
@@ -508,6 +544,20 @@ Rectangle Terminal::handle_csi(char ch)
 			m_cursor.y = BAN::Math::clamp<int32_t>(m_csi_info.fields[0], 1, rows()) - 1;
 			break;
 		case 'm':
+			if (m_csi_info.fields[0] == 38 || m_csi_info.fields[0] == 48)
+			{
+				if (m_csi_info.fields[1] != 5 && m_csi_info.fields[1] != 2)
+				{
+					dprintln("unsupported ANSI SGR {}", m_csi_info.fields[1]);
+					break;
+				}
+				const auto color = (m_csi_info.fields[1] == 5)
+					? get_8bit_color()
+					: get_24bit_color();
+				if (color.has_value())
+					(m_csi_info.fields[0] == 38 ? m_fg_color : m_bg_color) = *color;
+				break;
+			}
 			for (size_t i = 0; i <= m_csi_info.index && i < m_csi_info.max_fields; i++)
 				handle_sgr(m_csi_info.fields[i]);
 			break;
@@ -620,10 +670,11 @@ Rectangle Terminal::putchar(uint8_t ch)
 			return {};
 		}
 		m_state = State::CSI;
-		m_csi_info.index = 0;
-		m_csi_info.fields[0] = -1;
-		m_csi_info.fields[1] = -1;
-		m_csi_info.question = false;
+		m_csi_info = {
+			.fields = { -1, -1, -1, -1, -1 },
+			.index = 0,
+			.question = false,
+		};
 		return {};
 	}
 

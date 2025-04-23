@@ -41,6 +41,9 @@ private:
 	Rectangle putchar(uint8_t ch);
 	bool read_shell();
 
+	BAN::Optional<uint32_t> get_8bit_color();
+	BAN::Optional<uint32_t> get_24bit_color();
+
 	void hide_cursor();
 	void show_cursor();
 
@@ -70,7 +73,7 @@ private:
 
 	struct CSIInfo
 	{
-		static constexpr size_t max_fields = 2;
+		static constexpr size_t max_fields = 5;
 		int32_t fields[max_fields];
 		size_t index;
 		bool question;
