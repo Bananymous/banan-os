@@ -11,20 +11,21 @@ namespace Kernel
 	{
 		TerminalDriver::Palette palette;
 		palette[ 0] = 0x000000;
-		palette[ 1] = 0x0000AA;
+		palette[ 1] = 0xAA0000;
 		palette[ 2] = 0x00AA00;
-		palette[ 3] = 0x00AAAA;
-		palette[ 4] = 0xAA0000;
+		palette[ 3] = 0xAA5500;
+		palette[ 4] = 0x0000AA;
 		palette[ 5] = 0xAA00AA;
-		palette[ 6] = 0xAA5500;
+		palette[ 6] = 0x00AAAA;
 		palette[ 7] = 0xAAAAAA;
+
 		palette[ 8] = 0x555555;
-		palette[ 9] = 0x5555FF;
+		palette[ 9] = 0xFF5555;
 		palette[10] = 0x55FF55;
-		palette[11] = 0x55FFFF;
-		palette[12] = 0xFF5555;
+		palette[11] = 0xFFFF55;
+		palette[12] = 0x5555FF;
 		palette[13] = 0xFF55FF;
-		palette[14] = 0xFFFF55;
+		palette[14] = 0x55FFFF;
 		palette[15] = 0xFFFFFF;
 		return palette;
 	}
@@ -47,7 +48,10 @@ namespace Kernel
 			closest = i;
 		}
 
-		return closest;
+		constexpr uint8_t terminal_to_text[16] {
+			0, 4, 2, 6, 1, 5, 3, 7, 8, 12, 10, 14, 9, 13, 11, 15
+		};
+		return terminal_to_text[closest];
 	}
 
 	BAN::ErrorOr<BAN::RefPtr<TextModeTerminalDriver>> TextModeTerminalDriver::create_from_boot_info()
