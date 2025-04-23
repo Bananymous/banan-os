@@ -1,0 +1,12 @@
+diff -ruN tcc-0.9.27/tccrun.c tcc-0.9.27-banan_os/tccrun.c
+--- tcc-0.9.27/tccrun.c	2017-12-17 10:27:05.000000000 +0200
++++ tcc-0.9.27-banan_os/tccrun.c	2025-04-15 23:42:45.677267898 +0300
+@@ -562,7 +562,7 @@
+ #ifdef __i386__
+ 
+ /* fix for glibc 2.1 */
+-#ifndef REG_EIP
++#if defined(REG_EIP) && !defined(__banan_os__)
+ #define REG_EIP EIP
+ #define REG_EBP EBP
+ #endif
