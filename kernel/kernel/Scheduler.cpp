@@ -7,7 +7,6 @@
 #include <kernel/Timer/Timer.h>
 
 #define SCHEDULER_ASSERT 1
-#define SCHEDULER_LOAD_BALANCE 0
 
 #if SCHEDULER_ASSERT == 0
 #undef ASSERT
@@ -296,9 +295,8 @@ namespace Kernel
 	{
 		ASSERT(Processor::get_interrupt_state() == InterruptState::Disabled);
 
-		if constexpr(SCHEDULER_LOAD_BALANCE)
-			if (Processor::is_smp_enabled())
-				do_load_balancing();
+		if (Processor::is_smp_enabled())
+			do_load_balancing();
 
 		{
 			const uint64_t current_ns = SystemTimer::get().ns_since_boot();
@@ -339,6 +337,7 @@ namespace Kernel
 			node->blocked = false;
 			if (node != m_current)
 				m_run_queue.add_thread_to_back(node);
+			update_most_loaded_node_queue(node, &m_run_queue);
 		}
 		else
 		{
@@ -388,7 +387,6 @@ namespace Kernel
 		return least_loaded_id;
 	}
 
-#if SCHEDULER_LOAD_BALANCE
 	void Scheduler::do_load_balancing()
 	{
 		ASSERT(Processor::get_interrupt_state() == InterruptState::Disabled);
@@ -421,9 +419,9 @@ namespace Kernel
 
 			if (m_current)
 			{
-				const char* name = "unknown";
-				if (m_current->thread->has_process() && m_current->thread->process().is_userspace() && m_current->thread->process().userspace_info().argv)
-					name = m_current->thread->process().userspace_info().argv[0];
+				const char* name = "<unknown>";
+				if (m_current->thread->has_process() && *m_current->thread->process().name())
+					name = m_current->thread->process().name();
 				const uint64_t load_percent_x1000 = BAN::Math::div_round_up<uint64_t>(m_current->time_used_ns * 100'000, processing_ns);
 				dprintln("  tid { 2}: { 3}.{3}% <{}> current", m_current->thread->tid(), load_percent_x1000 / 1000, load_percent_x1000 % 1000, name);
 			}
@@ -473,9 +471,6 @@ namespace Kernel
 			if (thread_info.node == nullptr)
 				break;
 			if (thread_info.node == m_current || thread_info.queue == nullptr)
-				continue;
-			// FIXME: allow load balancing with blocked threads, with this algorithm there is a race condition
-			if (thread_info.node->blocked)
 				continue;
 
 			auto least_loaded_id = find_least_loaded_processor();
@@ -566,7 +561,6 @@ namespace Kernel
 
 		m_last_load_balance_ns += s_load_balance_interval_ns;
 	}
-#endif
 
 	BAN::ErrorOr<void> Scheduler::bind_thread_to_processor(Thread* thread, ProcessorID processor_id)
 	{
@@ -610,12 +604,14 @@ namespace Kernel
 		auto state = Processor::get_interrupt_state();
 		Processor::set_interrupt_state(InterruptState::Disabled);
 
+		ASSERT(m_current->processor_id == Processor::current_id());
 		ASSERT(!m_current->blocked);
 
 		m_current->blocked = true;
 		m_current->wake_time_ns = wake_time_ns;
 		if (blocker)
 			blocker->add_thread_to_block_queue(m_current);
+		update_most_loaded_node_queue(m_current, &m_block_queue);
 		Processor::yield();
 
 		Processor::set_interrupt_state(state);
