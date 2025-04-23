@@ -501,7 +501,7 @@ namespace Kernel
 		scroll_if_needed();
 	}
 
-	void VirtualTTY::putchar_impl(uint8_t ch)
+	bool VirtualTTY::putchar_impl(uint8_t ch)
 	{
 		ASSERT(m_write_lock.current_processor_has_lock());
 
@@ -531,10 +531,10 @@ namespace Kernel
 				{
 					reset_ansi();
 					dprintln_if(DEBUG_VTTY, "invalid utf8");
-					return;
+					return true;
 				}
 				m_state = State::WaitingUTF8;
-				return;
+				return true;
 			case State::WaitingAnsiEscape:
 				if (ch == CSI)
 					m_state = State::WaitingAnsiCSI;
@@ -543,21 +543,21 @@ namespace Kernel
 					reset_ansi();
 					dprintln_if(DEBUG_VTTY, "unsupported byte after ansi escape {2H}", (uint8_t)ch);
 				}
-				return;
+				return true;
 			case State::WaitingAnsiCSI:
 				handle_ansi_csi(ch);
-				return;
+				return true;
 			case State::WaitingUTF8:
 				if ((ch & 0xC0) != 0x80)
 				{
 					m_state = State::Normal;
 					dprintln_if(DEBUG_VTTY, "invalid utf8");
-					return;
+					return true;
 				}
 				m_utf8_state.codepoint = (m_utf8_state.codepoint << 6) | (ch & 0x3F);
 				m_utf8_state.bytes_missing--;
 				if (m_utf8_state.bytes_missing)
-					return;
+					return true;
 				m_state = State::Normal;
 				codepoint = m_utf8_state.codepoint;
 				break;
@@ -566,6 +566,7 @@ namespace Kernel
 		}
 
 		putcodepoint(codepoint);
+		return true;
 	}
 
 	void VirtualTTY::update_cursor()

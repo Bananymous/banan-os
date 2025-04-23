@@ -20,7 +20,7 @@ namespace Kernel
 
 		BAN::ErrorOr<BAN::String> ptsname();
 
-		void putchar(uint8_t ch);
+		bool putchar(uint8_t ch);
 
 	protected:
 		BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan) override;
@@ -61,7 +61,7 @@ namespace Kernel
 		void clear() override;
 
 	protected:
-		void putchar_impl(uint8_t ch) override;
+		bool putchar_impl(uint8_t ch) override;
 
 		BAN::ErrorOr<long> ioctl_impl(int, void*) override;
 

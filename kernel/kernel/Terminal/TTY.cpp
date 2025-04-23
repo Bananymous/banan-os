@@ -327,11 +327,12 @@ namespace Kernel
 		}
 	}
 
-	void TTY::putchar(uint8_t ch)
+	bool TTY::putchar(uint8_t ch)
 	{
 		SpinLockGuard _(m_write_lock);
 		if (m_tty_ctrl.draw_graphics)
-			putchar_impl(ch);
+			return putchar_impl(ch);
+		return true;
 	}
 
 	BAN::ErrorOr<size_t> TTY::read_impl(off_t, BAN::ByteSpan buffer)
@@ -365,10 +366,12 @@ namespace Kernel
 	BAN::ErrorOr<size_t> TTY::write_impl(off_t, BAN::ConstByteSpan buffer)
 	{
 		SpinLockGuard _(m_write_lock);
-		for (size_t i = 0; i < buffer.size(); i++)
-			putchar(buffer[i]);
+		size_t written = 0;
+		for (; written < buffer.size(); written++)
+			if (!putchar(buffer[written]))
+				break;
 		update_cursor();
-		return buffer.size();
+		return written;
 	}
 
 	void TTY::putchar_current(uint8_t ch)

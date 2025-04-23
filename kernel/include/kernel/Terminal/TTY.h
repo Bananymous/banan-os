@@ -58,14 +58,14 @@ namespace Kernel
 	protected:
 		TTY(mode_t mode, uid_t uid, gid_t gid);
 
-		virtual void putchar_impl(uint8_t ch) = 0;
+		virtual bool putchar_impl(uint8_t ch) = 0;
 		virtual void update_cursor() {}
 
 		virtual BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan) override;
 		virtual BAN::ErrorOr<size_t> write_impl(off_t, BAN::ConstByteSpan) override;
 
 	private:
-		void putchar(uint8_t ch);
+		bool putchar(uint8_t ch);
 		void do_backspace();
 
 	protected:

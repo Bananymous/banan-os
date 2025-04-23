@@ -85,16 +85,19 @@ namespace Kernel
 		return BAN::Error::from_errno(ENODEV);
 	}
 
-	void PseudoTerminalMaster::putchar(uint8_t ch)
+	bool PseudoTerminalMaster::putchar(uint8_t ch)
 	{
 		SpinLockGuard _(m_buffer_lock);
 
-		reinterpret_cast<uint8_t*>(m_buffer->vaddr())[(m_buffer_tail + m_buffer_size) % m_buffer->size()] = ch;
+		if (m_buffer_size >= m_buffer->size())
+			return false;
 
-		if (m_buffer_size < m_buffer->size())
-			m_buffer_size++;
-		else
-			m_buffer_tail = (m_buffer_tail + 1) % m_buffer->size();
+		reinterpret_cast<uint8_t*>(m_buffer->vaddr())[(m_buffer_tail + m_buffer_size) % m_buffer->size()] = ch;
+		m_buffer_size++;
+
+		m_buffer_blocker.unblock();
+
+		return true;
 	}
 
 	BAN::ErrorOr<size_t> PseudoTerminalMaster::read_impl(off_t, BAN::ByteSpan buffer)
@@ -166,10 +169,11 @@ namespace Kernel
 		(void)write_impl(0, BAN::ConstByteSpan::from(message));
 	}
 
-	void PseudoTerminalSlave::putchar_impl(uint8_t ch)
+	bool PseudoTerminalSlave::putchar_impl(uint8_t ch)
 	{
 		if (auto master = m_master.lock())
-			master->putchar(ch);
+			return master->putchar(ch);
+		return false;
 	}
 
 	BAN::ErrorOr<long> PseudoTerminalSlave::ioctl_impl(int request, void* argument)

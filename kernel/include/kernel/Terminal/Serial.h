@@ -53,7 +53,7 @@ namespace Kernel
 
 	protected:
 		virtual BAN::StringView name() const override { return m_name; }
-		virtual void putchar_impl(uint8_t) override;
+		virtual bool putchar_impl(uint8_t) override;
 
 	private:
 		SerialTTY(Serial);
