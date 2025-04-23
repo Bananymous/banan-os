@@ -306,8 +306,7 @@ namespace Kernel
 				dprintln_if(DEBUG_VTTY, "Unsupported ANSI CSI character f");
 				return;
 			case 'm':
-				handle_ansi_csi_color(BAN::Math::max(m_ansi_state.nums[0], 0));
-				for (int i = 1; i < m_ansi_state.index; i++)
+				for (int i = 0; i <= m_ansi_state.index && i < static_cast<int>(max_ansi_args); i++)
 					handle_ansi_csi_color(BAN::Math::max(m_ansi_state.nums[i], 0));
 				return reset_ansi();
 			case 's':

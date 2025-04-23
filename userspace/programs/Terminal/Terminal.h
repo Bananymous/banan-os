@@ -35,7 +35,7 @@ public:
 	uint32_t rows() const { return m_window->height() / m_font.height(); }
 
 private:
-	void handle_sgr();
+	void handle_sgr(int32_t value);
 	Rectangle handle_csi(char ch);
 	Rectangle putcodepoint(uint32_t codepoint);
 	Rectangle putchar(uint8_t ch);
@@ -70,7 +70,8 @@ private:
 
 	struct CSIInfo
 	{
-		int32_t fields[2];
+		static constexpr size_t max_fields = 2;
+		int32_t fields[max_fields];
 		size_t index;
 		bool question;
 	};

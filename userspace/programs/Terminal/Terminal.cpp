@@ -276,9 +276,9 @@ bool Terminal::read_shell()
 	return true;
 }
 
-void Terminal::handle_sgr()
+void Terminal::handle_sgr(int32_t value)
 {
-	switch (m_csi_info.fields[0])
+	switch (value)
 	{
 		case -1: case 0:
 			m_bg_color = s_default_bg_color;
@@ -298,25 +298,25 @@ void Terminal::handle_sgr()
 			m_colors_inverted = false;
 			break;
 		case 30: case 31: case 32: case 33: case 34: case 35: case 36: case 37:
-			m_fg_color = s_colors_dark[m_csi_info.fields[0] - 30];
+			m_fg_color = s_colors_dark[value - 30];
 			break;
 		case 39:
 			m_fg_color = s_default_fg_color;
 			break;
 		case 40: case 41: case 42: case 43: case 44: case 45: case 46: case 47:
-			m_bg_color = s_colors_dark[m_csi_info.fields[0] - 40];
+			m_bg_color = s_colors_dark[value - 40];
 			break;
 		case 49:
 			m_bg_color = s_default_bg_color;
 			break;
 		case 90: case 91: case 92: case 93: case 94: case 95: case 96: case 97:
-			m_fg_color = s_colors_bright[m_csi_info.fields[0] - 90];
+			m_fg_color = s_colors_bright[value - 90];
 			break;
 		case 100: case 101: case 102: case 103: case 104: case 105: case 106: case 107:
-			m_bg_color = s_colors_bright[m_csi_info.fields[0] - 100];
+			m_bg_color = s_colors_bright[value - 100];
 			break;
 		default:
-			dprintln("TODO: SGR {}", m_csi_info.fields[0]);
+			dprintln("TODO: SGR {}", value);
 			break;
 	}
 }
@@ -337,7 +337,7 @@ Rectangle Terminal::handle_csi(char ch)
 
 	if (isdigit(ch))
 	{
-		if (m_csi_info.index <= 1)
+		if (m_csi_info.index < m_csi_info.max_fields)
 		{
 			auto& field = m_csi_info.fields[m_csi_info.index];
 			field = (BAN::Math::max(field, 0) * 10) + (ch - '0');
@@ -504,7 +504,8 @@ Rectangle Terminal::handle_csi(char ch)
 			m_cursor.y = BAN::Math::clamp<int32_t>(m_csi_info.fields[0], 1, rows()) - 1;
 			break;
 		case 'm':
-			handle_sgr();
+			for (size_t i = 0; i <= m_csi_info.index && i < m_csi_info.max_fields; i++)
+				handle_sgr(m_csi_info.fields[i]);
 			break;
 		case 's':
 			m_saved_cursor = m_cursor;
