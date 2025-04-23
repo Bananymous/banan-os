@@ -140,6 +140,10 @@ namespace Kernel
 
 	void TextModeTerminalDriver::set_cursor_position(uint32_t x, uint32_t y)
 	{
+		// NOTE: cursor is allowed to be on width as scrolling only
+		//       happens after character gets printed to next line
+		if (x == m_width)
+			return;
 		const uint16_t pos = y * m_width + x;
 		IO::outb(0x3D4, 0x0F);
 		IO::outb(0x3D5, pos & 0xFF);

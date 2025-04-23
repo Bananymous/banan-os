@@ -104,6 +104,11 @@ namespace Kernel
 
 	void FramebufferTerminalDriver::show_cursor(bool use_data)
 	{
+		// NOTE: cursor is allowed to be on width as scrolling only
+		//       happens after character gets printed to next line
+		if (m_cursor_x == width())
+			return;
+
 		if (!use_data)
 			read_cursor();
 

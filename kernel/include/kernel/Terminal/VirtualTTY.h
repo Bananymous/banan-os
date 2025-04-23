@@ -38,6 +38,7 @@ namespace Kernel
 		void putcodepoint(uint32_t codepoint);
 		void putchar_at(uint32_t codepoint, uint32_t x, uint32_t y);
 		void render_from_buffer(uint32_t x, uint32_t y);
+		void scroll_if_needed();
 
 	private:
 		enum class State

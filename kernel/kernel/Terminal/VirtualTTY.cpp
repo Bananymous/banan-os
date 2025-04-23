@@ -385,6 +385,29 @@ namespace Kernel
 		m_terminal_driver->putchar_at(codepoint, x, y, cell.foreground, cell.background);
 	}
 
+	void VirtualTTY::scroll_if_needed()
+	{
+		while (m_row >= m_height)
+		{
+			memmove(m_buffer, m_buffer + m_width, m_width * (m_height - 1) * sizeof(Cell));
+
+			// Clear last line in buffer
+			for (uint32_t x = 0; x < m_width; x++)
+				m_buffer[(m_height - 1) * m_width + x] = { .foreground = m_foreground, .background = m_background, .codepoint = ' ' };
+
+			if (!m_terminal_driver->scroll(m_background))
+			{
+				// No fast scrolling, render the whole buffer to the screen
+				for (uint32_t y = 0; y < m_height; y++)
+					for (uint32_t x = 0; x < m_width; x++)
+						render_from_buffer(x, y);
+			}
+
+			m_column = 0;
+			m_row--;
+		}
+	}
+
 	void VirtualTTY::putcodepoint(uint32_t codepoint)
 	{
 		ASSERT(m_write_lock.current_processor_has_lock());
@@ -416,37 +439,19 @@ namespace Kernel
 				m_state = State::WaitingAnsiEscape;
 				break;
 			default:
+				if (m_column >= m_width)
+				{
+					m_column = 0;
+					m_row++;
+				}
+				scroll_if_needed();
 				putchar_at(codepoint, m_column, m_row);
 				m_last_graphic_char = codepoint;
 				m_column++;
 				break;
 		}
 
-		if (m_column >= m_width)
-		{
-			m_column = 0;
-			m_row++;
-		}
-
-		while (m_row >= m_height)
-		{
-			memmove(m_buffer, m_buffer + m_width, m_width * (m_height - 1) * sizeof(Cell));
-
-			// Clear last line in buffer
-			for (uint32_t x = 0; x < m_width; x++)
-				m_buffer[(m_height - 1) * m_width + x] = { .foreground = m_foreground, .background = m_background, .codepoint = ' ' };
-
-			if (!m_terminal_driver->scroll(m_background))
-			{
-				// No fast scrolling, render the whole buffer to the screen
-				for (uint32_t y = 0; y < m_height; y++)
-					for (uint32_t x = 0; x < m_width; x++)
-						render_from_buffer(x, y);
-			}
-
-			m_column = 0;
-			m_row--;
-		}
+		scroll_if_needed();
 	}
 
 	void VirtualTTY::putchar_impl(uint8_t ch)
