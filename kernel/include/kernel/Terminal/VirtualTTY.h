@@ -51,10 +51,14 @@ namespace Kernel
 
 		struct AnsiState
 		{
-			int32_t nums[2]	{ -1, -1 };
-			int32_t index { 0 };
+			static constexpr size_t max_nums = 5;
+			int32_t nums[max_nums]	{ -1, -1, -1, -1, -1 };
+			size_t index { 0 };
 			bool question { false };
 		};
+
+		BAN::Optional<TerminalDriver::Color> get_8bit_color();
+		BAN::Optional<TerminalDriver::Color> get_24bit_color();
 
 		struct UTF8State
 		{

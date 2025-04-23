@@ -138,18 +138,50 @@ namespace Kernel
 		}
 	}
 
+	BAN::Optional<TerminalDriver::Color> VirtualTTY::get_8bit_color()
+	{
+		ASSERT(m_ansi_state.nums[1] == 5);
+		if (m_ansi_state.nums[2] < 1)
+			return {};
+
+		const uint8_t code = BAN::Math::min(m_ansi_state.nums[2], 256) - 1;
+		if (code < 16)
+			return m_palette[code];
+
+		if (code < 232)
+		{
+			const uint8_t r = (code - 16) / 36 % 6 * 40 + 55;
+			const uint8_t g = (code - 16) /  6 % 6 * 40 + 55;
+			const uint8_t b = (code - 16) /  1 % 6 * 40 + 55;
+			return TerminalDriver::Color(r, g, b);
+		}
+
+		const uint8_t gray = (code - 232) * 10 + 8;
+		return TerminalDriver::Color(gray, gray, gray);
+	}
+
+	BAN::Optional<TerminalDriver::Color> VirtualTTY::get_24bit_color()
+	{
+		ASSERT(m_ansi_state.nums[1] == 2);
+		if (m_ansi_state.nums[2] < 1) return {};
+		if (m_ansi_state.nums[3] < 1) return {};
+		if (m_ansi_state.nums[4] < 1) return {};
+		const uint8_t r = BAN::Math::min(m_ansi_state.nums[2], 256) - 1;
+		const uint8_t g = BAN::Math::min(m_ansi_state.nums[3], 256) - 1;
+		const uint8_t b = BAN::Math::min(m_ansi_state.nums[4], 256) - 1;
+		return TerminalDriver::Color(r, g, b);
+	}
+
 	void VirtualTTY::handle_ansi_csi(uint8_t ch)
 	{
-		constexpr size_t max_ansi_args = sizeof(m_ansi_state.nums) / sizeof(*m_ansi_state.nums);
-
 		ASSERT(m_write_lock.current_processor_has_lock());
 		switch (ch)
 		{
 			case '0': case '1': case '2': case '3': case '4':
 			case '5': case '6': case '7': case '8': case '9':
 			{
-				if ((size_t)m_ansi_state.index >= max_ansi_args)
-					dwarnln("Only {} arguments supported with ANSI codes", max_ansi_args);
+				if (m_ansi_state.index >= m_ansi_state.max_nums)
+					dwarnln("Only {} arguments supported with ANSI codes", m_ansi_state.max_nums);
 				else
 				{
 					int32_t& val = m_ansi_state.nums[m_ansi_state.index];
@@ -158,7 +190,7 @@ namespace Kernel
 				return;
 			}
 			case ';':
-				m_ansi_state.index = BAN::Math::min<size_t>(m_ansi_state.index + 1, max_ansi_args);
+				m_ansi_state.index = BAN::Math::min<size_t>(m_ansi_state.index + 1, m_ansi_state.max_nums);
 				return;
 			case 'A': // Cursor Up
 				if (m_ansi_state.nums[0] == -1)
@@ -290,7 +322,22 @@ namespace Kernel
 				dprintln_if(DEBUG_VTTY, "Unsupported ANSI CSI character f");
 				return;
 			case 'm':
-				for (int i = 0; i <= m_ansi_state.index && i < static_cast<int>(max_ansi_args); i++)
+				if (m_ansi_state.nums[0] == 38 || m_ansi_state.nums[0] == 48)
+				{
+					if (m_ansi_state.nums[1] != 5 && m_ansi_state.nums[1] != 2)
+					{
+						reset_ansi();
+						dprintln_if(DEBUG_VTTY, "Unsupported ANSI SGR {}", m_ansi_state.nums[1]);
+						return;
+					}
+					const auto color = (m_ansi_state.nums[1] == 5)
+						? get_8bit_color()
+						: get_24bit_color();
+					if (color.has_value())
+						(m_ansi_state.nums[0] == 38 ? m_foreground : m_background) = *color;
+					return reset_ansi();
+				}
+				for (size_t i = 0; i <= m_ansi_state.index && i < m_ansi_state.max_nums; i++)
 					handle_ansi_csi_color(BAN::Math::max(m_ansi_state.nums[i], 0));
 				return reset_ansi();
 			case 's':
