@@ -517,10 +517,20 @@ Rectangle Terminal::handle_csi(char ch)
 		case 'l':
 			if (!m_csi_info.question || m_csi_info.fields[0] != 25)
 			{
-				dprintln("invalid ANSI CSI ?{}{}", m_csi_info.fields[0], (char)ch);
+				dprintln("unsupported ANSI CSI {}", ch);
 				break;
 			}
 			m_cursor_shown = (ch == 'h');
+			break;
+		case 'n':
+			if (m_csi_info.fields[0] != 6)
+			{
+				dprintln("unsupported ANSI CSI n");
+				break;
+			}
+			char buffer[2 + 10 + 1 + 10 + 2];
+			sprintf(buffer, "\e[%u;%uR", m_cursor.y + 1, m_cursor.x + 1);
+			write(m_shell_info.pts_master, buffer, strlen(buffer));
 			break;
 		default:
 			dprintln("TODO: CSI {}", ch);
