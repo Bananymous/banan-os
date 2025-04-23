@@ -185,6 +185,8 @@ void Terminal::run()
 
 void Terminal::hide_cursor()
 {
+	if (m_cursor.x == cols())
+		return;
 	const uint32_t cursor_base_x = m_cursor.x * m_font.width();
 	const uint32_t cursor_base_y = m_cursor.y * m_font.height();
 	for (uint32_t y = 0; y < m_font.height(); y++)
@@ -195,6 +197,8 @@ void Terminal::hide_cursor()
 
 void Terminal::show_cursor()
 {
+	if (m_cursor.x == cols())
+		return;
 	const uint32_t cursor_base_x = m_cursor.x * m_font.width();
 	const uint32_t cursor_base_y = m_cursor.y * m_font.height();
 	for (uint32_t y = 0; y < m_font.height(); y++)
@@ -563,6 +567,20 @@ Rectangle Terminal::putcodepoint(uint32_t codepoint)
 			break;
 		default:
 		{
+			if (m_cursor.x >= cols())
+			{
+				m_cursor.x = 0;
+				m_cursor.y++;
+			}
+
+			if (m_cursor.y >= rows())
+			{
+				const uint32_t scroll = m_cursor.y - rows() + 1;
+				m_cursor.y -= scroll;
+				m_window->shift_vertical(-scroll * (int32_t)m_font.height(), m_bg_color);
+				should_invalidate = { 0, 0, m_window->width(), m_window->height() };
+			}
+
 			const uint32_t cell_w = m_font.width();
 			const uint32_t cell_h = m_font.height();
 			const uint32_t cell_x = m_cursor.x * cell_w;
@@ -578,12 +596,6 @@ Rectangle Terminal::putcodepoint(uint32_t codepoint)
 			m_cursor.x++;
 			break;
 		}
-	}
-
-	if (m_cursor.x >= cols())
-	{
-		m_cursor.x = 0;
-		m_cursor.y++;
 	}
 
 	if (m_cursor.y >= rows())
