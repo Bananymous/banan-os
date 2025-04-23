@@ -282,38 +282,40 @@ char* strstr(const char* haystack, const char* needle)
 	return nullptr;
 }
 
-size_t strcspn(const char* s1, const char* s2)
-{
-	size_t i = 0;
-	for (; s1[i]; i++)
-		for (size_t j = 0; s2[j]; j++)
-			if (s1[i] == s2[j])
-				return i;
-	return i;
-}
+#define CHAR_UCHAR(ch) \
+	static_cast<unsigned char>(ch)
+
+#define CHAR_BITMASK(str) \
+	uint32_t bitmask[0x100 / 32] {}; \
+	for (size_t i = 0; str[i]; i++) \
+		bitmask[CHAR_UCHAR(str[i]) / 32] |= (1 << (CHAR_UCHAR(str[i]) % 32))
+
+#define CHAR_BITMASK_TEST(ch) \
+	(bitmask[CHAR_UCHAR(ch) / 32] & (1 << (CHAR_UCHAR(ch) % 32)))
 
 char* strpbrk(const char* s1, const char* s2)
 {
+	CHAR_BITMASK(s2);
 	for (size_t i = 0; s1[i]; i++)
-		for (size_t j = 0; s2[j]; j++)
-			if (s1[i] == s2[j])
-				return const_cast<char*>(s1 + i);
+		if (CHAR_BITMASK_TEST(s1[i]))
+			return const_cast<char*>(&s1[i]);
 	return nullptr;
 }
 
 size_t strspn(const char* s1, const char* s2)
 {
-	size_t i = 0;
-	for (; s1[i]; i++)
-	{
-		bool found = false;
-		for (size_t j = 0; s2[j] && !found; j++)
-			if (s1[i] == s2[j])
-				found = true;
-		if (!found)
-			break;
-	}
-	return i;
+	CHAR_BITMASK(s2);
+	for (size_t i = 0;; i++)
+		if (s1[i] == '\0' || !CHAR_BITMASK_TEST(s1[i]))
+			return i;
+}
+
+size_t strcspn(const char* s1, const char* s2)
+{
+	CHAR_BITMASK(s2);
+	for (size_t i = 0;; i++)
+		if (s1[i] == '\0' || CHAR_BITMASK_TEST(s1[i]))
+			return i;
 }
 
 char* strtok(char* __restrict s, const char* __restrict sep)
@@ -324,48 +326,42 @@ char* strtok(char* __restrict s, const char* __restrict sep)
 
 char* strtok_r(char* __restrict str, const char* __restrict sep, char** __restrict state)
 {
+	CHAR_BITMASK(sep);
+
 	if (str)
-	{
-		while (*str)
-		{
-			bool found = false;
-			for (size_t i = 0; sep[i] && !found; i++)
-				if (*str == sep[i])
-					found = true;
-			if (!found)
-				break;
-			str++;
-		}
-
-		if (!*str)
-		{
-			*state = nullptr;
-			return nullptr;
-		}
-
 		*state = str;
-	}
 
-	if (!*state)
+	if (*state == nullptr)
 		return nullptr;
 
 	str = *state;
+
+	for (; *str; str++)
+		if (!CHAR_BITMASK_TEST(*str))
+			break;
+
+	if (*str == '\0')
+	{
+		*state = nullptr;
+		return nullptr;
+	}
+
 	for (size_t i = 0; str[i]; i++)
 	{
-		for (size_t j = 0; sep[j]; j++)
-		{
-			if (str[i] == sep[j])
-			{
-				str[i] = '\0';
-				*state = str + i + 1;
-				return str;
-			}
-		}
+		if (!CHAR_BITMASK_TEST(str[i]))
+			continue;
+		str[i] = '\0';
+		*state = str + i + 1;
+		return str;
 	}
 
 	*state = nullptr;
 	return str;
 }
+
+#undef CHAR_UCHAR
+#undef CHAR_BITMASK
+#undef CHAR_BITMASK_TEST
 
 char* strsignal(int signum)
 {
