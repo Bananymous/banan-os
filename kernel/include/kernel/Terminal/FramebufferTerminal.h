@@ -27,9 +27,10 @@ namespace Kernel
 		const LibFont::Font& font() const override { return m_font; };
 
 	private:
-		FramebufferTerminalDriver(BAN::RefPtr<FramebufferDevice> framebuffer_device)
-			: m_framebuffer_device(framebuffer_device)
-		{ }
+		FramebufferTerminalDriver(BAN::RefPtr<FramebufferDevice> framebuffer_device, const Palette& palette)
+			: TerminalDriver(palette)
+			, m_framebuffer_device(framebuffer_device)
+		{}
 
 		void read_cursor();
 		void show_cursor(bool use_data);
@@ -42,7 +43,7 @@ namespace Kernel
 		uint32_t m_cursor_y { 0 };
 		bool m_cursor_shown { true };
 		BAN::Vector<uint32_t> m_cursor_data;
-		static constexpr Color m_cursor_color = TerminalColor::BRIGHT_WHITE;
+		static constexpr Color m_cursor_color = TerminalColor::WHITE;
 	};
 
 }

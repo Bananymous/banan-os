@@ -39,6 +39,9 @@ namespace Kernel
 		: TTY(0600, 0, 0)
 		, m_name(MUST(BAN::String::formatted("tty{}", s_next_tty_number++)))
 		, m_terminal_driver(driver)
+		, m_palette(driver->palette())
+		, m_foreground(m_palette[15])
+		, m_background(m_palette[0])
 	{
 		m_width = m_terminal_driver->width();
 		m_height = m_terminal_driver->height();
@@ -95,10 +98,11 @@ namespace Kernel
 	void VirtualTTY::reset_ansi()
 	{
 		ASSERT(m_write_lock.current_processor_has_lock());
-		m_ansi_state.index = 0;
-		m_ansi_state.nums[0] = -1;
-		m_ansi_state.nums[1] = -1;
-		m_ansi_state.question = false;
+		m_ansi_state = {
+			.nums = { -1, -1, -1, -1, -1 },
+			.index = 0,
+			.question = false,
+		};
 		m_state = State::Normal;
 	}
 
@@ -108,49 +112,29 @@ namespace Kernel
 		switch (ch)
 		{
 			case 0:
-				m_foreground = TerminalColor::BRIGHT_WHITE;
-				m_background = TerminalColor::BLACK;
+				m_foreground = m_palette[15];
+				m_background = m_palette[0];
 				m_colors_inverted = false;
 				break;
 
 			case 7:  m_colors_inverted = true;  break;
 			case 27: m_colors_inverted = false; break;
 
-			case 30: m_foreground = TerminalColor::BLACK;	break;
-			case 31: m_foreground = TerminalColor::RED;		break;
-			case 32: m_foreground = TerminalColor::GREEN;	break;
-			case 33: m_foreground = TerminalColor::YELLOW;	break;
-			case 34: m_foreground = TerminalColor::BLUE;	break;
-			case 35: m_foreground = TerminalColor::MAGENTA;	break;
-			case 36: m_foreground = TerminalColor::CYAN;	break;
-			case 37: m_foreground = TerminalColor::WHITE;	break;
+			case 30: case 31: case 32: case 33: case 34: case 35: case 36: case 37:
+				m_foreground = m_palette[ch - 30];
+				break;
 
-			case 40: m_background = TerminalColor::BLACK;	break;
-			case 41: m_background = TerminalColor::RED;		break;
-			case 42: m_background = TerminalColor::GREEN;	break;
-			case 43: m_background = TerminalColor::YELLOW;	break;
-			case 44: m_background = TerminalColor::BLUE;	break;
-			case 45: m_background = TerminalColor::MAGENTA;	break;
-			case 46: m_background = TerminalColor::CYAN;	break;
-			case 47: m_background = TerminalColor::WHITE;	break;
+			case 40: case 41: case 42: case 43: case 44: case 45: case 46: case 47:
+				m_background = m_palette[ch - 40];
+				break;
 
-			case 90: m_foreground = TerminalColor::BRIGHT_BLACK;	break;
-			case 91: m_foreground = TerminalColor::BRIGHT_RED;		break;
-			case 92: m_foreground = TerminalColor::BRIGHT_GREEN;	break;
-			case 93: m_foreground = TerminalColor::BRIGHT_YELLOW;	break;
-			case 94: m_foreground = TerminalColor::BRIGHT_BLUE;		break;
-			case 95: m_foreground = TerminalColor::BRIGHT_MAGENTA;	break;
-			case 96: m_foreground = TerminalColor::BRIGHT_CYAN;		break;
-			case 97: m_foreground = TerminalColor::BRIGHT_WHITE;	break;
+			case 90: case 91: case 92: case 93: case 94: case 95: case 96: case 97:
+				m_foreground = m_palette[ch - 90 + 8];
+				break;
 
-			case 100: m_background = TerminalColor::BRIGHT_BLACK;	break;
-			case 101: m_background = TerminalColor::BRIGHT_RED;		break;
-			case 102: m_background = TerminalColor::BRIGHT_GREEN;	break;
-			case 103: m_background = TerminalColor::BRIGHT_YELLOW;	break;
-			case 104: m_background = TerminalColor::BRIGHT_BLUE;	break;
-			case 105: m_background = TerminalColor::BRIGHT_MAGENTA;	break;
-			case 106: m_background = TerminalColor::BRIGHT_CYAN;	break;
-			case 107: m_background = TerminalColor::BRIGHT_WHITE;	break;
+			case 100: case 101: case 102: case 103: case 104: case 105: case 106: case 107:
+				m_background = m_palette[ch - 100 + 8];
+				break;
 		}
 	}
 

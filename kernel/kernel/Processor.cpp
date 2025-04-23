@@ -360,7 +360,7 @@ namespace Kernel
 						[&x, y](char ch)
 						{
 							if (x < g_terminal_driver->width() && y < g_terminal_driver->height())
-								g_terminal_driver->putchar_at(ch, x++, y, TerminalColor::BRIGHT_WHITE, TerminalColor::BLACK);
+								g_terminal_driver->putchar_at(ch, x++, y, TerminalColor::WHITE, TerminalColor::BLACK);
 						};
 
 					BAN::Formatter::print(proc_putc, "CPU { 2}: { 3}.{3}%", current_id(), load_x1000 / 1000, load_x1000 % 1000);

@@ -7,36 +7,39 @@
 namespace Kernel
 {
 
-	static constexpr TerminalDriver::Color s_palette[] {
-		TerminalColor::BLACK,
-		TerminalColor::BLUE,
-		TerminalColor::GREEN,
-		TerminalColor::CYAN,
-		TerminalColor::RED,
-		TerminalColor::MAGENTA,
-		TerminalColor::YELLOW,
-		TerminalColor::WHITE,
-		TerminalColor::BRIGHT_BLACK,
-		TerminalColor::BRIGHT_BLUE,
-		TerminalColor::BRIGHT_GREEN,
-		TerminalColor::BRIGHT_CYAN,
-		TerminalColor::BRIGHT_RED,
-		TerminalColor::BRIGHT_MAGENTA,
-		TerminalColor::BRIGHT_YELLOW,
-		TerminalColor::BRIGHT_WHITE,
-	};
+	static consteval TerminalDriver::Palette default_palette()
+	{
+		TerminalDriver::Palette palette;
+		palette[ 0] = 0x000000;
+		palette[ 1] = 0x0000AA;
+		palette[ 2] = 0x00AA00;
+		palette[ 3] = 0x00AAAA;
+		palette[ 4] = 0xAA0000;
+		palette[ 5] = 0xAA00AA;
+		palette[ 6] = 0xAA5500;
+		palette[ 7] = 0xAAAAAA;
+		palette[ 8] = 0x555555;
+		palette[ 9] = 0x5555FF;
+		palette[10] = 0x55FF55;
+		palette[11] = 0x55FFFF;
+		palette[12] = 0xFF5555;
+		palette[13] = 0xFF55FF;
+		palette[14] = 0xFFFF55;
+		palette[15] = 0xFFFFFF;
+		return palette;
+	}
 
 	static constexpr uint8_t color_to_text_mode_color(TerminalDriver::Color color)
 	{
 		uint32_t min_diff = BAN::numeric_limits<uint32_t>::max();
 		uint8_t closest = 0;
 
-		static_assert(sizeof(s_palette) / sizeof(*s_palette) == 16);
+		static_assert(default_palette().size() == 16);
 		for (size_t i = 0; i < 16; i++)
 		{
-			const auto rdiff = color.red()   - s_palette[i].red();
-			const auto gdiff = color.green() - s_palette[i].green();
-			const auto bdiff = color.blue()  - s_palette[i].blue();
+			const auto rdiff = color.red()   - default_palette()[i].red();
+			const auto gdiff = color.green() - default_palette()[i].green();
+			const auto bdiff = color.blue()  - default_palette()[i].blue();
 			const uint32_t diff = rdiff*rdiff + gdiff*gdiff + bdiff*bdiff;
 			if (diff >= min_diff)
 				continue;
@@ -56,7 +59,8 @@ namespace Kernel
 			g_boot_info.framebuffer.address,
 			g_boot_info.framebuffer.width,
 			g_boot_info.framebuffer.height,
-			g_boot_info.framebuffer.pitch
+			g_boot_info.framebuffer.pitch,
+			default_palette()
 		);
 		if (driver_ptr == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
@@ -83,7 +87,7 @@ namespace Kernel
 		m_vaddr = vaddr + (m_paddr % PAGE_SIZE);
 
 		set_cursor_position(0, 0);
-		clear(TerminalColor::BLACK);
+		clear(m_palette[0]);
 
 		return {};
 	}
@@ -114,7 +118,7 @@ namespace Kernel
 	{
 		for (uint32_t y = 0; y < m_height; y++)
 			for (uint32_t x = 0; x < m_width; x++)
-				putchar_at(' ', x, y, TerminalColor::BRIGHT_WHITE, color);
+				putchar_at(' ', x, y, color, color);
 	}
 
 	void TextModeTerminalDriver::set_cursor_shown(bool shown)

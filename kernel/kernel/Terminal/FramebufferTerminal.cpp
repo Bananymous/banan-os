@@ -3,15 +3,38 @@
 namespace Kernel
 {
 
+
+	static consteval TerminalDriver::Palette default_palette()
+	{
+		TerminalDriver::Palette palette;
+		palette[ 0] = 0x000000;
+		palette[ 1] = 0xFF0000;
+		palette[ 2] = 0x00FF00;
+		palette[ 3] = 0xFFFF00;
+		palette[ 4] = 0x0000FF;
+		palette[ 5] = 0xFF00FF;
+		palette[ 6] = 0x00FFFF;
+		palette[ 7] = 0xBFBFBF;
+		palette[ 8] = 0x3F3F3F;
+		palette[ 9] = 0xFF7F7F;
+		palette[10] = 0x7FFF7F;
+		palette[11] = 0xFFFF7F;
+		palette[12] = 0x7F7FFF;
+		palette[13] = 0xFF7FFF;
+		palette[14] = 0x7FFFFF;
+		palette[15] = 0xFFFFFF;
+		return palette;
+	}
+
 	BAN::ErrorOr<BAN::RefPtr<FramebufferTerminalDriver>> FramebufferTerminalDriver::create(BAN::RefPtr<FramebufferDevice> framebuffer_device)
 	{
-		auto* driver_ptr = new FramebufferTerminalDriver(framebuffer_device);
+		auto* driver_ptr = new FramebufferTerminalDriver(framebuffer_device, default_palette());
 		if (driver_ptr == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
 		auto driver = BAN::RefPtr<FramebufferTerminalDriver>::adopt(driver_ptr);
 		TRY(driver->set_font(BAN::move(TRY(LibFont::Font::prefs()))));
 		driver->set_cursor_position(0, 0);
-		driver->clear(TerminalColor::BLACK);
+		driver->clear(driver->m_palette[0]);
 		return driver;
 	}
 
@@ -60,6 +83,9 @@ namespace Kernel
 			for (uint32_t x = 0; x < m_framebuffer_device->width(); x++)
 				m_framebuffer_device->set_pixel(x, y, color.rgb);
 		m_framebuffer_device->sync_pixels_full();
+
+		if (m_cursor_shown)
+			show_cursor(false);
 	}
 
 	void FramebufferTerminalDriver::read_cursor()

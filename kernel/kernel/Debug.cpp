@@ -104,7 +104,7 @@ namespace Debug
 			{
 				if (!isprint(ch))
 					ch = '?';
-				g_terminal_driver->putchar_at(ch, col, row, TerminalColor::BRIGHT_WHITE, TerminalColor::BLACK);
+				g_terminal_driver->putchar_at(ch, col, row, TerminalColor::WHITE, TerminalColor::BLACK);
 
 				col++;
 				if (col >= g_terminal_driver->width())
@@ -121,9 +121,9 @@ namespace Debug
 			{
 				for (uint32_t i = col; i < g_terminal_driver->width(); i++)
 				{
-					g_terminal_driver->putchar_at(' ', i, row, TerminalColor::BRIGHT_WHITE, TerminalColor::BLACK);
+					g_terminal_driver->putchar_at(' ', i, row, TerminalColor::WHITE, TerminalColor::BLACK);
 					if (row + 1 < g_terminal_driver->height())
-						g_terminal_driver->putchar_at(' ', i, row + 1, TerminalColor::BRIGHT_WHITE, TerminalColor::BLACK);
+						g_terminal_driver->putchar_at(' ', i, row + 1, TerminalColor::WHITE, TerminalColor::BLACK);
 				}
 			}
 		}

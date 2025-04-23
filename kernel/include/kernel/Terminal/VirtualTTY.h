@@ -12,6 +12,9 @@ namespace Kernel
 	class VirtualTTY : public TTY
 	{
 	public:
+		using Palette = TerminalDriver::Palette;
+
+	public:
 		static BAN::ErrorOr<BAN::RefPtr<VirtualTTY>> create(BAN::RefPtr<TerminalDriver>);
 
 		virtual BAN::ErrorOr<void> set_font(LibFont::Font&&) override;
@@ -60,13 +63,15 @@ namespace Kernel
 
 		struct Cell
 		{
-			TerminalDriver::Color foreground { TerminalColor::BRIGHT_WHITE };
-			TerminalDriver::Color background { TerminalColor::BLACK };
+			TerminalDriver::Color foreground;
+			TerminalDriver::Color background;
 			uint32_t codepoint { ' ' };
 		};
 
 	private:
 		BAN::String m_name;
+
+		BAN::RefPtr<TerminalDriver> m_terminal_driver;
 
 		State m_state { State::Normal };
 		AnsiState m_ansi_state { };
@@ -84,11 +89,11 @@ namespace Kernel
 		uint32_t m_column { 0 };
 		Cell* m_buffer { nullptr };
 
-		TerminalDriver::Color m_foreground { TerminalColor::BRIGHT_WHITE };
-		TerminalDriver::Color m_background { TerminalColor::BLACK };
-		bool m_colors_inverted { false };
+		const Palette& m_palette;
 
-		BAN::RefPtr<TerminalDriver> m_terminal_driver;
+		TerminalDriver::Color m_foreground;
+		TerminalDriver::Color m_background;
+		bool m_colors_inverted { false };
 	};
 
 }
