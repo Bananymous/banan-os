@@ -562,7 +562,7 @@ acpi_release_global_lock:
 		}
 
 		// system must not execute after sleep registers are written
-		ASSERT_NOT_REACHED();
+		panic("ACPI shutdown failed. You can now safely shutdown your computer.");
 	}
 
 	BAN::ErrorOr<void> ACPI::reset()
