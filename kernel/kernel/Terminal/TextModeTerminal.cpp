@@ -122,37 +122,44 @@ namespace Kernel
 	{
 		for (uint32_t y = 0; y < m_height; y++)
 			for (uint32_t x = 0; x < m_width; x++)
-				putchar_at(' ', x, y, color, color);
+				putchar_at(' ', x, y, TerminalColor::WHITE, color);
 	}
 
-	void TextModeTerminalDriver::set_cursor_shown(bool shown)
+	void TextModeTerminalDriver::move_cursor_impl(uint32_t x, uint32_t y)
 	{
-		if (shown)
-		{
-			IO::outb(0x3D4, 0x0A);
-			IO::outb(0x3D5, (IO::inb(0x3D5) & 0xC0) | 14);
-
-			IO::outb(0x3D4, 0x0B);
-			IO::outb(0x3D5, (IO::inb(0x3D5) & 0xE0) | 15);
-		}
-		else
-		{
-			IO::outb(0x3D4, 0x0A);
-			IO::outb(0x3D5, 0x20);
-		}
-	}
-
-	void TextModeTerminalDriver::set_cursor_position(uint32_t x, uint32_t y)
-	{
-		// NOTE: cursor is allowed to be on width as scrolling only
-		//       happens after character gets printed to next line
-		if (x == m_width)
-			return;
 		const uint16_t pos = y * m_width + x;
 		IO::outb(0x3D4, 0x0F);
 		IO::outb(0x3D5, pos & 0xFF);
 		IO::outb(0x3D4, 0x0E);
 		IO::outb(0x3D5, pos >> 8);
+	}
+
+	void TextModeTerminalDriver::set_cursor_shown(bool shown)
+	{
+		if (m_cursor_shown == shown)
+			return;
+		m_cursor_shown = shown;
+
+		if (shown)
+			move_cursor_impl(m_cursor_x, m_cursor_y);
+		else
+			move_cursor_impl(0, m_height);
+	}
+
+	void TextModeTerminalDriver::set_cursor_position(uint32_t x, uint32_t y)
+	{
+		ASSERT(x <= m_width);
+		ASSERT(y < m_height);
+		m_cursor_x = x;
+		m_cursor_y = y;
+
+		if (!m_cursor_shown)
+			return;
+
+		if (x == m_width)
+			move_cursor_impl(0, m_height);
+		else
+			move_cursor_impl(x, y);
 	}
 
 }

@@ -30,6 +30,7 @@ namespace Kernel
 		{}
 
 		BAN::ErrorOr<void> initialize();
+		void move_cursor_impl(uint32_t x, uint32_t y);
 
 	private:
 		const paddr_t m_paddr;
@@ -37,6 +38,10 @@ namespace Kernel
 		const uint32_t m_height;
 		const uint32_t m_pitch;
 		vaddr_t m_vaddr { 0 };
+
+		uint32_t m_cursor_x { 0 };
+		uint32_t m_cursor_y { 0 };
+		bool m_cursor_shown { true };
 		static constexpr Color s_cursor_color = TerminalColor::WHITE;
 	};
 
