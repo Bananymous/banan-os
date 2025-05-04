@@ -38,6 +38,11 @@ time_t time(time_t* tloc)
 	return tp.tv_sec;
 }
 
+double difftime(time_t time1, time_t time0)
+{
+	return time1 - time0;
+}
+
 // sample implementation from https://pubs.opengroup.org/onlinepubs/9699919799/functions/asctime.html
 char* asctime_r(const struct tm* __restrict tm, char* __restrict buf)
 {
