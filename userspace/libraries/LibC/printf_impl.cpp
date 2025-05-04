@@ -240,9 +240,9 @@ static void floating_point_to_exponent_string(char* buffer, T value, bool upper,
 
 	// Calculate which number to put as exponent
 	int exponent = 0;
-	if (value != (T)0.0)
+	if (value != static_cast<T>(0.0))
 	{
-		exponent = (int)BAN::Math::log10<T>(value);
+		exponent = BAN::Math::floor<T>(BAN::Math::log10<T>(value));
 		value /= BAN::Math::pow<T>(10.0, exponent);
 	}
 
