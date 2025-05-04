@@ -52,6 +52,8 @@ public:
 	LibGUI::Window::Attributes get_attributes() const { return m_attributes; };
 	void set_attributes(LibGUI::Window::Attributes attributes) { m_attributes = attributes; };
 
+	BAN::ErrorOr<void> set_title(BAN::StringView title) { m_title.clear(); TRY(m_title.append(title)); TRY(prepare_title_bar()); return {}; }
+
 	const uint32_t* framebuffer() const { return m_fb_addr; }
 
 	uint32_t title_bar_pixel(int32_t abs_x, int32_t abs_y, Position cursor) const

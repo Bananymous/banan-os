@@ -38,6 +38,7 @@ public:
 	void on_window_set_mouse_capture(int fd, const LibGUI::WindowPacket::WindowSetMouseCapture&);
 	void on_window_set_size(int fd, const LibGUI::WindowPacket::WindowSetSize&);
 	void on_window_set_fullscreen(int fd, const LibGUI::WindowPacket::WindowSetFullscreen&);
+	void on_window_set_title(int fd, const LibGUI::WindowPacket::WindowSetTitle&);
 
 	void on_key_event(LibInput::KeyEvent event);
 	void on_mouse_button(LibInput::MouseButtonEvent event);

@@ -307,13 +307,39 @@ void WindowServer::on_window_set_fullscreen(int fd, const LibGUI::WindowPacket::
 
 	if (!target_window)
 	{
-		dwarnln("client tried to set window size while not owning a window");
+		dwarnln("client tried to set window fullscreen while not owning a window");
 		return;
 	}
 
 	m_is_fullscreen_window = true;
 	set_focused_window(target_window);
 	invalidate(m_framebuffer.area());
+}
+
+void WindowServer::on_window_set_title(int fd, const LibGUI::WindowPacket::WindowSetTitle& packet)
+{
+	BAN::RefPtr<Window> target_window;
+	for (auto& window : m_client_windows)
+	{
+		if (window->client_fd() != fd)
+			continue;
+		target_window = window;
+		break;
+	}
+
+	if (!target_window)
+	{
+		dwarnln("client tried to set window title while not owning a window");
+		return;
+	}
+
+	if (auto ret = target_window->set_title(packet.title); ret.is_error())
+	{
+		dwarnln("failed to set window title: {}", ret.error());
+		return;
+	}
+
+	invalidate(target_window->title_bar_area());
 }
 
 void WindowServer::on_key_event(LibInput::KeyEvent event)

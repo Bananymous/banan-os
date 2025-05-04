@@ -165,6 +165,7 @@ namespace LibGUI
 		WindowSetMouseCapture,
 		WindowSetSize,
 		WindowSetFullscreen,
+		WindowSetTitle,
 
 		DestroyWindowEvent,
 		CloseWindowEvent,
@@ -228,6 +229,11 @@ namespace LibGUI
 		DEFINE_PACKET(
 			WindowSetFullscreen,
 			bool, fullscreen
+		);
+
+		DEFINE_PACKET(
+			WindowSetTitle,
+			BAN::String, title
 		);
 
 	}
