@@ -1,16 +1,14 @@
-From 3e565f7d35e842e246db3371776adae74d02ae62 Mon Sep 17 00:00:00 2001
+From 7f7c6402e384591bca63021aa97d60a8107de88d Mon Sep 17 00:00:00 2001
 From: Bananymous <bananymousosq@gmail.com>
-Date: Wed, 23 Apr 2025 13:10:38 +0300
+Date: Mon, 5 May 2025 00:59:03 +0300
 Subject: [PATCH] Add support for banan-os
 
 ---
- Makefile.banan_os                |  28 +++
- src/platform/banan-os/main.cpp   | 365 +++++++++++++++++++++++++++++++
- src/platform/banan-os/main.cpp.o | Bin 0 -> 23536 bytes
- 3 files changed, 393 insertions(+)
+ Makefile.banan_os              |  28 +++
+ src/platform/banan-os/main.cpp | 362 +++++++++++++++++++++++++++++++++
+ 2 files changed, 390 insertions(+)
  create mode 100644 Makefile.banan_os
  create mode 100644 src/platform/banan-os/main.cpp
- create mode 100644 src/platform/banan-os/main.cpp.o
 
 diff --git a/Makefile.banan_os b/Makefile.banan_os
 new file mode 100644
@@ -48,10 +46,10 @@ index 0000000..22e191e
 +	$(LD) $(OBJ) -o tinygb $(LDFLAGS)
 diff --git a/src/platform/banan-os/main.cpp b/src/platform/banan-os/main.cpp
 new file mode 100644
-index 0000000..e9c6a02
+index 0000000..94f249e
 --- /dev/null
 +++ b/src/platform/banan-os/main.cpp
-@@ -0,0 +1,365 @@
+@@ -0,0 +1,362 @@
 +
 +/* tinygb - a tiny gameboy emulator
 +   (c) 2022 by jewel */
@@ -246,10 +244,8 @@ index 0000000..e9c6a02
 +    ASSERT(s_window->height() == static_cast<uint32_t>(SGB_HEIGHT * scaling));
 +}
 +
-+int main(int argc, char **argv)
-+{
-+    if(argc != 2)
-+    {
++int main(int argc, char **argv) {
++    if(argc != 2) {
 +        fprintf(stdout, "usage: %s rom_name\n", argv[0]);
 +        return 1;
 +    }
@@ -261,9 +257,8 @@ index 0000000..e9c6a02
 +    load_keys();
 +
 +    // open the rom
-+    FILE* rom_file = fopen(rom_filename, "r");
-+    if (rom_file == nullptr)
-+    {
++    FILE *rom_file = fopen(rom_filename, "r");
++    if(!rom_file) {
 +        write_log("unable to open %s for reading: %s\n", rom_filename, strerror(errno));
 +        return 1;
 +    }
@@ -275,8 +270,7 @@ index 0000000..e9c6a02
 +    write_log("loading rom from file %s, %d KiB\n", rom_filename, rom_size / 1024);
 +
 +    rom = malloc(rom_size);
-+    if (rom == nullptr)
-+    {
++    if(!rom) {
 +        write_log("unable to allocate memory\n");
 +        fclose(rom_file);
 +        return 1;
@@ -340,31 +334,32 @@ index 0000000..e9c6a02
 +    time_t rawtime;
 +    struct tm *timeinfo;
 +    int sec = 500;  // any invalid number
++    char new_title[256];
 +    int percentage;
 +    int throttle_underflow = 0;
 +    int throttle_target = throttle_lo + SPEED_ALLOWANCE;
 +
-+    for (;;)
-+    {
++    while(1) {
 +        s_window->poll_events();
 +
-+        for (timing.current_cycles = 0; timing.current_cycles < timing.main_cycles;)
-+        {
++        for(timing.current_cycles = 0; timing.current_cycles < timing.main_cycles; ) {
 +            cpu_cycle();
 +            display_cycle();
 +            timer_cycle();
 +        }
 +
++
 +        time(&rawtime);
 +        timeinfo = localtime(&rawtime);
 +
-+        if (sec != timeinfo->tm_sec)
-+        {
++        if(sec != timeinfo->tm_sec) {
 +            sec = timeinfo->tm_sec;
 +            percentage = (drawn_frames * 1000) / 597;
++            sprintf(new_title, "tinygb (%d fps - %d%%)", drawn_frames, percentage);
++            s_window->set_title(new_title);
 +
 +            // adjust cpu throttle according to acceptable fps (98%-102%)
-+            if (throttle_enabled){
++            if(throttle_enabled) {
 +                if(percentage < throttle_lo) {
 +                    // emulation is too slow
 +                    if(!throttle_time) {
@@ -417,6 +412,7 @@ index 0000000..e9c6a02
 +    die(0, "");
 +    return 0;
 +}
+\ No newline at end of file
 -- 
 2.49.0
 
