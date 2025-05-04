@@ -7,8 +7,14 @@
 
 __BEGIN_DECLS
 
-typedef long jmp_buf[2];
-typedef long sigjmp_buf[2 + 1 + (sizeof(long long) / sizeof(long))];
+#if defined(__x86_64__)
+#define _JMP_BUF_REGS 8 // rsp, rip, rbx, rbp, r12-r15
+#elif defined(__i686__)
+#define _JMP_BUF_REGS 6 // esp, eip, ebx, ebp, edi, esi
+#endif
+
+typedef long jmp_buf[_JMP_BUF_REGS];
+typedef long sigjmp_buf[_JMP_BUF_REGS + 1 + (sizeof(long long) / sizeof(long))];
 
 #define _longjmp longjmp
 void longjmp(jmp_buf env, int val);
