@@ -259,6 +259,19 @@ static void floating_point_to_exponent_string(char* buffer, T value, bool upper,
 	integer_to_string<int>(buffer + offset, exponent, 10, upper, exponent_options);
 }
 
+template<BAN::floating_point T>
+static void floating_point_to_maybe_exponent_string(char* buffer, T value, bool upper, const format_options_t options)
+{
+	int percision = 6;
+	if (options.percision != -1)
+		percision = options.percision;
+
+	const int exponent = (value != static_cast<T>(0.0)) ? BAN::Math::floor<T>(BAN::Math::log10(value)) : 0;
+	if (exponent < -4 || exponent >= percision)
+		return floating_point_to_exponent_string(buffer, value, upper, options);
+	return floating_point_to_string(buffer, value, upper, options);
+}
+
 extern "C" int printf_impl(const char* format, va_list arguments, int (*putc_fun)(int, void*), void* data)
 {
 	int written = 0;
@@ -520,8 +533,16 @@ extern "C" int printf_impl(const char* format, va_list arguments, int (*putc_fun
 			}
 			case 'g':
 			case 'G':
-				// TODO
+			{
+				switch (options.length)
+				{
+					case length_t::L: floating_point_to_maybe_exponent_string<long double>(conversion, va_arg(arguments, long double), *format == 'G', options); break;
+					default:          floating_point_to_maybe_exponent_string<double>     (conversion, va_arg(arguments, double),      *format == 'G', options); break;
+				}
+				string = conversion;
+				format++;
 				break;
+			}
 			case 'a':
 			case 'A':
 				// TODO
