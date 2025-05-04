@@ -1,6 +1,7 @@
 #include <BAN/Vector.h>
 
 #include <fcntl.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,7 +27,7 @@ struct Point
 bool				g_running		= true;
 Point				g_grid_size		= { 21, 21 };
 Direction			g_direction		= Direction::Up;
-Point				g_head			= { 10, 10 };
+Point				g_head			= { g_grid_size.x / 2, g_grid_size.y / 2 };
 size_t				g_tail_target	= 3;
 int					g_score			= 0;
 BAN::Vector<Point>	g_tail;
@@ -53,53 +54,78 @@ Direction query_input()
 	}
 }
 
-void set_grid_tile(Point point, const char* str)
+const char* get_tail_char(Direction old_dir, Direction new_dir)
 {
-	printf("\e[%d;%dH%s", (point.y + 1) + 1, (point.x + 1) * 2 + 1, str);
+	const size_t old_idx = static_cast<size_t>(old_dir) - 2;
+	const size_t new_idx = static_cast<size_t>(new_dir) - 2;
+
+	// left, right, up, down
+	constexpr const char* tail_char_map[4][4] {
+		{ "═", "═", "╚", "╔" },
+		{ "═", "═", "╝", "╗" },
+		{ "╗", "╔", "║", "║" },
+		{ "╝", "╚", "║", "║" },
+	};
+
+	return tail_char_map[old_idx][new_idx];
 }
 
-Point get_random_point()
+void set_grid_tile(Point point, const char* str, int off_x = 0)
 {
-	return { .x = rand() % g_grid_size.x, .y = rand() % g_grid_size.y };
+	printf("\e[%d;%dH%s", (point.y + 1) + 1, (point.x + 1) * 2 + 1 + off_x, str);
+}
+
+__attribute__((format(printf, 1, 2)))
+void print_score_line(const char* format, ...)
+{
+	printf("\e[%dH\e[m", g_grid_size.y + 3);
+	va_list args;
+	va_start(args, format);
+	vprintf(format, args);
+	va_end(args);
 }
 
 void update_apple()
 {
-	for (;;)
+	BAN::Vector<Point> free_tiles;
+	for (int y = 0; y < g_grid_size.y; y++)
+		for (int x = 0; x < g_grid_size.x; x++)
+			if (const Point point { x, y }; g_head != point && !g_tail.contains(point))
+				MUST(free_tiles.push_back(point));
+
+	if (free_tiles.empty())
 	{
-		g_apple = get_random_point();
-		if (g_head == g_apple)
-			continue;
-		for (auto point : g_tail)
-			if (point == g_apple)
-				continue;
-		break;
+		print_score_line("You won!\n");
+		exit(0);
 	}
+
+	g_apple = free_tiles[rand() % free_tiles.size()];
 	set_grid_tile(g_apple, "\e[31mO");
 }
 
 void setup_grid()
 {
 	// Move cursor to beginning and clear screen
-	printf("\e[H\e[J");
+	printf("\e[H\e[2J");
 
 	// Render top line
-	putchar('#');
-	for (int x = 1; x < g_grid_size.x + 2; x++)
-		printf(" #");
-	putchar('\n');
+	printf("╔═");
+	for (int x = 0; x < g_grid_size.x; x++)
+		printf("══");
+	printf("╗\n");
 
 	// Render side lines
 	for (int y = 0; y < g_grid_size.y; y++)
-		printf("#\e[%dC#\n", g_grid_size.x * 2 + 1);
+		printf("║\e[%dC║\n", g_grid_size.x * 2 + 1);
 
 	// Render Bottom line
-	putchar('#');
-	for (int x = 1; x < g_grid_size.x + 2; x++)
-		printf(" #");
-	putchar('\n');
+	printf("╚═");
+	for (int x = 0; x < g_grid_size.x; x++)
+		printf("══");
+	printf("╝");
 
 	// Render snake head
+	printf("\e[32m");
 	set_grid_tile(g_head, "O");
 
 	// Generate and render apple
@@ -107,7 +133,7 @@ void setup_grid()
 	update_apple();
 
 	// Render score
-	printf("\e[%dH\e[mScore: %d", g_grid_size.y + 3, g_score);
+	print_score_line("Score: %d", g_score);
 
 	fflush(stdout);
 }
@@ -141,6 +167,7 @@ void update()
 		}
 	}
 
+	const auto old_direction = g_direction;
 	if (new_direction != g_direction && new_direction != Direction::None)
 		g_direction = new_direction;
 
@@ -181,7 +208,18 @@ void update()
 	MUST(g_tail.insert(0, old_head));
 	if (g_tail.size() > g_tail_target)
 	{
-		set_grid_tile(g_tail.back(), " ");
+		const auto comp = g_tail.size() >= 2 ? g_tail[g_tail.size() - 2] : g_head;
+		const auto back = g_tail.back();
+
+		if (comp.y == back.y)
+		{
+			if (comp.x == back.x + 1)
+				set_grid_tile(back, " ", +1);
+			if (comp.x == back.x - 1)
+				set_grid_tile(back, " ", -1);
+		}
+
+		set_grid_tile(back, " ");
 		g_tail.pop_back();
 	}
 
@@ -190,12 +228,16 @@ void update()
 		g_tail_target++;
 		g_score++;
 		update_apple();
-		printf("\e[%dH\e[mScore: %d", g_grid_size.y + 3, g_score);
+		print_score_line("Score: %d", g_score);
 	}
 
-	set_grid_tile(old_head, "\e[32mo");
-	set_grid_tile(g_head,   "\e[32mO");
-
+	printf("\e[32m");
+	if (g_direction == Direction::Left)
+		set_grid_tile(g_head, "═", +1);
+	if (g_direction == Direction::Right)
+		set_grid_tile(g_head, "═", -1);
+	set_grid_tile(old_head, get_tail_char(old_direction, g_direction));
+	set_grid_tile(g_head, "O");
 	fflush(stdout);
 }
 
