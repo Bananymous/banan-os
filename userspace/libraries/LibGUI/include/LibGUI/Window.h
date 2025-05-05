@@ -22,6 +22,7 @@ namespace LibGUI
 			.focusable       = true,
 			.rounded_corners = true,
 			.alpha_channel   = false,
+			.resizable       = false,
 		};
 
 	public:

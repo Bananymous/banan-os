@@ -123,19 +123,11 @@ void WindowServer::on_window_invalidate(int fd, const LibGUI::WindowPacket::Wind
 		return;
 	}
 
-	const int32_t br_x = packet.x + packet.width - 1;
-	const int32_t br_y = packet.y + packet.height - 1;
-	if (!target_window->client_size().contains({ br_x, br_y }))
-	{
-		dwarnln("invalid Invalidate packet parameters");
-		return;
-	}
-
 	invalidate({
 		target_window->client_x() + static_cast<int32_t>(packet.x),
 		target_window->client_y() + static_cast<int32_t>(packet.y),
-		static_cast<int32_t>(packet.width),
-		static_cast<int32_t>(packet.height),
+		BAN::Math::min<int32_t>(packet.width,  target_window->client_width()),
+		BAN::Math::min<int32_t>(packet.height, target_window->client_height())
 	});
 }
 
@@ -388,6 +380,11 @@ void WindowServer::on_key_event(LibInput::KeyEvent event)
 		if (!m_focused_window)
 			return;
 		m_is_fullscreen_window = !m_is_fullscreen_window;
+		if (m_is_fullscreen_window)
+		{
+			m_is_moving_window = false;
+			m_is_resizing_window = false;
+		}
 		invalidate(m_framebuffer.area());
 		return;
 	}
@@ -431,6 +428,40 @@ void WindowServer::on_mouse_button(LibInput::MouseButtonEvent event)
 		}
 	}
 
+	if (m_is_moving_window && event.button == LibInput::MouseButton::Left && !event.pressed)
+	{
+		m_is_moving_window = false;
+		return;
+	}
+
+	if (m_is_resizing_window && event.button == LibInput::MouseButton::Right && !event.pressed)
+	{
+		const auto resize_area = this->resize_area(m_cursor);
+		m_is_resizing_window = false;
+		invalidate(resize_area.get_bounding_box(m_focused_window->full_area()));
+
+		const auto old_area = m_focused_window->full_area();
+		if (auto ret = m_focused_window->resize(resize_area.width, resize_area.height - m_focused_window->title_bar_height()); ret.is_error())
+		{
+			dwarnln("could not resize client window {}", ret.error());
+			return;
+		}
+
+		LibGUI::EventPacket::ResizeWindowEvent event;
+		event.width = m_focused_window->client_width();
+		event.height = m_focused_window->client_height();
+		event.smo_key = m_focused_window->smo_key();
+		if (auto ret = event.send_serialized(m_focused_window->client_fd()); ret.is_error())
+		{
+			dwarnln("could not respond to window resize request: {}", ret.error());
+			return;
+		}
+
+		invalidate(m_focused_window->full_area().get_bounding_box(old_area));
+
+		return;
+	}
+
 	// Ignore mouse button events which are not on top of a window
 	if (!target_window)
 		return;
@@ -438,13 +469,29 @@ void WindowServer::on_mouse_button(LibInput::MouseButtonEvent event)
 	if (target_window->get_attributes().focusable)
 		set_focused_window(target_window);
 
-	// Handle window moving when mod key is held or mouse press on title bar
-	const bool can_start_move = m_is_mod_key_held || target_window->title_text_area().contains(m_cursor);
-	if (event.pressed && event.button == LibInput::MouseButton::Left && !m_is_moving_window && can_start_move)
-		m_is_moving_window = target_window->get_attributes().movable;
-	else if (m_is_moving_window && !event.pressed)
-		m_is_moving_window = false;
-	else if (!event.pressed && event.button == LibInput::MouseButton::Left && target_window->close_button_area().contains(m_cursor))
+	if (!m_is_fullscreen_window && event.button == LibInput::MouseButton::Left)
+	{
+		const bool can_start_move = m_is_mod_key_held || target_window->title_text_area().contains(m_cursor);
+		if (can_start_move && !m_is_moving_window && event.pressed)
+		{
+			m_is_moving_window = target_window->get_attributes().movable;
+			return;
+		}
+	}
+
+	if (!m_is_fullscreen_window && event.button == LibInput::MouseButton::Right)
+	{
+		const bool can_start_resize = m_is_mod_key_held;
+		if (can_start_resize && !m_is_resizing_window && event.pressed)
+		{
+			m_is_resizing_window = target_window->get_attributes().resizable;
+			if (m_is_resizing_window)
+				m_resize_start = m_cursor;
+			return;
+		}
+	}
+
+	if (!event.pressed && event.button == LibInput::MouseButton::Left && target_window->close_button_area().contains(m_cursor))
 	{
 		// NOTE: we always have target window if code reaches here
 		LibGUI::EventPacket::CloseWindowEvent packet;
@@ -468,9 +515,6 @@ void WindowServer::on_mouse_button(LibInput::MouseButtonEvent event)
 			return;
 		}
 	}
-
-	if (m_is_fullscreen_window)
-		m_is_moving_window = false;
 }
 
 void WindowServer::on_mouse_move(LibInput::MouseMoveEvent event)
@@ -534,6 +578,16 @@ void WindowServer::on_mouse_move(LibInput::MouseMoveEvent event)
 		auto new_window = m_focused_window->full_area();
 		invalidate(old_window);
 		invalidate(new_window);
+		return;
+	}
+
+	if (m_is_resizing_window)
+	{
+		const auto max_cursor = Position {
+			.x = BAN::Math::max(old_cursor.x, new_cursor.x),
+			.y = BAN::Math::max(old_cursor.y, new_cursor.y),
+		};
+		invalidate(resize_area(max_cursor).get_bounding_box(m_focused_window->full_area()));
 		return;
 	}
 
@@ -916,10 +970,24 @@ void WindowServer::invalidate(Rectangle area)
 		}
 	}
 
+	if (m_is_resizing_window)
+	{
+		if (const auto overlap = resize_area(m_cursor).get_overlap(area); overlap.has_value())
+		{
+			for (int32_t y_off = 0; y_off < overlap->height; y_off++)
+			{
+				for (int32_t x_off = 0; x_off < overlap->width; x_off++)
+				{
+					auto& pixel = m_framebuffer.mmap[(overlap->y + y_off) * m_framebuffer.width + (overlap->x + x_off)];
+					pixel = alpha_blend(0x80000000, pixel);
+				}
+			}
+		}
+	}
+
 	if (!m_is_mouse_captured)
 	{
-		const auto cursor = cursor_area();
-		if (auto overlap = cursor.get_overlap(area); overlap.has_value())
+		if (const auto overlap = cursor_area().get_overlap(area); overlap.has_value())
 		{
 			for (int32_t y_off = 0; y_off < overlap->height; y_off++)
 			{
@@ -1071,6 +1139,16 @@ Rectangle WindowServer::cursor_area() const
 	return { m_cursor.x, m_cursor.y, s_cursor_width, s_cursor_height };
 }
 
+Rectangle WindowServer::resize_area(Position cursor) const
+{
+	ASSERT(m_is_resizing_window);
+	return {
+		.x = m_focused_window->full_x(),
+		.y = m_focused_window->full_y(),
+		.width  = BAN::Math::max<int32_t>(20, m_focused_window->full_width()  + cursor.x - m_resize_start.x),
+		.height = BAN::Math::max<int32_t>(20, m_focused_window->full_height() + cursor.y - m_resize_start.y),
+	};
+}
 
 void WindowServer::add_client_fd(int fd)
 {

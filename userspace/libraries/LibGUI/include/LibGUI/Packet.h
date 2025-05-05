@@ -186,6 +186,7 @@ namespace LibGUI
 			bool focusable;
 			bool rounded_corners;
 			bool alpha_channel;
+			bool resizable;
 		};
 
 		DEFINE_PACKET(

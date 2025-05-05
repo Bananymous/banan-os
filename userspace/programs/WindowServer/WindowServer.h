@@ -50,6 +50,7 @@ public:
 	void sync();
 
 	Rectangle cursor_area() const;
+	Rectangle resize_area(Position cursor) const;
 
 	void add_client_fd(int fd);
 	void remove_client_fd(int fd);
@@ -86,6 +87,9 @@ private:
 	bool m_is_fullscreen_window { false };
 	BAN::RefPtr<Window> m_focused_window;
 	Position m_cursor;
+
+	bool m_is_resizing_window { false };
+	Position m_resize_start;
 
 	bool m_is_mouse_captured { false };
 
