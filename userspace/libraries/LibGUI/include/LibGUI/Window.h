@@ -5,6 +5,7 @@
 #include <BAN/UniqPtr.h>
 
 #include <LibGUI/Packet.h>
+#include <LibGUI/Texture.h>
 
 namespace LibFont { class Font; }
 
@@ -30,39 +31,8 @@ namespace LibGUI
 
 		static BAN::ErrorOr<BAN::UniqPtr<Window>> create(uint32_t width, uint32_t height, BAN::StringView title, Attributes attributes = default_attributes);
 
-		void set_pixel(uint32_t x, uint32_t y, uint32_t color)
-		{
-			ASSERT(x < m_width);
-			ASSERT(y < m_height);
-			m_framebuffer[y * m_width + x] = color;
-		}
-
-		uint32_t get_pixel(uint32_t x, uint32_t y) const
-		{
-			ASSERT(x < m_width);
-			ASSERT(y < m_height);
-			return m_framebuffer[y * m_width + x];
-		}
-
-		BAN::Span<uint32_t> pixels() { return m_framebuffer.span(); }
-
-		void fill_rect(int32_t x, int32_t y, uint32_t width, uint32_t height, uint32_t color);
-		void fill(uint32_t color) { return fill_rect(0, 0, width(), height(), color); }
-
-		void draw_character(uint32_t codepoint, const LibFont::Font& font, int32_t x, int32_t y, uint32_t color);
-		void draw_text(BAN::StringView text, const LibFont::Font& font, int32_t x, int32_t y, uint32_t color);
-
-		// shift whole vertically by amount pixels, sign determines the direction
-		// fill_color is used to fill "new" data
-		void shift_vertical(int32_t amount, uint32_t fill_color);
-
-		// copy horizontal slice [src_y, src_y + amount[ to [dst_y, dst_y + amount[
-		// fill_color is used when copying data outside of window bounds
-		void copy_horizontal_slice(int32_t dst_y, int32_t src_y, uint32_t amount, uint32_t fill_color);
-
-		// copy rect (src_x, src_y, width, height) to (dst_x, dst_y, width, height)
-		// fill_color is used when copying data outside of window bounds
-		void copy_rect(int32_t dst_x, int32_t dst_y, int32_t src_x, int32_t src_y, uint32_t width, uint32_t height, uint32_t fill_color);
+		Texture& texture() { return m_texture; }
+		const Texture& texture() const { return m_texture; }
 
 		void invalidate(int32_t x, int32_t y, uint32_t width, uint32_t height);
 		void invalidate() { return invalidate(0, 0, width(), height()); }
@@ -85,9 +55,6 @@ namespace LibGUI
 		uint32_t width() const { return m_width; }
 		uint32_t height() const { return m_height; }
 
-		// used on resize to fill empty space
-		void set_bg_color(uint32_t bg_color) { m_bg_color = bg_color; }
-
 		void wait_events();
 		void poll_events();
 
@@ -107,8 +74,6 @@ namespace LibGUI
 			, m_attributes(attributes)
 		{ }
 
-		bool clamp_to_framebuffer(int32_t& x, int32_t& y, uint32_t& width, uint32_t& height) const;
-
 		void on_socket_error(BAN::StringView function);
 		void cleanup();
 
@@ -121,12 +86,11 @@ namespace LibGUI
 
 		Attributes m_attributes;
 
-		BAN::Vector<uint32_t> m_framebuffer;
 		uint32_t* m_framebuffer_smo { nullptr };
 		uint32_t m_width { 0 };
 		uint32_t m_height { 0 };
 
-		uint32_t m_bg_color { 0xFFFFFFFF };
+		Texture m_texture;
 
 		BAN::Function<void()>                                       m_socket_error_callback;
 		BAN::Function<void()>                                       m_close_window_event_callback;

@@ -1,4 +1,5 @@
 set(LIBGUI_SOURCES
+	Texture.cpp
 	Window.cpp
 )
 

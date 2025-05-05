@@ -90,7 +90,7 @@ int main()
 
 	window->set_position(0, 0);
 
-	window->fill(bg_color);
+	window->texture().fill(bg_color);
 	window->invalidate();
 
 	bool is_running = true;
@@ -108,8 +108,9 @@ int main()
 			const uint32_t text_x = window->width() - text_w - padding;
 			const uint32_t text_y = padding;
 
-			window->fill_rect(text_x, text_y, text_w, text_h, bg_color);
-			window->draw_text(text, font, text_x, text_y, fg_color);
+			auto& texture = window->texture();
+			texture.fill_rect(text_x, text_y, text_w, text_h, bg_color);
+			texture.draw_text(text, font, text_x, text_y, fg_color);
 			window->invalidate(text_x, text_y, text_w, text_h);
 		};
 

@@ -119,9 +119,9 @@ void Terminal::run()
 	attributes.resizable = true;
 
 	m_window = MUST(LibGUI::Window::create(600, 400, "Terminal"_sv, attributes));
-	m_window->fill(m_bg_color);
+	m_window->texture().fill(m_bg_color);
+	m_window->texture().set_bg_color(m_bg_color);
 	m_window->invalidate();
-	m_window->set_bg_color(m_bg_color);
 
 	m_font = MUST(LibFont::Font::load("/usr/share/fonts/lat0-16.psfu"_sv));
 
@@ -149,13 +149,13 @@ void Terminal::run()
 	m_window->set_resize_window_event_callback([&] {
 		if (const auto rem = m_window->height() % m_font.height())
 		{
-			m_window->fill_rect(0, m_window->height() - rem, m_window->width(), rem, m_bg_color);
+			m_window->texture().fill_rect(0, m_window->height() - rem, m_window->width(), rem, m_bg_color);
 			m_window->invalidate(0, m_window->height() - rem, m_window->width(), rem);
 		}
 
 		if (const auto rem = m_window->width() % m_font.width())
 		{
-			m_window->fill_rect(m_window->width() - rem, 0, rem, m_window->height(), m_bg_color);
+			m_window->texture().fill_rect(m_window->width() - rem, 0, rem, m_window->height(), m_bg_color);
 			m_window->invalidate(m_window->width() - rem, 0, rem, m_window->height());
 		}
 
@@ -235,11 +235,12 @@ void Terminal::hide_cursor()
 {
 	if (m_cursor.x == cols())
 		return;
+	auto& texture = m_window->texture();
 	const uint32_t cursor_base_x = m_cursor.x * m_font.width();
 	const uint32_t cursor_base_y = m_cursor.y * m_font.height();
 	for (uint32_t y = 0; y < m_font.height(); y++)
 		for (uint32_t x = 0; x < m_font.width(); x++)
-			m_window->set_pixel(cursor_base_x + x, cursor_base_y + y, m_cursor_buffer[y * m_font.width() + x]);
+			texture.set_pixel(cursor_base_x + x, cursor_base_y + y, m_cursor_buffer[y * m_font.width() + x]);
 	m_window->invalidate(cursor_base_x, cursor_base_y, m_font.width(), m_font.height());
 }
 
@@ -247,16 +248,17 @@ void Terminal::show_cursor()
 {
 	if (m_cursor.x == cols())
 		return;
+	auto& texture = m_window->texture();
 	const uint32_t cursor_base_x = m_cursor.x * m_font.width();
 	const uint32_t cursor_base_y = m_cursor.y * m_font.height();
 	for (uint32_t y = 0; y < m_font.height(); y++)
 		for (uint32_t x = 0; x < m_font.width(); x++)
-			m_cursor_buffer[y * m_font.width() + x] = m_window->get_pixel(cursor_base_x + x, cursor_base_y + y);
+			m_cursor_buffer[y * m_font.width() + x] = texture.get_pixel(cursor_base_x + x, cursor_base_y + y);
 	if (m_cursor_shown && m_cursor_blink_shown)
 	{
 		for (uint32_t y = m_font.height() * 13 / 16; y < m_font.height() - 1; y++)
 			for (uint32_t x = 0; x < m_font.width(); x++)
-				m_window->set_pixel(cursor_base_x + x, cursor_base_y + y, 0xFFFFFFFF);
+				texture.set_pixel(cursor_base_x + x, cursor_base_y + y, 0xFFFFFFFF);
 		m_window->invalidate(cursor_base_x, cursor_base_y, m_font.width(), m_font.height());
 	}
 }
@@ -306,7 +308,7 @@ bool Terminal::read_shell()
 		{
 			const uint32_t scroll = m_cursor.y + newline_count - rows() + 1;
 			m_cursor.y -= scroll;
-			m_window->shift_vertical(-scroll * (int32_t)m_font.height(), m_bg_color);
+			m_window->texture().shift_vertical(-scroll * (int32_t)m_font.height(), m_bg_color);
 			should_invalidate = { 0, 0, m_window->width(), m_window->height() };
 		}
 
@@ -434,6 +436,8 @@ Rectangle Terminal::handle_csi(char ch)
 	}
 
 	Rectangle should_invalidate;
+
+	auto& texture = m_window->texture();
 	switch (ch)
 	{
 		case 'A':
@@ -508,7 +512,7 @@ Rectangle Terminal::handle_csi(char ch)
 
 			for (size_t i = 0; i < rect_count; i++)
 			{
-				m_window->fill_rect(rects[i].x, rects[i].y, rects[i].width, rects[i].height, m_bg_color);
+				texture.fill_rect(rects[i].x, rects[i].y, rects[i].width, rects[i].height, m_bg_color);
 				should_invalidate = should_invalidate.get_bounding_box(rects[i]);
 			}
 
@@ -524,7 +528,7 @@ Rectangle Terminal::handle_csi(char ch)
 			rect.width  = (m_csi_info.fields[0] == 1) ? m_cursor.x * m_font.width() : m_window->width() - rect.x;
 			rect.height = m_font.height();
 
-			m_window->fill_rect(rect.x, rect.y, rect.width, rect.height, m_bg_color);
+			texture.fill_rect(rect.x, rect.y, rect.width, rect.height, m_bg_color);
 			should_invalidate = rect;
 
 			break;
@@ -535,8 +539,8 @@ Rectangle Terminal::handle_csi(char ch)
 			const uint32_t src_y = m_cursor.y * m_font.height();
 			const uint32_t dst_y = src_y + count * m_font.height();
 
-			m_window->copy_horizontal_slice(dst_y, src_y, m_window->height() - dst_y, m_bg_color);
-			m_window->fill_rect(0, src_y, m_window->width(), count * m_font.height(), m_bg_color);
+			texture.copy_horizontal_slice(dst_y, src_y, m_window->height() - dst_y, m_bg_color);
+			texture.fill_rect(0, src_y, m_window->width(), count * m_font.height(), m_bg_color);
 			should_invalidate = {
 				0,
 				src_y,
@@ -552,8 +556,8 @@ Rectangle Terminal::handle_csi(char ch)
 			const uint32_t dst_y = m_cursor.y * m_font.height();
 			const uint32_t src_y = dst_y + count * m_font.height();
 
-			m_window->copy_horizontal_slice(dst_y, src_y, m_window->height() - dst_y, m_bg_color);
-			m_window->fill_rect(0, m_window->height() - count * m_font.height(), m_window->width(), count * m_font.height(), m_bg_color);
+			texture.copy_horizontal_slice(dst_y, src_y, m_window->height() - dst_y, m_bg_color);
+			texture.fill_rect(0, m_window->height() - count * m_font.height(), m_window->width(), count * m_font.height(), m_bg_color);
 			should_invalidate = {
 				0,
 				src_y,
@@ -570,8 +574,8 @@ Rectangle Terminal::handle_csi(char ch)
 			const uint32_t src_x = m_cursor.x * m_font.width();
 			const uint32_t y = m_cursor.y * m_font.height();
 
-			m_window->copy_rect(dst_x, y, src_x, y, m_window->width() - dst_x, m_font.height(), m_bg_color);
-			m_window->fill_rect(src_x, y, count * m_font.width(), m_font.height(), m_bg_color);
+			texture.copy_rect(dst_x, y, src_x, y, m_window->width() - dst_x, m_font.height(), m_bg_color);
+			texture.fill_rect(src_x, y, count * m_font.width(), m_font.height(), m_bg_color);
 			should_invalidate = {
 				src_x,
 				y,
@@ -647,6 +651,7 @@ Rectangle Terminal::putcodepoint(uint32_t codepoint)
 {
 	Rectangle should_invalidate;
 
+	auto& texture = m_window->texture();
 	switch (codepoint)
 	{
 		case '\e':
@@ -675,7 +680,7 @@ Rectangle Terminal::putcodepoint(uint32_t codepoint)
 			{
 				const uint32_t scroll = m_cursor.y - rows() + 1;
 				m_cursor.y -= scroll;
-				m_window->shift_vertical(-scroll * (int32_t)m_font.height(), m_bg_color);
+				texture.shift_vertical(-scroll * (int32_t)m_font.height(), m_bg_color);
 				should_invalidate = { 0, 0, m_window->width(), m_window->height() };
 			}
 
@@ -687,8 +692,8 @@ Rectangle Terminal::putcodepoint(uint32_t codepoint)
 			const auto fg_color = m_colors_inverted ? m_bg_color : m_fg_color;
 			const auto bg_color = m_colors_inverted ? m_fg_color : m_bg_color;
 
-			m_window->fill_rect(cell_x, cell_y, cell_w, cell_h, bg_color);
-			m_window->draw_character(codepoint, m_font, cell_x, cell_y, fg_color);
+			texture.fill_rect(cell_x, cell_y, cell_w, cell_h, bg_color);
+			texture.draw_character(codepoint, m_font, cell_x, cell_y, fg_color);
 			m_last_graphic_char = codepoint;
 			should_invalidate = { cell_x, cell_y, cell_w, cell_h };
 			m_cursor.x++;
@@ -700,7 +705,7 @@ Rectangle Terminal::putcodepoint(uint32_t codepoint)
 	{
 		const uint32_t scroll = m_cursor.y - rows() + 1;
 		m_cursor.y -= scroll;
-		m_window->shift_vertical(-scroll * (int32_t)m_font.height(), m_bg_color);
+		texture.shift_vertical(-scroll * (int32_t)m_font.height(), m_bg_color);
 		should_invalidate = { 0, 0, m_window->width(), m_window->height() };
 	}
 
