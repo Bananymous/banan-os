@@ -477,6 +477,11 @@ void WindowServer::on_mouse_button(LibInput::MouseButtonEvent event)
 				{
 					m_state = State::Resizing;
 					m_resize_start = m_cursor;
+
+					const bool right  = m_cursor.x >= target_window->full_x() + target_window->full_width()  / 2;
+					const bool bottom = m_cursor.y >= target_window->full_y() + target_window->full_height() / 2;
+					m_resize_quadrant = right + 2 * bottom;
+
 					break;
 				}
 			}
@@ -522,6 +527,7 @@ void WindowServer::on_mouse_button(LibInput::MouseButtonEvent event)
 					dwarnln("could not resize client window {}", ret.error());
 					return;
 				}
+				m_focused_window->set_position({ resize_area.x, resize_area.y + m_focused_window->title_bar_height() });
 
 				LibGUI::EventPacket::ResizeWindowEvent event;
 				event.width = m_focused_window->client_width();
@@ -622,11 +628,9 @@ void WindowServer::on_mouse_move(LibInput::MouseMoveEvent event)
 		}
 		case State::Resizing:
 		{
-			const auto max_cursor = Position {
-				.x = BAN::Math::max(old_cursor.x, new_cursor.x),
-				.y = BAN::Math::max(old_cursor.y, new_cursor.y),
-			};
-			invalidate(resize_area(max_cursor).get_bounding_box(m_focused_window->full_area()));
+			const auto old_resize_area = resize_area({ old_cursor.x, old_cursor.y });
+			const auto new_resize_area = resize_area({ new_cursor.x, new_cursor.y });
+			invalidate(old_resize_area.get_bounding_box(new_resize_area));
 			break;
 		}
 	}
@@ -1169,11 +1173,29 @@ Rectangle WindowServer::cursor_area() const
 
 Rectangle WindowServer::resize_area(Position cursor) const
 {
+	int32_t diff_x = m_resize_start.x - cursor.x;
+	if (m_resize_quadrant % 2)
+		diff_x = -diff_x;
+	diff_x = BAN::Math::max(diff_x, -m_focused_window->client_width() + 20);
+
+	int32_t diff_y = m_resize_start.y - cursor.y;
+	if (m_resize_quadrant / 2)
+		diff_y = -diff_y;
+	diff_y = BAN::Math::max(diff_y, -m_focused_window->client_height() + 20);
+
+	int32_t off_x = 0;
+	if (m_resize_quadrant % 2 == 0)
+		off_x = -diff_x;
+
+	int32_t off_y = 0;
+	if (m_resize_quadrant / 2 == 0)
+		off_y = -diff_y;
+
 	return {
-		.x = m_focused_window->full_x(),
-		.y = m_focused_window->full_y(),
-		.width  = BAN::Math::max<int32_t>(20, m_focused_window->full_width()  + cursor.x - m_resize_start.x),
-		.height = BAN::Math::max<int32_t>(20, m_focused_window->full_height() + cursor.y - m_resize_start.y),
+		.x = off_x + m_focused_window->full_x(),
+		.y = off_y + m_focused_window->full_y(),
+		.width  = diff_x + m_focused_window->full_width(),
+		.height = diff_y + m_focused_window->full_height(),
 	};
 }
 

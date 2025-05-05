@@ -98,6 +98,8 @@ private:
 	Position m_cursor;
 
 	Rectangle m_non_full_screen_rect;
+
+	uint8_t m_resize_quadrant { 0 };
 	Position m_resize_start;
 
 	bool m_is_mouse_captured { false };
