@@ -979,9 +979,9 @@ char* tmpnam(char* storage)
 
 		struct stat st;
 		if (stat(storage, &st) == -1 && errno == ENOENT)
-			break;
+			return storage;
 	}
-	return storage;
+	return nullptr;
 }
 
 int ungetc_unlocked(int c, FILE* stream)
