@@ -101,7 +101,7 @@ void WindowServer::on_window_invalidate(int fd, const LibGUI::WindowPacket::Wind
 	if (packet.width == 0 || packet.height == 0)
 		return;
 
-	if (m_is_fullscreen_window)
+	if (m_state == State::Fullscreen)
 	{
 		ASSERT(m_focused_window);
 		if (m_focused_window->client_fd() != fd)
@@ -133,8 +133,12 @@ void WindowServer::on_window_invalidate(int fd, const LibGUI::WindowPacket::Wind
 
 void WindowServer::on_window_set_position(int fd, const LibGUI::WindowPacket::WindowSetPosition& packet)
 {
-	if (m_is_fullscreen_window && m_focused_window->client_fd() == fd)
-		return;
+	if (m_state == State::Fullscreen)
+	{
+		ASSERT(m_focused_window);
+		if (m_focused_window->client_fd() != fd)
+			return;
+	}
 
 	BAN::RefPtr<Window> target_window;
 	for (auto& window : m_client_windows)
@@ -251,37 +255,31 @@ void WindowServer::on_window_set_size(int fd, const LibGUI::WindowPacket::Window
 	const uint32_t width = packet.width ? packet.width : m_framebuffer.width;
 	const uint32_t height = packet.height ? packet.height : m_framebuffer.height;
 
-	if (auto ret = target_window->resize(width, height); ret.is_error())
-	{
-		dwarnln("could not resize client window {}", ret.error());
+	if (!resize_window(target_window, width, height))
 		return;
-	}
-
-	LibGUI::EventPacket::ResizeWindowEvent response;
-	response.width = target_window->client_width();
-	response.height = target_window->client_height();
-	response.smo_key = target_window->smo_key();
-	if (auto ret = response.send_serialized(fd); ret.is_error())
-	{
-		dwarnln("could not respond to window resize request: {}", ret.error());
-		return;
-	}
 
 	invalidate(target_window->full_area().get_bounding_box(old_area));
 }
 
 void WindowServer::on_window_set_fullscreen(int fd, const LibGUI::WindowPacket::WindowSetFullscreen& packet)
 {
-	if (m_is_fullscreen_window)
+	if (m_state == State::Fullscreen)
 	{
-		ASSERT(m_focused_window);
 		if (m_focused_window->client_fd() != fd)
-			dwarnln("client tried to set fullscreen window size while another window is already fullscreen");
-		else if (!packet.fullscreen)
 		{
-			m_is_fullscreen_window = false;
-			invalidate(m_framebuffer.area());
+			dwarnln("client tried to set fullscreen state while another window is fullscreen");
+			return;
 		}
+		if (packet.fullscreen)
+			return;
+		if (m_focused_window->get_attributes().resizable)
+		{
+			if (!resize_window(m_focused_window, m_non_full_screen_rect.width, m_non_full_screen_rect.height))
+				return;
+			m_focused_window->set_position({ m_non_full_screen_rect.x, m_non_full_screen_rect.y });
+		}
+		m_state = State::Normal;
+		invalidate(m_framebuffer.area());
 		return;
 	}
 
@@ -303,7 +301,16 @@ void WindowServer::on_window_set_fullscreen(int fd, const LibGUI::WindowPacket::
 		return;
 	}
 
-	m_is_fullscreen_window = true;
+	if (target_window->get_attributes().resizable)
+	{
+		const auto old_area = target_window->client_area();
+		if (!resize_window(target_window, m_framebuffer.width, m_framebuffer.height))
+			return;
+		target_window->set_position({ 0, 0 });
+		m_non_full_screen_rect = old_area;
+	}
+
+	m_state = State::Fullscreen;
 	set_focused_window(target_window);
 	invalidate(m_framebuffer.area());
 }
@@ -337,7 +344,7 @@ void WindowServer::on_window_set_title(int fd, const LibGUI::WindowPacket::Windo
 void WindowServer::on_key_event(LibInput::KeyEvent event)
 {
 	// Mod key is not passed to clients
-	if (event.key == LibInput::Key::Super)
+	if (event.key == LibInput::Key::LeftAlt)
 	{
 		m_is_mod_key_held = event.pressed();
 		return;
@@ -364,11 +371,19 @@ void WindowServer::on_key_event(LibInput::KeyEvent event)
 		return;
 	}
 
+	// Toggle window bounce with F2
+	if (event.pressed() && event.key == LibInput::Key::F2)
+	{
+		m_is_bouncing_window = !m_is_bouncing_window;
+		return;
+	}
+
+	if (!m_focused_window)
+		return;
+
 	// Kill window with mod+Q
 	if (m_is_mod_key_held && event.pressed() && event.key == LibInput::Key::Q)
 	{
-		if (!m_focused_window)
-			return;
 		LibGUI::EventPacket::CloseWindowEvent packet;
 		if (auto ret = packet.send_serialized(m_focused_window->client_fd()); ret.is_error())
 			dwarnln("could not send window close event: {}", ret.error());
@@ -377,29 +392,37 @@ void WindowServer::on_key_event(LibInput::KeyEvent event)
 
 	if (m_is_mod_key_held && event.pressed() && event.key == LibInput::Key::F)
 	{
-		if (!m_focused_window)
-			return;
-		m_is_fullscreen_window = !m_is_fullscreen_window;
-		if (m_is_fullscreen_window)
+		if (m_state == State::Fullscreen)
 		{
-			m_is_moving_window = false;
-			m_is_resizing_window = false;
+			if (m_focused_window->get_attributes().resizable)
+			{
+				if (!resize_window(m_focused_window, m_non_full_screen_rect.width, m_non_full_screen_rect.height))
+					return;
+				m_focused_window->set_position({ m_non_full_screen_rect.x, m_non_full_screen_rect.y });
+			}
+			m_state = State::Normal;
 		}
+		else
+		{
+			if (m_focused_window->get_attributes().resizable)
+			{
+				const auto old_area = m_focused_window->client_area();
+				if (!resize_window(m_focused_window, m_framebuffer.width, m_framebuffer.height))
+					return;
+				m_focused_window->set_position({ 0, 0 });
+				m_non_full_screen_rect = old_area;
+			}
+			m_state = State::Fullscreen;
+		}
+
 		invalidate(m_framebuffer.area());
 		return;
 	}
 
-	// Toggle window bounce with F2
-	if (!m_is_fullscreen_window && event.pressed() && event.key == LibInput::Key::F2)
-		m_is_bouncing_window = !m_is_bouncing_window;
-
-	if (m_focused_window)
-	{
-		LibGUI::EventPacket::KeyEvent packet;
-		packet.event = event;
-		if (auto ret = packet.send_serialized(m_focused_window->client_fd()); ret.is_error())
-			dwarnln("could not send key event: {}", ret.error());
-	}
+	LibGUI::EventPacket::KeyEvent packet;
+	packet.event = event;
+	if (auto ret = packet.send_serialized(m_focused_window->client_fd()); ret.is_error())
+		dwarnln("could not send key event: {}", ret.error());
 }
 
 void WindowServer::on_mouse_button(LibInput::MouseButtonEvent event)
@@ -428,92 +451,91 @@ void WindowServer::on_mouse_button(LibInput::MouseButtonEvent event)
 		}
 	}
 
-	if (m_is_moving_window && event.button == LibInput::MouseButton::Left && !event.pressed)
+	switch (m_state)
 	{
-		m_is_moving_window = false;
-		return;
-	}
+		case State::Normal:
+			if (!target_window)
+				break;
 
-	if (m_is_resizing_window && event.button == LibInput::MouseButton::Right && !event.pressed)
-	{
-		const auto resize_area = this->resize_area(m_cursor);
-		m_is_resizing_window = false;
-		invalidate(resize_area.get_bounding_box(m_focused_window->full_area()));
+			if (target_window->get_attributes().focusable)
+				set_focused_window(target_window);
 
-		const auto old_area = m_focused_window->full_area();
-		if (auto ret = m_focused_window->resize(resize_area.width, resize_area.height - m_focused_window->title_bar_height()); ret.is_error())
-		{
-			dwarnln("could not resize client window {}", ret.error());
-			return;
-		}
+			if (event.button == LibInput::MouseButton::Left && event.pressed)
+			{
+				const bool can_start_move = m_is_mod_key_held || target_window->title_text_area().contains(m_cursor);
+				if (can_start_move && target_window->get_attributes().movable)
+				{
+					m_state = State::Moving;
+					break;
+				}
+			}
 
-		LibGUI::EventPacket::ResizeWindowEvent event;
-		event.width = m_focused_window->client_width();
-		event.height = m_focused_window->client_height();
-		event.smo_key = m_focused_window->smo_key();
-		if (auto ret = event.send_serialized(m_focused_window->client_fd()); ret.is_error())
-		{
-			dwarnln("could not respond to window resize request: {}", ret.error());
-			return;
-		}
+			if (event.button == LibInput::MouseButton::Right && event.pressed)
+			{
+				const bool can_start_resize = m_is_mod_key_held;
+				if (can_start_resize && target_window->get_attributes().resizable)
+				{
+					m_state = State::Resizing;
+					m_resize_start = m_cursor;
+					break;
+				}
+			}
 
-		invalidate(m_focused_window->full_area().get_bounding_box(old_area));
+			if (event.button == LibInput::MouseButton::Left && !event.pressed && target_window->close_button_area().contains(m_cursor))
+			{
+				LibGUI::EventPacket::CloseWindowEvent packet;
+				if (auto ret = packet.send_serialized(m_focused_window->client_fd()); ret.is_error())
+					dwarnln("could not send close window event: {}", ret.error());
+				break;
+			}
 
-		return;
-	}
+			[[fallthrough]];
+		case State::Fullscreen:
+			if (target_window && target_window->client_area().contains(m_cursor))
+			{
+				LibGUI::EventPacket::MouseButtonEvent packet;
+				packet.event.button = event.button;
+				packet.event.pressed = event.pressed;
+				packet.event.x = m_cursor.x - m_focused_window->client_x();
+				packet.event.y = m_cursor.y - m_focused_window->client_y();
+				if (auto ret = packet.send_serialized(m_focused_window->client_fd()); ret.is_error())
+				{
+					dwarnln("could not send mouse button event: {}", ret.error());
+					return;
+				}
+			}
+			break;
+		case State::Moving:
+			if (event.button == LibInput::MouseButton::Left && !event.pressed)
+				m_state = State::Normal;
+			break;
+		case State::Resizing:
+			if (event.button == LibInput::MouseButton::Right && !event.pressed)
+			{
+				const auto resize_area = this->resize_area(m_cursor);
+				m_state = State::Normal;
+				invalidate(resize_area.get_bounding_box(m_focused_window->full_area()));
 
-	// Ignore mouse button events which are not on top of a window
-	if (!target_window)
-		return;
+				const auto old_area = m_focused_window->full_area();
+				if (auto ret = m_focused_window->resize(resize_area.width, resize_area.height - m_focused_window->title_bar_height()); ret.is_error())
+				{
+					dwarnln("could not resize client window {}", ret.error());
+					return;
+				}
 
-	if (target_window->get_attributes().focusable)
-		set_focused_window(target_window);
+				LibGUI::EventPacket::ResizeWindowEvent event;
+				event.width = m_focused_window->client_width();
+				event.height = m_focused_window->client_height();
+				event.smo_key = m_focused_window->smo_key();
+				if (auto ret = event.send_serialized(m_focused_window->client_fd()); ret.is_error())
+				{
+					dwarnln("could not respond to window resize request: {}", ret.error());
+					return;
+				}
 
-	if (!m_is_fullscreen_window && event.button == LibInput::MouseButton::Left)
-	{
-		const bool can_start_move = m_is_mod_key_held || target_window->title_text_area().contains(m_cursor);
-		if (can_start_move && !m_is_moving_window && event.pressed)
-		{
-			m_is_moving_window = target_window->get_attributes().movable;
-			return;
-		}
-	}
-
-	if (!m_is_fullscreen_window && event.button == LibInput::MouseButton::Right)
-	{
-		const bool can_start_resize = m_is_mod_key_held;
-		if (can_start_resize && !m_is_resizing_window && event.pressed)
-		{
-			m_is_resizing_window = target_window->get_attributes().resizable;
-			if (m_is_resizing_window)
-				m_resize_start = m_cursor;
-			return;
-		}
-	}
-
-	if (!event.pressed && event.button == LibInput::MouseButton::Left && target_window->close_button_area().contains(m_cursor))
-	{
-		// NOTE: we always have target window if code reaches here
-		LibGUI::EventPacket::CloseWindowEvent packet;
-		if (auto ret = packet.send_serialized(m_focused_window->client_fd()); ret.is_error())
-		{
-			dwarnln("could not send close window event: {}", ret.error());
-			return;
-		}
-	}
-	else if (target_window->client_area().contains(m_cursor))
-	{
-		// NOTE: we always have target window if code reaches here
-		LibGUI::EventPacket::MouseButtonEvent packet;
-		packet.event.button = event.button;
-		packet.event.pressed = event.pressed;
-		packet.event.x = m_cursor.x - m_focused_window->client_x();
-		packet.event.y = m_cursor.y - m_focused_window->client_y();
-		if (auto ret = packet.send_serialized(m_focused_window->client_fd()); ret.is_error())
-		{
-			dwarnln("could not send mouse button event: {}", ret.error());
-			return;
-		}
+				invalidate(m_focused_window->full_area().get_bounding_box(old_area));
+			}
+			break;
 	}
 }
 
@@ -536,7 +558,7 @@ void WindowServer::on_mouse_move(LibInput::MouseMoveEvent event)
 		{
 			const int32_t new_x = m_cursor.x + event.rel_x;
 			const int32_t new_y = m_cursor.y - event.rel_y;
-			return m_is_fullscreen_window
+			return (m_state == State::Fullscreen)
 				? Position {
 					.x = BAN::Math::clamp(new_x, m_focused_window->client_x(), m_focused_window->client_x() + m_focused_window->client_width()),
 					.y = BAN::Math::clamp(new_y, m_focused_window->client_y(), m_focused_window->client_y() + m_focused_window->client_height())
@@ -568,38 +590,44 @@ void WindowServer::on_mouse_move(LibInput::MouseMoveEvent event)
 			invalidate(title_bar);
 	}
 
-	if (m_is_moving_window)
-	{
-		auto old_window = m_focused_window->full_area();
-		m_focused_window->set_position({
-			m_focused_window->client_x() + event.rel_x,
-			m_focused_window->client_y() + event.rel_y,
-		});
-		auto new_window = m_focused_window->full_area();
-		invalidate(old_window);
-		invalidate(new_window);
+	if (!m_focused_window)
 		return;
-	}
 
-	if (m_is_resizing_window)
+	switch (m_state)
 	{
-		const auto max_cursor = Position {
-			.x = BAN::Math::max(old_cursor.x, new_cursor.x),
-			.y = BAN::Math::max(old_cursor.y, new_cursor.y),
-		};
-		invalidate(resize_area(max_cursor).get_bounding_box(m_focused_window->full_area()));
-		return;
-	}
-
-	if (m_focused_window)
-	{
-		LibGUI::EventPacket::MouseMoveEvent packet;
-		packet.event.x = m_cursor.x - m_focused_window->client_x();
-		packet.event.y = m_cursor.y - m_focused_window->client_y();
-		if (auto ret = packet.send_serialized(m_focused_window->client_fd()); ret.is_error())
+		case State::Normal:
+		case State::Fullscreen:
 		{
-			dwarnln("could not send mouse move event: {}", ret.error());
-			return;
+			LibGUI::EventPacket::MouseMoveEvent packet;
+			packet.event.x = m_cursor.x - m_focused_window->client_x();
+			packet.event.y = m_cursor.y - m_focused_window->client_y();
+			if (auto ret = packet.send_serialized(m_focused_window->client_fd()); ret.is_error())
+			{
+				dwarnln("could not send mouse move event: {}", ret.error());
+				return;
+			}
+			break;
+		}
+		case State::Moving:
+		{
+			auto old_window = m_focused_window->full_area();
+			m_focused_window->set_position({
+				m_focused_window->client_x() + event.rel_x,
+				m_focused_window->client_y() + event.rel_y,
+			});
+			auto new_window = m_focused_window->full_area();
+			invalidate(old_window);
+			invalidate(new_window);
+			break;
+		}
+		case State::Resizing:
+		{
+			const auto max_cursor = Position {
+				.x = BAN::Math::max(old_cursor.x, new_cursor.x),
+				.y = BAN::Math::max(old_cursor.y, new_cursor.y),
+			};
+			invalidate(resize_area(max_cursor).get_bounding_box(m_focused_window->full_area()));
+			break;
 		}
 	}
 }
@@ -676,7 +704,7 @@ void WindowServer::invalidate(Rectangle area)
 			return color;
 		};
 
-	if (m_is_fullscreen_window)
+	if (m_state == State::Fullscreen)
 	{
 		ASSERT(m_focused_window);
 		area.x -= m_focused_window->client_x();
@@ -970,7 +998,7 @@ void WindowServer::invalidate(Rectangle area)
 		}
 	}
 
-	if (m_is_resizing_window)
+	if (m_state == State::Resizing)
 	{
 		if (const auto overlap = resize_area(m_cursor).get_overlap(area); overlap.has_value())
 		{
@@ -1141,13 +1169,33 @@ Rectangle WindowServer::cursor_area() const
 
 Rectangle WindowServer::resize_area(Position cursor) const
 {
-	ASSERT(m_is_resizing_window);
 	return {
 		.x = m_focused_window->full_x(),
 		.y = m_focused_window->full_y(),
 		.width  = BAN::Math::max<int32_t>(20, m_focused_window->full_width()  + cursor.x - m_resize_start.x),
 		.height = BAN::Math::max<int32_t>(20, m_focused_window->full_height() + cursor.y - m_resize_start.y),
 	};
+}
+
+bool WindowServer::resize_window(BAN::RefPtr<Window> window, uint32_t width, uint32_t height) const
+{
+	if (auto ret = window->resize(width, height); ret.is_error())
+	{
+		dwarnln("could not resize client window {}", ret.error());
+		return false;
+	}
+
+	LibGUI::EventPacket::ResizeWindowEvent response;
+	response.width = window->client_width();
+	response.height = window->client_height();
+	response.smo_key = window->smo_key();
+	if (auto ret = response.send_serialized(window->client_fd()); ret.is_error())
+	{
+		dwarnln("could not respond to window resize request: {}", ret.error());
+		return false;
+	}
+
+	return true;
 }
 
 void WindowServer::add_client_fd(int fd)
@@ -1166,9 +1214,9 @@ void WindowServer::remove_client_fd(int fd)
 		return;
 	m_client_data.remove(it);
 
-	if (m_is_fullscreen_window && m_focused_window->client_fd() == fd)
+	if (m_state == State::Fullscreen && m_focused_window->client_fd() == fd)
 	{
-		m_is_fullscreen_window = false;
+		m_state = State::Normal;
 		invalidate(m_framebuffer.area());
 	}
 

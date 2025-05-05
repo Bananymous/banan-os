@@ -62,12 +62,22 @@ public:
 private:
 	void mark_pending_sync(Rectangle area);
 
+	bool resize_window(BAN::RefPtr<Window> window, uint32_t width, uint32_t height) const;
+
 private:
 	struct RangeList
 	{
 		size_t range_count { 0 };
 		BAN::Array<Range, 32> ranges;
 		void add_range(const Range& range);
+	};
+
+	enum class State
+	{
+		Normal,
+		Fullscreen,
+		Moving,
+		Resizing,
 	};
 
 private:
@@ -82,13 +92,12 @@ private:
 
 	BAN::UniqPtr<LibImage::Image> m_background_image;
 
+	State m_state { State::Normal };
 	bool m_is_mod_key_held { false };
-	bool m_is_moving_window { false };
-	bool m_is_fullscreen_window { false };
 	BAN::RefPtr<Window> m_focused_window;
 	Position m_cursor;
 
-	bool m_is_resizing_window { false };
+	Rectangle m_non_full_screen_rect;
 	Position m_resize_start;
 
 	bool m_is_mouse_captured { false };
