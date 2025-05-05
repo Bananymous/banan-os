@@ -391,6 +391,20 @@ void WindowServer::on_key_event(LibInput::KeyEvent event)
 		return;
 	}
 
+	// Start program launcher with mod+d
+	if (m_is_mod_key_held && event.pressed() && event.key == LibInput::Key::D)
+	{
+		pid_t pid = fork();
+		if (pid == 0)
+		{
+			execl("/usr/bin/ProgramLauncher", "ProgramLauncher", nullptr);
+			exit(1);
+		}
+		if (pid == -1)
+			perror("fork");
+		return;
+	}
+
 	// Toggle window bounce with F2
 	if (event.pressed() && event.key == LibInput::Key::F2)
 	{
