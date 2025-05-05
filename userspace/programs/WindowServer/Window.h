@@ -52,6 +52,9 @@ public:
 	LibGUI::Window::Attributes get_attributes() const { return m_attributes; };
 	void set_attributes(LibGUI::Window::Attributes attributes) { m_attributes = attributes; };
 
+	Rectangle get_min_size() const { return m_min_size; }
+	void set_min_size(Rectangle min_size) { m_min_size = min_size.get_bounding_box({ 0, 0, m_title_bar_height, 0 }); }
+
 	BAN::ErrorOr<void> set_title(BAN::StringView title) { m_title.clear(); TRY(m_title.append(title)); TRY(prepare_title_bar()); return {}; }
 
 	const uint32_t* framebuffer() const { return m_fb_addr; }
@@ -84,6 +87,7 @@ private:
 
 	const int   m_client_fd      { -1 };
 	Rectangle   m_client_area    { 0, 0, 0, 0 };
+	Rectangle   m_min_size       { 0, 0, m_title_bar_height, 0 };
 	long        m_smo_key        { 0 };
 	uint32_t*   m_fb_addr        { nullptr };
 	BAN::String m_title;

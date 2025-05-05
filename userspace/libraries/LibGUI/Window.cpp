@@ -306,6 +306,16 @@ namespace LibGUI
 			return on_socket_error(__FUNCTION__);
 	}
 
+	void Window::set_min_size(uint32_t width, uint32_t height)
+	{
+		WindowPacket::WindowSetMinSize packet;
+		packet.width = width;
+		packet.height = height;
+
+		if (auto ret = packet.send_serialized(m_server_fd); ret.is_error())
+			return on_socket_error(__FUNCTION__);
+	}
+
 	void Window::set_attributes(Attributes attributes)
 	{
 		WindowPacket::WindowSetAttributes packet;

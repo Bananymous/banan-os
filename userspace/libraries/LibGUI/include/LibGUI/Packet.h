@@ -164,6 +164,7 @@ namespace LibGUI
 		WindowSetAttributes,
 		WindowSetMouseCapture,
 		WindowSetSize,
+		WindowSetMinSize,
 		WindowSetFullscreen,
 		WindowSetTitle,
 
@@ -223,6 +224,12 @@ namespace LibGUI
 
 		DEFINE_PACKET(
 			WindowSetSize,
+			uint32_t, width,
+			uint32_t, height
+		);
+
+		DEFINE_PACKET(
+			WindowSetMinSize,
 			uint32_t, width,
 			uint32_t, height
 		);

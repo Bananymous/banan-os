@@ -261,6 +261,26 @@ void WindowServer::on_window_set_size(int fd, const LibGUI::WindowPacket::Window
 	invalidate(target_window->full_area().get_bounding_box(old_area));
 }
 
+void WindowServer::on_window_set_min_size(int fd, const LibGUI::WindowPacket::WindowSetMinSize& packet)
+{
+	BAN::RefPtr<Window> target_window;
+	for (auto& window : m_client_windows)
+	{
+		if (window->client_fd() != fd)
+			continue;
+		target_window = window;
+		break;
+	}
+
+	if (!target_window)
+	{
+		dwarnln("client tried to set window min size while not owning a window");
+		return;
+	}
+
+	target_window->set_min_size({ 0, 0, static_cast<int32_t>(packet.width), static_cast<int32_t>(packet.height) });
+}
+
 void WindowServer::on_window_set_fullscreen(int fd, const LibGUI::WindowPacket::WindowSetFullscreen& packet)
 {
 	if (m_state == State::Fullscreen)
@@ -1173,15 +1193,17 @@ Rectangle WindowServer::cursor_area() const
 
 Rectangle WindowServer::resize_area(Position cursor) const
 {
+	const auto min_size = m_focused_window->get_min_size();
+
 	int32_t diff_x = m_resize_start.x - cursor.x;
 	if (m_resize_quadrant % 2)
 		diff_x = -diff_x;
-	diff_x = BAN::Math::max(diff_x, -m_focused_window->client_width() + 20);
+	diff_x = BAN::Math::max(diff_x, -m_focused_window->client_width() + min_size.width);
 
 	int32_t diff_y = m_resize_start.y - cursor.y;
 	if (m_resize_quadrant / 2)
 		diff_y = -diff_y;
-	diff_y = BAN::Math::max(diff_y, -m_focused_window->client_height() + 20);
+	diff_y = BAN::Math::max(diff_y, -m_focused_window->client_height() + min_size.height);
 
 	int32_t off_x = 0;
 	if (m_resize_quadrant % 2 == 0)

@@ -37,6 +37,7 @@ public:
 	void on_window_set_attributes(int fd, const LibGUI::WindowPacket::WindowSetAttributes&);
 	void on_window_set_mouse_capture(int fd, const LibGUI::WindowPacket::WindowSetMouseCapture&);
 	void on_window_set_size(int fd, const LibGUI::WindowPacket::WindowSetSize&);
+	void on_window_set_min_size(int fd, const LibGUI::WindowPacket::WindowSetMinSize&);
 	void on_window_set_fullscreen(int fd, const LibGUI::WindowPacket::WindowSetFullscreen&);
 	void on_window_set_title(int fd, const LibGUI::WindowPacket::WindowSetTitle&);
 
