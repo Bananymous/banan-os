@@ -116,10 +116,12 @@ void Terminal::run()
 
 	auto attributes = LibGUI::Window::default_attributes;
 	attributes.alpha_channel = true;
+	attributes.resizable = true;
 
 	m_window = MUST(LibGUI::Window::create(600, 400, "Terminal"_sv, attributes));
 	m_window->fill(m_bg_color);
 	m_window->invalidate();
+	m_window->set_bg_color(m_bg_color);
 
 	m_font = MUST(LibFont::Font::load("/usr/share/fonts/lat0-16.psfu"_sv));
 
@@ -142,6 +144,27 @@ void Terminal::run()
 	show_cursor();
 
 	m_window->set_key_event_callback([&](LibGUI::EventPacket::KeyEvent::event_t event) { on_key_event(event); });
+	m_window->set_resize_window_event_callback([&] {
+		if (const auto rem = m_window->height() % m_font.height())
+		{
+			m_window->fill_rect(0, m_window->height() - rem, m_window->width(), rem, m_bg_color);
+			m_window->invalidate(0, m_window->height() - rem, m_window->width(), rem);
+		}
+
+		if (const auto rem = m_window->width() % m_font.width())
+		{
+			m_window->fill_rect(m_window->width() - rem, 0, rem, m_window->height(), m_bg_color);
+			m_window->invalidate(m_window->width() - rem, 0, rem, m_window->height());
+		}
+
+		if (m_cursor.x < cols() && m_cursor.y < rows())
+			return;
+
+		m_cursor.x = BAN::Math::min(m_cursor.x, cols() - 1);
+		m_cursor.y = BAN::Math::min(m_cursor.y, rows() - 1);
+		for (auto& pixel : m_cursor_buffer)
+			pixel = m_bg_color;
+	});
 
 	const int max_fd = BAN::Math::max(m_shell_info.pts_master, m_window->server_fd());
 	while (!s_shell_exited)
