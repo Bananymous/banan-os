@@ -1568,38 +1568,32 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_dup2(int fildes, int fildes2)
 	{
-		LockGuard _(m_process_lock);
 		return TRY(m_open_file_descriptors.dup2(fildes, fildes2));
 	}
 
 	BAN::ErrorOr<long> Process::sys_fcntl(int fildes, int cmd, int extra)
 	{
-		LockGuard _(m_process_lock);
 		return TRY(m_open_file_descriptors.fcntl(fildes, cmd, extra));
 	}
 
 	BAN::ErrorOr<long> Process::sys_seek(int fd, off_t offset, int whence)
 	{
-		LockGuard _(m_process_lock);
 		return TRY(m_open_file_descriptors.seek(fd, offset, whence));
 	}
 
 	BAN::ErrorOr<long> Process::sys_tell(int fd)
 	{
-		LockGuard _(m_process_lock);
 		return TRY(m_open_file_descriptors.tell(fd));
 	}
 
 	BAN::ErrorOr<long> Process::sys_truncate(int fd, off_t length)
 	{
-		LockGuard _(m_process_lock);
 		TRY(m_open_file_descriptors.truncate(fd, length));
 		return 0;
 	}
 
 	BAN::ErrorOr<long> Process::sys_fsync(int fd)
 	{
-		LockGuard _(m_process_lock);
 		auto inode = TRY(m_open_file_descriptors.inode_of(fd));
 		TRY(inode->fsync());
 		return 0;
