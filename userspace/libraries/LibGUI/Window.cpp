@@ -355,7 +355,7 @@ namespace LibGUI
 		m_framebuffer_smo = nullptr;
 
 		BAN::Vector<uint32_t> framebuffer;
-		TRY(framebuffer.resize(event.width * event.height, 0xFFFFFFFF));
+		TRY(framebuffer.resize(event.width * event.height, m_bg_color));
 
 		void* framebuffer_addr = smo_map(event.smo_key);
 		if (framebuffer_addr == nullptr)

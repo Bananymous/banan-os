@@ -82,6 +82,9 @@ namespace LibGUI
 		uint32_t width() const { return m_width; }
 		uint32_t height() const { return m_height; }
 
+		// used on resize to fill empty space
+		void set_bg_color(uint32_t bg_color) { m_bg_color = bg_color; }
+
 		void poll_events();
 		void set_socket_error_callback(BAN::Function<void()> callback)                                             { m_socket_error_callback = callback; }
 		void set_close_window_event_callback(BAN::Function<void()> callback)                                       { m_close_window_event_callback = callback; }
@@ -117,6 +120,8 @@ namespace LibGUI
 		uint32_t* m_framebuffer_smo { nullptr };
 		uint32_t m_width { 0 };
 		uint32_t m_height { 0 };
+
+		uint32_t m_bg_color { 0xFFFFFFFF };
 
 		BAN::Function<void()>                                       m_socket_error_callback;
 		BAN::Function<void()>                                       m_close_window_event_callback;
