@@ -88,7 +88,9 @@ namespace LibGUI
 		// used on resize to fill empty space
 		void set_bg_color(uint32_t bg_color) { m_bg_color = bg_color; }
 
+		void wait_events();
 		void poll_events();
+
 		void set_socket_error_callback(BAN::Function<void()> callback)                                             { m_socket_error_callback = callback; }
 		void set_close_window_event_callback(BAN::Function<void()> callback)                                       { m_close_window_event_callback = callback; }
 		void set_resize_window_event_callback(BAN::Function<void()> callback)                                      { m_resize_window_event_callback = callback; }

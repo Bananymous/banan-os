@@ -387,10 +387,17 @@ namespace LibGUI
 		return {};
 	}
 
-#define TRY_OR_BREAK(...) ({ auto&& e = (__VA_ARGS__); if (e.is_error()) break; e.release_value(); })
+	void Window::wait_events()
+	{
+		fd_set fds;
+		FD_ZERO(&fds);
+		FD_SET(m_server_fd, &fds);
+		select(m_server_fd + 1, &fds, nullptr, nullptr, nullptr);
+	}
 
 	void Window::poll_events()
 	{
+#define TRY_OR_BREAK(...) ({ auto&& e = (__VA_ARGS__); if (e.is_error()) break; e.release_value(); })
 		for (;;)
 		{
 			fd_set fds;
@@ -444,6 +451,7 @@ namespace LibGUI
 					break;
 			}
 		}
+#undef TRY_OR_BREAK
 	}
 
 }
