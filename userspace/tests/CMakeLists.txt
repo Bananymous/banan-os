@@ -5,6 +5,7 @@ set(USERSPACE_TESTS
 	test-mmap-shared
 	test-mouse
 	test-popen
+	test-pthread
 	test-setjmp
 	test-shared
 	test-sort
