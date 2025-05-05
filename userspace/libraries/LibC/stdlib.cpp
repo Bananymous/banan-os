@@ -34,8 +34,8 @@ void abort(void)
 
 void exit(int status)
 {
-	fflush(nullptr);
 	__cxa_finalize(nullptr);
+	fflush(nullptr);
 	_exit(status);
 	ASSERT_NOT_REACHED();
 }
