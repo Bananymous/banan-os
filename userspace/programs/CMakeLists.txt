@@ -24,6 +24,7 @@ set(USERSPACE_PROGRAMS
 	mkdir
 	nslookup
 	poweroff
+	ProgramLauncher
 	resolver
 	rm
 	Shell
