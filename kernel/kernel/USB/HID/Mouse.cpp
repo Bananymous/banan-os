@@ -79,7 +79,7 @@ namespace Kernel
 				}
 				break;
 			case 0x09: // button
-				if (usage == 0 || usage >= m_button_state_temp.size())
+				if (usage == 0 || usage > m_button_state_temp.size())
 					break;
 				m_button_state_temp[usage - 1] = state;
 				break;
