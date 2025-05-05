@@ -2309,10 +2309,16 @@ namespace Kernel
 	{
 		LockGuard _(m_process_lock);
 
+		auto inode = TRY(m_open_file_descriptors.inode_of(fd));
+
+		// NOTE: This is a hack but I'm not sure how terminal is supposted to get
+		//       slave's foreground pgroup while not having controlling terminal
+		if (TRY(m_open_file_descriptors.path_of(fd)) == "<ptmx>"_sv)
+			return TRY(static_cast<PseudoTerminalMaster*>(inode.ptr())->slave())->foreground_pgrp();
+
 		if (!m_controlling_terminal)
 			return BAN::Error::from_errno(ENOTTY);
 
-		auto inode = TRY(m_open_file_descriptors.inode_of(fd));
 		if (!inode->is_tty())
 			return BAN::Error::from_errno(ENOTTY);
 
