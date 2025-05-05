@@ -159,13 +159,36 @@ void Terminal::run()
 			m_window->invalidate(m_window->width() - rem, 0, rem, m_window->height());
 		}
 
-		if (m_cursor.x < cols() && m_cursor.y < rows())
-			return;
+		if (m_cursor.x >= cols() || m_cursor.y >= rows())
+		{
+			m_cursor.x = BAN::Math::min(m_cursor.x, cols() - 1);
+			m_cursor.y = BAN::Math::min(m_cursor.y, rows() - 1);
+			for (auto& pixel : m_cursor_buffer)
+				pixel = m_bg_color;
+		}
 
-		m_cursor.x = BAN::Math::min(m_cursor.x, cols() - 1);
-		m_cursor.y = BAN::Math::min(m_cursor.y, rows() - 1);
-		for (auto& pixel : m_cursor_buffer)
-			pixel = m_bg_color;
+		const winsize winsize {
+			.ws_row = static_cast<unsigned short>(rows()),
+			.ws_col = static_cast<unsigned short>(cols()),
+		};
+		if (ioctl(m_shell_info.pts_master, TIOCSWINSZ, &winsize) == -1)
+		{
+			perror("ioctl");
+			return;
+		}
+
+		const pid_t fgpgrp = tcgetpgrp(m_shell_info.pts_master);
+		if (fgpgrp == -1)
+		{
+			perror("tcgetpgrp");
+			return;
+		}
+
+		if (kill(-fgpgrp, SIGWINCH) == -1)
+		{
+			perror("kill");
+			return;
+		}
 	});
 
 	const int max_fd = BAN::Math::max(m_shell_info.pts_master, m_window->server_fd());
