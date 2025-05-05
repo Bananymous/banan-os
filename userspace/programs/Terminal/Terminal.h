@@ -102,4 +102,5 @@ private:
 	uint32_t m_fg_color { 0 };
 	uint32_t m_bg_color { 0 };
 	bool m_colors_inverted { false };
+	bool m_is_bold { false };
 };

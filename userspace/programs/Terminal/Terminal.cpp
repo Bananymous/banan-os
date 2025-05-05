@@ -338,9 +338,10 @@ void Terminal::handle_sgr(int32_t value)
 			m_bg_color = s_default_bg_color;
 			m_fg_color = s_default_fg_color;
 			m_colors_inverted = false;
+			m_is_bold = false;
 			break;
 		case 1:
-			// FIXME: bold
+			m_is_bold = true;
 			break;
 		case 7:
 			m_colors_inverted = true;
@@ -694,6 +695,8 @@ Rectangle Terminal::putcodepoint(uint32_t codepoint)
 
 			texture.fill_rect(cell_x, cell_y, cell_w, cell_h, bg_color);
 			texture.draw_character(codepoint, m_font, cell_x, cell_y, fg_color);
+			if (m_is_bold)
+				texture.draw_character(codepoint, m_font, cell_x + 1, cell_y, fg_color);
 			m_last_graphic_char = codepoint;
 			should_invalidate = { cell_x, cell_y, cell_w, cell_h };
 			m_cursor.x++;
