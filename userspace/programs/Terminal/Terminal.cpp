@@ -125,6 +125,8 @@ void Terminal::run()
 
 	m_font = MUST(LibFont::Font::load("/usr/share/fonts/lat0-16.psfu"_sv));
 
+	m_window->set_min_size(m_font.width() * 8, m_font.height() * 2);
+
 	{
 		winsize winsize;
 		winsize.ws_col = cols();
