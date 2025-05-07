@@ -25,20 +25,21 @@ diff --git a/doomgeneric/doomgeneric_banan_os.cpp b/doomgeneric/doomgeneric_bana
 index d00c30d..9d13b43 100644
 --- a/doomgeneric/doomgeneric_banan_os.cpp
 +++ b/doomgeneric/doomgeneric_banan_os.cpp
-@@ -80,13 +80,13 @@ void DG_Init()
+@@ -80,14 +80,13 @@ void DG_Init()
  			s_key_write_index = (s_key_write_index + 1) % s_key_queue_size;
  		}
  	);
 +
 +	ASSERT(DG_ScreenBuffer == nullptr);
-+	DG_ScreenBuffer = s_window->pixels().data();
++	DG_ScreenBuffer = s_window->texture().pixels().data();
  }
  
  void DG_DrawFrame()
  {
+-	auto& texture = s_window->texture();
 -	for (size_t y = 0; y < DOOMGENERIC_RESY; y++)
 -		for (size_t x = 0; x < DOOMGENERIC_RESX; x++)
--			s_window->set_pixel(x, y, 0xFF000000 | DG_ScreenBuffer[y * DOOMGENERIC_RESX + x]);
+-			texture.set_pixel(x, y, 0xFF000000 | DG_ScreenBuffer[y * DOOMGENERIC_RESX + x]);
  	s_window->invalidate();
  	s_window->poll_events();
  }

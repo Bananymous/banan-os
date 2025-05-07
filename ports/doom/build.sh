@@ -5,7 +5,7 @@ VERSION='git'
 DOWNLOAD_URL="https://github.com/ozkl/doomgeneric.git#613f870b6fa83ede448a247de5a2571092fa729d"
 
 configure() {
-	:
+	make --directory doomgeneric clean
 }
 
 build() {

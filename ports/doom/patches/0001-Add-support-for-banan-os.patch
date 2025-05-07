@@ -79,7 +79,7 @@ new file mode 100644
 index 0000000..9161771
 --- /dev/null
 +++ b/doomgeneric/doomgeneric_banan_os.cpp
-@@ -0,0 +1,138 @@
+@@ -0,0 +1,139 @@
 +extern "C"
 +{
 +#include "doomgeneric.h"
@@ -166,9 +166,10 @@ index 0000000..9161771
 +
 +void DG_DrawFrame()
 +{
++	auto& texture = s_window->texture();
 +	for (size_t y = 0; y < DOOMGENERIC_RESY; y++)
 +		for (size_t x = 0; x < DOOMGENERIC_RESX; x++)
-+			s_window->set_pixel(x, y, 0xFF000000 | DG_ScreenBuffer[y * DOOMGENERIC_RESX + x]);
++			texture.set_pixel(x, y, 0xFF000000 | DG_ScreenBuffer[y * DOOMGENERIC_RESX + x]);
 +	s_window->invalidate();
 +	s_window->poll_events();
 +}
