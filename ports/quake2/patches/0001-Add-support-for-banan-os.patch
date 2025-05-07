@@ -198,7 +198,7 @@ new file mode 100644
 index 0000000..c7d7e16
 --- /dev/null
 +++ b/port_soft_banan_os.cpp
-@@ -0,0 +1,277 @@
+@@ -0,0 +1,278 @@
 +#include <LibGUI/Window.h>
 +#include <LibInput/KeyEvent.h>
 +#include <LibInput/MouseEvent.h>
@@ -397,11 +397,12 @@ index 0000000..c7d7e16
 +
 +void SWimp_EndFrame(void)
 +{
++	auto& texture = s_window->texture();
 +	const uint32_t width  = s_window->width();
 +	const uint32_t height = s_window->height();
 +	for (int y = 0; y < height; y++)
 +		for (int x = 0; x < width; x++)
-+			s_window->set_pixel(x, y, s_palette[s_buffer[y * width + x]].as_argb());
++			texture.set_pixel(x, y, s_palette[s_buffer[y * width + x]].as_argb());
 +	s_window->invalidate();
 +}
 +
