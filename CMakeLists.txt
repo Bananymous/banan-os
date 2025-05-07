@@ -29,12 +29,12 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # include headers of ${library} to ${target}
 function(banan_include_headers target library)
-	target_include_directories(${target} PRIVATE $<TARGET_PROPERTY:${library},SOURCE_DIR>/include)
+	target_include_directories(${target} PUBLIC $<TARGET_PROPERTY:${library},SOURCE_DIR>/include)
 endfunction()
 
 # include headers and link ${library} to ${target}
 function(banan_link_library target library)
-	target_link_libraries(${target} PRIVATE ${library})
+	target_link_libraries(${target} PUBLIC ${library})
 	banan_include_headers(${target} ${library})
 endfunction()
 
