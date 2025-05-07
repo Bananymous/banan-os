@@ -1,6 +1,6 @@
 diff -ruN tcc-0.9.27/configure tcc-0.9.27-banan_os/configure
 --- tcc-0.9.27/configure	2017-12-17 10:27:05.000000000 +0200
-+++ tcc-0.9.27-banan_os/configure	2024-08-25 18:43:00.329466309 +0300
++++ tcc-0.9.27-banan_os/configure	2025-05-07 18:10:09.779137536 +0300
 @@ -49,8 +49,11 @@
  gcc_minor=0
  
@@ -16,7 +16,7 @@ diff -ruN tcc-0.9.27/configure tcc-0.9.27-banan_os/configure
      DLLSUF=".dylib"
 diff -ruN tcc-0.9.27/Makefile tcc-0.9.27-banan_os/Makefile
 --- tcc-0.9.27/Makefile	2017-12-17 10:27:05.000000000 +0200
-+++ tcc-0.9.27-banan_os/Makefile	2024-08-25 18:43:44.996196450 +0300
++++ tcc-0.9.27-banan_os/Makefile	2025-05-07 18:10:09.779389036 +0300
 @@ -30,7 +30,9 @@
   CFGWIN = -win
   NATIVE_TARGET = $(ARCH)-win$(if $(findstring arm,$(ARCH)),ce,32)
@@ -28,3 +28,15 @@ diff -ruN tcc-0.9.27/Makefile tcc-0.9.27-banan_os/Makefile
   ifneq ($(CONFIG_ldl),no)
    LIBS+=-ldl
   endif
+diff -ruN tcc-0.9.27/tcc.c tcc-0.9.27-banan_os/tcc.c
+--- tcc-0.9.27/tcc.c	2017-12-17 10:27:05.000000000 +0200
++++ tcc-0.9.27-banan_os/tcc.c	2025-05-07 18:09:16.870611889 +0300
+@@ -162,6 +162,8 @@
+         " Darwin"
+ #elif defined(__FreeBSD__) || defined(__FreeBSD_kernel__)
+         " FreeBSD"
++#elif defined(__banan_os__)
++        " banan-os"
+ #else
+         " Linux"
+ #endif
