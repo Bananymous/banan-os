@@ -96,6 +96,7 @@ private:
 	State m_state { State::Normal };
 	bool m_is_mod_key_held { false };
 	BAN::RefPtr<Window> m_focused_window;
+	BAN::Array<BAN::RefPtr<Window>, 5> m_mouse_button_windows;
 	Position m_cursor;
 
 	Rectangle m_non_full_screen_rect;

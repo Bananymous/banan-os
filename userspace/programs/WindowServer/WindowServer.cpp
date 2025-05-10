@@ -475,15 +475,19 @@ void WindowServer::on_mouse_button(LibInput::MouseButtonEvent event)
 		return;
 	}
 
-	BAN::RefPtr<Window> target_window;
-	for (size_t i = m_client_windows.size(); i > 0; i--)
+	const size_t button_idx = static_cast<size_t>(event.button);
+	if (button_idx >= m_mouse_button_windows.size())
 	{
-		if (m_client_windows[i - 1]->full_area().contains(m_cursor))
-		{
-			target_window = m_client_windows[i - 1];
-			break;
-		}
+		dwarnln("invalid mouse button {}", button_idx);
+		return;
 	}
+
+	BAN::RefPtr<Window> target_window;
+	if (!event.pressed)
+		target_window = m_mouse_button_windows[button_idx];
+	for (size_t i = m_client_windows.size(); i > 0 && !target_window; i--)
+		if (m_client_windows[i - 1]->full_area().contains(m_cursor))
+			target_window = m_client_windows[i - 1];
 
 	switch (m_state)
 	{
@@ -530,7 +534,7 @@ void WindowServer::on_mouse_button(LibInput::MouseButtonEvent event)
 
 			[[fallthrough]];
 		case State::Fullscreen:
-			if (target_window && target_window->client_area().contains(m_cursor))
+			if (target_window && (!event.pressed || target_window->client_area().contains(m_cursor)))
 			{
 				LibGUI::EventPacket::MouseButtonEvent packet;
 				packet.event.button = event.button;
@@ -542,6 +546,7 @@ void WindowServer::on_mouse_button(LibInput::MouseButtonEvent event)
 					dwarnln("could not send mouse button event: {}", ret.error());
 					return;
 				}
+				m_mouse_button_windows[button_idx] = event.pressed ? target_window : nullptr;
 			}
 			break;
 		case State::Moving:
