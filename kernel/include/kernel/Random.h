@@ -1,5 +1,7 @@
 #pragma once
 
+#include <BAN/Traits.h>
+
 #include <stdint.h>
 
 namespace Kernel
