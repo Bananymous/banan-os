@@ -323,8 +323,6 @@ namespace Kernel
 			LockGuard _(m_mutex);
 			TRY(validate_fd(fd));
 			auto& open_file = m_open_files[fd];
-			if (open_file.inode()->mode().ifsock())
-				return recvfrom(fd, buffer, nullptr, nullptr);
 			if (!(open_file.status_flags() & O_RDONLY))
 				return BAN::Error::from_errno(EBADF);
 			inode = open_file.inode();
