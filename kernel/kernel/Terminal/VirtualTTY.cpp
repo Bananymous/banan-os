@@ -571,17 +571,14 @@ namespace Kernel
 
 	void VirtualTTY::update_cursor()
 	{
-		static bool last_shown = !m_cursor_shown;
-		if (m_cursor_shown != last_shown)
+		if (m_cursor_shown != m_last_cursor_shown)
 			m_terminal_driver->set_cursor_shown(m_cursor_shown);
-		last_shown = m_cursor_shown;
+		m_last_cursor_shown = m_cursor_shown;
 
-		static uint32_t last_column = -1;
-		static uint32_t last_row = -1;
-		if (last_column != m_column || last_row != m_row)
+		if (m_last_cursor_column != m_column || m_last_cursor_row != m_row)
 			m_terminal_driver->set_cursor_position(m_column, m_row);
-		last_column = m_column;
-		last_row = m_row;
+		m_last_cursor_column = m_column;
+		m_last_cursor_row = m_row;
 	}
 
 }

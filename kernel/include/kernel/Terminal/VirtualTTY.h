@@ -94,6 +94,10 @@ namespace Kernel
 		uint32_t m_column { 0 };
 		Cell* m_buffer { nullptr };
 
+		bool m_last_cursor_shown { false };
+		uint32_t m_last_cursor_row { static_cast<uint32_t>(-1) };
+		uint32_t m_last_cursor_column { static_cast<uint32_t>(-1) };
+
 		const Palette& m_palette;
 
 		TerminalDriver::Color m_foreground;
