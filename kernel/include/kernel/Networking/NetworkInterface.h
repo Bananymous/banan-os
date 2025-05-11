@@ -32,10 +32,11 @@ namespace Kernel
 		enum class Type
 		{
 			Ethernet,
+			Loopback,
 		};
 
 	public:
-		NetworkInterface();
+		NetworkInterface(Type);
 		virtual ~NetworkInterface() {}
 
 		virtual BAN::MACAddress get_mac_address() const = 0;
@@ -48,6 +49,8 @@ namespace Kernel
 
 		BAN::IPv4Address get_gateway() const { return m_gateway; }
 		void set_gateway(BAN::IPv4Address new_gateway) { m_gateway = new_gateway; }
+
+		Type type() const { return m_type; }
 
 		virtual bool link_up() = 0;
 		virtual int link_speed() = 0;

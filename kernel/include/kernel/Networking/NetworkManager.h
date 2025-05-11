@@ -22,7 +22,7 @@ namespace Kernel
 
 		BAN::ErrorOr<void> add_interface(PCI::Device& pci_device);
 
-		BAN::Vector<BAN::RefPtr<NetworkInterface>> interfaces() { return m_interfaces; }
+		BAN::Vector<BAN::RefPtr<NetworkInterface>>& interfaces() { return m_interfaces; }
 
 		BAN::ErrorOr<BAN::RefPtr<Socket>> create_socket(Socket::Domain, Socket::Type, mode_t, uid_t, gid_t);
 
@@ -30,6 +30,8 @@ namespace Kernel
 
 	private:
 		NetworkManager() {}
+
+		BAN::ErrorOr<void> add_interface(BAN::RefPtr<NetworkInterface>);
 
 	private:
 		BAN::UniqPtr<IPv4Layer>						m_ipv4_layer;

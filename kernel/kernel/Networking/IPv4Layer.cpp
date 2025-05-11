@@ -107,9 +107,6 @@ namespace Kernel
 
 	BAN::ErrorOr<void> IPv4Layer::bind_socket_to_address(BAN::RefPtr<NetworkSocket> socket, const sockaddr* address, socklen_t address_len)
 	{
-		if (NetworkManager::get().interfaces().empty())
-			return BAN::Error::from_errno(EADDRNOTAVAIL);
-
 		if (!address || address_len < (socklen_t)sizeof(sockaddr_in))
 			return BAN::Error::from_errno(EINVAL);
 		if (address->sa_family != AF_INET)
@@ -119,6 +116,22 @@ namespace Kernel
 		const uint16_t port = BAN::host_to_network_endian(sockaddr_in.sin_port);
 		if (port == NetworkSocket::PORT_NONE)
 			return bind_socket_to_unused(socket, address, address_len);
+		const auto ipv4 = BAN::IPv4Address { sockaddr_in.sin_addr.s_addr };
+
+		BAN::RefPtr<NetworkInterface> bind_interface;
+		for (auto interface : NetworkManager::get().interfaces())
+		{
+			if (interface->type() != NetworkInterface::Type::Loopback)
+				bind_interface = interface;
+			const auto netmask = interface->get_netmask();
+			if (ipv4.mask(netmask) != interface->get_ipv4_address().mask(netmask))
+				continue;
+			bind_interface = interface;
+			break;
+		}
+
+		if (!bind_interface)
+			return BAN::Error::from_errno(EADDRNOTAVAIL);
 
 		SpinLockGuard _(m_bound_socket_lock);
 
@@ -126,9 +139,7 @@ namespace Kernel
 			return BAN::Error::from_errno(EADDRINUSE);
 		TRY(m_bound_sockets.insert(port, TRY(socket->get_weak_ptr())));
 
-		// FIXME: actually determine proper interface
-		auto interface = NetworkManager::get().interfaces().front();
-		socket->bind_interface_and_port(interface.ptr(), port);
+		socket->bind_interface_and_port(bind_interface.ptr(), port);
 
 		return {};
 	}

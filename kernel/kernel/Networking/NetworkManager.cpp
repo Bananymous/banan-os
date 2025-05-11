@@ -4,6 +4,7 @@
 #include <kernel/Networking/E1000/E1000.h>
 #include <kernel/Networking/E1000/E1000E.h>
 #include <kernel/Networking/ICMP.h>
+#include <kernel/Networking/Loopback.h>
 #include <kernel/Networking/NetworkManager.h>
 #include <kernel/Networking/RTL8169/RTL8169.h>
 #include <kernel/Networking/TCPSocket.h>
@@ -19,6 +20,7 @@ namespace Kernel
 	{
 		ASSERT(!s_instance);
 		auto manager = TRY(BAN::UniqPtr<NetworkManager>::create());
+		TRY(manager->add_interface(TRY(LoopbackInterface::create())));
 		manager->m_ipv4_layer = TRY(IPv4Layer::create());
 		s_instance = BAN::move(manager);
 		return {};
@@ -62,9 +64,13 @@ namespace Kernel
 
 		ASSERT(interface);
 
+		return add_interface(interface);
+	}
+
+	BAN::ErrorOr<void> NetworkManager::add_interface(BAN::RefPtr<NetworkInterface> interface)
+	{
 		TRY(m_interfaces.push_back(interface));
 		DevFileSystem::get().add_device(interface);
-
 		return {};
 	}
 

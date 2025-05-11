@@ -55,6 +55,7 @@ set(KERNEL_SOURCES
 	kernel/Networking/E1000/E1000.cpp
 	kernel/Networking/E1000/E1000E.cpp
 	kernel/Networking/IPv4Layer.cpp
+	kernel/Networking/Loopback.cpp
 	kernel/Networking/NetworkInterface.cpp
 	kernel/Networking/NetworkLayer.cpp
 	kernel/Networking/NetworkManager.cpp

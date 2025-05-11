@@ -26,7 +26,8 @@ namespace Kernel
 
 	protected:
 		RTL8169(PCI::Device& pci_device)
-			: m_pci_device(pci_device)
+			: NetworkInterface(Type::Ethernet)
+			, m_pci_device(pci_device)
 		{ }
 		BAN::ErrorOr<void> initialize();
 

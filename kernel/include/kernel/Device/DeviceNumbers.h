@@ -20,6 +20,7 @@ namespace Kernel
 		NVMeController,
 		NVMeNamespace,
 		Ethernet,
+		Loopback,
 		TmpFS,
 	};
 

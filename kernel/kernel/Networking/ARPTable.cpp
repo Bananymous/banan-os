@@ -44,10 +44,22 @@ namespace Kernel
 		if (ipv4_address == s_broadcast_ipv4)
 			return s_broadcast_mac;
 
+		const auto netmask = interface.get_netmask();
+		const bool same_subnet = ipv4_address.mask(netmask) == interface.get_ipv4_address().mask(netmask);
+
+		if (interface.type() == NetworkInterface::Type::Loopback)
+		{
+			if (!same_subnet)
+				return BAN::Error::from_errno(EADDRNOTAVAIL);
+			return BAN::MACAddress {};
+		}
+
+		ASSERT(interface.type() == NetworkInterface::Type::Ethernet);
+
 		if (interface.get_ipv4_address() == BAN::IPv4Address { 0 })
 			return BAN::Error::from_errno(EINVAL);
 
-		if (interface.get_ipv4_address().mask(interface.get_netmask()) != ipv4_address.mask(interface.get_netmask()))
+		if (!same_subnet)
 			ipv4_address = interface.get_gateway();
 
 		{
