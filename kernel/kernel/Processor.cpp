@@ -352,7 +352,7 @@ namespace Kernel
 				if (s_should_print_cpu_load && g_terminal_driver)
 				{
 					const uint64_t duration_ns = current_ns - processor_info.m_last_update_ns;
-					const uint64_t load_x1000  = 100'000 * (duration_ns - processor_info.m_idle_ns) / duration_ns;
+					const uint64_t load_x1000  = 100'000 * (duration_ns - BAN::Math::min(processor_info.m_idle_ns, duration_ns)) / duration_ns;
 
 					uint32_t x = g_terminal_driver->width() - 16;
 					uint32_t y = current_id().as_u32();
