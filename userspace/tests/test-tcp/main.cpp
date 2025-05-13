@@ -25,7 +25,7 @@ in_addr_t get_ipv4_address(const char* query)
 		return -1;
 
 	for (addrinfo* ai = result; ai; ai = ai->ai_next)
-		if (ai->ai_family != AF_INET)
+		if (ai->ai_family == AF_INET)
 			return reinterpret_cast<sockaddr_in*>(ai->ai_addr)->sin_addr.s_addr;
 
 	return -1;
