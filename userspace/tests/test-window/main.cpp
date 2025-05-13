@@ -55,11 +55,7 @@ int main()
 
 	while (running)
 	{
+		window->wait_events();
 		window->poll_events();
-
-		timespec duration;
-		duration.tv_sec = 0;
-		duration.tv_nsec = 16'666'666;
-		nanosleep(&duration, nullptr);
 	}
 }
