@@ -6,6 +6,7 @@
 #include <LibInput/KeyEvent.h>
 #include <LibInput/MouseEvent.h>
 
+#include <sys/epoll.h>
 #include <sys/sysmacros.h>
 
 namespace Kernel
@@ -85,54 +86,58 @@ namespace Kernel
 
 	void InputDevice::add_event(BAN::ConstByteSpan event)
 	{
-		SpinLockGuard _(m_event_lock);
-		ASSERT(event.size() == m_event_size);
-
-		if (m_type == Type::Mouse && m_event_count > 0)
 		{
-			const size_t last_index = (m_event_head + m_max_event_count - 1) % m_max_event_count;
+			SpinLockGuard _(m_event_lock);
+			ASSERT(event.size() == m_event_size);
 
-			auto& last_event = *reinterpret_cast<LibInput::MouseEvent*>(&m_event_buffer[last_index * m_event_size]);
-			auto& curr_event = event.as<const LibInput::MouseEvent>();
-			if (last_event.type == LibInput::MouseEventType::MouseMoveEvent && curr_event.type == LibInput::MouseEventType::MouseMoveEvent)
+			if (m_type == Type::Mouse && m_event_count > 0)
 			{
-				last_event.move_event.rel_x += curr_event.move_event.rel_x;
-				last_event.move_event.rel_y += curr_event.move_event.rel_y;
-				return;
-			}
-			if (last_event.type == LibInput::MouseEventType::MouseScrollEvent && curr_event.type == LibInput::MouseEventType::MouseScrollEvent)
-			{
-				last_event.scroll_event.scroll += curr_event.scroll_event.scroll;
-				return;
-			}
-		}
+				const size_t last_index = (m_event_head + m_max_event_count - 1) % m_max_event_count;
 
-		if (m_type == Type::Keyboard)
-		{
-			auto& key_event = event.as<const LibInput::RawKeyEvent>();
-			if (key_event.modifier & LibInput::KeyEvent::Modifier::Pressed)
-			{
-				switch (key_event.keycode)
+				auto& last_event = *reinterpret_cast<LibInput::MouseEvent*>(&m_event_buffer[last_index * m_event_size]);
+				auto& curr_event = event.as<const LibInput::MouseEvent>();
+				if (last_event.type == LibInput::MouseEventType::MouseMoveEvent && curr_event.type == LibInput::MouseEventType::MouseMoveEvent)
 				{
-					case LibInput::keycode_function(1):
-						Processor::toggle_should_print_cpu_load();
-						break;
-					case LibInput::keycode_function(12):
-						Kernel::panic("Keyboard kernel panic :)");
-						break;
+					last_event.move_event.rel_x += curr_event.move_event.rel_x;
+					last_event.move_event.rel_y += curr_event.move_event.rel_y;
+					return;
+				}
+				if (last_event.type == LibInput::MouseEventType::MouseScrollEvent && curr_event.type == LibInput::MouseEventType::MouseScrollEvent)
+				{
+					last_event.scroll_event.scroll += curr_event.scroll_event.scroll;
+					return;
 				}
 			}
+
+			if (m_type == Type::Keyboard)
+			{
+				auto& key_event = event.as<const LibInput::RawKeyEvent>();
+				if (key_event.modifier & LibInput::KeyEvent::Modifier::Pressed)
+				{
+					switch (key_event.keycode)
+					{
+						case LibInput::keycode_function(1):
+							Processor::toggle_should_print_cpu_load();
+							break;
+						case LibInput::keycode_function(12):
+							Kernel::panic("Keyboard kernel panic :)");
+							break;
+					}
+				}
+			}
+
+			if (m_event_count == m_max_event_count)
+			{
+				m_event_tail = (m_event_tail + 1) % m_max_event_count;
+				m_event_count--;
+			}
+
+			memcpy(&m_event_buffer[m_event_head * m_event_size], event.data(), m_event_size);
+			m_event_head = (m_event_head + 1) % m_max_event_count;
+			m_event_count++;
 		}
 
-		if (m_event_count == m_max_event_count)
-		{
-			m_event_tail = (m_event_tail + 1) % m_max_event_count;
-			m_event_count--;
-		}
-
-		memcpy(&m_event_buffer[m_event_head * m_event_size], event.data(), m_event_size);
-		m_event_head = (m_event_head + 1) % m_max_event_count;
-		m_event_count++;
+		epoll_notify(EPOLLIN);
 
 		m_event_thread_blocker.unblock();
 		if (m_type == Type::Keyboard && s_keyboard_device)
@@ -197,6 +202,12 @@ namespace Kernel
 		, m_name("keyboard"_sv)
 	{}
 
+	void KeyboardDevice::notify()
+	{
+		epoll_notify(EPOLLIN);
+		m_thread_blocker.unblock();
+	}
+
 	BAN::ErrorOr<size_t> KeyboardDevice::read_impl(off_t, BAN::ByteSpan buffer)
 	{
 		if (buffer.size() < sizeof(LibInput::RawKeyEvent))
@@ -242,6 +253,12 @@ namespace Kernel
 		, m_rdev(makedev(DeviceNumber::Mouse, 0))
 		, m_name("mouse"_sv)
 	{}
+
+	void MouseDevice::notify()
+	{
+		epoll_notify(EPOLLIN);
+		m_thread_blocker.unblock();
+	}
 
 	BAN::ErrorOr<size_t> MouseDevice::read_impl(off_t, BAN::ByteSpan buffer)
 	{

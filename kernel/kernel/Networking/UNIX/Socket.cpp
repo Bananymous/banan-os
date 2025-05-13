@@ -5,6 +5,7 @@
 #include <kernel/Scheduler.h>
 
 #include <fcntl.h>
+#include <sys/epoll.h>
 #include <sys/un.h>
 
 namespace Kernel
@@ -62,6 +63,7 @@ namespace Kernel
 			if (auto connection = connection_info.connection.lock(); connection && connection->m_info.has<ConnectionInfo>())
 			{
 				connection->m_info.get<ConnectionInfo>().target_closed = true;
+				connection->epoll_notify(EPOLLHUP);
 				connection->m_packet_thread_blocker.unblock();
 			}
 		}
@@ -172,6 +174,8 @@ namespace Kernel
 			TRY(Thread::current().block_or_eintr_indefinite(target_info.pending_thread_blocker));
 		}
 
+		target->epoll_notify(EPOLLIN);
+
 		while (!connection_info.connection_done)
 			Processor::yield();
 
@@ -263,6 +267,8 @@ namespace Kernel
 		if (!is_streaming())
 			m_packet_sizes.push(packet.size());
 
+		epoll_notify(EPOLLIN);
+
 		m_packet_thread_blocker.unblock();
 		m_packet_lock.unlock(state);
 		return {};
@@ -293,6 +299,17 @@ namespace Kernel
 		}
 
 		return true;
+	}
+
+	bool UnixDomainSocket::has_hangup_impl() const
+	{
+		if (m_info.has<ConnectionInfo>())
+		{
+			auto& connection_info = m_info.get<ConnectionInfo>();
+			return connection_info.target_closed;
+		}
+
+		return false;
 	}
 
 	BAN::ErrorOr<size_t> UnixDomainSocket::sendto_impl(BAN::ConstByteSpan message, const sockaddr* address, socklen_t address_len)
@@ -389,6 +406,8 @@ namespace Kernel
 
 		m_packet_thread_blocker.unblock();
 		m_packet_lock.unlock(state);
+
+		epoll_notify(EPOLLOUT);
 
 		return nread;
 	}

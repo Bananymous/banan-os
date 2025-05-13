@@ -5,7 +5,7 @@
 namespace Kernel
 {
 
-	class NullDevice : public CharacterDevice
+	class NullDevice final : public CharacterDevice
 	{
 	public:
 		static BAN::ErrorOr<BAN::RefPtr<NullDevice>> create(mode_t, uid_t, gid_t);
@@ -26,6 +26,7 @@ namespace Kernel
 		virtual bool can_read_impl() const override { return false; }
 		virtual bool can_write_impl() const override { return true; }
 		virtual bool has_error_impl() const override { return false; }
+		virtual bool has_hangup_impl() const override { return false; }
 
 	private:
 		const dev_t m_rdev;

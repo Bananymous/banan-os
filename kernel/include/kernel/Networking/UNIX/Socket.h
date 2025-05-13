@@ -1,5 +1,6 @@
 #pragma once
 
+#include <BAN/CircularQueue.h>
 #include <BAN/Queue.h>
 #include <BAN/WeakPtr.h>
 #include <kernel/FS/Socket.h>
@@ -28,6 +29,7 @@ namespace Kernel
 		virtual bool can_read_impl() const override;
 		virtual bool can_write_impl() const override;
 		virtual bool has_error_impl() const override { return false; }
+		virtual bool has_hangup_impl() const override;
 
 	private:
 		UnixDomainSocket(Socket::Type, const Socket::Info&);
@@ -48,7 +50,7 @@ namespace Kernel
 			mutable BAN::Atomic<bool>					target_closed { false };
 			BAN::WeakPtr<UnixDomainSocket>				connection;
 			BAN::Queue<BAN::RefPtr<UnixDomainSocket>>	pending_connections;
-			ThreadBlocker									pending_thread_blocker;
+			ThreadBlocker								pending_thread_blocker;
 			SpinLock									pending_lock;
 		};
 
@@ -67,7 +69,7 @@ namespace Kernel
 		size_t							m_packet_size_total { 0 };
 		BAN::UniqPtr<VirtualRange>		m_packet_buffer;
 		SpinLock						m_packet_lock;
-		ThreadBlocker						m_packet_thread_blocker;
+		ThreadBlocker					m_packet_thread_blocker;
 
 		friend class BAN::RefPtr<UnixDomainSocket>;
 	};

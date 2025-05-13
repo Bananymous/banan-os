@@ -1,3 +1,4 @@
+#include <kernel/Epoll.h>
 #include <kernel/FS/Inode.h>
 #include <kernel/Lock/LockGuard.h>
 #include <kernel/Memory/FileBackedRegion.h>
@@ -249,10 +250,39 @@ namespace Kernel
 		return has_error_impl();
 	}
 
+	bool Inode::has_hangup() const
+	{
+		LockGuard _(m_mutex);
+		return has_hangup_impl();
+	}
+
 	BAN::ErrorOr<long> Inode::ioctl(int request, void* arg)
 	{
 		LockGuard _(m_mutex);
 		return ioctl_impl(request, arg);
+	}
+
+	BAN::ErrorOr<void> Inode::add_epoll(class Epoll* epoll)
+	{
+		TRY(m_epolls.push_back(epoll));
+		return {};
+	}
+
+	void Inode::del_epoll(class Epoll* epoll)
+	{
+		for (auto it = m_epolls.begin(); it != m_epolls.end(); it++)
+		{
+			if (*it != epoll)
+				continue;
+			m_epolls.remove(it);
+			break;
+		}
+	}
+
+	void Inode::epoll_notify(uint32_t event)
+	{
+		for (auto* epoll : m_epolls)
+			epoll->notify(this, event);
 	}
 
 }

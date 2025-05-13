@@ -2,6 +2,8 @@
 #include <kernel/Networking/UDPSocket.h>
 #include <kernel/Thread.h>
 
+#include <sys/epoll.h>
+
 namespace Kernel
 {
 
@@ -69,6 +71,8 @@ namespace Kernel
 		packet_info.packet_size = payload.size();
 		m_packets.emplace(packet_info);
 		m_packet_total_size += payload.size();
+
+		epoll_notify(EPOLLIN);
 
 		m_packet_thread_blocker.unblock();
 	}

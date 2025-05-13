@@ -2,6 +2,7 @@
 #include <BAN/StringView.h>
 #include <kernel/ACPI/ACPI.h>
 #include <kernel/ELF.h>
+#include <kernel/Epoll.h>
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/FS/ProcFS/FileSystem.h>
 #include <kernel/FS/VirtualFileSystem.h>
@@ -1452,21 +1453,19 @@ namespace Kernel
 		return TRY(inode->ioctl(request, arg));
 	}
 
-	BAN::ErrorOr<long> Process::sys_pselect(sys_pselect_t* _arguments)
+	BAN::ErrorOr<long> Process::sys_pselect(sys_pselect_t* user_arguments)
 	{
 		sys_pselect_t arguments;
 
 		{
 			LockGuard _(m_process_lock);
-			TRY(validate_pointer_access(_arguments, sizeof(sys_pselect_t), false));
-			arguments = *_arguments;
+			TRY(validate_pointer_access(user_arguments, sizeof(sys_pselect_t), false));
+			arguments = *user_arguments;
 		}
 
 		MemoryRegion* readfd_region = nullptr;
 		MemoryRegion* writefd_region = nullptr;
 		MemoryRegion* errorfd_region = nullptr;
-		MemoryRegion* timeout_region = nullptr;
-		MemoryRegion* sigmask_region = nullptr;
 
 		BAN::ScopeGuard _([&] {
 			if (readfd_region)
@@ -1475,74 +1474,56 @@ namespace Kernel
 				writefd_region->unpin();
 			if (errorfd_region)
 				errorfd_region->unpin();
-			if (timeout_region)
-				timeout_region->unpin();
-			if (sigmask_region)
-				sigmask_region->unpin();
 		});
 
 		readfd_region = TRY(validate_and_pin_pointer_access(arguments.readfds, sizeof(fd_set), true));
 		writefd_region = TRY(validate_and_pin_pointer_access(arguments.writefds, sizeof(fd_set), true));
 		errorfd_region = TRY(validate_and_pin_pointer_access(arguments.errorfds, sizeof(fd_set), true));
-		timeout_region = TRY(validate_and_pin_pointer_access(arguments.timeout, sizeof(timespec), false));
-		sigmask_region = TRY(validate_and_pin_pointer_access(arguments.sigmask, sizeof(sigset_t), false));
 
 		const auto old_sigmask = Thread::current().m_signal_block_mask;
 		if (arguments.sigmask)
+		{
+			LockGuard _(m_process_lock);
+			TRY(validate_pointer_access(arguments.sigmask, sizeof(sigset_t), false));
 			Thread::current().m_signal_block_mask = *arguments.sigmask;
+		}
 		BAN::ScopeGuard sigmask_restore([old_sigmask] { Thread::current().m_signal_block_mask = old_sigmask; });
 
-		uint64_t timedout_ns = SystemTimer::get().ns_since_boot();
+		uint64_t waketime_ns = BAN::numeric_limits<uint64_t>::max();
 		if (arguments.timeout)
 		{
-			timedout_ns += arguments.timeout->tv_sec * 1'000'000'000;
-			timedout_ns += arguments.timeout->tv_nsec;
+			LockGuard _(m_process_lock);
+			TRY(validate_pointer_access(arguments.timeout, sizeof(timespec), false));
+			waketime_ns =
+				SystemTimer::get().ns_since_boot() +
+				(arguments.timeout->tv_sec * 1'000'000'000) +
+				arguments.timeout->tv_nsec;
 		}
 
-		fd_set readfds;  FD_ZERO(&readfds);
-		fd_set writefds; FD_ZERO(&writefds);
-		fd_set errorfds; FD_ZERO(&errorfds);
-
-		int set_bits = 0;
-		for (;;)
+		auto epoll = TRY(Epoll::create());
+		for (int fd = 0; fd < user_arguments->nfds; fd++)
 		{
-			auto update_fds =
-				[&](int fd, fd_set* source, fd_set* dest, bool (Inode::*func)() const)
-				{
-					if (source == nullptr)
-						return;
+			uint32_t events = 0;
+			if (arguments.readfds && FD_ISSET(fd, arguments.readfds))
+				events |= EPOLLIN;
+			if (arguments.writefds && FD_ISSET(fd, arguments.writefds))
+				events |= EPOLLOUT;
+			if (arguments.errorfds && FD_ISSET(fd, arguments.errorfds))
+				events |= EPOLLERR;
+			if (events == 0)
+				continue;
 
-					if (!FD_ISSET(fd, source))
-						return;
+			auto inode_or_error = m_open_file_descriptors.inode_of(fd);
+			if (inode_or_error.is_error())
+				continue;
 
-					auto inode_or_error = m_open_file_descriptors.inode_of(fd);
-					if (inode_or_error.is_error())
-						return;
-
-					auto inode = inode_or_error.release_value();
-					if ((inode.ptr()->*func)())
-					{
-						FD_SET(fd, dest);
-						set_bits++;
-					}
-				};
-
-			for (int i = 0; i < arguments.nfds; i++)
-			{
-				update_fds(i, arguments.readfds, &readfds, &Inode::can_read);
-				update_fds(i, arguments.writefds, &writefds, &Inode::can_write);
-				update_fds(i, arguments.errorfds, &errorfds, &Inode::has_error);
-			}
-
-			if (set_bits > 0)
-				break;
-
-			if (arguments.timeout && SystemTimer::get().ns_since_boot() >= timedout_ns)
-				break;
-
-			// FIXME: implement some multi thread blocker system?
-			TRY(Thread::current().sleep_or_eintr_ms(1));
+			TRY(epoll->ctl(EPOLL_CTL_ADD, inode_or_error.release_value(), { .events = events, .data = { .fd = fd }}));
 		}
+
+		BAN::Vector<epoll_event> event_buffer;
+		TRY(event_buffer.resize(user_arguments->nfds));
+
+		const size_t waited_events = TRY(epoll->wait(event_buffer.span(), waketime_ns));
 
 		if (arguments.readfds)
 			FD_ZERO(arguments.readfds);
@@ -1551,17 +1532,98 @@ namespace Kernel
 		if (arguments.errorfds)
 			FD_ZERO(arguments.errorfds);
 
-		for (int i = 0; i < arguments.nfds; i++)
+		for (size_t i = 0; i < waited_events; i++)
 		{
-			if (arguments.readfds && FD_ISSET(i, &readfds))
-				FD_SET(i, arguments.readfds);
-			if (arguments.writefds && FD_ISSET(i, &writefds))
-				FD_SET(i, arguments.writefds);
-			if (arguments.errorfds && FD_ISSET(i, &errorfds))
-				FD_SET(i, arguments.errorfds);
+			const int fd = event_buffer[i].data.fd;
+			if (arguments.readfds && event_buffer[i].events & (EPOLLIN | EPOLLHUP))
+				FD_SET(fd, arguments.readfds);
+			if (arguments.writefds && event_buffer[i].events & (EPOLLOUT))
+				FD_SET(fd, arguments.writefds);
+			if (arguments.errorfds && event_buffer[i].events & (EPOLLERR))
+				FD_SET(fd, arguments.errorfds);
 		}
 
-		return set_bits;
+		return waited_events;
+	}
+
+	BAN::ErrorOr<long> Process::sys_epoll_create1(int flags)
+	{
+		if (flags && (flags & ~EPOLL_CLOEXEC))
+			return BAN::Error::from_errno(EINVAL);
+		if (flags & EPOLL_CLOEXEC)
+			flags = O_CLOEXEC;
+
+		VirtualFileSystem::File epoll_file;
+		epoll_file.inode = TRY(Epoll::create());
+		TRY(epoll_file.canonical_path.append("<epoll>"_sv));
+
+		return TRY(m_open_file_descriptors.open(BAN::move(epoll_file), flags | O_RDWR));
+	}
+
+	BAN::ErrorOr<long> Process::sys_epoll_ctl(int epfd, int op, int fd, epoll_event* user_event)
+	{
+		if (epfd == fd)
+			return BAN::Error::from_errno(EINVAL);
+		if (op != EPOLL_CTL_DEL && user_event == nullptr)
+			return BAN::Error::from_errno(EINVAL);
+
+		auto epoll_inode = TRY(m_open_file_descriptors.inode_of(epfd));
+		if (!epoll_inode->is_epoll())
+			return BAN::Error::from_errno(EINVAL);
+
+		auto inode = TRY(m_open_file_descriptors.inode_of(fd));
+
+		epoll_event event {};
+		if (user_event)
+		{
+			LockGuard _(m_process_lock);
+			TRY(validate_pointer_access(user_event, sizeof(epoll_event), false));
+			event = *user_event;
+		}
+
+		TRY(static_cast<Epoll*>(epoll_inode.ptr())->ctl(op, inode, event));
+
+		return 0;
+	}
+
+	BAN::ErrorOr<long> Process::sys_epoll_pwait2(int epfd, epoll_event* events, int maxevents, const timespec* timeout, const sigset_t* sigmask)
+	{
+		(void)sigmask;
+
+		if (maxevents <= 0)
+			return BAN::Error::from_errno(EINVAL);
+
+		auto epoll_inode = TRY(m_open_file_descriptors.inode_of(epfd));
+		if (!epoll_inode->is_epoll())
+			return BAN::Error::from_errno(EINVAL);
+
+		uint64_t waketime_ns = BAN::numeric_limits<uint64_t>::max();
+		if (timeout)
+		{
+			LockGuard _(m_process_lock);
+			TRY(validate_pointer_access(timeout, sizeof(timespec), false));
+			waketime_ns =
+				SystemTimer::get().ns_since_boot() +
+				(timeout->tv_sec * 1'000'000'000) +
+				timeout->tv_nsec;
+		}
+
+		auto* events_region = TRY(validate_and_pin_pointer_access(events, maxevents * sizeof(epoll_event), true));
+		BAN::ScopeGuard _([events_region] {
+			if (events_region)
+				events_region->unpin();
+		});
+
+		const auto old_sigmask = Thread::current().m_signal_block_mask;
+		if (sigmask)
+		{
+			LockGuard _(m_process_lock);
+			TRY(validate_pointer_access(sigmask, sizeof(sigset_t), false));
+			Thread::current().m_signal_block_mask = *sigmask;
+		}
+		BAN::ScopeGuard sigmask_restore([old_sigmask] { Thread::current().m_signal_block_mask = old_sigmask; });
+
+		return TRY(static_cast<Epoll*>(epoll_inode.ptr())->wait(BAN::Span<epoll_event>(events, maxevents), waketime_ns));
 	}
 
 	BAN::ErrorOr<long> Process::sys_pipe(int fildes[2])

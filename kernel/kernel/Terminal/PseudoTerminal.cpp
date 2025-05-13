@@ -4,6 +4,7 @@
 
 #include <BAN/ScopeGuard.h>
 
+#include <sys/epoll.h>
 #include <sys/ioctl.h>
 #include <sys/sysmacros.h>
 
@@ -95,6 +96,8 @@ namespace Kernel
 		reinterpret_cast<uint8_t*>(m_buffer->vaddr())[(m_buffer_tail + m_buffer_size) % m_buffer->size()] = ch;
 		m_buffer_size++;
 
+		epoll_notify(EPOLLIN);
+
 		m_buffer_blocker.unblock();
 
 		return true;
@@ -127,6 +130,8 @@ namespace Kernel
 		m_buffer_size -= to_copy;
 		m_buffer_tail = (m_buffer_tail + to_copy) % m_buffer->size();
 
+		epoll_notify(EPOLLOUT);
+
 		m_buffer_lock.unlock(state);
 
 		return to_copy;
@@ -137,7 +142,6 @@ namespace Kernel
 		auto slave = m_slave.lock();
 		if (!slave)
 			return BAN::Error::from_errno(ENODEV);
-
 		for (size_t i = 0; i < buffer.size(); i++)
 			slave->handle_input_byte(buffer[i]);
 		return buffer.size();

@@ -17,6 +17,7 @@ set(KERNEL_SOURCES
 	kernel/Device/RandomDevice.cpp
 	kernel/Device/ZeroDevice.cpp
 	kernel/ELF.cpp
+	kernel/Epoll.cpp
 	kernel/Errors.cpp
 	kernel/FS/DevFS/FileSystem.cpp
 	kernel/FS/Ext2/FileSystem.cpp

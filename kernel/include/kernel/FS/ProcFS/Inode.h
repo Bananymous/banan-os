@@ -47,6 +47,7 @@ namespace Kernel
 		virtual bool can_read_impl() const override { return true; }
 		virtual bool can_write_impl() const override { return false; }
 		virtual bool has_error_impl() const override { return false; }
+		virtual bool has_hangup_impl() const override { return false; }
 
 	private:
 		ProcROProcessInode(Process&, size_t (Process::*)(off_t, BAN::ByteSpan) const, TmpFileSystem&, const TmpInodeInfo&);
@@ -72,6 +73,7 @@ namespace Kernel
 		virtual bool can_read_impl() const override { return true; }
 		virtual bool can_write_impl() const override { return false; }
 		virtual bool has_error_impl() const override { return false; }
+		virtual bool has_hangup_impl() const override { return false; }
 
 	private:
 		ProcROInode(size_t (*callback)(off_t, BAN::ByteSpan), TmpFileSystem&, const TmpInodeInfo&);

@@ -15,6 +15,7 @@
 #include <string.h>
 #include <stropts.h>
 #include <sys/banan-os.h>
+#include <sys/epoll.h>
 #include <sys/sysmacros.h>
 
 namespace Kernel
@@ -40,6 +41,7 @@ namespace Kernel
 		bool can_read_impl() const override { return false; }
 		bool can_write_impl() const override { return false; }
 		bool has_error_impl() const override { return false; }
+		bool has_hangup_impl() const override { return false; }
 
 	private:
 		DevTTY(mode_t mode, uid_t uid, gid_t gid)
@@ -238,6 +240,7 @@ namespace Kernel
 		if (ch == '\x04' && (m_termios.c_lflag & ICANON))
 		{
 			m_output.flush = true;
+			epoll_notify(EPOLLIN);
 			m_output.thread_blocker.unblock();
 			return;
 		}
@@ -280,6 +283,7 @@ namespace Kernel
 		if (ch == '\n' || !(m_termios.c_lflag & ICANON))
 		{
 			m_output.flush = true;
+			epoll_notify(EPOLLIN);
 			m_output.thread_blocker.unblock();
 		}
 	}

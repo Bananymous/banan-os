@@ -24,6 +24,8 @@
 #include <sys/time.h>
 #include <termios.h>
 
+struct epoll_event;
+
 namespace Kernel
 {
 
@@ -129,6 +131,10 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_ioctl(int fildes, int request, void* arg);
 
 		BAN::ErrorOr<long> sys_pselect(sys_pselect_t* arguments);
+
+		BAN::ErrorOr<long> sys_epoll_create1(int flags);
+		BAN::ErrorOr<long> sys_epoll_ctl(int epfd, int op, int fd, struct epoll_event* event);
+		BAN::ErrorOr<long> sys_epoll_pwait2(int epfd, struct epoll_event* events, int maxevents, const struct timespec* timeout, const sigset_t* sigmask);
 
 		BAN::ErrorOr<long> sys_pipe(int fildes[2]);
 		BAN::ErrorOr<long> sys_dup2(int fildes, int fildes2);

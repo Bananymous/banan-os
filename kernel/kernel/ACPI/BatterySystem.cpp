@@ -73,6 +73,7 @@ namespace Kernel::ACPI
 		bool can_read_impl() const override { return true; }
 		bool can_write_impl() const override { return false; }
 		bool has_error_impl() const override { return false; }
+		bool has_hangup_impl() const override { return false; }
 
 	private:
 		BatteryInfoInode(AML::Namespace& acpi_namespace, AML::Scope&& battery_path, AML::NameString&& method, size_t index, ino_t ino, const TmpInodeInfo& info)

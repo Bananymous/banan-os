@@ -6,6 +6,7 @@
 
 #include <fcntl.h>
 #include <netinet/in.h>
+#include <sys/epoll.h>
 
 namespace Kernel
 {
@@ -269,6 +270,11 @@ namespace Kernel
 		if (m_state != State::Established)
 			return false;
 		return m_send_window.data_size < m_send_window.buffer->size();
+	}
+
+	bool TCPSocket::has_hangup_impl() const
+	{
+		return m_has_connected && m_state != State::Established;
 	}
 
 	BAN::ErrorOr<size_t> TCPSocket::return_with_maybe_zero()
@@ -577,6 +583,8 @@ namespace Kernel
 					memcpy(buffer + m_recv_window.data_size, payload.data(), payload.size());
 					m_recv_window.data_size += payload.size();
 
+					epoll_notify(EPOLLIN);
+
 					dprintln_if(DEBUG_TCP, "Received {} bytes", payload.size());
 
 					if (m_next_flags == 0)
@@ -726,6 +734,8 @@ namespace Kernel
 
 						m_send_window.current_seq += to_send;
 						i += to_send;
+
+						epoll_notify(EPOLLOUT);
 					}
 
 					m_send_window.last_send_ms = current_ms;

@@ -226,7 +226,6 @@ namespace Kernel
 	}
 
 	/* SOCKET INODE */
-
 	BAN::ErrorOr<BAN::RefPtr<TmpSocketInode>> TmpSocketInode::create_new(TmpFileSystem& fs, mode_t mode, uid_t uid, gid_t gid)
 	{
 		auto info = create_inode_info(Mode::IFSOCK | mode, uid, gid);

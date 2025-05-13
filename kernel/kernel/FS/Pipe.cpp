@@ -3,7 +3,7 @@
 #include <kernel/Thread.h>
 #include <kernel/Timer/Timer.h>
 
-#include <kernel/Process.h>
+#include <sys/epoll.h>
 
 namespace Kernel
 {
@@ -36,8 +36,10 @@ namespace Kernel
 	{
 		auto old_writing_count = m_writing_count.fetch_sub(1);
 		ASSERT(old_writing_count > 0);
-		if (old_writing_count == 1)
-			m_thread_blocker.unblock();
+		if (old_writing_count != 1)
+			return;
+		epoll_notify(EPOLLHUP);
+		m_thread_blocker.unblock();
 	}
 
 	BAN::ErrorOr<size_t> Pipe::read_impl(off_t, BAN::ByteSpan buffer)
@@ -68,6 +70,8 @@ namespace Kernel
 		m_buffer_size -= to_copy;
 
 		m_atime = SystemTimer::get().real_time();
+
+		epoll_notify(EPOLLOUT);
 
 		m_thread_blocker.unblock();
 
@@ -102,6 +106,8 @@ namespace Kernel
 		timespec current_time = SystemTimer::get().real_time();
 		m_mtime = current_time;
 		m_ctime = current_time;
+
+		epoll_notify(EPOLLIN);
 
 		m_thread_blocker.unblock();
 

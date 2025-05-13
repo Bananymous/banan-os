@@ -28,7 +28,7 @@ namespace Kernel
 		virtual bool link_up() override { return m_link_up; }
 		virtual int link_speed() override;
 
-		virtual size_t payload_mtu() const { return E1000_RX_BUFFER_SIZE - sizeof(EthernetHeader); }
+		virtual size_t payload_mtu() const override { return E1000_RX_BUFFER_SIZE - sizeof(EthernetHeader); }
 
 		virtual void handle_irq() final override;
 
@@ -50,6 +50,7 @@ namespace Kernel
 		virtual bool can_read_impl() const override { return false; }
 		virtual bool can_write_impl() const override { return false; }
 		virtual bool has_error_impl() const override { return false; }
+		virtual bool has_hangup_impl() const override { return false; }
 
 	private:
 		BAN::ErrorOr<void> read_mac_address();

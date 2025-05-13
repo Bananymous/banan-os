@@ -30,6 +30,7 @@ set(LIBC_SOURCES
 	string.cpp
 	strings.cpp
 	sys/banan-os.cpp
+	sys/epoll.cpp
 	sys/ioctl.cpp
 	sys/mman.cpp
 	sys/resource.cpp

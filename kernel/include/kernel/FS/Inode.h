@@ -1,6 +1,7 @@
 #pragma once
 
 #include <BAN/ByteSpan.h>
+#include <BAN/LinkedList.h>
 #include <BAN/RefPtr.h>
 #include <BAN/String.h>
 #include <BAN/StringView.h>
@@ -19,9 +20,8 @@
 namespace Kernel
 {
 
-	class FileSystem;
-
 	class FileBackedRegion;
+	class FileSystem;
 	class SharedFileData;
 
 	class Inode : public BAN::RefCounted<Inode>
@@ -85,6 +85,7 @@ namespace Kernel
 		virtual dev_t rdev() const = 0;
 
 		virtual bool is_device() const { return false; }
+		virtual bool is_epoll() const { return false; }
 		virtual bool is_pipe() const { return false; }
 		virtual bool is_tty() const { return false; }
 
@@ -123,8 +124,13 @@ namespace Kernel
 		bool can_read() const;
 		bool can_write() const;
 		bool has_error() const;
+		bool has_hangup() const;
 
 		BAN::ErrorOr<long> ioctl(int request, void* arg);
+
+		BAN::ErrorOr<void> add_epoll(class Epoll*);
+		void del_epoll(class Epoll*);
+		void epoll_notify(uint32_t event);
 
 	protected:
 		// Directory API
@@ -160,6 +166,7 @@ namespace Kernel
 		virtual bool can_read_impl() const = 0;
 		virtual bool can_write_impl() const = 0;
 		virtual bool has_error_impl() const = 0;
+		virtual bool has_hangup_impl() const = 0;
 
 		virtual BAN::ErrorOr<long> ioctl_impl(int, void*) { return BAN::Error::from_errno(ENOTSUP); }
 
@@ -168,6 +175,7 @@ namespace Kernel
 
 	private:
 		BAN::WeakPtr<SharedFileData> m_shared_region;
+		BAN::LinkedList<class Epoll*> m_epolls;
 		friend class FileBackedRegion;
 		friend class OpenFileDescriptorSet;
 		friend class SharedFileData;
