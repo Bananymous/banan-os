@@ -572,6 +572,11 @@ namespace Kernel
 		for (size_t i = 0; i < m_cmdline.size(); i++)
 			TRY(cmdline[i].append(m_cmdline[i]));
 
+		BAN::Vector<BAN::String> environ;
+		TRY(environ.resize(m_environ.size()));
+		for (size_t i = 0; i < m_environ.size(); i++)
+			TRY(environ[i].append(m_environ[i]));
+
 		auto open_file_descriptors = TRY(BAN::UniqPtr<OpenFileDescriptorSet>::create(m_credentials));
 		TRY(open_file_descriptors->clone_from(m_open_file_descriptors));
 
@@ -583,7 +588,8 @@ namespace Kernel
 		Process* forked = create_process(m_credentials, m_pid, m_sid, m_pgrp);
 		forked->m_controlling_terminal = m_controlling_terminal;
 		forked->m_working_directory = BAN::move(working_directory);
-		forked->m_cmdline = BAN::move(m_cmdline);
+		forked->m_cmdline = BAN::move(cmdline);
+		forked->m_environ = BAN::move(environ);
 		forked->m_page_table = BAN::move(page_table);
 		forked->m_open_file_descriptors = BAN::move(*open_file_descriptors);
 		forked->m_mapped_regions = BAN::move(mapped_regions);
