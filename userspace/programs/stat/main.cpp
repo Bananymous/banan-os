@@ -16,12 +16,15 @@ void print_timestamp(timespec ts)
 
 int main(int argc, char** argv)
 {
+	int ret = 0;
+
 	for (int i = 1; i < argc; i++)
 	{
 		struct stat st;
 		if (stat(argv[i], &st) == -1)
 		{
 			perror("stat");
+			ret = 1;
 			continue;
 		}
 
@@ -72,4 +75,6 @@ int main(int argc, char** argv)
 		printf("Modify: "); print_timestamp(st.st_mtim); printf("\n");
 		printf("Change: "); print_timestamp(st.st_ctim); printf("\n");
 	}
+
+	return ret;
 }
