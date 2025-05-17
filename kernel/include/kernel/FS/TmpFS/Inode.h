@@ -80,7 +80,7 @@ namespace Kernel
 		virtual bool can_read_impl() const override { return true; }
 		virtual bool can_write_impl() const override { return true; }
 		virtual bool has_error_impl() const override { return false; }
-		virtual bool has_hangup_impl() const override { return false; }
+		virtual bool has_hungup_impl() const override { return false; }
 
 	private:
 		TmpFileInode(TmpFileSystem&, ino_t, const TmpInodeInfo&);
@@ -103,7 +103,7 @@ namespace Kernel
 		virtual bool can_read_impl() const override { return false; }
 		virtual bool can_write_impl() const override { return false; }
 		virtual bool has_error_impl() const override { return false; }
-		virtual bool has_hangup_impl() const override { return false; }
+		virtual bool has_hungup_impl() const override { return false; }
 
 	private:
 		TmpSocketInode(TmpFileSystem&, ino_t, const TmpInodeInfo&);
@@ -125,7 +125,7 @@ namespace Kernel
 		virtual bool can_read_impl() const override { return false; }
 		virtual bool can_write_impl() const override { return false; }
 		virtual bool has_error_impl() const override { return false; }
-		virtual bool has_hangup_impl() const override { return false; }
+		virtual bool has_hungup_impl() const override { return false; }
 
 	private:
 		TmpSymlinkInode(TmpFileSystem&, ino_t, const TmpInodeInfo&);
@@ -156,7 +156,7 @@ namespace Kernel
 		virtual bool can_read_impl() const override { return false; }
 		virtual bool can_write_impl() const override { return false; }
 		virtual bool has_error_impl() const override { return false; }
-		virtual bool has_hangup_impl() const override { return false; }
+		virtual bool has_hungup_impl() const override { return false; }
 
 	private:
 		template<TmpFuncs::for_each_valid_entry_callback F>

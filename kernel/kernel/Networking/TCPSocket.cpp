@@ -272,7 +272,7 @@ namespace Kernel
 		return m_send_window.data_size < m_send_window.buffer->size();
 	}
 
-	bool TCPSocket::has_hangup_impl() const
+	bool TCPSocket::has_hungup_impl() const
 	{
 		return m_has_connected && m_state != State::Established;
 	}

@@ -29,7 +29,7 @@ namespace Kernel
 		virtual bool can_read_impl() const override;
 		virtual bool can_write_impl() const override;
 		virtual bool has_error_impl() const override { return false; }
-		virtual bool has_hangup_impl() const override;
+		virtual bool has_hungup_impl() const override;
 
 	private:
 		UnixDomainSocket(Socket::Type, const Socket::Info&);

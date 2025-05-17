@@ -31,7 +31,7 @@ namespace Kernel
 		bool can_read_impl() const override { SpinLockGuard _(m_event_lock); return m_event_count > 0; }
 		bool can_write_impl() const override { return false; }
 		bool has_error_impl() const override { return false; }
-		bool has_hangup_impl() const override { return false; }
+		bool has_hungup_impl() const override { return false; }
 
 	private:
 		BAN::ErrorOr<size_t> read_non_block(BAN::ByteSpan);
@@ -73,7 +73,7 @@ namespace Kernel
 		bool can_read_impl() const override;
 		bool can_write_impl() const override { return false; }
 		bool has_error_impl() const override { return false; }
-		bool has_hangup_impl() const override { return false; }
+		bool has_hungup_impl() const override { return false; }
 
 		BAN::StringView name() const final override { return m_name; }
 		dev_t rdev() const final override { return m_rdev; }
@@ -100,7 +100,7 @@ namespace Kernel
 		bool can_read_impl() const override;
 		bool can_write_impl() const override { return false; }
 		bool has_error_impl() const override { return false; }
-		bool has_hangup_impl() const override { return false; }
+		bool has_hungup_impl() const override { return false; }
 
 		BAN::StringView name() const final override { return m_name; }
 		dev_t rdev() const final override { return m_rdev; }

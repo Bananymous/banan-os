@@ -40,7 +40,7 @@ namespace Kernel
 		virtual bool can_read_impl() const override { return m_buffer_size > 0; }
 		virtual bool can_write_impl() const override { return true; }
 		virtual bool has_error_impl() const override { return false; }
-		virtual bool has_hangup_impl() const override { return m_writing_count == 0; }
+		virtual bool has_hungup_impl() const override { return m_writing_count == 0; }
 
 	private:
 		Pipe(const Credentials&);

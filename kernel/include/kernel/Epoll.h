@@ -46,7 +46,7 @@ namespace Kernel
 		bool can_read_impl() const override { return false; }
 		bool can_write_impl() const override { return false; }
 		bool has_error_impl() const override { return false; }
-		bool has_hangup_impl() const override { return false; }
+		bool has_hungup_impl() const override { return false; }
 
 		BAN::ErrorOr<void> fsync_impl() override { return {}; }
 

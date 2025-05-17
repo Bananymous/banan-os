@@ -301,7 +301,7 @@ namespace Kernel
 		return true;
 	}
 
-	bool UnixDomainSocket::has_hangup_impl() const
+	bool UnixDomainSocket::has_hungup_impl() const
 	{
 		if (m_info.has<ConnectionInfo>())
 		{

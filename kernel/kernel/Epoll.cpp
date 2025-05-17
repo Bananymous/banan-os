@@ -76,7 +76,7 @@ namespace Kernel
 					CHECK_EVENT_BIT(EPOLLIN, can_read);
 					CHECK_EVENT_BIT(EPOLLOUT, can_write);
 					CHECK_EVENT_BIT(EPOLLERR, has_error);
-					CHECK_EVENT_BIT(EPOLLHUP, has_hangup);
+					CHECK_EVENT_BIT(EPOLLHUP, has_hungup);
 #undef CHECK_EVENT_BIT
 
 					if (events == 0)

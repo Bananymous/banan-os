@@ -250,10 +250,10 @@ namespace Kernel
 		return has_error_impl();
 	}
 
-	bool Inode::has_hangup() const
+	bool Inode::has_hungup() const
 	{
 		LockGuard _(m_mutex);
-		return has_hangup_impl();
+		return has_hungup_impl();
 	}
 
 	BAN::ErrorOr<long> Inode::ioctl(int request, void* arg)

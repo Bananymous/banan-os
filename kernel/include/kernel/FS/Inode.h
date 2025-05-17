@@ -124,7 +124,7 @@ namespace Kernel
 		bool can_read() const;
 		bool can_write() const;
 		bool has_error() const;
-		bool has_hangup() const;
+		bool has_hungup() const;
 
 		BAN::ErrorOr<long> ioctl(int request, void* arg);
 
@@ -166,7 +166,7 @@ namespace Kernel
 		virtual bool can_read_impl() const = 0;
 		virtual bool can_write_impl() const = 0;
 		virtual bool has_error_impl() const = 0;
-		virtual bool has_hangup_impl() const = 0;
+		virtual bool has_hungup_impl() const = 0;
 
 		virtual BAN::ErrorOr<long> ioctl_impl(int, void*) { return BAN::Error::from_errno(ENOTSUP); }
 

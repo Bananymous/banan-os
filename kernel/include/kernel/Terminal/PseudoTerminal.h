@@ -29,7 +29,7 @@ namespace Kernel
 		bool can_read_impl() const override { SpinLockGuard _(m_buffer_lock); return m_buffer_size > 0; }
 		bool can_write_impl() const override { SpinLockGuard _(m_buffer_lock); return m_buffer_size < m_buffer->size(); }
 		bool has_error_impl() const override { return false; }
-		bool has_hangup_impl() const override { return !m_slave.valid(); }
+		bool has_hungup_impl() const override { return !m_slave.valid(); }
 
 		BAN::ErrorOr<long> ioctl_impl(int, void*) override;
 
@@ -64,7 +64,7 @@ namespace Kernel
 	protected:
 		bool putchar_impl(uint8_t ch) override;
 
-		bool has_hangup_impl() const override { return !m_master.valid(); }
+		bool has_hungup_impl() const override { return !m_master.valid(); }
 
 		BAN::ErrorOr<long> ioctl_impl(int, void*) override;
 
