@@ -175,6 +175,7 @@ namespace Kernel
 
 	private:
 		BAN::WeakPtr<SharedFileData> m_shared_region;
+		Mutex m_epoll_mutex;
 		BAN::LinkedList<class Epoll*> m_epolls;
 		friend class FileBackedRegion;
 		friend class OpenFileDescriptorSet;
