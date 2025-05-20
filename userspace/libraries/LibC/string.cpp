@@ -147,11 +147,12 @@ char* strcat(char* __restrict__ dest, const char* __restrict__ src)
 
 char* strncat(char* __restrict__ dest, const char* __restrict__ src, size_t n)
 {
+	char* ret = dest;
 	dest += strlen(dest);
 	while (*src && n--)
 		*dest++ = *src++;
 	*dest = '\0';
-	return dest;
+	return ret;
 }
 
 int strcoll(const char* s1, const char* s2)
