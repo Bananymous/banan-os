@@ -82,13 +82,10 @@ static void init_closed_file(FILE* file)
 
 static int drop_read_buffer(FILE* file)
 {
-	if (file->buffer_rd_size == 0)
-		return 0;
-	ASSERT(file->buffer_idx != 0);
-	if (file->buffer_idx == 1)
-		return 0;
-	if (syscall(SYS_SEEK, file->fd, file->buffer_idx - 1, SEEK_CUR) == -1)
-		return EOF;
+	const off_t bytes_remaining = file->buffer_rd_size - file->buffer_idx;
+	if (bytes_remaining > 0)
+		if (syscall(SYS_SEEK, file->fd, -bytes_remaining, SEEK_CUR) == -1)
+			return EOF;
 	file->buffer_rd_size = 0;
 	file->buffer_idx = 0;
 	return 0;
@@ -452,8 +449,7 @@ int fseeko(FILE* file, off_t offset, int whence)
 	ScopeLock _(file);
 	if (fflush(file) == EOF)
 		return -1;
-	long ret = syscall(SYS_SEEK, file->fd, offset, whence);
-	if (ret < 0)
+	if (syscall(SYS_SEEK, file->fd, offset, whence) == -1)
 		return -1;
 	file->eof = false;
 	return 0;
@@ -472,12 +468,12 @@ long ftell(FILE* file)
 off_t ftello(FILE* file)
 {
 	ScopeLock _(file);
-	if (fflush(file) == EOF)
+	auto offset = syscall(SYS_TELL, file->fd);
+	if (offset == -1)
 		return -1;
-	long ret = syscall(SYS_TELL, file->fd);
-	if (ret < 0)
-		return -1;
-	return ret;
+	if (file->buffer_rd_size)
+		offset -= file->buffer_rd_size - file->buffer_idx;
+	return offset - file->unget_buf_idx;
 }
 
 int ftrylockfile(FILE* fp)
@@ -541,10 +537,7 @@ int getc_unlocked(FILE* file)
 	if (file->unget_buf_idx)
 	{
 		file->unget_buf_idx--;
-		unsigned char ch = file->unget_buffer[file->unget_buf_idx];
-		if (fseeko(file, 1, SEEK_CUR) == -1)
-			return EOF;
-		return ch;
+		return file->unget_buffer[file->unget_buf_idx];
 	}
 
 	// read from unbuffered file
@@ -582,8 +575,6 @@ int getc_unlocked(FILE* file)
 		((nread == 0) ? file->eof : file->error) = true;
 		return EOF;
 	}
-	if (fseeko(file, 1 - nread, SEEK_CUR) == -1)
-		return EOF;
 	file->buffer_rd_size = nread;
 	file->buffer_idx = 1;
 	return file->buffer[0];
@@ -1019,9 +1010,6 @@ int ungetc_unlocked(int c, FILE* stream)
 		errno = EINVAL;
 		return EOF;
 	}
-
-	if (fseeko(stream, -1, SEEK_CUR) == -1)
-		return EOF;
 
 	stream->unget_buffer[stream->unget_buf_idx] = c;
 	stream->unget_buf_idx++;
