@@ -301,8 +301,14 @@ namespace Kernel
 			);
 		}
 
-		while (!m_threads.empty())
-			m_threads.front()->on_exit();
+		for (size_t i = 0; i < m_threads.size(); i++)
+		{
+			if (m_threads[i] == &Thread::current())
+				continue;
+			m_threads[i]->add_signal(SIGKILL);
+		}
+
+		Thread::current().on_exit();
 
 		ASSERT_NOT_REACHED();
 	}
@@ -2310,14 +2316,10 @@ namespace Kernel
 			return BAN::Error::from_errno(EINVAL);
 
 		TRY(m_exited_pthreads.emplace_back(Thread::current().tid(), value));
-		for (auto* thread : m_threads)
-		{
-			if (thread != &Thread::current())
-				continue;
-			m_pthread_exit_blocker.unblock();
-			m_process_lock.unlock();
-			thread->on_exit();
-		}
+
+		m_pthread_exit_blocker.unblock();
+		m_process_lock.unlock();
+		Thread::current().on_exit();
 
 		ASSERT_NOT_REACHED();
 	}
