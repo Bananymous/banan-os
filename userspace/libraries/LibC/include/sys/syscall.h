@@ -60,6 +60,7 @@ __BEGIN_DECLS
 	O(SYS_READLINKAT,		readlinkat)		\
 	O(SYS_MSYNC,			msync)			\
 	O(SYS_PREAD,			pread)			\
+	O(SYS_PWRITE,			pwrite)			\
 	O(SYS_FCHOWNAT,			fchownat)		\
 	O(SYS_LOAD_KEYMAP,		load_keymap)	\
 	O(SYS_SOCKET,			socket)			\

@@ -1192,16 +1192,22 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_pread(int fd, void* buffer, size_t count, off_t offset)
 	{
-		LockGuard _(m_process_lock);
-		if (count == 0)
-		{
-			TRY(m_open_file_descriptors.inode_of(fd));
-			return 0;
-		}
-		TRY(validate_pointer_access(buffer, count, true));
 		auto inode = TRY(m_open_file_descriptors.inode_of(fd));
-		return TRY(inode->read(offset, { (uint8_t*)buffer, count }));
+
+		auto* buffer_region = TRY(validate_and_pin_pointer_access(buffer, count, true));
+		BAN::ScopeGuard _([buffer_region]{ if (buffer_region) buffer_region->unpin(); });
+
+		return TRY(inode->read(offset, { reinterpret_cast<uint8_t*>(buffer), count }));
 	}
+
+	BAN::ErrorOr<long> Process::sys_pwrite(int fd, const void* buffer, size_t count, off_t offset)
+	{
+		auto inode = TRY(m_open_file_descriptors.inode_of(fd));
+
+		auto* buffer_region = TRY(validate_and_pin_pointer_access(buffer, count, false));
+		BAN::ScopeGuard _([buffer_region]{ if (buffer_region) buffer_region->unpin(); });
+
+		return TRY(inode->write(offset, { reinterpret_cast<const uint8_t*>(buffer), count }));	}
 
 	BAN::ErrorOr<long> Process::sys_fchmodat(int fd, const char* path, mode_t mode, int flag)
 	{

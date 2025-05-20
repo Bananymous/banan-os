@@ -112,6 +112,7 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_symlinkat(const char* path1, int fd, const char* path2);
 
 		BAN::ErrorOr<long> sys_pread(int fd, void* buffer, size_t count, off_t offset);
+		BAN::ErrorOr<long> sys_pwrite(int fd, const void* buffer, size_t count, off_t offset);
 
 		BAN::ErrorOr<long> sys_fchmodat(int fd, const char* path, mode_t mode, int flag);
 		BAN::ErrorOr<long> sys_fchownat(int fd, const char* path, uid_t uid, gid_t gid, int flag);

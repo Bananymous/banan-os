@@ -127,6 +127,11 @@ ssize_t pread(int fildes, void* buf, size_t nbyte, off_t offset)
 	return syscall(SYS_PREAD, fildes, buf, nbyte, offset);
 }
 
+ssize_t pwrite(int fildes, const void* buf, size_t nbyte, off_t offset)
+{
+	return syscall(SYS_PWRITE, fildes, buf, nbyte, offset);
+}
+
 off_t lseek(int fildes, off_t offset, int whence)
 {
 	return syscall(SYS_SEEK, fildes, offset, whence);
