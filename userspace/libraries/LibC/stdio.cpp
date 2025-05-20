@@ -965,7 +965,29 @@ char* tempnam(const char*, const char*);
 
 FILE* tmpfile(void)
 {
-	ASSERT_NOT_REACHED();
+	for (;;)
+	{
+		char path[PATH_MAX];
+		if (tmpnam(path) == nullptr)
+			return nullptr;
+
+		int fd = open(path, O_CREAT | O_EXCL | O_TRUNC | O_RDWR, S_IRUSR | S_IWUSR);
+		if (fd == -1)
+		{
+			if (errno == EEXIST)
+				continue;
+			return nullptr;
+		}
+
+		(void)unlink(path);
+
+		FILE* fp = fdopen(fd, "wb+");
+		if (fp != nullptr)
+			return fp;
+
+		close(fd);
+		return nullptr;
+	}
 }
 
 char* tmpnam(char* storage)
