@@ -1,5 +1,5 @@
-#ifndef _INET_H
-#define _INET_H 1
+#ifndef _ARPA_INET_H
+#define _ARPA_INET_H 1
 
 // https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/arpa_inet.h.html
 
@@ -7,13 +7,8 @@
 
 __BEGIN_DECLS
 
-#include <netinet/in.h>
-#include <inttypes.h>
-
-uint32_t htonl(uint32_t);
-uint16_t htons(uint16_t);
-uint32_t ntohl(uint32_t);
-uint16_t ntohs(uint16_t);
+#include <bits/inet_common.h>
+#include <bits/types/socklen_t.h>
 
 in_addr_t	inet_addr(const char* cp);
 char*		inet_ntoa(struct in_addr in);

@@ -14,7 +14,7 @@ __BEGIN_DECLS
 #include <sys/uio.h>
 
 #include <bits/types/sa_family_t.h>
-typedef long socklen_t;
+#include <bits/types/socklen_t.h>
 
 #if !defined(FILENAME_MAX)
 	#define FILENAME_MAX 256

@@ -7,7 +7,7 @@
 
 __BEGIN_DECLS
 
-#include <inttypes.h>
+#include <bits/inet_common.h>
 #include <sys/socket.h>
 
 #define IPPROTO_IP		1
@@ -30,9 +30,6 @@ __BEGIN_DECLS
 #define INADDR_BROADCAST	0xFFFFFFFF
 #define INADDR_LOOPBACK     0x7F000001
 
-#define INET_ADDRSTRLEN		16
-#define INET6_ADDRSTRLEN	46
-
 #define IN6ADDR_ANY_INIT		{ { { 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 } } }
 #define IN6ADDR_LOOPBACK_INIT	{ { { 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1 } } }
 
@@ -50,14 +47,6 @@ __BEGIN_DECLS
 #define IN6_IS_ADDR_MC_ORGLOCAL(addr)
 #define IN6_IS_ADDR_MC_GLOBAL(addr)
 #endif
-
-typedef uint16_t in_port_t;
-typedef uint32_t in_addr_t;
-
-struct in_addr
-{
-	in_addr_t s_addr;
-};
 
 struct sockaddr_in
 {
