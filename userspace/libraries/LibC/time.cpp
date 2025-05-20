@@ -9,6 +9,10 @@
 #include <time.h>
 #include <unistd.h>
 
+int daylight;
+long timezone;
+char* tzname[2];
+
 int clock_gettime(clockid_t clock_id, struct timespec* tp)
 {
 	return syscall(SYS_CLOCK_GETTIME, clock_id, tp);
@@ -194,6 +198,14 @@ struct tm* localtime(const time_t* timer)
 {
 	static struct tm tm;
 	return localtime_r(timer, &tm);
+}
+
+void tzset()
+{
+	daylight = 0;
+	timezone = 0;
+	tzname[0] = const_cast<char*>("UTC");
+	tzname[1] = const_cast<char*>("UTC");
 }
 
 size_t strftime(char* __restrict s, size_t maxsize, const char* __restrict format, const struct tm* __restrict timeptr)
@@ -543,14 +555,4 @@ size_t strftime(char* __restrict s, size_t maxsize, const char* __restrict forma
 		return 0;
 	s[len++] = '\0';
 	return len;
-}
-
-
-
-#include <BAN/Assert.h>
-
-long timezone;
-void tzset()
-{
-	ASSERT_NOT_REACHED();
 }
