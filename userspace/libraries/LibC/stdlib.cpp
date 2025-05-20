@@ -69,10 +69,8 @@ static constexpr int get_base_digit(char c, int base)
 }
 
 template<BAN::integral T>
-static constexpr bool will_digit_append_overflow(bool negative, T current, int digit, int base)
+static constexpr bool will_digit_append_overflow(T current, int digit, int base)
 {
-	if (BAN::is_unsigned_v<T> && negative && digit)
-		return true;
 	if (BAN::Math::will_multiplication_overflow<T>(current, base))
 		return true;
 	if (BAN::Math::will_addition_overflow<T>(current * base, current < 0 ? -digit : digit))
@@ -86,6 +84,8 @@ static T strtoT(const char* str, char** endp, int base, int& error)
 	// validate base
 	if (base != 0 && (base < 2 || base > 36))
 	{
+		if (endp)
+			*endp = const_cast<char*>(str);
 		error = EINVAL;
 		return 0;
 	}
@@ -134,10 +134,17 @@ static T strtoT(const char* str, char** endp, int base, int& error)
 			break;
 		str++;
 
-		overflow = will_digit_append_overflow(negative, result, digit, base);
+		overflow = will_digit_append_overflow(result, digit, base);
 		if (!overflow)
-			result = result * base + (negative ? -digit : digit);
+		{
+			if (negative && !BAN::is_unsigned_v<T>)
+				digit = -digit;
+			result = result * base + digit;
+		}
 	}
+
+	if (negative && BAN::is_unsigned_v<T>)
+		result = -result;
 
 	// save endp if asked
 	if (endp)
