@@ -131,8 +131,8 @@ time_t mktime(struct tm* tm)
 	tm->tm_mon %= 12;
 
 	tm->tm_yday = tm->tm_mday - 1;
-	if (tm->tm_mon > 0)
-		tm->tm_yday += month_days[tm->tm_mon - 1];
+	for (int i = 0; i < tm->tm_mon; i++)
+		tm->tm_yday += month_days[i];
 
 	const time_t num_febs = (tm->tm_mon > 1) ? tm->tm_year + 1 : tm->tm_year;
 	const time_t leap_years = (num_febs - 69) / 4 - (num_febs - 1) / 100 + (num_febs + 299) / 400;
