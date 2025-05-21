@@ -19,7 +19,7 @@ static int malloc_environ()
 	ASSERT(!s_environ_malloced);
 
 	size_t environ_count = 0;
-	while (environ[environ_count])
+	while (environ && environ[environ_count])
 		environ_count++;
 
 	const size_t bitmap_size = (environ_count + 7) / 8;
@@ -111,12 +111,37 @@ static int putenv_impl(char* string, bool malloced)
 	return 0;
 }
 
+int clearenv(void)
+{
+	if (s_environ_malloced)
+	{
+		ASSERT(environ);
+
+		for (size_t i = 0; environ[i]; i++)
+		{
+			const size_t byte = i / 8;
+			const size_t mask = 1 << (i % 8);
+			if (s_environ_bitmap[byte] & mask)
+				free(environ[i]);
+		}
+
+		free(s_environ_bitmap);
+		free(environ);
+	}
+
+	environ = nullptr;
+	s_environ_count = 0;
+	s_environ_bitmap = nullptr;
+	s_environ_malloced = false;
+	return 0;
+}
+
 char* getenv(const char* name)
 {
 	if (environ == nullptr)
 		return nullptr;
 	const size_t namelen = strlen(name);
-	for (int i = 0; environ[i]; i++)
+	for (size_t i = 0; environ[i]; i++)
 		if (strncmp(name, environ[i], namelen) == 0)
 			if (environ[i][namelen] == '=')
 				return environ[i] + namelen + 1;
@@ -153,6 +178,9 @@ int unsetenv(const char* name)
 		errno = EINVAL;
 		return -1;
 	}
+
+	if (environ == nullptr)
+		return 0;
 
 	const size_t namelen = strlen(name);
 

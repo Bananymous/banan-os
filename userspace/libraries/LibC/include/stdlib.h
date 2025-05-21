@@ -51,6 +51,7 @@ long				atol(const char* str);
 long long			atoll(const char* str);
 void*				bsearch(const void* key, const void* base, size_t nel, size_t width, int (*compar)(const void*, const void*));
 void*				calloc(size_t nelem, size_t elsize);
+int					clearenv(void);
 div_t				div(int numer, int denom);
 double				drand48(void);
 double				erand48(unsigned short xsubi[3]);
