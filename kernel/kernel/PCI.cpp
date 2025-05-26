@@ -714,16 +714,14 @@ namespace Kernel::PCI
 					return InterruptMechanism::NONE;
 				}
 
-				const bool is_xhci = false && m_class_code == 0x0C && m_subclass == 0x03 && m_prog_if == 0x30;
-
-				if (!is_xhci && m_offset_msi_x.has_value())
+				if (m_offset_msi_x.has_value())
 				{
 					const uint16_t msg_ctrl = read_word(*m_offset_msi_x + 0x02);
 					if (count <= (msg_ctrl & 0x7FF) + 1)
 						return InterruptMechanism::MSIX;
 				}
 
-				if (!is_xhci && m_offset_msi.has_value())
+				if (m_offset_msi.has_value())
 				{
 					if (count == 1)
 						return InterruptMechanism::MSI;
