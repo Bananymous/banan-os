@@ -237,20 +237,27 @@ namespace Kernel
 
 	BAN::ErrorOr<void> E1000::enable_interrupt()
 	{
+		TRY(m_pci_device.reserve_interrupts(1));
+
 		write32(REG_ITR, 0x1000);
 
-		write32(REG_IVAR, 1 << 3);
-		write32(REG_EITR, 0x1000);
+		if (m_pci_device.interrupt_mechanism() == PCI::Device::InterruptMechanism::MSIX)
+		{
+			write32(REG_IVAR, 1 << 3);
+			write32(REG_EITR, 0x1000);
+			write32(REG_IMS, IMC_RxQ0);
+		}
+		else
+		{
+			write32(REG_IMS, IMC_RXT0);
+		}
 
-		write32(REG_IMS, IMC_RxQ0);
-		read32(REG_ICR);
+		write32(REG_ICR, 0xFFFFFFFF);
 
-		TRY(m_pci_device.reserve_interrupts(1));
 		m_pci_device.enable_interrupt(0, *this);
 
 		return {};
 	}
-
 
 	BAN::ErrorOr<void> E1000::send_bytes(BAN::MACAddress destination, EtherType protocol, BAN::ConstByteSpan buffer)
 	{
@@ -285,7 +292,7 @@ namespace Kernel
 
 	void E1000::handle_irq()
 	{
-		if (!(read32(REG_ICR) & ICR_RxQ0))
+		if (!(read32(REG_ICR) & (ICR_RxQ0 | ICR_RXT0)))
 			return;
 
 		SpinLockGuard _(m_lock);
