@@ -682,9 +682,9 @@ namespace Kernel::PCI
 
 			auto& prt_entry_fields = prt_entry.as.package->elements;
 			if (TRY(ACPI::AML::convert_node(TRY(prt_entry_fields[0].value.node->copy()), ACPI::AML::ConvInteger, -1)).as.integer.value != acpi_device_id)
-				return BAN::Error::from_errno(ENOENT);
+				continue;
 			if (TRY(ACPI::AML::convert_node(TRY(prt_entry_fields[1].value.node->copy()), ACPI::AML::ConvInteger, -1)).as.integer.value != acpi_pin)
-				return BAN::Error::from_errno(ENOENT);
+				continue;
 
 			auto ret = route_prt_entry(prt_entry);
 			if (!ret.is_error())
