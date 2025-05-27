@@ -279,3 +279,4 @@ extern "C" void ap_main()
 	asm volatile("sti; 1: hlt; jmp 1b");
 	ASSERT_NOT_REACHED();
 }
+// comment from banan_os
