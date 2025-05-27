@@ -70,7 +70,7 @@ int getaddrinfo(const char* __restrict nodename, const char* __restrict servname
 			return EAI_SOCKTYPE;
 	}
 
-	if (!nodename)
+	if (!nodename && !servname)
 		return EAI_NONAME;
 
 	int port = 0;
