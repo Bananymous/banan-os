@@ -547,6 +547,26 @@ char* ptsname(int fildes)
 	return buffer;
 }
 
+int mblen(const char* s, size_t n)
+{
+	if (s == nullptr)
+		return 0;
+	if (n == 0)
+		return -1;
+	switch (__getlocale(LC_CTYPE))
+	{
+		case LOCALE_INVALID:
+			ASSERT_NOT_REACHED();
+		case LOCALE_POSIX:
+			return 1;
+		case LOCALE_UTF8:
+			if (const auto bytes = BAN::UTF8::byte_length(*s); n >= bytes)
+				return bytes;
+			return -1;
+	}
+	ASSERT_NOT_REACHED();
+}
+
 size_t mbstowcs(wchar_t* __restrict pwcs, const char* __restrict s, size_t n)
 {
 	auto* us = reinterpret_cast<const unsigned char*>(s);
