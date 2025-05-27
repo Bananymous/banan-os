@@ -185,6 +185,8 @@ __BEGIN_DECLS
 	typedef int bits32_t;
 	typedef unsigned int u_bits32_t;
 	typedef char* bits64_t;
+	typedef unsigned char u_char;
+	typedef unsigned short u_short;
 	typedef unsigned int u_int;
 	typedef unsigned long u_long;
 #endif
