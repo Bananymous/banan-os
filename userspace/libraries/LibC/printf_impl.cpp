@@ -552,6 +552,7 @@ extern "C" int printf_impl(const char* format, va_list arguments, int (*putc_fun
 				conversion[0] = va_arg(arguments, int);
 				conversion[1] = '\0';
 				string = conversion;
+				length = 1;
 				format++;
 				break;
 			}
@@ -633,7 +634,7 @@ extern "C" int printf_impl(const char* format, va_list arguments, int (*putc_fun
 					for (int i = length; i < options.width; i++)
 						BAN_PRINTF_PUTC(' ');
 
-				for (int i = 0; i < length && string[i]; i++)
+				for (int i = 0; i < length; i++)
 					BAN_PRINTF_PUTC(string[i]);
 
 				if (options.left_justified)
