@@ -147,9 +147,34 @@ error_close_socket:
 	return EAI_FAIL;
 }
 
-int getnameinfo(const struct sockaddr* __restrict, socklen_t, char* __restrict, socklen_t, char* __restrict, socklen_t, int)
+#include <BAN/Debug.h>
+
+int getnameinfo(const struct sockaddr* __restrict sa, socklen_t salen, char* __restrict node, socklen_t nodelen, char* __restrict service, socklen_t servicelen, int flags)
 {
-	ASSERT_NOT_REACHED();
+	printf("getnameinfo(%p, %p, %p, 0x%X)\n", sa, node, service, flags);
+
+	switch (sa->sa_family)
+	{
+		case AF_INET:
+			if (salen < static_cast<socklen_t>(sizeof(sockaddr_in)))
+				return EAI_FAMILY;
+			if (service && snprintf(service, servicelen, "%d", reinterpret_cast<sockaddr_in*>(service)->sin_port) < 0)
+				return EAI_SYSTEM;
+			break;
+		case AF_INET6:
+			if (salen < static_cast<socklen_t>(sizeof(sockaddr_in6)))
+				return EAI_FAMILY;
+			if (service && snprintf(service, servicelen, "%d", reinterpret_cast<sockaddr_in6*>(service)->sin6_port) < 0)
+				return EAI_SYSTEM;
+			break;
+		default:
+			return EAI_FAIL;
+	}
+
+	if (node && inet_ntop(sa->sa_family, sa, node, nodelen) == nullptr)
+		return EAI_SYSTEM;
+
+	return 0;
 }
 
 struct hostent* gethostbyname(const char* name)
