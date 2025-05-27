@@ -17,6 +17,7 @@ namespace Kernel
 
 	public:
 		static BAN::ErrorOr<BAN::RefPtr<UnixDomainSocket>> create(Socket::Type, const Socket::Info&);
+		BAN::ErrorOr<void> make_socket_pair(UnixDomainSocket&);
 
 	protected:
 		virtual BAN::ErrorOr<long> accept_impl(sockaddr*, socklen_t*, int) override;

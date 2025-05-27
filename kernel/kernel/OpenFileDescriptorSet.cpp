@@ -83,50 +83,57 @@ namespace Kernel
 		return open(TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, flags)), flags);
 	}
 
-	BAN::ErrorOr<int> OpenFileDescriptorSet::socket(int domain, int type, int protocol)
+	struct SocketInfo
 	{
-		bool valid_protocol = true;
+		Socket::Domain domain;
+		Socket::Type type;
+		int status_flags;
+		int descriptor_flags;
+	};
 
-		Socket::Domain sock_domain;
+	static BAN::ErrorOr<SocketInfo> parse_socket_info(int domain, int type, int protocol)
+	{
+		SocketInfo info;
+
+		bool valid_protocol = true;
 		switch (domain)
 		{
 			case AF_INET:
-				sock_domain = Socket::Domain::INET;
+				info.domain = Socket::Domain::INET;
 				break;
 			case AF_INET6:
-				sock_domain = Socket::Domain::INET6;
+				info.domain = Socket::Domain::INET6;
 				break;
 			case AF_UNIX:
-				sock_domain = Socket::Domain::UNIX;
+				info.domain = Socket::Domain::UNIX;
 				valid_protocol = false;
 				break;
 			default:
 				return BAN::Error::from_errno(EPROTOTYPE);
 		}
 
-		int status_flags = 0;
-		int descriptor_flags = 0;
+		info.status_flags = 0;
+		info.descriptor_flags = 0;
 		if (type & SOCK_NONBLOCK)
-			status_flags |= O_NONBLOCK;
+			info.status_flags |= O_NONBLOCK;
 		if (type & SOCK_CLOEXEC)
-			descriptor_flags |= O_CLOEXEC;
+			info.descriptor_flags |= O_CLOEXEC;
 		type &= ~(SOCK_NONBLOCK | SOCK_CLOEXEC);
 
-		Socket::Type sock_type;
 		switch (type)
 		{
 			case SOCK_STREAM:
-				sock_type = Socket::Type::STREAM;
+				info.type = Socket::Type::STREAM;
 				if (protocol != IPPROTO_TCP)
 					valid_protocol = false;
 				break;
 			case SOCK_DGRAM:
-				sock_type = Socket::Type::DGRAM;
+				info.type = Socket::Type::DGRAM;
 				if (protocol != IPPROTO_UDP)
 					valid_protocol = false;
 				break;
 			case SOCK_SEQPACKET:
-				sock_type = Socket::Type::SEQPACKET;
+				info.type = Socket::Type::SEQPACKET;
 				valid_protocol = false;
 				break;
 			default:
@@ -136,13 +143,37 @@ namespace Kernel
 		if (protocol && !valid_protocol)
 			return BAN::Error::from_errno(EPROTONOSUPPORT);
 
-		auto socket = TRY(NetworkManager::get().create_socket(sock_domain, sock_type, 0777, m_credentials.euid(), m_credentials.egid()));
+		return info;
+	}
+
+	BAN::ErrorOr<int> OpenFileDescriptorSet::socket(int domain, int type, int protocol)
+	{
+		auto sock_info = TRY(parse_socket_info(domain, type, protocol));
+		auto socket = TRY(NetworkManager::get().create_socket(sock_info.domain, sock_info.type, 0777, m_credentials.euid(), m_credentials.egid()));
 
 		LockGuard _(m_mutex);
 		int fd = TRY(get_free_fd());
-		m_open_files[fd].description = TRY(BAN::RefPtr<OpenFileDescription>::create(VirtualFileSystem::File(socket, "<socket>"_sv), 0, O_RDWR | status_flags));
-		m_open_files[fd].descriptor_flags = descriptor_flags;
+		m_open_files[fd].description = TRY(BAN::RefPtr<OpenFileDescription>::create(VirtualFileSystem::File(socket, "<socket>"_sv), 0, O_RDWR | sock_info.status_flags));
+		m_open_files[fd].descriptor_flags = sock_info.descriptor_flags;
 		return fd;
+	}
+
+	BAN::ErrorOr<void> OpenFileDescriptorSet::socketpair(int domain, int type, int protocol, int socket_vector[2])
+	{
+		auto sock_info = TRY(parse_socket_info(domain, type, protocol));
+
+		auto socket1 = TRY(NetworkManager::get().create_socket(sock_info.domain, sock_info.type, 0600, m_credentials.euid(), m_credentials.egid()));
+		auto socket2 = TRY(NetworkManager::get().create_socket(sock_info.domain, sock_info.type, 0600, m_credentials.euid(), m_credentials.egid()));
+		TRY(NetworkManager::get().connect_sockets(sock_info.domain, socket1, socket2));
+
+		LockGuard _(m_mutex);
+
+		TRY(get_free_fd_pair(socket_vector));
+		m_open_files[socket_vector[0]].description = TRY(BAN::RefPtr<OpenFileDescription>::create(VirtualFileSystem::File(socket1, "<socketpair>"_sv), 0, O_RDWR | sock_info.status_flags));
+		m_open_files[socket_vector[0]].descriptor_flags = sock_info.descriptor_flags;
+		m_open_files[socket_vector[1]].description = TRY(BAN::RefPtr<OpenFileDescription>::create(VirtualFileSystem::File(socket2, "<socketpair>"_sv), 0, O_RDWR | sock_info.status_flags));
+		m_open_files[socket_vector[1]].descriptor_flags = sock_info.descriptor_flags;
+		return {};
 	}
 
 	BAN::ErrorOr<void> OpenFileDescriptorSet::pipe(int fds[2])

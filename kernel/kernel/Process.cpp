@@ -1270,6 +1270,14 @@ namespace Kernel
 		return TRY(m_open_file_descriptors.socket(domain, type, protocol));
 	}
 
+	BAN::ErrorOr<long> Process::sys_socketpair(int domain, int type, int protocol, int socket_vector[2])
+	{
+		LockGuard _(m_process_lock);
+		TRY(validate_pointer_access(socket_vector, sizeof(int) * 2, true));
+		TRY(m_open_file_descriptors.socketpair(domain, type, protocol, socket_vector));
+		return 0;
+	}
+
 	BAN::ErrorOr<long> Process::sys_getsockname(int socket, sockaddr* address, socklen_t* address_len)
 	{
 		LockGuard _(m_process_lock);

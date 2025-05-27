@@ -68,6 +68,11 @@ int socket(int domain, int type, int protocol)
 	return syscall(SYS_SOCKET, domain, type, protocol);
 }
 
+int socketpair(int domain, int type, int protocol, int socket_vector[2])
+{
+	return syscall(SYS_SOCKETPAIR, domain, type, protocol, socket_vector);
+}
+
 int getsockname(int socket, struct sockaddr* __restrict address, socklen_t* __restrict address_len)
 {
 	return syscall(SYS_GETSOCKNAME, socket, address, address_len);

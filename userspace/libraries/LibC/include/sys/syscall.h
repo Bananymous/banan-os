@@ -64,6 +64,7 @@ __BEGIN_DECLS
 	O(SYS_FCHOWNAT,			fchownat)		\
 	O(SYS_LOAD_KEYMAP,		load_keymap)	\
 	O(SYS_SOCKET,			socket)			\
+	O(SYS_SOCKETPAIR,		socketpair)		\
 	O(SYS_BIND,				bind)			\
 	O(SYS_SENDTO,			sendto)			\
 	O(SYS_RECVFROM,			recvfrom)		\

@@ -26,6 +26,7 @@ namespace Kernel
 		BAN::ErrorOr<int> open(BAN::StringView absolute_path, int flags);
 
 		BAN::ErrorOr<int> socket(int domain, int type, int protocol);
+		BAN::ErrorOr<void> socketpair(int domain, int type, int protocol, int socket_vector[2]);
 
 		BAN::ErrorOr<void> pipe(int fds[2]);
 

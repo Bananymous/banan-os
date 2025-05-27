@@ -129,6 +129,25 @@ namespace Kernel
 		return socket;
 	}
 
+	BAN::ErrorOr<void> NetworkManager::connect_sockets(Socket::Domain domain, BAN::RefPtr<Socket> socket1, BAN::RefPtr<Socket> socket2)
+	{
+		switch (domain)
+		{
+			case Socket::Domain::UNIX:
+			{
+				auto* usocket1 = static_cast<UnixDomainSocket*>(socket1.ptr());
+				auto* usocket2 = static_cast<UnixDomainSocket*>(socket2.ptr());
+				TRY(usocket1->make_socket_pair(*usocket2));
+				break;
+			}
+			default:
+				dwarnln("TODO: connect {} domain sockets", static_cast<int>(domain));
+				return BAN::Error::from_errno(ENOTSUP);
+		}
+
+		return {};
+	}
+
 	void NetworkManager::on_receive(NetworkInterface& interface, BAN::ConstByteSpan packet)
 	{
 		if (packet.size() < sizeof(EthernetHeader))

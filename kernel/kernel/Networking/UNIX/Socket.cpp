@@ -69,6 +69,20 @@ namespace Kernel
 		}
 	}
 
+	BAN::ErrorOr<void> UnixDomainSocket::make_socket_pair(UnixDomainSocket& other)
+	{
+		if (!m_info.has<ConnectionInfo>() || !other.m_info.has<ConnectionInfo>())
+			return BAN::Error::from_errno(EINVAL);
+
+		TRY(this->get_weak_ptr());
+		TRY(other.get_weak_ptr());
+
+		this->m_info.get<ConnectionInfo>().connection = MUST(other.get_weak_ptr());
+		other.m_info.get<ConnectionInfo>().connection = MUST(this->get_weak_ptr());
+
+		return {};
+	}
+
 	BAN::ErrorOr<long> UnixDomainSocket::accept_impl(sockaddr* address, socklen_t* address_len, int flags)
 	{
 		if (!m_info.has<ConnectionInfo>())
