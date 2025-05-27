@@ -492,6 +492,8 @@ namespace Kernel
 							connection_info,
 							header.seq_number + 1
 						));
+
+						epoll_notify(EPOLLIN);
 					}
 				}
 				else
