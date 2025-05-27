@@ -39,6 +39,7 @@ set(LIBC_SOURCES
 	sys/stat.cpp
 	sys/statvfs.cpp
 	sys/time.cpp
+	sys/uio.cpp
 	sys/utsname.cpp
 	sys/wait.cpp
 	syslog.cpp
