@@ -256,6 +256,17 @@ namespace Kernel
 		return to_send;
 	}
 
+	BAN::ErrorOr<void> TCPSocket::getpeername_impl(sockaddr* address, socklen_t* address_len)
+	{
+		if (!m_has_connected && m_state != State::Established)
+			return BAN::Error::from_errno(ENOTCONN);
+		ASSERT(m_connection_info.has_value());
+		const size_t to_copy = BAN::Math::min(m_connection_info->address_len, *address_len);
+		memcpy(address, &m_connection_info->address, to_copy);
+		*address_len = to_copy;
+		return {};
+	}
+
 	bool TCPSocket::can_read_impl() const
 	{
 		if (m_has_connected && !m_has_sent_zero && m_state != State::Established && m_state != State::Listen)

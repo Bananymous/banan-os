@@ -25,6 +25,7 @@ namespace Kernel
 		BAN::Vector<BAN::RefPtr<NetworkInterface>>& interfaces() { return m_interfaces; }
 
 		BAN::ErrorOr<BAN::RefPtr<Socket>> create_socket(Socket::Domain, Socket::Type, mode_t, uid_t, gid_t);
+		BAN::ErrorOr<void> connect_sockets(Socket::Domain, BAN::RefPtr<Socket>, BAN::RefPtr<Socket>);
 
 		void on_receive(NetworkInterface&, BAN::ConstByteSpan);
 

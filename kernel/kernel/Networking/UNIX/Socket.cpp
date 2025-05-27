@@ -412,4 +412,33 @@ namespace Kernel
 		return nread;
 	}
 
+	BAN::ErrorOr<void> UnixDomainSocket::getpeername_impl(sockaddr* address, socklen_t* address_len)
+	{
+		if (!m_info.has<ConnectionInfo>())
+			return BAN::Error::from_errno(ENOTCONN);
+		auto connection = m_info.get<ConnectionInfo>().connection.lock();
+		if (!connection)
+			return BAN::Error::from_errno(ENOTCONN);
+
+		sockaddr_un sa_un;
+		sa_un.sun_family = AF_UNIX;
+		sa_un.sun_path[0] = 0;
+
+		{
+			SpinLockGuard _(s_bound_socket_lock);
+			for (auto& [path, socket] : s_bound_sockets)
+			{
+				if (socket.lock() != connection)
+					continue;
+				strcpy(sa_un.sun_path, path.data());
+				break;
+			}
+		}
+
+		const size_t to_copy = BAN::Math::min<socklen_t>(sizeof(sockaddr_un), *address_len);
+		memcpy(address, &sa_un, to_copy);
+		*address_len = to_copy;
+		return {};
+	}
+
 }

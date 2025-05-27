@@ -119,6 +119,7 @@ namespace Kernel
 
 		BAN::ErrorOr<long> sys_socket(int domain, int type, int protocol);
 		BAN::ErrorOr<long> sys_getsockname(int socket, sockaddr* address, socklen_t* address_len);
+		BAN::ErrorOr<long> sys_getpeername(int socket, sockaddr* address, socklen_t* address_len);
 		BAN::ErrorOr<long> sys_getsockopt(int socket, int level, int option_name, void* option_value, socklen_t* option_len);
 		BAN::ErrorOr<long> sys_setsockopt(int socket, int level, int option_name, const void* option_value, socklen_t option_len);
 

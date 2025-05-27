@@ -1284,6 +1284,20 @@ namespace Kernel
 		return 0;
 	}
 
+	BAN::ErrorOr<long> Process::sys_getpeername(int socket, sockaddr* address, socklen_t* address_len)
+	{
+		LockGuard _(m_process_lock);
+		TRY(validate_pointer_access(address_len, sizeof(address_len), true));
+		TRY(validate_pointer_access(address, *address_len, true));
+
+		auto inode = TRY(m_open_file_descriptors.inode_of(socket));
+		if (!inode->mode().ifsock())
+			return BAN::Error::from_errno(ENOTSOCK);
+
+		TRY(inode->getpeername(address, address_len));
+		return 0;
+	}
+
 	BAN::ErrorOr<long> Process::sys_getsockopt(int socket, int level, int option_name, void* option_value, socklen_t* option_len)
 	{
 		LockGuard _(m_process_lock);

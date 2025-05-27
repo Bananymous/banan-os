@@ -36,6 +36,7 @@ namespace Kernel
 		virtual BAN::ErrorOr<void> bind_impl(const sockaddr* address, socklen_t address_len) override;
 		virtual BAN::ErrorOr<size_t> sendto_impl(BAN::ConstByteSpan message, const sockaddr* address, socklen_t address_len) override;
 		virtual BAN::ErrorOr<size_t> recvfrom_impl(BAN::ByteSpan buffer, sockaddr* address, socklen_t* address_len) override;
+		virtual BAN::ErrorOr<void> getpeername_impl(sockaddr*, socklen_t*) override { return BAN::Error::from_errno(ENOTCONN); }
 
 		virtual bool can_read_impl() const override { return !m_packets.empty(); }
 		virtual bool can_write_impl() const override { return true; }

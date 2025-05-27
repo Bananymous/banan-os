@@ -25,6 +25,7 @@ namespace Kernel
 		virtual BAN::ErrorOr<void> bind_impl(const sockaddr*, socklen_t) override;
 		virtual BAN::ErrorOr<size_t> sendto_impl(BAN::ConstByteSpan, const sockaddr*, socklen_t) override;
 		virtual BAN::ErrorOr<size_t> recvfrom_impl(BAN::ByteSpan, sockaddr*, socklen_t*) override;
+		virtual BAN::ErrorOr<void> getpeername_impl(sockaddr*, socklen_t*) override;
 
 		virtual bool can_read_impl() const override;
 		virtual bool can_write_impl() const override;
