@@ -16,6 +16,7 @@ set(USERSPACE_PROGRAMS
 	id
 	image
 	init
+	less
 	ln
 	loadfont
 	loadkeys
