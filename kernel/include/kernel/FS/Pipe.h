@@ -13,8 +13,9 @@ namespace Kernel
 		static BAN::ErrorOr<BAN::RefPtr<Inode>> create(const Credentials&);
 
 		virtual bool is_pipe() const override { return true; }
-		void clone_writing();
-		void close_writing();
+
+		void on_close(int status_flags) override;
+		void on_clone(int status_flags) override;
 
 		virtual ino_t ino() const override { return 0; } // FIXME
 		virtual Mode mode() const override { return { Mode::IFIFO | Mode::IRUSR | Mode::IWUSR }; }
@@ -39,7 +40,7 @@ namespace Kernel
 
 		virtual bool can_read_impl() const override { return m_buffer_size > 0; }
 		virtual bool can_write_impl() const override { return true; }
-		virtual bool has_error_impl() const override { return false; }
+		virtual bool has_error_impl() const override { return m_reading_count == 0; }
 		virtual bool has_hungup_impl() const override { return m_writing_count == 0; }
 
 	private:
@@ -58,6 +59,7 @@ namespace Kernel
 		size_t m_buffer_tail { 0 };
 
 		BAN::Atomic<uint32_t> m_writing_count { 1 };
+		BAN::Atomic<uint32_t> m_reading_count { 1 };
 	};
 
 }

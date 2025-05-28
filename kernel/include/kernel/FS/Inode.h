@@ -133,6 +133,9 @@ namespace Kernel
 		void del_epoll(class Epoll*);
 		void epoll_notify(uint32_t event);
 
+		virtual void on_close(int status_flags) { (void)status_flags; }
+		virtual void on_clone(int status_flags) { (void)status_flags; }
+
 	protected:
 		// Directory API
 		virtual BAN::ErrorOr<BAN::RefPtr<Inode>> find_inode_impl(BAN::StringView)				{ return BAN::Error::from_errno(ENOTSUP); }

@@ -3,6 +3,7 @@
 #include <kernel/Thread.h>
 #include <kernel/Timer/Timer.h>
 
+#include <fcntl.h>
 #include <sys/epoll.h>
 
 namespace Kernel
@@ -26,19 +27,41 @@ namespace Kernel
 		m_ctime = current_time;
 	}
 
-	void Pipe::clone_writing()
+	void Pipe::on_clone(int status_flags)
 	{
-		[[maybe_unused]] auto old_writing_count = m_writing_count.fetch_add(1);
-		ASSERT(old_writing_count > 0);
+		if (status_flags & O_WRONLY)
+		{
+			[[maybe_unused]] auto old_writing_count = m_writing_count.fetch_add(1);
+			ASSERT(old_writing_count > 0);
+		}
+
+		if (status_flags & O_RDONLY)
+		{
+			[[maybe_unused]] auto old_reading_count = m_reading_count.fetch_add(1);
+			ASSERT(old_reading_count > 0);
+		}
 	}
 
-	void Pipe::close_writing()
+	void Pipe::on_close(int status_flags)
 	{
-		auto old_writing_count = m_writing_count.fetch_sub(1);
-		ASSERT(old_writing_count > 0);
-		if (old_writing_count != 1)
-			return;
-		epoll_notify(EPOLLHUP);
+		if (status_flags & O_WRONLY)
+		{
+			auto old_writing_count = m_writing_count.fetch_sub(1);
+			ASSERT(old_writing_count > 0);
+			if (old_writing_count != 1)
+				return;
+			epoll_notify(EPOLLHUP);
+		}
+
+		if (status_flags & O_RDONLY)
+		{
+			auto old_reading_count = m_reading_count.fetch_sub(1);
+			ASSERT(old_reading_count > 0);
+			if (old_reading_count != 1)
+				return;
+			epoll_notify(EPOLLERR);
+		}
+
 		m_thread_blocker.unblock();
 	}
 
@@ -84,6 +107,11 @@ namespace Kernel
 
 		while (m_buffer_size >= m_buffer.size())
 		{
+			if (m_reading_count == 0)
+			{
+				Thread::current().add_signal(SIGPIPE);
+				return BAN::Error::from_errno(EPIPE);
+			}
 			LockFreeGuard lock_free(m_mutex);
 			TRY(Thread::current().block_or_eintr_or_timeout_ms(m_thread_blocker, 100, false));
 		}

@@ -43,12 +43,7 @@ namespace Kernel
 			auto& open_file = m_open_files[fd];
 			open_file.description      = other.m_open_files[fd].description;
 			open_file.descriptor_flags = other.m_open_files[fd].descriptor_flags;
-
-			if (open_file.path() == "<pipe wr>"_sv)
-			{
-				ASSERT(open_file.inode()->is_pipe());
-				static_cast<Pipe*>(open_file.inode().ptr())->clone_writing();
-			}
+			open_file.inode()->on_clone(open_file.status_flags());
 		}
 
 		return {};
@@ -204,14 +199,10 @@ namespace Kernel
 
 		(void)close(fildes2);
 
-		m_open_files[fildes2].description = m_open_files[fildes].description;
-		m_open_files[fildes2].descriptor_flags = 0;
-
-		if (m_open_files[fildes2].path() == "<pipe wr>"_sv)
-		{
-			ASSERT(m_open_files[fildes2].inode()->is_pipe());
-			static_cast<Pipe*>(m_open_files[fildes2].inode().ptr())->clone_writing();
-		}
+		auto& open_file = m_open_files[fildes2];
+		open_file.description = m_open_files[fildes].description;
+		open_file.descriptor_flags = 0;
+		open_file.inode()->on_clone(open_file.status_flags());
 
 		return fildes;
 	}
@@ -229,13 +220,10 @@ namespace Kernel
 			{
 				const int new_fd = TRY(get_free_fd());
 
-				m_open_files[new_fd].description = m_open_files[fd].description;
-				m_open_files[new_fd].descriptor_flags = (cmd == F_DUPFD_CLOEXEC) ? O_CLOEXEC : 0;
-				if (m_open_files[new_fd].path() == "<pipe wr>"_sv)
-				{
-					ASSERT(m_open_files[new_fd].inode()->is_pipe());
-					static_cast<Pipe*>(m_open_files[new_fd].inode().ptr())->clone_writing();
-				}
+				auto& open_file = m_open_files[new_fd];
+				open_file.description = m_open_files[fd].description;
+				open_file.descriptor_flags = (cmd == F_DUPFD_CLOEXEC) ? O_CLOEXEC : 0;
+				open_file.inode()->on_clone(open_file.status_flags());
 
 				return new_fd;
 			}
@@ -313,14 +301,10 @@ namespace Kernel
 
 		TRY(validate_fd(fd));
 
-		if (m_open_files[fd].path() == "<pipe wr>"_sv)
-		{
-			ASSERT(m_open_files[fd].inode()->is_pipe());
-			static_cast<Pipe*>(m_open_files[fd].inode().ptr())->close_writing();
-		}
-
-		m_open_files[fd].description.clear();
-		m_open_files[fd].descriptor_flags = 0;
+		auto& open_file = m_open_files[fd];
+		open_file.inode()->on_close(open_file.status_flags());
+		open_file.description.clear();
+		open_file.descriptor_flags = 0;
 
 		return {};
 	}
