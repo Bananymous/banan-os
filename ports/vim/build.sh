@@ -17,3 +17,10 @@ CONFIGURE_OPTIONS=(
 	'vim_cv_stat_ignores_slash=yes'
 	'vim_cv_memmove_handles_overlap=yes'
 )
+
+install() {
+	make install "DESTDIR=$BANAN_SYSROOT" || exit 1
+
+	shellrc="$BANAN_SYSROOT/home/user/.shellrc"
+	grep -q 'export EDITOR=' "$shellrc" || echo 'export EDITOR=vim' >> "$shellrc"
+}
