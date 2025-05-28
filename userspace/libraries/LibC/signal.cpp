@@ -121,14 +121,14 @@ int sigismember(const sigset_t* set, int signo)
 
 void (*signal(int sig, void (*func)(int)))(int)
 {
-	struct sigaction act;
+	struct sigaction act, oact;
 	act.sa_handler = func;
 	act.sa_flags = 0;
 
-	int ret = sigaction(sig, &act, nullptr);
+	int ret = sigaction(sig, &act, &oact);
 	if (ret == -1)
 		return SIG_ERR;
-	return func;
+	return oact.sa_handler;
 }
 
 int sigpending(sigset_t* set)
