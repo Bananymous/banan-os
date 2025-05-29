@@ -1217,8 +1217,6 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_fchmodat(int fd, const char* path, mode_t mode, int flag)
 	{
-		if (mode & S_IFMASK)
-			return BAN::Error::from_errno(EINVAL);
 		if (flag & ~AT_SYMLINK_NOFOLLOW)
 			return BAN::Error::from_errno(EINVAL);
 		if (flag == AT_SYMLINK_NOFOLLOW)
@@ -1234,7 +1232,7 @@ namespace Kernel
 			return BAN::Error::from_errno(EPERM);
 		}
 
-		TRY(inode->chmod(mode));
+		TRY(inode->chmod(mode & ~S_IFMASK));
 
 		return 0;
 	}
