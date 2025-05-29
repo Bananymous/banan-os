@@ -94,6 +94,7 @@ __BEGIN_DECLS
 	O(SYS_FSYNC,			fsync)			\
 	O(SYS_SYMLINKAT,		symlinkat)		\
 	O(SYS_HARDLINKAT,		hardlinkat)		\
+	O(SYS_UTIMENSAT,		utimensat)		\
 	O(SYS_YIELD,			yield)			\
 	O(SYS_SET_TLS,			set_tls)		\
 	O(SYS_GET_TLS,			get_tls)		\

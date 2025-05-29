@@ -53,3 +53,13 @@ int mkdir(const char* path, mode_t mode)
 {
 	return syscall(SYS_CREATE_DIR, path, __UMASKED_MODE(mode));
 }
+
+int futimens(int fd, const struct timespec times[2])
+{
+	return utimensat(fd, nullptr, times, 0);
+}
+
+int utimensat(int fd, const char* path, const struct timespec times[2], int flag)
+{
+	return syscall(SYS_UTIMENSAT, fd, path, times, flag);
+}

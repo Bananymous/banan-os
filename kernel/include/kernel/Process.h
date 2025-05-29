@@ -116,6 +116,7 @@ namespace Kernel
 
 		BAN::ErrorOr<long> sys_fchmodat(int fd, const char* path, mode_t mode, int flag);
 		BAN::ErrorOr<long> sys_fchownat(int fd, const char* path, uid_t uid, gid_t gid, int flag);
+		BAN::ErrorOr<long> sys_utimensat(int fd, const char* path, const struct timespec times[2], int flag);
 
 		BAN::ErrorOr<long> sys_socket(int domain, int type, int protocol);
 		BAN::ErrorOr<long> sys_socketpair(int domain, int type, int protocol, int socket_vector[2]);

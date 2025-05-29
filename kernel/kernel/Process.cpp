@@ -1262,6 +1262,56 @@ namespace Kernel
 		return 0;
 	}
 
+	BAN::ErrorOr<long> Process::sys_utimensat(int fd, const char* path, const struct timespec _times[2], int flag)
+	{
+		if (flag & ~AT_SYMLINK_NOFOLLOW)
+			return BAN::Error::from_errno(EINVAL);
+		if (flag == AT_SYMLINK_NOFOLLOW)
+			flag = O_NOFOLLOW;
+
+		timespec times[2];
+		const uint64_t current_ns = SystemTimer::get().ns_since_boot();
+		times[0] = times[1] = timespec {
+			.tv_sec = static_cast<time_t>(current_ns / 1'000'000),
+			.tv_nsec = static_cast<long>(current_ns % 1'000'000),
+		};
+
+		if (_times)
+		{
+			LockGuard _(m_process_lock);
+			TRY(validate_pointer_access(_times, sizeof(timespec) * 2, false));
+			if (_times[0].tv_nsec != UTIME_NOW)
+			{
+				times[0] = _times[0];
+				if (auto ns = times[0].tv_nsec; ns != UTIME_OMIT && (ns < 0 || ns >= 1'000'000'000))
+					return BAN::Error::from_errno(EINVAL);
+			}
+			if (_times[1].tv_nsec != UTIME_NOW)
+			{
+				times[1] = _times[1];
+				if (auto ns = times[1].tv_nsec; ns != UTIME_OMIT && (ns < 0 || ns >= 1'000'000'000))
+					return BAN::Error::from_errno(EINVAL);
+			}
+		}
+
+		if (times[0].tv_nsec == UTIME_OMIT && times[1].tv_nsec == UTIME_OMIT)
+			return 0;
+
+		LockGuard _(m_process_lock);
+
+		auto inode = TRY(find_file(fd, path, flag)).inode;
+
+		if (!m_credentials.is_superuser() && inode->uid() != m_credentials.euid())
+		{
+			dwarnln("cannot chmod uid {} vs {}", inode->uid(), m_credentials.euid());
+			return BAN::Error::from_errno(EPERM);
+		}
+
+		TRY(inode->utimens(times));
+
+		return 0;
+	}
+
 	BAN::ErrorOr<long> Process::sys_socket(int domain, int type, int protocol)
 	{
 		LockGuard _(m_process_lock);

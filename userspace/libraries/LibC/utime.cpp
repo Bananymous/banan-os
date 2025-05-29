@@ -1,11 +1,20 @@
-#include <utime.h>
+#include <fcntl.h>
 #include <sys/stat.h>
-#include <stdio.h>
+#include <utime.h>
 
 int utime(const char* filename, const struct utimbuf* times)
 {
-	fprintf(stddbg, "TODO: utime(\"%s\", %p)\n", filename, times);
-
-	struct stat st;
-	return stat(filename, &st);
+	if (times == nullptr)
+		return utimensat(AT_FDCWD, filename, nullptr, 0);
+	const timespec times_ts[2] {
+		timespec {
+			.tv_sec = times->actime,
+			.tv_nsec = 0,
+		},
+		timespec {
+			.tv_sec = times->modtime,
+			.tv_nsec = 0,
+		},
+	};
+	return utimensat(AT_FDCWD, filename, times_ts, 0);
 }

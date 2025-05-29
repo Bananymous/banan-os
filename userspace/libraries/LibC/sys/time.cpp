@@ -1,3 +1,4 @@
+#include <fcntl.h>
 #include <sys/syscall.h>
 #include <sys/time.h>
 #include <time.h>
@@ -25,4 +26,21 @@ int getitimer(int which, struct itimerval* value)
 int setitimer(int which, const struct itimerval* __restrict value, struct itimerval* __restrict ovalue)
 {
 	return syscall(SYS_SETITIMER, which, value, ovalue);
+}
+
+int utimes(const char* path, const struct timeval times[2])
+{
+	if (times == nullptr)
+		return utimensat(AT_FDCWD, path, nullptr, 0);
+	const timespec times_ts[2] {
+		timespec {
+			.tv_sec = times[0].tv_sec,
+			.tv_nsec = times[0].tv_usec * 1000,
+		},
+		timespec {
+			.tv_sec = times[1].tv_sec,
+			.tv_nsec = times[1].tv_usec * 1000,
+		},
+	};
+	return utimensat(AT_FDCWD, path, times_ts, 0);
 }

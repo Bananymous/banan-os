@@ -46,6 +46,7 @@ namespace Kernel
 		virtual BAN::ErrorOr<size_t> write_impl(off_t, BAN::ConstByteSpan) override;
 		virtual BAN::ErrorOr<void> truncate_impl(size_t) override;
 		virtual BAN::ErrorOr<void> chmod_impl(mode_t) override;
+		virtual BAN::ErrorOr<void> utimens_impl(const timespec[2]) override;
 		virtual BAN::ErrorOr<void> fsync_impl() override;
 
 		virtual bool can_read_impl() const override { return true; }

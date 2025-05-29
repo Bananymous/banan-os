@@ -47,6 +47,8 @@ namespace Kernel
 	protected:
 		TmpInode(TmpFileSystem&, ino_t, const TmpInodeInfo&);
 
+		virtual BAN::ErrorOr<void> chmod_impl(mode_t) override;
+		virtual BAN::ErrorOr<void> utimens_impl(const timespec[2]) override;
 		virtual BAN::ErrorOr<void> fsync_impl() override { return {}; }
 
 		void sync();
@@ -75,7 +77,6 @@ namespace Kernel
 		virtual BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan) override;
 		virtual BAN::ErrorOr<size_t> write_impl(off_t, BAN::ConstByteSpan) override;
 		virtual BAN::ErrorOr<void> truncate_impl(size_t) override;
-		virtual BAN::ErrorOr<void> chmod_impl(mode_t) override;
 
 		virtual bool can_read_impl() const override { return true; }
 		virtual bool can_write_impl() const override { return true; }
@@ -98,7 +99,6 @@ namespace Kernel
 		virtual BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan) override { return BAN::Error::from_errno(ENODEV); }
 		virtual BAN::ErrorOr<size_t> write_impl(off_t, BAN::ConstByteSpan) override { return BAN::Error::from_errno(ENODEV); }
 		virtual BAN::ErrorOr<void> truncate_impl(size_t) override { return BAN::Error::from_errno(ENODEV); }
-		virtual BAN::ErrorOr<void> chmod_impl(mode_t) override;
 
 		virtual bool can_read_impl() const override { return false; }
 		virtual bool can_write_impl() const override { return false; }

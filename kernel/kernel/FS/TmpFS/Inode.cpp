@@ -2,6 +2,8 @@
 #include <kernel/FS/TmpFS/Inode.h>
 #include <kernel/Timer/Timer.h>
 
+#include <sys/stat.h>
+
 namespace Kernel
 {
 
@@ -88,6 +90,23 @@ namespace Kernel
 		}
 		free_all_blocks();
 		m_fs.delete_inode(ino());
+	}
+
+	BAN::ErrorOr<void> TmpInode::chmod_impl(mode_t new_mode)
+	{
+		ASSERT(!(new_mode & Mode::TYPE_MASK));
+		m_inode_info.mode &= ~Mode::TYPE_MASK;
+		m_inode_info.mode |= new_mode;
+		return {};
+	}
+
+	BAN::ErrorOr<void> TmpInode::utimens_impl(const timespec times[2])
+	{
+		if (times[0].tv_nsec != UTIME_OMIT)
+			m_inode_info.atime = times[0];
+		if (times[1].tv_nsec != UTIME_OMIT)
+			m_inode_info.atime = times[1];
+		return {};
 	}
 
 	void TmpInode::sync()
@@ -219,12 +238,6 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<void> TmpFileInode::chmod_impl(mode_t new_mode)
-	{
-		m_inode_info.mode = new_mode;
-		return {};
-	}
-
 	/* SOCKET INODE */
 	BAN::ErrorOr<BAN::RefPtr<TmpSocketInode>> TmpSocketInode::create_new(TmpFileSystem& fs, mode_t mode, uid_t uid, gid_t gid)
 	{
@@ -246,12 +259,6 @@ namespace Kernel
 
 	TmpSocketInode::~TmpSocketInode()
 	{
-	}
-
-	BAN::ErrorOr<void> TmpSocketInode::chmod_impl(mode_t new_mode)
-	{
-		m_inode_info.mode = new_mode;
-		return {};
 	}
 
 	/* SYMLINK INODE */

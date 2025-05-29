@@ -231,6 +231,12 @@ namespace Kernel
 		return chown_impl(uid, gid);
 	}
 
+	BAN::ErrorOr<void> Inode::utimens(const timespec times[2])
+	{
+		LockGuard _(m_mutex);
+		return utimens_impl(times);
+	}
+
 	BAN::ErrorOr<void> Inode::fsync()
 	{
 		LockGuard _(m_mutex);

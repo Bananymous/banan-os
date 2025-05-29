@@ -4,6 +4,8 @@
 #include <kernel/FS/Ext2/Inode.h>
 #include <kernel/Timer/Timer.h>
 
+#include <sys/stat.h>
+
 namespace Kernel
 {
 
@@ -281,6 +283,28 @@ namespace Kernel
 		if (auto ret = sync(); ret.is_error())
 		{
 			m_inode.mode = old_mode;
+			return ret.release_error();
+		}
+
+		return {};
+	}
+
+	BAN::ErrorOr<void> Ext2Inode::utimens_impl(const timespec times[2])
+	{
+		const uint32_t old_times[2] {
+			m_inode.atime,
+			m_inode.mtime,
+		};
+
+		if (times[0].tv_nsec != UTIME_OMIT)
+			m_inode.atime = times[0].tv_sec;
+		if (times[1].tv_nsec != UTIME_OMIT)
+			m_inode.mtime = times[1].tv_sec;
+
+		if (auto ret = sync(); ret.is_error())
+		{
+			m_inode.atime = old_times[0];
+			m_inode.mtime = old_times[1];
 			return ret.release_error();
 		}
 
