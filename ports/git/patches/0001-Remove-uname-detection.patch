@@ -1,0 +1,20 @@
+diff -ruN git-2.47.1/config.mak.uname git-2.47.1-banan_os/config.mak.uname
+--- git-2.47.1/config.mak.uname	2024-11-25 07:39:52.000000000 +0200
++++ git-2.47.1-banan_os/config.mak.uname	2024-12-02 01:53:34.932537958 +0200
+@@ -4,11 +4,11 @@
+ # Microsoft's Safe Exception Handling in libraries (such as zlib).
+ # Typically required for VS2013+/32-bit compilation on Vista+ versions.
+ 
+-uname_S := $(shell sh -c 'uname -s 2>/dev/null || echo not')
+-uname_M := $(shell sh -c 'uname -m 2>/dev/null || echo not')
+-uname_O := $(shell sh -c 'uname -o 2>/dev/null || echo not')
+-uname_R := $(shell sh -c 'uname -r 2>/dev/null || echo not')
+-uname_V := $(shell sh -c 'uname -v 2>/dev/null || echo not')
++uname_S := not
++uname_M := not
++uname_O := not
++uname_R := not
++uname_V := not
+ 
+ ifneq ($(findstring MINGW,$(uname_S)),)
+ 	uname_S := MINGW
