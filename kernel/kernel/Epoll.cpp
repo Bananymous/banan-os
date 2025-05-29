@@ -60,6 +60,8 @@ namespace Kernel
 
 		for (;;)
 		{
+			bool failed_lock = false;
+
 			{
 				LockGuard _(m_mutex);
 				for (auto it = m_ready_events.begin(); it != m_ready_events.end() && count < event_span.size();)
@@ -70,6 +72,14 @@ namespace Kernel
 					const uint32_t listen_mask = (listen.events & (EPOLLIN | EPOLLOUT)) | EPOLLERR | EPOLLHUP;
 
 					events &= listen_mask;
+
+					// This prevents a possible deadlock
+					if (!inode->m_mutex.try_lock())
+					{
+						failed_lock = true;
+						continue;
+					}
+
 #define CHECK_EVENT_BIT(mask, func) \
 					if ((events & mask) && !inode->func()) \
 						events &= ~mask;
@@ -78,6 +88,8 @@ namespace Kernel
 					CHECK_EVENT_BIT(EPOLLERR, has_error);
 					CHECK_EVENT_BIT(EPOLLHUP, has_hungup);
 #undef CHECK_EVENT_BIT
+
+					inode->m_mutex.unlock();
 
 					if (events == 0)
 					{
@@ -107,6 +119,8 @@ namespace Kernel
 			const uint64_t current_ns = SystemTimer::get().ns_since_boot();
 			if (current_ns >= waketime_ns)
 				break;
+			if (failed_lock)
+				continue;
 			const uint64_t timeout_ns = BAN::Math::min<uint64_t>(100'000'000, waketime_ns - current_ns);
 			TRY(Thread::current().block_or_eintr_or_timeout_ns(m_thread_blocker, timeout_ns, false));
 		}
