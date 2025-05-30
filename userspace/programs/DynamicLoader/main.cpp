@@ -928,7 +928,6 @@ static LoadedElf& load_elf(const char* path, int fd)
 			case PT_GNU_EH_FRAME:
 			case PT_GNU_STACK:
 			case PT_GNU_RELRO:
-				print(STDDBG_FILENO, "TODO: PT_GNU_*\n");
 				break;
 			case PT_TLS:
 				tls_header = program_header;
