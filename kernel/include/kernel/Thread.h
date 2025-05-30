@@ -101,6 +101,10 @@ namespace Kernel
 		void save_sse();
 		void load_sse();
 
+		void add_spinlock() { m_spinlock_count++; }
+		void remove_spinlock() { m_spinlock_count--; }
+		bool has_spinlock() const { return !!m_spinlock_count; }
+
 		void add_mutex() { m_mutex_count++; }
 		void remove_mutex() { m_mutex_count--; }
 
@@ -137,6 +141,7 @@ namespace Kernel
 		SpinLock                   m_signal_lock;
 		static_assert(_SIGMAX < 64);
 
+		BAN::Atomic<uint32_t>      m_spinlock_count       { 0 };
 		BAN::Atomic<uint32_t>      m_mutex_count          { 0 };
 
 		alignas(16) uint8_t m_sse_storage[512] {};

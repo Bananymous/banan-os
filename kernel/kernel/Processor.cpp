@@ -337,6 +337,8 @@ namespace Kernel
 		auto state = get_interrupt_state();
 		set_interrupt_state(InterruptState::Disabled);
 
+		ASSERT(!Thread::current().has_spinlock());
+
 		auto& processor_info = s_processors[current_id().as_u32()];
 
 		{

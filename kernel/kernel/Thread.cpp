@@ -140,6 +140,8 @@ namespace Kernel
 
 	pid_t Thread::current_tid()
 	{
+		if (Processor::count() == 0)
+			return 0;
 		return Processor::scheduler().current_tid();
 	}
 

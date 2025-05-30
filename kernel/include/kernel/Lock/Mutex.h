@@ -88,6 +88,8 @@ namespace Kernel
 		void lock()
 		{
 			const auto tid = Thread::current_tid();
+			ASSERT(!tid || !Thread::current().has_spinlock());
+
 			if (tid == m_locker)
 				ASSERT(m_lock_depth > 0);
 			else
@@ -111,6 +113,8 @@ namespace Kernel
 		bool try_lock()
 		{
 			const auto tid = Thread::current_tid();
+			ASSERT(!tid || !Thread::current().has_spinlock());
+
 			if (tid == m_locker)
 				ASSERT(m_lock_depth > 0);
 			else
