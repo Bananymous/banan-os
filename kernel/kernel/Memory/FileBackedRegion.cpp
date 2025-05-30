@@ -27,9 +27,7 @@ namespace Kernel
 			TRY(region->m_dirty_pages.resize(BAN::Math::div_round_up<size_t>(size, PAGE_SIZE)));
 
 		LockGuard _(inode->m_mutex);
-		if (inode->m_shared_region.valid())
-			region->m_shared_data = inode->m_shared_region.lock();
-		else
+		if (!(region->m_shared_data = inode->m_shared_region.lock()))
 		{
 			auto shared_data = TRY(BAN::RefPtr<SharedFileData>::create());
 			TRY(shared_data->pages.resize(BAN::Math::div_round_up<size_t>(inode->size(), PAGE_SIZE)));
