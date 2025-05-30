@@ -1,10 +1,12 @@
 #pragma once
 
+#include <BAN/Array.h>
 #include <BAN/CircularQueue.h>
 #include <BAN/HashMap.h>
 #include <BAN/HashSet.h>
 #include <kernel/FS/Inode.h>
 
+#include <limits.h>
 #include <sys/epoll.h>
 
 namespace Kernel
@@ -16,7 +18,7 @@ namespace Kernel
 		static BAN::ErrorOr<BAN::RefPtr<Epoll>> create();
 		~Epoll();
 
-		BAN::ErrorOr<void> ctl(int op, BAN::RefPtr<Inode> inode, epoll_event event);
+		BAN::ErrorOr<void> ctl(int op, int fd, BAN::RefPtr<Inode> inode, epoll_event event);
 		BAN::ErrorOr<size_t> wait(BAN::Span<epoll_event> events, uint64_t waketime_ns);
 
 		void notify(BAN::RefPtr<Inode> inode, uint32_t event);
@@ -59,10 +61,45 @@ namespace Kernel
 			}
 		};
 
+		struct ListenEventList
+		{
+			BAN::Array<epoll_event, OPEN_MAX> events;
+			uint32_t bitmap[(OPEN_MAX + 31) / 32] {};
+
+			bool has_fd(int fd) const
+			{
+				if (fd < 0 || static_cast<size_t>(fd) >= events.size())
+					return false;
+				return bitmap[fd / 32] & (1u << (fd % 32));
+			}
+
+			bool empty() const
+			{
+				for (auto val : bitmap)
+					if (val != 0)
+						return false;
+				return true;
+			}
+
+			void add_fd(int fd, epoll_event event)
+			{
+				ASSERT(!has_fd(fd));
+				bitmap[fd / 32] |= (1u << (fd % 32));
+				events[fd] = event;
+			}
+
+			void remove_fd(int fd)
+			{
+				ASSERT(has_fd(fd));
+				bitmap[fd / 32] &= ~(1u << (fd % 32));
+				events[fd] = {};
+			}
+		};
+
 	private:
 		ThreadBlocker m_thread_blocker;
-		BAN::HashMap<BAN::RefPtr<Inode>, uint32_t,    InodeRefPtrHash> m_ready_events;
-		BAN::HashMap<BAN::RefPtr<Inode>, epoll_event, InodeRefPtrHash> m_listening_events;
+		BAN::HashMap<BAN::RefPtr<Inode>, uint32_t,        InodeRefPtrHash> m_ready_events;
+		BAN::HashMap<BAN::RefPtr<Inode>, ListenEventList, InodeRefPtrHash> m_listening_events;
 	};
 
 }

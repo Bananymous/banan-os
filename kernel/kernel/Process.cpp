@@ -1583,7 +1583,7 @@ namespace Kernel
 		}
 
 		auto epoll = TRY(Epoll::create());
-		for (int fd = 0; fd < user_arguments->nfds; fd++)
+		for (int fd = 0; fd < arguments.nfds; fd++)
 		{
 			uint32_t events = 0;
 			if (arguments.readfds && FD_ISSET(fd, arguments.readfds))
@@ -1599,11 +1599,11 @@ namespace Kernel
 			if (inode_or_error.is_error())
 				continue;
 
-			TRY(epoll->ctl(EPOLL_CTL_ADD, inode_or_error.release_value(), { .events = events, .data = { .fd = fd }}));
+			TRY(epoll->ctl(EPOLL_CTL_ADD, fd, inode_or_error.release_value(), { .events = events, .data = { .fd = fd }}));
 		}
 
 		BAN::Vector<epoll_event> event_buffer;
-		TRY(event_buffer.resize(user_arguments->nfds));
+		TRY(event_buffer.resize(arguments.nfds));
 
 		const size_t waited_events = TRY(epoll->wait(event_buffer.span(), waketime_ns));
 
@@ -1663,7 +1663,7 @@ namespace Kernel
 			event = *user_event;
 		}
 
-		TRY(static_cast<Epoll*>(epoll_inode.ptr())->ctl(op, inode, event));
+		TRY(static_cast<Epoll*>(epoll_inode.ptr())->ctl(op, fd, inode, event));
 
 		return 0;
 	}

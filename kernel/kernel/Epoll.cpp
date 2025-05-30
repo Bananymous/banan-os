@@ -19,7 +19,7 @@ namespace Kernel
 			inode->del_epoll(this);
 	}
 
-	BAN::ErrorOr<void> Epoll::ctl(int op, BAN::RefPtr<Inode> inode, epoll_event event)
+	BAN::ErrorOr<void> Epoll::ctl(int op, int fd, BAN::RefPtr<Inode> inode, epoll_event event)
 	{
 		LockGuard _(m_mutex);
 
@@ -28,27 +28,51 @@ namespace Kernel
 		switch (op)
 		{
 			case EPOLL_CTL_ADD:
-				if (it != m_listening_events.end())
+			{
+				if (it == m_listening_events.end())
+					it = TRY(m_listening_events.emplace(inode));
+				if (it->value.has_fd(fd))
 					return BAN::Error::from_errno(EEXIST);
-				TRY(m_listening_events.reserve(m_listening_events.size() + 1));
-				TRY(m_ready_events.reserve(m_listening_events.size() + 1));
+				TRY(m_ready_events.reserve(m_listening_events.size()));
 				TRY(inode->add_epoll(this));
-				MUST(m_listening_events.insert(inode, event));
-				MUST(m_ready_events.insert(inode, event.events));
+				it->value.add_fd(fd, event);
+
+				auto ready_it = m_ready_events.find(inode);
+				if (ready_it == m_ready_events.end())
+					ready_it = MUST(m_ready_events.insert(inode, 0));
+				ready_it->value |= event.events;
+
 				return {};
+			}
 			case EPOLL_CTL_MOD:
+			{
 				if (it == m_listening_events.end())
 					return BAN::Error::from_errno(ENOENT);
-				MUST(m_ready_events.emplace_or_assign(inode, event.events));
-				it->value = event;
+				if (!it->value.has_fd(fd))
+					return BAN::Error::from_errno(ENOENT);
+				it->value.events[fd] = event;
+
+				auto ready_it = m_ready_events.find(inode);
+				if (ready_it == m_ready_events.end())
+					ready_it = MUST(m_ready_events.insert(inode, 0));
+				ready_it->value |= event.events;
+
 				return {};
+			}
 			case EPOLL_CTL_DEL:
+			{
 				if (it == m_listening_events.end())
 					return BAN::Error::from_errno(ENOENT);
-				m_listening_events.remove(it);
-				m_ready_events.remove(inode);
-				inode->del_epoll(this);
+				if (!it->value.has_fd(fd))
+					return BAN::Error::from_errno(ENOENT);
+				it->value.remove_fd(fd);
+				if (it->value.empty())
+				{
+					m_listening_events.remove(it);
+					m_ready_events.remove(inode);
+				}
 				return {};
+			}
 		}
 
 		return BAN::Error::from_errno(EINVAL);
@@ -56,6 +80,9 @@ namespace Kernel
 
 	BAN::ErrorOr<size_t> Epoll::wait(BAN::Span<epoll_event> event_span, uint64_t waketime_ns)
 	{
+		if (event_span.empty())
+			return BAN::Error::from_errno(EINVAL);
+
 		size_t count = 0;
 
 		for (;;)
@@ -64,13 +91,17 @@ namespace Kernel
 
 			{
 				LockGuard _(m_mutex);
+
 				for (auto it = m_ready_events.begin(); it != m_ready_events.end() && count < event_span.size();)
 				{
 					auto& [inode, events] = *it;
 
 					auto& listen = m_listening_events[inode];
-					const uint32_t listen_mask = (listen.events & (EPOLLIN | EPOLLOUT)) | EPOLLERR | EPOLLHUP;
 
+					uint32_t listen_mask = EPOLLERR | EPOLLHUP;
+					for (int fd = 0; fd < OPEN_MAX; fd++)
+						if (listen.has_fd(fd))
+							listen_mask |= listen.events[fd].events;
 					events &= listen_mask;
 
 					// This prevents a possible deadlock
@@ -98,16 +129,27 @@ namespace Kernel
 						continue;
 					}
 
-					event_span[count++] = {
-						.events = events,
-						.data = listen.data,
-					};
+					for (int fd = 0; fd < OPEN_MAX && count < event_span.size(); fd++)
+					{
+						if (!listen.has_fd(fd))
+							continue;
+						auto& listen_event = listen.events[fd];
 
-					if (listen.events & EPOLLONESHOT)
-						listen.events = 0;
+						const auto new_events = listen_event.events & events;
+						if (new_events == 0)
+							continue;
 
-					if (listen.events & EPOLLET)
-						events &= ~listen_mask;
+						event_span[count++] = {
+							.events = new_events,
+							.data = listen_event.data,
+						};
+
+						if (listen_event.events & EPOLLONESHOT)
+							listen_event.events = 0;
+						// this doesn't work with multiple of the same inode
+						if (listen_event.events & EPOLLET)
+							events &= ~new_events;
+					}
 
 					it++;
 				}
@@ -132,18 +174,13 @@ namespace Kernel
 	{
 		LockGuard _(m_mutex);
 
-		auto listen_it = m_listening_events.find(inode);
-		if (listen_it == m_listening_events.end())
+		if (!m_listening_events.contains(inode))
 			return;
 
-		event &= (listen_it->value.events & (EPOLLIN | EPOLLOUT)) | EPOLLERR | EPOLLHUP;
-		if (event == 0)
-			return;
-
-		if (auto ready_it = m_ready_events.find(inode); ready_it != m_ready_events.end())
-			ready_it->value |= event;
-		else
-			MUST(m_ready_events.insert(inode, event));
+		auto ready_it = m_ready_events.find(inode);
+		if (ready_it == m_ready_events.end())
+			ready_it = MUST(m_ready_events.insert(inode, 0));
+		ready_it->value |= event;
 
 		m_thread_blocker.unblock();
 	}
