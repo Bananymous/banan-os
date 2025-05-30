@@ -66,18 +66,11 @@ namespace Kernel
 		return makedev(DeviceNumber::TTY, s_minor++);
 	}
 
-	TTY::TTY(mode_t mode, uid_t uid, gid_t gid)
+	TTY::TTY(termios termios, mode_t mode, uid_t uid, gid_t gid)
 		: CharacterDevice(mode, uid, gid)
+		, m_termios(termios)
 		, m_rdev(next_tty_rdev())
-	{
-		// FIXME: add correct baud and flags
-		m_termios.c_iflag = 0;
-		m_termios.c_oflag = 0;
-		m_termios.c_cflag = CS8;
-		m_termios.c_lflag = ECHO | ICANON;
-		m_termios.c_ospeed = B38400;
-		m_termios.c_ispeed = B38400;
-	}
+	{ }
 
 	BAN::RefPtr<TTY> TTY::current()
 	{
@@ -228,6 +221,17 @@ namespace Kernel
 
 		LockGuard _(m_mutex);
 
+		if ((m_termios.c_iflag & ISTRIP))
+			ch &= 0x7F;
+		if ((m_termios.c_iflag & IGNCR) && ch == '\r')
+			return;
+		uint8_t conv = ch;
+		if ((m_termios.c_iflag & ICRNL) && ch == '\r')
+			conv = '\n';
+		if ((m_termios.c_iflag & INLCR) && ch == '\n')
+			conv = '\r';
+		ch = conv;
+
 		// ^C
 		if (ch == '\x03')
 		{
@@ -251,6 +255,10 @@ namespace Kernel
 			do_backspace();
 			return;
 		}
+
+		// FIXME: don't ignore these bytes
+		if (m_output.bytes >= m_output.buffer.size())
+			return;
 
 		m_output.buffer[m_output.bytes++] = ch;
 
@@ -280,7 +288,7 @@ namespace Kernel
 			}
 		}
 
-		if (ch == '\n' || !(m_termios.c_lflag & ICANON))
+		if (ch == '\n' || !(m_termios.c_lflag & ICANON) || m_output.bytes == m_output.buffer.size())
 		{
 			m_output.flush = true;
 			epoll_notify(EPOLLIN);
@@ -334,9 +342,16 @@ namespace Kernel
 	bool TTY::putchar(uint8_t ch)
 	{
 		SpinLockGuard _(m_write_lock);
-		if (m_tty_ctrl.draw_graphics)
-			return putchar_impl(ch);
-		return true;
+		if (!m_tty_ctrl.draw_graphics)
+			return true;
+		if (m_termios.c_oflag & OPOST)
+		{
+			if ((m_termios.c_oflag & ONLCR) && ch == '\n')
+				return putchar_impl('\r') && putchar_impl('\n');
+			if ((m_termios.c_oflag & OCRNL) && ch == '\r')
+				return putchar_impl('\n');
+		}
+		return putchar_impl(ch);
 	}
 
 	BAN::ErrorOr<size_t> TTY::read_impl(off_t, BAN::ByteSpan buffer)
@@ -353,7 +368,13 @@ namespace Kernel
 			return 0;
 		}
 
-		size_t to_copy = BAN::Math::min<size_t>(buffer.size(), m_output.bytes);
+		const size_t max_to_copy = BAN::Math::min<size_t>(buffer.size(), m_output.bytes);
+		size_t to_copy = max_to_copy;
+		if (m_termios.c_lflag & ICANON)
+			for (to_copy = 1; to_copy < max_to_copy; to_copy++)
+				if (m_output.buffer[to_copy - 1] == '\n')
+					break;
+
 		memcpy(buffer.data(), m_output.buffer.data(), to_copy);
 
 		memmove(m_output.buffer.data(), m_output.buffer.data() + to_copy, m_output.bytes - to_copy);

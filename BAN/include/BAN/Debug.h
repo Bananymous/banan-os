@@ -14,7 +14,7 @@
 #define dprintln(...)											\
 	do {														\
 		BAN::Formatter::print(__debug_putchar, __VA_ARGS__);	\
-		BAN::Formatter::print(__debug_putchar,"\r\n");			\
+		BAN::Formatter::print(__debug_putchar,"\n");			\
 		fflush(stddbg);											\
 	} while (false)
 
@@ -22,7 +22,7 @@
 	do {														\
 		BAN::Formatter::print(__debug_putchar, "\e[33m");		\
 		BAN::Formatter::print(__debug_putchar, __VA_ARGS__);	\
-		BAN::Formatter::print(__debug_putchar, "\e[m\r\n");		\
+		BAN::Formatter::print(__debug_putchar, "\e[m\n");		\
 		fflush(stddbg);											\
 	} while(false)
 
@@ -30,7 +30,7 @@
 	do {														\
 		BAN::Formatter::print(__debug_putchar, "\e[31m");		\
 		BAN::Formatter::print(__debug_putchar, __VA_ARGS__);	\
-		BAN::Formatter::print(__debug_putchar, "\e[m\r\n");		\
+		BAN::Formatter::print(__debug_putchar, "\e[m\n");		\
 		fflush(stddbg);											\
 	} while(false)
 

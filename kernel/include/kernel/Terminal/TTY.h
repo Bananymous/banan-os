@@ -57,7 +57,7 @@ namespace Kernel
 		virtual bool has_hungup_impl() const override { return false; }
 
 	protected:
-		TTY(mode_t mode, uid_t uid, gid_t gid);
+		TTY(termios termios, mode_t mode, uid_t uid, gid_t gid);
 
 		virtual bool putchar_impl(uint8_t ch) = 0;
 		virtual void update_cursor() {}

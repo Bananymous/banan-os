@@ -170,7 +170,15 @@ namespace Kernel
 	}
 
 	SerialTTY::SerialTTY(Serial serial)
-		: TTY(0600, 0, 0)
+		: TTY({
+			.c_iflag = ICRNL,
+			.c_oflag = OPOST | ONLCR,
+			.c_cflag = CS8,
+			.c_lflag = ECHO | ICANON,
+			.c_cc = {},
+			.c_ospeed = B38400,
+			.c_ispeed = B38400,
+		  }, 0600, 0, 0)
 		, m_name(MUST(BAN::String::formatted("ttyS{}", s_next_tty_number++)))
 		, m_serial(serial)
 	{}
@@ -235,8 +243,6 @@ namespace Kernel
 			while (!m_input.empty())
 			{
 				*ptr = m_input.front();
-				if (*ptr == '\r')
-					*ptr = '\n';
 				m_input.pop();
 				ptr++;
 			}

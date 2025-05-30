@@ -36,7 +36,15 @@ namespace Kernel
 	}
 
 	VirtualTTY::VirtualTTY(BAN::RefPtr<TerminalDriver> driver)
-		: TTY(0600, 0, 0)
+		: TTY({
+			.c_iflag = 0,
+			.c_oflag = 0,
+			.c_cflag = CS8,
+			.c_lflag = ECHO | ICANON,
+			.c_cc = {},
+			.c_ospeed = B38400,
+			.c_ispeed = B38400,
+		  }, 0600, 0, 0)
 		, m_name(MUST(BAN::String::formatted("tty{}", s_next_tty_number++)))
 		, m_terminal_driver(driver)
 		, m_palette(driver->palette())
