@@ -415,12 +415,35 @@ namespace Kernel::PCI
 		const uint8_t irq = get_interrupt(index);
 		interruptable.set_irq(irq);
 
+		const auto disable_msi =
+			[this]()
+			{
+				if (!m_offset_msi.has_value())
+					return;
+				uint16_t msg_ctrl = read_word(*m_offset_msi + 0x02);
+				msg_ctrl &= ~(1u << 0);
+				write_word(*m_offset_msi + 0x02, msg_ctrl);
+			};
+
+		const auto disable_msi_x =
+			[this]()
+			{
+				if (!m_offset_msi_x.has_value())
+					return;
+				uint16_t msg_ctrl = read_word(*m_offset_msi_x + 0x02);
+				msg_ctrl &= ~(1u << 15); // Disable
+				write_word(*m_offset_msi_x + 0x02, msg_ctrl);
+			};
+
 		switch (m_interrupt_mechanism)
 		{
 			case InterruptMechanism::NONE:
 				ASSERT_NOT_REACHED();
 			case InterruptMechanism::PIN:
 				enable_pin_interrupts();
+				disable_msi();
+				disable_msi_x();
+
 				if (!InterruptController::get().is_using_apic())
 					write_byte(PCI_REG_IRQ_LINE, irq);
 				InterruptController::get().enable_irq(irq);
@@ -428,6 +451,7 @@ namespace Kernel::PCI
 			case InterruptMechanism::MSI:
 			{
 				disable_pin_interrupts();
+				disable_msi_x();
 
 				uint16_t msg_ctrl = read_word(*m_offset_msi + 0x02);
 				msg_ctrl &= ~(0x07 << 4);	// Only one interrupt
@@ -454,6 +478,7 @@ namespace Kernel::PCI
 			case InterruptMechanism::MSIX:
 			{
 				disable_pin_interrupts();
+				disable_msi();
 
 				uint16_t msg_ctrl = read_word(*m_offset_msi_x + 0x02);
 				msg_ctrl |= 1 << 15; // Enable
