@@ -88,17 +88,19 @@ namespace Kernel
 
 	bool PseudoTerminalMaster::putchar(uint8_t ch)
 	{
-		SpinLockGuard _(m_buffer_lock);
+		{
+			SpinLockGuard _(m_buffer_lock);
 
-		if (m_buffer_size >= m_buffer->size())
-			return false;
+			if (m_buffer_size >= m_buffer->size())
+				return false;
 
-		reinterpret_cast<uint8_t*>(m_buffer->vaddr())[(m_buffer_tail + m_buffer_size) % m_buffer->size()] = ch;
-		m_buffer_size++;
+			reinterpret_cast<uint8_t*>(m_buffer->vaddr())[(m_buffer_tail + m_buffer_size) % m_buffer->size()] = ch;
+			m_buffer_size++;
+
+			m_buffer_blocker.unblock();
+		}
 
 		epoll_notify(EPOLLIN);
-
-		m_buffer_blocker.unblock();
 
 		return true;
 	}
@@ -130,9 +132,9 @@ namespace Kernel
 		m_buffer_size -= to_copy;
 		m_buffer_tail = (m_buffer_tail + to_copy) % m_buffer->size();
 
-		epoll_notify(EPOLLOUT);
-
 		m_buffer_lock.unlock(state);
+
+		epoll_notify(EPOLLOUT);
 
 		return to_copy;
 	}

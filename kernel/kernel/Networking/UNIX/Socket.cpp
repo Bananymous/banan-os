@@ -281,10 +281,11 @@ namespace Kernel
 		if (!is_streaming())
 			m_packet_sizes.push(packet.size());
 
-		epoll_notify(EPOLLIN);
-
 		m_packet_thread_blocker.unblock();
 		m_packet_lock.unlock(state);
+
+		epoll_notify(EPOLLIN);
+
 		return {};
 	}
 
