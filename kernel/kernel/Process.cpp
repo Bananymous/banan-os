@@ -1628,6 +1628,113 @@ namespace Kernel
 		return waited_events;
 	}
 
+	BAN::ErrorOr<long> Process::sys_ppoll(pollfd* fds, nfds_t nfds, const timespec* timeout, const sigset_t* sigmask)
+	{
+		auto* fds_region = TRY(validate_and_pin_pointer_access(fds, nfds * sizeof(pollfd), true));
+		BAN::ScopeGuard _([fds_region] { if (fds_region) fds_region->unpin(); });
+
+		const auto old_sigmask = Thread::current().m_signal_block_mask;
+		if (sigmask)
+		{
+			LockGuard _(m_process_lock);
+			TRY(validate_pointer_access(sigmask, sizeof(sigset_t), false));
+			Thread::current().m_signal_block_mask = *sigmask;
+		}
+		BAN::ScopeGuard sigmask_restore([old_sigmask] { Thread::current().m_signal_block_mask = old_sigmask; });
+
+		uint64_t waketime_ns = BAN::numeric_limits<uint64_t>::max();
+		if (timeout)
+		{
+			LockGuard _(m_process_lock);
+			TRY(validate_pointer_access(timeout, sizeof(timespec), false));
+			waketime_ns =
+				SystemTimer::get().ns_since_boot() +
+				(timeout->tv_sec * 1'000'000'000) +
+				timeout->tv_nsec;
+		}
+
+		uint32_t events_per_fd[OPEN_MAX] {};
+		for (nfds_t i = 0; i < nfds; i++)
+		{
+			if (fds[i].fd < 0 || fds[i].fd >= OPEN_MAX)
+				continue;
+			events_per_fd[fds[i].fd] |= fds[i].events;
+		}
+
+		size_t fd_count = 0;
+
+		auto epoll = TRY(Epoll::create());
+		for (int fd = 0; fd < OPEN_MAX; fd++)
+		{
+			if (events_per_fd[fd] == 0)
+				continue;
+
+			auto inode_or_error = m_open_file_descriptors.inode_of(fd);
+			if (inode_or_error.is_error())
+				continue;
+
+			uint32_t events = 0;
+			if (events_per_fd[fd] & (POLLIN  | POLLRDNORM))
+				events |= EPOLLIN;
+			if (events_per_fd[fd] & (POLLOUT | POLLWRNORM))
+				events |= EPOLLOUT;
+			if (events_per_fd[fd] & POLLPRI)
+				events |= EPOLLPRI;
+			// POLLRDBAND
+			// POLLWRBAND
+
+			TRY(epoll->ctl(EPOLL_CTL_ADD, fd, inode_or_error.release_value(), { .events = events, .data = { .fd = fd }}));
+
+			fd_count++;
+		}
+
+		BAN::Vector<epoll_event> event_buffer;
+		TRY(event_buffer.resize(fd_count));
+
+		const size_t waited_events = TRY(epoll->wait(event_buffer.span(), waketime_ns));
+
+		size_t return_value = 0;
+		for (size_t i = 0; i < nfds; i++)
+		{
+			fds[i].revents = 0;
+
+			if (fds[i].fd < 0)
+				continue;
+
+			if (m_open_file_descriptors.inode_of(fds[i].fd).is_error())
+			{
+				fds[i].revents = POLLNVAL;
+				return_value++;
+				continue;
+			}
+
+			for (size_t j = 0; j < waited_events; j++)
+			{
+				if (fds[i].fd != event_buffer[j].data.fd)
+					continue;
+				const uint32_t wanted = fds[i].events;
+				const uint32_t got = event_buffer[j].events;
+				if (got & EPOLLIN)
+					fds[i].revents |= wanted & (POLLIN  | POLLRDNORM);
+				if (got & EPOLLOUT)
+					fds[i].revents |= wanted & (POLLOUT | POLLWRNORM);
+				if (got & EPOLLPRI)
+					fds[i].revents |= wanted & POLLPRI;
+				if (got & EPOLLERR)
+					fds[i].revents |= POLLERR;
+				if (got & EPOLLHUP)
+					fds[i].revents |= POLLHUP;
+				// POLLRDBAND
+				// POLLWRBAND
+				if (fds[i].revents)
+					return_value++;
+				break;
+			}
+		}
+
+		return return_value;
+	}
+
 	BAN::ErrorOr<long> Process::sys_epoll_create1(int flags)
 	{
 		if (flags && (flags & ~EPOLL_CLOEXEC))

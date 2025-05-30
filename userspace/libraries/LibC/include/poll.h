@@ -7,6 +7,8 @@
 
 __BEGIN_DECLS
 
+#include <signal.h>
+
 struct pollfd
 {
 	int		fd;			/* The following descriptor being polled. */
@@ -28,6 +30,7 @@ typedef unsigned long nfds_t;
 #define POLLNVAL	0x200
 
 int poll(struct pollfd fds[], nfds_t nfds, int timeout);
+int ppoll(struct pollfd fds[], nfds_t nfds, const struct timespec* timeout, const sigset_t* sigmask);
 
 __END_DECLS
 

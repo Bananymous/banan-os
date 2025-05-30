@@ -16,6 +16,7 @@
 #include <kernel/Terminal/TTY.h>
 #include <kernel/Thread.h>
 
+#include <poll.h>
 #include <sys/banan-os.h>
 #include <sys/mman.h>
 #include <sys/select.h>
@@ -135,6 +136,7 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_ioctl(int fildes, int request, void* arg);
 
 		BAN::ErrorOr<long> sys_pselect(sys_pselect_t* arguments);
+		BAN::ErrorOr<long> sys_ppoll(pollfd* fds, nfds_t nfds, const timespec* tmp_p, const sigset_t* sigmask);
 
 		BAN::ErrorOr<long> sys_epoll_create1(int flags);
 		BAN::ErrorOr<long> sys_epoll_ctl(int epfd, int op, int fd, struct epoll_event* event);
