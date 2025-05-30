@@ -146,9 +146,17 @@ namespace Kernel
 		auto sock_info = TRY(parse_socket_info(domain, type, protocol));
 		auto socket = TRY(NetworkManager::get().create_socket(sock_info.domain, sock_info.type, 0777, m_credentials.euid(), m_credentials.egid()));
 
+		auto socket_sv = "<socket>"_sv;
+		if (sock_info.domain == Socket::Domain::UNIX)
+			socket_sv = "<unix socket>"_sv;
+		else if (sock_info.type == Socket::Type::STREAM)
+			socket_sv = "<tcp socket>";
+		else if (sock_info.type == Socket::Type::DGRAM)
+			socket_sv = "<udp socket>";
+
 		LockGuard _(m_mutex);
 		int fd = TRY(get_free_fd());
-		m_open_files[fd].description = TRY(BAN::RefPtr<OpenFileDescription>::create(VirtualFileSystem::File(socket, "<socket>"_sv), 0, O_RDWR | sock_info.status_flags));
+		m_open_files[fd].description = TRY(BAN::RefPtr<OpenFileDescription>::create(VirtualFileSystem::File(socket, socket_sv), 0, O_RDWR | sock_info.status_flags));
 		m_open_files[fd].descriptor_flags = sock_info.descriptor_flags;
 		return fd;
 	}
