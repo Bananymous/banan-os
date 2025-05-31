@@ -2,6 +2,7 @@
 #include <BAN/Debug.h>
 
 #include <errno.h>
+#include <pthread.h>
 #include <sys/syscall.h>
 #include <termios.h>
 #include <unistd.h>
@@ -64,9 +65,19 @@ int cfsetospeed(struct termios* termios, speed_t speed)
 	return 0;
 }
 
-int tcdrain(int);
+int tcdrain(int fd)
+{
+	pthread_testcancel();
 
-int tcflow(int, int);
+	dwarnln("TODO: tcdrain({})", fd);
+	return 0;
+}
+
+int tcflow(int fd, int action)
+{
+	dwarnln("TODO: tcflow({}, {})", fd, action);
+	return -1;
+}
 
 int tcflush(int fd, int queue_selector)
 {
@@ -81,7 +92,11 @@ int tcgetattr(int fildes, struct termios* termios)
 
 pid_t tcgetsid(int);
 
-int tcsendbreak(int, int);
+int tcsendbreak(int fd, int duration)
+{
+	dwarnln("FIXME: tcsendbreak({}, {})", fd, duration);
+	return -1;
+}
 
 int tcsetattr(int fildes, int optional_actions, const struct termios* termios)
 {

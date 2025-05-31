@@ -1,9 +1,11 @@
+#include <pthread.h>
 #include <sys/select.h>
 #include <sys/syscall.h>
 #include <unistd.h>
 
 int pselect(int nfds, fd_set* __restrict readfds, fd_set* __restrict writefds, fd_set* __restrict errorfds, const struct timespec* __restrict timeout, const sigset_t* __restrict sigmask)
 {
+	pthread_testcancel();
 	sys_pselect_t arguments {
 		.nfds = nfds,
 		.readfds = readfds,
@@ -17,6 +19,7 @@ int pselect(int nfds, fd_set* __restrict readfds, fd_set* __restrict writefds, f
 
 int select(int nfds, fd_set* __restrict readfds, fd_set* __restrict writefds, fd_set* __restrict errorfds, struct timeval* __restrict timeout)
 {
+	pthread_testcancel();
 	timespec* pts = nullptr;
 	timespec ts;
 	if (timeout)

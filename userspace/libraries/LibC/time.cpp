@@ -4,6 +4,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <langinfo.h>
+#include <pthread.h>
 #include <string.h>
 #include <sys/syscall.h>
 #include <time.h>
@@ -20,6 +21,7 @@ int clock_gettime(clockid_t clock_id, struct timespec* tp)
 
 int nanosleep(const struct timespec* rqtp, struct timespec* rmtp)
 {
+	pthread_testcancel();
 	return syscall(SYS_NANOSLEEP, rqtp, rmtp);
 }
 

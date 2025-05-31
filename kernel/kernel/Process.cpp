@@ -351,8 +351,11 @@ namespace Kernel
 			.master_tls_addr = reinterpret_cast<void*>(master_addr),
 			.master_tls_size = master_size,
 			.cleanup_stack = nullptr,
-			.id = -1,
+			.id = 0,
 			.errno_ = 0,
+			.cancel_type = 0,
+			.cancel_state = 0,
+			.canceled = 0,
 		};
 		const uintptr_t dtv[2] { 1, region->vaddr() };
 

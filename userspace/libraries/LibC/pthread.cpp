@@ -48,8 +48,6 @@ extern "C" void _pthread_trampoline_cpp(void* arg)
 {
 	auto info = *reinterpret_cast<pthread_trampoline_info_t*>(arg);
 	info.uthread->id = syscall(SYS_PTHREAD_SELF);
-	info.uthread->errno_ = 0;
-	info.uthread->cleanup_stack = nullptr;
 	syscall(SYS_SET_TLS, info.uthread);
 	free(arg);
 	pthread_exit(info.start_routine(info.arg));
@@ -315,14 +313,6 @@ int pthread_attr_setstacksize(pthread_attr_t* attr, size_t stacksize)
 	return 0;
 }
 
-int pthread_setcancelstate(int state, int* oldstate)
-{
-	(void)state;
-	(void)oldstate;
-	dwarnln("TODO: pthread_setcancelstate");
-	return 0;
-}
-
 int pthread_create(pthread_t* __restrict thread_id, const pthread_attr_t* __restrict attr, void* (*start_routine)(void*), void* __restrict arg)
 {
 	auto* info = static_cast<pthread_trampoline_info_t*>(malloc(sizeof(pthread_trampoline_info_t)));
@@ -350,6 +340,9 @@ int pthread_create(pthread_t* __restrict thread_id, const pthread_attr_t* __rest
 			.cleanup_stack = nullptr,
 			.id = -1,
 			.errno_ = 0,
+			.cancel_type = PTHREAD_CANCEL_DEFERRED,
+			.cancel_state = PTHREAD_CANCEL_ENABLE,
+			.canceled = false,
 		};
 		uthread->dtv[0] = 0;
 
@@ -376,6 +369,9 @@ int pthread_create(pthread_t* __restrict thread_id, const pthread_attr_t* __rest
 			.cleanup_stack = nullptr,
 			.id = -1,
 			.errno_ = 0,
+			.cancel_type = PTHREAD_CANCEL_DEFERRED,
+			.cancel_state = PTHREAD_CANCEL_ENABLE,
+			.canceled = 0,
 		};
 
 		const uintptr_t self_addr = reinterpret_cast<uintptr_t>(self);
@@ -449,6 +445,7 @@ int pthread_equal(pthread_t t1, pthread_t t2)
 
 int pthread_join(pthread_t thread, void** value_ptr)
 {
+	pthread_testcancel();
 	return syscall(SYS_PTHREAD_JOIN, thread, value_ptr);
 }
 
@@ -471,6 +468,72 @@ int pthread_once(pthread_once_t* once_control, void (*init_routine)(void))
 	while (BAN::atomic_load(*once_control) != 2)
 		sched_yield();
 	return 0;
+}
+
+static void pthread_cancel_handler(int)
+{
+	uthread* uthread = _get_uthread();
+	BAN::atomic_store(uthread->canceled, true);
+	if (BAN::atomic_load(uthread->cancel_state) != PTHREAD_CANCEL_ENABLE)
+		return;
+	switch (BAN::atomic_load(uthread->cancel_type))
+	{
+		case PTHREAD_CANCEL_ASYNCHRONOUS:
+			pthread_exit(PTHREAD_CANCELED);
+		case PTHREAD_CANCEL_DEFERRED:
+			return;
+	}
+	ASSERT_NOT_REACHED();
+}
+
+int pthread_cancel(pthread_t thread)
+{
+	signal(SIGCANCEL, &pthread_cancel_handler);
+	return pthread_kill(thread, SIGCANCEL);
+}
+
+int pthread_setcancelstate(int state, int* oldstate)
+{
+	switch (state)
+	{
+		case PTHREAD_CANCEL_ENABLE:
+		case PTHREAD_CANCEL_DISABLE:
+			break;
+		default:
+			return EINVAL;
+	}
+
+	BAN::atomic_exchange(_get_uthread()->cancel_state, state);
+	if (oldstate)
+		*oldstate = state;
+	return 0;
+}
+
+int pthread_setcanceltype(int type, int* oldtype)
+{
+	switch (type)
+	{
+		case PTHREAD_CANCEL_DEFERRED:
+		case PTHREAD_CANCEL_ASYNCHRONOUS:
+			break;
+		default:
+			return EINVAL;
+	}
+
+	BAN::atomic_exchange(_get_uthread()->cancel_type, type);
+	if (oldtype)
+		*oldtype = type;
+	return 0;
+}
+
+void pthread_testcancel(void)
+{
+	uthread* uthread = _get_uthread();
+	if (BAN::atomic_load(uthread->cancel_state) != PTHREAD_CANCEL_ENABLE)
+		return;
+	if (!BAN::atomic_load(uthread->canceled))
+		return;
+	pthread_exit(PTHREAD_CANCELED);
 }
 
 int pthread_spin_destroy(pthread_spinlock_t* lock)
@@ -909,11 +972,14 @@ int pthread_cond_signal(pthread_cond_t* cond)
 
 int pthread_cond_wait(pthread_cond_t* __restrict cond, pthread_mutex_t* __restrict mutex)
 {
+	// pthread_testcancel in pthread_cond_timedwait
 	return pthread_cond_timedwait(cond, mutex, nullptr);
 }
 
 int pthread_cond_timedwait(pthread_cond_t* __restrict cond, pthread_mutex_t* __restrict mutex, const struct timespec* __restrict abstime)
 {
+	pthread_testcancel();
+
 	constexpr auto has_timed_out =
 		[](const struct timespec* abstime, clockid_t clock_id) -> bool
 		{

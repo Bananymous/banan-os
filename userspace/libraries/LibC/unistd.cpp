@@ -39,6 +39,9 @@ extern "C" void _init_libc(char** environ, init_funcs_t init_funcs, init_funcs_t
 		self->cleanup_stack = nullptr;
 		self->id = syscall(SYS_PTHREAD_SELF);
 		self->errno_ = 0;
+		self->cancel_type = PTHREAD_CANCEL_DEFERRED;
+		self->cancel_state = PTHREAD_CANCEL_ENABLE;
+		self->canceled = false;
 	}
 	else
 	{
@@ -52,6 +55,9 @@ extern "C" void _init_libc(char** environ, init_funcs_t init_funcs, init_funcs_t
 			.cleanup_stack = nullptr,
 			.id = static_cast<pthread_t>(syscall(SYS_PTHREAD_SELF)),
 			.errno_ = 0,
+			.cancel_type = PTHREAD_CANCEL_DEFERRED,
+			.cancel_state = PTHREAD_CANCEL_ENABLE,
+			.canceled = false,
 		};
 		uthread.dtv[0] = 0;
 
@@ -108,16 +114,19 @@ long syscall(long syscall, ...)
 
 int close(int fd)
 {
+	pthread_testcancel();
 	return syscall(SYS_CLOSE, fd);
 }
 
 ssize_t read(int fildes, void* buf, size_t nbyte)
 {
+	pthread_testcancel();
 	return syscall(SYS_READ, fildes, buf, nbyte);
 }
 
 ssize_t write(int fildes, const void* buf, size_t nbyte)
 {
+	pthread_testcancel();
 	return syscall(SYS_WRITE, fildes, buf, nbyte);
 }
 
@@ -133,11 +142,13 @@ ssize_t readlinkat(int fd, const char* __restrict path, char* __restrict buf, si
 
 ssize_t pread(int fildes, void* buf, size_t nbyte, off_t offset)
 {
+	pthread_testcancel();
 	return syscall(SYS_PREAD, fildes, buf, nbyte, offset);
 }
 
 ssize_t pwrite(int fildes, const void* buf, size_t nbyte, off_t offset)
 {
+	pthread_testcancel();
 	return syscall(SYS_PWRITE, fildes, buf, nbyte, offset);
 }
 
@@ -153,6 +164,7 @@ int ftruncate(int fildes, off_t length)
 
 int fsync(int fildes)
 {
+	pthread_testcancel();
 	return syscall(SYS_FSYNC, fildes);
 }
 
@@ -421,6 +433,7 @@ int pipe(int fildes[2])
 
 unsigned int sleep(unsigned int seconds)
 {
+	pthread_testcancel();
 	unsigned int ret = syscall(SYS_SLEEP, seconds);
 	if (ret > 0)
 		errno = EINTR;
@@ -487,6 +500,15 @@ void sync(void)
 void syncsync(int should_block)
 {
 	syscall(SYS_SYNC, should_block);
+}
+
+int fdatasync(int fildes)
+{
+	pthread_testcancel();
+
+	(void)fildes;
+	dprintln("TODO: fdatasync");
+	return syscall(SYS_SYNC, true);
 }
 
 int unlink(const char* path)

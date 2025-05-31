@@ -106,7 +106,8 @@ struct sigevent
 #define SIGXCPU   27
 #define SIGXFSZ   28
 #define SIGWINCH  29
-#define SIGRTMIN  30
+#define SIGCANCEL 30
+#define SIGRTMIN  31
 #define SIGRTMAX  (SIGRTMIN+32)
 
 #define NSIG SIGRTMAX

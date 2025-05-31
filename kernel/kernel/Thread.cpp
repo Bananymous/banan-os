@@ -525,6 +525,8 @@ namespace Kernel
 				// Ignore the signal
 				case SIGCHLD:
 				case SIGURG:
+				case SIGWINCH:
+				case SIGCANCEL:
 					break;
 
 				// Stop the process:

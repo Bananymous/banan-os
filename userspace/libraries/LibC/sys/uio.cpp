@@ -1,8 +1,11 @@
+#include <pthread.h>
 #include <sys/uio.h>
 #include <unistd.h>
 
 ssize_t readv(int fildes, const struct iovec* iov, int iovcnt)
 {
+	pthread_testcancel();
+
 	size_t result = 0;
 	for (int i = 0; i < iovcnt; i++)
 	{
@@ -25,6 +28,8 @@ ssize_t readv(int fildes, const struct iovec* iov, int iovcnt)
 
 ssize_t writev(int fildes, const struct iovec* iov, int iovcnt)
 {
+	pthread_testcancel();
+
 	size_t result = 0;
 	for (int i = 0; i < iovcnt; i++)
 	{

@@ -32,16 +32,22 @@ struct uthread
 	struct _pthread_cleanup_t* cleanup_stack;
 	pthread_t id;
 	int errno_;
+	int cancel_type;
+	int cancel_state;
+	int canceled;
 	uintptr_t dtv[];
 };
 
-#define PTHREAD_CANCELED				1
+#define PTHREAD_CANCELED				(void*)1
 
 #define PTHREAD_CANCEL_ASYNCHRONOUS		1
 #define PTHREAD_CANCEL_DEFERRED			0
 
 #define PTHREAD_CANCEL_DISABLE			0
 #define PTHREAD_CANCEL_ENABLE			1
+
+// cancellation points
+// https://pubs.opengroup.org/onlinepubs/9799919799/functions/V2_chap02.html#tag_16_09_05_02
 
 #define PTHREAD_PRIO_INHERIT			1
 #define PTHREAD_PRIO_NONE				0

@@ -1,3 +1,4 @@
+#include <pthread.h>
 #include <sys/mman.h>
 #include <sys/syscall.h>
 #include <unistd.h>
@@ -25,6 +26,7 @@ int munmap(void* addr, size_t len)
 
 int msync(void* addr, size_t len, int flags)
 {
+	pthread_testcancel();
 	return syscall(SYS_MSYNC, addr, len, flags);
 }
 
