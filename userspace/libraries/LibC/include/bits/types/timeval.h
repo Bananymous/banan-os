@@ -1,5 +1,5 @@
-#ifndef _BITS_TIMEVAL_H
-#define _BITS_TIMEVAL_H 1
+#ifndef _BITS_TYPES_TIMEVAL_H
+#define _BITS_TYPES_TIMEVAL_H 1
 
 #include <sys/cdefs.h>
 

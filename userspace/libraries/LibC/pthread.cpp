@@ -4,6 +4,7 @@
 #include <BAN/PlacementNew.h>
 
 #include <kernel/Arch.h>
+#include <kernel/Thread.h>
 
 #include <errno.h>
 #include <pthread.h>
@@ -46,13 +47,16 @@ asm(
 extern "C" void _pthread_trampoline_cpp(void* arg)
 {
 	auto info = *reinterpret_cast<pthread_trampoline_info_t*>(arg);
+	info.uthread->id = syscall(SYS_PTHREAD_SELF);
+	info.uthread->errno_ = 0;
+	info.uthread->cleanup_stack = nullptr;
 	syscall(SYS_SET_TLS, info.uthread);
 	free(arg);
 	pthread_exit(info.start_routine(info.arg));
 	ASSERT_NOT_REACHED();
 }
 
-static uthread* get_uthread()
+uthread* _get_uthread()
 {
 	uthread* result;
 #if ARCH(x86_64)
@@ -75,22 +79,13 @@ static void free_uthread(uthread* uthread)
 	munmap(tls_addr, tls_size);
 }
 
-#if not __disable_thread_local_storage
-struct pthread_cleanup_t
-{
-	void (*routine)(void*);
-	void* arg;
-	pthread_cleanup_t* next;
-};
-
-static thread_local pthread_cleanup_t* s_cleanup_stack = nullptr;
-
 void pthread_cleanup_pop(int execute)
 {
-	ASSERT(s_cleanup_stack);
+	uthread* uthread = _get_uthread();
+	ASSERT(uthread->cleanup_stack);
 
-	auto* cleanup = s_cleanup_stack;
-	s_cleanup_stack = cleanup->next;
+	auto* cleanup = uthread->cleanup_stack;
+	uthread->cleanup_stack = cleanup->next;
 
 	if (execute)
 		cleanup->routine(cleanup->arg);
@@ -100,16 +95,17 @@ void pthread_cleanup_pop(int execute)
 
 void pthread_cleanup_push(void (*routine)(void*), void* arg)
 {
-	auto* cleanup = static_cast<pthread_cleanup_t*>(malloc(sizeof(pthread_cleanup_t)));
+	auto* cleanup = static_cast<_pthread_cleanup_t*>(malloc(sizeof(_pthread_cleanup_t)));
 	ASSERT(cleanup);
+
+	uthread* uthread = _get_uthread();
 
 	cleanup->routine = routine;
 	cleanup->arg = arg;
-	cleanup->next = s_cleanup_stack;
+	cleanup->next = uthread->cleanup_stack;
 
-	s_cleanup_stack = cleanup;
+	uthread->cleanup_stack = cleanup;
 }
-#endif
 
 #if not __disable_thread_local_storage
 static thread_local struct {
@@ -175,38 +171,156 @@ int pthread_attr_destroy(pthread_attr_t* attr)
 
 int pthread_attr_init(pthread_attr_t* attr)
 {
-	*attr = 0;
-	return 0;
-}
-
-int pthread_attr_setstacksize(pthread_attr_t* attr, size_t stacksize)
-{
-	(void)attr;
-	(void)stacksize;
-	dwarnln("TODO: ignoring pthread_attr_setstacksize");
+	*attr = {
+		.inheritsched = PTHREAD_INHERIT_SCHED,
+		.schedparam = {},
+		.schedpolicy = SCHED_RR,
+		.detachstate = PTHREAD_CREATE_JOINABLE,
+		.scope = PTHREAD_SCOPE_SYSTEM,
+		.stacksize = Kernel::Thread::userspace_stack_size,
+		.guardsize = static_cast<size_t>(getpagesize()),
+	};
 	return 0;
 }
 
 int pthread_attr_getdetachstate(const pthread_attr_t* attr, int* detachstate)
 {
-	(void)attr;
-	*detachstate = PTHREAD_CREATE_JOINABLE;
+	*detachstate = attr->detachstate;
 	return 0;
 }
 
 int pthread_attr_setdetachstate(pthread_attr_t* attr, int detachstate)
 {
-	(void)attr;
 	switch (detachstate)
 	{
 		case PTHREAD_CREATE_DETACHED:
 			dwarnln("TODO: pthread_attr_setdetachstate");
 			return ENOTSUP;
 		case PTHREAD_CREATE_JOINABLE:
+			attr->detachstate = detachstate;
 			return 0;
-		default:
-			return EINVAL;
 	}
+	return EINVAL;
+}
+
+int pthread_attr_getguardsize(const pthread_attr_t* __restrict attr, size_t* __restrict guardsize)
+{
+	*guardsize = attr->guardsize;
+	return 0;
+}
+
+int pthread_attr_setguardsize(pthread_attr_t* attr, size_t guardsize)
+{
+	attr->guardsize = guardsize;
+	return 0;
+}
+
+int pthread_attr_getinheritsched(const pthread_attr_t* __restrict attr, int* __restrict inheritsched)
+{
+	*inheritsched = attr->inheritsched;
+	return 0;
+}
+
+int pthread_attr_setinheritsched(pthread_attr_t* attr, int inheritsched)
+{
+	switch (inheritsched)
+	{
+		case PTHREAD_INHERIT_SCHED:
+		case PTHREAD_EXPLICIT_SCHED:
+			attr->inheritsched = inheritsched;
+			return 0;
+	}
+	return EINVAL;
+}
+
+int pthread_attr_getschedparam(const pthread_attr_t* __restrict attr, struct sched_param* __restrict param)
+{
+	*param = attr->schedparam;
+	return 0;
+}
+
+int pthread_attr_setschedparam(pthread_attr_t* __restrict attr, const struct sched_param* __restrict param)
+{
+	attr->schedparam = *param;
+	return 0;
+}
+
+int pthread_attr_getschedpolicy(const pthread_attr_t* __restrict attr, int* __restrict policy)
+{
+	*policy = attr->schedpolicy;
+	return 0;
+}
+
+int pthread_attr_setschedpolicy(pthread_attr_t* attr, int policy)
+{
+	switch (policy)
+	{
+		case SCHED_FIFO:
+		case SCHED_SPORADIC:
+		case SCHED_OTHER:
+			return ENOTSUP;
+		case SCHED_RR:
+			attr->schedpolicy = policy;
+			return 0;
+	}
+	return EINVAL;
+}
+
+int pthread_attr_getscope(const pthread_attr_t* __restrict attr, int* __restrict contentionscope)
+{
+	*contentionscope = attr->scope;
+	return 0;
+}
+
+int pthread_attr_setscope(pthread_attr_t* attr, int contentionscope)
+{
+	switch (contentionscope)
+	{
+		case PTHREAD_SCOPE_PROCESS:
+			return ENOTSUP;
+		case PTHREAD_SCOPE_SYSTEM:
+			attr->scope = contentionscope;
+			return 0;
+	}
+	return EINVAL;
+}
+
+int pthread_attr_getstack(const pthread_attr_t* __restrict attr, void** __restrict stackaddr, size_t* __restrict stacksize)
+{
+	(void)attr;
+	(void)stackaddr;
+	(void)stacksize;
+	dwarnln("TODO: pthread_attr_getstack");
+	return ENOTSUP;
+}
+
+int pthread_attr_setstack(pthread_attr_t* attr, void* stackaddr, size_t stacksize)
+{
+	(void)attr;
+	(void)stackaddr;
+	(void)stacksize;
+	dwarnln("TODO: pthread_attr_setstack");
+	return ENOTSUP;
+}
+
+int pthread_attr_getstacksize(const pthread_attr_t* __restrict attr, size_t* __restrict stacksize)
+{
+	*stacksize = attr->stacksize;
+	return 0;
+}
+
+int pthread_attr_setstacksize(pthread_attr_t* attr, size_t stacksize)
+{
+	attr->stacksize = stacksize;
+	return 0;
+}
+
+int pthread_setcancelstate(int state, int* oldstate)
+{
+	(void)state;
+	(void)oldstate;
+	dwarnln("TODO: pthread_setcancelstate");
+	return 0;
 }
 
 int pthread_create(pthread_t* __restrict thread_id, const pthread_attr_t* __restrict attr, void* (*start_routine)(void*), void* __restrict arg)
@@ -223,14 +337,20 @@ int pthread_create(pthread_t* __restrict thread_id, const pthread_attr_t* __rest
 
 	long syscall_ret = 0;
 
-	if (uthread* self = get_uthread(); self->master_tls_addr == nullptr)
+	if (uthread* self = _get_uthread(); self->master_tls_addr == nullptr)
 	{
 		uthread* uthread = static_cast<struct uthread*>(malloc(sizeof(struct uthread) + sizeof(uintptr_t)));
 		if (uthread == nullptr)
 			goto pthread_create_error;
-		uthread->self = uthread;
-		uthread->master_tls_addr = nullptr;
-		uthread->master_tls_size = 0;
+
+		*uthread = {
+			.self = uthread,
+			.master_tls_addr = nullptr,
+			.master_tls_size = 0,
+			.cleanup_stack = nullptr,
+			.id = -1,
+			.errno_ = 0,
+		};
 		uthread->dtv[0] = 0;
 
 		info->uthread = uthread;
@@ -249,9 +369,14 @@ int pthread_create(pthread_t* __restrict thread_id, const pthread_attr_t* __rest
 		memcpy(tls_addr, self->master_tls_addr, self->master_tls_size);
 
 		uthread* uthread = reinterpret_cast<struct uthread*>(tls_addr + self->master_tls_size);
-		uthread->self = uthread;
-		uthread->master_tls_addr = self->master_tls_addr;
-		uthread->master_tls_size = self->master_tls_size;
+		*uthread = {
+			.self = uthread,
+			.master_tls_addr = self->master_tls_addr,
+			.master_tls_size = self->master_tls_size,
+			.cleanup_stack = nullptr,
+			.id = -1,
+			.errno_ = 0,
+		};
 
 		const uintptr_t self_addr = reinterpret_cast<uintptr_t>(self);
 		const uintptr_t uthread_addr = reinterpret_cast<uintptr_t>(uthread);
@@ -288,9 +413,11 @@ int pthread_detach(pthread_t thread)
 
 void pthread_exit(void* value_ptr)
 {
-#if not __disable_thread_local_storage
-	while (s_cleanup_stack)
+	uthread* uthread = _get_uthread();
+	while (uthread->cleanup_stack)
 		pthread_cleanup_pop(1);
+
+#if not __disable_thread_local_storage
 	for (size_t iteration = 0; iteration < PTHREAD_DESTRUCTOR_ITERATIONS; iteration++)
 	{
 		bool called = false;
@@ -309,7 +436,8 @@ void pthread_exit(void* value_ptr)
 			break;
 	}
 #endif
-	free_uthread(get_uthread());
+
+	free_uthread(uthread);
 	syscall(SYS_PTHREAD_EXIT, value_ptr);
 	ASSERT_NOT_REACHED();
 }
@@ -326,14 +454,7 @@ int pthread_join(pthread_t thread, void** value_ptr)
 
 pthread_t pthread_self(void)
 {
-#if __disable_thread_local_storage
-	return syscall(SYS_PTHREAD_SELF);
-#else
-	static thread_local pthread_t s_pthread_self { -1 };
-	if (s_pthread_self == -1) [[unlikely]]
-		s_pthread_self = syscall(SYS_PTHREAD_SELF);
-	return s_pthread_self;
-#endif
+	return _get_uthread()->id;
 }
 
 int pthread_once(pthread_once_t* once_control, void (*init_routine)(void))
@@ -732,7 +853,7 @@ int pthread_condattr_getpshared(const pthread_condattr_t* __restrict attr, int* 
 	return 0;
 }
 
-int pthread_condattr_setpshared(pthread_barrierattr_t* attr, int pshared)
+int pthread_condattr_setpshared(pthread_condattr_t* attr, int pshared)
 {
 	switch (pshared)
 	{
@@ -925,7 +1046,7 @@ struct tls_index
 
 extern "C" void* __tls_get_addr(tls_index* ti)
 {
-	return reinterpret_cast<void*>(get_uthread()->dtv[ti->ti_module] + ti->ti_offset);
+	return reinterpret_cast<void*>(_get_uthread()->dtv[ti->ti_module] + ti->ti_offset);
 }
 
 #if ARCH(i686)

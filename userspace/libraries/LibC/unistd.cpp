@@ -34,7 +34,13 @@ extern "C" void _init_libc(char** environ, init_funcs_t init_funcs, init_funcs_t
 	if (::environ == nullptr)
 		::environ = environ;
 
-	if (syscall(SYS_GET_TLS) == 0)
+	if (uthread* self = reinterpret_cast<uthread*>(syscall(SYS_GET_TLS)))
+	{
+		self->cleanup_stack = nullptr;
+		self->id = syscall(SYS_PTHREAD_SELF);
+		self->errno_ = 0;
+	}
+	else
 	{
 		alignas(uthread) static uint8_t storage[sizeof(uthread) + sizeof(uintptr_t)];
 
@@ -43,6 +49,9 @@ extern "C" void _init_libc(char** environ, init_funcs_t init_funcs, init_funcs_t
 			.self = &uthread,
 			.master_tls_addr = nullptr,
 			.master_tls_size = 0,
+			.cleanup_stack = nullptr,
+			.id = static_cast<pthread_t>(syscall(SYS_PTHREAD_SELF)),
+			.errno_ = 0,
 		};
 		uthread.dtv[0] = 0;
 

@@ -1,5 +1,5 @@
-#ifndef _BITS_LOCALE_T_H
-#define _BITS_LOCALE_T_H 1
+#ifndef _BITS_TYPES_LOCALE_T_H
+#define _BITS_TYPES_LOCALE_T_H 1
 
 // https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/locale.h.html
 

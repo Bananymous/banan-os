@@ -12,10 +12,11 @@ __BEGIN_DECLS
 #include <signal.h>
 
 #define __need_off_t
-#define __need_pthread_attr_t
 #define __need_size_t
 #define __need_ssize_t
 #include <sys/types.h>
+
+#include <bits/types/pthread_attr_t.h>
 
 struct aiocb
 {

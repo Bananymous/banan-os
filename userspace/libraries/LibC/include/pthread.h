@@ -13,29 +13,45 @@ __BEGIN_DECLS
 
 #define __need_size_t
 #define __need_clockid_t
-#define __need_pthread_types
 #include <sys/types.h>
+
+#include <bits/types/pthread_types.h>
+
+struct _pthread_cleanup_t
+{
+	void (*routine)(void*);
+	void* arg;
+	struct _pthread_cleanup_t* next;
+};
 
 struct uthread
 {
 	struct uthread* self;
 	void* master_tls_addr;
 	size_t master_tls_size;
+	struct _pthread_cleanup_t* cleanup_stack;
+	pthread_t id;
+	int errno_;
 	uintptr_t dtv[];
 };
 
-#define PTHREAD_CANCEL_ASYNCHRONOUS		2
-#define PTHREAD_CANCEL_ENABLE			3
-#define PTHREAD_CANCEL_DEFERRED			4
-#define PTHREAD_CANCEL_DISABLE			5
-#define PTHREAD_CANCELED				6
-#define PTHREAD_EXPLICIT_SCHED			9
-#define PTHREAD_INHERIT_SCHED			10
-#define PTHREAD_PRIO_INHERIT			18
-#define PTHREAD_PRIO_NONE				19
-#define PTHREAD_PRIO_PROTECT			20
-#define PTHREAD_SCOPE_PROCESS			23
-#define PTHREAD_SCOPE_SYSTEM			24
+#define PTHREAD_CANCELED				1
+
+#define PTHREAD_CANCEL_ASYNCHRONOUS		1
+#define PTHREAD_CANCEL_DEFERRED			0
+
+#define PTHREAD_CANCEL_DISABLE			0
+#define PTHREAD_CANCEL_ENABLE			1
+
+#define PTHREAD_PRIO_INHERIT			1
+#define PTHREAD_PRIO_NONE				0
+#define PTHREAD_PRIO_PROTECT			2
+
+#define PTHREAD_EXPLICIT_SCHED			1
+#define PTHREAD_INHERIT_SCHED			0
+
+#define PTHREAD_SCOPE_PROCESS			1
+#define PTHREAD_SCOPE_SYSTEM			0
 
 #define PTHREAD_CREATE_DETACHED			1
 #define PTHREAD_CREATE_JOINABLE			0

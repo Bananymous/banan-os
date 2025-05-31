@@ -350,6 +350,9 @@ namespace Kernel
 			.self = reinterpret_cast<struct uthread*>(region->vaddr() + master_size),
 			.master_tls_addr = reinterpret_cast<void*>(master_addr),
 			.master_tls_size = master_size,
+			.cleanup_stack = nullptr,
+			.id = -1,
+			.errno_ = 0,
 		};
 		const uintptr_t dtv[2] { 1, region->vaddr() };
 
@@ -2468,11 +2471,7 @@ namespace Kernel
 		if (attr)
 		{
 			TRY(validate_pointer_access(attr, sizeof(*attr), false));
-			if (*attr)
-			{
-				dwarnln("pthread attr not supported");
-				return BAN::Error::from_errno(ENOTSUP);
-			}
+			dwarnln("TODO: ignoring thread attr");
 		}
 
 		LockGuard _(m_process_lock);

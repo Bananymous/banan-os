@@ -21,9 +21,6 @@ __BEGIN_DECLS
 	&& !defined(__need_nlink_t) \
 	&& !defined(__need_off_t) \
 	&& !defined(__need_pid_t) \
-	&& !defined(__need_pthread_attr_t) \
-	&& !defined(__need_pthread_t) \
-	&& !defined(__need_pthread_types) \
 	&& !defined(__need_size_t) \
 	&& !defined(__need_ssize_t) \
 	&& !defined(__need_suseconds_t) \
@@ -122,17 +119,11 @@ __BEGIN_DECLS
 #endif
 #undef __need_off_t
 
-#ifdef __need_pthread_t
-#define __need_pid_t
-#endif
-
 #if !defined(__pid_t_defined) && (defined(__need_all_types) || defined(__need_pid_t))
 	#define __pid_t_defined 1
 	typedef int pid_t;
 #endif
 #undef __need_pid_t
-
-#include <bits/pthread_types.h>
 
 #if !defined(__size_t_defined) && (defined(__need_all_types) || defined(__need_size_t))
 	#define __size_t_defined 1

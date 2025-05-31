@@ -1,12 +1,9 @@
 #include <errno.h>
+#include <pthread.h>
 
-#if __disable_thread_local_storage
-static int s_errno = 0;
-#else
-static thread_local int s_errno = 0;
-#endif
+extern uthread* _get_uthread();
 
 int* __errno_location()
 {
-	return &s_errno;
+	return &_get_uthread()->errno_;
 }

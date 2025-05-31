@@ -14,12 +14,13 @@ __BEGIN_DECLS
 #define SIG_HOLD	((void (*)(int))2)
 #define SIG_IGN		((void (*)(int))3)
 
-#define __need_pthread_t
 #define __need_size_t
 #define __need_uid_t
 #define __need_pid_t
-#define __need_pthread_attr_t
 #include <sys/types.h>
+
+#include <bits/types/pthread_attr_t.h>
+#include <bits/types/pthread_t.h>
 
 typedef int sig_atomic_t;
 typedef unsigned long long sigset_t;
