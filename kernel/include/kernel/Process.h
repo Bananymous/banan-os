@@ -194,6 +194,7 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_pthread_exit(void* value);
 		BAN::ErrorOr<long> sys_pthread_join(pthread_t thread, void** value);
 		BAN::ErrorOr<long> sys_pthread_self();
+		BAN::ErrorOr<long> sys_pthread_kill(pthread_t thread, int signal);
 
 		BAN::ErrorOr<long> sys_tcgetpgrp(int fd);
 		BAN::ErrorOr<long> sys_tcsetpgrp(int fd, pid_t pgid);

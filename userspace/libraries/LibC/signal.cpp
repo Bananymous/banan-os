@@ -38,9 +38,18 @@ void psignal(int signum, const char* message)
 		fprintf(stderr, "%s\n", strsignal(signum));
 }
 
+int pthread_kill(pthread_t thread, int sig)
+{
+	if (syscall(SYS_PTHREAD_KILL, thread, sig) == -1)
+		return errno;
+	return 0;
+}
+
 int pthread_sigmask(int how, const sigset_t* __restrict set, sigset_t* __restrict oset)
 {
-	return syscall(SYS_SIGPROCMASK, how, set, oset);
+	if (syscall(SYS_SIGPROCMASK, how, set, oset) == -1)
+		return errno;
+	return 0;
 }
 
 int raise(int sig)
@@ -138,7 +147,12 @@ int sigpending(sigset_t* set)
 
 int sigprocmask(int how, const sigset_t* __restrict set, sigset_t* __restrict oset)
 {
-	return pthread_sigmask(how, set, oset);
+	if (int error = pthread_sigmask(how, set, oset))
+	{
+		errno = error;
+		return -1;
+	}
+	return 0;
 }
 
 int sigrelse(int sig)

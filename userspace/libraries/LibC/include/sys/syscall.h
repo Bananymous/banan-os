@@ -103,6 +103,7 @@ __BEGIN_DECLS
 	O(SYS_PTHREAD_EXIT,		pthread_exit)	\
 	O(SYS_PTHREAD_JOIN,		pthread_join)	\
 	O(SYS_PTHREAD_SELF,		pthread_self)	\
+	O(SYS_PTHREAD_KILL,		pthread_kill)	\
 	O(SYS_EPOLL_CREATE1,	epoll_create1)	\
 	O(SYS_EPOLL_CTL,		epoll_ctl)		\
 	O(SYS_EPOLL_PWAIT2,		epoll_pwait2)	\

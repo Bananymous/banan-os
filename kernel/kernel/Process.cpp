@@ -2557,6 +2557,25 @@ namespace Kernel
 		return Thread::current().tid();
 	}
 
+	BAN::ErrorOr<long> Process::sys_pthread_kill(pthread_t tid, int signal)
+	{
+		if (signal != 0 && (signal < _SIGMIN || signal > _SIGMAX))
+			return BAN::Error::from_errno(EINVAL);
+
+		LockGuard _(m_process_lock);
+
+		for (auto* thread : m_threads)
+		{
+			if (thread->tid() != tid)
+				continue;
+			if (signal != 0)
+				thread->add_signal(signal);
+			return 0;
+		}
+
+		return BAN::Error::from_errno(ESRCH);
+	}
+
 	BAN::ErrorOr<long> Process::sys_tcgetpgrp(int fd)
 	{
 		LockGuard _(m_process_lock);
