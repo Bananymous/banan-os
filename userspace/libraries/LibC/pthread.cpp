@@ -470,6 +470,102 @@ int pthread_once(pthread_once_t* once_control, void (*init_routine)(void))
 	return 0;
 }
 
+struct pthread_atfork_t
+{
+	void (*function)();
+	pthread_atfork_t* next;
+};
+static pthread_atfork_t* s_atfork_prepare = nullptr;
+static pthread_atfork_t* s_atfork_parent = nullptr;
+static pthread_atfork_t* s_atfork_child = nullptr;
+static pthread_mutex_t s_atfork_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+void _pthread_call_atfork(int state)
+{
+	pthread_mutex_lock(&s_atfork_mutex);
+
+	pthread_atfork_t* list = nullptr;
+	switch (state)
+	{
+		case _PTHREAD_ATFORK_PREPARE: list = s_atfork_prepare; break;
+		case _PTHREAD_ATFORK_PARENT:  list = s_atfork_parent; break;
+		case _PTHREAD_ATFORK_CHILD:   list = s_atfork_child; break;
+		default:
+			ASSERT_NOT_REACHED();
+	}
+
+	for (; list; list = list->next)
+		list->function();
+
+	pthread_mutex_unlock(&s_atfork_mutex);
+}
+
+int pthread_atfork(void (*prepare)(void), void (*parent)(void), void(*child)(void))
+{
+	pthread_atfork_t* prepare_entry = nullptr;
+	if (prepare != nullptr)
+		prepare_entry = static_cast<pthread_atfork_t*>(malloc(sizeof(pthread_attr_t)));
+
+	pthread_atfork_t* parent_entry = nullptr;
+	if (parent != nullptr)
+		parent_entry = static_cast<pthread_atfork_t*>(malloc(sizeof(pthread_attr_t)));
+
+	pthread_atfork_t* child_entry = nullptr;
+	if (child != nullptr)
+		child_entry = static_cast<pthread_atfork_t*>(malloc(sizeof(pthread_attr_t)));
+
+	if ((prepare && !prepare_entry) || (parent && !parent_entry) || (child && !child_entry))
+	{
+		if (prepare_entry)
+			free(prepare_entry);
+		if (parent_entry)
+			free(parent_entry);
+		if (child_entry)
+			free(child_entry);
+		return ENOMEM;
+	}
+
+	const auto prepend_atfork =
+		[](pthread_atfork_t*& list, pthread_atfork_t* entry)
+		{
+			entry->next = list;
+			list = entry;
+		};
+
+	const auto append_atfork =
+		[](pthread_atfork_t*& list, pthread_atfork_t* entry)
+		{
+			while (list)
+				list = list->next;
+			entry->next = nullptr;
+			list = entry;
+		};
+
+	pthread_mutex_lock(&s_atfork_mutex);
+
+	if (prepare_entry)
+	{
+		prepare_entry->function = prepare;
+		prepend_atfork(s_atfork_prepare, prepare_entry);
+	}
+
+	if (parent_entry)
+	{
+		parent_entry->function = parent;
+		append_atfork(s_atfork_parent, parent_entry);
+	}
+
+	if (child_entry)
+	{
+		child_entry->function = parent;
+		append_atfork(s_atfork_child, child_entry);
+	}
+
+	pthread_mutex_unlock(&s_atfork_mutex);
+
+	return 0;
+}
+
 static void pthread_cancel_handler(int)
 {
 	uthread* uthread = _get_uthread();

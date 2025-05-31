@@ -82,6 +82,11 @@ struct uthread
 #define PTHREAD_MUTEX_INITIALIZER  (pthread_mutex_t){ { PTHREAD_MUTEX_DEFAULT, 0 }, 0, 0 }
 #define PTHREAD_RWLOCK_INITIALIZER (pthread_rwlock_t){ { 0 }, 0, 0 }
 
+#define _PTHREAD_ATFORK_PREPARE 0
+#define _PTHREAD_ATFORK_PARENT  1
+#define _PTHREAD_ATFORK_CHILD   2
+void _pthread_call_atfork(int state);
+
 int			pthread_atfork(void (*prepare)(void), void (*parent)(void), void(*child)(void));
 int			pthread_attr_destroy(pthread_attr_t* attr);
 int			pthread_attr_getdetachstate(const pthread_attr_t* attr, int* detachstate);
