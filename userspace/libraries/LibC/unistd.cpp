@@ -518,12 +518,17 @@ int fdatasync(int fildes)
 
 int unlink(const char* path)
 {
-	return syscall(SYS_UNLINK, path);
+	return unlinkat(AT_FDCWD, path, 0);
+}
+
+int unlinkat(int fd, const char* path, int flag)
+{
+	return syscall(SYS_UNLINKAT, fd, path, flag);
 }
 
 int rmdir(const char* path)
 {
-	return syscall(SYS_UNLINK, path);
+	return unlinkat(AT_FDCWD, path, AT_REMOVEDIR);
 }
 
 char* optarg = nullptr;

@@ -1158,12 +1158,19 @@ namespace Kernel
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_unlink(const char* path)
+	BAN::ErrorOr<long> Process::sys_unlinkat(int fd, const char* path, int flag)
 	{
+		if (flag && flag != AT_REMOVEDIR)
+			return BAN::Error::from_errno(EINVAL);
+
 		LockGuard _(m_process_lock);
 		TRY(validate_string_access(path));
 
-		auto [parent, file_name] = TRY(find_parent_file(AT_FDCWD, path, O_WRONLY));
+		auto [parent, file_name] = TRY(find_parent_file(fd, path, O_WRONLY));
+
+		if (TRY(parent.inode->find_inode(file_name))->mode().ifdir() != (flag == AT_REMOVEDIR))
+			return BAN::Error::from_errno(flag ? EPERM : ENOTDIR);
+
 		TRY(parent.inode->unlink(file_name));
 
 		return 0;
