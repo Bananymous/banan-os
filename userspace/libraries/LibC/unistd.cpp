@@ -157,9 +157,19 @@ off_t lseek(int fildes, off_t offset, int whence)
 	return syscall(SYS_SEEK, fildes, offset, whence);
 }
 
+int truncate(const char* path, off_t length)
+{
+	const int fd = open(path, O_WRONLY);
+	if (fd == -1)
+		return -1;
+	int ret = ftruncate(fd, length);
+	close(fd);
+	return ret;
+}
+
 int ftruncate(int fildes, off_t length)
 {
-	return syscall(SYS_TRUNCATE, fildes, length);
+	return syscall(SYS_FTRUNCATE, fildes, length);
 }
 
 int fsync(int fildes)

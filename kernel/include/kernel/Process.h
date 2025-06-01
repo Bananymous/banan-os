@@ -150,7 +150,7 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_seek(int fd, off_t offset, int whence);
 		BAN::ErrorOr<long> sys_tell(int fd);
 
-		BAN::ErrorOr<long> sys_truncate(int fd, off_t length);
+		BAN::ErrorOr<long> sys_ftruncate(int fd, off_t length);
 
 		BAN::ErrorOr<long> sys_fsync(int fd);
 

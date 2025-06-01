@@ -1856,7 +1856,7 @@ namespace Kernel
 		return TRY(m_open_file_descriptors.tell(fd));
 	}
 
-	BAN::ErrorOr<long> Process::sys_truncate(int fd, off_t length)
+	BAN::ErrorOr<long> Process::sys_ftruncate(int fd, off_t length)
 	{
 		TRY(m_open_file_descriptors.truncate(fd, length));
 		return 0;

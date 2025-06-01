@@ -74,7 +74,7 @@ __BEGIN_DECLS
 	O(SYS_LISTEN,			listen)			\
 	O(SYS_PSELECT,			pselect)		\
 	O(SYS_PPOLL,			ppoll)			\
-	O(SYS_TRUNCATE,			truncate)		\
+	O(SYS_FTRUNCATE,		ftruncate)		\
 	O(SYS_SMO_CREATE,		smo_create)		\
 	O(SYS_SMO_DELETE,		smo_delete)		\
 	O(SYS_SMO_MAP,			smo_map)		\
