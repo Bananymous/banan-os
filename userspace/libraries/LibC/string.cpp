@@ -190,6 +190,8 @@ int strcoll_l(const char *s1, const char *s2, locale_t locale)
 				u1 += BAN::UTF8::byte_length(*u1);
 				u2 += BAN::UTF8::byte_length(*u2);
 			}
+
+			// TODO: this isn't really correct :D
 			return wc1 - wc2;
 		}
 	}
@@ -363,6 +365,19 @@ char* strtok_r(char* __restrict str, const char* __restrict sep, char** __restri
 #undef CHAR_UCHAR
 #undef CHAR_BITMASK
 #undef CHAR_BITMASK_TEST
+
+size_t strxfrm(char* __restrict s1, const char* __restrict s2, size_t n)
+{
+	return strxfrm_l(s1, s2, n, __getlocale(LC_COLLATE));
+}
+
+size_t strxfrm_l(char* __restrict s1, const char* __restrict s2, size_t n, locale_t locale)
+{
+	(void)locale;
+	// TODO: this isn't really correct :D
+	strncpy(s1, s2, n);
+	return strlen(s2);
+}
 
 char* strsignal(int signum)
 {
