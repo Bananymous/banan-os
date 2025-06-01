@@ -12,6 +12,7 @@
 	#error
 #endif
 
+#undef PAGE_SIZE
 #define PAGE_SIZE ((uintptr_t)4096)
 #define PAGE_SIZE_SHIFT 12
 #define PAGE_ADDR_MASK (~(uintptr_t)0xFFF)
