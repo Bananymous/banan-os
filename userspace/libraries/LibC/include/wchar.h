@@ -30,7 +30,7 @@ typedef __WINT_TYPE__ wint_t;
 wint_t				btowc(int c);
 wint_t				fgetwc(FILE* stream);
 wchar_t*			fgetws(wchar_t* __restrict ws, int n, FILE* __restrict stream);
-wint_t				fputwc(wchar_t c, FILE* stream);
+wint_t				fputwc(wchar_t wc, FILE* stream);
 int					fputws(const wchar_t* __restrict ws, FILE* __restrict stream);
 int					fwide(FILE* stream, int mode);
 int					fwprintf(FILE* __restrict stream, const wchar_t* __restrict format, ...);

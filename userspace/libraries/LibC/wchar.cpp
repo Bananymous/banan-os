@@ -1,10 +1,112 @@
 #include <BAN/Assert.h>
+#include <BAN/UTF8.h>
 
+#include <errno.h>
+#include <locale.h>
 #include <wchar.h>
 
-size_t mbrtowc(wchar_t* __restrict, const char* __restrict, size_t, mbstate_t* __restrict)
+wint_t btowc(int c)
 {
-	ASSERT_NOT_REACHED();
+	if (c == 0 || c > 0x7F)
+		return WEOF;
+	return c;
+}
+
+int wctob(wint_t c)
+{
+	if (c > 0x7F)
+		return WEOF;
+	return c;
+}
+
+int wcwidth(wchar_t wc)
+{
+	return wc != '\0';
+}
+
+size_t wcrtomb(char* __restrict s, wchar_t ws, mbstate_t* __restrict ps)
+{
+	(void)ps;
+
+	// ws == '\0' doesn't seem to apply to UTF8?
+
+	if (s == nullptr)
+		return 1;
+
+	if (!BAN::UTF8::from_codepoints(&ws, 1, s))
+	{
+		errno = EILSEQ;
+		return -1;
+	}
+
+	return BAN::UTF8::byte_length(s[0]);
+}
+
+size_t mbrtowc(wchar_t* __restrict pwc, const char* __restrict s, size_t n, mbstate_t* __restrict ps)
+{
+	(void)ps;
+
+	if (s == nullptr)
+		return 0;
+
+	const auto bytes = BAN::UTF8::byte_length(*s);
+	if (bytes == BAN::UTF8::invalid)
+	{
+		errno = EILSEQ;
+		return -1;
+	}
+	if (n < bytes)
+		return -1;
+
+	const auto codepoint = BAN::UTF8::to_codepoint(s);
+	if (codepoint == BAN::UTF8::invalid)
+	{
+		errno = EILSEQ;
+		return -1;
+	}
+
+	if (pwc != nullptr)
+		*pwc = codepoint;
+
+	if (codepoint == 0)
+		return 0;
+
+	return bytes;
+}
+
+int wcscoll(const wchar_t* ws1, const wchar_t* ws2)
+{
+	return wcscoll_l(ws1, ws2, __getlocale(LC_COLLATE));
+}
+
+int wcscoll_l(const wchar_t* ws1, const wchar_t* ws2, locale_t locale)
+{
+	(void)locale;
+	// TODO: this isn't really correct :D
+	return wcscmp(ws1, ws2);
+}
+
+size_t wcsxfrm(wchar_t* __restrict ws1, const wchar_t* __restrict ws2, size_t n)
+{
+	return wcsxfrm_l(ws1, ws2, n, __getlocale(LC_COLLATE));
+}
+
+size_t wcsxfrm_l(wchar_t* __restrict ws1, const wchar_t* __restrict ws2, size_t n, locale_t locale)
+{
+	(void)locale;
+	// TODO: this isn't really correct :D
+	wcsncpy(ws1, ws2, n);
+	return wcslen(ws2);
+}
+
+size_t wcsftime(wchar_t* __restrict wcs, size_t maxsize, const wchar_t* __restrict format, const struct tm* __restrict timeptr)
+{
+	(void)wcs;
+	(void)maxsize;
+	(void)format;
+	(void)timeptr;
+	fprintf(stddbg, "TODO: wcsftime");
+	return 0;
 }
 
 int wcscmp(const wchar_t* ws1, const wchar_t* ws2)
@@ -181,4 +283,94 @@ wchar_t* wmemset(wchar_t* ws, wchar_t wc, size_t n)
 	for (size_t i = 0; i < n; i++)
 		ws[i] = wc;
 	return ws;
+}
+
+// FIXME: actually support multibyte :D
+
+wint_t towlower(wint_t wc)
+{
+	return tolower(wc);
+}
+
+wint_t towupper(wint_t wc)
+{
+	return toupper(wc);
+}
+
+#define DEFINE_ISW(class) \
+	int isw##class(wint_t wc) { \
+		return is##class(wc); \
+	}
+DEFINE_ISW(alnum);
+DEFINE_ISW(alpha);
+DEFINE_ISW(blank);
+DEFINE_ISW(cntrl);
+DEFINE_ISW(digit);
+DEFINE_ISW(graph);
+DEFINE_ISW(lower);
+DEFINE_ISW(print);
+DEFINE_ISW(punct);
+DEFINE_ISW(space);
+DEFINE_ISW(upper);
+DEFINE_ISW(xdigit);
+#undef DEFINE_ISW
+
+typedef enum {
+	_alnum = 1,
+	_alpha,
+	_blank,
+	_cntrl,
+	_digit,
+	_graph,
+	_lower,
+	_print,
+	_punct,
+	_space,
+	_upper,
+	_xdigit,
+} wctype_values;
+
+wctype_t wctype(const char* property)
+{
+#define CHECK_PROPERTY(class) \
+	if (strcmp(property, #class) == 0) \
+		return _##class
+	CHECK_PROPERTY(alnum);
+	CHECK_PROPERTY(alpha);
+	CHECK_PROPERTY(blank);
+	CHECK_PROPERTY(cntrl);
+	CHECK_PROPERTY(digit);
+	CHECK_PROPERTY(graph);
+	CHECK_PROPERTY(lower);
+	CHECK_PROPERTY(print);
+	CHECK_PROPERTY(punct);
+	CHECK_PROPERTY(space);
+	CHECK_PROPERTY(upper);
+	CHECK_PROPERTY(xdigit);
+#undef CHECK_TYPE
+	return 0;
+}
+
+int iswctype(wint_t wc, wctype_t charclass)
+{
+	switch (charclass)
+	{
+#define CLASS_CASE(class) \
+		case _##class: \
+			return is##class(wc)
+		CLASS_CASE(alnum);
+		CLASS_CASE(alpha);
+		CLASS_CASE(blank);
+		CLASS_CASE(cntrl);
+		CLASS_CASE(digit);
+		CLASS_CASE(graph);
+		CLASS_CASE(lower);
+		CLASS_CASE(print);
+		CLASS_CASE(punct);
+		CLASS_CASE(space);
+		CLASS_CASE(upper);
+		CLASS_CASE(xdigit);
+#undef CLASS_CASE
+	}
+	return 0;
 }

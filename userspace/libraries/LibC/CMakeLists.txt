@@ -47,6 +47,7 @@ set(LIBC_SOURCES
 	time.cpp
 	unistd.cpp
 	utime.cpp
+	wchar-stdio.cpp
 	wchar.cpp
 	icxxabi.cpp
 
