@@ -1,6 +1,7 @@
 set(LIBC_SOURCES
 	arpa/inet.cpp
 	assert.cpp
+	complex.cpp
 	ctype.cpp
 	dirent.cpp
 	dlfcn.cpp

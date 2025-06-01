@@ -13,6 +13,14 @@
 
 __BEGIN_DECLS
 
+#define creal(complex)  (__real__ (complex))
+#define crealf(complex) (__real__ (complex))
+#define creall(complex) (__real__ (complex))
+
+#define cimag(complex)  (__imag__ (complex))
+#define cimagf(complex) (__imag__ (complex))
+#define cimagl(complex) (__imag__ (complex))
+
 double				cabs(double complex);
 float				cabsf(float complex);
 long double			cabsl(long double complex);
@@ -46,9 +54,6 @@ long double complex	ccosl(long double complex);
 double complex		cexp(double complex);
 float complex		cexpf(float complex);
 long double complex	cexpl(long double complex);
-double				cimag(double complex);
-float				cimagf(float complex);
-long double			cimagl(long double complex);
 double complex		clog(double complex);
 float complex		clogf(float complex);
 long double complex	clogl(long double complex);
@@ -61,9 +66,6 @@ long double complex	cpowl(long double complex, long double complex);
 double complex		cproj(double complex);
 float complex		cprojf(float complex);
 long double complex	cprojl(long double complex);
-double				creal(double complex);
-float				crealf(float complex);
-long double			creall(long double complex);
 double complex		csin(double complex);
 float complex		csinf(float complex);
 double complex		csinh(double complex);
