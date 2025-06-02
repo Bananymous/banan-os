@@ -174,7 +174,7 @@ namespace Kernel
 			.c_iflag = ICRNL,
 			.c_oflag = OPOST | ONLCR,
 			.c_cflag = CS8,
-			.c_lflag = ECHO | ICANON | ISIG,
+			.c_lflag = ECHO | ECHOE | ECHOK  | ICANON | ISIG,
 			.c_cc = TTY_DEFAULT_TERMIOS_CC,
 			.c_ospeed = B38400,
 			.c_ispeed = B38400,

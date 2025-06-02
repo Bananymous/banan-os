@@ -266,8 +266,12 @@ namespace Kernel
 			if (ch == m_termios.c_cc[VERASE] && (m_termios.c_lflag & ECHOE))
 				return do_backspace();
 
-			//if (ch == m_termios.c_cc[VKILL] && (m_termios.c_lflag & ECHOK))
-			//	;
+			if (ch == m_termios.c_cc[VKILL] && (m_termios.c_lflag & ECHOK))
+			{
+				while (m_output.bytes > 0 && m_output.buffer[m_output.bytes - 1] != '\n')
+					do_backspace();
+				return;
+			}
 
 			if (ch == m_termios.c_cc[VEOF])
 			{
@@ -277,7 +281,6 @@ namespace Kernel
 
 			if (ch == NL || ch == m_termios.c_cc[VEOL])
 			{
-				should_append = true;
 				should_flush = true;
 				force_echo = !!(m_termios.c_lflag & ECHONL);
 				ch = NL;
@@ -297,7 +300,7 @@ namespace Kernel
 			m_output.buffer[m_output.bytes++] = ch;
 		}
 
-		if (force_echo || (m_termios.c_lflag & ECHO))
+		if (should_append && (force_echo || (m_termios.c_lflag & ECHO)))
 		{
 			if ((ch <= 31 || ch == 127) && ch != '\n')
 			{
