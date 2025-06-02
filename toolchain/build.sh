@@ -118,6 +118,7 @@ build_gcc () {
 		--prefix="$BANAN_TOOLCHAIN_PREFIX" \
 		--with-sysroot="$BANAN_SYSROOT" \
 		--enable-initfini-array \
+		--enable-threads=posix \
 		--enable-shared \
 		--enable-lto \
 		--disable-nls \
