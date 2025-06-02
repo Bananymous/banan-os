@@ -1,4 +1,5 @@
 #include <BAN/Debug.h>
+#include <BAN/Math.h>
 
 #include <assert.h>
 #include <errno.h>
@@ -95,6 +96,12 @@ static bool allocate_pool(size_t pool_index)
 	node->prev_free = nullptr;
 	node->next_free = nullptr;
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Warray-bounds"
+#pragma GCC diagnostic ignored "-Wstringop-overflow"
+	node->data[-1] = 0;
+#pragma GCC diagnostic pop
+
 	pool.free_list = node;
 
 	return true;
@@ -143,6 +150,12 @@ static void shrink_node_if_needed(malloc_pool_t& pool, malloc_node_t* node, size
 	next->size = node_end - (uint8_t*)next;
 	next->last = node->last;
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Warray-bounds"
+#pragma GCC diagnostic ignored "-Wstringop-overflow"
+	next->data[-1] = 0;
+#pragma GCC diagnostic pop
+
 	node->last = false;
 
 	// insert excess node to free list
@@ -183,6 +196,29 @@ static void* allocate_from_pool(size_t pool_index, size_t size)
 
 static malloc_node_t* node_from_data_pointer(void* data_pointer)
 {
+	if (((uint8_t*)data_pointer)[-1])
+	{
+		malloc_pool_t* pool = nullptr;
+		for (size_t i = 0; i < s_malloc_pool_count; i++)
+		{
+			if (!s_malloc_pools[i].start)
+				continue;
+			if (data_pointer < s_malloc_pools[i].start)
+				continue;
+			if (data_pointer > s_malloc_pools[i].end())
+				continue;
+			pool = &s_malloc_pools[i];
+			break;
+		}
+		assert(pool);
+
+		auto* node = (malloc_node_t*)pool->start;
+		for (; (uint8_t*)node < pool->end(); node = node->next())
+			if (node->data < data_pointer && data_pointer < node->next())
+				return node;
+		assert(false);
+	}
+
 	return (malloc_node_t*)((uint8_t*)data_pointer - sizeof(malloc_node_t));
 }
 
@@ -331,4 +367,28 @@ void* calloc(size_t nmemb, size_t size)
 
 	memset(ptr, 0, total);
 	return ptr;
+}
+
+int posix_memalign(void** memptr, size_t alignment, size_t size)
+{
+	dprintln_if(DEBUG_MALLOC, "posix_memalign({}, {})", alignment, size);
+
+	if (alignment < sizeof(void*) || alignment % sizeof(void*) || !BAN::Math::is_power_of_two(alignment / sizeof(void*)))
+	{
+		errno = EINVAL;
+		return -1;
+	}
+
+	uint8_t* unaligned = (uint8_t*)malloc(size + alignment);
+	if (unaligned == nullptr)
+		return -1;
+
+	if (auto rem = (uintptr_t)unaligned % alignment)
+	{
+		unaligned += alignment - rem;
+		unaligned[-1] = 1;
+	}
+
+	*memptr = unaligned;
+	return 0;
 }
