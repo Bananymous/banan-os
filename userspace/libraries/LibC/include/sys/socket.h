@@ -50,16 +50,33 @@ struct cmsghdr
 	socklen_t	cmsg_len;	/* Data byte count, including the cmsghdr. */
 	int			cmsg_level;	/* Originating protocol. */
 	int			cmsg_type;	/* Protocol-specific type. */
+	unsigned char __cmg_data[];
 };
 
-// FIXME
-#if 0
-#define SCM_RIGHTS
+#define SCM_RIGHTS 1
 
-#define CMSG_DATA(cmsg)
-#define CMSG_NXTHDR(mhdr, cmsg)
-#define CMSG_FIRSTHDR(mhdr)
-#endif
+#define CMSG_DATA(cmsg) ((cmsg)->__cmg_data)
+
+#define __CMSG_NXTHDR_ADDR(cmsg) \
+	((unsigned char*)(cmsg) + (cmsg)->cmsg_len)
+#define __CMSG_NXTHDR_OFFSET(mhdr, cmsg) \
+	(__CMSG_NXTHDR_ADDR(cmsg) - (unsigned char*)(mhdr)->msg_control)
+#define CMSG_NXTHDR(mhdr, cmsg) \
+	((size_t)(mhdr)->msg_controllen \
+			>= __CMSG_NXTHDR_OFFSET(mhdr, cmsg) + sizeof(struct cmsghdr) \
+		? (struct cmsghdr*)__CMSG_NXTHDR_ADDR(cmsg) \
+		: (struct cmsghdr*)0)
+
+#define CMSG_FIRSTHDR(mhdr) \
+	((size_t)(mhdr)->msg_controllen >= sizeof(struct cmsghdr) \
+		? (struct cmsghdr*)((mhdr)->msg_control) \
+		: (struct cmsghdr*)0)
+
+#define CMSG_SPACE(length) \
+	(socklen_t)((length) + sizeof(struct cmsghdr))
+
+#define CMSG_LEN(length) \
+	(socklen_t)((length) + sizeof(struct cmsghdr))
 
 struct linger
 {
