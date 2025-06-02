@@ -14,11 +14,13 @@ __BEGIN_DECLS
 
 struct passwd
 {
-	char*	pw_name;	/* User's login name. */
-	uid_t	pw_uid;		/* Numerical user ID. */
-	gid_t	pw_gid;		/* Numerical group ID. */
-	char*	pw_dir;		/* Initial working directory. */
-	char*	pw_shell;	/* Program to use as shell. */
+	char* pw_name;   /* User's login name. */
+	char* pw_passwd; /* User's hashed password. */
+	uid_t pw_uid;    /* Numerical user ID. */
+	gid_t pw_gid;    /* Numerical group ID. */
+	char* pw_gecos;  /* User's information. */
+	char* pw_dir;    /* Initial working directory. */
+	char* pw_shell;  /* Program to use as shell. */
 };
 
 void			endpwent(void);

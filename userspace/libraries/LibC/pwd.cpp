@@ -71,12 +71,14 @@ struct passwd* getpwent(void)
 		switch (i)
 		{
 			case 0:
-				s_pwent_struct.pw_name = (char*)malloc(field_len + 1);
+				s_pwent_struct.pw_name = strndup(ptr, field_len + 1);
 				if (!s_pwent_struct.pw_name)
 					return nullptr;
-				strcpy(s_pwent_struct.pw_name, ptr);
 				break;
 			case 1:
+				s_pwent_struct.pw_passwd = strndup(ptr, field_len + 1);
+				if (!s_pwent_struct.pw_passwd)
+					return nullptr;
 				break;
 			case 2:
 				ASSERT(1 <= field_len && field_len <= 9);
@@ -91,18 +93,19 @@ struct passwd* getpwent(void)
 				s_pwent_struct.pw_gid = atoi(ptr);
 				break;
 			case 4:
+				s_pwent_struct.pw_gecos = strndup(ptr, field_len + 1);
+				if (!s_pwent_struct.pw_gecos)
+					return nullptr;
 				break;
 			case 5:
-				s_pwent_struct.pw_dir = (char*)malloc(field_len + 1);
+				s_pwent_struct.pw_dir = strndup(ptr, field_len + 1);
 				if (!s_pwent_struct.pw_dir)
 					return nullptr;
-				strcpy(s_pwent_struct.pw_dir, ptr);
 				break;
 			case 6:
-				s_pwent_struct.pw_shell = (char*)malloc(field_len + 1);
+				s_pwent_struct.pw_shell = strndup(ptr, field_len + 1);
 				if (!s_pwent_struct.pw_shell)
 					return nullptr;
-				strcpy(s_pwent_struct.pw_shell, ptr);
 				break;
 		}
 
