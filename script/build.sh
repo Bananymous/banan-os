@@ -37,8 +37,7 @@ build_target () {
 		echo "No target provided"
 		exit 1
 	fi
-	cd $BANAN_BUILD_DIR
-	run_fakeroot ninja $1
+	run_fakeroot $BANAN_CMAKE --build $BANAN_BUILD_DIR -- -j$(nproc) $1
 }
 
 build_toolchain () {
