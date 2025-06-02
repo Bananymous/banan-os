@@ -31,5 +31,7 @@ private:
 	BAN::Optional<BAN::Vector<BAN::String>> m_tab_completions;
 	size_t m_tab_completion_keep { 0 };
 
+	char m_backspace;
+
 	int m_waiting_utf8 { 0 };
 };

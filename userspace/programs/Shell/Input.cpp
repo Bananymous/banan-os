@@ -382,7 +382,17 @@ BAN::Optional<BAN::String> Input::get_input(BAN::Optional<BAN::StringView> custo
 			continue;
 		}
 
-		switch (ch)
+		if (ch == m_backspace)
+		{
+			if (m_buffer_col <= 0)
+				continue;
+			while ((m_buffers[m_buffer_index][m_buffer_col - 1] & 0xC0) == 0x80)
+				m_buffers[m_buffer_index].remove(--m_buffer_col);
+			m_buffers[m_buffer_index].remove(--m_buffer_col);
+			printf("\b\e[s%s \e[u", m_buffers[m_buffer_index].data() + m_buffer_col);
+			fflush(stdout);
+		}
+		else switch (ch)
 		{
 		case '\e':
 		{
@@ -680,6 +690,8 @@ Input::Input()
 		s_raw_termios.c_lflag &= ~(ECHO | ICANON);
 		atexit([] { tcsetattr(0, TCSANOW, &s_original_termios); });
 		s_termios_initialized = true;
+
+		m_backspace = s_original_termios.c_cc[VERASE];
 	}
 
 	char hostname_buffer[HOST_NAME_MAX];
