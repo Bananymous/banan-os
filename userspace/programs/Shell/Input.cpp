@@ -500,6 +500,7 @@ BAN::Optional<BAN::String> Input::get_input(BAN::Optional<BAN::StringView> custo
 			fflush(stdout);
 			break;
 		case '\n':
+		case '\r':
 		{
 			BAN::String input;
 			MUST(input.append(m_buffers[m_buffer_index]));
