@@ -1,6 +1,5 @@
 #include <stddef.h>
-
-#define ATEXIT_MAX_FUNCS 128
+#include <limits.h>
 
 struct atexit_func_entry_t
 {
@@ -9,12 +8,12 @@ struct atexit_func_entry_t
 	void* dso_handle;
 };
 
-static atexit_func_entry_t s_atexit_funcs[ATEXIT_MAX_FUNCS];
+static atexit_func_entry_t s_atexit_funcs[ATEXIT_MAX];
 static size_t s_atexit_func_count = 0;
 
 extern "C" int __cxa_atexit(void(*func)(void*), void* arg, void* dso_handle)
 {
-	if (s_atexit_func_count >= ATEXIT_MAX_FUNCS)
+	if (s_atexit_func_count >= ATEXIT_MAX)
 		return -1;
 	s_atexit_funcs[s_atexit_func_count++] = {
 		.func = func,
