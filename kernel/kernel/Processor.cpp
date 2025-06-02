@@ -275,7 +275,6 @@ namespace Kernel
 
 	void Processor::send_smp_message(ProcessorID processor_id, const SMPMessage& message, bool send_ipi)
 	{
-		ASSERT(processor_id != current_id());
 
 		auto state = get_interrupt_state();
 		set_interrupt_state(InterruptState::Disabled);
@@ -307,7 +306,12 @@ namespace Kernel
 		);
 
 		if (send_ipi)
-			InterruptController::get().send_ipi(processor_id);
+		{
+			if (processor_id == current_id())
+				handle_smp_messages();
+			else
+				InterruptController::get().send_ipi(processor_id);
+		}
 
 		set_interrupt_state(state);
 	}
