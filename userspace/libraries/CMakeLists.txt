@@ -5,6 +5,8 @@ set(USERSPACE_LIBRARIES
 	LibGUI
 	LibImage
 	LibInput
+	LibMath
+	LibPthread
 )
 
 foreach(library ${USERSPACE_LIBRARIES})
