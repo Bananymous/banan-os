@@ -98,7 +98,9 @@ namespace Kernel
 
 	private:
 		ThreadBlocker m_thread_blocker;
+		SpinLock m_ready_lock;
 		BAN::HashMap<BAN::RefPtr<Inode>, uint32_t,        InodeRefPtrHash> m_ready_events;
+		BAN::HashMap<BAN::RefPtr<Inode>, uint32_t,        InodeRefPtrHash> m_processing_events;
 		BAN::HashMap<BAN::RefPtr<Inode>, ListenEventList, InodeRefPtrHash> m_listening_events;
 	};
 
