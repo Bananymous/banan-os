@@ -147,11 +147,9 @@ error_close_socket:
 	return EAI_FAIL;
 }
 
-#include <BAN/Debug.h>
-
 int getnameinfo(const struct sockaddr* __restrict sa, socklen_t salen, char* __restrict node, socklen_t nodelen, char* __restrict service, socklen_t servicelen, int flags)
 {
-	printf("getnameinfo(%p, %p, %p, 0x%X)\n", sa, node, service, flags);
+	(void)flags;
 
 	switch (sa->sa_family)
 	{
