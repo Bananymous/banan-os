@@ -39,6 +39,29 @@ bool is_sorted(BAN::Vector<T>& vec)
 		}																\
 	} while (0)
 
+#define TEST_ALGORITHM_QSORT(ms) do {									\
+		uint64_t duration_us = 0;										\
+		printf("qsort\n");												\
+		for (size_t size = 100; duration_us < ms * 1000; size *= 10) {	\
+			BAN::Vector<unsigned> data(size, 0);						\
+			for (auto& val : data)										\
+				val = rand() % 100;										\
+			uint64_t start_ns = CURRENT_NS();							\
+			qsort(data.data(), data.size(), sizeof(unsigned), [](const void* a, const void* b) -> int { return *(unsigned*)a - *(unsigned*)b; }); \
+			uint64_t stop_ns = CURRENT_NS();							\
+			if (!is_sorted(data)) {										\
+				printf("  \e[31mFAILED!\e[m\n");						\
+				break;													\
+			}															\
+			duration_us = (stop_ns - start_ns) / 1'000;					\
+			printf("  %5d.%03d ms (%zu)\n",								\
+				(int)(duration_us / 1000),								\
+				(int)(duration_us % 1000),								\
+				size													\
+			);															\
+		}																\
+	} while (0)
+
 int main()
 {
 	srand(time(0));
@@ -49,4 +72,5 @@ int main()
 	TEST_ALGORITHM(100,  BAN::sort::intro_sort);
 	TEST_ALGORITHM(1000, BAN::sort::sort);
 	TEST_ALGORITHM(1000, BAN::sort::radix_sort);
+	TEST_ALGORITHM_QSORT(100);
 }
