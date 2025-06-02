@@ -18,7 +18,7 @@ namespace BAN::UTF8
 			return 3;
 		if ((first_byte & 0xF8) == 0xF0)
 			return 4;
-		return 0;
+		return UTF8::invalid;
 	}
 
 	template<typename T> requires (sizeof(T) == 1)

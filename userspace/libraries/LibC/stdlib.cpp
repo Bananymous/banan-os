@@ -560,9 +560,12 @@ int mblen(const char* s, size_t n)
 		case LOCALE_POSIX:
 			return 1;
 		case LOCALE_UTF8:
-			if (const auto bytes = BAN::UTF8::byte_length(*s); n >= bytes)
-				return bytes;
-			return -1;
+			const auto bytes = BAN::UTF8::byte_length(*s);
+			if (bytes == BAN::UTF8::invalid)
+				return -1;
+			if (n < bytes)
+				return -1;
+			return bytes;
 	}
 	ASSERT_NOT_REACHED();
 }

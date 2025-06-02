@@ -176,7 +176,7 @@ namespace LibFont
 
 					uint32_t len = BAN::UTF8::byte_length(bytes[0]);
 
-					if (len == 0)
+					if (len == BAN::UTF8::invalid)
 					{
 						invalid_utf = true;
 						byte_index = 0;

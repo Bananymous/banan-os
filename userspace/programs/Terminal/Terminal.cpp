@@ -748,7 +748,7 @@ Rectangle Terminal::putchar(uint8_t ch)
 	m_utf8_bytes[m_utf8_index++] = ch;
 
 	const size_t utf8_len = BAN::UTF8::byte_length(m_utf8_bytes[0]);
-	if (utf8_len == 0)
+	if (utf8_len == BAN::UTF8::invalid)
 	{
 		dwarnln("invalid utf8 leading byte 0x{2H}", ch);
 		m_utf8_index = 0;
