@@ -23,6 +23,7 @@ set(USERSPACE_PROGRAMS
 	ls
 	meminfo
 	mkdir
+	nologin
 	nslookup
 	poweroff
 	ProgramLauncher
