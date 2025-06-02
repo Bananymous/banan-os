@@ -114,7 +114,37 @@ namespace Kernel
 				auto& key_event = event.as<const LibInput::RawKeyEvent>();
 				if (key_event.modifier & LibInput::KeyEvent::Modifier::Pressed)
 				{
-					switch (key_event.keycode)
+					if (key_event.modifier & LibInput::KeyEvent::Modifier::LCtrl)
+					{
+						const auto processor_count = Processor::count();
+						switch (key_event.keycode)
+						{
+#define DUMP_CPU_STACK_TRACE(idx) \
+							case LibInput::keycode_function(idx + 1): \
+								if (idx >= processor_count) \
+									break; \
+								Processor::send_smp_message(Processor::id_from_index(idx), { \
+									.type = Processor::SMPMessage::Type::StackTrace, \
+									.dummy = false, \
+								}); \
+								break
+							// F1-F12
+							DUMP_CPU_STACK_TRACE(0);
+							DUMP_CPU_STACK_TRACE(1);
+							DUMP_CPU_STACK_TRACE(2);
+							DUMP_CPU_STACK_TRACE(3);
+							DUMP_CPU_STACK_TRACE(4);
+							DUMP_CPU_STACK_TRACE(5);
+							DUMP_CPU_STACK_TRACE(6);
+							DUMP_CPU_STACK_TRACE(7);
+							DUMP_CPU_STACK_TRACE(8);
+							DUMP_CPU_STACK_TRACE(9);
+							DUMP_CPU_STACK_TRACE(10);
+							DUMP_CPU_STACK_TRACE(11);
+#undef DUMP_CPU_STACK_TRACE
+						}
+					}
+					else switch (key_event.keycode)
 					{
 						case LibInput::keycode_function(1):
 							Processor::toggle_should_print_cpu_load();

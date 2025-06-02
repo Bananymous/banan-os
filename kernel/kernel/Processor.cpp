@@ -244,6 +244,10 @@ namespace Kernel
 					case SMPMessage::Type::UnblockThread:
 						processor.m_scheduler->unblock_thread(message->unblock_thread);
 						break;
+					case SMPMessage::Type::StackTrace:
+						dwarnln("Stack trace of CPU {}", current_id().as_u32());
+						Debug::dump_stack_trace();
+						break;
 				}
 
 				last_handled = message;

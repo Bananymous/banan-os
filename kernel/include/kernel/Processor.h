@@ -33,6 +33,7 @@ namespace Kernel
 				FlushTLB,
 				NewThread,
 				UnblockThread,
+				StackTrace,
 			};
 			SMPMessage* next { nullptr };
 			Type type;
@@ -45,6 +46,7 @@ namespace Kernel
 				} flush_tlb;
 				SchedulerQueue::Node* new_thread;
 				SchedulerQueue::Node* unblock_thread;
+				bool dummy;
 			};
 		};
 
