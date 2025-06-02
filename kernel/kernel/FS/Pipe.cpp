@@ -67,8 +67,6 @@ namespace Kernel
 
 	BAN::ErrorOr<size_t> Pipe::read_impl(off_t, BAN::ByteSpan buffer)
 	{
-		LockGuard _(m_mutex);
-
 		while (m_buffer_size == 0)
 		{
 			if (m_writing_count == 0)
@@ -103,8 +101,6 @@ namespace Kernel
 
 	BAN::ErrorOr<size_t> Pipe::write_impl(off_t, BAN::ConstByteSpan buffer)
 	{
-		LockGuard _(m_mutex);
-
 		while (m_buffer_size >= m_buffer.size())
 		{
 			if (m_reading_count == 0)
