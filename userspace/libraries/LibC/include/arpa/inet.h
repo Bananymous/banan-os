@@ -11,6 +11,7 @@ __BEGIN_DECLS
 #include <bits/types/socklen_t.h>
 
 in_addr_t	inet_addr(const char* cp);
+int			inet_aton(const char* cp, struct in_addr* inp);
 char*		inet_ntoa(struct in_addr in);
 const char*	inet_ntop(int af, const void* __restrict src, char* __restrict dst, socklen_t size);
 int			inet_pton(int af, const char* __restrict src, void* __restrict dst);
