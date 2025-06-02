@@ -12,6 +12,20 @@
 namespace Kernel
 {
 
+#define TTY_DEFAULT_TERMIOS_CC { \
+		[VEOF]   = '\x04', /* ctrl+D */ \
+		[VEOL]   = '\0',                \
+		[VERASE] = '\b',                \
+		[VINTR]  = '\x03', /* ctrl+C */ \
+		[VKILL]  = '\x15', /* ctrl+U */ \
+		[VMIN]   = 0,                   \
+		[VQUIT]  = '\x1c', /* ctrl+\ */ \
+		[VSTART] = '\x11', /* ctrl+Q */ \
+		[VSTOP]  = '\x13', /* ctrl+S */ \
+		[VSUSP]  = '\x1a', /* ctrl+Z */ \
+		[VTIME]  = 0                    \
+	}
+
 	class TTY : public CharacterDevice
 	{
 	public:

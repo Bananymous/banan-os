@@ -18,6 +18,9 @@
 #include <sys/epoll.h>
 #include <sys/sysmacros.h>
 
+#define NL '\n'
+#define CR '\r'
+
 namespace Kernel
 {
 
@@ -216,53 +219,85 @@ namespace Kernel
 
 	void TTY::handle_input_byte(uint8_t ch)
 	{
-		if (ch == 0)
+		if (ch == _POSIX_VDISABLE)
 			return;
 
 		LockGuard _(m_mutex);
 
-		if ((m_termios.c_iflag & ISTRIP))
-			ch &= 0x7F;
-		if ((m_termios.c_iflag & IGNCR) && ch == '\r')
-			return;
-		uint8_t conv = ch;
-		if ((m_termios.c_iflag & ICRNL) && ch == '\r')
-			conv = '\n';
-		if ((m_termios.c_iflag & INLCR) && ch == '\n')
-			conv = '\r';
-		ch = conv;
-
-		// ^C
-		if (ch == '\x03')
+		if (m_termios.c_lflag & ICANON)
 		{
-			if (auto ret = Process::kill(-m_foreground_pgrp, SIGINT); ret.is_error())
-				dwarnln("TTY: {}", ret.error());
-			return;
+			if ((m_termios.c_iflag & ISTRIP))
+				ch &= 0x7F;
+			if ((m_termios.c_iflag & IGNCR) && ch == CR)
+				return;
+			uint8_t conv = ch;
+			if ((m_termios.c_iflag & ICRNL) && ch == CR)
+				conv = NL;
+			if ((m_termios.c_iflag & INLCR) && ch == NL)
+				conv = CR;
+			ch = conv;
 		}
 
-		// ^D + canonical
-		if (ch == '\x04' && (m_termios.c_lflag & ICANON))
+		if (m_termios.c_lflag & ISIG)
 		{
-			m_output.flush = true;
-			epoll_notify(EPOLLIN);
-			m_output.thread_blocker.unblock();
-			return;
+			int sig = -1;
+			if (ch == m_termios.c_cc[VINTR])
+				sig = SIGINT;
+			if (ch == m_termios.c_cc[VQUIT])
+				sig = SIGQUIT;
+			if (ch == m_termios.c_cc[VSUSP])
+				sig = SIGTSTP;
+			if (sig != -1)
+			{
+				if (auto ret = Process::kill(-m_foreground_pgrp, sig); ret.is_error())
+					dwarnln("TTY: {}", ret.error());
+				return;
+			}
 		}
 
-		// backspace + canonical
-		if (ch == '\b' && (m_termios.c_lflag & ICANON))
+		bool should_append = true;
+		bool should_flush = false;
+		bool force_echo = false;
+
+		if (!(m_termios.c_lflag & ICANON))
+			should_flush = true;
+		else
 		{
-			do_backspace();
-			return;
+			if (ch == m_termios.c_cc[VERASE] && (m_termios.c_lflag & ECHOE))
+				return do_backspace();
+
+			//if (ch == m_termios.c_cc[VKILL] && (m_termios.c_lflag & ECHOK))
+			//	;
+
+			if (ch == m_termios.c_cc[VEOF])
+			{
+				should_append = false;
+				should_flush = true;
+			}
+
+			if (ch == NL || ch == m_termios.c_cc[VEOL])
+			{
+				should_append = true;
+				should_flush = true;
+				force_echo = !!(m_termios.c_lflag & ECHONL);
+				ch = NL;
+			}
 		}
 
-		// FIXME: don't ignore these bytes
-		if (m_output.bytes >= m_output.buffer.size())
-			return;
+		// TODO: terminal suspension with VSTOP/VSTART
 
-		m_output.buffer[m_output.bytes++] = ch;
+		if (should_append)
+		{
+			// FIXME: don't ignore these bytes
+			if (m_output.bytes >= m_output.buffer.size())
+			{
+				dwarnln("TTY input full");
+				return;
+			}
+			m_output.buffer[m_output.bytes++] = ch;
+		}
 
-		if (m_termios.c_lflag & ECHO)
+		if (force_echo || (m_termios.c_lflag & ECHO))
 		{
 			if ((ch <= 31 || ch == 127) && ch != '\n')
 			{
@@ -288,7 +323,7 @@ namespace Kernel
 			}
 		}
 
-		if (ch == '\n' || !(m_termios.c_lflag & ICANON) || m_output.bytes == m_output.buffer.size())
+		if (should_flush)
 		{
 			m_output.flush = true;
 			epoll_notify(EPOLLIN);
@@ -346,10 +381,10 @@ namespace Kernel
 			return true;
 		if (m_termios.c_oflag & OPOST)
 		{
-			if ((m_termios.c_oflag & ONLCR) && ch == '\n')
-				return putchar_impl('\r') && putchar_impl('\n');
-			if ((m_termios.c_oflag & OCRNL) && ch == '\r')
-				return putchar_impl('\n');
+			if ((m_termios.c_oflag & ONLCR) && ch == NL)
+				return putchar_impl(CR) && putchar_impl(NL);
+			if ((m_termios.c_oflag & OCRNL) && ch == CR)
+				return putchar_impl(NL);
 		}
 		return putchar_impl(ch);
 	}
@@ -372,7 +407,7 @@ namespace Kernel
 		size_t to_copy = max_to_copy;
 		if (m_termios.c_lflag & ICANON)
 			for (to_copy = 1; to_copy < max_to_copy; to_copy++)
-				if (m_output.buffer[to_copy - 1] == '\n')
+				if (m_output.buffer[to_copy - 1] == NL)
 					break;
 
 		memcpy(buffer.data(), m_output.buffer.data(), to_copy);
