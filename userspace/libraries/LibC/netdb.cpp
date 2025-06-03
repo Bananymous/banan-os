@@ -154,23 +154,30 @@ int getnameinfo(const struct sockaddr* __restrict sa, socklen_t salen, char* __r
 	switch (sa->sa_family)
 	{
 		case AF_INET:
+		{
 			if (salen < static_cast<socklen_t>(sizeof(sockaddr_in)))
 				return EAI_FAMILY;
-			if (service && snprintf(service, servicelen, "%d", reinterpret_cast<sockaddr_in*>(service)->sin_port) < 0)
+			const sockaddr_in* sa_in = reinterpret_cast<const sockaddr_in*>(sa);
+			if (node && !inet_ntop(sa_in->sin_family, &sa_in->sin_addr, node, nodelen))
+				return EAI_SYSTEM;
+			if (service && snprintf(service, servicelen, "%d", sa_in->sin_port) < 0)
 				return EAI_SYSTEM;
 			break;
+		}
 		case AF_INET6:
+		{
 			if (salen < static_cast<socklen_t>(sizeof(sockaddr_in6)))
 				return EAI_FAMILY;
-			if (service && snprintf(service, servicelen, "%d", reinterpret_cast<sockaddr_in6*>(service)->sin6_port) < 0)
+			const sockaddr_in6* sa_in6 = reinterpret_cast<const sockaddr_in6*>(sa);
+			if (node && !inet_ntop(sa_in6->sin6_family, &sa_in6->sin6_addr, node, nodelen))
+				return EAI_SYSTEM;
+			if (service && snprintf(service, servicelen, "%d", sa_in6->sin6_port) < 0)
 				return EAI_SYSTEM;
 			break;
+		}
 		default:
 			return EAI_FAIL;
 	}
-
-	if (node && inet_ntop(sa->sa_family, sa, node, nodelen) == nullptr)
-		return EAI_SYSTEM;
 
 	return 0;
 }
