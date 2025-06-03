@@ -439,6 +439,8 @@ namespace Kernel
 
 		LockGuard _(m_mutex);
 
+		const bool hungup_before = has_hungup_impl();
+
 		auto& header = buffer.as<const TCPHeader>();
 		dprintln_if(DEBUG_TCP, "receiving {} {8b}", (uint8_t)m_state, header.flags);
 		dprintln_if(DEBUG_TCP, "  {}", (uint32_t)header.ack_number);
@@ -609,6 +611,9 @@ namespace Kernel
 			}
 		}
 
+		if (!hungup_before && has_hungup_impl())
+			epoll_notify(EPOLLHUP);
+
 		m_thread_blocker.unblock();
 	}
 
@@ -690,9 +695,12 @@ namespace Kernel
 					auto target_address_len = m_connection_info->address_len;
 					if (auto ret = m_network_layer.sendto(*this, {}, target_address, target_address_len); ret.is_error())
 						dwarnln("{}", ret.error());
+					const bool hungup_before = has_hungup_impl();
 					m_state = m_next_state;
 					if (m_state == State::Established)
 						m_has_connected = true;
+					if (!hungup_before && has_hungup_impl())
+						epoll_notify(EPOLLHUP);
 					continue;
 				}
 

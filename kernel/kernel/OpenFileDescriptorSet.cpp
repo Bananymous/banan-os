@@ -476,14 +476,25 @@ namespace Kernel
 
 		LockGuard _(inode->m_mutex);
 
-		if (is_nonblock && !inode->can_write())
-			return BAN::Error::from_errno(EWOULDBLOCK);
+		const auto check_errors =
+			[&inode, is_nonblock]() -> BAN::ErrorOr<void>
+			{
+				if (inode->has_hungup())
+				{
+					Thread::current().add_signal(SIGPIPE);
+					return BAN::Error::from_errno(EPIPE);
+				}
+				if (is_nonblock && !inode->can_write())
+					return BAN::Error::from_errno(EWOULDBLOCK);
+				return {};
+			};
+
+		TRY(check_errors());
 
 		size_t total_sent = 0;
 		while (total_sent < buffer.size())
 		{
-			if (is_nonblock && !inode->can_write())
-				return total_sent;
+			TRY(check_errors());
 			const size_t nsend = TRY(inode->sendto(buffer.slice(total_sent), address, address_len));
 			if (nsend == 0)
 				return 0;
