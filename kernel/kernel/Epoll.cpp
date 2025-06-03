@@ -136,7 +136,7 @@ namespace Kernel
 					auto& listen = listen_it->value;
 
 					{
-						uint32_t listen_mask = EPOLLERR | EPOLLHUP;
+						uint32_t listen_mask = EPOLLHUP | EPOLLERR;
 						for (size_t fd = 0; fd < listen.events.size(); fd++)
 							if (listen.has_fd(fd))
 								listen_mask |= listen.events[fd].events;
@@ -170,7 +170,7 @@ namespace Kernel
 							continue;
 						auto& listen_event = listen.events[fd];
 
-						const auto new_events = listen_event.events & events;
+						const auto new_events = (listen_event.events | EPOLLHUP | EPOLLERR) & events;
 						if (new_events == 0)
 							continue;
 
