@@ -166,7 +166,8 @@ build_grub () {
 		--target="$BANAN_ARCH" \
 		--prefix="$BANAN_TOOLCHAIN_PREFIX" \
 		--with-platform="efi" \
-		--disable-werror
+		--disable-werror \
+		CFLAGS=--std=gnu11
 
 	make $MAKE_JOBS
 	make install

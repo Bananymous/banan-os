@@ -12,12 +12,12 @@ diff -ruN gcc-12.2.0/config.sub gcc-12.2.0-banan_os/config.sub
  	sco3.2v2 | sco3.2v[4-9]* | sco5v6*)
 diff -ruN gcc-12.2.0/fixincludes/mkfixinc.sh gcc-12.2.0-banan_os/fixincludes/mkfixinc.sh
 --- gcc-12.2.0/fixincludes/mkfixinc.sh	2022-08-19 11:09:52.160657095 +0300
-+++ gcc-12.2.0-banan_os/fixincludes/mkfixinc.sh	2024-09-03 23:09:34.461106020 +0300
++++ gcc-12.2.0-banan_os/fixincludes/mkfixinc.sh	2025-06-03 18:08:13.366965577 +0300
 @@ -11,6 +11,7 @@
  
  # Check for special fix rules for particular targets
  case $machine in
-+    *-banan_os* | \
++    *-*-banan_os* | \
      i?86-*-cygwin* | \
      i?86-*-mingw32* | \
      x86_64-*-mingw32* | \
