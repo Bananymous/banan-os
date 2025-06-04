@@ -93,7 +93,7 @@ namespace LibGUI
 			draw_character(text[i], font, tl_x + (int32_t)(i * font.width()), tl_y, color);
 	}
 
-	void Texture::shift_vertical(int32_t amount, uint32_t fill_color)
+	void Texture::shift_vertical(int32_t amount)
 	{
 		const uint32_t amount_abs = BAN::Math::abs(amount);
 		if (amount_abs == 0 || amount_abs >= height())
@@ -102,15 +102,9 @@ namespace LibGUI
 		uint32_t* dst = (amount > 0) ? m_pixels.data() + width() * amount_abs : m_pixels.data();
 		uint32_t* src = (amount < 0) ? m_pixels.data() + width() * amount_abs : m_pixels.data();
 		memmove(dst, src, width() * (height() - amount_abs) * 4);
-
-		const uint32_t y_lo = (amount < 0) ? height() - amount_abs : 0;
-		const uint32_t y_hi = (amount < 0) ? height()              : amount_abs;
-		for (uint32_t y = y_lo; y < y_hi; y++)
-			for (uint32_t x = 0; x < width(); x++)
-				set_pixel(x, y, fill_color);
 	}
 
-	void Texture::copy_horizontal_slice(int32_t dst_y, int32_t src_y, uint32_t uamount, uint32_t fill_color)
+	void Texture::copy_horizontal_slice(int32_t dst_y, int32_t src_y, uint32_t uamount)
 	{
 		int32_t amount = uamount;
 		if (dst_y < 0)
@@ -134,18 +128,10 @@ namespace LibGUI
 				copy_amount * width() * 4
 			);
 		}
-
-		const uint32_t fill_y_off = (src_y < copy_src_y) ? 0 : copy_amount;
-		const uint32_t fill_amount = amount - copy_amount;
-		for (uint32_t i = 0; i < fill_amount; i++)
-			for (uint32_t x = 0; x < width(); x++)
-				set_pixel(x, dst_y + fill_y_off + i, fill_color);
 	}
 
-	void Texture::copy_rect(int32_t dst_x, int32_t dst_y, int32_t src_x, int32_t src_y, uint32_t width, uint32_t height, uint32_t fill_color)
+	void Texture::copy_rect(int32_t dst_x, int32_t dst_y, int32_t src_x, int32_t src_y, uint32_t width, uint32_t height)
 	{
-		fill_rect(dst_x, dst_y, width, height, fill_color);
-
 		if (!clamp_to_texture(dst_x, dst_y, width, height))
 			return;
 		if (!clamp_to_texture(src_x, src_y, width, height))
@@ -156,8 +142,8 @@ namespace LibGUI
 		{
 			const uint32_t y_off = copy_dir ? i : height - i - 1;
 			memmove(
-				&m_pixels[(dst_y + y_off) * this->width()],
-				&m_pixels[(src_y + y_off) * this->width()],
+				&m_pixels[(dst_y + y_off) * this->width() + dst_x],
+				&m_pixels[(src_y + y_off) * this->width() + src_x],
 				width * 4
 			);
 		}

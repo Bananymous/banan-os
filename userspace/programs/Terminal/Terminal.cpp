@@ -308,7 +308,8 @@ bool Terminal::read_shell()
 		{
 			const uint32_t scroll = m_cursor.y + newline_count - rows() + 1;
 			m_cursor.y -= scroll;
-			m_window->texture().shift_vertical(-scroll * (int32_t)m_font.height(), m_bg_color);
+			m_window->texture().shift_vertical(-scroll * (int32_t)m_font.height());
+			m_window->texture().fill_rect(0, m_window->height() - scroll * m_font.height(), m_window->width(), scroll * m_font.height(), m_bg_color);
 			should_invalidate = { 0, 0, m_window->width(), m_window->height() };
 		}
 
@@ -540,7 +541,7 @@ Rectangle Terminal::handle_csi(char ch)
 			const uint32_t src_y = m_cursor.y * m_font.height();
 			const uint32_t dst_y = src_y + count * m_font.height();
 
-			texture.copy_horizontal_slice(dst_y, src_y, m_window->height() - dst_y, m_bg_color);
+			texture.copy_horizontal_slice(dst_y, src_y, m_window->height() - dst_y);
 			texture.fill_rect(0, src_y, m_window->width(), count * m_font.height(), m_bg_color);
 			should_invalidate = {
 				0,
@@ -557,7 +558,7 @@ Rectangle Terminal::handle_csi(char ch)
 			const uint32_t dst_y = m_cursor.y * m_font.height();
 			const uint32_t src_y = dst_y + count * m_font.height();
 
-			texture.copy_horizontal_slice(dst_y, src_y, m_window->height() - dst_y, m_bg_color);
+			texture.copy_horizontal_slice(dst_y, src_y, m_window->height() - dst_y);
 			texture.fill_rect(0, m_window->height() - count * m_font.height(), m_window->width(), count * m_font.height(), m_bg_color);
 			should_invalidate = {
 				0,
@@ -575,7 +576,7 @@ Rectangle Terminal::handle_csi(char ch)
 			const uint32_t src_x = m_cursor.x * m_font.width();
 			const uint32_t y = m_cursor.y * m_font.height();
 
-			texture.copy_rect(dst_x, y, src_x, y, m_window->width() - dst_x, m_font.height(), m_bg_color);
+			texture.copy_rect(dst_x, y, src_x, y, m_window->width() - dst_x, m_font.height());
 			texture.fill_rect(src_x, y, count * m_font.width(), m_font.height(), m_bg_color);
 			should_invalidate = {
 				src_x,
@@ -681,7 +682,8 @@ Rectangle Terminal::putcodepoint(uint32_t codepoint)
 			{
 				const uint32_t scroll = m_cursor.y - rows() + 1;
 				m_cursor.y -= scroll;
-				texture.shift_vertical(-scroll * (int32_t)m_font.height(), m_bg_color);
+				texture.shift_vertical(-scroll * (int32_t)m_font.height());
+				texture.fill_rect(0, m_window->width() - scroll * m_font.width(), m_window->width(), scroll * m_font.height(), m_bg_color);
 				should_invalidate = { 0, 0, m_window->width(), m_window->height() };
 			}
 
@@ -708,7 +710,8 @@ Rectangle Terminal::putcodepoint(uint32_t codepoint)
 	{
 		const uint32_t scroll = m_cursor.y - rows() + 1;
 		m_cursor.y -= scroll;
-		texture.shift_vertical(-scroll * (int32_t)m_font.height(), m_bg_color);
+		texture.shift_vertical(-scroll * (int32_t)m_font.height());
+		texture.fill_rect(0, m_window->width() - scroll * m_font.width(), m_window->width(), scroll * m_font.height(), m_bg_color);
 		should_invalidate = { 0, 0, m_window->width(), m_window->height() };
 	}
 
