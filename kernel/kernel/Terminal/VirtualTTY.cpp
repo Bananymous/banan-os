@@ -251,7 +251,7 @@ namespace Kernel
 					// Clear from cursor to the end of screen
 					for (uint32_t i = m_column; i < m_width; i++)
 						putchar_at(' ', i, m_row);
-					for (uint32_t row = 0; row < m_height; row++)
+					for (uint32_t row = m_row + 1; row < m_height; row++)
 						for (uint32_t col = 0; col < m_width; col++)
 							putchar_at(' ', col, row);
 					return reset_ansi();
