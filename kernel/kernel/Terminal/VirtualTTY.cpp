@@ -171,12 +171,12 @@ namespace Kernel
 	BAN::Optional<TerminalDriver::Color> VirtualTTY::get_24bit_color()
 	{
 		ASSERT(m_ansi_state.nums[1] == 2);
-		if (m_ansi_state.nums[2] < 1) return {};
-		if (m_ansi_state.nums[3] < 1) return {};
-		if (m_ansi_state.nums[4] < 1) return {};
-		const uint8_t r = BAN::Math::min(m_ansi_state.nums[2], 256) - 1;
-		const uint8_t g = BAN::Math::min(m_ansi_state.nums[3], 256) - 1;
-		const uint8_t b = BAN::Math::min(m_ansi_state.nums[4], 256) - 1;
+		if (m_ansi_state.nums[2] < 0) return {};
+		if (m_ansi_state.nums[3] < 0) return {};
+		if (m_ansi_state.nums[4] < 0) return {};
+		const uint8_t r = BAN::Math::min(m_ansi_state.nums[2], 255);
+		const uint8_t g = BAN::Math::min(m_ansi_state.nums[3], 255);
+		const uint8_t b = BAN::Math::min(m_ansi_state.nums[4], 255);
 		return TerminalDriver::Color(r, g, b);
 	}
 

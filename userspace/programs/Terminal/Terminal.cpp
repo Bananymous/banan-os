@@ -403,12 +403,12 @@ BAN::Optional<uint32_t> Terminal::get_8bit_color()
 BAN::Optional<uint32_t> Terminal::get_24bit_color()
 {
 	ASSERT(m_csi_info.fields[1] == 2);
-	if (m_csi_info.fields[2] < 1) return {};
-	if (m_csi_info.fields[3] < 1) return {};
-	if (m_csi_info.fields[4] < 1) return {};
-	const uint8_t r = BAN::Math::min(m_csi_info.fields[2], 256) - 1;
-	const uint8_t g = BAN::Math::min(m_csi_info.fields[3], 256) - 1;
-	const uint8_t b = BAN::Math::min(m_csi_info.fields[4], 256) - 1;
+	if (m_csi_info.fields[2] < 0) return {};
+	if (m_csi_info.fields[3] < 0) return {};
+	if (m_csi_info.fields[4] < 0) return {};
+	const uint8_t r = BAN::Math::min(m_csi_info.fields[2], 255);
+	const uint8_t g = BAN::Math::min(m_csi_info.fields[3], 255);
+	const uint8_t b = BAN::Math::min(m_csi_info.fields[4], 255);
 	return b | (g << 8) | (r << 16) | (0xCC << 24);
 }
 
