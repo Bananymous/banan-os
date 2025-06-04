@@ -1595,6 +1595,40 @@ namespace Kernel
 				arguments.timeout->tv_nsec;
 		}
 
+		{
+			fd_set rfds, wfds, efds;
+			FD_ZERO(&rfds);
+			FD_ZERO(&wfds);
+			FD_ZERO(&efds);
+
+			size_t return_value = 0;
+			for (int fd = 0; fd < arguments.nfds; fd++)
+			{
+				auto inode_or_error = m_open_file_descriptors.inode_of(fd);
+				if (inode_or_error.is_error())
+					continue;
+
+				auto inode = inode_or_error.release_value();
+				if (arguments.readfds  && FD_ISSET(fd, arguments.readfds)  && inode->can_read())
+					{ FD_SET(fd, &rfds); return_value++; }
+				if (arguments.writefds && FD_ISSET(fd, arguments.writefds) && inode->can_write())
+					{ FD_SET(fd, &wfds); return_value++; }
+				if (arguments.errorfds && FD_ISSET(fd, arguments.errorfds) && inode->has_error())
+					{ FD_SET(fd, &efds); return_value++; }
+			}
+
+			if (return_value || SystemTimer::get().ns_since_boot() >= waketime_ns)
+			{
+				if (arguments.readfds)
+					memcpy(arguments.readfds, &rfds, sizeof(fd_set));
+				if (arguments.writefds)
+					memcpy(arguments.writefds, &wfds, sizeof(fd_set));
+				if (arguments.errorfds)
+					memcpy(arguments.errorfds, &efds, sizeof(fd_set));
+				return return_value;
+			}
+		}
+
 		auto epoll = TRY(Epoll::create());
 		for (int fd = 0; fd < arguments.nfds; fd++)
 		{
@@ -1627,18 +1661,19 @@ namespace Kernel
 		if (arguments.errorfds)
 			FD_ZERO(arguments.errorfds);
 
+		size_t return_value = 0;
 		for (size_t i = 0; i < waited_events; i++)
 		{
 			const int fd = event_buffer[i].data.fd;
 			if (arguments.readfds && event_buffer[i].events & (EPOLLIN | EPOLLHUP))
-				FD_SET(fd, arguments.readfds);
+				{ FD_SET(fd, arguments.readfds);  return_value++; }
 			if (arguments.writefds && event_buffer[i].events & (EPOLLOUT))
-				FD_SET(fd, arguments.writefds);
+				{ FD_SET(fd, arguments.writefds); return_value++; }
 			if (arguments.errorfds && event_buffer[i].events & (EPOLLERR))
-				FD_SET(fd, arguments.errorfds);
+				{ FD_SET(fd, arguments.errorfds); return_value++; }
 		}
 
-		return waited_events;
+		return return_value;
 	}
 
 	BAN::ErrorOr<long> Process::sys_ppoll(pollfd* fds, nfds_t nfds, const timespec* timeout, const sigset_t* sigmask)
@@ -1666,13 +1701,47 @@ namespace Kernel
 				timeout->tv_nsec;
 		}
 
-		uint32_t events_per_fd[OPEN_MAX] {};
+		size_t return_value = 0;
+
 		for (nfds_t i = 0; i < nfds; i++)
 		{
-			if (fds[i].fd < 0 || fds[i].fd >= OPEN_MAX)
+			fds[i].revents = 0;
+
+			if (fds[i].fd < 0)
 				continue;
-			events_per_fd[fds[i].fd] |= fds[i].events;
+			auto inode_or_error = m_open_file_descriptors.inode_of(fds[i].fd);
+			if (inode_or_error.is_error())
+			{
+				fds[i].revents |= POLLNVAL;
+				return_value++;
+				continue;
+			}
+
+			auto inode = inode_or_error.release_value();
+
+			if (inode->has_hungup())
+				fds[i].revents |= POLLHUP;
+			if (inode->has_error())
+				fds[i].revents |= POLLERR;
+			if ((fds[i].events & (POLLIN  | POLLRDNORM)) && inode->can_read())
+				fds[i].revents |= fds[i].events & (POLLIN  | POLLRDNORM);
+			if ((fds[i].events & (POLLOUT | POLLWRNORM)) && inode->can_write())
+				fds[i].revents |= fds[i].events & (POLLOUT | POLLWRNORM);
+			// POLLPRI
+			// POLLRDBAND
+			// POLLWRBAND
+
+			if (fds[i].revents)
+				return_value++;
 		}
+
+		if (return_value || SystemTimer::get().ns_since_boot() >= waketime_ns)
+			return return_value;
+
+		uint32_t events_per_fd[OPEN_MAX] {};
+		for (nfds_t i = 0; i < nfds; i++)
+			if (fds[i].fd >= 0 && fds[i].fd < OPEN_MAX)
+				events_per_fd[fds[i].fd] |= fds[i].events;
 
 		size_t fd_count = 0;
 
@@ -1682,9 +1751,7 @@ namespace Kernel
 			if (events_per_fd[fd] == 0)
 				continue;
 
-			auto inode_or_error = m_open_file_descriptors.inode_of(fd);
-			if (inode_or_error.is_error())
-				continue;
+			auto inode = TRY(m_open_file_descriptors.inode_of(fd));
 
 			uint32_t events = 0;
 			if (events_per_fd[fd] & (POLLIN  | POLLRDNORM))
@@ -1696,7 +1763,7 @@ namespace Kernel
 			// POLLRDBAND
 			// POLLWRBAND
 
-			TRY(epoll->ctl(EPOLL_CTL_ADD, fd, inode_or_error.release_value(), { .events = events, .data = { .fd = fd }}));
+			TRY(epoll->ctl(EPOLL_CTL_ADD, fd, inode, { .events = events, .data = { .fd = fd }}));
 
 			fd_count++;
 		}
@@ -1706,20 +1773,10 @@ namespace Kernel
 
 		const size_t waited_events = TRY(epoll->wait(event_buffer.span(), waketime_ns));
 
-		size_t return_value = 0;
 		for (size_t i = 0; i < nfds; i++)
 		{
-			fds[i].revents = 0;
-
 			if (fds[i].fd < 0)
 				continue;
-
-			if (m_open_file_descriptors.inode_of(fds[i].fd).is_error())
-			{
-				fds[i].revents = POLLNVAL;
-				return_value++;
-				continue;
-			}
 
 			for (size_t j = 0; j < waited_events; j++)
 			{
