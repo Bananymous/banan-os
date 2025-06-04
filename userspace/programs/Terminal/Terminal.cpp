@@ -350,6 +350,9 @@ void Terminal::handle_sgr(int32_t value)
 		case 10:
 			// default font
 			break;
+		case 22:
+			m_is_bold = false;
+			break;
 		case 27:
 			m_colors_inverted = false;
 			break;
@@ -565,6 +568,24 @@ Rectangle Terminal::handle_csi(char ch)
 				src_y,
 				m_window->width(),
 				m_window->height() - src_y
+			};
+
+			break;
+		}
+		case 'P':
+		{
+			const uint32_t count = (m_csi_info.fields[0] == -1) ? 1 : m_csi_info.fields[0];
+			const uint32_t dst_x = m_cursor.x * m_font.width();
+			const uint32_t src_x = (m_cursor.x + count) * m_font.width();
+			const uint32_t y = m_cursor.y * m_font.height();
+
+			texture.copy_rect(dst_x, y, src_x, y, m_window->width() - src_x, m_font.height());
+			texture.fill_rect(m_window->width() - count * m_font.width(), y, count * m_font.width(), m_font.height(), m_bg_color);
+			should_invalidate = {
+				dst_x,
+				y,
+				m_window->width() - dst_x,
+				m_font.height()
 			};
 
 			break;
