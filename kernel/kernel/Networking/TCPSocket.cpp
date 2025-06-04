@@ -717,27 +717,31 @@ namespace Kernel
 						auto* send_buffer = reinterpret_cast<uint8_t*>(m_send_window.buffer->vaddr());
 						memmove(send_buffer, send_buffer + acknowledged_bytes, m_send_window.data_size);
 					}
-					else
-					{
-						m_send_window.last_send_ms = 0;
-					}
+
+					m_send_window.sent_size -= acknowledged_bytes;
+
+					epoll_notify(EPOLLOUT);
 
 					dprintln_if(DEBUG_TCP, "Target acknowledged {} bytes", acknowledged_bytes);
 
 					continue;
 				}
 
-				if (m_send_window.data_size > 0 && current_ms >= m_send_window.last_send_ms + retransmit_timeout_ms)
+				const bool should_retransmit = m_send_window.data_size > 0 && current_ms >= m_send_window.last_send_ms + retransmit_timeout_ms;
+
+				if (m_send_window.data_size > m_send_window.sent_size || should_retransmit)
 				{
 					ASSERT(m_connection_info.has_value());
 					auto* target_address = reinterpret_cast<const sockaddr*>(&m_connection_info->address);
 					auto target_address_len = m_connection_info->address_len;
 
-					const uint32_t total_send = BAN::Math::min<uint32_t>(m_send_window.data_size, m_send_window.scaled_size());
+					const uint32_t send_base = should_retransmit ? 0 : m_send_window.sent_size;
+
+					const uint32_t total_send = BAN::Math::min<uint32_t>(m_send_window.data_size - send_base, m_send_window.scaled_size());
 
 					m_send_window.current_seq = m_send_window.start_seq;
 
-					auto* send_buffer = reinterpret_cast<const uint8_t*>(m_send_window.buffer->vaddr());
+					auto* send_buffer = reinterpret_cast<const uint8_t*>(m_send_window.buffer->vaddr() + send_base);
 					for (uint32_t i = 0; i < total_send;)
 					{
 						const uint32_t to_send = BAN::Math::min(total_send - i, m_send_window.mss);
@@ -753,10 +757,9 @@ namespace Kernel
 
 						dprintln_if(DEBUG_TCP, "Sent {} bytes", to_send);
 
+						m_send_window.sent_size += to_send;
 						m_send_window.current_seq += to_send;
 						i += to_send;
-
-						epoll_notify(EPOLLOUT);
 					}
 
 					m_send_window.last_send_ms = current_ms;
