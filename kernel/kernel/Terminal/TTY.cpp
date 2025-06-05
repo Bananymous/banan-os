@@ -428,12 +428,19 @@ namespace Kernel
 
 	BAN::ErrorOr<size_t> TTY::write_impl(off_t, BAN::ConstByteSpan buffer)
 	{
-		SpinLockGuard _(m_write_lock);
 		size_t written = 0;
-		for (; written < buffer.size(); written++)
-			if (!putchar(buffer[written]))
-				break;
-		update_cursor();
+
+		{
+			SpinLockGuard _(m_write_lock);
+			for (; written < buffer.size(); written++)
+				if (!putchar(buffer[written]))
+					break;
+			update_cursor();
+		}
+
+		if (can_write_impl())
+			epoll_notify(EPOLLOUT);
+
 		return written;
 	}
 
