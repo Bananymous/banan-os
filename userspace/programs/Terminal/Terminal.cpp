@@ -383,10 +383,10 @@ void Terminal::handle_sgr(int32_t value)
 BAN::Optional<uint32_t> Terminal::get_8bit_color()
 {
 	ASSERT(m_csi_info.fields[1] == 5);
-	if (m_csi_info.fields[2] < 1)
+	if (m_csi_info.fields[2] < 0)
 		return {};
 
-	const uint8_t code = BAN::Math::min(m_csi_info.fields[2], 256) - 1;
+	const uint8_t code = BAN::Math::min(m_csi_info.fields[2], 255);
 	if (code < 8)
 		return s_colors_dark[code];
 	if (code < 16)

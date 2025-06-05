@@ -149,10 +149,10 @@ namespace Kernel
 	BAN::Optional<TerminalDriver::Color> VirtualTTY::get_8bit_color()
 	{
 		ASSERT(m_ansi_state.nums[1] == 5);
-		if (m_ansi_state.nums[2] < 1)
+		if (m_ansi_state.nums[2] < 0)
 			return {};
 
-		const uint8_t code = BAN::Math::min(m_ansi_state.nums[2], 256) - 1;
+		const uint8_t code = BAN::Math::min(m_ansi_state.nums[2], 255);
 		if (code < 16)
 			return m_palette[code];
 
