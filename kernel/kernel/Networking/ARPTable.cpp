@@ -162,7 +162,7 @@ namespace Kernel
 				while (m_pending_packets.empty())
 				{
 					m_pending_lock.unlock(state);
-					m_pending_thread_blocker.block_indefinite();
+					m_pending_thread_blocker.block_with_timeout_ms(100);
 					state = m_pending_lock.lock();
 				}
 				auto packet = m_pending_packets.front();
