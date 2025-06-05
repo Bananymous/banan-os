@@ -394,9 +394,15 @@ namespace Kernel
 				auto& connection_info = m_info.get<ConnectionInfo>();
 				bool expected = true;
 				if (connection_info.target_closed.compare_exchange(expected, false))
+				{
+					m_packet_lock.unlock(state);
 					return 0;
+				}
 				if (!connection_info.connection)
+				{
+					m_packet_lock.unlock(state);
 					return BAN::Error::from_errno(ENOTCONN);
+				}
 			}
 
 			m_packet_lock.unlock(state);
