@@ -273,34 +273,39 @@ namespace Kernel
 	{
 		if (m_parent)
 		{
+			Process* parent_process = nullptr;
+
 			for_each_process(
 				[&](Process& parent) -> BAN::Iteration
 				{
 					if (parent.pid() != m_parent)
 						return BAN::Iteration::Continue;
-
-					LockGuard _(parent.m_process_lock);
-
-					for (auto& child : parent.m_child_exit_statuses)
-					{
-						if (child.pid != pid())
-							continue;
-
-						child.exit_code = __WGENEXITCODE(status, signal);
-						child.exited = true;
-
-						parent.add_pending_signal(SIGCHLD);
-						if (!parent.m_threads.empty())
-							Processor::scheduler().unblock_thread(parent.m_threads.front());
-
-						parent.m_child_exit_blocker.unblock();
-
-						break;
-					}
-
+					parent_process = &parent;
 					return BAN::Iteration::Break;
 				}
 			);
+
+			if (parent_process)
+			{
+				LockGuard _(parent_process->m_process_lock);
+
+				for (auto& child : parent_process->m_child_exit_statuses)
+				{
+					if (child.pid != pid())
+						continue;
+
+					child.exit_code = __WGENEXITCODE(status, signal);
+					child.exited = true;
+
+					parent_process->add_pending_signal(SIGCHLD);
+					if (!parent_process->m_threads.empty())
+						Processor::scheduler().unblock_thread(parent_process->m_threads.front());
+
+					parent_process->m_child_exit_blocker.unblock();
+
+					break;
+				}
+			}
 		}
 
 		for (size_t i = 0; i < m_threads.size(); i++)
