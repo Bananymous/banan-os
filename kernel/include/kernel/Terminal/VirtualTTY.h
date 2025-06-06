@@ -17,17 +17,18 @@ namespace Kernel
 	public:
 		static BAN::ErrorOr<BAN::RefPtr<VirtualTTY>> create(BAN::RefPtr<TerminalDriver>);
 
-		virtual BAN::ErrorOr<void> set_font(LibFont::Font&&) override;
+		BAN::ErrorOr<void> set_font(LibFont::Font&&) override;
 
-		virtual uint32_t height() const override { return m_height; }
-		virtual uint32_t width() const override { return m_width; }
+		uint32_t height() const override { return m_height; }
+		uint32_t width() const override { return m_width; }
 
-		virtual void clear() override;
+		void clear() override;
 
 	protected:
-		virtual BAN::StringView name() const override { return m_name; }
-		virtual bool putchar_impl(uint8_t ch) override;
-		void update_cursor() override;
+		BAN::StringView name() const override { return m_name; }
+		bool putchar_impl(uint8_t ch) override;
+		bool can_write_impl() const override { return true; }
+		void after_write() override;
 
 	private:
 		VirtualTTY(BAN::RefPtr<TerminalDriver>);

@@ -219,7 +219,7 @@ namespace Kernel
 			auto* ptr = reinterpret_cast<const uint8_t*>(ansi_c_str);
 			while (*ptr)
 				handle_input_byte(*ptr++);
-			update_cursor();
+			after_write();
 		}
 	}
 
@@ -297,12 +297,8 @@ namespace Kernel
 
 		if (should_append)
 		{
-			// FIXME: don't ignore these bytes
 			if (m_output.bytes >= m_output.buffer.size())
-			{
-				dwarnln("TTY input full");
 				return;
-			}
 			m_output.buffer[m_output.bytes++] = ch;
 		}
 
@@ -405,6 +401,8 @@ namespace Kernel
 
 		if (m_output.bytes == 0)
 		{
+			if (master_has_closed())
+				return 0;
 			m_output.flush = false;
 			return 0;
 		}
@@ -431,6 +429,13 @@ namespace Kernel
 
 	BAN::ErrorOr<size_t> TTY::write_impl(off_t, BAN::ConstByteSpan buffer)
 	{
+		while (!can_write_impl())
+		{
+			if (master_has_closed())
+				return BAN::Error::from_errno(EIO);
+			TRY(Thread::current().block_or_eintr_indefinite(m_write_blocker, &m_mutex));
+		}
+
 		size_t written = 0;
 
 		{
@@ -438,7 +443,7 @@ namespace Kernel
 			for (; written < buffer.size(); written++)
 				if (!putchar(buffer[written]))
 					break;
-			update_cursor();
+			after_write();
 		}
 
 		if (can_write_impl())
@@ -452,7 +457,7 @@ namespace Kernel
 		ASSERT(s_tty);
 		SpinLockGuard _(s_tty->m_write_lock);
 		s_tty->putchar(ch);
-		s_tty->update_cursor();
+		s_tty->after_write();
 	}
 
 	bool TTY::is_initialized()

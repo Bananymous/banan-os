@@ -42,18 +42,19 @@ namespace Kernel
 	public:
 		static BAN::ErrorOr<BAN::RefPtr<SerialTTY>> create(Serial);
 
-		virtual uint32_t width() const override;
-		virtual uint32_t height() const override;
+		uint32_t width() const override;
+		uint32_t height() const override;
 
-		virtual void clear() override { putchar_impl('\e'); putchar_impl('['); putchar_impl('2'); putchar_impl('J'); }
+		void clear() override { putchar_impl('\e'); putchar_impl('['); putchar_impl('2'); putchar_impl('J'); }
 
-		virtual void update() override;
+		void update() override;
 
-		virtual void handle_irq() override;
+		void handle_irq() override;
 
 	protected:
-		virtual BAN::StringView name() const override { return m_name; }
-		virtual bool putchar_impl(uint8_t) override;
+		BAN::StringView name() const override { return m_name; }
+		bool putchar_impl(uint8_t) override;
+		bool can_write_impl() const override { return true; }
 
 	private:
 		SerialTTY(Serial);

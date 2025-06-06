@@ -577,7 +577,7 @@ namespace Kernel
 		return true;
 	}
 
-	void VirtualTTY::update_cursor()
+	void VirtualTTY::after_write()
 	{
 		if (m_cursor_shown != m_last_cursor_shown)
 			m_terminal_driver->set_cursor_shown(m_cursor_shown);

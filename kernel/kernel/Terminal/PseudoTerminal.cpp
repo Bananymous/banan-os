@@ -130,6 +130,9 @@ namespace Kernel
 		m_buffer_size -= to_copy;
 		m_buffer_tail = (m_buffer_tail + to_copy) % m_buffer->size();
 
+		if (auto slave = m_slave.lock())
+			slave->m_write_blocker.unblock();
+
 		epoll_notify(EPOLLOUT);
 
 		return to_copy;
@@ -139,10 +142,16 @@ namespace Kernel
 	{
 		auto slave = m_slave.lock();
 		if (!slave)
-			return BAN::Error::from_errno(ENODEV);
+			return BAN::Error::from_errno(EIO);
 		for (size_t i = 0; i < buffer.size(); i++)
 			slave->handle_input_byte(buffer[i]);
 		return buffer.size();
+	}
+
+	void PseudoTerminalMaster::on_close(int)
+	{
+		if (auto slave = m_slave.lock())
+			slave->m_write_blocker.unblock();
 	}
 
 	BAN::ErrorOr<long> PseudoTerminalMaster::ioctl_impl(int request, void* argument)
@@ -184,6 +193,15 @@ namespace Kernel
 		if (auto master = m_master.lock())
 			return master->putchar(ch);
 		return false;
+	}
+
+	bool PseudoTerminalSlave::can_write_impl() const
+	{
+		auto master = m_master.lock();
+		if (!master)
+			return false;
+		SpinLockGuard _(master->m_buffer_lock);
+		return master->m_buffer_size < master->m_buffer->size();
 	}
 
 	BAN::ErrorOr<long> PseudoTerminalSlave::ioctl_impl(int request, void* argument)

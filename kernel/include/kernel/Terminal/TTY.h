@@ -66,18 +66,19 @@ namespace Kernel
 		virtual BAN::ErrorOr<long> ioctl_impl(int, void*) override;
 
 		virtual bool can_read_impl() const override { return m_output.flush; }
-		virtual bool can_write_impl() const override { return true; }
 		virtual bool has_error_impl() const override { return false; }
 		virtual bool has_hungup_impl() const override { return false; }
+
+		virtual bool master_has_closed() const { return false; }
 
 	protected:
 		TTY(termios termios, mode_t mode, uid_t uid, gid_t gid);
 
 		virtual bool putchar_impl(uint8_t ch) = 0;
-		virtual void update_cursor() {}
+		virtual void after_write() {}
 
-		virtual BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan) override;
-		virtual BAN::ErrorOr<size_t> write_impl(off_t, BAN::ConstByteSpan) override;
+		virtual BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan) final override;
+		virtual BAN::ErrorOr<size_t> write_impl(off_t, BAN::ConstByteSpan) final override;
 
 	private:
 		bool putchar(uint8_t ch);
@@ -110,6 +111,7 @@ namespace Kernel
 
 	protected:
 		RecursiveSpinLock m_write_lock;
+		ThreadBlocker m_write_blocker;
 	};
 
 }

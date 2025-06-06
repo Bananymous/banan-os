@@ -360,7 +360,7 @@ namespace Kernel
 		{
 			LockGuard _(inode->m_mutex);
 			if (is_nonblock && !inode->can_read())
-				return 0;
+				return BAN::Error::from_errno(EAGAIN);
 			nread = TRY(inode->read(offset, buffer));
 		}
 
@@ -395,7 +395,7 @@ namespace Kernel
 		{
 			LockGuard _(inode->m_mutex);
 			if (is_nonblock && !inode->can_write())
-				return BAN::Error::from_errno(EWOULDBLOCK);
+				return BAN::Error::from_errno(EAGAIN);
 			nwrite = TRY(inode->write(offset, buffer));
 		}
 
