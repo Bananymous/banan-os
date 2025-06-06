@@ -292,8 +292,10 @@ namespace Kernel
 
 	void E1000::handle_irq()
 	{
-		if (!(read32(REG_ICR) & (ICR_RxQ0 | ICR_RXT0)))
+		const uint32_t icr = read32(REG_ICR);
+		if (!(icr & (ICR_RxQ0 | ICR_RXT0)))
 			return;
+		write32(REG_ICR, icr);
 
 		SpinLockGuard _(m_lock);
 
@@ -315,8 +317,6 @@ namespace Kernel
 			descriptor.status = 0;
 			write32(REG_RDT0, rx_current);
 		}
-
-		write32(REG_ICR, 0xFFFFFFFF);
 	}
 
 }
