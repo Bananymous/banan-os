@@ -11,6 +11,7 @@
 namespace Kernel
 {
 
+	class BaseMutex;
 	class Thread;
 	class ThreadBlocker;
 
@@ -86,7 +87,7 @@ namespace Kernel
 		// if thread is already bound, this will never fail
 		BAN::ErrorOr<void> add_thread(Thread*);
 
-		void block_current_thread(ThreadBlocker* thread_blocker, uint64_t wake_time_ns);
+		void block_current_thread(ThreadBlocker* thread_blocker, uint64_t wake_time_ns, BaseMutex* mutex);
 		void unblock_thread(Thread*);
 
 		Thread& current_thread();

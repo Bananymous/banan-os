@@ -963,7 +963,7 @@ acpi_release_global_lock:
 
 			// FIXME: this can cause missing of event if it happens between
 			//        reading the status and blocking
-			m_event_thread_blocker.block_with_timeout_ms(100);
+			m_event_thread_blocker.block_with_timeout_ms(100, nullptr);
 			continue;
 
 handle_event:

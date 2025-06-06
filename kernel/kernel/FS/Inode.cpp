@@ -278,14 +278,14 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Inode::add_epoll(class Epoll* epoll)
 	{
-		LockGuard _(m_epoll_mutex);
+		SpinLockGuard _(m_epoll_lock);
 		TRY(m_epolls.push_back(epoll));
 		return {};
 	}
 
 	void Inode::del_epoll(class Epoll* epoll)
 	{
-		LockGuard _(m_epoll_mutex);
+		SpinLockGuard _(m_epoll_lock);
 		for (auto it = m_epolls.begin(); it != m_epolls.end(); it++)
 		{
 			if (*it != epoll)
@@ -297,7 +297,7 @@ namespace Kernel
 
 	void Inode::epoll_notify(uint32_t event)
 	{
-		LockGuard _(m_epoll_mutex);
+		SpinLockGuard _(m_epoll_lock);
 		for (auto* epoll : m_epolls)
 			epoll->notify(this, event);
 	}

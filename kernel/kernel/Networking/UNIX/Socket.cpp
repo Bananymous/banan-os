@@ -1,5 +1,6 @@
 #include <BAN/HashMap.h>
 #include <kernel/FS/VirtualFileSystem.h>
+#include <kernel/Lock/SpinLockAsMutex.h>
 #include <kernel/Networking/NetworkManager.h>
 #include <kernel/Networking/UNIX/Socket.h>
 #include <kernel/Scheduler.h>
@@ -15,6 +16,8 @@ namespace Kernel
 	static SpinLock														s_bound_socket_lock;
 
 	static constexpr size_t s_packet_buffer_size = 10 * PAGE_SIZE;
+
+	// FIXME: why is this using spinlocks instead of mutexes??
 
 	BAN::ErrorOr<BAN::RefPtr<UnixDomainSocket>> UnixDomainSocket::create(Socket::Type socket_type, const Socket::Info& info)
 	{
@@ -91,13 +94,16 @@ namespace Kernel
 		if (!connection_info.listening)
 			return BAN::Error::from_errno(EINVAL);
 
-		while (connection_info.pending_connections.empty())
-			TRY(Thread::current().block_or_eintr_indefinite(connection_info.pending_thread_blocker));
 
 		BAN::RefPtr<UnixDomainSocket> pending;
 
 		{
-			SpinLockGuard _(connection_info.pending_lock);
+			SpinLockGuard guard(connection_info.pending_lock);
+
+			SpinLockGuardAsMutex smutex(guard);
+			while (connection_info.pending_connections.empty())
+				TRY(Thread::current().block_or_eintr_indefinite(connection_info.pending_thread_blocker, &smutex));
+
 			pending = connection_info.pending_connections.front();
 			connection_info.pending_connections.pop();
 			connection_info.pending_thread_blocker.unblock();
@@ -176,16 +182,18 @@ namespace Kernel
 		for (;;)
 		{
 			auto& target_info = target->m_info.get<ConnectionInfo>();
+
+			SpinLockGuard guard(target_info.pending_lock);
+
+			if (target_info.pending_connections.size() < target_info.pending_connections.capacity())
 			{
-				SpinLockGuard _(target_info.pending_lock);
-				if (target_info.pending_connections.size() < target_info.pending_connections.capacity())
-				{
-					MUST(target_info.pending_connections.push(this));
-					target_info.pending_thread_blocker.unblock();
-					break;
-				}
+				MUST(target_info.pending_connections.push(this));
+				target_info.pending_thread_blocker.unblock();
+				break;
 			}
-			TRY(Thread::current().block_or_eintr_indefinite(target_info.pending_thread_blocker));
+
+			SpinLockGuardAsMutex smutex(guard);
+			TRY(Thread::current().block_or_eintr_indefinite(target_info.pending_thread_blocker, &smutex));
 		}
 
 		target->epoll_notify(EPOLLIN);
@@ -269,9 +277,8 @@ namespace Kernel
 		auto state = m_packet_lock.lock();
 		while (m_packet_sizes.full() || m_packet_size_total + packet.size() > s_packet_buffer_size)
 		{
-			m_packet_lock.unlock(state);
-			TRY(Thread::current().block_or_eintr_indefinite(m_packet_thread_blocker));
-			state = m_packet_lock.lock();
+			SpinLockAsMutex smutex(m_packet_lock, state);
+			TRY(Thread::current().block_or_eintr_indefinite(m_packet_thread_blocker, &smutex));
 		}
 
 		uint8_t* packet_buffer = reinterpret_cast<uint8_t*>(m_packet_buffer->vaddr() + m_packet_size_total);
@@ -405,9 +412,8 @@ namespace Kernel
 				}
 			}
 
-			m_packet_lock.unlock(state);
-			TRY(Thread::current().block_or_eintr_indefinite(m_packet_thread_blocker));
-			state = m_packet_lock.lock();
+			SpinLockAsMutex smutex(m_packet_lock, state);
+			TRY(Thread::current().block_or_eintr_indefinite(m_packet_thread_blocker, &smutex));
 		}
 
 		uint8_t* packet_buffer = reinterpret_cast<uint8_t*>(m_packet_buffer->vaddr());

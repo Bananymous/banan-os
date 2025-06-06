@@ -44,6 +44,8 @@ namespace Kernel
 
 	void Pipe::on_close(int status_flags)
 	{
+		LockGuard _(m_mutex);
+
 		if (status_flags & O_WRONLY)
 		{
 			auto old_writing_count = m_writing_count.fetch_sub(1);
@@ -71,8 +73,7 @@ namespace Kernel
 		{
 			if (m_writing_count == 0)
 				return 0;
-			LockFreeGuard lock_free(m_mutex);
-			TRY(Thread::current().block_or_eintr_or_timeout_ms(m_thread_blocker, 100, false));
+			TRY(Thread::current().block_or_eintr_indefinite(m_thread_blocker, &m_mutex));
 		}
 
 		const size_t to_copy = BAN::Math::min<size_t>(buffer.size(), m_buffer_size);
@@ -108,8 +109,7 @@ namespace Kernel
 				Thread::current().add_signal(SIGPIPE);
 				return BAN::Error::from_errno(EPIPE);
 			}
-			LockFreeGuard lock_free(m_mutex);
-			TRY(Thread::current().block_or_eintr_or_timeout_ms(m_thread_blocker, 100, false));
+			TRY(Thread::current().block_or_eintr_indefinite(m_thread_blocker, &m_mutex));
 		}
 
 		const size_t to_copy = BAN::Math::min(buffer.size(), m_buffer.size() - m_buffer_size);

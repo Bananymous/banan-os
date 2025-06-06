@@ -269,7 +269,8 @@ namespace Kernel
 						m_is_init_done = true;
 					}
 
-					m_changed_port_blocker.block_with_timeout_ms(100);
+					// FIXME: race condition
+					m_changed_port_blocker.block_with_timeout_ms(100, nullptr);
 					continue;
 				}
 

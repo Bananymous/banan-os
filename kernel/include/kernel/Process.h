@@ -331,7 +331,6 @@ namespace Kernel
 
 		bool m_is_userspace { false };
 
-		SpinLock m_child_exit_lock;
 		BAN::Vector<ChildExitStatus> m_child_exit_statuses;
 		ThreadBlocker m_child_exit_blocker;
 

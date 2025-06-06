@@ -1,4 +1,4 @@
-#include <kernel/Lock/LockGuard.h>
+#include <kernel/Lock/SpinLockAsMutex.h>
 #include <kernel/Storage/NVMe/Queue.h>
 #include <kernel/Thread.h>
 #include <kernel/Timer/Timer.h>
@@ -72,7 +72,7 @@ namespace Kernel
 		//        scheduler has put the current thread blocking.
 		//        EINTR should also be handled here.
 		while (!(m_done_mask & cid_mask) && SystemTimer::get().ms_since_boot() < start_time_ms + s_nvme_command_timeout_ms)
-			m_thread_blocker.block_with_wake_time_ms(start_time_ms + s_nvme_command_timeout_ms);
+			m_thread_blocker.block_with_wake_time_ms(start_time_ms + s_nvme_command_timeout_ms, nullptr);
 
 		if (m_done_mask & cid_mask)
 		{
@@ -87,12 +87,12 @@ namespace Kernel
 
 	uint16_t NVMeQueue::reserve_cid()
 	{
-		auto state = m_lock.lock();
+		SpinLockGuard guard(m_lock);
+
 		while (~m_used_mask == 0)
 		{
-			m_lock.unlock(state);
-			m_thread_blocker.block_with_timeout_ms(s_nvme_command_timeout_ms);
-			state = m_lock.lock();
+			SpinLockGuardAsMutex smutex(guard);
+			m_thread_blocker.block_with_timeout_ms(s_nvme_command_timeout_ms, &smutex);
 		}
 
 		uint16_t cid = 0;
@@ -104,7 +104,6 @@ namespace Kernel
 
 		m_used_mask |= (size_t)1 << cid;
 
-		m_lock.unlock(state);
 		return cid;
 	}
 

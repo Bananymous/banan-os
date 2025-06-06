@@ -83,9 +83,7 @@ namespace Kernel
 	{
 		if (ns == 0)
 			return;
-
-		const uint64_t wake_time_ns = ns_since_boot() + ns;
-		Processor::scheduler().block_current_thread(nullptr, wake_time_ns);
+		Processor::scheduler().block_current_thread(nullptr, ns_since_boot() + ns, nullptr);
 	}
 
 	timespec SystemTimer::real_time() const

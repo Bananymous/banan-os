@@ -92,6 +92,8 @@ namespace Kernel
 		if (flags & ~(TTY_FLAG_ENABLE_INPUT | TTY_FLAG_ENABLE_OUTPUT))
 			return BAN::Error::from_errno(EINVAL);
 
+		LockGuard _(m_mutex);
+
 		switch (command)
 		{
 			case TTY_CMD_SET:
@@ -129,12 +131,16 @@ namespace Kernel
 
 		while (true)
 		{
-			while (!TTY::current()->m_tty_ctrl.receive_input)
-				TTY::current()->m_tty_ctrl.thread_blocker.block_indefinite();
+			{
+				LockGuard _(TTY::current()->m_mutex);
+				while (!TTY::current()->m_tty_ctrl.receive_input)
+					TTY::current()->m_tty_ctrl.thread_blocker.block_indefinite(&TTY::current()->m_mutex);
+			}
 
 			while (TTY::current()->m_tty_ctrl.receive_input)
 			{
 				LockGuard _(keyboard_inode->m_mutex);
+
 				if (!keyboard_inode->can_read())
 				{
 					SystemTimer::get().sleep_ms(1);
@@ -395,10 +401,7 @@ namespace Kernel
 	BAN::ErrorOr<size_t> TTY::read_impl(off_t, BAN::ByteSpan buffer)
 	{
 		while (!m_output.flush)
-		{
-			LockFreeGuard _(m_mutex);
-			TRY(Thread::current().block_or_eintr_indefinite(m_output.thread_blocker));
-		}
+			TRY(Thread::current().block_or_eintr_indefinite(m_output.thread_blocker, &m_mutex));
 
 		if (m_output.bytes == 0)
 		{

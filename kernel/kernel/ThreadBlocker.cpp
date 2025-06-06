@@ -5,19 +5,19 @@
 namespace Kernel
 {
 
-	void ThreadBlocker::block_indefinite()
+	void ThreadBlocker::block_indefinite(BaseMutex* mutex)
 	{
-		Processor::scheduler().block_current_thread(this, static_cast<uint64_t>(-1));
+		Processor::scheduler().block_current_thread(this, static_cast<uint64_t>(-1), mutex);
 	}
 
-	void ThreadBlocker::block_with_timeout_ns(uint64_t timeout_ns)
+	void ThreadBlocker::block_with_timeout_ns(uint64_t timeout_ns, BaseMutex* mutex)
 	{
-		Processor::scheduler().block_current_thread(this, SystemTimer::get().ns_since_boot() + timeout_ns);
+		Processor::scheduler().block_current_thread(this, SystemTimer::get().ns_since_boot() + timeout_ns, mutex);
 	}
 
-	void ThreadBlocker::block_with_wake_time_ns(uint64_t wake_time_ns)
+	void ThreadBlocker::block_with_wake_time_ns(uint64_t wake_time_ns, BaseMutex* mutex)
 	{
-		Processor::scheduler().block_current_thread(this, wake_time_ns);
+		Processor::scheduler().block_current_thread(this, wake_time_ns, mutex);
 	}
 
 	void ThreadBlocker::unblock()

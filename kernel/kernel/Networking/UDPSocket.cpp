@@ -1,3 +1,4 @@
+#include <kernel/Lock/SpinLockAsMutex.h>
 #include <kernel/Memory/Heap.h>
 #include <kernel/Networking/UDPSocket.h>
 #include <kernel/Thread.h>
@@ -93,12 +94,12 @@ namespace Kernel
 		}
 		ASSERT(m_port != PORT_NONE);
 
-		auto state = m_packet_lock.lock();
+		SpinLockGuard guard(m_packet_lock);
+
 		while (m_packets.empty())
 		{
-			m_packet_lock.unlock(state);
-			TRY(Thread::current().block_or_eintr_indefinite(m_packet_thread_blocker));
-			state = m_packet_lock.lock();
+			SpinLockGuardAsMutex smutex(guard);
+			TRY(Thread::current().block_or_eintr_indefinite(m_packet_thread_blocker, &smutex));
 		}
 
 		auto packet_info = m_packets.front();
@@ -119,8 +120,6 @@ namespace Kernel
 		);
 
 		m_packet_total_size -= packet_info.packet_size;
-
-		m_packet_lock.unlock(state);
 
 		if (address && address_len)
 		{

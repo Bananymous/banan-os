@@ -73,10 +73,7 @@ namespace Kernel
 			return BAN::Error::from_errno(EINVAL);
 
 		while (m_pending_connections.empty())
-		{
-			LockFreeGuard _(m_mutex);
-			TRY(Thread::current().block_or_eintr_or_timeout_ms(m_thread_blocker, 100, false));
-		}
+			TRY(Thread::current().block_or_eintr_indefinite(m_thread_blocker, &m_mutex));
 
 		auto connection = m_pending_connections.front();
 		m_pending_connections.pop();
@@ -111,12 +108,7 @@ namespace Kernel
 
 		const uint64_t wake_time_ms = SystemTimer::get().ms_since_boot() + 5000;
 		while (!return_inode->m_has_connected)
-		{
-			if (SystemTimer::get().ms_since_boot() >= wake_time_ms)
-				return BAN::Error::from_errno(ECONNABORTED);
-			LockFreeGuard free(m_mutex);
-			TRY(Thread::current().block_or_eintr_or_waketime_ms(return_inode->m_thread_blocker, wake_time_ms, true));
-		}
+			TRY(Thread::current().block_or_eintr_or_waketime_ms(return_inode->m_thread_blocker, wake_time_ms, true, &m_mutex));
 
 		if (address)
 		{
@@ -168,12 +160,7 @@ namespace Kernel
 
 		const uint64_t wake_time_ms = SystemTimer::get().ms_since_boot() + 5000;
 		while (!m_has_connected)
-		{
-			if (SystemTimer::get().ms_since_boot() >= wake_time_ms)
-				return BAN::Error::from_errno(ECONNREFUSED);
-			LockFreeGuard free(m_mutex);
-			TRY(Thread::current().block_or_eintr_or_waketime_ms(m_thread_blocker, wake_time_ms, true));
-		}
+			TRY(Thread::current().block_or_eintr_or_waketime_ms(m_thread_blocker, wake_time_ms, true, &m_mutex));
 
 		return {};
 	}
@@ -208,8 +195,7 @@ namespace Kernel
 		{
 			if (m_state != State::Established)
 				return return_with_maybe_zero();
-			LockFreeGuard free(m_mutex);
-			TRY(Thread::current().block_or_eintr_or_timeout_ms(m_thread_blocker, 100, false));
+			TRY(Thread::current().block_or_eintr_indefinite(m_thread_blocker, &m_mutex));
 		}
 
 		const uint32_t to_recv = BAN::Math::min<uint32_t>(buffer.size(), m_recv_window.data_size);
@@ -239,8 +225,7 @@ namespace Kernel
 		{
 			if (m_state != State::Established)
 				return return_with_maybe_zero();
-			LockFreeGuard free(m_mutex);
-			TRY(Thread::current().block_or_eintr_or_timeout_ms(m_thread_blocker, 100, false));
+			TRY(Thread::current().block_or_eintr_indefinite(m_thread_blocker, &m_mutex));
 		}
 
 		const size_t to_send = BAN::Math::min<size_t>(message.size(), m_send_window.buffer->size() - m_send_window.data_size);
@@ -519,8 +504,10 @@ namespace Kernel
 					}
 					auto socket = it->value;
 
-					LockFreeGuard _(m_mutex);
+					m_mutex.unlock();
 					socket->receive_packet(buffer, sender, sender_len);
+					m_mutex.lock();
+
 					return;
 				}
 				break;
@@ -660,116 +647,114 @@ namespace Kernel
 		BAN::RefPtr<TCPSocket> keep_alive { this };
 		this->unref();
 
+		LockGuard _(m_mutex);
+
 		while (m_process)
 		{
 			const uint64_t current_ms = SystemTimer::get().ms_since_boot();
 
+			if (m_state == State::TimeWait && current_ms >= m_time_wait_start_ms + 30'000)
 			{
-				LockGuard _(m_mutex);
+				set_connection_as_closed();
+				continue;
+			}
 
-				if (m_state == State::TimeWait && current_ms >= m_time_wait_start_ms + 30'000)
+			// This is the last instance
+			if (ref_count() == 1)
+			{
+				if (m_state == State::Listen)
 				{
 					set_connection_as_closed();
 					continue;
 				}
-
-				// This is the last instance
-				if (ref_count() == 1)
+				if (m_state == State::Established)
 				{
-					if (m_state == State::Listen)
-					{
-						set_connection_as_closed();
-						continue;
-					}
-					if (m_state == State::Established)
-					{
-						m_next_flags = FIN | ACK;
-						m_next_state = State::FinWait1;
-					}
-				}
-
-				if (m_next_flags)
-				{
-					ASSERT(m_connection_info.has_value());
-					auto* target_address = reinterpret_cast<const sockaddr*>(&m_connection_info->address);
-					auto target_address_len = m_connection_info->address_len;
-					if (auto ret = m_network_layer.sendto(*this, {}, target_address, target_address_len); ret.is_error())
-						dwarnln("{}", ret.error());
-					const bool hungup_before = has_hungup_impl();
-					m_state = m_next_state;
-					if (m_state == State::Established)
-						m_has_connected = true;
-					if (!hungup_before && has_hungup_impl())
-						epoll_notify(EPOLLHUP);
-					continue;
-				}
-
-				if (m_send_window.data_size > 0 && m_send_window.current_ack - m_send_window.has_ghost_byte > m_send_window.start_seq)
-				{
-					uint32_t acknowledged_bytes = m_send_window.current_ack - m_send_window.start_seq - m_send_window.has_ghost_byte;
-					ASSERT(acknowledged_bytes <= m_send_window.data_size);
-
-					m_send_window.data_size -= acknowledged_bytes;
-					m_send_window.start_seq += acknowledged_bytes;
-
-					if (m_send_window.data_size > 0)
-					{
-						auto* send_buffer = reinterpret_cast<uint8_t*>(m_send_window.buffer->vaddr());
-						memmove(send_buffer, send_buffer + acknowledged_bytes, m_send_window.data_size);
-					}
-
-					m_send_window.sent_size -= acknowledged_bytes;
-
-					epoll_notify(EPOLLOUT);
-
-					dprintln_if(DEBUG_TCP, "Target acknowledged {} bytes", acknowledged_bytes);
-
-					continue;
-				}
-
-				const bool should_retransmit = m_send_window.data_size > 0 && current_ms >= m_send_window.last_send_ms + retransmit_timeout_ms;
-
-				if (m_send_window.data_size > m_send_window.sent_size || should_retransmit)
-				{
-					ASSERT(m_connection_info.has_value());
-					auto* target_address = reinterpret_cast<const sockaddr*>(&m_connection_info->address);
-					auto target_address_len = m_connection_info->address_len;
-
-					const uint32_t send_base = should_retransmit ? 0 : m_send_window.sent_size;
-
-					const uint32_t total_send = BAN::Math::min<uint32_t>(m_send_window.data_size - send_base, m_send_window.scaled_size());
-
-					m_send_window.current_seq = m_send_window.start_seq;
-
-					auto* send_buffer = reinterpret_cast<const uint8_t*>(m_send_window.buffer->vaddr() + send_base);
-					for (uint32_t i = 0; i < total_send;)
-					{
-						const uint32_t to_send = BAN::Math::min(total_send - i, m_send_window.mss);
-
-						auto message = BAN::ConstByteSpan(send_buffer + i, to_send);
-
-						m_next_flags = ACK;
-						if (auto ret = m_network_layer.sendto(*this, message, target_address, target_address_len); ret.is_error())
-						{
-							dwarnln("{}", ret.error());
-							break;
-						}
-
-						dprintln_if(DEBUG_TCP, "Sent {} bytes", to_send);
-
-						m_send_window.sent_size += to_send;
-						m_send_window.current_seq += to_send;
-						i += to_send;
-					}
-
-					m_send_window.last_send_ms = current_ms;
-
-					continue;
+					m_next_flags = FIN | ACK;
+					m_next_state = State::FinWait1;
 				}
 			}
 
+			if (m_next_flags)
+			{
+				ASSERT(m_connection_info.has_value());
+				auto* target_address = reinterpret_cast<const sockaddr*>(&m_connection_info->address);
+				auto target_address_len = m_connection_info->address_len;
+				if (auto ret = m_network_layer.sendto(*this, {}, target_address, target_address_len); ret.is_error())
+					dwarnln("{}", ret.error());
+				const bool hungup_before = has_hungup_impl();
+				m_state = m_next_state;
+				if (m_state == State::Established)
+					m_has_connected = true;
+				if (!hungup_before && has_hungup_impl())
+					epoll_notify(EPOLLHUP);
+				continue;
+			}
+
+			if (m_send_window.data_size > 0 && m_send_window.current_ack - m_send_window.has_ghost_byte > m_send_window.start_seq)
+			{
+				uint32_t acknowledged_bytes = m_send_window.current_ack - m_send_window.start_seq - m_send_window.has_ghost_byte;
+				ASSERT(acknowledged_bytes <= m_send_window.data_size);
+
+				m_send_window.data_size -= acknowledged_bytes;
+				m_send_window.start_seq += acknowledged_bytes;
+
+				if (m_send_window.data_size > 0)
+				{
+					auto* send_buffer = reinterpret_cast<uint8_t*>(m_send_window.buffer->vaddr());
+					memmove(send_buffer, send_buffer + acknowledged_bytes, m_send_window.data_size);
+				}
+
+				m_send_window.sent_size -= acknowledged_bytes;
+
+				epoll_notify(EPOLLOUT);
+
+				dprintln_if(DEBUG_TCP, "Target acknowledged {} bytes", acknowledged_bytes);
+
+				continue;
+			}
+
+			const bool should_retransmit = m_send_window.data_size > 0 && current_ms >= m_send_window.last_send_ms + retransmit_timeout_ms;
+
+			if (m_send_window.data_size > m_send_window.sent_size || should_retransmit)
+			{
+				ASSERT(m_connection_info.has_value());
+				auto* target_address = reinterpret_cast<const sockaddr*>(&m_connection_info->address);
+				auto target_address_len = m_connection_info->address_len;
+
+				const uint32_t send_base = should_retransmit ? 0 : m_send_window.sent_size;
+
+				const uint32_t total_send = BAN::Math::min<uint32_t>(m_send_window.data_size - send_base, m_send_window.scaled_size());
+
+				m_send_window.current_seq = m_send_window.start_seq;
+
+				auto* send_buffer = reinterpret_cast<const uint8_t*>(m_send_window.buffer->vaddr() + send_base);
+				for (uint32_t i = 0; i < total_send;)
+				{
+					const uint32_t to_send = BAN::Math::min(total_send - i, m_send_window.mss);
+
+					auto message = BAN::ConstByteSpan(send_buffer + i, to_send);
+
+					m_next_flags = ACK;
+					if (auto ret = m_network_layer.sendto(*this, message, target_address, target_address_len); ret.is_error())
+					{
+						dwarnln("{}", ret.error());
+						break;
+					}
+
+					dprintln_if(DEBUG_TCP, "Sent {} bytes", to_send);
+
+					m_send_window.sent_size += to_send;
+					m_send_window.current_seq += to_send;
+					i += to_send;
+				}
+
+				m_send_window.last_send_ms = current_ms;
+
+				continue;
+			}
+
 			m_thread_blocker.unblock();
-			m_thread_blocker.block_with_wake_time_ms(current_ms + retransmit_timeout_ms);
+			m_thread_blocker.block_with_wake_time_ms(current_ms + retransmit_timeout_ms, &m_mutex);
 		}
 
 		m_thread_blocker.unblock();

@@ -1,3 +1,4 @@
+#include <kernel/Lock/SpinLockAsMutex.h>
 #include <kernel/Networking/ARPTable.h>
 #include <kernel/Scheduler.h>
 #include <kernel/Timer/Timer.h>
@@ -158,16 +159,15 @@ namespace Kernel
 		for (;;)
 		{
 			PendingArpPacket pending = ({
-				auto state = m_pending_lock.lock();
+				SpinLockGuard guard(m_pending_lock);
 				while (m_pending_packets.empty())
 				{
-					m_pending_lock.unlock(state);
-					m_pending_thread_blocker.block_with_timeout_ms(100);
-					state = m_pending_lock.lock();
+					SpinLockGuardAsMutex smutex(guard);
+					m_pending_thread_blocker.block_indefinite(&smutex);
 				}
+
 				auto packet = m_pending_packets.front();
 				m_pending_packets.pop();
-				m_pending_lock.unlock(state);
 
 				packet;
 			});

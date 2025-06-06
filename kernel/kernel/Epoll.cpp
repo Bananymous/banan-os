@@ -1,5 +1,6 @@
 #include <kernel/Epoll.h>
 #include <kernel/Lock/LockGuard.h>
+#include <kernel/Lock/SpinLockAsMutex.h>
 #include <kernel/Timer/Timer.h>
 
 namespace Kernel
@@ -45,10 +46,12 @@ namespace Kernel
 					TRY(inode->add_epoll(this));
 				it->value.add_fd(fd, event);
 
-				auto processing_it = m_processing_events.find(inode);
-				if (processing_it == m_processing_events.end())
-					processing_it = MUST(m_processing_events.insert(inode, 0));
-				processing_it->value |= event.events;
+				SpinLockGuard _(m_ready_lock);
+				auto ready_it = m_ready_events.find(inode);
+				if (ready_it == m_ready_events.end())
+					ready_it = MUST(m_ready_events.insert(inode, 0));
+				ready_it->value |= event.events;
+				m_thread_blocker.unblock();
 
 				return {};
 			}
@@ -61,10 +64,12 @@ namespace Kernel
 
 				it->value.events[fd] = event;
 
-				auto processing_it = m_processing_events.find(inode);
-				if (processing_it == m_processing_events.end())
-					processing_it = MUST(m_processing_events.insert(inode, 0));
-				processing_it->value |= event.events;
+				SpinLockGuard _(m_ready_lock);
+				auto ready_it = m_ready_events.find(inode);
+				if (ready_it == m_ready_events.end())
+					ready_it = MUST(m_ready_events.insert(inode, 0));
+				ready_it->value |= event.events;
+				m_thread_blocker.unblock();
 
 				return {};
 			}
@@ -196,8 +201,14 @@ namespace Kernel
 			const uint64_t current_ns = SystemTimer::get().ns_since_boot();
 			if (current_ns >= waketime_ns)
 				break;
+
+			SpinLockGuard guard(m_ready_lock);
+			if (!m_ready_events.empty())
+				continue;
+
+			SpinLockGuardAsMutex smutex(guard);
 			const uint64_t timeout_ns = BAN::Math::min<uint64_t>(100'000'000, waketime_ns - current_ns);
-			TRY(Thread::current().block_or_eintr_or_timeout_ns(m_thread_blocker, timeout_ns, false));
+			TRY(Thread::current().block_or_eintr_or_timeout_ns(m_thread_blocker, timeout_ns, false, &smutex));
 		}
 
 		return event_count;

@@ -1,5 +1,6 @@
 #include <kernel/Device/DeviceNumbers.h>
 #include <kernel/FS/DevFS/FileSystem.h>
+#include <kernel/Lock/SpinLockAsMutex.h>
 #include <kernel/Terminal/PseudoTerminal.h>
 
 #include <BAN/ScopeGuard.h>
@@ -88,17 +89,15 @@ namespace Kernel
 
 	bool PseudoTerminalMaster::putchar(uint8_t ch)
 	{
-		{
-			SpinLockGuard _(m_buffer_lock);
+		SpinLockGuard _(m_buffer_lock);
 
-			if (m_buffer_size >= m_buffer->size())
-				return false;
+		if (m_buffer_size >= m_buffer->size())
+			return false;
 
-			reinterpret_cast<uint8_t*>(m_buffer->vaddr())[(m_buffer_tail + m_buffer_size) % m_buffer->size()] = ch;
-			m_buffer_size++;
+		reinterpret_cast<uint8_t*>(m_buffer->vaddr())[(m_buffer_tail + m_buffer_size) % m_buffer->size()] = ch;
+		m_buffer_size++;
 
-			m_buffer_blocker.unblock();
-		}
+		m_buffer_blocker.unblock();
 
 		epoll_notify(EPOLLIN);
 
@@ -107,13 +106,12 @@ namespace Kernel
 
 	BAN::ErrorOr<size_t> PseudoTerminalMaster::read_impl(off_t, BAN::ByteSpan buffer)
 	{
-		auto state = m_buffer_lock.lock();
+		SpinLockGuard guard(m_buffer_lock);
 
 		while (m_buffer_size == 0)
 		{
-			m_buffer_lock.unlock(state);
-			TRY(Thread::current().block_or_eintr_indefinite(m_buffer_blocker));
-			m_buffer_lock.lock();
+			SpinLockGuardAsMutex smutex(guard);
+			TRY(Thread::current().block_or_eintr_indefinite(m_buffer_blocker, &smutex));
 		}
 
 		const size_t to_copy = BAN::Math::min(buffer.size(), m_buffer_size);
@@ -131,8 +129,6 @@ namespace Kernel
 
 		m_buffer_size -= to_copy;
 		m_buffer_tail = (m_buffer_tail + to_copy) % m_buffer->size();
-
-		m_buffer_lock.unlock(state);
 
 		epoll_notify(EPOLLOUT);
 

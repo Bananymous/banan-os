@@ -1,3 +1,4 @@
+#include <kernel/Lock/SpinLockAsMutex.h>
 #include <kernel/Networking/NetworkManager.h>
 #include <kernel/Networking/RTL8169/Definitions.h>
 #include <kernel/Networking/RTL8169/RTL8169.h>
@@ -205,13 +206,18 @@ namespace Kernel
 			return BAN::Error::from_errno(EADDRNOTAVAIL);
 
 		auto state = m_lock.lock();
+
 		const uint32_t tx_current = m_tx_current;
 		m_tx_current = (m_tx_current + 1) % m_tx_descriptor_count;
-		m_lock.unlock(state);
 
 		auto& descriptor = reinterpret_cast<volatile RTL8169Descriptor*>(m_tx_descriptor_region->vaddr())[tx_current];
 		while (descriptor.command & RTL8169_DESC_CMD_OWN)
-			m_thread_blocker.block_with_timeout_ms(100);
+		{
+			SpinLockAsMutex smutex(m_lock, state);
+			m_thread_blocker.block_indefinite(&smutex);
+		}
+
+		m_lock.unlock(state);
 
 		auto* tx_buffer = reinterpret_cast<uint8_t*>(m_tx_buffer_region->vaddr() + tx_current * buffer_size);
 
@@ -246,7 +252,10 @@ namespace Kernel
 		}
 
 		if (interrupt_status & RTL8169_IR_TOK)
+		{
+			SpinLockGuard _(m_lock);
 			m_thread_blocker.unblock();
+		}
 
 		if (interrupt_status & RTL8169_IR_RER)
 			dwarnln("Rx error");

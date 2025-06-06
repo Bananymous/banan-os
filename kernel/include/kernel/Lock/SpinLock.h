@@ -24,6 +24,8 @@ namespace Kernel
 
 		void unlock(InterruptState state);
 
+		uint32_t lock_depth() const { return current_processor_has_lock(); }
+
 		bool current_processor_has_lock() const
 		{
 			return m_locker.load(BAN::MemoryOrder::memory_order_relaxed) == Processor::current_id().as_u32();
@@ -72,6 +74,8 @@ namespace Kernel
 			Processor::set_interrupt_state(state);
 		}
 
+		uint32_t lock_depth() const { return m_lock_depth; }
+
 		bool current_processor_has_lock() const
 		{
 			return m_locker.load(BAN::MemoryOrder::memory_order_relaxed) == Processor::current_id().as_u32();
@@ -81,6 +85,9 @@ namespace Kernel
 		BAN::Atomic<ProcessorID::value_type> m_locker { PROCESSOR_NONE.as_u32() };
 		uint32_t                             m_lock_depth { 0 };
 	};
+
+	template<typename Lock>
+	class SpinLockGuardAsMutex;
 
 	template<typename Lock>
 	class SpinLockGuard
@@ -103,6 +110,7 @@ namespace Kernel
 	private:
 		Lock& m_lock;
 		InterruptState m_state;
+		friend class SpinLockGuardAsMutex<Lock>;
 	};
 
 }

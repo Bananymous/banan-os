@@ -1,4 +1,3 @@
-#include <kernel/Lock/LockGuard.h>
 #include <kernel/Memory/Heap.h>
 #include <kernel/Memory/MemoryBackedRegion.h>
 

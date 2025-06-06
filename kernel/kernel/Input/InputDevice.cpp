@@ -1,7 +1,7 @@
 #include <kernel/Device/DeviceNumbers.h>
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/Input/InputDevice.h>
-#include <kernel/Lock/LockGuard.h>
+#include <kernel/Lock/SpinLockAsMutex.h>
 
 #include <LibInput/KeyEvent.h>
 #include <LibInput/MouseEvent.h>
@@ -181,22 +181,17 @@ namespace Kernel
 		if (buffer.size() < m_event_size)
 			return BAN::Error::from_errno(ENOBUFS);
 
-		auto state = m_event_lock.lock();
+		SpinLockGuard guard(m_event_lock);
 		while (m_event_count == 0)
 		{
-			m_event_lock.unlock(state);
-			{
-				LockFreeGuard _(m_mutex);
-				TRY(Thread::current().block_or_eintr_indefinite(m_event_thread_blocker));
-			}
-			state = m_event_lock.lock();
+			// FIXME: should m_mutex be unlocked?
+			SpinLockGuardAsMutex smutex(guard);
+			TRY(Thread::current().block_or_eintr_indefinite(m_event_thread_blocker, &smutex));
 		}
 
 		memcpy(buffer.data(), &m_event_buffer[m_event_tail * m_event_size], m_event_size);
 		m_event_tail = (m_event_tail + 1) % m_max_event_count;
 		m_event_count--;
-
-		m_event_lock.unlock(state);
 
 		return m_event_size;
 	}
@@ -256,8 +251,8 @@ namespace Kernel
 					return bytes;
 			}
 
-			LockFreeGuard _(m_mutex);
-			TRY(Thread::current().block_or_eintr_indefinite(m_thread_blocker));
+			// FIXME: race condition as notify doesn't lock mutex
+			TRY(Thread::current().block_or_eintr_indefinite(m_thread_blocker, &m_mutex));
 		}
 	}
 
@@ -308,8 +303,8 @@ namespace Kernel
 					return bytes;
 			}
 
-			LockFreeGuard _(m_mutex);
-			TRY(Thread::current().block_or_eintr_indefinite(m_thread_blocker));
+			// FIXME: race condition as notify doesn't lock mutex
+			TRY(Thread::current().block_or_eintr_indefinite(m_thread_blocker, &m_mutex));
 		}
 	}
 

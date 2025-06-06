@@ -1,6 +1,7 @@
 #include <BAN/Optional.h>
 #include <BAN/Sort.h>
 #include <kernel/InterruptController.h>
+#include <kernel/Lock/Mutex.h>
 #include <kernel/Process.h>
 #include <kernel/Scheduler.h>
 #include <kernel/Thread.h>
@@ -599,7 +600,7 @@ namespace Kernel
 		return {};
 	}
 
-	void Scheduler::block_current_thread(ThreadBlocker* blocker, uint64_t wake_time_ns)
+	void Scheduler::block_current_thread(ThreadBlocker* blocker, uint64_t wake_time_ns, BaseMutex* mutex)
 	{
 		auto state = Processor::get_interrupt_state();
 		Processor::set_interrupt_state(InterruptState::Disabled);
@@ -612,9 +613,23 @@ namespace Kernel
 		if (blocker)
 			blocker->add_thread_to_block_queue(m_current);
 		update_most_loaded_node_queue(m_current, &m_block_queue);
+
+		uint32_t lock_depth = 0;
+		if (mutex != nullptr)
+		{
+			ASSERT(mutex->is_locked() && mutex->locker() == m_current->thread->tid());
+			lock_depth = mutex->lock_depth();
+		}
+
+		for (uint32_t i = 0; i < lock_depth; i++)
+			mutex->unlock();
+
 		Processor::yield();
 
 		Processor::set_interrupt_state(state);
+
+		for (uint32_t i = 0; i < lock_depth; i++)
+			mutex->lock();
 	}
 
 	void Scheduler::unblock_thread(Thread* thread)

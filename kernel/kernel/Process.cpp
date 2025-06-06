@@ -279,6 +279,8 @@ namespace Kernel
 					if (parent.pid() != m_parent)
 						return BAN::Iteration::Continue;
 
+					LockGuard _(parent.m_process_lock);
+
 					for (auto& child : parent.m_child_exit_statuses)
 					{
 						if (child.pid != pid())
@@ -767,13 +769,13 @@ namespace Kernel
 				return child.pid == pid;
 			};
 
+		LockGuard _(m_process_lock);
+
 		for (;;)
 		{
 			pid_t exited_pid = 0;
 			int exit_code = 0;
 			{
-				SpinLockGuard _(m_child_exit_lock);
-
 				bool found = false;
 				for (auto& child : m_child_exit_statuses)
 				{
@@ -796,7 +798,6 @@ namespace Kernel
 			{
 				if (stat_loc)
 				{
-					LockGuard _(m_process_lock);
 					TRY(validate_pointer_access(stat_loc, sizeof(stat_loc), true));
 					*stat_loc = exit_code;
 				}
@@ -810,7 +811,7 @@ namespace Kernel
 			if (options & WNOHANG)
 				return 0;
 
-			m_child_exit_blocker.block_indefinite();
+			m_child_exit_blocker.block_indefinite(&m_process_lock);
 		}
 	}
 
@@ -2609,11 +2610,7 @@ namespace Kernel
 
 		for (;;)
 		{
-			{
-				LockFreeGuard _(m_process_lock);
-				m_pthread_exit_blocker.block_with_timeout_ms(100);
-			}
-
+			TRY(Thread::current().block_or_eintr_indefinite(m_pthread_exit_blocker, &m_process_lock));
 			if (wait_thread())
 				return 0;
 		}

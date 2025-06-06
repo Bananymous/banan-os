@@ -46,54 +46,54 @@ namespace Kernel
 	void DevFileSystem::initialize_device_updater()
 	{
 		Process::create_kernel(
-			[](void*)
+			[](void* _devfs)
 			{
+				auto* devfs = static_cast<DevFileSystem*>(_devfs);
 				while (true)
 				{
 					{
-						LockGuard _(s_instance->m_device_lock);
-						for (auto& device : s_instance->m_devices)
+						LockGuard _(devfs->m_device_lock);
+						for (auto& device : devfs->m_devices)
 							device->update();
 					}
 					SystemTimer::get().sleep_ms(10);
 				}
-			}, nullptr
+			}, s_instance
 		);
 
 		auto* sync_process = Process::create_kernel();
 
 		sync_process->add_thread(MUST(Thread::create_kernel(
-			[](void*)
+			[](void* _devfs)
 			{
+				auto* devfs = static_cast<DevFileSystem*>(_devfs);
 				while (true)
 				{
-					LockGuard _(s_instance->m_device_lock);
-					while (!s_instance->m_should_sync)
-					{
-						LockFreeGuard _(s_instance->m_device_lock);
-						s_instance->m_sync_thread_blocker.block_indefinite();
-					}
+					LockGuard _(devfs->m_device_lock);
+					while (!devfs->m_should_sync)
+						devfs->m_sync_thread_blocker.block_indefinite(&devfs->m_device_lock);
 
-					for (auto& device : s_instance->m_devices)
+					for (auto& device : devfs->m_devices)
 						if (device->is_storage_device())
 							if (auto ret = static_cast<StorageDevice*>(device.ptr())->sync_disk_cache(); ret.is_error())
 								dwarnln("disk sync: {}", ret.error());
 
-					s_instance->m_should_sync = false;
-					s_instance->m_sync_done.unblock();
+					devfs->m_should_sync = false;
+					devfs->m_sync_done.unblock();
 				}
-			}, nullptr, sync_process
+			}, s_instance, sync_process
 		)));
 
 		sync_process->add_thread(MUST(Kernel::Thread::create_kernel(
-			[](void*)
+			[](void* _devfs)
 			{
+				auto* devfs = static_cast<DevFileSystem*>(_devfs);
 				while (true)
 				{
 					SystemTimer::get().sleep_ms(10'000);
-					s_instance->initiate_sync(false);
+					devfs->initiate_sync(false);
 				}
-			}, nullptr, sync_process
+			}, s_instance, sync_process
 		)));
 
 		sync_process->register_to_scheduler();
@@ -101,13 +101,11 @@ namespace Kernel
 
 	void DevFileSystem::initiate_sync(bool should_block)
 	{
-		{
-			LockGuard _(m_device_lock);
-			m_should_sync = true;
-			m_sync_thread_blocker.unblock();
-		}
-		if (should_block)
-			m_sync_done.block_indefinite();
+		LockGuard _(m_device_lock);
+		m_should_sync = true;
+		m_sync_thread_blocker.unblock();
+		while (should_block && m_should_sync)
+			m_sync_done.block_indefinite(&m_device_lock);
 	}
 
 	void DevFileSystem::add_device(BAN::RefPtr<Device> device)

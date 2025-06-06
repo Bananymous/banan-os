@@ -9,7 +9,19 @@
 namespace Kernel
 {
 
-	class Mutex
+	class BaseMutex
+	{
+	public:
+		virtual void lock() = 0;
+		virtual bool try_lock() = 0;
+		virtual void unlock() = 0;
+
+		virtual pid_t locker() const = 0;
+		virtual bool is_locked() const = 0;
+		virtual uint32_t lock_depth() const = 0;
+	};
+
+	class Mutex : public BaseMutex
 	{
 		BAN_NON_COPYABLE(Mutex);
 		BAN_NON_MOVABLE(Mutex);
@@ -17,9 +29,10 @@ namespace Kernel
 	public:
 		Mutex() = default;
 
-		void lock()
+		void lock() override
 		{
 			const auto tid = Thread::current_tid();
+			ASSERT(!tid || !Thread::current().has_spinlock());
 			if (tid == m_locker)
 				ASSERT(m_lock_depth > 0);
 			else
@@ -37,9 +50,10 @@ namespace Kernel
 			m_lock_depth++;
 		}
 
-		bool try_lock()
+		bool try_lock() override
 		{
 			const auto tid = Thread::current_tid();
+			ASSERT(!tid || !Thread::current().has_spinlock());
 			if (tid == m_locker)
 				ASSERT(m_lock_depth > 0);
 			else
@@ -55,7 +69,7 @@ namespace Kernel
 			return true;
 		}
 
-		void unlock()
+		void unlock() override
 		{
 			const auto tid = Thread::current_tid();
 			ASSERT(m_locker == tid);
@@ -68,16 +82,16 @@ namespace Kernel
 			}
 		}
 
-		pid_t locker() const { return m_locker; }
-		bool is_locked() const { return m_locker != -1; }
-		uint32_t lock_depth() const { return m_lock_depth; }
+		pid_t locker() const override { return m_locker; }
+		bool is_locked() const override { return m_locker != -1; }
+		uint32_t lock_depth() const override { return m_lock_depth; }
 
 	private:
 		BAN::Atomic<pid_t>	m_locker		{ -1 };
 		uint32_t			m_lock_depth	{  0 };
 	};
 
-	class PriorityMutex
+	class PriorityMutex : public BaseMutex
 	{
 		BAN_NON_COPYABLE(PriorityMutex);
 		BAN_NON_MOVABLE(PriorityMutex);
@@ -85,7 +99,7 @@ namespace Kernel
 	public:
 		PriorityMutex() = default;
 
-		void lock()
+		void lock() override
 		{
 			const auto tid = Thread::current_tid();
 			ASSERT(!tid || !Thread::current().has_spinlock());
@@ -110,7 +124,7 @@ namespace Kernel
 			m_lock_depth++;
 		}
 
-		bool try_lock()
+		bool try_lock() override
 		{
 			const auto tid = Thread::current_tid();
 			ASSERT(!tid || !Thread::current().has_spinlock());
@@ -133,7 +147,7 @@ namespace Kernel
 			return true;
 		}
 
-		void unlock()
+		void unlock() override
 		{
 			const auto tid = Thread::current_tid();
 			ASSERT(m_locker == tid);
@@ -149,9 +163,9 @@ namespace Kernel
 			}
 		}
 
-		pid_t locker() const { return m_locker; }
-		bool is_locked() const { return m_locker != -1; }
-		uint32_t lock_depth() const { return m_lock_depth; }
+		pid_t locker() const override { return m_locker; }
+		bool is_locked() const override { return m_locker != -1; }
+		uint32_t lock_depth() const override { return m_lock_depth; }
 
 	private:
 		BAN::Atomic<pid_t>		m_locker		{ -1 };

@@ -581,27 +581,27 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<void> Thread::block_or_eintr_indefinite(ThreadBlocker& thread_blocker)
+	BAN::ErrorOr<void> Thread::block_or_eintr_indefinite(ThreadBlocker& thread_blocker, BaseMutex* mutex)
 	{
 		if (is_interrupted_by_signal())
 			return BAN::Error::from_errno(EINTR);
-		thread_blocker.block_indefinite();
+		thread_blocker.block_indefinite(mutex);
 		if (is_interrupted_by_signal())
 			return BAN::Error::from_errno(EINTR);
 		return {};
 	}
 
-	BAN::ErrorOr<void> Thread::block_or_eintr_or_timeout_ns(ThreadBlocker& thread_blocker, uint64_t timeout_ns, bool etimedout)
+	BAN::ErrorOr<void> Thread::block_or_eintr_or_timeout_ns(ThreadBlocker& thread_blocker, uint64_t timeout_ns, bool etimedout, BaseMutex* mutex)
 	{
 		const uint64_t wake_time_ns = SystemTimer::get().ns_since_boot() + timeout_ns;
-		return block_or_eintr_or_waketime_ns(thread_blocker, wake_time_ns, etimedout);
+		return block_or_eintr_or_waketime_ns(thread_blocker, wake_time_ns, etimedout, mutex);
 	}
 
-	BAN::ErrorOr<void> Thread::block_or_eintr_or_waketime_ns(ThreadBlocker& thread_blocker, uint64_t wake_time_ns, bool etimedout)
+	BAN::ErrorOr<void> Thread::block_or_eintr_or_waketime_ns(ThreadBlocker& thread_blocker, uint64_t wake_time_ns, bool etimedout, BaseMutex* mutex)
 	{
 		if (is_interrupted_by_signal())
 			return BAN::Error::from_errno(EINTR);
-		thread_blocker.block_with_wake_time_ns(wake_time_ns);
+		thread_blocker.block_with_wake_time_ns(wake_time_ns, mutex);
 		if (is_interrupted_by_signal())
 			return BAN::Error::from_errno(EINTR);
 		if (etimedout && SystemTimer::get().ms_since_boot() >= wake_time_ns)
