@@ -62,13 +62,9 @@ namespace Kernel
 			ret = sys_fork_trampoline();
 		else
 #pragma GCC diagnostic push
-#if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic warning "-Wmaybe-uninitialized"
-#endif
 			ret = (Process::current().*s_syscall_handlers[syscall])(arg1, arg2, arg3, arg4, arg5);
 #pragma GCC diagnostic pop
-
-		Processor::set_interrupt_state(InterruptState::Disabled);
 
 #if DUMP_ALL_SYSCALLS
 		if (ret.is_error())
@@ -99,6 +95,8 @@ namespace Kernel
 			if (current_thread.handle_signal())
 				if (ret.is_error() && ret.error().get_error_code() == EINTR)
 					ret = BAN::Error::from_errno(ERESTART);
+
+		Processor::set_interrupt_state(InterruptState::Disabled);
 
 		ASSERT(Kernel::Thread::current().state() == Kernel::Thread::State::Executing);
 
