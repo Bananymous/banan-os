@@ -733,7 +733,7 @@ namespace Kernel
 
 				const uint32_t total_send = BAN::Math::min<uint32_t>(m_send_window.data_size - send_base, m_send_window.scaled_size());
 
-				m_send_window.current_seq = m_send_window.start_seq;
+				m_send_window.current_seq = m_send_window.start_seq + m_send_window.sent_size;
 
 				auto* send_buffer = reinterpret_cast<const uint8_t*>(m_send_window.buffer->vaddr() + send_base);
 				for (uint32_t i = 0; i < total_send;)
