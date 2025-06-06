@@ -687,6 +687,11 @@ Rectangle Terminal::putcodepoint(uint32_t codepoint)
 		case '\r':
 			m_cursor.x = 0;
 			break;
+		case '\t':
+			m_cursor.x++;
+			while (m_cursor.x % 8)
+				m_cursor.x++;
+			break;
 		case '\b':
 			if (m_cursor.x > 0)
 				m_cursor.x--;
