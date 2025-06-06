@@ -338,7 +338,6 @@ static void handle_tls_relocation(const LoadedElf& elf, const RelocT& reloc)
 	if (elf.tls_addr == nullptr)
 		print_error_and_exit("tls relocation without tls", 0);
 
-
 #if defined(__x86_64__)
 	switch (ELF64_R_TYPE(reloc.r_info))
 	{
@@ -607,7 +606,27 @@ static void relocate_elf(LoadedElf& elf, bool lazy_load)
 				#error "unsupported architecture"
 #endif
 
-				*reinterpret_cast<uintptr_t*>(elf.base + offset) += elf.base;
+				bool do_relocation = false;
+
+				if (const uint32_t symbol_index = ELF_R_SYM(info))
+				{
+					const auto& symbol = *reinterpret_cast<ElfNativeSymbol*>(elf.symtab + symbol_index * elf.syment);
+					const char* symbol_name = reinterpret_cast<const char*>(elf.strtab + symbol.st_name);
+					if (strcmp(symbol_name, "__tls_get_addr") == 0 || strcmp(symbol_name, "___tls_get_addr") == 0)
+						do_relocation = true;
+				}
+
+				if (!do_relocation)
+					*reinterpret_cast<uintptr_t*>(elf.base + offset) += elf.base;
+				else switch (elf.pltrel)
+				{
+					case DT_REL:
+						handle_relocation(elf, reinterpret_cast<ElfNativeRelocation*>(elf.jmprel)[i], true);
+						break;
+					case DT_RELA:
+						handle_relocation(elf, reinterpret_cast<ElfNativeRelocationA*>(elf.jmprel)[i], true);
+						break;
+				}
 			}
 		}
 	}
@@ -1063,9 +1082,6 @@ static MasterTLS initialize_master_tls()
 
 static void initialize_tls(MasterTLS master_tls)
 {
-	if (master_tls.addr == nullptr)
-		return;
-
 	const size_t tls_size = master_tls.size
 		+ sizeof(uthread)
 		+ (master_tls.module_count + 1) * sizeof(uintptr_t);

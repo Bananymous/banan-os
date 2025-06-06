@@ -105,7 +105,6 @@ void pthread_cleanup_push(void (*routine)(void*), void* arg)
 	uthread->cleanup_stack = cleanup;
 }
 
-#if not __disable_thread_local_storage
 static thread_local struct {
 	void* value;
 	void (*destructor)(void*);
@@ -159,7 +158,6 @@ int pthread_setspecific(pthread_key_t key, const void* value)
 	s_pthread_keys[key].value = const_cast<void*>(value);
 	return 0;
 }
-#endif
 
 int pthread_attr_destroy(pthread_attr_t* attr)
 {
@@ -413,7 +411,6 @@ void pthread_exit(void* value_ptr)
 	while (uthread->cleanup_stack)
 		pthread_cleanup_pop(1);
 
-#if not __disable_thread_local_storage
 	for (size_t iteration = 0; iteration < PTHREAD_DESTRUCTOR_ITERATIONS; iteration++)
 	{
 		bool called = false;
@@ -431,7 +428,6 @@ void pthread_exit(void* value_ptr)
 		if (!called)
 			break;
 	}
-#endif
 
 	free_uthread(uthread);
 	syscall(SYS_PTHREAD_EXIT, value_ptr);
@@ -1199,7 +1195,6 @@ int pthread_barrier_wait(pthread_barrier_t* barrier)
 	return 0;
 }
 
-#if not __disable_thread_local_storage
 struct tls_index
 {
 	unsigned long int ti_module;
@@ -1214,7 +1209,6 @@ extern "C" void* __tls_get_addr(tls_index* ti)
 #if ARCH(i686)
 extern "C" void* __attribute__((__regparm__(1))) ___tls_get_addr(tls_index* ti)
 {
-	return reinterpret_cast<void*>(get_uthread()->dtv[ti->ti_module] + ti->ti_offset);
+	return reinterpret_cast<void*>(_get_uthread()->dtv[ti->ti_module] + ti->ti_offset);
 }
-#endif
 #endif
