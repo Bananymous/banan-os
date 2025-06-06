@@ -645,6 +645,8 @@ namespace Kernel
 		static constexpr uint32_t retransmit_timeout_ms = 1000;
 
 		BAN::RefPtr<TCPSocket> keep_alive { this };
+
+		// socket's creation did a manual ref(), let's undo it here
 		this->unref();
 
 		LockGuard _(m_mutex);
@@ -653,25 +655,31 @@ namespace Kernel
 		{
 			const uint64_t current_ms = SystemTimer::get().ms_since_boot();
 
-			if (m_state == State::TimeWait && current_ms >= m_time_wait_start_ms + 30'000)
+			switch (m_state)
 			{
-				set_connection_as_closed();
-				continue;
-			}
-
-			// This is the last instance
-			if (ref_count() == 1)
-			{
-				if (m_state == State::Listen)
-				{
+				case State::TimeWait:
+					if (current_ms < m_time_wait_start_ms + 30'000)
+						break;
+					// TimeWait timeout
 					set_connection_as_closed();
 					continue;
-				}
-				if (m_state == State::Established)
-				{
+				case State::Listen:
+					if (ref_count() > 1)
+						break;
+					// Listen socket closed
+					//    ref_count = keep_alieve
+					set_connection_as_closed();
+					continue;
+				case State::Established:
+					if (ref_count() > static_cast<uint32_t>(1 + !!m_listen_parent))
+						break;
+					// Connected socket closed
+					//    ref_count = keep_alive + listen's hashmap
 					m_next_flags = FIN | ACK;
 					m_next_state = State::FinWait1;
-				}
+					break;
+				default:
+					break;
 			}
 
 			if (m_next_flags)
