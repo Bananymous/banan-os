@@ -160,7 +160,7 @@ int getnameinfo(const struct sockaddr* __restrict sa, socklen_t salen, char* __r
 			const sockaddr_in* sa_in = reinterpret_cast<const sockaddr_in*>(sa);
 			if (node && !inet_ntop(sa_in->sin_family, &sa_in->sin_addr, node, nodelen))
 				return EAI_SYSTEM;
-			if (service && snprintf(service, servicelen, "%d", sa_in->sin_port) < 0)
+			if (service && snprintf(service, servicelen, "%d", ntohs(sa_in->sin_port)) < 0)
 				return EAI_SYSTEM;
 			break;
 		}
@@ -171,7 +171,7 @@ int getnameinfo(const struct sockaddr* __restrict sa, socklen_t salen, char* __r
 			const sockaddr_in6* sa_in6 = reinterpret_cast<const sockaddr_in6*>(sa);
 			if (node && !inet_ntop(sa_in6->sin6_family, &sa_in6->sin6_addr, node, nodelen))
 				return EAI_SYSTEM;
-			if (service && snprintf(service, servicelen, "%d", sa_in6->sin6_port) < 0)
+			if (service && snprintf(service, servicelen, "%d", ntohs(sa_in6->sin6_port)) < 0)
 				return EAI_SYSTEM;
 			break;
 		}
