@@ -627,9 +627,6 @@ namespace Kernel
 			{
 				Processor::set_interrupt_state(InterruptState::Disabled);
 				setup_process_cleanup();
-				// This is super hacky but prevents a crash in yield :D
-				if (m_signal_lock.current_processor_has_lock())
-					m_signal_lock.unlock(InterruptState::Disabled);
 				Processor::yield();
 				ASSERT_NOT_REACHED();
 			}
