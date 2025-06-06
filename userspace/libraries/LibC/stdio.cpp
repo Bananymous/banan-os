@@ -60,10 +60,10 @@ struct ScopeLock
 
 static FILE s_files[FOPEN_MAX];
 
-FILE* stdin  = &s_files[0];
-FILE* stdout = &s_files[1];
-FILE* stderr = &s_files[2];
-FILE* stddbg = &s_files[3];
+FILE* __stdin  = &s_files[0];
+FILE* __stdout = &s_files[1];
+FILE* __stderr = &s_files[2];
+FILE* __stddbg = &s_files[3];
 
 static void init_closed_file(FILE* file)
 {
