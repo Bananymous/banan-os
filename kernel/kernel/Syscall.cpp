@@ -4,10 +4,12 @@
 #include <kernel/Process.h>
 #include <kernel/Scheduler.h>
 #include <kernel/Syscall.h>
+#include <kernel/Timer/Timer.h>
 
 #include <termios.h>
 
 #define DUMP_ALL_SYSCALLS 0
+#define DUMP_LONG_SYSCALLS 0
 
 namespace Kernel
 {
@@ -40,7 +42,7 @@ namespace Kernel
 	{
 		ASSERT(GDT::is_user_segment(interrupt_stack->cs));
 
-		asm volatile("sti");
+		Processor::set_interrupt_state(InterruptState::Enabled);
 
 		BAN::ErrorOr<long> ret = BAN::Error::from_errno(ENOSYS);
 
@@ -48,6 +50,10 @@ namespace Kernel
 
 #if DUMP_ALL_SYSCALLS
 		dprintln("{} pid {}: {}", process_path, Process::current().pid(), s_syscall_names[syscall]);
+#endif
+
+#if DUMP_LONG_SYSCALLS
+		const uint64_t start_ns = SystemTimer::get().ns_since_boot();
 #endif
 
 		if (syscall < 0 || syscall >= __SYSCALL_COUNT)
@@ -62,7 +68,7 @@ namespace Kernel
 			ret = (Process::current().*s_syscall_handlers[syscall])(arg1, arg2, arg3, arg4, arg5);
 #pragma GCC diagnostic pop
 
-		asm volatile("cli");
+		Processor::set_interrupt_state(InterruptState::Disabled);
 
 #if DUMP_ALL_SYSCALLS
 		if (ret.is_error())
@@ -72,6 +78,17 @@ namespace Kernel
 #else
 		if (ret.is_error() && ret.error().get_error_code() == ENOTSUP)
 			dwarnln("{} pid {}: {}: ENOTSUP", process_path, Process::current().pid(), s_syscall_names[syscall]);
+#endif
+
+#if DUMP_LONG_SYSCALLS
+		const uint64_t end_ns = SystemTimer::get().ns_since_boot();
+		const uint64_t duration_us = (end_ns - start_ns) / 1000;
+		if (duration_us > 1'000)
+			dwarnln("{} {} took {}.{3} ms",
+				Process::current().name(),
+				s_syscall_names[syscall],
+				duration_us / 1000, duration_us % 1000
+			);
 #endif
 
 		if (ret.is_error() && ret.error().is_kernel_error())
