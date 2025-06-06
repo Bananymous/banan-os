@@ -377,6 +377,9 @@ namespace Kernel::ACPI::AML
 		return result;
 	}
 
+// FIXME: WHY TF IS THIS USING OVER 1 KiB of stack
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstack-usage="
 	static BAN::ErrorOr<Node> parse_logical_op(ParseContext& context)
 	{
 		dprintln_if(AML_DUMP_FUNCTION_CALLS, "parse_logical_op");
@@ -467,6 +470,7 @@ namespace Kernel::ACPI::AML
 
 		return result;
 	}
+#pragma GCC diagnostic pop
 
 	static BAN::ErrorOr<Node> parse_index_op(ParseContext& context);
 
@@ -1537,6 +1541,9 @@ namespace Kernel::ACPI::AML
 		return result;
 	}
 
+// FIXME: WHY TF IS THIS USING OVER 1 KiB of stack
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstack-usage="
 	static BAN::ErrorOr<Node> parse_explicit_conversion(ParseContext& context)
 	{
 		dprintln_if(AML_DUMP_FUNCTION_CALLS, "parse_explicit_conversion");
@@ -1689,6 +1696,7 @@ namespace Kernel::ACPI::AML
 
 		return result;
 	}
+#pragma GCC diagnostic pop
 
 	static BAN::ErrorOr<Node> parse_to_string_op(ParseContext& context)
 	{
@@ -2750,7 +2758,9 @@ namespace Kernel::ACPI::AML
 		return method_call(scope, method, BAN::move(args));
 	}
 
-
+// FIXME: WHY TF IS THIS USING OVER 2 KiB of stack
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstack-usage="
 	BAN::ErrorOr<Node> parse_node(ParseContext& context, bool return_ref)
 	{
 		if (context.aml_data.empty())
@@ -2961,13 +2971,11 @@ namespace Kernel::ACPI::AML
 		reference.as.reference->ref_count++;
 		return reference;
 	}
+#pragma GCC diagnostic pop
 
 // FIXME: WHY TF IS THIS USING ALMOST 2 KiB of stack
 #pragma GCC diagnostic push
-#if defined(__GNUC__) && !defined(__clang__)
 #pragma GCC diagnostic ignored "-Wstack-usage="
-#endif
-
 	BAN::ErrorOr<ExecutionFlowResult> parse_node_or_execution_flow(ParseContext& context)
 	{
 		if (context.aml_data.empty())
@@ -3103,7 +3111,6 @@ namespace Kernel::ACPI::AML
 			.elem2 = BAN::move(node)
 		};
 	}
-
 #pragma GCC diagnostic pop
 
 	BAN::ErrorOr<NameString> NameString::from_string(BAN::StringView name)

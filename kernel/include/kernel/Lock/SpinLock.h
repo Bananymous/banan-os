@@ -43,36 +43,11 @@ namespace Kernel
 	public:
 		RecursiveSpinLock() = default;
 
-		InterruptState lock()
-		{
-			auto state = Processor::get_interrupt_state();
-			Processor::set_interrupt_state(InterruptState::Disabled);
+		InterruptState lock();
 
-			auto id = Processor::current_id().as_u32();
+		bool try_lock_interrupts_disabled();
 
-			ProcessorID::value_type expected = PROCESSOR_NONE.as_u32();
-			while (!m_locker.compare_exchange(expected, id, BAN::MemoryOrder::memory_order_acq_rel))
-			{
-				if (expected == id)
-					break;
-				Processor::pause();
-				expected = PROCESSOR_NONE.as_u32();
-			}
-
-			m_lock_depth++;
-
-			return state;
-		}
-
-		void unlock(InterruptState state)
-		{
-			ASSERT(Processor::get_interrupt_state() == InterruptState::Disabled);
-			ASSERT(current_processor_has_lock());
-			ASSERT(m_lock_depth > 0);
-			if (--m_lock_depth == 0)
-				m_locker.store(PROCESSOR_NONE.as_u32(), BAN::MemoryOrder::memory_order_release);
-			Processor::set_interrupt_state(state);
-		}
+		void unlock(InterruptState state);
 
 		uint32_t lock_depth() const { return m_lock_depth; }
 
