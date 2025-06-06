@@ -442,7 +442,7 @@ namespace Kernel
 		ASSERT(&Thread::current() == this);
 		ASSERT(is_userspace());
 
-		SpinLockGuard _(m_signal_lock);
+		auto state = m_signal_lock.lock();
 
 		auto& interrupt_stack = *reinterpret_cast<InterruptStack*>(kernel_stack_top() - sizeof(InterruptStack));
 		ASSERT(GDT::is_user_segment(interrupt_stack.cs));
@@ -504,8 +504,9 @@ namespace Kernel
 				case SIGTRAP:
 				case SIGXCPU:
 				case SIGXFSZ:
+					m_signal_lock.unlock(state);
 					process().exit(128 + signal, signal | 0x80);
-					break;
+					ASSERT_NOT_REACHED();
 
 				// Abnormal termination of the process
 				case SIGALRM:
@@ -519,8 +520,9 @@ namespace Kernel
 				case SIGPOLL:
 				case SIGPROF:
 				case SIGVTALRM:
+					m_signal_lock.unlock(state);
 					process().exit(128 + signal, signal);
-					break;
+					ASSERT_NOT_REACHED();
 
 				// Ignore the signal
 				case SIGCHLD:
@@ -540,6 +542,8 @@ namespace Kernel
 					ASSERT_NOT_REACHED();
 			}
 		}
+
+		m_signal_lock.unlock(state);
 
 		return has_sa_restart;
 	}
