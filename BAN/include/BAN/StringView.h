@@ -21,7 +21,8 @@ namespace BAN
 		constexpr StringView(const char* string, size_type len = -1)
 		{
 			if (len == size_type(-1))
-				len = strlen(string);
+				for (len = 0; string[len];)
+					len++;
 			m_data = string;
 			m_size = len;
 		}
