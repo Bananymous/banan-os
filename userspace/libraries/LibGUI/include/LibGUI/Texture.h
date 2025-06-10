@@ -48,16 +48,13 @@ namespace LibGUI
 		void draw_text(BAN::StringView text, const LibFont::Font& font, int32_t x, int32_t y, uint32_t color);
 
 		// shift whole vertically by amount pixels, sign determines the direction
-		// fill_color is used to fill "new" data
-		void shift_vertical(int32_t amount, uint32_t fill_color);
+		void shift_vertical(int32_t amount);
 
 		// copy horizontal slice [src_y, src_y + amount[ to [dst_y, dst_y + amount[
-		// fill_color is used when copying data outside of window bounds
-		void copy_horizontal_slice(int32_t dst_y, int32_t src_y, uint32_t amount, uint32_t fill_color);
+		void copy_horizontal_slice(int32_t dst_y, int32_t src_y, uint32_t amount);
 
 		// copy rect (src_x, src_y, width, height) to (dst_x, dst_y, width, height)
-		// fill_color is used when copying data outside of window bounds
-		void copy_rect(int32_t dst_x, int32_t dst_y, int32_t src_x, int32_t src_y, uint32_t width, uint32_t height, uint32_t fill_color);
+		void copy_rect(int32_t dst_x, int32_t dst_y, int32_t src_x, int32_t src_y, uint32_t width, uint32_t height);
 
 		uint32_t width() const { return m_width; }
 		uint32_t height() const { return m_height; }
