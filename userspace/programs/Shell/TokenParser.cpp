@@ -4,6 +4,7 @@
 #include "TokenParser.h"
 
 #include <BAN/HashSet.h>
+#include <BAN/ScopeGuard.h>
 
 #include <stdio.h>
 
@@ -659,12 +660,13 @@ BAN::ErrorOr<void> TokenParser::run(BAN::Vector<Token>&& tokens)
 {
 	TRY(feed_tokens(BAN::move(tokens)));
 
+	BAN::ScopeGuard _([this] {
+		m_token_stream.clear();
+	});
+
 	auto command_tree = TRY(parse_command_tree());
 
 	const auto token_type = peek_token().type();
-	while (!m_token_stream.empty())
-		m_token_stream.pop();
-
 	if (token_type != Token::Type::EOF_)
 		return unexpected_token_error(token_type);
 
