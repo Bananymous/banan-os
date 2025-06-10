@@ -127,7 +127,8 @@ namespace Kernel
 
 		LockGuard _(m_mutex);
 
-		ASSERT(!m_connection_info.has_value());
+		if (m_connection_info.has_value())
+			return BAN::Error::from_errno(EISCONN);
 
 		switch (m_state)
 		{
