@@ -1,0 +1,20 @@
+diff -ruN jpeg-9f/configure jpeg-9f-banan_os/configure
+--- jpeg-9f/configure	2024-01-08 19:38:44.000000000 +0200
++++ jpeg-9f-banan_os/configure	2025-06-11 11:03:15.719030091 +0300
+@@ -12944,6 +12944,16 @@
+   esac
+   ;;
+ 
++banan_os*)
++  version_type=linux # correct to gnu/linux during the next big refactor
++  need_lib_prefix=no
++  need_version=no
++  library_names_spec='$libname$release$shared_ext$versuffix $libname$release$shared_ext$major $libname$shared_ext'
++  soname_spec='$libname$release$shared_ext$major'
++  dynamic_linker="$host_os DynamicLoader.so"
++  shlibpath_var=LD_LIBRARY_PATH
++  ;;
++
+ beos*)
+   library_names_spec='$libname$shared_ext'
+   dynamic_linker="$host_os ld.so"
