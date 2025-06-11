@@ -43,10 +43,16 @@ clean() {
 	find . -mindepth 1 -maxdepth 1 -not -name 'patches' -not -name 'build.sh' -exec rm -rf {} +
 }
 
+post_configure() {
+	:
+}
+
 configure() {
-	configure_options=("--host=$BANAN_ARCH-banan_os" '--prefix=/usr')
+	configure_options=("--host=$BANAN_ARCH-pc-banan_os" '--prefix=/usr')
 	configure_options+=("${CONFIGURE_OPTIONS[@]}")
 	./configure "${configure_options[@]}" || exit 1
+
+	post_configure
 }
 
 build() {
