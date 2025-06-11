@@ -1,0 +1,31 @@
+diff -ruN libwebp-1.5.0/configure libwebp-1.5.0-banan_os/configure
+--- libwebp-1.5.0/configure	2024-12-20 03:52:53.000000000 +0200
++++ libwebp-1.5.0-banan_os/configure	2025-06-11 15:06:04.232055731 +0300
+@@ -6104,6 +6104,10 @@
+   lt_cv_deplibs_check_method=pass_all
+   ;;
+ 
++banan_os*)
++  lt_cv_deplibs_check_method=pass_all
++  ;;
++
+ beos*)
+   lt_cv_deplibs_check_method=pass_all
+   ;;
+@@ -11469,6 +11473,16 @@
+   esac
+   ;;
+ 
++banan_os*)
++  version_type=linux # correct to gnu/linux during the next big refactor
++  need_lib_prefix=no
++  need_version=no
++  library_names_spec='$libname$release$shared_ext$versuffix $libname$release$shared_ext$major $libname$shared_ext'
++  soname_spec='$libname$release$shared_ext$major'
++  dynamic_linker="$host_os DynamicLoader.so"
++  shlibpath_var=LD_LIBRARY_PATH
++  ;;
++
+ beos*)
+   library_names_spec='$libname$shared_ext'
+   dynamic_linker="$host_os ld.so"
