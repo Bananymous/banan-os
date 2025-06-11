@@ -1,0 +1,11 @@
+diff -ruN tiff-4.7.0/config/config.sub tiff-4.7.0-banan_os/config/config.sub
+--- tiff-4.7.0/config/config.sub	2024-09-11 10:38:00.000000000 +0300
++++ tiff-4.7.0-banan_os/config/config.sub	2025-06-11 12:55:18.797614388 +0300
+@@ -1976,6 +1976,7 @@
+ 	| atheos* \
+ 	| auroraux* \
+ 	| aux* \
++	| banan_os* \
+ 	| beos* \
+ 	| bitrig* \
+ 	| bme* \
