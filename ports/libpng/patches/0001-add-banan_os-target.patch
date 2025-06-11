@@ -1,0 +1,12 @@
+diff -ruN libpng-1.6.48/config.sub libpng-1.6.48-banan_os/config.sub
+--- libpng-1.6.48/config.sub	2025-04-30 16:51:46.000000000 +0300
++++ libpng-1.6.48-banan_os/config.sub	2025-06-10 14:07:16.060041002 +0300
+@@ -1768,7 +1768,7 @@
+ 	     | onefs* | tirtos* | phoenix* | fuchsia* | redox* | bme* \
+ 	     | midnightbsd* | amdhsa* | unleashed* | emscripten* | wasi* \
+ 	     | nsk* | powerunix* | genode* | zvmoe* | qnx* | emx* | zephyr* \
+-	     | fiwix* | mlibc* | cos* | mbr* | ironclad* )
++	     | fiwix* | mlibc* | cos* | mbr* | ironclad* | banan_os* )
+ 		;;
+ 	# This one is extra strict with allowed versions
+ 	sco3.2v2 | sco3.2v[4-9]* | sco5v6*)

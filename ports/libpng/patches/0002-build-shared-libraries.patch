@@ -1,0 +1,31 @@
+diff -ruN libpng-1.6.48/configure libpng-1.6.48-banan_os/configure
+--- libpng-1.6.48/configure	2025-04-30 16:51:46.000000000 +0300
++++ libpng-1.6.48-banan_os/configure	2025-06-10 15:01:05.944037763 +0300
+@@ -6523,6 +6523,10 @@
+   lt_cv_deplibs_check_method=pass_all
+   ;;
+ 
++banan_os*)
++  lt_cv_deplibs_check_method=pass_all
++  ;;
++
+ beos*)
+   lt_cv_deplibs_check_method=pass_all
+   ;;
+@@ -12389,6 +12393,16 @@
+   esac
+   ;;
+ 
++banan_os*)
++  version_type=linux # correct to gnu/linux during the next big refactor
++  need_lib_prefix=no
++  need_version=no
++  library_names_spec='$libname$release$shared_ext$versuffix $libname$release$shared_ext$major $libname$shared_ext'
++  soname_spec='$libname$release$shared_ext$major'
++  dynamic_linker="$host_os DynamicLoader.so"
++  shlibpath_var=LD_LIBRARY_PATH
++  ;;
++
+ beos*)
+   library_names_spec='$libname$shared_ext'
+   dynamic_linker="$host_os ld.so"
