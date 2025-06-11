@@ -1,0 +1,444 @@
+diff -ruN links-2.30/banan_os.cpp links-2.30-banan_os/banan_os.cpp
+--- links-2.30/banan_os.cpp	1970-01-01 02:00:00.000000000 +0200
++++ links-2.30-banan_os/banan_os.cpp	2025-06-11 11:37:19.635667846 +0300
+@@ -0,0 +1,392 @@
++#include "cfg.h"
++
++#ifdef GRDRV_BANAN_OS
++
++extern "C" {
++#include "links.h"
++#undef G
++}
++
++#include <BAN/UTF8.h>
++#include <LibGUI/Texture.h>
++#include <LibGUI/Window.h>
++
++extern "C" struct graphics_driver banan_os_driver;
++
++struct ban_driver_data
++{
++	BAN::UniqPtr<LibGUI::Window> window;
++	uint8_t buttons;
++	int last_x;
++	int last_y;
++};
++
++struct ban_bitmap_flags
++{
++	LibGUI::Texture texture;
++};
++
++static void ban_window_event(void* window)
++{
++	static_cast<LibGUI::Window*>(window)->poll_events();
++}
++
++static int ban_translate_key(LibInput::Key key, uint16_t modifier)
++{
++	switch (key)
++	{
++		case LibInput::Key::Enter:		return KBD_ENTER;
++		case LibInput::Key::Backspace:	return KBD_BS;
++		case LibInput::Key::Tab:		return KBD_TAB;
++		case LibInput::Key::Escape:		return KBD_ESC;
++		case LibInput::Key::ArrowLeft:	return KBD_LEFT;
++		case LibInput::Key::ArrowRight:	return KBD_RIGHT;
++		case LibInput::Key::ArrowUp:	return KBD_UP;
++		case LibInput::Key::ArrowDown:	return KBD_DOWN;
++		case LibInput::Key::Insert:		return KBD_INS;
++		case LibInput::Key::Delete:		return KBD_DEL;
++		case LibInput::Key::Home:		return KBD_HOME;
++		case LibInput::Key::End:		return KBD_END;
++		case LibInput::Key::PageUp:		return KBD_PAGE_UP;
++		case LibInput::Key::PageDown:	return KBD_PAGE_DOWN;
++		case LibInput::Key::F1:			return KBD_F1;
++		case LibInput::Key::F2:			return KBD_F2;
++		case LibInput::Key::F3:			return KBD_F3;
++		case LibInput::Key::F4:			return KBD_F4;
++		case LibInput::Key::F5:			return KBD_F5;
++		case LibInput::Key::F6:			return KBD_F6;
++		case LibInput::Key::F7:			return KBD_F7;
++		case LibInput::Key::F8:			return KBD_F8;
++		case LibInput::Key::F9:			return KBD_F9;
++		case LibInput::Key::F10:		return KBD_F10;
++		case LibInput::Key::F11:		return KBD_F11;
++		case LibInput::Key::F12:		return KBD_F12;
++	}
++
++	const char* utf8 = LibInput::key_to_utf8(key, modifier);
++	if (utf8 == nullptr)
++		return 0;
++
++	const uint32_t codepoint = BAN::UTF8::to_codepoint(utf8);
++	if (codepoint == BAN::UTF8::invalid)
++		return 0;
++
++	return codepoint;
++}
++
++static int ban_translate_mouse_button(LibInput::MouseButton button)
++{
++	switch (button)
++	{
++		case LibInput::MouseButton::Left:   return B_LEFT;
++		case LibInput::MouseButton::Right:  return B_RIGHT;
++		case LibInput::MouseButton::Middle: return B_MIDDLE;
++		case LibInput::MouseButton::Extra1: return B_FOURTH;
++		case LibInput::MouseButton::Extra2: return B_FIFTH;
++	}
++	return 0;
++}
++
++unsigned char* ban_init_driver(unsigned char* param, unsigned char* display)
++{
++	banan_os_driver.depth = 0xc4;
++	return nullptr;
++}
++
++static void ban_shutdown_driver(void)
++{
++}
++
++struct graphics_device* ban_init_device(void)
++{
++	auto window_attributes = LibGUI::Window::default_attributes;
++	window_attributes.resizable = true;
++
++	auto window_or_error = LibGUI::Window::create(600, 400, "Links"_sv, window_attributes);
++	if (window_or_error.is_error()) {
++		dwarnln("failed to create a window: {}", window_or_error.error());
++		return nullptr;
++	}
++
++	auto* device = new graphics_device;
++	if (device == nullptr)
++		return nullptr;
++	memset(device, 0, sizeof(graphics_device));
++
++	auto* driver_data = new ban_driver_data(window_or_error.release_value(), 0, 0, 0);
++	if (driver_data == nullptr) {
++		delete device;
++		return nullptr;
++	}
++
++	driver_data->window->texture().fill(0xFFFFFF);
++	driver_data->window->texture().set_bg_color(0xFFFFFF);
++	driver_data->window->invalidate();
++
++	device->driver_data = driver_data;
++	device->size.x1 = device->size.y1 = 0;
++	device->size.x2 = driver_data->window->width();
++	device->size.y2 = driver_data->window->height();
++	memcpy(&device->clip, &device->size, sizeof(struct rect));
++
++	driver_data->window->set_resize_window_event_callback(
++		[device, driver_data]()
++		{
++			if (device->resize_handler == nullptr)
++				return;
++			device->size.x2 = driver_data->window->width();
++			device->size.y2 = driver_data->window->height();
++			device->resize_handler(device);
++		}
++	);
++
++	driver_data->window->set_key_event_callback(
++		[device, driver_data](LibGUI::EventPacket::KeyEvent::event_t event)
++		{
++			if (!event.pressed())
++				return;
++			if (device->keyboard_handler == nullptr)
++				return;
++
++			int flags = 0;
++			if (event.shift()) flags |= KBD_SHIFT;
++			if (event.ctrl())  flags |= KBD_CTRL;
++			if (event.alt())   flags |= KBD_ALT;
++
++			const int key = ban_translate_key(event.key, event.modifier);
++			if (key == 0)
++				return;
++
++			device->keyboard_handler(device, key, flags);
++		}
++	);
++
++	driver_data->window->set_mouse_button_event_callback(
++		[device, driver_data](LibGUI::EventPacket::MouseButtonEvent::event_t event)
++		{
++			if (device->mouse_handler == nullptr)
++				return;
++			const int button = ban_translate_mouse_button(event.button);
++			if (event.pressed)
++				driver_data->buttons |=  (1 << button);
++			else
++				driver_data->buttons &= ~(1 << button);
++			driver_data->last_x = event.x;
++			driver_data->last_y = event.y;
++			device->mouse_handler(device, event.x, event.y, (event.pressed ? B_DOWN : B_UP) | button);
++		}
++	);
++
++	driver_data->window->set_mouse_move_event_callback(
++		[device, driver_data](LibGUI::EventPacket::MouseMoveEvent::event_t event)
++		{
++			if (device->mouse_handler == nullptr)
++				return;
++
++			int buttons = B_MOVE;
++			if (driver_data->buttons) {
++				for (int i = 0; i < 8; i++) {
++					if (!(driver_data->buttons & (1 << i)))
++						continue;
++					buttons = B_DRAG | i;
++					break;
++				}
++			}
++
++			driver_data->last_x = event.x;
++			driver_data->last_y = event.y;
++			device->mouse_handler(device, event.x, event.y, buttons);
++		}
++	);
++
++	driver_data->window->set_mouse_scroll_event_callback(
++		[device, driver_data](LibGUI::EventPacket::MouseScrollEvent::event_t event)
++		{
++			if (device->mouse_handler == nullptr)
++				return;
++			device->mouse_handler(device, driver_data->last_x, driver_data->last_y, event.scroll < 0 ? B_WHEELDOWN : B_WHEELUP);
++		}
++	);
++
++	set_handlers(driver_data->window->server_fd(), ban_window_event, NULL, driver_data->window.ptr());
++
++	return device;
++}
++
++static void ban_shutdown_device(struct graphics_device* dev)
++{
++	auto* driver_data = static_cast<ban_driver_data*>(dev->driver_data);
++	set_handlers(driver_data->window->server_fd(), NULL, NULL, NULL);
++	delete driver_data;
++	delete dev;
++}
++
++static int ban_get_empty_bitmap(struct bitmap* dest)
++{
++	auto texture_or_error = LibGUI::Texture::create(dest->x, dest->y, 0xFFFFFF);
++	if (texture_or_error.is_error()) {
++		dwarnln("failed to create a texture: {}", texture_or_error.error());
++		return -1;
++	}
++
++	auto* flags = new ban_bitmap_flags(texture_or_error.release_value());
++	if (flags == nullptr)
++		return -1;
++
++	dest->flags = flags;
++	dest->data = flags->texture.pixels().data();
++	dest->skip = flags->texture.width() * 4;
++
++	return 0;
++}
++
++static void ban_register_bitmap(struct bitmap* bmp)
++{
++}
++
++static void ban_unregister_bitmap(struct bitmap* bmp)
++{
++	if (bmp->flags == nullptr)
++		return;
++	delete static_cast<ban_bitmap_flags*>(bmp->flags);
++	bmp->flags = nullptr;
++	bmp->data = 0;
++	bmp->skip = 0;
++}
++
++static void* ban_prepare_strip(struct bitmap* bmp, int top, int lines)
++{
++	if (bmp->flags == nullptr)
++		return nullptr;
++	return static_cast<uint8_t*>(bmp->data) + bmp->skip * top;
++}
++
++static void ban_commit_strip(struct bitmap* bmp, int top, int lines)
++{
++}
++
++static void ban_draw_bitmap(struct graphics_device* dev, struct bitmap* bmp, int x, int y)
++{
++	CLIP_DRAW_BITMAP
++	auto& window = *static_cast<ban_driver_data*>(dev->driver_data)->window;
++	auto& texture = static_cast<ban_bitmap_flags*>(bmp->flags)->texture;
++	window.texture().copy_texture(texture, x, y);
++	window.invalidate(x, y, texture.width(), texture.height());
++}
++
++static long ban_get_color(int rgb)
++{
++	return rgb;
++}
++
++static void ban_fill_area(struct graphics_device* dev, int x1, int y1, int x2, int y2, long color)
++{
++	CLIP_FILL_AREA
++	auto& window = *static_cast<ban_driver_data*>(dev->driver_data)->window;
++	window.texture().fill_rect(x1, y1, x2 - x1, y2 - y1, color);
++	window.invalidate(x1, y1, x2 - x1, y2 - y1);
++}
++
++static void ban_draw_hline(struct graphics_device* dev, int x1, int y, int x2, long color)
++{
++	CLIP_DRAW_HLINE
++	auto& window = *static_cast<ban_driver_data*>(dev->driver_data)->window;
++	for (int x = x1; x < x2; x++)
++		window.texture().set_pixel(x, y, color);
++	window.invalidate(x1, y, x2 - x1, 1);
++}
++
++static void ban_draw_vline(struct graphics_device* dev, int x, int y1, int y2, long color)
++{
++	CLIP_DRAW_VLINE
++	auto& window = *static_cast<ban_driver_data*>(dev->driver_data)->window;
++	for (int y = y1; y < y2; y++)
++		window.texture().set_pixel(x, y, color);
++	window.invalidate(x, y1, 1, y2 - y1);
++}
++
++static int ban_scroll(struct graphics_device* dev, struct rect_set* *set, int scx, int scy)
++{
++	const int dst_x = dev->clip.x1 + (scx >= 0 ? scx : 0);
++	const int dst_y = dev->clip.y1 + (scy >= 0 ? scy : 0);
++	const int dst_w = dev->clip.x2 + (scx <  0 ? scx : 0) - dst_x;
++	const int dst_h = dev->clip.y2 + (scy <  0 ? scy : 0) - dst_y;
++
++	const int src_x = dev->clip.x1 - (scx <  0 ? scx : 0);
++	const int src_y = dev->clip.y1 - (scy <  0 ? scy : 0);
++	const int src_w = dev->clip.x2 - (scx >= 0 ? scx : 0) - src_x;
++	const int src_h = dev->clip.y2 - (scy >= 0 ? scy : 0) - src_y;
++
++	auto& window = *static_cast<ban_driver_data*>(dev->driver_data)->window;
++	window.texture().copy_rect(
++		dst_x, dst_y,
++		src_x, src_y,
++		BAN::Math::min(dst_w, src_w),
++		BAN::Math::min(dst_h, src_h)
++	);
++	window.invalidate();
++
++	return 1;
++}
++
++static void ban_set_clip_area(struct graphics_device* dev)
++{
++	auto& window = *static_cast<ban_driver_data*>(dev->driver_data)->window;
++	window.texture().set_clip_area(
++		dev->clip.x1,
++		dev->clip.y1,
++		dev->clip.x2 - dev->clip.x1,
++		dev->clip.y2 - dev->clip.y1
++	);
++}
++
++static void ban_flush(struct graphics_device* dev)
++{
++}
++
++static void ban_set_title(struct graphics_device* dev, unsigned char* title)
++{
++	auto& driver_data = *static_cast<ban_driver_data*>(dev->driver_data);
++	driver_data.window->set_title(reinterpret_cast<const char*>(title));
++}
++
++struct graphics_driver banan_os_driver = {
++	(unsigned char* )"banan-os",
++	ban_init_driver,
++	ban_init_device,
++	ban_shutdown_device,
++	ban_shutdown_driver,
++	NULL,
++	NULL,
++	NULL,
++	NULL,
++	NULL,
++	NULL,
++	ban_get_empty_bitmap,
++	ban_register_bitmap,
++	ban_prepare_strip,
++	ban_commit_strip,
++	ban_unregister_bitmap,
++	ban_draw_bitmap,
++	ban_get_color,
++	ban_fill_area,
++	ban_draw_hline,
++	ban_draw_vline,
++	ban_scroll,
++	ban_set_clip_area,
++	ban_flush,
++	NULL,
++	NULL,
++	NULL,
++	NULL,
++	ban_set_title,
++	NULL,
++	NULL,
++	NULL,
++	0,
++	0, 0,
++	GD_UNICODE_KEYS,
++	NULL,
++};
++
++#endif
+diff -ruN links-2.30/drivers.c links-2.30-banan_os/drivers.c
+--- links-2.30/drivers.c	2019-04-27 21:00:25.000000000 +0300
++++ links-2.30-banan_os/drivers.c	2025-06-11 11:39:53.787842588 +0300
+@@ -31,6 +31,9 @@
+ #ifdef GRDRV_ATHEOS
+ extern struct graphics_driver atheos_driver;
+ #endif
++#ifdef GRDRV_BANAN_OS
++extern struct graphics_driver banan_os_driver;
++#endif
+ #ifdef GRDRV_HAIKU
+ extern struct graphics_driver haiku_driver;
+ #endif
+@@ -54,6 +57,9 @@
+ #ifdef GRDRV_ATHEOS
+ 	&atheos_driver,
+ #endif
++#ifdef GRDRV_BANAN_OS
++	&banan_os_driver,
++#endif
+ #ifdef GRDRV_HAIKU
+ 	&haiku_driver,
+ #endif
+diff -ruN links-2.30/Makefile.banan_os links-2.30-banan_os/Makefile.banan_os
+--- links-2.30/Makefile.banan_os	1970-01-01 02:00:00.000000000 +0200
++++ links-2.30-banan_os/Makefile.banan_os	2025-06-11 11:36:53.080046754 +0300
+@@ -0,0 +1,21 @@
++OBJS=af_unix.o avif.o auth.o banan_os.o beos.o bfu.o block.o bookmark.o cache.o charsets.o compress.o connect.o cookies.o data.o default.o dip.o directfb.o dither.o dns.o doh.o dos.o drivers.o error.o file.o finger.o fn_impl.o fontconf.o font_inc.o framebuf.o freetype.o ftp.o gif.o grx.o hpux.o html.o html_gr.o html_r.o html_tbl.o http.o https.o img.o imgcache.o jpeg.o jsint.o kbd.o language.o listedit.o lru.o mailto.o main.o memory.o menu.o objreq.o os_dep.o pmshell.o png.o sched.o select.o session.o smb.o string.o suffix.o svg.o svgalib.o terminal.o tiff.o types.o url.o view.o view_gr.o vms.o webp.o x.o xbm.o
++
++CFLAGS=-g -O2 -DHAVE_CONFIG_H
++CXXFLAGS=$(CFLAGS) --std=c++20
++LIBS=-lgui -linput -lwebp -ltiff -ljpeg -lpng -lssl -lcrypto -lzstd -lz
++
++.PHONY: all
++all: links
++
++links: $(OBJS)
++	$(CXX) $(CFLAGS) -o links $(OBJS) $(LIBS)
++
++%.o: %.c
++	$(CC) $(CFLAGS) -c -o $@ $<
++
++%.o: %.cpp
++	$(CXX) $(CXXFLAGS) -c -o $@ $<
++
++.PHONY: clean
++clean:
++	rm -f $(OBJS)
