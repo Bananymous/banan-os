@@ -20,7 +20,7 @@ namespace BAN
 	class WeakLink : public RefCounted<WeakLink<T>>
 	{
 	public:
-		RefPtr<T> try_lock()
+		RefPtr<T> try_lock() const
 		{
 #if __is_kernel
 			Kernel::SpinLockGuard _(m_weak_lock);
@@ -44,7 +44,7 @@ namespace BAN
 	private:
 		T* m_ptr;
 #if __is_kernel
-		Kernel::SpinLock m_weak_lock;
+		mutable Kernel::SpinLock m_weak_lock;
 #endif
 		friend class RefPtr<WeakLink<T>>;
 	};
@@ -99,7 +99,7 @@ namespace BAN
 			return *this;
 		}
 
-		RefPtr<T> lock()
+		RefPtr<T> lock() const
 		{
 			if (m_link)
 				return m_link->try_lock();
