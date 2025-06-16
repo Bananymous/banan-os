@@ -332,17 +332,63 @@ static void handle_tls_relocation(const LoadedElf& elf, const RelocT& reloc)
 	if (!is_tls_relocation(reloc))
 		return;
 
-	if (ELF_R_SYM(reloc.r_info))
-		print_error_and_exit("tls relocation with symbol index", 0);
+	const LoadedElf* symbol_elf = &elf;
+	uintptr_t symbol_offset = 0;
 
-	if (elf.tls_addr == nullptr)
-		print_error_and_exit("tls relocation without tls", 0);
+	if (const uint32_t symbol_index = ELF_R_SYM(reloc.r_info))
+	{
+		const auto& symbol = *reinterpret_cast<ElfNativeSymbol*>(elf.symtab + symbol_index * elf.syment);
+		const char* symbol_name = reinterpret_cast<const char*>(elf.strtab + symbol.st_name);
+
+		if (symbol.st_shndx && ELF_ST_BIND(symbol.st_info) != STB_WEAK)
+			symbol_offset = symbol.st_value;
+		else
+		{
+			symbol_elf = nullptr;
+			for (size_t i = 0; i < s_loaded_file_count; i++)
+			{
+				const auto* match = find_symbol(s_loaded_files[i], symbol_name);
+				if (match == nullptr)
+					continue;
+				if (symbol_elf == nullptr || ELF_ST_BIND(match->st_info) != STB_WEAK)
+				{
+					symbol_elf = &s_loaded_files[i];
+					symbol_offset = match->st_value;
+				}
+				if (ELF_ST_BIND(match->st_info) != STB_WEAK)
+					break;
+			}
+
+			if (symbol_elf == nullptr && ELF_ST_BIND(symbol.st_info) != STB_WEAK)
+			{
+				print(STDERR_FILENO, elf.path);
+				print(STDERR_FILENO, ": could not find symbol \"");
+				print(STDERR_FILENO, symbol_name);
+				print_error_and_exit("\"", 0);
+			}
+
+			if (ELF_ST_TYPE(symbol.st_info) != STT_TLS)
+				print_error_and_exit("i don't think this is supposed to happen 1", 0);
+		}
+	}
+
+	if (symbol_elf == nullptr)
+		print_error_and_exit("i don't think this is supposed to happen 2", 0);
+
+	if (symbol_elf->tls_addr == nullptr)
+		print_error_and_exit("i don't think this is supposed to happen 3", 0);
 
 #if defined(__x86_64__)
 	switch (ELF64_R_TYPE(reloc.r_info))
 	{
 		case R_X86_64_DTPMOD64:
-			*reinterpret_cast<uint64_t*>(elf.base + reloc.r_offset) = elf.tls_module;
+			*reinterpret_cast<uint64_t*>(elf.base + reloc.r_offset) = symbol_elf->tls_module;
+			break;
+		case R_X86_64_DTPOFF64:
+			*reinterpret_cast<uint64_t*>(elf.base + reloc.r_offset) = symbol_offset;
+			break;
+		case R_X86_64_TPOFF64:
+			*reinterpret_cast<uint64_t*>(elf.base + reloc.r_offset) = symbol_offset - symbol_elf->tls_offset;
 			break;
 		default:
 			print(STDERR_FILENO, "unsupported tls reloc type ");
@@ -354,12 +400,18 @@ static void handle_tls_relocation(const LoadedElf& elf, const RelocT& reloc)
 #elif defined(__i686__)
 	switch (ELF32_R_TYPE(reloc.r_info))
 	{
+		case R_386_TLS_TPOFF:
+			*reinterpret_cast<uint32_t*>(elf.base + reloc.r_offset) = symbol_offset - symbol_elf->tls_offset;
+			break;
 		case R_386_TLS_DTPMOD32:
-			*reinterpret_cast<uint32_t*>(elf.base + reloc.r_offset) = elf.tls_module;
+			*reinterpret_cast<uint32_t*>(elf.base + reloc.r_offset) = symbol_elf->tls_module;
+			break;
+		case R_386_TLS_DTPOFF32:
+			*reinterpret_cast<uint32_t*>(elf.base + reloc.r_offset) = symbol_offset;
 			break;
 		default:
 			print(STDERR_FILENO, "unsupported tls reloc type ");
-			print_uint(STDERR_FILENO, ELF64_R_TYPE(reloc.r_info));
+			print_uint(STDERR_FILENO, ELF32_R_TYPE(reloc.r_info));
 			print(STDERR_FILENO, " in ");
 			print(STDERR_FILENO, elf.path);
 			print_error_and_exit("", 0);
@@ -1074,7 +1126,7 @@ static MasterTLS initialize_master_tls()
 		auto& elf = s_loaded_files[i];
 		elf.tls_addr = tls_buffer;
 		elf.tls_module = tls_module++;
-		elf.tls_offset = master_tls_size - tls_offset;
+		elf.tls_offset = tls_offset;
 	}
 
 	return { .addr = master_tls_addr, .size = master_tls_size, .module_count = module_count };
@@ -1117,7 +1169,7 @@ static void initialize_tls(MasterTLS master_tls)
 		const auto& elf = s_loaded_files[i];
 		if (elf.tls_addr == nullptr)
 			continue;
-		uthread->dtv[elf.tls_module] = reinterpret_cast<uintptr_t>(tls_addr) + elf.tls_offset;
+		uthread->dtv[elf.tls_module] = reinterpret_cast<uintptr_t>(tls_addr) + uthread->master_tls_size - elf.tls_offset;
 	}
 
 	syscall(SYS_SET_TLS, uthread);
