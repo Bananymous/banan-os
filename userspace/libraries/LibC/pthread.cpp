@@ -648,7 +648,11 @@ int pthread_spin_lock(pthread_spinlock_t* lock)
 
 	pthread_t expected = 0;
 	while (!BAN::atomic_compare_exchange(*lock, expected, tid, BAN::MemoryOrder::memory_order_acquire))
+	{
+		__builtin_ia32_pause();
 		expected = 0;
+	}
+
 	return 0;
 }
 
