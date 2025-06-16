@@ -254,6 +254,8 @@ size_t wcscspn(const wchar_t* ws1, const wchar_t* ws2)
 
 wchar_t* wcschr(const wchar_t* ws, wchar_t wc)
 {
+	if (wc == L'\0')
+		return const_cast<wchar_t*>(ws + wcslen(ws));
 	for (size_t i = 0; ws[i]; i++)
 		if (ws[i] == wc)
 			return const_cast<wchar_t*>(&ws[i]);
