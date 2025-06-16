@@ -28,18 +28,28 @@ size_t wcrtomb(char* __restrict s, wchar_t ws, mbstate_t* __restrict ps)
 {
 	(void)ps;
 
-	// ws == '\0' doesn't seem to apply to UTF8?
+	// ws == '\0' doesn't seem to apply to UTF8/ASCII?
 
 	if (s == nullptr)
 		return 1;
 
-	if (!BAN::UTF8::from_codepoints(&ws, 1, s))
+	switch (__getlocale(LC_CTYPE))
 	{
-		errno = EILSEQ;
-		return -1;
+		case locale_t::LOCALE_INVALID:
+			ASSERT_NOT_REACHED();
+		case locale_t::LOCALE_POSIX:
+			if (ws > 0x7F)
+				break;
+			*s = ws;
+			return 1;
+		case locale_t::LOCALE_UTF8:
+			if (!BAN::UTF8::from_codepoints(&ws, 1, s))
+				break;
+			return BAN::UTF8::byte_length(s[0]);
 	}
 
-	return BAN::UTF8::byte_length(s[0]);
+	errno = EILSEQ;
+	return -1;
 }
 
 size_t mbrtowc(wchar_t* __restrict pwc, const char* __restrict s, size_t n, mbstate_t* __restrict ps)
@@ -49,17 +59,46 @@ size_t mbrtowc(wchar_t* __restrict pwc, const char* __restrict s, size_t n, mbst
 	if (s == nullptr)
 		return 0;
 
-	const auto bytes = BAN::UTF8::byte_length(*s);
-	if (bytes == BAN::UTF8::invalid)
+	const auto locale = __getlocale(LC_CTYPE);
+
+	size_t bytes = -1;
+	switch (locale)
+	{
+		case locale_t::LOCALE_INVALID:
+			ASSERT_NOT_REACHED();
+		case locale_t::LOCALE_POSIX:
+			bytes = 1;
+			break;
+		case locale_t::LOCALE_UTF8:
+			if (auto b = BAN::UTF8::byte_length(s[0]); b != BAN::UTF8::invalid)
+				bytes = b;
+			break;
+	}
+
+	if (bytes == static_cast<size_t>(-1))
 	{
 		errno = EILSEQ;
 		return -1;
 	}
+
 	if (n < bytes)
 		return -1;
 
-	const auto codepoint = BAN::UTF8::to_codepoint(s);
-	if (codepoint == BAN::UTF8::invalid)
+	wchar_t codepoint = WEOF;
+	switch (locale)
+	{
+		case locale_t::LOCALE_INVALID:
+			ASSERT_NOT_REACHED();
+		case locale_t::LOCALE_POSIX:
+			codepoint = s[0];
+			break;
+		case locale_t::LOCALE_UTF8:
+			if (auto cp = BAN::UTF8::to_codepoint(s); cp != BAN::UTF8::invalid)
+				codepoint = cp;
+			break;
+	}
+
+	if (codepoint == WEOF)
 	{
 		errno = EILSEQ;
 		return -1;
