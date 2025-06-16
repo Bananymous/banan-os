@@ -10,6 +10,7 @@ set(USERSPACE_TESTS
 	test-shared
 	test-sort
 	test-tcp
+	test-tls
 	test-udp
 	test-unix-socket
 	test-window
