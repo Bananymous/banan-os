@@ -5,6 +5,7 @@ set(LIBC_SOURCES
 	ctype.cpp
 	dirent.cpp
 	dlfcn.cpp
+	endian.cpp
 	environ.cpp
 	errno.cpp
 	fcntl.cpp
