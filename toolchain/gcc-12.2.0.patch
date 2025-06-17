@@ -1,6 +1,6 @@
 diff -ruN gcc-12.2.0/config.sub gcc-12.2.0-banan_os/config.sub
 --- gcc-12.2.0/config.sub	2022-08-19 11:09:52.128656687 +0300
-+++ gcc-12.2.0-banan_os/config.sub	2024-09-03 23:09:34.347772496 +0300
++++ gcc-12.2.0-banan_os/config.sub	2025-06-17 12:35:06.156871785 +0300
 @@ -1749,7 +1749,7 @@
  	     | onefs* | tirtos* | phoenix* | fuchsia* | redox* | bme* \
  	     | midnightbsd* | amdhsa* | unleashed* | emscripten* | wasi* \
@@ -12,7 +12,7 @@ diff -ruN gcc-12.2.0/config.sub gcc-12.2.0-banan_os/config.sub
  	sco3.2v2 | sco3.2v[4-9]* | sco5v6*)
 diff -ruN gcc-12.2.0/fixincludes/mkfixinc.sh gcc-12.2.0-banan_os/fixincludes/mkfixinc.sh
 --- gcc-12.2.0/fixincludes/mkfixinc.sh	2022-08-19 11:09:52.160657095 +0300
-+++ gcc-12.2.0-banan_os/fixincludes/mkfixinc.sh	2025-06-03 18:08:13.366965577 +0300
++++ gcc-12.2.0-banan_os/fixincludes/mkfixinc.sh	2025-06-17 12:35:06.733929038 +0300
 @@ -11,6 +11,7 @@
  
  # Check for special fix rules for particular targets
@@ -23,7 +23,7 @@ diff -ruN gcc-12.2.0/fixincludes/mkfixinc.sh gcc-12.2.0-banan_os/fixincludes/mkf
      x86_64-*-mingw32* | \
 diff -ruN gcc-12.2.0/gcc/config/banan_os.h gcc-12.2.0-banan_os/gcc/config/banan_os.h
 --- gcc-12.2.0/gcc/config/banan_os.h	1970-01-01 02:00:00.000000000 +0200
-+++ gcc-12.2.0-banan_os/gcc/config/banan_os.h	2024-09-03 23:09:34.461106020 +0300
++++ gcc-12.2.0-banan_os/gcc/config/banan_os.h	2025-06-17 12:35:06.734144150 +0300
 @@ -0,0 +1,35 @@
 +/* Useful if you wish to make target-specific GCC changes. */
 +#undef TARGET_BANAN_OS
@@ -60,10 +60,46 @@ diff -ruN gcc-12.2.0/gcc/config/banan_os.h gcc-12.2.0-banan_os/gcc/config/banan_
 +    builtin_assert ("system=unix");     \
 +    builtin_assert ("system=posix");    \
 +  } while(0);
+diff -ruN gcc-12.2.0/gcc/config/banan_os.opt gcc-12.2.0-banan_os/gcc/config/banan_os.opt
+--- gcc-12.2.0/gcc/config/banan_os.opt	1970-01-01 02:00:00.000000000 +0200
++++ gcc-12.2.0-banan_os/gcc/config/banan_os.opt	2025-06-17 12:39:24.453332208 +0300
+@@ -0,0 +1,32 @@
++; banan_os options.
++
++; Copyright (C) 2025 Oskari Alaranta <oskari.alaranta@bananymous.com>
++;
++; This file is part of GCC.
++;
++; GCC is free software; you can redistribute it and/or modify it under
++; the terms of the GNU General Public License as published by the Free
++; Software Foundation; either version 3, or (at your option) any later
++; version.
++;
++; GCC is distributed in the hope that it will be useful, but WITHOUT ANY
++; WARRANTY; without even the implied warranty of MERCHANTABILITY or
++; FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++; for more details.
++;
++; You should have received a copy of the GNU General Public License
++; along with GCC; see the file COPYING3.  If not see
++; <http://www.gnu.org/licenses/>.
++
++; See the GCC internals manual (options.texi) for a description of
++; this file's format.
++
++; Please try to keep this file in ASCII collating order.
++
++posix
++Driver
++
++pthread
++Driver
++
++; This comment is to ensure we retain the blank line above.
 diff -ruN gcc-12.2.0/gcc/config.gcc gcc-12.2.0-banan_os/gcc/config.gcc
 --- gcc-12.2.0/gcc/config.gcc	2022-08-19 11:09:52.552662114 +0300
-+++ gcc-12.2.0-banan_os/gcc/config.gcc	2024-09-03 23:09:34.461106020 +0300
-@@ -673,6 +673,13 @@
++++ gcc-12.2.0-banan_os/gcc/config.gcc	2025-06-17 12:35:48.277616505 +0300
+@@ -673,6 +673,14 @@
  
  # Common parts for widely ported systems.
  case ${target} in
@@ -71,13 +107,14 @@ diff -ruN gcc-12.2.0/gcc/config.gcc gcc-12.2.0-banan_os/gcc/config.gcc
 +  gas=yes
 +  gnu_ld=yes
 +  default_use_cxa_atexit=yes
++  extra_options="${extra_options} banan_os.opt"
 +  use_gcc_stdint=provide
 +  tmake_file="t-slibgcc"
 +  ;;
  *-*-darwin*)
    tmake_file="t-darwin "
    tm_file="${tm_file} darwin.h"
-@@ -1870,6 +1876,12 @@
+@@ -1870,6 +1878,12 @@
  		dwarf2=no
  	fi
  	;;
@@ -92,7 +129,7 @@ diff -ruN gcc-12.2.0/gcc/config.gcc gcc-12.2.0-banan_os/gcc/config.gcc
  	;;
 diff -ruN gcc-12.2.0/libgcc/config.host gcc-12.2.0-banan_os/libgcc/config.host
 --- gcc-12.2.0/libgcc/config.host	2022-08-19 11:09:54.664689148 +0300
-+++ gcc-12.2.0-banan_os/libgcc/config.host	2024-09-03 23:09:34.474439376 +0300
++++ gcc-12.2.0-banan_os/libgcc/config.host	2025-06-17 12:35:06.787664288 +0300
 @@ -698,6 +698,14 @@
  hppa*-*-netbsd*)
  	tmake_file="$tmake_file pa/t-netbsd"
@@ -121,7 +158,7 @@ diff -ruN gcc-12.2.0/libgcc/config/t-slibgcc gcc-12.2.0-banan_os/libgcc/config/t
  	$(DESTDIR)$(slibdir)$(SHLIB_SLIBDIR_QUAL)/$(SHLIB_SOLINK)
 diff -ruN gcc-12.2.0/libstdc++-v3/acinclude.m4 gcc-12.2.0-banan_os/libstdc++-v3/acinclude.m4
 --- gcc-12.2.0/libstdc++-v3/acinclude.m4	2022-08-19 11:09:55.380698313 +0300
-+++ gcc-12.2.0-banan_os/libstdc++-v3/acinclude.m4	2024-09-03 23:09:34.477772715 +0300
++++ gcc-12.2.0-banan_os/libstdc++-v3/acinclude.m4	2025-06-17 12:35:06.788273518 +0300
 @@ -1380,7 +1380,7 @@
          ac_has_nanosleep=yes
          ac_has_sched_yield=yes
@@ -133,7 +170,7 @@ diff -ruN gcc-12.2.0/libstdc++-v3/acinclude.m4 gcc-12.2.0-banan_os/libstdc++-v3/
          ac_has_nanosleep=yes
 diff -ruN gcc-12.2.0/libstdc++-v3/configure gcc-12.2.0-banan_os/libstdc++-v3/configure
 --- gcc-12.2.0/libstdc++-v3/configure	2022-08-19 11:09:55.416698774 +0300
-+++ gcc-12.2.0-banan_os/libstdc++-v3/configure	2024-09-03 23:09:34.487772732 +0300
++++ gcc-12.2.0-banan_os/libstdc++-v3/configure	2025-06-17 12:35:06.793867910 +0300
 @@ -11904,6 +11904,11 @@
      lt_cv_dlopen_self=yes
      ;;
@@ -177,7 +214,7 @@ diff -ruN gcc-12.2.0/libstdc++-v3/configure gcc-12.2.0-banan_os/libstdc++-v3/con
      $as_echo "#define HAVE_ASINF 1" >>confdefs.h
 diff -ruN gcc-12.2.0/libstdc++-v3/crossconfig.m4 gcc-12.2.0-banan_os/libstdc++-v3/crossconfig.m4
 --- gcc-12.2.0/libstdc++-v3/crossconfig.m4	2022-08-19 11:09:55.420698825 +0300
-+++ gcc-12.2.0-banan_os/libstdc++-v3/crossconfig.m4	2024-09-03 23:09:34.531106138 +0300
++++ gcc-12.2.0-banan_os/libstdc++-v3/crossconfig.m4	2025-06-17 12:35:06.796633433 +0300
 @@ -9,7 +9,7 @@
      # This is a freestanding configuration; there is nothing to do here.
      ;;
