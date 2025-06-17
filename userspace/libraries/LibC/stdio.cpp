@@ -120,6 +120,15 @@ static void _init_stdio()
 	s_files[STDDBG_FILENO].buffer_type = _IOLBF;
 }
 
+int asprintf(char** __restrict ptr, const char* __restrict format, ...)
+{
+	va_list arguments;
+	va_start(arguments, format);
+	int ret = vasprintf(ptr, format, arguments);
+	va_end(arguments);
+	return ret;
+}
+
 void clearerr(FILE* file)
 {
 	ScopeLock _(file);
@@ -1021,6 +1030,62 @@ int ungetc(int c, FILE* stream)
 {
 	ScopeLock _(stream);
 	return ungetc_unlocked(c, stream);
+}
+
+
+int vasprintf(char** __restrict ptr, const char* __restrict format, va_list ap)
+{
+	struct print_info
+	{
+		char* buffer;
+		size_t capacity;
+		size_t length;
+	};
+	print_info info {
+		.buffer = nullptr,
+		.capacity = 0,
+		.length = 0,
+	};
+
+	info.buffer = static_cast<char*>(malloc(16));
+	if (info.buffer == nullptr)
+		return -1;
+	info.capacity = 16;
+
+	const int ret = printf_impl(format, ap,
+		[](int c, void* _info) -> int
+		{
+			auto& info = *static_cast<print_info*>(_info);
+
+			if (info.length + 1 >= info.capacity)
+			{
+				const size_t new_capacity = info.capacity * 2;
+				void* new_buffer = realloc(info.buffer, new_capacity);
+				if (new_buffer == nullptr)
+				{
+					free(info.buffer);
+					info.buffer = nullptr;
+					return EOF;
+				}
+
+				info.buffer = static_cast<char*>(new_buffer);
+				info.capacity = new_capacity;
+			}
+
+			info.buffer[info.length++] = c;
+			return 0;
+		}, &info
+	);
+
+	if (info.buffer == nullptr)
+		return -1;
+
+	ASSERT(info.length < info.capacity);
+	info.buffer[info.length] = '\0';
+
+	*ptr = info.buffer;
+
+	return ret;
 }
 
 int vdprintf(int fildes, const char* __restrict format, va_list arguments)

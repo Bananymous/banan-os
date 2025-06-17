@@ -56,6 +56,7 @@ extern FILE* __stderr;
 extern FILE* __stddbg;
 #define stddbg __stddbg
 
+int		asprintf(char** __restrict ptr, const char* __restrict format, ...);
 void	clearerr(FILE* stream);
 char*	ctermid(char* s);
 int		dprintf(int fildes, const char* __restrict format, ...);
@@ -116,6 +117,7 @@ char*	tempnam(const char* dir, const char* pfx);
 FILE*	tmpfile(void);
 char*	tmpnam(char* s);
 int		ungetc(int c, FILE* stream);
+int		vasprintf(char** __restrict ptr, const char* __restrict format, va_list ap);
 int		vdprintf(int fildes, const char* __restrict format, va_list ap);
 int		vfprintf(FILE* __restrict stream, const char* __restrict format, va_list ap);
 int		vfscanf(FILE* __restrict stream, const char* __restrict format, va_list arg);
