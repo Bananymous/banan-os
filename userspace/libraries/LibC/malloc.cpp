@@ -96,12 +96,6 @@ static bool allocate_pool(size_t pool_index)
 	node->prev_free = nullptr;
 	node->next_free = nullptr;
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Warray-bounds"
-#pragma GCC diagnostic ignored "-Wstringop-overflow"
-	node->data[-1] = 0;
-#pragma GCC diagnostic pop
-
 	pool.free_list = node;
 
 	return true;
@@ -150,12 +144,6 @@ static void shrink_node_if_needed(malloc_pool_t& pool, malloc_node_t* node, size
 	next->size = node_end - (uint8_t*)next;
 	next->last = node->last;
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Warray-bounds"
-#pragma GCC diagnostic ignored "-Wstringop-overflow"
-	next->data[-1] = 0;
-#pragma GCC diagnostic pop
-
 	node->last = false;
 
 	// insert excess node to free list
@@ -196,29 +184,6 @@ static void* allocate_from_pool(size_t pool_index, size_t size)
 
 static malloc_node_t* node_from_data_pointer(void* data_pointer)
 {
-	if (((uint8_t*)data_pointer)[-1])
-	{
-		malloc_pool_t* pool = nullptr;
-		for (size_t i = 0; i < s_malloc_pool_count; i++)
-		{
-			if (!s_malloc_pools[i].start)
-				continue;
-			if (data_pointer < s_malloc_pools[i].start)
-				continue;
-			if (data_pointer > s_malloc_pools[i].end())
-				continue;
-			pool = &s_malloc_pools[i];
-			break;
-		}
-		assert(pool);
-
-		auto* node = (malloc_node_t*)pool->start;
-		for (; (uint8_t*)node < pool->end(); node = node->next())
-			if (node->data < data_pointer && data_pointer < node->next())
-				return node;
-		assert(false);
-	}
-
 	return (malloc_node_t*)((uint8_t*)data_pointer - sizeof(malloc_node_t));
 }
 
@@ -379,16 +344,52 @@ int posix_memalign(void** memptr, size_t alignment, size_t size)
 		return -1;
 	}
 
-	uint8_t* unaligned = (uint8_t*)malloc(size + alignment);
+	if (alignment < s_malloc_default_align)
+		alignment = s_malloc_default_align;
+
+	void* unaligned = malloc(size + alignment + sizeof(malloc_node_t));
 	if (unaligned == nullptr)
 		return -1;
 
-	if (auto rem = (uintptr_t)unaligned % alignment)
-	{
-		unaligned += alignment - rem;
-		unaligned[-1] = 1;
-	}
+	pthread_mutex_lock(&s_malloc_mutex);
 
-	*memptr = unaligned;
+	auto* node = node_from_data_pointer(unaligned);
+	auto& pool = pool_from_node(node);
+
+// NOTE: gcc does not like accessing the node from pointer returned by malloc
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Warray-bounds"
+	if (reinterpret_cast<uintptr_t>(unaligned) % alignment)
+	{
+		uintptr_t curr_data_address = reinterpret_cast<uintptr_t>(unaligned);
+
+		uintptr_t next_data_address = curr_data_address + sizeof(malloc_node_t);
+		if (auto rem = next_data_address % alignment)
+			next_data_address += alignment - rem;
+
+		auto* next = node_from_data_pointer(reinterpret_cast<void*>(next_data_address));
+		next->size = reinterpret_cast<uintptr_t>(node->next()) - reinterpret_cast<uintptr_t>(next);
+		next->allocated = true;
+		assert(next->data_size() >= size);
+
+		node->size = reinterpret_cast<uintptr_t>(next) - reinterpret_cast<uintptr_t>(node);
+		node->allocated = false;
+
+		// add node to free list
+		if (pool.free_list)
+			pool.free_list->prev_free = node;
+		node->prev_free = nullptr;
+		node->next_free = pool.free_list;
+		pool.free_list = node;
+
+		node = next;
+	}
+#pragma GCC diagnostic pop
+
+	shrink_node_if_needed(pool, node, size);
+
+	pthread_mutex_unlock(&s_malloc_mutex);
+
+	*memptr = node->data;
 	return 0;
 }
