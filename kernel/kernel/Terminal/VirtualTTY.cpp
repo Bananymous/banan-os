@@ -114,10 +114,10 @@ namespace Kernel
 		m_state = State::Normal;
 	}
 
-	void VirtualTTY::handle_ansi_csi_color(uint8_t ch)
+	void VirtualTTY::handle_ansi_csi_color(uint8_t value)
 	{
 		ASSERT(m_write_lock.current_processor_has_lock());
-		switch (ch)
+		switch (value)
 		{
 			case 0:
 				m_foreground = m_palette[15];
@@ -125,23 +125,37 @@ namespace Kernel
 				m_colors_inverted = false;
 				break;
 
+			// TODO: bold
+			case 1:  break;
+			case 22: break;
+
 			case 7:  m_colors_inverted = true;  break;
 			case 27: m_colors_inverted = false; break;
 
 			case 30: case 31: case 32: case 33: case 34: case 35: case 36: case 37:
-				m_foreground = m_palette[ch - 30];
+				m_foreground = m_palette[value - 30];
+				break;
+			case 39:
+				m_foreground = m_palette[15];
 				break;
 
 			case 40: case 41: case 42: case 43: case 44: case 45: case 46: case 47:
-				m_background = m_palette[ch - 40];
+				m_background = m_palette[value - 40];
+				break;
+			case 49:
+				m_background = m_palette[0];
 				break;
 
 			case 90: case 91: case 92: case 93: case 94: case 95: case 96: case 97:
-				m_foreground = m_palette[ch - 90 + 8];
+				m_foreground = m_palette[value - 90 + 8];
 				break;
 
 			case 100: case 101: case 102: case 103: case 104: case 105: case 106: case 107:
-				m_background = m_palette[ch - 100 + 8];
+				m_background = m_palette[value - 100 + 8];
+				break;
+
+			default:
+				dprintln_if(DEBUG_VTTY, "unhandled ANSI SGR {}", value);
 				break;
 		}
 	}
