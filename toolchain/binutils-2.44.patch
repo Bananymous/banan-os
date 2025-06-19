@@ -1,0 +1,144 @@
+diff -ruN binutils-2.44/bfd/config.bfd binutils-2.44-banan_os/bfd/config.bfd
+--- binutils-2.44/bfd/config.bfd	2025-02-02 02:00:00.000000000 +0200
++++ binutils-2.44-banan_os/bfd/config.bfd	2025-06-19 11:04:48.871180511 +0300
+@@ -612,6 +612,11 @@
+     targ_defvec=i386_elf32_vec
+     targ_selvecs=iamcu_elf32_vec
+     ;;
++  i[3-7]86-*-banan_os*)
++    targ_defvec=i386_elf32_vec
++    targ_selvecs=
++    targ64_selvecs=x86_64_elf64_vec
++    ;;
+   i[3-7]86-*-dicos*)
+     targ_defvec=i386_elf32_vec
+     targ_selvecs=iamcu_elf32_vec
+@@ -666,6 +671,11 @@
+     targ64_selvecs=x86_64_elf64_vec
+     ;;
+ #ifdef BFD64
++  x86_64-*-banan_os*)
++    targ_defvec=x86_64_elf64_vec
++    targ_selvecs=i386_elf32_vec
++    want64=true
++    ;;
+   x86_64-*-cloudabi*)
+     targ_defvec=x86_64_elf64_cloudabi_vec
+     want64=true
+diff -ruN binutils-2.44/config.sub binutils-2.44-banan_os/config.sub
+--- binutils-2.44/config.sub	2025-02-02 02:00:00.000000000 +0200
++++ binutils-2.44-banan_os/config.sub	2025-06-19 11:05:16.922967546 +0300
+@@ -1976,6 +1976,7 @@
+ 	| atheos* \
+ 	| auroraux* \
+ 	| aux* \
++	| banan_os* \
+ 	| beos* \
+ 	| bitrig* \
+ 	| bme* \
+diff -ruN binutils-2.44/gas/configure.tgt binutils-2.44-banan_os/gas/configure.tgt
+--- binutils-2.44/gas/configure.tgt	2025-02-02 02:00:00.000000000 +0200
++++ binutils-2.44-banan_os/gas/configure.tgt	2025-06-19 11:06:43.781629742 +0300
+@@ -225,6 +225,7 @@
+   h8300-*-elf)				fmt=elf ;;
+   h8300-*-linux*)			fmt=elf em=linux ;;
+ 
++  i386-*-banan_os*)			fmt=elf em=gnu ;;
+   i386-*-beospe*)			fmt=coff em=pe ;;
+   i386-*-beos*)				fmt=elf ;;
+   i386-*-elfiamcu)			fmt=elf arch=iamcu ;;
+diff -ruN binutils-2.44/ld/configure.tgt binutils-2.44-banan_os/ld/configure.tgt
+--- binutils-2.44/ld/configure.tgt	2025-02-02 02:00:00.000000000 +0200
++++ binutils-2.44-banan_os/ld/configure.tgt	2025-06-19 11:08:48.725342089 +0300
+@@ -367,6 +367,10 @@
+ i[3-7]86-*-rdos*)	targ_emul=elf_i386
+ 			targ_extra_emuls=elf_iamcu
+ 			;;
++i[3-7]86-*-banan_os*)	targ_emul=elf_i386_banan_os
++			targ_extra_emuls=elf_i386
++			targ64_extra_emuls="elf_x86_64_banan_os elf_x86_64"
++			;;
+ i[3-7]86-*-bsd)		targ_emul=i386bsd
+ 			targ_extra_ofiles=
+ 			;;
+@@ -1000,6 +1004,9 @@
+ 			;;
+ x86_64-*-rdos*)		targ_emul=elf64rdos
+ 			;;
++x86_64-*-banan_os*)	targ_emul=elf_x86_64_banan_os
++			targ_extra_emuls="elf_i386_banan_os elf_x86_64 elf_i386"
++			;;
+ x86_64-*-cloudabi*)	targ_emul=elf_x86_64_cloudabi
+ 			;;
+ x86_64-*-haiku*)	targ_emul=elf_x86_64_haiku
+diff -ruN binutils-2.44/ld/emulparams/elf_banan_os.sh binutils-2.44-banan_os/ld/emulparams/elf_banan_os.sh
+--- binutils-2.44/ld/emulparams/elf_banan_os.sh	1970-01-01 02:00:00.000000000 +0200
++++ binutils-2.44-banan_os/ld/emulparams/elf_banan_os.sh	2025-06-19 11:10:25.877588187 +0300
+@@ -0,0 +1 @@
++ELF_INTERPRETER_NAME=\"/usr/lib/DynamicLoader.so\"
+diff -ruN binutils-2.44/ld/emulparams/elf_i386_banan_os.sh binutils-2.44-banan_os/ld/emulparams/elf_i386_banan_os.sh
+--- binutils-2.44/ld/emulparams/elf_i386_banan_os.sh	1970-01-01 02:00:00.000000000 +0200
++++ binutils-2.44-banan_os/ld/emulparams/elf_i386_banan_os.sh	2025-06-19 11:10:51.233390738 +0300
+@@ -0,0 +1,2 @@
++source_sh ${srcdir}/emulparams/elf_i386.sh
++source_sh ${srcdir}/emulparams/elf_banan_os.sh
+diff -ruN binutils-2.44/ld/emulparams/elf_x86_64_banan_os.sh binutils-2.44-banan_os/ld/emulparams/elf_x86_64_banan_os.sh
+--- binutils-2.44/ld/emulparams/elf_x86_64_banan_os.sh	1970-01-01 02:00:00.000000000 +0200
++++ binutils-2.44-banan_os/ld/emulparams/elf_x86_64_banan_os.sh	2025-06-19 11:11:11.664231452 +0300
+@@ -0,0 +1,2 @@
++source_sh ${srcdir}/emulparams/elf_x86_64.sh
++source_sh ${srcdir}/emulparams/elf_banan_os.sh
+diff -ruN binutils-2.44/ld/Makefile.am binutils-2.44-banan_os/ld/Makefile.am
+--- binutils-2.44/ld/Makefile.am	2025-02-02 02:00:00.000000000 +0200
++++ binutils-2.44-banan_os/ld/Makefile.am	2025-06-19 11:12:13.666857368 +0300
+@@ -277,6 +277,7 @@
+ 	eelf32xtensa.c \
+ 	eelf32z80.c \
+ 	eelf_i386.c \
++	eelf_i386_banan_os.c \
+ 	eelf_i386_be.c \
+ 	eelf_i386_fbsd.c \
+ 	eelf_i386_haiku.c \
+@@ -459,6 +460,7 @@
+ 	eelf64tilegx_be.c \
+ 	eelf_mipsel_haiku.c \
+ 	eelf_x86_64.c \
++	eelf_x86_64_banan_os.c \
+ 	eelf_x86_64_cloudabi.c \
+ 	eelf_x86_64_fbsd.c \
+ 	eelf_x86_64_haiku.c \
+diff -ruN binutils-2.44/ld/Makefile.in binutils-2.44-banan_os/ld/Makefile.in
+--- binutils-2.44/ld/Makefile.in	2025-02-02 02:00:00.000000000 +0200
++++ binutils-2.44-banan_os/ld/Makefile.in	2025-06-19 11:14:27.198888034 +0300
+@@ -788,6 +788,7 @@
+ 	eelf32xtensa.c \
+ 	eelf32z80.c \
+ 	eelf_i386.c \
++	eelf_i386_banan_os.c \
+ 	eelf_i386_be.c \
+ 	eelf_i386_fbsd.c \
+ 	eelf_i386_haiku.c \
+@@ -969,6 +970,7 @@
+ 	eelf64tilegx_be.c \
+ 	eelf_mipsel_haiku.c \
+ 	eelf_x86_64.c \
++	eelf_x86_64_banan_os.c \
+ 	eelf_x86_64_cloudabi.c \
+ 	eelf_x86_64_fbsd.c \
+ 	eelf_x86_64_haiku.c \
+@@ -1476,6 +1478,7 @@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf64tilegx.Po@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf64tilegx_be.Po@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_i386.Po@am__quote@
++@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_i386_banan_os.Po@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_i386_be.Po@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_i386_fbsd.Po@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_i386_haiku.Po@am__quote@
+@@ -1486,6 +1489,7 @@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_mipsel_haiku.Po@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_s390.Po@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_x86_64.Po@am__quote@
++@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_x86_64_banan_os.Po@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_x86_64_cloudabi.Po@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_x86_64_fbsd.Po@am__quote@
+ @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eelf_x86_64_haiku.Po@am__quote@

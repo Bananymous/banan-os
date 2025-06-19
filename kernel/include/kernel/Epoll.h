@@ -68,7 +68,9 @@ namespace Kernel
 
 			bool has_fd(int fd) const
 			{
-				if (fd < 0 || static_cast<size_t>(fd) >= events.size())
+				// For some reason having (fd < 0 || ...) makes GCC 15.1.0
+				// think bitmap access can be out of bounds...
+				if (static_cast<size_t>(fd) >= events.size())
 					return false;
 				return bitmap[fd / 32] & (1u << (fd % 32));
 			}

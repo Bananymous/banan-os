@@ -13,7 +13,7 @@ namespace Kernel
 		long ret;
 		asm volatile("int %[irq]"
 			: "=a"(ret)
-			: [irq]"i"(IRQ_SYSCALL)
+			: [irq]"i"(static_cast<int>(IRQ_SYSCALL)) // WTF GCC 15
 			, "a"(syscall)
 			, "b"((uintptr_t)arg1)
 			, "c"((uintptr_t)arg2)

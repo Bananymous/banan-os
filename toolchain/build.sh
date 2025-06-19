@@ -1,11 +1,11 @@
 #!/bin/bash
 set -e
 
-BINUTILS_VERSION="binutils-2.39"
+BINUTILS_VERSION="binutils-2.44"
 BINUTILS_TAR="$BINUTILS_VERSION.tar.gz"
 BINUTILS_URL="https://ftp.gnu.org/gnu/binutils/$BINUTILS_TAR"
 
-GCC_VERSION="gcc-12.2.0"
+GCC_VERSION="gcc-15.1.0"
 GCC_TAR="$GCC_VERSION.tar.gz"
 GCC_URL="https://ftp.gnu.org/gnu/gcc/$GCC_VERSION/$GCC_TAR"
 

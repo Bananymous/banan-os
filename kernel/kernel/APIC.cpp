@@ -176,19 +176,20 @@ namespace Kernel
 			switch (entry->type)
 			{
 				case 0:
-					Processor processor;
-					processor.processor_id	= entry->entry0.acpi_processor_id;
-					processor.apic_id		= entry->entry0.apic_id;
-					processor.flags			= entry->entry0.flags & 0x03;
-					MUST(apic->m_processors.push_back(processor));
+					MUST(apic->m_processors.emplace_back(Processor {
+						.processor_id = entry->entry0.acpi_processor_id,
+						.apic_id      = entry->entry0.apic_id,
+						.flags        = static_cast<uint8_t>(entry->entry0.flags & 0x03),
+					}));
 					break;
 				case 1:
-					IOAPIC ioapic;
-					ioapic.id			= entry->entry1.ioapic_id;
-					ioapic.paddr		= entry->entry1.ioapic_address;
-					ioapic.gsi_base		= entry->entry1.gsi_base;
-					ioapic.max_redirs	= 0;
-					MUST(apic->m_io_apics.push_back(ioapic));
+					MUST(apic->m_io_apics.emplace_back(IOAPIC {
+						.id         = entry->entry1.ioapic_id,
+						.paddr      = entry->entry1.ioapic_address,
+						.vaddr      = 0,
+						.gsi_base   = entry->entry1.gsi_base,
+						.max_redirs = 0,
+					}));
 					break;
 				case 2:
 					apic->m_irq_overrides[entry->entry2.irq_source] = entry->entry2.gsi;

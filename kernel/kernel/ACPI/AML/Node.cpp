@@ -746,6 +746,8 @@ namespace Kernel::ACPI::AML
 		return {};
 	}
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstack-usage="
 	static BAN::ErrorOr<void> perform_store(const Node& source, Reference* target, TargetType target_type)
 	{
 		dprintln_if(AML_DUMP_FUNCTION_CALLS, "perform_store");
@@ -826,6 +828,7 @@ namespace Kernel::ACPI::AML
 
 		return {};
 	}
+#pragma GCC diagnostic pop
 
 	static BAN::ErrorOr<void> store_into_target(ParseContext& context, const Node& node)
 	{

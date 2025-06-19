@@ -391,7 +391,7 @@ namespace Kernel
 			// NOTE: This is offset by 2 pointers since interrupt without PL change
 			//       does not push SP and SS. This allows accessing "whole" interrupt stack.
 			:: [load_sp]"r"(Processor::current_stack_top() - 2 * sizeof(uintptr_t)),
-			   [yield]"i"(IRQ_YIELD)
+			   [yield]"i"(static_cast<int>(IRQ_YIELD)) // WTF GCC 15
 			:  "memory", "rcx"
 		);
 #elif ARCH(i686)
@@ -403,7 +403,7 @@ namespace Kernel
 			// NOTE: This is offset by 2 pointers since interrupt without PL change
 			//       does not push SP and SS. This allows accessing "whole" interrupt stack.
 			:: [load_sp]"r"(Processor::current_stack_top() - 2 * sizeof(uintptr_t)),
-			   [yield]"i"(IRQ_YIELD)
+			   [yield]"i"(static_cast<int>(IRQ_YIELD)) // WTF GCC 15
 			:  "memory", "ecx"
 		);
 #else

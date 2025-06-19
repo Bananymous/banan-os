@@ -179,7 +179,7 @@ namespace Kernel
 		BAN::Atomic<bool> m_smp_free_lock { false };
 		SMPMessage* m_smp_free    { nullptr };
 
-		SMPMessage* m_smp_message_storage;
+		SMPMessage* m_smp_message_storage { nullptr };
 
 		void* m_current_page_table { nullptr };
 
