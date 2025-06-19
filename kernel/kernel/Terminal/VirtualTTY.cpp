@@ -403,7 +403,7 @@ namespace Kernel
 					return;
 				}
 				reset_ansi();
-				dprintln_if(DEBUG_VTTY, "invalid ANSI CSI ?");
+				dprintln_if(DEBUG_VTTY, "Invalid ANSI CSI ?");
 				return;
 			case 'h':
 			case 'l':
@@ -413,16 +413,15 @@ namespace Kernel
 					return reset_ansi();
 				}
 				reset_ansi();
-				dprintln_if(DEBUG_VTTY, "invalid ANSI CSI character {}", static_cast<char>(ch));
+				dprintln_if(DEBUG_VTTY, "Unsupported ANSI CSI character {}", static_cast<char>(ch));
 				return;
 			case 'n':
 				if (m_ansi_state.nums[0] == 6)
 				{
-					char buffer[2 + 10 + 1 + 10 + 1];
-					size_t len = 0;
-					BAN::Formatter::print([&](char ch) { buffer[len++] = ch; }, "\e[{};{}R", m_row + 1, m_column + 1);
-					for (size_t i = 0; i < len; i++)
-						handle_input_byte(buffer[i]);
+					BAN::Formatter::print(
+						[this](char ch) { handle_input_byte(ch); },
+						"\e[{};{}R", m_row + 1, m_column + 1
+					);
 					return reset_ansi();
 				};
 				reset_ansi();
