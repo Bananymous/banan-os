@@ -514,10 +514,6 @@ namespace Kernel
 		if (fd == AT_FDCWD)
 			return TRY(m_working_directory.clone());
 
-		const auto status_flags = TRY(m_open_file_descriptors.status_flags_of(fd));
-		if (!(status_flags & O_RDONLY) && !(status_flags & O_SEARCH))
-			return BAN::Error::from_errno(EBADF);
-
 		return TRY(m_open_file_descriptors.file_of(fd));
 	}
 
