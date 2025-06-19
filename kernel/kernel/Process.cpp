@@ -2077,26 +2077,28 @@ namespace Kernel
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_mmap(const sys_mmap_t* args)
+	BAN::ErrorOr<long> Process::sys_mmap(const sys_mmap_t* user_args)
 	{
+		sys_mmap_t args;
 		{
 			LockGuard _(m_process_lock);
-			TRY(validate_pointer_access(args, sizeof(sys_mmap_t), true));
+			TRY(validate_pointer_access(user_args, sizeof(sys_mmap_t), false));
+			args = *user_args;
 		}
 
-		if (args->prot != PROT_NONE && (args->prot & ~(PROT_READ | PROT_WRITE | PROT_EXEC)))
+		if (args.prot != PROT_NONE && (args.prot & ~(PROT_READ | PROT_WRITE | PROT_EXEC)))
 			return BAN::Error::from_errno(EINVAL);
 
-		if (!(args->flags & MAP_PRIVATE) == !(args->flags & MAP_SHARED))
+		if (!(args.flags & MAP_PRIVATE) == !(args.flags & MAP_SHARED))
 			return BAN::Error::from_errno(EINVAL);
-		auto region_type = (args->flags & MAP_PRIVATE) ? MemoryRegion::Type::PRIVATE : MemoryRegion::Type::SHARED;
+		auto region_type = (args.flags & MAP_PRIVATE) ? MemoryRegion::Type::PRIVATE : MemoryRegion::Type::SHARED;
 
 		PageTable::flags_t page_flags = 0;
-		if (args->prot & PROT_READ)
+		if (args.prot & PROT_READ)
 			page_flags |= PageTable::Flags::Present;
-		if (args->prot & PROT_WRITE)
+		if (args.prot & PROT_WRITE)
 			page_flags |= PageTable::Flags::ReadWrite | PageTable::Flags::Present;
-		if (args->prot & PROT_EXEC)
+		if (args.prot & PROT_EXEC)
 			page_flags |= PageTable::Flags::Execute | PageTable::Flags::Present;
 
 		if (page_flags == 0)
@@ -2105,21 +2107,21 @@ namespace Kernel
 			page_flags |= PageTable::Flags::UserSupervisor;
 
 		AddressRange address_range { .start = 0x400000, .end = USERSPACE_END };
-		if (args->flags & MAP_FIXED)
+		if (args.flags & MAP_FIXED)
 		{
-			vaddr_t base_addr = reinterpret_cast<vaddr_t>(args->addr);
+			vaddr_t base_addr = reinterpret_cast<vaddr_t>(args.addr);
 			address_range.start = BAN::Math::div_round_up<vaddr_t>(base_addr, PAGE_SIZE) * PAGE_SIZE;
-			address_range.end = BAN::Math::div_round_up<vaddr_t>(base_addr + args->len, PAGE_SIZE) * PAGE_SIZE;
+			address_range.end = BAN::Math::div_round_up<vaddr_t>(base_addr + args.len, PAGE_SIZE) * PAGE_SIZE;
 		}
 
-		if (args->flags & MAP_ANONYMOUS)
+		if (args.flags & MAP_ANONYMOUS)
 		{
-			if (args->off != 0)
+			if (args.off != 0)
 				return BAN::Error::from_errno(EINVAL);
 
 			auto region = TRY(MemoryBackedRegion::create(
 				page_table(),
-				args->len,
+				args.len,
 				address_range,
 				region_type, page_flags
 			));
@@ -2131,13 +2133,13 @@ namespace Kernel
 
 		LockGuard _(m_process_lock);
 
-		auto inode = TRY(m_open_file_descriptors.inode_of(args->fildes));
+		auto inode = TRY(m_open_file_descriptors.inode_of(args.fildes));
 
-		const auto status_flags = TRY(m_open_file_descriptors.status_flags_of(args->fildes));
+		const auto status_flags = TRY(m_open_file_descriptors.status_flags_of(args.fildes));
 		if (!(status_flags & O_RDONLY))
 			return BAN::Error::from_errno(EACCES);
 		if (region_type == MemoryRegion::Type::SHARED)
-			if ((args->prot & PROT_WRITE) && !(status_flags & O_WRONLY))
+			if ((args.prot & PROT_WRITE) && !(status_flags & O_WRONLY))
 				return BAN::Error::from_errno(EACCES);
 
 		BAN::UniqPtr<MemoryRegion> memory_region;
@@ -2146,7 +2148,7 @@ namespace Kernel
 			memory_region = TRY(FileBackedRegion::create(
 				inode,
 				page_table(),
-				args->off, args->len,
+				args.off, args.len,
 				address_range,
 				region_type, page_flags
 			));
@@ -2155,7 +2157,7 @@ namespace Kernel
 		{
 			memory_region = TRY(static_cast<Device&>(*inode).mmap_region(
 				page_table(),
-				args->off, args->len,
+				args.off, args.len,
 				address_range,
 				region_type, page_flags
 			));
