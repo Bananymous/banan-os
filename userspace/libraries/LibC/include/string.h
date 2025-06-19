@@ -10,6 +10,10 @@ __BEGIN_DECLS
 #include <stddef.h>
 #include <bits/types/locale_t.h>
 
+// NOTE: A lot of software seems to assume strcasecmp is defined here,
+//       so let's just include it
+#include <strings.h>
+
 void*	memccpy(void* __restrict s1, const void* __restrict s2, int c, size_t n);
 void*	memchr(const void* s, int c, size_t n);
 int		memcmp(const void* s1, const void* s2, size_t n);
