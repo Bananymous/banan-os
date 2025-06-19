@@ -18,7 +18,7 @@ __BEGIN_DECLS
 #define EXIT_FAILURE 1
 #define EXIT_SUCCESS 0
 
-#define RAND_MAX INT32_MAX
+#define RAND_MAX INT_MAX
 
 #define MB_CUR_MAX ((size_t)4)
 
