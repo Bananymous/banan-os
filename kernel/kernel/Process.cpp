@@ -806,13 +806,10 @@ namespace Kernel
 				return exited_pid;
 			}
 
-			if (Thread::current().is_interrupted_by_signal())
-				return BAN::Error::from_errno(EINTR);
-
 			if (options & WNOHANG)
 				return 0;
 
-			m_child_exit_blocker.block_indefinite(&m_process_lock);
+			TRY(Thread::current().block_or_eintr_indefinite(m_child_exit_blocker, &m_process_lock));
 		}
 	}
 
