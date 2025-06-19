@@ -1,8 +1,8 @@
 #!/bin/bash ../install.sh
 
 NAME='binutils'
-VERSION='2.39'
-DOWNLOAD_URL="https://ftp.gnu.org/gnu/binutils/binutils-$VERSION.tar.gz#d12ea6f239f1ffe3533ea11ad6e224ffcb89eb5d01bbea589e9158780fa11f10"
+VERSION='2.44'
+DOWNLOAD_URL="https://ftp.gnu.org/gnu/binutils/binutils-$VERSION.tar.gz#0cdd76777a0dfd3dd3a63f215f030208ddb91c2361d2bcc02acec0f1c16b6a2e"
 DEPENDENCIES=('zlib')
 CONFIGURE_OPTIONS=(
 	"--target=$BANAN_TOOLCHAIN_TRIPLE"
@@ -16,9 +16,6 @@ CONFIGURE_OPTIONS=(
 )
 
 build() {
-	# This file is not even used. binutils just requires it to exist
-	touch "$BANAN_SYSROOT/usr/include/memory.h"
-
 	make -j$(nproc) || exit 1
-	find . -type f -executable -exec strip --strip-unneeded {} + 2>/dev/null
+	find . -type f -executable -exec $STRIP --strip-unneeded {} + 2>/dev/null
 }
