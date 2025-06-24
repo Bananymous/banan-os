@@ -1,0 +1,17 @@
+[host_machine]
+system = 'banan_os'
+cpu_family = 'ARCH'
+cpu = 'ARCH'
+endian = 'little'
+
+[binaries]
+c = 'ARCH-pc-banan_os-gcc'
+cpp = 'ARCH-pc-banan_os-g++'
+ar = 'ARCH-pc-banan_os-ar'
+ld = 'ARCH-pc-banan_os-ld'
+objcopy = 'ARCH-pc-banan_os-objcopy'
+strip = 'ARCH-pc-banan_os-strip'
+pkgconfig = 'pkg-config'
+
+[properties]
+sys_root='SYSROOT'
