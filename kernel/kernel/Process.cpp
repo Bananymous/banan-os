@@ -1208,6 +1208,16 @@ namespace Kernel
 		return 0;
 	}
 
+	BAN::ErrorOr<long> Process::sys_flock(int fd, int op)
+	{
+		auto maybe_error = m_open_file_descriptors.flock(fd, op);
+		if (maybe_error.is_error() && maybe_error.error().get_error_code() == ENOMEM)
+			return BAN::Error::from_errno(ENOLCK);
+		if (maybe_error.is_error())
+			return maybe_error.error();
+		return 0;
+	}
+
 	BAN::ErrorOr<long> Process::sys_pread(int fd, void* buffer, size_t count, off_t offset)
 	{
 		auto inode = TRY(m_open_file_descriptors.inode_of(fd));

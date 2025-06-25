@@ -1,6 +1,7 @@
 #pragma once
 
 #include <BAN/Array.h>
+#include <BAN/HashSet.h>
 #include <kernel/FS/Inode.h>
 #include <kernel/FS/VirtualFileSystem.h>
 
@@ -43,6 +44,8 @@ namespace Kernel
 		void close_all();
 		void close_cloexec();
 
+		BAN::ErrorOr<void> flock(int fd, int op);
+
 		BAN::ErrorOr<size_t> read(int fd, BAN::ByteSpan);
 		BAN::ErrorOr<size_t> write(int fd, BAN::ConstByteSpan);
 
@@ -68,6 +71,15 @@ namespace Kernel
 			VirtualFileSystem::File file;
 			off_t offset { 0 };
 			int status_flags;
+
+			struct flock_t
+			{
+				bool locked;
+				bool shared;
+				ThreadBlocker thread_blocker;
+				BAN::HashSet<pid_t> lockers;
+			};
+			flock_t flock;
 
 			friend class BAN::RefPtr<OpenFileDescription>;
 		};

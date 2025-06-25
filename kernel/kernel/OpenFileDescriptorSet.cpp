@@ -5,6 +5,7 @@
 #include <kernel/OpenFileDescriptorSet.h>
 
 #include <fcntl.h>
+#include <sys/file.h>
 #include <sys/socket.h>
 
 namespace Kernel
@@ -310,6 +311,17 @@ namespace Kernel
 		TRY(validate_fd(fd));
 
 		auto& open_file = m_open_files[fd];
+
+		if (auto& flock = open_file.description->flock; Thread::current().has_process() && flock.lockers.contains(Process::current().pid()))
+		{
+			flock.lockers.remove(Process::current().pid());
+			if (flock.lockers.empty())
+			{
+				flock.locked = false;
+				flock.thread_blocker.unblock();
+			}
+		}
+
 		open_file.inode()->on_close(open_file.status_flags());
 		open_file.description.clear();
 		open_file.descriptor_flags = 0;
@@ -333,6 +345,63 @@ namespace Kernel
 				continue;
 			if (m_open_files[fd].descriptor_flags & O_CLOEXEC)
 				(void)close(fd);
+		}
+	}
+
+	BAN::ErrorOr<void> OpenFileDescriptorSet::flock(int fd, int op)
+	{
+		const auto pid = Process::current().pid();
+
+		LockGuard _(m_mutex);
+
+		for (;;)
+		{
+			TRY(validate_fd(fd));
+
+			auto& flock = m_open_files[fd].description->flock;
+			switch (op & ~LOCK_NB)
+			{
+				case LOCK_UN:
+					flock.lockers.remove(pid);
+					if (flock.lockers.empty())
+					{
+						flock.locked = false;
+						flock.thread_blocker.unblock();
+					}
+					return {};
+				case LOCK_SH:
+					if (!flock.locked)
+					{
+						TRY(flock.lockers.insert(pid));
+						flock.locked = true;
+						flock.shared = true;
+						return {};
+					}
+					if (flock.shared)
+					{
+						TRY(flock.lockers.insert(pid));
+						return {};
+					}
+					break;
+				case LOCK_EX:
+					if (!flock.locked)
+					{
+						TRY(flock.lockers.insert(pid));
+						flock.locked = true;
+						flock.shared = false;
+						return {};
+					}
+					if (flock.lockers.contains(pid))
+						return {};
+					break;
+				default:
+					return BAN::Error::from_errno(EINVAL);
+			}
+
+			if (op & LOCK_NB)
+				return BAN::Error::from_errno(EWOULDBLOCK);
+
+			TRY(Thread::current().block_or_eintr_indefinite(flock.thread_blocker, &m_mutex));
 		}
 	}
 
