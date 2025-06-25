@@ -182,6 +182,77 @@ int getnameinfo(const struct sockaddr* __restrict sa, socklen_t salen, char* __r
 	return 0;
 }
 
+struct hostent* gethostbyaddr(const void* addr, socklen_t size, int type)
+{
+	static char* addr_ptrs[2];
+	static struct hostent hostent;
+
+	if (hostent.h_name != nullptr)
+		free(hostent.h_name);
+
+	switch (type)
+	{
+		case AF_INET:
+		{
+			if (size < static_cast<socklen_t>(sizeof(in_addr)))
+				return nullptr;
+
+			hostent.h_name = static_cast<char*>(malloc(INET_ADDRSTRLEN));
+			if (hostent.h_name == nullptr)
+				return nullptr;
+
+			const auto* in_addr = static_cast<const ::in_addr*>(addr);
+			if (!inet_ntop(AF_INET, &in_addr->s_addr, hostent.h_name, INET_ADDRSTRLEN))
+				return nullptr;
+
+			hostent.h_aliases = nullptr;
+
+			hostent.h_addrtype = AF_INET;
+			hostent.h_length = sizeof(::in_addr);
+
+			static char in_addr_buffer[sizeof(::in_addr::s_addr)];
+			memcpy(in_addr_buffer, &in_addr->s_addr, sizeof(::in_addr::s_addr));
+
+			addr_ptrs[0] = in_addr_buffer;
+			addr_ptrs[1] = nullptr;
+			hostent.h_addr_list = addr_ptrs;
+
+			break;
+		}
+		case AF_INET6:
+		{
+			if (size < static_cast<socklen_t>(sizeof(in6_addr)))
+				return nullptr;
+
+			hostent.h_name = static_cast<char*>(malloc(INET6_ADDRSTRLEN));
+			if (hostent.h_name == nullptr)
+				return nullptr;
+
+			const auto* in6_addr = static_cast<const ::in6_addr*>(addr);
+			if (!inet_ntop(AF_INET6, &in6_addr->s6_addr, hostent.h_name, INET6_ADDRSTRLEN))
+				return nullptr;
+
+			hostent.h_aliases = nullptr;
+
+			hostent.h_addrtype = AF_INET6;
+			hostent.h_length = sizeof(::in6_addr::s6_addr);
+
+			static char in6_addr_buffer[sizeof(::in6_addr::s6_addr)];
+			memcpy(in6_addr_buffer, &in6_addr->s6_addr, sizeof(::in6_addr::s6_addr));
+
+			addr_ptrs[0] = in6_addr_buffer;
+			addr_ptrs[1] = nullptr;
+			hostent.h_addr_list = addr_ptrs;
+
+			break;
+		}
+		default:
+			return nullptr;
+	}
+
+	return &hostent;
+}
+
 struct hostent* gethostbyname(const char* name)
 {
 	static char name_buffer[HOST_NAME_MAX + 1];
