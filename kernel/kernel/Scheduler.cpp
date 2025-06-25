@@ -458,9 +458,14 @@ namespace Kernel
 			else
 			{
 				const uint64_t duration_ns = current_ns - m_last_load_balance_ns;
-				const uint64_t max_thread_load_x1000 = 1000 * m_most_loaded_threads.front().node->time_used_ns / duration_ns;
-				const uint64_t max_load_thread_count = ((2000 / max_thread_load_x1000) + 1) / 2;
-				s_processor_infos[Processor::current_id().as_u32()].max_load_threads = max_load_thread_count;
+				const uint64_t max_thread_load_x1000 = 1000 * most_loaded_thread.node->time_used_ns / duration_ns;
+				if (max_thread_load_x1000 == 0)
+					s_processor_infos[Processor::current_id().as_u32()].max_load_threads = 0;
+				else
+				{
+					const uint64_t max_load_thread_count = ((2000 / max_thread_load_x1000) + 1) / 2;
+					s_processor_infos[Processor::current_id().as_u32()].max_load_threads = max_load_thread_count;
+				}
 			}
 		}
 
