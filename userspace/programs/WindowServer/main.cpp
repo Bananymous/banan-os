@@ -379,6 +379,10 @@ int main()
 						if (auto ret = LibGUI::WindowPacket::WindowSetMinSize::deserialize(client_data.packet_buffer.span()); !ret.is_error())
 							window_server.on_window_set_min_size(fd, ret.release_value());
 						break;
+					case LibGUI::PacketType::WindowSetMaxSize:
+						if (auto ret = LibGUI::WindowPacket::WindowSetMaxSize::deserialize(client_data.packet_buffer.span()); !ret.is_error())
+							window_server.on_window_set_max_size(fd, ret.release_value());
+						break;
 					case LibGUI::PacketType::WindowSetFullscreen:
 						if (auto ret = LibGUI::WindowPacket::WindowSetFullscreen::deserialize(client_data.packet_buffer.span()); !ret.is_error())
 							window_server.on_window_set_fullscreen(fd, ret.release_value());

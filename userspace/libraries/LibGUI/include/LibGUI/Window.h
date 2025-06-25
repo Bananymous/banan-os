@@ -47,6 +47,7 @@ namespace LibGUI
 		void set_attributes(Attributes attributes);
 
 		void set_min_size(uint32_t width, uint32_t height);
+		void set_max_size(uint32_t width, uint32_t height);
 
 		// send resize request to window server
 		// actual resize is only done after resize callback is called
