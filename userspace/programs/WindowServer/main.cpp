@@ -173,10 +173,15 @@ int main()
 		SIGTTIN,
 		SIGTTOU,
 	};
+	constexpr int ignored_signals[] {
+		SIGPIPE,
+	};
 	for (int sig = _SIGMIN; sig <= _SIGMAX; sig++)
 		signal(sig, exit);
 	for (int sig : non_terminating_signals)
 		signal(sig, SIG_DFL);
+	for (int sig : ignored_signals)
+		signal(sig, SIG_IGN);
 
 	MUST(LibInput::KeyboardLayout::initialize());
 	MUST(LibInput::KeyboardLayout::get().load_from_file("/usr/share/keymaps/us.keymap"_sv));
