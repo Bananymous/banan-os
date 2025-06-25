@@ -172,6 +172,7 @@ namespace LibGUI
 		DestroyWindowEvent,
 		CloseWindowEvent,
 		ResizeWindowEvent,
+		WindowShownEvent,
 		KeyEvent,
 		MouseButtonEvent,
 		MouseMoveEvent,
@@ -189,6 +190,7 @@ namespace LibGUI
 			bool rounded_corners;
 			bool alpha_channel;
 			bool resizable;
+			bool shown;
 		};
 
 		DEFINE_PACKET(
@@ -269,6 +271,14 @@ namespace LibGUI
 			uint32_t, width,
 			uint32_t, height,
 			long, smo_key
+		);
+
+		DEFINE_PACKET_EXTRA(
+			WindowShownEvent,
+			struct event_t {
+				bool shown;
+			},
+			event_t, event
 		);
 
 		DEFINE_PACKET_EXTRA(

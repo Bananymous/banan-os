@@ -108,20 +108,15 @@ void WindowServer::on_window_invalidate(int fd, const LibGUI::WindowPacket::Wind
 			return;
 	}
 
-	BAN::RefPtr<Window> target_window;
-	for (auto& window : m_client_windows)
-	{
-		if (window->client_fd() != fd)
-			continue;
-		target_window = window;
-		break;
-	}
-
+	auto target_window = find_window_with_fd(fd);
 	if (!target_window)
 	{
 		dwarnln("client tried to invalidate window while not owning a window");
 		return;
 	}
+
+	if (!target_window->get_attributes().shown)
+		return;
 
 	invalidate({
 		target_window->client_x() + static_cast<int32_t>(packet.x),
@@ -140,15 +135,7 @@ void WindowServer::on_window_set_position(int fd, const LibGUI::WindowPacket::Wi
 			return;
 	}
 
-	BAN::RefPtr<Window> target_window;
-	for (auto& window : m_client_windows)
-	{
-		if (window->client_fd() != fd)
-			continue;
-		target_window = window;
-		break;
-	}
-
+	auto target_window = find_window_with_fd(fd);
 	if (!target_window)
 	{
 		dwarnln("client tried to set window position while not owning a window");
@@ -160,44 +147,56 @@ void WindowServer::on_window_set_position(int fd, const LibGUI::WindowPacket::Wi
 		.x = packet.x,
 		.y = packet.y,
 	});
+
+	if (!target_window->get_attributes().shown)
+		return;
+
 	const auto new_client_area = target_window->full_area();
 	invalidate(new_client_area.get_bounding_box(old_client_area));
 }
 
 void WindowServer::on_window_set_attributes(int fd, const LibGUI::WindowPacket::WindowSetAttributes& packet)
 {
-	BAN::RefPtr<Window> target_window;
-	for (auto& window : m_client_windows)
-	{
-		if (window->client_fd() != fd)
-			continue;
-		target_window = window;
-		break;
-	}
-
+	auto target_window = find_window_with_fd(fd);
 	if (!target_window)
 	{
 		dwarnln("client tried to set window attributes while not owning a window");
 		return;
 	}
 
+	const bool send_shown_event = target_window->get_attributes().shown != packet.attributes.shown;
+
 	const auto old_client_area = target_window->full_area();
 	target_window->set_attributes(packet.attributes);
 	const auto new_client_area = target_window->full_area();
 	invalidate(new_client_area.get_bounding_box(old_client_area));
 
-	if (!packet.attributes.focusable && m_focused_window == target_window)
+	if ((!packet.attributes.focusable || !packet.attributes.shown) && m_focused_window == target_window)
 	{
 		m_focused_window = nullptr;
+		if (m_state == State::Moving || m_state == State::Resizing)
+			m_state = State::Normal;
 		for (size_t i = m_client_windows.size(); i > 0; i--)
 		{
-			if (auto& window = m_client_windows[i - 1]; window->get_attributes().focusable)
+			auto& window = m_client_windows[i - 1];
+			if (auto attributes = window->get_attributes(); attributes.focusable && attributes.shown)
 			{
 				set_focused_window(window);
 				break;
 			}
 		}
 	}
+
+	if (!send_shown_event)
+		return;
+
+	auto event_packet = LibGUI::EventPacket::WindowShownEvent {
+		.event = {
+			.shown = target_window->get_attributes().shown,
+		},
+	};
+	if (auto ret = event_packet.send_serialized(target_window->client_fd()); ret.is_error())
+		dwarnln("could not send window shown event: {}", ret.error());
 }
 
 void WindowServer::on_window_set_mouse_capture(int fd, const LibGUI::WindowPacket::WindowSetMouseCapture& packet)
@@ -210,18 +209,15 @@ void WindowServer::on_window_set_mouse_capture(int fd, const LibGUI::WindowPacke
 		return;
 	}
 
-	BAN::RefPtr<Window> target_window;
-	for (auto& window : m_client_windows)
-	{
-		if (window->client_fd() != fd)
-			continue;
-		target_window = window;
-		break;
-	}
-
+	auto target_window = find_window_with_fd(fd);
 	if (!target_window)
 	{
 		dwarnln("client tried to set mouse capture while not owning a window");
+		return;
+	}
+	if (!target_window->get_attributes().shown)
+	{
+		dwarnln("client tried to set mouse capture while hidden window");
 		return;
 	}
 
@@ -235,15 +231,7 @@ void WindowServer::on_window_set_mouse_capture(int fd, const LibGUI::WindowPacke
 
 void WindowServer::on_window_set_size(int fd, const LibGUI::WindowPacket::WindowSetSize& packet)
 {
-	BAN::RefPtr<Window> target_window;
-	for (auto& window : m_client_windows)
-	{
-		if (window->client_fd() != fd)
-			continue;
-		target_window = window;
-		break;
-	}
-
+	auto target_window = find_window_with_fd(fd);
 	if (!target_window)
 	{
 		dwarnln("client tried to set window size while not owning a window");
@@ -258,20 +246,15 @@ void WindowServer::on_window_set_size(int fd, const LibGUI::WindowPacket::Window
 	if (!resize_window(target_window, width, height))
 		return;
 
+	if (!target_window->get_attributes().shown)
+		return;
+
 	invalidate(target_window->full_area().get_bounding_box(old_area));
 }
 
 void WindowServer::on_window_set_min_size(int fd, const LibGUI::WindowPacket::WindowSetMinSize& packet)
 {
-	BAN::RefPtr<Window> target_window;
-	for (auto& window : m_client_windows)
-	{
-		if (window->client_fd() != fd)
-			continue;
-		target_window = window;
-		break;
-	}
-
+	auto target_window = find_window_with_fd(fd);
 	if (!target_window)
 	{
 		dwarnln("client tried to set window min size while not owning a window");
@@ -284,15 +267,7 @@ void WindowServer::on_window_set_min_size(int fd, const LibGUI::WindowPacket::Wi
 
 void WindowServer::on_window_set_max_size(int fd, const LibGUI::WindowPacket::WindowSetMaxSize& packet)
 {
-	BAN::RefPtr<Window> target_window;
-	for (auto& window : m_client_windows)
-	{
-		if (window->client_fd() != fd)
-			continue;
-		target_window = window;
-		break;
-	}
-
+	auto target_window = find_window_with_fd(fd);
 	if (!target_window)
 	{
 		dwarnln("client tried to set window max size while not owning a window");
@@ -328,18 +303,15 @@ void WindowServer::on_window_set_fullscreen(int fd, const LibGUI::WindowPacket::
 	if (!packet.fullscreen)
 		return;
 
-	BAN::RefPtr<Window> target_window;
-	for (auto& window : m_client_windows)
-	{
-		if (window->client_fd() != fd)
-			continue;
-		target_window = window;
-		break;
-	}
-
+	auto target_window = find_window_with_fd(fd);
 	if (!target_window)
 	{
 		dwarnln("client tried to set window fullscreen while not owning a window");
+		return;
+	}
+	if (!target_window->get_attributes().shown)
+	{
+		dwarnln("client tried to set a hidden window fullscreen");
 		return;
 	}
 
@@ -359,15 +331,7 @@ void WindowServer::on_window_set_fullscreen(int fd, const LibGUI::WindowPacket::
 
 void WindowServer::on_window_set_title(int fd, const LibGUI::WindowPacket::WindowSetTitle& packet)
 {
-	BAN::RefPtr<Window> target_window;
-	for (auto& window : m_client_windows)
-	{
-		if (window->client_fd() != fd)
-			continue;
-		target_window = window;
-		break;
-	}
-
+	auto target_window = find_window_with_fd(fd);
 	if (!target_window)
 	{
 		dwarnln("client tried to set window title while not owning a window");
@@ -379,6 +343,9 @@ void WindowServer::on_window_set_title(int fd, const LibGUI::WindowPacket::Windo
 		dwarnln("failed to set window title: {}", ret.error());
 		return;
 	}
+
+	if (!target_window->get_attributes().shown)
+		return;
 
 	invalidate(target_window->title_bar_area());
 }
@@ -508,7 +475,7 @@ void WindowServer::on_mouse_button(LibInput::MouseButtonEvent event)
 	if (!event.pressed)
 		target_window = m_mouse_button_windows[button_idx];
 	for (size_t i = m_client_windows.size(); i > 0 && !target_window; i--)
-		if (m_client_windows[i - 1]->full_area().contains(m_cursor))
+		if (m_client_windows[i - 1]->full_area().contains(m_cursor) && m_client_windows[i - 1]->get_attributes().shown)
 			target_window = m_client_windows[i - 1];
 
 	switch (m_state)
@@ -652,6 +619,8 @@ void WindowServer::on_mouse_move(LibInput::MouseMoveEvent event)
 	// TODO: Really no need to loop over every window
 	for (auto& window : m_client_windows)
 	{
+		if (!window->get_attributes().shown)
+			continue;
 		auto title_bar = window->title_bar_area();
 		if (title_bar.get_overlap(old_cursor).has_value() || title_bar.get_overlap(new_cursor).has_value())
 			invalidate(title_bar);
@@ -895,6 +864,8 @@ void WindowServer::invalidate(Rectangle area)
 	for (auto& pwindow : m_client_windows)
 	{
 		auto& window = *pwindow;
+		if (!window.get_attributes().shown)
+			continue;
 
 		const Rectangle fast_areas[] {
 			{
@@ -1267,6 +1238,17 @@ Rectangle WindowServer::resize_area(Position cursor) const
 		.width  = diff_x + m_focused_window->full_width(),
 		.height = diff_y + m_focused_window->full_height(),
 	};
+}
+
+BAN::RefPtr<Window> WindowServer::find_window_with_fd(int fd)
+{
+	for (auto window : m_client_windows)
+	{
+		if (window->client_fd() != fd)
+			continue;
+		return window;
+	}
+	return {};
 }
 
 bool WindowServer::resize_window(BAN::RefPtr<Window> window, uint32_t width, uint32_t height) const

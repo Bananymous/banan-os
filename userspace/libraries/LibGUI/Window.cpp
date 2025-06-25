@@ -295,6 +295,10 @@ namespace LibGUI
 						m_resize_window_event_callback();
 					break;
 				}
+				case PacketType::WindowShownEvent:
+					if (m_window_shown_event_callback)
+						m_window_shown_event_callback(TRY_OR_BREAK(EventPacket::WindowShownEvent::deserialize(packet_data.span())).event);
+					break;
 				case PacketType::KeyEvent:
 					if (m_key_event_callback)
 						m_key_event_callback(TRY_OR_BREAK(EventPacket::KeyEvent::deserialize(packet_data.span())).event);
