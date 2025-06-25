@@ -628,6 +628,24 @@ void pthread_testcancel(void)
 	pthread_exit(PTHREAD_CANCELED);
 }
 
+int pthread_getschedparam(pthread_t thread, int* __restrict policy, struct sched_param* __restrict param)
+{
+	(void)thread;
+	(void)policy;
+	(void)param;
+	dwarnln("TODO: pthread_getschedparam");
+	return ENOTSUP;
+}
+
+int pthread_setschedparam(pthread_t thread, int policy, const struct sched_param* param)
+{
+	(void)thread;
+	(void)policy;
+	(void)param;
+	dwarnln("TODO: pthread_setschedparam");
+	return ENOTSUP;
+}
+
 int pthread_spin_destroy(pthread_spinlock_t* lock)
 {
 	(void)lock;
