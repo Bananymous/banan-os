@@ -2373,10 +2373,8 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_clock_gettime(clockid_t clock_id, timespec* tp)
 	{
-		{
-			LockGuard _(m_process_lock);
-			TRY(validate_pointer_access(tp, sizeof(timespec), true));
-		}
+		LockGuard _(m_process_lock);
+		TRY(validate_pointer_access(tp, sizeof(timespec), true));
 
 		switch (clock_id)
 		{
@@ -2386,10 +2384,31 @@ namespace Kernel
 			case CLOCK_REALTIME:
 				*tp = SystemTimer::get().real_time();
 				break;
+			case CLOCK_PROCESS_CPUTIME_ID:
+			{
+				uint64_t cpu_time_ns { 0 };
+				for (auto* thread : m_threads)
+					cpu_time_ns += thread->cpu_time_ns();
+				*tp = {
+					.tv_sec = static_cast<time_t>(cpu_time_ns / 1'000'000'000),
+					.tv_nsec = static_cast<long>(cpu_time_ns % 1'000'000'000),
+				};
+				break;
+			}
+			case CLOCK_THREAD_CPUTIME_ID:
+			{
+				const auto cpu_time_ns = Thread::current().cpu_time_ns();
+				*tp = {
+					.tv_sec = static_cast<time_t>(cpu_time_ns / 1'000'000'000),
+					.tv_nsec = static_cast<long>(cpu_time_ns % 1'000'000'000),
+				};
+				break;
+			}
 			default:
 				dwarnln("TODO: clock_gettime({})", clock_id);
 				return BAN::Error::from_errno(ENOTSUP);
 		}
+
 		return 0;
 	}
 

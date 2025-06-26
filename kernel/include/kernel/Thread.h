@@ -103,6 +103,10 @@ namespace Kernel
 
 		bool is_userspace() const { return m_is_userspace; }
 
+		uint64_t cpu_time_ns() const;
+		void set_cpu_time_start();
+		void set_cpu_time_stop();
+
 		void set_tls(vaddr_t tls) { m_tls = tls; }
 		vaddr_t get_tls() const { return m_tls; }
 
@@ -154,6 +158,10 @@ namespace Kernel
 		uint64_t                   m_signal_block_mask    { 0 };
 		SpinLock                   m_signal_lock;
 		static_assert(_SIGMAX < 64);
+
+		mutable SpinLock           m_cpu_time_lock;
+		uint64_t                   m_cpu_time_ns          { 0 };
+		uint64_t                   m_cpu_time_start_ns    { UINT64_MAX };
 
 		BAN::Atomic<uint32_t>      m_spinlock_count       { 0 };
 		BAN::Atomic<uint32_t>      m_mutex_count          { 0 };

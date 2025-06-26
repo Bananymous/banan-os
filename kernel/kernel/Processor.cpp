@@ -382,6 +382,9 @@ namespace Kernel
 			}
 		}
 
+		if (!scheduler().is_idle())
+			Thread::current().set_cpu_time_stop();
+
 #if ARCH(x86_64)
 		asm volatile(
 			"movq %%rsp, %%rcx;"
@@ -411,6 +414,9 @@ namespace Kernel
 #endif
 
 		processor_info.m_start_ns = SystemTimer::get().ns_since_boot();
+
+		if (!scheduler().is_idle())
+			Thread::current().set_cpu_time_start();
 
 		Processor::set_interrupt_state(state);
 	}

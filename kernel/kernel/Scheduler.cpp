@@ -275,7 +275,10 @@ namespace Kernel
 		page_table.load();
 
 		if (thread->state() == Thread::State::NotStarted)
+		{
 			thread->m_state = Thread::State::Executing;
+			thread->set_cpu_time_start();
+		}
 
 		Processor::gdt().set_tss_stack(thread->kernel_stack_top());
 		Processor::load_tls();

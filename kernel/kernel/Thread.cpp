@@ -166,6 +166,29 @@ namespace Kernel
 		}
 	}
 
+	uint64_t Thread::cpu_time_ns() const
+	{
+		SpinLockGuard _(m_cpu_time_lock);
+		if (m_cpu_time_start_ns == UINT64_MAX)
+			return m_cpu_time_ns;
+		return m_cpu_time_ns + (SystemTimer::get().ns_since_boot() - m_cpu_time_start_ns);
+	}
+
+	void Thread::set_cpu_time_start()
+	{
+		SpinLockGuard _(m_cpu_time_lock);
+		ASSERT(m_cpu_time_start_ns == UINT64_MAX);
+		m_cpu_time_start_ns = SystemTimer::get().ns_since_boot();
+	}
+
+	void Thread::set_cpu_time_stop()
+	{
+		SpinLockGuard _(m_cpu_time_lock);
+		ASSERT(m_cpu_time_start_ns != UINT64_MAX);
+		m_cpu_time_ns += SystemTimer::get().ns_since_boot() - m_cpu_time_start_ns;
+		m_cpu_time_start_ns = UINT64_MAX;
+	}
+
 	BAN::ErrorOr<Thread*> Thread::pthread_create(entry_t entry, void* arg)
 	{
 		auto* thread = TRY(create_userspace(m_process, m_process->page_table()));
