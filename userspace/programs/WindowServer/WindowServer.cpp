@@ -844,7 +844,8 @@ void WindowServer::invalidate(Rectangle area)
 				}
 			}
 
-			mark_pending_sync(cursor_area);
+			if (auto fb_overlap = cursor_area.get_overlap(m_framebuffer.area()); fb_overlap.has_value())
+				mark_pending_sync(fb_overlap.value());
 		}
 
 		return;
