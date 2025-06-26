@@ -1,23 +1,33 @@
-#include <BAN/Assert.h>
-
 #include <dlfcn.h>
 
-int dlclose(void*)
+extern "C" int __dlclose(void*) __attribute__((weak));
+int dlclose(void* handle)
 {
-	ASSERT_NOT_REACHED();
+	if (&__dlclose == nullptr) [[unlikely]]
+		return -1;
+	return __dlclose(handle);
 }
 
+extern "C" char* __dlerror() __attribute__((weak));
 char* dlerror(void)
 {
-	ASSERT_NOT_REACHED();
+	if (&__dlerror == nullptr) [[unlikely]]
+		return const_cast<char*>("TODO: dlfcn functions with static linking");
+	return __dlerror();
 }
 
-void* dlopen(const char*, int)
+extern "C" void* __dlopen(const char*, int) __attribute__((weak));
+void* dlopen(const char* file, int mode)
 {
-	ASSERT_NOT_REACHED();
+	if (&__dlopen == nullptr) [[unlikely]]
+		return nullptr;
+	return __dlopen(file, mode);
 }
 
-void* dlsym(void* __restrict, const char* __restrict)
+extern "C" void* __dlsym(void*, const char*) __attribute__((weak));
+void* dlsym(void* __restrict handle, const char* __restrict name)
 {
-	ASSERT_NOT_REACHED();
+	if (&__dlsym == nullptr) [[unlikely]]
+		return nullptr;
+	return __dlsym(handle, name);
 }

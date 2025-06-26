@@ -4,6 +4,7 @@
 #include <LibELF/Types.h>
 #include <LibELF/Values.h>
 
+#include <dlfcn.h>
 #include <fcntl.h>
 #include <limits.h>
 #include <pthread.h>
@@ -421,6 +422,11 @@ static void handle_tls_relocation(const LoadedElf& elf, const RelocT& reloc)
 #endif
 }
 
+extern "C" int __dlclose(void* handle);
+extern "C" char* __dlerror(void);
+extern "C" void* __dlopen(const char* file, int mode);
+extern "C" void* __dlsym(void* __restrict handle, const char* __restrict name);
+
 template<typename RelocT> requires BAN::is_same_v<RelocT, ElfNativeRelocation> || BAN::is_same_v<RelocT, ElfNativeRelocationA>
 static uintptr_t handle_relocation(const LoadedElf& elf, const RelocT& reloc, bool resolve_symbols)
 {
@@ -437,7 +443,16 @@ static uintptr_t handle_relocation(const LoadedElf& elf, const RelocT& reloc, bo
 		const auto& symbol = *reinterpret_cast<ElfNativeSymbol*>(elf.symtab + symbol_index * elf.syment);
 		const char* symbol_name = reinterpret_cast<const char*>(elf.strtab + symbol.st_name);
 
-		if (symbol.st_shndx && ELF_ST_BIND(symbol.st_info) != STB_WEAK)
+		if (false) {}
+#define CHECK_SYM(sym) \
+		else if (strcmp(symbol_name, #sym) == 0) \
+			symbol_address = reinterpret_cast<uintptr_t>(&sym)
+		CHECK_SYM(__dlclose);
+		CHECK_SYM(__dlerror);
+		CHECK_SYM(__dlopen);
+		CHECK_SYM(__dlsym);
+#undef CHECK_SYM
+		else if (symbol.st_shndx && ELF_ST_BIND(symbol.st_info) != STB_WEAK)
 			symbol_address = elf.base + symbol.st_value;
 		else
 		{
@@ -697,6 +712,23 @@ uintptr_t resolve_symbol(const LoadedElf& elf, uintptr_t plt_entry)
 
 static LoadedElf& load_elf(const char* path, int fd);
 
+static bool find_library(const char* library_name, char out[PATH_MAX])
+{
+	const char* library_dir = "/usr/lib/";
+
+	char path_buffer[PATH_MAX];
+	char* path_ptr = path_buffer;
+
+	if (library_name[0] != '/')
+		for (size_t i = 0; library_dir[i]; i++)
+			*path_ptr++ = library_dir[i];
+	for (size_t i = 0; library_name[i]; i++)
+		*path_ptr++ = library_name[i];
+	*path_ptr = '\0';
+
+	return syscall(SYS_REALPATH, path_buffer, out) >= 0;
+}
+
 static void handle_dynamic(LoadedElf& elf)
 {
 	uintptr_t pltgot = 0;
@@ -754,24 +786,13 @@ static void handle_dynamic(LoadedElf& elf)
 		if (dynamic.d_tag != DT_NEEDED)
 			continue;
 
-		const char* library_dir = "/usr/lib/";
+		const char* library_name = reinterpret_cast<const char*>(elf.strtab + dynamic.d_un.d_val);
 
 		char path_buffer[PATH_MAX];
-		char* path_ptr = path_buffer;
+		if (!find_library(library_name, path_buffer))
+			print_error_and_exit("could not open shared object", 0);
 
-		const char* library_name = reinterpret_cast<const char*>(elf.strtab + dynamic.d_un.d_val);
-		if (library_name[0] != '/')
-			for (size_t i = 0; library_dir[i]; i++)
-				*path_ptr++ = library_dir[i];
-		for (size_t i = 0; library_name[i]; i++)
-			*path_ptr++ = library_name[i];
-		*path_ptr = '\0';
-
-		char realpath[PATH_MAX];
-		if (auto ret = syscall(SYS_REALPATH, path_buffer, realpath); ret < 0)
-			print_error_and_exit("realpath", ret);
-
-		const auto& loaded_elf = load_elf(realpath, -1);
+		const auto& loaded_elf = load_elf(path_buffer, -1);
 		dynamic.d_un.d_ptr = reinterpret_cast<uintptr_t>(&loaded_elf);
 	}
 
@@ -1222,6 +1243,75 @@ static void call_init_funcs(LoadedElf& elf, bool is_main_elf)
 		reinterpret_cast<init_t>(elf.init)();
 	for (size_t i = 0; i < elf.init_arraysz / sizeof(init_t); i++)
 		reinterpret_cast<init_t*>(elf.init_array)[i]();
+}
+
+int __dlclose(void* handle)
+{
+	// TODO: maybe actually close handles? (not required by spec)
+	(void)handle;
+	return 0;
+}
+
+static const char* s_dlerror_string = nullptr;
+
+char* __dlerror(void)
+{
+	const char* result = s_dlerror_string;
+	s_dlerror_string = nullptr;
+	return const_cast<char*>(result);
+}
+
+void* __dlopen(const char* file, int mode)
+{
+	const bool lazy = !(mode & RTLD_NOW);
+
+	// FIXME: RTLD_{LOCAL,GLOBAL}
+
+	char path_buffer[PATH_MAX];
+	if (!find_library(file, path_buffer))
+	{
+		s_dlerror_string = "Could not find file";
+		return nullptr;
+	}
+
+	init_random();
+	auto& elf = load_elf(path_buffer, -1);
+	fini_random();
+
+	if (!elf.is_relocating && !elf.is_calling_init)
+	{
+		if (elf.tls_header.p_type == PT_TLS)
+		{
+			s_dlerror_string = "TODO: __dlopen with TLS";
+			return nullptr;
+		}
+
+		relocate_elf(elf, lazy);
+		call_init_funcs(elf, false);
+		syscall(SYS_CLOSE, elf.fd);
+	}
+
+	return &elf;
+}
+
+void* __dlsym(void* __restrict handle, const char* __restrict name)
+{
+	if (handle == nullptr)
+	{
+		for (size_t i = 0; i < s_loaded_file_count; i++)
+			if (auto* sym = __dlsym(&s_loaded_files[i], name))
+				return sym;
+		return nullptr;
+	}
+
+	auto& elf = *static_cast<LoadedElf*>(handle);
+
+	// FIXME: look in ELF's dependency tree
+	if (auto* match = find_symbol(elf, name))
+		return reinterpret_cast<void*>(elf.base + match->st_value);
+
+	s_dlerror_string = "symbol not found";
+	return nullptr;
 }
 
 static LibELF::AuxiliaryVector* find_auxv(char** envp)
