@@ -21,9 +21,9 @@ namespace LibInput
 		KeyboardLayout();
 
 	private:
-		BAN::Array<Key, 0xFF> m_keycode_to_key_normal;
-		BAN::Array<Key, 0xFF> m_keycode_to_key_shift;
-		BAN::Array<Key, 0xFF> m_keycode_to_key_altgr;
+		BAN::Array<Key, 0x100> m_keycode_to_key_normal;
+		BAN::Array<Key, 0x100> m_keycode_to_key_shift;
+		BAN::Array<Key, 0x100> m_keycode_to_key_altgr;
 		friend class BAN::UniqPtr<KeyboardLayout>;
 	};
 

@@ -106,7 +106,7 @@ namespace LibInput
 				return {};
 			keycode = (keycode * 10) + (c - '0');
 		}
-		if (keycode >= 0xFF)
+		if (keycode > 0xFF)
 			return {};
 		return keycode;
 	}
