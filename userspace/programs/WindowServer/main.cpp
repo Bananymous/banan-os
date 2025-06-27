@@ -371,6 +371,7 @@ int main()
 					WINDOW_PACKET_CASE(WindowSetMaxSize,      on_window_set_max_size);
 					WINDOW_PACKET_CASE(WindowSetFullscreen,   on_window_set_fullscreen);
 					WINDOW_PACKET_CASE(WindowSetTitle,        on_window_set_title);
+					WINDOW_PACKET_CASE(WindowSetCursor,       on_window_set_cursor);
 #undef WINDOW_PACKET_CASE
 					default:
 						dprintln("unhandled packet type: {}", *reinterpret_cast<uint32_t*>(client_data.packet_buffer.data()));

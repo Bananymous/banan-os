@@ -211,6 +211,7 @@ namespace LibGUI
 		WindowSetMaxSize,
 		WindowSetFullscreen,
 		WindowSetTitle,
+		WindowSetCursor,
 
 		DestroyWindowEvent,
 		CloseWindowEvent,
@@ -295,6 +296,13 @@ namespace LibGUI
 		DEFINE_PACKET(
 			WindowSetTitle,
 			BAN::String, title
+		);
+
+		DEFINE_PACKET(
+			WindowSetCursor,
+			uint32_t, width,
+			uint32_t, height,
+			BAN::Vector<uint32_t>, pixels
 		);
 
 	}

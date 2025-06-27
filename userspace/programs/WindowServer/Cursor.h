@@ -2,9 +2,9 @@
 
 #include <stdint.h>
 
-static int32_t s_cursor_width = 17;
-static int32_t s_cursor_height = 26;
-static const char* s_cursor_data =
+static int32_t s_default_cursor_width = 17;
+static int32_t s_default_cursor_height = 26;
+static const char* s_default_cursor_data =
 	"!!!!`Q$``Q$``Q$``Q$``Q$``Q$``Q$``Q$``Q$``Q$``Q$``Q$``Q$``Q$``Q$`"
 	"`Q$`!!!!!!!!`Q$``Q$``Q$``Q$``Q$``Q$``Q$``Q$``Q$``Q$``Q$``Q$``Q$`"
 	"`Q$``Q$`!!!!````!!!!`Q$``Q$``Q$``Q$``Q$``Q$``Q$``Q$``Q$``Q$``Q$`"

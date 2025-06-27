@@ -350,6 +350,50 @@ void WindowServer::on_window_set_title(int fd, const LibGUI::WindowPacket::Windo
 	invalidate(target_window->title_bar_area());
 }
 
+void WindowServer::on_window_set_cursor(int fd, const LibGUI::WindowPacket::WindowSetCursor& packet)
+{
+	auto target_window = find_window_with_fd(fd);
+	if (!target_window)
+	{
+		dwarnln("client tried to set cursor while not owning a window");
+		return;
+	}
+
+	if (BAN::Math::will_multiplication_overflow(packet.width, packet.height))
+	{
+		dwarnln("client tried to set cursor with invalid size {}x{}", packet.width, packet.height);
+		return;
+	}
+
+	if (packet.width * packet.height != packet.pixels.size())
+	{
+		dwarnln("client tried to set cursor with buffer size mismatch {}x{}, {} pixels", packet.width, packet.height, packet.pixels.size());
+		return;
+	}
+
+	auto old_cursor = cursor_area();
+
+	if (packet.width == 0 || packet.height == 0)
+		target_window->remove_cursor();
+	else
+	{
+		Window::Cursor cursor;
+		cursor.width = packet.width;
+		cursor.height = packet.height;
+		if (auto ret = cursor.pixels.resize(packet.pixels.size()); ret.is_error())
+		{
+			dwarnln("failed to set cursor: {}", ret.error());
+			return;
+		}
+		for (size_t i = 0; i < cursor.pixels.size(); i++)
+			cursor.pixels[i] = packet.pixels[i];
+		target_window->set_cursor(BAN::move(cursor));
+	}
+
+	if (find_hovered_window() == target_window)
+		invalidate(cursor_area().get_bounding_box(old_cursor));
+}
+
 void WindowServer::on_key_event(LibInput::KeyEvent event)
 {
 	// Mod key is not passed to clients
@@ -725,13 +769,25 @@ void WindowServer::invalidate(Rectangle area)
 	ASSERT(m_background_image->width() == (uint64_t)m_framebuffer.width);
 	ASSERT(m_background_image->height() == (uint64_t)m_framebuffer.height);
 
+	const Window::Cursor* window_cursor = nullptr;
+	if (auto window = this->find_hovered_window(); window && window->has_cursor())
+		window_cursor = &window->cursor();
+
 	const auto get_cursor_pixel =
-		[](int32_t rel_x, int32_t rel_y) -> BAN::Optional<uint32_t>
+		[window_cursor](int32_t rel_x, int32_t rel_y) -> BAN::Optional<uint32_t>
 		{
-			const uint32_t offset = (rel_y * s_cursor_width + rel_x) * 4;
-			uint32_t r = (((s_cursor_data[offset + 0] - 33) << 2) | ((s_cursor_data[offset + 1] - 33) >> 4));
-			uint32_t g = ((((s_cursor_data[offset + 1] - 33) & 0xF) << 4) | ((s_cursor_data[offset + 2] - 33) >> 2));
-			uint32_t b = ((((s_cursor_data[offset + 2] - 33) & 0x3) << 6) | ((s_cursor_data[offset + 3] - 33)));
+			if (window_cursor)
+			{
+				const auto pixel = window_cursor->pixels[rel_y * window_cursor->width + rel_x];
+				if ((pixel >> 24) == 0)
+					return {};
+				return pixel & 0xFFFFFF;
+			}
+
+			const uint32_t offset = (rel_y * s_default_cursor_width + rel_x) * 4;
+			uint32_t r = (((s_default_cursor_data[offset + 0] - 33) << 2) | ((s_default_cursor_data[offset + 1] - 33) >> 4));
+			uint32_t g = ((((s_default_cursor_data[offset + 1] - 33) & 0xF) << 4) | ((s_default_cursor_data[offset + 2] - 33) >> 2));
+			uint32_t b = ((((s_default_cursor_data[offset + 2] - 33) & 0x3) << 6) | ((s_default_cursor_data[offset + 3] - 33)));
 			uint32_t color = (r << 16) | (g << 8) | b;
 			if (color == 0xFF00FF)
 				return {};
@@ -812,12 +868,9 @@ void WindowServer::invalidate(Rectangle area)
 
 		if (!m_is_mouse_captured)
 		{
-			const Rectangle cursor_area {
-				.x = m_cursor.x - m_focused_window->client_x(),
-				.y = m_cursor.y - m_focused_window->client_y(),
-				.width  = s_cursor_width,
-				.height = s_cursor_height,
-			};
+			auto cursor_area = this->cursor_area();
+			cursor_area.x -= m_focused_window->client_x();
+			cursor_area.y -= m_focused_window->client_y();
 
 			if (!area.get_overlap(cursor_area).has_value())
 				return;
@@ -825,9 +878,9 @@ void WindowServer::invalidate(Rectangle area)
 			const int32_t cursor_tl_dst_x = cursor_area.x * m_framebuffer.width  / m_focused_window->client_width();
 			const int32_t cursor_tl_dst_y = cursor_area.y * m_framebuffer.height / m_focused_window->client_height();
 
-			for (int32_t rel_y = 0; rel_y < s_cursor_height; rel_y++)
+			for (int32_t rel_y = 0; rel_y < cursor_area.height; rel_y++)
 			{
-				for (int32_t rel_x = 0; rel_x < s_cursor_width; rel_x++)
+				for (int32_t rel_x = 0; rel_x < cursor_area.width; rel_x++)
 				{
 					const auto pixel = get_cursor_pixel(rel_x, rel_y);
 					if (!pixel.has_value())
@@ -1201,9 +1254,21 @@ void WindowServer::sync()
 
 Rectangle WindowServer::cursor_area() const
 {
-	if (auto window = find_hovered_window(); window && !window->get_attributes().cursor_visible)
-		return { m_cursor.x, m_cursor.y, 0, 0 };
-	return { m_cursor.x, m_cursor.y, s_cursor_width, s_cursor_height };
+	int32_t width = s_default_cursor_width;
+	int32_t height = s_default_cursor_height;
+
+	if (auto window = find_hovered_window())
+	{
+		if (!window->get_attributes().cursor_visible)
+			width = height = 0;
+		else if (window->has_cursor())
+		{
+			width = window->cursor().width;
+			height = window->cursor().height;
+		}
+	}
+
+	return { m_cursor.x, m_cursor.y, width, height };
 }
 
 Rectangle WindowServer::resize_area(Position cursor) const

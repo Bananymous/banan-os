@@ -41,6 +41,7 @@ public:
 	void on_window_set_max_size(int fd, const LibGUI::WindowPacket::WindowSetMaxSize&);
 	void on_window_set_fullscreen(int fd, const LibGUI::WindowPacket::WindowSetFullscreen&);
 	void on_window_set_title(int fd, const LibGUI::WindowPacket::WindowSetTitle&);
+	void on_window_set_cursor(int fd, const LibGUI::WindowPacket::WindowSetCursor&);
 
 	void on_key_event(LibInput::KeyEvent event);
 	void on_mouse_button(LibInput::MouseButtonEvent event);

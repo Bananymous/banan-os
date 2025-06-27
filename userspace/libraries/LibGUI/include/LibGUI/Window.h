@@ -50,6 +50,7 @@ namespace LibGUI
 		void set_position(int32_t x, int32_t y);
 
 		void set_cursor_visible(bool visible);
+		void set_cursor(uint32_t width, uint32_t height, BAN::Span<uint32_t> pixels);
 
 		Attributes get_attributes() const { return m_attributes; }
 		void set_attributes(Attributes attributes);

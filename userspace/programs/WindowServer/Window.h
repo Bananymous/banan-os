@@ -12,6 +12,14 @@
 class Window : public BAN::RefCounted<Window>
 {
 public:
+	struct Cursor
+	{
+		uint32_t width;
+		uint32_t height;
+		BAN::Vector<uint32_t> pixels;
+	};
+
+public:
 	Window(int fd, const LibFont::Font& font)
 		: m_font(font)
 		, m_client_fd(fd)
@@ -48,6 +56,11 @@ public:
 	int32_t full_height() const { return client_height() + title_bar_height(); }
 	Rectangle full_size() const { return { 0, 0, full_width(), full_height() }; }
 	Rectangle full_area() const { return { full_x(), full_y(), full_width(), full_height() }; }
+
+	bool has_cursor() const { return m_cursor.has_value(); }
+	const Cursor& cursor() const { return m_cursor.value(); }
+	void set_cursor(Cursor&& cursor) { m_cursor = BAN::move(cursor); }
+	void remove_cursor() { m_cursor.clear(); }
 
 	LibGUI::Window::Attributes get_attributes() const { return m_attributes; };
 	void set_attributes(LibGUI::Window::Attributes attributes) { m_attributes = attributes; };
@@ -95,6 +108,8 @@ private:
 	long        m_smo_key        { 0 };
 	uint32_t*   m_fb_addr        { nullptr };
 	BAN::String m_title;
+
+	BAN::Optional<Cursor> m_cursor;
 
 	BAN::Vector<uint32_t> m_title_bar_data;
 
