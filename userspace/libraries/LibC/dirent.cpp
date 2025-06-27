@@ -102,3 +102,10 @@ readdir_do_syscall:
 
 	return &dirp->entries[0];
 }
+
+void rewinddir(DIR* dirp)
+{
+	dirp->entry_count = 0;
+	dirp->entry_index = 0;
+	lseek(dirp->fd, 0, SEEK_SET);
+}
