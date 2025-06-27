@@ -85,6 +85,7 @@ namespace LibInput
 	{
 		KeyEvent result;
 		result.modifier = event.modifier;
+		result.scancode = event.keycode;
 		if (result.shift())
 			result.key = m_keycode_to_key_shift[event.keycode];
 		else if (result.ralt())

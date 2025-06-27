@@ -46,7 +46,7 @@ namespace LibInput
 		};
 		static_assert((size_t)Key::Count == sizeof(utf8_upper) / sizeof(*utf8_lower));
 
-		KeyEvent event { .modifier = modifier, .key = key };
+		KeyEvent event { .modifier = modifier, .scancode = 0, .key = key };
 		return (event.shift() ^ event.caps_lock()) ? utf8_upper[static_cast<uint8_t>(key)] : utf8_lower[static_cast<uint8_t>(key)];
 	}
 
@@ -109,7 +109,7 @@ namespace LibInput
 		};
 		static_assert((size_t)Key::Count == sizeof(utf8_upper) / sizeof(*utf8_upper));
 
-		KeyEvent event { .modifier = modifier, .key = key };
+		KeyEvent event { .modifier = modifier, .scancode = 0, .key = key };
 		if (event.ctrl())
 			return utf8_ctrl[static_cast<uint8_t>(key)];
 		if (event.shift() ^ event.caps_lock())

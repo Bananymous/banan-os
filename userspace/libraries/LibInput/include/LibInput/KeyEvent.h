@@ -97,6 +97,7 @@ namespace LibInput
 		bool released()		const { return !pressed(); }
 
 		uint16_t modifier;
+		uint8_t scancode;
 		Key key;
 	};
 
