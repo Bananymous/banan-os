@@ -12,6 +12,9 @@ namespace LibGUI
 	class Texture
 	{
 	public:
+		static constexpr uint32_t color_invisible = 0x69000000;
+
+	public:
 		static BAN::ErrorOr<Texture> create(uint32_t width, uint32_t height, uint32_t color);
 		Texture() = default;
 

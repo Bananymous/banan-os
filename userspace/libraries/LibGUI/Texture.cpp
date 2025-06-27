@@ -86,7 +86,8 @@ namespace LibGUI
 
 		for (uint32_t y_off = 0; y_off < height; y_off++)
 			for (uint32_t x_off = 0; x_off < width; x_off++)
-				set_pixel(x + x_off, y + y_off, texture.get_pixel(sub_x + x_off, sub_y + y_off));
+				if (const uint32_t color = texture.get_pixel(sub_x + x_off, sub_y + y_off); color != color_invisible)
+					set_pixel(x + x_off, y + y_off, color);
 	}
 
 	void Texture::draw_character(uint32_t codepoint, const LibFont::Font& font, int32_t tl_x, int32_t tl_y, uint32_t color)
