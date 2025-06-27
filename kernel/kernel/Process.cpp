@@ -819,12 +819,18 @@ namespace Kernel
 			return 0;
 
 		const uint64_t wake_time_ms = SystemTimer::get().ms_since_boot() + (seconds * 1000);
-		SystemTimer::get().sleep_ms(seconds * 1000);
+
+		while (!Thread::current().is_interrupted_by_signal())
+		{
+			const uint64_t current_ms = SystemTimer::get().ms_since_boot();
+			if (current_ms >= wake_time_ms)
+				break;
+			SystemTimer::get().sleep_ms(wake_time_ms - current_ms);
+		}
 
 		const uint64_t current_ms = SystemTimer::get().ms_since_boot();
 		if (current_ms < wake_time_ms)
 			return BAN::Math::div_round_up<long>(wake_time_ms - current_ms, 1000);
-
 		return 0;
 	}
 
