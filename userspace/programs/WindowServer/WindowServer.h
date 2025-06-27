@@ -66,7 +66,8 @@ private:
 
 	bool resize_window(BAN::RefPtr<Window> window, uint32_t width, uint32_t height) const;
 
-	BAN::RefPtr<Window> find_window_with_fd(int fd);
+	BAN::RefPtr<Window> find_window_with_fd(int fd) const;
+	BAN::RefPtr<Window> find_hovered_window() const;
 
 private:
 	struct RangeList

@@ -26,6 +26,7 @@ namespace LibGUI
 			.alpha_channel   = false,
 			.resizable       = false,
 			.shown           = true,
+			.cursor_visible  = true,
 		};
 
 	public:
@@ -47,6 +48,8 @@ namespace LibGUI
 		void set_title(BAN::StringView title);
 
 		void set_position(int32_t x, int32_t y);
+
+		void set_cursor_visible(bool visible);
 
 		Attributes get_attributes() const { return m_attributes; }
 		void set_attributes(Attributes attributes);

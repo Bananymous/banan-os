@@ -1201,6 +1201,8 @@ void WindowServer::sync()
 
 Rectangle WindowServer::cursor_area() const
 {
+	if (auto window = find_hovered_window(); window && !window->get_attributes().cursor_visible)
+		return { m_cursor.x, m_cursor.y, 0, 0 };
 	return { m_cursor.x, m_cursor.y, s_cursor_width, s_cursor_height };
 }
 
@@ -1241,14 +1243,19 @@ Rectangle WindowServer::resize_area(Position cursor) const
 	};
 }
 
-BAN::RefPtr<Window> WindowServer::find_window_with_fd(int fd)
+BAN::RefPtr<Window> WindowServer::find_window_with_fd(int fd) const
 {
 	for (auto window : m_client_windows)
-	{
-		if (window->client_fd() != fd)
-			continue;
-		return window;
-	}
+		if (window->client_fd() == fd)
+			return window;
+	return {};
+}
+
+BAN::RefPtr<Window> WindowServer::find_hovered_window() const
+{
+	for (auto window : m_client_windows)
+		if (window->full_area().contains(m_cursor))
+			return window;
 	return {};
 }
 

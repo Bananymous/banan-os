@@ -234,6 +234,7 @@ namespace LibGUI
 			bool alpha_channel;
 			bool resizable;
 			bool shown;
+			bool cursor_visible;
 		};
 
 		DEFINE_PACKET(
