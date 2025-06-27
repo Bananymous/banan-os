@@ -55,7 +55,13 @@ namespace Kernel
 		asm volatile(
 			"finit;"
 			"ldmxcsr %[mxcsr];"
+#if ARCH(x86_64)
+			"fxsave64 %[storage];"
+#elif ARCH(i686)
 			"fxsave %[storage];"
+#else
+#error
+#endif
 			: [storage]"=m"(s_default_sse_storage)
 			: [mxcsr]"m"(mxcsr)
 		);
@@ -670,12 +676,24 @@ namespace Kernel
 
 	void Thread::save_sse()
 	{
+#if ARCH(x86_64)
+		asm volatile("fxsave64 %0" :: "m"(m_sse_storage));
+#elif ARCH(i686)
 		asm volatile("fxsave %0" :: "m"(m_sse_storage));
+#else
+#error
+#endif
 	}
 
 	void Thread::load_sse()
 	{
+#if ARCH(x86_64)
+		asm volatile("fxrstor64 %0" :: "m"(m_sse_storage));
+#elif ARCH(i686)
 		asm volatile("fxrstor %0" :: "m"(m_sse_storage));
+#else
+#error
+#endif
 	}
 
 }
