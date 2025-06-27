@@ -396,12 +396,8 @@ void WindowServer::on_window_set_cursor(int fd, const LibGUI::WindowPacket::Wind
 
 void WindowServer::on_key_event(LibInput::KeyEvent event)
 {
-	// Mod key is not passed to clients
-	if (event.key == LibInput::Key::LeftAlt)
-	{
+	if (event.key == LibInput::Key::Super)
 		m_is_mod_key_held = event.pressed();
-		return;
-	}
 
 	// Stop WindowServer with mod+shift+E
 	if (m_is_mod_key_held && event.pressed() && event.shift() && event.key == LibInput::Key::E)
