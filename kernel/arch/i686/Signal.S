@@ -7,9 +7,6 @@
 
 .global signal_trampoline
 signal_trampoline:
-	pushl %ebp
-	movl %esp, %ebp
-
 	pusha
 
 	movl 40(%esp), %edi
@@ -19,16 +16,22 @@ signal_trampoline:
 	movl %esp, %ebp
 	andl $-16, %esp
 
+	subl $512, %esp
+	fxsave (%esp)
+
 	subl $12, %esp
 	pushl %edi
 	call *%eax
 	addl $16, %esp
 
+	fxrstor (%esp)
+	addl $512, %esp
+
 	// restore stack
 	movl %ebp, %esp
 	popa
 
-	leave
 	addl $8, %esp
+	popf
 
 	ret

@@ -523,6 +523,7 @@ namespace Kernel
 			interrupt_stack.sp -= 128; // skip possible red-zone
 #endif
 			write_to_stack(interrupt_stack.sp, interrupt_stack.ip);
+			write_to_stack(interrupt_stack.sp, interrupt_stack.flags);
 			write_to_stack(interrupt_stack.sp, signal);
 			write_to_stack(interrupt_stack.sp, signal_handler);
 			interrupt_stack.ip = (uintptr_t)signal_trampoline;

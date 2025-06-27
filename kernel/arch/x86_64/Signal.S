@@ -30,7 +30,13 @@ signal_trampoline:
 	movq %rsp, %rbp
 	andq $-16, %rsp
 
+	subq $512, %rsp
+	fxsave64 (%rsp)
+
 	call *%rax
+
+	fxrstor64 (%rsp)
+	addq $512, %rsp
 
 	// restore stack
 	movq %rbp, %rsp
@@ -51,6 +57,7 @@ signal_trampoline:
 	popq %rax
 
 	addq $16, %rsp
+	popfq
 
 	// return over red-zone
 	ret $128
