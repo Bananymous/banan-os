@@ -75,6 +75,15 @@
 namespace LibGUI
 {
 
+	namespace detail
+	{
+		template<typename T>
+		concept Vector = requires {
+			requires BAN::same_as<T, BAN::Vector<typename T::value_type>>;
+		};
+
+	}
+
 	static constexpr BAN::StringView s_window_server_socket = "/tmp/window-server.socket"_sv;
 
 	namespace Serialize
@@ -153,6 +162,40 @@ namespace LibGUI
 			return string;
 		}
 
+		template<detail::Vector T>
+		inline size_t serialized_size_impl(const T& vector)
+		{
+			size_t result = sizeof(uint32_t);
+			for (const auto& element : vector)
+				result += serialized_size_impl(element);
+			return result;
+		}
+
+		template<detail::Vector T>
+		inline BAN::ErrorOr<void> send_serialized_impl(int socket, const T& vector)
+		{
+			const uint32_t value_size = vector.size();
+			TRY(send_raw_data(socket, BAN::ConstByteSpan::from(value_size)));
+			for (const auto& element : vector)
+				TRY(send_serialized_impl(socket, element));
+			return {};
+		}
+
+		template<detail::Vector T>
+		inline BAN::ErrorOr<T> deserialize_impl(BAN::ConstByteSpan& buffer)
+		{
+			if (buffer.size() < sizeof(uint32_t))
+				return BAN::Error::from_errno(ENOBUFS);
+			const uint32_t vector_size = buffer.as<const uint32_t>();
+			buffer = buffer.slice(sizeof(uint32_t));
+
+			T vector;
+			TRY(vector.resize(vector_size));
+			for (auto& element : vector)
+				element = TRY(deserialize_impl<typename T::value_type>(buffer));
+
+			return vector;
+		}
 	}
 
 	enum class PacketType : uint32_t
