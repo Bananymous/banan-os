@@ -1,4 +1,5 @@
 set(LIBGUI_SOURCES
+	MessageBox.cpp
 	Texture.cpp
 	Widget/Button.cpp
 	Widget/Grid.cpp
