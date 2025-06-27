@@ -6,6 +6,7 @@
 
 #include <LibGUI/Packet.h>
 #include <LibGUI/Texture.h>
+#include <LibGUI/Widget/Widget.h>
 
 namespace LibFont { class Font; }
 
@@ -31,6 +32,9 @@ namespace LibGUI
 		~Window();
 
 		static BAN::ErrorOr<BAN::UniqPtr<Window>> create(uint32_t width, uint32_t height, BAN::StringView title, Attributes attributes = default_attributes);
+
+		BAN::ErrorOr<void> set_root_widget(BAN::RefPtr<Widget::Widget> widget);
+		BAN::RefPtr<Widget::Widget> root_widget() { return m_root_widget; }
 
 		Texture& texture() { return m_texture; }
 		const Texture& texture() const { return m_texture; }
@@ -94,6 +98,7 @@ namespace LibGUI
 		uint32_t m_height { 0 };
 
 		Texture m_texture;
+		BAN::RefPtr<Widget::Widget> m_root_widget;
 
 		BAN::Function<void()>                                       m_socket_error_callback;
 		BAN::Function<void()>                                       m_close_window_event_callback;

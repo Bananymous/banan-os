@@ -1,5 +1,11 @@
 set(LIBGUI_SOURCES
 	Texture.cpp
+	Widget/Button.cpp
+	Widget/Grid.cpp
+	Widget/Label.cpp
+	Widget/RoundedWidget.cpp
+	Widget/TextArea.cpp
+	Widget/Widget.cpp
 	Window.cpp
 )
 

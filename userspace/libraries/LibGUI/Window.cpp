@@ -113,6 +113,17 @@ namespace LibGUI
 		return window;
 	}
 
+	BAN::ErrorOr<void> Window::set_root_widget(BAN::RefPtr<Widget::Widget> widget)
+	{
+		TRY(widget->set_fixed_geometry({ 0, 0, m_width, m_height }));
+		m_root_widget = widget;
+		m_root_widget->show();
+		const auto invalidated = m_root_widget->render(m_texture, { 0, 0 }, { 0, 0, m_width, m_height });
+		if (invalidated.w && invalidated.h)
+			invalidate(invalidated.x, invalidated.y, invalidated.w, invalidated.h);
+		return {};
+	}
+
 	void Window::invalidate(int32_t x, int32_t y, uint32_t width, uint32_t height)
 	{
 		if (!m_texture.clamp_to_texture(x, y, width, height))
@@ -163,6 +174,28 @@ namespace LibGUI
 		WindowPacket::WindowSetPosition packet;
 		packet.x = x;
 		packet.y = y;
+
+		if (auto ret = packet.send_serialized(m_server_fd); ret.is_error())
+			return on_socket_error(__FUNCTION__);
+	}
+
+	void Window::set_cursor_visible(bool visible)
+	{
+		auto attributes = m_attributes;
+		if (attributes.cursor_visible == visible)
+			return;
+		attributes.cursor_visible = visible;
+		set_attributes(attributes);
+	}
+
+	void Window::set_cursor(uint32_t width, uint32_t height, BAN::Span<uint32_t> pixels)
+	{
+		WindowPacket::WindowSetCursor packet;
+		packet.width = width;
+		packet.height = height;
+		MUST(packet.pixels.resize(pixels.size()));
+		for (size_t i = 0; i < packet.pixels.size(); i++)
+			packet.pixels[i] = pixels[i];
 
 		if (auto ret = packet.send_serialized(m_server_fd); ret.is_error())
 			return on_socket_error(__FUNCTION__);
@@ -238,6 +271,9 @@ namespace LibGUI
 
 		TRY(m_texture.resize(event.width, event.height));
 
+		if (m_root_widget)
+			TRY(m_root_widget->set_fixed_geometry({ 0, 0, event.width, event.height }));
+
 		void* framebuffer_addr = smo_map(event.smo_key);
 		if (framebuffer_addr == nullptr)
 			return BAN::Error::from_errno(errno);
@@ -304,13 +340,27 @@ namespace LibGUI
 						m_key_event_callback(TRY_OR_BREAK(EventPacket::KeyEvent::deserialize(packet_data.span())).event);
 					break;
 				case PacketType::MouseButtonEvent:
+				{
+					auto event = TRY_OR_BREAK(EventPacket::MouseButtonEvent::deserialize(packet_data.span())).event;
 					if (m_mouse_button_event_callback)
-						m_mouse_button_event_callback(TRY_OR_BREAK(EventPacket::MouseButtonEvent::deserialize(packet_data.span())).event);
+						m_mouse_button_event_callback(event);
+					if (m_root_widget)
+						m_root_widget->on_mouse_button(event);
 					break;
+				}
 				case PacketType::MouseMoveEvent:
+				{
+					auto event = TRY_OR_BREAK(EventPacket::MouseMoveEvent::deserialize(packet_data.span())).event;
 					if (m_mouse_move_event_callback)
-						m_mouse_move_event_callback(TRY_OR_BREAK(EventPacket::MouseMoveEvent::deserialize(packet_data.span())).event);
+						m_mouse_move_event_callback(event);
+					if (m_root_widget)
+					{
+						m_root_widget->before_mouse_move();
+						m_root_widget->on_mouse_move(event);
+						m_root_widget->after_mouse_move();
+					}
 					break;
+				}
 				case PacketType::MouseScrollEvent:
 					if (m_mouse_scroll_event_callback)
 						m_mouse_scroll_event_callback(TRY_OR_BREAK(EventPacket::MouseScrollEvent::deserialize(packet_data.span())).event);
@@ -320,6 +370,13 @@ namespace LibGUI
 			}
 		}
 #undef TRY_OR_BREAK
+
+		if (m_root_widget)
+		{
+			const auto invalidated = m_root_widget->render(m_texture, { 0, 0 }, { 0, 0, m_width, m_height });
+			if (invalidated.w && invalidated.h)
+				invalidate(invalidated.x, invalidated.y, invalidated.w, invalidated.h);
+		}
 	}
 
 }
