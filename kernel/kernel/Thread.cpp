@@ -37,10 +37,20 @@ namespace Kernel
 	static pid_t s_next_tid = 1;
 
 	alignas(16) static uint8_t s_default_sse_storage[512];
-	static bool s_default_sse_storage_initialized = false;
+	static BAN::Atomic<bool> s_default_sse_storage_initialized = false;
 
 	static void initialize_default_sse_storage()
 	{
+		static BAN::Atomic<bool> is_initializing { false };
+		bool expected { false };
+		if (!is_initializing.compare_exchange(expected, true))
+		{
+			while (!s_default_sse_storage_initialized)
+				__builtin_ia32_pause();
+			asm volatile("" ::: "memory");
+			return;
+		}
+
 		const uint32_t mxcsr = 0x1F80;
 		asm volatile(
 			"finit;"
@@ -49,6 +59,8 @@ namespace Kernel
 			: [storage]"=m"(s_default_sse_storage)
 			: [mxcsr]"m"(mxcsr)
 		);
+
+		s_default_sse_storage_initialized = true;
 	}
 
 	BAN::ErrorOr<Thread*> Thread::create_kernel(entry_t entry, void* data, Process* process)
@@ -126,10 +138,7 @@ namespace Kernel
 		: m_tid(tid), m_process(process)
 	{
 		if (!s_default_sse_storage_initialized)
-		{
 			initialize_default_sse_storage();
-			s_default_sse_storage_initialized = true;
-		}
 		memcpy(m_sse_storage, s_default_sse_storage, sizeof(m_sse_storage));
 	}
 
