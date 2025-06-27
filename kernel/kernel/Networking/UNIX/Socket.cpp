@@ -251,7 +251,8 @@ namespace Kernel
 		));
 
 		SpinLockGuard _(s_bound_socket_lock);
-		ASSERT(!s_bound_sockets.contains(file.canonical_path));
+		if (s_bound_sockets.contains(file.canonical_path))
+			return BAN::Error::from_errno(EADDRINUSE);
 		TRY(s_bound_sockets.emplace(file.canonical_path, TRY(get_weak_ptr())));
 		m_bound_path = BAN::move(file.canonical_path);
 
