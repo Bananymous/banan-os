@@ -12,6 +12,7 @@ set(USERSPACE_PROGRAMS
 	DynamicLoader
 	echo
 	env
+	false
 	getopt
 	http-server
 	id
@@ -37,6 +38,7 @@ set(USERSPACE_PROGRAMS
 	sudo
 	sync
 	tee
+	true
 	TaskBar
 	Terminal
 	touch
