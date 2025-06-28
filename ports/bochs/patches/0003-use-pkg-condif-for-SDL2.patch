@@ -1,0 +1,39 @@
+diff -ruN bochs-2.8/configure bochs-2.8-banan_os/configure
+--- bochs-2.8/configure	2024-03-10 08:59:37.000000000 +0200
++++ bochs-2.8-banan_os/configure	2025-06-25 16:18:01.081403116 +0300
+@@ -25286,7 +25286,7 @@
+   elif test "$with_sdl2" = yes; then
+     SOUNDLOW_OBJS="$SOUNDLOW_OBJS soundsdl.o"
+     if test "$bx_plugins" = 1; then
+-      SDL_SOUND_LINK_OPTS="$SDL_SOUND_LINK_OPTS `sdl2-config --libs`"
++      SDL_SOUND_LINK_OPTS="$SDL_SOUND_LINK_OPTS `pkg-config sdl2 --libs`"
+     fi
+     soundlow_drivers="$soundlow_drivers sdl"
+     if test "$soundlow_default" = "dummy"; then
+@@ -25294,7 +25294,7 @@
+     fi
+     printf "%s\n" "#define BX_HAVE_SOUND_SDL 1" >>confdefs.h
+ 
+-    SDL2_VERSION=`sdl2-config --version`
++    SDL2_VERSION=`pkg-config sdl2 --version`
+     # SDL version >= 2.0.5 supports audio capture
+     sdl2_audio_capture=0
+ 
+@@ -25967,14 +25967,14 @@
+   SPECIFIC_GUI_OBJS="$SPECIFIC_GUI_OBJS \$(GUI_OBJS_SDL2)"
+   # GUI_*FLAGS are added to the compilation of every bochs file, not just
+   # the files in gui/*.cc.
+-  SDL2_CFLAGS=`sdl2-config --cflags`
++  SDL2_CFLAGS=`pkg-config sdl2 --cflags`
+   GUI_CFLAGS="$GUI_CFLAGS $SDL2_CFLAGS"
+   GUI_CXXFLAGS="$GUI_CXXFLAGS $SDL2_CFLAGS"
+-  GUI_LINK_OPTS_SDL2="`sdl2-config --libs`"
++  GUI_LINK_OPTS_SDL2="`pkg-config sdl2 --libs`"
+   GUI_LINK_OPTS="$GUI_LINK_OPTS \$(GUI_LINK_OPTS_SDL2)"
+   # The plugin version uses multi-threading support in Bochs core
+   if test "$bx_plugins" = 1; then
+-    NONPLUGIN_GUI_LINK_OPTS="`sdl2-config --libs`"
++    NONPLUGIN_GUI_LINK_OPTS="`pkg-config sdl2 --libs`"
+   fi
+   # The enhanced X debugger depends on GTK2
+   if test "$gui_debugger" = 1 -a "$DEFAULT_GUI" != win32; then
