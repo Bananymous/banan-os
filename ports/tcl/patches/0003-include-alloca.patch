@@ -1,0 +1,13 @@
+diff -ruN tcl8.6.12/pkgs/sqlite3.36.0/compat/sqlite3/sqlite3.c tcl8.6.12-banan_os/pkgs/sqlite3.36.0/compat/sqlite3/sqlite3.c
+--- tcl8.6.12/pkgs/sqlite3.36.0/compat/sqlite3/sqlite3.c	2021-09-13 01:15:31.000000000 +0300
++++ tcl8.6.12-banan_os/pkgs/sqlite3.36.0/compat/sqlite3/sqlite3.c	2025-06-28 02:27:43.042768624 +0300
+@@ -19854,6 +19854,9 @@
+ #if !defined(alloca) && defined(_WIN32)
+ # define alloca _alloca
+ #endif
++#if !defined(alloca) && defined(__banan_os__)
++# include <alloca.h>
++#endif
+ # define sqlite3StackAllocRaw(D,N)   alloca(N)
+ # define sqlite3StackAllocZero(D,N)  memset(alloca(N), 0, N)
+ # define sqlite3StackFree(D,P)

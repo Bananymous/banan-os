@@ -1,0 +1,19 @@
+diff -ruN tcl8.6.12/unix/tclUnixCompat.c tcl8.6.12-banan_os/unix/tclUnixCompat.c
+--- tcl8.6.12/unix/tclUnixCompat.c	2021-10-29 20:08:08.000000000 +0300
++++ tcl8.6.12-banan_os/unix/tclUnixCompat.c	2025-06-26 01:26:39.033530792 +0300
+@@ -702,6 +702,7 @@
+     len += copied;
+     p = buf + len;
+ 
++#ifndef __banan_os__
+     /*
+      * Copy password.
+      */
+@@ -713,6 +714,7 @@
+     tgtPtr->gr_passwd = (copied > 0) ? p : NULL;
+     len += copied;
+     p = buf + len;
++#endif
+ 
+     /*
+      * Copy group members.
