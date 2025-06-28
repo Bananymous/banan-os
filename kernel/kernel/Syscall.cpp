@@ -38,6 +38,8 @@ namespace Kernel
 #undef O
 	};
 
+	static bool is_restartable_syscall(int syscall);
+
 	extern "C" long cpp_syscall_handler(int syscall, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4, uintptr_t arg5, InterruptStack* interrupt_stack)
 	{
 		ASSERT(GDT::is_user_segment(interrupt_stack->cs));
@@ -93,7 +95,7 @@ namespace Kernel
 		auto& current_thread = Thread::current();
 		if (current_thread.can_add_signal_to_execute())
 			if (current_thread.handle_signal())
-				if (ret.is_error() && ret.error().get_error_code() == EINTR)
+				if (ret.is_error() && ret.error().get_error_code() == EINTR && is_restartable_syscall(syscall))
 					ret = BAN::Error::from_errno(ERESTART);
 
 		Processor::set_interrupt_state(InterruptState::Disabled);
@@ -103,6 +105,28 @@ namespace Kernel
 		if (ret.is_error())
 			return -ret.error().get_error_code();
 		return ret.value();
+	}
+
+	bool is_restartable_syscall(int syscall)
+	{
+		// https://www.man7.org/linux/man-pages/man7/signal.7.html
+		// Interruption of system calls and library functions by signal handlers
+		switch (syscall)
+		{
+			case SYS_READ:
+			case SYS_WRITE:
+			case SYS_IOCTL:
+			case SYS_OPENAT:
+			case SYS_WAIT:
+			case SYS_ACCEPT:
+			case SYS_CONNECT:
+			case SYS_RECVFROM:
+			case SYS_SENDTO:
+			case SYS_FLOCK:
+				return true;
+			default:
+				return false;
+		}
 	}
 
 }
