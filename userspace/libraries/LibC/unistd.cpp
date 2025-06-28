@@ -671,6 +671,12 @@ error:
 	return ret;
 }
 
+int getgroups(int gidsetsize, gid_t grouplist[])
+{
+	dwarnln("FIXME: getgroups({}, {})", gidsetsize, grouplist);
+	return 0;
+}
+
 pid_t getppid(void)
 {
 	return syscall(SYS_GET_PPID);
