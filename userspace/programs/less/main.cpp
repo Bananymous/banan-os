@@ -328,7 +328,7 @@ int main(int argc, char** argv)
 		tcsetattr(kb_fd, TCSANOW, &termios);
 	}
 
-	winsize ws { .ws_row = 0, .ws_col = 0 };
+	winsize ws {};
 	if (isatty(STDOUT_FILENO))
 	{
 		if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == 0)

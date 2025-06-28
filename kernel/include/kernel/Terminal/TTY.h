@@ -8,6 +8,7 @@
 #include <LibInput/KeyEvent.h>
 
 #include <termios.h>
+#include <sys/ioctl.h>
 
 namespace Kernel
 {
@@ -53,9 +54,6 @@ namespace Kernel
 
 		virtual bool is_tty() const override { return true; }
 
-		virtual uint32_t height() const = 0;
-		virtual uint32_t width() const = 0;
-
 		virtual dev_t rdev() const final override { return m_rdev; }
 
 		virtual void clear() = 0;
@@ -79,6 +77,8 @@ namespace Kernel
 
 		virtual BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan) final override;
 		virtual BAN::ErrorOr<size_t> write_impl(off_t, BAN::ConstByteSpan) final override;
+
+		void update_winsize(unsigned short cols, unsigned short rows);
 
 	private:
 		bool putchar(uint8_t ch);
@@ -108,6 +108,8 @@ namespace Kernel
 			ThreadBlocker thread_blocker;
 		};
 		Buffer m_output;
+
+		winsize m_winsize {};
 
 	protected:
 		RecursiveSpinLock m_write_lock;

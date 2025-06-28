@@ -19,9 +19,6 @@ namespace Kernel
 
 		BAN::ErrorOr<void> set_font(LibFont::Font&&) override;
 
-		uint32_t height() const override { return m_height; }
-		uint32_t width() const override { return m_width; }
-
 		void clear() override;
 
 	protected:

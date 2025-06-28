@@ -128,9 +128,12 @@ void Terminal::run()
 	m_window->set_min_size(m_font.width() * 8, m_font.height() * 2);
 
 	{
-		winsize winsize;
-		winsize.ws_col = cols();
-		winsize.ws_row = rows();
+		winsize winsize {
+			.ws_row = static_cast<unsigned short>(rows()),
+			.ws_col = static_cast<unsigned short>(cols()),
+			.ws_xpixel = static_cast<unsigned short>(m_window->width()),
+			.ws_ypixel = static_cast<unsigned short>(m_window->height()),
+		};
 		if (ioctl(m_shell_info.pts_master, TIOCSWINSZ, &winsize) == -1)
 			perror("ioctl");
 	}
@@ -170,6 +173,8 @@ void Terminal::run()
 		const winsize winsize {
 			.ws_row = static_cast<unsigned short>(rows()),
 			.ws_col = static_cast<unsigned short>(cols()),
+			.ws_xpixel = static_cast<unsigned short>(m_window->width()),
+			.ws_ypixel = static_cast<unsigned short>(m_window->height()),
 		};
 		if (ioctl(m_shell_info.pts_master, TIOCSWINSZ, &winsize) == -1)
 		{
@@ -181,12 +186,6 @@ void Terminal::run()
 		if (fgpgrp == -1)
 		{
 			perror("tcgetpgrp");
-			return;
-		}
-
-		if (kill(-fgpgrp, SIGWINCH) == -1)
-		{
-			perror("kill");
 			return;
 		}
 	});

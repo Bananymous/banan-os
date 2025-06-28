@@ -184,6 +184,13 @@ namespace Kernel
 		return {};
 	}
 
+	void TTY::update_winsize(unsigned short cols, unsigned short rows)
+	{
+		m_winsize.ws_col = cols;
+		m_winsize.ws_row = rows;
+		(void)Process::kill(-m_foreground_pgrp, SIGWINCH);
+	}
+
 	BAN::ErrorOr<long> TTY::ioctl_impl(int request, void* argument)
 	{
 		switch (request)
@@ -198,8 +205,14 @@ namespace Kernel
 			case TIOCGWINSZ:
 			{
 				auto* winsize = static_cast<struct winsize*>(argument);
-				winsize->ws_col = width();
-				winsize->ws_row = height();
+				*winsize = m_winsize;
+				return 0;
+			}
+			case TIOCSWINSZ:
+			{
+				const auto* winsize = static_cast<const struct winsize*>(argument);
+				m_winsize = *winsize;
+				(void)Process::kill(-m_foreground_pgrp, SIGWINCH);
 				return 0;
 			}
 		}

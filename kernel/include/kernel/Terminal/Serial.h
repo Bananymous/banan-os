@@ -42,9 +42,6 @@ namespace Kernel
 	public:
 		static BAN::ErrorOr<BAN::RefPtr<SerialTTY>> create(Serial);
 
-		uint32_t width() const override;
-		uint32_t height() const override;
-
 		void clear() override { putchar_impl('\e'); putchar_impl('['); putchar_impl('2'); putchar_impl('J'); }
 
 		void update() override;

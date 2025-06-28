@@ -59,9 +59,6 @@ namespace Kernel
 	public:
 		BAN::StringView name() const override { return m_name; }
 
-		uint32_t height() const override { return m_height; }
-		uint32_t width() const override { return m_width; }
-
 		void clear() override;
 
 	protected:
@@ -72,8 +69,6 @@ namespace Kernel
 		bool can_write_impl() const override;
 		bool has_hungup_impl() const override { return !m_master.valid(); }
 
-		BAN::ErrorOr<long> ioctl_impl(int, void*) override;
-
 	private:
 		PseudoTerminalSlave(BAN::String&& name, uint32_t number, mode_t, uid_t, gid_t);
 		~PseudoTerminalSlave();
@@ -83,8 +78,6 @@ namespace Kernel
 		const uint32_t m_number;
 
 		BAN::WeakPtr<PseudoTerminalMaster> m_master;
-		uint32_t m_width { 0 };
-		uint32_t m_height { 0 };
 
 		friend class PseudoTerminalMaster;
 		friend class BAN::RefPtr<PseudoTerminalSlave>;

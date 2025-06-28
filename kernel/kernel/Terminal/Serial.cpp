@@ -181,7 +181,9 @@ namespace Kernel
 		  }, 0600, 0, 0)
 		, m_name(MUST(BAN::String::formatted("ttyS{}", s_next_tty_number++)))
 		, m_serial(serial)
-	{}
+	{
+		update_winsize(m_serial.width(), m_serial.height());
+	}
 
 	BAN::ErrorOr<BAN::RefPtr<SerialTTY>> SerialTTY::create(Serial serial)
 	{
@@ -252,16 +254,6 @@ namespace Kernel
 		const uint8_t* ptr = buffer;
 		while (*ptr)
 			handle_input_byte(*ptr++);
-	}
-
-	uint32_t SerialTTY::width() const
-	{
-		return m_serial.width();
-	}
-
-	uint32_t SerialTTY::height() const
-	{
-		return m_serial.height();
 	}
 
 	bool SerialTTY::putchar_impl(uint8_t ch)

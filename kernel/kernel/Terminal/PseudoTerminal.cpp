@@ -204,20 +204,4 @@ namespace Kernel
 		return master->m_buffer_size < master->m_buffer->size();
 	}
 
-	BAN::ErrorOr<long> PseudoTerminalSlave::ioctl_impl(int request, void* argument)
-	{
-		switch (request)
-		{
-			case TIOCSWINSZ:
-			{
-				const auto* winsize = static_cast<struct winsize*>(argument);
-				m_width = winsize->ws_col;
-				m_height = winsize->ws_row;
-				return 0;
-			}
-		}
-
-		return TTY::ioctl_impl(request, argument);
-	}
-
 }
