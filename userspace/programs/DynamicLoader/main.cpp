@@ -181,7 +181,12 @@ struct LoadedElf
 	uintptr_t init_array;
 	size_t init_arraysz;
 
+	uintptr_t fini;
+	uintptr_t fini_array;
+	size_t fini_arraysz;
+
 	bool is_calling_init;
+	bool is_registering_fini;
 	bool is_relocating;
 
 	char path[PATH_MAX];
@@ -775,6 +780,9 @@ static void handle_dynamic(LoadedElf& elf)
 			case DT_INIT:         elf.init         = dynamic.d_un.d_ptr; break;
 			case DT_INIT_ARRAY:   elf.init_array   = dynamic.d_un.d_ptr; break;
 			case DT_INIT_ARRAYSZ: elf.init_arraysz = dynamic.d_un.d_val; break;
+			case DT_FINI:         elf.fini         = dynamic.d_un.d_ptr; break;
+			case DT_FINI_ARRAY:   elf.fini_array   = dynamic.d_un.d_ptr; break;
+			case DT_FINI_ARRAYSZ: elf.fini_arraysz = dynamic.d_un.d_val; break;
 		}
 	}
 
@@ -1245,6 +1253,70 @@ static void call_init_funcs(LoadedElf& elf, bool is_main_elf)
 		reinterpret_cast<init_t*>(elf.init_array)[i]();
 }
 
+static uintptr_t find_atexit()
+{
+	static bool atexit_found = false;
+	static uintptr_t atexit = 0;
+
+	if (atexit_found)
+		return atexit;
+
+	atexit = SYM_NOT_FOUND;
+	for (size_t i = 0; i < s_loaded_file_count; i++)
+	{
+		const auto* match = find_symbol(s_loaded_files[i], "atexit");
+		if (match == nullptr)
+			continue;
+		if (atexit == SYM_NOT_FOUND || ELF_ST_BIND(match->st_info) != STB_WEAK)
+			atexit = s_loaded_files[i].base + match->st_value;
+		if (ELF_ST_BIND(match->st_info) != STB_WEAK)
+			break;
+	}
+
+	if (atexit == SYM_NOT_FOUND)
+		atexit = 0;
+
+	atexit_found = true;
+
+	return atexit;
+
+}
+
+static void register_fini_funcs(LoadedElf& elf, bool is_main_elf)
+{
+	if (elf.is_registering_fini)
+		return;
+	elf.is_registering_fini = true;
+
+	using fini_t = void(*)();
+	using atexit_t = int(*)(fini_t);
+
+	auto atexit = reinterpret_cast<atexit_t>(find_atexit());
+	if (atexit == nullptr)
+		return;
+
+	// main executable registers its fini functions in _start
+	if (!is_main_elf)
+	{
+		for (size_t i = 0; i < elf.fini_arraysz / sizeof(fini_t); i++)
+			atexit(reinterpret_cast<fini_t*>(elf.fini_array)[i]);
+		if (elf.fini)
+			atexit(reinterpret_cast<fini_t>(elf.fini));
+	}
+
+	if (elf.dynamics)
+	{
+		for (size_t i = 0;; i++)
+		{
+			const auto& dynamic = elf.dynamics[i];
+			if (dynamic.d_tag == DT_NULL)
+				break;
+			if (dynamic.d_tag == DT_NEEDED)
+				register_fini_funcs(*reinterpret_cast<LoadedElf*>(dynamic.d_un.d_ptr), false);
+		}
+	}
+}
+
 int __dlclose(void* handle)
 {
 	// TODO: maybe actually close handles? (not required by spec)
@@ -1288,6 +1360,7 @@ void* __dlopen(const char* file, int mode)
 
 		relocate_elf(elf, lazy);
 		call_init_funcs(elf, false);
+		register_fini_funcs(elf, false);
 		syscall(SYS_CLOSE, elf.fd);
 	}
 
@@ -1360,6 +1433,7 @@ uintptr_t _entry(int argc, char* argv[], char* envp[])
 	initialize_tls(master_tls);
 	initialize_environ(envp);
 	call_init_funcs(elf, true);
+	register_fini_funcs(elf, true);
 
 	for (size_t i = 0; i < s_loaded_file_count; i++)
 		syscall(SYS_CLOSE, s_loaded_files[i].fd);
