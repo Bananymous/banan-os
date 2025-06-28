@@ -71,18 +71,18 @@ static int putenv_impl(char* string, bool malloced)
 				free(environ[i]);
 
 			if (malloced)
-				s_environ_bitmap[i / 8] |= mask;
+				s_environ_bitmap[byte] |= mask;
 			else
-				s_environ_bitmap[i / 8] &= ~mask;
+				s_environ_bitmap[byte] &= ~mask;
 
 			environ[i] = string;
 			return 0;
 		}
 	}
 
-	if ((s_environ_count + 1) % 8 == 0)
+	if (s_environ_count % 8 == 0)
 	{
-		const size_t bytes = (s_environ_count + 1) / 8;
+		const size_t bytes = s_environ_count / 8 + 1;
 
 		void* new_bitmap = realloc(s_environ_bitmap, bytes);
 		if (new_bitmap == nullptr)
