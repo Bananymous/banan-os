@@ -38,6 +38,7 @@ set(USERSPACE_PROGRAMS
 	sudo
 	sync
 	tee
+	test
 	true
 	TaskBar
 	Terminal
