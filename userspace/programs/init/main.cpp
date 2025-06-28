@@ -28,7 +28,6 @@ int main(int argc, char** argv)
 		perror("load_keymap");
 
 	setenv("TERM", "ansi", 1);
-	setenv("NCURSES_NO_UTF8_ACS", "1", 1);
 
 	if (fork() == 0)
 	{
