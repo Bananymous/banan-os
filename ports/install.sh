@@ -77,10 +77,22 @@ build() {
 	done
 }
 
+pre_install() {
+	:
+}
+
+post_install() {
+	:
+}
+
 install() {
+	pre_install
+
 	for target in "${MAKE_INSTALL_TARGETS[@]}"; do
 		make $target "DESTDIR=$BANAN_SYSROOT" || exit 1
 	done
+
+	post_install
 }
 
 source $1
