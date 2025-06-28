@@ -50,7 +50,7 @@ namespace Kernel
 
 	dev_t TmpInode::dev() const
 	{
-		return m_fs.dev();
+		return m_fs.rdev();
 	}
 
 	BAN::ErrorOr<BAN::RefPtr<TmpInode>> TmpInode::create_from_existing(TmpFileSystem& fs, ino_t ino, const TmpInodeInfo& info)

@@ -58,7 +58,7 @@ namespace Kernel
 
 		virtual BAN::RefPtr<Inode> root_inode() override { return m_root_inode; }
 
-		virtual dev_t dev() const override { return m_rdev; }
+		dev_t rdev() const { return m_rdev; }
 
 		BAN::ErrorOr<BAN::RefPtr<TmpInode>> open_inode(ino_t ino);
 

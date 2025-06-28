@@ -62,8 +62,6 @@ namespace Kernel
 
 		virtual BAN::RefPtr<Inode> root_inode() override { return m_root_inode; }
 
-		virtual dev_t dev() const override { return m_block_device->rdev(); };
-
 	private:
 		Ext2FS(BAN::RefPtr<BlockDevice> block_device)
 			: m_block_device(block_device)

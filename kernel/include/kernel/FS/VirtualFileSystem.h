@@ -29,9 +29,6 @@ namespace Kernel
 
 		virtual BAN::RefPtr<Inode> root_inode() override { return m_root_fs->root_inode(); }
 
-		// FIXME:
-		virtual dev_t dev() const override { return 0; }
-
 		BAN::ErrorOr<void> mount(const Credentials&, BAN::StringView, BAN::StringView);
 		BAN::ErrorOr<void> mount(const Credentials&, BAN::RefPtr<FileSystem>, BAN::StringView);
 

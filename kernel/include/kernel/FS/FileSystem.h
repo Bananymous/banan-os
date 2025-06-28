@@ -26,8 +26,6 @@ namespace Kernel
 		static BAN::ErrorOr<BAN::RefPtr<FileSystem>> from_block_device(BAN::RefPtr<BlockDevice>);
 
 		virtual BAN::RefPtr<Inode> root_inode() = 0;
-
-		virtual dev_t dev() const = 0;
 	};
 
 }

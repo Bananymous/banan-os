@@ -37,8 +37,6 @@ namespace Kernel
 
 		virtual BAN::RefPtr<Inode> root_inode() override { return m_root_inode; }
 
-		virtual dev_t dev() const override { return m_block_device->rdev(); };
-
 		BAN::ErrorOr<BAN::RefPtr<FATInode>> open_inode(BAN::RefPtr<FATInode> parent, const FAT::DirectoryEntry& entry, uint32_t cluster_index, uint32_t entry_index);
 		BAN::ErrorOr<void> inode_read_cluster(BAN::RefPtr<FATInode>, size_t index, BAN::ByteSpan buffer);
 		blksize_t inode_block_size(BAN::RefPtr<const FATInode>) const;
