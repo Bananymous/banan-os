@@ -1,0 +1,15 @@
+diff -ruN tuxracer-0.61/src/winsys.c tuxracer-0.61-banan_os/src/winsys.c
+--- tuxracer-0.61/src/winsys.c	2001-01-14 00:09:51.000000000 +0200
++++ tuxracer-0.61-banan_os/src/winsys.c	2025-06-26 04:05:10.894824478 +0300
+@@ -392,6 +392,11 @@
+ 		}
+ 		
+ 		break;
++
++		case SDL_QUIT:
++			winsys_exit(0);
++
++			break;
+ 	    }
+ 
+ 	    SDL_LockAudio();

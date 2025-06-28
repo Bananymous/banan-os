@@ -1,0 +1,12 @@
+diff -ruN tuxracer-0.61/src/game_config.c tuxracer-0.61-banan_os/src/game_config.c
+--- tuxracer-0.61/src/game_config.c	2001-01-30 22:04:43.000000000 +0200
++++ tuxracer-0.61-banan_os/src/game_config.c	2025-06-26 04:03:28.015311092 +0300
+@@ -505,7 +505,7 @@
+         "# decreasing this number, at the cost of lower image quality." );
+ 
+     INIT_PARAM_BOOL( 
+-	fullscreen, True,
++	fullscreen, False,
+ 	"# If true then the game will run in full-screen mode." );
+ 
+     INIT_PARAM_INT( 

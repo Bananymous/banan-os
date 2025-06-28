@@ -1,0 +1,19 @@
+diff -ruN tuxracer-0.61/src/debug.c tuxracer-0.61-banan_os/src/debug.c
+--- tuxracer-0.61/src/debug.c	2001-01-14 00:09:50.000000000 +0200
++++ tuxracer-0.61-banan_os/src/debug.c	2025-06-26 03:18:02.090898960 +0300
+@@ -165,6 +165,7 @@
+     /* Redirect stderr to file; taken from SDL_main.c, which is in the 
+        public domain */
+     newfp = freopen(BUGREPORT_FILE, "w", stderr);
++#if !defined(__banan_os__)
+     if ( newfp == NULL ) {	/* This happens on NT */
+ #if !defined(stderr)
+ 	stderr = fopen(BUGREPORT_FILE, "w");
+@@ -175,6 +176,7 @@
+ 	}
+ #endif
+     }
++#endif
+ 
+     /* Write bug report header */
+     fprintf( stderr, "Tux Racer Diagnostic Log\n\n" );
