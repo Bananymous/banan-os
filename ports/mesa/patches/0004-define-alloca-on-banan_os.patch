@@ -1,0 +1,14 @@
+diff -ruN mesa-25.0.7/include/c99_alloca.h mesa-25.0.7-banan_os/include/c99_alloca.h
+--- mesa-25.0.7/include/c99_alloca.h	2025-05-28 18:20:23.000000000 +0300
++++ mesa-25.0.7-banan_os/include/c99_alloca.h	2025-06-17 14:29:11.535095878 +0300
+@@ -39,6 +39,10 @@
+ 
+ #  include <alloca.h>
+ 
++#elif defined(__banan_os__)
++
++#  define alloca __builtin_alloca
++
+ #else /* !defined(_MSC_VER) */
+ 
+ #  include <stdlib.h>

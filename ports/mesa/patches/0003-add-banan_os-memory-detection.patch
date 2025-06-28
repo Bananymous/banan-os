@@ -1,0 +1,34 @@
+diff -ruN mesa-25.0.7/src/util/os_misc.c mesa-25.0.7-banan_os/src/util/os_misc.c
+--- mesa-25.0.7/src/util/os_misc.c	2025-05-28 18:20:23.000000000 +0300
++++ mesa-25.0.7-banan_os/src/util/os_misc.c	2025-06-17 14:14:54.254785327 +0300
+@@ -69,6 +69,9 @@
+ #    include <mach/vm_param.h>
+ #    include <mach/vm_statistics.h>
+ #   endif
++#elif DETECT_OS_BANAN_OS
++#  include <fcntl.h>
++#  include <sys/banan-os.h>
+ #elif DETECT_OS_HAIKU
+ #  include <kernel/OS.h>
+ #elif DETECT_OS_WINDOWS
+@@ -311,6 +314,20 @@
+ #endif
+ 
+    return (sysctl(mib, 2, size, &len, NULL, 0) == 0);
++#elif DETECT_OS_BANAN_OS
++    int meminfo_fd = open("/proc/meminfo", O_RDONLY);
++    if (meminfo_fd == -1)
++        return false;
++
++    struct full_meminfo_t meminfo;
++    ssize_t nread = read(meminfo_fd, &meminfo, sizeof(meminfo));
++    close(meminfo_fd);
++
++    if (nread != sizeof(meminfo))
++        return false;
++
++    *size = (meminfo.free_pages + meminfo.used_pages) * meminfo.page_size;
++    return true;
+ #elif DETECT_OS_HAIKU
+    system_info info;
+    status_t ret;

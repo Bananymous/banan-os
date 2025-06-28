@@ -1,0 +1,25 @@
+diff -ruN mesa-25.0.7/src/util/detect_os.h mesa-25.0.7-banan_os/src/util/detect_os.h
+--- mesa-25.0.7/src/util/detect_os.h	2025-05-28 18:20:23.000000000 +0300
++++ mesa-25.0.7-banan_os/src/util/detect_os.h	2025-06-17 14:04:20.625567958 +0300
+@@ -76,6 +76,11 @@
+ #define DETECT_OS_WINDOWS 1
+ #endif
+ 
++#if defined(__banan_os__)
++#define DETECT_OS_BANAN_OS 1
++#define DETECT_OS_POSIX 1
++#endif
++
+ #if defined(__HAIKU__)
+ #define DETECT_OS_HAIKU 1
+ #define DETECT_OS_POSIX 1
+@@ -113,6 +118,9 @@
+ #ifndef DETECT_OS_FREEBSD
+ #define DETECT_OS_FREEBSD 0
+ #endif
++#ifndef DETECT_OS_BANAN_OS
++#define DETECT_OS_BANAN_OS 0
++#endif
+ #ifndef DETECT_OS_HAIKU
+ #define DETECT_OS_HAIKU 0
+ #endif

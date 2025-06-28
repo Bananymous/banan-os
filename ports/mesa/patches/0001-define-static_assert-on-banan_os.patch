@@ -1,0 +1,12 @@
+diff -ruN mesa-25.0.7/src/util/macros.h mesa-25.0.7-banan_os/src/util/macros.h
+--- mesa-25.0.7/src/util/macros.h	2025-05-28 18:20:23.000000000 +0300
++++ mesa-25.0.7-banan_os/src/util/macros.h	2025-06-17 13:59:03.341231717 +0300
+@@ -25,7 +25,7 @@
+ #define UTIL_MACROS_H
+ 
+ #include <assert.h>
+-#if defined(__HAIKU__)  && !defined(__cplusplus)
++#if (defined(__HAIKU__) || defined(__banan_os__)) && !defined(__cplusplus)
+ #define static_assert _Static_assert
+ #endif
+ #include <stddef.h>
