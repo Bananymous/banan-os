@@ -138,6 +138,8 @@ static void shrink_node_if_needed(malloc_pool_t& pool, malloc_node_t* node, size
 	uint8_t* node_end = (uint8_t*)node->next();
 
 	node->size = sizeof(malloc_node_t) + size;
+	if (auto rem = (node->size + sizeof(malloc_node_t)) % s_malloc_default_align)
+		node->size += s_malloc_default_align - rem;
 
 	auto* next = node->next();
 	next->allocated = false;
@@ -176,6 +178,8 @@ static void* allocate_from_pool(size_t pool_index, size_t size)
 		remove_node_from_pool_free_list(pool, node);
 
 		shrink_node_if_needed(pool, node, size);
+
+		assert(((uintptr_t)node->data & (s_malloc_default_align - 1)) == 0);
 		return node->data;
 	}
 
@@ -390,6 +394,7 @@ int posix_memalign(void** memptr, size_t alignment, size_t size)
 
 	pthread_mutex_unlock(&s_malloc_mutex);
 
+	assert(((uintptr_t)node->data & (alignment - 1)) == 0);
 	*memptr = node->data;
 	return 0;
 }
