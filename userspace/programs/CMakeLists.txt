@@ -4,6 +4,7 @@ set(USERSPACE_PROGRAMS
 	cat
 	cat-mmap
 	chmod
+	chown
 	cp
 	dd
 	dhcp-client
