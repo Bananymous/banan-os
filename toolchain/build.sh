@@ -94,7 +94,7 @@ build_binutils () {
 		--disable-werror
 
 	make $MAKE_JOBS
-	make install
+	make install-strip
 }
 
 build_gcc () {
@@ -131,8 +131,8 @@ build_gcc () {
 
 	make $MAKE_JOBS all-gcc
 	make $MAKE_JOBS all-target-libgcc CFLAGS_FOR_TARGET="$XCFLAGS"
-	make install-gcc
-	make install-target-libgcc
+	make install-strip-gcc
+	make install-strip-target-libgcc
 }
 
 build_libstdcpp () {
@@ -143,7 +143,7 @@ build_libstdcpp () {
 
 	cd $BANAN_BUILD_DIR/toolchain/$GCC_VERSION/build-$BANAN_ARCH
 	make $MAKE_JOBS all-target-libstdc++-v3
-	make install-target-libstdc++-v3
+	make install-strip-target-libstdc++-v3
 }
 
 build_grub () {
@@ -275,5 +275,3 @@ if (($BUILD_LIBSTDCPP)); then
 
 	build_libstdcpp
 fi
-
-find "$BANAN_TOOLCHAIN_PREFIX" -type f -executable -exec strip --strip-unneeded {} + 2>/dev/null
