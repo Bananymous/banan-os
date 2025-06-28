@@ -289,6 +289,26 @@ namespace Kernel
 		return {};
 	}
 
+	BAN::ErrorOr<void> Ext2Inode::chown_impl(uid_t uid, gid_t gid)
+	{
+		if (m_inode.uid == uid && m_inode.gid == gid)
+			return {};
+
+		const auto old_uid = m_inode.uid;
+		const auto old_gid = m_inode.gid;
+
+		m_inode.uid = uid;
+		m_inode.gid = gid;
+		if (auto ret = sync(); ret.is_error())
+		{
+			m_inode.uid = old_uid;
+			m_inode.gid = old_gid;
+			return ret.release_error();
+		}
+
+		return {};
+	}
+
 	BAN::ErrorOr<void> Ext2Inode::utimens_impl(const timespec times[2])
 	{
 		const uint32_t old_times[2] {

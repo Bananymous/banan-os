@@ -100,6 +100,13 @@ namespace Kernel
 		return {};
 	}
 
+	BAN::ErrorOr<void> TmpInode::chown_impl(uid_t new_uid, gid_t new_gid)
+	{
+		m_inode_info.uid = new_uid;
+		m_inode_info.gid = new_gid;
+		return {};
+	}
+
 	BAN::ErrorOr<void> TmpInode::utimens_impl(const timespec times[2])
 	{
 		if (times[0].tv_nsec != UTIME_OMIT)

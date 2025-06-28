@@ -48,6 +48,7 @@ namespace Kernel
 		TmpInode(TmpFileSystem&, ino_t, const TmpInodeInfo&);
 
 		virtual BAN::ErrorOr<void> chmod_impl(mode_t) override;
+		virtual BAN::ErrorOr<void> chown_impl(uid_t, gid_t) override;
 		virtual BAN::ErrorOr<void> utimens_impl(const timespec[2]) override;
 		virtual BAN::ErrorOr<void> fsync_impl() override { return {}; }
 
