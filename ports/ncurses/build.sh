@@ -16,9 +16,7 @@ CONFIGURE_OPTIONS=(
 	'--without-cxx-binding'
 )
 
-install() {
-	make install "DESTDIR=$BANAN_SYSROOT" || exit 1
-
+post_install() {
 	shellrc="$BANAN_SYSROOT/home/user/.shellrc"
 	grep -q 'export NCURSES_NO_UTF8_ACS=' "$shellrc" || echo 'export NCURSES_NO_UTF8_ACS=1' >> "$shellrc"
 }

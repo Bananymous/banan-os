@@ -18,9 +18,7 @@ CONFIGURE_OPTIONS=(
 	'--without-ca-path'
 )
 
-install() {
-	make install DESTDIR="$BANAN_SYSROOT" || exit 1
-
+post_install() {
 	# remove libtool file
 	rm -f $BANAN_SYSROOT/usr/lib/libcurl.la
 }

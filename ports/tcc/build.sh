@@ -9,6 +9,9 @@ if [ $tcc_arch = 'i686' ]; then
 	tcc_arch='i386'
 fi
 
+MAKE_BUILD_TARGETS=("cross-$tcc_arch $tcc_arch-libtcc1-usegcc=yes")
+MAKE_INSTALL_TARGETS=("install-unx")
+
 configure() {
 	./configure \
 		--prefix=/usr \
@@ -22,12 +25,6 @@ configure() {
 		--elfinterp=/usr/lib/DynamicLoader.so
 }
 
-build() {
-	touch $BANAN_SYSROOT/usr/include/sys/ucontext.h
-	make -j$(nproc) cross-$tcc_arch $tcc_arch-libtcc1-usegcc=yes || exit 1
-}
-
-install() {
-	make install-unx DESTDIR=$BANAN_SYSROOT || exit 1
+post_install() {
 	ln -sf $tcc_arch-tcc $BANAN_SYSROOT/usr/bin/tcc
 }

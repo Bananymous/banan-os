@@ -1,0 +1,12 @@
+diff -ruN tcc-0.9.27/tccrun.c tcc-0.9.27-banan_os/tccrun.c
+--- tcc-0.9.27/tccrun.c	2017-12-17 10:27:05.000000000 +0200
++++ tcc-0.9.27-banan_os/tccrun.c	2025-06-28 20:30:00.914206003 +0300
+@@ -30,7 +30,7 @@
+ #ifdef CONFIG_TCC_BACKTRACE
+ # ifndef _WIN32
+ #  include <signal.h>
+-#  ifndef __OpenBSD__
++#  if !defined(__OpenBSD__) && !defined(__banan_os__)
+ #   include <sys/ucontext.h>
+ #  endif
+ # else

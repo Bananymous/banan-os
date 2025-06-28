@@ -9,9 +9,7 @@ CONFIGURE_OPTIONS=(
 	"--with-pnglibdir=$BANAN_SYSROOT/usr/lib"
 )
 
-install() {
-	make install DESTDIR="$BANAN_SYSROOT" || exit 1
-
+post_install() {
 	# remove libtool files
 	rm -f $BANAN_SYSROOT/usr/lib/libwebp.la
 	rm -f $BANAN_SYSROOT/usr/lib/libwebpdemux.la

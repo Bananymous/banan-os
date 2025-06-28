@@ -6,9 +6,7 @@ DOWNLOAD_URL="https://download.osgeo.org/libtiff/tiff-$VERSION.tar.gz#67160e3457
 TAR_CONTENT="tiff-$VERSION"
 DEPENDENCIES=('zlib' 'zstd' 'libjpeg')
 
-install() {
-	make install "DESTDIR=$BANAN_SYSROOT" || exit 1
-
+post_install() {
 	# remove libtool files
 	rm -f $BANAN_SYSROOT/usr/lib/libtiff.la
 	rm -f $BANAN_SYSROOT/usr/lib/libtiffxx.la
