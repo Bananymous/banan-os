@@ -46,6 +46,9 @@ if [ ! -f "$MESON_CROSS_FILE" ] || [ "$MESON_CROSS_FILE" -ot "$BANAN_TOOLCHAIN_D
 	sed -i "s/SYSROOT/$BANAN_SYSROOT/" "$MESON_CROSS_FILE"
 fi
 
+MAKE_BUILD_TARGETS=('all')
+MAKE_INSTALL_TARGETS=('install')
+
 clean() {
 	find . -mindepth 1 -maxdepth 1 -not -name 'patches' -not -name 'build.sh' -exec rm -rf {} +
 }
@@ -69,11 +72,15 @@ configure() {
 }
 
 build() {
-	make -j$(nproc) || exit 1
+	for target in "${MAKE_BUILD_TARGETS[@]}"; do
+		make -j$(nproc) $target || exit 1
+	done
 }
 
 install() {
-	make install "DESTDIR=$BANAN_SYSROOT" || exit 1
+	for target in "${MAKE_INSTALL_TARGETS[@]}"; do
+		make $target "DESTDIR=$BANAN_SYSROOT" || exit 1
+	done
 }
 
 source $1
