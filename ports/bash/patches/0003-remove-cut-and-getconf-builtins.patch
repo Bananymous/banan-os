@@ -1,0 +1,12 @@
+diff -ruN bash-5.2.37/examples/loadables/Makefile.in bash-5.2.37-banan_os/examples/loadables/Makefile.in
+--- bash-5.2.37/examples/loadables/Makefile.in	2022-08-19 23:33:30.000000000 +0300
++++ bash-5.2.37-banan_os/examples/loadables/Makefile.in	2025-01-26 02:43:36.121801845 +0200
+@@ -104,7 +104,7 @@
+ ALLPROG = print truefalse sleep finfo logname basename dirname fdflags \
+ 	  tty pathchk tee head mkdir rmdir mkfifo mktemp printenv id whoami \
+ 	  uname sync push ln unlink realpath strftime mypid setpgid seq rm \
+-	  accept csv dsv cut stat getconf
++	  accept csv dsv stat
+ OTHERPROG = necho hello cat pushd asort
+ 
+ all:	$(SHOBJ_STATUS)

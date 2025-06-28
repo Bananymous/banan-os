@@ -1,0 +1,19 @@
+diff -ruN bash-5.2.37/parse.y bash-5.2.37-banan_os/parse.y
+--- bash-5.2.37/parse.y	2024-09-24 00:24:01.000000000 +0300
++++ bash-5.2.37-banan_os/parse.y	2024-12-07 06:49:40.322734826 +0200
+@@ -2640,6 +2640,7 @@
+       parser_state |= PST_ENDALIAS;
+       /* We need to do this to make sure last_shell_getc_is_singlebyte returns
+ 	 true, since we are returning a single-byte space. */
++#if defined (HANDLE_MULTIBYTE)
+       if (shell_input_line_index == shell_input_line_len && last_shell_getc_is_singlebyte == 0)
+ 	{
+ #if 0
+@@ -2653,6 +2654,7 @@
+ 	  shell_input_line_property[shell_input_line_index - 1] = 1;
+ #endif
+ 	}
++#endif /* HANDLE_MULTIBYTE */
+       return ' ';	/* END_ALIAS */
+     }
+ #endif

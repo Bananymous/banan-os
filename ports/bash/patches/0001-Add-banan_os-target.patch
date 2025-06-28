@@ -1,0 +1,12 @@
+diff -ruN bash-5.2.37/support/config.sub bash-5.2.37-banan_os/support/config.sub
+--- bash-5.2.37/support/config.sub	2022-01-11 21:38:29.000000000 +0200
++++ bash-5.2.37-banan_os/support/config.sub	2024-12-07 05:43:54.697086738 +0200
+@@ -1754,7 +1754,7 @@
+ 	     | onefs* | tirtos* | phoenix* | fuchsia* | redox* | bme* \
+ 	     | midnightbsd* | amdhsa* | unleashed* | emscripten* | wasi* \
+ 	     | nsk* | powerunix* | genode* | zvmoe* | qnx* | emx* | zephyr* \
+-	     | fiwix* )
++	     | fiwix* | banan_os* )
+ 		;;
+ 	# This one is extra strict with allowed versions
+ 	sco3.2v2 | sco3.2v[4-9]* | sco5v6*)
