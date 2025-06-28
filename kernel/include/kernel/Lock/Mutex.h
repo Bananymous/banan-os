@@ -32,11 +32,11 @@ namespace Kernel
 		void lock() override
 		{
 			const auto tid = Thread::current_tid();
-			ASSERT(!tid || !Thread::current().has_spinlock());
 			if (tid == m_locker)
 				ASSERT(m_lock_depth > 0);
 			else
 			{
+				ASSERT(!tid || !Thread::current().has_spinlock());
 				pid_t expected = -1;
 				while (!m_locker.compare_exchange(expected, tid))
 				{
@@ -53,7 +53,6 @@ namespace Kernel
 		bool try_lock() override
 		{
 			const auto tid = Thread::current_tid();
-			ASSERT(!tid || !Thread::current().has_spinlock());
 			if (tid == m_locker)
 				ASSERT(m_lock_depth > 0);
 			else
@@ -102,12 +101,12 @@ namespace Kernel
 		void lock() override
 		{
 			const auto tid = Thread::current_tid();
-			ASSERT(!tid || !Thread::current().has_spinlock());
 
 			if (tid == m_locker)
 				ASSERT(m_lock_depth > 0);
 			else
 			{
+				ASSERT(!tid || !Thread::current().has_spinlock());
 				bool has_priority = tid ? !Thread::current().is_userspace() : true;
 				if (has_priority)
 					m_queue_length++;
@@ -127,7 +126,6 @@ namespace Kernel
 		bool try_lock() override
 		{
 			const auto tid = Thread::current_tid();
-			ASSERT(!tid || !Thread::current().has_spinlock());
 
 			if (tid == m_locker)
 				ASSERT(m_lock_depth > 0);
