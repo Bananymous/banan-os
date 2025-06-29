@@ -2,6 +2,7 @@
 #include <kernel/Lock/LockGuard.h>
 
 #include <ctype.h>
+#include <sys/statvfs.h>
 
 namespace Kernel
 {
@@ -73,7 +74,7 @@ namespace Kernel
 	fsfilcnt_t    FATFS::ffree()   const { return 0; } // FIXME
 	fsfilcnt_t    FATFS::favail()  const { return 0; } // FIXME
 	unsigned long FATFS::fsid()    const { return m_type == Type::FAT32 ? m_bpb.ext_32.volume_id : m_bpb.ext_12_16.volume_id; }
-	unsigned long FATFS::flag()    const { return 0; }
+	unsigned long FATFS::flag()    const { return ST_RDONLY; }
 	unsigned long FATFS::namemax() const { return 255; }
 
 	BAN::ErrorOr<BAN::RefPtr<FATFS>> FATFS::create(BAN::RefPtr<BlockDevice> block_device)

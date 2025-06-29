@@ -1,9 +1,11 @@
 #include <kernel/Epoll.h>
+#include <kernel/FS/FileSystem.h>
 #include <kernel/FS/Inode.h>
 #include <kernel/Lock/LockGuard.h>
 #include <kernel/Memory/FileBackedRegion.h>
 
 #include <fcntl.h>
+#include <sys/statvfs.h>
 
 namespace Kernel
 {
@@ -81,6 +83,8 @@ namespace Kernel
 			return BAN::Error::from_errno(ENOTDIR);
 		if (Mode(mode).ifdir())
 			return BAN::Error::from_errno(EINVAL);
+		if (auto* fs = filesystem(); fs && (fs->flag() & ST_RDONLY))
+			return BAN::Error::from_errno(EROFS);
 		return create_file_impl(name, mode, uid, gid);
 	}
 
@@ -91,6 +95,8 @@ namespace Kernel
 			return BAN::Error::from_errno(ENOTDIR);
 		if (!Mode(mode).ifdir())
 			return BAN::Error::from_errno(EINVAL);
+		if (auto* fs = filesystem(); fs && (fs->flag() & ST_RDONLY))
+			return BAN::Error::from_errno(EROFS);
 		return create_directory_impl(name, mode, uid, gid);
 	}
 
@@ -101,6 +107,8 @@ namespace Kernel
 			return BAN::Error::from_errno(ENOTDIR);
 		if (inode->mode().ifdir())
 			return BAN::Error::from_errno(EINVAL);
+		if (auto* fs = filesystem(); fs && (fs->flag() & ST_RDONLY))
+			return BAN::Error::from_errno(EROFS);
 		return link_inode_impl(name, inode);
 	}
 
@@ -111,6 +119,8 @@ namespace Kernel
 			return BAN::Error::from_errno(ENOTDIR);
 		if (name == "."_sv || name == ".."_sv)
 			return BAN::Error::from_errno(EINVAL);
+		if (auto* fs = filesystem(); fs && (fs->flag() & ST_RDONLY))
+			return BAN::Error::from_errno(EROFS);
 		return unlink_impl(name);
 	}
 
@@ -127,6 +137,8 @@ namespace Kernel
 		LockGuard _(m_mutex);
 		if (!mode().iflnk())
 			return BAN::Error::from_errno(EINVAL);
+		if (auto* fs = filesystem(); fs && (fs->flag() & ST_RDONLY))
+			return BAN::Error::from_errno(EROFS);
 		return set_link_target_impl(target);
 	}
 
@@ -207,6 +219,8 @@ namespace Kernel
 		LockGuard _(m_mutex);
 		if (mode().ifdir())
 			return BAN::Error::from_errno(EISDIR);
+		if (auto* fs = filesystem(); fs && (fs->flag() & ST_RDONLY))
+			return BAN::Error::from_errno(EROFS);
 		return write_impl(offset, buffer);
 	}
 
@@ -215,6 +229,8 @@ namespace Kernel
 		LockGuard _(m_mutex);
 		if (mode().ifdir())
 			return BAN::Error::from_errno(EISDIR);
+		if (auto* fs = filesystem(); fs && (fs->flag() & ST_RDONLY))
+			return BAN::Error::from_errno(EROFS);
 		return truncate_impl(size);
 	}
 
@@ -222,18 +238,24 @@ namespace Kernel
 	{
 		ASSERT((mode & Inode::Mode::TYPE_MASK) == 0);
 		LockGuard _(m_mutex);
+		if (auto* fs = filesystem(); fs && (fs->flag() & ST_RDONLY))
+			return BAN::Error::from_errno(EROFS);
 		return chmod_impl(mode);
 	}
 
 	BAN::ErrorOr<void> Inode::chown(uid_t uid, gid_t gid)
 	{
 		LockGuard _(m_mutex);
+		if (auto* fs = filesystem(); fs && (fs->flag() & ST_RDONLY))
+			return BAN::Error::from_errno(EROFS);
 		return chown_impl(uid, gid);
 	}
 
 	BAN::ErrorOr<void> Inode::utimens(const timespec times[2])
 	{
 		LockGuard _(m_mutex);
+		if (auto* fs = filesystem(); fs && (fs->flag() & ST_RDONLY))
+			return BAN::Error::from_errno(EROFS);
 		return utimens_impl(times);
 	}
 
