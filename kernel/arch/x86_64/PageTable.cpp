@@ -503,6 +503,7 @@ namespace Kernel
 	{
 		ASSERT(s_kernel);
 		ASSERT(paddr);
+		ASSERT(paddr % PAGE_SIZE == 0);
 
 		ASSERT(s_fast_page_lock.current_processor_has_lock());
 
