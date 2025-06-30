@@ -124,36 +124,160 @@ namespace Kernel
 	void TmpInode::free_all_blocks()
 	{
 		for (size_t i = 0; i < TmpInodeInfo::direct_block_count; i++)
-		{
 			if (m_inode_info.block[i])
 				m_fs.free_block(m_inode_info.block[i]);
-			m_inode_info.block[i] = 0;
+		if (size_t block = m_inode_info.block[TmpInodeInfo::direct_block_count + 0])
+			free_indirect_blocks(block, 1);
+		if (size_t block = m_inode_info.block[TmpInodeInfo::direct_block_count + 1])
+			free_indirect_blocks(block, 2);
+		if (size_t block = m_inode_info.block[TmpInodeInfo::direct_block_count + 2])
+			free_indirect_blocks(block, 3);
+		for (auto& block : m_inode_info.block)
+			block = 0;
+	}
+
+	void TmpInode::free_indirect_blocks(size_t block, uint32_t depth)
+	{
+		ASSERT(block != 0);
+
+		if (depth == 0)
+		{
+			m_fs.free_block(block);
+			return;
 		}
-		for (auto block : m_inode_info.block)
-			ASSERT(block == 0);
+
+		const size_t indices_per_block = blksize() / sizeof(size_t);
+		for (size_t index = 0; index < indices_per_block; index++)
+		{
+			size_t next_block;
+			m_fs.with_block_buffer(block, [&](BAN::ByteSpan block_buffer) {
+				next_block = block_buffer.as_span<size_t>()[index];
+			});
+
+			if (next_block == 0)
+				continue;
+
+			free_indirect_blocks(next_block, depth - 1);
+		}
+
+		m_fs.free_block(block);
 	}
 
 	BAN::Optional<size_t> TmpInode::block_index(size_t data_block_index)
 	{
-		ASSERT(data_block_index < TmpInodeInfo::direct_block_count);
-		if (m_inode_info.block[data_block_index])
+		if (data_block_index < TmpInodeInfo::direct_block_count)
+		{
+			if (m_inode_info.block[data_block_index] == 0)
+				return {};
 			return m_inode_info.block[data_block_index];
-		return {};
+		}
+		data_block_index -= TmpInodeInfo::direct_block_count;
+
+		const size_t indices_per_block = blksize() / sizeof(size_t);
+
+		if (data_block_index < indices_per_block)
+			return block_index_from_indirect(m_inode_info.block[TmpInodeInfo::direct_block_count + 0], data_block_index, 1);
+		data_block_index -= indices_per_block;
+
+		if (data_block_index < indices_per_block * indices_per_block)
+			return block_index_from_indirect(m_inode_info.block[TmpInodeInfo::direct_block_count + 1], data_block_index, 2);
+		data_block_index -= indices_per_block * indices_per_block;
+
+		if (data_block_index < indices_per_block * indices_per_block * indices_per_block)
+			return block_index_from_indirect(m_inode_info.block[TmpInodeInfo::direct_block_count + 2], data_block_index, 3);
+
+		ASSERT_NOT_REACHED();
+	}
+
+	BAN::Optional<size_t> TmpInode::block_index_from_indirect(size_t block, size_t index, uint32_t depth)
+	{
+		if (block == 0)
+			return {};
+		ASSERT(depth >= 1);
+
+		const size_t indices_per_block = blksize() / sizeof(size_t);
+
+		size_t divisor = 1;
+		for (size_t i = 1; i < depth; i++)
+			divisor *= indices_per_block;
+
+		size_t next_block;
+		m_fs.with_block_buffer(block, [&](BAN::ByteSpan block_buffer) {
+			next_block = block_buffer.as_span<size_t>()[(index / divisor) % indices_per_block];
+		});
+
+		if (next_block == 0)
+			return {};
+
+		if (depth == 1)
+			return next_block;
+
+		return block_index_from_indirect(next_block, index, depth - 1);
 	}
 
 	BAN::ErrorOr<size_t> TmpInode::block_index_with_allocation(size_t data_block_index)
 	{
-		if (data_block_index >= TmpInodeInfo::direct_block_count)
+		if (data_block_index < TmpInodeInfo::direct_block_count)
 		{
-			dprintln("only {} blocks supported :D", TmpInodeInfo::direct_block_count);
-			return BAN::Error::from_errno(ENOSPC);
+			if (m_inode_info.block[data_block_index] == 0)
+			{
+				m_inode_info.block[data_block_index] = TRY(m_fs.allocate_block());
+				m_inode_info.blocks++;
+			}
+			return m_inode_info.block[data_block_index];
 		}
-		if (m_inode_info.block[data_block_index] == 0)
+		data_block_index -= TmpInodeInfo::direct_block_count;
+
+		const size_t indices_per_block = blksize() / sizeof(size_t);
+
+		if (data_block_index < indices_per_block)
+			return block_index_from_indirect_with_allocation(m_inode_info.block[TmpInodeInfo::direct_block_count + 0], data_block_index, 1);
+		data_block_index -= indices_per_block;
+
+		if (data_block_index < indices_per_block * indices_per_block)
+			return block_index_from_indirect_with_allocation(m_inode_info.block[TmpInodeInfo::direct_block_count + 1], data_block_index, 2);
+		data_block_index -= indices_per_block * indices_per_block;
+
+		if (data_block_index < indices_per_block * indices_per_block * indices_per_block)
+			return block_index_from_indirect_with_allocation(m_inode_info.block[TmpInodeInfo::direct_block_count + 2], data_block_index, 3);
+
+		ASSERT_NOT_REACHED();
+	}
+
+	BAN::ErrorOr<size_t> TmpInode::block_index_from_indirect_with_allocation(size_t& block, size_t index, uint32_t depth)
+	{
+		if (block == 0)
 		{
-			m_inode_info.block[data_block_index] = TRY(m_fs.allocate_block());
+			block = TRY(m_fs.allocate_block());
 			m_inode_info.blocks++;
 		}
-		return m_inode_info.block[data_block_index];
+		ASSERT(depth >= 1);
+
+		const size_t indices_per_block = blksize() / sizeof(size_t);
+
+		size_t divisor = 1;
+		for (size_t i = 1; i < depth; i++)
+			divisor *= indices_per_block;
+
+		size_t next_block;
+		m_fs.with_block_buffer(block, [&](BAN::ByteSpan block_buffer) {
+			next_block = block_buffer.as_span<size_t>()[(index / divisor) % indices_per_block];
+		});
+
+		if (next_block == 0)
+		{
+			next_block = TRY(m_fs.allocate_block());
+			m_inode_info.blocks++;
+
+			m_fs.with_block_buffer(block, [&](BAN::ByteSpan block_buffer) {
+				block_buffer.as_span<size_t>()[(index / divisor) % indices_per_block] = next_block;
+			});
+		}
+
+		if (depth == 1)
+			return next_block;
+
+		return block_index_from_indirect_with_allocation(next_block, index, depth - 1);
 	}
 
 	/* FILE INODE */
@@ -241,6 +365,9 @@ namespace Kernel
 
 	BAN::ErrorOr<void> TmpFileInode::truncate_impl(size_t new_size)
 	{
+		// FIXME: if size is decreased, we should probably free
+		//        unused blocks
+
 		m_inode_info.size = new_size;
 		return {};
 	}

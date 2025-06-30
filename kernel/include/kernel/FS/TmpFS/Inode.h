@@ -53,11 +53,16 @@ namespace Kernel
 		virtual BAN::ErrorOr<void> fsync_impl() override { return {}; }
 
 		void sync();
-		void free_all_blocks();
 		virtual BAN::ErrorOr<void> prepare_unlink() { return {}; };
 
+		void free_all_blocks();
+		void free_indirect_blocks(size_t block, uint32_t depth);
+
 		BAN::Optional<size_t> block_index(size_t data_block_index);
+		BAN::Optional<size_t> block_index_from_indirect(size_t block, size_t index, uint32_t depth);
+
 		BAN::ErrorOr<size_t> block_index_with_allocation(size_t data_block_index);
+		BAN::ErrorOr<size_t> block_index_from_indirect_with_allocation(size_t& block, size_t index, uint32_t depth);
 
 	protected:
 		TmpFileSystem& m_fs;
