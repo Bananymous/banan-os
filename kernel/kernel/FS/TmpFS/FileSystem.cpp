@@ -1,3 +1,4 @@
+#include <BAN/ScopeGuard.h>
 #include <kernel/Device/DeviceNumbers.h>
 #include <kernel/FS/TmpFS/FileSystem.h>
 #include <kernel/Memory/Heap.h>
@@ -105,7 +106,7 @@ namespace Kernel
 	{
 		LockGuard _(m_mutex);
 
-		auto inode_location = find_inode(ino);
+		const auto inode_location = find_inode(ino);
 		PageTable::with_fast_page(inode_location.paddr, [&] {
 			out = PageTable::fast_page_as_sized<TmpInodeInfo>(inode_location.index);
 		});
@@ -115,7 +116,7 @@ namespace Kernel
 	{
 		LockGuard _(m_mutex);
 
-		auto inode_location = find_inode(ino);
+		const auto inode_location = find_inode(ino);
 		PageTable::with_fast_page(inode_location.paddr, [&] {
 			auto& inode_info = PageTable::fast_page_as_sized<TmpInodeInfo>(inode_location.index);
 			inode_info = info;
@@ -126,7 +127,7 @@ namespace Kernel
 	{
 		LockGuard _(m_mutex);
 
-		auto inode_location = find_inode(ino);
+		const auto inode_location = find_inode(ino);
 		PageTable::with_fast_page(inode_location.paddr, [&] {
 			auto& inode_info = PageTable::fast_page_as_sized<TmpInodeInfo>(inode_location.index);
 			ASSERT(inode_info.nlink == 0);
@@ -134,6 +135,7 @@ namespace Kernel
 				ASSERT(paddr == 0);
 			inode_info = {};
 		});
+
 		ASSERT(!m_inode_cache.contains(ino));
 	}
 
@@ -141,26 +143,86 @@ namespace Kernel
 	{
 		LockGuard _(m_mutex);
 
-		constexpr size_t inodes_per_page = PAGE_SIZE / sizeof(TmpInodeInfo);
+		constexpr size_t inode_infos_per_page = PAGE_SIZE / sizeof(TmpInodeInfo);
+		constexpr size_t page_infos_per_page = PAGE_SIZE / sizeof(PageInfo);
 
-		ino_t ino = first_inode;
-		TRY(for_each_indirect_paddr_allocating(m_inode_pages, [&](paddr_t paddr, bool) {
-			BAN::Iteration result = BAN::Iteration::Continue;
-			PageTable::with_fast_page(paddr, [&] {
-				for (size_t i = 0; i < inodes_per_page; i++, ino++)
-				{
-					auto& inode_info = PageTable::fast_page_as_sized<TmpInodeInfo>(i);
-					if (inode_info.mode != 0)
-						continue;
-					inode_info = info;
-					result = BAN::Iteration::Break;
-					return;
-				}
+		for (size_t layer0_index = 0; layer0_index < page_infos_per_page; layer0_index++)
+		{
+			PageInfo layer0_page;
+			PageTable::with_fast_page(m_inode_pages.paddr(), [&] {
+				layer0_page = PageTable::fast_page_as_sized<PageInfo>(layer0_index);
 			});
-			return result;
-		}, 2));
 
-		return ino;
+			if (!(layer0_page.flags() & PageInfo::Flags::Present))
+			{
+				if (m_used_pages >= m_max_pages)
+					return BAN::Error::from_errno(ENOSPC);
+				const paddr_t paddr = Heap::get().take_free_page();
+				if (paddr == 0)
+					return BAN::Error::from_errno(ENOMEM);
+				PageTable::with_fast_page(paddr, [&] {
+					memset(PageTable::fast_page_as_ptr(), 0, PAGE_SIZE);
+				});
+				PageTable::with_fast_page(m_inode_pages.paddr(), [&] {
+					auto& page_info = PageTable::fast_page_as_sized<PageInfo>(layer0_index);
+					page_info.set_paddr(paddr);
+					page_info.set_flags(PageInfo::Flags::Present);
+					layer0_page = page_info;
+				});
+				m_used_pages++;
+			}
+
+			for (size_t layer1_index = 0; layer1_index < page_infos_per_page; layer1_index++)
+			{
+				PageInfo layer1_page;
+				PageTable::with_fast_page(layer0_page.paddr(), [&] {
+					layer1_page = PageTable::fast_page_as_sized<PageInfo>(layer1_index);
+				});
+
+				if (!(layer1_page.flags() & PageInfo::Flags::Present))
+				{
+					if (m_used_pages >= m_max_pages)
+						return BAN::Error::from_errno(ENOSPC);
+					const paddr_t paddr = Heap::get().take_free_page();
+					if (paddr == 0)
+						return BAN::Error::from_errno(ENOMEM);
+					PageTable::with_fast_page(paddr, [&] {
+						memset(PageTable::fast_page_as_ptr(), 0, PAGE_SIZE);
+					});
+					PageTable::with_fast_page(layer0_page.paddr(), [&] {
+						auto& page_info = PageTable::fast_page_as_sized<PageInfo>(layer1_index);
+						page_info.set_paddr(paddr);
+						page_info.set_flags(PageInfo::Flags::Present);
+						layer1_page = page_info;
+					});
+					m_used_pages++;
+				}
+
+				size_t layer2_index = SIZE_MAX;
+
+				PageTable::with_fast_page(layer1_page.paddr(), [&] {
+					for (size_t i = 0; i < PAGE_SIZE / sizeof(TmpInodeInfo); i++)
+					{
+						auto& inode_info = PageTable::fast_page_as_sized<TmpInodeInfo>(i);
+						if (inode_info.mode != 0)
+							continue;
+						inode_info = info;
+						layer2_index = i;
+						return;
+					}
+				});
+
+				if (layer2_index != SIZE_MAX)
+				{
+					const size_t layer0_offset = layer0_index * inode_infos_per_page * page_infos_per_page;
+					const size_t layer1_offset = layer1_index * inode_infos_per_page;
+					const size_t layer2_offset = layer2_index;
+					return layer0_offset + layer1_offset + layer2_offset + first_inode;
+				}
+			}
+		}
+
+		ASSERT_NOT_REACHED();
 	}
 
 	TmpFileSystem::InodeLocation TmpFileSystem::find_inode(ino_t ino)
@@ -168,16 +230,30 @@ namespace Kernel
 		LockGuard _(m_mutex);
 
 		ASSERT(ino >= first_inode);
-		ASSERT(ino < max_inodes);
+		ASSERT(ino - first_inode < max_inodes);
 
-		constexpr size_t inodes_per_page = PAGE_SIZE / sizeof(TmpInodeInfo);
+		constexpr size_t inode_infos_per_page = PAGE_SIZE / sizeof(TmpInodeInfo);
+		constexpr size_t page_infos_per_page = PAGE_SIZE / sizeof(PageInfo);
+		const size_t layer0_index = (ino - first_inode) / inode_infos_per_page / page_infos_per_page;
+		const size_t layer1_index = (ino - first_inode) / inode_infos_per_page % page_infos_per_page;
+		const size_t layer2_index = (ino - first_inode) % inode_infos_per_page;
+		ASSERT(layer0_index < page_infos_per_page);
 
-		size_t index_of_page = (ino - first_inode) / inodes_per_page;
-		size_t index_in_page = (ino - first_inode) % inodes_per_page;
+		PageInfo layer0_page;
+		PageTable::with_fast_page(m_inode_pages.paddr(), [&] {
+			layer0_page = PageTable::fast_page_as_sized<PageInfo>(layer0_index);
+		});
+		ASSERT(layer0_page.flags() & PageInfo::Flags::Present);
+
+		PageInfo layer1_page;
+		PageTable::with_fast_page(layer0_page.paddr(), [&] {
+			layer1_page = PageTable::fast_page_as_sized<PageInfo>(layer1_index);
+		});
+		ASSERT(layer1_page.flags() & PageInfo::Flags::Present);
 
 		return {
-			.paddr = find_indirect(m_inode_pages, index_of_page, 2),
-			.index = index_in_page
+			.paddr = layer1_page.paddr(),
+			.index = layer2_index,
 		};
 	}
 
@@ -185,145 +261,185 @@ namespace Kernel
 	{
 		LockGuard _(m_mutex);
 
-		constexpr size_t addresses_per_page = PAGE_SIZE / sizeof(PageInfo);
+		ASSERT(index >= first_data_page);
+		ASSERT(index - first_data_page < max_data_pages);
 
-		const size_t index_of_page = (index - first_data_page) / addresses_per_page;
-		const size_t index_in_page = (index - first_data_page) % addresses_per_page;
+		constexpr size_t page_infos_per_page = PAGE_SIZE / sizeof(PageInfo);
+		const size_t layer0_index = (index - first_data_page) / (page_infos_per_page - 1) / page_infos_per_page;
+		const size_t layer1_index = (index - first_data_page) / (page_infos_per_page - 1) % page_infos_per_page;
+		const size_t layer2_index = (index - first_data_page) % (page_infos_per_page - 1);
+		ASSERT(layer0_index < page_infos_per_page);
 
-		paddr_t page_containing = find_indirect(m_data_pages, index_of_page, 2);
+		PageInfo layer0_page;
+		PageTable::with_fast_page(m_data_pages.paddr(), [&] {
+			layer0_page = PageTable::fast_page_as_sized<PageInfo>(layer0_index);
+		});
+		ASSERT(layer0_page.flags() & PageInfo::Flags::Present);
 
-		paddr_t paddr_to_free = 0;
-		PageTable::with_fast_page(page_containing, [&] {
-			auto& page_info = PageTable::fast_page_as_sized<PageInfo>(index_in_page);
+		PageInfo layer1_page;
+		PageTable::with_fast_page(layer0_page.paddr(), [&] {
+			layer1_page = PageTable::fast_page_as_sized<PageInfo>(layer1_index);
+		});
+		ASSERT(layer1_page.flags() & PageInfo::Flags::Present);
+
+		paddr_t page_to_free;
+		PageTable::with_fast_page(layer1_page.paddr(), [&] {
+			auto& allocated_pages = PageTable::fast_page_as_sized<size_t>(page_infos_per_page - 1);
+			ASSERT(allocated_pages > 0);
+			allocated_pages--;
+
+			auto& page_info = PageTable::fast_page_as_sized<PageInfo>(layer2_index);
 			ASSERT(page_info.flags() & PageInfo::Flags::Present);
-			paddr_to_free = page_info.paddr();
-			m_used_pages--;
-
+			page_to_free = page_info.paddr();
 			page_info.set_paddr(0);
 			page_info.set_flags(0);
 		});
-		Heap::get().release_page(paddr_to_free);
-	}
 
-	BAN::ErrorOr<size_t> TmpFileSystem::allocate_block()
-	{
-		LockGuard _(m_mutex);
-
-		size_t result = first_data_page;
-		TRY(for_each_indirect_paddr_allocating(m_data_pages, [&] (paddr_t, bool allocated) {
-			if (allocated)
-				return BAN::Iteration::Break;
-			result++;
-			return BAN::Iteration::Continue;
-		}, 3));
-		return result;
+		Heap::get().release_page(page_to_free);
 	}
 
 	paddr_t TmpFileSystem::find_block(size_t index)
 	{
 		LockGuard _(m_mutex);
 
-		ASSERT(index > 0);
-		return find_indirect(m_data_pages, index - first_data_page, 3);
-	}
+		ASSERT(index >= first_data_page);
+		ASSERT(index - first_data_page < max_data_pages);
 
-	paddr_t TmpFileSystem::find_indirect(PageInfo root, size_t index, size_t depth)
-	{
-		LockGuard _(m_mutex);
+		constexpr size_t page_infos_per_page = PAGE_SIZE / sizeof(PageInfo);
+		const size_t layer0_index = (index - first_data_page) / (page_infos_per_page - 1) / page_infos_per_page;
+		const size_t layer1_index = (index - first_data_page) / (page_infos_per_page - 1) % page_infos_per_page;
+		const size_t layer2_index = (index - first_data_page) % (page_infos_per_page - 1);
+		ASSERT(layer0_index < page_infos_per_page);
 
-		ASSERT(root.flags() & PageInfo::Flags::Present);
-		if (depth == 0)
-		{
-			ASSERT(index == 0);
-			return root.paddr();
-		}
-
-		constexpr size_t addresses_per_page = PAGE_SIZE / sizeof(PageInfo);
-
-		size_t divisor = 1;
-		for (size_t i = 1; i < depth; i++)
-			divisor *= addresses_per_page;
-
-		size_t index_of_page = index / divisor;
-		size_t index_in_page = index % divisor;
-
-		ASSERT(index_of_page < addresses_per_page);
-
-		PageInfo next;
-		PageTable::with_fast_page(root.paddr(), [&] {
-			next = PageTable::fast_page_as_sized<PageInfo>(index_of_page);
+		PageInfo layer0_page;
+		PageTable::with_fast_page(m_data_pages.paddr(), [&] {
+			layer0_page = PageTable::fast_page_as_sized<PageInfo>(layer0_index);
 		});
+		ASSERT(layer0_page.flags() & PageInfo::Flags::Present);
 
-		return find_indirect(next, index_in_page, depth - 1);
+		PageInfo layer1_page;
+		PageTable::with_fast_page(layer0_page.paddr(), [&] {
+			layer1_page = PageTable::fast_page_as_sized<PageInfo>(layer1_index);
+		});
+		ASSERT(layer1_page.flags() & PageInfo::Flags::Present);
+
+		PageInfo layer2_page;
+		PageTable::with_fast_page(layer1_page.paddr(), [&] {
+			layer2_page = PageTable::fast_page_as_sized<PageInfo>(layer2_index);
+		});
+		ASSERT(layer2_page.flags() & PageInfo::Flags::Present);
+
+		return layer2_page.paddr();
 	}
 
-	template<TmpFuncs::for_each_indirect_paddr_allocating_callback F>
-	BAN::ErrorOr<BAN::Iteration> TmpFileSystem::for_each_indirect_paddr_allocating_internal(PageInfo page_info, F callback, size_t depth)
+	BAN::ErrorOr<size_t> TmpFileSystem::allocate_block()
 	{
 		LockGuard _(m_mutex);
 
-		ASSERT(page_info.flags() & PageInfo::Flags::Present);
-		if (depth == 0)
-		{
-			bool is_new_block = page_info.flags() & PageInfo::Flags::Internal;
-			return callback(page_info.paddr(), is_new_block);
-		}
+		if (m_used_pages >= m_max_pages)
+			return BAN::Error::from_errno(ENOSPC);
 
-		for (size_t i = 0; i < PAGE_SIZE / sizeof(PageInfo); i++)
+		const paddr_t new_block = Heap::get().take_free_page();
+		if (new_block == 0)
+			return BAN::Error::from_errno(ENOMEM);
+		PageTable::with_fast_page(new_block, [] {
+			memset(PageTable::fast_page_as_ptr(), 0, PAGE_SIZE);
+		});
+		BAN::ScopeGuard block_deleter([new_block] { Heap::get().release_page(new_block); });
+
+		constexpr size_t page_infos_per_page = PAGE_SIZE / sizeof(PageInfo);
+
+		for (size_t layer0_index = 0; layer0_index < PAGE_SIZE / sizeof(PageInfo); layer0_index++)
 		{
-			PageInfo next_info;
-			PageTable::with_fast_page(page_info.paddr(), [&] {
-				next_info = PageTable::fast_page_as_sized<PageInfo>(i);
+			PageInfo layer0_page;
+			PageTable::with_fast_page(m_data_pages.paddr(), [&] {
+				layer0_page = PageTable::fast_page_as_sized<PageInfo>(layer0_index);
 			});
 
-			if (!(next_info.flags() & PageInfo::Flags::Present))
+			if (!(layer0_page.flags() & PageInfo::Flags::Present))
 			{
-				if (m_used_pages >= m_max_pages)
+				if (m_used_pages + 1 >= m_max_pages)
 					return BAN::Error::from_errno(ENOSPC);
-				paddr_t new_paddr = Heap::get().take_free_page();
-				if (new_paddr == 0)
+				const paddr_t paddr = Heap::get().take_free_page();
+				if (paddr == 0)
 					return BAN::Error::from_errno(ENOMEM);
+				PageTable::with_fast_page(paddr, [&] {
+					memset(PageTable::fast_page_as_ptr(), 0, PAGE_SIZE);
+				});
+				PageTable::with_fast_page(m_data_pages.paddr(), [&] {
+					auto& page_info = PageTable::fast_page_as_sized<PageInfo>(layer0_index);
+					page_info.set_paddr(paddr);
+					page_info.set_flags(PageInfo::Flags::Present);
+					layer0_page = page_info;
+				});
 				m_used_pages++;
-
-				PageTable::with_fast_page(new_paddr, [&] {
-					memset(PageTable::fast_page_as_ptr(), 0x00, PAGE_SIZE);
-				});
-
-				next_info.set_paddr(new_paddr);
-				next_info.set_flags(PageInfo::Flags::Present);
-
-				PageTable::with_fast_page(page_info.paddr(), [&] {
-					auto& to_update_info = PageTable::fast_page_as_sized<PageInfo>(i);
-					to_update_info = next_info;
-				});
-
-				// Don't sync the internal bit to actual memory
-				next_info.set_flags(PageInfo::Flags::Internal | PageInfo::Flags::Present);
 			}
 
-			auto result = TRY(for_each_indirect_paddr_allocating_internal(next_info, callback, depth - 1));
-			switch (result)
+			for (size_t layer1_index = 0; layer1_index < PAGE_SIZE / sizeof(PageInfo); layer1_index++)
 			{
-				case BAN::Iteration::Continue:
-					break;
-				case BAN::Iteration::Break:
-					return BAN::Iteration::Break;
-				default:
+				PageInfo layer1_page;
+				PageTable::with_fast_page(layer0_page.paddr(), [&] {
+					layer1_page = PageTable::fast_page_as_sized<PageInfo>(layer1_index);
+				});
+
+				if (!(layer1_page.flags() & PageInfo::Flags::Present))
+				{
+					if (m_used_pages + 1 >= m_max_pages)
+						return BAN::Error::from_errno(ENOSPC);
+					const paddr_t paddr = Heap::get().take_free_page();
+					if (paddr == 0)
+						return BAN::Error::from_errno(ENOMEM);
+					PageTable::with_fast_page(paddr, [&] {
+						memset(PageTable::fast_page_as_ptr(), 0, PAGE_SIZE);
+					});
+					PageTable::with_fast_page(layer0_page.paddr(), [&] {
+						auto& page_info = PageTable::fast_page_as_sized<PageInfo>(layer1_index);
+						page_info.set_paddr(paddr);
+						page_info.set_flags(PageInfo::Flags::Present);
+						layer1_page = page_info;
+					});
+					m_used_pages++;
+				}
+
+				size_t layer2_index = SIZE_MAX;
+
+				PageTable::with_fast_page(layer1_page.paddr(), [&] {
+					constexpr size_t pages_per_block = page_infos_per_page - 1;
+
+					auto& allocated_pages = PageTable::fast_page_as_sized<size_t>(pages_per_block);
+					if (allocated_pages == pages_per_block)
+						return;
+
+					for (size_t i = 0; i < pages_per_block; i++)
+					{
+						auto& page_info = PageTable::fast_page_as_sized<PageInfo>(i);
+						if (page_info.flags() & PageInfo::Flags::Present)
+							continue;
+						page_info.set_paddr(new_block);
+						page_info.set_flags(PageInfo::Flags::Present);
+						allocated_pages++;
+						layer2_index = i;
+						return;
+					}
+
 					ASSERT_NOT_REACHED();
+				});
+
+				if (layer2_index != SIZE_MAX)
+				{
+					block_deleter.disable();
+
+					m_used_pages++;
+
+					const size_t layer0_offset = layer0_index * (page_infos_per_page - 1) * page_infos_per_page;
+					const size_t layer1_offset = layer1_index * (page_infos_per_page - 1);
+					const size_t layer2_offset = layer2_index;
+					return layer0_offset + layer1_offset + layer2_offset + first_data_page;
+				}
 			}
 		}
 
-		return BAN::Iteration::Continue;
-	}
-
-	template<TmpFuncs::for_each_indirect_paddr_allocating_callback F>
-	BAN::ErrorOr<void> TmpFileSystem::for_each_indirect_paddr_allocating(PageInfo page_info, F callback, size_t depth)
-	{
-		LockGuard _(m_mutex);
-
-		BAN::Iteration result = TRY(for_each_indirect_paddr_allocating_internal(page_info, callback, depth));
-		ASSERT(result == BAN::Iteration::Break);
-		return {};
+		ASSERT_NOT_REACHED();
 	}
 
 }

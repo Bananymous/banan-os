@@ -118,15 +118,7 @@ namespace Kernel
 
 	private:
 		InodeLocation find_inode(ino_t ino);
-
 		paddr_t find_block(size_t index);
-
-		template<TmpFuncs::for_each_indirect_paddr_allocating_callback F>
-		BAN::ErrorOr<void> for_each_indirect_paddr_allocating(PageInfo page_info, F callback, size_t depth);
-		template<TmpFuncs::for_each_indirect_paddr_allocating_callback F>
-		BAN::ErrorOr<BAN::Iteration> for_each_indirect_paddr_allocating_internal(PageInfo page_info, F callback, size_t depth);
-
-		paddr_t find_indirect(PageInfo root, size_t index, size_t depth);
 
 	private:
 		const dev_t m_rdev;
@@ -146,14 +138,14 @@ namespace Kernel
 		static constexpr size_t max_data_pages =
 			(PAGE_SIZE / sizeof(PageInfo)) *
 			(PAGE_SIZE / sizeof(PageInfo)) *
-			(PAGE_SIZE / sizeof(PageInfo));
+			(PAGE_SIZE / sizeof(PageInfo) - 1);
 
 		// We store inodes in pages with double indirection.
 		// With 64-bit pointers we can store 512^2 pages of inodes
 		// which should be enough for now.
 		// In future this should be dynamically calculated based on maximum
 		// number of pages for this file system.
-		PageInfo m_inode_pages;
+		PageInfo m_inode_pages {};
 		static constexpr size_t first_inode = 1;
 		static constexpr size_t max_inodes =
 			(PAGE_SIZE / sizeof(PageInfo)) *
