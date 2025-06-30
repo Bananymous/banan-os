@@ -75,7 +75,12 @@ namespace Kernel::ACPI::AML
 				);
 				return BAN::Error::from_errno(EINVAL);
 			}
-			name.parts[i] = aml_data.as<const uint32_t>();
+
+			name.parts[i] =
+				static_cast<uint32_t>(aml_data[0] <<  0) |
+				static_cast<uint32_t>(aml_data[1] <<  8) |
+				static_cast<uint32_t>(aml_data[2] << 16) |
+				static_cast<uint32_t>(aml_data[3] << 24);
 			aml_data = aml_data.slice(4);
 		}
 
