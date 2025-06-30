@@ -295,7 +295,7 @@ namespace Kernel
 	{
 	}
 
-	BAN::ErrorOr<void> TmpSymlinkInode::set_link_target(BAN::StringView new_target)
+	BAN::ErrorOr<void> TmpSymlinkInode::set_link_target_impl(BAN::StringView new_target)
 	{
 		free_all_blocks();
 		m_inode_info.size = 0;
@@ -506,6 +506,9 @@ namespace Kernel
 		{
 			case Mode::IFREG:
 				new_inode = TRY(TmpFileInode::create_new(m_fs, mode, uid, gid));
+				break;
+			case Mode::IFLNK:
+				new_inode = TRY(TmpSymlinkInode::create_new(m_fs, mode, uid, gid, ""_sv));
 				break;
 			case Mode::IFSOCK:
 				new_inode = TRY(TmpSocketInode::create_new(m_fs, mode, uid, gid));

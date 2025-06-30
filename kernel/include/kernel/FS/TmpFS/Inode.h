@@ -118,10 +118,9 @@ namespace Kernel
 		static BAN::ErrorOr<BAN::RefPtr<TmpSymlinkInode>> create_new(TmpFileSystem&, mode_t, uid_t, gid_t, BAN::StringView target);
 		~TmpSymlinkInode();
 
-		BAN::ErrorOr<void> set_link_target(BAN::StringView);
-
 	protected:
-		virtual BAN::ErrorOr<BAN::String> link_target_impl() override;
+		BAN::ErrorOr<BAN::String> link_target_impl() override;
+		BAN::ErrorOr<void> set_link_target_impl(BAN::StringView) override;
 
 		virtual bool can_read_impl() const override { return false; }
 		virtual bool can_write_impl() const override { return false; }
