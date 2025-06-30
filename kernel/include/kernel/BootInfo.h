@@ -41,6 +41,12 @@ namespace Kernel
 		Type     type;
 	};
 
+	struct BootModule
+	{
+		paddr_t start;
+		size_t size;
+	};
+
 	struct BootInfo
 	{
 		BAN::String     command_line;
@@ -48,6 +54,7 @@ namespace Kernel
 		RSDP            rsdp         {};
 		paddr_t         kernel_paddr {};
 
+		BAN::Vector<BootModule> modules;
 		BAN::Vector<MemoryMapEntry>	memory_map_entries;
 	};
 

@@ -58,9 +58,13 @@ namespace Kernel
 			if (entry.type != MemoryMapEntry::Type::Available)
 				continue;
 
+			// FIXME: only reserve kernel area and modules, not everything from 0 -> kernel end
 			paddr_t start = entry.address;
 			if (start < (vaddr_t)g_kernel_end - KERNEL_OFFSET + g_boot_info.kernel_paddr)
 				start = (vaddr_t)g_kernel_end - KERNEL_OFFSET + g_boot_info.kernel_paddr;
+			for (const auto& module : g_boot_info.modules)
+				if (start < module.start + module.size)
+					start = module.start + module.size;
 			if (auto rem = start % PAGE_SIZE)
 				start += PAGE_SIZE - rem;
 

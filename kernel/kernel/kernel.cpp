@@ -258,6 +258,9 @@ static void init2(void*)
 	VirtualFileSystem::initialize(cmdline.root);
 	dprintln("VFS initialized");
 
+	// FIXME: release memory used by modules. If modules are used
+	//        they are already loaded in here
+
 	TTY::initialize_devices();
 
 	auto console_path = MUST(BAN::String::formatted("/dev/{}", cmdline.console));

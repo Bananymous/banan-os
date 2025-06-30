@@ -26,59 +26,73 @@ namespace Kernel
 
 		for (const auto* tag = multiboot2_info.tags; tag->type != MULTIBOOT2_TAG_END; tag = tag->next())
 		{
-			if (tag->type == MULTIBOOT2_TAG_CMDLINE)
+			switch (tag->type)
 			{
-				const auto& command_line_tag = *static_cast<const multiboot2_cmdline_tag_t*>(tag);
-				MUST(g_boot_info.command_line.append(command_line_tag.cmdline));
-			}
-			else if (tag->type == MULTIBOOT2_TAG_FRAMEBUFFER)
-			{
-				const auto& framebuffer_tag = *static_cast<const multiboot2_framebuffer_tag_t*>(tag);
-				g_boot_info.framebuffer.address	= framebuffer_tag.framebuffer_addr;
-				g_boot_info.framebuffer.pitch	= framebuffer_tag.framebuffer_pitch;
-				g_boot_info.framebuffer.width	= framebuffer_tag.framebuffer_width;
-				g_boot_info.framebuffer.height	= framebuffer_tag.framebuffer_height;
-				g_boot_info.framebuffer.bpp		= framebuffer_tag.framebuffer_bpp;
-				if (framebuffer_tag.framebuffer_type == MULTIBOOT2_FRAMEBUFFER_TYPE_RGB)
-					g_boot_info.framebuffer.type = FramebufferInfo::Type::RGB;
-				else if (framebuffer_tag.framebuffer_type == MULTIBOOT2_FRAMEBUFFER_TYPE_TEXT)
-					g_boot_info.framebuffer.type = FramebufferInfo::Type::Text;
-				else
-					g_boot_info.framebuffer.type = FramebufferInfo::Type::Unknown;
-			}
-			else if (tag->type == MULTIBOOT2_TAG_MMAP)
-			{
-				const auto& mmap_tag = *static_cast<const multiboot2_mmap_tag_t*>(tag);
-
-				const size_t entry_count = (mmap_tag.size - sizeof(multiboot2_mmap_tag_t)) / mmap_tag.entry_size;
-
-				MUST(g_boot_info.memory_map_entries.resize(entry_count));
-
-				for (size_t i = 0; i < entry_count; i++)
+				case MULTIBOOT2_TAG_CMDLINE:
 				{
-					const auto& mmap_entry = *reinterpret_cast<const multiboot2_mmap_entry_t*>(reinterpret_cast<uintptr_t>(tag) + sizeof(multiboot2_mmap_tag_t) + i * mmap_tag.entry_size);
-					dprintln("entry {16H} {16H} {8H}",
-						(uint64_t)mmap_entry.base_addr,
-						(uint64_t)mmap_entry.length,
-						(uint64_t)mmap_entry.type
-					);
-					g_boot_info.memory_map_entries[i].address = mmap_entry.base_addr;
-					g_boot_info.memory_map_entries[i].length  = mmap_entry.length;
-					g_boot_info.memory_map_entries[i].type    = bios_number_to_memory_type(mmap_entry.type);
+					const auto& command_line_tag = *static_cast<const multiboot2_cmdline_tag_t*>(tag);
+					MUST(g_boot_info.command_line.append(command_line_tag.cmdline));
+					break;
 				}
-			}
-			else if (tag->type == MULTIBOOT2_TAG_OLD_RSDP)
-			{
-				if (g_boot_info.rsdp.length == 0)
+				case MULTIBOOT2_TAG_MODULES:
 				{
-					memcpy(&g_boot_info.rsdp, static_cast<const multiboot2_rsdp_tag_t*>(tag)->data, 20);
-					g_boot_info.rsdp.length = 20;
+					const auto& modules_tag = *static_cast<const multiboot2_modules_tag_t*>(tag);
+					MUST(g_boot_info.modules.emplace_back(modules_tag.mod_start, modules_tag.mod_end - modules_tag.mod_start));
+					break;
 				}
-			}
-			else if (tag->type == MULTIBOOT2_TAG_NEW_RSDP)
-			{
-				const auto& rsdp = *reinterpret_cast<const RSDP*>(static_cast<const multiboot2_rsdp_tag_t*>(tag)->data);
-				memcpy(&g_boot_info.rsdp, &rsdp, BAN::Math::min<uint32_t>(rsdp.length, sizeof(g_boot_info.rsdp)));
+				case MULTIBOOT2_TAG_FRAMEBUFFER:
+				{
+					const auto& framebuffer_tag = *static_cast<const multiboot2_framebuffer_tag_t*>(tag);
+					g_boot_info.framebuffer.address	= framebuffer_tag.framebuffer_addr;
+					g_boot_info.framebuffer.pitch	= framebuffer_tag.framebuffer_pitch;
+					g_boot_info.framebuffer.width	= framebuffer_tag.framebuffer_width;
+					g_boot_info.framebuffer.height	= framebuffer_tag.framebuffer_height;
+					g_boot_info.framebuffer.bpp		= framebuffer_tag.framebuffer_bpp;
+					if (framebuffer_tag.framebuffer_type == MULTIBOOT2_FRAMEBUFFER_TYPE_RGB)
+						g_boot_info.framebuffer.type = FramebufferInfo::Type::RGB;
+					else if (framebuffer_tag.framebuffer_type == MULTIBOOT2_FRAMEBUFFER_TYPE_TEXT)
+						g_boot_info.framebuffer.type = FramebufferInfo::Type::Text;
+					else
+						g_boot_info.framebuffer.type = FramebufferInfo::Type::Unknown;
+					break;
+				}
+				case MULTIBOOT2_TAG_MMAP:
+				{
+					const auto& mmap_tag = *static_cast<const multiboot2_mmap_tag_t*>(tag);
+
+					const size_t entry_count = (mmap_tag.size - sizeof(multiboot2_mmap_tag_t)) / mmap_tag.entry_size;
+
+					MUST(g_boot_info.memory_map_entries.resize(entry_count));
+
+					for (size_t i = 0; i < entry_count; i++)
+					{
+						const auto& mmap_entry = *reinterpret_cast<const multiboot2_mmap_entry_t*>(reinterpret_cast<uintptr_t>(tag) + sizeof(multiboot2_mmap_tag_t) + i * mmap_tag.entry_size);
+						dprintln("entry {16H} {16H} {8H}",
+							(uint64_t)mmap_entry.base_addr,
+							(uint64_t)mmap_entry.length,
+							(uint64_t)mmap_entry.type
+						);
+						g_boot_info.memory_map_entries[i].address = mmap_entry.base_addr;
+						g_boot_info.memory_map_entries[i].length  = mmap_entry.length;
+						g_boot_info.memory_map_entries[i].type    = bios_number_to_memory_type(mmap_entry.type);
+					}
+					break;
+				}
+				case MULTIBOOT2_TAG_OLD_RSDP:
+				{
+					if (g_boot_info.rsdp.length == 0)
+					{
+						memcpy(&g_boot_info.rsdp, static_cast<const multiboot2_rsdp_tag_t*>(tag)->data, 20);
+						g_boot_info.rsdp.length = 20;
+					}
+					break;
+				}
+				case MULTIBOOT2_TAG_NEW_RSDP:
+				{
+					const auto& rsdp = *reinterpret_cast<const RSDP*>(static_cast<const multiboot2_rsdp_tag_t*>(tag)->data);
+					memcpy(&g_boot_info.rsdp, &rsdp, BAN::Math::min<uint32_t>(rsdp.length, sizeof(g_boot_info.rsdp)));
+					break;
+				}
 			}
 		}
 

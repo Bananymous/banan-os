@@ -36,6 +36,12 @@ multiboot2_start:
 	.long 12
 	.long V2P(_start)
 
+	# page align modules
+	.align 8
+	.short 6
+	.short 0
+	.long 8
+
 	.align 8
 	.short 0
 	.short 0
