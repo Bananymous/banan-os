@@ -94,8 +94,8 @@ namespace Kernel
 
 	BAN::ErrorOr<void> TmpInode::chmod_impl(mode_t new_mode)
 	{
-		ASSERT(!(new_mode & Mode::TYPE_MASK));
-		m_inode_info.mode &= ~Mode::TYPE_MASK;
+		ASSERT(!(new_mode & Inode::Mode::TYPE_MASK));
+		m_inode_info.mode &= Inode::Mode::TYPE_MASK;
 		m_inode_info.mode |= new_mode;
 		return {};
 	}
