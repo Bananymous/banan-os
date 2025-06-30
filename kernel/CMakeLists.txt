@@ -31,6 +31,7 @@ set(KERNEL_SOURCES
 	kernel/FS/ProcFS/Inode.cpp
 	kernel/FS/TmpFS/FileSystem.cpp
 	kernel/FS/TmpFS/Inode.cpp
+	kernel/FS/USTARModule.cpp
 	kernel/FS/VirtualFileSystem.cpp
 	kernel/GDT.cpp
 	kernel/IDT.cpp

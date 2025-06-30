@@ -3,6 +3,7 @@
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/FS/ProcFS/FileSystem.h>
 #include <kernel/FS/TmpFS/FileSystem.h>
+#include <kernel/FS/USTARModule.h>
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/Lock/LockGuard.h>
 #include <kernel/Storage/Partition.h>
@@ -51,7 +52,31 @@ namespace Kernel
 		return BAN::RefPtr<BlockDevice>(static_cast<BlockDevice*>(device_inode.ptr()));
 	}
 
-	static BAN::RefPtr<BlockDevice> find_root_device(BAN::StringView root_path)
+	static BAN::RefPtr<FileSystem> load_fallback_root_filesystem()
+	{
+		if (g_boot_info.modules.empty())
+			panic("No fallback boot modules given");
+
+		auto filesystem_or_error = TmpFileSystem::create(-1, 0755, 0, 0);
+		if (filesystem_or_error.is_error())
+			panic("Failed to create fallback filesystem: {}", filesystem_or_error.error());
+
+		dwarnln("Attempting to load fallback filesystem from {} modules", g_boot_info.modules.size());
+
+		auto filesystem = BAN::RefPtr<FileSystem>::adopt(filesystem_or_error.release_value());
+
+		for (const auto& module : g_boot_info.modules)
+		{
+			if (!is_ustar_boot_module(module))
+				continue;
+			if (auto ret = unpack_boot_module_into_filesystem(filesystem, module); ret.is_error())
+				dwarnln("Failed to unpack boot module: {}", ret.error());
+		}
+
+		return filesystem;
+	}
+
+	static BAN::RefPtr<FileSystem> load_root_filesystem(BAN::StringView root_path)
 	{
 		enum class RootType
 		{
@@ -66,19 +91,26 @@ namespace Kernel
 		{
 			entry = root_path.substring(9);
 			if (entry.size() != 36)
-				panic("Invalid UUID '{}'", entry);
+			{
+				derrorln("Invalid UUID '{}'", entry);
+				return load_fallback_root_filesystem();
+			}
 			type = RootType::PartitionUUID;
 		}
 		else if (root_path.starts_with("/dev/"_sv))
 		{
 			entry = root_path.substring(5);
 			if (entry.empty() || entry.contains('/'))
-				panic("Invalid root path '{}'", root_path);
+			{
+				derrorln("Invalid root path '{}'", root_path);
+				return load_fallback_root_filesystem();
+			}
 			type = RootType::BlockDeviceName;
 		}
 		else
 		{
-			panic("Unsupported root path format '{}'", root_path);
+			derrorln("Unsupported root path format '{}'", root_path);
+			return load_fallback_root_filesystem();
 		}
 
 		constexpr size_t timeout_ms = 10'000;
@@ -99,15 +131,30 @@ namespace Kernel
 			}
 
 			if (!ret.is_error())
-				return ret.release_value();
+			{
+				auto filesystem_or_error = FileSystem::from_block_device(ret.release_value());
+				if (filesystem_or_error.is_error())
+				{
+					derrorln("Could not create filesystem from '{}': {}", root_path, filesystem_or_error.error());
+					return load_fallback_root_filesystem();
+				}
+				return filesystem_or_error.release_value();;
+			}
 
 			if (ret.error().get_error_code() != ENOENT)
-				panic("could not open root device '{}': {}", root_path, ret.error());
+			{
+				derrorln("Could not open root device '{}': {}", root_path, ret.error());
+				return load_fallback_root_filesystem();
+			}
+
+			if (i == 4)
+				dwarnln("Could not find specified root device, waiting for it to get loaded...");
 
 			SystemTimer::get().sleep_ms(sleep_ms);
 		}
 
-		panic("could not find root device '{}' after {} ms", root_path, timeout_ms);
+		derrorln("Could not find root device '{}' after {} ms", root_path, timeout_ms);
+		return load_fallback_root_filesystem();
 	}
 
 	void VirtualFileSystem::initialize(BAN::StringView root_path)
@@ -115,13 +162,9 @@ namespace Kernel
 		ASSERT(!s_instance);
 		s_instance = MUST(BAN::RefPtr<VirtualFileSystem>::create());
 
-		auto root_device = find_root_device(root_path);
-		ASSERT(root_device);
-
-		auto filesystem_result = FileSystem::from_block_device(root_device);
-		if (filesystem_result.is_error())
-			panic("Could not create filesystem from '{}': {}", root_path, filesystem_result.error());
-		s_instance->m_root_fs = filesystem_result.release_value();
+		s_instance->m_root_fs = load_root_filesystem(root_path);
+		if (!s_instance->m_root_fs)
+			panic("Could not load root filesystem");
 
 		Credentials root_creds { 0, 0, 0, 0 };
 		MUST(s_instance->mount(root_creds, &DevFileSystem::get(), "/dev"_sv));
