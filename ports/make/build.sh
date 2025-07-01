@@ -8,4 +8,5 @@ CONFIGURE_OPTIONS=(
 	'--disable-nls'
 	'--disable-posix-spawn'
 	'--enable-year2038'
+	'CFLAGS=-std=c17'
 )
