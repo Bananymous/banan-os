@@ -285,6 +285,9 @@ namespace Kernel
 		// auxv
 		needed_size += auxv.size() * sizeof(LibELF::AuxiliaryVector);
 
+		if (auto rem = needed_size % alignof(char*))
+			needed_size += alignof(char*) - rem;
+
 		if (needed_size > m_userspace_stack->size())
 			return BAN::Error::from_errno(ENOBUFS);
 
@@ -357,8 +360,6 @@ namespace Kernel
 			stack_copy_buf(BAN::ConstByteSpan::from(vaddr), envp_vaddr + i * sizeof(uintptr_t));
 			stack_push_str(envp[i]);
 		}
-
-		ASSERT(vaddr == userspace_stack_top());
 
 		setup_exec(entry, userspace_stack_top() - needed_size);
 
