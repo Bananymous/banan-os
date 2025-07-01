@@ -1,6 +1,7 @@
 #include <kernel/Lock/LockGuard.h>
 #include <kernel/Networking/NetworkManager.h>
 #include <kernel/Networking/TCPSocket.h>
+#include <kernel/Process.h>
 #include <kernel/Random.h>
 #include <kernel/Timer/Timer.h>
 
@@ -42,12 +43,13 @@ namespace Kernel
 			PageTable::Flags::ReadWrite | PageTable::Flags::Present,
 			true
 		));
-		socket->m_process = Process::create_kernel(
+		socket->m_thread = TRY(Thread::create_kernel(
 			[](void* socket_ptr)
 			{
 				reinterpret_cast<TCPSocket*>(socket_ptr)->process_task();
 			}, socket.ptr()
-		);
+		));
+		TRY(Processor::scheduler().add_thread(socket->m_thread));
 		// hack to keep socket alive until its process starts
 		socket->ref();
 		return socket;
@@ -63,7 +65,7 @@ namespace Kernel
 	TCPSocket::~TCPSocket()
 	{
 		ASSERT(!is_bound());
-		ASSERT(m_process == nullptr);
+		ASSERT(m_thread == nullptr);
 		dprintln_if(DEBUG_TCP, "Socket destroyed");
 	}
 
@@ -620,7 +622,7 @@ namespace Kernel
 			dprintln_if(DEBUG_TCP, "Socket unbound");
 		}
 
-		m_process = nullptr;
+		m_thread = nullptr;
 	}
 
 	void TCPSocket::remove_listen_child(BAN::RefPtr<TCPSocket> socket)
@@ -652,7 +654,7 @@ namespace Kernel
 
 		LockGuard _(m_mutex);
 
-		while (m_process)
+		while (m_thread)
 		{
 			const uint64_t current_ms = SystemTimer::get().ms_since_boot();
 

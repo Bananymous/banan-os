@@ -199,7 +199,8 @@ extern "C" void kernel_main(uint32_t boot_magic, uint32_t boot_info)
 	Processor::wait_until_processors_ready();
 	MUST(Processor::scheduler().initialize());
 
-	Process::create_kernel(init2, nullptr);
+	auto* init_thread = MUST(Thread::create_kernel(init2, nullptr));
+	MUST(Processor::scheduler().add_thread(init_thread));
 	Processor::yield();
 
 	ASSERT_NOT_REACHED();

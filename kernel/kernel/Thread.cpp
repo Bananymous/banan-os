@@ -69,10 +69,10 @@ namespace Kernel
 		s_default_sse_storage_initialized = true;
 	}
 
-	BAN::ErrorOr<Thread*> Thread::create_kernel(entry_t entry, void* data, Process* process)
+	BAN::ErrorOr<Thread*> Thread::create_kernel(entry_t entry, void* data)
 	{
 		// Create the thread object
-		Thread* thread = new Thread(s_next_tid++, process);
+		Thread* thread = new Thread(s_next_tid++, nullptr);
 		if (thread == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
 		BAN::ScopeGuard thread_deleter([thread] { delete thread; });

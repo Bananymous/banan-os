@@ -119,7 +119,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Scheduler::initialize()
 	{
-		m_idle_thread = TRY(Thread::create_kernel([](void*) { asm volatile("1: hlt; jmp 1b"); }, nullptr, nullptr));
+		m_idle_thread = TRY(Thread::create_kernel([](void*) { asm volatile("1: hlt; jmp 1b"); }, nullptr));
 		ASSERT(m_idle_thread);
 
 		size_t processor_index = 0;

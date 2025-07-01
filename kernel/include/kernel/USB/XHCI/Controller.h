@@ -73,7 +73,7 @@ namespace Kernel
 
 		Mutex m_mutex;
 
-		BAN::Atomic<Process*> m_port_updater { nullptr };
+		BAN::Atomic<Thread*> m_port_updater { nullptr };
 		ThreadBlocker m_port_thread_blocker;
 		BAN::Atomic<bool> m_port_changed { false };
 

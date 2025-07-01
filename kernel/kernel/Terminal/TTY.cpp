@@ -161,7 +161,7 @@ namespace Kernel
 		static bool initialized = false;
 		ASSERT(!initialized);
 
-		auto* thread = MUST(Thread::create_kernel(&TTY::keyboard_task, nullptr, nullptr));
+		auto* thread = MUST(Thread::create_kernel(&TTY::keyboard_task, nullptr));
 		MUST(Processor::scheduler().add_thread(thread));
 
 		DevFileSystem::get().add_inode("tty", MUST(DevTTY::create(0666, 0, 0)));

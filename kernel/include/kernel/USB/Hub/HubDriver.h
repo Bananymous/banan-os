@@ -34,7 +34,7 @@ namespace Kernel
 
 		BAN::Atomic<uint32_t> m_changed_ports { 0 };
 		ThreadBlocker m_changed_port_blocker;
-		BAN::Atomic<Process*> m_port_updater { nullptr };
+		BAN::Atomic<Thread*> m_port_updater { nullptr };
 
 		struct PortInfo
 		{

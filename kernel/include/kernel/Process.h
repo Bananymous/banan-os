@@ -39,8 +39,6 @@ namespace Kernel
 		using entry_t = Thread::entry_t;
 
 	public:
-		static Process* create_kernel();
-		static Process* create_kernel(entry_t, void*);
 		static BAN::ErrorOr<Process*> create_userspace(const Credentials&, BAN::StringView path, BAN::Span<BAN::StringView> arguments);
 		~Process();
 		void cleanup_function(Thread*);
@@ -217,8 +215,6 @@ namespace Kernel
 		size_t proc_cmdline(off_t offset, BAN::ByteSpan) const;
 		size_t proc_environ(off_t offset, BAN::ByteSpan) const;
 
-		bool is_userspace() const { return m_is_userspace; }
-
 		// Returns error if page could not be allocated
 		// Returns true if the page was allocated successfully
 		// Return false if access was page violation (segfault)
@@ -330,8 +326,6 @@ namespace Kernel
 
 		BAN::Vector<BAN::String> m_cmdline;
 		BAN::Vector<BAN::String> m_environ;
-
-		bool m_is_userspace { false };
 
 		BAN::Vector<ChildExitStatus> m_child_exit_statuses;
 		ThreadBlocker m_child_exit_blocker;

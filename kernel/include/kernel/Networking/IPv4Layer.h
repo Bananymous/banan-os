@@ -11,7 +11,7 @@
 #include <kernel/Networking/NetworkInterface.h>
 #include <kernel/Networking/NetworkLayer.h>
 #include <kernel/Networking/NetworkSocket.h>
-#include <kernel/Process.h>
+#include <kernel/Thread.h>
 
 namespace Kernel
 {
@@ -72,7 +72,7 @@ namespace Kernel
 		RecursiveSpinLock		m_bound_socket_lock;
 
 		BAN::UniqPtr<ARPTable>	m_arp_table;
-		Process*				m_process { nullptr };
+		Thread*					m_thread { nullptr };
 
 		static constexpr size_t pending_packet_buffer_size = 128 * PAGE_SIZE;
 		BAN::UniqPtr<VirtualRange>					m_pending_packet_buffer;

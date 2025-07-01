@@ -36,7 +36,7 @@ namespace Kernel
 		static constexpr size_t userspace_stack_size { PAGE_SIZE * 128 };
 
 	public:
-		static BAN::ErrorOr<Thread*> create_kernel(entry_t, void*, Process*);
+		static BAN::ErrorOr<Thread*> create_kernel(entry_t, void*);
 		static BAN::ErrorOr<Thread*> create_userspace(Process*, PageTable&);
 		~Thread();
 

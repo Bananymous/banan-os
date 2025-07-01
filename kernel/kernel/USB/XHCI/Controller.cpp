@@ -135,9 +135,8 @@ namespace Kernel
 		while (operational.usbsts & XHCI::USBSTS::HCHalted)
 			continue;
 
-		m_port_updater = Process::create_kernel([](void* data) { reinterpret_cast<XHCIController*>(data)->port_updater_task(); }, this);
-		if (m_port_updater == nullptr)
-			return BAN::Error::from_errno(ENOMEM);
+		m_port_updater = TRY(Thread::create_kernel([](void* data) { reinterpret_cast<XHCIController*>(data)->port_updater_task(); }, this));
+		TRY(Processor::scheduler().add_thread(m_port_updater));
 
 		return {};
 	}

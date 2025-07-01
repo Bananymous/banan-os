@@ -347,7 +347,7 @@ namespace Kernel::Input
 		auto* init_thread = TRY(Thread::create_kernel(
 			[](void* info) {
 				static_cast<PS2DeviceInitInfo*>(info)->controller->device_initialize_task(info);
-			}, &info, nullptr
+			}, &info
 		));
 		TRY(Processor::scheduler().add_thread(init_thread));
 

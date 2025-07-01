@@ -3,6 +3,7 @@
 #include <kernel/Lock/SpinLockAsMutex.h>
 #include <kernel/Networking/NetworkManager.h>
 #include <kernel/Networking/UNIX/Socket.h>
+#include <kernel/Process.h>
 #include <kernel/Scheduler.h>
 
 #include <fcntl.h>

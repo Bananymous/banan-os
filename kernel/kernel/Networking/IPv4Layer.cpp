@@ -21,14 +21,14 @@ namespace Kernel
 	BAN::ErrorOr<BAN::UniqPtr<IPv4Layer>> IPv4Layer::create()
 	{
 		auto ipv4_manager = TRY(BAN::UniqPtr<IPv4Layer>::create());
-		ipv4_manager->m_process = Process::create_kernel(
+		ipv4_manager->m_thread = TRY(Thread::create_kernel(
 			[](void* ipv4_manager_ptr)
 			{
 				auto& ipv4_manager = *reinterpret_cast<IPv4Layer*>(ipv4_manager_ptr);
 				ipv4_manager.packet_handle_task();
 			}, ipv4_manager.ptr()
-		);
-		ASSERT(ipv4_manager->m_process);
+		));
+		TRY(Processor::scheduler().add_thread(ipv4_manager->m_thread));
 		ipv4_manager->m_pending_packet_buffer = TRY(VirtualRange::create_to_vaddr_range(
 			PageTable::kernel(),
 			KERNEL_OFFSET,
@@ -46,9 +46,9 @@ namespace Kernel
 
 	IPv4Layer::~IPv4Layer()
 	{
-		if (m_process)
-			m_process->exit(0, SIGKILL);
-		m_process = nullptr;
+		if (m_thread)
+			m_thread->add_signal(SIGKILL);
+		m_thread = nullptr;
 	}
 
 	void IPv4Layer::add_ipv4_header(BAN::ByteSpan packet, BAN::IPv4Address src_ipv4, BAN::IPv4Address dst_ipv4, uint8_t protocol) const

@@ -45,7 +45,7 @@ namespace Kernel
 
 	void DevFileSystem::initialize_device_updater()
 	{
-		Process::create_kernel(
+		auto* updater_thread = MUST(Thread::create_kernel(
 			[](void* _devfs)
 			{
 				auto* devfs = static_cast<DevFileSystem*>(_devfs);
@@ -59,44 +59,39 @@ namespace Kernel
 					SystemTimer::get().sleep_ms(10);
 				}
 			}, s_instance
-		);
+		));
+		MUST(Processor::scheduler().add_thread(updater_thread));
 
-		auto* sync_process = Process::create_kernel();
-
-		sync_process->add_thread(MUST(Thread::create_kernel(
+		auto* disk_sync_thread = MUST(Thread::create_kernel(
 			[](void* _devfs)
 			{
 				auto* devfs = static_cast<DevFileSystem*>(_devfs);
+
+				constexpr uint64_t sync_interval_ms = 10'000;
+				uint64_t next_sync_ms { sync_interval_ms };
 				while (true)
 				{
 					LockGuard _(devfs->m_device_lock);
 					while (!devfs->m_should_sync)
-						devfs->m_sync_thread_blocker.block_indefinite(&devfs->m_device_lock);
+					{
+						const uint64_t current_ms = SystemTimer::get().ms_since_boot();
+						if (devfs->m_should_sync || current_ms >= next_sync_ms)
+							break;
+						devfs->m_sync_thread_blocker.block_with_timeout_ms(next_sync_ms - current_ms, &devfs->m_device_lock);
+					}
 
 					for (auto& device : devfs->m_devices)
 						if (device->is_storage_device())
 							if (auto ret = static_cast<StorageDevice*>(device.ptr())->sync_disk_cache(); ret.is_error())
 								dwarnln("disk sync: {}", ret.error());
 
+					next_sync_ms = SystemTimer::get().ms_since_boot() + sync_interval_ms;
 					devfs->m_should_sync = false;
 					devfs->m_sync_done.unblock();
 				}
-			}, s_instance, sync_process
-		)));
-
-		sync_process->add_thread(MUST(Kernel::Thread::create_kernel(
-			[](void* _devfs)
-			{
-				auto* devfs = static_cast<DevFileSystem*>(_devfs);
-				while (true)
-				{
-					SystemTimer::get().sleep_ms(10'000);
-					devfs->initiate_sync(false);
-				}
-			}, s_instance, sync_process
-		)));
-
-		sync_process->register_to_scheduler();
+			}, s_instance
+		));
+		MUST(Processor::scheduler().add_thread(disk_sync_thread));
 	}
 
 	void DevFileSystem::initiate_sync(bool should_block)

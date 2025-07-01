@@ -6,7 +6,7 @@
 #include <kernel/Memory/VirtualRange.h>
 #include <kernel/Networking/NetworkInterface.h>
 #include <kernel/Networking/NetworkSocket.h>
-#include <kernel/Process.h>
+#include <kernel/Thread.h>
 #include <kernel/ThreadBlocker.h>
 
 namespace Kernel
@@ -162,7 +162,7 @@ namespace Kernel
 		State m_next_state		{ State::Closed };
 		uint8_t m_next_flags	{ 0 };
 
-		Process* m_process { nullptr };
+		Thread* m_thread { nullptr };
 
 		uint64_t m_time_wait_start_ms { 0 };
 

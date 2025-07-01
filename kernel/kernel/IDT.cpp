@@ -247,7 +247,7 @@ namespace Kernel
 			);
 		}
 
-		if (Thread::current().has_process() && Process::current().is_userspace())
+		if (Thread::current().has_process())
 			process_name = Process::current().name();
 
 #if ARCH(x86_64)

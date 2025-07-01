@@ -3,6 +3,7 @@
 #include <kernel/Lock/LockGuard.h>
 #include <kernel/Networking/NetworkManager.h>
 #include <kernel/OpenFileDescriptorSet.h>
+#include <kernel/Process.h>
 
 #include <fcntl.h>
 #include <sys/file.h>

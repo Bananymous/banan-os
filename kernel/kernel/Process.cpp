@@ -97,21 +97,6 @@ namespace Kernel
 			MUST(Processor::scheduler().add_thread(thread));
 	}
 
-	Process* Process::create_kernel()
-	{
-		auto* process = create_process({ 0, 0, 0, 0 }, 0);
-		return process;
-	}
-
-	Process* Process::create_kernel(entry_t entry, void* data)
-	{
-		auto* process = create_process({ 0, 0, 0, 0 }, 0);
-		auto* thread = MUST(Thread::create_kernel(entry, data, process));
-		process->add_thread(thread);
-		process->register_to_scheduler();
-		return process;
-	}
-
 	BAN::ErrorOr<Process*> Process::create_userspace(const Credentials& credentials, BAN::StringView path, BAN::Span<BAN::StringView> arguments)
 	{
 		auto* process = create_process(credentials, 0);
@@ -609,7 +594,6 @@ namespace Kernel
 		forked->m_page_table = BAN::move(page_table);
 		forked->m_open_file_descriptors = BAN::move(*open_file_descriptors);
 		forked->m_mapped_regions = BAN::move(mapped_regions);
-		forked->m_is_userspace = m_is_userspace;
 		forked->m_has_called_exec = false;
 		memcpy(forked->m_signal_handlers, m_signal_handlers, sizeof(m_signal_handlers));
 

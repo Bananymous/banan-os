@@ -4,7 +4,7 @@
 #include <BAN/HashMap.h>
 #include <BAN/UniqPtr.h>
 #include <kernel/Networking/NetworkInterface.h>
-#include <kernel/Process.h>
+#include <kernel/Thread.h>
 #include <kernel/ThreadBlocker.h>
 
 namespace Kernel
@@ -56,9 +56,9 @@ namespace Kernel
 
 		BAN::HashMap<BAN::IPv4Address, BAN::MACAddress> m_arp_table;
 
-		Process*									m_process = nullptr;
+		Thread*										m_thread { nullptr };
 		BAN::CircularQueue<PendingArpPacket, 128>	m_pending_packets;
-		ThreadBlocker									m_pending_thread_blocker;
+		ThreadBlocker								m_pending_thread_blocker;
 
 		friend class BAN::UniqPtr<ARPTable>;
 	};

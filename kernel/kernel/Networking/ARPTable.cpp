@@ -18,14 +18,14 @@ namespace Kernel
 	BAN::ErrorOr<BAN::UniqPtr<ARPTable>> ARPTable::create()
 	{
 		auto arp_table = TRY(BAN::UniqPtr<ARPTable>::create());
-		arp_table->m_process = Process::create_kernel(
+		arp_table->m_thread = TRY(Thread::create_kernel(
 			[](void* arp_table_ptr)
 			{
 				auto& arp_table = *reinterpret_cast<ARPTable*>(arp_table_ptr);
 				arp_table.packet_handle_task();
 			}, arp_table.ptr()
-		);
-		ASSERT(arp_table->m_process);
+		));
+		TRY(Processor::scheduler().add_thread(arp_table->m_thread));
 		return arp_table;
 	}
 
@@ -35,9 +35,9 @@ namespace Kernel
 
 	ARPTable::~ARPTable()
 	{
-		if (m_process)
-			m_process->exit(0, SIGKILL);
-		m_process = nullptr;
+		if (m_thread)
+			m_thread->add_signal(SIGKILL);
+		m_thread = nullptr;
 	}
 
 	BAN::ErrorOr<BAN::MACAddress> ARPTable::get_mac_from_ipv4(NetworkInterface& interface, BAN::IPv4Address ipv4_address)

@@ -885,7 +885,10 @@ acpi_release_global_lock:
 			set_irq(irq);
 			InterruptController::get().enable_irq(irq);
 
-			Process::create_kernel([](void*) { get().acpi_event_task(); }, nullptr);
+			if (auto thread_or_error = Thread::create_kernel([](void*) { get().acpi_event_task(); }, nullptr); thread_or_error.is_error())
+				dwarnln("Failed to create ACPI thread, power button will not work: {}", thread_or_error.error());
+			else if (auto ret = Processor::scheduler().add_thread(thread_or_error.value()); ret.is_error())
+				dwarnln("Failed to create ACPI thread, power button will not work: {}", ret.error());
 		}
 
 		dprintln("Initialized ACPI interrupts");
