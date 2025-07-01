@@ -4,6 +4,7 @@
 #include <kernel/Lock/Mutex.h>
 #include <kernel/Process.h>
 #include <kernel/Scheduler.h>
+#include <kernel/SchedulerQueueNode.h>
 #include <kernel/Thread.h>
 #include <kernel/Timer/Timer.h>
 
@@ -307,8 +308,11 @@ namespace Kernel
 			while (!m_block_queue.empty() && current_ns >= m_block_queue.front()->wake_time_ns)
 			{
 				auto* node = m_block_queue.pop_front();
-				if (node->blocker)
-					node->blocker->remove_blocked_thread(node);
+				{
+					SpinLockGuard _(node->blocker_lock);
+					if (node->blocker)
+						node->blocker->remove_blocked_thread(node);
+				}
 				node->blocked = false;
 				update_most_loaded_node_queue(node, &m_run_queue);
 				m_run_queue.add_thread_to_back(node);
@@ -336,8 +340,11 @@ namespace Kernel
 				return;
 			if (node != m_current)
 				m_block_queue.remove_node(node);
-			if (node->blocker)
-				node->blocker->remove_blocked_thread(node);
+			{
+				SpinLockGuard _(node->blocker_lock);
+				if (node->blocker)
+					node->blocker->remove_blocked_thread(node);
+			}
 			node->blocked = false;
 			if (node != m_current)
 				m_run_queue.add_thread_to_back(node);
@@ -618,8 +625,13 @@ namespace Kernel
 
 		m_current->blocked = true;
 		m_current->wake_time_ns = wake_time_ns;
-		if (blocker)
-			blocker->add_thread_to_block_queue(m_current);
+
+		{
+			SpinLockGuard _(m_current->blocker_lock);
+			if (blocker)
+				blocker->add_thread_to_block_queue(m_current);
+		}
+
 		update_most_loaded_node_queue(m_current, &m_block_queue);
 
 		uint32_t lock_depth = 0;
@@ -642,10 +654,7 @@ namespace Kernel
 
 	void Scheduler::unblock_thread(Thread* thread)
 	{
-		auto state = Processor::get_interrupt_state();
-		Processor::set_interrupt_state(InterruptState::Disabled);
 		unblock_thread(thread->m_scheduler_node);
-		Processor::set_interrupt_state(state);
 	}
 
 	Thread& Scheduler::current_thread()

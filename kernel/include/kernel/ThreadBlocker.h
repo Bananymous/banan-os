@@ -33,7 +33,9 @@ namespace Kernel
 
 	private:
 		SpinLock m_lock;
-		SchedulerQueue::Node* m_block_chain { nullptr };
+
+		SchedulerQueue::Node* m_block_chain[32] {};
+		size_t m_block_chain_length { 0 };
 
 		friend class Scheduler;
 	};
