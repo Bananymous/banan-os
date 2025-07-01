@@ -79,9 +79,7 @@ namespace Kernel
 		for (auto& pixel : m_cursor_data)
 			pixel = color.rgb;
 
-		for (uint32_t y = 0; y < m_framebuffer_device->height(); y++)
-			for (uint32_t x = 0; x < m_framebuffer_device->width(); x++)
-				m_framebuffer_device->set_pixel(x, y, color.rgb);
+		m_framebuffer_device->fill(color.rgb);
 		m_framebuffer_device->sync_pixels_full();
 
 		if (m_cursor_shown)

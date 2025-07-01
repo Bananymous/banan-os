@@ -140,6 +140,14 @@ namespace Kernel
 		reinterpret_cast<uint32_t*>(m_video_buffer->vaddr())[y * m_width + x] = rgb;
 	}
 
+	void FramebufferDevice::fill(uint32_t rgb)
+	{
+		static_assert(BANAN_FB_BPP == 32);
+		auto* video_buffer_u32 = reinterpret_cast<uint32_t*>(m_video_buffer->vaddr());
+		for (uint32_t i = 0; i < m_width * m_height; i++)
+			video_buffer_u32[i] = rgb;
+	}
+
 	void FramebufferDevice::scroll(int32_t rows, uint32_t rgb)
 	{
 		if (rows == 0)

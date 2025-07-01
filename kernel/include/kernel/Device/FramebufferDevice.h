@@ -17,6 +17,7 @@ namespace Kernel
 
 		uint32_t get_pixel(uint32_t x, uint32_t y) const;
 		void set_pixel(uint32_t x, uint32_t y, uint32_t rgb);
+		void fill(uint32_t rgb);
 
 		// positive rows -> empty pixels on bottom
 		// negative rows -> empty pixels on top
