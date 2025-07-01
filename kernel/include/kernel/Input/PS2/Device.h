@@ -22,6 +22,7 @@ namespace Kernel::Input
 
 	protected:
 		PS2Device(PS2Controller&, InputDevice::Type type);
+		virtual ~PS2Device();
 
 	protected:
 		PS2Controller& m_controller;

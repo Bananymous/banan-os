@@ -27,7 +27,9 @@ namespace Kernel::Input
 	private:
 		PS2Controller() = default;
 		BAN::ErrorOr<void> initialize_impl(uint8_t scancode_set);
-		BAN::ErrorOr<void> initialize_device(uint8_t, uint8_t scancode_set);
+		BAN::ErrorOr<void> identify_device(uint8_t, uint8_t scancode_set);
+
+		void device_initialize_task(void*);
 
 		BAN::ErrorOr<uint8_t> read_byte();
 		BAN::ErrorOr<void> send_byte(uint16_t port, uint8_t byte);

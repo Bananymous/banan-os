@@ -12,7 +12,7 @@
 namespace Kernel::Input
 {
 
-	static constexpr uint64_t s_ps2_timeout_ms = 100;
+	static constexpr uint64_t s_ps2_timeout_ms = 300;
 
 	static PS2Controller* s_instance = nullptr;
 
@@ -238,6 +238,15 @@ namespace Kernel::Input
 		return *s_instance;
 	}
 
+	struct PS2DeviceInitInfo
+	{
+		PS2Controller* controller;
+		bool valid_ports[2];
+		uint8_t scancode_set;
+		uint8_t config;
+		BAN::Atomic<bool> thread_started;
+	};
+
 	BAN::ErrorOr<void> PS2Controller::initialize_impl(uint8_t scancode_set)
 	{
 		constexpr size_t iapc_flag_off = offsetof(ACPI::FADT, iapc_boot_arch);
@@ -315,6 +324,54 @@ namespace Kernel::Input
 		if (!valid_ports[0] && !valid_ports[1])
 			return {};
 
+		// Reserve IRQs
+		if (valid_ports[0] && InterruptController::get().reserve_irq(PS2::IRQ::DEVICE0).is_error())
+		{
+			dwarnln("Could not reserve irq for PS/2 port 1");
+			valid_ports[0] = false;
+		}
+		if (valid_ports[1] && InterruptController::get().reserve_irq(PS2::IRQ::DEVICE1).is_error())
+		{
+			dwarnln("Could not reserve irq for PS/2 port 2");
+			valid_ports[1] = false;
+		}
+
+		PS2DeviceInitInfo info {
+			.controller = this,
+			.valid_ports = { valid_ports[0], valid_ports[1] },
+			.scancode_set = scancode_set,
+			.config = config,
+			.thread_started { false },
+		};
+
+		auto* init_thread = TRY(Thread::create_kernel(
+			[](void* info) {
+				static_cast<PS2DeviceInitInfo*>(info)->controller->device_initialize_task(info);
+			}, &info, nullptr
+		));
+		TRY(Processor::scheduler().add_thread(init_thread));
+
+		while (!info.thread_started)
+			Processor::pause();
+
+		return {};
+	}
+
+	void PS2Controller::device_initialize_task(void* _info)
+	{
+		bool valid_ports[2];
+		uint8_t scancode_set;
+		uint8_t config;
+
+		{
+			auto& info = *static_cast<PS2DeviceInitInfo*>(_info);
+			valid_ports[0] = info.valid_ports[0];
+			valid_ports[1] = info.valid_ports[1];
+			scancode_set = info.scancode_set;
+			config = info.config;
+			info.thread_started = true;
+		}
+
 		// Initialize devices
 		for (uint8_t device = 0; device < 2; device++)
 		{
@@ -325,7 +382,7 @@ namespace Kernel::Input
 				dwarnln_if(DEBUG_PS2, "PS/2 device enable failed: {}", ret.error());
 				continue;
 			}
-			if (auto res = initialize_device(device, scancode_set); res.is_error())
+			if (auto res = identify_device(device, scancode_set); res.is_error())
 			{
 				dwarnln_if(DEBUG_PS2, "PS/2 device initialization failed: {}", res.error());
 				(void)send_command(device == 0 ? PS2::Command::DISABLE_FIRST_PORT : PS2::Command::DISABLE_SECOND_PORT);
@@ -333,20 +390,8 @@ namespace Kernel::Input
 			}
 		}
 
-		// Reserve IRQs
-		if (m_devices[0] && InterruptController::get().reserve_irq(PS2::IRQ::DEVICE0).is_error())
-		{
-			dwarnln("Could not reserve irq for PS/2 port 1");
-			m_devices[0].clear();
-		}
-		if (m_devices[1] && InterruptController::get().reserve_irq(PS2::IRQ::DEVICE1).is_error())
-		{
-			dwarnln("Could not reserve irq for PS/2 port 2");
-			m_devices[1].clear();
-		}
-
 		if (!m_devices[0] && !m_devices[1])
-			return {};
+			return;
 
 		// Enable irqs on valid devices
 		if (m_devices[0])
@@ -362,21 +407,21 @@ namespace Kernel::Input
 			config |= PS2::Config::INTERRUPT_SECOND_PORT;
 		}
 
-		TRY(send_command(PS2::Command::WRITE_CONFIG, config));
+		if (auto ret = send_command(PS2::Command::WRITE_CONFIG, config); ret.is_error())
+		{
+			dwarnln("PS2 failed to enable interrupts: {}", ret.error());
+			m_devices[0].clear();
+			m_devices[1].clear();
+			return;
+		}
 
 		// Send device initialization sequence after interrupts are enabled
 		for (uint8_t i = 0; i < 2; i++)
-		{
-			if (!m_devices[i])
-				continue;
-			m_devices[i]->send_initialize();
-			DevFileSystem::get().add_device(m_devices[i]);
-		}
-
-		return {};
+			if (m_devices[i])
+				m_devices[i]->send_initialize();
 	}
 
-	BAN::ErrorOr<void> PS2Controller::initialize_device(uint8_t device, uint8_t scancode_set)
+	BAN::ErrorOr<void> PS2Controller::identify_device(uint8_t device, uint8_t scancode_set)
 	{
 		// Reset device
 		TRY(device_send_byte_and_wait_ack(device, PS2::DeviceCommand::RESET));

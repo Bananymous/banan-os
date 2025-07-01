@@ -9,7 +9,14 @@ namespace Kernel::Input
 	PS2Device::PS2Device(PS2Controller& controller, InputDevice::Type type)
 		: InputDevice(type)
 		, m_controller(controller)
-	{ }
+	{
+		DevFileSystem::get().add_device(this);
+	}
+
+	PS2Device::~PS2Device()
+	{
+		DevFileSystem::get().remove_device(this);
+	}
 
 	bool PS2Device::append_command_queue(uint8_t command, uint8_t response_size)
 	{
