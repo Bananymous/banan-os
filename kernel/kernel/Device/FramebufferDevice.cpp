@@ -128,22 +128,16 @@ namespace Kernel
 	uint32_t FramebufferDevice::get_pixel(uint32_t x, uint32_t y) const
 	{
 		ASSERT(x < m_width && y < m_height);
-		const auto* video_buffer_u8 = reinterpret_cast<const uint8_t*>(m_video_buffer->vaddr());
-		return (video_buffer_u8[(y * m_width + x) * (BANAN_FB_BPP / 8) + 0] << 0)
-		     | (video_buffer_u8[(y * m_width + x) * (BANAN_FB_BPP / 8) + 1] << 8)
-		     | (video_buffer_u8[(y * m_width + x) * (BANAN_FB_BPP / 8) + 2] << 16);
+		static_assert(BANAN_FB_BPP == 32);
+		return reinterpret_cast<uint32_t*>(m_video_buffer->vaddr())[y * m_width + x];
 	}
 
 	void FramebufferDevice::set_pixel(uint32_t x, uint32_t y, uint32_t rgb)
 	{
 		if (x >= m_width || y >= m_height)
 			return;
-		auto* video_buffer_u8 = reinterpret_cast<uint8_t*>(m_video_buffer->vaddr());
-		video_buffer_u8[(y * m_width + x) * (BANAN_FB_BPP / 8) + 0] = rgb >>  0;
-		video_buffer_u8[(y * m_width + x) * (BANAN_FB_BPP / 8) + 1] = rgb >>  8;
-		video_buffer_u8[(y * m_width + x) * (BANAN_FB_BPP / 8) + 2] = rgb >> 16;
-		if constexpr(BANAN_FB_BPP == 32)
-			video_buffer_u8[(y * m_width + x) * (BANAN_FB_BPP / 8) + 3] = rgb >> 24;
+		static_assert(BANAN_FB_BPP == 32);
+		reinterpret_cast<uint32_t*>(m_video_buffer->vaddr())[y * m_width + x] = rgb;
 	}
 
 	void FramebufferDevice::scroll(int32_t rows, uint32_t rgb)
