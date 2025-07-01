@@ -908,11 +908,15 @@ void setbuf(FILE* file, char* buffer)
 
 int setvbuf(FILE* file, char* buffer, int type, size_t size)
 {
+	ScopeLock _(file);
+
 	if (file->fd == -1)
 	{
 		errno = EBADF;
 		return -1;
 	}
+
+	(void)fflush(file);
 
 	if (size == 0)
 		type = _IONBF;
