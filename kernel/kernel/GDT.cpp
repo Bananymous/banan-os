@@ -1,7 +1,10 @@
 #include <kernel/GDT.h>
+#include <kernel/Memory/Types.h>
 #include <kernel/Processor.h>
 
 #include <string.h>
+
+extern "C" uint8_t g_boot_stack_top[];
 
 namespace Kernel
 {
@@ -62,6 +65,7 @@ namespace Kernel
 	{
 		memset(&m_tss, 0x00, sizeof(TaskStateSegment));
 		m_tss.iopb = sizeof(TaskStateSegment);
+		m_tss.ist1 = reinterpret_cast<vaddr_t>(g_boot_stack_top);
 
 		uintptr_t base = reinterpret_cast<uintptr_t>(&m_tss);
 

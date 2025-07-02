@@ -59,9 +59,10 @@ bananboot_start:
 bananboot_end:
 
 .section .bss, "aw", @nobits
-	boot_stack_bottom:
-		.skip 4096 * 64
-	boot_stack_top:
+    .global g_boot_stack_top
+	g_boot_stack_bottom:
+		.skip 4096 * 4
+	g_boot_stack_top:
 
 	.global g_kernel_cmdline
 	g_kernel_cmdline:
@@ -193,7 +194,7 @@ _start:
 	movl %eax, V2P(bootloader_magic)
 	movl %ebx, V2P(bootloader_info)
 
-	movl $V2P(boot_stack_top), %esp
+	movl $V2P(g_boot_stack_top), %esp
 
 	call check_requirements
 	call enable_sse

@@ -59,10 +59,10 @@ bananboot_start:
 bananboot_end:
 
 .section .bss, "aw", @nobits
-	.align 4096
-	boot_stack_bottom:
+    .global g_boot_stack_top
+	g_boot_stack_bottom:
 		.skip 4096 * 4
-	boot_stack_top:
+	g_boot_stack_top:
 
 	.global g_kernel_cmdline
 	g_kernel_cmdline:
@@ -194,7 +194,7 @@ _start:
 	movl %ebx, V2P(bootloader_info)
 
 	# load boot stack
-	movl $V2P(boot_stack_top), %esp
+	movl $V2P(g_boot_stack_top), %esp
 
 	# load boot GDT
 	lgdt V2P(boot_gdtr)
@@ -212,7 +212,7 @@ gdt_flush:
 	call initialize_paging
 
 	# load higher half stack pointer
-	movl $boot_stack_top, %esp
+	movl $g_boot_stack_top, %esp
 
 	# jump to higher half
 	leal higher_half, %ecx

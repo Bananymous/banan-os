@@ -75,7 +75,7 @@ namespace Kernel
 	private:
 		IDT() = default;
 
-		void register_interrupt_handler(uint8_t index, void (*handler)());
+		void register_interrupt_handler(uint8_t index, void (*handler)(), uint8_t ist = 0);
 		void register_syscall_handler(uint8_t index, void (*handler)());
 
 	private:

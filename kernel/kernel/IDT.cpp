@@ -401,7 +401,7 @@ namespace Kernel
 		Thread::current().load_sse();
 	}
 
-	void IDT::register_interrupt_handler(uint8_t index, void (*handler)())
+	void IDT::register_interrupt_handler(uint8_t index, void (*handler)(), uint8_t ist)
 	{
 		auto& desc = m_idt[index];
 		memset(&desc, 0, sizeof(GateDescriptor));
@@ -412,6 +412,7 @@ namespace Kernel
 		desc.offset2 = (uint32_t)((uintptr_t)handler >> 32);
 #endif
 
+		desc.IST = ist;
 		desc.selector = 0x08;
 		desc.flags = 0x8E;
 	}
@@ -452,6 +453,9 @@ namespace Kernel
 #define X(num) idt->register_interrupt_handler(num, isr ## num);
 		ISR_LIST_X
 #undef X
+
+		idt->register_interrupt_handler(DoubleFault, isr8, 1);
+		static_assert(DoubleFault == 8);
 
 #define X(num) idt->register_interrupt_handler(IRQ_VECTOR_BASE + num, irq ## num);
 		IRQ_LIST_X
