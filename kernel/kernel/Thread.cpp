@@ -84,7 +84,7 @@ namespace Kernel
 			~(uintptr_t)0,
 			kernel_stack_size,
 			PageTable::Flags::ReadWrite | PageTable::Flags::Present,
-			true
+			true, true
 		));
 
 		// Initialize stack for returning
@@ -124,7 +124,7 @@ namespace Kernel
 			0x200000, USERSPACE_END,
 			kernel_stack_size,
 			PageTable::Flags::ReadWrite | PageTable::Flags::Present,
-			true
+			true, true
 		));
 
 		thread->m_userspace_stack = TRY(VirtualRange::create_to_vaddr_range(
@@ -132,7 +132,7 @@ namespace Kernel
 			0x200000, USERSPACE_END,
 			userspace_stack_size,
 			PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present,
-			true
+			true, true
 		));
 
 		thread_deleter.disable();

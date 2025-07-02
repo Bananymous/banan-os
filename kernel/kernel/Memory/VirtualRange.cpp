@@ -4,21 +4,30 @@
 namespace Kernel
 {
 
-	BAN::ErrorOr<BAN::UniqPtr<VirtualRange>> VirtualRange::create_to_vaddr(PageTable& page_table, vaddr_t vaddr, size_t size, PageTable::flags_t flags, bool preallocate_pages)
+	BAN::ErrorOr<BAN::UniqPtr<VirtualRange>> VirtualRange::create_to_vaddr(PageTable& page_table, vaddr_t vaddr, size_t size, PageTable::flags_t flags, bool preallocate_pages, bool add_guard_pages)
 	{
 		ASSERT(size % PAGE_SIZE == 0);
 		ASSERT(vaddr % PAGE_SIZE == 0);
 		ASSERT(vaddr > 0);
 
-		auto result = TRY(BAN::UniqPtr<VirtualRange>::create(page_table, preallocate_pages, vaddr, size, flags));
+		if (add_guard_pages)
+		{
+			vaddr -= PAGE_SIZE;
+			size += 2 * PAGE_SIZE;
+		}
+
+		auto result = TRY(BAN::UniqPtr<VirtualRange>::create(page_table, preallocate_pages, add_guard_pages, vaddr, size, flags));
 		ASSERT(page_table.reserve_range(vaddr, size));
 		TRY(result->initialize());
 
 		return result;
 	}
 
-	BAN::ErrorOr<BAN::UniqPtr<VirtualRange>> VirtualRange::create_to_vaddr_range(PageTable& page_table, vaddr_t vaddr_start, vaddr_t vaddr_end, size_t size, PageTable::flags_t flags, bool preallocate_pages)
+	BAN::ErrorOr<BAN::UniqPtr<VirtualRange>> VirtualRange::create_to_vaddr_range(PageTable& page_table, vaddr_t vaddr_start, vaddr_t vaddr_end, size_t size, PageTable::flags_t flags, bool preallocate_pages, bool add_guard_pages)
 	{
+		if (add_guard_pages)
+			size += 2 * PAGE_SIZE;
+
 		ASSERT(size % PAGE_SIZE == 0);
 		ASSERT(vaddr_start > 0);
 		ASSERT(vaddr_start + size <= vaddr_end);
@@ -31,13 +40,13 @@ namespace Kernel
 		ASSERT(vaddr_start < vaddr_end);
 		ASSERT(vaddr_end - vaddr_start + 1 >= size / PAGE_SIZE);
 
-		vaddr_t vaddr = page_table.reserve_free_contiguous_pages(size / PAGE_SIZE, vaddr_start, vaddr_end);
+		const vaddr_t vaddr = page_table.reserve_free_contiguous_pages(size / PAGE_SIZE, vaddr_start, vaddr_end);
 		if (vaddr == 0)
 			return BAN::Error::from_errno(ENOMEM);
 		ASSERT(vaddr >= vaddr_start);
 		ASSERT(vaddr + size <= vaddr_end);
 
-		auto result_or_error = BAN::UniqPtr<VirtualRange>::create(page_table, preallocate_pages, vaddr, size, flags);
+		auto result_or_error = BAN::UniqPtr<VirtualRange>::create(page_table, preallocate_pages, add_guard_pages, vaddr, size, flags);
 		if (result_or_error.is_error())
 		{
 			page_table.unmap_range(vaddr, size);
@@ -50,9 +59,10 @@ namespace Kernel
 		return result;
 	}
 
-	VirtualRange::VirtualRange(PageTable& page_table, bool preallocated, vaddr_t vaddr, size_t size, PageTable::flags_t flags)
+	VirtualRange::VirtualRange(PageTable& page_table, bool preallocated, bool has_guard_pages, vaddr_t vaddr, size_t size, PageTable::flags_t flags)
 		: m_page_table(page_table)
 		, m_preallocated(preallocated)
+		, m_has_guard_pages(has_guard_pages)
 		, m_vaddr(vaddr)
 		, m_size(size)
 		, m_flags(flags)
@@ -70,26 +80,26 @@ namespace Kernel
 
 	BAN::ErrorOr<void> VirtualRange::initialize()
 	{
-		TRY(m_paddrs.resize(m_size / PAGE_SIZE, 0));
+		TRY(m_paddrs.resize(size() / PAGE_SIZE, 0));
 
 		if (!m_preallocated)
 			return {};
 
-		const size_t page_count = m_size / PAGE_SIZE;
+		const size_t page_count = size() / PAGE_SIZE;
 		for (size_t i = 0; i < page_count; i++)
 		{
 			m_paddrs[i] = Heap::get().take_free_page();
 			if (m_paddrs[i] == 0)
 				return BAN::Error::from_errno(ENOMEM);
-			m_page_table.map_page_at(m_paddrs[i], m_vaddr + i * PAGE_SIZE, m_flags);
+			m_page_table.map_page_at(m_paddrs[i], vaddr() + i * PAGE_SIZE, m_flags);
 		}
 
 		if (&PageTable::current() == &m_page_table || &PageTable::kernel() == &m_page_table)
-			memset(reinterpret_cast<void*>(m_vaddr), 0, m_size);
+			memset(reinterpret_cast<void*>(vaddr()), 0, size());
 		else
 		{
-			const size_t page_count = m_size / PAGE_SIZE;
-			for (size_t i = 0; i < page_count; i++)
+			const size_t page_count = size() / PAGE_SIZE;
+			for (size_t i = m_has_guard_pages; i < page_count; i++)
 			{
 				PageTable::with_fast_page(m_paddrs[i], [&] {
 					memset(PageTable::fast_page_as_ptr(), 0, PAGE_SIZE);
@@ -107,10 +117,10 @@ namespace Kernel
 
 		SpinLockGuard _(m_lock);
 
-		auto result = TRY(create_to_vaddr(page_table, m_vaddr, m_size, m_flags, m_preallocated));
+		auto result = TRY(create_to_vaddr(page_table, vaddr(), size(), m_flags, m_preallocated, m_has_guard_pages));
 
-		const size_t page_count = m_size / PAGE_SIZE;
-		for (size_t i = 0; i < page_count; i++)
+		const size_t page_count = size() / PAGE_SIZE;
+		for (size_t i = m_has_guard_pages; i < page_count; i++)
 		{
 			if (m_paddrs[i] == 0)
 				continue;
@@ -119,11 +129,11 @@ namespace Kernel
 				result->m_paddrs[i] = Heap::get().take_free_page();
 				if (result->m_paddrs[i] == 0)
 					return BAN::Error::from_errno(ENOMEM);
-				result->m_page_table.map_page_at(result->m_paddrs[i], m_vaddr + i * PAGE_SIZE, m_flags);
+				result->m_page_table.map_page_at(result->m_paddrs[i], vaddr() + i * PAGE_SIZE, m_flags);
 			}
 
 			PageTable::with_fast_page(result->m_paddrs[i], [&] {
-				memcpy(PageTable::fast_page_as_ptr(), reinterpret_cast<void*>(m_vaddr + i * PAGE_SIZE), PAGE_SIZE);
+				memcpy(PageTable::fast_page_as_ptr(), reinterpret_cast<void*>(vaddr() + i * PAGE_SIZE), PAGE_SIZE);
 			});
 		}
 
@@ -137,7 +147,7 @@ namespace Kernel
 		ASSERT(contains(vaddr));
 		ASSERT(&PageTable::current() == &m_page_table);
 
-		const size_t index = (vaddr - m_vaddr) / PAGE_SIZE;
+		const size_t index = (vaddr - this->vaddr()) / PAGE_SIZE;
 		ASSERT(m_paddrs[index] == 0);
 
 		SpinLockGuard _(m_lock);

@@ -16,7 +16,7 @@ namespace Kernel
 			BAN::numeric_limits<vaddr_t>::max(),
 			buffer_size,
 			PageTable::Flags::ReadWrite | PageTable::Flags::Present,
-			true
+			true, false
 		));
 		loopback->set_ipv4_address({ 127, 0, 0, 1 });
 		loopback->set_netmask({ 255, 0, 0, 0 });

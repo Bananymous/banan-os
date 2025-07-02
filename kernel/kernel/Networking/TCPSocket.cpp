@@ -32,7 +32,7 @@ namespace Kernel
 			~(vaddr_t)0,
 			s_recv_window_buffer_size,
 			PageTable::Flags::ReadWrite | PageTable::Flags::Present,
-			true
+			true, false
 		));
 		socket->m_recv_window.scale_shift = PAGE_SIZE_SHIFT; // use PAGE_SIZE windows
 		socket->m_send_window.buffer = TRY(VirtualRange::create_to_vaddr_range(
@@ -41,7 +41,7 @@ namespace Kernel
 			~(vaddr_t)0,
 			s_send_window_buffer_size,
 			PageTable::Flags::ReadWrite | PageTable::Flags::Present,
-			true
+			true, false
 		));
 		socket->m_thread = TRY(Thread::create_kernel(
 			[](void* socket_ptr)

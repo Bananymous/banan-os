@@ -78,7 +78,7 @@ namespace Kernel
 			KERNEL_OFFSET, UINTPTR_MAX,
 			BAN::Math::div_round_up<size_t>(m_width * m_height * (BANAN_FB_BPP / 8), PAGE_SIZE) * PAGE_SIZE,
 			PageTable::Flags::ReadWrite | PageTable::Flags::Present,
-			true
+			true, false
 		));
 
 		return {};

@@ -44,7 +44,8 @@ namespace Kernel
 			PageTable::kernel(),
 			KERNEL_OFFSET, static_cast<vaddr_t>(-1),
 			16 * PAGE_SIZE,
-			PageTable::Flags::ReadWrite | PageTable::Flags::Present, true
+			PageTable::Flags::ReadWrite | PageTable::Flags::Present,
+			true, false
 		));
 		auto pts_master = TRY(BAN::RefPtr<PseudoTerminalMaster>::create(BAN::move(pts_master_buffer), mode, uid, gid));
 		DevFileSystem::get().remove_from_cache(pts_master);
