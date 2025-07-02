@@ -540,8 +540,6 @@ namespace Kernel
 	//        this is a hack to allow direct GSI reservation
 	BAN::ErrorOr<uint8_t> APIC::reserve_gsi(uint32_t gsi)
 	{
-		dwarnln("TRYING TO RESERVE GSI {}", gsi);
-
 		size_t irq = 0;
 		for (; irq < 0x100; irq++)
 			if (m_irq_overrides[irq] == gsi)
@@ -552,8 +550,6 @@ namespace Kernel
 			dwarnln("TODO: reserve GSI not accessible through overrides");
 			return BAN::Error::from_errno(ENOTSUP);
 		}
-
-		dwarnln("  matches IRQ {}", irq);
 
 		TRY(reserve_irq(irq));
 
