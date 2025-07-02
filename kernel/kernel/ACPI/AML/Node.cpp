@@ -1,3 +1,10 @@
+// FIXME: Rewrite aml interpreter to not be recursive.
+//        Not inlining TRYs drops our stack usage a ton...
+#pragma GCC push_options
+#pragma GCC optimize "no-inline"
+#include <BAN/Errors.h>
+#pragma GCC pop_options
+
 #include <BAN/Assert.h>
 #include <BAN/String.h>
 
@@ -382,9 +389,6 @@ namespace Kernel::ACPI::AML
 		return result;
 	}
 
-// FIXME: WHY TF IS THIS USING OVER 1 KiB of stack
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wstack-usage="
 	static BAN::ErrorOr<Node> parse_logical_op(ParseContext& context)
 	{
 		dprintln_if(AML_DUMP_FUNCTION_CALLS, "parse_logical_op");
@@ -475,7 +479,6 @@ namespace Kernel::ACPI::AML
 
 		return result;
 	}
-#pragma GCC diagnostic pop
 
 	static BAN::ErrorOr<Node> parse_index_op(ParseContext& context);
 
@@ -751,8 +754,6 @@ namespace Kernel::ACPI::AML
 		return {};
 	}
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wstack-usage="
 	static BAN::ErrorOr<void> perform_store(const Node& source, Reference* target, TargetType target_type)
 	{
 		dprintln_if(AML_DUMP_FUNCTION_CALLS, "perform_store");
@@ -833,7 +834,6 @@ namespace Kernel::ACPI::AML
 
 		return {};
 	}
-#pragma GCC diagnostic pop
 
 	static BAN::ErrorOr<void> store_into_target(ParseContext& context, const Node& node)
 	{
@@ -1240,7 +1240,7 @@ namespace Kernel::ACPI::AML
 		}
 
 		ASSERT(object);
-		return TRY(sizeof_impl(object->node));
+		return sizeof_impl(object->node);
 	}
 
 	static BAN::ErrorOr<Node> derefof_impl(const Node& source)
@@ -1248,7 +1248,7 @@ namespace Kernel::ACPI::AML
 		switch (source.type)
 		{
 			case Node::Type::Reference:
-				return TRY(source.as.reference->node.copy());
+				return source.as.reference->node.copy();
 			case Node::Type::Index:
 			{
 				switch (source.as.index.type)
@@ -1267,7 +1267,7 @@ namespace Kernel::ACPI::AML
 					{
 						ASSERT(source.as.index.index < source.as.index.as.package->num_elements);
 						TRY(resolve_package_element(source.as.index.as.package->elements[source.as.index.index], true));
-						return TRY(source.as.index.as.package->elements[source.as.index.index].value.node->copy());
+						return source.as.index.as.package->elements[source.as.index.index].value.node->copy();
 					}
 					default: ASSERT_NOT_REACHED();
 				}
@@ -1549,9 +1549,6 @@ namespace Kernel::ACPI::AML
 		return result;
 	}
 
-// FIXME: WHY TF IS THIS USING OVER 1 KiB of stack
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wstack-usage="
 	static BAN::ErrorOr<Node> parse_explicit_conversion(ParseContext& context)
 	{
 		dprintln_if(AML_DUMP_FUNCTION_CALLS, "parse_explicit_conversion");
@@ -1704,7 +1701,6 @@ namespace Kernel::ACPI::AML
 
 		return result;
 	}
-#pragma GCC diagnostic pop
 
 	static BAN::ErrorOr<Node> parse_to_string_op(ParseContext& context)
 	{
@@ -2005,7 +2001,6 @@ namespace Kernel::ACPI::AML
 
 		return {};
 	}
-
 
 	static BAN::ErrorOr<Node> parse_wait_op(ParseContext& context)
 	{
@@ -2622,7 +2617,7 @@ namespace Kernel::ACPI::AML
 			case Node::Type::Buffer:
 			case Node::Type::Index:
 			case Node::Type::Reference:
-				return TRY(node.copy());
+				return node.copy();
 			case Node::Type::BufferField:
 				dwarnln("TODO: evaluate BufferField");
 				return BAN::Error::from_errno(ENOTSUP);
@@ -2631,7 +2626,7 @@ namespace Kernel::ACPI::AML
 			case Node::Type::Method:
 				if (node.as.method.arg_count != 0)
 					return BAN::Error::from_errno(EFAULT);
-				return TRY(method_call(node_path, node, BAN::Array<Reference*, 7>{}));
+				return method_call(node_path, node, BAN::Array<Reference*, 7>{});
 		}
 
 		dwarnln("evaluate {}", node);
@@ -2766,9 +2761,6 @@ namespace Kernel::ACPI::AML
 		return method_call(scope, method, BAN::move(args));
 	}
 
-// FIXME: WHY TF IS THIS USING OVER 2 KiB of stack
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wstack-usage="
 	BAN::ErrorOr<Node> parse_node(ParseContext& context, bool return_ref)
 	{
 		if (context.aml_data.empty())
@@ -2783,15 +2775,15 @@ namespace Kernel::ACPI::AML
 			switch (static_cast<AML::ExtOp>(opcode))
 			{
 				case AML::ExtOp::CondRefOfOp:
-					return TRY(parse_condrefof_op(context));
+					return parse_condrefof_op(context);
 				case AML::ExtOp::AcquireOp:
-					return TRY(parse_acquire_op(context));
+					return parse_acquire_op(context);
 				case AML::ExtOp::LoadOp:
-					return TRY(parse_load_op(context));
+					return parse_load_op(context);
 				case AML::ExtOp::TimerOp:
-					return TRY(parse_timer_op(context));
+					return parse_timer_op(context);
 				case AML::ExtOp::WaitOp:
-					return TRY(parse_wait_op(context));
+					return parse_wait_op(context);
 				case AML::ExtOp::DebugOp:
 				{
 					context.aml_data = context.aml_data.slice(2);
@@ -2817,46 +2809,46 @@ namespace Kernel::ACPI::AML
 			case AML::Byte::WordPrefix:
 			case AML::Byte::DWordPrefix:
 			case AML::Byte::QWordPrefix:
-				return TRY(parse_integer(context.aml_data));
+				return parse_integer(context.aml_data);
 			case AML::Byte::StringPrefix:
-				return TRY(parse_string(context.aml_data));
+				return parse_string(context.aml_data);
 			case AML::Byte::BufferOp:
-				return TRY(parse_buffer_op(context));
+				return parse_buffer_op(context);
 			case AML::Byte::PackageOp:
 			case AML::Byte::VarPackageOp:
-				return TRY(parse_package_op(context));
+				return parse_package_op(context);
 			case AML::Byte::SizeOfOp:
-				return TRY(parse_sizeof_op(context));
+				return parse_sizeof_op(context);
 			case AML::Byte::RefOfOp:
-				return TRY(parse_refof_op(context));
+				return parse_refof_op(context);
 			case AML::Byte::DerefOfOp:
-				return TRY(parse_derefof_op(context));
+				return parse_derefof_op(context);
 			case AML::Byte::StoreOp:
-				return TRY(parse_store_op(context));
+				return parse_store_op(context);
 			case AML::Byte::CopyObjectOp:
-				return TRY(parse_copy_object_op(context));
+				return parse_copy_object_op(context);
 			case AML::Byte::ConcatOp:
-				return TRY(parse_concat_op(context));
+				return parse_concat_op(context);
 			case AML::Byte::MidOp:
-				return TRY(parse_mid_op(context));
+				return parse_mid_op(context);
 			case AML::Byte::IndexOp:
-				return TRY(parse_index_op(context));
+				return parse_index_op(context);
 			case AML::Byte::ObjectTypeOp:
-				return TRY(parse_object_type_op(context));
+				return parse_object_type_op(context);
 			case AML::Byte::MatchOp:
-				return TRY(parse_match_op(context));
+				return parse_match_op(context);
 			case AML::Byte::ToBufferOp:
 			case AML::Byte::ToDecimalStringOp:
 			case AML::Byte::ToHexStringOp:
 			case AML::Byte::ToIntegerOp:
-				return TRY(parse_explicit_conversion(context));
+				return parse_explicit_conversion(context);
 			case AML::Byte::ToStringOp:
-				return TRY(parse_to_string_op(context));
+				return parse_to_string_op(context);
 			case AML::Byte::IncrementOp:
 			case AML::Byte::DecrementOp:
-				return TRY(parse_inc_dec_op(context));
+				return parse_inc_dec_op(context);
 			case AML::Byte::NotOp:
-				return TRY(parse_unary_integer_op(context));
+				return parse_unary_integer_op(context);
 			case AML::Byte::AddOp:
 			case AML::Byte::SubtractOp:
 			case AML::Byte::MultiplyOp:
@@ -2869,17 +2861,17 @@ namespace Kernel::ACPI::AML
 			case AML::Byte::NorOp:
 			case AML::Byte::XorOp:
 			case AML::Byte::ModOp:
-				return TRY(parse_binary_integer_op(context));
+				return parse_binary_integer_op(context);
 			case AML::Byte::LAndOp:
 			case AML::Byte::LEqualOp:
 			case AML::Byte::LGreaterOp:
 			case AML::Byte::LLessOp:
 			case AML::Byte::LNotOp:
 			case AML::Byte::LOrOp:
-				return TRY(parse_logical_op(context));
+				return parse_logical_op(context);
 			case AML::Byte::FindSetLeftBitOp:
 			case AML::Byte::FindSetRightBitOp:
-				return TRY(parse_find_set_bit_op(context));
+				return parse_find_set_bit_op(context);
 			case AML::Byte::Local0:
 			case AML::Byte::Local1:
 			case AML::Byte::Local2:
@@ -2897,7 +2889,7 @@ namespace Kernel::ACPI::AML
 					return BAN::Error::from_errno(EINVAL);
 				}
 				if (!return_ref)
-					return TRY(context.locals[local_index]->node.copy());
+					return context.locals[local_index]->node.copy();
 				Node reference;
 				reference.type = Node::Type::Reference;
 				reference.as.reference = context.locals[local_index];
@@ -2920,7 +2912,7 @@ namespace Kernel::ACPI::AML
 					return BAN::Error::from_errno(EINVAL);
 				}
 				if (!return_ref)
-					return TRY(context.args[arg_index]->node.copy());
+					return context.args[arg_index]->node.copy();
 				Node reference;
 				reference.type = Node::Type::Reference;
 				reference.as.reference = context.args[arg_index];
@@ -2967,11 +2959,11 @@ namespace Kernel::ACPI::AML
 				}
 			}
 
-			return TRY(method_call(BAN::move(object_scope), named_object->node, BAN::move(args), context.call_depth));
+			return method_call(BAN::move(object_scope), named_object->node, BAN::move(args), context.call_depth);
 		}
 
 		if (!return_ref)
-			return TRY(named_object->node.copy());
+			return named_object->node.copy();
 
 		Node reference;
 		reference.type = Node::Type::Reference;
@@ -2979,20 +2971,13 @@ namespace Kernel::ACPI::AML
 		reference.as.reference->ref_count++;
 		return reference;
 	}
-#pragma GCC diagnostic pop
 
-// FIXME: WHY TF IS THIS USING ALMOST 2 KiB of stack
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wstack-usage="
 	BAN::ErrorOr<ExecutionFlowResult> parse_node_or_execution_flow(ParseContext& context)
 	{
 		if (context.aml_data.empty())
 			return BAN::Error::from_errno(ENODATA);
 
-		auto dummy_return = ExecutionFlowResult {
-			.elem1 = ExecutionFlow::Normal,
-			.elem2 = BAN::Optional<Node>(),
-		};
+		BAN::ErrorOr<void> (*function)(ParseContext&) = nullptr;
 
 		if (context.aml_data[0] == static_cast<uint8_t>(AML::Byte::ExtOpPrefix))
 		{
@@ -3001,116 +2986,130 @@ namespace Kernel::ACPI::AML
 			switch (static_cast<AML::ExtOp>(context.aml_data[1]))
 			{
 				case AML::ExtOp::MutexOp:
-					TRY(parse_mutex_op(context));
-					return dummy_return;
+					function = parse_mutex_op;
+					break;
 				case AML::ExtOp::FatalOp:
-					TRY(parse_fatal_op(context));
-					return dummy_return;
+					function = parse_fatal_op;
+					break;
 				case AML::ExtOp::EventOp:
-					TRY(parse_event_op(context));
-					return dummy_return;
+					function = parse_event_op;
+					break;
 				case AML::ExtOp::ResetOp:
 				case AML::ExtOp::SignalOp:
-					TRY(parse_reset_signal_op(context));
-					return dummy_return;
+					function = parse_reset_signal_op;
+					break;
 				case AML::ExtOp::CreateFieldOp:
-					TRY(parse_createfield_op(context));
-					return dummy_return;
+					function = parse_createfield_op;
+					break;
 				case AML::ExtOp::SleepOp:
-					TRY(parse_sleep_op(context));
-					return dummy_return;
+					function = parse_sleep_op;
+					break;
 				case AML::ExtOp::StallOp:
-					TRY(parse_stall_op(context));
-					return dummy_return;
+					function = parse_stall_op;
+					break;
 				case AML::ExtOp::ReleaseOp:
-					TRY(parse_release_op(context));
-					return dummy_return;
+					function = parse_release_op;
+					break;
 				case AML::ExtOp::OpRegionOp:
-					TRY(parse_opregion_op(context));
-					return dummy_return;
+					function = parse_opregion_op;
+					break;
 				case AML::ExtOp::FieldOp:
-					TRY(parse_field_op(context));
-					return dummy_return;
+					function = parse_field_op;
+					break;
 				case AML::ExtOp::IndexFieldOp:
-					TRY(parse_index_field_op(context));
-					return dummy_return;
+					function = parse_index_field_op;
+					break;
 				case AML::ExtOp::BankFieldOp:
-					TRY(parse_bank_field_op(context));
-					return dummy_return;
+					function = parse_bank_field_op;
+					break;
 				case AML::ExtOp::DeviceOp:
-					TRY(parse_device_op(context));
-					return dummy_return;
+					function = parse_device_op;
+					break;
 				case AML::ExtOp::ProcessorOp:
-					TRY(parse_processor_op(context));
-					return dummy_return;
+					function = parse_processor_op;
+					break;
 				case AML::ExtOp::PowerResOp:
-					TRY(parse_power_resource_op(context));
-					return dummy_return;
+					function = parse_power_resource_op;
+					break;
 				case AML::ExtOp::ThermalZoneOp:
-					TRY(parse_thermal_zone_op(context));
-					return dummy_return;
+					function = parse_thermal_zone_op;
+					break;
+				default:
+					break;
+			}
+		}
+		else
+		{
+			switch (static_cast<AML::Byte>(context.aml_data[0]))
+			{
+				case AML::Byte::AliasOp:
+					function = parse_alias_op;
+					break;
+				case AML::Byte::NameOp:
+					function = parse_name_op;
+					break;
+				case AML::Byte::MethodOp:
+					function = parse_method_op;
+					break;
+				case AML::Byte::ScopeOp:
+					function = parse_scope_op;
+					break;
+				case AML::Byte::NotifyOp:
+					function = parse_notify_op;
+					break;
+				case AML::Byte::CreateBitFieldOp:
+				case AML::Byte::CreateByteFieldOp:
+				case AML::Byte::CreateWordFieldOp:
+				case AML::Byte::CreateDWordFieldOp:
+				case AML::Byte::CreateQWordFieldOp:
+					function = parse_createfield_op;
+					break;
+				case AML::Byte::IfOp:
+					return parse_if_op(context);
+				case AML::Byte::WhileOp:
+					return parse_while_op(context);
+				case AML::Byte::NoopOp:
+				case AML::Byte::BreakPointOp:
+					context.aml_data = context.aml_data.slice(1);
+					return ExecutionFlowResult {
+						.elem1 = ExecutionFlow::Normal,
+						.elem2 = BAN::Optional<Node>(),
+					};;
+				case AML::Byte::BreakOp:
+					dprintln_if(AML_DUMP_FUNCTION_CALLS, "parse_break_op");
+					context.aml_data = context.aml_data.slice(1);
+					return ExecutionFlowResult {
+						.elem1 = ExecutionFlow::Break,
+						.elem2 = BAN::Optional<Node>(),
+					};
+				case AML::Byte::ContinueOp:
+					dprintln_if(AML_DUMP_FUNCTION_CALLS, "parse_continue_op");
+					context.aml_data = context.aml_data.slice(1);
+					return ExecutionFlowResult {
+						.elem1 = ExecutionFlow::Continue,
+						.elem2 = BAN::Optional<Node>(),
+					};
+				case AML::Byte::ReturnOp:
+				{
+					dprintln_if(AML_DUMP_FUNCTION_CALLS, "parse_return_op");
+					context.aml_data = context.aml_data.slice(1);
+					return ExecutionFlowResult {
+						.elem1 = ExecutionFlow::Return,
+						.elem2 = TRY(parse_node(context)),
+					};
+				}
 				default:
 					break;
 			}
 		}
 
-		switch (static_cast<AML::Byte>(context.aml_data[0]))
+		if (function)
 		{
-			case AML::Byte::AliasOp:
-				TRY(parse_alias_op(context));
-				return dummy_return;
-			case AML::Byte::NameOp:
-				TRY(parse_name_op(context));
-				return dummy_return;
-			case AML::Byte::MethodOp:
-				TRY(parse_method_op(context));
-				return dummy_return;
-			case AML::Byte::NoopOp:
-			case AML::Byte::BreakPointOp:
-				context.aml_data = context.aml_data.slice(1);
-				return dummy_return;
-			case AML::Byte::ScopeOp:
-				TRY(parse_scope_op(context));
-				return dummy_return;
-			case AML::Byte::NotifyOp:
-				TRY(parse_notify_op(context));
-				return dummy_return;
-			case AML::Byte::CreateBitFieldOp:
-			case AML::Byte::CreateByteFieldOp:
-			case AML::Byte::CreateWordFieldOp:
-			case AML::Byte::CreateDWordFieldOp:
-			case AML::Byte::CreateQWordFieldOp:
-				TRY(parse_createfield_op(context));
-				return dummy_return;
-			case AML::Byte::IfOp:
-				return parse_if_op(context);
-			case AML::Byte::WhileOp:
-				return parse_while_op(context);
-			case AML::Byte::BreakOp:
-				dprintln_if(AML_DUMP_FUNCTION_CALLS, "parse_break_op");
-				context.aml_data = context.aml_data.slice(1);
-				return ExecutionFlowResult {
-					.elem1 = ExecutionFlow::Break,
-					.elem2 = BAN::Optional<Node>(),
-				};
-			case AML::Byte::ContinueOp:
-				dprintln_if(AML_DUMP_FUNCTION_CALLS, "parse_continue_op");
-				context.aml_data = context.aml_data.slice(1);
-				return ExecutionFlowResult {
-					.elem1 = ExecutionFlow::Continue,
-					.elem2 = BAN::Optional<Node>(),
-				};
-			case AML::Byte::ReturnOp:
-			{
-				dprintln_if(AML_DUMP_FUNCTION_CALLS, "parse_return_op");
-				context.aml_data = context.aml_data.slice(1);
-				return ExecutionFlowResult {
-					.elem1 = ExecutionFlow::Return,
-					.elem2 = TRY(parse_node(context)),
-				};
-			}
-			default:
-				break;
+			TRY(function(context));
+			return ExecutionFlowResult {
+				.elem1 = ExecutionFlow::Normal,
+				.elem2 = BAN::Optional<Node>(),
+			};;
 		}
 
 		auto node = TRY(parse_node(context));
@@ -3119,7 +3118,6 @@ namespace Kernel::ACPI::AML
 			.elem2 = BAN::move(node)
 		};
 	}
-#pragma GCC diagnostic pop
 
 	BAN::ErrorOr<NameString> NameString::from_string(BAN::StringView name)
 	{
