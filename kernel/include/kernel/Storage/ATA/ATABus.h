@@ -40,8 +40,6 @@ namespace Kernel
 		void select_device(bool is_secondary);
 		BAN::ErrorOr<DeviceType> identify(bool is_secondary, BAN::Span<uint16_t> buffer);
 
-		BAN::ErrorOr<void> block_until_irq();
-
 		uint8_t io_read(uint16_t);
 		void io_write(uint16_t, uint8_t);
 		void read_buffer(uint16_t, uint16_t*, size_t);
@@ -54,7 +52,7 @@ namespace Kernel
 		const uint16_t m_ctrl;
 		Mutex m_mutex;
 
-		BAN::Atomic<bool> m_has_got_irq { false };
+		ThreadBlocker m_thread_blocker;
 
 		// Non-owning pointers
 		BAN::Vector<ATADevice*> m_devices;

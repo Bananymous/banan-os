@@ -126,26 +126,7 @@ namespace Kernel
 	{
 		if (io_read(ATA_PORT_STATUS) & ATA_STATUS_ERR)
 			dprintln("ATA Error: {}", error());
-
-		bool expected { false };
-		[[maybe_unused]] bool success = m_has_got_irq.compare_exchange(expected, true);
-		ASSERT(success);
-	}
-
-	BAN::ErrorOr<void> ATABus::block_until_irq()
-	{
-		const uint64_t timeout_ms = SystemTimer::get().ms_since_boot() + s_ata_timeout_ms;
-
-		bool expected { true };
-		while (!m_has_got_irq.compare_exchange(expected, false))
-		{
-			if (SystemTimer::get().ms_since_boot() >= timeout_ms)
-				return BAN::Error::from_errno(ETIMEDOUT);
-			Processor::pause();
-			expected = true;
-		}
-
-		return {};
+		m_thread_blocker.unblock();
 	}
 
 	uint8_t ATABus::io_read(uint16_t port)
@@ -192,22 +173,30 @@ namespace Kernel
 		for (uint32_t i = 0; i < 4; i++)
 			io_read(ATA_PORT_ALT_STATUS);
 
-		uint64_t timeout = SystemTimer::get().ms_since_boot() + s_ata_timeout_ms;
+		const uint64_t start_ms = SystemTimer::get().ms_since_boot();
+		const uint64_t timeout_ms = start_ms + s_ata_timeout_ms;
 
-		uint8_t status;
-		while ((status = io_read(ATA_PORT_STATUS)) & ATA_STATUS_BSY)
-			if (SystemTimer::get().ms_since_boot() >= timeout)
-				return BAN::Error::from_errno(ETIMEDOUT);
-
-		while (wait_drq && !(status & ATA_STATUS_DRQ))
+		for (;;)
 		{
-			if (SystemTimer::get().ms_since_boot() >= timeout)
-				return BAN::Error::from_errno(ETIMEDOUT);
+			const uint8_t status = io_read(ATA_PORT_ALT_STATUS);
+			if (status & ATA_STATUS_BSY)
+				goto drive_not_ready;
+			if (!wait_drq || (status & ATA_STATUS_DRQ))
+				break;
 			if (status & ATA_STATUS_ERR)
 				return error();
 			if (status & ATA_STATUS_DF)
 				return BAN::Error::from_errno(EIO);
-			status = io_read(ATA_PORT_STATUS);
+
+		drive_not_ready:
+			const uint64_t current_ms = SystemTimer::get().ms_since_boot();
+			if (current_ms >= timeout_ms)
+				return BAN::Error::from_errno(ETIMEDOUT);
+			// NODE: poll for 5 milliseconds, then just block
+			//       until timeout or irq
+			if (current_ms < start_ms + 5)
+				continue;
+			m_thread_blocker.block_with_timeout_ms(timeout_ms - current_ms, nullptr);
 		}
 
 		return {};
@@ -249,7 +238,7 @@ namespace Kernel
 
 		for (uint32_t sector = 0; sector < sector_count; sector++)
 		{
-			TRY(block_until_irq());
+			TRY(wait(true));
 			read_buffer(ATA_PORT_DATA, (uint16_t*)buffer.data() + sector * device.words_per_sector(), device.words_per_sector());
 		}
 
@@ -269,12 +258,12 @@ namespace Kernel
 
 		for (uint32_t sector = 0; sector < sector_count; sector++)
 		{
+			TRY(wait(true));
 			write_buffer(ATA_PORT_DATA, (uint16_t*)buffer.data() + sector * device.words_per_sector(), device.words_per_sector());
-			TRY(block_until_irq());
 		}
 
+		TRY(wait(false));
 		io_write(ATA_PORT_COMMAND, ATA_COMMAND_CACHE_FLUSH);
-		TRY(block_until_irq());
 
 		return {};
 	}
@@ -310,9 +299,10 @@ namespace Kernel
 			io_lba2   = (cylinder >> 8) & 0xFF;
 		}
 
+		TRY(wait(false));
+
 		io_write(ATA_PORT_DRIVE_SELECT, io_select);
 		select_delay();
-		io_write(ATA_PORT_CONTROL, 0);
 
 		io_write(ATA_PORT_SECTOR_COUNT, sector_count);
 		io_write(ATA_PORT_LBA0, io_lba0);
