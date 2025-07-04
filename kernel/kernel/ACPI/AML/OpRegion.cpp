@@ -1,3 +1,9 @@
+// FIXME: Find better ways to manage stack usage
+#pragma GCC push_options
+#pragma GCC optimize "no-inline"
+#include <BAN/Errors.h>
+#pragma GCC pop_options
+
 #include <kernel/ACPI/AML/Bytes.h>
 #include <kernel/ACPI/AML/Namespace.h>
 #include <kernel/ACPI/AML/OpRegion.h>
@@ -91,6 +97,39 @@ namespace Kernel::ACPI::AML
 		opregion.as.opregion.address_space = static_cast<GAS::AddressSpaceID>(region_space);
 		opregion.as.opregion.offset = region_offset.as.integer.value;
 		opregion.as.opregion.length = region_length.as.integer.value;
+
+		opregion.as.opregion.seg = 0;
+		opregion.as.opregion.bus = 0;
+		opregion.as.opregion.dev = 0;
+		opregion.as.opregion.func = 0;
+
+		if (opregion.as.opregion.address_space == GAS::AddressSpaceID::PCIConfig)
+		{
+			// FIXME: Am I actually allowed to read these here or should I determine
+			//        them on every read/write access
+
+			if (auto seg_res = TRY(Namespace::root_namespace().find_named_object(context.scope, TRY(AML::NameString::from_string("_SEG"_sv)))); seg_res.node != nullptr)
+			{
+				auto seg_node = TRY(convert_node(TRY(evaluate_node(seg_res.path, seg_res.node->node)), ConvInteger, -1));
+				opregion.as.opregion.seg = seg_node.as.integer.value;
+			}
+
+			if (auto bbn_res = TRY(Namespace::root_namespace().find_named_object(context.scope, TRY(AML::NameString::from_string("_BBN"_sv)))); bbn_res.node != nullptr)
+			{
+				auto bbn_node = TRY(convert_node(TRY(evaluate_node(bbn_res.path, bbn_res.node->node)), ConvInteger, -1));
+				opregion.as.opregion.bus = bbn_node.as.integer.value;
+			}
+
+			auto adr_res = TRY(Namespace::root_namespace().find_named_object(context.scope, TRY(AML::NameString::from_string("_ADR"_sv))));
+			if (adr_res.node == nullptr)
+			{
+				dwarnln("No _ADR for PCIConfig OpRegion");
+				return BAN::Error::from_errno(EFAULT);
+			}
+			auto adr_node = TRY(convert_node(TRY(evaluate_node(adr_res.path, adr_res.node->node)), ConvInteger, -1));
+			opregion.as.opregion.dev  = adr_node.as.integer.value >> 16;
+			opregion.as.opregion.func = adr_node.as.integer.value & 0xFF;
+		}
 
 		TRY(Namespace::root_namespace().add_named_object(context, region_name, BAN::move(opregion)));
 
@@ -416,19 +455,19 @@ namespace Kernel::ACPI::AML
 				ASSERT_NOT_REACHED();
 			case GAS::AddressSpaceID::PCIConfig:
 			{
-				// https://uefi.org/htmlspecs/ACPI_Spec_6_4_html/05_ACPI_Software_Programming_Model/ACPI_Software_Programming_Model.html#address-space-format
-				// PCI configuration space is confined to segment 0, bus 0
+				if (opregion.seg != 0)
+				{
+					dwarnln("PCIConfig OpRegion with segment");
+					return BAN::Error::from_errno(ENOTSUP);
+				}
 
-				const uint16_t device   = (byte_offset >> 32) & 0xFFFF;
-				const uint16_t function = (byte_offset >> 16) & 0xFFFF;
-				const uint16_t offset   =  byte_offset        & 0xFFFF;
 				switch (access_size)
 				{
-					case 1: return PCI::PCIManager::get().read_config_byte (0, device, function, offset);
-					case 2: return PCI::PCIManager::get().read_config_word (0, device, function, offset);
-					case 4: return PCI::PCIManager::get().read_config_dword(0, device, function, offset);
+					case 1: return PCI::PCIManager::get().read_config_byte (opregion.bus, opregion.dev, opregion.func, byte_offset);
+					case 2: return PCI::PCIManager::get().read_config_word (opregion.bus, opregion.dev, opregion.func, byte_offset);
+					case 4: return PCI::PCIManager::get().read_config_dword(opregion.bus, opregion.dev, opregion.func, byte_offset);
 					default:
-						dwarnln("{} byte read from PCI {2H}:{2H}:{2H}", device, function, offset);
+						dwarnln("{} byte read from PCI {2H}:{2H}:{2H} offset {2H}", access_size, opregion.bus, opregion.dev, opregion.func, byte_offset);
 						return BAN::Error::from_errno(EINVAL);
 				}
 				ASSERT_NOT_REACHED();
@@ -486,19 +525,19 @@ namespace Kernel::ACPI::AML
 				return {};
 			case GAS::AddressSpaceID::PCIConfig:
 			{
-				// https://uefi.org/htmlspecs/ACPI_Spec_6_4_html/05_ACPI_Software_Programming_Model/ACPI_Software_Programming_Model.html#address-space-format
-				// PCI configuration space is confined to segment 0, bus 0
+				if (opregion.seg != 0)
+				{
+					dwarnln("PCIConfig OpRegion with segment");
+					return BAN::Error::from_errno(ENOTSUP);
+				}
 
-				const uint16_t device   = (byte_offset >> 32) & 0xFFFF;
-				const uint16_t function = (byte_offset >> 16) & 0xFFFF;
-				const uint16_t offset   =  byte_offset        & 0xFFFF;
 				switch (access_size)
 				{
-					case 1: PCI::PCIManager::get().write_config_byte (0, device, function, offset, value); break;
-					case 2: PCI::PCIManager::get().write_config_word (0, device, function, offset, value); break;
-					case 4: PCI::PCIManager::get().write_config_dword(0, device, function, offset, value); break;
+					case 1: PCI::PCIManager::get().write_config_byte (opregion.bus, opregion.dev, opregion.func, byte_offset, value); break;
+					case 2: PCI::PCIManager::get().write_config_word (opregion.bus, opregion.dev, opregion.func, byte_offset, value); break;
+					case 4: PCI::PCIManager::get().write_config_dword(opregion.bus, opregion.dev, opregion.func, byte_offset, value); break;
 					default:
-						dwarnln("{} byte write to PCI {2H}:{2H}:{2H}", device, function, offset);
+						dwarnln("{} byte write to PCI {2H}:{2H}:{2H} offset {2H}", access_size, opregion.bus, opregion.dev, opregion.func, byte_offset);
 						return BAN::Error::from_errno(EINVAL);
 				}
 				return {};
