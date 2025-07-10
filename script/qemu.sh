@@ -22,19 +22,25 @@ elif [[ $BANAN_DISK_TYPE == "USB" ]]; then
 else
 	DISK_ARGS="-device ahci,id=ahci -device ide-hd,drive=disk,bus=ahci.0"
 fi
+DISK_ARGS="-drive format=raw,id=disk,file=${BANAN_DISK_IMAGE_PATH},if=none $DISK_ARGS"
 
 QEMU_ARCH=$BANAN_ARCH
 if [ $BANAN_ARCH = "i686" ]; then
 	QEMU_ARCH=i386
 fi
 
-qemu-system-$QEMU_ARCH												\
-	-m 1G															\
-	-smp 4															\
-	$BIOS_ARGS														\
-	-drive format=raw,id=disk,file=${BANAN_DISK_IMAGE_PATH},if=none	\
-	-device e1000e,netdev=net										\
-	-netdev user,id=net												\
-	-device qemu-xhci -device usb-kbd -device usb-mouse				\
-	$DISK_ARGS														\
-	$@																\
+NET_ARGS='-netdev user,id=net'
+NET_ARGS="-device e1000e,netdev=net $NET_ARGS"
+
+USB_ARGS='-device qemu-xhci -device usb-kbd,port=1 -device usb-hub,port=2 -device usb-mouse,port=2.1'
+
+SOUND_ARGS='-device ac97'
+
+qemu-system-$QEMU_ARCH \
+	-m 1G -smp 4       \
+	$BIOS_ARGS         \
+	$DISK_ARGS         \
+	$USB_ARGS          \
+	$NET_ARGS          \
+	$SOUND_ARGS        \
+	$@                 \
