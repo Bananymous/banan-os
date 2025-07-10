@@ -47,6 +47,11 @@ struct winsize
 #define TIOCGWINSZ	50
 #define TIOCSWINSZ	51
 
+#define SND_GET_CHANNELS    60 /* stores number of channels to uint32_t argument */
+#define SND_GET_SAMPLE_RATE 61 /* stores sample rate to uint32_t argument */
+#define SND_RESET_BUFFER    62 /* stores the size of internal buffer to uint32_t argument and clears the buffer */
+#define SND_GET_BUFFERSZ    63 /* stores the size of internal buffer to uint32_t argument */
+
 int ioctl(int, int, ...);
 
 __END_DECLS

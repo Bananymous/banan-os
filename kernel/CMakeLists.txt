@@ -6,6 +6,8 @@ set(KERNEL_SOURCES
 	kernel/ACPI/AML/OpRegion.cpp
 	kernel/ACPI/BatterySystem.cpp
 	kernel/APIC.cpp
+	kernel/Audio/AC97/Controller.cpp
+	kernel/Audio/Controller.cpp
 	kernel/BootInfo.cpp
 	kernel/CPUID.cpp
 	kernel/Credentials.cpp

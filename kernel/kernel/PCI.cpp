@@ -1,7 +1,8 @@
 #include <BAN/ScopeGuard.h>
 
-#include <kernel/APIC.h>
 #include <kernel/ACPI/ACPI.h>
+#include <kernel/APIC.h>
+#include <kernel/Audio/Controller.h>
 #include <kernel/IDT.h>
 #include <kernel/IO.h>
 #include <kernel/Memory/PageTable.h>
@@ -226,6 +227,18 @@ namespace Kernel::PCI
 					{
 						if (auto res = NetworkManager::get().add_interface(pci_device); res.is_error())
 							dprintln("{}", res.error());
+						break;
+					}
+					case 0x04:
+					{
+						switch (pci_device.subclass())
+						{
+							case 0x01:
+							case 0x03:
+								if (auto res = AudioController::create(pci_device); res.is_error())
+									dprintln("Sound Card: {}", res.error());
+								break;
+						}
 						break;
 					}
 					case 0x0C:

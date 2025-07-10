@@ -22,6 +22,7 @@ namespace Kernel
 		Ethernet,
 		Loopback,
 		TmpFS,
+		AudioController,
 	};
 
 }
