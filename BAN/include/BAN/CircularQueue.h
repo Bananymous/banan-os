@@ -34,6 +34,11 @@ namespace BAN
 		const T& back() const;
 		T& back();
 
+		const T& operator[](size_t index) const;
+		T& operator[](size_t index);
+
+		void clear();
+
 		size_type size() const { return m_size; }
 		bool empty() const { return size() == 0; }
 		bool full() const { return size() == capacity(); }
@@ -53,8 +58,7 @@ namespace BAN
 	template<typename T, size_t S>
 	CircularQueue<T, S>::~CircularQueue()
 	{
-		for (size_type i = 0; i < m_size; i++)
-			element_at((m_first + i) % capacity())->~T();
+		clear();
 	}
 
 	template<typename T, size_t S>
@@ -113,6 +117,28 @@ namespace BAN
 	{
 		ASSERT(!empty());
 		return *element_at((m_first + m_size - 1) % capacity());
+	}
+
+	template<typename T, size_t S>
+	const T& CircularQueue<T, S>::operator[](size_t index) const
+	{
+		ASSERT(index < m_size);
+		return *element_at((m_first + index) % capacity());
+	}
+
+	template<typename T, size_t S>
+	T& CircularQueue<T, S>::operator[](size_t index)
+	{
+		ASSERT(index < m_size);
+		return *element_at((m_first + index) % capacity());
+	}
+
+	template<typename T, size_t S>
+	void CircularQueue<T, S>::clear()
+	{
+		for (size_type i = 0; i < m_size; i++)
+			element_at((m_first + i) % capacity())->~T();
+		m_size = 0;
 	}
 
 	template<typename T, size_t S>
