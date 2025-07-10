@@ -636,7 +636,10 @@ namespace Kernel::PCI
 
 		for (const auto eisa_id : pci_root_bus_ids)
 		{
-			auto root_buses = TRY(acpi_namespace.find_device_with_eisa_id(eisa_id));
+			auto root_buses_or_error = acpi_namespace.find_device_with_eisa_id(eisa_id);
+			if (root_buses_or_error.is_error())
+				continue;
+			auto root_buses = root_buses_or_error.release_value();
 
 			for (const auto& root_bus : root_buses)
 			{
