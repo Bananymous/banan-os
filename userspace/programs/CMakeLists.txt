@@ -1,4 +1,5 @@
 set(USERSPACE_PROGRAMS
+	AudioServer
 	bananfetch
 	basename
 	cat
