@@ -1,10 +1,10 @@
 set(KERNEL_SOURCES
 	font/prefs.psf.o
 	kernel/ACPI/ACPI.cpp
-	kernel/ACPI/BatterySystem.cpp
 	kernel/ACPI/AML/Namespace.cpp
 	kernel/ACPI/AML/Node.cpp
 	kernel/ACPI/AML/OpRegion.cpp
+	kernel/ACPI/BatterySystem.cpp
 	kernel/APIC.cpp
 	kernel/BootInfo.cpp
 	kernel/CPUID.cpp
@@ -75,7 +75,6 @@ set(KERNEL_SOURCES
 	kernel/Processor.cpp
 	kernel/Random.cpp
 	kernel/Scheduler.cpp
-	kernel/ThreadBlocker.cpp
 	kernel/SSP.cpp
 	kernel/Storage/ATA/AHCI/Controller.cpp
 	kernel/Storage/ATA/AHCI/Device.cpp
@@ -98,6 +97,7 @@ set(KERNEL_SOURCES
 	kernel/Terminal/TTY.cpp
 	kernel/Terminal/VirtualTTY.cpp
 	kernel/Thread.cpp
+	kernel/ThreadBlocker.cpp
 	kernel/Timer/HPET.cpp
 	kernel/Timer/PIT.cpp
 	kernel/Timer/RTC.cpp
