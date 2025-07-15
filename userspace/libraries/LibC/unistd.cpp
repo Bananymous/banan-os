@@ -231,13 +231,13 @@ static int exec_impl(const char* pathname, char* const* argv, char* const* envp,
 		while (*cur)
 		{
 			const char* end = strchrnul(cur, ':');
-			size_t len = end - cur;
+			const size_t len = end - cur;
 
 			ASSERT(strlen(pathname) + 1 + len < sizeof(buffer));
 
-			strncpy(buffer, cur, len);
-			strcat(buffer, "/");
-			strcat(buffer, pathname);
+			memcpy(buffer, cur, len);
+			buffer[len] = '/';
+			strcpy(buffer + len + 1, pathname);
 
 			struct stat st;
 			if (stat(buffer, &st) == 0)
