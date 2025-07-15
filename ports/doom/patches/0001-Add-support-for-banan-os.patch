@@ -29,9 +29,9 @@ index 0000000..0878148
 +	VB=@
 +endif
 +
-+CC=$(BANAN_ARCH)-banan_os-gcc
-+CXX=$(BANAN_ARCH)-banan_os-g++
-+CFLAGS+=-O3 -Wall -DNORMALUNIX -DLINUX -DSNDSERV -D_DEFAULT_SOURCE
++CC=$(BANAN_ARCH)-pc-banan_os-gcc
++CXX=$(BANAN_ARCH)-pc-banan_os-g++
++CFLAGS+=-O3 -std=c11 -Wall -DNORMALUNIX -DLINUX -DSNDSERV -D_DEFAULT_SOURCE
 +CXXFLAGS+=$(CFLAGS) --std=c++20
 +LDFLAGS+=
 +LIBS+=-lgui -linput -lstdc++
