@@ -20,13 +20,12 @@ namespace Kernel
 		virtual bool pre_scheduler_sleep_needs_lock() const = 0;
 		virtual void pre_scheduler_sleep_ns(uint64_t) = 0;
 
-		void dont_invoke_scheduler() { m_should_invoke_scheduler = false; }
-
 	protected:
 		bool should_invoke_scheduler() const { return m_should_invoke_scheduler; }
 
 	private:
 		bool m_should_invoke_scheduler { true };
+		friend class SystemTimer;
 	};
 
 	class SystemTimer : public Timer
@@ -45,6 +44,8 @@ namespace Kernel
 
 		void sleep_ms(uint64_t ms) const { ASSERT(!BAN::Math::will_multiplication_overflow<uint64_t>(ms, 1'000'000)); return sleep_ns(ms * 1'000'000); }
 		void sleep_ns(uint64_t ns) const;
+
+		void dont_invoke_scheduler() { m_timer->m_should_invoke_scheduler = false; }
 
 		timespec real_time() const;
 
