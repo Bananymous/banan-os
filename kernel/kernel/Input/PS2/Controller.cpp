@@ -12,7 +12,7 @@
 namespace Kernel::Input
 {
 
-	static constexpr uint64_t s_ps2_timeout_ms = 300;
+	static constexpr uint64_t s_ps2_timeout_ms = 1000;
 
 	static PS2Controller* s_instance = nullptr;
 
@@ -461,11 +461,20 @@ namespace Kernel::Input
 		}
 
 		// MF2 Keyboard
-		if (index == 2 && (bytes[0] == 0xAB && (bytes[1] == 0x83 || bytes[1] == 0x41)))
+		if (index == 2 && bytes[0] == 0xAB)
 		{
-			dprintln_if(DEBUG_PS2, "PS/2 found keyboard");
-			m_devices[device] = TRY(PS2Keyboard::create(*this, scancode_set));
-			return {};
+			switch (bytes[1])
+			{
+				case 0x41: // MF2 Keyboard (translated but my laptop uses this :))
+				case 0x83: // MF2 Keyboard
+				case 0xC1: // MF2 Keyboard
+				case 0x84: // Thinkpad KB
+					dprintln_if(DEBUG_PS2, "PS/2 found keyboard");
+					m_devices[device] = TRY(PS2Keyboard::create(*this, scancode_set));
+					return {};
+				default:
+					break;
+			}
 		}
 
 		dprintln_if(DEBUG_PS2, "PS/2 unsupported device {2H} {2H} ({} bytes) on port {}", bytes[0], bytes[1], index, device);
