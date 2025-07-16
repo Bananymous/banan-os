@@ -98,38 +98,8 @@ namespace Kernel::ACPI::AML
 		opregion.as.opregion.offset = region_offset.as.integer.value;
 		opregion.as.opregion.length = region_length.as.integer.value;
 
-		opregion.as.opregion.seg = 0;
-		opregion.as.opregion.bus = 0;
-		opregion.as.opregion.dev = 0;
-		opregion.as.opregion.func = 0;
-
-		if (opregion.as.opregion.address_space == GAS::AddressSpaceID::PCIConfig)
-		{
-			// FIXME: Am I actually allowed to read these here or should I determine
-			//        them on every read/write access
-
-			if (auto seg_res = TRY(Namespace::root_namespace().find_named_object(context.scope, TRY(AML::NameString::from_string("_SEG"_sv)))); seg_res.node != nullptr)
-			{
-				auto seg_node = TRY(convert_node(TRY(evaluate_node(seg_res.path, seg_res.node->node)), ConvInteger, -1));
-				opregion.as.opregion.seg = seg_node.as.integer.value;
-			}
-
-			if (auto bbn_res = TRY(Namespace::root_namespace().find_named_object(context.scope, TRY(AML::NameString::from_string("_BBN"_sv)))); bbn_res.node != nullptr)
-			{
-				auto bbn_node = TRY(convert_node(TRY(evaluate_node(bbn_res.path, bbn_res.node->node)), ConvInteger, -1));
-				opregion.as.opregion.bus = bbn_node.as.integer.value;
-			}
-
-			auto adr_res = TRY(Namespace::root_namespace().find_named_object(context.scope, TRY(AML::NameString::from_string("_ADR"_sv))));
-			if (adr_res.node == nullptr)
-			{
-				dwarnln("No _ADR for PCIConfig OpRegion");
-				return BAN::Error::from_errno(EFAULT);
-			}
-			auto adr_node = TRY(convert_node(TRY(evaluate_node(adr_res.path, adr_res.node->node)), ConvInteger, -1));
-			opregion.as.opregion.dev  = adr_node.as.integer.value >> 16;
-			opregion.as.opregion.func = adr_node.as.integer.value & 0xFF;
-		}
+		new (&opregion.as.opregion.scope()) Scope();
+		opregion.as.opregion.scope() = TRY(context.scope.copy());
 
 		TRY(Namespace::root_namespace().add_named_object(context, region_name, BAN::move(opregion)));
 
@@ -414,6 +384,32 @@ namespace Kernel::ACPI::AML
 		return rule;
 	}
 
+	static BAN::ErrorOr<void> get_pci_config_address(const OpRegion& opregion, uint16_t& seg, uint8_t& bus, uint8_t& dev, uint8_t& func)
+	{
+		ASSERT(opregion.address_space == GAS::AddressSpaceID::PCIConfig);
+
+		seg = 0;
+		if (auto seg_res = TRY(Namespace::root_namespace().find_named_object(opregion.scope(), TRY(AML::NameString::from_string("_SEG"_sv)))); seg_res.node != nullptr)
+			seg = TRY(convert_node(TRY(evaluate_node(seg_res.path, seg_res.node->node)), ConvInteger, -1)).as.integer.value;
+
+		bus = 0;
+		if (auto bbn_res = TRY(Namespace::root_namespace().find_named_object(opregion.scope(), TRY(AML::NameString::from_string("_BBN"_sv)))); bbn_res.node != nullptr)
+			bus = TRY(convert_node(TRY(evaluate_node(bbn_res.path, bbn_res.node->node)), ConvInteger, -1)).as.integer.value;
+
+		auto adr_res = TRY(Namespace::root_namespace().find_named_object(opregion.scope(), TRY(AML::NameString::from_string("_ADR"_sv))));
+		if (adr_res.node == nullptr)
+		{
+			dwarnln("No _ADR for PCIConfig OpRegion");
+			return BAN::Error::from_errno(EFAULT);
+		}
+
+		auto adr_node = TRY(convert_node(TRY(evaluate_node(adr_res.path, adr_res.node->node)), ConvInteger, -1));
+		dev  = adr_node.as.integer.value >> 16;
+		func = adr_node.as.integer.value & 0xFF;
+
+		return {};
+	}
+
 	static BAN::ErrorOr<uint64_t> perform_opregion_read(const OpRegion& opregion, uint8_t access_size, uint64_t offset)
 	{
 		ASSERT(offset % access_size == 0);
@@ -455,7 +451,11 @@ namespace Kernel::ACPI::AML
 				ASSERT_NOT_REACHED();
 			case GAS::AddressSpaceID::PCIConfig:
 			{
-				if (opregion.seg != 0)
+				uint16_t seg;
+				uint8_t bus, dev, func;
+				TRY(get_pci_config_address(opregion, seg, bus, dev, func));
+
+				if (seg != 0)
 				{
 					dwarnln("PCIConfig OpRegion with segment");
 					return BAN::Error::from_errno(ENOTSUP);
@@ -463,11 +463,11 @@ namespace Kernel::ACPI::AML
 
 				switch (access_size)
 				{
-					case 1: return PCI::PCIManager::get().read_config_byte (opregion.bus, opregion.dev, opregion.func, byte_offset);
-					case 2: return PCI::PCIManager::get().read_config_word (opregion.bus, opregion.dev, opregion.func, byte_offset);
-					case 4: return PCI::PCIManager::get().read_config_dword(opregion.bus, opregion.dev, opregion.func, byte_offset);
+					case 1: return PCI::PCIManager::get().read_config_byte (bus, dev, func, byte_offset);
+					case 2: return PCI::PCIManager::get().read_config_word (bus, dev, func, byte_offset);
+					case 4: return PCI::PCIManager::get().read_config_dword(bus, dev, func, byte_offset);
 					default:
-						dwarnln("{} byte read from PCI {2H}:{2H}:{2H} offset {2H}", access_size, opregion.bus, opregion.dev, opregion.func, byte_offset);
+						dwarnln("{} byte read from PCI {2H}:{2H}:{2H} offset {2H}", access_size, bus, dev, func, byte_offset);
 						return BAN::Error::from_errno(EINVAL);
 				}
 				ASSERT_NOT_REACHED();
@@ -525,7 +525,11 @@ namespace Kernel::ACPI::AML
 				return {};
 			case GAS::AddressSpaceID::PCIConfig:
 			{
-				if (opregion.seg != 0)
+				uint16_t seg;
+				uint8_t bus, dev, func;
+				TRY(get_pci_config_address(opregion, seg, bus, dev, func));
+
+				if (seg != 0)
 				{
 					dwarnln("PCIConfig OpRegion with segment");
 					return BAN::Error::from_errno(ENOTSUP);
@@ -533,11 +537,11 @@ namespace Kernel::ACPI::AML
 
 				switch (access_size)
 				{
-					case 1: PCI::PCIManager::get().write_config_byte (opregion.bus, opregion.dev, opregion.func, byte_offset, value); break;
-					case 2: PCI::PCIManager::get().write_config_word (opregion.bus, opregion.dev, opregion.func, byte_offset, value); break;
-					case 4: PCI::PCIManager::get().write_config_dword(opregion.bus, opregion.dev, opregion.func, byte_offset, value); break;
+					case 1: PCI::PCIManager::get().write_config_byte (bus, dev, func, byte_offset, value); break;
+					case 2: PCI::PCIManager::get().write_config_word (bus, dev, func, byte_offset, value); break;
+					case 4: PCI::PCIManager::get().write_config_dword(bus, dev, func, byte_offset, value); break;
 					default:
-						dwarnln("{} byte write to PCI {2H}:{2H}:{2H} offset {2H}", access_size, opregion.bus, opregion.dev, opregion.func, byte_offset);
+						dwarnln("{} byte write to PCI {2H}:{2H}:{2H} offset {2H}", access_size, bus, dev, func, byte_offset);
 						return BAN::Error::from_errno(EINVAL);
 				}
 				return {};

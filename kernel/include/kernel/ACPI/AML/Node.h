@@ -87,14 +87,11 @@ namespace Kernel::ACPI::AML
 	struct OpRegion
 	{
 		GAS::AddressSpaceID address_space;
-
-		uint16_t seg;
-		uint8_t bus;
-		uint8_t dev;
-		uint8_t func;
-
 		uint64_t offset;
 		uint64_t length;
+		alignas(Scope) uint8_t scope_storage[sizeof(Scope)];
+		Scope& scope() { return *reinterpret_cast<Scope*>(scope_storage); }
+		const Scope& scope() const { return *reinterpret_cast<const Scope*>(scope_storage); }
 	};
 
 	struct FieldUnit

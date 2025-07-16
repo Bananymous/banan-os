@@ -1,9 +1,6 @@
 // FIXME: Rewrite aml interpreter to not be recursive.
 //        Not inlining TRYs drops our stack usage a ton...
-#pragma GCC push_options
 #pragma GCC optimize "no-inline"
-#include <BAN/Errors.h>
-#pragma GCC pop_options
 
 #include <BAN/Assert.h>
 #include <BAN/String.h>
@@ -3074,7 +3071,7 @@ namespace Kernel::ACPI::AML
 					return ExecutionFlowResult {
 						.elem1 = ExecutionFlow::Normal,
 						.elem2 = BAN::Optional<Node>(),
-					};;
+					};
 				case AML::Byte::BreakOp:
 					dprintln_if(AML_DUMP_FUNCTION_CALLS, "parse_break_op");
 					context.aml_data = context.aml_data.slice(1);
@@ -3090,14 +3087,12 @@ namespace Kernel::ACPI::AML
 						.elem2 = BAN::Optional<Node>(),
 					};
 				case AML::Byte::ReturnOp:
-				{
 					dprintln_if(AML_DUMP_FUNCTION_CALLS, "parse_return_op");
 					context.aml_data = context.aml_data.slice(1);
 					return ExecutionFlowResult {
 						.elem1 = ExecutionFlow::Return,
 						.elem2 = TRY(parse_node(context)),
 					};
-				}
 				default:
 					break;
 			}
@@ -3109,13 +3104,12 @@ namespace Kernel::ACPI::AML
 			return ExecutionFlowResult {
 				.elem1 = ExecutionFlow::Normal,
 				.elem2 = BAN::Optional<Node>(),
-			};;
+			};
 		}
 
-		auto node = TRY(parse_node(context));
 		return ExecutionFlowResult {
 			.elem1 = ExecutionFlow::Normal,
-			.elem2 = BAN::move(node)
+			.elem2 = TRY(parse_node(context)),
 		};
 	}
 
@@ -3260,6 +3254,8 @@ namespace Kernel::ACPI::AML
 				break;
 			case Type::OpRegion:
 				result.as.opregion = this->as.opregion;
+				new (&result.as.opregion.scope()) Scope();
+				result.as.opregion.scope() = TRY(this->as.opregion.scope().copy());
 				break;
 			case Type::FieldUnit:
 				result.as.field_unit = this->as.field_unit;
@@ -3364,7 +3360,9 @@ namespace Kernel::ACPI::AML
 				break;
 			case Type::OpRegion:
 				this->as.opregion = other.as.opregion;
-				other.as.opregion = {};
+				new (&this->as.opregion.scope()) Scope();
+				this->as.opregion.scope() = BAN::move(other.as.opregion.scope());
+				other.as.opregion.scope().~Scope();
 				break;
 			case Type::FieldUnit:
 				this->as.field_unit = other.as.field_unit;
@@ -3457,6 +3455,7 @@ namespace Kernel::ACPI::AML
 				this->as.buffer_field = {};
 				break;
 			case Type::OpRegion:
+				this->as.opregion.scope().~Scope();
 				this->as.opregion = {};
 				break;
 			case Type::FieldUnit:
