@@ -23,7 +23,7 @@ If you want to try out DOOM, you should first enter the GUI environment using th
 - [x] Basic graphical environment
   - [x] Terminal emulator
   - [x] Status bar
-  - [ ] Program launcher
+  - [x] Program launcher
   - [ ] Some nice apps
 - [x] ELF dynamic linking
 - [x] copy-on-write memory
@@ -117,6 +117,8 @@ To build for other architectures set environment variable BANAN\_ARCH=*arch* (e.
 To change the bootloader you can set environment variable BANAN\_BOOTLOADER; supported values are BANAN (my custom bootloader) and GRUB.
 
 To run with UEFI set environment variable BANAN\_UEFI\_BOOT=1. You will also have to set OVMF\_PATH to the correct OVMF (default */usr/share/ovmf/x64/OVMF.fd*).
+
+To build an image with no physical root filesystem, but an initrd set environment variable BANAN\_INITRD=1. This can be used when testing on hardware with unsupported USB controller.
 
 If you have corrupted your disk image or want to create new one, you can either manually delete *build/banan-os.img* and build system will automatically create you a new one or you can run the following command.
 ```sh
