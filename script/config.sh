@@ -28,6 +28,10 @@ if [[ -z $BANAN_UEFI_BOOT ]]; then
 	export BANAN_UEFI_BOOT=0
 fi
 
+if [[ -z $BANAN_INITRD ]]; then
+	export BANAN_INITRD=0
+fi
+
 if [[ -z $BANAN_BOOTLOADER ]]; then
 	export BANAN_BOOTLOADER='BANAN'
 fi

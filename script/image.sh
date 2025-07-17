@@ -33,9 +33,15 @@ if [ ! -b $ROOT_PARTITION ]; then
 fi
 
 if sudo mount $ROOT_PARTITION $MOUNT_DIR; then
-	cd $MOUNT_DIR
-	sudo tar xf $BANAN_SYSROOT_TAR
-	cd
+	if (($BANAN_INITRD)); then
+		sudo mkdir -p $MOUNT_DIR/boot
+		sudo cp $BANAN_BUILD_DIR/kernel/banan-os.kernel $MOUNT_DIR/boot/banan-os.kernel
+		sudo cp $BANAN_SYSROOT_TAR $MOUNT_DIR/boot/banan-os.initrd
+	else
+		cd $MOUNT_DIR
+		sudo tar xf $BANAN_SYSROOT_TAR
+		cd
+	fi
 
 	sudo umount $MOUNT_DIR
 fi

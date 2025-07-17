@@ -44,7 +44,11 @@ install_grub_legacy() {
 		--boot-directory="$mount_dir/boot"	\
 		$loop_dev
 	sudo mkdir -p "$mount_dir/boot/grub"
-	sudo cp "$BANAN_BUILD_DIR/grub-legacy-boot.cfg" "$mount_dir/boot/grub/grub.cfg"
+	if (($BANAN_INITRD)); then
+		sudo cp "$BANAN_BUILD_DIR/grub-legacy-initrd.cfg" "$mount_dir/boot/grub/grub.cfg"
+	else
+		sudo cp "$BANAN_BUILD_DIR/grub-legacy.cfg" "$mount_dir/boot/grub/grub.cfg"
+	fi
 	sudo umount "$mount_dir"
 }
 
@@ -57,11 +61,20 @@ install_grub_uefi() {
 
 	sudo mount $partition2 "$mount_dir"
 	sudo mkdir -p "$mount_dir/boot/grub"
-	sudo cp "$BANAN_BUILD_DIR/grub-uefi.cfg" "$mount_dir/boot/grub/grub.cfg"
+	if (($BANAN_INITRD)); then
+		sudo cp "$BANAN_BUILD_DIR/grub-uefi-initrd.cfg" "$mount_dir/boot/grub/grub.cfg"
+	else
+		sudo cp "$BANAN_BUILD_DIR/grub-uefi.cfg" "$mount_dir/boot/grub/grub.cfg"
+	fi
 	sudo umount "$mount_dir"
 }
 
 install_banan_legacy() {
+	if (($BANAN_INITRD)); then
+		echo "banan bootloader does not support initrd" >&2
+		exit 1
+	fi
+
 	root_disk_info=$(fdisk -x "$BANAN_DISK_IMAGE_PATH" | tr -s ' ')
 	root_part_guid=$(echo "$root_disk_info" | grep "^$BANAN_DISK_IMAGE_PATH" | head -2 | tail -1 | cut -d' ' -f6)
 
