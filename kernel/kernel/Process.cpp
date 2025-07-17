@@ -1420,9 +1420,11 @@ namespace Kernel
 				address_region2->unpin();
 		});
 
-		address_region1 = TRY(validate_and_pin_pointer_access(address_len, sizeof(address_len), true));
-		const socklen_t address_len_safe = address_len ? *address_len : 0;
-		address_region2 = TRY(validate_and_pin_pointer_access(address, address_len_safe, true));
+		if (address_len)
+		{
+			address_region1 = TRY(validate_and_pin_pointer_access(address_len, sizeof(address_len), true));
+			address_region2 = TRY(validate_and_pin_pointer_access(address, *address_len, true));
+		}
 
 		auto inode = TRY(m_open_file_descriptors.inode_of(socket));
 		if (!inode->mode().ifsock())
@@ -1498,7 +1500,8 @@ namespace Kernel
 		});
 
 		message_region = TRY(validate_and_pin_pointer_access(arguments.message, arguments.length, false));
-		address_region = TRY(validate_and_pin_pointer_access(arguments.dest_addr, arguments.dest_len, false));
+		if (arguments.dest_addr)
+			address_region = TRY(validate_and_pin_pointer_access(arguments.dest_addr, arguments.dest_len, false));
 
 		auto message = BAN::ConstByteSpan(static_cast<const uint8_t*>(arguments.message), arguments.length);
 		return TRY(m_open_file_descriptors.sendto(arguments.socket, message, arguments.dest_addr, arguments.dest_len));
@@ -1532,9 +1535,12 @@ namespace Kernel
 		});
 
 		buffer_region = TRY(validate_and_pin_pointer_access(arguments.buffer, arguments.length, true));
-		address_region1 = TRY(validate_and_pin_pointer_access(arguments.address_len, sizeof(*arguments.address_len), true));
-		const socklen_t address_len_safe = arguments.address_len ? *arguments.address_len : 0;
-		address_region2 = TRY(validate_and_pin_pointer_access(arguments.address, address_len_safe, true));
+
+		if (arguments.address_len)
+		{
+			address_region1 = TRY(validate_and_pin_pointer_access(arguments.address_len, sizeof(*arguments.address_len), true));
+			address_region2 = TRY(validate_and_pin_pointer_access(arguments.address, *arguments.address_len, true));
+		}
 
 		auto message = BAN::ByteSpan(static_cast<uint8_t*>(arguments.buffer), arguments.length);
 		return TRY(m_open_file_descriptors.recvfrom(arguments.socket, message, arguments.address, arguments.address_len));
@@ -1570,9 +1576,12 @@ namespace Kernel
 				errorfd_region->unpin();
 		});
 
-		readfd_region = TRY(validate_and_pin_pointer_access(arguments.readfds, sizeof(fd_set), true));
-		writefd_region = TRY(validate_and_pin_pointer_access(arguments.writefds, sizeof(fd_set), true));
-		errorfd_region = TRY(validate_and_pin_pointer_access(arguments.errorfds, sizeof(fd_set), true));
+		if (arguments.readfds)
+			readfd_region = TRY(validate_and_pin_pointer_access(arguments.readfds, sizeof(fd_set), true));
+		if (arguments.writefds)
+			writefd_region = TRY(validate_and_pin_pointer_access(arguments.writefds, sizeof(fd_set), true));
+		if (arguments.errorfds)
+			errorfd_region = TRY(validate_and_pin_pointer_access(arguments.errorfds, sizeof(fd_set), true));
 
 		const auto old_sigmask = Thread::current().m_signal_block_mask;
 		if (arguments.sigmask)
