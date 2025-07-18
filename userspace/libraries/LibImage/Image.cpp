@@ -8,6 +8,8 @@
 #include <fcntl.h>
 #include <sys/mman.h>
 
+#include <immintrin.h>
+
 namespace LibImage
 {
 
@@ -62,33 +64,41 @@ namespace LibImage
 		return BAN::Error::from_errno(ENOTSUP);
 	}
 
-
 	struct FloatingColor
 	{
-		double r, g, b, a;
+		__m128 vals;
 
-		constexpr FloatingColor() {}
-		constexpr FloatingColor(double r, double g, double b, double a)
-			: r(r), g(g), b(b), a(a)
+		FloatingColor() {}
+		FloatingColor(float b, float g, float r, float a)
+			: vals { b, g, r, a }
 		{}
-		constexpr FloatingColor(Image::Color c)
-			: r(c.r), g(c.g), b(c.b), a(c.a)
+		FloatingColor(Image::Color c)
+			: FloatingColor(c.b, c.g, c.r, c.a)
 		{}
-		constexpr FloatingColor operator*(double value) const
+		FloatingColor operator*(float value) const
 		{
-			return FloatingColor(r * value, g * value, b * value, a * value);
+			FloatingColor color;
+   			color.vals = _mm_mul_ps(vals, _mm_set1_ps(value));
+			return color;
 		}
-		constexpr FloatingColor operator+(FloatingColor other) const
+		FloatingColor operator+(FloatingColor other) const
 		{
-			return FloatingColor(r + other.r, g + other.g, b + other.b, a + other.a);
+			FloatingColor color;
+			color.vals = _mm_add_ps(this->vals, other.vals);
+			return color;
 		}
-		constexpr Image::Color as_color() const
+		Image::Color as_color() const
 		{
+			__m128i int32 = _mm_cvttps_epi32(this->vals);
+			__m128i int16 = _mm_packs_epi32(int32, _mm_setzero_si128());
+			__m128i int8 = _mm_packus_epi16(int16, _mm_setzero_si128());
+
+			const uint32_t temp = _mm_cvtsi128_si32(int8);
 			return Image::Color {
-				.b = static_cast<uint8_t>(b < 0.0 ? 0.0 : b > 255.0 ? 255.0 : b),
-				.g = static_cast<uint8_t>(g < 0.0 ? 0.0 : g > 255.0 ? 255.0 : g),
-				.r = static_cast<uint8_t>(r < 0.0 ? 0.0 : r > 255.0 ? 255.0 : r),
-				.a = static_cast<uint8_t>(a < 0.0 ? 0.0 : a > 255.0 ? 255.0 : a),
+				.b = reinterpret_cast<const uint8_t*>(&temp)[0],
+				.g = reinterpret_cast<const uint8_t*>(&temp)[1],
+				.r = reinterpret_cast<const uint8_t*>(&temp)[2],
+				.a = reinterpret_cast<const uint8_t*>(&temp)[3],
 			};
 		}
 	};
@@ -98,8 +108,8 @@ namespace LibImage
 		if (!validate_size(new_width, new_height))
 			return BAN::Error::from_errno(EOVERFLOW);
 
-		const double ratio_x = (double)width() / new_width;
-		const double ratio_y = (double)height() / new_height;
+		const float ratio_x = static_cast<float>(width()) / new_width;
+		const float ratio_y = static_cast<float>(height()) / new_height;
 
 		const auto get_clamped_color =
 			[this](int64_t x, int64_t y)
@@ -125,26 +135,38 @@ namespace LibImage
 				BAN::Vector<Color> bilinear_bitmap;
 				TRY(bilinear_bitmap.resize(new_width * new_height));
 
+				const uint64_t temp_w = width()  + 1;
+				const uint64_t temp_h = height() + 1;
+
+				BAN::Vector<FloatingColor> floating_bitmap;
+				TRY(floating_bitmap.resize(temp_w * temp_h));
+				for (uint64_t y = 0; y < temp_h; y++)
+					for (uint64_t x = 0; x < temp_w; x++)
+						floating_bitmap[y * temp_w + x] = get_clamped_color(x, y);
+
 				for (uint64_t y = 0; y < new_height; y++)
 				{
 					for (uint64_t x = 0; x < new_width; x++)
 					{
-						const double src_x = x * ratio_x;
-						const double src_y = y * ratio_y;
-						const double weight_x = src_x - BAN::Math::floor(src_x);
-						const double weight_y = src_y - BAN::Math::floor(src_y);
+						const float src_x = x * ratio_x;
+						const float src_y = y * ratio_y;
 
-						const Color avg_t = Color::average(
-							get_clamped_color(src_x + 0.0, src_y),
-							get_clamped_color(src_x + 1.0, src_y),
-							weight_x
-						);
-						const Color avg_b = Color::average(
-							get_clamped_color(src_x + 0.0, src_y + 1.0),
-							get_clamped_color(src_x + 0.0, src_y + 1.0),
-							weight_x
-						);
-						bilinear_bitmap[y * new_width + x] = Color::average(avg_t, avg_b, weight_y);
+						const float weight_x = BAN::Math::fmod(src_x, 1.0f);
+						const float weight_y = BAN::Math::fmod(src_y, 1.0f);
+
+						const uint64_t src_x_u64 = BAN::Math::clamp<uint64_t>(src_x, 0, width()  - 1);
+						const uint64_t src_y_u64 = BAN::Math::clamp<uint64_t>(src_y, 0, height() - 1);
+
+						const auto tl = floating_bitmap[(src_y_u64 + 0) * temp_w + (src_x_u64 + 0)];
+						const auto tr = floating_bitmap[(src_y_u64 + 0) * temp_w + (src_x_u64 + 1)];
+						const auto bl = floating_bitmap[(src_y_u64 + 1) * temp_w + (src_x_u64 + 0)];
+						const auto br = floating_bitmap[(src_y_u64 + 1) * temp_w + (src_x_u64 + 1)];
+
+						const auto avg_t = tl * (1.0f - weight_x) + tr * weight_x;
+						const auto avg_b = bl * (1.0f - weight_x) + br * weight_x;
+						const auto avg = avg_t * (1.0f - weight_y) + avg_b * weight_y;
+
+						bilinear_bitmap[y * new_width + x] = avg.as_color();
 					}
 				}
 
@@ -153,35 +175,52 @@ namespace LibImage
 			case ResizeAlgorithm::Cubic:
 			{
 				BAN::Vector<Color> bicubic_bitmap;
-				TRY(bicubic_bitmap.resize(new_width * new_height));
+				TRY(bicubic_bitmap.resize(new_width * new_height, {}));
 
 				constexpr auto cubic_interpolate =
-					[](FloatingColor p[4], double x)
+					[](const FloatingColor p[4], float weight) -> FloatingColor
 					{
 						const auto a = (p[0] * -0.5) + (p[1] *  1.5) + (p[2] * -1.5) + (p[3] *  0.5);
 						const auto b =  p[0]         + (p[1] * -2.5) + (p[2] *  2.0) + (p[3] * -0.5);
 						const auto c = (p[0] * -0.5)                 + (p[2] *  0.5);
 						const auto d =                  p[1];
-						return ((a * x + b) * x + c) * x + d;
+						return ((a * weight + b) * weight + c) * weight + d;
 					};
+
+				const uint64_t temp_w = width() + 3;
+				const uint64_t temp_h = height() + 3;
+
+				BAN::Vector<FloatingColor> floating_bitmap;
+				TRY(floating_bitmap.resize(temp_w * temp_h, {}));
+				for (uint64_t y = 0; y < temp_h; y++)
+					for (uint64_t x = 0; x < temp_w; x++)
+						floating_bitmap[y * temp_w + x] = get_clamped_color(
+							static_cast<int64_t>(x) - 1,
+							static_cast<int64_t>(y) - 1
+						);
 
 				for (uint64_t y = 0; y < new_height; y++)
 				{
 					for (uint64_t x = 0; x < new_width; x++)
 					{
-						const double src_x = x * ratio_x;
-						const double src_y = y * ratio_y;
-						const double weight_x = src_x - BAN::Math::floor(src_x);
-						const double weight_y = src_y - BAN::Math::floor(src_y);
+						const float src_x = x * ratio_x;
+						const float src_y = y * ratio_y;
+
+						const float weight_x = BAN::Math::fmod(src_x, 1.0f);
+						const float weight_y = BAN::Math::fmod(src_y, 1.0f);
+
+						const uint64_t src_x_u64 = BAN::Math::clamp<uint64_t>(src_x, 0, width()  - 1) + 1;
+						const uint64_t src_y_u64 = BAN::Math::clamp<uint64_t>(src_y, 0, height() - 1) + 1;
 
 						FloatingColor values[4];
 						for (int64_t m = -1; m <= 2; m++)
 						{
-							FloatingColor p[4];
-							p[0] = get_clamped_color(src_x - 1.0, src_y + m);
-							p[1] = get_clamped_color(src_x + 0.0, src_y + m);
-							p[2] = get_clamped_color(src_x + 1.0, src_y + m);
-							p[3] = get_clamped_color(src_x + 2.0, src_y + m);
+							const FloatingColor p[4] {
+								floating_bitmap[(src_y_u64 + m) * temp_w + (src_x_u64 - 1)],
+								floating_bitmap[(src_y_u64 + m) * temp_w + (src_x_u64 + 0)],
+								floating_bitmap[(src_y_u64 + m) * temp_w + (src_x_u64 + 1)],
+								floating_bitmap[(src_y_u64 + m) * temp_w + (src_x_u64 + 2)],
+							};
 							values[m + 1] = cubic_interpolate(p, weight_x);
 						}
 
