@@ -410,9 +410,11 @@ namespace Kernel
 		desc.offset1 = (uint16_t)((uintptr_t)handler >> 16);
 #if ARCH(x86_64)
 		desc.offset2 = (uint32_t)((uintptr_t)handler >> 32);
+		desc.IST = ist;
+#else
+		(void)ist;
 #endif
 
-		desc.IST = ist;
 		desc.selector = 0x08;
 		desc.flags = 0x8E;
 	}
@@ -454,8 +456,10 @@ namespace Kernel
 		ISR_LIST_X
 #undef X
 
+#if ARCH(x86_64)
 		idt->register_interrupt_handler(DoubleFault, isr8, 1);
 		static_assert(DoubleFault == 8);
+#endif
 
 #define X(num) idt->register_interrupt_handler(IRQ_VECTOR_BASE + num, irq ## num);
 		IRQ_LIST_X

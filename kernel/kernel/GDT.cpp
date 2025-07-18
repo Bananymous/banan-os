@@ -65,7 +65,9 @@ namespace Kernel
 	{
 		memset(&m_tss, 0x00, sizeof(TaskStateSegment));
 		m_tss.iopb = sizeof(TaskStateSegment);
+#if ARCH(x86_64)
 		m_tss.ist1 = reinterpret_cast<vaddr_t>(g_boot_stack_top);
+#endif
 
 		uintptr_t base = reinterpret_cast<uintptr_t>(&m_tss);
 
