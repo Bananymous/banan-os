@@ -57,5 +57,5 @@ foreach(project ${USERSPACE_PROGRAMS})
 	# This is to allow cmake to link when libc updates
 	target_link_options(${project} PRIVATE -nolibc)
 	# Default compile options
-	target_compile_options(${project} PRIVATE -g -O2 -Wall -Wextra -Werror)
+	target_compile_options(${project} PRIVATE -g -O2 -Wall -Wextra -Werror -msse -msse2)
 endforeach()

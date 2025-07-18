@@ -23,7 +23,7 @@ foreach(library ${USERSPACE_LIBRARIES})
 		# This is to allow cmake to link when libc updates
 		target_link_options(${library_lower} PRIVATE -nolibc)
 		# Default compile options
-		target_compile_options(${library_lower} PRIVATE -g -O2 -Wall -Wextra -Werror)
+		target_compile_options(${library_lower} PRIVATE -g -O2 -Wall -Wextra -Werror -msse -msse2)
 
 		# set SONAME as cmake doesn't set it for some reason??
 		set_target_properties(${library_lower} PROPERTIES LINK_FLAGS "-Wl,-soname,${library_lower}.so")
