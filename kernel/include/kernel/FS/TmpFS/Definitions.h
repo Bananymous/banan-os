@@ -28,7 +28,7 @@ namespace Kernel
 		// 1x singly indirect
 		// 1x doubly indirect
 		// 1x triply indirect
-		BAN::Array<paddr_t, 5> block;
+		BAN::Array<size_t, 5> block;
 		static constexpr size_t direct_block_count = 2;
 #elif ARCH(i686)
 		uint32_t __padding;
@@ -36,8 +36,8 @@ namespace Kernel
 		// 1x singly indirect
 		// 1x doubly indirect
 		// 1x triply indirect
-		BAN::Array<paddr_t, 8> block;
-		static constexpr size_t direct_block_count = 5;
+		BAN::Array<size_t, 16> block;
+		static constexpr size_t direct_block_count = 13;
 #else
 	#error
 #endif

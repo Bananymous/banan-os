@@ -284,7 +284,9 @@ namespace Kernel
 
 		paddr_t page_to_free;
 		PageTable::with_fast_page(layer1_page.paddr(), [&] {
-			auto& allocated_pages = PageTable::fast_page_as_sized<size_t>(page_infos_per_page - 1);
+			static_assert(sizeof(size_t) <= sizeof(PageInfo));
+
+			auto& allocated_pages = PageTable::fast_page_as<size_t>(PAGE_SIZE - sizeof(size_t));
 			ASSERT(allocated_pages > 0);
 			allocated_pages--;
 
@@ -405,8 +407,9 @@ namespace Kernel
 
 				PageTable::with_fast_page(layer1_page.paddr(), [&] {
 					constexpr size_t pages_per_block = page_infos_per_page - 1;
+					static_assert(sizeof(size_t) <= sizeof(PageInfo));
 
-					auto& allocated_pages = PageTable::fast_page_as_sized<size_t>(pages_per_block);
+					auto& allocated_pages = PageTable::fast_page_as<size_t>(PAGE_SIZE - sizeof(size_t));
 					if (allocated_pages == pages_per_block)
 						return;
 
