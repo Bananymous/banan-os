@@ -61,7 +61,7 @@ namespace Kernel
 		if (filesystem_or_error.is_error())
 			panic("Failed to create fallback filesystem: {}", filesystem_or_error.error());
 
-		dwarnln("Attempting to load fallback filesystem from {} modules", g_boot_info.modules.size());
+		dprintln("Loading fallback filesystem from {} modules", g_boot_info.modules.size());
 
 		auto filesystem = BAN::RefPtr<FileSystem>::adopt(filesystem_or_error.release_value());
 
@@ -78,6 +78,9 @@ namespace Kernel
 
 	static BAN::RefPtr<FileSystem> load_root_filesystem(BAN::StringView root_path)
 	{
+		if (root_path.empty())
+			return load_fallback_root_filesystem();
+
 		enum class RootType
 		{
 			PartitionUUID,
