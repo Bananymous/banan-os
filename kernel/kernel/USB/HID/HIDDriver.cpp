@@ -558,6 +558,8 @@ namespace Kernel
 			{
 				switch (item_tag)
 				{
+					case 0b0000:
+						break;
 					case 0b1000: // input
 						if (collection_stack.empty())
 						{
