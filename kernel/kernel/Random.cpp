@@ -21,13 +21,14 @@ namespace Kernel
 		if (ecx & CPUID::ECX_RDRND)
 		{
 #if ARCH(x86_64)
-			asm volatile("rdrand %0" : "=r"(s_rand_seed));
+			asm volatile("rdrand %0" : "=r"(s_rand_seed) :: "flags");
 #elif ARCH(i686)
 			uint32_t lo, hi;
 			asm volatile(
 				"rdrand %[lo];"
 				"rdrand %[hi];"
 				: [lo]"=r"(lo), [hi]"=r"(hi)
+				:: "flags"
 			);
 			s_rand_seed = ((uint64_t)hi << 32) | lo;
 #else
