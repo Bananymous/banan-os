@@ -15,10 +15,10 @@
 #define SELECT_CHANNEL1		0x40
 #define SELECT_CHANNEL2		0x80
 
-#define ACCESS_HI 			0x10
-#define ACCESS_LO 			0x20
+#define ACCESS_LO 			0x10
+#define ACCESS_HI 			0x20
 
-#define MODE_RATE_GENERATOR	0x05
+#define MODE_RATE_GENERATOR	0x04
 
 #define BASE_FREQUENCY		1193182
 
@@ -116,10 +116,7 @@ namespace Kernel
 		while (elapsed_ticks < target_ticks)
 		{
 			const uint8_t current_ticks = IO::inb(TIMER0_CTL);
-			if (last_ticks <= current_ticks)
-				elapsed_ticks += current_ticks - last_ticks;
-			else
-				elapsed_ticks += 0xFF + current_ticks - last_ticks;
+			elapsed_ticks += static_cast<uint8_t>(last_ticks - current_ticks);
 			last_ticks = current_ticks;
 		}
 
