@@ -470,7 +470,7 @@ namespace Kernel
 		IOAPIC* ioapic = nullptr;
 		for (IOAPIC& io : m_io_apics)
 		{
-			if (io.gsi_base <= gsi && gsi <= io.gsi_base + io.max_redirs)
+			if (io.gsi_base <= gsi && gsi < io.gsi_base + io.max_redirs)
 			{
 				ioapic = &io;
 				break;
@@ -512,7 +512,7 @@ namespace Kernel
 		bool found_ioapic = false;
 		for (const auto& io : m_io_apics)
 		{
-			if (io.gsi_base <= gsi && gsi <= io.gsi_base + io.max_redirs)
+			if (io.gsi_base <= gsi && gsi < io.gsi_base + io.max_redirs)
 			{
 				found_ioapic = true;
 				break;
@@ -529,7 +529,7 @@ namespace Kernel
 		int bit  = gsi % 8;
 		if (m_reserved_gsis[byte] & (1 << bit))
 		{
-			dwarnln("GSI {} is already reserved", gsi);
+			dwarnln("GSI {} is already reserved (IRQ {})", gsi, irq);
 			return BAN::Error::from_errno(EFAULT);
 		}
 		m_reserved_gsis[byte] |= 1 << bit;
@@ -566,7 +566,7 @@ namespace Kernel
 			IOAPIC* ioapic = nullptr;
 			for (IOAPIC& io : m_io_apics)
 			{
-				if (io.gsi_base <= gsi && gsi <= io.gsi_base + io.max_redirs)
+				if (io.gsi_base <= gsi && gsi < io.gsi_base + io.max_redirs)
 				{
 					ioapic = &io;
 					break;
