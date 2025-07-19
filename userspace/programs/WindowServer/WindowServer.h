@@ -46,6 +46,7 @@ public:
 	void on_key_event(LibInput::KeyEvent event);
 	void on_mouse_button(LibInput::MouseButtonEvent event);
 	void on_mouse_move(LibInput::MouseMoveEvent event);
+	void on_mouse_move_abs(LibInput::MouseMoveAbsEvent event);
 	void on_mouse_scroll(LibInput::MouseScrollEvent event);
 
 	void set_focused_window(BAN::RefPtr<Window> window);
@@ -63,6 +64,8 @@ public:
 	bool is_stopped() const { return m_is_stopped; }
 
 private:
+	void on_mouse_move_impl(int32_t new_x, int32_t new_y);
+
 	void mark_pending_sync(Rectangle area);
 
 	bool resize_window(BAN::RefPtr<Window> window, uint32_t width, uint32_t height) const;

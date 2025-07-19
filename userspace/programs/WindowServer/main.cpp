@@ -290,6 +290,9 @@ int main()
 				case LibInput::MouseEventType::MouseMoveEvent:
 					window_server.on_mouse_move(event.move_event);
 					break;
+				case LibInput::MouseEventType::MouseMoveAbsEvent:
+					window_server.on_mouse_move_abs(event.move_abs_event);
+					break;
 				case LibInput::MouseEventType::MouseScrollEvent:
 					window_server.on_mouse_scroll(event.scroll_event);
 					break;

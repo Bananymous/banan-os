@@ -613,36 +613,9 @@ void WindowServer::on_mouse_button(LibInput::MouseButtonEvent event)
 	}
 }
 
-void WindowServer::on_mouse_move(LibInput::MouseMoveEvent event)
+void WindowServer::on_mouse_move_impl(int32_t new_x, int32_t new_y)
 {
-	if (m_is_mouse_captured)
-	{
-		ASSERT(m_focused_window);
-
-		LibGUI::EventPacket::MouseMoveEvent packet;
-		packet.event.x =  event.rel_x;
-		packet.event.y = -event.rel_y;
-		if (auto ret = packet.send_serialized(m_focused_window->client_fd()); ret.is_error())
-			dwarnln("could not send mouse move event: {}", ret.error());
-		return;
-	}
-
-	const auto [new_x, new_y] =
-		[&]() -> Position
-		{
-			const int32_t new_x = m_cursor.x + event.rel_x;
-			const int32_t new_y = m_cursor.y - event.rel_y;
-			return (m_state == State::Fullscreen)
-				? Position {
-					.x = BAN::Math::clamp(new_x, m_focused_window->client_x(), m_focused_window->client_x() + m_focused_window->client_width()),
-					.y = BAN::Math::clamp(new_y, m_focused_window->client_y(), m_focused_window->client_y() + m_focused_window->client_height())
-				}
-				: Position {
-					.x = BAN::Math::clamp(new_x, 0, m_framebuffer.width),
-					.y = BAN::Math::clamp(new_y, 0, m_framebuffer.height)
-				};
-		}();
-
+	LibInput::MouseMoveEvent event;
 	event.rel_x = new_x - m_cursor.x;
 	event.rel_y = new_y - m_cursor.y;
 	if (event.rel_x == 0 && event.rel_y == 0)
@@ -704,6 +677,74 @@ void WindowServer::on_mouse_move(LibInput::MouseMoveEvent event)
 			break;
 		}
 	}
+}
+
+void WindowServer::on_mouse_move(LibInput::MouseMoveEvent event)
+{
+	if (m_is_mouse_captured)
+	{
+		ASSERT(m_focused_window);
+
+		LibGUI::EventPacket::MouseMoveEvent packet;
+		packet.event.x =  event.rel_x;
+		packet.event.y = -event.rel_y;
+		if (auto ret = packet.send_serialized(m_focused_window->client_fd()); ret.is_error())
+			dwarnln("could not send mouse move event: {}", ret.error());
+		return;
+	}
+
+	int32_t min_x, max_x;
+	int32_t min_y, max_y;
+
+	if (m_state == State::Fullscreen)
+	{
+		min_x = m_focused_window->client_x();
+		min_y = m_focused_window->client_y();
+		max_x = m_focused_window->client_x() + m_focused_window->client_width();
+		max_y = m_focused_window->client_y() + m_focused_window->client_height();
+	}
+	else
+	{
+		min_x = 0;
+		min_y = 0;
+		max_x = m_framebuffer.width;
+		max_y = m_framebuffer.height;
+	}
+
+	const int32_t new_x = BAN::Math::clamp(m_cursor.x + event.rel_x, min_x, max_x);
+	const int32_t new_y = BAN::Math::clamp(m_cursor.y + event.rel_y, min_y, max_y);
+	return on_mouse_move_impl(new_x, new_y);
+}
+
+void WindowServer::on_mouse_move_abs(LibInput::MouseMoveAbsEvent event)
+{
+	constexpr auto map =
+		[](int32_t val, int32_t in_min, int32_t in_max, int32_t out_min, int32_t out_max) -> int32_t
+		{
+			return (val - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+		};
+
+	int32_t out_min_x, out_max_x;
+	int32_t out_min_y, out_max_y;
+
+	if (m_state == State::Fullscreen)
+	{
+		out_min_x = m_focused_window->client_x();
+		out_min_y = m_focused_window->client_y();
+		out_max_x = m_focused_window->client_x() + m_focused_window->client_width();
+		out_max_y = m_focused_window->client_y() + m_focused_window->client_height();
+	}
+	else
+	{
+		out_min_x = 0;
+		out_min_y = 0;
+		out_max_x = m_framebuffer.width;
+		out_max_y = m_framebuffer.height;
+	}
+
+	const int32_t new_x = map(event.abs_x, event.min_x, event.max_x, out_min_x, out_max_x);
+	const int32_t new_y = map(event.abs_y, event.min_y, event.max_y, out_min_y, out_max_y);
+	return on_mouse_move_impl(new_x, new_y);
 }
 
 void WindowServer::on_mouse_scroll(LibInput::MouseScrollEvent event)
