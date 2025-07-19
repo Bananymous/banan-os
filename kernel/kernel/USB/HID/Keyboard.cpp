@@ -102,21 +102,6 @@ namespace Kernel
 		m_keyboard_lock.unlock(m_lock_state);
 	}
 
-	void USBKeyboard::handle_variable(uint16_t usage_page, uint16_t usage, int64_t state)
-	{
-		ASSERT(m_keyboard_lock.current_processor_has_lock());
-
-		if (usage_page != 0x07)
-		{
-			dprintln_if(DEBUG_USB_KEYBOARD, "Unsupported keyboard usage page {2H}", usage_page);
-			return;
-		}
-		if (!state)
-			return;
-		if (usage >= 4 && usage < m_keyboard_state_temp.size())
-			m_keyboard_state_temp[usage] = state;
-	}
-
 	void USBKeyboard::handle_array(uint16_t usage_page, uint16_t usage)
 	{
 		ASSERT(m_keyboard_lock.current_processor_has_lock());
@@ -128,6 +113,31 @@ namespace Kernel
 		}
 		if (usage >= 4 && usage < m_keyboard_state_temp.size())
 			m_keyboard_state_temp[usage] = true;
+	}
+
+	void USBKeyboard::handle_variable(uint16_t usage_page, uint16_t usage, int64_t state)
+	{
+		(void)usage_page;
+		(void)usage;
+		(void)state;
+		dprintln_if(DEBUG_USB_KEYBOARD, "Unsupported keyboard relative usage page {2H}", usage_page);
+	}
+
+	void USBKeyboard::handle_variable_absolute(uint16_t usage_page, uint16_t usage, int64_t state, int64_t min, int64_t max)
+	{
+		(void)min; (void)max;
+
+		ASSERT(m_keyboard_lock.current_processor_has_lock());
+
+		if (usage_page != 0x07)
+		{
+			dprintln_if(DEBUG_USB_KEYBOARD, "Unsupported keyboard usage page {2H}", usage_page);
+			return;
+		}
+		if (!state)
+			return;
+		if (usage >= 4 && usage < m_keyboard_state_temp.size())
+			m_keyboard_state_temp[usage] = state;
 	}
 
 	void USBKeyboard::update()

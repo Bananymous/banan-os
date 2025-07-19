@@ -58,8 +58,9 @@ namespace Kernel
 		virtual void start_report() = 0;
 		virtual void stop_report() = 0;
 
-		virtual void handle_variable(uint16_t usage_page, uint16_t usage, int64_t state) = 0;
 		virtual void handle_array(uint16_t usage_page, uint16_t usage) = 0;
+		virtual void handle_variable(uint16_t usage_page, uint16_t usage, int64_t state) = 0;
+		virtual void handle_variable_absolute(uint16_t usage_page, uint16_t usage, int64_t state, int64_t min, int64_t max) = 0;
 	};
 
 	class USBHIDDriver final : public USBClassDriver

@@ -376,17 +376,26 @@ namespace Kernel
 						continue;
 					}
 
-					const int64_t physical =
-						(input.physical_maximum - input.physical_minimum) *
-						(logical - input.logical_minimum) /
-						(input.logical_maximum - input.logical_minimum) +
-						input.physical_minimum;
-
 					const uint32_t usage_base = input.usage_id ? input.usage_id : input.usage_minimum;
-					if (input.flags & 0x02)
-						device_input.device->handle_variable(input.usage_page, usage_base + i, physical);
+
+					const bool relative = !!(input.flags & 0x04);
+					const bool variable = !!(input.flags & 0x02);
+
+					if (!variable)
+						device_input.device->handle_array(input.usage_page, usage_base + logical);
 					else
-						device_input.device->handle_array(input.usage_page, usage_base + physical);
+					{
+						const int64_t physical =
+							(input.physical_maximum - input.physical_minimum) *
+							(logical - input.logical_minimum) /
+							(input.logical_maximum - input.logical_minimum) +
+							input.physical_minimum;
+
+						if (relative)
+							device_input.device->handle_variable(input.usage_page, usage_base + i, physical);
+						else
+							device_input.device->handle_variable_absolute(input.usage_page, usage_base + i, physical, input.physical_minimum, input.physical_maximum);
+					}
 
 					bit_offset += input.report_size;
 				}

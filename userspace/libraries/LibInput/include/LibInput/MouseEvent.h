@@ -22,6 +22,16 @@ namespace LibInput
 		int32_t rel_y;
 	};
 
+	struct MouseMoveAbsEvent
+	{
+		int32_t abs_x;
+		int32_t abs_y;
+		int32_t min_x;
+		int32_t min_y;
+		int32_t max_x;
+		int32_t max_y;
+	};
+
 	struct MouseScrollEvent
 	{
 		int32_t scroll;
@@ -31,6 +41,7 @@ namespace LibInput
 	{
 		MouseButtonEvent,
 		MouseMoveEvent,
+		MouseMoveAbsEvent,
 		MouseScrollEvent,
 	};
 
@@ -41,6 +52,7 @@ namespace LibInput
 		{
 			MouseButtonEvent button_event;
 			MouseMoveEvent move_event;
+			MouseMoveAbsEvent move_abs_event;
 			MouseScrollEvent scroll_event;
 		};
 	};

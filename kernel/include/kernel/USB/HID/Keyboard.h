@@ -14,8 +14,9 @@ namespace Kernel
 		void start_report() override;
 		void stop_report() override;
 
-		void handle_variable(uint16_t usage_page, uint16_t usage, int64_t state) override;
 		void handle_array(uint16_t usage_page, uint16_t usage) override;
+		void handle_variable(uint16_t usage_page, uint16_t usage, int64_t state) override;
+		void handle_variable_absolute(uint16_t usage_page, uint16_t usage, int64_t state, int64_t min, int64_t max) override;
 
 		void update() override;
 
