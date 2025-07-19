@@ -32,7 +32,7 @@ fi
 NET_ARGS='-netdev user,id=net'
 NET_ARGS="-device e1000e,netdev=net $NET_ARGS"
 
-USB_ARGS='-device qemu-xhci -device usb-kbd,port=1 -device usb-hub,port=2 -device usb-mouse,port=2.1'
+USB_ARGS='-device qemu-xhci -device usb-kbd,port=1 -device usb-hub,port=2 -device usb-tablet,port=2.1'
 
 SOUND_ARGS='-device ac97'
 
