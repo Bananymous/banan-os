@@ -676,6 +676,9 @@ Rectangle Terminal::putcodepoint(uint32_t codepoint)
 	auto& texture = m_window->texture();
 	switch (codepoint)
 	{
+		case '\a':
+			// TODO: bell
+			break;
 		case '\e':
 			m_state = State::ESC;
 			break;
@@ -697,6 +700,12 @@ Rectangle Terminal::putcodepoint(uint32_t codepoint)
 			break;
 		default:
 		{
+			if (iscntrl(codepoint))
+			{
+				dwarnln("unhandled control character 0x{2H}", codepoint);
+				break;
+			}
+
 			if (m_cursor.x >= cols())
 			{
 				m_cursor.x = 0;
