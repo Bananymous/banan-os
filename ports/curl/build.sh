@@ -4,6 +4,7 @@ NAME='curl'
 VERSION='8.11.1'
 DOWNLOAD_URL="https://curl.se/download/curl-$VERSION.tar.gz#a889ac9dbba3644271bd9d1302b5c22a088893719b72be3487bc3d401e5c4e80"
 DEPENDENCIES=('ca-certificates' 'openssl' 'zlib' 'zstd')
+CONFIG_SUB=('config.sub')
 CONFIGURE_OPTIONS=(
 	'--disable-threaded-resolver'
 	'--disable-ipv6'

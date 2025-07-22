@@ -4,6 +4,7 @@ NAME='libwebp'
 VERSION='1.5.0'
 DOWNLOAD_URL="https://storage.googleapis.com/downloads.webmproject.org/releases/webp/libwebp-$VERSION.tar.gz#7d6fab70cf844bf6769077bd5d7a74893f8ffd4dfb42861745750c63c2a5c92c"
 DEPENDENCIES=('libpng' 'libjpeg' 'libtiff')
+CONFIG_SUB=('config.sub')
 CONFIGURE_OPTIONS=(
 	"--with-pngincludedir=$BANAN_SYSROOT/usr/include"
 	"--with-pnglibdir=$BANAN_SYSROOT/usr/lib"
