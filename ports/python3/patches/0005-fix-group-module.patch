@@ -1,0 +1,17 @@
+diff -ruN Python-3.13.3/Modules/grpmodule.c Python-3.13.3-banan_os/Modules/grpmodule.c
+--- Python-3.13.3/Modules/grpmodule.c	2025-04-08 16:54:08.000000000 +0300
++++ Python-3.13.3-banan_os/Modules/grpmodule.c	2025-04-19 02:40:57.658713753 +0300
+@@ -91,9 +91,12 @@
+ 
+ #define SET(i,val) PyStructSequence_SetItem(v, i, val)
+     SET(setIndex++, PyUnicode_DecodeFSDefault(p->gr_name));
++#if !defined(__banan_os__)
+     if (p->gr_passwd)
+             SET(setIndex++, PyUnicode_DecodeFSDefault(p->gr_passwd));
+-    else {
++    else
++#endif
++	{
+             SET(setIndex++, Py_None);
+             Py_INCREF(Py_None);
+     }

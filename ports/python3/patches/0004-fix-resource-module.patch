@@ -1,0 +1,19 @@
+diff -ruN Python-3.13.3/Modules/resource.c Python-3.13.3-banan_os/Modules/resource.c
+--- Python-3.13.3/Modules/resource.c	2025-04-08 16:54:08.000000000 +0300
++++ Python-3.13.3-banan_os/Modules/resource.c	2025-04-19 02:36:06.945810525 +0300
+@@ -126,6 +126,7 @@
+                     PyFloat_FromDouble(doubletime(ru.ru_utime)));
+     PyStructSequence_SetItem(result, 1,
+                     PyFloat_FromDouble(doubletime(ru.ru_stime)));
++#if !defined(__banan_os__)
+     PyStructSequence_SetItem(result, 2, PyLong_FromLong(ru.ru_maxrss));
+     PyStructSequence_SetItem(result, 3, PyLong_FromLong(ru.ru_ixrss));
+     PyStructSequence_SetItem(result, 4, PyLong_FromLong(ru.ru_idrss));
+@@ -140,6 +141,7 @@
+     PyStructSequence_SetItem(result, 13, PyLong_FromLong(ru.ru_nsignals));
+     PyStructSequence_SetItem(result, 14, PyLong_FromLong(ru.ru_nvcsw));
+     PyStructSequence_SetItem(result, 15, PyLong_FromLong(ru.ru_nivcsw));
++#endif
+ 
+     if (PyErr_Occurred()) {
+         Py_DECREF(result);

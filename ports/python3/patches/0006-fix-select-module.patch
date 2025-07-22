@@ -1,0 +1,14 @@
+diff -ruN Python-3.13.3/Modules/selectmodule.c Python-3.13.3-banan_os/Modules/selectmodule.c
+--- Python-3.13.3/Modules/selectmodule.c	2025-04-08 16:54:08.000000000 +0300
++++ Python-3.13.3-banan_os/Modules/selectmodule.c	2025-04-19 02:55:44.944860340 +0300
+@@ -54,6 +54,10 @@
+ #include <sys/poll.h>
+ #endif
+ 
++#if defined(__banan_os__)
++#include <sys/select.h>
++#endif
++
+ #ifdef __sgi
+ /* This is missing from unistd.h */
+ extern void bzero(void *, int);

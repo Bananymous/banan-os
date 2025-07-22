@@ -1,0 +1,19 @@
+diff -ruN Python-3.13.3/Objects/mimalloc/prim/unix/prim.c Python-3.13.3-banan_os/Objects/mimalloc/prim/unix/prim.c
+--- Python-3.13.3/Objects/mimalloc/prim/unix/prim.c	2025-04-08 16:54:08.000000000 +0300
++++ Python-3.13.3-banan_os/Objects/mimalloc/prim/unix/prim.c	2025-04-19 02:14:12.417811656 +0300
+@@ -608,10 +608,13 @@
+   getrusage(RUSAGE_SELF, &rusage);
+   pinfo->utime = timeval_secs(&rusage.ru_utime);
+   pinfo->stime = timeval_secs(&rusage.ru_stime);
+-#if !defined(__HAIKU__)
++#if !defined(__HAIKU__) && !defined(__banan_os__)
+   pinfo->page_faults = rusage.ru_majflt;
+ #endif
+-#if defined(__HAIKU__)
++#if defined(__banan_os__)
++  pinfo->page_faults = 0;
++  pinfo->peak_rss = 0;
++#elif defined(__HAIKU__)
+   // Haiku does not have (yet?) a way to
+   // get these stats per process
+   thread_info tid;

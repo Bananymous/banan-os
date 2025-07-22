@@ -1,0 +1,13 @@
+diff -ruN Python-3.13.3/Include/internal/pycore_time.h Python-3.13.3-banan_os/Include/internal/pycore_time.h
+--- Python-3.13.3/Include/internal/pycore_time.h	2025-04-08 16:54:08.000000000 +0300
++++ Python-3.13.3-banan_os/Include/internal/pycore_time.h	2025-04-19 02:27:02.327447295 +0300
+@@ -58,9 +58,7 @@
+ #endif
+ 
+ 
+-#ifdef __clang__
+ struct timeval;
+-#endif
+ 
+ #define _SIZEOF_PYTIME_T 8
+ 

@@ -1,0 +1,22 @@
+diff -ruN Python-3.13.3/Modules/socketmodule.c Python-3.13.3-banan_os/Modules/socketmodule.c
+--- Python-3.13.3/Modules/socketmodule.c	2025-04-08 16:54:08.000000000 +0300
++++ Python-3.13.3-banan_os/Modules/socketmodule.c	2025-04-19 03:09:49.117436782 +0300
+@@ -1676,10 +1676,17 @@
+     default:
+         /* If we don't know the address family, don't raise an
+            exception -- return it as an (int, bytes) tuple. */
++#if defined(__banan_os__)
+         return Py_BuildValue("iy#",
+                              addr->sa_family,
+                              addr->sa_data,
+-                             sizeof(addr->sa_data));
++                             sizeof(((struct sockaddr_storage){}).ss_storage));
++#else
++        return Py_BuildValue("iy#",
++                            addr->sa_family,
++                            addr->sa_data,
++                            sizeof(addr->sa_data));
++#endif
+ 
+     }
+ }
