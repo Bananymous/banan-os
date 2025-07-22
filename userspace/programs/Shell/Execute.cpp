@@ -99,6 +99,47 @@ BAN::ErrorOr<Execute::ExecuteResult> Execute::execute_command_no_wait(const Inte
 		CHECK_FD_OR_PERROR_AND_EXIT(command.fd_in, STDIN_FILENO);
 		CHECK_FD_OR_PERROR_AND_EXIT(command.fd_out, STDOUT_FILENO);
 
+		for (const auto& redirection : command.redirections)
+		{
+			int dst_fd = -1;
+
+			if (redirection.duplicate)
+			{
+				if (!redirection.path.empty())
+				{
+					dst_fd = 0;
+
+					for (char ch : redirection.path)
+					{
+						if (!isdigit(ch))
+						{
+							dst_fd = -1;
+							break;
+						}
+
+						dst_fd = (dst_fd * 10) + (ch - '0');
+					}
+				}
+			}
+			else
+			{
+				const int flags = O_CREAT
+					| (redirection.input ? O_RDONLY : O_WRONLY)
+					| (redirection.append ? O_APPEND : O_TRUNC);
+				dst_fd = open(redirection.path.data(), flags, 0644);
+				if (dst_fd == -1)
+				{
+					perror("open");
+					exit(errno);
+				}
+			}
+
+			CHECK_FD_OR_PERROR_AND_EXIT(dst_fd, redirection.source_fd);
+
+			if (!redirection.duplicate)
+				close(dst_fd);
+		}
+
 		execv(command.command.get<BAN::String>().data(), const_cast<char* const*>(exec_args.data()));
 		perror("execv");
 		exit(errno);
@@ -125,6 +166,7 @@ BAN::ErrorOr<int> Execute::execute_command_sync(BAN::Span<const BAN::String> arg
 		.command = {},
 		.arguments = arguments,
 		.environments = {},
+		.redirections = {},
 		.fd_in = fd_in,
 		.fd_out = fd_out,
 		.background = false,
@@ -194,6 +236,22 @@ BAN::ErrorOr<void> Execute::execute_command(const PipedCommand& piped_command)
 			return result;
 		};
 
+	const auto evaluate_redirections =
+		[this](BAN::Span<const SingleCommand::Redirection> redirections) -> BAN::ErrorOr<BAN::Vector<InternalCommand::Redirection>>
+		{
+			BAN::Vector<InternalCommand::Redirection> result;
+			TRY(result.reserve(redirections.size()));
+			for (const auto& redirection : redirections)
+				TRY(result.push_back({
+					.path = TRY(redirection.destination.evaluate(*this)),
+					.source_fd = redirection.source_fd,
+					.append = redirection.append,
+					.duplicate = redirection.duplicate,
+					.input = redirection.input,
+				}));
+			return result;
+		};
+
 	const int stdin_flags = fcntl(STDIN_FILENO, F_GETFL);
 	if (stdin_flags == -1)
 		perror("fcntl");
@@ -221,11 +279,13 @@ BAN::ErrorOr<void> Execute::execute_command(const PipedCommand& piped_command)
 
 		const auto arguments = TRY_OR_PERROR_AND_BREAK(evaluate_arguments(piped_command.commands[i].arguments.span()));
 		const auto environments = TRY_OR_PERROR_AND_BREAK(evaluate_environment(piped_command.commands[i].environment.span()));
+		const auto redirections = TRY_OR_PERROR_AND_BREAK(evaluate_redirections(piped_command.commands[i].redirections.span()));
 
 		InternalCommand command {
 			.command = {},
 			.arguments = arguments.span(),
 			.environments = environments.span(),
+			.redirections = redirections.span(),
 			.fd_in = fd_in,
 			.fd_out = fd_out,
 			.background = piped_command.background,

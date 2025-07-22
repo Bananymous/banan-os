@@ -21,6 +21,8 @@ BAN::ErrorOr<BAN::Vector<Token>> tokenize_string(BAN::StringView string)
 				case ')':  return Token::Type::CloseParen;
 				case '$':  return Token::Type::Dollar;
 				case '"':  return Token::Type::DoubleQuote;
+				case '>':  return Token::Type::GreaterThan;
+				case '<':  return Token::Type::LessThan;
 				case '{':  return Token::Type::OpenCurly;
 				case '(':  return Token::Type::OpenParen;
 				case '|':  return Token::Type::Pipe;

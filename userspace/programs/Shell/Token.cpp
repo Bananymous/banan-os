@@ -27,6 +27,12 @@ void Token::debug_dump() const
 		case Type::DoubleQuote:
 			dprintln("Token <DoubleQuote>");
 			break;
+		case Type::GreaterThan:
+			dprintln("Token <GreaterThan>");
+			break;
+		case Type::LessThan:
+			dprintln("Token <LessThan>");
+			break;
 		case Type::OpenCurly:
 			dprintln("Token <OpenCurly>");
 			break;

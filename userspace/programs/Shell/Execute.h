@@ -12,6 +12,7 @@ class Execute
 public:
 	Execute() = default;
 
+	// FIXME: remove this, this is only used by *builtin* time which should not be a builtin
 	BAN::ErrorOr<int> execute_command_sync(BAN::Span<const BAN::String> arguments, int fd_in, int fd_out);
 	BAN::ErrorOr<void> execute_command(const SingleCommand&, int fd_in, int fd_out, bool background, pid_t pgrp = 0);
 	BAN::ErrorOr<void> execute_command(const PipedCommand&);
@@ -39,9 +40,19 @@ private:
 			BAN::String value;
 		};
 
+		struct Redirection
+		{
+			BAN::String path;
+			int source_fd;
+			bool append;
+			bool duplicate;
+			bool input;
+		};
+
 		Command command;
 		BAN::Span<const BAN::String> arguments;
 		BAN::Span<const Environment> environments;
+		BAN::Span<Redirection> redirections;
 		int fd_in;
 		int fd_out;
 		bool background;

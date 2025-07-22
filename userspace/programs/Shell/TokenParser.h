@@ -44,6 +44,8 @@ private:
 	BAN::ErrorOr<CommandArgument::ArgumentPart> parse_single_quote();
 	BAN::ErrorOr<CommandArgument> parse_argument();
 
+	BAN::ErrorOr<SingleCommand::Redirection> parse_redirection();
+
 	BAN::ErrorOr<SingleCommand> parse_single_command();
 	BAN::ErrorOr<PipedCommand> parse_piped_command();
 	BAN::ErrorOr<CommandTree> parse_command_tree();

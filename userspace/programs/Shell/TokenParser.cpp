@@ -7,6 +7,7 @@
 #include <BAN/ScopeGuard.h>
 
 #include <stdio.h>
+#include <unistd.h>
 
 static constexpr bool can_parse_argument_from_token_type(Token::Type token_type)
 {
@@ -18,6 +19,8 @@ static constexpr bool can_parse_argument_from_token_type(Token::Type token_type)
 		case Token::Type::Ampersand:
 		case Token::Type::CloseCurly:
 		case Token::Type::CloseParen:
+		case Token::Type::GreaterThan:
+		case Token::Type::LessThan:
 		case Token::Type::OpenCurly:
 		case Token::Type::OpenParen:
 		case Token::Type::Pipe:
@@ -43,6 +46,8 @@ static constexpr char token_type_to_single_character(Token::Type type)
 		case Token::Type::CloseParen:  return ')';
 		case Token::Type::Dollar:      return '$';
 		case Token::Type::DoubleQuote: return '"';
+		case Token::Type::GreaterThan: return '>';
+		case Token::Type::LessThan:    return '<';
 		case Token::Type::OpenCurly:   return '{';
 		case Token::Type::OpenParen:   return '(';
 		case Token::Type::Pipe:        return '|';
@@ -74,6 +79,10 @@ static constexpr BAN::Error unexpected_token_error(Token::Type type)
 			return BAN::Error::from_literal("unexpected token $");
 		case Token::Type::DoubleQuote:
 			return BAN::Error::from_literal("unexpected token \"");
+		case Token::Type::GreaterThan:
+			return BAN::Error::from_literal("unexpected token >");
+		case Token::Type::LessThan:
+			return BAN::Error::from_literal("unexpected token <");
 		case Token::Type::OpenCurly:
 			return BAN::Error::from_literal("unexpected token {");
 		case Token::Type::Pipe:
@@ -185,6 +194,8 @@ BAN::ErrorOr<CommandArgument::ArgumentPart> TokenParser::parse_backslash(bool is
 		case Token::Type::CloseParen:
 		case Token::Type::Dollar:
 		case Token::Type::DoubleQuote:
+		case Token::Type::GreaterThan:
+		case Token::Type::LessThan:
 		case Token::Type::OpenCurly:
 		case Token::Type::OpenParen:
 		case Token::Type::Pipe:
@@ -277,6 +288,8 @@ BAN::ErrorOr<CommandArgument::ArgumentPart> TokenParser::parse_dollar()
 		case Token::Type::CloseCurly:
 		case Token::Type::CloseParen:
 		case Token::Type::DoubleQuote:
+		case Token::Type::GreaterThan:
+		case Token::Type::LessThan:
 		case Token::Type::Pipe:
 		case Token::Type::Semicolon:
 		case Token::Type::SingleQuote:
@@ -363,6 +376,8 @@ BAN::ErrorOr<CommandArgument::ArgumentPart> TokenParser::parse_single_quote()
 			case Token::Type::CloseParen:
 			case Token::Type::Dollar:
 			case Token::Type::DoubleQuote:
+			case Token::Type::GreaterThan:
+			case Token::Type::LessThan:
 			case Token::Type::OpenCurly:
 			case Token::Type::OpenParen:
 			case Token::Type::Pipe:
@@ -403,6 +418,8 @@ BAN::ErrorOr<CommandArgument> TokenParser::parse_argument()
 			case Token::Type::Ampersand:
 			case Token::Type::CloseCurly:
 			case Token::Type::CloseParen:
+			case Token::Type::GreaterThan:
+			case Token::Type::LessThan:
 			case Token::Type::OpenCurly:
 			case Token::Type::OpenParen:
 			case Token::Type::Pipe:
@@ -466,6 +483,56 @@ BAN::ErrorOr<CommandArgument> TokenParser::parse_argument()
 	return result;
 }
 
+BAN::ErrorOr<SingleCommand::Redirection> TokenParser::parse_redirection()
+{
+	int source_fd = -1;
+
+	if (peek_token().type() == Token::Type::String)
+	{
+		const auto string = read_token().string();
+
+		source_fd = 0;
+		for (char ch : string)
+			source_fd = (source_fd * 10) + (ch - '0');
+	}
+
+	const auto token_type = peek_token().type();
+	consume_token();
+
+	switch (token_type)
+	{
+		case Token::Type::GreaterThan:
+			if (source_fd == -1)
+				source_fd = STDOUT_FILENO;
+			break;
+		case Token::Type::LessThan:
+			if (source_fd == -1)
+				source_fd = STDIN_FILENO;
+			break;
+		default:
+			ASSERT_NOT_REACHED();
+	}
+
+	const bool append = (peek_token().type() == token_type);
+	if (append)
+		consume_token();
+
+	const bool duplicate = (peek_token().type() == Token::Type::Ampersand);
+	if (duplicate)
+		consume_token();
+
+	while (peek_token().type() == Token::Type::Whitespace)
+		consume_token();
+
+	return SingleCommand::Redirection {
+		.destination = TRY(parse_argument()),
+		.source_fd = source_fd,
+		.append = append,
+		.duplicate = duplicate,
+		.input = (token_type == Token::Type::LessThan),
+	};
+}
+
 BAN::ErrorOr<SingleCommand> TokenParser::parse_single_command()
 {
 	SingleCommand result;
@@ -527,6 +594,8 @@ BAN::ErrorOr<SingleCommand> TokenParser::parse_single_command()
 			case Token::Type::CloseCurly:
 			case Token::Type::Dollar:
 			case Token::Type::DoubleQuote:
+			case Token::Type::GreaterThan:
+			case Token::Type::LessThan:
 			case Token::Type::OpenCurly:
 			case Token::Type::OpenParen:
 			case Token::Type::SingleQuote:
@@ -562,18 +631,56 @@ BAN::ErrorOr<SingleCommand> TokenParser::parse_single_command()
 			consume_token();
 	}
 
+	const auto can_parse_redirection =
+		[this]() -> bool
+		{
+			const auto& token = peek_token();
+
+			if (token.type() == Token::Type::GreaterThan)
+				return true;
+			if (token.type() == Token::Type::LessThan)
+				return true;
+			if (token.type() != Token::Type::String)
+				return false;
+			if (token.string().empty())
+				return false;
+
+			bool is_number = true;
+			for (size_t i = 0; i < token.string().size() && is_number; i++)
+				is_number = isdigit(token.string()[i]);
+			if (!is_number)
+				return false;
+
+			auto temp = read_token();
+			const bool is_redir =
+				(peek_token().type() == Token::Type::GreaterThan) ||
+				(peek_token().type() == Token::Type::LessThan);
+			MUST(unget_token(BAN::move(temp)));
+			if (!is_redir)
+				return false;
+
+			return true;
+		};
+
 	while (peek_token().type() != Token::Type::EOF_)
 	{
 		while (peek_token().type() == Token::Type::Whitespace)
 			consume_token();
 
-		auto argument = TRY(parse_argument());
-		TRY(result.arguments.push_back(BAN::move(argument)));
-
-		while (peek_token().type() == Token::Type::Whitespace)
-			consume_token();
-		if (!can_parse_argument_from_token_type(peek_token().type()))
+		if (can_parse_redirection())
+		{
+			auto redirection = TRY(parse_redirection());
+			TRY(result.redirections.push_back(BAN::move(redirection)));
+		}
+		else if (can_parse_argument_from_token_type(peek_token().type()))
+		{
+			auto argument = TRY(parse_argument());
+			TRY(result.arguments.push_back(BAN::move(argument)));
+		}
+		else
+		{
 			break;
+		}
 	}
 
 	return result;
