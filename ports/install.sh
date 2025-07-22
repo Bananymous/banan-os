@@ -49,8 +49,24 @@ fi
 MAKE_BUILD_TARGETS=('all')
 MAKE_INSTALL_TARGETS=('install')
 
+CONFIG_SUB=()
+
 clean() {
 	find . -mindepth 1 -maxdepth 1 -not -name 'patches' -not -name 'build.sh' -exec rm -rf {} +
+}
+
+config_sub_update() {
+	[ ${#CONFIG_SUB[@]} -eq 0 ] && return
+
+	config_sub_path="$BANAN_PORT_DIR/config.sub"
+
+	if [ $(find $config_sub_path -mtime +1) ]; then
+		wget -O "$config_sub_path" 'https://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.sub;hb=HEAD'
+	fi
+
+	for target in "${CONFIG_SUB[@]}"; do
+		cp "$config_sub_path" "$target"
+	done
 }
 
 pre_configure() {
@@ -202,6 +218,7 @@ fi
 cd "$build_dir"
 
 if (( $needs_compile )); then
+	config_sub_update
 	configure
 	build
 	sha256sum "$BANAN_SYSROOT/usr/lib/libc.a" > "../.compile_hash"
