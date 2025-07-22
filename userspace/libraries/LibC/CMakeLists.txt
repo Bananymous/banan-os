@@ -15,6 +15,7 @@ set(LIBC_SOURCES
 	inttypes.cpp
 	langinfo.cpp
 	libgen.cpp
+	libintl.cpp
 	locale.cpp
 	malloc.cpp
 	math.cpp
