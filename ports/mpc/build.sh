@@ -9,3 +9,8 @@ CONFIGURE_OPTIONS=(
 	"--target=$BANAN_TOOLCHAIN_TRIPLE"
 	"--with-sysroot=$BANAN_SYSROOT"
 )
+
+post_install() {
+	# remove libtool file
+	rm -f $BANAN_SYSROOT/usr/lib/libmpc.la
+}

@@ -17,3 +17,10 @@ CONFIGURE_OPTIONS=(
 	'--disable-nls'
 	'--enable-languages=c,c++'
 )
+
+post_install() {
+	# remove libtool files
+	rm -f $BANAN_SYSROOT/usr/lib/libstdc++.la
+	rm -f $BANAN_SYSROOT/usr/lib/libstdc++exp.la
+	rm -f $BANAN_SYSROOT/usr/lib/libsupc++.la
+}
