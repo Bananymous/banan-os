@@ -2011,6 +2011,11 @@ namespace Kernel
 		return 0;
 	}
 
+	BAN::ErrorOr<long> Process::sys_get_nprocessor()
+	{
+		return Processor::count();
+	}
+
 	[[noreturn]] static void reset_system()
 	{
 		(void)ACPI::ACPI::get().reset();

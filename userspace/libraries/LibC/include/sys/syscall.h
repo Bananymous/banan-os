@@ -108,6 +108,7 @@ __BEGIN_DECLS
 	O(SYS_EPOLL_CTL,		epoll_ctl)		\
 	O(SYS_EPOLL_PWAIT2,		epoll_pwait2)	\
 	O(SYS_FLOCK,			flock)			\
+	O(SYS_GET_NPROCESSOR,	get_nprocessor)	\
 
 enum Syscall
 {

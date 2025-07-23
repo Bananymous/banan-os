@@ -161,6 +161,8 @@ namespace Kernel
 
 		BAN::ErrorOr<long> sys_sync(bool should_block);
 
+		BAN::ErrorOr<long> sys_get_nprocessor();
+
 		static BAN::ErrorOr<long> clean_poweroff(int command);
 		BAN::ErrorOr<long> sys_poweroff(int command);
 

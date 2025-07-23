@@ -1015,6 +1015,9 @@ long sysconf(int name)
 		case _SC_PAGE_SIZE:
 		case _SC_PAGESIZE:         return getpagesize();
 
+		case _SC_NPROCESSORS_ONLN: return syscall(SYS_GET_NPROCESSOR);
+		case _SC_NPROCESSORS_CONF: return syscall(SYS_GET_NPROCESSOR);
+
 		case _SC_CLK_TCK:          return 100;
 		case _SC_GETGR_R_SIZE_MAX: return 1024;
 		case _SC_GETPW_R_SIZE_MAX: return 1024;
