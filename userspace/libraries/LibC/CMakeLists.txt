@@ -20,6 +20,7 @@ set(LIBC_SOURCES
 	malloc.cpp
 	math.cpp
 	netdb.cpp
+	netinet/in.cpp
 	poll.cpp
 	printf_impl.cpp
 	pthread.cpp
