@@ -176,7 +176,7 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_smo_delete(SharedMemoryObjectManager::Key);
 		BAN::ErrorOr<long> sys_smo_map(SharedMemoryObjectManager::Key);
 
-		BAN::ErrorOr<long> sys_ttyname(int fildes, char* storage);
+		BAN::ErrorOr<long> sys_ttyname(int fildes, char* name, size_t namesize);
 		BAN::ErrorOr<long> sys_isatty(int fildes);
 		BAN::ErrorOr<long> sys_posix_openpt(int flags);
 		BAN::ErrorOr<long> sys_ptsname(int fildes, char* buffer, size_t buffer_len);

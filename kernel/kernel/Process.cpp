@@ -2275,17 +2275,17 @@ namespace Kernel
 		return m_mapped_regions.back()->vaddr();
 	}
 
-	BAN::ErrorOr<long> Process::sys_ttyname(int fildes, char* storage)
+	BAN::ErrorOr<long> Process::sys_ttyname(int fildes, char* name, size_t namesize)
 	{
 		LockGuard _(m_process_lock);
-		TRY(validate_pointer_access(storage, TTY_NAME_MAX, true));
+		TRY(validate_pointer_access(name, namesize, true));
 		auto inode = TRY(m_open_file_descriptors.inode_of(fildes));
 		if (!inode->is_tty())
 			return BAN::Error::from_errno(ENOTTY);
 		auto path = TRY(m_open_file_descriptors.path_of(fildes));
-		ASSERT(path.size() < TTY_NAME_MAX);
-		strncpy(storage, path.data(), path.size());
-		storage[path.size()] = '\0';
+		if (namesize < path.size() + 1)
+			return BAN::Error::from_errno(ERANGE);
+		strcpy(name, path.data());
 		return 0;
 	}
 

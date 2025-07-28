@@ -787,10 +787,17 @@ char* getlogin(void)
 
 char* ttyname(int fildes)
 {
-	static char storage[_POSIX_TTY_NAME_MAX];
-	if (syscall(SYS_TTYNAME, fildes, storage) == -1)
+	static char storage[TTY_NAME_MAX];
+	if (ttyname_r(fildes, storage, sizeof(storage)) != 0)
 		return nullptr;
 	return storage;
+}
+
+int ttyname_r(int fildes, char* name, size_t namesize)
+{
+	if (syscall(SYS_TTYNAME, fildes, name, namesize))
+		return errno;
+	return 0;
 }
 
 int access(const char* path, int amode)
