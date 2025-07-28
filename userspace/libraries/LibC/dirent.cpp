@@ -2,6 +2,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/syscall.h>
 #include <unistd.h>
 
@@ -108,4 +109,55 @@ void rewinddir(DIR* dirp)
 	dirp->entry_count = 0;
 	dirp->entry_index = 0;
 	lseek(dirp->fd, 0, SEEK_SET);
+}
+
+int alphasort(const struct dirent** d1, const struct dirent** d2)
+{
+	return strcoll((*d1)->d_name, (*d2)->d_name);
+}
+
+int scandir(const char* dir, struct dirent*** namelist, int (*sel)(const struct dirent*), int (*compar)(const struct dirent**, const struct dirent**))
+{
+	DIR* dirp = opendir(dir);
+	if (dirp == nullptr)
+		return -1;
+
+	size_t count = 0;
+	dirent** list = nullptr;
+
+	dirent* dent;
+	while ((dent = readdir(dirp)))
+	{
+		if (sel && sel(dent) == 0)
+			continue;
+
+		void* new_list = realloc(list, (count + 1) * sizeof(dirent*));
+		if (new_list == nullptr)
+			goto scandir_error;
+
+		list = static_cast<dirent**>(new_list);
+		list[count] = static_cast<dirent*>(malloc(sizeof(dirent)));
+		if (list[count] == nullptr)
+			goto scandir_error;
+
+		memcpy(list[count], dent, sizeof(dirent));
+		count++;
+	}
+
+	closedir(dirp);
+
+	qsort(list, count, sizeof(dirent*), reinterpret_cast<int(*)(const void*, const void*)>(compar));
+
+	*namelist = list;
+	return count;
+
+scandir_error:
+	closedir(dirp);
+
+	for (size_t i = 0; i < count; i++)
+		free(list[i]);
+	free(list);
+
+	*namelist = nullptr;
+	return -1;
 }
