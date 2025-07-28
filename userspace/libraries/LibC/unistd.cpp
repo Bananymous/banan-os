@@ -882,7 +882,35 @@ size_t confstr(int name, char* buf, size_t len)
 	return 0;
 }
 
-long pathconf(const char* path, int name);
+long fpathconf(int fd, int name)
+{
+	(void)fd;
+	switch (name)
+	{
+#define LIMIT_CASE(name) case _PC_##name: return name;
+		LIMIT_CASE(LINK_MAX)
+		LIMIT_CASE(MAX_CANON)
+		LIMIT_CASE(MAX_INPUT)
+		LIMIT_CASE(NAME_MAX)
+		LIMIT_CASE(PATH_MAX)
+		LIMIT_CASE(PIPE_BUF)
+#undef LIMIT_CASE
+#define POSIX_CASE(name) case _PC_##name: return _POSIX_##name;
+		POSIX_CASE(CHOWN_RESTRICTED)
+		POSIX_CASE(NO_TRUNC)
+		POSIX_CASE(VDISABLE)
+#undef POSIX_CASE
+	}
+
+	errno = EINVAL;
+	return 0;
+}
+
+long pathconf(const char* path, int name)
+{
+	(void)path;
+	return fpathconf(0, name);
+}
 
 long sysconf(int name)
 {
