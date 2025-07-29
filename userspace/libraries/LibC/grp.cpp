@@ -1,162 +1,213 @@
-#include <BAN/StringView.h>
-#include <BAN/Vector.h>
-
 #include <ctype.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <grp.h>
 #include <stdlib.h>
-#include <sys/mman.h>
-#include <sys/types.h>
+#include <string.h>
+#include <unistd.h>
 
-static struct stat s_group_st;
-static char* s_group_mmap = nullptr;
-static int s_group_fd = -1;
+static FILE* s_grent_fp = nullptr;
+static group s_grent_struct;
 
-static struct group s_group;
+static char* s_grent_buffer = nullptr;
+static size_t s_grent_buffer_size = 0;
 
-id_t parse_id(BAN::StringView string)
+void endgrent(void)
 {
-	id_t id = 0;
-	for (char c : string)
-	{
-		if (!isdigit(c))
-			return -1;
-		id = (id * 10) + (c - '0');
-	}
-	return id;
+	if (s_grent_fp)
+		fclose(s_grent_fp);
+	s_grent_fp = nullptr;
+
+	if (s_grent_buffer)
+		free(s_grent_buffer);
+	s_grent_buffer = nullptr;
 }
 
-static bool open_group_file()
+void setgrent(void)
 {
-	if (s_group_fd == -1)
-		s_group_fd = open("/etc/group", O_RDONLY);
-	if (s_group_fd == -1)
-		return false;
-
-	if (fstat(s_group_fd, &s_group_st) == -1)
-		return false;
-
-	if (s_group_mmap == nullptr || s_group_mmap == MAP_FAILED)
-		s_group_mmap = (char*)mmap(nullptr, s_group_st.st_size, PROT_READ, MAP_PRIVATE, s_group_fd, 0);
-	if (s_group_mmap == MAP_FAILED)
-		return false;
-
-	s_group.gr_name = nullptr;
-	s_group.gr_mem = nullptr;
-
-	return true;
+	if (!s_grent_fp)
+		return;
+	fseek(s_grent_fp, 0, SEEK_SET);
 }
 
-struct group* fill_group(const BAN::Vector<BAN::StringView>& parts)
+static int getgrent_impl(FILE* fp, struct group* grp, char* buffer, size_t bufsize, struct group** result)
 {
-	if (parts.size() != 4)
-		return nullptr;
-
-	if (s_group.gr_name)
+	for (;;)
 	{
-		free(s_group.gr_name);
-		s_group.gr_name = nullptr;
-	}
-
-	if (s_group.gr_mem)
-	{
-		for (size_t i = 0; s_group.gr_mem && s_group.gr_mem[i]; i++)
-			free(s_group.gr_mem[i]);
-		free(s_group.gr_mem);
-		s_group.gr_mem = nullptr;
-	}
-
-	auto groups_or_error = parts[3].split(',');
-	if (groups_or_error.is_error())
-		return nullptr;
-	auto groups = groups_or_error.release_value();
-
-	s_group.gr_gid = parse_id(parts[2]);
-	if (s_group.gr_gid == -1)
-		return nullptr;
-
-	s_group.gr_name = (char*)malloc(parts[0].size() + 1);
-	if (s_group.gr_name == nullptr)
-		return nullptr;
-	memcpy(s_group.gr_name, parts[0].data(), parts[0].size());
-	s_group.gr_name[parts[0].size()] = '\0';
-
-	s_group.gr_mem = (char**)malloc((groups.size() + 1) * sizeof(char*));
-	if (s_group.gr_mem == nullptr)
-		return nullptr;
-
-	for (size_t i = 0; i < groups.size(); i++)
-	{
-		s_group.gr_mem[i] = (char*)malloc(groups[i].size() + 1);
-		if (s_group.gr_mem[i] == nullptr)
+		if (fgets(buffer, bufsize, fp) == nullptr)
 		{
-			for (size_t j = 0; j < i; j++)
-				free(s_group.gr_mem[j]);
-			free(s_group.gr_mem);
-			s_group.gr_mem = nullptr;
-			return nullptr;
+			if (ferror(fp))
+				return errno;
+			*result = nullptr;
+			return 0;
 		}
-		memcpy(s_group.gr_mem[i], groups[i].data(), groups[i].size());
-		s_group.gr_mem[i][groups[i].size()] = '\0';
-	}
-	s_group.gr_mem[groups.size()] = nullptr;
 
-	return &s_group;
+		const size_t line_len = strlen(buffer);
+		if (line_len == 0)
+			continue;
+
+		if (buffer[line_len - 1] == '\n')
+			buffer[line_len - 1] = '\0';
+		else if (!feof(fp))
+			return (errno = ERANGE);
+
+#define GET_STRING() ({ \
+			ptr = strchr(ptr, ':'); \
+			if (ptr == nullptr) \
+				continue; \
+			*ptr++ = '\0'; \
+		})
+
+#define GET_INT() ({ \
+				if (!isdigit(*ptr)) \
+					continue; \
+				long val = 0; \
+				while (isdigit(*ptr)) \
+					val = (val * 10) + (*ptr++ - '0'); \
+				if (*ptr != ':') \
+					continue; \
+				*ptr++ = '\0'; \
+				val; \
+			})
+
+		char* ptr = buffer;
+
+		grp->gr_name = ptr;
+		GET_STRING();
+
+		grp->gr_passwd = ptr;
+		GET_STRING();
+
+		grp->gr_gid = GET_INT();
+
+		size_t offset = line_len + 1;
+		if (auto rem = offset % alignof(char*))
+			offset += alignof(char*) - rem;
+		grp->gr_mem = reinterpret_cast<char**>(buffer + offset);
+
+		const size_t mem_max = (bufsize - offset) / sizeof(char*);
+		size_t mem_idx = 0;
+
+		while (*ptr && mem_idx + 1 <= mem_max)
+		{
+			grp->gr_mem[mem_idx++] = ptr;
+
+			ptr = strchrnul(ptr, ',');
+			if (*ptr == ',')
+				*ptr++ = '\0';
+		}
+
+		if (mem_idx + 1 > mem_max)
+			return (errno = ERANGE);
+
+		grp->gr_mem[mem_idx] = nullptr;
+		*result = grp;
+		return 0;
+	}
 }
 
-struct group* getgrnam(const char* name)
+struct group* getgrent(void)
 {
-	if (s_group_mmap == nullptr || s_group_mmap == MAP_FAILED)
-		if (!open_group_file())
-			return nullptr;
-
-	off_t start = 0;
-	off_t end = 0;
-	while (start < s_group_st.st_size)
+	if (s_grent_fp == nullptr)
 	{
-		while (end < s_group_st.st_size && s_group_mmap[end] != '\n')
-			end++;
-
-		BAN::StringView line(s_group_mmap + start, end - start);
-		start = ++end;
-
-		auto parts_or_error = line.split(':', true);
-		if (parts_or_error.is_error())
+		s_grent_fp = fopen("/etc/group", "r");
+		if (s_grent_fp == nullptr)
 			return nullptr;
-
-		auto parts = parts_or_error.release_value();
-		if (parts.size() == 4 && parts[0] == name)
-			return fill_group(parts);
 	}
 
-	return nullptr;
+	if (s_grent_buffer == nullptr)
+	{
+		long size = sysconf(_SC_GETGR_R_SIZE_MAX);
+		if (size == -1)
+			size = 512;
+
+		s_grent_buffer = static_cast<char*>(malloc(size));
+		if (s_grent_buffer == nullptr)
+			return nullptr;
+		s_grent_buffer_size = size;
+	}
+
+	const off_t old_offset = ftello(s_grent_fp);
+
+	group* result;
+	for (;;)
+	{
+		const int error = getgrent_impl(s_grent_fp, &s_grent_struct, s_grent_buffer, s_grent_buffer_size, &result);
+		if (error == 0)
+			break;
+		fseeko(s_grent_fp, old_offset, SEEK_SET);
+		if (error != ERANGE)
+			return nullptr;
+
+		const size_t new_size = s_grent_buffer_size * 2;
+		char* new_buffer = static_cast<char*>(realloc(s_grent_buffer, new_size));
+		if (new_buffer == nullptr)
+			return nullptr;
+
+		s_grent_buffer = new_buffer;
+		s_grent_buffer_size = new_size;
+	}
+
+	return result;
 }
 
 struct group* getgrgid(gid_t gid)
 {
-	if (s_group_mmap == nullptr || s_group_mmap == MAP_FAILED)
-		if (!open_group_file())
-			return nullptr;
+	group* grp;
+	setgrent();
+	while ((grp = getgrent()))
+		if (grp->gr_gid == gid)
+			return grp;
+	return nullptr;
+}
 
-	off_t start = 0;
-	off_t end = 0;
-	while (start < s_group_st.st_size)
+struct group* getgrnam(const char* name)
+{
+	group* grp;
+	setgrent();
+	while ((grp = getgrent()))
+		if (strcmp(grp->gr_name, name) == 0)
+			return grp;
+	return nullptr;
+}
+
+int getgrgid_r(gid_t gid, struct group* grp, char* buffer, size_t bufsize, struct group** result)
+{
+	FILE* fp = fopen("/etc/group", "r");
+	if (fp == nullptr)
+		return errno;
+
+	int ret = 0;
+	for (;;)
 	{
-		while (end < s_group_st.st_size && s_group_mmap[end] != '\n')
-			end++;
-
-		BAN::StringView line(s_group_mmap + start, end - start);
-		start = ++end;
-
-		auto parts_or_error = line.split(':', true);
-		if (parts_or_error.is_error())
-			return nullptr;
-
-		auto parts = parts_or_error.release_value();
-		if (parts.size() == 4 && parse_id(parts[2]) == gid)
-			return fill_group(parts);
+		if ((ret = getgrent_impl(fp, grp, buffer, bufsize, result)))
+			break;
+		if (*result == nullptr)
+			break;
+		if (grp->gr_gid == gid)
+			break;
 	}
 
-	return nullptr;
+	fclose(fp);
+	return ret;
+}
+
+int getgrnam_r(const char* name, struct group* grp, char* buffer, size_t bufsize, struct group** result)
+{
+	FILE* fp = fopen("/etc/group", "r");
+	if (fp == nullptr)
+		return errno;
+
+	int ret = 0;
+	for (;;)
+	{
+		if ((ret = getgrent_impl(fp, grp, buffer, bufsize, result)))
+			break;
+		if (*result == nullptr)
+			break;
+		if (strcmp(grp->gr_name, name) == 0)
+			break;
+	}
+
+	fclose(fp);
+	return ret;
 }
