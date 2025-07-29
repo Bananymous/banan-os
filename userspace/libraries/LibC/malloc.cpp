@@ -338,14 +338,14 @@ void* calloc(size_t nmemb, size_t size)
 	return ptr;
 }
 
-int posix_memalign(void** memptr, size_t alignment, size_t size)
+void* aligned_alloc(size_t alignment, size_t size)
 {
-	dprintln_if(DEBUG_MALLOC, "posix_memalign({}, {})", alignment, size);
+	dprintln_if(DEBUG_MALLOC, "aligned_alloc({}, {})", alignment, size);
 
 	if (alignment < sizeof(void*) || alignment % sizeof(void*) || !BAN::Math::is_power_of_two(alignment / sizeof(void*)))
 	{
 		errno = EINVAL;
-		return -1;
+		return nullptr;
 	}
 
 	if (alignment < s_malloc_default_align)
@@ -353,7 +353,7 @@ int posix_memalign(void** memptr, size_t alignment, size_t size)
 
 	void* unaligned = malloc(size + alignment + sizeof(malloc_node_t));
 	if (unaligned == nullptr)
-		return -1;
+		return nullptr;
 
 	pthread_mutex_lock(&s_malloc_mutex);
 
@@ -395,6 +395,11 @@ int posix_memalign(void** memptr, size_t alignment, size_t size)
 	pthread_mutex_unlock(&s_malloc_mutex);
 
 	assert(((uintptr_t)node->data & (alignment - 1)) == 0);
-	*memptr = node->data;
-	return 0;
+	return node->data;
+}
+
+int posix_memalign(void** memptr, size_t alignment, size_t size)
+{
+	dprintln_if(DEBUG_MALLOC, "posix_memalign({}, {})", alignment, size);
+	return (*memptr = aligned_alloc(alignment, size)) ? 0 : -1;
 }

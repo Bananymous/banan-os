@@ -44,6 +44,7 @@ void				_Exit(int status) __attribute__((__noreturn__));
 long				a64l(const char* s);
 void				abort(void) __attribute__((__noreturn__));
 int					abs(int i);
+void*				aligned_alloc(size_t alignment, size_t size);
 int					atexit(void (*func)(void));
 double				atof(const char* str);
 int					atoi(const char* str);
