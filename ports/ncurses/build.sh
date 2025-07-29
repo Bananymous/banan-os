@@ -13,8 +13,7 @@ CONFIGURE_OPTIONS=(
 	'--with-shared'
 	'--without-ada'
 	'--without-manpages'
-	'--without-dlsym'
-	'--without-cxx-binding'
+	CFLAGS='-std=c17'
 )
 
 post_install() {
