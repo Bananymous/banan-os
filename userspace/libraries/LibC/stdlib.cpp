@@ -570,6 +570,45 @@ int mblen(const char* s, size_t n)
 	ASSERT_NOT_REACHED();
 }
 
+int mbtowc(wchar_t* __restrict pwc, const char* __restrict s, size_t n)
+{
+	// no state-dependent encodings
+	if (s == nullptr)
+		return 0;
+
+	switch (__getlocale(LC_CTYPE))
+	{
+		case LOCALE_INVALID:
+			ASSERT_NOT_REACHED();
+		case LOCALE_POSIX:
+			if (pwc != nullptr)
+				*pwc = *s;
+			return *s ? 1 : 0;
+		case LOCALE_UTF8:
+			const auto* us = reinterpret_cast<const unsigned char*>(s);
+
+			const uint32_t length = BAN::UTF8::byte_length(*us);
+			if (length == BAN::UTF8::invalid || n < length)
+			{
+				errno = EILSEQ;
+				return -1;
+			}
+
+			const auto wch = BAN::UTF8::to_codepoint(us);
+			if (wch == BAN::UTF8::invalid)
+			{
+				errno = EILSEQ;
+				return -1;
+			}
+
+			if (pwc)
+				*pwc = wch;
+
+			return wch ? length : 0;
+	}
+	ASSERT_NOT_REACHED();
+}
+
 size_t mbstowcs(wchar_t* __restrict pwcs, const char* __restrict s, size_t n)
 {
 	size_t written = 0;
