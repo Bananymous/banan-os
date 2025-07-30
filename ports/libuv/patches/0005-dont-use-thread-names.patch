@@ -1,0 +1,22 @@
+diff -ruN libuv-v1.51.0/src/unix/thread.c libuv-1.51.0-x86_64/src/unix/thread.c
+--- libuv-v1.51.0/src/unix/thread.c	2025-04-25 12:50:27.000000000 +0300
++++ libuv-1.51.0-x86_64/src/unix/thread.c	2025-07-23 17:16:19.619749435 +0300
+@@ -897,7 +897,7 @@
+     abort();
+ }
+ 
+-#if defined(_AIX) || defined(__MVS__) || defined(__PASE__)
++#if defined(_AIX) || defined(__MVS__) || defined(__PASE__) || defined(__banan_os__)
+ int uv__thread_setname(const char* name) {
+   return UV_ENOSYS;
+ }
+@@ -938,7 +938,8 @@
+ #if (defined(__ANDROID_API__) && __ANDROID_API__ < 26) || \
+     defined(_AIX) || \
+     defined(__MVS__) || \
+-    defined(__PASE__)
++    defined(__PASE__) || \
++    defined(__banan_os__)
+ int uv__thread_getname(uv_thread_t* tid, char* name, size_t size) {
+   return UV_ENOSYS;
+ }

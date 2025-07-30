@@ -1,0 +1,13 @@
+diff -ruN libuv-v1.51.0/src/unix/process.c libuv-1.51.0-x86_64/src/unix/process.c
+--- libuv-v1.51.0/src/unix/process.c	2025-04-25 12:50:27.000000000 +0300
++++ libuv-1.51.0-x86_64/src/unix/process.c	2025-07-23 17:16:04.548824726 +0300
+@@ -390,7 +390,9 @@
+      * aren't root, so don't bother checking the return value, this
+      * is just done as an optimistic privilege dropping function.
+      */
++ #if !defined(__banan_os__)
+     SAVE_ERRNO(setgroups(0, NULL));
++ #endif
+   }
+ 
+   if ((options->flags & UV_PROCESS_SETGID) && setgid(options->gid))

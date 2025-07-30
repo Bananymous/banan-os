@@ -1,0 +1,32 @@
+diff -ruN libuv-v1.51.0/include/uv/unix.h libuv-1.51.0-x86_64/include/uv/unix.h
+--- libuv-v1.51.0/include/uv/unix.h     2025-04-25 12:50:27.000000000 +0300
++++ libuv-1.51.0-x86_64/include/uv/unix.h       2025-07-28 14:06:18.220856588 +0300
+@@ -66,7 +66,8 @@
+       defined(__MSYS__)   || \
+       defined(__HAIKU__)  || \
+       defined(__QNX__)    || \
+-      defined(__GNU__)
++      defined(__GNU__)    || \
++      defined(__banan_os__)
+ # include "uv/posix.h"
+ #endif
+ 
+diff -ruN libuv-v1.51.0/CMakeLists.txt libuv-1.51.0-x86_64/CMakeLists.txt
+--- libuv-v1.51.0/CMakeLists.txt        2025-04-25 12:50:27.000000000 +0300
++++ libuv-1.51.0-x86_64/CMakeLists.txt  2025-07-28 13:57:21.518563402 +0300
+@@ -283,6 +283,15 @@
+   list(APPEND uv_sources src/unix/proctitle.c)
+ endif()
+ 
++if(CMAKE_SYSTEM_NAME STREQUAL "banan-os")
++  list(APPEND uv_sources
++       src/unix/no-fsevents.c
++       src/unix/no-proctitle.c
++       src/unix/posix-hrtime.c
++       src/unix/posix-poll.c
++  )
++endif()
++
+ if(CMAKE_SYSTEM_NAME MATCHES "DragonFly|FreeBSD")
+   list(APPEND uv_sources src/unix/freebsd.c)
+ endif()

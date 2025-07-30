@@ -1,0 +1,21 @@
+diff -ruN libuv-v1.51.0/src/unix/tty.c libuv-1.51.0-x86_64/src/unix/tty.c
+--- libuv-v1.51.0/src/unix/tty.c	2025-04-25 12:50:27.000000000 +0300
++++ libuv-1.51.0-x86_64/src/unix/tty.c	2025-07-23 17:12:21.857957334 +0300
+@@ -30,7 +30,7 @@
+ #include <errno.h>
+ #include <sys/ioctl.h>
+ 
+-#if defined(__MVS__) && !defined(IMAXBEL)
++#if (defined(__MVS__) || defined(__banan_os__)) && !defined(IMAXBEL)
+ #define IMAXBEL 0
+ #endif
+ 
+@@ -244,7 +244,7 @@
+ static void uv__tty_make_raw(struct termios* tio) {
+   assert(tio != NULL);
+ 
+-#if defined __sun || defined __MVS__
++#if defined __sun || defined __MVS__ || defined(__banan_os__)
+   /*
+    * This implementation of cfmakeraw for Solaris and derivatives is taken from
+    * http://www.perkin.org.uk/posts/solaris-portability-cfmakeraw.html.
