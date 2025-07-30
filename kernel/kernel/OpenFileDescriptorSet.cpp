@@ -429,6 +429,8 @@ namespace Kernel
 		size_t nread;
 		{
 			LockGuard _(inode->m_mutex);
+			if (!inode->can_read() && inode->has_hungup())
+				return 0;
 			if (is_nonblock && !inode->can_read())
 				return BAN::Error::from_errno(EAGAIN);
 			nread = TRY(inode->read(offset, buffer));
@@ -464,6 +466,11 @@ namespace Kernel
 		size_t nwrite;
 		{
 			LockGuard _(inode->m_mutex);
+			if (inode->has_error())
+			{
+				Thread::current().add_signal(SIGPIPE);
+				return BAN::Error::from_errno(EPIPE);
+			}
 			if (is_nonblock && !inode->can_write())
 				return BAN::Error::from_errno(EAGAIN);
 			nwrite = TRY(inode->write(offset, buffer));
