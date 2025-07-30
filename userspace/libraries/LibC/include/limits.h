@@ -79,7 +79,7 @@ __BEGIN_DECLS
 #define LOGIN_NAME_MAX                256
 #define MQ_OPEN_MAX                   _POSIX_MQ_OPEN_MAX
 #define MQ_PRIO_MAX                   _POSIX_MQ_PRIO_MAX
-#define OPEN_MAX                      64
+#define OPEN_MAX                      128
 #define PAGESIZE                      PAGE_SIZE
 #define PTHREAD_DESTRUCTOR_ITERATIONS _POSIX_THREAD_DESTRUCTOR_ITERATIONS
 #define PTHREAD_KEYS_MAX              _POSIX_THREAD_KEYS_MAX
