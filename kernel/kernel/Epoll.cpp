@@ -50,7 +50,7 @@ namespace Kernel
 				auto ready_it = m_ready_events.find(inode);
 				if (ready_it == m_ready_events.end())
 					ready_it = MUST(m_ready_events.insert(inode, 0));
-				ready_it->value |= event.events;
+				ready_it->value |= event.events | EPOLLHUP | EPOLLERR;
 				m_thread_blocker.unblock();
 
 				return {};
@@ -68,7 +68,7 @@ namespace Kernel
 				auto ready_it = m_ready_events.find(inode);
 				if (ready_it == m_ready_events.end())
 					ready_it = MUST(m_ready_events.insert(inode, 0));
-				ready_it->value |= event.events;
+				ready_it->value |= event.events | EPOLLHUP | EPOLLERR;
 				m_thread_blocker.unblock();
 
 				return {};
