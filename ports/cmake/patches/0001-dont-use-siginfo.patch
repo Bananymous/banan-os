@@ -1,0 +1,12 @@
+diff -ruN cmake-3.26.6/Source/kwsys/ProcessUNIX.c cmake-3.26.6-x86_64/Source/kwsys/ProcessUNIX.c
+--- cmake-3.26.6/Source/kwsys/ProcessUNIX.c	2023-11-27 20:48:12.000000000 +0200
++++ cmake-3.26.6-x86_64/Source/kwsys/ProcessUNIX.c	2025-07-30 21:49:08.783313124 +0300
+@@ -115,7 +115,7 @@
+ #endif
+ 
+ /* Some platforms do not have siginfo on their signal handlers.  */
+-#if defined(SA_SIGINFO) && !defined(__BEOS__)
++#if defined(SA_SIGINFO) && !defined(__BEOS__) && !defined(__banan_os__)
+ #  define KWSYSPE_USE_SIGINFO 1
+ #endif
+ 
