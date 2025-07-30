@@ -193,6 +193,8 @@ build_cmake() {
 
 	cp -r ./bin/* $BANAN_TOOLCHAIN_PREFIX/bin/
 	cp -r ./share/* $BANAN_TOOLCHAIN_PREFIX/share/
+
+	cp $BANAN_TOOLCHAIN_DIR/cmake-platform/* $BANAN_TOOLCHAIN_PREFIX/share/cmake-3.26/Modules/Platform/
 }
 
 BUILD_BINUTILS=1
