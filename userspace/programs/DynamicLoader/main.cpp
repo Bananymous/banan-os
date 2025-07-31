@@ -195,6 +195,8 @@ struct LoadedElf
 static LoadedElf s_loaded_files[128];
 static size_t s_loaded_file_count = 0;
 
+static const char* s_ld_library_path = nullptr;
+
 constexpr uintptr_t SYM_NOT_FOUND = -1;
 
 static uint32_t elf_hash(const char* name)
@@ -717,21 +719,29 @@ uintptr_t resolve_symbol(const LoadedElf& elf, uintptr_t plt_entry)
 
 static LoadedElf& load_elf(const char* path, int fd);
 
-static bool find_library(const char* library_name, char out[PATH_MAX])
+static bool check_library(const char* library_dir, const char* library_name, char out[PATH_MAX])
 {
-	const char* library_dir = "/usr/lib/";
-
 	char path_buffer[PATH_MAX];
 	char* path_ptr = path_buffer;
 
 	if (library_name[0] != '/')
 		for (size_t i = 0; library_dir[i]; i++)
 			*path_ptr++ = library_dir[i];
+	*path_ptr++ = '/';
 	for (size_t i = 0; library_name[i]; i++)
 		*path_ptr++ = library_name[i];
 	*path_ptr = '\0';
 
 	return syscall(SYS_REALPATH, path_buffer, out) >= 0;
+}
+
+static bool find_library(const char* library_name, char out[PATH_MAX])
+{
+	if (s_ld_library_path && check_library(s_ld_library_path, library_name, out))
+		return true;
+	if (check_library("/usr/lib", library_name, out))
+		return true;
+	return false;
 }
 
 static void handle_dynamic(LoadedElf& elf)
@@ -798,7 +808,10 @@ static void handle_dynamic(LoadedElf& elf)
 
 		char path_buffer[PATH_MAX];
 		if (!find_library(library_name, path_buffer))
-			print_error_and_exit("could not open shared object", 0);
+		{
+			print(STDERR_FILENO, "could not open shared object: ");
+			print_error_and_exit(library_name, 0);
+		}
 
 		const auto& loaded_elf = load_elf(path_buffer, -1);
 		dynamic.d_un.d_ptr = reinterpret_cast<uintptr_t>(&loaded_elf);
@@ -1346,16 +1359,21 @@ void* __dlopen(const char* file, int mode)
 		return nullptr;
 	}
 
+	const size_t old_loaded_count = s_loaded_file_count;
+
 	init_random();
 	auto& elf = load_elf(path_buffer, -1);
 	fini_random();
 
 	if (!elf.is_relocating && !elf.is_calling_init)
 	{
-		if (elf.tls_header.p_type == PT_TLS)
+		for (size_t i = old_loaded_count + 1; i < s_loaded_file_count; i++)
 		{
-			s_dlerror_string = "TODO: __dlopen with TLS";
-			return nullptr;
+			if (s_loaded_files[i].tls_header.p_type == PT_TLS)
+			{
+				s_dlerror_string = "TODO: __dlopen with TLS";
+				return nullptr;
+			}
 		}
 
 		relocate_elf(elf, lazy);
@@ -1399,10 +1417,23 @@ static LibELF::AuxiliaryVector* find_auxv(char** envp)
 	return reinterpret_cast<LibELF::AuxiliaryVector*>(null_env + 1);
 }
 
+static bool starts_with(const char* string, const char* comp)
+{
+	size_t i = 0;
+	for (; string[i] && comp[i]; i++)
+		if (string[i] != comp[i])
+			return false;
+	return comp[i] == '\0';
+}
+
 extern "C"
 __attribute__((used))
 uintptr_t _entry(int argc, char* argv[], char* envp[])
 {
+	for (size_t i = 0; envp[i]; i++)
+		if (starts_with(envp[i], "LD_LIBRARY_PATH="))
+			s_ld_library_path = envp[i] + 16;
+
 	int execfd = -1;
 	if (auto* auxv = find_auxv(envp))
 		for (auto* aux = auxv; aux->a_type != LibELF::AT_NULL; aux++)
