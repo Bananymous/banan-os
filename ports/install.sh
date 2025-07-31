@@ -155,7 +155,7 @@ if [ "$VERSION" = "git" ]; then
 			pushd "$build_dir" >/dev/null
 			git checkout "$COMMIT" || exit 1
 			if [ -d ../patches ]; then
-				for patch in ../patches/*; do
+				for patch in ../patches/*.patch ; do
 					git apply "$patch" || exit 1
 				done
 			fi
@@ -194,7 +194,7 @@ else
 			mv "$TAR_CONTENT" "$build_dir" || exit 1
 
 			if [ -d patches ]; then
-				for patch in ./patches/*; do
+				for patch in ./patches/*.patch ; do
 					patch -ruN -p1 -d "$build_dir" < "$patch" || exit 1
 				done
 			fi
