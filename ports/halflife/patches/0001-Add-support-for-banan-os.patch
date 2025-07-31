@@ -1,0 +1,55 @@
+From eb4fc64fb39e6c00350ac87a29dd8fc690b3be9f Mon Sep 17 00:00:00 2001
+From: Oskari Alaranta <oskari.alaranta@bananymous.com>
+Date: Thu, 31 Jul 2025 22:39:13 +0300
+Subject: [PATCH] Add support for banan-os
+
+---
+ public/build.h                     | 3 +++
+ scripts/waifulib/library_naming.py | 3 +++
+ 2 files changed, 6 insertions(+)
+
+diff --git a/public/build.h b/public/build.h
+index 3fdfeded..2752f8bd 100644
+--- a/public/build.h
++++ b/public/build.h
+@@ -82,6 +82,7 @@ Then you can use another oneliner to query all variables:
+ #undef XASH_RISCV_SOFTFP
+ #undef XASH_SERENITY
+ #undef XASH_SUNOS
++#undef XASH_BANAN_OS
+ #undef XASH_TERMUX
+ #undef XASH_WIN32
+ #undef XASH_X86
+@@ -135,6 +136,8 @@ Then you can use another oneliner to query all variables:
+ 		#define XASH_WASI 1
+ 	#elif defined __sun__
+ 		#define XASH_SUNOS 1
++	#elif defined __banan_os__
++		#define XASH_BANAN_OS 1
+ 	#elif defined __EMSCRIPTEN__
+ 		#define XASH_EMSCRIPTEN 1
+ 	#else
+diff --git a/scripts/waifulib/library_naming.py b/scripts/waifulib/library_naming.py
+index da39c90f..a0b65b59 100644
+--- a/scripts/waifulib/library_naming.py
++++ b/scripts/waifulib/library_naming.py
+@@ -64,6 +64,7 @@ DEFINES = [
+ 'XASH_WASI',
+ 'XASH_WASM',
+ 'XASH_SUNOS',
++'XASH_BANAN_OS',
+ ]
+ 
+ def configure(conf):
+@@ -109,6 +110,8 @@ def configure(conf):
+ 		buildos = "wasi"
+ 	elif conf.env.XASH_SUNOS:
+ 		buildos = "sunos"
++	elif conf.env.XASH_BANAN_OS:
++		buildos = "banan-os"
+ 	else:
+ 		conf.fatal("Place your operating system name in build.h and library_naming.py!\n"
+ 			"If this is a mistake, try to fix conditions above and report a bug")
+-- 
+2.50.1
+

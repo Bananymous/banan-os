@@ -1,0 +1,215 @@
+From 2b3a0198640c23a7f8f8247ed1edae309c11e15f Mon Sep 17 00:00:00 2001
+From: Oskari Alaranta <oskari.alaranta@bananymous.com>
+Date: Thu, 31 Jul 2025 22:15:43 +0300
+Subject: [PATCH 1/2] add support for banan-os
+
+---
+ engine/common/net_http.c          |  4 +++-
+ engine/common/net_ws.c            | 17 +++++++++++++++++
+ engine/common/whereami.c          | 16 ++++++++++++++++
+ engine/platform/posix/lib_posix.c |  2 ++
+ public/build.c                    |  2 ++
+ public/build.h                    |  3 +++
+ public/buildenums.h               |  3 +++
+ 7 files changed, 46 insertions(+), 1 deletion(-)
+
+diff --git a/engine/common/net_http.c b/engine/common/net_http.c
+index ff6fd41b..ebb5bbad 100644
+--- a/engine/common/net_http.c
++++ b/engine/common/net_http.c
+@@ -261,14 +261,16 @@ static int HTTP_FileCreateSocket( httpfile_t *file )
+ 		return 0;
+ 	}
+ 
++#if !XASH_BANAN_OS
+ 	if( ioctlsocket( file->socket, FIONBIO, (void *)&mode ) < 0 )
+ 	{
+ 		Con_Printf( S_ERROR "%s: ioctl() returned %s\n", __func__, NET_ErrorString());
+ 		HTTP_FreeFile( file, true );
+ 		return 0;
+ 	}
++#endif
+ 
+-#if XASH_LINUX
++#if XASH_LINUX || XASH_BANAN_OS
+ 
+ 	res = fcntl( file->socket, F_GETFL, 0 );
+ 
+diff --git a/engine/common/net_ws.c b/engine/common/net_ws.c
+index 7ee4cba0..e93a2410 100644
+--- a/engine/common/net_ws.c
++++ b/engine/common/net_ws.c
+@@ -1364,7 +1364,12 @@ static qboolean NET_QueuePacket( netsrc_t sock, netadr_t *from, byte *data, size
+ 	byte		buf[NET_MAX_FRAGMENT];
+ 	int		ret, protocol;
+ 	int		net_socket;
++#ifdef XASH_BANAN_OS
++	socklen_t	addr_len;
++#else
+ 	WSAsize_t	addr_len;
++#endif
++
+ 	struct sockaddr_storage	addr = { 0 };
+ 
+ 	*length = 0;
+@@ -1617,7 +1622,11 @@ static int NET_IPSocket( const char *net_iface, int port, int family )
+ 	if( family == AF_INET6 )
+ 		pfamily = PF_INET6;
+ 
++#ifdef SOCK_NONBLOCK
++	if( NET_IsSocketError(( net_socket = socket( pfamily, SOCK_DGRAM | SOCK_NONBLOCK, IPPROTO_UDP ))))
++#else
+ 	if( NET_IsSocketError(( net_socket = socket( pfamily, SOCK_DGRAM, IPPROTO_UDP ))))
++#endif
+ 	{
+ 		err = WSAGetLastError();
+ 		if( err != WSAEAFNOSUPPORT )
+@@ -1625,6 +1634,7 @@ static int NET_IPSocket( const char *net_iface, int port, int family )
+ 		return INVALID_SOCKET;
+ 	}
+ 
++#ifndef SOCK_NONBLOCK
+ 	if( NET_IsSocketError( ioctlsocket( net_socket, FIONBIO, (void*)&_true )))
+ 	{
+ 		struct timeval timeout;
+@@ -1634,6 +1644,7 @@ static int NET_IPSocket( const char *net_iface, int port, int family )
+ 		timeout.tv_sec = timeout.tv_usec = 0;
+ 		setsockopt( net_socket, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout));
+ 	}
++#endif
+ 
+ 	// make it broadcast capable
+ 	if( NET_IsSocketError( setsockopt( net_socket, SOL_SOCKET, SO_BROADCAST, (char *)&_true, sizeof( _true ))))
+@@ -1686,6 +1697,7 @@ static int NET_IPSocket( const char *net_iface, int port, int family )
+ 			optval = 0x10; // IPTOS_LOWDELAY
+ 			Con_Printf( "Enabling LOWDELAY TOS option\n" );
+ 
++#ifdef IP_TOS
+ 			if( NET_IsSocketError( setsockopt( net_socket, IPPROTO_IP, IP_TOS, (const char *)&optval, sizeof( optval ))))
+ 			{
+ 				err = WSAGetLastError();
+@@ -1694,6 +1706,7 @@ static int NET_IPSocket( const char *net_iface, int port, int family )
+ 				closesocket( net_socket );
+ 				return INVALID_SOCKET;
+ 			}
++#endif
+ 		}
+ 
+ 		if( Sys_CheckParm( "-loopback" ))
+@@ -1801,7 +1814,11 @@ static void NET_DetermineLocalAddress( void )
+ 	char		hostname[512];
+ 	char		buff[512];
+ 	struct sockaddr_storage	address;
++#ifdef XASH_BANAN_OS
++	socklen_t		namelen;
++#else
+ 	WSAsize_t		namelen;
++#endif
+ 	const char		*net_addr_string;
+ 
+ 	memset( &net_local, 0, sizeof( netadr_t ));
+diff --git a/engine/common/whereami.c b/engine/common/whereami.c
+index 31726774..5b7ff504 100644
+--- a/engine/common/whereami.c
++++ b/engine/common/whereami.c
+@@ -851,6 +851,22 @@ int WAI_PREFIX(getModulePath)(char* out, int capacity, int* dirname_length)
+   return -1;
+ }
+ 
++#elif defined(__banan_os__)
++
++/* Not possible on this platform */
++
++WAI_FUNCSPEC
++int WAI_PREFIX(getExecutablePath)(char* out, int capacity, int* dirname_length)
++{
++  return -1;
++}
++
++WAI_FUNCSPEC
++int WAI_PREFIX(getModulePath)(char* out, int capacity, int* dirname_length)
++{
++  return -1;
++}
++
+ #else
+ 
+ #error unsupported platform
+diff --git a/engine/platform/posix/lib_posix.c b/engine/platform/posix/lib_posix.c
+index 23d1c3b1..a5a84fe1 100644
+--- a/engine/platform/posix/lib_posix.c
++++ b/engine/platform/posix/lib_posix.c
+@@ -208,6 +208,7 @@ const char *COM_NameForFunction( void *hInstance, void *function )
+ 		return Loader_GetFuncName_int(wm, function);
+ 	else
+ #endif
++#ifndef XASH_BANAN_OS
+ 	// NOTE: dladdr() is a glibc extension
+ 	{
+ 		Dl_info info = {0};
+@@ -215,6 +216,7 @@ const char *COM_NameForFunction( void *hInstance, void *function )
+ 		if( ret && info.dli_sname )
+ 			return COM_GetPlatformNeutralName( info.dli_sname );
+ 	}
++#endif
+ #ifdef XASH_ALLOW_SAVERESTORE_OFFSETS
+ 	return COM_OffsetNameForFunction( function );
+ #else
+diff --git a/public/build.c b/public/build.c
+index 6c85bbaf..460b4040 100644
+--- a/public/build.c
++++ b/public/build.c
+@@ -151,6 +151,8 @@ const char *Q_PlatformStringByID( const int platform )
+ 		return "wasi";
+ 	case PLATFORM_SUNOS:
+ 		return "sunos";
++	case PLATFORM_BANAN_OS:
++		return "banan-os";
+ 	}
+ 
+ 	assert( 0 );
+diff --git a/public/build.h b/public/build.h
+index 3fdfeded..2752f8bd 100644
+--- a/public/build.h
++++ b/public/build.h
+@@ -82,6 +82,7 @@ Then you can use another oneliner to query all variables:
+ #undef XASH_RISCV_SOFTFP
+ #undef XASH_SERENITY
+ #undef XASH_SUNOS
++#undef XASH_BANAN_OS
+ #undef XASH_TERMUX
+ #undef XASH_WIN32
+ #undef XASH_X86
+@@ -135,6 +136,8 @@ Then you can use another oneliner to query all variables:
+ 		#define XASH_WASI 1
+ 	#elif defined __sun__
+ 		#define XASH_SUNOS 1
++	#elif defined __banan_os__
++		#define XASH_BANAN_OS 1
+ 	#elif defined __EMSCRIPTEN__
+ 		#define XASH_EMSCRIPTEN 1
+ 	#else
+diff --git a/public/buildenums.h b/public/buildenums.h
+index 4dc327d3..57585f73 100644
+--- a/public/buildenums.h
++++ b/public/buildenums.h
+@@ -43,6 +43,7 @@ GNU General Public License for more details.
+ #define PLATFORM_PSVITA     14
+ #define PLATFORM_WASI       15
+ #define PLATFORM_SUNOS      16
++#define PLATFORM_BANAN_OS   17
+ 
+ #if XASH_WIN32
+ 	#define XASH_PLATFORM PLATFORM_WIN32
+@@ -76,6 +77,8 @@ GNU General Public License for more details.
+ 	#define XASH_PLATFORM PLATFORM_WASI
+ #elif XASH_SUNOS
+ 	#define XASH_PLATFORM PLATFORM_SUNOS
++#elif XASH_BANAN_OS
++	#define XASH_PLATFORM PLATFORM_BANAN_OS
+ #else
+ 	#error
+ #endif
+-- 
+2.50.1
+
