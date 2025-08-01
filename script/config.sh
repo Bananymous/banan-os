@@ -20,7 +20,8 @@ export BANAN_BUILD_DIR="$BANAN_ROOT_DIR/build"
 export BANAN_PORT_DIR="$BANAN_ROOT_DIR/ports"
 
 export BANAN_SYSROOT="$BANAN_BUILD_DIR/sysroot"
-export BANAN_SYSROOT_TAR="$BANAN_SYSROOT.tar"
+
+export BANAN_FAKEROOT="$BANAN_BUILD_DIR/fakeroot-context"
 
 export BANAN_DISK_IMAGE_PATH="$BANAN_BUILD_DIR/banan-os.img"
 

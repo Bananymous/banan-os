@@ -5,8 +5,13 @@ if [ -z $BANAN_DISK_IMAGE_PATH ]; then
 	exit 1
 fi
 
-if [ -z $BANAN_SYSROOT_TAR ]; then
-	echo  "You must set the BANAN_SYSROOT_TAR environment variable" >&2
+if [ -z $BANAN_SYSROOT ]; then
+	echo  "You must set the BANAN_SYSROOT environment variable" >&2
+	exit 1
+fi
+
+if [ -z $BANAN_FAKEROOT ]; then
+	echo  "You must set the BANAN_FAKEROOT environment variable" >&2
 	exit 1
 fi
 
@@ -34,13 +39,33 @@ fi
 
 if sudo mount $ROOT_PARTITION $MOUNT_DIR; then
 	if (($BANAN_INITRD)); then
+		fakeroot -i $BANAN_FAKEROOT tar -C $BANAN_SYSROOT -cf $BANAN_SYSROOT.initrd .
+
 		sudo mkdir -p $MOUNT_DIR/boot
 		sudo cp $BANAN_BUILD_DIR/kernel/banan-os.kernel $MOUNT_DIR/boot/banan-os.kernel
-		sudo cp $BANAN_SYSROOT_TAR $MOUNT_DIR/boot/banan-os.initrd
+		sudo mv $BANAN_SYSROOT.initrd $MOUNT_DIR/boot/banan-os.initrd
 	else
-		cd $MOUNT_DIR
-		sudo tar xf $BANAN_SYSROOT_TAR
-		cd
+		sudo rsync -rulHpt $BANAN_SYSROOT/ $MOUNT_DIR
+
+		fakeroot -i $BANAN_FAKEROOT find $BANAN_SYSROOT -printf './%P|%U|%G\n' >$BANAN_BUILD_DIR/sysroot-perms.txt
+		sudo bash -c "
+			if enable stat &>/dev/null; then
+				while IFS='|' read -r path uid gid; do
+					full=\"$MOUNT_DIR/\$path\"
+					stat \"\$full\"
+					if [[ \${STAT[uid]} != \$uid ]] || [[ \${STAT[gid]} != \$gid ]]; then
+						chown -h \"\$uid:\$gid\" \"\$full\"
+					fi
+				done <$BANAN_BUILD_DIR/sysroot-perms.txt
+			else
+				while IFS='|' read -r path uid gid; do
+					full=\"$MOUNT_DIR/\$path\"
+					if [[ \$(stat -c '%u %g' \"\$full\") != \"\$uid \$gid\" ]]; then
+						chown -h \"\$uid:\$gid\" \"\$full\"
+					fi
+				done <$BANAN_BUILD_DIR/sysroot-perms.txt
+			fi
+		"
 	fi
 
 	sudo umount $MOUNT_DIR

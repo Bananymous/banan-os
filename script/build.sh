@@ -4,13 +4,11 @@ set -e
 export BANAN_SCRIPT_DIR=$(dirname $(realpath $0))
 source $BANAN_SCRIPT_DIR/config.sh
 
-FAKEROOT_FILE="$BANAN_BUILD_DIR/fakeroot-context"
-
 run_fakeroot() {
-	if [ ! -f $FAKEROOT_FILE ]; then
-		touch $FAKEROOT_FILE
+	if [ ! -f $BANAN_FAKEROOT ]; then
+		touch $BANAN_FAKEROOT
 	fi
-	fakeroot -i $FAKEROOT_FILE -s $FAKEROOT_FILE -- /bin/bash -c '$@' bash $@
+	fakeroot -i $BANAN_FAKEROOT -s $BANAN_FAKEROOT -- /bin/bash -c '$@' bash $@
 }
 
 make_build_dir () {
@@ -47,11 +45,6 @@ build_toolchain () {
 create_image () {
 	build_target all
 	build_target install
-
-	pushd $BANAN_SYSROOT >/dev/null
-	run_fakeroot tar cf ${BANAN_SYSROOT_TAR} *
-	popd >/dev/null
-
 	$BANAN_SCRIPT_DIR/image.sh "$1"
 }
 
