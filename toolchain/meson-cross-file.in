@@ -11,7 +11,8 @@ ar = 'ARCH-pc-banan_os-ar'
 ld = 'ARCH-pc-banan_os-ld'
 objcopy = 'ARCH-pc-banan_os-objcopy'
 strip = 'ARCH-pc-banan_os-strip'
-pkgconfig = 'pkg-config'
+pkg-config = 'pkg-config'
+cmake = 'CMAKE'
 
 [properties]
 sys_root='SYSROOT'

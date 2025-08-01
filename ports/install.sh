@@ -42,8 +42,9 @@ fi
 export MESON_CROSS_FILE="$BANAN_PORT_DIR/$BANAN_ARCH-banan_os-meson.txt"
 if [ ! -f "$MESON_CROSS_FILE" ] || [ "$MESON_CROSS_FILE" -ot "$BANAN_TOOLCHAIN_DIR/meson-cross-file.in" ]; then
 	cp "$BANAN_TOOLCHAIN_DIR/meson-cross-file.in" "$MESON_CROSS_FILE"
-	sed -i "s/ARCH/$BANAN_ARCH/" "$MESON_CROSS_FILE"
-	sed -i "s/SYSROOT/$BANAN_SYSROOT/" "$MESON_CROSS_FILE"
+	sed -i "s|ARCH|$BANAN_ARCH|" "$MESON_CROSS_FILE"
+	sed -i "s|CMAKE|$BANAN_CMAKE|" "$MESON_CROSS_FILE"
+	sed -i "s|SYSROOT|$BANAN_SYSROOT|" "$MESON_CROSS_FILE"
 fi
 
 MAKE_BUILD_TARGETS=('all')
