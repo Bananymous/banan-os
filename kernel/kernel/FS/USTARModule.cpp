@@ -109,7 +109,8 @@ namespace Kernel
 
 			if (file_type == DIRTYPE)
 			{
-				TRY(parent_inode->create_directory(file_name_sv, file_mode, file_uid, file_gid));
+				if (auto ret = parent_inode->create_directory(file_name_sv, file_mode, file_uid, file_gid); ret.is_error())
+					dwarnln("failed to create directory '{}': {}", file_name_sv, ret.error());
 			}
 			else if (file_type == LNKTYPE)
 			{
@@ -117,40 +118,46 @@ namespace Kernel
 			}
 			else if (file_type == SYMTYPE)
 			{
-				TRY(parent_inode->create_file(file_name_sv, file_mode, file_uid, file_gid));
-
-				char link_target[101] {};
-				const paddr_t paddr = module.start + offset;
-				PageTable::with_fast_page(paddr & PAGE_ADDR_MASK, [&] {
-					memcpy(link_target, PageTable::fast_page_as_ptr((paddr % PAGE_SIZE) + 157), 100);
-				});
-
-				if (link_target[0])
+				if (auto ret = parent_inode->create_file(file_name_sv, file_mode, file_uid, file_gid); ret.is_error())
+					dwarnln("failed to create symlink '{}': {}", file_name_sv, ret.error());
+				else
 				{
-					auto inode = TRY(parent_inode->find_inode(file_name_sv));
-					TRY(inode->set_link_target(link_target));
+					char link_target[101] {};
+					const paddr_t paddr = module.start + offset;
+					PageTable::with_fast_page(paddr & PAGE_ADDR_MASK, [&] {
+						memcpy(link_target, PageTable::fast_page_as_ptr((paddr % PAGE_SIZE) + 157), 100);
+					});
+
+					if (link_target[0])
+					{
+						auto inode = TRY(parent_inode->find_inode(file_name_sv));
+						TRY(inode->set_link_target(link_target));
+					}
 				}
 			}
 			else
 			{
-				TRY(parent_inode->create_file(file_name_sv, file_mode, file_uid, file_gid));
-
-				if (file_size)
+				if (auto ret = parent_inode->create_file(file_name_sv, file_mode, file_uid, file_gid); ret.is_error())
+					dwarnln("failed to create file '{}': {}", file_name_sv, ret.error());
+				else
 				{
-					auto inode = TRY(parent_inode->find_inode(file_name_sv));
-
-					size_t nwritten = 0;
-					while (nwritten < file_size)
+					if (file_size)
 					{
-						const paddr_t paddr = module.start + offset + 512 + nwritten;
-						PageTable::with_fast_page(paddr & PAGE_ADDR_MASK, [&] {
-							memcpy(temp_page, PageTable::fast_page_as_ptr(), PAGE_SIZE);
-						});
+						auto inode = TRY(parent_inode->find_inode(file_name_sv));
 
-						const size_t page_off = paddr % PAGE_SIZE;
-						const size_t to_write = BAN::Math::min(file_size - nwritten, PAGE_SIZE - page_off);
-						TRY(inode->write(nwritten, { temp_page + page_off, to_write }));
-						nwritten += to_write;
+						size_t nwritten = 0;
+						while (nwritten < file_size)
+						{
+							const paddr_t paddr = module.start + offset + 512 + nwritten;
+							PageTable::with_fast_page(paddr & PAGE_ADDR_MASK, [&] {
+								memcpy(temp_page, PageTable::fast_page_as_ptr(), PAGE_SIZE);
+							});
+
+							const size_t page_off = paddr % PAGE_SIZE;
+							const size_t to_write = BAN::Math::min(file_size - nwritten, PAGE_SIZE - page_off);
+							TRY(inode->write(nwritten, { temp_page + page_off, to_write }));
+							nwritten += to_write;
+						}
 					}
 				}
 			}
