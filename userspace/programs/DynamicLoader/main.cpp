@@ -1200,21 +1200,32 @@ static void initialize_tls(MasterTLS master_tls)
 
 	memcpy(tls_addr, master_tls.addr, master_tls.size);
 
-	uthread* uthread = reinterpret_cast<struct uthread*>(tls_addr + master_tls.size);
-	uthread->self = uthread;
-	uthread->master_tls_addr = master_tls.addr;
-	uthread->master_tls_size = master_tls.size;
+	uthread& uthread = *reinterpret_cast<struct uthread*>(tls_addr + master_tls.size);
 
-	uthread->dtv[0] = master_tls.module_count;
+	// uthread is prepared in libc init, but some other stuff may be calling pthread functions
+	//   for example __cxa_guard_release calls pthread_cond_broadcast
+	uthread = {
+		.self = &uthread,
+		.master_tls_addr = master_tls.addr,
+		.master_tls_size = master_tls.size,
+		.cleanup_stack = nullptr,
+		.id = static_cast<pthread_t>(syscall<>(SYS_PTHREAD_SELF)),
+		.errno_ = 0,
+		.cancel_type = PTHREAD_CANCEL_DEFERRED,
+		.cancel_state = PTHREAD_CANCEL_ENABLE,
+		.canceled = false,
+	};
+
+	uthread.dtv[0] = master_tls.module_count;
 	for (size_t i = 0; i < s_loaded_file_count; i++)
 	{
 		const auto& elf = s_loaded_files[i];
 		if (elf.tls_addr == nullptr)
 			continue;
-		uthread->dtv[elf.tls_module] = reinterpret_cast<uintptr_t>(tls_addr) + uthread->master_tls_size - elf.tls_offset;
+		uthread.dtv[elf.tls_module] = reinterpret_cast<uintptr_t>(tls_addr) + uthread.master_tls_size - elf.tls_offset;
 	}
 
-	syscall(SYS_SET_TLS, uthread);
+	syscall(SYS_SET_TLS, &uthread);
 }
 
 static void initialize_environ(char** envp)
