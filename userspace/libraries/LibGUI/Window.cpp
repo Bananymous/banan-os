@@ -142,10 +142,10 @@ namespace LibGUI
 			return on_socket_error(__FUNCTION__);
 	}
 
-	void Window::set_mouse_capture(bool captured)
+	void Window::set_mouse_relative(bool enabled)
 	{
-		WindowPacket::WindowSetMouseCapture packet;
-		packet.captured = captured;
+		WindowPacket::WindowSetMouseRelative packet;
+		packet.enabled = enabled;
 
 		if (auto ret = packet.send_serialized(m_server_fd); ret.is_error())
 			return on_socket_error(__FUNCTION__);

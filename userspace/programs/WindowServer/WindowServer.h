@@ -35,7 +35,7 @@ public:
 	void on_window_invalidate(int fd, const LibGUI::WindowPacket::WindowInvalidate&);
 	void on_window_set_position(int fd, const LibGUI::WindowPacket::WindowSetPosition&);
 	void on_window_set_attributes(int fd, const LibGUI::WindowPacket::WindowSetAttributes&);
-	void on_window_set_mouse_capture(int fd, const LibGUI::WindowPacket::WindowSetMouseCapture&);
+	void on_window_set_mouse_relative(int fd, const LibGUI::WindowPacket::WindowSetMouseRelative&);
 	void on_window_set_size(int fd, const LibGUI::WindowPacket::WindowSetSize&);
 	void on_window_set_min_size(int fd, const LibGUI::WindowPacket::WindowSetMinSize&);
 	void on_window_set_max_size(int fd, const LibGUI::WindowPacket::WindowSetMaxSize&);
@@ -112,7 +112,7 @@ private:
 	uint8_t m_resize_quadrant { 0 };
 	Position m_resize_start;
 
-	bool m_is_mouse_captured { false };
+	bool m_is_mouse_relative { false };
 
 	bool m_deleted_window { false };
 	bool m_is_stopped { false };

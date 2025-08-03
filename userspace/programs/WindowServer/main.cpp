@@ -364,17 +364,17 @@ int main()
 						if (auto ret = LibGUI::WindowPacket::enum::deserialize(client_data.packet_buffer.span()); !ret.is_error()) \
 							window_server.function(fd, ret.release_value()); \
 						break
-					WINDOW_PACKET_CASE(WindowCreate,          on_window_create);
-					WINDOW_PACKET_CASE(WindowInvalidate,      on_window_invalidate);
-					WINDOW_PACKET_CASE(WindowSetPosition,     on_window_set_position);
-					WINDOW_PACKET_CASE(WindowSetAttributes,   on_window_set_attributes);
-					WINDOW_PACKET_CASE(WindowSetMouseCapture, on_window_set_mouse_capture);
-					WINDOW_PACKET_CASE(WindowSetSize,         on_window_set_size);
-					WINDOW_PACKET_CASE(WindowSetMinSize,      on_window_set_min_size);
-					WINDOW_PACKET_CASE(WindowSetMaxSize,      on_window_set_max_size);
-					WINDOW_PACKET_CASE(WindowSetFullscreen,   on_window_set_fullscreen);
-					WINDOW_PACKET_CASE(WindowSetTitle,        on_window_set_title);
-					WINDOW_PACKET_CASE(WindowSetCursor,       on_window_set_cursor);
+					WINDOW_PACKET_CASE(WindowCreate,           on_window_create);
+					WINDOW_PACKET_CASE(WindowInvalidate,       on_window_invalidate);
+					WINDOW_PACKET_CASE(WindowSetPosition,      on_window_set_position);
+					WINDOW_PACKET_CASE(WindowSetAttributes,    on_window_set_attributes);
+					WINDOW_PACKET_CASE(WindowSetMouseRelative, on_window_set_mouse_relative);
+					WINDOW_PACKET_CASE(WindowSetSize,          on_window_set_size);
+					WINDOW_PACKET_CASE(WindowSetMinSize,       on_window_set_min_size);
+					WINDOW_PACKET_CASE(WindowSetMaxSize,       on_window_set_max_size);
+					WINDOW_PACKET_CASE(WindowSetFullscreen,    on_window_set_fullscreen);
+					WINDOW_PACKET_CASE(WindowSetTitle,         on_window_set_title);
+					WINDOW_PACKET_CASE(WindowSetCursor,        on_window_set_cursor);
 #undef WINDOW_PACKET_CASE
 					default:
 						dprintln("unhandled packet type: {}", *reinterpret_cast<uint32_t*>(client_data.packet_buffer.data()));

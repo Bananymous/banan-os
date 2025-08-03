@@ -199,13 +199,13 @@ void WindowServer::on_window_set_attributes(int fd, const LibGUI::WindowPacket::
 		dwarnln("could not send window shown event: {}", ret.error());
 }
 
-void WindowServer::on_window_set_mouse_capture(int fd, const LibGUI::WindowPacket::WindowSetMouseCapture& packet)
+void WindowServer::on_window_set_mouse_relative(int fd, const LibGUI::WindowPacket::WindowSetMouseRelative& packet)
 {
-	if (m_is_mouse_captured && packet.captured)
+	if (m_is_mouse_relative && packet.enabled)
 	{
 		ASSERT(m_focused_window);
 		if (fd != m_focused_window->client_fd())
-			dwarnln("client tried to set mouse capture while other window has it already captured");
+			dwarnln("client tried to set mouse relative while other window has it already");
 		return;
 	}
 
@@ -221,11 +221,11 @@ void WindowServer::on_window_set_mouse_capture(int fd, const LibGUI::WindowPacke
 		return;
 	}
 
-	if (packet.captured == m_is_mouse_captured)
+	if (packet.enabled == m_is_mouse_relative)
 		return;
 
 	set_focused_window(target_window);
-	m_is_mouse_captured = packet.captured;
+	m_is_mouse_relative = packet.enabled;
 	invalidate(cursor_area());
 }
 
@@ -490,7 +490,7 @@ void WindowServer::on_key_event(LibInput::KeyEvent event)
 
 void WindowServer::on_mouse_button(LibInput::MouseButtonEvent event)
 {
-	if (m_is_mouse_captured)
+	if (m_is_mouse_relative)
 	{
 		ASSERT(m_focused_window);
 
@@ -681,7 +681,7 @@ void WindowServer::on_mouse_move_impl(int32_t new_x, int32_t new_y)
 
 void WindowServer::on_mouse_move(LibInput::MouseMoveEvent event)
 {
-	if (m_is_mouse_captured)
+	if (m_is_mouse_relative)
 	{
 		ASSERT(m_focused_window);
 
@@ -767,9 +767,9 @@ void WindowServer::set_focused_window(BAN::RefPtr<Window> window)
 	if (m_focused_window == window)
 		return;
 
-	if (m_is_mouse_captured)
+	if (m_is_mouse_relative)
 	{
-		m_is_mouse_captured = false;
+		m_is_mouse_relative = false;
 		invalidate(cursor_area());
 	}
 
@@ -903,7 +903,7 @@ void WindowServer::invalidate(Rectangle area)
 			mark_pending_sync(dst_area);
 		}
 
-		if (!m_is_mouse_captured)
+		if (!m_is_mouse_relative)
 		{
 			auto cursor_area = this->cursor_area();
 			cursor_area.x -= m_focused_window->client_x();
@@ -1140,7 +1140,7 @@ void WindowServer::invalidate(Rectangle area)
 		}
 	}
 
-	if (!m_is_mouse_captured)
+	if (!m_is_mouse_relative)
 	{
 		if (const auto overlap = cursor_area().get_overlap(area); overlap.has_value())
 		{

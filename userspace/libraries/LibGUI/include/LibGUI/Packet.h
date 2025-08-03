@@ -205,7 +205,7 @@ namespace LibGUI
 		WindowInvalidate,
 		WindowSetPosition,
 		WindowSetAttributes,
-		WindowSetMouseCapture,
+		WindowSetMouseRelative,
 		WindowSetSize,
 		WindowSetMinSize,
 		WindowSetMaxSize,
@@ -266,8 +266,8 @@ namespace LibGUI
 		);
 
 		DEFINE_PACKET(
-			WindowSetMouseCapture,
-			bool, captured
+			WindowSetMouseRelative,
+			bool, enabled
 		);
 
 		DEFINE_PACKET(

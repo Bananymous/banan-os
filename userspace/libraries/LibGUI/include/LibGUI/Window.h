@@ -43,7 +43,7 @@ namespace LibGUI
 		void invalidate(int32_t x, int32_t y, uint32_t width, uint32_t height);
 		void invalidate() { return invalidate(0, 0, width(), height()); }
 
-		void set_mouse_capture(bool captured);
+		void set_mouse_relative(bool enabled);
 		void set_fullscreen(bool fullscreen);
 		void set_title(BAN::StringView title);
 
