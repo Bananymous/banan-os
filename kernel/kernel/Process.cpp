@@ -981,24 +981,32 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<bool> Process::allocate_page_for_demand_paging(vaddr_t address, bool wants_write)
+	BAN::ErrorOr<bool> Process::allocate_page_for_demand_paging(vaddr_t address, bool wants_write, bool wants_exec)
 	{
 		ASSERT(&Process::current() == this);
 
 		LockGuard _(m_process_lock);
 
-		if (Thread::current().userspace_stack().contains(address))
 		{
-			TRY(Thread::current().userspace_stack().allocate_page_for_demand_paging(address));
-			return true;
+			// NOTE: page can be already allocated by another thread!
+
+			PageTable::flags_t wanted_flags = PageTable::Flags::UserSupervisor | PageTable::Flags::Present;
+			if (wants_write)
+				wanted_flags |= PageTable::Flags::ReadWrite;
+			if (wants_exec)
+				wanted_flags |= PageTable::Flags::Execute;
+			if ((m_page_table->get_page_flags(address & PAGE_ADDR_MASK) & wanted_flags) == wanted_flags)
+				return true;
 		}
+
+		if (Thread::current().userspace_stack().contains(address))
+			return Thread::current().userspace_stack().allocate_page_for_demand_paging(address);
 
 		for (auto& region : m_mapped_regions)
 		{
 			if (!region->contains(address))
 				continue;
-			TRY(region->allocate_page_containing(address, wants_write));
-			return true;
+			return region->allocate_page_containing(address, wants_write);
 		}
 
 		return false;
@@ -3112,7 +3120,7 @@ unauthorized_access:
 			const vaddr_t current = page_start + i * PAGE_SIZE;
 			if (page_table().get_page_flags(current) & PageTable::Flags::Present)
 				continue;
-			TRY(Process::allocate_page_for_demand_paging(current, needs_write));
+			TRY(Process::allocate_page_for_demand_paging(current, needs_write, false));
 		}
 
 		return {};

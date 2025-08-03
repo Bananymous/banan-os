@@ -220,7 +220,7 @@ namespace Kernel
 		// Returns error if page could not be allocated
 		// Returns true if the page was allocated successfully
 		// Return false if access was page violation (segfault)
-		BAN::ErrorOr<bool> allocate_page_for_demand_paging(vaddr_t addr, bool wants_write);
+		BAN::ErrorOr<bool> allocate_page_for_demand_paging(vaddr_t addr, bool wants_write, bool wants_exec);
 
 		// FIXME: remove this API
 		BAN::ErrorOr<BAN::String> absolute_path_of(BAN::StringView) const;

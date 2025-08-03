@@ -214,7 +214,7 @@ namespace Kernel
 					page_fault_error.raw = error;
 
 					Processor::set_interrupt_state(InterruptState::Enabled);
-					auto result = Process::current().allocate_page_for_demand_paging(regs->cr2, page_fault_error.write);
+					auto result = Process::current().allocate_page_for_demand_paging(regs->cr2, page_fault_error.write, page_fault_error.instruction);
 					Processor::set_interrupt_state(InterruptState::Disabled);
 
 					if (!result.is_error() && result.value())
