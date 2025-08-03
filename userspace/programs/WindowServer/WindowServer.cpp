@@ -1355,8 +1355,8 @@ BAN::RefPtr<Window> WindowServer::find_window_with_fd(int fd) const
 
 BAN::RefPtr<Window> WindowServer::find_hovered_window() const
 {
-	for (auto window : m_client_windows)
-		if (window->full_area().contains(m_cursor))
+	for (size_t i = m_client_windows.size(); i > 0; i--)
+		if (auto window = m_client_windows[i - 1]; window->client_area().contains(m_cursor))
 			return window;
 	return {};
 }
