@@ -724,6 +724,12 @@ void WindowServer::on_mouse_move_abs(LibInput::MouseMoveAbsEvent event)
 			return (val - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 		};
 
+	if (m_is_mouse_relative)
+	{
+		dwarnln("relative mouse not supported with absolute mouse");
+		return;
+	}
+
 	int32_t out_min_x, out_max_x;
 	int32_t out_min_y, out_max_y;
 
