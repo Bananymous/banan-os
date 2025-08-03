@@ -105,58 +105,95 @@ void pthread_cleanup_push(void (*routine)(void*), void* arg)
 	uthread->cleanup_stack = cleanup;
 }
 
-static thread_local struct {
-	void* value;
-	void (*destructor)(void*);
-} s_pthread_keys[PTHREAD_KEYS_MAX] {};
-static thread_local uint8_t s_pthread_keys_allocated[(PTHREAD_KEYS_MAX + 7) / 8];
-
-static inline bool is_pthread_key_allocated(pthread_key_t key)
+static thread_local struct
 {
-	if (key >= PTHREAD_KEYS_MAX)
-		return false;
-	return s_pthread_keys_allocated[key / 8] & (1 << (key % 8));
-}
+	void* value;
+	pthread_key_t key;
+} s_pthread_key_values[PTHREAD_KEYS_MAX] {};
+
+static pthread_key_t s_pthread_key_current = 1;
+static pthread_key_t s_pthread_key_map[PTHREAD_KEYS_MAX] {};
+static void (*s_pthread_key_destructors[PTHREAD_KEYS_MAX])(void*) {};
+static pthread_spinlock_t s_pthread_key_lock = PTHREAD_SPIN_INITIALIZER;
 
 int pthread_key_create(pthread_key_t* key, void (*destructor)(void*))
 {
-	for (pthread_key_t i = 0; i < PTHREAD_KEYS_MAX; i++)
-	{
-		if (is_pthread_key_allocated(i))
-			continue;
-		s_pthread_keys[i].value = nullptr;
-		s_pthread_keys[i].destructor = destructor;
-		s_pthread_keys_allocated[i / 8] |= 1 << (i % 8);
-		*key = i;
-		return 0;
-	}
+	int ret = EAGAIN;
 
-	return EAGAIN;
+	pthread_spin_lock(&s_pthread_key_lock);
+	for (size_t i = 0; i < PTHREAD_KEYS_MAX; i++)
+	{
+		if (s_pthread_key_map[i])
+			continue;
+		s_pthread_key_destructors[i] = destructor;
+		s_pthread_key_map[i] = *key = s_pthread_key_current++;
+		ret = 0;
+		break;
+	}
+	pthread_spin_unlock(&s_pthread_key_lock);
+
+	return ret;
 }
 
 int pthread_key_delete(pthread_key_t key)
 {
-	if (!is_pthread_key_allocated(key))
-		return EINVAL;
-	s_pthread_keys[key].value = nullptr;
-	s_pthread_keys[key].destructor = nullptr;
-	s_pthread_keys_allocated[key / 8] &= ~(1 << (key % 8));
-	return 0;
+	int ret = EINVAL;
+
+	pthread_spin_lock(&s_pthread_key_lock);
+	for (size_t i = 0; i < PTHREAD_KEYS_MAX; i++)
+	{
+		if (s_pthread_key_map[i] != key)
+			continue;
+		s_pthread_key_destructors[i] = nullptr;
+		s_pthread_key_map[i] = 0;
+		ret = 0;
+		break;
+	}
+	pthread_spin_unlock(&s_pthread_key_lock);
+
+	return ret;
 }
 
 void* pthread_getspecific(pthread_key_t key)
 {
-	if (!is_pthread_key_allocated(key))
-		return nullptr;
-	return s_pthread_keys[key].value;
+	void* ret = nullptr;
+
+	pthread_spin_lock(&s_pthread_key_lock);
+	for (size_t i = 0; i < PTHREAD_KEYS_MAX; i++)
+	{
+		if (s_pthread_key_map[i] != key)
+			continue;
+		if (s_pthread_key_values[i].key != key)
+		{
+			s_pthread_key_values[i].key = key;
+			s_pthread_key_values[i].value = nullptr;
+		}
+		ret = s_pthread_key_values[i].value;
+		break;
+	}
+	pthread_spin_unlock(&s_pthread_key_lock);
+
+	return ret;
 }
 
 int pthread_setspecific(pthread_key_t key, const void* value)
 {
-	if (!is_pthread_key_allocated(key))
-		return EINVAL;
-	s_pthread_keys[key].value = const_cast<void*>(value);
-	return 0;
+	int ret = EINVAL;
+
+	pthread_spin_lock(&s_pthread_key_lock);
+	for (size_t i = 0; i < PTHREAD_KEYS_MAX; i++)
+	{
+		if (s_pthread_key_map[i] != key)
+			continue;
+		if (s_pthread_key_values[i].key != key)
+			s_pthread_key_values[i].key = key;
+		s_pthread_key_values[i].value = const_cast<void*>(value);
+		ret = 0;
+		break;
+	}
+	pthread_spin_unlock(&s_pthread_key_lock);
+
+	return ret;
 }
 
 int pthread_attr_destroy(pthread_attr_t* attr)
@@ -414,15 +451,22 @@ void pthread_exit(void* value_ptr)
 	for (size_t iteration = 0; iteration < PTHREAD_DESTRUCTOR_ITERATIONS; iteration++)
 	{
 		bool called = false;
-		for (pthread_key_t i = 0; i < PTHREAD_KEYS_MAX; i++)
+		for (size_t i = 0; i < PTHREAD_KEYS_MAX; i++)
 		{
-			if (!is_pthread_key_allocated(i))
+			void (*destructor)(void*) = nullptr;
+			void* value = nullptr;
+
+			pthread_spin_lock(&s_pthread_key_lock);
+			if (s_pthread_key_map[i] && s_pthread_key_values[i].key == s_pthread_key_map[i])
+			{
+				destructor = s_pthread_key_destructors[i];
+				value = s_pthread_key_values[i].value;
+			}
+			pthread_spin_unlock(&s_pthread_key_lock);
+
+			if (!value || !destructor)
 				continue;
-			if (!s_pthread_keys[i].value || !s_pthread_keys[i].destructor)
-				continue;
-			void* old_value = s_pthread_keys[i].value;
-			s_pthread_keys[i].value = nullptr;
-			s_pthread_keys[i].destructor(old_value);
+			destructor(value);
 			called = true;
 		}
 		if (!called)
