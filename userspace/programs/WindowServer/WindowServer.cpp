@@ -712,7 +712,7 @@ void WindowServer::on_mouse_move(LibInput::MouseMoveEvent event)
 	}
 
 	const int32_t new_x = BAN::Math::clamp(m_cursor.x + event.rel_x, min_x, max_x);
-	const int32_t new_y = BAN::Math::clamp(m_cursor.y + event.rel_y, min_y, max_y);
+	const int32_t new_y = BAN::Math::clamp(m_cursor.y - event.rel_y, min_y, max_y);
 	return on_mouse_move_impl(new_x, new_y);
 }
 
