@@ -1,6 +1,6 @@
-diff -ruN SDL-release-2.30.11/CMakeLists.txt SDL-release-2.30.11-banan_os/CMakeLists.txt
+diff -ruN SDL-release-2.30.11/CMakeLists.txt SDL2-2.30.11-banan_os/CMakeLists.txt
 --- SDL-release-2.30.11/CMakeLists.txt	2025-01-01 19:09:38.000000000 +0200
-+++ SDL-release-2.30.11-banan_os/CMakeLists.txt	2025-06-25 16:53:26.163363407 +0300
++++ SDL2-2.30.11-banan_os/CMakeLists.txt	2025-08-03 14:04:09.894244781 +0300
 @@ -1452,7 +1452,7 @@
    CheckPTHREAD()
    CheckLibUnwind()
@@ -60,9 +60,9 @@ diff -ruN SDL-release-2.30.11/CMakeLists.txt SDL-release-2.30.11-banan_os/CMakeL
  elseif(RISCOS)
    if(SDL_MISC)
      file(GLOB MISC_SOURCES ${SDL2_SOURCE_DIR}/src/misc/riscos/*.c)
-diff -ruN SDL-release-2.30.11/include/SDL_config.h.cmake SDL-release-2.30.11-banan_os/include/SDL_config.h.cmake
+diff -ruN SDL-release-2.30.11/include/SDL_config.h.cmake SDL2-2.30.11-banan_os/include/SDL_config.h.cmake
 --- SDL-release-2.30.11/include/SDL_config.h.cmake	2025-01-01 19:09:38.000000000 +0200
-+++ SDL-release-2.30.11-banan_os/include/SDL_config.h.cmake	2025-06-24 19:53:27.963249565 +0300
++++ SDL2-2.30.11-banan_os/include/SDL_config.h.cmake	2025-08-03 14:04:09.894803585 +0300
 @@ -406,6 +406,7 @@
  #cmakedefine SDL_VIDEO_DRIVER_ANDROID @SDL_VIDEO_DRIVER_ANDROID@
  #cmakedefine SDL_VIDEO_DRIVER_EMSCRIPTEN @SDL_VIDEO_DRIVER_EMSCRIPTEN@
@@ -71,9 +71,9 @@ diff -ruN SDL-release-2.30.11/include/SDL_config.h.cmake SDL-release-2.30.11-ban
  #cmakedefine SDL_VIDEO_DRIVER_COCOA @SDL_VIDEO_DRIVER_COCOA@
  #cmakedefine SDL_VIDEO_DRIVER_UIKIT @SDL_VIDEO_DRIVER_UIKIT@
  #cmakedefine SDL_VIDEO_DRIVER_DIRECTFB @SDL_VIDEO_DRIVER_DIRECTFB@
-diff -ruN SDL-release-2.30.11/include/SDL_platform.h SDL-release-2.30.11-banan_os/include/SDL_platform.h
+diff -ruN SDL-release-2.30.11/include/SDL_platform.h SDL2-2.30.11-banan_os/include/SDL_platform.h
 --- SDL-release-2.30.11/include/SDL_platform.h	2025-01-01 19:09:38.000000000 +0200
-+++ SDL-release-2.30.11-banan_os/include/SDL_platform.h	2025-06-24 17:54:20.094530618 +0300
++++ SDL2-2.30.11-banan_os/include/SDL_platform.h	2025-08-03 14:04:09.895022748 +0300
 @@ -36,6 +36,10 @@
  #undef __HAIKU__
  #define __HAIKU__   1
@@ -85,9 +85,9 @@ diff -ruN SDL-release-2.30.11/include/SDL_platform.h SDL-release-2.30.11-banan_o
  #if defined(bsdi) || defined(__bsdi) || defined(__bsdi__)
  #undef __BSDI__
  #define __BSDI__    1
-diff -ruN SDL-release-2.30.11/src/misc/banan_os/SDL_sysurl.cpp SDL-release-2.30.11-banan_os/src/misc/banan_os/SDL_sysurl.cpp
+diff -ruN SDL-release-2.30.11/src/misc/banan_os/SDL_sysurl.cpp SDL2-2.30.11-banan_os/src/misc/banan_os/SDL_sysurl.cpp
 --- SDL-release-2.30.11/src/misc/banan_os/SDL_sysurl.cpp	1970-01-01 02:00:00.000000000 +0200
-+++ SDL-release-2.30.11-banan_os/src/misc/banan_os/SDL_sysurl.cpp	2025-06-24 18:51:56.695953622 +0300
++++ SDL2-2.30.11-banan_os/src/misc/banan_os/SDL_sysurl.cpp	2025-08-03 14:04:09.895198889 +0300
 @@ -0,0 +1,30 @@
 +/*
 +  Simple DirectMedia Layer
@@ -119,9 +119,9 @@ diff -ruN SDL-release-2.30.11/src/misc/banan_os/SDL_sysurl.cpp SDL-release-2.30.
 +
 +/* vi: set ts=4 sw=4 expandtab: */
 +
-diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_message_box.cpp SDL-release-2.30.11-banan_os/src/video/banan_os/SDL_banan_os_message_box.cpp
+diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_message_box.cpp SDL2-2.30.11-banan_os/src/video/banan_os/SDL_banan_os_message_box.cpp
 --- SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_message_box.cpp	1970-01-01 02:00:00.000000000 +0200
-+++ SDL-release-2.30.11-banan_os/src/video/banan_os/SDL_banan_os_message_box.cpp	2025-06-27 16:29:59.012277213 +0300
++++ SDL2-2.30.11-banan_os/src/video/banan_os/SDL_banan_os_message_box.cpp	2025-08-03 14:04:09.895299391 +0300
 @@ -0,0 +1,60 @@
 +/*
 +  Simple DirectMedia Layer
@@ -183,9 +183,9 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_message_box.cpp SD
 +#endif /* SDL_VIDEO_DRIVER_BANAN_OS */
 +
 +/* vi: set ts=4 sw=4 expandtab: */
-diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_message_box.h SDL-release-2.30.11-banan_os/src/video/banan_os/SDL_banan_os_message_box.h
+diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_message_box.h SDL2-2.30.11-banan_os/src/video/banan_os/SDL_banan_os_message_box.h
 --- SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_message_box.h	1970-01-01 02:00:00.000000000 +0200
-+++ SDL-release-2.30.11-banan_os/src/video/banan_os/SDL_banan_os_message_box.h	2025-06-24 19:49:44.390183027 +0300
++++ SDL2-2.30.11-banan_os/src/video/banan_os/SDL_banan_os_message_box.h	2025-08-03 14:04:09.895347931 +0300
 @@ -0,0 +1,45 @@
 +/*
 +  Simple DirectMedia Layer
@@ -232,10 +232,10 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_message_box.h SDL-
 +#endif
 +
 +/* vi: set ts=4 sw=4 expandtab: */
-diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL-release-2.30.11-banan_os/src/video/banan_os/SDL_banan_os_video.cpp
+diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL2-2.30.11-banan_os/src/video/banan_os/SDL_banan_os_video.cpp
 --- SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp	1970-01-01 02:00:00.000000000 +0200
-+++ SDL-release-2.30.11-banan_os/src/video/banan_os/SDL_banan_os_video.cpp	2025-06-28 20:49:41.452498550 +0300
-@@ -0,0 +1,770 @@
++++ SDL2-2.30.11-banan_os/src/video/banan_os/SDL_banan_os_video.cpp	2025-08-04 14:57:50.844360579 +0300
+@@ -0,0 +1,719 @@
 +/*
 +  Simple DirectMedia Layer
 +  Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
@@ -291,8 +291,8 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL-rele
 +struct banan_os_window
 +{
 +	BAN::UniqPtr<LibGUI::Window> window;
-+	LibGUI::Texture framebuffer;
-+	OSMesaContext gl_context;
++	OSMesaContext gl_context { nullptr };
++	SDL_bool relative { SDL_FALSE };
 +};
 +
 +struct banan_os_video_device_data
@@ -442,6 +442,8 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL-rele
 +{
 +	DUMP_FUNCTION();
 +
++	// FIXME: support system cursors :)
++
 +	auto* cursor = static_cast<SDL_Cursor*>(SDL_calloc(1, sizeof(SDL_Cursor)));
 +	if (cursor == nullptr) {
 +		SDL_OutOfMemory();
@@ -473,12 +475,17 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL-rele
 +	return 0;
 +}
 +
-+static int BANAN_OS_CaptureMouse(SDL_Window* window)
++static int BANAN_OS_SetRelativeMouseMode(SDL_bool enabled)
 +{
 +	DUMP_FUNCTION();
 +
++	auto* window = SDL_GetMouseFocus();
++	if (window == nullptr)
++		return 0;
++
 +	auto& ban_window = *static_cast<banan_os_window*>(window->driverdata);
-+	ban_window.window->set_mouse_capture(SDL_GetMouse()->capture_window == window);
++	ban_window.window->set_mouse_relative(enabled);
++	ban_window.relative = enabled;
 +
 +	return 0;
 +}
@@ -489,9 +496,11 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL-rele
 +
 +	auto* mouse = SDL_GetMouse();
 +	mouse->ShowCursor = BANAN_OS_ShowCursor;
-+	mouse->CaptureMouse = BANAN_OS_CaptureMouse;
++	mouse->SetRelativeMouseMode = BANAN_OS_SetRelativeMouseMode;
 +	mouse->CreateSystemCursor = BANAN_OS_CreateSystemCursor;
 +	mouse->FreeCursor = BANAN_OS_FreeCursor;
++
++	SDL_SetDefaultCursor(BANAN_OS_CreateSystemCursor(SDL_SYSTEM_CURSOR_ARROW));
 +}
 +
 +static int BANAN_OS_VideoInit(_THIS)
@@ -588,16 +597,16 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL-rele
 +	);
 +
 +	ban_window->window->set_mouse_button_event_callback(
-+		[window](LibGUI::EventPacket::MouseButtonEvent::event_t event) {
++		[window, ban_window](LibGUI::EventPacket::MouseButtonEvent::event_t event) {
 +			const int state = event.pressed ? SDL_PRESSED : SDL_RELEASED;
-+			SDL_SendMouseMotion(window, 0, SDL_FALSE, event.x, event.y);
++			SDL_SendMouseMotion(window, 0, ban_window->relative, event.x, event.y);
 +			SDL_SendMouseButton(window, 0, state, BANAN_OS_mouse_button_to_sdl(event.button));
 +		}	
 +	);
 +
 +	ban_window->window->set_mouse_move_event_callback(
-+		[window](LibGUI::EventPacket::MouseMoveEvent::event_t event) {
-+			SDL_SendMouseMotion(window, 0, SDL_FALSE, event.x, event.y);
++		[window, ban_window](LibGUI::EventPacket::MouseMoveEvent::event_t event) {
++			SDL_SendMouseMotion(window, 0, ban_window->relative, event.x, event.y);
 +		}
 +	);
 +
@@ -613,13 +622,13 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL-rele
 +			const size_t height = ban_window->window->height();
 +
 +			if (ban_window->gl_context) {
-+				ban_window->framebuffer = MUST(LibGUI::Texture::create(width, height, 0x000000));
 +				OSMesaMakeCurrent(
 +					ban_window->gl_context,
-+					ban_window->framebuffer.pixels().data(),
++					ban_window->window->texture().pixels().data(),
 +					GL_UNSIGNED_BYTE,
 +					width, height
 +				);
++				OSMesaPixelStore(OSMESA_Y_UP, 0);
 +			}
 +
 +			SDL_SendWindowEvent(window, SDL_WINDOWEVENT_RESIZED, width, height);
@@ -767,11 +776,9 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL-rele
 +		return -1;
 +	}
 +
-+	ban_window.framebuffer = framebuffer_or_error.release_value();
-+
 +	*format = SDL_PIXELFORMAT_BGR888;
-+	*pixels = ban_window.framebuffer.pixels().data();
-+	*pitch = ban_window.framebuffer.width() * sizeof(uint32_t);
++	*pixels = ban_window.window->texture().pixels().data();
++	*pitch = ban_window.window->texture().width() * sizeof(uint32_t);
 +
 +	return 0;
 +}
@@ -782,25 +789,8 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL-rele
 +
 +	auto& ban_window = *static_cast<banan_os_window*>(window->driverdata);
 +
-+	int min_x = ban_window.window->width();
-+	int min_y = ban_window.window->height();
-+	int max_x = 0;
-+	int max_y = 0;
-+	for (int i = 0; i < numrects; i++) {
-+		ban_window.window->texture().copy_texture(ban_window.framebuffer,
-+			rects[i].x, rects[i].y,
-+			rects[i].x, rects[i].y,
-+			rects[i].w, rects[i].h
-+		);
-+
-+		min_x = BAN::Math::min(min_x, rects[i].x);
-+		min_y = BAN::Math::min(min_y, rects[i].y);
-+		max_x = BAN::Math::max(max_x, rects[i].x + rects[i].w);
-+		max_y = BAN::Math::max(max_y, rects[i].y + rects[i].h);
-+	}
-+
-+	if (min_x < max_x && min_y < max_y)
-+		ban_window.window->invalidate(min_x, min_y, max_x - min_x, max_y - min_y);
++	for (int i = 0; i < numrects; i++)
++		ban_window.window->invalidate(rects[i].x, rects[i].y, rects[i].w, rects[i].h);
 +
 +	return 0;
 +}
@@ -808,32 +798,6 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL-rele
 +static void BANAN_OS_DestroyWindowFramebuffer(_THIS, SDL_Window* window)
 +{
 +	DUMP_FUNCTION();
-+
-+	auto& ban_window = *static_cast<banan_os_window*>(window->driverdata);
-+	ban_window.framebuffer = {};
-+}
-+
-+static int BANAN_OS_WaitEventTimeout(_THIS, int timeout)
-+{
-+	DUMP_FUNCTION();
-+
-+	auto& ban_video_device_data = *static_cast<banan_os_video_device_data*>(_this->driverdata);
-+	
-+	fd_set fds;
-+	FD_ZERO(&fds);
-+
-+	int max_fd = 0;
-+	for (auto* window : ban_video_device_data.windows)
-+	{
-+		max_fd = BAN::Math::max(max_fd, window->window->server_fd());
-+		FD_SET(window->window->server_fd(), &fds);
-+	}
-+
-+	timeval tv {
-+		.tv_sec = static_cast<time_t>(timeout / 1000),
-+		.tv_usec = static_cast<suseconds_t>((timeout % 1000) * 1000),
-+	};
-+	return select(max_fd + 1, &fds, nullptr, nullptr, &tv);
 +}
 +
 +static void BANAN_OS_PumpEvents(_THIS)
@@ -871,25 +835,19 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL-rele
 +	
 +	auto& ban_window = *static_cast<banan_os_window*>(window->driverdata);
 +
-+	auto framebuffer_or_error = LibGUI::Texture::create(ban_window.window->width(), ban_window.window->width(), 0x000000);
-+	if (framebuffer_or_error.is_error()) {
-+		dwarnln("LibGUI::Texture::create: {}", framebuffer_or_error.error());
-+		return nullptr;
-+	}
-+
 +	auto gl_context = OSMesaCreateContext(OSMESA_BGRA, NULL);
 +	if (gl_context == nullptr) {
 +		dwarnln("OSMesaCreateContext");
 +		return nullptr;
 +	}
 +
-+	auto fb = framebuffer_or_error.release_value();
++	auto& fb = ban_window.window->texture();
 +	if (!OSMesaMakeCurrent(gl_context, fb.pixels().data(), GL_UNSIGNED_BYTE, fb.width(), fb.height())) {
 +		OSMesaDestroyContext(gl_context);
 +		return nullptr;
 +	}
++	OSMesaPixelStore(OSMESA_Y_UP, 0);
 +
-+	ban_window.framebuffer = BAN::move(fb);
 +	ban_window.gl_context = gl_context;
 +
 +	return gl_context;
@@ -914,9 +872,10 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL-rele
 +
 +	auto gl_context = static_cast<OSMesaContext>(context);
 +
-+	auto& fb = ban_window.framebuffer;
++	auto& fb = ban_window.window->texture();
 +	if (!OSMesaMakeCurrent(gl_context, fb.pixels().data(), GL_UNSIGNED_BYTE, fb.width(), fb.height()))
 +		return -1;
++	OSMesaPixelStore(OSMESA_Y_UP, 0);
 +
 +	return 0;
 +}
@@ -931,15 +890,6 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL-rele
 +	glFinish();
 +
 +	auto& ban_window = *static_cast<banan_os_window*>(window->driverdata);
-+
-+	auto* src = ban_window.framebuffer.pixels().data();
-+	auto* dst = ban_window.window->texture().pixels().data();
-+
-+	const size_t width = ban_window.window->width();
-+	const size_t height = ban_window.window->height();
-+	for (size_t y = 0; y < height; y++)
-+		memcpy(&dst[(height - y - 1) * width], &src[y * width], width * 4);
-+
 +	ban_window.window->invalidate();
 +
 +	return 0;
@@ -982,7 +932,6 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL-rele
 +	device->UpdateWindowFramebuffer = BANAN_OS_UpdateWindowFramebuffer;
 +	device->DestroyWindowFramebuffer = BANAN_OS_DestroyWindowFramebuffer;
 +
-+	device->WaitEventTimeout = BANAN_OS_WaitEventTimeout;
 +	device->PumpEvents = BANAN_OS_PumpEvents;
 +
 +	device->GL_LoadLibrary = BANAN_OS_GL_LoadLibrary;
@@ -1006,9 +955,9 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL-rele
 +#endif /* SDL_VIDEO_DRIVER_BANAN_OS */
 +
 +/* vi: set ts=4 sw=4 expandtab: */
-diff -ruN SDL-release-2.30.11/src/video/SDL_sysvideo.h SDL-release-2.30.11-banan_os/src/video/SDL_sysvideo.h
+diff -ruN SDL-release-2.30.11/src/video/SDL_sysvideo.h SDL2-2.30.11-banan_os/src/video/SDL_sysvideo.h
 --- SDL-release-2.30.11/src/video/SDL_sysvideo.h	2025-01-01 19:09:38.000000000 +0200
-+++ SDL-release-2.30.11-banan_os/src/video/SDL_sysvideo.h	2025-06-24 18:55:08.546768590 +0300
++++ SDL2-2.30.11-banan_os/src/video/SDL_sysvideo.h	2025-08-03 14:04:09.895655165 +0300
 @@ -462,6 +462,7 @@
  extern VideoBootStrap WINDOWS_bootstrap;
  extern VideoBootStrap WINRT_bootstrap;
@@ -1017,9 +966,9 @@ diff -ruN SDL-release-2.30.11/src/video/SDL_sysvideo.h SDL-release-2.30.11-banan
  extern VideoBootStrap PND_bootstrap;
  extern VideoBootStrap UIKIT_bootstrap;
  extern VideoBootStrap Android_bootstrap;
-diff -ruN SDL-release-2.30.11/src/video/SDL_video.c SDL-release-2.30.11-banan_os/src/video/SDL_video.c
+diff -ruN SDL-release-2.30.11/src/video/SDL_video.c SDL2-2.30.11-banan_os/src/video/SDL_video.c
 --- SDL-release-2.30.11/src/video/SDL_video.c	2025-01-01 19:09:38.000000000 +0200
-+++ SDL-release-2.30.11-banan_os/src/video/SDL_video.c	2025-06-24 19:37:36.342677687 +0300
++++ SDL2-2.30.11-banan_os/src/video/SDL_video.c	2025-08-03 14:04:09.896007237 +0300
 @@ -94,6 +94,9 @@
  #ifdef SDL_VIDEO_DRIVER_HAIKU
      &HAIKU_bootstrap,
