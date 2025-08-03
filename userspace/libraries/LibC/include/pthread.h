@@ -87,6 +87,20 @@ struct uthread
 #define _PTHREAD_ATFORK_CHILD   2
 void _pthread_call_atfork(int state);
 
+#if defined(__x86_64__)
+#define _get_uthread() ({ \
+		struct uthread* __tmp; \
+		asm volatile("movq %%fs:0, %0" : "=r"(__tmp)); \
+		__tmp; \
+	})
+#elif defined(__i686__)
+#define _get_uthread() ({ \
+		struct uthread* __tmp; \
+		asm volatile("movl %%gs:0, %0" : "=r"(__tmp)); \
+		__tmp; \
+	})
+#endif
+
 int			pthread_atfork(void (*prepare)(void), void (*parent)(void), void(*child)(void));
 int			pthread_attr_destroy(pthread_attr_t* attr);
 int			pthread_attr_getdetachstate(const pthread_attr_t* attr, int* detachstate);

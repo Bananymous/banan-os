@@ -54,17 +54,6 @@ extern "C" void _pthread_trampoline_cpp(void* arg)
 	ASSERT_NOT_REACHED();
 }
 
-uthread* _get_uthread()
-{
-	uthread* result;
-#if ARCH(x86_64)
-	asm volatile("movq %%fs:0, %0" : "=r"(result));
-#elif ARCH(i686)
-	asm volatile("movl %%gs:0, %0" : "=r"(result));
-#endif
-	return result;
-}
-
 static void free_uthread(uthread* uthread)
 {
 	if (uthread->dtv[0] == 0)
