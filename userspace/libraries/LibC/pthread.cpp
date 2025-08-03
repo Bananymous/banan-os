@@ -475,7 +475,14 @@ int pthread_equal(pthread_t t1, pthread_t t2)
 int pthread_join(pthread_t thread, void** value_ptr)
 {
 	pthread_testcancel();
-	return syscall(SYS_PTHREAD_JOIN, thread, value_ptr);
+
+	errno = 0;
+	while (syscall(SYS_PTHREAD_JOIN, thread, value_ptr) == -1 && errno == EINTR)
+	{
+		pthread_testcancel();
+		errno = 0;
+	}
+	return errno;
 }
 
 pthread_t pthread_self(void)
