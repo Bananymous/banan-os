@@ -518,6 +518,9 @@ static pthread_mutex_t s_atfork_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void _pthread_call_atfork(int state)
 {
+	if (state == _PTHREAD_ATFORK_CHILD)
+		_get_uthread()->id = syscall(SYS_PTHREAD_SELF);
+
 	pthread_mutex_lock(&s_atfork_mutex);
 
 	pthread_atfork_t* list = nullptr;
