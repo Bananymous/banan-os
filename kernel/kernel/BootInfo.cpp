@@ -1,5 +1,6 @@
 #include <kernel/BootInfo.h>
 #include <kernel/BananBootloader.h>
+#include <kernel/multiboot.h>
 #include <kernel/multiboot2.h>
 
 namespace Kernel
@@ -18,6 +19,70 @@ namespace Kernel
 			case 4: return MemoryMapEntry::Type::ACPINVS;
 		}
 		return MemoryMapEntry::Type::Reserved;
+	}
+
+	static void parse_boot_info_multiboot(uint32_t info)
+	{
+		const auto& multiboot_info = *reinterpret_cast<const multiboot_info_t*>(info);
+
+		if (multiboot_info.flags & MULTIBOOT_FLAGS_CMDLINE)
+		{
+			MUST(g_boot_info.command_line.append(reinterpret_cast<const char*>(multiboot_info.cmdline)));
+		}
+
+		if (multiboot_info.flags & MULTIBOOT_FLAGS_MODULES)
+		{
+			for (size_t i = 0; i < multiboot_info.mods_count; i++)
+			{
+				const auto& module = reinterpret_cast<const multiboot_module_t*>(multiboot_info.mods_addr)[i];
+				MUST(g_boot_info.modules.emplace_back(module.mod_start, module.mod_end - module.mod_start));
+			}
+		}
+
+		if (multiboot_info.flags & MULTIBOOT_FLAGS_MMAP)
+		{
+			uintptr_t address = multiboot_info.mmap_addr;
+			while (address < multiboot_info.mmap_addr + multiboot_info.mmap_length)
+			{
+				const auto& mmap_entry = *reinterpret_cast<const multiboot_mmap_t*>(address);
+				dprintln("entry {16H} {16H} {8H}",
+					(uint64_t)mmap_entry.base_addr,
+					(uint64_t)mmap_entry.length,
+					(uint64_t)mmap_entry.type
+				);
+				MUST(g_boot_info.memory_map_entries.push_back({
+					.address = mmap_entry.base_addr,
+					.length  = mmap_entry.length,
+					.type    = bios_number_to_memory_type(mmap_entry.type),
+				}));
+				address += mmap_entry.size + sizeof(mmap_entry.size);
+			}
+		}
+
+		if (multiboot_info.flags & MULTIBOOT_FLAGS_FRAMEBUFFER)
+		{
+			g_boot_info.framebuffer.address	= multiboot_info.framebuffer_addr;
+			g_boot_info.framebuffer.pitch	= multiboot_info.framebuffer_pitch;
+			g_boot_info.framebuffer.width	= multiboot_info.framebuffer_width;
+			g_boot_info.framebuffer.height	= multiboot_info.framebuffer_height;
+			g_boot_info.framebuffer.bpp		= multiboot_info.framebuffer_bpp;
+			if (multiboot_info.framebuffer_type == MULTIBOOT_FRAMEBUFFER_TYPE_RGB)
+				g_boot_info.framebuffer.type = FramebufferInfo::Type::RGB;
+			else if (multiboot_info.framebuffer_type == MULTIBOOT_FRAMEBUFFER_TYPE_TEXT)
+				g_boot_info.framebuffer.type = FramebufferInfo::Type::Text;
+			else
+				g_boot_info.framebuffer.type = FramebufferInfo::Type::Unknown;
+		}
+
+		g_boot_info.kernel_paddr = 0;
+	}
+
+	static BAN::StringView get_early_boot_command_line_multiboot(uint32_t info)
+	{
+		const auto& multiboot_info = *reinterpret_cast<const multiboot_info_t*>(info);
+		if (!(multiboot_info.flags & MULTIBOOT_FLAGS_CMDLINE))
+			return ""_sv;
+		return BAN::StringView(reinterpret_cast<const char*>(multiboot_info.cmdline));
 	}
 
 	static void parse_boot_info_multiboot2(uint32_t info)
@@ -149,17 +214,23 @@ namespace Kernel
 
 	bool validate_boot_magic(uint32_t magic)
 	{
-		if (magic == MULTIBOOT2_MAGIC)
-			return true;
-		if (magic == BANAN_BOOTLOADER_MAGIC)
-			return true;
-		return false;
+		switch (magic)
+		{
+			case MULTIBOOT_MAGIC:
+			case MULTIBOOT2_MAGIC:
+			case BANAN_BOOTLOADER_MAGIC:
+				return true;
+			default:
+				return false;
+		}
 	}
 
 	void parse_boot_info(uint32_t magic, uint32_t info)
 	{
 		switch (magic)
 		{
+			case MULTIBOOT_MAGIC:
+				return parse_boot_info_multiboot(info);
 			case MULTIBOOT2_MAGIC:
 				return parse_boot_info_multiboot2(info);
 			case BANAN_BOOTLOADER_MAGIC:
@@ -172,6 +243,8 @@ namespace Kernel
 	{
 		switch (magic)
 		{
+			case MULTIBOOT_MAGIC:
+				return get_early_boot_command_line_multiboot(info);
 			case MULTIBOOT2_MAGIC:
 				return get_early_boot_command_line_multiboot2(info);
 			case BANAN_BOOTLOADER_MAGIC:

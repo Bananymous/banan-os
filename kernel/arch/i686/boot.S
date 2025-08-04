@@ -14,6 +14,23 @@
 # multiboot2 header
 .section .multiboot, "aw"
 	.align 8
+multiboot_start:
+	.long 0x1BADB002
+	.long (1 << 2) # page align modules
+	.long -(0x1BADB002 + (1 << 2))
+
+	.long 0
+	.long 0
+	.long 0
+	.long 0
+	.long 0
+
+	.long 0
+	.long FB_WIDTH
+	.long FB_HEIGHT
+	.long FB_BPP
+multiboot_end:
+	.align 8
 multiboot2_start:
 	.long 0xE85250D6
 	.long 0
