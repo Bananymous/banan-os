@@ -1,3 +1,4 @@
+#include <kernel/BootInfo.h>
 #include <kernel/FS/ProcFS/FileSystem.h>
 #include <kernel/FS/ProcFS/Inode.h>
 
@@ -33,6 +34,10 @@ namespace Kernel
 			*s_instance, 0444, 0, 0
 		));
 		MUST(static_cast<TmpDirectoryInode*>(s_instance->root_inode().ptr())->link_inode(*meminfo_inode, "meminfo"_sv));
+
+		auto cmdline_inode = MUST(TmpFileInode::create_new(*s_instance, 0444, 0, 0));
+		MUST(cmdline_inode->write(0, { reinterpret_cast<const uint8_t*>(g_boot_info.command_line.data()), g_boot_info.command_line.size() }));
+		MUST(static_cast<TmpDirectoryInode*>(s_instance->root_inode().ptr())->link_inode(*cmdline_inode, "cmdline"_sv));
 	}
 
 	ProcFileSystem& ProcFileSystem::get()
