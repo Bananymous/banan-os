@@ -1,0 +1,107 @@
+diff -ruN llvm-project-20.1.8.src/llvm/include/llvm/ADT/bit.h llvm-project-20.1.8.src-banan_os/llvm/include/llvm/ADT/bit.h
+--- llvm-project-20.1.8.src/llvm/include/llvm/ADT/bit.h	2025-07-09 02:06:32.000000000 +0300
++++ llvm-project-20.1.8.src-banan_os/llvm/include/llvm/ADT/bit.h	2025-08-03 17:05:07.723852159 +0300
+@@ -29,7 +29,7 @@
+ 
+ #if defined(__linux__) || defined(__GNU__) || defined(__HAIKU__) ||            \
+     defined(__Fuchsia__) || defined(__EMSCRIPTEN__) || defined(__NetBSD__) ||  \
+-    defined(__OpenBSD__) || defined(__DragonFly__)
++    defined(__OpenBSD__) || defined(__DragonFly__) || defined(__banan_os__)
+ #include <endian.h>
+ #elif defined(_AIX)
+ #include <sys/machine.h>
+diff -ruN llvm-project-20.1.8.src/llvm/include/llvm/Support/ExitCodes.h llvm-project-20.1.8.src-banan_os/llvm/include/llvm/Support/ExitCodes.h
+--- llvm-project-20.1.8.src/llvm/include/llvm/Support/ExitCodes.h	2025-07-09 02:06:32.000000000 +0300
++++ llvm-project-20.1.8.src-banan_os/llvm/include/llvm/Support/ExitCodes.h	2025-08-03 17:05:35.659696821 +0300
+@@ -20,6 +20,8 @@
+ 
+ #if HAVE_SYSEXITS_H
+ #include <sysexits.h>
++#elif defined(__banan_os__)
++#define EX_IOERR 69
+ #elif __MVS__ || defined(_WIN32)
+ // <sysexits.h> does not exist on z/OS and Windows. The only value used in LLVM
+ // is EX_IOERR, which is used to signal a special error condition (broken pipe).
+diff -ruN llvm-project-20.1.8.src/llvm/lib/Support/Unix/Path.inc llvm-project-20.1.8.src-banan_os/llvm/lib/Support/Unix/Path.inc
+--- llvm-project-20.1.8.src/llvm/lib/Support/Unix/Path.inc	2025-07-09 02:06:32.000000000 +0300
++++ llvm-project-20.1.8.src-banan_os/llvm/lib/Support/Unix/Path.inc	2025-08-03 17:06:42.941322766 +0300
+@@ -107,7 +107,7 @@
+ #endif
+ 
+ #if defined(__NetBSD__) || defined(__DragonFly__) || defined(__GNU__) ||       \
+-    defined(__MVS__)
++    defined(__MVS__) || defined(__banan_os__)
+ #define STATVFS_F_FLAG(vfs) (vfs).f_flag
+ #else
+ #define STATVFS_F_FLAG(vfs) (vfs).f_flags
+@@ -317,6 +317,9 @@
+       return std::string(real_path);
+     break; // Found entry, but realpath failed.
+   }
++#elif defined(__banan_os__)
++  fprintf(stddbg, "TODO: getMainExecutable\n");
++  return "";
+ #elif defined(HAVE_DLOPEN)
+   // Use dladdr to get executable path if available.
+   Dl_info DLInfo;
+@@ -506,6 +509,9 @@
+ #elif defined(__HAIKU__)
+   // Haiku doesn't expose this information.
+   return false;
++#elif defined(__banan_os__)
++  // banan-os doesn't currently support remote filesystem mounts.
++  return true;
+ #elif defined(__sun)
+   // statvfs::f_basetype contains a null-terminated FSType name of the mounted
+   // target
+diff -ruN llvm-project-20.1.8.src/llvm/lib/Support/Unix/Program.inc llvm-project-20.1.8.src-banan_os/llvm/lib/Support/Unix/Program.inc
+--- llvm-project-20.1.8.src/llvm/lib/Support/Unix/Program.inc	2025-07-09 02:06:32.000000000 +0300
++++ llvm-project-20.1.8.src-banan_os/llvm/lib/Support/Unix/Program.inc	2025-08-03 17:04:50.500947936 +0300
+@@ -342,7 +342,7 @@
+ namespace llvm {
+ namespace sys {
+ 
+-#if defined(_AIX)
++#if defined(_AIX) || defined(__banan_os__)
+ static pid_t(wait4)(pid_t pid, int *status, int options, struct rusage *usage);
+ #elif !defined(__Fuchsia__)
+ using ::wait4;
+@@ -383,6 +383,17 @@
+   // would cause the call here to fail with ECHILD).
+   return ::wait4(pid, status, options & ~WNOHANG, usage);
+ }
++#elif defined(__banan_os__)
++
++#ifndef _ALL_SOURCE
++extern "C" pid_t(wait4)(pid_t pid, int *status, int options,
++                        struct rusage *usage);
++#endif
++pid_t(llvm::sys::wait4)(pid_t pid, int *status, int options,
++                        struct rusage *usage) {
++    memset(usage, 0, sizeof(struct rusage));
++       return waitpid(pid, status, options);
++}
+ #endif
+ 
+ ProcessInfo llvm::sys::Wait(const ProcessInfo &PI,
+@@ -468,7 +479,7 @@
+     std::chrono::microseconds UserT = toDuration(Info.ru_utime);
+     std::chrono::microseconds KernelT = toDuration(Info.ru_stime);
+     uint64_t PeakMemory = 0;
+-#if !defined(__HAIKU__) && !defined(__MVS__)
++#if !defined(__HAIKU__) && !defined(__MVS__) && !defined(__banan_os__)
+     PeakMemory = static_cast<uint64_t>(Info.ru_maxrss);
+ #endif
+     *ProcStat = ProcessStatistics{UserT + KernelT, UserT, PeakMemory};
+diff -ruN llvm-project-20.1.8.src/llvm/lib/Support/Unix/Signals.inc llvm-project-20.1.8.src-banan_os/llvm/lib/Support/Unix/Signals.inc
+--- llvm-project-20.1.8.src/llvm/lib/Support/Unix/Signals.inc	2025-07-09 02:06:32.000000000 +0300
++++ llvm-project-20.1.8.src-banan_os/llvm/lib/Support/Unix/Signals.inc	2025-08-03 17:03:20.739447219 +0300
+@@ -817,7 +817,7 @@
+   OS << "Stack dump without symbol names (ensure you have llvm-symbolizer in "
+         "your PATH or set the environment var `LLVM_SYMBOLIZER_PATH` to point "
+         "to it):\n";
+-#if HAVE_DLOPEN && !defined(_AIX)
++#if HAVE_DLOPEN && !defined(_AIX) && !defined(__banan_os__)
+   int width = 0;
+   for (int i = 0; i < depth; ++i) {
+     Dl_info dlinfo;
