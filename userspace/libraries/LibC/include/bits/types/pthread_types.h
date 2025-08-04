@@ -30,17 +30,6 @@ typedef struct
 
 typedef struct
 {
-	int shared;
-} pthread_barrierattr_t;
-typedef struct
-{
-	pthread_barrierattr_t attr;
-	unsigned target;
-	unsigned waiting;
-} pthread_barrier_t;
-
-typedef struct
-{
 	int clock;
 	int shared;
 } pthread_condattr_t;
@@ -55,6 +44,20 @@ typedef struct
 	pthread_spinlock_t lock;
 	struct _pthread_cond_block* block_list;
 } pthread_cond_t;
+
+typedef struct
+{
+	int shared;
+} pthread_barrierattr_t;
+typedef struct
+{
+	pthread_barrierattr_t attr;
+	pthread_mutex_t lock;
+	pthread_cond_t cond;
+	unsigned target;
+	unsigned waiting;
+	unsigned generation;
+} pthread_barrier_t;
 
 typedef struct
 {

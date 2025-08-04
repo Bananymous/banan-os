@@ -1238,28 +1238,34 @@ int pthread_barrier_init(pthread_barrier_t* __restrict barrier, const pthread_ba
 		attr = &default_attr;
 	*barrier = {
 		.attr = *attr,
+		.lock = PTHREAD_MUTEX_INITIALIZER,
+		.cond = PTHREAD_COND_INITIALIZER,
 		.target = count,
 		.waiting = 0,
+		.generation = 0,
 	};
 	return 0;
 }
 
 int pthread_barrier_wait(pthread_barrier_t* barrier)
 {
-	const unsigned index = BAN::atomic_add_fetch(barrier->waiting, 1);
+	pthread_mutex_lock(&barrier->lock);
 
-	// FIXME: this case should be handled, but should be relatively uncommon
-	//        so i'll just roll with the easy implementation
-	ASSERT(index <= barrier->target);
+	const auto gen = barrier->generation;
+	barrier->waiting++;
 
-	if (index == barrier->target)
+	if (barrier->waiting == barrier->target)
 	{
-		BAN::atomic_store(barrier->waiting, 0);
+		barrier->waiting = 0;
+		barrier->generation++;
+		pthread_cond_broadcast(&barrier->cond);
+		pthread_mutex_unlock(&barrier->lock);
 		return PTHREAD_BARRIER_SERIAL_THREAD;
 	}
 
-	while (BAN::atomic_load(barrier->waiting))
-		sched_yield();
+	while (barrier->generation == gen)
+		pthread_cond_wait(&barrier->cond, &barrier->lock);
+	pthread_mutex_unlock(&barrier->lock);
 	return 0;
 }
 
