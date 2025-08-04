@@ -338,6 +338,7 @@ namespace Kernel
 		ASSERT(InterruptController::get().is_in_service(IRQ_IPI - IRQ_VECTOR_BASE));
 		InterruptController::get().eoi(IRQ_IPI - IRQ_VECTOR_BASE);
 		Processor::handle_ipi();
+		Processor::scheduler().reschedule_if_idle();
 	}
 
 	extern "C" void cpp_timer_handler()
