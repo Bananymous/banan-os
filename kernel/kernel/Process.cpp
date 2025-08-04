@@ -3152,9 +3152,8 @@ namespace Kernel
 	BAN::ErrorOr<void> Process::validate_pointer_access_check(const void* ptr, size_t size, bool needs_write)
 	{
 		ASSERT(&Process::current() == this);
-		auto& thread = Thread::current();
 
-		vaddr_t vaddr = (vaddr_t)ptr;
+		const vaddr_t vaddr = reinterpret_cast<vaddr_t>(ptr);
 
 		// NOTE: detect overflow
 		if (vaddr + size < vaddr)
@@ -3164,14 +3163,12 @@ namespace Kernel
 		if (vaddr + size > USERSPACE_END)
 			goto unauthorized_access;
 
-		if (vaddr == 0)
-			return {};
-
-		if (vaddr >= thread.userspace_stack_bottom() && vaddr + size <= thread.userspace_stack_top())
-			return {};
+		for (const auto* thread : m_threads)
+			if (vaddr >= thread->userspace_stack_bottom() && vaddr + size <= thread->userspace_stack_top())
+				return {};
 
 		// FIXME: should we allow cross mapping access?
-		for (auto& mapped_region : m_mapped_regions)
+		for (const auto& mapped_region : m_mapped_regions)
 		{
 			if (!mapped_region->contains_fully(vaddr, size))
 				continue;
