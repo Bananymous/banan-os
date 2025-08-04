@@ -7,7 +7,6 @@ DEPENDENCIES=('zlib' 'zstd' 'expat')
 CONFIGURE_OPTIONS=(
 	'-Dprefix=/usr'
 	'-Dosmesa=true'
-	'-Dgallium-drivers=softpipe'
 	'-Dvulkan-drivers=[]'
 	'-Dplatforms=[]'
 	'-Dglx=disabled'
@@ -15,7 +14,50 @@ CONFIGURE_OPTIONS=(
 )
 
 configure() {
-	meson setup --reconfigure --cross-file "$MESON_CROSS_FILE" "${CONFIGURE_OPTIONS[@]}" build || exit 1
+	llvm_version='20.1.8'
+	llvm_root="../../llvm/llvm-$llvm_version-$BANAN_ARCH"
+
+	gallium_driver=softpipe
+
+	if [ -d "$llvm_root" ]; then
+		llvm_lib=$(realpath "$llvm_root/build/lib")
+
+		mkdir -p subprojects/llvm
+
+		wrap_file='subprojects/llvm/meson.build'
+		echo "project('llvm', ['cpp'])"                         >$wrap_file
+		echo ""                                                >>$wrap_file
+		echo "cpp = meson.get_compiler('cpp')"                 >>$wrap_file
+		echo ""                                                >>$wrap_file
+		echo "_deps = []"                                      >>$wrap_file
+		echo "_search = '$llvm_lib'"                           >>$wrap_file
+		echo "foreach d : ["                                   >>$wrap_file
+		for path in $llvm_lib/libLLVM*.a; do
+			name=$(basename $path)
+			echo "    '${name:3:-2}',"                         >>$wrap_file
+		done
+		echo "  ]"                                             >>$wrap_file
+		echo "  _deps += cpp.find_library(d, dirs : _search)"  >>$wrap_file
+		echo "endforeach"                                      >>$wrap_file
+		echo ""                                                >>$wrap_file
+		echo "dep_llvm = declare_dependency("                  >>$wrap_file
+		echo "  include_directories : include_directories("    >>$wrap_file
+		echo "      '$(realpath $llvm_root/llvm/include)',"    >>$wrap_file
+		echo "      '$(realpath $llvm_root/build/include)',"   >>$wrap_file
+		echo "    )," >>$wrap_file
+		echo "  dependencies : _deps,"                         >>$wrap_file
+		echo "  version : '$llvm_version',"                    >>$wrap_file
+		echo ")"                                               >>$wrap_file
+
+		gallium_driver=llvmpipe
+	fi
+
+	meson setup \
+		--reconfigure \
+		--cross-file "$MESON_CROSS_FILE" \
+		"${CONFIGURE_OPTIONS[@]}" \
+		"-Dgallium-drivers=$gallium_driver" \
+		build || exit 1
 }
 
 build() {
