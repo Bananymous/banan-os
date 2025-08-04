@@ -7,7 +7,7 @@
 namespace Kernel
 {
 
-	BAN::ErrorOr<BAN::UniqPtr<FileBackedRegion>> FileBackedRegion::create(BAN::RefPtr<Inode> inode, PageTable& page_table, off_t offset, size_t size, AddressRange address_range, Type type, PageTable::flags_t flags)
+	BAN::ErrorOr<BAN::UniqPtr<FileBackedRegion>> FileBackedRegion::create(BAN::RefPtr<Inode> inode, PageTable& page_table, off_t offset, size_t size, AddressRange address_range, Type type, PageTable::flags_t flags, int status_flags)
 	{
 		ASSERT(inode->mode().ifreg());
 
@@ -16,14 +16,14 @@ namespace Kernel
 		if ((size > (size_t)inode->size() || (size_t)offset > (size_t)inode->size() - size))
 			return BAN::Error::from_errno(EOVERFLOW);
 
-		auto* region_ptr = new FileBackedRegion(inode, page_table, offset, size, type, flags);
+		auto* region_ptr = new FileBackedRegion(inode, page_table, offset, size, type, flags, status_flags);
 		if (region_ptr == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
 		auto region = BAN::UniqPtr<FileBackedRegion>::adopt(region_ptr);
 
 		TRY(region->initialize(address_range));
 
-		if (type == Type::PRIVATE && (flags & PageTable::Flags::ReadWrite))
+		if (type == Type::PRIVATE)
 			TRY(region->m_dirty_pages.resize(BAN::Math::div_round_up<size_t>(size, PAGE_SIZE)));
 
 		LockGuard _(inode->m_mutex);
@@ -39,8 +39,8 @@ namespace Kernel
 		return region;
 	}
 
-	FileBackedRegion::FileBackedRegion(BAN::RefPtr<Inode> inode, PageTable& page_table, off_t offset, ssize_t size, Type type, PageTable::flags_t flags)
-		: MemoryRegion(page_table, size, type, flags)
+	FileBackedRegion::FileBackedRegion(BAN::RefPtr<Inode> inode, PageTable& page_table, off_t offset, ssize_t size, Type type, PageTable::flags_t flags, int status_flags)
+		: MemoryRegion(page_table, size, type, flags, status_flags)
 		, m_inode(inode)
 		, m_offset(offset)
 	{
@@ -200,7 +200,7 @@ namespace Kernel
 	BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> FileBackedRegion::clone(PageTable& page_table)
 	{
 		const size_t aligned_size = (m_size + PAGE_SIZE - 1) & PAGE_ADDR_MASK;
-		auto result = TRY(FileBackedRegion::create(m_inode, page_table, m_offset, m_size, { .start = m_vaddr, .end = m_vaddr + aligned_size }, m_type, m_flags));
+		auto result = TRY(FileBackedRegion::create(m_inode, page_table, m_offset, m_size, { .start = m_vaddr, .end = m_vaddr + aligned_size }, m_type, m_flags, m_status_flags));
 
 		// non-dirty pages can go through demand paging
 

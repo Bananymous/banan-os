@@ -170,6 +170,7 @@ namespace Kernel
 
 		BAN::ErrorOr<long> sys_mmap(const sys_mmap_t*);
 		BAN::ErrorOr<long> sys_munmap(void* addr, size_t len);
+		BAN::ErrorOr<long> sys_mprotect(void* addr, size_t len, int prot);
 		BAN::ErrorOr<long> sys_msync(void* addr, size_t len, int flags);
 
 		BAN::ErrorOr<long> sys_smo_create(size_t len, int prot);

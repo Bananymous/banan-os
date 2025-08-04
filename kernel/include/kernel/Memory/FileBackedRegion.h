@@ -27,18 +27,18 @@ namespace Kernel
 		BAN_NON_MOVABLE(FileBackedRegion);
 
 	public:
-		static BAN::ErrorOr<BAN::UniqPtr<FileBackedRegion>> create(BAN::RefPtr<Inode>, PageTable&, off_t offset, size_t size, AddressRange address_range, Type, PageTable::flags_t);
+		static BAN::ErrorOr<BAN::UniqPtr<FileBackedRegion>> create(BAN::RefPtr<Inode>, PageTable&, off_t offset, size_t size, AddressRange address_range, Type, PageTable::flags_t, int status_flags);
 		~FileBackedRegion();
 
-		virtual BAN::ErrorOr<void> msync(vaddr_t, size_t, int) override;
+		BAN::ErrorOr<void> msync(vaddr_t, size_t, int) override;
 
-		virtual BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> clone(PageTable& new_page_table) override;
+		BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> clone(PageTable& new_page_table) override;
 
 	protected:
-		virtual BAN::ErrorOr<bool> allocate_page_containing_impl(vaddr_t vaddr, bool wants_write) override;
+		BAN::ErrorOr<bool> allocate_page_containing_impl(vaddr_t vaddr, bool wants_write) override;
 
 	private:
-		FileBackedRegion(BAN::RefPtr<Inode>, PageTable&, off_t offset, ssize_t size, Type flags, PageTable::flags_t page_flags);
+		FileBackedRegion(BAN::RefPtr<Inode>, PageTable&, off_t offset, ssize_t size, Type type, PageTable::flags_t flags, int status_flags);
 
 	private:
 		BAN::RefPtr<Inode> m_inode;

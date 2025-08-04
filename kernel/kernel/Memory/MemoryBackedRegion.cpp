@@ -4,12 +4,12 @@
 namespace Kernel
 {
 
-	BAN::ErrorOr<BAN::UniqPtr<MemoryBackedRegion>> MemoryBackedRegion::create(PageTable& page_table, size_t size, AddressRange address_range, Type type, PageTable::flags_t flags)
+	BAN::ErrorOr<BAN::UniqPtr<MemoryBackedRegion>> MemoryBackedRegion::create(PageTable& page_table, size_t size, AddressRange address_range, Type type, PageTable::flags_t flags, int status_flags)
 	{
 		if (type != Type::PRIVATE)
 			return BAN::Error::from_errno(ENOTSUP);
 
-		auto* region_ptr = new MemoryBackedRegion(page_table, size, type, flags);
+		auto* region_ptr = new MemoryBackedRegion(page_table, size, type, flags, status_flags);
 		if (region_ptr == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
 		auto region = BAN::UniqPtr<MemoryBackedRegion>::adopt(region_ptr);
@@ -19,8 +19,8 @@ namespace Kernel
 		return region;
 	}
 
-	MemoryBackedRegion::MemoryBackedRegion(PageTable& page_table, size_t size, Type type, PageTable::flags_t flags)
-		: MemoryRegion(page_table, size, type, flags)
+	MemoryBackedRegion::MemoryBackedRegion(PageTable& page_table, size_t size, Type type, PageTable::flags_t flags, int status_flags)
+		: MemoryRegion(page_table, size, type, flags, status_flags)
 	{
 	}
 
@@ -68,7 +68,7 @@ namespace Kernel
 		ASSERT(&PageTable::current() == &m_page_table);
 
 		const size_t aligned_size = (m_size + PAGE_SIZE - 1) & PAGE_ADDR_MASK;
-		auto result = TRY(MemoryBackedRegion::create(new_page_table, m_size, { .start = m_vaddr, .end = m_vaddr + aligned_size }, m_type, m_flags));
+		auto result = TRY(MemoryBackedRegion::create(new_page_table, m_size, { .start = m_vaddr, .end = m_vaddr + aligned_size }, m_type, m_flags, m_status_flags));
 
 		for (size_t offset = 0; offset < m_size; offset += PAGE_SIZE)
 		{

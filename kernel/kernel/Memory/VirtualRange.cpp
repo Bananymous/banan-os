@@ -99,7 +99,7 @@ namespace Kernel
 		else
 		{
 			const size_t page_count = size() / PAGE_SIZE;
-			for (size_t i = m_has_guard_pages; i < page_count; i++)
+			for (size_t i = 0; i < page_count; i++)
 			{
 				PageTable::with_fast_page(m_paddrs[i], [&] {
 					memset(PageTable::fast_page_as_ptr(), 0, PAGE_SIZE);
@@ -120,7 +120,7 @@ namespace Kernel
 		auto result = TRY(create_to_vaddr(page_table, vaddr(), size(), m_flags, m_preallocated, m_has_guard_pages));
 
 		const size_t page_count = size() / PAGE_SIZE;
-		for (size_t i = m_has_guard_pages; i < page_count; i++)
+		for (size_t i = 0; i < page_count; i++)
 		{
 			if (m_paddrs[i] == 0)
 				continue;
@@ -140,15 +140,17 @@ namespace Kernel
 		return result;
 	}
 
-	BAN::ErrorOr<void> VirtualRange::allocate_page_for_demand_paging(vaddr_t vaddr)
+	BAN::ErrorOr<bool> VirtualRange::allocate_page_for_demand_paging(vaddr_t vaddr)
 	{
-		ASSERT(!m_preallocated);
-		ASSERT(vaddr % PAGE_SIZE == 0);
 		ASSERT(contains(vaddr));
 		ASSERT(&PageTable::current() == &m_page_table);
 
+		if (m_preallocated)
+			return false;
+
 		const size_t index = (vaddr - this->vaddr()) / PAGE_SIZE;
-		ASSERT(m_paddrs[index] == 0);
+		if (m_paddrs[index])
+			return false;
 
 		SpinLockGuard _(m_lock);
 
@@ -159,7 +161,7 @@ namespace Kernel
 		m_page_table.map_page_at(m_paddrs[index], vaddr, m_flags);
 		memset(reinterpret_cast<void*>(vaddr), 0, PAGE_SIZE);
 
-		return {};
+		return true;
 	}
 
 }

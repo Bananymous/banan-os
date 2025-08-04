@@ -22,7 +22,7 @@ namespace Kernel
 
 	class FileBackedRegion;
 	class FileSystem;
-	class SharedFileData;
+	struct SharedFileData;
 
 	class Inode : public BAN::RefCounted<Inode>
 	{

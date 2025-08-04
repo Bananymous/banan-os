@@ -241,9 +241,9 @@ namespace Kernel
 	class FramebufferMemoryRegion : public MemoryRegion
 	{
 	public:
-		static BAN::ErrorOr<BAN::UniqPtr<FramebufferMemoryRegion>> create(PageTable& page_table, size_t size, AddressRange address_range, MemoryRegion::Type region_type, PageTable::flags_t page_flags, BAN::RefPtr<FramebufferDevice> framebuffer)
+		static BAN::ErrorOr<BAN::UniqPtr<FramebufferMemoryRegion>> create(PageTable& page_table, size_t size, AddressRange address_range, MemoryRegion::Type region_type, PageTable::flags_t page_flags, int status_flags, BAN::RefPtr<FramebufferDevice> framebuffer)
 		{
-			auto* region_ptr = new FramebufferMemoryRegion(page_table, size, region_type, page_flags, framebuffer);
+			auto* region_ptr = new FramebufferMemoryRegion(page_table, size, region_type, page_flags, status_flags, framebuffer);
 			if (region_ptr == nullptr)
 				return BAN::Error::from_errno(ENOMEM);
 			auto region = BAN::UniqPtr<FramebufferMemoryRegion>::adopt(region_ptr);
@@ -258,7 +258,7 @@ namespace Kernel
 			m_framebuffer->sync_pixels_full();
 		}
 
-		virtual BAN::ErrorOr<void> msync(vaddr_t vaddr, size_t size, int flags) override
+		BAN::ErrorOr<void> msync(vaddr_t vaddr, size_t size, int flags) override
 		{
 			if (flags != MS_SYNC)
 				return BAN::Error::from_errno(ENOTSUP);
@@ -281,9 +281,9 @@ namespace Kernel
 			return {};
 		}
 
-		virtual BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> clone(PageTable& new_page_table) override
+		BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> clone(PageTable& new_page_table) override
 		{
-			auto* region_ptr = new FramebufferMemoryRegion(new_page_table, m_size, m_type, m_flags, m_framebuffer);
+			auto* region_ptr = new FramebufferMemoryRegion(new_page_table, m_size, m_type, m_flags, m_status_flags, m_framebuffer);
 			if (region_ptr == nullptr)
 				return BAN::Error::from_errno(ENOMEM);
 			auto region = BAN::UniqPtr<FramebufferMemoryRegion>::adopt(region_ptr);
@@ -297,7 +297,7 @@ namespace Kernel
 		// Returns error if no memory was available
 		// Returns true if page was succesfully allocated
 		// Returns false if page was already allocated
-		virtual BAN::ErrorOr<bool> allocate_page_containing_impl(vaddr_t vaddr, bool wants_write) override
+		BAN::ErrorOr<bool> allocate_page_containing_impl(vaddr_t vaddr, bool wants_write) override
 		{
 			(void)wants_write;
 
@@ -312,8 +312,8 @@ namespace Kernel
 		}
 
 	private:
-		FramebufferMemoryRegion(PageTable& page_table, size_t size, MemoryRegion::Type region_type, PageTable::flags_t page_flags, BAN::RefPtr<FramebufferDevice> framebuffer)
-			: MemoryRegion(page_table, size, region_type, page_flags)
+		FramebufferMemoryRegion(PageTable& page_table, size_t size, MemoryRegion::Type region_type, PageTable::flags_t page_flags, int status_flags, BAN::RefPtr<FramebufferDevice> framebuffer)
+			: MemoryRegion(page_table, size, region_type, page_flags, status_flags)
 			, m_framebuffer(framebuffer)
 		{ }
 
@@ -370,7 +370,7 @@ namespace Kernel
 		BAN::RefPtr<FramebufferDevice> m_framebuffer;
 	};
 
-	BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> FramebufferDevice::mmap_region(PageTable& page_table, off_t offset, size_t len, AddressRange address_range, MemoryRegion::Type region_type, PageTable::flags_t page_flags)
+	BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> FramebufferDevice::mmap_region(PageTable& page_table, off_t offset, size_t len, AddressRange address_range, MemoryRegion::Type region_type, PageTable::flags_t page_flags, int status_flags)
 	{
 		if (offset != 0)
 			return BAN::Error::from_errno(EINVAL);
@@ -379,7 +379,7 @@ namespace Kernel
 		if (region_type != MemoryRegion::Type::SHARED)
 			return BAN::Error::from_errno(EINVAL);
 
-		auto region = TRY(FramebufferMemoryRegion::create(page_table, len, address_range, region_type, page_flags, this));
+		auto region = TRY(FramebufferMemoryRegion::create(page_table, len, address_range, region_type, page_flags, status_flags, this));
 		return BAN::UniqPtr<MemoryRegion>(BAN::move(region));
 	}
 

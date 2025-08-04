@@ -52,6 +52,7 @@ __BEGIN_DECLS
 	O(SYS_SYNC,				sync)			\
 	O(SYS_MMAP,				mmap)			\
 	O(SYS_MUNMAP,			munmap) 		\
+	O(SYS_MPROTECT,			mprotect) 		\
 	O(SYS_TTY_CTRL,			tty_ctrl)		\
 	O(SYS_POWEROFF,			poweroff)		\
 	O(SYS_FCHMODAT,			fchmodat)		\

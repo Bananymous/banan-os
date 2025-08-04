@@ -38,7 +38,7 @@ namespace Kernel
 
 		bool contains(vaddr_t address) const { return vaddr() <= address && address < vaddr() + size(); }
 
-		BAN::ErrorOr<void> allocate_page_for_demand_paging(vaddr_t address);
+		BAN::ErrorOr<bool> allocate_page_for_demand_paging(vaddr_t address);
 
 	private:
 		VirtualRange(PageTable&, bool preallocated, bool has_guard_pages, vaddr_t, size_t, PageTable::flags_t);

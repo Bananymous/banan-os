@@ -318,7 +318,8 @@ namespace Kernel
 			tls_size,
 			{ .start = master_addr, .end = USERSPACE_END },
 			MemoryRegion::Type::PRIVATE,
-			PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present
+			PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present,
+			O_EXEC | O_RDWR
 		));
 
 		BAN::Vector<uint8_t> temp_buffer;
@@ -2146,7 +2147,8 @@ namespace Kernel
 				page_table(),
 				args.len,
 				address_range,
-				region_type, page_flags
+				region_type, page_flags,
+				O_EXEC | O_RDWR
 			));
 
 			LockGuard _(m_process_lock);
@@ -2173,7 +2175,8 @@ namespace Kernel
 				page_table(),
 				args.off, args.len,
 				address_range,
-				region_type, page_flags
+				region_type, page_flags,
+				status_flags
 			));
 		}
 		else if (inode->is_device())
@@ -2182,7 +2185,8 @@ namespace Kernel
 				page_table(),
 				args.off, args.len,
 				address_range,
-				region_type, page_flags
+				region_type, page_flags,
+				status_flags
 			));
 		}
 
@@ -2223,6 +2227,70 @@ namespace Kernel
 			}
 			else if (region->overlaps(vaddr, len))
 				dwarnln("TODO: partial region munmap");
+		}
+
+		return 0;
+	}
+
+	BAN::ErrorOr<long> Process::sys_mprotect(void* addr, size_t len, int prot)
+	{
+		if (len == 0)
+			return BAN::Error::from_errno(EINVAL);
+
+		const vaddr_t vaddr = reinterpret_cast<vaddr_t>(addr);
+		if (vaddr % PAGE_SIZE != 0)
+			return BAN::Error::from_errno(EINVAL);
+
+		if (auto rem = len % PAGE_SIZE)
+			len += PAGE_SIZE - rem;
+
+		PageTable::flags_t flags = 0;
+		if (prot & PROT_READ)
+			flags |= PageTable::Flags::Present;
+		if (prot & PROT_WRITE)
+			flags |= PageTable::Flags::ReadWrite | PageTable::Flags::Present;
+		if (prot & PROT_EXEC)
+			flags |= PageTable::Flags::Execute | PageTable::Flags::Execute;
+
+		if (flags == 0)
+			flags = PageTable::Flags::Reserved;
+		else
+			flags |= PageTable::Flags::UserSupervisor;
+
+		LockGuard _(m_process_lock);
+
+		// FIXME: We should protect partial regions.
+		//        This is a hack to only protect if the whole mmap region
+		//        is contained within [addr, addr + len]
+		for (size_t i = 0; i < m_mapped_regions.size(); i++)
+		{
+			auto& region = m_mapped_regions[i];
+
+			const vaddr_t region_s = region->vaddr();
+			const vaddr_t region_e = region->vaddr() + region->size();
+			if (vaddr <= region_s && region_e <= vaddr + len)
+			{
+				const bool is_shared   = (region->type() == MemoryRegion::Type::SHARED);
+				const bool is_writable = (region->status_flags() & O_WRONLY);
+				const bool want_write  = (prot & PROT_WRITE);
+				if (is_shared && want_write && !is_writable)
+					return BAN::Error::from_errno(EACCES);
+
+				// FIXME: if the region is pinned writable, this may
+				//        cause some problems :D
+				TRY(region->mprotect(flags));
+			}
+			else if (region->overlaps(vaddr, len))
+			{
+				const bool is_shared   = (region->type() == MemoryRegion::Type::SHARED);
+				const bool is_writable = (region->status_flags() & O_WRONLY);
+				const bool want_write  = (prot & PROT_WRITE);
+				if (is_shared && want_write && !is_writable)
+					return BAN::Error::from_errno(EACCES);
+
+				dwarnln("TODO: partial region mprotect");
+				TRY(region->mprotect(flags | region->flags()));
+			}
 		}
 
 		return 0;

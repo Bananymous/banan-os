@@ -4,11 +4,12 @@
 namespace Kernel
 {
 
-	MemoryRegion::MemoryRegion(PageTable& page_table, size_t size, Type type, PageTable::flags_t flags)
+	MemoryRegion::MemoryRegion(PageTable& page_table, size_t size, Type type, PageTable::flags_t flags, int status_flags)
 		: m_page_table(page_table)
 		, m_size(size)
 		, m_type(type)
 		, m_flags(flags)
+		, m_status_flags(status_flags)
 	{
 	}
 
@@ -47,6 +48,25 @@ namespace Kernel
 		if (address >= m_vaddr + m_size)
 			return false;
 		return true;
+	}
+
+	BAN::ErrorOr<void> MemoryRegion::mprotect(PageTable::flags_t new_page_flags)
+	{
+		if (m_flags == new_page_flags)
+			return {};
+
+		const size_t page_count = BAN::Math::div_round_up<size_t>(m_size, PAGE_SIZE);
+		for (size_t i = 0; i < page_count; i++)
+		{
+			const vaddr_t vaddr = m_vaddr + i * PAGE_SIZE;
+			const paddr_t paddr = m_page_table.physical_address_of(vaddr);
+			if (paddr == 0)
+				continue;
+			m_page_table.map_page_at(paddr, vaddr, new_page_flags);
+		}
+
+		m_flags = new_page_flags;
+		return {};
 	}
 
 	BAN::ErrorOr<bool> MemoryRegion::allocate_page_containing(vaddr_t address, bool wants_write)

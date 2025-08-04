@@ -212,7 +212,7 @@ namespace Kernel::ELF
 					file_backed_size,
 					{ .start = pheader_base, .end = pheader_base + file_backed_size },
 					MemoryRegion::Type::PRIVATE,
-					flags
+					flags, O_EXEC | O_RDWR
 				));
 				TRY(memory_regions.emplace_back(BAN::move(region)));
 			}
@@ -226,7 +226,7 @@ namespace Kernel::ELF
 					(pheader_base + program_header.p_memsz) - (aligned_vaddr + file_backed_size),
 					{ .start = aligned_vaddr + file_backed_size, .end = pheader_base + program_header.p_memsz },
 					MemoryRegion::Type::PRIVATE,
-					flags
+					flags, O_EXEC | O_RDWR
 				));
 
 				if (file_backed_size < program_header.p_filesz)
@@ -267,7 +267,8 @@ namespace Kernel::ELF
 				offset + region_size,
 				{ .start = last_loaded_address, .end = USERSPACE_END },
 				MemoryRegion::Type::PRIVATE,
-				PageTable::Flags::UserSupervisor | PageTable::Flags::Present
+				PageTable::Flags::UserSupervisor | PageTable::Flags::Present,
+				O_EXEC | O_RDWR
 			));
 
 			for (vaddr_t vaddr = region->vaddr(); vaddr < region->vaddr() + offset + region->size(); vaddr += PAGE_SIZE)

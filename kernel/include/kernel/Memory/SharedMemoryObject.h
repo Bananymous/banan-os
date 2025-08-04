@@ -6,6 +6,8 @@
 #include <kernel/Lock/SpinLock.h>
 #include <kernel/Memory/MemoryRegion.h>
 
+#include <fcntl.h>
+
 namespace Kernel
 {
 
@@ -55,15 +57,16 @@ namespace Kernel
 	public:
 		static BAN::ErrorOr<BAN::UniqPtr<SharedMemoryObject>> create(BAN::RefPtr<SharedMemoryObjectManager::Object>, PageTable&, AddressRange);
 
-		virtual BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> clone(PageTable& new_page_table) override;
-		virtual BAN::ErrorOr<void> msync(vaddr_t, size_t, int) override { return {}; }
+		BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> clone(PageTable& new_page_table) override;
+
+		BAN::ErrorOr<void> msync(vaddr_t, size_t, int) override { return {}; }
 
 	protected:
-		virtual BAN::ErrorOr<bool> allocate_page_containing_impl(vaddr_t vaddr, bool wants_write) override;
+		BAN::ErrorOr<bool> allocate_page_containing_impl(vaddr_t vaddr, bool wants_write) override;
 
 	private:
 		SharedMemoryObject(BAN::RefPtr<SharedMemoryObjectManager::Object> object, PageTable& page_table)
-			: MemoryRegion(page_table, object->size, MemoryRegion::Type::SHARED, object->flags)
+			: MemoryRegion(page_table, object->size, MemoryRegion::Type::SHARED, object->flags, O_EXEC | O_RDWR)
 			, m_object(object)
 		{ }
 

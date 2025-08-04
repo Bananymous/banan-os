@@ -24,6 +24,11 @@ int munmap(void* addr, size_t len)
 	return syscall(SYS_MUNMAP, addr, len);
 }
 
+int mprotect(void* addr, size_t len, int prot)
+{
+	return syscall(SYS_MPROTECT, addr, len, prot);
+}
+
 int msync(void* addr, size_t len, int flags)
 {
 	pthread_testcancel();
@@ -42,11 +47,6 @@ int posix_madvise(void* addr, size_t len, int advice)
 #include <BAN/Assert.h>
 
 int mlock(const void*, size_t)
-{
-	ASSERT_NOT_REACHED();
-}
-
-int mprotect(void*, size_t, int)
 {
 	ASSERT_NOT_REACHED();
 }
