@@ -507,9 +507,16 @@ namespace Kernel
 		bool has_sa_restart;
 		{
 			SpinLockGuard _(m_process->m_signal_lock);
-			ASSERT(!(m_process->m_signal_handlers[signal].sa_flags & SA_SIGINFO));
-			signal_handler = (vaddr_t)m_process->m_signal_handlers[signal].sa_handler;
-			has_sa_restart = !!(m_process->m_signal_handlers[signal].sa_flags & SA_RESTART);
+
+			auto& handler = m_process->m_signal_handlers[signal];
+
+			ASSERT(!(handler.sa_flags & SA_SIGINFO));
+
+			signal_handler = reinterpret_cast<vaddr_t>(handler.sa_handler);
+			if (handler.sa_flags & SA_RESETHAND)
+				handler.sa_handler = SIG_DFL;
+
+			has_sa_restart = !!(handler.sa_flags & SA_RESTART);
 		}
 
 		m_signal_pending_mask &= ~(1ull << signal);

@@ -2505,14 +2505,7 @@ namespace Kernel
 			*oact = m_signal_handlers[signal];
 
 		if (act)
-		{
-			if (act->sa_flags & ~(SA_RESTART))
-			{
-				dwarnln("TODO: sigaction({}, {H})", signal, act->sa_flags);
-				return BAN::Error::from_errno(ENOTSUP);
-			}
 			m_signal_handlers[signal] = *act;
-		}
 
 		return 0;
 	}
