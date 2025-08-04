@@ -119,9 +119,15 @@ namespace Kernel
 
 		thread->m_is_userspace = true;
 
+#if ARCH(x86_64)
+		static constexpr vaddr_t stack_addr_start = 0x0000700000000000;
+#elif ARCH(i686)
+		static constexpr vaddr_t stack_addr_start = 0xB0000000;
+#endif
+
 		thread->m_kernel_stack = TRY(VirtualRange::create_to_vaddr_range(
 			page_table,
-			0x200000, USERSPACE_END,
+			stack_addr_start, USERSPACE_END,
 			kernel_stack_size,
 			PageTable::Flags::ReadWrite | PageTable::Flags::Present,
 			true, true
@@ -129,7 +135,7 @@ namespace Kernel
 
 		thread->m_userspace_stack = TRY(VirtualRange::create_to_vaddr_range(
 			page_table,
-			0x200000, USERSPACE_END,
+			stack_addr_start, USERSPACE_END,
 			userspace_stack_size,
 			PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present,
 			true, true
