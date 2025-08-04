@@ -10,6 +10,8 @@ __BEGIN_DECLS
 #include <bits/types/pthread_attr_t.h>
 #include <bits/types/pthread_t.h>
 
+#include <stdint.h>
+
 typedef int pthread_once_t;
 
 typedef unsigned pthread_key_t;
@@ -36,7 +38,7 @@ typedef struct
 struct _pthread_cond_block
 {
 	struct _pthread_cond_block* next;
-	int signaled;
+	uint32_t futex;
 };
 typedef struct
 {

@@ -10,6 +10,7 @@
 #include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/futex.h>
 #include <sys/mman.h>
 #include <sys/syscall.h>
 #include <unistd.h>
@@ -1113,7 +1114,12 @@ int pthread_cond_broadcast(pthread_cond_t* cond)
 {
 	pthread_spin_lock(&cond->lock);
 	for (auto* block = cond->block_list; block; block = block->next)
-		BAN::atomic_store(block->signaled, 1);
+	{
+		BAN::atomic_store(block->futex, 1);
+
+		const int op = FUTEX_WAKE | (cond->attr.shared ? 0 : FUTEX_PRIVATE);
+		futex(op, &block->futex, 1, nullptr);
+	}
 	pthread_spin_unlock(&cond->lock);
 	return 0;
 }
@@ -1121,8 +1127,13 @@ int pthread_cond_broadcast(pthread_cond_t* cond)
 int pthread_cond_signal(pthread_cond_t* cond)
 {
 	pthread_spin_lock(&cond->lock);
-	if (cond->block_list)
-		BAN::atomic_store(cond->block_list->signaled, 1);
+	if (auto* block = cond->block_list)
+	{
+		BAN::atomic_store(block->futex, 1);
+
+		const int op = FUTEX_WAKE | (cond->attr.shared ? 0 : FUTEX_PRIVATE);
+		futex(op, &block->futex, 1, nullptr);
+	}
 	pthread_spin_unlock(&cond->lock);
 	return 0;
 }
@@ -1137,38 +1148,26 @@ int pthread_cond_timedwait(pthread_cond_t* __restrict cond, pthread_mutex_t* __r
 {
 	pthread_testcancel();
 
-	constexpr auto has_timed_out =
-		[](const struct timespec* abstime, clockid_t clock_id) -> bool
-		{
-			if (abstime == nullptr)
-				return false;
-			struct timespec curtime;
-			clock_gettime(clock_id, &curtime);
-			if (curtime.tv_sec < abstime->tv_sec)
-				return false;
-			if (curtime.tv_sec > abstime->tv_sec)
-				return true;
-			return curtime.tv_nsec >= abstime->tv_nsec;
-		};
-
 	pthread_spin_lock(&cond->lock);
 	_pthread_cond_block block = {
 		.next = cond->block_list,
-		.signaled = 0,
+		.futex = 0,
 	};
 	cond->block_list = &block;
 	pthread_spin_unlock(&cond->lock);
 
 	pthread_mutex_unlock(mutex);
 
-	while (BAN::atomic_load(block.signaled) == 0)
+	while (BAN::atomic_load(block.futex) == 0)
 	{
-		if (has_timed_out(abstime, cond->attr.clock))
+		const int op = FUTEX_WAIT
+			| (cond->attr.shared ? 0 : FUTEX_PRIVATE)
+			| (cond->attr.clock == CLOCK_REALTIME ? FUTEX_REALTIME : 0);
+		if (futex(op, &block.futex, 0, abstime) == -1 && errno == ETIMEDOUT)
 		{
 			pthread_mutex_lock(mutex);
 			return ETIMEDOUT;
 		}
-		sched_yield();
 	}
 
 	pthread_spin_lock(&cond->lock);
