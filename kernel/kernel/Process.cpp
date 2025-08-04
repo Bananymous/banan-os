@@ -26,6 +26,7 @@
 #include <pthread.h>
 #include <stdio.h>
 #include <sys/banan-os.h>
+#include <sys/futex.h>
 #include <sys/sysmacros.h>
 #include <sys/wait.h>
 
@@ -2555,6 +2556,96 @@ namespace Kernel
 		}
 
 		return 0;
+	}
+
+	BAN::ErrorOr<long> Process::sys_futex(int op, const uint32_t* addr, uint32_t val, const timespec* abstime)
+	{
+		const vaddr_t vaddr = reinterpret_cast<vaddr_t>(addr);
+		if (vaddr % 4)
+			return BAN::Error::from_errno(EINVAL);
+
+		const bool is_private  = (op & FUTEX_PRIVATE);
+		const bool is_realtime = (op & FUTEX_REALTIME);
+		op &= ~(FUTEX_PRIVATE | FUTEX_REALTIME);
+
+		if (!is_private)
+		{
+			dwarnln("TODO: shared futex");
+			return BAN::Error::from_errno(ENOTSUP);
+		}
+
+		LockGuard _(m_process_lock);
+
+		auto* buffer_region = TRY(validate_and_pin_pointer_access(addr, sizeof(uint32_t), false));
+		BAN::ScopeGuard pin_guard([&] { if (buffer_region) buffer_region->unpin(); });
+
+		const paddr_t paddr = m_page_table->physical_address_of(vaddr & PAGE_ADDR_MASK) | (vaddr & ~PAGE_ADDR_MASK);
+		ASSERT(paddr != 0);
+
+		switch (op)
+		{
+			case FUTEX_WAIT:
+			{
+				if (BAN::atomic_load(*addr) != val)
+					return BAN::Error::from_errno(EAGAIN);
+
+				const uint64_t wake_time_ns =
+					TRY([abstime, is_realtime, this]() -> BAN::ErrorOr<uint64_t>
+					{
+						if (abstime == nullptr)
+							return BAN::numeric_limits<uint64_t>::max();
+						TRY(validate_pointer_access(abstime, sizeof(*abstime), false));
+						const uint64_t abs_ns = abstime->tv_sec * 1'000'000'000 + abstime->tv_nsec;
+						if (!is_realtime)
+							return abs_ns;
+						const auto realtime = SystemTimer::get().real_time();
+						const uint64_t real_ns = realtime.tv_sec * 1'000'000'000 + realtime.tv_nsec;
+						if (abs_ns <= real_ns)
+							return BAN::Error::from_errno(ETIMEDOUT);
+						return SystemTimer::get().ns_since_boot() + (abs_ns - real_ns);
+					}());
+
+				auto it = m_futexes.find(paddr);
+				if (it == m_futexes.end())
+					it = TRY(m_futexes.emplace(paddr, TRY(BAN::UniqPtr<futex_t>::create())));
+				futex_t* const futex = it->value.ptr();
+
+				futex->waiters++;
+				BAN::ScopeGuard _([futex, paddr, this] {
+					if (--futex->waiters == 0)
+						m_futexes.remove(paddr);
+				});
+
+				for (;;)
+				{
+					TRY(Thread::current().block_or_eintr_or_waketime_ns(futex->blocker, wake_time_ns, true, &m_process_lock));
+					if (BAN::atomic_load(*addr) == val || futex->to_wakeup == 0)
+						continue;
+					futex->to_wakeup--;
+					return 0;
+				}
+			}
+			case FUTEX_WAKE:
+			{
+				auto it = m_futexes.find(paddr);
+				if (it == m_futexes.end())
+					return 0;
+				futex_t* const futex = it->value.ptr();
+
+				if (BAN::Math::will_addition_overflow(futex->to_wakeup, val))
+					futex->to_wakeup = BAN::numeric_limits<uint32_t>::max();
+				else
+					futex->to_wakeup += val;
+
+				futex->to_wakeup = BAN::Math::min(futex->to_wakeup, futex->waiters);
+				futex->blocker.unblock();
+				return 0;
+			}
+			default:
+				return BAN::Error::from_errno(ENOSYS);
+		}
+
+		ASSERT_NOT_REACHED();
 	}
 
 	BAN::ErrorOr<long> Process::sys_yield()

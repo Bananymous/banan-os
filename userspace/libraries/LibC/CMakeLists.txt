@@ -36,6 +36,7 @@ set(LIBC_SOURCES
 	sys/banan-os.cpp
 	sys/epoll.cpp
 	sys/file.cpp
+	sys/futex.cpp
 	sys/ioctl.cpp
 	sys/mman.cpp
 	sys/resource.cpp

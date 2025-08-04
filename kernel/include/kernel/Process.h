@@ -189,6 +189,7 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_sigpending(sigset_t* set);
 		BAN::ErrorOr<long> sys_sigprocmask(int how, const sigset_t* set, sigset_t* oset);
 
+		BAN::ErrorOr<long> sys_futex(int op, const uint32_t* addr, uint32_t val, const timespec* abstime);
 		BAN::ErrorOr<long> sys_yield();
 		BAN::ErrorOr<long> sys_set_tls(void*);
 		BAN::ErrorOr<long> sys_get_tls();
@@ -336,6 +337,14 @@ namespace Kernel
 
 		BAN::UniqPtr<PageTable> m_page_table;
 		BAN::RefPtr<TTY> m_controlling_terminal;
+
+		struct futex_t
+		{
+			ThreadBlocker blocker;
+			uint32_t waiters { 0 };
+			uint32_t to_wakeup { 0 };
+		};
+		BAN::HashMap<paddr_t, BAN::UniqPtr<futex_t>> m_futexes;
 
 		friend class Thread;
 	};
