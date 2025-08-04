@@ -1164,7 +1164,10 @@ int pthread_cond_timedwait(pthread_cond_t* __restrict cond, pthread_mutex_t* __r
 	while (BAN::atomic_load(block.signaled) == 0)
 	{
 		if (has_timed_out(abstime, cond->attr.clock))
+		{
+			pthread_mutex_lock(mutex);
 			return ETIMEDOUT;
+		}
 		sched_yield();
 	}
 
