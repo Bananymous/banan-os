@@ -20,7 +20,7 @@ configure() {
 	done
 	popd
 
-	./waf configure -T release --disable-gl || exit 1
+	./waf configure -T release || exit 1
 }
 
 build() {
@@ -29,6 +29,7 @@ build() {
 
 install() {
     ./waf install --destdir=$BANAN_SYSROOT/home/user/halflife || exit 1
+	patchelf --add-needed libxash.so $BANAN_SYSROOT/home/user/halflife/xash3d
 
 	cat > $BANAN_SYSROOT/home/user/halflife/start.sh << EOF
 #!/bin/Shell
