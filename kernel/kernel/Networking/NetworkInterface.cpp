@@ -29,17 +29,16 @@ namespace Kernel
 		, m_type(type)
 		, m_rdev(get_rdev(type))
 	{
-		ASSERT(minor(m_rdev) < 10);
-
 		switch (type)
 		{
 			case Type::Ethernet:
+				ASSERT(minor(m_rdev) < 10);
 				strcpy(m_name, "ethx");
 				m_name[3] = minor(m_rdev) + '0';
 				break;
 			case Type::Loopback:
-				strcpy(m_name, "lox");
-				m_name[2] = minor(m_rdev) + '0';
+				ASSERT(minor(m_rdev) == 0);
+				strcpy(m_name, "lo");
 				break;
 		}
 	}
