@@ -6,7 +6,7 @@ DOWNLOAD_URL="https://github.com/facebook/zstd/releases/download/v$VERSION/zstd-
 
 configure() {
 	$BANAN_CMAKE -B _build -S build/cmake -G Ninja \
-		--toolchain $BANAN_TOOLCHAIN_DIR/Toolchain.txt \
+		--toolchain="$BANAN_TOOLCHAIN_DIR/Toolchain.txt" \
 		-DCMAKE_INSTALL_PREFIX=/usr \
 		 || exit 1
 }

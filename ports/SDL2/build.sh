@@ -8,7 +8,7 @@ DEPENDENCIES=('mesa')
 
 configure() {
 	$BANAN_CMAKE \
-		--toolchain="$CMAKE_TOOLCHAIN_FILE" \
+		--toolchain="$BANAN_TOOLCHAIN_DIR/Toolchain.txt" \
 		--fresh -GNinja -S . -B build \
 		-DCMAKE_INSTALL_PREFIX='/usr' \
 		-DCMAKE_BUILD_TYPE=Release \

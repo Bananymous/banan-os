@@ -29,8 +29,6 @@ export OBJDUMP="$BANAN_TOOLCHAIN_TRIPLE-objdump"
 export STRIP="$BANAN_TOOLCHAIN_TRIPLE-strip"
 export CXXFILT="$BANAN_TOOLCHAIN_TRIPLE-c++filt"
 
-export CMAKE_TOOLCHAIN_FILE="$BANAN_TOOLCHAIN_DIR/Toolchain.txt"
-
 pushd "$BANAN_ROOT_DIR" >/dev/null
 ./bos all && ./bos install || exit 1
 popd >/dev/null

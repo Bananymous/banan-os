@@ -10,9 +10,9 @@ configure() {
 	sed -i 's/CMAKE_INSTALL_FULL_DATAROOTDIR/CMAKE_INSTALL_FULL_DATADIR/' CMakeLists.txt
 
 	$BANAN_CMAKE \
-        --toolchain="$CMAKE_TOOLCHAIN_FILE" \
-        --fresh -GNinja -S . -B build \
-        -DCMAKE_INSTALL_PREFIX="$BANAN_SYSROOT/usr" \
+		--toolchain="$BANAN_TOOLCHAIN_DIR/Toolchain.txt" \
+		--fresh -GNinja -S . -B build \
+		-DCMAKE_INSTALL_PREFIX="$BANAN_SYSROOT/usr" \
 		-DSDL2_INCLUDE_DIR="$BANAN_SYSROOT/usr/include/SDL2"
 }
 

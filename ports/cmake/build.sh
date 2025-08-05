@@ -7,7 +7,7 @@ DEPENDENCIES=('openssl' 'libuv' 'make' 'bash')
 
 configure() {
 	$BANAN_CMAKE \
-		--toolchain=$BANAN_TOOLCHAIN_DIR/Toolchain.txt \
+		--toolchain="$BANAN_TOOLCHAIN_DIR/Toolchain.txt" \
 		-B build -GNinja --fresh \
 		-DCMAKE_INSTALL_PREFIX=/usr \
 		-DCMAKE_USE_OPENSSL=ON \
