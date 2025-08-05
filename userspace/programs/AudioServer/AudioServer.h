@@ -19,7 +19,7 @@ public:
 	void on_client_disconnect(int fd);
 	bool on_client_packet(int fd, long smo_key);
 
-	void update();
+	uint64_t update();
 
 private:
 	struct ClientInfo
@@ -27,6 +27,8 @@ private:
 		LibAudio::AudioBuffer* buffer;
 		size_t sample_frames_queued { 0 };
 	};
+
+	using sample_t = LibAudio::AudioBuffer::sample_t;
 
 private:
 	enum class AddOrRemove { Add, Remove };
@@ -42,7 +44,7 @@ private:
 
 	size_t m_samples_sent { 0 };
 	BAN::Array<uint8_t, 1024> m_send_buffer;
-	BAN::CircularQueue<double, 64 * 1024> m_samples;
+	BAN::CircularQueue<sample_t, 64 * 1024> m_samples;
 
 	BAN::HashMap<int, ClientInfo> m_audio_buffers;
 };

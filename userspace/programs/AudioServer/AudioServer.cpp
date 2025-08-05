@@ -40,6 +40,13 @@ bool AudioServer::on_client_packet(int fd, long smo_key)
 {
 	auto& audio_buffer = m_audio_buffers[fd];
 
+	if (smo_key == 0)
+	{
+		if (audio_buffer.buffer)
+			reset_kernel_buffer();
+		return true;
+	}
+
 	audio_buffer.buffer = static_cast<LibAudio::AudioBuffer*>(smo_map(smo_key));
 	audio_buffer.sample_frames_queued = 0;
 	if (audio_buffer.buffer == nullptr)
@@ -53,8 +60,11 @@ bool AudioServer::on_client_packet(int fd, long smo_key)
 	return true;
 }
 
-void AudioServer::update()
+uint64_t AudioServer::update()
 {
+	// FIXME: get this from the kernel
+	static constexpr uint64_t kernel_buffer_ms = 50;
+
 	uint32_t kernel_buffer_size;
 	if (ioctl(m_audio_device_fd, SND_GET_BUFFERSZ, &kernel_buffer_size) == -1)
 		ASSERT_NOT_REACHED();
@@ -72,14 +82,17 @@ void AudioServer::update()
 	const size_t max_sample_frames = (m_samples.capacity() - m_samples.size()) / m_channels;
 	const size_t queued_samples_end = m_samples.size();
 	if (max_sample_frames == 0)
-		return;
+		return kernel_buffer_ms;
 
+	size_t max_sample_frames_to_queue = max_sample_frames;
+
+	bool anyone_playing = false;
 	for (auto& [_, buffer] : m_audio_buffers)
 	{
 		if (buffer.buffer == nullptr)
 			continue;
 
-		const double sample_ratio = buffer.buffer->sample_rate / static_cast<double>(m_sample_rate);
+		const sample_t sample_ratio = buffer.buffer->sample_rate / static_cast<sample_t>(m_sample_rate);
 
 		if (buffer.sample_frames_queued)
 		{
@@ -91,13 +104,38 @@ void AudioServer::update()
 			buffer.sample_frames_queued -= buffer_sample_frames_played;
 		}
 
+		if (buffer.buffer->paused)
+			continue;
+		anyone_playing = true;
+
+		const uint32_t buffer_total_sample_frames = ((buffer.buffer->capacity + buffer.buffer->head - buffer.buffer->tail) % buffer.buffer->capacity) / buffer.buffer->channels;
+		const uint32_t buffer_sample_frames_available = (buffer_total_sample_frames - buffer.sample_frames_queued) / sample_ratio;
+		max_sample_frames_to_queue = BAN::Math::min<size_t>(max_sample_frames_to_queue, buffer_sample_frames_available);
+	}
+
+	if (!anyone_playing)
+		return 60'000;
+
+	// FIXME: this works but if any client stops producing audio samples
+	//        the whole audio server halts
+	const uint32_t samples_per_10ms = m_sample_rate / 100;
+	if (max_sample_frames_to_queue < samples_per_10ms)
+		return 1;
+
+	for (auto& [_, buffer] : m_audio_buffers)
+	{
+		if (buffer.buffer == nullptr || buffer.buffer->paused)
+			continue;
+
+		const sample_t sample_ratio = buffer.buffer->sample_rate / static_cast<sample_t>(m_sample_rate);
+
 		const uint32_t buffer_total_sample_frames = ((buffer.buffer->capacity + buffer.buffer->head - buffer.buffer->tail) % buffer.buffer->capacity) / buffer.buffer->channels;
 		const uint32_t buffer_sample_frames_available = (buffer_total_sample_frames - buffer.sample_frames_queued) / sample_ratio;
 		if (buffer_sample_frames_available == 0)
 			continue;
 
-		const size_t sample_frames_to_queue = BAN::Math::min<size_t>(max_sample_frames, buffer_sample_frames_available);
-		if (sample_frames_to_queue == 0)
+		const size_t sample_frames_to_queue = BAN::Math::min<size_t>(max_sample_frames_to_queue, buffer_sample_frames_available);
+		if (sample_frames_to_queue < samples_per_10ms)
 			continue;
 
 		while (m_samples.size() < queued_samples_end + sample_frames_to_queue * m_channels)
@@ -113,10 +151,17 @@ void AudioServer::update()
 				m_samples[queued_samples_end + i * m_channels + j] += buffer.buffer->samples[(buffer_tail + buffer_frame * buffer.buffer->channels + j) % buffer.buffer->capacity];
 		}
 
-		buffer.sample_frames_queued += sample_frames_to_queue * sample_ratio;
+		buffer.sample_frames_queued += BAN::Math::min<uint32_t>(
+			buffer_total_sample_frames,
+			BAN::Math::ceil(sample_frames_to_queue * sample_ratio)
+		);
 	}
 
 	send_samples();
+
+	const double play_ms = 1000.0 * m_samples_sent / m_channels / m_sample_rate;
+	const uint64_t wake_ms = BAN::Math::max<uint64_t>(play_ms, kernel_buffer_ms) - kernel_buffer_ms;
+	return wake_ms;
 }
 
 void AudioServer::reset_kernel_buffer()

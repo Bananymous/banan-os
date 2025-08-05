@@ -12,6 +12,17 @@
 namespace LibAudio
 {
 
+	BAN::ErrorOr<Audio> Audio::create(uint32_t channels, uint32_t sample_rate, uint32_t sample_frames)
+	{
+		Audio result;
+		TRY(result.initialize((sample_frames + 10) * channels));
+
+		result.m_audio_buffer->sample_rate = sample_rate;
+		result.m_audio_buffer->channels = channels;
+
+		return result;
+	}
+
 	BAN::ErrorOr<Audio> Audio::load(BAN::StringView path)
 	{
 		Audio result(TRY(AudioLoader::load(path)));
@@ -69,18 +80,6 @@ namespace LibAudio
 		return *this;
 	}
 
-	BAN::ErrorOr<void> Audio::start()
-	{
-		ASSERT(m_server_fd != -1);
-
-		const ssize_t nsend = send(m_server_fd, &m_smo_key, sizeof(m_smo_key), 0);
-		if (nsend == -1)
-			return BAN::Error::from_errno(errno);
-		ASSERT(nsend == sizeof(m_smo_key));
-
-		return {};
-	}
-
 	BAN::ErrorOr<void> Audio::initialize(uint32_t total_samples)
 	{
 		m_smo_size = sizeof(AudioBuffer) + total_samples * sizeof(AudioBuffer::sample_t);
@@ -118,10 +117,57 @@ namespace LibAudio
 		return {};
 	}
 
+	BAN::ErrorOr<void> Audio::start()
+	{
+		ASSERT(m_server_fd != -1);
+
+		const ssize_t nsend = send(m_server_fd, &m_smo_key, sizeof(m_smo_key), 0);
+		if (nsend == -1)
+			return BAN::Error::from_errno(errno);
+		ASSERT(nsend == sizeof(m_smo_key));
+
+		return {};
+	}
+
+	void Audio::set_paused(bool paused)
+	{
+		ASSERT(m_server_fd != -1);
+
+		if (m_audio_buffer->paused == paused)
+			return;
+		m_audio_buffer->paused = paused;
+
+		long dummy = 0;
+		send(m_server_fd, &dummy, sizeof(dummy), 0);
+	}
+
+	size_t Audio::queue_samples(BAN::Span<const AudioBuffer::sample_t> samples)
+	{
+		size_t samples_queued = 0;
+
+		uint32_t head = m_audio_buffer->head;
+		while (samples_queued < samples.size())
+		{
+			const uint32_t next_head = (head + 1) % m_audio_buffer->capacity;
+			if (next_head == m_audio_buffer->tail)
+				break;
+			m_audio_buffer->samples[head] = samples[samples_queued++];
+			head = next_head;
+			if (samples_queued % 128 == 0)
+				m_audio_buffer->head = head;
+		}
+		if (samples_queued % 128 != 0)
+			m_audio_buffer->head = head;
+		return samples_queued;
+	}
+
 	void Audio::update()
 	{
 		if (!m_audio_loader)
 			return;
+
+		if (!m_audio_loader->samples_remaining() && !is_playing())
+			return set_paused(true);
 
 		while (m_audio_loader->samples_remaining())
 		{

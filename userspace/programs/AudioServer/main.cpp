@@ -96,8 +96,7 @@ int main()
 
 	dprintln("AudioServer started");
 
-	constexpr uint64_t update_interval_ms = 100;
-	uint64_t next_update_ms = get_current_ms() + update_interval_ms;
+	uint64_t next_update_ms = get_current_ms();
 
 	for (;;)
 	{
@@ -113,11 +112,7 @@ int main()
 		}
 
 		const uint64_t current_ms = get_current_ms();
-		if (current_ms >= next_update_ms)
-		{
-			audio_server->update();
-			next_update_ms = current_ms + update_interval_ms;
-		}
+		next_update_ms = current_ms + audio_server->update();
 
 		const uint64_t timeout_ms = next_update_ms - current_ms;
 
