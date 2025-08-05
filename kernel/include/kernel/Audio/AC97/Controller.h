@@ -28,7 +28,7 @@ namespace Kernel
 		BAN::ErrorOr<void> initialize_bld();
 		BAN::ErrorOr<void> initialize_interrupts();
 
-		void queue_samples_to_bld();
+		bool queue_samples_to_bld();
 
 	private:
 		static constexpr size_t m_bdl_entries = 32;

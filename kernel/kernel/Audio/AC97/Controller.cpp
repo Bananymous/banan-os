@@ -185,14 +185,10 @@ namespace Kernel
 	void AC97AudioController::handle_new_data()
 	{
 		ASSERT(m_spinlock.current_processor_has_lock());
-
-		if (m_bdl_head != m_bdl_tail)
-			return;
-
 		queue_samples_to_bld();
 	}
 
-	void AC97AudioController::queue_samples_to_bld()
+	bool AC97AudioController::queue_samples_to_bld()
 	{
 		ASSERT(m_spinlock.current_processor_has_lock());
 
@@ -228,7 +224,7 @@ namespace Kernel
 
 		// if head was not updated, no data was queued
 		if (lvi == m_bdl_head)
-			return;
+			return false;
 
 		m_sample_data_blocker.unblock();
 
@@ -238,6 +234,8 @@ namespace Kernel
 		const uint8_t control = m_bus_master->read8(BusMasterRegister::PO_CR);
 		if (!(control & RDBM))
 			m_bus_master->write8(BusMasterRegister::PO_CR, control | RDBM);
+
+		return true;
 	}
 
 	void AC97AudioController::handle_irq()
@@ -249,16 +247,17 @@ namespace Kernel
 
 		SpinLockGuard _(m_spinlock);
 
-		if (status & LVBCI)
-		{
-			const uint8_t control = m_bus_master->read8(BusMasterRegister::PO_CR);
-			m_bus_master->write8(BusMasterRegister::PO_CR, control & ~RDBM);
-		}
-
+		bool did_enqueue = false;
 		if (status & BCIS)
 		{
 			m_bdl_tail = (m_bdl_tail + 1) % m_bdl_entries;
-			queue_samples_to_bld();
+			did_enqueue = queue_samples_to_bld();
+		}
+
+		if ((status & LVBCI) && !did_enqueue)
+		{
+			const uint8_t control = m_bus_master->read8(BusMasterRegister::PO_CR);
+			m_bus_master->write8(BusMasterRegister::PO_CR, control & ~RDBM);
 		}
 	}
 
