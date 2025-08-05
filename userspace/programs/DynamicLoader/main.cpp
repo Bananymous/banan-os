@@ -1363,6 +1363,9 @@ void* __dlopen(const char* file, int mode)
 
 	// FIXME: RTLD_{LOCAL,GLOBAL}
 
+	if (file == nullptr)
+		return &s_loaded_files[0];
+
 	char path_buffer[PATH_MAX];
 	if (!find_library(file, path_buffer))
 	{
