@@ -25,7 +25,7 @@ __BEGIN_DECLS
 struct sockaddr
 {
 	sa_family_t	sa_family;	/* Address family. */
-	char		sa_data[];	/* Socket address (variable-length data). */
+	char		sa_data[0];	/* Socket address (variable-length data). */
 };
 
 struct sockaddr_storage
