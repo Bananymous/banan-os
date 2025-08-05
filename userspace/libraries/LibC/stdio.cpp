@@ -542,6 +542,9 @@ int getc_unlocked(FILE* file)
 	if (file->eof)
 		return EOF;
 
+	if (file == stdin && file->buffer_type == _IOLBF && stdout->buffer_type == _IOLBF && stdout->buffer_idx)
+		fflush(stdout);
+
 	// read characters from ungetc
 	if (file->unget_buf_idx)
 	{
