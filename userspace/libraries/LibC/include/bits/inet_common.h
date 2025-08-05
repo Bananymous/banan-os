@@ -5,7 +5,7 @@
 
 __BEGIN_DECLS
 
-#include <inttypes.h>
+#include <stdint.h>
 
 #define INET_ADDRSTRLEN  16
 #define INET6_ADDRSTRLEN 46

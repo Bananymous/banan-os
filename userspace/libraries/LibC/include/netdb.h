@@ -9,7 +9,6 @@ __BEGIN_DECLS
 
 #include <netinet/in.h>
 #include <sys/socket.h>
-#include <inttypes.h>
 
 #define IPPORT_RESERVED 1024
 
