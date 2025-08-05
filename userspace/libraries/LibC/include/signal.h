@@ -134,8 +134,9 @@ struct sigevent
 #define SA_NODEFER   0x040
 #define SS_ONSTACK   0x080
 #define SS_DISABLE   0x100
-#define MINSIGSTKSZ  0x200
-#define SIGSTKSZ     0x400
+
+#define MINSIGSTKSZ  4096
+#define SIGSTKSZ     4096
 
 typedef struct
 {
