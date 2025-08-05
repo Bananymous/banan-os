@@ -1,6 +1,6 @@
 diff -ruN SDL-release-2.30.11/CMakeLists.txt SDL2-2.30.11-banan_os/CMakeLists.txt
 --- SDL-release-2.30.11/CMakeLists.txt	2025-01-01 19:09:38.000000000 +0200
-+++ SDL2-2.30.11-banan_os/CMakeLists.txt	2025-08-03 14:04:09.894244781 +0300
++++ SDL2-2.30.11-banan_os/CMakeLists.txt	2025-08-05 17:14:26.638253499 +0300
 @@ -1452,7 +1452,7 @@
    CheckPTHREAD()
    CheckLibUnwind()
@@ -10,7 +10,7 @@ diff -ruN SDL-release-2.30.11/CMakeLists.txt SDL2-2.30.11-banan_os/CMakeLists.tx
    if(SDL_AUDIO)
      if(SYSV5 OR SOLARIS OR HPUX)
          set(SDL_AUDIO_DRIVER_SUNAUDIO 1)
-@@ -2422,6 +2422,49 @@
+@@ -2422,6 +2422,57 @@
    CheckPTHREAD()
    list(APPEND EXTRA_LIBS root be media game device textencoding)
  
@@ -21,8 +21,16 @@ diff -ruN SDL-release-2.30.11/CMakeLists.txt SDL2-2.30.11-banan_os/CMakeLists.tx
 +    set(HAVE_SDL_MISC TRUE)
 +  endif()
 +
++  if(SDL_AUDIO)
++    set(SDL_AUDIO_DRIVER_BANANOS 1)
++    file(GLOB AUDIO_SOURCES ${SDL2_SOURCE_DIR}/src/audio/banan_os/*.cpp)
++    list(APPEND SOURCE_FILES ${AUDIO_SOURCES})
++    set(HAVE_SDL_AUDIO TRUE)
++    list(APPEND EXTRA_LIBS audio)
++  endif()
++
 +  if(SDL_VIDEO)
-+    set(SDL_VIDEO_DRIVER_BANAN_OS 1)
++    set(SDL_VIDEO_DRIVER_BANANOS 1)
 +    file(GLOB VIDEO_SOURCES ${SDL2_SOURCE_DIR}/src/video/banan_os/*.cpp)
 +    list(APPEND SOURCE_FILES ${VIDEO_SOURCES})
 +    set(HAVE_SDL_VIDEO TRUE)
@@ -30,7 +38,7 @@ diff -ruN SDL-release-2.30.11/CMakeLists.txt SDL2-2.30.11-banan_os/CMakeLists.tx
 +
 +    if(SDL_OPENGL)
 +      set(SDL_VIDEO_OPENGL 1)
-+      set(SDL_VIDEO_OPENGL_BANAN_OS 1)
++      set(SDL_VIDEO_OPENGL_BANANOS 1)
 +      set(SDL_VIDEO_RENDER_OGL 1)
 +      list(APPEND EXTRA_LIBS OSMesa)
 +      set(HAVE_OPENGL TRUE)
@@ -62,18 +70,26 @@ diff -ruN SDL-release-2.30.11/CMakeLists.txt SDL2-2.30.11-banan_os/CMakeLists.tx
      file(GLOB MISC_SOURCES ${SDL2_SOURCE_DIR}/src/misc/riscos/*.c)
 diff -ruN SDL-release-2.30.11/include/SDL_config.h.cmake SDL2-2.30.11-banan_os/include/SDL_config.h.cmake
 --- SDL-release-2.30.11/include/SDL_config.h.cmake	2025-01-01 19:09:38.000000000 +0200
-+++ SDL2-2.30.11-banan_os/include/SDL_config.h.cmake	2025-08-03 14:04:09.894803585 +0300
-@@ -406,6 +406,7 @@
++++ SDL2-2.30.11-banan_os/include/SDL_config.h.cmake	2025-08-05 17:08:40.056180014 +0300
+@@ -307,6 +307,7 @@
+ #cmakedefine SDL_AUDIO_DRIVER_FUSIONSOUND @SDL_AUDIO_DRIVER_FUSIONSOUND@
+ #cmakedefine SDL_AUDIO_DRIVER_FUSIONSOUND_DYNAMIC @SDL_AUDIO_DRIVER_FUSIONSOUND_DYNAMIC@
+ #cmakedefine SDL_AUDIO_DRIVER_HAIKU @SDL_AUDIO_DRIVER_HAIKU@
++#cmakedefine SDL_AUDIO_DRIVER_BANANOS @SDL_AUDIO_DRIVER_BANANOS@
+ #cmakedefine SDL_AUDIO_DRIVER_JACK @SDL_AUDIO_DRIVER_JACK@
+ #cmakedefine SDL_AUDIO_DRIVER_JACK_DYNAMIC @SDL_AUDIO_DRIVER_JACK_DYNAMIC@
+ #cmakedefine SDL_AUDIO_DRIVER_NAS @SDL_AUDIO_DRIVER_NAS@
+@@ -406,6 +407,7 @@
  #cmakedefine SDL_VIDEO_DRIVER_ANDROID @SDL_VIDEO_DRIVER_ANDROID@
  #cmakedefine SDL_VIDEO_DRIVER_EMSCRIPTEN @SDL_VIDEO_DRIVER_EMSCRIPTEN@
  #cmakedefine SDL_VIDEO_DRIVER_HAIKU @SDL_VIDEO_DRIVER_HAIKU@
-+#cmakedefine SDL_VIDEO_DRIVER_BANAN_OS @SDL_VIDEO_DRIVER_BANAN_OS@
++#cmakedefine SDL_VIDEO_DRIVER_BANANOS @SDL_VIDEO_DRIVER_BANANOS@
  #cmakedefine SDL_VIDEO_DRIVER_COCOA @SDL_VIDEO_DRIVER_COCOA@
  #cmakedefine SDL_VIDEO_DRIVER_UIKIT @SDL_VIDEO_DRIVER_UIKIT@
  #cmakedefine SDL_VIDEO_DRIVER_DIRECTFB @SDL_VIDEO_DRIVER_DIRECTFB@
 diff -ruN SDL-release-2.30.11/include/SDL_platform.h SDL2-2.30.11-banan_os/include/SDL_platform.h
 --- SDL-release-2.30.11/include/SDL_platform.h	2025-01-01 19:09:38.000000000 +0200
-+++ SDL2-2.30.11-banan_os/include/SDL_platform.h	2025-08-03 14:04:09.895022748 +0300
++++ SDL2-2.30.11-banan_os/include/SDL_platform.h	2025-08-05 17:08:40.021539517 +0300
 @@ -36,6 +36,10 @@
  #undef __HAIKU__
  #define __HAIKU__   1
@@ -85,9 +101,225 @@ diff -ruN SDL-release-2.30.11/include/SDL_platform.h SDL2-2.30.11-banan_os/inclu
  #if defined(bsdi) || defined(__bsdi) || defined(__bsdi__)
  #undef __BSDI__
  #define __BSDI__    1
+diff -ruN SDL-release-2.30.11/src/audio/banan_os/SDL_banan_os_audio.cpp SDL2-2.30.11-banan_os/src/audio/banan_os/SDL_banan_os_audio.cpp
+--- SDL-release-2.30.11/src/audio/banan_os/SDL_banan_os_audio.cpp	1970-01-01 02:00:00.000000000 +0200
++++ SDL2-2.30.11-banan_os/src/audio/banan_os/SDL_banan_os_audio.cpp	2025-08-06 01:10:35.759190250 +0300
+@@ -0,0 +1,150 @@
++/*
++  Simple DirectMedia Layer
++  Copyright (C) 1997-2019 Sam Lantinga <slouken@libsdl.org>
++
++  This software is provided 'as-is', without any express or implied
++  warranty.  In no event will the authors be held liable for any damages
++  arising from the use of this software.
++
++  Permission is granted to anyone to use this software for any purpose,
++  including commercial applications, and to alter it and redistribute it
++  freely, subject to the following restrictions:
++
++  1. The origin of this software must not be misrepresented; you must not
++     claim that you wrote the original software. If you use this software
++     in a product, an acknowledgment in the product documentation would be
++     appreciated but is not required.
++  2. Altered source versions must be plainly marked as such, and must not be
++     misrepresented as being the original software.
++  3. This notice may not be removed or altered from any source distribution.
++*/
++#include "../../SDL_internal.h"
++
++#if SDL_AUDIO_DRIVER_BANANOS
++
++extern "C" {
++#include "SDL_audio.h"
++#include "../SDL_audio_c.h"
++#include "../SDL_sysaudio.h"
++}
++
++#include "SDL_banan_os_audio.h"
++
++#include <unistd.h>
++
++#define DUMP_FUNCTIONS 0
++
++#if DUMP_FUNCTIONS
++# define DUMP_FUNCTION() dprintln(__FUNCTION__)
++#else
++# define DUMP_FUNCTION()
++#endif
++
++static void BANANOS_CloseDevice(_THIS)
++{
++	DUMP_FUNCTION();
++
++	if (!_this->hidden)
++		return;
++
++	if (_this->hidden->mixbuf)
++		SDL_free(_this->hidden->mixbuf);
++
++	delete _this->hidden;
++}
++
++static int BANANOS_OpenDevice(_THIS, char const*)
++{
++	DUMP_FUNCTION();
++
++	// TODO: try to accept already existing spec
++	_this->spec.freq = 44100;
++	_this->spec.format = AUDIO_S16LSB;
++	_this->spec.channels = 2;
++	_this->spec.samples = 2048;
++	SDL_CalculateAudioSpec(&_this->spec);
++
++	auto audio_or_error = LibAudio::Audio::create(_this->spec.channels, _this->spec.freq, 0x1000);
++	if (audio_or_error.is_error())
++		return SDL_SetError("failed to create audio device: %s", audio_or_error.error().get_message());
++
++	void* mixbuf = SDL_malloc(_this->spec.size);
++	if (mixbuf == nullptr)
++		return SDL_OutOfMemory();
++
++	_this->hidden = new SDL_PrivateAudioData(audio_or_error.release_value(), mixbuf);
++	if (!_this->hidden)
++		return SDL_OutOfMemory();
++	MUST(_this->hidden->audio.start());
++
++	return 0;
++}
++
++static void BANANOS_PlayDevice(_THIS)
++{
++	DUMP_FUNCTION();
++
++	const bool should_play = SDL_AtomicGet(&_this->enabled) && !SDL_AtomicGet(&_this->paused);
++	_this->hidden->audio.set_paused(!should_play);
++    if (!should_play)
++	{
++		usleep(100);
++		return;
++	}
++
++	static_assert(BAN::is_same_v<LibAudio::AudioBuffer::sample_t, double>);
++
++    const auto convert_sample = [](int16_t input) {
++        return (static_cast<double>(input) - BAN::numeric_limits<int16_t>::min()) / BAN::numeric_limits<int16_t>::max() * 2.0 - 1.0;
++    };
++
++	const size_t input_samples = _this->spec.size / sizeof(int16_t);
++	size_t samples_queued = 0;
++
++	const int16_t* mixbuf = static_cast<const int16_t*>(_this->hidden->mixbuf);
++	while (samples_queued < input_samples)
++	{
++		const size_t to_convert = BAN::Math::min(_this->hidden->conversion.size(), input_samples - samples_queued);
++		for (size_t i = 0; i < to_convert; i++)
++			_this->hidden->conversion[i] = convert_sample(mixbuf[samples_queued + i]);
++
++		auto sample_span = _this->hidden->conversion.span();
++		while (!sample_span.empty())
++		{
++			const size_t queued = _this->hidden->audio.queue_samples(sample_span);
++			if (queued == 0)
++				usleep(100);
++			sample_span = sample_span.slice(queued);
++		}
++
++		samples_queued += to_convert;
++	}
++}
++
++static Uint8* BANANOS_GetDeviceBuf(_THIS)
++{
++	DUMP_FUNCTION();
++
++    return static_cast<Uint8*>(_this->hidden->mixbuf);
++}
++
++static SDL_bool BANANOS_Init(SDL_AudioDriverImpl* impl)
++{
++    impl->OpenDevice = BANANOS_OpenDevice;
++    impl->CloseDevice = BANANOS_CloseDevice;
++    impl->PlayDevice = BANANOS_PlayDevice;
++	impl->GetDeviceBuf = BANANOS_GetDeviceBuf;
++
++    impl->ProvidesOwnCallbackThread  = SDL_FALSE;
++    impl->HasCaptureSupport          = SDL_FALSE;
++    impl->OnlyHasDefaultOutputDevice = SDL_TRUE;
++    impl->SupportsNonPow2Samples     = SDL_TRUE;
++
++    return SDL_TRUE;
++}
++
++AudioBootStrap BANANOSAUDIO_bootstrap = {
++    "banan-os", "banan-os AudioServer", BANANOS_Init, SDL_FALSE
++};
++
++#endif
+diff -ruN SDL-release-2.30.11/src/audio/banan_os/SDL_banan_os_audio.h SDL2-2.30.11-banan_os/src/audio/banan_os/SDL_banan_os_audio.h
+--- SDL-release-2.30.11/src/audio/banan_os/SDL_banan_os_audio.h	1970-01-01 02:00:00.000000000 +0200
++++ SDL2-2.30.11-banan_os/src/audio/banan_os/SDL_banan_os_audio.h	2025-08-05 23:06:29.318183632 +0300
+@@ -0,0 +1,34 @@
++/*
++  Simple DirectMedia Layer
++  Copyright (C) 1997-2019 Sam Lantinga <slouken@libsdl.org>
++
++  This software is provided 'as-is', without any express or implied
++  warranty.  In no event will the authors be held liable for any damages
++  arising from the use of this software.
++
++  Permission is granted to anyone to use this software for any purpose,
++  including commercial applications, and to alter it and redistribute it
++  freely, subject to the following restrictions:
++
++  1. The origin of this software must not be misrepresented; you must not
++     claim that you wrote the original software. If you use this software
++     in a product, an acknowledgment in the product documentation would be
++     appreciated but is not required.
++  2. Altered source versions must be plainly marked as such, and must not be
++     misrepresented as being the original software.
++  3. This notice may not be removed or altered from any source distribution.
++*/
++#include "../../SDL_internal.h"
++
++#pragma once
++
++#include <LibAudio/Audio.h>
++#include <BAN/Array.h>
++
++#define _THIS SDL_AudioDevice* _this
++
++struct SDL_PrivateAudioData {
++	LibAudio::Audio audio;
++	void* mixbuf { nullptr };
++	BAN::Array<LibAudio::AudioBuffer::sample_t, 4096> conversion;
++};
+diff -ruN SDL-release-2.30.11/src/audio/SDL_audio.c SDL2-2.30.11-banan_os/src/audio/SDL_audio.c
+--- SDL-release-2.30.11/src/audio/SDL_audio.c	2025-01-01 19:09:38.000000000 +0200
++++ SDL2-2.30.11-banan_os/src/audio/SDL_audio.c	2025-08-05 17:18:48.539165318 +0300
+@@ -87,6 +87,9 @@
+ #ifdef SDL_AUDIO_DRIVER_HAIKU
+     &HAIKUAUDIO_bootstrap,
+ #endif
++#ifdef SDL_AUDIO_DRIVER_BANANOS
++    &BANANOSAUDIO_bootstrap,
++#endif
+ #ifdef SDL_AUDIO_DRIVER_COREAUDIO
+     &COREAUDIO_bootstrap,
+ #endif
+diff -ruN SDL-release-2.30.11/src/audio/SDL_sysaudio.h SDL2-2.30.11-banan_os/src/audio/SDL_sysaudio.h
+--- SDL-release-2.30.11/src/audio/SDL_sysaudio.h	2025-01-01 19:09:38.000000000 +0200
++++ SDL2-2.30.11-banan_os/src/audio/SDL_sysaudio.h	2025-08-05 17:08:47.653877729 +0300
+@@ -196,6 +196,7 @@
+ extern AudioBootStrap WINMM_bootstrap;
+ extern AudioBootStrap PAUDIO_bootstrap;
+ extern AudioBootStrap HAIKUAUDIO_bootstrap;
++extern AudioBootStrap BANANOSAUDIO_bootstrap;
+ extern AudioBootStrap COREAUDIO_bootstrap;
+ extern AudioBootStrap DISKAUDIO_bootstrap;
+ extern AudioBootStrap DUMMYAUDIO_bootstrap;
 diff -ruN SDL-release-2.30.11/src/misc/banan_os/SDL_sysurl.cpp SDL2-2.30.11-banan_os/src/misc/banan_os/SDL_sysurl.cpp
 --- SDL-release-2.30.11/src/misc/banan_os/SDL_sysurl.cpp	1970-01-01 02:00:00.000000000 +0200
-+++ SDL2-2.30.11-banan_os/src/misc/banan_os/SDL_sysurl.cpp	2025-08-03 14:04:09.895198889 +0300
++++ SDL2-2.30.11-banan_os/src/misc/banan_os/SDL_sysurl.cpp	2025-08-05 17:08:39.162037386 +0300
 @@ -0,0 +1,30 @@
 +/*
 +  Simple DirectMedia Layer
@@ -121,7 +353,7 @@ diff -ruN SDL-release-2.30.11/src/misc/banan_os/SDL_sysurl.cpp SDL2-2.30.11-bana
 +
 diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_message_box.cpp SDL2-2.30.11-banan_os/src/video/banan_os/SDL_banan_os_message_box.cpp
 --- SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_message_box.cpp	1970-01-01 02:00:00.000000000 +0200
-+++ SDL2-2.30.11-banan_os/src/video/banan_os/SDL_banan_os_message_box.cpp	2025-08-03 14:04:09.895299391 +0300
++++ SDL2-2.30.11-banan_os/src/video/banan_os/SDL_banan_os_message_box.cpp	2025-08-05 17:08:39.340712609 +0300
 @@ -0,0 +1,60 @@
 +/*
 +  Simple DirectMedia Layer
@@ -147,7 +379,7 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_message_box.cpp SD
 +
 +#include "../../SDL_internal.h"
 +
-+#ifdef SDL_VIDEO_DRIVER_BANAN_OS
++#ifdef SDL_VIDEO_DRIVER_BANANOS
 +
 +#include "SDL_messagebox.h"
 +
@@ -156,7 +388,7 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_message_box.cpp SD
 +#include <BAN/Debug.h>
 +#include <LibGUI/MessageBox.h>
 +
-+int BANAN_OS_ShowMessageBox(const SDL_MessageBoxData* messageboxdata, int* buttonid)
++int BANANOS_ShowMessageBox(const SDL_MessageBoxData* messageboxdata, int* buttonid)
 +{
 +	BAN::Vector<BAN::StringView> buttons;
 +	for (int i = 0; i < messageboxdata->numbuttons; i++) {
@@ -180,12 +412,12 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_message_box.cpp SD
 +	return 0;
 +}
 +
-+#endif /* SDL_VIDEO_DRIVER_BANAN_OS */
++#endif /* SDL_VIDEO_DRIVER_BANANOS */
 +
 +/* vi: set ts=4 sw=4 expandtab: */
 diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_message_box.h SDL2-2.30.11-banan_os/src/video/banan_os/SDL_banan_os_message_box.h
 --- SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_message_box.h	1970-01-01 02:00:00.000000000 +0200
-+++ SDL2-2.30.11-banan_os/src/video/banan_os/SDL_banan_os_message_box.h	2025-08-03 14:04:09.895347931 +0300
++++ SDL2-2.30.11-banan_os/src/video/banan_os/SDL_banan_os_message_box.h	2025-08-05 17:08:39.340970255 +0300
 @@ -0,0 +1,45 @@
 +/*
 +  Simple DirectMedia Layer
@@ -209,33 +441,33 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_message_box.h SDL2
 +  3. This notice may not be removed or altered from any source distribution.
 +*/
 +
-+#ifndef SDL_BANAN_OS_MESSAGEBOX_H
-+#define SDL_BANAN_OS_MESSAGEBOX_H
++#ifndef SDL_BANANOS_MESSAGEBOX_H
++#define SDL_BANANOS_MESSAGEBOX_H
 +
 +#include "../../SDL_internal.h"
 +
-+#ifdef SDL_VIDEO_DRIVER_BANAN_OS
++#ifdef SDL_VIDEO_DRIVER_BANANOS
 +
 +#ifdef __cplusplus
 +extern "C" {
 +#endif
 +
 +extern int
-+BANAN_OS_ShowMessageBox(const SDL_MessageBoxData *messageboxdata, int *buttonid);
++BANANOS_ShowMessageBox(const SDL_MessageBoxData *messageboxdata, int *buttonid);
 +
 +#ifdef __cplusplus
 +}
 +#endif
 +
-+#endif /* SDL_BANAN_OS_MESSAGEBOX_H */
++#endif /* SDL_BANANOS_MESSAGEBOX_H */
 +
 +#endif
 +
 +/* vi: set ts=4 sw=4 expandtab: */
 diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL2-2.30.11-banan_os/src/video/banan_os/SDL_banan_os_video.cpp
 --- SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp	1970-01-01 02:00:00.000000000 +0200
-+++ SDL2-2.30.11-banan_os/src/video/banan_os/SDL_banan_os_video.cpp	2025-08-04 14:57:50.844360579 +0300
-@@ -0,0 +1,719 @@
++++ SDL2-2.30.11-banan_os/src/video/banan_os/SDL_banan_os_video.cpp	2025-08-05 17:40:12.348586012 +0300
+@@ -0,0 +1,718 @@
 +/*
 +  Simple DirectMedia Layer
 +  Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
@@ -256,10 +488,9 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL2-2.3
 +	 misrepresented as being the original software.
 +  3. This notice may not be removed or altered from any source distribution.
 +*/
-+
 +#include "../../SDL_internal.h"
 +
-+#ifdef SDL_VIDEO_DRIVER_BANAN_OS
++#ifdef SDL_VIDEO_DRIVER_BANANOS
 +
 +extern "C" {
 +#include "../SDL_sysvideo.h"
@@ -422,7 +653,7 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL2-2.3
 +};
 +static Keymap s_keymap;
 +
-+static int BANAN_OS_mouse_button_to_sdl(LibInput::MouseButton button)
++static int BANANOS_mouse_button_to_sdl(LibInput::MouseButton button)
 +{
 +	switch (button) {
 +#define BUTTON_CASE(my, sdl) case LibInput::MouseButton::my: return SDL_BUTTON_##sdl
@@ -438,7 +669,7 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL2-2.3
 +
 +static SDL_VideoDevice* s_video_device = nullptr;
 +
-+static SDL_Cursor* BANAN_OS_CreateSystemCursor(SDL_SystemCursor id)
++static SDL_Cursor* BANANOS_CreateSystemCursor(SDL_SystemCursor id)
 +{
 +	DUMP_FUNCTION();
 +
@@ -453,7 +684,7 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL2-2.3
 +	return cursor;
 +}
 +
-+static void BANAN_OS_FreeCursor(SDL_Cursor* cursor)
++static void BANANOS_FreeCursor(SDL_Cursor* cursor)
 +{
 +	DUMP_FUNCTION();
 +
@@ -461,7 +692,7 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL2-2.3
 +		SDL_free(cursor);
 +}
 +
-+static int BANAN_OS_ShowCursor(SDL_Cursor* cursor)
++static int BANANOS_ShowCursor(SDL_Cursor* cursor)
 +{
 +	DUMP_FUNCTION();
 +
@@ -475,7 +706,7 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL2-2.3
 +	return 0;
 +}
 +
-+static int BANAN_OS_SetRelativeMouseMode(SDL_bool enabled)
++static int BANANOS_SetRelativeMouseMode(SDL_bool enabled)
 +{
 +	DUMP_FUNCTION();
 +
@@ -490,24 +721,24 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL2-2.3
 +	return 0;
 +}
 +
-+static void BANAN_OS_InitMouse(_THIS)
++static void BANANOS_InitMouse(_THIS)
 +{
 +	DUMP_FUNCTION();
 +
 +	auto* mouse = SDL_GetMouse();
-+	mouse->ShowCursor = BANAN_OS_ShowCursor;
-+	mouse->SetRelativeMouseMode = BANAN_OS_SetRelativeMouseMode;
-+	mouse->CreateSystemCursor = BANAN_OS_CreateSystemCursor;
-+	mouse->FreeCursor = BANAN_OS_FreeCursor;
++	mouse->ShowCursor = BANANOS_ShowCursor;
++	mouse->SetRelativeMouseMode = BANANOS_SetRelativeMouseMode;
++	mouse->CreateSystemCursor = BANANOS_CreateSystemCursor;
++	mouse->FreeCursor = BANANOS_FreeCursor;
 +
-+	SDL_SetDefaultCursor(BANAN_OS_CreateSystemCursor(SDL_SYSTEM_CURSOR_ARROW));
++	SDL_SetDefaultCursor(BANANOS_CreateSystemCursor(SDL_SYSTEM_CURSOR_ARROW));
 +}
 +
-+static int BANAN_OS_VideoInit(_THIS)
++static int BANANOS_VideoInit(_THIS)
 +{
 +	DUMP_FUNCTION();
 +
-+	BANAN_OS_InitMouse(_this);
++	BANANOS_InitMouse(_this);
 +
 +	int fb_fd = open("/dev/fb0", O_RDONLY);
 +	if (fb_fd == -1) {
@@ -543,7 +774,7 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL2-2.3
 +	return 0;
 +}
 +
-+static void BANAN_OS_VideoQuit(_THIS)
++static void BANANOS_VideoQuit(_THIS)
 +{
 +	DUMP_FUNCTION();
 +
@@ -551,14 +782,14 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL2-2.3
 +		s_video_device = nullptr;
 +}
 +
-+static void BANAN_OS_free(_THIS)
++static void BANANOS_free(_THIS)
 +{
 +	DUMP_FUNCTION();
 +	delete static_cast<banan_os_video_device_data*>(_this->driverdata);
 +	SDL_free(_this);
 +}
 +
-+static int BANAN_OS_CreateSDLWindow(_THIS, SDL_Window* window)
++static int BANANOS_CreateSDLWindow(_THIS, SDL_Window* window)
 +{
 +	DUMP_FUNCTION();
 +
@@ -600,7 +831,7 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL2-2.3
 +		[window, ban_window](LibGUI::EventPacket::MouseButtonEvent::event_t event) {
 +			const int state = event.pressed ? SDL_PRESSED : SDL_RELEASED;
 +			SDL_SendMouseMotion(window, 0, ban_window->relative, event.x, event.y);
-+			SDL_SendMouseButton(window, 0, state, BANAN_OS_mouse_button_to_sdl(event.button));
++			SDL_SendMouseButton(window, 0, state, BANANOS_mouse_button_to_sdl(event.button));
 +		}	
 +	);
 +
@@ -651,7 +882,7 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL2-2.3
 +	return 0;
 +}
 +
-+static void BANAN_OS_DestroyWindow(_THIS, SDL_Window* window)
++static void BANANOS_DestroyWindow(_THIS, SDL_Window* window)
 +{
 +	DUMP_FUNCTION();
 +
@@ -667,7 +898,7 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL2-2.3
 +	window->driverdata = nullptr;
 +}
 +
-+static void BANAN_OS_ShowWindow(_THIS, SDL_Window* window)
++static void BANANOS_ShowWindow(_THIS, SDL_Window* window)
 +{
 +	DUMP_FUNCTION();
 +
@@ -681,7 +912,7 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL2-2.3
 +	ban_window.window->set_attributes(attributes);
 +}
 +
-+static void BANAN_OS_HideWindow(_THIS, SDL_Window* window)
++static void BANANOS_HideWindow(_THIS, SDL_Window* window)
 +{
 +	DUMP_FUNCTION();
 +
@@ -695,7 +926,7 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL2-2.3
 +	ban_window.window->set_attributes(attributes);
 +}
 +
-+static void BANAN_OS_SetWindowTitle(_THIS, SDL_Window* window)
++static void BANANOS_SetWindowTitle(_THIS, SDL_Window* window)
 +{
 +	DUMP_FUNCTION();
 +
@@ -703,7 +934,7 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL2-2.3
 +	ban_window.window->set_title(window->title);
 +}
 +
-+static void BANAN_OS_SetWindowPosition(_THIS, SDL_Window* window)
++static void BANANOS_SetWindowPosition(_THIS, SDL_Window* window)
 +{
 +	DUMP_FUNCTION();
 +
@@ -711,7 +942,7 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL2-2.3
 +	ban_window.window->set_position(window->x, window->y);
 +}
 +
-+static void BANAN_OS_SetWindowSize(_THIS, SDL_Window* window)
++static void BANANOS_SetWindowSize(_THIS, SDL_Window* window)
 +{
 +	DUMP_FUNCTION();
 +
@@ -719,7 +950,7 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL2-2.3
 +	ban_window.window->request_resize(window->w, window->h);
 +}
 +
-+static void BANAN_OS_SetWindowMinimumSize(_THIS, SDL_Window* window)
++static void BANANOS_SetWindowMinimumSize(_THIS, SDL_Window* window)
 +{
 +	DUMP_FUNCTION();
 +
@@ -727,7 +958,7 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL2-2.3
 +	ban_window.window->set_min_size(window->min_w, window->min_h);
 +}
 +
-+static void BANAN_OS_SetWindowMaximumSize(_THIS, SDL_Window* window)
++static void BANANOS_SetWindowMaximumSize(_THIS, SDL_Window* window)
 +{
 +	DUMP_FUNCTION();
 +
@@ -735,12 +966,12 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL2-2.3
 +	ban_window.window->set_max_size(window->min_w, window->min_h);
 +}
 +
-+static void BANAN_OS_SetWindowBordered(_THIS, SDL_Window * window, SDL_bool bordered)
++static void BANANOS_SetWindowBordered(_THIS, SDL_Window * window, SDL_bool bordered)
 +{
 +	DUMP_FUNCTION();
 +}
 +
-+static void BANAN_OS_SetWindowResizable(_THIS, SDL_Window * window, SDL_bool resizable)
++static void BANANOS_SetWindowResizable(_THIS, SDL_Window * window, SDL_bool resizable)
 +{
 +	DUMP_FUNCTION();
 +
@@ -751,7 +982,7 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL2-2.3
 +	}
 +}
 +
-+static void BANAN_OS_SetWindowFullscreen(_THIS, SDL_Window * window, SDL_VideoDisplay * display, SDL_bool fullscreen)
++static void BANANOS_SetWindowFullscreen(_THIS, SDL_Window * window, SDL_VideoDisplay * display, SDL_bool fullscreen)
 +{
 +	DUMP_FUNCTION();
 +
@@ -759,7 +990,7 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL2-2.3
 +	ban_window.window->set_fullscreen(fullscreen);
 +}
 +
-+static int BANAN_OS_CreateWindowFramebuffer(_THIS, SDL_Window* window, Uint32* format, void** pixels, int* pitch)
++static int BANANOS_CreateWindowFramebuffer(_THIS, SDL_Window* window, Uint32* format, void** pixels, int* pitch)
 +{
 +	DUMP_FUNCTION();
 +
@@ -783,7 +1014,7 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL2-2.3
 +	return 0;
 +}
 +
-+static int BANAN_OS_UpdateWindowFramebuffer(_THIS, SDL_Window* window, const SDL_Rect* rects, int numrects)
++static int BANANOS_UpdateWindowFramebuffer(_THIS, SDL_Window* window, const SDL_Rect* rects, int numrects)
 +{
 +	DUMP_FUNCTION();
 +
@@ -795,12 +1026,12 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL2-2.3
 +	return 0;
 +}
 +
-+static void BANAN_OS_DestroyWindowFramebuffer(_THIS, SDL_Window* window)
++static void BANANOS_DestroyWindowFramebuffer(_THIS, SDL_Window* window)
 +{
 +	DUMP_FUNCTION();
 +}
 +
-+static void BANAN_OS_PumpEvents(_THIS)
++static void BANANOS_PumpEvents(_THIS)
 +{
 +	DUMP_FUNCTION();
 +
@@ -809,7 +1040,7 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL2-2.3
 +		window->window->poll_events();
 +}
 +
-+static int BANAN_OS_GL_LoadLibrary(_THIS, const char* path)
++static int BANANOS_GL_LoadLibrary(_THIS, const char* path)
 +{
 +	DUMP_FUNCTION();
 +
@@ -822,14 +1053,14 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL2-2.3
 +	return 0;
 +}
 +
-+static void* BANAN_OS_GL_GetProcAddress(_THIS, const char* proc)
++static void* BANANOS_GL_GetProcAddress(_THIS, const char* proc)
 +{
 +	DUMP_FUNCTION();
 +
 +	return reinterpret_cast<void*>(OSMesaGetProcAddress(proc));
 +}
 +
-+static SDL_GLContext BANAN_OS_GL_CreateContext(_THIS, SDL_Window* window)
++static SDL_GLContext BANANOS_GL_CreateContext(_THIS, SDL_Window* window)
 +{
 +	DUMP_FUNCTION();
 +	
@@ -853,7 +1084,7 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL2-2.3
 +	return gl_context;
 +}
 +
-+static void BANAN_OS_GL_DeleteContext(_THIS, SDL_GLContext context)
++static void BANANOS_GL_DeleteContext(_THIS, SDL_GLContext context)
 +{
 +	DUMP_FUNCTION();
 +
@@ -861,7 +1092,7 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL2-2.3
 +	OSMesaDestroyContext(gl_context);
 +}
 +
-+static int BANAN_OS_GL_MakeCurrent(_THIS, SDL_Window* window, SDL_GLContext context)
++static int BANANOS_GL_MakeCurrent(_THIS, SDL_Window* window, SDL_GLContext context)
 +{
 +	DUMP_FUNCTION();
 +
@@ -880,7 +1111,7 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL2-2.3
 +	return 0;
 +}
 +
-+static int BANAN_OS_GL_SwapWindow(_THIS, SDL_Window* window)
++static int BANANOS_GL_SwapWindow(_THIS, SDL_Window* window)
 +{
 +	DUMP_FUNCTION();
 +
@@ -895,7 +1126,7 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL2-2.3
 +	return 0;
 +}
 +
-+static SDL_VideoDevice* BANAN_OS_CreateDevice(void)
++static SDL_VideoDevice* BANANOS_CreateDevice(void)
 +{
 +	DUMP_FUNCTION();
 +
@@ -911,70 +1142,70 @@ diff -ruN SDL-release-2.30.11/src/video/banan_os/SDL_banan_os_video.cpp SDL2-2.3
 +		return nullptr;
 +	}
 +
-+	device->VideoInit = BANAN_OS_VideoInit;
-+	device->VideoQuit = BANAN_OS_VideoQuit;
++	device->VideoInit = BANANOS_VideoInit;
++	device->VideoQuit = BANANOS_VideoQuit;
 +
-+	device->CreateSDLWindow = BANAN_OS_CreateSDLWindow;
-+	device->DestroyWindow = BANAN_OS_DestroyWindow;
-+	device->ShowWindow = BANAN_OS_ShowWindow;
-+	device->HideWindow = BANAN_OS_HideWindow;
++	device->CreateSDLWindow = BANANOS_CreateSDLWindow;
++	device->DestroyWindow = BANANOS_DestroyWindow;
++	device->ShowWindow = BANANOS_ShowWindow;
++	device->HideWindow = BANANOS_HideWindow;
 +
-+	device->SetWindowTitle = BANAN_OS_SetWindowTitle;
-+	device->SetWindowPosition = BANAN_OS_SetWindowPosition;
-+	device->SetWindowSize = BANAN_OS_SetWindowSize;
-+	device->SetWindowMinimumSize = BANAN_OS_SetWindowMinimumSize;
-+	device->SetWindowMaximumSize = BANAN_OS_SetWindowMaximumSize;
-+	device->SetWindowBordered = BANAN_OS_SetWindowBordered;
-+	device->SetWindowResizable = BANAN_OS_SetWindowResizable;
-+	device->SetWindowFullscreen = BANAN_OS_SetWindowFullscreen;
++	device->SetWindowTitle = BANANOS_SetWindowTitle;
++	device->SetWindowPosition = BANANOS_SetWindowPosition;
++	device->SetWindowSize = BANANOS_SetWindowSize;
++	device->SetWindowMinimumSize = BANANOS_SetWindowMinimumSize;
++	device->SetWindowMaximumSize = BANANOS_SetWindowMaximumSize;
++	device->SetWindowBordered = BANANOS_SetWindowBordered;
++	device->SetWindowResizable = BANANOS_SetWindowResizable;
++	device->SetWindowFullscreen = BANANOS_SetWindowFullscreen;
 +
-+	device->CreateWindowFramebuffer = BANAN_OS_CreateWindowFramebuffer;
-+	device->UpdateWindowFramebuffer = BANAN_OS_UpdateWindowFramebuffer;
-+	device->DestroyWindowFramebuffer = BANAN_OS_DestroyWindowFramebuffer;
++	device->CreateWindowFramebuffer = BANANOS_CreateWindowFramebuffer;
++	device->UpdateWindowFramebuffer = BANANOS_UpdateWindowFramebuffer;
++	device->DestroyWindowFramebuffer = BANANOS_DestroyWindowFramebuffer;
 +
-+	device->PumpEvents = BANAN_OS_PumpEvents;
++	device->PumpEvents = BANANOS_PumpEvents;
 +
-+	device->GL_LoadLibrary = BANAN_OS_GL_LoadLibrary;
-+	device->GL_GetProcAddress = BANAN_OS_GL_GetProcAddress;
-+	device->GL_CreateContext = BANAN_OS_GL_CreateContext;
-+	device->GL_DeleteContext = BANAN_OS_GL_DeleteContext;
-+	device->GL_MakeCurrent = BANAN_OS_GL_MakeCurrent;
-+	device->GL_SwapWindow = BANAN_OS_GL_SwapWindow;
++	device->GL_LoadLibrary = BANANOS_GL_LoadLibrary;
++	device->GL_GetProcAddress = BANANOS_GL_GetProcAddress;
++	device->GL_CreateContext = BANANOS_GL_CreateContext;
++	device->GL_DeleteContext = BANANOS_GL_DeleteContext;
++	device->GL_MakeCurrent = BANANOS_GL_MakeCurrent;
++	device->GL_SwapWindow = BANANOS_GL_SwapWindow;
 +
-+	device->free = BANAN_OS_free;
++	device->free = BANANOS_free;
 +
 +	return device;
 +}
 +
-+VideoBootStrap BANAN_OS_bootstrap = {
++VideoBootStrap BANANOS_bootstrap = {
 +	"banan-os", "banan-os graphics",
-+	BANAN_OS_CreateDevice,
-+	BANAN_OS_ShowMessageBox
++	BANANOS_CreateDevice,
++	BANANOS_ShowMessageBox
 +};
 +
-+#endif /* SDL_VIDEO_DRIVER_BANAN_OS */
++#endif /* SDL_VIDEO_DRIVER_BANANOS */
 +
 +/* vi: set ts=4 sw=4 expandtab: */
 diff -ruN SDL-release-2.30.11/src/video/SDL_sysvideo.h SDL2-2.30.11-banan_os/src/video/SDL_sysvideo.h
 --- SDL-release-2.30.11/src/video/SDL_sysvideo.h	2025-01-01 19:09:38.000000000 +0200
-+++ SDL2-2.30.11-banan_os/src/video/SDL_sysvideo.h	2025-08-03 14:04:09.895655165 +0300
++++ SDL2-2.30.11-banan_os/src/video/SDL_sysvideo.h	2025-08-05 17:08:39.347526307 +0300
 @@ -462,6 +462,7 @@
  extern VideoBootStrap WINDOWS_bootstrap;
  extern VideoBootStrap WINRT_bootstrap;
  extern VideoBootStrap HAIKU_bootstrap;
-+extern VideoBootStrap BANAN_OS_bootstrap;
++extern VideoBootStrap BANANOS_bootstrap;
  extern VideoBootStrap PND_bootstrap;
  extern VideoBootStrap UIKIT_bootstrap;
  extern VideoBootStrap Android_bootstrap;
 diff -ruN SDL-release-2.30.11/src/video/SDL_video.c SDL2-2.30.11-banan_os/src/video/SDL_video.c
 --- SDL-release-2.30.11/src/video/SDL_video.c	2025-01-01 19:09:38.000000000 +0200
-+++ SDL2-2.30.11-banan_os/src/video/SDL_video.c	2025-08-03 14:04:09.896007237 +0300
++++ SDL2-2.30.11-banan_os/src/video/SDL_video.c	2025-08-05 17:08:39.290603474 +0300
 @@ -94,6 +94,9 @@
  #ifdef SDL_VIDEO_DRIVER_HAIKU
      &HAIKU_bootstrap,
  #endif
-+#ifdef SDL_VIDEO_DRIVER_BANAN_OS
-+	&BANAN_OS_bootstrap,
++#ifdef SDL_VIDEO_DRIVER_BANANOS
++	&BANANOS_bootstrap,
 +#endif
  #ifdef SDL_VIDEO_DRIVER_PANDORA
      &PND_bootstrap,
