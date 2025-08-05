@@ -102,6 +102,12 @@ namespace Kernel
 					last_event.move_event.rel_y += curr_event.move_event.rel_y;
 					return;
 				}
+				if (last_event.type == LibInput::MouseEventType::MouseMoveAbsEvent && curr_event.type == LibInput::MouseEventType::MouseMoveAbsEvent)
+				{
+					last_event.move_abs_event.abs_x = curr_event.move_abs_event.abs_x;
+					last_event.move_abs_event.abs_y = curr_event.move_abs_event.abs_y;
+					return;
+				}
 				if (last_event.type == LibInput::MouseEventType::MouseScrollEvent && curr_event.type == LibInput::MouseEventType::MouseScrollEvent)
 				{
 					last_event.scroll_event.scroll += curr_event.scroll_event.scroll;
