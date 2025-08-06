@@ -311,3 +311,11 @@ error_close_socket:
 	close(socket);
 	return nullptr;
 }
+
+#include <BAN/Debug.h>
+
+struct servent* getservbyname(const char* name, const char* proto)
+{
+	dwarnln("TODO: getservbyname(\"{}\", \"{}\")", name, proto);
+	return nullptr;
+}
