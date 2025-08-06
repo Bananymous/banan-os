@@ -19,6 +19,15 @@ int clock_gettime(clockid_t clock_id, struct timespec* tp)
 	return syscall(SYS_CLOCK_GETTIME, clock_id, tp);
 }
 
+int clock_getres(clockid_t clock_id, struct timespec* res)
+{
+	(void)clock_id;
+	res->tv_sec = 0;
+	res->tv_nsec = 10;
+	dprintln("TODO: clock_getres");
+	return 0;
+}
+
 int nanosleep(const struct timespec* rqtp, struct timespec* rmtp)
 {
 	pthread_testcancel();
