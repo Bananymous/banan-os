@@ -69,6 +69,13 @@ int setrlimit(int resource, const struct rlimit* rlp)
 	return -1;
 }
 
+int getpriority(int which, id_t who)
+{
+	dwarnln("TODO: getpriority({}, {}, {})", which, who);
+	errno = ENOTSUP;
+	return -1;
+}
+
 int setpriority(int which, id_t who, int value)
 {
 	dwarnln("TODO: setpriority({}, {}, {})", which, who, value);
