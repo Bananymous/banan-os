@@ -1,0 +1,25 @@
+From fd5308b45021ca18e7703d810e2e2ba86c174669 Mon Sep 17 00:00:00 2001
+From: Oskari Alaranta <oskari.alaranta@bananymous.com>
+Date: Sun, 10 Aug 2025 01:56:26 +0300
+Subject: [PATCH] set timidity config path
+
+---
+ doomgeneric/i_sdlmusic.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/doomgeneric/i_sdlmusic.c b/doomgeneric/i_sdlmusic.c
+index f56392f..80b9021 100644
+--- a/doomgeneric/i_sdlmusic.c
++++ b/doomgeneric/i_sdlmusic.c
+@@ -110,7 +110,7 @@ static boolean sdl_was_initialized = false;
+ static boolean musicpaused = false;
+ static int current_music_volume;
+ 
+-char *timidity_cfg_path = "";
++char *timidity_cfg_path = "/etc/timidity.cfg";
+ 
+ static char *temp_timidity_cfg = NULL;
+ 
+-- 
+2.50.1
+
