@@ -8,6 +8,7 @@
 #include <grp.h>
 #include <pwd.h>
 #include <stdio.h>
+#include <sys/ioctl.h>
 #include <sys/stat.h>
 
 struct config_t
@@ -36,6 +37,9 @@ struct full_entry_t
 	BAN::String time;
 	BAN::String full_name;
 };
+
+bool g_stdout_terminal { false };
+winsize g_terminal_size {};
 
 const char* entry_color(mode_t mode)
 {
@@ -114,6 +118,37 @@ BAN::String build_time_string(BAN::Time time)
 	if (time.year != current_year)
 		return MUST(BAN::String::formatted("{}", time.year));
 	return MUST(BAN::String::formatted("{2}:{2}", time.hour, time.minute));
+}
+
+BAN::Vector<size_t> resolve_column_widths(const BAN::Vector<simple_entry_t>& entries, size_t columns)
+{
+	BAN::Vector<size_t> widths;
+	MUST(widths.resize(columns));
+
+	const size_t rows = BAN::Math::div_round_up(entries.size(), columns);
+	for (size_t i = 0; i < entries.size(); i++)
+		widths[i / rows] = BAN::Math::max(widths[i / rows], entries[i].name.size());
+
+	size_t full_width = (columns - 1);
+	for (auto width : widths)
+	{
+		if (width == 0)
+			return {};
+		full_width += width;
+	}
+
+	if (full_width <= g_terminal_size.ws_col)
+		return widths;
+
+	return {};
+}
+
+BAN::Vector<size_t> resolve_layout(const BAN::Vector<simple_entry_t>& entries)
+{
+	for (size_t columns = entries.size(); columns > 1; columns--)
+		if (auto widths = resolve_column_widths(entries, columns); !widths.empty())
+			return widths;
+	return {};
 }
 
 int list_directory(const BAN::String& path, config_t config)
@@ -198,14 +233,59 @@ int list_directory(const BAN::String& path, config_t config)
 
 	if (!config.list)
 	{
-		for (size_t i = 0; i < entries.size(); i++)
+		if (!g_stdout_terminal)
 		{
-			if (i > 0)
-				printf(" ");
-			const char* format = entries[i].name.sv().contains(' ') ? "'%s%s\e[m'" : "%s%s\e[m";
-			printf(format, entry_color(entries[i].st.st_mode), entries[i].name.data());
+			for (const auto& entry : entries)
+				printf("%s\n", entry.name.data());
+			return ret;
 		}
-		printf("\n");
+
+		bool should_quote = false;
+		for (size_t i = 0; i < entries.size() && !should_quote; i++)
+			should_quote = entries[i].name.sv().contains(' ');
+		if (!should_quote)
+			for (auto& entry : entries)
+				MUST(entry.name.push_back(' '));
+		else
+		{
+			for (auto& entry : entries)
+			{
+				const char ch = entry.name.sv().contains(' ') ? '\'' : ' ';
+				MUST(entry.name.insert(ch, 0));
+				MUST(entry.name.push_back(ch));
+			}
+		}
+
+		auto layout = resolve_layout(entries);
+
+		if (layout.empty())
+			for (const auto& entry : entries)
+				printf("%s%s\e[m\n", entry_color(entry.st.st_mode), entry.name.data());
+		else
+		{
+			const size_t cols = layout.size();
+			const size_t rows = BAN::Math::div_round_up(entries.size(), cols);
+
+			for (size_t row = 0; row < rows; row++)
+			{
+				for (size_t col = 0; col < cols; col++)
+				{
+					const size_t i = col * rows + row;
+					if (i >= entries.size())
+						break;
+
+					char format[32];
+					sprintf(format, "%%s%%-%zus\e[m", layout[col]);
+
+					if (col != 0)
+						printf(" ");
+					printf(format, entry_color(entries[i].st.st_mode), entries[i].name.data());
+				}
+
+				printf("\n");
+			}
+		}
+
 		return ret;
 	}
 
@@ -325,6 +405,8 @@ int main(int argc, const char* argv[])
 		MUST(files.emplace_back("."_sv));
 	else for (; i < argc; i++)
 		MUST(files.emplace_back(BAN::StringView(argv[i])));
+
+	g_stdout_terminal = isatty(STDOUT_FILENO) && ioctl(STDOUT_FILENO, TIOCGWINSZ, &g_terminal_size) == 0;
 
 	int ret = 0;
 	for (size_t i = 0; i < files.size(); i++)
