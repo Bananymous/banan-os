@@ -35,7 +35,9 @@ namespace Kernel
 		// FIXME: kernel stack does NOT have to be this big, but my recursive AML interpreter
 		//        stack overflows on some machines with 8 page stack
 		static constexpr size_t kernel_stack_size    { PAGE_SIZE * 16 };
-		static constexpr size_t userspace_stack_size { PAGE_SIZE * 128 };
+
+		// TODO: userspace stack is hard limited to 32 MiB, maybe make this dynamic?
+		static constexpr size_t userspace_stack_size { 32 << 20 };
 
 	public:
 		static BAN::ErrorOr<Thread*> create_kernel(entry_t, void*);

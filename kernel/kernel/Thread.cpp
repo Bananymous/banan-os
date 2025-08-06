@@ -138,7 +138,7 @@ namespace Kernel
 			stack_addr_start, USERSPACE_END,
 			userspace_stack_size,
 			PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present,
-			true, true
+			false, true
 		));
 
 		thread_deleter.disable();
@@ -217,6 +217,7 @@ namespace Kernel
 		save_sse();
 		memcpy(thread->m_sse_storage, m_sse_storage, sizeof(m_sse_storage));
 
+		TRY(thread->userspace_stack().allocate_page_for_demand_paging(thread->userspace_stack_top() - PAGE_SIZE));
 		PageTable::with_fast_page(thread->userspace_stack().paddr_of(thread->userspace_stack_top() - PAGE_SIZE), [=] {
 			PageTable::fast_page_as<void*>(PAGE_SIZE - sizeof(uintptr_t)) = arg;
 		});
@@ -298,6 +299,10 @@ namespace Kernel
 			return BAN::Error::from_errno(ENOBUFS);
 
 		vaddr_t vaddr = userspace_stack_top() - needed_size;
+
+		const size_t page_count = BAN::Math::div_round_up(needed_size, PAGE_SIZE);
+		for (size_t i = 0; i < page_count; i++)
+			TRY(m_userspace_stack->allocate_page_for_demand_paging(vaddr + i * PAGE_SIZE));
 
 		const auto stack_copy_buf =
 			[this](BAN::ConstByteSpan buffer, vaddr_t vaddr) -> void

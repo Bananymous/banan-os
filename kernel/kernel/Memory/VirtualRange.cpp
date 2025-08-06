@@ -143,7 +143,7 @@ namespace Kernel
 	BAN::ErrorOr<bool> VirtualRange::allocate_page_for_demand_paging(vaddr_t vaddr)
 	{
 		ASSERT(contains(vaddr));
-		ASSERT(&PageTable::current() == &m_page_table);
+		vaddr &= PAGE_ADDR_MASK;
 
 		if (m_preallocated)
 			return false;
@@ -158,8 +158,11 @@ namespace Kernel
 		if (m_paddrs[index] == 0)
 			return BAN::Error::from_errno(ENOMEM);
 
+		PageTable::with_fast_page(m_paddrs[index], []{
+			memset(PageTable::fast_page_as_ptr(), 0x00, PAGE_SIZE);
+		});
+
 		m_page_table.map_page_at(m_paddrs[index], vaddr, m_flags);
-		memset(reinterpret_cast<void*>(vaddr), 0, PAGE_SIZE);
 
 		return true;
 	}
