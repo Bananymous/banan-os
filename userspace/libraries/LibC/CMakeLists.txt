@@ -27,6 +27,7 @@ set(LIBC_SOURCES
 	pwd.cpp
 	scanf_impl.cpp
 	sched.cpp
+	semaphore.cpp
 	setjmp.cpp
 	signal.cpp
 	stdio.cpp
