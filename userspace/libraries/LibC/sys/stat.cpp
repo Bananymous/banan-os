@@ -1,4 +1,5 @@
 #include <BAN/Assert.h>
+#include <BAN/Debug.h>
 
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -52,6 +53,34 @@ mode_t umask(mode_t cmask)
 int mkdir(const char* path, mode_t mode)
 {
 	return syscall(SYS_CREATE_DIR, path, __UMASKED_MODE(mode));
+}
+
+int mkfifo(const char* path, mode_t mode)
+{
+	(void)path; (void)mode;
+	dwarnln("TODO: mkfifo");
+	return -1;
+}
+
+int mkfifoat(int fd, const char* path, mode_t mode)
+{
+	(void)fd; (void)path; (void)mode;
+	dwarnln("TODO: mkfifoat");
+	return -1;
+}
+
+int mknod(const char* path, mode_t mode, dev_t dev)
+{
+	(void)path; (void)mode; (void)dev;
+	dwarnln("TODO: mknod");
+	return -1;
+}
+
+int mknodat(int fd, const char* path, mode_t mode, dev_t dev)
+{
+	(void)fd; (void)path; (void)mode; (void)dev;
+	dwarnln("TODO: mknodat");
+	return -1;
 }
 
 int futimens(int fd, const struct timespec times[2])
