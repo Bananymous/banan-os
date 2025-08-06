@@ -12,6 +12,7 @@ set(LIBC_SOURCES
 	fenv.cpp
 	ftw.cpp
 	grp.cpp
+	ifaddrs.cpp
 	inttypes.cpp
 	langinfo.cpp
 	libgen.cpp
