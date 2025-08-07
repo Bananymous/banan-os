@@ -927,42 +927,79 @@ acpi_release_global_lock:
 				return 0;
 			};
 
+#define FIND_GPE(idx)                                                             \
+			BAN::Optional<GAS> gpe##idx;                                          \
+			{                                                                     \
+				const uint8_t null[sizeof(GAS)] {};                               \
+				if (fadt().length > offsetof(FADT, x_gpe##idx##_blk)              \
+					&& memcmp(fadt().x_gpe##idx##_blk, null, sizeof(GAS)) == 0) { \
+					auto gas = *reinterpret_cast<GAS*>(fadt().x_gpe##idx##_blk);  \
+					if (!gas.read().is_error())                                   \
+						gpe0 = gas;                                               \
+				}                                                                 \
+                                                                                  \
+				if (!gpe##idx.has_value() && fadt().gpe##idx##_blk) {             \
+					gpe##idx = GAS {                                              \
+						.address_space_id = GAS::AddressSpaceID::SystemIO,        \
+						.register_bit_width = 8,                                  \
+						.register_bit_offset = 0,                                 \
+						.access_size = 1,                                         \
+						.address = fadt().gpe##idx##_blk,                         \
+					};                                                            \
+				}                                                                 \
+			}
+
+		FIND_GPE(0);
+		FIND_GPE(1);
+
 		while (true)
 		{
 			uint16_t sts_port;
 			uint16_t pending;
 
-			sts_port = fadt().pm1a_evt_blk;
-			if (pending = get_fixed_event(sts_port); pending)
-				goto handle_event;
-
-			sts_port = fadt().pm1b_evt_blk;
-			if (pending = get_fixed_event(sts_port); pending)
-				goto handle_event;
-
-			{
-				bool handled_event = false;
-				uint8_t gpe0_bytes = fadt().gpe0_blk_len / 2;
-				for (uint8_t i = 0; i < gpe0_bytes; i++)
+			const auto read_gpe = [this](GAS gpe, uint8_t gpe_blk_len, uint32_t base) -> bool {
+				for (uint8_t i = 0; i < gpe_blk_len / 2; i++)
 				{
-					uint8_t sts = IO::inb(fadt().gpe0_blk + i);
-					uint8_t en = IO::inb(fadt().gpe0_blk + gpe0_bytes + i);
-					pending = sts & en;
+					auto status  = ({ auto tmp = gpe; tmp.address +=                     i; tmp; });
+					auto enabled = ({ auto tmp = gpe; tmp.address += (gpe_blk_len / 2) + i; tmp; });
+					const uint8_t pending = MUST(status.read()) & MUST(enabled.read());
 					if (pending == 0)
 						continue;
 
-					auto index = i * 8 + (pending & ~(pending - 1));
-					if (m_gpe_methods[index])
-						if (auto ret = AML::method_call(m_gpe_scope, m_gpe_methods[index]->node, BAN::Array<AML::Reference*, 7>{}); ret.is_error())
+					for (size_t bit = 0; bit < 8; bit++)
+					{
+						if (!(pending & (1 << bit)))
+							continue;
+
+						const auto index = base + i * 8 + bit;
+						if (auto* method = m_gpe_methods[index]; method == nullptr)
+							dwarnln("No handler for _GPE {}", index);
+						else if (auto ret = AML::method_call(m_gpe_scope, method->node, BAN::Array<AML::Reference*, 7>{}); ret.is_error())
 							dwarnln("Failed to evaluate _GPE {}: ", index, ret.error());
+						else
+							dprintln("handled _GPE {}", index);
+					}
 
-					handled_event = true;
-					IO::outb(fadt().gpe0_blk + i, 1 << index);
+					MUST(status.write(pending));
+					return true;
 				}
-				if (handled_event)
-					continue;
-			}
 
+				return false;
+			};
+
+			sts_port = fadt().pm1a_evt_blk;
+			if ((pending = get_fixed_event(sts_port)))
+				goto handle_event;
+
+			sts_port = fadt().pm1b_evt_blk;
+			if ((pending = get_fixed_event(sts_port)))
+				goto handle_event;
+
+			if (gpe0.has_value() && read_gpe(gpe0.value(), fadt().gpe0_blk_len, 0))
+				continue;
+
+			if (gpe1.has_value() && read_gpe(gpe1.value(), fadt().gpe1_blk_len, fadt().gpe1_base))
+				continue;
 
 			// FIXME: this can cause missing of event if it happens between
 			//        reading the status and blocking
