@@ -59,6 +59,8 @@ enum
 #define IPV6_V6ONLY IPV6_V6ONLY
 };
 
+#define IN_MULTICAST(a) (((in_addr_t)(a) & 0xF0000000) == 0xE0000000)
+
 #define INADDR_ANY			0
 #define INADDR_NONE			0xFFFFFFFF
 #define INADDR_BROADCAST	0xFFFFFFFF
@@ -67,20 +69,48 @@ enum
 #define IN6ADDR_ANY_INIT		{ { { 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 } } }
 #define IN6ADDR_LOOPBACK_INIT	{ { { 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1 } } }
 
-#if 0
-#define IN6_IS_ADDR_UNSPECIFIED(addr)
-#define IN6_IS_ADDR_LOOPBACK(addr)
-#define IN6_IS_ADDR_MULTICAST(addr)
-#define IN6_IS_ADDR_LINKLOCAL(addr)
-#define IN6_IS_ADDR_SITELOCAL(addr)
-#define IN6_IS_ADDR_V4MAPPED(addr)
-#define IN6_IS_ADDR_V4COMPAT(addr)
-#define IN6_IS_ADDR_MC_NODELOCAL(addr)
-#define IN6_IS_ADDR_MC_LINKLOCAL(addr)
-#define IN6_IS_ADDR_MC_SITELOCAL(addr)
-#define IN6_IS_ADDR_MC_ORGLOCAL(addr)
-#define IN6_IS_ADDR_MC_GLOBAL(addr)
-#endif
+#define IN6_IS_ADDR_UNSPECIFIED(a) \
+	((a)->s6_addr32[0] == 0 && \
+	 (a)->s6_addr32[1] == 0 && \
+	 (a)->s6_addr32[2] == 0 && \
+	 (a)->s6_addr32[3] == 0)
+#define IN6_IS_ADDR_LOOPBACK(a) \
+	((a)->s6_addr32[0] == 0 && \
+	 (a)->s6_addr32[1] == 0 && \
+	 (a)->s6_addr32[2] == 0 && \
+	 (a)->s6_addr32[3] == htonl(1))
+#define IN6_IS_ADDR_MULTICAST(a) \
+	((a)->s6_addr[0] == 0xFF)
+#define IN6_IS_ADDR_LINKLOCAL(a) \
+	((a)->s6_addr[0] == 0xFE && \
+	((a)->s6_addr[1] & 0xC0) == 0x80)
+#define IN6_IS_ADDR_SITELOCAL(a) \
+	((a)->s6_addr[0] == 0xFE && \
+	((a)->s6_addr[1] & 0xC0) == 0xC0)
+#define IN6_IS_ADDR_V4MAPPED(a) \
+	((a)->s6_addr32[0] == 0 && \
+	 (a)->s6_addr32[1] == 0 && \
+	 (a)->s6_addr32[2] == htonl(0x0000FFFF))
+#define IN6_IS_ADDR_V4COMPAT(a) \
+	((a)->s6_addr32[0] == 0 && \
+	 (a)->s6_addr32[1] == 0 && \
+	 (a)->s6_addr32[2] == 0 && \
+	 ntohl((a)->s6_addr32[3]) > 1)
+#define IN6_IS_ADDR_MC_NODELOCAL(a) \
+	(IN6_IS_ADDR_MULTICAST(a) && \
+	((a)->s6_addr[1] & 0x0F) == 0x01)
+#define IN6_IS_ADDR_MC_LINKLOCAL(a) \
+	(IN6_IS_ADDR_MULTICAST(a) && \
+	((a)->s6_addr[1] & 0x0F) == 0x02)
+#define IN6_IS_ADDR_MC_SITELOCAL(a) \
+	(IN6_IS_ADDR_MULTICAST(a) && \
+	((a)->s6_addr[1] & 0x0F) == 0x05)
+#define IN6_IS_ADDR_MC_ORGLOCAL(a) \
+	(IN6_IS_ADDR_MULTICAST(a) && \
+	((a)->s6_addr[1] & 0x0F) == 0x08)
+#define IN6_IS_ADDR_MC_GLOBAL(a) \
+	(IN6_IS_ADDR_MULTICAST(a) && \
+	((a)->s6_addr[1] & 0x0F) == 0x0E)
 
 struct sockaddr_in
 {
@@ -92,7 +122,10 @@ struct sockaddr_in
 
 struct in6_addr
 {
-	uint8_t s6_addr[16];
+	union {
+		uint8_t s6_addr[16];
+		uint32_t s6_addr32[4];
+	};
 };
 
 struct sockaddr_in6
