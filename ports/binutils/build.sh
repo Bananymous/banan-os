@@ -3,7 +3,7 @@
 NAME='binutils'
 VERSION='2.44'
 DOWNLOAD_URL="https://ftp.gnu.org/gnu/binutils/binutils-$VERSION.tar.gz#0cdd76777a0dfd3dd3a63f215f030208ddb91c2361d2bcc02acec0f1c16b6a2e"
-DEPENDENCIES=('zlib')
+DEPENDENCIES=('zlib' 'zstd')
 MAKE_INSTALL_TARGETS=('install-strip')
 CONFIGURE_OPTIONS=(
 	"--target=$BANAN_TOOLCHAIN_TRIPLE"
@@ -15,6 +15,13 @@ CONFIGURE_OPTIONS=(
 	'--disable-nls'
 	'--disable-werror'
 )
+
+pre_configure() {
+	unset PKG_CONFIG_DIR
+	unset PKG_CONFIG_SYSROOT_DIR
+	unset PKG_CONFIG_LIBDIR
+	unset PKG_CONFIG_PATH
+}
 
 post_install() {
 	# remove libtool files
