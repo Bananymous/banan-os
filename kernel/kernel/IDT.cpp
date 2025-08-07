@@ -207,26 +207,6 @@ namespace Kernel
 						goto done;
 					}
 				}
-
-				// Check if stack is OOB
-				if (ARCH(i686) && !GDT::is_user_segment(interrupt_stack->cs))
-					; // 32 bit does not push stack pointer when no CPL change happens
-				else if (thread.userspace_stack_bottom() < interrupt_stack->sp && interrupt_stack->sp <= thread.userspace_stack_top())
-					; // using userspace stack
-				else if (thread.kernel_stack_bottom() < interrupt_stack->sp && interrupt_stack->sp <= thread.kernel_stack_top())
-					; // using kernel stack
-				else
-				{
-					derrorln("Stack pointer out of bounds!");
-					derrorln("rip {H}", interrupt_stack->ip);
-					derrorln("rsp {H}, userspace stack {H}->{H}, kernel stack {H}->{H}",
-						interrupt_stack->sp,
-						thread.userspace_stack_bottom(), thread.userspace_stack_top(),
-						thread.kernel_stack_bottom(), thread.kernel_stack_top()
-					);
-					Thread::current().handle_signal(SIGKILL);
-					goto done;
-				}
 			}
 		}
 
