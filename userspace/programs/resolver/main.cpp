@@ -442,6 +442,7 @@ int main(int, char**)
 					.sin_family = AF_INET,
 					.sin_port = 0,
 					.sin_addr = { .s_addr = resolved->raw },
+					.sin_zero = {},
 				};
 
 				if (send(client.socket, &addr, sizeof(addr), 0) == -1)
@@ -489,6 +490,7 @@ int main(int, char**)
 					.sin_family = AF_INET,
 					.sin_port = 0,
 					.sin_addr = { .s_addr = result->raw },
+					.sin_zero = {},
 				};
 
 				if (send(client.socket, &addr, sizeof(addr), 0) == -1)

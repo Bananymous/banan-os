@@ -87,6 +87,7 @@ struct sockaddr_in
 	sa_family_t		sin_family;	/* AF_INET. */
 	in_port_t		sin_port;	/* Port number. */
 	struct in_addr	sin_addr;	/* IP address. */
+	unsigned char	sin_zero[8];
 };
 
 struct in6_addr
