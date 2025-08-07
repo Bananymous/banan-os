@@ -109,7 +109,9 @@ namespace Kernel
 
 			if (file_type == DIRTYPE)
 			{
-				if (auto ret = parent_inode->create_directory(file_name_sv, file_mode, file_uid, file_gid); ret.is_error())
+				if (file_name_sv == "."_sv)
+					; // NOTE: don't create "." (root)
+				else if (auto ret = parent_inode->create_directory(file_name_sv, file_mode, file_uid, file_gid); ret.is_error())
 					dwarnln("failed to create directory '{}': {}", file_name_sv, ret.error());
 			}
 			else if (file_type == LNKTYPE)
