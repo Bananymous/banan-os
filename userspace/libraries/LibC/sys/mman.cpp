@@ -45,8 +45,28 @@ int posix_madvise(void* addr, size_t len, int advice)
 }
 
 #include <BAN/Assert.h>
+#include <BAN/Debug.h>
+#include <errno.h>
 
 int mlock(const void*, size_t)
 {
 	ASSERT_NOT_REACHED();
+}
+
+int shm_open(const char* name, int oflag, mode_t mode)
+{
+	(void)name;
+	(void)oflag;
+	(void)mode;
+	dwarnln("TODO: shm_open");
+	errno = ENOTSUP;
+	return -1;
+}
+
+int shm_unlink(const char* name)
+{
+	(void)name;
+	dwarnln("TODO: shm_unlink");
+	errno = ENOTSUP;
+	return -1;
 }
