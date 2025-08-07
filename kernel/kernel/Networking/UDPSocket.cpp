@@ -4,6 +4,7 @@
 #include <kernel/Thread.h>
 
 #include <sys/epoll.h>
+#include <sys/ioctl.h>
 
 namespace Kernel
 {
@@ -136,6 +137,24 @@ namespace Kernel
 		if (!is_bound())
 			TRY(m_network_layer.bind_socket_to_unused(this, address, address_len));
 		return TRY(m_network_layer.sendto(*this, message, address, address_len));
+	}
+
+	BAN::ErrorOr<long> UDPSocket::ioctl_impl(int request, void* argument)
+	{
+		switch (request)
+		{
+			case FIONREAD:
+			{
+				SpinLockGuard guard(m_packet_lock);
+				if (m_packets.empty())
+					*static_cast<int*>(argument) = 0;
+				else
+					*static_cast<int*>(argument) = m_packets.front().packet_size;
+				return 0;
+			}
+		}
+
+		return NetworkSocket::ioctl_impl(request, argument);
 	}
 
 }

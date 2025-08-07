@@ -37,6 +37,8 @@ __BEGIN_DECLS
 
 #define KDLOADFONT	30
 
+#define FIONREAD	40 /* get number of input bytes available */
+
 struct winsize
 {
 	unsigned short ws_row;

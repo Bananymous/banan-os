@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <sys/epoll.h>
+#include <sys/ioctl.h>
 
 namespace Kernel
 {
@@ -253,6 +254,18 @@ namespace Kernel
 		memcpy(address, &m_connection_info->address, to_copy);
 		*address_len = to_copy;
 		return {};
+	}
+
+	BAN::ErrorOr<long> TCPSocket::ioctl_impl(int request, void* argument)
+	{
+		switch (request)
+		{
+			case FIONREAD:
+				*static_cast<int*>(argument) = m_recv_window.data_size;
+				return 0;
+		}
+
+		return NetworkSocket::ioctl_impl(request, argument);
 	}
 
 	bool TCPSocket::can_read_impl() const

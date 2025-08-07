@@ -38,6 +38,8 @@ namespace Kernel
 		virtual BAN::ErrorOr<size_t> recvfrom_impl(BAN::ByteSpan buffer, sockaddr* address, socklen_t* address_len) override;
 		virtual BAN::ErrorOr<void> getpeername_impl(sockaddr*, socklen_t*) override { return BAN::Error::from_errno(ENOTCONN); }
 
+		virtual BAN::ErrorOr<long> ioctl_impl(int, void*) override;
+
 		virtual bool can_read_impl() const override { return !m_packets.empty(); }
 		virtual bool can_write_impl() const override { return true; }
 		virtual bool has_error_impl() const override { return false; }
@@ -59,7 +61,7 @@ namespace Kernel
 		BAN::CircularQueue<PacketInfo, 32>	m_packets;
 		size_t								m_packet_total_size { 0 };
 		SpinLock							m_packet_lock;
-		ThreadBlocker							m_packet_thread_blocker;
+		ThreadBlocker						m_packet_thread_blocker;
 
 		friend class BAN::RefPtr<UDPSocket>;
 	};
