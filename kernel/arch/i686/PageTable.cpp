@@ -497,13 +497,13 @@ namespace Kernel
 		return true;
 	}
 
-	bool PageTable::reserve_page(vaddr_t vaddr, bool only_free)
+	bool PageTable::reserve_page(vaddr_t vaddr, bool only_free, bool send_smp_message)
 	{
 		SpinLockGuard _(m_lock);
 		ASSERT(vaddr % PAGE_SIZE == 0);
 		if (only_free && !is_page_free(vaddr))
 			return false;
-		map_page_at(0, vaddr, Flags::Reserved);
+		map_page_at(0, vaddr, Flags::Reserved, MemoryType::Normal, send_smp_message);
 		return true;
 	}
 
@@ -517,7 +517,14 @@ namespace Kernel
 		if (only_free && !is_range_free(vaddr, bytes))
 			return false;
 		for (size_t offset = 0; offset < bytes; offset += PAGE_SIZE)
-			reserve_page(vaddr + offset);
+			reserve_page(vaddr + offset, true, false);
+		Processor::broadcast_smp_message({
+			.type = Processor::SMPMessage::Type::FlushTLB,
+			.flush_tlb = {
+				.vaddr      = vaddr,
+				.page_count = bytes / PAGE_SIZE,
+			}
+		});
 		return true;
 	}
 

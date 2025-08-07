@@ -112,7 +112,7 @@ namespace Kernel
 		bool is_page_free(vaddr_t) const;
 		bool is_range_free(vaddr_t, size_t bytes) const;
 
-		bool reserve_page(vaddr_t, bool only_free = true);
+		bool reserve_page(vaddr_t, bool only_free = true, bool send_smp_message = true);
 		bool reserve_range(vaddr_t, size_t bytes, bool only_free = true);
 
 		vaddr_t reserve_free_page(vaddr_t first_address, vaddr_t last_address = UINTPTR_MAX);
