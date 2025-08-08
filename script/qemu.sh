@@ -39,8 +39,8 @@ SOUND_ARGS='-device ac97'
 qemu-system-$QEMU_ARCH \
 	-m 1G -smp 4       \
 	$BIOS_ARGS         \
-	$DISK_ARGS         \
 	$USB_ARGS          \
+	$DISK_ARGS         \
 	$NET_ARGS          \
 	$SOUND_ARGS        \
 	$@                 \
