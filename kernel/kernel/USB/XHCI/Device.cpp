@@ -40,10 +40,9 @@ namespace Kernel
 		switch (m_speed_class)
 		{
 			case USB::SpeedClass::LowSpeed:
-			case USB::SpeedClass::FullSpeed:
 				m_endpoints[0].max_packet_size = 8;
-				is_ls_or_fs_device_on_hs_hub = m_info.parent_hub && (m_info.parent_hub->speed_class() == USB::SpeedClass::HighSpeed);
 				break;
+			case USB::SpeedClass::FullSpeed:
 			case USB::SpeedClass::HighSpeed:
 				m_endpoints[0].max_packet_size = 64;
 				break;
@@ -51,6 +50,16 @@ namespace Kernel
 				m_endpoints[0].max_packet_size = 512;
 				break;
 			default: ASSERT_NOT_REACHED();
+		}
+
+		switch (m_speed_class)
+		{
+			case USB::SpeedClass::LowSpeed:
+			case USB::SpeedClass::FullSpeed:
+				is_ls_or_fs_device_on_hs_hub = m_info.parent_hub && (m_info.parent_hub->speed_class() == USB::SpeedClass::HighSpeed);
+				break;
+			default:
+				break;
 		}
 
 		m_input_context = TRY(DMARegion::create(33 * context_size));
