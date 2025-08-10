@@ -243,13 +243,26 @@ namespace Kernel::ACPI::AML
 
 	BAN::ErrorOr<void> Namespace::initialize_op_regions()
 	{
+		struct FullNode
+		{
+			Scope scope;
+			Reference* reference;
+		};
+
+		BAN::Vector<FullNode> op_regions;
+
 		for (const auto& [obj_path, obj_ref] : m_named_objects)
 		{
 			if (obj_ref->node.type != Node::Type::OpRegion)
 				continue;
-			// FIXME: if _REG adds stuff to namespace, iterators are invalidated
-			(void)opregion_call_reg(obj_path, obj_ref->node);
+			TRY(op_regions.emplace_back(
+				TRY(obj_path.copy()),
+				obj_ref
+			));
 		}
+
+		for (const auto& [obj_path, obj_ref] : op_regions)
+			(void)opregion_call_reg(obj_path, obj_ref->node);
 
 		return {};
 	}
