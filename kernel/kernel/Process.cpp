@@ -257,6 +257,16 @@ namespace Kernel
 
 	void Process::exit(int status, int signal)
 	{
+		bool expected = false;
+		if (!m_is_exiting.compare_exchange(expected, true))
+		{
+			Thread::current().on_exit();
+			ASSERT_NOT_REACHED();
+		}
+
+		const auto state = Processor::get_interrupt_state();
+		Processor::set_interrupt_state(InterruptState::Enabled);
+
 		if (m_parent)
 		{
 			Process* parent_process = nullptr;
@@ -294,12 +304,17 @@ namespace Kernel
 			}
 		}
 
-		for (size_t i = 0; i < m_threads.size(); i++)
 		{
-			if (m_threads[i] == &Thread::current())
-				continue;
-			m_threads[i]->add_signal(SIGKILL);
+			LockGuard _(m_process_lock);
+			for (auto* thread : m_threads)
+				if (thread != &Thread::current())
+					ASSERT(thread->add_signal(SIGKILL));
 		}
+
+		while (m_threads.size() > 1)
+			Processor::yield();
+
+		Processor::set_interrupt_state(state);
 
 		Thread::current().on_exit();
 
@@ -507,7 +522,6 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_exit(int status)
 	{
 		ASSERT(this == &Process::current());
-		LockGuard _(m_process_lock);
 		exit(status, 0);
 		ASSERT_NOT_REACHED();
 	}

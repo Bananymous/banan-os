@@ -334,6 +334,8 @@ namespace Kernel
 		BAN::Vector<ChildExitStatus> m_child_exit_statuses;
 		ThreadBlocker m_child_exit_blocker;
 
+		BAN::Atomic<bool> m_is_exiting { false };
+
 		bool m_has_called_exec { false };
 
 		BAN::UniqPtr<PageTable> m_page_table;
