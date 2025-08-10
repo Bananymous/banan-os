@@ -95,6 +95,9 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_getppid() const { return m_parent; }
 		BAN::ErrorOr<long> sys_getpid() const { return pid(); }
 
+		BAN::ErrorOr<long> sys_getgroups(gid_t groups[], size_t count);
+		BAN::ErrorOr<long> sys_setgroups(const gid_t groups[], size_t count);
+
 		BAN::ErrorOr<long> open_inode(VirtualFileSystem::File&&, int flags);
 
 		BAN::ErrorOr<void> create_file_or_dir(int fd, const char* path, mode_t mode) const;

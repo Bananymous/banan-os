@@ -101,7 +101,6 @@ namespace Kernel
 	BAN::ErrorOr<Process*> Process::create_userspace(const Credentials& credentials, BAN::StringView path, BAN::Span<BAN::StringView> arguments)
 	{
 		auto* process = create_process(credentials, 0);
-		TRY(process->m_credentials.initialize_supplementary_groups());
 
 		process->m_working_directory = VirtualFileSystem::get().root_file();
 		process->m_page_table = BAN::UniqPtr<PageTable>::adopt(MUST(PageTable::create_userspace()));
@@ -2919,7 +2918,6 @@ namespace Kernel
 			m_credentials.set_euid(uid);
 			m_credentials.set_ruid(uid);
 			m_credentials.set_suid(uid);
-			TRY(m_credentials.initialize_supplementary_groups());
 			return 0;
 		}
 
@@ -2928,7 +2926,6 @@ namespace Kernel
 		if (uid == m_credentials.ruid() || uid == m_credentials.suid())
 		{
 			m_credentials.set_euid(uid);
-			TRY(m_credentials.initialize_supplementary_groups());
 			return 0;
 		}
 
@@ -2989,7 +2986,6 @@ namespace Kernel
 		if (uid == m_credentials.ruid() || uid == m_credentials.suid() || m_credentials.is_superuser())
 		{
 			m_credentials.set_euid(uid);
-			TRY(m_credentials.initialize_supplementary_groups());
 			return 0;
 		}
 
@@ -3055,8 +3051,6 @@ namespace Kernel
 			m_credentials.set_ruid(ruid);
 		if (euid != -1)
 			m_credentials.set_euid(euid);
-
-		TRY(m_credentials.initialize_supplementary_groups());
 
 		return 0;
 	}
@@ -3203,6 +3197,28 @@ namespace Kernel
 		if (error == 0)
 			return result;
 		return BAN::Error::from_errno(error);
+	}
+
+	BAN::ErrorOr<long> Process::sys_getgroups(gid_t groups[], size_t count)
+	{
+		LockGuard _(m_process_lock);
+		TRY(validate_pointer_access(groups, count * sizeof(gid_t), true));
+		auto current = m_credentials.groups();
+		if (current.size() > count)
+			return BAN::Error::from_errno(EINVAL);
+		for (size_t i = 0; i < current.size(); i++)
+			groups[i] = current[i];
+		return current.size();
+	}
+
+	BAN::ErrorOr<long> Process::sys_setgroups(const gid_t groups[], size_t count)
+	{
+		LockGuard _(m_process_lock);
+		TRY(validate_pointer_access(groups, count * sizeof(gid_t), true));
+		if (!m_credentials.is_superuser())
+			return BAN::Error::from_errno(EPERM);
+		TRY(m_credentials.set_groups({ groups, count }));
+		return 0;
 	}
 
 	BAN::ErrorOr<BAN::String> Process::absolute_path_of(BAN::StringView path) const

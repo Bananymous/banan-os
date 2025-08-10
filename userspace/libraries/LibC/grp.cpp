@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/syscall.h>
 
 static FILE* s_grent_fp = nullptr;
 static group s_grent_struct;
@@ -210,4 +211,107 @@ int getgrnam_r(const char* name, struct group* grp, char* buffer, size_t bufsize
 
 	fclose(fp);
 	return ret;
+}
+
+static gid_t* get_user_groups(const char* user)
+{
+	FILE* fp = fopen("/etc/group", "r");
+	if (fp == nullptr)
+		return nullptr;
+
+	const long initial_len = sysconf(_SC_GETGR_R_SIZE_MAX);
+
+	size_t buffer_len = (initial_len == -1) ? 512 : initial_len;
+	char* buffer = static_cast<char*>(malloc(buffer_len));
+	if (buffer == nullptr)
+	{
+		fclose(fp);
+		return nullptr;
+	}
+
+	size_t group_count = 0;
+	gid_t* groups = static_cast<gid_t*>(malloc(sizeof(gid_t)));
+	if (groups == nullptr)
+	{
+		free(buffer);
+		fclose(fp);
+		return nullptr;
+	}
+
+	for (;;)
+	{
+		struct group result;
+		struct group* resultp;
+
+		int error = getgrent_impl(fp, &result, buffer, buffer_len, &resultp);
+		if (error == ERANGE)
+		{
+			const size_t new_buffer_len = buffer_len * 2;
+			char* new_buffer = static_cast<char*>(realloc(buffer, new_buffer_len));
+			if (new_buffer == nullptr)
+			{
+				error = ENOMEM;
+				break;
+			}
+			buffer = new_buffer;
+			buffer_len = new_buffer_len;
+			continue;
+		}
+
+		if (error != 0)
+		{
+			free(buffer);
+			free(groups);
+			fclose(fp);
+			return nullptr;
+		}
+
+		if (resultp == nullptr)
+			break;
+
+		bool contains = false;
+		for (size_t i = 0; result.gr_mem[i] && !contains; i++)
+			contains = (strcmp(result.gr_mem[i], user) == 0);
+		if (!contains)
+			continue;
+
+		gid_t* new_groups = static_cast<gid_t*>(realloc(groups, group_count * sizeof(gid_t)));
+		if (new_groups == nullptr)
+		{
+			free(buffer);
+			free(groups);
+			fclose(fp);
+			return nullptr;
+		}
+
+		groups = new_groups;
+		groups[group_count++] = result.gr_gid;
+	}
+
+	groups[group_count] = -1;
+
+	free(buffer);
+	fclose(fp);
+	return groups;
+}
+
+int initgroups(const char* user, gid_t group)
+{
+	gid_t* groups = get_user_groups(user);
+	if (groups == nullptr)
+		return -1;
+
+	size_t group_count = 0;
+	while (groups[group_count] != -1)
+		group_count++;
+	groups[group_count] = group;
+
+	int result = setgroups(group_count + 1, groups);
+	free(groups);
+	return result;
+}
+
+int setgroups(size_t size, const gid_t list[])
+{
+	return syscall(SYS_SETGROUPS, list, size);
 }

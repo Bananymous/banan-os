@@ -14,7 +14,7 @@ __BEGIN_DECLS
 struct group
 {
 	char* gr_name;   /* The name of the group. */
-	char* gr_passwd;/* The password of the group */
+	char* gr_passwd; /* The password of the group */
 	gid_t gr_gid;    /* Numerical group ID. */
 	char** gr_mem;   /* Pointer to a null-terminated array of character pointers to member names. */
 };
@@ -26,6 +26,9 @@ int				getgrgid_r(gid_t gid, struct group* grp, char* buffer, size_t bufsize, st
 struct group*	getgrnam(const char* name);
 int				getgrnam_r(const char* name, struct group* grp, char* buffer, size_t bufsize, struct group** result);
 void			setgrent(void);
+
+int				initgroups(const char* user, gid_t group);
+int				setgroups(size_t size, const gid_t list[]);
 
 __END_DECLS
 

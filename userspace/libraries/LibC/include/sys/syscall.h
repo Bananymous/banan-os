@@ -111,6 +111,8 @@ __BEGIN_DECLS
 	O(SYS_FLOCK,			flock)			\
 	O(SYS_GET_NPROCESSOR,	get_nprocessor)	\
 	O(SYS_FUTEX,			futex)			\
+	O(SYS_GETGROUPS,		getgroups)		\
+	O(SYS_SETGROUPS,		setgroups)		\
 
 enum Syscall
 {

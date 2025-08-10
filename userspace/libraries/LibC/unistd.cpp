@@ -673,8 +673,7 @@ error:
 
 int getgroups(int gidsetsize, gid_t grouplist[])
 {
-	dwarnln("FIXME: getgroups({}, {})", gidsetsize, grouplist);
-	return 0;
+	return syscall(SYS_GETGROUPS, grouplist, gidsetsize);
 }
 
 pid_t getppid(void)

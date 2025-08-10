@@ -3,6 +3,7 @@
 #include <BAN/Vector.h>
 
 #include <fcntl.h>
+#include <grp.h>
 #include <pwd.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -94,6 +95,8 @@ int main(int argc, char** argv)
 
 			printf("Welcome back %s!\n", pwd->pw_name);
 
+			if (initgroups(name_buffer, pwd->pw_gid) == -1)
+				perror("initgroups");
 			if (setgid(pwd->pw_gid) == -1)
 				perror("setgid");
 			if (setuid(pwd->pw_uid) == -1)

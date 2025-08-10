@@ -35,10 +35,8 @@ namespace Kernel
 
 		bool has_egid(gid_t) const;
 
-		BAN::ErrorOr<void> initialize_supplementary_groups();
-
-	private:
-		BAN::ErrorOr<BAN::String> find_username() const;
+		BAN::Span<const gid_t> groups() const { return m_supplementary.span(); }
+		BAN::ErrorOr<void> set_groups(BAN::Span<const gid_t> groups);
 
 	private:
 		uid_t m_ruid, m_euid, m_suid;
