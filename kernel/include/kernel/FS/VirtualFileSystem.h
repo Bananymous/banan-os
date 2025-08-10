@@ -71,13 +71,13 @@ namespace Kernel
 
 		File root_file()
 		{
-			return File(root_inode(), "/"_sv);
+			return File { root_inode(), "/"_sv };
 		}
 
-		BAN::ErrorOr<File> file_from_relative_path(const File& parent, const Credentials&, BAN::StringView, int);
-		BAN::ErrorOr<File> file_from_absolute_path(const Credentials& credentials, BAN::StringView path, int flags)
+		BAN::ErrorOr<File> file_from_relative_path(BAN::RefPtr<Inode> root_inode, const File& parent, const Credentials&, BAN::StringView, int);
+		BAN::ErrorOr<File> file_from_absolute_path(BAN::RefPtr<Inode> root_inode, const Credentials& credentials, BAN::StringView path, int flags)
 		{
-			return file_from_relative_path(root_file(), credentials, path, flags);
+			return file_from_relative_path(root_inode, File { root_inode, "/"_sv }, credentials, path, flags);
 		}
 
 	private:

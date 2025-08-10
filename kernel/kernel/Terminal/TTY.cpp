@@ -121,8 +121,8 @@ namespace Kernel
 	void TTY::keyboard_task(void*)
 	{
 		BAN::RefPtr<Inode> keyboard_inode;
-		if (auto ret = VirtualFileSystem::get().file_from_absolute_path({ 0, 0, 0, 0 }, "/dev/keyboard"_sv, O_RDONLY); !ret.is_error())
-			keyboard_inode = ret.value().inode;
+		if (auto ret = DevFileSystem::get().root_inode()->find_inode("keyboard"_sv); !ret.is_error())
+			keyboard_inode = ret.release_value();
 		else
 		{
 			dprintln("could not open keyboard device: {}", ret.error());

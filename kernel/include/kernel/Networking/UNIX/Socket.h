@@ -5,6 +5,7 @@
 #include <BAN/WeakPtr.h>
 #include <kernel/FS/Socket.h>
 #include <kernel/FS/TmpFS/Inode.h>
+#include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/Lock/SpinLock.h>
 
 namespace Kernel
@@ -39,8 +40,8 @@ namespace Kernel
 
 		BAN::ErrorOr<void> add_packet(BAN::ConstByteSpan);
 
-		bool is_bound() const { return !m_bound_path.empty(); }
-		bool is_bound_to_unused() const { return m_bound_path == "X"_sv; }
+		bool is_bound() const { return !m_bound_file.canonical_path.empty(); }
+		bool is_bound_to_unused() const { return !m_bound_file.inode; }
 
 		bool is_streaming() const;
 
@@ -62,8 +63,8 @@ namespace Kernel
 		};
 
 	private:
-		const Socket::Type	m_socket_type;
-		BAN::String			m_bound_path;
+		const Socket::Type		m_socket_type;
+		VirtualFileSystem::File	m_bound_file;
 
 		BAN::Variant<ConnectionInfo, ConnectionlessInfo> m_info;
 

@@ -31,7 +31,8 @@ namespace LibFont
 
 #if __is_kernel
 		{
-			auto inode = TRY(Kernel::VirtualFileSystem::get().file_from_absolute_path({ 0, 0, 0, 0 }, path, O_RDONLY)).inode;
+			// FIXME: This does not account for chroot
+			auto inode = TRY(Kernel::VirtualFileSystem::get().file_from_absolute_path(Kernel::VirtualFileSystem::get().root_inode(), { 0, 0, 0, 0 }, path, O_RDONLY)).inode;
 			TRY(file_data.resize(inode->size()));
 			TRY(inode->read(0, BAN::ByteSpan(file_data.span())));
 		}

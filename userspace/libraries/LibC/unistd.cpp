@@ -626,6 +626,11 @@ int getopt(int argc, char* const argv[], const char* optstring)
 	return '?';
 }
 
+int chroot(const char* path)
+{
+	return syscall(SYS_CHROOT, path);
+}
+
 int getpagesize(void)
 {
 	return PAGE_SIZE;

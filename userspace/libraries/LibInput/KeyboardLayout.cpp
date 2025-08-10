@@ -128,7 +128,8 @@ namespace LibInput
 
 #if __is_kernel
 		{
-			auto file = TRY(Kernel::VirtualFileSystem::get().file_from_absolute_path({ 0, 0, 0, 0 }, path, 0));
+			// FIXME: This does not account for chroot
+			auto file = TRY(Kernel::VirtualFileSystem::get().file_from_absolute_path(Kernel::VirtualFileSystem::get().root_inode(), { 0, 0, 0, 0 }, path, 0));
 			TRY(file_data.resize(file.inode->size()));
 			TRY(file.inode->read(0, BAN::ByteSpan { reinterpret_cast<uint8_t*>(file_data.data()), file_data.size() }));
 			canonical_path = file.canonical_path;

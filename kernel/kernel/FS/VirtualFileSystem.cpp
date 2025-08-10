@@ -186,7 +186,8 @@ namespace Kernel
 
 	BAN::ErrorOr<void> VirtualFileSystem::mount(const Credentials& credentials, BAN::StringView block_device_path, BAN::StringView target)
 	{
-		auto block_device_file = TRY(file_from_absolute_path(credentials, block_device_path, true));
+		// TODO: allow custom root
+		auto block_device_file = TRY(file_from_absolute_path(root_inode(), credentials, block_device_path, true));
 		if (!block_device_file.inode->is_device())
 			return BAN::Error::from_errno(ENOTBLK);
 
@@ -200,7 +201,8 @@ namespace Kernel
 
 	BAN::ErrorOr<void> VirtualFileSystem::mount(const Credentials& credentials, BAN::RefPtr<FileSystem> file_system, BAN::StringView path)
 	{
-		auto file = TRY(file_from_absolute_path(credentials, path, true));
+		// TODO: allow custom root
+		auto file = TRY(file_from_absolute_path(root_inode(), credentials, path, true));
 		if (!file.inode->mode().ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
 
@@ -227,7 +229,7 @@ namespace Kernel
 		return nullptr;
 	}
 
-	BAN::ErrorOr<VirtualFileSystem::File> VirtualFileSystem::file_from_relative_path(const File& parent, const Credentials& credentials, BAN::StringView path, int flags)
+	BAN::ErrorOr<VirtualFileSystem::File> VirtualFileSystem::file_from_relative_path(BAN::RefPtr<Inode> root_inode, const File& parent, const Credentials& credentials, BAN::StringView path, int flags)
 	{
 		LockGuard _(m_mutex);
 
@@ -270,13 +272,16 @@ namespace Kernel
 
 			// resolve file name
 			{
-				auto parent_inode = inode;
-				if (path_part == ".."_sv)
-					if (auto* mount_point = mount_from_root_inode(inode))
-						parent_inode = mount_point->host.inode;
-				if (!parent_inode->can_access(credentials, O_SEARCH))
-					return BAN::Error::from_errno(EACCES);
-				inode = TRY(parent_inode->find_inode(path_part));
+				if (!(inode == root_inode && path_part == ".."_sv))
+				{
+					auto parent_inode = inode;
+					if (path_part == ".."_sv)
+						if (auto* mount_point = mount_from_root_inode(inode))
+							parent_inode = mount_point->host.inode;
+					if (!parent_inode->can_access(credentials, O_SEARCH))
+						return BAN::Error::from_errno(EACCES);
+					inode = TRY(parent_inode->find_inode(path_part));
+				}
 
 				if (path_part == ".."_sv)
 				{
@@ -310,7 +315,7 @@ namespace Kernel
 
 				if (link_target.front() == '/')
 				{
-					inode = root_inode();
+					inode = root_inode;
 					canonical_path.clear();
 				}
 				else

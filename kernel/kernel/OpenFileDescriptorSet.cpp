@@ -77,7 +77,7 @@ namespace Kernel
 
 	BAN::ErrorOr<int> OpenFileDescriptorSet::open(BAN::StringView absolute_path, int flags)
 	{
-		return open(TRY(VirtualFileSystem::get().file_from_absolute_path(m_credentials, absolute_path, flags)), flags);
+		return open(TRY(VirtualFileSystem::get().file_from_absolute_path(Process::current().root_file().inode, m_credentials, absolute_path, flags)), flags);
 	}
 
 	struct SocketInfo

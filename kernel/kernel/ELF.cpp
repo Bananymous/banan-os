@@ -104,7 +104,7 @@ namespace Kernel::ELF
 		return BAN::move(program_headers);
 	}
 
-	BAN::ErrorOr<LoadResult> load_from_inode(BAN::RefPtr<Inode> inode, const Credentials& credentials, PageTable& page_table)
+	BAN::ErrorOr<LoadResult> load_from_inode(BAN::RefPtr<Inode> root, BAN::RefPtr<Inode> inode, const Credentials& credentials, PageTable& page_table)
 	{
 		auto file_header = TRY(read_and_validate_file_header(inode));
 		auto program_headers = TRY(read_program_headers(inode, file_header));
@@ -143,7 +143,7 @@ namespace Kernel::ELF
 
 		if (!interpreter.empty())
 		{
-			auto interpreter_inode = TRY(VirtualFileSystem::get().file_from_absolute_path(credentials, interpreter, O_EXEC)).inode;
+			auto interpreter_inode = TRY(VirtualFileSystem::get().file_from_absolute_path(root, credentials, interpreter, O_EXEC)).inode;
 			auto interpreter_file_header = TRY(read_and_validate_file_header(interpreter_inode));
 			auto interpreter_program_headers = TRY(read_program_headers(interpreter_inode, interpreter_file_header));
 

@@ -76,6 +76,7 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_getcwd(char* buffer, size_t size);
 		BAN::ErrorOr<long> sys_chdir(const char* path);
 		BAN::ErrorOr<long> sys_fchdir(int fildes);
+		BAN::ErrorOr<long> sys_chroot(const char* path);
 
 		BAN::ErrorOr<long> sys_setuid(uid_t);
 		BAN::ErrorOr<long> sys_setgid(gid_t);
@@ -234,6 +235,7 @@ namespace Kernel
 		static void update_alarm_queue();
 
 		const VirtualFileSystem::File& working_directory() const { return m_working_directory; }
+		const VirtualFileSystem::File& root_file() const { return m_root_file; }
 
 	private:
 		Process(const Credentials&, pid_t pid, pid_t parent, pid_t sid, pid_t pgrp);
@@ -313,6 +315,7 @@ namespace Kernel
 		mutable Mutex m_process_lock;
 
 		VirtualFileSystem::File m_working_directory;
+		VirtualFileSystem::File m_root_file;
 
 		BAN::Vector<Thread*> m_threads;
 

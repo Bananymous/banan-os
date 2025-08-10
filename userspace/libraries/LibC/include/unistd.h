@@ -596,6 +596,7 @@ int					unlinkat(int fd, const char* path, int flag);
 int					usleep(useconds_t usec);
 ssize_t				write(int fildes, const void* buf, size_t nbyte);
 
+int					chroot(const char* path);
 int					getpagesize(void);
 char*				getpass(const char* prompt);
 

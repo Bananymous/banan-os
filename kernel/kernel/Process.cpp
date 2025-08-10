@@ -103,6 +103,8 @@ namespace Kernel
 		auto* process = create_process(credentials, 0);
 
 		process->m_working_directory = VirtualFileSystem::get().root_file();
+		process->m_root_file         = VirtualFileSystem::get().root_file();
+
 		process->m_page_table = BAN::UniqPtr<PageTable>::adopt(MUST(PageTable::create_userspace()));
 
 		TRY(process->m_cmdline.emplace_back());
@@ -118,7 +120,7 @@ namespace Kernel
 		auto executable_file = TRY(process->find_file(AT_FDCWD, path.data(), O_EXEC));
 		auto executable_inode = executable_file.inode;
 
-		auto executable = TRY(ELF::load_from_inode(executable_inode, process->m_credentials, process->page_table()));
+		auto executable = TRY(ELF::load_from_inode(process->m_root_file.inode, executable_inode, process->m_credentials, process->page_table()));
 		process->m_mapped_regions = BAN::move(executable.regions);
 
 		if (executable_inode->mode().mode & +Inode::Mode::ISUID)
@@ -456,7 +458,7 @@ namespace Kernel
 
 		auto parent_file = TRY(find_relative_parent(fd, path));
 		auto file = path
-			? TRY(VirtualFileSystem::get().file_from_relative_path(parent_file, m_credentials, path, flags))
+			? TRY(VirtualFileSystem::get().file_from_relative_path(m_root_file.inode, parent_file, m_credentials, path, flags))
 			: BAN::move(parent_file);
 
 		return file;
@@ -480,7 +482,7 @@ namespace Kernel
 
 		if (auto index = path_sv.rfind('/'); index.has_value())
 		{
-			parent = TRY(VirtualFileSystem::get().file_from_relative_path(relative_parent, m_credentials, path_sv.substring(0, index.value()), flags));
+			parent = TRY(VirtualFileSystem::get().file_from_relative_path(m_root_file.inode, relative_parent, m_credentials, path_sv.substring(0, index.value()), flags));
 			file_name = path_sv.substring(index.value() + 1);
 		}
 		else
@@ -510,7 +512,7 @@ namespace Kernel
 		ASSERT(m_process_lock.is_locked());
 
 		if (path && path[0] == '/')
-			return VirtualFileSystem::get().root_file();
+			return TRY(m_root_file.clone());
 
 		if (fd == AT_FDCWD)
 			return TRY(m_working_directory.clone());
@@ -582,6 +584,7 @@ namespace Kernel
 		}
 
 		auto working_directory = TRY(m_working_directory.clone());
+		auto root_file         = TRY(m_root_file.clone());
 
 		BAN::Vector<BAN::String> cmdline;
 		TRY(cmdline.resize(m_cmdline.size()));
@@ -604,6 +607,7 @@ namespace Kernel
 		Process* forked = create_process(m_credentials, m_pid, m_sid, m_pgrp);
 		forked->m_controlling_terminal = m_controlling_terminal;
 		forked->m_working_directory = BAN::move(working_directory);
+		forked->m_root_file = BAN::move(root_file);
 		forked->m_cmdline = BAN::move(cmdline);
 		forked->m_environ = BAN::move(environ);
 		forked->m_page_table = BAN::move(page_table);
@@ -656,7 +660,7 @@ namespace Kernel
 			auto executable_file = TRY(find_file(AT_FDCWD, path, O_EXEC));
 			auto executable_inode = executable_file.inode;
 
-			auto executable = TRY(ELF::load_from_inode(executable_inode, m_credentials, *new_page_table));
+			auto executable = TRY(ELF::load_from_inode(m_root_file.inode, executable_inode, m_credentials, *new_page_table));
 			auto new_mapped_regions = BAN::move(executable.regions);
 
 			BAN::Vector<LibELF::AuxiliaryVector> auxiliary_vector;
@@ -1044,7 +1048,7 @@ namespace Kernel
 		TRY(validate_string_access(path));
 
 		auto [parent, file_name] = TRY(find_parent_file(fd, path, O_RDONLY));
-		auto file_or_error = VirtualFileSystem::get().file_from_relative_path(parent, m_credentials, file_name, flags);
+		auto file_or_error = VirtualFileSystem::get().file_from_relative_path(m_root_file.inode, parent, m_credentials, file_name, flags);
 
 		VirtualFileSystem::File file;
 		if (file_or_error.is_error())
@@ -1054,7 +1058,7 @@ namespace Kernel
 
 			// FIXME: There is a race condition between next two lines
 			TRY(parent.inode->create_file(file_name, (mode & 0777) | Inode::Mode::IFREG, m_credentials.euid(), m_credentials.egid()));
-			file = TRY(VirtualFileSystem::get().file_from_relative_path(parent, m_credentials, file_name, flags & ~O_RDWR));
+			file = TRY(VirtualFileSystem::get().file_from_relative_path(m_root_file.inode, parent, m_credentials, file_name, flags & ~O_RDWR));
 		}
 		else
 		{
@@ -1135,7 +1139,7 @@ namespace Kernel
 		credentials.set_egid(credentials.rgid());
 
 		auto relative_parent = TRY(find_relative_parent(AT_FDCWD, path));
-		TRY(VirtualFileSystem::get().file_from_relative_path(relative_parent, credentials, path, flags));
+		TRY(VirtualFileSystem::get().file_from_relative_path(m_root_file.inode, relative_parent, credentials, path, flags));
 
 		return 0;
 	}
@@ -1258,6 +1262,7 @@ namespace Kernel
 			flag = O_NOFOLLOW;
 
 		LockGuard _(m_process_lock);
+		TRY(validate_string_access(path));
 
 		auto inode = TRY(find_file(fd, path, flag)).inode;
 
@@ -1280,6 +1285,7 @@ namespace Kernel
 			flag = O_NOFOLLOW;
 
 		LockGuard _(m_process_lock);
+		TRY(validate_string_access(path));
 
 		auto inode = TRY(find_file(fd, path, flag)).inode;
 
@@ -2095,22 +2101,25 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_chdir(const char* path)
 	{
 		LockGuard _(m_process_lock);
-
 		TRY(validate_string_access(path));
-
-		auto file = TRY(find_file(AT_FDCWD, path, O_SEARCH));
-		m_working_directory = BAN::move(file);
-
+		m_working_directory = TRY(find_file(AT_FDCWD, path, O_SEARCH));
 		return 0;
 	}
 
 	BAN::ErrorOr<long> Process::sys_fchdir(int fildes)
 	{
 		LockGuard _(m_process_lock);
+		m_working_directory = TRY(m_open_file_descriptors.file_of(fildes));
+		return 0;
+	}
 
-		auto file = TRY(m_open_file_descriptors.file_of(fildes));
-		m_working_directory = BAN::move(file);
-
+	BAN::ErrorOr<long> Process::sys_chroot(const char* path)
+	{
+		LockGuard _(m_process_lock);
+		TRY(validate_string_access(path));
+		if (!m_credentials.is_superuser())
+			return BAN::Error::from_errno(EACCES);
+		m_root_file = TRY(find_file(AT_FDCWD, path, O_SEARCH));
 		return 0;
 	}
 

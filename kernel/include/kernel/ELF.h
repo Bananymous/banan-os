@@ -20,6 +20,6 @@ namespace Kernel::ELF
 		BAN::Vector<BAN::UniqPtr<MemoryRegion>> regions;
 	};
 
-	BAN::ErrorOr<LoadResult> load_from_inode(BAN::RefPtr<Inode>, const Credentials&, PageTable&);
+	BAN::ErrorOr<LoadResult> load_from_inode(BAN::RefPtr<Inode> root, BAN::RefPtr<Inode> inode, const Credentials&, PageTable&);
 
 }

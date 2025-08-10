@@ -13,8 +13,16 @@
 namespace Kernel
 {
 
-	static BAN::HashMap<BAN::String, BAN::WeakPtr<UnixDomainSocket>>	s_bound_sockets;
-	static SpinLock														s_bound_socket_lock;
+	struct UnixSocketHash
+	{
+		BAN::hash_t operator()(const BAN::RefPtr<Inode>& socket)
+		{
+			return BAN::hash<const Inode*>{}(socket.ptr());
+		}
+	};
+
+	static BAN::HashMap<BAN::RefPtr<Inode>, BAN::WeakPtr<UnixDomainSocket>, UnixSocketHash> s_bound_sockets;
+	static SpinLock s_bound_socket_lock;
 
 	static constexpr size_t s_packet_buffer_size = 10 * PAGE_SIZE;
 
@@ -57,9 +65,7 @@ namespace Kernel
 		if (is_bound() && !is_bound_to_unused())
 		{
 			SpinLockGuard _(s_bound_socket_lock);
-			auto it = s_bound_sockets.find(m_bound_path);
-			if (it != s_bound_sockets.end())
-				s_bound_sockets.remove(it);
+			s_bound_sockets.remove(m_bound_file.inode);
 		}
 		if (m_info.has<ConnectionInfo>())
 		{
@@ -117,17 +123,22 @@ namespace Kernel
 			return_inode = reinterpret_cast<UnixDomainSocket*>(return_inode_tmp.ptr());
 		}
 
-		TRY(return_inode->m_bound_path.push_back('X'));
+		TRY(return_inode->m_bound_file.canonical_path.push_back('X'));
 		return_inode->m_info.get<ConnectionInfo>().connection = TRY(pending->get_weak_ptr());
 		pending->m_info.get<ConnectionInfo>().connection = TRY(return_inode->get_weak_ptr());
 		pending->m_info.get<ConnectionInfo>().connection_done = true;
 
 		if (address && address_len && !is_bound_to_unused())
 		{
-			size_t copy_len = BAN::Math::min<size_t>(*address_len, sizeof(sockaddr) + m_bound_path.size() + 1);
-			auto& sockaddr_un = *reinterpret_cast<struct sockaddr_un*>(address);
-			sockaddr_un.sun_family = AF_UNIX;
-			strncpy(sockaddr_un.sun_path, pending->m_bound_path.data(), copy_len);
+			sockaddr_un sa_un {
+				.sun_family = AF_UNIX,
+				.sun_path {},
+			};
+			strcpy(sa_un.sun_path, pending->m_bound_file.canonical_path.data());
+
+			const size_t to_copy = BAN::Math::min<size_t>(*address_len, sizeof(sockaddr_un));
+			memcpy(address, &sa_un, to_copy);
+			*address_len = to_copy;
 		}
 
 		return TRY(Process::current().open_inode(VirtualFileSystem::File(return_inode, "<unix socket>"_sv), O_RDWR | flags));
@@ -141,10 +152,11 @@ namespace Kernel
 		if (sockaddr_un.sun_family != AF_UNIX)
 			return BAN::Error::from_errno(EAFNOSUPPORT);
 		if (!is_bound())
-			TRY(m_bound_path.push_back('X'));
+			TRY(m_bound_file.canonical_path.push_back('X'));
 
 		auto absolute_path = TRY(Process::current().absolute_path_of(sockaddr_un.sun_path));
 		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(
+			Process::current().root_file().inode,
 			Process::current().credentials(),
 			absolute_path,
 			O_RDWR
@@ -154,7 +166,7 @@ namespace Kernel
 
 		{
 			SpinLockGuard _(s_bound_socket_lock);
-			auto it = s_bound_sockets.find(file.canonical_path);
+			auto it = s_bound_sockets.find(file.inode);
 			if (it == s_bound_sockets.end())
 				return BAN::Error::from_errno(ECONNREFUSED);
 			target = it->value.lock();
@@ -236,7 +248,7 @@ namespace Kernel
 
 		// FIXME: This feels sketchy
 		auto parent_file = bind_path.front() == '/'
-			? VirtualFileSystem::get().root_file()
+			? TRY(Process::current().root_file().clone())
 			: TRY(Process::current().working_directory().clone());
 		if (auto ret = Process::current().create_file_or_dir(AT_FDCWD, bind_path.data(), 0755 | S_IFSOCK); ret.is_error())
 		{
@@ -245,6 +257,7 @@ namespace Kernel
 			return ret.release_error();
 		}
 		auto file = TRY(VirtualFileSystem::get().file_from_relative_path(
+			Process::current().root_file().inode,
 			parent_file,
 			Process::current().credentials(),
 			bind_path,
@@ -252,10 +265,10 @@ namespace Kernel
 		));
 
 		SpinLockGuard _(s_bound_socket_lock);
-		if (s_bound_sockets.contains(file.canonical_path))
+		if (s_bound_sockets.contains(file.inode))
 			return BAN::Error::from_errno(EADDRINUSE);
-		TRY(s_bound_sockets.emplace(file.canonical_path, TRY(get_weak_ptr())));
-		m_bound_path = BAN::move(file.canonical_path);
+		TRY(s_bound_sockets.emplace(file.inode, TRY(get_weak_ptr())));
+		m_bound_file = BAN::move(file);
 
 		return {};
 	}
@@ -354,14 +367,21 @@ namespace Kernel
 		}
 		else
 		{
-			BAN::String canonical_path;
+			BAN::RefPtr<Inode> target_inode;
 
 			if (!address)
 			{
 				auto& connectionless_info = m_info.get<ConnectionlessInfo>();
 				if (connectionless_info.peer_address.empty())
 					return BAN::Error::from_errno(EDESTADDRREQ);
-				TRY(canonical_path.append(connectionless_info.peer_address));
+
+				auto absolute_path = TRY(Process::current().absolute_path_of(connectionless_info.peer_address));
+				target_inode = TRY(VirtualFileSystem::get().file_from_absolute_path(
+					Process::current().root_file().inode,
+					Process::current().credentials(),
+					absolute_path,
+					O_RDWR
+				)).inode;
 			}
 			else
 			{
@@ -372,17 +392,16 @@ namespace Kernel
 					return BAN::Error::from_errno(EAFNOSUPPORT);
 
 				auto absolute_path = TRY(Process::current().absolute_path_of(sockaddr_un.sun_path));
-				auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(
+				target_inode = TRY(VirtualFileSystem::get().file_from_absolute_path(
+					Process::current().root_file().inode,
 					Process::current().credentials(),
 					absolute_path,
 					O_WRONLY
-				));
-
-				canonical_path = BAN::move(file.canonical_path);
+				)).inode;
 			}
 
 			SpinLockGuard _(s_bound_socket_lock);
-			auto it = s_bound_sockets.find(canonical_path);
+			auto it = s_bound_sockets.find(target_inode);
 			if (it == s_bound_sockets.end())
 				return BAN::Error::from_errno(EDESTADDRREQ);
 			auto target = it->value.lock();
@@ -449,20 +468,11 @@ namespace Kernel
 		if (!connection)
 			return BAN::Error::from_errno(ENOTCONN);
 
-		sockaddr_un sa_un;
-		sa_un.sun_family = AF_UNIX;
-		sa_un.sun_path[0] = 0;
-
-		{
-			SpinLockGuard _(s_bound_socket_lock);
-			for (auto& [path, socket] : s_bound_sockets)
-			{
-				if (socket.lock() != connection)
-					continue;
-				strcpy(sa_un.sun_path, path.data());
-				break;
-			}
-		}
+		sockaddr_un sa_un {
+			.sun_family = AF_UNIX,
+			.sun_path = {},
+		};
+		strcpy(sa_un.sun_path, connection->m_bound_file.canonical_path.data());
 
 		const size_t to_copy = BAN::Math::min<socklen_t>(sizeof(sockaddr_un), *address_len);
 		memcpy(address, &sa_un, to_copy);

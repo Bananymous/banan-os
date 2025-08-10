@@ -113,6 +113,7 @@ __BEGIN_DECLS
 	O(SYS_FUTEX,			futex)			\
 	O(SYS_GETGROUPS,		getgroups)		\
 	O(SYS_SETGROUPS,		setgroups)		\
+	O(SYS_CHROOT,			chroot)			\
 
 enum Syscall
 {
