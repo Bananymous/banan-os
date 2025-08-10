@@ -1,0 +1,52 @@
+From fd08d90bb7ee8388a9e005bae23edcccbfc73dbb Mon Sep 17 00:00:00 2001
+From: Oskari Alaranta <oskari.alaranta@bananymous.com>
+Date: Sun, 10 Aug 2025 19:52:20 +0300
+Subject: [PATCH] add support for custom SDL path and add sound support
+
+---
+ Makefile | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index 8edbffa..de2f605 100644
+--- a/Makefile
++++ b/Makefile
+@@ -1,6 +1,6 @@
+ 
+-SDL_CFLAGS = `sdl2-config --cflags`
+-SDL_LIBS = `sdl2-config --cflags --libs` -lSDL2_mixer
++SDL_CFLAGS = `$(SDL_PATH)sdl2-config --cflags`
++SDL_LIBS = `$(SDL_PATH)sdl2-config --cflags --libs` -lSDL2_mixer
+ 
+ MOUNT_DIR=.
+ 
+@@ -124,7 +124,7 @@ QUAKE2_OBJS = \
+ 	\
+ 	$(BUILDDIR)/net/net_unix.o \
+ 	\
+-	$(BUILDDIR)/sound/snddma_null.o \
++	$(BUILDDIR)/sound/snd_sdl.o \
+ 	\
+ 	$(BUILDDIR)/port_platform_unix.o
+ 
+@@ -353,7 +353,7 @@ $(BUILDDIR)/client/vid_menu.o :   $(OTHER_DIR)/vid_menu.c
+ $(BUILDDIR)/client/vid_lib.o :     $(OTHER_DIR)/vid_lib.c
+ 	$(DO_CC)
+ 
+-$(BUILDDIR)/client/snddma_null.o :  $(NULL_DIR)/snddma_null.c
++$(BUILDDIR)/client/snd_sdl.o :  $(NULL_DIR)/snd_sdl.c
+ 	$(DO_CC)
+ 
+ $(BUILDDIR)/client/q_system.o :  $(OTHER_DIR)/q_system.c
+@@ -368,7 +368,7 @@ $(BUILDDIR)/net/net_unix.o :    $(NET_DIR)/net_unix.c
+ $(BUILDDIR)/port_platform_unix.o :    $(MOUNT_DIR)/port_platform_unix.c
+ 	$(DO_CC)
+ 
+-$(BUILDDIR)/sound/snddma_null.o :    $(SOUND_DIR)/snddma_null.c
++$(BUILDDIR)/sound/snd_sdl.o :    $(SOUND_DIR)/snd_sdl.c
+ 	$(DO_GL_SHLIB_CC)
+ 
+ 
+-- 
+2.50.1
+

@@ -1,0 +1,42 @@
+From fbdf3e7c40c1de83a2361bb904d8dbd3464ccebd Mon Sep 17 00:00:00 2001
+From: Oskari Alaranta <oskari.alaranta@bananymous.com>
+Date: Sun, 10 Aug 2025 19:54:38 +0300
+Subject: [PATCH 2/2] fix socket creation
+
+---
+ net/net_unix.c | 10 +---------
+ 1 file changed, 1 insertion(+), 9 deletions(-)
+
+diff --git a/net/net_unix.c b/net/net_unix.c
+index a92e57c..f297dff 100644
+--- a/net/net_unix.c
++++ b/net/net_unix.c
+@@ -451,24 +451,16 @@ int NET_Socket (char *net_interface, int port)
+ 	qboolean _true = true;
+ 	int	i = 1;
+ 
+-	if ((newsocket = socket (PF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1)
++	if ((newsocket = socket (PF_INET, SOCK_DGRAM | SOCK_NONBLOCK, IPPROTO_UDP)) == -1)
+ 	{
+ 		Com_Printf ("ERROR: UDP_OpenSocket: socket:", NET_ErrorString());
+ 		return 0;
+ 	}
+ 
+-	// make it non-blocking
+-	if (ioctl (newsocket, FIONBIO, &_true) == -1)
+-	{
+-		Com_Printf ("ERROR: UDP_OpenSocket: ioctl FIONBIO:%s\n", NET_ErrorString());
+-		return 0;
+-	}
+-
+ 	// make it broadcast capable
+ 	if (setsockopt(newsocket, SOL_SOCKET, SO_BROADCAST, (char *)&i, sizeof(i)) == -1)
+ 	{
+ 		Com_Printf ("ERROR: UDP_OpenSocket: setsockopt SO_BROADCAST:%s\n", NET_ErrorString());
+-		return 0;
+ 	}
+ 
+ 	if (!net_interface || !net_interface[0] || !stricmp(net_interface, "localhost"))
+-- 
+2.50.1
+
