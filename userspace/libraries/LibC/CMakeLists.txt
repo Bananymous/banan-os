@@ -10,6 +10,7 @@ set(LIBC_SOURCES
 	errno.cpp
 	fcntl.cpp
 	fenv.cpp
+	fnmatch.cpp
 	ftw.cpp
 	grp.cpp
 	ifaddrs.cpp
