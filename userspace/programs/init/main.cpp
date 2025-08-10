@@ -42,6 +42,12 @@ int main(int argc, char** argv)
 		exit(1);
 	}
 
+	if (fork() == 0)
+	{
+		execl("/bin/AudioServer", "AudioServer", NULL);
+		exit(1);
+	}
+
 	bool first = true;
 
 	termios termios;
