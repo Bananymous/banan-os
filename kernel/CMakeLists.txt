@@ -5,6 +5,7 @@ set(KERNEL_SOURCES
 	kernel/ACPI/AML/Node.cpp
 	kernel/ACPI/AML/OpRegion.cpp
 	kernel/ACPI/BatterySystem.cpp
+	kernel/ACPI/EmbeddedController.cpp
 	kernel/APIC.cpp
 	kernel/Audio/AC97/Controller.cpp
 	kernel/Audio/Controller.cpp

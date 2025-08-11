@@ -1,11 +1,12 @@
 #include <BAN/ScopeGuard.h>
 #include <BAN/StringView.h>
 #include <kernel/ACPI/ACPI.h>
-#include <kernel/ACPI/BatterySystem.h>
 #include <kernel/ACPI/AML/OpRegion.h>
+#include <kernel/ACPI/BatterySystem.h>
 #include <kernel/BootInfo.h>
 #include <kernel/InterruptController.h>
 #include <kernel/IO.h>
+#include <kernel/Lock/SpinLockAsMutex.h>
 #include <kernel/Memory/PageTable.h>
 #include <kernel/Process.h>
 #include <kernel/Timer/Timer.h>
@@ -637,7 +638,7 @@ acpi_release_global_lock:
 		auto prs_node = TRY(AML::convert_node(TRY(m_namespace->evaluate(device, "_PRS"_sv)), AML::ConvBuffer, -1));
 		auto prs_span = BAN::ConstByteSpan(prs_node.as.str_buf->bytes, prs_node.as.str_buf->size);
 
-		auto [srs_path, srs_node] = TRY(m_namespace->find_named_object(device, TRY(AML::NameString::from_string("_SRS"_sv))));
+		auto [srs_path, srs_node] = TRY(m_namespace->find_named_object(device, TRY(AML::NameString::from_string("_SRS"_sv)), true));
 		if (srs_node == nullptr || srs_node->node.type != AML::Node::Type::Method)
 		{
 			dwarnln("interrupt link device does not have _SRS method");
@@ -747,6 +748,196 @@ acpi_release_global_lock:
 	}
 #pragma GCC diagnostic pop
 
+	BAN::Optional<GAS> ACPI::find_gpe_block(size_t index)
+	{
+#define FIND_GPE(idx)                                                             \
+			{                                                                     \
+				const uint8_t null[sizeof(GAS)] {};                               \
+				if (fadt().length > offsetof(FADT, x_gpe##idx##_blk)              \
+					&& memcmp(fadt().x_gpe##idx##_blk, null, sizeof(GAS)) == 0) { \
+					auto gas = *reinterpret_cast<GAS*>(fadt().x_gpe##idx##_blk);  \
+					if (gas.address != 0) {                                       \
+						gas.register_bit_width = 8;                               \
+						gas.access_size = 1;                                      \
+						if (!gas.read().is_error())                               \
+							return gas;                                           \
+					}                                                             \
+				}                                                                 \
+                                                                                  \
+				if (fadt().gpe##idx##_blk) {                                      \
+					return GAS {                                                  \
+						.address_space_id = GAS::AddressSpaceID::SystemIO,        \
+						.register_bit_width = 8,                                  \
+						.register_bit_offset = 0,                                 \
+						.access_size = 1,                                         \
+						.address = fadt().gpe##idx##_blk,                         \
+					};                                                            \
+				}                                                                 \
+				return {};                                                        \
+			}
+
+		switch (index)
+		{
+			case 0: FIND_GPE(0);
+			case 1: FIND_GPE(1);
+			default: ASSERT_NOT_REACHED();
+		}
+#undef FIND_GPE
+	}
+
+	BAN::ErrorOr<void> ACPI::initialize_embedded_controller(const AML::Scope& embedded_controller)
+	{
+		BAN::Optional<uint8_t> gpe_int;
+
+		do {
+			auto [gpe_path, gpe_obj] = TRY(m_namespace->find_named_object(embedded_controller, TRY(AML::NameString::from_string("_GPE"_sv)), true));
+			if (gpe_obj == nullptr)
+			{
+				dwarnln("EC {} does have _GPE", embedded_controller);
+				break;
+			}
+
+			auto gpe = TRY(AML::evaluate_node(gpe_path, gpe_obj->node));
+			if (gpe.type == AML::Node::Type::Package)
+			{
+				dwarnln("TODO: EC {} has package _GPE");
+				break;
+			}
+
+			gpe_int = TRY(AML::convert_node(BAN::move(gpe), AML::ConvInteger, -1)).as.integer.value;
+		} while (false);
+
+		auto [crs_path, crs_obj] = TRY(m_namespace->find_named_object(embedded_controller, TRY(AML::NameString::from_string("_CRS"_sv)), true));
+		if (crs_obj == nullptr)
+		{
+			dwarnln("EC {} does have _CRS", embedded_controller);
+			return BAN::Error::from_errno(ENOENT);
+		}
+
+		const auto crs = TRY(AML::evaluate_node(crs_path, crs_obj->node));
+		if (crs.type != AML::Node::Type::Buffer)
+		{
+			dwarnln("EC {} _CRS is not a buffer, but {}", embedded_controller, crs);
+			return BAN::Error::from_errno(EINVAL);
+		}
+
+		const auto extract_io_port =
+			[](BAN::ConstByteSpan& buffer) -> BAN::ErrorOr<uint16_t>
+			{
+				if (buffer.empty())
+					return BAN::Error::from_errno(ENODATA);
+
+				uint16_t result;
+				bool decode_16;
+
+				switch (buffer[0])
+				{
+					case 0x47: // IO Port Descriptor
+						if (buffer.size() < 8)
+							return BAN::Error::from_errno(ENODATA);
+						decode_16 = !!(buffer[1] & (1 << 0));
+						result = (buffer[3] << 8) | buffer[2];
+						buffer = buffer.slice(8);
+						break;
+					case 0x4B: // Fixed Location IO Port Descriptor
+						if (buffer.size() < 4)
+							return BAN::Error::from_errno(ENODATA);
+						decode_16 = false;
+						result = (buffer[2] << 8) | buffer[1];
+						buffer = buffer.slice(4);
+						break;
+					default:
+						dwarnln("EC _CRS has unhandled resouce descriptor 0x{2H}", buffer[0]);
+						return BAN::Error::from_errno(EINVAL);
+				}
+
+				const uint16_t mask = decode_16 ? 0xFFFF : 0x03FF;
+				return result & mask;
+			};
+
+		// TODO: EC can also reside in memory space
+		auto crs_buffer = BAN::ConstByteSpan { crs.as.str_buf->bytes, crs.as.str_buf->size };
+		const auto data_port = TRY(extract_io_port(crs_buffer));
+		const auto command_port = TRY(extract_io_port(crs_buffer));
+
+		TRY(m_embedded_controllers.push_back(TRY(EmbeddedController::create(TRY(embedded_controller.copy()), command_port, data_port, gpe_int))));
+		return {};
+	}
+
+	BAN::ErrorOr<void> ACPI::initialize_embedded_controllers()
+	{
+		auto embedded_controllers = TRY(m_namespace->find_device_with_eisa_id("PNP0C09"));
+
+		for (auto& embedded_controller : embedded_controllers)
+			if (auto ret = initialize_embedded_controller(embedded_controller); ret.is_error())
+				dwarnln("Failed to initialize embedded controller: {}", ret.error());
+
+		dprintln("Initialized {}/{} embedded controllers",
+			m_embedded_controllers.size(),
+			embedded_controllers.size()
+		);
+
+		return {};
+	}
+
+	BAN::ErrorOr<void> ACPI::register_gpe_handler(uint8_t gpe, void (*callback)(void*), void* argument)
+	{
+		if (m_gpe_methods[gpe].method)
+			return BAN::Error::from_errno(EEXIST);
+
+		m_gpe_methods[gpe].has_callback = true;
+		m_gpe_methods[gpe] = {
+			.has_callback = true,
+			.callback = callback,
+			.argument = argument,
+		};
+
+		if (!enable_gpe(gpe))
+		{
+			m_gpe_methods[gpe] = {};
+			return BAN::Error::from_errno(EFAULT);
+		}
+
+		dprintln("Enabled _GPE {}", gpe);
+
+		return {};
+	}
+
+	bool ACPI::enable_gpe(uint8_t gpe)
+	{
+		const auto enable_gpe_impl =
+			[](const GAS& gpe_block, size_t gpe, size_t base, size_t blk_len) -> bool
+			{
+				if (gpe < base || gpe >= base + blk_len / 2 * 8)
+					return false;
+				const auto byte = (gpe - base) / 8;
+				const auto bit  = (gpe - base) % 8;
+				auto enabled = ({ auto tmp = gpe_block; tmp.address += (blk_len / 2) + byte; tmp; });
+				MUST(enabled.write(MUST(enabled.read()) | (1 << bit)));
+				return true;
+			};
+
+		const auto gpe0 = find_gpe_block(0);
+		const size_t gpe0_base = 0;
+		const size_t gpe0_blk_len = gpe0.has_value() ? fadt().gpe0_blk_len : 0;
+		if (gpe0.has_value() && enable_gpe_impl(gpe0.value(), gpe, gpe0_base, gpe0_blk_len))
+		{
+			m_has_any_gpes = true;
+			return true;
+		}
+
+		const auto gpe1 = find_gpe_block(1);
+		const size_t gpe1_base = fadt().gpe1_base;
+		const size_t gpe1_blk_len = gpe1.has_value() ? fadt().gpe1_blk_len : 0;
+		if (gpe1.has_value() && enable_gpe_impl(gpe1.value(), gpe, gpe1_base, gpe1_blk_len))
+		{
+			m_has_any_gpes = true;
+			return true;
+		}
+
+		return false;
+	}
+
 	BAN::ErrorOr<void> ACPI::enter_acpi_mode(uint8_t mode)
 	{
 		ASSERT(!m_namespace);
@@ -791,6 +982,25 @@ acpi_release_global_lock:
 			dwarnln("Could not load all PSDTs: {}", ret.error());
 
 		dprintln("Loaded ACPI tables");
+
+		{
+			const auto disable_gpe_block =
+				[](const GAS& gpe, size_t blk_len) {
+					for (size_t i = 0; i < blk_len / 2; i++)
+						MUST(({ auto tmp = gpe; tmp.address += blk_len / 2 + i; tmp; }).write(0));
+				};
+
+			if (auto gpe0 = find_gpe_block(0); gpe0.has_value())
+				disable_gpe_block(gpe0.value(), fadt().gpe0_blk_len);
+
+			if (auto gpe1 = find_gpe_block(1); gpe1.has_value())
+				disable_gpe_block(gpe1.value(), fadt().gpe1_blk_len);
+
+			// FIXME: add support for GPE blocks inside the ACPI namespace
+		}
+
+		if (auto ret = initialize_embedded_controllers(); ret.is_error())
+			dwarnln("Failed to initialize Embedded Controllers: {}", ret.error());
 
 		if (auto ret = m_namespace->post_load_initialize(); ret.is_error())
 			dwarnln("Failed to initialize ACPI namespace: {}", ret.error());
@@ -841,45 +1051,43 @@ acpi_release_global_lock:
 					return ret;
 				};
 
-			if (fadt().gpe0_blk)
+			auto [gpe_scope, gpe_obj] = TRY(m_namespace->find_named_object({}, TRY(AML::NameString::from_string("\\_GPE"))));
+			if (gpe_obj && gpe_obj->node.is_scope())
 			{
-				auto [gpe_scope, gpe_obj] = TRY(m_namespace->find_named_object({}, TRY(AML::NameString::from_string("\\_GPE"))));
-				if (gpe_obj && gpe_obj->node.is_scope())
-				{
-					m_gpe_scope = BAN::move(gpe_scope);
+				m_gpe_scope = BAN::move(gpe_scope);
 
-					// Enable all events in _GPE (_Lxx or _Exx)
-					TRY(m_namespace->for_each_child(m_gpe_scope,
-						[&](BAN::StringView name, AML::Reference* node_ref) -> BAN::Iteration
+				// Enable all events in _GPE (_Lxx or _Exx)
+				TRY(m_namespace->for_each_child(m_gpe_scope,
+					[&](BAN::StringView name, AML::Reference* node_ref) -> BAN::Iteration
+					{
+						if (node_ref->node.type != AML::Node::Type::Method)
+							return BAN::Iteration::Continue;
+
+						ASSERT(name.size() == 4);
+						if (!name.starts_with("_L"_sv) && !name.starts_with("_E"_sv))
+							return BAN::Iteration::Continue;
+
+						auto opt_index = hex_sv_to_int(name.substring(2));
+						if (!opt_index.has_value())
 						{
-							if (node_ref->node.type != AML::Node::Type::Method)
-								return BAN::Iteration::Continue;
-
-							ASSERT(name.size() == 4);
-							if (!name.starts_with("_L"_sv) && !name.starts_with("_E"_sv))
-								return BAN::Iteration::Continue;
-
-							auto index = hex_sv_to_int(name.substring(2));
-							if (!index.has_value())
-							{
-								dwarnln("invalid GPE number '{}'", name);
-								return BAN::Iteration::Continue;
-							}
-
-							auto byte = index.value() / 8;
-							auto bit = index.value() % 8;
-							auto gpe0_en_port = fadt().gpe0_blk + (fadt().gpe0_blk_len / 2) + byte;
-							IO::outb(gpe0_en_port, IO::inb(gpe0_en_port) | (1 << bit));
-
-							m_gpe_methods[index.value()] = node_ref;
-							node_ref->ref_count++;
-
-							dprintln("Enabled GPE {}", index.value(), byte, bit);
-
+							dwarnln("invalid GPE number '{}'", name);
 							return BAN::Iteration::Continue;
 						}
-					));
-				}
+
+						const auto index = opt_index.value();
+						if (enable_gpe(index))
+						{
+							m_gpe_methods[index] = {
+								.has_callback = false,
+								.method = node_ref
+							};
+							node_ref->ref_count++;
+							dprintln("Enabled {}", name);
+						}
+
+						return BAN::Iteration::Continue;
+					}
+				));
 			}
 
 			set_irq(irq);
@@ -915,7 +1123,7 @@ acpi_release_global_lock:
 
 	void ACPI::acpi_event_task()
 	{
-		auto get_fixed_event =
+		const auto get_fixed_event =
 			[&](uint16_t sts_port)
 			{
 				if (sts_port == 0)
@@ -927,78 +1135,62 @@ acpi_release_global_lock:
 				return 0;
 			};
 
-#define FIND_GPE(idx)                                                             \
-			BAN::Optional<GAS> gpe##idx;                                          \
-			{                                                                     \
-				const uint8_t null[sizeof(GAS)] {};                               \
-				if (fadt().length > offsetof(FADT, x_gpe##idx##_blk)              \
-					&& memcmp(fadt().x_gpe##idx##_blk, null, sizeof(GAS)) == 0) { \
-					auto gas = *reinterpret_cast<GAS*>(fadt().x_gpe##idx##_blk);  \
-					if (!gas.read().is_error())                                   \
-						gpe0 = gas;                                               \
-				}                                                                 \
-                                                                                  \
-				if (!gpe##idx.has_value() && fadt().gpe##idx##_blk) {             \
-					gpe##idx = GAS {                                              \
-						.address_space_id = GAS::AddressSpaceID::SystemIO,        \
-						.register_bit_width = 8,                                  \
-						.register_bit_offset = 0,                                 \
-						.access_size = 1,                                         \
-						.address = fadt().gpe##idx##_blk,                         \
-					};                                                            \
-				}                                                                 \
+		const auto try_handle_gpe = [this](GAS gpe_blk, uint8_t gpe_blk_len, uint32_t base) -> bool {
+			bool handled = false;
+			for (uint8_t i = 0; i < gpe_blk_len / 2; i++)
+			{
+				auto status  = ({ auto tmp = gpe_blk; tmp.address +=                     i; tmp; });
+				auto enabled = ({ auto tmp = gpe_blk; tmp.address += (gpe_blk_len / 2) + i; tmp; });
+				const uint8_t pending = MUST(status.read()) & MUST(enabled.read());
+				if (pending == 0)
+					continue;
+
+				for (size_t bit = 0; bit < 8; bit++)
+				{
+					if (!(pending & (1 << bit)))
+						continue;
+
+					const auto gpe = base + i * 8 + bit;
+					if (auto& method = m_gpe_methods[gpe]; method.method == nullptr)
+						dwarnln("No handler for _GPE {}", gpe);
+					else
+					{
+						if (method.has_callback)
+							method.callback(method.argument);
+						else if (auto ret = AML::method_call(m_gpe_scope, method.method->node, BAN::Array<AML::Reference*, 7>{}); ret.is_error())
+							dwarnln("Failed to evaluate _GPE {}: ", gpe, ret.error());
+						else
+							dprintln("handled _GPE {}", gpe);
+					}
+				}
+
+				MUST(status.write(pending));
+				handled = true;
 			}
 
-		FIND_GPE(0);
-		FIND_GPE(1);
+			return handled;
+		};
+
+		const auto gpe0 = m_has_any_gpes ? find_gpe_block(0) : BAN::Optional<GAS>{};
+		const auto gpe1 = m_has_any_gpes ? find_gpe_block(1) : BAN::Optional<GAS>{};
 
 		while (true)
 		{
 			uint16_t sts_port;
 			uint16_t pending;
 
-			const auto read_gpe = [this](GAS gpe, uint8_t gpe_blk_len, uint32_t base) -> bool {
-				for (uint8_t i = 0; i < gpe_blk_len / 2; i++)
-				{
-					auto status  = ({ auto tmp = gpe; tmp.address +=                     i; tmp; });
-					auto enabled = ({ auto tmp = gpe; tmp.address += (gpe_blk_len / 2) + i; tmp; });
-					const uint8_t pending = MUST(status.read()) & MUST(enabled.read());
-					if (pending == 0)
-						continue;
-
-					for (size_t bit = 0; bit < 8; bit++)
-					{
-						if (!(pending & (1 << bit)))
-							continue;
-
-						const auto index = base + i * 8 + bit;
-						if (auto* method = m_gpe_methods[index]; method == nullptr)
-							dwarnln("No handler for _GPE {}", index);
-						else if (auto ret = AML::method_call(m_gpe_scope, method->node, BAN::Array<AML::Reference*, 7>{}); ret.is_error())
-							dwarnln("Failed to evaluate _GPE {}: ", index, ret.error());
-						else
-							dprintln("handled _GPE {}", index);
-					}
-
-					MUST(status.write(pending));
-					return true;
-				}
-
-				return false;
-			};
-
 			sts_port = fadt().pm1a_evt_blk;
-			if ((pending = get_fixed_event(sts_port)))
+			if (sts_port && (pending = get_fixed_event(sts_port)))
 				goto handle_event;
 
 			sts_port = fadt().pm1b_evt_blk;
-			if ((pending = get_fixed_event(sts_port)))
+			if (sts_port && (pending = get_fixed_event(sts_port)))
 				goto handle_event;
 
-			if (gpe0.has_value() && read_gpe(gpe0.value(), fadt().gpe0_blk_len, 0))
+			if (gpe0.has_value() && try_handle_gpe(gpe0.value(), fadt().gpe0_blk_len, 0))
 				continue;
 
-			if (gpe1.has_value() && read_gpe(gpe1.value(), fadt().gpe1_blk_len, fadt().gpe1_base))
+			if (gpe1.has_value() && try_handle_gpe(gpe1.value(), fadt().gpe1_blk_len, fadt().gpe1_base))
 				continue;
 
 			// FIXME: this can cause missing of event if it happens between

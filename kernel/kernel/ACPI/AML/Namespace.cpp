@@ -274,6 +274,31 @@ namespace Kernel::ACPI::AML
 		const auto address_space = opregion.as.opregion.address_space;
 		if (address_space == GAS::AddressSpaceID::SystemIO || address_space == GAS::AddressSpaceID::SystemMemory)
 			return {};
+
+		switch (address_space)
+		{
+			case GAS::AddressSpaceID::SystemMemory:
+			case GAS::AddressSpaceID::SystemIO:
+				// always enabled
+				return {};
+			case GAS::AddressSpaceID::PCIConfig:
+			case GAS::AddressSpaceID::EmbeddedController:
+				// supported address spaces
+				break;
+			case GAS::AddressSpaceID::SMBus:
+			case GAS::AddressSpaceID::SystemCMOS:
+			case GAS::AddressSpaceID::PCIBarTarget:
+			case GAS::AddressSpaceID::IPMI:
+			case GAS::AddressSpaceID::GeneralPurposeIO:
+			case GAS::AddressSpaceID::GenericSerialBus:
+			case GAS::AddressSpaceID::PlatformCommunicationChannel:
+				// unsupported address spaces
+				return BAN::Error::from_errno(ENOTSUP);
+			default:
+				// unknown address space
+				return BAN::Error::from_errno(EINVAL);
+		}
+
 		const uint32_t address_space_u32 = static_cast<uint32_t>(address_space);
 		if (address_space_u32 >= 32)
 			return {};

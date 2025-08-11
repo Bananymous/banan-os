@@ -4,6 +4,7 @@
 #include <BAN/Errors.h>
 #pragma GCC pop_options
 
+#include <kernel/ACPI/ACPI.h>
 #include <kernel/ACPI/AML/Bytes.h>
 #include <kernel/ACPI/AML/Namespace.h>
 #include <kernel/ACPI/AML/OpRegion.h>
@@ -410,6 +411,18 @@ namespace Kernel::ACPI::AML
 		return {};
 	}
 
+	static BAN::ErrorOr<EmbeddedController*> get_embedded_controller(const OpRegion& opregion)
+	{
+		ASSERT(opregion.address_space == GAS::AddressSpaceID::EmbeddedController);
+
+		auto all_embedded_controllers = ACPI::get().embedded_controllers();
+		for (auto& embedded_controller : all_embedded_controllers)
+			if (embedded_controller->scope() == opregion.scope())
+				return embedded_controller.ptr();
+
+		return BAN::Error::from_errno(ENOENT);
+	}
+
 	static BAN::ErrorOr<uint64_t> perform_opregion_read(const OpRegion& opregion, uint8_t access_size, uint64_t offset)
 	{
 		ASSERT(offset % access_size == 0);
@@ -473,6 +486,18 @@ namespace Kernel::ACPI::AML
 				ASSERT_NOT_REACHED();
 			}
 			case GAS::AddressSpaceID::EmbeddedController:
+			{
+				auto* embedded_controller = TRY(get_embedded_controller(opregion));
+				ASSERT(embedded_controller);
+
+				if (access_size != 1)
+				{
+					dwarnln("{} byte read from embedded controller", access_size);
+					return BAN::Error::from_errno(EINVAL);
+				}
+
+				return TRY(embedded_controller->read_byte(offset));
+			}
 			case GAS::AddressSpaceID::SMBus:
 			case GAS::AddressSpaceID::SystemCMOS:
 			case GAS::AddressSpaceID::PCIBarTarget:
@@ -547,6 +572,19 @@ namespace Kernel::ACPI::AML
 				return {};
 			}
 			case GAS::AddressSpaceID::EmbeddedController:
+			{
+				auto* embedded_controller = TRY(get_embedded_controller(opregion));
+				ASSERT(embedded_controller);
+
+				if (access_size != 1)
+				{
+					dwarnln("{} byte write to embedded controller", access_size);
+					return BAN::Error::from_errno(EINVAL);
+				}
+
+				TRY(embedded_controller->write_byte(offset, value));
+				return {};
+			}
 			case GAS::AddressSpaceID::SMBus:
 			case GAS::AddressSpaceID::SystemCMOS:
 			case GAS::AddressSpaceID::PCIBarTarget:
