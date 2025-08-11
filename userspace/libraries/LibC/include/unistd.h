@@ -124,6 +124,8 @@ __BEGIN_DECLS
 #define __need_useconds_t
 #include <sys/types.h>
 
+#include <bits/getopt.h>
+
 enum
 {
 	_CS_PATH = 1,
@@ -547,7 +549,6 @@ long				gethostid(void);
 int					gethostname(char* name, size_t namelen);
 char*				getlogin(void);
 int					getlogin_r(char* name, size_t namesize);
-int					getopt(int argc, char* const argv[], const char* optstring);
 pid_t				getpgid(pid_t pid);
 pid_t				getpgrp(void);
 pid_t				getpid(void);
@@ -599,9 +600,6 @@ ssize_t				write(int fildes, const void* buf, size_t nbyte);
 int					chroot(const char* path);
 int					getpagesize(void);
 char*				getpass(const char* prompt);
-
-extern char*	optarg;
-extern int		opterr, optind, optopt;
 
 long syscall(long syscall, ...);
 

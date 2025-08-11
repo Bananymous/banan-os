@@ -12,6 +12,7 @@ set(LIBC_SOURCES
 	fenv.cpp
 	fnmatch.cpp
 	ftw.cpp
+	getopt.cpp
 	grp.cpp
 	ifaddrs.cpp
 	inttypes.cpp
