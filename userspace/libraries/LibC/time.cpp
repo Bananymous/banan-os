@@ -108,53 +108,59 @@ static constexpr bool is_leap_year(uint64_t year)
 
 time_t mktime(struct tm* tm)
 {
-	if (tm->tm_year < 70)
+	tzset();
+
+	struct tm modified = *tm;
+
+	if (modified.tm_year < 70)
 	{
 		errno = EOVERFLOW;
 		return -1;
 	}
 
-	tm->tm_min += tm->tm_sec / 60;
-	tm->tm_sec %= 60;
+	modified.tm_min += modified.tm_sec / 60;
+	modified.tm_sec %= 60;
 
-	tm->tm_hour += tm->tm_min / 60;
-	tm->tm_min %= 60;
+	modified.tm_hour += modified.tm_min / 60;
+	modified.tm_min %= 60;
 
-	tm->tm_mday += tm->tm_hour / 24;
-	tm->tm_hour %= 24;
+	modified.tm_mday += modified.tm_hour / 24;
+	modified.tm_hour %= 24;
 
 	static constexpr int month_days[] { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
 
 	for (;;)
 	{
-		int days_in_month = month_days[tm->tm_mon];
-		if (tm->tm_mon == 1 && is_leap_year(tm->tm_year))
+		int days_in_month = month_days[modified.tm_mon];
+		if (modified.tm_mon == 1 && is_leap_year(modified.tm_year))
 			days_in_month++;
 
-		if (tm->tm_mday <= days_in_month)
+		if (modified.tm_mday <= days_in_month)
 			break;
 
-		tm->tm_mday -= days_in_month;
-		tm->tm_mon++;
+		modified.tm_mday -= days_in_month;
+		modified.tm_mon++;
 	}
 
-	tm->tm_year += tm->tm_mon / 12;
-	tm->tm_mon %= 12;
+	modified.tm_year += modified.tm_mon / 12;
+	modified.tm_mon %= 12;
 
-	tm->tm_yday = tm->tm_mday - 1;
-	for (int i = 0; i < tm->tm_mon; i++)
-		tm->tm_yday += month_days[i];
+	modified.tm_yday = modified.tm_mday - 1;
+	for (int i = 0; i < modified.tm_mon; i++)
+		modified.tm_yday += month_days[i];
 
-	const time_t num_febs = (tm->tm_mon > 1) ? tm->tm_year + 1 : tm->tm_year;
+	const time_t num_febs = (modified.tm_mon > 1) ? modified.tm_year + 1 : modified.tm_year;
 	const time_t leap_years = (num_febs - 69) / 4 - (num_febs - 1) / 100 + (num_febs + 299) / 400;
 
-	const time_t years = tm->tm_year - 70;
-	const time_t days = years * 365 + leap_years + tm->tm_yday;
-	const time_t hours = days * 24 + tm->tm_hour;
-	const time_t minutes = hours * 60 + tm->tm_min;
-	const time_t seconds = minutes * 60 + tm->tm_sec;
+	const time_t years = modified.tm_year - 70;
+	const time_t days = years * 365 + leap_years + modified.tm_yday;
+	const time_t hours = days * 24 + modified.tm_hour;
+	const time_t minutes = hours * 60 + modified.tm_min;
+	const time_t seconds = minutes * 60 + modified.tm_sec;
 
+	*tm = modified;
 	tm->tm_wday = (days + 4) % 7;
+	tm->tm_isdst = daylight;
 
 	return seconds;
 }
