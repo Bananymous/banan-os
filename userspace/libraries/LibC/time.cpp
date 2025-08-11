@@ -190,6 +190,9 @@ struct tm* gmtime_r(const time_t* timer, struct tm* __restrict result)
 	result->tm_year -= 1900;
 	result->tm_isdst = 0;
 
+	result->tm_gmtoff = 0;
+	result->tm_zone = "UTC";
+
 	return result;
 }
 
