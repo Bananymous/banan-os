@@ -1,0 +1,21 @@
+diff -ruN libiconv-1.18/srclib/getprogname.c libiconv-1.18-banan_os/srclib/getprogname.c
+--- libiconv-1.18/srclib/getprogname.c	2024-07-12 14:55:16.000000000 +0300
++++ libiconv-1.18-banan_os/srclib/getprogname.c	2025-08-07 23:42:50.691745454 +0300
+@@ -50,7 +50,7 @@
+ # include <sys/procfs.h>
+ #endif
+ 
+-#if defined __SCO_VERSION__ || defined __sysv5__
++#if defined __SCO_VERSION__ || defined __sysv5__ || defined __banan_os__
+ # include <fcntl.h>
+ # include <string.h>
+ #endif
+@@ -265,7 +265,7 @@
+         }
+     }
+   return NULL;
+-# elif defined __SCO_VERSION__ || defined __sysv5__                /* SCO OpenServer6/UnixWare */
++# elif defined __SCO_VERSION__ || defined __sysv5__ || defined __banan_os__                /* SCO OpenServer6/UnixWare */
+   char buf[80];
+   int fd;
+   sprintf (buf, "/proc/%d/cmdline", getpid());

@@ -1,0 +1,31 @@
+diff -ruN libiconv-1.18/configure libiconv-1.18-banan_os/configure
+--- libiconv-1.18/configure	2024-12-15 13:57:14.000000000 +0200
++++ libiconv-1.18-banan_os/configure	2025-08-07 23:49:03.383717069 +0300
+@@ -8779,6 +8779,10 @@
+   lt_cv_deplibs_check_method=pass_all
+   ;;
+ 
++banan_os*)
++  lt_cv_deplibs_check_method=pass_all
++  ;;
++
+ beos*)
+   lt_cv_deplibs_check_method=pass_all
+   ;;
+@@ -14510,6 +14514,16 @@
+   esac
+   ;;
+ 
++banan_os*)
++  version_type=linux # correct to gnu/linux during the next big refactor
++  need_lib_prefix=no
++  need_version=no
++  library_names_spec='$libname$release$shared_ext$versuffix $libname$release$shared_ext$major $libname$shared_ext'
++  soname_spec='$libname$release$shared_ext$major'
++  dynamic_linker="$host_os DynamicLoader.so"
++  shlibpath_var=LD_LIBRARY_PATH
++  ;;
++
+ beos*)
+   library_names_spec='$libname$shared_ext'
+   dynamic_linker="$host_os ld.so"
