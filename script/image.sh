@@ -47,21 +47,23 @@ if sudo mount $ROOT_PARTITION $MOUNT_DIR; then
 	else
 		sudo rsync -rulHpt $BANAN_SYSROOT/ $MOUNT_DIR
 
-		fakeroot -i $BANAN_FAKEROOT find $BANAN_SYSROOT -printf './%P|%U|%G\n' >$BANAN_BUILD_DIR/sysroot-perms.txt
+		fakeroot -i $BANAN_FAKEROOT find $BANAN_SYSROOT -printf './%P|%U|%G|%04m\n' >$BANAN_BUILD_DIR/sysroot-perms.txt
 		sudo bash -c "
 			if enable stat &>/dev/null; then
-				while IFS='|' read -r path uid gid; do
+				while IFS='|' read -r path uid gid mode; do
 					full=\"$MOUNT_DIR/\$path\"
 					stat \"\$full\"
-					if [[ \${STAT[uid]} != \$uid ]] || [[ \${STAT[gid]} != \$gid ]]; then
+					if [[ \${STAT[uid]} != \$uid ]] || [[ \${STAT[gid]} != \$gid ]] || [[ \${STAT[perms]} != \$mode ]]; then
 						chown -h \"\$uid:\$gid\" \"\$full\"
+						chmod -h \"\$mode\" \"\$full\"
 					fi
 				done <$BANAN_BUILD_DIR/sysroot-perms.txt
 			else
-				while IFS='|' read -r path uid gid; do
+				while IFS='|' read -r path uid gid mode; do
 					full=\"$MOUNT_DIR/\$path\"
-					if [[ \$(stat -c '%u %g' \"\$full\") != \"\$uid \$gid\" ]]; then
+					if [[ \$(stat -c '%u %g %a' \"\$full\") != \"\$uid \$gid \$mode\" ]]; then
 						chown -h \"\$uid:\$gid\" \"\$full\"
+						chmod -h \"\$mode\" \"\$full\"
 					fi
 				done <$BANAN_BUILD_DIR/sysroot-perms.txt
 			fi
