@@ -587,13 +587,39 @@ namespace Kernel::ACPI::AML
 
 	BAN::ErrorOr<BAN::Vector<Scope>> Namespace::find_device_with_eisa_id(BAN::StringView eisa_id)
 	{
-		if (!is_valid_eisa_id(eisa_id))
+		return find_device_with_eisa_id(BAN::Span<BAN::StringView>{ &eisa_id, 1 });
+	}
+
+	BAN::ErrorOr<BAN::Vector<Scope>> Namespace::find_device_with_eisa_id(BAN::Span<BAN::StringView> eisa_ids)
+	{
+		BAN::Vector<uint32_t> encoded_ids;
+
+		for (const auto& eisa_id : eisa_ids)
 		{
-			dwarnln("Invalid EISA id '{}'", eisa_id);
-			return BAN::Error::from_errno(EINVAL);
+			if (!is_valid_eisa_id(eisa_id))
+			{
+				dwarnln("Invalid EISA id '{}'", eisa_id);
+				return BAN::Error::from_errno(EINVAL);
+			}
+			TRY(encoded_ids.emplace_back(encode_eisa_id(eisa_id)));
 		}
 
-		const uint32_t encoded = encode_eisa_id(eisa_id);
+		const auto check_node_id =
+			[&encoded_ids](const Node& node) -> BAN::ErrorOr<bool>
+			{
+				uint32_t device_id;
+				if (node.type == Node::Type::Integer)
+					device_id = node.as.integer.value;
+				else if (node.type == Node::Type::String && is_valid_eisa_id(node.as.str_buf->as_sv()))
+					device_id = encode_eisa_id(node.as.str_buf->as_sv());
+				else
+					return false;
+
+				for (auto id : encoded_ids)
+					if (device_id == id)
+						return true;
+				return false;
+			};
 
 		BAN::Vector<Scope> result;
 
@@ -602,22 +628,39 @@ namespace Kernel::ACPI::AML
 			if (obj_ref->node.type != Node::Type::Device)
 				continue;
 
-			auto [_, hid] = TRY(find_named_object(obj_path, TRY(NameString::from_string("_HID"_sv)), true));
+			auto [_0, hid] = TRY(find_named_object(obj_path, TRY(NameString::from_string("_HID"_sv)), true));
 			if (hid == nullptr)
 				continue;
 
-			uint32_t device_hid = 0;
-			if (hid->node.type == Node::Type::Integer)
-				device_hid = hid->node.as.integer.value;
-			else if (hid->node.type == Node::Type::String && is_valid_eisa_id(hid->node.as.str_buf->as_sv()))
-				device_hid = encode_eisa_id(hid->node.as.str_buf->as_sv());
+			if (TRY(check_node_id(hid->node)))
+			{
+				TRY(result.push_back(TRY(obj_path.copy())));
+				continue;
+			}
+
+			auto [_1, cid] = TRY(find_named_object(obj_path, TRY(NameString::from_string("_CID"_sv)), true));
+			if (cid == nullptr)
+				continue;
+
+			if (cid->node.type != Node::Type::Package)
+			{
+				if (TRY(check_node_id(cid->node)))
+					TRY(result.push_back(TRY(obj_path.copy())));
+			}
 			else
-				continue;
-
-			if (device_hid != encoded)
-				continue;
-
-			TRY(result.push_back(TRY(obj_path.copy())));
+			{
+				for (size_t i = 0; i < cid->node.as.package->num_elements; i++)
+				{
+					auto& element = cid->node.as.package->elements[i];
+					if (resolve_package_element(element, true).is_error())
+						continue;
+					if (TRY(check_node_id(hid->node)))
+					{
+						TRY(result.push_back(TRY(obj_path.copy())));
+						break;
+					}
+				}
+			}
 		}
 
 		return result;

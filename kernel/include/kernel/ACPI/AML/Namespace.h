@@ -50,6 +50,7 @@ namespace Kernel::ACPI::AML
 		BAN::ErrorOr<void> for_each_child(const Scope&, const BAN::Function<BAN::Iteration(const Scope&, Reference*)>&);
 
 		BAN::ErrorOr<BAN::Vector<Scope>> find_device_with_eisa_id(BAN::StringView eisa_id);
+		BAN::ErrorOr<BAN::Vector<Scope>> find_device_with_eisa_id(BAN::Span<BAN::StringView> eisa_ids);
 
 	private:
 		BAN::ErrorOr<Scope> resolve_path(const Scope& scope, const NameString& name_string);
