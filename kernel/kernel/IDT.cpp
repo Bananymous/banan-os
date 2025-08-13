@@ -433,18 +433,27 @@ namespace Kernel
 
 		memset(idt->m_idt.data(), 0x00, 0x100 * sizeof(GateDescriptor));
 
-#define X(num) idt->register_interrupt_handler(num, isr ## num);
-		ISR_LIST_X
+#define X(num) &isr##num,
+		static constexpr void (*isr_handlers[])() {
+			ISR_LIST_X
+		};
 #undef X
+
+#define X(num) &irq##num,
+		static constexpr void (*irq_handlers[])() {
+			IRQ_LIST_X
+		};
+#undef X
+
+		for (size_t i = 0; i < sizeof(isr_handlers) / sizeof(*isr_handlers); i++)
+			idt->register_interrupt_handler(i, isr_handlers[i]);
+		for (size_t i = 0; i < sizeof(irq_handlers) / sizeof(*irq_handlers); i++)
+			idt->register_interrupt_handler(IRQ_VECTOR_BASE + i, irq_handlers[i]);
 
 #if ARCH(x86_64)
 		idt->register_interrupt_handler(DoubleFault, isr8, 1);
 		static_assert(DoubleFault == 8);
 #endif
-
-#define X(num) idt->register_interrupt_handler(IRQ_VECTOR_BASE + num, irq ## num);
-		IRQ_LIST_X
-#undef X
 
 		idt->register_interrupt_handler(IRQ_YIELD, asm_yield_handler);
 		idt->register_interrupt_handler(IRQ_IPI,   asm_ipi_handler);
