@@ -13,10 +13,6 @@ CONFIGURE_OPTIONS=(
 	'CFLAGS=-std=c11'
 )
 
-pre_configure() {
-	unset CC CXX LD
-}
-
 post_install() {
 	if [ ! -f ../eawpats.zip ]; then
 		wget https://www.quaddicted.com/files/idgames/sounds/eawpats.zip -O ../eawpats.zip || exit 1

@@ -1,0 +1,45 @@
+diff -ruN TiMidity++-2.15.0/timidity/Makefile.in TiMidity++-2.15.0-banan_os/timidity/Makefile.in
+--- TiMidity++-2.15.0/timidity/Makefile.in	2018-08-29 02:33:39.000000000 +0300
++++ TiMidity++-2.15.0-banan_os/timidity/Makefile.in	2025-08-13 12:15:16.535813960 +0300
+@@ -1956,8 +1956,6 @@
+ version.$(OBJEXT): version.c ../configure
+ 	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(CFLAGS) -c $(srcdir)/version.c
+ 
+-resample.c: newton_table.c
+-
+ @VCPP_TRUE@newton_table.c: calcnewt$(EXEEXT)
+ @VCPP_TRUE@	./calcnewt $@
+ 
+diff -ruN TiMidity++-2.15.0/timidity/resample.c TiMidity++-2.15.0-banan_os/timidity/resample.c
+--- TiMidity++-2.15.0/timidity/resample.c	2011-12-03 17:49:20.000000000 +0200
++++ TiMidity++-2.15.0-banan_os/timidity/resample.c	2025-08-13 12:16:23.639349203 +0300
+@@ -46,7 +46,6 @@
+ 
+ /* for start/end of samples */
+ static float newt_coeffs[58][58] = {
+-#include "newton_table.c"
+ };
+ 
+ int sample_bounds_min, sample_bounds_max; /* min/max bounds for sample data */
+@@ -468,7 +467,6 @@
+ 	gauss_table[0] = NULL;
+ }
+ 
+-#if 0 /* NOT USED */
+ /* the was calculated statically in newton_table.c */
+ static void initialize_newton_coeffs(void)
+ {
+@@ -499,12 +497,11 @@
+     	for (j = 0, sign = pow(-1, i); j <= i; j++, sign *= -1)
+     	    newt_coeffs[i][j] *= sign;
+ }
+-#endif /* NOT USED */
+ 
+ /* initialize the coefficients of the current resampling algorithm */
+ void initialize_resampler_coeffs(void)
+ {
+-    /* initialize_newton_coeffs(); */
++    initialize_newton_coeffs();
+     initialize_gauss_table(gauss_n);
+     /* we don't have to initialize newton table any more */
+ 
