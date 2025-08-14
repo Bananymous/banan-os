@@ -9,7 +9,9 @@ extern uint8_t g_kernel_end[];
 
 static constexpr size_t s_kmalloc_min_align = alignof(max_align_t);
 
-static uint8_t s_kmalloc_storage[20 * MB];
+static constexpr size_t s_kmalloc_size = 48 * MB;
+static constexpr size_t s_kmalloc_fixed_size = 16 * MB;
+static uint8_t s_kmalloc_storage[s_kmalloc_size + s_kmalloc_fixed_size];
 
 struct kmalloc_node
 {
@@ -62,7 +64,7 @@ static_assert(sizeof(kmalloc_node) == s_kmalloc_min_align);
 struct kmalloc_info
 {
 	const uintptr_t	base = (uintptr_t)s_kmalloc_storage;
-	const size_t	size = sizeof(s_kmalloc_storage) / 2;
+	const size_t	size = s_kmalloc_size;
 	const uintptr_t	end = base + size;
 
 	kmalloc_node* first() { return (kmalloc_node*)base; }
@@ -100,7 +102,7 @@ struct kmalloc_fixed_info
 	using node = kmalloc_fixed_node<64>;
 
 	const uintptr_t	base = s_kmalloc_info.end;
-	const size_t	size = (uintptr_t)s_kmalloc_storage + sizeof(s_kmalloc_storage) - base;
+	const size_t	size = s_kmalloc_fixed_size;
 	const uintptr_t	end = base + size;
 	const size_t	node_count = size / sizeof(node);
 
