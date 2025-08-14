@@ -1876,11 +1876,12 @@ namespace Kernel::ACPI::AML
 			}
 
 			auto [execution_flow, node] = parse_result.release_value();
-			if (execution_flow != ExecutionFlow::Normal)
-			{
-				dwarnln("Scope got execution flow {}", static_cast<int>(execution_flow));
-				return BAN::Error::from_errno(EINVAL);
-			}
+			if (execution_flow == ExecutionFlow::Normal)
+				continue;
+			if (execution_flow == ExecutionFlow::Return)
+				break;
+			dwarnln("Scope got execution flow {}", static_cast<int>(execution_flow));
+			return BAN::Error::from_errno(EINVAL);
 		}
 
 		return {};
