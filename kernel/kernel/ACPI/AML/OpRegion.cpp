@@ -386,14 +386,14 @@ namespace Kernel::ACPI::AML
 		ASSERT(opregion.address_space == GAS::AddressSpaceID::PCIConfig);
 
 		seg = 0;
-		if (auto seg_res = TRY(Namespace::root_namespace().find_named_object(opregion.scope(), TRY(AML::NameString::from_string("_SEG"_sv)))); seg_res.node != nullptr)
+		if (auto seg_res = TRY(Namespace::root_namespace().find_named_object(opregion.scope(), TRY(AML::NameString::from_string("_SEG"_sv)), true)); seg_res.node != nullptr)
 			seg = TRY(convert_node(TRY(evaluate_node(seg_res.path, seg_res.node->node)), ConvInteger, -1)).as.integer.value;
 
 		bus = 0;
-		if (auto bbn_res = TRY(Namespace::root_namespace().find_named_object(opregion.scope(), TRY(AML::NameString::from_string("_BBN"_sv)))); bbn_res.node != nullptr)
+		if (auto bbn_res = TRY(Namespace::root_namespace().find_named_object(opregion.scope(), TRY(AML::NameString::from_string("_BBN"_sv)), true)); bbn_res.node != nullptr)
 			bus = TRY(convert_node(TRY(evaluate_node(bbn_res.path, bbn_res.node->node)), ConvInteger, -1)).as.integer.value;
 
-		auto adr_res = TRY(Namespace::root_namespace().find_named_object(opregion.scope(), TRY(AML::NameString::from_string("_ADR"_sv))));
+		auto adr_res = TRY(Namespace::root_namespace().find_named_object(opregion.scope(), TRY(AML::NameString::from_string("_ADR"_sv)), true));
 		if (adr_res.node == nullptr)
 		{
 			dwarnln("No _ADR for PCIConfig OpRegion");
