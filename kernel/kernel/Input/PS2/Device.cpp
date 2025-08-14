@@ -30,7 +30,7 @@ namespace Kernel::Input
 
 	void PS2Device::handle_irq()
 	{
-		uint8_t byte = IO::inb(PS2::IOPort::DATA);
+		const auto byte = IO::inb(m_controller.data_port());
 		if (!m_controller.handle_command_byte(this, byte))
 			handle_byte(byte);
 	}

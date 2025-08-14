@@ -15,6 +15,15 @@ namespace Kernel::Input
 	class PS2Controller
 	{
 	public:
+		enum class DeviceType
+		{
+			None,
+			Unknown,
+			Keyboard,
+			Mouse,
+		};
+
+	public:
 		static BAN::ErrorOr<void> initialize(uint8_t scancode_set);
 		static PS2Controller& get();
 
@@ -24,10 +33,12 @@ namespace Kernel::Input
 		// Returns true, if byte is used as command, if returns false, byte is meant to device
 		bool handle_command_byte(PS2Device*, uint8_t);
 
+		uint8_t data_port() const { return m_data_port; }
+
 	private:
 		PS2Controller() = default;
 		BAN::ErrorOr<void> initialize_impl(uint8_t scancode_set);
-		BAN::ErrorOr<void> identify_device(uint8_t, uint8_t scancode_set);
+		BAN::ErrorOr<DeviceType> identify_device(uint8_t);
 
 		void device_initialize_task(void*);
 
@@ -61,6 +72,9 @@ namespace Kernel::Input
 		};
 
 	private:
+		uint16_t m_command_port { PS2::IOPort::COMMAND };
+		uint16_t m_data_port    { PS2::IOPort::DATA };
+
 		BAN::RefPtr<PS2Device> m_devices[2];
 
 		Mutex m_mutex;

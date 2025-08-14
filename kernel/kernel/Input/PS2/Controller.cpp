@@ -1,5 +1,6 @@
 #include <BAN/ScopeGuard.h>
 #include <kernel/ACPI/ACPI.h>
+#include <kernel/ACPI/Resource.h>
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/IDT.h>
 #include <kernel/Input/PS2/Config.h>
@@ -22,7 +23,7 @@ namespace Kernel::Input
 		uint64_t timeout = SystemTimer::get().ms_since_boot() + s_ps2_timeout_ms;
 		while (SystemTimer::get().ms_since_boot() < timeout)
 		{
-			if (IO::inb(PS2::IOPort::STATUS) & PS2::Status::INPUT_STATUS)
+			if (IO::inb(m_command_port) & PS2::Status::INPUT_STATUS)
 				continue;
 			IO::outb(port, byte);
 			return {};
@@ -36,9 +37,9 @@ namespace Kernel::Input
 		uint64_t timeout = SystemTimer::get().ms_since_boot() + s_ps2_timeout_ms;
 		while (SystemTimer::get().ms_since_boot() < timeout)
 		{
-			if (!(IO::inb(PS2::IOPort::STATUS) & PS2::Status::OUTPUT_STATUS))
+			if (!(IO::inb(m_command_port) & PS2::Status::OUTPUT_STATUS))
 				continue;
-			return IO::inb(PS2::IOPort::DATA);
+			return IO::inb(m_data_port);
 		}
 		return BAN::Error::from_errno(ETIMEDOUT);
 	}
@@ -46,15 +47,15 @@ namespace Kernel::Input
 	BAN::ErrorOr<void> PS2Controller::send_command(PS2::Command command)
 	{
 		LockGuard _(m_mutex);
-		TRY(send_byte(PS2::IOPort::COMMAND, command));
+		TRY(send_byte(m_command_port, command));
 		return {};
 	}
 
 	BAN::ErrorOr<void> PS2Controller::send_command(PS2::Command command, uint8_t data)
 	{
 		LockGuard _(m_mutex);
-		TRY(send_byte(PS2::IOPort::COMMAND, command));
-		TRY(send_byte(PS2::IOPort::DATA, data));
+		TRY(send_byte(m_command_port, command));
+		TRY(send_byte(m_data_port, data));
 		return {};
 	}
 
@@ -62,8 +63,8 @@ namespace Kernel::Input
 	{
 		LockGuard _(m_mutex);
 		if (device_index == 1)
-			TRY(send_byte(PS2::IOPort::COMMAND, PS2::Command::WRITE_TO_SECOND_PORT));
-		TRY(send_byte(PS2::IOPort::DATA, byte));
+			TRY(send_byte(m_command_port, PS2::Command::WRITE_TO_SECOND_PORT));
+		TRY(send_byte(m_data_port, byte));
 		return {};
 	}
 
@@ -241,29 +242,225 @@ namespace Kernel::Input
 	struct PS2DeviceInitInfo
 	{
 		PS2Controller* controller;
-		bool valid_ports[2];
+		struct DeviceInfo
+		{
+			PS2Controller::DeviceType type;
+			uint8_t interrupt;
+		};
+		DeviceInfo devices[2];
 		uint8_t scancode_set;
 		uint8_t config;
 		BAN::Atomic<bool> thread_started;
 	};
 
-	BAN::ErrorOr<void> PS2Controller::initialize_impl(uint8_t scancode_set)
+	static bool has_legacy_8042()
 	{
 		constexpr size_t iapc_flag_off = offsetof(ACPI::FADT, iapc_boot_arch);
 		constexpr size_t iapc_flag_end = iapc_flag_off + sizeof(ACPI::FADT::iapc_boot_arch);
 
-		// If user provided scan code set, skip FADT detection
-		if (scancode_set == 0xFF)
-			scancode_set = 0;
-		else if (scancode_set == 0)
+		const auto* fadt = static_cast<const ACPI::FADT*>(ACPI::ACPI::get().get_header("FACP"_sv, 0));
+		if (!fadt || fadt->revision < 3 || fadt->length < iapc_flag_end)
+			return false;
+
+		if (!(fadt->iapc_boot_arch & (1 << 1)))
+			return false;
+
+		return true;
+	}
+
+	BAN::ErrorOr<void> PS2Controller::initialize_impl(uint8_t scancode_set)
+	{
+		PS2DeviceInitInfo::DeviceInfo devices[2] {
+			PS2DeviceInitInfo::DeviceInfo {
+				.type = DeviceType::None,
+				.interrupt = 0xFF,
+			},
+			PS2DeviceInitInfo::DeviceInfo {
+				.type = DeviceType::None,
+				.interrupt = 0xFF,
+			},
+		};
+
+		if (auto* ns = ACPI::ACPI::get().acpi_namespace())
 		{
-			// Determine if the PS/2 Controller Exists
-			auto* fadt = static_cast<const ACPI::FADT*>(ACPI::ACPI::get().get_header("FACP"_sv, 0));
-			if (fadt && fadt->revision >= 3 && fadt->length >= iapc_flag_end && !(fadt->iapc_boot_arch & (1 << 1)))
+			dprintln("Looking for PS/2 devices in ACPI namespace...");
+
+			const auto lookup_devices =
+				[ns](const BAN::Vector<BAN::String>& eisa_id_strs) -> decltype(ns->find_device_with_eisa_id(""_sv))
+				{
+					BAN::Vector<BAN::StringView> eisa_ids;
+					TRY(eisa_ids.reserve(eisa_id_strs.size()));
+					for (const auto& str : eisa_id_strs)
+						TRY(eisa_ids.push_back(str.sv()));
+					return ns->find_device_with_eisa_id(eisa_ids.span());
+				};
+
+			struct PS2ResourceSetting
 			{
-				dwarnln_if(DEBUG_PS2, "No PS/2 available");
-				return BAN::Error::from_errno(ENODEV);
+				DeviceType type;
+				BAN::Optional<uint16_t> command_port;
+				BAN::Optional<uint16_t> data_port;
+				BAN::Optional<uint8_t> irq;
+			};
+
+			const auto get_device_info =
+				[ns](const ACPI::AML::Scope& scope, const auto& type) -> BAN::ErrorOr<PS2ResourceSetting>
+				{
+					auto [sta_path, sta_obj] = TRY(ns->find_named_object(scope, TRY(ACPI::AML::NameString::from_string("_STA"_sv)), true));
+					if (sta_obj == nullptr)
+						return BAN::Error::from_errno(ENODEV);
+					const auto sta_result = TRY(ACPI::AML::convert_node(TRY(ACPI::AML::evaluate_node(sta_path, sta_obj->node)), ACPI::AML::ConvInteger, -1)).as.integer.value;
+					if ((sta_result & 0b11) != 0b11)
+						return BAN::Error::from_errno(ENODEV);
+
+					auto [crs_path, crs_obj] = TRY(ns->find_named_object(scope, TRY(ACPI::AML::NameString::from_string("_CRS"_sv)), true));
+					if (crs_obj == nullptr)
+						return PS2ResourceSetting {};
+
+					PS2ResourceSetting result;
+					result.type = type;
+
+					BAN::Optional<ACPI::ResourceData> data;
+					ACPI::ResourceParser parser({ crs_obj->node.as.str_buf->bytes, crs_obj->node.as.str_buf->size });
+					while ((data = parser.get_next()).has_value())
+					{
+						switch (data->type)
+						{
+							case ACPI::ResourceData::Type::IOPort:
+								if (data->as.io_port.range_min_base != data->as.io_port.range_max_base)
+									break;
+								if (data->as.io_port.range_length != 1)
+									break;
+								if (!result.data_port.has_value())
+									result.data_port = data->as.io_port.range_min_base;
+								else if (!result.command_port.has_value())
+									result.command_port = data->as.io_port.range_min_base;
+								break;
+							case ACPI::ResourceData::Type::FixedIOPort:
+								if (data->as.fixed_io_port.range_length != 1)
+									break;
+								if (!result.data_port.has_value())
+									result.data_port = data->as.fixed_io_port.range_base;
+								else if (!result.command_port.has_value())
+									result.command_port = data->as.fixed_io_port.range_base;
+								break;
+							case ACPI::ResourceData::Type::IRQ:
+								if (__builtin_popcount(data->as.irq.irq_mask) != 1)
+									break;
+								for (int i = 0; i < 16; i++)
+									if (data->as.irq.irq_mask & (1 << i))
+										result.irq = i;
+								break;
+							default:
+								break;
+						}
+					}
+
+					return result;
+				};
+
+			BAN::Vector<PS2ResourceSetting> acpi_devices;
+
+			{
+				BAN::Vector<BAN::String> kbd_eisa_ids;
+				TRY(kbd_eisa_ids.reserve(0x1F));
+				for (uint8_t i = 0; i <= 0x0B; i++)
+					TRY(kbd_eisa_ids.push_back(TRY(BAN::String::formatted("PNP03{2H}", i))));
+
+				auto kbds = TRY(lookup_devices(kbd_eisa_ids));
+				for (auto& kbd : kbds)
+					if (auto ret = get_device_info(kbd, DeviceType::Keyboard); !ret.is_error())
+						TRY(acpi_devices.push_back(ret.release_value()));
 			}
+
+			{
+				BAN::Vector<BAN::String> mouse_eisa_ids;
+				TRY(mouse_eisa_ids.reserve(0x1F));
+				for (uint8_t i = 0; i <= 0x23; i++)
+					TRY(mouse_eisa_ids.push_back(TRY(BAN::String::formatted("PNP0F{2H}", i))));
+
+				auto mice = TRY(lookup_devices(mouse_eisa_ids));
+				for (auto& mouse : mice)
+					if (auto ret = get_device_info(mouse, DeviceType::Mouse); !ret.is_error())
+						TRY(acpi_devices.push_back(ret.release_value()));
+			}
+
+			dprintln("Found {} PS/2 devices from ACPI namespace", acpi_devices.size());
+			if (acpi_devices.empty())
+				return {};
+
+			if (acpi_devices.size() > 2)
+			{
+				dwarnln("TODO: over 2 PS/2 devices");
+				while (acpi_devices.size() > 2)
+					acpi_devices.pop_back();
+			}
+
+			if (acpi_devices.size() == 2)
+			{
+				const auto compare_optionals =
+					[](const auto& a, const auto& b) -> bool
+					{
+						if (!a.has_value() || !b.has_value())
+							return true;
+						if (a.value() != b.value())
+							return false;
+						return true;
+					};
+
+				const bool can_use_both =
+					compare_optionals(acpi_devices[0].command_port, acpi_devices[1].command_port) &&
+					compare_optionals(acpi_devices[0].data_port,    acpi_devices[1].data_port);
+
+				if (!can_use_both)
+				{
+					dwarnln("TODO: multiple PS/2 controllers");
+					acpi_devices.pop_back();
+				}
+			}
+
+			BAN::Optional<uint16_t> command_port;
+			command_port = acpi_devices[0].command_port;
+			if (!command_port.has_value() && acpi_devices.size() >= 2)
+				command_port = acpi_devices[1].command_port;
+			if (command_port.has_value())
+				m_command_port = command_port.value();
+
+			BAN::Optional<uint16_t> data_port;
+			data_port = acpi_devices[0].data_port;
+			if (!data_port.has_value() && acpi_devices.size() >= 2)
+				data_port = acpi_devices[1].data_port;
+			if (data_port.has_value())
+				m_data_port = data_port.value();
+
+			devices[0] = {
+				.type      = acpi_devices[0].type,
+				.interrupt = acpi_devices[0].irq.value_or(PS2::INTERRUPT_FIRST_PORT)
+			};
+
+			if (acpi_devices.size() > 1)
+			{
+				devices[1] = {
+					.type      = acpi_devices[1].type,
+					.interrupt = acpi_devices[1].irq.value_or(PS2::INTERRUPT_SECOND_PORT)
+				};
+			}
+		}
+		else if (has_legacy_8042())
+		{
+			devices[0] = {
+				.type = DeviceType::Unknown,
+				.interrupt = PS2::INTERRUPT_FIRST_PORT,
+			};
+			devices[1] = {
+				.type = DeviceType::Unknown,
+				.interrupt = PS2::INTERRUPT_SECOND_PORT,
+			};
+		}
+		else
+		{
+			dwarnln("No PS/2 controller found");
+			return {};
 		}
 
 		// Disable Devices
@@ -294,7 +491,7 @@ namespace Kernel::Input
 
 		// Determine If There Are 2 Channels
 		bool valid_ports[2] { true, false };
-		if (config & PS2::Config::CLOCK_SECOND_PORT)
+		if ((config & PS2::Config::CLOCK_SECOND_PORT) && devices[1].type != DeviceType::None)
 		{
 			TRY(send_command(PS2::Command::ENABLE_SECOND_PORT));
 			TRY(send_command(PS2::Command::READ_CONFIG));
@@ -325,20 +522,25 @@ namespace Kernel::Input
 			return {};
 
 		// Reserve IRQs
-		if (valid_ports[0] && InterruptController::get().reserve_irq(PS2::IRQ::DEVICE0).is_error())
+		if (valid_ports[0] && InterruptController::get().reserve_irq(devices[0].interrupt).is_error())
 		{
 			dwarnln("Could not reserve irq for PS/2 port 1");
 			valid_ports[0] = false;
 		}
-		if (valid_ports[1] && InterruptController::get().reserve_irq(PS2::IRQ::DEVICE1).is_error())
+		if (valid_ports[1] && InterruptController::get().reserve_irq(devices[1].interrupt).is_error())
 		{
 			dwarnln("Could not reserve irq for PS/2 port 2");
 			valid_ports[1] = false;
 		}
 
+		if (!valid_ports[0])
+			devices[0].type = DeviceType::None;
+		if (!valid_ports[1])
+			devices[1].type = DeviceType::None;
+
 		PS2DeviceInitInfo info {
 			.controller = this,
-			.valid_ports = { valid_ports[0], valid_ports[1] },
+			.devices = { devices[0], devices[1] },
 			.scancode_set = scancode_set,
 			.config = config,
 			.thread_started { false },
@@ -359,34 +561,62 @@ namespace Kernel::Input
 
 	void PS2Controller::device_initialize_task(void* _info)
 	{
-		bool valid_ports[2];
+		PS2DeviceInitInfo::DeviceInfo devices[2];
 		uint8_t scancode_set;
 		uint8_t config;
 
 		{
 			auto& info = *static_cast<PS2DeviceInitInfo*>(_info);
-			valid_ports[0] = info.valid_ports[0];
-			valid_ports[1] = info.valid_ports[1];
+			devices[0] = info.devices[0];
+			devices[1] = info.devices[1];
 			scancode_set = info.scancode_set;
 			config = info.config;
 			info.thread_started = true;
 		}
 
 		// Initialize devices
-		for (uint8_t device = 0; device < 2; device++)
+		for (uint8_t i = 0; i < 2; i++)
 		{
-			if (!valid_ports[device])
+			if (devices[i].type == DeviceType::None)
 				continue;
-			if (auto ret = send_command(device == 0 ? PS2::Command::ENABLE_FIRST_PORT : PS2::Command::ENABLE_SECOND_PORT); ret.is_error())
+			if (auto ret = send_command(i == 0 ? PS2::Command::ENABLE_FIRST_PORT : PS2::Command::ENABLE_SECOND_PORT); ret.is_error())
 			{
 				dwarnln_if(DEBUG_PS2, "PS/2 device enable failed: {}", ret.error());
 				continue;
 			}
-			if (auto res = identify_device(device, scancode_set); res.is_error())
+
+			if (devices[i].type == DeviceType::Unknown)
 			{
-				dwarnln_if(DEBUG_PS2, "PS/2 device initialization failed: {}", res.error());
-				(void)send_command(device == 0 ? PS2::Command::DISABLE_FIRST_PORT : PS2::Command::DISABLE_SECOND_PORT);
-				continue;
+				if (auto res = identify_device(i); !res.is_error())
+					devices[i].type = res.value();
+				else
+				{
+					dwarnln_if(DEBUG_PS2, "PS/2 device initialization failed: {}", res.error());
+					(void)send_command(i == 0 ? PS2::Command::DISABLE_FIRST_PORT : PS2::Command::DISABLE_SECOND_PORT);
+					continue;
+				}
+			}
+
+			switch (devices[i].type)
+			{
+				case DeviceType::Unknown:
+					break;
+				case DeviceType::None:
+					ASSERT_NOT_REACHED();
+				case DeviceType::Keyboard:
+					dprintln_if(DEBUG_PS2, "PS/2 found keyboard");
+					if (auto ret = PS2Keyboard::create(*this, scancode_set); !ret.is_error())
+						m_devices[i] = ret.release_value();
+					else
+						dwarnln_if(DEBUG_PS2, "... {}", ret.error());
+					break;
+				case DeviceType::Mouse:
+					dprintln_if(DEBUG_PS2, "PS/2 found mouse");
+					if (auto ret = PS2Mouse::create(*this); !ret.is_error())
+						m_devices[i] = ret.release_value();
+					else
+						dwarnln_if(DEBUG_PS2, "... {}", ret.error());
+					break;
 			}
 		}
 
@@ -396,14 +626,14 @@ namespace Kernel::Input
 		// Enable irqs on valid devices
 		if (m_devices[0])
 		{
-			m_devices[0]->set_irq(PS2::IRQ::DEVICE0);
-			InterruptController::get().enable_irq(PS2::IRQ::DEVICE0);
+			m_devices[0]->set_irq(devices[0].interrupt);
+			InterruptController::get().enable_irq(devices[0].interrupt);
 			config |= PS2::Config::INTERRUPT_FIRST_PORT;
 		}
 		if (m_devices[1])
 		{
-			m_devices[1]->set_irq(PS2::IRQ::DEVICE1);
-			InterruptController::get().enable_irq(PS2::IRQ::DEVICE1);
+			m_devices[1]->set_irq(devices[1].interrupt);
+			InterruptController::get().enable_irq(devices[1].interrupt);
 			config |= PS2::Config::INTERRUPT_SECOND_PORT;
 		}
 
@@ -421,7 +651,7 @@ namespace Kernel::Input
 				m_devices[i]->send_initialize();
 	}
 
-	BAN::ErrorOr<void> PS2Controller::identify_device(uint8_t device, uint8_t scancode_set)
+	BAN::ErrorOr<PS2Controller::DeviceType> PS2Controller::identify_device(uint8_t device)
 	{
 		// Reset device
 		TRY(device_send_byte_and_wait_ack(device, PS2::DeviceCommand::RESET));
@@ -454,11 +684,7 @@ namespace Kernel::Input
 
 		// Standard PS/2 Mouse
 		if (index == 1 && (bytes[0] == 0x00))
-		{
-			dprintln_if(DEBUG_PS2, "PS/2 found mouse");
-			m_devices[device] = TRY(PS2Mouse::create(*this));
-			return {};
-		}
+			return DeviceType::Mouse;
 
 		// MF2 Keyboard
 		if (index == 2 && bytes[0] == 0xAB)
@@ -469,16 +695,14 @@ namespace Kernel::Input
 				case 0x83: // MF2 Keyboard
 				case 0xC1: // MF2 Keyboard
 				case 0x84: // Thinkpad KB
-					dprintln_if(DEBUG_PS2, "PS/2 found keyboard");
-					m_devices[device] = TRY(PS2Keyboard::create(*this, scancode_set));
-					return {};
+					return DeviceType::Keyboard;
 				default:
 					break;
 			}
 		}
 
 		dprintln_if(DEBUG_PS2, "PS/2 unsupported device {2H} {2H} ({} bytes) on port {}", bytes[0], bytes[1], index, device);
-		return BAN::Error::from_errno(ENOTSUP);
+		return DeviceType::Unknown;
 	}
 
 }
