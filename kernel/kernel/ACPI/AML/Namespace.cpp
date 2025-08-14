@@ -155,7 +155,7 @@ namespace Kernel::ACPI::AML
 
 	BAN::ErrorOr<uint64_t> Namespace::evaluate_sta(const Scope& scope)
 	{
-		auto [child_path, child_ref] = TRY(find_named_object(scope, TRY(NameString::from_string("_STA"_sv))));
+		auto [child_path, child_ref] = TRY(find_named_object(scope, TRY(NameString::from_string("_STA"_sv)), true));
 		if (child_ref == nullptr)
 			return 0x0F;
 		return TRY(convert_node(TRY(evaluate_node(child_path, child_ref->node)), ConvInteger, sizeof(uint64_t))).as.integer.value;
@@ -163,7 +163,7 @@ namespace Kernel::ACPI::AML
 
 	BAN::ErrorOr<void> Namespace::evaluate_ini(const Scope& scope)
 	{
-		auto [child_path, child_ref] = TRY(find_named_object(scope, TRY(NameString::from_string("_INI"_sv))));
+		auto [child_path, child_ref] = TRY(find_named_object(scope, TRY(NameString::from_string("_INI"_sv)), true));
 		if (child_ref == nullptr)
 			return {};
 		TRY(evaluate_node(child_path, child_ref->node));
@@ -174,7 +174,7 @@ namespace Kernel::ACPI::AML
 	{
 		auto [sb_path, sb_ref] = TRY(find_named_object({}, TRY(NameString::from_string("\\_SB_"_sv))));
 		if (sb_ref != nullptr)
-			TRY(evaluate_ini(sb_path));
+			(void)evaluate_ini(sb_path);
 
 		BAN::Vector<Scope> to_init;
 		TRY(to_init.push_back({}));
