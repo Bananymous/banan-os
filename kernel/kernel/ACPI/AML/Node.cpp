@@ -1186,7 +1186,7 @@ namespace Kernel::ACPI::AML
 
 		if (buffer_node->type != Node::Type::Buffer)
 		{
-			dwarnln("CreateField buffer is {}", buffer_node);
+			dwarnln("CreateField buffer is {}", *buffer_node);
 			return BAN::Error::from_errno(EINVAL);
 		}
 
