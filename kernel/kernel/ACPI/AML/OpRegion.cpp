@@ -82,11 +82,7 @@ namespace Kernel::ACPI::AML
 			case GAS::AddressSpaceID::PlatformCommunicationChannel:
 				break;
 			default:
-				if (region_space < 0x80)
-				{
-					dwarnln("OpRegion invalid region space {2H}", region_space);
-					return BAN::Error::from_errno(EINVAL);
-				}
+				dprintln("OpRegion region space 0x{2H}?", region_space);
 				break;
 		}
 
@@ -505,7 +501,7 @@ namespace Kernel::ACPI::AML
 			case GAS::AddressSpaceID::GeneralPurposeIO:
 			case GAS::AddressSpaceID::GenericSerialBus:
 			case GAS::AddressSpaceID::PlatformCommunicationChannel:
-				dwarnln("TODO: Read from address space {}", static_cast<uint8_t>(opregion.address_space));
+				dwarnln("TODO: Read from address space 0x{2H}", static_cast<uint8_t>(opregion.address_space));
 				return BAN::Error::from_errno(ENOTSUP);
 		}
 
@@ -592,7 +588,7 @@ namespace Kernel::ACPI::AML
 			case GAS::AddressSpaceID::GeneralPurposeIO:
 			case GAS::AddressSpaceID::GenericSerialBus:
 			case GAS::AddressSpaceID::PlatformCommunicationChannel:
-				dwarnln("TODO: Write to address space {}", static_cast<uint8_t>(opregion.address_space));
+				dwarnln("TODO: Write to address space 0x{2H}", static_cast<uint8_t>(opregion.address_space));
 				return BAN::Error::from_errno(ENOTSUP);
 		}
 
