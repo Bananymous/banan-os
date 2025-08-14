@@ -693,6 +693,8 @@ namespace Kernel::ACPI::AML
 			return convert_node(BAN::move(source), ConvString,  target.as.str_buf->size);
 		if (target.type == Node::Type::Buffer)
 			return convert_node(BAN::move(source), ConvBuffer,  target.as.str_buf->size);
+		if (target.type == Node::Type::Package && source.type == Node::Type::Package)
+			return source;
 		dwarnln("Invalid conversion from {} to {}", source, target);
 		return BAN::Error::from_errno(EINVAL);
 	}
