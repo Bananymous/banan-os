@@ -207,8 +207,7 @@ namespace Kernel
 				continue;
 
 			SpinLockGuardAsMutex smutex(guard);
-			const uint64_t timeout_ns = BAN::Math::min<uint64_t>(100'000'000, waketime_ns - current_ns);
-			TRY(Thread::current().block_or_eintr_or_timeout_ns(m_thread_blocker, timeout_ns, false, &smutex));
+			TRY(Thread::current().block_or_eintr_or_timeout_ns(m_thread_blocker, waketime_ns - current_ns, false, &smutex));
 		}
 
 		return event_count;
