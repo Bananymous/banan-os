@@ -1479,6 +1479,90 @@ namespace Kernel::ACPI::AML
 		return result;
 	}
 
+	static BAN::ErrorOr<Node> parse_concat_res_op(ParseContext& context)
+	{
+		dprintln_if(AML_DUMP_FUNCTION_CALLS, "parse_concat_res_op");
+
+		ASSERT(!context.aml_data.empty());
+		ASSERT(static_cast<AML::Byte>(context.aml_data[0]) == AML::Byte::ConcatResOp);
+		context.aml_data = context.aml_data.slice(1);
+
+		auto lhs = TRY(convert_node(TRY(parse_node(context)), ConvBuffer, ONES));
+		auto rhs = TRY(convert_node(TRY(parse_node(context)), ConvBuffer, ONES));
+
+		bool has_end_tag = false;
+		bool zero_checksum = false;
+
+		const auto get_res_template_len =
+			[&has_end_tag, &zero_checksum](const AML::Buffer& node) -> BAN::ErrorOr<size_t>
+			{
+				size_t offset = 0;
+				while (offset < node.size)
+				{
+					// check end tag
+					if (node.bytes[offset] == ((0x0F << 3) | 0x01))
+					{
+						if (offset + 1 >= node.size)
+							return BAN::Error::from_errno(ENODATA);
+						has_end_tag = true;
+						zero_checksum = (node.bytes[offset + 1] == 0);
+						break;
+					}
+
+					size_t length = 0;
+					if (!(node.bytes[offset] & 0x80))
+						length = 1 + (node.bytes[offset] & 0x07);
+					else
+					{
+						if (offset + 2 >= node.size)
+							return BAN::Error::from_errno(ENODATA);
+						length = 3 + ((node.bytes[offset + 2] << 8) | node.bytes[offset + 1]);
+					}
+
+					if (offset + length > node.size)
+						return BAN::Error::from_errno(ENODATA);
+					offset += length;
+				}
+
+				return offset;
+			};
+
+		const size_t lhs_len = TRY(get_res_template_len(*lhs.as.str_buf));
+		const size_t rhs_len = TRY(get_res_template_len(*rhs.as.str_buf));
+		const size_t concat_len = lhs_len + rhs_len + (has_end_tag ? 2 : 0);
+
+		Node result {};
+		result.type = Node::Type::Buffer;
+		result.as.str_buf = static_cast<Buffer*>(kmalloc(sizeof(Buffer) + concat_len));
+		if (result.as.str_buf == nullptr)
+			return BAN::Error::from_errno(ENOMEM);
+		result.as.str_buf->size = concat_len;
+		result.as.str_buf->ref_count = 1;
+
+		memcpy(result.as.str_buf->bytes,           lhs.as.str_buf->bytes, lhs_len);
+		memcpy(result.as.str_buf->bytes + lhs_len, rhs.as.str_buf->bytes, rhs_len);
+
+		if (has_end_tag)
+		{
+			const uint8_t end_tag = (0x0F << 3) | 0x01;
+
+			uint8_t checksum = 0;
+			if (!zero_checksum)
+			{
+				checksum = end_tag;
+				for (size_t i = 0; i < lhs_len + rhs_len; i++)
+					checksum += result.as.str_buf->bytes[i];
+			}
+
+			result.as.str_buf->bytes[lhs_len + rhs_len + 0] = end_tag;
+			result.as.str_buf->bytes[lhs_len + rhs_len + 1] = -checksum;
+		}
+
+		TRY(store_into_target(context, result));
+
+		return result;
+	}
+
 	static BAN::ErrorOr<Node> parse_mid_op(ParseContext& context)
 	{
 		dprintln_if(AML_DUMP_FUNCTION_CALLS, "parse_mid_op");
@@ -2872,6 +2956,8 @@ namespace Kernel::ACPI::AML
 			case AML::Byte::FindSetLeftBitOp:
 			case AML::Byte::FindSetRightBitOp:
 				return parse_find_set_bit_op(context);
+			case AML::Byte::ConcatResOp:
+				return parse_concat_res_op(context);
 			case AML::Byte::Local0:
 			case AML::Byte::Local1:
 			case AML::Byte::Local2:
