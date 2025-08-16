@@ -1,0 +1,12 @@
+diff -ru openssh-10.0p1/monitor_fdpass.c openssh-10.0p1-banan_os/monitor_fdpass.c
+--- openssh-10.0p1/monitor_fdpass.c	2025-04-09 10:02:43.000000000 +0300
++++ openssh-10.0p1-banan_os/monitor_fdpass.c	2025-08-16 20:19:34.939538040 +0300
+@@ -51,7 +51,7 @@
+ int
+ mm_send_fd(int sock, int fd)
+ {
+-#if defined(HAVE_SENDMSG) && (defined(HAVE_ACCRIGHTS_IN_MSGHDR) || defined(HAVE_CONTROL_IN_MSGHDR))
++#if defined(HAVE_SENDMSG) && (defined(HAVE_ACCRIGHTS_IN_MSGHDR) || defined(HAVE_CONTROL_IN_MSGHDR)) && !defined(__banan_os__)
+ 	struct msghdr msg;
+ #ifndef HAVE_ACCRIGHTS_IN_MSGHDR
+ 	union {

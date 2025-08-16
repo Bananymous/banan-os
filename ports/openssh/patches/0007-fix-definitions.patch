@@ -1,0 +1,50 @@
+diff -ru openssh-10.0p1/openbsd-compat/bindresvport.c openssh-10.0p1-banan_os/openbsd-compat/bindresvport.c
+--- openssh-10.0p1/openbsd-compat/bindresvport.c	2025-04-09 10:02:43.000000000 +0300
++++ openssh-10.0p1-banan_os/openbsd-compat/bindresvport.c	2025-08-16 20:17:45.611175439 +0300
+@@ -84,7 +84,7 @@
+ 		salen = sizeof(struct sockaddr_in6);
+ 		portp = &in6->sin6_port;
+ 	} else {
+-		errno = EPFNOSUPPORT;
++		errno = EAFNOSUPPORT;
+ 		return (-1);
+ 	}
+ 	sa->sa_family = af;
+diff -ru openssh-10.0p1/openbsd-compat/rresvport.c openssh-10.0p1-banan_os/openbsd-compat/rresvport.c
+--- openssh-10.0p1/openbsd-compat/rresvport.c	2025-04-09 10:02:43.000000000 +0300
++++ openssh-10.0p1-banan_os/openbsd-compat/rresvport.c	2025-08-16 20:41:28.379888086 +0300
+@@ -76,7 +76,7 @@
+ 		portp = &((struct sockaddr_in6 *)sa)->sin6_port;
+ 		break;
+ 	default:
+-		errno = EPFNOSUPPORT;
++		errno = EAFNOSUPPORT;
+ 		return (-1);
+ 	}
+ 	sa->sa_family = af;
+diff -ru openssh-10.0p1/sftp.c openssh-10.0p1-banan_os/sftp.c
+--- openssh-10.0p1/sftp.c	2025-04-09 10:02:43.000000000 +0300
++++ openssh-10.0p1-banan_os/sftp.c	2025-08-16 20:40:34.232198385 +0300
+@@ -70,6 +70,10 @@
+ #include "sftp-client.h"
+ #include "sftp-usergroup.h"
+ 
++#ifdef I_LINK
++# undef I_LINK
++#endif
++
+ /* File to read commands from */
+ FILE* infile;
+ 
+diff -ru openssh-10.0p1/sshconnect.c openssh-10.0p1-banan_os/sshconnect.c
+--- openssh-10.0p1/sshconnect.c	2025-04-09 10:02:43.000000000 +0300
++++ openssh-10.0p1-banan_os/sshconnect.c	2025-08-16 20:36:49.285681979 +0300
+@@ -605,7 +605,7 @@
+ 	switch (hostaddr->sa_family) {
+ 	case AF_INET:
+ 		return (ntohl(((struct sockaddr_in *)hostaddr)->
+-		    sin_addr.s_addr) >> 24) == IN_LOOPBACKNET;
++		    sin_addr.s_addr) >> 24) == 127;
+ 	case AF_INET6:
+ 		return IN6_IS_ADDR_LOOPBACK(
+ 		    &(((struct sockaddr_in6 *)hostaddr)->sin6_addr));

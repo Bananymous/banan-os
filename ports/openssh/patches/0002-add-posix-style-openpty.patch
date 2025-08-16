@@ -1,0 +1,30 @@
+diff -ru openssh-10.0p1/openbsd-compat/bsd-openpty.c openssh-10.0p1-banan_os/openbsd-compat/bsd-openpty.c
+--- openssh-10.0p1/openbsd-compat/bsd-openpty.c	2025-04-09 10:02:43.000000000 +0300
++++ openssh-10.0p1-banan_os/openbsd-compat/bsd-openpty.c	2025-08-16 21:40:00.830440398 +0300
+@@ -192,6 +192,26 @@
+ 	}
+ 	return (0);
+ 
++#elif defined(__banan_os__)
++	/* POSIX-style pty code. */
++	if ((*amaster = posix_openpt(O_RDWR | O_NOCTTY)) == -1)
++		return (-1);
++	if (grantpt(*amaster) == -1)
++		return (-1);
++	if (unlockpt(*amaster) == -1)
++		return (-1);
++
++	const char* slavename = ptsname(*amaster);
++	if (slavename == NULL) {
++		close(*amaster);
++		return (-1);
++	}
++	if ((*aslave = open(slavename, O_RDWR | O_NOCTTY)) == -1) {
++		close(*amaster);
++		return (-1);
++	}
++	return (0);
++
+ #else
+ 	/* BSD-style pty code. */
+ 	char ptbuf[64], ttbuf[64];
