@@ -27,22 +27,20 @@ memcmp:
 memcpy:
 	movq %rdi, %rax
 	movq %rdx, %rcx
-	movq %rdi, %rdx
 	rep movsb
-	movq %rdx, %rax
 	ret
 
 .global memmove
 memmove:
 	cmpq %rdi, %rsi
 	jae memcpy
+	movq %rdi, %rax
 	leaq -1(%rdi, %rdx), %rdi
 	leaq -1(%rsi, %rdx), %rsi
 	movq %rdx, %rcx
 	std
 	rep movsb
 	cld
-	leaq 1(%rdi), %rax
 	ret
 
 .global memset
