@@ -9,6 +9,7 @@ MAKE_INSTALL_TARGETS=('install-nokeys')
 CONFIGURE_OPTIONS=(
 	'--sysconfdir=/etc'
 	'--sbindir=/usr/bin'
+	'--disable-fd-passing'
 	'CFLAGS=-Wno-deprecated-declarations'
 )
 
