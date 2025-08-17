@@ -289,10 +289,10 @@ namespace Kernel
 
 	BAN::ErrorOr<void> UnixDomainSocket::add_packet(BAN::ConstByteSpan packet)
 	{
-		auto state = m_packet_lock.lock();
+		SpinLockGuard guard(m_packet_lock);
 		while (m_packet_sizes.full() || m_packet_size_total + packet.size() > s_packet_buffer_size)
 		{
-			SpinLockAsMutex smutex(m_packet_lock, state);
+			SpinLockGuardAsMutex smutex(guard);
 			TRY(Thread::current().block_or_eintr_indefinite(m_packet_thread_blocker, &smutex));
 		}
 
@@ -304,7 +304,6 @@ namespace Kernel
 			m_packet_sizes.push(packet.size());
 
 		m_packet_thread_blocker.unblock();
-		m_packet_lock.unlock(state);
 
 		epoll_notify(EPOLLIN);
 
@@ -414,7 +413,7 @@ namespace Kernel
 
 	BAN::ErrorOr<size_t> UnixDomainSocket::recvfrom_impl(BAN::ByteSpan buffer, sockaddr*, socklen_t*)
 	{
-		auto state = m_packet_lock.lock();
+		SpinLockGuard guard(m_packet_lock);
 		while (m_packet_size_total == 0)
 		{
 			if (m_info.has<ConnectionInfo>())
@@ -422,18 +421,12 @@ namespace Kernel
 				auto& connection_info = m_info.get<ConnectionInfo>();
 				bool expected = true;
 				if (connection_info.target_closed.compare_exchange(expected, false))
-				{
-					m_packet_lock.unlock(state);
 					return 0;
-				}
 				if (!connection_info.connection)
-				{
-					m_packet_lock.unlock(state);
 					return BAN::Error::from_errno(ENOTCONN);
-				}
 			}
 
-			SpinLockAsMutex smutex(m_packet_lock, state);
+			SpinLockGuardAsMutex smutex(guard);
 			TRY(Thread::current().block_or_eintr_indefinite(m_packet_thread_blocker, &smutex));
 		}
 
@@ -453,7 +446,6 @@ namespace Kernel
 		m_packet_size_total -= nread;
 
 		m_packet_thread_blocker.unblock();
-		m_packet_lock.unlock(state);
 
 		epoll_notify(EPOLLOUT);
 
