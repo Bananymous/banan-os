@@ -190,6 +190,19 @@ struct LoadedElf
 	bool is_relocating;
 
 	char path[PATH_MAX];
+
+	struct LoadedPHDR
+	{
+		uintptr_t base;
+		size_t size;
+	};
+	LoadedPHDR loaded_phdrs[16];
+	size_t loaded_phdr_count;
+
+	size_t real_symtab_size;
+	size_t real_symtab_entsize;
+	const uint8_t* real_symtab_addr;
+	const uint8_t* real_strtab_addr;
 };
 
 static LoadedElf s_loaded_files[128];
@@ -433,6 +446,7 @@ extern "C" int __dlclose(void* handle);
 extern "C" char* __dlerror(void);
 extern "C" void* __dlopen(const char* file, int mode);
 extern "C" void* __dlsym(void* __restrict handle, const char* __restrict name);
+extern "C" int __dladdr(const void* addr, Dl_info_t* dlip);
 
 template<typename RelocT> requires BAN::is_same_v<RelocT, ElfNativeRelocation> || BAN::is_same_v<RelocT, ElfNativeRelocationA>
 static uintptr_t handle_relocation(const LoadedElf& elf, const RelocT& reloc, bool resolve_symbols)
@@ -458,6 +472,7 @@ static uintptr_t handle_relocation(const LoadedElf& elf, const RelocT& reloc, bo
 		CHECK_SYM(__dlerror);
 		CHECK_SYM(__dlopen);
 		CHECK_SYM(__dlsym);
+		CHECK_SYM(__dladdr);
 #undef CHECK_SYM
 		else if (symbol.st_shndx && ELF_ST_BIND(symbol.st_info) != STB_WEAK)
 			symbol_address = elf.base + symbol.st_value;
@@ -947,6 +962,64 @@ static void load_program_header(const ElfNativeProgramHeader& program_header, in
 	}
 }
 
+static bool read_section_header(const LoadedElf& elf, size_t index, ElfNativeSectionHeader& header)
+{
+	if (index >= elf.file_header.e_shnum)
+		return false;
+
+	const auto& file_header = elf.file_header;
+	if (syscall(SYS_PREAD, elf.fd, &header, sizeof(header), file_header.e_shoff + index * file_header.e_shentsize) != sizeof(header))
+		return false;
+
+	return true;
+}
+
+static const uint8_t* mmap_section_header_data(const LoadedElf& elf, const ElfNativeSectionHeader& header)
+{
+	const size_t offset_in_page = header.sh_offset % PAGE_SIZE;
+	const sys_mmap_t mmap_args {
+		.addr = nullptr,
+		.len = header.sh_size + offset_in_page,
+		.prot = PROT_READ,
+		.flags = MAP_SHARED,
+		.fildes = elf.fd,
+		.off = static_cast<off_t>(header.sh_offset - offset_in_page),
+	};
+
+	const uint8_t* mmap_ret = reinterpret_cast<const uint8_t*>(syscall(SYS_MMAP, &mmap_args));
+	if (mmap_ret == MAP_FAILED)
+		return nullptr;
+
+	return mmap_ret + offset_in_page;
+}
+
+static bool load_symbol_table(LoadedElf& elf)
+{
+	if (elf.file_header.e_shentsize < sizeof(ElfNativeSectionHeader))
+		return false;
+
+	for (size_t i = 0; i < elf.file_header.e_shnum; i++)
+	{
+		ElfNativeSectionHeader symtab_header;
+		if (!read_section_header(elf, i, symtab_header))
+			return false;
+		if (symtab_header.sh_type != SHT_SYMTAB)
+			continue;
+
+		ElfNativeSectionHeader strtab_header;
+		if (!read_section_header(elf, symtab_header.sh_link, strtab_header))
+			return false;
+
+		elf.real_symtab_entsize = symtab_header.sh_entsize;
+		elf.real_symtab_size = symtab_header.sh_size;
+		elf.real_symtab_addr = mmap_section_header_data(elf, symtab_header);
+		elf.real_strtab_addr = mmap_section_header_data(elf, strtab_header);
+		return true;
+	}
+
+	return false;
+}
+
 static LoadedElf& load_elf(const char* path, int fd)
 {
 	for (size_t i = 0; i < s_loaded_file_count; i++)
@@ -1021,8 +1094,13 @@ static LoadedElf& load_elf(const char* path, int fd)
 		break;
 	}
 
-	ElfNativeProgramHeader tls_header {};
-	tls_header.p_type = PT_NULL;
+	auto& elf = s_loaded_files[s_loaded_file_count++];
+	elf.tls_header.p_type = PT_NULL;
+	elf.base = base;
+	elf.fd = fd;
+	elf.dynamics = nullptr;
+	memcpy(&elf.file_header, &file_header, sizeof(file_header));
+	strcpy(elf.path, path);
 
 	for (size_t i = 0; i < file_header.e_phnum; i++)
 	{
@@ -1043,10 +1121,20 @@ static LoadedElf& load_elf(const char* path, int fd)
 			case PT_GNU_RELRO:
 				break;
 			case PT_TLS:
-				tls_header = program_header;
+				elf.tls_header = program_header;
 				break;
 			case PT_LOAD:
+				if (elf.loaded_phdr_count >= sizeof(elf.loaded_phdrs) / sizeof(*elf.loaded_phdrs))
+				{
+					print(STDERR_FILENO, "file '");
+					print(STDERR_FILENO, elf.path);
+					print_error_and_exit("' has too many PT_LOAD headers", 0);
+				}
 				program_header.p_vaddr += base;
+				elf.loaded_phdrs[elf.loaded_phdr_count++] = {
+					.base = program_header.p_vaddr,
+					.size = program_header.p_memsz,
+				};
 				load_program_header(program_header, fd, needs_writable);
 				break;
 			default:
@@ -1056,13 +1144,6 @@ static LoadedElf& load_elf(const char* path, int fd)
 		}
 	}
 
-	auto& elf = s_loaded_files[s_loaded_file_count++];
-	elf.tls_header = tls_header;
-	elf.base = base;
-	elf.fd = fd;
-	elf.dynamics = nullptr;
-	memcpy(&elf.file_header, &file_header, sizeof(file_header));
-	strcpy(elf.path, path);
 
 	if (has_dynamic_pheader)
 	{
@@ -1083,6 +1164,8 @@ static LoadedElf& load_elf(const char* path, int fd)
 		elf.dynamics = reinterpret_cast<ElfNativeDynamic*>(uaddr);
 		handle_dynamic(elf);
 	}
+
+	load_symbol_table(elf);
 
 	return elf;
 }
@@ -1417,6 +1500,88 @@ void* __dlsym(void* __restrict handle, const char* __restrict name)
 
 	s_dlerror_string = "symbol not found";
 	return nullptr;
+}
+
+static bool elf_contains_address(const LoadedElf& elf, const void* address)
+{
+	const uintptr_t addr_uptr = reinterpret_cast<uintptr_t>(address);
+	for (size_t i = 0; i < elf.loaded_phdr_count; i++)
+	{
+		const auto& phdr = elf.loaded_phdrs[i];
+		if (phdr.base <= addr_uptr && addr_uptr < phdr.base + phdr.size)
+			return true;
+	}
+	return false;
+}
+
+struct FindSymbolResult
+{
+	const char* name;
+	void* addr;
+};
+
+static FindSymbolResult find_symbol_containing(const LoadedElf& elf, const void* address)
+{
+	const uintptr_t addr_uptr = reinterpret_cast<uintptr_t>(address);
+
+	const size_t symbol_count = reinterpret_cast<const uint32_t*>(elf.hash)[1];
+	for (size_t i = 1; i < symbol_count; i++)
+	{
+		const auto& symbol = *reinterpret_cast<const ElfNativeSymbol*>(elf.symtab + i * elf.syment);
+		const uintptr_t symbol_base = elf.base + symbol.st_value;
+		if (!(symbol_base <= addr_uptr && addr_uptr < symbol_base + symbol.st_size))
+			continue;
+		return {
+			.name = reinterpret_cast<const char*>(elf.strtab + symbol.st_name),
+			.addr = reinterpret_cast<void*>(symbol_base),
+		};
+	}
+
+	if (!elf.real_symtab_addr || !elf.real_strtab_addr)
+		return {};
+
+	for (size_t i = 1; i < elf.real_symtab_size / elf.real_symtab_entsize; i++)
+	{
+		const auto& symbol = *reinterpret_cast<const ElfNativeSymbol*>(elf.real_symtab_addr + i * elf.real_symtab_entsize);
+		const uintptr_t symbol_base = elf.base + symbol.st_value;
+		if (!(symbol_base <= addr_uptr && addr_uptr < symbol_base + symbol.st_size))
+			continue;
+		return {
+			.name = reinterpret_cast<const char*>(elf.real_strtab_addr + symbol.st_name),
+			.addr = reinterpret_cast<void*>(symbol_base),
+		};
+	}
+
+	return {};
+}
+
+int __dladdr(const void* addr, Dl_info_t* dlip)
+{
+	for (size_t i = 0; i < s_loaded_file_count; i++)
+	{
+		const auto& elf = s_loaded_files[i];
+		if (!elf_contains_address(elf, addr))
+			continue;
+
+		dlip->dli_fname = elf.path;
+		dlip->dli_fbase = reinterpret_cast<void*>(elf.base);
+
+		if (const auto symbol = find_symbol_containing(elf, addr); symbol.addr && symbol.name)
+		{
+			dlip->dli_sname = symbol.name;
+			dlip->dli_saddr = symbol.addr;
+		}
+		else
+		{
+			dlip->dli_sname = nullptr;
+			dlip->dli_saddr = nullptr;
+		}
+
+		return 1;
+	}
+
+	s_dlerror_string = "address is not contained in any file";
+	return 0;
 }
 
 static LibELF::AuxiliaryVector* find_auxv(char** envp)
