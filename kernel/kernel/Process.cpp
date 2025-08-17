@@ -3211,8 +3211,10 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_getgroups(gid_t groups[], size_t count)
 	{
 		LockGuard _(m_process_lock);
+		const auto current = m_credentials.groups();
+		if (count == 0)
+			return current.size();
 		TRY(validate_pointer_access(groups, count * sizeof(gid_t), true));
-		auto current = m_credentials.groups();
 		if (current.size() > count)
 			return BAN::Error::from_errno(EINVAL);
 		for (size_t i = 0; i < current.size(); i++)
