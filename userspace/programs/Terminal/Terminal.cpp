@@ -181,13 +181,6 @@ void Terminal::run()
 			perror("ioctl");
 			return;
 		}
-
-		const pid_t fgpgrp = tcgetpgrp(m_shell_info.pts_master);
-		if (fgpgrp == -1)
-		{
-			perror("tcgetpgrp");
-			return;
-		}
 	});
 
 	const int max_fd = BAN::Math::max(m_shell_info.pts_master, m_window->server_fd());
