@@ -116,11 +116,14 @@ uint64_t AudioServer::update()
 	if (!anyone_playing)
 		return 60'000;
 
-	// FIXME: this works but if any client stops producing audio samples
-	//        the whole audio server halts
-	const uint32_t samples_per_10ms = m_sample_rate / 100;
-	if (max_sample_frames_to_queue < samples_per_10ms)
-		return 1;
+	const uint32_t sample_frames_per_10ms = m_sample_rate / 100;
+	if (max_sample_frames_to_queue < sample_frames_per_10ms)
+	{
+		const uint32_t sample_frames_sent = m_samples_sent / m_channels;
+		if (sample_frames_sent >= sample_frames_per_10ms)
+			return 1;
+		max_sample_frames_to_queue = sample_frames_per_10ms;
+	}
 
 	for (auto& [_, buffer] : m_audio_buffers)
 	{
@@ -135,7 +138,7 @@ uint64_t AudioServer::update()
 			continue;
 
 		const size_t sample_frames_to_queue = BAN::Math::min<size_t>(max_sample_frames_to_queue, buffer_sample_frames_available);
-		if (sample_frames_to_queue < samples_per_10ms)
+		if (sample_frames_to_queue < sample_frames_per_10ms)
 			continue;
 
 		while (m_samples.size() < queued_samples_end + sample_frames_to_queue * m_channels)
