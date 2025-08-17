@@ -1158,8 +1158,10 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_hardlinkat(int fd1, const char* path1, int fd2, const char* path2, int flag)
 	{
 		LockGuard _(m_process_lock);
-		TRY(validate_string_access(path1));
-		TRY(validate_string_access(path2));
+		if (path1 != nullptr)
+			TRY(validate_string_access(path1));
+		if (path2 != nullptr)
+			TRY(validate_string_access(path2));
 
 		auto inode = TRY(find_file(fd1, path1, flag)).inode;
 		if (inode->mode().ifdir())
@@ -1180,7 +1182,8 @@ namespace Kernel
 			return BAN::Error::from_errno(EINVAL);
 
 		LockGuard _(m_process_lock);
-		TRY(validate_string_access(path));
+		if (path != nullptr)
+			TRY(validate_string_access(path));
 
 		auto [parent, file_name] = TRY(find_parent_file(fd, path, O_WRONLY));
 
@@ -1195,7 +1198,8 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_readlinkat(int fd, const char* path, char* buffer, size_t bufsize)
 	{
 		LockGuard _(m_process_lock);
-		TRY(validate_string_access(path));
+		if (path != nullptr)
+			TRY(validate_string_access(path));
 		TRY(validate_pointer_access(buffer, bufsize, true));
 
 		auto inode = TRY(find_file(fd, path, O_NOFOLLOW | O_RDONLY)).inode;
@@ -1262,7 +1266,8 @@ namespace Kernel
 			flag = O_NOFOLLOW;
 
 		LockGuard _(m_process_lock);
-		TRY(validate_string_access(path));
+		if (path != nullptr)
+			TRY(validate_string_access(path));
 
 		auto inode = TRY(find_file(fd, path, flag)).inode;
 
@@ -1285,7 +1290,8 @@ namespace Kernel
 			flag = O_NOFOLLOW;
 
 		LockGuard _(m_process_lock);
-		TRY(validate_string_access(path));
+		if (path != nullptr)
+			TRY(validate_string_access(path));
 
 		auto inode = TRY(find_file(fd, path, flag)).inode;
 
@@ -1971,6 +1977,8 @@ namespace Kernel
 			flag = O_NOFOLLOW;
 
 		LockGuard _(m_process_lock);
+		if (path != nullptr)
+			TRY(validate_string_access(path));
 		TRY(validate_pointer_access(buf, sizeof(struct stat), true));
 
 		auto inode = TRY(find_file(fd, path, flag)).inode;
@@ -1994,6 +2002,8 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_fstatvfsat(int fd, const char* path, struct statvfs* buf)
 	{
 		LockGuard _(m_process_lock);
+		if (path != nullptr)
+			TRY(validate_string_access(path));
 		TRY(validate_pointer_access(buf, sizeof(struct statvfs), true));
 
 		auto inode = TRY(find_file(fd, path, 0)).inode;
@@ -3296,6 +3306,9 @@ unauthorized_access:
 	BAN::ErrorOr<void> Process::validate_pointer_access(const void* ptr, size_t size, bool needs_write)
 	{
 		// TODO: This seems very slow as we loop over the range twice
+
+		if (size == 0)
+			return {};
 
 		TRY(validate_pointer_access_check(ptr, size, needs_write));
 
