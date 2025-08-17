@@ -438,7 +438,7 @@ namespace Kernel::ACPI::AML
 	{
 		dprintln_if(AML_DUMP_FUNCTION_CALLS, "find_named_object('{}', '{}')", scope, name_string);
 
-		if (force_absolute || name_string.base != 0)
+		if (force_absolute || name_string.base != 0 || name_string.parts.size() > 1)
 		{
 			// Absolute path
 
@@ -460,23 +460,15 @@ namespace Kernel::ACPI::AML
 		// Relative path
 
 		Scope path_guess;
-		TRY(path_guess.parts.reserve(scope.parts.size() + name_string.parts.size()));
+		TRY(path_guess.parts.reserve(scope.parts.size() + 1));
+		const uint32_t name_seg = name_string.parts.front();
+
 		for (const auto& part : scope.parts)
 			TRY(path_guess.parts.push_back(part));
-		for (const auto& part : name_string.parts)
-			TRY(path_guess.parts.push_back(part));
+		TRY(path_guess.parts.push_back(name_seg));
 
-		auto it = m_named_objects.find(path_guess);
-		if (it != m_named_objects.end()) {
-			return FindResult {
-				.path = BAN::move(path_guess),
-				.node = it->value,
-			};
-		}
-
-		for (size_t i = 0; i < scope.parts.size(); i++)
+		for (;;)
 		{
-			path_guess.parts.remove(scope.parts.size() - i - 1);
 			auto it = m_named_objects.find(path_guess);
 			if (it != m_named_objects.end()) {
 				return FindResult {
@@ -484,12 +476,17 @@ namespace Kernel::ACPI::AML
 					.node = it->value,
 				};
 			}
-		}
 
-		return FindResult {
-			.path = {},
-			.node = nullptr,
-		};
+			if (path_guess.parts.size() == 1) {
+				return FindResult {
+					.path = {},
+					.node = nullptr,
+				};
+			}
+
+			path_guess.parts.pop_back();
+			path_guess.parts.back() = name_seg;
+		}
 	}
 
 	BAN::ErrorOr<Scope> Namespace::find_reference_scope(const Reference* reference)
