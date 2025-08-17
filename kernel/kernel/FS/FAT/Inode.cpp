@@ -30,19 +30,19 @@ namespace Kernel
 
 	timespec FATInode::atime() const
 	{
-		uint64_t epoch = fat_date_to_epoch(m_entry.last_access_date, {});
+		const time_t epoch = fat_date_to_epoch(m_entry.last_access_date, {});
 		return timespec { .tv_sec = epoch, .tv_nsec = 0 };
 	}
 
 	timespec FATInode::mtime() const
 	{
-		uint64_t epoch = fat_date_to_epoch(m_entry.write_date, m_entry.write_time);
+		const time_t epoch = fat_date_to_epoch(m_entry.write_date, m_entry.write_time);
 		return timespec { .tv_sec = epoch, .tv_nsec = 0 };
 	}
 
 	timespec FATInode::ctime() const
 	{
-		uint64_t epoch = fat_date_to_epoch(m_entry.creation_date, m_entry.creation_time);
+		const time_t epoch = fat_date_to_epoch(m_entry.creation_date, m_entry.creation_time);
 		return timespec { .tv_sec = epoch, .tv_nsec = 0 };
 	}
 

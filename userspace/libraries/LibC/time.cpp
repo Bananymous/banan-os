@@ -1,3 +1,4 @@
+#include <BAN/Assert.h>
 #include <BAN/Debug.h>
 #include <BAN/Math.h>
 
@@ -167,15 +168,18 @@ time_t mktime(struct tm* tm)
 
 struct tm* gmtime_r(const time_t* timer, struct tm* __restrict result)
 {
+	// FIXME: allow negative times :)
+	ASSERT(*timer >= 0);
+
 	constexpr uint64_t month_days[] { 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365 };
 
-	time_t time = *timer;
+	unsigned long long time = *timer;
 
 	result->tm_sec  = time % 60; time /= 60;
 	result->tm_min  = time % 60; time /= 60;
 	result->tm_hour = time % 24; time /= 24;
 
-	time_t total_days = time;
+	unsigned long long total_days = time;
 	result->tm_wday = (total_days + 4) % 7;
 	result->tm_year = 1970;
 	while (total_days >= 365U + is_leap_year(result->tm_year))

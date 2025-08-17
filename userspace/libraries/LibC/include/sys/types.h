@@ -146,7 +146,7 @@ __BEGIN_DECLS
 
 #if !defined(__time_t_defined) && (defined(__need_all_types) || defined(__need_time_t))
 	#define __time_t_defined 1
-	typedef unsigned long long time_t;
+	typedef long long time_t;
 #endif
 #undef __need_time_t
 

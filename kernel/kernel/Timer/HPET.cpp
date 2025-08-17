@@ -299,7 +299,7 @@ namespace Kernel
 		long ns_this_second = ticks_this_second * regs.counter_clk_period / FS_PER_NS;
 
 		return timespec {
-			.tv_sec = seconds,
+			.tv_sec = static_cast<time_t>(seconds),
 			.tv_nsec = ns_this_second
 		};
 	}
