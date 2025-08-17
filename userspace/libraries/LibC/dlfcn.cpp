@@ -1,5 +1,13 @@
 #include <dlfcn.h>
 
+extern "C" int __dladdr(const void*, Dl_info_t*) __attribute__((weak));
+int dladdr(const void* __restrict addr, Dl_info_t* __restrict dlip)
+{
+	if (&__dladdr == nullptr) [[unlikely]]
+		return 0;
+	return __dladdr(addr, dlip);
+}
+
 extern "C" int __dlclose(void*) __attribute__((weak));
 int dlclose(void* handle)
 {
