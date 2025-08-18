@@ -512,7 +512,9 @@ void WindowServer::on_mouse_button(LibInput::MouseButtonEvent event)
 	}
 
 	BAN::RefPtr<Window> target_window;
-	if (!event.pressed)
+	if (m_state == State::Fullscreen)
+		target_window = m_focused_window;
+	if (!event.pressed && !target_window)
 		target_window = m_mouse_button_windows[button_idx];
 	for (size_t i = m_client_windows.size(); i > 0 && !target_window; i--)
 		if (m_client_windows[i - 1]->full_area().contains(m_cursor) && m_client_windows[i - 1]->get_attributes().shown)
@@ -556,7 +558,7 @@ void WindowServer::on_mouse_button(LibInput::MouseButtonEvent event)
 			if (event.button == LibInput::MouseButton::Left && !event.pressed && target_window->close_button_area().contains(m_cursor))
 			{
 				LibGUI::EventPacket::CloseWindowEvent packet;
-				if (auto ret = packet.send_serialized(m_focused_window->client_fd()); ret.is_error())
+				if (auto ret = packet.send_serialized(target_window->client_fd()); ret.is_error())
 					dwarnln("could not send close window event: {}", ret.error());
 				break;
 			}
@@ -568,9 +570,9 @@ void WindowServer::on_mouse_button(LibInput::MouseButtonEvent event)
 				LibGUI::EventPacket::MouseButtonEvent packet;
 				packet.event.button = event.button;
 				packet.event.pressed = event.pressed;
-				packet.event.x = m_cursor.x - m_focused_window->client_x();
-				packet.event.y = m_cursor.y - m_focused_window->client_y();
-				if (auto ret = packet.send_serialized(m_focused_window->client_fd()); ret.is_error())
+				packet.event.x = m_cursor.x - target_window->client_x();
+				packet.event.y = m_cursor.y - target_window->client_y();
+				if (auto ret = packet.send_serialized(target_window->client_fd()); ret.is_error())
 				{
 					dwarnln("could not send mouse button event: {}", ret.error());
 					return;
@@ -1409,6 +1411,10 @@ void WindowServer::remove_client_fd(int fd)
 		m_state = State::Normal;
 		invalidate(m_framebuffer.area());
 	}
+
+	for (auto& window : m_mouse_button_windows)
+		if (window && window->client_fd() == fd)
+			window.clear();
 
 	for (size_t i = 0; i < m_client_windows.size(); i++)
 	{
