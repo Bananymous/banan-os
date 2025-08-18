@@ -669,6 +669,14 @@ Rectangle Terminal::putcodepoint(uint32_t codepoint)
 	auto& texture = m_window->texture();
 	switch (codepoint)
 	{
+		case 0x00: // null
+		case 0x01: // start of heading
+		case 0x02: // start of text
+		case 0x1C: // file separator
+		case 0x1D: // group separator
+		case 0x1E: // record separator
+		case 0x1F: // unit separator
+			break;
 		case '\a':
 			// TODO: bell
 			break;
