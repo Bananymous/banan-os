@@ -69,6 +69,20 @@ namespace Kernel
 		s_default_sse_storage_initialized = true;
 	}
 
+	static bool is_default_ignored_signal(int signal)
+	{
+		switch (signal)
+		{
+			case SIGCHLD:
+			case SIGURG:
+			case SIGWINCH:
+			case SIGCANCEL:
+				return true;
+			default:
+				return false;
+		}
+	}
+
 	BAN::ErrorOr<Thread*> Thread::create_kernel(entry_t entry, void* data)
 	{
 		// Create the thread object
@@ -467,7 +481,7 @@ namespace Kernel
 			}
 			if (signal_handler == (vaddr_t)SIG_IGN)
 				continue;
-			if (signal_handler == (vaddr_t)SIG_DFL && (i == SIGCHLD || i == SIGURG))
+			if (signal_handler == (vaddr_t)SIG_DFL && is_default_ignored_signal(i))
 				continue;
 			return true;
 		}
@@ -582,14 +596,8 @@ namespace Kernel
 					process().exit(128 + signal, signal);
 					ASSERT_NOT_REACHED();
 
-				// Ignore the signal
-				case SIGCHLD:
-				case SIGURG:
-				case SIGWINCH:
-				case SIGCANCEL:
-					break;
-
 				// Stop the process:
+				case SIGSTOP:
 				case SIGTSTP:
 				case SIGTTIN:
 				case SIGTTOU:
@@ -598,6 +606,11 @@ namespace Kernel
 				// Continue the process, if it is stopped; otherwise, ignore the signal.
 				case SIGCONT:
 					ASSERT_NOT_REACHED();
+
+				default:
+					if (is_default_ignored_signal(signal))
+						break;
+					panic("Executing unhandled signal {}", signal);
 			}
 		}
 
@@ -619,7 +632,7 @@ namespace Kernel
 			}
 			if (signal_handler == (vaddr_t)SIG_IGN)
 				return false;
-			if (signal_handler == (vaddr_t)SIG_DFL && (signal == SIGCHLD || signal == SIGURG))
+			if (signal_handler == (vaddr_t)SIG_DFL && is_default_ignored_signal(signal))
 				return false;
 		}
 		uint64_t mask = 1ull << signal;
