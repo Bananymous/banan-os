@@ -22,15 +22,15 @@ namespace LibInput
 	consteval uint8_t keycode_normal(uint8_t row, uint8_t col)
 	{
 		BANAN_CONSTEVAL_STATIC_ASSERT(row <= 0b111 - 1);
-		BANAN_CONSTEVAL_STATIC_ASSERT(col < 0b11111 - 8);
+		BANAN_CONSTEVAL_STATIC_ASSERT(col <= 0b11111 - 8);
 		return ((row + 1) << 5) | col;
 	}
 
 	consteval uint8_t keycode_numpad(uint8_t row, uint8_t col)
 	{
 		BANAN_CONSTEVAL_STATIC_ASSERT(row <= 0b111 - 1);
-		BANAN_CONSTEVAL_STATIC_ASSERT(col <= 8);
-		return ((row + 1) << 5) | (col + 0b11111 - 8);
+		BANAN_CONSTEVAL_STATIC_ASSERT(col < 8);
+		return ((row + 1) << 5) | (col + 0b11111 - 8 + 1);
 	}
 
 	enum class Key
