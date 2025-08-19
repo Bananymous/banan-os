@@ -243,19 +243,14 @@ namespace Kernel
 
 		LockGuard _(m_mutex);
 
-		if (m_termios.c_lflag & ICANON)
-		{
-			if ((m_termios.c_iflag & ISTRIP))
-				ch &= 0x7F;
-			if ((m_termios.c_iflag & IGNCR) && ch == CR)
-				return;
-			uint8_t conv = ch;
-			if ((m_termios.c_iflag & ICRNL) && ch == CR)
-				conv = NL;
-			if ((m_termios.c_iflag & INLCR) && ch == NL)
-				conv = CR;
-			ch = conv;
-		}
+		if ((m_termios.c_iflag & ISTRIP))
+			ch &= 0x7F;
+		if ((m_termios.c_iflag & IGNCR) && ch == CR)
+			return;
+		if ((m_termios.c_iflag & ICRNL) && ch == CR)
+			ch = NL;
+		else if ((m_termios.c_iflag & INLCR) && ch == NL)
+			ch = CR;
 
 		if (m_termios.c_lflag & ISIG)
 		{
@@ -298,11 +293,10 @@ namespace Kernel
 				should_flush = true;
 			}
 
-			if (ch == NL || ch == m_termios.c_cc[VEOL])
+			if (ch == NL || ch == CR || ch == m_termios.c_cc[VEOL])
 			{
 				should_flush = true;
 				force_echo = !!(m_termios.c_lflag & ECHONL);
-				ch = NL;
 			}
 		}
 

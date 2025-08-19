@@ -37,7 +37,7 @@ namespace Kernel
 
 	VirtualTTY::VirtualTTY(BAN::RefPtr<TerminalDriver> driver)
 		: TTY({
-			.c_iflag = 0,
+			.c_iflag = ICRNL,
 			.c_oflag = 0,
 			.c_cflag = CS8,
 			.c_lflag = ECHO | ECHOE | ECHOK  | ICANON | ISIG,

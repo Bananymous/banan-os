@@ -165,7 +165,7 @@ namespace Kernel
 
 	PseudoTerminalSlave::PseudoTerminalSlave(BAN::String&& name, uint32_t number, mode_t mode, uid_t uid, gid_t gid)
 		: TTY({
-			.c_iflag = 0,
+			.c_iflag = ICRNL,
 			.c_oflag = 0,
 			.c_cflag = CS8,
 			.c_lflag = ECHO | ECHOE | ECHOK | ICANON | ISIG,
