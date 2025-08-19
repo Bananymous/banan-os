@@ -17,7 +17,7 @@ __BEGIN_DECLS
 
 #include <bits/types/locale_t.h>
 
-typedef struct {} mbstate_t;
+typedef int mbstate_t;
 
 typedef int wctype_t;
 
