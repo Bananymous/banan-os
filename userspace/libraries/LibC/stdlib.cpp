@@ -606,6 +606,7 @@ int mbtowc(wchar_t* __restrict pwc, const char* __restrict s, size_t n)
 
 			return wch ? length : 0;
 	}
+
 	ASSERT_NOT_REACHED();
 }
 
@@ -643,6 +644,31 @@ size_t mbstowcs(wchar_t* __restrict pwcs, const char* __restrict s, size_t n)
 	if (pwcs != nullptr && written < n)
 		pwcs[written] = L'\0';
 	return written;
+}
+
+int wctomb(char* s, wchar_t wchar)
+{
+	// no state-dependent encodings
+	if (s == nullptr)
+		return 0;
+
+	switch (__getlocale(LC_CTYPE))
+	{
+		case locale_t::LOCALE_INVALID:
+			ASSERT_NOT_REACHED();
+		case locale_t::LOCALE_POSIX:
+			*s = wchar;
+			return wchar ? 1 : 0;
+		case locale_t::LOCALE_UTF8:
+			char buffer[5];
+			if (!BAN::UTF8::from_codepoints(&wchar, 1, buffer))
+				return -1;
+			const size_t length = strlen(buffer);
+			memcpy(s, buffer, length);
+			return length;
+	}
+
+	ASSERT_NOT_REACHED();
 }
 
 size_t wcstombs(char* __restrict s, const wchar_t* __restrict pwcs, size_t n)
