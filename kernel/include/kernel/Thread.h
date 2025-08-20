@@ -59,7 +59,7 @@ namespace Kernel
 		bool will_execute_signal() const;
 		// Returns true if handled signal had SA_RESTART
 		bool handle_signal(int signal = 0);
-		bool add_signal(int signal);
+		void add_signal(int signal);
 
 		// blocks current thread and returns either on unblock, eintr, spuriously or after timeout
 		// if mutex is not nullptr, it will be atomically freed before blocking and automatically locked on wake

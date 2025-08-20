@@ -309,7 +309,7 @@ namespace Kernel
 			LockGuard _(m_process_lock);
 			for (auto* thread : m_threads)
 				if (thread != &Thread::current())
-					ASSERT(thread->add_signal(SIGKILL));
+					thread->add_signal(SIGKILL);
 		}
 
 		while (m_threads.size() > 1)

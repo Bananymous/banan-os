@@ -619,7 +619,7 @@ namespace Kernel
 		return has_sa_restart;
 	}
 
-	bool Thread::add_signal(int signal)
+	void Thread::add_signal(int signal)
 	{
 		SpinLockGuard _(m_signal_lock);
 		if (m_process)
@@ -631,19 +631,16 @@ namespace Kernel
 				signal_handler = (vaddr_t)m_process->m_signal_handlers[signal].sa_handler;
 			}
 			if (signal_handler == (vaddr_t)SIG_IGN)
-				return false;
+				return;
 			if (signal_handler == (vaddr_t)SIG_DFL && is_default_ignored_signal(signal))
-				return false;
+				return;
 		}
-		uint64_t mask = 1ull << signal;
-		if (!(m_signal_block_mask & mask))
-		{
-			m_signal_pending_mask |= mask;
-			if (this != &Thread::current())
-				Processor::scheduler().unblock_thread(this);
-			return true;
-		}
-		return false;
+
+		const uint64_t mask = 1ull << signal;
+		m_signal_pending_mask |= mask;
+
+		if (this != &Thread::current())
+			Processor::scheduler().unblock_thread(this);
 	}
 
 	BAN::ErrorOr<void> Thread::sleep_or_eintr_ns(uint64_t ns)
