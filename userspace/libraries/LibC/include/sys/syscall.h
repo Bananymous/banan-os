@@ -90,6 +90,7 @@ __BEGIN_DECLS
 	O(SYS_SIGACTION,		sigaction)		\
 	O(SYS_SIGPENDING,		sigpending)		\
 	O(SYS_SIGPROCMASK,		sigprocmask)	\
+	O(SYS_SIGSUSPEND,		sigsuspend)		\
 	O(SYS_SETITIMER,		setitimer)		\
 	O(SYS_POSIX_OPENPT,		posix_openpt)	\
 	O(SYS_PTSNAME,			ptsname)		\

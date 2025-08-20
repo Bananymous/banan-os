@@ -2651,6 +2651,20 @@ namespace Kernel
 		return 0;
 	}
 
+	BAN::ErrorOr<long> Process::sys_sigsuspend(const sigset_t* set)
+	{
+		LockGuard _(m_process_lock);
+		TRY(validate_pointer_access(set, sizeof(sigset_t), false));
+
+		auto& thread = Thread::current();
+		thread.set_suspend_signal_mask(*set & ~(SIGKILL | SIGSTOP));
+
+		while (!thread.is_interrupted_by_signal())
+			Processor::scheduler().block_current_thread(nullptr, -1, &m_process_lock);
+
+		return BAN::Error::from_errno(EINTR);
+	}
+
 	BAN::ErrorOr<long> Process::sys_futex(int op, const uint32_t* addr, uint32_t val, const timespec* abstime)
 	{
 		const vaddr_t vaddr = reinterpret_cast<vaddr_t>(addr);

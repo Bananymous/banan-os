@@ -1,6 +1,7 @@
 #pragma once
 
 #include <BAN/NoCopyMove.h>
+#include <BAN/Optional.h>
 #include <BAN/RefPtr.h>
 #include <BAN/UniqPtr.h>
 #include <kernel/InterruptStack.h>
@@ -60,6 +61,7 @@ namespace Kernel
 		// Returns true if handled signal had SA_RESTART
 		bool handle_signal(int signal = 0);
 		void add_signal(int signal);
+		void set_suspend_signal_mask(uint64_t sigmask);
 
 		// blocks current thread and returns either on unblock, eintr, spuriously or after timeout
 		// if mutex is not nullptr, it will be atomically freed before blocking and automatically locked on wake
@@ -160,6 +162,7 @@ namespace Kernel
 
 		uint64_t                   m_signal_pending_mask  { 0 };
 		uint64_t                   m_signal_block_mask    { 0 };
+		BAN::Optional<uint64_t>    m_signal_suspend_mask;
 		SpinLock                   m_signal_lock;
 		static_assert(_SIGMAX < 64);
 

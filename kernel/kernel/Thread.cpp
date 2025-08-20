@@ -547,6 +547,12 @@ namespace Kernel
 		m_signal_pending_mask &= ~(1ull << signal);
 		process().remove_pending_signal(signal);
 
+		if (m_signal_suspend_mask.has_value())
+		{
+			m_signal_block_mask = m_signal_suspend_mask.value();
+			m_signal_suspend_mask.clear();
+		}
+
 		if (signal_handler == (vaddr_t)SIG_IGN)
 			;
 		else if (signal_handler != (vaddr_t)SIG_DFL)
@@ -641,6 +647,14 @@ namespace Kernel
 
 		if (this != &Thread::current())
 			Processor::scheduler().unblock_thread(this);
+	}
+
+	void Thread::set_suspend_signal_mask(uint64_t sigmask)
+	{
+		SpinLockGuard _(m_signal_lock);
+		ASSERT(!m_signal_suspend_mask.has_value());
+		m_signal_suspend_mask = m_signal_block_mask;
+		m_signal_block_mask = sigmask;
 	}
 
 	BAN::ErrorOr<void> Thread::sleep_or_eintr_ns(uint64_t ns)

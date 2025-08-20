@@ -164,3 +164,8 @@ int sigrelse(int sig)
 	(void)sigaddset(&set, sig);
 	return sigprocmask(SIG_UNBLOCK, &set, nullptr);
 }
+
+int sigsuspend(const sigset_t* sigmask)
+{
+	return syscall(SYS_SIGSUSPEND, sigmask);
+}

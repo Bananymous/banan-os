@@ -193,6 +193,7 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_sigaction(int signal, const struct sigaction* act, struct sigaction* oact);
 		BAN::ErrorOr<long> sys_sigpending(sigset_t* set);
 		BAN::ErrorOr<long> sys_sigprocmask(int how, const sigset_t* set, sigset_t* oset);
+		BAN::ErrorOr<long> sys_sigsuspend(const sigset_t* set);
 
 		BAN::ErrorOr<long> sys_futex(int op, const uint32_t* addr, uint32_t val, const timespec* abstime);
 		BAN::ErrorOr<long> sys_yield();
