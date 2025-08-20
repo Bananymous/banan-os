@@ -63,6 +63,8 @@ namespace Kernel
 		void add_signal(int signal);
 		void set_suspend_signal_mask(uint64_t sigmask);
 
+		BAN::ErrorOr<void> sigaltstack(const stack_t* ss, stack_t* oss);
+
 		// blocks current thread and returns either on unblock, eintr, spuriously or after timeout
 		// if mutex is not nullptr, it will be atomically freed before blocking and automatically locked on wake
 		BAN::ErrorOr<void> sleep_or_eintr_ns(uint64_t ns);
@@ -140,6 +142,8 @@ namespace Kernel
 		static void on_exit_trampoline(Thread*);
 		void on_exit();
 
+		bool currently_on_alternate_stack() const;
+
 	private:
 		// NOTE: this is the first member to force it being last destructed
 		//       {kernel,userspace}_stack has to be destroyed before page table
@@ -164,6 +168,7 @@ namespace Kernel
 		uint64_t                   m_signal_block_mask    { 0 };
 		BAN::Optional<uint64_t>    m_signal_suspend_mask;
 		SpinLock                   m_signal_lock;
+		stack_t                    m_signal_alt_stack     { nullptr, 0, SS_DISABLE };
 		static_assert(_SIGMAX < 64);
 
 		mutable SpinLock           m_cpu_time_lock;

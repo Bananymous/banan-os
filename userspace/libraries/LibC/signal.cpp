@@ -176,3 +176,10 @@ int sigwait(const sigset_t* __restrict set, int* __restrict sig)
 		return errno;
 	return 0;
 }
+
+int sigaltstack(const stack_t* __restrict ss, stack_t* __restrict oss)
+{
+	if (syscall(SYS_SIGALTSTACK, ss, oss) == -1)
+		return errno;
+	return 0;
+}

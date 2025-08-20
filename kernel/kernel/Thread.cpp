@@ -507,6 +507,7 @@ namespace Kernel
 		ASSERT(is_userspace());
 
 		auto state = m_signal_lock.lock();
+		ASSERT(state == InterruptState::Disabled);
 
 		auto& interrupt_stack = *reinterpret_cast<InterruptStack*>(kernel_stack_top() - sizeof(InterruptStack));
 		ASSERT(GDT::is_user_segment(interrupt_stack.cs));
@@ -530,6 +531,7 @@ namespace Kernel
 
 		vaddr_t signal_handler;
 		bool has_sa_restart;
+		vaddr_t signal_stack_top = 0;
 		{
 			SpinLockGuard _(m_process->m_signal_lock);
 
@@ -542,6 +544,10 @@ namespace Kernel
 				handler.sa_handler = SIG_DFL;
 
 			has_sa_restart = !!(handler.sa_flags & SA_RESTART);
+
+			const auto& alt_stack = m_signal_alt_stack;
+			if (alt_stack.ss_flags != SS_DISABLE && (handler.sa_flags & SA_ONSTACK) && !currently_on_alternate_stack())
+				signal_stack_top = reinterpret_cast<vaddr_t>(alt_stack.ss_sp) + alt_stack.ss_size;
 		}
 
 		m_signal_pending_mask &= ~(1ull << signal);
@@ -553,6 +559,8 @@ namespace Kernel
 			m_signal_suspend_mask.clear();
 		}
 
+		m_signal_lock.unlock(state);
+
 		if (signal_handler == (vaddr_t)SIG_IGN)
 			;
 		else if (signal_handler != (vaddr_t)SIG_DFL)
@@ -561,7 +569,32 @@ namespace Kernel
 #if ARCH(x86_64)
 			interrupt_stack.sp -= 128; // skip possible red-zone
 #endif
+
+			{
+				// Make sure stack is allocated
+
+				const vaddr_t pages[3] {
+					(interrupt_stack.sp - sizeof(uintptr_t)) & PAGE_ADDR_MASK,
+					(signal_stack_top - 4 * sizeof(uintptr_t)) & PAGE_ADDR_MASK,
+					(signal_stack_top - 1 * sizeof(uintptr_t)) & PAGE_ADDR_MASK,
+				};
+
+				for (size_t i = 0; i < 3; i++)
+				{
+					if (m_process->page_table().get_page_flags(pages[i]) & PageTable::Flags::Present)
+						continue;
+					Processor::set_interrupt_state(InterruptState::Enabled);
+					if (auto ret = m_process->allocate_page_for_demand_paging(pages[i], true, false); ret.is_error() || !ret.value())
+						m_process->exit(128 + SIGSEGV, SIGSEGV);
+					Processor::set_interrupt_state(InterruptState::Disabled);
+				}
+			}
+
 			write_to_stack(interrupt_stack.sp, interrupt_stack.ip);
+			const vaddr_t old_stack = interrupt_stack.sp;
+			if (signal_stack_top)
+				interrupt_stack.sp = signal_stack_top;
+			write_to_stack(interrupt_stack.sp, old_stack);
 			write_to_stack(interrupt_stack.sp, interrupt_stack.flags);
 			write_to_stack(interrupt_stack.sp, signal);
 			write_to_stack(interrupt_stack.sp, signal_handler);
@@ -582,7 +615,6 @@ namespace Kernel
 				case SIGTRAP:
 				case SIGXCPU:
 				case SIGXFSZ:
-					m_signal_lock.unlock(state);
 					process().exit(128 + signal, signal | 0x80);
 					ASSERT_NOT_REACHED();
 
@@ -598,7 +630,6 @@ namespace Kernel
 				case SIGPOLL:
 				case SIGPROF:
 				case SIGVTALRM:
-					m_signal_lock.unlock(state);
 					process().exit(128 + signal, signal);
 					ASSERT_NOT_REACHED();
 
@@ -619,8 +650,6 @@ namespace Kernel
 					panic("Executing unhandled signal {}", signal);
 			}
 		}
-
-		m_signal_lock.unlock(state);
 
 		return has_sa_restart;
 	}
@@ -655,6 +684,46 @@ namespace Kernel
 		ASSERT(!m_signal_suspend_mask.has_value());
 		m_signal_suspend_mask = m_signal_block_mask;
 		m_signal_block_mask = sigmask;
+	}
+
+	bool Thread::currently_on_alternate_stack() const
+	{
+		ASSERT(m_signal_lock.current_processor_has_lock());
+
+		if (m_signal_alt_stack.ss_flags == SS_ONSTACK)
+			return false;
+
+		const vaddr_t stack_bottom = reinterpret_cast<vaddr_t>(m_signal_alt_stack.ss_sp);
+		const vaddr_t stack_top = stack_bottom + m_signal_alt_stack.ss_size;
+		const vaddr_t sp = m_interrupt_stack.sp;
+		return stack_bottom <= sp && sp <= stack_top;
+	}
+
+	BAN::ErrorOr<void> Thread::sigaltstack(const stack_t* ss, stack_t* oss)
+	{
+		SpinLockGuard _(m_signal_lock);
+
+		const bool on_alt_stack = currently_on_alternate_stack();
+
+		if (oss)
+		{
+			*oss = m_signal_alt_stack;
+			if (on_alt_stack)
+				oss->ss_flags = SS_ONSTACK;
+		}
+
+		if (ss)
+		{
+			if (on_alt_stack)
+				return BAN::Error::from_errno(EPERM);
+			if (ss->ss_flags && ss->ss_flags != SS_DISABLE)
+				return BAN::Error::from_errno(EINVAL);
+			if (ss->ss_size < MINSIGSTKSZ)
+				return BAN::Error::from_errno(ENOMEM);
+			m_signal_alt_stack = *ss;
+		}
+
+		return {};
 	}
 
 	BAN::ErrorOr<void> Thread::sleep_or_eintr_ns(uint64_t ns)

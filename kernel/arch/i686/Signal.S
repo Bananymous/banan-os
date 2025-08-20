@@ -34,4 +34,6 @@ signal_trampoline:
 	addl $8, %esp
 	popf
 
+	movl (%esp), %esp
+
 	ret

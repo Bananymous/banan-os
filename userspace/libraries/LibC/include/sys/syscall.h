@@ -92,6 +92,7 @@ __BEGIN_DECLS
 	O(SYS_SIGPROCMASK,		sigprocmask)	\
 	O(SYS_SIGSUSPEND,		sigsuspend)		\
 	O(SYS_SIGWAIT,			sigwait)		\
+	O(SYS_SIGALTSTACK,		sigaltstack)	\
 	O(SYS_SETITIMER,		setitimer)		\
 	O(SYS_POSIX_OPENPT,		posix_openpt)	\
 	O(SYS_PTSNAME,			ptsname)		\

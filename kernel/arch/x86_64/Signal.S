@@ -59,5 +59,7 @@ signal_trampoline:
 	addq $16, %rsp
 	popfq
 
+	movq (%rsp), %rsp
+
 	// return over red-zone
 	ret $128

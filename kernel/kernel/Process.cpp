@@ -2701,6 +2701,19 @@ namespace Kernel
 		}
 	}
 
+	BAN::ErrorOr<long> Process::sys_sigaltstack(const stack_t* ss, stack_t* oss)
+	{
+		LockGuard _(m_process_lock);
+		if (ss != nullptr)
+			TRY(validate_pointer_access(ss, sizeof(stack_t), false));
+		if (oss != nullptr)
+			TRY(validate_pointer_access(oss, sizeof(stack_t), true));
+
+		TRY(Thread::current().sigaltstack(ss, oss));
+
+		return 0;
+	}
+
 	BAN::ErrorOr<long> Process::sys_futex(int op, const uint32_t* addr, uint32_t val, const timespec* abstime)
 	{
 		const vaddr_t vaddr = reinterpret_cast<vaddr_t>(addr);

@@ -132,8 +132,9 @@ struct sigevent
 #define SA_SIGINFO   0x010
 #define SA_NOCLDWAIT 0x020
 #define SA_NODEFER   0x040
-#define SS_ONSTACK   0x080
-#define SS_DISABLE   0x100
+
+#define SS_ONSTACK   1
+#define SS_DISABLE   2
 
 #define MINSIGSTKSZ  4096
 #define SIGSTKSZ     4096
