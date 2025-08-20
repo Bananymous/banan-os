@@ -26,7 +26,8 @@ typedef struct
 typedef struct
 {
 	pthread_mutexattr_t attr;
-	pthread_t locker;
+	uint32_t futex;
+	uint32_t waiters;
 	unsigned lock_depth;
 } pthread_mutex_t;
 

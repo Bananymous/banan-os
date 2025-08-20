@@ -79,7 +79,7 @@ struct uthread
 
 #define PTHREAD_SPIN_INITIALIZER   (pthread_spinlock_t)0
 #define PTHREAD_COND_INITIALIZER   (pthread_cond_t){ { CLOCK_REALTIME, 0 }, PTHREAD_SPIN_INITIALIZER, NULL }
-#define PTHREAD_MUTEX_INITIALIZER  (pthread_mutex_t){ { PTHREAD_MUTEX_DEFAULT, 0 }, 0, 0 }
+#define PTHREAD_MUTEX_INITIALIZER  (pthread_mutex_t){ { PTHREAD_MUTEX_DEFAULT, 0 }, 0, 0, 0 }
 #define PTHREAD_RWLOCK_INITIALIZER (pthread_rwlock_t){ { 0 }, 0, 0 }
 
 #define _PTHREAD_ATFORK_PREPARE 0

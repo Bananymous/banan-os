@@ -736,34 +736,6 @@ int pthread_spin_unlock(pthread_spinlock_t* lock)
 	return 0;
 }
 
-template<typename T>
-static int _pthread_timedlock(T* __restrict lock, const struct timespec* __restrict abstime, int (*trylock)(T*))
-{
-	if (trylock(lock) == 0)
-		return 0;
-
-	constexpr auto has_timed_out =
-		[](const struct timespec* abstime) -> bool
-		{
-			struct timespec curtime;
-			clock_gettime(CLOCK_REALTIME, &curtime);
-			if (curtime.tv_sec < abstime->tv_sec)
-				return false;
-			if (curtime.tv_sec > abstime->tv_sec)
-				return true;
-			return curtime.tv_nsec >= abstime->tv_nsec;
-		};
-
-	while (!has_timed_out(abstime))
-	{
-		if (trylock(lock) == 0)
-			return 0;
-		sched_yield();
-	}
-
-	return ETIMEDOUT;
-}
-
 int pthread_mutexattr_destroy(pthread_mutexattr_t* attr)
 {
 	(void)attr;
@@ -835,7 +807,8 @@ int pthread_mutex_init(pthread_mutex_t* __restrict mutex, const pthread_mutexatt
 		attr = &default_attr;
 	*mutex = {
 		.attr = *attr,
-		.locker = 0,
+		.futex = 0,
+		.waiters = 0,
 		.lock_depth = 0,
 	};
 	return 0;
@@ -843,55 +816,28 @@ int pthread_mutex_init(pthread_mutex_t* __restrict mutex, const pthread_mutexatt
 
 int pthread_mutex_lock(pthread_mutex_t* mutex)
 {
-	// NOTE: current yielding implementation supports shared
-
-	const auto tid = pthread_self();
-
-	switch (mutex->attr.type)
-	{
-		case PTHREAD_MUTEX_RECURSIVE:
-			if (mutex->locker != tid)
-				break;
-			mutex->lock_depth++;
-			return 0;
-		case PTHREAD_MUTEX_ERRORCHECK:
-			if (mutex->locker != tid)
-				break;
-			return EDEADLK;
-	}
-
-	pthread_t expected = 0;
-	while (!BAN::atomic_compare_exchange(mutex->locker, expected, tid, BAN::MemoryOrder::memory_order_acquire))
-	{
-		sched_yield();
-		expected = 0;
-	}
-
-	mutex->lock_depth = 1;
-	return 0;
+	return pthread_mutex_timedlock(mutex, nullptr);
 }
 
 int pthread_mutex_trylock(pthread_mutex_t* mutex)
 {
-	// NOTE: current yielding implementation supports shared
-
-	const auto tid = pthread_self();
+	const uint32_t tid = pthread_self();
 
 	switch (mutex->attr.type)
 	{
 		case PTHREAD_MUTEX_RECURSIVE:
-			if (mutex->locker != tid)
+			if (mutex->futex != tid)
 				break;
 			mutex->lock_depth++;
 			return 0;
 		case PTHREAD_MUTEX_ERRORCHECK:
-			if (mutex->locker != tid)
+			if (mutex->futex != tid)
 				break;
 			return EDEADLK;
 	}
 
-	pthread_t expected = 0;
-	if (!BAN::atomic_compare_exchange(mutex->locker, expected, tid, BAN::MemoryOrder::memory_order_acquire))
+	uint32_t expected = 0;
+	if (!BAN::atomic_compare_exchange(mutex->futex, expected, tid, BAN::MemoryOrder::memory_order_acquire))
 		return EBUSY;
 
 	mutex->lock_depth = 1;
@@ -900,18 +846,42 @@ int pthread_mutex_trylock(pthread_mutex_t* mutex)
 
 int pthread_mutex_timedlock(pthread_mutex_t* __restrict mutex, const struct timespec* __restrict abstime)
 {
-	return _pthread_timedlock(mutex, abstime, &pthread_mutex_trylock);
+	// recursive/errorcheck handled in trylock to remove code duplication
+	if (const int ret = pthread_mutex_trylock(mutex); ret != EBUSY)
+		return ret;
+
+	const uint32_t tid = pthread_self();
+
+	uint32_t expected = 0;
+	while (!BAN::atomic_compare_exchange(mutex->futex, expected, tid, BAN::memory_order_acquire))
+	{
+		const int op = FUTEX_WAIT | (mutex->attr.shared ? 0 : FUTEX_PRIVATE) | FUTEX_REALTIME;
+
+		BAN::atomic_add_fetch(mutex->waiters, 1);
+		const auto ret = futex(op, &mutex->futex, expected, abstime);
+		BAN::atomic_sub_fetch(mutex->waiters, 1);
+
+		if (ret == -1 && errno == ETIMEDOUT)
+			return ETIMEDOUT;
+
+		expected = 0;
+	}
+
+	mutex->lock_depth = 1;
+	return 0;
 }
 
 int pthread_mutex_unlock(pthread_mutex_t* mutex)
 {
-	// NOTE: current yielding implementation supports shared
-
-	ASSERT(mutex->locker == pthread_self());
+	ASSERT(mutex->futex == static_cast<uint32_t>(pthread_self()));
 
 	mutex->lock_depth--;
 	if (mutex->lock_depth == 0)
-		BAN::atomic_store(mutex->locker, 0, BAN::MemoryOrder::memory_order_release);
+	{
+		BAN::atomic_store(mutex->futex, 0, BAN::memory_order_release);
+		if (BAN::atomic_load(mutex->waiters))
+			futex(FUTEX_WAKE, &mutex->futex, 1, nullptr);
+	}
 
 	return 0;
 }
@@ -971,6 +941,36 @@ int pthread_rwlock_init(pthread_rwlock_t* __restrict rwlock, const pthread_rwloc
 	return 0;
 }
 
+// TODO: rewrite rwlock with futexes
+
+template<typename T>
+static int pthread_rwlock_timedlock(T* __restrict lock, const struct timespec* __restrict abstime, int (*trylock)(T*))
+{
+	if (trylock(lock) == 0)
+		return 0;
+
+	constexpr auto has_timed_out =
+		[](const struct timespec* abstime) -> bool
+		{
+			struct timespec curtime;
+			clock_gettime(CLOCK_REALTIME, &curtime);
+			if (curtime.tv_sec < abstime->tv_sec)
+				return false;
+			if (curtime.tv_sec > abstime->tv_sec)
+				return true;
+			return curtime.tv_nsec >= abstime->tv_nsec;
+		};
+
+	while (!has_timed_out(abstime))
+	{
+		if (trylock(lock) == 0)
+			return 0;
+		sched_yield();
+	}
+
+	return ETIMEDOUT;
+}
+
 int pthread_rwlock_rdlock(pthread_rwlock_t* rwlock)
 {
 	unsigned expected = BAN::atomic_load(rwlock->lockers);
@@ -995,7 +995,7 @@ int pthread_rwlock_tryrdlock(pthread_rwlock_t* rwlock)
 
 int pthread_rwlock_timedrdlock(pthread_rwlock_t* __restrict rwlock, const struct timespec* __restrict abstime)
 {
-	return _pthread_timedlock(rwlock, abstime, &pthread_rwlock_tryrdlock);
+	return pthread_rwlock_timedlock(rwlock, abstime, &pthread_rwlock_tryrdlock);
 }
 
 int pthread_rwlock_wrlock(pthread_rwlock_t* rwlock)
@@ -1021,7 +1021,7 @@ int pthread_rwlock_trywrlock(pthread_rwlock_t* rwlock)
 
 int pthread_rwlock_timedwrlock(pthread_rwlock_t* __restrict rwlock, const struct timespec* __restrict abstime)
 {
-	return _pthread_timedlock(rwlock, abstime, &pthread_rwlock_trywrlock);
+	return pthread_rwlock_timedlock(rwlock, abstime, &pthread_rwlock_trywrlock);
 }
 
 int pthread_rwlock_unlock(pthread_rwlock_t* rwlock)
