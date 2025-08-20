@@ -37,6 +37,15 @@ namespace Kernel
 	static BAN::Vector<Process*> s_processes;
 	static RecursiveSpinLock s_process_lock;
 
+	struct futex_t
+	{
+		ThreadBlocker blocker;
+		uint32_t waiters { 0 };
+		uint32_t to_wakeup { 0 };
+	};
+	static BAN::HashMap<paddr_t, BAN::UniqPtr<futex_t>> s_futexes;
+	static Mutex s_futex_lock;
+
 	static void for_each_process(const BAN::Function<BAN::Iteration(Process&)>& callback)
 	{
 		SpinLockGuard _(s_process_lock);
@@ -2720,17 +2729,12 @@ namespace Kernel
 		if (vaddr % 4)
 			return BAN::Error::from_errno(EINVAL);
 
-		const bool is_private  = (op & FUTEX_PRIVATE);
 		const bool is_realtime = (op & FUTEX_REALTIME);
 		op &= ~(FUTEX_PRIVATE | FUTEX_REALTIME);
 
-		if (!is_private)
-		{
-			dwarnln("TODO: shared futex");
-			return BAN::Error::from_errno(ENOTSUP);
-		}
+		// TODO: possibly optimize private futexes?
 
-		LockGuard _(m_process_lock);
+		LockGuard _(s_futex_lock);
 
 		auto* buffer_region = TRY(validate_and_pin_pointer_access(addr, sizeof(uint32_t), false));
 		BAN::ScopeGuard pin_guard([&] { if (buffer_region) buffer_region->unpin(); });
@@ -2761,20 +2765,20 @@ namespace Kernel
 						return SystemTimer::get().ns_since_boot() + (abs_ns - real_ns);
 					}());
 
-				auto it = m_futexes.find(paddr);
-				if (it == m_futexes.end())
-					it = TRY(m_futexes.emplace(paddr, TRY(BAN::UniqPtr<futex_t>::create())));
+				auto it = s_futexes.find(paddr);
+				if (it == s_futexes.end())
+					it = TRY(s_futexes.emplace(paddr, TRY(BAN::UniqPtr<futex_t>::create())));
 				futex_t* const futex = it->value.ptr();
 
 				futex->waiters++;
-				BAN::ScopeGuard _([futex, paddr, this] {
+				BAN::ScopeGuard _([futex, paddr] {
 					if (--futex->waiters == 0)
-						m_futexes.remove(paddr);
+						s_futexes.remove(paddr);
 				});
 
 				for (;;)
 				{
-					TRY(Thread::current().block_or_eintr_or_waketime_ns(futex->blocker, wake_time_ns, true, &m_process_lock));
+					TRY(Thread::current().block_or_eintr_or_waketime_ns(futex->blocker, wake_time_ns, true, &s_futex_lock));
 					if (BAN::atomic_load(*addr) == val || futex->to_wakeup == 0)
 						continue;
 					futex->to_wakeup--;
@@ -2783,8 +2787,8 @@ namespace Kernel
 			}
 			case FUTEX_WAKE:
 			{
-				auto it = m_futexes.find(paddr);
-				if (it == m_futexes.end())
+				auto it = s_futexes.find(paddr);
+				if (it == s_futexes.end())
 					return 0;
 				futex_t* const futex = it->value.ptr();
 

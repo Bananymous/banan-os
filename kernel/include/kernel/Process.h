@@ -350,14 +350,6 @@ namespace Kernel
 		BAN::UniqPtr<PageTable> m_page_table;
 		BAN::RefPtr<TTY> m_controlling_terminal;
 
-		struct futex_t
-		{
-			ThreadBlocker blocker;
-			uint32_t waiters { 0 };
-			uint32_t to_wakeup { 0 };
-		};
-		BAN::HashMap<paddr_t, BAN::UniqPtr<futex_t>> m_futexes;
-
 		friend class Thread;
 	};
 
