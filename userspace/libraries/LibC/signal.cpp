@@ -169,3 +169,10 @@ int sigsuspend(const sigset_t* sigmask)
 {
 	return syscall(SYS_SIGSUSPEND, sigmask);
 }
+
+int sigwait(const sigset_t* __restrict set, int* __restrict sig)
+{
+	if (syscall(SYS_SIGWAIT, set, sig) == -1)
+		return errno;
+	return 0;
+}

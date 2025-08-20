@@ -2665,6 +2665,42 @@ namespace Kernel
 		return BAN::Error::from_errno(EINTR);
 	}
 
+	BAN::ErrorOr<long> Process::sys_sigwait(const sigset_t* set, int* sig)
+	{
+		LockGuard _(m_process_lock);
+
+		auto& thread = Thread::current();
+		for (;;)
+		{
+			TRY(validate_pointer_access(set, sizeof(sigset_t), false));
+			TRY(validate_pointer_access(sig, sizeof(int), true));
+
+			{
+				SpinLockGuard _1(thread.m_signal_lock);
+				SpinLockGuard _2(m_signal_lock);
+
+				const uint64_t pending = thread.m_signal_pending_mask | this->m_signal_pending_mask;
+				if (const auto wait_mask = pending & *set)
+				{
+					for (size_t i = _SIGMIN; i <= _SIGMAX; i++)
+					{
+						const auto mask = 1ull << i;
+						if (!(wait_mask & mask))
+							continue;
+						thread.m_signal_pending_mask &= ~mask;
+						this->m_signal_pending_mask &= ~mask;
+						*sig = i;
+						return 0;
+					}
+
+					ASSERT_NOT_REACHED();
+				}
+			}
+
+			Processor::scheduler().block_current_thread(nullptr, -1, &m_process_lock);
+		}
+	}
+
 	BAN::ErrorOr<long> Process::sys_futex(int op, const uint32_t* addr, uint32_t val, const timespec* abstime)
 	{
 		const vaddr_t vaddr = reinterpret_cast<vaddr_t>(addr);
