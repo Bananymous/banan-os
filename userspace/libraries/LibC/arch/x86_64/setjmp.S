@@ -38,3 +38,21 @@ longjmp:
 	movq 56(%rdi), %r15
 	jmp *%rcx
  .size longjmp, . - longjmp
+
+// int sigsetjmp(sigjmp_buf env, int savemask)
+.global sigsetjmp
+sigsetjmp:
+	movq %rsi, 64(%rdi)
+	testq %rsi, %rsi
+	jz setjmp
+
+	subq $8, %rsp
+	movq %rdi, (%rsp)
+	leaq 72(%rsi), %rdx
+	xorq %rsi, %rsi
+	call pthread_sigmask
+	movq (%rsp), %rdi
+	addq $8, %rsp
+
+	jmp setjmp
+ .size sigsetjmp, . - sigsetjmp

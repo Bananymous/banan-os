@@ -19,7 +19,6 @@ setjmp:
 	xorl %eax, %eax
 
 	ret
-
  .size setjmp, . - setjmp
 
 // void longjmp(jmp_buf env, int val)
@@ -39,5 +38,27 @@ longjmp:
 	movl 16(%edx), %edi
 	movl 20(%edx), %esi
 	jmp *%ecx
-
  .size longjmp, . - longjmp
+
+// int sigsetjmp(sigjmp_buf env, int savemask)
+.global sigsetjmp
+sigsetjmp:
+	movl 4(%esp), %edx
+	movl 8(%esp), %ecx
+
+	movl %ecx, 24(%edx)
+	testl %ecx, %ecx
+	jz setjmp
+
+	leal 24(%edx), %edx
+	xorl %ecx, %ecx
+
+	subl $12, %esp
+	movl %edx, 8(%esp)
+	movl %ecx, 4(%esp)
+	movl %ecx, 0(%esp)
+	call pthread_sigmask
+	addl $12, %esp
+
+	jmp setjmp
+ .size sigsetjmp, . - sigsetjmp
