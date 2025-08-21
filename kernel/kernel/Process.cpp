@@ -2177,6 +2177,17 @@ namespace Kernel
 			vaddr_t base_addr = reinterpret_cast<vaddr_t>(args.addr);
 			address_range.start = BAN::Math::div_round_up<vaddr_t>(base_addr, PAGE_SIZE) * PAGE_SIZE;
 			address_range.end = BAN::Math::div_round_up<vaddr_t>(base_addr + args.len, PAGE_SIZE) * PAGE_SIZE;
+
+			for (size_t i = 0; i < m_mapped_regions.size(); i++)
+			{
+				if (!m_mapped_regions[i]->overlaps(base_addr, args.len))
+					continue;
+				if (!m_mapped_regions[i]->contains_fully(base_addr, args.len))
+					derrorln("VERY BROKEN MAP_FIXED UNMAP");
+				m_mapped_regions[i]->wait_not_pinned();
+				m_mapped_regions.remove(i--);
+			}
+
 		}
 
 		if (args.flags & MAP_ANONYMOUS)
