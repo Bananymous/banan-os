@@ -90,7 +90,7 @@ void WindowServer::on_window_create(int fd, const LibGUI::WindowPacket::WindowCr
 
 	window_popper.disable();
 
-	if (packet.attributes.focusable)
+	if (packet.attributes.shown && packet.attributes.focusable)
 		set_focused_window(window);
 	else if (m_client_windows.size() > 1)
 		BAN::swap(m_client_windows[m_client_windows.size() - 1], m_client_windows[m_client_windows.size() - 2]);
@@ -197,6 +197,9 @@ void WindowServer::on_window_set_attributes(int fd, const LibGUI::WindowPacket::
 	};
 	if (auto ret = event_packet.send_serialized(target_window->client_fd()); ret.is_error())
 		dwarnln("could not send window shown event: {}", ret.error());
+
+	if (packet.attributes.focusable && packet.attributes.shown)
+		set_focused_window(target_window);
 }
 
 void WindowServer::on_window_set_mouse_relative(int fd, const LibGUI::WindowPacket::WindowSetMouseRelative& packet)
@@ -781,6 +784,17 @@ void WindowServer::set_focused_window(BAN::RefPtr<Window> window)
 		invalidate(cursor_area());
 	}
 
+	if (m_focused_window)
+	{
+		LibGUI::EventPacket::WindowFocusEvent packet;
+		packet.event.focused = false;
+		if (auto ret = packet.send_serialized(m_focused_window->client_fd()); ret.is_error())
+		{
+			dwarnln("could not send window focus event: {}", ret.error());
+			return;
+		}
+	}
+
 	for (size_t i = m_client_windows.size(); i > 0; i--)
 	{
 		if (m_client_windows[i - 1] == window)
@@ -790,6 +804,17 @@ void WindowServer::set_focused_window(BAN::RefPtr<Window> window)
 			MUST(m_client_windows.push_back(window));
 			invalidate(window->full_area());
 			break;
+		}
+	}
+
+	if (m_focused_window)
+	{
+		LibGUI::EventPacket::WindowFocusEvent packet;
+		packet.event.focused = true;
+		if (auto ret = packet.send_serialized(m_focused_window->client_fd()); ret.is_error())
+		{
+			dwarnln("could not send window focus event: {}", ret.error());
+			return;
 		}
 	}
 }

@@ -217,6 +217,7 @@ namespace LibGUI
 		CloseWindowEvent,
 		ResizeWindowEvent,
 		WindowShownEvent,
+		WindowFocusEvent,
 		KeyEvent,
 		MouseButtonEvent,
 		MouseMoveEvent,
@@ -329,6 +330,14 @@ namespace LibGUI
 			WindowShownEvent,
 			struct event_t {
 				bool shown;
+			},
+			event_t, event
+		);
+
+		DEFINE_PACKET_EXTRA(
+			WindowFocusEvent,
+			struct event_t {
+				bool focused;
 			},
 			event_t, event
 		);
