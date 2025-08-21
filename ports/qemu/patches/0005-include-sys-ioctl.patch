@@ -1,0 +1,32 @@
+diff -ru qemu-10.0.2/block/file-posix.c qemu-10.0.2-x86_64/block/file-posix.c
+--- qemu-10.0.2/block/file-posix.c	2025-05-29 01:05:46.000000000 +0300
++++ qemu-10.0.2-x86_64/block/file-posix.c	2025-08-09 19:00:18.062695074 +0300
+@@ -110,6 +110,10 @@
+ #include <sys/diskslice.h>
+ #endif
+ 
++#ifdef __banan_os__
++#include <sys/ioctl.h>
++#endif
++
+ /* OS X does not have O_DSYNC */
+ #ifndef O_DSYNC
+ #ifdef O_SYNC
+Only in qemu-10.0.2-x86_64: build
+Only in qemu-10.0.2-x86_64: .cache
+diff -ru qemu-10.0.2/chardev/char-pty.c qemu-10.0.2-x86_64/chardev/char-pty.c
+--- qemu-10.0.2/chardev/char-pty.c	2025-05-29 01:05:46.000000000 +0300
++++ qemu-10.0.2-x86_64/chardev/char-pty.c	2025-08-09 19:03:07.909515897 +0300
+@@ -236,7 +236,11 @@
+ # include <termios.h>
+ #endif
+ 
+-#ifdef __sun__
++#if defined(__banan_os__)
++# include <sys/ioctl.h>
++#endif
++
++#if defined(__sun__) || defined(__banan_os__)
+ 
+ #if !defined(HAVE_OPENPTY)
+ /* Once illumos has openpty(), this is going to be removed. */

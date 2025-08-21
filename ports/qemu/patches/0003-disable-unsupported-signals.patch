@@ -1,0 +1,24 @@
+diff -ru qemu-10.0.2/util/main-loop.c qemu-10.0.2-x86_64/util/main-loop.c
+--- qemu-10.0.2/util/main-loop.c	2025-05-29 01:05:47.000000000 +0300
++++ qemu-10.0.2-x86_64/util/main-loop.c	2025-08-09 18:35:25.670990547 +0300
+@@ -95,8 +95,10 @@
+      * not catch it reliably.
+      */
+     sigemptyset(&set);
++#if !defined(__banan_os__)
+     sigaddset(&set, SIG_IPI);
+     sigaddset(&set, SIGIO);
++#endif
+     sigaddset(&set, SIGALRM);
+     sigaddset(&set, SIGBUS);
+     /* SIGINT cannot be handled via signalfd, so that ^C can be used
+@@ -106,7 +108,9 @@
+      */
+     pthread_sigmask(SIG_BLOCK, &set, NULL);
+ 
++#if !defined(__banan_os__)
+     sigdelset(&set, SIG_IPI);
++#endif
+     sigfd = qemu_signalfd(&set);
+     if (sigfd == -1) {
+         error_setg_errno(errp, errno, "failed to create signalfd");

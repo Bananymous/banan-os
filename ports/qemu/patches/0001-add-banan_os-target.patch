@@ -1,0 +1,12 @@
+diff -ruN qemu-10.0.2/configure qemu-10.0.2-banan_os/configure
+--- qemu-10.0.2/configure	2025-05-29 01:05:46.000000000 +0300
++++ qemu-10.0.2-banan_os/configure	2025-05-31 00:03:10.361102831 +0300
+@@ -360,6 +360,8 @@
+   host_os=netbsd
+ elif check_define __APPLE__; then
+   host_os=darwin
++elif check_define __banan_os__; then
++  host_os=banan_os
+ else
+   # This is a fatal error, but don't report it yet, because we
+   # might be going to just print the --help text, or it might

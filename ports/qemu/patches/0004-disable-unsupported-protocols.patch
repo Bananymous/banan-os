@@ -1,0 +1,22 @@
+diff -ru qemu-10.0.2/net/colo.c qemu-10.0.2-x86_64/net/colo.c
+--- qemu-10.0.2/net/colo.c	2025-05-29 01:05:46.000000000 +0300
++++ qemu-10.0.2-x86_64/net/colo.c	2025-08-09 19:24:57.624758915 +0300
+@@ -123,14 +123,18 @@
+     case IPPROTO_TCP:
+     case IPPROTO_UDP:
+     case IPPROTO_DCCP:
++#if !defined(__banan_os__)
+     case IPPROTO_ESP:
++#endif
+     case IPPROTO_SCTP:
+     case IPPROTO_UDPLITE:
+         tmp_ports = *(uint32_t *)(pkt->transport_header);
+         break;
++#if !defined(__banan_os__)
+     case IPPROTO_AH:
+         tmp_ports = *(uint32_t *)(pkt->transport_header + 4);
+         break;
++#endif
+     default:
+         break;
+     }
