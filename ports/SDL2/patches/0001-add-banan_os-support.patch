@@ -487,8 +487,8 @@ diff -ruN SDL2-2.32.8/src/video/banan_os/SDL_banan_os_message_box.h SDL2-2.32.8-
 +/* vi: set ts=4 sw=4 expandtab: */
 diff -ruN SDL2-2.32.8/src/video/banan_os/SDL_banan_os_video.cpp SDL2-2.32.8-banan_os/src/video/banan_os/SDL_banan_os_video.cpp
 --- SDL2-2.32.8/src/video/banan_os/SDL_banan_os_video.cpp	1970-01-01 02:00:00.000000000 +0200
-+++ SDL2-2.32.8-banan_os/src/video/banan_os/SDL_banan_os_video.cpp	2025-08-06 02:01:21.086666679 +0300
-@@ -0,0 +1,718 @@
++++ SDL2-2.32.8-banan_os/src/video/banan_os/SDL_banan_os_video.cpp	2025-08-21 02:32:59.649175565 +0300
+@@ -0,0 +1,724 @@
 +/*
 +  Simple DirectMedia Layer
 +  Copyright (C) 1997-2025 Sam Lantinga <slouken@libsdl.org>
@@ -891,6 +891,12 @@ diff -ruN SDL2-2.32.8/src/video/banan_os/SDL_banan_os_video.cpp SDL2-2.32.8-bana
 +		[window](LibGUI::EventPacket::WindowShownEvent::event_t event) {
 +			const int state = event.shown ? SDL_WINDOWEVENT_SHOWN : SDL_WINDOWEVENT_HIDDEN;
 +			SDL_SendWindowEvent(window, state, 0, 0);
++		}
++	);
++
++	ban_window->window->set_window_focus_event_callback(
++		[window](LibGUI::EventPacket::WindowFocusEvent::event_t event) {
++			SDL_SetKeyboardFocus(event.focused ? window : nullptr);
 +		}
 +	);
 +
