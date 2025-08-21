@@ -1,0 +1,39 @@
+diff -ruN glib-2.85.2/gio/gunixmounts.c glib-2.85.2-banan_os/gio/gunixmounts.c
+--- glib-2.85.2/gio/gunixmounts.c	2025-07-21 20:47:53.000000000 +0300
++++ glib-2.85.2-banan_os/gio/gunixmounts.c	2025-08-19 18:21:06.055332112 +0300
+@@ -1114,7 +1114,7 @@
+ }
+ 
+ /* QNX {{{2 */
+-#elif defined (HAVE_QNX)
++#elif defined (HAVE_QNX) || defined (__banan_os__)
+ 
+ static char *
+ get_mtab_monitor_file (void)
+@@ -1754,6 +1754,26 @@
+   if (time_read_out != NULL)
+     *time_read_out = 0;
+   if (n_points_out != NULL)
++    *n_points_out = 0;
++  return NULL;
++}
++
++#elif defined (__banan_os__)
++
++static GList *
++_g_get_unix_mount_points (void)
++{
++	return NULL;
++}
++
++static GUnixMountPoint **
++_g_unix_mount_points_get_from_file (const char *table_path,
++                                    uint64_t   *time_read_out,
++                                    size_t     *n_points_out)
++{
++  if (time_read_out != NULL)
++    *time_read_out = 0;
++  if (n_points_out != NULL)
+     *n_points_out = 0;
+   return NULL;
+ }

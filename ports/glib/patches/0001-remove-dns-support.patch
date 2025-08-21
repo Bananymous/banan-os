@@ -1,0 +1,106 @@
+diff -ruN glib-2.85.2/gio/gnetworking.h.in glib-2.85.2-banan_os/gio/gnetworking.h.in
+--- glib-2.85.2/gio/gnetworking.h.in	2025-07-21 20:47:53.000000000 +0300
++++ glib-2.85.2-banan_os/gio/gnetworking.h.in	2025-08-19 18:21:06.038296386 +0300
+@@ -40,13 +40,17 @@
+ #include <netdb.h>
+ #include <netinet/in.h>
+ #include <netinet/tcp.h>
++#ifndef __banan_os__
+ #include <resolv.h>
++#endif
+ #include <sys/socket.h>
+ #include <sys/un.h>
+ #include <net/if.h>
+ 
+ #include <arpa/inet.h>
++#ifndef __banan_os__
+ #include <arpa/nameser.h>
++#endif
+ @NAMESER_COMPAT_INCLUDE@
+ 
+ #ifndef __GI_SCANNER__
+diff -ruN glib-2.85.2/gio/gthreadedresolver.c glib-2.85.2-banan_os/gio/gthreadedresolver.c
+--- glib-2.85.2/gio/gthreadedresolver.c	2025-07-21 20:47:53.000000000 +0300
++++ glib-2.85.2-banan_os/gio/gthreadedresolver.c	2025-08-19 18:21:06.052332130 +0300
+@@ -41,6 +41,10 @@
+ #include "gsocketaddress.h"
+ #include "gsrvtarget.h"
+ 
++#if defined __banan_os__
++#include <endian.h>
++#endif
++
+ #if HAVE_GETIFADDRS
+ #include <ifaddrs.h>
+ #endif
+@@ -692,7 +696,7 @@
+ 
+ #if defined(G_OS_UNIX)
+ 
+-#if defined __BIONIC__ && !defined BIND_4_COMPAT
++#if (defined __BIONIC__ && !defined BIND_4_COMPAT) || defined __banan_os__
+ /* Copy from bionic/libc/private/arpa_nameser_compat.h
+  * and bionic/libc/private/arpa_nameser.h */
+ typedef struct {
+@@ -763,6 +767,14 @@
+ #define dn_skipname __dn_skipname
+ int dn_skipname(const u_char *, const u_char *);
+ 
++#if defined __banan_os__
++#warning "TODO: dn_expand"
++int dn_expand(const u_char *, const u_char *, const u_char *, char *, int)
++{
++	return -1;
++}
++#endif
++
+ /* From bionic/libc/private/arpa_nameser_compat.h */
+ #define T_MX		ns_t_mx
+ #define T_TXT		ns_t_txt
+@@ -1369,7 +1381,7 @@
+ }
+ 
+ #if defined(G_OS_UNIX)
+-#ifdef __BIONIC__
++#if defined __BIONIC__
+ #ifndef C_IN
+ #define C_IN 1
+ #endif
+@@ -1420,6 +1432,9 @@
+       g_byte_array_set_size (answer, len * 2);
+ #if defined(HAVE_RES_NQUERY)
+       len = res_nquery (&res, rrname, C_IN, rrtype, answer->data, answer->len);
++#elif defined __banan_os__
++#warning "TODO: res_query"
++      len = -1;
+ #else
+       len = res_query (rrname, C_IN, rrtype, answer->data, answer->len);
+ #endif
+diff -ruN glib-2.85.2/gio/meson.build glib-2.85.2-banan_os/gio/meson.build
+--- glib-2.85.2/gio/meson.build	2025-07-21 20:47:53.000000000 +0300
++++ glib-2.85.2-banan_os/gio/meson.build	2025-08-19 18:21:06.062294634 +0300
+@@ -18,7 +18,7 @@
+ 
+ gnetworking_h_nameser_compat_include = ''
+ 
+-if host_system not in ['windows', 'android']
++if host_system not in ['windows', 'android', 'banan_os']
+   # Don't check for C_IN on Android since it does not define it in public
+   # headers, we define it ourselves wherever necessary
+   if not cc.compiles('''#include <sys/types.h>
+@@ -40,6 +40,7 @@
+ network_libs = [ ]
+ network_args = [ ]
+ if host_system != 'windows'
++  if host_system != 'banan_os'
+   # res_query()
+   res_query_test = '''#include <resolv.h>
+                       int main (int argc, char ** argv) {
+@@ -63,6 +64,7 @@
+       error('Could not find res_query()')
+     endif
+   endif
++  endif
+ 
+   # socket()
+   socket_test = '''#include <sys/types.h>
