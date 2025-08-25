@@ -1,0 +1,219 @@
+diff -ruN gcc-15.2.0/config.sub gcc-15.2.0-banan_os/config.sub
+--- gcc-15.2.0/config.sub	2025-08-25 18:08:25.524209333 +0300
++++ gcc-15.2.0-banan_os/config.sub	2025-08-25 18:09:09.160072736 +0300
+@@ -1749,7 +1749,7 @@
+ 	     | onefs* | tirtos* | phoenix* | fuchsia* | redox* | bme* \
+ 	     | midnightbsd* | amdhsa* | unleashed* | emscripten* | wasi* \
+ 	     | nsk* | powerunix* | genode* | zvmoe* | qnx* | emx* | zephyr* \
+-	     | fiwix* )
++	     | fiwix* | banan_os* )
+ 		;;
+ 	# This one is extra strict with allowed versions
+ 	sco3.2v2 | sco3.2v[4-9]* | sco5v6*)
+diff -ruN gcc-15.2.0/fixincludes/mkfixinc.sh gcc-15.2.0-banan_os/fixincludes/mkfixinc.sh
+--- gcc-15.2.0/fixincludes/mkfixinc.sh	2025-08-25 18:08:42.043663414 +0300
++++ gcc-15.2.0-banan_os/fixincludes/mkfixinc.sh	2025-08-25 18:09:09.191771254 +0300
+@@ -11,6 +11,7 @@
+ 
+ # Check for special fix rules for particular targets
+ case $machine in
++    *-*-banan_os* | \
+     i?86-*-cygwin* | \
+     *-mingw32* | \
+     powerpc-*-eabisim* | \
+diff -ruN gcc-15.2.0/gcc/config/banan_os.h gcc-15.2.0-banan_os/gcc/config/banan_os.h
+--- gcc-15.2.0/gcc/config/banan_os.h	1970-01-01 02:00:00.000000000 +0200
++++ gcc-15.2.0-banan_os/gcc/config/banan_os.h	2025-08-25 18:09:09.192159227 +0300
+@@ -0,0 +1,35 @@
++/* Useful if you wish to make target-specific GCC changes. */
++#undef TARGET_BANAN_OS
++#define TARGET_BANAN_OS 1
++
++/* Default arguments you want when running your
++   *-banan_os-gcc toolchain */
++#undef LIB_SPEC
++#define LIB_SPEC "-lc" /* link against C standard library */
++
++/* Files that are linked before user code.
++   The %s tells GCC to look for these files in the library directory. */
++#undef STARTFILE_SPEC
++#define STARTFILE_SPEC "%{!shared:crt0.o%s} crti.o%s %{shared|static-pie|!no-pie:crtbeginS.o%s; :crtbegin.o%s}"
++
++/* Files that are linked after user code. */
++#undef ENDFILE_SPEC
++#define ENDFILE_SPEC "%{shared|static-pie|!no-pie:crtendS.o%s; :crtend.o%s} crtn.o%s"
++
++#undef LINK_SPEC
++#define LINK_SPEC "%{shared:-shared} %{static:-static} %{!shared: %{!static: %{rdynamic:-export-dynamic}}}"
++
++/* We don't have separate math library so don't link it. */
++#undef MATH_LIBRARY
++#define MATH_LIBRARY ""
++
++/* Additional predefined macros. */
++#undef TARGET_OS_CPP_BUILTINS
++#define TARGET_OS_CPP_BUILTINS()        \
++  do {                                  \
++    builtin_define ("__banan_os__");    \
++    builtin_define ("__unix__");        \
++    builtin_assert ("system=banan_os"); \
++    builtin_assert ("system=unix");     \
++    builtin_assert ("system=posix");    \
++  } while(0);
+diff -ruN gcc-15.2.0/gcc/config/banan_os.opt gcc-15.2.0-banan_os/gcc/config/banan_os.opt
+--- gcc-15.2.0/gcc/config/banan_os.opt	1970-01-01 02:00:00.000000000 +0200
++++ gcc-15.2.0-banan_os/gcc/config/banan_os.opt	2025-08-25 18:09:09.192299819 +0300
+@@ -0,0 +1,32 @@
++; banan_os options.
++
++; Copyright (C) 2025 Oskari Alaranta <oskari.alaranta@bananymous.com>
++;
++; This file is part of GCC.
++;
++; GCC is free software; you can redistribute it and/or modify it under
++; the terms of the GNU General Public License as published by the Free
++; Software Foundation; either version 3, or (at your option) any later
++; version.
++;
++; GCC is distributed in the hope that it will be useful, but WITHOUT ANY
++; WARRANTY; without even the implied warranty of MERCHANTABILITY or
++; FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
++; for more details.
++;
++; You should have received a copy of the GNU General Public License
++; along with GCC; see the file COPYING3.  If not see
++; <http://www.gnu.org/licenses/>.
++
++; See the GCC internals manual (options.texi) for a description of
++; this file's format.
++
++; Please try to keep this file in ASCII collating order.
++
++posix
++Driver
++
++pthread
++Driver
++
++; This comment is to ensure we retain the blank line above.
+diff -ruN gcc-15.2.0/gcc/config/banan_os.opt.urls gcc-15.2.0-banan_os/gcc/config/banan_os.opt.urls
+--- gcc-15.2.0/gcc/config/banan_os.opt.urls	1970-01-01 02:00:00.000000000 +0200
++++ gcc-15.2.0-banan_os/gcc/config/banan_os.opt.urls	2025-08-25 18:09:09.192460665 +0300
+@@ -0,0 +1 @@
++; Not sure what to put here but this works
+diff -ruN gcc-15.2.0/gcc/config.gcc gcc-15.2.0-banan_os/gcc/config.gcc
+--- gcc-15.2.0/gcc/config.gcc	2025-08-25 18:08:36.953184232 +0300
++++ gcc-15.2.0-banan_os/gcc/config.gcc	2025-08-25 18:09:09.193116622 +0300
+@@ -723,6 +723,14 @@
+ 
+ # Common parts for widely ported systems.
+ case ${target} in
++*-*-banan_os*)
++  gas=yes
++  gnu_ld=yes
++  default_use_cxa_atexit=yes
++  extra_options="${extra_options} banan_os.opt"
++  use_gcc_stdint=provide
++  tmake_file="t-slibgcc"
++  ;;
+ *-*-darwin*)
+   tmake_file="t-darwin "
+   tm_file="${tm_file} darwin.h"
+@@ -1972,6 +1980,12 @@
+     tm_file="${tm_file} i386/unix.h i386/att.h elfos.h newlib-stdint.h i386/i386elf.h i386/x86-64.h i386/rdos.h i386/rdos64.h"
+     tmake_file="i386/t-i386elf t-svr4"
+     ;;
++i[34567]86-*-banan_os*)
++	tm_file="${tm_file} i386/unix.h i386/att.h elfos.h glibc-stdint.h i386/i386elf.h banan_os.h"
++	;;
++x86_64-*-banan_os*)
++	tm_file="${tm_file} i386/unix.h i386/att.h elfos.h glibc-stdint.h i386/i386elf.h i386/x86-64.h banan_os.h"
++	;;
+ i[34567]86-*-dragonfly*)
+ 	tm_file="${tm_file} i386/unix.h i386/att.h elfos.h dragonfly.h dragonfly-stdint.h i386/dragonfly.h"
+ 	tmake_file="${tmake_file} i386/t-crtstuff"
+diff -ruN gcc-15.2.0/libgcc/config/t-slibgcc gcc-15.2.0-banan_os/libgcc/config/t-slibgcc
+--- gcc-15.2.0/libgcc/config/t-slibgcc	2025-08-25 18:08:42.538268318 +0300
++++ gcc-15.2.0-banan_os/libgcc/config/t-slibgcc	2025-08-25 18:09:09.206796796 +0300
+@@ -26,7 +26,6 @@
+ SHLIB_OBJS = @shlib_objs@
+ SHLIB_DIR = @multilib_dir@
+ SHLIB_SLIBDIR_QUAL = @shlib_slibdir_qual@
+-SHLIB_LC = -lc
+ SHLIB_MAKE_SOLINK = $(LN_S) $(SHLIB_SONAME) $(SHLIB_DIR)/$(SHLIB_SOLINK)
+ SHLIB_INSTALL_SOLINK = $(LN_S) $(SHLIB_SONAME) \
+ 	$(DESTDIR)$(slibdir)$(SHLIB_SLIBDIR_QUAL)/$(SHLIB_SOLINK)
+diff -ruN gcc-15.2.0/libgcc/config.host gcc-15.2.0-banan_os/libgcc/config.host
+--- gcc-15.2.0/libgcc/config.host	2025-08-25 18:08:42.103193239 +0300
++++ gcc-15.2.0-banan_os/libgcc/config.host	2025-08-25 18:09:09.221444143 +0300
+@@ -627,6 +627,14 @@
+ 	    fixed_point=no
+ 	fi
+ 	;;
++i[34567]86-*-banan_os*)
++	extra_parts="$extra_parts crti.o crtbegin.o crtbeginS.o crtend.o crtendS.o crtn.o"
++	tmake_file="$tmake_file i386/t-crtstuff t-crtstuff-pic t-libgcc-pic t-slibgcc"
++	;;
++x86_64-*-banan_os*)
++	extra_parts="$extra_parts crti.o crtbegin.o crtbeginS.o crtend.o crtendS.o crtn.o"
++	tmake_file="$tmake_file i386/t-crtstuff t-crtstuff-pic t-libgcc-pic t-slibgcc"
++	;;
+ bfin*-elf*)
+ 	tmake_file="bfin/t-bfin bfin/t-crtlibid bfin/t-crtstuff t-libgcc-pic t-fdpbit"
+ 	extra_parts="$extra_parts crtbeginS.o crtendS.o crti.o crtn.o crtlibid.o"
+diff -ruN gcc-15.2.0/libstdc++-v3/acinclude.m4 gcc-15.2.0-banan_os/libstdc++-v3/acinclude.m4
+--- gcc-15.2.0/libstdc++-v3/acinclude.m4	2025-08-25 18:08:44.358147732 +0300
++++ gcc-15.2.0-banan_os/libstdc++-v3/acinclude.m4	2025-08-25 18:09:09.241116556 +0300
+@@ -1792,7 +1792,7 @@
+         ac_has_nanosleep=yes
+         ac_has_sched_yield=yes
+         ;;
+-      freebsd*|netbsd*|dragonfly*|rtems*)
++      freebsd*|netbsd*|dragonfly*|rtems*|banan_os*)
+         ac_has_clock_monotonic=yes
+         ac_has_clock_realtime=yes
+         ac_has_nanosleep=yes
+diff -ruN gcc-15.2.0/libstdc++-v3/configure gcc-15.2.0-banan_os/libstdc++-v3/configure
+--- gcc-15.2.0/libstdc++-v3/configure	2025-08-25 18:08:47.550144038 +0300
++++ gcc-15.2.0-banan_os/libstdc++-v3/configure	2025-08-25 18:09:09.262116528 +0300
+@@ -15784,8 +15784,8 @@
+   glibcxx_compiler_shared_flag="-D_GLIBCXX_SHARED"
+ 
+ else
+-  glibcxx_lt_pic_flag=
+-  glibcxx_compiler_pic_flag=
++  glibcxx_lt_pic_flag="-prefer-pic"
++  glibcxx_compiler_pic_flag="$lt_prog_compiler_pic_CXX"
+   glibcxx_compiler_shared_flag=
+ fi
+ 
+@@ -21377,7 +21377,7 @@
+         ac_has_nanosleep=yes
+         ac_has_sched_yield=yes
+         ;;
+-      freebsd*|netbsd*|dragonfly*|rtems*)
++      freebsd*|netbsd*|dragonfly*|rtems*|banan_os*)
+         ac_has_clock_monotonic=yes
+         ac_has_clock_realtime=yes
+         ac_has_nanosleep=yes
+@@ -28654,7 +28654,7 @@
+     # This is a freestanding configuration; there is nothing to do here.
+     ;;
+ 
+-  avr*-*-*)
++  avr*-*-* | *banan_os*)
+     $as_echo "#define HAVE_ACOSF 1" >>confdefs.h
+ 
+     $as_echo "#define HAVE_ASINF 1" >>confdefs.h
+diff -ruN gcc-15.2.0/libstdc++-v3/crossconfig.m4 gcc-15.2.0-banan_os/libstdc++-v3/crossconfig.m4
+--- gcc-15.2.0/libstdc++-v3/crossconfig.m4	2025-08-25 18:08:47.570807934 +0300
++++ gcc-15.2.0-banan_os/libstdc++-v3/crossconfig.m4	2025-08-25 18:09:09.263116526 +0300
+@@ -9,7 +9,7 @@
+     # This is a freestanding configuration; there is nothing to do here.
+     ;;
+ 
+-  avr*-*-*)
++  avr*-*-* | *banan_os*)
+     AC_DEFINE(HAVE_ACOSF)
+     AC_DEFINE(HAVE_ASINF)
+     AC_DEFINE(HAVE_ATAN2F)
