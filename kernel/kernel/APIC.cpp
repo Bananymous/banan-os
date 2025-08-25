@@ -22,8 +22,8 @@
 #define LAPIC_TIMER_CURRENT_REG	0x390
 #define LAPIC_TIMER_DIVIDE_REG	0x3E0
 
-#define IOAPIC_MAX_REDIRS	0x01
-#define IOAPIC_REDIRS		0x10
+#define IOAPIC_APICVER	0x01
+#define IOAPIC_REDIRS	0x10
 
 // https://uefi.org/specs/ACPI/6.5/05_ACPI_Software_Programming_Model.html#multiple-apic-description-table-madt-format
 
@@ -238,7 +238,7 @@ namespace Kernel
 				io_apic.vaddr & PAGE_ADDR_MASK,
 				PageTable::Flags::ReadWrite | PageTable::Flags::Present
 			);
-			io_apic.max_redirs = io_apic.read(IOAPIC_MAX_REDIRS);
+			io_apic.max_redirs = (io_apic.read(IOAPIC_APICVER) >> 16) & 0xFF;
 		}
 
 		// Enable local apic
@@ -470,7 +470,7 @@ namespace Kernel
 		IOAPIC* ioapic = nullptr;
 		for (IOAPIC& io : m_io_apics)
 		{
-			if (io.gsi_base <= gsi && gsi < io.gsi_base + io.max_redirs)
+			if (io.gsi_base <= gsi && gsi <= io.gsi_base + io.max_redirs)
 			{
 				ioapic = &io;
 				break;
@@ -512,7 +512,7 @@ namespace Kernel
 		bool found_ioapic = false;
 		for (const auto& io : m_io_apics)
 		{
-			if (io.gsi_base <= gsi && gsi < io.gsi_base + io.max_redirs)
+			if (io.gsi_base <= gsi && gsi <= io.gsi_base + io.max_redirs)
 			{
 				found_ioapic = true;
 				break;
@@ -566,7 +566,7 @@ namespace Kernel
 			IOAPIC* ioapic = nullptr;
 			for (IOAPIC& io : m_io_apics)
 			{
-				if (io.gsi_base <= gsi && gsi < io.gsi_base + io.max_redirs)
+				if (io.gsi_base <= gsi && gsi <= io.gsi_base + io.max_redirs)
 				{
 					ioapic = &io;
 					break;
