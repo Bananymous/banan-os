@@ -954,7 +954,7 @@ namespace Kernel
 
 	void Process::update_alarm_queue()
 	{
-		ASSERT(Processor::current_is_bsb());
+		ASSERT(Processor::current_is_bsp());
 
 		SpinLockGuard _(s_process_lock);
 

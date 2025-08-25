@@ -64,8 +64,8 @@ namespace Kernel
 		static void toggle_should_print_cpu_load() { s_should_print_cpu_load = !s_should_print_cpu_load; }
 		static bool get_should_print_cpu_load() { return s_should_print_cpu_load; }
 
-		static ProcessorID bsb_id() { return s_bsb_id; }
-		static bool current_is_bsb() { return current_id() == bsb_id(); }
+		static ProcessorID bsp_id() { return s_bsp_id; }
+		static bool current_is_bsp() { return current_id() == bsp_id(); }
 
 		static void set_interrupt_state(InterruptState state)
 		{
@@ -153,7 +153,7 @@ namespace Kernel
 		}
 
 	private:
-		static ProcessorID s_bsb_id;
+		static ProcessorID s_bsp_id;
 		static BAN::Atomic<uint8_t> s_processor_count;
 		static BAN::Atomic<bool>    s_is_smp_enabled;
 		static BAN::Atomic<bool>    s_should_print_cpu_load;

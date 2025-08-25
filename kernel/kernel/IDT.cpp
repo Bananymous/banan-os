@@ -336,7 +336,7 @@ namespace Kernel
 		ASSERT(InterruptController::get().is_in_service(IRQ_TIMER - IRQ_VECTOR_BASE));
 		InterruptController::get().eoi(IRQ_TIMER - IRQ_VECTOR_BASE);
 
-		if (Processor::current_is_bsb())
+		if (Processor::current_is_bsp())
 			Process::update_alarm_queue();
 
 		Processor::scheduler().timer_interrupt();

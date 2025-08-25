@@ -488,7 +488,7 @@ namespace Kernel
 		redir.vector = IRQ_VECTOR_BASE + irq;
 		redir.mask = 0;
 		// FIXME: distribute IRQs more evenly?
-		redir.destination = Kernel::Processor::bsb_id().as_u32();
+		redir.destination = Kernel::Processor::bsp_id().as_u32();
 
 		ioapic->write(IOAPIC_REDIRS + pin * 2,		redir.lo_dword);
 		ioapic->write(IOAPIC_REDIRS + pin * 2 + 1,	redir.hi_dword);

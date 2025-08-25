@@ -13,7 +13,7 @@ namespace Kernel
 	static constexpr uint32_t MSR_IA32_GS_BASE = 0xC0000101;
 #endif
 
-	ProcessorID          Processor::s_bsb_id                { PROCESSOR_NONE };
+	ProcessorID          Processor::s_bsp_id                { PROCESSOR_NONE };
 	BAN::Atomic<uint8_t> Processor::s_processor_count       { 0 };
 	BAN::Atomic<bool>    Processor::s_is_smp_enabled        { false };
 	BAN::Atomic<bool>    Processor::s_should_print_cpu_load { false };
@@ -41,10 +41,10 @@ namespace Kernel
 
 	Processor& Processor::create(ProcessorID id)
 	{
-		// bsb is the first processor
-		if (s_bsb_id == PROCESSOR_NONE && id == PROCESSOR_NONE)
-			s_bsb_id = id = read_processor_id();
-		if (s_bsb_id == PROCESSOR_NONE || id == PROCESSOR_NONE || id.m_id >= s_processors.size())
+		// bsp is the first processor
+		if (s_bsp_id == PROCESSOR_NONE && id == PROCESSOR_NONE)
+			s_bsp_id = id = read_processor_id();
+		if (s_bsp_id == PROCESSOR_NONE || id == PROCESSOR_NONE || id.m_id >= s_processors.size())
 			Kernel::panic("Trying to initialize invalid processor {}", id.m_id);
 
 		auto& processor = s_processors[id.m_id];
@@ -114,13 +114,13 @@ namespace Kernel
 	{
 		if (s_processors_created == 1)
 		{
-			ASSERT(current_is_bsb());
+			ASSERT(current_is_bsp());
 			s_processor_count++;
 			s_processor_ids[0] = current_id();
 		}
 
-		// wait until bsb is ready
-		if (current_is_bsb())
+		// wait until bsp is ready
+		if (current_is_bsp())
 		{
 			s_processor_count = 1;
 			s_processor_ids[0] = current_id();
@@ -143,7 +143,7 @@ namespace Kernel
 		}
 		else
 		{
-			// wait until bsb is ready, it shall get index 0
+			// wait until bsp is ready, it shall get index 0
 			while (s_processor_count == 0)
 				__builtin_ia32_pause();
 
@@ -162,7 +162,7 @@ namespace Kernel
 			{
 				if (SystemTimer::get().ms_since_boot() >= timeout_ms)
 				{
-					if (current_is_bsb())
+					if (current_is_bsp())
 						dprintln("Could not initialize {} processors :(", s_processors_created - s_processor_count);
 					break;
 				}
