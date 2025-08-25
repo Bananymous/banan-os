@@ -158,7 +158,7 @@ namespace Kernel
 		static BAN::Atomic<bool>    s_is_smp_enabled;
 		static BAN::Atomic<bool>    s_should_print_cpu_load;
 
-		ProcessorID m_id { PROCESSOR_NONE };
+		ProcessorID m_id { 0 };
 
 		static constexpr size_t s_stack_size { 4096 };
 		void* m_stack { nullptr };

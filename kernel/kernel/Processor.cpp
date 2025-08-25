@@ -47,6 +47,10 @@ namespace Kernel
 		if (s_bsp_id == PROCESSOR_NONE || id == PROCESSOR_NONE || id.m_id >= s_processors.size())
 			Kernel::panic("Trying to initialize invalid processor {}", id.m_id);
 
+		if (id == s_bsp_id)
+			for (auto& processor : s_processors)
+				processor.m_id = PROCESSOR_NONE;
+
 		auto& processor = s_processors[id.m_id];
 
 		ASSERT(processor.m_id == PROCESSOR_NONE);
