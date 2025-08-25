@@ -573,13 +573,24 @@ namespace Kernel
 			{
 				// Make sure stack is allocated
 
-				const vaddr_t pages[3] {
-					(interrupt_stack.sp - sizeof(uintptr_t)) & PAGE_ADDR_MASK,
-					(signal_stack_top - 4 * sizeof(uintptr_t)) & PAGE_ADDR_MASK,
-					(signal_stack_top - 1 * sizeof(uintptr_t)) & PAGE_ADDR_MASK,
-				};
+				vaddr_t pages[3] {};
+				size_t page_count { 0 };
 
-				for (size_t i = 0; i < 3; i++)
+				if (signal_stack_top == 0)
+				{
+					pages[0] = (interrupt_stack.sp - 1 * sizeof(uintptr_t)) & PAGE_ADDR_MASK;
+					pages[1] = (interrupt_stack.sp - 5 * sizeof(uintptr_t)) & PAGE_ADDR_MASK;
+					page_count = 2;
+				}
+				else
+				{
+					pages[0] = (interrupt_stack.sp - sizeof(uintptr_t)) & PAGE_ADDR_MASK;
+					pages[1] = (signal_stack_top - 4 * sizeof(uintptr_t)) & PAGE_ADDR_MASK;
+					pages[2] = (signal_stack_top - 1 * sizeof(uintptr_t)) & PAGE_ADDR_MASK;
+					page_count = 3;
+				}
+
+				for (size_t i = 0; i < page_count; i++)
 				{
 					if (m_process->page_table().get_page_flags(pages[i]) & PageTable::Flags::Present)
 						continue;
