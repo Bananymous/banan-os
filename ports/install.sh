@@ -59,8 +59,9 @@ config_sub_update() {
 
 	config_sub_path="$BANAN_PORT_DIR/config.sub"
 
-	if [ ! -f "$config_sub_path" ] || [ $(find "$config_sub_path" -mtime +1) ]; then
-		wget -O "$config_sub_path" 'https://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.sub;hb=HEAD'
+	if [ ! -f "$config_sub_path" ]; then
+		wget -O "$config_sub_path.tmp" 'https://git.savannah.gnu.org/gitweb/?p=config.git;a=blob_plain;f=config.sub;hb=HEAD' || exit 1
+		mv $config_sub_path.tmp $config_sub_path
 	fi
 
 	for target in "${CONFIG_SUB[@]}"; do
