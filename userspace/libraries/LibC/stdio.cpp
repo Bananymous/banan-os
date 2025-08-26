@@ -857,6 +857,9 @@ int rename(const char* old, const char* _new)
 		}
 	}
 
+	close(new_fd);
+	close(old_fd);
+
 	unlink(old);
 
 	return 0;
