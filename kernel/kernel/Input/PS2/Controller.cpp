@@ -468,8 +468,8 @@ namespace Kernel::Input
 		TRY(send_command(PS2::Command::DISABLE_SECOND_PORT));
 
 		// Flush The Output Buffer
-		while (!read_byte().is_error())
-			continue;
+		while (IO::inb(m_command_port) & PS2::Status::OUTPUT_STATUS)
+			IO::inb(m_data_port);
 
 		// Set the Controller Configuration Byte
 		TRY(send_command(PS2::Command::READ_CONFIG));
