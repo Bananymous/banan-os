@@ -156,6 +156,7 @@ namespace Kernel
 		virtual BAN::ErrorOr<size_t> list_next_inodes_impl(off_t, struct dirent*, size_t) override final;
 		virtual BAN::ErrorOr<void> create_file_impl(BAN::StringView, mode_t, uid_t, gid_t) override final;
 		virtual BAN::ErrorOr<void> create_directory_impl(BAN::StringView, mode_t, uid_t, gid_t) override final;
+		virtual BAN::ErrorOr<void> link_inode_impl(BAN::StringView, BAN::RefPtr<Inode>) override final;
 		virtual BAN::ErrorOr<void> unlink_impl(BAN::StringView) override;
 
 		virtual bool can_read_impl() const override { return false; }

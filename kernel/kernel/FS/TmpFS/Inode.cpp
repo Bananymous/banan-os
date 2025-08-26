@@ -655,6 +655,20 @@ namespace Kernel
 		return {};
 	}
 
+	BAN::ErrorOr<void> TmpDirectoryInode::link_inode_impl(BAN::StringView name, BAN::RefPtr<Inode> inode)
+	{
+		ASSERT(this->mode().ifdir());
+		ASSERT(!inode->mode().ifdir());
+		ASSERT(&m_fs == inode->filesystem());
+
+		if (!find_inode_impl(name).is_error())
+			return BAN::Error::from_errno(EEXIST);
+
+		auto* tmp_inode = static_cast<TmpInode*>(inode.ptr());
+		TRY(link_inode(*tmp_inode, name));
+		return {};
+	}
+
 	BAN::ErrorOr<void> TmpDirectoryInode::unlink_impl(BAN::StringView name)
 	{
 		ino_t entry_ino = 0;
