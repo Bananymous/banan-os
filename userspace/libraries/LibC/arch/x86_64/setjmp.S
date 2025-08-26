@@ -48,7 +48,7 @@ sigsetjmp:
 
 	subq $8, %rsp
 	movq %rdi, (%rsp)
-	leaq 72(%rsi), %rdx
+	leaq 72(%rdi), %rdx
 	xorq %rsi, %rsi
 	call pthread_sigmask
 	movq (%rsp), %rdi
