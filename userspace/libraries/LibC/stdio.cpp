@@ -34,11 +34,7 @@ struct FILE
 	unsigned char unget_buffer[12];
 	uint32_t unget_buf_idx;
 
-	// TODO: use recursive pthread_mutex when implemented?
-	//       this storage hack is to keep FILE pod (init order)
-	BAN::Atomic<pthread_t>& locker() { return *reinterpret_cast<BAN::Atomic<pthread_t>*>(locker_storage); }
-	unsigned char locker_storage[sizeof(pthread_t)];
-	uint32_t lock_depth;
+	pthread_mutex_t mutex;
 };
 static_assert(BAN::is_pod_v<FILE>);
 
@@ -98,9 +94,11 @@ static void _init_stdio()
 	{
 		init_closed_file(&s_files[i]);
 
-		new (&s_files[i].locker()) BAN::Atomic<pthread_t>();
-		s_files[i].locker() = -1;
-		s_files[i].lock_depth = 0;
+		pthread_mutexattr_t attr;
+		pthread_mutexattr_init(&attr);
+		pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+		pthread_mutex_init(&s_files[i].mutex, &attr);
+		pthread_mutexattr_destroy(&attr);
 	}
 
 	s_files[STDIN_FILENO].fd          = STDIN_FILENO;
@@ -313,22 +311,6 @@ int fileno(FILE* fp)
 	return fp->fd;
 }
 
-void flockfile(FILE* fp)
-{
-	const pthread_t tid = pthread_self();
-
-	pthread_t expected = -1;
-	while (!fp->locker().compare_exchange(expected, tid, BAN::MemoryOrder::memory_order_acq_rel))
-	{
-		if (expected == tid)
-			break;
-		sched_yield();
-		expected = -1;
-	}
-
-	fp->lock_depth++;
-}
-
 FILE* fopen(const char* pathname, const char* mode_str)
 {
 	mode_t mode = parse_mode_string(mode_str);
@@ -485,25 +467,19 @@ off_t ftello(FILE* file)
 	return offset - file->unget_buf_idx;
 }
 
+void flockfile(FILE* fp)
+{
+	pthread_mutex_lock(&fp->mutex);
+}
+
 int ftrylockfile(FILE* fp)
 {
-	const pthread_t tid = pthread_self();
-
-	pthread_t expected = -1;
-	if (!fp->locker().compare_exchange(expected, tid, BAN::MemoryOrder::memory_order_acq_rel))
-		if (expected != tid)
-			return 1;
-
-	fp->lock_depth++;
-	return 0;
+	return pthread_mutex_trylock(&fp->mutex);
 }
 
 void funlockfile(FILE* fp)
 {
-	ASSERT(fp->locker() == pthread_self());
-	ASSERT(fp->lock_depth > 0);
-	if (--fp->lock_depth == 0)
-		fp->locker().store(-1, BAN::MemoryOrder::memory_order_release);
+	pthread_mutex_unlock(&fp->mutex);
 }
 
 size_t fwrite(const void* buffer, size_t size, size_t nitems, FILE* file)
