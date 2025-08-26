@@ -779,11 +779,17 @@ int putc_unlocked(int c, FILE* file)
 		return (unsigned char)c;
 	}
 
+	if (file->buffer_idx >= file->buffer_size)
+		if (fflush(file) == EOF)
+			return EOF;
+
 	file->buffer[file->buffer_idx] = c;
 	file->buffer_idx++;
+
 	if ((file->buffer_type == _IOLBF && c == '\n') || file->buffer_idx >= file->buffer_size)
 		if (fflush(file) == EOF)
 			return EOF;
+
 	return (unsigned char)c;
 }
 
