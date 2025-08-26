@@ -174,7 +174,7 @@ namespace Kernel
 
 		MUST(s_instance->mount(root_creds, &ProcFileSystem::get(), "/proc"_sv));
 
-		auto tmpfs = MUST(TmpFileSystem::create(1024, 0777, 0, 0));
+		auto tmpfs = MUST(TmpFileSystem::create(-1, 0777, 0, 0));
 		MUST(s_instance->mount(root_creds, tmpfs, "/tmp"_sv));
 	}
 
