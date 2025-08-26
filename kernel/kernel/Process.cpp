@@ -717,6 +717,11 @@ namespace Kernel
 				new_thread->set_tls(tls_result.addr);
 			}
 
+			// NOTE: this is done before disabling interrupts and moving the threads as
+			//       shared filebacked mmap can write to disk on on clearing, this will lock
+			//       filesystem mutex which can yield
+			m_mapped_regions.clear();
+
 			ASSERT(Processor::get_interrupt_state() == InterruptState::Enabled);
 			Processor::set_interrupt_state(InterruptState::Disabled);
 
