@@ -36,6 +36,9 @@ namespace Kernel
 			return BAN::Error::from_errno(ENOMEM);
 		BAN::ScopeGuard _([temp_page] { kfree(temp_page); });
 
+		BAN::String next_file_name;
+		BAN::String next_link_name;
+
 		size_t offset = 0;
 		while (offset + 512 <= module.size)
 		{
@@ -87,12 +90,13 @@ namespace Kernel
 
 			auto parent_inode = filesystem->root_inode();
 
-			auto file_path_parts = TRY(BAN::StringView(file_path).split('/'));
+			auto file_path_parts = TRY(BAN::StringView(next_file_name.empty() ? file_path : next_file_name.sv()).split('/'));
 			for (size_t i = 0; i < file_path_parts.size() - 1; i++)
 				parent_inode = TRY(parent_inode->find_inode(file_path_parts[i]));
 
 			switch (file_type)
 			{
+				case 'L': case 'K': break;
 				case REGTYPE:
 				case AREGTYPE: file_mode |= Inode::Mode::IFREG; break;
 				case LNKTYPE:                                   break;
@@ -102,12 +106,34 @@ namespace Kernel
 				case DIRTYPE:  file_mode |= Inode::Mode::IFDIR; break;
 				case FIFOTYPE: file_mode |= Inode::Mode::IFIFO; break;
 				default:
-					ASSERT_NOT_REACHED();
+					panic("unknown file type {}", file_type);
 			}
 
 			auto file_name_sv = file_path_parts.back();
 
-			if (file_type == DIRTYPE)
+			if (file_type == 'L' || file_type == 'K')
+			{
+				auto& target = (file_type == 'L') ? next_file_name : next_link_name;
+				TRY(target.resize(file_size));
+
+				size_t nwritten = 0;
+				while (nwritten < file_size)
+				{
+					const paddr_t paddr = module.start + offset + 512 + nwritten;
+					PageTable::with_fast_page(paddr & PAGE_ADDR_MASK, [&] {
+						memcpy(temp_page, PageTable::fast_page_as_ptr(), PAGE_SIZE);
+					});
+
+					const size_t page_off = paddr % PAGE_SIZE;
+					const size_t to_write = BAN::Math::min(file_size - nwritten, PAGE_SIZE - page_off);
+					memcpy(target.data() + nwritten, temp_page + page_off, to_write);
+					nwritten += to_write;
+				}
+
+				while (!target.empty() && target.back() == '\0')
+					target.pop_back();
+			}
+			else if (file_type == DIRTYPE)
 			{
 				if (file_name_sv == "."_sv)
 					; // NOTE: don't create "." (root)
@@ -116,7 +142,38 @@ namespace Kernel
 			}
 			else if (file_type == LNKTYPE)
 			{
-				dwarnln("TODO: hardlink");
+				BAN::StringView link_name;
+
+				char link_buffer[101] {};
+				if (!next_link_name.empty())
+					link_name = next_link_name.sv();
+				else
+				{
+					const paddr_t paddr = module.start + offset;
+					PageTable::with_fast_page(paddr & PAGE_ADDR_MASK, [&] {
+						memcpy(link_buffer, PageTable::fast_page_as_ptr((paddr % PAGE_SIZE) + 157), 100);
+					});
+					link_name = link_buffer;
+				}
+
+				auto target_inode = filesystem->root_inode();
+
+				auto link_path_parts = TRY(link_name.split('/'));
+				for (const auto part : link_path_parts)
+				{
+					auto find_result = target_inode->find_inode(part);
+					if (!find_result.is_error())
+						target_inode = find_result.release_value();
+					else
+					{
+						target_inode = {};
+						break;
+					}
+				}
+
+				if (target_inode)
+					if (auto ret = parent_inode->link_inode(file_name_sv, target_inode); ret.is_error())
+						dwarnln("failed to create hardlink '{}': {}", file_name_sv, ret.error());
 			}
 			else if (file_type == SYMTYPE)
 			{
@@ -124,17 +181,22 @@ namespace Kernel
 					dwarnln("failed to create symlink '{}': {}", file_name_sv, ret.error());
 				else
 				{
-					char link_target[101] {};
-					const paddr_t paddr = module.start + offset;
-					PageTable::with_fast_page(paddr & PAGE_ADDR_MASK, [&] {
-						memcpy(link_target, PageTable::fast_page_as_ptr((paddr % PAGE_SIZE) + 157), 100);
-					});
+					BAN::StringView link_name;
 
-					if (link_target[0])
+					char link_buffer[101] {};
+					if (!next_link_name.empty())
+						link_name = next_link_name.sv();
+					else
 					{
-						auto inode = TRY(parent_inode->find_inode(file_name_sv));
-						TRY(inode->set_link_target(link_target));
+						const paddr_t paddr = module.start + offset;
+						PageTable::with_fast_page(paddr & PAGE_ADDR_MASK, [&] {
+							memcpy(link_buffer, PageTable::fast_page_as_ptr((paddr % PAGE_SIZE) + 157), 100);
+						});
+						link_name = link_buffer;
 					}
+
+					auto inode = TRY(parent_inode->find_inode(file_name_sv));
+					TRY(inode->set_link_target(link_name));
 				}
 			}
 			else
@@ -162,6 +224,12 @@ namespace Kernel
 						}
 					}
 				}
+			}
+
+			if (file_type != 'L' && file_type != 'K')
+			{
+				next_file_name.clear();
+				next_link_name.clear();
 			}
 
 			offset += 512 + file_size;
