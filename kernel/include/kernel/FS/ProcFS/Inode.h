@@ -82,4 +82,30 @@ namespace Kernel
 		size_t (*m_callback)(off_t, BAN::ByteSpan);
 	};
 
+	class ProcSymlinkInode final : public TmpInode
+	{
+	public:
+		static BAN::ErrorOr<BAN::RefPtr<ProcSymlinkInode>> create_new(BAN::ErrorOr<BAN::String> (*)(void*), void* data, TmpFileSystem&, mode_t, uid_t, gid_t);
+		~ProcSymlinkInode() = default;
+
+	protected:
+		virtual BAN::ErrorOr<BAN::String> link_target_impl() override;
+
+		// You may not write here and this is always non blocking
+		virtual BAN::ErrorOr<size_t> write_impl(off_t, BAN::ConstByteSpan) override		{ return BAN::Error::from_errno(EINVAL); }
+		virtual BAN::ErrorOr<void> truncate_impl(size_t) override						{ return BAN::Error::from_errno(EINVAL); }
+
+		virtual bool can_read_impl() const override { return false; }
+		virtual bool can_write_impl() const override { return false; }
+		virtual bool has_error_impl() const override { return false; }
+		virtual bool has_hungup_impl() const override { return false; }
+
+	private:
+		ProcSymlinkInode(BAN::ErrorOr<BAN::String> (*callback)(void*), void* data, TmpFileSystem&, const TmpInodeInfo&);
+
+	private:
+		BAN::ErrorOr<BAN::String> (*m_callback)(void*);
+		void* m_data;
+	};
+
 }

@@ -38,6 +38,14 @@ namespace Kernel
 		auto cmdline_inode = MUST(TmpFileInode::create_new(*s_instance, 0444, 0, 0));
 		MUST(cmdline_inode->write(0, { reinterpret_cast<const uint8_t*>(g_boot_info.command_line.data()), g_boot_info.command_line.size() }));
 		MUST(static_cast<TmpDirectoryInode*>(s_instance->root_inode().ptr())->link_inode(*cmdline_inode, "cmdline"_sv));
+
+		auto self_inode = MUST(ProcSymlinkInode::create_new(
+			[](void*) -> BAN::ErrorOr<BAN::String> {
+				return BAN::String::formatted("{}", Process::current().pid());
+			},
+			nullptr, *s_instance, 0444, 0, 0)
+		);
+		MUST(static_cast<TmpDirectoryInode*>(s_instance->root_inode().ptr())->link_inode(*self_inode, "self"_sv));
 	}
 
 	ProcFileSystem& ProcFileSystem::get()

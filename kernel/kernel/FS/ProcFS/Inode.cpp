@@ -83,4 +83,27 @@ namespace Kernel
 		return m_callback(offset, buffer);
 	}
 
+	BAN::ErrorOr<BAN::RefPtr<ProcSymlinkInode>> ProcSymlinkInode::create_new(BAN::ErrorOr<BAN::String> (*callback)(void*), void* data, TmpFileSystem& fs, mode_t mode, uid_t uid, gid_t gid)
+	{
+		auto inode_info = create_inode_info(Mode::IFLNK | mode, uid, gid);
+
+		auto* inode_ptr = new ProcSymlinkInode(callback, data, fs, inode_info);
+		if (inode_ptr == nullptr)
+			return BAN::Error::from_errno(ENOMEM);
+		return BAN::RefPtr<ProcSymlinkInode>::adopt(inode_ptr);
+	}
+
+	ProcSymlinkInode::ProcSymlinkInode(BAN::ErrorOr<BAN::String> (*callback)(void*), void* data, TmpFileSystem& fs, const TmpInodeInfo& inode_info)
+		: TmpInode(fs, MUST(fs.allocate_inode(inode_info)), inode_info)
+		, m_callback(callback)
+		, m_data(data)
+	{
+		m_inode_info.mode |= Inode::Mode::IFLNK;
+	}
+
+	BAN::ErrorOr<BAN::String> ProcSymlinkInode::link_target_impl()
+	{
+		return m_callback(m_data);
+	}
+
 }
