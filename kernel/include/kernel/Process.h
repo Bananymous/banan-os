@@ -226,6 +226,8 @@ namespace Kernel
 		size_t proc_cmdline(off_t offset, BAN::ByteSpan) const;
 		size_t proc_environ(off_t offset, BAN::ByteSpan) const;
 
+		BAN::StringView executable() const { return m_executable; }
+
 		// Returns error if page could not be allocated
 		// Returns true if the page was allocated successfully
 		// Return false if access was page violation (segfault)
@@ -339,6 +341,7 @@ namespace Kernel
 
 		BAN::Vector<BAN::String> m_cmdline;
 		BAN::Vector<BAN::String> m_environ;
+		BAN::String m_executable;
 
 		BAN::Vector<ChildExitStatus> m_child_exit_statuses;
 		ThreadBlocker m_child_exit_blocker;

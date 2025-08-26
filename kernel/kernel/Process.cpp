@@ -132,6 +132,8 @@ namespace Kernel
 		auto executable = TRY(ELF::load_from_inode(process->m_root_file.inode, executable_inode, process->m_credentials, process->page_table()));
 		process->m_mapped_regions = BAN::move(executable.regions);
 
+		TRY(process->m_executable.append(executable_file.canonical_path));
+
 		if (executable_inode->mode().mode & +Inode::Mode::ISUID)
 			process->m_credentials.set_euid(executable_inode->uid());
 		if (executable_inode->mode().mode & +Inode::Mode::ISGID)
@@ -672,6 +674,9 @@ namespace Kernel
 			auto executable = TRY(ELF::load_from_inode(m_root_file.inode, executable_inode, m_credentials, *new_page_table));
 			auto new_mapped_regions = BAN::move(executable.regions);
 
+			BAN::String executable_path;
+			TRY(executable_path.append(executable_file.canonical_path));
+
 			BAN::Vector<LibELF::AuxiliaryVector> auxiliary_vector;
 			TRY(auxiliary_vector.reserve(1 + executable.open_execfd));
 
@@ -756,6 +761,7 @@ namespace Kernel
 
 			m_cmdline = BAN::move(str_argv);
 			m_environ = BAN::move(str_envp);
+			m_executable = BAN::move(executable_path);
 		}
 
 		m_has_called_exec = true;

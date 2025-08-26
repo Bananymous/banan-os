@@ -18,6 +18,16 @@ namespace Kernel
 		TRY(inode->link_inode(*MUST(ProcROProcessInode::create_new(process, &Process::proc_cmdline, fs, 0400)), "cmdline"_sv));
 		TRY(inode->link_inode(*MUST(ProcROProcessInode::create_new(process, &Process::proc_environ, fs, 0400)), "environ"_sv));
 
+		TRY(inode->link_inode(*MUST(ProcSymlinkInode::create_new(
+			[](void* process) -> BAN::ErrorOr<BAN::String>
+			{
+				BAN::String result;
+				TRY(result.append(static_cast<Process*>(process)->executable()));
+				return result;
+			},
+			&process, fs, 0400, process.credentials().ruid(), process.credentials().ruid()
+		)), "exe"_sv));
+
 		return inode;
 	}
 
@@ -32,6 +42,7 @@ namespace Kernel
 		(void)TmpDirectoryInode::unlink_impl("meminfo"_sv);
 		(void)TmpDirectoryInode::unlink_impl("cmdline"_sv);
 		(void)TmpDirectoryInode::unlink_impl("environ"_sv);
+		(void)TmpDirectoryInode::unlink_impl("exe"_sv);
 	}
 
 	BAN::ErrorOr<BAN::RefPtr<ProcROProcessInode>> ProcROProcessInode::create_new(Process& process, size_t (Process::*callback)(off_t, BAN::ByteSpan) const, TmpFileSystem& fs, mode_t mode)
