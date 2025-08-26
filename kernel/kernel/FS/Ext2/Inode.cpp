@@ -569,9 +569,7 @@ done:
 	{
 		ASSERT(this->mode().ifdir());
 		ASSERT(!inode->mode().ifdir());
-
-		if (&m_fs != inode->filesystem())
-			return BAN::Error::from_errno(EXDEV);
+		ASSERT(&m_fs == inode->filesystem());
 
 		if (!find_inode_impl(name).is_error())
 			return BAN::Error::from_errno(EEXIST);

@@ -107,6 +107,8 @@ namespace Kernel
 			return BAN::Error::from_errno(ENOTDIR);
 		if (inode->mode().ifdir())
 			return BAN::Error::from_errno(EINVAL);
+		if (this->filesystem() != inode->filesystem())
+			return BAN::Error::from_errno(EXDEV);
 		if (auto* fs = filesystem(); fs && (fs->flag() & ST_RDONLY))
 			return BAN::Error::from_errno(EROFS);
 		return link_inode_impl(name, inode);
