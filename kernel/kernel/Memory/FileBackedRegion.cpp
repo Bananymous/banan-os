@@ -13,7 +13,12 @@ namespace Kernel
 
 		if (offset < 0 || offset % PAGE_SIZE || size == 0)
 			return BAN::Error::from_errno(EINVAL);
-		if ((size > (size_t)inode->size() || (size_t)offset > (size_t)inode->size() - size))
+
+		size_t inode_size_aligned = inode->size();
+		if (auto rem = inode_size_aligned % PAGE_SIZE)
+			inode_size_aligned += PAGE_SIZE - rem;
+
+		if ((size > inode_size_aligned || static_cast<size_t>(offset) > inode_size_aligned - size))
 			return BAN::Error::from_errno(EOVERFLOW);
 
 		auto* region_ptr = new FileBackedRegion(inode, page_table, offset, size, type, flags, status_flags);
