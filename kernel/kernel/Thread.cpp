@@ -793,6 +793,8 @@ namespace Kernel
 				ASSERT_NOT_REACHED();
 			}
 		}
+
+		Processor::set_interrupt_state(InterruptState::Disabled);
 		m_state = State::Terminated;
 		Processor::yield();
 		ASSERT_NOT_REACHED();
