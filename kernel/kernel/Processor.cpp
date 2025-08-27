@@ -1,4 +1,5 @@
 #include <kernel/InterruptController.h>
+#include <kernel/Memory/Heap.h>
 #include <kernel/Memory/kmalloc.h>
 #include <kernel/Processor.h>
 #include <kernel/Terminal/TerminalDriver.h>
@@ -68,15 +69,6 @@ namespace Kernel
 		processor.m_scheduler = MUST(Scheduler::create());
 		ASSERT(processor.m_scheduler);
 
-		SMPMessage* smp_storage = new SMPMessage[0x1000];
-		ASSERT(smp_storage);
-		for (size_t i = 0; i < 0xFFF; i++)
-			smp_storage[i].next = &smp_storage[i + 1];
-		smp_storage[0xFFF].next = nullptr;
-
-		processor.m_smp_pending = nullptr;
-		processor.m_smp_free    = smp_storage;
-
 		s_processors_created++;
 
 		return processor;
@@ -107,6 +99,34 @@ namespace Kernel
 		return processor;
 	}
 
+	void Processor::initialize_smp()
+	{
+		const auto processor_id = current_id();
+		auto& processor = s_processors[processor_id.as_u32()];
+
+		const paddr_t smp_paddr = Heap::get().take_free_page();
+		ASSERT(smp_paddr);
+
+		const vaddr_t smp_vaddr = PageTable::kernel().reserve_free_page(KERNEL_OFFSET);
+		ASSERT(smp_vaddr);
+
+		PageTable::kernel().map_page_at(
+			smp_paddr, smp_vaddr,
+			PageTable::Flags::ReadWrite | PageTable::Flags::Present,
+			PageTable::MemoryType::Uncached
+		);
+
+		auto* smp_storage = reinterpret_cast<SMPMessage*>(smp_vaddr);
+
+		constexpr size_t smp_storage_entries = PAGE_SIZE / sizeof(SMPMessage);
+		for (size_t i = 0; i < smp_storage_entries - 1; i++)
+			smp_storage[i].next = &smp_storage[i + 1];
+		smp_storage[smp_storage_entries - 1].next = nullptr;
+
+		processor.m_smp_pending = nullptr;
+		processor.m_smp_free    = smp_storage;
+	}
+
 	ProcessorID Processor::id_from_index(size_t index)
 	{
 		ASSERT(index < s_processor_count);
@@ -116,12 +136,7 @@ namespace Kernel
 
 	void Processor::wait_until_processors_ready()
 	{
-		if (s_processors_created == 1)
-		{
-			ASSERT(current_is_bsp());
-			s_processor_count++;
-			s_processor_ids[0] = current_id();
-		}
+		initialize_smp();
 
 		// wait until bsp is ready
 		if (current_is_bsp())
@@ -182,21 +197,6 @@ namespace Kernel
 		handle_smp_messages();
 	}
 
-	template<typename F>
-	void with_atomic_lock(BAN::Atomic<bool>& lock, F callback)
-	{
-		bool expected = false;
-		while (!lock.compare_exchange(expected, true, BAN::MemoryOrder::memory_order_acquire))
-		{
-			__builtin_ia32_pause();
-			expected = false;
-		}
-
-		callback();
-
-		lock.store(false, BAN::MemoryOrder::memory_order_release);
-	}
-
 	void Processor::handle_smp_messages()
 	{
 		auto state = get_interrupt_state();
@@ -205,65 +205,61 @@ namespace Kernel
 		auto processor_id = current_id();
 		auto& processor = s_processors[processor_id.m_id];
 
-		SMPMessage* pending = nullptr;
-		with_atomic_lock(processor.m_smp_pending_lock,
-			[&]()
-			{
-				pending = processor.m_smp_pending;
-				processor.m_smp_pending = nullptr;
-			}
-		);
+		auto* pending = processor.m_smp_pending.exchange(nullptr);
+		if (pending == nullptr)
+			return set_interrupt_state(state);
 
-		if (pending)
+		// reverse smp message queue from LIFO to FIFO
 		{
-			// reverse smp message queue from LIFO to FIFO
+			SMPMessage* reversed = nullptr;
+
+			for (auto* message = pending; message;)
 			{
-				SMPMessage* reversed = nullptr;
-
-				for (SMPMessage* message = pending; message;)
-				{
-					SMPMessage* next = message->next;
-					message->next = reversed;
-					reversed = message;
-					message = next;
-				}
-
-				pending = reversed;
+				SMPMessage* next = message->next;
+				message->next = reversed;
+				reversed = message;
+				message = next;
 			}
 
-			SMPMessage* last_handled = nullptr;
+			pending = reversed;
+		}
 
-			// handle messages
-			for (auto* message = pending; message; message = message->next)
+		SMPMessage* last_handled = nullptr;
+
+		// handle messages
+		for (auto* message = pending; message; message = message->next)
+		{
+			switch (message->type)
 			{
-				switch (message->type)
-				{
-					case SMPMessage::Type::FlushTLB:
-						for (size_t i = 0; i < message->flush_tlb.page_count; i++)
-							asm volatile("invlpg (%0)" :: "r"(message->flush_tlb.vaddr + i * PAGE_SIZE) : "memory");
-						break;
-					case SMPMessage::Type::NewThread:
-						processor.m_scheduler->add_thread(message->new_thread);
-						break;
-					case SMPMessage::Type::UnblockThread:
-						processor.m_scheduler->unblock_thread(message->unblock_thread);
-						break;
-					case SMPMessage::Type::StackTrace:
-						dwarnln("Stack trace of CPU {}", current_id().as_u32());
-						Debug::dump_stack_trace();
-						break;
-				}
-
-				last_handled = message;
+				case SMPMessage::Type::FlushTLB:
+					for (size_t i = 0; i < message->flush_tlb.page_count; i++)
+						asm volatile("invlpg (%0)" :: "r"(message->flush_tlb.vaddr + i * PAGE_SIZE) : "memory");
+					break;
+				case SMPMessage::Type::NewThread:
+					processor.m_scheduler->add_thread(message->new_thread);
+					break;
+				case SMPMessage::Type::UnblockThread:
+					processor.m_scheduler->unblock_thread(message->unblock_thread);
+					break;
+#if WITH_PROFILING
+				case SMPMessage::Type::StartProfiling:
+					processor.start_profiling();
+					break;
+#endif
+				case SMPMessage::Type::StackTrace:
+					dwarnln("Stack trace of CPU {}", current_id().as_u32());
+					Debug::dump_stack_trace();
+					break;
 			}
 
-			with_atomic_lock(processor.m_smp_free_lock,
-				[&]()
-				{
-					last_handled->next = processor.m_smp_free;
-					processor.m_smp_free = pending;
-				}
-			);
+			last_handled = message;
+		}
+
+		last_handled->next = processor.m_smp_free;
+		while (!processor.m_smp_free.compare_exchange(last_handled->next, pending))
+		{
+			__builtin_ia32_pause();
+			last_handled->next = processor.m_smp_free;
 		}
 
 		set_interrupt_state(state);
@@ -283,35 +279,49 @@ namespace Kernel
 
 	void Processor::send_smp_message(ProcessorID processor_id, const SMPMessage& message, bool send_ipi)
 	{
-
 		auto state = get_interrupt_state();
 		set_interrupt_state(InterruptState::Disabled);
 
 		auto& processor = s_processors[processor_id.m_id];
 
-		// take free message slot
-		SMPMessage* storage = nullptr;
-		with_atomic_lock(processor.m_smp_free_lock,
-			[&]()
-			{
-				storage = processor.m_smp_free;
-				ASSERT(storage && storage->next);
+		// find a slot for message
+		auto* storage = processor.m_smp_free.exchange(nullptr);
+		while (storage == nullptr)
+		{
+			__builtin_ia32_pause();
+			storage = processor.m_smp_free.exchange(nullptr);
+		}
 
-				processor.m_smp_free = storage->next;
+		if (auto* base = storage->next)
+		{
+			SMPMessage* null = nullptr;
+			if (!processor.m_smp_free.compare_exchange(null, base))
+			{
+				// NOTE: this is an annoying traversal, but most of the time
+				//       above if condition bypasses this :)
+				auto* last = base;
+				while (last->next)
+					last = last->next;
+
+				last->next = processor.m_smp_free;
+				while (!processor.m_smp_free.compare_exchange(last->next, base))
+				{
+					__builtin_ia32_pause();
+					last->next = processor.m_smp_free;
+				}
 			}
-		);
+		}
 
 		// write message
 		*storage = message;
 
 		// push message to pending queue
-		with_atomic_lock(processor.m_smp_pending_lock,
-			[&]()
-			{
-				storage->next = processor.m_smp_pending;
-				processor.m_smp_pending = storage;
-			}
-		);
+		storage->next = processor.m_smp_pending;
+		while (!processor.m_smp_pending.compare_exchange(storage->next, storage))
+		{
+			__builtin_ia32_pause();
+			storage->next = processor.m_smp_pending;
+		}
 
 		if (send_ipi)
 		{

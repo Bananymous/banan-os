@@ -120,6 +120,8 @@ namespace Kernel
 
 		static ProcessorID read_processor_id();
 
+		static void initialize_smp();
+
 		template<typename T>
 		static T read_gs_sized(uintptr_t offset) requires(sizeof(T) <= 8)
 		{
@@ -173,12 +175,8 @@ namespace Kernel
 		uint64_t m_last_update_ns { 0 };
 		uint64_t m_next_update_ns { 0 };
 
-		BAN::Atomic<bool> m_smp_pending_lock { false };
-		SMPMessage* m_smp_pending { nullptr };
-
-		BAN::Atomic<bool> m_smp_free_lock { false };
-		SMPMessage* m_smp_free    { nullptr };
-
+		BAN::Atomic<SMPMessage*> m_smp_pending { nullptr };
+		BAN::Atomic<SMPMessage*> m_smp_free    { nullptr };
 		SMPMessage* m_smp_message_storage { nullptr };
 
 		void* m_current_page_table { nullptr };
