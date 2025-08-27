@@ -1236,7 +1236,8 @@ namespace Kernel
 	{
 		LockGuard _(m_process_lock);
 		TRY(validate_string_access(path1));
-		TRY(validate_string_access(path2));
+		if (path2 != nullptr)
+			TRY(validate_string_access(path2));
 
 		if (!find_file(fd, path2, O_NOFOLLOW).is_error())
 			return BAN::Error::from_errno(EEXIST);
