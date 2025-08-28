@@ -26,18 +26,40 @@ namespace Kernel
 		class BlockBufferWrapper
 		{
 			BAN_NON_COPYABLE(BlockBufferWrapper);
-			BAN_NON_MOVABLE(BlockBufferWrapper);
 
 		public:
-			BlockBufferWrapper(BAN::Span<uint8_t> buffer, bool& used)
+			BlockBufferWrapper(BAN::Span<uint8_t> buffer, bool* used, Mutex* mutex, ThreadBlocker* blocker)
 				: m_buffer(buffer)
 				, m_used(used)
+				, m_mutex(mutex)
+				, m_blocker(blocker)
 			{
-				ASSERT(m_used);
+				ASSERT(m_used && *m_used);
 			}
+			BlockBufferWrapper(BlockBufferWrapper&& other) { *this = BAN::move(other); }
 			~BlockBufferWrapper()
 			{
-				m_used = false;
+				if (m_used == nullptr)
+					return;
+				m_mutex->lock();
+				*m_used = false;
+				m_blocker->unblock();
+				m_mutex->unlock();
+			}
+
+			BlockBufferWrapper& operator=(BlockBufferWrapper&& other)
+			{
+				this->m_buffer = other.m_buffer;
+				this->m_used = other.m_used;
+				this->m_mutex = other.m_mutex;
+				this->m_blocker = other.m_blocker;
+
+				other.m_buffer = {};
+				other.m_used = nullptr;
+				other.m_mutex = nullptr;
+				other.m_blocker = nullptr;
+
+				return *this;
 			}
 
 			size_t size() const { return m_buffer.size(); }
@@ -53,7 +75,9 @@ namespace Kernel
 
 		private:
 			BAN::Span<uint8_t> m_buffer;
-			bool& m_used;
+			bool* m_used;
+			Mutex* m_mutex;
+			ThreadBlocker* m_blocker;
 		};
 
 	public:
@@ -79,7 +103,7 @@ namespace Kernel
 		BAN::ErrorOr<void> sync_superblock();
 		BAN::ErrorOr<void> sync_block(uint32_t block);
 
-		BlockBufferWrapper get_block_buffer();
+		BAN::ErrorOr<BlockBufferWrapper> get_block_buffer();
 
 		BAN::ErrorOr<uint32_t> reserve_free_block(uint32_t primary_bgd);
 		BAN::ErrorOr<void> release_block(uint32_t block);
@@ -102,7 +126,7 @@ namespace Kernel
 		{
 		public:
 			BlockBufferManager() = default;
-			BlockBufferWrapper get_buffer();
+			BAN::ErrorOr<BlockBufferWrapper> get_buffer();
 
 			BAN::ErrorOr<void> initialize(size_t block_size);
 
@@ -114,7 +138,9 @@ namespace Kernel
 			};
 
 		private:
-			BAN::Array<BlockBuffer, 10> m_buffers;
+			Mutex m_buffer_mutex;
+			ThreadBlocker m_buffer_blocker;
+			BAN::Array<BlockBuffer, 16> m_buffers;
 		};
 
 	private:

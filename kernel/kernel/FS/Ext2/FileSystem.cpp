@@ -125,7 +125,7 @@ namespace Kernel
 		TRY(m_buffer_manager.initialize(block_size()));
 
 		{
-			auto block_buffer = m_buffer_manager.get_buffer();
+			auto block_buffer = TRY(m_buffer_manager.get_buffer());
 
 			if (superblock().rev_level == Ext2::Enum::GOOD_OLD_REV)
 			{
@@ -170,6 +170,9 @@ namespace Kernel
 
 	BAN::ErrorOr<uint32_t> Ext2FS::create_inode(const Ext2::Inode& ext2_inode)
 	{
+		auto bgd_buffer = TRY(m_buffer_manager.get_buffer());
+		auto inode_bitmap = TRY(m_buffer_manager.get_buffer());
+
 		LockGuard _(m_mutex);
 
 		ASSERT(ext2_inode.size == 0);
@@ -178,9 +181,6 @@ namespace Kernel
 			return BAN::Error::from_errno(ENOSPC);
 
 		const uint32_t block_size = this->block_size();
-
-		auto bgd_buffer = m_buffer_manager.get_buffer();
-		auto inode_bitmap = m_buffer_manager.get_buffer();
 
 		uint32_t current_group = -1;
 		BlockLocation bgd_location {};
@@ -248,14 +248,14 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Ext2FS::delete_inode(uint32_t ino)
 	{
+		auto bgd_buffer = TRY(get_block_buffer());
+		auto bitmap_buffer = TRY(get_block_buffer());
+		auto inode_buffer = TRY(get_block_buffer());
+
 		LockGuard _(m_mutex);
 
 		ASSERT(ino >= superblock().first_ino);
 		ASSERT(ino <= superblock().inodes_count);
-
-		auto bgd_buffer = get_block_buffer();
-		auto bitmap_buffer = get_block_buffer();
-		auto inode_buffer = get_block_buffer();
 
 		const uint32_t inode_group = (ino - 1) / superblock().inodes_per_group;
 		const uint32_t inode_index = (ino - 1) % superblock().inodes_per_group;
@@ -334,6 +334,8 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Ext2FS::sync_superblock()
 	{
+		auto superblock_buffer = TRY(get_block_buffer());
+
 		LockGuard _(m_mutex);
 
 		const uint32_t sector_size = m_block_device->blksize();
@@ -346,8 +348,6 @@ namespace Kernel
 
 		const uint32_t lba = 1024 / sector_size;
 		const uint32_t sector_count = BAN::Math::div_round_up<uint32_t>(superblock_bytes, sector_size);
-
-		auto superblock_buffer = get_block_buffer();
 
 		TRY(m_block_device->read_blocks(lba, sector_count, superblock_buffer.span()));
 		if (memcmp(superblock_buffer.data(), &m_superblock, superblock_bytes))
@@ -370,21 +370,20 @@ namespace Kernel
 		return m_block_device->sync_blocks(block * sectors_per_block, sectors_per_block);
 	}
 
-	Ext2FS::BlockBufferWrapper Ext2FS::get_block_buffer()
+	BAN::ErrorOr<Ext2FS::BlockBufferWrapper> Ext2FS::get_block_buffer()
 	{
-		LockGuard _(m_mutex);
 		return m_buffer_manager.get_buffer();
 	}
 
 	BAN::ErrorOr<uint32_t> Ext2FS::reserve_free_block(uint32_t primary_bgd)
 	{
+		auto bgd_buffer = TRY(m_buffer_manager.get_buffer());
+		auto block_bitmap = TRY(m_buffer_manager.get_buffer());
+
 		LockGuard _(m_mutex);
 
 		if (m_superblock.r_blocks_count >= m_superblock.free_blocks_count)
 			return BAN::Error::from_errno(ENOSPC);
-
-		auto bgd_buffer = m_buffer_manager.get_buffer();
-		auto block_bitmap = m_buffer_manager.get_buffer();
 
 		auto check_block_group =
 			[&](uint32_t block_group) -> BAN::ErrorOr<uint32_t>
@@ -439,6 +438,9 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Ext2FS::release_block(uint32_t block)
 	{
+		auto bgd_buffer = TRY(get_block_buffer());
+		auto bitmap_buffer = TRY(get_block_buffer());
+
 		LockGuard _(m_mutex);
 
 		ASSERT(block >= m_superblock.first_data_block);
@@ -446,9 +448,6 @@ namespace Kernel
 
 		const uint32_t block_group = (block - m_superblock.first_data_block) / m_superblock.blocks_per_group;
 		const uint32_t block_offset = (block - m_superblock.first_data_block) % m_superblock.blocks_per_group;
-
-		auto bgd_buffer = get_block_buffer();
-		auto bitmap_buffer = get_block_buffer();
 
 		auto bgd_location = locate_block_group_descriptior(block_group);
 		TRY(read_block(bgd_location.block, bgd_buffer));
@@ -480,7 +479,7 @@ namespace Kernel
 
 		const uint32_t block_size = this->block_size();
 
-		auto bgd_buffer = m_buffer_manager.get_buffer();
+		auto bgd_buffer = TRY(m_buffer_manager.get_buffer());
 
 		const uint32_t inode_group = (ino - 1) / superblock().inodes_per_group;
 		const uint32_t inode_index = (ino - 1) % superblock().inodes_per_group;
@@ -533,16 +532,22 @@ namespace Kernel
 		};
 	}
 
-	Ext2FS::BlockBufferWrapper Ext2FS::BlockBufferManager::get_buffer()
+	BAN::ErrorOr<Ext2FS::BlockBufferWrapper> Ext2FS::BlockBufferManager::get_buffer()
 	{
-		for (auto& buffer : m_buffers)
+		LockGuard _(m_buffer_mutex);
+
+		for (;;)
 		{
-			if (buffer.used)
-				continue;
-			buffer.used = true;
-			return Ext2FS::BlockBufferWrapper(buffer.buffer.span(), buffer.used);
+			for (auto& buffer : m_buffers)
+			{
+				if (buffer.used)
+					continue;
+				buffer.used = true;
+				return Ext2FS::BlockBufferWrapper(buffer.buffer.span(), &buffer.used, &m_buffer_mutex, &m_buffer_blocker);
+			}
+
+			TRY(Thread::current().block_or_eintr_indefinite(m_buffer_blocker, &m_buffer_mutex));
 		}
-		ASSERT_NOT_REACHED();
 	}
 
 	BAN::ErrorOr<void> Ext2FS::BlockBufferManager::initialize(size_t block_size)

@@ -32,7 +32,7 @@ namespace Kernel
 
 		auto inode_location = TRY(fs.locate_inode(inode_ino));
 
-		auto block_buffer = fs.get_block_buffer();
+		auto block_buffer = TRY(fs.get_block_buffer());
 		TRY(fs.read_block(inode_location.block, block_buffer));
 
 		auto& inode = block_buffer.span().slice(inode_location.offset).as<Ext2::Inode>();
@@ -61,7 +61,7 @@ namespace Kernel
 			return BAN::Optional<uint32_t>();
 		ASSERT(depth >= 1);
 
-		auto block_buffer = m_fs.get_block_buffer();
+		auto block_buffer = TRY(m_fs.get_block_buffer());
 		TRY(m_fs.read_block(block, block_buffer));
 
 		const uint32_t indices_per_block = blksize() / sizeof(uint32_t);
@@ -152,7 +152,7 @@ namespace Kernel
 
 		const uint32_t block_size = blksize();
 
-		auto block_buffer = m_fs.get_block_buffer();
+		auto block_buffer = TRY(m_fs.get_block_buffer());
 
 		const uint32_t first_block = offset / block_size;
 		const uint32_t last_block = BAN::Math::div_round_up<uint32_t>(offset + count, block_size);
@@ -192,7 +192,7 @@ namespace Kernel
 
 		const uint32_t block_size = blksize();
 
-		auto block_buffer = m_fs.get_block_buffer();
+		auto block_buffer = TRY(m_fs.get_block_buffer());
 
 		size_t written = 0;
 		size_t to_write = buffer.size();
@@ -349,7 +349,7 @@ namespace Kernel
 			return {};
 		}
 
-		auto block_buffer = m_fs.get_block_buffer();
+		auto block_buffer = TRY(m_fs.get_block_buffer());
 		TRY(m_fs.read_block(block, block_buffer));
 
 		const uint32_t ids_per_block = blksize() / sizeof(uint32_t);
@@ -409,7 +409,7 @@ done:
 		// FIXME: can we actually assume directories have all their blocks allocated
 		const uint32_t block_index = TRY(fs_block_of_data_block_index(offset)).value();
 
-		auto block_buffer = m_fs.get_block_buffer();
+		auto block_buffer = TRY(m_fs.get_block_buffer());
 
 		TRY(m_fs.read_block(block_index, block_buffer));
 
@@ -602,7 +602,7 @@ done:
 
 		const uint32_t block_size = m_fs.block_size();
 
-		auto block_buffer = m_fs.get_block_buffer();
+		auto block_buffer = TRY(m_fs.get_block_buffer());
 
 		auto write_inode =
 			[&](uint32_t entry_offset, uint32_t entry_rec_len) -> BAN::ErrorOr<void>
@@ -689,7 +689,7 @@ needs_new_block:
 	{
 		ASSERT(mode().ifdir());
 
-		auto block_buffer = m_fs.get_block_buffer();
+		auto block_buffer = TRY(m_fs.get_block_buffer());
 
 		// Confirm that this doesn't contain anything else than '.' or '..'
 		for (uint32_t i = 0; i < max_used_data_block_count(); i++)
@@ -726,7 +726,7 @@ needs_new_block:
 			return BAN::Error::from_errno(ENOTSUP);
 		}
 
-		auto block_buffer = m_fs.get_block_buffer();
+		auto block_buffer = TRY(m_fs.get_block_buffer());
 
 		for (uint32_t i = 0; i < max_used_data_block_count(); i++)
 		{
@@ -782,7 +782,7 @@ needs_new_block:
 			return BAN::Error::from_errno(ENOTSUP);
 		}
 
-		auto block_buffer = m_fs.get_block_buffer();
+		auto block_buffer = TRY(m_fs.get_block_buffer());
 
 		for (uint32_t i = 0; i < max_used_data_block_count(); i++)
 		{
@@ -844,7 +844,7 @@ needs_new_block:
 			block = TRY(m_fs.reserve_free_block(block_group()));
 			m_inode.blocks += inode_blocks_per_fs_block;
 
-			auto block_buffer = m_fs.get_block_buffer();
+			auto block_buffer = TRY(m_fs.get_block_buffer());
 			memset(block_buffer.data(), 0x00, block_buffer.size());
 			TRY(m_fs.write_block(block, block_buffer));
 		}
@@ -852,7 +852,7 @@ needs_new_block:
 		if (depth == 0)
 			return block;
 
-		auto block_buffer = m_fs.get_block_buffer();
+		auto block_buffer = TRY(m_fs.get_block_buffer());
 		TRY(m_fs.read_block(block, block_buffer));
 
 		uint32_t divisor = 1;
@@ -901,7 +901,7 @@ needs_new_block:
 	BAN::ErrorOr<void> Ext2Inode::sync()
 	{
 		auto inode_location = TRY(m_fs.locate_inode(ino()));
-		auto block_buffer = m_fs.get_block_buffer();
+		auto block_buffer = TRY(m_fs.get_block_buffer());
 
 		TRY(m_fs.read_block(inode_location.block, block_buffer));
 		if (memcmp(block_buffer.data() + inode_location.offset, &m_inode, sizeof(Ext2::Inode)))
@@ -917,7 +917,7 @@ needs_new_block:
 	{
 		ASSERT(mode().ifdir());
 
-		auto block_buffer = m_fs.get_block_buffer();
+		auto block_buffer = TRY(m_fs.get_block_buffer());
 
 		for (uint32_t i = 0; i < max_used_data_block_count(); i++)
 		{
