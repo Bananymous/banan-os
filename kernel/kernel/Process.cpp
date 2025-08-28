@@ -605,6 +605,9 @@ namespace Kernel
 		auto working_directory = TRY(m_working_directory.clone());
 		auto root_file         = TRY(m_root_file.clone());
 
+		BAN::String executable;
+		TRY(executable.append(m_executable));
+
 		BAN::Vector<BAN::String> cmdline;
 		TRY(cmdline.resize(m_cmdline.size()));
 		for (size_t i = 0; i < m_cmdline.size(); i++)
@@ -629,6 +632,7 @@ namespace Kernel
 		forked->m_root_file = BAN::move(root_file);
 		forked->m_cmdline = BAN::move(cmdline);
 		forked->m_environ = BAN::move(environ);
+		forked->m_executable = BAN::move(executable);
 		forked->m_page_table = BAN::move(page_table);
 		forked->m_open_file_descriptors = BAN::move(*open_file_descriptors);
 		forked->m_mapped_regions = BAN::move(mapped_regions);
