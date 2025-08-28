@@ -57,6 +57,35 @@ namespace Kernel
 		size_t (Process::*m_callback)(off_t, BAN::ByteSpan) const;
 	};
 
+	class ProcSymlinkProcessInode final : public TmpInode
+	{
+	public:
+		static BAN::ErrorOr<BAN::RefPtr<ProcSymlinkProcessInode>> create_new(Process& process, BAN::ErrorOr<BAN::String> (Process::*callback)() const, TmpFileSystem&, mode_t);
+		~ProcSymlinkProcessInode() = default;
+
+		virtual uid_t uid() const override { return m_process.credentials().ruid(); }
+		virtual gid_t gid() const override { return m_process.credentials().rgid(); }
+
+	protected:
+		virtual BAN::ErrorOr<BAN::String> link_target_impl() override;
+
+		// You may not write here and this is always non blocking
+		virtual BAN::ErrorOr<size_t> write_impl(off_t, BAN::ConstByteSpan) override		{ return BAN::Error::from_errno(EINVAL); }
+		virtual BAN::ErrorOr<void> truncate_impl(size_t) override						{ return BAN::Error::from_errno(EINVAL); }
+
+		virtual bool can_read_impl() const override { return false; }
+		virtual bool can_write_impl() const override { return false; }
+		virtual bool has_error_impl() const override { return false; }
+		virtual bool has_hungup_impl() const override { return false; }
+
+	private:
+		ProcSymlinkProcessInode(Process& process, BAN::ErrorOr<BAN::String> (Process::*)() const, TmpFileSystem&, const TmpInodeInfo&);
+
+	private:
+		Process& m_process;
+		BAN::ErrorOr<BAN::String> (Process::*m_callback)() const;
+	};
+
 	class ProcROInode final : public TmpInode
 	{
 	public:

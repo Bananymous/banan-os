@@ -17,16 +17,7 @@ namespace Kernel
 		TRY(inode->link_inode(*MUST(ProcROProcessInode::create_new(process, &Process::proc_meminfo, fs, 0400)), "meminfo"_sv));
 		TRY(inode->link_inode(*MUST(ProcROProcessInode::create_new(process, &Process::proc_cmdline, fs, 0400)), "cmdline"_sv));
 		TRY(inode->link_inode(*MUST(ProcROProcessInode::create_new(process, &Process::proc_environ, fs, 0400)), "environ"_sv));
-
-		TRY(inode->link_inode(*MUST(ProcSymlinkInode::create_new(
-			[](void* process) -> BAN::ErrorOr<BAN::String>
-			{
-				BAN::String result;
-				TRY(result.append(static_cast<Process*>(process)->executable()));
-				return result;
-			},
-			&process, fs, 0400, process.credentials().ruid(), process.credentials().ruid()
-		)), "exe"_sv));
+		TRY(inode->link_inode(*MUST(ProcSymlinkProcessInode::create_new(process, &Process::proc_executable, fs, 0400)), "exe"_sv));
 
 		return inode;
 	}
@@ -68,6 +59,29 @@ namespace Kernel
 		if (offset < 0)
 			return BAN::Error::from_errno(EINVAL);
 		return (m_process.*m_callback)(offset, buffer);
+	}
+
+	BAN::ErrorOr<BAN::RefPtr<ProcSymlinkProcessInode>> ProcSymlinkProcessInode::create_new(Process& process, BAN::ErrorOr<BAN::String> (Process::*callback)() const, TmpFileSystem& fs, mode_t mode)
+	{
+		auto inode_info = create_inode_info(Mode::IFLNK | mode, 0, 0);
+
+		auto* inode_ptr = new ProcSymlinkProcessInode(process, callback, fs, inode_info);
+		if (inode_ptr == nullptr)
+			return BAN::Error::from_errno(ENOMEM);
+		return BAN::RefPtr<ProcSymlinkProcessInode>::adopt(inode_ptr);
+	}
+
+	ProcSymlinkProcessInode::ProcSymlinkProcessInode(Process& process, BAN::ErrorOr<BAN::String> (Process::*callback)() const, TmpFileSystem& fs, const TmpInodeInfo& inode_info)
+		: TmpInode(fs, MUST(fs.allocate_inode(inode_info)), inode_info)
+		, m_process(process)
+		, m_callback(callback)
+	{
+		m_inode_info.mode |= Inode::Mode::IFLNK;
+	}
+
+	BAN::ErrorOr<BAN::String> ProcSymlinkProcessInode::link_target_impl()
+	{
+		return (m_process.*m_callback)();
 	}
 
 	BAN::ErrorOr<BAN::RefPtr<ProcROInode>> ProcROInode::create_new(size_t (*callback)(off_t, BAN::ByteSpan), TmpFileSystem& fs, mode_t mode, uid_t uid, gid_t gid)

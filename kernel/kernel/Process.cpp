@@ -463,6 +463,14 @@ namespace Kernel
 		return read_from_vec_of_str(m_environ, offset, buffer);
 	}
 
+	BAN::ErrorOr<BAN::String> Process::proc_executable() const
+	{
+		LockGuard _(m_process_lock);
+		BAN::String result;
+		TRY(result.append(m_executable));
+		return result;
+	}
+
 	BAN::ErrorOr<VirtualFileSystem::File> Process::find_file(int fd, const char* path, int flags) const
 	{
 		ASSERT(m_process_lock.is_locked());
