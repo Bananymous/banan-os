@@ -27,6 +27,8 @@ static BAN::ErrorOr<long long> read_integer_from_file(const char* file)
 static BAN::String get_battery_percentage()
 {
 	DIR* dirp = opendir("/dev/batteries");
+	if (dirp == nullptr)
+		return {};
 
 	BAN::String result;
 	while (dirent* dirent = readdir(dirp))
@@ -52,6 +54,8 @@ static BAN::String get_battery_percentage()
 
 		(void)result.append(string.value());
 	}
+
+	closedir(dirp);
 
 	return result;
 }
