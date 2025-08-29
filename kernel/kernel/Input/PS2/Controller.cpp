@@ -260,7 +260,7 @@ namespace Kernel::Input
 
 		const auto* fadt = static_cast<const ACPI::FADT*>(ACPI::ACPI::get().get_header("FACP"_sv, 0));
 		if (!fadt || fadt->revision < 3 || fadt->length < iapc_flag_end)
-			return false;
+			return true;
 
 		if (!(fadt->iapc_boot_arch & (1 << 1)))
 			return false;
