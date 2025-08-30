@@ -8,6 +8,7 @@
 #include <kernel/FS/TmpFS/Inode.h>
 #include <kernel/Input/InputDevice.h>
 #include <kernel/Lock/LockGuard.h>
+#include <kernel/Lock/SpinLockAsMutex.h>
 #include <kernel/Process.h>
 #include <kernel/Scheduler.h>
 #include <kernel/Storage/StorageDevice.h>
@@ -62,6 +63,36 @@ namespace Kernel
 		));
 		MUST(Processor::scheduler().add_thread(updater_thread));
 
+		auto* disk_cache_drop_thread = MUST(Thread::create_kernel(
+			[](void* _devfs)
+			{
+				auto* devfs = static_cast<DevFileSystem*>(_devfs);
+
+				while (true)
+				{
+					{
+						SpinLockGuard guard(devfs->m_disk_cache_lock);
+						bool expected = true;
+						if (!devfs->m_should_drop_disk_cache.compare_exchange(expected, false))
+						{
+							SpinLockGuardAsMutex smutex(guard);
+							devfs->m_disk_cache_thread_blocker.block_indefinite(&smutex);
+							continue;
+						}
+					}
+
+					LockGuard _(devfs->m_device_lock);
+
+					size_t pages_dropped = 0;
+					for (auto& device : devfs->m_devices)
+						if (device->is_storage_device())
+							pages_dropped += static_cast<StorageDevice*>(device.ptr())->drop_disk_cache();
+					dprintln("Dropped {} pages from disk cache", pages_dropped);
+				}
+			}, s_instance
+		));
+		MUST(Processor::scheduler().add_thread(disk_cache_drop_thread));
+
 		auto* disk_sync_thread = MUST(Thread::create_kernel(
 			[](void* _devfs)
 			{
@@ -92,6 +123,13 @@ namespace Kernel
 			}, s_instance
 		));
 		MUST(Processor::scheduler().add_thread(disk_sync_thread));
+	}
+
+	void DevFileSystem::initiate_disk_cache_drop()
+	{
+		SpinLockGuard _(m_disk_cache_lock);
+		m_should_drop_disk_cache = true;
+		m_disk_cache_thread_blocker.unblock();
 	}
 
 	void DevFileSystem::initiate_sync(bool should_block)

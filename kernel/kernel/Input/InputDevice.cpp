@@ -155,6 +155,9 @@ namespace Kernel
 						case LibInput::keycode_function(1):
 							Processor::toggle_should_print_cpu_load();
 							break;
+						case LibInput::keycode_function(11):
+							DevFileSystem::get().initiate_disk_cache_drop();
+							break;
 						case LibInput::keycode_function(12):
 							Kernel::panic("Keyboard kernel panic :)");
 							break;

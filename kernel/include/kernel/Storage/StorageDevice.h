@@ -33,6 +33,7 @@ namespace Kernel
 		BAN::Vector<BAN::RefPtr<Partition>>& partitions() { return m_partitions; }
 		const BAN::Vector<BAN::RefPtr<Partition>>& partitions() const { return m_partitions; }
 
+		size_t drop_disk_cache();
 		BAN::ErrorOr<void> sync_disk_cache();
 		virtual bool is_storage_device() const override { return true; }
 

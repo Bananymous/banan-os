@@ -22,6 +22,7 @@ namespace Kernel
 
 		void add_inode(BAN::StringView path, BAN::RefPtr<TmpInode>);
 
+		void initiate_disk_cache_drop();
 		void initiate_sync(bool should_block);
 
 	private:
@@ -37,6 +38,10 @@ namespace Kernel
 		ThreadBlocker m_sync_done;
 		ThreadBlocker m_sync_thread_blocker;
 		volatile bool m_should_sync { false };
+
+		SpinLock m_disk_cache_lock;
+		ThreadBlocker m_disk_cache_thread_blocker;
+		BAN::Atomic<bool> m_should_drop_disk_cache { false };
 	};
 
 }

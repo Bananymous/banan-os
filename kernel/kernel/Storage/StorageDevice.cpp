@@ -216,6 +216,14 @@ namespace Kernel
 		m_disk_cache.emplace(sector_size(), *this);
 	}
 
+	size_t StorageDevice::drop_disk_cache()
+	{
+		LockGuard _(m_mutex);
+		if (m_disk_cache.has_value())
+			return m_disk_cache->release_pages(-1);
+		return 0;
+	}
+
 	BAN::ErrorOr<void> StorageDevice::sync_disk_cache()
 	{
 		LockGuard _(m_mutex);
