@@ -9,6 +9,7 @@
 #include <kernel/IDT.h>
 #include <kernel/InterruptController.h>
 #include <kernel/Lock/LockGuard.h>
+#include <kernel/Lock/SpinLockAsMutex.h>
 #include <kernel/Memory/FileBackedRegion.h>
 #include <kernel/Memory/Heap.h>
 #include <kernel/Memory/MemoryBackedRegion.h>
@@ -295,21 +296,20 @@ namespace Kernel
 
 			if (parent_process)
 			{
-				LockGuard _(parent_process->m_process_lock);
+				SpinLockGuard _(parent_process->m_child_wait_lock);
 
-				for (auto& child : parent_process->m_child_exit_statuses)
+				for (auto& child : parent_process->m_child_wait_statuses)
 				{
 					if (child.pid != pid())
 						continue;
 
-					child.exit_code = __WGENEXITCODE(status, signal);
-					child.exited = true;
+					child.status = __WGENEXITCODE(status, signal);
 
 					parent_process->add_pending_signal(SIGCHLD);
 					if (!parent_process->m_threads.empty())
 						Processor::scheduler().unblock_thread(parent_process->m_threads.front());
 
-					parent_process->m_child_exit_blocker.unblock();
+					parent_process->m_child_wait_blocker.unblock();
 
 					break;
 				}
@@ -588,18 +588,22 @@ namespace Kernel
 
 		LockGuard _(m_process_lock);
 
-		ChildExitStatus* child_exit_status = nullptr;
-		for (auto& child : m_child_exit_statuses)
+		ChildWaitStatus* child_exit_status = nullptr;
+
 		{
-			if (child.pid != 0)
-				continue;
-			child_exit_status = &child;
-			break;
-		}
-		if (child_exit_status == nullptr)
-		{
-			TRY(m_child_exit_statuses.emplace_back());
-			child_exit_status = &m_child_exit_statuses.back();
+			SpinLockGuard _(m_child_wait_lock);
+			for (auto& child : m_child_wait_statuses)
+			{
+				if (child.pid != 0)
+					continue;
+				child_exit_status = &child;
+				break;
+			}
+			if (child_exit_status == nullptr)
+			{
+				TRY(m_child_wait_statuses.emplace_back());
+				child_exit_status = &m_child_wait_statuses.back();
+			}
 		}
 
 		auto working_directory = TRY(m_working_directory.clone());
@@ -794,7 +798,7 @@ namespace Kernel
 		// FIXME: Add WCONTINUED and WUNTRACED when stopped/continued processes are added
 
 		const auto pid_matches =
-			[&](const ChildExitStatus& child)
+			[&](const ChildWaitStatus& child)
 			{
 				if (pid == -1)
 					return true;
@@ -805,47 +809,67 @@ namespace Kernel
 				return child.pid == pid;
 			};
 
-		LockGuard _(m_process_lock);
+		pid_t child_pid = 0;
+		int child_status = 0;
 
 		for (;;)
 		{
-			pid_t exited_pid = 0;
-			int exit_code = 0;
-			{
-				bool found = false;
-				for (auto& child : m_child_exit_statuses)
-				{
-					if (!pid_matches(child))
-						continue;
-					found = true;
-					if (!child.exited)
-						continue;
-					exited_pid = child.pid;
-					exit_code = child.exit_code;
-					child = {};
-					break;
-				}
+			bool found = false;
 
-				if (!found)
-					return BAN::Error::from_errno(ECHILD);
+			SpinLockGuard sguard(m_child_wait_lock);
+
+			for (auto& child : m_child_wait_statuses)
+			{
+				if (!pid_matches(child))
+					continue;
+
+				found = true;
+				if (!child.status.has_value())
+					continue;
+
+				const int status = child.status.value();
+
+				bool should_report = false;
+				if (WIFSTOPPED(status))
+					should_report = !!(options & WUNTRACED);
+				else if (WIFCONTINUED(status))
+					should_report = !!(options & WCONTINUED);
+				else
+					should_report = true;
+
+				if (!should_report)
+					continue;
+
+				child_pid = child.pid;
+				child_status = status;
+				child.status = {};
+
+				break;
 			}
 
-			if (exited_pid != 0)
-			{
-				if (stat_loc)
-				{
-					TRY(validate_pointer_access(stat_loc, sizeof(stat_loc), true));
-					*stat_loc = exit_code;
-				}
-				remove_pending_signal(SIGCHLD);
-				return exited_pid;
-			}
+			if (child_pid != 0)
+				break;
+
+			if (!found)
+				return BAN::Error::from_errno(ECHILD);
 
 			if (options & WNOHANG)
 				return 0;
 
-			TRY(Thread::current().block_or_eintr_indefinite(m_child_exit_blocker, &m_process_lock));
+			SpinLockGuardAsMutex smutex(sguard);
+			TRY(Thread::current().block_or_eintr_indefinite(m_child_wait_blocker, &smutex));
 		}
+
+		LockGuard _(m_process_lock);
+
+		if (stat_loc)
+		{
+			TRY(validate_pointer_access(stat_loc, sizeof(stat_loc), true));
+			*stat_loc = child_status;
+		}
+
+		remove_pending_signal(SIGCHLD);
+		return child_pid;
 	}
 
 	BAN::ErrorOr<long> Process::sys_sleep(int seconds)
@@ -2583,6 +2607,69 @@ namespace Kernel
 		return 0;
 	}
 
+	void Process::set_stopped(bool stopped, int signal)
+	{
+		SpinLockGuard _(m_signal_lock);
+
+		Process* parent = nullptr;
+
+		for_each_process(
+			[&parent, this](Process& process) -> BAN::Iteration
+			{
+				if (process.pid() != m_parent)
+					return BAN::Iteration::Continue;
+				parent = &process;
+				return BAN::Iteration::Break;
+			}
+		);
+
+		if (parent != nullptr)
+		{
+			{
+				SpinLockGuard _(parent->m_child_wait_lock);
+
+				for (auto& child : parent->m_child_wait_statuses)
+				{
+					if (child.pid != pid())
+						continue;
+					if (!child.status.has_value() || WIFCONTINUED(*child.status) || WIFSTOPPED(*child.status))
+						child.status = stopped
+							? __WGENSTOPCODE(signal)
+							: __WGENCONTCODE();
+					break;
+				}
+
+				parent->m_child_wait_blocker.unblock();
+			}
+
+			if (!(m_signal_handlers[SIGCHLD].sa_flags & SA_NOCLDSTOP))
+			{
+				parent->add_pending_signal(SIGCHLD);
+				if (!parent->m_threads.empty())
+					Processor::scheduler().unblock_thread(parent->m_threads.front());
+			}
+		}
+
+		m_stopped = stopped;
+		m_stop_blocker.unblock();
+	}
+
+	void Process::wait_while_stopped()
+	{
+		for (;;)
+		{
+			while (Thread::current().will_exit_because_of_signal())
+				Thread::current().handle_signal();
+
+			SpinLockGuard guard(m_signal_lock);
+			if (!m_stopped)
+				break;
+
+			SpinLockGuardAsMutex smutex(guard);
+			m_stop_blocker.block_indefinite(&smutex);
+		}
+	}
+
 	BAN::ErrorOr<void> Process::kill(pid_t pid, int signal)
 	{
 		if (pid == 0 || pid == -1)
@@ -2594,18 +2681,26 @@ namespace Kernel
 		for_each_process(
 			[&](Process& process)
 			{
-				if (pid == process.pid() || -pid == process.pgrp())
+				if (pid != process.pid() && -pid != process.pgrp())
+					return BAN::Iteration::Continue;
+
+				found = true;
+
+				if (signal == 0)
+					;
+				// NOTE: stopped signals go through thread's signal handling code
+				//       because for example SIGTSTP can be ignored
+				else if (Thread::is_continuing_signal(signal))
+					process.set_stopped(false, signal);
+				else
 				{
-					found = true;
-					if (signal)
-					{
-						process.add_pending_signal(signal);
-						if (!process.m_threads.empty())
-							Processor::scheduler().unblock_thread(process.m_threads.front());
-					}
-					return (pid > 0) ? BAN::Iteration::Break : BAN::Iteration::Continue;
+					process.add_pending_signal(signal);
+					if (!process.m_threads.empty())
+						Processor::scheduler().unblock_thread(process.m_threads.front());
+					process.m_stop_blocker.unblock();
 				}
-				return BAN::Iteration::Continue;
+
+				return (pid > 0) ? BAN::Iteration::Break : BAN::Iteration::Continue;
 			}
 		);
 
@@ -2623,8 +2718,17 @@ namespace Kernel
 
 		if (pid == m_pid)
 		{
-			if (signal)
+			if (signal == 0)
+				;
+			// NOTE: stopped signals go through thread's signal handling code
+			//       because for example SIGTSTP can be ignored
+			else if (Thread::is_continuing_signal(signal))
+				set_stopped(false, signal);
+			else
+			{
 				add_pending_signal(signal);
+				m_stop_blocker.unblock();
+			}
 			return 0;
 		}
 

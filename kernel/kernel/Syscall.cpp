@@ -46,6 +46,8 @@ namespace Kernel
 
 		Processor::set_interrupt_state(InterruptState::Enabled);
 
+		Process::current().wait_while_stopped();
+
 		BAN::ErrorOr<long> ret = BAN::Error::from_errno(ENOSYS);
 
 		const char* process_path = Process::current().name();
@@ -91,6 +93,8 @@ namespace Kernel
 
 		if (ret.is_error() && ret.error().is_kernel_error())
 			Kernel::panic("Kernel error while returning to userspace {}", ret.error());
+
+		Process::current().wait_while_stopped();
 
 		Processor::set_interrupt_state(InterruptState::Disabled);
 

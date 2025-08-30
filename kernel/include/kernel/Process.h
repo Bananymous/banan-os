@@ -188,6 +188,9 @@ namespace Kernel
 
 		BAN::ErrorOr<long> sys_tty_ctrl(int fildes, int command, int flags);
 
+		void set_stopped(bool stopped, int signal);
+		void wait_while_stopped();
+
 		static BAN::ErrorOr<void> kill(pid_t pid, int signal);
 		BAN::ErrorOr<long> sys_kill(pid_t pid, int signal);
 		BAN::ErrorOr<long> sys_sigaction(int signal, const struct sigaction* act, struct sigaction* oact);
@@ -299,12 +302,11 @@ namespace Kernel
 		}
 
 	private:
-		struct ChildExitStatus
+		struct ChildWaitStatus
 		{
-			pid_t    pid       { 0 };
-			pid_t    pgrp      { 0 };
-			int      exit_code { 0 };
-			bool     exited    { false };
+			pid_t pid  { 0 };
+			pid_t pgrp { 0 };
+			BAN::Optional<int> status;
 		};
 
 		Credentials m_credentials;
@@ -319,6 +321,9 @@ namespace Kernel
 		const pid_t m_parent;
 
 		mutable Mutex m_process_lock;
+
+		BAN::Atomic<bool> m_stopped { false };
+		ThreadBlocker m_stop_blocker;
 
 		VirtualFileSystem::File m_working_directory;
 		VirtualFileSystem::File m_root_file;
@@ -344,8 +349,9 @@ namespace Kernel
 		BAN::Vector<BAN::String> m_environ;
 		BAN::String m_executable;
 
-		BAN::Vector<ChildExitStatus> m_child_exit_statuses;
-		ThreadBlocker m_child_exit_blocker;
+		BAN::Vector<ChildWaitStatus> m_child_wait_statuses;
+		SpinLock m_child_wait_lock;
+		ThreadBlocker m_child_wait_blocker;
 
 		BAN::Atomic<bool> m_is_exiting { false };
 

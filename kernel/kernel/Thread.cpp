@@ -69,6 +69,77 @@ namespace Kernel
 		s_default_sse_storage_initialized = true;
 	}
 
+	bool Thread::is_stopping_signal(int signal)
+	{
+		switch(signal)
+		{
+			case SIGSTOP:
+			case SIGTSTP:
+			case SIGTTIN:
+			case SIGTTOU:
+				return true;
+			default:
+				return false;
+		}
+	}
+
+	bool Thread::is_continuing_signal(int signal)
+	{
+		switch(signal)
+		{
+			case SIGCONT:
+				return true;
+			default:
+				return false;
+		}
+	}
+
+	bool Thread::is_terminating_signal(int signal)
+	{
+		switch (signal)
+		{
+			case SIGALRM:
+			case SIGHUP:
+			case SIGINT:
+			case SIGKILL:
+			case SIGPIPE:
+			case SIGTERM:
+			case SIGUSR1:
+			case SIGUSR2:
+			case SIGPOLL:
+			case SIGPROF:
+			case SIGVTALRM:
+				return true;
+			default:
+				return false;
+		}
+	}
+
+	bool Thread::is_abnormal_terminating_signal(int signal)
+	{
+		switch (signal)
+		{
+			case SIGABRT:
+			case SIGBUS:
+			case SIGFPE:
+			case SIGILL:
+			case SIGQUIT:
+			case SIGSEGV:
+			case SIGSYS:
+			case SIGTRAP:
+			case SIGXCPU:
+			case SIGXFSZ:
+				return true;
+			default:
+				return false;
+		}
+	}
+
+	bool Thread::is_realtime_signal(int signal)
+	{
+		return SIGRTMIN <= signal && signal <= SIGRTMAX;
+	}
+
 	static bool is_default_ignored_signal(int signal)
 	{
 		switch (signal)
@@ -79,7 +150,7 @@ namespace Kernel
 			case SIGCANCEL:
 				return true;
 			default:
-				return false;
+				return Thread::is_realtime_signal(signal);
 		}
 	}
 
@@ -458,7 +529,7 @@ namespace Kernel
 		memset(&m_interrupt_registers, 0, sizeof(InterruptRegisters));
 	}
 
-	bool Thread::is_interrupted_by_signal() const
+	bool Thread::is_interrupted_by_signal(bool skip_stop_and_cont) const
 	{
 		if (!is_userspace() || m_state != State::Executing)
 			return false;
@@ -471,6 +542,8 @@ namespace Kernel
 		for (uint8_t i = 0; i < _SIGMAX; i++)
 		{
 			if (!(signals & ((uint64_t)1 << i)))
+				continue;
+			if (skip_stop_and_cont && (is_stopping_signal(i) || is_continuing_signal(i)))
 				continue;
 
 			vaddr_t signal_handler;
@@ -501,13 +574,23 @@ namespace Kernel
 		return interrupt_stack.ip == (uintptr_t)signal_trampoline;
 	}
 
+	bool Thread::will_exit_because_of_signal() const
+	{
+		const uint64_t full_pending_mask = m_signal_pending_mask | process().signal_pending_mask();
+		const uint64_t signals = full_pending_mask & ~m_signal_block_mask;
+		for (size_t sig = _SIGMIN; sig <= _SIGMAX; sig++)
+			if (signals & (static_cast<uint64_t>(1) << sig))
+				if (is_terminating_signal(sig) || is_abnormal_terminating_signal(sig))
+					return true;
+		return false;
+	}
+
 	bool Thread::handle_signal(int signal)
 	{
 		ASSERT(&Thread::current() == this);
 		ASSERT(is_userspace());
 
 		auto state = m_signal_lock.lock();
-		ASSERT(state == InterruptState::Disabled);
 
 		auto& interrupt_stack = *reinterpret_cast<InterruptStack*>(kernel_stack_top() - sizeof(InterruptStack));
 		ASSERT(GDT::is_user_segment(interrupt_stack.cs));
@@ -613,52 +696,31 @@ namespace Kernel
 		}
 		else
 		{
-			switch (signal)
+			if (is_abnormal_terminating_signal(signal))
 			{
-				// Abnormal termination of the process with additional actions.
-				case SIGABRT:
-				case SIGBUS:
-				case SIGFPE:
-				case SIGILL:
-				case SIGQUIT:
-				case SIGSEGV:
-				case SIGSYS:
-				case SIGTRAP:
-				case SIGXCPU:
-				case SIGXFSZ:
-					process().exit(128 + signal, signal | 0x80);
-					ASSERT_NOT_REACHED();
+				process().exit(128 + signal, signal | 0x80);
+				ASSERT_NOT_REACHED();
+			}
+			else if (is_terminating_signal(signal))
+			{
+				process().exit(128 + signal, signal);
+				ASSERT_NOT_REACHED();
+			}
+			else if (is_stopping_signal(signal))
+			{
+				process().set_stopped(true, signal);
+			}
+			else if (is_continuing_signal(signal))
+			{
+				process().set_stopped(false, signal);
+			}
+			else if (is_default_ignored_signal(signal))
+			{
 
-				// Abnormal termination of the process
-				case SIGALRM:
-				case SIGHUP:
-				case SIGINT:
-				case SIGKILL:
-				case SIGPIPE:
-				case SIGTERM:
-				case SIGUSR1:
-				case SIGUSR2:
-				case SIGPOLL:
-				case SIGPROF:
-				case SIGVTALRM:
-					process().exit(128 + signal, signal);
-					ASSERT_NOT_REACHED();
-
-				// Stop the process:
-				case SIGSTOP:
-				case SIGTSTP:
-				case SIGTTIN:
-				case SIGTTOU:
-					ASSERT_NOT_REACHED();
-
-				// Continue the process, if it is stopped; otherwise, ignore the signal.
-				case SIGCONT:
-					ASSERT_NOT_REACHED();
-
-				default:
-					if (is_default_ignored_signal(signal))
-						break;
-					panic("Executing unhandled signal {}", signal);
+			}
+			else
+			{
+				panic("Executing unhandled signal {}", signal);
 			}
 		}
 
@@ -739,20 +801,20 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Thread::sleep_or_eintr_ns(uint64_t ns)
 	{
-		if (is_interrupted_by_signal())
+		if (is_interrupted_by_signal(true))
 			return BAN::Error::from_errno(EINTR);
 		SystemTimer::get().sleep_ns(ns);
-		if (is_interrupted_by_signal())
+		if (is_interrupted_by_signal(true))
 			return BAN::Error::from_errno(EINTR);
 		return {};
 	}
 
 	BAN::ErrorOr<void> Thread::block_or_eintr_indefinite(ThreadBlocker& thread_blocker, BaseMutex* mutex)
 	{
-		if (is_interrupted_by_signal())
+		if (is_interrupted_by_signal(true))
 			return BAN::Error::from_errno(EINTR);
 		thread_blocker.block_indefinite(mutex);
-		if (is_interrupted_by_signal())
+		if (is_interrupted_by_signal(true))
 			return BAN::Error::from_errno(EINTR);
 		return {};
 	}
@@ -765,10 +827,10 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Thread::block_or_eintr_or_waketime_ns(ThreadBlocker& thread_blocker, uint64_t wake_time_ns, bool etimedout, BaseMutex* mutex)
 	{
-		if (is_interrupted_by_signal())
+		if (is_interrupted_by_signal(true))
 			return BAN::Error::from_errno(EINTR);
 		thread_blocker.block_with_wake_time_ns(wake_time_ns, mutex);
-		if (is_interrupted_by_signal())
+		if (is_interrupted_by_signal(true))
 			return BAN::Error::from_errno(EINTR);
 		if (etimedout && SystemTimer::get().ms_since_boot() >= wake_time_ns)
 			return BAN::Error::from_errno(ETIMEDOUT);

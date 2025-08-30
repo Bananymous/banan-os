@@ -53,7 +53,7 @@ namespace Kernel
 		BAN::ErrorOr<void> initialize_userspace(vaddr_t entry, BAN::Span<BAN::String> argv, BAN::Span<BAN::String> envp, BAN::Span<LibELF::AuxiliaryVector> auxv);
 
 		// Returns true, if thread is going to trigger signal
-		bool is_interrupted_by_signal() const;
+		bool is_interrupted_by_signal(bool skip_stop_and_cont = false) const;
 
 		// Returns true if pending signal can be added to thread
 		bool can_add_signal_to_execute() const;
@@ -62,6 +62,13 @@ namespace Kernel
 		bool handle_signal(int signal = 0);
 		void add_signal(int signal);
 		void set_suspend_signal_mask(uint64_t sigmask);
+
+		static bool is_stopping_signal(int signal);
+		static bool is_continuing_signal(int signal);
+		static bool is_terminating_signal(int signal);
+		static bool is_abnormal_terminating_signal(int signal);
+		static bool is_realtime_signal(int signal);
+		bool will_exit_because_of_signal() const;
 
 		BAN::ErrorOr<void> sigaltstack(const stack_t* ss, stack_t* oss);
 
