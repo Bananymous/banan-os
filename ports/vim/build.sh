@@ -15,6 +15,7 @@ CONFIGURE_OPTIONS=(
 	'vim_cv_getcwd_broken=no'
 	'vim_cv_stat_ignores_slash=yes'
 	'vim_cv_memmove_handles_overlap=yes'
+	'CFLAGS=-Wno-incompatible-pointer-types'
 )
 
 post_configure() {
