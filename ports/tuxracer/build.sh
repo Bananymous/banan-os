@@ -10,6 +10,8 @@ CONFIGURE_OPTIONS=(
 	'--without-gl-libs'
 	'--with-tcl-lib-name=tcl8.6'
 	'--without-x'
+	'ac_cv_func_isnan=yes'
+	'CFLAGS="-std=c99 -Wno-implicit-int -Wno-incompatible-pointer-types'
 )
 
 post_install() {
@@ -29,6 +31,3 @@ post_install() {
 
 	popd
 }
-
-export CFLAGS="-std=c99 -Wno-implicit-int -Wno-incompatible-pointer-types $CFLAGS"
-export ac_cv_func_isnan=yes
