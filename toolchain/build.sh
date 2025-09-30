@@ -3,15 +3,15 @@ set -e
 
 BINUTILS_VERSION="binutils-2.45"
 BINUTILS_TAR="$BINUTILS_VERSION.tar.xz"
-BINUTILS_URL="https://ftp.gnu.org/gnu/binutils/$BINUTILS_TAR"
+BINUTILS_URL="https://ftpmirror.gnu.org/gnu/binutils/$BINUTILS_TAR"
 
 GCC_VERSION="gcc-15.2.0"
 GCC_TAR="$GCC_VERSION.tar.xz"
-GCC_URL="https://ftp.gnu.org/gnu/gcc/$GCC_VERSION/$GCC_TAR"
+GCC_URL="https://ftpmirror.gnu.org/gnu/gcc/$GCC_VERSION/$GCC_TAR"
 
 GRUB_VERSION="grub-2.06"
 GRUB_TAR="$GRUB_VERSION.tar.xz"
-GRUB_URL="https://ftp.gnu.org/gnu/grub/$GRUB_TAR"
+GRUB_URL="https://ftpmirror.gnu.org/gnu/grub/$GRUB_TAR"
 
 CMAKE_VERSION="cmake-3.26.6-linux-x86_64"
 CMAKE_TAR="$CMAKE_VERSION.tar.gz"

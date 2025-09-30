@@ -2,7 +2,7 @@
 
 NAME='libiconv'
 VERSION='1.18'
-DOWNLOAD_URL="https://ftp.gnu.org/pub/gnu/libiconv/libiconv-$VERSION.tar.gz#3b08f5f4f9b4eb82f151a7040bfd6fe6c6fb922efe4b1659c66ea933276965e8"
+DOWNLOAD_URL="https://ftpmirror.gnu.org/pub/gnu/libiconv/libiconv-$VERSION.tar.gz#3b08f5f4f9b4eb82f151a7040bfd6fe6c6fb922efe4b1659c66ea933276965e8"
 CONFIG_SUB=('build-aux/config.sub' 'libcharset/build-aux/config.sub')
 CONFIGURE_OPTIONS=(
 	'--disable-nls'

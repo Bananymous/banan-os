@@ -2,7 +2,7 @@
 
 NAME='gcc'
 VERSION='15.2.0'
-DOWNLOAD_URL="https://ftp.gnu.org/gnu/gcc/gcc-$VERSION/gcc-$VERSION.tar.xz#438fd996826b0c82485a29da03a72d71d6e3541a83ec702df4271f6fe025d24e"
+DOWNLOAD_URL="https://ftpmirror.gnu.org/gnu/gcc/gcc-$VERSION/gcc-$VERSION.tar.xz#438fd996826b0c82485a29da03a72d71d6e3541a83ec702df4271f6fe025d24e"
 DEPENDENCIES=('binutils' 'gmp' 'mpfr' 'mpc')
 MAKE_INSTALL_TARGETS=('install-strip-gcc' 'install-strip-target-libgcc' 'install-strip-target-libstdc++-v3')
 CONFIGURE_OPTIONS=(
