@@ -55,7 +55,7 @@ if sudo mount $ROOT_PARTITION $MOUNT_DIR; then
 					stat \"\$full\"
 					if [[ \${STAT[uid]} != \$uid ]] || [[ \${STAT[gid]} != \$gid ]] || [[ \${STAT[perms]} != \$mode ]]; then
 						chown -h \"\$uid:\$gid\" \"\$full\"
-						chmod -h \"\$mode\" \"\$full\"
+						test ! -h \"\$full\" && chmod \"\$mode\" \"\$full\"
 					fi
 				done <$BANAN_BUILD_DIR/sysroot-perms.txt
 			else
@@ -63,7 +63,7 @@ if sudo mount $ROOT_PARTITION $MOUNT_DIR; then
 					full=\"$MOUNT_DIR/\$path\"
 					if [[ \$(stat -c '%u %g %a' \"\$full\") != \"\$uid \$gid \$mode\" ]]; then
 						chown -h \"\$uid:\$gid\" \"\$full\"
-						chmod -h \"\$mode\" \"\$full\"
+						test ! -h \"\$full\" && chmod \"\$mode\" \"\$full\"
 					fi
 				done <$BANAN_BUILD_DIR/sysroot-perms.txt
 			fi
