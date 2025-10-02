@@ -95,3 +95,12 @@ const char* inet_ntop(int af, const void* __restrict src, char* __restrict dst, 
 	errno = EAFNOSUPPORT;
 	return nullptr;
 }
+
+int inet_pton(int af, const char* __restrict src, void* __restrict dst)
+{
+	if (af == AF_INET)
+		return inet_aton(src, static_cast<in_addr*>(dst));
+
+	errno = EAFNOSUPPORT;
+	return -1;
+}
