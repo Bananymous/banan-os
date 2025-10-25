@@ -8,7 +8,7 @@
 namespace BAN::sort
 {
 
-	template<typename It, typename Comp = less<typename It::value_type>>
+	template<typename It, typename Comp = less<it_value_type_t<It>>>
 	void exchange_sort(It begin, It end, Comp comp = {})
 	{
 		for (It lhs = begin; lhs != end; ++lhs)
@@ -42,7 +42,7 @@ namespace BAN::sort
 
 	}
 
-	template<typename It, typename Comp = less<typename It::value_type>>
+	template<typename It, typename Comp = less<it_value_type_t<It>>>
 	void quick_sort(It begin, It end, Comp comp = {})
 	{
 		if (distance(begin, end) <= 1)
@@ -52,14 +52,14 @@ namespace BAN::sort
 		quick_sort(++mid, end, comp);
 	}
 
-	template<typename It, typename Comp = less<typename It::value_type>>
+	template<typename It, typename Comp = less<it_value_type_t<It>>>
 	void insertion_sort(It begin, It end, Comp comp = {})
 	{
 		if (distance(begin, end) <= 1)
 			return;
 		for (It it1 = next(begin, 1); it1 != end; ++it1)
 		{
-			typename It::value_type x = move(*it1);
+			auto x = move(*it1);
 			It it2 = it1;
 			for (; it2 != begin && comp(x, *prev(it2, 1)); --it2)
 				*it2 = move(*prev(it2, 1));
@@ -71,7 +71,7 @@ namespace BAN::sort
 	{
 
 		template<typename It, typename Comp>
-		void push_heap(It begin, size_t hole_index, size_t top_index, typename It::value_type value, Comp comp)
+		void push_heap(It begin, size_t hole_index, size_t top_index, it_value_type_t<It> value, Comp comp)
 		{
 			size_t parent = (hole_index - 1) / 2;
 			while (hole_index > top_index && comp(*next(begin, parent), value))
@@ -84,7 +84,7 @@ namespace BAN::sort
 		}
 
 		template<typename It, typename Comp>
-		void adjust_heap(It begin, size_t hole_index, size_t len, typename It::value_type value, Comp comp)
+		void adjust_heap(It begin, size_t hole_index, size_t len, it_value_type_t<It> value, Comp comp)
 		{
 			const size_t top_index = hole_index;
 			size_t child = hole_index;
@@ -107,7 +107,7 @@ namespace BAN::sort
 
 	}
 
-	template<typename It, typename Comp = less<typename It::value_type>>
+	template<typename It, typename Comp = less<it_value_type_t<It>>
 	void make_heap(It begin, It end, Comp comp = {})
 	{
 		const size_t len = distance(begin, end);
@@ -126,7 +126,7 @@ namespace BAN::sort
 		}
 	}
 
-	template<typename It, typename Comp = less<typename It::value_type>>
+	template<typename It, typename Comp = less<it_value_type_t<It>>>
 	void sort_heap(It begin, It end, Comp comp = {})
 	{
 		const size_t len = distance(begin, end);
@@ -143,7 +143,7 @@ namespace BAN::sort
 		}
 	}
 
-	template<typename It, typename Comp = less<typename It::value_type>>
+	template<typename It, typename Comp = less<it_value_type_t<It>>>
 	void heap_sort(It begin, It end, Comp comp = {})
 	{
 		make_heap(begin, end, comp);
@@ -167,7 +167,7 @@ namespace BAN::sort
 
 	}
 
-	template<typename It, typename Comp = less<typename It::value_type>>
+	template<typename It, typename Comp = less<it_value_type_t<It>>>
 	void intro_sort(It begin, It end, Comp comp = {})
 	{
 		const size_t len = distance(begin, end);
@@ -190,10 +190,10 @@ namespace BAN::sort
 	}
 
 	template<typename It, size_t radix = 256>
-	requires is_unsigned_v<typename It::value_type> && (radix > 0 && (radix & (radix - 1)) == 0)
+	requires is_unsigned_v<it_value_type_t<It>> && (radix > 0 && (radix & (radix - 1)) == 0)
 	BAN::ErrorOr<void> radix_sort(It begin, It end)
 	{
-		using value_type = typename It::value_type;
+		using value_type = it_value_type_t<It>;
 
 		const size_t len = distance(begin, end);
 		if (len <= 1)
@@ -231,7 +231,7 @@ namespace BAN::sort
 		return {};
 	}
 
-	template<typename It, typename Comp = less<typename It::value_type>>
+	template<typename It, typename Comp = less<it_value_type_t<It>>>
 	void sort(It begin, It end, Comp comp = {})
 	{
 		return intro_sort(begin, end, comp);
