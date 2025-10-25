@@ -139,6 +139,10 @@ namespace BAN
 	template<typename T> using make_signed_t = typename make_signed<T>::type;
 #undef __BAN_TRAITS_MAKE_SIGNED_CV
 
+	template<typename T> struct it_value_type { using value_type = T::value_type; };
+	template<typename T> struct it_value_type<T*> { using value_type = T; };
+	template<typename T> using it_value_type_t = typename it_value_type<T>::value_type;
+
 	template<typename T> struct less	{ constexpr bool operator()(const T& lhs, const T& rhs) const { return lhs < rhs; } };
 	template<typename T> struct equal	{ constexpr bool operator()(const T& lhs, const T& rhs) const { return lhs == rhs; } };
 	template<typename T> struct greater	{ constexpr bool operator()(const T& lhs, const T& rhs) const { return lhs > rhs; } };
