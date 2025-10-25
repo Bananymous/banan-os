@@ -1,5 +1,6 @@
 #pragma once
 
+#include <BAN/Heap.h>
 #include <BAN/Math.h>
 #include <BAN/Swap.h>
 #include <BAN/Traits.h>
@@ -64,82 +65,6 @@ namespace BAN::sort
 			for (; it2 != begin && comp(x, *prev(it2, 1)); --it2)
 				*it2 = move(*prev(it2, 1));
 			*it2 = move(x);
-		}
-	}
-
-	namespace detail
-	{
-
-		template<typename It, typename Comp>
-		void push_heap(It begin, size_t hole_index, size_t top_index, it_value_type_t<It> value, Comp comp)
-		{
-			size_t parent = (hole_index - 1) / 2;
-			while (hole_index > top_index && comp(*next(begin, parent), value))
-			{
-				*next(begin, hole_index) = move(*next(begin, parent));
-				hole_index = parent;
-				parent = (hole_index - 1) / 2;
-			}
-			*next(begin, hole_index) = move(value);
-		}
-
-		template<typename It, typename Comp>
-		void adjust_heap(It begin, size_t hole_index, size_t len, it_value_type_t<It> value, Comp comp)
-		{
-			const size_t top_index = hole_index;
-			size_t child = hole_index;
-			while (child < (len - 1) / 2)
-			{
-				child = 2 * (child + 1);
-				if (comp(*next(begin, child), *next(begin, child - 1)))
-					child--;
-				*next(begin, hole_index) = move(*next(begin, child));
-				hole_index = child;
-			}
-			if (len % 2 == 0 && child == (len - 2) / 2)
-			{
-				child = 2 * (child + 1);
-				*next(begin, hole_index) = move(*next(begin, child - 1));
-				hole_index = child - 1;
-			}
-			push_heap(begin, hole_index, top_index, move(value), comp);
-		}
-
-	}
-
-	template<typename It, typename Comp = less<it_value_type_t<It>>
-	void make_heap(It begin, It end, Comp comp = {})
-	{
-		const size_t len = distance(begin, end);
-		if (len <= 1)
-			return;
-
-		size_t parent = (len - 2) / 2;
-		while (true)
-		{
-			detail::adjust_heap(begin, parent, len, move(*next(begin, parent)), comp);
-
-			if (parent == 0)
-				break;
-
-			parent--;
-		}
-	}
-
-	template<typename It, typename Comp = less<it_value_type_t<It>>>
-	void sort_heap(It begin, It end, Comp comp = {})
-	{
-		const size_t len = distance(begin, end);
-		if (len <= 1)
-			return;
-
-		size_t last = len;
-		while (last > 1)
-		{
-			last--;
-			typename It::value_type x = move(*next(begin, last));
-			*next(begin, last) = move(*begin);
-			detail::adjust_heap(begin, 0, last, move(x), comp);
 		}
 	}
 
