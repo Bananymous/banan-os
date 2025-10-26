@@ -1,6 +1,7 @@
 set(USERSPACE_LIBRARIES
 	LibAudio
 	LibC
+	LibDEFLATE
 	LibDL
 	LibELF
 	LibFont
