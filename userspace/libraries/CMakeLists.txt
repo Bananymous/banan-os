@@ -10,6 +10,7 @@ set(USERSPACE_LIBRARIES
 	LibInput
 	LibMath
 	LibPthread
+	LibQR
 )
 
 foreach(library ${USERSPACE_LIBRARIES})
