@@ -56,7 +56,7 @@ namespace BAN
 		bool contains(const T&) const;
 
 		Span<T> span() { return Span(m_data, m_size); }
-		const Span<T> span() const { return Span(m_data, m_size); }
+		Span<const T> span() const { return Span(m_data, m_size); }
 
 		const T& operator[](size_type) const;
 		T& operator[](size_type);

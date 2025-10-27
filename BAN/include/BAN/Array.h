@@ -35,7 +35,7 @@ namespace BAN
 		constexpr T& front();
 
 		Span<T> span() { return Span(m_data, size()); }
-		const Span<T> span() const { return Span(m_data, size()); }
+		Span<const T> span() const { return Span(m_data, size()); }
 
 		constexpr size_type size() const;
 

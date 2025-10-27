@@ -52,7 +52,7 @@ private:
 		Command command;
 		BAN::Span<const BAN::String> arguments;
 		BAN::Span<const Environment> environments;
-		BAN::Span<Redirection> redirections;
+		BAN::Span<const Redirection> redirections;
 		int fd_in;
 		int fd_out;
 		bool background;

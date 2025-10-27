@@ -99,7 +99,7 @@ static const BAN::Vector<BAN::String> get_program_list()
 	return programs;
 }
 
-static BAN::Vector<BAN::StringView> get_filtered_program_list(BAN::Span<BAN::String> program_list, BAN::StringView prompt)
+static BAN::Vector<BAN::StringView> get_filtered_program_list(BAN::Span<const BAN::String> program_list, BAN::StringView prompt)
 {
 	BAN::Vector<BAN::StringView> filtered_list;
 	for (const auto& program : program_list)
