@@ -74,6 +74,8 @@
 namespace Debug
 {
 	void dump_stack_trace();
+	void dump_qr_code();
+
 	void putchar(char);
 	void print_prefix(const char*, int);
 

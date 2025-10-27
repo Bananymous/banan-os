@@ -165,6 +165,12 @@ set(KLIBC_SOURCES
 	../userspace/libraries/LibC/arch/${BANAN_ARCH}/string.S
 )
 
+set(LIBDEFLATE_SOURCE
+	../userspace/libraries/LibDEFLATE/Compressor.cpp
+	../userspace/libraries/LibDEFLATE/Decompressor.cpp
+	../userspace/libraries/LibDEFLATE/HuffmanTree.cpp
+)
+
 set(LIBFONT_SOURCES
 	../userspace/libraries/LibFont/Font.cpp
 	../userspace/libraries/LibFont/PSF.cpp
@@ -175,18 +181,25 @@ set(LIBINPUT_SOURCE
 	../userspace/libraries/LibInput/KeyEvent.cpp
 )
 
+set(LIBQR_SOURCE
+	../userspace/libraries/LibQR/QRCode.cpp
+)
+
 set(KERNEL_SOURCES
 	${KERNEL_SOURCES}
 	${BAN_SOURCES}
 	${KLIBC_SOURCES}
+	${LIBDEFLATE_SOURCE}
 	${LIBFONT_SOURCES}
 	${LIBINPUT_SOURCE}
+	${LIBQR_SOURCE}
 )
 
 add_executable(kernel ${KERNEL_SOURCES})
 
 target_compile_definitions(kernel PRIVATE __is_kernel)
 target_compile_definitions(kernel PRIVATE __arch=${BANAN_ARCH})
+target_compile_definitions(kernel PRIVATE LIBDEFLATE_AVOID_STACK=1)
 
 target_compile_options(kernel PRIVATE
 	-O2 -g
@@ -240,9 +253,11 @@ add_custom_command(
 
 banan_include_headers(kernel ban)
 banan_include_headers(kernel libc)
-banan_include_headers(kernel libfont)
+banan_include_headers(kernel libdeflate)
 banan_include_headers(kernel libelf)
+banan_include_headers(kernel libfont)
 banan_include_headers(kernel libinput)
+banan_include_headers(kernel libqr)
 
 banan_install_headers(kernel)
 set_target_properties(kernel PROPERTIES OUTPUT_NAME banan-os.kernel)

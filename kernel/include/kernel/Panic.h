@@ -19,15 +19,26 @@ namespace Kernel
 		asm volatile("cli");
 
 		const bool had_debug_lock = Debug::s_debug_lock.current_processor_has_lock();
-		derrorln("Kernel panic at {}", location);
-		if (had_debug_lock)
-			derrorln("  while having debug lock...");
-		derrorln(message, BAN::forward<Args>(args)...);
-		if (!g_paniced)
+
+		bool first_panic = false;
+
 		{
-			g_paniced = true;
-			Debug::dump_stack_trace();
+			SpinLockGuard _(Debug::s_debug_lock);
+			derrorln("Kernel panic at {}", location);
+			if (had_debug_lock)
+				derrorln("  while having debug lock...");
+			derrorln(message, BAN::forward<Args>(args)...);
+			if (!g_paniced)
+			{
+				Debug::dump_stack_trace();
+				g_paniced = true;
+				first_panic = true;
+			}
 		}
+
+		if (first_panic)
+			Debug::dump_qr_code();
+
 		asm volatile("ud2");
 		__builtin_unreachable();
 	}
