@@ -12,10 +12,17 @@
 namespace Kernel
 {
 
+	static BAN::RefPtr<FramebufferDevice> s_boot_framebuffer;
+
 	static uint32_t get_framebuffer_device_index()
 	{
 		static uint32_t index = 0;
 		return index++;
+	}
+
+	BAN::RefPtr<FramebufferDevice> FramebufferDevice::boot_framebuffer()
+	{
+		return s_boot_framebuffer;
 	}
 
 	BAN::ErrorOr<BAN::RefPtr<FramebufferDevice>> FramebufferDevice::create_from_boot_framebuffer()
@@ -37,6 +44,7 @@ namespace Kernel
 		auto device = BAN::RefPtr<FramebufferDevice>::adopt(device_ptr);
 		TRY(device->initialize());
 		DevFileSystem::get().add_device(device);
+		s_boot_framebuffer = device;
 		return device;
 	}
 

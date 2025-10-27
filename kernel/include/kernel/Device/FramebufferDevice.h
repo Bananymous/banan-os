@@ -10,6 +10,7 @@ namespace Kernel
 	{
 	public:
 		static BAN::ErrorOr<BAN::RefPtr<FramebufferDevice>> create_from_boot_framebuffer();
+		static BAN::RefPtr<FramebufferDevice> boot_framebuffer();
 		~FramebufferDevice();
 
 		uint32_t width() const { return m_width; }
