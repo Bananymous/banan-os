@@ -19,15 +19,15 @@ __BEGIN_DECLS
 #define _POSIX_ASYNCHRONOUS_IO            -1      /* aio_{cancel,error,fsync,read,return,suspend,write,listio} */
 #define _POSIX_BARRIERS                   200809L
 #define _POSIX_CHOWN_RESTRICTED           200809L
-#define _POSIX_CLOCK_SELECTION            0       /* pthread_condattr_{getclock,setclock}, clock_nanosleep */
-#define _POSIX_CPUTIME                    0       /* working CLOCK_CPUTIME */
+#define _POSIX_CLOCK_SELECTION            200809L
+#define _POSIX_CPUTIME                    200809L
 #define _POSIX_FSYNC                      200809L
 #define _POSIX_IPV6                       0       /* IPv6 :D */
 #define _POSIX_JOB_CONTROL                200809L /* tcdrain, tcsendbreak */
 #define _POSIX_MAPPED_FILES               200809L
 #define _POSIX_MEMLOCK                    -1      /* mlockall, munlockall */
 #define _POSIX_MEMLOCK_RANGE              -1      /* mlock, munlock */
-#define _POSIX_MEMORY_PROTECTION          -1      /* mprotect */
+#define _POSIX_MEMORY_PROTECTION          200809L
 #define _POSIX_MESSAGE_PASSING            -1      /* mq_{close,getattr,notify,open,receive,send,sendattr,unlink} */
 #define _POSIX_MONOTONIC_CLOCK            200809L
 #define _POSIX_NO_TRUNC                   200809L
@@ -47,7 +47,7 @@ __BEGIN_DECLS
 #define _POSIX_SYNCHRONIZED_IO            200809L
 #define _POSIX_THREAD_ATTR_STACKADDR      0       /* pthread_attr_{get,set}stack{,addr} */
 #define _POSIX_THREAD_ATTR_STACKSIZE      0       /* pthread_attr_{get,set}stack{,size} */
-#define _POSIX_THREAD_CPUTIME             -1      /* pthread_getcpuclockid, clock_{getres,gettime,settime,create} for thread CPU time */
+#define _POSIX_THREAD_CPUTIME             200809L
 #define _POSIX_THREAD_PRIO_INHERIT        -1      /* pthread_mutexattr_{get,set}protocol */
 #define _POSIX_THREAD_PRIO_PROTECT        -1      /* pthread_mutex{,attr}_{get,set}prioceiling, pthread_mutexattr_{get,set}protocol */
 #define _POSIX_THREAD_PRIORITY_SCHEDULING -1      /* pthread_attr_{get,set}{inheritsched,schedpolicy,scope}, pthread_{get,set}schedparam, pthread_setschedprio */
@@ -58,7 +58,7 @@ __BEGIN_DECLS
 #define _POSIX_THREAD_SPORADIC_SERVER     -1
 #define _POSIX_THREADS                    200809L
 #define _POSIX_TIMEOUTS                   -1      /* mq_timed{receive,send}, sem_timedwait, posix_trace_timedgetnext_event */
-#define _POSIX_TIMERS                     -1      /* timer_{create,delete,gettime,getoverrun,settime} */
+#define _POSIX_TIMERS                     200809L
 #define _POSIX_TRACE                      -1      /* posix_trace_* */
 #define _POSIX_TRACE_EVENT_FILTER         -1      /* posix_trace_* */
 #define _POSIX_TRACE_INHERIT              -1      /* posix_trace_* */
@@ -602,6 +602,8 @@ int					getpagesize(void);
 char*				getpass(const char* prompt);
 
 long syscall(long syscall, ...);
+
+extern char** environ;
 
 __END_DECLS
 
