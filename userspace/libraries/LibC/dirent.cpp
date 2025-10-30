@@ -26,6 +26,7 @@ int closedir(DIR* dirp)
 	}
 
 	close(dirp->fd);
+	free(dirp->entries);
 	free(dirp);
 
 	return 0;
@@ -73,15 +74,30 @@ DIR* opendir(const char* dirname)
 
 struct dirent* readdir(DIR* dirp)
 {
-	if (dirp == nullptr || dirp->fd == -1)
+	static dirent s_dirent;
+	dirent* result;
+
+	if (int error = readdir_r(dirp, &s_dirent, &result))
 	{
-		errno = EBADF;
+		errno = error;
 		return nullptr;
 	}
 
+	return result;
+}
+
+int readdir_r(DIR* dirp, struct dirent* __restrict entry, struct dirent** __restrict result)
+{
+	if (dirp == nullptr || dirp->fd == -1)
+		return EBADF;
+
 	dirp->entry_index++;
 	if (dirp->entry_index < dirp->entry_count)
-		return &dirp->entries[dirp->entry_index];
+	{
+		*entry = dirp->entries[dirp->entry_index];
+		*result = entry;
+		return 0;
+	}
 
 readdir_do_syscall:
 	long entry_count = syscall(SYS_READ_DIR, dirp->fd, dirp->entries, dirp->entries_size);
@@ -90,18 +106,25 @@ readdir_do_syscall:
 		const size_t new_entries_size = dirp->entries_size * 2;
 		dirent* new_entries = static_cast<dirent*>(malloc(new_entries_size * sizeof(dirent)));
 		if (new_entries == nullptr)
-			return nullptr;
+			return errno;
+		free(dirp->entries);
 		dirp->entries = new_entries;
 		dirp->entries_size = new_entries_size;
 		goto readdir_do_syscall;
 	}
-	if (entry_count <= 0)
-		return nullptr;
+
+	*result = nullptr;
+	if (entry_count < 0)
+		return errno;
+	if (entry_count == 0)
+		return 0;
 
 	dirp->entry_count = entry_count;
 	dirp->entry_index = 0;
 
-	return &dirp->entries[0];
+	*entry = dirp->entries[0];
+	*result = entry;
+	return 0;
 }
 
 void rewinddir(DIR* dirp)
