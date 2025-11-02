@@ -1,0 +1,52 @@
+diff -ruN SuperTux-0.6.3/CMakeLists.txt SuperTux-0.6.3-banan_os/CMakeLists.txt
+--- SuperTux-0.6.3/CMakeLists.txt       2021-12-23 01:01:57.000000000 +0200
++++ SuperTux-0.6.3-banan_os/CMakeLists.txt      2025-11-02 20:57:03.725932455 +0200
+@@ -171,7 +171,7 @@
+ else(ENABLE_BOOST_STATIC_LIBS)
+   set(Boost_USE_STATIC_LIBS FALSE)
+ endif(ENABLE_BOOST_STATIC_LIBS)
+-find_package(Boost REQUIRED COMPONENTS filesystem system date_time locale)
++find_package(Boost REQUIRED COMPONENTS filesystem date_time locale)
+ include_directories(SYSTEM ${Boost_INCLUDE_DIR})
+ link_directories(${Boost_LIBRARY_DIRS})
+ 
+@@ -507,6 +507,7 @@
+   -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+   -DCMAKE_CXX_FLAGS=${CMAKE_CXX_FLAGS}
+   -DCMAKE_INSTALL_PREFIX=${SQUIRREL_PREFIX}
++  -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}
+   -DINSTALL_INC_DIR=include
+   -DCMAKE_POSITION_INDEPENDENT_CODE=ON)
+ 
+@@ -966,7 +967,7 @@
+   endif()
+ endif()
+ target_include_directories(supertux2_lib SYSTEM PUBLIC ${SDL_TTF_PREFIX}/include/SDL2)
+-target_link_libraries(supertux2_lib PUBLIC SDL_ttf_lib)
++target_link_libraries(supertux2_lib PUBLIC libSDL2_ttf.a)
+ if(VCPKG_BUILD)
+   target_link_libraries(supertux2_lib PUBLIC freetype)
+ else()
+@@ -977,9 +978,10 @@
+   target_link_libraries(supertux2_lib PUBLIC ${HARFBUZZ_LIBRARY} ${FRIBIDI_LIBRARY} ${RAQM_LIBRARY})
+ endif()
+ 
+-target_link_libraries(supertux2_lib PUBLIC squirrel_lib)
+-target_link_libraries(supertux2_lib PUBLIC sqstdlib_lib)
+-target_link_libraries(supertux2_lib PUBLIC tinygettext_lib)
++target_link_libraries(supertux2_lib PUBLIC libsquirrel_static.a)
++target_link_libraries(supertux2_lib PUBLIC libsqstdlib_static.a)
++target_link_libraries(supertux2_lib PUBLIC libtinygettext.a)
++
+ target_link_libraries(supertux2_lib PUBLIC sexp)
+ target_link_libraries(supertux2_lib PUBLIC savepng)
+ target_link_libraries(supertux2_lib PUBLIC partio_zip_lib)
+@@ -1025,7 +1027,7 @@
+     if(VCPKG_BUILD)
+       target_link_libraries(supertux2_lib PUBLIC ${CURL_LIBRARIES})
+     else()
+-      target_link_libraries(supertux2_lib PUBLIC ${CURL_LIBRARY})
++      target_link_libraries(supertux2_lib PUBLIC ${CURL_LIBRARY} ssl crypto zstd z)
+     endif()
+   endif(HAVE_LIBCURL)
+ endif(NOT EMSCRIPTEN)

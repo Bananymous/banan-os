@@ -1,0 +1,11 @@
+diff -ruN SuperTux-0.6.3/external/partio_zip/zip_manager.hpp SuperTux-0.6.3-banan_os/external/partio_zip/zip_manager.hpp
+--- SuperTux-0.6.3/external/partio_zip/zip_manager.hpp	2021-12-23 01:01:58.000000000 +0200
++++ SuperTux-0.6.3-banan_os/external/partio_zip/zip_manager.hpp	2025-11-02 20:16:29.691656288 +0200
+@@ -44,6 +44,7 @@
+ #include <fstream>
+ #include <iostream>
+ #include <map>
++#include <memory>
+ #include <string>
+ #include <stdexcept>
+ #include <vector>
