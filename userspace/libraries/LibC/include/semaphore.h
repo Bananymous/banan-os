@@ -10,7 +10,11 @@ __BEGIN_DECLS
 #include <fcntl.h>
 #include <time.h>
 
-typedef void* sem_t;
+typedef struct
+{
+	int shared;
+	uint32_t value;
+} sem_t;
 
 #define SEM_FAILED ((sem_t*)0)
 
