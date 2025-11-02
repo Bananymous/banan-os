@@ -74,8 +74,8 @@ namespace Kernel
 
 			struct flock_t
 			{
-				bool locked;
-				bool shared;
+				bool locked { false };
+				bool shared { false };
 				ThreadBlocker thread_blocker;
 				BAN::HashSet<pid_t> lockers;
 			};
