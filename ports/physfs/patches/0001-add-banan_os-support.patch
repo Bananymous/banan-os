@@ -1,0 +1,27 @@
+diff -ru physfs-3.2.0/src/physfs_internal.h physfs-3.2.0-banan_os/src/physfs_internal.h
+--- physfs-3.2.0/src/physfs_internal.h	2022-09-30 23:13:07.000000000 +0300
++++ physfs-3.2.0-banan_os/src/physfs_internal.h	2025-10-31 22:59:41.007241749 +0200
+@@ -38,7 +38,7 @@
+ #include <malloc.h>
+ #endif
+ 
+-#if defined(PHYSFS_PLATFORM_SOLARIS) || defined(PHYSFS_PLATFORM_LINUX)
++#if defined(PHYSFS_PLATFORM_SOLARIS) || defined(PHYSFS_PLATFORM_LINUX) || defined(PHYSFS_PLATFORM_BANAN_OS)
+ #include <alloca.h>
+ #endif
+ 
+diff -ru physfs-3.2.0/src/physfs_platforms.h physfs-3.2.0-banan_os/src/physfs_platforms.h
+--- physfs-3.2.0/src/physfs_platforms.h	2022-09-30 23:13:07.000000000 +0300
++++ physfs-3.2.0-banan_os/src/physfs_platforms.h	2025-10-31 22:58:57.522454364 +0200
+@@ -15,6 +15,11 @@
+ #if (defined __HAIKU__)
+ #  define PHYSFS_PLATFORM_HAIKU 1
+ #  define PHYSFS_PLATFORM_POSIX 1
++#elif (defined __banan_os__)
++#  define PHYSFS_NO_CDROM_SUPPORT 1
++#  define PHYSFS_PLATFORM_BANAN_OS 1
++#  define PHYSFS_PLATFORM_UNIX 1
++#  define PHYSFS_PLATFORM_POSIX 1
+ #elif ((defined __BEOS__) || (defined __beos__))
+ #  error BeOS support was dropped since PhysicsFS 2.1. Sorry. Try Haiku!
+ #elif (defined _WIN32_WCE) || (defined _WIN64_WCE)
