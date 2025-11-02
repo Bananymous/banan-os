@@ -354,6 +354,8 @@ static void handle_copy_relocation(const LoadedElf& elf, const RelocT& reloc)
 		auto* match = find_symbol(s_loaded_files[i], symbol_name);
 		if (match == nullptr)
 			continue;
+		if (ELF_ST_BIND(match->st_info) == STB_LOCAL && &s_loaded_files[i] != &elf)
+			continue;
 		if (src_sym == nullptr || ELF_ST_BIND(match->st_info) != STB_WEAK)
 		{
 			src_sym = match;
@@ -398,6 +400,8 @@ static void handle_tls_relocation(const LoadedElf& elf, const RelocT& reloc)
 			{
 				const auto* match = find_symbol(s_loaded_files[i], symbol_name);
 				if (match == nullptr)
+					continue;
+				if (ELF_ST_BIND(match->st_info) == STB_LOCAL && &s_loaded_files[i] != &elf)
 					continue;
 				if (symbol_elf == nullptr || ELF_ST_BIND(match->st_info) != STB_WEAK)
 				{
@@ -511,6 +515,8 @@ static uintptr_t handle_relocation(const LoadedElf& elf, const RelocT& reloc, bo
 			{
 				const auto* match = find_symbol(s_loaded_files[i], symbol_name);
 				if (match == nullptr)
+					continue;
+				if (ELF_ST_BIND(match->st_info) == STB_LOCAL && &s_loaded_files[i] != &elf)
 					continue;
 				if (symbol_address == SYM_NOT_FOUND || ELF_ST_BIND(match->st_info) != STB_WEAK)
 					symbol_address = s_loaded_files[i].base + match->st_value;
