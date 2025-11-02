@@ -1,0 +1,115 @@
+diff -ruN boost_1_89_0/boost/config/detail/select_platform_config.hpp boost_1_89_0-banan_os/boost/config/detail/select_platform_config.hpp
+--- boost_1_89_0/boost/config/detail/select_platform_config.hpp	2025-08-06 21:49:08.000000000 +0300
++++ boost_1_89_0-banan_os/boost/config/detail/select_platform_config.hpp	2025-10-29 21:16:39.964658105 +0200
+@@ -93,6 +93,10 @@
+ // Web assembly:
+ #  define BOOST_PLATFORM_CONFIG "boost/config/platform/wasm.hpp"
+ 
++#elif defined (__banan_os__)
++// banan-os:
++#  define BOOST_PLATFORM_CONFIG "boost/config/platform/banan-os.hpp"
++
+ #else
+ 
+ #  if defined(unix) \
+@@ -139,6 +143,7 @@
+ #  include "boost/config/platform/symbian.hpp" 
+ #  include "boost/config/platform/cray.hpp" 
+ #  include "boost/config/platform/vms.hpp" 
++#  include "boost/config/platform/banan-os.hpp"
+ #  include <boost/config/detail/posix_features.hpp>
+ 
+ 
+diff -ruN boost_1_89_0/boost/config/platform/banan-os.hpp boost_1_89_0-banan_os/boost/config/platform/banan-os.hpp
+--- boost_1_89_0/boost/config/platform/banan-os.hpp	1970-01-01 02:00:00.000000000 +0200
++++ boost_1_89_0-banan_os/boost/config/platform/banan-os.hpp	2025-10-29 21:21:58.791813238 +0200
+@@ -0,0 +1,29 @@
++//  (C) Copyright Oskari Alaranta 2025. 
++//  Use, modification and distribution are subject to the 
++//  Boost Software License, Version 1.0. (See accompanying file 
++//  LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
++
++//  See http://www.boost.org for most recent version.
++
++//  banan-os specific config options:
++
++#define BOOST_PLATFORM "banan-os"
++
++#define BOOST_HAS_UNISTD_H
++#define BOOST_HAS_STDINT_H
++
++#ifndef BOOST_DISABLE_THREADS
++#  define BOOST_HAS_THREADS
++#endif
++
++//
++// thread API's not auto detected:
++//
++#define BOOST_HAS_SCHED_YIELD
++#define BOOST_HAS_GETTIMEOFDAY
++
++// boilerplate code:
++#include <boost/config/detail/posix_features.hpp>
++ 
++
++
+diff -ruN boost_1_89_0/tools/build/src/tools/features/os-feature.jam boost_1_89_0-banan_os/tools/build/src/tools/features/os-feature.jam
+--- boost_1_89_0/tools/build/src/tools/features/os-feature.jam	2025-08-06 21:49:15.000000000 +0300
++++ boost_1_89_0-banan_os/tools/build/src/tools/features/os-feature.jam	2025-10-29 21:14:14.978467634 +0200
+@@ -11,7 +11,7 @@
+     none
+     aix android appletv bsd cygwin darwin freebsd haiku hpux iphone linux
+     netbsd openbsd osf qnx qnxnto sgi solaris unix unixware windows vms vxworks
+-    freertos
++    freertos banan_os
+ 
+     # Not actually an OS -- used for targeting bare metal where object
+     # format is ELF.  This catches both -elf and -eabi gcc targets as well
+@@ -80,7 +80,7 @@
+ *Allowed values:* `aix`, `android`, `appletv`, `bsd`, `cygwin`, `darwin`,
+ `freebsd`, `haiku`, `hpux`, `iphone`, `linux`, `netbsd`, `openbsd`, `osf`,
+ `qnx`, `qnxnto`, `sgi`, `solaris`, `unix`, `unixware`, `windows`, `vms`,
+-`vxworks`, `freertos`.
++`vxworks`, `freertos`, `banan_os`.
+ +
+ Specifies the operating system for which the code is to be generated. The
+ compiler you used should be the compiler for that operating system. This option
+diff -ruN boost_1_89_0/tools/build/src/tools/gcc.jam boost_1_89_0-banan_os/tools/build/src/tools/gcc.jam
+--- boost_1_89_0/tools/build/src/tools/gcc.jam	2025-08-06 21:49:15.000000000 +0300
++++ boost_1_89_0-banan_os/tools/build/src/tools/gcc.jam	2025-10-29 21:12:59.730889504 +0200
+@@ -204,6 +204,7 @@
+             case *linux*  : target-os ?= linux ;
+             case *aix*    : target-os ?= aix ;
+             case *hpux*   : target-os ?= hpux ;
++            case *banan_os*   : target-os ?= banan_os ;
+             # TODO: finish this list.
+         }
+     }
+@@ -406,6 +407,7 @@
+     threading-flags <target-os>cygwin/<threadapi>pthread : -pthread ;
+     threading-flags <target-os>solaris  : -pthreads : rt ;
+     threading-flags <target-os>qnx : -pthread ;
++    threading-flags <target-os>banan_os : -pthread ;
+ 
+     local bsd = [ MATCH ^(.*bsd)$ : $(all-os) ] ;
+     threading-flags <target-os>$(bsd) : -pthread ;
+@@ -413,7 +415,7 @@
+     # iOS doesn't need pthread flag according to the https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man3/pthread.3.html
+     # The default system libraries include pthread functions.  No additional libraries or CFLAGS are necessary to use this API.
+     local no-threading = android beos haiku sgi darwin vxworks iphone appletv ;
+-    local threading-generic-os = [ set.difference $(all-os) : $(no-threading) $(bsd) windows cygwin solaris qnx ] ;
++    local threading-generic-os = [ set.difference $(all-os) : $(no-threading) $(bsd) windows cygwin solaris qnx banan_os ] ;
+     threading-flags <target-os>$(threading-generic-os) : -pthread : rt ;
+ }
+ 
+diff -ruN boost_1_89_0/tools/build/src/tools/python.jam boost_1_89_0-banan_os/tools/build/src/tools/python.jam
+--- boost_1_89_0/tools/build/src/tools/python.jam	2025-08-06 21:49:15.000000000 +0300
++++ boost_1_89_0-banan_os/tools/build/src/tools/python.jam	2025-10-29 21:09:10.276185725 +0200
+@@ -667,6 +667,7 @@
+         case darwin : return ;
+         case windows : return ;
+         case haiku : return ;
++        case banan_os : return ;
+ 
+         case hpux : return  <library>rt ;
+         case *bsd : return  <library>pthread <toolset>gcc:<library>util ;
