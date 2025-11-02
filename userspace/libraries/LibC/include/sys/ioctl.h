@@ -38,6 +38,7 @@ __BEGIN_DECLS
 #define KDLOADFONT	30
 
 #define FIONREAD	40 /* get number of input bytes available */
+#define FIONBIO		41
 
 struct winsize
 {
