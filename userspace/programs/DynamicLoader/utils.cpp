@@ -175,6 +175,7 @@ static const char* errno_to_string(int error)
 		case EWOULDBLOCK:		return "Operation would block.";
 		case EXDEV:				return "Cross-device link.";
 		case ENOTBLK:			return "Block device required";
+		case ESHUTDOWN:			return "Cannot send after transport endpoint shutdown.";
 		case EUNKNOWN:			return "Unknown error";
 	}
 	return nullptr;

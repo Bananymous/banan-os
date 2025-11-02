@@ -89,6 +89,7 @@ __BEGIN_DECLS
 #define EWOULDBLOCK		80
 #define EXDEV			81
 #define ENOTBLK			82
+#define ESHUTDOWN		83
 
 #define ERESTART        0xFE /* internal errno for SA_RESTART */
 #define EUNKNOWN		0xFF

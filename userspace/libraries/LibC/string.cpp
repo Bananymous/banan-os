@@ -524,6 +524,7 @@ const char* strerrorname_np(int error)
 		case EWOULDBLOCK:		return "EWOULDBLOCK";
 		case EXDEV:				return "EXDEV";
 		case ENOTBLK:			return "ENOTBLK";
+		case ESHUTDOWN:			return "ESHUTDOWN";
 		case EUNKNOWN:			return "EUNKNOWN";
 	}
 
@@ -618,6 +619,7 @@ const char* strerrordesc_np(int error)
 		case EWOULDBLOCK:		return "Operation would block.";
 		case EXDEV:				return "Cross-device link.";
 		case ENOTBLK:			return "Block device required";
+		case ESHUTDOWN:			return "Cannot send after transport endpoint shutdown.";
 		case EUNKNOWN:			return "Unknown error";
 	}
 
