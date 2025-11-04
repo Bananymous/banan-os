@@ -31,6 +31,7 @@ set(USERSPACE_PROGRAMS
 	nslookup
 	poweroff
 	ProgramLauncher
+	pwd
 	resolver
 	rm
 	Shell
