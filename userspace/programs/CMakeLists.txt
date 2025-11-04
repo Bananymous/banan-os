@@ -20,6 +20,7 @@ set(USERSPACE_PROGRAMS
 	id
 	image
 	init
+	kill
 	less
 	ln
 	loadfont
