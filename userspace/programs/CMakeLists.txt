@@ -46,6 +46,7 @@ set(USERSPACE_PROGRAMS
 	Terminal
 	touch
 	u8sum
+	uname
 	whoami
 	WindowServer
 	yes
