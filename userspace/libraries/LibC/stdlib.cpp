@@ -45,11 +45,6 @@ void _Exit(int status)
 	_exit(status);
 }
 
-int abs(int val)
-{
-	return val < 0 ? -val : val;
-}
-
 int atexit(void (*func)(void))
 {
 	void* func_addr = reinterpret_cast<void*>(func);
@@ -365,6 +360,45 @@ unsigned long strtoul(const char* __restrict str, char** __restrict endp, int ba
 unsigned long long strtoull(const char* __restrict str, char** __restrict endp, int base)
 {
 	return strtoT<unsigned long long>(str, endp, base, errno);
+}
+
+int abs(int val)
+{
+	return val < 0 ? -val : val;
+}
+
+long labs(long val)
+{
+	return val < 0 ? -val : val;
+}
+
+long long llabs(long long val)
+{
+	return val < 0 ? -val : val;
+}
+
+div_t div(int numer, int denom)
+{
+	return {
+		.quot = numer / denom,
+		.rem = numer % denom,
+	};
+}
+
+ldiv_t ldiv(long numer, long denom)
+{
+	return {
+		.quot = numer / denom,
+		.rem = numer % denom,
+	};
+}
+
+lldiv_t lldiv(long long numer, long long denom)
+{
+	return {
+		.quot = numer / denom,
+		.rem = numer % denom,
+	};
 }
 
 char* realpath(const char* __restrict file_name, char* __restrict resolved_name)
