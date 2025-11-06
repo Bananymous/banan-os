@@ -114,8 +114,11 @@ namespace Kernel
 			TRY(result.append(BAN::StringView(reinterpret_cast<const char*>(m_inode.block), m_inode.size)));
 			return result;
 		}
-		dwarnln("TODO: ext2 get symlink target from {} byte inode", m_inode.size);
-		return BAN::Error::from_errno(ENOTSUP);
+
+		BAN::String result;
+		TRY(result.resize(m_inode.size));
+		TRY(read_impl(0, { reinterpret_cast<uint8_t*>(result.data()), result.size() }));
+		return BAN::move(result);
 	}
 
 	BAN::ErrorOr<void> Ext2Inode::set_link_target_impl(BAN::StringView target)
@@ -129,8 +132,10 @@ namespace Kernel
 			TRY(sync());
 			return {};
 		}
-		dwarnln("TODO: ext2 set symlink target to {} bytes from {} byte inode", target.size(), m_inode.size);
-		return BAN::Error::from_errno(ENOTSUP);
+
+		TRY(truncate_impl(target.size()));
+		TRY(write_impl(0, { reinterpret_cast<const uint8_t*>(target.data()), target.size() }));
+		return {};
 	}
 
 	BAN::ErrorOr<size_t> Ext2Inode::read_impl(off_t offset, BAN::ByteSpan buffer)
