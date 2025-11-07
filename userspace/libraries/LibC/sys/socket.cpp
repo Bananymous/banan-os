@@ -172,11 +172,16 @@ int setsockopt(int socket, int level, int option_name, const void* option_value,
 	return syscall(SYS_SETSOCKOPT, socket, level, option_name, option_value, option_len);
 }
 
-
-
-#include <BAN/Assert.h>
-
-int shutdown(int, int)
+int sockatmark(int s)
 {
-	ASSERT_NOT_REACHED();
+	dwarnln("TODO: sockatmark({})", s);
+	errno = ENOTSUP;
+	return -1;
+}
+
+int shutdown(int socket, int how)
+{
+	dwarnln("TODO: shutdown({}, {})", socket, how);
+	errno = ENOTSUP;
+	return -1;
 }
