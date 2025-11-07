@@ -69,3 +69,51 @@ unsigned if_nametoindex(const char* ifname)
 
 	return result;
 }
+
+struct if_nameindex* if_nameindex(void)
+{
+	dirent** namelist;
+
+	const int count = scandir("/dev", &namelist, selector, comparator);
+	if (count == -1)
+		return nullptr;
+
+	auto* result = static_cast<struct if_nameindex*>(malloc(sizeof(struct if_nameindex) * (count + 1)));
+	if (result == nullptr)
+		goto cleanup;
+
+	for (unsigned i = 0; i < static_cast<unsigned>(count); i++)
+	{
+		auto* if_name = strdup(namelist[i]->d_name);
+		if (if_name == nullptr)
+		{
+			if_freenameindex(result);
+			result = nullptr;
+			goto cleanup;
+		}
+
+		result[i] = {
+			.if_index = i,
+			.if_name = if_name,
+		};
+	}
+
+	result[count] = {
+		.if_index = 0,
+		.if_name = nullptr,
+	};
+
+cleanup:
+	for (int i = 0; i < count; i++)
+		free(namelist[i]);
+	free(namelist);
+
+	return result;
+}
+
+void if_freenameindex(struct if_nameindex* ptr)
+{
+	for (auto* entry = ptr; entry->if_name; entry++)
+		free(entry->if_name);
+	free(ptr);
+}
