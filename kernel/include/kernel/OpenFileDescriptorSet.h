@@ -109,6 +109,32 @@ namespace Kernel
 		BAN::ErrorOr<int> get_free_fd() const;
 		BAN::ErrorOr<void> get_free_fd_pair(int fds[2]) const;
 
+	public:
+		class FDWrapper
+		{
+		public:
+			FDWrapper(BAN::RefPtr<OpenFileDescription>);
+			FDWrapper(const FDWrapper& other) { *this = other; }
+			FDWrapper(FDWrapper&& other) { *this = BAN::move(other); }
+			~FDWrapper();
+
+			FDWrapper& operator=(const FDWrapper&);
+			FDWrapper& operator=(FDWrapper&&);
+
+			int fd() const { return m_fd; }
+
+			void clear();
+
+		private:
+			BAN::RefPtr<OpenFileDescription> m_description;
+			int m_fd { -1 };
+
+			friend class OpenFileDescriptorSet;
+		};
+
+		BAN::ErrorOr<FDWrapper> get_fd_wrapper(int fd);
+		size_t open_all_fd_wrappers(BAN::Span<FDWrapper> fd_wrappers);
+
 	private:
 		const Credentials& m_credentials;
 		mutable Mutex m_mutex;

@@ -294,10 +294,11 @@ namespace Kernel
 		}
 	}
 
-	BAN::ErrorOr<void> UnixDomainSocket::add_packet(const msghdr& packet, size_t total_size)
+	BAN::ErrorOr<void> UnixDomainSocket::add_packet(const msghdr& packet, size_t total_size, BAN::Vector<FDWrapper>&& fds_to_send)
 	{
 		LockGuard _(m_packet_lock);
-		while (m_packet_sizes.full() || m_packet_size_total + total_size > s_packet_buffer_size)
+
+		while (m_packet_infos.full() || m_packet_size_total + total_size > s_packet_buffer_size)
 			TRY(Thread::current().block_or_eintr_indefinite(m_packet_thread_blocker, &m_packet_lock));
 
 		uint8_t* packet_buffer = reinterpret_cast<uint8_t*>(m_packet_buffer->vaddr() + m_packet_size_total);
@@ -311,7 +312,7 @@ namespace Kernel
 
 		ASSERT(offset == total_size);
 		m_packet_size_total += total_size;
-		m_packet_sizes.push(total_size);
+		m_packet_infos.emplace(total_size, BAN::move(fds_to_send));
 
 		m_packet_thread_blocker.unblock();
 
@@ -366,12 +367,6 @@ namespace Kernel
 			return BAN::Error::from_errno(ENOTSUP);
 		}
 
-		if (CMSG_FIRSTHDR(&message))
-		{
-			dwarnln("ignoring recvmsg control message");
-			message.msg_controllen = 0;
-		}
-
 		LockGuard _(m_packet_lock);
 		while (m_packet_size_total == 0)
 		{
@@ -388,31 +383,68 @@ namespace Kernel
 			TRY(Thread::current().block_or_eintr_indefinite(m_packet_thread_blocker, &m_packet_lock));
 		}
 
+		auto* cheader = CMSG_FIRSTHDR(&message);
+		if (cheader != nullptr)
+			cheader->cmsg_len = message.msg_controllen;
+		size_t cheader_len = 0;
+
 		uint8_t* packet_buffer = reinterpret_cast<uint8_t*>(m_packet_buffer->vaddr());
 
-		const size_t max_recv_size = is_streaming() ? m_packet_size_total : m_packet_sizes.front();
+		message.msg_flags = 0;
 
 		size_t total_recv = 0;
 		for (int i = 0; i < message.msg_iovlen; i++)
 		{
-			const size_t nrecv = BAN::Math::min<size_t>(message.msg_iov[i].iov_len, max_recv_size - total_recv);
-			memcpy(message.msg_iov[i].iov_base, packet_buffer + total_recv, nrecv);
+			auto& packet_info = m_packet_infos.front();
+
+			auto fds_to_open = BAN::move(packet_info.fds);
+			if (cheader == nullptr && !fds_to_open.empty())
+				message.msg_flags |= MSG_CTRUNC;
+			else if (!fds_to_open.empty())
+			{
+				const size_t max_fd_count = (cheader->cmsg_len - sizeof(cmsghdr)) / sizeof(int);
+				if (max_fd_count < fds_to_open.size())
+					message.msg_flags |= MSG_CTRUNC;
+
+				const size_t fd_count = BAN::Math::min(fds_to_open.size(), max_fd_count);
+				const size_t fds_opened = Process::current().open_file_descriptor_set().open_all_fd_wrappers(fds_to_open.span().slice(0, fd_count));
+
+				auto* fd_data = reinterpret_cast<int*>(CMSG_DATA(cheader));
+				for (size_t i = 0; i < fds_opened; i++)
+					fd_data[i] = fds_to_open[i].fd();
+
+				const size_t header_length = CMSG_LEN(fds_opened * sizeof(int));
+				cheader->cmsg_level = SOL_SOCKET;
+				cheader->cmsg_type = SCM_RIGHTS;
+				cheader->cmsg_len = header_length;
+				cheader = CMSG_NXTHDR(&message, cheader);
+				if (cheader != nullptr)
+					cheader->cmsg_len = message.msg_controllen - header_length;
+				cheader_len += header_length;
+			}
+
+			const size_t nrecv = BAN::Math::min<size_t>(message.msg_iov[i].iov_len, packet_info.size);
+			memcpy(message.msg_iov[i].iov_base, packet_buffer, nrecv);
 			total_recv += nrecv;
+
+			if (!is_streaming() && nrecv < packet_info.size)
+				message.msg_flags |= MSG_TRUNC;
+
+			const size_t to_discard = is_streaming() ? nrecv : packet_info.size;
+
+			packet_info.size -= to_discard;
+			if (packet_info.size == 0)
+				m_packet_infos.pop();
+
+			// FIXME: get rid of this memmove :)
+			memmove(packet_buffer, packet_buffer + to_discard, m_packet_size_total - to_discard);
+			m_packet_size_total -= to_discard;
+
+			if (!is_streaming() || m_packet_infos.empty())
+				break;
 		}
 
-		size_t bytes_to_handle = total_recv;
-		while (bytes_to_handle)
-		{
-			const size_t to_handle = BAN::Math::min(bytes_to_handle, m_packet_sizes.front());
-			bytes_to_handle -= to_handle;
-			m_packet_sizes.front() -= to_handle;
-			if (m_packet_sizes.front() == 0)
-				m_packet_sizes.pop();
-		}
-
-		const size_t to_discard = is_streaming() ? total_recv : max_recv_size;
-		memmove(packet_buffer, packet_buffer + to_discard, m_packet_size_total - to_discard);
-		m_packet_size_total -= to_discard;
+		message.msg_controllen = cheader_len;
 
 		m_packet_thread_blocker.unblock();
 
@@ -429,8 +461,27 @@ namespace Kernel
 			return BAN::Error::from_errno(ENOTSUP);
 		}
 
-		if (CMSG_FIRSTHDR(&message))
-			dwarnln("ignoring sendmsg control message");
+		BAN::Vector<OpenFileDescriptorSet::FDWrapper> fds_to_send;
+
+		for (const auto* header = CMSG_FIRSTHDR(&message); header; header = CMSG_NXTHDR(&message, header))
+		{
+			if (header->cmsg_level != SOL_SOCKET)
+			{
+				dwarnln("ignoring control message with level {}", header->cmsg_level);
+				continue;
+			}
+
+			if (header->cmsg_type != SCM_RIGHTS)
+			{
+				dwarnln("ignoring control message with type {}", header->cmsg_type);
+				continue;
+			}
+
+			const auto* fd_data = reinterpret_cast<const int*>(CMSG_DATA(header));
+			const size_t fd_count = (header->cmsg_len - sizeof(cmsghdr)) / sizeof(int);
+			for (size_t i = 0; i < fd_count; i++)
+				TRY(fds_to_send.push_back(TRY(Process::current().open_file_descriptor_set().get_fd_wrapper(fd_data[i]))));
+		}
 
 		const size_t total_message_size =
 			[&message]() -> size_t {
@@ -449,7 +500,7 @@ namespace Kernel
 			auto target = connection_info.connection.lock();
 			if (!target)
 				return BAN::Error::from_errno(ENOTCONN);
-			TRY(target->add_packet(message, total_message_size));
+			TRY(target->add_packet(message, total_message_size, BAN::move(fds_to_send)));
 			return total_message_size;
 		}
 		else
@@ -493,7 +544,7 @@ namespace Kernel
 
 			if (!target)
 				return BAN::Error::from_errno(EDESTADDRREQ);
-			TRY(target->add_packet(message, total_message_size));
+			TRY(target->add_packet(message, total_message_size, BAN::move(fds_to_send)));
 
 			return total_message_size;
 		}

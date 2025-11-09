@@ -7,6 +7,7 @@
 #include <kernel/FS/TmpFS/Inode.h>
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/Lock/SpinLock.h>
+#include <kernel/OpenFileDescriptorSet.h>
 
 namespace Kernel
 {
@@ -15,6 +16,9 @@ namespace Kernel
 	{
 		BAN_NON_COPYABLE(UnixDomainSocket);
 		BAN_NON_MOVABLE(UnixDomainSocket);
+
+	public:
+		using FDWrapper = OpenFileDescriptorSet::FDWrapper;
 
 	public:
 		static BAN::ErrorOr<BAN::RefPtr<UnixDomainSocket>> create(Socket::Type, const Socket::Info&);
@@ -38,7 +42,7 @@ namespace Kernel
 		UnixDomainSocket(Socket::Type, const Socket::Info&);
 		~UnixDomainSocket();
 
-		BAN::ErrorOr<void> add_packet(const msghdr&, size_t total_size);
+		BAN::ErrorOr<void> add_packet(const msghdr&, size_t total_size, BAN::Vector<FDWrapper>&& fds_to_send);
 
 		bool is_bound() const { return !m_bound_file.canonical_path.empty(); }
 		bool is_bound_to_unused() const { return !m_bound_file.inode; }
@@ -62,17 +66,23 @@ namespace Kernel
 			BAN::String peer_address;
 		};
 
+		struct PacketInfo
+		{
+			size_t size;
+			BAN::Vector<FDWrapper> fds;
+		};
+
 	private:
 		const Socket::Type		m_socket_type;
 		VirtualFileSystem::File	m_bound_file;
 
 		BAN::Variant<ConnectionInfo, ConnectionlessInfo> m_info;
 
-		BAN::CircularQueue<size_t, 128>	m_packet_sizes;
-		size_t							m_packet_size_total { 0 };
-		BAN::UniqPtr<VirtualRange>		m_packet_buffer;
-		Mutex							m_packet_lock;
-		ThreadBlocker					m_packet_thread_blocker;
+		BAN::CircularQueue<PacketInfo, 512>	m_packet_infos;
+		size_t								m_packet_size_total { 0 };
+		BAN::UniqPtr<VirtualRange>			m_packet_buffer;
+		Mutex								m_packet_lock;
+		ThreadBlocker						m_packet_thread_blocker;
 
 		friend class BAN::RefPtr<UnixDomainSocket>;
 	};

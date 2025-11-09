@@ -659,4 +659,66 @@ namespace Kernel
 		return BAN::Error::from_errno(EMFILE);
 	}
 
+	using FDWrapper = OpenFileDescriptorSet::FDWrapper;
+
+	FDWrapper::FDWrapper(BAN::RefPtr<OpenFileDescription> description)
+		: m_description(description)
+	{
+		if (m_description)
+			m_description->file.inode->on_clone(m_description->status_flags);
+	}
+
+	FDWrapper::~FDWrapper()
+	{
+		clear();
+	}
+
+	FDWrapper& FDWrapper::operator=(const FDWrapper& other)
+	{
+		clear();
+		m_description = other.m_description;
+		if (m_description)
+			m_description->file.inode->on_clone(m_description->status_flags);
+		return *this;
+	}
+
+	FDWrapper& FDWrapper::operator=(FDWrapper&& other)
+	{
+		clear();
+		m_description = BAN::move(other.m_description);
+		return *this;
+	}
+
+	void FDWrapper::clear()
+	{
+		if (m_description)
+			m_description->file.inode->on_close(m_description->status_flags);
+	}
+
+	BAN::ErrorOr<FDWrapper> OpenFileDescriptorSet::get_fd_wrapper(int fd)
+	{
+		LockGuard _(m_mutex);
+		TRY(validate_fd(fd));
+		return FDWrapper { m_open_files[fd].description };
+	}
+
+	size_t OpenFileDescriptorSet::open_all_fd_wrappers(BAN::Span<FDWrapper> fd_wrappers)
+	{
+		LockGuard _(m_mutex);
+
+		for (size_t i = 0; i < fd_wrappers.size(); i++)
+		{
+			auto fd_or_error = get_free_fd();
+			if (fd_or_error.is_error())
+				return i;
+
+			const int fd = fd_or_error.release_value();
+			m_open_files[fd].description = BAN::move(fd_wrappers[i].m_description);
+			m_open_files[fd].descriptor_flags = 0;
+			fd_wrappers[i].m_fd = fd;
+		}
+
+		return fd_wrappers.size();
+	}
+
 }

@@ -240,6 +240,8 @@ namespace Kernel
 		// FIXME: remove this API
 		BAN::ErrorOr<BAN::String> absolute_path_of(BAN::StringView) const;
 
+		OpenFileDescriptorSet& open_file_descriptor_set() { return m_open_file_descriptors; }
+
 		// ONLY CALLED BY TIMER INTERRUPT
 		static void update_alarm_queue();
 
