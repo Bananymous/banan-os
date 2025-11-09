@@ -71,6 +71,10 @@ extern mode_t __umask;
 #define S_IFMASK	0170000
 #define S_IFMT		S_IFMASK
 
+#define S_IREAD		S_IRUSR
+#define S_IWRITE	S_IWUSR
+#define S_IEXEC		S_IXUSR
+
 #define S_ISBLK(mode)	((mode & S_IFMASK) == S_IFBLK)
 #define S_ISCHR(mode)	((mode & S_IFMASK) == S_IFCHR)
 #define S_ISDIR(mode)	((mode & S_IFMASK) == S_IFDIR)
