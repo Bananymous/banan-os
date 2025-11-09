@@ -1,159 +1,134 @@
-diff -ru openssh-10.0p1/defines.h openssh-10.0p1-banan_os/defines.h
---- openssh-10.0p1/defines.h	2025-04-09 10:02:43.000000000 +0300
-+++ openssh-10.0p1-banan_os/defines.h	2025-08-16 20:14:26.349781317 +0300
-@@ -55,8 +55,6 @@
- /*
+diff -ruN openssh-10.2p1/defines.h openssh-10.2p1-banan_os/defines.h
+--- openssh-10.2p1/defines.h	2025-10-10 05:38:31.000000000 +0300
++++ openssh-10.2p1-banan_os/defines.h	2025-11-10 00:25:58.603474852 +0200
+@@ -56,7 +56,9 @@
   * Definitions for IP type of service (ip_tos)
   */
--#include <netinet/in_systm.h>
--#include <netinet/ip.h>
+ #include <netinet/in_systm.h>
++#ifndef __banan_os__
+ #include <netinet/ip.h>
++#endif
  #ifndef IPTOS_LOWDELAY
  # define IPTOS_LOWDELAY          0x10
  # define IPTOS_THROUGHPUT        0x08
-diff -ru openssh-10.0p1/hostfile.c openssh-10.0p1-banan_os/hostfile.c
---- openssh-10.0p1/hostfile.c	2025-04-09 10:02:43.000000000 +0300
-+++ openssh-10.0p1-banan_os/hostfile.c	2025-08-16 20:14:26.350235777 +0300
-@@ -44,7 +44,6 @@
+diff -ruN openssh-10.2p1/hostfile.c openssh-10.2p1-banan_os/hostfile.c
+--- openssh-10.2p1/hostfile.c	2025-10-10 05:38:31.000000000 +0300
++++ openssh-10.2p1-banan_os/hostfile.c	2025-11-10 00:25:55.529325827 +0200
+@@ -44,7 +44,9 @@
  #include <netinet/in.h>
  
  #include <errno.h>
--#include <resolv.h>
++#ifndef __banan_os__
+ #include <resolv.h>
++#endif
  #include <stdarg.h>
  #include <stdio.h>
  #include <stdlib.h>
-diff -ru openssh-10.0p1/includes.h openssh-10.0p1-banan_os/includes.h
---- openssh-10.0p1/includes.h	2025-04-09 10:02:43.000000000 +0300
-+++ openssh-10.0p1-banan_os/includes.h	2025-08-16 20:14:26.350610199 +0300
-@@ -112,7 +112,6 @@
- #endif
+diff -ruN openssh-10.2p1/misc.c openssh-10.2p1-banan_os/misc.c
+--- openssh-10.2p1/misc.c	2025-10-10 05:38:31.000000000 +0300
++++ openssh-10.2p1-banan_os/misc.c	2025-11-10 00:25:55.530335947 +0200
+@@ -44,7 +44,9 @@
  
  #include <netinet/in.h>
--#include <netinet/in_systm.h> /* For typedefs */
- #ifdef HAVE_RPC_TYPES_H
- # include <rpc/types.h> /* For INADDR_LOOPBACK */
- #endif
-diff -ru openssh-10.0p1/misc.c openssh-10.0p1-banan_os/misc.c
---- openssh-10.0p1/misc.c	2025-04-09 10:02:43.000000000 +0300
-+++ openssh-10.0p1-banan_os/misc.c	2025-08-16 20:16:09.651677904 +0300
-@@ -51,8 +51,6 @@
- #include <unistd.h>
- 
- #include <netinet/in.h>
--#include <netinet/in_systm.h>
--#include <netinet/ip.h>
+ #include <netinet/in_systm.h>
++#ifndef __banan_os__
+ #include <netinet/ip.h>
++#endif
  #include <netinet/tcp.h>
  #include <arpa/inet.h>
  
-@@ -68,6 +66,9 @@
- #ifdef SSH_TUN_OPENBSD
- #include <net/if.h>
- #endif
-+#ifdef __banan_os__
-+#include <grp.h>
-+#endif
- 
- #include "xmalloc.h"
- #include "misc.h"
-diff -ru openssh-10.0p1/openbsd-compat/getrrsetbyname.h openssh-10.0p1-banan_os/openbsd-compat/getrrsetbyname.h
---- openssh-10.0p1/openbsd-compat/getrrsetbyname.h	2025-04-09 10:02:43.000000000 +0300
-+++ openssh-10.0p1-banan_os/openbsd-compat/getrrsetbyname.h	2025-08-16 20:14:26.351590289 +0300
-@@ -54,9 +54,7 @@
+diff -ruN openssh-10.2p1/openbsd-compat/getrrsetbyname.h openssh-10.2p1-banan_os/openbsd-compat/getrrsetbyname.h
+--- openssh-10.2p1/openbsd-compat/getrrsetbyname.h	2025-10-10 05:38:31.000000000 +0300
++++ openssh-10.2p1-banan_os/openbsd-compat/getrrsetbyname.h	2025-11-10 00:32:52.008821871 +0200
+@@ -54,9 +54,13 @@
  
  #include <sys/types.h>
  #include <netinet/in.h>
--#include <arpa/nameser.h>
++#ifndef __banan_os__
+ #include <arpa/nameser.h>
++#endif
  #include <netdb.h>
--#include <resolv.h>
++#ifndef __banan_os__
+ #include <resolv.h>
++#endif
  
  #ifndef HFIXEDSZ
  #define HFIXEDSZ 12
-diff -ru openssh-10.0p1/openbsd-compat/inet_ntop.c openssh-10.0p1-banan_os/openbsd-compat/inet_ntop.c
---- openssh-10.0p1/openbsd-compat/inet_ntop.c	2025-04-09 10:02:43.000000000 +0300
-+++ openssh-10.0p1-banan_os/openbsd-compat/inet_ntop.c	2025-08-16 20:14:26.351822164 +0300
-@@ -26,7 +26,6 @@
- #include <sys/socket.h>
- #include <netinet/in.h>
- #include <arpa/inet.h>
--#include <arpa/nameser.h>
- #include <string.h>
- #include <errno.h>
- #include <stdio.h>
-diff -ru openssh-10.0p1/openbsd-compat/port-net.c openssh-10.0p1-banan_os/openbsd-compat/port-net.c
---- openssh-10.0p1/openbsd-compat/port-net.c	2025-04-09 10:02:43.000000000 +0300
-+++ openssh-10.0p1-banan_os/openbsd-compat/port-net.c	2025-08-16 20:14:26.352077855 +0300
-@@ -21,7 +21,6 @@
+diff -ruN openssh-10.2p1/openbsd-compat/port-net.c openssh-10.2p1-banan_os/openbsd-compat/port-net.c
+--- openssh-10.2p1/openbsd-compat/port-net.c	2025-10-10 05:38:31.000000000 +0300
++++ openssh-10.2p1-banan_os/openbsd-compat/port-net.c	2025-11-10 00:32:48.609674523 +0200
+@@ -21,7 +21,9 @@
  
  #include <netinet/in.h>
  #include <arpa/inet.h>
--#include <netinet/ip.h>
++#ifndef __banan_os__
+ #include <netinet/ip.h>
++#endif
  
  #include <errno.h>
  #include <fcntl.h>
-diff -ru openssh-10.0p1/packet.c openssh-10.0p1-banan_os/packet.c
---- openssh-10.0p1/packet.c	2025-04-09 10:02:43.000000000 +0300
-+++ openssh-10.0p1-banan_os/packet.c	2025-08-16 20:14:26.352524144 +0300
-@@ -47,7 +47,6 @@
- #endif
+diff -ruN openssh-10.2p1/packet.c openssh-10.2p1-banan_os/packet.c
+--- openssh-10.2p1/packet.c	2025-10-10 05:38:31.000000000 +0300
++++ openssh-10.2p1-banan_os/packet.c	2025-11-10 00:25:55.530874776 +0200
+@@ -45,7 +45,9 @@
+ #include <sys/time.h>
  
  #include <netinet/in.h>
--#include <netinet/ip.h>
++#ifndef __banan_os__
+ #include <netinet/ip.h>
++#endif
  #include <arpa/inet.h>
  
  #include <errno.h>
-diff -ru openssh-10.0p1/readconf.c openssh-10.0p1-banan_os/readconf.c
---- openssh-10.0p1/readconf.c	2025-04-09 10:02:43.000000000 +0300
-+++ openssh-10.0p1-banan_os/readconf.c	2025-08-16 20:14:26.353220466 +0300
-@@ -22,8 +22,6 @@
- 
+diff -ruN openssh-10.2p1/readconf.c openssh-10.2p1-banan_os/readconf.c
+--- openssh-10.2p1/readconf.c	2025-10-10 05:38:31.000000000 +0300
++++ openssh-10.2p1-banan_os/readconf.c	2025-11-10 00:25:55.531356125 +0200
+@@ -23,7 +23,9 @@
  #include <net/if.h>
  #include <netinet/in.h>
--#include <netinet/in_systm.h>
--#include <netinet/ip.h>
+ #include <netinet/in_systm.h>
++#ifndef __banan_os__
+ #include <netinet/ip.h>
++#endif
  #include <arpa/inet.h>
  
  #include <ctype.h>
-diff -ru openssh-10.0p1/regress/netcat.c openssh-10.0p1-banan_os/regress/netcat.c
---- openssh-10.0p1/regress/netcat.c	2025-04-09 10:02:43.000000000 +0300
-+++ openssh-10.0p1-banan_os/regress/netcat.c	2025-08-16 20:14:26.354220461 +0300
-@@ -41,7 +41,6 @@
+diff -ruN openssh-10.2p1/servconf.c openssh-10.2p1-banan_os/servconf.c
+--- openssh-10.2p1/servconf.c	2025-10-10 05:38:31.000000000 +0300
++++ openssh-10.2p1-banan_os/servconf.c	2025-11-10 00:25:55.531957951 +0200
+@@ -21,7 +21,9 @@
  
  #include <netinet/in.h>
- #include <netinet/tcp.h>
--#include <netinet/ip.h>
- 
- #include <errno.h>
- #include <fcntl.h>
-diff -ru openssh-10.0p1/servconf.c openssh-10.0p1-banan_os/servconf.c
---- openssh-10.0p1/servconf.c	2025-04-09 10:02:43.000000000 +0300
-+++ openssh-10.0p1-banan_os/servconf.c	2025-08-16 20:14:26.355220456 +0300
-@@ -20,8 +20,6 @@
- #endif
- 
- #include <netinet/in.h>
--#include <netinet/in_systm.h>
--#include <netinet/ip.h>
+ #include <netinet/in_systm.h>
++#ifndef __banan_os__
+ #include <netinet/ip.h>
++#endif
  #ifdef HAVE_NET_ROUTE_H
  #include <net/route.h>
  #endif
-diff -ru openssh-10.0p1/sshbuf-misc.c openssh-10.0p1-banan_os/sshbuf-misc.c
---- openssh-10.0p1/sshbuf-misc.c	2025-04-09 10:02:43.000000000 +0300
-+++ openssh-10.0p1-banan_os/sshbuf-misc.c	2025-08-16 20:14:26.355717380 +0300
-@@ -28,7 +28,6 @@
+diff -ruN openssh-10.2p1/sshbuf-misc.c openssh-10.2p1-banan_os/sshbuf-misc.c
+--- openssh-10.2p1/sshbuf-misc.c	2025-10-10 05:38:31.000000000 +0300
++++ openssh-10.2p1-banan_os/sshbuf-misc.c	2025-11-10 00:25:55.533313578 +0200
+@@ -26,7 +26,9 @@
  #include <stdio.h>
  #include <limits.h>
  #include <string.h>
--#include <resolv.h>
++#ifndef __banan_os__
+ #include <resolv.h>
++#endif
  #include <ctype.h>
  #include <unistd.h>
  
-diff -ru openssh-10.0p1/sshkey.c openssh-10.0p1-banan_os/sshkey.c
---- openssh-10.0p1/sshkey.c	2025-04-09 10:02:43.000000000 +0300
-+++ openssh-10.0p1-banan_os/sshkey.c	2025-08-16 20:14:26.356220450 +0300
-@@ -44,7 +44,6 @@
+diff -ruN openssh-10.2p1/sshkey.c openssh-10.2p1-banan_os/sshkey.c
+--- openssh-10.2p1/sshkey.c	2025-10-10 05:38:31.000000000 +0300
++++ openssh-10.2p1-banan_os/sshkey.c	2025-11-10 00:25:55.558750345 +0200
+@@ -45,7 +45,9 @@
  #include <stdio.h>
  #include <stdlib.h>
  #include <string.h>
--#include <resolv.h>
++#ifndef __banan_os__
+ #include <resolv.h>
++#endif
  #include <time.h>
- #ifdef HAVE_UTIL_H
  #include <util.h>
+ 

@@ -1,27 +1,27 @@
-diff -ru openssh-10.0p1/dns.c openssh-10.0p1-banan_os/dns.c
---- openssh-10.0p1/dns.c	2025-04-09 10:02:43.000000000 +0300
-+++ openssh-10.0p1-banan_os/dns.c	2025-08-16 20:44:41.318879222 +0300
-@@ -220,6 +220,11 @@
+diff -ruN openssh-10.2p1/dns.c openssh-10.2p1-banan_os/dns.c
+--- openssh-10.2p1/dns.c	2025-10-10 05:38:31.000000000 +0300
++++ openssh-10.2p1-banan_os/dns.c	2025-11-10 00:25:55.528576914 +0200
+@@ -214,6 +214,11 @@
  		return -1;
  	}
  
 +#ifdef __banan_os__
-+	debug("TODO: verify_host_key_dns");
++	debug("skipped host key verification on banan-os");
 +	return -1;
 +#endif
 +
  	result = getrrsetbyname(hostname, DNS_RDATACLASS_IN,
  	    DNS_RDATATYPE_SSHFP, 0, &fingerprints);
  	if (result) {
-diff -ru openssh-10.0p1/openbsd-compat/getrrsetbyname.c openssh-10.0p1-banan_os/openbsd-compat/getrrsetbyname.c
---- openssh-10.0p1/openbsd-compat/getrrsetbyname.c	2025-04-09 10:02:43.000000000 +0300
-+++ openssh-10.0p1-banan_os/openbsd-compat/getrrsetbyname.c	2025-08-16 20:39:16.773645998 +0300
+diff -ruN openssh-10.2p1/openbsd-compat/getrrsetbyname.c openssh-10.2p1-banan_os/openbsd-compat/getrrsetbyname.c
+--- openssh-10.2p1/openbsd-compat/getrrsetbyname.c	2025-10-10 05:38:31.000000000 +0300
++++ openssh-10.2p1-banan_os/openbsd-compat/getrrsetbyname.c	2025-11-10 00:32:48.607686968 +0200
 @@ -47,7 +47,7 @@
  
  #include "includes.h"
  
 -#if !defined (HAVE_GETRRSETBYNAME) && !defined (HAVE_LDNS)
-+#if !defined (HAVE_GETRRSETBYNAME) && !defined (HAVE_LDNS) && !defined(__banan_os__)
++#if !defined (HAVE_GETRRSETBYNAME) && !defined (HAVE_LDNS) && !defined (__banan_os__)
  
  #include <stdlib.h>
  #include <string.h>

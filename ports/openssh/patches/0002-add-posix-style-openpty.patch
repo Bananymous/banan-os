@@ -1,7 +1,7 @@
 diff -ru openssh-10.0p1/openbsd-compat/bsd-openpty.c openssh-10.0p1-banan_os/openbsd-compat/bsd-openpty.c
 --- openssh-10.0p1/openbsd-compat/bsd-openpty.c	2025-04-09 10:02:43.000000000 +0300
 +++ openssh-10.0p1-banan_os/openbsd-compat/bsd-openpty.c	2025-08-16 21:40:00.830440398 +0300
-@@ -192,6 +192,26 @@
+@@ -188,6 +188,26 @@
  	}
  	return (0);
  
