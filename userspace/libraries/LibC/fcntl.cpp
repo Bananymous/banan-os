@@ -40,7 +40,7 @@ int fcntl(int fildes, int cmd, ...)
 
 	va_list args;
 	va_start(args, cmd);
-	int extra = va_arg(args, int);
+	uintptr_t extra = va_arg(args, uintptr_t);
 	va_end(args);
 
 	return syscall(SYS_FCNTL, fildes, cmd, extra);

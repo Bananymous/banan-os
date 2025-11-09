@@ -217,7 +217,7 @@ namespace Kernel
 		return fildes;
 	}
 
-	BAN::ErrorOr<int> OpenFileDescriptorSet::fcntl(int fd, int cmd, int extra)
+	BAN::ErrorOr<int> OpenFileDescriptorSet::fcntl(int fd, int cmd, uintptr_t extra)
 	{
 		LockGuard _(m_mutex);
 

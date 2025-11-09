@@ -149,7 +149,7 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_pipe(int fildes[2]);
 		BAN::ErrorOr<long> sys_dup2(int fildes, int fildes2);
 
-		BAN::ErrorOr<long> sys_fcntl(int fildes, int cmd, int extra);
+		BAN::ErrorOr<long> sys_fcntl(int fildes, int cmd, uintptr_t extra);
 
 		BAN::ErrorOr<long> sys_seek(int fd, off_t offset, int whence);
 		BAN::ErrorOr<long> sys_tell(int fd);
