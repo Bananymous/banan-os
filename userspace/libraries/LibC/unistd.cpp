@@ -431,6 +431,11 @@ int execvp(const char* pathname, char* const argv[])
 	return exec_impl(pathname, argv, environ, true);
 }
 
+int execvpe(const char* pathname, char* const argv[], char* const envp[])
+{
+	return exec_impl(pathname, argv, envp, true);
+}
+
 pid_t fork(void)
 {
 	_pthread_call_atfork(_PTHREAD_ATFORK_PREPARE);

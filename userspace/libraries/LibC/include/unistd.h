@@ -530,6 +530,7 @@ int					execlp(const char* file, const char* arg0, ...);
 int					execv(const char* path, char* const argv[]);
 int					execve(const char* path, char* const argv[], char* const envp[]);
 int					execvp(const char* file, char* const argv[]);
+int					execvpe(const char* file, char* const argv[], char* const envp[]);
 int					faccessat(int fd, const char* path, int amode, int flag);
 int					fchdir(int fildes);
 int					fchown(int fildes, uid_t owner, gid_t group);
