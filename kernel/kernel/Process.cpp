@@ -2218,23 +2218,46 @@ namespace Kernel
 		else
 			page_flags |= PageTable::Flags::UserSupervisor;
 
+		LockGuard _(m_process_lock);
+
 		AddressRange address_range { .start = 0x400000, .end = USERSPACE_END };
 		if (args.flags & MAP_FIXED)
 		{
-			vaddr_t base_addr = reinterpret_cast<vaddr_t>(args.addr);
-			address_range.start = BAN::Math::div_round_up<vaddr_t>(base_addr, PAGE_SIZE) * PAGE_SIZE;
-			address_range.end = BAN::Math::div_round_up<vaddr_t>(base_addr + args.len, PAGE_SIZE) * PAGE_SIZE;
+			const vaddr_t vaddr = reinterpret_cast<vaddr_t>(args.addr);
+			if (vaddr % PAGE_SIZE)
+				return BAN::Error::from_errno(EINVAL);
+			address_range = {
+				.start = vaddr,
+				.end = vaddr + args.len,
+			};
 
 			for (size_t i = 0; i < m_mapped_regions.size(); i++)
 			{
-				if (!m_mapped_regions[i]->overlaps(base_addr, args.len))
+				if (!m_mapped_regions[i]->overlaps(vaddr, args.len))
 					continue;
-				if (!m_mapped_regions[i]->contains_fully(base_addr, args.len))
+				if (!m_mapped_regions[i]->contains_fully(vaddr, args.len))
 					derrorln("VERY BROKEN MAP_FIXED UNMAP");
 				m_mapped_regions[i]->wait_not_pinned();
 				m_mapped_regions.remove(i--);
 			}
+		}
 
+		if (const vaddr_t vaddr = reinterpret_cast<vaddr_t>(args.addr); vaddr == 0)
+			;
+		else if (vaddr % PAGE_SIZE)
+			;
+		else if (!PageTable::is_valid_pointer(vaddr))
+			;
+		else if (!PageTable::is_valid_pointer(vaddr + args.len))
+			;
+		else if (!page_table().is_range_free(vaddr, args.len))
+			;
+		else
+		{
+			address_range = {
+				.start = vaddr,
+				.end = vaddr + args.len,
+			};
 		}
 
 		if (args.flags & MAP_ANONYMOUS)
@@ -2250,12 +2273,9 @@ namespace Kernel
 				O_EXEC | O_RDWR
 			));
 
-			LockGuard _(m_process_lock);
 			TRY(m_mapped_regions.push_back(BAN::move(region)));
 			return m_mapped_regions.back()->vaddr();
 		}
-
-		LockGuard _(m_process_lock);
 
 		auto inode = TRY(m_open_file_descriptors.inode_of(args.fildes));
 
