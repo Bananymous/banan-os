@@ -19,13 +19,13 @@ _start:
 
 	movq %rdx, %rdi # environ
 
-	pushq $__fini_array_end
-	pushq $__fini_array_start
-	pushq $_fini
+	leaq __fini_array_end(%rip), %rax;   pushq %rax
+	leaq __fini_array_start(%rip), %rax; pushq %rax
+	leaq _fini(%rip), %rax;              pushq %rax
 
-	pushq $__init_array_end
-	pushq $__init_array_start
-	pushq $_init
+	leaq __init_array_end(%rip), %rax;   pushq %rax
+	leaq __init_array_start(%rip), %rax; pushq %rax
+	leaq _init(%rip), %rax;              pushq %rax
 
 	call _init_libc
 
