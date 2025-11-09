@@ -10,12 +10,13 @@ __BEGIN_DECLS
 #include <bits/inet_common.h>
 #include <sys/socket.h>
 
-#define IPPROTO_IP   1
-#define IPPROTO_IPV6 2
-#define IPPROTO_ICMP 3
-#define IPPROTO_RAW  4
-#define IPPROTO_TCP  5
-#define IPPROTO_UDP  6
+#define IPPROTO_IP     1
+#define IPPROTO_IPV6   2
+#define IPPROTO_ICMP   3
+#define IPPROTO_ICMPV6 4
+#define IPPROTO_RAW    5
+#define IPPROTO_TCP    6
+#define IPPROTO_UDP    7
 
 enum
 {
@@ -35,6 +36,8 @@ enum
 #define IP_MULTICAST_TTL IP_MULTICAST_TTL
 	IP_TTL,
 #define IP_TTL IP_TTL
+	IP_TOS,
+#define IP_TOS IP_TOS
 };
 
 enum
