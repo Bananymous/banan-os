@@ -67,8 +67,8 @@ __BEGIN_DECLS
 	O(SYS_SOCKET,			socket)			\
 	O(SYS_SOCKETPAIR,		socketpair)		\
 	O(SYS_BIND,				bind)			\
-	O(SYS_SENDTO,			sendto)			\
-	O(SYS_RECVFROM,			recvfrom)		\
+	O(SYS_RECVMSG,			recvmsg)		\
+	O(SYS_SENDMSG,			sendmsg)		\
 	O(SYS_IOCTL,			ioctl)			\
 	O(SYS_ACCEPT,			accept)			\
 	O(SYS_CONNECT,			connect)		\

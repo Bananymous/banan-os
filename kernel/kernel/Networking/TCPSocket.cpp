@@ -190,8 +190,20 @@ namespace Kernel
 		return m_network_layer.bind_socket_to_address(this, address, address_len);
 	}
 
-	BAN::ErrorOr<size_t> TCPSocket::recvfrom_impl(BAN::ByteSpan buffer, sockaddr*, socklen_t*)
+	BAN::ErrorOr<size_t> TCPSocket::recvmsg_impl(msghdr& message, int flags)
 	{
+		if (flags != 0)
+		{
+			dwarnln("TODO: recvmsg with flags 0x{H}", flags);
+			return BAN::Error::from_errno(ENOTSUP);
+		}
+
+		if (CMSG_FIRSTHDR(&message))
+		{
+			dwarnln("ignoring recvmsg control message");
+			message.msg_controllen = 0;
+		}
+
 		if (!m_has_connected)
 			return BAN::Error::from_errno(ENOTCONN);
 
@@ -202,26 +214,38 @@ namespace Kernel
 			TRY(Thread::current().block_or_eintr_indefinite(m_thread_blocker, &m_mutex));
 		}
 
-		const uint32_t to_recv = BAN::Math::min<uint32_t>(buffer.size(), m_recv_window.data_size);
+		size_t total_recv = 0;
+		for (int i = 0; i < message.msg_iovlen; i++)
+		{
+			auto* recv_buffer = reinterpret_cast<uint8_t*>(m_recv_window.buffer->vaddr());
 
-		auto* recv_buffer = reinterpret_cast<uint8_t*>(m_recv_window.buffer->vaddr());
-		memcpy(buffer.data(), recv_buffer, to_recv);
+			const size_t nrecv = BAN::Math::min<size_t>(message.msg_iov[i].iov_len, m_recv_window.data_size);
+			memcpy(message.msg_iov[i].iov_base, recv_buffer, nrecv);
 
-		m_recv_window.data_size -= to_recv;
-		m_recv_window.start_seq += to_recv;
-		if (m_recv_window.data_size > 0)
-			memmove(recv_buffer, recv_buffer + to_recv, m_recv_window.data_size);
+			total_recv += nrecv;
+			m_recv_window.data_size -= nrecv;
+			m_recv_window.start_seq += nrecv;
+			if (m_recv_window.data_size == 0)
+				break;
 
-		return to_recv;
+			// TODO: use circular buffer to avoid this
+			memmove(recv_buffer, recv_buffer + nrecv, m_recv_window.data_size);
+		}
+
+		return total_recv;
 	}
 
-	BAN::ErrorOr<size_t> TCPSocket::sendto_impl(BAN::ConstByteSpan message, const sockaddr* address, socklen_t address_len)
+	BAN::ErrorOr<size_t> TCPSocket::sendmsg_impl(const msghdr& message, int flags)
 	{
-		(void)address;
-		(void)address_len;
+		if (flags != 0)
+		{
+			dwarnln("TODO: sendmsg with flags 0x{H}", flags);
+			return BAN::Error::from_errno(ENOTSUP);
+		}
 
-		if (address)
-			return BAN::Error::from_errno(EISCONN);
+		if (CMSG_FIRSTHDR(&message))
+			dwarnln("ignoring sendmsg control message");
+
 		if (!m_has_connected)
 			return BAN::Error::from_errno(ENOTCONN);
 
@@ -232,17 +256,23 @@ namespace Kernel
 			TRY(Thread::current().block_or_eintr_indefinite(m_thread_blocker, &m_mutex));
 		}
 
-		const size_t to_send = BAN::Math::min<size_t>(message.size(), m_send_window.buffer->size() - m_send_window.data_size);
-
+		size_t total_sent = 0;
+		for (int i = 0; i < message.msg_iovlen; i++)
 		{
-			auto* buffer = reinterpret_cast<uint8_t*>(m_send_window.buffer->vaddr());
-			memcpy(buffer + m_send_window.data_size, message.data(), to_send);
-			m_send_window.data_size += to_send;
+			auto* send_buffer = reinterpret_cast<uint8_t*>(m_send_window.buffer->vaddr());
+
+			const size_t nsend = BAN::Math::min<size_t>(message.msg_iov[i].iov_len, m_send_window.buffer->size() - m_send_window.data_size);
+			memcpy(send_buffer + m_send_window.data_size, message.msg_iov[i].iov_base, nsend);
+
+			total_sent += nsend;
+			m_send_window.data_size += nsend;
+			if (m_send_window.data_size == m_send_window.buffer->size())
+				break;
 		}
 
 		m_thread_blocker.unblock();
 
-		return to_send;
+		return total_sent;
 	}
 
 	BAN::ErrorOr<void> TCPSocket::getpeername_impl(sockaddr* address, socklen_t* address_len)

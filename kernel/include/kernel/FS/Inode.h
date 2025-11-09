@@ -108,8 +108,8 @@ namespace Kernel
 		BAN::ErrorOr<void> bind(const sockaddr* address, socklen_t address_len);
 		BAN::ErrorOr<void> connect(const sockaddr* address, socklen_t address_len);
 		BAN::ErrorOr<void> listen(int backlog);
-		BAN::ErrorOr<size_t> sendto(BAN::ConstByteSpan message, const sockaddr* address, socklen_t address_len);
-		BAN::ErrorOr<size_t> recvfrom(BAN::ByteSpan buffer, sockaddr* address, socklen_t* address_len);
+		BAN::ErrorOr<size_t> sendmsg(const msghdr& message, int flags);
+		BAN::ErrorOr<size_t> recvmsg(msghdr& message, int flags);
 		BAN::ErrorOr<void> getsockname(sockaddr* address, socklen_t* address_len);
 		BAN::ErrorOr<void> getpeername(sockaddr* address, socklen_t* address_len);
 
@@ -155,8 +155,8 @@ namespace Kernel
 		virtual BAN::ErrorOr<void> connect_impl(const sockaddr*, socklen_t)							{ return BAN::Error::from_errno(ENOTSUP); }
 		virtual BAN::ErrorOr<void> listen_impl(int)													{ return BAN::Error::from_errno(ENOTSUP); }
 		virtual BAN::ErrorOr<void> bind_impl(const sockaddr*, socklen_t)							{ return BAN::Error::from_errno(ENOTSUP); }
-		virtual BAN::ErrorOr<size_t> sendto_impl(BAN::ConstByteSpan, const sockaddr*, socklen_t)	{ return BAN::Error::from_errno(ENOTSUP); }
-		virtual BAN::ErrorOr<size_t> recvfrom_impl(BAN::ByteSpan, sockaddr*, socklen_t*)			{ return BAN::Error::from_errno(ENOTSUP); }
+		virtual BAN::ErrorOr<size_t> recvmsg_impl(msghdr&, int)										{ return BAN::Error::from_errno(ENOTSUP); }
+		virtual BAN::ErrorOr<size_t> sendmsg_impl(const msghdr&, int)								{ return BAN::Error::from_errno(ENOTSUP); }
 		virtual BAN::ErrorOr<void> getsockname_impl(sockaddr*, socklen_t*)							{ return BAN::Error::from_errno(ENOTSUP); }
 		virtual BAN::ErrorOr<void> getpeername_impl(sockaddr*, socklen_t*)							{ return BAN::Error::from_errno(ENOTSUP); }
 

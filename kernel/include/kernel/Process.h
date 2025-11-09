@@ -134,8 +134,8 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_bind(int socket, const sockaddr* address, socklen_t address_len);
 		BAN::ErrorOr<long> sys_connect(int socket, const sockaddr* address, socklen_t address_len);
 		BAN::ErrorOr<long> sys_listen(int socket, int backlog);
-		BAN::ErrorOr<long> sys_sendto(const sys_sendto_t*);
-		BAN::ErrorOr<long> sys_recvfrom(sys_recvfrom_t*);
+		BAN::ErrorOr<long> sys_recvmsg(int socket, msghdr* message, int flags);
+		BAN::ErrorOr<long> sys_sendmsg(int socket, const msghdr* message, int flags);
 
 		BAN::ErrorOr<long> sys_ioctl(int fildes, int request, void* arg);
 

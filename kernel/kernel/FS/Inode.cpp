@@ -176,21 +176,21 @@ namespace Kernel
 		return listen_impl(backlog);
 	}
 
-	BAN::ErrorOr<size_t> Inode::sendto(BAN::ConstByteSpan message, const sockaddr* address, socklen_t address_len)
+	BAN::ErrorOr<size_t> Inode::recvmsg(msghdr& message, int flags)
 	{
 		LockGuard _(m_mutex);
 		if (!mode().ifsock())
 			return BAN::Error::from_errno(ENOTSOCK);
-		return sendto_impl(message, address, address_len);
-	};
+		return recvmsg_impl(message, flags);
+	}
 
-	BAN::ErrorOr<size_t> Inode::recvfrom(BAN::ByteSpan buffer, sockaddr* address, socklen_t* address_len)
+	BAN::ErrorOr<size_t> Inode::sendmsg(const msghdr& message, int flags)
 	{
 		LockGuard _(m_mutex);
 		if (!mode().ifsock())
 			return BAN::Error::from_errno(ENOTSOCK);
-		return recvfrom_impl(buffer, address, address_len);
-	};
+		return sendmsg_impl(message, flags);
+	}
 
 	BAN::ErrorOr<void> Inode::getsockname(sockaddr* address, socklen_t* address_len)
 	{

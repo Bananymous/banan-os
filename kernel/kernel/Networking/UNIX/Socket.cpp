@@ -1,6 +1,7 @@
 #include <BAN/HashMap.h>
+
 #include <kernel/FS/VirtualFileSystem.h>
-#include <kernel/Lock/SpinLockAsMutex.h>
+#include <kernel/Lock/LockGuard.h>
 #include <kernel/Networking/NetworkManager.h>
 #include <kernel/Networking/UNIX/Socket.h>
 #include <kernel/Process.h>
@@ -22,9 +23,27 @@ namespace Kernel
 	};
 
 	static BAN::HashMap<BAN::RefPtr<Inode>, BAN::WeakPtr<UnixDomainSocket>, UnixSocketHash> s_bound_sockets;
-	static SpinLock s_bound_socket_lock;
+	static Mutex s_bound_socket_lock;
 
 	static constexpr size_t s_packet_buffer_size = 10 * PAGE_SIZE;
+
+	static BAN::ErrorOr<BAN::StringView> validate_sockaddr_un(const sockaddr* address, socklen_t address_len)
+	{
+		if (address_len < static_cast<socklen_t>(sizeof(sa_family_t)))
+			return BAN::Error::from_errno(EINVAL);
+		if (address_len > static_cast<socklen_t>(sizeof(sockaddr_un)))
+			address_len = sizeof(sockaddr_un);
+
+		const auto& sockaddr_un = *reinterpret_cast<const struct sockaddr_un*>(address);
+		if (sockaddr_un.sun_family != AF_UNIX)
+			return BAN::Error::from_errno(EINVAL);
+
+		size_t length = 0;
+		while (length < address_len - sizeof(sa_family_t) && sockaddr_un.sun_path[length])
+			length++;
+
+		return BAN::StringView { sockaddr_un.sun_path, length };
+	}
 
 	// FIXME: why is this using spinlocks instead of mutexes??
 
@@ -64,7 +83,7 @@ namespace Kernel
 	{
 		if (is_bound() && !is_bound_to_unused())
 		{
-			SpinLockGuard _(s_bound_socket_lock);
+			LockGuard _(s_bound_socket_lock);
 			s_bound_sockets.remove(m_bound_file.inode);
 		}
 		if (m_info.has<ConnectionInfo>())
@@ -105,11 +124,9 @@ namespace Kernel
 		BAN::RefPtr<UnixDomainSocket> pending;
 
 		{
-			SpinLockGuard guard(connection_info.pending_lock);
-
-			SpinLockGuardAsMutex smutex(guard);
+			LockGuard _(connection_info.pending_lock);
 			while (connection_info.pending_connections.empty())
-				TRY(Thread::current().block_or_eintr_indefinite(connection_info.pending_thread_blocker, &smutex));
+				TRY(Thread::current().block_or_eintr_indefinite(connection_info.pending_thread_blocker, &connection_info.pending_lock));
 
 			pending = connection_info.pending_connections.front();
 			connection_info.pending_connections.pop();
@@ -146,15 +163,11 @@ namespace Kernel
 
 	BAN::ErrorOr<void> UnixDomainSocket::connect_impl(const sockaddr* address, socklen_t address_len)
 	{
-		if (address_len != sizeof(sockaddr_un))
-			return BAN::Error::from_errno(EINVAL);
-		auto& sockaddr_un = *reinterpret_cast<const struct sockaddr_un*>(address);
-		if (sockaddr_un.sun_family != AF_UNIX)
-			return BAN::Error::from_errno(EAFNOSUPPORT);
+		const auto sun_path = TRY(validate_sockaddr_un(address, address_len));
 		if (!is_bound())
 			TRY(m_bound_file.canonical_path.push_back('X'));
 
-		auto absolute_path = TRY(Process::current().absolute_path_of(sockaddr_un.sun_path));
+		auto absolute_path = TRY(Process::current().absolute_path_of(sun_path));
 		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(
 			Process::current().root_file().inode,
 			Process::current().credentials(),
@@ -165,7 +178,7 @@ namespace Kernel
 		BAN::RefPtr<UnixDomainSocket> target;
 
 		{
-			SpinLockGuard _(s_bound_socket_lock);
+			LockGuard _(s_bound_socket_lock);
 			auto it = s_bound_sockets.find(file.inode);
 			if (it == s_bound_sockets.end())
 				return BAN::Error::from_errno(ECONNREFUSED);
@@ -196,7 +209,7 @@ namespace Kernel
 		{
 			auto& target_info = target->m_info.get<ConnectionInfo>();
 
-			SpinLockGuard guard(target_info.pending_lock);
+			LockGuard _(target_info.pending_lock);
 
 			if (target_info.pending_connections.size() < target_info.pending_connections.capacity())
 			{
@@ -205,8 +218,7 @@ namespace Kernel
 				break;
 			}
 
-			SpinLockGuardAsMutex smutex(guard);
-			TRY(Thread::current().block_or_eintr_indefinite(target_info.pending_thread_blocker, &smutex));
+			TRY(Thread::current().block_or_eintr_indefinite(target_info.pending_thread_blocker, &target_info.pending_lock));
 		}
 
 		target->epoll_notify(EPOLLIN);
@@ -236,21 +248,16 @@ namespace Kernel
 	{
 		if (is_bound())
 			return BAN::Error::from_errno(EINVAL);
-		if (address_len != sizeof(sockaddr_un))
-			return BAN::Error::from_errno(EINVAL);
-		auto& sockaddr_un = *reinterpret_cast<const struct sockaddr_un*>(address);
-		if (sockaddr_un.sun_family != AF_UNIX)
-			return BAN::Error::from_errno(EAFNOSUPPORT);
 
-		auto bind_path = BAN::StringView(sockaddr_un.sun_path);
-		if (bind_path.empty())
+		const auto sun_path = TRY(validate_sockaddr_un(address, address_len));
+		if (sun_path.empty())
 			return BAN::Error::from_errno(EINVAL);
 
 		// FIXME: This feels sketchy
-		auto parent_file = bind_path.front() == '/'
+		auto parent_file = sun_path.front() == '/'
 			? TRY(Process::current().root_file().clone())
 			: TRY(Process::current().working_directory().clone());
-		if (auto ret = Process::current().create_file_or_dir(AT_FDCWD, bind_path.data(), 0755 | S_IFSOCK); ret.is_error())
+		if (auto ret = Process::current().create_file_or_dir(AT_FDCWD, sun_path.data(), 0755 | S_IFSOCK); ret.is_error())
 		{
 			if (ret.error().get_error_code() == EEXIST)
 				return BAN::Error::from_errno(EADDRINUSE);
@@ -260,11 +267,11 @@ namespace Kernel
 			Process::current().root_file().inode,
 			parent_file,
 			Process::current().credentials(),
-			bind_path,
+			sun_path,
 			O_RDWR
 		));
 
-		SpinLockGuard _(s_bound_socket_lock);
+		LockGuard _(s_bound_socket_lock);
 		if (s_bound_sockets.contains(file.inode))
 			return BAN::Error::from_errno(EADDRINUSE);
 		TRY(s_bound_sockets.emplace(file.inode, TRY(get_weak_ptr())));
@@ -287,21 +294,24 @@ namespace Kernel
 		}
 	}
 
-	BAN::ErrorOr<void> UnixDomainSocket::add_packet(BAN::ConstByteSpan packet)
+	BAN::ErrorOr<void> UnixDomainSocket::add_packet(const msghdr& packet, size_t total_size)
 	{
-		SpinLockGuard guard(m_packet_lock);
-		while (m_packet_sizes.full() || m_packet_size_total + packet.size() > s_packet_buffer_size)
-		{
-			SpinLockGuardAsMutex smutex(guard);
-			TRY(Thread::current().block_or_eintr_indefinite(m_packet_thread_blocker, &smutex));
-		}
+		LockGuard _(m_packet_lock);
+		while (m_packet_sizes.full() || m_packet_size_total + total_size > s_packet_buffer_size)
+			TRY(Thread::current().block_or_eintr_indefinite(m_packet_thread_blocker, &m_packet_lock));
 
 		uint8_t* packet_buffer = reinterpret_cast<uint8_t*>(m_packet_buffer->vaddr() + m_packet_size_total);
-		memcpy(packet_buffer, packet.data(), packet.size());
-		m_packet_size_total += packet.size();
 
-		if (!is_streaming())
-			m_packet_sizes.push(packet.size());
+		size_t offset = 0;
+		for (int i = 0; i < packet.msg_iovlen; i++)
+		{
+			memcpy(packet_buffer + offset, packet.msg_iov[i].iov_base, packet.msg_iov[i].iov_len);
+			offset += packet.msg_iov[i].iov_len;
+		}
+
+		ASSERT(offset == total_size);
+		m_packet_size_total += total_size;
+		m_packet_sizes.push(total_size);
 
 		m_packet_thread_blocker.unblock();
 
@@ -348,27 +358,105 @@ namespace Kernel
 		return false;
 	}
 
-	BAN::ErrorOr<size_t> UnixDomainSocket::sendto_impl(BAN::ConstByteSpan message, const sockaddr* address, socklen_t address_len)
+	BAN::ErrorOr<size_t> UnixDomainSocket::recvmsg_impl(msghdr& message, int flags)
 	{
-		if (message.size() > s_packet_buffer_size)
+		if (flags != 0)
+		{
+			dwarnln("TODO: recvmsg with flags 0x{H}", flags);
+			return BAN::Error::from_errno(ENOTSUP);
+		}
+
+		if (CMSG_FIRSTHDR(&message))
+		{
+			dwarnln("ignoring recvmsg control message");
+			message.msg_controllen = 0;
+		}
+
+		LockGuard _(m_packet_lock);
+		while (m_packet_size_total == 0)
+		{
+			if (m_info.has<ConnectionInfo>())
+			{
+				auto& connection_info = m_info.get<ConnectionInfo>();
+				bool expected = true;
+				if (connection_info.target_closed.compare_exchange(expected, false))
+					return 0;
+				if (!connection_info.connection)
+					return BAN::Error::from_errno(ENOTCONN);
+			}
+
+			TRY(Thread::current().block_or_eintr_indefinite(m_packet_thread_blocker, &m_packet_lock));
+		}
+
+		uint8_t* packet_buffer = reinterpret_cast<uint8_t*>(m_packet_buffer->vaddr());
+
+		const size_t max_recv_size = is_streaming() ? m_packet_size_total : m_packet_sizes.front();
+
+		size_t total_recv = 0;
+		for (int i = 0; i < message.msg_iovlen; i++)
+		{
+			const size_t nrecv = BAN::Math::min<size_t>(message.msg_iov[i].iov_len, max_recv_size - total_recv);
+			memcpy(message.msg_iov[i].iov_base, packet_buffer + total_recv, nrecv);
+			total_recv += nrecv;
+		}
+
+		size_t bytes_to_handle = total_recv;
+		while (bytes_to_handle)
+		{
+			const size_t to_handle = BAN::Math::min(bytes_to_handle, m_packet_sizes.front());
+			bytes_to_handle -= to_handle;
+			m_packet_sizes.front() -= to_handle;
+			if (m_packet_sizes.front() == 0)
+				m_packet_sizes.pop();
+		}
+
+		const size_t to_discard = is_streaming() ? total_recv : max_recv_size;
+		memmove(packet_buffer, packet_buffer + to_discard, m_packet_size_total - to_discard);
+		m_packet_size_total -= to_discard;
+
+		m_packet_thread_blocker.unblock();
+
+		epoll_notify(EPOLLOUT);
+
+		return total_recv;
+	}
+
+	BAN::ErrorOr<size_t> UnixDomainSocket::sendmsg_impl(const msghdr& message, int flags)
+	{
+		if (flags != 0)
+		{
+			dwarnln("TODO: sendmsg with flags 0x{H}", flags);
+			return BAN::Error::from_errno(ENOTSUP);
+		}
+
+		if (CMSG_FIRSTHDR(&message))
+			dwarnln("ignoring sendmsg control message");
+
+		const size_t total_message_size =
+			[&message]() -> size_t {
+				size_t result = 0;
+				for (int i = 0; i < message.msg_iovlen; i++)
+					result += message.msg_iov[i].iov_len;
+				return result;
+			}();
+
+		if (total_message_size > s_packet_buffer_size)
 			return BAN::Error::from_errno(ENOBUFS);
 
 		if (m_info.has<ConnectionInfo>())
 		{
 			auto& connection_info = m_info.get<ConnectionInfo>();
-			if (address)
-				return BAN::Error::from_errno(EISCONN);
 			auto target = connection_info.connection.lock();
 			if (!target)
 				return BAN::Error::from_errno(ENOTCONN);
-			TRY(target->add_packet(message));
-			return message.size();
+			TRY(target->add_packet(message, total_message_size));
+			return total_message_size;
 		}
 		else
 		{
 			BAN::RefPtr<Inode> target_inode;
 
-			if (!address)
+			if (!message.msg_name)
 			{
 				auto& connectionless_info = m_info.get<ConnectionlessInfo>();
 				if (connectionless_info.peer_address.empty())
@@ -384,13 +472,8 @@ namespace Kernel
 			}
 			else
 			{
-				if (address_len != sizeof(sockaddr_un))
-					return BAN::Error::from_errno(EINVAL);
-				auto& sockaddr_un = *reinterpret_cast<const struct sockaddr_un*>(address);
-				if (sockaddr_un.sun_family != AF_UNIX)
-					return BAN::Error::from_errno(EAFNOSUPPORT);
-
-				auto absolute_path = TRY(Process::current().absolute_path_of(sockaddr_un.sun_path));
+				const auto sun_path = TRY(validate_sockaddr_un(static_cast<sockaddr*>(message.msg_name), message.msg_namelen));
+				auto absolute_path = TRY(Process::current().absolute_path_of(sun_path));
 				target_inode = TRY(VirtualFileSystem::get().file_from_absolute_path(
 					Process::current().root_file().inode,
 					Process::current().credentials(),
@@ -399,57 +482,21 @@ namespace Kernel
 				)).inode;
 			}
 
-			SpinLockGuard _(s_bound_socket_lock);
-			auto it = s_bound_sockets.find(target_inode);
-			if (it == s_bound_sockets.end())
-				return BAN::Error::from_errno(EDESTADDRREQ);
-			auto target = it->value.lock();
-			if (!target)
-				return BAN::Error::from_errno(EDESTADDRREQ);
-			TRY(target->add_packet(message));
-			return message.size();
-		}
-	}
-
-	BAN::ErrorOr<size_t> UnixDomainSocket::recvfrom_impl(BAN::ByteSpan buffer, sockaddr*, socklen_t*)
-	{
-		SpinLockGuard guard(m_packet_lock);
-		while (m_packet_size_total == 0)
-		{
-			if (m_info.has<ConnectionInfo>())
+			BAN::RefPtr<UnixDomainSocket> target;
 			{
-				auto& connection_info = m_info.get<ConnectionInfo>();
-				bool expected = true;
-				if (connection_info.target_closed.compare_exchange(expected, false))
-					return 0;
-				if (!connection_info.connection)
-					return BAN::Error::from_errno(ENOTCONN);
+				LockGuard _(s_bound_socket_lock);
+				auto it = s_bound_sockets.find(target_inode);
+				if (it == s_bound_sockets.end())
+					return BAN::Error::from_errno(EDESTADDRREQ);
+				target = it->value.lock();
 			}
 
-			SpinLockGuardAsMutex smutex(guard);
-			TRY(Thread::current().block_or_eintr_indefinite(m_packet_thread_blocker, &smutex));
+			if (!target)
+				return BAN::Error::from_errno(EDESTADDRREQ);
+			TRY(target->add_packet(message, total_message_size));
+
+			return total_message_size;
 		}
-
-		uint8_t* packet_buffer = reinterpret_cast<uint8_t*>(m_packet_buffer->vaddr());
-
-		size_t nread = 0;
-		if (is_streaming())
-			nread = BAN::Math::min(buffer.size(), m_packet_size_total);
-		else
-		{
-			nread = BAN::Math::min(buffer.size(), m_packet_sizes.front());
-			m_packet_sizes.pop();
-		}
-
-		memcpy(buffer.data(), packet_buffer, nread);
-		memmove(packet_buffer, packet_buffer + nread, m_packet_size_total - nread);
-		m_packet_size_total -= nread;
-
-		m_packet_thread_blocker.unblock();
-
-		epoll_notify(EPOLLOUT);
-
-		return nread;
 	}
 
 	BAN::ErrorOr<void> UnixDomainSocket::getpeername_impl(sockaddr* address, socklen_t* address_len)

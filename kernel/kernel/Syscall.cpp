@@ -124,8 +124,8 @@ namespace Kernel
 			case SYS_WAIT:
 			case SYS_ACCEPT:
 			case SYS_CONNECT:
-			case SYS_RECVFROM:
-			case SYS_SENDTO:
+			case SYS_RECVMSG:
+			case SYS_SENDMSG:
 			case SYS_FLOCK:
 				return true;
 			default:

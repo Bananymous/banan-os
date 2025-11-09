@@ -86,8 +86,20 @@ namespace Kernel
 		return m_network_layer.bind_socket_to_address(this, address, address_len);
 	}
 
-	BAN::ErrorOr<size_t> UDPSocket::recvfrom_impl(BAN::ByteSpan buffer, sockaddr* address, socklen_t* address_len)
+	BAN::ErrorOr<size_t> UDPSocket::recvmsg_impl(msghdr& message, int flags)
 	{
+		if (flags != 0)
+		{
+			dwarnln("TODO: recvmsg with flags 0x{H}", flags);
+			return BAN::Error::from_errno(ENOTSUP);
+		}
+
+		if (CMSG_FIRSTHDR(&message))
+		{
+			dwarnln("ignoring recvmsg control message");
+			message.msg_controllen = 0;
+		}
+
 		if (!is_bound())
 		{
 			dprintln("No interface bound");
@@ -106,14 +118,16 @@ namespace Kernel
 		auto packet_info = m_packets.front();
 		m_packets.pop();
 
-		size_t nread = BAN::Math::min<size_t>(packet_info.packet_size, buffer.size());
+		auto* packet_buffer = reinterpret_cast<uint8_t*>(m_packet_buffer->vaddr());
 
-		uint8_t* packet_buffer = reinterpret_cast<uint8_t*>(m_packet_buffer->vaddr());
-		memcpy(
-			buffer.data(),
-			packet_buffer,
-			nread
-		);
+		size_t total_recv = 0;
+		for (int i = 0; i < message.msg_iovlen; i++)
+		{
+			const size_t nrecv = BAN::Math::min<size_t>(message.msg_iov[i].iov_len, packet_info.packet_size - total_recv);
+			memcpy(message.msg_iov[i].iov_base, packet_buffer + total_recv, nrecv);
+			total_recv += nrecv;
+		}
+
 		memmove(
 			packet_buffer,
 			packet_buffer + packet_info.packet_size,
@@ -122,21 +136,49 @@ namespace Kernel
 
 		m_packet_total_size -= packet_info.packet_size;
 
-		if (address && address_len)
+		if (message.msg_name && message.msg_namelen)
 		{
-			if (*address_len > (socklen_t)sizeof(sockaddr_storage))
-				*address_len = sizeof(sockaddr_storage);
-			memcpy(address, &packet_info.sender, *address_len);
+			const size_t namelen = BAN::Math::min<size_t>(message.msg_namelen, sizeof(sockaddr_storage));
+			memcpy(message.msg_name, &packet_info.sender, namelen);
+			message.msg_namelen = namelen;
 		}
 
-		return nread;
+		return total_recv;
 	}
 
-	BAN::ErrorOr<size_t> UDPSocket::sendto_impl(BAN::ConstByteSpan message, const sockaddr* address, socklen_t address_len)
+	BAN::ErrorOr<size_t> UDPSocket::sendmsg_impl(const msghdr& message, int flags)
 	{
+		if (flags != 0)
+		{
+			dwarnln("TODO: recvmsg with flags 0x{H}", flags);
+			return BAN::Error::from_errno(ENOTSUP);
+		}
+
+		if (CMSG_FIRSTHDR(&message))
+			dwarnln("ignoring recvmsg control message");
+
 		if (!is_bound())
-			TRY(m_network_layer.bind_socket_to_unused(this, address, address_len));
-		return TRY(m_network_layer.sendto(*this, message, address, address_len));
+			TRY(m_network_layer.bind_socket_to_unused(this, static_cast<sockaddr*>(message.msg_name), message.msg_namelen));
+
+		const size_t total_send_size =
+			[&message]() -> size_t {
+				size_t result = 0;
+				for (int i = 0; i < message.msg_iovlen; i++)
+					result += message.msg_iov[i].iov_len;
+				return result;
+			}();
+
+		BAN::Vector<uint8_t> buffer;
+		TRY(buffer.resize(total_send_size));
+
+		size_t offset = 0;
+		for (int i = 0; i < message.msg_iovlen; i++)
+		{
+			memcpy(buffer.data() + offset, message.msg_iov[i].iov_base, message.msg_iov[i].iov_len);
+			offset += message.msg_iov[i].iov_len;
+		}
+
+		return TRY(m_network_layer.sendto(*this, buffer.span(), static_cast<sockaddr*>(message.msg_name), message.msg_namelen));
 	}
 
 	BAN::ErrorOr<long> UDPSocket::ioctl_impl(int request, void* argument)

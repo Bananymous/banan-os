@@ -1569,73 +1569,72 @@ namespace Kernel
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_sendto(const sys_sendto_t* _arguments)
+	BAN::ErrorOr<long> Process::sys_recvmsg(int socket, msghdr* _message, int flags)
 	{
-		sys_sendto_t arguments;
+		msghdr message;
 		{
 			LockGuard _(m_process_lock);
-			TRY(validate_pointer_access(_arguments, sizeof(sys_sendto_t), false));
-			arguments = *_arguments;
+			TRY(validate_pointer_access(_message, sizeof(msghdr), true));
+			message = *_message;
 		}
 
-		if (arguments.length == 0)
-			return BAN::Error::from_errno(EINVAL);
-
-		MemoryRegion* message_region = nullptr;
-		MemoryRegion* address_region = nullptr;
-
-		BAN::ScopeGuard _([&] {
-			if (message_region)
-				message_region->unpin();
-			if (address_region)
-				address_region->unpin();
+		BAN::Vector<MemoryRegion*> regions;
+		BAN::ScopeGuard _([&regions] {
+			for (auto* region : regions)
+				if (region != nullptr)
+					region->unpin();
 		});
 
-		message_region = TRY(validate_and_pin_pointer_access(arguments.message, arguments.length, false));
-		if (arguments.dest_addr)
-			address_region = TRY(validate_and_pin_pointer_access(arguments.dest_addr, arguments.dest_len, false));
+		if (message.msg_name)
+			TRY(regions.push_back(TRY(validate_and_pin_pointer_access(message.msg_name, message.msg_namelen, true))));
+		if (message.msg_control)
+			TRY(regions.push_back(TRY(validate_and_pin_pointer_access(message.msg_control, message.msg_controllen, true))));
+		if (message.msg_iov)
+		{
+			TRY(regions.push_back(TRY(validate_and_pin_pointer_access(message.msg_iov, message.msg_iovlen * sizeof(iovec), true))));
+			for (int i = 0; i < message.msg_iovlen; i++)
+				TRY(regions.push_back(TRY(validate_and_pin_pointer_access(message.msg_iov[i].iov_base, message.msg_iov[i].iov_len, true))));
+		}
 
-		auto message = BAN::ConstByteSpan(static_cast<const uint8_t*>(arguments.message), arguments.length);
-		return TRY(m_open_file_descriptors.sendto(arguments.socket, message, arguments.dest_addr, arguments.dest_len));
+		auto ret = TRY(m_open_file_descriptors.recvmsg(socket, message, flags));
+
+		{
+			LockGuard _(m_process_lock);
+			TRY(validate_pointer_access(_message, sizeof(msghdr), true));
+			*_message = message;
+		}
+
+		return ret;
 	}
 
-	BAN::ErrorOr<long> Process::sys_recvfrom(sys_recvfrom_t* _arguments)
+	BAN::ErrorOr<long> Process::sys_sendmsg(int socket, const msghdr* _message, int flags)
 	{
-		sys_recvfrom_t arguments;
+		msghdr message;
 		{
 			LockGuard _(m_process_lock);
-			TRY(validate_pointer_access(_arguments, sizeof(sys_sendto_t), false));
-			arguments = *_arguments;
+			TRY(validate_pointer_access(_message, sizeof(msghdr), false));
+			message = *_message;
 		}
 
-		if (!arguments.address != !arguments.address_len)
-			return BAN::Error::from_errno(EINVAL);
-		if (arguments.length == 0)
-			return BAN::Error::from_errno(EINVAL);
-
-		MemoryRegion* buffer_region = nullptr;
-		MemoryRegion* address_region1 = nullptr;
-		MemoryRegion* address_region2 = nullptr;
-
-		BAN::ScopeGuard _([&] {
-			if (buffer_region)
-				buffer_region->unpin();
-			if (address_region1)
-				address_region1->unpin();
-			if (address_region2)
-				address_region2->unpin();
+		BAN::Vector<MemoryRegion*> regions;
+		BAN::ScopeGuard _([&regions] {
+			for (auto* region : regions)
+				if (region != nullptr)
+					region->unpin();
 		});
 
-		buffer_region = TRY(validate_and_pin_pointer_access(arguments.buffer, arguments.length, true));
-
-		if (arguments.address_len)
+		if (message.msg_name)
+			TRY(regions.push_back(TRY(validate_and_pin_pointer_access(message.msg_name, message.msg_namelen, false))));
+		if (message.msg_control)
+			TRY(regions.push_back(TRY(validate_and_pin_pointer_access(message.msg_control, message.msg_controllen, false))));
+		if (message.msg_iov)
 		{
-			address_region1 = TRY(validate_and_pin_pointer_access(arguments.address_len, sizeof(*arguments.address_len), true));
-			address_region2 = TRY(validate_and_pin_pointer_access(arguments.address, *arguments.address_len, true));
+			TRY(regions.push_back(TRY(validate_and_pin_pointer_access(message.msg_iov, message.msg_iovlen * sizeof(iovec), false))));
+			for (int i = 0; i < message.msg_iovlen; i++)
+				TRY(regions.push_back(TRY(validate_and_pin_pointer_access(message.msg_iov[i].iov_base, message.msg_iov[i].iov_len, false))));
 		}
 
-		auto message = BAN::ByteSpan(static_cast<uint8_t*>(arguments.buffer), arguments.length);
-		return TRY(m_open_file_descriptors.recvfrom(arguments.socket, message, arguments.address, arguments.address_len));
+		return TRY(m_open_file_descriptors.sendmsg(socket, message, flags));
 	}
 
 	BAN::ErrorOr<long> Process::sys_ioctl(int fildes, int request, void* arg)

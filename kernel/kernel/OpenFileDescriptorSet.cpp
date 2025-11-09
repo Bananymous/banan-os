@@ -424,7 +424,24 @@ namespace Kernel
 		}
 
 		if (inode->mode().ifsock())
-			return recvfrom(fd, buffer, nullptr, nullptr);
+		{
+			iovec iov {
+				.iov_base = buffer.data(),
+				.iov_len = buffer.size(),
+			};
+
+			msghdr message {
+				.msg_name = nullptr,
+				.msg_namelen = 0,
+				.msg_iov = &iov,
+				.msg_iovlen = 1,
+				.msg_control = nullptr,
+				.msg_controllen = 0,
+				.msg_flags = 0,
+			};
+
+			return recvmsg(fd, message, 0);
+		}
 
 		size_t nread;
 		{
@@ -461,7 +478,24 @@ namespace Kernel
 		}
 
 		if (inode->mode().ifsock())
-			return sendto(fd, buffer, nullptr, 0);
+		{
+			iovec iov {
+				.iov_base = const_cast<uint8_t*>(buffer.data()),
+				.iov_len = buffer.size(),
+			};
+
+			msghdr message {
+				.msg_name = nullptr,
+				.msg_namelen = 0,
+				.msg_iov = &iov,
+				.msg_iovlen = 1,
+				.msg_control = nullptr,
+				.msg_controllen = 0,
+				.msg_flags = 0,
+			};
+
+			return sendmsg(fd, message, 0);
+		}
 
 		size_t nwrite;
 		{
@@ -515,7 +549,7 @@ namespace Kernel
 		}
 	}
 
-	BAN::ErrorOr<size_t> OpenFileDescriptorSet::recvfrom(int fd, BAN::ByteSpan buffer, sockaddr* address, socklen_t* address_len)
+	BAN::ErrorOr<size_t> OpenFileDescriptorSet::recvmsg(int fd, msghdr& message, int flags)
 	{
 		BAN::RefPtr<Inode> inode;
 		bool is_nonblock;
@@ -533,10 +567,10 @@ namespace Kernel
 		LockGuard _(inode->m_mutex);
 		if (is_nonblock && !inode->can_read())
 			return BAN::Error::from_errno(EWOULDBLOCK);
-		return inode->recvfrom(buffer, address, address_len);
+		return inode->recvmsg(message, flags);
 	}
 
-	BAN::ErrorOr<size_t> OpenFileDescriptorSet::sendto(int fd, BAN::ConstByteSpan buffer, const sockaddr* address, socklen_t address_len)
+	BAN::ErrorOr<size_t> OpenFileDescriptorSet::sendmsg(int fd, const msghdr& message, int flags)
 	{
 		BAN::RefPtr<Inode> inode;
 		bool is_nonblock;
@@ -559,7 +593,7 @@ namespace Kernel
 		}
 		if (is_nonblock && !inode->can_write())
 			return BAN::Error::from_errno(EWOULDBLOCK);
-		return inode->sendto(buffer, address, address_len);
+		return inode->sendmsg(message, flags);
 	}
 
 	BAN::ErrorOr<VirtualFileSystem::File> OpenFileDescriptorSet::file_of(int fd) const

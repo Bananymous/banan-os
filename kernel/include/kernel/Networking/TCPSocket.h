@@ -60,8 +60,8 @@ namespace Kernel
 		virtual BAN::ErrorOr<void> connect_impl(const sockaddr*, socklen_t) override;
 		virtual BAN::ErrorOr<void> listen_impl(int) override;
 		virtual BAN::ErrorOr<void> bind_impl(const sockaddr*, socklen_t) override;
-		virtual BAN::ErrorOr<size_t> sendto_impl(BAN::ConstByteSpan, const sockaddr*, socklen_t) override;
-		virtual BAN::ErrorOr<size_t> recvfrom_impl(BAN::ByteSpan, sockaddr*, socklen_t*) override;
+		virtual BAN::ErrorOr<size_t> recvmsg_impl(msghdr& message, int flags) override;
+		virtual BAN::ErrorOr<size_t> sendmsg_impl(const msghdr& message, int flags) override;
 		virtual BAN::ErrorOr<void> getpeername_impl(sockaddr*, socklen_t*) override;
 
 		virtual BAN::ErrorOr<long> ioctl_impl(int, void*) override;

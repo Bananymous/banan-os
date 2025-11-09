@@ -42,104 +42,69 @@ ssize_t recv(int socket, void* __restrict buffer, size_t length, int flags)
 
 ssize_t recvfrom(int socket, void* __restrict buffer, size_t length, int flags, struct sockaddr* __restrict address, socklen_t* __restrict address_len)
 {
-	pthread_testcancel();
-	sys_recvfrom_t arguments {
-		.socket = socket,
-		.buffer = buffer,
-		.length = length,
-		.flags = flags,
-		.address = address,
-		.address_len = address_len
+	// cancellation point in recvmsg
+
+	iovec iov {
+		.iov_base = buffer,
+		.iov_len = length,
 	};
-	return syscall(SYS_RECVFROM, &arguments);
+
+	msghdr message {
+		.msg_name = address,
+		.msg_namelen = address_len ? *address_len : 0,
+		.msg_iov = &iov,
+		.msg_iovlen = 1,
+		.msg_control = NULL,
+		.msg_controllen = 0,
+		.msg_flags = 0,
+	};
+
+	const ssize_t ret = recvmsg(socket, &message, flags);
+
+	if (address_len)
+		*address_len = message.msg_namelen;
+
+	return ret;
 }
 
-ssize_t send(int socket, const void* message, size_t length, int flags)
+ssize_t recvmsg(int socket, struct msghdr* message, int flags)
+{
+	pthread_testcancel();
+	return syscall(SYS_RECVMSG, socket, message, flags);
+}
+
+ssize_t send(int socket, const void* buffer, size_t length, int flags)
 {
 	// cancellation point in sendto
-	return sendto(socket, message, length, flags, nullptr, 0);
+	return sendto(socket, buffer, length, flags, nullptr, 0);
 }
 
-ssize_t sendto(int socket, const void* message, size_t length, int flags, const struct sockaddr* dest_addr, socklen_t dest_len)
+ssize_t sendto(int socket, const void* buffer, size_t length, int flags, const struct sockaddr* address, socklen_t address_len)
+{
+	// cancellation point in sendmsg
+
+	iovec iov {
+		.iov_base = const_cast<void*>(buffer),
+		.iov_len = length,
+	};
+
+	msghdr message {
+		.msg_name = const_cast<sockaddr*>(address),
+		.msg_namelen = address_len,
+		.msg_iov = &iov,
+		.msg_iovlen = 1,
+		.msg_control = NULL,
+		.msg_controllen = 0,
+		.msg_flags = 0,
+	};
+
+	return sendmsg(socket, &message, flags);
+}
+
+ssize_t sendmsg(int socket, const struct msghdr* message, int flags)
 {
 	pthread_testcancel();
-	sys_sendto_t arguments {
-		.socket = socket,
-		.message = message,
-		.length = length,
-		.flags = flags,
-		.dest_addr = dest_addr,
-		.dest_len = dest_len
-	};
-	return syscall(SYS_SENDTO, &arguments);
-}
-
-ssize_t	recvmsg(int socket, struct msghdr* message, int flags)
-{
-	if (CMSG_FIRSTHDR(message))
-	{
-		dwarnln("TODO: recvmsg ancillary data");
-		errno = ENOTSUP;
-		return -1;
-	}
-
-	size_t total_recv = 0;
-
-	for (int i = 0; i < message->msg_iovlen; i++)
-	{
-		const ssize_t nrecv = recvfrom(
-			socket,
-			message->msg_iov[i].iov_base,
-			message->msg_iov[i].iov_len,
-			flags,
-			static_cast<sockaddr*>(message->msg_name),
-			&message->msg_namelen
-		);
-
-		if (nrecv < 0)
-			return -1;
-
-		total_recv += nrecv;
-
-		if (static_cast<size_t>(nrecv) < message->msg_iov[i].iov_len)
-			break;
-	}
-
-	return total_recv;
-}
-
-ssize_t	sendmsg(int socket, const struct msghdr* message, int flags)
-{
-	if (CMSG_FIRSTHDR(message))
-	{
-		dwarnln("TODO: sendmsg ancillary data");
-		errno = ENOTSUP;
-		return -1;
-	}
-
-	size_t total_sent = 0;
-
-	for (int i = 0; i < message->msg_iovlen; i++)
-	{
-		const ssize_t nsend = sendto(
-			socket,
-			message->msg_iov[i].iov_base,
-			message->msg_iov[i].iov_len,
-			flags,
-			static_cast<sockaddr*>(message->msg_name),
-			message->msg_namelen
-		);
-
-		if (nsend < 0)
-			return -1;
-
-		total_sent += nsend;
-
-		if (static_cast<size_t>(nsend) < message->msg_iov[i].iov_len)
-			break;
-	}
-
-	return total_sent;
+	return syscall(SYS_SENDMSG, socket, message, flags);
 }
 
 int socket(int domain, int type, int protocol)

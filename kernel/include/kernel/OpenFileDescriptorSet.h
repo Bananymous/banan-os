@@ -51,8 +51,8 @@ namespace Kernel
 
 		BAN::ErrorOr<size_t> read_dir_entries(int fd, struct dirent* list, size_t list_len);
 
-		BAN::ErrorOr<size_t> recvfrom(int fd, BAN::ByteSpan buffer, sockaddr* address, socklen_t* address_len);
-		BAN::ErrorOr<size_t> sendto(int fd, BAN::ConstByteSpan buffer, const sockaddr* address, socklen_t address_len);
+		BAN::ErrorOr<size_t> recvmsg(int socket, msghdr& message, int flags);
+		BAN::ErrorOr<size_t> sendmsg(int socket, const msghdr& message, int flags);
 
 		BAN::ErrorOr<VirtualFileSystem::File> file_of(int) const;
 		BAN::ErrorOr<BAN::String> path_of(int) const;

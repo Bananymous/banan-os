@@ -25,8 +25,8 @@ namespace Kernel
 		virtual BAN::ErrorOr<void> connect_impl(const sockaddr*, socklen_t) override;
 		virtual BAN::ErrorOr<void> listen_impl(int) override;
 		virtual BAN::ErrorOr<void> bind_impl(const sockaddr*, socklen_t) override;
-		virtual BAN::ErrorOr<size_t> sendto_impl(BAN::ConstByteSpan, const sockaddr*, socklen_t) override;
-		virtual BAN::ErrorOr<size_t> recvfrom_impl(BAN::ByteSpan, sockaddr*, socklen_t*) override;
+		virtual BAN::ErrorOr<size_t> recvmsg_impl(msghdr& message, int flags) override;
+		virtual BAN::ErrorOr<size_t> sendmsg_impl(const msghdr& message, int flags) override;
 		virtual BAN::ErrorOr<void> getpeername_impl(sockaddr*, socklen_t*) override;
 
 		virtual bool can_read_impl() const override;
@@ -38,7 +38,7 @@ namespace Kernel
 		UnixDomainSocket(Socket::Type, const Socket::Info&);
 		~UnixDomainSocket();
 
-		BAN::ErrorOr<void> add_packet(BAN::ConstByteSpan);
+		BAN::ErrorOr<void> add_packet(const msghdr&, size_t total_size);
 
 		bool is_bound() const { return !m_bound_file.canonical_path.empty(); }
 		bool is_bound_to_unused() const { return !m_bound_file.inode; }
@@ -54,7 +54,7 @@ namespace Kernel
 			BAN::WeakPtr<UnixDomainSocket>				connection;
 			BAN::Queue<BAN::RefPtr<UnixDomainSocket>>	pending_connections;
 			ThreadBlocker								pending_thread_blocker;
-			SpinLock									pending_lock;
+			Mutex										pending_lock;
 		};
 
 		struct ConnectionlessInfo
@@ -71,7 +71,7 @@ namespace Kernel
 		BAN::CircularQueue<size_t, 128>	m_packet_sizes;
 		size_t							m_packet_size_total { 0 };
 		BAN::UniqPtr<VirtualRange>		m_packet_buffer;
-		SpinLock						m_packet_lock;
+		Mutex							m_packet_lock;
 		ThreadBlocker					m_packet_thread_blocker;
 
 		friend class BAN::RefPtr<UnixDomainSocket>;
