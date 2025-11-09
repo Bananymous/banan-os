@@ -29,9 +29,9 @@ struct epoll_event
 
 #define EPOLLIN      0x01
 #define EPOLLOUT     0x02
-#define EPOLLPRI     0x04
-#define EPOLLERR     0x08
-#define EPOLLHUP     0x10
+#define EPOLLERR     0x04
+#define EPOLLHUP     0x08
+#define EPOLLPRI     0x10
 #define EPOLLET      0x20
 #define EPOLLONESHOT 0x40
 
