@@ -62,6 +62,7 @@ enum
 #define IPV6_V6ONLY IPV6_V6ONLY
 };
 
+#define IN_LOOPBACKNET 127
 #define IN_MULTICAST(a) (((in_addr_t)(a) & 0xF0000000) == 0xE0000000)
 
 #define INADDR_ANY			0
