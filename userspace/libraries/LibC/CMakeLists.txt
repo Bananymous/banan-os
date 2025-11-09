@@ -34,6 +34,7 @@ set(LIBC_SOURCES
 	semaphore.cpp
 	setjmp.cpp
 	signal.cpp
+	spawn.cpp
 	stdio.cpp
 	stdlib.cpp
 	string.cpp

@@ -24,7 +24,7 @@ typedef int posix_spawn_file_actions_t;
 #define POSIX_SPAWN_SETSIGDEF		0x10
 #define POSIX_SPAWN_SETSIGMASK		0x20
 
-int posix_spawn(pid_t* __restrict pid, const char* __restrict path, const posix_spawn_file_actions_t* file_actions, const posix_spawnattr_t* __restrict attrp, char* const argv[__restrict], char* const envp[__restrict]);
+int posix_spawn(pid_t* __restrict pid, const char* __restrict path, const posix_spawn_file_actions_t* file_actions, const posix_spawnattr_t* __restrict attrp, char* const argv[], char* const envp[]);
 int posix_spawn_file_actions_addclose(posix_spawn_file_actions_t* file_actions, int fildes);
 int posix_spawn_file_actions_adddup2(posix_spawn_file_actions_t* file_actions, int fildes, int newfildes);
 int posix_spawn_file_actions_addopen(posix_spawn_file_actions_t* __restrict file_actions, int fildes, const char* __restrict path, int oflag, mode_t mode);
@@ -44,7 +44,7 @@ int posix_spawnattr_setschedparam(posix_spawnattr_t* __restrict attr, const stru
 int posix_spawnattr_setschedpolicy(posix_spawnattr_t* attr, int schedpolicy);
 int posix_spawnattr_setsigdefault(posix_spawnattr_t* __restrict attr, const sigset_t* __restrict sigdefault);
 int posix_spawnattr_setsigmask(posix_spawnattr_t* __restrict attr, const sigset_t* __restrict sigmask);
-int posix_spawnp(pid_t* __restrict pid, const char* __restrict file, const posix_spawn_file_actions_t* file_actions, const posix_spawnattr_t* __restrict attrp, char* const argc[__restrict], char* const envp[__restrict]);
+int posix_spawnp(pid_t* __restrict pid, const char* __restrict file, const posix_spawn_file_actions_t* file_actions, const posix_spawnattr_t* __restrict attrp, char* const argc[], char* const envp[]);
 
 __END_DECLS
 
