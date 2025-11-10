@@ -903,6 +903,8 @@ static bool can_load_elf(int fd, const ElfNativeFileHeader& file_header, uintptr
 		ElfNativeProgramHeader program_header;
 		if (auto ret = syscall(SYS_PREAD, fd, &program_header, sizeof(program_header), file_header.e_phoff + i * file_header.e_phentsize); ret != sizeof(program_header))
 			print_error_and_exit("could not read program header", ret);
+		if (program_header.p_type != PT_LOAD)
+			continue;
 		program_header.p_vaddr += base;
 
 		uintptr_t page_alinged_vaddr = program_header.p_vaddr & ~(uintptr_t)0xFFF;
@@ -911,7 +913,7 @@ static bool can_load_elf(int fd, const ElfNativeFileHeader& file_header, uintptr
 		sys_mmap_t mmap_args;
 		mmap_args.addr = reinterpret_cast<void*>(page_alinged_vaddr);
 		mmap_args.fildes = -1;
-		mmap_args.flags = MAP_FIXED | MAP_ANONYMOUS | MAP_PRIVATE;
+		mmap_args.flags = MAP_ANONYMOUS | MAP_PRIVATE | MAP_FIXED_NOREPLACE;
 		mmap_args.len = mmap_length;
 		mmap_args.off = 0;
 		mmap_args.prot = PROT_NONE;
