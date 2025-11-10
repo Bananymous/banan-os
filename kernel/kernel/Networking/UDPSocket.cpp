@@ -120,12 +120,17 @@ namespace Kernel
 
 		auto* packet_buffer = reinterpret_cast<uint8_t*>(m_packet_buffer->vaddr());
 
+		message.msg_flags = 0;
+
 		size_t total_recv = 0;
 		for (int i = 0; i < message.msg_iovlen; i++)
 		{
 			const size_t nrecv = BAN::Math::min<size_t>(message.msg_iov[i].iov_len, packet_info.packet_size - total_recv);
 			memcpy(message.msg_iov[i].iov_base, packet_buffer + total_recv, nrecv);
 			total_recv += nrecv;
+
+			if (nrecv < packet_info.packet_size)
+				message.msg_flags |= MSG_TRUNC;
 		}
 
 		memmove(

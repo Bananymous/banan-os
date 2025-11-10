@@ -214,6 +214,8 @@ namespace Kernel
 			TRY(Thread::current().block_or_eintr_indefinite(m_thread_blocker, &m_mutex));
 		}
 
+		message.msg_flags = 0;
+
 		size_t total_recv = 0;
 		for (int i = 0; i < message.msg_iovlen; i++)
 		{
