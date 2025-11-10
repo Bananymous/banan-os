@@ -8,6 +8,7 @@ __BEGIN_DECLS
 
 #if    !defined(__need_blkcnt_t) \
 	&& !defined(__need_blksize_t) \
+	&& !defined(__need_caddr_t) \
 	&& !defined(__need_clock_t) \
 	&& !defined(__need_clockid_t) \
 	&& !defined(__need_dev_t) \
@@ -46,6 +47,12 @@ __BEGIN_DECLS
 	typedef long blksize_t;
 #endif
 #undef __need_blksize_t
+
+#if !defined(__caddr_t_defined) && (defined(__need_all_types) || defined(__caddr_t_defined))
+	#define __caddr_t_defined 1
+	typedef char* caddr_t;
+#endif
+#undef __caddr_t_defined
 
 #if !defined(__clock_t_defined) && (defined(__need_all_types) || defined(__need_clock_t))
 	#define __clock_t_defined 1
