@@ -1685,7 +1685,14 @@ uintptr_t _entry(int argc, char* argv[], char* envp[])
 				aux->a_type = LibELF::AT_IGNORE;
 			}
 
-	if (execfd == -1)
+	char canonical[PATH_MAX];
+
+	if (execfd != -1)
+	{
+		if (long ret = syscall(SYS_READLINKAT, AT_FDCWD, "/proc/self/exe", canonical, sizeof(canonical)); ret < 0)
+			print_error_and_exit("could not read /proc/self/exe", ret);
+	}
+	else
 	{
 		if (argc < 2)
 			print_error_and_exit("missing program name", 0);
@@ -1696,10 +1703,13 @@ uintptr_t _entry(int argc, char* argv[], char* envp[])
 		execfd = syscall(SYS_OPENAT, AT_FDCWD, argv[0], O_RDONLY);
 		if (execfd < 0)
 			print_error_and_exit("could not open program", execfd);
+
+		if (long ret = syscall(SYS_REALPATH, argv[0], canonical); ret < 0)
+			print_error_and_exit("could not get canonical path", ret);
 	}
 
 	init_random();
-	auto& elf = load_elf(argv[0], execfd);
+	auto& elf = load_elf(canonical, execfd);
 	fini_random();
 
 	const auto master_tls = initialize_master_tls();
