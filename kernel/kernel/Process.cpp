@@ -2221,28 +2221,33 @@ namespace Kernel
 		LockGuard _(m_process_lock);
 
 		AddressRange address_range { .start = 0x400000, .end = USERSPACE_END };
-		if (args.flags & MAP_FIXED)
+		if (args.flags & (MAP_FIXED | MAP_FIXED_NOREPLACE))
 		{
 			const vaddr_t vaddr = reinterpret_cast<vaddr_t>(args.addr);
-			if (vaddr % PAGE_SIZE)
+			if (vaddr == 0 || vaddr % PAGE_SIZE)
 				return BAN::Error::from_errno(EINVAL);
+			if (!PageTable::is_valid_pointer(vaddr))
+				return BAN::Error::from_errno(ENOMEM);
+			if (!PageTable::is_valid_pointer(vaddr + args.len))
+				return BAN::Error::from_errno(ENOMEM);
 			address_range = {
 				.start = vaddr,
 				.end = vaddr + args.len,
 			};
 
-			for (size_t i = 0; i < m_mapped_regions.size(); i++)
+			if (args.flags & MAP_FIXED_NOREPLACE)
+				;
+			else for (size_t i = 0; i < m_mapped_regions.size(); i++)
 			{
 				if (!m_mapped_regions[i]->overlaps(vaddr, args.len))
 					continue;
-				if (!m_mapped_regions[i]->contains_fully(vaddr, args.len))
+				if (!m_mapped_regions[i]->is_contained_by(vaddr, args.len))
 					derrorln("VERY BROKEN MAP_FIXED UNMAP");
 				m_mapped_regions[i]->wait_not_pinned();
 				m_mapped_regions.remove(i--);
 			}
 		}
-
-		if (const vaddr_t vaddr = reinterpret_cast<vaddr_t>(args.addr); vaddr == 0)
+		else if (const vaddr_t vaddr = reinterpret_cast<vaddr_t>(args.addr); vaddr == 0)
 			;
 		else if (vaddr % PAGE_SIZE)
 			;

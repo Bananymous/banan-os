@@ -33,6 +33,7 @@ namespace Kernel
 		bool contains(vaddr_t address) const;
 		bool contains_fully(vaddr_t address, size_t size) const;
 		bool overlaps(vaddr_t address, size_t size) const;
+		bool is_contained_by(vaddr_t address, size_t size) const;
 
 		bool writable() const { return m_flags & PageTable::Flags::ReadWrite; }
 

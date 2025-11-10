@@ -50,6 +50,11 @@ namespace Kernel
 		return true;
 	}
 
+	bool MemoryRegion::is_contained_by(vaddr_t address, size_t size) const
+	{
+		return address <= m_vaddr && m_vaddr + m_size <= address + size;
+	}
+
 	BAN::ErrorOr<void> MemoryRegion::mprotect(PageTable::flags_t new_page_flags)
 	{
 		if (m_flags == new_page_flags)
