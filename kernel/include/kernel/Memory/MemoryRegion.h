@@ -60,6 +60,7 @@ namespace Kernel
 		BAN::ErrorOr<bool> allocate_page_containing(vaddr_t address, bool wants_write);
 
 		virtual BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> clone(PageTable& new_page_table) = 0;
+		virtual BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> split(size_t offset) = 0;
 
 	protected:
 		MemoryRegion(PageTable&, size_t size, Type type, PageTable::flags_t flags, int status_flags);
@@ -69,7 +70,7 @@ namespace Kernel
 
 	protected:
 		PageTable& m_page_table;
-		const size_t m_size;
+		size_t m_size { 0 };
 		const Type m_type;
 		PageTable::flags_t m_flags;
 		const int m_status_flags;

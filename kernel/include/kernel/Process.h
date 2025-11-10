@@ -172,6 +172,7 @@ namespace Kernel
 
 		BAN::ErrorOr<long> sys_readdir(int fd, struct dirent* list, size_t list_len);
 
+		BAN::ErrorOr<BAN::Vector<BAN::UniqPtr<MemoryRegion>>> split_memory_region(BAN::UniqPtr<MemoryRegion>&& region, vaddr_t base, size_t length);
 		BAN::ErrorOr<long> sys_mmap(const sys_mmap_t*);
 		BAN::ErrorOr<long> sys_munmap(void* addr, size_t len);
 		BAN::ErrorOr<long> sys_mprotect(void* addr, size_t len, int prot);

@@ -87,6 +87,13 @@ namespace Kernel
 		return BAN::UniqPtr<MemoryRegion>(BAN::move(region));
 	}
 
+	BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> SharedMemoryObject::split(size_t offset)
+	{
+		(void)offset;
+		dwarnln("TODO: SharedMemoryObject::split");
+		return BAN::Error::from_errno(ENOTSUP);
+	}
+
 	BAN::ErrorOr<bool> SharedMemoryObject::allocate_page_containing_impl(vaddr_t address, bool wants_write)
 	{
 		ASSERT(contains(address));

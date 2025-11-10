@@ -33,6 +33,7 @@ namespace Kernel
 		BAN::ErrorOr<void> msync(vaddr_t, size_t, int) override;
 
 		BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> clone(PageTable& new_page_table) override;
+		BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> split(size_t offset) override;
 
 	protected:
 		BAN::ErrorOr<bool> allocate_page_containing_impl(vaddr_t vaddr, bool wants_write) override;

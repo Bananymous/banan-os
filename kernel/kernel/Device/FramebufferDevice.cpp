@@ -301,6 +301,13 @@ namespace Kernel
 			return BAN::UniqPtr<MemoryRegion>(BAN::move(region));
 		}
 
+		BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> split(size_t offset) override
+		{
+			(void)offset;
+			dwarnln("TODO: FramebufferMemoryRegion::split");
+			return BAN::Error::from_errno(ENOTSUP);
+		}
+
 	protected:
 		// Returns error if no memory was available
 		// Returns true if page was succesfully allocated

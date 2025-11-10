@@ -2189,6 +2189,38 @@ namespace Kernel
 		return 0;
 	}
 
+	BAN::ErrorOr<BAN::Vector<BAN::UniqPtr<MemoryRegion>>> Process::split_memory_region(BAN::UniqPtr<MemoryRegion>&& region, vaddr_t base, size_t length)
+	{
+		ASSERT(base % PAGE_SIZE == 0);
+		ASSERT(base < region->vaddr() + region->size());
+
+		if (auto rem = length % PAGE_SIZE)
+			length += PAGE_SIZE - rem;
+		if (base + length > region->vaddr() + region->size())
+			length = region->vaddr() + region->size() - base;
+
+		BAN::Vector<BAN::UniqPtr<MemoryRegion>> result;
+		TRY(result.reserve(3));
+
+		if (region->vaddr() < base)
+		{
+			auto temp = TRY(region->split(base - region->vaddr()));
+			MUST(result.push_back(BAN::move(region)));
+			region = BAN::move(temp);
+		}
+
+		if (base + length < region->vaddr() + region->size())
+		{
+			auto temp = TRY(region->split(base + length - region->vaddr()));
+			MUST(result.push_back(BAN::move(region)));
+			region = BAN::move(temp);
+		}
+
+		MUST(result.push_back(BAN::move(region)));
+
+		return result;
+	}
+
 	BAN::ErrorOr<long> Process::sys_mmap(const sys_mmap_t* user_args)
 	{
 		sys_mmap_t args;
@@ -2199,6 +2231,9 @@ namespace Kernel
 		}
 
 		if (args.prot != PROT_NONE && (args.prot & ~(PROT_READ | PROT_WRITE | PROT_EXEC)))
+			return BAN::Error::from_errno(EINVAL);
+
+		if (!(args.flags & MAP_ANONYMOUS) && (args.off % PAGE_SIZE))
 			return BAN::Error::from_errno(EINVAL);
 
 		if (!(args.flags & MAP_PRIVATE) == !(args.flags & MAP_SHARED))
@@ -2241,10 +2276,18 @@ namespace Kernel
 			{
 				if (!m_mapped_regions[i]->overlaps(vaddr, args.len))
 					continue;
-				if (!m_mapped_regions[i]->is_contained_by(vaddr, args.len))
-					derrorln("VERY BROKEN MAP_FIXED UNMAP");
+
 				m_mapped_regions[i]->wait_not_pinned();
+				auto temp = BAN::move(m_mapped_regions[i]);
 				m_mapped_regions.remove(i--);
+
+				if (!temp->is_contained_by(vaddr, args.len))
+				{
+					auto new_regions = TRY(split_memory_region(BAN::move(temp), vaddr, args.len));
+					for (auto& new_region : new_regions)
+						if (!new_region->overlaps(vaddr, args.len))
+							TRY(m_mapped_regions.push_back(BAN::move(new_region)));
+				}
 			}
 		}
 		else if (const vaddr_t vaddr = reinterpret_cast<vaddr_t>(args.addr); vaddr == 0)
@@ -2267,9 +2310,6 @@ namespace Kernel
 
 		if (args.flags & MAP_ANONYMOUS)
 		{
-			if (args.off != 0)
-				return BAN::Error::from_errno(EINVAL);
-
 			auto region = TRY(MemoryBackedRegion::create(
 				page_table(),
 				args.len,
@@ -2330,7 +2370,7 @@ namespace Kernel
 		if (auto rem = vaddr % PAGE_SIZE)
 		{
 			vaddr -= rem;
-			len += PAGE_SIZE - rem;
+			len += rem;
 		}
 
 		if (auto rem = len % PAGE_SIZE)
@@ -2338,22 +2378,22 @@ namespace Kernel
 
 		LockGuard _(m_process_lock);
 
-		// FIXME: We should unmap partial regions.
-		//        This is a hack to only unmap if the whole mmap region
-		//        is contained within [addr, addr + len]
 		for (size_t i = 0; i < m_mapped_regions.size(); i++)
 		{
-			auto& region = m_mapped_regions[i];
+			if (!m_mapped_regions[i]->overlaps(vaddr, len))
+				continue;
 
-			const vaddr_t region_s = region->vaddr();
-			const vaddr_t region_e = region->vaddr() + region->size();
-			if (vaddr <= region_s && region_e <= vaddr + len)
+			m_mapped_regions[i]->wait_not_pinned();
+			auto temp = BAN::move(m_mapped_regions[i]);
+			m_mapped_regions.remove(i--);
+
+			if (!temp->is_contained_by(vaddr, len))
 			{
-				region->wait_not_pinned();
-				m_mapped_regions.remove(i--);
+				auto new_regions = TRY(split_memory_region(BAN::move(temp), vaddr, len));
+				for (auto& new_region : new_regions)
+					if (!new_region->overlaps(vaddr, len))
+						TRY(m_mapped_regions.push_back(BAN::move(new_region)));
 			}
-			else if (region->overlaps(vaddr, len))
-				dwarnln("TODO: partial region munmap");
 		}
 
 		return 0;
@@ -2386,38 +2426,34 @@ namespace Kernel
 
 		LockGuard _(m_process_lock);
 
-		// FIXME: We should protect partial regions.
-		//        This is a hack to only protect if the whole mmap region
-		//        is contained within [addr, addr + len]
 		for (size_t i = 0; i < m_mapped_regions.size(); i++)
 		{
+			if (!m_mapped_regions[i]->overlaps(vaddr, len))
+				continue;
+
+			if (!m_mapped_regions[i]->is_contained_by(vaddr, len))
+			{
+				m_mapped_regions[i]->wait_not_pinned();
+				auto temp = BAN::move(m_mapped_regions[i]);
+				m_mapped_regions.remove(i--);
+
+				auto new_regions = TRY(split_memory_region(BAN::move(temp), vaddr, len));
+				for (auto& new_region : new_regions)
+					TRY(m_mapped_regions.push_back(BAN::move(new_region)));
+
+				continue;
+			}
+
 			auto& region = m_mapped_regions[i];
+			const bool is_shared   = (region->type() == MemoryRegion::Type::SHARED);
+			const bool is_writable = (region->status_flags() & O_WRONLY);
+			const bool want_write  = (prot & PROT_WRITE);
+			if (is_shared && want_write && !is_writable)
+				return BAN::Error::from_errno(EACCES);
 
-			const vaddr_t region_s = region->vaddr();
-			const vaddr_t region_e = region->vaddr() + region->size();
-			if (vaddr <= region_s && region_e <= vaddr + len)
-			{
-				const bool is_shared   = (region->type() == MemoryRegion::Type::SHARED);
-				const bool is_writable = (region->status_flags() & O_WRONLY);
-				const bool want_write  = (prot & PROT_WRITE);
-				if (is_shared && want_write && !is_writable)
-					return BAN::Error::from_errno(EACCES);
-
-				// FIXME: if the region is pinned writable, this may
-				//        cause some problems :D
-				TRY(region->mprotect(flags));
-			}
-			else if (region->overlaps(vaddr, len))
-			{
-				const bool is_shared   = (region->type() == MemoryRegion::Type::SHARED);
-				const bool is_writable = (region->status_flags() & O_WRONLY);
-				const bool want_write  = (prot & PROT_WRITE);
-				if (is_shared && want_write && !is_writable)
-					return BAN::Error::from_errno(EACCES);
-
-				dwarnln("TODO: partial region mprotect");
-				TRY(region->mprotect(flags | region->flags()));
-			}
+			// NOTE: don't change protection of regions in use
+			region->wait_not_pinned();
+			TRY(region->mprotect(flags));
 		}
 
 		return 0;

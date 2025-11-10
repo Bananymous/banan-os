@@ -58,6 +58,7 @@ namespace Kernel
 		static BAN::ErrorOr<BAN::UniqPtr<SharedMemoryObject>> create(BAN::RefPtr<SharedMemoryObjectManager::Object>, PageTable&, AddressRange);
 
 		BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> clone(PageTable& new_page_table) override;
+		BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> split(size_t offset) override;
 
 		BAN::ErrorOr<void> msync(vaddr_t, size_t, int) override { return {}; }
 

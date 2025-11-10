@@ -232,4 +232,33 @@ namespace Kernel
 		return BAN::UniqPtr<MemoryRegion>(BAN::move(result));
 	}
 
+	BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> FileBackedRegion::split(size_t offset)
+	{
+		ASSERT(offset && offset < m_size);
+		ASSERT(offset % PAGE_SIZE == 0);
+
+		const bool has_dirty_pages = (m_type == Type::PRIVATE);
+
+		BAN::Vector<paddr_t> dirty_pages;
+		if (has_dirty_pages)
+		{
+			TRY(dirty_pages.resize(BAN::Math::div_round_up<size_t>(m_size - offset, PAGE_SIZE)));
+			for (size_t i = 0; i < dirty_pages.size(); i++)
+				dirty_pages[i] = m_dirty_pages[i + offset / PAGE_SIZE];
+		}
+
+		auto* new_region = new FileBackedRegion(m_inode, m_page_table, m_offset + offset, m_size - offset, m_type, m_flags, m_status_flags);
+		if (new_region == nullptr)
+			return BAN::Error::from_errno(ENOTSUP);
+		new_region->m_vaddr = m_vaddr + offset;
+		new_region->m_shared_data = m_shared_data;
+		new_region->m_dirty_pages = BAN::move(dirty_pages);
+
+		m_size = offset;
+		if (has_dirty_pages)
+			MUST(m_dirty_pages.resize(offset / PAGE_SIZE));
+
+		return BAN::UniqPtr<MemoryRegion>::adopt(new_region);
+	}
+
 }

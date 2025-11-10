@@ -82,6 +82,21 @@ namespace Kernel
 		return BAN::UniqPtr<MemoryRegion>(BAN::move(result));
 	}
 
+	BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> MemoryBackedRegion::split(size_t offset)
+	{
+		ASSERT(offset && offset < m_size);
+		ASSERT(offset % PAGE_SIZE == 0);
+
+		auto* new_region = new MemoryBackedRegion(m_page_table, m_size - offset, m_type, m_flags, m_status_flags);
+		if (new_region == nullptr)
+			return BAN::Error::from_errno(ENOMEM);
+		new_region->m_vaddr = m_vaddr + offset;
+
+		m_size = offset;
+
+		return BAN::UniqPtr<MemoryRegion>::adopt(new_region);
+	}
+
 	BAN::ErrorOr<void> MemoryBackedRegion::copy_data_to_region(size_t offset_into_region, const uint8_t* buffer, size_t buffer_size)
 	{
 		ASSERT(offset_into_region + buffer_size <= m_size);

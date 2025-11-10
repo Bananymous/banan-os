@@ -15,6 +15,7 @@ namespace Kernel
 		~MemoryBackedRegion();
 
 		BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> clone(PageTable& new_page_table) override;
+		BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> split(size_t offset) override;
 
 		BAN::ErrorOr<void> msync(vaddr_t, size_t, int) override { return {}; }
 
