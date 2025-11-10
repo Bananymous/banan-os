@@ -32,4 +32,6 @@ start_userspace_thread:
 	call get_thread_start_sp
 	movq %rax, %rsp
 
+	swapgs
+
 	iretq

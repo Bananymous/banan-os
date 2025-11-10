@@ -173,7 +173,15 @@ namespace Kernel
 			auxiliary_vector.span()
 		));
 		if (tls_addr.has_value())
-			thread->set_tls(*tls_addr);
+		{
+#if ARCH(x86_64)
+			thread->set_fsbase(*tls_addr);
+#elif ARCH(i686)
+			thread->set_gsbase(*tls_addr);
+#else
+#error
+#endif
+		}
 
 		process->add_thread(thread);
 		process->register_to_scheduler();
@@ -730,7 +738,13 @@ namespace Kernel
 			{
 				auto tls_result = TRY(initialize_thread_local_storage(*new_page_table, *executable.master_tls));
 				TRY(new_mapped_regions.emplace_back(BAN::move(tls_result.region)));
-				new_thread->set_tls(tls_result.addr);
+#if ARCH(x86_64)
+				new_thread->set_fsbase(tls_result.addr);
+#elif ARCH(i686)
+				new_thread->set_gsbase(tls_result.addr);
+#else
+#error
+#endif
 			}
 
 			// NOTE: this is done before disabling interrupts and moving the threads as
@@ -3016,16 +3030,28 @@ namespace Kernel
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_set_tls(void* addr)
+	BAN::ErrorOr<long> Process::sys_set_fsbase(void* addr)
 	{
-		Thread::current().set_tls(reinterpret_cast<vaddr_t>(addr));
-		Processor::load_tls();
+		Thread::current().set_fsbase(reinterpret_cast<vaddr_t>(addr));
+		Processor::load_fsbase();
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_get_tls()
+	BAN::ErrorOr<long> Process::sys_get_fsbase()
 	{
-		return Thread::current().get_tls();
+		return Thread::current().get_fsbase();
+	}
+
+	BAN::ErrorOr<long> Process::sys_set_gsbase(void* addr)
+	{
+		Thread::current().set_gsbase(reinterpret_cast<vaddr_t>(addr));
+		Processor::load_gsbase();
+		return 0;
+	}
+
+	BAN::ErrorOr<long> Process::sys_get_gsbase()
+	{
+		return Thread::current().get_gsbase();
 	}
 
 	BAN::ErrorOr<long> Process::sys_pthread_create(const pthread_attr_t* attr, void (*entry)(void*), void* arg)

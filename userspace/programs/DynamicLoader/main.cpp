@@ -1366,7 +1366,13 @@ static void initialize_tls(MasterTLS master_tls)
 		uthread.dtv[elf.tls_module] = reinterpret_cast<uintptr_t>(tls_addr) + uthread.master_tls_size - elf.tls_offset;
 	}
 
-	syscall(SYS_SET_TLS, &uthread);
+#if defined(__x86_64__)
+	syscall(SYS_SET_FSBASE, &uthread);
+#elif defined(__i686__)
+	syscall(SYS_SET_GSBASE, &uthread);
+#else
+#error
+#endif
 }
 
 static void initialize_environ(char** envp)

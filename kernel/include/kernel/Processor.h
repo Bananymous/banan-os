@@ -112,7 +112,9 @@ namespace Kernel
 		static void send_smp_message(ProcessorID, const SMPMessage&, bool send_ipi = true);
 		static void broadcast_smp_message(const SMPMessage&);
 
-		static void load_tls();
+		static void load_segments();
+		static void load_fsbase();
+		static void load_gsbase();
 
 	private:
 		Processor() = default;

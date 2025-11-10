@@ -1,4 +1,12 @@
-.macro pushaq
+.macro swapgs_if_necessary, n
+	cmpb $0x08, \n(%rsp)
+	je 1f
+	swapgs
+1:
+.endm
+
+.macro pushaq, n
+	swapgs_if_necessary \n
 	pushq %rax
 	pushq %rcx
 	pushq %rdx
@@ -16,7 +24,7 @@
 	pushq %r15
 .endm
 
-.macro popaq
+.macro popaq, n
 	popq %r15
 	popq %r14
 	popq %r13
@@ -32,10 +40,11 @@
 	popq %rdx
 	popq %rcx
 	popq %rax
+	swapgs_if_necessary \n
 .endm
 
 isr_stub:
-	pushaq
+	pushaq 24
 	cld
 	movq %cr0, %rax; pushq %rax
 	movq %cr2, %rax; pushq %rax
@@ -49,43 +58,43 @@ isr_stub:
 	call cpp_isr_handler
 	addq $32, %rsp
 
-	popaq
+	popaq 24
 	addq $16, %rsp
 	iretq
 
 irq_stub:
-	pushaq
+	pushaq 24
 	cld
 	movq 120(%rsp), %rdi	# irq number
 	call cpp_irq_handler
-	popaq
+	popaq 24
 	addq $16, %rsp
 	iretq
 
 .global asm_yield_handler
 asm_yield_handler:
-	pushaq
+	pushaq 8
 	cld
 	leaq 120(%rsp), %rdi # interrupt stack ptr
 	movq     %rsp,  %rsi # interrupt register ptr
 	call cpp_yield_handler
-	popaq
+	popaq 8
 	iretq
 
 .global asm_ipi_handler
 asm_ipi_handler:
-	pushaq
+	pushaq 8
 	cld
 	call cpp_ipi_handler
-	popaq
+	popaq 8
 	iretq
 
 .global asm_timer_handler
 asm_timer_handler:
-	pushaq
+	pushaq 8
 	cld
 	call cpp_timer_handler
-	popaq
+	popaq 8
 	iretq
 
 .macro isr n

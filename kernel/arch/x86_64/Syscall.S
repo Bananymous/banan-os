@@ -2,6 +2,7 @@
 // System V ABI: RDI, RSI, RDX, RCX, R8, R9
 .global asm_syscall_handler
 asm_syscall_handler:
+	swapgs
 	pushq %rbx
 	pushq %rcx
 	pushq %rdx
@@ -42,8 +43,8 @@ asm_syscall_handler:
 	popq %rdx
 	popq %rcx
 	popq %rbx
+	swapgs
 	iretq
-
 
 .global sys_fork_trampoline
 sys_fork_trampoline:

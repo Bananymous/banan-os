@@ -282,7 +282,8 @@ namespace Kernel
 		}
 
 		Processor::gdt().set_tss_stack(thread->kernel_stack_top());
-		Processor::load_tls();
+		if (thread->is_userspace())
+			Processor::load_segments();
 		*interrupt_stack     = thread->interrupt_stack();
 		*interrupt_registers = thread->interrupt_registers();
 

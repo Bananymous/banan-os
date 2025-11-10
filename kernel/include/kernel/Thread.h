@@ -122,8 +122,10 @@ namespace Kernel
 		void set_cpu_time_start();
 		void set_cpu_time_stop();
 
-		void set_tls(vaddr_t tls) { m_tls = tls; }
-		vaddr_t get_tls() const { return m_tls; }
+		void set_fsbase(vaddr_t base) { m_fsbase = base; }
+		vaddr_t get_fsbase() const { return m_fsbase; }
+		void set_gsbase(vaddr_t base) { m_gsbase = base; }
+		vaddr_t get_gsbase() const { return m_gsbase; }
 
 		size_t virtual_page_count() const { return (m_kernel_stack ? (m_kernel_stack->size() / PAGE_SIZE) : 0) + (m_userspace_stack ? (m_userspace_stack->size() / PAGE_SIZE) : 0); }
 		size_t physical_page_count() const { return virtual_page_count(); }
@@ -164,7 +166,8 @@ namespace Kernel
 		bool                       m_is_userspace         { false };
 		bool                       m_delete_process       { false };
 
-		vaddr_t                    m_tls                  { 0 };
+		vaddr_t                    m_fsbase               { 0 };
+		vaddr_t                    m_gsbase               { 0 };
 
 		SchedulerQueue::Node*      m_scheduler_node       { nullptr };
 

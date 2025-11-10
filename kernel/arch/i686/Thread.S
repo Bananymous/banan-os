@@ -45,11 +45,11 @@ start_userspace_thread:
 	movw $(0x20 | 3), %bx
 	movw %bx, %ds
 	movw %bx, %es
-	# gs = thread local
+	# fs
 	movw $(0x30 | 3), %bx
-	movw %bx, %gs
-	# fs = 0
-	xorw %bx, %bx
 	movw %bx, %fs
+	# gs
+	movw $(0x38 | 3), %bx
+	movw %bx, %gs
 
 	iret

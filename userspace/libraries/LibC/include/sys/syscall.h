@@ -101,8 +101,10 @@ __BEGIN_DECLS
 	O(SYS_HARDLINKAT,		hardlinkat)		\
 	O(SYS_UTIMENSAT,		utimensat)		\
 	O(SYS_YIELD,			yield)			\
-	O(SYS_SET_TLS,			set_tls)		\
-	O(SYS_GET_TLS,			get_tls)		\
+	O(SYS_SET_FSBASE,		set_fsbase)		\
+	O(SYS_GET_FSBASE,		get_fsbase)		\
+	O(SYS_SET_GSBASE,		set_gsbase)		\
+	O(SYS_GET_GSBASE,		get_gsbase)		\
 	O(SYS_PTHREAD_CREATE,	pthread_create)	\
 	O(SYS_PTHREAD_EXIT,		pthread_exit)	\
 	O(SYS_PTHREAD_JOIN,		pthread_join)	\

@@ -12,6 +12,7 @@ namespace Kernel
 #if ARCH(x86_64)
 	static constexpr uint32_t MSR_IA32_FS_BASE = 0xC0000100;
 	static constexpr uint32_t MSR_IA32_GS_BASE = 0xC0000101;
+	static constexpr uint32_t MSR_IA32_KERNEL_GS_BASE = 0xC0000102;
 #endif
 
 	ProcessorID          Processor::s_bsp_id                { PROCESSOR_NONE };
@@ -265,15 +266,52 @@ namespace Kernel
 		set_interrupt_state(state);
 	}
 
-	void Processor::load_tls()
+	void Processor::load_segments()
 	{
-		const auto addr = scheduler().current_thread().get_tls();
+		{
+			const auto addr = scheduler().current_thread().get_fsbase();
+#if ARCH(x86_64)
+			uint32_t ptr_hi = addr >> 32;
+			uint32_t ptr_lo = addr & 0xFFFFFFFF;
+			asm volatile("wrmsr" :: "d"(ptr_hi), "a"(ptr_lo), "c"(MSR_IA32_FS_BASE));
+#elif ARCH(i686)
+			gdt().set_fsbase(addr);
+#endif
+		}
+
+		{
+			const auto addr = scheduler().current_thread().get_gsbase();
+#if ARCH(x86_64)
+			uint32_t ptr_hi = addr >> 32;
+			uint32_t ptr_lo = addr & 0xFFFFFFFF;
+			asm volatile("wrmsr" :: "d"(ptr_hi), "a"(ptr_lo), "c"(MSR_IA32_KERNEL_GS_BASE));
+#elif ARCH(i686)
+			gdt().set_gsbase(addr);
+#endif
+		}
+	}
+
+	void Processor::load_fsbase()
+	{
+		const auto addr = scheduler().current_thread().get_fsbase();
 #if ARCH(x86_64)
 		uint32_t ptr_hi = addr >> 32;
 		uint32_t ptr_lo = addr & 0xFFFFFFFF;
 		asm volatile("wrmsr" :: "d"(ptr_hi), "a"(ptr_lo), "c"(MSR_IA32_FS_BASE));
 #elif ARCH(i686)
-		gdt().set_tls(addr);
+		gdt().set_fsbase(addr);
+#endif
+	}
+
+	void Processor::load_gsbase()
+	{
+		const auto addr = scheduler().current_thread().get_gsbase();
+#if ARCH(x86_64)
+		uint32_t ptr_hi = addr >> 32;
+		uint32_t ptr_lo = addr & 0xFFFFFFFF;
+		asm volatile("wrmsr" :: "d"(ptr_hi), "a"(ptr_lo), "c"(MSR_IA32_KERNEL_GS_BASE));
+#elif ARCH(i686)
+		gdt().set_gsbase(addr);
 #endif
 	}
 

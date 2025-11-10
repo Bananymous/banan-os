@@ -203,8 +203,12 @@ namespace Kernel
 
 		BAN::ErrorOr<long> sys_futex(int op, const uint32_t* addr, uint32_t val, const timespec* abstime);
 		BAN::ErrorOr<long> sys_yield();
-		BAN::ErrorOr<long> sys_set_tls(void*);
-		BAN::ErrorOr<long> sys_get_tls();
+
+		BAN::ErrorOr<long> sys_set_fsbase(void*);
+		BAN::ErrorOr<long> sys_get_fsbase();
+		BAN::ErrorOr<long> sys_set_gsbase(void*);
+		BAN::ErrorOr<long> sys_get_gsbase();
+
 		BAN::ErrorOr<long> sys_pthread_create(const pthread_attr_t* attr, void (*entry)(void*), void* arg);
 		BAN::ErrorOr<long> sys_pthread_exit(void* value);
 		BAN::ErrorOr<long> sys_pthread_join(pthread_t thread, void** value);

@@ -129,7 +129,8 @@ namespace Kernel
 		}
 
 #if ARCH(i686)
-		void set_tls(uintptr_t addr);
+		void set_fsbase(uintptr_t addr);
+		void set_gsbase(uintptr_t addr);
 #endif
 
 	private:
@@ -153,8 +154,8 @@ namespace Kernel
 		BAN::Array<SegmentDescriptor, 7> m_gdt; // null, kernel code, kernel data, user code, user data, tss low, tss high
 		static constexpr uint16_t m_tss_offset = 0x28;
 #elif ARCH(i686)
-		BAN::Array<SegmentDescriptor, 8> m_gdt; // null, kernel code, kernel data, user code, user data, processor data, tls, tss
-		static constexpr uint16_t m_tss_offset = 0x38;
+		BAN::Array<SegmentDescriptor, 9> m_gdt; // null, kernel code, kernel data, user code, user data, processor data, fsbase, gsbase, tss
+		static constexpr uint16_t m_tss_offset = 0x40;
 #endif
 		TaskStateSegment m_tss;
 		const GDTR m_gdtr {

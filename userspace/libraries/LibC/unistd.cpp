@@ -34,7 +34,13 @@ extern "C" void _init_libc(char** environ, init_funcs_t init_funcs, init_funcs_t
 	if (::environ == nullptr)
 		::environ = environ;
 
-	if (uthread* self = reinterpret_cast<uthread*>(syscall(SYS_GET_TLS)))
+#if defined(__x86_64__)
+	if (uthread* self = reinterpret_cast<uthread*>(syscall(SYS_GET_FSBASE)))
+#elif defined(__i686__)
+	if (uthread* self = reinterpret_cast<uthread*>(syscall(SYS_GET_GSBASE)))
+#else
+#error
+#endif
 	{
 		self->cleanup_stack = nullptr;
 		self->id = syscall(SYS_PTHREAD_SELF);
@@ -61,7 +67,13 @@ extern "C" void _init_libc(char** environ, init_funcs_t init_funcs, init_funcs_t
 		};
 		uthread.dtv[0] = 0;
 
-		syscall(SYS_SET_TLS, &uthread);
+#if defined(__x86_64__)
+		syscall(SYS_SET_FSBASE, &uthread);
+#elif defined(__i686__)
+		syscall(SYS_SET_GSBASE, &uthread);
+#else
+#error
+#endif
 	}
 
 	// call global constructors

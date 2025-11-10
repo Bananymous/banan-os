@@ -49,7 +49,13 @@ extern "C" void _pthread_trampoline_cpp(void* arg)
 {
 	auto info = *reinterpret_cast<pthread_trampoline_info_t*>(arg);
 	info.uthread->id = syscall(SYS_PTHREAD_SELF);
-	syscall(SYS_SET_TLS, info.uthread);
+#if defined(__x86_64__)
+	syscall(SYS_SET_FSBASE, info.uthread);
+#elif defined(__i686__)
+	syscall(SYS_SET_GSBASE, info.uthread);
+#else
+#error
+#endif
 	free(arg);
 	pthread_exit(info.start_routine(info.arg));
 	ASSERT_NOT_REACHED();
