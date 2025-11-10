@@ -2326,9 +2326,12 @@ namespace Kernel
 		if (len == 0)
 			return BAN::Error::from_errno(EINVAL);
 
-		const vaddr_t vaddr = reinterpret_cast<vaddr_t>(addr);
-		if (vaddr % PAGE_SIZE != 0)
-			return BAN::Error::from_errno(EINVAL);
+		vaddr_t vaddr = reinterpret_cast<vaddr_t>(addr);
+		if (auto rem = vaddr % PAGE_SIZE)
+		{
+			vaddr -= rem;
+			len += PAGE_SIZE - rem;
+		}
 
 		if (auto rem = len % PAGE_SIZE)
 			len += PAGE_SIZE - rem;
