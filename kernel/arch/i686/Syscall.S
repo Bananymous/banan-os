@@ -1,12 +1,6 @@
 // arguments in EAX, EBX, ECX, EDX, ESI, EDI
 .global asm_syscall_handler
 asm_syscall_handler:
-	# save segment registers
-	pushw %ds
-	pushw %es
-	pushw %fs
-	pushw %gs
-
 	# save general purpose registers
 	pushl %ebx
 	pushl %ecx
@@ -18,13 +12,12 @@ asm_syscall_handler:
 
 	# align stack
 	movl %esp, %ebp
-	subl $15, %esp
-	andl $0xFFFFFFF0, %esp
+	andl $-16, %esp
 
 	# push arguments
 	subl $4, %esp
 	pushl %ebp
-	addl $32, (%esp)
+	addl $24, (%esp)
 	pushl %edi
 	pushl %esi
 	pushl %edx
@@ -44,6 +37,15 @@ asm_syscall_handler:
 
 	movl %ebp, %esp
 
+	# restore userspace segments
+	movw $(0x20 | 3), %bx
+	movw %bx, %ds
+	movw %bx, %es
+	movw $(0x30 | 3), %bx
+	movw %bx, %fs
+	movw $(0x38 | 3), %bx
+	movw %bx, %gs
+
 	# restore general purpose registers
 	popl %ebp
 	popl %esi
@@ -51,12 +53,6 @@ asm_syscall_handler:
 	popl %edx
 	popl %ecx
 	popl %ebx
-
-	# restore segment registers
-	popw %gs
-	popw %fs
-	popw %es
-	popw %ds
 
 	iret
 

@@ -29,8 +29,8 @@ namespace Kernel
 		gdt->write_entry(0x20, 0x00000000, 0xFFFFF, 0xF2, data_flags);	// user data
 #if ARCH(i686)
 		gdt->write_entry(0x28, reinterpret_cast<uint32_t>(processor), sizeof(Processor), 0x92, 0x4); // processor data
-		gdt->write_entry(0x30, 0x00000000, 0x00000, 0x00, 0x0);			// fsbase
-		gdt->write_entry(0x38, 0x00000000, 0x00000, 0x00, 0x0);			// gsbase
+		gdt->write_entry(0x30, 0x00000000, 0x00000, 0xF2, data_flags);	// fsbase
+		gdt->write_entry(0x38, 0x00000000, 0x00000, 0xF2, data_flags);	// gsbase
 #endif
 		gdt->write_tss();
 

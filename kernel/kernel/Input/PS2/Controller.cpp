@@ -321,7 +321,7 @@ namespace Kernel::Input
 					result.type = type;
 
 					BAN::Optional<ACPI::ResourceData> data;
-					ACPI::ResourceParser parser({ crs_obj->node.as.str_buf->bytes, crs_obj->node.as.str_buf->size });
+					ACPI::ResourceParser parser({ crs_obj->node.as.str_buf->bytes, static_cast<size_t>(crs_obj->node.as.str_buf->size) });
 					while ((data = parser.get_next()).has_value())
 					{
 						switch (data->type)

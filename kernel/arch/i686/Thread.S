@@ -31,8 +31,6 @@ start_kernel_thread:
 	subl $12, %esp
 	pushl %edi
 	call *%esi
-	addl $16, %esp
-
 
 .global start_userspace_thread
 start_userspace_thread:
@@ -41,14 +39,11 @@ start_userspace_thread:
 	call get_thread_start_sp
 	movl %eax, %esp
 
-	# ds, es = user data
 	movw $(0x20 | 3), %bx
 	movw %bx, %ds
 	movw %bx, %es
-	# fs
 	movw $(0x30 | 3), %bx
 	movw %bx, %fs
-	# gs
 	movw $(0x38 | 3), %bx
 	movw %bx, %gs
 

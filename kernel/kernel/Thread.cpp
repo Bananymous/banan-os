@@ -386,7 +386,7 @@ namespace Kernel
 
 		vaddr_t vaddr = userspace_stack_top() - needed_size;
 
-		const size_t page_count = BAN::Math::div_round_up(needed_size, PAGE_SIZE);
+		const size_t page_count = BAN::Math::div_round_up<size_t>(needed_size, PAGE_SIZE);
 		for (size_t i = 0; i < page_count; i++)
 			TRY(m_userspace_stack->allocate_page_for_demand_paging(vaddr + i * PAGE_SIZE));
 

@@ -1,12 +1,7 @@
-.macro push_userspace
-	pushw %gs
-	pushw %fs
-	pushw %es
-	pushw %ds
-	pushal
-.endm
+.macro maybe_load_kernel_segments, n
+	cmpb $0x08, \n(%esp)
+	je 1f
 
-.macro load_kernel_segments
 	movw $0x10, %ax
 	movw %ax, %ds
 	movw %ax, %es
@@ -14,19 +9,26 @@
 
 	movw $0x28, %ax
 	movw %ax, %gs
+1:
 .endm
 
-.macro pop_userspace
-	popal
-	popw %ds
-	popw %es
-	popw %fs
-	popw %gs
+.macro maybe_load_userspace_segments, n
+	cmpb $0x08, \n(%esp)
+	je 1f
+
+	movw $(0x20 | 3), %bx
+	movw %bx, %ds
+	movw %bx, %es
+	movw $(0x30 | 3), %bx
+	movw %bx, %fs
+	movw $(0x38 | 3), %bx
+	movw %bx, %gs
+1:
 .endm
 
 isr_stub:
-	push_userspace
-	load_kernel_segments
+	pushal
+	maybe_load_kernel_segments 44
 	cld
 
 	movl %cr0, %eax; pushl %eax
@@ -34,33 +36,39 @@ isr_stub:
 	movl %cr3, %eax; pushl %eax
 	movl %cr4, %eax; pushl %eax
 
-	movl %esp,     %eax // register ptr
-	leal 64(%esp), %ebx // interrupt stack ptr
-	movl 60(%esp), %ecx // error code
-	movl 56(%esp), %edx // isr number
+	movl 48(%esp), %edi // isr number
+	movl 52(%esp), %esi // error code
+	leal 56(%esp), %edx // interrupt stack ptr
+	movl %esp,     %ecx // register ptr
+
+	# stack frame for stack trace
+	leal 56(%esp), %eax
+	pushl (%eax)
+	pushl %ebp
 
 	movl %esp, %ebp
 	andl $-16, %esp
 
-	pushl %eax
-	pushl %ebx
 	pushl %ecx
 	pushl %edx
+	pushl %esi
+	pushl %edi
 	call cpp_isr_handler
 
 	movl %ebp, %esp
-	addl $16, %esp
+	addl $24, %esp
 
-	pop_userspace
+	maybe_load_userspace_segments 44
+	popal
 	addl $8, %esp
 	iret
 
 irq_stub:
-	push_userspace
-	load_kernel_segments
+	pushal
+	maybe_load_kernel_segments 44
 	cld
 
-	movl 40(%esp), %edi # interrupt number
+	movl 32(%esp), %edi # interrupt number
 
 	movl %esp, %ebp
 	andl $-16, %esp
@@ -71,7 +79,8 @@ irq_stub:
 
 	movl %ebp, %esp
 
-	pop_userspace
+	maybe_load_userspace_segments 44
+	popal
 	addl $8, %esp
 	iret
 
@@ -99,8 +108,8 @@ asm_yield_handler:
 
 .global asm_ipi_handler
 asm_ipi_handler:
-	push_userspace
-	load_kernel_segments
+	pushal
+	maybe_load_kernel_segments 36
 	cld
 
 	movl %esp, %ebp
@@ -110,13 +119,14 @@ asm_ipi_handler:
 
 	movl %ebp, %esp
 
-	pop_userspace
+	maybe_load_userspace_segments 36
+	popal
 	iret
 
 .global asm_timer_handler
 asm_timer_handler:
-	push_userspace
-	load_kernel_segments
+	pushal
+	maybe_load_kernel_segments 36
 	cld
 
 	movl %esp, %ebp
@@ -126,7 +136,8 @@ asm_timer_handler:
 
 	movl %ebp, %esp
 
-	pop_userspace
+	maybe_load_userspace_segments 36
+	popal
 	iret
 
 .macro isr n

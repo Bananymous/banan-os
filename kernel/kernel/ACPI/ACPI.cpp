@@ -856,7 +856,7 @@ acpi_release_global_lock:
 			};
 
 		// TODO: EC can also reside in memory space
-		auto crs_buffer = BAN::ConstByteSpan { crs.as.str_buf->bytes, crs.as.str_buf->size };
+		auto crs_buffer = BAN::ConstByteSpan { crs.as.str_buf->bytes, static_cast<size_t>(crs.as.str_buf->size) };
 		const auto data_port = TRY(extract_io_port(crs_buffer));
 		const auto command_port = TRY(extract_io_port(crs_buffer));
 
