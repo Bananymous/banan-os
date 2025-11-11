@@ -275,7 +275,6 @@ namespace Kernel
 		BAN::ErrorOr<VirtualFileSystem::File> find_relative_parent(int fd, const char* path) const;
 
 		BAN::ErrorOr<void> validate_string_access(const char*);
-		BAN::ErrorOr<void> validate_pointer_access_check(const void*, size_t, bool needs_write);
 		BAN::ErrorOr<void> validate_pointer_access(const void*, size_t, bool needs_write);
 		BAN::ErrorOr<MemoryRegion*> validate_and_pin_pointer_access(const void*, size_t, bool needs_write);
 

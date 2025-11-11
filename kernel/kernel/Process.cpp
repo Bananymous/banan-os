@@ -1091,6 +1091,7 @@ namespace Kernel
 		if (Thread::current().userspace_stack().contains(address))
 			return Thread::current().userspace_stack().allocate_page_for_demand_paging(address);
 
+		// FIXME: make m_mapped_regions sorted so this can be a binary search
 		for (auto& region : m_mapped_regions)
 		{
 			if (!region->contains(address))
@@ -3563,62 +3564,64 @@ namespace Kernel
 		return validate_pointer_access(str, strlen(str) + 1, false);
 	}
 
-	BAN::ErrorOr<void> Process::validate_pointer_access_check(const void* ptr, size_t size, bool needs_write)
-	{
-		ASSERT(&Process::current() == this);
-
-		const vaddr_t vaddr = reinterpret_cast<vaddr_t>(ptr);
-
-		// NOTE: detect overflow
-		if (vaddr + size < vaddr)
-			goto unauthorized_access;
-
-		// trying to access kernel space memory
-		if (vaddr + size > USERSPACE_END)
-			goto unauthorized_access;
-
-		for (const auto* thread : m_threads)
-			if (vaddr >= thread->userspace_stack_bottom() && vaddr + size <= thread->userspace_stack_top())
-				return {};
-
-		// FIXME: should we allow cross mapping access?
-		for (const auto& mapped_region : m_mapped_regions)
-		{
-			if (!mapped_region->contains_fully(vaddr, size))
-				continue;
-			if (needs_write && !mapped_region->writable())
-				goto unauthorized_access;
-			return {};
-		}
-
-unauthorized_access:
-		dwarnln("process {}, thread {} attempted to make an invalid pointer access to 0x{H}->0x{H}", pid(), Thread::current().tid(), vaddr, vaddr + size);
-		Debug::dump_stack_trace();
-		MUST(sys_kill(pid(), SIGSEGV));
-		return BAN::Error::from_errno(EINTR);
-	}
-
 	BAN::ErrorOr<void> Process::validate_pointer_access(const void* ptr, size_t size, bool needs_write)
 	{
-		// TODO: This seems very slow as we loop over the range twice
-
 		if (size == 0)
 			return {};
 
-		TRY(validate_pointer_access_check(ptr, size, needs_write));
-
-		const vaddr_t vaddr = reinterpret_cast<vaddr_t>(ptr);
+		const auto page_flags = (needs_write ? PageTable::Flags::ReadWrite : 0) | PageTable::Flags::Present;
 
 		// Make sure all of the pages are mapped here, so demand paging does not happen
 		// while processing syscall.
+
+		const vaddr_t vaddr = reinterpret_cast<vaddr_t>(ptr);
 		const vaddr_t page_start = vaddr & PAGE_ADDR_MASK;
 		const size_t page_count = range_page_count(vaddr, size);
 		for (size_t i = 0; i < page_count; i++)
 		{
 			const vaddr_t current = page_start + i * PAGE_SIZE;
-			if (page_table().get_page_flags(current) & PageTable::Flags::Present)
+			if ((page_table().get_page_flags(current) & page_flags) == page_flags)
 				continue;
-			TRY(Process::allocate_page_for_demand_paging(current, needs_write, false));
+			if (!TRY(Process::allocate_page_for_demand_paging(current, needs_write, false)))
+			{
+				const MemoryRegion* region_ptr = nullptr;
+				for (const auto& region : m_mapped_regions)
+				{
+					if (!region->contains(vaddr + i * PAGE_SIZE))
+						continue;
+					region_ptr = region.ptr();
+					break;
+				}
+
+				dwarnln("{} pid {}, tid {} made an invalid {} access to 0x{h}",
+					name(),
+					pid(),
+					Thread::current().tid(),
+					needs_write ? "write" : "read",
+					vaddr + i * PAGE_SIZE
+				);
+
+				dwarnln("  0x{h}->0x{h}", vaddr, vaddr + size);
+
+				if (region_ptr == nullptr)
+					dwarnln("  no mapping covers this page");
+				else
+				{
+					dwarnln("  inside region 0x{h}->0x{h} {}{}{}",
+						region_ptr->vaddr(),
+						region_ptr->vaddr() + region_ptr->size(),
+						(region_ptr->flags() & PageTable::Flags::Present)   ? 'r' : '-',
+						(region_ptr->flags() & PageTable::Flags::ReadWrite) ? 'w' : '-',
+						(region_ptr->flags() & PageTable::Flags::Execute)   ? 'x' : '-'
+					);
+				}
+
+				page_table().debug_dump();
+
+				Debug::dump_stack_trace();
+				MUST(sys_kill(pid(), SIGSEGV));
+				return BAN::Error::from_errno(EINTR);
+			}
 		}
 
 		return {};
@@ -3628,6 +3631,10 @@ unauthorized_access:
 	{
 		LockGuard _(m_process_lock);
 		TRY(validate_pointer_access(ptr, size, needs_write));
+
+		// FIXME: make stack MemoryRegion?
+		// FIXME: allow pinning multiple regions
+
 		for (auto& region : m_mapped_regions)
 		{
 			if (!region->contains_fully(reinterpret_cast<vaddr_t>(ptr), size))
@@ -3635,7 +3642,7 @@ unauthorized_access:
 			region->pin();
 			return region.ptr();
 		}
-		// FIXME: Make stack MemoryRegion?
+
 		return nullptr;
 	}
 
