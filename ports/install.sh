@@ -11,6 +11,12 @@ fi
 
 source "$BANAN_ROOT_DIR/script/config.sh"
 
+installed_file="$BANAN_PORT_DIR/.installed_ports"
+if [ -z $DONT_REMOVE_INSTALLED ]; then
+	export DONT_REMOVE_INSTALLED=1
+	rm -f "$installed_file"
+fi
+
 export PATH="$BANAN_TOOLCHAIN_PREFIX/bin:$PATH"
 
 export PKG_CONFIG_DIR=''
@@ -28,10 +34,6 @@ export OBJCOPY="$BANAN_TOOLCHAIN_TRIPLE-objcopy"
 export OBJDUMP="$BANAN_TOOLCHAIN_TRIPLE-objdump"
 export STRIP="$BANAN_TOOLCHAIN_TRIPLE-strip"
 export CXXFILT="$BANAN_TOOLCHAIN_TRIPLE-c++filt"
-
-pushd "$BANAN_ROOT_DIR" >/dev/null
-./bos all && ./bos install || exit 1
-popd >/dev/null
 
 if [ "$BANAN_ARCH" = "i686" ]; then
 	export LDFLAGS="-shared-libgcc"
@@ -78,13 +80,17 @@ post_configure() {
 }
 
 configure() {
-	pre_configure
-
 	configure_options=("--host=$BANAN_ARCH-pc-banan_os" '--prefix=/usr')
 	configure_options+=("${CONFIGURE_OPTIONS[@]}")
 	./configure "${configure_options[@]}" || exit 1
+}
 
-	post_configure
+pre_build() {
+	:
+}
+
+post_build() {
+	:
 }
 
 build() {
@@ -102,13 +108,9 @@ post_install() {
 }
 
 install() {
-	pre_install
-
 	for target in "${MAKE_INSTALL_TARGETS[@]}"; do
 		make $target "DESTDIR=$BANAN_SYSROOT" || exit 1
 	done
-
-	post_install
 }
 
 source $1
@@ -118,7 +120,30 @@ if [ -z $NAME ] || [ -z $VERSION ] || [ -z $DOWNLOAD_URL ]; then
 	exit 1
 fi
 
+build_dir="$NAME-$VERSION-$BANAN_ARCH"
+
+if [ ! -d "$build_dir" ]; then
+	rm -f '.compile_hash'
+fi
+
+if [ ! -f '.compile_hash' ] && [ -f "$installed_file" ]; then
+	sed -i "/^$NAME-$VERSION$/d" "$installed_file"
+fi
+
+if grep -qsxF "$NAME-$VERSION" "$installed_file"; then
+	exit 0
+fi
+
+pushd "$BANAN_ROOT_DIR" >/dev/null
+./bos all && ./bos install || exit 1
+popd >/dev/null
+
 for dependency in "${DEPENDENCIES[@]}"; do
+	if [ ! -d "../$dependency" ]; then
+		echo "Could not find dependency '$dependency' or port '$NAME'"
+		exit 1
+	fi
+
 	pushd "../$dependency" >/dev/null
 	pwd
 	if ! ./build.sh; then
@@ -127,12 +152,6 @@ for dependency in "${DEPENDENCIES[@]}"; do
 	fi
 	popd >/dev/null
 done
-
-build_dir="$NAME-$VERSION-$BANAN_ARCH"
-
-if [ ! -d "$build_dir" ]; then
-	rm -f ".compile_hash"
-fi
 
 if [ "$VERSION" = "git" ]; then
 	regex="(.*/.*\.git)#(.*)"
@@ -186,7 +205,7 @@ else
 			exit 1
 		fi
 
-		regex='(.*\.tar\..*)'
+		regex='(.*\.tar\..*|.*\.tgz)'
 		if [[ $FILE_NAME =~ $regex ]] && [ ! -d "$build_dir" ]; then
 			tar xf "$FILE_NAME" || exit 1
 
@@ -219,9 +238,19 @@ cd "$build_dir"
 
 if (( $needs_compile )); then
 	config_sub_update
+
+	pre_configure
 	configure
+	post_configure
+
+	pre_build
 	build
+	post_build
+
 	sha256sum "$BANAN_SYSROOT/usr/lib/libc.a" > "../.compile_hash"
 fi
 
+pre_install
 install
+grep -qsxF "$NAME-$VERSION" "$installed_file" || echo "$NAME-$VERSION" >> "$installed_file"
+post_install
