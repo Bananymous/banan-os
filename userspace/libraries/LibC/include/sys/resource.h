@@ -28,14 +28,15 @@ typedef unsigned int rlim_t;
 
 struct rlimit
 {
-	rlim_t rlim_cur;	/* The current (soft) limit. */
-	rlim_t rlim_max;	/* The hard limit. */
+	rlim_t rlim_cur; /* The current (soft) limit. */
+	rlim_t rlim_max; /* The hard limit. */
 };
 
 struct rusage
 {
-	struct timeval ru_utime;	/* User time used. */
-	struct timeval ru_stime;	/* System time used. */
+	struct timeval ru_utime; /* User time used. */
+	struct timeval ru_stime; /* System time used. */
+	long ru_maxrss;          /* Maximum resident set size (in kilobytes). */
 };
 
 #define RLIMIT_CORE		0
