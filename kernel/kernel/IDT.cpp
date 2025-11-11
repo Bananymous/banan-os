@@ -236,11 +236,15 @@ namespace Kernel
 			"Register dump\r\n"
 			"rax=0x{16H}, rbx=0x{16H}, rcx=0x{16H}, rdx=0x{16H}\r\n"
 			"rsp=0x{16H}, rbp=0x{16H}, rdi=0x{16H}, rsi=0x{16H}\r\n"
+			" r8=0x{16H},  r9=0x{16H}, r10=0x{16H}, r11=0x{16H}\r\n"
+			"r12=0x{16H}, r13=0x{16H}, r14=0x{16H}, r15=0x{16H}\r\n"
 			"rip=0x{16H}, rflags=0x{16H}\r\n"
 			"cr0=0x{16H}, cr2=0x{16H}, cr3=0x{16H}, cr4=0x{16H}",
 			Processor::current_id(), isr_exceptions[isr], error, pid, tid, process_name,
 			regs->rax, regs->rbx, regs->rcx, regs->rdx,
 			interrupt_stack->sp, regs->rbp, regs->rdi, regs->rsi,
+			regs->r8, regs->r9, regs->r10, regs->r11,
+			regs->r12, regs->r13, regs->r14, regs->r15,
 			interrupt_stack->ip, interrupt_stack->flags,
 			regs->cr0, regs->cr2, regs->cr3, regs->cr4
 		);
