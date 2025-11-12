@@ -270,6 +270,12 @@ namespace Kernel
 			BAN::StringView file_name;
 		};
 
+		// Adds new region to the sorted array of mapped regions
+		BAN::ErrorOr<void> add_mapped_region(BAN::UniqPtr<MemoryRegion>&&);
+		// If address is contained by a region, returns the index of that.
+		// Otherwise returns the address of the first region after this address.
+		size_t find_mapped_region(vaddr_t) const;
+
 		BAN::ErrorOr<VirtualFileSystem::File> find_file(int fd, const char* path, int flags) const;
 		BAN::ErrorOr<FileParent> find_parent_file(int fd, const char* path, int flags) const;
 		BAN::ErrorOr<VirtualFileSystem::File> find_relative_parent(int fd, const char* path) const;

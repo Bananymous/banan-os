@@ -161,7 +161,7 @@ namespace Kernel
 		if (executable.master_tls.has_value())
 		{
 			auto tls_result = TRY(process->initialize_thread_local_storage(process->page_table(), *executable.master_tls));
-			TRY(process->m_mapped_regions.emplace_back(BAN::move(tls_result.region)));
+			TRY(process->add_mapped_region(BAN::move(tls_result.region)));
 			tls_addr = tls_result.addr;
 		}
 
@@ -403,6 +403,33 @@ namespace Kernel
 		result.addr = region->vaddr() + master_size;;
 		result.region = BAN::move(region);
 		return result;
+	}
+
+	BAN::ErrorOr<void> Process::add_mapped_region(BAN::UniqPtr<MemoryRegion>&& region)
+	{
+		const size_t index = find_mapped_region(region->vaddr());
+		TRY(m_mapped_regions.insert(index, BAN::move(region)));
+		return {};
+	}
+
+	size_t Process::find_mapped_region(vaddr_t address) const
+	{
+		size_t l = 0, r = m_mapped_regions.size();
+
+		while (l < r)
+		{
+			const size_t mid = (l + r) / 2;
+
+			if (m_mapped_regions[mid]->contains(address))
+				return mid;
+
+			if (m_mapped_regions[mid]->vaddr() < address)
+				l = mid + 1;
+			else
+				r = mid;
+		}
+
+		return l;
 	}
 
 	size_t Process::proc_meminfo(off_t offset, BAN::ByteSpan buffer) const
@@ -1091,15 +1118,15 @@ namespace Kernel
 		if (Thread::current().userspace_stack().contains(address))
 			return Thread::current().userspace_stack().allocate_page_for_demand_paging(address);
 
-		// FIXME: make m_mapped_regions sorted so this can be a binary search
-		for (auto& region : m_mapped_regions)
-		{
-			if (!region->contains(address))
-				continue;
-			return region->allocate_page_containing(address, wants_write);
-		}
+		const size_t index = find_mapped_region(address);
+		if (index >= m_mapped_regions.size())
+			return false;
 
-		return false;
+		auto& region = m_mapped_regions[index];
+		if (!region->contains(address))
+			return false;
+
+		return region->allocate_page_containing(address, wants_write);
 	}
 
 	BAN::ErrorOr<long> Process::open_inode(VirtualFileSystem::File&& file, int flags)
@@ -2287,21 +2314,25 @@ namespace Kernel
 
 			if (args.flags & MAP_FIXED_NOREPLACE)
 				;
-			else for (size_t i = 0; i < m_mapped_regions.size(); i++)
+			else
 			{
-				if (!m_mapped_regions[i]->overlaps(vaddr, args.len))
-					continue;
-
-				m_mapped_regions[i]->wait_not_pinned();
-				auto temp = BAN::move(m_mapped_regions[i]);
-				m_mapped_regions.remove(i--);
-
-				if (!temp->is_contained_by(vaddr, args.len))
+				const size_t first_index = find_mapped_region(vaddr);
+				for (size_t i = first_index; i < m_mapped_regions.size(); i++)
 				{
+					if (!m_mapped_regions[i]->overlaps(vaddr, args.len))
+						break;
+
+					m_mapped_regions[i]->wait_not_pinned();
+					auto temp = BAN::move(m_mapped_regions[i]);
+					m_mapped_regions.remove(i--);
+
+					if (temp->is_contained_by(vaddr, args.len))
+						continue;
+
 					auto new_regions = TRY(split_memory_region(BAN::move(temp), vaddr, args.len));
 					for (auto& new_region : new_regions)
 						if (!new_region->overlaps(vaddr, args.len))
-							TRY(m_mapped_regions.push_back(BAN::move(new_region)));
+							TRY(m_mapped_regions.insert(++i, BAN::move(new_region)));
 				}
 			}
 		}
@@ -2333,8 +2364,9 @@ namespace Kernel
 				O_EXEC | O_RDWR
 			));
 
-			TRY(m_mapped_regions.push_back(BAN::move(region)));
-			return m_mapped_regions.back()->vaddr();
+			const vaddr_t region_vaddr = region->vaddr();
+			TRY(add_mapped_region(BAN::move(region)));
+			return region_vaddr;
 		}
 
 		auto inode = TRY(m_open_file_descriptors.inode_of(args.fildes));
@@ -2346,10 +2378,10 @@ namespace Kernel
 			if ((args.prot & PROT_WRITE) && !(status_flags & O_WRONLY))
 				return BAN::Error::from_errno(EACCES);
 
-		BAN::UniqPtr<MemoryRegion> memory_region;
+		BAN::UniqPtr<MemoryRegion> region;
 		if (inode->mode().ifreg())
 		{
-			memory_region = TRY(FileBackedRegion::create(
+			region = TRY(FileBackedRegion::create(
 				inode,
 				page_table(),
 				args.off, args.len,
@@ -2360,7 +2392,7 @@ namespace Kernel
 		}
 		else if (inode->is_device())
 		{
-			memory_region = TRY(static_cast<Device&>(*inode).mmap_region(
+			region = TRY(static_cast<Device&>(*inode).mmap_region(
 				page_table(),
 				args.off, args.len,
 				address_range,
@@ -2369,11 +2401,12 @@ namespace Kernel
 			));
 		}
 
-		if (!memory_region)
+		if (!region)
 			return BAN::Error::from_errno(ENODEV);
 
-		TRY(m_mapped_regions.push_back(BAN::move(memory_region)));
-		return m_mapped_regions.back()->vaddr();
+		const vaddr_t region_vaddr = region->vaddr();
+		TRY(add_mapped_region(BAN::move(region)));
+		return region_vaddr;
 	}
 
 	BAN::ErrorOr<long> Process::sys_munmap(void* addr, size_t len)
@@ -2393,22 +2426,23 @@ namespace Kernel
 
 		LockGuard _(m_process_lock);
 
-		for (size_t i = 0; i < m_mapped_regions.size(); i++)
+		const size_t first_index = find_mapped_region(vaddr);
+		for (size_t i = first_index; i < m_mapped_regions.size(); i++)
 		{
 			if (!m_mapped_regions[i]->overlaps(vaddr, len))
-				continue;
+				break;
 
 			m_mapped_regions[i]->wait_not_pinned();
 			auto temp = BAN::move(m_mapped_regions[i]);
 			m_mapped_regions.remove(i--);
 
-			if (!temp->is_contained_by(vaddr, len))
-			{
-				auto new_regions = TRY(split_memory_region(BAN::move(temp), vaddr, len));
-				for (auto& new_region : new_regions)
-					if (!new_region->overlaps(vaddr, len))
-						TRY(m_mapped_regions.push_back(BAN::move(new_region)));
-			}
+			if (temp->is_contained_by(vaddr, len))
+				continue;
+
+			auto new_regions = TRY(split_memory_region(BAN::move(temp), vaddr, len));
+			for (auto& new_region : new_regions)
+				if (!new_region->overlaps(vaddr, len))
+					TRY(m_mapped_regions.insert(++i, BAN::move(new_region)));
 		}
 
 		return 0;
@@ -2441,10 +2475,11 @@ namespace Kernel
 
 		LockGuard _(m_process_lock);
 
-		for (size_t i = 0; i < m_mapped_regions.size(); i++)
+		const size_t first_index = find_mapped_region(vaddr);
+		for (size_t i = first_index; i < m_mapped_regions.size(); i++)
 		{
 			if (!m_mapped_regions[i]->overlaps(vaddr, len))
-				continue;
+				break;
 
 			if (!m_mapped_regions[i]->is_contained_by(vaddr, len))
 			{
@@ -2453,8 +2488,8 @@ namespace Kernel
 				m_mapped_regions.remove(i--);
 
 				auto new_regions = TRY(split_memory_region(BAN::move(temp), vaddr, len));
-				for (auto& new_region : new_regions)
-					TRY(m_mapped_regions.push_back(BAN::move(new_region)));
+				for (size_t j = 0; j < new_regions.size(); j++)
+					TRY(m_mapped_regions.insert(i + j + 1, BAN::move(new_regions[j])));
 
 				continue;
 			}
@@ -2482,9 +2517,16 @@ namespace Kernel
 		LockGuard _(m_process_lock);
 
 		const vaddr_t vaddr = reinterpret_cast<vaddr_t>(addr);
-		for (auto& mapped_region : m_mapped_regions)
-			if (mapped_region->overlaps(vaddr, len))
-				TRY(mapped_region->msync(vaddr, len, flags));
+
+		const size_t first_index = find_mapped_region(vaddr);
+		for (size_t i = first_index; i < m_mapped_regions.size(); i++)
+		{
+			auto& region = *m_mapped_regions[i];
+			if (vaddr >= region.vaddr() + region.size())
+				break;
+			if (region.overlaps(vaddr, len))
+				TRY(region.msync(vaddr, len, flags));
+		}
 
 		return 0;
 	}
@@ -2526,8 +2568,9 @@ namespace Kernel
 		auto region = TRY(SharedMemoryObjectManager::get().map_object(key, page_table(), { .start = 0x400000, .end = USERSPACE_END }));
 
 		LockGuard _(m_process_lock);
-		TRY(m_mapped_regions.push_back(BAN::move(region)));
-		return m_mapped_regions.back()->vaddr();
+		const vaddr_t region_vaddr = region->vaddr();
+		TRY(add_mapped_region(BAN::move(region)));
+		return region_vaddr;
 	}
 
 	BAN::ErrorOr<long> Process::sys_ttyname(int fildes, char* name, size_t namesize)
@@ -3635,9 +3678,15 @@ namespace Kernel
 		// FIXME: make stack MemoryRegion?
 		// FIXME: allow pinning multiple regions
 
-		for (auto& region : m_mapped_regions)
+		const vaddr_t vaddr = reinterpret_cast<vaddr_t>(ptr);
+
+		const size_t first_index = find_mapped_region(vaddr);
+		for (size_t i = first_index; i < m_mapped_regions.size(); i++)
 		{
-			if (!region->contains_fully(reinterpret_cast<vaddr_t>(ptr), size))
+			auto& region = m_mapped_regions[i];
+			if (vaddr >= region->vaddr() + region->size())
+				break;
+			if (!region->contains_fully(vaddr, size))
 				continue;
 			region->pin();
 			return region.ptr();
