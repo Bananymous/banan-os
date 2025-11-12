@@ -192,6 +192,7 @@ namespace Kernel
 
 	BAN::ErrorOr<size_t> TCPSocket::recvmsg_impl(msghdr& message, int flags)
 	{
+		flags &= (MSG_OOB | MSG_PEEK | MSG_WAITALL);
 		if (flags != 0)
 		{
 			dwarnln("TODO: recvmsg with flags 0x{H}", flags);
@@ -239,6 +240,9 @@ namespace Kernel
 
 	BAN::ErrorOr<size_t> TCPSocket::sendmsg_impl(const msghdr& message, int flags)
 	{
+		if (flags & MSG_NOSIGNAL)
+			dwarnln("sendmsg ignoring MSG_NOSIGNAL");
+		flags &= (MSG_EOR | MSG_OOB /* | MSG_NOSIGNAL */);
 		if (flags != 0)
 		{
 			dwarnln("TODO: sendmsg with flags 0x{H}", flags);

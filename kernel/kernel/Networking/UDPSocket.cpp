@@ -88,6 +88,7 @@ namespace Kernel
 
 	BAN::ErrorOr<size_t> UDPSocket::recvmsg_impl(msghdr& message, int flags)
 	{
+		flags &= (MSG_OOB | MSG_PEEK | MSG_WAITALL);
 		if (flags != 0)
 		{
 			dwarnln("TODO: recvmsg with flags 0x{H}", flags);
@@ -153,14 +154,17 @@ namespace Kernel
 
 	BAN::ErrorOr<size_t> UDPSocket::sendmsg_impl(const msghdr& message, int flags)
 	{
+		if (flags & MSG_NOSIGNAL)
+			dwarnln("sendmsg ignoring MSG_NOSIGNAL");
+		flags &= (MSG_EOR | MSG_OOB /* | MSG_NOSIGNAL */);
 		if (flags != 0)
 		{
-			dwarnln("TODO: recvmsg with flags 0x{H}", flags);
+			dwarnln("TODO: sendmsg with flags 0x{H}", flags);
 			return BAN::Error::from_errno(ENOTSUP);
 		}
 
 		if (CMSG_FIRSTHDR(&message))
-			dwarnln("ignoring recvmsg control message");
+			dwarnln("ignoring sendmsg control message");
 
 		if (!is_bound())
 			TRY(m_network_layer.bind_socket_to_unused(this, static_cast<sockaddr*>(message.msg_name), message.msg_namelen));
