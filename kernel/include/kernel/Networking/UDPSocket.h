@@ -33,6 +33,7 @@ namespace Kernel
 	protected:
 		virtual void receive_packet(BAN::ConstByteSpan, const sockaddr* sender, socklen_t sender_len) override;
 
+		virtual BAN::ErrorOr<void> connect_impl(const sockaddr*, socklen_t) override;
 		virtual BAN::ErrorOr<void> bind_impl(const sockaddr* address, socklen_t address_len) override;
 		virtual BAN::ErrorOr<size_t> recvmsg_impl(msghdr& message, int flags) override;
 		virtual BAN::ErrorOr<size_t> sendmsg_impl(const msghdr& message, int flags) override;
@@ -62,6 +63,9 @@ namespace Kernel
 		size_t								m_packet_total_size { 0 };
 		SpinLock							m_packet_lock;
 		ThreadBlocker						m_packet_thread_blocker;
+
+		sockaddr_storage					m_peer_address {};
+		socklen_t							m_peer_address_len { 0 };
 
 		friend class BAN::RefPtr<UDPSocket>;
 	};

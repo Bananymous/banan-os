@@ -79,6 +79,15 @@ namespace Kernel
 		m_packet_thread_blocker.unblock();
 	}
 
+	BAN::ErrorOr<void> UDPSocket::connect_impl(const sockaddr* address, socklen_t address_len)
+	{
+		if (address_len > static_cast<socklen_t>(sizeof(m_peer_address)))
+			address_len = sizeof(m_peer_address);
+		memcpy(&m_peer_address, address, address_len);
+		m_peer_address_len = address_len;
+		return {};
+	}
+
 	BAN::ErrorOr<void> UDPSocket::bind_impl(const sockaddr* address, socklen_t address_len)
 	{
 		if (is_bound())
@@ -187,7 +196,22 @@ namespace Kernel
 			offset += message.msg_iov[i].iov_len;
 		}
 
-		return TRY(m_network_layer.sendto(*this, buffer.span(), static_cast<sockaddr*>(message.msg_name), message.msg_namelen));
+		sockaddr* address;
+		socklen_t address_len;
+		if (!message.msg_name || message.msg_namelen == 0)
+		{
+			if (m_peer_address_len == 0)
+				return BAN::Error::from_errno(EDESTADDRREQ);
+			address = reinterpret_cast<sockaddr*>(&m_peer_address);
+			address_len = m_peer_address_len;
+		}
+		else
+		{
+			address = static_cast<sockaddr*>(message.msg_name);
+			address_len = message.msg_namelen;
+		}
+
+		return TRY(m_network_layer.sendto(*this, buffer.span(), address, address_len));
 	}
 
 	BAN::ErrorOr<long> UDPSocket::ioctl_impl(int request, void* argument)
