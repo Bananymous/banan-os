@@ -6,8 +6,10 @@
 #include <kernel/Syscall.h>
 
 #include <ctype.h>
+#include <dlfcn.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <pthread.h>
 #include <pwd.h>
 #include <stdarg.h>
@@ -28,6 +30,10 @@ struct init_funcs_t
 };
 
 extern "C" char** environ;
+
+#define DUMP_BACKTRACE 1
+
+static void __dump_backtrace(int, siginfo_t*, void*);
 
 extern "C" void _init_libc(char** environ, init_funcs_t init_funcs, init_funcs_t fini_funcs)
 {
@@ -76,6 +82,23 @@ extern "C" void _init_libc(char** environ, init_funcs_t init_funcs, init_funcs_t
 #endif
 	}
 
+	if constexpr (DUMP_BACKTRACE)
+	{
+		sigset_t ss;
+		sigemptyset(&ss);
+
+		struct sigaction sa {
+			.sa_sigaction = __dump_backtrace,
+			.sa_mask = ss,
+			.sa_flags = SA_RESETHAND | SA_SIGINFO,
+		};
+
+		sigaction(SIGBUS, &sa, nullptr);
+		sigaction(SIGFPE, &sa, nullptr);
+		sigaction(SIGILL, &sa, nullptr);
+		sigaction(SIGSEGV, &sa, nullptr);
+	}
+
 	// call global constructors
 	if (init_funcs.func)
 		init_funcs.func();
@@ -89,6 +112,86 @@ extern "C" void _init_libc(char** environ, init_funcs_t init_funcs, init_funcs_t
 		atexit(fini_funcs.array_start[i]);
 	if (fini_funcs.func)
 		atexit(fini_funcs.func);
+}
+
+static void __dump_symbol(int fd, const void* address)
+{
+	const uintptr_t uptr_addr = reinterpret_cast<uintptr_t>(address);
+
+	// NOTE: dladdr is techically not async-signal-safe but it will only
+	//       cause problems if the signal interrupts dlopen or initial startup.
+
+	Dl_info_t dli;
+	if (dladdr(address, &dli) == 0)
+	{
+		dprintf(fd, "  0x%08" PRIxPTR "\n", uptr_addr);
+		return;
+	}
+
+	const uintptr_t uptr_fbase = reinterpret_cast<uintptr_t>(dli.dli_fbase);
+
+	if (dli.dli_saddr == nullptr || dli.dli_sname == nullptr)
+	{
+		dprintf(fd, "  0x%08" PRIxPTR " (%s)\n", uptr_addr - uptr_fbase, dli.dli_fname);
+		return;
+	}
+
+	const uintptr_t uptr_saddr = reinterpret_cast<uintptr_t>(dli.dli_saddr);
+	dprintf(fd, "  0x%08" PRIxPTR " (%s) %s+0x%" PRIxPTR "\n", uptr_addr - uptr_fbase, dli.dli_fname, symbol_name, uptr_addr - uptr_saddr);
+}
+
+static void __dump_backtrace(int sig, siginfo_t* info, void* context)
+{
+	constexpr auto signal_name =
+		[](int signal) -> const char*
+		{
+			switch (signal) {
+				case SIGBUS: return "SIGBUS";
+				case SIGFPE: return "SIGFPE";
+				case SIGILL: return "SIGILL";
+				case SIGSEGV: return "SIGSEGV";
+			}
+			return "unknown signal";
+		};
+
+	// NOTE: we cannot use stddbf as that is not async-signal-safe.
+	//       POSIX says dprintf isn't either but our implementation is!
+
+	int fd = open("/dev/debug", O_WRONLY);
+	if (fd == -1)
+	{
+		perror("failed to open debug device for backtrace");
+		return;
+	}
+
+	dprintf(fd, "received %s, backtrace:\n", signal_name(sig));
+
+	__dump_symbol(fd, info->si_addr);
+
+	struct stackframe
+	{
+		const stackframe* bp;
+		void* ip;
+	};
+
+	const auto* ucontext = static_cast<ucontext_t*>(context);
+#if defined(__x86_64__)
+	const uintptr_t stack_base = ucontext->uc_mcontext.gregs[REG_RBP];
+#elif defined(__i686__)
+	const uintptr_t stack_base = ucontext->uc_mcontext.gregs[REG_EBP];
+#endif
+
+	const auto* stackframe = reinterpret_cast<struct stackframe*>(stack_base);
+
+	for (size_t i = 0; i < 128 && stackframe; i++)
+	{
+		__dump_symbol(fd, stackframe->ip);
+		stackframe = stackframe->bp;
+	}
+
+	close(fd);
+
+	raise(sig);
 }
 
 void _exit(int status)
