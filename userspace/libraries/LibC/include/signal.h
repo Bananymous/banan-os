@@ -92,6 +92,7 @@ struct sigevent
 #define SIGUSR1   19
 #define SIGUSR2   20
 #define SIGPOLL   21
+#define SIGIO SIGPOLL
 #define     POLL_IN  1
 #define     POLL_OUT 2
 #define     POLL_MSG 3
@@ -101,6 +102,8 @@ struct sigevent
 #define SIGPROF   22
 #define SIGSYS    23
 #define SIGTRAP   24
+#define     TRAP_BRKPT 1
+#define     TRAP_TRACE 2
 #define SIGURG    25
 #define SIGVTALRM 26
 #define SIGXCPU   27
@@ -210,10 +213,13 @@ typedef struct
 
 struct sigaction
 {
-	void (*sa_handler)(int);                      /* Pointer to a signal-catching function or one of the SIG_IGN or SIG_DFL. */
-	sigset_t sa_mask;                             /* Set of signals to be blocked during execution of the signal handling function. */
-	int      sa_flags;                            /* Special flags. */
-	void (*sa_sigaction)(int, siginfo_t*, void*); /* Pointer to a signal-catching function. */
+	union
+	{
+		void (*sa_handler)(int);                      /* Pointer to a signal-catching function or one of the SIG_IGN or SIG_DFL. */
+		void (*sa_sigaction)(int, siginfo_t*, void*); /* Pointer to a signal-catching function. */
+	};
+	sigset_t sa_mask;                                 /* Set of signals to be blocked during execution of the signal handling function. */
+	int      sa_flags;                                /* Special flags. */
 };
 
 int		kill(pid_t pid, int sig);
