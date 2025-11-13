@@ -192,7 +192,7 @@ namespace Kernel
 		void set_stopped(bool stopped, int signal);
 		void wait_while_stopped();
 
-		static BAN::ErrorOr<void> kill(pid_t pid, int signal);
+		static BAN::ErrorOr<void> kill(pid_t pid, int signal, const siginfo_t& = {});
 		BAN::ErrorOr<long> sys_kill(pid_t pid, int signal);
 		BAN::ErrorOr<long> sys_sigaction(int signal, const struct sigaction* act, struct sigaction* oact);
 		BAN::ErrorOr<long> sys_sigpending(sigset_t* set);
@@ -290,7 +290,7 @@ namespace Kernel
 			return m_signal_pending_mask;
 		}
 
-		void add_pending_signal(uint8_t signal)
+		void add_pending_signal(uint8_t signal, const siginfo_t& info)
 		{
 			ASSERT(signal >= _SIGMIN);
 			ASSERT(signal <= _SIGMAX);
@@ -302,6 +302,7 @@ namespace Kernel
 			if (handler == SIG_DFL && (signal == SIGCHLD || signal == SIGURG))
 				return;
 			m_signal_pending_mask |= 1ull << signal;
+			m_signal_infos[signal] = info;
 		}
 
 		void remove_pending_signal(uint8_t signal)
@@ -354,6 +355,7 @@ namespace Kernel
 		uint64_t m_alarm_wake_time_ns { 0 };
 
 		mutable SpinLock m_signal_lock;
+		siginfo_t        m_signal_infos[_SIGMAX + 1] { };
 		struct sigaction m_signal_handlers[_SIGMAX + 1] { };
 		uint64_t m_signal_pending_mask { 0 };
 

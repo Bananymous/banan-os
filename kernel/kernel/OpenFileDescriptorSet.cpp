@@ -502,7 +502,7 @@ namespace Kernel
 			LockGuard _(inode->m_mutex);
 			if (inode->has_error())
 			{
-				Thread::current().add_signal(SIGPIPE);
+				Thread::current().add_signal(SIGPIPE, {});
 				return BAN::Error::from_errno(EPIPE);
 			}
 			if (is_nonblock && !inode->can_write())
@@ -588,7 +588,7 @@ namespace Kernel
 		LockGuard _(inode->m_mutex);
 		if (inode->has_hungup())
 		{
-			Thread::current().add_signal(SIGPIPE);
+			Thread::current().add_signal(SIGPIPE, {});
 			return BAN::Error::from_errno(EPIPE);
 		}
 		if (is_nonblock && !inode->can_write())

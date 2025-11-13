@@ -106,7 +106,7 @@ namespace Kernel
 		{
 			if (m_reading_count == 0)
 			{
-				Thread::current().add_signal(SIGPIPE);
+				Thread::current().add_signal(SIGPIPE, {});
 				return BAN::Error::from_errno(EPIPE);
 			}
 			TRY(Thread::current().block_or_eintr_indefinite(m_thread_blocker, &m_mutex));

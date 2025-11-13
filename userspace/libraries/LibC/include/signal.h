@@ -152,15 +152,15 @@ typedef struct
 enum
 {
 #if defined(__x86_64__)
+	REG_RIP,
+	REG_RSP,
+	REG_RBP,
 	REG_RAX,
 	REG_RBX,
 	REG_RCX,
 	REG_RDX,
 	REG_RDI,
 	REG_RSI,
-	REG_RSP,
-	REG_RBP,
-	REG_RIP,
 	REG_R8,
 	REG_R9,
 	REG_R10,
@@ -170,15 +170,15 @@ enum
 	REG_R14,
 	REG_R15,
 #elif defined(__i686__)
+	REG_EIP,
+	REG_ESP,
+	REG_EBP,
 	REG_EAX,
 	REG_EBX,
 	REG_ECX,
 	REG_EDX,
 	REG_EDI,
 	REG_ESI,
-	REG_ESP,
-	REG_EBP,
-	REG_EIP,
 #else
 #error
 #endif

@@ -47,7 +47,7 @@ namespace Kernel
 	IPv4Layer::~IPv4Layer()
 	{
 		if (m_thread)
-			m_thread->add_signal(SIGKILL);
+			m_thread->add_signal(SIGKILL, {});
 		m_thread = nullptr;
 	}
 

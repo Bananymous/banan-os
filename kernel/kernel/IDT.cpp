@@ -203,7 +203,7 @@ namespace Kernel
 					if (result.is_error())
 					{
 						dwarnln("Demand paging: {}", result.error());
-						Thread::current().handle_signal(SIGKILL);
+						Thread::current().handle_signal(SIGKILL, {});
 						goto done;
 					}
 				}
@@ -273,30 +273,48 @@ namespace Kernel
 		{
 			// TODO: Confirm and fix the exception to signal mappings
 
-			int signal = 0;
+			siginfo_t signal_info {};
 			switch (isr)
 			{
 			case ISR::DivisionError:
+				signal_info.si_signo = SIGFPE;
+				signal_info.si_code = FPE_INTDIV;
+				break;
 			case ISR::SIMDFloatingPointException:
 			case ISR::x87FloatingPointException:
-				signal = SIGFPE;
+				// FIXME: this is probably not correct?
+				signal_info.si_signo = SIGFPE;
+				signal_info.si_code = FPE_FLTDIV;
 				break;
 			case ISR::AlignmentCheck:
-				signal = SIGBUS;
+				signal_info.si_signo = SIGBUS;
+				signal_info.si_code = BUS_ADRALN;
+				break;
+			case ISR::GeneralProtectionFault:
+				// TODO: this assumes unaligned operand but GP can be also caused by
+				//       a privileged instruction or uncanonical address in which case
+				//       the generated signal should be different
+				signal_info.si_signo = SIGBUS;
+				signal_info.si_code = BUS_ADRALN;
 				break;
 			case ISR::InvalidOpcode:
-				signal = SIGILL;
+				signal_info.si_signo = SIGILL;
+				signal_info.si_code = ILL_ILLOPC;
 				break;
 			case ISR::PageFault:
-				signal = SIGSEGV;
+				signal_info.si_signo = SIGSEGV;
+				if (PageTable::current().get_page_flags(regs->cr2 & PAGE_ADDR_MASK) & PageTable::Flags::Present)
+					signal_info.si_code = SEGV_ACCERR;
+				else
+					signal_info.si_code = SEGV_MAPERR;
 				break;
 			default:
 				dwarnln("Unhandled exception");
-				signal = SIGABRT;
+				signal_info.si_signo = SIGABRT;
 				break;
 			}
 
-			Thread::current().handle_signal(signal);
+			Thread::current().handle_signal(signal_info.si_signo, signal_info);
 		}
 		else
 		{

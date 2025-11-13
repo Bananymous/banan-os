@@ -59,8 +59,8 @@ namespace Kernel
 		bool can_add_signal_to_execute() const;
 		bool will_execute_signal() const;
 		// Returns true if handled signal had SA_RESTART
-		bool handle_signal(int signal = 0);
-		void add_signal(int signal);
+		bool handle_signal(int signal = 0, const siginfo_t& signal_info = {});
+		void add_signal(int signal, const siginfo_t& info);
 		void set_suspend_signal_mask(uint64_t sigmask);
 
 		static bool is_stopping_signal(int signal);
@@ -174,6 +174,7 @@ namespace Kernel
 		InterruptStack             m_interrupt_stack      { };
 		InterruptRegisters         m_interrupt_registers  { };
 
+		siginfo_t                  m_signal_infos[_SIGMAX + 1] { };
 		uint64_t                   m_signal_pending_mask  { 0 };
 		uint64_t                   m_signal_block_mask    { 0 };
 		BAN::Optional<uint64_t>    m_signal_suspend_mask;

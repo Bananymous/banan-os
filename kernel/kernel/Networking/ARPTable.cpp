@@ -36,7 +36,7 @@ namespace Kernel
 	ARPTable::~ARPTable()
 	{
 		if (m_thread)
-			m_thread->add_signal(SIGKILL);
+			m_thread->add_signal(SIGKILL, {});
 		m_thread = nullptr;
 	}
 

@@ -313,7 +313,17 @@ namespace Kernel
 
 					child.status = __WGENEXITCODE(status, signal);
 
-					parent_process->add_pending_signal(SIGCHLD);
+					parent_process->add_pending_signal(SIGCHLD, {
+						.si_signo = SIGCHLD,
+						.si_code = signal ? CLD_KILLED : CLD_EXITED,
+						.si_errno = 0,
+						.si_pid = pid(),
+						.si_uid = m_credentials.ruid(),
+						.si_addr = nullptr,
+						.si_status = __WGENEXITCODE(status, signal),
+						.si_band = 0,
+						.si_value = {},
+					});
 					if (!parent_process->m_threads.empty())
 						Processor::scheduler().unblock_thread(parent_process->m_threads.front());
 
@@ -328,7 +338,7 @@ namespace Kernel
 			LockGuard _(m_process_lock);
 			for (auto* thread : m_threads)
 				if (thread != &Thread::current())
-					thread->add_signal(SIGKILL);
+					thread->add_signal(SIGKILL, {});
 		}
 
 		while (m_threads.size() > 1)
@@ -1054,7 +1064,17 @@ namespace Kernel
 			if (current_ns < process->m_alarm_wake_time_ns)
 				break;
 
-			process->add_pending_signal(SIGALRM);
+			process->add_pending_signal(SIGALRM, {
+				.si_signo = SIGALRM,
+				.si_code = SI_TIMER,
+				.si_errno = 0,
+				.si_pid = 0,
+				.si_uid = 0,
+				.si_addr = nullptr,
+				.si_status = 0,
+				.si_band = 0,
+				.si_value = {},
+			});
 
 			ASSERT(!process->m_threads.empty());
 			Processor::scheduler().unblock_thread(process->m_threads.front());
@@ -2765,7 +2785,18 @@ namespace Kernel
 
 			if (!(m_signal_handlers[SIGCHLD].sa_flags & SA_NOCLDSTOP))
 			{
-				parent->add_pending_signal(SIGCHLD);
+				parent->add_pending_signal(SIGCHLD, {
+					.si_signo = SIGCHLD,
+					.si_code = stopped ? CLD_STOPPED : CLD_CONTINUED,
+					.si_errno = 0,
+					.si_pid = pid(),
+					.si_uid = m_credentials.ruid(),
+					.si_addr = nullptr,
+					.si_status = __WGENEXITCODE(0, signal),
+					.si_band = 0,
+					.si_value = { .sival_int = 0 },
+				});
+
 				if (!parent->m_threads.empty())
 					Processor::scheduler().unblock_thread(parent->m_threads.front());
 			}
@@ -2791,7 +2822,7 @@ namespace Kernel
 		}
 	}
 
-	BAN::ErrorOr<void> Process::kill(pid_t pid, int signal)
+	BAN::ErrorOr<void> Process::kill(pid_t pid, int signal, const siginfo_t& signal_info)
 	{
 		if (pid == 0 || pid == -1)
 			return BAN::Error::from_errno(ENOTSUP);
@@ -2815,7 +2846,7 @@ namespace Kernel
 					process.set_stopped(false, signal);
 				else
 				{
-					process.add_pending_signal(signal);
+					process.add_pending_signal(signal, signal_info);
 					if (!process.m_threads.empty())
 						Processor::scheduler().unblock_thread(process.m_threads.front());
 					process.m_stop_blocker.unblock();
@@ -2837,6 +2868,18 @@ namespace Kernel
 		if (signal != 0 && (signal < _SIGMIN || signal > _SIGMAX))
 			return BAN::Error::from_errno(EINVAL);
 
+		const siginfo_t signal_info {
+			.si_signo = signal,
+			.si_code = SI_USER,
+			.si_errno = 0,
+			.si_pid = this->pid(),
+			.si_uid = m_credentials.ruid(),
+			.si_addr = nullptr,
+			.si_status = 0,
+			.si_band = 0,
+			.si_value = {},
+		};
+
 		if (pid == m_pid)
 		{
 			if (signal == 0)
@@ -2847,13 +2890,13 @@ namespace Kernel
 				set_stopped(false, signal);
 			else
 			{
-				add_pending_signal(signal);
+				add_pending_signal(signal, signal_info);
 				m_stop_blocker.unblock();
 			}
 			return 0;
 		}
 
-		TRY(kill(pid, signal));
+		TRY(kill(pid, signal, signal_info));
 		return 0;
 	}
 
@@ -3196,8 +3239,19 @@ namespace Kernel
 		{
 			if (thread->tid() != tid)
 				continue;
-			if (signal != 0)
-				thread->add_signal(signal);
+			if (signal == 0)
+				return 0;
+			thread->add_signal(signal, {
+				.si_signo = signal,
+				.si_code = SI_USER,
+				.si_errno = 0,
+				.si_pid = pid(),
+				.si_uid = m_credentials.ruid(),
+				.si_addr = nullptr,
+				.si_status = 0,
+				.si_band = 0,
+				.si_value = {},
+			});
 			return 0;
 		}
 

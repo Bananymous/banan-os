@@ -2,29 +2,48 @@
 
 // stack contains
 //    return address
+//    return stack
+//    return rflags
+//    siginfo_t
 //    signal number
 //    signal handler
 
 .global signal_trampoline
 signal_trampoline:
-	pushq %rax
-	pushq %rbx
-	pushq %rcx
-	pushq %rdx
-	pushq %rbp
-	pushq %rdi
-	pushq %rsi
-	pushq %r8
-	pushq %r9
-	pushq %r10
-	pushq %r11
-	pushq %r12
-	pushq %r13
+	pushq %r15 // gregs
 	pushq %r14
-	pushq %r15
+	pushq %r13
+	pushq %r12
+	pushq %r11
+	pushq %r10
+	pushq %r9
+	pushq %r8
+	pushq %rsi
+	pushq %rdi
+	pushq %rdx
+	pushq %rcx
+	pushq %rbx
+	pushq %rax
+	pushq %rbp
 
-	movq 128(%rsp), %rdi
-	movq 120(%rsp), %rax
+	movq 200(%rsp), %rax  // return sp
+	addq $(128 + 8), %rax //   red-zone and return address
+	movq 208(%rsp), %rbx  // return ip
+	pushq %rax;
+	pushq %rbx
+
+	// FIXME: populate these
+	xorq %rax, %rax
+	pushq %rax // stack
+	pushq %rax
+	pushq %rax
+	pushq %rax // sigset
+	pushq %rax // link
+
+	movq  %rsp,     %rdx // ucontext
+	leaq 192(%rsp), %rsi // siginfo
+	movq 184(%rsp), %rdi // signal number
+	movq 176(%rsp), %rax // handler
 
 	// align stack to 16 bytes
 	movq %rsp, %rbp
@@ -40,26 +59,32 @@ signal_trampoline:
 
 	// restore stack
 	movq %rbp, %rsp
-	popq %r15
-	popq %r14
-	popq %r13
-	popq %r12
-	popq %r11
-	popq %r10
-	popq %r9
-	popq %r8
-	popq %rsi
-	popq %rdi
-	popq %rbp
-	popq %rdx
-	popq %rcx
-	popq %rbx
-	popq %rax
+	addq $56, %rsp
 
-	addq $16, %rsp
+	// restore registers
+	popq %rbp
+	popq %rax
+	popq %rbx
+	popq %rcx
+	popq %rdx
+	popq %rdi
+	popq %rsi
+	popq %r8
+	popq %r9
+	popq %r10
+	popq %r11
+	popq %r12
+	popq %r13
+	popq %r14
+	popq %r15
+
+	// skip handler, number, siginfo_t
+	addq $72, %rsp
+
+	// restore flags
 	popfq
 
 	movq (%rsp), %rsp
 
-	// return over red-zone
+	// return over red-zone and siginfo_t
 	ret $128
