@@ -22,12 +22,3 @@ pre_configure() {
 	unset PKG_CONFIG_LIBDIR
 	unset PKG_CONFIG_PATH
 }
-
-post_install() {
-	# remove libtool files
-	rm -f $BANAN_SYSROOT/usr/lib/libbfd.la
-	rm -f $BANAN_SYSROOT/usr/lib/libctf.la
-	rm -f $BANAN_SYSROOT/usr/lib/libctf-nobfd.la
-	rm -f $BANAN_SYSROOT/usr/lib/libopcodes.la
-	rm -f $BANAN_SYSROOT/usr/lib/libsframe.la
-}

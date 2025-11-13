@@ -9,10 +9,3 @@ CONFIGURE_OPTIONS=(
 	"--with-pngincludedir=$BANAN_SYSROOT/usr/include"
 	"--with-pnglibdir=$BANAN_SYSROOT/usr/lib"
 )
-
-post_install() {
-	# remove libtool files
-	rm -f $BANAN_SYSROOT/usr/lib/libwebp.la
-	rm -f $BANAN_SYSROOT/usr/lib/libwebpdemux.la
-	rm -f $BANAN_SYSROOT/usr/lib/libwebpmux.la
-}

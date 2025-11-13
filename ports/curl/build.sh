@@ -18,8 +18,3 @@ CONFIGURE_OPTIONS=(
 	'--with-ca-bundle=/etc/ssl/certs/ca-certificates.crt'
 	'--without-ca-path'
 )
-
-post_install() {
-	# remove libtool file
-	rm -f $BANAN_SYSROOT/usr/lib/libcurl.la
-}

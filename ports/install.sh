@@ -254,3 +254,4 @@ pre_install
 install
 grep -qsxF "$NAME-$VERSION" "$installed_file" || echo "$NAME-$VERSION" >> "$installed_file"
 post_install
+find "$BANAN_SYSROOT/usr/lib" -name '*.la' -delete

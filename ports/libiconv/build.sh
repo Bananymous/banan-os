@@ -12,9 +12,3 @@ CONFIGURE_OPTIONS=(
 pre_configure() {
 	echo '#include_next <sys/types.h>' > srclib/sys_types.in.h
 }
-
-post_install() {
-	# remove libtool file
-	rm -f $BANAN_SYSROOT/usr/lib/libcharset.la
-	rm -f $BANAN_SYSROOT/usr/lib/libiconv.la
-}

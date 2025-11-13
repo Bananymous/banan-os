@@ -27,10 +27,3 @@ build() {
 	make -j$(nproc) all-target-libgcc CFLAGS_FOR_TARGET="$xcflags" || exit 1
 	make -j$(nproc) all-target-libstdc++-v3 || exit 1
 }
-
-post_install() {
-	# remove libtool files
-	rm -f $BANAN_SYSROOT/usr/lib/libstdc++.la
-	rm -f $BANAN_SYSROOT/usr/lib/libstdc++exp.la
-	rm -f $BANAN_SYSROOT/usr/lib/libsupc++.la
-}

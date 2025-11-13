@@ -8,8 +8,3 @@ CONFIG_SUB=('build-aux/config.sub')
 CONFIGURE_OPTIONS=(
 	'CFLAGS=-std=c11'
 )
-
-post_install() {
-	# remove libtool file
-	rm -f $BANAN_SYSROOT/usr/lib/libsndfile.la
-}

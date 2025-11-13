@@ -7,8 +7,3 @@ CONFIG_SUB=('configfsf.sub')
 CONFIGURE_OPTIONS=(
 	'CFLAGS=-std=c17'
 )
-
-post_install() {
-	# remove libtool file
-	rm -f $BANAN_SYSROOT/usr/lib/libgmp.la
-}
