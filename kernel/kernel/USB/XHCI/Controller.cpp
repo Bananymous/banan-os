@@ -113,6 +113,18 @@ namespace Kernel
 
 		auto& operational = operational_regs();
 
+		if (auto page_size_bits = operational.pagesize & 0xFFFF; page_size_bits != 1)
+		{
+			dwarnln("XHCI does not support 4096 byte pages");
+			dwarnln("  supported page sizes:");
+			for (size_t i = 0; i < 16; i++)
+				if (page_size_bits & (1 << i))
+					dwarnln("    {} bytes", 1 << (12 + i));
+			if (__builtin_popcount(page_size_bits) != 1)
+				dwarnln("  ... XHCI spec only allows a single supported page size???");
+			return BAN::Error::from_errno(ENOTSUP);
+		}
+
 		// allocate and program dcbaa
 		m_dcbaa_region = TRY(DMARegion::create(capabilities.hcsparams1.max_slots * 8));
 		memset(reinterpret_cast<void*>(m_dcbaa_region->vaddr()), 0, m_dcbaa_region->size());
@@ -289,6 +301,9 @@ namespace Kernel
 			const paddr_t paddr = Heap::get().take_free_page();
 			if (paddr == 0)
 				return BAN::Error::from_errno(ENOMEM);
+			PageTable::with_fast_page(paddr, [] {
+				memset(PageTable::fast_page_as_ptr(), 0, PAGE_SIZE);
+			});
 			m_scratchpad_buffers[i] = paddr;
 			scratchpad_buffer_array[i] = paddr;
 		}
