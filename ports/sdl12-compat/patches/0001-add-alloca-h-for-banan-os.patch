@@ -1,0 +1,12 @@
+diff -ruN sdl12-compat-1.2.68/include/SDL/SDL_config.h sdl12-compat-1.2.68-banan_os/include/SDL/SDL_config.h
+--- sdl12-compat-1.2.68/include/SDL/SDL_config.h	2023-09-26 20:43:48.000000000 +0300
++++ sdl12-compat-1.2.68-banan_os/include/SDL/SDL_config.h	2025-11-16 03:22:39.015867984 +0200
+@@ -73,7 +73,7 @@
+ #define HAVE_MATH_H 1
+ #endif
+ 
+-#if defined(__linux__) || defined(__sun)
++#if defined(__linux__) || defined(__sun) || defined(__banan_os__)
+ #define HAVE_ALLOCA_H 1
+ #endif
+ 
