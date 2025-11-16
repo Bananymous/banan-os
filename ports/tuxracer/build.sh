@@ -3,16 +3,22 @@
 NAME='tuxracer'
 VERSION='0.61'
 DOWNLOAD_URL="http://download.sourceforge.net/tuxracer/tuxracer-$VERSION.tar.gz#a311d09080598fe556134d4b9faed7dc0c2ed956ebb10d062e5d4df022f91eff"
-DEPENDENCIES=('tcl' 'mesa' 'glu' 'sdl12-compat')
+DEPENDENCIES=('tcl' 'mesa' 'glu' 'sdl12-compat' 'SDL_mixer')
 CONFIGURE_OPTIONS=(
 	'--with-data-dir=/usr/share/tuxracer'
 	"--with-sdl-prefix=$BANAN_SYSROOT/usr"
-	'--without-gl-libs'
 	'--with-tcl-lib-name=tcl8.6'
 	'--without-x'
-	'ac_cv_func_isnan=yes'
-	'CFLAGS="-std=c99 -Wno-implicit-int -Wno-incompatible-pointer-types'
 )
+
+pre_configure() {
+	export CFLAGS="-std=c99 -Wno-implicit-int -Wno-incompatible-pointer-types"
+	export ac_cv_func_isnan='yes'
+}
+
+post_configure() {
+	unset CFLAGS ac_cv_func_isnan
+}
 
 post_install() {
 	pushd ..
