@@ -254,7 +254,7 @@ int main()
 
 		if (FD_ISSET(server_fd, &fds))
 		{
-			int window_fd = accept4(server_fd, nullptr, nullptr, SOCK_CLOEXEC);
+			int window_fd = accept4(server_fd, nullptr, nullptr, SOCK_NONBLOCK | SOCK_CLOEXEC);
 			if (window_fd == -1)
 			{
 				dwarnln("accept: {}", strerror(errno));

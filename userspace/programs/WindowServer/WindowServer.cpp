@@ -789,10 +789,7 @@ void WindowServer::set_focused_window(BAN::RefPtr<Window> window)
 		LibGUI::EventPacket::WindowFocusEvent packet;
 		packet.event.focused = false;
 		if (auto ret = packet.send_serialized(m_focused_window->client_fd()); ret.is_error())
-		{
 			dwarnln("could not send window focus event: {}", ret.error());
-			return;
-		}
 	}
 
 	for (size_t i = m_client_windows.size(); i > 0; i--)
@@ -812,10 +809,7 @@ void WindowServer::set_focused_window(BAN::RefPtr<Window> window)
 		LibGUI::EventPacket::WindowFocusEvent packet;
 		packet.event.focused = true;
 		if (auto ret = packet.send_serialized(m_focused_window->client_fd()); ret.is_error())
-		{
 			dwarnln("could not send window focus event: {}", ret.error());
-			return;
-		}
 	}
 }
 
