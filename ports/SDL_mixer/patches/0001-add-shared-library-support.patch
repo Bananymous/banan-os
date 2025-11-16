@@ -1,0 +1,31 @@
+diff -ruN SDL_mixer-1.2.12/configure SDL_mixer-1.2.12-banan_os/configure
+--- SDL_mixer-1.2.12/configure	2012-01-16 00:00:28.000000000 +0200
++++ SDL_mixer-1.2.12-banan_os/configure	2025-11-16 03:27:17.615555034 +0200
+@@ -4073,6 +4073,10 @@
+   lt_cv_deplibs_check_method=pass_all
+   ;;
+ 
++banan_os*)
++  lt_cv_deplibs_check_method=pass_all
++  ;;
++
+ beos*)
+   lt_cv_deplibs_check_method=pass_all
+   ;;
+@@ -9083,6 +9087,16 @@
+   esac
+   ;;
+ 
++banan_os*)
++  version_type=linux # correct to gnu/linux during the next big refactor
++  need_lib_prefix=no
++  need_version=no
++  library_names_spec='$libname$release$shared_ext$versuffix $libname$release$shared_ext$major $libname$shared_ext'
++  soname_spec='$libname$release$shared_ext$major'
++  dynamic_linker="$host_os DynamicLoader.so"
++  shlibpath_var=LD_LIBRARY_PATH
++  ;;
++
+ beos*)
+   library_names_spec='${libname}${shared_ext}'
+   dynamic_linker="$host_os ld.so"
