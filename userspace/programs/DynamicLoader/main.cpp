@@ -1506,9 +1506,11 @@ char* __dlerror(void)
 
 void* __dlopen(const char* file, int mode)
 {
-	const bool lazy = !(mode & RTLD_NOW);
+	const bool lazy  = (mode & _RTLD_LAZY_NOW_MASK) == RTLD_LAZY;
+	const bool local = (mode & _RTLD_GLOBAL_LOCAL_MASK) == RTLD_LOCAL;
 
-	// FIXME: RTLD_{LOCAL,GLOBAL}
+	if (local)
+		print(STDDBG_FILENO, "local dlopen is not supported, loading as global\n");
 
 	if (file == nullptr)
 		return &s_loaded_files[0];

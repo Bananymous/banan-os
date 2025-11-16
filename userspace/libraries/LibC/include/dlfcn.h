@@ -7,10 +7,13 @@
 
 __BEGIN_DECLS
 
-#define RTLD_LAZY	1
-#define RTLD_NOW	2
-#define RTLD_GLOBAL	3
-#define RTLD_LOCAL	4
+#define RTLD_LAZY	0x0
+#define RTLD_NOW	0x1
+#define RTLD_GLOBAL	0x0
+#define RTLD_LOCAL	0x2
+
+#define _RTLD_LAZY_NOW_MASK     0x1
+#define _RTLD_GLOBAL_LOCAL_MASK 0x2
 
 #define RTLD_NEXT    ((void*)-1)
 #define RTLD_DEFAULT ((void*) 0)
