@@ -29,6 +29,7 @@ set(LIBC_SOURCES
 	printf_impl.cpp
 	pthread.cpp
 	pwd.cpp
+	regex.cpp
 	scanf_impl.cpp
 	sched.cpp
 	semaphore.cpp
