@@ -19,6 +19,7 @@ set(USERSPACE_PROGRAMS
 	http-server
 	id
 	image
+	ImageViewer
 	init
 	kill
 	less
