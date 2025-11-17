@@ -36,6 +36,23 @@ void Builtin::initialize()
 		}, true
 	));
 
+	MUST(m_builtin_commands.emplace("exec"_sv,
+		[](Execute&, BAN::Span<const BAN::String> arguments, FILE*, FILE*) -> int
+		{
+			if (arguments.size() <= 1)
+				return 0;
+
+			BAN::Vector<const char*> argv;
+			for (size_t i = 1; i < arguments.size(); i++)
+				MUST(argv.push_back(arguments[i].data()));
+			MUST(argv.push_back(nullptr));
+
+			execvp(argv[0], const_cast<char* const*>(argv.data()));
+			exit(128 + errno);
+			ASSERT_NOT_REACHED();
+		}, true
+	));
+
 	MUST(m_builtin_commands.emplace("export"_sv,
 		[](Execute&, BAN::Span<const BAN::String> arguments, FILE*, FILE*) -> int
 		{
