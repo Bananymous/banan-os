@@ -1305,8 +1305,14 @@ namespace Kernel
 
 		auto [parent, file_name] = TRY(find_parent_file(fd, path, O_WRONLY));
 
-		if (TRY(parent.inode->find_inode(file_name))->mode().ifdir() != (flag == AT_REMOVEDIR))
+		const auto inode = TRY(parent.inode->find_inode(file_name));
+
+		if (inode->mode().ifdir() != (flag == AT_REMOVEDIR))
 			return BAN::Error::from_errno(flag ? EPERM : ENOTDIR);
+
+		if (parent.inode->mode().mode & Inode::Mode::ISVTX)
+			if (m_credentials.ruid() != parent.inode->uid() && m_credentials.ruid() != inode->uid())
+				return BAN::Error::from_errno(EPERM);
 
 		TRY(parent.inode->unlink(file_name));
 
