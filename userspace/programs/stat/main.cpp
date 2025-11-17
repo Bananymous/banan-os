@@ -1,6 +1,8 @@
+#include <limits.h>
 #include <stdio.h>
 #include <sys/stat.h>
 #include <sys/sysmacros.h>
+#include <unistd.h>
 
 #include <BAN/Time.h>
 
@@ -21,7 +23,7 @@ int main(int argc, char** argv)
 	for (int i = 1; i < argc; i++)
 	{
 		struct stat st;
-		if (stat(argv[i], &st) == -1)
+		if (lstat(argv[i], &st) == -1)
 		{
 			perror("stat");
 			ret = 1;
@@ -67,7 +69,15 @@ int main(int argc, char** argv)
 		access[9] = (st.st_mode & S_ISVTX) ? ((st.st_mode & S_IXOTH) ? 't' : 'T') : (st.st_mode & S_IXOTH) ? 'x' : '-';
 		access[10] = '\0';
 
-		printf("  File: %s\n", argv[i]);
+		printf("  File: %s", argv[i]);
+		if (S_ISLNK(st.st_mode))
+		{
+			char buffer[PATH_MAX];
+			if (int length = readlink(argv[i], buffer, sizeof(buffer)); length > 0)
+				printf(" -> %.*s", length, buffer);
+		}
+		printf("\n");
+
 		printf("  Size: %-15ld Blocks: %-10ld IO Block: %-6ld %s\n", st.st_size, st.st_blocks, st.st_blksize, type);
 		printf("Device: %u,%-5u Inode: %-11llu Links: %-5lu Device type: %u,%u\n", major(st.st_dev), minor(st.st_dev), st.st_ino, st.st_nlink, major(st.st_rdev), minor(st.st_rdev));
 		printf("Access: (%04o/%s)  Uid: %5d Gid: %5d\n", st.st_mode & (S_IRWXU | S_IRWXG | S_IRWXO | S_ISUID | S_ISGID | S_ISVTX), access, st.st_uid, st.st_gid);
