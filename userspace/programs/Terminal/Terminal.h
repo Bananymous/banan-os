@@ -36,10 +36,13 @@ public:
 
 private:
 	void handle_sgr(int32_t value);
+	Rectangle scroll(uint32_t scroll);
 	Rectangle handle_csi(char ch);
 	Rectangle putcodepoint(uint32_t codepoint);
 	Rectangle putchar(uint8_t ch);
 	bool read_shell();
+
+	void update_selection(bool show = true);
 
 	BAN::Optional<uint32_t> get_8bit_color();
 	BAN::Optional<uint32_t> get_24bit_color();
@@ -79,12 +82,30 @@ private:
 		bool question;
 	};
 
+	struct Cell
+	{
+		uint32_t codepoint;
+		uint32_t fg_color;
+		uint32_t bg_color;
+		bool bold;
+	};
+
 private:
 	BAN::UniqPtr<LibGUI::Window> m_window;
 	LibFont::Font m_font;
 	ShellInfo m_shell_info;
 	State m_state { State::Normal };
 	CSIInfo m_csi_info;
+
+	BAN::Vector<Cell> m_cells;
+	uint32_t m_cells_rows { 0 };
+	uint32_t m_cells_cols { 0 };
+
+	uint32_t m_selection_s_col { UINT32_MAX };
+	uint32_t m_selection_s_row { UINT32_MAX };
+	uint32_t m_selection_e_col { UINT32_MAX };
+	uint32_t m_selection_e_row { UINT32_MAX };
+	bool m_selecting { false };
 
 	bool m_cursor_shown { true };
 	bool m_cursor_blink_shown { true };
