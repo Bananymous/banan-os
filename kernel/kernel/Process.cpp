@@ -508,7 +508,15 @@ namespace Kernel
 		return read_from_vec_of_str(m_environ, offset, buffer);
 	}
 
-	BAN::ErrorOr<BAN::String> Process::proc_executable() const
+	BAN::ErrorOr<BAN::String> Process::proc_cwd() const
+	{
+		LockGuard _(m_process_lock);
+		BAN::String result;
+		TRY(result.append(m_working_directory.canonical_path));
+		return result;
+	}
+
+	BAN::ErrorOr<BAN::String> Process::proc_exe() const
 	{
 		LockGuard _(m_process_lock);
 		BAN::String result;

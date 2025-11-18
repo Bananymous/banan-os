@@ -233,7 +233,8 @@ namespace Kernel
 		size_t proc_meminfo(off_t offset, BAN::ByteSpan) const;
 		size_t proc_cmdline(off_t offset, BAN::ByteSpan) const;
 		size_t proc_environ(off_t offset, BAN::ByteSpan) const;
-		BAN::ErrorOr<BAN::String> proc_executable() const;
+		BAN::ErrorOr<BAN::String> proc_cwd() const;
+		BAN::ErrorOr<BAN::String> proc_exe() const;
 
 		BAN::StringView executable() const { return m_executable; }
 

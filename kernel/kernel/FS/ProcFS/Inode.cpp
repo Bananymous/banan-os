@@ -15,9 +15,10 @@ namespace Kernel
 		TRY(inode->link_inode(*inode, "."_sv));
 		TRY(inode->link_inode(static_cast<TmpInode&>(*fs.root_inode()), ".."_sv));
 		TRY(inode->link_inode(*MUST(ProcROProcessInode::create_new(process, &Process::proc_meminfo, fs, 0400)), "meminfo"_sv));
-		TRY(inode->link_inode(*MUST(ProcROProcessInode::create_new(process, &Process::proc_cmdline, fs, 0400)), "cmdline"_sv));
+		TRY(inode->link_inode(*MUST(ProcROProcessInode::create_new(process, &Process::proc_cmdline, fs, 0444)), "cmdline"_sv));
 		TRY(inode->link_inode(*MUST(ProcROProcessInode::create_new(process, &Process::proc_environ, fs, 0400)), "environ"_sv));
-		TRY(inode->link_inode(*MUST(ProcSymlinkProcessInode::create_new(process, &Process::proc_executable, fs, 0400)), "exe"_sv));
+		TRY(inode->link_inode(*MUST(ProcSymlinkProcessInode::create_new(process, &Process::proc_cwd, fs, 0777)), "cwd"_sv));
+		TRY(inode->link_inode(*MUST(ProcSymlinkProcessInode::create_new(process, &Process::proc_exe, fs, 0777)), "exe"_sv));
 
 		return inode;
 	}
@@ -33,6 +34,7 @@ namespace Kernel
 		(void)TmpDirectoryInode::unlink_impl("meminfo"_sv);
 		(void)TmpDirectoryInode::unlink_impl("cmdline"_sv);
 		(void)TmpDirectoryInode::unlink_impl("environ"_sv);
+		(void)TmpDirectoryInode::unlink_impl("cwd"_sv);
 		(void)TmpDirectoryInode::unlink_impl("exe"_sv);
 	}
 
