@@ -417,6 +417,11 @@ namespace Kernel
 					m_cursor_shown = (ch == 'h');
 					return reset_ansi();
 				}
+				if (m_ansi_state.question && m_ansi_state.nums[0] == 2004)
+				{
+					// bracketed paste mode, there is no pasting so this is a no-op
+					return reset_ansi();
+				}
 				reset_ansi();
 				dprintln_if(DEBUG_VTTY, "Unsupported ANSI CSI character {}", static_cast<char>(ch));
 				return;

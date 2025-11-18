@@ -274,7 +274,13 @@ void Terminal::run()
 
 					auto clipboard = clipboard_or_error.release_value();
 					if (!clipboard.empty())
+					{
+						if (m_brackted_paste_mode)
+							write(m_shell_info.pts_master, "\e[200~", 6);
 						write(m_shell_info.pts_master, clipboard.data(), clipboard.size());
+						if (m_brackted_paste_mode)
+							write(m_shell_info.pts_master, "\e[201~", 6);
+					}
 					m_got_key_event = true;
 
 					break;
@@ -930,12 +936,26 @@ Rectangle Terminal::handle_csi(char ch)
 			break;
 		case 'h':
 		case 'l':
-			if (!m_csi_info.question || m_csi_info.fields[0] != 25)
+			if (m_csi_info.question)
 			{
-				dprintln("unsupported ANSI CSI {}", ch);
+				switch (m_csi_info.fields[0])
+				{
+					case 25:
+						m_cursor_shown = (ch == 'h');
+						break;
+					case 2004:
+						m_brackted_paste_mode = (ch == 'h');
+						break;
+					default:
+						dwarnln("unsupported ANSI CSI ? {} {}", m_csi_info.fields[0], ch);
+						break;
+				}
+			}
+			else
+			{
+				dwarnln("unsupported ANSI CSI {} {}", m_csi_info.fields[0], ch);
 				break;
 			}
-			m_cursor_shown = (ch == 'h');
 			break;
 		case 'n':
 			if (m_csi_info.fields[0] != 6)

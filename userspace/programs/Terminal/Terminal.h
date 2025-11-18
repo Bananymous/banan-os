@@ -106,6 +106,7 @@ private:
 	uint32_t m_selection_e_col { UINT32_MAX };
 	uint32_t m_selection_e_row { UINT32_MAX };
 	bool m_selecting { false };
+	bool m_brackted_paste_mode { false };
 
 	bool m_cursor_shown { true };
 	bool m_cursor_blink_shown { true };
