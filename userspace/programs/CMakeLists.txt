@@ -7,6 +7,7 @@ set(USERSPACE_PROGRAMS
 	cat-mmap
 	chmod
 	chown
+	ClipboardServer
 	cp
 	dd
 	dhcp-client

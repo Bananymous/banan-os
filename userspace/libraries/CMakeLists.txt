@@ -1,6 +1,7 @@
 set(USERSPACE_LIBRARIES
 	LibAudio
 	LibC
+	LibClipboard
 	LibDEFLATE
 	LibDL
 	LibELF
