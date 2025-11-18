@@ -42,8 +42,6 @@ namespace Kernel
 		UnixDomainSocket(Socket::Type, const Socket::Info&);
 		~UnixDomainSocket();
 
-		BAN::ErrorOr<void> add_packet(const msghdr&, size_t total_size, BAN::Vector<FDWrapper>&& fds_to_send);
-
 		bool is_bound() const { return !m_bound_file.canonical_path.empty(); }
 		bool is_bound_to_unused() const { return !m_bound_file.inode; }
 
@@ -70,7 +68,10 @@ namespace Kernel
 		{
 			size_t size;
 			BAN::Vector<FDWrapper> fds;
+			BAN::Optional<struct ucred> ucred;
 		};
+
+		BAN::ErrorOr<void> add_packet(const msghdr&, PacketInfo&&);
 
 	private:
 		const Socket::Type		m_socket_type;

@@ -7,6 +7,9 @@
 
 __BEGIN_DECLS
 
+#define __need_pid_t
+#define __need_uid_t
+#define __need_gid_t
 #define __need_size_t
 #define __need_ssize_t
 #include <sys/types.h>
@@ -53,7 +56,8 @@ struct cmsghdr
 	unsigned char __cmg_data[];
 };
 
-#define SCM_RIGHTS 1
+#define SCM_RIGHTS      1
+#define SCM_CREDENTIALS 2
 
 #define CMSG_DATA(cmsg) ((cmsg)->__cmg_data)
 
@@ -77,6 +81,13 @@ struct cmsghdr
 
 #define CMSG_LEN(length) \
 	(socklen_t)((length) + sizeof(struct cmsghdr))
+
+struct ucred
+{
+	pid_t pid;
+	uid_t uid;
+	gid_t gid;
+};
 
 struct linger
 {
