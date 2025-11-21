@@ -1,0 +1,13 @@
+diff -ruN mesa-25.0.7/include/drm-uapi/drm.h mesa-25.0.7-banan_os/include/drm-uapi/drm.h
+--- mesa-25.0.7/include/drm-uapi/drm.h  2025-05-28 18:20:23.000000000 +0300
++++ mesa-25.0.7-banan_os/include/drm-uapi/drm.h 2025-11-07 00:31:02.881817684 +0200
+@@ -44,7 +44,9 @@
+ #else /* One of the BSDs */
+ 
+ #include <stdint.h>
++#if 0
+ #include <sys/ioccom.h>
++#endif
+ #include <sys/types.h>
+ typedef int8_t   __s8;
+ typedef uint8_t  __u8;
