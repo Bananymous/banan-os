@@ -2,6 +2,7 @@
 #include <BAN/ScopeGuard.h>
 #include <kernel/FS/Ext2/FileSystem.h>
 #include <kernel/FS/Ext2/Inode.h>
+#include <kernel/Lock/LockGuard.h>
 #include <kernel/Timer/Timer.h>
 
 #include <sys/stat.h>
@@ -585,6 +586,37 @@ done:
 		return {};
 	}
 
+	BAN::ErrorOr<void> Ext2Inode::rename_inode_impl(BAN::RefPtr<Inode> old_parent, BAN::StringView old_name, BAN::StringView new_name)
+	{
+		ASSERT(this->mode().ifdir());
+		ASSERT(old_parent->mode().ifdir());
+		ASSERT(&m_fs == old_parent->filesystem());
+
+		auto* ext2_parent = static_cast<Ext2Inode*>(old_parent.ptr());
+
+		// FIXME: possible deadlock :)
+		LockGuard _(ext2_parent->m_mutex);
+
+		auto old_inode = TRY(ext2_parent->find_inode_impl(old_name));
+		auto* ext2_inode = static_cast<Ext2Inode*>(old_inode.ptr());
+
+		if (auto replace_or_error = find_inode_impl(new_name); replace_or_error.is_error())
+		{
+			if (replace_or_error.error().get_error_code() != ENOENT)
+				return replace_or_error.release_error();
+		}
+		else
+		{
+			TRY(unlink_impl(new_name));
+		}
+
+		TRY(link_inode_to_directory(*ext2_inode, new_name));
+
+		TRY(ext2_parent->remove_inode_from_directory(old_name, false));
+
+		return {};
+	}
+
 	BAN::ErrorOr<void> Ext2Inode::link_inode_to_directory(Ext2Inode& inode, BAN::StringView name)
 	{
 		if (!this->mode().ifdir())
@@ -778,7 +810,7 @@ needs_new_block:
 		return {};
 	}
 
-	BAN::ErrorOr<void> Ext2Inode::unlink_impl(BAN::StringView name)
+	BAN::ErrorOr<void> Ext2Inode::remove_inode_from_directory(BAN::StringView name, bool cleanup_directory)
 	{
 		ASSERT(mode().ifdir());
 		if (m_inode.flags & Ext2::Enum::INDEX_FL)
@@ -802,7 +834,7 @@ needs_new_block:
 				if (entry.inode && name == BAN::StringView(entry.name, entry.name_len))
 				{
 					auto inode = TRY(Ext2Inode::create(m_fs, entry.inode));
-					if (inode->mode().ifdir())
+					if (cleanup_directory && inode->mode().ifdir())
 					{
 						if (!TRY(inode->is_directory_empty()))
 							return BAN::Error::from_errno(ENOTEMPTY);
@@ -833,6 +865,12 @@ needs_new_block:
 			}
 		}
 
+		return {};
+	}
+
+	BAN::ErrorOr<void> Ext2Inode::unlink_impl(BAN::StringView name)
+	{
+		TRY(remove_inode_from_directory(name, true));
 		return {};
 	}
 

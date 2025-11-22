@@ -114,6 +114,20 @@ namespace Kernel
 		return link_inode_impl(name, inode);
 	}
 
+	BAN::ErrorOr<void> Inode::rename_inode(BAN::RefPtr<Inode> old_parent, BAN::StringView old_name, BAN::StringView new_name)
+	{
+		LockGuard _(m_mutex);
+		if (!this->mode().ifdir())
+			return BAN::Error::from_errno(ENOTDIR);
+		if (!old_parent->mode().ifdir())
+			return BAN::Error::from_errno(ENOTDIR);
+		if (this->filesystem() != old_parent->filesystem())
+			return BAN::Error::from_errno(EXDEV);
+		if (auto* fs = filesystem(); fs && (fs->flag() & ST_RDONLY))
+			return BAN::Error::from_errno(EROFS);
+		return rename_inode_impl(old_parent, old_name, new_name);
+	}
+
 	BAN::ErrorOr<void> Inode::unlink(BAN::StringView name)
 	{
 		LockGuard _(m_mutex);

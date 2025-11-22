@@ -97,6 +97,7 @@ namespace Kernel
 		BAN::ErrorOr<void> create_file(BAN::StringView, mode_t, uid_t, gid_t);
 		BAN::ErrorOr<void> create_directory(BAN::StringView, mode_t, uid_t, gid_t);
 		BAN::ErrorOr<void> link_inode(BAN::StringView, BAN::RefPtr<Inode>);
+		BAN::ErrorOr<void> rename_inode(BAN::RefPtr<Inode>, BAN::StringView, BAN::StringView);
 		BAN::ErrorOr<void> unlink(BAN::StringView);
 
 		// Link API
@@ -139,12 +140,13 @@ namespace Kernel
 
 	protected:
 		// Directory API
-		virtual BAN::ErrorOr<BAN::RefPtr<Inode>> find_inode_impl(BAN::StringView)				{ return BAN::Error::from_errno(ENOTSUP); }
-		virtual BAN::ErrorOr<size_t> list_next_inodes_impl(off_t, struct dirent*, size_t)		{ return BAN::Error::from_errno(ENOTSUP); }
-		virtual BAN::ErrorOr<void> create_file_impl(BAN::StringView, mode_t, uid_t, gid_t)		{ return BAN::Error::from_errno(ENOTSUP); }
-		virtual BAN::ErrorOr<void> create_directory_impl(BAN::StringView, mode_t, uid_t, gid_t)	{ return BAN::Error::from_errno(ENOTSUP); }
-		virtual BAN::ErrorOr<void> link_inode_impl(BAN::StringView, BAN::RefPtr<Inode>)			{ return BAN::Error::from_errno(ENOTSUP); }
-		virtual BAN::ErrorOr<void> unlink_impl(BAN::StringView)									{ return BAN::Error::from_errno(ENOTSUP); }
+		virtual BAN::ErrorOr<BAN::RefPtr<Inode>> find_inode_impl(BAN::StringView)							{ return BAN::Error::from_errno(ENOTSUP); }
+		virtual BAN::ErrorOr<size_t> list_next_inodes_impl(off_t, struct dirent*, size_t)					{ return BAN::Error::from_errno(ENOTSUP); }
+		virtual BAN::ErrorOr<void> create_file_impl(BAN::StringView, mode_t, uid_t, gid_t)					{ return BAN::Error::from_errno(ENOTSUP); }
+		virtual BAN::ErrorOr<void> create_directory_impl(BAN::StringView, mode_t, uid_t, gid_t)				{ return BAN::Error::from_errno(ENOTSUP); }
+		virtual BAN::ErrorOr<void> link_inode_impl(BAN::StringView, BAN::RefPtr<Inode>)						{ return BAN::Error::from_errno(ENOTSUP); }
+		virtual BAN::ErrorOr<void> rename_inode_impl(BAN::RefPtr<Inode>, BAN::StringView, BAN::StringView)	{ return BAN::Error::from_errno(ENOTSUP); }
+		virtual BAN::ErrorOr<void> unlink_impl(BAN::StringView)												{ return BAN::Error::from_errno(ENOTSUP); }
 
 		// Link API
 		virtual BAN::ErrorOr<BAN::String> link_target_impl()				{ return BAN::Error::from_errno(ENOTSUP); }
@@ -187,7 +189,7 @@ namespace Kernel
 		friend class Epoll;
 		friend class FileBackedRegion;
 		friend class OpenFileDescriptorSet;
-		friend class SharedFileData;
+		friend struct SharedFileData;
 		friend class TTY;
 	};
 

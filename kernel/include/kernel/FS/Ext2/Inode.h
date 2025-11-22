@@ -37,6 +37,7 @@ namespace Kernel
 		virtual BAN::ErrorOr<void> create_file_impl(BAN::StringView, mode_t, uid_t, gid_t) override;
 		virtual BAN::ErrorOr<void> create_directory_impl(BAN::StringView, mode_t, uid_t, gid_t) override;
 		virtual BAN::ErrorOr<void> link_inode_impl(BAN::StringView, BAN::RefPtr<Inode>) override;
+		virtual BAN::ErrorOr<void> rename_inode_impl(BAN::RefPtr<Inode>, BAN::StringView, BAN::StringView) override;
 		virtual BAN::ErrorOr<void> unlink_impl(BAN::StringView) override;
 
 		virtual BAN::ErrorOr<BAN::String> link_target_impl() override;
@@ -64,6 +65,7 @@ namespace Kernel
 		BAN::ErrorOr<BAN::Optional<uint32_t>> fs_block_of_data_block_index(uint32_t data_block_index);
 
 		BAN::ErrorOr<void> link_inode_to_directory(Ext2Inode&, BAN::StringView name);
+		BAN::ErrorOr<void> remove_inode_from_directory(BAN::StringView name, bool cleanup_directory);
 		BAN::ErrorOr<bool> is_directory_empty();
 
 		BAN::ErrorOr<void> cleanup_indirect_block(uint32_t block, uint32_t depth);

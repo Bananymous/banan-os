@@ -1302,6 +1302,27 @@ namespace Kernel
 		return 0;
 	}
 
+	BAN::ErrorOr<long> Process::sys_renameat(int oldfd, const char* old, int newfd, const char* _new)
+	{
+		LockGuard _(m_process_lock);
+		if (old != nullptr)
+			TRY(validate_string_access(old));
+		if (_new != nullptr)
+			TRY(validate_string_access(_new));
+
+		auto [old_parent, old_name] = TRY(find_parent_file(oldfd, old, O_WRONLY));
+		if (!old_parent.inode->mode().ifdir())
+			return BAN::Error::from_errno(ENOTDIR);
+
+		auto [new_parent, new_name] = TRY(find_parent_file(newfd, _new, O_WRONLY));
+		if (!new_parent.inode->mode().ifdir())
+			return BAN::Error::from_errno(ENOTDIR);
+
+		TRY(new_parent.inode->rename_inode(old_parent.inode, old_name, new_name));
+
+		return 0;
+	}
+
 	BAN::ErrorOr<long> Process::sys_unlinkat(int fd, const char* path, int flag)
 	{
 		if (flag && flag != AT_REMOVEDIR)

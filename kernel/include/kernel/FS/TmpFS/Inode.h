@@ -157,6 +157,7 @@ namespace Kernel
 		virtual BAN::ErrorOr<void> create_file_impl(BAN::StringView, mode_t, uid_t, gid_t) override final;
 		virtual BAN::ErrorOr<void> create_directory_impl(BAN::StringView, mode_t, uid_t, gid_t) override final;
 		virtual BAN::ErrorOr<void> link_inode_impl(BAN::StringView, BAN::RefPtr<Inode>) override final;
+		virtual BAN::ErrorOr<void> rename_inode_impl(BAN::RefPtr<Inode>, BAN::StringView, BAN::StringView) override final;
 		virtual BAN::ErrorOr<void> unlink_impl(BAN::StringView) override;
 
 		virtual bool can_read_impl() const override { return false; }
@@ -167,6 +168,8 @@ namespace Kernel
 	private:
 		template<TmpFuncs::for_each_valid_entry_callback F>
 		void for_each_valid_entry(F callback);
+
+		BAN::ErrorOr<void> unlink_inode(BAN::StringView, bool cleanup);
 
 		friend class TmpInode;
 	};

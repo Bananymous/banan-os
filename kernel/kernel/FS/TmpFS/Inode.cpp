@@ -669,7 +669,44 @@ namespace Kernel
 		return {};
 	}
 
+	BAN::ErrorOr<void> TmpDirectoryInode::rename_inode_impl(BAN::RefPtr<Inode> old_parent, BAN::StringView old_name, BAN::StringView new_name)
+	{
+		ASSERT(this->mode().ifdir());
+		ASSERT(old_parent->mode().ifdir());
+		ASSERT(&m_fs == old_parent->filesystem());
+
+		auto* tmp_parent = static_cast<TmpDirectoryInode*>(old_parent.ptr());
+
+		// FIXME: possible deadlock :)
+		LockGuard _(tmp_parent->m_mutex);
+
+		auto old_inode = TRY(tmp_parent->find_inode_impl(old_name));
+		auto* tmp_inode = static_cast<TmpInode*>(old_inode.ptr());
+
+		if (auto replace_or_error = find_inode_impl(new_name); replace_or_error.is_error())
+		{
+			if (replace_or_error.error().get_error_code() != ENOENT)
+				return replace_or_error.release_error();
+		}
+		else
+		{
+			TRY(unlink_impl(new_name));
+		}
+
+		TRY(link_inode(*tmp_inode, new_name));
+
+		TRY(tmp_parent->unlink_inode(old_name, false));
+
+		return {};
+	}
+
 	BAN::ErrorOr<void> TmpDirectoryInode::unlink_impl(BAN::StringView name)
+	{
+		TRY(unlink_inode(name, true));
+		return {};
+	}
+
+	BAN::ErrorOr<void> TmpDirectoryInode::unlink_inode(BAN::StringView name, bool cleanup)
 	{
 		ino_t entry_ino = 0;
 
@@ -687,7 +724,8 @@ namespace Kernel
 
 		ASSERT(inode->nlink() > 0);
 
-		TRY(inode->prepare_unlink());
+		if (cleanup)
+			TRY(inode->prepare_unlink());
 		inode->m_inode_info.nlink--;
 
 		if (inode->nlink() == 0)

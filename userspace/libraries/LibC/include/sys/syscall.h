@@ -14,6 +14,7 @@ __BEGIN_DECLS
 	O(SYS_OPENAT,			openat)			\
 	O(SYS_SEEK,				seek)			\
 	O(SYS_TELL,				tell)			\
+	O(SYS_RENAMEAT,			renameat)		\
 	O(SYS_TCGETATTR,		tcgetattr)		\
 	O(SYS_TCSETATTR,		tcsetattr)		\
 	O(SYS_FORK,				fork)			\
