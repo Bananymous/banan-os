@@ -11,7 +11,6 @@
 #include <kernel/IDT.h>
 #include <kernel/Input/PS2/Controller.h>
 #include <kernel/InterruptController.h>
-#include <kernel/kprint.h>
 #include <kernel/Memory/Heap.h>
 #include <kernel/Memory/kmalloc.h>
 #include <kernel/Memory/PageTable.h>

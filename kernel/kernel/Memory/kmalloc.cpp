@@ -1,5 +1,4 @@
 #include <BAN/Errors.h>
-#include <kernel/kprint.h>
 #include <kernel/BootInfo.h>
 #include <kernel/Memory/kmalloc.h>
 
@@ -153,13 +152,13 @@ void kmalloc_dump_info()
 {
 	Kernel::SpinLockGuard _(s_kmalloc_lock);
 
-	kprintln("kmalloc:               0x{8H}->0x{8H}", s_kmalloc_info.base, s_kmalloc_info.end);
-	kprintln("  used: 0x{8H}", s_kmalloc_info.used);
-	kprintln("  free: 0x{8H}", s_kmalloc_info.free);
+	dprintln("kmalloc:               0x{8H}->0x{8H}", s_kmalloc_info.base, s_kmalloc_info.end);
+	dprintln("  used: 0x{8H}", s_kmalloc_info.used);
+	dprintln("  free: 0x{8H}", s_kmalloc_info.free);
 
-	kprintln("kmalloc fixed {} byte: 0x{8H}->0x{8H}", sizeof(kmalloc_fixed_info::node), s_kmalloc_fixed_info.base, s_kmalloc_fixed_info.end);
-	kprintln("  used: 0x{8H}", s_kmalloc_fixed_info.used);
-	kprintln("  free: 0x{8H}", s_kmalloc_fixed_info.free);
+	dprintln("kmalloc fixed {} byte: 0x{8H}->0x{8H}", sizeof(kmalloc_fixed_info::node), s_kmalloc_fixed_info.base, s_kmalloc_fixed_info.end);
+	dprintln("  used: 0x{8H}", s_kmalloc_fixed_info.used);
+	dprintln("  free: 0x{8H}", s_kmalloc_fixed_info.free);
 }
 
 static bool is_corrupted()
