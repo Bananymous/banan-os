@@ -69,10 +69,6 @@ namespace Kernel
 	protected:
 		virtual BAN::ErrorOr<BAN::String> link_target_impl() override;
 
-		// You may not write here and this is always non blocking
-		virtual BAN::ErrorOr<size_t> write_impl(off_t, BAN::ConstByteSpan) override		{ return BAN::Error::from_errno(EINVAL); }
-		virtual BAN::ErrorOr<void> truncate_impl(size_t) override						{ return BAN::Error::from_errno(EINVAL); }
-
 		virtual bool can_read_impl() const override { return false; }
 		virtual bool can_write_impl() const override { return false; }
 		virtual bool has_error_impl() const override { return false; }
@@ -114,15 +110,11 @@ namespace Kernel
 	class ProcSymlinkInode final : public TmpInode
 	{
 	public:
-		static BAN::ErrorOr<BAN::RefPtr<ProcSymlinkInode>> create_new(BAN::ErrorOr<BAN::String> (*)(void*), void* data, TmpFileSystem&, mode_t, uid_t, gid_t);
-		~ProcSymlinkInode() = default;
+		static BAN::ErrorOr<BAN::RefPtr<ProcSymlinkInode>> create_new(BAN::ErrorOr<BAN::String> (*)(void*), void (*)(void*), void* data, TmpFileSystem&, mode_t, uid_t, gid_t);
+		~ProcSymlinkInode();
 
 	protected:
 		virtual BAN::ErrorOr<BAN::String> link_target_impl() override;
-
-		// You may not write here and this is always non blocking
-		virtual BAN::ErrorOr<size_t> write_impl(off_t, BAN::ConstByteSpan) override		{ return BAN::Error::from_errno(EINVAL); }
-		virtual BAN::ErrorOr<void> truncate_impl(size_t) override						{ return BAN::Error::from_errno(EINVAL); }
 
 		virtual bool can_read_impl() const override { return false; }
 		virtual bool can_write_impl() const override { return false; }
@@ -130,11 +122,42 @@ namespace Kernel
 		virtual bool has_hungup_impl() const override { return false; }
 
 	private:
-		ProcSymlinkInode(BAN::ErrorOr<BAN::String> (*callback)(void*), void* data, TmpFileSystem&, const TmpInodeInfo&);
+		ProcSymlinkInode(BAN::ErrorOr<BAN::String> (*callback)(void*), void (*destructor)(void*), void* data, TmpFileSystem&, const TmpInodeInfo&);
 
 	private:
 		BAN::ErrorOr<BAN::String> (*m_callback)(void*);
+		void (*m_destructor)(void*);
 		void* m_data;
+	};
+
+	class ProcFDDirectoryInode final : public TmpInode
+	{
+	public:
+		static BAN::ErrorOr<BAN::RefPtr<ProcFDDirectoryInode>> create_new(Process&, TmpFileSystem&, mode_t);
+		~ProcFDDirectoryInode() = default;
+
+		virtual uid_t uid() const override { return m_process.credentials().ruid(); }
+		virtual gid_t gid() const override { return m_process.credentials().rgid(); }
+
+	protected:
+		virtual BAN::ErrorOr<BAN::RefPtr<Inode>> find_inode_impl(BAN::StringView) override;
+		virtual BAN::ErrorOr<size_t> list_next_inodes_impl(off_t, struct dirent*, size_t) override;
+		virtual BAN::ErrorOr<void> create_file_impl(BAN::StringView, mode_t, uid_t, gid_t) override                 { return BAN::Error::from_errno(EPERM); }
+		virtual BAN::ErrorOr<void> create_directory_impl(BAN::StringView, mode_t, uid_t, gid_t) override            { return BAN::Error::from_errno(EPERM); }
+		virtual BAN::ErrorOr<void> link_inode_impl(BAN::StringView, BAN::RefPtr<Inode>) override                    { return BAN::Error::from_errno(EPERM); }
+		virtual BAN::ErrorOr<void> rename_inode_impl(BAN::RefPtr<Inode>, BAN::StringView, BAN::StringView) override { return BAN::Error::from_errno(EPERM); }
+		virtual BAN::ErrorOr<void> unlink_impl(BAN::StringView) override                                            { return BAN::Error::from_errno(EPERM); }
+
+		virtual bool can_read_impl() const override { return false; }
+		virtual bool can_write_impl() const override { return false; }
+		virtual bool has_error_impl() const override { return false; }
+		virtual bool has_hungup_impl() const override { return false; }
+
+	private:
+		ProcFDDirectoryInode(Process&, TmpFileSystem&, const TmpInodeInfo&);
+
+	private:
+		Process& m_process;
 	};
 
 }

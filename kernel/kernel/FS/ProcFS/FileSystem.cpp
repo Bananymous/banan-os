@@ -43,7 +43,7 @@ namespace Kernel
 			[](void*) -> BAN::ErrorOr<BAN::String> {
 				return BAN::String::formatted("{}", Process::current().pid());
 			},
-			nullptr, *s_instance, 0444, 0, 0)
+			nullptr, nullptr, *s_instance, 0444, 0, 0)
 		);
 		MUST(static_cast<TmpDirectoryInode*>(s_instance->root_inode().ptr())->link_inode(*self_inode, "self"_sv));
 	}
