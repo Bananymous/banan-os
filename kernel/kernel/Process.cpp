@@ -540,7 +540,7 @@ namespace Kernel
 	{
 		ASSERT(m_process_lock.is_locked());
 
-		if (path[0] == '\0')
+		if (path && path[0] == '\0')
 			return BAN::Error::from_errno(ENOENT);
 
 		auto relative_parent = TRY(find_relative_parent(fd, path));
