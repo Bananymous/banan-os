@@ -30,6 +30,7 @@ set(USERSPACE_PROGRAMS
 	ls
 	meminfo
 	mkdir
+	mv
 	nologin
 	nslookup
 	poweroff
