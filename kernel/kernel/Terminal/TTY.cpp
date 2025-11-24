@@ -202,6 +202,11 @@ namespace Kernel
 				TRY(set_font(BAN::move(new_font)));
 				return 0;
 			}
+			case FIONREAD:
+			{
+				*static_cast<int*>(argument) = m_output.flush ? m_output.bytes : 0;
+				return 0;
+			}
 			case TIOCGWINSZ:
 			{
 				auto* winsize = static_cast<struct winsize*>(argument);

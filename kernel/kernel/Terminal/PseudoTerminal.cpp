@@ -157,10 +157,19 @@ namespace Kernel
 
 	BAN::ErrorOr<long> PseudoTerminalMaster::ioctl_impl(int request, void* argument)
 	{
-		auto slave = m_slave.lock();
-		if (!slave)
-			return BAN::Error::from_errno(ENODEV);
-		return slave->ioctl(request, argument);
+		switch (request)
+		{
+			case FIONREAD:
+				*static_cast<int*>(argument) = m_buffer_size;
+				return 0;
+			case TIOCGWINSZ:
+			case TIOCSWINSZ:
+				if (auto slave = m_slave.lock())
+					return slave->ioctl(request, argument);
+				return BAN::Error::from_errno(ENODEV);
+		}
+
+		return BAN::Error::from_errno(ENOTSUP);
 	}
 
 	PseudoTerminalSlave::PseudoTerminalSlave(BAN::String&& name, uint32_t number, mode_t mode, uid_t uid, gid_t gid)
