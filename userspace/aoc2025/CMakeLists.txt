@@ -1,5 +1,6 @@
 set(AOC2025_PROJECTS
 	day1
+	day2
 	full
 )
 
