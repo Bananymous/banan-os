@@ -1016,7 +1016,6 @@ long sysconf(int name)
 		POSIX_CASE(MQ_OPEN_MAX)
 		POSIX_CASE(MQ_PRIO_MAX)
 		POSIX_CASE(NGROUPS_MAX)
-		POSIX_CASE(OPEN_MAX)
 		POSIX_CASE(PRIORITIZED_IO)
 		POSIX_CASE(PRIORITY_SCHEDULING)
 		POSIX_CASE(RAW_SOCKETS)
@@ -1103,6 +1102,8 @@ long sysconf(int name)
 		XOPEN_CASE(UUCP)
 		XOPEN_CASE(VERSION)
 #undef XOPEN_CASE
+
+		case _SC_OPEN_MAX:         return OPEN_MAX;
 
 		case _SC_PAGE_SIZE:
 		case _SC_PAGESIZE:         return getpagesize();
