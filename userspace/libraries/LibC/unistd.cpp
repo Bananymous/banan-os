@@ -32,6 +32,11 @@ struct init_funcs_t
 extern "C" char** environ;
 
 #define DUMP_BACKTRACE 1
+#define DEMANGLE_BACKTRACE 0
+
+#if DEMANGLE_BACKTRACE
+#include <cxxabi.h>
+#endif
 
 static void __dump_backtrace(int, siginfo_t*, void*);
 
@@ -136,8 +141,20 @@ static void __dump_symbol(int fd, const void* address)
 		return;
 	}
 
+#if DEMANGLE_BACKTRACE
+	int status;
+	char* demangled = abi::__cxa_demangle(dli.dli_sname, nullptr, nullptr, &status);
+	const char* symbol_name = status ? dli.dli_sname : demangled;
+#else
+	const char* symbol_name = dli.dli_sname;
+#endif
+
 	const uintptr_t uptr_saddr = reinterpret_cast<uintptr_t>(dli.dli_saddr);
 	dprintf(fd, "  0x%08" PRIxPTR " (%s) %s+0x%" PRIxPTR "\n", uptr_addr - uptr_fbase, dli.dli_fname, symbol_name, uptr_addr - uptr_saddr);
+
+#if DEMANGLE_BACKTRACE
+	free(demangled);
+#endif
 }
 
 static void __dump_backtrace(int sig, siginfo_t* info, void* context)
@@ -146,6 +163,7 @@ static void __dump_backtrace(int sig, siginfo_t* info, void* context)
 		[](int signal) -> const char*
 		{
 			switch (signal) {
+				case SIGABRT: return "SIGABRT";
 				case SIGBUS: return "SIGBUS";
 				case SIGFPE: return "SIGFPE";
 				case SIGILL: return "SIGILL";
