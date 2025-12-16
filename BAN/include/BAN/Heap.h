@@ -3,7 +3,6 @@
 #include <BAN/Iteration.h>
 #include <BAN/Swap.h>
 #include <BAN/Traits.h>
-#include <cstddef>
 
 namespace BAN
 {
