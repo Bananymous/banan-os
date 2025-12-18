@@ -99,7 +99,7 @@ uint64_t AudioServer::update()
 		{
 			const sample_t sample_ratio = buffer.buffer->sample_rate / static_cast<sample_t>(m_sample_rate);
 			const uint32_t buffer_sample_frames_played = BAN::Math::min<size_t>(
-				sample_frames_played * sample_ratio,
+				BAN::Math::ceil(sample_frames_played * sample_ratio),
 				sample_frames_queued
 			);
 			buffer.buffer->tail = (buffer.buffer->tail + buffer_sample_frames_played * buffer.buffer->channels) % buffer.buffer->capacity;
@@ -131,7 +131,10 @@ uint64_t AudioServer::update()
 
 		const sample_t sample_ratio = buffer.buffer->sample_rate / static_cast<sample_t>(m_sample_rate);
 
-		const size_t sample_frames_to_queue = BAN::Math::min<size_t>(max_sample_frames_to_queue, buffer.sample_frames_available() / sample_ratio);
+		const size_t sample_frames_to_queue = BAN::Math::min<size_t>(
+			BAN::Math::ceil(buffer.sample_frames_available() / sample_ratio),
+			max_sample_frames_to_queue
+		);
 		if (sample_frames_to_queue == 0)
 			continue;
 
@@ -148,8 +151,11 @@ uint64_t AudioServer::update()
 				m_samples[queued_samples_end + i * m_channels + j] += buffer.buffer->samples[(buffer_tail + buffer_frame * buffer.buffer->channels + j) % buffer.buffer->capacity];
 		}
 
-		const uint32_t buffer_sample_frames = sample_frames_to_queue * sample_ratio;
-		buffer.queued_head = (buffer_tail + buffer_sample_frames * buffer.buffer->channels) % buffer.buffer->capacity;
+		const uint32_t buffer_sample_frames_queued = BAN::Math::min<uint32_t>(
+			BAN::Math::ceil(sample_frames_to_queue * sample_ratio),
+			buffer.sample_frames_available()
+		);
+		buffer.queued_head = (buffer_tail + buffer_sample_frames_queued * buffer.buffer->channels) % buffer.buffer->capacity;
 	}
 
 	send_samples();
@@ -185,7 +191,7 @@ void AudioServer::reset_kernel_buffer()
 		{
 			const sample_t sample_ratio = buffer.buffer->sample_rate / static_cast<sample_t>(m_sample_rate);
 			const uint32_t buffer_sample_frames_played = BAN::Math::min<size_t>(
-				sample_frames_played * sample_ratio,
+				BAN::Math::ceil(sample_frames_played * sample_ratio),
 				sample_frames_queued
 			);
 			buffer.buffer->tail = (buffer.buffer->tail + buffer_sample_frames_played * buffer.buffer->channels) % buffer.buffer->capacity;
