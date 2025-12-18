@@ -48,7 +48,8 @@ bool AudioServer::on_client_packet(int fd, long smo_key)
 	}
 
 	audio_buffer.buffer = static_cast<LibAudio::AudioBuffer*>(smo_map(smo_key));
-	audio_buffer.sample_frames_queued = 0;
+	audio_buffer.queued_head = audio_buffer.buffer->tail;
+
 	if (audio_buffer.buffer == nullptr)
 	{
 		dwarnln("Failed to map audio buffer: {}", strerror(errno));
@@ -75,6 +76,8 @@ uint64_t AudioServer::update()
 	const uint32_t samples_played = m_samples_sent - kernel_samples;
 	ASSERT(samples_played % m_channels == 0);
 
+	const uint32_t sample_frames_played = samples_played / m_channels;
+
 	for (uint32_t i = 0; i < samples_played; i++)
 		m_samples.pop();
 	m_samples_sent -= samples_played;
@@ -92,25 +95,21 @@ uint64_t AudioServer::update()
 		if (buffer.buffer == nullptr)
 			continue;
 
-		const sample_t sample_ratio = buffer.buffer->sample_rate / static_cast<sample_t>(m_sample_rate);
-
-		if (buffer.sample_frames_queued)
+		if (const size_t sample_frames_queued = buffer.sample_frames_queued())
 		{
+			const sample_t sample_ratio = buffer.buffer->sample_rate / static_cast<sample_t>(m_sample_rate);
 			const uint32_t buffer_sample_frames_played = BAN::Math::min<size_t>(
-				samples_played * sample_ratio / m_channels,
-				buffer.sample_frames_queued
+				sample_frames_played * sample_ratio,
+				sample_frames_queued
 			);
 			buffer.buffer->tail = (buffer.buffer->tail + buffer_sample_frames_played * buffer.buffer->channels) % buffer.buffer->capacity;
-			buffer.sample_frames_queued -= buffer_sample_frames_played;
 		}
 
 		if (buffer.buffer->paused)
 			continue;
 		anyone_playing = true;
 
-		const uint32_t buffer_total_sample_frames = ((buffer.buffer->capacity + buffer.buffer->head - buffer.buffer->tail) % buffer.buffer->capacity) / buffer.buffer->channels;
-		const uint32_t buffer_sample_frames_available = (buffer_total_sample_frames - buffer.sample_frames_queued) / sample_ratio;
-		max_sample_frames_to_queue = BAN::Math::min<size_t>(max_sample_frames_to_queue, buffer_sample_frames_available);
+		max_sample_frames_to_queue = BAN::Math::min<size_t>(max_sample_frames_to_queue, buffer.sample_frames_available());
 	}
 
 	if (!anyone_playing)
@@ -132,13 +131,8 @@ uint64_t AudioServer::update()
 
 		const sample_t sample_ratio = buffer.buffer->sample_rate / static_cast<sample_t>(m_sample_rate);
 
-		const uint32_t buffer_total_sample_frames = ((buffer.buffer->capacity + buffer.buffer->head - buffer.buffer->tail) % buffer.buffer->capacity) / buffer.buffer->channels;
-		const uint32_t buffer_sample_frames_available = (buffer_total_sample_frames - buffer.sample_frames_queued) / sample_ratio;
-		if (buffer_sample_frames_available == 0)
-			continue;
-
-		const size_t sample_frames_to_queue = BAN::Math::min<size_t>(max_sample_frames_to_queue, buffer_sample_frames_available);
-		if (sample_frames_to_queue < sample_frames_per_10ms)
+		const size_t sample_frames_to_queue = BAN::Math::min<size_t>(max_sample_frames_to_queue, buffer.sample_frames_available() / sample_ratio);
+		if (sample_frames_to_queue == 0)
 			continue;
 
 		while (m_samples.size() < queued_samples_end + sample_frames_to_queue * m_channels)
@@ -146,7 +140,7 @@ uint64_t AudioServer::update()
 
 		const size_t min_channels = BAN::Math::min(m_channels, buffer.buffer->channels);
 
-		const size_t buffer_tail = buffer.buffer->tail + buffer.sample_frames_queued * buffer.buffer->channels;
+		const size_t buffer_tail = buffer.queued_head;
 		for (size_t i = 0; i < sample_frames_to_queue; i++)
 		{
 			const size_t buffer_frame = i * sample_ratio;
@@ -154,10 +148,8 @@ uint64_t AudioServer::update()
 				m_samples[queued_samples_end + i * m_channels + j] += buffer.buffer->samples[(buffer_tail + buffer_frame * buffer.buffer->channels + j) % buffer.buffer->capacity];
 		}
 
-		buffer.sample_frames_queued += BAN::Math::min<uint32_t>(
-			buffer_total_sample_frames,
-			BAN::Math::ceil(sample_frames_to_queue * sample_ratio)
-		);
+		const uint32_t buffer_sample_frames = sample_frames_to_queue * sample_ratio;
+		buffer.queued_head = (buffer_tail + buffer_sample_frames * buffer.buffer->channels) % buffer.buffer->capacity;
 	}
 
 	send_samples();
@@ -179,19 +171,26 @@ void AudioServer::reset_kernel_buffer()
 	const uint32_t samples_played = m_samples_sent - kernel_samples;
 	ASSERT(samples_played % m_channels == 0);
 
+	const uint32_t sample_frames_played = samples_played / m_channels;
+
 	m_samples_sent = 0;
 	m_samples.clear();
 
 	for (auto& [_, buffer] : m_audio_buffers)
 	{
-		if (buffer.buffer == nullptr || buffer.sample_frames_queued == 0)
+		if (buffer.buffer == nullptr)
 			continue;
-		const uint32_t buffer_sample_frames_played = BAN::Math::min<size_t>(
-			samples_played / m_channels,
-			buffer.sample_frames_queued
-		);
-		buffer.buffer->tail = (buffer.buffer->tail + buffer_sample_frames_played * buffer.buffer->channels) % buffer.buffer->capacity;
-		buffer.sample_frames_queued = 0;
+
+		if (const size_t sample_frames_queued = buffer.sample_frames_queued())
+		{
+			const sample_t sample_ratio = buffer.buffer->sample_rate / static_cast<sample_t>(m_sample_rate);
+			const uint32_t buffer_sample_frames_played = BAN::Math::min<size_t>(
+				sample_frames_played * sample_ratio,
+				sample_frames_queued
+			);
+			buffer.buffer->tail = (buffer.buffer->tail + buffer_sample_frames_played * buffer.buffer->channels) % buffer.buffer->capacity;
+			buffer.queued_head = buffer.buffer->tail;
+		}
 	}
 
 	update();
@@ -215,7 +214,7 @@ void AudioServer::send_samples()
 			auto sample_buffer = buffer.as_span<kernel_sample_t>();
 			for (size_t i = 0; i < samples_to_send; i++)
 			{
-				sample_buffer[i] = BAN::Math::clamp<double>(
+				sample_buffer[i] = BAN::Math::clamp<sample_t>(
 					m_samples[m_samples_sent + i] * BAN::numeric_limits<kernel_sample_t>::max(),
 					BAN::numeric_limits<kernel_sample_t>::min(),
 					BAN::numeric_limits<kernel_sample_t>::max()

@@ -25,7 +25,17 @@ private:
 	struct ClientInfo
 	{
 		LibAudio::AudioBuffer* buffer;
-		size_t sample_frames_queued { 0 };
+		size_t queued_head { 0 };
+
+		size_t sample_frames_queued() const
+		{
+			return ((buffer->capacity + queued_head - buffer->tail) % buffer->capacity) / buffer->channels;
+		}
+
+		size_t sample_frames_available() const
+		{
+			return ((buffer->capacity + buffer->head - queued_head) % buffer->capacity) / buffer->channels;
+		}
 	};
 
 	using sample_t = LibAudio::AudioBuffer::sample_t;
