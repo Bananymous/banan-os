@@ -11,6 +11,10 @@
 	#define assert(expr) ((expr) ? (void)0 : __assert_fail(#expr, __FILE__, __LINE__, __func__))
 #endif
 
+#if !defined(__cplusplus) && __STDC_VERSION__ >= 201112L && __STDC_VERSION__ < 202311L
+	#define static_assert _Static_assert
+#endif
+
 __BEGIN_DECLS
 
 __attribute__((noreturn))
