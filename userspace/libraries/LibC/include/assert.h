@@ -1,4 +1,4 @@
-#ifndef __ASSERT_H
+#ifndef _ASSERT_H
 #define _ASSERT_H 1
 
 // https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/assert.h.html
