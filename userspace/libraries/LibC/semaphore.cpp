@@ -19,6 +19,12 @@ int sem_init(sem_t* sem, int pshared, unsigned value)
 	return 0;
 }
 
+int sem_getvalue(sem_t* __restrict sem, int* __restrict sval)
+{
+	*sval = BAN::atomic_load(sem->value);
+	return 0;
+}
+
 int sem_post(sem_t* sem)
 {
 	const auto old = BAN::atomic_fetch_add(sem->value, 1);
