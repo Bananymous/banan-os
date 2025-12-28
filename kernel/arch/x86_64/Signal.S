@@ -26,12 +26,6 @@ signal_trampoline:
 	pushq %rax
 	pushq %rbp
 
-	movq 200(%rsp), %rax  // return sp
-	addq $(128 + 8), %rax //   red-zone and return address
-	movq 208(%rsp), %rbx  // return ip
-	pushq %rax;
-	pushq %rbx
-
 	// FIXME: populate these
 	xorq %rax, %rax
 	pushq %rax // stack
@@ -41,9 +35,9 @@ signal_trampoline:
 	pushq %rax // link
 
 	movq  %rsp,     %rdx // ucontext
-	leaq 192(%rsp), %rsi // siginfo
-	movq 184(%rsp), %rdi // signal number
-	movq 176(%rsp), %rax // handler
+	leaq 176(%rsp), %rsi // siginfo
+	movq 168(%rsp), %rdi // signal number
+	movq 160(%rsp), %rax // handler
 
 	// align stack to 16 bytes
 	movq %rsp, %rbp
@@ -59,7 +53,7 @@ signal_trampoline:
 
 	// restore stack
 	movq %rbp, %rsp
-	addq $56, %rsp
+	addq $40, %rsp
 
 	// restore registers
 	popq %rbp

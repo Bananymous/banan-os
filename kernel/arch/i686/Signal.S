@@ -18,12 +18,6 @@ signal_trampoline:
 	pushl %eax
 	pushl %ebp
 
-	movl 76(%esp), %eax // return sp
-	addl $4, %eax       //   return address
-	movl 80(%esp), %ebx // return ip
-	pushl %eax;
-	pushl %ebx
-
 	// FIXME: populate these
 	xorl %eax, %eax
 	pushl %eax // stack
@@ -34,9 +28,9 @@ signal_trampoline:
 	pushl %eax // link
 
 	movl    %esp,  %edx // ucontext
-	leal 68(%esp), %esi // siginfo
-	movl 64(%esp), %edi // signal number
-	movl 60(%esp), %eax // handlers
+	leal 60(%esp), %esi // siginfo
+	movl 56(%esp), %edi // signal number
+	movl 52(%esp), %eax // handlers
 
 	// align stack to 16 bytes
 	movl %esp, %ebp
@@ -57,7 +51,7 @@ signal_trampoline:
 
 	// restore stack
 	movl %ebp, %esp
-	addl $32, %esp
+	addl $24, %esp
 
 	// restore registers
 	popl %ebp
