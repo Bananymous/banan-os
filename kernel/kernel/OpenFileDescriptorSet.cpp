@@ -214,7 +214,7 @@ namespace Kernel
 		open_file.descriptor_flags = 0;
 		open_file.inode()->on_clone(open_file.status_flags());
 
-		return fildes;
+		return fildes2;
 	}
 
 	BAN::ErrorOr<int> OpenFileDescriptorSet::fcntl(int fd, int cmd, uintptr_t extra)
