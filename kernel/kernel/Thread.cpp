@@ -636,12 +636,12 @@ namespace Kernel
 				: reinterpret_cast<vaddr_t>(handler.sa_handler);
 			has_sa_restart = !!(handler.sa_flags & SA_RESTART);
 
-			if (handler.sa_flags & SA_RESETHAND)
-				handler = { .sa_handler = SIG_DFL, .sa_mask = 0, .sa_flags = 0 };
-
 			const auto& alt_stack = m_signal_alt_stack;
 			if (alt_stack.ss_flags != SS_DISABLE && (handler.sa_flags & SA_ONSTACK) && !currently_on_alternate_stack())
 				signal_stack_top = reinterpret_cast<vaddr_t>(alt_stack.ss_sp) + alt_stack.ss_size;
+
+			if (handler.sa_flags & SA_RESETHAND)
+				handler = { .sa_handler = SIG_DFL, .sa_mask = 0, .sa_flags = 0 };
 		}
 
 		m_signal_pending_mask &= ~(1ull << signal);
