@@ -290,10 +290,34 @@ namespace Kernel
 		m_current->last_start_ns = SystemTimer::get().ns_since_boot();
 	}
 
+	void Scheduler::wake_up_sleeping_threads()
+	{
+		const uint64_t current_ns = SystemTimer::get().ns_since_boot();
+		while (!m_block_queue.empty() && current_ns >= m_block_queue.front()->wake_time_ns)
+		{
+			auto* node = m_block_queue.pop_front();
+			{
+				SpinLockGuard _(node->blocker_lock);
+				if (node->blocker)
+					node->blocker->remove_blocked_thread(node);
+			}
+			node->blocked = false;
+			update_most_loaded_node_queue(node, &m_run_queue);
+			m_run_queue.add_thread_to_back(node);
+		}
+	}
+
 	void Scheduler::reschedule_if_idle()
 	{
 		ASSERT(Processor::get_interrupt_state() == InterruptState::Disabled);
-		if (!m_current && !m_run_queue.empty())
+
+		if (m_current != nullptr)
+			return;
+
+		if (m_run_queue.empty())
+			wake_up_sleeping_threads();
+
+		if (!m_run_queue.empty())
 			Processor::yield();
 	}
 
@@ -304,21 +328,7 @@ namespace Kernel
 		if (Processor::is_smp_enabled())
 			do_load_balancing();
 
-		{
-			const uint64_t current_ns = SystemTimer::get().ns_since_boot();
-			while (!m_block_queue.empty() && current_ns >= m_block_queue.front()->wake_time_ns)
-			{
-				auto* node = m_block_queue.pop_front();
-				{
-					SpinLockGuard _(node->blocker_lock);
-					if (node->blocker)
-						node->blocker->remove_blocked_thread(node);
-				}
-				node->blocked = false;
-				update_most_loaded_node_queue(node, &m_run_queue);
-				m_run_queue.add_thread_to_back(node);
-			}
-		}
+		wake_up_sleeping_threads();
 
 		{
 			const uint64_t current_ns = SystemTimer::get().ns_since_boot();

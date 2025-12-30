@@ -82,6 +82,8 @@ namespace Kernel
 		void update_most_loaded_node_queue(SchedulerQueue::Node*, SchedulerQueue* target_queue);
 		void remove_node_from_most_loaded(SchedulerQueue::Node*);
 
+		void wake_up_sleeping_threads();
+
 		void do_load_balancing();
 
 		class ProcessorID find_least_loaded_processor() const;
