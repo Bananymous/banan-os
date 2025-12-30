@@ -5,6 +5,8 @@
 #include <kernel/Networking/NetworkInterface.h>
 #include <kernel/Networking/NetworkLayer.h>
 
+#include <netinet/in.h>
+
 namespace Kernel
 {
 
@@ -24,10 +26,10 @@ namespace Kernel
 		static constexpr uint16_t PORT_NONE = 0;
 
 	public:
-		void bind_interface_and_port(NetworkInterface*, uint16_t port);
+		void bind_address_and_port(const sockaddr*, socklen_t);
 		~NetworkSocket();
 
-		NetworkInterface& interface() { ASSERT(m_interface); return *m_interface; }
+		BAN::ErrorOr<BAN::RefPtr<NetworkInterface>> interface(const sockaddr* target, socklen_t target_len);
 
 		virtual size_t protocol_header_size() const = 0;
 		virtual void add_protocol_header(BAN::ByteSpan packet, uint16_t dst_port, PseudoHeader) = 0;
@@ -35,7 +37,19 @@ namespace Kernel
 
 		virtual void receive_packet(BAN::ConstByteSpan, const sockaddr* sender, socklen_t sender_len) = 0;
 
-		bool is_bound() const { return m_interface != nullptr; }
+		bool is_bound() const { return m_address_len >= static_cast<socklen_t>(sizeof(sa_family_t)) && m_address.ss_family != AF_UNSPEC; }
+		in_port_t bound_port() const
+		{
+			ASSERT(is_bound());
+			ASSERT(m_address.ss_family == AF_INET && m_address_len >= static_cast<socklen_t>(sizeof(sockaddr_in)));
+			return BAN::network_endian_to_host(reinterpret_cast<const sockaddr_in*>(&m_address)->sin_port);
+		}
+
+		const sockaddr* address() const { return reinterpret_cast<const sockaddr*>(&m_address); }
+		socklen_t address_len() const { return m_address_len; }
+
+	private:
+		bool can_interface_send_to(const NetworkInterface&, const sockaddr*, socklen_t) const;
 
 	protected:
 		NetworkSocket(NetworkLayer&, const Socket::Info&);
@@ -45,9 +59,9 @@ namespace Kernel
 		virtual BAN::ErrorOr<void> getpeername_impl(sockaddr*, socklen_t*) override = 0;
 
 	protected:
-		NetworkLayer&		m_network_layer;
-		NetworkInterface*	m_interface	= nullptr;
-		uint16_t			m_port { PORT_NONE };
+		NetworkLayer&    m_network_layer;
+		sockaddr_storage m_address       { .ss_family = AF_UNSPEC, .ss_storage = {} };
+		socklen_t        m_address_len   { 0 };
 	};
 
 }

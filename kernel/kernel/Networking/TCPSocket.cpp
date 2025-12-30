@@ -95,8 +95,8 @@ namespace Kernel
 		}
 
 		return_inode->m_mutex.lock();
-		return_inode->m_port = m_port;
-		return_inode->m_interface = m_interface;
+		memcpy(&return_inode->m_address, &connection.target.address, connection.target.address_len);
+		return_inode->m_address_len = connection.target.address_len;
 		return_inode->m_listen_parent = this;
 		return_inode->m_connection_info.emplace(connection.target);
 		return_inode->m_recv_window.start_seq = connection.target_start_seq;
@@ -152,13 +152,18 @@ namespace Kernel
 		};
 
 		if (!is_bound())
-			TRY(m_network_layer.bind_socket_to_unused(this, address, address_len));
+			TRY(m_network_layer.bind_socket_with_target(this, address, address_len));
 
 		m_connection_info.emplace(sockaddr_storage {}, address_len, true);
 		memcpy(&m_connection_info->address, address, address_len);
 
 		m_next_flags = SYN;
-		TRY(m_network_layer.sendto(*this, {}, address, address_len));
+		if (m_network_layer.sendto(*this, {}, address, address_len).is_error())
+		{
+			set_connection_as_closed();
+			return BAN::Error::from_errno(ECONNREFUSED);
+		}
+
 		m_next_flags = 0;
 		m_state = State::SynSent;
 
@@ -410,8 +415,8 @@ namespace Kernel
 		memset(&header, 0, sizeof(TCPHeader));
 		memset(header.options, TCPOption::End, m_tcp_options_bytes);
 
+		header.src_port = bound_port();
 		header.dst_port = dst_port;
-		header.src_port = m_port;
 		header.seq_number = m_send_window.current_seq + m_send_window.has_ghost_byte;
 		header.ack_number = m_recv_window.start_seq + m_recv_window.data_size + m_recv_window.has_ghost_byte;
 		header.data_offset = (sizeof(TCPHeader) + m_tcp_options_bytes) / sizeof(uint32_t);
@@ -423,7 +428,15 @@ namespace Kernel
 
 		if (m_state == State::Closed || m_state == State::SynReceived)
 		{
-			add_tcp_header_option<0, TCPOption::MaximumSeqmentSize>(header, m_interface->payload_mtu() - m_network_layer.header_size());
+			const sockaddr_in target {
+				.sin_family = AF_INET,
+				.sin_port = dst_port,
+				.sin_addr = { .s_addr = pseudo_header.dst_ipv4.raw },
+				.sin_zero = {},
+			};
+			auto interface = MUST(this->interface(reinterpret_cast<const sockaddr*>(&target), sizeof(target)));
+
+			add_tcp_header_option<0, TCPOption::MaximumSeqmentSize>(header, interface->payload_mtu() - m_network_layer.header_size());
 
 			if (m_connection_info->has_window_scale)
 				add_tcp_header_option<4, TCPOption::WindowScale>(header, m_recv_window.scale_shift);
@@ -451,11 +464,16 @@ namespace Kernel
 
 			if (sender->sa_family == AF_INET)
 			{
+				auto interface_or_error = interface(sender, sender_len);
+				if (interface_or_error.is_error())
+					return;
+				auto interface = interface_or_error.release_value();
+
 				auto& addr_in = *reinterpret_cast<const sockaddr_in*>(sender);
 				checksum = calculate_internet_checksum(buffer,
 					PseudoHeader {
 						.src_ipv4 = BAN::IPv4Address(addr_in.sin_addr.s_addr),
-						.dst_ipv4 = m_interface->get_ipv4_address(),
+						.dst_ipv4 = interface->get_ipv4_address(),
 						.protocol = NetworkProtocol::TCP,
 						.extra = buffer.size()
 					}
@@ -663,11 +681,11 @@ namespace Kernel
 			// NOTE: Only listen socket can unbind the socket as
 			//       listen socket is always alive to redirect packets
 			if (!m_listen_parent)
-				m_network_layer.unbind_socket(m_port);
+				m_network_layer.unbind_socket(bound_port());
 			else
 				m_listen_parent->remove_listen_child(this);
-			m_interface = nullptr;
-			m_port = PORT_NONE;
+			m_address.ss_family = AF_UNSPEC;
+			m_address_len = 0;
 			dprintln_if(DEBUG_TCP, "Socket unbound");
 		}
 

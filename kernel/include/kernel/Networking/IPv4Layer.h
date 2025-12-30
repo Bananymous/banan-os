@@ -45,7 +45,7 @@ namespace Kernel
 		void add_ipv4_packet(NetworkInterface&, BAN::ConstByteSpan);
 
 		virtual void unbind_socket(uint16_t port) override;
-		virtual BAN::ErrorOr<void> bind_socket_to_unused(BAN::RefPtr<NetworkSocket>, const sockaddr* send_address, socklen_t send_address_len) override;
+		virtual BAN::ErrorOr<void> bind_socket_with_target(BAN::RefPtr<NetworkSocket>, const sockaddr* target_address, socklen_t target_address_len) override;
 		virtual BAN::ErrorOr<void> bind_socket_to_address(BAN::RefPtr<NetworkSocket>, const sockaddr* address, socklen_t address_len) override;
 		virtual BAN::ErrorOr<void> get_socket_address(BAN::RefPtr<NetworkSocket>, sockaddr* address, socklen_t* address_len) override;
 
@@ -58,6 +58,8 @@ namespace Kernel
 		IPv4Layer();
 
 		void add_ipv4_header(BAN::ByteSpan packet, BAN::IPv4Address src_ipv4, BAN::IPv4Address dst_ipv4, uint8_t protocol) const;
+
+		BAN::ErrorOr<in_port_t> find_free_port();
 
 		void packet_handle_task();
 		BAN::ErrorOr<void> handle_ipv4_packet(NetworkInterface&, BAN::ByteSpan);

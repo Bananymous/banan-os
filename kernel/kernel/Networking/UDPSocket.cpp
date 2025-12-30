@@ -30,15 +30,15 @@ namespace Kernel
 	UDPSocket::~UDPSocket()
 	{
 		if (is_bound())
-			m_network_layer.unbind_socket(m_port);
-		m_port = PORT_NONE;
-		m_interface = nullptr;
+			m_network_layer.unbind_socket(bound_port());
+		m_address.ss_family = AF_UNSPEC;
+		m_address_len = 0;
 	}
 
 	void UDPSocket::add_protocol_header(BAN::ByteSpan packet, uint16_t dst_port, PseudoHeader)
 	{
 		auto& header = packet.as<UDPHeader>();
-		header.src_port = m_port;
+		header.src_port = bound_port();
 		header.dst_port = dst_port;
 		header.length = packet.size();
 		header.checksum = 0;
@@ -115,7 +115,6 @@ namespace Kernel
 			dprintln("No interface bound");
 			return BAN::Error::from_errno(EINVAL);
 		}
-		ASSERT(m_port != PORT_NONE);
 
 		SpinLockGuard guard(m_packet_lock);
 
@@ -176,7 +175,7 @@ namespace Kernel
 			dwarnln("ignoring sendmsg control message");
 
 		if (!is_bound())
-			TRY(m_network_layer.bind_socket_to_unused(this, static_cast<sockaddr*>(message.msg_name), message.msg_namelen));
+			TRY(m_network_layer.bind_socket_with_target(this, static_cast<sockaddr*>(message.msg_name), message.msg_namelen));
 
 		const size_t total_send_size =
 			[&message]() -> size_t {

@@ -75,35 +75,58 @@ namespace Kernel
 		m_bound_sockets.remove(it);
 	}
 
-	BAN::ErrorOr<void> IPv4Layer::bind_socket_to_unused(BAN::RefPtr<NetworkSocket> socket, const sockaddr* address, socklen_t address_len)
+	BAN::ErrorOr<in_port_t> IPv4Layer::find_free_port()
 	{
-		if (!address || address_len < (socklen_t)sizeof(sockaddr_in))
-			return BAN::Error::from_errno(EINVAL);
-		if (address->sa_family != AF_INET)
-			return BAN::Error::from_errno(EAFNOSUPPORT);
-		auto& sockaddr_in = *reinterpret_cast<const struct sockaddr_in*>(address);
-
 		SpinLockGuard _(m_bound_socket_lock);
 
-		uint16_t port = NetworkSocket::PORT_NONE;
-		for (uint32_t i = 0; i < 100 && port == NetworkSocket::PORT_NONE; i++)
-			if (uint32_t temp = 0xC000 | (Random::get_u32() & 0x3FFF); !m_bound_sockets.contains(temp))
-				port = temp;
-		for (uint32_t temp = 0xC000; temp < 0xFFFF && port == NetworkSocket::PORT_NONE; temp++)
-			if (!m_bound_sockets.contains(temp))
-				port = temp;
-		if (port == NetworkSocket::PORT_NONE)
-		{
-			dwarnln("No ports available");
-			return BAN::Error::from_errno(EAGAIN);
-		}
-		dprintln_if(DEBUG_IPV4, "using port {}", port);
+		for (uint32_t i = 0; i < 100; i++)
+			if (uint32_t port = 0xC000 | (Random::get_u32() & 0x3FFF); !m_bound_sockets.contains(port))
+				return port;
 
-		struct sockaddr_in target;
-		target.sin_family = AF_INET;
-		target.sin_port = BAN::host_to_network_endian(port);
-		target.sin_addr.s_addr = sockaddr_in.sin_addr.s_addr;
-		return bind_socket_to_address(socket, (sockaddr*)&target, sizeof(sockaddr_in));
+		for (uint32_t port = 0xC000; port < 0xFFFF; port++)
+			if (!m_bound_sockets.contains(port))
+				return port;
+
+		dwarnln("No ports available");
+		return BAN::Error::from_errno(EAGAIN);
+	}
+
+	BAN::ErrorOr<void> IPv4Layer::bind_socket_with_target(BAN::RefPtr<NetworkSocket> socket, const sockaddr* target, socklen_t target_len)
+	{
+		if (!target || target_len < (socklen_t)sizeof(sockaddr_in))
+			return BAN::Error::from_errno(EINVAL);
+		if (target->sa_family != AF_INET)
+			return BAN::Error::from_errno(EAFNOSUPPORT);
+		auto& sockaddr_in = *reinterpret_cast<const struct sockaddr_in*>(target);
+
+		auto interface =
+			TRY([&sockaddr_in]() -> BAN::ErrorOr<BAN::RefPtr<NetworkInterface>> {
+				const auto ipv4 = BAN::IPv4Address { sockaddr_in.sin_addr.s_addr };
+
+				// try to find an interface in the same subnet
+				const auto& all_interfaces = NetworkManager::get().interfaces();
+				for (const auto& interface : all_interfaces)
+				{
+					const auto netmask = interface->get_netmask();
+					if (ipv4.mask(netmask) == interface->get_ipv4_address().mask(netmask))
+						return interface;
+				}
+
+				// fallback to non-loopback interface
+				// FIXME: make sure target is reachable
+				for (const auto& interface : all_interfaces)
+					if (interface->type() != NetworkInterface::Type::Loopback)
+						return interface;
+
+				return BAN::Error::from_errno(EHOSTUNREACH);
+			}());
+
+		// FIXME: race condition with port allocation/binding
+		struct sockaddr_in bind_address;
+		bind_address.sin_family = AF_INET;
+		bind_address.sin_port = BAN::host_to_network_endian(TRY(find_free_port()));
+		bind_address.sin_addr.s_addr = interface->get_ipv4_address().raw;
+		return bind_socket_to_address(socket, (sockaddr*)&bind_address, sizeof(bind_address));
 	}
 
 	BAN::ErrorOr<void> IPv4Layer::bind_socket_to_address(BAN::RefPtr<NetworkSocket> socket, const sockaddr* address, socklen_t address_len)
@@ -114,33 +137,47 @@ namespace Kernel
 			return BAN::Error::from_errno(EAFNOSUPPORT);
 
 		auto& sockaddr_in = *reinterpret_cast<const struct sockaddr_in*>(address);
-		const uint16_t port = BAN::host_to_network_endian(sockaddr_in.sin_port);
-		if (port == NetworkSocket::PORT_NONE)
-			return bind_socket_to_unused(socket, address, address_len);
-		const auto ipv4 = BAN::IPv4Address { sockaddr_in.sin_addr.s_addr };
 
-		BAN::RefPtr<NetworkInterface> bind_interface;
-		for (auto interface : NetworkManager::get().interfaces())
-		{
-			if (interface->type() != NetworkInterface::Type::Loopback)
-				bind_interface = interface;
-			const auto netmask = interface->get_netmask();
-			if (ipv4.mask(netmask) != interface->get_ipv4_address().mask(netmask))
-				continue;
-			bind_interface = interface;
-			break;
-		}
+		TRY([&sockaddr_in]() -> BAN::ErrorOr<void> {
+			const auto ipv4 = BAN::IPv4Address { sockaddr_in.sin_addr.s_addr };
 
-		if (!bind_interface)
+			if (ipv4 == 0)
+				return {};
+
+			const auto& all_interfaces = NetworkManager::get().interfaces();
+			for (const auto& interface : all_interfaces)
+			{
+				switch (interface->type())
+				{
+					case NetworkInterface::Type::Ethernet:
+						if (ipv4 == interface->get_ipv4_address())
+							return {};
+						break;
+					case NetworkInterface::Type::Loopback:
+						const auto netmask = interface->get_netmask();
+						if (ipv4.mask(netmask) == interface->get_ipv4_address().mask(netmask))
+							return {};
+						break;
+				}
+			}
+
 			return BAN::Error::from_errno(EADDRNOTAVAIL);
+		}());
+
+		struct sockaddr_in bind_address;
+		memcpy(&bind_address, address, sizeof(sockaddr_in));
 
 		SpinLockGuard _(m_bound_socket_lock);
+
+		if (bind_address.sin_port == 0)
+			bind_address.sin_port = TRY(find_free_port());
+		const uint16_t port = BAN::host_to_network_endian(bind_address.sin_port);
 
 		if (m_bound_sockets.contains(port))
 			return BAN::Error::from_errno(EADDRINUSE);
 		TRY(m_bound_sockets.insert(port, TRY(socket->get_weak_ptr())));
 
-		socket->bind_interface_and_port(bind_interface.ptr(), port);
+		socket->bind_address_and_port(reinterpret_cast<struct sockaddr*>(&bind_address), sizeof(bind_address));
 
 		return {};
 	}
@@ -173,18 +210,36 @@ namespace Kernel
 			return BAN::Error::from_errno(EINVAL);
 		if (address == nullptr || address_len != sizeof(sockaddr_in))
 			return BAN::Error::from_errno(EINVAL);
-		auto& sockaddr_in = *reinterpret_cast<const struct sockaddr_in*>(address);
 
+		auto interface = TRY(socket.interface(address, address_len));
+
+		auto& sockaddr_in = *reinterpret_cast<const struct sockaddr_in*>(address);
 		auto dst_port = BAN::host_to_network_endian(sockaddr_in.sin_port);
 		auto dst_ipv4 = BAN::IPv4Address { sockaddr_in.sin_addr.s_addr };
-		auto dst_mac = TRY(m_arp_table->get_mac_from_ipv4(socket.interface(), dst_ipv4));
+		auto dst_mac = TRY(m_arp_table->get_mac_from_ipv4(*interface, dst_ipv4));
+
+		if (interface->type() == NetworkInterface::Type::Loopback)
+		{
+			BAN::RefPtr<NetworkSocket> receiver;
+
+			{
+				SpinLockGuard _(m_bound_socket_lock);
+				auto receiver_it = m_bound_sockets.find(dst_port);
+				if (receiver_it != m_bound_sockets.end())
+					receiver = receiver_it->value.lock();
+			}
+
+			if (!receiver)
+				return BAN::Error::from_errno(EADDRNOTAVAIL);
+			TRY(socket.interface(receiver->address(), receiver->address_len()));
+		}
 
 		BAN::Vector<uint8_t> packet_buffer;
 		TRY(packet_buffer.resize(buffer.size() + sizeof(IPv4Header) + socket.protocol_header_size()));
 		auto packet = BAN::ByteSpan { packet_buffer.span() };
 
 		auto pseudo_header = PseudoHeader {
-			.src_ipv4 = socket.interface().get_ipv4_address(),
+			.src_ipv4 = interface->get_ipv4_address(),
 			.dst_ipv4 = dst_ipv4,
 			.protocol = socket.protocol()
 		};
@@ -201,12 +256,12 @@ namespace Kernel
 		);
 		add_ipv4_header(
 			packet,
-			socket.interface().get_ipv4_address(),
+			interface->get_ipv4_address(),
 			dst_ipv4,
 			socket.protocol()
 		);
 
-		TRY(socket.interface().send_bytes(dst_mac, EtherType::IPv4, packet));
+		TRY(interface->send_bytes(dst_mac, EtherType::IPv4, packet));
 
 		return buffer.size();
 	}
