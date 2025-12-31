@@ -123,6 +123,8 @@ namespace Kernel
 
 	void TmpInode::free_all_blocks()
 	{
+		if (mode().iflnk() && m_inode_info.size <= sizeof(TmpInodeInfo::block))
+			goto free_all_blocks_done;
 		for (size_t i = 0; i < TmpInodeInfo::direct_block_count; i++)
 			if (m_inode_info.block[i])
 				m_fs.free_block(m_inode_info.block[i]);
@@ -132,6 +134,7 @@ namespace Kernel
 			free_indirect_blocks(block, 2);
 		if (size_t block = m_inode_info.block[TmpInodeInfo::direct_block_count + 2])
 			free_indirect_blocks(block, 3);
+	free_all_blocks_done:
 		for (auto& block : m_inode_info.block)
 			block = 0;
 	}
