@@ -1,8 +1,8 @@
 #!/bin/bash ../install.sh
 
 NAME='curl'
-VERSION='8.11.1'
-DOWNLOAD_URL="https://curl.se/download/curl-$VERSION.tar.gz#a889ac9dbba3644271bd9d1302b5c22a088893719b72be3487bc3d401e5c4e80"
+VERSION='8.17.0'
+DOWNLOAD_URL="https://curl.se/download/curl-$VERSION.tar.xz#955f6e729ad6b3566260e8fef68620e76ba3c31acf0a18524416a185acf77992"
 DEPENDENCIES=('ca-certificates' 'openssl' 'zlib' 'zstd')
 CONFIG_SUB=('config.sub')
 CONFIGURE_OPTIONS=(
@@ -10,6 +10,7 @@ CONFIGURE_OPTIONS=(
 	'--disable-ipv6'
 	'--disable-docs'
 	'--disable-ntlm'
+	'--disable-static'
 	'--enable-optimize'
 	'--with-openssl'
 	'--with-zlib'

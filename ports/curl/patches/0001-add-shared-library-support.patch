@@ -1,7 +1,18 @@
-diff -ruN curl-8.11.1/configure curl-8.11.1-banan_os/configure
---- curl-8.11.1/configure	2024-12-11 09:08:12.000000000 +0200
-+++ curl-8.11.1-banan_os/configure	2025-01-22 18:29:34.167111729 +0200
-@@ -15537,6 +15537,16 @@
+diff -ruN curl-8.17.0/configure curl-8.17.0-banan_os/configure
+--- curl-8.17.0/configure	2025-11-05 09:00:46.000000000 +0200
++++ curl-8.17.0-banan_os/configure	2025-12-31 18:52:05.140006351 +0200
+@@ -9487,6 +9487,10 @@
+   lt_cv_deplibs_check_method=pass_all
+   ;;
+ 
++banan_os*)
++  lt_cv_deplibs_check_method=pass_all
++  ;;
++
+ beos*)
+   lt_cv_deplibs_check_method=pass_all
+   ;;
+@@ -15245,6 +15249,16 @@
    esac
    ;;
  
