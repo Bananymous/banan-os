@@ -74,8 +74,6 @@ namespace Kernel
 				auto block_buffer = TRY(m_fs.get_block_buffer());
 				memset(block_buffer.data(), 0x00, block_buffer.size());
 				TRY(m_fs.write_block(block, block_buffer));
-
-				TRY(sync());
 			}
 
 			return BAN::Optional<uint32_t>(block);
@@ -83,7 +81,7 @@ namespace Kernel
 
 		auto block_buffer = TRY(m_fs.get_block_buffer());
 
-		bool needs_sync = false;
+		bool needs_write = false;
 
 		if (block != 0)
 			TRY(m_fs.read_block(block, block_buffer));
@@ -97,7 +95,7 @@ namespace Kernel
 
 			memset(block_buffer.data(), 0, block_buffer.size());
 
-			needs_sync = true;
+			needs_write = true;
 		}
 
 		uint32_t divisor = 1;
@@ -109,10 +107,8 @@ namespace Kernel
 
 		const auto result = TRY(block_from_indirect_block(new_block, index, depth - 1, allocate));
 
-		if (needs_sync || old_block != new_block)
+		if (needs_write || old_block != new_block)
 			TRY(m_fs.write_block(block, block_buffer));
-		if (needs_sync)
-			TRY(sync());
 
 		return result;
 	}
@@ -137,7 +133,6 @@ namespace Kernel
 
 			m_inode.block[data_block_index] = block;
 			m_inode.blocks += inode_blocks_per_fs_block;
-			TRY(sync());
 
 			return BAN::Optional<uint32_t>(block);
 		}
@@ -203,6 +198,8 @@ namespace Kernel
 		if (static_cast<BAN::make_unsigned_t<decltype(offset)>>(offset) >= m_inode.size)
 			return 0;
 
+		ScopedSync _(*this);
+
 		uint32_t count = buffer.size();
 		if (offset + buffer.size() > m_inode.size)
 			count = m_inode.size - offset;
@@ -246,6 +243,8 @@ namespace Kernel
 
 		if (m_inode.size < offset + buffer.size())
 			TRY(truncate_impl(offset + buffer.size()));
+
+		ScopedSync _(*this);
 
 		const uint32_t block_size = blksize();
 

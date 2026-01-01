@@ -85,6 +85,26 @@ namespace Kernel
 		static BAN::ErrorOr<BAN::RefPtr<Ext2Inode>> create(Ext2FS&, uint32_t);
 
 	private:
+		struct ScopedSync
+		{
+			ScopedSync(Ext2Inode& inode)
+				: inode(inode)
+				, inode_info(inode.m_inode)
+			{ }
+
+			~ScopedSync()
+			{
+				if (memcmp(&inode.m_inode, &inode_info, sizeof(Ext2::Inode)) == 0)
+					return;
+				if (auto ret = inode.sync(); ret.is_error())
+					dwarnln("failed to sync inode: {}", ret.error());
+			}
+
+			Ext2Inode& inode;
+			Ext2::Inode inode_info;
+		};
+
+	private:
 		Ext2FS& m_fs;
 		Ext2::Inode m_inode;
 		const uint32_t m_ino;
