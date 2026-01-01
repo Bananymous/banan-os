@@ -21,84 +21,94 @@ namespace Kernel
 		release_all_pages();
 	}
 
+	size_t DiskCache::find_sector_cache_index(uint64_t sector) const
+	{
+		const uint64_t sectors_per_page = PAGE_SIZE / m_sector_size;
+		const uint64_t page_cache_offset = sector % sectors_per_page;
+		const uint64_t page_cache_start = sector - page_cache_offset;
+
+		size_t l = 0, r = m_cache.size();
+
+		while (l < r)
+		{
+			const size_t mid = (l + r) / 2;
+
+			if (m_cache[mid].first_sector == page_cache_start)
+				return mid;
+
+			if (m_cache[mid].first_sector < page_cache_start)
+				l = mid + 1;
+			else
+				r = mid;
+		}
+
+		return l;
+	}
+
 	bool DiskCache::read_from_cache(uint64_t sector, BAN::ByteSpan buffer)
 	{
 		ASSERT(buffer.size() >= m_sector_size);
 
-		uint64_t sectors_per_page = PAGE_SIZE / m_sector_size;
-		uint64_t page_cache_offset = sector % sectors_per_page;
-		uint64_t page_cache_start = sector - page_cache_offset;
+		const uint64_t sectors_per_page = PAGE_SIZE / m_sector_size;
+		const uint64_t page_cache_offset = sector % sectors_per_page;
+		const uint64_t page_cache_start = sector - page_cache_offset;
 
-		for (auto& cache : m_cache)
-		{
-			if (cache.first_sector + sectors_per_page <= page_cache_start)
-				continue;
-			if (cache.first_sector > page_cache_start)
-				break;
+		const auto index = find_sector_cache_index(sector);
+		if (index >= m_cache.size())
+			return false;
 
-			if (!(cache.sector_mask & (1 << page_cache_offset)))
-				continue;
+		const auto& cache = m_cache[index];
+		if (cache.first_sector != page_cache_start)
+			return false;
+		if (!(cache.sector_mask & (1 << page_cache_offset)))
+			return false;
 
-			PageTable::with_fast_page(cache.paddr, [&] {
-				memcpy(buffer.data(), PageTable::fast_page_as_ptr(page_cache_offset * m_sector_size), m_sector_size);
-			});
+		PageTable::with_fast_page(cache.paddr, [&] {
+			memcpy(buffer.data(), PageTable::fast_page_as_ptr(page_cache_offset * m_sector_size), m_sector_size);
+		});
 
-			return true;
-		}
-
-		return false;
+		return true;
 	};
 
 	BAN::ErrorOr<void> DiskCache::write_to_cache(uint64_t sector, BAN::ConstByteSpan buffer, bool dirty)
 	{
 		ASSERT(buffer.size() >= m_sector_size);
-		uint64_t sectors_per_page = PAGE_SIZE / m_sector_size;
-		uint64_t page_cache_offset = sector % sectors_per_page;
-		uint64_t page_cache_start = sector - page_cache_offset;
 
-		size_t index = 0;
+		const uint64_t sectors_per_page = PAGE_SIZE / m_sector_size;
+		const uint64_t page_cache_offset = sector % sectors_per_page;
+		const uint64_t page_cache_start = sector - page_cache_offset;
 
-		// Search the cache if the have this sector in memory
-		for (; index < m_cache.size(); index++)
+		const auto index = find_sector_cache_index(sector);
+
+		if (index >= m_cache.size() || m_cache[index].first_sector != page_cache_start)
 		{
-			auto& cache = m_cache[index];
+			paddr_t paddr = Heap::get().take_free_page();
+			if (paddr == 0)
+				return BAN::Error::from_errno(ENOMEM);
 
-			if (cache.first_sector + sectors_per_page <= page_cache_start)
-				continue;
-			if (cache.first_sector > page_cache_start)
-				break;
+			PageCache cache {
+				.paddr = paddr,
+				.first_sector = page_cache_start,
+				.sector_mask = 0,
+				.dirty_mask = 0,
+			};
 
-			PageTable::with_fast_page(cache.paddr, [&] {
-				memcpy(PageTable::fast_page_as_ptr(page_cache_offset * m_sector_size), buffer.data(), m_sector_size);
-			});
-
-			cache.sector_mask |= 1 << page_cache_offset;
-			if (dirty)
-				cache.dirty_mask |= 1 << page_cache_offset;
-
-			return {};
+			if (auto ret = m_cache.insert(index, cache); ret.is_error())
+			{
+				Heap::get().release_page(paddr);
+				return ret.error();
+			}
 		}
 
-		// Try to add new page to the cache
-		paddr_t paddr = Heap::get().take_free_page();
-		if (paddr == 0)
-			return BAN::Error::from_errno(ENOMEM);
-
-		PageCache cache;
-		cache.paddr			= paddr;
-		cache.first_sector	= page_cache_start;
-		cache.sector_mask	= 1 << page_cache_offset;
-		cache.dirty_mask	= dirty ? cache.sector_mask : 0;
-
-		if (auto ret = m_cache.insert(index, cache); ret.is_error())
-		{
-			Heap::get().release_page(paddr);
-			return ret.error();
-		}
+		auto& cache = m_cache[index];
 
 		PageTable::with_fast_page(cache.paddr, [&] {
 			memcpy(PageTable::fast_page_as_ptr(page_cache_offset * m_sector_size), buffer.data(), m_sector_size);
 		});
+
+		cache.sector_mask |= 1 << page_cache_offset;
+		if (dirty)
+			cache.dirty_mask |= 1 << page_cache_offset;
 
 		return {};
 	}
@@ -158,15 +168,13 @@ namespace Kernel
 		if (g_disable_disk_write)
 			return {};
 
-		uint64_t sectors_per_page = PAGE_SIZE / m_sector_size;
-		uint64_t page_cache_offset = sector % sectors_per_page;
-		uint64_t page_cache_start = sector - page_cache_offset;
+		const uint64_t sectors_per_page = PAGE_SIZE / m_sector_size;
+		const uint64_t page_cache_offset = sector % sectors_per_page;
+		const uint64_t page_cache_start = sector - page_cache_offset;
 
-		for (size_t i = 0; i < m_cache.size(); i++)
+		for (size_t i = find_sector_cache_index(sector); i < m_cache.size(); i++)
 		{
 			auto& cache = m_cache[i];
-			if (cache.first_sector + sectors_per_page <= page_cache_start)
-				continue;
 			if (cache.first_sector * sectors_per_page >= page_cache_start * sectors_per_page + block_count)
 				break;
 			TRY(sync_cache_index(i));

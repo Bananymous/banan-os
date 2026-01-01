@@ -28,6 +28,8 @@ namespace Kernel
 	private:
 		BAN::ErrorOr<void> sync_cache_index(size_t index);
 
+		size_t find_sector_cache_index(uint64_t sector) const;
+
 	private:
 		struct PageCache
 		{
