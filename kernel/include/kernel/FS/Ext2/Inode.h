@@ -61,8 +61,8 @@ namespace Kernel
 		// NOTE: the inode might have more blocks than what this suggests if it has been shrinked
 		uint32_t max_used_data_block_count() const { return size() / blksize(); }
 
-		BAN::ErrorOr<BAN::Optional<uint32_t>> block_from_indirect_block(uint32_t block, uint32_t index, uint32_t depth);
-		BAN::ErrorOr<BAN::Optional<uint32_t>> fs_block_of_data_block_index(uint32_t data_block_index);
+		BAN::ErrorOr<BAN::Optional<uint32_t>> block_from_indirect_block(uint32_t& block, uint32_t index, uint32_t depth, bool allocate);
+		BAN::ErrorOr<BAN::Optional<uint32_t>> fs_block_of_data_block_index(uint32_t data_block_index, bool allocate);
 
 		BAN::ErrorOr<void> link_inode_to_directory(Ext2Inode&, BAN::StringView name);
 		BAN::ErrorOr<void> remove_inode_from_directory(BAN::StringView name, bool cleanup_directory);
@@ -72,8 +72,6 @@ namespace Kernel
 		BAN::ErrorOr<void> cleanup_default_links();
 		BAN::ErrorOr<void> cleanup_from_fs();
 
-		BAN::ErrorOr<uint32_t> allocate_new_block_to_indirect_block(uint32_t& block, uint32_t index, uint32_t depth);
-		BAN::ErrorOr<uint32_t> allocate_new_block(uint32_t data_block_index);
 		BAN::ErrorOr<void> sync();
 
 		uint32_t block_group() const;

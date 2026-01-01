@@ -56,52 +56,103 @@ namespace Kernel
 		return &m_fs;
 	}
 
-	BAN::ErrorOr<BAN::Optional<uint32_t>> Ext2Inode::block_from_indirect_block(uint32_t block, uint32_t index, uint32_t depth)
+	BAN::ErrorOr<BAN::Optional<uint32_t>> Ext2Inode::block_from_indirect_block(uint32_t& block, uint32_t index, uint32_t depth, bool allocate)
 	{
-		if (block == 0)
-			return BAN::Optional<uint32_t>();
-		ASSERT(depth >= 1);
+		const uint32_t inode_blocks_per_fs_block = blksize() / 512;
+		const uint32_t indices_per_fs_block = blksize() / sizeof(uint32_t);
+
+		if (depth == 0)
+		{
+			if (block == 0)
+			{
+				if (!allocate)
+					return BAN::Optional<uint32_t>();
+
+				block = TRY(m_fs.reserve_free_block(block_group()));
+				m_inode.blocks += inode_blocks_per_fs_block;
+
+				auto block_buffer = TRY(m_fs.get_block_buffer());
+				memset(block_buffer.data(), 0x00, block_buffer.size());
+				TRY(m_fs.write_block(block, block_buffer));
+
+				TRY(sync());
+			}
+
+			return BAN::Optional<uint32_t>(block);
+		}
 
 		auto block_buffer = TRY(m_fs.get_block_buffer());
-		TRY(m_fs.read_block(block, block_buffer));
 
-		const uint32_t indices_per_block = blksize() / sizeof(uint32_t);
+		bool needs_sync = false;
+
+		if (block != 0)
+			TRY(m_fs.read_block(block, block_buffer));
+		else
+		{
+			if (!allocate)
+				return BAN::Optional<uint32_t>();
+
+			block = TRY(m_fs.reserve_free_block(block_group()));
+			m_inode.blocks += inode_blocks_per_fs_block;
+
+			memset(block_buffer.data(), 0, block_buffer.size());
+
+			needs_sync = true;
+		}
 
 		uint32_t divisor = 1;
 		for (uint32_t i = 1; i < depth; i++)
-			divisor *= indices_per_block;
+			divisor *= indices_per_fs_block;
 
-		const uint32_t next_block = block_buffer.span().as_span<uint32_t>()[(index / divisor) % indices_per_block];
-		if (next_block == 0)
-			return BAN::Optional<uint32_t>();
-		if (depth == 1)
-			return BAN::Optional<uint32_t>(next_block);
+		uint32_t& new_block = block_buffer.span().as_span<uint32_t>()[(index / divisor) % indices_per_fs_block];
+		const auto old_block = new_block;
 
-		return block_from_indirect_block(next_block, index, depth - 1);
+		const auto result = TRY(block_from_indirect_block(new_block, index, depth - 1, allocate));
+
+		if (needs_sync || old_block != new_block)
+			TRY(m_fs.write_block(block, block_buffer));
+		if (needs_sync)
+			TRY(sync());
+
+		return result;
 	}
 
-	BAN::ErrorOr<BAN::Optional<uint32_t>> Ext2Inode::fs_block_of_data_block_index(uint32_t data_block_index)
+	BAN::ErrorOr<BAN::Optional<uint32_t>> Ext2Inode::fs_block_of_data_block_index(uint32_t data_block_index, bool allocate)
 	{
+		const uint32_t inode_blocks_per_fs_block = blksize() / 512;
 		const uint32_t indices_per_block = blksize() / sizeof(uint32_t);
 
 		if (data_block_index < 12)
 		{
-			if (m_inode.block[data_block_index] == 0)
+			if (m_inode.block[data_block_index] != 0)
+				return BAN::Optional<uint32_t>(m_inode.block[data_block_index]);
+			if (!allocate)
 				return BAN::Optional<uint32_t>();
-			return BAN::Optional<uint32_t>(m_inode.block[data_block_index]);
+
+			auto block_buffer = TRY(m_fs.get_block_buffer());
+			memset(block_buffer.data(), 0, block_buffer.size());
+
+			const auto block = TRY(m_fs.reserve_free_block(block_group()));
+			TRY(m_fs.write_block(block, block_buffer));
+
+			m_inode.block[data_block_index] = block;
+			m_inode.blocks += inode_blocks_per_fs_block;
+			TRY(sync());
+
+			return BAN::Optional<uint32_t>(block);
 		}
 		data_block_index -= 12;
 
 		if (data_block_index < indices_per_block)
-			return block_from_indirect_block(m_inode.block[12], data_block_index, 1);
+			return block_from_indirect_block(m_inode.block[12], data_block_index, 1, allocate);
 		data_block_index -= indices_per_block;
 
 		if (data_block_index < indices_per_block * indices_per_block)
-			return block_from_indirect_block(m_inode.block[13], data_block_index, 2);
+			return block_from_indirect_block(m_inode.block[13], data_block_index, 2, allocate);
 		data_block_index -= indices_per_block * indices_per_block;
 
 		if (data_block_index < indices_per_block * indices_per_block * indices_per_block)
-			return block_from_indirect_block(m_inode.block[14], data_block_index, 3);
+			return block_from_indirect_block(m_inode.block[14], data_block_index, 3, allocate);
 
 		ASSERT_NOT_REACHED();
 	}
@@ -167,7 +218,7 @@ namespace Kernel
 
 		for (uint32_t data_block_index = first_block; data_block_index < last_block; data_block_index++)
 		{
-			auto block_index = TRY(fs_block_of_data_block_index(data_block_index));
+			auto block_index = TRY(fs_block_of_data_block_index(data_block_index, false));
 			if (block_index.has_value())
 				TRY(m_fs.read_block(block_index.value(), block_buffer));
 			else
@@ -206,17 +257,13 @@ namespace Kernel
 		// Write partial block
 		if (offset % block_size)
 		{
-			auto block_index = TRY(fs_block_of_data_block_index(offset / block_size));
-			if (block_index.has_value())
-				TRY(m_fs.read_block(block_index.value(), block_buffer));
-			else
-			{
-				block_index = TRY(allocate_new_block(offset / block_size));;
-				memset(block_buffer.data(), 0x00, block_buffer.size());
-			}
+			const auto block_index = TRY(fs_block_of_data_block_index(offset / block_size, true));
+			ASSERT(block_index.has_value());
 
-			uint32_t block_offset = offset % block_size;
-			uint32_t to_copy = BAN::Math::min<uint32_t>(block_size - block_offset, to_write);
+			TRY(m_fs.read_block(block_index.value(), block_buffer));
+
+			const uint32_t block_offset = offset % block_size;
+			const uint32_t to_copy = BAN::Math::min<uint32_t>(block_size - block_offset, to_write);
 
 			memcpy(block_buffer.data() + block_offset, buffer.data(), to_copy);
 			TRY(m_fs.write_block(block_index.value(), block_buffer));
@@ -228,9 +275,8 @@ namespace Kernel
 
 		while (to_write >= block_size)
 		{
-			auto block_index = TRY(fs_block_of_data_block_index(offset / block_size));
-			if (!block_index.has_value())
-				block_index = TRY(allocate_new_block(offset / block_size));
+			const auto block_index = TRY(fs_block_of_data_block_index(offset / block_size, true));
+			ASSERT(block_index.has_value());
 
 			memcpy(block_buffer.data(), buffer.data() + written, block_buffer.size());
 			TRY(m_fs.write_block(block_index.value(), block_buffer));
@@ -242,14 +288,10 @@ namespace Kernel
 
 		if (to_write > 0)
 		{
-			auto block_index = TRY(fs_block_of_data_block_index(offset / block_size));
-			if (block_index.has_value())
-				TRY(m_fs.read_block(block_index.value(), block_buffer));
-			else
-			{
-				block_index = TRY(allocate_new_block(offset / block_size));
-				memset(block_buffer.data(), 0x00, block_buffer.size());
-			}
+			const auto block_index = TRY(fs_block_of_data_block_index(offset / block_size, true));
+			ASSERT(block_index.has_value());
+
+			TRY(m_fs.read_block(block_index.value(), block_buffer));
 
 			memcpy(block_buffer.data(), buffer.data() + written, to_write);
 			TRY(m_fs.write_block(block_index.value(), block_buffer));
@@ -340,7 +382,7 @@ namespace Kernel
 	BAN::ErrorOr<void> Ext2Inode::fsync_impl()
 	{
 		for (size_t i = 0; i < max_used_data_block_count(); i++)
-			if (const auto fs_block = TRY(fs_block_of_data_block_index(i)); fs_block.has_value())
+			if (const auto fs_block = TRY(fs_block_of_data_block_index(i, false)); fs_block.has_value())
 				TRY(m_fs.sync_block(fs_block.value()));
 		return {};
 	}
@@ -412,12 +454,12 @@ done:
 		if (static_cast<BAN::make_unsigned_t<decltype(offset)>>(offset) >= max_used_data_block_count())
 			return 0;
 
-		// FIXME: can we actually assume directories have all their blocks allocated
-		const uint32_t block_index = TRY(fs_block_of_data_block_index(offset)).value();
+		const auto block_index = TRY(fs_block_of_data_block_index(offset, false));
+		if (!block_index.has_value())
+			return BAN::Error::from_errno(ENODATA);
 
 		auto block_buffer = TRY(m_fs.get_block_buffer());
-
-		TRY(m_fs.read_block(block_index, block_buffer));
+		TRY(m_fs.read_block(block_index.value(), block_buffer));
 
 		// First determine if we have big enough list
 		size_t entry_count = 0;
@@ -681,7 +723,7 @@ done:
 			goto needs_new_block;
 
 		// Try to insert inode to last data block
-		block_index = TRY(fs_block_of_data_block_index(data_block_count - 1)).value();
+		block_index = TRY(fs_block_of_data_block_index(data_block_count - 1, true)).value();
 		TRY(m_fs.read_block(block_index, block_buffer));
 
 		while (entry_offset < block_size)
@@ -712,7 +754,7 @@ done:
 		}
 
 needs_new_block:
-		block_index = TRY(allocate_new_block(data_block_count));
+		block_index = TRY(fs_block_of_data_block_index(data_block_count, true)).value();
 		m_inode.size += blksize();
 
 		memset(block_buffer.data(), 0x00, block_buffer.size());
@@ -731,9 +773,10 @@ needs_new_block:
 		// Confirm that this doesn't contain anything else than '.' or '..'
 		for (uint32_t i = 0; i < max_used_data_block_count(); i++)
 		{
-			// FIXME: can we actually assume directories have all their blocks allocated
-			const uint32_t block_index = TRY(fs_block_of_data_block_index(i)).value();
-			TRY(m_fs.read_block(block_index, block_buffer));
+			const auto block_index = TRY(fs_block_of_data_block_index(i, false));
+			if (!block_index.has_value())
+				continue;
+			TRY(m_fs.read_block(block_index.value(), block_buffer));
 
 			blksize_t offset = 0;
 			while (offset < blksize())
@@ -767,9 +810,10 @@ needs_new_block:
 
 		for (uint32_t i = 0; i < max_used_data_block_count(); i++)
 		{
-			// FIXME: can we actually assume directories have all their blocks allocated
-			const uint32_t block_index = TRY(fs_block_of_data_block_index(i)).value();
-			TRY(m_fs.read_block(block_index, block_buffer));
+			const auto block_index = TRY(fs_block_of_data_block_index(i, false));
+			if (!block_index.has_value())
+				continue;
+			TRY(m_fs.read_block(block_index.value(), block_buffer));
 
 			bool modified = false;
 
@@ -804,7 +848,7 @@ needs_new_block:
 			}
 
 			if (modified)
-				TRY(m_fs.write_block(block_index, block_buffer));
+				TRY(m_fs.write_block(block_index.value(), block_buffer));
 		}
 
 		return {};
@@ -823,9 +867,10 @@ needs_new_block:
 
 		for (uint32_t i = 0; i < max_used_data_block_count(); i++)
 		{
-			// FIXME: can we actually assume directories have all their blocks allocated
-			const uint32_t block_index = TRY(fs_block_of_data_block_index(i)).value();
-			TRY(m_fs.read_block(block_index, block_buffer));
+			const auto block_index = TRY(fs_block_of_data_block_index(i, false));
+			if (!block_index.has_value())
+				continue;
+			TRY(m_fs.read_block(block_index.value(), block_buffer));
 
 			blksize_t offset = 0;
 			while (offset < blksize())
@@ -859,7 +904,7 @@ needs_new_block:
 
 					// FIXME: This should expand the last inode if exists
 					entry.inode = 0;
-					TRY(m_fs.write_block(block_index, block_buffer));
+					TRY(m_fs.write_block(block_index.value(), block_buffer));
 				}
 				offset += entry.rec_len;
 			}
@@ -872,73 +917,6 @@ needs_new_block:
 	{
 		TRY(remove_inode_from_directory(name, true));
 		return {};
-	}
-
-	BAN::ErrorOr<uint32_t> Ext2Inode::allocate_new_block_to_indirect_block(uint32_t& block, uint32_t index, uint32_t depth)
-	{
-		const uint32_t inode_blocks_per_fs_block = blksize() / 512;
-		const uint32_t indices_per_fs_block = blksize() / sizeof(uint32_t);
-
-		if (depth == 0)
-			ASSERT(block == 0);
-
-		if (block == 0)
-		{
-			block = TRY(m_fs.reserve_free_block(block_group()));
-			m_inode.blocks += inode_blocks_per_fs_block;
-
-			auto block_buffer = TRY(m_fs.get_block_buffer());
-			memset(block_buffer.data(), 0x00, block_buffer.size());
-			TRY(m_fs.write_block(block, block_buffer));
-		}
-
-		if (depth == 0)
-			return block;
-
-		auto block_buffer = TRY(m_fs.get_block_buffer());
-		TRY(m_fs.read_block(block, block_buffer));
-
-		uint32_t divisor = 1;
-		for (uint32_t i = 1; i < depth; i++)
-			divisor *= indices_per_fs_block;
-
-		uint32_t& new_block = block_buffer.span().as_span<uint32_t>()[(index / divisor) % indices_per_fs_block];
-
-		uint32_t allocated_block = TRY(allocate_new_block_to_indirect_block(new_block, index, depth - 1));
-		TRY(m_fs.write_block(block, block_buffer));
-
-		TRY(sync());
-
-		return allocated_block;
-	}
-
-	BAN::ErrorOr<uint32_t> Ext2Inode::allocate_new_block(uint32_t data_block_index)
-	{
-		const uint32_t inode_blocks_per_fs_block = blksize() / 512;
-		const uint32_t indices_per_fs_block = blksize() / sizeof(uint32_t);
-
-		if (data_block_index < 12)
-		{
-			ASSERT(m_inode.block[data_block_index] == 0);
-			m_inode.block[data_block_index] = TRY(m_fs.reserve_free_block(block_group()));
-			m_inode.blocks += inode_blocks_per_fs_block;
-			TRY(sync());
-			return m_inode.block[data_block_index];
-		}
-		data_block_index -= 12;
-
-		if (data_block_index < indices_per_fs_block)
-			return TRY(allocate_new_block_to_indirect_block(m_inode.block[12], data_block_index, 1));
-		data_block_index -= indices_per_fs_block;
-
-		if (data_block_index < indices_per_fs_block * indices_per_fs_block)
-			return TRY(allocate_new_block_to_indirect_block(m_inode.block[13], data_block_index, 2));
-		data_block_index -= indices_per_fs_block * indices_per_fs_block;
-
-		if (data_block_index < indices_per_fs_block * indices_per_fs_block * indices_per_fs_block)
-			return TRY(allocate_new_block_to_indirect_block(m_inode.block[14], data_block_index, 3));
-
-		ASSERT_NOT_REACHED();
 	}
 
 	BAN::ErrorOr<void> Ext2Inode::sync()
@@ -964,9 +942,10 @@ needs_new_block:
 
 		for (uint32_t i = 0; i < max_used_data_block_count(); i++)
 		{
-			// FIXME: can we actually assume directories have all their blocks allocated
-			const uint32_t block_index = TRY(fs_block_of_data_block_index(i)).value();
-			TRY(m_fs.read_block(block_index, block_buffer));
+			const auto block_index = TRY(fs_block_of_data_block_index(i, false));
+			if (!block_index.has_value())
+				continue;
+			TRY(m_fs.read_block(block_index.value(), block_buffer));
 
 			BAN::ConstByteSpan entry_span = block_buffer.span();
 			while (entry_span.size() >= sizeof(Ext2::LinkedDirectoryEntry))
