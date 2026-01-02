@@ -1,3 +1,4 @@
+#include <kernel/Lock/LockGuard.h>
 #include <kernel/Scheduler.h>
 #include <kernel/Storage/ATA/AHCI/Controller.h>
 #include <kernel/Storage/ATA/AHCI/Device.h>
@@ -182,6 +183,8 @@ namespace Kernel
 
 	BAN::ErrorOr<void> AHCIDevice::read_sectors_impl(uint64_t lba, uint64_t sector_count, BAN::ByteSpan buffer)
 	{
+		LockGuard _(m_mutex);
+
 		ASSERT(buffer.size() >= sector_count * sector_size());
 		const size_t sectors_per_page = PAGE_SIZE / sector_size();
 		for (uint64_t sector_off = 0; sector_off < sector_count; sector_off += sectors_per_page)
@@ -197,6 +200,8 @@ namespace Kernel
 
 	BAN::ErrorOr<void> AHCIDevice::write_sectors_impl(uint64_t lba, uint64_t sector_count, BAN::ConstByteSpan buffer)
 	{
+		LockGuard _(m_mutex);
+
 		ASSERT(buffer.size() >= sector_count * sector_size());
 		const size_t sectors_per_page = PAGE_SIZE / sector_size();
 		for (uint64_t sector_off = 0; sector_off < sector_count; sector_off += sectors_per_page)

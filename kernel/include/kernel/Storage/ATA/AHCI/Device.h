@@ -1,8 +1,9 @@
 #pragma once
 
-#include <kernel/ThreadBlocker.h>
+#include <kernel/Memory/DMARegion.h>
 #include <kernel/Storage/ATA/AHCI/Definitions.h>
 #include <kernel/Storage/ATA/ATADevice.h>
+#include <kernel/ThreadBlocker.h>
 
 namespace Kernel
 {
@@ -34,6 +35,8 @@ namespace Kernel
 		BAN::ErrorOr<void> block_until_command_completed(uint32_t command_slot);
 
 	private:
+		Mutex m_mutex;
+
 		BAN::RefPtr<AHCIController> m_controller;
 		volatile HBAPortMemorySpace* const m_port;
 
