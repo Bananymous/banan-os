@@ -51,7 +51,6 @@ namespace Kernel
 		virtual bool has_hungup_impl() const override { return false; }
 
 	private:
-		Mutex								m_mutex;
 		BAN::Optional<DiskCache>			m_disk_cache;
 		BAN::Vector<BAN::RefPtr<Partition>>	m_partitions;
 

@@ -211,14 +211,12 @@ namespace Kernel
 
 	void StorageDevice::add_disk_cache()
 	{
-		LockGuard _(m_mutex);
 		ASSERT(!m_disk_cache.has_value());
 		m_disk_cache.emplace(sector_size(), *this);
 	}
 
 	size_t StorageDevice::drop_disk_cache()
 	{
-		LockGuard _(m_mutex);
 		if (m_disk_cache.has_value())
 			return m_disk_cache->release_pages(-1);
 		return 0;
@@ -226,7 +224,6 @@ namespace Kernel
 
 	BAN::ErrorOr<void> StorageDevice::sync_disk_cache()
 	{
-		LockGuard _(m_mutex);
 		if (m_disk_cache.has_value())
 			TRY(m_disk_cache->sync());
 		return {};
@@ -235,8 +232,6 @@ namespace Kernel
 	BAN::ErrorOr<void> StorageDevice::read_sectors(uint64_t lba, size_t sector_count, BAN::ByteSpan buffer)
 	{
 		ASSERT(buffer.size() >= sector_count * sector_size());
-
-		LockGuard _(m_mutex);
 
 		if (!m_disk_cache.has_value())
 			return read_sectors_impl(lba, sector_count, buffer);
@@ -274,8 +269,6 @@ namespace Kernel
 	BAN::ErrorOr<void> StorageDevice::write_sectors(uint64_t lba, size_t sector_count, BAN::ConstByteSpan buffer)
 	{
 		ASSERT(buffer.size() >= sector_count * sector_size());
-
-		LockGuard _(m_mutex);
 
 		if (g_disable_disk_write)
 		{

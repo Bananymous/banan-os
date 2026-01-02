@@ -3,6 +3,7 @@
 #include <BAN/Array.h>
 #include <BAN/ByteSpan.h>
 #include <BAN/Vector.h>
+#include <kernel/Lock/RWLock.h>
 #include <kernel/Memory/Types.h>
 
 namespace Kernel
@@ -37,9 +38,13 @@ namespace Kernel
 			uint64_t first_sector { 0 };
 			uint8_t sector_mask { 0 };
 			uint8_t dirty_mask { 0 };
+			bool syncing { false };
 		};
 
 	private:
+		RWLock m_rw_lock;
+		Mutex m_sync_mutex;
+
 		const size_t m_sector_size;
 		StorageDevice& m_device;
 		BAN::Vector<PageCache> m_cache;

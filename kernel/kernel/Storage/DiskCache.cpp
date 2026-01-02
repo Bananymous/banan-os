@@ -1,3 +1,4 @@
+#include <BAN/ScopeGuard.h>
 #include <kernel/BootInfo.h>
 #include <kernel/Memory/Heap.h>
 #include <kernel/Memory/PageTable.h>
@@ -53,6 +54,8 @@ namespace Kernel
 		const uint64_t page_cache_offset = sector % sectors_per_page;
 		const uint64_t page_cache_start = sector - page_cache_offset;
 
+		RWLockRDGuard _(m_rw_lock);
+
 		const auto index = find_sector_cache_index(sector);
 		if (index >= m_cache.size())
 			return false;
@@ -77,6 +80,8 @@ namespace Kernel
 		const uint64_t sectors_per_page = PAGE_SIZE / m_sector_size;
 		const uint64_t page_cache_offset = sector % sectors_per_page;
 		const uint64_t page_cache_start = sector - page_cache_offset;
+
+		RWLockWRGuard _(m_rw_lock);
 
 		const auto index = find_sector_cache_index(sector);
 
@@ -115,12 +120,35 @@ namespace Kernel
 
 	BAN::ErrorOr<void> DiskCache::sync_cache_index(size_t index)
 	{
-		auto& cache = m_cache[index];
-		if (cache.dirty_mask == 0)
-			return {};
+		LockGuard _(m_sync_mutex);
 
-		PageTable::with_fast_page(cache.paddr, [&] {
-			memcpy(m_sync_cache.data(), PageTable::fast_page_as_ptr(), PAGE_SIZE);
+		PageCache temp_cache;
+
+		{
+			RWLockWRGuard _(m_rw_lock);
+
+			if (index >= m_cache.size())
+				return {};
+			auto& cache = m_cache[index];
+			if (cache.dirty_mask == 0)
+				return {};
+
+			PageTable::with_fast_page(cache.paddr, [&] {
+				memcpy(m_sync_cache.data(), PageTable::fast_page_as_ptr(), PAGE_SIZE);
+			});
+
+			temp_cache = cache;
+			cache.dirty_mask = 0;
+			cache.syncing = true;
+		}
+
+		// restores dirty mask if write to disk fails
+		BAN::ScopeGuard dirty_guard([&] {
+			RWLockWRGuard _(m_rw_lock);
+			const auto new_index = find_sector_cache_index(temp_cache.first_sector);
+			ASSERT(new_index < m_cache.size() && m_cache[new_index].first_sector == temp_cache.first_sector);
+			m_cache[new_index].dirty_mask |= temp_cache.dirty_mask;
+			m_cache[new_index].syncing = false;
 		});
 
 		uint8_t sector_start = 0;
@@ -128,15 +156,16 @@ namespace Kernel
 
 		while (sector_start + sector_count <= PAGE_SIZE / m_sector_size)
 		{
-			if (cache.dirty_mask & (1 << (sector_start + sector_count)))
+			if (temp_cache.dirty_mask & (1 << (sector_start + sector_count)))
 				sector_count++;
 			else if (sector_count == 0)
 				sector_start++;
 			else
 			{
-				dprintln_if(DEBUG_DISK_SYNC, "syncing {}->{}", cache.first_sector + sector_start, cache.first_sector + sector_start + sector_count);
+				dprintln_if(DEBUG_DISK_SYNC, "syncing {}->{}", temp_cache.first_sector + sector_start, temp_cache.first_sector + sector_start + sector_count);
 				auto data_slice = m_sync_cache.span().slice(sector_start * m_sector_size, sector_count * m_sector_size);
-				TRY(m_device.write_sectors_impl(cache.first_sector + sector_start, sector_count, data_slice));
+				TRY(m_device.write_sectors_impl(temp_cache.first_sector + sector_start, sector_count, data_slice));
+				temp_cache.dirty_mask &= ~(((1 << sector_count) - 1) << sector_start);
 				sector_start += sector_count + 1;
 				sector_count = 0;
 			}
@@ -144,12 +173,11 @@ namespace Kernel
 
 		if (sector_count > 0)
 		{
-			dprintln_if(DEBUG_DISK_SYNC, "syncing {}->{}", cache.first_sector + sector_start, cache.first_sector + sector_start + sector_count);
+			dprintln_if(DEBUG_DISK_SYNC, "syncing {}->{}", temp_cache.first_sector + sector_start, temp_cache.first_sector + sector_start + sector_count);
 			auto data_slice = m_sync_cache.span().slice(sector_start * m_sector_size, sector_count * m_sector_size);
-			TRY(m_device.write_sectors_impl(cache.first_sector + sector_start, sector_count, data_slice));
+			TRY(m_device.write_sectors_impl(temp_cache.first_sector + sector_start, sector_count, data_slice));
+			temp_cache.dirty_mask &= ~(((1 << sector_count) - 1) << sector_start);
 		}
-
-		cache.dirty_mask = 0;
 
 		return {};
 	}
@@ -168,17 +196,17 @@ namespace Kernel
 		if (g_disable_disk_write)
 			return {};
 
-		const uint64_t sectors_per_page = PAGE_SIZE / m_sector_size;
-		const uint64_t page_cache_offset = sector % sectors_per_page;
-		const uint64_t page_cache_start = sector - page_cache_offset;
-
+		m_rw_lock.rd_lock();
 		for (size_t i = find_sector_cache_index(sector); i < m_cache.size(); i++)
 		{
 			auto& cache = m_cache[i];
-			if (cache.first_sector * sectors_per_page >= page_cache_start * sectors_per_page + block_count)
+			if (cache.first_sector >= sector + block_count)
 				break;
+			m_rw_lock.rd_unlock();
 			TRY(sync_cache_index(i));
+			m_rw_lock.rd_lock();
 		}
+		m_rw_lock.rd_unlock();
 
 		return {};
 	}
@@ -188,10 +216,12 @@ namespace Kernel
 		// NOTE: There might not actually be page_count pages after this
 		//       function returns. The synchronization must be done elsewhere.
 
+		RWLockWRGuard _(m_rw_lock);
+
 		size_t released = 0;
 		for (size_t i = 0; i < m_cache.size() && released < page_count;)
 		{
-			if (m_cache[i].dirty_mask == 0)
+			if (!m_cache[i].syncing && m_cache[i].dirty_mask == 0)
 			{
 				Heap::get().release_page(m_cache[i].paddr);
 				m_cache.remove(i);
