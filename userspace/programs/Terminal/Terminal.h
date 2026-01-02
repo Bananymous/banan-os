@@ -79,7 +79,7 @@ private:
 		static constexpr size_t max_fields = 5;
 		int32_t fields[max_fields];
 		size_t index;
-		bool question;
+		char param;
 	};
 
 	struct Cell

@@ -632,9 +632,9 @@ Rectangle Terminal::handle_csi(char ch)
 		return {};
 	}
 
-	if (ch == '?')
+	if (ch == '?' || ch == '>' || ch == '=')
 	{
-		m_csi_info.question = true;
+		m_csi_info.param = ch;
 		return {};
 	}
 
@@ -651,8 +651,12 @@ Rectangle Terminal::handle_csi(char ch)
 	Rectangle should_invalidate;
 
 	auto& texture = m_window->texture();
-	switch (ch)
+
+	switch (m_csi_info.param)
 	{
+	case 0:
+		switch (ch)
+		{
 		case 'A':
 			if (m_csi_info.fields[0] == -1)
 				m_csi_info.fields[0] = 1;
@@ -672,6 +676,18 @@ Rectangle Terminal::handle_csi(char ch)
 			if (m_csi_info.fields[0] == -1)
 				m_csi_info.fields[0] = 1;
 			m_cursor.x = BAN::Math::max<int32_t>(m_cursor.x - m_csi_info.fields[0], 0);
+			break;
+		case 'E':
+			if (m_csi_info.fields[0] == -1)
+				m_csi_info.fields[0] = 1;
+			m_cursor.y = BAN::Math::min<int32_t>(m_cursor.y + m_csi_info.fields[0], rows() - 1);
+			m_cursor.x = 0;
+			break;
+		case 'F':
+			if (m_csi_info.fields[0] == -1)
+				m_csi_info.fields[0] = 1;
+			m_cursor.y = BAN::Math::max<int32_t>(m_cursor.y - m_csi_info.fields[0], 0);
+			m_cursor.x = 0;
 			break;
 		case 'G':
 			m_cursor.x = BAN::Math::clamp<int32_t>(m_csi_info.fields[0], 1, cols()) - 1;
@@ -907,6 +923,9 @@ Rectangle Terminal::handle_csi(char ch)
 				for (int32_t i = 0; i < m_csi_info.fields[0]; i++)
 					should_invalidate = should_invalidate.get_bounding_box(putcodepoint(m_last_graphic_char));
 			break;
+		case 'c':
+			write(m_shell_info.pts_master, "\e[?1;0c", 7);
+			break;
 		case 'd':
 			m_cursor.y = BAN::Math::clamp<int32_t>(m_csi_info.fields[0], 1, rows()) - 1;
 			break;
@@ -915,7 +934,7 @@ Rectangle Terminal::handle_csi(char ch)
 			{
 				if (m_csi_info.fields[1] != 5 && m_csi_info.fields[1] != 2)
 				{
-					dprintln("unsupported ANSI SGR {}", m_csi_info.fields[1]);
+					dprintln("TODO: SGR {}", m_csi_info.fields[1]);
 					break;
 				}
 				const auto color = (m_csi_info.fields[1] == 5)
@@ -934,33 +953,10 @@ Rectangle Terminal::handle_csi(char ch)
 		case 'u':
 			m_cursor = m_saved_cursor;
 			break;
-		case 'h':
-		case 'l':
-			if (m_csi_info.question)
-			{
-				switch (m_csi_info.fields[0])
-				{
-					case 25:
-						m_cursor_shown = (ch == 'h');
-						break;
-					case 2004:
-						m_brackted_paste_mode = (ch == 'h');
-						break;
-					default:
-						dwarnln("unsupported ANSI CSI ? {} {}", m_csi_info.fields[0], ch);
-						break;
-				}
-			}
-			else
-			{
-				dwarnln("unsupported ANSI CSI {} {}", m_csi_info.fields[0], ch);
-				break;
-			}
-			break;
 		case 'n':
 			if (m_csi_info.fields[0] != 6)
 			{
-				dprintln("unsupported ANSI CSI n");
+				dprintln("TODO: CSI {} n", m_csi_info.fields[0]);
 				break;
 			}
 			char buffer[2 + 10 + 1 + 10 + 2];
@@ -970,6 +966,53 @@ Rectangle Terminal::handle_csi(char ch)
 		default:
 			dprintln("TODO: CSI {}", ch);
 			break;
+		}
+		break;
+	case '?':
+		switch (ch)
+		{
+		case 'h':
+		case 'l':
+			switch (m_csi_info.fields[0])
+			{
+			case 25:
+				m_cursor_shown = (ch == 'h');
+				break;
+			case 2004:
+				m_brackted_paste_mode = (ch == 'h');
+				break;
+			default:
+				dprintln("TODO: CSI ? {} {}", m_csi_info.fields[0], ch);
+				break;
+			}
+			break;
+		default:
+			dprintln("TODO: CSI ? {}", ch);
+			break;
+		}
+		break;
+	case '>':
+		switch (ch)
+		{
+		case 'c':
+			write(m_shell_info.pts_master, "\e[>0;10;1c", 10);
+			break;
+		default:
+			dprintln("TODO: CSI > {}", ch);
+			break;
+		}
+		break;
+	case '=':
+		switch (ch)
+		{
+		case 'c':
+			write(m_shell_info.pts_master, "\eP!|00000000\e\\", 14);
+			break;
+		default:
+			dprintln("TODO: CSI = {}", ch);
+			break;
+		}
+		break;
 	}
 
 	m_state = State::Normal;
@@ -1131,7 +1174,7 @@ Rectangle Terminal::putchar(uint8_t ch)
 		m_csi_info = {
 			.fields = { -1, -1, -1, -1, -1 },
 			.index = 0,
-			.question = false,
+			.param = '\0',
 		};
 		return {};
 	}
