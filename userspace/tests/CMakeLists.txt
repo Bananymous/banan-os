@@ -2,6 +2,7 @@ set(USERSPACE_TESTS
 	test-fork
 	test-framebuffer
 	test-globals
+	test-joystick
 	test-mmap-shared
 	test-mouse
 	test-popen
