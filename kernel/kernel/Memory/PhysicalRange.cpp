@@ -98,8 +98,9 @@ namespace Kernel
 			[this](size_t buffer_bit) -> bool
 			{
 				const size_t page_index = buffer_bit / bits_per_page;
-				const size_t byte = buffer_bit / 8;
-				const size_t bit  = buffer_bit % 8;
+				const size_t bit_index  = buffer_bit % bits_per_page;
+				const size_t byte = bit_index / 8;
+				const size_t bit  = bit_index % 8;
 
 				uint8_t current;
 				PageTable::with_fast_page(m_paddr + page_index * PAGE_SIZE, [&current, byte] {
@@ -113,8 +114,9 @@ namespace Kernel
 			[this](size_t buffer_bit) -> void
 			{
 				const size_t page_index = buffer_bit / bits_per_page;
-				const size_t byte = buffer_bit / 8;
-				const size_t bit  = buffer_bit % 8;
+				const size_t bit_index  = buffer_bit % bits_per_page;
+				const size_t byte = bit_index / 8;
+				const size_t bit  = bit_index % 8;
 				PageTable::with_fast_page(m_paddr + page_index * PAGE_SIZE, [byte, bit] {
 					volatile uint8_t& current = PageTable::fast_page_as_sized<volatile uint8_t>(byte);
 					current = current | (1u << bit);
