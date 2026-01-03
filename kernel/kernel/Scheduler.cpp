@@ -136,6 +136,9 @@ namespace Kernel
 		while (s_schedulers_initialized < Processor::count())
 			__builtin_ia32_pause();
 
+		if (Processor::count() > 1)
+			Processor::set_smp_enabled();
+
 		return {};
 	}
 

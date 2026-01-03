@@ -57,8 +57,9 @@ namespace Kernel
 		static ProcessorID current_id() { return read_gs_sized<ProcessorID>(offsetof(Processor, m_id)); }
 		static ProcessorID id_from_index(size_t index);
 
-		static uint8_t count()       { return s_processor_count; }
-		static bool is_smp_enabled() { return s_is_smp_enabled; }
+		static uint8_t count()        { return s_processor_count; }
+		static bool is_smp_enabled()  { return s_is_smp_enabled; }
+		static void set_smp_enabled() { s_is_smp_enabled = true; }
 		static void wait_until_processors_ready();
 
 		static void toggle_should_print_cpu_load() { s_should_print_cpu_load = !s_should_print_cpu_load; }

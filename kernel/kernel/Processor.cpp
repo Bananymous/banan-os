@@ -189,8 +189,6 @@ namespace Kernel
 				__builtin_ia32_pause();
 			}
 		}
-
-		s_is_smp_enabled = true;
 	}
 
 	void Processor::handle_ipi()
