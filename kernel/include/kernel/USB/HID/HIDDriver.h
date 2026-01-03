@@ -55,6 +55,8 @@ namespace Kernel
 		{}
 		virtual ~USBHIDDevice() = default;
 
+		virtual BAN::ErrorOr<void> initialize() { return {}; }
+
 		virtual void start_report() = 0;
 		virtual void stop_report() = 0;
 

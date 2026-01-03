@@ -16,6 +16,7 @@ namespace Kernel
 		Debug,
 		Keyboard,
 		Mouse,
+		Joystick,
 		SCSI,
 		NVMeController,
 		NVMeNamespace,

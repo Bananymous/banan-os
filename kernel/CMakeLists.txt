@@ -108,6 +108,7 @@ set(KERNEL_SOURCES
 	kernel/USB/Controller.cpp
 	kernel/USB/Device.cpp
 	kernel/USB/HID/HIDDriver.cpp
+	kernel/USB/HID/Joystick.cpp
 	kernel/USB/HID/Keyboard.cpp
 	kernel/USB/HID/Mouse.cpp
 	kernel/USB/Hub/HubDriver.cpp

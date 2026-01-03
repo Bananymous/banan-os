@@ -3,6 +3,7 @@
 
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/USB/HID/HIDDriver.h>
+#include <kernel/USB/HID/Joystick.h>
 #include <kernel/USB/HID/Keyboard.h>
 #include <kernel/USB/HID/Mouse.h>
 
@@ -208,6 +209,10 @@ namespace Kernel
 			return BAN::Error::from_errno(EINVAL);
 		}
 
+		for (auto& report : m_device_inputs)
+			if (report.device && report.device->initialize().is_error())
+				report.device.clear();
+
 		m_device.send_data_buffer(m_data_endpoint_id, m_data_buffer->paddr(), m_data_buffer->size());
 
 		return {};
@@ -255,6 +260,10 @@ namespace Kernel
 					case 0x02:
 						report.device = TRY(BAN::RefPtr<USBMouse>::create());
 						dprintln("Initialized an USB Mouse");
+						break;
+					case 0x04:
+						report.device = TRY(BAN::RefPtr<USBJoystick>::create(*this));
+						dprintln("Initialized an USB Joystick");
 						break;
 					case 0x06:
 						report.device = TRY(BAN::RefPtr<USBKeyboard>::create(*this, BAN::move(outputs)));
@@ -376,13 +385,13 @@ namespace Kernel
 						continue;
 					}
 
-					const uint32_t usage_base = input.usage_id ? input.usage_id : input.usage_minimum;
-
 					const bool relative = !!(input.flags & 0x04);
 					const bool variable = !!(input.flags & 0x02);
 
+					const auto usage = input.usage_id ? input.usage_id : (input.usage_minimum + (variable ? i : logical));
+
 					if (!variable)
-						device_input.device->handle_array(input.usage_page, usage_base + logical);
+						device_input.device->handle_array(input.usage_page, usage);
 					else
 					{
 						const int64_t physical =
@@ -392,9 +401,9 @@ namespace Kernel
 							input.physical_minimum;
 
 						if (relative)
-							device_input.device->handle_variable(input.usage_page, usage_base + i, physical);
+							device_input.device->handle_variable(input.usage_page, usage, physical);
 						else
-							device_input.device->handle_variable_absolute(input.usage_page, usage_base + i, physical, input.physical_minimum, input.physical_maximum);
+							device_input.device->handle_variable_absolute(input.usage_page, usage, physical, input.physical_minimum, input.physical_maximum);
 					}
 
 					bit_offset += input.report_size;
@@ -595,15 +604,16 @@ namespace Kernel
 						break;
 					case 0b1010: // collection
 					{
-						if (local_state.usage_stack.size() != 1)
+						if (local_state.usage_stack.size() > 1)
 						{
-							dwarnln("{} usages specified for collection", local_state.usage_stack.empty() ? "No" : "Multiple");
+							dwarnln("Multiple usages specified for a collection");
 							return BAN::Error::from_errno(EFAULT);
 						}
+
 						uint16_t usage_page = 0;
 						if (global_state.usage_page.has_value())
 							usage_page = global_state.usage_page.value();
-						if (local_state.usage_stack.front() >> 16)
+						if (!local_state.usage_stack.empty() && local_state.usage_stack.front() >> 16)
 							usage_page = local_state.usage_stack.front() >> 16;
 						if (usage_page == 0)
 						{
@@ -612,8 +622,11 @@ namespace Kernel
 						}
 
 						TRY(collection_stack.emplace_back());
+						collection_stack.back().type = report_data[1];
 						collection_stack.back().usage_page = usage_page;
-						collection_stack.back().usage_id   = local_state.usage_stack.front();
+						if (!local_state.usage_stack.empty())
+							collection_stack.back().usage_id = local_state.usage_stack.front();
+
 						break;
 					}
 					case 0b1100: // end collection

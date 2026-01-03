@@ -3,6 +3,7 @@
 #include <kernel/Input/InputDevice.h>
 #include <kernel/Lock/SpinLockAsMutex.h>
 
+#include <LibInput/Joystick.h>
 #include <LibInput/KeyEvent.h>
 #include <LibInput/MouseEvent.h>
 
@@ -18,6 +19,8 @@ namespace Kernel
 	static BAN::Vector<BAN::WeakPtr<InputDevice>> s_mice;
 	static BAN::RefPtr<MouseDevice> s_mouse_device;
 
+	static BAN::Vector<BAN::WeakPtr<InputDevice>> s_joysticks;
+
 	static const char* get_name_format(InputDevice::Type type)
 	{
 		switch (type)
@@ -26,6 +29,8 @@ namespace Kernel
 				return "keyboard{}";
 			case InputDevice::Type::Mouse:
 				return "mouse{}";
+			case InputDevice::Type::Joystick:
+				return "joystick{}";
 		}
 		ASSERT_NOT_REACHED();
 	}
@@ -44,6 +49,11 @@ namespace Kernel
 					if (!s_mice[i].valid())
 						return makedev(DeviceNumber::Mouse, i + 1);
 				return makedev(DeviceNumber::Mouse, s_mice.size() + 1);
+			case InputDevice::Type::Joystick:
+				for (size_t i = 0; i < s_joysticks.size(); i++)
+					if (!s_joysticks[i].valid())
+						return makedev(DeviceNumber::Joystick, i + 1);
+				return makedev(DeviceNumber::Joystick, s_joysticks.size() + 1);
 		}
 		ASSERT_NOT_REACHED();
 	}
@@ -56,6 +66,8 @@ namespace Kernel
 				return sizeof(LibInput::RawKeyEvent);
 			case InputDevice::Type::Mouse:
 				return sizeof(LibInput::MouseEvent);
+			case InputDevice::Type::Joystick:
+				return sizeof(LibInput::JoystickEvent);
 		}
 		ASSERT_NOT_REACHED();
 	}
@@ -69,18 +81,23 @@ namespace Kernel
 	{
 		MUST(m_event_buffer.resize(m_event_size * m_max_event_count, 0));
 
-		if (m_type == Type::Keyboard)
+		switch (m_type)
 		{
-			if (s_keyboards.size() < minor(m_rdev))
-				MUST(s_keyboards.resize(minor(m_rdev)));
-			s_keyboards[minor(m_rdev) - 1] = MUST(get_weak_ptr());
-		}
-
-		if (m_type == Type::Mouse)
-		{
-			if (s_mice.size() < minor(m_rdev))
-				MUST(s_mice.resize(minor(m_rdev)));
-			s_mice[minor(m_rdev) - 1] = MUST(get_weak_ptr());
+			case Type::Keyboard:
+				if (s_keyboards.size() < minor(m_rdev))
+					MUST(s_keyboards.resize(minor(m_rdev)));
+				s_keyboards[minor(m_rdev) - 1] = MUST(get_weak_ptr());
+				break;
+			case Type::Mouse:
+				if (s_mice.size() < minor(m_rdev))
+					MUST(s_mice.resize(minor(m_rdev)));
+				s_mice[minor(m_rdev) - 1] = MUST(get_weak_ptr());
+				break;
+			case Type::Joystick:
+				if (s_joysticks.size() < minor(m_rdev))
+					MUST(s_joysticks.resize(minor(m_rdev)));
+				s_joysticks[minor(m_rdev) - 1] = MUST(get_weak_ptr());
+				break;
 		}
 	}
 

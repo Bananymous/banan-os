@@ -15,6 +15,7 @@ namespace Kernel
 		{
 			Mouse,
 			Keyboard,
+			Joystick,
 		};
 
 	public:
