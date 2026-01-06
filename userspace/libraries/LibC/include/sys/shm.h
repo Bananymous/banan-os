@@ -14,9 +14,12 @@ __BEGIN_DECLS
 
 #include <sys/ipc.h>
 
-#define SHM_RDONLY	0x01
-#define SHM_RDONLY	0x02
-#define SHM_RDONLY	0x04
+#include <unistd.h>
+
+#define SHM_RDONLY 0x01
+#define SHM_RND    0x02
+
+#define SHMLBA (sysconf(_SC_PAGE_SIZE))
 
 typedef unsigned int shmatt_t;
 

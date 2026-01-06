@@ -49,6 +49,7 @@ set(LIBC_SOURCES
 	sys/mman.cpp
 	sys/resource.cpp
 	sys/select.cpp
+	sys/shm.cpp
 	sys/socket.cpp
 	sys/stat.cpp
 	sys/statvfs.cpp
