@@ -1,5 +1,6 @@
 set(USERSPACE_PROGRAMS
 	audio
+	audioctl
 	AudioServer
 	bananfetch
 	basename
