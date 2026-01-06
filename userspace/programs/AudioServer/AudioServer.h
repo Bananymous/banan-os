@@ -6,6 +6,16 @@
 #include <BAN/HashMap.h>
 
 #include <LibAudio/Audio.h>
+#include <LibAudio/Protocol.h>
+
+struct AudioDevice
+{
+	int fd;
+	uint32_t channels;
+	uint32_t sample_rate;
+	uint32_t total_pins;
+	uint32_t current_pin;
+};
 
 class AudioServer
 {
@@ -13,13 +23,16 @@ class AudioServer
 	BAN_NON_COPYABLE(AudioServer);
 
 public:
-	AudioServer(int audio_device_fd);
+	AudioServer(BAN::Vector<AudioDevice>&& audio_devices);
 
 	BAN::ErrorOr<void> on_new_client(int fd);
 	void on_client_disconnect(int fd);
-	bool on_client_packet(int fd, long smo_key);
+	bool on_client_packet(int fd, LibAudio::Packet);
 
 	uint64_t update();
+
+private:
+	AudioDevice& device() { return m_audio_devices[m_current_audio_device]; }
 
 private:
 	struct ClientInfo
@@ -48,9 +61,8 @@ private:
 	void send_samples();
 
 private:
-	const int m_audio_device_fd;
-	uint32_t m_sample_rate;
-	uint32_t m_channels;
+	BAN::Vector<AudioDevice> m_audio_devices;
+	size_t m_current_audio_device { 0 };
 
 	size_t m_samples_sent { 0 };
 	BAN::Array<uint8_t, 4 * 1024> m_send_buffer;

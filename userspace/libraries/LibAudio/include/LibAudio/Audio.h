@@ -9,8 +9,6 @@
 namespace LibAudio
 {
 
-	static constexpr BAN::StringView s_audio_server_socket = "/tmp/audio-server.socket"_sv;
-
 	struct AudioBuffer
 	{
 		using sample_t = double;

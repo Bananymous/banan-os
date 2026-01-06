@@ -1,6 +1,7 @@
 #include <BAN/ScopeGuard.h>
 
 #include <LibAudio/Audio.h>
+#include <LibAudio/Protocol.h>
 
 #include <fcntl.h>
 #include <stdlib.h>
@@ -121,10 +122,15 @@ namespace LibAudio
 	{
 		ASSERT(m_server_fd != -1);
 
-		const ssize_t nsend = send(m_server_fd, &m_smo_key, sizeof(m_smo_key), 0);
+		LibAudio::Packet packet {
+			.type = LibAudio::Packet::RegisterBuffer,
+			.parameter = static_cast<uint64_t>(m_smo_key),
+		};
+
+		const ssize_t nsend = send(m_server_fd, &packet, sizeof(packet), 0);
 		if (nsend == -1)
 			return BAN::Error::from_errno(errno);
-		ASSERT(nsend == sizeof(m_smo_key));
+		ASSERT(nsend == sizeof(packet));
 
 		return {};
 	}
@@ -137,8 +143,12 @@ namespace LibAudio
 			return;
 		m_audio_buffer->paused = paused;
 
-		long dummy = 0;
-		send(m_server_fd, &dummy, sizeof(dummy), 0);
+		LibAudio::Packet packet {
+			.type = LibAudio::Packet::Notify,
+			.parameter = 0,
+		};
+
+		send(m_server_fd, &packet, sizeof(packet), 0);
 	}
 
 	size_t Audio::queue_samples(BAN::Span<const AudioBuffer::sample_t> samples)

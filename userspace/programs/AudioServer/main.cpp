@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/ioctl.h>
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -55,6 +56,21 @@ static uint64_t get_current_ms()
 	return ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
 }
 
+static BAN::Optional<AudioDevice> initialize_audio_device(int fd)
+{
+	AudioDevice result {};
+	result.fd = fd;
+	if (ioctl(fd, SND_GET_CHANNELS, &result.channels) != 0)
+		return {};
+	if (ioctl(fd, SND_GET_SAMPLE_RATE, &result.sample_rate) != 0)
+		return {};
+	if (ioctl(fd, SND_GET_TOTAL_PINS, &result.total_pins) != 0)
+		return {};
+	if (ioctl(fd, SND_GET_PIN, &result.current_pin) != 0)
+		return {};
+	return result;
+}
+
 int main()
 {
 	constexpr int non_terminating_signals[] {
@@ -69,14 +85,30 @@ int main()
 	for (int sig : non_terminating_signals)
 		signal(sig, SIG_DFL);
 
-	const int audio_device_fd = open("/dev/audio0", O_RDWR | O_NONBLOCK);
-	if (audio_device_fd == -1)
+	BAN::Vector<AudioDevice> audio_devices;
+	for (int i = 0; i < 16; i++)
 	{
-		dwarnln("failed to open audio device: {}", strerror(errno));
+		char path[PATH_MAX];
+		sprintf(path, "/dev/audio%d", i);
+
+		const int fd = open(path, O_RDWR | O_NONBLOCK);
+		if (fd == -1)
+			continue;
+
+		auto device = initialize_audio_device(fd);
+		if (!device.has_value())
+			close(fd);
+		else
+			MUST(audio_devices.push_back(device.release_value()));
+	}
+
+	if (audio_devices.empty())
+	{
+		dwarnln("could not open any audio device");
 		return 1;
 	}
 
-	auto* audio_server = new AudioServer(audio_device_fd);
+	auto* audio_server = new AudioServer(BAN::move(audio_devices));
 	if (audio_server == nullptr)
 	{
 		dwarnln("Failed to allocate AudioServer: {}", strerror(errno));
@@ -157,17 +189,17 @@ int main()
 			if (!FD_ISSET(client.fd, &fds))
 				continue;
 
-			long smo_key;
-			const ssize_t nrecv = recv(client.fd, &smo_key, sizeof(smo_key), 0);
+			LibAudio::Packet packet;
+			const ssize_t nrecv = recv(client.fd, &packet, sizeof(packet), 0);
 
-			if (nrecv < static_cast<ssize_t>(sizeof(smo_key)) || !audio_server->on_client_packet(client.fd, smo_key))
+			if (nrecv < static_cast<ssize_t>(sizeof(packet)) || !audio_server->on_client_packet(client.fd, packet))
 			{
 				if (nrecv == 0)
 					;
 				else if (nrecv < 0)
 					dwarnln("recv: {}", strerror(errno));
-				else if (nrecv < static_cast<ssize_t>(sizeof(smo_key)))
-					dwarnln("client sent only {} bytes, {} expected", nrecv, sizeof(smo_key));
+				else if (nrecv < static_cast<ssize_t>(sizeof(packet)))
+					dwarnln("client sent only {} bytes, {} expected", nrecv, sizeof(packet));
 
 				audio_server->on_client_disconnect(client.fd);
 				close(client.fd);
