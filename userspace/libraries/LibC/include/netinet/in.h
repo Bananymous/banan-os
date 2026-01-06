@@ -62,8 +62,30 @@ enum
 #define IPV6_V6ONLY IPV6_V6ONLY
 };
 
-#define IN_LOOPBACKNET 127
-#define IN_MULTICAST(a) (((in_addr_t)(a) & 0xF0000000) == 0xE0000000)
+#define IN_CLASSA(a)       ((((in_addr_t)(a)) & 0x80000000) == 0)
+#define IN_CLASSA_NET      0xFF000000
+#define IN_CLASSA_NSHIFT   24
+#define IN_CLASSA_HOST     (0xFFFFFFFF & ~IN_CLASSA_NET)
+#define IN_CLASSA_MAX      128
+
+#define IN_CLASSB(a)       ((((in_addr_t)(a)) & 0xC0000000) == 0x80000000)
+#define IN_CLASSB_NET      0xFFFF0000
+#define IN_CLASSB_NSHIFT   16
+#define IN_CLASSB_HOST     (0xFFFFFFFF & ~IN_CLASSB_NET)
+#define IN_CLASSB_MAX      65536
+
+#define IN_CLASSC(a)       ((((in_addr_t)(a)) & 0xE0000000) == 0xC0000000)
+#define IN_CLASSC_NET      0xFFFFFF00
+#define IN_CLASSC_NSHIFT   8
+#define IN_CLASSC_HOST     (0xFFFFFFFF & ~IN_CLASSC_NET)
+
+#define IN_CLASSD(a)       ((((in_addr_t)(a)) & 0xF0000000) == 0xE0000000)
+#define IN_MULTICAST(a)    IN_CLASSD(a)
+
+#define IN_EXPERIMENTAL(a) ((((in_addr_t)(a)) & 0xE0000000) == 0xE0000000)
+#define IN_BADCLASS(a)     ((((in_addr_t)(a)) & 0xF0000000) == 0xF0000000)
+
+#define IN_LOOPBACKNET      127
 
 #define INADDR_ANY			0
 #define INADDR_NONE			0xFFFFFFFF
