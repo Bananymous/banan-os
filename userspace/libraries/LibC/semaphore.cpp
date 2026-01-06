@@ -43,7 +43,7 @@ int sem_trywait(sem_t* sem)
 	return -1;
 }
 
-int sem_wait(sem_t* sem)
+int sem_timedwait(sem_t* __restrict sem, const struct timespec* __restrict abstime)
 {
 	for (;;)
 	{
@@ -51,8 +51,13 @@ int sem_wait(sem_t* sem)
 		if (expected > 0 && BAN::atomic_compare_exchange(sem->value, expected, expected - 1))
 			return 0;
 
-		const int op = FUTEX_WAIT | (sem->shared ? 0 : FUTEX_PRIVATE);
-		if (futex(op, &sem->value, expected, nullptr) == -1 && errno == EINTR)
+		const int op = FUTEX_WAIT | (sem->shared ? 0 : FUTEX_PRIVATE) | FUTEX_REALTIME;
+		if (futex(op, &sem->value, expected, abstime) == -1 && (errno == EINTR || errno == ETIMEDOUT))
 			return -1;
 	}
+}
+
+int sem_wait(sem_t* sem)
+{
+	return sem_timedwait(sem, nullptr);
 }
