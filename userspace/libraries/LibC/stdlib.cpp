@@ -851,3 +851,40 @@ void srand(unsigned int seed)
 	s_rand_state = seed + s_rand_increment;
 	(void)rand();
 }
+
+static constexpr size_t s_random_state_size = 31;
+
+struct random_state_t
+{
+	consteval random_state_t() { seed(0); }
+
+	constexpr void seed(unsigned seed)
+	{
+		uint64_t value = seed;
+		for (size_t i = 0; i < s_random_state_size; i++)
+			values[i] = value = (16807 * value) % 0x7FFFFFFF;
+	}
+
+	constexpr uint32_t get_next()
+	{
+		const uint32_t result = values[idx1] += values[idx2];
+		idx1 = (idx1 + 1) % s_random_state_size;
+		idx2 = (idx2 + 1) % s_random_state_size;
+		return result >> 1;
+	}
+
+	uint32_t values[s_random_state_size];
+	size_t idx1 = 0;
+	size_t idx2 = s_random_state_size - 1;
+};
+random_state_t s_random_state;
+
+long random(void)
+{
+	return s_random_state.get_next();
+}
+
+void srandom(unsigned seed)
+{
+	s_random_state.seed(seed);
+}
