@@ -103,7 +103,7 @@ int main(int argc, char** argv)
 		return 1;
 	}
 
-	int mouse_fd = open(mouse_path, O_RDONLY);
+	mouse_fd = open(mouse_path, O_RDONLY);
 	if (mouse_fd == -1)
 	{
 		fprintf(stderr, "open: ");
