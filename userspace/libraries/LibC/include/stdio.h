@@ -40,7 +40,7 @@ typedef off_t fpos_t;
 #define SEEK_END 2
 
 #define FILENAME_MAX 256
-#define FOPEN_MAX 16
+#define FOPEN_MAX 64
 #define TMP_MAX 10000
 
 #define EOF (-1)
