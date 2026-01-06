@@ -37,16 +37,20 @@ int utimes(const char* path, const struct timeval times[2]);
 	do { \
 		(res)->tv_sec  = (a)->tv_sec  + (b)->tv_sec; \
 		(res)->tv_usec = (a)->tv_usec + (b)->tv_usec; \
-		(res)->tv_sec += (res)->tv_usec / 1000000; \
-		(res)->tv_usec %= 1000000; \
+		if ((res)->tv_usec >= 1000000) { \
+			(res)->tv_sec++; \
+			(res)->tv_usec -= 1000000; \
+		} \
 	} while (0)
 
 #define timersub(a, b, res) \
 	do { \
 		(res)->tv_sec  = (a)->tv_sec  - (b)->tv_sec; \
 		(res)->tv_usec = (a)->tv_usec - (b)->tv_usec; \
-		(res)->tv_sec += (res)->tv_usec / 1000000; \
-		(res)->tv_usec %= 1000000; \
+		if ((res)->tv_usec < 0) { \
+			(res)->tv_sec--; \
+			(res)->tv_usec += 1000000; \
+		} \
 	} while (0)
 
 #define timerclear(tvp) \
