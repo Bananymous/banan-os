@@ -53,6 +53,11 @@ int mlock(const void*, size_t)
 	ASSERT_NOT_REACHED();
 }
 
+int munlock(const void*, size_t)
+{
+	ASSERT_NOT_REACHED();
+}
+
 int shm_open(const char* name, int oflag, mode_t mode)
 {
 	(void)name;

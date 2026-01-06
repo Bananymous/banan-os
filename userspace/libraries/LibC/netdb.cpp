@@ -319,3 +319,9 @@ struct servent* getservbyname(const char* name, const char* proto)
 	dwarnln("TODO: getservbyname(\"{}\", \"{}\")", name, proto);
 	return nullptr;
 }
+
+struct protoent* getprotobynumber(int proto)
+{
+	dwarnln("TODO: getprotobynumber({})", proto);
+	return nullptr;
+}

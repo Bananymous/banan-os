@@ -649,6 +649,13 @@ char* gets(char* buffer)
 	}
 }
 
+FILE* open_memstream(char** bufp, size_t* sizep)
+{
+	(void)bufp;
+	(void)sizep;
+	ASSERT_NOT_REACHED();
+}
+
 int pclose(FILE* file)
 {
 	if (file->pid == -1)

@@ -689,6 +689,30 @@ int getpagesize(void)
 	return PAGE_SIZE;
 }
 
+int lockf(int fildes, int function, off_t size)
+{
+	(void)fildes;
+	(void)function;
+	(void)size;
+	derrorln("TODO: lockf");
+	ASSERT_NOT_REACHED();
+}
+
+int nice(int incr)
+{
+	dwarnln("TODO: nice({})", incr);
+	errno = EPERM;
+	return -1;
+}
+
+char* crypt(const char* key, const char* salt)
+{
+	(void)key;
+	(void)salt;
+	derrorln("TODO: crypt");
+	ASSERT_NOT_REACHED();
+}
+
 char* getpass(const char* prompt)
 {
 	static char buffer[PASS_MAX];
@@ -772,6 +796,12 @@ pid_t getpgrp(void)
 pid_t getpgid(pid_t pid)
 {
 	return syscall(SYS_GET_PGID, pid);
+}
+
+pid_t getsid(pid_t pid)
+{
+	(void)pid;
+	ASSERT_NOT_REACHED();
 }
 
 int tcgetpgrp(int fildes)
