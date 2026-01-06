@@ -32,19 +32,25 @@ int main(int argc, char** argv)
 
 	if (fork() == 0)
 	{
-		execl("/bin/dhcp-client", "dhcp-client", NULL);
+		execl("/usr/bin/dhcp-client", "dhcp-client", NULL);
 		exit(1);
 	}
 
 	if (fork() == 0)
 	{
-		execl("/bin/resolver", "resolver", NULL);
+		execl("/usr/bin/resolver", "resolver", NULL);
 		exit(1);
 	}
 
 	if (fork() == 0)
 	{
-		execl("/bin/AudioServer", "AudioServer", NULL);
+		execl("/usr/bin/AudioServer", "AudioServer", NULL);
+		exit(1);
+	}
+
+	if (fork() == 0)
+	{
+		execl("/usr/bin/ClipboardServer", "ClipboardServer", NULL);
 		exit(1);
 	}
 
