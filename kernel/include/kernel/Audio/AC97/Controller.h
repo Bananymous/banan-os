@@ -9,7 +9,7 @@ namespace Kernel
 	class AC97AudioController : public AudioController, public Interruptable
 	{
 	public:
-		static BAN::ErrorOr<BAN::RefPtr<AC97AudioController>> create(PCI::Device& pci_device);
+		static BAN::ErrorOr<void> create(PCI::Device& pci_device);
 
 		void handle_irq() override;
 

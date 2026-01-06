@@ -9,7 +9,7 @@ namespace Kernel
 	class AudioController : public CharacterDevice
 	{
 	public:
-		static BAN::ErrorOr<BAN::RefPtr<AudioController>> create(PCI::Device& pci_device);
+		static BAN::ErrorOr<void> create(PCI::Device& pci_device);
 
 		dev_t rdev() const override { return m_rdev; }
 		BAN::StringView name() const override { return m_name; }

@@ -1,5 +1,6 @@
 #include <kernel/Audio/AC97/Controller.h>
 #include <kernel/Audio/AC97/Definitions.h>
+#include <kernel/FS/DevFS/FileSystem.h>
 
 namespace Kernel
 {
@@ -105,14 +106,14 @@ namespace Kernel
 		IOCE  = 1 << 4,
 	};
 
-	BAN::ErrorOr<BAN::RefPtr<AC97AudioController>> AC97AudioController::create(PCI::Device& pci_device)
+	BAN::ErrorOr<void> AC97AudioController::create(PCI::Device& pci_device)
 	{
 		auto* ac97_ptr = new AC97AudioController(pci_device);
 		if (ac97_ptr == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
 		auto ac97 = BAN::RefPtr<AC97AudioController>::adopt(ac97_ptr);
 		TRY(ac97->initialize());
-		return ac97;
+		return {};
 	}
 
 	BAN::ErrorOr<void> AC97AudioController::initialize()
@@ -146,6 +147,8 @@ namespace Kernel
 
 		// disable transfer, enable all interrupts
 		m_bus_master->write8(BusMasterRegister::PO_CR, IOCE | FEIE | LVBIE);
+
+		DevFileSystem::get().add_device(this);
 
 		return {};
 	}

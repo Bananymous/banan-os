@@ -1,5 +1,6 @@
 #include <kernel/Audio/AC97/Controller.h>
 #include <kernel/Audio/Controller.h>
+#include <kernel/Audio/HDAudio/Controller.h>
 #include <kernel/Device/DeviceNumbers.h>
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/Lock/SpinLockAsMutex.h>
@@ -20,23 +21,26 @@ namespace Kernel
 		BAN::Formatter::print([&ptr](char c) { *ptr++ = c; }, "audio{}", minor(m_rdev));
 	}
 
-	BAN::ErrorOr<BAN::RefPtr<AudioController>> AudioController::create(PCI::Device& pci_device)
+	BAN::ErrorOr<void> AudioController::create(PCI::Device& pci_device)
 	{
 		switch (pci_device.subclass())
 		{
 			case 0x01:
 				// We should confirm that the card is actually AC97 but I'm trusting osdev wiki on this one
 				// > you can probably expect that every sound card with subclass 0x01 is sound card compatibile with AC97
-				if (auto ret = AC97AudioController::create(pci_device); !ret.is_error())
-				{
-					DevFileSystem::get().add_device(ret.value());
-					return BAN::RefPtr<AudioController>(ret.release_value());
-				}
-				else
+				if (auto ret = AC97AudioController::create(pci_device); ret.is_error())
 				{
 					dwarnln("Failed to initialize AC97: {}", ret.error());
 					return ret.release_error();
 				}
+				break;
+			case 0x03:
+				if (auto ret = HDAudioController::create(pci_device); ret.is_error())
+				{
+					dwarnln("Failed to initialize Intel HDA: {}", ret.error());
+					return ret.release_error();
+				}
+				break;
 			default:
 				dprintln("Unsupported Sound card (PCI {2H}:{2H}:{2H})",
 					pci_device.class_code(),
@@ -45,8 +49,9 @@ namespace Kernel
 				);
 				return BAN::Error::from_errno(ENOTSUP);
 		}
-	}
 
+		return {};
+	}
 
 	BAN::ErrorOr<size_t> AudioController::write_impl(off_t, BAN::ConstByteSpan buffer)
 	{

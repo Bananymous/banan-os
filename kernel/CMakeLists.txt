@@ -9,6 +9,8 @@ set(KERNEL_SOURCES
 	kernel/APIC.cpp
 	kernel/Audio/AC97/Controller.cpp
 	kernel/Audio/Controller.cpp
+	kernel/Audio/HDAudio/AudioFunctionGroup.cpp
+	kernel/Audio/HDAudio/Controller.cpp
 	kernel/BootInfo.cpp
 	kernel/CPUID.cpp
 	kernel/Credentials.cpp
