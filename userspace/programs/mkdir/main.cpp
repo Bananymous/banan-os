@@ -16,9 +16,10 @@ int create_directory(const char* path, bool create_parents)
 	if (!create_parents)
 	{
 		const int ret = mkdir(path, 0755);
-		if (ret == -1)
-			perror("mkdir");
-		return -ret;
+		if (ret == 0)
+			return 0;
+		perror("mkdir");
+		return -1;
 	}
 
 	int ret = 0;
@@ -30,7 +31,11 @@ int create_directory(const char* path, bool create_parents)
 		for (; path[i] && path[i] == '/'; i++)
 			buffer[i] = path[i];
 		buffer[i] = '\0';
-		ret = mkdir(buffer, 0755);
+		if (mkdir(buffer, 0755) == -1 && errno != EEXIST)
+		{
+			perror("mkdir");
+			ret = -1;
+		}
 	}
 
 	return ret;
