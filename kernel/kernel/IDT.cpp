@@ -382,16 +382,16 @@ namespace Kernel
 			asm volatile("cli; 1: hlt; jmp 1b");
 		}
 
+		if (!InterruptController::get().is_in_service(irq))
+			return;
+
 		Thread::current().save_sse();
 
-		if (InterruptController::get().is_in_service(irq))
-		{
-			InterruptController::get().eoi(irq);
-			if (auto* handler = s_interruptables[irq])
-				handler->handle_irq();
-			else
-				dprintln("no handler for irq 0x{2H}", irq);
-		}
+		InterruptController::get().eoi(irq);
+		if (auto* handler = s_interruptables[irq])
+			handler->handle_irq();
+		else
+			dprintln("no handler for irq 0x{2H}", irq);
 
 		auto& current_thread = Thread::current();
 		if (current_thread.can_add_signal_to_execute())
