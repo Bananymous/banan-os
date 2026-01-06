@@ -78,6 +78,7 @@ int main(int argc, char** argv)
 	if (argc < 2)
 		return usage(argv[0], 1);
 
+	auto alg = LibImage::Image::ResizeAlgorithm::Cubic;
 	bool scale = false;
 	bool benchmark = false;
 	for (int i = 1; i < argc - 1; i++)
@@ -86,6 +87,10 @@ int main(int argc, char** argv)
 			scale = true;
 		else if (strcmp(argv[i], "-b") == 0 || strcmp(argv[i], "--benchmark") == 0)
 			benchmark = true;
+		else if (strcmp(argv[i], "-l") == 0 || strcmp(argv[i], "--linear") == 0)
+			alg = LibImage::Image::ResizeAlgorithm::Linear;
+		else if (strcmp(argv[i], "-c") == 0 || strcmp(argv[i], "--cubic") == 0)
+			alg = LibImage::Image::ResizeAlgorithm::Cubic;
 		else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0)
 			return usage(argv[0], 0);
 		else
@@ -95,9 +100,9 @@ int main(int argc, char** argv)
 	auto image_path = BAN::StringView(argv[argc - 1]);
 
 	timespec load_start, load_end;
-	clock_gettime(CLOCK_MONOTONIC, &load_start);
+	clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &load_start);
 	auto image_or_error = LibImage::Image::load_from_file(image_path);
-	clock_gettime(CLOCK_MONOTONIC, &load_end);
+	clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &load_end);
 
 	if (image_or_error.is_error())
 	{
@@ -120,9 +125,9 @@ int main(int argc, char** argv)
 		{
 			timespec scale_start, scale_end;
 
-			clock_gettime(CLOCK_MONOTONIC, &scale_start);
-			auto scaled = MUST(image_or_error.value()->resize(1920, 1080, LibImage::Image::ResizeAlgorithm::Linear));
-			clock_gettime(CLOCK_MONOTONIC, &scale_end);
+			clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &scale_start);
+			auto scaled = MUST(image_or_error.value()->resize(1920, 1080, alg));
+			clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &scale_end);
 
 			const uint64_t start_ms = scale_start.tv_sec * 1000 + scale_start.tv_nsec / 1'000'000;
 			const uint64_t end_ms   =   scale_end.tv_sec * 1000 +   scale_end.tv_nsec / 1'000'000;
