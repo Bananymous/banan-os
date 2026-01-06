@@ -22,6 +22,10 @@ namespace Kernel
 		virtual uint32_t get_channels() const = 0;
 		virtual uint32_t get_sample_rate() const = 0;
 
+		virtual uint32_t get_total_pins() const = 0;
+		virtual uint32_t get_current_pin() const = 0;
+		virtual BAN::ErrorOr<void> set_current_pin(uint32_t) = 0;
+
 		bool can_read_impl() const override { return false; }
 		bool can_write_impl() const override { SpinLockGuard _(m_spinlock); return m_sample_data_size < m_sample_data_capacity; }
 		bool has_error_impl() const override { return false; }

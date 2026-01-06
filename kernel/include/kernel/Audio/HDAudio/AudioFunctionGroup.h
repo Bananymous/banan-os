@@ -20,6 +20,10 @@ namespace Kernel
 		uint32_t get_channels() const override { return 2; }
 		uint32_t get_sample_rate() const override { return 48000; }
 
+		uint32_t get_total_pins() const override;
+		uint32_t get_current_pin() const override;
+		BAN::ErrorOr<void> set_current_pin(uint32_t) override;
+
 		void handle_new_data() override;
 
 	private:
@@ -33,7 +37,9 @@ namespace Kernel
 		BAN::ErrorOr<void> initialize();
 		BAN::ErrorOr<void> initialize_stream();
 		BAN::ErrorOr<void> initialize_output();
+
 		BAN::ErrorOr<void> enable_output_path(uint8_t index);
+		BAN::ErrorOr<void> disable_output_path(uint8_t index);
 
 		void reset_stream();
 

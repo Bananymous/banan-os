@@ -19,6 +19,10 @@ namespace Kernel
 		uint32_t get_channels() const override { return 2; }
 		uint32_t get_sample_rate() const override { return 48000; }
 
+		uint32_t get_total_pins() const override { return 1; }
+		uint32_t get_current_pin() const override { return 0; }
+		BAN::ErrorOr<void> set_current_pin(uint32_t pin) override { if (pin != 0) return BAN::Error::from_errno(EINVAL); return {}; }
+
 	private:
 		AC97AudioController(PCI::Device& pci_device)
 			: m_pci_device(pci_device)

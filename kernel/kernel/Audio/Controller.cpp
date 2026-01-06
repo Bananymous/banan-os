@@ -102,6 +102,15 @@ namespace Kernel
 					m_sample_data_size = 0;
 				return 0;
 			}
+			case SND_GET_TOTAL_PINS:
+				*static_cast<uint32_t*>(arg) = get_total_pins();
+				return 0;
+			case SND_GET_PIN:
+				*static_cast<uint32_t*>(arg) = get_current_pin();
+				return 0;
+			case SND_SET_PIN:
+				TRY(set_current_pin(*static_cast<uint32_t*>(arg)));
+				return 0;
 		}
 
 		return CharacterDevice::ioctl_impl(cmd, arg);

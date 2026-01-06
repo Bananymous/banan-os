@@ -54,6 +54,9 @@ struct winsize
 #define SND_GET_SAMPLE_RATE 61 /* stores sample rate to uint32_t argument */
 #define SND_RESET_BUFFER    62 /* stores the size of internal buffer to uint32_t argument and clears the buffer */
 #define SND_GET_BUFFERSZ    63 /* stores the size of internal buffer to uint32_t argument */
+#define SND_GET_TOTAL_PINS  64 /* gets the number of pins on the current device */
+#define SND_GET_PIN         65 /* gets the currently active pin */
+#define SND_SET_PIN         66 /* sets the currently active pin */
 
 int ioctl(int, int, ...);
 

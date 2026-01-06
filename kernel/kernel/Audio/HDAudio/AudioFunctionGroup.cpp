@@ -84,6 +84,71 @@ namespace Kernel
 		return {};
 	}
 
+	uint32_t HDAudioFunctionGroup::get_total_pins() const
+	{
+		uint32_t count = 0;
+		for (const auto& widget : m_afg_node.widgets)
+			if (widget.type == HDAudio::AFGWidget::Type::PinComplex && widget.pin_complex.output)
+				count++;
+		return count;
+	}
+
+	uint32_t HDAudioFunctionGroup::get_current_pin() const
+	{
+		const auto current_id = m_output_paths[m_output_path_index].front()->id;
+
+		uint32_t pin = 0;
+		for (const auto& widget : m_afg_node.widgets)
+		{
+			if (widget.type != HDAudio::AFGWidget::Type::PinComplex || !widget.pin_complex.output)
+				continue;
+			if (widget.id == current_id)
+				return pin;
+			pin++;
+		}
+
+		ASSERT_NOT_REACHED();
+	}
+
+	BAN::ErrorOr<void> HDAudioFunctionGroup::set_current_pin(uint32_t pin)
+	{
+		uint32_t pin_id = 0;
+		for (const auto& widget : m_afg_node.widgets)
+		{
+			if (widget.type != HDAudio::AFGWidget::Type::PinComplex || !widget.pin_complex.output)
+				continue;
+			if (pin-- > 0)
+				continue;
+			pin_id = widget.id;
+			break;
+		}
+
+		if (auto ret = disable_output_path(m_output_path_index); ret.is_error())
+			dwarnln("failed to disable old output path {}", ret.error());
+
+		for (size_t i = 0; i < m_output_paths.size(); i++)
+		{
+			if (m_output_paths[i].front()->id != pin_id)
+				continue;
+
+			if (auto ret = enable_output_path(i); !ret.is_error())
+			{
+				if (ret.error().get_error_code() == ENOTSUP)
+					continue;
+				dwarnln("path {} not supported", i);
+				return ret.release_error();
+			}
+
+			dprintln("set output widget to {}", pin_id);
+			m_output_path_index = i;
+			return {};
+		}
+
+		dwarnln("failed to set output widget to {}", pin_id);
+
+		return BAN::Error::from_errno(ENOTSUP);
+	}
+
 	size_t HDAudioFunctionGroup::bdl_offset() const
 	{
 		const size_t bdl_entry_bytes = m_bdl_entry_sample_frames * get_channels() * sizeof(uint16_t);
@@ -314,6 +379,53 @@ namespace Kernel
 					// enable EAPD
 					TRY(m_controller->send_command({
 						.data = 0x02,
+						.command = 0x70C,
+						.node_index = path[i]->id,
+						.codec_address = m_cid,
+					}));
+					break;
+
+				default:
+					ASSERT_NOT_REACHED();
+			}
+		}
+
+		return {};
+	}
+
+	BAN::ErrorOr<void> HDAudioFunctionGroup::disable_output_path(uint8_t index)
+	{
+		ASSERT(index < m_output_paths.size());
+		const auto& path = m_output_paths[index];
+
+		for (size_t i = 0; i < path.size(); i++)
+		{
+			// set power state D3
+			TRY(m_controller->send_command({
+				.data = 0x03,
+				.command = 0x705,
+				.node_index = path[i]->id,
+				.codec_address = m_cid,
+			}));
+
+			switch (path[i]->type)
+			{
+				using HDAudio::AFGWidget;
+
+				case AFGWidget::Type::OutputConverter:
+					break;
+
+				case AFGWidget::Type::PinComplex:
+					// disable output and H-Phn
+					TRY(m_controller->send_command({
+						.data = 0x00,
+						.command = 0x707,
+						.node_index = path[i]->id,
+						.codec_address = m_cid,
+					}));
+					// disable EAPD
+					TRY(m_controller->send_command({
+						.data = 0x00,
 						.command = 0x70C,
 						.node_index = path[i]->id,
 						.codec_address = m_cid,
