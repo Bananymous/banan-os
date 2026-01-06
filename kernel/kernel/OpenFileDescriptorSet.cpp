@@ -252,6 +252,46 @@ namespace Kernel
 				m_open_files[fd].status_flags() &= O_ACCMODE;
 				m_open_files[fd].status_flags() |= extra;
 				return 0;
+			case F_GETLK:
+			{
+				dwarnln("TODO: proper fcntl F_GETLK");
+
+				auto* param = reinterpret_cast<struct flock*>(extra);
+				const auto& flock = m_open_files[fd].description->flock;
+
+				if (flock.lockers.empty())
+					param->l_type = F_UNLCK;
+				else
+				{
+					*param = {
+						.l_type = static_cast<short>(flock.shared ? F_RDLCK : F_WRLCK),
+						.l_whence = SEEK_SET,
+						.l_start = 0,
+						.l_len = 1,
+						.l_pid = *flock.lockers.begin(),
+					};
+				}
+
+				return 0;
+			}
+			case F_SETLK:
+			case F_SETLKW:
+			{
+				dwarnln("TODO: proper fcntl F_SETLK(W)");
+
+				int op = cmd == F_SETLKW ? LOCK_NB : 0;
+				switch (reinterpret_cast<const struct flock*>(extra)->l_type)
+				{
+					case F_UNLCK: op |= LOCK_UN; break;
+					case F_RDLCK: op |= LOCK_SH; break;
+					case F_WRLCK: op |= LOCK_EX; break;
+					default:
+						return BAN::Error::from_errno(EINVAL);
+				}
+				TRY(flock(fd, op));
+
+				return 0;
+			}
 			default:
 				break;
 		}
