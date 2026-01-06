@@ -221,7 +221,7 @@ void AudioServer::send_samples()
 			for (size_t i = 0; i < samples_to_send; i++)
 			{
 				sample_buffer[i] = BAN::Math::clamp<sample_t>(
-					m_samples[m_samples_sent + i] * BAN::numeric_limits<kernel_sample_t>::max(),
+					0.2 * m_samples[m_samples_sent + i] * BAN::numeric_limits<kernel_sample_t>::max(),
 					BAN::numeric_limits<kernel_sample_t>::min(),
 					BAN::numeric_limits<kernel_sample_t>::max()
 				);

@@ -53,7 +53,7 @@ private:
 	uint32_t m_channels;
 
 	size_t m_samples_sent { 0 };
-	BAN::Array<uint8_t, 1024> m_send_buffer;
+	BAN::Array<uint8_t, 4 * 1024> m_send_buffer;
 	BAN::CircularQueue<sample_t, 64 * 1024> m_samples;
 
 	BAN::HashMap<int, ClientInfo> m_audio_buffers;
