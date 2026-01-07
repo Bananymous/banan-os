@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/framebuffer.h>
+#include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <termios.h>
 
@@ -45,13 +46,6 @@ void cleanup()
 		close(joystick_fd);
 	if (original_termios.c_lflag & ECHO)
 		tcsetattr(STDIN_FILENO, TCSANOW, &original_termios);
-}
-
-int map_joystick(const LibInput::JoystickState::Axis& axis, float min, float max)
-{
-	if (axis.min == axis.max)
-		return (min + max) / 2;
-	return (axis.value - axis.min) * (max - min) / (axis.max - axis.min) + min;
 }
 
 int main(int argc, char** argv)
@@ -132,6 +126,12 @@ int main(int argc, char** argv)
 		return 1;
 	}
 
+	uint8_t led_bitmap { 0b0001 };
+	ioctl(joystick_fd, JOYSTICK_SET_LEDS, &led_bitmap);
+	bool old_lshoulder { false }, old_rshoulder { false };
+
+	uint8_t rumble_strength { 0x00 };
+
 	uint32_t color = 0xFF0000;
 	int circle_x = fb_info.width / 2;
 	int circle_y = fb_info.height / 2;
@@ -142,9 +142,20 @@ int main(int argc, char** argv)
 	draw_circle(circle_x, circle_y, radius, color);
 	msync(fb_mmap, fb_bytes, MS_SYNC);
 
+	timespec last_led_update;
+	clock_gettime(CLOCK_MONOTONIC, &last_led_update);
+
+	timespec prev_frame_ts;
+	clock_gettime(CLOCK_MONOTONIC, &prev_frame_ts);
+
 	while (true)
 	{
-		LibInput::JoystickState state {};
+		using namespace LibInput;
+
+		timespec current_ts;
+		clock_gettime(CLOCK_MONOTONIC, &current_ts);
+
+		JoystickState state {};
 		if (read(joystick_fd, &state, sizeof(state)) == -1)
 		{
 			fprintf(stderr, "read: ");
@@ -152,9 +163,9 @@ int main(int argc, char** argv)
 			return 1;
 		}
 
-		const int dx = map_joystick(state.axis[0], -50, 50);
-		const int dy = map_joystick(state.axis[1], -50, 50);
-		const int dr = map_joystick(state.axis[3],   5, -5);
+		const int dx = state.axis[JSA_STICK_LEFT_X]  / 655;
+		const int dy = state.axis[JSA_STICK_LEFT_Y]  / 655;
+		const int dr = state.axis[JSA_STICK_RIGHT_Y] / 6553;
 
 		draw_circle(circle_x, circle_y, radius, 0x000000);
 
@@ -164,21 +175,59 @@ int main(int argc, char** argv)
 			circle_y = BAN::Math::clamp<int>(circle_y + dy, 0, fb_info.height);
 		radius = BAN::Math::clamp<int>(radius + dr, 1, 100);
 
-		if (state.buttons[12])
+		if (state.buttons[JSB_FACE_UP])
 			color = 0xFF0000;
-		if (state.buttons[13])
+		if (state.buttons[JSB_FACE_DOWN])
 			color = 0x00FF00;
-		if (state.buttons[14])
+		if (state.buttons[JSB_FACE_LEFT])
 			color = 0x0000FF;
-		if (state.buttons[15])
+		if (state.buttons[JSB_FACE_RIGHT])
 			color = 0xFFFFFF;
+
+		if ((state.buttons[JSB_SHOULDER_LEFT] && !old_lshoulder) != (state.buttons[JSB_SHOULDER_RIGHT] && !old_rshoulder))
+		{
+			if (state.buttons[JSB_SHOULDER_LEFT] && !old_lshoulder)
+				led_bitmap = (led_bitmap - 1) & 0x0F;
+			if (state.buttons[JSB_SHOULDER_RIGHT] && !old_rshoulder)
+				led_bitmap = (led_bitmap + 1) & 0x0F;
+			ioctl(joystick_fd, JOYSTICK_SET_LEDS, &led_bitmap);
+		}
+		old_lshoulder = state.buttons[JSB_SHOULDER_LEFT];
+		old_rshoulder = state.buttons[JSB_SHOULDER_RIGHT];
+
+		if ((state.axis[JSA_TRIGGER_LEFT] > 0) != (state.axis[JSA_TRIGGER_RIGHT] > 0))
+		{
+			const auto old_rumble = rumble_strength;
+			if (state.axis[JSA_TRIGGER_LEFT] > 0)
+				rumble_strength = (rumble_strength <= 0x05) ? 0 : rumble_strength - 5;
+			if (state.axis[JSA_TRIGGER_RIGHT] > 0)
+				rumble_strength = (rumble_strength >= 0xFA) ? 0 : rumble_strength + 5;
+			if (rumble_strength != old_rumble)
+				ioctl(joystick_fd, JOYSTICK_SET_RUMBLE, &rumble_strength);
+		}
 
 		draw_circle(circle_x, circle_y, radius, color);
 
 		msync(fb_mmap, fb_bytes, MS_SYNC);
 
-		usleep(16666);
+		const uint64_t current_us =
+			current_ts.tv_sec * 1'000'000 +
+			current_ts.tv_nsec / 1000;
+		const uint64_t last_frame_us =
+			prev_frame_ts.tv_sec * 1'000'000 +
+			prev_frame_ts.tv_nsec / 1000;
 
-		msync(fb_mmap, fb_bytes, MS_SYNC);
+		const uint64_t wakeup_us = last_frame_us + 16'666;
+		if (current_us < wakeup_us)
+		{
+			const uint32_t sleep_us = wakeup_us - current_us;
+			const timespec sleep_ts {
+				.tv_sec = 0,
+				.tv_nsec = static_cast<long>(wakeup_us - current_us) * 1000,
+			};
+			nanosleep(&sleep_ts, nullptr);
+		}
+
+		prev_frame_ts = current_ts;
 	}
 }

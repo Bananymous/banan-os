@@ -54,9 +54,14 @@ struct winsize
 #define SND_GET_SAMPLE_RATE 61 /* stores sample rate to uint32_t argument */
 #define SND_RESET_BUFFER    62 /* stores the size of internal buffer to uint32_t argument and clears the buffer */
 #define SND_GET_BUFFERSZ    63 /* stores the size of internal buffer to uint32_t argument */
-#define SND_GET_TOTAL_PINS  64 /* gets the number of pins on the current device */
-#define SND_GET_PIN         65 /* gets the currently active pin */
-#define SND_SET_PIN         66 /* sets the currently active pin */
+#define SND_GET_TOTAL_PINS  64 /* gets the number of pins on the current device as uint32_t */
+#define SND_GET_PIN         65 /* gets the currently active pin as uint32_t */
+#define SND_SET_PIN         66 /* sets the currently active pin to uint32_t */
+
+#define JOYSTICK_GET_LEDS   80 /* get controller led bitmap to uint8_t argument */
+#define JOYSTICK_SET_LEDS   81 /* set controller leds to uint8_t bitmap */
+#define JOYSTICK_GET_RUMBLE 82 /* get controller rumble strength to uint8_t argument */
+#define JOYSTICK_SET_RUMBLE 83 /* set controller rumble strength to uint8_t argument */
 
 int ioctl(int, int, ...);
 
