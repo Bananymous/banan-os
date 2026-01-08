@@ -122,6 +122,8 @@ namespace Kernel
 		void set_cpu_time_start();
 		void set_cpu_time_stop();
 
+		void update_processor_index_address();
+
 		void set_fsbase(vaddr_t base) { m_fsbase = base; }
 		vaddr_t get_fsbase() const { return m_fsbase; }
 		void set_gsbase(vaddr_t base) { m_gsbase = base; }

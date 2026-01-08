@@ -152,6 +152,20 @@ namespace Kernel
 			}));
 		}
 
+		process->m_shared_page_vaddr = process->page_table().reserve_free_page(process->m_mapped_regions.back()->vaddr(), USERSPACE_END);
+		if (process->m_shared_page_vaddr == 0)
+			return BAN::Error::from_errno(ENOMEM);
+		process->page_table().map_page_at(
+			Processor::shared_page_paddr(),
+			process->m_shared_page_vaddr,
+			PageTable::UserSupervisor | PageTable::Present
+		);
+
+		TRY(auxiliary_vector.push_back({
+			.a_type = LibELF::AT_SHARED_PAGE,
+			.a_un = { .a_ptr = reinterpret_cast<void*>(process->m_shared_page_vaddr) },
+		}));
+
 		TRY(auxiliary_vector.push_back({
 			.a_type = LibELF::AT_NULL,
 			.a_un = { .a_val = 0 },
@@ -683,6 +697,13 @@ namespace Kernel
 		for (auto& mapped_region : m_mapped_regions)
 			MUST(mapped_regions.push_back(TRY(mapped_region->clone(*page_table))));
 
+		const vaddr_t shared_page_vaddr = m_shared_page_vaddr;
+		page_table->map_page_at(
+			Processor::shared_page_paddr(),
+			shared_page_vaddr,
+			PageTable::UserSupervisor | PageTable::Present
+		);
+
 		Process* forked = create_process(m_credentials, m_pid, m_sid, m_pgrp);
 		forked->m_controlling_terminal = m_controlling_terminal;
 		forked->m_working_directory = BAN::move(working_directory);
@@ -691,6 +712,7 @@ namespace Kernel
 		forked->m_environ = BAN::move(environ);
 		forked->m_executable = BAN::move(executable);
 		forked->m_page_table = BAN::move(page_table);
+		forked->m_shared_page_vaddr = BAN::move(shared_page_vaddr);
 		forked->m_open_file_descriptors = BAN::move(*open_file_descriptors);
 		forked->m_mapped_regions = BAN::move(mapped_regions);
 		forked->m_has_called_exec = false;
@@ -766,6 +788,20 @@ namespace Kernel
 				}));
 			}
 
+			const vaddr_t shared_page_vaddr = new_page_table->reserve_free_page(new_mapped_regions.back()->vaddr(), USERSPACE_END);
+			if (shared_page_vaddr == 0)
+				return BAN::Error::from_errno(ENOMEM);
+			new_page_table->map_page_at(
+				Processor::shared_page_paddr(),
+				shared_page_vaddr,
+				PageTable::UserSupervisor | PageTable::Present
+			);
+
+			TRY(auxiliary_vector.push_back({
+				.a_type = LibELF::AT_SHARED_PAGE,
+				.a_un = { .a_ptr = reinterpret_cast<void*>(shared_page_vaddr) },
+			}));
+
 			TRY(auxiliary_vector.push_back({
 				.a_type = LibELF::AT_NULL,
 				.a_un = { .a_val = 0 },
@@ -836,6 +872,9 @@ namespace Kernel
 			m_open_file_descriptors.close_cloexec();
 			m_mapped_regions = BAN::move(new_mapped_regions);
 			m_page_table = BAN::move(new_page_table);
+
+			m_shared_page_vaddr = shared_page_vaddr;
+			m_threads.front()->update_processor_index_address();
 
 			execfd_guard.disable();
 

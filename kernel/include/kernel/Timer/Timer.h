@@ -35,6 +35,8 @@ namespace Kernel
 		static SystemTimer& get();
 		static bool is_initialized();
 
+		void initialize_tsc();
+
 		virtual uint64_t ms_since_boot() const override;
 		virtual uint64_t ns_since_boot() const override;
 		virtual timespec time_since_boot() const override;
@@ -47,6 +49,9 @@ namespace Kernel
 
 		void dont_invoke_scheduler() { m_timer->m_should_invoke_scheduler = false; }
 
+		void update_tsc() const;
+		uint64_t ns_since_boot_no_tsc() const;
+
 		timespec real_time() const;
 
 	private:
@@ -54,10 +59,14 @@ namespace Kernel
 
 		void initialize_timers(bool force_pic);
 
+		uint64_t get_tsc_frequency() const;
+
 	private:
 		uint64_t m_boot_time { 0 };
 		BAN::UniqPtr<RTC> m_rtc;
 		BAN::UniqPtr<Timer> m_timer;
+		bool m_has_invariant_tsc { false };
+		mutable uint32_t m_timer_ticks { 0 };
 	};
 
 }

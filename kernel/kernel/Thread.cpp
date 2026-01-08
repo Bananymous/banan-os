@@ -295,6 +295,20 @@ namespace Kernel
 		m_cpu_time_start_ns = UINT64_MAX;
 	}
 
+	void Thread::update_processor_index_address()
+	{
+		if (!is_userspace() || !has_process())
+			return;
+
+		const vaddr_t vaddr = process().shared_page_vaddr() + Processor::current_index();
+
+#if ARCH(x86_64)
+		set_gsbase(vaddr);
+#elif ARCH(i686)
+		set_fsbase(vaddr);
+#endif
+	}
+
 	BAN::ErrorOr<Thread*> Thread::pthread_create(entry_t entry, void* arg)
 	{
 		auto* thread = TRY(create_userspace(m_process, m_process->page_table()));

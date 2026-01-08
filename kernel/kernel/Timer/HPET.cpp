@@ -272,6 +272,8 @@ namespace Kernel
 			m_last_ticks = current_ticks;
 		}
 
+		SystemTimer::get().update_tsc();
+
 		if (should_invoke_scheduler())
 			Processor::scheduler().timer_interrupt();
 	}

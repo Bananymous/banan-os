@@ -58,6 +58,8 @@ namespace Kernel
 			m_system_time_ms++;
 		}
 
+		SystemTimer::get().update_tsc();
+
 		if (should_invoke_scheduler())
 			Processor::scheduler().timer_interrupt();
 	}

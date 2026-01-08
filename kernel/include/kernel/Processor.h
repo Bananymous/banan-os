@@ -3,10 +3,12 @@
 #include <BAN/Atomic.h>
 #include <BAN/ForwardList.h>
 
+#include <kernel/API/SharedPage.h>
 #include <kernel/Arch.h>
 #include <kernel/GDT.h>
 #include <kernel/IDT.h>
 #include <kernel/InterruptStack.h>
+#include <kernel/Memory/Types.h>
 #include <kernel/ProcessorID.h>
 #include <kernel/Scheduler.h>
 
@@ -33,6 +35,7 @@ namespace Kernel
 				FlushTLB,
 				NewThread,
 				UnblockThread,
+				UpdateTSC,
 				StackTrace,
 			};
 			SMPMessage* next { nullptr };
@@ -55,6 +58,7 @@ namespace Kernel
 		static Processor& initialize();
 
 		static ProcessorID current_id() { return read_gs_sized<ProcessorID>(offsetof(Processor, m_id)); }
+		static uint8_t current_index()  { return read_gs_sized<uint8_t>(offsetof(Processor, m_index)); }
 		static ProcessorID id_from_index(size_t index);
 
 		static uint8_t count()        { return s_processor_count; }
@@ -107,6 +111,13 @@ namespace Kernel
 		static void yield();
 		static Scheduler& scheduler() { return *read_gs_sized<Scheduler*>(offsetof(Processor, m_scheduler)); }
 
+		static void initialize_tsc(uint8_t shift, uint64_t mult, uint64_t realtime_seconds);
+		static void update_tsc();
+		static uint64_t ns_since_boot_tsc();
+
+		static paddr_t shared_page_paddr() { return s_shared_page_paddr; }
+		static volatile API::SharedPage& shared_page() { return *reinterpret_cast<API::SharedPage*>(s_shared_page_vaddr); }
+
 		static void handle_ipi();
 
 		static void handle_smp_messages();
@@ -124,6 +135,7 @@ namespace Kernel
 		static ProcessorID read_processor_id();
 
 		static void initialize_smp();
+		static void initialize_shared_page();
 
 		template<typename T>
 		static T read_gs_sized(uintptr_t offset) requires(sizeof(T) <= 8)
@@ -162,8 +174,11 @@ namespace Kernel
 		static BAN::Atomic<uint8_t> s_processor_count;
 		static BAN::Atomic<bool>    s_is_smp_enabled;
 		static BAN::Atomic<bool>    s_should_print_cpu_load;
+		static paddr_t              s_shared_page_paddr;
+		static vaddr_t              s_shared_page_vaddr;
 
 		ProcessorID m_id { 0 };
+		uint8_t m_index { 0xFF };
 
 		static constexpr size_t s_stack_size { 4096 };
 		void* m_stack { nullptr };

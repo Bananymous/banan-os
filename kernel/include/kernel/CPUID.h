@@ -81,5 +81,6 @@ namespace CPUID
 	bool has_pge();
 	bool has_pat();
 	bool has_1gib_pages();
+	bool has_invariant_tsc();
 
 }

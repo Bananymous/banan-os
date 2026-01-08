@@ -208,6 +208,8 @@ static void init2(void*)
 
 	dprintln("Scheduler started");
 
+	SystemTimer::get().initialize_tsc();
+
 	auto console = MUST(DevFileSystem::get().root_inode()->find_inode(cmdline.console));
 	ASSERT(console->is_tty());
 	static_cast<Kernel::TTY*>(console.ptr())->set_as_current();

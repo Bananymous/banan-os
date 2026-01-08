@@ -15,10 +15,12 @@ namespace Kernel
 	static constexpr uint32_t MSR_IA32_KERNEL_GS_BASE = 0xC0000102;
 #endif
 
-	ProcessorID          Processor::s_bsp_id                { PROCESSOR_NONE };
-	BAN::Atomic<uint8_t> Processor::s_processor_count       { 0 };
-	BAN::Atomic<bool>    Processor::s_is_smp_enabled        { false };
-	BAN::Atomic<bool>    Processor::s_should_print_cpu_load { false };
+	ProcessorID          Processor::s_bsp_id                     { PROCESSOR_NONE };
+	BAN::Atomic<uint8_t> Processor::s_processor_count            { 0 };
+	BAN::Atomic<bool>    Processor::s_is_smp_enabled             { false };
+	BAN::Atomic<bool>    Processor::s_should_print_cpu_load      { false };
+	paddr_t              Processor::s_shared_page_paddr          { 0 };
+	vaddr_t              Processor::s_shared_page_vaddr          { 0 };
 
 	static BAN::Atomic<uint8_t>  s_processors_created { 0 };
 
@@ -128,6 +130,33 @@ namespace Kernel
 		processor.m_smp_free    = smp_storage;
 	}
 
+	void Processor::initialize_shared_page()
+	{
+		[[maybe_unused]] constexpr size_t max_processors = (PAGE_SIZE - sizeof(API::SharedPage)) / sizeof(decltype(*API::SharedPage::cpus));
+		ASSERT(s_processors_created < max_processors);
+
+		s_shared_page_paddr = Heap::get().take_free_page();
+		ASSERT(s_shared_page_paddr);
+
+		s_shared_page_vaddr = PageTable::kernel().reserve_free_page(KERNEL_OFFSET);
+		ASSERT(s_shared_page_vaddr);
+
+		PageTable::kernel().map_page_at(
+			s_shared_page_paddr,
+			s_shared_page_vaddr,
+			PageTable::ReadWrite | PageTable::Present
+		);
+
+		memset(reinterpret_cast<void*>(s_shared_page_vaddr), 0, PAGE_SIZE);
+
+		auto& shared_page = *reinterpret_cast<volatile API::SharedPage*>(s_shared_page_vaddr);
+		for (size_t i = 0; i <= 0xFF; i++)
+			shared_page.__sequence[i] = i;
+		shared_page.features = 0;
+
+		ASSERT(Processor::count() + sizeof(Kernel::API::SharedPage) <= PAGE_SIZE);
+	}
+
 	ProcessorID Processor::id_from_index(size_t index)
 	{
 		ASSERT(index < s_processor_count);
@@ -142,8 +171,11 @@ namespace Kernel
 		// wait until bsp is ready
 		if (current_is_bsp())
 		{
+			initialize_shared_page();
+
 			s_processor_count = 1;
 			s_processor_ids[0] = current_id();
+			s_processors[current_id().as_u32()].m_index = 0;
 
 			// single processor system
 			if (s_processors_created == 1)
@@ -167,9 +199,10 @@ namespace Kernel
 			while (s_processor_count == 0)
 				__builtin_ia32_pause();
 
-			auto lookup_index = s_processor_count++;
-			ASSERT(s_processor_ids[lookup_index] == PROCESSOR_NONE);
-			s_processor_ids[lookup_index] = current_id();
+			const auto index = s_processor_count++;
+			ASSERT(s_processor_ids[index] == PROCESSOR_NONE);
+			s_processor_ids[index] = current_id();
+			s_processors[current_id().as_u32()].m_index = index;
 
 			uint32_t expected = static_cast<uint32_t>(-1);
 			s_first_ap_ready_ms.compare_exchange(expected, SystemTimer::get().ms_since_boot());
@@ -189,6 +222,76 @@ namespace Kernel
 				__builtin_ia32_pause();
 			}
 		}
+	}
+
+	void Processor::initialize_tsc(uint8_t shift, uint64_t mult, uint64_t realtime_seconds)
+	{
+		auto& shared_page = Processor::shared_page();
+
+		shared_page.gettime_shared.shift = shift;
+		shared_page.gettime_shared.mult = mult;
+		shared_page.gettime_shared.realtime_seconds = realtime_seconds;
+
+		update_tsc();
+
+		broadcast_smp_message({
+			.type = SMPMessage::Type::UpdateTSC,
+			.dummy = 0,
+		});
+
+		bool everyone_initialized { false };
+		while (!everyone_initialized)
+		{
+			everyone_initialized = true;
+			for (size_t i = 0; i < count(); i++)
+			{
+				if (shared_page.cpus[i].gettime_local.seq != 0)
+					continue;
+				everyone_initialized = false;
+				break;
+			}
+		}
+
+		shared_page.features |= API::SPF_GETTIME;
+	}
+
+	void Processor::update_tsc()
+	{
+		const auto read_tsc =
+			[]() -> uint64_t {
+				uint32_t high, low;
+				asm volatile("lfence; rdtsc" : "=d"(high), "=a"(low));
+				return (static_cast<uint64_t>(high) << 32) | low;
+			};
+
+		auto& sgettime = shared_page().cpus[current_index()].gettime_local;
+		sgettime.seq = sgettime.seq + 1;
+		sgettime.last_ns = SystemTimer::get().ns_since_boot_no_tsc();
+		sgettime.last_tsc = read_tsc();
+		sgettime.seq = sgettime.seq + 1;
+	}
+
+	uint64_t Processor::ns_since_boot_tsc()
+	{
+		const auto read_tsc =
+			[]() -> uint64_t {
+				uint32_t high, low;
+				asm volatile("lfence; rdtsc" : "=d"(high), "=a"(low));
+				return (static_cast<uint64_t>(high) << 32) | low;
+			};
+
+		const auto& shared_page = Processor::shared_page();
+		const auto& sgettime = shared_page.gettime_shared;
+		const auto& lgettime = shared_page.cpus[current_index()].gettime_local;
+
+		auto state = get_interrupt_state();
+		set_interrupt_state(InterruptState::Disabled);
+
+		const auto current_ns = lgettime.last_ns + (((read_tsc() - lgettime.last_tsc) * sgettime.mult) >> sgettime.shift);
+
+		set_interrupt_state(state);
+
+		return current_ns;
 	}
 
 	void Processor::handle_ipi()
@@ -239,6 +342,9 @@ namespace Kernel
 					break;
 				case SMPMessage::Type::UnblockThread:
 					processor.m_scheduler->unblock_thread(message->unblock_thread);
+					break;
+				case SMPMessage::Type::UpdateTSC:
+					update_tsc();
 					break;
 #if WITH_PROFILING
 				case SMPMessage::Type::StartProfiling:
@@ -375,13 +481,14 @@ namespace Kernel
 		if (!is_smp_enabled())
 			return;
 
-		auto state = get_interrupt_state();
+		const auto state = get_interrupt_state();
 		set_interrupt_state(InterruptState::Disabled);
 
+		const auto current_id = Processor::current_id();
 		for (size_t i = 0; i < Processor::count(); i++)
 		{
-			auto processor_id = s_processor_ids[i];
-			if (processor_id != current_id())
+			const auto processor_id = s_processor_ids[i];
+			if (processor_id != current_id)
 				send_smp_message(processor_id, message, false);
 		}
 

@@ -228,6 +228,8 @@ namespace Kernel
 
 		static Process& current() { return Thread::current().process(); }
 
+		vaddr_t shared_page_vaddr() const { return m_shared_page_vaddr; }
+
 		PageTable& page_table() { return m_page_table ? *m_page_table : PageTable::kernel(); }
 
 		size_t proc_meminfo(off_t offset, BAN::ByteSpan) const;
@@ -341,6 +343,8 @@ namespace Kernel
 
 		VirtualFileSystem::File m_working_directory;
 		VirtualFileSystem::File m_root_file;
+
+		vaddr_t m_shared_page_vaddr { 0 };
 
 		BAN::Vector<Thread*> m_threads;
 

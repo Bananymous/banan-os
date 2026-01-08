@@ -387,6 +387,9 @@ namespace Kernel
 		else
 			m_block_queue.add_thread_with_wake_time(node);
 
+		if (auto* thread = node->thread; thread->is_userspace() && thread->has_process())
+			thread->update_processor_index_address();
+
 		m_thread_count++;
 
 		Processor::set_interrupt_state(state);

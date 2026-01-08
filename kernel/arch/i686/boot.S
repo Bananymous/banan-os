@@ -184,6 +184,13 @@ enable_sse:
 	movl %eax, %cr4
 	ret
 
+enable_tsc:
+	# allow userspace to use RDTSC
+	movl %cr4, %ecx
+	andl $0xFFFFFFFB, %ecx
+	movl %ecx, %cr4
+	ret
+
 initialize_paging:
 	# enable PAE
 	movl %cr4, %ecx
@@ -226,6 +233,7 @@ gdt_flush:
 	# do processor initialization
 	call check_requirements
 	call enable_sse
+	call enable_tsc
 	call initialize_paging
 
 	# load higher half stack pointer
@@ -302,6 +310,7 @@ ap_protected_mode:
 	movb $1, AP_V2P(ap_stack_loaded)
 
 	leal V2P(enable_sse),        %ecx; call *%ecx
+	leal V2P(enable_tsc),        %ecx; call *%ecx
 	leal V2P(initialize_paging), %ecx; call *%ecx
 
 	# load boot gdt and enter long mode

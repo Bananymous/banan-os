@@ -23,6 +23,8 @@ namespace LibELF
 		AT_PHDR   = 3,
 		AT_PHENT  = 4,
 		AT_PHNUM  = 5,
+
+		AT_SHARED_PAGE = 0xFFFF0001,
 	};
 
 }

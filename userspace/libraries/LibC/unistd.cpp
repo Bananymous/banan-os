@@ -2,6 +2,9 @@
 #include <BAN/Debug.h>
 #include <BAN/StringView.h>
 
+#include <LibELF/AuxiliaryVector.h>
+
+#include <kernel/API/SharedPage.h>
 #include <kernel/Memory/Types.h>
 #include <kernel/Syscall.h>
 
@@ -31,6 +34,8 @@ struct init_funcs_t
 
 extern "C" char** environ;
 
+volatile Kernel::API::SharedPage* g_shared_page = nullptr;
+
 #define DUMP_BACKTRACE 1
 #define DEMANGLE_BACKTRACE 0
 
@@ -40,10 +45,27 @@ extern "C" char** environ;
 
 static void __dump_backtrace(int, siginfo_t*, void*);
 
+static LibELF::AuxiliaryVector* find_auxv(char** envp)
+{
+	if (envp == nullptr)
+		return nullptr;
+
+	char** null_env = envp;
+	while (*null_env)
+		null_env++;
+
+	return reinterpret_cast<LibELF::AuxiliaryVector*>(null_env + 1);
+}
+
 extern "C" void _init_libc(char** environ, init_funcs_t init_funcs, init_funcs_t fini_funcs)
 {
 	if (::environ == nullptr)
 		::environ = environ;
+
+	if (auto* auxv = find_auxv(environ))
+		for (auto* aux = auxv; aux->a_type != LibELF::AT_NULL; aux++)
+			if (aux->a_type == LibELF::AT_SHARED_PAGE)
+				g_shared_page = static_cast<Kernel::API::SharedPage*>(aux->a_un.a_ptr);
 
 #if defined(__x86_64__)
 	if (uthread* self = reinterpret_cast<uthread*>(syscall(SYS_GET_FSBASE)))

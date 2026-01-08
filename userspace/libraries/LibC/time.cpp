@@ -2,6 +2,8 @@
 #include <BAN/Debug.h>
 #include <BAN/Math.h>
 
+#include <kernel/API/SharedPage.h>
+
 #include <ctype.h>
 #include <errno.h>
 #include <langinfo.h>
@@ -15,9 +17,60 @@ int daylight;
 long timezone;
 char* tzname[2];
 
+extern volatile Kernel::API::SharedPage* g_shared_page;
+
 int clock_gettime(clockid_t clock_id, struct timespec* tp)
 {
-	return syscall(SYS_CLOCK_GETTIME, clock_id, tp);
+	if (clock_id != CLOCK_MONOTONIC && clock_id != CLOCK_REALTIME)
+		return syscall(SYS_CLOCK_GETTIME, clock_id, tp);
+
+	if (g_shared_page == nullptr || !(g_shared_page->features & Kernel::API::SPF_GETTIME))
+		return syscall(SYS_CLOCK_GETTIME, clock_id, tp);
+
+	const auto get_cpu =
+		[]() -> uint8_t {
+			uint8_t cpu;
+#if defined(__x86_64__)
+			asm volatile("movb %%gs:0, %0" : "=r"(cpu));
+#elif defined(__i686__)
+			asm volatile("movb %%fs:0, %0" : "=q"(cpu));
+#endif
+			return cpu;
+		};
+
+	const auto read_tsc =
+		[]() -> uint64_t {
+			uint32_t high, low;
+			asm volatile("lfence; rdtsc" : "=d"(high), "=a"(low));
+			return (static_cast<uint64_t>(high) << 32) | low;
+		};
+
+	for (;;)
+	{
+		const auto cpu = get_cpu();
+
+		const auto& sgettime = g_shared_page->gettime_shared;
+		const auto& lgettime = g_shared_page->cpus[cpu].gettime_local;
+
+		const auto old_seq = lgettime.seq;
+		if (old_seq & 1)
+			continue;
+
+		const auto monotonic_ns = lgettime.last_ns + (((read_tsc() - lgettime.last_tsc) * sgettime.mult) >> sgettime.shift);
+
+		if (old_seq != lgettime.seq || cpu != get_cpu())
+			continue;
+
+		*tp = {
+			.tv_sec = static_cast<time_t>(monotonic_ns / 1'000'000'000),
+			.tv_nsec = static_cast<long>(monotonic_ns % 1'000'000'000)
+		};
+
+		if (clock_id == CLOCK_REALTIME)
+			tp->tv_sec += sgettime.realtime_seconds;
+
+		return monotonic_ns;
+	}
 }
 
 int clock_getres(clockid_t clock_id, struct timespec* res)

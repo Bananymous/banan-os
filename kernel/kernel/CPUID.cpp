@@ -75,6 +75,16 @@ namespace CPUID
 		return buffer[3] & (1 << 26);
 	}
 
+	bool has_invariant_tsc()
+	{
+		uint32_t buffer[4] {};
+		get_cpuid(0x80000000, buffer);
+		if (buffer[0] < 0x80000007)
+			return false;
+		get_cpuid(0x80000007, buffer);
+		return buffer[3] & (1 << 8);
+	}
+
 	const char* feature_string_ecx(uint32_t feat)
 	{
 		switch (feat)
