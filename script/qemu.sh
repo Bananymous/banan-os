@@ -34,10 +34,16 @@ NET_ARGS="-device e1000e,netdev=net $NET_ARGS"
 
 USB_ARGS='-device qemu-xhci -device usb-kbd,port=1 -device usb-hub,port=2 -device usb-tablet,port=2.1'
 
-SOUND_ARGS='-device ac97'
+#SOUND_ARGS='-device ac97'
+SOUND_ARGS='-device intel-hda -device hda-output'
+
+if [[ $@ == *"-accel kvm"* ]]; then
+	CPU_ARGS='-cpu host,migratable=off'
+fi
 
 qemu-system-$QEMU_ARCH \
 	-m 1G -smp 4       \
+	$CPU_ARGS          \
 	$BIOS_ARGS         \
 	$USB_ARGS          \
 	$DISK_ARGS         \
