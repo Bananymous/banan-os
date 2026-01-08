@@ -75,6 +75,7 @@ namespace Kernel
 
 		BAN::ErrorOr<void> initialize();
 
+		const USBDeviceDescriptor& device_descriptor() const { return m_descriptor.descriptor; }
 		const BAN::Vector<ConfigurationDescriptor>& configurations() { return m_descriptor.configurations; }
 
 		virtual BAN::ErrorOr<uint8_t> initialize_device_on_hub_port(uint8_t port_id, USB::SpeedClass) = 0;
