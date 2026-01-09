@@ -28,36 +28,28 @@ namespace Kernel
 			BAN_NON_COPYABLE(BlockBufferWrapper);
 
 		public:
-			BlockBufferWrapper(BAN::Span<uint8_t> buffer, bool* used, Mutex* mutex, ThreadBlocker* blocker)
+			BlockBufferWrapper(BAN::Span<uint8_t> buffer, void (*callback)(void*, const uint8_t*), void* argument)
 				: m_buffer(buffer)
-				, m_used(used)
-				, m_mutex(mutex)
-				, m_blocker(blocker)
-			{
-				ASSERT(m_used && *m_used);
-			}
+				, m_callback(callback)
+				, m_argument(argument)
+			{ }
 			BlockBufferWrapper(BlockBufferWrapper&& other) { *this = BAN::move(other); }
 			~BlockBufferWrapper()
 			{
-				if (m_used == nullptr)
+				if (m_callback == nullptr)
 					return;
-				m_mutex->lock();
-				*m_used = false;
-				m_blocker->unblock();
-				m_mutex->unlock();
+				m_callback(m_argument, m_buffer.data());
 			}
 
 			BlockBufferWrapper& operator=(BlockBufferWrapper&& other)
 			{
 				this->m_buffer = other.m_buffer;
-				this->m_used = other.m_used;
-				this->m_mutex = other.m_mutex;
-				this->m_blocker = other.m_blocker;
+				this->m_callback = other.m_callback;
+				this->m_argument = other.m_argument;
 
 				other.m_buffer = {};
-				other.m_used = nullptr;
-				other.m_mutex = nullptr;
-				other.m_blocker = nullptr;
+				other.m_callback = nullptr;
+				other.m_argument = nullptr;
 
 				return *this;
 			}
@@ -75,9 +67,8 @@ namespace Kernel
 
 		private:
 			BAN::Span<uint8_t> m_buffer;
-			bool* m_used;
-			Mutex* m_mutex;
-			ThreadBlocker* m_blocker;
+			void (*m_callback)(void*, const uint8_t*);
+			void* m_argument;
 		};
 
 	public:
@@ -131,16 +122,29 @@ namespace Kernel
 			BAN::ErrorOr<void> initialize(size_t block_size);
 
 		private:
+			void destroy_callback(const uint8_t* buffer_ptr);
+
+		private:
 			struct BlockBuffer
 			{
 				BAN::Vector<uint8_t> buffer;
 				bool used { false };
 			};
 
+			struct ThreadInfo
+			{
+				pid_t tid { 0 };
+				size_t buffers { 0 };
+			};
+
 		private:
+			static constexpr size_t max_threads = 8;
+			static constexpr size_t max_buffers_per_thread = 6;
+
 			Mutex m_buffer_mutex;
 			ThreadBlocker m_buffer_blocker;
-			BAN::Array<BlockBuffer, 16> m_buffers;
+			BAN::Array<BlockBuffer, max_threads * max_buffers_per_thread> m_buffers;
+			BAN::Array<ThreadInfo, max_threads> m_thread_infos;
 		};
 
 	private:

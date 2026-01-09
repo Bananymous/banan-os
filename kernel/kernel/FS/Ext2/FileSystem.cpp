@@ -532,22 +532,88 @@ namespace Kernel
 		};
 	}
 
-	BAN::ErrorOr<Ext2FS::BlockBufferWrapper> Ext2FS::BlockBufferManager::get_buffer()
+	void Ext2FS::BlockBufferManager::destroy_callback(const uint8_t* buffer_ptr)
 	{
+		const auto tid = Thread::current_tid();
+
 		LockGuard _(m_buffer_mutex);
 
-		for (;;)
+		for (auto& buffer : m_buffers)
 		{
-			for (auto& buffer : m_buffers)
+			if (buffer.buffer.data() != buffer_ptr)
+				continue;
+			ASSERT(buffer.used);
+			buffer.used = false;
+			break;
+		}
+
+		for (auto& info : m_thread_infos)
+		{
+			if (info.tid != tid)
+				continue;
+			ASSERT(info.buffers > 0);
+			info.buffers--;
+			if (info.buffers != 0)
+				break;
+			info.tid = 0;
+			m_buffer_blocker.unblock();
+			break;
+		}
+	}
+
+	BAN::ErrorOr<Ext2FS::BlockBufferWrapper> Ext2FS::BlockBufferManager::get_buffer()
+	{
+		const auto tid = Thread::current_tid();
+		ASSERT(tid);
+
+		LockGuard _(m_buffer_mutex);
+
+		ThreadInfo* thread_info = nullptr;
+
+		for (auto& info : m_thread_infos)
+		{
+			if (info.tid != tid)
+				continue;
+			thread_info = &info;
+			break;
+		}
+
+		while (thread_info == nullptr)
+		{
+			for (auto& info : m_thread_infos)
 			{
-				if (buffer.used)
+				if (info.tid != 0)
 					continue;
-				buffer.used = true;
-				return Ext2FS::BlockBufferWrapper(buffer.buffer.span(), &buffer.used, &m_buffer_mutex, &m_buffer_blocker);
+				thread_info = &info;
+				break;
+			}
+
+			if (thread_info)
+			{
+				thread_info->tid = tid;
+				thread_info->buffers = 0;
+				break;
 			}
 
 			TRY(Thread::current().block_or_eintr_indefinite(m_buffer_blocker, &m_buffer_mutex));
 		}
+
+		ASSERT(thread_info->buffers < max_buffers_per_thread);
+		thread_info->buffers++;
+
+		for (auto& buffer : m_buffers)
+		{
+			if (buffer.used)
+				continue;
+			buffer.used = true;
+			return Ext2FS::BlockBufferWrapper {
+				buffer.buffer.span(),
+				[](void* self, const uint8_t* buffer) { static_cast<BlockBufferManager*>(self)->destroy_callback(buffer); },
+				this
+			};
+		}
+
+		ASSERT_NOT_REACHED();
 	}
 
 	BAN::ErrorOr<void> Ext2FS::BlockBufferManager::initialize(size_t block_size)
