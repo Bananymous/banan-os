@@ -38,14 +38,8 @@ namespace Kernel
 	static BAN::Vector<Process*> s_processes;
 	static RecursiveSpinLock s_process_lock;
 
-	struct futex_t
-	{
-		ThreadBlocker blocker;
-		uint32_t waiters { 0 };
-		uint32_t to_wakeup { 0 };
-	};
-	static BAN::HashMap<paddr_t, BAN::UniqPtr<futex_t>> s_futexes;
-	static Mutex s_futex_lock;
+	BAN::HashMap<paddr_t, BAN::UniqPtr<Process::futex_t>> Process::s_futexes;
+	Mutex Process::s_futex_lock;
 
 	static void for_each_process(const BAN::Function<BAN::Iteration(Process&)>& callback)
 	{
@@ -3107,11 +3101,8 @@ namespace Kernel
 			return BAN::Error::from_errno(EINVAL);
 
 		const bool is_realtime = (op & FUTEX_REALTIME);
+		const bool is_private = (op & FUTEX_PRIVATE);
 		op &= ~(FUTEX_PRIVATE | FUTEX_REALTIME);
-
-		// TODO: possibly optimize private futexes?
-
-		LockGuard _(s_futex_lock);
 
 		auto* buffer_region = TRY(validate_and_pin_pointer_access(addr, sizeof(uint32_t), false));
 		BAN::ScopeGuard pin_guard([&] { if (buffer_region) buffer_region->unpin(); });
@@ -3122,40 +3113,61 @@ namespace Kernel
 		switch (op)
 		{
 			case FUTEX_WAIT:
+				break;
+			case FUTEX_WAKE:
+				abstime = nullptr;
+				break;
+			default:
+				return BAN::Error::from_errno(ENOSYS);
+		}
+
+		const uint64_t wake_time_ns =
+			TRY([abstime, is_realtime, this]() -> BAN::ErrorOr<uint64_t>
+			{
+				if (abstime == nullptr)
+					return BAN::numeric_limits<uint64_t>::max();
+				const uint64_t abs_ns =
+					TRY([abstime, this]() -> BAN::ErrorOr<uint64_t>
+					{
+						LockGuard _(m_process_lock);
+						TRY(validate_pointer_access(abstime, sizeof(*abstime), false));
+						return abstime->tv_sec * 1'000'000'000 + abstime->tv_nsec;
+					}());
+				if (!is_realtime)
+					return abs_ns;
+				const auto realtime = SystemTimer::get().real_time();
+				const uint64_t real_ns = realtime.tv_sec * 1'000'000'000 + realtime.tv_nsec;
+				if (abs_ns <= real_ns)
+					return BAN::Error::from_errno(ETIMEDOUT);
+				return SystemTimer::get().ns_since_boot() + (abs_ns - real_ns);
+			}());
+
+		auto& futex_lock = is_private ? m_futex_lock : s_futex_lock;
+		auto& futexes = is_private ? m_futexes : s_futexes;
+
+		LockGuard _(futex_lock);
+
+		switch (op)
+		{
+			case FUTEX_WAIT:
 			{
 				if (BAN::atomic_load(*addr) != val)
 					return BAN::Error::from_errno(EAGAIN);
 
-				const uint64_t wake_time_ns =
-					TRY([abstime, is_realtime, this]() -> BAN::ErrorOr<uint64_t>
-					{
-						if (abstime == nullptr)
-							return BAN::numeric_limits<uint64_t>::max();
-						TRY(validate_pointer_access(abstime, sizeof(*abstime), false));
-						const uint64_t abs_ns = abstime->tv_sec * 1'000'000'000 + abstime->tv_nsec;
-						if (!is_realtime)
-							return abs_ns;
-						const auto realtime = SystemTimer::get().real_time();
-						const uint64_t real_ns = realtime.tv_sec * 1'000'000'000 + realtime.tv_nsec;
-						if (abs_ns <= real_ns)
-							return BAN::Error::from_errno(ETIMEDOUT);
-						return SystemTimer::get().ns_since_boot() + (abs_ns - real_ns);
-					}());
-
-				auto it = s_futexes.find(paddr);
-				if (it == s_futexes.end())
-					it = TRY(s_futexes.emplace(paddr, TRY(BAN::UniqPtr<futex_t>::create())));
+				auto it = futexes.find(paddr);
+				if (it == futexes.end())
+					it = TRY(futexes.emplace(paddr, TRY(BAN::UniqPtr<futex_t>::create())));
 				futex_t* const futex = it->value.ptr();
 
 				futex->waiters++;
-				BAN::ScopeGuard _([futex, paddr] {
+				BAN::ScopeGuard _([&futexes, futex, paddr] {
 					if (--futex->waiters == 0)
-						s_futexes.remove(paddr);
+						futexes.remove(paddr);
 				});
 
 				for (;;)
 				{
-					TRY(Thread::current().block_or_eintr_or_waketime_ns(futex->blocker, wake_time_ns, true, &s_futex_lock));
+					TRY(Thread::current().block_or_eintr_or_waketime_ns(futex->blocker, wake_time_ns, true, &futex_lock));
 					if (BAN::atomic_load(*addr) == val || futex->to_wakeup == 0)
 						continue;
 					futex->to_wakeup--;
@@ -3164,8 +3176,8 @@ namespace Kernel
 			}
 			case FUTEX_WAKE:
 			{
-				auto it = s_futexes.find(paddr);
-				if (it == s_futexes.end())
+				auto it = futexes.find(paddr);
+				if (it == futexes.end())
 					return 0;
 				futex_t* const futex = it->value.ptr();
 
@@ -3178,8 +3190,6 @@ namespace Kernel
 				futex->blocker.unblock();
 				return 0;
 			}
-			default:
-				return BAN::Error::from_errno(ENOSYS);
 		}
 
 		ASSERT_NOT_REACHED();

@@ -28,8 +28,9 @@ int sem_getvalue(sem_t* __restrict sem, int* __restrict sval)
 int sem_post(sem_t* sem)
 {
 	const auto old = BAN::atomic_fetch_add(sem->value, 1);
+	const int op = FUTEX_WAKE | (sem->shared ? 0 : FUTEX_PRIVATE);
 	if (old == 0)
-		futex(FUTEX_WAKE, &sem->value, 1, nullptr);
+		futex(op, &sem->value, 1, nullptr);
 	return 0;
 }
 

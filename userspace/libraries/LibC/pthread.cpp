@@ -884,9 +884,11 @@ int pthread_mutex_unlock(pthread_mutex_t* mutex)
 	mutex->lock_depth--;
 	if (mutex->lock_depth == 0)
 	{
+		const int op = FUTEX_WAKE | (mutex->attr.shared ? 0 : FUTEX_PRIVATE);
+
 		BAN::atomic_store(mutex->futex, 0, BAN::memory_order_release);
 		if (BAN::atomic_load(mutex->waiters))
-			futex(FUTEX_WAKE, &mutex->futex, 1, nullptr);
+			futex(op, &mutex->futex, 1, nullptr);
 	}
 
 	return 0;

@@ -346,6 +346,19 @@ namespace Kernel
 
 		vaddr_t m_shared_page_vaddr { 0 };
 
+		struct futex_t
+		{
+			ThreadBlocker blocker;
+			uint32_t waiters { 0 };
+			uint32_t to_wakeup { 0 };
+		};
+
+		static BAN::HashMap<paddr_t, BAN::UniqPtr<futex_t>> s_futexes;
+		static Mutex s_futex_lock;
+
+		BAN::HashMap<paddr_t, BAN::UniqPtr<futex_t>> m_futexes;
+		Mutex m_futex_lock;
+
 		BAN::Vector<Thread*> m_threads;
 
 		struct pthread_info_t
