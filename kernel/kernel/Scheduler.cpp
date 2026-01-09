@@ -223,7 +223,8 @@ namespace Kernel
 			{
 				case Thread::State::Terminated:
 					remove_node_from_most_loaded(m_current);
-					PageTable::kernel().load();
+					if (&PageTable::current() != &PageTable::kernel())
+						PageTable::kernel().load();
 					delete m_current->thread;
 					delete m_current;
 					m_thread_count--;
@@ -255,7 +256,8 @@ namespace Kernel
 			if (m_current->thread->state() != Thread::State::Terminated)
 				break;
 			remove_node_from_most_loaded(m_current);
-			PageTable::kernel().load();
+			if (&PageTable::current() != &PageTable::kernel())
+				PageTable::kernel().load();
 			delete m_current->thread;
 			delete m_current;
 			m_thread_count--;
@@ -263,7 +265,8 @@ namespace Kernel
 
 		if (m_current == nullptr)
 		{
-			PageTable::kernel().load();
+			if (&PageTable::current() != &PageTable::kernel())
+				PageTable::kernel().load();
 			*interrupt_stack       = m_idle_thread->interrupt_stack();
 			*interrupt_registers   = m_idle_thread->interrupt_registers();
 			m_idle_thread->m_state = Thread::State::Executing;
@@ -276,7 +279,8 @@ namespace Kernel
 		auto* thread = m_current->thread;
 
 		auto& page_table = thread->has_process() ? thread->process().page_table() : PageTable::kernel();
-		page_table.load();
+		if (&PageTable::current() != &page_table)
+			page_table.load();
 
 		if (thread->state() == Thread::State::NotStarted)
 		{
