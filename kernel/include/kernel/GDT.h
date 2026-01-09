@@ -151,8 +151,8 @@ namespace Kernel
 
 	private:
 #if ARCH(x86_64)
-		BAN::Array<SegmentDescriptor, 7> m_gdt; // null, kernel code, kernel data, user code, user data, tss low, tss high
-		static constexpr uint16_t m_tss_offset = 0x28;
+		BAN::Array<SegmentDescriptor, 8> m_gdt; // null, kernel code, kernel data, user code (32 bit), user data, user code (64 bit), tss low, tss high
+		static constexpr uint16_t m_tss_offset = 0x30;
 #elif ARCH(i686)
 		BAN::Array<SegmentDescriptor, 9> m_gdt; // null, kernel code, kernel data, user code, user data, processor data, fsbase, gsbase, tss
 		static constexpr uint16_t m_tss_offset = 0x40;

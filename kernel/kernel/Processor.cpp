@@ -13,6 +13,11 @@ namespace Kernel
 	static constexpr uint32_t MSR_IA32_FS_BASE = 0xC0000100;
 	static constexpr uint32_t MSR_IA32_GS_BASE = 0xC0000101;
 	static constexpr uint32_t MSR_IA32_KERNEL_GS_BASE = 0xC0000102;
+
+	static constexpr uint32_t MSR_IA32_EFER = 0xC0000080;
+	static constexpr uint32_t MSR_IA32_STAR = 0xC0000081;
+	static constexpr uint32_t MSR_IA32_LSTAR = 0xC0000082;
+	static constexpr uint32_t MSR_IA32_FMASK = 0xC0000084;
 #endif
 
 	ProcessorID          Processor::s_bsp_id                     { PROCESSOR_NONE };
@@ -29,6 +34,8 @@ namespace Kernel
 
 	static BAN::Array<Processor,   0xFF> s_processors;
 	static BAN::Array<ProcessorID, 0xFF> s_processor_ids { PROCESSOR_NONE };
+
+	extern "C" void asm_syscall_handler();
 
 	ProcessorID Processor::read_processor_id()
 	{
@@ -87,13 +94,53 @@ namespace Kernel
 
 		// initialize GS
 #if ARCH(x86_64)
-		// set gs base to pointer to this processor
-		uint64_t ptr = reinterpret_cast<uint64_t>(&processor);
-		uint32_t ptr_hi = ptr >> 32;
-		uint32_t ptr_lo = ptr & 0xFFFFFFFF;
-		asm volatile("wrmsr" :: "d"(ptr_hi), "a"(ptr_lo), "c"(MSR_IA32_GS_BASE));
+		{
+			// set gs base to pointer to this processor
+			const uint64_t val = reinterpret_cast<uint64_t>(&processor);
+			const uint32_t val_hi = val >> 32;
+			const uint32_t val_lo = val & 0xFFFFFFFF;
+			asm volatile("wrmsr" :: "d"(val_hi), "a"(val_lo), "c"(MSR_IA32_GS_BASE));
+		}
 #elif ARCH(i686)
-		asm volatile("movw $0x28, %%ax; movw %%ax, %%gs" ::: "ax");
+		asm volatile("movw %0, %%gs" :: "r"(0x28));
+#endif
+
+#if ARCH(x86_64)
+		// enable syscall instruction
+		asm volatile("rdmsr; orb $1, %%al; wrmsr" :: "c"(MSR_IA32_EFER) : "eax", "edx");
+
+		{
+			union STAR
+			{
+				struct
+				{
+					uint32_t : 32;
+					uint16_t sel_ring0;
+					uint16_t sel_ring3;
+				};
+				uint64_t raw;
+			};
+
+			// set kernel and user segments
+			const uint64_t val = STAR { .sel_ring0 = 0x08, .sel_ring3 = 0x18 | 3 }.raw;
+			const uint32_t val_hi = val >> 32;
+			const uint32_t val_lo = val & 0xFFFFFFFF;
+			asm volatile("wrmsr" :: "d"(val_hi), "a"(val_lo), "c"(MSR_IA32_STAR));
+		}
+		{
+			// set syscall handler address
+			const uint64_t val = reinterpret_cast<uint64_t>(&asm_syscall_handler);
+			const uint32_t val_hi = val >> 32;
+			const uint32_t val_lo = val & 0xFFFFFFFF;
+			asm volatile("wrmsr" :: "d"(val_hi), "a"(val_lo), "c"(MSR_IA32_LSTAR));
+		}
+		{
+			// mask DF and IF
+			const uint64_t val = (1 << 10) | (1 << 9);
+			const uint32_t val_hi = val >> 32;
+			const uint32_t val_lo = val & 0xFFFFFFFF;
+			asm volatile("wrmsr" :: "d"(val_hi), "a"(val_lo), "c"(MSR_IA32_FMASK));
+		}
 #endif
 
 		ASSERT(processor.m_idt);
@@ -372,36 +419,17 @@ namespace Kernel
 
 	void Processor::load_segments()
 	{
-		{
-			const auto addr = scheduler().current_thread().get_fsbase();
-#if ARCH(x86_64)
-			uint32_t ptr_hi = addr >> 32;
-			uint32_t ptr_lo = addr & 0xFFFFFFFF;
-			asm volatile("wrmsr" :: "d"(ptr_hi), "a"(ptr_lo), "c"(MSR_IA32_FS_BASE));
-#elif ARCH(i686)
-			gdt().set_fsbase(addr);
-#endif
-		}
-
-		{
-			const auto addr = scheduler().current_thread().get_gsbase();
-#if ARCH(x86_64)
-			uint32_t ptr_hi = addr >> 32;
-			uint32_t ptr_lo = addr & 0xFFFFFFFF;
-			asm volatile("wrmsr" :: "d"(ptr_hi), "a"(ptr_lo), "c"(MSR_IA32_KERNEL_GS_BASE));
-#elif ARCH(i686)
-			gdt().set_gsbase(addr);
-#endif
-		}
+		load_fsbase();
+		load_gsbase();
 	}
 
 	void Processor::load_fsbase()
 	{
 		const auto addr = scheduler().current_thread().get_fsbase();
 #if ARCH(x86_64)
-		uint32_t ptr_hi = addr >> 32;
-		uint32_t ptr_lo = addr & 0xFFFFFFFF;
-		asm volatile("wrmsr" :: "d"(ptr_hi), "a"(ptr_lo), "c"(MSR_IA32_FS_BASE));
+		const uint32_t addr_hi = addr >> 32;
+		const uint32_t addr_lo = addr & 0xFFFFFFFF;
+		asm volatile("wrmsr" :: "d"(addr_hi), "a"(addr_lo), "c"(MSR_IA32_FS_BASE));
 #elif ARCH(i686)
 		gdt().set_fsbase(addr);
 #endif
@@ -411,9 +439,9 @@ namespace Kernel
 	{
 		const auto addr = scheduler().current_thread().get_gsbase();
 #if ARCH(x86_64)
-		uint32_t ptr_hi = addr >> 32;
-		uint32_t ptr_lo = addr & 0xFFFFFFFF;
-		asm volatile("wrmsr" :: "d"(ptr_hi), "a"(ptr_lo), "c"(MSR_IA32_KERNEL_GS_BASE));
+		const uint32_t addr_hi = addr >> 32;
+		const uint32_t addr_lo = addr & 0xFFFFFFFF;
+		asm volatile("wrmsr" :: "d"(addr_hi), "a"(addr_lo), "c"(MSR_IA32_KERNEL_GS_BASE));
 #elif ARCH(i686)
 		gdt().set_gsbase(addr);
 #endif

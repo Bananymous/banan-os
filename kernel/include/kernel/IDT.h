@@ -18,7 +18,10 @@ namespace Kernel
 
 	constexpr uint8_t IRQ_VECTOR_BASE   = 0x20;
 	constexpr uint8_t IRQ_MSI_BASE      = 0x80;
+	constexpr uint8_t IRQ_MSI_END       = 0xF0;
+#if ARCH(i686)
 	constexpr uint8_t IRQ_SYSCALL       = 0xF0;
+#endif
 	constexpr uint8_t IRQ_YIELD         = 0xF1;
 	constexpr uint8_t IRQ_IPI           = 0xF2;
 	constexpr uint8_t IRQ_TIMER         = 0xF3;

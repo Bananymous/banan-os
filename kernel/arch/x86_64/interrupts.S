@@ -1,6 +1,6 @@
 .macro swapgs_if_necessary, n
-	cmpb $0x08, \n(%rsp)
-	je 1f
+	testb $3, \n(%rsp)
+	jz 1f; jnp 1f
 	swapgs
 1:
 .endm

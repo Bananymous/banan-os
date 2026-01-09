@@ -1,6 +1,6 @@
 .macro maybe_load_kernel_segments, n
-	cmpb $0x08, \n(%esp)
-	je 1f
+	testb $3, \n(%esp)
+	jz 1f; jnp 1f
 
 	movw $0x10, %ax
 	movw %ax, %ds
@@ -13,8 +13,8 @@
 .endm
 
 .macro maybe_load_userspace_segments, n
-	cmpb $0x08, \n(%esp)
-	je 1f
+	testb $3, \n(%esp)
+	jz 1f; jnp 1f
 
 	movw $(0x20 | 3), %bx
 	movw %bx, %ds

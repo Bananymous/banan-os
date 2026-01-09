@@ -490,7 +490,11 @@ namespace Kernel
 			write_to_stack(cur_sp, 0x20 | 3);
 			write_to_stack(cur_sp, sp);
 			write_to_stack(cur_sp, 0x202);
+#if ARCH(x86_64)
+			write_to_stack(cur_sp, 0x28 | 3);
+#elif ARCH(i686)
 			write_to_stack(cur_sp, 0x18 | 3);
+#endif
 			write_to_stack(cur_sp, ip);
 		});
 

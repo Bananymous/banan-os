@@ -284,9 +284,14 @@ namespace Kernel
 			thread->set_cpu_time_start();
 		}
 
-		Processor::gdt().set_tss_stack(thread->kernel_stack_top());
 		if (thread->is_userspace())
+		{
+			const vaddr_t kernel_stack_top = thread->kernel_stack_top();
+			Processor::gdt().set_tss_stack(kernel_stack_top);
+			Processor::set_thread_syscall_stack(kernel_stack_top);
 			Processor::load_segments();
+		}
+
 		*interrupt_stack     = thread->interrupt_stack();
 		*interrupt_registers = thread->interrupt_registers();
 

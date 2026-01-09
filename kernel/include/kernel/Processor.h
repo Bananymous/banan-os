@@ -102,6 +102,8 @@ namespace Kernel
 		uintptr_t stack_bottom() const	{ return reinterpret_cast<uintptr_t>(m_stack); }
 		uintptr_t stack_top() const		{ return stack_bottom() + s_stack_size; }
 
+		static void set_thread_syscall_stack(vaddr_t vaddr) { write_gs_sized<vaddr_t>(offsetof(Processor, m_thread_syscall_stack), vaddr); }
+
 		static GDT& gdt() { return *read_gs_sized<GDT*>(offsetof(Processor, m_gdt)); }
 		static IDT& idt() { return *read_gs_sized<IDT*>(offsetof(Processor, m_idt)); }
 
@@ -136,6 +138,13 @@ namespace Kernel
 
 		static void initialize_smp();
 		static void initialize_shared_page();
+
+		static void dummy()
+		{
+#if ARCH(x86_64)
+			static_assert(offsetof(Processor, m_thread_syscall_stack) == 8, "This is hardcoded in Syscall.S");
+#endif
+		}
 
 		template<typename T>
 		static T read_gs_sized(uintptr_t offset) requires(sizeof(T) <= 8)
@@ -179,6 +188,8 @@ namespace Kernel
 
 		ProcessorID m_id { 0 };
 		uint8_t m_index { 0xFF };
+
+		vaddr_t m_thread_syscall_stack;
 
 		static constexpr size_t s_stack_size { 4096 };
 		void* m_stack { nullptr };

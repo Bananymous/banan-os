@@ -1,7 +1,7 @@
 #pragma once
 
 #include <BAN/Traits.h>
-#include <kernel/Syscall.h>
+#include <kernel/API/Syscall.h>
 
 #include <stddef.h>
 #include <stdint.h>

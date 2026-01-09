@@ -1,9 +1,9 @@
 #include <BAN/Bitcast.h>
+#include <kernel/API/Syscall.h>
 #include <kernel/Debug.h>
 #include <kernel/InterruptStack.h>
 #include <kernel/Process.h>
 #include <kernel/Scheduler.h>
-#include <kernel/Syscall.h>
 #include <kernel/Timer/Timer.h>
 
 #include <termios.h>
@@ -40,10 +40,8 @@ namespace Kernel
 
 	static bool is_restartable_syscall(int syscall);
 
-	extern "C" long cpp_syscall_handler(int syscall, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4, uintptr_t arg5, InterruptStack* interrupt_stack)
+	extern "C" long cpp_syscall_handler(int syscall, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
 	{
-		ASSERT(GDT::is_user_segment(interrupt_stack->cs));
-
 		Processor::set_interrupt_state(InterruptState::Enabled);
 
 		Process::current().wait_while_stopped();

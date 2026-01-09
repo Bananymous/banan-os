@@ -22,7 +22,6 @@
 #include <kernel/Processor.h>
 #include <kernel/Random.h>
 #include <kernel/Scheduler.h>
-#include <kernel/Syscall.h>
 #include <kernel/Terminal/FramebufferTerminal.h>
 #include <kernel/Terminal/Serial.h>
 #include <kernel/Terminal/VirtualTTY.h>

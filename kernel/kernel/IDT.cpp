@@ -18,8 +18,6 @@
 					X(160) X(161) X(162) X(163) X(164) X(165) X(166) X(167) X(168) X(169) X(170) X(171) X(172) X(173) X(174) X(175) X(176) X(177) X(178) X(179) X(180) X(181) X(182) X(183) X(184) X(185) X(186) X(187) X(188) X(189) X(190) X(191) \
 					X(192) X(193) X(194) X(195) X(196) X(197) X(198) X(199) X(200) X(201) X(202) X(203) X(204) X(205) X(206) X(207)
 
-static_assert(Kernel::IRQ_SYSCALL == Kernel::IRQ_VECTOR_BASE + 208);
-
 namespace Kernel
 {
 
@@ -446,7 +444,9 @@ namespace Kernel
 	extern "C" void asm_yield_handler();
 	extern "C" void asm_ipi_handler();
 	extern "C" void asm_timer_handler();
+#if ARCH(i686)
 	extern "C" void asm_syscall_handler();
+#endif
 
 	IDT* IDT::create()
 	{
@@ -480,7 +480,9 @@ namespace Kernel
 		idt->register_interrupt_handler(IRQ_YIELD, asm_yield_handler);
 		idt->register_interrupt_handler(IRQ_IPI,   asm_ipi_handler);
 		idt->register_interrupt_handler(IRQ_TIMER, asm_timer_handler);
+#if ARCH(i686)
 		idt->register_syscall_handler(IRQ_SYSCALL, asm_syscall_handler);
+#endif
 
 		return idt;
 	}

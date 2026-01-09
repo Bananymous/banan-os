@@ -5,8 +5,8 @@
 #include <LibELF/AuxiliaryVector.h>
 
 #include <kernel/API/SharedPage.h>
+#include <kernel/API/Syscall.h>
 #include <kernel/Memory/Types.h>
-#include <kernel/Syscall.h>
 
 #include <ctype.h>
 #include <dlfcn.h>

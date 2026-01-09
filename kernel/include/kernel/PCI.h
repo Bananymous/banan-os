@@ -187,7 +187,7 @@ namespace Kernel::PCI
 		void initialize_impl();
 
 	private:
-		static constexpr uint8_t m_msi_count = IRQ_SYSCALL - IRQ_MSI_BASE;
+		static constexpr uint8_t m_msi_count = IRQ_MSI_END - IRQ_MSI_BASE;
 		using PCIBus = BAN::Array<BAN::Array<Device, 8>, 32>;
 		BAN::Array<PCIBus, 256>  m_buses;
 		BAN::Array<paddr_t, 256> m_bus_pcie_paddr;
