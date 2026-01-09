@@ -888,3 +888,17 @@ void srandom(unsigned seed)
 {
 	s_random_state.seed(seed);
 }
+
+char* initstate(unsigned seed, char* state, size_t size)
+{
+	(void)seed;
+	(void)state;
+	(void)size;
+	ASSERT_NOT_REACHED();
+}
+
+char* setstate(char* state)
+{
+	(void)state;
+	ASSERT_NOT_REACHED();
+}
