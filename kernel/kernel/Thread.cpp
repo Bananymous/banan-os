@@ -910,7 +910,8 @@ namespace Kernel
 #if ARCH(x86_64)
 		__builtin_ia32_fxsave64(m_sse_storage);
 #elif ARCH(i686)
-		__builtin_ia32_fxsave(m_sse_storage);
+		// no idea why the builtin don't work
+		asm volatile("fxsave %0" :: "m"(m_sse_storage));
 #else
 #error
 #endif
@@ -921,7 +922,8 @@ namespace Kernel
 #if ARCH(x86_64)
 		__builtin_ia32_fxrstor64(m_sse_storage);
 #elif ARCH(i686)
-		__builtin_ia32_fxrstor(m_sse_storage);
+		// no idea why the builtin don't work
+		asm volatile("fxrstor %0" :: "m"(m_sse_storage));
 #else
 #error
 #endif

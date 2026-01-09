@@ -6,7 +6,6 @@
 	movw %ax, %ds
 	movw %ax, %es
 	movw %ax, %fs
-
 	movw $0x28, %ax
 	movw %ax, %gs
 1:

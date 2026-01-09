@@ -102,7 +102,7 @@ namespace Kernel
 			asm volatile("wrmsr" :: "d"(val_hi), "a"(val_lo), "c"(MSR_IA32_GS_BASE));
 		}
 #elif ARCH(i686)
-		asm volatile("movw %0, %%gs" :: "r"(0x28));
+		asm volatile("movw %0, %%gs" :: "r"(static_cast<uint16_t>(0x28)));
 #endif
 
 #if ARCH(x86_64)
