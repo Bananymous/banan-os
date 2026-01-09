@@ -82,8 +82,11 @@ namespace Kernel
 
 		static InterruptState get_interrupt_state()
 		{
-			uintptr_t flags;
-			asm volatile("pushf; pop %0" : "=rm"(flags));
+#if ARCH(x86_64)
+			const auto flags = __builtin_ia32_readeflags_u64();
+#elif ARCH(i686)
+			const auto flags = __builtin_ia32_readeflags_u32();
+#endif
 			if (flags & (1 << 9))
 				return InterruptState::Enabled;
 			return InterruptState::Disabled;

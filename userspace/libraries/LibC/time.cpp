@@ -38,13 +38,6 @@ int clock_gettime(clockid_t clock_id, struct timespec* tp)
 			return cpu;
 		};
 
-	const auto read_tsc =
-		[]() -> uint64_t {
-			uint32_t high, low;
-			asm volatile("lfence; rdtsc" : "=d"(high), "=a"(low));
-			return (static_cast<uint64_t>(high) << 32) | low;
-		};
-
 	for (;;)
 	{
 		const auto cpu = get_cpu();
@@ -56,7 +49,7 @@ int clock_gettime(clockid_t clock_id, struct timespec* tp)
 		if (old_seq & 1)
 			continue;
 
-		const auto monotonic_ns = lgettime.last_ns + (((read_tsc() - lgettime.last_tsc) * sgettime.mult) >> sgettime.shift);
+		const auto monotonic_ns = lgettime.last_ns + (((__builtin_ia32_rdtsc() - lgettime.last_tsc) * sgettime.mult) >> sgettime.shift);
 
 		if (old_seq != lgettime.seq || cpu != get_cpu())
 			continue;

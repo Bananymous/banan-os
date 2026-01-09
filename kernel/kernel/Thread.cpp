@@ -908,9 +908,9 @@ namespace Kernel
 	void Thread::save_sse()
 	{
 #if ARCH(x86_64)
-		asm volatile("fxsave64 %0" :: "m"(m_sse_storage));
+		__builtin_ia32_fxsave64(m_sse_storage);
 #elif ARCH(i686)
-		asm volatile("fxsave %0" :: "m"(m_sse_storage));
+		__builtin_ia32_fxsave(m_sse_storage);
 #else
 #error
 #endif
@@ -919,9 +919,9 @@ namespace Kernel
 	void Thread::load_sse()
 	{
 #if ARCH(x86_64)
-		asm volatile("fxrstor64 %0" :: "m"(m_sse_storage));
+		__builtin_ia32_fxrstor64(m_sse_storage);
 #elif ARCH(i686)
-		asm volatile("fxrstor %0" :: "m"(m_sse_storage));
+		__builtin_ia32_fxrstor(m_sse_storage);
 #else
 #error
 #endif

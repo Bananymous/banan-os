@@ -304,29 +304,15 @@ namespace Kernel
 
 	void Processor::update_tsc()
 	{
-		const auto read_tsc =
-			[]() -> uint64_t {
-				uint32_t high, low;
-				asm volatile("lfence; rdtsc" : "=d"(high), "=a"(low));
-				return (static_cast<uint64_t>(high) << 32) | low;
-			};
-
 		auto& sgettime = shared_page().cpus[current_index()].gettime_local;
 		sgettime.seq = sgettime.seq + 1;
 		sgettime.last_ns = SystemTimer::get().ns_since_boot_no_tsc();
-		sgettime.last_tsc = read_tsc();
+		sgettime.last_tsc = __builtin_ia32_rdtsc();
 		sgettime.seq = sgettime.seq + 1;
 	}
 
 	uint64_t Processor::ns_since_boot_tsc()
 	{
-		const auto read_tsc =
-			[]() -> uint64_t {
-				uint32_t high, low;
-				asm volatile("lfence; rdtsc" : "=d"(high), "=a"(low));
-				return (static_cast<uint64_t>(high) << 32) | low;
-			};
-
 		const auto& shared_page = Processor::shared_page();
 		const auto& sgettime = shared_page.gettime_shared;
 		const auto& lgettime = shared_page.cpus[current_index()].gettime_local;
@@ -334,7 +320,7 @@ namespace Kernel
 		auto state = get_interrupt_state();
 		set_interrupt_state(InterruptState::Disabled);
 
-		const auto current_ns = lgettime.last_ns + (((read_tsc() - lgettime.last_tsc) * sgettime.mult) >> sgettime.shift);
+		const auto current_ns = lgettime.last_ns + (((__builtin_ia32_rdtsc() - lgettime.last_tsc) * sgettime.mult) >> sgettime.shift);
 
 		set_interrupt_state(state);
 

@@ -80,13 +80,6 @@ namespace Kernel
 	{
 		// take 5x 50 ms samples and use the median value
 
-		const auto read_tsc =
-			[]() -> uint64_t {
-				uint32_t high, low;
-				asm volatile("lfence; rdtsc" : "=d"(high), "=a"(low));
-				return (static_cast<uint64_t>(high) << 32) | low;
-			};
-
 		constexpr size_t tsc_sample_count = 5;
 		constexpr size_t tsc_sample_ns = 50'000'000;
 
@@ -95,10 +88,10 @@ namespace Kernel
 		{
 			const auto start_ns = m_timer->ns_since_boot();
 
-			const auto start_tsc = read_tsc();
+			const auto start_tsc = __builtin_ia32_rdtsc();
 			while (m_timer->ns_since_boot() < start_ns + tsc_sample_ns)
 				Processor::pause();
-			const auto stop_tsc = read_tsc();
+			const auto stop_tsc = __builtin_ia32_rdtsc();
 
 			const auto stop_ns = m_timer->ns_since_boot();
 
