@@ -411,10 +411,10 @@ namespace Kernel
 		uint32_t    least_max_load_threads = static_cast<uint32_t>(-1);
 		for (uint8_t i = 0; i < Processor::count(); i++)
 		{
-			auto processor_id = Processor::id_from_index(i);
+			const auto processor_id = Processor::id_from_index(i);
 			if (processor_id == Processor::current_id())
 				continue;
-			const auto& info = s_processor_infos[i];
+			const auto& info = s_processor_infos[processor_id.as_u32()];
 			if (info.idle_time_ns < most_idle_ns || info.max_load_threads > least_max_load_threads)
 				continue;
 			least_loaded_id        = processor_id;
