@@ -16,14 +16,23 @@ CONFIGURE_OPTIONS=(
 
 pre_configure() {
 	llvm_version='20.1.8'
-	llvm_root="$(realpath ../../llvm)/llvm-$llvm_version-$BANAN_ARCH"
-	llvm_lib="$llvm_root/build/lib"
+	llvm_dir_name="llvm-banan_os-$llvm_version-$BANAN_ARCH"
 
-	if [ ! -d "$llvm_lib" ]; then
-		pushd ../../llvm >/dev/null || exit 1
-		./build.sh || exit 1
-		popd >/dev/null
+	if [ ! -d "../$llvm_dir_name" ]; then
+		pushd ..
+
+		if [ ! -f "$llvm_dir_name.tar.gz" ]; then
+			wget "https://bananymous.com/files/$llvm_dir_name.tar.gz" || exit 1
+		fi
+
+		tar xf "$llvm_dir_name.tar.gz" || exit 1
+
+		popd
 	fi
+
+	llvm_abs_path=$(realpath ../$llvm_dir_name || exit 1)
+	llvm_abs_lib="$llvm_abs_path/lib"
+	llvm_abs_inc="$llvm_abs_path/include"
 
 	mkdir -p subprojects/llvm
 
@@ -33,9 +42,9 @@ pre_configure() {
 	echo "cpp = meson.get_compiler('cpp')"                >>$wrap_file
 	echo ""                                               >>$wrap_file
 	echo "_deps = []"                                     >>$wrap_file
-	echo "_search = '$llvm_lib'"                          >>$wrap_file
+	echo "_search = '$llvm_abs_lib'"                      >>$wrap_file
 	echo "foreach d : ["                                  >>$wrap_file
-	for path in $llvm_lib/libLLVM*.a; do
+	for path in $llvm_abs_lib/libLLVM*.a; do
 		name=$(basename $path)
 		echo "    '${name:3:-2}',"                        >>$wrap_file
 	done
@@ -45,8 +54,7 @@ pre_configure() {
 	echo ""                                               >>$wrap_file
 	echo "dep_llvm = declare_dependency("                 >>$wrap_file
 	echo "  include_directories : include_directories("   >>$wrap_file
-	echo "      '$llvm_root/llvm/include',"               >>$wrap_file
-	echo "      '$llvm_root/build/include',"              >>$wrap_file
+	echo "      '$llvm_abs_inc',"                         >>$wrap_file
 	echo "    ),"                                         >>$wrap_file
 	echo "  dependencies : _deps,"                        >>$wrap_file
 	echo "  version : '$llvm_version',"                   >>$wrap_file
