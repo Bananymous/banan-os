@@ -17,6 +17,10 @@ CMAKE_VERSION="cmake-3.26.6-linux-x86_64"
 CMAKE_TAR="$CMAKE_VERSION.tar.gz"
 CMAKE_URL="https://cmake.org/files/v3.26/$CMAKE_TAR"
 
+MESON_VERSION="meson-1.10.0"
+MESON_TAR="$MESON_VERSION.tar.gz"
+MESON_URL="https://github.com/mesonbuild/meson/releases/download/1.10.0/$MESON_TAR"
+
 if [[ -z $BANAN_SYSROOT ]]; then
 	echo "You must set the BANAN_SYSROOT environment variable" >&2
 	exit 1
@@ -68,20 +72,22 @@ enter_clean_build () {
 }
 
 build_binutils () {
-	echo "Building ${BINUTILS_VERSION}"
-
 	cd $BANAN_BUILD_DIR/toolchain
 
 	if [ ! -d $BINUTILS_VERSION ]; then
 		if [ ! -f $BINUTILS_TAR ]; then
+			echo "Downloading ${BINUTILS_TAR}"
 			wget $BINUTILS_URL
 		fi
+		echo "Unpacking ${BINUTILS_TAR}"
 		tar xf $BINUTILS_TAR
 		patch -ruN -p1 -d "$BINUTILS_VERSION" < "$BANAN_TOOLCHAIN_DIR/$BINUTILS_VERSION.patch"
 	fi
 
 	cd $BANAN_BUILD_DIR/toolchain/$BINUTILS_VERSION
 	enter_clean_build
+
+	echo "Building ${BINUTILS_VERSION}"
 
 	../configure \
 		--target="$BANAN_TOOLCHAIN_TRIPLE" \
@@ -98,20 +104,22 @@ build_binutils () {
 }
 
 build_gcc () {
-	echo "Building ${GCC_VERSION}"
-
 	cd $BANAN_BUILD_DIR/toolchain
 
 	if [ ! -d $GCC_VERSION ]; then
 		if [ ! -f $GCC_TAR ]; then
+			echo "Downloading ${GCC_TAR}"
 			wget $GCC_URL
 		fi
+		echo "Unpacking ${GCC_TAR}"
 		tar xf $GCC_TAR
 		patch -ruN -p1 -d "$GCC_VERSION" < "$BANAN_TOOLCHAIN_DIR/$GCC_VERSION.patch"
 	fi
 
 	cd $BANAN_BUILD_DIR/toolchain/$GCC_VERSION
 	enter_clean_build
+
+	echo "Building ${GCC_VERSION}"
 
 	../configure \
 		--target="$BANAN_TOOLCHAIN_TRIPLE" \
@@ -147,20 +155,21 @@ build_libstdcpp () {
 }
 
 build_grub () {
-	echo "Building ${GRUB_VERSION}"
-
 	cd $BANAN_BUILD_DIR/toolchain
 
-	if [ ! -f $GRUB_TAR ]; then
-		wget $GRUB_URL
-	fi
-
 	if [ ! -d $GRUB_VERSION ]; then
+		if [ ! -f $GRUB_TAR ]; then
+			echo "Downloading ${GRUB_TAR}"
+			wget $GRUB_URL
+		fi
+		echo "Unpacking ${GRUB_TAR}"
 		tar xvf $GRUB_TAR
 	fi
 
 	cd $GRUB_VERSION
 	enter_clean_build
+
+	echo "Building ${GRUB_VERSION}"
 
 	../configure \
 		--target="$BANAN_ARCH" \
@@ -174,19 +183,20 @@ build_grub () {
 }
 
 build_cmake() {
-	echo "Downloading ${CMAKE_VERSION}"
-
 	cd $BANAN_BUILD_DIR/toolchain
 
-	if [ ! -f $CMAKE_TAR ]; then
-		wget $CMAKE_URL
-	fi
-
 	if [ ! -d $CMAKE_VERSION ]; then
+		if [ ! -f $CMAKE_TAR ]; then
+			echo "Downloading ${CMAKE_TAR}"
+			wget $CMAKE_URL
+		fi
+		echo "Unpacking ${CMAKE_TAR}"
 		tar xvf $CMAKE_TAR
 	fi
 
 	cd $CMAKE_VERSION
+
+	echo "Building ${CMAKE_VERSION}"
 
 	mkdir -p $BANAN_TOOLCHAIN_PREFIX/bin
 	mkdir -p $BANAN_TOOLCHAIN_PREFIX/share
@@ -195,6 +205,27 @@ build_cmake() {
 	cp -r ./share/* $BANAN_TOOLCHAIN_PREFIX/share/
 
 	cp $BANAN_TOOLCHAIN_DIR/cmake-platform/* $BANAN_TOOLCHAIN_PREFIX/share/cmake-3.26/Modules/Platform/
+}
+
+build_meson() {
+	cd "$BANAN_BUILD_DIR/toolchain"
+
+	if [ ! -d $MESON_VERSION ]; then
+		if [ ! -f $MESON_TAR ]; then
+			echo "Downloading ${MESON_TAR}"
+			wget $MESON_URL
+		fi
+		echo "Unpacking ${MESON_TAR}"
+		tar xvf $MESON_TAR
+	fi
+
+	cd $MESON_VERSION
+
+	echo "Building ${MESON_VERSION}"
+
+	mkdir -p "$BANAN_TOOLCHAIN_PREFIX/bin"
+
+	./packaging/create_zipapp.py --outfile "$BANAN_TOOLCHAIN_PREFIX/bin/meson" --interpreter '/usr/bin/env python3'
 }
 
 BUILD_BINUTILS=1
@@ -241,6 +272,15 @@ if [[ -f $BANAN_TOOLCHAIN_PREFIX/bin/cmake ]]; then
 	fi
 fi
 
+BUILD_MESON=1
+if [[ -f $BANAN_TOOLCHAIN_PREFIX/bin/meson ]]; then
+	echo "You already seem to have a meson installed."
+	read -e -p "Do you want to rebuild it [y/N]? " choice
+	if ! [[ "$choice" == [Yy]* ]]; then
+		BUILD_MESON=0
+	fi
+fi
+
 # delete everything but toolchain
 mkdir -p $BANAN_BUILD_DIR
 find $BANAN_BUILD_DIR -mindepth 1 -maxdepth 1 ! -name toolchain -exec rm -r {} +
@@ -266,6 +306,10 @@ fi
 
 if (($BUILD_CMAKE)); then
 	build_cmake
+fi
+
+if (($BUILD_MESON)); then
+	build_meson
 fi
 
 if (($BUILD_LIBSTDCPP)); then
