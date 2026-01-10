@@ -7,7 +7,6 @@ TAR_CONTENT="SuperTuxKart-$VERSION-src"
 DEPENDENCIES=('SDL2' 'curl' 'openal-soft' 'freetype' 'harfbuzz' 'libvorbis' 'libjpeg' 'libpng' 'zlib')
 
 configure() {
-	return
 	$BANAN_CMAKE -B build -S . -G Ninja --fresh \
 		--toolchain="$BANAN_TOOLCHAIN_DIR/Toolchain.txt" \
 		-DCMAKE_INSTALL_PREFIX=/usr \
