@@ -325,14 +325,6 @@ namespace Kernel
 		Thread::current().load_sse();
 	}
 
-	extern "C" void cpp_yield_handler(InterruptStack* interrupt_stack, InterruptRegisters* interrupt_registers)
-	{
-		// yield is raised through kernel software interrupt
-		ASSERT(!InterruptController::get().is_in_service(IRQ_YIELD - IRQ_VECTOR_BASE));
-		ASSERT(!GDT::is_user_segment(interrupt_stack->cs));
-		Processor::scheduler().reschedule(interrupt_stack, interrupt_registers);
-	}
-
 	extern "C" void cpp_ipi_handler()
 	{
 		ASSERT(InterruptController::get().is_in_service(IRQ_IPI - IRQ_VECTOR_BASE));
@@ -477,7 +469,6 @@ namespace Kernel
 		static_assert(DoubleFault == 8);
 #endif
 
-		idt->register_interrupt_handler(IRQ_YIELD, asm_yield_handler);
 		idt->register_interrupt_handler(IRQ_IPI,   asm_ipi_handler);
 		idt->register_interrupt_handler(IRQ_TIMER, asm_timer_handler);
 #if ARCH(i686)

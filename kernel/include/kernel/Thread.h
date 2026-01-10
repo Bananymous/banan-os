@@ -132,8 +132,7 @@ namespace Kernel
 		size_t virtual_page_count() const { return (m_kernel_stack ? (m_kernel_stack->size() / PAGE_SIZE) : 0) + (m_userspace_stack ? (m_userspace_stack->size() / PAGE_SIZE) : 0); }
 		size_t physical_page_count() const { return virtual_page_count(); }
 
-		InterruptStack& interrupt_stack() { return m_interrupt_stack; }
-		InterruptRegisters& interrupt_registers() { return m_interrupt_registers; }
+		YieldRegisters& yield_registers() { return m_yield_registers; }
 
 		void save_sse();
 		void load_sse();
@@ -173,8 +172,7 @@ namespace Kernel
 
 		SchedulerQueue::Node*      m_scheduler_node       { nullptr };
 
-		InterruptStack             m_interrupt_stack      { };
-		InterruptRegisters         m_interrupt_registers  { };
+		YieldRegisters             m_yield_registers      { };
 
 		siginfo_t                  m_signal_infos[_SIGMAX + 1] { };
 		uint64_t                   m_signal_pending_mask  { 0 };

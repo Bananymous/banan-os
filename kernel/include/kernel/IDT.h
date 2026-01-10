@@ -22,9 +22,8 @@ namespace Kernel
 #if ARCH(i686)
 	constexpr uint8_t IRQ_SYSCALL       = 0xF0;
 #endif
-	constexpr uint8_t IRQ_YIELD         = 0xF1;
-	constexpr uint8_t IRQ_IPI           = 0xF2;
-	constexpr uint8_t IRQ_TIMER         = 0xF3;
+	constexpr uint8_t IRQ_IPI           = 0xF1;
+	constexpr uint8_t IRQ_TIMER         = 0xF2;
 
 #if ARCH(x86_64)
 	struct GateDescriptor

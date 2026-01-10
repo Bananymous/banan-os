@@ -71,16 +71,6 @@ irq_stub:
 	addq $16, %rsp
 	iretq
 
-.global asm_yield_handler
-asm_yield_handler:
-	pushaq 8
-	cld
-	leaq 120(%rsp), %rdi # interrupt stack ptr
-	movq     %rsp,  %rsi # interrupt register ptr
-	call cpp_yield_handler
-	popaq 8
-	iretq
-
 .global asm_ipi_handler
 asm_ipi_handler:
 	pushaq 8

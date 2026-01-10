@@ -57,7 +57,7 @@ namespace Kernel
 		static BAN::ErrorOr<Scheduler*> create();
 		BAN::ErrorOr<void> initialize();
 
-		void reschedule(InterruptStack*, InterruptRegisters*);
+		void reschedule(YieldRegisters*);
 		void reschedule_if_idle();
 
 		void timer_interrupt();

@@ -83,28 +83,6 @@ irq_stub:
 	addl $8, %esp
 	iret
 
-.global asm_yield_handler
-asm_yield_handler:
-	# This can only be called from kernel, so no segment saving is needed
-	pushal
-	cld
-
-	leal 32(%esp), %edi # interrupt stack ptr
-	movl %esp,     %esi # interrupt registers ptr
-
-	movl %esp, %ebp
-	andl $-16, %esp
-
-	subl $8, %esp
-	pushl %esi
-	pushl %edi
-	call cpp_yield_handler
-
-	movl %ebp, %esp
-
-	popal
-	iret
-
 .global asm_ipi_handler
 asm_ipi_handler:
 	pushal

@@ -36,6 +36,7 @@ namespace Kernel
 	static BAN::Array<ProcessorID, 0xFF> s_processor_ids { PROCESSOR_NONE };
 
 	extern "C" void asm_syscall_handler();
+	extern "C" void asm_yield_trampoline(uintptr_t);
 
 	ProcessorID Processor::read_processor_id()
 	{
@@ -556,33 +557,7 @@ namespace Kernel
 		if (!scheduler().is_idle())
 			Thread::current().set_cpu_time_stop();
 
-#if ARCH(x86_64)
-		asm volatile(
-			"movq %%rsp, %%rcx;"
-			"movq %[load_sp], %%rsp;"
-			"int %[yield];"
-			"movq %%rcx, %%rsp;"
-			// NOTE: This is offset by 2 pointers since interrupt without PL change
-			//       does not push SP and SS. This allows accessing "whole" interrupt stack.
-			:: [load_sp]"r"(Processor::current_stack_top() - 2 * sizeof(uintptr_t)),
-			   [yield]"i"(static_cast<int>(IRQ_YIELD)) // WTF GCC 15
-			:  "memory", "rcx"
-		);
-#elif ARCH(i686)
-		asm volatile(
-			"movl %%esp, %%ecx;"
-			"movl %[load_sp], %%esp;"
-			"int %[yield];"
-			"movl %%ecx, %%esp;"
-			// NOTE: This is offset by 2 pointers since interrupt without PL change
-			//       does not push SP and SS. This allows accessing "whole" interrupt stack.
-			:: [load_sp]"r"(Processor::current_stack_top() - 2 * sizeof(uintptr_t)),
-			   [yield]"i"(static_cast<int>(IRQ_YIELD)) // WTF GCC 15
-			:  "memory", "ecx"
-		);
-#else
-		#error
-#endif
+		asm_yield_trampoline(Processor::current_stack_top());
 
 		processor_info.m_start_ns = SystemTimer::get().ns_since_boot();
 

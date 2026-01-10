@@ -26,7 +26,7 @@ namespace Kernel
 
 	extern "C" uintptr_t get_thread_start_sp()
 	{
-		return Thread::current().interrupt_stack().sp;
+		return Thread::current().yield_registers().sp;
 	}
 
 	extern "C" void load_thread_sse()
@@ -179,13 +179,9 @@ namespace Kernel
 		write_to_stack(sp, data);
 		write_to_stack(sp, entry);
 
-		thread->m_interrupt_stack.ip = reinterpret_cast<vaddr_t>(start_kernel_thread);
-		thread->m_interrupt_stack.cs = 0x08;
-		thread->m_interrupt_stack.flags = 0x002;
-		thread->m_interrupt_stack.sp = sp;
-		thread->m_interrupt_stack.ss = 0x10;
-
-		memset(&thread->m_interrupt_registers, 0, sizeof(InterruptRegisters));
+		thread->m_yield_registers = {};
+		thread->m_yield_registers.ip = reinterpret_cast<vaddr_t>(start_kernel_thread);
+		thread->m_yield_registers.sp = sp;
 
 		thread_deleter.disable();
 
@@ -347,20 +343,13 @@ namespace Kernel
 
 		thread->m_state = State::NotStarted;
 
-		thread->m_interrupt_stack.ip = ip;
-		thread->m_interrupt_stack.cs = 0x08;
-		thread->m_interrupt_stack.flags = 0x002;
-		thread->m_interrupt_stack.sp = sp;
-		thread->m_interrupt_stack.ss = 0x10;
-
 		save_sse();
 		memcpy(thread->m_sse_storage, m_sse_storage, sizeof(m_sse_storage));
 
-#if ARCH(x86_64)
-		thread->m_interrupt_registers.rax = 0;
-#elif ARCH(i686)
-		thread->m_interrupt_registers.eax = 0;
-#endif
+		thread->m_yield_registers = {};
+		thread->m_yield_registers.ip = ip;
+		thread->m_yield_registers.sp = sp;
+		thread->m_yield_registers.ret = 0;
 
 		thread_deleter.disable();
 
@@ -498,13 +487,9 @@ namespace Kernel
 			write_to_stack(cur_sp, ip);
 		});
 
-		m_interrupt_stack.ip = reinterpret_cast<vaddr_t>(start_userspace_thread);
-		m_interrupt_stack.cs = 0x08;
-		m_interrupt_stack.flags = 0x002;
-		m_interrupt_stack.sp = kernel_stack_top() - 5 * sizeof(uintptr_t);
-		m_interrupt_stack.ss = 0x10;
-
-		memset(&m_interrupt_registers, 0, sizeof(InterruptRegisters));
+		m_yield_registers = {};
+		m_yield_registers.ip = reinterpret_cast<vaddr_t>(start_userspace_thread);
+		m_yield_registers.sp = kernel_stack_top() - 5 * sizeof(uintptr_t);
 	}
 
 	void Thread::setup_process_cleanup()
@@ -539,13 +524,9 @@ namespace Kernel
 			write_to_stack(sp, entry);
 		});
 
-		m_interrupt_stack.ip = reinterpret_cast<vaddr_t>(start_kernel_thread);
-		m_interrupt_stack.cs = 0x08;
-		m_interrupt_stack.flags = 0x002;
-		m_interrupt_stack.sp = kernel_stack_top() - 4 * sizeof(uintptr_t);
-		m_interrupt_stack.ss = 0x10;
-
-		memset(&m_interrupt_registers, 0, sizeof(InterruptRegisters));
+		m_yield_registers = {};
+		m_yield_registers.ip = reinterpret_cast<vaddr_t>(start_kernel_thread);
+		m_yield_registers.sp = kernel_stack_top() - 4 * sizeof(uintptr_t);
 	}
 
 	bool Thread::is_interrupted_by_signal(bool skip_stop_and_cont) const
@@ -811,7 +792,7 @@ namespace Kernel
 
 		const vaddr_t stack_bottom = reinterpret_cast<vaddr_t>(m_signal_alt_stack.ss_sp);
 		const vaddr_t stack_top = stack_bottom + m_signal_alt_stack.ss_size;
-		const vaddr_t sp = m_interrupt_stack.sp;
+		const vaddr_t sp = m_yield_registers.sp;
 		return stack_bottom <= sp && sp <= stack_top;
 	}
 

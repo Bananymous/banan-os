@@ -207,7 +207,7 @@ namespace Kernel
 		m_most_loaded_threads.back().queue = nullptr;
 	}
 
-	void Scheduler::reschedule(InterruptStack* interrupt_stack, InterruptRegisters* interrupt_registers)
+	void Scheduler::reschedule(YieldRegisters* yield_registers)
 	{
 		ASSERT(Processor::get_interrupt_state() == InterruptState::Disabled);
 
@@ -232,8 +232,7 @@ namespace Kernel
 				case Thread::State::Executing:
 				{
 					const uint64_t current_ns = SystemTimer::get().ns_since_boot();
-					m_current->thread->interrupt_stack()     = *interrupt_stack;
-					m_current->thread->interrupt_registers() = *interrupt_registers;
+					m_current->thread->yield_registers() = *yield_registers;
 					m_current->time_used_ns += current_ns - m_current->last_start_ns;
 					add_current_to_most_loaded(m_current->blocked ? &m_block_queue : &m_run_queue);
 					if (!m_current->blocked)
@@ -267,8 +266,7 @@ namespace Kernel
 		{
 			if (&PageTable::current() != &PageTable::kernel())
 				PageTable::kernel().load();
-			*interrupt_stack       = m_idle_thread->interrupt_stack();
-			*interrupt_registers   = m_idle_thread->interrupt_registers();
+			*yield_registers = m_idle_thread->yield_registers();
 			m_idle_thread->m_state = Thread::State::Executing;
 			m_idle_start_ns        = SystemTimer::get().ns_since_boot();
 			return;
@@ -296,8 +294,7 @@ namespace Kernel
 			Processor::load_segments();
 		}
 
-		*interrupt_stack     = thread->interrupt_stack();
-		*interrupt_registers = thread->interrupt_registers();
+		*yield_registers = thread->yield_registers();
 
 		m_current->last_start_ns = SystemTimer::get().ns_since_boot();
 	}
@@ -331,6 +328,11 @@ namespace Kernel
 
 		if (!m_run_queue.empty())
 			Processor::yield();
+	}
+
+	extern "C" void scheduler_on_yield(YieldRegisters* yield_registers)
+	{
+		Processor::scheduler().reschedule(yield_registers);
 	}
 
 	void Scheduler::timer_interrupt()
