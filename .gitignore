@@ -3,3 +3,4 @@
 build/
 base/
 script/fakeroot-context
+tools/update-image-perms

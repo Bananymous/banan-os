@@ -20,57 +20,38 @@ if [ -z $BANAN_BUILD_DIR ]; then
 	exit 1
 fi
 
-if [ "$1" == "full" ] || [ ! -f $BANAN_DISK_IMAGE_PATH ]; then
-	$BANAN_SCRIPT_DIR/image-create.sh || exit 1
+if [ "$1" == "full" ] || [ ! -f "$BANAN_DISK_IMAGE_PATH" ]; then
+	"$BANAN_SCRIPT_DIR/image-create.sh" || exit 1
 fi
 
 set -u
 
 MOUNT_DIR="$BANAN_BUILD_DIR/mount"
-mkdir -p $MOUNT_DIR
+mkdir -p "$MOUNT_DIR"
 
-LOOP_DEV="$(sudo losetup --show -Pf $BANAN_DISK_IMAGE_PATH || exit 1)"
+LOOP_DEV="$(sudo losetup --show -Pf "$BANAN_DISK_IMAGE_PATH" || exit 1)"
 ROOT_PARTITION="${LOOP_DEV}p2"
-if [ ! -b $ROOT_PARTITION ]; then
+if [ ! -b "$ROOT_PARTITION" ]; then
 	echo "Failed to probe partitions for banan disk image." >&2
-	sudo losetup -d $LOOP_DEV
+	sudo losetup -d "$LOOP_DEV"
 	exit 1
 fi
 
-if sudo mount $ROOT_PARTITION $MOUNT_DIR; then
+if sudo mount "$ROOT_PARTITION" "$MOUNT_DIR"; then
 	if (($BANAN_INITRD)); then
-		fakeroot -i $BANAN_FAKEROOT tar -C $BANAN_SYSROOT -cf $BANAN_SYSROOT.initrd .
+		fakeroot -i "$BANAN_FAKEROOT" tar -C "$BANAN_SYSROOT" -cf "$BANAN_SYSROOT.initrd" .
 
-		sudo mkdir -p $MOUNT_DIR/boot
-		sudo cp $BANAN_BUILD_DIR/kernel/banan-os.kernel $MOUNT_DIR/boot/banan-os.kernel
-		sudo mv $BANAN_SYSROOT.initrd $MOUNT_DIR/boot/banan-os.initrd
+		sudo mkdir -p "$MOUNT_DIR/boot"
+		sudo cp "$BANAN_BUILD_DIR/kernel/banan-os.kernel" "$MOUNT_DIR/boot/banan-os.kernel"
+		sudo mv "$BANAN_SYSROOT.initrd" "$MOUNT_DIR/boot/banan-os.initrd"
 	else
-		sudo rsync -rulHpt $BANAN_SYSROOT/ $MOUNT_DIR
+		sudo rsync -rulHpt "$BANAN_SYSROOT/" "$MOUNT_DIR"
 
-		fakeroot -i $BANAN_FAKEROOT find $BANAN_SYSROOT -printf './%P|%U|%G|%04m\n' >$BANAN_BUILD_DIR/sysroot-perms.txt
-		sudo bash -c "
-			if enable stat &>/dev/null; then
-				while IFS='|' read -r path uid gid mode; do
-					full=\"$MOUNT_DIR/\$path\"
-					stat \"\$full\"
-					if [[ \${STAT[uid]} != \$uid ]] || [[ \${STAT[gid]} != \$gid ]] || [[ \${STAT[perms]} != \$mode ]]; then
-						chown -h \"\$uid:\$gid\" \"\$full\"
-						test ! -h \"\$full\" && chmod \"\$mode\" \"\$full\"
-					fi
-				done <$BANAN_BUILD_DIR/sysroot-perms.txt
-			else
-				while IFS='|' read -r path uid gid mode; do
-					full=\"$MOUNT_DIR/\$path\"
-					if [[ \$(stat -c '%u %g %a' \"\$full\") != \"\$uid \$gid \$mode\" ]]; then
-						chown -h \"\$uid:\$gid\" \"\$full\"
-						test ! -h \"\$full\" && chmod \"\$mode\" \"\$full\"
-					fi
-				done <$BANAN_BUILD_DIR/sysroot-perms.txt
-			fi
-		"
+		fakeroot -i "$BANAN_FAKEROOT" find "$BANAN_SYSROOT" -printf '%P|%U|%G|%04m\n' >"$BANAN_BUILD_DIR/sysroot-perms.txt"
+		sudo "$BANAN_TOOLS_DIR/update-image-perms" "$MOUNT_DIR" "$BANAN_BUILD_DIR/sysroot-perms.txt"
 	fi
 
-	sudo umount $MOUNT_DIR
+	sudo umount "$MOUNT_DIR"
 fi
 
-sudo losetup -d $LOOP_DEV
+sudo losetup -d "$LOOP_DEV"

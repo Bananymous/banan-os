@@ -19,6 +19,8 @@ export BANAN_BUILD_DIR="$BANAN_ROOT_DIR/build"
 
 export BANAN_PORT_DIR="$BANAN_ROOT_DIR/ports"
 
+export BANAN_TOOLS_DIR="$BANAN_ROOT_DIR/tools"
+
 export BANAN_SYSROOT="$BANAN_BUILD_DIR/sysroot"
 
 export BANAN_FAKEROOT="$BANAN_BUILD_DIR/fakeroot-context"

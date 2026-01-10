@@ -42,9 +42,17 @@ build_toolchain () {
 	$BANAN_TOOLCHAIN_DIR/build.sh
 }
 
+build_tools() {
+	perm_tool="$BANAN_TOOLS_DIR/update-image-perms"
+	if [ ! -f "$perm_tool" ] || [ "$perm_tool" -ot "$perm_tool.c" ]; then
+		gcc -O2 -Wall -Wextra -Werror -o "$perm_tool" "$perm_tool.c" || exit 1
+	fi
+}
+
 create_image () {
 	build_target all
 	build_target install
+	build_tools
 	$BANAN_SCRIPT_DIR/image.sh "$1"
 }
 
