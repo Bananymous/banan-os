@@ -1,0 +1,89 @@
+--- SuperTuxKart-1.5/lib/dnsc/dns.c	2025-10-20 00:04:17.000000000 +0300
++++ SuperTuxKart-1.5-x86_64/lib/dnsc/dns.c	2025-11-12 00:49:10.852631032 +0200
+@@ -859,6 +859,10 @@
+ #define DNS_HAVE_SOCKADDR_UN 0
+ #endif
+ 
++#if defined(__banan_os__) && !defined(AF_MAX)
++#define AF_MAX 4
++#endif
++
+ static size_t dns_af_len(int af) {
+ 	static const size_t table[AF_MAX]	= {
+ 		[AF_INET6]	= sizeof (struct sockaddr_in6),
+@@ -1116,7 +1120,7 @@
+ } /* dns_strlcat() */
+ 
+ 
+-#if _WIN32
++#if _WIN32 || defined(__banan_os__)
+ 
+ static char *dns_strsep(char **sp, const char *delim) {
+ 	char *p;
+--- SuperTuxKart-1.5/lib/angelscript/source/as_memory.cpp	2025-10-20 00:04:17.000000000 +0300
++++ SuperTuxKart-1.5-x86_64/lib/angelscript/source/as_memory.cpp	2025-11-12 00:50:56.714916907 +0200
+@@ -38,7 +38,7 @@
+ 
+ #include <stdlib.h>
+ 
+-#if !defined(__APPLE__) && !defined(__SNC__) && !defined(__ghs__) && !defined(__FreeBSD__) && !defined(__OpenBSD__) && !defined(__DragonFly__)
++#if !defined(__APPLE__) && !defined(__SNC__) && !defined(__ghs__) && !defined(__FreeBSD__) && !defined(__OpenBSD__) && !defined(__DragonFly__) && !defined(__banan_os__)
+ #include <malloc.h>
+ #endif
+ 
+--- SuperTuxKart-1.5/src/network/socket_address.cpp	2025-10-20 00:04:17.000000000 +0300
++++ SuperTuxKart-1.5-x86_64/src/network/socket_address.cpp	2025-11-12 01:26:24.915651489 +0200
+@@ -101,11 +101,7 @@
+     }
+ #else
+     m_family = AF_INET;
+-#ifdef __SWITCH__
+     setIP(htonl(ea.host.p0));
+-#else
+-    setIP(htonl(ea.host));
+-#endif
+     setPort(ea.port);
+ #endif
+ }   // SocketAddress(const ENetAddress&)
+@@ -759,7 +755,7 @@
+             ((ip & 0x000000ff) << 24);
+     }
+ #else
+-    ea.host = ((ip & 0xff000000) >> 24) +
++    ea.host.p0 = ((ip & 0xff000000) >> 24) +
+         ((ip & 0x00ff0000) >> 8) + ((ip & 0x0000ff00) << 8) +
+         ((ip & 0x000000ff) << 24);
+ #endif
+--- SuperTuxKart-1.5/src/network/protocols/connect_to_server.cpp	2025-10-20 00:04:17.000000000 +0300
++++ SuperTuxKart-1.5-x86_64/src/network/protocols/connect_to_server.cpp	2025-11-12 01:29:58.572331523 +0200
+@@ -416,7 +416,7 @@
+ #if defined(ENABLE_IPV6) || defined(__SWITCH__)
+         if (enet_ip_not_equal(host->receivedAddress.host, m_server_address.host) ||
+ #else
+-        if (host->receivedAddress.host != m_server_address.host ||
++        if (host->receivedAddress.host.p0 != m_server_address.host.p0 ||
+ #endif
+             host->receivedAddress.port != m_server_address.port)
+         {
+--- SuperTuxKart-1.5/src/network/stk_host.cpp	2025-10-20 00:04:17.000000000 +0300
++++ SuperTuxKart-1.5-x86_64/src/network/stk_host.cpp	2025-11-12 01:32:59.888216438 +0200
+@@ -1012,7 +1012,7 @@
+                 (enet_ip_not_equal(ea_peer_now.host, ea.host) &&
+                 ea_peer_now.port != ea.port))
+ #else
+-                (ea_peer_now.host != ea.host && ea_peer_now.port != ea.port))
++                (ea_peer_now.host.p0 != ea.host.p0 && ea_peer_now.port != ea.port))
+ #endif
+             {
+                 if (packet != NULL)
+--- SuperTuxKart-1.5/src/network/stk_ipv6.cpp	2025-10-20 00:04:17.000000000 +0300
++++ SuperTuxKart-1.5-x86_64/src/network/stk_ipv6.cpp	2025-11-12 01:36:13.071031868 +0200
+@@ -34,7 +34,7 @@
+ 
+ #include <netinet/in.h>
+ #include <arpa/inet.h>
+-#ifndef __SWITCH__
++#if !defined(__SWITCH__) && !defined(__banan_os__)
+ #include <err.h>
+ #endif
+ #include <netdb.h>
