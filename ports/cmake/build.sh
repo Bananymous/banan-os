@@ -6,9 +6,8 @@ DOWNLOAD_URL="https://github.com/Kitware/CMake/releases/download/v$VERSION/cmake
 DEPENDENCIES=('openssl' 'libuv' 'make' 'bash')
 
 configure() {
-	$BANAN_CMAKE \
+	cmake --fresh -B build -S . -G Ninja \
 		--toolchain="$BANAN_TOOLCHAIN_DIR/Toolchain.txt" \
-		-B build -GNinja --fresh \
 		-DCMAKE_INSTALL_PREFIX=/usr \
 		-DCMAKE_USE_OPENSSL=ON \
 		-DCMAKE_USE_SYSTEM_LIBUV=ON \
@@ -18,10 +17,10 @@ configure() {
 }
 
 build() {
-	$BANAN_CMAKE --build build || exit 1
+	cmake --build build || exit 1
 }
 
 install() {
-	$BANAN_CMAKE --install build || exit 1
+	cmake --install build || exit 1
 	cp $BANAN_TOOLCHAIN_DIR/cmake-platform/* $BANAN_SYSROOT/usr/share/cmake-3.26/Modules/Platform/
 }

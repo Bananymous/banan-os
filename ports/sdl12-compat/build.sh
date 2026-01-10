@@ -9,17 +9,16 @@ DEPENDENCIES=('SDL2' 'glu')
 configure() {
 	sed -i 's/CMAKE_INSTALL_FULL_DATAROOTDIR/CMAKE_INSTALL_FULL_DATADIR/' CMakeLists.txt
 
-	$BANAN_CMAKE \
+	cmake --fresh -B build -S . -G Ninja \
 		--toolchain="$BANAN_TOOLCHAIN_DIR/Toolchain.txt" \
-		--fresh -GNinja -S . -B build \
 		-DCMAKE_INSTALL_PREFIX="$BANAN_SYSROOT/usr" \
 		-DSDL2_INCLUDE_DIR="$BANAN_SYSROOT/usr/include/SDL2"
 }
 
 build() {
-	$BANAN_CMAKE --build build || exit 1
+	cmake --build build || exit 1
 }
 
 install() {
-	$BANAN_CMAKE --install build || exit 1
+	cmake --install build || exit 1
 }

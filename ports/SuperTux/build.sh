@@ -7,11 +7,8 @@ TAR_CONTENT="SuperTux-v$VERSION-Source"
 DEPENDENCIES=('boost' 'SDL2' 'SDL2_image' 'curl' 'openal-soft' 'libvorbis' 'freetype' 'physfs' 'glm')
 
 configure() {
-	mkdir -p build
-	pushd build
-	$BANAN_CMAKE \
+	cmake --fresh -B build -S . -G Ninja  \
 		--toolchain="$BANAN_TOOLCHAIN_DIR/Toolchain.txt" \
-		 -G Ninja --fresh .. \
 		-DCMAKE_INSTALL_PREFIX=/usr \
 		-DCMAKE_BUILD_TYPE=Release \
 		-DINSTALL_SUBDIR_BIN=bin \
@@ -19,14 +16,13 @@ configure() {
 		-DENABLE_OPENGL=OFF \
 		-DENABLE_BOOST_STATIC_LIBS=ON \
 		|| exit 1
-	popd
 	# crashes in `std::ostream::sentry::sentry(std::ostream&)` with shared boost
 }
 
 build() {
-	$BANAN_CMAKE --build build || exit 1
+	cmake --build build || exit 1
 }
 
 install() {
-	$BANAN_CMAKE --install build || exit 1
+	cmake --install build || exit 1
 }

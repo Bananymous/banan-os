@@ -6,7 +6,7 @@ DOWNLOAD_URL="https://github.com/kcat/openal-soft/archive/refs/tags/$VERSION.tar
 DEPENDENCIES=('SDL2' 'zlib' 'libsndfile')
 
 configure() {
-	$BANAN_CMAKE -B build -S . -G Ninja --fresh \
+	cmake --fresh -B build -S . -G Ninja \
 		--toolchain="$BANAN_TOOLCHAIN_DIR/Toolchain.txt" \
 		-DCMAKE_INSTALL_PREFIX=/usr \
 		-DCMAKE_BUILD_TYPE=Release \
@@ -17,9 +17,9 @@ configure() {
 }
 
 build() {
-	$BANAN_CMAKE --build build || exit 1
+	cmake --build build || exit 1
 }
 
 install() {
-	$BANAN_CMAKE --install build || exit 1
+	cmake --install build || exit 1
 }

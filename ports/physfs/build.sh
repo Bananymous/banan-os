@@ -6,9 +6,8 @@ DOWNLOAD_URL="https://github.com/icculus/physfs/archive/refs/tags/release-$VERSI
 TAR_CONTENT="physfs-release-$VERSION"
 
 configure() {
-	$BANAN_CMAKE \
+	cmake --fresh -B build -S . -G Ninja \
 		--toolchain="$BANAN_TOOLCHAIN_DIR/Toolchain.txt" \
-		-B build -G Ninja --fresh . \
 		-DCMAKE_INSTALL_PREFIX=/usr \
 		-DCMAKE_BUILD_TYPE=Release \
 		-DPHYSFS_BUILD_TEST=ON \
@@ -17,9 +16,9 @@ configure() {
 }
 
 build() {
-	$BANAN_CMAKE --build build || exit 1
+	cmake --build build || exit 1
 }
 
 install() {
-	$BANAN_CMAKE --install build || exit 1
+	cmake --install build || exit 1
 }

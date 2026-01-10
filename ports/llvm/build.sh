@@ -9,7 +9,7 @@ DEPENDENCIES=('zlib' 'zstd')
 configure() {
 	unset CC CXX LD
 
-	$BANAN_CMAKE -B build -S llvm -G Ninja \
+	cmake --fresh -B build -S llvm -G Ninja \
 		--toolchain="$BANAN_TOOLCHAIN_DIR/Toolchain.txt" \
 		-DCMAKE_BUILD_TYPE=Release \
 		-DCMAKE_INSTALL_PREFIX=/usr \
@@ -24,7 +24,7 @@ configure() {
 }
 
 build() {
-	$BANAN_CMAKE --build build || exit 1
+	cmake --build build || exit 1
 }
 
 install() {
