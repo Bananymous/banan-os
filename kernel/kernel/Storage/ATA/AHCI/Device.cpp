@@ -256,16 +256,16 @@ namespace Kernel
 		fis_command.fis_type = FIS_TYPE_REGISTER_H2D;
 		fis_command.c = 1;
 
-		bool need_extended = lba >= (1 << 28) || sector_count > 0xFF;
-		ASSERT (!need_extended || (m_command_set & ATA_COMMANDSET_LBA48_SUPPORTED));
+		const bool needs_extended = lba >= (1 << 24) || sector_count > 0xFF;
+		ASSERT (!needs_extended || (m_command_set & ATA_COMMANDSET_LBA48_SUPPORTED));
 
 		switch (command)
 		{
 			case Command::Read:
-				fis_command.command = need_extended ? ATA_COMMAND_READ_DMA_EXT : ATA_COMMAND_READ_DMA;
+				fis_command.command = needs_extended ? ATA_COMMAND_READ_DMA_EXT : ATA_COMMAND_READ_DMA;
 				break;
 			case Command::Write:
-				fis_command.command = need_extended ? ATA_COMMAND_WRITE_DMA_EXT : ATA_COMMAND_WRITE_DMA;
+				fis_command.command = needs_extended ? ATA_COMMAND_WRITE_DMA_EXT : ATA_COMMAND_WRITE_DMA;
 				break;
 			default:
 				ASSERT_NOT_REACHED();
