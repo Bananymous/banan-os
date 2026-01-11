@@ -29,11 +29,6 @@ namespace Kernel
 		return Thread::current().yield_registers().sp;
 	}
 
-	extern "C" void load_thread_sse()
-	{
-		Thread::current().load_sse();
-	}
-
 	static pid_t s_next_tid = 1;
 
 	alignas(16) static uint8_t s_default_sse_storage[512];
@@ -51,6 +46,11 @@ namespace Kernel
 			return;
 		}
 
+		const auto state = Processor::get_interrupt_state();
+		Processor::set_interrupt_state(InterruptState::Disabled);
+
+		Processor::enable_sse();
+
 		const uint32_t mxcsr = 0x1F80;
 		asm volatile(
 			"finit;"
@@ -65,6 +65,10 @@ namespace Kernel
 			: [storage]"=m"(s_default_sse_storage)
 			: [mxcsr]"m"(mxcsr)
 		);
+
+		Processor::disable_sse();
+
+		Processor::set_interrupt_state(state);
 
 		s_default_sse_storage_initialized = true;
 	}
@@ -261,6 +265,12 @@ namespace Kernel
 
 	Thread::~Thread()
 	{
+		if (Processor::get_current_sse_thread() == this)
+		{
+			Processor::set_current_sse_thread(nullptr);
+			Processor::disable_sse();
+		}
+
 		if (m_delete_process)
 		{
 			ASSERT(m_process);

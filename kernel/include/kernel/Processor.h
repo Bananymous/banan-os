@@ -120,6 +120,9 @@ namespace Kernel
 		static void update_tsc();
 		static uint64_t ns_since_boot_tsc();
 
+		static Thread* get_current_sse_thread() { return read_gs_sized<Thread*>(offsetof(Processor, m_sse_thread)); };
+		static void set_current_sse_thread(Thread* thread) { write_gs_sized<Thread*>(offsetof(Processor, m_sse_thread), thread); };
+
 		static paddr_t shared_page_paddr() { return s_shared_page_paddr; }
 		static volatile API::SharedPage& shared_page() { return *reinterpret_cast<API::SharedPage*>(s_shared_page_vaddr); }
 
@@ -132,6 +135,21 @@ namespace Kernel
 		static void load_segments();
 		static void load_fsbase();
 		static void load_gsbase();
+
+		static void disable_sse()
+		{
+			uintptr_t dummy;
+#if ARCH(x86_64)
+			asm volatile("movq %%cr0, %0; orq $0x08, %0; movq %0, %%cr0" : "=r"(dummy));
+#elif ARCH(i686)
+			asm volatile("movl %%cr0, %0; orl $0x08, %0; movl %0, %%cr0" : "=r"(dummy));
+#endif
+		}
+
+		static void enable_sse()
+		{
+			asm volatile("clts");
+		}
 
 	private:
 		Processor() = default;
@@ -193,6 +211,8 @@ namespace Kernel
 		uint8_t m_index { 0xFF };
 
 		vaddr_t m_thread_syscall_stack;
+
+		Thread* m_sse_thread { nullptr };
 
 		static constexpr size_t s_stack_size { 4096 };
 		void* m_stack { nullptr };

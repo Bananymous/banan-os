@@ -27,8 +27,6 @@ start_kernel_thread:
 
 .global start_userspace_thread
 start_userspace_thread:
-	call load_thread_sse
-
 	call get_thread_start_sp
 	movq %rax, %rsp
 

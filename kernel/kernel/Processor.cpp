@@ -147,6 +147,8 @@ namespace Kernel
 		ASSERT(processor.m_idt);
 		processor.idt().load();
 
+		disable_sse();
+
 		return processor;
 	}
 

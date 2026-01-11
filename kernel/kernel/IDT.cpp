@@ -177,34 +177,47 @@ namespace Kernel
 		const pid_t tid = Thread::current_tid();
 		const pid_t pid = (tid && Thread::current().has_process()) ? Process::current().pid() : 0;
 
-		const char* process_name = "";
-
-		if (tid)
+		switch (isr)
 		{
-			auto& thread = Thread::current();
-			thread.save_sse();
-
-			if (isr == ISR::PageFault && Thread::current().is_userspace())
+			case ISR::PageFault:
 			{
-				if (pid)
+				if (pid == 0 || !Thread::current().is_userspace())
+					break;
+
+				PageFaultError page_fault_error;
+				page_fault_error.raw = error;
+
+				Processor::set_interrupt_state(InterruptState::Enabled);
+				auto result = Process::current().allocate_page_for_demand_paging(regs->cr2, page_fault_error.write, page_fault_error.instruction);
+				Processor::set_interrupt_state(InterruptState::Disabled);
+
+				if (result.is_error())
 				{
-					PageFaultError page_fault_error;
-					page_fault_error.raw = error;
-
-					Processor::set_interrupt_state(InterruptState::Enabled);
-					auto result = Process::current().allocate_page_for_demand_paging(regs->cr2, page_fault_error.write, page_fault_error.instruction);
-					Processor::set_interrupt_state(InterruptState::Disabled);
-
-					if (!result.is_error() && result.value())
-						goto done;
-
-					if (result.is_error())
-					{
-						dwarnln("Demand paging: {}", result.error());
-						Thread::current().handle_signal(SIGKILL, {});
-						goto done;
-					}
+					dwarnln("Demand paging: {}", result.error());
+					Thread::current().handle_signal(SIGKILL, {});
+					return;
 				}
+
+				if (result.value())
+					return;
+
+				break;
+			}
+			case ISR::DeviceNotAvailable:
+			{
+				if (pid == 0 || !Thread::current().is_userspace())
+					break;
+
+				Processor::enable_sse();
+
+				if (auto* sse_thread = Processor::get_current_sse_thread())
+					sse_thread->save_sse();
+
+				auto* current_thread = &Thread::current();
+				current_thread->load_sse();
+				Processor::set_current_sse_thread(current_thread);
+
+				return;
 			}
 		}
 
@@ -225,8 +238,9 @@ namespace Kernel
 			);
 		}
 
-		if (Thread::current().has_process())
-			process_name = Process::current().name();
+		const char* process_name = (tid && Thread::current().has_process())
+			? Process::current().name()
+			: nullptr;
 
 #if ARCH(x86_64)
 		dwarnln(
@@ -320,9 +334,6 @@ namespace Kernel
 		}
 
 		ASSERT(Thread::current().state() != Thread::State::Terminated);
-
-	done:
-		Thread::current().load_sse();
 	}
 
 	extern "C" void cpp_ipi_handler()
@@ -343,8 +354,6 @@ namespace Kernel
 			asm volatile("cli; 1: hlt; jmp 1b");
 		}
 
-		Thread::current().save_sse();
-
 		ASSERT(InterruptController::get().is_in_service(IRQ_TIMER - IRQ_VECTOR_BASE));
 		InterruptController::get().eoi(IRQ_TIMER - IRQ_VECTOR_BASE);
 
@@ -356,8 +365,6 @@ namespace Kernel
 		auto& current_thread = Thread::current();
 		if (current_thread.can_add_signal_to_execute())
 			current_thread.handle_signal();
-
-		Thread::current().load_sse();
 	}
 
 	extern "C" void cpp_irq_handler(uint32_t irq)
@@ -375,8 +382,6 @@ namespace Kernel
 		if (!InterruptController::get().is_in_service(irq))
 			return;
 
-		Thread::current().save_sse();
-
 		InterruptController::get().eoi(irq);
 		if (auto* handler = s_interruptables[irq])
 			handler->handle_irq();
@@ -390,8 +395,6 @@ namespace Kernel
 		Processor::scheduler().reschedule_if_idle();
 
 		ASSERT(Thread::current().state() != Thread::State::Terminated);
-
-		Thread::current().load_sse();
 	}
 
 	void IDT::register_interrupt_handler(uint8_t index, void (*handler)(), uint8_t ist)

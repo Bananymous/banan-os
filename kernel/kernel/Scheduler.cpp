@@ -294,6 +294,10 @@ namespace Kernel
 			Processor::load_segments();
 		}
 
+		(Processor::get_current_sse_thread() == thread)
+			? Processor::enable_sse()
+			: Processor::disable_sse();
+
 		*yield_registers = thread->yield_registers();
 
 		m_current->last_start_ns = SystemTimer::get().ns_since_boot();
@@ -566,6 +570,14 @@ namespace Kernel
 				m_idle_ns                   += thread_info.node->time_used_ns;
 
 				dprintln_if(DEBUG_SCHEDULER, "CPU {}: sending tid {} to CPU {}", Processor::current_id(), thread_info.node->thread->tid(), least_loaded_id);
+			}
+
+			if (auto* thread = thread_info.node->thread; thread == Processor::get_current_sse_thread())
+			{
+				Processor::enable_sse();
+				thread->save_sse();
+				Processor::set_current_sse_thread(nullptr);
+				Processor::disable_sse();
 			}
 
 			thread_info.node->time_used_ns = 0;
