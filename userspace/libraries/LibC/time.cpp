@@ -62,7 +62,7 @@ int clock_gettime(clockid_t clock_id, struct timespec* tp)
 		if (clock_id == CLOCK_REALTIME)
 			tp->tv_sec += sgettime.realtime_seconds;
 
-		return monotonic_ns;
+		return 0;
 	}
 }
 
