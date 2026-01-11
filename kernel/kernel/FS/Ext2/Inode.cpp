@@ -61,13 +61,13 @@ namespace Kernel
 		const uint32_t inode_blocks_per_fs_block = blksize() / 512;
 		const uint32_t indices_per_fs_block = blksize() / sizeof(uint32_t);
 
+		if (block == 0 && !allocate)
+			return BAN::Optional<uint32_t>();
+
 		if (depth == 0)
 		{
 			if (block == 0)
 			{
-				if (!allocate)
-					return BAN::Optional<uint32_t>();
-
 				block = TRY(m_fs.reserve_free_block(block_group()));
 				m_inode.blocks += inode_blocks_per_fs_block;
 
@@ -87,9 +87,6 @@ namespace Kernel
 			TRY(m_fs.read_block(block, block_buffer));
 		else
 		{
-			if (!allocate)
-				return BAN::Optional<uint32_t>();
-
 			block = TRY(m_fs.reserve_free_block(block_group()));
 			m_inode.blocks += inode_blocks_per_fs_block;
 
