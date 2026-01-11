@@ -1,4 +1,5 @@
 #include <BAN/ScopeGuard.h>
+#include <BAN/Sort.h>
 #include <kernel/FS/Ext2/FileSystem.h>
 #include <kernel/Lock/LockGuard.h>
 
@@ -127,7 +128,7 @@ namespace Kernel
 		{
 			auto block_buffer = TRY(m_buffer_manager.get_buffer());
 
-			if (superblock().rev_level == Ext2::Enum::GOOD_OLD_REV)
+			if ((superblock().rev_level == Ext2::Enum::GOOD_OLD_REV) || !(m_superblock.feature_ro_compat & Ext2::Enum::FEATURE_RO_COMPAT_SPARSE_SUPER))
 			{
 				// In revision 0 all blockgroups contain superblock backup
 				TRY(m_superblock_backups.reserve(number_of_block_groups - 1));
@@ -148,6 +149,8 @@ namespace Kernel
 
 				// We don't really care if this succeeds or not
 				(void)m_superblock_backups.shrink_to_fit();
+
+				BAN::sort::sort(m_superblock_backups.begin(), m_superblock_backups.end());
 			}
 
 			for (uint32_t bg : m_superblock_backups)
@@ -488,14 +491,7 @@ namespace Kernel
 
 		TRY(read_block(bgd_location.block, bgd_buffer));
 
-		auto& bgd = *(Ext2::BlockGroupDescriptor*)(bgd_buffer.data() + bgd_location.offset);
-
-		const uint32_t inode_byte_offset = inode_index * superblock().inode_size;
-		BlockLocation location
-		{
-			.block  = inode_byte_offset / block_size + bgd.inode_table,
-			.offset = inode_byte_offset % block_size
-		};
+		const auto bgd = bgd_buffer.span().slice(bgd_location.offset).as<Ext2::BlockGroupDescriptor>();
 
 #if EXT2_VERIFY_INODE
 		const uint32_t inode_bitmap_block = bgd.inode_bitmap;
@@ -503,14 +499,18 @@ namespace Kernel
 		// NOTE: we can reuse the bgd_buffer since it is not needed anymore
 		auto& inode_bitmap = bgd_buffer;
 
-		read_block(inode_bitmap_block, inode_bitmap.span());
+		TRY(read_block(inode_bitmap_block, inode_bitmap));
 
 		const uint32_t byte = inode_index / 8;
 		const uint32_t bit  = inode_index % 8;
 		ASSERT(inode_bitmap[byte] & (1 << bit));
 #endif
 
-		return location;
+		const uint32_t inode_byte_offset = inode_index * superblock().inode_size;
+		return BlockLocation {
+			.block  = inode_byte_offset / block_size + bgd.inode_table,
+			.offset = inode_byte_offset % block_size
+		};
 	}
 
 	Ext2FS::BlockLocation Ext2FS::locate_block_group_descriptior(uint32_t group_index)
@@ -525,8 +525,7 @@ namespace Kernel
 		// Block Group Descriptor table is in the block after superblock
 		const uint32_t bgd_byte_offset = (superblock().first_data_block + 1) * block_size + sizeof(Ext2::BlockGroupDescriptor) * group_index;
 
-		return
-		{
+		return BlockLocation {
 			.block  = bgd_byte_offset / block_size,
 			.offset = bgd_byte_offset % block_size
 		};
