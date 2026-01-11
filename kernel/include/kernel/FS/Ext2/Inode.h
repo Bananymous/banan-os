@@ -70,6 +70,7 @@ namespace Kernel
 
 		BAN::ErrorOr<void> cleanup_indirect_block(uint32_t block, uint32_t depth);
 		BAN::ErrorOr<void> cleanup_default_links();
+		BAN::ErrorOr<void> cleanup_data_blocks();
 		BAN::ErrorOr<void> cleanup_from_fs();
 
 		BAN::ErrorOr<void> sync();

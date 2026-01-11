@@ -171,8 +171,10 @@ namespace Kernel
 	BAN::ErrorOr<void> Ext2Inode::set_link_target_impl(BAN::StringView target)
 	{
 		ASSERT(mode().iflnk());
-		if (m_inode.size < sizeof(m_inode.block) && target.size() < sizeof(m_inode.block))
+		if (target.size() < sizeof(m_inode.block))
 		{
+			if (m_inode.size >= sizeof(m_inode.block))
+				TRY(cleanup_data_blocks());
 			memset(m_inode.block, 0, sizeof(m_inode.block));
 			memcpy(m_inode.block, target.data(), target.size());
 			m_inode.size = target.size();
@@ -412,10 +414,8 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<void> Ext2Inode::cleanup_from_fs()
+	BAN::ErrorOr<void> Ext2Inode::cleanup_data_blocks()
 	{
-		ASSERT(m_inode.links_count == 0);
-
 		if (mode().iflnk() && (size_t)size() < sizeof(m_inode.block))
 			goto done;
 
@@ -436,12 +436,16 @@ done:
 		// mark blocks as deleted
 		memset(m_inode.block, 0x00, sizeof(m_inode.block));
 
-		// FIXME: this is only required since fs does not get
-		//        deleting inode from its cache
 		TRY(sync());
 
-		TRY(m_fs.delete_inode(ino()));
+		return {};
+	}
 
+	BAN::ErrorOr<void> Ext2Inode::cleanup_from_fs()
+	{
+		ASSERT(m_inode.links_count == 0);
+		TRY(cleanup_data_blocks());
+		TRY(m_fs.delete_inode(ino()));
 		return {};
 	}
 
