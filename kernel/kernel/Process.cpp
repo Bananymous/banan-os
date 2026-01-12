@@ -3160,9 +3160,9 @@ namespace Kernel
 				futex_t* const futex = it->value.ptr();
 
 				futex->waiters++;
-				BAN::ScopeGuard _([&futexes, futex, paddr] {
-					if (--futex->waiters == 0)
-						futexes.remove(paddr);
+				BAN::ScopeGuard _([futex] {
+					// TODO: Lazily deallocate unused futex objects at some point (?)
+					futex->waiters--;
 				});
 
 				for (;;)
