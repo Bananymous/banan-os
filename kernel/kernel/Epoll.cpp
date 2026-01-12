@@ -128,16 +128,18 @@ namespace Kernel
 				{
 					auto& [inode, events] = *it;
 
-#define REMOVE_IT_AND_CONTINUE() \
+#define REMOVE_IT() \
 					({ \
 						m_processing_events.remove(it); \
+						if (event_count > 0) \
+							break; \
 						it = m_processing_events.begin(); \
 						continue; \
 					})
 
 					auto listen_it = m_listening_events.find(inode);
 					if (listen_it == m_listening_events.end())
-						REMOVE_IT_AND_CONTINUE();
+						REMOVE_IT();
 					auto& listen = listen_it->value;
 
 					{
@@ -149,7 +151,7 @@ namespace Kernel
 					}
 
 					if (events == 0)
-						REMOVE_IT_AND_CONTINUE();
+						REMOVE_IT();
 
 					{
 						LockGuard inode_locker(inode->m_mutex);
@@ -165,9 +167,9 @@ namespace Kernel
 					}
 
 					if (events == 0)
-						REMOVE_IT_AND_CONTINUE();
+						REMOVE_IT();
 
-#undef REMOVE_IT_AND_CONTINUE
+#undef REMOVE_IT
 
 					for (size_t fd = 0; fd < listen.events.size() && event_count < event_span.size(); fd++)
 					{
