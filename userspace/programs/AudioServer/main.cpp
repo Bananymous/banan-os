@@ -5,8 +5,8 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/epoll.h>
 #include <sys/ioctl.h>
-#include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/un.h>
@@ -119,12 +119,24 @@ int main()
 	if (server_fd == -1)
 		return 1;
 
-	struct ClientInfo
+	const int epoll_fd = epoll_create1(0);
+	if (epoll_fd == -1)
 	{
-		int fd;
-	};
+		dwarnln("failed to create epoll: {}", strerror(errno));
+		return 1;
+	}
 
-	BAN::Vector<ClientInfo> clients;
+	{
+		epoll_event event {
+			.events = EPOLLIN,
+			.data = { .fd = server_fd },
+		};
+		if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, server_fd, &event) == -1)
+		{
+			dwarnln("failed to add server socket to epoll: {}", strerror(errno));
+			return -1;
+		}
+	}
 
 	dprintln("AudioServer started");
 
@@ -132,67 +144,70 @@ int main()
 
 	for (;;)
 	{
-		fd_set fds;
-		FD_ZERO(&fds);
-		FD_SET(server_fd, &fds);
-
-		int max_fd = server_fd;
-		for (const auto& client : clients)
-		{
-			max_fd = BAN::Math::max(max_fd, client.fd);
-			FD_SET(client.fd, &fds);
-		}
-
 		const uint64_t current_ms = get_current_ms();
 		next_update_ms = current_ms + audio_server->update();
 
 		const uint64_t timeout_ms = next_update_ms - current_ms;
 
-		timeval timeout {
-			.tv_sec = static_cast<time_t>(timeout_ms / 1000),
-			.tv_usec = static_cast<suseconds_t>((timeout_ms % 1000) * 1000)
-		};
-		if (select(max_fd + 1, &fds, nullptr, nullptr, &timeout) == -1)
+		epoll_event events[16];
+		int event_count = epoll_wait(epoll_fd, events, 16, timeout_ms);
+		if (event_count == -1 && errno != EINTR)
 		{
-			dwarnln("select: {}", strerror(errno));
+			dwarnln("epoll_wait: {}", strerror(errno));
 			break;
 		}
 
-		if (FD_ISSET(server_fd, &fds))
+		for (int i = 0; i < event_count; i++)
 		{
-			const int client_fd = accept(server_fd, nullptr, nullptr);
-			if (client_fd == -1)
+			if (events[i].data.fd == server_fd)
 			{
-				dwarnln("accept: {}", strerror(errno));
+				ASSERT(events[i].events & EPOLLIN);
+
+				const int client_fd = accept(server_fd, nullptr, nullptr);
+				if (client_fd == -1)
+				{
+					dwarnln("accept: {}", strerror(errno));
+					continue;
+				}
+
+				epoll_event event {
+					.events = EPOLLIN,
+					.data = { .fd = client_fd },
+				};
+				if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, client_fd, &event) == -1)
+				{
+					dwarnln("Failed to add client to epoll: {}", strerror(errno));
+					close(client_fd);
+					continue;
+				}
+
+				if (auto ret = audio_server->on_new_client(client_fd); ret.is_error())
+				{
+					dwarnln("Failed to initialize client: {}", ret.error());
+					epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_fd, nullptr);
+					close(client_fd);
+					continue;
+				}
+
 				continue;
 			}
 
-			if (auto ret = clients.emplace_back(client_fd); ret.is_error())
+			const int client_fd = events[i].data.fd;
+
+			if (events[i].events & EPOLLHUP)
 			{
-				dwarnln("Failed to add client: {}", ret.error());
+				audio_server->on_client_disconnect(client_fd);
+				epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_fd, nullptr);
 				close(client_fd);
 				continue;
 			}
 
-			if (auto ret = audio_server->on_new_client(client_fd); ret.is_error())
-			{
-				dwarnln("Failed to initialize client: {}", ret.error());
-				clients.pop_back();
-				close(client_fd);
-				continue;
-			}
-		}
-
-		for (size_t i = 0; i < clients.size(); i++)
-		{
-			auto& client = clients[i];
-			if (!FD_ISSET(client.fd, &fds))
-				continue;
+			ASSERT(events[i].events & EPOLLIN);
 
 			LibAudio::Packet packet;
-			const ssize_t nrecv = recv(client.fd, &packet, sizeof(packet), 0);
+			const ssize_t nrecv = recv(client_fd, &packet, sizeof(packet), 0);
 
-			if (nrecv < static_cast<ssize_t>(sizeof(packet)) || !audio_server->on_client_packet(client.fd, packet))
+			if (nrecv < static_cast<ssize_t>(sizeof(packet)) || !audio_server->on_client_packet(client_fd, packet))
 			{
 				if (nrecv == 0)
 					;
@@ -201,10 +216,9 @@ int main()
 				else if (nrecv < static_cast<ssize_t>(sizeof(packet)))
 					dwarnln("client sent only {} bytes, {} expected", nrecv, sizeof(packet));
 
-				audio_server->on_client_disconnect(client.fd);
-				close(client.fd);
-				clients.remove(i--);
-				continue;
+				audio_server->on_client_disconnect(client_fd);
+				epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_fd, nullptr);
+				close(client_fd);
 			}
 		}
 	}
