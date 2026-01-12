@@ -81,8 +81,9 @@ namespace LibGUI
 		int server_fd() const { return m_server_fd; }
 
 	private:
-		Window(int server_fd, Attributes attributes)
+		Window(int server_fd, int epoll_fd, Attributes attributes)
 			: m_server_fd(server_fd)
+			, m_epoll_fd(epoll_fd)
 			, m_attributes(attributes)
 		{ }
 
@@ -93,6 +94,7 @@ namespace LibGUI
 
 	private:
 		const int m_server_fd;
+		const int m_epoll_fd;
 
 		bool m_handling_socket_error { false };
 

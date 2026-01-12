@@ -5,8 +5,8 @@
 #include <fcntl.h>
 #include <stdlib.h>
 #include <sys/banan-os.h>
+#include <sys/epoll.h>
 #include <sys/mman.h>
-#include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
@@ -67,6 +67,18 @@ namespace LibGUI
 			return BAN::Error::from_errno(errno);
 		BAN::ScopeGuard server_closer([server_fd] { close(server_fd); });
 
+		int epoll_fd = epoll_create1(EPOLL_CLOEXEC);
+		if (epoll_fd == -1)
+			return BAN::Error::from_errno(errno);
+		BAN::ScopeGuard epoll_closer([epoll_fd] { close(epoll_fd); });
+
+		epoll_event epoll_event {
+			.events = EPOLLIN,
+			.data = { .fd = server_fd },
+		};
+		if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, server_fd, &epoll_event) == -1)
+			return BAN::Error::from_errno(errno);
+
 		if (fcntl(server_fd, F_SETFD, fcntl(server_fd, F_GETFD) | FD_CLOEXEC) == -1)
 			return BAN::Error::from_errno(errno);
 
@@ -100,7 +112,7 @@ namespace LibGUI
 		TRY(create_packet.title.append(title));
 		TRY(create_packet.send_serialized(server_fd));
 
-		auto window = TRY(BAN::UniqPtr<Window>::create(server_fd, attributes));
+		auto window = TRY(BAN::UniqPtr<Window>::create(server_fd, epoll_fd, attributes));
 
 		bool resized = false;
 		window->set_resize_window_event_callback([&]() { resized = true; });
@@ -109,6 +121,7 @@ namespace LibGUI
 		window->set_resize_window_event_callback({});
 
 		server_closer.disable();
+		epoll_closer.disable();
 
 		return window;
 	}
@@ -261,6 +274,7 @@ namespace LibGUI
 	{
 		munmap(m_framebuffer_smo, m_width * m_height * 4);
 		close(m_server_fd);
+		close(m_epoll_fd);
 	}
 
 	BAN::ErrorOr<void> Window::handle_resize_event(const EventPacket::ResizeWindowEvent& event)
@@ -289,10 +303,8 @@ namespace LibGUI
 
 	void Window::wait_events()
 	{
-		fd_set fds;
-		FD_ZERO(&fds);
-		FD_SET(m_server_fd, &fds);
-		select(m_server_fd + 1, &fds, nullptr, nullptr, nullptr);
+		epoll_event dummy;
+		epoll_wait(m_epoll_fd, &dummy, 1, -1);
 	}
 
 	void Window::poll_events()
@@ -300,13 +312,8 @@ namespace LibGUI
 #define TRY_OR_BREAK(...) ({ auto&& e = (__VA_ARGS__); if (e.is_error()) break; e.release_value(); })
 		for (;;)
 		{
-			fd_set fds;
-			FD_ZERO(&fds);
-			FD_SET(m_server_fd, &fds);
-			timeval timeout { .tv_sec = 0, .tv_usec = 0 };
-			select(m_server_fd + 1, &fds, nullptr, nullptr, &timeout);
-
-			if (!FD_ISSET(m_server_fd, &fds))
+			epoll_event event;
+			if (epoll_wait(m_epoll_fd, &event, 1, 0) == 0)
 				break;
 
 			auto packet_or_error = recv_packet(m_server_fd);
