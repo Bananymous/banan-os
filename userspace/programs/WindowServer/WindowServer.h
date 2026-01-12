@@ -15,8 +15,6 @@
 #include <LibInput/KeyEvent.h>
 #include <LibInput/MouseEvent.h>
 
-#include <sys/select.h>
-
 class WindowServer
 {
 public:
@@ -58,8 +56,7 @@ public:
 
 	void add_client_fd(int fd);
 	void remove_client_fd(int fd);
-	int get_client_fds(fd_set& fds) const;
-	void for_each_client_fd(const BAN::Function<BAN::Iteration(int, ClientData&)>& callback);
+	ClientData& get_client_data(int fd);
 
 	bool is_stopped() const { return m_is_stopped; }
 
@@ -114,7 +111,6 @@ private:
 
 	bool m_is_mouse_relative { false };
 
-	bool m_deleted_window { false };
 	bool m_is_stopped { false };
 	bool m_is_bouncing_window = false;
 

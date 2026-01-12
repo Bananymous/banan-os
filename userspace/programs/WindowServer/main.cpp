@@ -9,9 +9,9 @@
 #include <fcntl.h>
 #include <stdlib.h>
 #include <sys/banan-os.h>
+#include <sys/epoll.h>
 #include <sys/mman.h>
 #include <sys/socket.h>
-#include <sys/select.h>
 #include <sys/stat.h>
 #include <sys/un.h>
 #include <unistd.h>
@@ -157,10 +157,29 @@ int main()
 		return 1;
 	}
 
+	int epoll_fd = epoll_create1(EPOLL_CLOEXEC);
+	if (epoll_fd == -1)
+	{
+		dwarnln("epoll_create1: {}", strerror(errno));
+		return 1;
+	}
+
+	{
+		epoll_event event {
+			.events = EPOLLIN,
+			.data = { .fd = server_fd },
+		};
+		if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, server_fd, &event) == -1)
+		{
+			dwarnln("epoll_ctl server: {}", strerror(errno));
+			return 1;
+		}
+	}
+
 	if (tty_ctrl(STDIN_FILENO, TTY_CMD_UNSET, TTY_FLAG_ENABLE_INPUT) == -1)
 	{
-		perror("tty_ctrl");
-		exit(1);
+		dwarnln("tty_ctrl: {}", strerror(errno));
+		return 1;
 	}
 
 	atexit([]() { tty_ctrl(STDIN_FILENO, TTY_CMD_SET, TTY_FLAG_ENABLE_INPUT); });
@@ -188,11 +207,37 @@ int main()
 
 	int keyboard_fd = open("/dev/keyboard", O_RDONLY | O_CLOEXEC);
 	if (keyboard_fd == -1)
-		perror("open");
+		dwarnln("open keyboard: {}", strerror(errno));
+	else
+	{
+		epoll_event event {
+			.events = EPOLLIN,
+			.data = { .fd = keyboard_fd },
+		};
+		if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, keyboard_fd, &event) == -1)
+		{
+			dwarnln("epoll_ctl keyboard: {}", strerror(errno));
+			close(keyboard_fd);
+			keyboard_fd = -1;
+		}
+	}
 
 	int mouse_fd = open("/dev/mouse", O_RDONLY | O_CLOEXEC);
 	if (mouse_fd == -1)
-		perror("open");
+		dwarnln("open mouse: {}", strerror(errno));
+	else
+	{
+		epoll_event event {
+			.events = EPOLLIN,
+			.data = { .fd = mouse_fd },
+		};
+		if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, mouse_fd, &event) == -1)
+		{
+			dwarnln("epoll_ctl mouse: {}", strerror(errno));
+			close(mouse_fd);
+			mouse_fd = -1;
+		}
+	}
 
 	dprintln("Window server started");
 
@@ -208,11 +253,11 @@ int main()
 		{
 			timespec current_ts;
 			clock_gettime(CLOCK_MONOTONIC, &current_ts);
-			return (current_ts.tv_sec * 1'000'000) + (current_ts.tv_nsec / 1'000);
+			return (current_ts.tv_sec * 1'000'000) + (current_ts.tv_nsec / 1000);
 		};
 
 	constexpr uint64_t sync_interval_us = 1'000'000 / 60;
-	uint64_t last_sync_us = 0;
+	uint64_t last_sync_us = get_current_us() - sync_interval_us;
 	while (!window_server.is_stopped())
 	{
 		const auto current_us = get_current_us();
@@ -222,168 +267,182 @@ int main()
 			last_sync_us += sync_interval_us;
 		}
 
-		int max_fd = server_fd;
-
-		fd_set fds;
-		FD_ZERO(&fds);
-		FD_SET(server_fd, &fds);
-		if (keyboard_fd != -1)
-		{
-			FD_SET(keyboard_fd, &fds);
-			max_fd = BAN::Math::max(max_fd, keyboard_fd);
-		}
-		if (mouse_fd != -1)
-		{
-			FD_SET(mouse_fd, &fds);
-			max_fd = BAN::Math::max(max_fd, mouse_fd);
-		}
-		max_fd = BAN::Math::max(max_fd, window_server.get_client_fds(fds));
-
-		timeval select_timeout {};
+		timespec timeout = {};
 		if (auto current_us = get_current_us(); current_us - last_sync_us < sync_interval_us)
-			select_timeout.tv_usec = sync_interval_us - (current_us - last_sync_us);
+			timeout.tv_nsec = (sync_interval_us - (current_us - last_sync_us)) * 1000;
 
-		int nselect = select(max_fd + 1, &fds, nullptr, nullptr, &select_timeout);
-		if (nselect == 0)
-			continue;
-		if (nselect == -1)
+		epoll_event events[16];
+		int epoll_events = epoll_pwait2(epoll_fd, events, 16, &timeout, nullptr);
+		if (epoll_events == -1 && errno != EINTR)
 		{
-			dwarnln("select: {}", strerror(errno));
+			dwarnln("epoll_pwait2: {}", strerror(errno));
 			break;
 		}
 
-		if (FD_ISSET(server_fd, &fds))
+		for (int i = 0; i < epoll_events; i++)
 		{
-			int window_fd = accept4(server_fd, nullptr, nullptr, SOCK_NONBLOCK | SOCK_CLOEXEC);
-			if (window_fd == -1)
+			if (events[i].data.fd == server_fd)
 			{
-				dwarnln("accept: {}", strerror(errno));
-				continue;
-			}
-			window_server.add_client_fd(window_fd);
-		}
+				ASSERT(events[i].events & EPOLLIN);
 
-		if (keyboard_fd != -1 && FD_ISSET(keyboard_fd, &fds))
-		{
-			LibInput::RawKeyEvent event;
-			if (read(keyboard_fd, &event, sizeof(event)) == -1)
-			{
-				perror("read");
-				continue;
-			}
-			window_server.on_key_event(LibInput::KeyboardLayout::get().key_event_from_raw(event));
-		}
-
-		if (mouse_fd != -1 && FD_ISSET(mouse_fd, &fds))
-		{
-			LibInput::MouseEvent event;
-			if (read(mouse_fd, &event, sizeof(event)) == -1)
-			{
-				perror("read");
-				continue;
-			}
-			switch (event.type)
-			{
-				case LibInput::MouseEventType::MouseButtonEvent:
-					window_server.on_mouse_button(event.button_event);
-					break;
-				case LibInput::MouseEventType::MouseMoveEvent:
-					window_server.on_mouse_move(event.move_event);
-					break;
-				case LibInput::MouseEventType::MouseMoveAbsEvent:
-					window_server.on_mouse_move_abs(event.move_abs_event);
-					break;
-				case LibInput::MouseEventType::MouseScrollEvent:
-					window_server.on_mouse_scroll(event.scroll_event);
-					break;
-			}
-		}
-
-		window_server.for_each_client_fd(
-			[&](int fd, WindowServer::ClientData& client_data) -> BAN::Iteration
-			{
-				if (!FD_ISSET(fd, &fds))
-					return BAN::Iteration::Continue;
-
-				if (client_data.packet_buffer.empty())
+				int window_fd = accept4(server_fd, nullptr, nullptr, SOCK_NONBLOCK | SOCK_CLOEXEC);
+				if (window_fd == -1)
 				{
-					uint32_t packet_size;
-					const ssize_t nrecv = recv(fd, &packet_size, sizeof(uint32_t), 0);
-					if (nrecv < 0)
-						dwarnln("recv: {}", strerror(errno));
-					if (nrecv > 0 && nrecv != sizeof(uint32_t))
-						dwarnln("could not read packet size with a single recv call, closing connection...");
-					if (nrecv != sizeof(uint32_t))
-					{
-						window_server.remove_client_fd(fd);
-						return BAN::Iteration::Continue;
-					}
-
-					if (packet_size < 4)
-					{
-						dwarnln("client sent invalid packet, closing connection...");
-						return BAN::Iteration::Continue;
-					}
-
-					// this is a bit harsh, but i don't want to work on skipping streaming packets
-					if (client_data.packet_buffer.resize(packet_size).is_error())
-					{
-						dwarnln("could not allocate memory for client packet, closing connection...");
-						window_server.remove_client_fd(fd);
-						return BAN::Iteration::Continue;
-					}
-
-					client_data.packet_buffer_nread = 0;
-					return BAN::Iteration::Continue;
+					dwarnln("accept: {}", strerror(errno));
+					continue;
 				}
 
-				const ssize_t nrecv = recv(
-					fd,
-					client_data.packet_buffer.data() + client_data.packet_buffer_nread,
-					client_data.packet_buffer.size() - client_data.packet_buffer_nread,
-					0
-				);
+				epoll_event event {
+					.events = EPOLLIN,
+					.data = { .fd = window_fd },
+				};
+				if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, window_fd, &event) == -1)
+				{
+					dwarnln("epoll_ctl: {}", strerror(errno));
+					close(window_fd);
+					continue;
+				}
+
+				window_server.add_client_fd(window_fd);
+				continue;
+			}
+
+			if (events[i].data.fd == keyboard_fd)
+			{
+				ASSERT(events[i].events & EPOLLIN);
+
+				LibInput::RawKeyEvent event;
+				if (read(keyboard_fd, &event, sizeof(event)) == -1)
+				{
+					dwarnln("read keyboard: {}", strerror(errno));
+					continue;
+				}
+				window_server.on_key_event(LibInput::KeyboardLayout::get().key_event_from_raw(event));
+				continue;
+			}
+
+			if (events[i].data.fd == mouse_fd)
+			{
+				ASSERT(events[i].events & EPOLLIN);
+
+				LibInput::MouseEvent event;
+				if (read(mouse_fd, &event, sizeof(event)) == -1)
+				{
+					dwarnln("read mouse: {}", strerror(errno));
+					continue;
+				}
+				switch (event.type)
+				{
+					case LibInput::MouseEventType::MouseButtonEvent:
+						window_server.on_mouse_button(event.button_event);
+						break;
+					case LibInput::MouseEventType::MouseMoveEvent:
+						window_server.on_mouse_move(event.move_event);
+						break;
+					case LibInput::MouseEventType::MouseMoveAbsEvent:
+						window_server.on_mouse_move_abs(event.move_abs_event);
+						break;
+					case LibInput::MouseEventType::MouseScrollEvent:
+						window_server.on_mouse_scroll(event.scroll_event);
+						break;
+				}
+				continue;
+			}
+
+			const int client_fd = events[i].data.fd;
+			if (events[i].events & EPOLLHUP)
+			{
+				epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_fd, nullptr);
+				window_server.remove_client_fd(client_fd);
+				continue;
+			}
+
+			ASSERT(events[i].events & EPOLLIN);
+
+			auto& client_data = window_server.get_client_data(client_fd);
+
+			if (client_data.packet_buffer.empty())
+			{
+				uint32_t packet_size;
+				const ssize_t nrecv = recv(client_fd, &packet_size, sizeof(uint32_t), 0);
 				if (nrecv < 0)
-					dwarnln("recv: {}", strerror(errno));
-				if (nrecv <= 0)
+					dwarnln("recv 1: {}", strerror(errno));
+				if (nrecv > 0 && nrecv != sizeof(uint32_t))
+					dwarnln("could not read packet size with a single recv call, closing connection...");
+				if (nrecv != sizeof(uint32_t))
 				{
-					window_server.remove_client_fd(fd);
-					return BAN::Iteration::Continue;
+					epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_fd, nullptr);
+					window_server.remove_client_fd(client_fd);
+					break;
 				}
 
-				client_data.packet_buffer_nread += nrecv;
-				if (client_data.packet_buffer_nread < client_data.packet_buffer.size())
-					return BAN::Iteration::Continue;
-
-				ASSERT(client_data.packet_buffer.size() >= sizeof(uint32_t));
-
-				switch (*reinterpret_cast<LibGUI::PacketType*>(client_data.packet_buffer.data()))
+				if (packet_size < 4)
 				{
-#define WINDOW_PACKET_CASE(enum, function) \
-					case LibGUI::PacketType::enum: \
-						if (auto ret = LibGUI::WindowPacket::enum::deserialize(client_data.packet_buffer.span()); !ret.is_error()) \
-							window_server.function(fd, ret.release_value()); \
-						break
-					WINDOW_PACKET_CASE(WindowCreate,           on_window_create);
-					WINDOW_PACKET_CASE(WindowInvalidate,       on_window_invalidate);
-					WINDOW_PACKET_CASE(WindowSetPosition,      on_window_set_position);
-					WINDOW_PACKET_CASE(WindowSetAttributes,    on_window_set_attributes);
-					WINDOW_PACKET_CASE(WindowSetMouseRelative, on_window_set_mouse_relative);
-					WINDOW_PACKET_CASE(WindowSetSize,          on_window_set_size);
-					WINDOW_PACKET_CASE(WindowSetMinSize,       on_window_set_min_size);
-					WINDOW_PACKET_CASE(WindowSetMaxSize,       on_window_set_max_size);
-					WINDOW_PACKET_CASE(WindowSetFullscreen,    on_window_set_fullscreen);
-					WINDOW_PACKET_CASE(WindowSetTitle,         on_window_set_title);
-					WINDOW_PACKET_CASE(WindowSetCursor,        on_window_set_cursor);
-#undef WINDOW_PACKET_CASE
-					default:
-						dprintln("unhandled packet type: {}", *reinterpret_cast<uint32_t*>(client_data.packet_buffer.data()));
+					dwarnln("client sent invalid packet, closing connection...");
+					epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_fd, nullptr);
+					window_server.remove_client_fd(client_fd);
+					break;
 				}
 
-				client_data.packet_buffer.clear();
+				// this is a bit harsh, but i don't want to work on skipping streaming packets
+				if (client_data.packet_buffer.resize(packet_size).is_error())
+				{
+					dwarnln("could not allocate memory for client packet, closing connection...");
+					epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_fd, nullptr);
+					window_server.remove_client_fd(client_fd);
+					break;
+				}
+
 				client_data.packet_buffer_nread = 0;
-				return BAN::Iteration::Continue;
+				continue;
 			}
-		);
+
+			const ssize_t nrecv = recv(
+				client_fd,
+				client_data.packet_buffer.data() + client_data.packet_buffer_nread,
+				client_data.packet_buffer.size() - client_data.packet_buffer_nread,
+				0
+			);
+			if (nrecv < 0)
+				dwarnln("recv 2: {}", strerror(errno));
+			if (nrecv <= 0)
+			{
+				epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_fd, nullptr);
+				window_server.remove_client_fd(client_fd);
+				break;
+			}
+
+			client_data.packet_buffer_nread += nrecv;
+			if (client_data.packet_buffer_nread < client_data.packet_buffer.size())
+				continue;
+
+			ASSERT(client_data.packet_buffer.size() >= sizeof(uint32_t));
+
+			switch (*reinterpret_cast<LibGUI::PacketType*>(client_data.packet_buffer.data()))
+			{
+#define WINDOW_PACKET_CASE(enum, function) \
+				case LibGUI::PacketType::enum: \
+					if (auto ret = LibGUI::WindowPacket::enum::deserialize(client_data.packet_buffer.span()); !ret.is_error()) \
+						window_server.function(client_fd, ret.release_value()); \
+					break
+				WINDOW_PACKET_CASE(WindowCreate,           on_window_create);
+				WINDOW_PACKET_CASE(WindowInvalidate,       on_window_invalidate);
+				WINDOW_PACKET_CASE(WindowSetPosition,      on_window_set_position);
+				WINDOW_PACKET_CASE(WindowSetAttributes,    on_window_set_attributes);
+				WINDOW_PACKET_CASE(WindowSetMouseRelative, on_window_set_mouse_relative);
+				WINDOW_PACKET_CASE(WindowSetSize,          on_window_set_size);
+				WINDOW_PACKET_CASE(WindowSetMinSize,       on_window_set_min_size);
+				WINDOW_PACKET_CASE(WindowSetMaxSize,       on_window_set_max_size);
+				WINDOW_PACKET_CASE(WindowSetFullscreen,    on_window_set_fullscreen);
+				WINDOW_PACKET_CASE(WindowSetTitle,         on_window_set_title);
+				WINDOW_PACKET_CASE(WindowSetCursor,        on_window_set_cursor);
+#undef WINDOW_PACKET_CASE
+				default:
+					dprintln("unhandled packet type: {}", *reinterpret_cast<uint32_t*>(client_data.packet_buffer.data()));
+			}
+
+			client_data.packet_buffer.clear();
+			client_data.packet_buffer_nread = 0;
+		}
 	}
 }

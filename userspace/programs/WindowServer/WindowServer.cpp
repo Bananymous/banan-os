@@ -1460,28 +1460,17 @@ void WindowServer::remove_client_fd(int fd)
 			break;
 		}
 	}
-
-	m_deleted_window = true;
 }
 
-int WindowServer::get_client_fds(fd_set& fds) const
+WindowServer::ClientData& WindowServer::get_client_data(int fd)
 {
-	int max_fd = 0;
-	for (const auto& [fd, _] : m_client_data)
-	{
-		FD_SET(fd, &fds);
-		max_fd = BAN::Math::max(max_fd, fd);
-	}
-	return max_fd;
-}
+	auto it = m_client_data.find(fd);
+	if (it != m_client_data.end())
+		return it->value;
 
-void WindowServer::for_each_client_fd(const BAN::Function<BAN::Iteration(int, ClientData&)>& callback)
-{
-	m_deleted_window = false;
-	for (auto& [fd, cliend_data] : m_client_data)
-	{
-		if (m_deleted_window)
-			break;
-		callback(fd, cliend_data);
-	}
+	dwarnln("could not find client {}", fd);
+	for (auto& [client_fd, _] : m_client_data)
+		dwarnln("  {}", client_fd);
+
+	ASSERT_NOT_REACHED();
 }
