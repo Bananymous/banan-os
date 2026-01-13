@@ -348,6 +348,7 @@ namespace Kernel
 
 		struct futex_t
 		{
+			Mutex mutex;
 			ThreadBlocker blocker;
 			uint32_t waiters { 0 };
 			uint32_t to_wakeup { 0 };

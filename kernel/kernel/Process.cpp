@@ -3142,10 +3142,31 @@ namespace Kernel
 				return SystemTimer::get().ns_since_boot() + (abs_ns - real_ns);
 			}());
 
-		auto& futex_lock = is_private ? m_futex_lock : s_futex_lock;
-		auto& futexes = is_private ? m_futexes : s_futexes;
+		if (op == FUTEX_WAIT && BAN::atomic_load(*addr) != val)
+			return BAN::Error::from_errno(EAGAIN);
 
-		LockGuard _(futex_lock);
+		futex_t* futex;
+
+		{
+			auto& futex_lock = is_private ? m_futex_lock : s_futex_lock;
+			auto& futexes = is_private ? m_futexes : s_futexes;
+
+			LockGuard _(futex_lock);
+
+			auto it = futexes.find(paddr);
+			if (it != futexes.end())
+				futex = it->value.ptr();
+			else switch (op)
+			{
+				case FUTEX_WAIT:
+					futex = TRY(futexes.emplace(paddr, TRY(BAN::UniqPtr<futex_t>::create())))->value.ptr();
+					break;
+				case FUTEX_WAKE:
+					return 0;
+			}
+		}
+
+		LockGuard _(futex->mutex);
 
 		switch (op)
 		{
@@ -3154,20 +3175,17 @@ namespace Kernel
 				if (BAN::atomic_load(*addr) != val)
 					return BAN::Error::from_errno(EAGAIN);
 
-				auto it = futexes.find(paddr);
-				if (it == futexes.end())
-					it = TRY(futexes.emplace(paddr, TRY(BAN::UniqPtr<futex_t>::create())));
-				futex_t* const futex = it->value.ptr();
-
 				futex->waiters++;
-				BAN::ScopeGuard _([futex] {
-					// TODO: Lazily deallocate unused futex objects at some point (?)
-					futex->waiters--;
-				});
+
+				// TODO: Deallocate unused futex objects at some point (?)
+				//       We don't want to do it on every operation as allocation
+				//       and deletion slows this down a lot and the same addresses
+				//       will be probably used again
+				BAN::ScopeGuard cleanup([futex] { futex->waiters--; });
 
 				for (;;)
 				{
-					TRY(Thread::current().block_or_eintr_or_waketime_ns(futex->blocker, wake_time_ns, true, &futex_lock));
+					TRY(Thread::current().block_or_eintr_or_waketime_ns(futex->blocker, wake_time_ns, true, &futex->mutex));
 					if (BAN::atomic_load(*addr) == val || futex->to_wakeup == 0)
 						continue;
 					futex->to_wakeup--;
@@ -3176,18 +3194,16 @@ namespace Kernel
 			}
 			case FUTEX_WAKE:
 			{
-				auto it = futexes.find(paddr);
-				if (it == futexes.end())
-					return 0;
-				futex_t* const futex = it->value.ptr();
-
 				if (BAN::Math::will_addition_overflow(futex->to_wakeup, val))
 					futex->to_wakeup = BAN::numeric_limits<uint32_t>::max();
 				else
 					futex->to_wakeup += val;
 
 				futex->to_wakeup = BAN::Math::min(futex->to_wakeup, futex->waiters);
-				futex->blocker.unblock();
+
+				if (futex->to_wakeup > 0)
+					futex->blocker.unblock();
+
 				return 0;
 			}
 		}
