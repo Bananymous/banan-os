@@ -1,17 +1,17 @@
-From 2b3a0198640c23a7f8f8247ed1edae309c11e15f Mon Sep 17 00:00:00 2001
+From 49d1ca61e6249c3bc3284a6b55578b4ddd7b13ac Mon Sep 17 00:00:00 2001
 From: Oskari Alaranta <oskari.alaranta@bananymous.com>
-Date: Thu, 31 Jul 2025 22:15:43 +0300
-Subject: [PATCH 1/2] add support for banan-os
+Date: Tue, 13 Jan 2026 20:49:19 +0200
+Subject: [PATCH] add support for banan-os
 
 ---
- engine/common/net_http.c          |  4 +++-
- engine/common/net_ws.c            | 17 +++++++++++++++++
- engine/common/whereami.c          | 16 ++++++++++++++++
- engine/platform/posix/lib_posix.c |  2 ++
- public/build.c                    |  2 ++
- public/build.h                    |  3 +++
- public/buildenums.h               |  3 +++
- 7 files changed, 46 insertions(+), 1 deletion(-)
+ engine/common/net_http.c    | 4 +++-
+ engine/common/net_ws.c      | 6 ++++++
+ engine/common/whereami.c    | 2 +-
+ engine/platform/posix/net.h | 4 ++++
+ public/build.c              | 2 ++
+ public/build.h              | 3 +++
+ public/buildenums.h         | 3 +++
+ 7 files changed, 22 insertions(+), 2 deletions(-)
 
 diff --git a/engine/common/net_http.c b/engine/common/net_http.c
 index ff6fd41b..ebb5bbad 100644
@@ -36,23 +36,10 @@ index ff6fd41b..ebb5bbad 100644
  	res = fcntl( file->socket, F_GETFL, 0 );
  
 diff --git a/engine/common/net_ws.c b/engine/common/net_ws.c
-index 7ee4cba0..e93a2410 100644
+index 7ee4cba0..b44d5cf1 100644
 --- a/engine/common/net_ws.c
 +++ b/engine/common/net_ws.c
-@@ -1364,7 +1364,12 @@ static qboolean NET_QueuePacket( netsrc_t sock, netadr_t *from, byte *data, size
- 	byte		buf[NET_MAX_FRAGMENT];
- 	int		ret, protocol;
- 	int		net_socket;
-+#ifdef XASH_BANAN_OS
-+	socklen_t	addr_len;
-+#else
- 	WSAsize_t	addr_len;
-+#endif
-+
- 	struct sockaddr_storage	addr = { 0 };
- 
- 	*length = 0;
-@@ -1617,7 +1622,11 @@ static int NET_IPSocket( const char *net_iface, int port, int family )
+@@ -1617,7 +1617,11 @@ static int NET_IPSocket( const char *net_iface, int port, int family )
  	if( family == AF_INET6 )
  		pfamily = PF_INET6;
  
@@ -64,7 +51,7 @@ index 7ee4cba0..e93a2410 100644
  	{
  		err = WSAGetLastError();
  		if( err != WSAEAFNOSUPPORT )
-@@ -1625,6 +1634,7 @@ static int NET_IPSocket( const char *net_iface, int port, int family )
+@@ -1625,6 +1629,7 @@ static int NET_IPSocket( const char *net_iface, int port, int family )
  		return INVALID_SOCKET;
  	}
  
@@ -72,7 +59,7 @@ index 7ee4cba0..e93a2410 100644
  	if( NET_IsSocketError( ioctlsocket( net_socket, FIONBIO, (void*)&_true )))
  	{
  		struct timeval timeout;
-@@ -1634,6 +1644,7 @@ static int NET_IPSocket( const char *net_iface, int port, int family )
+@@ -1634,6 +1639,7 @@ static int NET_IPSocket( const char *net_iface, int port, int family )
  		timeout.tv_sec = timeout.tv_usec = 0;
  		setsockopt( net_socket, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout));
  	}
@@ -80,81 +67,34 @@ index 7ee4cba0..e93a2410 100644
  
  	// make it broadcast capable
  	if( NET_IsSocketError( setsockopt( net_socket, SOL_SOCKET, SO_BROADCAST, (char *)&_true, sizeof( _true ))))
-@@ -1686,6 +1697,7 @@ static int NET_IPSocket( const char *net_iface, int port, int family )
- 			optval = 0x10; // IPTOS_LOWDELAY
- 			Con_Printf( "Enabling LOWDELAY TOS option\n" );
- 
-+#ifdef IP_TOS
- 			if( NET_IsSocketError( setsockopt( net_socket, IPPROTO_IP, IP_TOS, (const char *)&optval, sizeof( optval ))))
- 			{
- 				err = WSAGetLastError();
-@@ -1694,6 +1706,7 @@ static int NET_IPSocket( const char *net_iface, int port, int family )
- 				closesocket( net_socket );
- 				return INVALID_SOCKET;
- 			}
-+#endif
- 		}
- 
- 		if( Sys_CheckParm( "-loopback" ))
-@@ -1801,7 +1814,11 @@ static void NET_DetermineLocalAddress( void )
- 	char		hostname[512];
- 	char		buff[512];
- 	struct sockaddr_storage	address;
-+#ifdef XASH_BANAN_OS
-+	socklen_t		namelen;
-+#else
- 	WSAsize_t		namelen;
-+#endif
- 	const char		*net_addr_string;
- 
- 	memset( &net_local, 0, sizeof( netadr_t ));
 diff --git a/engine/common/whereami.c b/engine/common/whereami.c
-index 31726774..5b7ff504 100644
+index 31726774..69a6cb9f 100644
 --- a/engine/common/whereami.c
 +++ b/engine/common/whereami.c
-@@ -851,6 +851,22 @@ int WAI_PREFIX(getModulePath)(char* out, int capacity, int* dirname_length)
-   return -1;
+@@ -175,7 +175,7 @@ int WAI_PREFIX(getModulePath)(char* out, int capacity, int* dirname_length)
+   return length;
  }
  
-+#elif defined(__banan_os__)
-+
-+/* Not possible on this platform */
-+
-+WAI_FUNCSPEC
-+int WAI_PREFIX(getExecutablePath)(char* out, int capacity, int* dirname_length)
-+{
-+  return -1;
-+}
-+
-+WAI_FUNCSPEC
-+int WAI_PREFIX(getModulePath)(char* out, int capacity, int* dirname_length)
-+{
-+  return -1;
-+}
-+
- #else
+-#elif defined(__linux__) || defined(__CYGWIN__) || defined(__sun) || defined(__serenity__) || defined(WAI_USE_PROC_SELF_EXE)
++#elif defined(__linux__) || defined(__CYGWIN__) || defined(__sun) || defined(__serenity__) || defined(__banan_os__) || defined(WAI_USE_PROC_SELF_EXE)
  
- #error unsupported platform
-diff --git a/engine/platform/posix/lib_posix.c b/engine/platform/posix/lib_posix.c
-index 23d1c3b1..a5a84fe1 100644
---- a/engine/platform/posix/lib_posix.c
-+++ b/engine/platform/posix/lib_posix.c
-@@ -208,6 +208,7 @@ const char *COM_NameForFunction( void *hInstance, void *function )
- 		return Loader_GetFuncName_int(wm, function);
- 	else
+ #include <stdio.h>
+ #include <stdlib.h>
+diff --git a/engine/platform/posix/net.h b/engine/platform/posix/net.h
+index 58532927..6ab3cd1f 100644
+--- a/engine/platform/posix/net.h
++++ b/engine/platform/posix/net.h
+@@ -90,6 +90,10 @@ static int ioctl_stub( int d, unsigned long r, ... )
+ #define closesocket close
  #endif
-+#ifndef XASH_BANAN_OS
- 	// NOTE: dladdr() is a glibc extension
- 	{
- 		Dl_info info = {0};
-@@ -215,6 +216,7 @@ const char *COM_NameForFunction( void *hInstance, void *function )
- 		if( ret && info.dli_sname )
- 			return COM_GetPlatformNeutralName( info.dli_sname );
- 	}
+ #define SOCKET int
++#if XASH_BANAN_OS
++typedef socklen_t WSAsize_t;
++#else
+ typedef int WSAsize_t;
 +#endif
- #ifdef XASH_ALLOW_SAVERESTORE_OFFSETS
- 	return COM_OffsetNameForFunction( function );
- #else
+ 
+ #endif // NET_H
 diff --git a/public/build.c b/public/build.c
 index 6c85bbaf..460b4040 100644
 --- a/public/build.c
@@ -211,5 +151,5 @@ index 4dc327d3..57585f73 100644
  	#error
  #endif
 -- 
-2.50.1
+2.52.0
 
