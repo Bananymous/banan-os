@@ -60,8 +60,13 @@ namespace Kernel
 			Kernel::panic("Trying to initialize invalid processor {}", id.m_id);
 
 		if (id == s_bsp_id)
+		{
 			for (auto& processor : s_processors)
+			{
 				processor.m_id = PROCESSOR_NONE;
+				processor.m_index = 0xFF;
+			}
+		}
 
 		auto& processor = s_processors[id.m_id];
 

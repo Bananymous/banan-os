@@ -209,7 +209,7 @@ namespace Kernel
 		static vaddr_t              s_shared_page_vaddr;
 
 		ProcessorID m_id { 0 };
-		uint8_t m_index { 0xFF };
+		uint8_t m_index { 0 };
 
 		vaddr_t m_thread_syscall_stack;
 
