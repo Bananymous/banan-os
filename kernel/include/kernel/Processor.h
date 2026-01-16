@@ -46,6 +46,7 @@ namespace Kernel
 				{
 					uintptr_t vaddr;
 					size_t page_count;
+					void* page_table;
 				} flush_tlb;
 				SchedulerQueue::Node* new_thread;
 				SchedulerQueue::Node* unblock_thread;

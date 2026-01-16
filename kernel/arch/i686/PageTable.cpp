@@ -221,7 +221,7 @@ namespace Kernel
 		ASSERT(!(pt[pte] & Flags::Present));
 		pt[pte] = paddr | Flags::ReadWrite | Flags::Present;
 
-		invalidate(fast_page(), false);
+		asm volatile("invlpg (%0)" :: "r"(fast_page()) : "memory");
 	}
 
 	void PageTable::unmap_fast_page()
@@ -241,7 +241,7 @@ namespace Kernel
 		ASSERT(pt[pte] & Flags::Present);
 		pt[pte] = 0;
 
-		invalidate(fast_page(), false);
+		asm volatile("invlpg (%0)" :: "r"(fast_page()) : "memory");
 	}
 
 	BAN::ErrorOr<PageTable*> PageTable::create_userspace()
@@ -314,7 +314,8 @@ namespace Kernel
 				.type = Processor::SMPMessage::Type::FlushTLB,
 				.flush_tlb = {
 					.vaddr      = vaddr,
-					.page_count = 1
+					.page_count = 1,
+					.page_table = vaddr < KERNEL_OFFSET ? this : nullptr,
 				}
 			});
 		}
@@ -343,8 +344,12 @@ namespace Kernel
 		uint64_t* pd   = reinterpret_cast<uint64_t*>(P2V(pdpt[pdpte] & PAGE_ADDR_MASK));
 		uint64_t* pt   = reinterpret_cast<uint64_t*>(P2V(pd[pde] & PAGE_ADDR_MASK));
 
+		const paddr_t old_paddr = pt[pte] & PAGE_ADDR_MASK;
+
 		pt[pte] = 0;
-		invalidate(vaddr, send_smp_message);
+
+		if (old_paddr != 0)
+			invalidate(vaddr, send_smp_message);
 	}
 
 	void PageTable::unmap_range(vaddr_t vaddr, size_t size)
@@ -361,7 +366,8 @@ namespace Kernel
 			.type = Processor::SMPMessage::Type::FlushTLB,
 			.flush_tlb = {
 				.vaddr      = vaddr,
-				.page_count = page_count
+				.page_count = page_count,
+				.page_table = vaddr < KERNEL_OFFSET ? this : nullptr,
 			}
 		});
 	}
@@ -417,9 +423,13 @@ namespace Kernel
 			uwr_flags &= ~Flags::Present;
 
 		uint64_t* pt = reinterpret_cast<uint64_t*>(P2V(pd[pde] & PAGE_ADDR_MASK));
+
+		const paddr_t old_paddr = pt[pte] & PAGE_ADDR_MASK;
+
 		pt[pte] = paddr | uwr_flags | extra_flags;
 
-		invalidate(vaddr, send_smp_message);
+		if (old_paddr != 0)
+			invalidate(vaddr, send_smp_message);
 	}
 
 	void PageTable::map_range_at(paddr_t paddr, vaddr_t vaddr, size_t size, flags_t flags, MemoryType memory_type)
@@ -438,7 +448,8 @@ namespace Kernel
 			.type = Processor::SMPMessage::Type::FlushTLB,
 			.flush_tlb = {
 				.vaddr      = vaddr,
-				.page_count = page_count
+				.page_count = page_count,
+				.page_table = vaddr < KERNEL_OFFSET ? this : nullptr,
 			}
 		});
 	}
@@ -523,6 +534,7 @@ namespace Kernel
 			.flush_tlb = {
 				.vaddr      = vaddr,
 				.page_count = bytes / PAGE_SIZE,
+				.page_table = vaddr < KERNEL_OFFSET ? this : nullptr,
 			}
 		});
 		return true;

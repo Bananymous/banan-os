@@ -370,6 +370,8 @@ namespace Kernel
 			switch (message->type)
 			{
 				case SMPMessage::Type::FlushTLB:
+					if (message->flush_tlb.page_table && message->flush_tlb.page_table != processor.m_current_page_table)
+						break;
 					for (size_t i = 0; i < message->flush_tlb.page_count; i++)
 						asm volatile("invlpg (%0)" :: "r"(message->flush_tlb.vaddr + i * PAGE_SIZE) : "memory");
 					break;

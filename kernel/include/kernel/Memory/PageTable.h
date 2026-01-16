@@ -133,7 +133,7 @@ namespace Kernel
 		void map_kernel_memory();
 		void prepare_fast_page();
 
-		static void invalidate(vaddr_t, bool send_smp_message);
+		void invalidate(vaddr_t, bool send_smp_message);
 
 		static void map_fast_page(paddr_t);
 		static void unmap_fast_page();
