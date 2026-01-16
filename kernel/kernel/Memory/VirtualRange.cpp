@@ -148,11 +148,11 @@ namespace Kernel
 		if (m_preallocated)
 			return false;
 
+		SpinLockGuard _(m_lock);
+
 		const size_t index = (vaddr - this->vaddr()) / PAGE_SIZE;
 		if (m_paddrs[index])
 			return false;
-
-		SpinLockGuard _(m_lock);
 
 		m_paddrs[index] = Heap::get().take_free_page();
 		if (m_paddrs[index] == 0)

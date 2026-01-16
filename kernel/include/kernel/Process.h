@@ -9,6 +9,7 @@
 #include <kernel/ELF.h>
 #include <kernel/FS/Inode.h>
 #include <kernel/Lock/Mutex.h>
+#include <kernel/Lock/RWLock.h>
 #include <kernel/Memory/Heap.h>
 #include <kernel/Memory/MemoryRegion.h>
 #include <kernel/Memory/SharedMemoryObject.h>
@@ -272,17 +273,20 @@ namespace Kernel
 		};
 
 		// Adds new region to the sorted array of mapped regions
+		// You must hold writer end of m_mapped_region_lock when calling this.
 		BAN::ErrorOr<void> add_mapped_region(BAN::UniqPtr<MemoryRegion>&&);
 		// If address is contained by a region, returns the index of that.
 		// Otherwise returns the address of the first region after this address.
+		// You must hold reader end of m_mapped_region_lock when calling this.
 		size_t find_mapped_region(vaddr_t) const;
 
 		BAN::ErrorOr<VirtualFileSystem::File> find_file(int fd, const char* path, int flags) const;
 		BAN::ErrorOr<FileParent> find_parent_file(int fd, const char* path, int flags) const;
 		BAN::ErrorOr<VirtualFileSystem::File> find_relative_parent(int fd, const char* path) const;
 
-		BAN::ErrorOr<void> validate_string_access(const char*);
-		BAN::ErrorOr<void> validate_pointer_access(const void*, size_t, bool needs_write);
+		BAN::ErrorOr<void> read_from_user(const void* user_addr, void* out, size_t size);
+		BAN::ErrorOr<void> read_string_from_user(const char* user_addr, char* out, size_t max_size);
+		BAN::ErrorOr<void> write_to_user(void* user_addr, const void* in, size_t size);
 		BAN::ErrorOr<MemoryRegion*> validate_and_pin_pointer_access(const void*, size_t, bool needs_write);
 
 		uint64_t signal_pending_mask() const
@@ -327,6 +331,7 @@ namespace Kernel
 
 		OpenFileDescriptorSet m_open_file_descriptors;
 
+		mutable RWLock m_memory_region_lock;
 		BAN::Vector<BAN::UniqPtr<MemoryRegion>> m_mapped_regions;
 
 		pid_t m_sid;

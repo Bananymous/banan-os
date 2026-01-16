@@ -16,6 +16,7 @@
 namespace Kernel
 {
 
+	class MemoryBackedRegion;
 	class Process;
 
 	class Thread
@@ -103,9 +104,7 @@ namespace Kernel
 		vaddr_t kernel_stack_top() const	{ return m_kernel_stack->vaddr() + m_kernel_stack->size(); }
 		VirtualRange& kernel_stack() { return *m_kernel_stack; }
 
-		vaddr_t userspace_stack_bottom() const	{ return is_userspace() ? m_userspace_stack->vaddr() : UINTPTR_MAX; }
-		vaddr_t userspace_stack_top() const		{ return is_userspace() ? m_userspace_stack->vaddr() + m_userspace_stack->size() : 0; }
-		VirtualRange& userspace_stack() { ASSERT(is_userspace()); return *m_userspace_stack; }
+		MemoryBackedRegion& userspace_stack() { ASSERT(is_userspace() && m_userspace_stack); return *m_userspace_stack; }
 
 		static Thread& current();
 		static pid_t current_tid();
@@ -129,7 +128,7 @@ namespace Kernel
 		void set_gsbase(vaddr_t base) { m_gsbase = base; }
 		vaddr_t get_gsbase() const { return m_gsbase; }
 
-		size_t virtual_page_count() const { return (m_kernel_stack ? (m_kernel_stack->size() / PAGE_SIZE) : 0) + (m_userspace_stack ? (m_userspace_stack->size() / PAGE_SIZE) : 0); }
+		size_t virtual_page_count() const { return m_kernel_stack ? (m_kernel_stack->size() / PAGE_SIZE) : 0; }
 		size_t physical_page_count() const { return virtual_page_count(); }
 
 		YieldRegisters& yield_registers() { return m_yield_registers; }
@@ -160,7 +159,7 @@ namespace Kernel
 		BAN::UniqPtr<PageTable>    m_keep_alive_page_table;
 
 		BAN::UniqPtr<VirtualRange> m_kernel_stack;
-		BAN::UniqPtr<VirtualRange> m_userspace_stack;
+		MemoryBackedRegion*        m_userspace_stack      { nullptr };
 		const pid_t                m_tid                  { 0 };
 		State                      m_state                { State::NotStarted };
 		Process*                   m_process              { nullptr };

@@ -1,4 +1,5 @@
 #include <BAN/ScopeGuard.h>
+#include <BAN/Sort.h>
 #include <BAN/StringView.h>
 #include <kernel/ACPI/ACPI.h>
 #include <kernel/ELF.h>
@@ -125,7 +126,9 @@ namespace Kernel
 		auto executable_inode = executable_file.inode;
 
 		auto executable = TRY(ELF::load_from_inode(process->m_root_file.inode, executable_inode, process->m_credentials, process->page_table()));
-		process->m_mapped_regions = BAN::move(executable.regions);
+		for (auto& region : executable.regions)
+			TRY(process->add_mapped_region(BAN::move(region)));
+		executable.regions.clear();
 
 		TRY(process->m_executable.append(executable_file.canonical_path));
 
@@ -250,6 +253,7 @@ namespace Kernel
 		ProcFileSystem::get().on_process_delete(*this);
 
 		m_process_lock.lock();
+		m_memory_region_lock.wr_lock();
 
 		m_open_file_descriptors.close_all();
 
@@ -261,6 +265,17 @@ namespace Kernel
 
 	bool Process::on_thread_exit(Thread& thread)
 	{
+		{
+			RWLockWRGuard _(m_memory_region_lock);
+
+			const size_t index = find_mapped_region(thread.userspace_stack().vaddr());
+			ASSERT(m_mapped_regions[index].ptr() == thread.m_userspace_stack);
+
+			m_mapped_regions.remove(index);
+
+			thread.m_userspace_stack = nullptr;
+		}
+
 		LockGuard _(m_process_lock);
 
 		ASSERT(m_threads.size() > 0);
@@ -468,6 +483,9 @@ namespace Kernel
 				meminfo.virt_pages += thread->virtual_page_count();
 				meminfo.phys_pages += thread->physical_page_count();
 			}
+		}
+		{
+			RWLockRDGuard _(m_memory_region_lock);
 			for (auto& region : m_mapped_regions)
 			{
 				meminfo.virt_pages += region->virtual_page_count();
@@ -534,7 +552,7 @@ namespace Kernel
 
 	BAN::ErrorOr<VirtualFileSystem::File> Process::find_file(int fd, const char* path, int flags) const
 	{
-		ASSERT(m_process_lock.is_locked());
+		LockGuard _(m_process_lock);
 
 		auto parent_file = TRY(find_relative_parent(fd, path));
 		auto file = path
@@ -546,7 +564,7 @@ namespace Kernel
 
 	BAN::ErrorOr<Process::FileParent> Process::find_parent_file(int fd, const char* path, int flags) const
 	{
-		ASSERT(m_process_lock.is_locked());
+		LockGuard _(m_process_lock);
 
 		if (path && path[0] == '\0')
 			return BAN::Error::from_errno(ENOENT);
@@ -607,36 +625,34 @@ namespace Kernel
 		ASSERT_NOT_REACHED();
 	}
 
-	BAN::ErrorOr<long> Process::sys_tcgetattr(int fildes, termios* termios)
+	BAN::ErrorOr<long> Process::sys_tcgetattr(int fildes, termios* user_termios)
 	{
-		LockGuard _(m_process_lock);
-
-		TRY(validate_pointer_access(termios, sizeof(struct termios), true));
-
 		auto inode = TRY(m_open_file_descriptors.inode_of(fildes));
 		if (!inode->is_tty())
 			return BAN::Error::from_errno(ENOTTY);
 
-		static_cast<TTY*>(inode.ptr())->get_termios(termios);
+		struct termios termios;
+		static_cast<TTY*>(inode.ptr())->get_termios(&termios);
+
+		TRY(write_to_user(user_termios, &termios, sizeof(struct termios)));
 
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_tcsetattr(int fildes, int optional_actions, const termios* termios)
+	BAN::ErrorOr<long> Process::sys_tcsetattr(int fildes, int optional_actions, const termios* user_termios)
 	{
 		//if (optional_actions != TCSANOW)
 		//	return BAN::Error::from_errno(EINVAL);
 		(void)optional_actions;
 
-		LockGuard _(m_process_lock);
-
-		TRY(validate_pointer_access(termios, sizeof(struct termios), false));
-
 		auto inode = TRY(m_open_file_descriptors.inode_of(fildes));
 		if (!inode->is_tty())
 			return BAN::Error::from_errno(ENOTTY);
 
-		TRY(static_cast<TTY*>(inode.ptr())->set_termios(termios));
+		termios termios;
+		TRY(read_from_user(user_termios, &termios, sizeof(struct termios)));
+
+		TRY(static_cast<TTY*>(inode.ptr())->set_termios(&termios));
 
 		// FIXME: SIGTTOU
 
@@ -687,9 +703,12 @@ namespace Kernel
 		TRY(open_file_descriptors->clone_from(m_open_file_descriptors));
 
 		BAN::Vector<BAN::UniqPtr<MemoryRegion>> mapped_regions;
-		TRY(mapped_regions.reserve(m_mapped_regions.size()));
-		for (auto& mapped_region : m_mapped_regions)
-			MUST(mapped_regions.push_back(TRY(mapped_region->clone(*page_table))));
+		{
+			RWLockRDGuard _(m_memory_region_lock);
+			TRY(mapped_regions.reserve(m_mapped_regions.size()));
+			for (auto& mapped_region : m_mapped_regions)
+				MUST(mapped_regions.push_back(TRY(mapped_region->clone(*page_table))));
+		}
 
 		const vaddr_t shared_page_vaddr = m_shared_page_vaddr;
 		page_table->map_page_at(
@@ -725,7 +744,7 @@ namespace Kernel
 		return forked->pid();
 	}
 
-	BAN::ErrorOr<long> Process::sys_exec(const char* path, const char* const* argv, const char* const* envp)
+	BAN::ErrorOr<long> Process::sys_exec(const char* user_path, const char* const* user_argv, const char* const* user_envp)
 	{
 		// NOTE: We scope everything for automatic deletion
 		{
@@ -733,24 +752,38 @@ namespace Kernel
 
 			auto new_page_table = BAN::UniqPtr<PageTable>::adopt(TRY(PageTable::create_userspace()));
 
-			TRY(validate_string_access(path));
+			char path[PATH_MAX];
+			TRY(read_string_from_user(user_path, path, PATH_MAX));
+
+			BAN::Vector<char> arg_buffer;
+			TRY(arg_buffer.resize(ARG_MAX));
 
 			BAN::Vector<BAN::String> str_argv;
-			for (int i = 0; argv && argv[i]; i++)
+			for (int i = 0; user_argv; i++)
 			{
-				TRY(validate_pointer_access(argv + i, sizeof(char*), false));
-				TRY(validate_string_access(argv[i]));
-				TRY(str_argv.emplace_back());
-				TRY(str_argv.back().append(argv[i]));
+				char* argv_i;
+				TRY(read_from_user(user_argv + i, &argv_i, sizeof(char*)));
+				if (argv_i == nullptr)
+					break;
+
+				BAN::String arg;
+				TRY(read_string_from_user(argv_i, arg_buffer.data(), arg_buffer.size()));
+				TRY(arg.append(BAN::StringView { arg_buffer.data() }));
+				TRY(str_argv.emplace_back(BAN::move(arg)));
 			}
 
 			BAN::Vector<BAN::String> str_envp;
-			for (int i = 0; envp && envp[i]; i++)
+			for (int i = 0; user_envp; i++)
 			{
-				TRY(validate_pointer_access(envp + i, sizeof(char*), false));
-				TRY(validate_string_access(envp[i]));
-				TRY(str_envp.emplace_back());
-				TRY(str_envp.back().append(envp[i]));
+				char* envp_i;
+				TRY(read_from_user(user_envp + i, &envp_i, sizeof(char*)));
+				if (envp_i == nullptr)
+					break;
+
+				BAN::String env;
+				TRY(read_string_from_user(envp_i, arg_buffer.data(), arg_buffer.size()));
+				TRY(env.append(BAN::StringView { arg_buffer.data() }));
+				TRY(str_envp.emplace_back(BAN::move(env)));
 			}
 
 			auto executable_file = TRY(find_file(AT_FDCWD, path, O_EXEC));
@@ -801,7 +834,12 @@ namespace Kernel
 				.a_un = { .a_val = 0 },
 			}));
 
-			auto* new_thread = TRY(Thread::create_userspace(this, *new_page_table));
+			// This is ugly but thread insterts userspace stack to process' memory region
+			BAN::swap(m_mapped_regions, new_mapped_regions);
+			auto new_thread_or_error = Thread::create_userspace(this, *new_page_table);
+			BAN::swap(m_mapped_regions, new_mapped_regions);
+
+			auto* new_thread = TRY(new_thread_or_error);
 			TRY(new_thread->initialize_userspace(
 				executable.entry_point,
 				str_argv.span(),
@@ -821,6 +859,12 @@ namespace Kernel
 #error
 #endif
 			}
+
+			BAN::sort::sort(new_mapped_regions.begin(), new_mapped_regions.end(), [](auto& a, auto& b) {
+				return a->vaddr() < b->vaddr();
+			});
+
+			RWLockWRGuard wr_guard(m_memory_region_lock);
 
 			// NOTE: this is done before disabling interrupts and moving the threads as
 			//       shared filebacked mmap can write to disk on on clearing, this will lock
@@ -882,7 +926,7 @@ namespace Kernel
 		ASSERT_NOT_REACHED();
 	}
 
-	BAN::ErrorOr<long> Process::sys_wait(pid_t pid, int* stat_loc, int options)
+	BAN::ErrorOr<long> Process::sys_wait(pid_t pid, int* user_stat_loc, int options)
 	{
 		if (options & ~(WCONTINUED | WNOHANG | WUNTRACED))
 			return BAN::Error::from_errno(EINVAL);
@@ -952,13 +996,8 @@ namespace Kernel
 			TRY(Thread::current().block_or_eintr_indefinite(m_child_wait_blocker, &smutex));
 		}
 
-		LockGuard _(m_process_lock);
-
-		if (stat_loc)
-		{
-			TRY(validate_pointer_access(stat_loc, sizeof(stat_loc), true));
-			*stat_loc = child_status;
-		}
+		if (user_stat_loc != nullptr)
+			TRY(write_to_user(user_stat_loc, &child_status, sizeof(int)));
 
 		remove_pending_signal(SIGCHLD);
 		return child_pid;
@@ -985,16 +1024,15 @@ namespace Kernel
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_nanosleep(const timespec* rqtp, timespec* rmtp)
+	BAN::ErrorOr<long> Process::sys_nanosleep(const timespec* user_rqtp, timespec* user_rmtp)
 	{
-		{
-			LockGuard _(m_process_lock);
-			TRY(validate_pointer_access(rqtp, sizeof(timespec), false));
-			if (rmtp)
-				TRY(validate_pointer_access(rmtp, sizeof(timespec), true));
-		}
+		timespec rqtp;
+		TRY(read_from_user(user_rqtp, &rqtp, sizeof(timespec)));
 
-		const uint64_t sleep_ns = (rqtp->tv_sec * 1'000'000'000) + rqtp->tv_nsec;
+		if (rqtp.tv_nsec < 0 || rqtp.tv_nsec >= 1'000'000'000)
+			return BAN::Error::from_errno(EINVAL);
+
+		const uint64_t sleep_ns = (rqtp.tv_sec * 1'000'000'000) + rqtp.tv_nsec;
 		if (sleep_ns == 0)
 			return 0;
 
@@ -1004,12 +1042,13 @@ namespace Kernel
 		const uint64_t current_ns = SystemTimer::get().ns_since_boot();
 		if (current_ns < wake_time_ns)
 		{
-			if (rmtp)
-			{
-				const uint64_t remaining_ns = wake_time_ns - current_ns;
-				rmtp->tv_sec  = remaining_ns / 1'000'000'000;
-				rmtp->tv_nsec = remaining_ns % 1'000'000'000;
-			}
+			const uint64_t remaining_ns = wake_time_ns - current_ns;
+			const timespec remaining_ts = {
+				.tv_sec = static_cast<time_t>(remaining_ns / 1'000'000'000),
+				.tv_nsec = static_cast<long>(remaining_ns % 1'000'000'000),
+			};
+			if (user_rmtp != nullptr)
+				TRY(write_to_user(user_rmtp, &remaining_ts, sizeof(timespec)));
 			return BAN::Error::from_errno(EINTR);
 		}
 
@@ -1028,12 +1067,18 @@ namespace Kernel
 				return BAN::Error::from_errno(EINVAL);
 		}
 
-		LockGuard _(m_process_lock);
+		MemoryRegion* value_region = nullptr;
+		MemoryRegion* ovalue_region = nullptr;
+		BAN::ScopeGuard _([&] {
+			if (value_region)
+				value_region->unpin();
+			if (ovalue_region)
+				ovalue_region->unpin();
+		});
 
-		if (value)
-			TRY(validate_pointer_access(value, sizeof(itimerval), false));
-		if (ovalue)
-			TRY(validate_pointer_access(ovalue, sizeof(itimerval), true));
+		value_region = TRY(validate_and_pin_pointer_access(value, sizeof(itimerval), false));
+		if (ovalue != nullptr)
+			ovalue_region = TRY(validate_and_pin_pointer_access(ovalue, sizeof(itimerval), true));
 
 		{
 			SpinLockGuard _(s_process_lock);
@@ -1158,38 +1203,6 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<bool> Process::allocate_page_for_demand_paging(vaddr_t address, bool wants_write, bool wants_exec)
-	{
-		ASSERT(&Process::current() == this);
-
-		LockGuard _(m_process_lock);
-
-		{
-			// NOTE: page can be already allocated by another thread!
-
-			PageTable::flags_t wanted_flags = PageTable::Flags::UserSupervisor | PageTable::Flags::Present;
-			if (wants_write)
-				wanted_flags |= PageTable::Flags::ReadWrite;
-			if (wants_exec)
-				wanted_flags |= PageTable::Flags::Execute;
-			if ((m_page_table->get_page_flags(address & PAGE_ADDR_MASK) & wanted_flags) == wanted_flags)
-				return true;
-		}
-
-		if (Thread::current().userspace_stack().contains(address))
-			return Thread::current().userspace_stack().allocate_page_for_demand_paging(address);
-
-		const size_t index = find_mapped_region(address);
-		if (index >= m_mapped_regions.size())
-			return false;
-
-		auto& region = m_mapped_regions[index];
-		if (!region->contains(address))
-			return false;
-
-		return region->allocate_page_containing(address, wants_write);
-	}
-
 	BAN::ErrorOr<long> Process::open_inode(VirtualFileSystem::File&& file, int flags)
 	{
 		ASSERT(file.inode);
@@ -1197,14 +1210,15 @@ namespace Kernel
 		return TRY(m_open_file_descriptors.open(BAN::move(file), flags));
 	}
 
-	BAN::ErrorOr<long> Process::sys_openat(int fd, const char* path, int flags, mode_t mode)
+	BAN::ErrorOr<long> Process::sys_openat(int fd, const char* user_path, int flags, mode_t mode)
 	{
 		if ((flags & (O_DIRECTORY | O_CREAT)) == (O_DIRECTORY | O_CREAT))
 			return BAN::Error::from_errno(EINVAL);
 
-		LockGuard _(m_process_lock);
+		char path[PATH_MAX];
+		TRY(read_string_from_user(user_path, path, PATH_MAX));
 
-		TRY(validate_string_access(path));
+		LockGuard _(m_process_lock);
 
 		auto [parent, file_name] = TRY(find_parent_file(fd, path, O_RDONLY));
 		auto file_or_error = VirtualFileSystem::get().file_from_relative_path(m_root_file.inode, parent, m_credentials, file_name, flags);
@@ -1259,7 +1273,7 @@ namespace Kernel
 
 		// FIXME: buffer_region can be null as stack is not MemoryRegion
 		auto* buffer_region = TRY(validate_and_pin_pointer_access(buffer, count, true));
-		BAN::ScopeGuard _([&] { if (buffer_region) buffer_region->unpin(); });
+		BAN::ScopeGuard _([buffer_region] { if (buffer_region) buffer_region->unpin(); });
 		return TRY(m_open_file_descriptors.read(fd, BAN::ByteSpan(static_cast<uint8_t*>(buffer), count)));
 	}
 
@@ -1273,11 +1287,11 @@ namespace Kernel
 
 		// FIXME: buffer_region can be null as stack is not MemoryRegion
 		auto* buffer_region = TRY(validate_and_pin_pointer_access(buffer, count, false));
-		BAN::ScopeGuard _([&] { if (buffer_region) buffer_region->unpin(); });
+		BAN::ScopeGuard _([buffer_region] { if (buffer_region) buffer_region->unpin(); });
 		return TRY(m_open_file_descriptors.write(fd, BAN::ConstByteSpan(static_cast<const uint8_t*>(buffer), count)));
 	}
 
-	BAN::ErrorOr<long> Process::sys_access(const char* path, int amode)
+	BAN::ErrorOr<long> Process::sys_access(const char* user_path, int amode)
 	{
 		int flags = 0;
 		if (amode & F_OK)
@@ -1290,8 +1304,10 @@ namespace Kernel
 			flags |= O_EXEC;
 		static_assert((O_RDONLY | O_WRONLY) == O_RDWR);
 
+		char path[PATH_MAX];
+		TRY(read_string_from_user(user_path, path, PATH_MAX));
+
 		LockGuard _(m_process_lock);
-		TRY(validate_string_access(path));
 
 		auto credentials = m_credentials;
 		credentials.set_euid(credentials.ruid());
@@ -1303,30 +1319,41 @@ namespace Kernel
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_create_dir(const char* path, mode_t mode)
+	BAN::ErrorOr<long> Process::sys_create_dir(const char* user_path, mode_t mode)
 	{
-		LockGuard _(m_process_lock);
-		TRY(validate_string_access(path));
+		char path[PATH_MAX];
+		TRY(read_string_from_user(user_path, path, PATH_MAX));
+
+		uid_t uid;
+		gid_t gid;
+
+		{
+			LockGuard _(m_process_lock);
+			uid = m_credentials.euid();
+			gid = m_credentials.egid();
+		}
 
 		auto [parent, file_name] = TRY(find_parent_file(AT_FDCWD, path, O_WRONLY));
-		TRY(parent.inode->create_directory(file_name, (mode & 0777) | Inode::Mode::IFDIR, m_credentials.euid(), m_credentials.egid()));
+		TRY(parent.inode->create_directory(file_name, (mode & 0777) | Inode::Mode::IFDIR, uid, gid));
 
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_hardlinkat(int fd1, const char* path1, int fd2, const char* path2, int flag)
+	BAN::ErrorOr<long> Process::sys_hardlinkat(int fd1, const char* user_path1, int fd2, const char* user_path2, int flag)
 	{
-		LockGuard _(m_process_lock);
-		if (path1 != nullptr)
-			TRY(validate_string_access(path1));
-		if (path2 != nullptr)
-			TRY(validate_string_access(path2));
+		char path1[PATH_MAX];
+		if (user_path1 != nullptr)
+			TRY(read_string_from_user(user_path1, path1, PATH_MAX));
 
-		auto inode = TRY(find_file(fd1, path1, flag)).inode;
+		char path2[PATH_MAX];
+		if (user_path2 != nullptr)
+			TRY(read_string_from_user(user_path2, path2, PATH_MAX));
+
+		auto inode = TRY(find_file(fd1, user_path1 ? path1 : nullptr, flag)).inode;
 		if (inode->mode().ifdir())
 			return BAN::Error::from_errno(EISDIR);
 
-		auto [parent, file_name] = TRY(find_parent_file(fd2, path2, O_WRONLY));
+		auto [parent, file_name] = TRY(find_parent_file(fd2, user_path2 ? path2 : nullptr, O_WRONLY));
 		if (!parent.inode->mode().ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
 
@@ -1335,19 +1362,21 @@ namespace Kernel
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_renameat(int oldfd, const char* old, int newfd, const char* _new)
+	BAN::ErrorOr<long> Process::sys_renameat(int oldfd, const char* user_path_old, int newfd, const char* user_path_new)
 	{
-		LockGuard _(m_process_lock);
-		if (old != nullptr)
-			TRY(validate_string_access(old));
-		if (_new != nullptr)
-			TRY(validate_string_access(_new));
+		char path_old[PATH_MAX];
+		if (user_path_old != nullptr)
+			TRY(read_string_from_user(user_path_old, path_old, PATH_MAX));
 
-		auto [old_parent, old_name] = TRY(find_parent_file(oldfd, old, O_WRONLY));
+		char path_new[PATH_MAX];
+		if (user_path_new != nullptr)
+			TRY(read_string_from_user(user_path_new, path_new, PATH_MAX));
+
+		auto [old_parent, old_name] = TRY(find_parent_file(oldfd, user_path_old ? path_old : nullptr, O_WRONLY));
 		if (!old_parent.inode->mode().ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
 
-		auto [new_parent, new_name] = TRY(find_parent_file(newfd, _new, O_WRONLY));
+		auto [new_parent, new_name] = TRY(find_parent_file(newfd, user_path_new ? path_new : nullptr, O_WRONLY));
 		if (!new_parent.inode->mode().ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
 
@@ -1356,16 +1385,17 @@ namespace Kernel
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_unlinkat(int fd, const char* path, int flag)
+	BAN::ErrorOr<long> Process::sys_unlinkat(int fd, const char* user_path, int flag)
 	{
 		if (flag && flag != AT_REMOVEDIR)
 			return BAN::Error::from_errno(EINVAL);
 
-		LockGuard _(m_process_lock);
-		if (path != nullptr)
-			TRY(validate_string_access(path));
+		char path[PATH_MAX];
+		if (user_path != nullptr)
+			TRY(read_string_from_user(user_path, path, PATH_MAX));
 
-		auto [parent, file_name] = TRY(find_parent_file(fd, path, O_WRONLY));
+
+		auto [parent, file_name] = TRY(find_parent_file(fd, user_path ? path : nullptr, O_WRONLY));
 
 		const auto inode = TRY(parent.inode->find_inode(file_name));
 
@@ -1373,44 +1403,48 @@ namespace Kernel
 			return BAN::Error::from_errno(flag ? EPERM : ENOTDIR);
 
 		if (parent.inode->mode().mode & Inode::Mode::ISVTX)
+		{
+			LockGuard _(m_process_lock);
 			if (m_credentials.ruid() != parent.inode->uid() && m_credentials.ruid() != inode->uid())
 				return BAN::Error::from_errno(EPERM);
+		}
 
 		TRY(parent.inode->unlink(file_name));
 
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_readlinkat(int fd, const char* path, char* buffer, size_t bufsize)
+	BAN::ErrorOr<long> Process::sys_readlinkat(int fd, const char* user_path, char* buffer, size_t bufsize)
 	{
-		LockGuard _(m_process_lock);
-		if (path != nullptr)
-			TRY(validate_string_access(path));
-		TRY(validate_pointer_access(buffer, bufsize, true));
+		char path[PATH_MAX];
+		if (user_path != nullptr)
+			TRY(read_string_from_user(user_path, path, PATH_MAX));
 
-		auto inode = TRY(find_file(fd, path, O_NOFOLLOW | O_RDONLY)).inode;
+		auto inode = TRY(find_file(fd, user_path ? path : nullptr, O_NOFOLLOW | O_RDONLY)).inode;
 
-		// FIXME: no allocation needed
 		auto link_target = TRY(inode->link_target());
 
 		const size_t byte_count = BAN::Math::min<size_t>(link_target.size(), bufsize);
-		memcpy(buffer, link_target.data(), byte_count);
+		TRY(write_to_user(buffer, link_target.data(), byte_count));
+
 		return byte_count;
 	}
 
-	BAN::ErrorOr<long> Process::sys_symlinkat(const char* path1, int fd, const char* path2)
+	BAN::ErrorOr<long> Process::sys_symlinkat(const char* user_path1, int fd, const char* user_path2)
 	{
-		LockGuard _(m_process_lock);
-		TRY(validate_string_access(path1));
-		if (path2 != nullptr)
-			TRY(validate_string_access(path2));
+		char path1[PATH_MAX];
+		TRY(read_string_from_user(user_path1, path1, PATH_MAX));
 
-		if (!find_file(fd, path2, O_NOFOLLOW).is_error())
+		char path2[PATH_MAX];
+		if (user_path2 != nullptr)
+			TRY(read_string_from_user(user_path2, path2, PATH_MAX));
+
+		if (!find_file(fd, user_path2 ? path2 : nullptr, O_NOFOLLOW).is_error())
 			return BAN::Error::from_errno(EEXIST);
 
-		TRY(create_file_or_dir(fd, path2, 0777 | Inode::Mode::IFLNK));
+		TRY(create_file_or_dir(fd, user_path2 ? path2 : nullptr, 0777 | Inode::Mode::IFLNK));
 
-		auto symlink = TRY(find_file(fd, path2, O_NOFOLLOW));
+		auto symlink = TRY(find_file(fd, user_path2 ? path2 : nullptr, O_NOFOLLOW));
 		TRY(symlink.inode->set_link_target(path1));
 
 		return 0;
@@ -1431,7 +1465,7 @@ namespace Kernel
 		auto inode = TRY(m_open_file_descriptors.inode_of(fd));
 
 		auto* buffer_region = TRY(validate_and_pin_pointer_access(buffer, count, true));
-		BAN::ScopeGuard _([buffer_region]{ if (buffer_region) buffer_region->unpin(); });
+		BAN::ScopeGuard _([buffer_region] { if (buffer_region) buffer_region->unpin(); });
 
 		return TRY(inode->read(offset, { reinterpret_cast<uint8_t*>(buffer), count }));
 	}
@@ -1441,27 +1475,30 @@ namespace Kernel
 		auto inode = TRY(m_open_file_descriptors.inode_of(fd));
 
 		auto* buffer_region = TRY(validate_and_pin_pointer_access(buffer, count, false));
-		BAN::ScopeGuard _([buffer_region]{ if (buffer_region) buffer_region->unpin(); });
+		BAN::ScopeGuard _([buffer_region] { if (buffer_region) buffer_region->unpin(); });
 
 		return TRY(inode->write(offset, { reinterpret_cast<const uint8_t*>(buffer), count }));	}
 
-	BAN::ErrorOr<long> Process::sys_fchmodat(int fd, const char* path, mode_t mode, int flag)
+	BAN::ErrorOr<long> Process::sys_fchmodat(int fd, const char* user_path, mode_t mode, int flag)
 	{
 		if (flag & ~AT_SYMLINK_NOFOLLOW)
 			return BAN::Error::from_errno(EINVAL);
 		if (flag == AT_SYMLINK_NOFOLLOW)
 			flag = O_NOFOLLOW;
 
-		LockGuard _(m_process_lock);
-		if (path != nullptr)
-			TRY(validate_string_access(path));
+		char path[PATH_MAX];
+		if (user_path != nullptr)
+			TRY(read_string_from_user(user_path, path, PATH_MAX));
 
-		auto inode = TRY(find_file(fd, path, flag)).inode;
+		auto inode = TRY(find_file(fd, user_path ? path : nullptr, flag)).inode;
 
-		if (!m_credentials.is_superuser() && inode->uid() != m_credentials.euid())
 		{
-			dwarnln("cannot chmod uid {} vs {}", inode->uid(), m_credentials.euid());
-			return BAN::Error::from_errno(EPERM);
+			LockGuard _(m_process_lock);
+			if (!m_credentials.is_superuser() && inode->uid() != m_credentials.euid())
+			{
+				dwarnln("cannot chmod uid {} vs {}", inode->uid(), m_credentials.euid());
+				return BAN::Error::from_errno(EPERM);
+			}
 		}
 
 		TRY(inode->chmod(mode & ~S_IFMASK));
@@ -1469,23 +1506,26 @@ namespace Kernel
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_fchownat(int fd, const char* path, uid_t uid, gid_t gid, int flag)
+	BAN::ErrorOr<long> Process::sys_fchownat(int fd, const char* user_path, uid_t uid, gid_t gid, int flag)
 	{
 		if (flag & ~AT_SYMLINK_NOFOLLOW)
 			return BAN::Error::from_errno(EINVAL);
 		if (flag == AT_SYMLINK_NOFOLLOW)
 			flag = O_NOFOLLOW;
 
-		LockGuard _(m_process_lock);
-		if (path != nullptr)
-			TRY(validate_string_access(path));
+		char path[PATH_MAX];
+		if (user_path != nullptr)
+			TRY(read_string_from_user(user_path, path, PATH_MAX));
 
-		auto inode = TRY(find_file(fd, path, flag)).inode;
+		auto inode = TRY(find_file(fd, user_path ? path : nullptr, flag)).inode;
 
-		if (uid != -1 && !m_credentials.is_superuser())
-			return BAN::Error::from_errno(EPERM);
-		if (gid != -1 && !m_credentials.is_superuser() && (m_credentials.euid() != uid || !m_credentials.has_egid(gid)))
-			return BAN::Error::from_errno(EPERM);
+		{
+			LockGuard _(m_process_lock);
+			if (uid != -1 && !m_credentials.is_superuser())
+				return BAN::Error::from_errno(EPERM);
+			if (gid != -1 && !m_credentials.is_superuser() && (m_credentials.euid() != uid || !m_credentials.has_egid(gid)))
+				return BAN::Error::from_errno(EPERM);
+		}
 
 		if (uid == -1)
 			uid = inode->uid();
@@ -1496,49 +1536,57 @@ namespace Kernel
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_utimensat(int fd, const char* path, const struct timespec _times[2], int flag)
+	BAN::ErrorOr<long> Process::sys_utimensat(int fd, const char* user_path, const struct timespec user_times[2], int flag)
 	{
 		if (flag & ~AT_SYMLINK_NOFOLLOW)
 			return BAN::Error::from_errno(EINVAL);
 		if (flag == AT_SYMLINK_NOFOLLOW)
 			flag = O_NOFOLLOW;
 
-		timespec times[2];
 		const uint64_t current_ns = SystemTimer::get().ns_since_boot();
-		times[0] = times[1] = timespec {
+		const timespec current_ts = {
 			.tv_sec = static_cast<time_t>(current_ns / 1'000'000),
 			.tv_nsec = static_cast<long>(current_ns % 1'000'000),
 		};
 
-		if (_times)
+		timespec times[2];
+		if (user_times == nullptr)
 		{
-			LockGuard _(m_process_lock);
-			TRY(validate_pointer_access(_times, sizeof(timespec) * 2, false));
-			if (_times[0].tv_nsec != UTIME_NOW)
+			times[0] = current_ts;
+			times[1] = current_ts;
+		}
+		else
+		{
+			TRY(read_from_user(user_times, times, 2 * sizeof(timespec)));
+
+			for (size_t i = 0; i < 2; i++)
 			{
-				times[0] = _times[0];
-				if (auto ns = times[0].tv_nsec; ns != UTIME_OMIT && (ns < 0 || ns >= 1'000'000'000))
+				if (times[i].tv_nsec == UTIME_OMIT)
+					;
+				else if (times[i].tv_nsec == UTIME_NOW)
+					times[i] = current_ts;
+				else if (times[i].tv_nsec < 0 || times[i].tv_nsec >= 1'000'000'000)
 					return BAN::Error::from_errno(EINVAL);
 			}
-			if (_times[1].tv_nsec != UTIME_NOW)
-			{
-				times[1] = _times[1];
-				if (auto ns = times[1].tv_nsec; ns != UTIME_OMIT && (ns < 0 || ns >= 1'000'000'000))
-					return BAN::Error::from_errno(EINVAL);
-			}
+
 		}
 
 		if (times[0].tv_nsec == UTIME_OMIT && times[1].tv_nsec == UTIME_OMIT)
 			return 0;
 
-		LockGuard _(m_process_lock);
+		char path[PATH_MAX];
+		if (user_path != nullptr)
+			TRY(read_string_from_user(user_path, path, PATH_MAX));
 
-		auto inode = TRY(find_file(fd, path, flag)).inode;
+		auto inode = TRY(find_file(fd, user_path ? path : nullptr, flag)).inode;
 
-		if (!m_credentials.is_superuser() && inode->uid() != m_credentials.euid())
 		{
-			dwarnln("cannot chmod uid {} vs {}", inode->uid(), m_credentials.euid());
-			return BAN::Error::from_errno(EPERM);
+			LockGuard _(m_process_lock);
+			if (!m_credentials.is_superuser() && inode->uid() != m_credentials.euid())
+			{
+				dwarnln("cannot chmod uid {} vs {}", inode->uid(), m_credentials.euid());
+				return BAN::Error::from_errno(EPERM);
+			}
 		}
 
 		TRY(inode->utimens(times));
@@ -1548,80 +1596,120 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_socket(int domain, int type, int protocol)
 	{
-		LockGuard _(m_process_lock);
 		return TRY(m_open_file_descriptors.socket(domain, type, protocol));
 	}
 
-	BAN::ErrorOr<long> Process::sys_socketpair(int domain, int type, int protocol, int socket_vector[2])
+	BAN::ErrorOr<long> Process::sys_socketpair(int domain, int type, int protocol, int user_socket_vector[2])
 	{
-		LockGuard _(m_process_lock);
-		TRY(validate_pointer_access(socket_vector, sizeof(int) * 2, true));
+		int socket_vector[2];
 		TRY(m_open_file_descriptors.socketpair(domain, type, protocol, socket_vector));
-		return 0;
-	}
 
-	BAN::ErrorOr<long> Process::sys_getsockname(int socket, sockaddr* address, socklen_t* address_len)
-	{
-		LockGuard _(m_process_lock);
-		TRY(validate_pointer_access(address_len, sizeof(address_len), true));
-		TRY(validate_pointer_access(address, *address_len, true));
-
-		auto inode = TRY(m_open_file_descriptors.inode_of(socket));
-		if (!inode->mode().ifsock())
-			return BAN::Error::from_errno(ENOTSOCK);
-
-		TRY(inode->getsockname(address, address_len));
-		return 0;
-	}
-
-	BAN::ErrorOr<long> Process::sys_getpeername(int socket, sockaddr* address, socklen_t* address_len)
-	{
-		LockGuard _(m_process_lock);
-		TRY(validate_pointer_access(address_len, sizeof(address_len), true));
-		TRY(validate_pointer_access(address, *address_len, true));
-
-		auto inode = TRY(m_open_file_descriptors.inode_of(socket));
-		if (!inode->mode().ifsock())
-			return BAN::Error::from_errno(ENOTSOCK);
-
-		TRY(inode->getpeername(address, address_len));
-		return 0;
-	}
-
-	BAN::ErrorOr<long> Process::sys_getsockopt(int socket, int level, int option_name, void* option_value, socklen_t* option_len)
-	{
-		LockGuard _(m_process_lock);
-		TRY(validate_pointer_access(option_len, sizeof(option_len), true));
-		TRY(validate_pointer_access(option_value, *option_len, true));
-
-		auto inode = TRY(m_open_file_descriptors.inode_of(socket));
-		if (!inode->mode().ifsock())
-			return BAN::Error::from_errno(ENOTSOCK);
-
-		// Because all networking is synchronous, there can not be errors to report
-		if (level == SOL_SOCKET && option_name == SO_ERROR)
+		if (auto ret = write_to_user(user_socket_vector, socket_vector, 2 * sizeof(int)); ret.is_error())
 		{
-			if (*option_len)
-				*reinterpret_cast<uint8_t*>(option_value) = 0;
-			*option_len = BAN::Math::min<socklen_t>(*option_len, sizeof(int));
-			return 0;
+			MUST(m_open_file_descriptors.close(socket_vector[0]));
+			MUST(m_open_file_descriptors.close(socket_vector[1]));
+			return ret.release_error();
 		}
 
+		return 0;
+	}
+
+	BAN::ErrorOr<long> Process::sys_getsockname(int socket, sockaddr* user_address, socklen_t* user_address_len)
+	{
+		socklen_t address_len;
+		TRY(read_from_user(user_address_len, &address_len, sizeof(socklen_t)));
+		if (address_len > static_cast<socklen_t>(sizeof(sockaddr_storage)))
+			address_len = sizeof(sockaddr_storage);
+
+		sockaddr_storage address;
+		TRY(read_from_user(user_address, &address, address_len));
+
+		auto inode = TRY(m_open_file_descriptors.inode_of(socket));
+		if (!inode->mode().ifsock())
+			return BAN::Error::from_errno(ENOTSOCK);
+
+		TRY(inode->getsockname(reinterpret_cast<sockaddr*>(&address), &address_len));
+
+		TRY(write_to_user(user_address_len, &address_len, sizeof(socklen_t)));
+		TRY(write_to_user(user_address, &address, address_len));
+
+		return 0;
+	}
+
+	BAN::ErrorOr<long> Process::sys_getpeername(int socket, sockaddr* user_address, socklen_t* user_address_len)
+	{
+		socklen_t address_len;
+		TRY(read_from_user(user_address_len, &address_len, sizeof(socklen_t)));
+		if (address_len > static_cast<socklen_t>(sizeof(sockaddr_storage)))
+			address_len = sizeof(sockaddr_storage);
+
+		sockaddr_storage address;
+		TRY(read_from_user(user_address, &address, address_len));
+
+		auto inode = TRY(m_open_file_descriptors.inode_of(socket));
+		if (!inode->mode().ifsock())
+			return BAN::Error::from_errno(ENOTSOCK);
+
+		TRY(inode->getpeername(reinterpret_cast<sockaddr*>(&address), &address_len));
+
+		TRY(write_to_user(user_address_len, &address_len, sizeof(socklen_t)));
+		TRY(write_to_user(user_address, &address, address_len));
+
+		return 0;
+	}
+
+	BAN::ErrorOr<long> Process::sys_getsockopt(int socket, int level, int option_name, void* user_option_value, socklen_t* user_option_len)
+	{
+		if (level != SOL_SOCKET)
+		{
+			dwarnln("{}: getsockopt level {}", name(), level);
+			return BAN::Error::from_errno(EINVAL);
+		}
+
+		socklen_t option_len;
+		TRY(read_from_user(user_option_len, &option_len, sizeof(socklen_t)));
+
+		if (option_len < 0)
+			return BAN::Error::from_errno(EINVAL);
+
+		auto inode = TRY(m_open_file_descriptors.inode_of(socket));
+		if (!inode->mode().ifsock())
+			return BAN::Error::from_errno(ENOTSOCK);
+
+		switch (option_name)
+		{
+			case SO_ERROR:
+			{
+				option_len = BAN::Math::min<socklen_t>(option_len, sizeof(int));
+				const int zero { 0 };
+				TRY(write_to_user(user_option_value, &zero, option_len));
+				TRY(write_to_user(user_option_len, &option_len, sizeof(socklen_t)));
+				return 0;
+			}
+		}
+
+		dwarnln("getsockopt(SOL_SOCKET, {})", option_name);
 		return BAN::Error::from_errno(ENOTSUP);
 	}
 
-	BAN::ErrorOr<long> Process::sys_setsockopt(int socket, int level, int option_name, const void* option_value, socklen_t option_len)
+	BAN::ErrorOr<long> Process::sys_setsockopt(int socket, int level, int option_name, const void* user_option_value, socklen_t option_len)
 	{
-		LockGuard _(m_process_lock);
-		TRY(validate_pointer_access(option_value, option_len, false));
+		if (level != SOL_SOCKET)
+		{
+			dwarnln("{}: setsockopt level {}", name(), level);
+			return BAN::Error::from_errno(EINVAL);
+		}
+
+		if (option_len < 0)
+			return BAN::Error::from_errno(EINVAL);
 
 		auto inode = TRY(m_open_file_descriptors.inode_of(socket));
 		if (!inode->mode().ifsock())
 			return BAN::Error::from_errno(ENOTSOCK);
 
-		(void)level;
-		(void)option_name;
+		(void)user_option_value;
 
+		dwarnln("setsockopt(SOL_SOCKET, {})", option_name);
 		return BAN::Error::from_errno(ENOTSUP);
 	}
 
@@ -1661,52 +1749,55 @@ namespace Kernel
 		return TRY(inode->accept(address, address_len, open_flags));
 	}
 
-	BAN::ErrorOr<long> Process::sys_bind(int socket, const sockaddr* address, socklen_t address_len)
+	BAN::ErrorOr<long> Process::sys_bind(int socket, const sockaddr* user_address, socklen_t address_len)
 	{
-		LockGuard _(m_process_lock);
-		TRY(validate_pointer_access(address, address_len, false));
+		if (address_len > static_cast<socklen_t>(sizeof(sockaddr_storage)))
+			address_len = sizeof(sockaddr_storage);
+
+		sockaddr_storage address;
+		TRY(read_from_user(user_address, &address, address_len));
 
 		auto inode = TRY(m_open_file_descriptors.inode_of(socket));
 		if (!inode->mode().ifsock())
 			return BAN::Error::from_errno(ENOTSOCK);
 
-		TRY(inode->bind(address, address_len));
+		TRY(inode->bind(reinterpret_cast<sockaddr*>(&address), address_len));
+
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_connect(int socket, const sockaddr* address, socklen_t address_len)
+	BAN::ErrorOr<long> Process::sys_connect(int socket, const sockaddr* user_address, socklen_t address_len)
 	{
+		if (address_len > static_cast<socklen_t>(sizeof(sockaddr_storage)))
+			address_len = sizeof(sockaddr_storage);
+
+		sockaddr_storage address;
+		TRY(read_from_user(user_address, &address, address_len));
+
 		auto inode = TRY(m_open_file_descriptors.inode_of(socket));
 		if (!inode->mode().ifsock())
 			return BAN::Error::from_errno(ENOTSOCK);
 
-		auto* address_region = TRY(validate_and_pin_pointer_access(address, address_len, true));
-		BAN::ScopeGuard _([&] { if (address_region) address_region->unpin(); });
+		TRY(inode->connect(reinterpret_cast<sockaddr*>(&address), address_len));
 
-		TRY(inode->connect(address, address_len));
 		return 0;
 	}
 
 	BAN::ErrorOr<long> Process::sys_listen(int socket, int backlog)
 	{
-		LockGuard _(m_process_lock);
-
 		auto inode = TRY(m_open_file_descriptors.inode_of(socket));
 		if (!inode->mode().ifsock())
 			return BAN::Error::from_errno(ENOTSOCK);
 
 		TRY(inode->listen(backlog));
+
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_recvmsg(int socket, msghdr* _message, int flags)
+	BAN::ErrorOr<long> Process::sys_recvmsg(int socket, msghdr* user_message, int flags)
 	{
 		msghdr message;
-		{
-			LockGuard _(m_process_lock);
-			TRY(validate_pointer_access(_message, sizeof(msghdr), true));
-			message = *_message;
-		}
+		TRY(read_from_user(user_message, &message, sizeof(msghdr)));
 
 		BAN::Vector<MemoryRegion*> regions;
 		BAN::ScopeGuard _([&regions] {
@@ -1726,25 +1817,17 @@ namespace Kernel
 				TRY(regions.push_back(TRY(validate_and_pin_pointer_access(message.msg_iov[i].iov_base, message.msg_iov[i].iov_len, true))));
 		}
 
-		auto ret = TRY(m_open_file_descriptors.recvmsg(socket, message, flags));
+		const auto ret = TRY(m_open_file_descriptors.recvmsg(socket, message, flags));
 
-		{
-			LockGuard _(m_process_lock);
-			TRY(validate_pointer_access(_message, sizeof(msghdr), true));
-			*_message = message;
-		}
+		TRY(write_to_user(user_message, &message, sizeof(msghdr)));
 
 		return ret;
 	}
 
-	BAN::ErrorOr<long> Process::sys_sendmsg(int socket, const msghdr* _message, int flags)
+	BAN::ErrorOr<long> Process::sys_sendmsg(int socket, const msghdr* user_message, int flags)
 	{
 		msghdr message;
-		{
-			LockGuard _(m_process_lock);
-			TRY(validate_pointer_access(_message, sizeof(msghdr), false));
-			message = *_message;
-		}
+		TRY(read_from_user(user_message, &message, sizeof(msghdr)));
 
 		BAN::Vector<MemoryRegion*> regions;
 		BAN::ScopeGuard _([&regions] {
@@ -1769,7 +1852,6 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_ioctl(int fildes, int request, void* arg)
 	{
-		LockGuard _(m_process_lock);
 		auto inode = TRY(m_open_file_descriptors.inode_of(fildes));
 		return TRY(inode->ioctl(request, arg));
 	}
@@ -1777,12 +1859,7 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_pselect(sys_pselect_t* user_arguments)
 	{
 		sys_pselect_t arguments;
-
-		{
-			LockGuard _(m_process_lock);
-			TRY(validate_pointer_access(user_arguments, sizeof(sys_pselect_t), false));
-			arguments = *user_arguments;
-		}
+		TRY(read_from_user(user_arguments, &arguments, sizeof(sys_pselect_t)));
 
 		MemoryRegion* readfd_region = nullptr;
 		MemoryRegion* writefd_region = nullptr;
@@ -1807,21 +1884,21 @@ namespace Kernel
 		const auto old_sigmask = Thread::current().m_signal_block_mask;
 		if (arguments.sigmask)
 		{
-			LockGuard _(m_process_lock);
-			TRY(validate_pointer_access(arguments.sigmask, sizeof(sigset_t), false));
-			Thread::current().m_signal_block_mask = *arguments.sigmask;
+			sigset_t sigmask;
+			TRY(read_from_user(user_arguments->sigmask, &sigmask, sizeof(sigset_t)));
+			Thread::current().m_signal_block_mask = sigmask;
 		}
 		BAN::ScopeGuard sigmask_restore([old_sigmask] { Thread::current().m_signal_block_mask = old_sigmask; });
 
 		uint64_t waketime_ns = BAN::numeric_limits<uint64_t>::max();
 		if (arguments.timeout)
 		{
-			LockGuard _(m_process_lock);
-			TRY(validate_pointer_access(arguments.timeout, sizeof(timespec), false));
+			timespec timeout;
+			TRY(read_from_user(arguments.timeout, &timeout, sizeof(timespec)));
 			waketime_ns =
 				SystemTimer::get().ns_since_boot() +
-				(arguments.timeout->tv_sec * 1'000'000'000) +
-				arguments.timeout->tv_nsec;
+				timeout.tv_sec * 1'000'000'000 +
+				timeout.tv_nsec;
 		}
 
 		{
@@ -1905,29 +1982,29 @@ namespace Kernel
 		return return_value;
 	}
 
-	BAN::ErrorOr<long> Process::sys_ppoll(pollfd* fds, nfds_t nfds, const timespec* timeout, const sigset_t* sigmask)
+	BAN::ErrorOr<long> Process::sys_ppoll(pollfd* fds, nfds_t nfds, const timespec* user_timeout, const sigset_t* user_sigmask)
 	{
 		auto* fds_region = TRY(validate_and_pin_pointer_access(fds, nfds * sizeof(pollfd), true));
 		BAN::ScopeGuard _([fds_region] { if (fds_region) fds_region->unpin(); });
 
 		const auto old_sigmask = Thread::current().m_signal_block_mask;
-		if (sigmask)
+		if (user_sigmask != nullptr)
 		{
-			LockGuard _(m_process_lock);
-			TRY(validate_pointer_access(sigmask, sizeof(sigset_t), false));
-			Thread::current().m_signal_block_mask = *sigmask;
+			sigset_t sigmask;
+			TRY(read_from_user(user_sigmask, &sigmask, sizeof(sigmask)));
+			Thread::current().m_signal_block_mask = sigmask;
 		}
 		BAN::ScopeGuard sigmask_restore([old_sigmask] { Thread::current().m_signal_block_mask = old_sigmask; });
 
 		uint64_t waketime_ns = BAN::numeric_limits<uint64_t>::max();
-		if (timeout)
+		if (user_timeout != nullptr)
 		{
-			LockGuard _(m_process_lock);
-			TRY(validate_pointer_access(timeout, sizeof(timespec), false));
+			timespec timeout;
+			TRY(read_from_user(user_timeout, &timeout, sizeof(timespec)));
 			waketime_ns =
 				SystemTimer::get().ns_since_boot() +
-				(timeout->tv_sec * 1'000'000'000) +
-				timeout->tv_nsec;
+				timeout.tv_sec * 1'000'000'000 +
+				timeout.tv_nsec;
 		}
 
 		size_t return_value = 0;
@@ -2063,21 +2140,15 @@ namespace Kernel
 
 		epoll_event event {};
 		if (user_event)
-		{
-			LockGuard _(m_process_lock);
-			TRY(validate_pointer_access(user_event, sizeof(epoll_event), false));
-			event = *user_event;
-		}
+			TRY(read_from_user(user_event, &event, sizeof(epoll_event)));
 
 		TRY(static_cast<Epoll*>(epoll_inode.ptr())->ctl(op, fd, inode, event));
 
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_epoll_pwait2(int epfd, epoll_event* events, int maxevents, const timespec* timeout, const sigset_t* sigmask)
+	BAN::ErrorOr<long> Process::sys_epoll_pwait2(int epfd, epoll_event* events, int maxevents, const timespec* user_timeout, const sigset_t* user_sigmask)
 	{
-		(void)sigmask;
-
 		if (maxevents <= 0)
 			return BAN::Error::from_errno(EINVAL);
 
@@ -2086,14 +2157,14 @@ namespace Kernel
 			return BAN::Error::from_errno(EINVAL);
 
 		uint64_t waketime_ns = BAN::numeric_limits<uint64_t>::max();
-		if (timeout)
+		if (user_timeout != nullptr)
 		{
-			LockGuard _(m_process_lock);
-			TRY(validate_pointer_access(timeout, sizeof(timespec), false));
+			timespec timeout;
+			TRY(read_from_user(user_timeout, &timeout, sizeof(timespec)));
 			waketime_ns =
 				SystemTimer::get().ns_since_boot() +
-				(timeout->tv_sec * 1'000'000'000) +
-				timeout->tv_nsec;
+				timeout.tv_sec * 1'000'000'000 +
+				timeout.tv_nsec;
 		}
 
 		auto* events_region = TRY(validate_and_pin_pointer_access(events, maxevents * sizeof(epoll_event), true));
@@ -2103,22 +2174,29 @@ namespace Kernel
 		});
 
 		const auto old_sigmask = Thread::current().m_signal_block_mask;
-		if (sigmask)
+		if (user_sigmask)
 		{
-			LockGuard _(m_process_lock);
-			TRY(validate_pointer_access(sigmask, sizeof(sigset_t), false));
-			Thread::current().m_signal_block_mask = *sigmask;
+			sigset_t sigmask;
+			TRY(read_from_user(user_sigmask, &sigmask, sizeof(sigset_t)));
+			Thread::current().m_signal_block_mask = sigmask;
 		}
 		BAN::ScopeGuard sigmask_restore([old_sigmask] { Thread::current().m_signal_block_mask = old_sigmask; });
 
 		return TRY(static_cast<Epoll*>(epoll_inode.ptr())->wait(BAN::Span<epoll_event>(events, maxevents), waketime_ns));
 	}
 
-	BAN::ErrorOr<long> Process::sys_pipe(int fildes[2])
+	BAN::ErrorOr<long> Process::sys_pipe(int user_fildes[2])
 	{
-		LockGuard _(m_process_lock);
-		TRY(validate_pointer_access(fildes, sizeof(int) * 2, true));
+		int fildes[2];
 		TRY(m_open_file_descriptors.pipe(fildes));
+
+		if (auto ret = write_to_user(user_fildes, fildes, 2 * sizeof(int)); ret.is_error())
+		{
+			MUST(m_open_file_descriptors.close(fildes[0]));
+			MUST(m_open_file_descriptors.close(fildes[1]));
+			return ret.release_error();
+		}
+
 		return 0;
 	}
 
@@ -2155,45 +2233,49 @@ namespace Kernel
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_fstatat(int fd, const char* path, struct stat* buf, int flag)
+	BAN::ErrorOr<long> Process::sys_fstatat(int fd, const char* user_path, struct stat* user_buf, int flag)
 	{
 		if (flag & ~AT_SYMLINK_NOFOLLOW)
 			return BAN::Error::from_errno(EINVAL);
 		if (flag == AT_SYMLINK_NOFOLLOW)
 			flag = O_NOFOLLOW;
 
-		LockGuard _(m_process_lock);
-		if (path != nullptr)
-			TRY(validate_string_access(path));
-		TRY(validate_pointer_access(buf, sizeof(struct stat), true));
+		char path[PATH_MAX];
+		if (user_path != nullptr)
+			TRY(read_string_from_user(user_path, path, PATH_MAX));
 
-		auto inode = TRY(find_file(fd, path, flag)).inode;
-		buf->st_dev		= inode->dev();
-		buf->st_ino		= inode->ino();
-		buf->st_mode	= inode->mode().mode;
-		buf->st_nlink	= inode->nlink();
-		buf->st_uid		= inode->uid();
-		buf->st_gid		= inode->gid();
-		buf->st_rdev	= inode->rdev();
-		buf->st_size	= inode->size();
-		buf->st_atim	= inode->atime();
-		buf->st_mtim	= inode->mtime();
-		buf->st_ctim	= inode->ctime();
-		buf->st_blksize	= inode->blksize();
-		buf->st_blocks	= inode->blocks();
+		auto inode = TRY(find_file(fd, user_path ? path : nullptr, flag)).inode;
+
+		const struct stat buf {
+			.st_dev     = inode->dev(),
+			.st_ino     = inode->ino(),
+			.st_mode    = inode->mode().mode,
+			.st_nlink   = inode->nlink(),
+			.st_uid     = inode->uid(),
+			.st_gid     = inode->gid(),
+			.st_rdev    = inode->rdev(),
+			.st_size    = inode->size(),
+			.st_atim    = inode->atime(),
+			.st_mtim    = inode->mtime(),
+			.st_ctim    = inode->ctime(),
+			.st_blksize = inode->blksize(),
+			.st_blocks  = inode->blocks(),
+		};
+
+		TRY(write_to_user(user_buf, &buf, sizeof(struct stat)));
 
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_fstatvfsat(int fd, const char* path, struct statvfs* buf)
+	BAN::ErrorOr<long> Process::sys_fstatvfsat(int fd, const char* user_path, struct statvfs* user_buf)
 	{
-		LockGuard _(m_process_lock);
-		if (path != nullptr)
-			TRY(validate_string_access(path));
-		TRY(validate_pointer_access(buf, sizeof(struct statvfs), true));
+		char path[PATH_MAX];
+		if (user_path != nullptr)
+			TRY(read_string_from_user(user_path, path, PATH_MAX));
 
-		auto inode = TRY(find_file(fd, path, 0)).inode;
-		auto* fs = inode->filesystem();
+		auto inode = TRY(find_file(fd, user_path ? path : nullptr, 0)).inode;
+
+		const auto* fs = inode->filesystem();
 		if (fs == nullptr)
 		{
 			ASSERT(inode->mode().ifsock() || inode->mode().ififo());
@@ -2201,32 +2283,36 @@ namespace Kernel
 			return BAN::Error::from_errno(EINVAL);
 		}
 
-		buf->f_bsize   = fs->bsize();
-		buf->f_frsize  = fs->frsize();
-		buf->f_blocks  = fs->blocks();
-		buf->f_bfree   = fs->bfree();
-		buf->f_bavail  = fs->bavail();
-		buf->f_files   = fs->files();
-		buf->f_ffree   = fs->ffree();
-		buf->f_favail  = fs->favail();
-		buf->f_fsid    = fs->fsid();
-		buf->f_flag    = fs->flag();
-		buf->f_namemax = fs->namemax();
+		const struct statvfs buf {
+			.f_bsize   = fs->bsize(),
+			.f_frsize  = fs->frsize(),
+			.f_blocks  = fs->blocks(),
+			.f_bfree   = fs->bfree(),
+			.f_bavail  = fs->bavail(),
+			.f_files   = fs->files(),
+			.f_ffree   = fs->ffree(),
+			.f_favail  = fs->favail(),
+			.f_fsid    = fs->fsid(),
+			.f_flag    = fs->flag(),
+			.f_namemax = fs->namemax(),
+		};
+
+		TRY(write_to_user(user_buf, &buf, sizeof(struct statvfs)));
 
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_realpath(const char* path, char* buffer)
+	BAN::ErrorOr<long> Process::sys_realpath(const char* user_path, char* user_buffer)
 	{
-		LockGuard _(m_process_lock);
-		TRY(validate_string_access(path));
-		TRY(validate_pointer_access(buffer, PATH_MAX, true));
+		char path[PATH_MAX];
+		TRY(read_string_from_user(user_path, path, PATH_MAX));
 
 		auto file = TRY(find_file(AT_FDCWD, path, O_RDONLY));
 		if (file.canonical_path.size() >= PATH_MAX)
 			return BAN::Error::from_errno(ENAMETOOLONG);
 
-		strcpy(buffer, file.canonical_path.data());
+		TRY(write_to_user(user_buffer, file.canonical_path.data(), file.canonical_path.size() + 1));
+
 		return file.canonical_path.size();
 	}
 
@@ -2274,31 +2360,31 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_readdir(int fd, struct dirent* list, size_t list_len)
 	{
-		LockGuard _(m_process_lock);
-		TRY(validate_pointer_access(list, sizeof(dirent) * list_len, true));
+		if (BAN::Math::will_multiplication_overflow(list_len, sizeof(struct dirent)))
+			return BAN::Error::from_errno(EOVERFLOW);
+
+		auto* list_region = TRY(validate_and_pin_pointer_access(list, list_len * sizeof(struct dirent), true));
+		BAN::ScopeGuard _([list_region] { if (list_region) list_region->unpin(); });
 		return TRY(m_open_file_descriptors.read_dir_entries(fd, list, list_len));
 	}
 
-	BAN::ErrorOr<long> Process::sys_getcwd(char* buffer, size_t size)
+	BAN::ErrorOr<long> Process::sys_getcwd(char* user_buffer, size_t size)
 	{
-		LockGuard _(m_process_lock);
-
-		TRY(validate_pointer_access(buffer, size, true));
-
 		if (size < m_working_directory.canonical_path.size() + 1)
 			return BAN::Error::from_errno(ERANGE);
-
-		memcpy(buffer, m_working_directory.canonical_path.data(), m_working_directory.canonical_path.size());
-		buffer[m_working_directory.canonical_path.size()] = '\0';
-
-		return (long)buffer;
+		TRY(write_to_user(user_buffer, m_working_directory.canonical_path.data(), m_working_directory.canonical_path.size() + 1));
+		return reinterpret_cast<long>(user_buffer);
 	}
 
-	BAN::ErrorOr<long> Process::sys_chdir(const char* path)
+	BAN::ErrorOr<long> Process::sys_chdir(const char* user_path)
 	{
+		char path[PATH_MAX];
+		TRY(read_string_from_user(user_path, path, PATH_MAX));
+
+		auto new_cwd = TRY(find_file(AT_FDCWD, path, O_SEARCH));
+
 		LockGuard _(m_process_lock);
-		TRY(validate_string_access(path));
-		m_working_directory = TRY(find_file(AT_FDCWD, path, O_SEARCH));
+		m_working_directory = BAN::move(new_cwd);
 		return 0;
 	}
 
@@ -2309,13 +2395,17 @@ namespace Kernel
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_chroot(const char* path)
+	BAN::ErrorOr<long> Process::sys_chroot(const char* user_path)
 	{
+		char path[PATH_MAX];
+		TRY(read_string_from_user(user_path, path, PATH_MAX));
+
+		auto new_root = TRY(find_file(AT_FDCWD, path, O_SEARCH));
+
 		LockGuard _(m_process_lock);
-		TRY(validate_string_access(path));
 		if (!m_credentials.is_superuser())
 			return BAN::Error::from_errno(EACCES);
-		m_root_file = TRY(find_file(AT_FDCWD, path, O_SEARCH));
+		m_root_file = BAN::move(new_root);
 		return 0;
 	}
 
@@ -2354,11 +2444,7 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_mmap(const sys_mmap_t* user_args)
 	{
 		sys_mmap_t args;
-		{
-			LockGuard _(m_process_lock);
-			TRY(validate_pointer_access(user_args, sizeof(sys_mmap_t), false));
-			args = *user_args;
-		}
+		TRY(read_from_user(user_args, &args, sizeof(sys_mmap_t)));
 
 		if (args.prot != PROT_NONE && (args.prot & ~(PROT_READ | PROT_WRITE | PROT_EXEC)))
 			return BAN::Error::from_errno(EINVAL);
@@ -2383,7 +2469,7 @@ namespace Kernel
 		else
 			page_flags |= PageTable::Flags::UserSupervisor;
 
-		LockGuard _(m_process_lock);
+		RWLockWRGuard _(m_memory_region_lock);
 
 		AddressRange address_range { .start = 0x400000, .end = USERSPACE_END };
 		if (args.flags & (MAP_FIXED | MAP_FIXED_NOREPLACE))
@@ -2512,7 +2598,7 @@ namespace Kernel
 		if (auto rem = len % PAGE_SIZE)
 			len += PAGE_SIZE - rem;
 
-		LockGuard _(m_process_lock);
+		RWLockWRGuard _(m_memory_region_lock);
 
 		const size_t first_index = find_mapped_region(vaddr);
 		for (size_t i = first_index; i < m_mapped_regions.size(); i++)
@@ -2561,7 +2647,7 @@ namespace Kernel
 		else
 			flags |= PageTable::Flags::UserSupervisor;
 
-		LockGuard _(m_process_lock);
+		RWLockWRGuard _(m_memory_region_lock);
 
 		const size_t first_index = find_mapped_region(vaddr);
 		for (size_t i = first_index; i < m_mapped_regions.size(); i++)
@@ -2602,7 +2688,7 @@ namespace Kernel
 		if (flags != MS_SYNC && flags != MS_ASYNC && flags != MS_INVALIDATE)
 			return BAN::Error::from_errno(EINVAL);
 
-		LockGuard _(m_process_lock);
+		RWLockRDGuard _(m_memory_region_lock);
 
 		const vaddr_t vaddr = reinterpret_cast<vaddr_t>(addr);
 
@@ -2661,17 +2747,18 @@ namespace Kernel
 		return region_vaddr;
 	}
 
-	BAN::ErrorOr<long> Process::sys_ttyname(int fildes, char* name, size_t namesize)
+	BAN::ErrorOr<long> Process::sys_ttyname(int fildes, char* user_buffer, size_t buffer_size)
 	{
-		LockGuard _(m_process_lock);
-		TRY(validate_pointer_access(name, namesize, true));
 		auto inode = TRY(m_open_file_descriptors.inode_of(fildes));
 		if (!inode->is_tty())
 			return BAN::Error::from_errno(ENOTTY);
+
 		auto path = TRY(m_open_file_descriptors.path_of(fildes));
-		if (namesize < path.size() + 1)
+		if (buffer_size < path.size() + 1)
 			return BAN::Error::from_errno(ERANGE);
-		strcpy(name, path.data());
+
+		TRY(write_to_user(user_buffer, path.data(), path.size() + 1));
+
 		return 0;
 	}
 
@@ -2710,20 +2797,17 @@ namespace Kernel
 		return pts_master_fd;
 	}
 
-	BAN::ErrorOr<long> Process::sys_ptsname(int fildes, char* buffer, size_t buffer_len)
+	BAN::ErrorOr<long> Process::sys_ptsname(int fildes, char* user_buffer, size_t buffer_len)
 	{
-		LockGuard _(m_process_lock);
-		TRY(validate_pointer_access(buffer, buffer_len, true));
-
-		if (TRY(m_open_file_descriptors.path_of(fildes)) != "<ptmx>"_sv)
+		auto file = TRY(m_open_file_descriptors.file_of(fildes));
+		if (file.canonical_path != "<ptmx>"_sv)
 			return BAN::Error::from_errno(ENOTTY);
 
-		auto inode = TRY(m_open_file_descriptors.inode_of(fildes));
-		auto ptsname = TRY(static_cast<PseudoTerminalMaster*>(inode.ptr())->ptsname());
+		auto ptsname = TRY(static_cast<PseudoTerminalMaster*>(file.inode.ptr())->ptsname());
+		if (buffer_len < ptsname.size() + 1)
+			return BAN::Error::from_errno(ERANGE);
 
-		const size_t to_copy = BAN::Math::min(ptsname.size(), buffer_len - 1);
-		memcpy(buffer, ptsname.data(), to_copy);
-		buffer[to_copy] = '\0';
+		TRY(write_to_user(user_buffer, ptsname.data(), ptsname.size() + 1));
 
 		return 0;
 	}
@@ -2741,26 +2825,25 @@ namespace Kernel
 		return 0;
 	}
 
+	BAN::ErrorOr<long> Process::sys_clock_gettime(clockid_t clock_id, timespec* user_tp)
 	{
-	BAN::ErrorOr<long> Process::sys_clock_gettime(clockid_t clock_id, timespec* tp)
-	{
-		LockGuard _(m_process_lock);
-		TRY(validate_pointer_access(tp, sizeof(timespec), true));
+		timespec tp;
 
 		switch (clock_id)
 		{
 			case CLOCK_MONOTONIC:
-				*tp = SystemTimer::get().time_since_boot();
+				tp = SystemTimer::get().time_since_boot();
 				break;
 			case CLOCK_REALTIME:
-				*tp = SystemTimer::get().real_time();
+				tp = SystemTimer::get().real_time();
 				break;
 			case CLOCK_PROCESS_CPUTIME_ID:
 			{
+				LockGuard _(m_process_lock);
 				uint64_t cpu_time_ns { 0 };
 				for (auto* thread : m_threads)
 					cpu_time_ns += thread->cpu_time_ns();
-				*tp = {
+				tp = {
 					.tv_sec = static_cast<time_t>(cpu_time_ns / 1'000'000'000),
 					.tv_nsec = static_cast<long>(cpu_time_ns % 1'000'000'000),
 				};
@@ -2769,7 +2852,7 @@ namespace Kernel
 			case CLOCK_THREAD_CPUTIME_ID:
 			{
 				const auto cpu_time_ns = Thread::current().cpu_time_ns();
-				*tp = {
+				tp = {
 					.tv_sec = static_cast<time_t>(cpu_time_ns / 1'000'000'000),
 					.tv_nsec = static_cast<long>(cpu_time_ns % 1'000'000'000),
 				};
@@ -2780,20 +2863,25 @@ namespace Kernel
 				return BAN::Error::from_errno(ENOTSUP);
 		}
 
+		TRY(write_to_user(user_tp, &tp, sizeof(timespec)));
+
 		return 0;
 	}
 
 
-	BAN::ErrorOr<long> Process::sys_load_keymap(const char* path)
+	BAN::ErrorOr<long> Process::sys_load_keymap(const char* user_path)
 	{
+		char path[PATH_MAX];
+		TRY(read_string_from_user(user_path, path, PATH_MAX));
+
 		LockGuard _(m_process_lock);
-		TRY(validate_string_access(path));
 
 		if (!m_credentials.is_superuser())
 			return BAN::Error::from_errno(EPERM);
 
 		auto absolute_path = TRY(absolute_path_of(path));
 		TRY(LibInput::KeyboardLayout::get().load_from_file(absolute_path));
+
 		return 0;
 	}
 
@@ -2949,50 +3037,51 @@ namespace Kernel
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_sigaction(int signal, const struct sigaction* act, struct sigaction* oact)
+	BAN::ErrorOr<long> Process::sys_sigaction(int signal, const struct sigaction* user_act, struct sigaction* user_oact)
 	{
 		if (signal < _SIGMIN || signal > _SIGMAX)
 			return BAN::Error::from_errno(EINVAL);
 
-		LockGuard _(m_process_lock);
-		if (act)
-			TRY(validate_pointer_access(act, sizeof(struct sigaction), false));
-		if (oact)
-			TRY(validate_pointer_access(oact, sizeof(struct sigaction), true));
+		struct sigaction new_act, old_act;
+		if (user_act != nullptr)
+			TRY(read_from_user(user_act, &new_act, sizeof(struct sigaction)));
 
-		SpinLockGuard signal_lock_guard(m_signal_lock);
-
-		if (oact)
-			*oact = m_signal_handlers[signal];
-
-		if (act)
-			m_signal_handlers[signal] = *act;
-
-		return 0;
-	}
-
-	BAN::ErrorOr<long> Process::sys_sigpending(sigset_t* set)
-	{
-		LockGuard _(m_process_lock);
-		TRY(validate_pointer_access(set, sizeof(sigset_t), true));
-		*set = (signal_pending_mask() | Thread::current().m_signal_pending_mask) & Thread::current().m_signal_block_mask;
-		return 0;
-	}
-
-	BAN::ErrorOr<long> Process::sys_sigprocmask(int how, const sigset_t* set, sigset_t* oset)
-	{
-		LockGuard _(m_process_lock);
-		if (set)
-			TRY(validate_pointer_access(set, sizeof(sigset_t), false));
-		if (oset)
-			TRY(validate_pointer_access(oset, sizeof(sigset_t), true));
-
-		if (oset)
-			*oset = Thread::current().m_signal_block_mask;
-
-		if (set)
 		{
-			const sigset_t mask = *set & ~(SIGKILL | SIGSTOP);
+			SpinLockGuard signal_lock_guard(m_signal_lock);
+			old_act = m_signal_handlers[signal];
+			if (user_act != nullptr)
+				m_signal_handlers[signal] = new_act;
+		}
+
+		if (user_oact != nullptr)
+			TRY(write_to_user(user_oact, &old_act, sizeof(struct sigaction)));
+
+		return 0;
+	}
+
+	BAN::ErrorOr<long> Process::sys_sigpending(sigset_t* user_sigset)
+	{
+		const sigset_t sigset = (signal_pending_mask() | Thread::current().m_signal_pending_mask) & Thread::current().m_signal_block_mask;
+		TRY(write_to_user(user_sigset, &sigset, sizeof(sigset_t)));
+		return 0;
+	}
+
+	BAN::ErrorOr<long> Process::sys_sigprocmask(int how, const sigset_t* user_set, sigset_t* user_oset)
+	{
+		LockGuard _(m_process_lock);
+
+		if (user_oset != nullptr)
+		{
+			const sigset_t current = Thread::current().m_signal_block_mask;
+			TRY(write_to_user(user_oset, &current, sizeof(sigset_t)));
+		}
+
+		if (user_set != nullptr)
+		{
+			sigset_t set;
+			TRY(read_from_user(user_set, &set, sizeof(sigset_t)));
+
+			const sigset_t mask = set & ~(SIGKILL | SIGSTOP);
 			switch (how)
 			{
 				case SIG_BLOCK:
@@ -3012,36 +3101,41 @@ namespace Kernel
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_sigsuspend(const sigset_t* set)
+	BAN::ErrorOr<long> Process::sys_sigsuspend(const sigset_t* user_set)
 	{
+		sigset_t set;
+		TRY(read_from_user(user_set, &set, sizeof(sigset_t)));
+
 		LockGuard _(m_process_lock);
-		TRY(validate_pointer_access(set, sizeof(sigset_t), false));
 
 		auto& thread = Thread::current();
-		thread.set_suspend_signal_mask(*set & ~(SIGKILL | SIGSTOP));
+		thread.set_suspend_signal_mask(set & ~(SIGKILL | SIGSTOP));
 
+		// FIXME: i *think* here is a race condition as kill doesnt hold process lock
 		while (!thread.is_interrupted_by_signal())
 			Processor::scheduler().block_current_thread(nullptr, -1, &m_process_lock);
 
 		return BAN::Error::from_errno(EINTR);
 	}
 
-	BAN::ErrorOr<long> Process::sys_sigwait(const sigset_t* set, int* sig)
+	BAN::ErrorOr<long> Process::sys_sigwait(const sigset_t* user_set, int* user_signal)
 	{
+		sigset_t set;
+		TRY(read_from_user(user_set, &set, sizeof(sigset_t)));
+
 		LockGuard _(m_process_lock);
 
 		auto& thread = Thread::current();
 		for (;;)
 		{
-			TRY(validate_pointer_access(set, sizeof(sigset_t), false));
-			TRY(validate_pointer_access(sig, sizeof(int), true));
+			BAN::Optional<int> signal;
 
 			{
 				SpinLockGuard _1(thread.m_signal_lock);
 				SpinLockGuard _2(m_signal_lock);
 
 				const uint64_t pending = thread.m_signal_pending_mask | this->m_signal_pending_mask;
-				if (const auto wait_mask = pending & *set)
+				if (const auto wait_mask = pending & set)
 				{
 					for (size_t i = _SIGMIN; i <= _SIGMAX; i++)
 					{
@@ -3050,32 +3144,40 @@ namespace Kernel
 							continue;
 						thread.m_signal_pending_mask &= ~mask;
 						this->m_signal_pending_mask &= ~mask;
-						*sig = i;
-						return 0;
+						signal = i;
+						break;
 					}
 
-					ASSERT_NOT_REACHED();
+					ASSERT(signal.has_value());
 				}
 			}
 
+			if (signal.has_value())
+			{
+				TRY(write_to_user(user_signal, &signal.value(), sizeof(int)));
+				return 0;
+			}
+
+			// FIXME: i *think* here is a race condition as kill doesnt hold process lock
 			Processor::scheduler().block_current_thread(nullptr, -1, &m_process_lock);
 		}
 	}
 
-	BAN::ErrorOr<long> Process::sys_sigaltstack(const stack_t* ss, stack_t* oss)
+	BAN::ErrorOr<long> Process::sys_sigaltstack(const stack_t* user_ss, stack_t* user_oss)
 	{
-		LockGuard _(m_process_lock);
-		if (ss != nullptr)
-			TRY(validate_pointer_access(ss, sizeof(stack_t), false));
-		if (oss != nullptr)
-			TRY(validate_pointer_access(oss, sizeof(stack_t), true));
+		stack_t ss, oss;
+		if (user_ss != nullptr)
+			TRY(read_from_user(user_ss, &ss, sizeof(stack_t)));
 
-		TRY(Thread::current().sigaltstack(ss, oss));
+		TRY(Thread::current().sigaltstack(user_ss ? &ss : nullptr, user_oss ? &oss : nullptr));
+
+		if (user_oss != nullptr)
+			TRY(write_to_user(user_oss, &oss, sizeof(stack_t)));
 
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_futex(int op, const uint32_t* addr, uint32_t val, const timespec* abstime)
+	BAN::ErrorOr<long> Process::sys_futex(int op, const uint32_t* addr, uint32_t val, const timespec* user_abstime)
 	{
 		const vaddr_t vaddr = reinterpret_cast<vaddr_t>(addr);
 		if (vaddr % 4)
@@ -3096,32 +3198,32 @@ namespace Kernel
 			case FUTEX_WAIT:
 				break;
 			case FUTEX_WAKE:
-				abstime = nullptr;
+				user_abstime = nullptr;
 				break;
 			default:
 				return BAN::Error::from_errno(ENOSYS);
 		}
 
-		const uint64_t wake_time_ns =
-			TRY([abstime, is_realtime, this]() -> BAN::ErrorOr<uint64_t>
+		uint64_t wake_time_ns = BAN::numeric_limits<uint64_t>::max();
+
+		if (user_abstime != nullptr)
+		{
+			timespec abstime;
+			TRY(read_from_user(user_abstime, &abstime, sizeof(timespec)));
+
+			const uint64_t abstime_ns = abstime.tv_sec * 1'000'000'000 + abstime.tv_nsec;
+
+			if (!is_realtime)
+				wake_time_ns = abstime_ns;
+			else
 			{
-				if (abstime == nullptr)
-					return BAN::numeric_limits<uint64_t>::max();
-				const uint64_t abs_ns =
-					TRY([abstime, this]() -> BAN::ErrorOr<uint64_t>
-					{
-						LockGuard _(m_process_lock);
-						TRY(validate_pointer_access(abstime, sizeof(*abstime), false));
-						return abstime->tv_sec * 1'000'000'000 + abstime->tv_nsec;
-					}());
-				if (!is_realtime)
-					return abs_ns;
 				const auto realtime = SystemTimer::get().real_time();
-				const uint64_t real_ns = realtime.tv_sec * 1'000'000'000 + realtime.tv_nsec;
-				if (abs_ns <= real_ns)
+				const uint64_t realtime_ns = realtime.tv_sec * 1'000'000'000 + realtime.tv_nsec;
+				if (abstime_ns <= realtime_ns)
 					return BAN::Error::from_errno(ETIMEDOUT);
-				return SystemTimer::get().ns_since_boot() + (abs_ns - real_ns);
-			}());
+				wake_time_ns = SystemTimer::get().ns_since_boot() + (abstime_ns - realtime_ns);
+			}
+		}
 
 		if (op == FUTEX_WAIT && BAN::atomic_load(*addr) != val)
 			return BAN::Error::from_errno(EAGAIN);
@@ -3222,13 +3324,10 @@ namespace Kernel
 		return Thread::current().get_gsbase();
 	}
 
-	BAN::ErrorOr<long> Process::sys_pthread_create(const pthread_attr_t* attr, void (*entry)(void*), void* arg)
+	BAN::ErrorOr<long> Process::sys_pthread_create(const pthread_attr_t* user_attr, void (*entry)(void*), void* arg)
 	{
-		if (attr)
-		{
-			TRY(validate_pointer_access(attr, sizeof(*attr), false));
+		if (user_attr != nullptr)
 			dwarnln("TODO: ignoring thread attr");
-		}
 
 		LockGuard _(m_process_lock);
 
@@ -3256,51 +3355,49 @@ namespace Kernel
 		ASSERT_NOT_REACHED();
 	}
 
-	BAN::ErrorOr<long> Process::sys_pthread_join(pthread_t thread, void** value)
+	BAN::ErrorOr<long> Process::sys_pthread_join(pthread_t thread, void** user_value)
 	{
 		LockGuard _(m_process_lock);
-
-		if (value)
-			TRY(validate_pointer_access(value, sizeof(void*), true));
 
 		if (thread == Thread::current().tid())
 			return BAN::Error::from_errno(EINVAL);
 
-		const auto wait_thread =
-			[&]() -> bool
+		const auto check_thread =
+			[&]() -> BAN::Optional<void*>
 			{
 				for (size_t i = 0; i < m_exited_pthreads.size(); i++)
 				{
 					if (m_exited_pthreads[i].thread != thread)
 						continue;
 
-					if (value)
-						*value = m_exited_pthreads[i].value;
+					void* ret = m_exited_pthreads[i].value;
+
 					m_exited_pthreads.remove(i);
 
-					return true;
+					return ret;
 				}
 
-				return false;
+				return {};
 			};
-
-		if (wait_thread())
-			return 0;
-
-		{
-			bool found = false;
-			for (auto* _thread : m_threads)
-				if (_thread->tid() == thread)
-					found = true;
-			if (!found)
-				return BAN::Error::from_errno(EINVAL);
-		}
 
 		for (;;)
 		{
-			TRY(Thread::current().block_or_eintr_indefinite(m_pthread_exit_blocker, &m_process_lock));
-			if (wait_thread())
+			if (auto ret = check_thread(); ret.has_value())
+			{
+				TRY(write_to_user(user_value, &ret.value(), sizeof(void*)));
 				return 0;
+			}
+
+			{
+				bool found = false;
+				for (auto* _thread : m_threads)
+					if (_thread->tid() == thread)
+						found = true;
+				if (!found)
+					return BAN::Error::from_errno(EINVAL);
+			}
+
+			TRY(Thread::current().block_or_eintr_indefinite(m_pthread_exit_blocker, &m_process_lock));
 		}
 	}
 
@@ -3692,27 +3789,40 @@ namespace Kernel
 		return BAN::Error::from_errno(error);
 	}
 
-	BAN::ErrorOr<long> Process::sys_getgroups(gid_t groups[], size_t count)
+	BAN::ErrorOr<long> Process::sys_getgroups(gid_t user_groups[], size_t count)
 	{
+		if (BAN::Math::will_multiplication_overflow(count, sizeof(gid_t)))
+			return BAN::Error::from_errno(EOVERFLOW);
+
 		LockGuard _(m_process_lock);
+
 		const auto current = m_credentials.groups();
 		if (count == 0)
 			return current.size();
-		TRY(validate_pointer_access(groups, count * sizeof(gid_t), true));
+
 		if (current.size() > count)
 			return BAN::Error::from_errno(EINVAL);
-		for (size_t i = 0; i < current.size(); i++)
-			groups[i] = current[i];
+
+		TRY(write_to_user(user_groups, current.data(), current.size() * sizeof(gid_t)));
+
 		return current.size();
 	}
 
 	BAN::ErrorOr<long> Process::sys_setgroups(const gid_t groups[], size_t count)
 	{
+		if (BAN::Math::will_multiplication_overflow(count, sizeof(gid_t)))
+			return BAN::Error::from_errno(EOVERFLOW);
+
 		LockGuard _(m_process_lock);
-		TRY(validate_pointer_access(groups, count * sizeof(gid_t), true));
+
 		if (!m_credentials.is_superuser())
 			return BAN::Error::from_errno(EPERM);
+
+		auto* region = TRY(validate_and_pin_pointer_access(groups, count * sizeof(gid_t), false));
+		BAN::ScopeGuard pin_guard([region] { if (region) region->unpin(); });
+
 		TRY(m_credentials.set_groups({ groups, count }));
+
 		return 0;
 	}
 
@@ -3735,99 +3845,338 @@ namespace Kernel
 		return absolute_path;
 	}
 
-	BAN::ErrorOr<void> Process::validate_string_access(const char* str)
+	BAN::ErrorOr<bool> Process::allocate_page_for_demand_paging(vaddr_t address, bool wants_write, bool wants_exec)
 	{
-		// NOTE: we will page fault here, if str is not actually mapped
-		//       outcome is still the same; SIGSEGV
-		return validate_pointer_access(str, strlen(str) + 1, false);
+		ASSERT(&Process::current() == this);
+
+		const auto is_allocated =
+			[&]() -> bool
+			{
+				auto wanted_flags = PageTable::Flags::UserSupervisor | PageTable::Flags::Present;
+				if (wants_write)
+					wanted_flags |= PageTable::Flags::ReadWrite;
+				if (wants_exec)
+					wanted_flags |= PageTable::Flags::Execute;
+				if ((m_page_table->get_page_flags(address & PAGE_ADDR_MASK) & wanted_flags) == wanted_flags)
+					return true;
+				return false;
+			};
+
+		{
+			RWLockRDGuard _(m_memory_region_lock);
+			if (is_allocated())
+				return true;
+		}
+
+		RWLockWRGuard _(m_memory_region_lock);
+
+		if (is_allocated())
+			return true;
+
+		const size_t index = find_mapped_region(address);
+		if (index >= m_mapped_regions.size())
+			return false;
+
+		auto& region = m_mapped_regions[index];
+		if (!region->contains(address))
+			return false;
+
+		return region->allocate_page_containing(address, wants_write);
 	}
 
-	BAN::ErrorOr<void> Process::validate_pointer_access(const void* ptr, size_t size, bool needs_write)
+	// TODO: The following 3 functions could be simplified into one generic helper function
+
+	BAN::ErrorOr<void> Process::read_from_user(const void* user_addr, void* out, size_t size)
 	{
-		if (size == 0)
-			return {};
+		const vaddr_t user_vaddr = reinterpret_cast<vaddr_t>(user_addr);
 
-		const auto page_flags = (needs_write ? PageTable::Flags::ReadWrite : 0) | PageTable::Flags::Present;
+		auto* out_u8 = static_cast<uint8_t*>(out);
+		size_t ncopied = 0;
 
-		// Make sure all of the pages are mapped here, so demand paging does not happen
-		// while processing syscall.
-
-		const vaddr_t vaddr = reinterpret_cast<vaddr_t>(ptr);
-		const vaddr_t page_start = vaddr & PAGE_ADDR_MASK;
-		const size_t page_count = range_page_count(vaddr, size);
-		for (size_t i = 0; i < page_count; i++)
 		{
-			const vaddr_t current = page_start + i * PAGE_SIZE;
-			if ((page_table().get_page_flags(current) & page_flags) == page_flags)
-				continue;
-			if (!TRY(Process::allocate_page_for_demand_paging(current, needs_write, false)))
-			{
-				const MemoryRegion* region_ptr = nullptr;
-				for (const auto& region : m_mapped_regions)
-				{
-					if (!region->contains(vaddr + i * PAGE_SIZE))
-						continue;
-					region_ptr = region.ptr();
-					break;
-				}
+			RWLockRDGuard _(m_memory_region_lock);
 
-				dwarnln("{} pid {}, tid {} made an invalid {} access to 0x{h}",
-					name(),
-					pid(),
-					Thread::current().tid(),
-					needs_write ? "write" : "read",
-					vaddr + i * PAGE_SIZE
+			const size_t first_index = find_mapped_region(user_vaddr);
+			for (size_t i = first_index; ncopied < size && i < m_mapped_regions.size(); i++)
+			{
+				auto& region = m_mapped_regions[i];
+				if (!region->contains(user_vaddr + ncopied))
+					return BAN::Error::from_errno(EFAULT);
+
+				const size_t ncopy = BAN::Math::min<size_t>(
+					(region->vaddr() + region->size()) - (user_vaddr + ncopied),
+					size - ncopied
 				);
 
-				dwarnln("  0x{h}->0x{h}", vaddr, vaddr + size);
-
-				if (region_ptr == nullptr)
-					dwarnln("  no mapping covers this page");
-				else
+				const size_t page_count = range_page_count(user_vaddr + ncopied, ncopy);
+				const vaddr_t page_base = (user_vaddr + ncopied) & PAGE_ADDR_MASK;
+				for (size_t p = 0; p < page_count; p++)
 				{
-					dwarnln("  inside region 0x{h}->0x{h} {}{}{}",
-						region_ptr->vaddr(),
-						region_ptr->vaddr() + region_ptr->size(),
-						(region_ptr->flags() & PageTable::Flags::Present)   ? 'r' : '-',
-						(region_ptr->flags() & PageTable::Flags::ReadWrite) ? 'w' : '-',
-						(region_ptr->flags() & PageTable::Flags::Execute)   ? 'x' : '-'
-					);
+					const auto flags = PageTable::UserSupervisor | PageTable::Present;
+					if ((m_page_table->get_page_flags(page_base + p * PAGE_SIZE) & flags) != flags)
+						goto read_from_user_with_allocation;
 				}
 
-				page_table().debug_dump();
+				memcpy(out_u8 + ncopied, reinterpret_cast<void*>(user_vaddr + ncopied), ncopy);
+				ncopied += ncopy;
+			}
 
-				Debug::dump_stack_trace();
-				MUST(sys_kill(pid(), SIGSEGV));
-				return BAN::Error::from_errno(EINTR);
+			if (ncopied >= size)
+				return {};
+			if (ncopied > 0)
+				return BAN::Error::from_errno(EFAULT);
+		}
+
+	read_from_user_with_allocation:
+		RWLockWRGuard _(m_memory_region_lock);
+
+		const size_t first_index = find_mapped_region(user_vaddr + ncopied);
+		for (size_t i = first_index; ncopied < size && i < m_mapped_regions.size(); i++)
+		{
+			auto& region = m_mapped_regions[i];
+			if (!region->contains(user_vaddr + ncopied))
+				return BAN::Error::from_errno(EFAULT);
+
+			const size_t ncopy = BAN::Math::min<size_t>(
+				(region->vaddr() + region->size()) - (user_vaddr + ncopied),
+				size - ncopied
+			);
+
+			const size_t page_count = range_page_count(user_vaddr + ncopied, ncopy);
+			const vaddr_t page_base = (user_vaddr + ncopied) & PAGE_ADDR_MASK;
+			for (size_t p = 0; p < page_count; p++)
+			{
+				const auto flags = PageTable::UserSupervisor | PageTable::Present;
+				if ((m_page_table->get_page_flags(page_base + p * PAGE_SIZE) & flags) == flags)
+					continue;
+				if (!TRY(region->allocate_page_containing(page_base + p * PAGE_SIZE, false)))
+					return BAN::Error::from_errno(EFAULT);
+			}
+
+			memcpy(out_u8 + ncopied, reinterpret_cast<void*>(user_vaddr + ncopied), ncopy);
+			ncopied += ncopy;
+		}
+
+		if (ncopied >= size)
+			return {};
+		return BAN::Error::from_errno(EFAULT);
+	}
+
+	BAN::ErrorOr<void> Process::read_string_from_user(const char* user_addr, char* out, size_t max_size)
+	{
+		const vaddr_t user_vaddr = reinterpret_cast<vaddr_t>(user_addr);
+
+		size_t ncopied = 0;
+
+		{
+			RWLockRDGuard _(m_memory_region_lock);
+
+			const size_t first_index = find_mapped_region(user_vaddr);
+			for (size_t i = first_index; ncopied < max_size && i < m_mapped_regions.size(); i++)
+			{
+				auto& region = m_mapped_regions[i];
+				if (!region->contains(user_vaddr + ncopied))
+					return BAN::Error::from_errno(EFAULT);
+
+				vaddr_t last_page = 0;
+
+				for (; ncopied < max_size; ncopied++)
+				{
+					const vaddr_t curr_page = (user_vaddr + ncopied) & PAGE_ADDR_MASK;
+					if (curr_page != last_page)
+					{
+						const auto flags = PageTable::UserSupervisor | PageTable::Present;
+						if ((m_page_table->get_page_flags(curr_page) & flags) != flags)
+							goto read_string_from_user_with_allocation;
+					}
+
+					out[ncopied] = user_addr[ncopied];
+					if (out[ncopied] == '\0')
+						return {};
+
+					last_page = curr_page;
+				}
+			}
+
+			if (ncopied >= max_size)
+				return BAN::Error::from_errno(ENAMETOOLONG);
+			if (ncopied > 0)
+				return BAN::Error::from_errno(EFAULT);
+		}
+
+	read_string_from_user_with_allocation:
+		RWLockWRGuard _(m_memory_region_lock);
+
+		const size_t first_index = find_mapped_region(user_vaddr + ncopied);
+		for (size_t i = first_index; ncopied < max_size && i < m_mapped_regions.size(); i++)
+		{
+			auto& region = m_mapped_regions[i];
+			if (!region->contains(user_vaddr + ncopied))
+				return BAN::Error::from_errno(EFAULT);
+
+			vaddr_t last_page = 0;
+
+			for (; ncopied < max_size; ncopied++)
+			{
+				const vaddr_t curr_page = (user_vaddr + ncopied) & PAGE_ADDR_MASK;
+				if (curr_page != last_page)
+				{
+					const auto flags = PageTable::UserSupervisor | PageTable::Present;
+					if ((m_page_table->get_page_flags(curr_page) & flags) == flags)
+						;
+					else if (!TRY(region->allocate_page_containing(curr_page, false)))
+						return BAN::Error::from_errno(EFAULT);
+				}
+
+				out[ncopied] = user_addr[ncopied];
+				if (out[ncopied] == '\0')
+					return {};
+
+				last_page = curr_page;
 			}
 		}
 
-		return {};
+		if (ncopied >= max_size)
+			return BAN::Error::from_errno(ENAMETOOLONG);
+		return BAN::Error::from_errno(EFAULT);
+	}
+
+	BAN::ErrorOr<void> Process::write_to_user(void* user_addr, const void* in, size_t size)
+	{
+		const vaddr_t user_vaddr = reinterpret_cast<vaddr_t>(user_addr);
+
+		const auto* in_u8 = static_cast<const uint8_t*>(in);
+		size_t ncopied = 0;
+
+		{
+			RWLockRDGuard _(m_memory_region_lock);
+
+			const size_t first_index = find_mapped_region(user_vaddr);
+			for (size_t i = first_index; ncopied < size && i < m_mapped_regions.size(); i++)
+			{
+				auto& region = m_mapped_regions[i];
+				if (!region->contains(user_vaddr + ncopied))
+					return BAN::Error::from_errno(EFAULT);
+
+				const size_t ncopy = BAN::Math::min<size_t>(
+					(region->vaddr() + region->size()) - (user_vaddr + ncopied),
+					size - ncopied
+				);
+
+				const size_t page_count = range_page_count(user_vaddr + ncopied, ncopy);
+				const vaddr_t page_base = (user_vaddr + ncopied) & PAGE_ADDR_MASK;
+				for (size_t i = 0; i < page_count; i++)
+				{
+					const auto flags = PageTable::UserSupervisor | PageTable::ReadWrite | PageTable::Present;
+					if ((m_page_table->get_page_flags(page_base + i * PAGE_SIZE) & flags) != flags)
+						goto write_to_user_with_allocation;
+				}
+
+				memcpy(reinterpret_cast<void*>(user_vaddr + ncopied), in_u8 + ncopied, ncopy);
+				ncopied += ncopy;
+			}
+
+			if (ncopied >= size)
+				return {};
+			if (ncopied > 0)
+				return BAN::Error::from_errno(EFAULT);
+		}
+
+	write_to_user_with_allocation:
+		RWLockWRGuard _(m_memory_region_lock);
+
+		const size_t first_index = find_mapped_region(user_vaddr + ncopied);
+		for (size_t i = first_index; ncopied < size && i < m_mapped_regions.size(); i++)
+		{
+			auto& region = m_mapped_regions[i];
+			if (!region->contains(user_vaddr + ncopied))
+				return BAN::Error::from_errno(EFAULT);
+
+			const size_t ncopy = BAN::Math::min<size_t>(
+				(region->vaddr() + region->size()) - (user_vaddr + ncopied),
+				size - ncopied
+			);
+
+			const size_t page_count = range_page_count(user_vaddr + ncopied, ncopy);
+			const vaddr_t page_base = (user_vaddr + ncopied) & PAGE_ADDR_MASK;
+			for (size_t p = 0; p < page_count; p++)
+			{
+				const auto flags = PageTable::UserSupervisor | PageTable::ReadWrite | PageTable::Present;
+				if ((m_page_table->get_page_flags(page_base + p * PAGE_SIZE) & flags) == flags)
+					continue;
+				if (!TRY(region->allocate_page_containing(page_base + p * PAGE_SIZE, true)))
+					return BAN::Error::from_errno(EFAULT);
+			}
+
+			memcpy(reinterpret_cast<void*>(user_vaddr + ncopied), in_u8 + ncopied, ncopy);
+			ncopied += ncopy;
+		}
+
+		if (ncopied >= size)
+			return {};
+		return BAN::Error::from_errno(EFAULT);
 	}
 
 	BAN::ErrorOr<MemoryRegion*> Process::validate_and_pin_pointer_access(const void* ptr, size_t size, bool needs_write)
 	{
-		LockGuard _(m_process_lock);
-		TRY(validate_pointer_access(ptr, size, needs_write));
+		// TODO: allow pinning multiple regions?
 
-		// FIXME: make stack MemoryRegion?
-		// FIXME: allow pinning multiple regions
+		const vaddr_t user_vaddr = reinterpret_cast<vaddr_t>(ptr);
 
-		const vaddr_t vaddr = reinterpret_cast<vaddr_t>(ptr);
+		{
+			RWLockRDGuard _(m_memory_region_lock);
 
-		const size_t first_index = find_mapped_region(vaddr);
+			const size_t first_index = find_mapped_region(user_vaddr);
+			for (size_t i = first_index; i < m_mapped_regions.size(); i++)
+			{
+				auto& region = m_mapped_regions[i];
+				if (user_vaddr >= region->vaddr() + region->size())
+					break;
+				if (!region->contains_fully(user_vaddr, size))
+					continue;
+
+				const size_t page_count = range_page_count(user_vaddr, size);
+				const vaddr_t page_base = user_vaddr & PAGE_ADDR_MASK;
+				for (size_t p = 0; p < page_count; p++)
+				{
+					const auto flags = PageTable::UserSupervisor | (needs_write ? PageTable::ReadWrite : 0) | PageTable::Present;
+					if ((m_page_table->get_page_flags(page_base + p * PAGE_SIZE) & flags) != flags)
+						goto validate_and_pin_pointer_access_with_allocation;
+				}
+
+				region->pin();
+				return region.ptr();
+			}
+		}
+
+	validate_and_pin_pointer_access_with_allocation:
+		RWLockWRGuard _(m_memory_region_lock);
+
+		const size_t first_index = find_mapped_region(user_vaddr);
 		for (size_t i = first_index; i < m_mapped_regions.size(); i++)
 		{
 			auto& region = m_mapped_regions[i];
-			if (vaddr >= region->vaddr() + region->size())
+			if (user_vaddr >= region->vaddr() + region->size())
 				break;
-			if (!region->contains_fully(vaddr, size))
+			if (!region->contains_fully(user_vaddr, size))
 				continue;
+
+			const size_t page_count = range_page_count(user_vaddr, size);
+			const vaddr_t page_base = user_vaddr & PAGE_ADDR_MASK;
+			for (size_t p = 0; p < page_count; p++)
+			{
+				const auto flags = PageTable::UserSupervisor | (needs_write ? PageTable::ReadWrite : 0) | PageTable::Present;
+				if ((m_page_table->get_page_flags(page_base + p * PAGE_SIZE) & flags) == flags)
+					continue;
+				if (!TRY(region->allocate_page_containing(page_base + p * PAGE_SIZE, needs_write)))
+					return BAN::Error::from_errno(EFAULT);
+			}
+
 			region->pin();
 			return region.ptr();
 		}
 
-		return nullptr;
+		return BAN::Error::from_errno(EFAULT);
 	}
 
 }

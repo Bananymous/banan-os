@@ -4,6 +4,7 @@
 #include <kernel/InterruptController.h>
 #include <kernel/InterruptStack.h>
 #include <kernel/Memory/kmalloc.h>
+#include <kernel/Memory/MemoryBackedRegion.h>
 #include <kernel/Process.h>
 #include <kernel/Scheduler.h>
 #include <kernel/Thread.h>
@@ -218,13 +219,16 @@ namespace Kernel
 			true, true
 		));
 
-		thread->m_userspace_stack = TRY(VirtualRange::create_to_vaddr_range(
+		auto userspace_stack = TRY(MemoryBackedRegion::create(
 			page_table,
-			stack_addr_start, USERSPACE_END,
 			userspace_stack_size,
+			{ stack_addr_start, USERSPACE_END },
+			MemoryRegion::Type::PRIVATE,
 			PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present,
-			false, true
+			O_RDWR
 		));
+		thread->m_userspace_stack = userspace_stack.ptr();
+		TRY(process->add_mapped_region(BAN::move(userspace_stack)));
 
 		thread_deleter.disable();
 
@@ -319,16 +323,18 @@ namespace Kernel
 	{
 		auto* thread = TRY(create_userspace(m_process, m_process->page_table()));
 
-		save_sse();
+		if (Processor::get_current_sse_thread() == this)
+			save_sse();
 		memcpy(thread->m_sse_storage, m_sse_storage, sizeof(m_sse_storage));
 
-		TRY(thread->userspace_stack().allocate_page_for_demand_paging(thread->userspace_stack_top() - PAGE_SIZE));
-		PageTable::with_fast_page(thread->userspace_stack().paddr_of(thread->userspace_stack_top() - PAGE_SIZE), [=] {
-			PageTable::fast_page_as<void*>(PAGE_SIZE - sizeof(uintptr_t)) = arg;
-		});
+		TRY(thread->userspace_stack().copy_data_to_region(
+			thread->m_userspace_stack->size() - sizeof(void*),
+			reinterpret_cast<const uint8_t*>(&arg),
+			sizeof(void*)
+		));
 
 		const vaddr_t entry_addr = reinterpret_cast<vaddr_t>(entry);
-		thread->setup_exec(entry_addr, thread->userspace_stack_top() - sizeof(uintptr_t));
+		thread->setup_exec(entry_addr, thread->userspace_stack().vaddr() + thread->userspace_stack().size() - sizeof(void*));
 
 		return thread;
 	}
@@ -346,14 +352,18 @@ namespace Kernel
 		thread->m_is_userspace = true;
 
 		thread->m_kernel_stack = TRY(m_kernel_stack->clone(new_process->page_table()));
-		thread->m_userspace_stack = TRY(m_userspace_stack->clone(new_process->page_table()));
+
+		const auto stack_index = new_process->find_mapped_region(m_userspace_stack->vaddr());
+		thread->m_userspace_stack = static_cast<MemoryBackedRegion*>(new_process->m_mapped_regions[stack_index].ptr());
+		ASSERT(thread->m_userspace_stack->vaddr() == m_userspace_stack->vaddr());
 
 		thread->m_fsbase = m_fsbase;
 		thread->m_gsbase = m_gsbase;
 
 		thread->m_state = State::NotStarted;
 
-		save_sse();
+		if (Processor::get_current_sse_thread() == this)
+			save_sse();
 		memcpy(thread->m_sse_storage, m_sse_storage, sizeof(m_sse_storage));
 
 		thread->m_yield_registers = {};
@@ -397,29 +407,18 @@ namespace Kernel
 		if (needed_size > m_userspace_stack->size())
 			return BAN::Error::from_errno(ENOBUFS);
 
-		vaddr_t vaddr = userspace_stack_top() - needed_size;
+		vaddr_t vaddr = userspace_stack().vaddr() + userspace_stack().size() - needed_size;
 
 		const size_t page_count = BAN::Math::div_round_up<size_t>(needed_size, PAGE_SIZE);
 		for (size_t i = 0; i < page_count; i++)
-			TRY(m_userspace_stack->allocate_page_for_demand_paging(vaddr + i * PAGE_SIZE));
+			TRY(m_userspace_stack->allocate_page_containing(vaddr + i * PAGE_SIZE, true));
 
 		const auto stack_copy_buf =
 			[this](BAN::ConstByteSpan buffer, vaddr_t vaddr) -> void
 			{
-				ASSERT(vaddr + buffer.size() <= userspace_stack_top());
-
-				size_t bytes_copied = 0;
-				while (bytes_copied < buffer.size())
-				{
-					const size_t to_copy = BAN::Math::min<size_t>(buffer.size() - bytes_copied, PAGE_SIZE - (vaddr % PAGE_SIZE));
-
-					PageTable::with_fast_page(userspace_stack().paddr_of(vaddr & PAGE_ADDR_MASK), [=]() {
-						memcpy(PageTable::fast_page_as_ptr(vaddr % PAGE_SIZE), buffer.data() + bytes_copied, to_copy);
-					});
-
-					vaddr += to_copy;
-					bytes_copied += to_copy;
-				}
+				ASSERT(vaddr >= m_userspace_stack->vaddr());
+				ASSERT(vaddr + buffer.size() <= m_userspace_stack->vaddr() + m_userspace_stack->size());
+				MUST(m_userspace_stack->copy_data_to_region(vaddr - m_userspace_stack->vaddr(), buffer.data(), buffer.size()));
 			};
 
 		const auto stack_push_buf =
@@ -471,7 +470,7 @@ namespace Kernel
 			stack_push_str(envp[i]);
 		}
 
-		setup_exec(entry, userspace_stack_top() - needed_size);
+		setup_exec(entry, m_userspace_stack->vaddr() + m_userspace_stack->size() - needed_size);
 
 		return {};
 	}
