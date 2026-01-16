@@ -277,7 +277,11 @@ namespace Kernel
 #endif
 		if (isr == ISR::PageFault)
 			PageTable::current().debug_dump();
-		Debug::dump_stack_trace();
+#if ARCH(x86_64)
+		Debug::dump_stack_trace(interrupt_stack->ip, regs->rbp);
+#elif ARCH(i686)
+		Debug::dump_stack_trace(interrupt_stack->ip, regs->ebp);
+#endif
 
 		Debug::s_debug_lock.unlock(InterruptState::Disabled);
 

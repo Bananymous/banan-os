@@ -30,27 +30,32 @@ namespace Debug
 
 	void dump_stack_trace()
 	{
+		dump_stack_trace(0, reinterpret_cast<uintptr_t>(__builtin_frame_address(0)));
+	}
+
+	void dump_stack_trace(uintptr_t ip, uintptr_t bp)
+	{
 		using namespace Kernel;
 
 		struct stackframe
 		{
 			stackframe* bp;
-			uintptr_t ip;
+			void* ip;
 		};
 
 		SpinLockGuard _(s_debug_lock);
 
-		stackframe* frame = (stackframe*)__builtin_frame_address(0);
-		if (!frame)
-		{
-			dprintln("Could not get frame address");
-			return;
-		}
-		uintptr_t first_ip = frame->ip;
-		uintptr_t last_ip = 0;
+		const stackframe* frame = reinterpret_cast<const stackframe*>(bp);
+
+		void* first_ip = frame->ip;
+		void* last_ip = 0;
 		bool first = true;
 
 		BAN::Formatter::print(Debug::putchar, "\e[36mStack trace:\r\n");
+
+		if (ip != 0)
+			BAN::Formatter::print(Debug::putchar, "    {}\r\n", reinterpret_cast<void*>(ip));
+
 		while (frame)
 		{
 			if (!PageTable::is_valid_pointer((vaddr_t)frame))

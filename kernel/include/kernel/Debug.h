@@ -76,6 +76,7 @@
 namespace Debug
 {
 	void dump_stack_trace();
+	void dump_stack_trace(uintptr_t ip, uintptr_t bp);
 	void dump_qr_code();
 
 	void putchar(char);
