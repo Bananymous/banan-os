@@ -2741,26 +2741,7 @@ namespace Kernel
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_termid(char* buffer)
 	{
-		LockGuard _(m_process_lock);
-
-		TRY(validate_string_access(buffer));
-
-		auto& tty = m_controlling_terminal;
-
-		if (!tty)
-			buffer[0] = '\0';
-		else
-		{
-			ASSERT(minor(tty->rdev()) < 10);
-			strcpy(buffer, "/dev/tty0");
-			buffer[8] += minor(tty->rdev());
-		}
-
-		return 0;
-	}
-
 	BAN::ErrorOr<long> Process::sys_clock_gettime(clockid_t clock_id, timespec* tp)
 	{
 		LockGuard _(m_process_lock);

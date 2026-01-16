@@ -138,7 +138,7 @@ char* ctermid(char* buffer)
 {
 	static char s_buffer[L_ctermid];
 	char* target = buffer ? buffer : s_buffer;
-	syscall(SYS_TERMID, target);
+	strcpy(buffer, "/dev/tty");
 	return target;
 }
 

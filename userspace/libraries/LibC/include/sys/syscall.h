@@ -9,7 +9,6 @@ __BEGIN_DECLS
 	O(SYS_EXIT,				exit)			\
 	O(SYS_READ,				read)			\
 	O(SYS_WRITE,			write)			\
-	O(SYS_TERMID,			termid)			\
 	O(SYS_CLOSE,			close)			\
 	O(SYS_OPENAT,			openat)			\
 	O(SYS_SEEK,				seek)			\

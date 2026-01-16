@@ -218,8 +218,6 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_tcgetpgrp(int fd);
 		BAN::ErrorOr<long> sys_tcsetpgrp(int fd, pid_t pgid);
 
-		BAN::ErrorOr<long> sys_termid(char*);
-
 		BAN::ErrorOr<long> sys_clock_gettime(clockid_t, timespec*);
 
 		BAN::ErrorOr<long> sys_load_keymap(const char* path);
