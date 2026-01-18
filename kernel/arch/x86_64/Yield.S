@@ -1,10 +1,10 @@
 .global asm_yield_trampoline
 asm_yield_trampoline:
-	movq %rsp, %rcx
+	leaq 8(%rsp), %rcx
 	movq %rdi, %rsp
 
 	subq $8, %rsp
-	pushq (%rcx)
+	pushq -8(%rcx)
 	pushq %rcx
 	pushq %rax
 	pushq %rbx

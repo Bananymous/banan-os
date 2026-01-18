@@ -1,9 +1,9 @@
 .global asm_yield_trampoline
 asm_yield_trampoline:
-	movl %esp, %ecx
+	leal 4(%esp), %ecx
 	movl 4(%esp), %esp
 
-	pushl (%ecx)
+	pushl -4(%ecx)
 	pushl %ecx
 	pushl %eax
 	pushl %ebx
