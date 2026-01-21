@@ -14,12 +14,6 @@ configure() {
 	done
 	popd
 
-	pushd 3rdparty/vorbis/vorbis-src || exit 1
-	for patch in ../../../../patches/vorbis/*; do
-		git apply $patch
-	done
-	popd
-
 	./waf configure -T release || exit 1
 }
 
