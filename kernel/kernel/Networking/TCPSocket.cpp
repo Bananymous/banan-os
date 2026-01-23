@@ -95,8 +95,8 @@ namespace Kernel
 		}
 
 		return_inode->m_mutex.lock();
-		memcpy(&return_inode->m_address, &connection.target.address, connection.target.address_len);
-		return_inode->m_address_len = connection.target.address_len;
+		memcpy(&return_inode->m_address, &m_address, m_address_len);
+		return_inode->m_address_len = m_address_len;
 		return_inode->m_listen_parent = this;
 		return_inode->m_connection_info.emplace(connection.target);
 		return_inode->m_recv_window.start_seq = connection.target_start_seq;
@@ -562,6 +562,7 @@ namespace Kernel
 						));
 
 						epoll_notify(EPOLLIN);
+						m_thread_blocker.unblock();
 					}
 				}
 				else
@@ -573,14 +574,11 @@ namespace Kernel
 						break;
 					}
 					auto socket = it->value;
-
 					m_mutex.unlock();
 					socket->receive_packet(buffer, sender, sender_len);
 					m_mutex.lock();
-
-					return;
 				}
-				break;
+				return;
 			case State::Established:
 				check_payload = true;
 				if (!(header.flags & FIN))
