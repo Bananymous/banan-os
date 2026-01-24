@@ -36,7 +36,7 @@ __BEGIN_DECLS
 #define _POSIX_RAW_SOCKETS                0       /* raw sockets :D */
 #define _POSIX_READER_WRITER_LOCKS        200809L
 #define _POSIX_REALTIME_SIGNALS           -1      /* siq{queue,timedwait,waitinfo} */
-#define _POSIX_REGEXP                     -1      /* reg{comp,error,exec,free} */
+#define _POSIX_REGEXP                     200809L
 #define _POSIX_SAVED_IDS                  200809L
 #define _POSIX_SEMAPHORES                 -1      /* sem_{close,destroy,getvalue,init,open,post,trywait,unlink,wait} */
 #define _POSIX_SHARED_MEMORY_OBJECTS      -1      /* shm_{open,unlink} */
