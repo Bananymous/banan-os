@@ -83,7 +83,7 @@ namespace Kernel
 
 	BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> SharedMemoryObject::clone(PageTable& new_page_table)
 	{
-		auto region = TRY(SharedMemoryObjectManager::get().map_object(m_object->key, new_page_table, { .start = vaddr(), .end = vaddr() + size() }));
+		auto region = TRY(SharedMemoryObject::create(m_object, new_page_table, { .start = vaddr(), .end = vaddr() + size() }));
 		return BAN::UniqPtr<MemoryRegion>(BAN::move(region));
 	}
 
