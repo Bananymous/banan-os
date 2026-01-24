@@ -396,6 +396,7 @@ namespace Kernel
 		BAN::UniqPtr<PageTable> m_page_table;
 		BAN::RefPtr<TTY> m_controlling_terminal;
 
+		friend class OpenFileDescriptorSet;
 		friend class Thread;
 	};
 

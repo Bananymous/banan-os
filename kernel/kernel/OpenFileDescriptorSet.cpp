@@ -12,6 +12,20 @@
 namespace Kernel
 {
 
+	struct InodeRefPtrHash
+	{
+		BAN::hash_t operator()(const BAN::RefPtr<Inode>& inode)
+		{
+			return BAN::hash<const Inode*>()(inode.ptr());
+		}
+	};
+
+	static Mutex s_fcntl_lock_mutex;
+	static ThreadBlocker s_fcntl_lock_thread_blocker;
+	static BAN::HashMap<BAN::RefPtr<Inode>, BAN::Vector<struct flock>, InodeRefPtrHash> s_fcntl_locks;
+
+	static BAN::ErrorOr<void> fcntl_lock(BAN::RefPtr<Inode> inode, int cmd, struct flock& flock);
+
 	OpenFileDescriptorSet::OpenFileDescriptorSet(const Credentials& credentials)
 		: m_credentials(credentials)
 	{
@@ -219,6 +233,68 @@ namespace Kernel
 
 	BAN::ErrorOr<int> OpenFileDescriptorSet::fcntl(int fd, int cmd, uintptr_t extra)
 	{
+		if (cmd == F_SETLK || cmd == F_SETLKW || cmd == F_GETLK)
+		{
+			struct flock flock;
+			TRY(Process::current().read_from_user(reinterpret_cast<void*>(extra), &flock, sizeof(struct flock)));
+			flock.l_pid = Process::current().pid();
+
+			BAN::RefPtr<Inode> inode;
+
+			{
+				LockGuard _(m_mutex);
+
+				TRY(validate_fd(fd));
+
+				const auto& open_file = m_open_files[fd];
+
+				inode = open_file.inode();
+
+				switch (flock.l_whence)
+				{
+					case SEEK_SET:
+						break;
+					case SEEK_CUR:
+						if (BAN::Math::will_addition_overflow(flock.l_start, open_file.offset()))
+							return BAN::Error::from_errno(EOVERFLOW);
+						flock.l_start += m_open_files[fd].offset();
+						break;
+					case SEEK_END:
+						if (BAN::Math::will_addition_overflow(flock.l_start, inode->size()))
+							return BAN::Error::from_errno(EOVERFLOW);
+						flock.l_start += inode->size();
+						break;
+					default:
+						return BAN::Error::from_errno(EINVAL);
+				}
+
+				if (BAN::Math::will_addition_overflow(flock.l_start, flock.l_len))
+					return BAN::Error::from_errno(EOVERFLOW);
+
+				if (flock.l_len < 0)
+				{
+					flock.l_start += flock.l_len;
+					if (flock.l_len == BAN::numeric_limits<decltype(flock.l_len)>::min())
+						return BAN::Error::from_errno(EOVERFLOW);
+					flock.l_len = -flock.l_len;
+				}
+
+				flock.l_whence = SEEK_SET;
+			}
+
+			auto lock_ret = fcntl_lock(inode, cmd, flock);
+			if (lock_ret.is_error())
+			{
+				if (lock_ret.error().get_error_code() == ENOMEM)
+					return BAN::Error::from_errno(ENOLCK);
+				return lock_ret.release_error();
+			}
+
+			if (cmd == F_GETLK)
+				TRY(Process::current().write_to_user(reinterpret_cast<void*>(extra), &flock, sizeof(struct flock)));
+			return 0;
+		}
+
 		LockGuard _(m_mutex);
 
 		TRY(validate_fd(fd));
@@ -252,46 +328,6 @@ namespace Kernel
 				m_open_files[fd].status_flags() &= O_ACCMODE;
 				m_open_files[fd].status_flags() |= extra;
 				return 0;
-			case F_GETLK:
-			{
-				dwarnln("TODO: proper fcntl F_GETLK");
-
-				auto* param = reinterpret_cast<struct flock*>(extra);
-				const auto& flock = m_open_files[fd].description->flock;
-
-				if (flock.lockers.empty())
-					param->l_type = F_UNLCK;
-				else
-				{
-					*param = {
-						.l_type = static_cast<short>(flock.shared ? F_RDLCK : F_WRLCK),
-						.l_whence = SEEK_SET,
-						.l_start = 0,
-						.l_len = 1,
-						.l_pid = *flock.lockers.begin(),
-					};
-				}
-
-				return 0;
-			}
-			case F_SETLK:
-			case F_SETLKW:
-			{
-				dwarnln("TODO: proper fcntl F_SETLK(W)");
-
-				int op = cmd == F_SETLKW ? LOCK_NB : 0;
-				switch (reinterpret_cast<const struct flock*>(extra)->l_type)
-				{
-					case F_UNLCK: op |= LOCK_UN; break;
-					case F_RDLCK: op |= LOCK_SH; break;
-					case F_WRLCK: op |= LOCK_EX; break;
-					default:
-						return BAN::Error::from_errno(EINVAL);
-				}
-				TRY(flock(fd, op));
-
-				return 0;
-			}
 			default:
 				break;
 		}
@@ -363,6 +399,18 @@ namespace Kernel
 			}
 		}
 
+		{
+			LockGuard _(s_fcntl_lock_mutex);
+			if (auto it = s_fcntl_locks.find(open_file.inode()); it != s_fcntl_locks.end())
+			{
+				auto& flocks = it->value;
+				for (size_t i = 0; i < flocks.size(); i++)
+					if (flocks[i].l_pid == Process::current().pid())
+						flocks.remove(i--);
+				s_fcntl_lock_thread_blocker.unblock();
+			}
+		}
+
 		open_file.inode()->on_close(open_file.status_flags());
 		open_file.description.clear();
 		open_file.descriptor_flags = 0;
@@ -386,6 +434,147 @@ namespace Kernel
 				continue;
 			if (m_open_files[fd].descriptor_flags & O_CLOEXEC)
 				(void)close(fd);
+		}
+	}
+
+	static BAN::ErrorOr<void> fcntl_lock(BAN::RefPtr<Inode> inode, int cmd, struct flock& flock)
+	{
+		if (!inode->mode().ifreg())
+			return BAN::Error::from_errno(EINVAL);
+
+		LockGuard _(s_fcntl_lock_mutex);
+
+		static constexpr auto locks_overlap =
+			[](struct flock a, struct flock b) -> bool
+			{
+				if (a.l_len == 0 && b.l_len == 0)
+					return true;
+				if (a.l_len == 0 && a.l_start < b.l_start + b.l_len)
+					return true;
+				if (b.l_len == 0 && b.l_start < a.l_start + a.l_len)
+					return true;
+				if (a.l_start + a.l_len <= b.l_start)
+					return false;
+				if (b.l_start + b.l_len <= a.l_start)
+					return false;
+				return true;
+			};
+
+		const auto lock_preventer =
+			[flock](BAN::Span<struct flock> locks) -> struct flock*
+			{
+				for (auto& lock : locks)
+				{
+					if (lock.l_pid == flock.l_pid)
+						continue;
+					if (!locks_overlap(lock, flock))
+						continue;
+					if (lock.l_type == F_RDLCK && flock.l_type == F_RDLCK)
+						continue;
+					return &lock;
+				}
+				return nullptr;
+			};
+
+		switch (cmd)
+		{
+			case F_GETLK:
+			{
+				auto it = s_fcntl_locks.find(inode);
+				if (it == s_fcntl_locks.end())
+					flock.l_type = F_UNLCK;
+				else if (auto* preventer = lock_preventer(it->value.span()))
+					flock = *preventer;
+				else
+					flock.l_type = F_UNLCK;
+				return {};
+			}
+			case F_SETLK:
+			case F_SETLKW:
+			{
+				if (flock.l_type == F_UNLCK)
+				{
+					auto it = s_fcntl_locks.find(inode);
+					if (it == s_fcntl_locks.end())
+						return {};
+					auto& flocks = it->value;
+
+					for (size_t i = 0; i < flocks.size(); i++)
+					{
+						if (flocks[i].l_pid != flock.l_pid)
+							continue;
+						if (!locks_overlap(flocks[i], flock))
+							continue;
+
+						struct flock new_flocks[2];
+						size_t new_flock_count { 0 };
+
+						if (flocks[i].l_start < flock.l_start)
+						{
+							const off_t flock_len = flocks[i].l_len ? flocks[i].l_len : inode->size();
+							new_flocks[new_flock_count] = flock;
+							new_flocks[new_flock_count].l_len = flocks[i].l_start + flock_len - flock.l_start;
+							new_flock_count++;
+						}
+
+						if (flock.l_len == 0)
+							;
+						else if (flocks[i].l_len == 0)
+						{
+							new_flocks[new_flock_count] = flock;
+							new_flocks[new_flock_count].l_start = flock.l_start + flock.l_len;
+							new_flocks[new_flock_count].l_len = 0;
+							new_flock_count++;
+						}
+						else if (flocks[i].l_start + flocks[i].l_len > flock.l_start + flock.l_len)
+						{
+							new_flocks[new_flock_count] = flock;
+							new_flocks[new_flock_count].l_start = flock.l_start + flock.l_len;
+							new_flocks[new_flock_count].l_len = (flocks[i].l_start + flocks[i].l_len) - (flock.l_start + flock.l_len);
+							new_flock_count++;
+						}
+
+						switch (new_flock_count)
+						{
+							case 0:
+								flocks.remove(i--);
+								break;
+							case 1:
+								flocks[i] = new_flocks[0];
+								break;
+							case 2:
+								TRY(flocks.insert(i + 1, new_flocks[1]));
+								flocks[i++] = new_flocks[0];
+								break;
+						}
+					}
+
+					if (flocks.empty())
+						s_fcntl_locks.remove(it);
+
+					s_fcntl_lock_thread_blocker.unblock();
+
+					return {};
+				}
+				else for (;;)
+				{
+					auto it = s_fcntl_locks.find(inode);
+					if (it == s_fcntl_locks.end())
+						it = TRY(s_fcntl_locks.emplace(inode));
+
+					if (lock_preventer(it->value.span()) == nullptr)
+					{
+						TRY(it->value.push_back(flock));
+						return {};
+					}
+
+					if (cmd == F_SETLK)
+						return BAN::Error::from_errno(EAGAIN);
+					TRY(Thread::current().block_or_eintr_indefinite(s_fcntl_lock_thread_blocker, &s_fcntl_lock_mutex));
+				}
+			}
+			default:
+				ASSERT_NOT_REACHED();
 		}
 	}
 
