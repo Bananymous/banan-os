@@ -1271,9 +1271,8 @@ namespace Kernel
 			return 0;
 		}
 
-		// FIXME: buffer_region can be null as stack is not MemoryRegion
 		auto* buffer_region = TRY(validate_and_pin_pointer_access(buffer, count, true));
-		BAN::ScopeGuard _([buffer_region] { if (buffer_region) buffer_region->unpin(); });
+		BAN::ScopeGuard _([buffer_region] { buffer_region->unpin(); });
 		return TRY(m_open_file_descriptors.read(fd, BAN::ByteSpan(static_cast<uint8_t*>(buffer), count)));
 	}
 
@@ -1285,9 +1284,8 @@ namespace Kernel
 			return 0;
 		}
 
-		// FIXME: buffer_region can be null as stack is not MemoryRegion
 		auto* buffer_region = TRY(validate_and_pin_pointer_access(buffer, count, false));
-		BAN::ScopeGuard _([buffer_region] { if (buffer_region) buffer_region->unpin(); });
+		BAN::ScopeGuard _([buffer_region] { buffer_region->unpin(); });
 		return TRY(m_open_file_descriptors.write(fd, BAN::ConstByteSpan(static_cast<const uint8_t*>(buffer), count)));
 	}
 
@@ -1465,7 +1463,7 @@ namespace Kernel
 		auto inode = TRY(m_open_file_descriptors.inode_of(fd));
 
 		auto* buffer_region = TRY(validate_and_pin_pointer_access(buffer, count, true));
-		BAN::ScopeGuard _([buffer_region] { if (buffer_region) buffer_region->unpin(); });
+		BAN::ScopeGuard _([buffer_region] { buffer_region->unpin(); });
 
 		return TRY(inode->read(offset, { reinterpret_cast<uint8_t*>(buffer), count }));
 	}
@@ -1475,7 +1473,7 @@ namespace Kernel
 		auto inode = TRY(m_open_file_descriptors.inode_of(fd));
 
 		auto* buffer_region = TRY(validate_and_pin_pointer_access(buffer, count, false));
-		BAN::ScopeGuard _([buffer_region] { if (buffer_region) buffer_region->unpin(); });
+		BAN::ScopeGuard _([buffer_region] { buffer_region->unpin(); });
 
 		return TRY(inode->write(offset, { reinterpret_cast<const uint8_t*>(buffer), count }));	}
 
@@ -1802,10 +1800,10 @@ namespace Kernel
 		BAN::Vector<MemoryRegion*> regions;
 		BAN::ScopeGuard _([&regions] {
 			for (auto* region : regions)
-				if (region != nullptr)
-					region->unpin();
+				region->unpin();
 		});
 
+		// FIXME: this can leak memory if push to regions fails but pinning succeeded
 		if (message.msg_name)
 			TRY(regions.push_back(TRY(validate_and_pin_pointer_access(message.msg_name, message.msg_namelen, true))));
 		if (message.msg_control)
@@ -1832,8 +1830,7 @@ namespace Kernel
 		BAN::Vector<MemoryRegion*> regions;
 		BAN::ScopeGuard _([&regions] {
 			for (auto* region : regions)
-				if (region != nullptr)
-					region->unpin();
+				region->unpin();
 		});
 
 		if (message.msg_name)
@@ -1985,7 +1982,7 @@ namespace Kernel
 	BAN::ErrorOr<long> Process::sys_ppoll(pollfd* fds, nfds_t nfds, const timespec* user_timeout, const sigset_t* user_sigmask)
 	{
 		auto* fds_region = TRY(validate_and_pin_pointer_access(fds, nfds * sizeof(pollfd), true));
-		BAN::ScopeGuard _([fds_region] { if (fds_region) fds_region->unpin(); });
+		BAN::ScopeGuard _([fds_region] { fds_region->unpin(); });
 
 		const auto old_sigmask = Thread::current().m_signal_block_mask;
 		if (user_sigmask != nullptr)
@@ -2168,10 +2165,7 @@ namespace Kernel
 		}
 
 		auto* events_region = TRY(validate_and_pin_pointer_access(events, maxevents * sizeof(epoll_event), true));
-		BAN::ScopeGuard _([events_region] {
-			if (events_region)
-				events_region->unpin();
-		});
+		BAN::ScopeGuard _([events_region] { events_region->unpin(); });
 
 		const auto old_sigmask = Thread::current().m_signal_block_mask;
 		if (user_sigmask)
@@ -2364,7 +2358,7 @@ namespace Kernel
 			return BAN::Error::from_errno(EOVERFLOW);
 
 		auto* list_region = TRY(validate_and_pin_pointer_access(list, list_len * sizeof(struct dirent), true));
-		BAN::ScopeGuard _([list_region] { if (list_region) list_region->unpin(); });
+		BAN::ScopeGuard _([list_region] { list_region->unpin(); });
 		return TRY(m_open_file_descriptors.read_dir_entries(fd, list, list_len));
 	}
 
@@ -3188,7 +3182,7 @@ namespace Kernel
 		op &= ~(FUTEX_PRIVATE | FUTEX_REALTIME);
 
 		auto* buffer_region = TRY(validate_and_pin_pointer_access(addr, sizeof(uint32_t), false));
-		BAN::ScopeGuard pin_guard([&] { if (buffer_region) buffer_region->unpin(); });
+		BAN::ScopeGuard pin_guard([buffer_region] { buffer_region->unpin(); });
 
 		const paddr_t paddr = m_page_table->physical_address_of(vaddr & PAGE_ADDR_MASK) | (vaddr & ~PAGE_ADDR_MASK);
 		ASSERT(paddr != 0);
@@ -3819,7 +3813,7 @@ namespace Kernel
 			return BAN::Error::from_errno(EPERM);
 
 		auto* region = TRY(validate_and_pin_pointer_access(groups, count * sizeof(gid_t), false));
-		BAN::ScopeGuard pin_guard([region] { if (region) region->unpin(); });
+		BAN::ScopeGuard pin_guard([region] { region->unpin(); });
 
 		TRY(m_credentials.set_groups({ groups, count }));
 
