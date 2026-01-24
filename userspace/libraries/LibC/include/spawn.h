@@ -14,8 +14,58 @@ __BEGIN_DECLS
 #define __need_pid_t
 #include <sys/types.h>
 
-typedef int posix_spawnattr_t;
-typedef int posix_spawn_file_actions_t;
+typedef struct
+{
+	short flags;
+	pid_t pgroup;
+	sched_param schedparam;
+	int schedpolicy;
+	sigset_t sigdefault;
+	sigset_t sigmask;
+} posix_spawnattr_t;
+
+typedef struct
+{
+	int fildes;
+} _posix_spawn_file_actions_close_t;
+
+typedef struct
+{
+	int fildes;
+	int newfildes;
+} _posix_spawn_file_actions_dup2_t;
+
+typedef struct
+{
+	int fildes;
+	char* path;
+	int oflag;
+	mode_t mode;
+} _posix_spawn_file_actions_open_t;
+
+typedef enum
+{
+	_POSIX_SPAWN_FILE_ACTION_CLOSE,
+	_POSIX_SPAWN_FILE_ACTION_DUP2,
+	_POSIX_SPAWN_FILE_ACTION_OPEN,
+} _posix_spawn_file_action_type_e;
+
+typedef struct
+{
+	_posix_spawn_file_action_type_e type;
+	union
+	{
+		_posix_spawn_file_actions_close_t close;
+		_posix_spawn_file_actions_dup2_t dup2;
+		_posix_spawn_file_actions_open_t open;
+	};
+} _posix_spawn_file_action_t;
+
+typedef struct
+{
+	_posix_spawn_file_action_t* actions;
+	size_t action_count;
+} posix_spawn_file_actions_t;
 
 #define POSIX_SPAWN_RESETIDS		0x01
 #define POSIX_SPAWN_SETPGROUP		0x02

@@ -41,7 +41,7 @@ __BEGIN_DECLS
 #define _POSIX_SEMAPHORES                 -1      /* sem_{close,destroy,getvalue,init,open,post,trywait,unlink,wait} */
 #define _POSIX_SHARED_MEMORY_OBJECTS      -1      /* shm_{open,unlink} */
 #define _POSIX_SHELL                      200809L
-#define _POSIX_SPAWN                      -1      /* posix_spawn* */
+#define _POSIX_SPAWN                      200809L
 #define _POSIX_SPIN_LOCKS                 200809L
 #define _POSIX_SPORADIC_SERVER            -1      /* sched_{setparam,setscheduler} with SCHED_SPORADIC */
 #define _POSIX_SYNCHRONIZED_IO            200809L
