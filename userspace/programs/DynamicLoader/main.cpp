@@ -373,8 +373,6 @@ static void handle_copy_relocation(const LoadedElf& elf, const RelocT& reloc)
 		reinterpret_cast<void*>(src_elf->base + src_sym->st_value),
 		symbol.st_size
 	);
-
-	src_sym->st_value = (elf.base + reloc.r_offset) - src_elf->base;
 }
 
 template<typename RelocT> requires BAN::is_same_v<RelocT, ElfNativeRelocation> || BAN::is_same_v<RelocT, ElfNativeRelocationA>
@@ -927,6 +925,8 @@ static bool can_load_elf(int fd, const ElfNativeFileHeader& file_header, uintptr
 	return true;
 }
 
+// FIXME: Don't map read-only sections as writable with DT_TEXTREL.
+//        Instead mprotect the areas writable during relocation.
 static void load_program_header(const ElfNativeProgramHeader& program_header, int fd, bool needs_writable)
 {
 	if (program_header.p_type != PT_LOAD)
@@ -966,7 +966,7 @@ static void load_program_header(const ElfNativeProgramHeader& program_header, in
 		mmap_args.flags = MAP_PRIVATE | MAP_FIXED;
 		mmap_args.len = file_backed_size;
 		mmap_args.off = program_header.p_offset;
-		mmap_args.prot = prot | PROT_WRITE;
+		mmap_args.prot = prot | (needs_writable ? PROT_WRITE : 0);
 
 		if (auto ret = syscall(SYS_MMAP, &mmap_args); ret != static_cast<long>(program_header.p_vaddr))
 			print_error_and_exit("could not load program header", ret);
@@ -1002,12 +1002,13 @@ static void load_program_header(const ElfNativeProgramHeader& program_header, in
 			0x00,
 			program_header.p_memsz - program_header.p_filesz
 		);
-	}
 
-	if (!(prot & PROT_WRITE) && !needs_writable)
-	{
-		// FIXME: Implement mprotect so PROT_WRITE can be removed
-		//syscall(SYS_MPROTECT, start_vaddr, length, prot);
+		if (!(prot & PROT_WRITE) && !needs_writable)
+		{
+			if (auto ret = syscall(SYS_MPROTECT, program_header.p_vaddr + file_backed_size, program_header.p_memsz - file_backed_size, prot))
+				print_error_and_exit("failed to remove PROT_WRITE from mapped", ret);
+			print(STDDBG_FILENO, "dropped PROT_WRITE :nekocatwoah:");
+		}
 	}
 }
 
