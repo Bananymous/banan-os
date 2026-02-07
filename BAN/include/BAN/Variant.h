@@ -126,14 +126,16 @@ namespace BAN
 		Variant(Variant&& other)
 			: m_index(other.m_index)
 		{
-			detail::move_construct<Ts...>(other.m_index, other.m_storage, m_storage);
+			if (other.has_value())
+				detail::move_construct<Ts...>(other.m_index, other.m_storage, m_storage);
 			other.clear();
 		}
 
 		Variant(const Variant& other)
 			: m_index(other.m_index)
 		{
-			detail::copy_construct<Ts...>(other.m_index, other.m_storage, m_storage);
+			if (other.has_value())
+				detail::copy_construct<Ts...>(other.m_index, other.m_storage, m_storage);
 		}
 
 		template<typename T>
@@ -157,12 +159,13 @@ namespace BAN
 
 		Variant& operator=(Variant&& other)
 		{
-			if (m_index == other.m_index)
+			if (m_index == other.m_index && m_index != invalid_index())
 				detail::move_assign<Ts...>(m_index, other.m_storage, m_storage);
 			else
 			{
 				clear();
-				detail::move_construct<Ts...>(other.m_index, other.m_storage, m_storage);
+				if (other.has_value())
+					detail::move_construct<Ts...>(other.m_index, other.m_storage, m_storage);
 				m_index = other.m_index;
 			}
 			other.clear();
@@ -171,12 +174,13 @@ namespace BAN
 
 		Variant& operator=(const Variant& other)
 		{
-			if (m_index == other.m_index)
+			if (m_index == other.m_index && m_index != invalid_index())
 				detail::copy_assign<Ts...>(m_index, other.m_storage, m_storage);
 			else
 			{
 				clear();
-				detail::copy_construct<Ts...>(other.m_index, other.m_storage, m_storage);
+				if (other.has_value())
+					detail::copy_construct<Ts...>(other.m_index, other.m_storage, m_storage);
 				m_index = other.m_index;
 			}
 			return *this;
