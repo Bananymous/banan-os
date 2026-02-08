@@ -70,6 +70,7 @@ namespace Kernel
 			size_t size;
 			BAN::Vector<FDWrapper> fds;
 			BAN::Optional<struct ucred> ucred;
+			BAN::WeakPtr<UnixDomainSocket> sender;
 		};
 
 		BAN::ErrorOr<size_t> add_packet(const msghdr&, PacketInfo&&, bool dont_block);
@@ -82,9 +83,13 @@ namespace Kernel
 
 		BAN::CircularQueue<PacketInfo, 512>	m_packet_infos;
 		size_t								m_packet_size_total { 0 };
+		size_t								m_packet_buffer_tail { 0 };
 		BAN::UniqPtr<VirtualRange>			m_packet_buffer;
-		Mutex								m_packet_lock;
+		mutable Mutex						m_packet_lock;
 		ThreadBlocker						m_packet_thread_blocker;
+
+		BAN::Atomic<size_t> m_sndbuf { 0 };
+		BAN::Atomic<size_t> m_bytes_sent { 0 };
 
 		friend class BAN::RefPtr<UnixDomainSocket>;
 	};
