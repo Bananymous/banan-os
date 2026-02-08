@@ -170,8 +170,8 @@ namespace Kernel
 		SpinLockGuard _(m_bound_socket_lock);
 
 		if (bind_address.sin_port == 0)
-			bind_address.sin_port = TRY(find_free_port());
-		const uint16_t port = BAN::host_to_network_endian(bind_address.sin_port);
+			bind_address.sin_port = BAN::host_to_network_endian(TRY(find_free_port()));
+		const uint16_t port = BAN::network_endian_to_host(bind_address.sin_port);
 
 		if (m_bound_sockets.contains(port))
 			return BAN::Error::from_errno(EADDRINUSE);
