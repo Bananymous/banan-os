@@ -20,9 +20,10 @@ ssize_t readv(int fildes, const struct iovec* iov, int iovcnt)
 			if (ret <= 0)
 				return result;
 			nread += ret;
+			result += ret;
 		}
-		result += nread;
 	}
+
 	return result;
 }
 
@@ -44,8 +45,9 @@ ssize_t writev(int fildes, const struct iovec* iov, int iovcnt)
 			if (ret <= 0)
 				return result;
 			nwrite += ret;
+			result += ret;
 		}
-		result += nwrite;
 	}
+
 	return result;
 }
