@@ -123,14 +123,15 @@ struct linger
 
 #define SOMAXCONN 4096
 
-#define MSG_CTRUNC		0x01
-#define MSG_DONTROUTE	0x02
-#define MSG_EOR			0x04
-#define MSG_OOB			0x08
-#define MSG_NOSIGNAL	0x10
-#define MSG_PEEK		0x20
-#define MSG_TRUNC		0x40
-#define MSG_WAITALL		0x80
+#define MSG_CTRUNC		0x001
+#define MSG_DONTROUTE	0x002
+#define MSG_EOR			0x004
+#define MSG_OOB			0x008
+#define MSG_NOSIGNAL	0x010
+#define MSG_PEEK		0x020
+#define MSG_TRUNC		0x040
+#define MSG_WAITALL		0x080
+#define MSG_DONTWAIT    0x100
 
 #define AF_UNSPEC	0
 #define AF_INET		1

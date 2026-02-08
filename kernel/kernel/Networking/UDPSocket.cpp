@@ -162,10 +162,7 @@ namespace Kernel
 
 	BAN::ErrorOr<size_t> UDPSocket::sendmsg_impl(const msghdr& message, int flags)
 	{
-		if (flags & MSG_NOSIGNAL)
-			dwarnln("sendmsg ignoring MSG_NOSIGNAL");
-		flags &= (MSG_EOR | MSG_OOB /* | MSG_NOSIGNAL */);
-		if (flags != 0)
+		if (flags & ~(MSG_NOSIGNAL | MSG_DONTWAIT))
 		{
 			dwarnln("TODO: sendmsg with flags 0x{H}", flags);
 			return BAN::Error::from_errno(ENOTSUP);

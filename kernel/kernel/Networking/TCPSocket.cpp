@@ -245,10 +245,7 @@ namespace Kernel
 
 	BAN::ErrorOr<size_t> TCPSocket::sendmsg_impl(const msghdr& message, int flags)
 	{
-		if (flags & MSG_NOSIGNAL)
-			dwarnln("sendmsg ignoring MSG_NOSIGNAL");
-		flags &= (MSG_EOR | MSG_OOB /* | MSG_NOSIGNAL */);
-		if (flags != 0)
+		if (flags & ~(MSG_NOSIGNAL | MSG_DONTWAIT))
 		{
 			dwarnln("TODO: sendmsg with flags 0x{H}", flags);
 			return BAN::Error::from_errno(ENOTSUP);
@@ -264,6 +261,8 @@ namespace Kernel
 		{
 			if (m_state != State::Established)
 				return return_with_maybe_zero();
+			if (flags & MSG_DONTWAIT)
+				return BAN::Error::from_errno(EAGAIN);
 			TRY(Thread::current().block_or_eintr_indefinite(m_thread_blocker, &m_mutex));
 		}
 

@@ -795,7 +795,7 @@ namespace Kernel
 
 		LockGuard _(inode->m_mutex);
 		if (is_nonblock && !inode->can_read())
-			return BAN::Error::from_errno(EWOULDBLOCK);
+			return BAN::Error::from_errno(EAGAIN);
 		return inode->recvmsg(message, flags);
 	}
 
@@ -817,12 +817,13 @@ namespace Kernel
 		LockGuard _(inode->m_mutex);
 		if (inode->has_hungup())
 		{
-			Thread::current().add_signal(SIGPIPE, {});
+			if (!(flags & MSG_NOSIGNAL))
+				Thread::current().add_signal(SIGPIPE, {});
 			return BAN::Error::from_errno(EPIPE);
 		}
 		if (is_nonblock && !inode->can_write())
-			return BAN::Error::from_errno(EWOULDBLOCK);
-		return inode->sendmsg(message, flags);
+			return BAN::Error::from_errno(EAGAIN);
+		return inode->sendmsg(message, flags | (is_nonblock ? MSG_DONTWAIT : 0));
 	}
 
 	BAN::ErrorOr<VirtualFileSystem::File> OpenFileDescriptorSet::file_of(int fd) const

@@ -6,7 +6,6 @@
 #include <kernel/FS/Socket.h>
 #include <kernel/FS/TmpFS/Inode.h>
 #include <kernel/FS/VirtualFileSystem.h>
-#include <kernel/Lock/SpinLock.h>
 #include <kernel/OpenFileDescriptorSet.h>
 
 namespace Kernel
@@ -73,7 +72,7 @@ namespace Kernel
 			BAN::Optional<struct ucred> ucred;
 		};
 
-		BAN::ErrorOr<void> add_packet(const msghdr&, PacketInfo&&);
+		BAN::ErrorOr<size_t> add_packet(const msghdr&, PacketInfo&&, bool dont_block);
 
 	private:
 		const Socket::Type		m_socket_type;

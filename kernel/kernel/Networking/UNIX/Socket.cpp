@@ -289,17 +289,19 @@ namespace Kernel
 			case Socket::Type::SEQPACKET:
 			case Socket::Type::DGRAM:
 				return false;
-			default:
-				ASSERT_NOT_REACHED();
 		}
 	}
 
-	BAN::ErrorOr<void> UnixDomainSocket::add_packet(const msghdr& packet, PacketInfo&& packet_info)
+	BAN::ErrorOr<size_t> UnixDomainSocket::add_packet(const msghdr& packet, PacketInfo&& packet_info, bool dont_block)
 	{
 		LockGuard _(m_packet_lock);
 
 		while (m_packet_infos.full() || m_packet_size_total + packet_info.size > s_packet_buffer_size)
+		{
+			if (dont_block)
+				return BAN::Error::from_errno(EAGAIN);
 			TRY(Thread::current().block_or_eintr_indefinite(m_packet_thread_blocker, &m_packet_lock));
+		}
 
 		uint8_t* packet_buffer = reinterpret_cast<uint8_t*>(m_packet_buffer->vaddr() + m_packet_size_total);
 
@@ -512,10 +514,7 @@ namespace Kernel
 
 	BAN::ErrorOr<size_t> UnixDomainSocket::sendmsg_impl(const msghdr& message, int flags)
 	{
-		if (flags & MSG_NOSIGNAL)
-			dwarnln("sendmsg ignoring MSG_NOSIGNAL");
-		flags &= (MSG_EOR | MSG_OOB /* | MSG_NOSIGNAL */);
-		if (flags != 0)
+		if (flags & ~(MSG_NOSIGNAL | MSG_DONTWAIT))
 		{
 			dwarnln("TODO: sendmsg with flags 0x{H}", flags);
 			return BAN::Error::from_errno(ENOTSUP);
@@ -608,7 +607,7 @@ namespace Kernel
 			auto target = connection_info.connection.lock();
 			if (!target)
 				return BAN::Error::from_errno(ENOTCONN);
-			TRY(target->add_packet(message, BAN::move(packet_info)));
+			TRY(target->add_packet(message, BAN::move(packet_info), flags & MSG_DONTWAIT));
 			return total_message_size;
 		}
 		else
@@ -652,8 +651,7 @@ namespace Kernel
 
 			if (!target)
 				return BAN::Error::from_errno(EDESTADDRREQ);
-			TRY(target->add_packet(message, BAN::move(packet_info)));
-
+			TRY(target->add_packet(message, BAN::move(packet_info), flags & MSG_DONTWAIT));
 			return total_message_size;
 		}
 	}
