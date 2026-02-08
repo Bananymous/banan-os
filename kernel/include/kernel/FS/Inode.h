@@ -113,6 +113,8 @@ namespace Kernel
 		BAN::ErrorOr<size_t> recvmsg(msghdr& message, int flags);
 		BAN::ErrorOr<void> getsockname(sockaddr* address, socklen_t* address_len);
 		BAN::ErrorOr<void> getpeername(sockaddr* address, socklen_t* address_len);
+		BAN::ErrorOr<void> getsockopt(int level, int option, void* value, socklen_t* value_len);
+		BAN::ErrorOr<void> setsockopt(int level, int option, const void* value, socklen_t value_len);
 
 		// General API
 		BAN::ErrorOr<size_t> read(off_t, BAN::ByteSpan buffer);
@@ -161,6 +163,8 @@ namespace Kernel
 		virtual BAN::ErrorOr<size_t> sendmsg_impl(const msghdr&, int)								{ return BAN::Error::from_errno(ENOTSUP); }
 		virtual BAN::ErrorOr<void> getsockname_impl(sockaddr*, socklen_t*)							{ return BAN::Error::from_errno(ENOTSUP); }
 		virtual BAN::ErrorOr<void> getpeername_impl(sockaddr*, socklen_t*)							{ return BAN::Error::from_errno(ENOTSUP); }
+		virtual BAN::ErrorOr<void> getsockopt_impl(int, int, void*, socklen_t*)						{ return BAN::Error::from_errno(ENOTSUP); }
+		virtual BAN::ErrorOr<void> setsockopt_impl(int, int, const void*, socklen_t)				{ return BAN::Error::from_errno(ENOTSUP); }
 
 		// General API
 		virtual BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan)		{ return BAN::Error::from_errno(ENOTSUP); }

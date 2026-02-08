@@ -1674,20 +1674,13 @@ namespace Kernel
 		if (!inode->mode().ifsock())
 			return BAN::Error::from_errno(ENOTSOCK);
 
-		switch (option_name)
-		{
-			case SO_ERROR:
-			{
-				option_len = BAN::Math::min<socklen_t>(option_len, sizeof(int));
-				const int zero { 0 };
-				TRY(write_to_user(user_option_value, &zero, option_len));
-				TRY(write_to_user(user_option_len, &option_len, sizeof(socklen_t)));
-				return 0;
-			}
-		}
+		auto* buffer = TRY(validate_and_pin_pointer_access(user_option_value, option_len, true));
+		BAN::ScopeGuard _([buffer] { buffer->unpin(); });
 
-		dwarnln("getsockopt(SOL_SOCKET, {})", option_name);
-		return BAN::Error::from_errno(ENOTSUP);
+		TRY(inode->getsockopt(level, option_name, user_option_value, &option_len));
+		TRY(write_to_user(user_option_len, &option_len, sizeof(socklen_t)));
+
+		return 0;
 	}
 
 	BAN::ErrorOr<long> Process::sys_setsockopt(int socket, int level, int option_name, const void* user_option_value, socklen_t option_len)
@@ -1705,10 +1698,12 @@ namespace Kernel
 		if (!inode->mode().ifsock())
 			return BAN::Error::from_errno(ENOTSOCK);
 
-		(void)user_option_value;
+		auto* buffer = TRY(validate_and_pin_pointer_access(user_option_value, option_len, false));
+		BAN::ScopeGuard _([buffer] { buffer->unpin(); });
 
-		dwarnln("setsockopt(SOL_SOCKET, {})", option_name);
-		return BAN::Error::from_errno(ENOTSUP);
+		TRY(inode->setsockopt(level, option_name, user_option_value, option_len));
+
+		return 0;
 	}
 
 	BAN::ErrorOr<long> Process::sys_accept(int socket, sockaddr* address, socklen_t* address_len, int flags)

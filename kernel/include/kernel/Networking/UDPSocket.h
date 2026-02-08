@@ -38,6 +38,7 @@ namespace Kernel
 		virtual BAN::ErrorOr<size_t> recvmsg_impl(msghdr& message, int flags) override;
 		virtual BAN::ErrorOr<size_t> sendmsg_impl(const msghdr& message, int flags) override;
 		virtual BAN::ErrorOr<void> getpeername_impl(sockaddr*, socklen_t*) override { return BAN::Error::from_errno(ENOTCONN); }
+		virtual BAN::ErrorOr<void> getsockopt_impl(int, int, void*, socklen_t*) override;
 
 		virtual BAN::ErrorOr<long> ioctl_impl(int, void*) override;
 

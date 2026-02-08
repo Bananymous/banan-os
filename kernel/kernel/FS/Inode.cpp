@@ -222,6 +222,22 @@ namespace Kernel
 		return getpeername_impl(address, address_len);
 	}
 
+	BAN::ErrorOr<void> Inode::getsockopt(int level, int option, void* value, socklen_t* value_len)
+	{
+		LockGuard _(m_mutex);
+		if (!mode().ifsock())
+			return BAN::Error::from_errno(ENOTSOCK);
+		return getsockopt_impl(level, option, value, value_len);
+	}
+
+	BAN::ErrorOr<void> Inode::setsockopt(int level, int option, const void* value, socklen_t value_len)
+	{
+		LockGuard _(m_mutex);
+		if (!mode().ifsock())
+			return BAN::Error::from_errno(ENOTSOCK);
+		return setsockopt_impl(level, option, value, value_len);
+	}
+
 	BAN::ErrorOr<size_t> Inode::read(off_t offset, BAN::ByteSpan buffer)
 	{
 		LockGuard _(m_mutex);

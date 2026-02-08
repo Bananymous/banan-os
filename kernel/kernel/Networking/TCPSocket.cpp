@@ -297,6 +297,34 @@ namespace Kernel
 		return {};
 	}
 
+	BAN::ErrorOr<void> TCPSocket::getsockopt_impl(int level, int option, void* value, socklen_t* value_len)
+	{
+		if (level != SOL_SOCKET)
+			return BAN::Error::from_errno(EINVAL);
+
+		int result;
+		switch (option)
+		{
+			case SO_ERROR:
+				result = 0;
+				break;
+			case SO_SNDBUF:
+				result = m_send_window.scaled_size();
+				break;
+			case SO_RCVBUF:
+				result = m_recv_window.buffer->size();
+				break;
+			default:
+				return BAN::Error::from_errno(ENOTSUP);
+		}
+
+		const size_t len = BAN::Math::min<size_t>(sizeof(result), *value_len);
+		memcpy(value, &result, len);
+		*value_len = sizeof(int);
+
+		return {};
+	}
+
 	BAN::ErrorOr<long> TCPSocket::ioctl_impl(int request, void* argument)
 	{
 		switch (request)
