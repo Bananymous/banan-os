@@ -463,7 +463,7 @@ namespace Kernel
 			};
 			auto interface = MUST(this->interface(reinterpret_cast<const sockaddr*>(&target), sizeof(target)));
 
-			add_tcp_header_option<0, TCPOption::MaximumSeqmentSize>(header, interface->payload_mtu() - m_network_layer.header_size());
+			add_tcp_header_option<0, TCPOption::MaximumSeqmentSize>(header, interface->payload_mtu() - m_network_layer.header_size() - protocol_header_size());
 
 			if (m_connection_info->has_window_scale)
 				add_tcp_header_option<4, TCPOption::WindowScale>(header, m_recv_window.scale_shift);
