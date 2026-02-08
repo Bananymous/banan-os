@@ -45,6 +45,9 @@ namespace LibGUI
 		void fill_rect(int32_t x, int32_t y, uint32_t width, uint32_t height, uint32_t color);
 		void fill(uint32_t color) { return fill_rect(0, 0, width(), height(), color); }
 
+		void clear_rect(int32_t x, int32_t y, uint32_t width, uint32_t height) { fill_rect(x, y, width, height, m_bg_color); }
+		void clear() { return clear_rect(0, 0, width(), height()); }
+
 		void copy_texture(const Texture& texture, int32_t x, int32_t y, uint32_t sub_x = 0, uint32_t sub_y = 0, uint32_t width = -1, uint32_t height = -1);
 
 		void draw_character(uint32_t codepoint, const LibFont::Font& font, int32_t x, int32_t y, uint32_t color);
