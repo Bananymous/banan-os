@@ -18,7 +18,7 @@ typedef struct
 {
 	short flags;
 	pid_t pgroup;
-	sched_param schedparam;
+	struct sched_param schedparam;
 	int schedpolicy;
 	sigset_t sigdefault;
 	sigset_t sigmask;
