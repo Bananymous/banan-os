@@ -274,6 +274,12 @@ BAN::ErrorOr<void> Execute::execute_command(const PipedCommand& piped_command)
 			}
 		);
 
+		if (piped_command.commands[i].arguments.empty())
+		{
+			child_codes[i] = 0;
+			continue;
+		}
+
 		const int fd_in  = last_pipe_rd;
 		const int fd_out = new_pipe[1];
 
