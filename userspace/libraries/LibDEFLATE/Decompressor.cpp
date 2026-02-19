@@ -129,6 +129,58 @@ namespace LibDEFLATE
 
 				return {};
 			}
+			case StreamType::GZip:
+			{
+				const uint8_t id1 = TRY(m_stream.take_bits(8));
+				const uint8_t id2 = TRY(m_stream.take_bits(8));
+				if (id1 != 0x1F || id2 != 0x8B)
+				{
+					dwarnln("gzip header invalid identification");
+					return BAN::Error::from_errno(EINVAL);
+
+				}
+
+				const uint8_t cm = TRY(m_stream.take_bits(8));
+				if (cm != 8)
+				{
+					dwarnln("gzip does not use DEFLATE");
+					return BAN::Error::from_errno(EINVAL);
+				}
+
+				const uint8_t flg = TRY(m_stream.take_bits(8));
+
+				TRY(m_stream.take_bits(16)); // mtime
+				TRY(m_stream.take_bits(16));
+
+				TRY(m_stream.take_bits(8)); // xfl
+
+				TRY(m_stream.take_bits(8)); // os
+
+				// extra fields
+				if (flg & (1 << 2))
+				{
+					const uint16_t xlen = TRY(m_stream.take_bits(16));
+					for (size_t i = 0; i < xlen; i++)
+						TRY(m_stream.take_bits(8));
+				}
+
+				// file name
+				if (flg & (1 << 3))
+					while (TRY(m_stream.take_bits(8)) != '\0')
+						continue;
+
+				// file comment
+				if (flg & (1 << 4))
+					while (TRY(m_stream.take_bits(8)) != '\0')
+						continue;
+
+				// crc16
+				// TODO: validate
+				if (flg & (1 << 1))
+					TRY(m_stream.take_bits(16));
+
+				return {};
+			}
 		}
 
 		ASSERT_NOT_REACHED();
@@ -151,6 +203,32 @@ namespace LibDEFLATE
 				if (adler32 != calculate_adler32(m_output.span()))
 				{
 					dwarnln("zlib final adler32 checksum failed");
+					return BAN::Error::from_errno(EINVAL);
+				}
+
+				return {};
+			}
+			case StreamType::GZip:
+			{
+				m_stream.skip_to_byte_boundary();
+
+				const uint32_t crc32 =
+					static_cast<uint32_t>(TRY(m_stream.take_bits(16))) |
+					static_cast<uint32_t>(TRY(m_stream.take_bits(16))) << 16;
+
+				if (crc32 != calculate_crc32(m_output.span()))
+				{
+					dwarnln("gzip final crc32 checksum failed");
+					return BAN::Error::from_errno(EINVAL);
+				}
+
+				const uint32_t isize =
+					static_cast<uint32_t>(TRY(m_stream.take_bits(16))) |
+					static_cast<uint32_t>(TRY(m_stream.take_bits(16))) << 16;
+
+				if (isize != m_output.size() % UINT32_MAX)
+				{
+					dwarnln("gzip final isize does not match {} vs {}", isize, m_output.size());
 					return BAN::Error::from_errno(EINVAL);
 				}
 

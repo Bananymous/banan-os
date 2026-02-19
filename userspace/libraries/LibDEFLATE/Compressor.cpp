@@ -6,6 +6,8 @@
 #include <BAN/Optional.h>
 #include <BAN/Sort.h>
 
+#include <time.h>
+
 namespace LibDEFLATE
 {
 
@@ -580,6 +582,8 @@ namespace LibDEFLATE
 
 	BAN::ErrorOr<BAN::Vector<uint8_t>> Compressor::compress()
 	{
+		const uint32_t data_size = m_data.size();
+
 		uint32_t checksum = 0;
 		switch (m_type)
 		{
@@ -590,6 +594,25 @@ namespace LibDEFLATE
 				TRY(m_stream.write_bits(0x9C, 8)); // default compression
 				checksum = calculate_adler32(m_data);
 				break;
+			case StreamType::GZip:
+			{
+#if __is_kernel
+				const time_t current_time = 0;
+#else
+				const time_t current_time = time(nullptr);
+#endif
+				TRY(m_stream.write_bits(0x1F, 8)); // ID1
+				TRY(m_stream.write_bits(0x8B, 8)); // ID2
+				TRY(m_stream.write_bits(8,    8)); // CM (deflate)
+				TRY(m_stream.write_bits(0,    8)); // FLG
+				TRY(m_stream.write_bits(current_time >>  0, 8)); // MTIME
+				TRY(m_stream.write_bits(current_time >>  8, 8));
+				TRY(m_stream.write_bits(current_time >> 16, 8));
+				TRY(m_stream.write_bits(current_time >> 24, 8));
+				TRY(m_stream.write_bits(0,    8)); // XFL
+				TRY(m_stream.write_bits(3,    8)); // OS (Unix)
+				checksum = calculate_crc32(m_data);
+			}
 		}
 
 		constexpr size_t max_block_size = 16 * 1024;
@@ -611,6 +634,16 @@ namespace LibDEFLATE
 				TRY(m_stream.write_bits(checksum >> 16, 8));
 				TRY(m_stream.write_bits(checksum >>  8, 8));
 				TRY(m_stream.write_bits(checksum >>  0, 8));
+				break;
+			case StreamType::GZip:
+				TRY(m_stream.write_bits(checksum >>  0, 8));
+				TRY(m_stream.write_bits(checksum >>  8, 8));
+				TRY(m_stream.write_bits(checksum >> 16, 8));
+				TRY(m_stream.write_bits(checksum >> 24, 8));
+				TRY(m_stream.write_bits(data_size >>  0, 8));
+				TRY(m_stream.write_bits(data_size >>  8, 8));
+				TRY(m_stream.write_bits(data_size >> 16, 8));
+				TRY(m_stream.write_bits(data_size >> 24, 8));
 				break;
 		}
 

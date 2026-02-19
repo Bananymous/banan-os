@@ -7,6 +7,7 @@ namespace LibDEFLATE
 	{
 		Raw,
 		Zlib,
+		GZip,
 	};
 
 }
