@@ -15,7 +15,7 @@ static int fnmatch_impl(const char* pattern, const char* string, int flags, bool
 		{
 			case '*':
 			{
-				const char* ptr = strchrnul(string, (flags & FNM_PATHNAME) ? '/' : '0');
+				const char* ptr = strchrnul(string, (flags & FNM_PATHNAME) ? '/' : '\0');
 				while (ptr >= string)
 					if (fnmatch_impl(pattern + 1, ptr--, flags, false) == 0)
 						return 0;
