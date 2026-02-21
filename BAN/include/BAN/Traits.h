@@ -61,6 +61,9 @@ namespace BAN
 	template<typename T> struct is_move_constructible { static constexpr bool value = is_constructible_v<T, T&&>; };
 	template<typename T> inline constexpr bool is_move_constructible_v = is_move_constructible<T>::value;
 
+	template<typename T> struct is_trivially_copyable { static constexpr bool value = __is_trivially_copyable(T); };
+	template<typename T> inline constexpr bool is_trivially_copyable_v = is_trivially_copyable<T>::value;
+
 	template<typename T> struct is_integral { static constexpr bool value = requires (T t, T* p, void (*f)(T)) { reinterpret_cast<T>(t); f(0); p + t; }; };
 	template<typename T> inline constexpr bool is_integral_v = is_integral<T>::value;
 	template<typename T> concept integral = is_integral_v<T>;
