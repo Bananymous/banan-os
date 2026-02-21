@@ -14,6 +14,7 @@ namespace BAN
 	{
 	public:
 		using size_type = size_t;
+		using value_type = char;
 		using iterator = IteratorSimple<char, String>;
 		using const_iterator = ConstIteratorSimple<char, String>;
 		static constexpr size_type sso_capacity = 15;

@@ -14,6 +14,7 @@ namespace BAN
 	{
 	public:
 		using size_type = size_t;
+		using value_type = char;
 		using const_iterator = ConstIteratorSimple<char, StringView>;
 
 	public:
