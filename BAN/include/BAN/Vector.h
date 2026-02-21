@@ -381,19 +381,46 @@ namespace BAN
 	template<typename T>
 	ErrorOr<void> Vector<T>::ensure_capacity(size_type size)
 	{
+		static_assert(alignof(T) <= alignof(max_align_t), "over aligned types not supported");
+
 		if (m_capacity >= size)
 			return {};
-		size_type new_cap = BAN::Math::max<size_type>(size, m_capacity * 2);
-		T* new_data = (T*)BAN::allocator(new_cap * sizeof(T));
-		if (new_data == nullptr)
-			return Error::from_errno(ENOMEM);
-		for (size_type i = 0; i < m_size; i++)
+
+		const size_type new_cap = BAN::Math::max<size_type>(size, m_capacity * 2);
+
+		if constexpr (BAN::is_trivially_copyable_v<T>)
 		{
-			new (new_data + i) T(move(m_data[i]));
-			m_data[i].~T();
+			if constexpr (BAN::reallocator)
+			{
+				auto* new_data = static_cast<T*>(BAN::reallocator(m_data, new_cap * sizeof(T)));
+				if (new_data == nullptr)
+					return Error::from_errno(ENOMEM);
+				m_data = new_data;
+			}
+			else
+			{
+				auto* new_data = static_cast<T*>(BAN::allocator(new_cap * sizeof(T)));
+				if (new_data == nullptr)
+					return Error::from_errno(ENOMEM);
+				memcpy(new_data, m_data, m_size * sizeof(T));
+				BAN::deallocator(m_data);
+				m_data = new_data;
+			}
 		}
-		BAN::deallocator(m_data);
-		m_data = new_data;
+		else
+		{
+			auto* new_data = static_cast<T*>(BAN::allocator(new_cap * sizeof(T)));
+			if (new_data == nullptr)
+				return Error::from_errno(ENOMEM);
+			for (size_type i = 0; i < m_size; i++)
+			{
+				new (new_data + i) T(move(m_data[i]));
+				m_data[i].~T();
+			}
+			BAN::deallocator(m_data);
+			m_data = new_data;
+		}
+
 		m_capacity = new_cap;
 		return {};
 	}
