@@ -352,10 +352,9 @@ namespace BAN::Formatter
 {
 
 	template<typename F>
-	void print_argument(F putc, const String& string, const ValueFormat&)
+	void print_argument(F putc, const String& string, const ValueFormat& format)
 	{
-		for (String::size_type i = 0; i < string.size(); i++)
-			putc(string[i]);
+		print_argument(putc, string.sv(), format);
 	}
 
 }
