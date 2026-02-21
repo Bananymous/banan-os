@@ -17,6 +17,10 @@ namespace LibInput
 		KeyEvent key_event_from_raw(RawKeyEvent);
 		BAN::ErrorOr<void> load_from_file(BAN::StringView path);
 
+		BAN::Span<const Key> keymap_normal() const { return m_keycode_to_key_normal.span(); }
+		BAN::Span<const Key> keymap_shift() const  { return m_keycode_to_key_shift.span(); }
+		BAN::Span<const Key> keymap_altgr() const  { return m_keycode_to_key_altgr.span(); }
+
 	private:
 		KeyboardLayout();
 
