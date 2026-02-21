@@ -69,7 +69,6 @@ namespace BAN
 
 		value_type* data() const
 		{
-			ASSERT(m_data);
 			return m_data;
 		}
 
@@ -84,7 +83,6 @@ namespace BAN
 
 		Span slice(size_type start, size_type length = ~size_type(0)) const
 		{
-			ASSERT(m_data);
 			ASSERT(start <= m_size);
 			if (length == ~size_type(0))
 				length = m_size - start;
