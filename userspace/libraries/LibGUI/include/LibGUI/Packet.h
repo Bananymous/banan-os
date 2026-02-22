@@ -219,6 +219,7 @@ namespace LibGUI
 		ResizeWindowEvent,
 		WindowShownEvent,
 		WindowFocusEvent,
+		WindowFullscreenEvent,
 		KeyEvent,
 		MouseButtonEvent,
 		MouseMoveEvent,
@@ -341,6 +342,14 @@ namespace LibGUI
 			WindowFocusEvent,
 			struct event_t {
 				bool focused;
+			},
+			event_t, event
+		);
+
+		DEFINE_PACKET_EXTRA(
+			WindowFullscreenEvent,
+			struct event_t {
+				bool fullscreen;
 			},
 			event_t, event
 		);

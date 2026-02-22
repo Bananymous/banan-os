@@ -68,15 +68,16 @@ namespace LibGUI
 		void wait_events();
 		void poll_events();
 
-		void set_socket_error_callback(BAN::Function<void()> callback)                                             { m_socket_error_callback = callback; }
-		void set_close_window_event_callback(BAN::Function<void()> callback)                                       { m_close_window_event_callback = callback; }
-		void set_resize_window_event_callback(BAN::Function<void()> callback)                                      { m_resize_window_event_callback = callback; }
-		void set_key_event_callback(BAN::Function<void(EventPacket::KeyEvent::event_t)> callback)                  { m_key_event_callback = callback; }
-		void set_mouse_button_event_callback(BAN::Function<void(EventPacket::MouseButtonEvent::event_t)> callback) { m_mouse_button_event_callback = callback; }
-		void set_mouse_move_event_callback(BAN::Function<void(EventPacket::MouseMoveEvent::event_t)> callback)     { m_mouse_move_event_callback = callback; }
-		void set_mouse_scroll_event_callback(BAN::Function<void(EventPacket::MouseScrollEvent::event_t)> callback) { m_mouse_scroll_event_callback = callback; }
-		void set_window_shown_event_callback(BAN::Function<void(EventPacket::WindowShownEvent::event_t)> callback) { m_window_shown_event_callback = callback; }
-		void set_window_focus_event_callback(BAN::Function<void(EventPacket::WindowFocusEvent::event_t)> callback) { m_window_focus_event_callback = callback; }
+		void set_socket_error_callback(BAN::Function<void()> callback)                                                       { m_socket_error_callback = callback; }
+		void set_close_window_event_callback(BAN::Function<void()> callback)                                                 { m_close_window_event_callback = callback; }
+		void set_resize_window_event_callback(BAN::Function<void()> callback)                                                { m_resize_window_event_callback = callback; }
+		void set_key_event_callback(BAN::Function<void(EventPacket::KeyEvent::event_t)> callback)                            { m_key_event_callback = callback; }
+		void set_mouse_button_event_callback(BAN::Function<void(EventPacket::MouseButtonEvent::event_t)> callback)           { m_mouse_button_event_callback = callback; }
+		void set_mouse_move_event_callback(BAN::Function<void(EventPacket::MouseMoveEvent::event_t)> callback)               { m_mouse_move_event_callback = callback; }
+		void set_mouse_scroll_event_callback(BAN::Function<void(EventPacket::MouseScrollEvent::event_t)> callback)           { m_mouse_scroll_event_callback = callback; }
+		void set_window_shown_event_callback(BAN::Function<void(EventPacket::WindowShownEvent::event_t)> callback)           { m_window_shown_event_callback = callback; }
+		void set_window_focus_event_callback(BAN::Function<void(EventPacket::WindowFocusEvent::event_t)> callback)           { m_window_focus_event_callback = callback; }
+		void set_window_fullscreen_event_callback(BAN::Function<void(EventPacket::WindowFullscreenEvent::event_t)> callback) { m_window_fullscreen_event_callback = callback; }
 
 		int server_fd() const { return m_server_fd; }
 
@@ -107,15 +108,16 @@ namespace LibGUI
 		Texture m_texture;
 		BAN::RefPtr<Widget::Widget> m_root_widget;
 
-		BAN::Function<void()>                                       m_socket_error_callback;
-		BAN::Function<void()>                                       m_close_window_event_callback;
-		BAN::Function<void()>                                       m_resize_window_event_callback;
-		BAN::Function<void(EventPacket::WindowShownEvent::event_t)> m_window_shown_event_callback;
-		BAN::Function<void(EventPacket::WindowFocusEvent::event_t)> m_window_focus_event_callback;
-		BAN::Function<void(EventPacket::KeyEvent::event_t)>         m_key_event_callback;
-		BAN::Function<void(EventPacket::MouseButtonEvent::event_t)> m_mouse_button_event_callback;
-		BAN::Function<void(EventPacket::MouseMoveEvent::event_t)>   m_mouse_move_event_callback;
-		BAN::Function<void(EventPacket::MouseScrollEvent::event_t)> m_mouse_scroll_event_callback;
+		BAN::Function<void()>                                            m_socket_error_callback;
+		BAN::Function<void()>                                            m_close_window_event_callback;
+		BAN::Function<void()>                                            m_resize_window_event_callback;
+		BAN::Function<void(EventPacket::WindowShownEvent::event_t)>      m_window_shown_event_callback;
+		BAN::Function<void(EventPacket::WindowFocusEvent::event_t)>      m_window_focus_event_callback;
+		BAN::Function<void(EventPacket::WindowFullscreenEvent::event_t)> m_window_fullscreen_event_callback;
+		BAN::Function<void(EventPacket::KeyEvent::event_t)>              m_key_event_callback;
+		BAN::Function<void(EventPacket::MouseButtonEvent::event_t)>      m_mouse_button_event_callback;
+		BAN::Function<void(EventPacket::MouseMoveEvent::event_t)>        m_mouse_move_event_callback;
+		BAN::Function<void(EventPacket::MouseScrollEvent::event_t)>      m_mouse_scroll_event_callback;
 
 		friend class BAN::UniqPtr<Window>;
 	};

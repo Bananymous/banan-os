@@ -90,7 +90,7 @@ void WindowServer::on_window_create(int fd, const LibGUI::WindowPacket::WindowCr
 
 	window_popper.disable();
 
-	if (packet.attributes.shown && packet.attributes.focusable)
+	if (packet.attributes.shown && packet.attributes.focusable && m_state == State::Normal)
 		set_focused_window(window);
 	else if (m_client_windows.size() > 1)
 		BAN::swap(m_client_windows[m_client_windows.size() - 1], m_client_windows[m_client_windows.size() - 2]);
@@ -173,9 +173,15 @@ void WindowServer::on_window_set_attributes(int fd, const LibGUI::WindowPacket::
 
 	if ((!packet.attributes.focusable || !packet.attributes.shown) && m_focused_window == target_window)
 	{
+		if (m_state == State::Fullscreen && m_focused_window->get_attributes().resizable)
+		{
+			if (!resize_window(m_focused_window, m_non_full_screen_rect.width, m_non_full_screen_rect.height))
+				return;
+			m_focused_window->set_position({ m_non_full_screen_rect.x, m_non_full_screen_rect.y });
+		}
+
 		m_focused_window = nullptr;
-		if (m_state == State::Moving || m_state == State::Resizing)
-			m_state = State::Normal;
+		m_state = State::Normal;
 		for (size_t i = m_client_windows.size(); i > 0; i--)
 		{
 			auto& window = m_client_windows[i - 1];
@@ -198,7 +204,7 @@ void WindowServer::on_window_set_attributes(int fd, const LibGUI::WindowPacket::
 	if (auto ret = event_packet.send_serialized(target_window->client_fd()); ret.is_error())
 		dwarnln("could not send window shown event: {}", ret.error());
 
-	if (packet.attributes.focusable && packet.attributes.shown)
+	if (packet.attributes.focusable && packet.attributes.shown && m_state == State::Normal)
 		set_focused_window(target_window);
 }
 
@@ -298,6 +304,13 @@ void WindowServer::on_window_set_fullscreen(int fd, const LibGUI::WindowPacket::
 				return;
 			m_focused_window->set_position({ m_non_full_screen_rect.x, m_non_full_screen_rect.y });
 		}
+
+		auto event_packet = LibGUI::EventPacket::WindowFullscreenEvent {
+			.event = { .fullscreen = false }
+		};
+		if (auto ret = event_packet.send_serialized(m_focused_window->client_fd()); ret.is_error())
+			dwarnln("could not send window fullscreen event: {}", ret.error());
+
 		m_state = State::Normal;
 		invalidate(m_framebuffer.area());
 		return;
@@ -326,6 +339,12 @@ void WindowServer::on_window_set_fullscreen(int fd, const LibGUI::WindowPacket::
 		target_window->set_position({ 0, 0 });
 		m_non_full_screen_rect = old_area;
 	}
+
+	auto event_packet = LibGUI::EventPacket::WindowFullscreenEvent {
+		.event = { .fullscreen = true }
+	};
+	if (auto ret = event_packet.send_serialized(target_window->client_fd()); ret.is_error())
+		dwarnln("could not send window fullscreen event: {}", ret.error());
 
 	m_state = State::Fullscreen;
 	set_focused_window(target_window);
@@ -482,6 +501,12 @@ void WindowServer::on_key_event(LibInput::KeyEvent event)
 			}
 			m_state = State::Fullscreen;
 		}
+
+		auto event_packet = LibGUI::EventPacket::WindowFullscreenEvent {
+			.event = { .fullscreen = (m_state == State::Fullscreen) }
+		};
+		if (auto ret = event_packet.send_serialized(m_focused_window->client_fd()); ret.is_error())
+			dwarnln("could not send window fullscreen event: {}", ret.error());
 
 		invalidate(m_framebuffer.area());
 		return;

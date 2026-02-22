@@ -348,6 +348,10 @@ namespace LibGUI
 					if (m_window_focus_event_callback)
 						m_window_focus_event_callback(TRY_OR_BREAK(EventPacket::WindowFocusEvent::deserialize(packet_data.span())).event);
 					break;
+				case PacketType::WindowFullscreenEvent:
+					if (m_window_fullscreen_event_callback)
+						m_window_fullscreen_event_callback(TRY_OR_BREAK(EventPacket::WindowFullscreenEvent::deserialize(packet_data.span())).event);
+					break;
 				case PacketType::KeyEvent:
 					if (m_key_event_callback)
 						m_key_event_callback(TRY_OR_BREAK(EventPacket::KeyEvent::deserialize(packet_data.span())).event);
