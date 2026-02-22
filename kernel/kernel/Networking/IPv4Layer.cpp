@@ -231,7 +231,6 @@ namespace Kernel
 
 			if (!receiver)
 				return BAN::Error::from_errno(EADDRNOTAVAIL);
-			TRY(socket.interface(receiver->address(), receiver->address_len()));
 		}
 
 		BAN::Vector<uint8_t> packet_buffer;
