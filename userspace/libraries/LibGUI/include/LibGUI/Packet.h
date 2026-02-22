@@ -15,6 +15,7 @@
 #define FOR_EACH_4(macro, type, name, ...) macro(type, name) FOR_EACH_2(macro, __VA_ARGS__)
 #define FOR_EACH_6(macro, type, name, ...) macro(type, name) FOR_EACH_4(macro, __VA_ARGS__)
 #define FOR_EACH_8(macro, type, name, ...) macro(type, name) FOR_EACH_6(macro, __VA_ARGS__)
+#define FOR_EACH_10(macro, type, name, ...) macro(type, name) FOR_EACH_8(macro, __VA_ARGS__)
 
 #define CONCATENATE_2(arg1, arg2) arg1 ## arg2
 #define CONCATENATE_1(arg1, arg2) CONCATENATE_2(arg1, arg2)
@@ -22,8 +23,8 @@
 
 #define FOR_EACH_NARG(...) FOR_EACH_NARG_(__VA_ARGS__ __VA_OPT__(,) FOR_EACH_RSEQ_N())
 #define FOR_EACH_NARG_(...) FOR_EACH_ARG_N(__VA_ARGS__)
-#define FOR_EACH_ARG_N(_1, _2, _3, _4, _5, _6, _7, _8, N, ...) N
-#define FOR_EACH_RSEQ_N() 8, 7, 6, 5, 4, 3, 2, 1, 0
+#define FOR_EACH_ARG_N(_1, _2, _3, _4, _5, _6, _7, _8, _9, _10, N, ...) N
+#define FOR_EACH_RSEQ_N() 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0
 
 #define FOR_EACH_(N, what, ...) CONCATENATE(FOR_EACH_, N)(what __VA_OPT__(,) __VA_ARGS__)
 #define FOR_EACH(what, ...) FOR_EACH_(FOR_EACH_NARG(__VA_ARGS__), what __VA_OPT__(,) __VA_ARGS__)
@@ -303,6 +304,8 @@ namespace LibGUI
 			WindowSetCursor,
 			uint32_t, width,
 			uint32_t, height,
+			int32_t, origin_x,
+			int32_t, origin_y,
 			BAN::Vector<uint32_t>, pixels
 		);
 

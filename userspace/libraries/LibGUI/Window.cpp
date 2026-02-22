@@ -201,11 +201,13 @@ namespace LibGUI
 		set_attributes(attributes);
 	}
 
-	void Window::set_cursor(uint32_t width, uint32_t height, BAN::Span<uint32_t> pixels)
+	void Window::set_cursor(uint32_t width, uint32_t height, BAN::Span<const uint32_t> pixels, int32_t origin_x, int32_t origin_y)
 	{
 		WindowPacket::WindowSetCursor packet;
 		packet.width = width;
 		packet.height = height;
+		packet.origin_x = origin_x;
+		packet.origin_y = origin_y;
 		MUST(packet.pixels.resize(pixels.size()));
 		for (size_t i = 0; i < packet.pixels.size(); i++)
 			packet.pixels[i] = pixels[i];

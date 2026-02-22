@@ -16,6 +16,8 @@ public:
 	{
 		uint32_t width;
 		uint32_t height;
+		int32_t origin_x;
+		int32_t origin_y;
 		BAN::Vector<uint32_t> pixels;
 	};
 

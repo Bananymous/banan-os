@@ -39,6 +39,7 @@ namespace LibGUI
 		}
 
 		BAN::Span<uint32_t> pixels() { return m_pixels.span(); }
+		BAN::Span<const uint32_t> pixels() const { return m_pixels.span(); }
 
 		void set_clip_area(int32_t x, int32_t y, uint32_t width, uint32_t height);
 

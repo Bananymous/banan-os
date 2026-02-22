@@ -383,6 +383,8 @@ void WindowServer::on_window_set_cursor(int fd, const LibGUI::WindowPacket::Wind
 		Window::Cursor cursor;
 		cursor.width = packet.width;
 		cursor.height = packet.height;
+		cursor.origin_x = packet.origin_x;
+		cursor.origin_y = packet.origin_y;
 		if (auto ret = cursor.pixels.resize(packet.pixels.size()); ret.is_error())
 		{
 			dwarnln("failed to set cursor: {}", ret.error());
@@ -1171,12 +1173,14 @@ void WindowServer::invalidate(Rectangle area)
 	{
 		if (const auto overlap = cursor_area().get_overlap(area); overlap.has_value())
 		{
+			const int32_t origin_x = window_cursor ? window_cursor->origin_x : 0;
+			const int32_t origin_y = window_cursor ? window_cursor->origin_y : 0;
 			for (int32_t y_off = 0; y_off < overlap->height; y_off++)
 			{
 				for (int32_t x_off = 0; x_off < overlap->width; x_off++)
 				{
-					const int32_t rel_x = overlap->x - m_cursor.x + x_off;
-					const int32_t rel_y = overlap->y - m_cursor.y + y_off;
+					const int32_t rel_x = overlap->x - m_cursor.x + x_off + origin_x;
+					const int32_t rel_y = overlap->y - m_cursor.y + y_off + origin_y;
 					const auto pixel = get_cursor_pixel(rel_x, rel_y);
 					if (pixel.has_value())
 						m_framebuffer.mmap[(overlap->y + y_off) * m_framebuffer.width + (overlap->x + x_off)] = pixel.value();
@@ -1321,6 +1325,9 @@ Rectangle WindowServer::cursor_area() const
 	int32_t width = s_default_cursor_width;
 	int32_t height = s_default_cursor_height;
 
+	int32_t origin_x = 0;
+	int32_t origin_y = 0;
+
 	if (auto window = find_hovered_window())
 	{
 		if (!window->get_attributes().cursor_visible)
@@ -1329,10 +1336,12 @@ Rectangle WindowServer::cursor_area() const
 		{
 			width = window->cursor().width;
 			height = window->cursor().height;
+			origin_x = window->cursor().origin_x;
+			origin_y = window->cursor().origin_y;
 		}
 	}
 
-	return { m_cursor.x, m_cursor.y, width, height };
+	return { m_cursor.x - origin_x, m_cursor.y - origin_y, width, height };
 }
 
 Rectangle WindowServer::resize_area(Position cursor) const
