@@ -64,6 +64,7 @@ namespace Kernel
 		virtual BAN::ErrorOr<size_t> sendmsg_impl(const msghdr& message, int flags) override;
 		virtual BAN::ErrorOr<void> getpeername_impl(sockaddr*, socklen_t*) override;
 		virtual BAN::ErrorOr<void> getsockopt_impl(int, int, void*, socklen_t*) override;
+		virtual BAN::ErrorOr<void> setsockopt_impl(int, int, const void*, socklen_t) override;
 
 		virtual BAN::ErrorOr<long> ioctl_impl(int, void*) override;
 
@@ -167,6 +168,10 @@ namespace Kernel
 		uint8_t m_next_flags	{ 0 };
 
 		Thread* m_thread { nullptr };
+
+		// TODO: actually support these
+		bool m_keep_alive { false };
+		bool m_no_delay { false };
 
 		uint64_t m_time_wait_start_ms { 0 };
 

@@ -212,28 +212,59 @@ namespace Kernel
 
 	BAN::ErrorOr<void> UDPSocket::getsockopt_impl(int level, int option, void* value, socklen_t* value_len)
 	{
-		if (level != SOL_SOCKET)
-			return BAN::Error::from_errno(EINVAL);
-
 		int result;
-		switch (option)
+
+		switch (level)
 		{
-			case SO_ERROR:
-				result = 0;
+			case SOL_SOCKET:
+				switch (option)
+				{
+					case SO_ERROR:
+						result = 0;
+						break;
+					case SO_SNDBUF:
+						result = m_packet_buffer->size();
+						break;
+					case SO_RCVBUF:
+						result = m_packet_buffer->size();
+						break;
+					default:
+						dwarnln("getsockopt(SOLSOCKET, {})", option);
+						return BAN::Error::from_errno(ENOPROTOOPT);
+				}
 				break;
-			case SO_SNDBUF:
-				result = m_packet_buffer->size();
-				break;
-			case SO_RCVBUF:
-				result = m_packet_buffer->size();
-				break;
+			case IPPROTO_UDP:
+				dwarnln("getsockopt(IPPROTO_UDP, {})", option);
+				return BAN::Error::from_errno(ENOPROTOOPT);
 			default:
-				return BAN::Error::from_errno(ENOTSUP);
+				dwarnln("getsockopt({}, {})", level, option);
+				return BAN::Error::from_errno(EINVAL);
 		}
 
 		const size_t len = BAN::Math::min<size_t>(sizeof(result), *value_len);
 		memcpy(value, &result, len);
 		*value_len = sizeof(int);
+
+		return {};
+	}
+
+	BAN::ErrorOr<void> UDPSocket::setsockopt_impl(int level, int option, const void* value, socklen_t value_len)
+	{
+		(void)value;
+		(void)value_len;
+
+		switch (level)
+		{
+			case SOL_SOCKET:
+				dwarnln("setsockopt(SOL_SOCKET, {})", option);
+				return BAN::Error::from_errno(ENOPROTOOPT);
+			case IPPROTO_UDP:
+				dwarnln("setsockopt(IPPROTO_UDP, {})", option);
+				return BAN::Error::from_errno(ENOPROTOOPT);
+			default:
+				dwarnln("setsockopt({}, {})", level, option);
+				return BAN::Error::from_errno(EINVAL);
+		}
 
 		return {};
 	}

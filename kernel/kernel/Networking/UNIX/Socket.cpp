@@ -707,7 +707,10 @@ namespace Kernel
 	BAN::ErrorOr<void> UnixDomainSocket::getsockopt_impl(int level, int option, void* value, socklen_t* value_len)
 	{
 		if (level != SOL_SOCKET)
+		{
+			dwarnln("getsockopt({}, {})", level, option);
 			return BAN::Error::from_errno(EINVAL);
+		}
 
 		int result;
 		switch (option)
@@ -736,7 +739,10 @@ namespace Kernel
 	BAN::ErrorOr<void> UnixDomainSocket::setsockopt_impl(int level, int option, const void* value, socklen_t value_len)
 	{
 		if (level != SOL_SOCKET)
+		{
+			dwarnln("setsockopt({}, {})", level, option);
 			return BAN::Error::from_errno(EINVAL);
+		}
 
 		switch (option)
 		{

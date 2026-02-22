@@ -7,6 +7,7 @@
 
 #include <fcntl.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <sys/epoll.h>
 #include <sys/ioctl.h>
 
@@ -298,28 +299,87 @@ namespace Kernel
 
 	BAN::ErrorOr<void> TCPSocket::getsockopt_impl(int level, int option, void* value, socklen_t* value_len)
 	{
-		if (level != SOL_SOCKET)
-			return BAN::Error::from_errno(EINVAL);
-
 		int result;
-		switch (option)
+
+		switch (level)
 		{
-			case SO_ERROR:
-				result = 0;
+			case SOL_SOCKET:
+				switch (option)
+				{
+					case SO_KEEPALIVE:
+						result = m_keep_alive;
+						break;
+					case SO_ERROR:
+						result = 0;
+						break;
+					case SO_SNDBUF:
+						result = m_send_window.scaled_size();
+						break;
+					case SO_RCVBUF:
+						result = m_recv_window.buffer->size();
+						break;
+					default:
+						dwarnln("getsockopt(SOL_SOCKET, {})", option);
+						return BAN::Error::from_errno(ENOPROTOOPT);
+				}
 				break;
-			case SO_SNDBUF:
-				result = m_send_window.scaled_size();
-				break;
-			case SO_RCVBUF:
-				result = m_recv_window.buffer->size();
+			case IPPROTO_TCP:
+				switch (option)
+				{
+					case TCP_NODELAY:
+						result = m_no_delay;
+						break;
+					default:
+						dwarnln("getsockopt(IPPROTO_TCP, {})", option);
+						return BAN::Error::from_errno(ENOPROTOOPT);
+				}
 				break;
 			default:
-				return BAN::Error::from_errno(ENOTSUP);
+				dwarnln("getsockopt({}, {})", level, option);
+				return BAN::Error::from_errno(EINVAL);
 		}
 
 		const size_t len = BAN::Math::min<size_t>(sizeof(result), *value_len);
 		memcpy(value, &result, len);
 		*value_len = sizeof(int);
+
+		return {};
+	}
+
+	BAN::ErrorOr<void> TCPSocket::setsockopt_impl(int level, int option, const void* value, socklen_t value_len)
+	{
+		switch (level)
+		{
+			case SOL_SOCKET:
+				switch (option)
+				{
+					case SO_KEEPALIVE:
+						if (value_len != sizeof(int))
+							return BAN::Error::from_errno(EINVAL);
+						m_keep_alive = *static_cast<const int*>(value);
+						break;
+					default:
+						dwarnln("setsockopt(SOL_SOCKET, {})", option);
+						return BAN::Error::from_errno(ENOPROTOOPT);
+				}
+				break;
+			case IPPROTO_TCP:
+				switch (option)
+				{
+					case TCP_NODELAY:
+						if (value_len != sizeof(int))
+							return BAN::Error::from_errno(EINVAL);
+						m_no_delay = *static_cast<const int*>(value);
+						break;
+					default:
+						dwarnln("setsockopt(IPPROTO_TCP, {})", option);
+						return BAN::Error::from_errno(ENOPROTOOPT);
+				}
+				break;
+			default:
+				dwarnln("setsockopt({}, {})", level, option);
+				return BAN::Error::from_errno(EINVAL);
+		}
 
 		return {};
 	}
