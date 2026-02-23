@@ -167,6 +167,8 @@ namespace Kernel
 		State m_next_state		{ State::Closed };
 		uint8_t m_next_flags	{ 0 };
 
+		size_t m_last_sent_window_size { 0 };
+
 		Thread* m_thread { nullptr };
 
 		// TODO: actually support these
