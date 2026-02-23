@@ -97,6 +97,7 @@ namespace Kernel
 
 			bool						has_ghost_byte { false };
 
+			uint32_t					data_tail	{ 0 };
 			uint32_t					data_size	{ 0 }; // number of bytes in this buffer
 			uint8_t						scale_shift	{ 0 }; // window scale
 			BAN::UniqPtr<VirtualRange>	buffer;
@@ -117,6 +118,7 @@ namespace Kernel
 
 			bool						has_ghost_byte { false };
 
+			uint32_t					data_tail 		{ 0 };
 			uint32_t					data_size		{ 0 }; // number of bytes in this buffer
 			uint32_t					sent_size		{ 0 }; // number of bytes in this buffer that have been sent
 			BAN::UniqPtr<VirtualRange>	buffer;
