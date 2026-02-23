@@ -538,8 +538,8 @@ namespace Kernel
 		header.checksum = calculate_internet_checksum(packet, pseudo_header);
 
 		dprintln_if(DEBUG_TCP, "sending {} {8b}", (uint8_t)m_state, header.flags);
-		dprintln_if(DEBUG_TCP, "  {}", (uint32_t)header.ack_number);
-		dprintln_if(DEBUG_TCP, "  {}", (uint32_t)header.seq_number);
+		dprintln_if(DEBUG_TCP, "  ack {}", (uint32_t)header.ack_number);
+		dprintln_if(DEBUG_TCP, "  seq {}", (uint32_t)header.seq_number);
 	}
 
 	void TCPSocket::receive_packet(BAN::ConstByteSpan buffer, const sockaddr* sender, socklen_t sender_len)
@@ -585,8 +585,8 @@ namespace Kernel
 
 		auto& header = buffer.as<const TCPHeader>();
 		dprintln_if(DEBUG_TCP, "receiving {} {8b}", (uint8_t)m_state, header.flags);
-		dprintln_if(DEBUG_TCP, "  {}", (uint32_t)header.ack_number);
-		dprintln_if(DEBUG_TCP, "  {}", (uint32_t)header.seq_number);
+		dprintln_if(DEBUG_TCP, "  ack {}", (uint32_t)header.ack_number);
+		dprintln_if(DEBUG_TCP, "  seq {}", (uint32_t)header.seq_number);
 
 		m_send_window.non_scaled_size = header.window_size;
 
@@ -888,7 +888,7 @@ namespace Kernel
 
 				const uint32_t total_send = BAN::Math::min<uint32_t>(m_send_window.data_size - send_base, m_send_window.scaled_size());
 
-				m_send_window.current_seq = m_send_window.start_seq + m_send_window.sent_size;
+				m_send_window.current_seq = m_send_window.start_seq + send_base;
 
 				auto* send_buffer = reinterpret_cast<const uint8_t*>(m_send_window.buffer->vaddr() + send_base);
 				for (uint32_t i = 0; i < total_send;)
