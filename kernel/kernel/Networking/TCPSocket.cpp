@@ -25,6 +25,9 @@ namespace Kernel
 	static constexpr size_t s_recv_window_buffer_size = 16 * PAGE_SIZE;
 	static constexpr size_t s_send_window_buffer_size = 16 * PAGE_SIZE;
 
+	// https://www.rfc-editor.org/rfc/rfc1122   4.2.2.6
+	static constexpr uint16_t s_default_mss = 536;
+
 	BAN::ErrorOr<BAN::RefPtr<TCPSocket>> TCPSocket::create(NetworkLayer& network_layer, const Info& info)
 	{
 		auto socket = TRY(BAN::RefPtr<TCPSocket>::create(network_layer, info));
@@ -102,12 +105,13 @@ namespace Kernel
 		return_inode->m_listen_parent = this;
 		return_inode->m_connection_info.emplace(connection.target);
 		return_inode->m_recv_window.start_seq = connection.target_start_seq;
+		return_inode->m_send_window.scale_shift = connection.window_scale;
+		return_inode->m_send_window.mss = connection.maximum_seqment_size;
 		return_inode->m_next_flags = SYN | ACK;
 		return_inode->m_next_state = State::SynReceived;
-		return_inode->m_mutex.unlock();
-
 		if (!return_inode->m_connection_info->has_window_scale)
 			return_inode->m_recv_window.scale_shift = 0;
+		return_inode->m_mutex.unlock();
 
 		TRY(m_listen_children.emplace(listen_key, return_inode));
 
@@ -502,7 +506,7 @@ namespace Kernel
 			if (header.options[i] == TCPOption::NOP)
 				continue;
 			if (header.options[i] == TCPOption::MaximumSeqmentSize)
-				result.maximum_seqment_size = BAN::host_to_network_endian(*reinterpret_cast<const uint16_t*>(&header.options[i + 2]));
+				result.maximum_seqment_size = BAN::network_endian_to_host(*reinterpret_cast<const uint16_t*>(&header.options[i + 2]));
 			if (header.options[i] == TCPOption::WindowScale)
 				result.window_scale = header.options[i + 2];
 			if (header.options[i + 1] == 0)
@@ -551,7 +555,6 @@ namespace Kernel
 				add_tcp_header_option<4, TCPOption::WindowScale>(header, m_recv_window.scale_shift);
 			header.window_size = BAN::Math::min<size_t>(0xFFFF, m_recv_window.buffer->size());
 
-			m_send_window.mss = 1440;
 			m_send_window.start_seq++;
 			m_send_window.current_seq = m_send_window.start_seq;
 		}
@@ -629,8 +632,7 @@ namespace Kernel
 				}
 
 				auto options = parse_tcp_options(header);
-				if (options.maximum_seqment_size.has_value())
-					m_send_window.mss = *options.maximum_seqment_size;
+				m_send_window.mss = options.maximum_seqment_size.value_or(s_default_mss);
 				if (options.window_scale.has_value())
 					m_send_window.scale_shift = *options.window_scale;
 				else
@@ -661,13 +663,17 @@ namespace Kernel
 						dprintln_if(DEBUG_TCP, "No storage to store pending connection");
 					else
 					{
+						const auto options = parse_tcp_options(header);
+
 						ConnectionInfo connection_info;
 						memcpy(&connection_info.address, sender, sender_len);
 						connection_info.address_len = sender_len;
-						connection_info.has_window_scale = parse_tcp_options(header).window_scale.has_value();
+						connection_info.has_window_scale = options.window_scale.has_value();
 						MUST(m_pending_connections.emplace(
 							connection_info,
-							header.seq_number + 1
+							header.seq_number + 1,
+							options.maximum_seqment_size.value_or(s_default_mss),
+							options.window_scale.value_or(0)
 						));
 
 						epoll_notify(EPOLLIN);
@@ -899,7 +905,7 @@ namespace Kernel
 				continue;
 			}
 
-			const bool should_retransmit = m_send_window.data_size > 0 && current_ms >= m_send_window.last_send_ms + retransmit_timeout_ms;
+			const bool should_retransmit = m_send_window.sent_size > 0 && current_ms >= m_send_window.last_send_ms + retransmit_timeout_ms;
 
 			if (m_send_window.data_size > m_send_window.sent_size || should_retransmit)
 			{

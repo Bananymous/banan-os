@@ -135,6 +135,8 @@ namespace Kernel
 		{
 			ConnectionInfo target;
 			uint32_t target_start_seq;
+			uint16_t maximum_seqment_size;
+			uint8_t window_scale;
 		};
 
 		struct ListenKey
