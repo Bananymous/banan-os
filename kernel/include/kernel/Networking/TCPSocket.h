@@ -117,6 +117,7 @@ namespace Kernel
 			uint64_t					last_send_ms	{ 0 }; // last send time, used for retransmission timeout
 
 			bool						has_ghost_byte { false };
+			bool						had_zero_window { false };
 
 			uint32_t					data_tail 		{ 0 };
 			uint32_t					data_size		{ 0 }; // number of bytes in this buffer
@@ -178,6 +179,8 @@ namespace Kernel
 		// TODO: actually support these
 		bool m_keep_alive { false };
 		bool m_no_delay { false };
+
+		bool m_should_send_ack { false };
 
 		uint64_t m_time_wait_start_ms { 0 };
 
