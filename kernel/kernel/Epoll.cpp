@@ -209,7 +209,7 @@ namespace Kernel
 				continue;
 
 			SpinLockGuardAsMutex smutex(guard);
-			TRY(Thread::current().block_or_eintr_or_timeout_ns(m_thread_blocker, waketime_ns - current_ns, false, &smutex));
+			TRY(Thread::current().block_or_eintr_or_waketime_ns(m_thread_blocker, waketime_ns, false, &smutex));
 		}
 
 		return event_count;
