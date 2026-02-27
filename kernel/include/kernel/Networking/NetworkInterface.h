@@ -60,7 +60,11 @@ namespace Kernel
 		virtual dev_t rdev() const override { return m_rdev; }
 		virtual BAN::StringView name() const override { return m_name; }
 
-		virtual BAN::ErrorOr<void> send_bytes(BAN::MACAddress destination, EtherType protocol, BAN::ConstByteSpan) = 0;
+		BAN::ErrorOr<void> send_bytes(BAN::MACAddress destination, EtherType protocol, BAN::ConstByteSpan payload)
+		{
+			return send_bytes(destination, protocol, { &payload, 1 });
+		}
+		virtual BAN::ErrorOr<void> send_bytes(BAN::MACAddress destination, EtherType protocol, BAN::Span<const BAN::ConstByteSpan> payload) = 0;
 
 	private:
 		const Type m_type;

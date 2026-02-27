@@ -32,7 +32,7 @@ namespace Kernel
 		BAN::ErrorOr<BAN::RefPtr<NetworkInterface>> interface(const sockaddr* target, socklen_t target_len);
 
 		virtual size_t protocol_header_size() const = 0;
-		virtual void add_protocol_header(BAN::ByteSpan packet, uint16_t dst_port, PseudoHeader) = 0;
+		virtual void get_protocol_header(BAN::ByteSpan header, BAN::ConstByteSpan payload, uint16_t dst_port, PseudoHeader) = 0;
 		virtual NetworkProtocol protocol() const = 0;
 
 		virtual void receive_packet(BAN::ConstByteSpan, const sockaddr* sender, socklen_t sender_len) = 0;

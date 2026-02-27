@@ -7,6 +7,9 @@
 namespace Kernel
 {
 
+	// each buffer is 7440 bytes + padding = 8192
+	constexpr size_t s_buffer_size = 8192;
+
 	bool RTL8169::probe(PCI::Device& pci_device)
 	{
 		if (pci_device.vendor_id() != 0x10ec)
@@ -68,7 +71,26 @@ namespace Kernel
 		// lock config registers
 		m_io_bar_region->write8(RTL8169_IO_9346CR, RTL8169_9346CR_MODE_NORMAL);
 
+		auto* thread = TRY(Thread::create_kernel([](void* rtl8169_ptr) {
+			static_cast<RTL8169*>(rtl8169_ptr)->receive_thread();
+		}, this));
+		if (auto ret = Processor::scheduler().add_thread(thread); ret.is_error())
+		{
+			delete thread;
+			return ret.release_error();
+		}
+		m_thread_is_dead = false;
+
 		return {};
+	}
+
+	RTL8169::~RTL8169()
+	{
+		m_thread_should_die = true;
+		m_thread_blocker.unblock();
+
+		while (!m_thread_is_dead)
+			Processor::yield();
 	}
 
 	BAN::ErrorOr<void> RTL8169::reset()
@@ -85,15 +107,12 @@ namespace Kernel
 
 	BAN::ErrorOr<void> RTL8169::initialize_rx()
 	{
-		// each buffer is 7440 bytes + padding = 8192
-		constexpr size_t buffer_size = 2 * PAGE_SIZE;
-
-		m_rx_buffer_region = TRY(DMARegion::create(m_rx_descriptor_count * buffer_size));
+		m_rx_buffer_region = TRY(DMARegion::create(m_rx_descriptor_count * s_buffer_size));
 		m_rx_descriptor_region = TRY(DMARegion::create(m_rx_descriptor_count * sizeof(RTL8169Descriptor)));
 
 		for (size_t i = 0; i < m_rx_descriptor_count; i++)
 		{
-			const paddr_t rx_buffer_paddr = m_rx_buffer_region->paddr() + i * buffer_size;
+			const paddr_t rx_buffer_paddr = m_rx_buffer_region->paddr() + i * s_buffer_size;
 
 			uint32_t command = 0x1FF8 | RTL8169_DESC_CMD_OWN;
 			if (i == m_rx_descriptor_count - 1)
@@ -120,21 +139,17 @@ namespace Kernel
 		// configure max rx packet size
 		m_io_bar_region->write16(RTL8169_IO_RMS, RTL8169_RMS_MAX);
 
-
 		return {};
 	}
 
 	BAN::ErrorOr<void> RTL8169::initialize_tx()
 	{
-		// each buffer is 7440 bytes + padding = 8192
-		constexpr size_t buffer_size = 2 * PAGE_SIZE;
-
-		m_tx_buffer_region = TRY(DMARegion::create(m_tx_descriptor_count * buffer_size));
+		m_tx_buffer_region = TRY(DMARegion::create(m_tx_descriptor_count * s_buffer_size));
 		m_tx_descriptor_region = TRY(DMARegion::create(m_tx_descriptor_count * sizeof(RTL8169Descriptor)));
 
 		for (size_t i = 0; i < m_tx_descriptor_count; i++)
 		{
-			const paddr_t tx_buffer_paddr = m_tx_buffer_region->paddr() + i * buffer_size;
+			const paddr_t tx_buffer_paddr = m_tx_buffer_region->paddr() + i * s_buffer_size;
 
 			uint32_t command = 0;
 			if (i == m_tx_descriptor_count - 1)
@@ -194,14 +209,8 @@ namespace Kernel
 		return 0;
 	}
 
-	BAN::ErrorOr<void> RTL8169::send_bytes(BAN::MACAddress destination, EtherType protocol, BAN::ConstByteSpan buffer)
+	BAN::ErrorOr<void> RTL8169::send_bytes(BAN::MACAddress destination, EtherType protocol, BAN::Span<const BAN::ConstByteSpan> payload)
 	{
-		constexpr size_t buffer_size = 8192;
-
-		const uint16_t packet_size = sizeof(EthernetHeader) + buffer.size();
-		if (packet_size > buffer_size)
-			return BAN::Error::from_errno(EINVAL);
-
 		if (!link_up())
 			return BAN::Error::from_errno(EADDRNOTAVAIL);
 
@@ -219,14 +228,20 @@ namespace Kernel
 
 		m_lock.unlock(state);
 
-		auto* tx_buffer = reinterpret_cast<uint8_t*>(m_tx_buffer_region->vaddr() + tx_current * buffer_size);
+		auto* tx_buffer = reinterpret_cast<uint8_t*>(m_tx_buffer_region->vaddr() + tx_current * s_buffer_size);
 
 		// write packet
 		auto& ethernet_header = *reinterpret_cast<EthernetHeader*>(tx_buffer);
 		ethernet_header.dst_mac = destination;
 		ethernet_header.src_mac = get_mac_address();
 		ethernet_header.ether_type = protocol;
-		memcpy(tx_buffer + sizeof(EthernetHeader), buffer.data(), buffer.size());
+
+		size_t packet_size = sizeof(EthernetHeader);
+		for (const auto& buffer : payload)
+		{
+			memcpy(tx_buffer + packet_size, buffer.data(), buffer.size());
+			packet_size += buffer.size();
+		}
 
 		// give packet ownership to NIC
 		uint32_t command = packet_size | RTL8169_DESC_CMD_OWN | RTL8169_DESC_CMD_LS | RTL8169_DESC_CMD_FS;
@@ -240,6 +255,50 @@ namespace Kernel
 		return {};
 	}
 
+	void RTL8169::receive_thread()
+	{
+		SpinLockGuard _(m_lock);
+
+		while (!m_thread_should_die)
+		{
+			for (;;)
+			{
+				auto& descriptor = reinterpret_cast<volatile RTL8169Descriptor*>(m_rx_descriptor_region->vaddr())[m_rx_current];
+				if (descriptor.command & RTL8169_DESC_CMD_OWN)
+					break;
+
+				// packet buffer can only hold single packet, so we should not receive any multi-descriptor packets
+				ASSERT((descriptor.command & RTL8169_DESC_CMD_LS) && (descriptor.command & RTL8169_DESC_CMD_FS));
+
+				const uint16_t packet_length = descriptor.command & 0x3FFF;
+				if (packet_length > s_buffer_size)
+					dwarnln("Got {} bytes to {} byte buffer", packet_length, s_buffer_size);
+				else if (descriptor.command & (1u << 21))
+					; // descriptor has an error
+				else
+				{
+					m_lock.unlock(InterruptState::Enabled);
+
+					NetworkManager::get().on_receive(*this, BAN::ConstByteSpan {
+						reinterpret_cast<const uint8_t*>(m_rx_buffer_region->vaddr() + m_rx_current * s_buffer_size),
+						packet_length
+					});
+
+					m_lock.lock();
+				}
+
+				m_rx_current = (m_rx_current + 1) % m_rx_descriptor_count;
+
+				descriptor.command = descriptor.command | RTL8169_DESC_CMD_OWN;
+			}
+
+			SpinLockAsMutex smutex(m_lock, InterruptState::Enabled);
+			m_thread_blocker.block_indefinite(&smutex);
+		}
+
+		m_thread_is_dead = true;
+	}
+
 	void RTL8169::handle_irq()
 	{
 		const uint16_t interrupt_status = m_io_bar_region->read16(RTL8169_IO_ISR);
@@ -251,7 +310,7 @@ namespace Kernel
 			dprintln("link status -> {}", m_link_up.load());
 		}
 
-		if (interrupt_status & RTL8169_IR_TOK)
+		if (interrupt_status & (RTL8169_IR_TOK | RTL8169_IR_ROK))
 		{
 			SpinLockGuard _(m_lock);
 			m_thread_blocker.unblock();
@@ -266,38 +325,6 @@ namespace Kernel
 		if (interrupt_status & RTL8169_IR_FVOW)
 			dwarnln("Rx FIFO overflow");
 		// dont log TDU is sent after each sent packet
-
-		if (!(interrupt_status & RTL8169_IR_ROK))
-			return;
-
-		constexpr size_t buffer_size = 8192;
-
-		for (;;)
-		{
-			auto& descriptor = reinterpret_cast<volatile RTL8169Descriptor*>(m_rx_descriptor_region->vaddr())[m_rx_current];
-			if (descriptor.command & RTL8169_DESC_CMD_OWN)
-				break;
-
-			// packet buffer can only hold single packet, so we should not receive any multi-descriptor packets
-			ASSERT((descriptor.command & RTL8169_DESC_CMD_LS) && (descriptor.command & RTL8169_DESC_CMD_FS));
-
-			const uint16_t packet_length = descriptor.command & 0x3FFF;
-			if (packet_length > buffer_size)
-				dwarnln("Got {} bytes to {} byte buffer", packet_length, buffer_size);
-			else if (descriptor.command & (1u << 21))
-				; // descriptor has an error
-			else
-			{
-				NetworkManager::get().on_receive(*this, BAN::ConstByteSpan {
-					reinterpret_cast<const uint8_t*>(m_rx_buffer_region->vaddr() + m_rx_current * buffer_size),
-					packet_length
-				});
-			}
-
-			m_rx_current = (m_rx_current + 1) % m_rx_descriptor_count;
-
-			descriptor.command = descriptor.command | RTL8169_DESC_CMD_OWN;
-		}
 	}
 
 }

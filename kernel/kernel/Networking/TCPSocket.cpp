@@ -524,24 +524,33 @@ namespace Kernel
 		return result;
 	}
 
-	void TCPSocket::add_protocol_header(BAN::ByteSpan packet, uint16_t dst_port, PseudoHeader pseudo_header)
+	void TCPSocket::get_protocol_header(BAN::ByteSpan header_buffer, BAN::ConstByteSpan payload, uint16_t dst_port, PseudoHeader pseudo_header)
 	{
 		ASSERT(m_next_flags);
 		ASSERT(m_mutex.locker() == Thread::current().tid());
-
-		auto& header = packet.as<TCPHeader>();
-		memset(&header, 0, sizeof(TCPHeader));
-		memset(header.options, TCPOption::End, m_tcp_options_bytes);
+		ASSERT(header_buffer.size() == protocol_header_size());
 
 		m_last_sent_window_size = m_recv_window.buffer->size() - m_recv_window.data_size;
+		if (m_should_send_zero_window)
+			m_last_sent_window_size = 0;
 
-		header.src_port = bound_port();
-		header.dst_port = dst_port;
-		header.seq_number = m_send_window.current_seq + m_send_window.has_ghost_byte;
-		header.ack_number = m_recv_window.start_seq + m_recv_window.data_size + m_recv_window.has_ghost_byte;
-		header.data_offset = (sizeof(TCPHeader) + m_tcp_options_bytes) / sizeof(uint32_t);
-		header.window_size = BAN::Math::min<size_t>(0xFFFF, m_last_sent_window_size >> m_recv_window.scale_shift);
-		header.flags = m_next_flags;
+		m_should_send_ack = false;
+		m_should_send_zero_window = false;
+
+		auto& header = header_buffer.as<TCPHeader>();
+		header = {
+			.src_port = bound_port(),
+			.dst_port = dst_port,
+			.seq_number = m_send_window.current_seq + m_send_window.has_ghost_byte,
+			.ack_number = m_recv_window.start_seq + m_recv_window.data_size + m_recv_window.has_ghost_byte,
+			.data_offset = (sizeof(TCPHeader) + m_tcp_options_bytes) / sizeof(uint32_t),
+			.flags = m_next_flags,
+			.window_size = BAN::Math::min<size_t>(0xFFFF, m_last_sent_window_size >> m_recv_window.scale_shift),
+			.checksum = 0,
+			.urgent_pointer = 0,
+		};
+		memset(header.options, 0, m_tcp_options_bytes);
+
 		if (header.flags & FIN)
 			m_send_window.has_ghost_byte = true;
 		m_next_flags = 0;
@@ -566,10 +575,12 @@ namespace Kernel
 			m_send_window.current_seq = m_send_window.start_seq;
 		}
 
-		pseudo_header.extra = packet.size();
-		header.checksum = calculate_internet_checksum(packet, pseudo_header);
-
-		m_should_send_ack = false;
+		const BAN::ConstByteSpan buffers[] {
+			BAN::ConstByteSpan::from(pseudo_header),
+			header_buffer,
+			payload,
+		};
+		header.checksum = calculate_internet_checksum({ buffers, sizeof(buffers) / sizeof(*buffers) });
 
 		dprintln_if(DEBUG_TCP, "sending {} {8b}", (uint8_t)m_state, header.flags);
 		dprintln_if(DEBUG_TCP, "  ack {}", (uint32_t)header.ack_number);
@@ -603,14 +614,17 @@ namespace Kernel
 				auto interface = interface_or_error.release_value();
 
 				auto& addr_in = *reinterpret_cast<const sockaddr_in*>(sender);
-				checksum = calculate_internet_checksum(buffer,
-					PseudoHeader {
-						.src_ipv4 = BAN::IPv4Address(addr_in.sin_addr.s_addr),
-						.dst_ipv4 = interface->get_ipv4_address(),
-						.protocol = NetworkProtocol::TCP,
-						.extra = buffer.size()
-					}
-				);
+				const PseudoHeader pseudo_header {
+					.src_ipv4 = BAN::IPv4Address(addr_in.sin_addr.s_addr),
+					.dst_ipv4 = interface->get_ipv4_address(),
+					.protocol = NetworkProtocol::TCP,
+					.length = buffer.size(),
+				};
+				const BAN::ConstByteSpan buffers[] {
+					BAN::ConstByteSpan::from(pseudo_header),
+					buffer
+				};
+				checksum = calculate_internet_checksum({ buffers, sizeof(buffers) / sizeof(*buffers) });
 			}
 			else
 			{
@@ -757,9 +771,9 @@ namespace Kernel
 				break;
 		}
 
-		// TODO: even without SACKs, if other end sends seq [0, 1000] and our current seq is 100, we should accept
-		//       packet with seq [100, 1000]
-		if (header.seq_number != m_recv_window.start_seq + m_recv_window.data_size + m_recv_window.has_ghost_byte)
+		const uint32_t expected_seq = m_recv_window.start_seq + m_recv_window.data_size + m_recv_window.has_ghost_byte;
+
+		if (header.seq_number > expected_seq)
 			dprintln_if(DEBUG_TCP, "Missing packets");
 		else if (check_payload)
 		{
@@ -770,7 +784,19 @@ namespace Kernel
 				m_send_window.current_ack = header.ack_number;
 
 			auto payload = buffer.slice(header.data_offset * sizeof(uint32_t));
-			if (payload.size() > 0 && m_recv_window.data_size < m_recv_window.buffer->size())
+
+			if (header.seq_number < expected_seq)
+			{
+				const uint32_t already_received_bytes = expected_seq - header.seq_number;
+				if (already_received_bytes <= payload.size())
+					payload = payload.slice(already_received_bytes);
+				else
+					payload = {};
+			}
+
+			const bool can_receive_new_data = (payload.size() > 0 && m_recv_window.data_size < m_recv_window.buffer->size());
+
+			if (can_receive_new_data)
 			{
 				auto* recv_base = reinterpret_cast<uint8_t*>(m_recv_window.buffer->vaddr());
 
@@ -787,12 +813,12 @@ namespace Kernel
 				epoll_notify(EPOLLIN);
 
 				dprintln_if(DEBUG_TCP, "Received {} bytes", nrecv);
-
-				m_should_send_ack = true;
 			}
 
 			// make sure zero window is reported
-			if (m_next_flags == 0 && m_last_sent_window_size > 0 && m_recv_window.data_size == m_recv_window.buffer->size())
+			if (m_last_sent_window_size > 0 && m_recv_window.data_size == m_recv_window.buffer->size())
+				m_should_send_zero_window = true;
+			else if (can_receive_new_data)
 				m_should_send_ack = true;
 		}
 
@@ -915,7 +941,9 @@ namespace Kernel
 
 			const bool should_retransmit = m_send_window.had_zero_window || (m_send_window.sent_size > 0 && current_ms >= m_send_window.last_send_ms + retransmit_timeout_ms);
 
-			if (m_send_window.sent_size < m_send_window.scaled_size() && (should_retransmit || m_send_window.data_size > m_send_window.sent_size))
+			const bool can_send_new_data = (m_send_window.data_size > m_send_window.sent_size && m_send_window.sent_size < m_send_window.scaled_size());
+
+			if (m_send_window.scaled_size() > 0 && (should_retransmit || can_send_new_data))
 			{
 				m_send_window.had_zero_window = false;
 
@@ -927,7 +955,7 @@ namespace Kernel
 
 				const size_t total_send = BAN::Math::min<size_t>(
 					m_send_window.data_size - send_start_offset,
-					m_send_window.scaled_size() - m_send_window.sent_size
+					m_send_window.scaled_size() - send_start_offset
 				);
 
 				m_send_window.current_seq = m_send_window.start_seq + send_start_offset;
@@ -961,15 +989,18 @@ namespace Kernel
 				continue;
 			}
 
-			if (m_should_send_ack)
+			if (const size_t ack_count = m_should_send_ack + m_should_send_zero_window)
 			{
 				ASSERT(m_connection_info.has_value());
 				auto* target_address = reinterpret_cast<const sockaddr*>(&m_connection_info->address);
 				auto target_address_len = m_connection_info->address_len;
 
-				m_next_flags = ACK;
-				if (auto ret = m_network_layer.sendto(*this, {}, target_address, target_address_len); ret.is_error())
-					dwarnln("{}", ret.error());
+				for (size_t i = 0; i < ack_count; i++)
+				{
+					m_next_flags = ACK;
+					if (auto ret = m_network_layer.sendto(*this, {}, target_address, target_address_len); ret.is_error())
+						dwarnln("{}", ret.error());
+				}
 			}
 
 			m_thread_blocker.unblock();

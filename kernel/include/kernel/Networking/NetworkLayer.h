@@ -11,7 +11,7 @@ namespace Kernel
 		BAN::IPv4Address src_ipv4				{ 0 };
 		BAN::IPv4Address dst_ipv4				{ 0 };
 		BAN::NetworkEndian<uint16_t> protocol	{ 0 };
-		BAN::NetworkEndian<uint16_t> extra		{ 0 };
+		BAN::NetworkEndian<uint16_t> length		{ 0 };
 	};
 	static_assert(sizeof(PseudoHeader) == 12);
 
@@ -36,6 +36,7 @@ namespace Kernel
 		NetworkLayer() = default;
 	};
 
-	uint16_t calculate_internet_checksum(BAN::ConstByteSpan packet, const PseudoHeader& pseudo_header);
+	uint16_t calculate_internet_checksum(BAN::ConstByteSpan buffer);
+	uint16_t calculate_internet_checksum(BAN::Span<const BAN::ConstByteSpan> buffers);
 
 }

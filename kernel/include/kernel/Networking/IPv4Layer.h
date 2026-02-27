@@ -38,11 +38,10 @@ namespace Kernel
 
 	public:
 		static BAN::ErrorOr<BAN::UniqPtr<IPv4Layer>> create();
-		~IPv4Layer();
 
 		ARPTable& arp_table() { return *m_arp_table; }
 
-		void add_ipv4_packet(NetworkInterface&, BAN::ConstByteSpan);
+		BAN::ErrorOr<void> handle_ipv4_packet(NetworkInterface&, BAN::ConstByteSpan);
 
 		virtual void unbind_socket(uint16_t port) override;
 		virtual BAN::ErrorOr<void> bind_socket_with_target(BAN::RefPtr<NetworkSocket>, const sockaddr* target_address, socklen_t target_address_len) override;
@@ -55,35 +54,15 @@ namespace Kernel
 		virtual size_t header_size() const override { return sizeof(IPv4Header); }
 
 	private:
-		IPv4Layer();
-
-		void add_ipv4_header(BAN::ByteSpan packet, BAN::IPv4Address src_ipv4, BAN::IPv4Address dst_ipv4, uint8_t protocol) const;
+		IPv4Layer() = default;
 
 		BAN::ErrorOr<in_port_t> find_free_port();
 
-		void packet_handle_task();
-		BAN::ErrorOr<void> handle_ipv4_packet(NetworkInterface&, BAN::ByteSpan);
-
 	private:
-		struct PendingIPv4Packet
-		{
-			NetworkInterface& interface;
-		};
+		BAN::UniqPtr<ARPTable> m_arp_table;
 
-	private:
-		RecursiveSpinLock		m_bound_socket_lock;
-
-		BAN::UniqPtr<ARPTable>	m_arp_table;
-		Thread*					m_thread { nullptr };
-
-		static constexpr size_t pending_packet_buffer_size = 128 * PAGE_SIZE;
-		BAN::UniqPtr<VirtualRange>					m_pending_packet_buffer;
-		BAN::CircularQueue<PendingIPv4Packet, 128>	m_pending_packets;
-		ThreadBlocker									m_pending_thread_blocker;
-		SpinLock									m_pending_lock;
-		size_t										m_pending_total_size { 0 };
-
-		BAN::HashMap<int, BAN::WeakPtr<NetworkSocket>>	m_bound_sockets;
+		RecursiveSpinLock m_bound_socket_lock;
+		BAN::HashMap<int, BAN::WeakPtr<NetworkSocket>> m_bound_sockets;
 
 		friend class BAN::UniqPtr<IPv4Layer>;
 	};

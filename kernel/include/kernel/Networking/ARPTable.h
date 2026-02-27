@@ -31,34 +31,17 @@ namespace Kernel
 
 	public:
 		static BAN::ErrorOr<BAN::UniqPtr<ARPTable>> create();
-		~ARPTable();
 
 		BAN::ErrorOr<BAN::MACAddress> get_mac_from_ipv4(NetworkInterface&, BAN::IPv4Address);
 
-		void add_arp_packet(NetworkInterface&, BAN::ConstByteSpan);
+		BAN::ErrorOr<void> handle_arp_packet(NetworkInterface&, BAN::ConstByteSpan);
 
 	private:
-		ARPTable();
-
-		void packet_handle_task();
-		BAN::ErrorOr<void> handle_arp_packet(NetworkInterface&, const ARPPacket&);
+		ARPTable() = default;
 
 	private:
-		struct PendingArpPacket
-		{
-			NetworkInterface& interface;
-			ARPPacket packet;
-		};
-
-	private:
-		SpinLock m_table_lock;
-		SpinLock m_pending_lock;
-
+		SpinLock m_arp_table_lock;
 		BAN::HashMap<BAN::IPv4Address, BAN::MACAddress> m_arp_table;
-
-		Thread*										m_thread { nullptr };
-		BAN::CircularQueue<PendingArpPacket, 128>	m_pending_packets;
-		ThreadBlocker								m_pending_thread_blocker;
 
 		friend class BAN::UniqPtr<ARPTable>;
 	};

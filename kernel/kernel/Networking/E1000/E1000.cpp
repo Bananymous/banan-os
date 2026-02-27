@@ -1,6 +1,7 @@
 #include <kernel/IDT.h>
 #include <kernel/InterruptController.h>
 #include <kernel/IO.h>
+#include <kernel/Lock/SpinLockAsMutex.h>
 #include <kernel/Memory/PageTable.h>
 #include <kernel/MMIO.h>
 #include <kernel/Networking/E1000/E1000.h>
@@ -57,6 +58,11 @@ namespace Kernel
 
 	E1000::~E1000()
 	{
+		m_thread_should_die = true;
+		m_thread_blocker.unblock();
+
+		while (!m_thread_is_dead)
+			Processor::yield();
 	}
 
 	BAN::ErrorOr<void> E1000::initialize()
@@ -83,6 +89,16 @@ namespace Kernel
 			int speed = link_speed();
 			dprintln("  link speed: {} Mbps", speed);
 		}
+
+		auto* thread = TRY(Thread::create_kernel([](void* e1000_ptr) {
+			static_cast<E1000*>(e1000_ptr)->receive_thread();
+		}, this));
+		if (auto ret = Processor::scheduler().add_thread(thread); ret.is_error())
+		{
+			delete thread;
+			return ret.release_error();
+		}
+		m_thread_is_dead = false;
 
 		return {};
 	}
@@ -259,10 +275,8 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<void> E1000::send_bytes(BAN::MACAddress destination, EtherType protocol, BAN::ConstByteSpan buffer)
+	BAN::ErrorOr<void> E1000::send_bytes(BAN::MACAddress destination, EtherType protocol, BAN::Span<const BAN::ConstByteSpan> payload)
 	{
-		ASSERT(buffer.size() + sizeof(EthernetHeader) <= E1000_TX_BUFFER_SIZE);
-
 		SpinLockGuard _(m_lock);
 
 		size_t tx_current = read32(REG_TDT) % E1000_TX_DESCRIPTOR_COUNT;
@@ -274,48 +288,75 @@ namespace Kernel
 		ethernet_header.src_mac = get_mac_address();
 		ethernet_header.ether_type = protocol;
 
-		memcpy(tx_buffer + sizeof(EthernetHeader), buffer.data(), buffer.size());
+		size_t packet_size = sizeof(EthernetHeader);
+		for (const auto& buffer : payload)
+		{
+			ASSERT(packet_size + buffer.size() < E1000_TX_BUFFER_SIZE);
+			memcpy(tx_buffer + packet_size, buffer.data(), buffer.size());
+			packet_size += buffer.size();
+		}
 
 		auto& descriptor = reinterpret_cast<volatile e1000_tx_desc*>(m_tx_descriptor_region->vaddr())[tx_current];
-		descriptor.length = sizeof(EthernetHeader) + buffer.size();
+		descriptor.length = packet_size;
 		descriptor.status = 0;
 		descriptor.cmd = CMD_EOP | CMD_IFCS | CMD_RS;
 
+		// FIXME: there isnt really any reason to wait for transmission
 		write32(REG_TDT, (tx_current + 1) % E1000_TX_DESCRIPTOR_COUNT);
 		while (descriptor.status == 0)
 			continue;
 
-		dprintln_if(DEBUG_E1000, "sent {} bytes", sizeof(EthernetHeader) + buffer.size());
+		dprintln_if(DEBUG_E1000, "sent {} bytes", packet_size);
 
 		return {};
+	}
+
+	void E1000::receive_thread()
+	{
+		SpinLockGuard _(m_lock);
+
+		while (!m_thread_should_die)
+		{
+			for (;;)
+			{
+				const uint32_t rx_current = (read32(REG_RDT0) + 1) % E1000_RX_DESCRIPTOR_COUNT;
+
+				auto& descriptor = reinterpret_cast<volatile e1000_rx_desc*>(m_rx_descriptor_region->vaddr())[rx_current];
+				if (!(descriptor.status & 1))
+					break;
+				ASSERT(descriptor.length <= E1000_RX_BUFFER_SIZE);
+
+				dprintln_if(DEBUG_E1000, "got {} bytes", (uint16_t)descriptor.length);
+
+				m_lock.unlock(InterruptState::Enabled);
+
+				NetworkManager::get().on_receive(*this, BAN::ConstByteSpan {
+					reinterpret_cast<const uint8_t*>(m_rx_buffer_region->vaddr() + rx_current * E1000_RX_BUFFER_SIZE),
+					descriptor.length
+				});
+
+				m_lock.lock();
+
+				descriptor.status = 0;
+				write32(REG_RDT0, rx_current);
+			}
+
+			SpinLockAsMutex smutex(m_lock, InterruptState::Enabled);
+			m_thread_blocker.block_indefinite(&smutex);
+		}
+
+		m_thread_is_dead = true;
 	}
 
 	void E1000::handle_irq()
 	{
 		const uint32_t icr = read32(REG_ICR);
-		if (!(icr & (ICR_RxQ0 | ICR_RXT0)))
-			return;
 		write32(REG_ICR, icr);
 
-		SpinLockGuard _(m_lock);
-
-		for (;;) {
-			uint32_t rx_current = (read32(REG_RDT0) + 1) % E1000_RX_DESCRIPTOR_COUNT;
-
-			auto& descriptor = reinterpret_cast<volatile e1000_rx_desc*>(m_rx_descriptor_region->vaddr())[rx_current];
-			if (!(descriptor.status & 1))
-				break;
-			ASSERT(descriptor.length <= E1000_RX_BUFFER_SIZE);
-
-			dprintln_if(DEBUG_E1000, "got {} bytes", (uint16_t)descriptor.length);
-
-			NetworkManager::get().on_receive(*this, BAN::ConstByteSpan {
-				reinterpret_cast<const uint8_t*>(m_rx_buffer_region->vaddr() + rx_current * E1000_RX_BUFFER_SIZE),
-				descriptor.length
-			});
-
-			descriptor.status = 0;
-			write32(REG_RDT0, rx_current);
+		if (icr & (ICR_RxQ0 | ICR_RXT0))
+		{
+			SpinLockGuard _(m_lock);
+			m_thread_blocker.unblock();
 		}
 	}
 

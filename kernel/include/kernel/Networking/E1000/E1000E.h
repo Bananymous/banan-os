@@ -12,8 +12,8 @@ namespace Kernel
 		static BAN::ErrorOr<BAN::RefPtr<E1000E>> create(PCI::Device&);
 
 	protected:
-		virtual void detect_eeprom() override;
-		virtual uint32_t eeprom_read(uint8_t addr) override;
+		void detect_eeprom() override;
+		uint32_t eeprom_read(uint8_t addr) override;
 
 	private:
 		E1000E(PCI::Device& pci_device)

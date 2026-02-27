@@ -50,30 +50,30 @@ namespace Kernel
 		static BAN::ErrorOr<BAN::RefPtr<TCPSocket>> create(NetworkLayer&, const Info&);
 		~TCPSocket();
 
-		virtual NetworkProtocol protocol() const override { return NetworkProtocol::TCP; }
+		NetworkProtocol protocol() const override { return NetworkProtocol::TCP; }
 
-		virtual size_t protocol_header_size() const override { return sizeof(TCPHeader) + m_tcp_options_bytes; }
-		virtual void add_protocol_header(BAN::ByteSpan packet, uint16_t dst_port, PseudoHeader) override;
+		size_t protocol_header_size() const override { return sizeof(TCPHeader) + m_tcp_options_bytes; }
+		void get_protocol_header(BAN::ByteSpan header, BAN::ConstByteSpan payload, uint16_t dst_port, PseudoHeader) override;
 
 	protected:
-		virtual BAN::ErrorOr<long> accept_impl(sockaddr*, socklen_t*, int) override;
-		virtual BAN::ErrorOr<void> connect_impl(const sockaddr*, socklen_t) override;
-		virtual BAN::ErrorOr<void> listen_impl(int) override;
-		virtual BAN::ErrorOr<void> bind_impl(const sockaddr*, socklen_t) override;
-		virtual BAN::ErrorOr<size_t> recvmsg_impl(msghdr& message, int flags) override;
-		virtual BAN::ErrorOr<size_t> sendmsg_impl(const msghdr& message, int flags) override;
-		virtual BAN::ErrorOr<void> getpeername_impl(sockaddr*, socklen_t*) override;
-		virtual BAN::ErrorOr<void> getsockopt_impl(int, int, void*, socklen_t*) override;
-		virtual BAN::ErrorOr<void> setsockopt_impl(int, int, const void*, socklen_t) override;
+		BAN::ErrorOr<long> accept_impl(sockaddr*, socklen_t*, int) override;
+		BAN::ErrorOr<void> connect_impl(const sockaddr*, socklen_t) override;
+		BAN::ErrorOr<void> listen_impl(int) override;
+		BAN::ErrorOr<void> bind_impl(const sockaddr*, socklen_t) override;
+		BAN::ErrorOr<size_t> recvmsg_impl(msghdr& message, int flags) override;
+		BAN::ErrorOr<size_t> sendmsg_impl(const msghdr& message, int flags) override;
+		BAN::ErrorOr<void> getpeername_impl(sockaddr*, socklen_t*) override;
+		BAN::ErrorOr<void> getsockopt_impl(int, int, void*, socklen_t*) override;
+		BAN::ErrorOr<void> setsockopt_impl(int, int, const void*, socklen_t) override;
 
-		virtual BAN::ErrorOr<long> ioctl_impl(int, void*) override;
+		BAN::ErrorOr<long> ioctl_impl(int, void*) override;
 
-		virtual void receive_packet(BAN::ConstByteSpan, const sockaddr* sender, socklen_t sender_len) override;
+		void receive_packet(BAN::ConstByteSpan, const sockaddr* sender, socklen_t sender_len) override;
 
-		virtual bool can_read_impl() const override;
-		virtual bool can_write_impl() const override;
-		virtual bool has_error_impl() const override { return false; }
-		virtual bool has_hungup_impl() const override;
+		bool can_read_impl() const override;
+		bool can_write_impl() const override;
+		bool has_error_impl() const override { return false; }
+		bool has_hungup_impl() const override;
 
 	private:
 		enum class State
@@ -181,6 +181,7 @@ namespace Kernel
 		bool m_no_delay { false };
 
 		bool m_should_send_ack { false };
+		bool m_should_send_zero_window { false };
 
 		uint64_t m_time_wait_start_ms { 0 };
 

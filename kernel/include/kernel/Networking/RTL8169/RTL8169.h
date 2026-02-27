@@ -29,9 +29,11 @@ namespace Kernel
 			: NetworkInterface(Type::Ethernet)
 			, m_pci_device(pci_device)
 		{ }
+		~RTL8169();
+
 		BAN::ErrorOr<void> initialize();
 
-		virtual BAN::ErrorOr<void> send_bytes(BAN::MACAddress destination, EtherType protocol, BAN::ConstByteSpan) override;
+		virtual BAN::ErrorOr<void> send_bytes(BAN::MACAddress destination, EtherType protocol, BAN::Span<const BAN::ConstByteSpan>) override;
 
 		virtual bool can_read_impl() const override { return false; }
 		virtual bool can_write_impl() const override { return false; }
@@ -47,7 +49,7 @@ namespace Kernel
 		void enable_link();
 		BAN::ErrorOr<void> enable_interrupt();
 
-		void handle_receive();
+		void receive_thread();
 
 	protected:
 		PCI::Device&					m_pci_device;
@@ -63,6 +65,9 @@ namespace Kernel
 		BAN::UniqPtr<DMARegion>	m_tx_descriptor_region;
 
 		SpinLock m_lock;
+
+		bool m_thread_should_die { false };
+		BAN::Atomic<bool> m_thread_is_dead { true };
 		ThreadBlocker m_thread_blocker;
 
 		uint32_t m_rx_current { 0 };

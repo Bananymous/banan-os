@@ -154,18 +154,18 @@ namespace Kernel
 			return;
 		auto ethernet_header = packet.as<const EthernetHeader>();
 
+		auto packet_data = packet.slice(sizeof(EthernetHeader));
+
 		switch (ethernet_header.ether_type)
 		{
 			case EtherType::ARP:
-			{
-				m_ipv4_layer->arp_table().add_arp_packet(interface, packet.slice(sizeof(EthernetHeader)));
+				if (auto ret = m_ipv4_layer->arp_table().handle_arp_packet(interface, packet_data); ret.is_error())
+					dwarnln("ARP: {}", ret.error());
 				break;
-			}
 			case EtherType::IPv4:
-			{
-				m_ipv4_layer->add_ipv4_packet(interface, packet.slice(sizeof(EthernetHeader)));
+				if (auto ret = m_ipv4_layer->handle_ipv4_packet(interface, packet_data); ret.is_error())
+					dwarnln("IPv4; {}", ret.error());
 				break;
-			}
 			default:
 				dprintln_if(DEBUG_ETHERTYPE, "Unknown EtherType 0x{4H}", (uint16_t)ethernet_header.ether_type);
 				break;

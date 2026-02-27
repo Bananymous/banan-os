@@ -35,13 +35,26 @@ namespace Kernel
 		m_address_len = 0;
 	}
 
-	void UDPSocket::add_protocol_header(BAN::ByteSpan packet, uint16_t dst_port, PseudoHeader)
+	void UDPSocket::get_protocol_header(BAN::ByteSpan header_buffer, BAN::ConstByteSpan payload, uint16_t dst_port, PseudoHeader pseudo_header)
 	{
-		auto& header = packet.as<UDPHeader>();
-		header.src_port = bound_port();
-		header.dst_port = dst_port;
-		header.length = packet.size();
-		header.checksum = 0;
+		ASSERT(header_buffer.size() == protocol_header_size());
+
+		auto& header = header_buffer.as<UDPHeader>();
+		header = {
+			.src_port = bound_port(),
+			.dst_port = dst_port,
+			.length = protocol_header_size() + payload.size(),
+			.checksum = 0,
+		};
+
+		const BAN::ConstByteSpan buffers[] {
+			BAN::ConstByteSpan::from(pseudo_header),
+			header_buffer,
+			payload,
+		};
+		header.checksum = calculate_internet_checksum({ buffers, sizeof(buffers) / sizeof(*buffers) });
+		if (header.checksum == 0)
+			header.checksum = 0xFFFF;
 	}
 
 	void UDPSocket::receive_packet(BAN::ConstByteSpan packet, const sockaddr* sender, socklen_t sender_len)

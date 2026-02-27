@@ -17,27 +17,7 @@ namespace Kernel
 
 	BAN::ErrorOr<BAN::UniqPtr<ARPTable>> ARPTable::create()
 	{
-		auto arp_table = TRY(BAN::UniqPtr<ARPTable>::create());
-		arp_table->m_thread = TRY(Thread::create_kernel(
-			[](void* arp_table_ptr)
-			{
-				auto& arp_table = *reinterpret_cast<ARPTable*>(arp_table_ptr);
-				arp_table.packet_handle_task();
-			}, arp_table.ptr()
-		));
-		TRY(Processor::scheduler().add_thread(arp_table->m_thread));
-		return arp_table;
-	}
-
-	ARPTable::ARPTable()
-	{
-	}
-
-	ARPTable::~ARPTable()
-	{
-		if (m_thread)
-			m_thread->add_signal(SIGKILL, {});
-		m_thread = nullptr;
+		return TRY(BAN::UniqPtr<ARPTable>::create());
 	}
 
 	BAN::ErrorOr<BAN::MACAddress> ARPTable::get_mac_from_ipv4(NetworkInterface& interface, BAN::IPv4Address ipv4_address)
@@ -64,7 +44,7 @@ namespace Kernel
 			ipv4_address = interface.get_gateway();
 
 		{
-			SpinLockGuard _(m_table_lock);
+			SpinLockGuard _(m_arp_table_lock);
 			auto it = m_arp_table.find(ipv4_address);
 			if (it != m_arp_table.end())
 				return it->value;
@@ -87,7 +67,7 @@ namespace Kernel
 		while (SystemTimer::get().ms_since_boot() < timeout)
 		{
 			{
-				SpinLockGuard _(m_table_lock);
+				SpinLockGuard _(m_arp_table_lock);
 				auto it = m_arp_table.find(ipv4_address);
 				if (it != m_arp_table.end())
 					return it->value;
@@ -98,8 +78,16 @@ namespace Kernel
 		return BAN::Error::from_errno(ETIMEDOUT);
 	}
 
-	BAN::ErrorOr<void> ARPTable::handle_arp_packet(NetworkInterface& interface, const ARPPacket& packet)
+	BAN::ErrorOr<void> ARPTable::handle_arp_packet(NetworkInterface& interface, BAN::ConstByteSpan buffer)
 	{
+		if (buffer.size() < sizeof(ARPPacket))
+		{
+			dwarnln_if(DEBUG_ARP, "Too small ARP packet");
+			return {};
+		}
+
+		const auto& packet = buffer.as<const ARPPacket>();
+
 		if (packet.ptype != EtherType::IPv4)
 		{
 			dprintln("Non IPv4 arp packet?");
@@ -112,23 +100,24 @@ namespace Kernel
 			{
 				if (packet.tpa == interface.get_ipv4_address())
 				{
-					ARPPacket arp_reply;
-					arp_reply.htype = 0x0001;
-					arp_reply.ptype = EtherType::IPv4;
-					arp_reply.hlen = 0x06;
-					arp_reply.plen = 0x04;
-					arp_reply.oper = ARPOperation::Reply;
-					arp_reply.sha = interface.get_mac_address();
-					arp_reply.spa = interface.get_ipv4_address();
-					arp_reply.tha = packet.sha;
-					arp_reply.tpa = packet.spa;
+					const ARPPacket arp_reply {
+						.htype = 0x0001,
+						.ptype = EtherType::IPv4,
+						.hlen = 0x06,
+						.plen = 0x04,
+						.oper = ARPOperation::Reply,
+						.sha = interface.get_mac_address(),
+						.spa = interface.get_ipv4_address(),
+						.tha = packet.sha,
+						.tpa = packet.spa,
+					};
 					TRY(interface.send_bytes(packet.sha, EtherType::ARP, BAN::ConstByteSpan::from(arp_reply)));
 				}
 				break;
 			}
 			case ARPOperation::Reply:
 			{
-				SpinLockGuard _(m_table_lock);
+				SpinLockGuard _(m_arp_table_lock);
 				auto it = m_arp_table.find(packet.spa);
 
 				if (it != m_arp_table.end())
@@ -152,50 +141,6 @@ namespace Kernel
 		}
 
 		return {};
-	}
-
-	void ARPTable::packet_handle_task()
-	{
-		for (;;)
-		{
-			PendingArpPacket pending = ({
-				SpinLockGuard guard(m_pending_lock);
-				while (m_pending_packets.empty())
-				{
-					SpinLockGuardAsMutex smutex(guard);
-					m_pending_thread_blocker.block_indefinite(&smutex);
-				}
-
-				auto packet = m_pending_packets.front();
-				m_pending_packets.pop();
-
-				packet;
-			});
-
-			if (auto ret = handle_arp_packet(pending.interface, pending.packet); ret.is_error())
-				dwarnln("{}", ret.error());
-		}
-	}
-
-	void ARPTable::add_arp_packet(NetworkInterface& interface, BAN::ConstByteSpan buffer)
-	{
-		if (buffer.size() < sizeof(ARPPacket))
-		{
-			dwarnln_if(DEBUG_ARP, "ARP packet too small");
-			return;
-		}
-		auto& arp_packet = buffer.as<const ARPPacket>();
-
-		SpinLockGuard _(m_pending_lock);
-
-		if (m_pending_packets.full())
-		{
-			dwarnln_if(DEBUG_ARP, "ARP packet queue full");
-			return;
-		}
-
-		m_pending_packets.push({ .interface = interface, .packet = arp_packet });
-		m_pending_thread_blocker.unblock();
 	}
 
 }
