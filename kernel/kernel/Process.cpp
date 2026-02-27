@@ -1658,12 +1658,6 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_getsockopt(int socket, int level, int option_name, void* user_option_value, socklen_t* user_option_len)
 	{
-		if (level != SOL_SOCKET)
-		{
-			dwarnln("{}: getsockopt level {}", name(), level);
-			return BAN::Error::from_errno(EINVAL);
-		}
-
 		socklen_t option_len;
 		TRY(read_from_user(user_option_len, &option_len, sizeof(socklen_t)));
 
@@ -1685,12 +1679,6 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_setsockopt(int socket, int level, int option_name, const void* user_option_value, socklen_t option_len)
 	{
-		if (level != SOL_SOCKET)
-		{
-			dwarnln("{}: setsockopt level {}", name(), level);
-			return BAN::Error::from_errno(EINVAL);
-		}
-
 		if (option_len < 0)
 			return BAN::Error::from_errno(EINVAL);
 
