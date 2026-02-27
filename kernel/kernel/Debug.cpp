@@ -335,6 +335,8 @@ namespace Debug
 
 	void print_prefix(const char* file, int line)
 	{
+		if (file[0] == '.' && file[1] == '/')
+			file += 2;
 		auto ms_since_boot = Kernel::SystemTimer::is_initialized() ? Kernel::SystemTimer::get().ms_since_boot() : 0;
 		BAN::Formatter::print(Debug::putchar, "[{5}.{3}] {}:{}: ", ms_since_boot / 1000, ms_since_boot % 1000, file, line);
 	}
