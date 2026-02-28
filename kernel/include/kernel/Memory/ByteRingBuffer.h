@@ -30,10 +30,28 @@ namespace Kernel
 			m_size -= size;
 		}
 
+		void pop_back(size_t size)
+		{
+			ASSERT(size <= m_size);
+			m_size -= size;
+		}
+
 		BAN::ConstByteSpan get_data() const
 		{
 			const uint8_t* base = reinterpret_cast<const uint8_t*>(m_vaddr);
 			return { base + m_tail, m_size };
+		}
+
+		uint8_t front() const
+		{
+			ASSERT(!empty());
+			return reinterpret_cast<const uint8_t*>(m_vaddr)[m_tail];
+		}
+
+		uint8_t back() const
+		{
+			ASSERT(!empty());
+			return reinterpret_cast<const uint8_t*>(m_vaddr)[m_tail + m_size];
 		}
 
 		bool empty() const { return m_size == 0; }
