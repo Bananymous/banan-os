@@ -4,7 +4,7 @@
 #include <BAN/Endianness.h>
 #include <BAN/Queue.h>
 #include <kernel/Lock/Mutex.h>
-#include <kernel/Memory/VirtualRange.h>
+#include <kernel/Memory/ByteRingBuffer.h>
 #include <kernel/Networking/NetworkInterface.h>
 #include <kernel/Networking/NetworkSocket.h>
 #include <kernel/Thread.h>
@@ -93,36 +93,32 @@ namespace Kernel
 
 		struct RecvWindowInfo
 		{
-			uint32_t					start_seq	{ 0 }; // sequence number of first byte in buffer
+			uint32_t start_seq      { 0 }; // sequence number of first byte in buffer
 
-			bool						has_ghost_byte { false };
+			bool     has_ghost_byte { false };
 
-			uint32_t					data_tail	{ 0 };
-			uint32_t					data_size	{ 0 }; // number of bytes in this buffer
-			uint8_t						scale_shift	{ 0 }; // window scale
-			BAN::UniqPtr<VirtualRange>	buffer;
+			uint8_t  scale_shift    { 0 }; // window scale
+			BAN::UniqPtr<ByteRingBuffer> buffer;
 		};
 
 		struct SendWindowInfo
 		{
-			uint32_t					mss				{ 0 }; // maximum segment size
-			uint16_t					non_scaled_size	{ 0 }; // window size without scaling
-			uint8_t						scale_shift		{ 0 }; // window scale
-			uint32_t 					scaled_size() const { return (uint32_t)non_scaled_size << scale_shift; }
+			uint32_t mss             { 0 }; // maximum segment size
+			uint16_t non_scaled_size { 0 }; // window size without scaling
+			uint8_t  scale_shift     { 0 }; // window scale
+			uint32_t scaled_size() const { return (uint32_t)non_scaled_size << scale_shift; }
 
-			uint32_t					start_seq		{ 0 }; // sequence number of first byte in buffer
-			uint32_t					current_seq		{ 0 }; // sequence number of next send
-			uint32_t					current_ack		{ 0 }; // sequence number aknowledged by connection
+			uint32_t start_seq       { 0 }; // sequence number of first byte in buffer
+			uint32_t current_seq     { 0 }; // sequence number of next send
+			uint32_t current_ack     { 0 }; // sequence number aknowledged by connection
 
-			uint64_t					last_send_ms	{ 0 }; // last send time, used for retransmission timeout
+			uint64_t last_send_ms    { 0 }; // last send time, used for retransmission timeout
 
-			bool						has_ghost_byte { false };
-			bool						had_zero_window { false };
+			bool     has_ghost_byte  { false };
+			bool     had_zero_window { false };
 
-			uint32_t					data_tail 		{ 0 };
-			uint32_t					data_size		{ 0 }; // number of bytes in this buffer
-			uint32_t					sent_size		{ 0 }; // number of bytes in this buffer that have been sent
-			BAN::UniqPtr<VirtualRange>	buffer;
+			uint32_t sent_size       { 0 }; // number of bytes in this buffer that have been sent
+			BAN::UniqPtr<ByteRingBuffer> buffer;
 		};
 
 		struct ConnectionInfo
@@ -180,8 +176,8 @@ namespace Kernel
 		bool m_keep_alive { false };
 		bool m_no_delay { false };
 
-		bool m_should_send_ack { false };
 		bool m_should_send_zero_window { false };
+		bool m_should_send_window_update { false };
 
 		uint64_t m_time_wait_start_ms { 0 };
 
