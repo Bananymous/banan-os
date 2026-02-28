@@ -3,6 +3,7 @@
 #include <BAN/Array.h>
 #include <kernel/Device/Device.h>
 #include <kernel/Lock/SpinLock.h>
+#include <kernel/Memory/ByteRingBuffer.h>
 #include <kernel/Terminal/TerminalDriver.h>
 #include <kernel/ThreadBlocker.h>
 #include <LibInput/KeyEvent.h>
@@ -102,8 +103,7 @@ namespace Kernel
 
 		struct Buffer
 		{
-			BAN::Array<uint8_t, 1024> buffer;
-			size_t bytes { 0 };
+			BAN::UniqPtr<ByteRingBuffer> buffer;
 			bool flush { false };
 			ThreadBlocker thread_blocker;
 		};

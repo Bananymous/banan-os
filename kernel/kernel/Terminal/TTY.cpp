@@ -73,7 +73,9 @@ namespace Kernel
 		: CharacterDevice(mode, uid, gid)
 		, m_termios(termios)
 		, m_rdev(next_tty_rdev())
-	{ }
+	{
+		m_output.buffer = MUST(ByteRingBuffer::create(PAGE_SIZE));
+	}
 
 	BAN::RefPtr<TTY> TTY::current()
 	{
@@ -204,7 +206,7 @@ namespace Kernel
 			}
 			case FIONREAD:
 			{
-				*static_cast<int*>(argument) = m_output.flush ? m_output.bytes : 0;
+				*static_cast<int*>(argument) = m_output.flush ? m_output.buffer->size() : 0;
 				return 0;
 			}
 			case TIOCGWINSZ:
@@ -232,13 +234,12 @@ namespace Kernel
 			return;
 
 		const char* ansi_c_str = LibInput::key_to_utf8_ansi(event.key, event.modifier);
-		if (ansi_c_str)
-		{
-			auto* ptr = reinterpret_cast<const uint8_t*>(ansi_c_str);
-			while (*ptr)
-				handle_input_byte(*ptr++);
-			after_write();
-		}
+		if (ansi_c_str == nullptr)
+			return;
+
+		while (*ansi_c_str)
+			handle_input_byte(*ansi_c_str++);
+		after_write();
 	}
 
 	void TTY::handle_input_byte(uint8_t ch)
@@ -287,7 +288,7 @@ namespace Kernel
 
 			if (ch == m_termios.c_cc[VKILL] && (m_termios.c_lflag & ECHOK))
 			{
-				while (m_output.bytes > 0 && m_output.buffer[m_output.bytes - 1] != '\n')
+				while (!m_output.buffer->empty() && m_output.buffer->back() != '\n')
 					do_backspace();
 				return;
 			}
@@ -307,12 +308,8 @@ namespace Kernel
 
 		// TODO: terminal suspension with VSTOP/VSTART
 
-		if (should_append)
-		{
-			if (m_output.bytes >= m_output.buffer.size())
-				return;
-			m_output.buffer[m_output.bytes++] = ch;
-		}
+		if (should_append && !m_output.buffer->full())
+			m_output.buffer->push({ &ch, 1 });
 
 		if (should_append && (force_echo || (m_termios.c_lflag & ECHO)))
 		{
@@ -350,44 +347,34 @@ namespace Kernel
 
 	void TTY::do_backspace()
 	{
-		if (m_output.bytes > 0)
-		{
-			uint8_t last = m_output.buffer[m_output.bytes - 1];
+		if (m_output.buffer->empty())
+			return;
 
-			// Multibyte UTF8
-			if ((last & 0xC0) == 0x80)
-			{
-				// NOTE: this should be valid UTF8 since keyboard input already 'validates' it
-				while ((m_output.buffer[m_output.bytes - 1] & 0xC0) == 0x80)
-				{
-					ASSERT(m_output.bytes > 0);
-					m_output.bytes--;
-				}
-				ASSERT(m_output.bytes > 0);
-				m_output.bytes--;
-				putchar('\b');
-				putchar(' ');
-				putchar('\b');
-			}
-			// Caret notation
-			else if (last < 32 || last == 127)
-			{
-				m_output.bytes--;
-				putchar('\b');
-				putchar('\b');
-				putchar(' ');
-				putchar(' ');
-				putchar('\b');
-				putchar('\b');
-			}
-			// Ascii
-			else
-			{
-				m_output.bytes--;
-				putchar('\b');
-				putchar(' ');
-				putchar('\b');
-			}
+		const bool is_caret_notation =
+			(m_output.buffer->back() < 32) ||
+			(m_output.buffer->back() == 127);
+
+		// handle multibyte UTF8
+		while ((m_output.buffer->back() & 0xC0) == 0x80)
+			m_output.buffer->pop_back(1);
+
+		ASSERT(!m_output.buffer->empty());
+		m_output.buffer->pop_back(1);
+
+		if (is_caret_notation)
+		{
+			putchar('\b');
+			putchar('\b');
+			putchar(' ');
+			putchar(' ');
+			putchar('\b');
+			putchar('\b');
+		}
+		else
+		{
+			putchar('\b');
+			putchar(' ');
+			putchar('\b');
 		}
 	}
 
@@ -411,7 +398,7 @@ namespace Kernel
 		while (!m_output.flush)
 			TRY(Thread::current().block_or_eintr_indefinite(m_output.thread_blocker, &m_mutex));
 
-		if (m_output.bytes == 0)
+		if (m_output.buffer->empty())
 		{
 			if (master_has_closed())
 				return 0;
@@ -419,19 +406,19 @@ namespace Kernel
 			return 0;
 		}
 
-		const size_t max_to_copy = BAN::Math::min<size_t>(buffer.size(), m_output.bytes);
+		auto data = m_output.buffer->get_data();
+
+		const size_t max_to_copy = BAN::Math::min<size_t>(buffer.size(), data.size());
 		size_t to_copy = max_to_copy;
 		if (m_termios.c_lflag & ICANON)
 			for (to_copy = 1; to_copy < max_to_copy; to_copy++)
-				if (m_output.buffer[to_copy - 1] == NL)
+				if (data[to_copy - 1] == NL)
 					break;
 
-		memcpy(buffer.data(), m_output.buffer.data(), to_copy);
+		memcpy(buffer.data(), data.data(), to_copy);
+		m_output.buffer->pop(to_copy);
 
-		memmove(m_output.buffer.data(), m_output.buffer.data() + to_copy, m_output.bytes - to_copy);
-		m_output.bytes -= to_copy;
-
-		if (m_output.bytes == 0)
+		if (m_output.buffer->empty())
 			m_output.flush = false;
 
 		m_output.thread_blocker.unblock();
