@@ -50,6 +50,7 @@ set(KERNEL_SOURCES
 	kernel/InterruptController.cpp
 	kernel/kernel.cpp
 	kernel/Lock/SpinLock.cpp
+	kernel/Memory/ByteRingBuffer.cpp
 	kernel/Memory/DMARegion.cpp
 	kernel/Memory/FileBackedRegion.cpp
 	kernel/Memory/Heap.cpp
