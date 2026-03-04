@@ -389,7 +389,7 @@ static void handle_tls_relocation(const LoadedElf& elf, const RelocT& reloc)
 		const auto& symbol = *reinterpret_cast<ElfNativeSymbol*>(elf.symtab + symbol_index * elf.syment);
 		const char* symbol_name = reinterpret_cast<const char*>(elf.strtab + symbol.st_name);
 
-		if (symbol.st_shndx && ELF_ST_BIND(symbol.st_info) != STB_WEAK)
+		if (ELF_ST_BIND(symbol.st_info) == STB_LOCAL && symbol.st_shndx)
 			symbol_offset = symbol.st_value;
 		else
 		{
@@ -504,7 +504,7 @@ static uintptr_t handle_relocation(const LoadedElf& elf, const RelocT& reloc, bo
 		CHECK_SYM(__dlsym);
 		CHECK_SYM(__dladdr);
 #undef CHECK_SYM
-		else if (symbol.st_shndx && ELF_ST_BIND(symbol.st_info) != STB_WEAK)
+		else if (ELF_ST_BIND(symbol.st_info) == STB_LOCAL && symbol.st_shndx)
 			symbol_address = elf.base + symbol.st_value;
 		else
 		{
@@ -646,14 +646,6 @@ static void relocate_elf(LoadedElf& elf, bool lazy_load)
 	if (elf.is_relocating)
 		return;
 	elf.is_relocating = true;
-
-	// do copy relocations
-	if (elf.rel && elf.relent)
-		for (size_t i = 0; i < elf.relsz / elf.relent; i++)
-			handle_copy_relocation(elf, *reinterpret_cast<ElfNativeRelocation*>(elf.rel + i * elf.relent));
-	if (elf.rela && elf.relaent)
-		for (size_t i = 0; i < elf.relasz / elf.relaent; i++)
-			handle_copy_relocation(elf, *reinterpret_cast<ElfNativeRelocationA*>(elf.rela + i * elf.relaent));
 
 	// relocate libraries
 	for (size_t i = 0;; i++)
@@ -1531,11 +1523,15 @@ void* __dlopen(const char* file, int mode)
 
 	if (!elf.is_relocating && !elf.is_calling_init)
 	{
-		for (size_t i = old_loaded_count + 1; i < s_loaded_file_count; i++)
+		for (size_t i = old_loaded_count; i < s_loaded_file_count; i++)
 		{
 			if (s_loaded_files[i].tls_header.p_type == PT_TLS)
 			{
 				s_dlerror_string = "TODO: __dlopen with TLS";
+
+				// FIXME: leaks loaded files :)
+				s_loaded_file_count = old_loaded_count;
+
 				return nullptr;
 			}
 		}
@@ -1717,6 +1713,15 @@ uintptr_t _entry(int argc, char* argv[], char* envp[])
 
 	const auto master_tls = initialize_master_tls();
 	relocate_elf(elf, true);
+
+	// do copy relocations
+	if (elf.rel && elf.relent)
+		for (size_t i = 0; i < elf.relsz / elf.relent; i++)
+			handle_copy_relocation(elf, *reinterpret_cast<ElfNativeRelocation*>(elf.rel + i * elf.relent));
+	if (elf.rela && elf.relaent)
+		for (size_t i = 0; i < elf.relasz / elf.relaent; i++)
+			handle_copy_relocation(elf, *reinterpret_cast<ElfNativeRelocationA*>(elf.rela + i * elf.relaent));
+
 	initialize_tls(master_tls);
 	initialize_environ(envp);
 	call_init_funcs(elf, true);
