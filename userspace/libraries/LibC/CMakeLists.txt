@@ -76,7 +76,7 @@ set(LIBC_SOURCES
 add_library(objlibc OBJECT ${LIBC_SOURCES})
 target_compile_definitions(objlibc PRIVATE __arch=${BANAN_ARCH})
 
-target_compile_options(objlibc PRIVATE -O2 -g -Wstack-usage=512 -fno-exceptions -fpic -nolibc)
+target_compile_options(objlibc PRIVATE -O2 -g -Wstack-usage=512 -fno-exceptions -fno-rtti -fpic)
 target_compile_options(objlibc PUBLIC -Wall -Wextra -Werror -Wno-error=stack-usage=)
 
 function(add_crtx crtx)
@@ -99,11 +99,8 @@ banan_install_headers(objlibc)
 add_library(libc-static STATIC $<TARGET_OBJECTS:objlibc>)
 add_library(libc-shared SHARED $<TARGET_OBJECTS:objlibc>)
 
-target_link_options(libc-static PRIVATE -nostdlib)
-target_link_libraries(libc-static PRIVATE -lgcc)
-
-target_link_options(libc-shared PRIVATE -nostdlib)
-target_link_libraries(libc-shared PRIVATE -lgcc)
+target_link_options(libc-static PRIVATE -nolibc)
+target_link_options(libc-shared PRIVATE -nolibc)
 
 install(TARGETS libc-static OPTIONAL)
 install(TARGETS libc-shared OPTIONAL)
