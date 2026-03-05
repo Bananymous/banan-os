@@ -996,11 +996,8 @@ static void load_program_header(const ElfNativeProgramHeader& program_header, in
 		);
 
 		if (!(prot & PROT_WRITE) && !needs_writable)
-		{
-			if (auto ret = syscall(SYS_MPROTECT, program_header.p_vaddr + file_backed_size, program_header.p_memsz - file_backed_size, prot))
+			if (auto ret = syscall(SYS_MPROTECT, mmap_args.addr, mmap_args.len, prot))
 				print_error_and_exit("failed to remove PROT_WRITE from mapped", ret);
-			print(STDDBG_FILENO, "dropped PROT_WRITE :nekocatwoah:");
-		}
 	}
 }
 
