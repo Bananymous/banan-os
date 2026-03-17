@@ -119,6 +119,7 @@ __BEGIN_DECLS
 	O(SYS_GETGROUPS,		getgroups)		\
 	O(SYS_SETGROUPS,		setgroups)		\
 	O(SYS_CHROOT,			chroot)			\
+	O(SYS_EVENTFD,			eventfd)		\
 
 enum Syscall
 {

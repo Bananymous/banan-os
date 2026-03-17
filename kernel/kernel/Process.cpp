@@ -5,6 +5,7 @@
 #include <kernel/ELF.h>
 #include <kernel/Epoll.h>
 #include <kernel/FS/DevFS/FileSystem.h>
+#include <kernel/FS/EventFD.h>
 #include <kernel/FS/ProcFS/FileSystem.h>
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/IDT.h>
@@ -28,6 +29,7 @@
 #include <pthread.h>
 #include <stdio.h>
 #include <sys/banan-os.h>
+#include <sys/eventfd.h>
 #include <sys/futex.h>
 #include <sys/sysmacros.h>
 #include <sys/wait.h>
@@ -2158,6 +2160,27 @@ namespace Kernel
 		BAN::ScopeGuard sigmask_restore([old_sigmask] { Thread::current().m_signal_block_mask = old_sigmask; });
 
 		return TRY(static_cast<Epoll*>(epoll_inode.ptr())->wait(BAN::Span<epoll_event>(events, maxevents), waketime_ns));
+	}
+
+	BAN::ErrorOr<long> Process::sys_eventfd(unsigned int initval, int flags)
+	{
+		if (flags & ~(EFD_CLOEXEC | EFD_NONBLOCK | EFD_SEMAPHORE))
+			return BAN::Error::from_errno(EINVAL);
+
+		int oflags = 0;
+		if (flags & EFD_CLOEXEC)
+			oflags |= O_CLOEXEC;
+		if (flags & EFD_NONBLOCK)
+			oflags |= O_NONBLOCK;
+
+		const bool is_semaphore = !!(flags & EFD_SEMAPHORE);
+
+		return TRY(m_open_file_descriptors.open(
+			VirtualFileSystem::File {
+				TRY(EventFD::create(initval, is_semaphore)),
+				"<eventfd>"_sv
+			}, oflags
+		));
 	}
 
 	BAN::ErrorOr<long> Process::sys_pipe(int user_fildes[2])

@@ -147,6 +147,8 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_epoll_ctl(int epfd, int op, int fd, struct epoll_event* event);
 		BAN::ErrorOr<long> sys_epoll_pwait2(int epfd, struct epoll_event* events, int maxevents, const struct timespec* timeout, const sigset_t* sigmask);
 
+		BAN::ErrorOr<long> sys_eventfd(unsigned int initval_hi, int flags);
+
 		BAN::ErrorOr<long> sys_pipe(int fildes[2]);
 		BAN::ErrorOr<long> sys_dup2(int fildes, int fildes2);
 
