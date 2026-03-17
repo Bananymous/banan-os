@@ -43,6 +43,17 @@ volatile Kernel::API::SharedPage* g_shared_page = nullptr;
 #include <cxxabi.h>
 #endif
 
+extern "C" {
+#if UINT32_MAX == UINTPTR_MAX
+uintptr_t __stack_chk_guard = 0xe2dee396;
+#else
+uintptr_t __stack_chk_guard = 0x595e9fbd94fda766;
+#endif
+
+__attribute__((noreturn))
+void __stack_chk_fail(void) { abort(); }
+}
+
 static void __dump_backtrace(int, siginfo_t*, void*);
 
 static LibELF::AuxiliaryVector* find_auxv(char** envp)
