@@ -271,5 +271,17 @@ FUNC_EXPR1(tgamma, tgamma_impl(a))
 BAN_FUNC1(trunc)
 // y0, y1, yn
 
+void sincos(double x, double* sin, double* cos)
+{
+	BAN::Math::sincos(x, *sin, *cos);
+}
+void sincosf(float x, float* sin, float* cos)
+{
+	BAN::Math::sincos(x, *sin, *cos);
+}
+void sincosl(long double x, long double* sin, long double* cos)
+{
+	BAN::Math::sincos(x, *sin, *cos);
+}
 
 __END_DECLS

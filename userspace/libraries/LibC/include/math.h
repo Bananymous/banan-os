@@ -249,6 +249,10 @@ double		y0(double);
 double		y1(double);
 double		yn(int, double);
 
+void sincos(double x, double *sin, double *cos);
+void sincosf(float x, float *sin, float *cos);
+void sincosl(long double x, long double *sin, long double *cos);
+
 extern int signgam;
 
 __END_DECLS
