@@ -207,8 +207,12 @@ struct LoadedElf
 	const uint8_t* real_strtab_addr;
 };
 
-static LoadedElf s_loaded_files[128];
+static constexpr size_t s_max_loaded_files = 128;
+static LoadedElf s_loaded_files[s_max_loaded_files];
 static size_t s_loaded_file_count = 0;
+
+static size_t s_tls_module = 1;
+static _dynamic_tls_t* s_dynamic_tls = nullptr;
 
 static const char* s_ld_library_path = nullptr;
 
@@ -1072,6 +1076,9 @@ static LoadedElf& load_elf(const char* path, int fd)
 		}
 	}
 
+	if (s_loaded_file_count == s_max_loaded_files)
+		print_error_and_exit("cannot load more dynamic libraries", 0);
+
 	if (fd == -1 && (fd = syscall(SYS_OPENAT, AT_FDCWD, path, O_RDONLY)) < 0)
 		print_error_and_exit("could not open library", fd);
 
@@ -1277,7 +1284,7 @@ static MasterTLS initialize_master_tls()
 		master_tls_addr = reinterpret_cast<uint8_t*>(ret);
 	}
 
-	for (size_t i = 0, tls_offset = 0, tls_module = 1; i < s_loaded_file_count; i++)
+	for (size_t i = 0, tls_offset = 0; i < s_loaded_file_count; i++)
 	{
 		const auto& tls_header = s_loaded_files[i].tls_header;
 		if (tls_header.p_type != PT_TLS)
@@ -1298,18 +1305,42 @@ static MasterTLS initialize_master_tls()
 
 		auto& elf = s_loaded_files[i];
 		elf.tls_addr = tls_buffer;
-		elf.tls_module = tls_module++;
+		elf.tls_module = s_tls_module++;
 		elf.tls_offset = tls_offset;
 	}
 
-	return { .addr = master_tls_addr, .size = master_tls_size, .module_count = module_count };
+	{
+		const sys_mmap_t mmap_args {
+			.addr = nullptr,
+			.len = sizeof(_dynamic_tls_t) + s_max_loaded_files * sizeof(_dynamic_tls_entry_t),
+			.prot = PROT_READ | PROT_WRITE,
+			.flags = MAP_ANONYMOUS | MAP_PRIVATE,
+			.fildes = -1,
+			.off = 0,
+		};
+
+		const auto ret = syscall(SYS_MMAP, &mmap_args);
+		if (ret < 0)
+			print_error_and_exit("failed to allocate dynamic TLS", ret);
+		s_dynamic_tls = reinterpret_cast<_dynamic_tls_t*>(ret);
+
+		*s_dynamic_tls = {
+			.lock = 0,
+			.entry_count = 0,
+			.entries = reinterpret_cast<_dynamic_tls_entry_t*>(s_dynamic_tls + 1),
+		};
+	}
+
+	return {
+		.addr = master_tls_addr,
+		.size = master_tls_size,
+		.module_count = module_count,
+	};
 }
 
 static void initialize_tls(MasterTLS master_tls)
 {
-	const size_t tls_size = master_tls.size
-		+ sizeof(uthread)
-		+ (master_tls.module_count + 1) * sizeof(uintptr_t);
+	const size_t tls_size = master_tls.size + sizeof(uthread);
 
 	uint8_t* tls_addr;
 
@@ -1339,12 +1370,15 @@ static void initialize_tls(MasterTLS master_tls)
 		.self = &uthread,
 		.master_tls_addr = master_tls.addr,
 		.master_tls_size = master_tls.size,
+		.master_tls_module_count = master_tls.module_count,
+		.dynamic_tls = s_dynamic_tls,
 		.cleanup_stack = nullptr,
 		.id = static_cast<pthread_t>(syscall<>(SYS_PTHREAD_SELF)),
 		.errno_ = 0,
 		.cancel_type = PTHREAD_CANCEL_DEFERRED,
 		.cancel_state = PTHREAD_CANCEL_ENABLE,
 		.canceled = false,
+		.dtv = {},
 	};
 
 	uthread.dtv[0] = master_tls.module_count;
@@ -1478,6 +1512,51 @@ static void register_fini_funcs(LoadedElf& elf, bool is_main_elf)
 	}
 }
 
+static void load_dynamic_tls(LoadedElf& elf)
+{
+	if (elf.tls_header.p_type != PT_TLS)
+		return;
+	if (elf.tls_module != 0)
+		print_error_and_exit("TLS module already loaded??", 0);
+
+	elf.tls_module = s_tls_module++;
+	elf.tls_offset = 0;
+
+	{
+		const sys_mmap_t mmap_args {
+			.addr = nullptr,
+			.len = elf.tls_header.p_memsz,
+			.prot = PROT_READ | PROT_WRITE,
+			.flags = MAP_ANONYMOUS | MAP_PRIVATE,
+			.fildes = -1,
+			.off = 0,
+		};
+
+		const auto ret = syscall(SYS_MMAP, &mmap_args);
+		if (ret < 0)
+			print_error_and_exit("failed to allocate dynamic TLS", ret);
+		elf.tls_addr = reinterpret_cast<uint8_t*>(ret);
+
+		memset(elf.tls_addr + elf.tls_header.p_filesz, 0, elf.tls_header.p_memsz - elf.tls_header.p_filesz);
+		if (const auto ret = syscall(SYS_PREAD, elf.fd, elf.tls_addr, elf.tls_header.p_filesz, elf.tls_header.p_offset); ret < static_cast<long>(elf.tls_header.p_filesz))
+			print_error_and_exit("failed to read TLS data", 0);
+	}
+
+	int expected = 0;
+	while (!BAN::atomic_compare_exchange(s_dynamic_tls->lock, expected, 1))
+	{
+		syscall<>(SYS_YIELD);
+		expected = 0;
+	}
+
+	s_dynamic_tls->entries[s_dynamic_tls->entry_count++] = {
+		.master_addr = elf.tls_addr,
+		.master_size = elf.tls_header.p_memsz,
+	};
+
+	BAN::atomic_store(s_dynamic_tls->lock, 0);
+}
+
 int __dlclose(void* handle)
 {
 	// TODO: maybe actually close handles? (not required by spec)
@@ -1521,17 +1600,8 @@ void* __dlopen(const char* file, int mode)
 	if (!elf.is_relocating && !elf.is_calling_init)
 	{
 		for (size_t i = old_loaded_count; i < s_loaded_file_count; i++)
-		{
-			if (s_loaded_files[i].tls_header.p_type == PT_TLS)
-			{
-				s_dlerror_string = "TODO: __dlopen with TLS";
+			load_dynamic_tls(s_loaded_files[i]);
 
-				// FIXME: leaks loaded files :)
-				s_loaded_file_count = old_loaded_count;
-
-				return nullptr;
-			}
-		}
 
 		relocate_elf(elf, lazy);
 		call_init_funcs(elf, false);

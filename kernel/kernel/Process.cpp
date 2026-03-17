@@ -379,7 +379,7 @@ namespace Kernel
 		const auto [master_addr, master_size] = master_tls;
 		ASSERT(master_size % alignof(uthread) == 0);
 
-		const size_t tls_size = master_size + PAGE_SIZE;
+		const size_t tls_size = master_size + sizeof(uthread);
 
 		auto region = TRY(MemoryBackedRegion::create(
 			page_table,
@@ -408,28 +408,26 @@ namespace Kernel
 			bytes_copied += to_copy;
 		}
 
-		const uthread uthread {
+		auto uthread = TRY(BAN::UniqPtr<struct uthread>::create());
+		*uthread = {
 			.self = reinterpret_cast<struct uthread*>(region->vaddr() + master_size),
 			.master_tls_addr = reinterpret_cast<void*>(master_addr),
 			.master_tls_size = master_size,
+			.master_tls_module_count = 1,
+			.dynamic_tls = nullptr,
 			.cleanup_stack = nullptr,
 			.id = 0,
 			.errno_ = 0,
 			.cancel_type = 0,
 			.cancel_state = 0,
 			.canceled = 0,
+			.dtv = { 0, region->vaddr() }
 		};
-		const uintptr_t dtv[2] { 1, region->vaddr() };
 
 		TRY(region->copy_data_to_region(
 			master_size,
-			reinterpret_cast<const uint8_t*>(&uthread),
-			sizeof(uthread)
-		));
-		TRY(region->copy_data_to_region(
-			master_size + sizeof(uthread),
-			reinterpret_cast<const uint8_t*>(&dtv),
-			sizeof(dtv)
+			reinterpret_cast<const uint8_t*>(uthread.ptr()),
+			sizeof(struct uthread)
 		));
 
 		TLSResult result;

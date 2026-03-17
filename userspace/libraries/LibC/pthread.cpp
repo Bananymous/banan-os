@@ -63,13 +63,35 @@ extern "C" void _pthread_trampoline_cpp(void* arg)
 
 static void free_uthread(uthread* uthread)
 {
-	if (uthread->dtv[0] == 0)
-		return free(uthread);
+	const auto lock_dynamic_tls =
+		[uthread] {
+			int expected = 0;
+			while (BAN::atomic_compare_exchange(uthread->dynamic_tls->lock, expected, 1))
+			{
+				sched_yield();
+				expected = 0;
+			}
+		};
+
+	const auto unlock_dynamic_tls =
+		[uthread] {
+			BAN::atomic_store(uthread->dynamic_tls->lock, 0);
+		};
+
+	for (size_t i = uthread->master_tls_module_count; i < uthread->dtv[0]; i++)
+	{
+		if (uthread->dtv[i] == 0)
+			continue;
+
+		lock_dynamic_tls();
+		const size_t size = uthread->dynamic_tls->entries[i].master_size;
+		unlock_dynamic_tls();
+
+		munmap(reinterpret_cast<void*>(uthread->dtv[i]), size);
+	}
 
 	uint8_t* tls_addr = reinterpret_cast<uint8_t*>(uthread) - uthread->master_tls_size;
-	const size_t tls_size = uthread->master_tls_size
-		+ sizeof(struct uthread)
-		+ (uthread->dtv[0] + 1) * sizeof(uintptr_t);
+	const size_t tls_size = uthread->master_tls_size + sizeof(struct uthread);
 	munmap(tls_addr, tls_size);
 }
 
@@ -358,58 +380,37 @@ int pthread_create(pthread_t* __restrict thread_id, const pthread_attr_t* __rest
 
 	long syscall_ret = 0;
 
-	if (uthread* self = _get_uthread(); self->master_tls_addr == nullptr)
 	{
-		uthread* uthread = static_cast<struct uthread*>(malloc(sizeof(struct uthread) + sizeof(uintptr_t)));
-		if (uthread == nullptr)
-			goto pthread_create_error;
+		uthread* self = _get_uthread();
 
-		*uthread = {
-			.self = uthread,
-			.master_tls_addr = nullptr,
-			.master_tls_size = 0,
-			.cleanup_stack = nullptr,
-			.id = -1,
-			.errno_ = 0,
-			.cancel_type = PTHREAD_CANCEL_DEFERRED,
-			.cancel_state = PTHREAD_CANCEL_ENABLE,
-			.canceled = false,
-		};
-		uthread->dtv[0] = 0;
-
-		info->uthread = uthread;
-	}
-	else
-	{
-		const size_t module_count = self->dtv[0];
-
-		const size_t tls_size = self->master_tls_size
-			+ sizeof(uthread)
-			+ (module_count + 1) * sizeof(uintptr_t);
+		const size_t tls_size = self->master_tls_size + sizeof(uthread);
 
 		uint8_t* tls_addr = static_cast<uint8_t*>(mmap(nullptr, tls_size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0));
 		if (tls_addr == MAP_FAILED)
 			goto pthread_create_error;
-		memcpy(tls_addr, self->master_tls_addr, self->master_tls_size);
+
+		if (self->master_tls_addr)
+			memcpy(tls_addr, self->master_tls_addr, self->master_tls_size);
 
 		uthread* uthread = reinterpret_cast<struct uthread*>(tls_addr + self->master_tls_size);
 		*uthread = {
 			.self = uthread,
 			.master_tls_addr = self->master_tls_addr,
 			.master_tls_size = self->master_tls_size,
+			.master_tls_module_count = self->master_tls_module_count,
+			.dynamic_tls = self->dynamic_tls,
 			.cleanup_stack = nullptr,
 			.id = -1,
 			.errno_ = 0,
 			.cancel_type = PTHREAD_CANCEL_DEFERRED,
 			.cancel_state = PTHREAD_CANCEL_ENABLE,
 			.canceled = 0,
+			.dtv = { self->dtv[0] }
 		};
 
 		const uintptr_t self_addr = reinterpret_cast<uintptr_t>(self);
 		const uintptr_t uthread_addr = reinterpret_cast<uintptr_t>(uthread);
-
-		uthread->dtv[0] = module_count;
-		for (size_t i = 1; i <= module_count; i++)
+		for (size_t i = 1; i <= self->master_tls_module_count; i++)
 			uthread->dtv[i] = self->dtv[i] - self_addr + uthread_addr;
 
 		info->uthread = uthread;
@@ -1276,6 +1277,36 @@ int pthread_barrier_wait(pthread_barrier_t* barrier)
 	return 0;
 }
 
+static void load_dynamic_tls_module(size_t module)
+{
+	auto* uthread = _get_uthread();
+	ASSERT(uthread->dynamic_tls);
+	ASSERT(module > uthread->master_tls_module_count);
+
+	const _dynamic_tls_entry_t entry = ({
+		int expected = 0;
+		while (BAN::atomic_compare_exchange(uthread->dynamic_tls->lock, expected, 1))
+		{
+			sched_yield();
+			expected = 0;
+		}
+
+		ASSERT(module <= uthread->master_tls_module_count + uthread->dynamic_tls->entry_count);
+		auto result = uthread->dynamic_tls->entries[module - uthread->master_tls_module_count - 1];
+
+		BAN::atomic_store(uthread->dynamic_tls->lock, 0);
+
+		result;
+	});
+
+	void* dtv_data = mmap(nullptr, entry.master_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+	ASSERT(dtv_data != MAP_FAILED);
+
+	memcpy(dtv_data, entry.master_addr, entry.master_size);
+
+	uthread->dtv[module] = reinterpret_cast<uintptr_t>(dtv_data);
+}
+
 struct tls_index
 {
 	unsigned long int ti_module;
@@ -1284,12 +1315,18 @@ struct tls_index
 
 extern "C" void* __tls_get_addr(tls_index* ti)
 {
-	return reinterpret_cast<void*>(_get_uthread()->dtv[ti->ti_module] + ti->ti_offset);
+	auto* uthread = _get_uthread();
+	if (uthread->dtv[ti->ti_module] == 0) [[unlikely]]
+		load_dynamic_tls_module(ti->ti_module);
+	return reinterpret_cast<void*>(uthread->dtv[ti->ti_module] + ti->ti_offset);
 }
 
 #if ARCH(i686)
 extern "C" void* __attribute__((__regparm__(1))) ___tls_get_addr(tls_index* ti)
 {
-	return reinterpret_cast<void*>(_get_uthread()->dtv[ti->ti_module] + ti->ti_offset);
+	auto* uthread = _get_uthread();
+	if (uthread->dtv[ti->ti_module] == 0) [[unlikely]]
+		load_dynamic_tls_module(ti->ti_module);
+	return reinterpret_cast<void*>(uthread->dtv[ti->ti_module] + ti->ti_offset);
 }
 #endif

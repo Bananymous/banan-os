@@ -84,21 +84,23 @@ extern "C" void _init_libc(char** environ, init_funcs_t init_funcs, init_funcs_t
 	}
 	else
 	{
-		alignas(uthread) static uint8_t storage[sizeof(uthread) + sizeof(uintptr_t)];
+		alignas(uthread) static uint8_t storage[sizeof(uthread)];
 
 		uthread& uthread = *reinterpret_cast<struct uthread*>(storage);
 		uthread = {
 			.self = &uthread,
 			.master_tls_addr = nullptr,
 			.master_tls_size = 0,
+			.master_tls_module_count = 1,
+			.dynamic_tls = nullptr,
 			.cleanup_stack = nullptr,
 			.id = static_cast<pthread_t>(syscall(SYS_PTHREAD_SELF)),
 			.errno_ = 0,
 			.cancel_type = PTHREAD_CANCEL_DEFERRED,
 			.cancel_state = PTHREAD_CANCEL_ENABLE,
 			.canceled = false,
+			.dtv = { 0 },
 		};
-		uthread.dtv[0] = 0;
 
 #if defined(__x86_64__)
 		syscall(SYS_SET_FSBASE, &uthread);
