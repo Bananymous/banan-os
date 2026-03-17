@@ -793,6 +793,26 @@ static bool check_library(const char* library_dir, const char* library_name, cha
 
 static bool find_library(const char* library_name, char out[PATH_MAX])
 {
+	bool has_slash = false;
+	for (size_t i = 0; library_name[i] && !has_slash; i++)
+		has_slash = (library_name[i] == '/');
+
+	if (!has_slash)
+	{
+		// FIXME: this should match against SONAME
+		const size_t library_name_len = strlen(library_name);
+		for (size_t i = 0; i < s_loaded_file_count; i++)
+		{
+			const size_t path_len = strlen(s_loaded_files[i].path);
+			if (library_name_len > path_len)
+				continue;
+			if (strcmp(library_name, s_loaded_files[i].path + path_len - library_name_len) != 0)
+				continue;
+			strcpy(out, s_loaded_files[i].path);
+			return true;
+		}
+	}
+
 	if (s_ld_library_path && check_library(s_ld_library_path, library_name, out))
 		return true;
 	if (check_library("/usr/lib", library_name, out))
