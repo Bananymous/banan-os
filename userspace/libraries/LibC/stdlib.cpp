@@ -837,6 +837,17 @@ static constexpr uint32_t rotr32(uint32_t x, unsigned r)
 	return x >> r | x << (-r & 31);
 }
 
+int rand_r(unsigned* seed)
+{
+	uint64_t x = *seed | (static_cast<uint64_t>(*seed) << 32);
+	unsigned count = (unsigned)(x >> 59);
+
+	*seed = x * s_rand_multiplier + s_rand_increment;
+	x ^= x >> 18;
+
+	return rotr32(x >> 27, count) % RAND_MAX;
+}
+
 int rand(void)
 {
 	uint64_t x = s_rand_state;
@@ -854,53 +865,92 @@ void srand(unsigned int seed)
 	(void)rand();
 }
 
-static constexpr size_t s_random_state_size = 31;
-
 struct random_state_t
 {
-	consteval random_state_t() { seed(0); }
-
-	constexpr void seed(unsigned seed)
-	{
-		uint64_t value = seed;
-		for (size_t i = 0; i < s_random_state_size; i++)
-			values[i] = value = (16807 * value) % 0x7FFFFFFF;
-	}
-
-	constexpr uint32_t get_next()
-	{
-		const uint32_t result = values[idx1] += values[idx2];
-		idx1 = (idx1 + 1) % s_random_state_size;
-		idx2 = (idx2 + 1) % s_random_state_size;
-		return result >> 1;
-	}
-
-	uint32_t values[s_random_state_size];
-	size_t idx1 = 0;
-	size_t idx2 = s_random_state_size - 1;
+	uint8_t type;
+	uint8_t idx1;
+	uint8_t idx2;
+	uint32_t table[];
 };
-random_state_t s_random_state;
+
+static char* s_random_state;
+
+static size_t get_random_state_size()
+{
+	auto& state = *reinterpret_cast<random_state_t*>(s_random_state);
+	switch (state.type)
+	{
+		case 0: return 8;
+		case 1: return 32;
+		case 2: return 64;
+		case 3: return 128;
+		case 4: return 256;
+	}
+	ASSERT_NOT_REACHED();
+}
+
+static size_t get_random_table_size()
+{
+	return get_random_state_size() / sizeof(uint32_t) - 1;
+}
 
 long random(void)
 {
-	return s_random_state.get_next();
+	auto& state = *reinterpret_cast<random_state_t*>(s_random_state);
+	const size_t table_size = get_random_table_size();
+	const uint32_t result = state.table[state.idx1] += state.table[state.idx2];
+	state.idx1 = (state.idx1 + 1) % table_size;
+	state.idx2 = (state.idx2 + 1) % table_size;
+	return result >> 1;
 }
 
 void srandom(unsigned seed)
 {
-	s_random_state.seed(seed);
+	initstate(seed, s_random_state, get_random_state_size());
 }
 
-char* initstate(unsigned seed, char* state, size_t size)
+char* initstate(unsigned seed, char* statebuf, size_t size)
 {
-	(void)seed;
-	(void)state;
-	(void)size;
-	ASSERT_NOT_REACHED();
+	if (size < 8)
+		return NULL;
+
+	auto& new_state = *reinterpret_cast<random_state_t*>(statebuf);
+
+	if (size < 8)
+		new_state.type = 0;
+	else if (size < 32)
+		new_state.type = 1;
+	else if (size < 64)
+		new_state.type = 2;
+	else if (size < 128)
+		new_state.type = 3;
+	else if (size < 256)
+		new_state.type = 4;
+
+	char* old_state = s_random_state;
+	s_random_state = statebuf;
+
+	const size_t table_size = get_random_table_size();
+	new_state.idx1 = 0;
+	new_state.idx2 = table_size - 1;
+
+	uint64_t value = seed;
+	for (size_t i = 0; i < table_size; i++)
+		new_state.table[i] = value = (16807 * value) % 0x7FFFFFFF;
+
+	return old_state;
 }
 
 char* setstate(char* state)
 {
-	(void)state;
-	ASSERT_NOT_REACHED();
+	char* old_state = s_random_state;
+	s_random_state = state;
+	return old_state;
+}
+
+__attribute__((constructor))
+void init_default_random()
+{
+	static char buffer[128];
+	initstate(1, buffer, 128);
 }
