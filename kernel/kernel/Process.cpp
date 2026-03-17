@@ -2665,6 +2665,9 @@ namespace Kernel
 				for (size_t j = 0; j < new_regions.size(); j++)
 					TRY(m_mapped_regions.insert(i + j + 1, BAN::move(new_regions[j])));
 
+				while (i + 1 < m_mapped_regions.size() && !m_mapped_regions[i + 1]->overlaps(vaddr, len))
+					i++;
+
 				continue;
 			}
 
