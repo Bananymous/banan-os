@@ -1591,6 +1591,21 @@ void* __dlopen(const char* file, int mode)
 		return nullptr;
 	}
 
+	if (mode & RTLD_NOLOAD)
+	{
+		lock_global_lock();
+		for (size_t i = 0; i < s_loaded_file_count; i++)
+		{
+			if (strcmp(s_loaded_files[i].path, path_buffer) == 0)
+			{
+				unlock_global_lock();
+				return &s_loaded_files[i];
+			}
+		}
+		unlock_global_lock();
+		return nullptr;
+	}
+
 	const size_t old_loaded_count = s_loaded_file_count;
 
 	init_random();
@@ -1609,12 +1624,16 @@ void* __dlopen(const char* file, int mode)
 		syscall(SYS_CLOSE, elf.fd);
 	}
 
+#if DEBUG_DLOPEN
+	print(STDERR_FILENO, "\e[31m-> success\e[m\n");
+#endif
+
 	return &elf;
 }
 
 void* __dlsym(void* __restrict handle, const char* __restrict name)
 {
-	if (handle == nullptr)
+	if (handle == RTLD_DEFAULT)
 	{
 		for (size_t i = 0; i < s_loaded_file_count; i++)
 			if (auto* sym = __dlsym(&s_loaded_files[i], name))

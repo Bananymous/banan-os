@@ -11,6 +11,7 @@ __BEGIN_DECLS
 #define RTLD_NOW	0x1
 #define RTLD_GLOBAL	0x0
 #define RTLD_LOCAL	0x2
+#define RTLD_NOLOAD	0x4
 
 #define _RTLD_LAZY_NOW_MASK     0x1
 #define _RTLD_GLOBAL_LOCAL_MASK 0x2
