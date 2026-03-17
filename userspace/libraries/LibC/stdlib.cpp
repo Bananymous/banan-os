@@ -211,6 +211,8 @@ static T strtoT(const char* str, char** endp, int& error)
 	// no conversion can be performed -- not ([digit] || .[digit])
 	if (!(isdigit(*str) || (str[0] == '.' && isdigit(str[1]))))
 	{
+		if (endp)
+			*endp = const_cast<char*>(str);
 		error = EINVAL;
 		return 0;
 	}
