@@ -2380,6 +2380,8 @@ namespace Kernel
 		TRY(read_string_from_user(user_path, path, PATH_MAX));
 
 		auto new_cwd = TRY(find_file(AT_FDCWD, path, O_SEARCH));
+		if (!new_cwd.inode->mode().ifdir())
+			return BAN::Error::from_errno(ENOTDIR);
 
 		LockGuard _(m_process_lock);
 		m_working_directory = BAN::move(new_cwd);
