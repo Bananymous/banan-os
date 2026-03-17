@@ -9,6 +9,10 @@ namespace BAN
 
 	struct IPv4Address
 	{
+		constexpr IPv4Address()
+			: IPv4Address(0)
+		{ }
+
 		constexpr IPv4Address(uint32_t u32_address)
 		{
 			raw = u32_address;
