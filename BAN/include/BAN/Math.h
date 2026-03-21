@@ -6,6 +6,19 @@
 
 #include <float.h>
 
+// This is ugly but my clangd does not like including
+// intrinsic headers at all
+#if !defined(__SSE__) || !defined(__SSE2__)
+#pragma GCC push_options
+#ifndef __SSE__
+#pragma GCC target("sse")
+#endif
+#ifndef __SSE2__
+#pragma GCC target("sse2")
+#endif
+#define BAN_MATH_POP_OPTIONS
+#endif
+
 namespace BAN::Math
 {
 
@@ -167,7 +180,7 @@ namespace BAN::Math
 	template<floating_point T>
 	static T modf(T x, T* iptr)
 	{
-		const T frac = BAN::Math::fmod<T>(x, 1);
+		const T frac = BAN::Math::fmod<T>(x, (T)1.0);
 		*iptr = x - frac;
 		return frac;
 	}
@@ -175,15 +188,15 @@ namespace BAN::Math
 	template<floating_point T>
 	inline constexpr T frexp(T num, int* exp)
 	{
-		if (num == 0.0)
+		if (num == (T)0.0)
 		{
 			*exp = 0;
-			return 0.0;
+			return (T)0.0;
 		}
 
-		T _exp;
-		asm("fxtract" : "+t"(num), "=u"(_exp));
-		*exp = (int)_exp + 1;
+		T e;
+		asm("fxtract" : "+t"(num), "=u"(e));
+		*exp = (int)e + 1;
 		return num / (T)2.0;
 	}
 
@@ -251,6 +264,7 @@ namespace BAN::Math
 			"fstp %%st(1);"
 			: "+t"(x)
 		);
+
 		return x;
 	}
 
@@ -263,18 +277,9 @@ namespace BAN::Math
 	template<floating_point T>
 	inline constexpr T pow(T x, T y)
 	{
-		asm(
-			"fyl2x;"
-			"fld1;"
-			"fld %%st(1);"
-			"fprem;"
-			"f2xm1;"
-			"faddp;"
-			"fscale;"
-			: "+t"(x), "+u"(y)
-		);
-
-		return x;
+		if (x == (T)0.0)
+			return (T)0.0;
+		return exp2<T>(y * log2<T>(x));
 	}
 
 	template<floating_point T>
@@ -310,16 +315,27 @@ namespace BAN::Math
 	template<floating_point T>
 	inline constexpr T sqrt(T x)
 	{
-		asm("fsqrt" : "+t"(x));
-		return x;
+		if constexpr(BAN::is_same_v<T, float>)
+		{
+			using v4sf = float __attribute__((vector_size(16)));
+			return __builtin_ia32_sqrtss((v4sf) { x, 0.0f, 0.0f, 0.0f })[0];
+		}
+		else if constexpr(BAN::is_same_v<T, double>)
+		{
+			using v2df = double __attribute__((vector_size(16)));
+			return __builtin_ia32_sqrtsd((v2df) { x, 0.0 })[0];
+		}
+		else if constexpr(BAN::is_same_v<T, long double>)
+		{
+			asm("fsqrt" : "+t"(x));
+			return x;
+		}
 	}
 
 	template<floating_point T>
 	inline constexpr T cbrt(T value)
 	{
-		if (value == 0.0)
-			return 0.0;
-		return pow<T>(value, 1.0 / 3.0);
+		return pow<T>(value, (T)1.0 / (T)3.0);
 	}
 
 	template<floating_point T>
@@ -346,30 +362,21 @@ namespace BAN::Math
 	inline constexpr T tan(T x)
 	{
 		T one, ret;
-		asm(
-			"fptan"
-			: "=t"(one), "=u"(ret)
-			: "0"(x)
-		);
+		asm("fptan" : "=t"(one), "=u"(ret) : "0"(x));
 		return ret;
 	}
 
 	template<floating_point T>
 	inline constexpr T atan2(T y, T x)
 	{
-		asm(
-			"fpatan"
-			: "+t"(x)
-			: "u"(y)
-			: "st(1)"
-		);
+		asm("fpatan" : "+t"(x) : "u"(y) : "st(1)");
 		return x;
 	}
 
 	template<floating_point T>
 	inline constexpr T atan(T x)
 	{
-		return atan2<T>(x, 1.0);
+		return atan2<T>(x, (T)1.0);
 	}
 
 	template<floating_point T>
@@ -378,10 +385,10 @@ namespace BAN::Math
 		if (x == (T)0.0)
 			return (T)0.0;
 		if (x == (T)1.0)
-			return  numbers::pi_v<T> / (T)2.0;
+			return +numbers::pi_v<T> / (T)2.0;
 		if (x == (T)-1.0)
 			return -numbers::pi_v<T> / (T)2.0;
-		return (T)2.0 * atan<T>(x / (T(1.0) + sqrt<T>((T)1.0 - x * x)));
+		return (T)2.0 * atan<T>(x / ((T)1.0 + sqrt<T>((T)1.0 - x * x)));
 	}
 
 	template<floating_point T>
@@ -411,7 +418,7 @@ namespace BAN::Math
 	template<floating_point T>
 	inline constexpr T tanh(T x)
 	{
-		const T exp_px = exp<T>(x);
+		const T exp_px = exp<T>(+x);
 		const T exp_nx = exp<T>(-x);
 		return (exp_px - exp_nx) / (exp_px + exp_nx);
 	}
@@ -441,3 +448,8 @@ namespace BAN::Math
 	}
 
 }
+
+#ifdef BAN_MATH_POP_OPTIONS
+#undef BAN_MATH_POP_OPTIONS
+#pragma GCC pop_options
+#endif
