@@ -1,0 +1,12 @@
+diff -ruN mesa-25.0.7/src/util/u_thread.c mesa-25.0.7-banan_os/src/util/u_thread.c
+--- mesa-25.0.7/src/util/u_thread.c	2025-05-28 18:20:23.000000000 +0300
++++ mesa-25.0.7-banan_os/src/util/u_thread.c	2026-03-04 18:59:55.591754019 +0200
+@@ -154,7 +154,7 @@
+ int64_t
+ util_thread_get_time_nano(thrd_t thread)
+ {
+-#if defined(HAVE_PTHREAD) && !defined(__APPLE__) && !defined(__HAIKU__) && !defined(__managarm__)
++#if defined(HAVE_PTHREAD) && !defined(__APPLE__) && !defined(__HAIKU__) && !defined(__managarm__) && !defined(__banan_os__)
+    struct timespec ts;
+    clockid_t cid;
+ 

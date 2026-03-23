@@ -3,14 +3,14 @@
 NAME='mesa'
 VERSION='25.0.7'
 DOWNLOAD_URL="https://archive.mesa3d.org/mesa-$VERSION.tar.xz#592272df3cf01e85e7db300c449df5061092574d099da275d19e97ef0510f8a6"
-DEPENDENCIES=('zlib' 'zstd' 'expat')
+DEPENDENCIES=('zlib' 'zstd' 'expat' 'libX11' 'libXext')
 CONFIGURE_OPTIONS=(
 	'-Dprefix=/usr'
 	'-Dosmesa=true'
 	'-Dvulkan-drivers=[]'
 	'-Dgallium-drivers=llvmpipe'
-	'-Dplatforms=[]'
-	'-Dglx=disabled'
+	'-Dplatforms=x11'
+	'-Dglx=xlib'
 	'-Dbuildtype=release'
 )
 
