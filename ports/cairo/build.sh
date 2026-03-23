@@ -3,7 +3,7 @@
 NAME='cairo'
 VERSION='1.18.4'
 DOWNLOAD_URL="https://cairographics.org/releases/cairo-$VERSION.tar.xz#445ed8208a6e4823de1226a74ca319d3600e83f6369f99b14265006599c32ccb"
-DEPENDENCIES=('libpng' 'pixman' 'fontconfig' 'glib')
+DEPENDENCIES=('libpng' 'pixman' 'fontconfig' 'glib' 'libX11' 'libXrender' 'libXext')
 CONFIGURE_OPTIONS=(
 	'-Dprefix=/usr'
 	'-Dtests=disabled'
