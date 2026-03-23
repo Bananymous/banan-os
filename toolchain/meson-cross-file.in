@@ -14,5 +14,8 @@ strip = 'ARCH-pc-banan_os-strip'
 pkg-config = 'pkg-config'
 cmake = 'CMAKE'
 
+glib-compile-schemas = '/usr/bin/glib-compile-schemas'
+glib-compile-resources = '/usr/bin/glib-compile-resources'
+
 [properties]
 sys_root='SYSROOT'
