@@ -5,6 +5,8 @@
 
 #include <sys/cdefs.h>
 
+#include <stdarg.h>
+
 __BEGIN_DECLS
 
 #define LOG_PID		0x01
@@ -47,6 +49,7 @@ void	closelog(void);
 void	openlog(const char* ident, int logopt, int facility);
 int		setlogmask(int maskpri);
 void	syslog(int priority, const char* message, ...);
+void	vsyslog(int priority, const char* format, va_list ap);
 
 __END_DECLS
 
