@@ -100,8 +100,8 @@ banan_install_headers(objlibc)
 add_library(libc-static STATIC $<TARGET_OBJECTS:objlibc>)
 add_library(libc-shared SHARED $<TARGET_OBJECTS:objlibc>)
 
-target_link_options(libc-static PRIVATE -nolibc)
-target_link_options(libc-shared PRIVATE -nolibc)
+target_link_options(libc-static PRIVATE -nolibc -nostdlib++)
+target_link_options(libc-shared PRIVATE -nolibc -nostdlib++)
 
 install(TARGETS libc-static OPTIONAL)
 install(TARGETS libc-shared OPTIONAL)
