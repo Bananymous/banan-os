@@ -25,6 +25,8 @@ namespace Kernel
 
 	BAN::ErrorOr<void> HDAudioFunctionGroup::initialize()
 	{
+		TRY(AudioController::initialize());
+
 		if constexpr(DEBUG_HDAUDIO)
 		{
 			const auto widget_to_string =
@@ -483,29 +485,17 @@ namespace Kernel
 
 		while ((m_bdl_head + 1) % m_bdl_entry_count != m_bdl_tail)
 		{
-			const size_t sample_data_tail = (m_sample_data_head + m_sample_data_capacity - m_sample_data_size) % m_sample_data_capacity;
-
-			const size_t sample_frames = BAN::Math::min(m_sample_data_size / get_channels() / sizeof(uint16_t), m_bdl_entry_sample_frames);
+			const size_t sample_frames = BAN::Math::min(m_sample_data->size() / get_channels() / sizeof(uint16_t), m_bdl_entry_sample_frames);
 			if (sample_frames == 0)
 				break;
 
 			const size_t copy_total_bytes = sample_frames * get_channels() * sizeof(uint16_t);
-			const size_t copy_before_wrap = BAN::Math::min(copy_total_bytes, m_sample_data_capacity - sample_data_tail);
 
 			memcpy(
 				reinterpret_cast<void*>(m_bdl_region->vaddr() + m_bdl_head * bdl_entry_bytes),
-				&m_sample_data[sample_data_tail],
-				copy_before_wrap
+				m_sample_data->get_data().data(),
+				copy_total_bytes
 			);
-
-			if (copy_before_wrap < copy_total_bytes)
-			{
-				memcpy(
-					reinterpret_cast<void*>(m_bdl_region->vaddr() + m_bdl_head * bdl_entry_bytes + copy_before_wrap),
-					&m_sample_data[0],
-					copy_total_bytes - copy_before_wrap
-				);
-			}
 
 			if (copy_total_bytes < bdl_entry_bytes)
 			{
@@ -516,8 +506,7 @@ namespace Kernel
 				);
 			}
 
-			m_sample_data_size -= copy_total_bytes;
-
+			m_sample_data->pop(copy_total_bytes);
 			m_bdl_head = (m_bdl_head + 1) % m_bdl_entry_count;
 		}
 

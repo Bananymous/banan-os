@@ -118,6 +118,8 @@ namespace Kernel
 
 	BAN::ErrorOr<void> AC97AudioController::initialize()
 	{
+		TRY(AudioController::initialize());
+
 		m_pci_device.enable_bus_mastering();
 
 		m_mixer = TRY(m_pci_device.allocate_bar_region(0));
@@ -203,23 +205,22 @@ namespace Kernel
 			if (next_bld_head == m_bdl_tail)
 				break;
 
-			const size_t sample_data_tail = (m_sample_data_head + m_sample_data_capacity - m_sample_data_size) % m_sample_data_capacity;
-
-			const size_t max_memcpy = BAN::Math::min(m_sample_data_size, m_sample_data_capacity - sample_data_tail);
-			const size_t samples = BAN::Math::min(max_memcpy / 2, m_samples_per_entry);
-			if (samples == 0)
+			const size_t sample_frames = BAN::Math::min(m_sample_data->size() / get_channels() / sizeof(uint16_t), m_samples_per_entry / get_channels());
+			if (sample_frames == 0)
 				break;
 
+			const size_t copy_total_bytes = sample_frames * get_channels() * sizeof(uint16_t);
+
 			auto& entry = reinterpret_cast<AC97::BufferDescriptorListEntry*>(m_bdl_region->vaddr())[m_bdl_head];
-			entry.samples = samples;
+			entry.samples = sample_frames * get_channels();
 			entry.flags = (1 << 15);
 			memcpy(
 				reinterpret_cast<void*>(m_bdl_region->paddr_to_vaddr(entry.address)),
-				&m_sample_data[sample_data_tail],
-				samples * 2
+				m_sample_data->get_data().data(),
+				copy_total_bytes
 			);
 
-			m_sample_data_size -= samples * 2;
+			m_sample_data->pop(copy_total_bytes);
 
 			lvi = m_bdl_head;
 			m_bdl_head = next_bld_head;

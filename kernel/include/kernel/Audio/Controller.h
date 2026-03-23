@@ -1,6 +1,7 @@
 #pragma once
 
 #include <kernel/Device/Device.h>
+#include <kernel/Memory/ByteRingBuffer.h>
 #include <kernel/PCI.h>
 
 namespace Kernel
@@ -16,6 +17,7 @@ namespace Kernel
 
 	protected:
 		AudioController();
+		BAN::ErrorOr<void> initialize();
 
 		virtual void handle_new_data() = 0;
 
@@ -27,7 +29,7 @@ namespace Kernel
 		virtual BAN::ErrorOr<void> set_current_pin(uint32_t) = 0;
 
 		bool can_read_impl() const override { return false; }
-		bool can_write_impl() const override { SpinLockGuard _(m_spinlock); return m_sample_data_size < m_sample_data_capacity; }
+		bool can_write_impl() const override { SpinLockGuard _(m_spinlock); return !m_sample_data->full(); }
 		bool has_error_impl() const override { return false; }
 		bool has_hungup_impl() const override { return false; }
 
@@ -40,9 +42,7 @@ namespace Kernel
 		mutable SpinLock m_spinlock;
 
 		static constexpr size_t m_sample_data_capacity = 1 << 20;
-		uint8_t m_sample_data[m_sample_data_capacity];
-		size_t m_sample_data_head { 0 };
-		size_t m_sample_data_size { 0 };
+		BAN::UniqPtr<ByteRingBuffer> m_sample_data;
 
 	private:
 		const dev_t m_rdev;

@@ -53,34 +53,28 @@ namespace Kernel
 		return {};
 	}
 
+	BAN::ErrorOr<void> AudioController::initialize()
+	{
+		m_sample_data = TRY(ByteRingBuffer::create(m_sample_data_capacity));
+		return {};
+	}
+
 	BAN::ErrorOr<size_t> AudioController::write_impl(off_t, BAN::ConstByteSpan buffer)
 	{
 		SpinLockGuard lock_guard(m_spinlock);
 
-		while (m_sample_data_size >= m_sample_data_capacity)
+		while (m_sample_data->full())
 		{
 			SpinLockGuardAsMutex smutex(lock_guard);
 			TRY(Thread::current().block_or_eintr_indefinite(m_sample_data_blocker, &smutex));
 		}
 
-		size_t nwritten = 0;
-		while (nwritten < buffer.size())
-		{
-			if (m_sample_data_size >= m_sample_data_capacity)
-				break;
-
-			const size_t max_memcpy = BAN::Math::min(m_sample_data_capacity - m_sample_data_size, m_sample_data_capacity - m_sample_data_head);
-			const size_t to_copy = BAN::Math::min(buffer.size() - nwritten, max_memcpy);
-			memcpy(m_sample_data + m_sample_data_head, buffer.data() + nwritten, to_copy);
-
-			nwritten += to_copy;
-			m_sample_data_head = (m_sample_data_head + to_copy) % m_sample_data_capacity;
-			m_sample_data_size += to_copy;
-		}
+		const size_t to_copy = BAN::Math::min(buffer.size(), m_sample_data->free());
+		m_sample_data->push(buffer.slice(0, to_copy));
 
 		handle_new_data();
 
-		return nwritten;
+		return to_copy;
 	}
 
 	BAN::ErrorOr<long> AudioController::ioctl_impl(int cmd, void* arg)
@@ -97,9 +91,9 @@ namespace Kernel
 			case SND_GET_BUFFERSZ:
 			{
 				SpinLockGuard _(m_spinlock);
-				*static_cast<uint32_t*>(arg) = m_sample_data_size;
+				*static_cast<uint32_t*>(arg) = m_sample_data->size();
 				if (cmd == SND_RESET_BUFFER)
-					m_sample_data_size = 0;
+					m_sample_data->pop(m_sample_data->size());
 				return 0;
 			}
 			case SND_GET_TOTAL_PINS:
