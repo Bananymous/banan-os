@@ -194,7 +194,7 @@ int main()
 
 			const int client_fd = events[i].data.fd;
 
-			if (events[i].events & EPOLLHUP)
+			if ((events[i].events & EPOLLHUP) && !(events[i].events & EPOLLIN))
 			{
 				audio_server->on_client_disconnect(client_fd);
 				epoll_ctl(epoll_fd, EPOLL_CTL_DEL, client_fd, nullptr);
