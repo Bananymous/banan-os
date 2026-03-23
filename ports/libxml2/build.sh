@@ -10,6 +10,7 @@ CONFIGURE_OPTIONS=(
 )
 
 configure() {
+	CFLAGS='-shared-libgcc' \
 	meson setup \
 		--reconfigure \
 		--cross-file "$MESON_CROSS_FILE" \
