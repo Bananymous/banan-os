@@ -1,0 +1,20 @@
+diff -ruN fribidi-1.0.16/configure fribidi-1.0.16-banan_os/configure
+--- fribidi-1.0.16/configure	2024-09-25 21:04:21.000000000 +0300
++++ fribidi-1.0.16-banan_os/configure	2025-11-05 20:51:12.227775953 +0200
+@@ -11536,6 +11536,16 @@
+   esac
+   ;;
+ 
++banan_os*)
++  version_type=linux # correct to gnu/linux during the next big refactor
++  need_lib_prefix=no
++  need_version=no
++  library_names_spec='$libname$release$shared_ext$versuffix $libname$release$shared_ext$major $libname$shared_ext'
++  soname_spec='$libname$release$shared_ext$major'
++  dynamic_linker="$host_os DynamicLoader.so"
++  shlibpath_var=LD_LIBRARY_PATH
++  ;;
++
+ beos*)
+   library_names_spec='$libname$shared_ext'
+   dynamic_linker="$host_os ld.so"
