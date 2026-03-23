@@ -68,7 +68,12 @@ bool AudioServer::on_client_packet(int fd, LibAudio::Packet packet)
 			response = m_audio_devices.size();
 			break;
 		case LibAudio::Packet::QueryPins:
-			response = device().total_pins;
+			if (packet.parameter >= m_audio_devices.size())
+			{
+				dwarnln("Client tried to get pins of device {} while there are only {}", packet.parameter, m_audio_devices.size());
+				return false;
+			}
+			response = m_audio_devices[packet.parameter].total_pins;
 			break;
 		case LibAudio::Packet::GetDevice:
 			response = m_current_audio_device;
