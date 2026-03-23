@@ -28,6 +28,14 @@ static const char* errno_to_string(int error);
 	__builtin_unreachable();
 }
 
+size_t strlen(const char* s)
+{
+	size_t len = 0;
+	while (*s++)
+		len++;
+	return len;
+}
+
 int strcmp(const char* s1, const char* s2)
 {
 	const unsigned char* u1 = reinterpret_cast<const unsigned char*>(s1);

@@ -40,6 +40,8 @@ inline void print_uint(int fd, T val, uint8_t base = 10)
 	print(fd, ptr);
 }
 
+size_t strlen(const char* s);
+
 int strcmp(const char* s1, const char* s2);
 char* strcpy(char* __restrict s1, const char* __restrict s2);
 
