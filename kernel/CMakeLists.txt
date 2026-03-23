@@ -25,6 +25,7 @@ set(KERNEL_SOURCES
 	kernel/Epoll.cpp
 	kernel/Errors.cpp
 	kernel/FS/DevFS/FileSystem.cpp
+	kernel/FS/EventFD.cpp
 	kernel/FS/Ext2/FileSystem.cpp
 	kernel/FS/Ext2/Inode.cpp
 	kernel/FS/FAT/FileSystem.cpp
