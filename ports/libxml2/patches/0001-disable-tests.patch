@@ -1,0 +1,24 @@
+diff -ruN libxml2-2.15.1/meson.build libxml2-2.15.1-banan_os/meson.build
+--- libxml2-2.15.1/meson.build	2025-10-16 16:23:05.000000000 +0300
++++ libxml2-2.15.1-banan_os/meson.build	2025-11-05 21:14:49.833303459 +0200
+@@ -502,19 +502,7 @@
+ 
+ ## tests
+ 
+-checks = {
+-    'runsuite': [],
+-    'runtest': threads_dep,
+-    'runxmlconf': [],
+-# Disabled for now, see #694
+-#    'testModule': [],
+-    'testapi': [],
+-    'testchar': [],
+-    'testdict': [],
+-    'testlimits': [],
+-    'testparser': [],
+-    'testrecurse': [],
+-}
++checks = {}
+ 
+ foreach check, deps : checks
+     exe = executable(

@@ -1,0 +1,13 @@
+diff -ruN dbus-1.16.2/tools/dbus-print-message.c dbus-1.16.2-banan_os/tools/dbus-print-message.c
+--- dbus-1.16.2/tools/dbus-print-message.c	2025-02-27 18:29:06.000000000 +0200
++++ dbus-1.16.2-banan_os/tools/dbus-print-message.c	2026-02-21 23:23:51.987302740 +0200
+@@ -31,7 +31,9 @@
+ #include <sys/un.h>
+ #include <unistd.h>
+ #include <netinet/in.h>
++#ifndef __banan_os__
+ #include <netinet/ip.h>
++#endif
+ #include <arpa/inet.h>
+ #endif
+ 

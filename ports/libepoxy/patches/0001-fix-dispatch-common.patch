@@ -1,0 +1,23 @@
+--- libepoxy-1.5.10/src/dispatch_common.c	2022-02-17 14:56:12.000000000 +0200
++++ libepoxy-1.5.10-banan_os/src/dispatch_common.c	2025-11-11 18:35:23.194563757 +0200
+@@ -164,7 +164,9 @@
+ #include <windows.h>
+ #else
+ #include <dlfcn.h>
++#ifndef __banan_os__
+ #include <err.h>
++#endif
+ #include <pthread.h>
+ #endif
+ #include <string.h>
+@@ -306,8 +308,10 @@
+     pthread_mutex_lock(&api.mutex);
+     if (!*handle) {
+         int flags = RTLD_LAZY | RTLD_LOCAL;
++#ifdef RTLD_NOLOAD
+         if (!load)
+             flags |= RTLD_NOLOAD;
++#endif
+ 
+         *handle = dlopen(lib_name, flags);
+         if (!*handle) {
