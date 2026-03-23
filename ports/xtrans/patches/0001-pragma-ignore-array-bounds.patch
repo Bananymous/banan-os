@@ -1,0 +1,14 @@
+diff -ruN xtrans-1.6.0/Xtranssock.c xtrans-1.6.0-banan_os/Xtranssock.c
+--- xtrans-1.6.0/Xtranssock.c	2025-03-09 02:12:53.000000000 +0200
++++ xtrans-1.6.0-banan_os/Xtranssock.c	2025-11-13 22:26:48.576912270 +0200
+@@ -533,7 +533,10 @@
+ #ifdef BSD44SOCKETS
+     addr->sa_len = addrlen;
+ #endif
++#pragma GCC diagnostic push
++#pragma GCC diagnostic ignored "-Warray-bounds="
+     addr->sa_family = AF_UNIX;
++#pragma GCC diagnostic pop
+ #if defined(HAVE_STRLCPY) || defined(HAS_STRLCPY)
+     strlcpy(addr->sa_data, port, portlen);
+ #else
