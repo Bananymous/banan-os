@@ -311,8 +311,12 @@ namespace Kernel
 		if (result.type == AFGWidget::Type::PinComplex)
 		{
 			const uint32_t cap = send_command_or_zero(0xF00, 0x0C);
-			result.pin_complex.output = !!(cap & (1 << 4));
-			result.pin_complex.input  = !!(cap & (1 << 5));
+			result.pin_complex = {
+				.input   = !!(cap & (1 << 5)),
+				.output  = !!(cap & (1 << 4)),
+				.display = !!(cap & ((1 << 7) | (1 << 24))),
+				.config  = send_command_or_zero(0xF1C, 0x00),
+			};
 		}
 
 		const uint8_t connection_info = send_command_or_zero(0xF00, 0x0E);

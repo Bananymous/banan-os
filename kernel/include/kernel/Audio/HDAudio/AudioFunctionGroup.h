@@ -53,8 +53,6 @@ namespace Kernel
 		void queue_bdl_data();
 
 	private:
-		static constexpr size_t m_max_path_length = 16;
-
 		// use 6 512 sample BDL entries
 		// each entry is ~10.7 ms at 48 kHz
 		// -> total buffered audio is 64 ms
@@ -66,6 +64,7 @@ namespace Kernel
 		const uint8_t m_cid;
 
 		BAN::Vector<BAN::Vector<const HDAudio::AFGWidget*>> m_output_paths;
+		BAN::Vector<const HDAudio::AFGWidget*> m_output_pins;
 		size_t m_output_path_index { SIZE_MAX };
 
 		uint8_t m_stream_id    { 0xFF };

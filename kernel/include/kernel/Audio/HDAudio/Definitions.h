@@ -50,6 +50,8 @@ namespace Kernel::HDAudio
 			{
 				bool input;
 				bool output;
+				bool display; // HDMI or DP
+				uint32_t config;
 			} pin_complex;
 		};
 

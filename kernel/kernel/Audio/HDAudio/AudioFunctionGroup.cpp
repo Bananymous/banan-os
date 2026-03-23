@@ -2,6 +2,8 @@
 #include <kernel/Audio/HDAudio/Registers.h>
 #include <kernel/FS/DevFS/FileSystem.h>
 
+#include <BAN/Sort.h>
+
 namespace Kernel
 {
 
@@ -52,19 +54,13 @@ namespace Kernel
 			{
 				if (widget.type == HDAudio::AFGWidget::Type::PinComplex)
 				{
-					const uint32_t config = TRY(m_controller->send_command({
-						.data = 0x00,
-						.command = 0xF1C,
-						.node_index = widget.id,
-						.codec_address = m_cid,
-					}));
-
-					dprintln("  widget {}: {} ({}, {}), {32b}",
+					dprintln("  widget {}: {} ({}, {}, {}), {32b}",
 						widget.id,
 						widget_to_string(widget.type),
 						(int)widget.pin_complex.output,
 						(int)widget.pin_complex.input,
-						config
+						(int)widget.pin_complex.display,
+						widget.pin_complex.config
 					);
 				}
 				else
@@ -81,59 +77,49 @@ namespace Kernel
 		}
 
 		TRY(initialize_stream());
-		TRY(initialize_output());
+
+		if (auto ret = initialize_output(); ret.is_error())
+		{
+			// No usable pins, not really an error
+			if (ret.error().get_error_code() == ENODEV)
+				return {};
+			return ret.release_error();
+		}
+
 		DevFileSystem::get().add_device(this);
+
 		return {};
 	}
 
 	uint32_t HDAudioFunctionGroup::get_total_pins() const
 	{
-		uint32_t count = 0;
-		for (const auto& widget : m_afg_node.widgets)
-			if (widget.type == HDAudio::AFGWidget::Type::PinComplex && widget.pin_complex.output)
-				count++;
-		return count;
+		return m_output_pins.size();
 	}
 
 	uint32_t HDAudioFunctionGroup::get_current_pin() const
 	{
 		const auto current_id = m_output_paths[m_output_path_index].front()->id;
-
-		uint32_t pin = 0;
-		for (const auto& widget : m_afg_node.widgets)
-		{
-			if (widget.type != HDAudio::AFGWidget::Type::PinComplex || !widget.pin_complex.output)
-				continue;
-			if (widget.id == current_id)
-				return pin;
-			pin++;
-		}
-
+		for (size_t i = 0; i < m_output_pins.size(); i++)
+			if (m_output_pins[i]->id == current_id)
+				return i;
 		ASSERT_NOT_REACHED();
 	}
 
 	BAN::ErrorOr<void> HDAudioFunctionGroup::set_current_pin(uint32_t pin)
 	{
-		uint32_t pin_id = 0;
-		for (const auto& widget : m_afg_node.widgets)
-		{
-			if (widget.type != HDAudio::AFGWidget::Type::PinComplex || !widget.pin_complex.output)
-				continue;
-			if (pin-- > 0)
-				continue;
-			pin_id = widget.id;
-			break;
-		}
+		if (pin >= m_output_pins.size())
+			return BAN::Error::from_errno(EINVAL);
 
 		if (auto ret = disable_output_path(m_output_path_index); ret.is_error())
 			dwarnln("failed to disable old output path {}", ret.error());
 
+		const uint32_t pin_id = m_output_pins[pin]->id;
 		for (size_t i = 0; i < m_output_paths.size(); i++)
 		{
 			if (m_output_paths[i].front()->id != pin_id)
 				continue;
 
-			if (auto ret = enable_output_path(i); !ret.is_error())
+			if (auto ret = enable_output_path(i); ret.is_error())
 			{
 				if (ret.error().get_error_code() == ENOTSUP)
 					continue;
@@ -141,7 +127,6 @@ namespace Kernel
 				return ret.release_error();
 			}
 
-			dprintln("set output widget to {}", pin_id);
 			m_output_path_index = i;
 			return {};
 		}
@@ -232,17 +217,38 @@ namespace Kernel
 
 	BAN::ErrorOr<void> HDAudioFunctionGroup::initialize_output()
 	{
-		BAN::Vector<const HDAudio::AFGWidget*> path;
-		TRY(path.reserve(m_max_path_length));
-
 		for (const auto& widget : m_afg_node.widgets)
 		{
 			if (widget.type != HDAudio::AFGWidget::Type::PinComplex || !widget.pin_complex.output)
 				continue;
+
+			// no physical connection
+			if ((widget.pin_complex.config >> 30) == 0b01)
+				continue;
+
+			// needs a GPU
+			if (widget.pin_complex.display)
+				continue;
+
+			BAN::Vector<const HDAudio::AFGWidget*> path;
 			TRY(path.push_back(&widget));
 			TRY(recurse_output_paths(widget, path));
-			path.pop_back();
+
+			if (!m_output_paths.empty() && m_output_paths.back().front()->id == widget.id)
+				TRY(m_output_pins.push_back(&widget));
 		}
+
+		if (m_output_pins.empty())
+			return BAN::Error::from_errno(ENODEV);
+
+		// prefer short paths
+		BAN::sort::sort(m_output_paths.begin(), m_output_paths.end(),
+			[](const auto& a, const auto& b) {
+				if (a.front()->id != b.front()->id)
+					return a.front()->id < b.front()->id;
+				return a.size() < b.size();
+			}
+		);
 
 		dprintln_if(DEBUG_HDAUDIO, "found {} paths from output to DAC", m_output_paths.size());
 
@@ -444,10 +450,6 @@ namespace Kernel
 
 	BAN::ErrorOr<void> HDAudioFunctionGroup::recurse_output_paths(const HDAudio::AFGWidget& widget, BAN::Vector<const HDAudio::AFGWidget*>& path)
 	{
-		// cycle "detection"
-		if (path.size() >= m_max_path_length)
-			return {};
-
 		// we've reached a DAC
 		if (widget.type == HDAudio::AFGWidget::Type::OutputConverter)
 		{
@@ -464,9 +466,18 @@ namespace Kernel
 		{
 			if (!widget.connections.contains(connection.id))
 				continue;
+
+			// cycle detection
+			for (const auto* w : path)
+				if (w == &connection)
+					goto already_visited;
+
 			TRY(path.push_back(&connection));
 			TRY(recurse_output_paths(connection, path));
 			path.pop_back();
+
+		already_visited:
+			continue;
 		}
 
 		return {};
