@@ -241,6 +241,17 @@ int main()
 
 	dprintln("Window server started");
 
+	if (access("/usr/bin/xbanan", O_EXEC) == 0)
+	{
+		if (fork() == 0)
+		{
+			dup2(STDDBG_FILENO, STDOUT_FILENO);
+			dup2(STDDBG_FILENO, STDERR_FILENO);
+			execl("/usr/bin/xbanan", "xbanan", NULL);
+			exit(1);
+		}
+	}
+
 	auto config = parse_config();
 
 	WindowServer window_server(framebuffer, config.corner_radius);
