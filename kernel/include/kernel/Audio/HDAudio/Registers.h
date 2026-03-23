@@ -11,6 +11,7 @@ namespace Kernel::HDAudio
 		VMIN = 0x02,
 		VMAJ = 0x03,
 		GCTL = 0x08,
+		STATESTS = 0x0E,
 
 		INTCTL = 0x20,
 		INTSTS = 0x24,

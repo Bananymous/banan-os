@@ -65,8 +65,12 @@ namespace Kernel
 		m_pci_device.enable_interrupt(0, *this);
 		m_bar0->write32(Regs::INTCTL, UINT32_MAX);
 
-		for (uint8_t codec_id = 0; codec_id < 0x10; codec_id++)
+		const uint16_t state_sts = m_bar0->read16(Regs::STATESTS);
+		for (uint8_t codec_id = 0; codec_id < 15; codec_id++)
 		{
+			if (!(state_sts & (1 << codec_id)))
+				continue;
+
 			auto codec_or_error = initialize_codec(codec_id);
 			if (codec_or_error.is_error())
 				continue;
