@@ -1,0 +1,25 @@
+From 49bebc56e29918b97dd7b56e925a0904f0d78a1b Mon Sep 17 00:00:00 2001
+From: Oskari Alaranta <oskari.alaranta@bananymous.com>
+Date: Sat, 21 Feb 2026 19:34:56 +0200
+Subject: [PATCH] use unix sockets instead of TCP
+
+---
+ xbanan/main.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/xbanan/main.cpp b/xbanan/main.cpp
+index b5d1d41..cafff69 100644
+--- a/xbanan/main.cpp
++++ b/xbanan/main.cpp
+@@ -10,7 +10,7 @@
+ #include <sys/stat.h>
+ #include <unistd.h>
+ 
+-#define USE_UNIX_SOCKET 0
++#define USE_UNIX_SOCKET 1
+ 
+ #if USE_UNIX_SOCKET
+ #include <sys/un.h>
+-- 
+2.53.0
+

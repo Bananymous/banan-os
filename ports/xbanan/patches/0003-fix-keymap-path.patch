@@ -1,0 +1,25 @@
+From 72f6d748c9448d362ff70be456016ceaa9d746d6 Mon Sep 17 00:00:00 2001
+From: Oskari Alaranta <oskari.alaranta@bananymous.com>
+Date: Sat, 21 Feb 2026 19:38:17 +0200
+Subject: [PATCH] fix keymap path
+
+---
+ xbanan/Keymap.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/xbanan/Keymap.cpp b/xbanan/Keymap.cpp
+index c02a1ca..21218ea 100644
+--- a/xbanan/Keymap.cpp
++++ b/xbanan/Keymap.cpp
+@@ -323,7 +323,7 @@ BAN::ErrorOr<void> initialize_keymap()
+ 			keysym = NoSymbol;
+ 
+ 	// FIXME: get this from somewhere (gui command? enviroment? tmp file?)
+-	const auto keymap_path = "./us.keymap"_sv;
++	const auto keymap_path = "/usr/share/keymaps/us.keymap"_sv;
+ 
+ 	TRY(LibInput::KeyboardLayout::initialize());
+ 
+-- 
+2.53.0
+

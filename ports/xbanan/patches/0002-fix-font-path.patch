@@ -1,0 +1,25 @@
+From 9cdbb61482f062bfc66bb0fa4c4fd4b590aaf885 Mon Sep 17 00:00:00 2001
+From: Oskari Alaranta <oskari.alaranta@bananymous.com>
+Date: Sat, 21 Feb 2026 19:27:47 +0200
+Subject: [PATCH] fix font path
+
+---
+ xbanan/Font.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/xbanan/Font.cpp b/xbanan/Font.cpp
+index 135d97f..051f289 100644
+--- a/xbanan/Font.cpp
++++ b/xbanan/Font.cpp
+@@ -391,7 +391,7 @@ static BAN::ErrorOr<BAN::RefPtr<PCFFont>> parse_font(const BAN::String& path)
+ __attribute__((constructor))
+ static void initialize_fonts()
+ {
+-	const char* font_path = "fonts/misc";
++	const char* font_path = "/usr/share/fonts/X11/misc";
+ 
+ 	do
+ 	{
+-- 
+2.53.0
+
