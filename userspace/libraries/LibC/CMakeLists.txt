@@ -43,6 +43,7 @@ set(LIBC_SOURCES
 	strings.cpp
 	sys/banan-os.cpp
 	sys/epoll.cpp
+	sys/eventfd.cpp
 	sys/file.cpp
 	sys/futex.cpp
 	sys/ioctl.cpp
