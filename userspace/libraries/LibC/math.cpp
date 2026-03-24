@@ -256,7 +256,7 @@ FUNC_EXPR1(nearbyint, BAN::Math::rint(a))
 FUNC_EXPR2(nextafter, nextafter_impl(a, b))
 FUNC_EXPR2_TYPE(nexttoward, long double, nextafter_impl(a, b))
 FUNC_EXPR2(pow, ({ if (isnan(a)) return a; if (isnan(b)) return b; BAN::Math::pow(a, b); }))
-// remainder
+BAN_FUNC2(remainder)
 // remquo
 BAN_FUNC1(rint)
 FUNC_EXPR1(round, ({ if (!isfinite(a)) return a; BAN::Math::round(a); }))

@@ -172,7 +172,23 @@ namespace BAN::Math
 			"jne 1b;"
 			: "+t"(a)
 			: "u"(b)
-			: "ax"
+			: "ax", "cc"
+		);
+		return a;
+	}
+
+	template<floating_point T>
+	inline constexpr T remainder(T a, T b)
+	{
+		asm(
+			"1:"
+			"fprem1;"
+			"fnstsw %%ax;"
+			"testb $4, %%ah;"
+			"jne 1b;"
+			: "+t"(a)
+			: "u"(b)
+			: "ax", "cc"
 		);
 		return a;
 	}
