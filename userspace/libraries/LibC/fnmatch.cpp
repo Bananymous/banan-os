@@ -1,3 +1,4 @@
+#include <ctype.h>
 #include <fnmatch.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -5,6 +6,8 @@
 
 static int fnmatch_impl(const char* pattern, const char* string, int flags, bool leading)
 {
+	const bool ignore_case = !!(flags & FNM_IGNORECASE);
+
 	while (*pattern)
 	{
 		if ((flags & FNM_PERIOD) && leading && *string == '.' && *pattern != '.')
@@ -34,9 +37,13 @@ static int fnmatch_impl(const char* pattern, const char* string, int flags, bool
 				uint8_t ch;
 				uint32_t bitmap[0x100 / 8] {};
 				while ((ch = *pattern++) != ']')
+				{
+					if (ignore_case)
+						ch = tolower(ch);
 					bitmap[ch / 32] |= 1 << (ch % 32);
+				}
 
-				ch = *string++;
+				ch = ignore_case ? tolower(*string++) : *string++;
 				if (!!(bitmap[ch / 32] & (1 << (ch % 32))) == negate)
 					return FNM_NOMATCH;
 
@@ -63,7 +70,10 @@ static int fnmatch_impl(const char* pattern, const char* string, int flags, bool
 		if (*pattern == '\0')
 			break;
 
-		if (*pattern != *string)
+		const char lhs = ignore_case ? tolower(*pattern) : *pattern;
+		const char rhs = ignore_case ? tolower(*string)  : *string;
+
+		if (lhs != rhs)
 			return FNM_NOMATCH;
 		if ((flags & FNM_PATHNAME) && *string == '/')
 			leading = true;
