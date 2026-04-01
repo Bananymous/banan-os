@@ -342,6 +342,9 @@ namespace Kernel
 		s_scancode_to_keycode[0x4B] = keycode_function(18);
 		s_scancode_to_keycode[0x4E] = keycode_function(19);
 		s_scancode_to_keycode[0x47] = keycode_function(20);
+		s_scancode_to_keycode[0x7F] = keycode_function(21);
+		s_scancode_to_keycode[0x81] = keycode_function(22);
+		s_scancode_to_keycode[0x80] = keycode_function(23);
 
 		s_scancode_to_keycode[0x53] = keycode_numpad(0, 0);
 		s_scancode_to_keycode[0x54] = keycode_numpad(0, 1);

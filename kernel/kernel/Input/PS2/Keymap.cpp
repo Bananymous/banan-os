@@ -136,6 +136,9 @@ namespace Kernel::Input
 		m_scancode_to_keycode_extended[0x49] = keycode_function(18);
 		m_scancode_to_keycode_extended[0x51] = keycode_function(19);
 		m_scancode_to_keycode_normal[0x46]   = keycode_function(20);
+		m_scancode_to_keycode_extended[0x20] = keycode_function(21);
+		m_scancode_to_keycode_extended[0x2E] = keycode_function(22);
+		m_scancode_to_keycode_extended[0x30] = keycode_function(23);
 
 		// Arrow keys
 		m_scancode_to_keycode_extended[0x48] = keycode_normal(5, 0);
@@ -246,6 +249,9 @@ namespace Kernel::Input
 		m_scancode_to_keycode_extended[0x7D] = keycode_function(18);
 		m_scancode_to_keycode_extended[0x7A] = keycode_function(19);
 		m_scancode_to_keycode_normal[0x7E]   = keycode_function(20);
+		m_scancode_to_keycode_extended[0x23] = keycode_function(21);
+		m_scancode_to_keycode_extended[0x21] = keycode_function(22);
+		m_scancode_to_keycode_extended[0x32] = keycode_function(23);
 
 		// Arrow keys
 		m_scancode_to_keycode_extended[0x75] = keycode_normal(5, 0);
@@ -356,6 +362,9 @@ namespace Kernel::Input
 		m_scancode_to_keycode_normal[0x6F] = keycode_function(18);
 		m_scancode_to_keycode_normal[0x6D] = keycode_function(19);
 		m_scancode_to_keycode_normal[0x5F] = keycode_function(20);
+		m_scancode_to_keycode_normal[0x9C] = keycode_function(21);
+		m_scancode_to_keycode_normal[0x9D] = keycode_function(22);
+		m_scancode_to_keycode_normal[0x95] = keycode_function(23);
 
 		// Arrow keys
 		m_scancode_to_keycode_normal[0x63] = keycode_normal(5, 0);
