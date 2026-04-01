@@ -1,5 +1,7 @@
 #include <ctype.h>
+#include <dirent.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <signal.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -65,12 +67,18 @@ static int signal_name_to_number(const char* name)
 	exit_with_error("unknown signal '%s'\n", name);
 }
 
-static int parse_int(const char* string)
+static bool parse_int_safe(const char* string, int& out)
 {
 	errno = 0;
 	char* endptr;
-	const int result = strtol(string, &endptr, 0);
-	if (*endptr != '\0' || errno)
+	out = strtol(string, &endptr, 0);
+	return *endptr == '\0' && errno == 0;
+}
+
+static int parse_int(const char* string)
+{
+	int result;
+	if (!parse_int_safe(string, result))
 		exit_with_error("invalid integer '%s'\n", string);
 	return result;
 }
@@ -166,9 +174,61 @@ int main(int argc, char** argv)
 	if (i >= argc)
 		exit_with_error("missing pids\n");
 
+	DIR* proc_dirp = opendir("/proc");
+	if (proc_dirp == NULL)
+		perror("opendir");
+
 	for (; i < argc; i++)
-		if (kill(parse_int(argv[i]), sig) == -1)
-			perror("kill");
+	{
+		pid_t pid;
+		if (parse_int_safe(argv[i], pid))
+		{
+			if (kill(pid, sig) == -1)
+				perror("kill");
+			continue;
+		}
+
+		const size_t arg_len = strlen(argv[i]);
+		if (proc_dirp == NULL || arg_len >= NAME_MAX)
+		{
+			fprintf(stderr, "cannot find process \"%s\"\n", argv[i]);
+			continue;
+		}
+
+		bool found = false;
+
+		dirent* dirent;
+		rewinddir(proc_dirp);
+		while ((dirent = readdir(proc_dirp)))
+		{
+			if (dirent->d_type != DT_DIR || !isdigit(dirent->d_name[0]))
+				continue;
+
+			char path_buffer[PATH_MAX + 8];
+			sprintf(path_buffer, "%s/cmdline", dirent->d_name);
+
+			int fd = openat(dirfd(proc_dirp), path_buffer, O_RDONLY);
+			if (fd == -1)
+				continue;
+
+			char buffer[NAME_MAX + 1];
+			const ssize_t nread = read(fd, buffer, arg_len + 1);
+			close(fd);
+
+			if (nread != static_cast<ssize_t>(arg_len + 1) || strcmp(argv[i], buffer) != 0)
+				continue;
+
+			if (kill(parse_int(dirent->d_name), sig) == -1)
+				perror("kill");
+			found = true;
+		}
+
+		if (!found)
+			fprintf(stderr, "cannot find process \"%s\"\n", argv[i]);
+	}
+
+	if (proc_dirp)
+		closedir(proc_dirp);
 
 	return 0;
 }
