@@ -164,6 +164,33 @@ namespace Kernel
 		"Unkown Exception 0x1F",
 	};
 
+	extern "C" uint8_t safe_user_memcpy[];
+	extern "C" uint8_t safe_user_memcpy_end[];
+	extern "C" uint8_t safe_user_memcpy_fault[];
+
+	extern "C" uint8_t safe_user_strncpy[];
+	extern "C" uint8_t safe_user_strncpy_end[];
+	extern "C" uint8_t safe_user_strncpy_fault[];
+
+	struct safe_user_page_fault
+	{
+		const uint8_t* ip_start;
+		const uint8_t* ip_end;
+		const uint8_t* ip_fault;
+	};
+	static constexpr safe_user_page_fault s_safe_user_page_faults[] {
+		{
+			.ip_start = safe_user_memcpy,
+			.ip_end   = safe_user_memcpy_end,
+			.ip_fault = safe_user_memcpy_fault,
+		},
+		{
+			.ip_start = safe_user_strncpy,
+			.ip_end   = safe_user_strncpy_end,
+			.ip_fault = safe_user_strncpy_fault,
+		},
+	};
+
 	extern "C" void cpp_isr_handler(uint32_t isr, uint32_t error, InterruptStack* interrupt_stack, const Registers* regs)
 	{
 		if (g_paniced)
@@ -200,6 +227,15 @@ namespace Kernel
 
 				if (result.value())
 					return;
+
+				const uint8_t* ip = reinterpret_cast<const uint8_t*>(interrupt_stack->ip);
+				for (const auto& safe_user : s_safe_user_page_faults)
+				{
+					if (ip < safe_user.ip_start || ip >= safe_user.ip_end)
+						continue;
+					interrupt_stack->ip = reinterpret_cast<vaddr_t>(safe_user.ip_fault);
+					return;
+				}
 
 				break;
 			}

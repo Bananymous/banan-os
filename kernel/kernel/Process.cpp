@@ -3887,237 +3887,45 @@ namespace Kernel
 		return region->allocate_page_containing(address, wants_write);
 	}
 
-	// TODO: The following 3 functions could be simplified into one generic helper function
+	extern "C" bool safe_user_memcpy(void*, const void*, size_t);
+	extern "C" bool safe_user_strncpy(void*, const void*, size_t);
+
+	static inline bool is_valid_user_address(const void* user_addr, size_t size)
+	{
+		const vaddr_t user_vaddr = reinterpret_cast<vaddr_t>(user_addr);
+		if (BAN::Math::will_addition_overflow<vaddr_t>(user_vaddr, size))
+			return false;
+		if (user_vaddr + size > USERSPACE_END)
+			return false;
+		return true;
+	}
 
 	BAN::ErrorOr<void> Process::read_from_user(const void* user_addr, void* out, size_t size)
 	{
-		const vaddr_t user_vaddr = reinterpret_cast<vaddr_t>(user_addr);
-
-		auto* out_u8 = static_cast<uint8_t*>(out);
-		size_t ncopied = 0;
-
-		{
-			RWLockRDGuard _(m_memory_region_lock);
-
-			const size_t first_index = find_mapped_region(user_vaddr);
-			for (size_t i = first_index; ncopied < size && i < m_mapped_regions.size(); i++)
-			{
-				auto& region = m_mapped_regions[i];
-				if (!region->contains(user_vaddr + ncopied))
-					return BAN::Error::from_errno(EFAULT);
-
-				const size_t ncopy = BAN::Math::min<size_t>(
-					(region->vaddr() + region->size()) - (user_vaddr + ncopied),
-					size - ncopied
-				);
-
-				const size_t page_count = range_page_count(user_vaddr + ncopied, ncopy);
-				const vaddr_t page_base = (user_vaddr + ncopied) & PAGE_ADDR_MASK;
-				for (size_t p = 0; p < page_count; p++)
-				{
-					const auto flags = PageTable::UserSupervisor | PageTable::Present;
-					if ((m_page_table->get_page_flags(page_base + p * PAGE_SIZE) & flags) != flags)
-						goto read_from_user_with_allocation;
-				}
-
-				memcpy(out_u8 + ncopied, reinterpret_cast<void*>(user_vaddr + ncopied), ncopy);
-				ncopied += ncopy;
-			}
-
-			if (ncopied >= size)
-				return {};
-			if (ncopied > 0)
-				return BAN::Error::from_errno(EFAULT);
-		}
-
-	read_from_user_with_allocation:
-		RWLockWRGuard _(m_memory_region_lock);
-
-		const size_t first_index = find_mapped_region(user_vaddr + ncopied);
-		for (size_t i = first_index; ncopied < size && i < m_mapped_regions.size(); i++)
-		{
-			auto& region = m_mapped_regions[i];
-			if (!region->contains(user_vaddr + ncopied))
-				return BAN::Error::from_errno(EFAULT);
-
-			const size_t ncopy = BAN::Math::min<size_t>(
-				(region->vaddr() + region->size()) - (user_vaddr + ncopied),
-				size - ncopied
-			);
-
-			const size_t page_count = range_page_count(user_vaddr + ncopied, ncopy);
-			const vaddr_t page_base = (user_vaddr + ncopied) & PAGE_ADDR_MASK;
-			for (size_t p = 0; p < page_count; p++)
-			{
-				const auto flags = PageTable::UserSupervisor | PageTable::Present;
-				if ((m_page_table->get_page_flags(page_base + p * PAGE_SIZE) & flags) == flags)
-					continue;
-				if (!TRY(region->allocate_page_containing(page_base + p * PAGE_SIZE, false)))
-					return BAN::Error::from_errno(EFAULT);
-			}
-
-			memcpy(out_u8 + ncopied, reinterpret_cast<void*>(user_vaddr + ncopied), ncopy);
-			ncopied += ncopy;
-		}
-
-		if (ncopied >= size)
-			return {};
-		return BAN::Error::from_errno(EFAULT);
+		if (!is_valid_user_address(user_addr, size))
+			return BAN::Error::from_errno(EFAULT);
+		if (!safe_user_memcpy(out, user_addr, size))
+			return BAN::Error::from_errno(EFAULT);
+		return {};
 	}
 
 	BAN::ErrorOr<void> Process::read_string_from_user(const char* user_addr, char* out, size_t max_size)
 	{
-		const vaddr_t user_vaddr = reinterpret_cast<vaddr_t>(user_addr);
-
-		size_t ncopied = 0;
-
-		{
-			RWLockRDGuard _(m_memory_region_lock);
-
-			const size_t first_index = find_mapped_region(user_vaddr);
-			for (size_t i = first_index; ncopied < max_size && i < m_mapped_regions.size(); i++)
-			{
-				auto& region = m_mapped_regions[i];
-				if (!region->contains(user_vaddr + ncopied))
-					return BAN::Error::from_errno(EFAULT);
-
-				vaddr_t last_page = 0;
-
-				for (; ncopied < max_size; ncopied++)
-				{
-					const vaddr_t curr_page = (user_vaddr + ncopied) & PAGE_ADDR_MASK;
-					if (curr_page != last_page)
-					{
-						const auto flags = PageTable::UserSupervisor | PageTable::Present;
-						if ((m_page_table->get_page_flags(curr_page) & flags) != flags)
-							goto read_string_from_user_with_allocation;
-					}
-
-					out[ncopied] = user_addr[ncopied];
-					if (out[ncopied] == '\0')
-						return {};
-
-					last_page = curr_page;
-				}
-			}
-
-			if (ncopied >= max_size)
-				return BAN::Error::from_errno(ENAMETOOLONG);
-			if (ncopied > 0)
-				return BAN::Error::from_errno(EFAULT);
-		}
-
-	read_string_from_user_with_allocation:
-		RWLockWRGuard _(m_memory_region_lock);
-
-		const size_t first_index = find_mapped_region(user_vaddr + ncopied);
-		for (size_t i = first_index; ncopied < max_size && i < m_mapped_regions.size(); i++)
-		{
-			auto& region = m_mapped_regions[i];
-			if (!region->contains(user_vaddr + ncopied))
-				return BAN::Error::from_errno(EFAULT);
-
-			vaddr_t last_page = 0;
-
-			for (; ncopied < max_size; ncopied++)
-			{
-				const vaddr_t curr_page = (user_vaddr + ncopied) & PAGE_ADDR_MASK;
-				if (curr_page != last_page)
-				{
-					const auto flags = PageTable::UserSupervisor | PageTable::Present;
-					if ((m_page_table->get_page_flags(curr_page) & flags) == flags)
-						;
-					else if (!TRY(region->allocate_page_containing(curr_page, false)))
-						return BAN::Error::from_errno(EFAULT);
-				}
-
-				out[ncopied] = user_addr[ncopied];
-				if (out[ncopied] == '\0')
-					return {};
-
-				last_page = curr_page;
-			}
-		}
-
-		if (ncopied >= max_size)
-			return BAN::Error::from_errno(ENAMETOOLONG);
-		return BAN::Error::from_errno(EFAULT);
+		max_size = BAN::Math::min<size_t>(max_size, USERSPACE_END - reinterpret_cast<vaddr_t>(user_addr));
+		if (!is_valid_user_address(user_addr, max_size))
+			return BAN::Error::from_errno(EFAULT);
+		if (!safe_user_strncpy(out, user_addr, max_size))
+			return BAN::Error::from_errno(EFAULT);
+		return {};
 	}
 
 	BAN::ErrorOr<void> Process::write_to_user(void* user_addr, const void* in, size_t size)
 	{
-		const vaddr_t user_vaddr = reinterpret_cast<vaddr_t>(user_addr);
-
-		const auto* in_u8 = static_cast<const uint8_t*>(in);
-		size_t ncopied = 0;
-
-		{
-			RWLockRDGuard _(m_memory_region_lock);
-
-			const size_t first_index = find_mapped_region(user_vaddr);
-			for (size_t i = first_index; ncopied < size && i < m_mapped_regions.size(); i++)
-			{
-				auto& region = m_mapped_regions[i];
-				if (!region->contains(user_vaddr + ncopied))
-					return BAN::Error::from_errno(EFAULT);
-
-				const size_t ncopy = BAN::Math::min<size_t>(
-					(region->vaddr() + region->size()) - (user_vaddr + ncopied),
-					size - ncopied
-				);
-
-				const size_t page_count = range_page_count(user_vaddr + ncopied, ncopy);
-				const vaddr_t page_base = (user_vaddr + ncopied) & PAGE_ADDR_MASK;
-				for (size_t i = 0; i < page_count; i++)
-				{
-					const auto flags = PageTable::UserSupervisor | PageTable::ReadWrite | PageTable::Present;
-					if ((m_page_table->get_page_flags(page_base + i * PAGE_SIZE) & flags) != flags)
-						goto write_to_user_with_allocation;
-				}
-
-				memcpy(reinterpret_cast<void*>(user_vaddr + ncopied), in_u8 + ncopied, ncopy);
-				ncopied += ncopy;
-			}
-
-			if (ncopied >= size)
-				return {};
-			if (ncopied > 0)
-				return BAN::Error::from_errno(EFAULT);
-		}
-
-	write_to_user_with_allocation:
-		RWLockWRGuard _(m_memory_region_lock);
-
-		const size_t first_index = find_mapped_region(user_vaddr + ncopied);
-		for (size_t i = first_index; ncopied < size && i < m_mapped_regions.size(); i++)
-		{
-			auto& region = m_mapped_regions[i];
-			if (!region->contains(user_vaddr + ncopied))
-				return BAN::Error::from_errno(EFAULT);
-
-			const size_t ncopy = BAN::Math::min<size_t>(
-				(region->vaddr() + region->size()) - (user_vaddr + ncopied),
-				size - ncopied
-			);
-
-			const size_t page_count = range_page_count(user_vaddr + ncopied, ncopy);
-			const vaddr_t page_base = (user_vaddr + ncopied) & PAGE_ADDR_MASK;
-			for (size_t p = 0; p < page_count; p++)
-			{
-				const auto flags = PageTable::UserSupervisor | PageTable::ReadWrite | PageTable::Present;
-				if ((m_page_table->get_page_flags(page_base + p * PAGE_SIZE) & flags) == flags)
-					continue;
-				if (!TRY(region->allocate_page_containing(page_base + p * PAGE_SIZE, true)))
-					return BAN::Error::from_errno(EFAULT);
-			}
-
-			memcpy(reinterpret_cast<void*>(user_vaddr + ncopied), in_u8 + ncopied, ncopy);
-			ncopied += ncopy;
-		}
-
-		if (ncopied >= size)
-			return {};
-		return BAN::Error::from_errno(EFAULT);
+		if (!is_valid_user_address(user_addr, size))
+			return BAN::Error::from_errno(EFAULT);
+		if (!safe_user_memcpy(user_addr, in, size))
+			return BAN::Error::from_errno(EFAULT);
+		return {};
 	}
 
 	BAN::ErrorOr<MemoryRegion*> Process::validate_and_pin_pointer_access(const void* ptr, size_t size, bool needs_write)

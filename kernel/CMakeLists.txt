@@ -139,6 +139,7 @@ if("${BANAN_ARCH}" STREQUAL "x86_64")
 		arch/x86_64/Signal.S
 		arch/x86_64/Syscall.S
 		arch/x86_64/Thread.S
+		arch/x86_64/User.S
 		arch/x86_64/Yield.S
 	)
 elseif("${BANAN_ARCH}" STREQUAL "i686")
@@ -150,6 +151,7 @@ elseif("${BANAN_ARCH}" STREQUAL "i686")
 		arch/i686/Signal.S
 		arch/i686/Syscall.S
 		arch/i686/Thread.S
+		arch/i686/User.S
 		arch/i686/Yield.S
 	)
 else()
