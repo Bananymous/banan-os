@@ -866,7 +866,7 @@ namespace Kernel
 			last_address -= rem;
 
 		ASSERT(is_canonical(first_address));
-		ASSERT(is_canonical(last_address));
+		ASSERT(is_canonical(last_address - 1));
 		const vaddr_t uc_vaddr_start = uncanonicalize(first_address);
 		const vaddr_t uc_vaddr_end   = uncanonicalize(last_address);
 
@@ -948,7 +948,7 @@ namespace Kernel
 			last_address -= rem;
 
 		ASSERT(is_canonical(first_address));
-		ASSERT(is_canonical(last_address));
+		ASSERT(is_canonical(last_address - 1));
 
 		SpinLockGuard _(m_lock);
 
