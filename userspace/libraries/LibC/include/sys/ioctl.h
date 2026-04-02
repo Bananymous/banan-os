@@ -5,6 +5,8 @@
 
 __BEGIN_DECLS
 
+#include <stdint.h>
+
 #define I_ATMARK	1
 #define I_CANPUT	2
 #define I_CKBAND	3
@@ -50,6 +52,13 @@ struct winsize
 #define TIOCGWINSZ	50
 #define TIOCSWINSZ	51
 
+struct snd_volume_info
+{
+	int32_t min_mdB;
+	int32_t max_mdB;
+	int32_t step_mdB;
+	int32_t mdB;
+};
 #define SND_GET_CHANNELS    60 /* stores number of channels to uint32_t argument */
 #define SND_GET_SAMPLE_RATE 61 /* stores sample rate to uint32_t argument */
 #define SND_RESET_BUFFER    62 /* stores the size of internal buffer to uint32_t argument and clears the buffer */
@@ -57,6 +66,8 @@ struct winsize
 #define SND_GET_TOTAL_PINS  64 /* gets the number of pins on the current device as uint32_t */
 #define SND_GET_PIN         65 /* gets the currently active pin as uint32_t */
 #define SND_SET_PIN         66 /* sets the currently active pin to uint32_t */
+#define SND_GET_VOLUME_INFO 67 /* gets the current volume as snd_volume_info */
+#define SND_SET_VOLUME_MDB  68 /* sets the current volume to int32_t dB */
 
 #define JOYSTICK_GET_LEDS   80 /* get controller led bitmap to uint8_t argument */
 #define JOYSTICK_SET_LEDS   81 /* set controller leds to uint8_t bitmap */

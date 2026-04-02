@@ -4,6 +4,8 @@
 #include <kernel/Memory/ByteRingBuffer.h>
 #include <kernel/PCI.h>
 
+#include <sys/ioctl.h>
+
 namespace Kernel
 {
 
@@ -28,6 +30,8 @@ namespace Kernel
 		virtual uint32_t get_current_pin() const = 0;
 		virtual BAN::ErrorOr<void> set_current_pin(uint32_t) = 0;
 
+		virtual BAN::ErrorOr<void> set_volume_mdB(int32_t) = 0;
+
 		bool can_read_impl() const override { return false; }
 		bool can_write_impl() const override { SpinLockGuard _(m_spinlock); return !m_sample_data->full(); }
 		bool has_error_impl() const override { return false; }
@@ -43,6 +47,8 @@ namespace Kernel
 
 		static constexpr size_t m_sample_data_capacity = 1 << 20;
 		BAN::UniqPtr<ByteRingBuffer> m_sample_data;
+
+		snd_volume_info m_volume_info {};
 
 	private:
 		const dev_t m_rdev;

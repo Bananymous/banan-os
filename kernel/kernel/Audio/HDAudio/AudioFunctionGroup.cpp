@@ -136,6 +136,37 @@ namespace Kernel
 		return BAN::Error::from_errno(ENOTSUP);
 	}
 
+	BAN::ErrorOr<void> HDAudioFunctionGroup::set_volume_mdB(int32_t mdB)
+	{
+		mdB = BAN::Math::clamp(mdB, m_volume_info.min_mdB, m_volume_info.max_mdB);
+
+		const auto& path = m_output_paths[m_output_path_index];
+		for (size_t i = 0; i < path.size(); i++)
+		{
+			if (!path[i]->output_amplifier.has_value())
+				continue;
+
+			const int32_t step_round = (mdB >= 0)
+				? +m_volume_info.step_mdB / 2
+				: -m_volume_info.step_mdB / 2;
+			const uint32_t step = (mdB + step_round) / m_volume_info.step_mdB + path[i]->output_amplifier->offset;
+			const uint32_t volume = 0b1'0'1'1'0000'0'0000000 | step;
+
+			TRY(m_controller->send_command({
+				.data = static_cast<uint8_t>(volume & 0xFF),
+				.command = static_cast<uint16_t>(0x300 | (volume >> 8)),
+				.node_index = path[i]->id,
+				.codec_address = m_cid,
+			}));
+
+			break;
+		}
+
+		m_volume_info.mdB = mdB;
+
+		return {};
+	}
+
 	size_t HDAudioFunctionGroup::bdl_offset() const
 	{
 		const size_t bdl_entry_bytes = m_bdl_entry_sample_frames * get_channels() * sizeof(uint16_t);
@@ -291,13 +322,6 @@ namespace Kernel
 		return 0b0'0'000'000'0'001'0001;
 	}
 
-	uint16_t HDAudioFunctionGroup::get_volume_data() const
-	{
-		// TODO: don't hardcode this
-		// left and right output, no mute, max gain
-		return 0b1'0'1'1'0000'0'1111111;
-	}
-
 	BAN::ErrorOr<void> HDAudioFunctionGroup::enable_output_path(uint8_t index)
 	{
 		ASSERT(index < m_output_paths.size());
@@ -318,7 +342,6 @@ namespace Kernel
 		}
 
 		const auto format = get_format_data();
-		const auto volume = get_volume_data();
 
 		for (size_t i = 0; i < path.size(); i++)
 		{
@@ -347,13 +370,17 @@ namespace Kernel
 				}));
 			}
 
-			// set volume
-			TRY(m_controller->send_command({
-				.data = static_cast<uint8_t>(volume & 0xFF),
-				.command = static_cast<uint16_t>(0x300 | (volume >> 8)),
-				.node_index = path[i]->id,
-				.codec_address = m_cid,
-			}));
+			// set volume to 0 dB, no mute
+			if (path[i]->output_amplifier.has_value())
+			{
+				const uint32_t volume = 0b1'0'1'1'0000'0'0000000 | path[i]->output_amplifier->offset;
+				TRY(m_controller->send_command({
+					.data = static_cast<uint8_t>(volume & 0xFF),
+					.command = static_cast<uint16_t>(0x300 | (volume >> 8)),
+					.node_index = path[i]->id,
+					.codec_address = m_cid,
+				}));
+			}
 
 			switch (path[i]->type)
 			{
@@ -397,6 +424,41 @@ namespace Kernel
 					ASSERT_NOT_REACHED();
 			}
 		}
+
+		// update volume info to this path
+		m_volume_info.min_mdB = 0;
+		m_volume_info.max_mdB = 0;
+		m_volume_info.step_mdB = 0;
+		for (size_t i = 0; i < path.size(); i++)
+		{
+			if (!path[i]->output_amplifier.has_value())
+				continue;
+			const auto& amp = path[i]->output_amplifier.value();
+
+			const int32_t step_mdB = amp.step_size * 250;
+			m_volume_info.step_mdB = step_mdB;
+			m_volume_info.min_mdB = -amp.offset * step_mdB;
+			m_volume_info.max_mdB = (amp.num_steps - amp.offset) * step_mdB;
+			m_volume_info.mdB = BAN::Math::clamp(m_volume_info.mdB, m_volume_info.min_mdB, m_volume_info.max_mdB);
+
+			const int32_t step_round = (m_volume_info.mdB >= 0)
+				? +step_mdB / 2
+				: -step_mdB / 2;
+			const uint32_t step = (m_volume_info.mdB + step_round) / step_mdB + amp.offset;
+			const uint32_t volume = 0b1'0'1'1'0000'0'0000000 | step;
+
+			TRY(m_controller->send_command({
+				.data = static_cast<uint8_t>(volume & 0xFF),
+				.command = static_cast<uint16_t>(0x300 | (volume >> 8)),
+				.node_index = path[i]->id,
+				.codec_address = m_cid,
+			}));
+
+			break;
+		}
+
+		if (m_volume_info.min_mdB == 0 && m_volume_info.max_mdB == 0)
+			m_volume_info.mdB = 0;
 
 		return {};
 	}

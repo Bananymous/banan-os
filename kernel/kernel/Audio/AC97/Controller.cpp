@@ -137,8 +137,27 @@ namespace Kernel
 		// Reset mixer to default values
 		m_mixer->write16(AudioMixerRegister::Reset, 0);
 
-		// Master volume 100%, no mute
-		m_mixer->write16(AudioMixerRegister::MasterVolume, 0x0000);
+		// Master volumes
+		m_mixer->write16(AudioMixerRegister::MasterVolume, 0x2020);
+		if (m_mixer->read16(AudioMixerRegister::MasterVolume) == 0x2020)
+		{
+			m_volume_info = {
+				.min_mdB = -94500,
+				.max_mdB = 0,
+				.step_mdB = 1500,
+				.mdB = 0,
+			};
+		}
+		else
+		{
+			m_volume_info = {
+				.min_mdB = -46500,
+				.max_mdB = 0,
+				.step_mdB = 1500,
+				.mdB = 0,
+			};
+		}
+		m_mixer->write16(AudioMixerRegister::MasterVolume, get_volume_data());
 
 		// PCM output volume left/right +0 db, no mute
 		m_mixer->write16(AudioMixerRegister::PCMOutVolume, 0x0808);
@@ -184,6 +203,19 @@ namespace Kernel
 		// enable interrupts
 		m_bus_master->write32(BusMasterRegister::GLOB_CNT, m_bus_master->read32(BusMasterRegister::GLOB_CNT) | 0x01);
 
+		return {};
+	}
+
+	uint32_t AC97AudioController::get_volume_data() const
+	{
+		const uint32_t steps = (-m_volume_info.mdB + m_volume_info.step_mdB / 2) / m_volume_info.step_mdB;
+		return (steps << 8) | steps;
+	}
+
+	BAN::ErrorOr<void> AC97AudioController::set_volume_mdB(int32_t mdB)
+	{
+		m_volume_info.mdB = BAN::Math::clamp(mdB, m_volume_info.min_mdB, m_volume_info.max_mdB);
+		m_mixer->write16(AudioMixerRegister::MasterVolume, get_volume_data());
 		return {};
 	}
 

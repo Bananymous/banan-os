@@ -55,6 +55,16 @@ namespace Kernel::HDAudio
 			} pin_complex;
 		};
 
+		struct Amplifier
+		{
+			uint8_t offset;
+			uint8_t num_steps;
+			uint8_t step_size;
+			bool mute;
+		};
+
+		BAN::Optional<Amplifier> output_amplifier;
+
 		BAN::Vector<uint16_t> connections;
 	};
 

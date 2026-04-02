@@ -8,7 +8,7 @@ namespace Kernel
 
 	class HDAudioController;
 
-	class HDAudioFunctionGroup : public AudioController
+	class HDAudioFunctionGroup final : public AudioController
 	{
 	public:
 		static BAN::ErrorOr<BAN::RefPtr<HDAudioFunctionGroup>> create(BAN::RefPtr<HDAudioController>, uint8_t cid, HDAudio::AFGNode&&);
@@ -23,6 +23,8 @@ namespace Kernel
 		uint32_t get_total_pins() const override;
 		uint32_t get_current_pin() const override;
 		BAN::ErrorOr<void> set_current_pin(uint32_t) override;
+
+		BAN::ErrorOr<void> set_volume_mdB(int32_t) override;
 
 		void handle_new_data() override;
 
@@ -46,7 +48,6 @@ namespace Kernel
 		BAN::ErrorOr<void> recurse_output_paths(const HDAudio::AFGWidget& widget, BAN::Vector<const HDAudio::AFGWidget*>& path);
 
 		uint16_t get_format_data() const;
-		uint16_t get_volume_data() const;
 
 		size_t bdl_offset() const;
 

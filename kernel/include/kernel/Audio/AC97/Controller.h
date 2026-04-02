@@ -6,7 +6,7 @@
 namespace Kernel
 {
 
-	class AC97AudioController : public AudioController, public Interruptable
+	class AC97AudioController final : public AudioController, public Interruptable
 	{
 	public:
 		static BAN::ErrorOr<void> create(PCI::Device& pci_device);
@@ -23,10 +23,14 @@ namespace Kernel
 		uint32_t get_current_pin() const override { return 0; }
 		BAN::ErrorOr<void> set_current_pin(uint32_t pin) override { if (pin != 0) return BAN::Error::from_errno(EINVAL); return {}; }
 
+		BAN::ErrorOr<void> set_volume_mdB(int32_t) override;
+
 	private:
 		AC97AudioController(PCI::Device& pci_device)
 			: m_pci_device(pci_device)
 		{ }
+
+		uint32_t get_volume_data() const;
 
 		BAN::ErrorOr<void> initialize();
 		BAN::ErrorOr<void> initialize_bld();

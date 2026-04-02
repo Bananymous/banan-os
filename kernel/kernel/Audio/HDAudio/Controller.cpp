@@ -319,6 +319,20 @@ namespace Kernel
 			};
 		}
 
+		if (const uint32_t out_amp_cap = send_command_or_zero(0xF00, 0x12))
+		{
+			const uint8_t offset    = (out_amp_cap >>  0) & 0x7F;
+			const uint8_t num_steps = (out_amp_cap >>  8) & 0x7F;
+			const uint8_t step_size = (out_amp_cap >> 16) & 0x7F;
+			const bool    mute      = (out_amp_cap >> 31);
+			result.output_amplifier = HDAudio::AFGWidget::Amplifier {
+				.offset = offset,
+				.num_steps = num_steps,
+				.step_size = step_size,
+				.mute = mute,
+			};
+		}
+
 		const uint8_t connection_info = send_command_or_zero(0xF00, 0x0E);
 		const uint8_t conn_width = (connection_info & 0x80) ? 2 : 1;
 		const uint8_t conn_count = connection_info & 0x3F;

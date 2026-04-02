@@ -105,6 +105,12 @@ namespace Kernel
 			case SND_SET_PIN:
 				TRY(set_current_pin(*static_cast<uint32_t*>(arg)));
 				return 0;
+			case SND_GET_VOLUME_INFO:
+				*static_cast<snd_volume_info*>(arg) = m_volume_info;
+				return 0;
+			case SND_SET_VOLUME_MDB:
+				TRY(set_volume_mdB(*static_cast<int32_t*>(arg)));
+				return 0;
 		}
 
 		return CharacterDevice::ioctl_impl(cmd, arg);
