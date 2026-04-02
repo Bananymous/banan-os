@@ -28,6 +28,20 @@ namespace Kernel
 
 	private:
 		MemoryBackedRegion(PageTable&, size_t size, Type, PageTable::flags_t, int status_flags);
+
+	private:
+		struct PhysicalPage
+		{
+			PhysicalPage(paddr_t paddr)
+				: paddr(paddr)
+			{ }
+			~PhysicalPage();
+
+			BAN::Atomic<uint32_t> ref_count { 1 };
+			const paddr_t paddr;
+		};
+		BAN::Vector<PhysicalPage*> m_physical_pages;
+		Mutex m_mutex;
 	};
 
 }
