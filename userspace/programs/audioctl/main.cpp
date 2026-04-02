@@ -74,17 +74,20 @@ static uint32_t send_request(int fd, LibAudio::Packet packet, bool wait_response
 
 static void list_devices(int fd)
 {
-	const uint32_t current_device = send_request(fd, { .type = LibAudio::Packet::GetDevice,    .parameter = 0 }, true);
-	const uint32_t current_pin    = send_request(fd, { .type = LibAudio::Packet::GetPin,       .parameter = 0 }, true);
+	const uint32_t current_device = send_request(fd, { .type = LibAudio::Packet::GetDevice,    .parameter = {} }, true);
+	const uint32_t current_pin    = send_request(fd, { .type = LibAudio::Packet::GetPin,       .parameter = {} }, true);
 
-	const uint32_t total_devices  = send_request(fd, { .type = LibAudio::Packet::QueryDevices, .parameter = 0 }, true);
+	const uint32_t total_devices  = send_request(fd, { .type = LibAudio::Packet::QueryDevices, .parameter = {} }, true);
 	for (uint32_t dev = 0; dev < total_devices; dev++)
 	{
 		const uint32_t total_pins = send_request(fd, { .type = LibAudio::Packet::QueryPins, .parameter = dev }, true);
 
 		printf("Device %" PRIu32 "", dev);
 		if (dev == current_device)
-			printf(" (current)");
+		{
+			const uint32_t volume = send_request(fd, { .type = LibAudio::Packet::GetVolume, .parameter = {} }, true);
+			printf(" (current) %" PRIu32 "%%", volume / 10);
+		}
 		printf("\n");
 
 		for (uint32_t pin = 0; pin < total_pins; pin++)
@@ -103,16 +106,20 @@ int main(int argc, char** argv)
 	BAN::Optional<uint32_t> device;
 	BAN::Optional<uint32_t> pin;
 
+	BAN::Optional<uint32_t> volume;
+	BAN::Optional<bool> volume_rel; // no value: absolute, false positive, true negative
+
 	for (;;)
 	{
 		static option long_options[] {
 			{ "list",   no_argument,       nullptr, 'l' },
 			{ "device", required_argument, nullptr, 'd' },
 			{ "pin",    required_argument, nullptr, 'p' },
+			{ "volume", required_argument, nullptr, 'v' },
 			{ "help",   no_argument,       nullptr, 'h' },
 		};
 
-		int ch = getopt_long(argc, argv, "ld:p:h", long_options, nullptr);
+		int ch = getopt_long(argc, argv, "ld:p:v:h", long_options, nullptr);
 		if (ch == -1)
 			break;
 
@@ -125,6 +132,7 @@ int main(int argc, char** argv)
 				fprintf(stderr, "  -l, --list      list devices and their pins\n");
 				fprintf(stderr, "  -d, --device N  set device index N as the current one\n");
 				fprintf(stderr, "  -p, --pin N     set pin N as the current one\n");
+				fprintf(stderr, "  -v, --volume N  set volume to N%%. if + or - is given, volume is relative to the current volume\n");
 				fprintf(stderr, "  -h, --help      show this message and exit\n");
 				return 0;
 			case 'l':
@@ -136,6 +144,11 @@ int main(int argc, char** argv)
 			case 'p':
 				pin = parse_u32_or_exit(optarg);
 				break;
+			case 'v':
+				if (optarg[0] == '-' || optarg[0] == '+')
+					volume_rel = (optarg[0] == '-');
+				volume = parse_u32_or_exit(optarg + volume_rel.has_value());
+				break;
 			case '?':
 				fprintf(stderr, "invalid option %c\n", optopt);
 				fprintf(stderr, "see '%s --help' for usage\n", argv[0]);
@@ -143,7 +156,7 @@ int main(int argc, char** argv)
 		}
 	}
 
-	if (!device.has_value() && !pin.has_value())
+	if (!device.has_value() && !pin.has_value() && !volume.has_value())
 		list = true;
 
 	const int fd = get_server_fd();
@@ -155,6 +168,30 @@ int main(int argc, char** argv)
 
 	if (pin.has_value())
 		send_request(fd, { .type = LibAudio::Packet::SetPin, .parameter = pin.value() }, false);
+
+	if (volume.has_value())
+	{
+		const uint32_t volume10 = volume.value() * 10;
+
+		uint32_t param;
+		if (!volume_rel.has_value())
+			param = volume10;
+		else
+		{
+			const uint32_t current = send_request(fd, { .type = LibAudio::Packet::GetVolume, .parameter = {} }, true);
+			if (!volume_rel.value())
+				param = current + volume10;
+			else
+			{
+				if (current > volume10)
+					param = current - volume10;
+				else
+					param = 0;
+			}
+		}
+
+		send_request(fd, { .type = LibAudio::Packet::SetVolume, .parameter = param }, false);
+	}
 
 	if (list)
 		list_devices(fd);

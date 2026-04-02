@@ -68,6 +68,8 @@ static BAN::Optional<AudioDevice> initialize_audio_device(int fd)
 		return {};
 	if (ioctl(fd, SND_GET_PIN, &result.current_pin) != 0)
 		return {};
+	if (ioctl(fd, SND_GET_VOLUME_INFO, &result.volume) != 0)
+		return {};
 	return result;
 }
 

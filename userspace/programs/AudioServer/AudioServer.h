@@ -8,6 +8,8 @@
 #include <LibAudio/Audio.h>
 #include <LibAudio/Protocol.h>
 
+#include <sys/ioctl.h>
+
 struct AudioDevice
 {
 	int fd;
@@ -15,6 +17,7 @@ struct AudioDevice
 	uint32_t sample_rate;
 	uint32_t total_pins;
 	uint32_t current_pin;
+	snd_volume_info volume;
 };
 
 class AudioServer

@@ -145,7 +145,7 @@ namespace LibAudio
 
 		LibAudio::Packet packet {
 			.type = LibAudio::Packet::Notify,
-			.parameter = 0,
+			.parameter = {},
 		};
 
 		send(m_server_fd, &packet, sizeof(packet), 0);

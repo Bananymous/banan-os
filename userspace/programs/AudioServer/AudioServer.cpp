@@ -98,12 +98,53 @@ bool AudioServer::on_client_packet(int fd, LibAudio::Packet packet)
 				return false;
 			}
 			reset_kernel_buffer();
-			if (uint32_t pin = packet.parameter; ioctl(device().fd, SND_SET_PIN, &pin) != 0)
+			if (ioctl(device().fd, SND_SET_PIN, &packet.parameter) != 0)
 				dwarnln("Failed to set pin {}: {}", packet.parameter, strerror(errno));
 			else
+			{
 				device().current_pin = packet.parameter;
+
+				// NOTE: different pins have different volume controls
+				if (ioctl(device().fd, SND_GET_VOLUME_INFO, &device().volume) != 0)
+					dwarnln("Failed to query new volume: {}", strerror(errno));
+			}
 			update();
 			break;
+		case LibAudio::Packet::GetVolume:
+		{
+			// NOTE: maybe we should map [0->100%] -> [min, 0] instead?
+
+			const auto& volume = device().volume;
+			if (volume.min_mdB == volume.max_mdB)
+				response = 1000;
+			else
+			{
+				const double min_dB = volume.min_mdB / 1000.0;
+				const double max_dB = volume.max_mdB / 1000.0;
+				const double dB = volume.mdB / 1000.0;
+				const double percent = (BAN::Math::pow(10.0, (dB - min_dB) / (max_dB - min_dB)) - 1.0) / 9.0;
+				response = BAN::Math::round(percent * 1000.0);
+			}
+			break;
+		}
+		case LibAudio::Packet::SetVolume:
+		{
+			// NOTE: maybe we should map [0->100%] -> [min, 0] instead?
+
+			const auto& volume = device().volume;
+			const double min_dB = volume.min_mdB / 1000.0;
+			const double max_dB = volume.max_mdB / 1000.0;
+			const double percent = packet.parameter / 1000.0;
+			const double dB = min_dB + (max_dB - min_dB) * BAN::Math::log10(1.0 + 9.0 * percent);
+
+			const int32_t mdB = BAN::Math::round(dB * 1000.0);
+			if (ioctl(device().fd, SND_SET_VOLUME_MDB, &mdB) != 0)
+				dwarnln("Failed to set volume: {}", strerror(errno));
+			else if (ioctl(device().fd, SND_GET_VOLUME_INFO, &device().volume) != 0)
+				dwarnln("Failed to query new volume: {}", strerror(errno));
+
+			break;
+		}
 		default:
 			dwarnln("unknown packet type {}", static_cast<uint8_t>(packet.type));
 			return false;
@@ -278,7 +319,7 @@ void AudioServer::send_samples()
 			for (size_t i = 0; i < samples_to_send; i++)
 			{
 				sample_buffer[i] = BAN::Math::clamp<sample_t>(
-					0.2 * m_samples[m_samples_sent + i] * BAN::numeric_limits<kernel_sample_t>::max(),
+					m_samples[m_samples_sent + i] * BAN::numeric_limits<kernel_sample_t>::max(),
 					BAN::numeric_limits<kernel_sample_t>::min(),
 					BAN::numeric_limits<kernel_sample_t>::max()
 				);

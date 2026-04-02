@@ -40,6 +40,14 @@ namespace LibAudio
 			SetPin,         // parameter: pin number
 			                // response: nothing
 							// set the active pin of the current device
+
+			GetVolume,      // parameter: ignored
+			                // response: 10 * volume percentage (uint32_t)
+							// get the volume of the current device
+
+			SetVolume,      // parameter: 10 * volume percentage (uint32_t)
+			                // response: nothing
+							// set the volume of the current device
 		} type;
 
 		uint64_t parameter;
