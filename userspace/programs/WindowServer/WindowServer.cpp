@@ -418,10 +418,22 @@ void WindowServer::on_window_set_cursor(int fd, const LibGUI::WindowPacket::Wind
 		invalidate(cursor_area().get_bounding_box(old_cursor));
 }
 
+static void update_volume(const char* new_volume)
+{
+	char command[128];
+	sprintf(command, "audioctl --volume %s && kill -USR1 TaskBar", new_volume);
+	system(command);
+}
+
 void WindowServer::on_key_event(LibInput::KeyEvent event)
 {
 	if (event.key == LibInput::Key::Super)
 		m_is_mod_key_held = event.pressed();
+
+	if (event.pressed() && event.key == LibInput::Key::VolumeDown)
+		update_volume("-5");
+	if (event.pressed() && event.key == LibInput::Key::VolumeUp)
+		update_volume("+5");
 
 	// Stop WindowServer with mod+shift+E
 	if (m_is_mod_key_held && event.pressed() && event.shift() && event.key == LibInput::Key::E)
