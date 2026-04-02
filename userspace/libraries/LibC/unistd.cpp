@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/banan-os.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
 #include <sys/time.h>
@@ -1180,6 +1181,25 @@ long sysconf(int name)
 		case _SC_GETGR_R_SIZE_MAX: return 1024;
 		case _SC_GETPW_R_SIZE_MAX: return 1024;
 		case _SC_THREAD_STACK_MIN: return PTHREAD_STACK_MIN;
+
+		case _SC_PHYS_PAGES:
+		case _SC_AVPHYS_PAGES:
+		{
+			int fd = open("/proc/meminfo", O_RDONLY);
+			if (fd == -1)
+				return -1;
+
+			full_meminfo_t meminfo;
+			const size_t nread = read(fd, &meminfo, sizeof(meminfo));
+			close(fd);
+
+			if (nread != sizeof(meminfo))
+				return -1;
+			if (name == _SC_PHYS_PAGES)
+				return meminfo.free_pages + meminfo.used_pages;
+			if (name == _SC_AVPHYS_PAGES)
+				return meminfo.free_pages;
+		}
 	}
 
 	errno = EINVAL;
