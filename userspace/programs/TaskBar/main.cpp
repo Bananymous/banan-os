@@ -1,9 +1,12 @@
+#include <LibAudio/Protocol.h>
 #include <LibFont/Font.h>
 #include <LibGUI/Window.h>
 
 #include <dirent.h>
 #include <fcntl.h>
 #include <time.h>
+#include <sys/socket.h>
+#include <sys/un.h>
 
 static BAN::ErrorOr<long long> read_integer_from_file(const char* file)
 {
@@ -60,11 +63,56 @@ static BAN::String get_battery_percentage()
 	return result;
 }
 
+static int open_audio_server_fd()
+{
+	int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+	if (fd == -1)
+		return -1;
+
+	sockaddr_un addr;
+	addr.sun_family = AF_UNIX;
+	strcpy(addr.sun_path, LibAudio::s_audio_server_socket.data());
+	if (connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == -1)
+		return -1;
+
+	return fd;
+}
+
+static BAN::String get_audio_volume()
+{
+	static int fd = -1;
+	if (fd == -1 && (fd = open_audio_server_fd()) == -1)
+		return {};
+
+	const LibAudio::Packet request {
+		.type = LibAudio::Packet::GetVolume,
+		.parameter = {},
+	};
+	if (send(fd, &request, sizeof(request), 0) != sizeof(request))
+	{
+		close(fd);
+		fd = -1;
+		return {};
+	}
+
+	uint32_t response;
+	if (recv(fd, &response, sizeof(response), 0) != sizeof(response))
+	{
+		close(fd);
+		fd = -1;
+		return {};
+	}
+
+	return MUST(BAN::String::formatted("vol {}% | ", response / 10));
+}
+
 static BAN::ErrorOr<BAN::String> get_task_bar_string()
 {
 	BAN::String result;
 
 	TRY(result.append(get_battery_percentage()));
+
+	TRY(result.append(get_audio_volume()));
 
 	const time_t current_time = time(nullptr);
 	TRY(result.append(ctime(&current_time)));
@@ -78,6 +126,8 @@ int main()
 	constexpr uint32_t padding = 3;
 	constexpr uint32_t bg_color = 0xFF202020;
 	constexpr uint32_t fg_color = 0xFFFFFFFF;
+
+	signal(SIGUSR1, [](int) {});
 
 	auto font = MUST(LibFont::Font::load("/usr/share/fonts/lat0-16.psfu"_sv));
 
@@ -99,7 +149,8 @@ int main()
 
 	bool is_running = true;
 
-	const auto update_time_string =
+	uint32_t old_text_w = 0;
+	const auto update_string =
 		[&]()
 		{
 			auto text_or_error = get_task_bar_string();
@@ -112,15 +163,20 @@ int main()
 			const uint32_t text_x = window->width() - text_w - padding;
 			const uint32_t text_y = padding;
 
+			const uint32_t inval_w = BAN::Math::max(text_w, old_text_w);
+			const uint32_t inval_x = window->width() - inval_w - padding;
+
 			auto& texture = window->texture();
-			texture.fill_rect(text_x, text_y, text_w, text_h, bg_color);
+			texture.fill_rect(inval_x, text_y, inval_w, text_h, bg_color);
 			texture.draw_text(text, font, text_x, text_y, fg_color);
-			window->invalidate(text_x, text_y, text_w, text_h);
+			window->invalidate(inval_x, text_y, inval_w, text_h);
+
+			old_text_w = text_w;
 		};
 
 	while (is_running)
 	{
-		update_time_string();
+		update_string();
 
 		constexpr uint64_t ns_per_s = 1'000'000'000;
 
