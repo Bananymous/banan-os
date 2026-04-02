@@ -28,6 +28,8 @@ int sched_setparam(pid_t pid, const struct sched_param* param);
 int sched_setscheduler(pid_t pid, int, const struct sched_param* param);
 int sched_yield(void);
 
+int sched_getcpu(void);
+
 __END_DECLS
 
 #endif
