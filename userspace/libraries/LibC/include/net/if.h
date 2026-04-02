@@ -53,6 +53,13 @@ struct ifreq
 #define SIOCGIFFLAGS    9
 #define SIOCGIFMTU     10
 
+#define IFF_UP          0x01
+#define IFF_BROADCAST   0x02
+#define IFF_LOOPBACK    0x04
+#define IFF_POINTOPOINT 0x08
+#define IFF_RUNNING     0x10
+#define IFF_MULTICAST   0x20
+
 void					if_freenameindex(struct if_nameindex* ptr);
 char*					if_indextoname(unsigned ifindex, char* ifname);
 struct if_nameindex*	if_nameindex(void);
