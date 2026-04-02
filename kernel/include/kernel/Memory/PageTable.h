@@ -106,6 +106,8 @@ namespace Kernel
 		void map_page_at(paddr_t, vaddr_t, flags_t, MemoryType = MemoryType::Normal, bool invalidate = true);
 		void map_range_at(paddr_t, vaddr_t, size_t bytes, flags_t, MemoryType = MemoryType::Normal);
 
+		void remove_writable_from_range(vaddr_t, size_t);
+
 		paddr_t physical_address_of(vaddr_t) const;
 		flags_t get_page_flags(vaddr_t) const;
 

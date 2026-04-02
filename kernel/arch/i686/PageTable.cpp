@@ -470,6 +470,48 @@ namespace Kernel
 		invalidate_range(vaddr, page_count, true);
 	}
 
+	void PageTable::remove_writable_from_range(vaddr_t vaddr, size_t size)
+	{
+		ASSERT(vaddr);
+		ASSERT(vaddr % PAGE_SIZE == 0);
+
+		uint32_t pdpte = (vaddr >> 30) & 0x1FF;
+		uint32_t pde   = (vaddr >> 21) & 0x1FF;
+		uint32_t pte   = (vaddr >> 12) & 0x1FF;
+
+		const uint32_t e_pdpte = ((vaddr + size - 1) >> 30) & 0x1FF;
+		const uint32_t e_pde   = ((vaddr + size - 1) >> 21) & 0x1FF;
+		const uint32_t e_pte   = ((vaddr + size - 1) >> 12) & 0x1FF;
+
+		SpinLockGuard _(m_lock);
+
+		const uint64_t* pdpt = P2V(m_highest_paging_struct);
+		for (; pdpte <= e_pdpte; pdpte++)
+		{
+			if (!(pdpt[pdpte] & Flags::Present))
+				continue;
+			const uint64_t* pd = P2V(pdpt[pdpte] & s_page_addr_mask);
+			for (; pde < 512; pde++)
+			{
+				if (pdpte == e_pdpte && pde > e_pde)
+					break;
+				if (!(pd[pde] & Flags::ReadWrite))
+					continue;
+				uint64_t* pt = P2V(pd[pde] & s_page_addr_mask);
+				for (; pte < 512; pte++)
+				{
+					if (pdpte == e_pdpte && pde == e_pde && pte > e_pte)
+						break;
+					pt[pte] &= ~static_cast<uint64_t>(Flags::ReadWrite);
+				}
+				pte = 0;
+			}
+			pde = 0;
+		}
+
+		invalidate_range(vaddr, size / PAGE_SIZE, true);
+	}
+
 	uint64_t PageTable::get_page_data(vaddr_t vaddr) const
 	{
 		ASSERT(vaddr % PAGE_SIZE == 0);

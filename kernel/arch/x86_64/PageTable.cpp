@@ -793,6 +793,65 @@ namespace Kernel
 		invalidate_range(vaddr, page_count, true);
 	}
 
+	void PageTable::remove_writable_from_range(vaddr_t vaddr, size_t size)
+	{
+		ASSERT(vaddr);
+		ASSERT(vaddr % PAGE_SIZE == 0);
+
+		ASSERT(is_canonical(vaddr));
+		ASSERT(is_canonical(vaddr + size - 1));
+
+		const vaddr_t uc_vaddr_start = uncanonicalize(vaddr);
+		const vaddr_t uc_vaddr_end   = uncanonicalize(vaddr + size - 1);
+
+		uint16_t pml4e = (uc_vaddr_start >> 39) & 0x1FF;
+		uint16_t pdpte = (uc_vaddr_start >> 30) & 0x1FF;
+		uint16_t pde   = (uc_vaddr_start >> 21) & 0x1FF;
+		uint16_t pte   = (uc_vaddr_start >> 12) & 0x1FF;
+
+		const uint16_t e_pml4e = (uc_vaddr_end >> 39) & 0x1FF;
+		const uint16_t e_pdpte = (uc_vaddr_end >> 30) & 0x1FF;
+		const uint16_t e_pde   = (uc_vaddr_end >> 21) & 0x1FF;
+		const uint16_t e_pte   = (uc_vaddr_end >> 12) & 0x1FF;
+
+		SpinLockGuard _(m_lock);
+
+		const uint64_t* pml4 = P2V(m_highest_paging_struct);
+		for (; pml4e <= e_pml4e; pml4e++)
+		{
+			if (!(pml4[pml4e] & Flags::ReadWrite))
+				continue;
+			const uint64_t* pdpt = P2V(pml4[pml4e] & s_page_addr_mask);
+			for (; pdpte < 512; pdpte++)
+			{
+				if (pml4e == e_pml4e && pdpte > e_pdpte)
+					break;
+				if (!(pdpt[pdpte] & Flags::ReadWrite))
+					continue;
+				const uint64_t* pd = P2V(pdpt[pdpte] & s_page_addr_mask);
+				for (; pde < 512; pde++)
+				{
+					if (pml4e == e_pml4e && pdpte == e_pdpte && pde > e_pde)
+						break;
+					if (!(pd[pde] & Flags::ReadWrite))
+						continue;
+					uint64_t* pt = P2V(pd[pde] & s_page_addr_mask);
+					for (; pte < 512; pte++)
+					{
+						if (pml4e == e_pml4e && pdpte == e_pdpte && pde == e_pde && pte > e_pte)
+							break;
+						pt[pte] &= ~static_cast<uint64_t>(Flags::ReadWrite);
+					}
+					pte = 0;
+				}
+				pde = 0;
+			}
+			pdpte = 0;
+		}
+
+		invalidate_range(vaddr, size / PAGE_SIZE, true);
+	}
+
 	uint64_t PageTable::get_page_data(vaddr_t vaddr) const
 	{
 		ASSERT(is_canonical(vaddr));
