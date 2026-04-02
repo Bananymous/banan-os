@@ -6,19 +6,6 @@
 
 #include <float.h>
 
-// This is ugly but my clangd does not like including
-// intrinsic headers at all
-#if !defined(__SSE__) || !defined(__SSE2__)
-#pragma GCC push_options
-#ifndef __SSE__
-#pragma GCC target("sse")
-#endif
-#ifndef __SSE2__
-#pragma GCC target("sse2")
-#endif
-#define BAN_MATH_POP_OPTIONS
-#endif
-
 namespace BAN::Math
 {
 
@@ -49,12 +36,11 @@ namespace BAN::Math
 	template<integral T>
 	inline constexpr T gcd(T a, T b)
 	{
-		T t;
 		while (b)
 		{
-			t = b;
+			T temp = b;
 			b = a % b;
-			a = t;
+			a = temp;
 		}
 		return a;
 	}
@@ -79,25 +65,20 @@ namespace BAN::Math
 		return (x & (x - 1)) == 0;
 	}
 
-	template<BAN::integral T>
-	static constexpr bool will_multiplication_overflow(T a, T b)
+	template<integral T>
+	__attribute__((always_inline))
+	inline constexpr bool will_multiplication_overflow(T a, T b)
 	{
-		if (a == 0 || b == 0)
-			return false;
-		if ((a > 0) == (b > 0))
-			return a > BAN::numeric_limits<T>::max() / b;
-		else
-			return a < BAN::numeric_limits<T>::min() / b;
+		T dummy;
+		return __builtin_mul_overflow(a, b, &dummy);
 	}
 
-	template<BAN::integral T>
-	static constexpr bool will_addition_overflow(T a, T b)
+	template<integral T>
+	__attribute__((always_inline))
+	inline constexpr bool will_addition_overflow(T a, T b)
 	{
-		if (a > 0 && b > 0)
-			return a > BAN::numeric_limits<T>::max() - b;
-		if (a < 0 && b < 0)
-			return a < BAN::numeric_limits<T>::min() - b;
-		return false;
+		T dummy;
+		return __builtin_add_overflow(a, b, &dummy);
 	}
 
 	template<typename T>
@@ -110,6 +91,19 @@ namespace BAN::Math
 			return sizeof(T) * 8 - __builtin_clzl(x) - 1;
 		return sizeof(T) * 8 - __builtin_clzll(x) - 1;
 	}
+
+// This is ugly but my clangd does not like including
+// intrinsic headers at all
+#if !defined(__SSE__) || !defined(__SSE2__)
+#pragma GCC push_options
+#ifndef __SSE__
+#pragma GCC target("sse")
+#endif
+#ifndef __SSE2__
+#pragma GCC target("sse2")
+#endif
+#define BAN_MATH_POP_OPTIONS
+#endif
 
 	template<floating_point T>
 	inline constexpr T floor(T x)
@@ -463,9 +457,9 @@ namespace BAN::Math
 		return sqrt<T>(x * x + y * y);
 	}
 
-}
-
 #ifdef BAN_MATH_POP_OPTIONS
 #undef BAN_MATH_POP_OPTIONS
 #pragma GCC pop_options
 #endif
+
+}
