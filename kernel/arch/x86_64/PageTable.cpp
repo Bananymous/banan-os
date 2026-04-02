@@ -23,7 +23,7 @@ namespace Kernel
 	SpinLock PageTable::s_fast_page_lock;
 
 	static constexpr vaddr_t s_hhdm_offset = 0xFFFF800000000000;
-	static bool s_is_hddm_initialized = false;
+	static bool s_is_post_heap_done = false;
 
 	constexpr uint64_t s_page_flag_mask = 0x8000000000000FFF;
 	constexpr uint64_t s_page_addr_mask = ~s_page_flag_mask;
@@ -376,7 +376,7 @@ namespace Kernel
 		V2P                               = &FuncsHHDM::V2P;
 		P2V                               = &FuncsHHDM::P2V;
 
-		s_is_hddm_initialized = true;
+		s_is_post_heap_done = true;
 
 		// This is a hack to unmap fast page. fast page pt is copied
 		// while it is mapped, so we need to manually unmap it
@@ -612,10 +612,39 @@ namespace Kernel
 		Processor::set_current_page_table(this);
 	}
 
-	void PageTable::invalidate(vaddr_t vaddr, bool send_smp_message)
+	void PageTable::invalidate_range(vaddr_t vaddr, size_t pages, bool send_smp_message)
 	{
 		ASSERT(vaddr % PAGE_SIZE == 0);
-		asm volatile("invlpg (%0)" :: "r"(vaddr) : "memory");
+
+		const bool is_userspace = (vaddr < KERNEL_OFFSET);
+		if (is_userspace && this != &PageTable::current())
+			;
+		else if (pages <= 32 || !s_is_post_heap_done)
+		{
+			for (size_t i = 0; i < pages; i++, vaddr += PAGE_SIZE)
+				asm volatile("invlpg (%0)" :: "r"(vaddr));
+		}
+		else if (is_userspace || !s_has_pge)
+		{
+			asm volatile("movq %0, %%cr3" :: "r"(m_highest_paging_struct));
+		}
+		else
+		{
+			asm volatile(
+				"movq %%cr4, %%rax;"
+
+				"andq $~0x80, %%rax;"
+				"movq %%rax, %%cr4;"
+
+				"movq %0, %%cr3;"
+
+				"orq $0x80, %%rax;"
+				"movq %%rax, %%cr4;"
+				:
+				: "r"(m_highest_paging_struct)
+				: "rax"
+			);
+		}
 
 		if (send_smp_message)
 		{
@@ -623,14 +652,14 @@ namespace Kernel
 				.type = Processor::SMPMessage::Type::FlushTLB,
 				.flush_tlb = {
 					.vaddr      = vaddr,
-					.page_count = 1,
+					.page_count = pages,
 					.page_table = vaddr < KERNEL_OFFSET ? this : nullptr,
 				}
 			});
 		}
 	}
 
-	void PageTable::unmap_page(vaddr_t vaddr, bool send_smp_message)
+	void PageTable::unmap_page(vaddr_t vaddr, bool invalidate)
 	{
 		ASSERT(vaddr);
 		ASSERT(vaddr != fast_page());
@@ -663,31 +692,23 @@ namespace Kernel
 
 		pt[pte] = 0;
 
-		if (old_paddr != 0)
-			invalidate(vaddr, send_smp_message);
+		if (invalidate && old_paddr != 0)
+			invalidate_page(vaddr, true);
 	}
 
 	void PageTable::unmap_range(vaddr_t vaddr, size_t size)
 	{
 		ASSERT(vaddr % PAGE_SIZE == 0);
 
-		size_t page_count = range_page_count(vaddr, size);
+		const size_t page_count = range_page_count(vaddr, size);
 
 		SpinLockGuard _(m_lock);
 		for (vaddr_t page = 0; page < page_count; page++)
 			unmap_page(vaddr + page * PAGE_SIZE, false);
-
-		Processor::broadcast_smp_message({
-			.type = Processor::SMPMessage::Type::FlushTLB,
-			.flush_tlb = {
-				.vaddr      = vaddr,
-				.page_count = page_count,
-				.page_table = vaddr < KERNEL_OFFSET ? this : nullptr,
-			}
-		});
+		invalidate_range(vaddr, page_count, true);
 	}
 
-	void PageTable::map_page_at(paddr_t paddr, vaddr_t vaddr, flags_t flags, MemoryType memory_type, bool send_smp_message)
+	void PageTable::map_page_at(paddr_t paddr, vaddr_t vaddr, flags_t flags, MemoryType memory_type, bool invalidate)
 	{
 		ASSERT(vaddr);
 		ASSERT(vaddr != fast_page());
@@ -752,8 +773,8 @@ namespace Kernel
 
 		pt[pte] = paddr | uwr_flags | extra_flags;
 
-		if (old_paddr != 0)
-			invalidate(vaddr, send_smp_message);
+		if (invalidate && old_paddr != 0)
+			invalidate_page(vaddr, true);
 	}
 
 	void PageTable::map_range_at(paddr_t paddr, vaddr_t vaddr, size_t size, flags_t flags, MemoryType memory_type)
@@ -769,15 +790,7 @@ namespace Kernel
 		SpinLockGuard _(m_lock);
 		for (size_t page = 0; page < page_count; page++)
 			map_page_at(paddr + page * PAGE_SIZE, vaddr + page * PAGE_SIZE, flags, memory_type, false);
-
-		Processor::broadcast_smp_message({
-			.type = Processor::SMPMessage::Type::FlushTLB,
-			.flush_tlb = {
-				.vaddr      = vaddr,
-				.page_count = page_count,
-				.page_table = vaddr < KERNEL_OFFSET ? this : nullptr,
-			}
-		});
+		invalidate_range(vaddr, page_count, true);
 	}
 
 	uint64_t PageTable::get_page_data(vaddr_t vaddr) const
@@ -824,13 +837,13 @@ namespace Kernel
 		return page_data & s_page_addr_mask;
 	}
 
-	bool PageTable::reserve_page(vaddr_t vaddr, bool only_free, bool send_smp_message)
+	bool PageTable::reserve_page(vaddr_t vaddr, bool only_free, bool invalidate)
 	{
 		SpinLockGuard _(m_lock);
 		ASSERT(vaddr % PAGE_SIZE == 0);
 		if (only_free && !is_page_free(vaddr))
 			return false;
-		map_page_at(0, vaddr, Flags::Reserved, MemoryType::Normal, send_smp_message);
+		map_page_at(0, vaddr, Flags::Reserved, MemoryType::Normal, invalidate);
 		return true;
 	}
 
@@ -845,14 +858,7 @@ namespace Kernel
 			return false;
 		for (size_t offset = 0; offset < bytes; offset += PAGE_SIZE)
 			reserve_page(vaddr + offset, true, false);
-		Processor::broadcast_smp_message({
-			.type = Processor::SMPMessage::Type::FlushTLB,
-			.flush_tlb = {
-				.vaddr      = vaddr,
-				.page_count = bytes / PAGE_SIZE,
-				.page_table = vaddr < KERNEL_OFFSET ? this : nullptr,
-			}
-		});
+		invalidate_range(vaddr, bytes / PAGE_SIZE, true);
 		return true;
 	}
 
@@ -868,7 +874,7 @@ namespace Kernel
 		ASSERT(is_canonical(first_address));
 		ASSERT(is_canonical(last_address - 1));
 		const vaddr_t uc_vaddr_start = uncanonicalize(first_address);
-		const vaddr_t uc_vaddr_end   = uncanonicalize(last_address);
+		const vaddr_t uc_vaddr_end   = uncanonicalize(last_address - 1);
 
 		uint16_t pml4e = (uc_vaddr_start >> 39) & 0x1FF;
 		uint16_t pdpte = (uc_vaddr_start >> 30) & 0x1FF;
@@ -885,10 +891,8 @@ namespace Kernel
 		// Try to find free page that can be mapped without
 		// allocations (page table with unused entries)
 		const uint64_t* pml4 = P2V(m_highest_paging_struct);
-		for (; pml4e < 512; pml4e++)
+		for (; pml4e <= e_pml4e; pml4e++)
 		{
-			if (pml4e > e_pml4e)
-				break;
 			if (!(pml4[pml4e] & Flags::Present))
 				continue;
 			const uint64_t* pdpt = P2V(pml4[pml4e] & s_page_addr_mask);
@@ -908,22 +912,24 @@ namespace Kernel
 					const uint64_t* pt = P2V(pd[pde] & s_page_addr_mask);
 					for (; pte < 512; pte++)
 					{
-						if (pml4e == e_pml4e && pdpte == e_pdpte && pde == e_pde && pte >= e_pte)
+						if (pml4e == e_pml4e && pdpte == e_pdpte && pde == e_pde && pte > e_pte)
 							break;
-						if (!(pt[pte] & Flags::Used))
-						{
-							vaddr_t vaddr = 0;
-							vaddr |= static_cast<uint64_t>(pml4e) << 39;
-							vaddr |= static_cast<uint64_t>(pdpte) << 30;
-							vaddr |= static_cast<uint64_t>(pde)   << 21;
-							vaddr |= static_cast<uint64_t>(pte)   << 12;
-							vaddr = canonicalize(vaddr);
-							ASSERT(reserve_page(vaddr));
-							return vaddr;
-						}
+						if (pt[pte] & Flags::Used)
+							continue;
+						vaddr_t vaddr = 0;
+						vaddr |= static_cast<uint64_t>(pml4e) << 39;
+						vaddr |= static_cast<uint64_t>(pdpte) << 30;
+						vaddr |= static_cast<uint64_t>(pde)   << 21;
+						vaddr |= static_cast<uint64_t>(pte)   << 12;
+						vaddr = canonicalize(vaddr);
+						ASSERT(reserve_page(vaddr));
+						return vaddr;
 					}
+					pte = 0;
 				}
+				pde = 0;
 			}
+			pdpte = 0;
 		}
 
 		for (vaddr_t uc_vaddr = uc_vaddr_start; uc_vaddr < uc_vaddr_end; uc_vaddr += PAGE_SIZE)

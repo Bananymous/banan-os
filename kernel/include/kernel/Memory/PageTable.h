@@ -100,10 +100,10 @@ namespace Kernel
 		static BAN::ErrorOr<PageTable*> create_userspace();
 		~PageTable();
 
-		void unmap_page(vaddr_t, bool send_smp_message = true);
+		void unmap_page(vaddr_t, bool invalidate = true);
 		void unmap_range(vaddr_t, size_t bytes);
 
-		void map_page_at(paddr_t, vaddr_t, flags_t, MemoryType = MemoryType::Normal, bool send_smp_message = true);
+		void map_page_at(paddr_t, vaddr_t, flags_t, MemoryType = MemoryType::Normal, bool invalidate = true);
 		void map_range_at(paddr_t, vaddr_t, size_t bytes, flags_t, MemoryType = MemoryType::Normal);
 
 		paddr_t physical_address_of(vaddr_t) const;
@@ -112,7 +112,7 @@ namespace Kernel
 		bool is_page_free(vaddr_t) const;
 		bool is_range_free(vaddr_t, size_t bytes) const;
 
-		bool reserve_page(vaddr_t, bool only_free = true, bool send_smp_message = true);
+		bool reserve_page(vaddr_t, bool only_free = true, bool invalidate = true);
 		bool reserve_range(vaddr_t, size_t bytes, bool only_free = true);
 
 		vaddr_t reserve_free_page(vaddr_t first_address, vaddr_t last_address = UINTPTR_MAX);
@@ -120,6 +120,9 @@ namespace Kernel
 
 		void load();
 		void initial_load();
+
+		void invalidate_page(vaddr_t addr, bool send_smp_message) { invalidate_range(addr, 1, send_smp_message); }
+		void invalidate_range(vaddr_t addr, size_t pages, bool send_smp_message);
 
 		InterruptState lock() const { return m_lock.lock(); }
 		void unlock(InterruptState state) const { m_lock.unlock(state); }
@@ -132,8 +135,6 @@ namespace Kernel
 		void initialize_kernel();
 		void map_kernel_memory();
 		void prepare_fast_page();
-
-		void invalidate(vaddr_t, bool send_smp_message);
 
 		static void map_fast_page(paddr_t);
 		static void unmap_fast_page();
