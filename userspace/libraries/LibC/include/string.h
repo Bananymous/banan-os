@@ -42,6 +42,7 @@ char*	strndup(const char* s, size_t n);
 size_t	strnlen(const char* s, size_t maxlen);
 char*	strpbrk(const char* s1, const char* s2);
 char*	strrchr(const char* s, int c);
+char*	strsep(char** __restrict stringp, const char* __restrict delim);
 char*	strsignal(int signum);
 size_t	strspn(const char* s1, const char* s2);
 char*	strstr(const char* s1, const char* s2);

@@ -274,6 +274,25 @@ char* strrchr(const char* str, int c)
 	return (*str == c) ? (char*)str : nullptr;
 }
 
+char* strsep(char** __restrict stringp, const char* __restrict delim)
+{
+	if (*stringp == nullptr)
+		return nullptr;
+
+	char* original = *stringp;
+
+	char* match = strpbrk(*stringp, delim);
+	if (match == nullptr)
+		*stringp = nullptr;
+	else
+	{
+		*stringp = match + 1;
+		*match = '\0';
+	}
+
+	return original;
+}
+
 char* strstr(const char* haystack, const char* needle)
 {
 	const size_t needle_len = strlen(needle);
