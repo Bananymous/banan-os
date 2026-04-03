@@ -1,6 +1,6 @@
 diff -ruN SDL2-2.32.8/cmake/sdlplatform.cmake SDL2-2.32.8-banan_os/cmake/sdlplatform.cmake
 --- SDL2-2.32.8/cmake/sdlplatform.cmake	2024-08-14 13:35:43.000000000 +0300
-+++ SDL2-2.32.8-banan_os/cmake/sdlplatform.cmake	2026-01-07 19:04:34.332166371 +0200
++++ SDL2-2.32.8-banan_os/cmake/sdlplatform.cmake	2026-04-03 04:34:27.256800208 +0300
 @@ -28,6 +28,8 @@
        set(SDL_CMAKE_PLATFORM AIX)
      elseif(CMAKE_SYSTEM_NAME MATCHES "Minix.*")
@@ -12,7 +12,7 @@ diff -ruN SDL2-2.32.8/cmake/sdlplatform.cmake SDL2-2.32.8-banan_os/cmake/sdlplat
      endif()
 diff -ruN SDL2-2.32.8/CMakeLists.txt SDL2-2.32.8-banan_os/CMakeLists.txt
 --- SDL2-2.32.8/CMakeLists.txt	2025-06-03 02:00:39.000000000 +0300
-+++ SDL2-2.32.8-banan_os/CMakeLists.txt	2026-01-07 19:04:34.343116295 +0200
++++ SDL2-2.32.8-banan_os/CMakeLists.txt	2026-04-03 04:34:27.257159543 +0300
 @@ -14,7 +14,7 @@
    set(SDL2_SUBPROJECT ON)
  endif()
@@ -98,7 +98,7 @@ diff -ruN SDL2-2.32.8/CMakeLists.txt SDL2-2.32.8-banan_os/CMakeLists.txt
      file(GLOB MISC_SOURCES ${SDL2_SOURCE_DIR}/src/misc/riscos/*.c)
 diff -ruN SDL2-2.32.8/include/SDL_config.h.cmake SDL2-2.32.8-banan_os/include/SDL_config.h.cmake
 --- SDL2-2.32.8/include/SDL_config.h.cmake	2025-01-01 17:47:53.000000000 +0200
-+++ SDL2-2.32.8-banan_os/include/SDL_config.h.cmake	2026-01-07 19:04:34.358682129 +0200
++++ SDL2-2.32.8-banan_os/include/SDL_config.h.cmake	2026-04-03 04:34:27.257563019 +0300
 @@ -307,6 +307,7 @@
  #cmakedefine SDL_AUDIO_DRIVER_FUSIONSOUND @SDL_AUDIO_DRIVER_FUSIONSOUND@
  #cmakedefine SDL_AUDIO_DRIVER_FUSIONSOUND_DYNAMIC @SDL_AUDIO_DRIVER_FUSIONSOUND_DYNAMIC@
@@ -125,7 +125,7 @@ diff -ruN SDL2-2.32.8/include/SDL_config.h.cmake SDL2-2.32.8-banan_os/include/SD
  #cmakedefine SDL_VIDEO_DRIVER_DIRECTFB @SDL_VIDEO_DRIVER_DIRECTFB@
 diff -ruN SDL2-2.32.8/include/SDL_platform.h SDL2-2.32.8-banan_os/include/SDL_platform.h
 --- SDL2-2.32.8/include/SDL_platform.h	2025-01-01 17:47:53.000000000 +0200
-+++ SDL2-2.32.8-banan_os/include/SDL_platform.h	2026-01-07 19:04:34.370086235 +0200
++++ SDL2-2.32.8-banan_os/include/SDL_platform.h	2026-04-03 04:34:27.257711782 +0300
 @@ -36,6 +36,10 @@
  #undef __HAIKU__
  #define __HAIKU__   1
@@ -139,8 +139,8 @@ diff -ruN SDL2-2.32.8/include/SDL_platform.h SDL2-2.32.8-banan_os/include/SDL_pl
  #define __BSDI__    1
 diff -ruN SDL2-2.32.8/src/audio/banan_os/SDL_banan_os_audio.cpp SDL2-2.32.8-banan_os/src/audio/banan_os/SDL_banan_os_audio.cpp
 --- SDL2-2.32.8/src/audio/banan_os/SDL_banan_os_audio.cpp	1970-01-01 02:00:00.000000000 +0200
-+++ SDL2-2.32.8-banan_os/src/audio/banan_os/SDL_banan_os_audio.cpp	2026-01-07 19:04:34.370691623 +0200
-@@ -0,0 +1,150 @@
++++ SDL2-2.32.8-banan_os/src/audio/banan_os/SDL_banan_os_audio.cpp	2026-04-03 16:06:27.541819001 +0300
+@@ -0,0 +1,134 @@
 +/*
 +  Simple DirectMedia Layer
 +  Copyright (C) 1997-2019 Sam Lantinga <slouken@libsdl.org>
@@ -154,11 +154,11 @@ diff -ruN SDL2-2.32.8/src/audio/banan_os/SDL_banan_os_audio.cpp SDL2-2.32.8-bana
 +  freely, subject to the following restrictions:
 +
 +  1. The origin of this software must not be misrepresented; you must not
-+     claim that you wrote the original software. If you use this software
-+     in a product, an acknowledgment in the product documentation would be
-+     appreciated but is not required.
++	 claim that you wrote the original software. If you use this software
++	 in a product, an acknowledgment in the product documentation would be
++	 appreciated but is not required.
 +  2. Altered source versions must be plainly marked as such, and must not be
-+     misrepresented as being the original software.
++	 misrepresented as being the original software.
 +  3. This notice may not be removed or altered from any source distribution.
 +*/
 +#include "../../SDL_internal.h"
@@ -201,8 +201,8 @@ diff -ruN SDL2-2.32.8/src/audio/banan_os/SDL_banan_os_audio.cpp SDL2-2.32.8-bana
 +	DUMP_FUNCTION();
 +
 +	// TODO: try to accept already existing spec
-+	_this->spec.freq = 44100;
-+	_this->spec.format = AUDIO_S16LSB;
++	_this->spec.freq = 48000;
++	_this->spec.format = AUDIO_F32LSB;
 +	_this->spec.channels = 2;
 +	_this->spec.samples = 2048;
 +	SDL_CalculateAudioSpec(&_this->spec);
@@ -229,38 +229,22 @@ diff -ruN SDL2-2.32.8/src/audio/banan_os/SDL_banan_os_audio.cpp SDL2-2.32.8-bana
 +
 +	const bool should_play = SDL_AtomicGet(&_this->enabled) && !SDL_AtomicGet(&_this->paused);
 +	_this->hidden->audio.set_paused(!should_play);
-+    if (!should_play)
++	if (!should_play)
 +	{
 +		usleep(100);
 +		return;
 +	}
 +
-+	static_assert(BAN::is_same_v<LibAudio::AudioBuffer::sample_t, double>);
-+
-+    const auto convert_sample = [](int16_t input) {
-+        return (static_cast<double>(input) - BAN::numeric_limits<int16_t>::min()) / BAN::numeric_limits<int16_t>::max() * 2.0 - 1.0;
-+    };
-+
-+	const size_t input_samples = _this->spec.size / sizeof(int16_t);
-+	size_t samples_queued = 0;
-+
-+	const int16_t* mixbuf = static_cast<const int16_t*>(_this->hidden->mixbuf);
-+	while (samples_queued < input_samples)
++	auto sample_span = BAN::Span(
++		static_cast<const float*>(_this->hidden->mixbuf),
++		_this->spec.size / sizeof(float)
++	);
++	while (!sample_span.empty())
 +	{
-+		const size_t to_convert = BAN::Math::min(_this->hidden->conversion.size(), input_samples - samples_queued);
-+		for (size_t i = 0; i < to_convert; i++)
-+			_this->hidden->conversion[i] = convert_sample(mixbuf[samples_queued + i]);
-+
-+		auto sample_span = _this->hidden->conversion.span();
-+		while (!sample_span.empty())
-+		{
-+			const size_t queued = _this->hidden->audio.queue_samples(sample_span);
-+			if (queued == 0)
-+				usleep(100);
-+			sample_span = sample_span.slice(queued);
-+		}
-+
-+		samples_queued += to_convert;
++		const size_t queued = _this->hidden->audio.queue_samples(sample_span);
++		if (queued == 0)
++			usleep(100);
++		sample_span = sample_span.slice(queued);
 +	}
 +}
 +
@@ -268,33 +252,33 @@ diff -ruN SDL2-2.32.8/src/audio/banan_os/SDL_banan_os_audio.cpp SDL2-2.32.8-bana
 +{
 +	DUMP_FUNCTION();
 +
-+    return static_cast<Uint8*>(_this->hidden->mixbuf);
++	return static_cast<Uint8*>(_this->hidden->mixbuf);
 +}
 +
 +static SDL_bool BANANOS_Init(SDL_AudioDriverImpl* impl)
 +{
-+    impl->OpenDevice = BANANOS_OpenDevice;
-+    impl->CloseDevice = BANANOS_CloseDevice;
-+    impl->PlayDevice = BANANOS_PlayDevice;
++	impl->OpenDevice = BANANOS_OpenDevice;
++	impl->CloseDevice = BANANOS_CloseDevice;
++	impl->PlayDevice = BANANOS_PlayDevice;
 +	impl->GetDeviceBuf = BANANOS_GetDeviceBuf;
 +
-+    impl->ProvidesOwnCallbackThread  = SDL_FALSE;
-+    impl->HasCaptureSupport          = SDL_FALSE;
-+    impl->OnlyHasDefaultOutputDevice = SDL_TRUE;
-+    impl->SupportsNonPow2Samples     = SDL_TRUE;
++	impl->ProvidesOwnCallbackThread  = SDL_FALSE;
++	impl->HasCaptureSupport          = SDL_FALSE;
++	impl->OnlyHasDefaultOutputDevice = SDL_TRUE;
++	impl->SupportsNonPow2Samples     = SDL_TRUE;
 +
-+    return SDL_TRUE;
++	return SDL_TRUE;
 +}
 +
 +AudioBootStrap BANANOSAUDIO_bootstrap = {
-+    "banan-os", "banan-os AudioServer", BANANOS_Init, SDL_FALSE
++	"banan-os", "banan-os AudioServer", BANANOS_Init, SDL_FALSE
 +};
 +
 +#endif
 diff -ruN SDL2-2.32.8/src/audio/banan_os/SDL_banan_os_audio.h SDL2-2.32.8-banan_os/src/audio/banan_os/SDL_banan_os_audio.h
 --- SDL2-2.32.8/src/audio/banan_os/SDL_banan_os_audio.h	1970-01-01 02:00:00.000000000 +0200
-+++ SDL2-2.32.8-banan_os/src/audio/banan_os/SDL_banan_os_audio.h	2026-01-07 19:04:34.370883199 +0200
-@@ -0,0 +1,34 @@
++++ SDL2-2.32.8-banan_os/src/audio/banan_os/SDL_banan_os_audio.h	2026-04-03 15:56:58.603415021 +0300
+@@ -0,0 +1,33 @@
 +/*
 +  Simple DirectMedia Layer
 +  Copyright (C) 1997-2019 Sam Lantinga <slouken@libsdl.org>
@@ -327,11 +311,10 @@ diff -ruN SDL2-2.32.8/src/audio/banan_os/SDL_banan_os_audio.h SDL2-2.32.8-banan_
 +struct SDL_PrivateAudioData {
 +	LibAudio::Audio audio;
 +	void* mixbuf { nullptr };
-+	BAN::Array<LibAudio::AudioBuffer::sample_t, 4096> conversion;
 +};
 diff -ruN SDL2-2.32.8/src/audio/SDL_audio.c SDL2-2.32.8-banan_os/src/audio/SDL_audio.c
 --- SDL2-2.32.8/src/audio/SDL_audio.c	2025-01-01 17:47:53.000000000 +0200
-+++ SDL2-2.32.8-banan_os/src/audio/SDL_audio.c	2026-01-07 19:04:34.371410923 +0200
++++ SDL2-2.32.8-banan_os/src/audio/SDL_audio.c	2026-04-03 04:34:27.258080476 +0300
 @@ -87,6 +87,9 @@
  #ifdef SDL_AUDIO_DRIVER_HAIKU
      &HAIKUAUDIO_bootstrap,
@@ -344,7 +327,7 @@ diff -ruN SDL2-2.32.8/src/audio/SDL_audio.c SDL2-2.32.8-banan_os/src/audio/SDL_a
  #endif
 diff -ruN SDL2-2.32.8/src/audio/SDL_sysaudio.h SDL2-2.32.8-banan_os/src/audio/SDL_sysaudio.h
 --- SDL2-2.32.8/src/audio/SDL_sysaudio.h	2025-01-01 17:47:53.000000000 +0200
-+++ SDL2-2.32.8-banan_os/src/audio/SDL_sysaudio.h	2026-01-07 19:04:34.372150756 +0200
++++ SDL2-2.32.8-banan_os/src/audio/SDL_sysaudio.h	2026-04-03 04:34:27.258278128 +0300
 @@ -196,6 +196,7 @@
  extern AudioBootStrap WINMM_bootstrap;
  extern AudioBootStrap PAUDIO_bootstrap;
@@ -355,7 +338,7 @@ diff -ruN SDL2-2.32.8/src/audio/SDL_sysaudio.h SDL2-2.32.8-banan_os/src/audio/SD
  extern AudioBootStrap DUMMYAUDIO_bootstrap;
 diff -ruN SDL2-2.32.8/src/joystick/banan_os/SDL_banan_os_joystick.cpp SDL2-2.32.8-banan_os/src/joystick/banan_os/SDL_banan_os_joystick.cpp
 --- SDL2-2.32.8/src/joystick/banan_os/SDL_banan_os_joystick.cpp	1970-01-01 02:00:00.000000000 +0200
-+++ SDL2-2.32.8-banan_os/src/joystick/banan_os/SDL_banan_os_joystick.cpp	2026-01-07 19:07:12.677617077 +0200
++++ SDL2-2.32.8-banan_os/src/joystick/banan_os/SDL_banan_os_joystick.cpp	2026-04-03 04:34:27.258447075 +0300
 @@ -0,0 +1,296 @@
 +/*
 +Simple DirectMedia Layer
@@ -655,7 +638,7 @@ diff -ruN SDL2-2.32.8/src/joystick/banan_os/SDL_banan_os_joystick.cpp SDL2-2.32.
 +/* vi: set ts=4 sw=4 expandtab: */
 diff -ruN SDL2-2.32.8/src/joystick/SDL_joystick.c SDL2-2.32.8-banan_os/src/joystick/SDL_joystick.c
 --- SDL2-2.32.8/src/joystick/SDL_joystick.c	2025-01-01 17:47:53.000000000 +0200
-+++ SDL2-2.32.8-banan_os/src/joystick/SDL_joystick.c	2026-01-07 19:04:34.373890653 +0200
++++ SDL2-2.32.8-banan_os/src/joystick/SDL_joystick.c	2026-04-03 04:34:27.258656321 +0300
 @@ -85,6 +85,9 @@
  #ifdef SDL_JOYSTICK_HAIKU
      &SDL_HAIKU_JoystickDriver,
@@ -668,7 +651,7 @@ diff -ruN SDL2-2.32.8/src/joystick/SDL_joystick.c SDL2-2.32.8-banan_os/src/joyst
  #endif
 diff -ruN SDL2-2.32.8/src/joystick/SDL_sysjoystick.h SDL2-2.32.8-banan_os/src/joystick/SDL_sysjoystick.h
 --- SDL2-2.32.8/src/joystick/SDL_sysjoystick.h	2025-01-01 17:47:53.000000000 +0200
-+++ SDL2-2.32.8-banan_os/src/joystick/SDL_sysjoystick.h	2026-01-07 19:04:34.374337431 +0200
++++ SDL2-2.32.8-banan_os/src/joystick/SDL_sysjoystick.h	2026-04-03 04:34:27.259001479 +0300
 @@ -235,6 +235,7 @@
  
  /* The available joystick drivers */
@@ -679,7 +662,7 @@ diff -ruN SDL2-2.32.8/src/joystick/SDL_sysjoystick.h SDL2-2.32.8-banan_os/src/jo
  extern SDL_JoystickDriver SDL_DUMMY_JoystickDriver;
 diff -ruN SDL2-2.32.8/src/misc/banan_os/SDL_sysurl.cpp SDL2-2.32.8-banan_os/src/misc/banan_os/SDL_sysurl.cpp
 --- SDL2-2.32.8/src/misc/banan_os/SDL_sysurl.cpp	1970-01-01 02:00:00.000000000 +0200
-+++ SDL2-2.32.8-banan_os/src/misc/banan_os/SDL_sysurl.cpp	2026-01-07 19:04:34.379748697 +0200
++++ SDL2-2.32.8-banan_os/src/misc/banan_os/SDL_sysurl.cpp	2026-04-03 04:34:27.259173778 +0300
 @@ -0,0 +1,30 @@
 +/*
 +  Simple DirectMedia Layer
@@ -713,7 +696,7 @@ diff -ruN SDL2-2.32.8/src/misc/banan_os/SDL_sysurl.cpp SDL2-2.32.8-banan_os/src/
 +
 diff -ruN SDL2-2.32.8/src/video/banan_os/SDL_banan_os_clipboard.cpp SDL2-2.32.8-banan_os/src/video/banan_os/SDL_banan_os_clipboard.cpp
 --- SDL2-2.32.8/src/video/banan_os/SDL_banan_os_clipboard.cpp	1970-01-01 02:00:00.000000000 +0200
-+++ SDL2-2.32.8-banan_os/src/video/banan_os/SDL_banan_os_clipboard.cpp	2026-01-07 19:04:34.379995308 +0200
++++ SDL2-2.32.8-banan_os/src/video/banan_os/SDL_banan_os_clipboard.cpp	2026-04-03 04:34:27.259271557 +0300
 @@ -0,0 +1,51 @@
 +/*
 +  Simple DirectMedia Layer
@@ -768,7 +751,7 @@ diff -ruN SDL2-2.32.8/src/video/banan_os/SDL_banan_os_clipboard.cpp SDL2-2.32.8-
 +/* vi: set ts=4 sw=4 expandtab: */
 diff -ruN SDL2-2.32.8/src/video/banan_os/SDL_banan_os_clipboard.h SDL2-2.32.8-banan_os/src/video/banan_os/SDL_banan_os_clipboard.h
 --- SDL2-2.32.8/src/video/banan_os/SDL_banan_os_clipboard.h	1970-01-01 02:00:00.000000000 +0200
-+++ SDL2-2.32.8-banan_os/src/video/banan_os/SDL_banan_os_clipboard.h	2026-01-07 19:04:34.380137576 +0200
++++ SDL2-2.32.8-banan_os/src/video/banan_os/SDL_banan_os_clipboard.h	2026-04-03 04:34:27.259318700 +0300
 @@ -0,0 +1,43 @@
 +/*
 +  Simple DirectMedia Layer
@@ -815,7 +798,7 @@ diff -ruN SDL2-2.32.8/src/video/banan_os/SDL_banan_os_clipboard.h SDL2-2.32.8-ba
 +/* vi: set ts=4 sw=4 expandtab: */
 diff -ruN SDL2-2.32.8/src/video/banan_os/SDL_banan_os_message_box.cpp SDL2-2.32.8-banan_os/src/video/banan_os/SDL_banan_os_message_box.cpp
 --- SDL2-2.32.8/src/video/banan_os/SDL_banan_os_message_box.cpp	1970-01-01 02:00:00.000000000 +0200
-+++ SDL2-2.32.8-banan_os/src/video/banan_os/SDL_banan_os_message_box.cpp	2026-01-07 19:04:34.380308339 +0200
++++ SDL2-2.32.8-banan_os/src/video/banan_os/SDL_banan_os_message_box.cpp	2026-04-03 04:34:27.259375481 +0300
 @@ -0,0 +1,60 @@
 +/*
 +  Simple DirectMedia Layer
@@ -879,7 +862,7 @@ diff -ruN SDL2-2.32.8/src/video/banan_os/SDL_banan_os_message_box.cpp SDL2-2.32.
 +/* vi: set ts=4 sw=4 expandtab: */
 diff -ruN SDL2-2.32.8/src/video/banan_os/SDL_banan_os_message_box.h SDL2-2.32.8-banan_os/src/video/banan_os/SDL_banan_os_message_box.h
 --- SDL2-2.32.8/src/video/banan_os/SDL_banan_os_message_box.h	1970-01-01 02:00:00.000000000 +0200
-+++ SDL2-2.32.8-banan_os/src/video/banan_os/SDL_banan_os_message_box.h	2026-01-07 19:04:34.380550899 +0200
++++ SDL2-2.32.8-banan_os/src/video/banan_os/SDL_banan_os_message_box.h	2026-04-03 04:34:27.259437082 +0300
 @@ -0,0 +1,45 @@
 +/*
 +  Simple DirectMedia Layer
@@ -928,7 +911,7 @@ diff -ruN SDL2-2.32.8/src/video/banan_os/SDL_banan_os_message_box.h SDL2-2.32.8-
 +/* vi: set ts=4 sw=4 expandtab: */
 diff -ruN SDL2-2.32.8/src/video/banan_os/SDL_banan_os_video.cpp SDL2-2.32.8-banan_os/src/video/banan_os/SDL_banan_os_video.cpp
 --- SDL2-2.32.8/src/video/banan_os/SDL_banan_os_video.cpp	1970-01-01 02:00:00.000000000 +0200
-+++ SDL2-2.32.8-banan_os/src/video/banan_os/SDL_banan_os_video.cpp	2026-01-07 19:04:34.380720824 +0200
++++ SDL2-2.32.8-banan_os/src/video/banan_os/SDL_banan_os_video.cpp	2026-04-03 04:34:27.259503082 +0300
 @@ -0,0 +1,729 @@
 +/*
 +  Simple DirectMedia Layer
@@ -1661,7 +1644,7 @@ diff -ruN SDL2-2.32.8/src/video/banan_os/SDL_banan_os_video.cpp SDL2-2.32.8-bana
 +/* vi: set ts=4 sw=4 expandtab: */
 diff -ruN SDL2-2.32.8/src/video/SDL_sysvideo.h SDL2-2.32.8-banan_os/src/video/SDL_sysvideo.h
 --- SDL2-2.32.8/src/video/SDL_sysvideo.h	2025-05-20 00:24:41.000000000 +0300
-+++ SDL2-2.32.8-banan_os/src/video/SDL_sysvideo.h	2026-01-07 19:04:34.381316574 +0200
++++ SDL2-2.32.8-banan_os/src/video/SDL_sysvideo.h	2026-04-03 04:34:27.259743826 +0300
 @@ -462,6 +462,7 @@
  extern VideoBootStrap WINDOWS_bootstrap;
  extern VideoBootStrap WINRT_bootstrap;
@@ -1672,7 +1655,7 @@ diff -ruN SDL2-2.32.8/src/video/SDL_sysvideo.h SDL2-2.32.8-banan_os/src/video/SD
  extern VideoBootStrap Android_bootstrap;
 diff -ruN SDL2-2.32.8/src/video/SDL_video.c SDL2-2.32.8-banan_os/src/video/SDL_video.c
 --- SDL2-2.32.8/src/video/SDL_video.c	2025-05-20 00:24:41.000000000 +0300
-+++ SDL2-2.32.8-banan_os/src/video/SDL_video.c	2026-01-07 19:04:34.398132645 +0200
++++ SDL2-2.32.8-banan_os/src/video/SDL_video.c	2026-04-03 04:34:27.260110007 +0300
 @@ -96,6 +96,9 @@
  #ifdef SDL_VIDEO_DRIVER_HAIKU
      &HAIKU_bootstrap,
