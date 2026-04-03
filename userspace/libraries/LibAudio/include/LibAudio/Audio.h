@@ -11,7 +11,7 @@ namespace LibAudio
 
 	struct AudioBuffer
 	{
-		using sample_t = double;
+		using sample_t = float;
 
 		uint32_t sample_rate;
 		uint32_t channels;
