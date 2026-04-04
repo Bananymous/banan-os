@@ -455,14 +455,14 @@ static void handle_tls_relocation(const LoadedElf& elf, const RelocT& reloc)
 #elif defined(__i686__)
 	switch (ELF32_R_TYPE(reloc.r_info))
 	{
-		case R_386_TLS_TPOFF:
-			*reinterpret_cast<uint32_t*>(elf.base + reloc.r_offset) = symbol_offset - symbol_elf->tls_offset;
-			break;
 		case R_386_TLS_DTPMOD32:
 			*reinterpret_cast<uint32_t*>(elf.base + reloc.r_offset) = symbol_elf->tls_module;
 			break;
 		case R_386_TLS_DTPOFF32:
 			*reinterpret_cast<uint32_t*>(elf.base + reloc.r_offset) = symbol_offset;
+			break;
+		case R_386_TLS_TPOFF:
+			*reinterpret_cast<uint32_t*>(elf.base + reloc.r_offset) = symbol_offset - symbol_elf->tls_offset;
 			break;
 		default:
 			print(STDERR_FILENO, "unsupported tls reloc type ");
@@ -589,7 +589,7 @@ static uintptr_t handle_relocation(const LoadedElf& elf, const RelocT& reloc, bo
 			break;
 		case R_386_PC32:
 			size = 4;
-			value = symbol_address - reloc.r_offset;
+			value = symbol_address - (elf.base + reloc.r_offset);
 			add_addend = true;
 			break;
 		case R_386_GLOB_DAT:
