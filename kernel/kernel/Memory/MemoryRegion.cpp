@@ -22,8 +22,10 @@ namespace Kernel
 
 	BAN::ErrorOr<void> MemoryRegion::initialize(AddressRange address_range)
 	{
-		size_t needed_pages = BAN::Math::div_round_up<size_t>(m_size, PAGE_SIZE);
-		m_vaddr = m_page_table.reserve_free_contiguous_pages(needed_pages, address_range.start);
+		if (auto rem = address_range.end % PAGE_SIZE)
+			address_range.end += PAGE_SIZE - rem;
+		const size_t needed_pages = BAN::Math::div_round_up<size_t>(m_size, PAGE_SIZE);
+		m_vaddr = m_page_table.reserve_free_contiguous_pages(needed_pages, address_range.start, address_range.end);
 		if (m_vaddr == 0)
 			return BAN::Error::from_errno(ENOMEM);
 		if (m_vaddr + m_size > address_range.end)
