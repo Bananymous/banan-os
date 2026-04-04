@@ -110,36 +110,6 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<BAN::UniqPtr<VirtualRange>> VirtualRange::clone(PageTable& page_table)
-	{
-		ASSERT(&PageTable::current() == &m_page_table);
-		ASSERT(&m_page_table != &page_table);
-
-		SpinLockGuard _(m_lock);
-
-		auto result = TRY(create_to_vaddr(page_table, vaddr(), size(), m_flags, m_preallocated, m_has_guard_pages));
-
-		const size_t page_count = size() / PAGE_SIZE;
-		for (size_t i = 0; i < page_count; i++)
-		{
-			if (m_paddrs[i] == 0)
-				continue;
-			if (!result->m_preallocated)
-			{
-				result->m_paddrs[i] = Heap::get().take_free_page();
-				if (result->m_paddrs[i] == 0)
-					return BAN::Error::from_errno(ENOMEM);
-				result->m_page_table.map_page_at(result->m_paddrs[i], vaddr() + i * PAGE_SIZE, m_flags);
-			}
-
-			PageTable::with_fast_page(result->m_paddrs[i], [&] {
-				memcpy(PageTable::fast_page_as_ptr(), reinterpret_cast<void*>(vaddr() + i * PAGE_SIZE), PAGE_SIZE);
-			});
-		}
-
-		return result;
-	}
-
 	BAN::ErrorOr<bool> VirtualRange::allocate_page_for_demand_paging(vaddr_t vaddr)
 	{
 		ASSERT(contains(vaddr));

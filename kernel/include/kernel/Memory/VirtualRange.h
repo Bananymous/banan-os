@@ -20,8 +20,6 @@ namespace Kernel
 		static BAN::ErrorOr<BAN::UniqPtr<VirtualRange>> create_to_vaddr_range(PageTable&, vaddr_t vaddr_start, vaddr_t vaddr_end, size_t, PageTable::flags_t flags, bool preallocate_pages, bool add_guard_pages);
 		~VirtualRange();
 
-		BAN::ErrorOr<BAN::UniqPtr<VirtualRange>> clone(PageTable&);
-
 		vaddr_t vaddr() const { return m_vaddr + (m_has_guard_pages ? PAGE_SIZE : 0); }
 		size_t size() const { return m_size - (m_has_guard_pages ? 2 * PAGE_SIZE : 0); }
 		PageTable::flags_t flags() const { return m_flags; }

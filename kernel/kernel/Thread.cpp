@@ -13,6 +13,12 @@
 namespace Kernel
 {
 
+#if ARCH(x86_64)
+	static constexpr vaddr_t s_user_stack_addr_start = 0x0000700000000000;
+#elif ARCH(i686)
+	static constexpr vaddr_t s_user_stack_addr_start = 0xB0000000;
+#endif
+
 	extern "C" [[noreturn]] void start_kernel_thread();
 	extern "C" [[noreturn]] void start_userspace_thread();
 
@@ -200,15 +206,9 @@ namespace Kernel
 
 		thread->m_is_userspace = true;
 
-#if ARCH(x86_64)
-		static constexpr vaddr_t stack_addr_start = 0x0000700000000000;
-#elif ARCH(i686)
-		static constexpr vaddr_t stack_addr_start = 0xB0000000;
-#endif
-
 		thread->m_kernel_stack = TRY(VirtualRange::create_to_vaddr_range(
 			page_table,
-			stack_addr_start, USERSPACE_END,
+			s_user_stack_addr_start, USERSPACE_END,
 			kernel_stack_size,
 			PageTable::Flags::ReadWrite | PageTable::Flags::Present,
 			true, true
@@ -217,7 +217,7 @@ namespace Kernel
 		auto userspace_stack = TRY(MemoryBackedRegion::create(
 			page_table,
 			userspace_stack_size,
-			{ stack_addr_start, USERSPACE_END },
+			{ s_user_stack_addr_start, USERSPACE_END },
 			MemoryRegion::Type::PRIVATE,
 			PageTable::Flags::UserSupervisor | PageTable::Flags::ReadWrite | PageTable::Flags::Present,
 			O_RDWR
@@ -346,7 +346,24 @@ namespace Kernel
 
 		thread->m_is_userspace = true;
 
-		thread->m_kernel_stack = TRY(m_kernel_stack->clone(new_process->page_table()));
+		thread->m_kernel_stack = TRY(VirtualRange::create_to_vaddr_range(
+			new_process->page_table(),
+			s_user_stack_addr_start, USERSPACE_END,
+			kernel_stack_size,
+			PageTable::Flags::ReadWrite | PageTable::Flags::Present,
+			true, true
+		));
+
+		// NOTE: copy [sp, stack_end] so fork return works
+		PageTable::with_fast_page(thread->m_kernel_stack->paddr_of(thread->kernel_stack_top() - PAGE_SIZE), [&] {
+			const size_t ncopy = kernel_stack_top() - sp;
+			ASSERT(ncopy <= PAGE_SIZE);
+			memcpy(
+				PageTable::fast_page_as_ptr(PAGE_SIZE - ncopy),
+				reinterpret_cast<void*>(sp),
+				ncopy
+			);
+		});
 
 		const auto stack_index = new_process->find_mapped_region(m_userspace_stack->vaddr());
 		thread->m_userspace_stack = static_cast<MemoryBackedRegion*>(new_process->m_mapped_regions[stack_index].ptr());
