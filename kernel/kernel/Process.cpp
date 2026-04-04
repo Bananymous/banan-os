@@ -3047,7 +3047,7 @@ namespace Kernel
 			TRY(read_from_user(user_act, &new_act, sizeof(struct sigaction)));
 
 		{
-			SpinLockGuard signal_lock_guard(m_signal_lock);
+			SpinLockGuard _(m_signal_lock);
 			old_act = m_signal_handlers[signal];
 			if (user_act != nullptr)
 				m_signal_handlers[signal] = new_act;
@@ -3061,7 +3061,14 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_sigpending(sigset_t* user_sigset)
 	{
-		const sigset_t sigset = (signal_pending_mask() | Thread::current().m_signal_pending_mask) & Thread::current().m_signal_block_mask;
+		sigset_t sigset;
+
+		{
+			auto& thread = Thread::current();
+			SpinLockGuard _(thread.m_signal_lock);
+			sigset = (signal_pending_mask() | thread.m_signal_pending_mask) & thread.m_signal_block_mask;
+		}
+
 		TRY(write_to_user(user_sigset, &sigset, sizeof(sigset_t)));
 		return 0;
 	}
@@ -3070,33 +3077,35 @@ namespace Kernel
 	{
 		LockGuard _(m_process_lock);
 
-		if (user_oset != nullptr)
-		{
-			const sigset_t current = Thread::current().m_signal_block_mask;
-			TRY(write_to_user(user_oset, &current, sizeof(sigset_t)));
-		}
+		auto& thread = Thread::current();
+
+		const sigset_t old_sigset = thread.m_signal_block_mask;
 
 		if (user_set != nullptr)
 		{
-			sigset_t set;
-			TRY(read_from_user(user_set, &set, sizeof(sigset_t)));
+			sigset_t mask;
+			TRY(read_from_user(user_set, &mask, sizeof(sigset_t)));
+			mask &= ~((1ull << SIGKILL) | (1ull << SIGSTOP));
 
-			const sigset_t mask = set & ~(SIGKILL | SIGSTOP);
+			SpinLockGuard _(thread.m_signal_lock);
 			switch (how)
 			{
 				case SIG_BLOCK:
-					Thread::current().m_signal_block_mask |= mask;
-					break;
-				case SIG_SETMASK:
-					Thread::current().m_signal_block_mask  = mask;
+					thread.m_signal_block_mask |= mask;
 					break;
 				case SIG_UNBLOCK:
-					Thread::current().m_signal_block_mask &= ~mask;
+					thread.m_signal_block_mask &= ~mask;
+					break;
+				case SIG_SETMASK:
+					thread.m_signal_block_mask = mask;
 					break;
 				default:
 					return BAN::Error::from_errno(EINVAL);
 			}
 		}
+
+		if (user_oset != nullptr)
+			TRY(write_to_user(user_oset, &old_sigset, sizeof(sigset_t)));
 
 		return 0;
 	}
@@ -3109,7 +3118,7 @@ namespace Kernel
 		LockGuard _(m_process_lock);
 
 		auto& thread = Thread::current();
-		thread.set_suspend_signal_mask(set & ~(SIGKILL | SIGSTOP));
+		thread.set_suspend_signal_mask(set & ~((1ull << SIGKILL) | (1ull << SIGSTOP)));
 
 		// FIXME: i *think* here is a race condition as kill doesnt hold process lock
 		while (!thread.is_interrupted_by_signal())
