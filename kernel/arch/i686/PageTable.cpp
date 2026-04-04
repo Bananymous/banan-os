@@ -198,6 +198,7 @@ namespace Kernel
 	{
 		constexpr uint64_t pdpte = (fast_page() >> 30) & 0x1FF;
 		constexpr uint64_t pde   = (fast_page() >> 21) & 0x1FF;
+		constexpr uint64_t pte   = (fast_page() >> 12) & 0x1FF;
 
 		const uint64_t* pdpt = P2V(m_highest_paging_struct);
 		ASSERT(pdpt[pdpte] & Flags::Present);
@@ -205,6 +206,10 @@ namespace Kernel
 		uint64_t* pd = P2V(pdpt[pdpte] & s_page_addr_mask);
 		ASSERT(!(pd[pde] & Flags::Present));
 		pd[pde] = V2P(allocate_zeroed_page_aligned_page()) | Flags::ReadWrite | Flags::Present;
+
+		uint64_t* pt = P2V(pd[pde] & s_page_addr_mask);
+		ASSERT(pt[pte] == 0);
+		pt[pte] = Flags::Reserved;
 	}
 
 	void PageTable::map_fast_page(paddr_t paddr)
@@ -244,7 +249,7 @@ namespace Kernel
 		uint64_t* pt   = P2V(pd[pde] & s_page_addr_mask);
 
 		ASSERT(pt[pte] & Flags::Present);
-		pt[pte] = 0;
+		pt[pte] = Flags::Reserved;
 
 		asm volatile("invlpg (%0)" :: "r"(fast_page()) : "memory");
 	}
