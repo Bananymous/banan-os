@@ -1,12 +1,13 @@
 .section .userspace, "ax"
 
 // stack contains
-//    return address
-//    return stack
-//    return rflags
-//    siginfo_t
-//    signal number
-//    signal handler
+//    (8 bytes)  return address
+//    (8 bytes)  return stack
+//    (8 bytes)  return rflags
+//    (8 bytes)  restore sigmask
+//    (56 bytes) siginfo_t
+//    (8 bytes)  signal number
+//    (8 bytes)  signal handler
 
 .global signal_trampoline
 signal_trampoline:
@@ -55,6 +56,13 @@ signal_trampoline:
 	movq %rbp, %rsp
 	addq $40, %rsp
 
+	// restore sigmask
+	movq $83, %rdi       // SYS_SIGPROCMASK
+	movq $3,  %rsi       // SIG_SETMASK
+	leaq 192(%rsp), %rdx // set
+	xorq %r10, %r10      // oset
+	syscall
+
 	// restore registers
 	popq %rbp
 	popq %rax
@@ -72,13 +80,13 @@ signal_trampoline:
 	popq %r14
 	popq %r15
 
-	// skip handler, number, siginfo_t
-	addq $72, %rsp
+	// skip handler, number, siginfo_t, sigmask
+	addq $80, %rsp
 
 	// restore flags
 	popfq
 
 	movq (%rsp), %rsp
 
-	// return over red-zone and siginfo_t
+	// return over red-zone
 	ret $128

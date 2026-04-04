@@ -632,12 +632,7 @@ namespace Kernel
 			handle_info = remove_signal_and_get_info(signal);
 		}
 
-		handle_signal_impl(
-			signal,
-			signal_info,
-			handle_info.signal_handler,
-			handle_info.signal_stack_top
-		);
+		handle_signal_impl(signal, signal_info, handle_info);
 
 		return handle_info.has_sa_restart;
 	}
@@ -652,18 +647,29 @@ namespace Kernel
 
 		signal_handle_info_t handle_info;
 
+		// If this signal is blocked or ignored, terminate the process
+		bool terminate_process = false;
+
 		{
 			SpinLockGuard _1(m_signal_lock);
 			SpinLockGuard _2(m_process->m_signal_lock);
+
+			if (m_signal_block_mask & (1ull << signal))
+				terminate_process = true;
+
 			handle_info = remove_signal_and_get_info(signal);
+
+			if (handle_info.handler == reinterpret_cast<vaddr_t>(SIG_IGN))
+				terminate_process = true;
 		}
 
-		handle_signal_impl(
-			signal,
-			signal_info,
-			handle_info.signal_handler,
-			handle_info.signal_stack_top
-		);
+		if (terminate_process)
+		{
+			process().exit(128 + signal, signal | 0x80);
+			ASSERT_NOT_REACHED();
+		}
+
+		handle_signal_impl(signal, signal_info, handle_info);
 
 		return handle_info.has_sa_restart;
 	}
@@ -676,6 +682,8 @@ namespace Kernel
 		ASSERT(signal >= _SIGMIN);
 		ASSERT(signal <= _SIGMAX);
 
+		const uint64_t restore_sigmask = m_signal_block_mask;
+
 		auto& handler = m_process->m_signal_handlers[signal];
 
 		const vaddr_t signal_handler = (handler.sa_flags & SA_SIGINFO)
@@ -686,6 +694,10 @@ namespace Kernel
 		vaddr_t signal_stack_top = 0;
 		if (m_signal_alt_stack.ss_flags != SS_DISABLE && (handler.sa_flags & SA_ONSTACK) && !currently_on_alternate_stack())
 			signal_stack_top = reinterpret_cast<vaddr_t>(m_signal_alt_stack.ss_sp) + m_signal_alt_stack.ss_size;
+
+		m_signal_block_mask |= handler.sa_mask;
+		if (!(handler.sa_flags & SA_NODEFER))
+			m_signal_block_mask |= 1ull << signal;
 
 		if (handler.sa_flags & SA_RESETHAND)
 			handler = { .sa_handler = SIG_DFL, .sa_mask = 0, .sa_flags = 0 };
@@ -700,13 +712,14 @@ namespace Kernel
 		}
 
 		return {
-			.signal_handler = signal_handler,
-			.signal_stack_top = signal_stack_top,
+			.handler = signal_handler,
+			.stack_top = signal_stack_top,
+			.restore_sigmask = restore_sigmask,
 			.has_sa_restart = has_sa_restart,
 		};
 	}
 
-	void Thread::handle_signal_impl(int signal, const siginfo_t& signal_info, vaddr_t signal_handler, vaddr_t signal_stack_top)
+	void Thread::handle_signal_impl(int signal, const siginfo_t& signal_info, const signal_handle_info_t& handle_info)
 	{
 		ASSERT(this == &Thread::current());
 		ASSERT(is_userspace());
@@ -715,64 +728,39 @@ namespace Kernel
 		auto& interrupt_stack = *reinterpret_cast<InterruptStack*>(kernel_stack_top() - sizeof(InterruptStack));
 		ASSERT(GDT::is_user_segment(interrupt_stack.cs));
 
-		if (signal_handler == (vaddr_t)SIG_IGN)
+		if (handle_info.handler == reinterpret_cast<vaddr_t>(SIG_IGN))
 			;
-		else if (signal_handler != (vaddr_t)SIG_DFL)
+		else if (handle_info.handler != reinterpret_cast<vaddr_t>(SIG_DFL))
 		{
 			// call userspace signal handlers
 #if ARCH(x86_64)
 			interrupt_stack.sp -= 128; // skip possible red-zone
 #endif
 
-			{
-				// Make sure stack is allocated
-
-				vaddr_t pages[3] {};
-				size_t page_count { 0 };
-
-				if (signal_stack_top == 0)
+			const auto write_to_stack =
+				[&]<typename T>(uintptr_t& sp, const T& value)
 				{
-					pages[0] = (interrupt_stack.sp - 1 * sizeof(uintptr_t)                    ) & PAGE_ADDR_MASK;
-					pages[1] = (interrupt_stack.sp - 5 * sizeof(uintptr_t) - sizeof(siginfo_t)) & PAGE_ADDR_MASK;
-					page_count = 2;
-				}
-				else
-				{
-					pages[0] = (interrupt_stack.sp - 1 * sizeof(uintptr_t)                    ) & PAGE_ADDR_MASK;
-					pages[2] = (signal_stack_top   - 1 * sizeof(uintptr_t)                    ) & PAGE_ADDR_MASK;
-					pages[1] = (signal_stack_top   - 4 * sizeof(uintptr_t) - sizeof(siginfo_t)) & PAGE_ADDR_MASK;
-					page_count = 3;
-				}
-
-				for (size_t i = 0; i < page_count; i++)
-				{
-					if (m_process->page_table().get_page_flags(pages[i]) & PageTable::Flags::Present)
-						continue;
-					if (auto ret = m_process->allocate_page_for_demand_paging(pages[i], true, false); ret.is_error() || !ret.value())
-						m_process->exit(128 + SIGSEGV, SIGSEGV);
-				}
-			}
+					static_assert(sizeof(T) >= sizeof(uintptr_t));
+					sp -= sizeof(T);
+					if (m_process->write_to_user(reinterpret_cast<void*>(sp), &value, sizeof(T)).is_error())
+						m_process->exit(128 + SIGSEGV, SIGSEGV | 0x80);
+				};
 
 			write_to_stack(interrupt_stack.sp, interrupt_stack.ip);
 			const vaddr_t old_stack = interrupt_stack.sp;
-			if (signal_stack_top)
-				interrupt_stack.sp = signal_stack_top;
+			if (handle_info.stack_top)
+				interrupt_stack.sp = handle_info.stack_top;
 			write_to_stack(interrupt_stack.sp, old_stack);
 			write_to_stack(interrupt_stack.sp, interrupt_stack.flags);
+			write_to_stack(interrupt_stack.sp, handle_info.restore_sigmask);
 
-			{
-				interrupt_stack.sp -= sizeof(siginfo_t);
+			siginfo_t copy = signal_info;
+			copy.si_signo = signal;
+			copy.si_addr = reinterpret_cast<void*>(interrupt_stack.ip);
+			write_to_stack(interrupt_stack.sp, copy);
 
-				auto& stack_signal_info = *reinterpret_cast<siginfo_t*>(interrupt_stack.sp);
-				stack_signal_info = signal_info;
-				stack_signal_info.si_signo = signal;
-				stack_signal_info.si_addr = reinterpret_cast<void*>(interrupt_stack.ip);
-
-				static_assert(sizeof(siginfo_t) % sizeof(uintptr_t) == 0);
-			}
-
-			write_to_stack(interrupt_stack.sp, signal);
-			write_to_stack(interrupt_stack.sp, signal_handler);
+			write_to_stack(interrupt_stack.sp, static_cast<uintptr_t>(signal));
+			write_to_stack(interrupt_stack.sp, handle_info.handler);
 			interrupt_stack.ip = (uintptr_t)signal_trampoline;
 		}
 		else

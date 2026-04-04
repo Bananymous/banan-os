@@ -157,12 +157,13 @@ namespace Kernel
 
 		struct signal_handle_info_t
 		{
-			vaddr_t signal_handler;
-			vaddr_t signal_stack_top;
+			vaddr_t handler;
+			vaddr_t stack_top;
+			uint64_t restore_sigmask;
 			bool has_sa_restart;
 		};
 		signal_handle_info_t remove_signal_and_get_info(int signal);
-		void handle_signal_impl(int signal, const siginfo_t&, vaddr_t signal_handler, vaddr_t signal_stack_top);
+		void handle_signal_impl(int signal, const siginfo_t&, const signal_handle_info_t&);
 
 	private:
 		// NOTE: this is the first member to force it being last destructed
