@@ -207,7 +207,7 @@ struct LoadedElf
 	const uint8_t* real_strtab_addr;
 };
 
-static constexpr size_t s_max_loaded_files = 128;
+static constexpr size_t s_max_loaded_files = sizeof(uthread::dtv) / sizeof(*uthread::dtv) - 1;
 static LoadedElf s_loaded_files[s_max_loaded_files];
 static size_t s_loaded_file_count = 0;
 

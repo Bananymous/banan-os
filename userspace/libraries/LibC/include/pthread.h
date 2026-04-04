@@ -51,7 +51,7 @@ struct uthread
 	int cancel_state;
 	int canceled;
 	// FIXME: make this dynamic
-	uintptr_t dtv[1 + 128];
+	uintptr_t dtv[1 + 256];
 };
 
 #define PTHREAD_CANCELED				(void*)1
