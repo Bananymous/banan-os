@@ -33,7 +33,7 @@ sys_fork_trampoline:
 
 	call read_ip
 	testq %rax, %rax
-	je .done
+	jz .done
 
 	movq %rax, %rsi
 	movq %rsp, %rdi

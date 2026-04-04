@@ -63,7 +63,7 @@ sys_fork_trampoline:
 
 	call read_ip
 	testl %eax, %eax
-	jz .reload_stack
+	jz .done
 
 	movl %esp, %ebx
 
@@ -79,9 +79,3 @@ sys_fork_trampoline:
 	popl %ebx
 	popl %ebp
 	ret
-
- .reload_stack:
-	call get_thread_start_sp
-	movl %eax, %esp
-	xorl %eax, %eax
-	jmp .done

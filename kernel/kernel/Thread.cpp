@@ -25,11 +25,6 @@ namespace Kernel
 		*(uintptr_t*)rsp = (uintptr_t)value;
 	}
 
-	extern "C" uintptr_t get_thread_start_sp()
-	{
-		return Thread::current().yield_registers().sp;
-	}
-
 	static pid_t s_next_tid = 1;
 
 	alignas(16) static uint8_t s_default_sse_storage[512];

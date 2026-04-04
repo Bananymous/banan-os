@@ -7,9 +7,6 @@ read_ip:
 # void start_kernel_thread()
 .global start_kernel_thread
 start_kernel_thread:
-	call get_thread_start_sp
-	movl %eax, %esp
-
 	# STACK LAYOUT
 	#   on_exit arg
 	#   on_exit func
@@ -34,9 +31,6 @@ start_kernel_thread:
 
 .global start_userspace_thread
 start_userspace_thread:
-	call get_thread_start_sp
-	movl %eax, %esp
-
 	movw $(0x20 | 3), %bx
 	movw %bx, %ds
 	movw %bx, %es
