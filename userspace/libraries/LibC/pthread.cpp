@@ -35,7 +35,6 @@ asm(
 	"call _pthread_trampoline_cpp"
 #elif ARCH(i686)
 "_pthread_trampoline:"
-	"ud2;"
 	"popl %edi;"
 	"andl $-16, %esp;"
 	"xorl %ebp, %ebp;"
