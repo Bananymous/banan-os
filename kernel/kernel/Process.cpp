@@ -3302,7 +3302,9 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_set_fsbase(void* addr)
 	{
-		Thread::current().set_fsbase(reinterpret_cast<vaddr_t>(addr));
+		auto& thread = Thread::current();
+		thread.m_has_custom_fsbase = true;
+		thread.set_fsbase(reinterpret_cast<vaddr_t>(addr));
 		Processor::load_fsbase();
 		return 0;
 	}
@@ -3314,7 +3316,9 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Process::sys_set_gsbase(void* addr)
 	{
-		Thread::current().set_gsbase(reinterpret_cast<vaddr_t>(addr));
+		auto& thread = Thread::current();
+		thread.m_has_custom_gsbase = true;
+		thread.set_gsbase(reinterpret_cast<vaddr_t>(addr));
 		Processor::load_gsbase();
 		return 0;
 	}

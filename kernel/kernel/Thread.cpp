@@ -305,6 +305,14 @@ namespace Kernel
 		if (!is_userspace() || !has_process())
 			return;
 
+#if ARCH(x86_64)
+		if (m_has_custom_gsbase)
+			return;
+#elif ARCH(i686)
+		if (m_has_custom_fsbase)
+			return;
+#endif
+
 		const vaddr_t vaddr = process().shared_page_vaddr() + Processor::current_index();
 
 #if ARCH(x86_64)
