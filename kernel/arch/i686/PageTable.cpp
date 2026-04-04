@@ -658,7 +658,7 @@ namespace Kernel
 			}
 		}
 
-		ASSERT_NOT_REACHED();
+		return 0;
 	}
 
 	vaddr_t PageTable::reserve_free_contiguous_pages(size_t page_count, vaddr_t first_address, vaddr_t last_address)
@@ -691,7 +691,7 @@ namespace Kernel
 			}
 		}
 
-		ASSERT_NOT_REACHED();
+		return 0;
 	}
 
 	static void dump_range(vaddr_t start, vaddr_t end, PageTable::flags_t flags)
