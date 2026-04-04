@@ -1,20 +1,20 @@
-.macro maybe_load_kernel_segments, n
-	testb $3, \n(%esp)
-	jz 1f; jnp 1f
-
+.macro intr_header, n
+	pushal
+	testb $3, \n+8*4(%esp)
+	jz 1f
 	movw $0x10, %ax
 	movw %ax, %ds
 	movw %ax, %es
 	movw %ax, %fs
 	movw $0x28, %ax
 	movw %ax, %gs
-1:
+1:	cld
 .endm
 
-.macro maybe_load_userspace_segments, n
-	testb $3, \n(%esp)
-	jz 1f; jnp 1f
-
+.macro intr_footer, n
+	testb $3, \n+8*4(%esp)
+	jz 1f
+	call cpp_check_signal
 	movw $(0x20 | 3), %bx
 	movw %bx, %ds
 	movw %bx, %es
@@ -22,14 +22,11 @@
 	movw %bx, %fs
 	movw $(0x38 | 3), %bx
 	movw %bx, %gs
-1:
+1:	popal
 .endm
 
 isr_stub:
-	pushal
-	maybe_load_kernel_segments 44
-	cld
-
+	intr_header 12
 	movl %cr0, %eax; pushl %eax
 	movl %cr2, %eax; pushl %eax
 	movl %cr3, %eax; pushl %eax
@@ -57,15 +54,12 @@ isr_stub:
 	movl %ebp, %esp
 	addl $24, %esp
 
-	maybe_load_userspace_segments 44
-	popal
+	intr_footer 12
 	addl $8, %esp
 	iret
 
 irq_stub:
-	pushal
-	maybe_load_kernel_segments 44
-	cld
+	intr_header 12
 
 	movl 32(%esp), %edi # interrupt number
 
@@ -78,16 +72,13 @@ irq_stub:
 
 	movl %ebp, %esp
 
-	maybe_load_userspace_segments 44
-	popal
+	intr_footer 12
 	addl $8, %esp
 	iret
 
 .global asm_ipi_handler
 asm_ipi_handler:
-	pushal
-	maybe_load_kernel_segments 36
-	cld
+	intr_header 4
 
 	movl %esp, %ebp
 	andl $-16, %esp
@@ -96,15 +87,12 @@ asm_ipi_handler:
 
 	movl %ebp, %esp
 
-	maybe_load_userspace_segments 36
-	popal
+	intr_footer 4
 	iret
 
 .global asm_timer_handler
 asm_timer_handler:
-	pushal
-	maybe_load_kernel_segments 36
-	cld
+	intr_header 4
 
 	movl %esp, %ebp
 	andl $-16, %esp
@@ -113,8 +101,7 @@ asm_timer_handler:
 
 	movl %ebp, %esp
 
-	maybe_load_userspace_segments 36
-	popal
+	intr_footer 4
 	iret
 
 .macro isr n

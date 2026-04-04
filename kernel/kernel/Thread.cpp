@@ -572,19 +572,6 @@ namespace Kernel
 		return false;
 	}
 
-	bool Thread::can_add_signal_to_execute() const
-	{
-		return is_interrupted_by_signal() && m_mutex_count == 0;
-	}
-
-	bool Thread::will_execute_signal() const
-	{
-		if (!is_userspace() || m_state != State::Executing)
-			return false;
-		auto& interrupt_stack = *reinterpret_cast<InterruptStack*>(kernel_stack_top() - sizeof(InterruptStack));
-		return interrupt_stack.ip == (uintptr_t)signal_trampoline;
-	}
-
 	bool Thread::will_exit_because_of_signal() const
 	{
 		const uint64_t full_pending_mask = m_signal_pending_mask | process().signal_pending_mask();
@@ -596,21 +583,17 @@ namespace Kernel
 		return false;
 	}
 
-	bool Thread::handle_signal(int signal, const siginfo_t& _signal_info)
+	bool Thread::handle_signal_if_interrupted()
 	{
-		ASSERT(&Thread::current() == this);
-		ASSERT(is_userspace());
+		int signal;
+		siginfo_t signal_info;
+		signal_handle_info_t handle_info;
 
-		auto state = m_signal_lock.lock();
-
-		auto& interrupt_stack = *reinterpret_cast<InterruptStack*>(kernel_stack_top() - sizeof(InterruptStack));
-		ASSERT(GDT::is_user_segment(interrupt_stack.cs));
-
-		auto signal_info = _signal_info;
-
-		if (signal == 0)
 		{
-			const uint64_t process_signal_pending_mask = process().signal_pending_mask();
+			SpinLockGuard _1(m_signal_lock);
+			SpinLockGuard _2(m_process->m_signal_lock);
+
+			const uint64_t process_signal_pending_mask = m_process->m_signal_pending_mask;
 			const uint64_t full_pending_mask = m_signal_pending_mask | process_signal_pending_mask;
 			for (signal = _SIGMIN; signal <= _SIGMAX; signal++)
 			{
@@ -618,42 +601,77 @@ namespace Kernel
 				if ((full_pending_mask & mask) && !(m_signal_block_mask & mask))
 					break;
 			}
-			ASSERT(signal <= _SIGMAX);
+			if (signal > _SIGMAX)
+				return false;
+
 			if (process_signal_pending_mask & (1ull << signal))
-				signal_info = process().m_signal_infos[signal];
+				signal_info = m_process->m_signal_infos[signal];
 			else
 				signal_info = m_signal_infos[signal];
-		}
-		else
-		{
-			ASSERT(signal >= _SIGMIN);
-			ASSERT(signal <= _SIGMAX);
+
+			handle_info = remove_signal_and_get_info(signal);
 		}
 
-		vaddr_t signal_handler;
-		bool has_sa_restart;
+		handle_signal_impl(
+			signal,
+			signal_info,
+			handle_info.signal_handler,
+			handle_info.signal_stack_top
+		);
+
+		return handle_info.has_sa_restart;
+	}
+
+	bool Thread::handle_signal(int signal, const siginfo_t& signal_info)
+	{
+		ASSERT(&Thread::current() == this);
+		ASSERT(is_userspace());
+
+		ASSERT(signal >= _SIGMIN);
+		ASSERT(signal <= _SIGMAX);
+
+		signal_handle_info_t handle_info;
+
+		{
+			SpinLockGuard _1(m_signal_lock);
+			SpinLockGuard _2(m_process->m_signal_lock);
+			handle_info = remove_signal_and_get_info(signal);
+		}
+
+		handle_signal_impl(
+			signal,
+			signal_info,
+			handle_info.signal_handler,
+			handle_info.signal_stack_top
+		);
+
+		return handle_info.has_sa_restart;
+	}
+
+	Thread::signal_handle_info_t Thread::remove_signal_and_get_info(int signal)
+	{
+		ASSERT(m_signal_lock.current_processor_has_lock());
+		ASSERT(m_process->m_signal_lock.current_processor_has_lock());
+
+		ASSERT(signal >= _SIGMIN);
+		ASSERT(signal <= _SIGMAX);
+
+		auto& handler = m_process->m_signal_handlers[signal];
+
+		const vaddr_t signal_handler = (handler.sa_flags & SA_SIGINFO)
+			? reinterpret_cast<vaddr_t>(handler.sa_sigaction)
+			: reinterpret_cast<vaddr_t>(handler.sa_handler);
+		const bool has_sa_restart = !!(handler.sa_flags & SA_RESTART);
+
 		vaddr_t signal_stack_top = 0;
+		if (m_signal_alt_stack.ss_flags != SS_DISABLE && (handler.sa_flags & SA_ONSTACK) && !currently_on_alternate_stack())
+			signal_stack_top = reinterpret_cast<vaddr_t>(m_signal_alt_stack.ss_sp) + m_signal_alt_stack.ss_size;
 
-		{
-			SpinLockGuard _(m_process->m_signal_lock);
-
-			auto& handler = m_process->m_signal_handlers[signal];
-
-			signal_handler = (handler.sa_flags & SA_SIGINFO)
-				? reinterpret_cast<vaddr_t>(handler.sa_sigaction)
-				: reinterpret_cast<vaddr_t>(handler.sa_handler);
-			has_sa_restart = !!(handler.sa_flags & SA_RESTART);
-
-			const auto& alt_stack = m_signal_alt_stack;
-			if (alt_stack.ss_flags != SS_DISABLE && (handler.sa_flags & SA_ONSTACK) && !currently_on_alternate_stack())
-				signal_stack_top = reinterpret_cast<vaddr_t>(alt_stack.ss_sp) + alt_stack.ss_size;
-
-			if (handler.sa_flags & SA_RESETHAND)
-				handler = { .sa_handler = SIG_DFL, .sa_mask = 0, .sa_flags = 0 };
-		}
+		if (handler.sa_flags & SA_RESETHAND)
+			handler = { .sa_handler = SIG_DFL, .sa_mask = 0, .sa_flags = 0 };
 
 		m_signal_pending_mask &= ~(1ull << signal);
-		process().remove_pending_signal(signal);
+		m_process->m_signal_pending_mask &= ~(1ull << signal);
 
 		if (m_signal_suspend_mask.has_value())
 		{
@@ -661,7 +679,21 @@ namespace Kernel
 			m_signal_suspend_mask.clear();
 		}
 
-		m_signal_lock.unlock(state);
+		return {
+			.signal_handler = signal_handler,
+			.signal_stack_top = signal_stack_top,
+			.has_sa_restart = has_sa_restart,
+		};
+	}
+
+	void Thread::handle_signal_impl(int signal, const siginfo_t& signal_info, vaddr_t signal_handler, vaddr_t signal_stack_top)
+	{
+		ASSERT(this == &Thread::current());
+		ASSERT(is_userspace());
+		ASSERT(Processor::get_interrupt_state() == InterruptState::Enabled);
+
+		auto& interrupt_stack = *reinterpret_cast<InterruptStack*>(kernel_stack_top() - sizeof(InterruptStack));
+		ASSERT(GDT::is_user_segment(interrupt_stack.cs));
 
 		if (signal_handler == (vaddr_t)SIG_IGN)
 			;
@@ -696,10 +728,8 @@ namespace Kernel
 				{
 					if (m_process->page_table().get_page_flags(pages[i]) & PageTable::Flags::Present)
 						continue;
-					Processor::set_interrupt_state(InterruptState::Enabled);
 					if (auto ret = m_process->allocate_page_for_demand_paging(pages[i], true, false); ret.is_error() || !ret.value())
 						m_process->exit(128 + SIGSEGV, SIGSEGV);
-					Processor::set_interrupt_state(InterruptState::Disabled);
 				}
 			}
 
@@ -711,11 +741,13 @@ namespace Kernel
 			write_to_stack(interrupt_stack.sp, interrupt_stack.flags);
 
 			{
-				signal_info.si_signo = signal;
-				signal_info.si_addr = reinterpret_cast<void*>(interrupt_stack.ip);
-
 				interrupt_stack.sp -= sizeof(siginfo_t);
-				*reinterpret_cast<siginfo_t*>(interrupt_stack.sp) = signal_info;
+
+				auto& stack_signal_info = *reinterpret_cast<siginfo_t*>(interrupt_stack.sp);
+				stack_signal_info = signal_info;
+				stack_signal_info.si_signo = signal;
+				stack_signal_info.si_addr = reinterpret_cast<void*>(interrupt_stack.ip);
+
 				static_assert(sizeof(siginfo_t) % sizeof(uintptr_t) == 0);
 			}
 
@@ -752,8 +784,6 @@ namespace Kernel
 				panic("Executing unhandled signal {}", signal);
 			}
 		}
-
-		return has_sa_restart;
 	}
 
 	void Thread::add_signal(int signal, const siginfo_t& info)

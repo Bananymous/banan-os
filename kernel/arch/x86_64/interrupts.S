@@ -1,12 +1,4 @@
-.macro swapgs_if_necessary, n
-	testb $3, \n(%rsp)
-	jz 1f; jnp 1f
-	swapgs
-1:
-.endm
-
-.macro pushaq, n
-	swapgs_if_necessary \n
+.macro intr_header, n
 	pushq %rax
 	pushq %rcx
 	pushq %rdx
@@ -22,10 +14,18 @@
 	pushq %r13
 	pushq %r14
 	pushq %r15
+	testb $3, \n+15*8(%rsp)
+	jz 1f
+	swapgs
+1:	cld
 .endm
 
-.macro popaq, n
-	popq %r15
+.macro intr_footer, n
+	testb $3, \n+15*8(%rsp)
+	jz 1f
+	call cpp_check_signal
+	swapgs
+1:	popq %r15
 	popq %r14
 	popq %r13
 	popq %r12
@@ -40,12 +40,10 @@
 	popq %rdx
 	popq %rcx
 	popq %rax
-	swapgs_if_necessary \n
 .endm
 
 isr_stub:
-	pushaq 24
-	cld
+	intr_header 24
 	movq %cr0, %rax; pushq %rax
 	movq %cr2, %rax; pushq %rax
 	movq %cr3, %rax; pushq %rax
@@ -58,33 +56,33 @@ isr_stub:
 	call cpp_isr_handler
 	addq $32, %rsp
 
-	popaq 24
+	intr_footer 24
 	addq $16, %rsp
 	iretq
 
 irq_stub:
-	pushaq 24
-	cld
+	intr_header 24
+	xorq %rbp, %rbp
 	movq 120(%rsp), %rdi	# irq number
 	call cpp_irq_handler
-	popaq 24
+	intr_footer 24
 	addq $16, %rsp
 	iretq
 
 .global asm_ipi_handler
 asm_ipi_handler:
-	pushaq 8
-	cld
+	intr_header 8
+	xorq %rbp, %rbp
 	call cpp_ipi_handler
-	popaq 8
+	intr_footer 8
 	iretq
 
 .global asm_timer_handler
 asm_timer_handler:
-	pushaq 8
-	cld
+	intr_header 8
+	xorq %rbp, %rbp
 	call cpp_timer_handler
-	popaq 8
+	intr_footer 8
 	iretq
 
 .macro isr n

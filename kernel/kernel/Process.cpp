@@ -303,15 +303,14 @@ namespace Kernel
 
 	void Process::exit(int status, int signal)
 	{
+		ASSERT(Processor::get_interrupt_state() == InterruptState::Enabled);
+
 		bool expected = false;
 		if (!m_is_exiting.compare_exchange(expected, true))
 		{
 			Thread::current().on_exit();
 			ASSERT_NOT_REACHED();
 		}
-
-		const auto state = Processor::get_interrupt_state();
-		Processor::set_interrupt_state(InterruptState::Enabled);
 
 		if (m_parent)
 		{
@@ -368,8 +367,6 @@ namespace Kernel
 
 		while (m_threads.size() > 1)
 			Processor::yield();
-
-		Processor::set_interrupt_state(state);
 
 		Thread::current().on_exit();
 
@@ -2951,7 +2948,7 @@ namespace Kernel
 		for (;;)
 		{
 			while (Thread::current().will_exit_because_of_signal())
-				Thread::current().handle_signal();
+				Thread::current().handle_signal_if_interrupted();
 
 			SpinLockGuard guard(m_signal_lock);
 			if (!m_stopped)

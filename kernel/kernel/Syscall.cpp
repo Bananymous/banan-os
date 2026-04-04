@@ -94,13 +94,11 @@ namespace Kernel
 
 		Process::current().wait_while_stopped();
 
-		Processor::set_interrupt_state(InterruptState::Disabled);
+		if (Thread::current().handle_signal_if_interrupted())
+			if (ret.is_error() && ret.error().get_error_code() == EINTR && is_restartable_syscall(syscall))
+				ret = BAN::Error::from_errno(ERESTART);
 
-		auto& current_thread = Thread::current();
-		if (current_thread.can_add_signal_to_execute())
-			if (current_thread.handle_signal())
-				if (ret.is_error() && ret.error().get_error_code() == EINTR && is_restartable_syscall(syscall))
-					ret = BAN::Error::from_errno(ERESTART);
+		Processor::set_interrupt_state(InterruptState::Disabled);
 
 		ASSERT(Kernel::Thread::current().state() == Kernel::Thread::State::Executing);
 

@@ -56,12 +56,10 @@ namespace Kernel
 		// Returns true, if thread is going to trigger signal
 		bool is_interrupted_by_signal(bool skip_stop_and_cont = false) const;
 
-		// Returns true if pending signal can be added to thread
-		bool can_add_signal_to_execute() const;
-		bool will_execute_signal() const;
 		// Returns true if handled signal had SA_RESTART
-		bool handle_signal(int signal = 0, const siginfo_t& signal_info = {});
-		void add_signal(int signal, const siginfo_t& info);
+		bool handle_signal_if_interrupted();
+		bool handle_signal(int signal, const siginfo_t&);
+		void add_signal(int signal, const siginfo_t&);
 		void set_suspend_signal_mask(uint64_t sigmask);
 
 		static bool is_stopping_signal(int signal);
@@ -152,6 +150,15 @@ namespace Kernel
 		void on_exit();
 
 		bool currently_on_alternate_stack() const;
+
+		struct signal_handle_info_t
+		{
+			vaddr_t signal_handler;
+			vaddr_t signal_stack_top;
+			bool has_sa_restart;
+		};
+		signal_handle_info_t remove_signal_and_get_info(int signal);
+		void handle_signal_impl(int signal, const siginfo_t&, vaddr_t signal_handler, vaddr_t signal_stack_top);
 
 	private:
 		// NOTE: this is the first member to force it being last destructed

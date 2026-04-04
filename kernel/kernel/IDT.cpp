@@ -221,7 +221,13 @@ namespace Kernel
 				if (result.is_error())
 				{
 					dwarnln("Demand paging: {}", result.error());
+
+					// TODO: this is too strict, we should maybe do SIGBUS and
+					//       SIGKILL only on recursive exceptions
+					Processor::set_interrupt_state(InterruptState::Enabled);
 					Thread::current().handle_signal(SIGKILL, {});
+					Processor::set_interrupt_state(InterruptState::Disabled);
+
 					return;
 				}
 
@@ -321,7 +327,7 @@ namespace Kernel
 
 		Debug::s_debug_lock.unlock(InterruptState::Disabled);
 
-		if (tid && Thread::current().is_userspace())
+		if (tid && GDT::is_user_segment(interrupt_stack->cs))
 		{
 			// TODO: Confirm and fix the exception to signal mappings
 
@@ -366,7 +372,9 @@ namespace Kernel
 				break;
 			}
 
+			Processor::set_interrupt_state(InterruptState::Enabled);
 			Thread::current().handle_signal(signal_info.si_signo, signal_info);
+			Processor::set_interrupt_state(InterruptState::Disabled);
 		}
 		else
 		{
@@ -401,10 +409,6 @@ namespace Kernel
 			Process::update_alarm_queue();
 
 		Processor::scheduler().timer_interrupt();
-
-		auto& current_thread = Thread::current();
-		if (current_thread.can_add_signal_to_execute())
-			current_thread.handle_signal();
 	}
 
 	extern "C" void cpp_irq_handler(uint32_t irq)
@@ -428,13 +432,16 @@ namespace Kernel
 		else
 			dprintln("no handler for irq 0x{2H}", irq);
 
-		auto& current_thread = Thread::current();
-		if (current_thread.can_add_signal_to_execute())
-			current_thread.handle_signal();
-
 		Processor::scheduler().reschedule_if_idle();
 
 		ASSERT(Thread::current().state() != Thread::State::Terminated);
+	}
+
+	extern "C" void cpp_check_signal()
+	{
+		Processor::set_interrupt_state(InterruptState::Enabled);
+		Thread::current().handle_signal_if_interrupted();
+		Processor::set_interrupt_state(InterruptState::Disabled);
 	}
 
 	void IDT::register_interrupt_handler(uint8_t index, void (*handler)(), uint8_t ist)
@@ -476,7 +483,6 @@ namespace Kernel
 	IRQ_LIST_X
 #undef X
 
-	extern "C" void asm_yield_handler();
 	extern "C" void asm_ipi_handler();
 	extern "C" void asm_timer_handler();
 #if ARCH(i686)
