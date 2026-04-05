@@ -159,7 +159,7 @@ int			pthread_condattr_setpshared(pthread_condattr_t* attr, int pshared);
 int			pthread_create(pthread_t* __restrict thread, const pthread_attr_t* __restrict attr, void *(*start_routine)(void*), void* __restrict arg);
 int			pthread_detach(pthread_t thread);
 int			pthread_equal(pthread_t t1, pthread_t t2);
-void		pthread_exit(void* value_ptr);
+void		pthread_exit(void* value_ptr) __attribute__((__noreturn__));
 int			pthread_getconcurrency(void);
 int			pthread_getcpuclockid(pthread_t thread_id, clockid_t* clock_id);
 int			pthread_getschedparam(pthread_t thread, int* __restrict policy, struct sched_param* __restrict param);
