@@ -1242,13 +1242,22 @@ int pthread_barrier_init(pthread_barrier_t* __restrict barrier, const pthread_ba
 	if (attr == nullptr)
 		attr = &default_attr;
 	*barrier = {
-		.attr = *attr,
 		.lock = PTHREAD_MUTEX_INITIALIZER,
 		.cond = PTHREAD_COND_INITIALIZER,
 		.target = count,
 		.waiting = 0,
 		.generation = 0,
 	};
+	const pthread_mutexattr_t mattr {
+		.type = PTHREAD_MUTEX_DEFAULT,
+		.shared = attr->shared,
+	};
+	pthread_mutex_init(&barrier->lock, &mattr);
+	const pthread_condattr_t cattr {
+		.clock = CLOCK_REALTIME,
+		.shared = attr->shared,
+	};
+	pthread_cond_init(&barrier->cond, &cattr);
 	return 0;
 }
 

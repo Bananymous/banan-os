@@ -54,7 +54,6 @@ typedef struct
 } pthread_barrierattr_t;
 typedef struct
 {
-	pthread_barrierattr_t attr;
 	pthread_mutex_t lock;
 	pthread_cond_t cond;
 	unsigned target;
