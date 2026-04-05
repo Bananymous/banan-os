@@ -1166,16 +1166,14 @@ int pthread_cond_timedwait(pthread_cond_t* __restrict cond, pthread_mutex_t* __r
 
 	pthread_mutex_unlock(mutex);
 
-	while (BAN::atomic_load(block.futex) == 0)
+	int ret = 0;
+	while (ret == 0 && BAN::atomic_load(block.futex) == 0)
 	{
 		const int op = FUTEX_WAIT
 			| (cond->attr.shared ? 0 : FUTEX_PRIVATE)
 			| (cond->attr.clock == CLOCK_REALTIME ? FUTEX_REALTIME : 0);
 		if (futex(op, &block.futex, 0, abstime) == -1 && errno == ETIMEDOUT)
-		{
-			pthread_mutex_lock(mutex);
-			return ETIMEDOUT;
-		}
+			ret = ETIMEDOUT;
 	}
 
 	pthread_spin_lock(&cond->lock);
@@ -1191,7 +1189,7 @@ int pthread_cond_timedwait(pthread_cond_t* __restrict cond, pthread_mutex_t* __r
 	pthread_spin_unlock(&cond->lock);
 
 	pthread_mutex_lock(mutex);
-	return 0;
+	return ret;
 }
 
 int pthread_barrierattr_destroy(pthread_barrierattr_t* attr)
