@@ -6,6 +6,7 @@
 
 #if __is_kernel
 #include <kernel/FS/VirtualFileSystem.h>
+#include <kernel/Process.h>
 #else
 #include <fcntl.h>
 #include <limits.h>
@@ -128,8 +129,8 @@ namespace LibInput
 
 #if __is_kernel
 		{
-			// FIXME: This does not account for chroot
-			auto file = TRY(Kernel::VirtualFileSystem::get().file_from_absolute_path(Kernel::VirtualFileSystem::get().root_inode(), { 0, 0, 0, 0 }, path, 0));
+			auto& process = Kernel::Process::current();
+			auto file = TRY(Kernel::VirtualFileSystem::get().file_from_absolute_path(process.root_file().inode, process.credentials(), path, O_RDONLY));
 			TRY(file_data.resize(file.inode->size()));
 			TRY(file.inode->read(0, BAN::ByteSpan { reinterpret_cast<uint8_t*>(file_data.data()), file_data.size() }));
 			canonical_path = file.canonical_path;
