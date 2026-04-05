@@ -255,8 +255,8 @@ static void init2(void*)
 	VirtualFileSystem::initialize(cmdline.root);
 	dprintln("VFS initialized");
 
-	// FIXME: release memory used by modules. If modules are used
-	//        they are already loaded in here
+	// NOTE: All modules should be loaded
+	Heap::get().release_boot_modules();
 
 	TTY::initialize_devices();
 

@@ -18,6 +18,8 @@ namespace Kernel
 		static void initialize();
 		static Heap& get();
 
+		void release_boot_modules();
+
 		paddr_t take_free_page();
 		void release_page(paddr_t);
 
