@@ -531,11 +531,8 @@ acpi_release_global_lock:
 			return BAN::Error::from_errno(EFAULT);
 		}
 
-		if (!s5_node.as.package->elements[0].resolved || !s5_node.as.package->elements[1].resolved)
-		{
-			dwarnln("TODO: lazy evaluate package \\_S5 elements");
-			return BAN::Error::from_errno(ENOTSUP);
-		}
+		TRY(AML::resolve_package_element(s5_node.as.package->elements[0], true));
+		TRY(AML::resolve_package_element(s5_node.as.package->elements[1], true));
 
 		auto slp_typa_node = TRY(AML::convert_node(TRY(s5_node.as.package->elements[0].value.node->copy()), AML::ConvInteger, sizeof(uint64_t)));
 		auto slp_typb_node = TRY(AML::convert_node(TRY(s5_node.as.package->elements[1].value.node->copy()), AML::ConvInteger, sizeof(uint64_t)));
