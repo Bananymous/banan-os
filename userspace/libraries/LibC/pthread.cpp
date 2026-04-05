@@ -22,8 +22,6 @@ struct pthread_trampoline_info_t
 	void* arg;
 };
 
-static constexpr unsigned rwlock_writer_locked = -1;
-
 // stack is 16 byte aligned on entry, this `call` is used to align it
 extern "C" void _pthread_trampoline(void*);
 asm(
@@ -942,102 +940,100 @@ int pthread_rwlock_init(pthread_rwlock_t* __restrict rwlock, const pthread_rwloc
 	if (attr == nullptr)
 		attr = &default_attr;
 	*rwlock = {
-		.attr = *attr,
-		.lockers = 0,
-		.writers = 0,
+		.lock = PTHREAD_MUTEX_INITIALIZER,
+		.cond = PTHREAD_COND_INITIALIZER,
+		.writers_waiting = 0,
+		.writer_active = 0,
+		.readers_active = 0,
 	};
+	const pthread_mutexattr_t mattr {
+		.type = PTHREAD_MUTEX_DEFAULT,
+		.shared = attr->shared,
+	};
+	pthread_mutex_init(&rwlock->lock, &mattr);
+	const pthread_condattr_t cattr {
+		.clock = CLOCK_REALTIME,
+		.shared = attr->shared,
+	};
+	pthread_cond_init(&rwlock->cond, &cattr);
 	return 0;
-}
-
-// TODO: rewrite rwlock with futexes
-
-template<typename T>
-static int pthread_rwlock_timedlock(T* __restrict lock, const struct timespec* __restrict abstime, int (*trylock)(T*))
-{
-	if (trylock(lock) == 0)
-		return 0;
-
-	constexpr auto has_timed_out =
-		[](const struct timespec* abstime) -> bool
-		{
-			struct timespec curtime;
-			clock_gettime(CLOCK_REALTIME, &curtime);
-			if (curtime.tv_sec < abstime->tv_sec)
-				return false;
-			if (curtime.tv_sec > abstime->tv_sec)
-				return true;
-			return curtime.tv_nsec >= abstime->tv_nsec;
-		};
-
-	while (!has_timed_out(abstime))
-	{
-		if (trylock(lock) == 0)
-			return 0;
-		sched_yield();
-	}
-
-	return ETIMEDOUT;
 }
 
 int pthread_rwlock_rdlock(pthread_rwlock_t* rwlock)
 {
-	unsigned expected = BAN::atomic_load(rwlock->lockers);
-	for (;;)
-	{
-		if (expected == rwlock_writer_locked || BAN::atomic_load(rwlock->writers))
-			sched_yield();
-		else if (BAN::atomic_compare_exchange(rwlock->lockers, expected, expected + 1))
-			break;
-	}
-	return 0;
+	return pthread_rwlock_timedrdlock(rwlock, nullptr);
 }
 
 int pthread_rwlock_tryrdlock(pthread_rwlock_t* rwlock)
 {
-	unsigned expected = BAN::atomic_load(rwlock->lockers);
-	while (expected != rwlock_writer_locked && BAN::atomic_load(rwlock->writers) == 0)
-		if (BAN::atomic_compare_exchange(rwlock->lockers, expected, expected + 1))
-			return 0;
-	return EBUSY;
+	int ret = 0;
+	pthread_mutex_lock(&rwlock->lock);
+	if (!rwlock->writers_waiting && !rwlock->writer_active)
+		rwlock->readers_active++;
+	else
+		ret = EBUSY;
+	pthread_mutex_unlock(&rwlock->lock);
+	return ret;
 }
 
 int pthread_rwlock_timedrdlock(pthread_rwlock_t* __restrict rwlock, const struct timespec* __restrict abstime)
 {
-	return pthread_rwlock_timedlock(rwlock, abstime, &pthread_rwlock_tryrdlock);
+	int ret = 0;
+	pthread_mutex_lock(&rwlock->lock);
+	while (ret == 0 && (rwlock->writers_waiting || rwlock->writer_active))
+		ret = pthread_cond_timedwait(&rwlock->cond, &rwlock->lock, abstime);
+	if (ret == 0)
+		rwlock->readers_active++;
+	pthread_mutex_unlock(&rwlock->lock);
+	return ret;
 }
 
 int pthread_rwlock_wrlock(pthread_rwlock_t* rwlock)
 {
-	BAN::atomic_add_fetch(rwlock->writers, 1);
-	unsigned expected = 0;
-	while (!BAN::atomic_compare_exchange(rwlock->lockers, expected, rwlock_writer_locked))
-	{
-		sched_yield();
-		expected = 0;
-	}
-	BAN::atomic_sub_fetch(rwlock->writers, 1);
-	return 0;
+	return pthread_rwlock_timedwrlock(rwlock, nullptr);
 }
 
 int pthread_rwlock_trywrlock(pthread_rwlock_t* rwlock)
 {
-	unsigned expected = 0;
-	if (!BAN::atomic_compare_exchange(rwlock->lockers, expected, rwlock_writer_locked))
-		return EBUSY;
-	return 0;
+	int ret = 0;
+	pthread_mutex_lock(&rwlock->lock);
+	if (!rwlock->readers_active && !rwlock->writer_active)
+		rwlock->writer_active = 1;
+	else
+		ret = EBUSY;
+	pthread_mutex_unlock(&rwlock->lock);
+	return ret;
 }
 
 int pthread_rwlock_timedwrlock(pthread_rwlock_t* __restrict rwlock, const struct timespec* __restrict abstime)
 {
-	return pthread_rwlock_timedlock(rwlock, abstime, &pthread_rwlock_trywrlock);
+	int ret = 0;
+	pthread_mutex_lock(&rwlock->lock);
+	rwlock->writers_waiting++;
+	while (ret == 0 && (rwlock->readers_active || rwlock->writer_active))
+		ret = pthread_cond_timedwait(&rwlock->cond, &rwlock->lock, abstime);
+	rwlock->writers_waiting--;
+	if (ret == 0)
+		rwlock->writer_active = 1;
+	pthread_mutex_unlock(&rwlock->lock);
+	return ret;
 }
 
 int pthread_rwlock_unlock(pthread_rwlock_t* rwlock)
 {
-	if (BAN::atomic_load(rwlock->lockers) == rwlock_writer_locked)
-		BAN::atomic_store(rwlock->lockers, 0);
+	pthread_mutex_lock(&rwlock->lock);
+	if (rwlock->writer_active)
+	{
+		rwlock->writer_active = 0;
+		pthread_cond_broadcast(&rwlock->cond);
+	}
 	else
-		BAN::atomic_sub_fetch(rwlock->lockers, 1);
+	{
+		rwlock->readers_active--;
+		if (rwlock->readers_active == 0)
+			pthread_cond_broadcast(&rwlock->cond);
+	}
+	pthread_mutex_unlock(&rwlock->lock);
 	return 0;
 }
 
