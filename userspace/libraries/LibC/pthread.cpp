@@ -22,6 +22,22 @@ struct pthread_trampoline_info_t
 	void* arg;
 };
 
+static void _pthread_cancel_handler(int)
+{
+	uthread* uthread = _get_uthread();
+	uthread->canceled = true;
+	if (uthread->cancel_state == PTHREAD_CANCEL_DISABLE)
+		return;
+	if (uthread->cancel_type == PTHREAD_CANCEL_ASYNCHRONOUS)
+		pthread_exit(PTHREAD_CANCELED);
+}
+
+__attribute__((constructor))
+static void _install_main_thread_cancel_handler()
+{
+	signal(SIGCANCEL, &_pthread_cancel_handler);
+}
+
 // stack is 16 byte aligned on entry, this `call` is used to align it
 extern "C" void _pthread_trampoline(void*);
 asm(
@@ -54,6 +70,7 @@ extern "C" void _pthread_trampoline_cpp(void* arg)
 #error
 #endif
 	free(arg);
+	signal(SIGCANCEL, &_pthread_cancel_handler);
 	pthread_exit(info.start_routine(info.arg));
 	ASSERT_NOT_REACHED();
 }
@@ -610,25 +627,8 @@ int pthread_atfork(void (*prepare)(void), void (*parent)(void), void(*child)(voi
 	return 0;
 }
 
-static void pthread_cancel_handler(int)
-{
-	uthread* uthread = _get_uthread();
-	BAN::atomic_store(uthread->canceled, true);
-	if (BAN::atomic_load(uthread->cancel_state) != PTHREAD_CANCEL_ENABLE)
-		return;
-	switch (BAN::atomic_load(uthread->cancel_type))
-	{
-		case PTHREAD_CANCEL_ASYNCHRONOUS:
-			pthread_exit(PTHREAD_CANCELED);
-		case PTHREAD_CANCEL_DEFERRED:
-			return;
-	}
-	ASSERT_NOT_REACHED();
-}
-
 int pthread_cancel(pthread_t thread)
 {
-	signal(SIGCANCEL, &pthread_cancel_handler);
 	return pthread_kill(thread, SIGCANCEL);
 }
 
@@ -666,14 +666,10 @@ int pthread_setcanceltype(int type, int* oldtype)
 	return 0;
 }
 
+#undef pthread_testcancel
 void pthread_testcancel(void)
 {
-	uthread* uthread = _get_uthread();
-	if (BAN::atomic_load(uthread->cancel_state) != PTHREAD_CANCEL_ENABLE)
-		return;
-	if (!BAN::atomic_load(uthread->canceled))
-		return;
-	pthread_exit(PTHREAD_CANCELED);
+	_pthread_testcancel();
 }
 
 int pthread_getschedparam(pthread_t thread, int* __restrict policy, struct sched_param* __restrict param)

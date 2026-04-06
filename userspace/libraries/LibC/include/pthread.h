@@ -49,7 +49,7 @@ struct uthread
 	int errno_;
 	int cancel_type;
 	int cancel_state;
-	int canceled;
+	volatile int canceled;
 	// FIXME: make this dynamic
 	uintptr_t dtv[1 + 256];
 };
@@ -218,6 +218,14 @@ void		pthread_testcancel(void);
 
 void		pthread_cleanup_pop(int execute);
 void		pthread_cleanup_push(void (*routine)(void*), void* arg);
+
+#define _pthread_testcancel() do { \
+		struct uthread* uthread = _get_uthread(); \
+		if (__builtin_expect(uthread->cancel_state == PTHREAD_CANCEL_ENABLE, 1)) \
+			if (__builtin_expect(uthread->canceled, 0)) \
+				pthread_exit(PTHREAD_CANCELED); \
+	} while (0)
+#define pthread_testcancel() _pthread_testcancel()
 
 __END_DECLS
 
