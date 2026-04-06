@@ -11,6 +11,8 @@
 #include <sys/un.h>
 #include <unistd.h>
 
+#include <emmintrin.h>
+
 namespace LibGUI
 {
 
@@ -137,13 +139,47 @@ namespace LibGUI
 		return {};
 	}
 
+	static void* copy_pixels_and_set_max_alpha(void* dst, const void* src, size_t bytes)
+	{
+		size_t pixels = bytes / sizeof(uint32_t);
+
+		      __m128i* dst128 = static_cast<      __m128i*>(dst);
+		const __m128i* src128 = static_cast<const __m128i*>(src);
+		const __m128i alpha_mask = _mm_set1_epi32(0xFF000000);
+		for (; pixels >= 4; pixels -= 4)
+			_mm_storeu_si128(dst128++, _mm_or_si128(_mm_loadu_si128(src128++), alpha_mask));
+
+		      uint32_t* dst32 = reinterpret_cast<      uint32_t*>(dst128);
+		const uint32_t* src32 = reinterpret_cast<const uint32_t*>(src128);
+		for (; pixels; pixels--)
+			*dst32++ = *src32++ | 0xFF000000;
+
+		return nullptr;
+	}
+
 	void Window::invalidate(int32_t x, int32_t y, uint32_t width, uint32_t height)
 	{
 		if (!m_texture.clamp_to_texture(x, y, width, height))
 			return;
 
-		for (uint32_t i = 0; i < height; i++)
-			memcpy(&m_framebuffer_smo[(y + i) * m_width + x], &m_texture.pixels()[(y + i) * m_width + x], width * sizeof(uint32_t));
+		const auto copy_func = m_attributes.alpha_channel ? memcpy : copy_pixels_and_set_max_alpha;
+
+		if (width == m_width)
+		{
+			copy_func(
+				&m_framebuffer_smo[y * m_width],
+				&m_texture.pixels()[y * m_width],
+				width * height * sizeof(uint32_t)
+			);
+		}
+		else for (uint32_t y_off = 0; y_off < height; y_off++)
+		{
+			copy_func(
+				&m_framebuffer_smo[(y + y_off) * m_width + x],
+				&m_texture.pixels()[(y + y_off) * m_width + x],
+				width * sizeof(uint32_t)
+			);
+		}
 
 		WindowPacket::WindowInvalidate packet;
 		packet.x = x;
