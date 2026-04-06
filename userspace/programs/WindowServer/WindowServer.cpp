@@ -14,15 +14,15 @@
 
 #include <unistd.h>
 
+#include <emmintrin.h>
+
 WindowServer::WindowServer(Framebuffer& framebuffer, int32_t corner_radius)
 	: m_framebuffer(framebuffer)
 	, m_corner_radius(corner_radius)
 	, m_cursor({ framebuffer.width / 2, framebuffer.height / 2 })
 	, m_font(MUST(LibFont::Font::load("/usr/share/fonts/lat0-16.psfu"_sv)))
 {
-	BAN::Vector<LibImage::Image::Color> bitmap;
-	MUST(bitmap.resize(m_framebuffer.width * m_framebuffer.height, { 0x10, 0x10, 0x10, 0xFF }));
-	m_background_image = MUST(BAN::UniqPtr<LibImage::Image>::create(m_framebuffer.width, m_framebuffer.height, BAN::move(bitmap)));
+	MUST(m_background_image.resize(m_framebuffer.width * m_framebuffer.height, 0xFF101010));
 
 	MUST(m_pending_syncs.resize(m_framebuffer.height));
 
@@ -33,7 +33,11 @@ BAN::ErrorOr<void> WindowServer::set_background_image(BAN::UniqPtr<LibImage::Ima
 {
 	if (image->width() != (uint64_t)m_framebuffer.width || image->height() != (uint64_t)m_framebuffer.height)
 		image = TRY(image->resize(m_framebuffer.width, m_framebuffer.height));
-	m_background_image = BAN::move(image);
+
+	for (int32_t y = 0; y < m_framebuffer.height; y++)
+		for (int32_t x = 0; x < m_framebuffer.width; x++)
+			m_background_image[y * m_framebuffer.width + x] = image->get_color(x, y).as_argb();
+
 	invalidate(m_framebuffer.area());
 	return {};
 }
@@ -854,9 +858,8 @@ void WindowServer::set_focused_window(BAN::RefPtr<Window> window)
 
 static uint32_t alpha_blend(uint32_t color_a, uint32_t color_b)
 {
-	const uint32_t a_a =   color_a >> 24;
-	const uint32_t a_b = ((color_b >> 24) * (256 - a_a)) >> 8;
-	const uint32_t a = a_a + a_b;
+	const uint32_t a_a = color_a >> 24;
+	const uint32_t a_b = 0xFF - a_a;
 
 	const uint32_t rb1 = (a_a * (color_a & 0xFF00FF)) >> 8;
 	const uint32_t rb2 = (a_b * (color_b & 0xFF00FF)) >> 8;
@@ -864,14 +867,51 @@ static uint32_t alpha_blend(uint32_t color_a, uint32_t color_b)
 	const uint32_t g1  = (a_a * (color_a & 0x00FF00)) >> 8;
 	const uint32_t g2  = (a_b * (color_b & 0x00FF00)) >> 8;
 
-	return (a << 24) | ((rb1 | rb2) & 0xFF00FF) | ((g1 | g2) & 0x00FF00);
+    const uint32_t a = a_a + (((color_b >> 24) * a_b) >> 8);
+	return (a << 24) | ((rb1 + rb2) & 0xFF00FF) | ((g1 + g2) & 0x00FF00);
+}
+
+static void alpha_blend4(const uint32_t color_a[4], const uint32_t color_b[4], uint32_t color_out[4])
+{
+	// load colors
+	const __m128i ca = _mm_loadu_si128((const __m128i*)color_a);
+	const __m128i cb = _mm_loadu_si128((const __m128i*)color_b);
+
+	// unpack colors to 16 bit words
+	const __m128i zero = _mm_setzero_si128();
+	const __m128i ca_lo = _mm_unpacklo_epi8(ca, zero);
+	const __m128i ca_hi = _mm_unpackhi_epi8(ca, zero);
+	const __m128i cb_lo = _mm_unpacklo_epi8(cb, zero);
+	const __m128i cb_hi = _mm_unpackhi_epi8(cb, zero);
+
+	// extract alpha channel from color_a
+	const __m128i a1_lo = _mm_shufflehi_epi16(_mm_shufflelo_epi16(ca_lo, 0b11'11'11'11), 0b11'11'11'11);
+	const __m128i a1_hi = _mm_shufflehi_epi16(_mm_shufflelo_epi16(ca_hi, 0b11'11'11'11), 0b11'11'11'11);
+
+	// calculate inverse alpha
+	const __m128i low_byte16 = _mm_set1_epi16(0xFF);
+	const __m128i a2_lo = _mm_sub_epi16(low_byte16, a1_lo);
+	const __m128i a2_hi = _mm_sub_epi16(low_byte16, a1_hi);
+
+	// blend and pack rgb (a*c1 + c2*(255-a)) / 256
+	const __m128i rgb_lo = _mm_srli_epi16(_mm_add_epi16(_mm_mullo_epi16(ca_lo, a1_lo), _mm_mullo_epi16(cb_lo, a2_lo)), 8);
+	const __m128i rgb_hi = _mm_srli_epi16(_mm_add_epi16(_mm_mullo_epi16(ca_hi, a1_hi), _mm_mullo_epi16(cb_hi, a2_hi)), 8);
+	const __m128i rgb = _mm_and_si128(_mm_set1_epi32(0x00FFFFFF), _mm_packus_epi16(rgb_lo, rgb_hi));
+
+	// extract alpha channel from color_b
+	const __m128i ab_lo = _mm_shufflehi_epi16(_mm_shufflelo_epi16(cb_lo, 0b11'11'11'11), 0b11'11'11'11);
+	const __m128i ab_hi = _mm_shufflehi_epi16(_mm_shufflelo_epi16(cb_hi, 0b11'11'11'11), 0b11'11'11'11);
+
+	// blend and pack alpha (a + ab*(255-a)) / 256
+	const __m128i alpha_lo = _mm_add_epi16(a1_lo, _mm_srli_epi16(_mm_mullo_epi16(ab_lo, a2_lo), 8));
+	const __m128i alpha_hi = _mm_add_epi16(a1_hi, _mm_srli_epi16(_mm_mullo_epi16(ab_hi, a2_hi), 8));
+	const __m128i alpha = _mm_slli_epi32(_mm_packus_epi16(alpha_lo, alpha_hi), 24);
+
+	_mm_storeu_si128((__m128i*)color_out, _mm_or_si128(alpha, rgb));
 }
 
 void WindowServer::invalidate(Rectangle area)
 {
-	ASSERT(m_background_image->width() == (uint64_t)m_framebuffer.width);
-	ASSERT(m_background_image->height() == (uint64_t)m_framebuffer.height);
-
 	const Window::Cursor* window_cursor = nullptr;
 	if (auto window = this->find_hovered_window(); window && window->has_cursor())
 		window_cursor = &window->cursor();
@@ -919,24 +959,46 @@ void WindowServer::invalidate(Rectangle area)
 
 		if (client_area == m_framebuffer.area())
 		{
+			const uint32_t* client_ptr = m_focused_window->framebuffer();
+			const size_t client_width = m_focused_window->client_width();
+
 			if (!should_alpha_blend)
 			{
 				for (int32_t y = area.y; y < area.y + area.height; y++)
-					for (int32_t x = area.x; x < area.x + area.width; x++)
-						m_framebuffer.mmap[y * m_framebuffer.width + x] = m_focused_window->framebuffer()[y * m_focused_window->client_width() + x];
+				{
+					memcpy(
+						&m_framebuffer.mmap[y * m_framebuffer.width + area.x],
+						&client_ptr[y * client_width + area.x],
+						area.width * sizeof(uint32_t)
+					);
+				}
 			}
 			else
 			{
 				for (int32_t y = area.y; y < area.y + area.height; y++)
 				{
-					for (int32_t x = area.x; x < area.x + area.width; x++)
+					const uint32_t* window_row = &client_ptr[y * client_width + area.x];
+					const uint32_t* image_row  = &m_background_image[y * m_framebuffer.width + area.x];
+					uint32_t* frameb_row = &m_framebuffer.mmap[y * m_framebuffer.width + area.x];
+
+					int32_t pixels = area.width;
+					for (; pixels >= 4; pixels -= 4)
 					{
-						const uint32_t src_pixel = m_focused_window->framebuffer()[y * m_focused_window->client_width() + x];
-						const uint32_t bg_pixel = m_background_image->get_color(x, y).as_argb();
-						m_framebuffer.mmap[y * m_framebuffer.width + x] = alpha_blend(src_pixel, bg_pixel);
+						alpha_blend4(window_row, image_row, frameb_row);
+						frameb_row += 4;
+						window_row += 4;
+						image_row += 4;
+					}
+					for (; pixels > 0; pixels--)
+					{
+						*frameb_row = alpha_blend(*window_row, *image_row);
+						frameb_row++;
+						window_row++;
+						image_row++;
 					}
 				}
 			}
+
 			mark_pending_sync(area);
 		}
 		else
@@ -949,8 +1011,8 @@ void WindowServer::invalidate(Rectangle area)
 			}.get_overlap(m_framebuffer.area());
 			if (!opt_dst_area.has_value())
 				return;
-			const auto dst_area = opt_dst_area.release_value();
 
+			const auto dst_area = opt_dst_area.release_value();
 			for (int32_t dst_y = dst_area.y; dst_y < dst_area.y + dst_area.height; dst_y++)
 			{
 				for (int32_t dst_x = dst_area.x; dst_x < dst_area.x + dst_area.width; dst_x++)
@@ -959,7 +1021,7 @@ void WindowServer::invalidate(Rectangle area)
 					const int32_t src_y = BAN::Math::clamp<int32_t>(dst_y * m_focused_window->client_height() / m_framebuffer.height, 0, m_focused_window->client_height());
 
 					const uint32_t src_pixel = m_focused_window->framebuffer()[src_y * m_focused_window->client_width() + src_x];
-					const uint32_t bg_pixel = m_background_image->get_color(dst_x, dst_y).as_argb();
+					const uint32_t bg_pixel = m_background_image[dst_y * m_framebuffer.width + dst_x];
 
 					uint32_t& dst_pixel = m_framebuffer.mmap[dst_y * m_framebuffer.width + dst_x];
 					dst_pixel = should_alpha_blend ? alpha_blend(src_pixel, bg_pixel) : src_pixel;
@@ -1013,8 +1075,13 @@ void WindowServer::invalidate(Rectangle area)
 	area = fb_overlap.release_value();
 
 	for (int32_t y = area.y; y < area.y + area.height; y++)
-		for (int32_t x = area.x; x < area.x + area.width; x++)
-			m_framebuffer.mmap[y * m_framebuffer.width + x] = m_background_image->get_color(x, y).as_argb();
+	{
+		memcpy(
+			&m_framebuffer.mmap[y * m_framebuffer.width + area.x],
+			&m_background_image[y * m_framebuffer.width + area.x],
+			area.width * sizeof(uint32_t)
+		);
+	}
 
 	// FIXME: this loop should be inverse order and terminate
 	//        after window without alpha channel is found
@@ -1122,8 +1189,8 @@ void WindowServer::invalidate(Rectangle area)
 					if (is_rounded_off(window, { abs_x, abs_y }))
 						continue;
 
-					const uint32_t color = window.title_bar_pixel(abs_x, abs_y, m_cursor);
-					m_framebuffer.mmap[abs_y * m_framebuffer.width + abs_x] = color;
+					m_framebuffer.mmap[abs_y * m_framebuffer.width + abs_x] =
+						window.title_bar_pixel(abs_x, abs_y, m_cursor);
 				}
 			}
 		}
@@ -1131,47 +1198,60 @@ void WindowServer::invalidate(Rectangle area)
 		// window client area
 		if (auto client_overlap = window.client_area().get_overlap(area); client_overlap.has_value())
 		{
+			const bool should_alpha_blend = window.get_attributes().alpha_channel;
+
 			for (const auto& fast_area : fast_areas)
 			{
-				auto fast_overlap = client_overlap->get_overlap(fast_area);
-				if (!fast_overlap.has_value())
+				auto opt_fast_overlap = client_overlap->get_overlap(fast_area);
+				if (!opt_fast_overlap.has_value())
 					continue;
-				for (int32_t y_off = 0; y_off < fast_overlap->height; y_off++)
+
+				const auto fast_overlap = opt_fast_overlap.release_value();
+				for (int32_t y_off = 0; y_off < fast_overlap.height; y_off++)
 				{
-					const int32_t abs_row_y = fast_overlap->y + y_off;
-					const int32_t abs_row_x = fast_overlap->x;
+					const int32_t abs_row_y = fast_overlap.y + y_off;
+					const int32_t abs_row_x = fast_overlap.x;
 
 					const int32_t src_row_y = abs_row_y - window.client_y();
 					const int32_t src_row_x = abs_row_x - window.client_x();
 
 					auto* window_row = &window.framebuffer()[src_row_y * window.client_width() + src_row_x];
-					auto* frameb_row = &m_framebuffer.mmap[  abs_row_y * m_framebuffer.width   + abs_row_x];
+					auto* frameb_row = &m_framebuffer.mmap[abs_row_y * m_framebuffer.width + abs_row_x];
 
-					const bool should_alpha_blend = window.get_attributes().alpha_channel;
-					for (int32_t i = 0; i < fast_overlap->width; i++)
+					if (!should_alpha_blend)
+						memcpy(frameb_row, window_row, fast_overlap.width * sizeof(uint32_t));
+					else
 					{
-						const uint32_t color_a = *window_row;
-						const uint32_t color_b = *frameb_row;
-						*frameb_row = should_alpha_blend
-							? alpha_blend(color_a, color_b)
-							: color_a;
-						window_row++;
-						frameb_row++;
+						int32_t pixels = fast_overlap.width;
+						for (; pixels >= 4; pixels -= 4)
+						{
+							alpha_blend4(window_row, frameb_row, frameb_row);
+							window_row += 4;
+							frameb_row += 4;
+						}
+						for (; pixels; pixels--)
+						{
+							*frameb_row = alpha_blend(*window_row, *frameb_row);
+							window_row++;
+							frameb_row++;
+						}
 					}
 				}
 			}
 
 			for (const auto& corner_area : corner_areas)
 			{
-				auto corner_overlap = client_overlap->get_overlap(corner_area);
-				if (!corner_overlap.has_value())
+				auto opt_corner_overlap = client_overlap->get_overlap(corner_area);
+				if (!opt_corner_overlap.has_value())
 					continue;
-				for (int32_t y_off = 0; y_off < corner_overlap->height; y_off++)
+
+				const auto corner_overlap = opt_corner_overlap.release_value();
+				for (int32_t y_off = 0; y_off < corner_overlap.height; y_off++)
 				{
-					for (int32_t x_off = 0; x_off < corner_overlap->width; x_off++)
+					for (int32_t x_off = 0; x_off < corner_overlap.width; x_off++)
 					{
-						const int32_t abs_x = corner_overlap->x + x_off;
-						const int32_t abs_y = corner_overlap->y + y_off;
+						const int32_t abs_x = corner_overlap.x + x_off;
+						const int32_t abs_y = corner_overlap.y + y_off;
 						if (is_rounded_off(window, { abs_x, abs_y }))
 							continue;
 
@@ -1181,7 +1261,7 @@ void WindowServer::invalidate(Rectangle area)
 						const uint32_t color_a = window.framebuffer()[src_y * window.client_width() + src_x];
 						const uint32_t color_b = m_framebuffer.mmap[abs_y * m_framebuffer.width + abs_x];
 
-						const bool should_alpha_blend = window.get_attributes().alpha_channel;
+						// NOTE: corners are small so we do them one pixel at a time to keep the code simple
 						m_framebuffer.mmap[abs_y * m_framebuffer.width + abs_x] = should_alpha_blend
 							? alpha_blend(color_a, color_b)
 							: color_a;
@@ -1193,14 +1273,26 @@ void WindowServer::invalidate(Rectangle area)
 
 	if (m_state == State::Resizing)
 	{
-		if (const auto overlap = resize_area(m_cursor).get_overlap(area); overlap.has_value())
+		if (auto opt_overlap = resize_area(m_cursor).get_overlap(area); opt_overlap.has_value())
 		{
-			for (int32_t y_off = 0; y_off < overlap->height; y_off++)
+			constexpr uint32_t blend_color = 0x80000000;
+
+			const auto overlap = opt_overlap.release_value();
+			for (int32_t y = overlap.y; y < overlap.y + overlap.height; y++)
 			{
-				for (int32_t x_off = 0; x_off < overlap->width; x_off++)
+				uint32_t* frameb_row = &m_framebuffer.mmap[y * m_framebuffer.width + overlap.x];
+
+				int32_t pixels = overlap.width;
+				for (; pixels >= 4; pixels -= 4)
 				{
-					auto& pixel = m_framebuffer.mmap[(overlap->y + y_off) * m_framebuffer.width + (overlap->x + x_off)];
-					pixel = alpha_blend(0x80000000, pixel);
+					const uint32_t blend_colors[] { blend_color, blend_color, blend_color, blend_color };
+					alpha_blend4(blend_colors, frameb_row, frameb_row);
+					frameb_row += 4;
+				}
+				for (; pixels > 0; pixels--)
+				{
+					*frameb_row = alpha_blend(blend_color, *frameb_row);
+					frameb_row++;
 				}
 			}
 		}

@@ -96,7 +96,8 @@ private:
 
 	BAN::Vector<RangeList> m_pending_syncs;
 
-	BAN::UniqPtr<LibImage::Image> m_background_image;
+	// NOTE: same size as framebuffer
+	BAN::Vector<uint32_t> m_background_image;
 
 	State m_state { State::Normal };
 	bool m_is_mod_key_held { false };
