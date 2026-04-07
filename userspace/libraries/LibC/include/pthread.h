@@ -16,43 +16,7 @@ __BEGIN_DECLS
 #include <sys/types.h>
 
 #include <bits/types/pthread_types.h>
-
-typedef struct _pthread_cleanup_t
-{
-	void (*routine)(void*);
-	void* arg;
-	struct _pthread_cleanup_t* next;
-} _pthread_cleanup_t;
-
-typedef struct _dynamic_tls_entry_t
-{
-	void* master_addr;
-	size_t master_size;
-} _dynamic_tls_entry_t;
-
-typedef struct _dynamic_tls_t
-{
-	int lock;
-	size_t entry_count;
-	_dynamic_tls_entry_t* entries;
-} _dynamic_tls_t;
-
-struct uthread
-{
-	struct uthread* self;
-	void* master_tls_addr;
-	size_t master_tls_size;
-	size_t master_tls_module_count;
-	_dynamic_tls_t* dynamic_tls;
-	_pthread_cleanup_t* cleanup_stack;
-	pthread_t id;
-	int errno_;
-	int cancel_type;
-	int cancel_state;
-	volatile int canceled;
-	// FIXME: make this dynamic
-	uintptr_t dtv[1 + 256];
-};
+#include <bits/types/uthread.h>
 
 #define PTHREAD_CANCELED				(void*)1
 
@@ -102,20 +66,6 @@ struct uthread
 #define _PTHREAD_ATFORK_PARENT  1
 #define _PTHREAD_ATFORK_CHILD   2
 void _pthread_call_atfork(int state);
-
-#if defined(__x86_64__)
-#define _get_uthread() ({ \
-		struct uthread* __tmp; \
-		asm volatile("movq %%fs:0, %0" : "=r"(__tmp)); \
-		__tmp; \
-	})
-#elif defined(__i686__)
-#define _get_uthread() ({ \
-		struct uthread* __tmp; \
-		asm volatile("movl %%gs:0, %0" : "=r"(__tmp)); \
-		__tmp; \
-	})
-#endif
 
 int			pthread_atfork(void (*prepare)(void), void (*parent)(void), void(*child)(void));
 int			pthread_attr_destroy(pthread_attr_t* attr);
