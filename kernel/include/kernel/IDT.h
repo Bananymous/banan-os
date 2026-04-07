@@ -20,7 +20,7 @@ namespace Kernel
 	constexpr uint8_t IRQ_MSI_BASE      = 0x80;
 	constexpr uint8_t IRQ_MSI_END       = 0xF0;
 #if ARCH(i686)
-	constexpr uint8_t IRQ_SYSCALL       = 0xF0;
+	constexpr uint8_t IRQ_SYSCALL       = 0xF0; // hard coded in kernel/API/Syscall.h
 #endif
 	constexpr uint8_t IRQ_IPI           = 0xF1;
 	constexpr uint8_t IRQ_TIMER         = 0xF2;

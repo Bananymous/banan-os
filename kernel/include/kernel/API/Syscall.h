@@ -1,44 +1,34 @@
 #pragma once
 
-#include <kernel/Attributes.h>
-#include <kernel/IDT.h>
-#include <stdint.h>
-#include <sys/syscall.h>
+#include <BAN/MacroUtils.h>
 
-namespace Kernel
-{
-
-	ALWAYS_INLINE long syscall(int syscall, uintptr_t arg1 = 0, uintptr_t arg2 = 0, uintptr_t arg3 = 0, uintptr_t arg4 = 0, uintptr_t arg5 = 0)
-	{
-		long ret;
-#if ARCH(x86_64)
-		register uintptr_t r10 asm("r10") = arg3;
-		register uintptr_t r8  asm( "r8") = arg4;
-		register uintptr_t r9  asm( "r9") = arg5;
-		asm volatile(
-			"syscall"
-			: "=a"(ret)
-			, "+D"(syscall)
-			, "+S"(arg1)
-			, "+d"(arg2)
-			, "+r"(r10)
-			, "+r"(r8)
-			, "+r"(r9)
-			:: "rcx", "r11", "memory");
-#elif ARCH(i686)
-		asm volatile(
-			"int %[irq]"
-			: "=a"(ret)
-			: [irq]"i"(static_cast<int>(IRQ_SYSCALL)) // WTF GCC 15
-			, "a"(syscall)
-			, "b"(arg1)
-			, "c"(arg2)
-			, "d"(arg3)
-			, "S"(arg4)
-			, "D"(arg5)
-			: "memory");
+#if defined(__x86_64__)
+	#define _kas_instruction "syscall"
+	#define _kas_result rax
+	#define _kas_arguments rdi, rsi, rdx, r10, r8, r9
+	#define _kas_globbers rcx, rdx, rdi, rsi, r8, r9, r10, r11
+#elif defined(__i686__)
+	#define _kas_instruction "int $0xF0"
+	#define _kas_result eax
+	#define _kas_arguments eax, ebx, ecx, edx, esi, edi
+	#define _kas_globbers
 #endif
-		return ret;
-	}
 
-}
+#define _kas_argument_var(index, value) register long _kas_a##index asm(_ban_stringify(_ban_get(index, _kas_arguments))) = (long)value;
+#define _kas_dummy_var(index, value) register long _kas_d##index asm(#value);
+#define _kas_input(index, _) "r"(_kas_a##index)
+#define _kas_output(index, _) , "=r"(_kas_d##index)
+#define _kas_globber(_, value) #value
+
+#define _kas_syscall(...) ({ \
+		register long _kas_ret asm(_ban_stringify(_kas_result)); \
+		_ban_for_each(_kas_argument_var, __VA_ARGS__) \
+		_ban_for_each(_kas_dummy_var, _kas_globbers) \
+		asm volatile( \
+			_kas_instruction \
+			: "=r"(_kas_ret) _ban_for_each(_kas_output, _kas_globbers) \
+			: _ban_for_each_comma(_kas_input, __VA_ARGS__) \
+			: "cc", "memory"); \
+		(void)_kas_a0; /* require 1 argument */ \
+		_kas_ret; \
+	})

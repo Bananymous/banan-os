@@ -1,10 +1,18 @@
 #pragma once
 
 #include <BAN/Traits.h>
+
+#include <unistd.h> // make sure syscall function is declared before defining it
+
+#include <errno.h>
 #include <kernel/API/Syscall.h>
 
-#include <stddef.h>
-#include <stdint.h>
+#define syscall(...) ({ \
+		long _ret = -ERESTART; \
+		while (_ret == -ERESTART) \
+			_ret = _kas_syscall(__VA_ARGS__); \
+		_ret; \
+	})
 
 template<typename T>
 inline constexpr T min(T a, T b)
@@ -16,12 +24,6 @@ template<typename T>
 inline constexpr T max(T a, T b)
 {
 	return a > b ? a : b;
-}
-
-template<typename... Ts> requires (sizeof...(Ts) <= 5) && ((BAN::is_integral_v<Ts> || BAN::is_pointer_v<Ts>) && ...)
-inline auto syscall(long syscall, Ts... args)
-{
-	return Kernel::syscall(syscall, (uintptr_t)args...);
 }
 
 void print(int fd, const char* buffer);

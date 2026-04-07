@@ -254,32 +254,21 @@ void _exit(int status)
 	ASSERT_NOT_REACHED();
 }
 
+#undef syscall
 long syscall(long syscall, ...)
 {
 	va_list args;
 	va_start(args, syscall);
-
 	uintptr_t arg1 = va_arg(args, uintptr_t);
 	uintptr_t arg2 = va_arg(args, uintptr_t);
 	uintptr_t arg3 = va_arg(args, uintptr_t);
 	uintptr_t arg4 = va_arg(args, uintptr_t);
 	uintptr_t arg5 = va_arg(args, uintptr_t);
-
 	va_end(args);
 
-	long ret;
-	do
-		ret = Kernel::syscall(syscall, arg1, arg2, arg3, arg4, arg5);
-	while (ret == -ERESTART);
-
-	if (ret < 0)
-	{
-		errno = -ret;
-		return -1;
-	}
-
-	return ret;
+	return _syscall(syscall, arg1, arg2, arg3, arg4, arg5);
 }
+#define syscall _syscall
 
 int close(int fd)
 {

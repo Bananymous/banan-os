@@ -74,7 +74,7 @@ set(LIBC_SOURCES
 )
 
 add_library(objlibc OBJECT ${LIBC_SOURCES})
-target_compile_definitions(objlibc PRIVATE __arch=${BANAN_ARCH})
+target_compile_definitions(objlibc PRIVATE __arch=${BANAN_ARCH} __is_libc)
 
 target_compile_options(objlibc PRIVATE -O2 -g -Wstack-usage=512 -fno-exceptions -fno-rtti -fpic)
 target_compile_options(objlibc PUBLIC -Wall -Wextra -Werror -Wno-error=stack-usage=)

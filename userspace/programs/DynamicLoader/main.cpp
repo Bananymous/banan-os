@@ -223,14 +223,14 @@ constexpr uintptr_t SYM_NOT_FOUND = -1;
 
 static void lock_global_lock()
 {
-	const pthread_t tid = syscall<>(SYS_PTHREAD_SELF);
+	const pthread_t tid = syscall(SYS_PTHREAD_SELF);
 
 	pthread_t expected = 0;
 	while (!s_global_locker.compare_exchange(expected, tid))
 	{
 		if (expected == tid)
 			break;
-		syscall<>(SYS_YIELD);
+		syscall(SYS_YIELD);
 		expected = 0;
 	}
 
@@ -1393,7 +1393,7 @@ static void initialize_tls(MasterTLS master_tls)
 		.master_tls_module_count = master_tls.module_count,
 		.dynamic_tls = s_dynamic_tls,
 		.cleanup_stack = nullptr,
-		.id = static_cast<pthread_t>(syscall<>(SYS_PTHREAD_SELF)),
+		.id = static_cast<pthread_t>(syscall(SYS_PTHREAD_SELF)),
 		.errno_ = 0,
 		.cancel_type = PTHREAD_CANCEL_DEFERRED,
 		.cancel_state = PTHREAD_CANCEL_ENABLE,
@@ -1565,7 +1565,7 @@ static void load_dynamic_tls(LoadedElf& elf)
 	int expected = 0;
 	while (!BAN::atomic_compare_exchange(s_dynamic_tls->lock, expected, 1))
 	{
-		syscall<>(SYS_YIELD);
+		syscall(SYS_YIELD);
 		expected = 0;
 	}
 

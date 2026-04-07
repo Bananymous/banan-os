@@ -7,6 +7,7 @@
 #include <kernel/Timer/Timer.h>
 
 #include <termios.h>
+#include <sys/syscall.h>
 
 #define DUMP_ALL_SYSCALLS 0
 #define DUMP_LONG_SYSCALLS 0

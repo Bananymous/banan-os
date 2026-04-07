@@ -608,6 +608,22 @@ char*				getpass(const char* prompt);
 
 long syscall(long syscall, ...);
 
+#ifdef __is_libc
+#include <kernel/API/Syscall.h>
+#include <errno.h>
+#define _syscall(...) ({ \
+		long _ret = -ERESTART; \
+		while (_ret == -ERESTART) \
+			_ret = _kas_syscall(__VA_ARGS__); \
+		if (_ret < 0) { \
+			errno = -_ret; \
+			_ret = -1; \
+		} \
+		_ret; \
+	})
+#define syscall _syscall
+#endif
+
 extern char** environ;
 
 __END_DECLS
