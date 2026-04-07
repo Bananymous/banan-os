@@ -7,6 +7,10 @@
 
 __BEGIN_DECLS
 
+#include <bits/types/uthread.h>
+
+#define errno (_get_uthread()->errno_)
+
 #define E2BIG			1
 #define EACCES			2
 #define EADDRINUSE		3
@@ -93,10 +97,6 @@ __BEGIN_DECLS
 
 #define ERESTART        0xFE /* internal errno for SA_RESTART */
 #define EUNKNOWN		0xFF
-
-#define errno (*__errno_location())
-
-int* __errno_location(void);
 
 __END_DECLS
 

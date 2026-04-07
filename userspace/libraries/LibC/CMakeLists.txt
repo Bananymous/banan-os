@@ -7,7 +7,6 @@ set(LIBC_SOURCES
 	dlfcn.cpp
 	endian.cpp
 	environ.cpp
-	errno.cpp
 	fcntl.cpp
 	fenv.cpp
 	fnmatch.cpp
