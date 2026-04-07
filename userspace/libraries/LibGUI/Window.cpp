@@ -16,47 +16,6 @@
 namespace LibGUI
 {
 
-	struct ReceivePacket
-	{
-		PacketType type;
-		BAN::Vector<uint8_t> data_with_type;
-	};
-
-	static BAN::ErrorOr<ReceivePacket> recv_packet(int socket)
-	{
-		uint32_t packet_size;
-
-		{
-			const ssize_t nrecv = recv(socket, &packet_size, sizeof(uint32_t), 0);
-			if (nrecv < 0)
-				return BAN::Error::from_errno(errno);
-			if (nrecv == 0)
-				return BAN::Error::from_errno(ECONNRESET);
-		}
-
-		if (packet_size < sizeof(uint32_t))
-			return BAN::Error::from_literal("invalid packet, does not fit packet id");
-
-		BAN::Vector<uint8_t> packet_data;
-		TRY(packet_data.resize(packet_size));
-
-		size_t total_recv = 0;
-		while (total_recv < packet_size)
-		{
-			const ssize_t nrecv = recv(socket, packet_data.data() + total_recv, packet_size - total_recv, 0);
-			if (nrecv < 0)
-				return BAN::Error::from_errno(errno);
-			if (nrecv == 0)
-				return BAN::Error::from_errno(ECONNRESET);
-			total_recv += nrecv;
-		}
-
-		return ReceivePacket {
-			*reinterpret_cast<PacketType*>(packet_data.data()),
-			packet_data
-		};
-	}
-
 	Window::~Window()
 	{
 		cleanup();
@@ -64,7 +23,7 @@ namespace LibGUI
 
 	BAN::ErrorOr<BAN::UniqPtr<Window>> Window::create(uint32_t width, uint32_t height, BAN::StringView title, Attributes attributes)
 	{
-		int server_fd = socket(AF_UNIX, SOCK_STREAM, 0);
+		int server_fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
 		if (server_fd == -1)
 			return BAN::Error::from_errno(errno);
 		BAN::ScopeGuard server_closer([server_fd] { close(server_fd); });
@@ -74,14 +33,8 @@ namespace LibGUI
 			return BAN::Error::from_errno(errno);
 		BAN::ScopeGuard epoll_closer([epoll_fd] { close(epoll_fd); });
 
-		epoll_event epoll_event {
-			.events = EPOLLIN,
-			.data = { .fd = server_fd },
-		};
+		epoll_event epoll_event { .events = EPOLLIN, .data = { .fd = server_fd } };
 		if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, server_fd, &epoll_event) == -1)
-			return BAN::Error::from_errno(errno);
-
-		if (fcntl(server_fd, F_SETFD, fcntl(server_fd, F_GETFD) | FD_CLOEXEC) == -1)
 			return BAN::Error::from_errno(errno);
 
 		timespec start_time;
@@ -107,25 +60,53 @@ namespace LibGUI
 			nanosleep(&sleep_time, nullptr);
 		}
 
+		auto window = TRY(BAN::UniqPtr<Window>::create(server_fd, epoll_fd, attributes));
+
 		WindowPacket::WindowCreate create_packet;
 		create_packet.width = width;
 		create_packet.height = height;
 		create_packet.attributes = attributes;
 		TRY(create_packet.title.append(title));
-		TRY(create_packet.send_serialized(server_fd));
-
-		auto window = TRY(BAN::UniqPtr<Window>::create(server_fd, epoll_fd, attributes));
+		window->send_packet(create_packet, __FUNCTION__);
 
 		bool resized = false;
 		window->set_resize_window_event_callback([&]() { resized = true; });
 		while (!resized)
+		{
+			// FIXME: timeout?
+			window->wait_events();
 			window->poll_events();
+		}
 		window->set_resize_window_event_callback({});
 
 		server_closer.disable();
 		epoll_closer.disable();
 
 		return window;
+	}
+
+	template<typename T>
+	void Window::send_packet(const T& packet, BAN::StringView function)
+	{
+		const size_t serialized_size = packet.serialized_size();
+		if (serialized_size > m_out_buffer.size())
+		{
+			dwarnln("cannot to send {} byte packet", serialized_size);
+			return on_socket_error(function);
+		}
+
+		packet.serialize(m_in_buffer.span());
+
+		size_t total_sent = 0;
+		while (total_sent < serialized_size)
+		{
+			const ssize_t nsend = send(m_server_fd, m_in_buffer.data() + total_sent, serialized_size - total_sent, 0);
+			if (nsend < 0)
+				dwarnln("send: {}", strerror(errno));
+			if (nsend <= 0)
+				return on_socket_error(function);
+			total_sent += nsend;
+		}
 	}
 
 	BAN::ErrorOr<void> Window::set_root_widget(BAN::RefPtr<Widget::Widget> widget)
@@ -186,36 +167,28 @@ namespace LibGUI
 		packet.y = y;
 		packet.width = width;
 		packet.height = height;
-
-		if (auto ret = packet.send_serialized(m_server_fd); ret.is_error())
-			return on_socket_error(__FUNCTION__);
+		send_packet(packet, __FUNCTION__);
 	}
 
 	void Window::set_mouse_relative(bool enabled)
 	{
 		WindowPacket::WindowSetMouseRelative packet;
 		packet.enabled = enabled;
-
-		if (auto ret = packet.send_serialized(m_server_fd); ret.is_error())
-			return on_socket_error(__FUNCTION__);
+		send_packet(packet, __FUNCTION__);
 	}
 
 	void Window::set_fullscreen(bool fullscreen)
 	{
 		WindowPacket::WindowSetFullscreen packet;
 		packet.fullscreen = fullscreen;
-
-		if (auto ret = packet.send_serialized(m_server_fd); ret.is_error())
-			return on_socket_error(__FUNCTION__);
+		send_packet(packet, __FUNCTION__);
 	}
 
 	void Window::set_title(BAN::StringView title)
 	{
 		WindowPacket::WindowSetTitle packet;
 		MUST(packet.title.append(title));
-
-		if (auto ret = packet.send_serialized(m_server_fd); ret.is_error())
-			return on_socket_error(__FUNCTION__);
+		send_packet(packet, __FUNCTION__);
 	}
 
 	void Window::set_position(int32_t x, int32_t y)
@@ -223,9 +196,7 @@ namespace LibGUI
 		WindowPacket::WindowSetPosition packet;
 		packet.x = x;
 		packet.y = y;
-
-		if (auto ret = packet.send_serialized(m_server_fd); ret.is_error())
-			return on_socket_error(__FUNCTION__);
+		send_packet(packet, __FUNCTION__);
 	}
 
 	void Window::set_cursor_visible(bool visible)
@@ -247,9 +218,7 @@ namespace LibGUI
 		MUST(packet.pixels.resize(pixels.size()));
 		for (size_t i = 0; i < packet.pixels.size(); i++)
 			packet.pixels[i] = pixels[i];
-
-		if (auto ret = packet.send_serialized(m_server_fd); ret.is_error())
-			return on_socket_error(__FUNCTION__);
+		send_packet(packet, __FUNCTION__);
 	}
 
 	void Window::set_min_size(uint32_t width, uint32_t height)
@@ -257,9 +226,7 @@ namespace LibGUI
 		WindowPacket::WindowSetMinSize packet;
 		packet.width = width;
 		packet.height = height;
-
-		if (auto ret = packet.send_serialized(m_server_fd); ret.is_error())
-			return on_socket_error(__FUNCTION__);
+		send_packet(packet, __FUNCTION__);
 	}
 
 	void Window::set_max_size(uint32_t width, uint32_t height)
@@ -267,19 +234,14 @@ namespace LibGUI
 		WindowPacket::WindowSetMaxSize packet;
 		packet.width = width;
 		packet.height = height;
-
-		if (auto ret = packet.send_serialized(m_server_fd); ret.is_error())
-			return on_socket_error(__FUNCTION__);
+		send_packet(packet, __FUNCTION__);
 	}
 
 	void Window::set_attributes(Attributes attributes)
 	{
 		WindowPacket::WindowSetAttributes packet;
 		packet.attributes = attributes;
-
-		if (auto ret = packet.send_serialized(m_server_fd); ret.is_error())
-			return on_socket_error(__FUNCTION__);
-
+		send_packet(packet, __FUNCTION__);
 		m_attributes = attributes;
 	}
 
@@ -288,9 +250,7 @@ namespace LibGUI
 		WindowPacket::WindowSetSize packet;
 		packet.width = width;
 		packet.height = height;
-
-		if (auto ret = packet.send_serialized(m_server_fd); ret.is_error())
-			return on_socket_error(__FUNCTION__);
+		send_packet(packet, __FUNCTION__);
 	}
 
 	void Window::on_socket_error(BAN::StringView function)
@@ -347,82 +307,121 @@ namespace LibGUI
 
 	void Window::poll_events()
 	{
-#define TRY_OR_BREAK(...) ({ auto&& e = (__VA_ARGS__); if (e.is_error()) break; e.release_value(); })
 		for (;;)
 		{
 			epoll_event event;
 			if (epoll_wait(m_epoll_fd, &event, 1, 0) == 0)
 				break;
 
-			auto packet_or_error = recv_packet(m_server_fd);
-			if (packet_or_error.is_error())
+			if (event.events & (EPOLLHUP | EPOLLERR))
 				return on_socket_error(__FUNCTION__);
 
-			const auto [packet_type, packet_data] = packet_or_error.release_value();
-			switch (packet_type)
+			ASSERT(event.events & EPOLLIN);
+
 			{
-				case PacketType::DestroyWindowEvent:
-					exit(1);
-				case PacketType::CloseWindowEvent:
-					if (m_close_window_event_callback)
-						m_close_window_event_callback();
-					else
-						exit(0);
+				const ssize_t nrecv = recv(m_server_fd, m_in_buffer.data() + m_in_buffer_size, m_in_buffer.size() - m_in_buffer_size, 0);
+				if (nrecv <= 0)
+					return on_socket_error(__FUNCTION__);
+				if (nrecv > 0)
+					m_in_buffer_size += nrecv;
+			}
+
+			size_t bytes_handled = 0;
+			while (m_in_buffer_size - bytes_handled >= sizeof(PacketHeader))
+			{
+				BAN::ConstByteSpan packet_span = m_in_buffer.span().slice(bytes_handled);
+				const auto header = packet_span.as<const PacketHeader>();
+				if (packet_span.size() < header.size || header.size < sizeof(LibGUI::PacketHeader))
 					break;
-				case PacketType::ResizeWindowEvent:
+				packet_span = packet_span.slice(0, header.size);
+
+				switch (header.type)
 				{
-					MUST(handle_resize_event(TRY_OR_BREAK(EventPacket::ResizeWindowEvent::deserialize(packet_data.span()))));
-					if (m_resize_window_event_callback)
-						m_resize_window_event_callback();
-					break;
-				}
-				case PacketType::WindowShownEvent:
-					if (m_window_shown_event_callback)
-						m_window_shown_event_callback(TRY_OR_BREAK(EventPacket::WindowShownEvent::deserialize(packet_data.span())).event);
-					break;
-				case PacketType::WindowFocusEvent:
-					if (m_window_focus_event_callback)
-						m_window_focus_event_callback(TRY_OR_BREAK(EventPacket::WindowFocusEvent::deserialize(packet_data.span())).event);
-					break;
-				case PacketType::WindowFullscreenEvent:
-					if (m_window_fullscreen_event_callback)
-						m_window_fullscreen_event_callback(TRY_OR_BREAK(EventPacket::WindowFullscreenEvent::deserialize(packet_data.span())).event);
-					break;
-				case PacketType::KeyEvent:
-					if (m_key_event_callback)
-						m_key_event_callback(TRY_OR_BREAK(EventPacket::KeyEvent::deserialize(packet_data.span())).event);
-					break;
-				case PacketType::MouseButtonEvent:
-				{
-					auto event = TRY_OR_BREAK(EventPacket::MouseButtonEvent::deserialize(packet_data.span())).event;
-					if (m_mouse_button_event_callback)
-						m_mouse_button_event_callback(event);
-					if (m_root_widget)
-						m_root_widget->on_mouse_button(event);
-					break;
-				}
-				case PacketType::MouseMoveEvent:
-				{
-					auto event = TRY_OR_BREAK(EventPacket::MouseMoveEvent::deserialize(packet_data.span())).event;
-					if (m_mouse_move_event_callback)
-						m_mouse_move_event_callback(event);
-					if (m_root_widget)
+#define TRY_OR_BREAK(...) ({ auto&& e = (__VA_ARGS__); if (e.is_error()) break; e.release_value(); })
+					case PacketType::DestroyWindowEvent:
+						exit(1);
+					case PacketType::CloseWindowEvent:
+						if (m_close_window_event_callback)
+							m_close_window_event_callback();
+						else
+							exit(0);
+						break;
+					case PacketType::ResizeWindowEvent:
 					{
-						m_root_widget->before_mouse_move();
-						m_root_widget->on_mouse_move(event);
-						m_root_widget->after_mouse_move();
+						MUST(handle_resize_event(TRY_OR_BREAK(EventPacket::ResizeWindowEvent::deserialize(packet_span))));
+						if (m_resize_window_event_callback)
+							m_resize_window_event_callback();
+						break;
 					}
-					break;
+					case PacketType::WindowShownEvent:
+						if (m_window_shown_event_callback)
+							m_window_shown_event_callback(TRY_OR_BREAK(EventPacket::WindowShownEvent::deserialize(packet_span)).event);
+						break;
+					case PacketType::WindowFocusEvent:
+						if (m_window_focus_event_callback)
+							m_window_focus_event_callback(TRY_OR_BREAK(EventPacket::WindowFocusEvent::deserialize(packet_span)).event);
+						break;
+					case PacketType::WindowFullscreenEvent:
+						if (m_window_fullscreen_event_callback)
+							m_window_fullscreen_event_callback(TRY_OR_BREAK(EventPacket::WindowFullscreenEvent::deserialize(packet_span)).event);
+						break;
+					case PacketType::KeyEvent:
+						if (m_key_event_callback)
+							m_key_event_callback(TRY_OR_BREAK(EventPacket::KeyEvent::deserialize(packet_span)).event);
+						break;
+					case PacketType::MouseButtonEvent:
+					{
+						auto event = TRY_OR_BREAK(EventPacket::MouseButtonEvent::deserialize(packet_span)).event;
+						if (m_mouse_button_event_callback)
+							m_mouse_button_event_callback(event);
+						if (m_root_widget)
+							m_root_widget->on_mouse_button(event);
+						break;
+					}
+					case PacketType::MouseMoveEvent:
+					{
+						auto event = TRY_OR_BREAK(EventPacket::MouseMoveEvent::deserialize(packet_span)).event;
+						if (m_mouse_move_event_callback)
+							m_mouse_move_event_callback(event);
+						if (m_root_widget)
+						{
+							m_root_widget->before_mouse_move();
+							m_root_widget->on_mouse_move(event);
+							m_root_widget->after_mouse_move();
+						}
+						break;
+					}
+					case PacketType::MouseScrollEvent:
+						if (m_mouse_scroll_event_callback)
+							m_mouse_scroll_event_callback(TRY_OR_BREAK(EventPacket::MouseScrollEvent::deserialize(packet_span)).event);
+						break;
+#undef TRY_OR_BREAK
+					default:
+						dprintln("unhandled packet type: {}", static_cast<uint32_t>(header.type));
+						break;
 				}
-				case PacketType::MouseScrollEvent:
-					if (m_mouse_scroll_event_callback)
-						m_mouse_scroll_event_callback(TRY_OR_BREAK(EventPacket::MouseScrollEvent::deserialize(packet_data.span())).event);
-					break;
-				default:
-					break;
+
+				bytes_handled += header.size;
+			}
+
+			// NOTE: this will only move a single partial packet, so this is fine
+			m_in_buffer_size -= bytes_handled;
+			memmove(
+				m_in_buffer.data(),
+				m_in_buffer.data() + bytes_handled,
+				m_in_buffer_size
+			);
+
+			if (m_in_buffer_size >= sizeof(LibGUI::PacketHeader))
+			{
+				const auto header = BAN::ConstByteSpan(m_in_buffer.span()).as<const LibGUI::PacketHeader>();
+				if (header.size < sizeof(LibGUI::PacketHeader) || header.size > m_in_buffer.size())
+				{
+					dwarnln("server tried to send a {} byte packet", header.size);
+					return on_socket_error(__FUNCTION__);
+				}
 			}
 		}
-#undef TRY_OR_BREAK
 
 		if (m_root_widget)
 		{

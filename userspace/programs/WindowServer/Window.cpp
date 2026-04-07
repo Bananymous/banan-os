@@ -16,7 +16,22 @@ Window::~Window()
 	smo_delete(m_smo_key);
 
 	LibGUI::EventPacket::DestroyWindowEvent packet;
-	(void)packet.send_serialized(m_client_fd);
+
+	BAN::Vector<uint8_t> buffer;
+	if (!buffer.resize(packet.serialized_size()).is_error())
+	{
+		packet.serialize(buffer.span());
+
+		size_t total_sent = 0;
+		while (total_sent < buffer.size())
+		{
+			const ssize_t nsend = send(m_client_fd, buffer.data() + total_sent, buffer.size() - total_sent, 0);
+			if (nsend <= 0)
+				break;
+			total_sent += nsend;
+		}
+	}
+
 	close(m_client_fd);
 }
 

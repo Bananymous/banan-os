@@ -1,5 +1,6 @@
 #pragma once
 
+#include <BAN/Array.h>
 #include <BAN/Function.h>
 #include <BAN/StringView.h>
 #include <BAN/UniqPtr.h>
@@ -93,6 +94,9 @@ namespace LibGUI
 
 		BAN::ErrorOr<void> handle_resize_event(const EventPacket::ResizeWindowEvent&);
 
+		template<typename T>
+		void send_packet(const T& packet, BAN::StringView function);
+
 	private:
 		const int m_server_fd;
 		const int m_epoll_fd;
@@ -118,6 +122,11 @@ namespace LibGUI
 		BAN::Function<void(EventPacket::MouseButtonEvent::event_t)>      m_mouse_button_event_callback;
 		BAN::Function<void(EventPacket::MouseMoveEvent::event_t)>        m_mouse_move_event_callback;
 		BAN::Function<void(EventPacket::MouseScrollEvent::event_t)>      m_mouse_scroll_event_callback;
+
+		size_t m_in_buffer_size { 0 };
+		BAN::Array<uint8_t, 64 * 1024> m_in_buffer;
+
+		BAN::Array<uint8_t, 64 * 1024> m_out_buffer;
 
 		friend class BAN::UniqPtr<Window>;
 	};

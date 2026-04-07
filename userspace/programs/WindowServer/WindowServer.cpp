@@ -86,7 +86,7 @@ void WindowServer::on_window_create(int fd, const LibGUI::WindowPacket::WindowCr
 	response.width = window->client_width();
 	response.height = window->client_height();
 	response.smo_key = window->smo_key();
-	if (auto ret = response.send_serialized(fd); ret.is_error())
+	if (auto ret = append_serialized_packet(response, fd); ret.is_error())
 	{
 		dwarnln("could not respond to window create request: {}", ret.error());
 		return;
@@ -205,7 +205,7 @@ void WindowServer::on_window_set_attributes(int fd, const LibGUI::WindowPacket::
 			.shown = target_window->get_attributes().shown,
 		},
 	};
-	if (auto ret = event_packet.send_serialized(target_window->client_fd()); ret.is_error())
+	if (auto ret = append_serialized_packet(event_packet, target_window->client_fd()); ret.is_error())
 		dwarnln("could not send window shown event: {}", ret.error());
 
 	if (packet.attributes.focusable && packet.attributes.shown && m_state == State::Normal)
@@ -312,7 +312,7 @@ void WindowServer::on_window_set_fullscreen(int fd, const LibGUI::WindowPacket::
 		auto event_packet = LibGUI::EventPacket::WindowFullscreenEvent {
 			.event = { .fullscreen = false }
 		};
-		if (auto ret = event_packet.send_serialized(m_focused_window->client_fd()); ret.is_error())
+		if (auto ret = append_serialized_packet(event_packet, m_focused_window->client_fd()); ret.is_error())
 			dwarnln("could not send window fullscreen event: {}", ret.error());
 
 		m_state = State::Normal;
@@ -347,7 +347,7 @@ void WindowServer::on_window_set_fullscreen(int fd, const LibGUI::WindowPacket::
 	auto event_packet = LibGUI::EventPacket::WindowFullscreenEvent {
 		.event = { .fullscreen = true }
 	};
-	if (auto ret = event_packet.send_serialized(target_window->client_fd()); ret.is_error())
+	if (auto ret = append_serialized_packet(event_packet, target_window->client_fd()); ret.is_error())
 		dwarnln("could not send window fullscreen event: {}", ret.error());
 
 	m_state = State::Fullscreen;
@@ -488,7 +488,7 @@ void WindowServer::on_key_event(LibInput::KeyEvent event)
 	if (m_is_mod_key_held && event.pressed() && event.key == LibInput::Key::Q)
 	{
 		LibGUI::EventPacket::CloseWindowEvent packet;
-		if (auto ret = packet.send_serialized(m_focused_window->client_fd()); ret.is_error())
+		if (auto ret = append_serialized_packet(packet, m_focused_window->client_fd()); ret.is_error())
 			dwarnln("could not send window close event: {}", ret.error());
 		return;
 	}
@@ -521,7 +521,7 @@ void WindowServer::on_key_event(LibInput::KeyEvent event)
 		auto event_packet = LibGUI::EventPacket::WindowFullscreenEvent {
 			.event = { .fullscreen = (m_state == State::Fullscreen) }
 		};
-		if (auto ret = event_packet.send_serialized(m_focused_window->client_fd()); ret.is_error())
+		if (auto ret = append_serialized_packet(event_packet, m_focused_window->client_fd()); ret.is_error())
 			dwarnln("could not send window fullscreen event: {}", ret.error());
 
 		invalidate(m_framebuffer.area());
@@ -530,7 +530,7 @@ void WindowServer::on_key_event(LibInput::KeyEvent event)
 
 	LibGUI::EventPacket::KeyEvent packet;
 	packet.event = event;
-	if (auto ret = packet.send_serialized(m_focused_window->client_fd()); ret.is_error())
+	if (auto ret = append_serialized_packet(packet, m_focused_window->client_fd()); ret.is_error())
 		dwarnln("could not send key event: {}", ret.error());
 }
 
@@ -545,7 +545,7 @@ void WindowServer::on_mouse_button(LibInput::MouseButtonEvent event)
 		packet.event.pressed = event.pressed;
 		packet.event.x = 0;
 		packet.event.y = 0;
-		if (auto ret = packet.send_serialized(m_focused_window->client_fd()); ret.is_error())
+		if (auto ret = append_serialized_packet(packet, m_focused_window->client_fd()); ret.is_error())
 			dwarnln("could not send mouse button event: {}", ret.error());
 		return;
 	}
@@ -604,7 +604,7 @@ void WindowServer::on_mouse_button(LibInput::MouseButtonEvent event)
 			if (event.button == LibInput::MouseButton::Left && !event.pressed && target_window->close_button_area().contains(m_cursor))
 			{
 				LibGUI::EventPacket::CloseWindowEvent packet;
-				if (auto ret = packet.send_serialized(target_window->client_fd()); ret.is_error())
+				if (auto ret = append_serialized_packet(packet, target_window->client_fd()); ret.is_error())
 					dwarnln("could not send close window event: {}", ret.error());
 				break;
 			}
@@ -618,7 +618,7 @@ void WindowServer::on_mouse_button(LibInput::MouseButtonEvent event)
 				packet.event.pressed = event.pressed;
 				packet.event.x = m_cursor.x - target_window->client_x();
 				packet.event.y = m_cursor.y - target_window->client_y();
-				if (auto ret = packet.send_serialized(target_window->client_fd()); ret.is_error())
+				if (auto ret = append_serialized_packet(packet, target_window->client_fd()); ret.is_error())
 				{
 					dwarnln("could not send mouse button event: {}", ret.error());
 					return;
@@ -649,7 +649,7 @@ void WindowServer::on_mouse_button(LibInput::MouseButtonEvent event)
 				event.width = m_focused_window->client_width();
 				event.height = m_focused_window->client_height();
 				event.smo_key = m_focused_window->smo_key();
-				if (auto ret = event.send_serialized(m_focused_window->client_fd()); ret.is_error())
+				if (auto ret = append_serialized_packet(event, m_focused_window->client_fd()); ret.is_error())
 				{
 					dwarnln("could not respond to window resize request: {}", ret.error());
 					return;
@@ -698,7 +698,7 @@ void WindowServer::on_mouse_move_impl(int32_t new_x, int32_t new_y)
 			LibGUI::EventPacket::MouseMoveEvent packet;
 			packet.event.x = m_cursor.x - m_focused_window->client_x();
 			packet.event.y = m_cursor.y - m_focused_window->client_y();
-			if (auto ret = packet.send_serialized(m_focused_window->client_fd()); ret.is_error())
+			if (auto ret = append_serialized_packet(packet, m_focused_window->client_fd()); ret.is_error())
 			{
 				dwarnln("could not send mouse move event: {}", ret.error());
 				return;
@@ -736,7 +736,7 @@ void WindowServer::on_mouse_move(LibInput::MouseMoveEvent event)
 		LibGUI::EventPacket::MouseMoveEvent packet;
 		packet.event.x =  event.rel_x;
 		packet.event.y = -event.rel_y;
-		if (auto ret = packet.send_serialized(m_focused_window->client_fd()); ret.is_error())
+		if (auto ret = append_serialized_packet(packet, m_focused_window->client_fd()); ret.is_error())
 			dwarnln("could not send mouse move event: {}", ret.error());
 		return;
 	}
@@ -807,7 +807,7 @@ void WindowServer::on_mouse_scroll(LibInput::MouseScrollEvent event)
 	{
 		LibGUI::EventPacket::MouseScrollEvent packet;
 		packet.event.scroll = event.scroll;
-		if (auto ret = packet.send_serialized(m_focused_window->client_fd()); ret.is_error())
+		if (auto ret = append_serialized_packet(packet, m_focused_window->client_fd()); ret.is_error())
 		{
 			dwarnln("could not send mouse scroll event: {}", ret.error());
 			return;
@@ -831,7 +831,7 @@ void WindowServer::set_focused_window(BAN::RefPtr<Window> window)
 	{
 		LibGUI::EventPacket::WindowFocusEvent packet;
 		packet.event.focused = false;
-		if (auto ret = packet.send_serialized(m_focused_window->client_fd()); ret.is_error())
+		if (auto ret = append_serialized_packet(packet, m_focused_window->client_fd()); ret.is_error())
 			dwarnln("could not send window focus event: {}", ret.error());
 	}
 
@@ -851,7 +851,7 @@ void WindowServer::set_focused_window(BAN::RefPtr<Window> window)
 	{
 		LibGUI::EventPacket::WindowFocusEvent packet;
 		packet.event.focused = true;
-		if (auto ret = packet.send_serialized(m_focused_window->client_fd()); ret.is_error())
+		if (auto ret = append_serialized_packet(packet, m_focused_window->client_fd()); ret.is_error())
 			dwarnln("could not send window focus event: {}", ret.error());
 	}
 }
@@ -1526,7 +1526,7 @@ BAN::RefPtr<Window> WindowServer::find_hovered_window() const
 	return {};
 }
 
-bool WindowServer::resize_window(BAN::RefPtr<Window> window, uint32_t width, uint32_t height) const
+bool WindowServer::resize_window(BAN::RefPtr<Window> window, uint32_t width, uint32_t height)
 {
 	if (auto ret = window->resize(width, height); ret.is_error())
 	{
@@ -1538,7 +1538,7 @@ bool WindowServer::resize_window(BAN::RefPtr<Window> window, uint32_t width, uin
 	response.width = window->client_width();
 	response.height = window->client_height();
 	response.smo_key = window->smo_key();
-	if (auto ret = response.send_serialized(window->client_fd()); ret.is_error())
+	if (auto ret = append_serialized_packet(response, window->client_fd()); ret.is_error())
 	{
 		dwarnln("could not respond to window resize request: {}", ret.error());
 		return false;
@@ -1547,13 +1547,10 @@ bool WindowServer::resize_window(BAN::RefPtr<Window> window, uint32_t width, uin
 	return true;
 }
 
-void WindowServer::add_client_fd(int fd)
+BAN::ErrorOr<void> WindowServer::add_client_fd(int fd)
 {
-	if (auto ret = m_client_data.emplace(fd); ret.is_error())
-	{
-		dwarnln("could not add client: {}", ret.error());
-		return;
-	}
+	TRY(m_client_data.emplace(fd));
+	return {};
 }
 
 void WindowServer::remove_client_fd(int fd)
@@ -1611,4 +1608,32 @@ WindowServer::ClientData& WindowServer::get_client_data(int fd)
 		dwarnln("  {}", client_fd);
 
 	ASSERT_NOT_REACHED();
+}
+
+// TODO: this epoll stuff is very hacky
+
+#include <sys/epoll.h>
+
+extern int g_epoll_fd;
+
+template<typename T>
+BAN::ErrorOr<void> WindowServer::append_serialized_packet(const T& packet, int fd)
+{
+	const size_t serialized_size = packet.serialized_size();
+
+	auto& client_data = m_client_data[fd];
+	if (client_data.out_buffer_size + serialized_size > client_data.out_buffer.size())
+		return BAN::Error::from_errno(ENOBUFS);
+
+	if (client_data.out_buffer_size == 0)
+	{
+		epoll_event event { .events = EPOLLIN | EPOLLOUT, .data = { .fd = fd } };
+		if (epoll_ctl(g_epoll_fd, EPOLL_CTL_MOD, fd, &event) == -1)
+			dwarnln("epoll_ctl add EPOLLOUT: {}", strerror(errno));
+	}
+
+	packet.serialize(client_data.out_buffer.span().slice(client_data.out_buffer_size, serialized_size));
+	client_data.out_buffer_size += serialized_size;
+
+	return {};
 }

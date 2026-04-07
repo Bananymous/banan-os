@@ -20,8 +20,10 @@ class WindowServer
 public:
 	struct ClientData
 	{
-		size_t packet_buffer_nread = 0;
-		BAN::Vector<uint8_t> packet_buffer;
+		size_t in_buffer_size { 0 };
+		BAN::Array<uint8_t, 64 * 1024> in_buffer;
+		size_t out_buffer_size { 0 };
+		BAN::Array<uint8_t, 64 * 1024> out_buffer;
 	};
 
 public:
@@ -54,7 +56,7 @@ public:
 	Rectangle cursor_area() const;
 	Rectangle resize_area(Position cursor) const;
 
-	void add_client_fd(int fd);
+	BAN::ErrorOr<void> add_client_fd(int fd);
 	void remove_client_fd(int fd);
 	ClientData& get_client_data(int fd);
 
@@ -65,10 +67,13 @@ private:
 
 	void mark_pending_sync(Rectangle area);
 
-	bool resize_window(BAN::RefPtr<Window> window, uint32_t width, uint32_t height) const;
+	bool resize_window(BAN::RefPtr<Window> window, uint32_t width, uint32_t height);
 
 	BAN::RefPtr<Window> find_window_with_fd(int fd) const;
 	BAN::RefPtr<Window> find_hovered_window() const;
+
+	template<typename T>
+	BAN::ErrorOr<void> append_serialized_packet(const T& packet, int fd);
 
 private:
 	struct RangeList

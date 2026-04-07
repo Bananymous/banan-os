@@ -1,14 +1,12 @@
 #pragma once
 
+#include <BAN/ByteSpan.h>
 #include <BAN/String.h>
 #include <BAN/StringView.h>
-#include <BAN/ByteSpan.h>
+#include <BAN/Vector.h>
 
 #include <LibInput/KeyEvent.h>
 #include <LibInput/MouseEvent.h>
-
-#include <sys/banan-os.h>
-#include <sys/socket.h>
 
 #define FOR_EACH_0(macro)
 #define FOR_EACH_2(macro, type, name)      macro(type, name)
@@ -31,7 +29,7 @@
 
 #define FIELD_DECL(type, name) type name;
 #define ADD_SERIALIZED_SIZE(type, name) serialized_size += Serialize::serialized_size_impl<type>(this->name);
-#define SEND_SERIALIZED(type, name) TRY(Serialize::send_serialized_impl<type>(socket, this->name));
+#define SERIALIZE(type, name) Serialize::serialize_impl<type>(buffer, this->name);
 #define DESERIALIZE(type, name) value.name = TRY(Serialize::deserialize_impl<type>(buffer));
 
 #define DEFINE_PACKET_EXTRA(name, extra, ...) \
@@ -44,26 +42,28 @@
  \
 		FOR_EACH(FIELD_DECL, __VA_ARGS__) \
  \
-		size_t serialized_size() \
+		size_t serialized_size() const \
 		{ \
-			size_t serialized_size = Serialize::serialized_size_impl<uint32_t>(type_u32); \
+			size_t serialized_size = 0; \
+			serialized_size += Serialize::serialized_size_impl<uint32_t>(0); \
+			serialized_size += Serialize::serialized_size_impl<uint32_t>(type_u32); \
 			FOR_EACH(ADD_SERIALIZED_SIZE, __VA_ARGS__) \
 			return serialized_size; \
 		} \
  \
-		BAN::ErrorOr<void> send_serialized(int socket) \
+		void serialize(BAN::ByteSpan buffer) const \
 		{ \
 			const uint32_t serialized_size = this->serialized_size(); \
-			TRY(Serialize::send_serialized_impl<uint32_t>(socket, serialized_size)); \
-			TRY(Serialize::send_serialized_impl<uint32_t>(socket, type_u32)); \
-			FOR_EACH(SEND_SERIALIZED, __VA_ARGS__) \
-			return {}; \
+			Serialize::serialize_impl<uint32_t>(buffer, serialized_size); \
+			Serialize::serialize_impl<uint32_t>(buffer, type_u32); \
+			FOR_EACH(SERIALIZE, __VA_ARGS__); \
 		} \
  \
 		static BAN::ErrorOr<name> deserialize(BAN::ConstByteSpan buffer) \
 		{ \
+			const uint32_t size_u32 = TRY(Serialize::deserialize_impl<uint32_t>(buffer)); \
 			const uint32_t type_u32 = TRY(Serialize::deserialize_impl<uint32_t>(buffer)); \
-			if (type_u32 != name::type_u32) \
+			if (type_u32 != name::type_u32 || size_u32 != buffer.size() + 2 * sizeof(uint32_t)) \
 				return BAN::Error::from_errno(EINVAL); \
 			name value; \
 			FOR_EACH(DESERIALIZE, __VA_ARGS__) \
@@ -90,19 +90,11 @@ namespace LibGUI
 	namespace Serialize
 	{
 
-		inline BAN::ErrorOr<void> send_raw_data(int socket, BAN::ConstByteSpan data)
+		inline void append_raw_data(BAN::ByteSpan& buffer, BAN::ConstByteSpan data)
 		{
-			size_t send_done = 0;
-			while (send_done < data.size())
-			{
-				const ssize_t nsend = ::send(socket, data.data() + send_done, data.size() - send_done, 0);
-				if (nsend < 0)
-					return BAN::Error::from_errno(errno);
-				if (nsend == 0)
-					return BAN::Error::from_errno(ECONNRESET);
-				send_done += nsend;
-			}
-			return {};
+			ASSERT(buffer.size() >= data.size());
+			memcpy(buffer.data(), data.data(), data.size());
+			buffer = buffer.slice(data.size());
 		}
 
 		template<typename T> requires BAN::is_pod_v<T>
@@ -112,10 +104,9 @@ namespace LibGUI
 		}
 
 		template<typename T> requires BAN::is_pod_v<T>
-		inline BAN::ErrorOr<void> send_serialized_impl(int socket, const T& value)
+		inline void serialize_impl(BAN::ByteSpan& buffer, const T& value)
 		{
-			TRY(send_raw_data(socket, BAN::ConstByteSpan::from(value)));
-			return {};
+			append_raw_data(buffer, BAN::ConstByteSpan::from(value));
 		}
 
 		template<typename T> requires BAN::is_pod_v<T>
@@ -135,13 +126,12 @@ namespace LibGUI
 		}
 
 		template<typename T> requires BAN::is_same_v<T, BAN::String>
-		inline BAN::ErrorOr<void> send_serialized_impl(int socket, const T& value)
+		inline void serialize_impl(BAN::ByteSpan& buffer, const T& value)
 		{
 			const uint32_t value_size = value.size();
-			TRY(send_raw_data(socket, BAN::ConstByteSpan::from(value_size)));
+			append_raw_data(buffer, BAN::ConstByteSpan::from(value_size));
 			auto* u8_data = reinterpret_cast<const uint8_t*>(value.data());
-			TRY(send_raw_data(socket, BAN::ConstByteSpan(u8_data, value.size())));
-			return {};
+			append_raw_data(buffer, BAN::ConstByteSpan(u8_data, value.size()));
 		}
 
 		template<typename T> requires BAN::is_same_v<T, BAN::String>
@@ -173,13 +163,12 @@ namespace LibGUI
 		}
 
 		template<detail::Vector T>
-		inline BAN::ErrorOr<void> send_serialized_impl(int socket, const T& vector)
+		inline void serialize_impl(BAN::ByteSpan& buffer, const T& vector)
 		{
 			const uint32_t value_size = vector.size();
-			TRY(send_raw_data(socket, BAN::ConstByteSpan::from(value_size)));
+			append_raw_data(buffer, BAN::ConstByteSpan::from(value_size));
 			for (const auto& element : vector)
-				TRY(send_serialized_impl(socket, element));
-			return {};
+				serialize_impl(buffer, element);
 		}
 
 		template<detail::Vector T>
@@ -224,6 +213,12 @@ namespace LibGUI
 		MouseButtonEvent,
 		MouseMoveEvent,
 		MouseScrollEvent,
+	};
+
+	struct PacketHeader
+	{
+		uint32_t size;
+		PacketType type;
 	};
 
 	namespace WindowPacket
