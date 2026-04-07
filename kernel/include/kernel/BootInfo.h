@@ -44,7 +44,7 @@ namespace Kernel
 	struct BootModule
 	{
 		paddr_t start;
-		size_t size;
+		uint64_t size;
 	};
 
 	struct BootInfo

@@ -12,7 +12,7 @@ namespace Kernel
 	struct ReservedRegion
 	{
 		paddr_t paddr;
-		size_t size;
+		uint64_t size;
 	};
 
 	static BAN::Vector<ReservedRegion> get_reserved_regions()
@@ -138,10 +138,10 @@ namespace Kernel
 				MUST(m_physical_ranges.emplace_back(e_start, e_end - e_start));
 		}
 
-		size_t total_kibi_bytes = 0;
+		uint64_t total_kibi_bytes = 0;
 		for (auto& range : m_physical_ranges)
 		{
-			const size_t kibi_bytes = range.usable_memory() / 1024;
+			const uint64_t kibi_bytes = range.usable_memory() / 1024;
 			dprintln("RAM {8H}->{8H} ({}.{3} MiB)", range.start(), range.end(), kibi_bytes / 1024, kibi_bytes % 1024);
 			total_kibi_bytes += kibi_bytes;
 		}
@@ -152,7 +152,7 @@ namespace Kernel
 	{
 		const auto modules = BAN::move(g_boot_info.modules);
 
-		size_t kibi_bytes = 0;
+		uint64_t kibi_bytes = 0;
 		for (const auto& module : modules)
 		{
 			vaddr_t start = module.start;

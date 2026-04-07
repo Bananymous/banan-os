@@ -10,7 +10,7 @@ namespace Kernel
 
 	static constexpr size_t bits_per_page = PAGE_SIZE * 8;
 
-	PhysicalRange::PhysicalRange(paddr_t paddr, size_t size)
+	PhysicalRange::PhysicalRange(paddr_t paddr, uint64_t size)
 		: m_paddr(paddr)
 		, m_page_count(size / PAGE_SIZE)
 		, m_free_pages(m_page_count)

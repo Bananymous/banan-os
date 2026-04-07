@@ -10,7 +10,7 @@ namespace Kernel
 	class PhysicalRange
 	{
 	public:
-		PhysicalRange(paddr_t, size_t);
+		PhysicalRange(paddr_t, uint64_t);
 
 		paddr_t reserve_page();
 		void release_page(paddr_t);
