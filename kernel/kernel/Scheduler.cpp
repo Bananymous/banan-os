@@ -139,6 +139,8 @@ namespace Kernel
 		if (Processor::count() > 1)
 			Processor::set_smp_enabled();
 
+		m_next_reschedule_ns = SystemTimer::get().ns_since_boot();
+
 		return {};
 	}
 
@@ -348,13 +350,10 @@ namespace Kernel
 
 		wake_up_sleeping_threads();
 
+		if (SystemTimer::get().ns_since_boot() >= m_next_reschedule_ns)
 		{
-			const uint64_t current_ns = SystemTimer::get().ns_since_boot();
-			if (current_ns >= m_last_reschedule_ns + s_reschedule_interval_ns)
-			{
-				m_last_reschedule_ns = current_ns;
-				Processor::yield();
-			}
+			m_next_reschedule_ns += s_reschedule_interval_ns;
+			Processor::yield();
 		}
 	}
 
