@@ -193,7 +193,7 @@ static void __dump_symbol(int fd, const void* address)
 #endif
 }
 
-static void __dump_backtrace(int sig, siginfo_t* info, void* context)
+static void __dump_backtrace(int sig, siginfo_t*, void* context)
 {
 	constexpr auto signal_name =
 		[](int signal) -> const char*
@@ -208,6 +208,23 @@ static void __dump_backtrace(int sig, siginfo_t* info, void* context)
 			return "unknown signal";
 		};
 
+	const auto* ucontext = static_cast<ucontext_t*>(context);
+#if defined(__x86_64__)
+	const uintptr_t stack_base = ucontext->uc_mcontext.gregs[REG_RBP];
+	const uintptr_t instruction = ucontext->uc_mcontext.gregs[REG_RIP];
+#elif defined(__i686__)
+	const uintptr_t stack_base = ucontext->uc_mcontext.gregs[REG_EBP];
+	const uintptr_t instruction = ucontext->uc_mcontext.gregs[REG_EIP];
+#endif
+
+	struct stackframe
+	{
+		const stackframe* bp;
+		void* ip;
+	};
+
+	const auto* stackframe = reinterpret_cast<struct stackframe*>(stack_base);
+
 	// NOTE: we cannot use stddbf as that is not async-signal-safe.
 	//       POSIX says dprintf isn't either but our implementation is!
 
@@ -220,23 +237,7 @@ static void __dump_backtrace(int sig, siginfo_t* info, void* context)
 
 	dprintf(fd, "received %s, backtrace:\n", signal_name(sig));
 
-	__dump_symbol(fd, info->si_addr);
-
-	struct stackframe
-	{
-		const stackframe* bp;
-		void* ip;
-	};
-
-	const auto* ucontext = static_cast<ucontext_t*>(context);
-#if defined(__x86_64__)
-	const uintptr_t stack_base = ucontext->uc_mcontext.gregs[REG_RBP];
-#elif defined(__i686__)
-	const uintptr_t stack_base = ucontext->uc_mcontext.gregs[REG_EBP];
-#endif
-
-	const auto* stackframe = reinterpret_cast<struct stackframe*>(stack_base);
-
+	__dump_symbol(fd, reinterpret_cast<void*>(instruction));
 	for (size_t i = 0; i < 128 && stackframe; i++)
 	{
 		__dump_symbol(fd, stackframe->ip);
