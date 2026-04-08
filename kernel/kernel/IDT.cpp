@@ -358,6 +358,7 @@ namespace Kernel
 			case ISR::InvalidOpcode:
 				signal_info.si_signo = SIGILL;
 				signal_info.si_code = ILL_ILLOPC;
+				signal_info.si_addr = reinterpret_cast<void*>(interrupt_stack->ip);
 				break;
 			case ISR::PageFault:
 				signal_info.si_signo = SIGSEGV;
@@ -365,6 +366,7 @@ namespace Kernel
 					signal_info.si_code = SEGV_ACCERR;
 				else
 					signal_info.si_code = SEGV_MAPERR;
+				signal_info.si_addr = reinterpret_cast<void*>(regs->cr2);
 				break;
 			default:
 				dwarnln("Unhandled exception");

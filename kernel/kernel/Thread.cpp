@@ -628,6 +628,7 @@ namespace Kernel
 				signal_info = m_process->m_signal_infos[signal];
 			else
 				signal_info = m_signal_infos[signal];
+			signal_info.si_signo = signal;
 
 			handle_info = remove_signal_and_get_info(signal);
 		}
@@ -754,10 +755,8 @@ namespace Kernel
 			write_to_stack(interrupt_stack.sp, interrupt_stack.flags);
 			write_to_stack(interrupt_stack.sp, handle_info.restore_sigmask);
 
-			siginfo_t copy = signal_info;
-			copy.si_signo = signal;
-			copy.si_addr = reinterpret_cast<void*>(interrupt_stack.ip);
-			write_to_stack(interrupt_stack.sp, copy);
+			ASSERT(signal_info.si_signo == signal);
+			write_to_stack(interrupt_stack.sp, signal_info);
 
 			write_to_stack(interrupt_stack.sp, static_cast<uintptr_t>(signal));
 			write_to_stack(interrupt_stack.sp, handle_info.handler);
