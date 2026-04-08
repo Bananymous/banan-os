@@ -1,7 +1,7 @@
 .section .userspace, "ax"
 
 // stack contains
-//    (4 bytes)  return address
+//    (4 bytes)  return address (on return stack)
 //    (4 bytes)  return stack
 //    (4 bytes)  return rflags
 //    (8 bytes)  restore sigmask
@@ -19,6 +19,10 @@ signal_trampoline:
 	pushl %eax
 	pushl %ebp
 
+	movl 80(%esp), %eax
+	pushl %eax; addl $4, (%esp)
+	pushl (%eax)
+
 	// FIXME: populate these
 	xorl %eax, %eax
 	pushl %eax // stack
@@ -29,9 +33,9 @@ signal_trampoline:
 	pushl %eax // link
 
 	movl    %esp,  %edx // ucontext
-	leal 60(%esp), %esi // siginfo
-	movl 56(%esp), %edi // signal number
-	movl 52(%esp), %eax // handlers
+	leal 68(%esp), %esi // siginfo
+	movl 64(%esp), %edi // signal number
+	movl 60(%esp), %eax // handlers
 
 	// align stack to 16 bytes
 	movl %esp, %ebp
@@ -62,6 +66,7 @@ signal_trampoline:
 	int $0xF0
 
 	// restore registers
+	addl $8, %esp
 	popl %ebp
 	popl %eax
 	popl %ebx

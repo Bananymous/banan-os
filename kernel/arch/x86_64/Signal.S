@@ -1,7 +1,7 @@
 .section .userspace, "ax"
 
 // stack contains
-//    (8 bytes)  return address
+//    (8 bytes)  return address (on return stack)
 //    (8 bytes)  return stack
 //    (8 bytes)  return rflags
 //    (8 bytes)  restore sigmask
@@ -27,6 +27,10 @@ signal_trampoline:
 	pushq %rax
 	pushq %rbp
 
+	movq 208(%rsp), %rax
+	pushq %rax; addq $(128 + 8), (%rsp)
+	pushq (%rax)
+
 	// FIXME: populate these
 	xorq %rax, %rax
 	pushq %rax // stack
@@ -36,9 +40,9 @@ signal_trampoline:
 	pushq %rax // link
 
 	movq  %rsp,     %rdx // ucontext
-	leaq 176(%rsp), %rsi // siginfo
-	movq 168(%rsp), %rdi // signal number
-	movq 160(%rsp), %rax // handler
+	leaq 192(%rsp), %rsi // siginfo
+	movq 184(%rsp), %rdi // signal number
+	movq 176(%rsp), %rax // handler
 
 	// align stack to 16 bytes
 	movq %rsp, %rbp
@@ -64,6 +68,7 @@ signal_trampoline:
 	syscall
 
 	// restore registers
+	addq $16, %rsp
 	popq %rbp
 	popq %rax
 	popq %rbx
