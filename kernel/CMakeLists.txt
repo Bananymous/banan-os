@@ -168,10 +168,7 @@ set(BAN_SOURCES
 set(KLIBC_SOURCES
 	klibc/ctype.cpp
 	klibc/string.cpp
-
-	# Ehhh don't do this but for now libc uses the same stuff kernel can use
-	# This won't work after libc starts using sse implemetations tho
-	../userspace/libraries/LibC/arch/${BANAN_ARCH}/string.S
+	klibc/arch/${BANAN_ARCH}/string.S
 )
 
 set(LIBDEFLATE_SOURCE
