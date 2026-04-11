@@ -1,6 +1,5 @@
 #pragma once
 
-
 #include <BAN/ByteSpan.h>
 #include <BAN/NoCopyMove.h>
 #include <BAN/Vector.h>
@@ -19,6 +18,10 @@ namespace LibDEFLATE
 
 	public:
 		Decompressor(BAN::ConstByteSpan data, StreamType type)
+			: m_type(type)
+			, m_stream(data)
+		{ }
+		Decompressor(BAN::Span<BAN::ConstByteSpan> data, StreamType type)
 			: m_type(type)
 			, m_stream(data)
 		{ }

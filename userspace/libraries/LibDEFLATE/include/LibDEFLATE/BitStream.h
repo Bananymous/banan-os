@@ -3,6 +3,8 @@
 #include <BAN/Vector.h>
 #include <BAN/ByteSpan.h>
 
+#include <string.h>
+
 namespace LibDEFLATE
 {
 
@@ -10,6 +12,10 @@ namespace LibDEFLATE
 	{
 	public:
 		BitInputStream(BAN::ConstByteSpan data)
+			: m_data_wrapper(data)
+			, m_data({ &m_data_wrapper, 1 })
+		{ }
+		BitInputStream(BAN::Span<BAN::ConstByteSpan> data)
 			: m_data(data)
 		{ }
 
@@ -19,11 +25,14 @@ namespace LibDEFLATE
 
 			while (m_bit_buffer_len < count)
 			{
+				while (!m_data.empty() && m_data[0].empty())
+					m_data = m_data.slice(1);
 				if (m_data.empty())
 					return BAN::Error::from_errno(ENOBUFS);
-				m_bit_buffer |= m_data[0] << m_bit_buffer_len;
+
+				m_bit_buffer |= m_data[0][0] << m_bit_buffer_len;
 				m_bit_buffer_len += 8;
-				m_data = m_data.slice(1);
+				m_data[0] = m_data[0].slice(1);
 			}
 
 			return m_bit_buffer & ((1 << count) - 1);
@@ -49,10 +58,18 @@ namespace LibDEFLATE
 				bytes--;
 			}
 
-			if (bytes > m_data.size())
-				return BAN::Error::from_errno(EINVAL);
-			memcpy(output, m_data.data(), bytes);
-			m_data = m_data.slice(bytes);
+			while (bytes)
+			{
+				while (!m_data.empty() && m_data[0].empty())
+					m_data = m_data.slice(1);
+				if (m_data.empty())
+					return BAN::Error::from_errno(ENOBUFS);
+				const size_t to_copy = BAN::Math::min(m_data[0].size(), bytes);
+				memcpy(output, m_data[0].data(), to_copy);
+				m_data[0] = m_data[0].slice(to_copy);
+				output += to_copy;
+				bytes -= to_copy;
+			}
 
 			return {};
 		}
@@ -65,7 +82,8 @@ namespace LibDEFLATE
 		}
 
 	private:
-		BAN::ConstByteSpan m_data;
+		BAN::ConstByteSpan m_data_wrapper;
+		BAN::Span<BAN::ConstByteSpan> m_data;
 		uint32_t m_bit_buffer { 0 };
 		uint8_t m_bit_buffer_len { 0 };
 	};
