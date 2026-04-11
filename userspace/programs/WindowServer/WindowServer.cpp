@@ -24,9 +24,7 @@ WindowServer::WindowServer(Framebuffer& framebuffer, int32_t corner_radius)
 {
 	MUST(m_background_image.resize(m_framebuffer.width * m_framebuffer.height, 0xFF101010));
 
-	MUST(m_pending_syncs.resize(m_framebuffer.height));
-
-	invalidate(m_framebuffer.area());
+	add_damaged_area(m_framebuffer.area());
 }
 
 BAN::ErrorOr<void> WindowServer::set_background_image(BAN::UniqPtr<LibImage::Image> image)
@@ -38,7 +36,7 @@ BAN::ErrorOr<void> WindowServer::set_background_image(BAN::UniqPtr<LibImage::Ima
 		for (int32_t x = 0; x < m_framebuffer.width; x++)
 			m_background_image[y * m_framebuffer.width + x] = image->get_color(x, y).as_argb();
 
-	invalidate(m_framebuffer.area());
+	add_damaged_area(m_framebuffer.area());
 	return {};
 }
 
@@ -125,15 +123,15 @@ void WindowServer::on_window_invalidate(int fd, const LibGUI::WindowPacket::Wind
 
 	const auto client_area = target_window->client_area();
 
-	const Rectangle invalidate_area {
+	const Rectangle damaged_area {
 		.min_x = client_area.min_x + static_cast<int32_t>(packet.x),
 		.min_y = client_area.min_y + static_cast<int32_t>(packet.y),
 		.max_x = client_area.min_x + static_cast<int32_t>(packet.x + packet.width),
 		.max_y = client_area.min_y + static_cast<int32_t>(packet.y + packet.height),
 	};
 
-	if (auto opt_overlap = invalidate_area.get_overlap(client_area); opt_overlap.has_value())
-		invalidate(opt_overlap.release_value());
+	if (auto opt_overlap = damaged_area.get_overlap(client_area); opt_overlap.has_value())
+		add_damaged_area(opt_overlap.release_value());
 }
 
 void WindowServer::on_window_set_position(int fd, const LibGUI::WindowPacket::WindowSetPosition& packet)
@@ -161,8 +159,8 @@ void WindowServer::on_window_set_position(int fd, const LibGUI::WindowPacket::Wi
 	if (!target_window->get_attributes().shown)
 		return;
 
-	invalidate(old_client_area);
-	invalidate(target_window->full_area());
+	add_damaged_area(old_client_area);
+	add_damaged_area(target_window->full_area());
 }
 
 void WindowServer::on_window_set_attributes(int fd, const LibGUI::WindowPacket::WindowSetAttributes& packet)
@@ -179,8 +177,8 @@ void WindowServer::on_window_set_attributes(int fd, const LibGUI::WindowPacket::
 	const auto old_client_area = target_window->full_area();
 	target_window->set_attributes(packet.attributes);
 
-	invalidate(old_client_area);
-	invalidate(target_window->full_area());
+	add_damaged_area(old_client_area);
+	add_damaged_area(target_window->full_area());
 
 	if ((!packet.attributes.focusable || !packet.attributes.shown) && m_focused_window == target_window)
 	{
@@ -244,7 +242,7 @@ void WindowServer::on_window_set_mouse_relative(int fd, const LibGUI::WindowPack
 
 	set_focused_window(target_window);
 	m_is_mouse_relative = packet.enabled;
-	invalidate(cursor_area());
+	add_damaged_area(cursor_area());
 }
 
 void WindowServer::on_window_set_size(int fd, const LibGUI::WindowPacket::WindowSetSize& packet)
@@ -267,8 +265,8 @@ void WindowServer::on_window_set_size(int fd, const LibGUI::WindowPacket::Window
 	if (!target_window->get_attributes().shown)
 		return;
 
-	invalidate(old_area);
-	invalidate(target_window->full_area());
+	add_damaged_area(old_area);
+	add_damaged_area(target_window->full_area());
 }
 
 void WindowServer::on_window_set_min_size(int fd, const LibGUI::WindowPacket::WindowSetMinSize& packet)
@@ -322,7 +320,7 @@ void WindowServer::on_window_set_fullscreen(int fd, const LibGUI::WindowPacket::
 			dwarnln("could not send window fullscreen event: {}", ret.error());
 
 		m_state = State::Normal;
-		invalidate(m_framebuffer.area());
+		add_damaged_area(m_framebuffer.area());
 		return;
 	}
 
@@ -358,7 +356,7 @@ void WindowServer::on_window_set_fullscreen(int fd, const LibGUI::WindowPacket::
 
 	m_state = State::Fullscreen;
 	set_focused_window(target_window);
-	invalidate(m_framebuffer.area());
+	add_damaged_area(m_framebuffer.area());
 }
 
 void WindowServer::on_window_set_title(int fd, const LibGUI::WindowPacket::WindowSetTitle& packet)
@@ -379,7 +377,7 @@ void WindowServer::on_window_set_title(int fd, const LibGUI::WindowPacket::Windo
 	if (!target_window->get_attributes().shown)
 		return;
 
-	invalidate(target_window->title_text_area());
+	add_damaged_area(target_window->title_text_area());
 }
 
 void WindowServer::on_window_set_cursor(int fd, const LibGUI::WindowPacket::WindowSetCursor& packet)
@@ -428,8 +426,8 @@ void WindowServer::on_window_set_cursor(int fd, const LibGUI::WindowPacket::Wind
 
 	if (find_hovered_window() == target_window)
 	{
-		invalidate(old_cursor_area);
-		invalidate(cursor_area());
+		add_damaged_area(old_cursor_area);
+		add_damaged_area(cursor_area());
 	}
 }
 
@@ -535,7 +533,7 @@ void WindowServer::on_key_event(LibInput::KeyEvent event)
 		if (auto ret = append_serialized_packet(event_packet, m_focused_window->client_fd()); ret.is_error())
 			dwarnln("could not send window fullscreen event: {}", ret.error());
 
-		invalidate(m_framebuffer.area());
+		add_damaged_area(m_framebuffer.area());
 		return;
 	}
 
@@ -650,8 +648,8 @@ void WindowServer::on_mouse_button(LibInput::MouseButtonEvent event)
 				const auto resize_area = this->resize_area(m_cursor);
 				m_state = State::Normal;
 
-				invalidate(resize_area);
-				invalidate(m_focused_window->full_area());
+				add_damaged_area(resize_area);
+				add_damaged_area(m_focused_window->full_area());
 
 				if (auto ret = m_focused_window->resize(resize_area.width(), resize_area.height() - m_focused_window->title_bar_height()); ret.is_error())
 				{
@@ -671,7 +669,7 @@ void WindowServer::on_mouse_button(LibInput::MouseButtonEvent event)
 					return;
 				}
 
-				invalidate(m_focused_window->full_area());
+				add_damaged_area(m_focused_window->full_area());
 			}
 			break;
 	}
@@ -690,8 +688,8 @@ void WindowServer::on_mouse_move_impl(int32_t new_x, int32_t new_y)
 	m_cursor.x = new_x;
 	m_cursor.y = new_y;
 
-	invalidate(old_cursor_area);
-	invalidate(cursor_area());
+	add_damaged_area(old_cursor_area);
+	add_damaged_area(cursor_area());
 
 	// TODO: Really no need to loop over every window
 	for (auto& window : m_client_windows)
@@ -700,7 +698,7 @@ void WindowServer::on_mouse_move_impl(int32_t new_x, int32_t new_y)
 			continue;
 		const auto title_bar_area = window->title_bar_area();
 		if (title_bar_area.get_overlap(old_cursor_area).has_value() || title_bar_area.get_overlap(cursor_area()).has_value())
-			invalidate(title_bar_area);
+			add_damaged_area(title_bar_area);
 	}
 
 	if (!m_focused_window)
@@ -729,14 +727,14 @@ void WindowServer::on_mouse_move_impl(int32_t new_x, int32_t new_y)
 				m_focused_window->client_x() + event.rel_x,
 				m_focused_window->client_y() + event.rel_y,
 			});
-			invalidate(old_window_area);
-			invalidate(m_focused_window->full_area());
+			add_damaged_area(old_window_area);
+			add_damaged_area(m_focused_window->full_area());
 			break;
 		}
 		case State::Resizing:
 		{
-			invalidate(resize_area({ .x = old_cursor_area.min_x, .y = old_cursor_area.min_y }));
-			invalidate(resize_area(m_cursor));
+			add_damaged_area(resize_area({ .x = old_cursor_area.min_x, .y = old_cursor_area.min_y }));
+			add_damaged_area(resize_area(m_cursor));
 			break;
 		}
 	}
@@ -841,7 +839,7 @@ void WindowServer::set_focused_window(BAN::RefPtr<Window> window)
 	if (m_is_mouse_relative)
 	{
 		m_is_mouse_relative = false;
-		invalidate(cursor_area());
+		add_damaged_area(cursor_area());
 	}
 
 	if (m_focused_window)
@@ -860,7 +858,7 @@ void WindowServer::set_focused_window(BAN::RefPtr<Window> window)
 			m_focused_window = window;
 			m_client_windows.remove(i - 1);
 			MUST(m_client_windows.push_back(window));
-			invalidate(window->full_area());
+			add_damaged_area(window->full_area());
 			break;
 		}
 	}
@@ -1019,8 +1017,6 @@ void WindowServer::invalidate(Rectangle area)
 					}
 				}
 			}
-
-			mark_pending_sync(area);
 		}
 		else
 		{
@@ -1048,8 +1044,6 @@ void WindowServer::invalidate(Rectangle area)
 					dst_pixel = should_alpha_blend ? alpha_blend(src_pixel, bg_pixel) : src_pixel;
 				}
 			}
-
-			mark_pending_sync(dst_area);
 		}
 
 		if (!m_is_mouse_relative)
@@ -1083,9 +1077,6 @@ void WindowServer::invalidate(Rectangle area)
 					m_framebuffer.mmap[dst_y * m_framebuffer.width + dst_x] = pixel.value();
 				}
 			}
-
-			if (auto fb_overlap = cursor_area.get_overlap(m_framebuffer.area()); fb_overlap.has_value())
-				mark_pending_sync(fb_overlap.value());
 		}
 
 		return;
@@ -1331,75 +1322,255 @@ void WindowServer::invalidate(Rectangle area)
 			}
 		}
 	}
-
-	mark_pending_sync(area);
 }
 
-void WindowServer::RangeList::add_range(const Range& range)
+void WindowServer::merge_damaged_areas()
 {
-	if (range_count == 0)
+	constexpr size_t max_unique_coords = m_max_damaged_areas * 2;
+
+	BAN::Array<int32_t, max_unique_coords> collapsed_x, collapsed_y;
+	uint32_t bitmap[(max_unique_coords * max_unique_coords + 31) / 32];
+
+	static constexpr auto get_collapsed_index =
+		[](const BAN::Array<int32_t, max_unique_coords>& container, size_t container_size, int32_t value) -> size_t
+		{
+			int32_t l = 0, r = container_size - 1;
+			while (l <= r)
+			{
+				const int32_t mid = l + (r - l) / 2;
+				if (container[mid] == value)
+					return mid;
+				(container[mid] < value)
+					? l = mid + 1
+					: r = mid - 1;
+			}
+			return l;
+		};
+
+	static constexpr auto collapse_value =
+		[](BAN::Array<int32_t, max_unique_coords>& container, size_t& container_size, int32_t value) -> void
+		{
+			const size_t index = get_collapsed_index(container, container_size, value);
+			if (index < container_size && container[index] == value)
+				return;
+			for (size_t i = container_size; i > index; i--)
+				container[i] = container[i - 1];
+			container[index] = value;
+			container_size++;
+		};
+
+	size_t collapsed_x_size = 0, collapsed_y_size = 0;
+	for (size_t i = 0; i < m_damaged_area_count; i++)
 	{
-		ranges[0] = range;
-		range_count++;
-		return;
+		collapse_value(collapsed_x, collapsed_x_size, m_damaged_areas[i].min_x);
+		collapse_value(collapsed_x, collapsed_x_size, m_damaged_areas[i].max_x);
+		collapse_value(collapsed_y, collapsed_y_size, m_damaged_areas[i].min_y);
+		collapse_value(collapsed_y, collapsed_y_size, m_damaged_areas[i].max_y);
 	}
 
-	size_t min_distance_value = SIZE_MAX;
-	size_t min_distance_index = 0;
-	for (size_t i = 0; i < range_count; i++)
-	{
-		if (ranges[i].is_continuous_with(range))
+	const auto is_bitmap_bit_set =
+		[&](size_t x, size_t y) -> bool
 		{
-			ranges[i].merge_with(range);
+			const size_t index = y * max_unique_coords + x;
+			return (bitmap[index / 32] >> (index % 32)) & 1;
+		};
 
-			size_t last_continuous = i;
-			for (size_t j = i + 1; j < range_count; j++)
+	const auto set_bitmap_bit =
+		[&](size_t x, size_t y, bool set) -> void
+		{
+			const size_t index = y * max_unique_coords + x;
+			const uint32_t mask = static_cast<uint32_t>(1) << (index % 32);
+			set ? bitmap[index / 32] |=  mask
+				: bitmap[index / 32] &= ~mask;
+		};
+
+	memset(bitmap, 0, sizeof(bitmap));
+	for (size_t i = 0; i < m_damaged_area_count; i++)
+	{
+		const size_t cmin_x = get_collapsed_index(collapsed_x, collapsed_x_size, m_damaged_areas[i].min_x);
+		const size_t cmax_x = get_collapsed_index(collapsed_x, collapsed_x_size, m_damaged_areas[i].max_x);
+		const size_t cmin_y = get_collapsed_index(collapsed_y, collapsed_y_size, m_damaged_areas[i].min_y);
+		const size_t cmax_y = get_collapsed_index(collapsed_y, collapsed_y_size, m_damaged_areas[i].max_y);
+		for (size_t y = cmin_y; y < cmax_y; y++)
+			for (size_t x = cmin_x; x < cmax_x; x++)
+				set_bitmap_bit(x, y, true);
+	}
+
+	BAN::Array<Rectangle, m_max_damaged_areas> new_rectangles;
+	size_t new_rectangle_count = 0;
+
+	for (size_t min_y = 0; min_y < collapsed_y_size; min_y++)
+	{
+		for (size_t min_x = 0; min_x < collapsed_x_size; min_x++)
+		{
+			const size_t index = min_y * max_unique_coords + min_x;
+			if (index % 32 == 0 && bitmap[index / 32] == 0)
 			{
-				if (!ranges[i].is_continuous_with(ranges[j]))
+				min_x += 31;
+				continue;
+			}
+
+			if (!is_bitmap_bit_set(min_x, min_y))
+				continue;
+
+			size_t max_x = min_x + 1;
+			while (max_x < collapsed_x_size && is_bitmap_bit_set(max_x, min_y))
+				max_x++;
+
+			size_t max_y = min_y + 1;
+			while (max_y < collapsed_y_size)
+			{
+				bool all_bits_set = true;
+				for (size_t x = min_x; x < max_x && all_bits_set; x++)
+					all_bits_set = is_bitmap_bit_set(x, max_y);
+				if (!all_bits_set)
 					break;
-				last_continuous = j;
+				max_y++;
 			}
 
-			if (last_continuous != i)
-			{
-				ranges[i].merge_with(ranges[last_continuous]);
-				for (size_t j = 1; last_continuous + j < range_count; j++)
-					ranges[i + j] = ranges[last_continuous + j];
-				range_count -= last_continuous - i;
-			}
+			new_rectangles[new_rectangle_count++] = {
+				.min_x = collapsed_x[min_x],
+				.min_y = collapsed_y[min_y],
+				.max_x = collapsed_x[max_x],
+				.max_y = collapsed_y[max_y],
+			};
+			if (new_rectangle_count >= m_damaged_area_count)
+				return;
 
-			return;
-		}
-
-		const auto distance = ranges[i].distance_between(range);
-		if (distance < min_distance_value)
-		{
-			min_distance_value = distance;
-			min_distance_index = i;
+			for (size_t y = min_y; y < max_y; y++)
+				for (size_t x = min_x; x < max_x; x++)
+					set_bitmap_bit(x, y, false);
 		}
 	}
 
-	if (range_count >= ranges.size())
+	memcpy(
+		m_damaged_areas.data(),
+		new_rectangles.data(),
+		new_rectangle_count * sizeof(Rectangle)
+	);
+	m_damaged_area_count = new_rectangle_count;
+}
+
+void WindowServer::add_damaged_area_impl(Rectangle new_rect)
+{
+	if (new_rect.area() == 0)
+		return;
+
+	const auto remove_rectangle =
+		[this](size_t index)
+		{
+			memmove(
+				m_damaged_areas.data() + index,
+				m_damaged_areas.data() + index + 1,
+				(m_damaged_area_count - index - 1) * sizeof(Rectangle)
+			);
+			m_damaged_area_count--;
+		};
+
+	// handle trivial cases where `new_rect` contains or is contained by another rectangle
+	for (size_t i = 0; i < m_damaged_area_count; i++)
 	{
-		ranges[min_distance_index].merge_with(range);
+		auto opt_overlap = m_damaged_areas[i].get_overlap(new_rect);
+		if (!opt_overlap.has_value())
+			continue;
+		const auto overlap = opt_overlap.value();
+		if (overlap == new_rect)
+			return;
+		if (overlap == m_damaged_areas[i])
+			remove_rectangle(i--);
+	}
+
+	// split `new_rect` into smaller pieces if there are overlapping rectangles
+	for (size_t i = 0; i < m_damaged_area_count; i++)
+	{
+		auto opt_overlap = m_damaged_areas[i].get_overlap(new_rect);
+		if (!opt_overlap.has_value())
+			continue;
+		const auto overlap = opt_overlap.value();
+
+		Rectangle splitted[9];
+
+		size_t count = new_rect.split_along_edges_of(m_damaged_areas[i], splitted);
+		if (count == 6)
+		{
+			count = m_damaged_areas[i].split_along_edges_of(new_rect, splitted);
+			remove_rectangle(i);
+			add_damaged_area_impl(new_rect);
+		}
+
+		for (size_t j = 0; j < count; j++)
+			if (splitted[j] != overlap)
+				add_damaged_area_impl(splitted[j]);
 		return;
 	}
 
-	size_t insert_idx = 0;
-	for (; insert_idx < range_count; insert_idx++)
-		if (range.start < ranges[insert_idx].start)
-			break;
-	for (size_t i = range_count; i > insert_idx; i--)
-		ranges[i] = ranges[i - 1];
-	ranges[insert_idx] = range;
-	range_count++;
+	// combine existing rectangles if needed
+	if (m_damaged_area_count >= m_damaged_areas.size())
+		merge_damaged_areas();
+
+	// insert `new_rect` to the set of rectangles
+	if (m_damaged_area_count < m_damaged_areas.size())
+	{
+		m_damaged_areas[m_damaged_area_count++] = new_rect;
+		return;
+	}
+
+	const auto get_bounding_box_without_overlap =
+		[this](const Rectangle& a, const Rectangle& b) -> Rectangle
+		{
+			auto bounding_box = a.get_bounding_box(b);
+
+			for (;;)
+			{
+				bool did_update = false;
+				for (size_t i = 0; i < m_damaged_area_count; i++)
+				{
+					const auto opt_overlap = m_damaged_areas[i].get_overlap(bounding_box);
+					if (!opt_overlap.has_value() || opt_overlap.value() == m_damaged_areas[i])
+						continue;
+					bounding_box = bounding_box.get_bounding_box(m_damaged_areas[i]);
+					did_update = true;
+				}
+
+				if (!did_update)
+					return bounding_box;
+			}
+		};
+
+	// find the rectangles whose bounding box with this adds least area and does not overlap with other rectangles
+
+	int32_t min_overflow = BAN::numeric_limits<int32_t>::max();
+	Rectangle min_overflow_bb = {};
+
+	for (size_t i = 0; i < m_damaged_area_count; i++)
+	{
+		for (size_t j = i + 1; j < m_damaged_area_count; j++)
+		{
+			const auto bounding_box = get_bounding_box_without_overlap(m_damaged_areas[i], m_damaged_areas[j]);
+
+			int32_t overflow = bounding_box.area();
+			for (size_t k = 0; k < m_damaged_area_count; k++)
+				overflow -= bounding_box.get_overlap(m_damaged_areas[k]).value_or({}).area();
+			overflow -= bounding_box.get_overlap(new_rect).value_or({}).area();
+
+			if (overflow >= min_overflow)
+				continue;
+			min_overflow = overflow;
+			min_overflow_bb = bounding_box;
+		}
+	}
+
+	add_damaged_area_impl(min_overflow_bb);
+	add_damaged_area_impl(new_rect);
 }
 
-void WindowServer::mark_pending_sync(Rectangle to_sync)
+void WindowServer::add_damaged_area(Rectangle new_rect)
 {
-	ASSERT(to_sync == to_sync.get_overlap(m_framebuffer.area()).value());
-	for (int32_t abs_y = to_sync.min_y; abs_y < to_sync.max_y; abs_y++)
-		m_pending_syncs[abs_y].add_range({ static_cast<uint32_t>(to_sync.min_x), static_cast<uint32_t>(to_sync.width()) });
+	auto opt_fb_overlap = new_rect.get_overlap(m_framebuffer.area());
+	if (!opt_fb_overlap.has_value())
+		return;
+	add_damaged_area_impl(opt_fb_overlap.release_value());
+	merge_damaged_areas();
 }
 
 void WindowServer::sync()
@@ -1414,8 +1585,8 @@ void WindowServer::sync()
 			m_focused_window->client_y() + dir_y,
 		});
 
-		invalidate(old_window);
-		invalidate(m_focused_window->full_area());
+		add_damaged_area(old_window);
+		add_damaged_area(m_focused_window->full_area());
 
 		if ((m_focused_window->full_x() < 0 && dir_x < 0) || (m_focused_window->full_x() + m_focused_window->full_width() >= m_framebuffer.width && dir_x > 0))
 			dir_x = -dir_x;
@@ -1423,44 +1594,17 @@ void WindowServer::sync()
 			dir_y = -dir_y;
 	}
 
-	size_t range_start = 0;
-	size_t range_count = 0;
-	for (int32_t y = 0; y < m_framebuffer.height; y++)
+	for (size_t i = 0; i < m_damaged_area_count; i++)
+		invalidate(m_damaged_areas[i]);
+
+	for (size_t i = 0; i < m_damaged_area_count; i++)
 	{
-		auto& range_list = m_pending_syncs[y];
-
-		for (size_t i = 0; i < range_list.range_count; i++)
-		{
-			const size_t cur_start = y * m_framebuffer.width + range_list.ranges[i].start;
-			const size_t cur_count =                           range_list.ranges[i].count;
-
-			if (range_count == 0)
-			{
-				range_start = cur_start;
-				range_count = cur_count;
-			}
-			else
-			{
-				const size_t distance = cur_start - (range_start + range_count);
-
-				// combine nearby ranges to reduce msync calls
-				// NOTE: value of 128 is an arbitary constant that *just* felt nice
-				if (distance <= 128)
-					range_count = (cur_start + cur_count) - range_start;
-				else
-				{
-					msync(m_framebuffer.mmap + range_start, range_count * 4, MS_SYNC);
-					range_start = cur_start;
-					range_count = cur_count;
-				}
-			}
-		}
-
-		range_list.range_count = 0;
+		const auto area = m_damaged_areas[i];
+		for (int32_t y = area.min_y; y < area.max_y; y++)
+			msync(&m_framebuffer.mmap[y * m_framebuffer.width + area.min_x], area.width() * sizeof(uint32_t), MS_SYNC);
 	}
 
-	if (range_count)
-		msync(m_framebuffer.mmap + range_start, range_count * 4, MS_SYNC);
+	m_damaged_area_count = 0;
 }
 
 Rectangle WindowServer::cursor_area() const
@@ -1585,7 +1729,7 @@ void WindowServer::remove_client_fd(int fd)
 	if (m_state == State::Fullscreen && m_focused_window->client_fd() == fd)
 	{
 		m_state = State::Normal;
-		invalidate(m_framebuffer.area());
+		add_damaged_area(m_framebuffer.area());
 	}
 
 	for (auto& window : m_mouse_button_windows)
@@ -1599,7 +1743,7 @@ void WindowServer::remove_client_fd(int fd)
 		{
 			auto window_area = window->full_area();
 			m_client_windows.remove(i);
-			invalidate(window_area);
+			add_damaged_area(window_area);
 
 			if (window == m_focused_window)
 			{

@@ -65,7 +65,9 @@ public:
 private:
 	void on_mouse_move_impl(int32_t new_x, int32_t new_y);
 
-	void mark_pending_sync(Rectangle area);
+	void merge_damaged_areas();
+	void add_damaged_area(Rectangle area);
+	void add_damaged_area_impl(Rectangle area);
 
 	bool resize_window(BAN::RefPtr<Window> window, uint32_t width, uint32_t height);
 
@@ -76,13 +78,6 @@ private:
 	BAN::ErrorOr<void> append_serialized_packet(const T& packet, int fd);
 
 private:
-	struct RangeList
-	{
-		size_t range_count { 0 };
-		BAN::Array<Range, 32> ranges;
-		void add_range(const Range& range);
-	};
-
 	enum class State
 	{
 		Normal,
@@ -99,7 +94,9 @@ private:
 
 	const int32_t m_corner_radius;
 
-	BAN::Vector<RangeList> m_pending_syncs;
+	static constexpr size_t m_max_damaged_areas = 32;
+	size_t m_damaged_area_count { 0 };
+	BAN::Array<Rectangle, m_max_damaged_areas> m_damaged_areas;
 
 	// NOTE: same size as framebuffer
 	BAN::Vector<uint32_t> m_background_image;

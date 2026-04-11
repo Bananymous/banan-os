@@ -74,6 +74,69 @@ struct Rectangle
 		};
 	}
 
+	size_t split_along_edges_of(const Rectangle& other, Rectangle out[9]) const
+	{
+		out[0] = *this;
+
+		size_t vertical = 1;
+
+		if (min_x < other.min_x && other.min_x < max_x)
+		{
+			auto& rect1 = out[vertical - 1];
+			auto& rect2 = out[vertical - 0];
+			rect2 = rect1;
+
+			rect1.max_x = other.min_x;
+			rect2.min_x = other.min_x;
+
+			vertical++;
+		}
+
+		if (min_x < other.max_x && other.max_x < max_x)
+		{
+			auto& rect1 = out[vertical - 1];
+			auto& rect2 = out[vertical - 0];
+			rect2 = rect1;
+
+			rect1.max_x = other.max_x;
+			rect2.min_x = other.max_x;
+
+			vertical++;
+		}
+
+		size_t horizontal = 1;
+
+		if (min_y < other.min_y && other.min_y < max_y)
+		{
+			for (size_t i = 0; i < vertical; i++)
+			{
+				auto& rect1 = out[vertical * (horizontal - 1) + i];
+				auto& rect2 = out[vertical * (horizontal - 0) + i];
+				rect2 = rect1;
+
+				rect1.max_y = other.min_y;
+				rect2.min_y = other.min_y;
+			}
+			horizontal++;
+		}
+
+		if (min_y < other.max_y && other.max_y < max_y)
+		{
+			for (size_t i = 0; i < vertical; i++)
+			{
+				auto& rect1 = out[vertical * (horizontal - 1) + i];
+				auto& rect2 = out[vertical * (horizontal - 0) + i];
+				rect2 = rect1;
+
+				rect1.max_y = other.max_y;
+				rect2.min_y = other.max_y;
+			}
+			horizontal++;
+		}
+
+		return vertical * horizontal;
+	}
+
 	bool operator==(const Rectangle& other) const
 	{
 		return min_x == other.min_x && min_y == other.min_y && max_x == other.max_x && max_y == other.max_y;
@@ -94,33 +157,4 @@ struct Circle
 		return dx * dx + dy * dy <= radius * radius;
 	}
 
-};
-
-struct Range
-{
-	uint32_t start { 0 };
-	uint32_t count { 0 };
-
-	bool is_continuous_with(const Range& range) const
-	{
-		return start <= range.start + range.count && range.start <= start + count;
-	}
-
-	uint32_t distance_between(const Range& range) const
-	{
-		if (is_continuous_with(range))
-			return 0;
-		if (start < range.start)
-			return range.start - (start + count);
-		return start - (range.start + range.count);
-	}
-
-	void merge_with(const Range& range)
-	{
-		const uint32_t new_start = BAN::Math::min(start, range.start);
-		const uint32_t new_end   = BAN::Math::max(start + count, range.start + range.count);
-
-		start = new_start;
-		count = new_end - new_start;
-	}
 };
