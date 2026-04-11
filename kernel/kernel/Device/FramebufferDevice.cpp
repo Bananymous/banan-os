@@ -6,6 +6,7 @@
 #include <kernel/Terminal/FramebufferTerminal.h>
 
 #include <sys/framebuffer.h>
+#include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/sysmacros.h>
 
@@ -131,6 +132,26 @@ namespace Kernel
 		sync_pixels_linear(first_pixel, pixel_count);
 
 		return bytes_to_copy;
+	}
+
+	BAN::ErrorOr<long> FramebufferDevice::ioctl_impl(int cmd, void* arg)
+	{
+		switch (cmd)
+		{
+			case FB_MSYNC_RECTANGLE:
+			{
+				auto& rectangle = *static_cast<fb_msync_region*>(arg);
+				sync_pixels_rectangle(
+					rectangle.min_x,
+					rectangle.min_y,
+					rectangle.max_x - rectangle.min_x,
+					rectangle.max_y - rectangle.min_y
+				);
+				return 0;
+			}
+		}
+
+		return CharacterDevice::ioctl(cmd, arg);
 	}
 
 	uint32_t FramebufferDevice::get_pixel(uint32_t x, uint32_t y) const

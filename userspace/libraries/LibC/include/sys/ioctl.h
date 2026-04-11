@@ -74,6 +74,15 @@ struct snd_volume_info
 #define JOYSTICK_GET_RUMBLE 82 /* get controller rumble strength to uint8_t argument */
 #define JOYSTICK_SET_RUMBLE 83 /* set controller rumble strength to uint8_t argument */
 
+struct fb_msync_region
+{
+	uint32_t min_x;
+	uint32_t min_y;
+	uint32_t max_x;
+	uint32_t max_y;
+};
+#define FB_MSYNC_RECTANGLE 90 /* msync a rectangular area in mmap'd framebuffer device */
+
 int ioctl(int, int, ...);
 
 __END_DECLS
