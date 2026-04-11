@@ -60,6 +60,7 @@ public:
 	void remove_client_fd(int fd);
 	ClientData& get_client_data(int fd);
 
+	bool is_damaged() const { return m_damaged_area_count > 0 || m_is_bouncing_window; }
 	bool is_stopped() const { return m_is_stopped; }
 
 private:

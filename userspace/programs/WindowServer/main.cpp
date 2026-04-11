@@ -273,19 +273,26 @@ int main()
 	uint64_t last_sync_us = get_current_us() - sync_interval_us;
 	while (!window_server.is_stopped())
 	{
-		const auto current_us = get_current_us();
-		if (current_us - last_sync_us > sync_interval_us)
-		{
-			window_server.sync();
-			last_sync_us += sync_interval_us;
-		}
+		timespec* ptimeout = nullptr;
 
 		timespec timeout = {};
-		if (auto current_us = get_current_us(); current_us - last_sync_us < sync_interval_us)
-			timeout.tv_nsec = (sync_interval_us - (current_us - last_sync_us)) * 1000;
+		if (window_server.is_damaged())
+		{
+			if (const auto current_us = get_current_us(); current_us - last_sync_us > sync_interval_us)
+			{
+				window_server.sync();
+
+				const auto full_intervals = (current_us - last_sync_us) / sync_interval_us;
+				last_sync_us += full_intervals * sync_interval_us;
+			}
+
+			if (const auto current_us = get_current_us(); current_us - last_sync_us < sync_interval_us)
+				timeout.tv_nsec = (sync_interval_us - (current_us - last_sync_us)) * 1000;
+			ptimeout = &timeout;
+		}
 
 		epoll_event events[16];
-		int epoll_events = epoll_pwait2(g_epoll_fd, events, 16, &timeout, nullptr);
+		int epoll_events = epoll_pwait2(g_epoll_fd, events, 16, ptimeout, nullptr);
 		if (epoll_events == -1 && errno != EINTR)
 		{
 			dwarnln("epoll_pwait2: {}", strerror(errno));
