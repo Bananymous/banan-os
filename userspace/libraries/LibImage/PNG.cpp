@@ -420,27 +420,10 @@ namespace LibImage
 			}
 		}
 
-		BAN::Vector<uint8_t> zlib_stream_buf;
-		BAN::ConstByteSpan zlib_stream_span;
-
 		if (zlib_stream.empty())
 		{
 			dwarnln_if(DEBUG_PNG, "PNG does not have zlib stream");
 			return BAN::Error::from_errno(EINVAL);
-		}
-
-		if (zlib_stream.size() == 1)
-			zlib_stream_span = zlib_stream.front();
-		else
-		{
-			for (auto stream : zlib_stream)
-			{
-				const size_t old_size = zlib_stream_buf.size();
-				TRY(zlib_stream_buf.resize(old_size + stream.size()));
-				for (size_t i = 0; i < stream.size(); i++)
-					zlib_stream_buf[old_size + i] = stream[i];
-			}
-			zlib_stream_span = zlib_stream_buf.span();
 		}
 
 		uint64_t total_size = 0;
@@ -448,7 +431,7 @@ namespace LibImage
 			total_size += stream.size();
 		dprintln_if(DEBUG_PNG, "PNG has {} byte zlib stream", total_size);
 
-		LibDEFLATE::Decompressor decompressor(zlib_stream_span, LibDEFLATE::StreamType::Zlib);
+		LibDEFLATE::Decompressor decompressor(zlib_stream.span(), LibDEFLATE::StreamType::Zlib);
 		auto inflated_buffer = TRY(decompressor.decompress());
 		auto inflated_data = inflated_buffer.span();
 
