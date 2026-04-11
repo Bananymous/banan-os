@@ -9,9 +9,9 @@
 
 #include <stdlib.h>
 #include <sys/banan-os.h>
+#include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <sys/socket.h>
-
 #include <unistd.h>
 
 #include <emmintrin.h>
@@ -1599,9 +1599,13 @@ void WindowServer::sync()
 
 	for (size_t i = 0; i < m_damaged_area_count; i++)
 	{
-		const auto area = m_damaged_areas[i];
-		for (int32_t y = area.min_y; y < area.max_y; y++)
-			msync(&m_framebuffer.mmap[y * m_framebuffer.width + area.min_x], area.width() * sizeof(uint32_t), MS_SYNC);
+		const fb_msync_region region {
+			.min_x = static_cast<uint32_t>(m_damaged_areas[i].min_x),
+			.min_y = static_cast<uint32_t>(m_damaged_areas[i].min_y),
+			.max_x = static_cast<uint32_t>(m_damaged_areas[i].max_x),
+			.max_y = static_cast<uint32_t>(m_damaged_areas[i].max_y),
+		};
+		ioctl(m_framebuffer.fd, FB_MSYNC_RECTANGLE, &region);
 	}
 
 	m_damaged_area_count = 0;
