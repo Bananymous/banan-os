@@ -13,55 +13,70 @@ struct Position
 
 struct Rectangle
 {
-	int32_t x;
-	int32_t y;
-	int32_t width;
-	int32_t height;
+	int32_t min_x;
+	int32_t min_y;
+	int32_t max_x;
+	int32_t max_y;
+
+	int32_t width() const
+	{
+		return max_x - min_x;
+	}
+
+	int32_t height() const
+	{
+		return max_y - min_y;
+	}
+
+	int32_t area() const
+	{
+		return width() * height();
+	}
 
 	bool contains(Position position) const
 	{
-		if (position.x < x || position.x >= x + width)
+		if (position.x < min_x || position.x >= max_x)
 			return false;
-		if (position.y < y || position.y >= y + height)
+		if (position.y < min_y || position.y >= max_y)
 			return false;
 		return true;
 	}
 
 	BAN::Optional<Rectangle> get_overlap(Rectangle other) const
 	{
-		if (height == 0 || width == 0 || other.width == 0 || other.height == 0)
+		if (width() == 0 || height() == 0 || other.width() == 0 || other.height() == 0)
 			return {};
-		const auto min_x = BAN::Math::max(x, other.x);
-		const auto min_y = BAN::Math::max(y, other.y);
-		const auto max_x = BAN::Math::min(x + width, other.x + other.width);
-		const auto max_y = BAN::Math::min(y + height, other.y + other.height);
+		const auto min_x = BAN::Math::max(this->min_x, other.min_x);
+		const auto min_y = BAN::Math::max(this->min_y, other.min_y);
+		const auto max_x = BAN::Math::min(this->max_x, other.max_x);
+		const auto max_y = BAN::Math::min(this->max_y, other.max_y);
 		if (min_x >= max_x || min_y >= max_y)
 			return {};
 		return Rectangle {
-			.x = min_x,
-			.y = min_y,
-			.width = max_x - min_x,
-			.height = max_y - min_y,
+			.min_x = min_x,
+			.min_y = min_y,
+			.max_x = max_x,
+			.max_y = max_y,
 		};
 	}
 
 	Rectangle get_bounding_box(Rectangle other) const
 	{
-		const auto min_x = BAN::Math::min(x, other.x);
-		const auto min_y = BAN::Math::min(y, other.y);
-		const auto max_x = BAN::Math::max(x + width, other.x + other.width);
-		const auto max_y = BAN::Math::max(y + height, other.y + other.height);
+		const auto min_x = BAN::Math::min(this->min_x, other.min_x);
+		const auto min_y = BAN::Math::min(this->min_y, other.min_y);
+		const auto max_x = BAN::Math::max(this->max_x, other.max_x);
+		const auto max_y = BAN::Math::max(this->max_y, other.max_y);
 		return Rectangle {
-			.x = min_x,
-			.y = min_y,
-			.width = max_x - min_x,
-			.height = max_y - min_y,
+			.min_x = min_x,
+			.min_y = min_y,
+			.max_x = max_x,
+			.max_y = max_y,
 		};
 	}
 
 	bool operator==(const Rectangle& other) const
 	{
-		return x == other.x && y == other.y && width == other.width && height == other.height;
+		return min_x == other.min_x && min_y == other.min_y && max_x == other.max_x && max_y == other.max_y;
 	}
 
 };

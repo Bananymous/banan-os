@@ -82,11 +82,12 @@ void WindowServer::on_window_create(int fd, const LibGUI::WindowPacket::WindowCr
 		static_cast<int32_t>((m_framebuffer.height - window->client_height()) / 2),
 	});
 
-	LibGUI::EventPacket::ResizeWindowEvent response;
-	response.width = window->client_width();
-	response.height = window->client_height();
-	response.smo_key = window->smo_key();
-	if (auto ret = append_serialized_packet(response, fd); ret.is_error())
+	const LibGUI::EventPacket::ResizeWindowEvent event_packet {
+		.width  = static_cast<uint32_t>(window->client_width()),
+		.height = static_cast<uint32_t>(window->client_height()),
+		.smo_key = window->smo_key(),
+	};
+	if (auto ret = append_serialized_packet(event_packet, fd); ret.is_error())
 	{
 		dwarnln("could not respond to window create request: {}", ret.error());
 		return;
@@ -122,12 +123,17 @@ void WindowServer::on_window_invalidate(int fd, const LibGUI::WindowPacket::Wind
 	if (!target_window->get_attributes().shown)
 		return;
 
-	invalidate({
-		target_window->client_x() + static_cast<int32_t>(packet.x),
-		target_window->client_y() + static_cast<int32_t>(packet.y),
-		BAN::Math::min<int32_t>(packet.width,  target_window->client_width()),
-		BAN::Math::min<int32_t>(packet.height, target_window->client_height())
-	});
+	const auto client_area = target_window->client_area();
+
+	const Rectangle invalidate_area {
+		.min_x = client_area.min_x + static_cast<int32_t>(packet.x),
+		.min_y = client_area.min_y + static_cast<int32_t>(packet.y),
+		.max_x = client_area.min_x + static_cast<int32_t>(packet.x + packet.width),
+		.max_y = client_area.min_y + static_cast<int32_t>(packet.y + packet.height),
+	};
+
+	if (auto opt_overlap = invalidate_area.get_overlap(client_area); opt_overlap.has_value())
+		invalidate(opt_overlap.release_value());
 }
 
 void WindowServer::on_window_set_position(int fd, const LibGUI::WindowPacket::WindowSetPosition& packet)
@@ -155,8 +161,8 @@ void WindowServer::on_window_set_position(int fd, const LibGUI::WindowPacket::Wi
 	if (!target_window->get_attributes().shown)
 		return;
 
-	const auto new_client_area = target_window->full_area();
-	invalidate(new_client_area.get_bounding_box(old_client_area));
+	invalidate(old_client_area);
+	invalidate(target_window->full_area());
 }
 
 void WindowServer::on_window_set_attributes(int fd, const LibGUI::WindowPacket::WindowSetAttributes& packet)
@@ -172,16 +178,17 @@ void WindowServer::on_window_set_attributes(int fd, const LibGUI::WindowPacket::
 
 	const auto old_client_area = target_window->full_area();
 	target_window->set_attributes(packet.attributes);
-	const auto new_client_area = target_window->full_area();
-	invalidate(new_client_area.get_bounding_box(old_client_area));
+
+	invalidate(old_client_area);
+	invalidate(target_window->full_area());
 
 	if ((!packet.attributes.focusable || !packet.attributes.shown) && m_focused_window == target_window)
 	{
 		if (m_state == State::Fullscreen && m_focused_window->get_attributes().resizable)
 		{
-			if (!resize_window(m_focused_window, m_non_full_screen_rect.width, m_non_full_screen_rect.height))
+			if (!resize_window(m_focused_window, m_non_full_screen_rect.width(), m_non_full_screen_rect.height()))
 				return;
-			m_focused_window->set_position({ m_non_full_screen_rect.x, m_non_full_screen_rect.y });
+			m_focused_window->set_position({ m_non_full_screen_rect.min_x, m_non_full_screen_rect.min_y });
 		}
 
 		m_focused_window = nullptr;
@@ -200,11 +207,9 @@ void WindowServer::on_window_set_attributes(int fd, const LibGUI::WindowPacket::
 	if (!send_shown_event)
 		return;
 
-	auto event_packet = LibGUI::EventPacket::WindowShownEvent {
-		.event = {
-			.shown = target_window->get_attributes().shown,
-		},
-	};
+	const LibGUI::EventPacket::WindowShownEvent event_packet { .event = {
+		.shown = target_window->get_attributes().shown,
+	}};
 	if (auto ret = append_serialized_packet(event_packet, target_window->client_fd()); ret.is_error())
 		dwarnln("could not send window shown event: {}", ret.error());
 
@@ -262,7 +267,8 @@ void WindowServer::on_window_set_size(int fd, const LibGUI::WindowPacket::Window
 	if (!target_window->get_attributes().shown)
 		return;
 
-	invalidate(target_window->full_area().get_bounding_box(old_area));
+	invalidate(old_area);
+	invalidate(target_window->full_area());
 }
 
 void WindowServer::on_window_set_min_size(int fd, const LibGUI::WindowPacket::WindowSetMinSize& packet)
@@ -304,14 +310,14 @@ void WindowServer::on_window_set_fullscreen(int fd, const LibGUI::WindowPacket::
 			return;
 		if (m_focused_window->get_attributes().resizable)
 		{
-			if (!resize_window(m_focused_window, m_non_full_screen_rect.width, m_non_full_screen_rect.height))
+			if (!resize_window(m_focused_window, m_non_full_screen_rect.width(), m_non_full_screen_rect.height()))
 				return;
-			m_focused_window->set_position({ m_non_full_screen_rect.x, m_non_full_screen_rect.y });
+			m_focused_window->set_position({ m_non_full_screen_rect.min_x, m_non_full_screen_rect.min_y });
 		}
 
-		auto event_packet = LibGUI::EventPacket::WindowFullscreenEvent {
-			.event = { .fullscreen = false }
-		};
+		const LibGUI::EventPacket::WindowFullscreenEvent event_packet { .event = {
+			.fullscreen = false,
+		}};
 		if (auto ret = append_serialized_packet(event_packet, m_focused_window->client_fd()); ret.is_error())
 			dwarnln("could not send window fullscreen event: {}", ret.error());
 
@@ -344,9 +350,9 @@ void WindowServer::on_window_set_fullscreen(int fd, const LibGUI::WindowPacket::
 		m_non_full_screen_rect = old_area;
 	}
 
-	auto event_packet = LibGUI::EventPacket::WindowFullscreenEvent {
-		.event = { .fullscreen = true }
-	};
+	const LibGUI::EventPacket::WindowFullscreenEvent event_packet { .event = {
+		.fullscreen = true,
+	}};
 	if (auto ret = append_serialized_packet(event_packet, target_window->client_fd()); ret.is_error())
 		dwarnln("could not send window fullscreen event: {}", ret.error());
 
@@ -373,7 +379,7 @@ void WindowServer::on_window_set_title(int fd, const LibGUI::WindowPacket::Windo
 	if (!target_window->get_attributes().shown)
 		return;
 
-	invalidate(target_window->title_bar_area());
+	invalidate(target_window->title_text_area());
 }
 
 void WindowServer::on_window_set_cursor(int fd, const LibGUI::WindowPacket::WindowSetCursor& packet)
@@ -397,17 +403,19 @@ void WindowServer::on_window_set_cursor(int fd, const LibGUI::WindowPacket::Wind
 		return;
 	}
 
-	auto old_cursor = cursor_area();
+	const auto old_cursor_area = cursor_area();
 
 	if (packet.width == 0 || packet.height == 0)
 		target_window->remove_cursor();
 	else
 	{
-		Window::Cursor cursor;
-		cursor.width = packet.width;
-		cursor.height = packet.height;
-		cursor.origin_x = packet.origin_x;
-		cursor.origin_y = packet.origin_y;
+		Window::Cursor cursor {
+			.width = packet.width,
+			.height = packet.height,
+			.origin_x = packet.origin_x,
+			.origin_y = packet.origin_y,
+			.pixels = {},
+		};
 		if (auto ret = cursor.pixels.resize(packet.pixels.size()); ret.is_error())
 		{
 			dwarnln("failed to set cursor: {}", ret.error());
@@ -419,7 +427,10 @@ void WindowServer::on_window_set_cursor(int fd, const LibGUI::WindowPacket::Wind
 	}
 
 	if (find_hovered_window() == target_window)
-		invalidate(cursor_area().get_bounding_box(old_cursor));
+	{
+		invalidate(old_cursor_area);
+		invalidate(cursor_area());
+	}
 }
 
 static void update_volume(const char* new_volume)
@@ -487,8 +498,8 @@ void WindowServer::on_key_event(LibInput::KeyEvent event)
 	// Kill window with mod+Q
 	if (m_is_mod_key_held && event.pressed() && event.key == LibInput::Key::Q)
 	{
-		LibGUI::EventPacket::CloseWindowEvent packet;
-		if (auto ret = append_serialized_packet(packet, m_focused_window->client_fd()); ret.is_error())
+		const LibGUI::EventPacket::CloseWindowEvent event_packet {};
+		if (auto ret = append_serialized_packet(event_packet, m_focused_window->client_fd()); ret.is_error())
 			dwarnln("could not send window close event: {}", ret.error());
 		return;
 	}
@@ -499,9 +510,9 @@ void WindowServer::on_key_event(LibInput::KeyEvent event)
 		{
 			if (m_focused_window->get_attributes().resizable)
 			{
-				if (!resize_window(m_focused_window, m_non_full_screen_rect.width, m_non_full_screen_rect.height))
+				if (!resize_window(m_focused_window, m_non_full_screen_rect.width(), m_non_full_screen_rect.height()))
 					return;
-				m_focused_window->set_position({ m_non_full_screen_rect.x, m_non_full_screen_rect.y });
+				m_focused_window->set_position({ m_non_full_screen_rect.min_x, m_non_full_screen_rect.min_y });
 			}
 			m_state = State::Normal;
 		}
@@ -518,9 +529,9 @@ void WindowServer::on_key_event(LibInput::KeyEvent event)
 			m_state = State::Fullscreen;
 		}
 
-		auto event_packet = LibGUI::EventPacket::WindowFullscreenEvent {
-			.event = { .fullscreen = (m_state == State::Fullscreen) }
-		};
+		const LibGUI::EventPacket::WindowFullscreenEvent event_packet { .event = {
+			.fullscreen = (m_state == State::Fullscreen),
+		}};
 		if (auto ret = append_serialized_packet(event_packet, m_focused_window->client_fd()); ret.is_error())
 			dwarnln("could not send window fullscreen event: {}", ret.error());
 
@@ -528,9 +539,10 @@ void WindowServer::on_key_event(LibInput::KeyEvent event)
 		return;
 	}
 
-	LibGUI::EventPacket::KeyEvent packet;
-	packet.event = event;
-	if (auto ret = append_serialized_packet(packet, m_focused_window->client_fd()); ret.is_error())
+	const LibGUI::EventPacket::KeyEvent event_packet {
+		.event = event,
+	};
+	if (auto ret = append_serialized_packet(event_packet, m_focused_window->client_fd()); ret.is_error())
 		dwarnln("could not send key event: {}", ret.error());
 }
 
@@ -540,12 +552,13 @@ void WindowServer::on_mouse_button(LibInput::MouseButtonEvent event)
 	{
 		ASSERT(m_focused_window);
 
-		LibGUI::EventPacket::MouseButtonEvent packet;
-		packet.event.button = event.button;
-		packet.event.pressed = event.pressed;
-		packet.event.x = 0;
-		packet.event.y = 0;
-		if (auto ret = append_serialized_packet(packet, m_focused_window->client_fd()); ret.is_error())
+		const LibGUI::EventPacket::MouseButtonEvent event_packet { .event = {
+			.button = event.button,
+			.pressed = event.pressed,
+			.x = 0,
+			.y = 0,
+		}};
+		if (auto ret = append_serialized_packet(event_packet, m_focused_window->client_fd()); ret.is_error())
 			dwarnln("could not send mouse button event: {}", ret.error());
 		return;
 	}
@@ -603,8 +616,8 @@ void WindowServer::on_mouse_button(LibInput::MouseButtonEvent event)
 
 			if (event.button == LibInput::MouseButton::Left && !event.pressed && target_window->close_button_area().contains(m_cursor))
 			{
-				LibGUI::EventPacket::CloseWindowEvent packet;
-				if (auto ret = append_serialized_packet(packet, target_window->client_fd()); ret.is_error())
+				const LibGUI::EventPacket::CloseWindowEvent event_packet {};
+				if (auto ret = append_serialized_packet(event_packet, target_window->client_fd()); ret.is_error())
 					dwarnln("could not send close window event: {}", ret.error());
 				break;
 			}
@@ -613,12 +626,13 @@ void WindowServer::on_mouse_button(LibInput::MouseButtonEvent event)
 		case State::Fullscreen:
 			if (target_window && (!event.pressed || target_window->client_area().contains(m_cursor)))
 			{
-				LibGUI::EventPacket::MouseButtonEvent packet;
-				packet.event.button = event.button;
-				packet.event.pressed = event.pressed;
-				packet.event.x = m_cursor.x - target_window->client_x();
-				packet.event.y = m_cursor.y - target_window->client_y();
-				if (auto ret = append_serialized_packet(packet, target_window->client_fd()); ret.is_error())
+				const LibGUI::EventPacket::MouseButtonEvent event_packet { .event = {
+					.button = event.button,
+					.pressed = event.pressed,
+					.x = m_cursor.x - target_window->client_x(),
+					.y = m_cursor.y - target_window->client_y(),
+				}};
+				if (auto ret = append_serialized_packet(event_packet, target_window->client_fd()); ret.is_error())
 				{
 					dwarnln("could not send mouse button event: {}", ret.error());
 					return;
@@ -635,27 +649,29 @@ void WindowServer::on_mouse_button(LibInput::MouseButtonEvent event)
 			{
 				const auto resize_area = this->resize_area(m_cursor);
 				m_state = State::Normal;
-				invalidate(resize_area.get_bounding_box(m_focused_window->full_area()));
 
-				const auto old_area = m_focused_window->full_area();
-				if (auto ret = m_focused_window->resize(resize_area.width, resize_area.height - m_focused_window->title_bar_height()); ret.is_error())
+				invalidate(resize_area);
+				invalidate(m_focused_window->full_area());
+
+				if (auto ret = m_focused_window->resize(resize_area.width(), resize_area.height() - m_focused_window->title_bar_height()); ret.is_error())
 				{
 					dwarnln("could not resize client window {}", ret.error());
 					return;
 				}
-				m_focused_window->set_position({ resize_area.x, resize_area.y + m_focused_window->title_bar_height() });
+				m_focused_window->set_position({ resize_area.min_x, resize_area.min_y + m_focused_window->title_bar_height() });
 
-				LibGUI::EventPacket::ResizeWindowEvent event;
-				event.width = m_focused_window->client_width();
-				event.height = m_focused_window->client_height();
-				event.smo_key = m_focused_window->smo_key();
-				if (auto ret = append_serialized_packet(event, m_focused_window->client_fd()); ret.is_error())
+				const LibGUI::EventPacket::ResizeWindowEvent event_packet {
+					.width  = static_cast<uint32_t>(m_focused_window->client_width()),
+					.height = static_cast<uint32_t>(m_focused_window->client_height()),
+					.smo_key = m_focused_window->smo_key(),
+				};
+				if (auto ret = append_serialized_packet(event_packet, m_focused_window->client_fd()); ret.is_error())
 				{
 					dwarnln("could not respond to window resize request: {}", ret.error());
 					return;
 				}
 
-				invalidate(m_focused_window->full_area().get_bounding_box(old_area));
+				invalidate(m_focused_window->full_area());
 			}
 			break;
 	}
@@ -663,28 +679,28 @@ void WindowServer::on_mouse_button(LibInput::MouseButtonEvent event)
 
 void WindowServer::on_mouse_move_impl(int32_t new_x, int32_t new_y)
 {
-	LibInput::MouseMoveEvent event;
-	event.rel_x = new_x - m_cursor.x;
-	event.rel_y = new_y - m_cursor.y;
+	const LibInput::MouseMoveEvent event {
+		.rel_x = new_x - m_cursor.x,
+		.rel_y = new_y - m_cursor.y,
+	};
 	if (event.rel_x == 0 && event.rel_y == 0)
 		return;
 
-	auto old_cursor = cursor_area();
+	const auto old_cursor_area = cursor_area();
 	m_cursor.x = new_x;
 	m_cursor.y = new_y;
-	auto new_cursor = cursor_area();
 
-	invalidate(old_cursor);
-	invalidate(new_cursor);
+	invalidate(old_cursor_area);
+	invalidate(cursor_area());
 
 	// TODO: Really no need to loop over every window
 	for (auto& window : m_client_windows)
 	{
 		if (!window->get_attributes().shown)
 			continue;
-		auto title_bar = window->title_bar_area();
-		if (title_bar.get_overlap(old_cursor).has_value() || title_bar.get_overlap(new_cursor).has_value())
-			invalidate(title_bar);
+		const auto title_bar_area = window->title_bar_area();
+		if (title_bar_area.get_overlap(old_cursor_area).has_value() || title_bar_area.get_overlap(cursor_area()).has_value())
+			invalidate(title_bar_area);
 	}
 
 	if (!m_focused_window)
@@ -695,10 +711,11 @@ void WindowServer::on_mouse_move_impl(int32_t new_x, int32_t new_y)
 		case State::Normal:
 		case State::Fullscreen:
 		{
-			LibGUI::EventPacket::MouseMoveEvent packet;
-			packet.event.x = m_cursor.x - m_focused_window->client_x();
-			packet.event.y = m_cursor.y - m_focused_window->client_y();
-			if (auto ret = append_serialized_packet(packet, m_focused_window->client_fd()); ret.is_error())
+			const LibGUI::EventPacket::MouseMoveEvent event_packet { .event = {
+				.x = m_cursor.x - m_focused_window->client_x(),
+				.y = m_cursor.y - m_focused_window->client_y(),
+			}};
+			if (auto ret = append_serialized_packet(event_packet, m_focused_window->client_fd()); ret.is_error())
 			{
 				dwarnln("could not send mouse move event: {}", ret.error());
 				return;
@@ -707,21 +724,19 @@ void WindowServer::on_mouse_move_impl(int32_t new_x, int32_t new_y)
 		}
 		case State::Moving:
 		{
-			auto old_window = m_focused_window->full_area();
+			const auto old_window_area = m_focused_window->full_area();
 			m_focused_window->set_position({
 				m_focused_window->client_x() + event.rel_x,
 				m_focused_window->client_y() + event.rel_y,
 			});
-			auto new_window = m_focused_window->full_area();
-			invalidate(old_window);
-			invalidate(new_window);
+			invalidate(old_window_area);
+			invalidate(m_focused_window->full_area());
 			break;
 		}
 		case State::Resizing:
 		{
-			const auto old_resize_area = resize_area({ old_cursor.x, old_cursor.y });
-			const auto new_resize_area = resize_area({ new_cursor.x, new_cursor.y });
-			invalidate(old_resize_area.get_bounding_box(new_resize_area));
+			invalidate(resize_area({ .x = old_cursor_area.min_x, .y = old_cursor_area.min_y }));
+			invalidate(resize_area(m_cursor));
 			break;
 		}
 	}
@@ -733,10 +748,11 @@ void WindowServer::on_mouse_move(LibInput::MouseMoveEvent event)
 	{
 		ASSERT(m_focused_window);
 
-		LibGUI::EventPacket::MouseMoveEvent packet;
-		packet.event.x =  event.rel_x;
-		packet.event.y = -event.rel_y;
-		if (auto ret = append_serialized_packet(packet, m_focused_window->client_fd()); ret.is_error())
+		const LibGUI::EventPacket::MouseMoveEvent event_packet { .event = {
+			.x =  event.rel_x,
+			.y = -event.rel_y,
+		}};
+		if (auto ret = append_serialized_packet(event_packet, m_focused_window->client_fd()); ret.is_error())
 			dwarnln("could not send mouse move event: {}", ret.error());
 		return;
 	}
@@ -803,15 +819,16 @@ void WindowServer::on_mouse_move_abs(LibInput::MouseMoveAbsEvent event)
 
 void WindowServer::on_mouse_scroll(LibInput::MouseScrollEvent event)
 {
-	if (m_focused_window)
+	if (!m_focused_window)
+		return;
+
+	const LibGUI::EventPacket::MouseScrollEvent event_packet { .event = {
+		.scroll = event.scroll,
+	}};
+	if (auto ret = append_serialized_packet(event_packet, m_focused_window->client_fd()); ret.is_error())
 	{
-		LibGUI::EventPacket::MouseScrollEvent packet;
-		packet.event.scroll = event.scroll;
-		if (auto ret = append_serialized_packet(packet, m_focused_window->client_fd()); ret.is_error())
-		{
-			dwarnln("could not send mouse scroll event: {}", ret.error());
-			return;
-		}
+		dwarnln("could not send mouse scroll event: {}", ret.error());
+		return;
 	}
 }
 
@@ -829,9 +846,10 @@ void WindowServer::set_focused_window(BAN::RefPtr<Window> window)
 
 	if (m_focused_window)
 	{
-		LibGUI::EventPacket::WindowFocusEvent packet;
-		packet.event.focused = false;
-		if (auto ret = append_serialized_packet(packet, m_focused_window->client_fd()); ret.is_error())
+		const LibGUI::EventPacket::WindowFocusEvent event_packet { .event = {
+			.focused = false,
+		}};
+		if (auto ret = append_serialized_packet(event_packet, m_focused_window->client_fd()); ret.is_error())
 			dwarnln("could not send window focus event: {}", ret.error());
 	}
 
@@ -849,9 +867,10 @@ void WindowServer::set_focused_window(BAN::RefPtr<Window> window)
 
 	if (m_focused_window)
 	{
-		LibGUI::EventPacket::WindowFocusEvent packet;
-		packet.event.focused = true;
-		if (auto ret = append_serialized_packet(packet, m_focused_window->client_fd()); ret.is_error())
+		const LibGUI::EventPacket::WindowFocusEvent event_packet { .event = {
+			.focused = true,
+		}};
+		if (auto ret = append_serialized_packet(event_packet, m_focused_window->client_fd()); ret.is_error())
 			dwarnln("could not send window focus event: {}", ret.error());
 	}
 }
@@ -928,10 +947,10 @@ void WindowServer::invalidate(Rectangle area)
 			}
 
 			const uint32_t offset = (rel_y * s_default_cursor_width + rel_x) * 4;
-			uint32_t r = (((s_default_cursor_data[offset + 0] - 33) << 2) | ((s_default_cursor_data[offset + 1] - 33) >> 4));
-			uint32_t g = ((((s_default_cursor_data[offset + 1] - 33) & 0xF) << 4) | ((s_default_cursor_data[offset + 2] - 33) >> 2));
-			uint32_t b = ((((s_default_cursor_data[offset + 2] - 33) & 0x3) << 6) | ((s_default_cursor_data[offset + 3] - 33)));
-			uint32_t color = (r << 16) | (g << 8) | b;
+			const uint32_t r = ((( s_default_cursor_data[offset + 0] - 33       ) << 2) | ((s_default_cursor_data[offset + 1] - 33) >> 4));
+			const uint32_t g = ((((s_default_cursor_data[offset + 1] - 33) & 0xF) << 4) | ((s_default_cursor_data[offset + 2] - 33) >> 2));
+			const uint32_t b = ((((s_default_cursor_data[offset + 2] - 33) & 0x3) << 6) | ((s_default_cursor_data[offset + 3] - 33)     ));
+			const uint32_t color = (r << 16) | (g << 8) | b;
 			if (color == 0xFF00FF)
 				return {};
 			return color;
@@ -940,14 +959,16 @@ void WindowServer::invalidate(Rectangle area)
 	if (m_state == State::Fullscreen)
 	{
 		ASSERT(m_focused_window);
-		area.x -= m_focused_window->client_x();
-		area.y -= m_focused_window->client_y();
+		area.min_x -= m_focused_window->client_x();
+		area.max_x -= m_focused_window->client_x();
+		area.min_y -= m_focused_window->client_y();
+		area.max_y -= m_focused_window->client_y();
 
 		const Rectangle client_area {
-			.x = 0,
-			.y = 0,
-			.width  = m_focused_window->client_width(),
-			.height = m_focused_window->client_height(),
+			.min_x = 0,
+			.min_y = 0,
+			.max_x = m_focused_window->client_width(),
+			.max_y = m_focused_window->client_height(),
 		};
 
 		auto focused_overlap = area.get_overlap(client_area);
@@ -964,24 +985,24 @@ void WindowServer::invalidate(Rectangle area)
 
 			if (!should_alpha_blend)
 			{
-				for (int32_t y = area.y; y < area.y + area.height; y++)
+				for (int32_t y = area.min_y; y < area.max_y; y++)
 				{
 					memcpy(
-						&m_framebuffer.mmap[y * m_framebuffer.width + area.x],
-						&client_ptr[y * client_width + area.x],
-						area.width * sizeof(uint32_t)
+						&m_framebuffer.mmap[y * m_framebuffer.width + area.min_x],
+						&client_ptr[y * client_width + area.min_x],
+						area.width() * sizeof(uint32_t)
 					);
 				}
 			}
 			else
 			{
-				for (int32_t y = area.y; y < area.y + area.height; y++)
+				for (int32_t y = area.min_y; y < area.max_y; y++)
 				{
-					const uint32_t* window_row = &client_ptr[y * client_width + area.x];
-					const uint32_t* image_row  = &m_background_image[y * m_framebuffer.width + area.x];
-					uint32_t* frameb_row = &m_framebuffer.mmap[y * m_framebuffer.width + area.x];
+					const uint32_t* window_row = &client_ptr[y * client_width + area.min_x];
+					const uint32_t* image_row  = &m_background_image[y * m_framebuffer.width + area.min_x];
+					uint32_t* frameb_row = &m_framebuffer.mmap[y * m_framebuffer.width + area.min_x];
 
-					int32_t pixels = area.width;
+					int32_t pixels = area.width();
 					for (; pixels >= 4; pixels -= 4)
 					{
 						alpha_blend4(window_row, image_row, frameb_row);
@@ -1004,18 +1025,18 @@ void WindowServer::invalidate(Rectangle area)
 		else
 		{
 			auto opt_dst_area = Rectangle {
-				.x = area.x * m_framebuffer.width  / m_focused_window->client_width(),
-				.y = area.y * m_framebuffer.height / m_focused_window->client_height(),
-				.width  = BAN::Math::div_round_up(area.width  * m_framebuffer.width,  m_focused_window->client_width()),
-				.height = BAN::Math::div_round_up(area.height * m_framebuffer.height, m_focused_window->client_height())
+				.min_x = area.min_x * m_framebuffer.width  / m_focused_window->client_width(),
+				.min_y = area.min_y * m_framebuffer.height / m_focused_window->client_height(),
+				.max_x = BAN::Math::div_round_up(area.max_x * m_framebuffer.width,  m_focused_window->client_width()),
+				.max_y = BAN::Math::div_round_up(area.max_y * m_framebuffer.height, m_focused_window->client_height())
 			}.get_overlap(m_framebuffer.area());
 			if (!opt_dst_area.has_value())
 				return;
 
 			const auto dst_area = opt_dst_area.release_value();
-			for (int32_t dst_y = dst_area.y; dst_y < dst_area.y + dst_area.height; dst_y++)
+			for (int32_t dst_y = dst_area.min_y; dst_y < dst_area.max_y; dst_y++)
 			{
-				for (int32_t dst_x = dst_area.x; dst_x < dst_area.x + dst_area.width; dst_x++)
+				for (int32_t dst_x = dst_area.min_x; dst_x < dst_area.max_x; dst_x++)
 				{
 					const int32_t src_x = BAN::Math::clamp<int32_t>(dst_x * m_focused_window->client_width()  / m_framebuffer.width,  0, m_focused_window->client_width());
 					const int32_t src_y = BAN::Math::clamp<int32_t>(dst_y * m_focused_window->client_height() / m_framebuffer.height, 0, m_focused_window->client_height());
@@ -1034,18 +1055,19 @@ void WindowServer::invalidate(Rectangle area)
 		if (!m_is_mouse_relative)
 		{
 			auto cursor_area = this->cursor_area();
-			cursor_area.x -= m_focused_window->client_x();
-			cursor_area.y -= m_focused_window->client_y();
-
+			cursor_area.min_x -= m_focused_window->client_x();
+			cursor_area.max_x -= m_focused_window->client_x();
+			cursor_area.min_y -= m_focused_window->client_y();
+			cursor_area.max_y -= m_focused_window->client_y();
 			if (!area.get_overlap(cursor_area).has_value())
 				return;
 
-			const int32_t cursor_tl_dst_x = cursor_area.x * m_framebuffer.width  / m_focused_window->client_width();
-			const int32_t cursor_tl_dst_y = cursor_area.y * m_framebuffer.height / m_focused_window->client_height();
+			const int32_t cursor_tl_dst_x = cursor_area.min_x * m_framebuffer.width  / m_focused_window->client_width();
+			const int32_t cursor_tl_dst_y = cursor_area.min_y * m_framebuffer.height / m_focused_window->client_height();
 
-			for (int32_t rel_y = 0; rel_y < cursor_area.height; rel_y++)
+			for (int32_t rel_y = 0; rel_y < cursor_area.height(); rel_y++)
 			{
-				for (int32_t rel_x = 0; rel_x < cursor_area.width; rel_x++)
+				for (int32_t rel_x = 0; rel_x < cursor_area.width(); rel_x++)
 				{
 					const auto pixel = get_cursor_pixel(rel_x, rel_y);
 					if (!pixel.has_value())
@@ -1074,12 +1096,12 @@ void WindowServer::invalidate(Rectangle area)
 		return;
 	area = fb_overlap.release_value();
 
-	for (int32_t y = area.y; y < area.y + area.height; y++)
+	for (int32_t y = area.min_y; y < area.max_y; y++)
 	{
 		memcpy(
-			&m_framebuffer.mmap[y * m_framebuffer.width + area.x],
-			&m_background_image[y * m_framebuffer.width + area.x],
-			area.width * sizeof(uint32_t)
+			&m_framebuffer.mmap[y * m_framebuffer.width + area.min_x],
+			&m_background_image[y * m_framebuffer.width + area.min_x],
+			area.width() * sizeof(uint32_t)
 		);
 	}
 
@@ -1091,71 +1113,65 @@ void WindowServer::invalidate(Rectangle area)
 		if (!window.get_attributes().shown)
 			continue;
 
+		const auto window_full_area = window.full_area();
+
 		const Rectangle fast_areas[] {
 			{
-				window.full_x() + m_corner_radius,
-				window.full_y(),
-				window.full_width() - 2 * m_corner_radius,
-				m_corner_radius
+				.min_x = window_full_area.min_x,
+				.min_y = window_full_area.min_y + m_corner_radius,
+				.max_x = window_full_area.max_x,
+				.max_y = window_full_area.max_y - m_corner_radius,
+			}, {
+				.min_x = window_full_area.min_x + m_corner_radius,
+				.min_y = window_full_area.min_y,
+				.max_x = window_full_area.max_x - m_corner_radius,
+				.max_y = window_full_area.min_y + m_corner_radius,
+			}, {
+				.min_x = window_full_area.min_x + m_corner_radius,
+				.min_y = window_full_area.max_y - m_corner_radius,
+				.max_x = window_full_area.max_x - m_corner_radius,
+				.max_y = window_full_area.max_y,
 			},
-			{
-				window.full_x(),
-				window.full_y() + m_corner_radius,
-				window.full_width(),
-				window.full_height() - 2 * m_corner_radius
-			},
-			{
-				window.full_x() + m_corner_radius,
-				window.full_y() + window.full_height() - m_corner_radius,
-				window.full_width() - 2 * m_corner_radius,
-				m_corner_radius
-			}
 		};
 
 		const Position corner_centers[] {
 			{
-				window.full_x()                              + m_corner_radius,
-				window.full_y()                              + m_corner_radius,
-			},
-			{
-				window.full_x() + (window.full_width() - 1)  - m_corner_radius,
-				window.full_y()                              + m_corner_radius,
-			},
-			{
-				window.full_x()                              + m_corner_radius,
-				window.full_y() + (window.full_height() - 1) - m_corner_radius,
-			},
-			{
-				window.full_x() + (window.full_width()  - 1) - m_corner_radius,
-				window.full_y() + (window.full_height() - 1) - m_corner_radius,
+				.x = window_full_area.min_x + m_corner_radius,
+				.y = window_full_area.min_y + m_corner_radius,
+			}, {
+				.x = window_full_area.max_x - m_corner_radius - 1,
+				.y = window_full_area.min_y + m_corner_radius,
+			}, {
+				.x = window_full_area.min_x + m_corner_radius,
+				.y = window_full_area.max_y - m_corner_radius - 1,
+			}, {
+				.x = window_full_area.max_x - m_corner_radius - 1,
+				.y = window_full_area.max_y - m_corner_radius - 1,
 			},
 		};
 
 		const Rectangle corner_areas[] {
 			{
-				window.full_x(),
-				window.full_y(),
-				m_corner_radius,
-				m_corner_radius
+				.min_x = window_full_area.min_x,
+				.min_y = window_full_area.min_y,
+				.max_x = window_full_area.min_x + m_corner_radius,
+				.max_y = window_full_area.min_y + m_corner_radius,
+			}, {
+				.min_x = window_full_area.max_x - m_corner_radius,
+				.min_y = window_full_area.min_y,
+				.max_x = window_full_area.max_x,
+				.max_y = window_full_area.min_y + m_corner_radius,
+			}, {
+				.min_x = window_full_area.min_x,
+				.min_y = window_full_area.max_y - m_corner_radius,
+				.max_x = window_full_area.min_x + m_corner_radius,
+				.max_y = window_full_area.max_y,
+			}, {
+				.min_x = window_full_area.max_x - m_corner_radius,
+				.min_y = window_full_area.max_y - m_corner_radius,
+				.max_x = window_full_area.max_x,
+				.max_y = window_full_area.max_y,
 			},
-			{
-				window.full_x() + window.full_width() - m_corner_radius,
-				window.full_y(),
-				m_corner_radius,
-				m_corner_radius
-			},
-			{
-				window.full_x(),
-				window.full_y() + window.full_height() - m_corner_radius,
-				m_corner_radius,
-				m_corner_radius
-			},
-			{
-				window.full_x() + window.full_width() - m_corner_radius,
-				window.full_y() + window.full_height() - m_corner_radius,
-				m_corner_radius,
-				m_corner_radius
-			}
 		};
 
 		const auto is_rounded_off =
@@ -1178,14 +1194,13 @@ void WindowServer::invalidate(Rectangle area)
 			};
 
 		// window title bar
-		if (auto title_overlap = window.title_bar_area().get_overlap(area); title_overlap.has_value())
+		if (auto opt_title_overlap = window.title_bar_area().get_overlap(area); opt_title_overlap.has_value())
 		{
-			for (int32_t y_off = 0; y_off < title_overlap->height; y_off++)
+			const auto title_overlap = opt_title_overlap.release_value();
+			for (int32_t abs_y = title_overlap.min_y; abs_y < title_overlap.max_y; abs_y++)
 			{
-				for (int32_t x_off = 0; x_off < title_overlap->width; x_off++)
+				for (int32_t abs_x = title_overlap.min_x; abs_x < title_overlap.max_x; abs_x++)
 				{
-					const int32_t abs_x = title_overlap->x + x_off;
-					const int32_t abs_y = title_overlap->y + y_off;
 					if (is_rounded_off(window, { abs_x, abs_y }))
 						continue;
 
@@ -1196,21 +1211,21 @@ void WindowServer::invalidate(Rectangle area)
 		}
 
 		// window client area
-		if (auto client_overlap = window.client_area().get_overlap(area); client_overlap.has_value())
+		if (auto opt_client_overlap = window.client_area().get_overlap(area); opt_client_overlap.has_value())
 		{
 			const bool should_alpha_blend = window.get_attributes().alpha_channel;
 
+			const auto client_overlap = opt_client_overlap.release_value();
 			for (const auto& fast_area : fast_areas)
 			{
-				auto opt_fast_overlap = client_overlap->get_overlap(fast_area);
+				auto opt_fast_overlap = client_overlap.get_overlap(fast_area);
 				if (!opt_fast_overlap.has_value())
 					continue;
 
 				const auto fast_overlap = opt_fast_overlap.release_value();
-				for (int32_t y_off = 0; y_off < fast_overlap.height; y_off++)
+				for (int32_t abs_row_y = fast_overlap.min_y; abs_row_y < fast_overlap.max_y; abs_row_y++)
 				{
-					const int32_t abs_row_y = fast_overlap.y + y_off;
-					const int32_t abs_row_x = fast_overlap.x;
+					const int32_t abs_row_x = fast_overlap.min_x;
 
 					const int32_t src_row_y = abs_row_y - window.client_y();
 					const int32_t src_row_x = abs_row_x - window.client_x();
@@ -1219,10 +1234,10 @@ void WindowServer::invalidate(Rectangle area)
 					auto* frameb_row = &m_framebuffer.mmap[abs_row_y * m_framebuffer.width + abs_row_x];
 
 					if (!should_alpha_blend)
-						memcpy(frameb_row, window_row, fast_overlap.width * sizeof(uint32_t));
+						memcpy(frameb_row, window_row, fast_overlap.width() * sizeof(uint32_t));
 					else
 					{
-						int32_t pixels = fast_overlap.width;
+						int32_t pixels = fast_overlap.width();
 						for (; pixels >= 4; pixels -= 4)
 						{
 							alpha_blend4(window_row, frameb_row, frameb_row);
@@ -1241,17 +1256,15 @@ void WindowServer::invalidate(Rectangle area)
 
 			for (const auto& corner_area : corner_areas)
 			{
-				auto opt_corner_overlap = client_overlap->get_overlap(corner_area);
+				auto opt_corner_overlap = client_overlap.get_overlap(corner_area);
 				if (!opt_corner_overlap.has_value())
 					continue;
 
 				const auto corner_overlap = opt_corner_overlap.release_value();
-				for (int32_t y_off = 0; y_off < corner_overlap.height; y_off++)
+				for (int32_t abs_y = corner_overlap.min_y; abs_y < corner_overlap.max_y; abs_y++)
 				{
-					for (int32_t x_off = 0; x_off < corner_overlap.width; x_off++)
+					for (int32_t abs_x = corner_overlap.min_x; abs_x < corner_overlap.max_x; abs_x++)
 					{
-						const int32_t abs_x = corner_overlap.x + x_off;
-						const int32_t abs_y = corner_overlap.y + y_off;
 						if (is_rounded_off(window, { abs_x, abs_y }))
 							continue;
 
@@ -1278,11 +1291,11 @@ void WindowServer::invalidate(Rectangle area)
 			constexpr uint32_t blend_color = 0x80000000;
 
 			const auto overlap = opt_overlap.release_value();
-			for (int32_t y = overlap.y; y < overlap.y + overlap.height; y++)
+			for (int32_t y = overlap.min_y; y < overlap.max_y; y++)
 			{
-				uint32_t* frameb_row = &m_framebuffer.mmap[y * m_framebuffer.width + overlap.x];
+				uint32_t* frameb_row = &m_framebuffer.mmap[y * m_framebuffer.width + overlap.min_x];
 
-				int32_t pixels = overlap.width;
+				int32_t pixels = overlap.width();
 				for (; pixels >= 4; pixels -= 4)
 				{
 					const uint32_t blend_colors[] { blend_color, blend_color, blend_color, blend_color };
@@ -1300,19 +1313,20 @@ void WindowServer::invalidate(Rectangle area)
 
 	if (!m_is_mouse_relative)
 	{
-		if (const auto overlap = cursor_area().get_overlap(area); overlap.has_value())
+		if (auto opt_overlap = cursor_area().get_overlap(area); opt_overlap.has_value())
 		{
 			const int32_t origin_x = window_cursor ? window_cursor->origin_x : 0;
 			const int32_t origin_y = window_cursor ? window_cursor->origin_y : 0;
-			for (int32_t y_off = 0; y_off < overlap->height; y_off++)
+			const auto overlap = opt_overlap.release_value();
+			for (int32_t abs_y = overlap.min_y; abs_y < overlap.max_y; abs_y++)
 			{
-				for (int32_t x_off = 0; x_off < overlap->width; x_off++)
+				for (int32_t abs_x = overlap.min_x; abs_x < overlap.max_x; abs_x++)
 				{
-					const int32_t rel_x = overlap->x - m_cursor.x + x_off + origin_x;
-					const int32_t rel_y = overlap->y - m_cursor.y + y_off + origin_y;
+					const int32_t rel_x = abs_x - m_cursor.x + origin_x;
+					const int32_t rel_y = abs_y - m_cursor.y + origin_y;
 					const auto pixel = get_cursor_pixel(rel_x, rel_y);
 					if (pixel.has_value())
-						m_framebuffer.mmap[(overlap->y + y_off) * m_framebuffer.width + (overlap->x + x_off)] = pixel.value();
+						m_framebuffer.mmap[abs_y * m_framebuffer.width + abs_x] = pixel.value();
 				}
 			}
 		}
@@ -1384,8 +1398,8 @@ void WindowServer::RangeList::add_range(const Range& range)
 void WindowServer::mark_pending_sync(Rectangle to_sync)
 {
 	ASSERT(to_sync == to_sync.get_overlap(m_framebuffer.area()).value());
-	for (int32_t y_off = 0; y_off < to_sync.height; y_off++)
-		m_pending_syncs[to_sync.y + y_off].add_range({ static_cast<uint32_t>(to_sync.x), static_cast<uint32_t>(to_sync.width) });
+	for (int32_t abs_y = to_sync.min_y; abs_y < to_sync.max_y; abs_y++)
+		m_pending_syncs[abs_y].add_range({ static_cast<uint32_t>(to_sync.min_x), static_cast<uint32_t>(to_sync.width()) });
 }
 
 void WindowServer::sync()
@@ -1399,9 +1413,9 @@ void WindowServer::sync()
 			m_focused_window->client_x() + dir_x,
 			m_focused_window->client_y() + dir_y,
 		});
-		auto new_window = m_focused_window->full_area();
+
 		invalidate(old_window);
-		invalidate(new_window);
+		invalidate(m_focused_window->full_area());
 
 		if ((m_focused_window->full_x() < 0 && dir_x < 0) || (m_focused_window->full_x() + m_focused_window->full_width() >= m_framebuffer.width && dir_x > 0))
 			dir_x = -dir_x;
@@ -1470,7 +1484,12 @@ Rectangle WindowServer::cursor_area() const
 		}
 	}
 
-	return { m_cursor.x - origin_x, m_cursor.y - origin_y, width, height };
+	return Rectangle {
+		.min_x = m_cursor.x - origin_x,
+		.min_y = m_cursor.y - origin_y,
+		.max_x = m_cursor.x - origin_x + width,
+		.max_y = m_cursor.y - origin_y + height,
+	};
 }
 
 Rectangle WindowServer::resize_area(Position cursor) const
@@ -1482,16 +1501,16 @@ Rectangle WindowServer::resize_area(Position cursor) const
 	if (m_resize_quadrant % 2)
 		diff_x = -diff_x;
 	diff_x = BAN::Math::clamp(diff_x,
-		-m_focused_window->client_width() + min_size.width,
-		-m_focused_window->client_width() + max_size.width
+		-m_focused_window->client_width() + min_size.width(),
+		-m_focused_window->client_width() + max_size.width()
 	);
 
 	int32_t diff_y = m_resize_start.y - cursor.y;
 	if (m_resize_quadrant / 2)
 		diff_y = -diff_y;
 	diff_y = BAN::Math::clamp(diff_y,
-		-m_focused_window->client_height() + min_size.height,
-		-m_focused_window->client_height() + max_size.height
+		-m_focused_window->client_height() + min_size.height(),
+		-m_focused_window->client_height() + max_size.height()
 	);
 
 	int32_t off_x = 0;
@@ -1502,11 +1521,13 @@ Rectangle WindowServer::resize_area(Position cursor) const
 	if (m_resize_quadrant / 2 == 0)
 		off_y = -diff_y;
 
-	return {
-		.x = off_x + m_focused_window->full_x(),
-		.y = off_y + m_focused_window->full_y(),
-		.width  = diff_x + m_focused_window->full_width(),
-		.height = diff_y + m_focused_window->full_height(),
+	const int min_x = off_x + m_focused_window->full_x();
+	const int min_y = off_y + m_focused_window->full_y();
+	return Rectangle {
+		.min_x = min_x,
+		.min_y = min_y,
+		.max_x = min_x + diff_x + m_focused_window->full_width(),
+		.max_y = min_y + diff_y + m_focused_window->full_height(),
 	};
 }
 
@@ -1534,11 +1555,12 @@ bool WindowServer::resize_window(BAN::RefPtr<Window> window, uint32_t width, uin
 		return false;
 	}
 
-	LibGUI::EventPacket::ResizeWindowEvent response;
-	response.width = window->client_width();
-	response.height = window->client_height();
-	response.smo_key = window->smo_key();
-	if (auto ret = append_serialized_packet(response, window->client_fd()); ret.is_error())
+	const LibGUI::EventPacket::ResizeWindowEvent event_packet {
+		.width  = static_cast<uint32_t>(window->client_width()),
+		.height = static_cast<uint32_t>(window->client_height()),
+		.smo_key = window->smo_key(),
+	};
+	if (auto ret = append_serialized_packet(event_packet, window->client_fd()); ret.is_error())
 	{
 		dwarnln("could not respond to window resize request: {}", ret.error());
 		return false;

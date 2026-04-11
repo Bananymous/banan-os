@@ -31,17 +31,23 @@ public:
 
 	void set_position(Position position)
 	{
-		m_client_area.x = position.x;
-		m_client_area.y = position.y;
+		const auto width = m_client_area.width();
+		const auto height = m_client_area.height();
+		m_client_area = {
+			.min_x = position.x,
+			.min_y = position.y,
+			.max_x = position.x + width,
+			.max_y = position.y + height,
+		};
 	}
 
 	int client_fd() const { return m_client_fd; }
 	long smo_key() const { return m_smo_key; }
 
-	int32_t client_x() const { return m_client_area.x; }
-	int32_t client_y() const { return m_client_area.y; }
-	int32_t client_width() const { return m_client_area.width; }
-	int32_t client_height() const { return m_client_area.height; }
+	int32_t client_x() const { return m_client_area.min_x; }
+	int32_t client_y() const { return m_client_area.min_y; }
+	int32_t client_width() const { return m_client_area.width(); }
+	int32_t client_height() const { return m_client_area.height(); }
 	Rectangle client_size() const { return { 0, 0, client_width(), client_height() }; }
 	Rectangle client_area() const { return m_client_area; }
 
@@ -50,14 +56,14 @@ public:
 	int32_t title_bar_width() const { return client_width(); }
 	int32_t title_bar_height() const { return m_attributes.title_bar ? m_title_bar_height : 0; }
 	Rectangle title_bar_size() const { return { 0, 0, title_bar_width(), title_bar_height() }; }
-	Rectangle title_bar_area() const { return { title_bar_x(), title_bar_y(), title_bar_width(), title_bar_height() }; }
+	Rectangle title_bar_area() const { return { title_bar_x(), title_bar_y(), title_bar_x() + title_bar_width(), title_bar_y() + title_bar_height() }; }
 
 	int32_t full_x() const { return title_bar_x(); }
 	int32_t full_y() const { return title_bar_y(); }
 	int32_t full_width() const { return client_width(); }
 	int32_t full_height() const { return client_height() + title_bar_height(); }
 	Rectangle full_size() const { return { 0, 0, full_width(), full_height() }; }
-	Rectangle full_area() const { return { full_x(), full_y(), full_width(), full_height() }; }
+	Rectangle full_area() const { return { full_x(), full_y(), full_x() + full_width(), full_y() + full_height() }; }
 
 	bool has_cursor() const { return m_cursor.has_value(); }
 	const Cursor& cursor() const { return m_cursor.value(); }
@@ -90,7 +96,7 @@ public:
 	}
 
 	Circle close_button_area() const { return { title_bar_x() + title_bar_width() - title_bar_height() / 2, title_bar_y() + title_bar_height() / 2, title_bar_height() * 3 / 8 }; }
-	Rectangle title_text_area() const { return { title_bar_x(), title_bar_y(), title_bar_width() - title_bar_height(), title_bar_height() }; }
+	Rectangle title_text_area() const { return { title_bar_x(), title_bar_y(), title_bar_x() + title_bar_width() - title_bar_height(), title_bar_y() + title_bar_height() }; }
 
 	BAN::ErrorOr<void> initialize(BAN::StringView title, uint32_t width, uint32_t height);
 	BAN::ErrorOr<void> resize(uint32_t width, uint32_t height);

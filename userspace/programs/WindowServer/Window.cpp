@@ -61,8 +61,8 @@ BAN::ErrorOr<void> Window::resize(uint32_t width, uint32_t height)
 	{
 		const auto old_area = m_client_area;
 
-		m_client_area.width = width;
-		m_client_area.height = height;
+		m_client_area.max_x = m_client_area.min_x + width;
+		m_client_area.max_y = m_client_area.min_y + height;
 		auto title_bar_ret = prepare_title_bar();
 		m_client_area = old_area;
 
@@ -80,8 +80,9 @@ BAN::ErrorOr<void> Window::resize(uint32_t width, uint32_t height)
 
 	m_fb_addr = fb_addr;
 	m_smo_key = smo_key;
-	m_client_area.width = width;
-	m_client_area.height = height;
+
+	m_client_area.max_x = m_client_area.min_x + width;
+	m_client_area.max_y = m_client_area.min_y + height;
 
 	return {};
 }
@@ -98,7 +99,7 @@ BAN::ErrorOr<void> Window::prepare_title_bar()
 
 	const auto text_area = title_text_area();
 
-	for (size_t i = 0; i < m_title.size() && (i + 1) * font_w < static_cast<uint32_t>(text_area.width); i++)
+	for (size_t i = 0; i < m_title.size() && (i + 1) * font_w < static_cast<uint32_t>(text_area.width()); i++)
 	{
 		const auto* glyph = m_font.glyph(m_title[i]);
 		if (glyph == nullptr)
@@ -112,7 +113,7 @@ BAN::ErrorOr<void> Window::prepare_title_bar()
 				break;
 			for (int32_t x = 0; (uint32_t)x < font_w; x++)
 			{
-				if (x + x_off >= text_area.width)
+				if (x + x_off >= text_area.width())
 					break;
 				const uint8_t bitmask = 1 << (font_w - x - 1);
 				if (glyph[y * font_p] & bitmask)
