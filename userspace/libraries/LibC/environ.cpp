@@ -14,6 +14,19 @@ static bool s_environ_malloced = false;
 static size_t s_environ_count = 0;          // only valid when s_environ_malloced == true
 static uint8_t* s_environ_bitmap = nullptr; // if bit i is set, environ[i] has to be freed
 
+static bool is_bitmap_bit_set(size_t index)
+{
+	return !!(s_environ_bitmap[index / 8] & (1 << (index % 8)));
+}
+
+static void set_bitmap_bit(size_t index, bool value)
+{
+	if (value)
+		s_environ_bitmap[index / 8] |=   1 << (index % 8);
+	else
+		s_environ_bitmap[index / 8] &= ~(1 << (index % 8));
+}
+
 static int malloc_environ()
 {
 	ASSERT(!s_environ_malloced);
@@ -28,7 +41,7 @@ static int malloc_environ()
 		return -1;
 	memset(new_bitmap, 0, bitmap_size);
 
-	char** new_environ = static_cast<char**>(malloc((environ_count + 1) * sizeof(char*)));
+	auto** new_environ = static_cast<char**>(malloc((environ_count + 1) * sizeof(char*)));
 	if (new_environ == nullptr)
 	{
 		free(new_bitmap);
@@ -60,53 +73,42 @@ static int putenv_impl(char* string, bool malloced)
 	}
 
 	const size_t namelen = eq_addr - string;
-	for (int i = 0; environ[i]; i++)
+	for (size_t i = 0; environ[i]; i++)
 	{
-		if (strncmp(environ[i], string, namelen + 1) == 0)
-		{
-			const size_t byte = i / 8;
-			const uint8_t mask = 1 << (i % 8);
+		if (strncmp(environ[i], string, namelen + 1) != 0)
+			continue;
 
-			if (s_environ_bitmap[byte] & mask)
-				free(environ[i]);
+		if (is_bitmap_bit_set(i))
+			free(environ[i]);
+		set_bitmap_bit(i, malloced);
 
-			if (malloced)
-				s_environ_bitmap[byte] |= mask;
-			else
-				s_environ_bitmap[byte] &= ~mask;
-
-			environ[i] = string;
-			return 0;
-		}
+		environ[i] = string;
+		return 0;
 	}
 
 	if (s_environ_count % 8 == 0)
 	{
 		const size_t bytes = s_environ_count / 8 + 1;
 
-		void* new_bitmap = realloc(s_environ_bitmap, bytes);
+		auto* new_bitmap = static_cast<uint8_t*>(realloc(s_environ_bitmap, bytes));
 		if (new_bitmap == nullptr)
 			return -1;
 
-		s_environ_bitmap = static_cast<uint8_t*>(new_bitmap);
+		s_environ_bitmap = new_bitmap;
 		s_environ_bitmap[bytes - 1] = 0;
 	}
 
-	void* new_environ = realloc(environ, sizeof(char*) * (s_environ_count + 2));
+	auto** new_environ = static_cast<char**>(realloc(environ, (s_environ_count + 2) * sizeof(char*)));
 	if (new_environ == nullptr)
 		return -1;
 
-	environ = static_cast<char**>(new_environ);
+	environ = new_environ;
 	environ[s_environ_count] = string;
 	environ[s_environ_count + 1] = nullptr;
-	s_environ_count++;
 
-	if (malloced)
-	{
-		const size_t byte = s_environ_count / 8;
-		const size_t mask = 1 << (s_environ_count % 8);
-		s_environ_bitmap[byte] |= mask;
-	}
+	set_bitmap_bit(s_environ_count, malloced);
+
+	s_environ_count++;
 
 	return 0;
 }
@@ -116,15 +118,9 @@ int clearenv(void)
 	if (s_environ_malloced)
 	{
 		ASSERT(environ);
-
 		for (size_t i = 0; environ[i]; i++)
-		{
-			const size_t byte = i / 8;
-			const size_t mask = 1 << (i % 8);
-			if (s_environ_bitmap[byte] & mask)
+			if (is_bitmap_bit_set(i))
 				free(environ[i]);
-		}
-
 		free(s_environ_bitmap);
 		free(environ);
 	}
@@ -142,9 +138,8 @@ char* getenv(const char* name)
 		return nullptr;
 	const size_t namelen = strlen(name);
 	for (size_t i = 0; environ[i]; i++)
-		if (strncmp(name, environ[i], namelen) == 0)
-			if (environ[i][namelen] == '=')
-				return environ[i] + namelen + 1;
+		if (strncmp(name, environ[i], namelen) == 0 && environ[i][namelen] == '=')
+			return environ[i] + namelen + 1;
 	return nullptr;
 }
 
@@ -162,7 +157,7 @@ int setenv(const char* name, const char* val, int overwrite)
 	const size_t namelen = strlen(name);
 	const size_t vallen = strlen(val);
 
-	char* string = (char*)malloc(namelen + vallen + 2);
+	auto* string = static_cast<char*>(malloc(namelen + vallen + 2));
 	memcpy(string, name, namelen);
 	string[namelen] = '=';
 	memcpy(string + namelen + 1, val, vallen);
@@ -189,13 +184,8 @@ int unsetenv(const char* name)
 	{
 		if (strncmp(environ[i], name, namelen) || environ[i][namelen] != '=')
 			continue;
-		if (!s_environ_malloced)
-			break;
-		const size_t byte = i / 8;
-		const size_t mask = 1 << (i % 8);
-		if (s_environ_bitmap[byte] & mask)
+		if (s_environ_malloced && is_bitmap_bit_set(i))
 			free(environ[i]);
-		s_environ_count--;
 		break;
 	}
 
@@ -204,17 +194,7 @@ int unsetenv(const char* name)
 		environ[i] = environ[i + 1];
 		if (!s_environ_malloced)
 			continue;
-
-		const size_t cbyte = i / 8;
-		const size_t cmask = 1 << (i % 8);
-
-		const size_t nbyte = (i + 1) / 8;
-		const size_t nmask = 1 << ((i + 1) % 8);
-
-		if (s_environ_bitmap[nbyte] & nmask)
-			s_environ_bitmap[cbyte] |= cmask;
-		else
-			s_environ_bitmap[cbyte] &= ~cmask;
+		set_bitmap_bit(i, is_bitmap_bit_set(i + 1));
 	}
 
 	if (environ[i])
@@ -223,9 +203,8 @@ int unsetenv(const char* name)
 
 		if (s_environ_malloced)
 		{
-			const size_t byte = i / 8;
-			const size_t mask = 1 << (i % 8);
-			s_environ_bitmap[byte] &= ~mask;
+			set_bitmap_bit(i, false);
+			s_environ_count--;
 		}
 	}
 
