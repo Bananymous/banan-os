@@ -51,16 +51,18 @@ namespace Kernel
 
 		close_all();
 
-		for (int fd = 0; fd < (int)other.m_open_files.size(); fd++)
+		for (int fd = 0; fd < static_cast<int>(other.m_open_files.size()); fd++)
 		{
 			if (other.validate_fd(fd).is_error())
 				continue;
 
 			auto& open_file = m_open_files[fd];
-			open_file.description      = other.m_open_files[fd].description;
-			open_file.descriptor_flags = other.m_open_files[fd].descriptor_flags;
-			open_file.inode()->on_clone(open_file.status_flags());
+			open_file = other.m_open_files[fd];
+			open_file->file.inode->on_clone(open_file->status_flags);
 		}
+
+		for (size_t i = 0; i < m_cloexec_files.size(); i++)
+			m_cloexec_files[i] = other.m_cloexec_files[i];
 
 		return {};
 	}
@@ -81,11 +83,15 @@ namespace Kernel
 		if ((flags & O_TRUNC) && (flags & O_WRONLY) && file.inode->mode().ifreg())
 			TRY(file.inode->truncate(0));
 
-		LockGuard _(m_mutex);
 		constexpr int status_mask = O_APPEND | O_DSYNC | O_NONBLOCK | O_RSYNC | O_SYNC | O_ACCMODE;
-		int fd = TRY(get_free_fd());
-		m_open_files[fd].description = TRY(BAN::RefPtr<OpenFileDescription>::create(BAN::move(file), 0, flags & status_mask));
-		m_open_files[fd].descriptor_flags = flags & O_CLOEXEC;
+
+		LockGuard _(m_mutex);
+
+		const int fd = TRY(get_free_fd());
+		m_open_files[fd] = TRY(BAN::RefPtr<OpenFileDescription>::create(BAN::move(file), 0, flags & status_mask));
+		if (flags & O_CLOEXEC)
+			add_cloexec(fd);
+
 		return fd;
 	}
 
@@ -99,7 +105,7 @@ namespace Kernel
 		Socket::Domain domain;
 		Socket::Type type;
 		int status_flags;
-		int descriptor_flags;
+		bool cloexec;
 	};
 
 	static BAN::ErrorOr<SocketInfo> parse_socket_info(int domain, int type, int protocol)
@@ -124,11 +130,11 @@ namespace Kernel
 		}
 
 		info.status_flags = 0;
-		info.descriptor_flags = 0;
+		info.cloexec = false;
 		if (type & SOCK_NONBLOCK)
 			info.status_flags |= O_NONBLOCK;
 		if (type & SOCK_CLOEXEC)
-			info.descriptor_flags |= O_CLOEXEC;
+			info.cloexec = true;
 		type &= ~(SOCK_NONBLOCK | SOCK_CLOEXEC);
 
 		switch (type)
@@ -171,9 +177,12 @@ namespace Kernel
 			socket_sv = "<udp socket>";
 
 		LockGuard _(m_mutex);
-		int fd = TRY(get_free_fd());
-		m_open_files[fd].description = TRY(BAN::RefPtr<OpenFileDescription>::create(VirtualFileSystem::File(socket, socket_sv), 0, O_RDWR | sock_info.status_flags));
-		m_open_files[fd].descriptor_flags = sock_info.descriptor_flags;
+
+		const int fd = TRY(get_free_fd());
+		m_open_files[fd] = TRY(BAN::RefPtr<OpenFileDescription>::create(VirtualFileSystem::File(socket, socket_sv), 0, O_RDWR | sock_info.status_flags));
+		if (sock_info.cloexec)
+			add_cloexec(fd);
+
 		return fd;
 	}
 
@@ -188,10 +197,14 @@ namespace Kernel
 		LockGuard _(m_mutex);
 
 		TRY(get_free_fd_pair(socket_vector));
-		m_open_files[socket_vector[0]].description = TRY(BAN::RefPtr<OpenFileDescription>::create(VirtualFileSystem::File(socket1, "<socketpair>"_sv), 0, O_RDWR | sock_info.status_flags));
-		m_open_files[socket_vector[0]].descriptor_flags = sock_info.descriptor_flags;
-		m_open_files[socket_vector[1]].description = TRY(BAN::RefPtr<OpenFileDescription>::create(VirtualFileSystem::File(socket2, "<socketpair>"_sv), 0, O_RDWR | sock_info.status_flags));
-		m_open_files[socket_vector[1]].descriptor_flags = sock_info.descriptor_flags;
+		m_open_files[socket_vector[0]] = TRY(BAN::RefPtr<OpenFileDescription>::create(VirtualFileSystem::File(socket1, "<socketpair>"_sv), 0, O_RDWR | sock_info.status_flags));
+		m_open_files[socket_vector[1]] = TRY(BAN::RefPtr<OpenFileDescription>::create(VirtualFileSystem::File(socket2, "<socketpair>"_sv), 0, O_RDWR | sock_info.status_flags));
+		if (sock_info.cloexec)
+		{
+			add_cloexec(socket_vector[0]);
+			add_cloexec(socket_vector[1]);
+		}
+
 		return {};
 	}
 
@@ -202,10 +215,11 @@ namespace Kernel
 		TRY(get_free_fd_pair(fds));
 
 		auto pipe = TRY(Pipe::create(m_credentials));
-		m_open_files[fds[0]].description = TRY(BAN::RefPtr<OpenFileDescription>::create(VirtualFileSystem::File(pipe, "<pipe rd>"_sv), 0, O_RDONLY));
-		m_open_files[fds[0]].descriptor_flags = 0;
-		m_open_files[fds[1]].description = TRY(BAN::RefPtr<OpenFileDescription>::create(VirtualFileSystem::File(pipe, "<pipe wr>"_sv), 0, O_WRONLY));
-		m_open_files[fds[1]].descriptor_flags = 0;
+		m_open_files[fds[0]] = TRY(BAN::RefPtr<OpenFileDescription>::create(VirtualFileSystem::File(pipe, "<pipe rd>"_sv), 0, O_RDONLY));
+		m_open_files[fds[1]] = TRY(BAN::RefPtr<OpenFileDescription>::create(VirtualFileSystem::File(pipe, "<pipe wr>"_sv), 0, O_WRONLY));
+
+		ASSERT(!is_cloexec(fds[0]));
+		ASSERT(!is_cloexec(fds[1]));
 
 		return {};
 	}
@@ -224,9 +238,10 @@ namespace Kernel
 		(void)close(fildes2);
 
 		auto& open_file = m_open_files[fildes2];
-		open_file.description = m_open_files[fildes].description;
-		open_file.descriptor_flags = 0;
-		open_file.inode()->on_clone(open_file.status_flags());
+		open_file = m_open_files[fildes];
+		open_file->file.inode->on_clone(open_file->status_flags);
+
+		ASSERT(!is_cloexec(fildes2));
 
 		return fildes2;
 	}
@@ -246,18 +261,16 @@ namespace Kernel
 
 				TRY(validate_fd(fd));
 
-				const auto& open_file = m_open_files[fd];
-
-				inode = open_file.inode();
+				inode = m_open_files[fd]->file.inode;
 
 				switch (flock.l_whence)
 				{
 					case SEEK_SET:
 						break;
 					case SEEK_CUR:
-						if (BAN::Math::will_addition_overflow(flock.l_start, open_file.offset()))
+						if (BAN::Math::will_addition_overflow(flock.l_start, m_open_files[fd]->offset))
 							return BAN::Error::from_errno(EOVERFLOW);
-						flock.l_start += m_open_files[fd].offset();
+						flock.l_start += m_open_files[fd]->offset;
 						break;
 					case SEEK_END:
 						if (BAN::Math::will_addition_overflow(flock.l_start, inode->size()))
@@ -307,26 +320,27 @@ namespace Kernel
 				const int new_fd = TRY(get_free_fd());
 
 				auto& open_file = m_open_files[new_fd];
-				open_file.description = m_open_files[fd].description;
-				open_file.descriptor_flags = (cmd == F_DUPFD_CLOEXEC) ? O_CLOEXEC : 0;
-				open_file.inode()->on_clone(open_file.status_flags());
+				open_file = m_open_files[fd];
+				open_file->file.inode->on_clone(open_file->status_flags);
+				if (cmd == F_DUPFD_CLOEXEC)
+					add_cloexec(new_fd);
 
 				return new_fd;
 			}
 			case F_GETFD:
-				return m_open_files[fd].descriptor_flags;
+				return is_cloexec(fd) ? O_CLOEXEC : 0;
 			case F_SETFD:
 				if (extra & FD_CLOEXEC)
-					m_open_files[fd].descriptor_flags |= O_CLOEXEC;
+					add_cloexec(fd);
 				else
-					m_open_files[fd].descriptor_flags &= ~O_CLOEXEC;
+					remove_cloexec(fd);
 				return 0;
 			case F_GETFL:
-				return m_open_files[fd].status_flags();
+				return m_open_files[fd]->status_flags;
 			case F_SETFL:
 				extra &= O_APPEND | O_DSYNC | O_NONBLOCK | O_RSYNC | O_SYNC;
-				m_open_files[fd].status_flags() &= O_ACCMODE;
-				m_open_files[fd].status_flags() |= extra;
+				m_open_files[fd]->status_flags &= O_ACCMODE;
+				m_open_files[fd]->status_flags |= extra;
 				return 0;
 			default:
 				break;
@@ -349,10 +363,10 @@ namespace Kernel
 				base_offset = 0;
 				break;
 			case SEEK_CUR:
-				base_offset = m_open_files[fd].offset();
+				base_offset = m_open_files[fd]->offset;
 				break;
 			case SEEK_END:
-				base_offset = m_open_files[fd].inode()->size();
+				base_offset = m_open_files[fd]->file.inode->size();
 				break;
 			default:
 				return BAN::Error::from_errno(EINVAL);
@@ -362,7 +376,7 @@ namespace Kernel
 		if (new_offset < 0)
 			return BAN::Error::from_errno(EINVAL);
 
-		m_open_files[fd].offset() = new_offset;
+		m_open_files[fd]->offset = new_offset;
 
 		return new_offset;
 	}
@@ -371,14 +385,14 @@ namespace Kernel
 	{
 		LockGuard _(m_mutex);
 		TRY(validate_fd(fd));
-		return m_open_files[fd].offset();
+		return m_open_files[fd]->offset;
 	}
 
 	BAN::ErrorOr<void> OpenFileDescriptorSet::truncate(int fd, off_t length)
 	{
 		LockGuard _(m_mutex);
 		TRY(validate_fd(fd));
-		return m_open_files[fd].inode()->truncate(length);
+		return m_open_files[fd]->file.inode->truncate(length);
 	}
 
 	BAN::ErrorOr<void> OpenFileDescriptorSet::close(int fd)
@@ -389,7 +403,7 @@ namespace Kernel
 
 		auto& open_file = m_open_files[fd];
 
-		if (auto& flock = open_file.description->flock; Thread::current().has_process() && flock.lockers.contains(Process::current().pid()))
+		if (auto& flock = open_file->flock; Thread::current().has_process() && flock.lockers.contains(Process::current().pid()))
 		{
 			flock.lockers.remove(Process::current().pid());
 			if (flock.lockers.empty())
@@ -401,7 +415,7 @@ namespace Kernel
 
 		{
 			LockGuard _(s_fcntl_lock_mutex);
-			if (auto it = s_fcntl_locks.find(open_file.inode()); it != s_fcntl_locks.end())
+			if (auto it = s_fcntl_locks.find(open_file->file.inode); it != s_fcntl_locks.end())
 			{
 				auto& flocks = it->value;
 				for (size_t i = 0; i < flocks.size(); i++)
@@ -411,9 +425,9 @@ namespace Kernel
 			}
 		}
 
-		open_file.inode()->on_close(open_file.status_flags());
-		open_file.description.clear();
-		open_file.descriptor_flags = 0;
+		open_file->file.inode->on_close(open_file->status_flags);
+		open_file = {};
+		remove_cloexec(fd);
 
 		return {};
 	}
@@ -421,20 +435,31 @@ namespace Kernel
 	void OpenFileDescriptorSet::close_all()
 	{
 		LockGuard _(m_mutex);
-		for (int fd = 0; fd < (int)m_open_files.size(); fd++)
+		for (int fd = 0; fd < static_cast<int>(m_open_files.size()); fd++)
 			(void)close(fd);
 	}
 
 	void OpenFileDescriptorSet::close_cloexec()
 	{
 		LockGuard _(m_mutex);
-		for (int fd = 0; fd < (int)m_open_files.size(); fd++)
-		{
-			if (validate_fd(fd).is_error())
-				continue;
-			if (m_open_files[fd].descriptor_flags & O_CLOEXEC)
+		for (int fd = 0; fd < static_cast<int>(m_open_files.size()); fd++)
+			if (is_cloexec(fd))
 				(void)close(fd);
-		}
+	}
+
+	bool OpenFileDescriptorSet::is_cloexec(int fd)
+	{
+		return m_cloexec_files[fd / 32] & (1u << (fd % 32));
+	}
+
+	void OpenFileDescriptorSet::add_cloexec(int fd)
+	{
+		m_cloexec_files[fd / 32] |= 1u << (fd % 32);
+	}
+
+	void OpenFileDescriptorSet::remove_cloexec(int fd)
+	{
+		m_cloexec_files[fd / 32] &= ~(1u << (fd % 32));
 	}
 
 	static BAN::ErrorOr<void> fcntl_lock(BAN::RefPtr<Inode> inode, int cmd, struct flock& flock)
@@ -588,7 +613,7 @@ namespace Kernel
 		{
 			TRY(validate_fd(fd));
 
-			auto& flock = m_open_files[fd].description->flock;
+			auto& flock = m_open_files[fd]->flock;
 			switch (op & ~LOCK_NB)
 			{
 				case LOCK_UN:
@@ -645,11 +670,11 @@ namespace Kernel
 			LockGuard _(m_mutex);
 			TRY(validate_fd(fd));
 			auto& open_file = m_open_files[fd];
-			if (!(open_file.status_flags() & O_RDONLY))
+			if (!(open_file->status_flags & O_RDONLY))
 				return BAN::Error::from_errno(EBADF);
-			inode = open_file.inode();
-			is_nonblock = !!(open_file.status_flags() & O_NONBLOCK);
-			offset = open_file.offset();
+			inode = open_file->file.inode;
+			is_nonblock = !!(open_file->status_flags & O_NONBLOCK);
+			offset = open_file->offset;
 		}
 
 		if (inode->mode().ifsock())
@@ -685,7 +710,7 @@ namespace Kernel
 		LockGuard _(m_mutex);
 		// NOTE: race condition with offset, its UB per POSIX
 		if (!validate_fd(fd).is_error())
-			m_open_files[fd].offset() = offset + nread;
+			m_open_files[fd]->offset = offset + nread;
 		return nread;
 	}
 
@@ -699,11 +724,11 @@ namespace Kernel
 			LockGuard _(m_mutex);
 			TRY(validate_fd(fd));
 			auto& open_file = m_open_files[fd];
-			if (!(open_file.status_flags() & O_WRONLY))
+			if (!(open_file->status_flags & O_WRONLY))
 				return BAN::Error::from_errno(EBADF);
-			inode = open_file.inode();
-			is_nonblock = !!(open_file.status_flags() & O_NONBLOCK);
-			offset = (open_file.status_flags() & O_APPEND) ? inode->size() : open_file.offset();
+			inode = open_file->file.inode;
+			is_nonblock = !!(open_file->status_flags & O_NONBLOCK);
+			offset = (open_file->status_flags & O_APPEND) ? inode->size() : open_file->offset;
 		}
 
 		if (inode->mode().ifsock())
@@ -742,7 +767,7 @@ namespace Kernel
 		LockGuard _(m_mutex);
 		// NOTE: race condition with offset, its UB per POSIX
 		if (!validate_fd(fd).is_error())
-			m_open_files[fd].offset() = offset + nwrite;
+			m_open_files[fd]->offset = offset + nwrite;
 		return nwrite;
 	}
 
@@ -755,10 +780,10 @@ namespace Kernel
 			LockGuard _(m_mutex);
 			TRY(validate_fd(fd));
 			auto& open_file = m_open_files[fd];
-			if (!(open_file.status_flags() & O_RDONLY))
+			if (!(open_file->status_flags & O_RDONLY))
 				return BAN::Error::from_errno(EACCES);
-			inode = open_file.inode();
-			offset = open_file.offset();
+			inode = open_file->file.inode;
+			offset = open_file->offset;
 		}
 
 		for (;;)
@@ -773,7 +798,7 @@ namespace Kernel
 			LockGuard _(m_mutex);
 			// NOTE: race condition with offset, its UB per POSIX
 			if (!validate_fd(fd).is_error())
-				m_open_files[fd].offset() = offset;
+				m_open_files[fd]->offset = offset;
 			return ret;
 		}
 	}
@@ -787,10 +812,10 @@ namespace Kernel
 			LockGuard _(m_mutex);
 			TRY(validate_fd(fd));
 			auto& open_file = m_open_files[fd];
-			if (!open_file.inode()->mode().ifsock())
+			if (!open_file->file.inode->mode().ifsock())
 				return BAN::Error::from_errno(ENOTSOCK);
-			inode = open_file.inode();
-			is_nonblock = !!(open_file.status_flags() & O_NONBLOCK);
+			inode = open_file->file.inode;
+			is_nonblock = !!(open_file->status_flags & O_NONBLOCK);
 		}
 
 		LockGuard _(inode->m_mutex);
@@ -808,10 +833,10 @@ namespace Kernel
 			LockGuard _(m_mutex);
 			TRY(validate_fd(fd));
 			auto& open_file = m_open_files[fd];
-			if (!open_file.inode()->mode().ifsock())
+			if (!open_file->file.inode->mode().ifsock())
 				return BAN::Error::from_errno(ENOTSOCK);
-			inode = open_file.inode();
-			is_nonblock = !!(open_file.status_flags() & O_NONBLOCK);
+			inode = open_file->file.inode;
+			is_nonblock = !!(open_file->status_flags & O_NONBLOCK);
 		}
 
 		LockGuard _(inode->m_mutex);
@@ -830,7 +855,7 @@ namespace Kernel
 	{
 		LockGuard _(m_mutex);
 		TRY(validate_fd(fd));
-		return TRY(m_open_files[fd].description->file.clone());
+		return TRY(m_open_files[fd]->file.clone());
 	}
 
 	BAN::ErrorOr<BAN::String> OpenFileDescriptorSet::path_of(int fd) const
@@ -838,7 +863,7 @@ namespace Kernel
 		LockGuard _(m_mutex);
 		TRY(validate_fd(fd));
 		BAN::String path;
-		TRY(path.append(m_open_files[fd].path()));
+		TRY(path.append(m_open_files[fd]->file.canonical_path));
 		return path;
 	}
 
@@ -846,14 +871,14 @@ namespace Kernel
 	{
 		LockGuard _(m_mutex);
 		TRY(validate_fd(fd));
-		return m_open_files[fd].inode();
+		return m_open_files[fd]->file.inode;
 	}
 
 	BAN::ErrorOr<int> OpenFileDescriptorSet::status_flags_of(int fd) const
 	{
 		LockGuard _(m_mutex);
 		TRY(validate_fd(fd));
-		return m_open_files[fd].status_flags();
+		return m_open_files[fd]->status_flags;
 	}
 
 	BAN::ErrorOr<void> OpenFileDescriptorSet::validate_fd(int fd) const
@@ -861,7 +886,7 @@ namespace Kernel
 		LockGuard _(m_mutex);
 		if (fd < 0 || fd >= (int)m_open_files.size())
 			return BAN::Error::from_errno(EBADF);
-		if (!m_open_files[fd].description)
+		if (!m_open_files[fd])
 			return BAN::Error::from_errno(EBADF);
 		return {};
 	}
@@ -870,7 +895,7 @@ namespace Kernel
 	{
 		LockGuard _(m_mutex);
 		for (int fd = 0; fd < (int)m_open_files.size(); fd++)
-			if (!m_open_files[fd].description)
+			if (!m_open_files[fd])
 				return fd;
 		return BAN::Error::from_errno(EMFILE);
 	}
@@ -881,7 +906,7 @@ namespace Kernel
 		size_t found = 0;
 		for (int fd = 0; fd < (int)m_open_files.size(); fd++)
 		{
-			if (!m_open_files[fd].description)
+			if (!m_open_files[fd])
 				fds[found++] = fd;
 			if (found == 2)
 				return {};
@@ -929,7 +954,7 @@ namespace Kernel
 	{
 		LockGuard _(m_mutex);
 		TRY(validate_fd(fd));
-		return FDWrapper { m_open_files[fd].description };
+		return FDWrapper { m_open_files[fd] };
 	}
 
 	size_t OpenFileDescriptorSet::open_all_fd_wrappers(BAN::Span<FDWrapper> fd_wrappers)
@@ -943,8 +968,7 @@ namespace Kernel
 				return i;
 
 			const int fd = fd_or_error.release_value();
-			m_open_files[fd].description = BAN::move(fd_wrappers[i].m_description);
-			m_open_files[fd].descriptor_flags = 0;
+			m_open_files[fd] = BAN::move(fd_wrappers[i].m_description);
 			fd_wrappers[i].m_fd = fd;
 		}
 

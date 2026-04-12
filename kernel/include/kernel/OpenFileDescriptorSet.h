@@ -44,6 +44,10 @@ namespace Kernel
 		void close_all();
 		void close_cloexec();
 
+		bool is_cloexec(int fd);
+		void add_cloexec(int fd);
+		void remove_cloexec(int fd);
+
 		BAN::ErrorOr<void> flock(int fd, int op);
 
 		BAN::ErrorOr<size_t> read(int fd, BAN::ByteSpan);
@@ -84,27 +88,6 @@ namespace Kernel
 			friend class BAN::RefPtr<OpenFileDescription>;
 		};
 
-		struct OpenFile
-		{
-			OpenFile() = default;
-			OpenFile(BAN::RefPtr<OpenFileDescription> description, int descriptor_flags)
-				: description(BAN::move(description))
-				, descriptor_flags(descriptor_flags)
-			{ }
-
-			BAN::RefPtr<Inode> inode() const { ASSERT(description); return description->file.inode; }
-			BAN::StringView    path()  const { ASSERT(description); return description->file.canonical_path.sv(); }
-
-			int& status_flags() { ASSERT(description); return description->status_flags; }
-			const int& status_flags() const { ASSERT(description); return description->status_flags; }
-
-			off_t& offset() { ASSERT(description); return description->offset; }
-			const off_t& offset() const { ASSERT(description); return description->offset; }
-
-			BAN::RefPtr<OpenFileDescription> description;
-			int descriptor_flags { 0 };
-		};
-
 		BAN::ErrorOr<void> validate_fd(int) const;
 		BAN::ErrorOr<int> get_free_fd() const;
 		BAN::ErrorOr<void> get_free_fd_pair(int fds[2]) const;
@@ -139,7 +122,8 @@ namespace Kernel
 		const Credentials& m_credentials;
 		mutable Mutex m_mutex;
 
-		BAN::Array<OpenFile, OPEN_MAX> m_open_files;
+		BAN::Array<BAN::RefPtr<OpenFileDescription>, OPEN_MAX> m_open_files;
+		BAN::Array<uint32_t, (OPEN_MAX + 31) / 32> m_cloexec_files {};
 	};
 
 }
