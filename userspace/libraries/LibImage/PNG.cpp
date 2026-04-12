@@ -431,8 +431,8 @@ namespace LibImage
 			total_size += stream.size();
 		dprintln_if(DEBUG_PNG, "PNG has {} byte zlib stream", total_size);
 
-		LibDEFLATE::Decompressor decompressor(zlib_stream.span(), LibDEFLATE::StreamType::Zlib);
-		auto inflated_buffer = TRY(decompressor.decompress());
+		LibDEFLATE::Decompressor decompressor(LibDEFLATE::StreamType::Zlib);
+		auto inflated_buffer = TRY(decompressor.decompress(zlib_stream.span()));
 		auto inflated_data = inflated_buffer.span();
 
 		dprintln_if(DEBUG_PNG, "  uncompressed size {}", inflated_data.size());

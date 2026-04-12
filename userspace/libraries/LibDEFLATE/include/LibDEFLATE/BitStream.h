@@ -1,7 +1,7 @@
 #pragma once
 
-#include <BAN/Vector.h>
 #include <BAN/ByteSpan.h>
+#include <BAN/Vector.h>
 
 #include <string.h>
 
@@ -11,11 +11,8 @@ namespace LibDEFLATE
 	class BitInputStream
 	{
 	public:
+		BitInputStream() = default;
 		BitInputStream(BAN::ConstByteSpan data)
-			: m_data_wrapper(data)
-			, m_data({ &m_data_wrapper, 1 })
-		{ }
-		BitInputStream(BAN::Span<BAN::ConstByteSpan> data)
 			: m_data(data)
 		{ }
 
@@ -25,14 +22,11 @@ namespace LibDEFLATE
 
 			while (m_bit_buffer_len < count)
 			{
-				while (!m_data.empty() && m_data[0].empty())
-					m_data = m_data.slice(1);
 				if (m_data.empty())
 					return BAN::Error::from_errno(ENOBUFS);
-
-				m_bit_buffer |= m_data[0][0] << m_bit_buffer_len;
+				m_bit_buffer |= m_data[0] << m_bit_buffer_len;
 				m_bit_buffer_len += 8;
-				m_data[0] = m_data[0].slice(1);
+				m_data = m_data.slice(1);
 			}
 
 			return m_bit_buffer & ((1 << count) - 1);
@@ -46,30 +40,24 @@ namespace LibDEFLATE
 			return result;
 		}
 
-		BAN::ErrorOr<void> take_byte_aligned(uint8_t* output, size_t bytes)
+		BAN::ErrorOr<void> take_byte_aligned(BAN::ByteSpan output)
 		{
-			ASSERT(m_bit_buffer % 8 == 0);
+			ASSERT(m_bit_buffer_len % 8 == 0);
 
-			while (m_bit_buffer_len && bytes)
+			while (m_bit_buffer_len && !output.empty())
 			{
-				*output++ = m_bit_buffer;
+				output[0] = m_bit_buffer;
 				m_bit_buffer >>= 8;
 				m_bit_buffer_len -= 8;
-				bytes--;
+				output = output.slice(1);
 			}
 
-			while (bytes)
-			{
-				while (!m_data.empty() && m_data[0].empty())
-					m_data = m_data.slice(1);
-				if (m_data.empty())
-					return BAN::Error::from_errno(ENOBUFS);
-				const size_t to_copy = BAN::Math::min(m_data[0].size(), bytes);
-				memcpy(output, m_data[0].data(), to_copy);
-				m_data[0] = m_data[0].slice(to_copy);
-				output += to_copy;
-				bytes -= to_copy;
-			}
+			if (m_data.size() < output.size())
+				return BAN::Error::from_errno(ENOBUFS);
+
+			memcpy(output.data(), m_data.data(), output.size());
+
+			m_data = m_data.slice(output.size());
 
 			return {};
 		}
@@ -81,11 +69,35 @@ namespace LibDEFLATE
 			m_bit_buffer_len -= bits_to_remove;
 		}
 
+		size_t available_bits() const
+		{
+			return unprocessed_bytes() * 8 + m_bit_buffer_len;
+		}
+
+		size_t available_bytes() const
+		{
+			return unprocessed_bytes() + m_bit_buffer_len / 8;
+		}
+
+		size_t unprocessed_bytes() const
+		{
+			return m_data.size();
+		}
+
+		void set_data(BAN::ConstByteSpan data)
+		{
+			m_data = data;
+		}
+
+		void drop_unprocessed_data()
+		{
+			m_data = {};
+		}
+
 	private:
-		BAN::ConstByteSpan m_data_wrapper;
-		BAN::Span<BAN::ConstByteSpan> m_data;
+		BAN::ConstByteSpan m_data;
 		uint32_t m_bit_buffer { 0 };
-		uint8_t m_bit_buffer_len { 0 };
+		uint32_t m_bit_buffer_len { 0 };
 	};
 
 	class BitOutputStream

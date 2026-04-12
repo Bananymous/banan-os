@@ -17,33 +17,77 @@ namespace LibDEFLATE
 		BAN_NON_MOVABLE(Decompressor);
 
 	public:
-		Decompressor(BAN::ConstByteSpan data, StreamType type)
+		enum class Status
+		{
+			Done,
+			NeedMoreInput,
+			NeedMoreOutput,
+		};
+
+	public:
+		Decompressor(StreamType type)
 			: m_type(type)
-			, m_stream(data)
-		{ }
-		Decompressor(BAN::Span<BAN::ConstByteSpan> data, StreamType type)
-			: m_type(type)
-			, m_stream(data)
 		{ }
 
-		BAN::ErrorOr<BAN::Vector<uint8_t>> decompress();
+		BAN::ErrorOr<BAN::Vector<uint8_t>> decompress(BAN::ConstByteSpan input);
+		BAN::ErrorOr<BAN::Vector<uint8_t>> decompress(BAN::Span<const BAN::ConstByteSpan> input);
+
+		BAN::ErrorOr<Status> decompress(BAN::ConstByteSpan input, size_t& input_consumed, BAN::ByteSpan output, size_t& output_produced);
 
 	private:
 		BAN::ErrorOr<uint16_t> read_symbol(const HuffmanTree& tree);
-		BAN::ErrorOr<void> inflate_block(const HuffmanTree& length_tree, const HuffmanTree& distance_tree);
-
-		BAN::ErrorOr<void> decompress_type0();
-		BAN::ErrorOr<void> decompress_type1();
-		BAN::ErrorOr<void> decompress_type2();
 
 		BAN::ErrorOr<void> handle_header();
 		BAN::ErrorOr<void> handle_footer();
+		BAN::ErrorOr<void> handle_dynamic_header();
+		BAN::ErrorOr<void> handle_symbol();
+
+		void write_data_to_output(BAN::ByteSpan&);
+
+	private:
+		enum class State
+		{
+			StreamHeader,
+			StreamFooter,
+			BlockHeader,
+			LiteralHeader,
+			DynamicHeader,
+			ReadRaw,
+			Symbol,
+			Done,
+		};
 
 	private:
 		const StreamType m_type;
+
+		State m_state { State::StreamHeader };
+
 		BitInputStream m_stream;
-		BAN::Vector<uint8_t> m_output;
-		BAN::Optional<HuffmanTree> m_fixed_tree;
+
+		static constexpr size_t total_window_size = 32 * 1024;
+		BAN::Vector<uint8_t> m_window;
+		size_t m_window_size { 0 };
+		size_t m_window_tail { 0 };
+		size_t m_produced_bytes { 0 };
+
+		bool m_bfinal { false };
+		HuffmanTree m_length_tree;
+		HuffmanTree m_distance_tree;
+
+		uint16_t m_raw_bytes_left { 0 };
+
+		union
+		{
+			struct {
+				uint32_t s1;
+				uint32_t s2;
+				uint32_t adler32;
+			} zlib;
+			struct {
+				uint32_t crc32;
+				uint32_t isize;
+			} gzip;
+		} m_stream_info;
 	};
 
 }
