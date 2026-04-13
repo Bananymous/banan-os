@@ -11,6 +11,7 @@ SECTIONS
 	{
 		g_kernel_execute_start = .;
 		*(.multiboot)
+		*(.multiboot2)
 		*(.bananboot)
 		*(.text.*)
 	}
@@ -43,6 +44,7 @@ SECTIONS
 	}
 	.bss ALIGN(4K) : AT(ADDR(.bss) - KERNEL_OFFSET)
 	{
+		g_kernel_bss_start = .;
 		*(COMMON)
 		*(.bss)
 		g_kernel_writable_end = .;

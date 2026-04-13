@@ -11,26 +11,28 @@
 
 .code32
 
-# multiboot2 header
+// custom addresses, video mode info, page align modules
+.set multiboot_flags, (1 << 16) | (1 << 2) | (1 << 0)
+
 .section .multiboot, "aw"
-	.align 8
 multiboot_start:
 	.long 0x1BADB002
-	.long (1 << 2) # page align modules
-	.long -(0x1BADB002 + (1 << 2))
+	.long multiboot_flags
+	.long -(0x1BADB002 + multiboot_flags)
 
-	.long 0
-	.long 0
-	.long 0
-	.long 0
-	.long 0
+	.long V2P(multiboot_start)
+	.long V2P(g_kernel_start)
+	.long V2P(g_kernel_bss_start)
+	.long V2P(g_kernel_end)
+	.long V2P(_start)
 
 	.long 0
 	.long FB_WIDTH
 	.long FB_HEIGHT
 	.long FB_BPP
 multiboot_end:
-	.align 8
+
+.section .multiboot2, "aw"
 multiboot2_start:
 	.long 0xE85250D6
 	.long 0
@@ -66,7 +68,6 @@ multiboot2_start:
 multiboot2_end:
 
 .section .bananboot, "aw"
-	.align 8
 bananboot_start:
 	.long 0xBABAB007
 	.long -(0xBABAB007 + FB_WIDTH + FB_HEIGHT + FB_BPP)

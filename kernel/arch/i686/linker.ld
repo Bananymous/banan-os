@@ -11,6 +11,7 @@ SECTIONS
 	{
 		g_kernel_execute_start = .;
 		*(.multiboot)
+		*(.multiboot2)
 		*(.bananboot)
 		*(.text.*)
 	}
