@@ -22,6 +22,26 @@ namespace LibDEFLATE
 		};
 	};
 
+	struct crc32_table_t
+	{
+		consteval crc32_table_t()
+		{
+			for (uint32_t i = 0; i < 256; i++)
+			{
+				uint32_t crc32 = i;
+				for (size_t j = 0; j < 8; j++) {
+					if (crc32 & 1)
+						crc32 = (crc32 >> 1) ^ 0xEDB88320;
+					else
+						crc32 >>= 1;
+				}
+				table[i] = crc32;
+			}
+		}
+		uint32_t table[256];
+	};
+	static constexpr crc32_table_t s_crc32_table;
+
 	BAN::ErrorOr<uint16_t> Decompressor::read_symbol(const HuffmanTree& tree)
 	{
 		const uint8_t instant_bits = tree.instant_bits();
@@ -177,7 +197,7 @@ namespace LibDEFLATE
 				m_stream.skip_to_byte_boundary();
 
 				auto& gzip = m_stream_info.gzip;
-				gzip.crc32 = ~gzip.crc32;
+				gzip.crc32 ^= 0xFFFFFFFF;
 
 				const uint32_t crc32 =
 					static_cast<uint32_t>(TRY(m_stream.take_bits(16))) |
@@ -370,16 +390,7 @@ namespace LibDEFLATE
 				auto& gzip = m_stream_info.gzip;
 				gzip.isize += to_write;
 				for (size_t i = 0; i < to_write; i++)
-				{
-					gzip.crc32 ^= output[i];
-
-					for (size_t j = 0; j < 8; j++) {
-						if (gzip.crc32 & 1)
-							gzip.crc32 = (gzip.crc32 >> 1) ^ 0xEDB88320;
-						else
-							gzip.crc32 >>= 1;
-					}
-				}
+					gzip.crc32 = (gzip.crc32 >> 8) ^ s_crc32_table.table[(gzip.crc32 ^ output[i]) & 0xFF];
 				break;
 			}
 		}
@@ -515,7 +526,7 @@ namespace LibDEFLATE
 			bool need_more_input = false;
 			bool restore_saved_stream = false;
 
-			const auto saved_stream = m_stream;
+			auto saved_stream = m_stream;
 
 			switch (m_state)
 			{
@@ -645,12 +656,17 @@ namespace LibDEFLATE
 				}
 				case State::Symbol:
 				{
-					if (auto ret = handle_symbol(); ret.is_error())
+					while (m_produced_bytes + 258 < total_window_size && m_state == State::Symbol)
 					{
-						if (ret.error().get_error_code() != ENOBUFS)
-							return ret.release_error();
-						need_more_input = true;
-						restore_saved_stream = true;
+						saved_stream = m_stream;
+						if (auto ret = handle_symbol(); ret.is_error())
+						{
+							if (ret.error().get_error_code() != ENOBUFS)
+								return ret.release_error();
+							need_more_input = true;
+							restore_saved_stream = true;
+							break;
+						}
 					}
 					break;
 				}
