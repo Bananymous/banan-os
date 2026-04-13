@@ -61,17 +61,21 @@ namespace Kernel
 		if (filesystem_or_error.is_error())
 			panic("Failed to create fallback filesystem: {}", filesystem_or_error.error());
 
-		dprintln("Loading fallback filesystem from {} modules", g_boot_info.modules.size());
+		dprintln("Trying to load fallback filesystem from {} modules", g_boot_info.modules.size());
 
 		auto filesystem = BAN::RefPtr<FileSystem>::adopt(filesystem_or_error.release_value());
 
+		bool loaded_initrd = false;
 		for (const auto& module : g_boot_info.modules)
 		{
-			if (!is_ustar_boot_module(module))
-				continue;
-			if (auto ret = unpack_boot_module_into_filesystem(filesystem, module); ret.is_error())
+			if (auto ret = unpack_boot_module_into_directory(filesystem->root_inode(), module); ret.is_error())
 				dwarnln("Failed to unpack boot module: {}", ret.error());
+			else
+				loaded_initrd |= ret.value();
 		}
+
+		if (!loaded_initrd)
+			panic("Could not load initrd from any boot module :(");
 
 		return filesystem;
 	}
