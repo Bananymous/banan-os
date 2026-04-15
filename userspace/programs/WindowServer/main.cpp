@@ -246,7 +246,7 @@ int main()
 
 	dprintln("Window server started");
 
-	if (access("/usr/bin/xbanan", O_EXEC) == 0)
+	if (access("/usr/bin/xbanan", X_OK) == 0)
 	{
 		if (fork() == 0)
 		{
