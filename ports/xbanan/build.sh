@@ -2,8 +2,8 @@
 
 NAME='xbanan'
 VERSION='git'
-DOWNLOAD_URL="https://git.bananymous.com/Bananymous/xbanan.git#b228ef13c41adff2738acaeda5db804ebf493bfd"
-DEPENDENCIES=('mesa' 'libX11' 'xorgproto')
+DOWNLOAD_URL="https://git.bananymous.com/Bananymous/xbanan.git#b2c642f03d2e498e9d6acd55cc89a5e76c220811"
+DEPENDENCIES=('xorgproto')
 
 configure() {
 	cmake --fresh -B build -S . -G Ninja \
