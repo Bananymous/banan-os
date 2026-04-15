@@ -8,6 +8,9 @@
 #endif
 
 #include <fcntl.h>
+#include <limits.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 #if __is_kernel
 extern uint8_t _binary_font_prefs_psf_start[];

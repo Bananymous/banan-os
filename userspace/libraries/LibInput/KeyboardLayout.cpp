@@ -11,6 +11,7 @@
 #include <fcntl.h>
 #include <limits.h>
 #include <sys/stat.h>
+#include <unistd.h>
 #endif
 
 #include <ctype.h>

@@ -7,9 +7,11 @@
 
 #include <ctype.h>
 #include <fcntl.h>
+#include <signal.h>
 #include <stdlib.h>
 #include <sys/ioctl.h>
 #include <sys/select.h>
+#include <time.h>
 #include <unistd.h>
 
 static constexpr uint32_t s_colors_dark[] {

@@ -7,6 +7,8 @@
 #include <LibInput/KeyboardLayout.h>
 
 #include <fcntl.h>
+#include <limits.h>
+#include <signal.h>
 #include <stdlib.h>
 #include <sys/banan-os.h>
 #include <sys/epoll.h>
@@ -14,6 +16,7 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/un.h>
+#include <time.h>
 #include <unistd.h>
 
 struct Config

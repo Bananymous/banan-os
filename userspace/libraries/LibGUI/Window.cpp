@@ -9,6 +9,7 @@
 #include <sys/mman.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <time.h>
 #include <unistd.h>
 
 #include <emmintrin.h>
