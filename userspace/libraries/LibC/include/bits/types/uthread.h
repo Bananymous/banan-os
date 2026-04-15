@@ -48,19 +48,7 @@ struct uthread
 	uintptr_t dtv[1 + 256];
 };
 
-#if defined(__x86_64__)
-#define _get_uthread() ({ \
-		struct uthread* _uthread; \
-		__asm__ volatile("movq %%fs:0, %0" : "=r"(_uthread)); \
-		_uthread; \
-	})
-#elif defined(__i686__)
-#define _get_uthread() ({ \
-		struct uthread* _uthread; \
-		__asm__ volatile("movl %%gs:0, %0" : "=r"(_uthread)); \
-		_uthread; \
-	})
-#endif
+#define _get_uthread() ((struct uthread*)__builtin_thread_pointer())
 
 __END_DECLS
 
