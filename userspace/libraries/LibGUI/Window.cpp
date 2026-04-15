@@ -96,12 +96,12 @@ namespace LibGUI
 			return on_socket_error(function);
 		}
 
-		packet.serialize(m_in_buffer.span());
+		packet.serialize(m_out_buffer.span());
 
 		size_t total_sent = 0;
 		while (total_sent < serialized_size)
 		{
-			const ssize_t nsend = send(m_server_fd, m_in_buffer.data() + total_sent, serialized_size - total_sent, 0);
+			const ssize_t nsend = send(m_server_fd, m_out_buffer.data() + total_sent, serialized_size - total_sent, 0);
 			if (nsend < 0)
 				dwarnln("send: {}", strerror(errno));
 			if (nsend <= 0)
@@ -327,15 +327,14 @@ namespace LibGUI
 					m_in_buffer_size += nrecv;
 			}
 
-			size_t bytes_handled = 0;
-			while (m_in_buffer_size - bytes_handled >= sizeof(PacketHeader))
+			BAN::ConstByteSpan in_span = m_in_buffer.span().slice(0, m_in_buffer_size);
+			while (in_span.size() >= sizeof(PacketHeader))
 			{
-				BAN::ConstByteSpan packet_span = m_in_buffer.span().slice(bytes_handled);
-				const auto header = packet_span.as<const PacketHeader>();
-				if (packet_span.size() < header.size || header.size < sizeof(LibGUI::PacketHeader))
+				const auto header = in_span.as<const PacketHeader>();
+				if (in_span.size() < header.size || header.size < sizeof(LibGUI::PacketHeader))
 					break;
-				packet_span = packet_span.slice(0, header.size);
 
+				const auto packet_span = in_span.slice(0, header.size);
 				switch (header.type)
 				{
 #define TRY_OR_BREAK(...) ({ auto&& e = (__VA_ARGS__); if (e.is_error()) break; e.release_value(); })
@@ -402,16 +401,16 @@ namespace LibGUI
 						break;
 				}
 
-				bytes_handled += header.size;
+				in_span = in_span.slice(header.size);
 			}
 
 			// NOTE: this will only move a single partial packet, so this is fine
-			m_in_buffer_size -= bytes_handled;
 			memmove(
 				m_in_buffer.data(),
-				m_in_buffer.data() + bytes_handled,
-				m_in_buffer_size
+				in_span.data(),
+				in_span.size()
 			);
+			m_in_buffer_size = in_span.size();
 
 			if (m_in_buffer_size >= sizeof(LibGUI::PacketHeader))
 			{
