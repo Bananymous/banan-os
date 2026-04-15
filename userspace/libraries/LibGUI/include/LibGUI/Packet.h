@@ -35,9 +35,6 @@
 #define DEFINE_PACKET_EXTRA(name, extra, ...) \
 	struct name \
 	{ \
-		static constexpr PacketType type = PacketType::name; \
-		static constexpr uint32_t type_u32 = static_cast<uint32_t>(type); \
- \
 		extra; \
  \
 		FOR_EACH(FIELD_DECL, __VA_ARGS__) \
@@ -45,8 +42,7 @@
 		size_t serialized_size() const \
 		{ \
 			size_t serialized_size = 0; \
-			serialized_size += Serialize::serialized_size_impl<uint32_t>(0); \
-			serialized_size += Serialize::serialized_size_impl<uint32_t>(type_u32); \
+			serialized_size += Serialize::serialized_size_impl(PacketHeader {}); \
 			FOR_EACH(ADD_SERIALIZED_SIZE, __VA_ARGS__) \
 			return serialized_size; \
 		} \
@@ -54,16 +50,17 @@
 		void serialize(BAN::ByteSpan buffer) const \
 		{ \
 			const uint32_t serialized_size = this->serialized_size(); \
-			Serialize::serialize_impl<uint32_t>(buffer, serialized_size); \
-			Serialize::serialize_impl<uint32_t>(buffer, type_u32); \
+			Serialize::serialize_impl(buffer, PacketHeader { \
+				.size = serialized_size, \
+				.type = PacketType::name, \
+			}); \
 			FOR_EACH(SERIALIZE, __VA_ARGS__); \
 		} \
  \
 		static BAN::ErrorOr<name> deserialize(BAN::ConstByteSpan buffer) \
 		{ \
-			const uint32_t size_u32 = TRY(Serialize::deserialize_impl<uint32_t>(buffer)); \
-			const uint32_t type_u32 = TRY(Serialize::deserialize_impl<uint32_t>(buffer)); \
-			if (type_u32 != name::type_u32 || size_u32 != buffer.size() + 2 * sizeof(uint32_t)) \
+			const auto header = TRY(Serialize::deserialize_impl<PacketHeader>(buffer)); \
+			if (header.type != PacketType::name || header.size != buffer.size() + sizeof(PacketHeader)) \
 				return BAN::Error::from_errno(EINVAL); \
 			name value; \
 			FOR_EACH(DESERIALIZE, __VA_ARGS__) \
