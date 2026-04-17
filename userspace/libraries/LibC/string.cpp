@@ -304,6 +304,17 @@ char* strstr(const char* haystack, const char* needle)
 	return nullptr;
 }
 
+char* strcasestr(const char* haystack, const char* needle)
+{
+	const size_t needle_len = strlen(needle);
+	if (needle_len == 0)
+		return const_cast<char*>(haystack);
+	for (size_t i = 0; haystack[i]; i++)
+		if (strncasecmp(haystack + i, needle, needle_len) == 0)
+			return const_cast<char*>(haystack + i);
+	return nullptr;
+}
+
 #define CHAR_UCHAR(ch) \
 	static_cast<unsigned char>(ch)
 

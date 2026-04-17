@@ -46,6 +46,7 @@ char*	strsep(char** __restrict stringp, const char* __restrict delim);
 char*	strsignal(int signum);
 size_t	strspn(const char* s1, const char* s2);
 char*	strstr(const char* s1, const char* s2);
+char* 	strcasestr(const char* haystack, const char* needle);
 char*	strtok(char* __restrict s, const char* __restrict sep);
 char*	strtok_r(char* __restrict s, const char* __restrict sep, char** __restrict state);
 size_t	strxfrm(char* __restrict s1, const char* __restrict s2, size_t n);
