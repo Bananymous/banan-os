@@ -3399,7 +3399,8 @@ namespace Kernel
 		{
 			if (auto ret = check_thread(); ret.has_value())
 			{
-				TRY(write_to_user(user_value, &ret.value(), sizeof(void*)));
+				if (user_value != nullptr)
+					TRY(write_to_user(user_value, &ret.value(), sizeof(void*)));
 				return 0;
 			}
 
