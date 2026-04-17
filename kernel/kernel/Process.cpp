@@ -34,6 +34,8 @@
 #include <sys/sysmacros.h>
 #include <sys/wait.h>
 
+#pragma GCC diagnostic ignored "-Wstack-usage="
+
 namespace Kernel
 {
 

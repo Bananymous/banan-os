@@ -111,7 +111,7 @@ __BEGIN_DECLS
 #define MAX_CANON                _POSIX_MAX_CANON
 #define MAX_INPUT                _POSIX_MAX_INPUT
 #define NAME_MAX                 255
-#define PATH_MAX                 _POSIX_PATH_MAX
+#define PATH_MAX                 4096
 #define PIPE_BUF                 PAGE_SIZE
 //#define POSIX_ALLOC_SIZE_MIN
 //#define POSIX_REC_INCR_XFER_SIZE
