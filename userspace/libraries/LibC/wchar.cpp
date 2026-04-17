@@ -24,10 +24,17 @@ int wcwidth(wchar_t wc)
 	return wc != '\0';
 }
 
+int mbsinit(const mbstate_t* ps)
+{
+	(void)ps;
+	return 1;
+}
+
 wchar_t* wcstok(wchar_t* __restrict, const wchar_t* __restrict, wchar_t** __restrict) { ASSERT_NOT_REACHED(); }
 long wcstol(const wchar_t* __restrict, wchar_t** __restrict, int) { ASSERT_NOT_REACHED(); }
 unsigned long wcstoul(const wchar_t* __restrict, wchar_t** __restrict, int) { ASSERT_NOT_REACHED(); }
 int swprintf(wchar_t* __restrict, size_t, const wchar_t* __restrict, ...) { ASSERT_NOT_REACHED(); }
+size_t wcsrtombs(char* __restrict, const wchar_t** __restrict, size_t, mbstate_t* __restrict) { ASSERT_NOT_REACHED(); }
 
 size_t wcrtomb(char* __restrict s, wchar_t ws, mbstate_t* __restrict ps)
 {
