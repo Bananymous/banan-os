@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <langinfo.h>
 #include <pthread.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/syscall.h>
 #include <time.h>
@@ -625,4 +626,92 @@ size_t strftime(char* __restrict s, size_t maxsize, const char* __restrict forma
 		return 0;
 	s[len++] = '\0';
 	return len;
+}
+
+static int parse_tm_name(const char* buf, const char** out, int ab, int full, size_t count) {
+    int tm_name = -1;
+    for(size_t i = 0; i < count; ++i) {
+        const char *smol = nl_langinfo(ab + i),
+                   *big = nl_langinfo(full + i);
+
+        size_t smol_len = strlen(smol),
+               big_len = strlen(big);
+        if(strncasecmp(buf, big, big_len) == 0) {
+            buf += big_len;
+            tm_name = i;
+            break;
+        }
+        if(strncasecmp(buf, smol, smol_len) == 0) {
+            buf += smol_len;
+            tm_name = i;
+            break;
+        }
+    }
+    *out = buf;
+    return tm_name;
+}
+
+char* strptime(const char* buf, const char* format, struct tm* tm) {
+    for(;;) {
+        while(*format && *format != '%') {
+            if(isspace(*format)) {
+                while(isspace(*buf)) buf++;
+                format++;
+            } else if(*buf++ != *format++) return NULL;
+        }
+        if(*format == '\0') break;
+        format++;
+        char fmt_chr = *format++;
+        switch(fmt_chr) {
+        case '%': if(*buf != '%') return NULL; break;
+        case 'a': case 'A': {
+            int day = parse_tm_name(buf, &buf, ABDAY_1, DAY_1, 7);
+            if(day == -1) return NULL;
+            tm->tm_wday = day;
+        } break;
+        case 'b': case 'B': case 'h': {
+            int mon = parse_tm_name(buf, &buf, ABMON_1, MON_1, 12);
+            if(mon == -1) return NULL;
+            tm->tm_mon = mon;
+        } break;
+        case 'd': case 'e': {
+            errno = 0;
+            long day = strtol(buf, (char**)&buf, 10);
+            if(errno) return NULL;
+            if(day < 1 || day > 31) return NULL;
+            tm->tm_mday = day;
+        } break;
+        case 'Y': {
+            errno = 0;
+            long year = strtol(buf, (char**)&buf, 10);
+            if(errno) return NULL;
+            tm->tm_year = year - 1900;
+        } break;
+        case 'H': {
+            errno = 0;
+            long hour = strtol(buf, (char**)&buf, 10);
+            if(errno) return NULL;
+            if(hour < 0 || hour > 23) return NULL;
+            tm->tm_hour = hour;
+        } break;
+        case 'M': {
+            errno = 0;
+            long minute = strtol(buf, (char**)&buf, 10);
+            if(errno) return NULL;
+            if(minute < 0 || minute > 59) return NULL;
+            tm->tm_min = minute;
+        } break;
+        case 'S': {
+            errno = 0;
+            long sec = strtol(buf, (char**)&buf, 10);
+            if(errno) return NULL;
+            if(sec < 0 || sec > 60) return NULL;
+            tm->tm_sec = sec;
+        } break;
+        default:
+            derrorln("TODO: strptime fmt {}", fmt_chr);
+            ASSERT_NOT_REACHED();
+        }
+    }
+    return (char*)buf;
 }
