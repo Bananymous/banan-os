@@ -67,8 +67,12 @@ namespace Kernel
 		ASSERT(success);
 
 		for (size_t i = 0; i < pages.size(); i++)
-			if (pages[i])
-				sync(i);
+		{
+			if (pages[i] == 0)
+				continue;
+			sync(i);
+			Heap::get().release_page(pages[i]);
+		}
 
 		mutex.unlock();
 	}
