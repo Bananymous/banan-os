@@ -16,7 +16,7 @@ namespace Kernel
 
 	Epoll::~Epoll()
 	{
-		for (auto [inode, _] : m_listening_events)
+		for (auto& [inode, _] : m_listening_events)
 			inode->del_epoll(this);
 	}
 
@@ -44,7 +44,7 @@ namespace Kernel
 
 				if (!contains_inode)
 					TRY(inode->add_epoll(this));
-				it->value.add_fd(fd, event);
+				TRY(it->value.add_fd(fd, event));
 
 				SpinLockGuard _(m_ready_lock);
 				auto ready_it = m_ready_events.find(inode);
@@ -144,9 +144,8 @@ namespace Kernel
 
 					{
 						uint32_t listen_mask = EPOLLHUP | EPOLLERR;
-						for (size_t fd = 0; fd < listen.events.size(); fd++)
-							if (listen.has_fd(fd))
-								listen_mask |= listen.events[fd].events;
+						for (const auto& [_, events] : listen.events)
+							listen_mask |= events.events;
 						events &= listen_mask;
 					}
 
@@ -171,11 +170,10 @@ namespace Kernel
 
 #undef REMOVE_IT
 
-					for (size_t fd = 0; fd < listen.events.size() && event_count < event_span.size(); fd++)
+					for (auto& [_, listen_event] : listen.events)
 					{
-						if (!listen.has_fd(fd))
-							continue;
-						auto& listen_event = listen.events[fd];
+						if (event_count >= event_span.size())
+							break;
 
 						const auto new_events = (listen_event.events | EPOLLHUP | EPOLLERR) & events;
 						if (new_events == 0)

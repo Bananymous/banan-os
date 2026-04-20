@@ -1,12 +1,8 @@
 #pragma once
 
-#include <BAN/Array.h>
-#include <BAN/CircularQueue.h>
 #include <BAN/HashMap.h>
-#include <BAN/HashSet.h>
 #include <kernel/FS/Inode.h>
 
-#include <limits.h>
 #include <sys/epoll.h>
 
 namespace Kernel
@@ -63,38 +59,41 @@ namespace Kernel
 
 		struct ListenEventList
 		{
-			BAN::Array<epoll_event, OPEN_MAX> events;
-			uint32_t bitmap[(OPEN_MAX + 31) / 32] {};
+			ListenEventList() = default;
+
+			ListenEventList(const ListenEventList&) = delete;
+			ListenEventList& operator=(const ListenEventList&) = delete;
+
+			ListenEventList(ListenEventList&& other)
+				: events(BAN::move(other.events))
+			{}
+			ListenEventList& operator=(ListenEventList&& other)
+			{
+				events = BAN::move(other.events);
+				return *this;
+			}
+
+			BAN::HashMap<int, epoll_event> events;
 
 			bool has_fd(int fd) const
 			{
-				// For some reason having (fd < 0 || ...) makes GCC 15.1.0
-				// think bitmap access can be out of bounds...
-				if (static_cast<size_t>(fd) >= events.size())
-					return false;
-				return bitmap[fd / 32] & (1u << (fd % 32));
+				return events.contains(fd);
 			}
 
 			bool empty() const
 			{
-				for (auto val : bitmap)
-					if (val != 0)
-						return false;
-				return true;
+				return events.empty();
 			}
 
-			void add_fd(int fd, epoll_event event)
+			BAN::ErrorOr<void> add_fd(int fd, epoll_event event)
 			{
-				ASSERT(!has_fd(fd));
-				bitmap[fd / 32] |= (1u << (fd % 32));
-				events[fd] = event;
+				TRY(events.insert(fd, event));
+				return {};
 			}
 
 			void remove_fd(int fd)
 			{
-				ASSERT(has_fd(fd));
-				bitmap[fd / 32] &= ~(1u << (fd % 32));
-				events[fd] = {};
+				events.remove(fd);
 			}
 		};
 
