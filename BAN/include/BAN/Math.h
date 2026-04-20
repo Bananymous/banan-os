@@ -65,6 +65,22 @@ namespace BAN::Math
 		return (x & (x - 1)) == 0;
 	}
 
+	template<integral T> requires(sizeof(T) <= 8)
+	inline constexpr T round_up_to_power_of_two(T x)
+	{
+		x--;
+		x |= x >> 1;
+		x |= x >> 2;
+		x |= x >> 4;
+		if constexpr(sizeof(T) >= 2)
+			x |= x >> 8;
+		if constexpr(sizeof(T) >= 4)
+			x |= x >> 16;
+		if constexpr(sizeof(T) >= 8)
+			x |= x >> 32;
+		return x + 1;
+	}
+
 	template<integral T>
 	__attribute__((always_inline))
 	inline constexpr bool will_multiplication_overflow(T a, T b)
