@@ -3215,6 +3215,9 @@ namespace Kernel
 				return BAN::Error::from_errno(ENOSYS);
 		}
 
+		if (op == FUTEX_WAIT && BAN::atomic_load(*addr) != val)
+			return BAN::Error::from_errno(EAGAIN);
+
 		uint64_t wake_time_ns = BAN::numeric_limits<uint64_t>::max();
 
 		if (user_abstime != nullptr)
@@ -3235,9 +3238,6 @@ namespace Kernel
 				wake_time_ns = SystemTimer::get().ns_since_boot() + (abstime_ns - realtime_ns);
 			}
 		}
-
-		if (op == FUTEX_WAIT && BAN::atomic_load(*addr) != val)
-			return BAN::Error::from_errno(EAGAIN);
 
 		futex_t* futex;
 
