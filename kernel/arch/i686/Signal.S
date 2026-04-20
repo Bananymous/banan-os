@@ -19,7 +19,7 @@ signal_trampoline:
 	pushl %eax
 	pushl %ebp
 
-	movl 80(%esp), %eax
+	movl 84(%esp), %eax
 	pushl %eax; addl $4, (%esp)
 	pushl (%eax)
 
