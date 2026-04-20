@@ -3,6 +3,7 @@
 #include <BAN/Endianness.h>
 #include <BAN/HashMap.h>
 #include <BAN/IPv4.h>
+#include <BAN/LinkedList.h>
 #include <BAN/String.h>
 #include <BAN/StringView.h>
 #include <BAN/Vector.h>

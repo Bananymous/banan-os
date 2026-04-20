@@ -19,20 +19,14 @@
 namespace LibInput
 {
 
-	struct StringViewLower
+	struct StringViewLowerComp
 	{
-		BAN::StringView value;
-
-		StringViewLower(BAN::StringView sv)
-			: value(sv)
-		{ }
-
-		bool operator==(const StringViewLower& other) const
+		constexpr bool operator()(const BAN::StringView& a, const BAN::StringView& b) const
 		{
-			if (value.size() != other.value.size())
+			if (a.size() != b.size())
 				return false;
-			for (size_t i = 0; i < value.size(); i++)
-				if (tolower(value[i]) != tolower(other.value[i]))
+			for (size_t i = 0; i < a.size(); i++)
+				if (tolower(a[i]) != tolower(b[i]))
 					return false;
 			return true;
 		}
@@ -40,16 +34,16 @@ namespace LibInput
 
 	struct StringViewLowerHash
 	{
-		BAN::hash_t operator()(const StringViewLower& value) const
+		BAN::hash_t operator()(const BAN::StringView& str) const
 		{
 			constexpr BAN::hash_t FNV_offset_basis = 0x811c9dc5;
 			constexpr BAN::hash_t FNV_prime = 0x01000193;
 
 			BAN::hash_t hash = FNV_offset_basis;
-			for (size_t i = 0; i < value.value.size(); i++)
+			for (size_t i = 0; i < str.size(); i++)
 			{
 				hash *= FNV_prime;
-				hash ^= (uint8_t)tolower(value.value[i]);
+				hash ^= (uint8_t)tolower(str[i]);
 			}
 
 			return hash;
@@ -113,7 +107,7 @@ namespace LibInput
 		return keycode;
 	}
 
-	static BAN::HashMap<StringViewLower, Key, StringViewLowerHash> s_name_to_key;
+	static BAN::HashMap<BAN::StringView, Key, StringViewLowerHash, StringViewLowerComp> s_name_to_key;
 	static BAN::ErrorOr<void> initialize_name_to_key();
 
 	static BAN::Optional<Key> parse_key(BAN::StringView name)
