@@ -828,35 +828,40 @@ void qsort(void* base, size_t nel, size_t width, int (*compar)(const void*, cons
 
 // Constants and algorithm from https://en.wikipedia.org/wiki/Permuted_congruential_generator
 
-static uint64_t s_rand_state = 0x4d595df4d0f33173;
 static constexpr uint64_t s_rand_multiplier = 6364136223846793005;
 static constexpr uint64_t s_rand_increment = 1442695040888963407;
+static uint64_t s_rand_state;
 
 static constexpr uint32_t rotr32(uint32_t x, unsigned r)
 {
 	return x >> r | x << (-r & 31);
 }
 
-int rand_r(unsigned* seed)
+template<BAN::integral T>
+static inline int rand_impl(T& state)
 {
-	uint64_t x = *seed | (static_cast<uint64_t>(*seed) << 32);
-	unsigned count = (unsigned)(x >> 59);
+	uint64_t x;
+	if constexpr (sizeof(T) == 8) x = state;
+	if constexpr (sizeof(T) == 4) x = state * 0x0000000100000001;
+	if constexpr (sizeof(T) == 2) x = state * 0x0001000100010001;
+	if constexpr (sizeof(T) == 1) x = state * 0x0101010101010101;
 
-	*seed = x * s_rand_multiplier + s_rand_increment;
+	const unsigned count = x >> 59;
+
+	state = x * s_rand_multiplier + s_rand_increment;
 	x ^= x >> 18;
 
 	return rotr32(x >> 27, count) % RAND_MAX;
 }
 
+int rand_r(unsigned* seed)
+{
+	return rand_impl(*seed);
+}
+
 int rand(void)
 {
-	uint64_t x = s_rand_state;
-	unsigned count = (unsigned)(x >> 59);
-
-	s_rand_state = x * s_rand_multiplier + s_rand_increment;
-	x ^= x >> 18;
-
-	return rotr32(x >> 27, count) % RAND_MAX;
+	return rand_impl(s_rand_state);
 }
 
 void srand(unsigned int seed)
@@ -953,4 +958,5 @@ void init_default_random()
 {
 	static char buffer[128];
 	initstate(1, buffer, 128);
+	srand(1);
 }
