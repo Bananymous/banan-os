@@ -307,15 +307,14 @@ namespace Kernel
 
 	void Scheduler::wake_up_sleeping_threads()
 	{
+		ASSERT(Processor::get_interrupt_state() == InterruptState::Disabled);
+
 		const uint64_t current_ns = SystemTimer::get().ns_since_boot();
 		while (!m_block_queue.empty() && current_ns >= m_block_queue.front()->wake_time_ns)
 		{
 			auto* node = m_block_queue.pop_front();
-			{
-				SpinLockGuard _(node->blocker_lock);
-				if (node->blocker)
-					node->blocker->remove_blocked_thread(node);
-			}
+			if (auto* blocker = node->blocker.load())
+				blocker->remove_thread_from_block_queue(node);
 			node->blocked = false;
 			update_most_loaded_node_queue(node, &m_run_queue);
 			m_run_queue.add_thread_to_back(node);
@@ -368,11 +367,8 @@ namespace Kernel
 				return;
 			if (node != m_current)
 				m_block_queue.remove_node(node);
-			{
-				SpinLockGuard _(node->blocker_lock);
-				if (node->blocker)
-					node->blocker->remove_blocked_thread(node);
-			}
+			if (auto* blocker = node->blocker.load())
+				blocker->remove_thread_from_block_queue(node);
 			node->blocked = false;
 			if (node != m_current)
 				m_run_queue.add_thread_to_back(node);
@@ -665,11 +661,8 @@ namespace Kernel
 		m_current->blocked = true;
 		m_current->wake_time_ns = wake_time_ns;
 
-		{
-			SpinLockGuard _(m_current->blocker_lock);
-			if (blocker)
-				blocker->add_thread_to_block_queue(m_current);
-		}
+		if (blocker)
+			blocker->add_thread_to_block_queue(m_current);
 
 		update_most_loaded_node_queue(m_current, &m_block_queue);
 

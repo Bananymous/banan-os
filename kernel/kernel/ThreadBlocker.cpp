@@ -23,60 +23,64 @@ namespace Kernel
 
 	void ThreadBlocker::unblock()
 	{
-		decltype(m_block_chain) temp_block_chain;
-		size_t temp_block_chain_length { 0 };
+		SpinLockGuard _(m_lock);
 
+		for (auto* node = m_block_chain; node;)
 		{
-			SpinLockGuard _(m_lock);
-			for (size_t i = 0; i < m_block_chain_length; i++)
-				temp_block_chain[i] = m_block_chain[i];
-			temp_block_chain_length = m_block_chain_length;
-			m_block_chain_length = 0;
+			auto* next = node->block_chain_next;
+
+			ASSERT(node->blocked);
+			ASSERT(node->blocker == this);
+
+			node->blocker.store(nullptr);
+			node->block_chain_prev = nullptr;
+			node->block_chain_next = nullptr;
+
+			Processor::scheduler().unblock_thread(node);
+
+			node = next;
 		}
 
-		for (size_t i = 0; i < temp_block_chain_length; i++)
-			Processor::scheduler().unblock_thread(temp_block_chain[i]);
+		m_block_chain = nullptr;
 	}
 
 	void ThreadBlocker::add_thread_to_block_queue(SchedulerQueue::Node* node)
 	{
-		ASSERT(node->blocker_lock.current_processor_has_lock());
-
 		SpinLockGuard _(m_lock);
 
-		ASSERT(m_block_chain_length < sizeof(m_block_chain) / sizeof(m_block_chain[0]));
-
-		ASSERT(node);
 		ASSERT(node->blocked);
 		ASSERT(node->blocker == nullptr);
 
-		for (size_t i = 0 ; i < m_block_chain_length; i++)
-			ASSERT(m_block_chain[i] != node);
-		m_block_chain[m_block_chain_length++] = node;
+		node->blocker.store(this);
+		node->block_chain_prev = nullptr;
+		node->block_chain_next = m_block_chain;
 
-		node->blocker = this;
+		if (m_block_chain)
+			m_block_chain->block_chain_prev = node;
+		m_block_chain = node;
 	}
 
-	void ThreadBlocker::remove_blocked_thread(SchedulerQueue::Node* node)
+	void ThreadBlocker::remove_thread_from_block_queue(SchedulerQueue::Node* node)
 	{
-		ASSERT(node->blocker_lock.current_processor_has_lock());
-
 		SpinLockGuard _(m_lock);
 
-		ASSERT(node);
+		// NOTE: this is possible if we got here while another
+		//       core was doing an unblock on this blocker
+		if (node->blocker.load() != this)
+			return;
 		ASSERT(node->blocked);
-		ASSERT(node->blocker == this);
 
-		for (size_t i = 0 ; i < m_block_chain_length; i++)
-		{
-			if (m_block_chain[i] != node)
-				continue;
-			for (size_t j = i + 1; j < m_block_chain_length; j++)
-				m_block_chain[j - 1] = m_block_chain[j];
-			m_block_chain_length--;
-		}
+		if (node->block_chain_prev)
+			node->block_chain_prev->block_chain_next = node->block_chain_next;
+		if (node->block_chain_next)
+			node->block_chain_next->block_chain_prev = node->block_chain_prev;
 
-		node->blocker = nullptr;
+		if (node == m_block_chain)
+			m_block_chain = node->block_chain_next;
+
+		node->blocker.store(nullptr);
+		node->block_chain_prev = nullptr;
+		node->block_chain_next = nullptr;
 	}
 
 }

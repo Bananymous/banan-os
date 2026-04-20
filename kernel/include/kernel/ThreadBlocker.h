@@ -15,7 +15,6 @@ namespace Kernel
 		void block_with_wake_time_ns(uint64_t wake_time_ns, BaseMutex*);
 		void unblock();
 
-
 		void block_with_timeout_ms(uint64_t timeout_ms, BaseMutex* mutex)
 		{
 			ASSERT(!BAN::Math::will_multiplication_overflow<uint64_t>(timeout_ms, 1'000'000));
@@ -29,13 +28,11 @@ namespace Kernel
 
 	private:
 		void add_thread_to_block_queue(SchedulerQueue::Node*);
-		void remove_blocked_thread(SchedulerQueue::Node*);
+		void remove_thread_from_block_queue(SchedulerQueue::Node*);
 
 	private:
+		SchedulerQueue::Node* m_block_chain { nullptr };
 		SpinLock m_lock;
-
-		SchedulerQueue::Node* m_block_chain[32] {};
-		size_t m_block_chain_length { 0 };
 
 		friend class Scheduler;
 	};

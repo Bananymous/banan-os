@@ -22,8 +22,9 @@ namespace Kernel
 
 		uint64_t wake_time_ns { static_cast<uint64_t>(-1) };
 
-		SpinLock blocker_lock;
-		ThreadBlocker* blocker { nullptr };
+		BAN::Atomic<ThreadBlocker*> blocker { nullptr };
+		SchedulerQueueNode* block_chain_prev { nullptr };
+		SchedulerQueueNode* block_chain_next { nullptr };
 
 		ProcessorID processor_id { PROCESSOR_NONE };
 		bool blocked { false };
