@@ -489,27 +489,27 @@ void pthread_exit(void* value_ptr)
 	ASSERT_NOT_REACHED();
 }
 
+#undef pthread_equal
 int pthread_equal(pthread_t t1, pthread_t t2)
 {
-	return t1 == t2;
+	return _pthread_equal(t1, t2);
 }
+#define pthread_equal(t1, t2) _pthread_equal(t1, t2)
+
+#undef pthread_self
+pthread_t pthread_self(void)
+{
+	return _pthread_self();
+}
+#define pthread_self() _pthread_self()
 
 int pthread_join(pthread_t thread, void** value_ptr)
 {
-	pthread_testcancel();
-
-	errno = 0;
-	while (syscall(SYS_PTHREAD_JOIN, thread, value_ptr) == -1 && errno == EINTR)
-	{
+	do {
 		pthread_testcancel();
 		errno = 0;
-	}
+	} while (syscall(SYS_PTHREAD_JOIN, thread, value_ptr) == -1 && errno == EINTR);
 	return errno;
-}
-
-pthread_t pthread_self(void)
-{
-	return _get_uthread()->id;
 }
 
 int pthread_once(pthread_once_t* once_control, void (*init_routine)(void))
@@ -671,6 +671,7 @@ void pthread_testcancel(void)
 {
 	_pthread_testcancel();
 }
+#define pthread_testcancel() _pthread_testcancel()
 
 int pthread_getschedparam(pthread_t thread, int* __restrict policy, struct sched_param* __restrict param)
 {

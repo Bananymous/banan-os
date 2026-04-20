@@ -169,6 +169,12 @@ void		pthread_testcancel(void);
 void		pthread_cleanup_pop(int execute);
 void		pthread_cleanup_push(void (*routine)(void*), void* arg);
 
+#define _pthread_equal(t1, t2) ((t1) == (t2))
+#define pthread_equal(t1, t2) _pthread_equal(t1, t2)
+
+#define _pthread_self() (_get_uthread()->id)
+#define pthread_self() _pthread_self()
+
 #define _pthread_testcancel() do { \
 		struct uthread* uthread = _get_uthread(); \
 		if (__builtin_expect(uthread->cancel_state == PTHREAD_CANCEL_ENABLE, 1)) \
