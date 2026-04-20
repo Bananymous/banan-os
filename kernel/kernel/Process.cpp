@@ -3357,9 +3357,8 @@ namespace Kernel
 	{
 		LockGuard _(m_process_lock);
 
-		// main thread cannot call pthread_exit
-		if (&Thread::current() == m_threads.front())
-			return BAN::Error::from_errno(EINVAL);
+		if (m_threads.size() == 1)
+			return sys_exit(0);
 
 		TRY(m_exited_pthreads.emplace_back(Thread::current().tid(), value));
 
