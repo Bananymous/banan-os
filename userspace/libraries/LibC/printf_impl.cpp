@@ -274,6 +274,8 @@ static void floating_point_to_maybe_exponent_string(char* buffer, T value, bool 
 
 extern "C" int printf_impl(const char* format, va_list arguments, int (*putc_fun)(int, void*), void* data)
 {
+	char conversion[4096];
+
 	int written = 0;
 	while (*format)
 	{
@@ -383,9 +385,6 @@ extern "C" int printf_impl(const char* format, va_list arguments, int (*putc_fun
 				format--;
 			format++;
 
-			// FIXME: this should be thread-local to keep
-			//        satisfy multithreaded requirement
-			static char conversion[4096];
 			const char* string = nullptr;
 
 			int length = -1;
