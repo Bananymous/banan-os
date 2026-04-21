@@ -191,6 +191,8 @@ namespace Kernel
 		},
 	};
 
+	bool g_safe_user_alloc_nonexisting { true };
+
 	extern "C" void cpp_isr_handler(uint32_t isr, uint32_t error, InterruptStack* interrupt_stack, const Registers* regs)
 	{
 		if (g_paniced)
@@ -214,6 +216,16 @@ namespace Kernel
 				PageFaultError page_fault_error;
 				page_fault_error.raw = error;
 
+				const uint8_t* ip = reinterpret_cast<const uint8_t*>(interrupt_stack->ip);
+
+				if (!g_safe_user_alloc_nonexisting) for (const auto& safe_user : s_safe_user_page_faults)
+				{
+					if (ip < safe_user.ip_start || ip >= safe_user.ip_end)
+						continue;
+					interrupt_stack->ip = reinterpret_cast<vaddr_t>(safe_user.ip_fault);
+					return;
+				}
+
 				Processor::set_interrupt_state(InterruptState::Enabled);
 				auto result = Process::current().allocate_page_for_demand_paging(regs->cr2, page_fault_error.write, page_fault_error.instruction);
 				Processor::set_interrupt_state(InterruptState::Disabled);
@@ -234,8 +246,7 @@ namespace Kernel
 				if (result.value())
 					return;
 
-				const uint8_t* ip = reinterpret_cast<const uint8_t*>(interrupt_stack->ip);
-				for (const auto& safe_user : s_safe_user_page_faults)
+				if (g_safe_user_alloc_nonexisting) for (const auto& safe_user : s_safe_user_page_faults)
 				{
 					if (ip < safe_user.ip_start || ip >= safe_user.ip_end)
 						continue;

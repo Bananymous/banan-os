@@ -7,12 +7,21 @@
 #include <kernel/Terminal/TTY.h>
 #include <kernel/Timer/Timer.h>
 
+#include <BAN/ScopeGuard.h>
+
 #include <LibDEFLATE/Compressor.h>
 #include <LibQR/QRCode.h>
 
 #include <ctype.h>
 
 bool g_disable_debug = false;
+
+extern "C" bool safe_user_memcpy(void*, const void*, size_t);
+
+namespace Kernel
+{
+	extern bool g_safe_user_alloc_nonexisting;
+}
 
 namespace Debug
 {
@@ -45,48 +54,25 @@ namespace Debug
 
 		SpinLockGuard _(s_debug_lock);
 
-		const stackframe* frame = reinterpret_cast<const stackframe*>(bp);
-
-		void* first_ip = frame->ip;
-		void* last_ip = 0;
-		bool first = true;
+		const bool temp = g_safe_user_alloc_nonexisting;
+		g_safe_user_alloc_nonexisting = false;
+		BAN::ScopeGuard alloc_restore([temp] { g_safe_user_alloc_nonexisting = temp; });
 
 		BAN::Formatter::print(Debug::putchar, "\e[36mStack trace:\r\n");
 
 		if (ip != 0)
 			BAN::Formatter::print(Debug::putchar, "    {}\r\n", reinterpret_cast<void*>(ip));
 
-		while (frame)
+		stackframe frame;
+		if (!safe_user_memcpy(&frame, reinterpret_cast<void*>(bp), sizeof(stackframe)))
+			;
+		else for (size_t depth = 0; depth < 64; depth++)
 		{
-			if (!PageTable::is_valid_pointer((vaddr_t)frame))
-			{
-				derrorln("invalid pointer {H}", (vaddr_t)frame);
+			BAN::Formatter::print(Debug::putchar, "    {}\r\n", reinterpret_cast<void*>(frame.ip));
+			if (!safe_user_memcpy(&frame, frame.bp, sizeof(stackframe)))
 				break;
-			}
-
-			if (PageTable::current().is_page_free((vaddr_t)frame & PAGE_ADDR_MASK))
-			{
-				derrorln("    {} not mapped", frame);
-				break;
-			}
-
-			BAN::Formatter::print(Debug::putchar, "    {}\r\n", (void*)frame->ip);
-
-			if (!first && frame->ip == first_ip)
-			{
-				derrorln("looping kernel panic :(");
-				break;
-			}
-			else if (!first && frame->ip == last_ip)
-			{
-				derrorln("repeating stack trace");
-				break;
-			}
-
-			last_ip = frame->ip;
-			frame = frame->bp;
-			first = false;
 		}
+
 		BAN::Formatter::print(Debug::putchar, "\e[m");
 	}
 
