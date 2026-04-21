@@ -171,11 +171,10 @@ namespace Kernel
 		// Initialize stack and registers
 		thread->m_kernel_stack = TRY(VirtualRange::create_to_vaddr_range(
 			PageTable::kernel(),
-			KERNEL_OFFSET,
-			~(uintptr_t)0,
+			{ KERNEL_OFFSET, UINTPTR_MAX },
 			kernel_stack_size,
 			PageTable::Flags::ReadWrite | PageTable::Flags::Present,
-			true, true
+			true
 		));
 
 		// Initialize stack for returning
@@ -208,10 +207,10 @@ namespace Kernel
 
 		thread->m_kernel_stack = TRY(VirtualRange::create_to_vaddr_range(
 			page_table,
-			s_user_stack_addr_start, USERSPACE_END,
+			{ s_user_stack_addr_start, USERSPACE_END },
 			kernel_stack_size,
 			PageTable::Flags::ReadWrite | PageTable::Flags::Present,
-			true, true
+			true
 		));
 
 		auto userspace_stack = TRY(MemoryBackedRegion::create(
@@ -356,10 +355,10 @@ namespace Kernel
 
 		thread->m_kernel_stack = TRY(VirtualRange::create_to_vaddr_range(
 			new_process->page_table(),
-			s_user_stack_addr_start, USERSPACE_END,
+			{ s_user_stack_addr_start, USERSPACE_END },
 			kernel_stack_size,
 			PageTable::Flags::ReadWrite | PageTable::Flags::Present,
-			true, true
+			true
 		));
 
 		// NOTE: copy [sp, stack_end] so fork return works

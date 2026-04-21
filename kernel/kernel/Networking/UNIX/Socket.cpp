@@ -50,11 +50,10 @@ namespace Kernel
 		auto socket = TRY(BAN::RefPtr<UnixDomainSocket>::create(socket_type, info));
 		socket->m_packet_buffer = TRY(VirtualRange::create_to_vaddr_range(
 			PageTable::kernel(),
-			KERNEL_OFFSET,
-			~(uintptr_t)0,
+			{ KERNEL_OFFSET, UINTPTR_MAX },
 			s_packet_buffer_size,
 			PageTable::Flags::ReadWrite | PageTable::Flags::Present,
-			true, false
+			false
 		));
 		return socket;
 	}

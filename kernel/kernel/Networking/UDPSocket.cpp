@@ -14,11 +14,10 @@ namespace Kernel
 		auto socket = TRY(BAN::RefPtr<UDPSocket>::create(network_layer, info));
 		socket->m_packet_buffer = TRY(VirtualRange::create_to_vaddr_range(
 			PageTable::kernel(),
-			KERNEL_OFFSET,
-			~(uintptr_t)0,
+			{ KERNEL_OFFSET, UINTPTR_MAX },
 			packet_buffer_size,
 			PageTable::Flags::ReadWrite | PageTable::Flags::Present,
-			true, false
+			false
 		));
 		return socket;
 	}

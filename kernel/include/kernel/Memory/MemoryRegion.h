@@ -9,12 +9,6 @@
 namespace Kernel
 {
 
-	struct AddressRange
-	{
-		vaddr_t start;
-		vaddr_t end;
-	};
-
 	class MemoryRegion
 	{
 		BAN_NON_COPYABLE(MemoryRegion);

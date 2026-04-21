@@ -14,11 +14,10 @@ namespace Kernel
 
 		loopback->m_buffer = TRY(VirtualRange::create_to_vaddr_range(
 			PageTable::kernel(),
-			KERNEL_OFFSET,
-			BAN::numeric_limits<vaddr_t>::max(),
+			{ KERNEL_OFFSET, UINTPTR_MAX },
 			buffer_size * buffer_count,
 			PageTable::Flags::ReadWrite | PageTable::Flags::Present,
-			true, false
+			false
 		));
 
 		auto* thread = TRY(Thread::create_kernel([](void* loopback_ptr) {
