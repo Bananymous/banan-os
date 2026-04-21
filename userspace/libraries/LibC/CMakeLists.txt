@@ -105,6 +105,13 @@ target_link_options(libc-shared PRIVATE -nolibc -nostdlib++)
 install(TARGETS libc-static OPTIONAL)
 install(TARGETS libc-shared OPTIONAL)
 
+install(CODE "execute_process(COMMAND ${CMAKE_COMMAND} -E create_symlink \"libc.a\"  \"${CMAKE_INSTALL_LIBDIR}/libdl.a\")")
+install(CODE "execute_process(COMMAND ${CMAKE_COMMAND} -E create_symlink \"libc.so\" \"${CMAKE_INSTALL_LIBDIR}/libdl.so\")")
+install(CODE "execute_process(COMMAND ${CMAKE_COMMAND} -E create_symlink \"libc.a\"  \"${CMAKE_INSTALL_LIBDIR}/libm.a\")")
+install(CODE "execute_process(COMMAND ${CMAKE_COMMAND} -E create_symlink \"libc.so\" \"${CMAKE_INSTALL_LIBDIR}/libm.so\")")
+install(CODE "execute_process(COMMAND ${CMAKE_COMMAND} -E create_symlink \"libc.a\"  \"${CMAKE_INSTALL_LIBDIR}/libpthread.a\")")
+install(CODE "execute_process(COMMAND ${CMAKE_COMMAND} -E create_symlink \"libc.so\" \"${CMAKE_INSTALL_LIBDIR}/libpthread.so\")")
+
 set_target_properties(libc-static PROPERTIES OUTPUT_NAME libc)
 set_target_properties(libc-shared PROPERTIES OUTPUT_NAME libc)
 

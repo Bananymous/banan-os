@@ -3,14 +3,11 @@ set(USERSPACE_LIBRARIES
 	LibC
 	LibClipboard
 	LibDEFLATE
-	LibDL
 	LibELF
 	LibFont
 	LibGUI
 	LibImage
 	LibInput
-	LibMath
-	LibPthread
 	LibQR
 )
 
