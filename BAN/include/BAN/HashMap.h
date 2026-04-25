@@ -13,7 +13,7 @@ namespace BAN
 
 		Entry& operator*()
 		{
-			return m_iterator.operator*();
+			return const_cast<Entry&>(m_iterator.operator*());
 		}
 		const Entry& operator*() const
 		{
@@ -22,7 +22,7 @@ namespace BAN
 
 		Entry* operator->()
 		{
-			return m_iterator.operator->();
+			return const_cast<Entry*>(m_iterator.operator->());
 		}
 		const Entry* operator->() const
 		{
@@ -153,7 +153,7 @@ namespace BAN
 		{
 			if (auto it = m_hash_set.find(key); it != m_hash_set.end())
 			{
-				it->value = T(BAN::forward<Args>(args)...);
+				const_cast<T&>(it->value) = T(BAN::forward<Args>(args)...);
 				return iterator(it);
 			}
 

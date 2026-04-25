@@ -15,22 +15,12 @@ namespace BAN
 	public:
 		HashSetIterator() = default;
 
-		T& operator*()
-		{
-			ASSERT(m_bucket);
-			return *m_bucket->element();
-		}
 		const T& operator*() const
 		{
 			ASSERT(m_bucket);
 			return *m_bucket->element();
 		}
 
-		T* operator->()
-		{
-			ASSERT(m_bucket);
-			return m_bucket->element();
-		}
 		const T* operator->() const
 		{
 			ASSERT(m_bucket);
@@ -80,6 +70,12 @@ namespace BAN
 		Bucket* m_bucket { nullptr };
 		friend HashSet;
 	};
+
+	namespace detail
+	{
+		template<typename T, typename U, typename HASH, typename COMP>
+		concept HashSetFindable = requires(const U& a, const T& b) { COMP()(a, b); HASH()(b); };
+	}
 
 	template<typename T, typename HASH = BAN::hash<T>, typename COMP = BAN::equal<T>>
 	class HashSet
@@ -166,7 +162,8 @@ namespace BAN
 				{
 					if (!COMP()(*bucket.element(), value))
 						continue;
-					*bucket.element() = BAN::move(value);
+					bucket.element()->~T();
+					new (bucket.element()) T(BAN::move(value));
 				}
 				else
 				{
@@ -185,7 +182,8 @@ namespace BAN
 			}
 		}
 
-		void remove(const T& value)
+		template<detail::HashSetFindable<T, HASH, COMP> U>
+		void remove(const U& value)
 		{
 			if (auto it = find(value); it != end())
 				remove(it);
@@ -202,13 +200,13 @@ namespace BAN
 			return iterator(&bucket);
 		}
 
-		template<typename U>
+		template<detail::HashSetFindable<T, HASH, COMP> U>
 		iterator find(const U& value)
 		{
 			return iterator(const_cast<Bucket*>(find_impl(value).m_bucket));
 		}
 
-		template<typename U>
+		template<detail::HashSetFindable<T, HASH, COMP> U>
 		const_iterator find(const U& value) const
 		{
 			return find_impl(value);
@@ -240,7 +238,8 @@ namespace BAN
 			return {};
 		}
 
-		bool contains(const T& value) const
+		template<detail::HashSetFindable<T, HASH, COMP> U>
+		bool contains(const U& value) const
 		{
 			return find(value) != end();
 		}
@@ -295,7 +294,7 @@ namespace BAN
 			return {};
 		}
 
-		template<typename U> requires requires(const T& a, const U& b) { COMP()(a, b); HASH()(b); }
+		template<detail::HashSetFindable<T, HASH, COMP> U>
 		const_iterator find_impl(const U& value) const
 		{
 			if (m_capacity == 0)
