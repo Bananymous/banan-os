@@ -14,15 +14,7 @@
 namespace Kernel
 {
 
-	struct UnixSocketHash
-	{
-		BAN::hash_t operator()(const BAN::RefPtr<Inode>& socket)
-		{
-			return BAN::hash<const Inode*>{}(socket.ptr());
-		}
-	};
-
-	static BAN::HashMap<BAN::RefPtr<Inode>, BAN::WeakPtr<UnixDomainSocket>, UnixSocketHash> s_bound_sockets;
+	static BAN::HashMap<BAN::RefPtr<Inode>, BAN::WeakPtr<UnixDomainSocket>> s_bound_sockets;
 	static Mutex s_bound_socket_lock;
 
 	static constexpr size_t s_packet_buffer_size = 0x10000;

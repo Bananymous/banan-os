@@ -49,14 +49,6 @@ namespace Kernel
 		BAN::ErrorOr<void> fsync_impl() override { return {}; }
 
 	private:
-		struct InodeRefPtrHash
-		{
-			BAN::hash_t operator()(const BAN::RefPtr<Inode>& inode)
-			{
-				return BAN::hash<const Inode*>()(inode.ptr());
-			}
-		};
-
 		struct ListenEventList
 		{
 			ListenEventList() = default;
@@ -100,9 +92,9 @@ namespace Kernel
 	private:
 		ThreadBlocker m_thread_blocker;
 		SpinLock m_ready_lock;
-		BAN::HashMap<BAN::RefPtr<Inode>, uint32_t,        InodeRefPtrHash> m_ready_events;
-		BAN::HashMap<BAN::RefPtr<Inode>, uint32_t,        InodeRefPtrHash> m_processing_events;
-		BAN::HashMap<BAN::RefPtr<Inode>, ListenEventList, InodeRefPtrHash> m_listening_events;
+		BAN::HashMap<BAN::RefPtr<Inode>, uint32_t> m_ready_events;
+		BAN::HashMap<BAN::RefPtr<Inode>, uint32_t> m_processing_events;
+		BAN::HashMap<BAN::RefPtr<Inode>, ListenEventList> m_listening_events;
 	};
 
 }
