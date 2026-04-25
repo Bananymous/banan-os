@@ -60,14 +60,40 @@ namespace BAN
 		friend HashMap;
 	};
 
+	namespace detail
+	{
+		template<typename T, typename Key, typename HASH, typename COMP>
+		concept HashMapFindable = requires(const Key& a, const T& b) { COMP()(a, b); HASH()(b); };
+	}
+
 	template<typename Key, typename T, typename HASH = BAN::hash<Key>, typename COMP = BAN::equal<Key>>
 	class HashMap
 	{
 	public:
 		struct Entry
 		{
-			Key key;
+			const Key key;
 			T value;
+
+			Entry() = delete;
+			Entry& operator=(const Entry&) = delete;
+			Entry& operator=(Entry&&) = delete;
+
+			Entry(const Entry& other)
+				: key(other.key)
+				, value(other.value)
+			{ }
+
+			Entry(Entry&& other)
+				: key(BAN::move(const_cast<Key&>(other.key)))
+				, value(BAN::move(other.value))
+			{ }
+
+			template<typename... Args>
+			Entry(Key&& key, Args&&... args)
+				: key(BAN::move(key))
+				, value(BAN::forward<Args>(args)...)
+			{ }
 		};
 
 		struct EntryHash
@@ -105,15 +131,15 @@ namespace BAN
 		HashMap() = default;
 		~HashMap() { clear(); }
 
-		HashMap(const HashMap<Key, T, HASH>& other) { *this = other; }
-		HashMap<Key, T, HASH>& operator=(const HashMap<Key, T, HASH>& other)
+		HashMap(const HashMap& other) { *this = other; }
+		HashMap& operator=(const HashMap& other)
 		{
 			m_hash_set = other.m_hash_set;
 			return *this;
 		}
 
-		HashMap(HashMap<Key, T, HASH>&& other) { *this = BAN::move(other); }
-		HashMap<Key, T, HASH>& operator=(HashMap<Key, T, HASH>&& other)
+		HashMap(HashMap&& other) { *this = BAN::move(other); }
+		HashMap& operator=(HashMap&& other)
 		{
 			m_hash_set = BAN::move(other.m_hash_set);
 			return *this;
@@ -161,7 +187,8 @@ namespace BAN
 			return iterator(it);
 		}
 
-		void remove(const Key& key)
+		template<detail::HashMapFindable<Key, HASH, COMP> U>
+		void remove(const U& key)
 		{
 			if (auto it = find(key); it != end())
 				remove(it);
@@ -172,13 +199,13 @@ namespace BAN
 			return iterator(m_hash_set.remove(it.m_iterator));
 		}
 
-		template<typename U> requires requires(const Key& a, const U& b) { COMP()(a, b); HASH()(b); }
+		template<detail::HashMapFindable<Key, HASH, COMP> U>
 		iterator find(const U& key)
 		{
 			return iterator(m_hash_set.find(key));
 		}
 
-		template<typename U> requires requires(const Key& a, const U& b) { COMP()(a, b); HASH()(b); }
+		template<detail::HashMapFindable<Key, HASH, COMP> U>
 		const_iterator find(const U& key) const
 		{
 			return const_iterator(m_hash_set.find(key));
@@ -194,17 +221,20 @@ namespace BAN
 			return m_hash_set.reserve(size);
 		}
 
-		T& operator[](const Key& key)
+		template<detail::HashMapFindable<Key, HASH, COMP> U>
+		T& operator[](const U& key)
 		{
 			return find(key)->value;
 		}
 
-		const T& operator[](const Key& key) const
+		template<detail::HashMapFindable<Key, HASH, COMP> U>
+		const T& operator[](const U& key) const
 		{
 			return find(key)->value;
 		}
 
-		bool contains(const Key& key) const
+		template<detail::HashMapFindable<Key, HASH, COMP> U>
+		bool contains(const U& key) const
 		{
 			return find(key) != end();
 		}
