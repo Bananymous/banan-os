@@ -1,6 +1,7 @@
 #pragma once
 
 #include <BAN/Errors.h>
+#include <BAN/Hash.h>
 #include <BAN/NoCopyMove.h>
 
 namespace BAN
@@ -53,32 +54,12 @@ namespace BAN
 			return *this;
 		}
 
-		T& operator*()
-		{
-			ASSERT(m_pointer);
-			return *m_pointer;
-		}
+		T* ptr() const { return m_pointer; }
+		T& operator*() const { ASSERT(!empty()); return *ptr(); }
+		T* operator->() const { ASSERT(!empty()); return ptr(); }
 
-		const T& operator*() const
-		{
-			ASSERT(m_pointer);
-			return *m_pointer;
-		}
-
-		T* operator->()
-		{
-			ASSERT(m_pointer);
-			return m_pointer;
-		}
-
-		const T* operator->() const
-		{
-			ASSERT(m_pointer);
-			return m_pointer;
-		}
-
-		T* ptr() { return m_pointer; }
-		const T* ptr() const { return m_pointer; }
+		bool empty() const { return m_pointer == nullptr; }
+		explicit operator bool() const { return m_pointer; }
 
 		void clear()
 		{
@@ -87,13 +68,20 @@ namespace BAN
 			m_pointer = nullptr;
 		}
 
-		operator bool() const { return m_pointer != nullptr; }
-
 	private:
 		T* m_pointer = nullptr;
 
 		template<typename U>
 		friend class UniqPtr;
+	};
+
+	template<typename T>
+	struct hash<UniqPtr<T>>
+	{
+		constexpr hash_t operator()(const UniqPtr<T>& ptr) const
+		{
+			return hash<T*>()(ptr.ptr());
+		}
 	};
 
 }

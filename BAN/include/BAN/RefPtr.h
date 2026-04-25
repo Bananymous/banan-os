@@ -2,9 +2,9 @@
 
 #include <BAN/Atomic.h>
 #include <BAN/Errors.h>
+#include <BAN/Hash.h>
 #include <BAN/Move.h>
 #include <BAN/NoCopyMove.h>
-#include <stdint.h>
 
 namespace BAN
 {
@@ -129,14 +129,9 @@ namespace BAN
 			return *this;
 		}
 
-		T* ptr() { ASSERT(!empty()); return m_pointer; }
-		const T* ptr() const { ASSERT(!empty()); return m_pointer; }
-
-		T& operator*() { return *ptr(); }
-		const T& operator*() const { return *ptr(); }
-
-		T* operator->() { return ptr(); }
-		const T* operator->() const { return ptr(); }
+		T* ptr() const { return m_pointer; }
+		T& operator*() const { ASSERT(!empty()); return *ptr(); }
+		T* operator->() const { ASSERT(!empty()); return ptr(); }
 
 		bool operator==(RefPtr other) const { return m_pointer == other.m_pointer; }
 		bool operator!=(RefPtr other) const { return m_pointer != other.m_pointer; }
@@ -156,6 +151,15 @@ namespace BAN
 
 		template<typename U>
 		friend class RefPtr;
+	};
+
+	template<typename T>
+	struct hash<RefPtr<T>>
+	{
+		constexpr hash_t operator()(const RefPtr<T>& ptr) const
+		{
+			return hash<T*>()(ptr.ptr());
+		}
 	};
 
 }
