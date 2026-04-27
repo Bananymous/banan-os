@@ -107,7 +107,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> RTL8169::initialize_rx()
 	{
-		m_rx_buffer_region = TRY(DMARegion::create(m_rx_descriptor_count * s_buffer_size));
+		m_rx_buffer_region = TRY(DMARegion::create(m_rx_descriptor_count * s_buffer_size, PageTable::MemoryType::Normal));
 		m_rx_descriptor_region = TRY(DMARegion::create(m_rx_descriptor_count * sizeof(RTL8169Descriptor)));
 
 		for (size_t i = 0; i < m_rx_descriptor_count; i++)
@@ -144,7 +144,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> RTL8169::initialize_tx()
 	{
-		m_tx_buffer_region = TRY(DMARegion::create(m_tx_descriptor_count * s_buffer_size));
+		m_tx_buffer_region = TRY(DMARegion::create(m_tx_descriptor_count * s_buffer_size, PageTable::MemoryType::Normal));
 		m_tx_descriptor_region = TRY(DMARegion::create(m_tx_descriptor_count * sizeof(RTL8169Descriptor)));
 
 		for (size_t i = 0; i < m_tx_descriptor_count; i++)

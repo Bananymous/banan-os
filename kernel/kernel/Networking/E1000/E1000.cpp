@@ -173,7 +173,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> E1000::initialize_rx()
 	{
-		m_rx_buffer_region = TRY(DMARegion::create(E1000_RX_BUFFER_SIZE * E1000_RX_DESCRIPTOR_COUNT));
+		m_rx_buffer_region = TRY(DMARegion::create(E1000_RX_BUFFER_SIZE * E1000_RX_DESCRIPTOR_COUNT, PageTable::MemoryType::Normal));
 		m_rx_descriptor_region = TRY(DMARegion::create(sizeof(e1000_rx_desc) * E1000_RX_DESCRIPTOR_COUNT));
 
 		auto* rx_descriptors = reinterpret_cast<volatile e1000_rx_desc*>(m_rx_descriptor_region->vaddr());
@@ -207,7 +207,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> E1000::initialize_tx()
 	{
-		m_tx_buffer_region = TRY(DMARegion::create(E1000_TX_BUFFER_SIZE * E1000_TX_DESCRIPTOR_COUNT));
+		m_tx_buffer_region = TRY(DMARegion::create(E1000_TX_BUFFER_SIZE * E1000_TX_DESCRIPTOR_COUNT, PageTable::MemoryType::Normal));
 		m_tx_descriptor_region = TRY(DMARegion::create(sizeof(e1000_tx_desc) * E1000_TX_DESCRIPTOR_COUNT));
 
 		auto* tx_descriptors = reinterpret_cast<volatile e1000_tx_desc*>(m_tx_descriptor_region->vaddr());
@@ -304,7 +304,7 @@ namespace Kernel
 		// FIXME: there isnt really any reason to wait for transmission
 		write32(REG_TDT, (tx_current + 1) % E1000_TX_DESCRIPTOR_COUNT);
 		while (descriptor.status == 0)
-			continue;
+			Processor::pause();
 
 		dprintln_if(DEBUG_E1000, "sent {} bytes", packet_size);
 
