@@ -8,7 +8,7 @@ namespace Kernel
 	class DMARegion
 	{
 	public:
-		static BAN::ErrorOr<BAN::UniqPtr<DMARegion>> create(size_t size);
+		static BAN::ErrorOr<BAN::UniqPtr<DMARegion>> create(size_t size, PageTable::MemoryType type = PageTable::MemoryType::Uncached);
 		~DMARegion();
 
 		size_t size() const { return m_size; }

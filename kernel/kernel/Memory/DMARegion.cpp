@@ -5,7 +5,7 @@
 namespace Kernel
 {
 
-	BAN::ErrorOr<BAN::UniqPtr<DMARegion>> DMARegion::create(size_t size)
+	BAN::ErrorOr<BAN::UniqPtr<DMARegion>> DMARegion::create(size_t size, PageTable::MemoryType type)
 	{
 		size_t needed_pages = BAN::Math::div_round_up<size_t>(size, PAGE_SIZE);
 
@@ -26,7 +26,7 @@ namespace Kernel
 		vaddr_guard.disable();
 		paddr_guard.disable();
 
-		PageTable::kernel().map_range_at(paddr, vaddr, size, PageTable::Flags::ReadWrite | PageTable::Flags::Present, PageTable::MemoryType::Uncached);
+		PageTable::kernel().map_range_at(paddr, vaddr, size, PageTable::Flags::ReadWrite | PageTable::Flags::Present, type);
 
 		return BAN::UniqPtr<DMARegion>::adopt(region_ptr);
 	}
