@@ -293,7 +293,7 @@ namespace Kernel
 
 		const char* process_name = (tid && Thread::current().has_process())
 			? Process::current().name()
-			: nullptr;
+			: "";
 
 #if ARCH(x86_64)
 		dwarnln(
