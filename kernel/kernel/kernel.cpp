@@ -126,19 +126,20 @@ extern "C" void kernel_main(uint32_t boot_magic, uint32_t boot_info)
 	parse_boot_info(boot_magic, boot_info);
 	dprintln("boot info parsed");
 
-	Processor::create(PROCESSOR_NONE);
+	auto& processor = Processor::create(PROCESSOR_NONE);
 	Processor::initialize();
 	dprintln("BSP initialized");
 
-	PageTable::initialize_pre_heap();
-	PageTable::kernel().initial_load();
-	dprintln("PageTable stage1 initialized");
+	PageTable::initialize_fast_page();
+	dprintln("fast page initialized");
 
 	Heap::initialize();
-	dprintln("Heap initialzed");
+	dprintln("Heap initialized");
 
-	PageTable::initialize_post_heap();
-	dprintln("PageTable stage2 initialized");
+	PageTable::initialize_and_load();
+	dprintln("PageTable initialized");
+
+	processor.allocate_stack();
 
 	parse_command_line();
 	dprintln("command line parsed, root='{}', console='{}'", cmdline.root, cmdline.console);
@@ -270,7 +271,7 @@ extern "C" void ap_main()
 	using namespace Kernel;
 
 	Processor::initialize();
-	PageTable::kernel().initial_load();
+
 	InterruptController::get().enable();
 
 	Processor::wait_until_processors_ready();

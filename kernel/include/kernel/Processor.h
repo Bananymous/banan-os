@@ -58,6 +58,8 @@ namespace Kernel
 		static Processor& create(ProcessorID id);
 		static Processor& initialize();
 
+		void allocate_stack();
+
 		static ProcessorID current_id() { return read_gs_sized<ProcessorID>(offsetof(Processor, m_id)); }
 		static uint8_t current_index()  { return read_gs_sized<uint8_t>(offsetof(Processor, m_index)); }
 		static ProcessorID id_from_index(size_t index);
@@ -100,11 +102,8 @@ namespace Kernel
 				handle_smp_messages();
 		}
 
-		static uintptr_t current_stack_bottom() { return read_gs_sized<uintptr_t>(offsetof(Processor, m_stack)); }
-		static uintptr_t current_stack_top()	{ return current_stack_bottom() + s_stack_size; }
-
-		uintptr_t stack_bottom() const	{ return reinterpret_cast<uintptr_t>(m_stack); }
-		uintptr_t stack_top() const		{ return stack_bottom() + s_stack_size; }
+		vaddr_t stack_top_vaddr() const { return m_stack_vaddr + s_stack_size; }
+		paddr_t stack_top_paddr() const { return m_stack_paddr + s_stack_size; }
 
 		static void set_thread_syscall_stack(vaddr_t vaddr) { write_gs_sized<vaddr_t>(offsetof(Processor, m_thread_syscall_stack), vaddr); }
 
@@ -215,8 +214,9 @@ namespace Kernel
 
 		Thread* m_sse_thread { nullptr };
 
-		static constexpr size_t s_stack_size { 4096 };
-		void* m_stack { nullptr };
+		static constexpr size_t s_stack_size { PAGE_SIZE };
+		vaddr_t m_stack_vaddr { 0 };
+		paddr_t m_stack_paddr { 0 };
 
 		GDT* m_gdt { nullptr };
 		IDT* m_idt { nullptr };

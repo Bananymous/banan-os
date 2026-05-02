@@ -16,6 +16,8 @@ extern uint8_t g_kernel_writable_end[];
 extern uint8_t g_userspace_start[];
 extern uint8_t g_userspace_end[];
 
+extern uint64_t g_boot_fast_page_pt[];
+
 namespace Kernel
 {
 
@@ -24,7 +26,7 @@ namespace Kernel
 	constexpr uint64_t s_page_flag_mask = 0x8000000000000FFF;
 	constexpr uint64_t s_page_addr_mask = ~s_page_flag_mask;
 
-	static bool s_is_post_heap_done = false;
+	static bool s_is_initialized = false;
 
 	static PageTable* s_kernel = nullptr;
 	static bool s_has_nxe = false;
@@ -32,6 +34,28 @@ namespace Kernel
 	static bool s_has_pat = false;
 
 	static paddr_t s_global_pdpte = 0;
+
+	static uint64_t* s_fast_page_pt { nullptr };
+
+	static uint64_t* allocate_zeroed_page_aligned_page()
+	{
+		void* page = kmalloc(PAGE_SIZE, PAGE_SIZE, true);
+		ASSERT(page);
+		memset(page, 0, PAGE_SIZE);
+		return (uint64_t*)page;
+	}
+
+	template<typename T>
+	static paddr_t V2P(const T vaddr)
+	{
+		return (vaddr_t)vaddr - KERNEL_OFFSET + g_boot_info.kernel_paddr;
+	}
+
+	template<typename T>
+	static uint64_t* P2V(const T paddr)
+	{
+		return reinterpret_cast<uint64_t*>(reinterpret_cast<paddr_t>(paddr) - g_boot_info.kernel_paddr + KERNEL_OFFSET);
+	}
 
 	static inline PageTable::flags_t parse_flags(uint64_t entry)
 	{
@@ -51,31 +75,22 @@ namespace Kernel
 		return result;
 	}
 
-	void PageTable::initialize_pre_heap()
+	void PageTable::initialize_fast_page()
+	{
+		s_fast_page_pt = g_boot_fast_page_pt;
+	}
+
+	static void detect_cpu_features()
 	{
 		if (CPUID::has_nxe())
 			s_has_nxe = true;
-
 		if (CPUID::has_pge())
 			s_has_pge = true;
-
 		if (CPUID::has_pat())
 			s_has_pat = true;
-
-		ASSERT(s_kernel == nullptr);
-		s_kernel = new PageTable();
-		ASSERT(s_kernel);
-
-		s_kernel->initialize_kernel();
-		s_kernel->initial_load();
 	}
 
-	void PageTable::initialize_post_heap()
-	{
-		s_is_post_heap_done = true;
-	}
-
-	void PageTable::initial_load()
+	void PageTable::enable_cpu_features()
 	{
 		if (s_has_nxe)
 		{
@@ -116,8 +131,56 @@ namespace Kernel
 			"movl %%eax, %%cr0;"
 			::: "rax"
 		);
+	}
 
-		load();
+	void PageTable::initialize_and_load()
+	{
+		detect_cpu_features();
+		enable_cpu_features();
+
+		ASSERT(s_kernel == nullptr);
+		s_kernel = new PageTable();
+		ASSERT(s_kernel);
+
+		auto* pdpt = allocate_zeroed_page_aligned_page();
+		ASSERT(pdpt);
+
+		s_kernel->m_highest_paging_struct = V2P(pdpt);
+		s_kernel->map_kernel_memory();
+
+		PageTable::with_fast_page(s_kernel->m_highest_paging_struct, [] {
+			s_global_pdpte = PageTable::fast_page_as_sized<paddr_t>(3);
+		});
+
+		// update fast page pt
+		{
+			constexpr vaddr_t vaddr = fast_page();
+			constexpr uint16_t pdpte = (vaddr >> 30) & 0x1FF;
+			constexpr uint16_t pde   = (vaddr >> 21) & 0x1FF;
+
+			const auto get_or_allocate_entry =
+				[](paddr_t table_paddr, uint16_t entry, uint64_t flags)
+				{
+					uint64_t* table = P2V(table_paddr);
+
+					if (!(table[entry] & Flags::Present))
+					{
+						auto* vaddr = allocate_zeroed_page_aligned_page();
+						ASSERT(vaddr);
+						table[entry] = V2P(vaddr);
+					}
+
+					table[entry] |= flags;
+
+					return table[entry] & s_page_addr_mask;
+				};
+
+			const paddr_t pdpt = s_kernel->m_highest_paging_struct;
+			const paddr_t pd = get_or_allocate_entry(pdpt, pdpte, Flags::Present);
+			s_fast_page_pt = P2V(get_or_allocate_entry(pd, pde, Flags::ReadWrite | Flags::Present));
+		}
+
+		s_kernel->load();
 	}
 
 	PageTable& PageTable::kernel()
@@ -131,40 +194,12 @@ namespace Kernel
 		return true;
 	}
 
-	static uint64_t* allocate_zeroed_page_aligned_page()
+	void PageTable::map_kernel_memory()
 	{
-		void* page = kmalloc(PAGE_SIZE, PAGE_SIZE, true);
-		ASSERT(page);
-		memset(page, 0, PAGE_SIZE);
-		return (uint64_t*)page;
-	}
-
-	template<typename T>
-	static paddr_t V2P(const T vaddr)
-	{
-		return (vaddr_t)vaddr - KERNEL_OFFSET + g_boot_info.kernel_paddr;
-	}
-
-	template<typename T>
-	static uint64_t* P2V(const T paddr)
-	{
-		return reinterpret_cast<uint64_t*>(reinterpret_cast<paddr_t>(paddr) - g_boot_info.kernel_paddr + KERNEL_OFFSET);
-	}
-
-	void PageTable::initialize_kernel()
-	{
-		ASSERT(s_global_pdpte == 0);
-		s_global_pdpte = V2P(allocate_zeroed_page_aligned_page());
-
-		map_kernel_memory();
-
-		prepare_fast_page();
-
 		// Map (phys_kernel_start -> phys_kernel_end) to (virt_kernel_start -> virt_kernel_end)
-		ASSERT((vaddr_t)g_kernel_start % PAGE_SIZE == 0);
 		map_range_at(
 			V2P(g_kernel_start),
-			(vaddr_t)g_kernel_start,
+			reinterpret_cast<vaddr_t>(g_kernel_start),
 			g_kernel_end - g_kernel_start,
 			Flags::Present
 		);
@@ -172,7 +207,7 @@ namespace Kernel
 		// Map executable kernel memory as executable
 		map_range_at(
 			V2P(g_kernel_execute_start),
-			(vaddr_t)g_kernel_execute_start,
+			reinterpret_cast<vaddr_t>(g_kernel_execute_start),
 			g_kernel_execute_end - g_kernel_execute_start,
 			Flags::Execute | Flags::Present
 		);
@@ -180,7 +215,7 @@ namespace Kernel
 		// Map writable kernel memory as writable
 		map_range_at(
 			V2P(g_kernel_writable_start),
-			(vaddr_t)g_kernel_writable_start,
+			reinterpret_cast<vaddr_t>(g_kernel_writable_start),
 			g_kernel_writable_end - g_kernel_writable_start,
 			Flags::ReadWrite | Flags::Present
 		);
@@ -188,70 +223,34 @@ namespace Kernel
 		// Map userspace memory
 		map_range_at(
 			V2P(g_userspace_start),
-			(vaddr_t)g_userspace_start,
+			reinterpret_cast<vaddr_t>(g_userspace_start),
 			g_userspace_end - g_userspace_start,
 			Flags::Execute | Flags::UserSupervisor | Flags::Present
 		);
 	}
 
-	void PageTable::prepare_fast_page()
-	{
-		constexpr uint64_t pdpte = (fast_page() >> 30) & 0x1FF;
-		constexpr uint64_t pde   = (fast_page() >> 21) & 0x1FF;
-		constexpr uint64_t pte   = (fast_page() >> 12) & 0x1FF;
-
-		const uint64_t* pdpt = P2V(m_highest_paging_struct);
-		ASSERT(pdpt[pdpte] & Flags::Present);
-
-		uint64_t* pd = P2V(pdpt[pdpte] & s_page_addr_mask);
-		ASSERT(!(pd[pde] & Flags::Present));
-		pd[pde] = V2P(allocate_zeroed_page_aligned_page()) | Flags::ReadWrite | Flags::Present;
-
-		uint64_t* pt = P2V(pd[pde] & s_page_addr_mask);
-		ASSERT(pt[pte] == 0);
-		pt[pte] = Flags::Reserved;
-	}
-
 	void PageTable::map_fast_page(paddr_t paddr)
 	{
-		ASSERT(s_kernel);
-		ASSERT(paddr);
-		ASSERT(paddr % PAGE_SIZE == 0);
+		ASSERT(paddr && paddr % PAGE_SIZE == 0);
 
+		ASSERT(s_fast_page_pt);
 		ASSERT(s_fast_page_lock.current_processor_has_lock());
 
-		constexpr uint64_t pdpte = (fast_page() >> 30) & 0x1FF;
-		constexpr uint64_t pde   = (fast_page() >> 21) & 0x1FF;
-		constexpr uint64_t pte   = (fast_page() >> 12) & 0x1FF;
+		ASSERT(!(*s_fast_page_pt & Flags::Present));
+		s_fast_page_pt[0] = paddr | Flags::ReadWrite | Flags::Present;
 
-		uint64_t* pdpt = P2V(s_kernel->m_highest_paging_struct);
-		uint64_t* pd   = P2V(pdpt[pdpte] & s_page_addr_mask);
-		uint64_t* pt   = P2V(pd[pde] & s_page_addr_mask);
-
-		ASSERT(!(pt[pte] & Flags::Present));
-		pt[pte] = paddr | Flags::ReadWrite | Flags::Present;
-
-		asm volatile("invlpg (%0)" :: "r"(fast_page()) : "memory");
+		asm volatile("invlpg (%0)" :: "r"(fast_page()));
 	}
 
 	void PageTable::unmap_fast_page()
 	{
-		ASSERT(s_kernel);
-
+		ASSERT(s_fast_page_pt);
 		ASSERT(s_fast_page_lock.current_processor_has_lock());
 
-		constexpr uint64_t pdpte = (fast_page() >> 30) & 0x1FF;
-		constexpr uint64_t pde   = (fast_page() >> 21) & 0x1FF;
-		constexpr uint64_t pte   = (fast_page() >> 12) & 0x1FF;
+		ASSERT((*s_fast_page_pt & Flags::Present));
+		s_fast_page_pt[0] = 0;
 
-		uint64_t* pdpt = P2V(s_kernel->m_highest_paging_struct);
-		uint64_t* pd   = P2V(pdpt[pdpte] & s_page_addr_mask);
-		uint64_t* pt   = P2V(pd[pde] & s_page_addr_mask);
-
-		ASSERT(pt[pte] & Flags::Present);
-		pt[pte] = Flags::Reserved;
-
-		asm volatile("invlpg (%0)" :: "r"(fast_page()) : "memory");
+		asm volatile("invlpg (%0)" :: "r"(fast_page()));
 	}
 
 	BAN::ErrorOr<PageTable*> PageTable::create_userspace()
@@ -260,25 +259,23 @@ namespace Kernel
 		PageTable* page_table = new PageTable;
 		if (page_table == nullptr)
 			return BAN::Error::from_errno(ENOMEM);
-		page_table->map_kernel_memory();
-		return page_table;
-	}
 
-	void PageTable::map_kernel_memory()
-	{
-		ASSERT(s_kernel);
-		ASSERT(s_global_pdpte);
+		uint64_t* pdpt = allocate_zeroed_page_aligned_page();
+		if (pdpt == nullptr)
+		{
+			delete page_table;
+			return BAN::Error::from_errno(ENOMEM);
+		}
 
-		ASSERT(m_highest_paging_struct == 0);
-		m_highest_paging_struct = V2P(kmalloc(32, 32, true));
-		ASSERT(m_highest_paging_struct);
+		page_table->m_highest_paging_struct = V2P(pdpt);
 
-		uint64_t* pdpt = P2V(m_highest_paging_struct);
 		pdpt[0] = 0;
 		pdpt[1] = 0;
 		pdpt[2] = 0;
 		pdpt[3] = s_global_pdpte | Flags::Present;
 		static_assert(KERNEL_OFFSET == 0xC0000000);
+
+		return page_table;
 	}
 
 	PageTable::~PageTable()
@@ -318,7 +315,7 @@ namespace Kernel
 		const bool is_userspace = (vaddr < KERNEL_OFFSET);
 		if (is_userspace && this != &PageTable::current())
 			;
-		else if (pages <= 32 || !s_is_post_heap_done)
+		else if (pages <= 32 || !s_is_initialized)
 		{
 			for (size_t i = 0; i < pages; i++, vaddr += PAGE_SIZE)
 				asm volatile("invlpg (%0)" :: "r"(vaddr));

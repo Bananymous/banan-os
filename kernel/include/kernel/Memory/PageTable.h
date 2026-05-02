@@ -46,13 +46,22 @@ namespace Kernel
 		};
 
 	public:
-		static void initialize_pre_heap();
-		static void initialize_post_heap();
+		static void initialize_fast_page();
+		static void initialize_and_load();
+
+		static void enable_cpu_features();
 
 		static PageTable& kernel();
 		static PageTable& current() { return *reinterpret_cast<PageTable*>(Processor::get_current_page_table()); }
 
-		static constexpr vaddr_t fast_page() { return KERNEL_OFFSET; }
+		static constexpr vaddr_t fast_page()
+		{
+#if ARCH(x86_64)
+			return 0xffffffffbfe00000;
+#elif ARCH(i686)
+			return 0xffe00000;
+#endif
+		}
 
 		template<with_fast_page_callback F>
 		static void with_fast_page(paddr_t paddr, F callback)
@@ -121,7 +130,6 @@ namespace Kernel
 		vaddr_t reserve_free_contiguous_pages(size_t page_count, vaddr_t first_address, vaddr_t last_address = UINTPTR_MAX);
 
 		void load();
-		void initial_load();
 
 		void invalidate_page(vaddr_t addr, bool send_smp_message) { invalidate_range(addr, 1, send_smp_message); }
 		void invalidate_range(vaddr_t addr, size_t pages, bool send_smp_message);
@@ -129,14 +137,14 @@ namespace Kernel
 		InterruptState lock() const { return m_lock.lock(); }
 		void unlock(InterruptState state) const { m_lock.unlock(state); }
 
+		paddr_t paddr() const { return m_highest_paging_struct; }
+
 		void debug_dump();
 
 	private:
 		PageTable() = default;
 		uint64_t get_page_data(vaddr_t) const;
-		void initialize_kernel();
 		void map_kernel_memory();
-		void prepare_fast_page();
 
 		static void map_fast_page(paddr_t);
 		static void unmap_fast_page();

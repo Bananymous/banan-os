@@ -15,17 +15,17 @@ SECTIONS
 		*(.bananboot)
 		*(.text.*)
 	}
+	.ap_init ALIGN(4K) : AT(ADDR(.ap_init) - KERNEL_OFFSET)
+	{
+		g_ap_init_addr = .;
+		*(.ap_init)
+		g_kernel_execute_end = .;
+	}
 	.userspace ALIGN(4K) : AT(ADDR(.userspace) - KERNEL_OFFSET)
 	{
 		g_userspace_start = .;
 		*(.userspace)
 		g_userspace_end = .;
-		g_kernel_execute_end = .;
-	}
-	.ap_init ALIGN(4K) : AT(ADDR(.ap_init) - KERNEL_OFFSET)
-	{
-		g_ap_init_addr = .;
-		*(.ap_init)
 	}
 	.rodata ALIGN(4K) : AT(ADDR(.rodata) - KERNEL_OFFSET)
 	{

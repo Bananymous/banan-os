@@ -73,9 +73,6 @@ namespace Kernel
 		ASSERT(processor.m_id == PROCESSOR_NONE);
 		processor.m_id = id;
 
-		processor.m_stack = kmalloc(s_stack_size, 4096, true);
-		ASSERT(processor.m_stack);
-
 		processor.m_gdt = GDT::create(&processor);
 		ASSERT(processor.m_gdt);
 
@@ -155,6 +152,21 @@ namespace Kernel
 		disable_sse();
 
 		return processor;
+	}
+
+	// NOTE: I don't like this being a separate function but we need heap and page tables for this :)
+	void Processor::allocate_stack()
+	{
+		ASSERT(m_stack_paddr == 0);
+		ASSERT(m_stack_vaddr == 0);
+
+		m_stack_paddr = Heap::get().take_free_page();
+		ASSERT(m_stack_paddr);
+
+		m_stack_vaddr = PageTable::kernel().reserve_free_page(KERNEL_OFFSET);
+		ASSERT(m_stack_vaddr);
+
+		PageTable::kernel().map_page_at(m_stack_paddr, m_stack_vaddr, PageTable::ReadWrite | PageTable::Present);
 	}
 
 	void Processor::initialize_smp()
@@ -565,7 +577,7 @@ namespace Kernel
 		if (!scheduler().is_idle())
 			Thread::current().set_cpu_time_stop();
 
-		asm_yield_trampoline(Processor::current_stack_top());
+		asm_yield_trampoline(processor_info.stack_top_vaddr());
 
 		processor_info.m_start_ns = SystemTimer::get().ns_since_boot();
 

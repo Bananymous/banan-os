@@ -98,8 +98,7 @@ bananboot_end:
 boot_pdpt:
 	.long V2P(boot_pd) + (PG_PRESENT)
 	.long 0
-	.quad 0
-	.quad 0
+	.skip 2 * 8
 	.long V2P(boot_pd) + (PG_PRESENT)
 	.long 0
 .align 4096
@@ -112,13 +111,16 @@ boot_pd:
 	.endr
 boot_pts:
 	.set i, 0
-	.rept 512
+	.rept 511
 		.rept 512
 			.long i + (PG_READ_WRITE | PG_PRESENT)
 			.long 0
 			.set i, i + 0x1000
 		.endr
 	.endr
+.global g_boot_fast_page_pt
+g_boot_fast_page_pt:
+	.skip 512 * 8
 
 boot_gdt:
 	.quad 0x0000000000000000 # null descriptor
@@ -274,7 +276,7 @@ system_halt:
 	jmp 1b
 
 
-#define AP_V2P(vaddr) ((vaddr) - ap_trampoline + 0xF000)
+#define AP_REL(vaddr) ((vaddr) - ap_trampoline + 0xF000)
 
 .section .ap_init, "ax"
 
@@ -284,21 +286,27 @@ ap_trampoline:
 	jmp 1f
 
 .align 8
-ap_stack_ptr:
+ap_stack_paddr:
 	.skip 4
-ap_stack_loaded:
-	.skip 1
+ap_stack_vaddr:
+	.skip 4
+ap_prepare_paging:
+	.skip 4
+ap_page_table:
+	.skip 4
+ap_ready:
+	.skip 4
 
 1:	cli; cld
-	ljmpl $0x00, $AP_V2P(ap_cs_clear)
+	ljmpl $0x00, $AP_REL(ap_cs_clear)
 
 ap_cs_clear:
 	# load ap gdt and enter protected mode
-	lgdt AP_V2P(ap_gdtr)
+	lgdt AP_REL(ap_gdtr)
 	movl %cr0, %eax
 	orb $1, %al
 	movl %eax, %cr0
-	ljmpl $0x08, $AP_V2P(ap_protected_mode)
+	ljmpl $0x08, $AP_REL(ap_protected_mode)
 
 .code32
 ap_protected_mode:
@@ -307,8 +315,7 @@ ap_protected_mode:
 	movw %ax, %ss
 	movw %ax, %es
 
-	movl AP_V2P(ap_stack_ptr), %esp
-	movb $1, AP_V2P(ap_stack_loaded)
+	movl AP_REL(ap_stack_paddr), %esp
 
 	leal V2P(enable_sse),        %ecx; call *%ecx
 	leal V2P(enable_tsc),        %ecx; call *%ecx
@@ -316,24 +323,28 @@ ap_protected_mode:
 
 	# load boot gdt and enter long mode
 	lgdt V2P(boot_gdtr)
-	ljmpl $0x08, $AP_V2P(ap_flush_gdt)
+	ljmpl $0x08, $AP_REL(ap_flush_gdt)
 
 ap_flush_gdt:
-	# move stack pointer to higher half
-	movl %esp, %esp
-	addl $KERNEL_OFFSET, %esp
-
-	# jump to higher half
-	leal ap_higher_half, %ecx
+	movl $ap_higher_half, %ecx
 	jmp *%ecx
 
 ap_higher_half:
+	movl AP_REL(ap_prepare_paging), %eax
+	call *%eax
+
+	# load AP's initial values
+	movl AP_REL(ap_stack_vaddr), %esp
+	movl AP_REL(ap_page_table), %eax
+	movl $1, AP_REL(ap_ready)
+	movl %eax, %cr3
+
 	# clear rbp for stacktrace
 	xorl %ebp, %ebp
 
 1:	pause
 	cmpb $0, g_ap_startup_done
-	jz 1b
+	je 1b
 
 	lock incb g_ap_running_count
 

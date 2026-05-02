@@ -97,27 +97,25 @@ bananboot_end:
 .align 4096
 boot_pml4:
 	.quad V2P(boot_pdpt_lo) + (PG_READ_WRITE | PG_PRESENT)
-	.rept 510
-		.quad 0
-	.endr
+	.skip 510 * 8
 	.quad V2P(boot_pdpt_hi) + (PG_READ_WRITE | PG_PRESENT)
 boot_pdpt_lo:
 	.quad V2P(boot_pd) + (PG_READ_WRITE | PG_PRESENT)
-	.rept 511
-		.quad 0
-	.endr
+	.skip 511 * 8
 boot_pdpt_hi:
-	.rept 510
-		.quad 0
-	.endr
+	.skip 510 * 8
 	.quad V2P(boot_pd) + (PG_READ_WRITE | PG_PRESENT)
-	.quad 0
+	.skip 8
 boot_pd:
 	.set i, 0
-	.rept 512
+	.rept 511
 		.quad i + (PG_PAGE_SIZE | PG_READ_WRITE | PG_PRESENT)
 		.set i, i + 0x200000
 	.endr
+	.quad V2P(g_boot_fast_page_pt) + (PG_READ_WRITE | PG_PRESENT)
+.global g_boot_fast_page_pt
+g_boot_fast_page_pt:
+	.skip 512 * 8
 
 boot_gdt:
 	.quad 0x0000000000000000 # null descriptor
@@ -273,7 +271,7 @@ system_halt:
 	jmp 1b
 
 
-#define AP_V2P(vaddr) ((vaddr) - ap_trampoline + 0xF000)
+#define AP_REL(vaddr) ((vaddr) - ap_trampoline + 0xF000)
 
 .section .ap_init, "ax"
 
@@ -283,21 +281,27 @@ ap_trampoline:
 	jmp 1f
 
 .align 8
-ap_stack_ptr:
-	.skip 4
-ap_stack_loaded:
-	.skip 1
+ap_stack_paddr:
+	.skip 8
+ap_stack_vaddr:
+	.skip 8
+ap_prepare_paging:
+	.skip 8
+ap_page_table:
+	.skip 8
+ap_ready:
+	.skip 8
 
 1:	cli; cld
-	ljmpl $0x00, $AP_V2P(ap_cs_clear)
+	ljmpl $0x00, $AP_REL(ap_cs_clear)
 
 ap_cs_clear:
 	# load ap gdt and enter protected mode
-	lgdt AP_V2P(ap_gdtr)
+	lgdt AP_REL(ap_gdtr)
 	movl %cr0, %eax
 	orb $1, %al
 	movl %eax, %cr0
-	ljmpl $0x08, $AP_V2P(ap_protected_mode)
+	ljmpl $0x08, $AP_REL(ap_protected_mode)
 
 .code32
 ap_protected_mode:
@@ -306,8 +310,7 @@ ap_protected_mode:
 	movw %ax, %ss
 	movw %ax, %es
 
-	movl AP_V2P(ap_stack_ptr), %esp
-	movb $1, AP_V2P(ap_stack_loaded)
+	movl AP_REL(ap_stack_paddr), %esp
 
 	leal V2P(enable_sse),        %ecx; call *%ecx
 	leal V2P(enable_tsc),        %ecx; call *%ecx
@@ -315,28 +318,34 @@ ap_protected_mode:
 
 	# load boot gdt and enter long mode
 	lgdt V2P(boot_gdtr)
-	ljmpl $0x08, $AP_V2P(ap_long_mode)
+	ljmpl $0x08, $AP_REL(ap_long_mode)
 
 .code64
 ap_long_mode:
-	# move stack pointer to higher half
-	movl %esp, %esp
-	addq $KERNEL_OFFSET, %rsp
+	movq $ap_higher_half, %rax
+	jmp *%rax
+
+ap_higher_half:
+	movq AP_REL(ap_prepare_paging), %rax
+	call *%rax
+
+	# load AP's initial values
+	movq AP_REL(ap_stack_vaddr), %rsp
+	movq AP_REL(ap_page_table), %rax
+	movq $1, AP_REL(ap_ready)
+	movq %rax, %cr3
 
 	# clear rbp for stacktrace
 	xorq %rbp, %rbp
 
-	xorb %al, %al
 1:	pause
-	cmpb %al, g_ap_startup_done
-	jz 1b
+	cmpb $0, g_ap_startup_done
+	je 1b
 
 	lock incb g_ap_running_count
 
-	# jump to ap_main in higher half
-	movabsq $ap_main, %rcx
-	call *%rcx
-	jmp V2P(system_halt)
+	call ap_main
+	jmp system_halt
 
 ap_gdt:
 	.quad 0x0000000000000000 # null descriptor

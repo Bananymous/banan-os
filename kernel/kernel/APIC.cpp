@@ -293,9 +293,25 @@ namespace Kernel
 			dprintln("Trying to enable processor (lapic id {})", processor.apic_id);
 
 			auto& proc = Kernel::Processor::create(ProcessorID(processor.apic_id));
+			proc.allocate_stack();
+
+			struct ap_init_info_t
+			{
+				uintptr_t stack_paddr;
+				uintptr_t stack_vaddr;
+				uintptr_t prepare_paging;
+				uintptr_t page_table;
+				uintptr_t ready;
+			};
+
 			PageTable::with_fast_page(ap_init_paddr, [&] {
-				PageTable::fast_page_as_sized<uint32_t>(2) = kmalloc_paddr_of(proc.stack_top()).value();
-				PageTable::fast_page_as_sized<uint8_t>(13) = 0;
+				PageTable::fast_page_as<ap_init_info_t>(8) = {
+					.stack_paddr    = static_cast<uintptr_t>(proc.stack_top_paddr()),
+					.stack_vaddr    = proc.stack_top_vaddr(),
+					.prepare_paging = reinterpret_cast<uintptr_t>(&PageTable::enable_cpu_features),
+					.page_table     = static_cast<uintptr_t>(PageTable::kernel().paddr()),
+					.ready          = 0,
+				};
 			});
 
 			write_to_local_apic(LAPIC_ERROR_REG, 0x00);
@@ -334,12 +350,9 @@ namespace Kernel
 
 			// give processor upto 100 * 100 us + 200 us to boot
 			PageTable::with_fast_page(ap_init_paddr, [&] {
-				for (int i = 0; i < 100; i++)
-				{
-					if (__atomic_load_n(&PageTable::fast_page_as_sized<uint8_t>(13), __ATOMIC_SEQ_CST))
+				for (int i = 0; i < 100; i++, udelay(100))
+					if (__atomic_load_n(&PageTable::fast_page_as<ap_init_info_t>(8).ready, __ATOMIC_SEQ_CST))
 						break;
-					udelay(100);
-				}
 			});
 
 			initialized_aps++;
