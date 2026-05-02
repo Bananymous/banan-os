@@ -37,7 +37,6 @@ void exit(int status)
 	__cxa_finalize(nullptr);
 	fflush(nullptr);
 	_exit(status);
-	ASSERT_NOT_REACHED();
 }
 
 void _Exit(int status)

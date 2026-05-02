@@ -56,7 +56,7 @@ int					clearenv(void);
 div_t				div(int numer, int denom);
 double				drand48(void);
 double				erand48(unsigned short xsubi[3]);
-void				exit(int status);
+void				exit(int status) __attribute__((__noreturn__));
 void				free(void* ptr);
 char*				getenv(const char* name);
 int					getsubopt(char** optionp, char* const* keylistp, char** valuep);
