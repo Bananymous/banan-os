@@ -1,4 +1,3 @@
-#include <BAN/Bitcast.h>
 #include <BAN/ByteSpan.h>
 
 #include <kernel/Lock/LockGuard.h>
@@ -125,8 +124,7 @@ namespace Kernel
 
 		dprintln_if(DEBUG_XHCI, "Retrieving actual max packet size");
 
-		BAN::Vector<uint8_t> buffer;
-		TRY(buffer.resize(8, 0));
+		auto response_region = TRY(DMARegion::create(PAGE_SIZE, PageTable::MemoryType::Normal));
 
 		USBDeviceRequest request;
 		request.bmRequestType = USB::RequestType::DeviceToHost | USB::RequestType::Standard | USB::RequestType::Device;
@@ -134,12 +132,17 @@ namespace Kernel
 		request.wValue        = USB::DescriptorType::DEVICE << 8;
 		request.wIndex        = 0;
 		request.wLength       = 8;
-		TRY(send_request(request, kmalloc_paddr_of((vaddr_t)buffer.data()).value()));
+		TRY(send_request(request, response_region->paddr()));
+
+		uint8_t bMaxPacketSize0;
+		PageTable::with_fast_page(response_region->paddr(), [&bMaxPacketSize0] {
+			bMaxPacketSize0 = PageTable::fast_page_as_sized<uint8_t>(7);
+		});
 
 		dprintln_if(DEBUG_XHCI, "Got device descriptor");
 
 		const bool is_usb3 = (m_speed_class == USB::SpeedClass::SuperSpeed);
-		const uint32_t new_max_packet_size = is_usb3 ? 1u << buffer.back() : buffer.back();
+		const uint32_t new_max_packet_size = is_usb3 ? 1u << bMaxPacketSize0 : bMaxPacketSize0;
 
 		if (m_endpoints[0].max_packet_size == new_max_packet_size)
 			return {};
