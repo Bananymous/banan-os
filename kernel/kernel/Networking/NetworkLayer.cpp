@@ -18,16 +18,20 @@ namespace Kernel
 
 			const uint16_t* buffer_u16 = reinterpret_cast<const uint16_t*>(buffer.data());
 			for (size_t j = 0; j < buffer.size() / 2; j++)
-				checksum += BAN::host_to_network_endian(buffer_u16[j]);
-			if (buffer.size() % 2 == 0)
-				continue;
-			ASSERT(i == buffers.size() - 1);
-			checksum += buffer[buffer.size() - 1] << 8;
+				checksum += buffer_u16[j];
+
+			if (buffer.size() % 2)
+			{
+				// NOTE: we only allow last buffer to be odd-length
+				ASSERT(i == buffers.size() - 1);
+				checksum += buffer[buffer.size() - 1];
+			}
 		}
 
 		while (checksum >> 16)
-			checksum = (checksum >> 16) + (checksum & 0xFFFF);
-		return ~(uint16_t)checksum;
+			checksum = (checksum & 0xFFFF) + (checksum >> 16);
+
+		return BAN::host_to_network_endian<uint16_t>(~checksum);
 	}
 
 }
