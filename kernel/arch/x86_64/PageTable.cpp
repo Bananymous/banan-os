@@ -333,7 +333,7 @@ namespace Kernel
 		// Map (phys_kernel_start -> phys_kernel_end) to (virt_kernel_start -> virt_kernel_end)
 		const vaddr_t kernel_start = reinterpret_cast<vaddr_t>(g_kernel_start);
 		map_range_at(
-			kernel_start - KERNEL_OFFSET,
+			kernel_start - KERNEL_OFFSET + g_boot_info.kernel_paddr,
 			kernel_start,
 			g_kernel_end - g_kernel_start,
 			Flags::Present
@@ -342,7 +342,7 @@ namespace Kernel
 		// Map executable kernel memory as executable
 		const vaddr_t kernel_execute_start = reinterpret_cast<vaddr_t>(g_kernel_execute_start);
 		map_range_at(
-			kernel_execute_start - KERNEL_OFFSET,
+			kernel_execute_start - KERNEL_OFFSET + g_boot_info.kernel_paddr,
 			kernel_execute_start,
 			g_kernel_execute_end - g_kernel_execute_start,
 			Flags::Execute | Flags::Present
@@ -351,7 +351,7 @@ namespace Kernel
 		// Map writable kernel memory as writable
 		const vaddr_t kernel_writable_start = reinterpret_cast<vaddr_t>(g_kernel_writable_start);
 		map_range_at(
-			kernel_writable_start - KERNEL_OFFSET,
+			kernel_writable_start - KERNEL_OFFSET + g_boot_info.kernel_paddr,
 			kernel_writable_start,
 			g_kernel_writable_end - g_kernel_writable_start,
 			Flags::ReadWrite | Flags::Present
@@ -360,7 +360,7 @@ namespace Kernel
 		// Map userspace memory
 		const vaddr_t userspace_start = reinterpret_cast<vaddr_t>(g_userspace_start);
 		map_range_at(
-			userspace_start - KERNEL_OFFSET,
+			userspace_start - KERNEL_OFFSET + g_boot_info.kernel_paddr,
 			userspace_start,
 			g_userspace_end - g_userspace_start,
 			Flags::Execute | Flags::UserSupervisor | Flags::Present
