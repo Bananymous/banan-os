@@ -149,6 +149,9 @@ namespace Kernel
 		static void map_fast_page(paddr_t);
 		static void unmap_fast_page();
 
+		static void* map_fast_page(size_t index, paddr_t);
+		static void unmap_fast_page(size_t index);
+
 	private:
 		paddr_t						m_highest_paging_struct { 0 };
 		mutable RecursiveSpinLock	m_lock;

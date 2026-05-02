@@ -231,26 +231,40 @@ namespace Kernel
 
 	void PageTable::map_fast_page(paddr_t paddr)
 	{
-		ASSERT(paddr && paddr % PAGE_SIZE == 0);
-
-		ASSERT(s_fast_page_pt);
-		ASSERT(s_fast_page_lock.current_processor_has_lock());
-
-		ASSERT(!(*s_fast_page_pt & Flags::Present));
-		s_fast_page_pt[0] = paddr | Flags::ReadWrite | Flags::Present;
-
-		asm volatile("invlpg (%0)" :: "r"(fast_page()));
+		map_fast_page(0, paddr);
 	}
 
 	void PageTable::unmap_fast_page()
 	{
+		unmap_fast_page(0);
+	}
+
+	void* PageTable::map_fast_page(size_t index, paddr_t paddr)
+	{
+		ASSERT(paddr && paddr % PAGE_SIZE == 0);
+
+		ASSERT(index < 512);
 		ASSERT(s_fast_page_pt);
 		ASSERT(s_fast_page_lock.current_processor_has_lock());
 
-		ASSERT((*s_fast_page_pt & Flags::Present));
-		s_fast_page_pt[0] = 0;
+		ASSERT(!(s_fast_page_pt[index] & Flags::Present));
+		s_fast_page_pt[index] = paddr | Flags::ReadWrite | Flags::Present;
 
-		asm volatile("invlpg (%0)" :: "r"(fast_page()));
+		void* address = reinterpret_cast<void*>(fast_page() + index * PAGE_SIZE);
+		asm volatile("invlpg (%0)" :: "r"(address));
+		return address;
+	}
+
+	void PageTable::unmap_fast_page(size_t index)
+	{
+		ASSERT(index < 512);
+		ASSERT(s_fast_page_pt);
+		ASSERT(s_fast_page_lock.current_processor_has_lock());
+
+		ASSERT((s_fast_page_pt[index] & Flags::Present));
+		s_fast_page_pt[index] = 0;
+
+		asm volatile("invlpg (%0)" :: "r"(fast_page() + index * PAGE_SIZE));
 	}
 
 	BAN::ErrorOr<PageTable*> PageTable::create_userspace()
