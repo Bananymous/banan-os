@@ -51,7 +51,7 @@ namespace Kernel
 		uint8_t back() const
 		{
 			ASSERT(!empty());
-			return reinterpret_cast<const uint8_t*>(m_vaddr)[m_tail + m_size];
+			return reinterpret_cast<const uint8_t*>(m_vaddr)[m_tail + m_size - 1];
 		}
 
 		bool empty() const { return m_size == 0; }
