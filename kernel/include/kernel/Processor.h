@@ -2,6 +2,7 @@
 
 #include <BAN/Atomic.h>
 #include <BAN/ForwardList.h>
+#include <BAN/Math.h>
 
 #include <kernel/API/SharedPage.h>
 #include <kernel/Arch.h>
@@ -139,11 +140,7 @@ namespace Kernel
 		static void disable_sse()
 		{
 			uintptr_t dummy;
-#if ARCH(x86_64)
-			asm volatile("movq %%cr0, %0; orq $0x08, %0; movq %0, %%cr0" : "=r"(dummy));
-#elif ARCH(i686)
-			asm volatile("movl %%cr0, %0; orl $0x08, %0; movl %0, %%cr0" : "=r"(dummy));
-#endif
+			asm volatile("mov %%cr0, %0; or $0x08, %0; mov %0, %%cr0" : "=r"(dummy));
 		}
 
 		static void enable_sse()
@@ -168,35 +165,17 @@ namespace Kernel
 		}
 
 		template<typename T>
-		static T read_gs_sized(uintptr_t offset) requires(sizeof(T) <= 8)
+		static T read_gs_sized(uintptr_t offset) requires(sizeof(T) <= 8 && BAN::Math::is_power_of_two(sizeof(T)))
 		{
-#define __ASM_INPUT(operation) asm volatile(operation " %%gs:%a[offset], %[result]" : [result]"=r"(result) : [offset]"ir"(offset))
-			T result;
-			if constexpr(sizeof(T) == 8)
-				__ASM_INPUT("movq");
-			if constexpr(sizeof(T) == 4)
-				__ASM_INPUT("movl");
-			if constexpr(sizeof(T) == 2)
-				__ASM_INPUT("movw");
-			if constexpr(sizeof(T) == 1)
-				__ASM_INPUT("movb");
-			return result;
-#undef __ASM_INPUT
+			T value;
+			asm volatile("mov %%gs:%a[offset], %[value]" : [value]"=r"(value) : [offset]"ir"(offset));
+			return value;
 		}
 
 		template<typename T>
-		static void write_gs_sized(uintptr_t offset, T value) requires(sizeof(T) <= 8)
+		static void write_gs_sized(uintptr_t offset, T value) requires(sizeof(T) <= 8 && BAN::Math::is_power_of_two(sizeof(T)))
 		{
-#define __ASM_INPUT(operation) asm volatile(operation " %[value], %%gs:%a[offset]" :: [value]"r"(value), [offset]"ir"(offset) : "memory")
-			if constexpr(sizeof(T) == 8)
-				__ASM_INPUT("movq");
-			if constexpr(sizeof(T) == 4)
-				__ASM_INPUT("movl");
-			if constexpr(sizeof(T) == 2)
-				__ASM_INPUT("movw");
-			if constexpr(sizeof(T) == 1)
-				__ASM_INPUT("movb");
-#undef __ASM_INPUT
+			asm volatile("mov %[value], %%gs:%a[offset]" :: [value]"r"(value), [offset]"ir"(offset) : "memory");
 		}
 
 	private:
