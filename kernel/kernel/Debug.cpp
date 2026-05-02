@@ -69,7 +69,7 @@ namespace Debug
 		else for (size_t depth = 0; depth < 64; depth++)
 		{
 			BAN::Formatter::print(Debug::putchar, "    {}\r\n", reinterpret_cast<void*>(frame.ip));
-			if (!safe_user_memcpy(&frame, frame.bp, sizeof(stackframe)))
+			if (frame.bp == nullptr || !safe_user_memcpy(&frame, frame.bp, sizeof(stackframe)))
 				break;
 		}
 
