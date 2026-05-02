@@ -12,7 +12,7 @@ namespace Kernel::API
 
 	struct SharedPage
 	{
-		uint8_t __sequence[0x100];
+		uint16_t gdt_cpu_offset;
 
 		uint32_t features;
 

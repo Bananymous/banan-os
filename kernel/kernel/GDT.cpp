@@ -32,6 +32,8 @@ namespace Kernel
 		gdt->write_entry(0x38, 0x00000000, 0x00000, 0xF2, 0xC); // gsbase
 #endif
 
+		gdt->write_entry(m_cpu_index_offset, 0, 0, 0, 0);
+
 		gdt->write_tss();
 
 		return gdt;

@@ -303,22 +303,7 @@ namespace Kernel
 	{
 		if (!is_userspace() || !has_process())
 			return;
-
-#if ARCH(x86_64)
-		if (m_has_custom_gsbase)
-			return;
-#elif ARCH(i686)
-		if (m_has_custom_fsbase)
-			return;
-#endif
-
-		const vaddr_t vaddr = process().shared_page_vaddr() + Processor::current_index();
-
-#if ARCH(x86_64)
-		set_gsbase(vaddr);
-#elif ARCH(i686)
-		set_fsbase(vaddr);
-#endif
+		Processor::gdt().set_cpu_index(Processor::current_index());
 	}
 
 	BAN::ErrorOr<Thread*> Thread::pthread_create(entry_t entry, void* arg)

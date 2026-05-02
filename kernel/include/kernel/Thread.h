@@ -178,9 +178,7 @@ namespace Kernel
 		bool                       m_is_userspace         { false };
 		bool                       m_delete_process       { false };
 
-		bool                       m_has_custom_fsbase    { false };
 		vaddr_t                    m_fsbase               { 0 };
-		bool                       m_has_custom_gsbase    { false };
 		vaddr_t                    m_gsbase               { 0 };
 
 		SchedulerQueue::Node*      m_scheduler_node       { nullptr };

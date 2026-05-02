@@ -27,12 +27,7 @@ int sched_getcpu(void)
 {
 	if (g_shared_page == nullptr)
 		return -1;
-
-	uint8_t cpu;
-#if defined(__x86_64__)
-	asm volatile("movb %%gs:0, %0" : "=r"(cpu));
-#elif defined(__i686__)
-	asm volatile("movb %%fs:0, %0" : "=q"(cpu));
-#endif
-	return cpu;
+	uint16_t limit;
+	asm volatile("lsl %1, %0" : "=r"(limit) : "r"(g_shared_page->gdt_cpu_offset));
+	return limit;
 }

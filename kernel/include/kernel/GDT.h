@@ -133,6 +133,12 @@ namespace Kernel
 		void set_gsbase(uintptr_t addr);
 #endif
 
+		static uint16_t cpu_index_offset() { return m_cpu_index_offset; }
+		void set_cpu_index(uint8_t index)
+		{
+			write_entry(m_cpu_index_offset, 0, index, 0xF2, 0x4);
+		}
+
 	private:
 		GDT() = default;
 
@@ -151,11 +157,13 @@ namespace Kernel
 
 	private:
 #if ARCH(x86_64)
-		BAN::Array<SegmentDescriptor, 8> m_gdt; // null, kernel code, kernel data, user code (32 bit), user data, user code (64 bit), tss low, tss high
-		static constexpr uint16_t m_tss_offset = 0x30;
+		BAN::Array<SegmentDescriptor, 9> m_gdt; // null, kernel code, kernel data, user code (32 bit), user data, user code (64 bit), cpu-index, tss low, tss high
+		static constexpr uint16_t m_cpu_index_offset = 0x30;
+		static constexpr uint16_t m_tss_offset = 0x38;
 #elif ARCH(i686)
-		BAN::Array<SegmentDescriptor, 9> m_gdt; // null, kernel code, kernel data, user code, user data, processor data, fsbase, gsbase, tss
-		static constexpr uint16_t m_tss_offset = 0x40;
+		BAN::Array<SegmentDescriptor, 10> m_gdt; // null, kernel code, kernel data, user code, user data, processor data, fsbase, gsbase, cpu-index, tss
+		static constexpr uint16_t m_cpu_index_offset = 0x40;
+		static constexpr uint16_t m_tss_offset = 0x48;
 #endif
 		TaskStateSegment m_tss;
 		const GDTR m_gdtr {

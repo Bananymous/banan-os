@@ -217,8 +217,7 @@ namespace Kernel
 		memset(reinterpret_cast<void*>(s_shared_page_vaddr), 0, PAGE_SIZE);
 
 		auto& shared_page = *reinterpret_cast<volatile API::SharedPage*>(s_shared_page_vaddr);
-		for (size_t i = 0; i <= 0xFF; i++)
-			shared_page.__sequence[i] = i;
+		shared_page.gdt_cpu_offset = GDT::cpu_index_offset();
 		shared_page.features = 0;
 
 		ASSERT(Processor::count() + sizeof(Kernel::API::SharedPage) <= PAGE_SIZE);
