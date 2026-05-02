@@ -45,34 +45,58 @@ namespace Kernel::PCI
 	};
 	static_assert(sizeof(MSIXEntry) == 16);
 
+	static uint32_t get_device_io_address(uint8_t bus, uint8_t dev, uint8_t func)
+	{
+		 return 0x80000000
+			| (static_cast<uint32_t>(bus) << 16)
+			| (static_cast<uint32_t>(dev) << 11)
+			| (static_cast<uint32_t>(func) << 8);
+	}
+
 	uint32_t PCIManager::read_config_dword(uint8_t bus, uint8_t dev, uint8_t func, uint8_t offset)
 	{
-		return m_buses[bus][dev][func].read_dword(offset);
+		ASSERT(offset % 4 == 0);
+		IO::outl(CONFIG_ADDRESS, get_device_io_address(bus, dev, func) | offset);
+		return IO::inl(CONFIG_DATA);
 	}
 
 	uint16_t PCIManager::read_config_word(uint8_t bus, uint8_t dev, uint8_t func, uint8_t offset)
 	{
-		return m_buses[bus][dev][func].read_word(offset);
+		ASSERT(offset % 2 == 0);
+		const uint32_t dword = read_config_dword(bus, dev, func, offset & ~3);
+		return (dword >> ((offset & 3) * 8)) & 0xFFFF;
 	}
 
 	uint8_t PCIManager::read_config_byte(uint8_t bus, uint8_t dev, uint8_t func, uint8_t offset)
 	{
-		return m_buses[bus][dev][func].read_byte(offset);
+		const uint32_t dword = read_config_dword(bus, dev, func, offset & ~3);
+		return (dword >> ((offset & 3) * 8)) & 0xFF;
 	}
 
 	void PCIManager::write_config_dword(uint8_t bus, uint8_t dev, uint8_t func, uint8_t offset, uint32_t value)
 	{
-		m_buses[bus][dev][func].write_dword(offset, value);
+		ASSERT(offset % 4 == 0);
+		IO::outl(CONFIG_ADDRESS, get_device_io_address(bus, dev, func) | offset);
+		IO::outl(CONFIG_DATA, value);
 	}
 
 	void PCIManager::write_config_word(uint8_t bus, uint8_t dev, uint8_t func, uint8_t offset, uint16_t value)
 	{
-		m_buses[bus][dev][func].write_word(offset, value);
+		ASSERT(offset % 2 == 0);
+		const uint32_t byte = (offset & 3) * 8;
+		uint32_t temp = read_config_dword(bus, dev, func, offset & ~3);
+		temp &= ~(0xFFFF << byte);
+		temp |= (uint32_t)value << byte;
+		write_config_dword(bus, dev, func, offset & ~3, temp);
 	}
 
 	void PCIManager::write_config_byte(uint8_t bus, uint8_t dev, uint8_t func, uint8_t offset, uint8_t value)
 	{
-		m_buses[bus][dev][func].write_byte(offset, value);
+		const uint32_t byte = (offset & 3) * 8;
+		uint32_t temp = read_config_dword(bus, dev, func, offset & ~3);
+		temp &= ~(0xFF << byte);
+		temp |= (uint32_t)value << byte;
+		write_config_dword(bus, dev, func, offset & ~3, temp);
 	}
 
 	static uint16_t get_vendor_id(uint8_t bus, uint8_t dev, uint8_t func)
@@ -107,6 +131,9 @@ namespace Kernel::PCI
 		};
 		static_assert(sizeof(BAAS) == 16);
 
+		auto* pcie_info = new PCIeInfo;
+		ASSERT(pcie_info);
+
 		if (auto* mcfg = ACPI::ACPI::get().get_header("MCFG", 0))
 		{
 			const size_t count = (mcfg->length - 44) / 16;
@@ -118,19 +145,15 @@ namespace Kernel::PCI
 					continue;
 				for (uint64_t bus = baas->bus_start; bus <= baas->bus_end; bus++)
 				{
-					ASSERT(m_bus_pcie_paddr[bus] == 0);
-					m_bus_pcie_paddr[bus] = baas->addr + (bus << 20);
+					ASSERT(pcie_info->bus_paddr[bus] == 0);
+					pcie_info->bus_paddr[bus] = baas->addr + (bus << 20);
 				}
 			}
-
-			m_is_pcie = true;
 		}
 
-		for (size_t bus = 0; bus < m_buses.size(); bus++)
-			for (size_t dev = 0; dev < m_buses[bus].size(); dev++)
-				for (size_t func = 0; func < m_buses[bus][dev].size(); func++)
-					m_buses[bus][dev][func].set_location(bus, dev, func);
-		s_instance->check_all_buses();
+		check_all_buses(*pcie_info);
+
+		delete pcie_info;
 	}
 
 	PCIManager& PCIManager::get()
@@ -139,43 +162,47 @@ namespace Kernel::PCI
 		return *s_instance;
 	}
 
-	void PCIManager::check_function(uint8_t bus, uint8_t dev, uint8_t func)
+	void PCIManager::check_function(const PCIeInfo& pcie_info, uint8_t bus, uint8_t dev, uint8_t func)
 	{
-		auto& device = m_buses[bus][dev][func];
-		const paddr_t pcie_paddr = m_is_pcie ? m_bus_pcie_paddr[bus] + (((paddr_t)dev << 15) | ((paddr_t)func << 12)) : 0;
+		const paddr_t pcie_paddr = pcie_info.bus_paddr[bus] ? pcie_info.bus_paddr[bus] + (((paddr_t)dev << 15) | ((paddr_t)func << 12)) : 0;
+
+		MUST(m_devices.emplace_back(bus, dev, func));
+
+		auto& device = m_devices.back();
 		device.initialize(pcie_paddr);
+
 		if (device.class_code() == 0x06 && device.subclass() == 0x04)
-			check_bus(device.read_byte(0x19));
+			check_bus(pcie_info, device.read_byte(0x19));
 	}
 
-	void PCIManager::check_device(uint8_t bus, uint8_t dev)
+	void PCIManager::check_device(const PCIeInfo& pcie_info, uint8_t bus, uint8_t dev)
 	{
 		if (get_vendor_id(bus, dev, 0) == INVALID_VENDOR)
 			return;
 
-		check_function(bus, dev, 0);
+		check_function(pcie_info, bus, dev, 0);
 		if (get_header_type(bus, dev, 0) & MULTI_FUNCTION)
 			for (uint8_t func = 1; func < 8; func++)
 				if (get_vendor_id(bus, dev, func) != INVALID_VENDOR)
-					check_function(bus, dev, func);
+					check_function(pcie_info, bus, dev, func);
 	}
 
-	void PCIManager::check_bus(uint8_t bus)
+	void PCIManager::check_bus(const PCIeInfo& pcie_info, uint8_t bus)
 	{
 		for (uint8_t dev = 0; dev < 32; dev++)
-			check_device(bus, dev);
+			check_device(pcie_info, bus, dev);
 	}
 
-	void PCIManager::check_all_buses()
+	void PCIManager::check_all_buses(const PCIeInfo& pcie_info)
 	{
 		if (get_header_type(0, 0, 0) & MULTI_FUNCTION)
 		{
 			for (int func = 0; func < 8 && get_vendor_id(0, 0, func) != INVALID_VENDOR; func++)
-				check_bus(func);
+				check_bus(pcie_info, func);
 		}
 		else
 		{
-			check_bus(0);
+			check_bus(pcie_info, 0);
 		}
 	}
 
@@ -264,32 +291,23 @@ namespace Kernel::PCI
 		);
 	}
 
-	void PCI::Device::set_location(uint8_t bus, uint8_t dev, uint8_t func)
-	{
-		m_bus = bus;
-		m_dev = dev;
-		m_func = func;
-	}
-
 	void PCI::Device::initialize(paddr_t pcie_paddr)
 	{
-		m_is_valid = true;
-
 		if (pcie_paddr)
 		{
-			vaddr_t vaddr = PageTable::kernel().reserve_free_page(KERNEL_OFFSET);
+			const vaddr_t vaddr = PageTable::kernel().reserve_free_page(KERNEL_OFFSET);
 			ASSERT(vaddr);
 			PageTable::kernel().map_page_at(pcie_paddr, vaddr, PageTable::Flags::ReadWrite | PageTable::Flags::Present, PageTable::MemoryType::Uncached);
 			m_mmio_config = vaddr;
 		}
 
-		uint32_t type = read_word(0x0A);
+		const uint32_t type = read_word(0x0A);
 		m_class_code  = (uint8_t)(type >> 8);
 		m_subclass    = (uint8_t)(type);
 		m_prog_if     = read_byte(0x09);
 		m_header_type = read_byte(0x0E);
 
-		uint32_t device = read_dword(0x00);
+		const uint32_t device = read_dword(0x00);
 		m_vendor_id = device & 0xFFFF;
 		m_device_id = device >> 16;
 
@@ -303,62 +321,44 @@ namespace Kernel::PCI
 
 	uint32_t PCI::Device::read_dword(uint8_t offset) const
 	{
-		ASSERT(offset % 4 == 0);
 		if (m_mmio_config)
 			return MMIO::read32(m_mmio_config + offset);
-		uint32_t config_addr = 0x80000000 | ((uint32_t)m_bus << 16) | ((uint32_t)m_dev << 11) | ((uint32_t)m_func << 8) | offset;
-		IO::outl(CONFIG_ADDRESS, config_addr);
-		return IO::inl(CONFIG_DATA);
+		return s_instance->read_config_dword(m_bus, m_dev, m_func, offset);
 	}
 
 	uint16_t PCI::Device::read_word(uint8_t offset) const
 	{
-		ASSERT(offset % 2 == 0);
 		if (m_mmio_config)
 			return MMIO::read16(m_mmio_config + offset);
-		uint32_t dword = read_dword(offset & ~3);
-		return (dword >> ((offset & 3) * 8)) & 0xFFFF;
+		return s_instance->read_config_word(m_bus, m_dev, m_func, offset);
 	}
 
 	uint8_t PCI::Device::read_byte(uint8_t offset) const
 	{
 		if (m_mmio_config)
 			return MMIO::read8(m_mmio_config + offset);
-		uint32_t dword = read_dword(offset & ~3);
-		return (dword >> ((offset & 3) * 8)) & 0xFF;
+		return s_instance->read_config_byte(m_bus, m_dev, m_func, offset);
 	}
 
 	void PCI::Device::write_dword(uint8_t offset, uint32_t value)
 	{
-		ASSERT(offset % 4 == 0);
 		if (m_mmio_config)
 			return MMIO::write32(m_mmio_config + offset, value);
-		uint32_t config_addr = 0x80000000 | ((uint32_t)m_bus << 16) | ((uint32_t)m_dev << 11) | ((uint32_t)m_func << 8) | offset;
-		IO::outl(CONFIG_ADDRESS, config_addr);
-		IO::outl(CONFIG_DATA, value);
+		s_instance->write_config_dword(m_bus, m_dev, m_func, offset, value);
 	}
 
 	void PCI::Device::write_word(uint8_t offset, uint16_t value)
 	{
-		ASSERT(offset % 2 == 0);
 		if (m_mmio_config)
 			return MMIO::write16(m_mmio_config + offset, value);
-		uint32_t byte = (offset & 3) * 8;
-		uint32_t temp = read_dword(offset & ~3);
-		temp &= ~(0xFFFF << byte);
-		temp |= (uint32_t)value << byte;
-		write_dword(offset & ~3, temp);
+		s_instance->write_config_word(m_bus, m_dev, m_func, offset, value);
 	}
 
 	void PCI::Device::write_byte(uint8_t offset, uint8_t value)
 	{
 		if (m_mmio_config)
 			return MMIO::write8(m_mmio_config + offset, value);
-		uint32_t byte = (offset & 3) * 8;
-		uint32_t temp = read_dword(offset & ~3);
-		temp &= ~(0xFF << byte);
-		temp |= (uint32_t)value << byte;
-		write_dword(offset & ~3, temp);
+		s_instance->write_config_byte(m_bus, m_dev, m_func, offset, value);
 	}
 
 	BAN::ErrorOr<BAN::UniqPtr<BarRegion>> PCI::Device::allocate_bar_region(uint8_t bar_num)

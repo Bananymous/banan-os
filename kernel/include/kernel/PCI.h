@@ -66,11 +66,13 @@ namespace Kernel::PCI
 		};
 
 	public:
-		Device() = default;
+		Device(uint8_t bus, uint8_t dev, uint8_t func)
+			: m_bus(bus)
+			, m_dev(dev)
+			, m_func(func)
+		{ }
 
-		void set_location(uint8_t bus, uint8_t dev, uint8_t func);
 		void initialize(paddr_t pcie_paddr);
-		bool is_valid() const { return m_is_valid; }
 
 		uint32_t read_dword(uint8_t) const;
 		uint16_t read_word(uint8_t) const;
@@ -124,10 +126,9 @@ namespace Kernel::PCI
 		BAN::ErrorOr<uint8_t> find_intx_interrupt();
 
 	private:
-		bool m_is_valid	{ false };
-		uint8_t m_bus	{ 0 };
-		uint8_t m_dev	{ 0 };
-		uint8_t m_func	{ 0 };
+		const uint8_t m_bus	{ 0 };
+		const uint8_t m_dev	{ 0 };
+		const uint8_t m_func	{ 0 };
 
 		vaddr_t m_mmio_config { 0 };
 
@@ -161,11 +162,8 @@ namespace Kernel::PCI
 		template<typename F>
 		void for_each_device(F callback)
 		{
-			for (auto& bus : m_buses)
-				for (auto& dev : bus)
-					for (auto& func : dev)
-						if (func.is_valid())
-							callback(func);
+			for (auto& dev : m_devices)
+				callback(dev);
 		};
 
 		uint32_t read_config_dword(uint8_t bus, uint8_t dev, uint8_t func, uint8_t offset);
@@ -179,19 +177,22 @@ namespace Kernel::PCI
 		BAN::Optional<uint8_t> reserve_msi();
 
 	private:
-		PCIManager() : m_bus_pcie_paddr(0) {}
-		void check_function(uint8_t bus, uint8_t dev, uint8_t func);
-		void check_device(uint8_t bus, uint8_t dev);
-		void check_bus(uint8_t bus);
-		void check_all_buses();
+		struct PCIeInfo
+		{
+			paddr_t bus_paddr[256];
+		};
+
+		PCIManager() = default;
+		void check_function(const PCIeInfo&, uint8_t bus, uint8_t dev, uint8_t func);
+		void check_device(const PCIeInfo&, uint8_t bus, uint8_t dev);
+		void check_bus(const PCIeInfo&, uint8_t bus);
+		void check_all_buses(const PCIeInfo&);
 		void initialize_impl();
 
 	private:
 		static constexpr uint8_t m_msi_count = IRQ_MSI_END - IRQ_MSI_BASE;
-		using PCIBus = BAN::Array<BAN::Array<Device, 8>, 32>;
-		BAN::Array<PCIBus, 256>  m_buses;
-		BAN::Array<paddr_t, 256> m_bus_pcie_paddr;
-		bool                     m_is_pcie { false };
+
+		BAN::Vector<Device> m_devices;
 
 		SpinLock                             m_reserved_msi_lock;
 		BAN::Array<uint8_t, m_msi_count / 8> m_reserved_msi_bitmap;
