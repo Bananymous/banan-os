@@ -303,27 +303,17 @@ static void* kmalloc_impl(size_t size, size_t align)
 
 void* kmalloc(size_t size)
 {
-	return kmalloc(size, s_kmalloc_min_align, false);
+	return kmalloc(size, s_kmalloc_min_align);
 }
 
-static constexpr bool is_power_of_two(size_t value)
+void* kmalloc(size_t size, size_t align)
 {
-	if (value == 0)
-		return false;
-	return (value & (value - 1)) == 0;
-}
-
-void* kmalloc(size_t size, size_t align, bool force_identity_map)
-{
-	// currently kmalloc is always identity mapped
-	(void)force_identity_map;
-
 	if (size == 0)
 		size = 1;
 
 	const kmalloc_info& info = s_kmalloc_info;
 
-	ASSERT(is_power_of_two(align));
+	ASSERT(BAN::Math::is_power_of_two(align));
 	if (align < s_kmalloc_min_align)
 		align = s_kmalloc_min_align;
 	ASSERT(align <= PAGE_SIZE);
@@ -417,22 +407,4 @@ void kfree(void* address)
 		Kernel::panic("Trying to free a pointer {8H} outsize of kmalloc memory", address);
 	}
 
-}
-
-static bool is_kmalloc_vaddr(Kernel::vaddr_t vaddr)
-{
-	using namespace Kernel;
-	if (vaddr < reinterpret_cast<vaddr_t>(s_kmalloc_storage))
-		return false;
-	if (vaddr >= reinterpret_cast<vaddr_t>(s_kmalloc_storage) + sizeof(s_kmalloc_storage))
-		return false;
-	return true;
-}
-
-BAN::Optional<Kernel::paddr_t> kmalloc_paddr_of(Kernel::vaddr_t vaddr)
-{
-	using namespace Kernel;
-	if (!is_kmalloc_vaddr(vaddr))
-		return {};
-	return vaddr - KERNEL_OFFSET + g_boot_info.kernel_paddr;
 }
