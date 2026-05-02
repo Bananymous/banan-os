@@ -14,7 +14,7 @@
 	#define _kas_globbers
 #endif
 
-#define _kas_argument_var(index, value) register long _kas_a##index asm(_ban_stringify(_ban_get(index, _kas_arguments))) = (long)value;
+#define _kas_argument_var(index, value) register long _kas_a##index asm(_ban_stringify(_ban_get(index, _kas_arguments))) = (long)(value);
 #define _kas_dummy_var(index, value) register long _kas_d##index asm(#value);
 #define _kas_input(index, _) "r"(_kas_a##index)
 #define _kas_output(index, _) , "=r"(_kas_d##index)
