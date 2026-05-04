@@ -240,15 +240,18 @@ namespace Kernel
 	{
 		if (!link_up())
 			return 0;
-		uint32_t speed = read32(REG_STATUS) & STATUS_SPEED_MASK;
-		if (speed == STATUS_SPEED_10MB)
-			return 10;
-		if (speed == STATUS_SPEED_100MB)
-			return 100;
-		if (speed == STATUS_SPEED_1000MB1)
-			return 1000;
-		if (speed == STATUS_SPEED_1000MB2)
-			return 1000;
+
+		switch (read32(REG_STATUS) & STATUS_SPEED_MASK)
+		{
+			case STATUS_SPEED_10MB:
+				return 10;
+			case STATUS_SPEED_100MB:
+				return 100;
+			case STATUS_SPEED_1000MB1:
+			case STATUS_SPEED_1000MB2:
+				return 1000;
+		}
+
 		return 0;
 	}
 
