@@ -1,410 +1,292 @@
-#include <BAN/Errors.h>
-#include <kernel/BootInfo.h>
+#include <kernel/Memory/Heap.h>
 #include <kernel/Memory/kmalloc.h>
+#include <kernel/Memory/PageTable.h>
 
-#define MB (1 << 20)
+static constexpr size_t s_allocator_chunk_size { 64 };
+static constexpr size_t s_allocator_align      { alignof(max_align_t) };
 
-extern uint8_t g_kernel_end[];
+static constexpr size_t s_max_allocator_count { 128 };
 
-static constexpr size_t s_kmalloc_min_align = alignof(max_align_t);
+static constexpr size_t s_allocator_default_size {       128 * 1024 };
+static constexpr size_t s_allocator_dynamic_size { 16 * 1024 * 1024 };
 
-static constexpr size_t s_kmalloc_size = 48 * MB;
-static constexpr size_t s_kmalloc_fixed_size = 16 * MB;
-static uint8_t s_kmalloc_storage[s_kmalloc_size + s_kmalloc_fixed_size];
+alignas(s_allocator_align) static uint8_t s_default_allocator_memory[s_allocator_default_size] {};
 
-struct kmalloc_node
+// NOTE: 128 KiB + 127 * 16 MiB ~= 2 GiB
+//       This is should be more than enough for kmalloc :^)
+
+struct BitmapAllocator
 {
-	void set_align(ptrdiff_t align)			{ m_align = align; }
-	void set_end(uintptr_t end)				{ m_size = end - (uintptr_t)m_data; }
-	void set_used(bool used)				{ m_used = used; }
-
-	bool can_align(uint32_t align)			{ return align < m_size; }
-	bool can_fit_before()					{ return m_align > sizeof(kmalloc_node); }
-	bool can_fit_after(size_t new_size)		{ return data() + new_size < end() - sizeof(kmalloc_node); }
-
-	void split_in_align()
+	struct Header
 	{
-		uintptr_t node_end = end();
-		set_end(data() - sizeof(kmalloc_node));
-		set_align(0);
+		size_t chunks { 0 };
+		uint8_t padding[s_allocator_align - sizeof(chunks)];
+	};
 
-		auto* next = after();
-		next->set_end(node_end);
-		next->set_align(0);
+	uint32_t bitmap_chunks { 0 };
+	uint32_t total_chunks  { 0 };
+	uint32_t free_chunks   { 0 };
+	uint32_t allocations   { 0 };
+	uint8_t* base          { nullptr };
+
+	static size_t needed_chunks(size_t size)
+	{
+		return BAN::Math::div_round_up(sizeof(BitmapAllocator::Header) + size, s_allocator_chunk_size);
 	}
 
-	void split_after_size(size_t size)
+	void initialize_default()
 	{
-		uintptr_t node_end = end();
-		set_end(data() + size);
+		constexpr size_t bitmap_bytes  = BAN::Math::div_round_up(s_allocator_default_size, s_allocator_chunk_size * 8);
+		constexpr size_t bitmap_chunks = BAN::Math::div_round_up(bitmap_bytes, s_allocator_chunk_size);
+		constexpr size_t usable_chunks = s_allocator_default_size / s_allocator_chunk_size - bitmap_chunks;
 
-		auto* next = after();
-		next->set_end(node_end);
-		next->set_align(0);
+		this->bitmap_chunks = bitmap_chunks;
+		this->total_chunks  = usable_chunks;
+		this->free_chunks   = usable_chunks;
+		this->base          = s_default_allocator_memory;
+
+		memset(this->base, 0, bitmap_chunks * s_allocator_chunk_size);
 	}
 
-	bool used()					{ return m_used; }
-	uintptr_t size_no_align()	{ return m_size; }
-	uintptr_t size()			{ return size_no_align() - m_align; }
-	uintptr_t data_no_align()	{ return (uintptr_t)m_data; }
-	uintptr_t data()			{ return data_no_align() + m_align; }
-	uintptr_t end()				{ return data_no_align() + m_size; }
-	kmalloc_node* after()		{ return (kmalloc_node*)end(); }
-
-private:
-	uint32_t	m_size;
-	uint32_t	m_align;
-	bool		m_used;
-	uint8_t 	m_padding[s_kmalloc_min_align - sizeof(m_size) - sizeof(m_align) - sizeof(m_used)];
-	uint8_t		m_data[0];
-};
-static_assert(sizeof(kmalloc_node) == s_kmalloc_min_align);
-
-struct kmalloc_info
-{
-	const uintptr_t	base = (uintptr_t)s_kmalloc_storage;
-	const size_t	size = s_kmalloc_size;
-	const uintptr_t	end = base + size;
-
-	kmalloc_node* first() { return (kmalloc_node*)base; }
-	kmalloc_node* from_address(void* addr)
+	bool initialize_dynamic()
 	{
-		for (auto* node = first(); node->end() < end; node = node->after())
-			if (node->data() == (uintptr_t)addr)
-				return node;
+		using namespace Kernel;
+
+		const size_t page_count = s_allocator_dynamic_size / PAGE_SIZE;
+
+		const vaddr_t vaddr = PageTable::kernel().reserve_free_contiguous_pages(page_count, KERNEL_OFFSET);
+		if (vaddr == 0)
+			return false;
+
+		for (size_t i = 0; i < page_count; i++)
+		{
+			const paddr_t paddr = Heap::get().take_free_page();
+			if (paddr == 0)
+			{
+				for (size_t j = 0; j < i; j++)
+					Heap::get().release_page(PageTable::kernel().physical_address_of(vaddr + j * PAGE_SIZE));
+				PageTable::kernel().unmap_range(vaddr, page_count * PAGE_SIZE);
+				return false;
+			}
+
+			PageTable::kernel().map_page_at(paddr, vaddr + i * PAGE_SIZE, PageTable::ReadWrite | PageTable::Present);
+		}
+
+		constexpr size_t bitmap_bytes  = BAN::Math::div_round_up(s_allocator_dynamic_size, s_allocator_chunk_size * 8);
+		constexpr size_t bitmap_chunks = BAN::Math::div_round_up(bitmap_bytes, s_allocator_chunk_size);
+		constexpr size_t usable_chunks = s_allocator_dynamic_size / s_allocator_chunk_size - bitmap_chunks;
+
+		this->bitmap_chunks = bitmap_chunks;
+		this->total_chunks  = usable_chunks;
+		this->free_chunks   = usable_chunks;
+		this->base          = reinterpret_cast<uint8_t*>(vaddr);
+
+		memset(this->base, 0, bitmap_chunks * s_allocator_chunk_size);
+
+		return true;
+	}
+
+	uint8_t* data_start() { return base + bitmap_chunks * s_allocator_chunk_size; }
+	const uint8_t* data_start() const { return base + bitmap_chunks * s_allocator_chunk_size; }
+
+	size_t get_first_chunk(void* ptr) const
+	{
+		return (static_cast<uint8_t*>(ptr) - sizeof(Header) - data_start()) / s_allocator_chunk_size;
+	}
+
+	bool contains(void* ptr) const
+	{
+		if (ptr < data_start() + sizeof(Header))
+			return false;
+		return get_first_chunk(ptr) < total_chunks;
+	}
+
+	bool get_bit(size_t index) const
+	{
+		ASSERT(index < total_chunks);
+		const size_t byte = index / 8;
+		const size_t bit = index % 8;
+		return (base[byte] >> bit) & 1;
+	}
+
+	void set_bit(size_t index, bool value)
+	{
+		ASSERT(index < total_chunks);
+		const size_t byte = index / 8;
+		const size_t bit = index % 8;
+		if (value)
+			base[byte] |= 1 << bit;
+		else
+			base[byte] &= ~(1 << bit);
+	}
+
+	size_t find_unset_bit(size_t index) const
+	{
+		// NOTE: We could optimize other bitmap functions than this
+		//       but this one is the bottle neck so it doesn't matter
+
+		static_assert(sizeof(unsigned long long) == sizeof(uint64_t));
+
+		if (index >= total_chunks)
+			return index;
+
+		if (const auto rem = index % 64)
+		{
+			const uint64_t qword = *reinterpret_cast<const uint64_t*>(base + (index - rem) / 8) >> rem;
+			if (qword != (1ull << (64 - rem)) - 1)
+				return index + __builtin_ctzll(~qword);
+			index += 64 - rem;
+		}
+
+		while (index < total_chunks)
+		{
+			const uint64_t qword = *reinterpret_cast<const uint64_t*>(base + index / 8);
+			if (qword != UINT64_MAX)
+				return index + __builtin_ctzll(~qword);
+			index += 64;
+		}
+
+		return index;
+	}
+
+	size_t count_unset_bits(size_t index, size_t wanted) const
+	{
+		size_t count = 0;
+		for (; index + count < total_chunks && count < wanted; count++)
+			if (get_bit(index + count))
+				break;
+		return count;
+	}
+
+	Header& header_from_chunk(size_t index)
+	{
+		return *reinterpret_cast<Header*>(data_start() + index * s_allocator_chunk_size);
+	}
+
+	Header& header_from_ptr(void* ptr)
+	{
+		return *reinterpret_cast<Header*>(static_cast<uint8_t*>(ptr) - sizeof(Header));
+	}
+
+	void* allocate(size_t needed_chunks)
+	{
+		ASSERT(needed_chunks > 0);
+
+		if (needed_chunks > free_chunks)
+			return nullptr;
+
+		for (size_t i = find_unset_bit(0); i <= total_chunks - needed_chunks; i = find_unset_bit(i))
+		{
+			if (const size_t count = count_unset_bits(i, needed_chunks); count < needed_chunks)
+			{
+				i += count + 1;
+				continue;
+			}
+
+			for (size_t j = 0; j < needed_chunks; j++)
+				set_bit(i + j, true);
+
+			auto& header = header_from_chunk(i);
+			header.chunks = needed_chunks;
+
+			free_chunks -= header.chunks;
+			allocations++;
+
+			return &header + 1;
+		}
+
 		return nullptr;
 	}
 
-	bool contains(uintptr_t addr) const
+	void free(void* ptr)
 	{
-		return base <= addr && addr < end;
-	}
+		ASSERT(contains(ptr));
 
-	size_t used = 0;
-	size_t free = size;
+		const size_t first_chunk = get_first_chunk(ptr);
+
+		auto& header = header_from_ptr(ptr);
+		for (size_t i = 0; i < header.chunks; i++)
+			set_bit(first_chunk + i, false);
+
+		free_chunks += header.chunks;
+		allocations--;
+	}
 };
-static kmalloc_info s_kmalloc_info;
+
+static uint8_t s_allocator_storage[s_max_allocator_count * sizeof(BitmapAllocator)];
+static BitmapAllocator* s_allocators[s_max_allocator_count] {};
 
 static Kernel::SpinLock s_kmalloc_lock;
 
-template<size_t SIZE>
-struct kmalloc_fixed_node
-{
-	uint8_t data[SIZE - 2 * sizeof(uint16_t)];
-	uint16_t prev = NULL;
-	uint16_t next = NULL;
-	static constexpr uint16_t invalid = ~0;
-};
-
-struct kmalloc_fixed_info
-{
-	using node = kmalloc_fixed_node<64>;
-
-	const uintptr_t	base = s_kmalloc_info.end;
-	const size_t	size = s_kmalloc_fixed_size;
-	const uintptr_t	end = base + size;
-	const size_t	node_count = size / sizeof(node);
-
-	node* free_list_head = NULL;
-	node* used_list_head = NULL;
-
-	node* node_at(size_t index) { return (node*)(base + index * sizeof(node)); }
-	uint16_t index_of(const node* p) { return ((uintptr_t)p - base) / sizeof(node); }
-
-	size_t used = 0;
-	size_t free = size;
-};
-static kmalloc_fixed_info s_kmalloc_fixed_info;
-
 void kmalloc_initialize()
 {
-	dprintln("kmalloc {8H}->{8H}", (uintptr_t)s_kmalloc_storage, (uintptr_t)s_kmalloc_storage + sizeof(s_kmalloc_storage));
-
-	// initialize fixed size allocations
-	{
-		auto& info = s_kmalloc_fixed_info;
-
-		for (size_t i = 0; i < info.node_count; i++)
-		{
-			auto* node = info.node_at(i);
-			node->next = i - 1;
-			node->prev = i + 1;
-		}
-
-		info.node_at(0)->next = kmalloc_fixed_info::node::invalid;
-		info.node_at(info.node_count - 1)->prev = kmalloc_fixed_info::node::invalid;
-
-		info.free_list_head = info.node_at(0);
-		info.used_list_head = nullptr;
-	}
-
-	// initial general allocations
-	{
-		auto& info = s_kmalloc_info;
-		auto* node = info.first();
-		node->set_end(info.end);
-		node->set_align(0);
-		node->set_used(false);
-	}
+	auto& allocator = reinterpret_cast<BitmapAllocator*>(s_allocator_storage)[0];
+	new (&allocator) BitmapAllocator();
+	allocator.initialize_default();
+	s_allocators[0] = &allocator;
 }
 
-void kmalloc_dump_info()
+static void kmalloc_dump_info()
 {
-	Kernel::SpinLockGuard _(s_kmalloc_lock);
+	ASSERT(s_kmalloc_lock.current_processor_has_lock());
 
-	dprintln("kmalloc:               0x{8H}->0x{8H}", s_kmalloc_info.base, s_kmalloc_info.end);
-	dprintln("  used: 0x{8H}", s_kmalloc_info.used);
-	dprintln("  free: 0x{8H}", s_kmalloc_info.free);
-
-	dprintln("kmalloc fixed {} byte: 0x{8H}->0x{8H}", sizeof(kmalloc_fixed_info::node), s_kmalloc_fixed_info.base, s_kmalloc_fixed_info.end);
-	dprintln("  used: 0x{8H}", s_kmalloc_fixed_info.used);
-	dprintln("  free: 0x{8H}", s_kmalloc_fixed_info.free);
-}
-
-static bool is_corrupted()
-{
-	Kernel::SpinLockGuard _(s_kmalloc_lock);
-	auto& info = s_kmalloc_info;
-	auto* temp = info.first();
-	while (reinterpret_cast<uintptr_t>(temp) != info.end)
+	dwarnln("kmalloc info");
+	for (size_t i = 0; i < s_max_allocator_count && s_allocators[i]; i++)
 	{
-		if (!info.contains(reinterpret_cast<uintptr_t>(temp)))
-			return true;
-		if (!info.contains(temp->end() - 1))
-			return true;
-		if (temp->after() <= temp)
-			return true;
-		temp = temp->after();
+		dwarnln("  allocator {}", i);
+		dwarnln("    total size:  {}", s_allocators[i]->total_chunks * s_allocator_chunk_size);
+		dwarnln("    free size:   {}", s_allocators[i]->free_chunks  * s_allocator_chunk_size);
+		dwarnln("    allocations: {}", s_allocators[i]->allocations);
 	}
-	return false;
-}
-
-[[maybe_unused]] static void debug_dump()
-{
-	Kernel::SpinLockGuard _(s_kmalloc_lock);
-
-	auto& info = s_kmalloc_info;
-
-	uint32_t used = 0;
-	uint32_t free = 0;
-
-	for (auto* node = info.first(); node->data() <= info.end; node = node->after())
-	{
-		(node->used() ? used : free) += sizeof(kmalloc_node) + node->size_no_align();
-		dprintln("{} node {H} -> {H}", node->used() ? "used" : "free", node->data(), node->end());
-	}
-
-	dprintln("total used: {}", used);
-	dprintln("total free: {}", free);
-	dprintln("            {}", used + free);
-}
-
-static void* kmalloc_fixed()
-{
-	Kernel::SpinLockGuard _(s_kmalloc_lock);
-
-	auto& info = s_kmalloc_fixed_info;
-
-	if (!info.free_list_head)
-		return nullptr;
-
-	// allocate the node on top of free list
-	auto* node = info.free_list_head;
-	ASSERT(node->next == kmalloc_fixed_info::node::invalid);
-
-	// remove the node from free list
-	if (info.free_list_head->prev != kmalloc_fixed_info::node::invalid)
-	{
-		info.free_list_head = info.node_at(info.free_list_head->prev);
-		info.free_list_head->next = kmalloc_fixed_info::node::invalid;
-	}
-	else
-	{
-		derrorln("removing free list, allocated {}", info.used);
-		info.free_list_head = nullptr;
-	}
-	node->prev = kmalloc_fixed_info::node::invalid;
-	node->next = kmalloc_fixed_info::node::invalid;
-
-	// move the node to the top of used nodes
-	if (info.used_list_head)
-	{
-		info.used_list_head->next = info.index_of(node);
-		node->prev = info.index_of(info.used_list_head);
-	}
-	info.used_list_head = node;
-
-	info.used += sizeof(kmalloc_fixed_info::node);
-	info.free -= sizeof(kmalloc_fixed_info::node);
-
-	return (void*)node->data;
-}
-
-static void* kmalloc_impl(size_t size, size_t align)
-{
-	ASSERT(align % s_kmalloc_min_align == 0);
-	ASSERT(size % s_kmalloc_min_align == 0);
-
-	Kernel::SpinLockGuard _(s_kmalloc_lock);
-
-	auto& info = s_kmalloc_info;
-
-	for (auto* node = info.first(); info.contains(reinterpret_cast<uintptr_t>(node)); node = node->after())
-	{
-		if (node->used())
-			continue;
-
-		if (auto* next = node->after(); info.contains(reinterpret_cast<uintptr_t>(next)))
-			if (!next->used())
-				node->set_end(next->end());
-
-		if (node->size_no_align() < size)
-			continue;
-
-		ptrdiff_t needed_align = 0;
-		if (ptrdiff_t rem = node->data_no_align() % align)
-			needed_align = align - rem;
-
-		if (!node->can_align(needed_align))
-			continue;
-
-		node->set_align(needed_align);
-		ASSERT(node->data() % align == 0);
-
-		if (node->size() < size)
-			continue;
-
-		if (node->can_fit_before())
-		{
-			node->split_in_align();
-			node->set_used(false);
-
-			node = node->after();
-			ASSERT(node->data() % align == 0);
-		}
-
-		node->set_used(true);
-
-		if (node->can_fit_after(size))
-		{
-			node->split_after_size(size);
-			node->after()->set_used(false);
-			ASSERT(node->data() % align == 0);
-		}
-
-		info.used += sizeof(kmalloc_node) + node->size_no_align();
-		info.free -= sizeof(kmalloc_node) + node->size_no_align();
-
-		return (void*)node->data();
-	}
-
-	return nullptr;
 }
 
 void* kmalloc(size_t size)
 {
-	return kmalloc(size, s_kmalloc_min_align);
-}
+	const size_t needed_chunks = BitmapAllocator::needed_chunks(size);
 
-void* kmalloc(size_t size, size_t align)
-{
-	if (size == 0)
-		size = 1;
+	Kernel::SpinLockGuard _(s_kmalloc_lock);
 
-	const kmalloc_info& info = s_kmalloc_info;
+	for (size_t i = 0; i < s_max_allocator_count; i++)
+	{
+		if (auto* allocator = s_allocators[i])
+		{
+			if (void* result = allocator->allocate(needed_chunks))
+				return result;
+			continue;
+		}
 
-	ASSERT(BAN::Math::is_power_of_two(align));
-	if (align < s_kmalloc_min_align)
-		align = s_kmalloc_min_align;
-	ASSERT(align <= PAGE_SIZE);
+		auto& new_allocator = reinterpret_cast<BitmapAllocator*>(s_allocator_storage)[i];
+		new (&new_allocator) BitmapAllocator();
+		if (!new_allocator.initialize_dynamic())
+		{
+			new_allocator.~BitmapAllocator();
+			break;
+		}
 
-	if (size == 0 || size >= info.size)
-		goto no_memory;
+		s_allocators[i] = &new_allocator;
 
-	// if the size fits into fixed node, we will try to use that since it is faster
-	if (align == s_kmalloc_min_align && size <= sizeof(kmalloc_fixed_info::node::data))
-		if (void* result = kmalloc_fixed())
+		if (void* result = new_allocator.allocate(needed_chunks))
 			return result;
 
-	if (ptrdiff_t rem = size % s_kmalloc_min_align)
-		size += s_kmalloc_min_align - rem;
+		break;
+	}
 
-	if (void* res = kmalloc_impl(size, align))
-		return res;
-
-no_memory:
-	dwarnln("could not allocate {H} bytes ({} aligned)", size, align);
-	dwarnln(" {6H} free (fixed)", s_kmalloc_fixed_info.free);
-	dwarnln(" {6H} free", s_kmalloc_info.free);
-	//Debug::dump_stack_trace();
-	ASSERT(!is_corrupted());
+	dwarnln("failed to allocate {} bytes", size);
+	kmalloc_dump_info();
 
 	return nullptr;
 }
 
-void kfree(void* address)
+void kfree(void* ptr)
 {
-	if (address == nullptr)
+	if (ptr == nullptr)
 		return;
-
-	uintptr_t address_uint = (uintptr_t)address;
-	ASSERT(address_uint % s_kmalloc_min_align == 0);
 
 	Kernel::SpinLockGuard _(s_kmalloc_lock);
 
-	if (s_kmalloc_fixed_info.base <= address_uint && address_uint < s_kmalloc_fixed_info.end)
-	{
-		auto& info = s_kmalloc_fixed_info;
-		ASSERT(info.used_list_head);
+	for (size_t i = 0; i < s_max_allocator_count && s_allocators[i]; i++)
+		if (s_allocators[i]->contains(ptr))
+			return s_allocators[i]->free(ptr);
 
-		// get node from fixed info buffer
-		auto* node = (kmalloc_fixed_info::node*)address;
-		ASSERT(node->next < info.node_count || node->next == kmalloc_fixed_info::node::invalid);
-		ASSERT(node->prev < info.node_count || node->prev == kmalloc_fixed_info::node::invalid);
-
-		// remove from used list
-		if (node->prev != kmalloc_fixed_info::node::invalid)
-			info.node_at(node->prev)->next = node->next;
-		if (node->next != kmalloc_fixed_info::node::invalid)
-			info.node_at(node->next)->prev = node->prev;
-		if (info.used_list_head == node)
-			info.used_list_head = info.used_list_head->prev != kmalloc_fixed_info::node::invalid ? info.node_at(info.used_list_head->prev) : nullptr;
-
-		// add to free list
-		node->next = kmalloc_fixed_info::node::invalid;
-		node->prev = kmalloc_fixed_info::node::invalid;
-		if (info.free_list_head)
-		{
-			info.free_list_head->next = info.index_of(node);
-			node->prev = info.index_of(info.free_list_head);
-		}
-		info.free_list_head = node;
-
-		info.used -= sizeof(kmalloc_fixed_info::node);
-		info.free += sizeof(kmalloc_fixed_info::node);
-	}
-	else if (s_kmalloc_info.base <= address_uint && address_uint < s_kmalloc_info.end)
-	{
-		auto& info = s_kmalloc_info;
-
-		auto* node = info.from_address(address);
-		ASSERT(node);
-		ASSERT(node->data() == (uintptr_t)address);
-		ASSERT(node->used());
-
-		ptrdiff_t size = node->size_no_align();
-
-		if (auto* next = node->after(); next->end() <= info.end)
-			if (!next->used())
-				node->set_end(node->after()->end());
-		node->set_used(false);
-
-		info.used -= sizeof(kmalloc_node) + size;
-		info.free += sizeof(kmalloc_node) + size;
-	}
-	else
-	{
-		Kernel::panic("Trying to free a pointer {8H} outsize of kmalloc memory", address);
-	}
-
+	ASSERT_NOT_REACHED();
 }
