@@ -59,7 +59,7 @@ namespace Kernel
 	E1000::~E1000()
 	{
 		m_thread_should_die = true;
-		m_thread_blocker.unblock();
+		m_rx_blocker.unblock();
 
 		while (!m_thread_is_dead)
 			Processor::yield();
@@ -214,6 +214,7 @@ namespace Kernel
 		for (size_t i = 0; i < E1000_TX_DESCRIPTOR_COUNT; i++)
 		{
 			tx_descriptors[i].addr = m_tx_buffer_region->paddr() + E1000_TX_BUFFER_SIZE * i;
+			tx_descriptors[i].status = 0xFF; /* NOTE: set status to non-zero so send_bytes doesn't think these are initially pending */
 			tx_descriptors[i].cmd = 0;
 		}
 
@@ -277,9 +278,11 @@ namespace Kernel
 
 	BAN::ErrorOr<void> E1000::send_bytes(BAN::MACAddress destination, EtherType protocol, BAN::Span<const BAN::ConstByteSpan> payload)
 	{
-		SpinLockGuard _(m_lock);
+		const uint32_t tx_current = m_tx_head1.fetch_add(1) % E1000_TX_DESCRIPTOR_COUNT;
 
-		size_t tx_current = read32(REG_TDT) % E1000_TX_DESCRIPTOR_COUNT;
+		auto& descriptor = reinterpret_cast<volatile e1000_tx_desc*>(m_tx_descriptor_region->vaddr())[tx_current];
+		while (descriptor.status == 0)
+			Processor::yield();
 
 		auto* tx_buffer = reinterpret_cast<uint8_t*>(m_tx_buffer_region->vaddr() + E1000_TX_BUFFER_SIZE * tx_current);
 
@@ -296,15 +299,12 @@ namespace Kernel
 			packet_size += buffer.size();
 		}
 
-		auto& descriptor = reinterpret_cast<volatile e1000_tx_desc*>(m_tx_descriptor_region->vaddr())[tx_current];
 		descriptor.length = packet_size;
 		descriptor.status = 0;
 		descriptor.cmd = CMD_EOP | CMD_IFCS | CMD_RS;
 
-		// FIXME: there isnt really any reason to wait for transmission
-		write32(REG_TDT, (tx_current + 1) % E1000_TX_DESCRIPTOR_COUNT);
-		while (descriptor.status == 0)
-			Processor::pause();
+		if (tx_current == m_tx_head2.fetch_add(1) % E1000_TX_DESCRIPTOR_COUNT)
+			write32(REG_TDT, (tx_current + 1) % E1000_TX_DESCRIPTOR_COUNT);
 
 		dprintln_if(DEBUG_E1000, "sent {} bytes", packet_size);
 
@@ -313,7 +313,7 @@ namespace Kernel
 
 	void E1000::receive_thread()
 	{
-		SpinLockGuard _(m_lock);
+		SpinLockGuard _(m_rx_lock);
 
 		while (!m_thread_should_die)
 		{
@@ -328,21 +328,21 @@ namespace Kernel
 
 				dprintln_if(DEBUG_E1000, "got {} bytes", (uint16_t)descriptor.length);
 
-				m_lock.unlock(InterruptState::Enabled);
+				m_rx_lock.unlock(InterruptState::Enabled);
 
 				NetworkManager::get().on_receive(*this, BAN::ConstByteSpan {
 					reinterpret_cast<const uint8_t*>(m_rx_buffer_region->vaddr() + rx_current * E1000_RX_BUFFER_SIZE),
 					descriptor.length
 				});
 
-				m_lock.lock();
+				m_rx_lock.lock();
 
 				descriptor.status = 0;
 				write32(REG_RDT0, rx_current);
 			}
 
-			SpinLockAsMutex smutex(m_lock, InterruptState::Enabled);
-			m_thread_blocker.block_indefinite(&smutex);
+			SpinLockAsMutex smutex(m_rx_lock, InterruptState::Enabled);
+			m_rx_blocker.block_indefinite(&smutex);
 		}
 
 		m_thread_is_dead = true;
@@ -355,8 +355,8 @@ namespace Kernel
 
 		if (icr & (ICR_RxQ0 | ICR_RXT0))
 		{
-			SpinLockGuard _(m_lock);
-			m_thread_blocker.unblock();
+			SpinLockGuard _(m_rx_lock);
+			m_rx_blocker.unblock();
 		}
 	}
 

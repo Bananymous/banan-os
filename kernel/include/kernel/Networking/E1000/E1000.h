@@ -73,11 +73,15 @@ namespace Kernel
 		BAN::UniqPtr<DMARegion>	m_tx_buffer_region;
 		BAN::UniqPtr<DMARegion>	m_rx_descriptor_region;
 		BAN::UniqPtr<DMARegion>	m_tx_descriptor_region;
-		SpinLock m_lock;
+
+		BAN::Atomic<uint32_t> m_tx_head1 { 0 };
+		BAN::Atomic<uint32_t> m_tx_head2 { 0 };
+
+		SpinLock m_rx_lock;
+		ThreadBlocker m_rx_blocker;
 
 		bool m_thread_should_die { false };
 		BAN::Atomic<bool> m_thread_is_dead { true };
-		ThreadBlocker m_thread_blocker;
 
 		BAN::MACAddress	m_mac_address {};
 		bool			m_link_up { false };
