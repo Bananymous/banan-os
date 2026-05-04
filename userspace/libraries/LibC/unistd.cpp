@@ -504,9 +504,11 @@ static int exec_impl_shebang(FILE* fp, const char* pathname, char* const* argv, 
 	new_argv[0] = const_cast<char*>(pathname);
 	if (!argument.empty())
 		new_argv[1] = const_cast<char*>(argument.data());
-	for (size_t i = 0; i < old_argc; i++)
-		new_argv[i + extra_args] = argv[i];
-	new_argv[old_argc + extra_args] = nullptr;
+	if (old_argc)
+		new_argv[extra_args] = const_cast<char*>(pathname);
+	for (size_t i = 1; i < old_argc; i++)
+		new_argv[extra_args + i] = argv[i];
+	new_argv[extra_args + old_argc] = nullptr;
 
 	exec_impl(interpreter.data(), new_argv, envp, true, shebang_depth + 1);
 	free(new_argv);
