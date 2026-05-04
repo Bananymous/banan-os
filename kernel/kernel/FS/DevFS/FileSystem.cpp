@@ -102,7 +102,7 @@ namespace Kernel
 				uint64_t next_sync_ms { sync_interval_ms };
 				while (true)
 				{
-					LockGuard _(devfs->m_device_lock);
+					devfs->m_device_lock.lock();
 					while (!devfs->m_should_sync)
 					{
 						const uint64_t current_ms = SystemTimer::get().ms_since_boot();
@@ -110,12 +110,17 @@ namespace Kernel
 							break;
 						devfs->m_sync_thread_blocker.block_with_timeout_ms(next_sync_ms - current_ms, &devfs->m_device_lock);
 					}
-
+					BAN::Vector<BAN::RefPtr<StorageDevice>> storage_devices;
 					for (auto& device : devfs->m_devices)
 						if (device->is_storage_device())
-							if (auto ret = static_cast<StorageDevice*>(device.ptr())->sync_disk_cache(); ret.is_error())
-								dwarnln("disk sync: {}", ret.error());
+							MUST(storage_devices.push_back(static_cast<StorageDevice*>(device.ptr())));
+					devfs->m_device_lock.unlock();
 
+					for (auto& device : storage_devices)
+						if (auto ret = device->sync_disk_cache(); ret.is_error())
+							dwarnln("disk sync: {}", ret.error());
+
+					LockGuard _(devfs->m_device_lock);
 					next_sync_ms = SystemTimer::get().ms_since_boot() + sync_interval_ms;
 					devfs->m_should_sync = false;
 					devfs->m_sync_done.unblock();
