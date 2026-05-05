@@ -464,7 +464,7 @@ namespace Kernel
 		auto* storage = processor.m_smp_free.exchange(nullptr);
 		while (storage == nullptr)
 		{
-			__builtin_ia32_pause();
+			Processor::pause();
 			storage = processor.m_smp_free.exchange(nullptr);
 		}
 
