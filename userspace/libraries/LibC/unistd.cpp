@@ -1,5 +1,6 @@
 #include <BAN/Assert.h>
 #include <BAN/Debug.h>
+#include <BAN/ScopeGuard.h>
 #include <BAN/StringView.h>
 
 #include <LibELF/AuxiliaryVector.h>
@@ -436,18 +437,20 @@ static int exec_impl(const char* pathname, char* const* argv, char* const* envp,
 static int exec_impl_shebang(FILE* fp, const char* pathname, char* const* argv, char* const* envp, int shebang_depth)
 {
 	constexpr size_t buffer_len = PATH_MAX + 1 + ARG_MAX + 1;
+
 	char* buffer = static_cast<char*>(malloc(buffer_len));
 	if (buffer == nullptr)
 	{
 		fclose(fp);
 		return -1;
 	}
+	BAN::ScopeGuard _1([buffer] { free(buffer); });
 
-	if (fgets(buffer, buffer_len, fp) == nullptr)
-	{
-		free(buffer);
+	buffer = fgets(buffer, buffer_len, fp);
+	fclose(fp);
+
+	if (buffer == nullptr)
 		return -1;
-	}
 
 	const auto sv_trim_whitespace =
 		[](BAN::StringView sv) -> BAN::StringView
@@ -462,7 +465,6 @@ static int exec_impl_shebang(FILE* fp, const char* pathname, char* const* argv, 
 	BAN::StringView buffer_sv = buffer;
 	if (buffer_sv.back() != '\n')
 	{
-		free(buffer);
 		errno = ENOEXEC;
 		return -1;
 	}
@@ -479,7 +481,6 @@ static int exec_impl_shebang(FILE* fp, const char* pathname, char* const* argv, 
 
 	if (interpreter.empty())
 	{
-		free(buffer);
 		errno = ENOEXEC;
 		return -1;
 	}
@@ -496,10 +497,8 @@ static int exec_impl_shebang(FILE* fp, const char* pathname, char* const* argv, 
 	const size_t extra_args = 1 + !argument.empty();
 	char** new_argv = static_cast<char**>(malloc((extra_args + old_argc + 1) * sizeof(char*)));;
 	if (new_argv == nullptr)
-	{
-		free(buffer);
 		return -1;
-	}
+	BAN::ScopeGuard _2([new_argv] { free(new_argv); });
 
 	new_argv[0] = const_cast<char*>(pathname);
 	if (!argument.empty())
@@ -510,10 +509,7 @@ static int exec_impl_shebang(FILE* fp, const char* pathname, char* const* argv, 
 		new_argv[extra_args + i] = argv[i];
 	new_argv[extra_args + old_argc] = nullptr;
 
-	exec_impl(interpreter.data(), new_argv, envp, true, shebang_depth + 1);
-	free(new_argv);
-	free(buffer);
-	return -1;
+	return exec_impl(interpreter.data(), new_argv, envp, true, shebang_depth + 1);
 }
 
 static int execl_impl(const char* pathname, const char* arg0, va_list ap, bool has_env, bool do_path_resolution)
