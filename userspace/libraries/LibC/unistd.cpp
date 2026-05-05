@@ -209,6 +209,18 @@ static void __dump_backtrace(int sig, siginfo_t*, void* context)
 			return "unknown signal";
 		};
 
+	// NOTE: we cannot use stddbg as that is not async-signal-safe.
+	//       POSIX says dprintf isn't either but our implementation is!
+
+	int fd = open("/dev/debug", O_WRONLY);
+	if (fd == -1)
+	{
+		perror("failed to open debug device for backtrace");
+		return;
+	}
+
+	dprintf(fd, "received %s, backtrace:\n", signal_name(sig));
+
 	const auto* ucontext = static_cast<ucontext_t*>(context);
 #if defined(__x86_64__)
 	const uintptr_t stack_base = ucontext->uc_mcontext.gregs[REG_RBP];
@@ -225,18 +237,6 @@ static void __dump_backtrace(int sig, siginfo_t*, void* context)
 	};
 
 	const auto* stackframe = reinterpret_cast<struct stackframe*>(stack_base);
-
-	// NOTE: we cannot use stddbf as that is not async-signal-safe.
-	//       POSIX says dprintf isn't either but our implementation is!
-
-	int fd = open("/dev/debug", O_WRONLY);
-	if (fd == -1)
-	{
-		perror("failed to open debug device for backtrace");
-		return;
-	}
-
-	dprintf(fd, "received %s, backtrace:\n", signal_name(sig));
 
 	__dump_symbol(fd, reinterpret_cast<void*>(instruction));
 	for (size_t i = 0; i < 128 && stackframe; i++)
