@@ -68,8 +68,9 @@ namespace Kernel
 			PageTable::with_fast_page(paddr, [] {
 				memset(PageTable::fast_page_as_ptr(), 0, PAGE_SIZE);
 			});
-			m_page_table.map_page_at(paddr, vaddr() + i * PAGE_SIZE, m_flags);
+			m_page_table.map_page_at(paddr, vaddr() + i * PAGE_SIZE, m_flags, PageTable::MemoryType::Normal, false);
 		}
+		m_page_table.invalidate_range(m_vaddr, page_count, true);
 		return {};
 	}
 
