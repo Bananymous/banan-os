@@ -25,9 +25,11 @@ namespace Kernel
 			const paddr_t paddr = Heap::get().take_free_page();
 			if (paddr == 0)
 				return BAN::Error::from_errno(ENOMEM);
-			PageTable::kernel().map_page_at(paddr, buffer->m_vaddr        + i * PAGE_SIZE, PageTable::ReadWrite | PageTable::Present);
-			PageTable::kernel().map_page_at(paddr, buffer->m_vaddr + size + i * PAGE_SIZE, PageTable::ReadWrite | PageTable::Present);
+			PageTable::kernel().map_page_at(paddr, buffer->m_vaddr        + i * PAGE_SIZE, PageTable::ReadWrite | PageTable::Present, PageTable::MemoryType::Normal, false);
+			PageTable::kernel().map_page_at(paddr, buffer->m_vaddr + size + i * PAGE_SIZE, PageTable::ReadWrite | PageTable::Present, PageTable::MemoryType::Normal, false);
 		}
+
+		PageTable::kernel().invalidate_range(buffer->m_vaddr, page_count * 2, true);
 
 		return buffer;
 	}
@@ -36,13 +38,11 @@ namespace Kernel
 	{
 		if (m_vaddr == 0)
 			return;
+
 		for (size_t i = 0; i < m_capacity / PAGE_SIZE; i++)
-		{
-			const paddr_t paddr = PageTable::kernel().physical_address_of(m_vaddr + i * PAGE_SIZE);
-			if (paddr == 0)
-				break;
-			Heap::get().release_page(paddr);
-		}
+			if (const paddr_t paddr = PageTable::kernel().physical_address_of(m_vaddr + i * PAGE_SIZE))
+				Heap::get().release_page(paddr);
+
 		PageTable::kernel().unmap_range(m_vaddr, m_capacity * 2);
 	}
 
