@@ -743,8 +743,7 @@ namespace Kernel
 
 	paddr_t PageTable::physical_address_of(vaddr_t addr) const
 	{
-		uint64_t page_data = get_page_data(addr);
-		return page_data & s_page_addr_mask;
+		return get_page_data(addr) & s_page_addr_mask;
 	}
 
 	bool PageTable::reserve_page(vaddr_t vaddr, bool only_free, bool invalidate)
@@ -875,7 +874,7 @@ namespace Kernel
 			{
 				if (!is_canonical(vaddr + page * PAGE_SIZE))
 				{
-					vaddr = canonicalize(uncanonicalize(vaddr) + page * PAGE_SIZE);
+					vaddr = canonicalize(uncanonicalize(vaddr + page * PAGE_SIZE));
 					valid = false;
 					break;
 				}
