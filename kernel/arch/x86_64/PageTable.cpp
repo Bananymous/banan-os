@@ -472,8 +472,8 @@ namespace Kernel
 			;
 		else if (pages <= 32 || !s_is_initialized)
 		{
-			for (size_t i = 0; i < pages; i++, vaddr += PAGE_SIZE)
-				asm volatile("invlpg (%0)" :: "r"(vaddr));
+			for (size_t i = 0; i < pages; i++)
+				asm volatile("invlpg (%0)" :: "r"(vaddr + i * PAGE_SIZE));
 		}
 		else if (is_userspace || !s_has_pge)
 		{
