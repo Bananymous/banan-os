@@ -216,9 +216,10 @@ void Builtin::initialize()
 					for (const auto& path_dir : path_dirs)
 					{
 						char path_buffer[PATH_MAX];
-						memcpy(path_buffer,                   path_dir.data(), path_dir.size());
-						memcpy(path_buffer + path_dir.size(), argument.data(), argument.size());
-						path_buffer[path_dir.size() + argument.size()] = '\0';
+						memcpy(path_buffer, path_dir.data(), path_dir.size());
+						path_buffer[path_dir.size()] = '/';
+						memcpy(path_buffer + path_dir.size() + 1, argument.data(), argument.size());
+						path_buffer[path_dir.size() + 1 + argument.size()] = '\0';
 
 						if (is_executable_file(path_buffer))
 						{
