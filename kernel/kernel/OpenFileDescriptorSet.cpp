@@ -699,9 +699,9 @@ namespace Kernel
 
 		size_t nread;
 		{
-			LockGuard _(inode->m_mutex);
 			if (!inode->can_read() && inode->has_hungup())
 				return 0;
+			// FIXME: race condition, pass flags to read
 			if (is_nonblock && !inode->can_read())
 				return BAN::Error::from_errno(EAGAIN);
 			nread = TRY(inode->read(offset, buffer));
@@ -753,7 +753,6 @@ namespace Kernel
 
 		size_t nwrite;
 		{
-			LockGuard _(inode->m_mutex);
 			if (inode->has_error())
 			{
 				Thread::current().add_signal(SIGPIPE, {});
@@ -761,6 +760,7 @@ namespace Kernel
 			}
 			if (is_nonblock && !inode->can_write())
 				return BAN::Error::from_errno(EAGAIN);
+			// FIXME: race condition, pass flags to write
 			nwrite = TRY(inode->write(offset, buffer));
 		}
 
@@ -818,7 +818,6 @@ namespace Kernel
 			is_nonblock = !!(open_file->status_flags & O_NONBLOCK);
 		}
 
-		LockGuard _(inode->m_mutex);
 		if (is_nonblock && !inode->can_read())
 			return BAN::Error::from_errno(EAGAIN);
 		return inode->recvmsg(message, flags);
@@ -839,7 +838,6 @@ namespace Kernel
 			is_nonblock = !!(open_file->status_flags & O_NONBLOCK);
 		}
 
-		LockGuard _(inode->m_mutex);
 		if (inode->has_hungup())
 		{
 			if (!(flags & MSG_NOSIGNAL))

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <kernel/FS/Inode.h>
+#include <kernel/Lock/Mutex.h>
 
 namespace Kernel
 {
@@ -44,8 +45,9 @@ namespace Kernel
 
 	private:
 		const bool m_is_semaphore;
-		uint64_t m_value;
+		BAN::Atomic<uint64_t> m_value;
 
+		Mutex m_mutex;
 		ThreadBlocker m_thread_blocker;
 	};
 

@@ -6,6 +6,7 @@
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/Lock/LockGuard.h>
+#include <kernel/Lock/SpinLockAsMutex.h>
 #include <kernel/Process.h>
 #include <kernel/Terminal/TTY.h>
 #include <kernel/Timer/Timer.h>
@@ -71,8 +72,8 @@ namespace Kernel
 
 	TTY::TTY(termios termios, mode_t mode, uid_t uid, gid_t gid)
 		: CharacterDevice(mode, uid, gid)
-		, m_termios(termios)
 		, m_rdev(next_tty_rdev())
+		, m_termios(termios)
 	{
 		m_output.buffer = MUST(ByteRingBuffer::create(PAGE_SIZE));
 	}
@@ -94,21 +95,16 @@ namespace Kernel
 		if (flags & ~(TTY_FLAG_ENABLE_INPUT | TTY_FLAG_ENABLE_OUTPUT))
 			return BAN::Error::from_errno(EINVAL);
 
-		LockGuard _(m_mutex);
-
 		switch (command)
 		{
 			case TTY_CMD_SET:
-				if ((flags & TTY_FLAG_ENABLE_INPUT) && !m_tty_ctrl.receive_input)
-				{
+				if (flags & TTY_FLAG_ENABLE_INPUT)
 					m_tty_ctrl.receive_input = true;
-					m_tty_ctrl.thread_blocker.unblock();
-				}
 				if (flags & TTY_FLAG_ENABLE_OUTPUT)
 					m_tty_ctrl.draw_graphics = true;
 				break;
 			case TTY_CMD_UNSET:
-				if ((flags & TTY_FLAG_ENABLE_INPUT) && m_tty_ctrl.receive_input)
+				if (flags & TTY_FLAG_ENABLE_INPUT)
 					m_tty_ctrl.receive_input = false;
 				if (flags & TTY_FLAG_ENABLE_OUTPUT)
 					m_tty_ctrl.draw_graphics = false;
@@ -133,16 +129,8 @@ namespace Kernel
 
 		while (true)
 		{
-			{
-				LockGuard _(TTY::current()->m_mutex);
-				while (!TTY::current()->m_tty_ctrl.receive_input)
-					TTY::current()->m_tty_ctrl.thread_blocker.block_indefinite(&TTY::current()->m_mutex);
-			}
-
 			while (TTY::current()->m_tty_ctrl.receive_input)
 			{
-				LockGuard _(keyboard_inode->m_mutex);
-
 				if (!keyboard_inode->can_read())
 				{
 					SystemTimer::get().sleep_ms(1);
@@ -160,19 +148,15 @@ namespace Kernel
 
 	void TTY::initialize_devices()
 	{
-		static bool initialized = false;
-		ASSERT(!initialized);
-
 		auto* thread = MUST(Thread::create_kernel(&TTY::keyboard_task, nullptr));
 		MUST(Processor::scheduler().add_thread(thread));
 
 		DevFileSystem::get().add_inode("tty", MUST(DevTTY::create(0666, 0, 0)));
-
-		initialized = true;
 	}
 
 	BAN::ErrorOr<void> TTY::chmod_impl(mode_t mode)
 	{
+		// FIXME: make this atomic
 		ASSERT((mode & Inode::Mode::TYPE_MASK) == 0);
 		m_inode_info.mode &= Inode::Mode::TYPE_MASK;
 		m_inode_info.mode |= mode;
@@ -181,6 +165,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> TTY::chown_impl(uid_t uid, gid_t gid)
 	{
+		// FIXME: make this atomic
 		m_inode_info.uid = uid;
 		m_inode_info.gid = gid;
 		return {};
@@ -188,6 +173,7 @@ namespace Kernel
 
 	void TTY::update_winsize(unsigned short cols, unsigned short rows)
 	{
+		// FIXME: make this atomic
 		m_winsize.ws_col = cols;
 		m_winsize.ws_row = rows;
 		(void)Process::kill(-m_foreground_pgrp, SIGWINCH);
@@ -211,12 +197,14 @@ namespace Kernel
 			}
 			case TIOCGWINSZ:
 			{
+				// FIXME: make this atomic
 				auto* winsize = static_cast<struct winsize*>(argument);
 				*winsize = m_winsize;
 				return 0;
 			}
 			case TIOCSWINSZ:
 			{
+				// FIXME: make this atomic
 				const auto* winsize = static_cast<const struct winsize*>(argument);
 				m_winsize = *winsize;
 				(void)Process::kill(-m_foreground_pgrp, SIGWINCH);
@@ -226,10 +214,13 @@ namespace Kernel
 		return BAN::Error::from_errno(ENOTSUP);
 	}
 
+	void TTY::on_key_event(LibInput::RawKeyEvent event)
+	{
+		on_key_event(LibInput::KeyboardLayout::get().key_event_from_raw(event));
+	}
+
 	void TTY::on_key_event(LibInput::KeyEvent event)
 	{
-		LockGuard _(m_mutex);
-
 		if (event.released())
 			return;
 
@@ -237,9 +228,25 @@ namespace Kernel
 		if (ansi_c_str == nullptr)
 			return;
 
+		LockGuard _(m_mutex);
 		while (*ansi_c_str)
 			handle_input_byte(*ansi_c_str++);
 		after_write();
+	}
+
+	void TTY::get_termios(termios* termios)
+	{
+		SpinLockGuard _(m_termios_lock);
+		*termios = m_termios;
+	}
+
+	BAN::ErrorOr<void> TTY::set_termios(const termios* termios)
+	{
+		// FIXME: do some validation
+
+		SpinLockGuard _(m_termios_lock);
+		m_termios = *termios;
+		return {};
 	}
 
 	void TTY::handle_input_byte(uint8_t ch)
@@ -247,25 +254,29 @@ namespace Kernel
 		if (ch == _POSIX_VDISABLE)
 			return;
 
-		LockGuard _(m_mutex);
+		LockGuard _0(m_mutex);
 
-		if ((m_termios.c_iflag & ISTRIP))
+		termios termios;
+		get_termios(&termios);
+
+
+		if ((termios.c_iflag & ISTRIP))
 			ch &= 0x7F;
-		if ((m_termios.c_iflag & IGNCR) && ch == CR)
+		if ((termios.c_iflag & IGNCR) && ch == CR)
 			return;
-		if ((m_termios.c_iflag & ICRNL) && ch == CR)
+		if ((termios.c_iflag & ICRNL) && ch == CR)
 			ch = NL;
-		else if ((m_termios.c_iflag & INLCR) && ch == NL)
+		else if ((termios.c_iflag & INLCR) && ch == NL)
 			ch = CR;
 
-		if (m_termios.c_lflag & ISIG)
+		if (termios.c_lflag & ISIG)
 		{
 			int sig = -1;
-			if (ch == m_termios.c_cc[VINTR])
+			if (ch == termios.c_cc[VINTR])
 				sig = SIGINT;
-			if (ch == m_termios.c_cc[VQUIT])
+			if (ch == termios.c_cc[VQUIT])
 				sig = SIGQUIT;
-			if (ch == m_termios.c_cc[VSUSP])
+			if (ch == termios.c_cc[VSUSP])
 				sig = SIGTSTP;
 			if (sig != -1)
 			{
@@ -279,30 +290,30 @@ namespace Kernel
 		bool should_flush = false;
 		bool force_echo = false;
 
-		if (!(m_termios.c_lflag & ICANON))
+		if (!(termios.c_lflag & ICANON))
 			should_flush = true;
 		else
 		{
-			if (ch == m_termios.c_cc[VERASE] && (m_termios.c_lflag & ECHOE))
+			if (ch == termios.c_cc[VERASE] && (termios.c_lflag & ECHOE))
 				return do_backspace();
 
-			if (ch == m_termios.c_cc[VKILL] && (m_termios.c_lflag & ECHOK))
+			if (ch == termios.c_cc[VKILL] && (termios.c_lflag & ECHOK))
 			{
 				while (!m_output.buffer->empty() && m_output.buffer->back() != '\n')
 					do_backspace();
 				return;
 			}
 
-			if (ch == m_termios.c_cc[VEOF])
+			if (ch == termios.c_cc[VEOF])
 			{
 				should_append = false;
 				should_flush = true;
 			}
 
-			if (ch == NL || ch == CR || ch == m_termios.c_cc[VEOL])
+			if (ch == NL || ch == CR || ch == termios.c_cc[VEOL])
 			{
 				should_flush = true;
-				force_echo = !!(m_termios.c_lflag & ECHONL);
+				force_echo = !!(termios.c_lflag & ECHONL);
 			}
 		}
 
@@ -311,7 +322,7 @@ namespace Kernel
 		if (should_append && !m_output.buffer->full())
 			m_output.buffer->push({ &ch, 1 });
 
-		if (should_append && (force_echo || (m_termios.c_lflag & ECHO)))
+		if (should_append && (force_echo || (termios.c_lflag & ECHO)))
 		{
 			if ((ch <= 31 || ch == 127) && ch != '\n')
 			{
@@ -380,14 +391,18 @@ namespace Kernel
 
 	bool TTY::putchar(uint8_t ch)
 	{
-		SpinLockGuard _(m_write_lock);
 		if (!m_tty_ctrl.draw_graphics)
 			return true;
-		if (m_termios.c_oflag & OPOST)
+
+		termios termios;
+		get_termios(&termios);
+
+		SpinLockGuard _1(m_write_lock);
+		if (termios.c_oflag & OPOST)
 		{
-			if ((m_termios.c_oflag & ONLCR) && ch == NL)
+			if ((termios.c_oflag & ONLCR) && ch == NL)
 				return putchar_impl(CR) && putchar_impl(NL);
-			if ((m_termios.c_oflag & OCRNL) && ch == CR)
+			if ((termios.c_oflag & OCRNL) && ch == CR)
 				return putchar_impl(NL);
 		}
 		return putchar_impl(ch);
@@ -395,6 +410,7 @@ namespace Kernel
 
 	BAN::ErrorOr<size_t> TTY::read_impl(off_t, BAN::ByteSpan buffer)
 	{
+		LockGuard _(m_mutex);
 		while (!m_output.flush)
 			TRY(Thread::current().block_or_eintr_indefinite(m_output.thread_blocker, &m_mutex));
 
@@ -428,24 +444,24 @@ namespace Kernel
 
 	BAN::ErrorOr<size_t> TTY::write_impl(off_t, BAN::ConstByteSpan buffer)
 	{
-		while (!can_write_impl())
+		SpinLockGuard write_guard(m_write_lock);
+
+		while (!can_write())
 		{
 			if (master_has_closed())
 				return BAN::Error::from_errno(EIO);
-			TRY(Thread::current().block_or_eintr_indefinite(m_write_blocker, &m_mutex));
+
+			SpinLockGuardAsMutex smutex(write_guard);
+			TRY(Thread::current().block_or_eintr_indefinite(m_write_blocker, &smutex));
 		}
 
 		size_t written = 0;
+		for (; written < buffer.size(); written++)
+			if (!putchar(buffer[written]))
+				break;
+		after_write();
 
-		{
-			SpinLockGuard _(m_write_lock);
-			for (; written < buffer.size(); written++)
-				if (!putchar(buffer[written]))
-					break;
-			after_write();
-		}
-
-		if (can_write_impl())
+		if (can_write())
 			epoll_notify(EPOLLOUT);
 
 		return written;

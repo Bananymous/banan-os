@@ -35,7 +35,7 @@ namespace Kernel
 		if (type == Type::PRIVATE)
 			TRY(region->m_dirty_pages.resize(BAN::Math::div_round_up<size_t>(size, PAGE_SIZE)));
 
-		LockGuard _(inode->m_mutex);
+		SpinLockGuard _(inode->m_shared_region_lock);
 		if (!(region->m_shared_data = inode->m_shared_region.lock()))
 		{
 			auto shared_data = TRY(BAN::RefPtr<SharedFileData>::create());

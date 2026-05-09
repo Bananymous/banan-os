@@ -144,6 +144,7 @@ namespace Kernel
 		auto slave = m_slave.lock();
 		if (!slave)
 			return BAN::Error::from_errno(EIO);
+		LockGuard _(slave->m_mutex);
 		for (size_t i = 0; i < buffer.size(); i++)
 			slave->handle_input_byte(buffer[i]);
 		return buffer.size();
@@ -160,8 +161,11 @@ namespace Kernel
 		switch (request)
 		{
 			case FIONREAD:
+			{
+				SpinLockGuard _(m_buffer_lock);
 				*static_cast<int*>(argument) = m_buffer_size;
 				return 0;
+			}
 			case TIOCGWINSZ:
 			case TIOCSWINSZ:
 				if (auto slave = m_slave.lock())

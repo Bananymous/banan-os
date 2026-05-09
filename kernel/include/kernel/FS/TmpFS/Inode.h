@@ -4,6 +4,7 @@
 #include <BAN/Optional.h>
 #include <kernel/FS/Inode.h>
 #include <kernel/FS/TmpFS/Definitions.h>
+#include <kernel/Lock/Mutex.h>
 
 namespace Kernel
 {
@@ -53,21 +54,24 @@ namespace Kernel
 		virtual BAN::ErrorOr<void> fsync_impl() override { return {}; }
 
 		void sync();
-		virtual BAN::ErrorOr<void> prepare_unlink() { return {}; };
+		virtual BAN::ErrorOr<void> prepare_unlink_no_lock() { return {}; };
 
 		void free_all_blocks();
-		void free_indirect_blocks(size_t block, uint32_t depth);
+		void free_indirect_blocks_no_lock(size_t block, uint32_t depth);
 
 		BAN::Optional<size_t> block_index(size_t data_block_index);
-		BAN::Optional<size_t> block_index_from_indirect(size_t block, size_t index, uint32_t depth);
+		BAN::Optional<size_t> block_index_from_indirect_no_lock(size_t block, size_t index, uint32_t depth);
 
 		BAN::ErrorOr<size_t> block_index_with_allocation(size_t data_block_index);
-		BAN::ErrorOr<size_t> block_index_from_indirect_with_allocation(size_t& block, size_t index, uint32_t depth);
+		BAN::ErrorOr<size_t> block_index_from_indirect_with_allocation_no_lock(size_t& block, size_t index, uint32_t depth);
 
 	protected:
 		TmpFileSystem& m_fs;
 		TmpInodeInfo m_inode_info;
 		const ino_t m_ino;
+
+		// TODO: try to reduce locking or replace this with rwlock(?)
+		Mutex m_lock;
 
 		// has to be able to increase link count
 		friend class TmpDirectoryInode;
@@ -149,7 +153,7 @@ namespace Kernel
 	protected:
 		TmpDirectoryInode(TmpFileSystem&, ino_t, const TmpInodeInfo&);
 
-		virtual BAN::ErrorOr<void> prepare_unlink() override;
+		virtual BAN::ErrorOr<void> prepare_unlink_no_lock() override;
 
 	protected:
 		virtual BAN::ErrorOr<BAN::RefPtr<Inode>> find_inode_impl(BAN::StringView) override final;

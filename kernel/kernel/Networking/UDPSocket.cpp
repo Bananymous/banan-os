@@ -1,3 +1,4 @@
+#include <kernel/Lock/LockGuard.h>
 #include <kernel/Lock/SpinLockAsMutex.h>
 #include <kernel/Memory/Heap.h>
 #include <kernel/Networking/UDPSocket.h>
@@ -58,9 +59,6 @@ namespace Kernel
 
 	void UDPSocket::receive_packet(BAN::ConstByteSpan packet, const sockaddr* sender, socklen_t sender_len)
 	{
-		(void)sender_len;
-
-		//auto& header = packet.as<const UDPHeader>();
 		auto payload = packet.slice(sizeof(UDPHeader));
 
 		SpinLockGuard _(m_packet_lock);
@@ -95,6 +93,8 @@ namespace Kernel
 	{
 		if (address_len > static_cast<socklen_t>(sizeof(m_peer_address)))
 			address_len = sizeof(m_peer_address);
+
+		SpinLockGuard _(m_peer_address_lock);
 		memcpy(&m_peer_address, address, address_len);
 		m_peer_address_len = address_len;
 		return {};
@@ -102,6 +102,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> UDPSocket::bind_impl(const sockaddr* address, socklen_t address_len)
 	{
+		LockGuard _(m_bind_lock);
 		if (is_bound())
 			return BAN::Error::from_errno(EINVAL);
 		return m_network_layer.bind_socket_to_address(this, address, address_len);
@@ -183,8 +184,11 @@ namespace Kernel
 		if (CMSG_FIRSTHDR(&message))
 			dwarnln("ignoring sendmsg control message");
 
-		if (!is_bound())
-			TRY(m_network_layer.bind_socket_with_target(this, static_cast<sockaddr*>(message.msg_name), message.msg_namelen));
+		{
+			LockGuard _(m_bind_lock);
+			if (!is_bound())
+				TRY(m_network_layer.bind_socket_with_target(this, static_cast<sockaddr*>(message.msg_name), message.msg_namelen));
+		}
 
 		const size_t total_send_size =
 			[&message]() -> size_t {
@@ -208,6 +212,7 @@ namespace Kernel
 		socklen_t address_len;
 		if (!message.msg_name || message.msg_namelen == 0)
 		{
+			SpinLockGuard _(m_peer_address_lock);
 			if (m_peer_address_len == 0)
 				return BAN::Error::from_errno(EDESTADDRREQ);
 			address = reinterpret_cast<sockaddr*>(&m_peer_address);

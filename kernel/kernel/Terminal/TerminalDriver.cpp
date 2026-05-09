@@ -23,6 +23,7 @@ namespace Kernel
 				g_terminal_driver = TRY(TextModeTerminalDriver::create_from_boot_info());
 				break;
 		}
+
 		return {};
 	}
 

@@ -4,6 +4,7 @@
 #include <BAN/StringView.h>
 #include <kernel/FS/Ext2/Definitions.h>
 #include <kernel/FS/Inode.h>
+#include <kernel/Lock/Mutex.h>
 
 namespace Kernel
 {
@@ -109,6 +110,9 @@ namespace Kernel
 		Ext2FS& m_fs;
 		Ext2::Inode m_inode;
 		const uint32_t m_ino;
+
+		// TODO: try to reduce locking or replace this with rwlock(?)
+		Mutex m_lock;
 
 		friend class Ext2FS;
 		friend class BAN::RefPtr<Ext2Inode>;

@@ -62,7 +62,6 @@ namespace Kernel
 
 	BAN::ErrorOr<BAN::RefPtr<Inode>> Inode::find_inode(BAN::StringView name)
 	{
-		LockGuard _(m_mutex);
 		if (!mode().ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
 		return find_inode_impl(name);
@@ -70,7 +69,6 @@ namespace Kernel
 
 	BAN::ErrorOr<size_t> Inode::list_next_inodes(off_t offset, struct dirent* list, size_t list_len)
 	{
-		LockGuard _(m_mutex);
 		if (!mode().ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
 		return list_next_inodes_impl(offset, list, list_len);
@@ -78,7 +76,6 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Inode::create_file(BAN::StringView name, mode_t mode, uid_t uid, gid_t gid)
 	{
-		LockGuard _(m_mutex);
 		if (!this->mode().ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
 		if (Mode(mode).ifdir())
@@ -90,7 +87,6 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Inode::create_directory(BAN::StringView name, mode_t mode, uid_t uid, gid_t gid)
 	{
-		LockGuard _(m_mutex);
 		if (!this->mode().ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
 		if (!Mode(mode).ifdir())
@@ -102,7 +98,6 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Inode::link_inode(BAN::StringView name, BAN::RefPtr<Inode> inode)
 	{
-		LockGuard _(m_mutex);
 		if (!this->mode().ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
 		if (inode->mode().ifdir())
@@ -116,7 +111,6 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Inode::rename_inode(BAN::RefPtr<Inode> old_parent, BAN::StringView old_name, BAN::StringView new_name)
 	{
-		LockGuard _(m_mutex);
 		if (!this->mode().ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
 		if (!old_parent->mode().ifdir())
@@ -130,7 +124,6 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Inode::unlink(BAN::StringView name)
 	{
-		LockGuard _(m_mutex);
 		if (!mode().ifdir())
 			return BAN::Error::from_errno(ENOTDIR);
 		if (name == "."_sv || name == ".."_sv)
@@ -142,7 +135,6 @@ namespace Kernel
 
 	BAN::ErrorOr<BAN::String> Inode::link_target()
 	{
-		LockGuard _(m_mutex);
 		if (!mode().iflnk())
 			return BAN::Error::from_errno(EINVAL);
 		return link_target_impl();
@@ -150,7 +142,6 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Inode::set_link_target(BAN::StringView target)
 	{
-		LockGuard _(m_mutex);
 		if (!mode().iflnk())
 			return BAN::Error::from_errno(EINVAL);
 		if (auto* fs = filesystem(); fs && (fs->flag() & ST_RDONLY))
@@ -160,7 +151,6 @@ namespace Kernel
 
 	BAN::ErrorOr<long> Inode::accept(sockaddr* address, socklen_t* address_len, int flags)
 	{
-		LockGuard _(m_mutex);
 		if (!mode().ifsock())
 			return BAN::Error::from_errno(ENOTSOCK);
 		return accept_impl(address, address_len, flags);
@@ -168,7 +158,6 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Inode::bind(const sockaddr* address, socklen_t address_len)
 	{
-		LockGuard _(m_mutex);
 		if (!mode().ifsock())
 			return BAN::Error::from_errno(ENOTSOCK);
 		return bind_impl(address, address_len);
@@ -176,7 +165,6 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Inode::connect(const sockaddr* address, socklen_t address_len)
 	{
-		LockGuard _(m_mutex);
 		if (!mode().ifsock())
 			return BAN::Error::from_errno(ENOTSOCK);
 		return connect_impl(address, address_len);
@@ -184,7 +172,6 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Inode::listen(int backlog)
 	{
-		LockGuard _(m_mutex);
 		if (!mode().ifsock())
 			return BAN::Error::from_errno(ENOTSOCK);
 		return listen_impl(backlog);
@@ -192,7 +179,6 @@ namespace Kernel
 
 	BAN::ErrorOr<size_t> Inode::recvmsg(msghdr& message, int flags)
 	{
-		LockGuard _(m_mutex);
 		if (!mode().ifsock())
 			return BAN::Error::from_errno(ENOTSOCK);
 		return recvmsg_impl(message, flags);
@@ -200,7 +186,6 @@ namespace Kernel
 
 	BAN::ErrorOr<size_t> Inode::sendmsg(const msghdr& message, int flags)
 	{
-		LockGuard _(m_mutex);
 		if (!mode().ifsock())
 			return BAN::Error::from_errno(ENOTSOCK);
 		return sendmsg_impl(message, flags);
@@ -208,7 +193,6 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Inode::getsockname(sockaddr* address, socklen_t* address_len)
 	{
-		LockGuard _(m_mutex);
 		if (!mode().ifsock())
 			return BAN::Error::from_errno(ENOTSOCK);
 		return getsockname_impl(address, address_len);
@@ -216,7 +200,6 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Inode::getpeername(sockaddr* address, socklen_t* address_len)
 	{
-		LockGuard _(m_mutex);
 		if (!mode().ifsock())
 			return BAN::Error::from_errno(ENOTSOCK);
 		return getpeername_impl(address, address_len);
@@ -224,7 +207,6 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Inode::getsockopt(int level, int option, void* value, socklen_t* value_len)
 	{
-		LockGuard _(m_mutex);
 		if (!mode().ifsock())
 			return BAN::Error::from_errno(ENOTSOCK);
 		return getsockopt_impl(level, option, value, value_len);
@@ -232,7 +214,6 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Inode::setsockopt(int level, int option, const void* value, socklen_t value_len)
 	{
-		LockGuard _(m_mutex);
 		if (!mode().ifsock())
 			return BAN::Error::from_errno(ENOTSOCK);
 		return setsockopt_impl(level, option, value, value_len);
@@ -240,7 +221,6 @@ namespace Kernel
 
 	BAN::ErrorOr<size_t> Inode::read(off_t offset, BAN::ByteSpan buffer)
 	{
-		LockGuard _(m_mutex);
 		if (mode().ifdir())
 			return BAN::Error::from_errno(EISDIR);
 		return read_impl(offset, buffer);
@@ -248,7 +228,6 @@ namespace Kernel
 
 	BAN::ErrorOr<size_t> Inode::write(off_t offset, BAN::ConstByteSpan buffer)
 	{
-		LockGuard _(m_mutex);
 		if (mode().ifdir())
 			return BAN::Error::from_errno(EISDIR);
 		if (auto* fs = filesystem(); fs && (fs->flag() & ST_RDONLY))
@@ -258,7 +237,6 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Inode::truncate(size_t size)
 	{
-		LockGuard _(m_mutex);
 		if (mode().ifdir())
 			return BAN::Error::from_errno(EISDIR);
 		if (auto* fs = filesystem(); fs && (fs->flag() & ST_RDONLY))
@@ -269,7 +247,6 @@ namespace Kernel
 	BAN::ErrorOr<void> Inode::chmod(mode_t mode)
 	{
 		ASSERT((mode & Inode::Mode::TYPE_MASK) == 0);
-		LockGuard _(m_mutex);
 		if (auto* fs = filesystem(); fs && (fs->flag() & ST_RDONLY))
 			return BAN::Error::from_errno(EROFS);
 		return chmod_impl(mode);
@@ -277,7 +254,6 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Inode::chown(uid_t uid, gid_t gid)
 	{
-		LockGuard _(m_mutex);
 		if (auto* fs = filesystem(); fs && (fs->flag() & ST_RDONLY))
 			return BAN::Error::from_errno(EROFS);
 		return chown_impl(uid, gid);
@@ -285,7 +261,6 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Inode::utimens(const timespec times[2])
 	{
-		LockGuard _(m_mutex);
 		if (auto* fs = filesystem(); fs && (fs->flag() & ST_RDONLY))
 			return BAN::Error::from_errno(EROFS);
 		return utimens_impl(times);
@@ -293,40 +268,32 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Inode::fsync()
 	{
-		LockGuard _(m_mutex);
-		if (auto shared = m_shared_region.lock())
-			for (size_t i = 0; i < shared->pages.size(); i++)
-				shared->sync(i);
+		// TODO: should we sync shared data?
 		return fsync_impl();
 	}
 
 	bool Inode::can_read() const
 	{
-		LockGuard _(m_mutex);
 		return can_read_impl();
 	}
 
 	bool Inode::can_write() const
 	{
-		LockGuard _(m_mutex);
 		return can_write_impl();
 	}
 
 	bool Inode::has_error() const
 	{
-		LockGuard _(m_mutex);
 		return has_error_impl();
 	}
 
 	bool Inode::has_hungup() const
 	{
-		LockGuard _(m_mutex);
 		return has_hungup_impl();
 	}
 
 	BAN::ErrorOr<long> Inode::ioctl(int request, void* arg)
 	{
-		LockGuard _(m_mutex);
 		return ioctl_impl(request, arg);
 	}
 

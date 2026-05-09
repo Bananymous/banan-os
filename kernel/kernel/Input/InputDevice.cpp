@@ -13,12 +13,15 @@
 namespace Kernel
 {
 
+	static SpinLock s_keyboard_lock;
 	static BAN::Vector<BAN::WeakPtr<InputDevice>> s_keyboards;
 	static BAN::RefPtr<KeyboardDevice> s_keyboard_device;
 
+	static SpinLock s_mouse_lock;
 	static BAN::Vector<BAN::WeakPtr<InputDevice>> s_mice;
 	static BAN::RefPtr<MouseDevice> s_mouse_device;
 
+	static SpinLock s_joystick_lock;
 	static BAN::Vector<BAN::WeakPtr<InputDevice>> s_joysticks;
 
 	static const char* get_name_format(InputDevice::Type type)
@@ -40,20 +43,29 @@ namespace Kernel
 		switch (type)
 		{
 			case InputDevice::Type::Keyboard:
+			{
+				SpinLockGuard _(s_keyboard_lock);
 				for (size_t i = 0; i < s_keyboards.size(); i++)
 					if (!s_keyboards[i].valid())
 						return makedev(DeviceNumber::Keyboard, i + 1);
 				return makedev(DeviceNumber::Keyboard, s_keyboards.size() + 1);
+			}
 			case InputDevice::Type::Mouse:
+			{
+				SpinLockGuard _(s_mouse_lock);
 				for (size_t i = 0; i < s_mice.size(); i++)
 					if (!s_mice[i].valid())
 						return makedev(DeviceNumber::Mouse, i + 1);
 				return makedev(DeviceNumber::Mouse, s_mice.size() + 1);
+			}
 			case InputDevice::Type::Joystick:
+			{
+				SpinLockGuard _(s_joystick_lock);
 				for (size_t i = 0; i < s_joysticks.size(); i++)
 					if (!s_joysticks[i].valid())
 						return makedev(DeviceNumber::Joystick, i + 1);
 				return makedev(DeviceNumber::Joystick, s_joysticks.size() + 1);
+			}
 		}
 		ASSERT_NOT_REACHED();
 	}
@@ -84,20 +96,29 @@ namespace Kernel
 		switch (m_type)
 		{
 			case Type::Keyboard:
+			{
+				SpinLockGuard _(s_keyboard_lock);
 				if (s_keyboards.size() < minor(m_rdev))
 					MUST(s_keyboards.resize(minor(m_rdev)));
 				s_keyboards[minor(m_rdev) - 1] = MUST(get_weak_ptr());
 				break;
+			}
 			case Type::Mouse:
+			{
+				SpinLockGuard _(s_mouse_lock);
 				if (s_mice.size() < minor(m_rdev))
 					MUST(s_mice.resize(minor(m_rdev)));
 				s_mice[minor(m_rdev) - 1] = MUST(get_weak_ptr());
 				break;
+			}
 			case Type::Joystick:
+			{
+				SpinLockGuard _(s_joystick_lock);
 				if (s_joysticks.size() < minor(m_rdev))
 					MUST(s_joysticks.resize(minor(m_rdev)));
 				s_joysticks[minor(m_rdev) - 1] = MUST(get_weak_ptr());
 				break;
+			}
 		}
 	}
 
@@ -256,6 +277,8 @@ namespace Kernel
 	void KeyboardDevice::notify()
 	{
 		epoll_notify(EPOLLIN);
+
+		SpinLockGuard _(s_keyboard_lock);
 		m_thread_blocker.unblock();
 	}
 
@@ -264,6 +287,7 @@ namespace Kernel
 		if (buffer.size() < sizeof(LibInput::RawKeyEvent))
 			return BAN::Error::from_errno(ENOBUFS);
 
+		SpinLockGuard keyboard_guard(s_keyboard_lock);
 		for (;;)
 		{
 			for (auto& weak_keyboard : s_keyboards)
@@ -277,13 +301,14 @@ namespace Kernel
 					return bytes;
 			}
 
-			// FIXME: race condition as notify doesn't lock mutex
-			TRY(Thread::current().block_or_eintr_indefinite(m_thread_blocker, &m_mutex));
+			SpinLockGuardAsMutex smutex(keyboard_guard);
+			TRY(Thread::current().block_or_eintr_indefinite(m_thread_blocker, &smutex));
 		}
 	}
 
 	bool KeyboardDevice::can_read_impl() const
 	{
+		SpinLockGuard _(s_keyboard_lock);
 		for (auto& weak_keyboard : s_keyboards)
 			if (auto keyboard = weak_keyboard.lock())
 				if (keyboard->can_read())
@@ -308,6 +333,8 @@ namespace Kernel
 	void MouseDevice::notify()
 	{
 		epoll_notify(EPOLLIN);
+
+		SpinLockGuard _(s_mouse_lock);
 		m_thread_blocker.unblock();
 	}
 
@@ -316,6 +343,7 @@ namespace Kernel
 		if (buffer.size() < sizeof(LibInput::MouseEvent))
 			return BAN::Error::from_errno(ENOBUFS);
 
+		SpinLockGuard mouse_guard(s_mouse_lock);
 		for (;;)
 		{
 			for (auto& weak_mouse : s_mice)
@@ -329,13 +357,14 @@ namespace Kernel
 					return bytes;
 			}
 
-			// FIXME: race condition as notify doesn't lock mutex
-			TRY(Thread::current().block_or_eintr_indefinite(m_thread_blocker, &m_mutex));
+			SpinLockGuardAsMutex smutex(mouse_guard);
+			TRY(Thread::current().block_or_eintr_indefinite(m_thread_blocker, &smutex));
 		}
 	}
 
 	bool MouseDevice::can_read_impl() const
 	{
+		SpinLockGuard _(s_mouse_lock);
 		for (auto& weak_mouse : s_mice)
 			if (auto mouse = weak_mouse.lock())
 				if (mouse->can_read())

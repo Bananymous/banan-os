@@ -88,6 +88,26 @@ namespace Kernel
 		}
 	}
 
+	bool UnixDomainSocket::is_bound() const
+	{
+		LockGuard _(m_bind_mutex);
+		return !m_bound_file.canonical_path.empty();
+	}
+
+	bool UnixDomainSocket::is_bound_to_unused() const
+	{
+		LockGuard _(m_bind_mutex);
+		return !m_bound_file.inode;
+	}
+
+	BAN::ErrorOr<void> UnixDomainSocket::bind_to_unused_if_not_bound()
+	{
+		LockGuard _(m_bind_mutex);
+		if (!is_bound())
+			TRY(m_bound_file.canonical_path.push_back('X'));
+		return {};
+	}
+
 	BAN::ErrorOr<void> UnixDomainSocket::make_socket_pair(UnixDomainSocket& other)
 	{
 		if (!m_info.has<ConnectionInfo>() || !other.m_info.has<ConnectionInfo>())
@@ -106,15 +126,15 @@ namespace Kernel
 	{
 		if (!m_info.has<ConnectionInfo>())
 			return BAN::Error::from_errno(EOPNOTSUPP);
-		auto& connection_info = m_info.get<ConnectionInfo>();
-		if (!connection_info.listening)
-			return BAN::Error::from_errno(EINVAL);
-
 
 		BAN::RefPtr<UnixDomainSocket> pending;
 
 		{
+			auto& connection_info = m_info.get<ConnectionInfo>();
+
 			LockGuard _(connection_info.pending_lock);
+			if (!connection_info.listening)
+				return BAN::Error::from_errno(EINVAL);
 			while (connection_info.pending_connections.empty())
 				TRY(Thread::current().block_or_eintr_indefinite(connection_info.pending_thread_blocker, &connection_info.pending_lock));
 
@@ -154,8 +174,6 @@ namespace Kernel
 	BAN::ErrorOr<void> UnixDomainSocket::connect_impl(const sockaddr* address, socklen_t address_len)
 	{
 		const auto sun_path = TRY(validate_sockaddr_un(address, address_len));
-		if (!is_bound())
-			TRY(m_bound_file.canonical_path.push_back('X'));
 
 		auto absolute_path = TRY(Process::current().absolute_path_of(sun_path));
 		auto file = TRY(VirtualFileSystem::get().file_from_absolute_path(
@@ -180,9 +198,12 @@ namespace Kernel
 		if (m_socket_type != target->m_socket_type)
 			return BAN::Error::from_errno(EPROTOTYPE);
 
+		TRY(bind_to_unused_if_not_bound());
+
 		if (m_info.has<ConnectionlessInfo>())
 		{
 			auto& connectionless_info = m_info.get<ConnectionlessInfo>();
+			SpinLockGuard _(connectionless_info.lock);
 			connectionless_info.peer_address = BAN::move(file.canonical_path);
 			return {};
 		}
@@ -192,7 +213,6 @@ namespace Kernel
 			return BAN::Error::from_errno(ECONNREFUSED);
 		if (connection_info.listening)
 			return BAN::Error::from_errno(EOPNOTSUPP);
-
 		connection_info.connection_done = false;
 
 		for (;;)
@@ -222,23 +242,25 @@ namespace Kernel
 	BAN::ErrorOr<void> UnixDomainSocket::listen_impl(int backlog)
 	{
 		backlog = BAN::Math::clamp(backlog, 1, SOMAXCONN);
+
 		if (!is_bound())
 			return BAN::Error::from_errno(EDESTADDRREQ);
 		if (!m_info.has<ConnectionInfo>())
 			return BAN::Error::from_errno(EOPNOTSUPP);
+
 		auto& connection_info = m_info.get<ConnectionInfo>();
+
+		LockGuard _(connection_info.pending_lock);
 		if (connection_info.connection)
 			return BAN::Error::from_errno(EINVAL);
 		TRY(connection_info.pending_connections.reserve(backlog));
 		connection_info.listening = true;
+
 		return {};
 	}
 
 	BAN::ErrorOr<void> UnixDomainSocket::bind_impl(const sockaddr* address, socklen_t address_len)
 	{
-		if (is_bound())
-			return BAN::Error::from_errno(EINVAL);
-
 		const auto sun_path = TRY(validate_sockaddr_un(address, address_len));
 		if (sun_path.empty())
 			return BAN::Error::from_errno(EINVAL);
@@ -261,10 +283,15 @@ namespace Kernel
 			O_RDWR
 		));
 
-		LockGuard _(s_bound_socket_lock);
+		LockGuard _0(m_bind_mutex);
+		if (is_bound())
+			return BAN::Error::from_errno(EINVAL);
+
+		LockGuard _1(s_bound_socket_lock);
 		if (s_bound_sockets.contains(file.inode))
 			return BAN::Error::from_errno(EADDRINUSE);
 		TRY(s_bound_sockets.emplace(file.inode, TRY(get_weak_ptr())));
+
 		m_bound_file = BAN::move(file);
 
 		return {};
@@ -679,6 +706,7 @@ namespace Kernel
 	{
 		if (!m_info.has<ConnectionInfo>())
 			return BAN::Error::from_errno(ENOTCONN);
+
 		auto connection = m_info.get<ConnectionInfo>().connection.lock();
 		if (!connection)
 			return BAN::Error::from_errno(ENOTCONN);
@@ -687,7 +715,11 @@ namespace Kernel
 			.sun_family = AF_UNIX,
 			.sun_path = {},
 		};
-		strcpy(sa_un.sun_path, connection->m_bound_file.canonical_path.data());
+
+		{
+			LockGuard _(m_bind_mutex);
+			strcpy(sa_un.sun_path, connection->m_bound_file.canonical_path.data());
+		}
 
 		const size_t to_copy = BAN::Math::min<socklen_t>(sizeof(sockaddr_un), *address_len);
 		memcpy(address, &sa_un, to_copy);

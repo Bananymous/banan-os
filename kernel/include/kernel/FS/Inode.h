@@ -10,7 +10,6 @@
 
 #include <kernel/Credentials.h>
 #include <kernel/Debug.h>
-#include <kernel/Lock/Mutex.h>
 
 #include <dirent.h>
 #include <sys/socket.h>
@@ -183,11 +182,10 @@ namespace Kernel
 
 		virtual BAN::ErrorOr<long> ioctl_impl(int, void*) { return BAN::Error::from_errno(ENOTSUP); }
 
-	protected:
-		mutable PriorityMutex m_mutex;
-
 	private:
+		SpinLock m_shared_region_lock;
 		BAN::WeakPtr<SharedFileData> m_shared_region;
+
 		SpinLock m_epoll_lock;
 		BAN::LinkedList<class Epoll*> m_epolls;
 		friend class Epoll;

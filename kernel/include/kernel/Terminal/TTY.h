@@ -46,12 +46,14 @@ namespace Kernel
 
 		static void keyboard_task(void*);
 		static void initialize_devices();
+
+		bool should_receive_input() const { return m_tty_ctrl.receive_input; }
+		void on_key_event(LibInput::RawKeyEvent);
 		void on_key_event(LibInput::KeyEvent);
 		void handle_input_byte(uint8_t);
 
-		void get_termios(termios* termios) { *termios = m_termios; }
-		// FIXME: validate termios
-		BAN::ErrorOr<void> set_termios(const termios* termios) { m_termios = *termios; return {}; }
+		void get_termios(termios*);
+		BAN::ErrorOr<void> set_termios(const termios*);
 
 		virtual bool is_tty() const override { return true; }
 
@@ -85,9 +87,6 @@ namespace Kernel
 		bool putchar(uint8_t ch);
 		void do_backspace();
 
-	protected:
-		termios m_termios;
-
 	private:
 		const dev_t m_rdev;
 
@@ -95,23 +94,27 @@ namespace Kernel
 
 		struct tty_ctrl_t
 		{
-			bool draw_graphics { true };
-			bool receive_input { true };
-			ThreadBlocker thread_blocker;
+			BAN::Atomic<bool> draw_graphics { true };
+			BAN::Atomic<bool> receive_input { true };
 		};
 		tty_ctrl_t m_tty_ctrl;
 
 		struct Buffer
 		{
 			BAN::UniqPtr<ByteRingBuffer> buffer;
-			bool flush { false };
+			BAN::Atomic<bool> flush { false };
 			ThreadBlocker thread_blocker;
 		};
 		Buffer m_output;
 
 		winsize m_winsize {};
 
+		SpinLock m_termios_lock;
+		termios m_termios;
+
 	protected:
+		Mutex m_mutex;
+
 		RecursiveSpinLock m_write_lock;
 		ThreadBlocker m_write_blocker;
 	};

@@ -43,15 +43,16 @@ namespace Kernel
 		UnixDomainSocket(Socket::Type, const Socket::Info&);
 		~UnixDomainSocket();
 
-		bool is_bound() const { return !m_bound_file.canonical_path.empty(); }
-		bool is_bound_to_unused() const { return !m_bound_file.inode; }
+		bool is_bound() const;
+		bool is_bound_to_unused() const;
+		BAN::ErrorOr<void> bind_to_unused_if_not_bound();
 
 		bool is_streaming() const;
 
 	private:
 		struct ConnectionInfo
 		{
-			bool										listening { false };
+			BAN::Atomic<bool>							listening { false };
 			BAN::Atomic<bool>							connection_done { false };
 			mutable BAN::Atomic<bool>					target_closed { false };
 			BAN::WeakPtr<UnixDomainSocket>				connection;
@@ -62,6 +63,7 @@ namespace Kernel
 
 		struct ConnectionlessInfo
 		{
+			SpinLock lock;
 			BAN::String peer_address;
 		};
 
@@ -76,7 +78,9 @@ namespace Kernel
 		BAN::ErrorOr<size_t> add_packet(const msghdr&, PacketInfo&&, bool dont_block);
 
 	private:
-		const Socket::Type		m_socket_type;
+		const Socket::Type m_socket_type;
+
+		mutable Mutex m_bind_mutex;
 		VirtualFileSystem::File	m_bound_file;
 
 		BAN::Variant<ConnectionInfo, ConnectionlessInfo> m_info;

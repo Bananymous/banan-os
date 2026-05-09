@@ -1,5 +1,6 @@
 #include <BAN/ScopeGuard.h>
 #include <kernel/FS/USTARModule.h>
+#include <kernel/Memory/PageTable.h>
 #include <kernel/Timer/Timer.h>
 #include <LibDEFLATE/Decompressor.h>
 

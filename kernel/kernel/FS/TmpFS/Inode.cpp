@@ -94,6 +94,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> TmpInode::chmod_impl(mode_t new_mode)
 	{
+		// FIXME: make this atomic
 		ASSERT(!(new_mode & Inode::Mode::TYPE_MASK));
 		m_inode_info.mode &= Inode::Mode::TYPE_MASK;
 		m_inode_info.mode |= new_mode;
@@ -102,6 +103,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> TmpInode::chown_impl(uid_t new_uid, gid_t new_gid)
 	{
+		// FIXME: make this atomic
 		m_inode_info.uid = new_uid;
 		m_inode_info.gid = new_gid;
 		return {};
@@ -109,6 +111,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> TmpInode::utimens_impl(const timespec times[2])
 	{
+		// FIXME: make this atomic
 		if (times[0].tv_nsec != UTIME_OMIT)
 			m_inode_info.atime = times[0];
 		if (times[1].tv_nsec != UTIME_OMIT)
@@ -123,23 +126,24 @@ namespace Kernel
 
 	void TmpInode::free_all_blocks()
 	{
+		LockGuard _(m_lock);
 		if (mode().iflnk() && m_inode_info.size <= sizeof(TmpInodeInfo::block))
 			goto free_all_blocks_done;
 		for (size_t i = 0; i < TmpInodeInfo::direct_block_count; i++)
 			if (m_inode_info.block[i])
 				m_fs.free_block(m_inode_info.block[i]);
 		if (size_t block = m_inode_info.block[TmpInodeInfo::direct_block_count + 0])
-			free_indirect_blocks(block, 1);
+			free_indirect_blocks_no_lock(block, 1);
 		if (size_t block = m_inode_info.block[TmpInodeInfo::direct_block_count + 1])
-			free_indirect_blocks(block, 2);
+			free_indirect_blocks_no_lock(block, 2);
 		if (size_t block = m_inode_info.block[TmpInodeInfo::direct_block_count + 2])
-			free_indirect_blocks(block, 3);
+			free_indirect_blocks_no_lock(block, 3);
 	free_all_blocks_done:
 		for (auto& block : m_inode_info.block)
 			block = 0;
 	}
 
-	void TmpInode::free_indirect_blocks(size_t block, uint32_t depth)
+	void TmpInode::free_indirect_blocks_no_lock(size_t block, uint32_t depth)
 	{
 		ASSERT(block != 0);
 
@@ -160,7 +164,7 @@ namespace Kernel
 			if (next_block == 0)
 				continue;
 
-			free_indirect_blocks(next_block, depth - 1);
+			free_indirect_blocks_no_lock(next_block, depth - 1);
 		}
 
 		m_fs.free_block(block);
@@ -168,6 +172,8 @@ namespace Kernel
 
 	BAN::Optional<size_t> TmpInode::block_index(size_t data_block_index)
 	{
+		LockGuard _(m_lock);
+
 		if (data_block_index < TmpInodeInfo::direct_block_count)
 		{
 			if (m_inode_info.block[data_block_index] == 0)
@@ -179,20 +185,20 @@ namespace Kernel
 		const size_t indices_per_block = blksize() / sizeof(size_t);
 
 		if (data_block_index < indices_per_block)
-			return block_index_from_indirect(m_inode_info.block[TmpInodeInfo::direct_block_count + 0], data_block_index, 1);
+			return block_index_from_indirect_no_lock(m_inode_info.block[TmpInodeInfo::direct_block_count + 0], data_block_index, 1);
 		data_block_index -= indices_per_block;
 
 		if (data_block_index < indices_per_block * indices_per_block)
-			return block_index_from_indirect(m_inode_info.block[TmpInodeInfo::direct_block_count + 1], data_block_index, 2);
+			return block_index_from_indirect_no_lock(m_inode_info.block[TmpInodeInfo::direct_block_count + 1], data_block_index, 2);
 		data_block_index -= indices_per_block * indices_per_block;
 
 		if (data_block_index < indices_per_block * indices_per_block * indices_per_block)
-			return block_index_from_indirect(m_inode_info.block[TmpInodeInfo::direct_block_count + 2], data_block_index, 3);
+			return block_index_from_indirect_no_lock(m_inode_info.block[TmpInodeInfo::direct_block_count + 2], data_block_index, 3);
 
 		ASSERT_NOT_REACHED();
 	}
 
-	BAN::Optional<size_t> TmpInode::block_index_from_indirect(size_t block, size_t index, uint32_t depth)
+	BAN::Optional<size_t> TmpInode::block_index_from_indirect_no_lock(size_t block, size_t index, uint32_t depth)
 	{
 		if (block == 0)
 			return {};
@@ -215,11 +221,13 @@ namespace Kernel
 		if (depth == 1)
 			return next_block;
 
-		return block_index_from_indirect(next_block, index, depth - 1);
+		return block_index_from_indirect_no_lock(next_block, index, depth - 1);
 	}
 
 	BAN::ErrorOr<size_t> TmpInode::block_index_with_allocation(size_t data_block_index)
 	{
+		LockGuard _(m_lock);
+
 		if (data_block_index < TmpInodeInfo::direct_block_count)
 		{
 			if (m_inode_info.block[data_block_index] == 0)
@@ -234,20 +242,20 @@ namespace Kernel
 		const size_t indices_per_block = blksize() / sizeof(size_t);
 
 		if (data_block_index < indices_per_block)
-			return block_index_from_indirect_with_allocation(m_inode_info.block[TmpInodeInfo::direct_block_count + 0], data_block_index, 1);
+			return block_index_from_indirect_with_allocation_no_lock(m_inode_info.block[TmpInodeInfo::direct_block_count + 0], data_block_index, 1);
 		data_block_index -= indices_per_block;
 
 		if (data_block_index < indices_per_block * indices_per_block)
-			return block_index_from_indirect_with_allocation(m_inode_info.block[TmpInodeInfo::direct_block_count + 1], data_block_index, 2);
+			return block_index_from_indirect_with_allocation_no_lock(m_inode_info.block[TmpInodeInfo::direct_block_count + 1], data_block_index, 2);
 		data_block_index -= indices_per_block * indices_per_block;
 
 		if (data_block_index < indices_per_block * indices_per_block * indices_per_block)
-			return block_index_from_indirect_with_allocation(m_inode_info.block[TmpInodeInfo::direct_block_count + 2], data_block_index, 3);
+			return block_index_from_indirect_with_allocation_no_lock(m_inode_info.block[TmpInodeInfo::direct_block_count + 2], data_block_index, 3);
 
 		ASSERT_NOT_REACHED();
 	}
 
-	BAN::ErrorOr<size_t> TmpInode::block_index_from_indirect_with_allocation(size_t& block, size_t index, uint32_t depth)
+	BAN::ErrorOr<size_t> TmpInode::block_index_from_indirect_with_allocation_no_lock(size_t& block, size_t index, uint32_t depth)
 	{
 		if (block == 0)
 		{
@@ -280,7 +288,7 @@ namespace Kernel
 		if (depth == 1)
 			return next_block;
 
-		return block_index_from_indirect_with_allocation(next_block, index, depth - 1);
+		return block_index_from_indirect_with_allocation_no_lock(next_block, index, depth - 1);
 	}
 
 	/* FILE INODE */
@@ -309,6 +317,8 @@ namespace Kernel
 
 	BAN::ErrorOr<size_t> TmpFileInode::read_impl(off_t offset, BAN::ByteSpan out_buffer)
 	{
+		LockGuard _(m_lock);
+
 		if (offset >= size() || out_buffer.size() == 0)
 			return 0;
 
@@ -339,7 +349,12 @@ namespace Kernel
 
 	BAN::ErrorOr<size_t> TmpFileInode::write_impl(off_t offset, BAN::ConstByteSpan in_buffer)
 	{
-		// FIXME: handle overflow
+		if (offset < 0)
+			return BAN::Error::from_errno(EINVAL);
+		if (BAN::Math::will_addition_overflow<size_t>(offset, in_buffer.size()))
+			return BAN::Error::from_errno(EOVERFLOW);
+
+		LockGuard _(m_lock);
 
 		if (offset + in_buffer.size() > (size_t)size())
 			TRY(truncate_impl(offset + in_buffer.size()));
@@ -370,6 +385,7 @@ namespace Kernel
 	{
 		// FIXME: if size is decreased, we should probably free
 		//        unused blocks
+		// FIXME: make this atomic
 
 		m_inode_info.size = new_size;
 		return {};
@@ -427,6 +443,8 @@ namespace Kernel
 
 	BAN::ErrorOr<void> TmpSymlinkInode::set_link_target_impl(BAN::StringView new_target)
 	{
+		LockGuard _(m_lock);
+
 		free_all_blocks();
 		m_inode_info.size = 0;
 
@@ -455,6 +473,8 @@ namespace Kernel
 
 	BAN::ErrorOr<BAN::String> TmpSymlinkInode::link_target_impl()
 	{
+		LockGuard _(m_lock);
+
 		BAN::String result;
 		TRY(result.resize(size()));
 
@@ -522,7 +542,7 @@ namespace Kernel
 	{
 	}
 
-	BAN::ErrorOr<void> TmpDirectoryInode::prepare_unlink()
+	BAN::ErrorOr<void> TmpDirectoryInode::prepare_unlink_no_lock()
 	{
 		ino_t dot_ino = 0;
 		ino_t dotdot_ino = 0;
@@ -564,15 +584,15 @@ namespace Kernel
 
 	BAN::ErrorOr<BAN::RefPtr<Inode>> TmpDirectoryInode::find_inode_impl(BAN::StringView name)
 	{
-		ino_t result = 0;
+		LockGuard _(m_lock);
 
+		ino_t result = 0;
 		for_each_valid_entry([&](TmpDirectoryEntry& entry) {
 			if (entry.name_sv() != name)
 				return BAN::Iteration::Continue;
 			result = entry.ino;
 			return BAN::Iteration::Break;
 		});
-
 		if (result == 0)
 			return BAN::Error::from_errno(ENOENT);
 
@@ -587,6 +607,8 @@ namespace Kernel
 			dprintln("buffer is too small");
 			return BAN::Error::from_errno(ENOBUFS);
 		}
+
+		LockGuard _(m_lock);
 
 		auto block_index = this->block_index(data_block_index);
 
@@ -664,6 +686,8 @@ namespace Kernel
 		ASSERT(!inode->mode().ifdir());
 		ASSERT(&m_fs == inode->filesystem());
 
+		LockGuard _(m_lock);
+
 		if (!find_inode_impl(name).is_error())
 			return BAN::Error::from_errno(EEXIST);
 
@@ -680,16 +704,17 @@ namespace Kernel
 
 		auto* tmp_parent = static_cast<TmpDirectoryInode*>(old_parent.ptr());
 
-		// FIXME: possible deadlock :)
-		LockGuard _(tmp_parent->m_mutex);
+		// FIXME: is this a possible deadlock?
+		LockGuard _0(tmp_parent->m_lock);
+		LockGuard _1(m_lock);
 
 		auto old_inode = TRY(tmp_parent->find_inode_impl(old_name));
 		auto* tmp_inode = static_cast<TmpInode*>(old_inode.ptr());
 
-		if (auto replace_or_error = find_inode_impl(new_name); replace_or_error.is_error())
+		if (auto find_result = find_inode_impl(new_name); find_result.is_error())
 		{
-			if (replace_or_error.error().get_error_code() != ENOENT)
-				return replace_or_error.release_error();
+			if (find_result.error().get_error_code() != ENOENT)
+				return find_result.release_error();
 		}
 		else
 		{
@@ -711,15 +736,15 @@ namespace Kernel
 
 	BAN::ErrorOr<void> TmpDirectoryInode::unlink_inode(BAN::StringView name, bool cleanup)
 	{
-		ino_t entry_ino = 0;
+		LockGuard _(m_lock);
 
+		ino_t entry_ino = 0;
 		for_each_valid_entry([&](TmpDirectoryEntry& entry) {
 			if (entry.name_sv() != name)
 				return BAN::Iteration::Continue;
 			entry_ino = entry.ino;
 			return BAN::Iteration::Break;
 		});
-
 		if (entry_ino == 0)
 			return BAN::Error::from_errno(ENOENT);
 
@@ -728,7 +753,7 @@ namespace Kernel
 		ASSERT(inode->nlink() > 0);
 
 		if (cleanup)
-			TRY(inode->prepare_unlink());
+			TRY(inode->prepare_unlink_no_lock());
 		inode->m_inode_info.nlink--;
 
 		if (inode->nlink() == 0)
@@ -748,6 +773,8 @@ namespace Kernel
 	BAN::ErrorOr<void> TmpDirectoryInode::link_inode(TmpInode& inode, BAN::StringView name)
 	{
 		static constexpr size_t directory_entry_alignment = sizeof(TmpDirectoryEntry);
+
+		LockGuard _(m_lock);
 
 		auto find_result = find_inode_impl(name);
 		if (!find_result.is_error())

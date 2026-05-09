@@ -2,6 +2,7 @@
 
 #include <BAN/HashMap.h>
 #include <kernel/FS/Inode.h>
+#include <kernel/Lock/Mutex.h>
 
 #include <sys/epoll.h>
 
@@ -90,6 +91,7 @@ namespace Kernel
 		};
 
 	private:
+		Mutex m_mutex;
 		ThreadBlocker m_thread_blocker;
 		SpinLock m_ready_lock;
 		BAN::HashMap<BAN::RefPtr<Inode>, uint32_t> m_ready_events;

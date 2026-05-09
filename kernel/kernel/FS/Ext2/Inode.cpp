@@ -61,6 +61,8 @@ namespace Kernel
 		const uint32_t inode_blocks_per_fs_block = blksize() / 512;
 		const uint32_t indices_per_fs_block = blksize() / sizeof(uint32_t);
 
+		LockGuard _(m_lock);
+
 		if (block == 0 && !allocate)
 			return BAN::Optional<uint32_t>();
 
@@ -115,6 +117,8 @@ namespace Kernel
 		const uint32_t inode_blocks_per_fs_block = blksize() / 512;
 		const uint32_t indices_per_block = blksize() / sizeof(uint32_t);
 
+		LockGuard _(m_lock);
+
 		if (data_block_index < 12)
 		{
 			if (m_inode.block[data_block_index] != 0)
@@ -152,6 +156,9 @@ namespace Kernel
 	BAN::ErrorOr<BAN::String> Ext2Inode::link_target_impl()
 	{
 		ASSERT(mode().iflnk());
+
+		LockGuard _(m_lock);
+
 		if (m_inode.size < sizeof(m_inode.block))
 		{
 			BAN::String result;
@@ -168,6 +175,9 @@ namespace Kernel
 	BAN::ErrorOr<void> Ext2Inode::set_link_target_impl(BAN::StringView target)
 	{
 		ASSERT(mode().iflnk());
+
+		LockGuard _(m_lock);
+
 		if (target.size() < sizeof(m_inode.block))
 		{
 			if (m_inode.size >= sizeof(m_inode.block))
@@ -194,10 +204,12 @@ namespace Kernel
 		if (static_cast<BAN::make_unsigned_t<decltype(offset)>>(offset) >= UINT32_MAX || buffer.size() >= UINT32_MAX || buffer.size() >= (size_t)(UINT32_MAX - offset))
 			return BAN::Error::from_errno(EOVERFLOW);
 
+		LockGuard _0(m_lock);
+
 		if (static_cast<BAN::make_unsigned_t<decltype(offset)>>(offset) >= m_inode.size)
 			return 0;
 
-		ScopedSync _(*this);
+		ScopedSync _1(*this);
 
 		uint32_t count = buffer.size();
 		if (offset + buffer.size() > m_inode.size)
@@ -239,6 +251,8 @@ namespace Kernel
 
 		if (static_cast<BAN::make_unsigned_t<decltype(offset)>>(offset) >= UINT32_MAX || buffer.size() >= UINT32_MAX || buffer.size() >= (size_t)(UINT32_MAX - offset))
 			return BAN::Error::from_errno(EOVERFLOW);
+
+		LockGuard _0(m_lock);
 
 		if (m_inode.size < offset + buffer.size())
 			TRY(truncate_impl(offset + buffer.size()));
@@ -300,6 +314,8 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Ext2Inode::truncate_impl(size_t new_size)
 	{
+		LockGuard _(m_lock);
+
 		if (m_inode.size == new_size)
 			return {};
 
@@ -320,6 +336,10 @@ namespace Kernel
 	BAN::ErrorOr<void> Ext2Inode::chmod_impl(mode_t mode)
 	{
 		ASSERT((mode & Inode::Mode::TYPE_MASK) == 0);
+
+		// TODO: this could be atomic
+		LockGuard _(m_lock);
+
 		if (m_inode.mode == mode)
 			return {};
 
@@ -337,6 +357,9 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Ext2Inode::chown_impl(uid_t uid, gid_t gid)
 	{
+		// TODO: this could be atomic
+		LockGuard _(m_lock);
+
 		if (m_inode.uid == uid && m_inode.gid == gid)
 			return {};
 
@@ -357,6 +380,9 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Ext2Inode::utimens_impl(const timespec times[2])
 	{
+		// TODO: this could be atomic
+		LockGuard _(m_lock);
+
 		const uint32_t old_times[2] {
 			m_inode.atime,
 			m_inode.mtime,
@@ -379,6 +405,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Ext2Inode::fsync_impl()
 	{
+		LockGuard _(m_lock);
 		for (size_t i = 0; i < max_used_data_block_count(); i++)
 			if (const auto fs_block = TRY(fs_block_of_data_block_index(i, false)); fs_block.has_value())
 				TRY(m_fs.sync_block(fs_block.value()));
@@ -388,6 +415,8 @@ namespace Kernel
 	BAN::ErrorOr<void> Ext2Inode::cleanup_indirect_block(uint32_t block, uint32_t depth)
 	{
 		ASSERT(block);
+
+		LockGuard _(m_lock);
 
 		if (depth == 0)
 		{
@@ -413,6 +442,8 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Ext2Inode::cleanup_data_blocks()
 	{
+		LockGuard _(m_lock);
+
 		if (mode().iflnk() && (size_t)size() < sizeof(m_inode.block))
 			goto done;
 
@@ -450,6 +481,8 @@ done:
 	{
 		ASSERT(mode().ifdir());
 		ASSERT(offset >= 0);
+
+		LockGuard _(m_lock);
 
 		if (static_cast<BAN::make_unsigned_t<decltype(offset)>>(offset) >= max_used_data_block_count())
 			return 0;
@@ -552,6 +585,8 @@ done:
 	{
 		ASSERT(this->mode().ifdir());
 
+		LockGuard _(m_lock);
+
 		if (!find_inode_impl(name).is_error())
 			return BAN::Error::from_errno(EEXIST);
 
@@ -586,6 +621,8 @@ done:
 		ASSERT(this->mode().ifdir());
 		ASSERT(Mode(mode).ifdir());
 
+		LockGuard _(m_lock);
+
 		if (!find_inode_impl(name).is_error())
 			return BAN::Error::from_errno(EEXIST);
 
@@ -619,6 +656,8 @@ done:
 		ASSERT(!inode->mode().ifdir());
 		ASSERT(&m_fs == inode->filesystem());
 
+		LockGuard _(m_lock);
+
 		if (!find_inode_impl(name).is_error())
 			return BAN::Error::from_errno(EEXIST);
 
@@ -636,16 +675,17 @@ done:
 
 		auto* ext2_parent = static_cast<Ext2Inode*>(old_parent.ptr());
 
-		// FIXME: possible deadlock :)
-		LockGuard _(ext2_parent->m_mutex);
+		// FIXME: is this a possible deadlock?
+		LockGuard _0(ext2_parent->m_lock);
+		LockGuard _1(m_lock);
 
 		auto old_inode = TRY(ext2_parent->find_inode_impl(old_name));
 		auto* ext2_inode = static_cast<Ext2Inode*>(old_inode.ptr());
 
-		if (auto replace_or_error = find_inode_impl(new_name); replace_or_error.is_error())
+		if (auto find_result = find_inode_impl(new_name); find_result.is_error())
 		{
-			if (replace_or_error.error().get_error_code() != ENOENT)
-				return replace_or_error.release_error();
+			if (find_result.error().get_error_code() != ENOENT)
+				return find_result.release_error();
 		}
 		else
 		{
@@ -666,6 +706,8 @@ done:
 
 		if (name.size() > 255)
 			return BAN::Error::from_errno(ENAMETOOLONG);
+
+		LockGuard _(m_lock);
 
 		if (m_inode.flags & Ext2::Enum::INDEX_FL)
 		{
@@ -770,6 +812,8 @@ needs_new_block:
 
 		auto block_buffer = TRY(m_fs.get_block_buffer());
 
+		LockGuard _(m_lock);
+
 		// Confirm that this doesn't contain anything else than '.' or '..'
 		for (uint32_t i = 0; i < max_used_data_block_count(); i++)
 		{
@@ -800,13 +844,16 @@ needs_new_block:
 	BAN::ErrorOr<void> Ext2Inode::cleanup_default_links()
 	{
 		ASSERT(mode().ifdir());
+
+		auto block_buffer = TRY(m_fs.get_block_buffer());
+
+		LockGuard _(m_lock);
+
 		if (m_inode.flags & Ext2::Enum::INDEX_FL)
 		{
 			dwarnln("deletion of indexed directory is not supported");
 			return BAN::Error::from_errno(ENOTSUP);
 		}
-
-		auto block_buffer = TRY(m_fs.get_block_buffer());
 
 		for (uint32_t i = 0; i < max_used_data_block_count(); i++)
 		{
@@ -857,13 +904,16 @@ needs_new_block:
 	BAN::ErrorOr<void> Ext2Inode::remove_inode_from_directory(BAN::StringView name, bool cleanup_directory)
 	{
 		ASSERT(mode().ifdir());
+
+		auto block_buffer = TRY(m_fs.get_block_buffer());
+
+		LockGuard _(m_lock);
+
 		if (m_inode.flags & Ext2::Enum::INDEX_FL)
 		{
 			dwarnln("deletion from indexed directory is not supported");
 			return BAN::Error::from_errno(ENOTSUP);
 		}
-
-		auto block_buffer = TRY(m_fs.get_block_buffer());
 
 		for (uint32_t i = 0; i < max_used_data_block_count(); i++)
 		{
@@ -925,6 +975,8 @@ needs_new_block:
 		auto block_buffer = TRY(m_fs.get_block_buffer());
 
 		TRY(m_fs.read_block(inode_location.block, block_buffer));
+
+		LockGuard _(m_lock);
 		if (memcmp(block_buffer.data() + inode_location.offset, &m_inode, sizeof(Ext2::Inode)))
 		{
 			memcpy(block_buffer.data() + inode_location.offset, &m_inode, sizeof(Ext2::Inode));
@@ -940,6 +992,7 @@ needs_new_block:
 
 		auto block_buffer = TRY(m_fs.get_block_buffer());
 
+		LockGuard _(m_lock);
 		for (uint32_t i = 0; i < max_used_data_block_count(); i++)
 		{
 			const auto block_index = TRY(fs_block_of_data_block_index(i, false));

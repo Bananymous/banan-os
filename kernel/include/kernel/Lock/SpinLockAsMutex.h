@@ -46,7 +46,7 @@ namespace Kernel
 		uint32_t lock_depth() const override { return m_lock_depth; }
 
 	private:
-		SpinLock& m_lock;
+		Lock& m_lock;
 		uint32_t m_lock_depth { 0 };
 		InterruptState m_state;
 		const pid_t m_locker;

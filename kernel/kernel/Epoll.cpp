@@ -153,8 +153,6 @@ namespace Kernel
 						REMOVE_IT();
 
 					{
-						LockGuard inode_locker(inode->m_mutex);
-
 #define CHECK_EVENT_BIT(mask, func) \
 						if ((events & mask) && !inode->func()) \
 							events &= ~mask;

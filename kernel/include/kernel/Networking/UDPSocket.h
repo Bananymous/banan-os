@@ -66,8 +66,11 @@ namespace Kernel
 		SpinLock							m_packet_lock;
 		ThreadBlocker						m_packet_thread_blocker;
 
+		SpinLock							m_peer_address_lock;
 		sockaddr_storage					m_peer_address {};
 		socklen_t							m_peer_address_len { 0 };
+
+		Mutex								m_bind_lock;
 
 		friend class BAN::RefPtr<UDPSocket>;
 	};

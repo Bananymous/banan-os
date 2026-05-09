@@ -67,7 +67,7 @@ namespace Kernel
 		bool putchar_impl(uint8_t ch) override;
 
 		bool can_write_impl() const override;
-		bool has_hungup_impl() const override { return !m_master.valid(); }
+		bool has_hungup_impl() const override { return master_has_closed(); }
 
 	private:
 		PseudoTerminalSlave(BAN::String&& name, uint32_t number, mode_t, uid_t, gid_t);

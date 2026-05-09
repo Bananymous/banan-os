@@ -66,6 +66,8 @@ namespace Kernel
 
 	BAN::ErrorOr<long> TCPSocket::accept_impl(sockaddr* address, socklen_t* address_len, int flags)
 	{
+		LockGuard _(m_mutex);
+
 		if (m_state != State::Listen)
 			return BAN::Error::from_errno(EINVAL);
 
@@ -171,6 +173,8 @@ namespace Kernel
 
 	BAN::ErrorOr<void> TCPSocket::listen_impl(int backlog)
 	{
+		LockGuard _(m_mutex);
+
 		if (!is_bound())
 			return BAN::Error::from_errno(EDESTADDRREQ);
 		if (m_connection_info.has_value())
@@ -185,6 +189,8 @@ namespace Kernel
 
 	BAN::ErrorOr<void> TCPSocket::bind_impl(const sockaddr* address, socklen_t address_len)
 	{
+		LockGuard _(m_mutex);
+
 		if (is_bound())
 			return BAN::Error::from_errno(EINVAL);
 		return m_network_layer.bind_socket_to_address(this, address, address_len);
@@ -203,6 +209,8 @@ namespace Kernel
 			dprintln_if(DEBUG_TCP, "ignoring recvmsg control message");
 			message.msg_controllen = 0;
 		}
+
+		LockGuard _(m_mutex);
 
 		if (!m_has_connected)
 			return BAN::Error::from_errno(ENOTCONN);
@@ -261,6 +269,8 @@ namespace Kernel
 		if (CMSG_FIRSTHDR(&message))
 			dwarnln("ignoring sendmsg control message");
 
+		LockGuard _(m_mutex);
+
 		if (!m_has_connected)
 			return BAN::Error::from_errno(ENOTCONN);
 
@@ -291,6 +301,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> TCPSocket::getpeername_impl(sockaddr* address, socklen_t* address_len)
 	{
+		LockGuard _(m_mutex);
 		if (!m_has_connected && m_state != State::Established)
 			return BAN::Error::from_errno(ENOTCONN);
 		ASSERT(m_connection_info.has_value());
@@ -302,6 +313,8 @@ namespace Kernel
 
 	BAN::ErrorOr<void> TCPSocket::getsockopt_impl(int level, int option, void* value, socklen_t* value_len)
 	{
+		LockGuard _(m_mutex);
+
 		int result;
 
 		switch (level)
@@ -351,6 +364,8 @@ namespace Kernel
 
 	BAN::ErrorOr<void> TCPSocket::setsockopt_impl(int level, int option, const void* value, socklen_t value_len)
 	{
+		LockGuard _(m_mutex);
+
 		switch (level)
 		{
 			case SOL_SOCKET:
@@ -401,6 +416,7 @@ namespace Kernel
 
 	bool TCPSocket::can_read_impl() const
 	{
+		LockGuard _(m_mutex);
 		if (m_has_connected && !m_has_sent_zero && m_state != State::Established && m_state != State::Listen)
 			return true;
 		if (m_state == State::Listen)
@@ -410,6 +426,7 @@ namespace Kernel
 
 	bool TCPSocket::can_write_impl() const
 	{
+		LockGuard _(m_mutex);
 		if (m_state != State::Established)
 			return false;
 		return !m_send_window.buffer->full();
@@ -417,6 +434,7 @@ namespace Kernel
 
 	bool TCPSocket::has_hungup_impl() const
 	{
+		LockGuard _(m_mutex);
 		return m_has_connected && m_state != State::Established;
 	}
 

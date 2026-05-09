@@ -62,8 +62,8 @@ namespace Kernel
 		Mutex m_command_mutex;
 
 		BAN::Atomic<bool> m_has_initialized_leds { false };
-		uint8_t m_led_state       { 0b0001 };
-		uint8_t m_rumble_strength { 0x00 };
+		BAN::Atomic<uint8_t> m_led_state         { 0b0001 };
+		BAN::Atomic<uint8_t> m_rumble_strength   { 0x00 };
 
 		friend class BAN::RefPtr<USBJoystick>;
 	};

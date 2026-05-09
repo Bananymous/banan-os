@@ -57,7 +57,7 @@ namespace Kernel::ACPI
 				m_last_value = target_conv.value().as.integer.value;
 			}
 
-			auto target_str = TRY(BAN::String::formatted("{}", m_last_value));
+			auto target_str = TRY(BAN::String::formatted("{}", m_last_value.load()));
 
 			if (static_cast<size_t>(offset) >= target_str.size())
 				return 0;
@@ -67,8 +67,8 @@ namespace Kernel::ACPI
 			return ncopy;
 		}
 
-		BAN::ErrorOr<size_t> write_impl(off_t, BAN::ConstByteSpan) override		{ return BAN::Error::from_errno(EINVAL); }
-		BAN::ErrorOr<void> truncate_impl(size_t) override						{ return BAN::Error::from_errno(EINVAL); }
+		BAN::ErrorOr<size_t> write_impl(off_t, BAN::ConstByteSpan) override { return BAN::Error::from_errno(EINVAL); }
+		BAN::ErrorOr<void> truncate_impl(size_t) override { return BAN::Error::from_errno(EINVAL); }
 
 		bool can_read_impl() const override { return true; }
 		bool can_write_impl() const override { return false; }
@@ -90,8 +90,8 @@ namespace Kernel::ACPI
 		AML::NameString m_method_name;
 		size_t m_result_index;
 
-		uint64_t m_last_read_ms = 0;
-		uint64_t m_last_value = 0;
+		BAN::Atomic<uint64_t> m_last_read_ms = 0;
+		BAN::Atomic<uint64_t> m_last_value = 0;
 	};
 
 	BAN::ErrorOr<void> BatterySystem::initialize(AML::Namespace& acpi_namespace)

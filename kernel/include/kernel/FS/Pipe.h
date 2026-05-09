@@ -1,7 +1,7 @@
 #pragma once
 
-#include <BAN/Array.h>
 #include <kernel/FS/Inode.h>
+#include <kernel/Lock/Mutex.h>
 #include <kernel/Memory/ByteRingBuffer.h>
 #include <kernel/ThreadBlocker.h>
 
@@ -53,6 +53,8 @@ namespace Kernel
 		timespec m_atime {};
 		timespec m_mtime {};
 		timespec m_ctime {};
+
+		Mutex m_mutex;
 		ThreadBlocker m_thread_blocker;
 
 		BAN::UniqPtr<ByteRingBuffer> m_buffer;

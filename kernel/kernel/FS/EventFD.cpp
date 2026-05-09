@@ -1,4 +1,5 @@
 #include <kernel/FS/EventFD.h>
+#include <kernel/Lock/LockGuard.h>
 
 #include <sys/epoll.h>
 
@@ -18,15 +19,19 @@ namespace Kernel
 		if (buffer.size() < sizeof(uint64_t))
 			return BAN::Error::from_errno(EINVAL);
 
+		LockGuard _(m_mutex);
+
 		while (m_value == 0)
 			TRY(Thread::current().block_or_eintr_indefinite(m_thread_blocker, &m_mutex));
 
-		const uint64_t read_value = m_is_semaphore ? 1 : m_value;
+		const uint64_t read_value = m_is_semaphore ? 1 : m_value.load();
 		m_value -= read_value;
 
 		buffer.as<uint64_t>() = read_value;
 
 		epoll_notify(EPOLLOUT);
+
+		m_thread_blocker.unblock();
 
 		return sizeof(uint64_t);
 	}
@@ -40,6 +45,8 @@ namespace Kernel
 		if (write_value == UINT64_MAX)
 			return BAN::Error::from_errno(EINVAL);
 
+		LockGuard _(m_mutex);
+
 		while (m_value + write_value < m_value)
 			TRY(Thread::current().block_or_eintr_indefinite(m_thread_blocker, &m_mutex));
 
@@ -47,6 +54,8 @@ namespace Kernel
 
 		if (m_value > 0)
 			epoll_notify(EPOLLIN);
+
+		m_thread_blocker.unblock();
 
 		return sizeof(uint64_t);
 	}

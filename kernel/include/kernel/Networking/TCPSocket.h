@@ -181,6 +181,7 @@ namespace Kernel
 
 		uint64_t m_time_wait_start_ms { 0 };
 
+		mutable Mutex m_mutex;
 		ThreadBlocker m_thread_blocker;
 
 		RecvWindowInfo m_recv_window;
