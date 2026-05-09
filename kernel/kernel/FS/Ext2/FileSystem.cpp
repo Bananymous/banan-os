@@ -307,39 +307,33 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Ext2FS::read_block(uint32_t block, BlockBufferWrapper& buffer)
 	{
-		LockGuard _(m_mutex);
-
 		const uint32_t sector_size = m_block_device->blksize();
 		const uint32_t block_size = this->block_size();
 		const uint32_t sectors_per_block = block_size / sector_size;
 
 		ASSERT(block >= superblock().first_data_block + 1);
 		ASSERT(buffer.size() >= block_size);
-		TRY(m_block_device->read_blocks(block * sectors_per_block, sectors_per_block, buffer.span()));
 
+		TRY(m_block_device->read_blocks(block * sectors_per_block, sectors_per_block, buffer.span()));
 		return {};
 	}
 
 	BAN::ErrorOr<void> Ext2FS::write_block(uint32_t block, const BlockBufferWrapper& buffer)
 	{
-		LockGuard _(m_mutex);
-
 		const uint32_t sector_size = m_block_device->blksize();
 		const uint32_t block_size = this->block_size();
 		const uint32_t sectors_per_block = block_size / sector_size;
 
 		ASSERT(block >= superblock().first_data_block + 1);
 		ASSERT(buffer.size() >= block_size);
-		TRY(m_block_device->write_blocks(block * sectors_per_block, sectors_per_block, buffer.span()));
 
+		TRY(m_block_device->write_blocks(block * sectors_per_block, sectors_per_block, buffer.span()));
 		return {};
 	}
 
 	BAN::ErrorOr<void> Ext2FS::sync_superblock()
 	{
 		auto superblock_buffer = TRY(get_block_buffer());
-
-		LockGuard _(m_mutex);
 
 		const uint32_t sector_size = m_block_device->blksize();
 		ASSERT(1024 % sector_size == 0);
@@ -364,8 +358,6 @@ namespace Kernel
 
 	BAN::ErrorOr<void> Ext2FS::sync_block(uint32_t block)
 	{
-		LockGuard _(m_mutex);
-
 		const uint32_t sector_size = m_block_device->blksize();
 		const uint32_t block_size = this->block_size();
 		const uint32_t sectors_per_block = block_size / sector_size;
