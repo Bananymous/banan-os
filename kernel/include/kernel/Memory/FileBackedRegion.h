@@ -1,6 +1,7 @@
 #pragma once
 
 #include <kernel/FS/Inode.h>
+#include <kernel/Lock/RWLock.h>
 #include <kernel/Memory/MemoryRegion.h>
 
 namespace Kernel
@@ -10,15 +11,14 @@ namespace Kernel
 	{
 		~SharedFileData();
 
-		void sync(size_t page_index);
+		void sync_no_lock(size_t page_index);
 
-		Mutex mutex;
+		RWLock rw_lock;
 
 		// FIXME: this should probably be ordered tree like map
 		//        for fast lookup and less memory usage
 		BAN::Vector<paddr_t> pages;
 		BAN::RefPtr<Inode> inode;
-		uint8_t page_buffer[PAGE_SIZE];
 	};
 
 	class FileBackedRegion final : public MemoryRegion

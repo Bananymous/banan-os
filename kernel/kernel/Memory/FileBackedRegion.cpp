@@ -2,7 +2,11 @@
 #include <kernel/Memory/FileBackedRegion.h>
 #include <kernel/Memory/Heap.h>
 
+#include <BAN/ScopeGuard.h>
+
 #include <sys/mman.h>
+
+#pragma GCC diagnostic ignored "-Wstack-usage="
 
 namespace Kernel
 {
@@ -62,28 +66,23 @@ namespace Kernel
 
 	SharedFileData::~SharedFileData()
 	{
-		// no-one should be referencing this anymore
-		[[maybe_unused]] bool success = mutex.try_lock();
-		ASSERT(success);
+		// TODO: validate that this is not locked
 
 		for (size_t i = 0; i < pages.size(); i++)
 		{
 			if (pages[i] == 0)
 				continue;
-			sync(i);
+			sync_no_lock(i);
 			Heap::get().release_page(pages[i]);
 		}
-
-		mutex.unlock();
 	}
 
-	void SharedFileData::sync(size_t page_index)
+	void SharedFileData::sync_no_lock(size_t page_index)
 	{
-		ASSERT(mutex.is_locked());
-
 		if (pages[page_index] == 0)
 			return;
 
+		uint8_t page_buffer[PAGE_SIZE];
 		PageTable::with_fast_page(pages[page_index], [&] {
 			memcpy(page_buffer, PageTable::fast_page_as_ptr(), PAGE_SIZE);
 		});
@@ -103,10 +102,10 @@ namespace Kernel
 		const vaddr_t first_page = address & PAGE_ADDR_MASK;
 		const vaddr_t last_page  = BAN::Math::div_round_up<vaddr_t>(address + size, PAGE_SIZE) * PAGE_SIZE;
 
-		LockGuard _(m_shared_data->mutex);
+		RWLockRDGuard _(m_shared_data->rw_lock);
 		for (vaddr_t page_addr = first_page; page_addr < last_page; page_addr += PAGE_SIZE)
 			if (contains(page_addr))
-				m_shared_data->sync((m_offset + page_addr - m_vaddr) / PAGE_SIZE);
+				m_shared_data->sync_no_lock((m_offset + page_addr - m_vaddr) / PAGE_SIZE);
 
 		return {};
 	}
@@ -125,28 +124,42 @@ namespace Kernel
 		if (m_page_table.physical_address_of(vaddr) == 0)
 		{
 			ASSERT(m_shared_data);
-			LockGuard _(m_shared_data->mutex);
+
+			uint8_t page_buffer[PAGE_SIZE];
+
+			m_shared_data->rw_lock.rd_lock();
 
 			bool shared_data_has_correct_page = false;
 			if (m_shared_data->pages[shared_page_index] == 0)
 			{
-				m_shared_data->pages[shared_page_index] = Heap::get().take_free_page();
-				if (m_shared_data->pages[shared_page_index] == 0)
-					return BAN::Error::from_errno(ENOMEM);
+				m_shared_data->rw_lock.rd_unlock();
 
 				const size_t offset = (vaddr - m_vaddr) + m_offset;
 				ASSERT(offset % PAGE_SIZE == 0);
 
 				const size_t bytes = BAN::Math::min<size_t>(m_inode->size() - offset, PAGE_SIZE);
 
-				TRY(m_inode->read(offset, BAN::ByteSpan(m_shared_data->page_buffer, bytes)));
-				memset(m_shared_data->page_buffer + bytes, 0, PAGE_SIZE - bytes);
+				TRY(m_inode->read(offset, BAN::ByteSpan(page_buffer, bytes)));
+				memset(page_buffer + bytes, 0, PAGE_SIZE - bytes);
 
-				PageTable::with_fast_page(m_shared_data->pages[shared_page_index], [&] {
-					memcpy(PageTable::fast_page_as_ptr(), m_shared_data->page_buffer, PAGE_SIZE);
-				});
-				shared_data_has_correct_page = true;
+				{
+					RWLockWRGuard _(m_shared_data->rw_lock);
+					if (m_shared_data->pages[shared_page_index] == 0)
+					{
+						m_shared_data->pages[shared_page_index] = Heap::get().take_free_page();
+						if (m_shared_data->pages[shared_page_index] == 0)
+							return BAN::Error::from_errno(ENOMEM);
+						PageTable::with_fast_page(m_shared_data->pages[shared_page_index], [&] {
+							memcpy(PageTable::fast_page_as_ptr(), page_buffer, PAGE_SIZE);
+						});
+						shared_data_has_correct_page = true;
+					}
+				}
+
+				m_shared_data->rw_lock.rd_lock();
 			}
+
+			BAN::ScopeGuard _([this] { m_shared_data->rw_lock.rd_unlock(); });
 
 			if (m_type == Type::PRIVATE && wants_write)
 			{
@@ -156,11 +169,11 @@ namespace Kernel
 				if (!shared_data_has_correct_page)
 				{
 					PageTable::with_fast_page(m_shared_data->pages[shared_page_index], [&] {
-						memcpy(m_shared_data->page_buffer, PageTable::fast_page_as_ptr(), PAGE_SIZE);
+						memcpy(page_buffer, PageTable::fast_page_as_ptr(), PAGE_SIZE);
 					});
 				}
 				PageTable::with_fast_page(paddr, [&] {
-					memcpy(PageTable::fast_page_as_ptr(), m_shared_data->page_buffer, PAGE_SIZE);
+					memcpy(PageTable::fast_page_as_ptr(), page_buffer, PAGE_SIZE);
 				});
 				m_dirty_pages[local_page_index] = paddr;
 				m_page_table.map_page_at(paddr, vaddr, m_flags);
