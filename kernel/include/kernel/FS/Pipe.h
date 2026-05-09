@@ -44,6 +44,8 @@ namespace Kernel
 		virtual bool has_error_impl() const override { return m_reading_count == 0; }
 		virtual bool has_hungup_impl() const override { return m_writing_count == 0; }
 
+		virtual BAN::ErrorOr<long> ioctl_impl(int, void*) override;
+
 	private:
 		Pipe(const Credentials&);
 

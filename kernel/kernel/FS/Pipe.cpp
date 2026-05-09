@@ -5,6 +5,7 @@
 
 #include <fcntl.h>
 #include <sys/epoll.h>
+#include <sys/ioctl.h>
 
 namespace Kernel
 {
@@ -121,6 +122,18 @@ namespace Kernel
 		m_thread_blocker.unblock();
 
 		return to_copy;
+	}
+
+
+	BAN::ErrorOr<long> Pipe::ioctl_impl(int cmd, void* arg)
+	{
+		switch (cmd)
+		{
+			case TIOCGWINSZ:
+			case TIOCSWINSZ:
+				return BAN::Error::from_errno(EINVAL);
+		}
+		return Inode::ioctl_impl(cmd, arg);
 	}
 
 }
