@@ -780,46 +780,73 @@ static void qsort_swap(void* lhs, void* rhs, size_t width)
 	uint8_t* ulhs = static_cast<uint8_t*>(lhs);
 	uint8_t* urhs = static_cast<uint8_t*>(rhs);
 
-	uint8_t buffer[64];
+	uint8_t temp[64];
 	while (width > 0)
 	{
-		const size_t to_swap = BAN::Math::min(width, sizeof(buffer));
-		memcpy(buffer, ulhs, to_swap);
+		const size_t to_swap = BAN::Math::min(width, sizeof(temp));
+		memcpy(temp, ulhs, to_swap);
 		memcpy(ulhs, urhs, to_swap);
-		memcpy(urhs, buffer, to_swap);
+		memcpy(urhs, temp, to_swap);
 		width -= to_swap;
 		ulhs += to_swap;
 		urhs += to_swap;
 	}
 }
 
-static uint8_t* qsort_partition(uint8_t* pbegin, uint8_t* pend, size_t width, int (*compar)(const void*, const void*))
+struct qsort_pair
 {
-	uint8_t* pivot = pend - width;
-	uint8_t* p1 = pbegin;
-	for (uint8_t* p2 = pbegin; p2 < pivot; p2 += width)
+	uint8_t* lt;
+	uint8_t* gt;
+};
+
+static qsort_pair qsort_partition(uint8_t* pbegin, uint8_t* pend, size_t width, int (*compar)(const void*, const void*))
+{
+	uint8_t* pivot = pbegin + (pend - pbegin) / width / 2 * width;
+
+	uint8_t* lt = pbegin;
+	uint8_t* eq = pbegin;
+	uint8_t* gt = pend;
+
+	while (eq < gt)
 	{
-		if (compar(p2, pivot) >= 0)
-			continue;
-		qsort_swap(p1, p2, width);
-		p1 += width;
+		const int comp = compar(eq, pivot);
+
+		if (comp < 0)
+		{
+			qsort_swap(eq, lt, width);
+			if (pivot == lt)
+				pivot = eq;
+			lt += width;
+			eq += width;
+		}
+		else if (comp > 0)
+		{
+			gt -= width;
+			qsort_swap(eq, gt, width);
+			if (pivot == gt)
+				pivot = eq;
+		}
+		else
+		{
+			eq += width;
+		}
 	}
-	qsort_swap(p1, pivot, width);
-	return p1;
+
+	return { lt, gt };
 }
 
 static void qsort_impl(uint8_t* pbegin, uint8_t* pend, size_t width, int (*compar)(const void*, const void*))
 {
-	if ((pend - pbegin) / width <= 1)
+	if (pbegin + width >= pend)
 		return;
-	uint8_t* mid = qsort_partition(pbegin, pend, width, compar);
-	qsort_impl(pbegin, mid, width, compar);
-	qsort_impl(mid + width, pend, width, compar);
+	auto [lt, gt] = qsort_partition(pbegin, pend, width, compar);
+	qsort_impl(pbegin, lt, width, compar);
+	qsort_impl(gt, pend, width, compar);
 }
 
 void qsort(void* base, size_t nel, size_t width, int (*compar)(const void*, const void*))
 {
-	if (width == 0)
+	if (width == 0 || nel <= 1)
 		return;
 	uint8_t* pbegin = static_cast<uint8_t*>(base);
 	qsort_impl(pbegin, pbegin + nel * width, width, compar);
