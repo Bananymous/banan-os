@@ -137,27 +137,20 @@ namespace BAN::sort
 
 	template<typename It, size_t radix = 256>
 	requires is_unsigned_v<it_value_type_t<It>> && (radix > 0 && (radix & (radix - 1)) == 0)
-	BAN::ErrorOr<void> radix_sort(It begin, It end)
+	void radix_sort(It begin, It end, BAN::Span<it_value_type_t<It>> storage)
 	{
-		using value_type = it_value_type_t<It>;
-
 		const size_t len = distance(begin, end);
 		if (len <= 1)
-			return {};
+			return;
 
-		Vector<value_type> temp;
-		TRY(temp.resize(len));
-
-		Vector<size_t> counts;
-		TRY(counts.resize(radix));
+		ASSERT(storage.size() >= len);
 
 		constexpr size_t mask  = radix - 1;
 		constexpr size_t shift = detail::lsb_index(radix);
 
-		for (size_t s = 0; s < sizeof(value_type) * 8; s += shift)
+		for (size_t s = 0; s < sizeof(it_value_type_t<It>) * 8; s += shift)
 		{
-			for (auto& cnt : counts)
-				cnt = 0;
+			size_t counts[radix] {};
 			for (It it = begin; it != end; ++it)
 				counts[(*it >> s) & mask]++;
 
@@ -167,12 +160,27 @@ namespace BAN::sort
 			for (It it = end; it != begin;)
 			{
 				--it;
-				temp[--counts[(*it >> s) & mask]] = *it;
+				storage[--counts[(*it >> s) & mask]] = *it;
 			}
 
-			for (size_t j = 0; j < temp.size(); j++)
-				*next(begin, j) = temp[j];
+			It it = begin;
+			for (size_t j = 0; j < storage.size(); j++, ++it)
+				*it = storage[j];
 		}
+	}
+
+	template<typename It, size_t radix = 256>
+	requires is_unsigned_v<it_value_type_t<It>> && (radix > 0 && (radix & (radix - 1)) == 0)
+	BAN::ErrorOr<void> radix_sort(It begin, It end)
+	{
+		const size_t len = distance(begin, end);
+		if (len <= 1)
+			return {};
+
+		Vector<it_value_type_t<It>> temp;
+		TRY(temp.resize(len));
+
+		radix_sort(begin, end, temp.span());
 
 		return {};
 	}
