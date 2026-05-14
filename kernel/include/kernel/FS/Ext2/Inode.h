@@ -4,7 +4,7 @@
 #include <BAN/StringView.h>
 #include <kernel/FS/Ext2/Definitions.h>
 #include <kernel/FS/Inode.h>
-#include <kernel/Lock/Mutex.h>
+#include <kernel/Lock/RWLock.h>
 
 namespace Kernel
 {
@@ -58,25 +58,30 @@ namespace Kernel
 		virtual bool has_hungup_impl() const override { return false; }
 
 	private:
+		uint32_t block_group() const;
+
 		// Returns maximum number of data blocks in use
 		// NOTE: the inode might have more blocks than what this suggests if it has been shrinked
 		uint32_t max_used_data_block_count() const { return size() / blksize(); }
 
-		BAN::ErrorOr<BAN::Optional<uint32_t>> block_from_indirect_block(uint32_t& block, uint32_t index, uint32_t depth, bool allocate);
-		BAN::ErrorOr<BAN::Optional<uint32_t>> fs_block_of_data_block_index(uint32_t data_block_index, bool allocate);
+		BAN::ErrorOr<void> sync_no_lock();
 
-		BAN::ErrorOr<void> link_inode_to_directory(Ext2Inode&, BAN::StringView name);
-		BAN::ErrorOr<void> remove_inode_from_directory(BAN::StringView name, bool cleanup_directory);
-		BAN::ErrorOr<bool> is_directory_empty();
+		BAN::ErrorOr<bool> is_directory_empty_no_lock();
+		BAN::ErrorOr<BAN::RefPtr<Inode>> find_inode_no_lock(BAN::StringView);
 
-		BAN::ErrorOr<void> cleanup_indirect_block(uint32_t block, uint32_t depth);
-		BAN::ErrorOr<void> cleanup_default_links();
-		BAN::ErrorOr<void> cleanup_data_blocks();
-		BAN::ErrorOr<void> cleanup_from_fs();
+		/* needs write end of the lock when allocate is true*/
+		BAN::ErrorOr<BAN::Optional<uint32_t>> block_from_indirect_block_no_lock(uint32_t& block, uint32_t index, uint32_t depth, bool allocate);
+		BAN::ErrorOr<BAN::Optional<uint32_t>> fs_block_of_data_block_index_no_lock(uint32_t data_block_index, bool allocate);
 
-		BAN::ErrorOr<void> sync();
+		/* needs write end of the lock */
+		BAN::ErrorOr<void> link_inode_to_directory_no_lock(Ext2Inode&, BAN::StringView name);
+		BAN::ErrorOr<void> remove_inode_from_directory_no_lock(BAN::StringView name, bool cleanup_directory);
 
-		uint32_t block_group() const;
+		/* needs write end of the lock */
+		BAN::ErrorOr<void> cleanup_indirect_block_no_lock(uint32_t block, uint32_t depth);
+		BAN::ErrorOr<void> cleanup_default_links_no_lock();
+		BAN::ErrorOr<void> cleanup_data_blocks_no_lock();
+		BAN::ErrorOr<void> cleanup_from_fs_no_lock();
 
 	private:
 		Ext2Inode(Ext2FS& fs, Ext2::Inode inode, uint32_t ino)
@@ -98,7 +103,7 @@ namespace Kernel
 			{
 				if (memcmp(&inode.m_inode, &inode_info, sizeof(Ext2::Inode)) == 0)
 					return;
-				if (auto ret = inode.sync(); ret.is_error())
+				if (auto ret = inode.sync_no_lock(); ret.is_error())
 					dwarnln("failed to sync inode: {}", ret.error());
 			}
 
@@ -111,8 +116,7 @@ namespace Kernel
 		Ext2::Inode m_inode;
 		const uint32_t m_ino;
 
-		// TODO: try to reduce locking or replace this with rwlock(?)
-		Mutex m_lock;
+		RWLock m_lock;
 
 		friend class Ext2FS;
 		friend class BAN::RefPtr<Ext2Inode>;
