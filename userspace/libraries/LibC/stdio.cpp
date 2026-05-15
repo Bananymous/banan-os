@@ -277,11 +277,11 @@ int fgetpos(FILE* file, fpos_t* pos)
 
 char* fgets(char* str, int size, FILE* file)
 {
-	if (size == 0)
+	if (size <= 0)
 		return nullptr;
 	ScopeLock _(file);
 	int i = 0;
-	for (; i < size - 1; i++)
+	while (i < size - 1)
 	{
 		int c = getc_unlocked(file);
 		if (c == EOF)
@@ -290,12 +290,9 @@ char* fgets(char* str, int size, FILE* file)
 				return nullptr;
 			break;
 		}
-		str[i] = c;
+		str[i++] = c;
 		if (c == '\n')
-		{
-			i++;
 			break;
-		}
 	}
 	str[i] = '\0';
 	return str;
