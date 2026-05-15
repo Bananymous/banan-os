@@ -1,7 +1,7 @@
 #ifndef _TERMIOS_H
 #define _TERMIOS_H 1
 
-// https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/termios.h.html
+// https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/termios.h.html
 
 #include <sys/cdefs.h>
 
@@ -37,6 +37,14 @@ struct termios
 	cc_t		c_cc[NCCS];	/* Control characters. */
 	speed_t     c_ospeed;
 	speed_t     c_ispeed;
+};
+
+struct winsize
+{
+	unsigned short ws_row;
+	unsigned short ws_col;
+	unsigned short ws_xpixel; /* unused by kernel */
+	unsigned short ws_ypixel; /* unused by kernel */
 };
 
 #define BRKINT	0x001
@@ -143,8 +151,10 @@ int		tcflow(int fildes, int action);
 int		tcflush(int fildes, int queue_selector);
 int		tcgetattr(int fildes, struct termios* termios_p);
 pid_t	tcgetsid(int fildes);
+int		tcgetwinsize(int fildes, struct winsize* winsize_p);
 int		tcsendbreak(int fildes, int duration);
 int		tcsetattr(int fildes, int optional_actions, const struct termios* termios_p);
+int		tcsetwinsize(int fildes, const struct winsize* winsize_p);
 
 __END_DECLS
 

@@ -117,3 +117,13 @@ int tcsendbreak(int fd, int duration)
 	dwarnln("FIXME: tcsendbreak({}, {})", fd, duration);
 	return -1;
 }
+
+int tcgetwinsize(int fildes, struct winsize* winsize_p)
+{
+	return ioctl(fildes, TIOCGWINSZ, winsize_p);
+}
+
+int tcsetwinsize(int fildes, const struct winsize* winsize_p)
+{
+	return ioctl(fildes, TIOCSWINSZ, winsize_p);
+}

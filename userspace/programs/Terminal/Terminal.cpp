@@ -9,8 +9,8 @@
 #include <fcntl.h>
 #include <signal.h>
 #include <stdlib.h>
-#include <sys/ioctl.h>
 #include <sys/select.h>
+#include <termios.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -141,14 +141,14 @@ void Terminal::run()
 	m_cells_cols = cols();
 
 	{
-		winsize winsize {
+		const winsize winsize {
 			.ws_row = static_cast<unsigned short>(rows()),
 			.ws_col = static_cast<unsigned short>(cols()),
 			.ws_xpixel = static_cast<unsigned short>(m_window->width()),
 			.ws_ypixel = static_cast<unsigned short>(m_window->height()),
 		};
-		if (ioctl(m_shell_info.pts_master, TIOCSWINSZ, &winsize) == -1)
-			perror("ioctl");
+		if (tcsetwinsize(m_shell_info.pts_master, &winsize) == -1)
+			perror("tcsetwinsize");
 	}
 
 	{
@@ -212,11 +212,8 @@ void Terminal::run()
 			.ws_xpixel = static_cast<unsigned short>(m_window->width()),
 			.ws_ypixel = static_cast<unsigned short>(m_window->height()),
 		};
-		if (ioctl(m_shell_info.pts_master, TIOCSWINSZ, &winsize) == -1)
-		{
-			perror("ioctl");
-			return;
-		}
+		if (tcsetwinsize(m_shell_info.pts_master, &winsize) == -1)
+			perror("tcsetwinsize");
 	});
 
 	m_window->set_key_event_callback([&](LibGUI::EventPacket::KeyEvent::event_t event) {

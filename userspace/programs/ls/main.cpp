@@ -8,8 +8,8 @@
 #include <grp.h>
 #include <pwd.h>
 #include <stdio.h>
-#include <sys/ioctl.h>
 #include <sys/stat.h>
+#include <termios.h>
 
 struct config_t
 {
@@ -406,7 +406,7 @@ int main(int argc, const char* argv[])
 	else for (; i < argc; i++)
 		MUST(files.emplace_back(BAN::StringView(argv[i])));
 
-	g_stdout_terminal = isatty(STDOUT_FILENO) && ioctl(STDOUT_FILENO, TIOCGWINSZ, &g_terminal_size) == 0;
+	g_stdout_terminal = isatty(STDOUT_FILENO) && tcgetwinsize(STDOUT_FILENO, &g_terminal_size) == 0;
 
 	int ret = 0;
 	for (size_t i = 0; i < files.size(); i++)

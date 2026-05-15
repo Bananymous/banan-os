@@ -42,15 +42,8 @@ __BEGIN_DECLS
 #define FIONREAD	40 /* get number of input bytes available */
 #define FIONBIO		41
 
-struct winsize
-{
-	unsigned short ws_row;
-	unsigned short ws_col;
-	unsigned short ws_xpixel; /* unused by kernel */
-	unsigned short ws_ypixel; /* unused by kernel */
-};
-#define TIOCGWINSZ 50
-#define TIOCSWINSZ 51
+#define TIOCGWINSZ	50
+#define TIOCSWINSZ	51
 #define TCGETS      52
 #define TCSETS      53
 #define TCSETSW     54
