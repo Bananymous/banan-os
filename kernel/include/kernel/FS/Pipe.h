@@ -13,8 +13,6 @@ namespace Kernel
 	public:
 		static BAN::ErrorOr<BAN::RefPtr<Inode>> create(const Credentials&);
 
-		virtual bool is_pipe() const override { return true; }
-
 		void on_close(int status_flags) override;
 		void on_clone(int status_flags) override;
 

@@ -74,6 +74,7 @@ namespace Kernel
 		: CharacterDevice(mode, uid, gid)
 		, m_termios(termios)
 	{
+		m_kind |= InodeKind::TTY;
 		m_rdev = next_tty_rdev();
 		m_output.buffer = MUST(ByteRingBuffer::create(PAGE_SIZE));
 	}

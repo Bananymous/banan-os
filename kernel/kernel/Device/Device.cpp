@@ -11,6 +11,7 @@ namespace Kernel
 			MUST(DevFileSystem::get().allocate_inode(create_inode_info(mode, uid, gid))),
 			create_inode_info(mode, uid, gid)
 		)
-	{ }
-
+	{
+		m_kind |= InodeKind::DEVICE;
+	}
 }

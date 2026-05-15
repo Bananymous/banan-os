@@ -39,6 +39,7 @@ namespace Kernel
 		m_blocks = 0;
 		m_dev = 0; // FIXME
 		m_rdev = 0; // FIXME
+		m_kind = InodeKind::PIPE;
 	}
 
 	void Pipe::on_clone(int status_flags)

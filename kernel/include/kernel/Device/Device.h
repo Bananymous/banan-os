@@ -12,7 +12,6 @@ namespace Kernel
 		virtual ~Device() = default;
 		virtual void update() {}
 
-		virtual bool is_device() const override { return true; }
 		virtual bool is_partition() const { return false; }
 		virtual bool is_storage_device() const { return false; }
 

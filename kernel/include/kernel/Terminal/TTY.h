@@ -49,8 +49,6 @@ namespace Kernel
 		void on_key_event(LibInput::KeyEvent);
 		void handle_input_byte(uint8_t);
 
-		virtual bool is_tty() const override { return true; }
-
 		virtual void clear() = 0;
 
 		virtual BAN::ErrorOr<void> chmod_impl(mode_t) override;

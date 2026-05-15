@@ -35,11 +35,10 @@ namespace Kernel
 			m_blocks = 0;
 			m_dev = 0;
 			m_rdev = 0;
+			m_kind = InodeKind::EPOLL;
 		}
 
 	public:
-		bool is_epoll() const override { return true; }
-
 		const FileSystem* filesystem() const override { return nullptr; }
 
 		bool can_read_impl() const override { return false; }

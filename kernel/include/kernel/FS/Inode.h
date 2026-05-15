@@ -61,7 +61,12 @@ namespace Kernel
 			bool ifsock() const { return (mode & Mask::TYPE_MASK) == Mask::IFSOCK; }
 			mode_t mode;
 		};
-
+		enum InodeKind : uint8_t {
+			DEVICE = 0x1,
+			EPOLL  = 0x2,
+			PIPE   = 0x4,
+			TTY    = 0x8,
+		};
 	public:
 		virtual ~Inode() {}
 
@@ -83,10 +88,10 @@ namespace Kernel
 		dev_t dev() const { return m_dev; }
 		dev_t rdev() const { return m_rdev; }
 
-		virtual bool is_device() const { return false; }
-		virtual bool is_epoll() const { return false; }
-		virtual bool is_pipe() const { return false; }
-		virtual bool is_tty() const { return false; }
+		bool is_device() const { return m_kind & InodeKind::DEVICE; }
+		bool is_epoll()  const { return m_kind & InodeKind::EPOLL;  }
+		bool is_pipe()   const { return m_kind & InodeKind::PIPE;   }
+		bool is_tty()    const { return m_kind & InodeKind::TTY;    }
 
 		virtual const FileSystem* filesystem() const = 0;
 
@@ -183,6 +188,10 @@ namespace Kernel
 		virtual BAN::ErrorOr<long> ioctl_impl(int, void*) { return BAN::Error::from_errno(ENOTSUP); }
 
 	protected:
+		// TODO: this is supposed to be const I guess?
+		// But the thing is I would have to refactor a big chunk of the codebase
+		// to add it as a parameter to Inode() soooooo yeah no, not doing that rn.
+		uint8_t m_kind = 0;
 		BAN::Atomic<ino_t>     m_ino;
 		BAN::Atomic<mode_t>    m_mode;
 		BAN::Atomic<nlink_t>   m_nlink;
