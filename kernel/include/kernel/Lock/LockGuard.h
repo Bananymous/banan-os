@@ -7,7 +7,7 @@
 namespace Kernel
 {
 
-	template<typename Lock>
+	template<typename Lock> requires requires(Lock& lock) { lock.lock(); lock.unlock(); }
 	class LockGuard
 	{
 		BAN_NON_COPYABLE(LockGuard);

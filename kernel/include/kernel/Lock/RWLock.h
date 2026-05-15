@@ -16,7 +16,7 @@ namespace Kernel
 		void rd_lock()
 		{
 			LockGuard _(m_mutex);
-			while (m_writers_waiting > 0 || m_writer_active)
+			while (m_writers_waiting > 0 || m_writer != -1)
 				m_thread_blocker.block_indefinite(&m_mutex);
 			m_readers_active++;
 		}
@@ -30,19 +30,29 @@ namespace Kernel
 
 		void wr_lock()
 		{
+			if (m_writer == Thread::current_tid())
+			{
+				m_writer_depth++;
+				return;
+			}
+
 			LockGuard _(m_mutex);
+
 			m_writers_waiting++;
-			while (m_readers_active > 0 || m_writer_active)
+			while (m_readers_active > 0 || m_writer != -1)
 				m_thread_blocker.block_indefinite(&m_mutex);
 			m_writers_waiting--;
-			m_writer_active = true;
-		}
 
+			m_writer = Thread::current_tid();
+			m_writer_depth = 1;
+		}
 
 		void wr_unlock()
 		{
+			if (--m_writer_depth != 0)
+				return;
 			LockGuard _(m_mutex);
-			m_writer_active = false;
+			m_writer = -1;
 			m_thread_blocker.unblock();
 		}
 
@@ -51,7 +61,8 @@ namespace Kernel
 		ThreadBlocker m_thread_blocker;
 		uint32_t m_readers_active  { 0 };
 		uint32_t m_writers_waiting { 0 };
-		bool m_writer_active { false };
+		pid_t m_writer { -1 };
+		uint32_t m_writer_depth { 0 };
 	};
 
 	class RWLockRDGuard
