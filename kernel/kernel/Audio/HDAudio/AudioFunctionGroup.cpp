@@ -1,6 +1,7 @@
 #include <kernel/Audio/HDAudio/AudioFunctionGroup.h>
 #include <kernel/Audio/HDAudio/Registers.h>
 #include <kernel/FS/DevFS/FileSystem.h>
+#include <kernel/Timer/Timer.h>
 
 #include <BAN/Sort.h>
 
@@ -202,12 +203,12 @@ namespace Kernel
 		ASSERT(m_stream_index == 0xFF);
 		m_stream_index = TRY(m_controller->allocate_stream(HDAudio::StreamType::Output, this));
 
-		reset_stream();
+		TRY(reset_stream());
 
 		return {};
 	}
 
-	void HDAudioFunctionGroup::reset_stream()
+	BAN::ErrorOr<void> HDAudioFunctionGroup::reset_stream()
 	{
 		using Regs = HDAudio::Regs;
 
@@ -219,13 +220,23 @@ namespace Kernel
 		// stop stream
 		bar.write8(base + Regs::SDCTL, bar.read8(base + Regs::SDCTL) & 0xFD);
 
+		const auto timeout_ms = SystemTimer::get().ms_since_boot() + 100;
+
 		// reset stream
 		bar.write8(base + Regs::SDCTL, (bar.read8(base + Regs::SDCTL) & 0xFE) | 1);
 		while (!(bar.read8(base + Regs::SDCTL) & 1))
+		{
+			if (SystemTimer::get().ms_since_boot() > timeout_ms)
+				return BAN::Error::from_errno(ETIMEDOUT);
 			Processor::pause();
+		}
 		bar.write8(base + Regs::SDCTL, (bar.read8(base + Regs::SDCTL) & 0xFE));
 		while ((bar.read8(base + Regs::SDCTL) & 1))
+		{
+			if (SystemTimer::get().ms_since_boot() > timeout_ms)
+				return BAN::Error::from_errno(ETIMEDOUT);
 			Processor::pause();
+		}
 
 		// set bdl address, total size and lvi
 		const paddr_t bdl_paddr = m_bdl_region->paddr() + bdl_offset();
@@ -621,7 +632,13 @@ namespace Kernel
 
 			m_bdl_tail = (m_bdl_tail + 1) % m_bdl_entry_count;
 			if (m_bdl_tail == m_bdl_head)
-				reset_stream();
+			{
+				if (auto ret = reset_stream(); ret.is_error())
+				{
+					dwarnln("failed to reset HDA stream: {}", ret.error());
+					return;
+				}
+			}
 
 			queue_bdl_data();
 		}

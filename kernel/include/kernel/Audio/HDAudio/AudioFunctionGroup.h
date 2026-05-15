@@ -43,7 +43,7 @@ namespace Kernel
 		BAN::ErrorOr<void> enable_output_path(uint8_t index);
 		BAN::ErrorOr<void> disable_output_path(uint8_t index);
 
-		void reset_stream();
+		BAN::ErrorOr<void> reset_stream();
 
 		BAN::ErrorOr<void> recurse_output_paths(const HDAudio::AFGWidget& widget, BAN::Vector<const HDAudio::AFGWidget*>& path);
 
