@@ -33,9 +33,6 @@ namespace Kernel
 	public:
 		virtual BAN::ErrorOr<void> set_font(LibFont::Font&&) { return BAN::Error::from_errno(EINVAL); }
 
-		void set_foreground_pgrp(pid_t pgrp) { m_foreground_pgrp = pgrp; }
-		pid_t foreground_pgrp() const { return m_foreground_pgrp; }
-
 		BAN::ErrorOr<void> tty_ctrl(int command, int flags);
 
 		// for kprint
@@ -51,9 +48,6 @@ namespace Kernel
 		void on_key_event(LibInput::RawKeyEvent);
 		void on_key_event(LibInput::KeyEvent);
 		void handle_input_byte(uint8_t);
-
-		void get_termios(termios*);
-		BAN::ErrorOr<void> set_termios(const termios*);
 
 		virtual bool is_tty() const override { return true; }
 
@@ -87,10 +81,12 @@ namespace Kernel
 		bool putchar(uint8_t ch);
 		void do_backspace();
 
+		termios get_termios();
+
 	private:
 		const dev_t m_rdev;
 
-		pid_t m_foreground_pgrp { 0 };
+		BAN::Atomic<pid_t> m_foreground_pgrp { 0 };
 
 		struct tty_ctrl_t
 		{

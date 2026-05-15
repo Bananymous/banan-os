@@ -226,6 +226,23 @@ namespace Kernel
 		ASSERT(!m_page_table);
 	}
 
+	bool Process::is_pgrpg_in_this_session(pid_t pgrp) const
+	{
+		bool valid_pgrp = false;
+		for_each_process(
+			[&](Process& process)
+			{
+				if (process.sid() == sid() && process.pgrp() == pgrp)
+				{
+					valid_pgrp = true;
+					return BAN::Iteration::Break;
+				}
+				return BAN::Iteration::Continue;
+			}
+		);
+		return valid_pgrp;
+	}
+
 	void Process::add_thread(Thread* thread)
 	{
 		LockGuard _(m_process_lock);
@@ -622,40 +639,6 @@ namespace Kernel
 		ASSERT(this == &Process::current());
 		exit(status, 0);
 		ASSERT_NOT_REACHED();
-	}
-
-	BAN::ErrorOr<long> Process::sys_tcgetattr(int fildes, termios* user_termios)
-	{
-		auto inode = TRY(m_open_file_descriptors.inode_of(fildes));
-		if (!inode->is_tty())
-			return BAN::Error::from_errno(ENOTTY);
-
-		struct termios termios;
-		static_cast<TTY*>(inode.ptr())->get_termios(&termios);
-
-		TRY(write_to_user(user_termios, &termios, sizeof(struct termios)));
-
-		return 0;
-	}
-
-	BAN::ErrorOr<long> Process::sys_tcsetattr(int fildes, int optional_actions, const termios* user_termios)
-	{
-		//if (optional_actions != TCSANOW)
-		//	return BAN::Error::from_errno(EINVAL);
-		(void)optional_actions;
-
-		auto inode = TRY(m_open_file_descriptors.inode_of(fildes));
-		if (!inode->is_tty())
-			return BAN::Error::from_errno(ENOTTY);
-
-		termios termios;
-		TRY(read_from_user(user_termios, &termios, sizeof(struct termios)));
-
-		TRY(static_cast<TTY*>(inode.ptr())->set_termios(&termios));
-
-		// FIXME: SIGTTOU
-
-		return 0;
 	}
 
 	BAN::ErrorOr<long> Process::sys_fork(uintptr_t sp, uintptr_t ip)
@@ -2764,15 +2747,6 @@ namespace Kernel
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_isatty(int fildes)
-	{
-		LockGuard _(m_process_lock);
-		auto inode = TRY(m_open_file_descriptors.inode_of(fildes));
-		if (!inode->is_tty())
-			return BAN::Error::from_errno(ENOTTY);
-		return 0;
-	}
-
 	BAN::ErrorOr<long> Process::sys_posix_openpt(int flags)
 	{
 		if (flags & ~(O_RDWR | O_NOCTTY))
@@ -3447,64 +3421,6 @@ namespace Kernel
 		}
 
 		return BAN::Error::from_errno(ESRCH);
-	}
-
-	BAN::ErrorOr<long> Process::sys_tcgetpgrp(int fd)
-	{
-		LockGuard _(m_process_lock);
-
-		auto inode = TRY(m_open_file_descriptors.inode_of(fd));
-
-		// NOTE: This is a hack but I'm not sure how terminal is supposted to get
-		//       slave's foreground pgroup while not having controlling terminal
-		if (TRY(m_open_file_descriptors.path_of(fd)) == "<ptmx>"_sv)
-			return TRY(static_cast<PseudoTerminalMaster*>(inode.ptr())->slave())->foreground_pgrp();
-
-		if (!m_controlling_terminal)
-			return BAN::Error::from_errno(ENOTTY);
-
-		if (!inode->is_tty())
-			return BAN::Error::from_errno(ENOTTY);
-
-		auto* tty = static_cast<TTY*>(inode.ptr());
-		if (tty != m_controlling_terminal.ptr())
-			return BAN::Error::from_errno(ENOTTY);
-
-		return tty->foreground_pgrp();
-	}
-
-	BAN::ErrorOr<long> Process::sys_tcsetpgrp(int fd, pid_t pgrp)
-	{
-		LockGuard _(m_process_lock);
-
-		if (!m_controlling_terminal)
-			return BAN::Error::from_errno(ENOTTY);
-
-		bool valid_pgrp = false;
-		for_each_process(
-			[&](Process& process)
-			{
-				if (process.sid() == sid() && process.pgrp() == pgrp)
-				{
-					valid_pgrp = true;
-					return BAN::Iteration::Break;
-				}
-				return BAN::Iteration::Continue;
-			}
-		);
-		if (!valid_pgrp)
-			return BAN::Error::from_errno(EPERM);
-
-		auto inode = TRY(m_open_file_descriptors.inode_of(fd));
-		if (!inode->is_tty())
-			return BAN::Error::from_errno(ENOTTY);
-
-		auto* tty = static_cast<TTY*>(inode.ptr());
-		if (tty != m_controlling_terminal.ptr())
-			return BAN::Error::from_errno(ENOTTY);
-
-		tty->set_foreground_pgrp(pgrp);
-		return 0;
 	}
 
 	BAN::ErrorOr<long> Process::sys_setuid(uid_t uid)

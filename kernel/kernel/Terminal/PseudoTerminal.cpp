@@ -173,7 +173,7 @@ namespace Kernel
 				return BAN::Error::from_errno(ENODEV);
 		}
 
-		return BAN::Error::from_errno(ENOTSUP);
+		return CharacterDevice::ioctl(request, argument);
 	}
 
 	PseudoTerminalSlave::PseudoTerminalSlave(BAN::String&& name, uint32_t number, mode_t mode, uid_t uid, gid_t gid)

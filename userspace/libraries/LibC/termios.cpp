@@ -3,19 +3,10 @@
 
 #include <errno.h>
 #include <pthread.h>
+#include <sys/ioctl.h>
 #include <sys/syscall.h>
 #include <termios.h>
 #include <unistd.h>
-
-speed_t cfgetispeed(const struct termios* termios)
-{
-	return termios->c_ispeed;
-}
-
-speed_t cfgetospeed(const struct termios* termios)
-{
-	return termios->c_ospeed;
-}
 
 static bool is_valid_speed(speed_t speed)
 {
@@ -41,6 +32,16 @@ static bool is_valid_speed(speed_t speed)
 		default:
 			return false;
 	}
+}
+
+speed_t cfgetispeed(const struct termios* termios)
+{
+	return termios->c_ispeed;
+}
+
+speed_t cfgetospeed(const struct termios* termios)
+{
+	return termios->c_ospeed;
 }
 
 int cfsetispeed(struct termios* termios, speed_t speed)
@@ -87,18 +88,32 @@ int tcflush(int fd, int queue_selector)
 
 int tcgetattr(int fildes, struct termios* termios)
 {
-	return syscall(SYS_TCGETATTR, fildes, termios);
+	return ioctl(fildes, TCGETS, termios);
 }
 
-pid_t tcgetsid(int);
+int tcsetattr(int fildes, int optional_actions, const struct termios* termios)
+{
+	int ioctl_num;
+	switch (optional_actions)
+	{
+		case TCSANOW:
+			ioctl_num = TCSETS;
+			break;
+		case TCSADRAIN:
+			ioctl_num = TCSETSW;
+			break;
+		case TCSAFLUSH:
+			ioctl_num = TCSETSF;
+			break;
+		default:
+			errno = EINVAL;
+			return -1;
+	}
+	return ioctl(fildes, ioctl_num, termios);
+}
 
 int tcsendbreak(int fd, int duration)
 {
 	dwarnln("FIXME: tcsendbreak({}, {})", fd, duration);
 	return -1;
-}
-
-int tcsetattr(int fildes, int optional_actions, const struct termios* termios)
-{
-	return syscall(SYS_TCSETATTR, fildes, optional_actions, termios);
 }

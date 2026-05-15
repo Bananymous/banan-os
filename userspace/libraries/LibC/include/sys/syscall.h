@@ -14,8 +14,6 @@ __BEGIN_DECLS
 	O(SYS_SEEK,				seek)			\
 	O(SYS_TELL,				tell)			\
 	O(SYS_RENAMEAT,			renameat)		\
-	O(SYS_TCGETATTR,		tcgetattr)		\
-	O(SYS_TCSETATTR,		tcsetattr)		\
 	O(SYS_FORK,				fork)			\
 	O(SYS_EXEC,				exec)			\
 	O(SYS_SLEEP,			sleep)			\
@@ -39,8 +37,6 @@ __BEGIN_DECLS
 	O(SYS_PIPE,				pipe)			\
 	O(SYS_DUP2,				dup2)			\
 	O(SYS_KILL,				kill)			\
-	O(SYS_TCGETPGRP,		tcgetpgrp)		\
-	O(SYS_TCSETPGRP,		tcsetpgrp)		\
 	O(SYS_GET_PPID,			getppid)		\
 	O(SYS_GET_PID,			getpid)			\
 	O(SYS_GET_PGID,			getpgid)		\
@@ -79,7 +75,6 @@ __BEGIN_DECLS
 	O(SYS_SMO_CREATE,		smo_create)		\
 	O(SYS_SMO_DELETE,		smo_delete)		\
 	O(SYS_SMO_MAP,			smo_map)		\
-	O(SYS_ISATTY,			isatty)			\
 	O(SYS_GETSOCKNAME,		getsockname)	\
 	O(SYS_GETPEERNAME,		getpeername)	\
 	O(SYS_GETSOCKOPT,		getsockopt)		\

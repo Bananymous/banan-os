@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/banan-os.h>
+#include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
 #include <sys/time.h>
@@ -349,7 +350,8 @@ int dup2(int fildes, int fildes2)
 
 int isatty(int fildes)
 {
-	return syscall(SYS_ISATTY, fildes) >= 0;
+	struct termios termios;
+	return tcgetattr(fildes, &termios) + 1;
 }
 
 int gethostname(char* name, size_t namelen)
@@ -838,7 +840,10 @@ pid_t getsid(pid_t pid)
 
 int tcgetpgrp(int fildes)
 {
-	return syscall(SYS_TCGETPGRP, fildes);
+	pid_t pgrp;
+	if (ioctl(fildes, TIOCGPGRP, &pgrp) == -1)
+		return -1;
+	return pgrp;
 }
 
 int seteuid(uid_t uid)
@@ -889,7 +894,7 @@ int setpgid(pid_t pid, pid_t pgid)
 
 int tcsetpgrp(int fildes, pid_t pgid_id)
 {
-	return syscall(SYS_TCSETPGRP, fildes, pgid_id);
+	return ioctl(fildes, TIOCSPGRP, &pgid_id);
 }
 
 char* getlogin(void)

@@ -56,15 +56,13 @@ namespace Kernel
 		pid_t pid() const { return m_pid; }
 
 		bool is_session_leader() const { return pid() == sid(); }
+		bool is_pgrpg_in_this_session(pid_t) const;
 
 		const char* name() const { return m_cmdline.empty() ? "<unknown>" : m_cmdline.front().data(); }
 
 		const Credentials& credentials() const { return m_credentials; }
 
 		BAN::ErrorOr<long> sys_exit(int status);
-
-		BAN::ErrorOr<long> sys_tcgetattr(int fildes, termios*);
-		BAN::ErrorOr<long> sys_tcsetattr(int fildes, int optional_actions, const termios*);
 
 		BAN::ErrorOr<long> sys_fork(uintptr_t rsp, uintptr_t rip);
 		BAN::ErrorOr<long> sys_exec(const char* path, const char* const* argv, const char* const* envp);
@@ -186,7 +184,6 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_smo_map(SharedMemoryObjectManager::Key);
 
 		BAN::ErrorOr<long> sys_ttyname(int fildes, char* name, size_t namesize);
-		BAN::ErrorOr<long> sys_isatty(int fildes);
 		BAN::ErrorOr<long> sys_posix_openpt(int flags);
 		BAN::ErrorOr<long> sys_ptsname(int fildes, char* buffer, size_t buffer_len);
 
@@ -217,9 +214,6 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_pthread_join(pthread_t thread, void** value);
 		BAN::ErrorOr<long> sys_pthread_self();
 		BAN::ErrorOr<long> sys_pthread_kill(pthread_t thread, int signal);
-
-		BAN::ErrorOr<long> sys_tcgetpgrp(int fd);
-		BAN::ErrorOr<long> sys_tcsetpgrp(int fd, pid_t pgid);
 
 		BAN::ErrorOr<long> sys_clock_gettime(clockid_t, timespec*);
 

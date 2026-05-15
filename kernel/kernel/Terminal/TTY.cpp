@@ -210,8 +210,47 @@ namespace Kernel
 				(void)Process::kill(-m_foreground_pgrp, SIGWINCH);
 				return 0;
 			}
+			case TCGETS:
+			{
+				SpinLockGuard _(m_termios_lock);
+				auto* termios = static_cast<struct termios*>(argument);
+				*termios = m_termios;
+				return 0;
+			}
+			case TCSETSW:
+			case TCSETSF:
+				dwarnln("TODO: proper TCSETSW/TCSETSWF");
+				[[fallthrough]];
+			case TCSETS:
+			{
+				// FIXME: do some validation
+				SpinLockGuard _(m_termios_lock);
+				const auto* termios = static_cast<const struct termios*>(argument);
+				m_termios = *termios;
+				return 0;
+			}
+			case TIOCGPGRP:
+			{
+				pid_t* pgrp = static_cast<pid_t*>(argument);
+				*pgrp = m_foreground_pgrp.load();
+				return 0;
+			}
+			case TIOCSPGRP:
+			{
+				const pid_t pgrp = *static_cast<const pid_t*>(argument);
+
+				if (!Process::current().is_pgrpg_in_this_session(pgrp))
+					return BAN::Error::from_errno(EPERM);
+
+				if (this != Process::current().controlling_terminal().ptr())
+					return BAN::Error::from_errno(ENOTTY);
+
+				m_foreground_pgrp = pgrp;
+				return 0;
+			}
 		}
-		return BAN::Error::from_errno(ENOTSUP);
+
+		return CharacterDevice::ioctl(request, argument);
 	}
 
 	void TTY::on_key_event(LibInput::RawKeyEvent event)
@@ -234,19 +273,10 @@ namespace Kernel
 		after_write();
 	}
 
-	void TTY::get_termios(termios* termios)
+	termios TTY::get_termios()
 	{
 		SpinLockGuard _(m_termios_lock);
-		*termios = m_termios;
-	}
-
-	BAN::ErrorOr<void> TTY::set_termios(const termios* termios)
-	{
-		// FIXME: do some validation
-
-		SpinLockGuard _(m_termios_lock);
-		m_termios = *termios;
-		return {};
+		return m_termios;
 	}
 
 	void TTY::handle_input_byte(uint8_t ch)
@@ -256,9 +286,7 @@ namespace Kernel
 
 		LockGuard _0(m_mutex);
 
-		termios termios;
-		get_termios(&termios);
-
+		const auto termios = get_termios();
 
 		if ((termios.c_iflag & ISTRIP))
 			ch &= 0x7F;
@@ -394,8 +422,7 @@ namespace Kernel
 		if (!m_tty_ctrl.draw_graphics)
 			return true;
 
-		termios termios;
-		get_termios(&termios);
+		const auto termios = get_termios();
 
 		SpinLockGuard _1(m_write_lock);
 		if (termios.c_oflag & OPOST)
