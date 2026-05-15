@@ -45,7 +45,7 @@ int		aio_read(struct aiocb* aiocbp);
 ssize_t	aio_return(struct aiocb* aiocbp);
 int		aio_suspend(const struct aiocb* const list[], int nent, const struct timespec* timeout);
 int		aio_write(struct aiocb* aiocbp);
-int		lio_listio(int mode, struct aiocb* __restrict const list[__restrict], int nent, struct sigevent* __restrict sig);
+int		lio_listio(int mode, struct aiocb* __restrict const* __restrict list, int nent, struct sigevent* __restrict sig);
 
 __END_DECLS
 
