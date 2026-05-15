@@ -12,9 +12,6 @@ namespace Kernel
 		virtual ~Device() = default;
 		virtual void update() {}
 
-		virtual bool is_partition() const { return false; }
-		virtual bool is_storage_device() const { return false; }
-
 		virtual BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> mmap_region(PageTable&, off_t offset, size_t len, AddressRange, MemoryRegion::Type, PageTable::flags_t, int status_flags)
 		{
 			(void)offset; (void)len; (void)status_flags;

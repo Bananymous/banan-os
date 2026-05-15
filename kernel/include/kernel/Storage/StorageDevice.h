@@ -14,7 +14,10 @@ namespace Kernel
 	public:
 		StorageDevice()
 			: BlockDevice(0660, 0, 0)
-		{ }
+		{
+			m_kind |= InodeKind::STORAGE;
+		}
+
 		virtual ~StorageDevice();
 
 		BAN::ErrorOr<void> initialize_partitions(BAN::StringView name_prefix);
@@ -35,7 +38,6 @@ namespace Kernel
 
 		size_t drop_disk_cache();
 		BAN::ErrorOr<void> sync_disk_cache();
-		virtual bool is_storage_device() const override { return true; }
 
 	protected:
 		virtual BAN::ErrorOr<void> read_sectors_impl(uint64_t lba, uint64_t sector_count, BAN::ByteSpan) = 0;

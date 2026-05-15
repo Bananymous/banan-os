@@ -62,10 +62,12 @@ namespace Kernel
 			mode_t mode;
 		};
 		enum InodeKind : uint8_t {
-			DEVICE = 0x1,
-			EPOLL  = 0x2,
-			PIPE   = 0x4,
-			TTY    = 0x8,
+			DEVICE    = 0x01,
+			EPOLL     = 0x02,
+			PIPE      = 0x04,
+			TTY       = 0x08,
+			PARTITION = 0x10,
+			STORAGE   = 0x20,
 		};
 	public:
 		virtual ~Inode() {}
@@ -88,10 +90,12 @@ namespace Kernel
 		dev_t dev() const { return m_dev; }
 		dev_t rdev() const { return m_rdev; }
 
-		bool is_device() const { return m_kind & InodeKind::DEVICE; }
-		bool is_epoll()  const { return m_kind & InodeKind::EPOLL;  }
-		bool is_pipe()   const { return m_kind & InodeKind::PIPE;   }
-		bool is_tty()    const { return m_kind & InodeKind::TTY;    }
+		bool is_device()         const { return m_kind & InodeKind::DEVICE;    }
+		bool is_epoll()          const { return m_kind & InodeKind::EPOLL;     }
+		bool is_pipe()           const { return m_kind & InodeKind::PIPE;      }
+		bool is_tty()            const { return m_kind & InodeKind::TTY;       }
+		bool is_partition()      const { return m_kind & InodeKind::PARTITION; }
+		bool is_storage_device() const { return m_kind & InodeKind::STORAGE;   }
 
 		virtual const FileSystem* filesystem() const = 0;
 
