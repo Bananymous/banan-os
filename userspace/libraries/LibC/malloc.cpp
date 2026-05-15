@@ -1,328 +1,349 @@
-#include <BAN/Debug.h>
 #include <BAN/Math.h>
 
 #include <assert.h>
 #include <errno.h>
+#include <limits.h>
 #include <pthread.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
-#include <sys/syscall.h>
-#include <unistd.h>
 
-#define DEBUG_MALLOC 0
+static constexpr size_t s_allocator_chunk_size { 64 };
+static constexpr size_t s_allocator_size       { 1024 * 1024 };
+static constexpr size_t s_mmap_threshold       {   64 * 1024 };
 
-static consteval size_t log_size_t(size_t value, size_t base)
+struct alignas(max_align_t) MmapAllocationHeader
 {
-	size_t result = 0;
-	while (value /= base)
-		result++;
+	size_t mmap_size;
+	size_t offset;
+};
+
+struct BitmapAllocator
+{
+	struct alignas(max_align_t) Header
+	{
+		size_t chunks { 0 };
+	};
+
+	uint32_t bitmap_chunks { 0 };
+	uint32_t total_chunks  { 0 };
+	uint32_t free_chunks   { 0 };
+	uint32_t allocations   { 0 };
+	uint8_t* base          { nullptr };
+
+	static size_t needed_chunks(size_t size)
+	{
+		return BAN::Math::div_round_up(sizeof(BitmapAllocator::Header) + size, s_allocator_chunk_size);
+	}
+
+	bool initialize()
+	{
+		void* base = mmap(nullptr, s_allocator_size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+		if (base == MAP_FAILED)
+			return false;
+
+		constexpr size_t bitmap_bytes  = BAN::Math::div_round_up(s_allocator_size, s_allocator_chunk_size * 8);
+		constexpr size_t bitmap_chunks = BAN::Math::div_round_up(bitmap_bytes, s_allocator_chunk_size);
+		constexpr size_t usable_chunks = s_allocator_size / s_allocator_chunk_size - bitmap_chunks;
+
+		this->bitmap_chunks = bitmap_chunks;
+		this->total_chunks  = usable_chunks;
+		this->free_chunks   = usable_chunks;
+		this->base          = static_cast<uint8_t*>(base);
+
+		return true;
+	}
+
+	uint8_t* data_start() { return base + bitmap_chunks * s_allocator_chunk_size; }
+	const uint8_t* data_start() const { return base + bitmap_chunks * s_allocator_chunk_size; }
+
+	size_t get_first_chunk(void* ptr) const
+	{
+		return (static_cast<uint8_t*>(ptr) - sizeof(Header) - data_start()) / s_allocator_chunk_size;
+	}
+
+	bool contains(void* ptr) const
+	{
+		if (ptr < data_start() + sizeof(Header))
+			return false;
+		return get_first_chunk(ptr) < total_chunks;
+	}
+
+	bool get_bit(size_t index) const
+	{
+		assert(index < total_chunks);
+		const size_t byte = index / 8;
+		const size_t bit = index % 8;
+		return (base[byte] >> bit) & 1;
+	}
+
+	void set_bit(size_t index, bool value)
+	{
+		assert(index < total_chunks);
+		const size_t byte = index / 8;
+		const size_t bit = index % 8;
+		if (value)
+			base[byte] |= 1 << bit;
+		else
+			base[byte] &= ~(1 << bit);
+	}
+
+	size_t find_unset_bit(size_t index) const
+	{
+		// NOTE: We could optimize other bitmap functions than this
+		//       but this one is the bottle neck so it doesn't matter
+
+		static_assert(sizeof(unsigned long long) == sizeof(uint64_t));
+
+		if (index >= total_chunks)
+			return index;
+
+		if (const auto rem = index % 64)
+		{
+			const uint64_t qword = *reinterpret_cast<const uint64_t*>(base + (index - rem) / 8) >> rem;
+			if (qword != UINT64_MAX >> rem)
+				return index + __builtin_ctzll(~qword);
+			index += 64 - rem;
+		}
+
+		while (index < total_chunks)
+		{
+			const uint64_t qword = *reinterpret_cast<const uint64_t*>(base + index / 8);
+			if (qword != UINT64_MAX)
+				return index + __builtin_ctzll(~qword);
+			index += 64;
+		}
+
+		return index;
+	}
+
+	size_t count_unset_bits(size_t index, size_t wanted) const
+	{
+		size_t count = 0;
+		for (; index + count < total_chunks && count < wanted; count++)
+			if (get_bit(index + count))
+				break;
+		return count;
+	}
+
+	Header& header_from_chunk(size_t index)
+	{
+		return *reinterpret_cast<Header*>(data_start() + index * s_allocator_chunk_size);
+	}
+
+	void* allocate(size_t size)
+	{
+		const size_t needed_chunks = this->needed_chunks(size);
+		if (needed_chunks > free_chunks)
+			return nullptr;
+
+		for (size_t i = find_unset_bit(0); i <= total_chunks - needed_chunks; i = find_unset_bit(i))
+		{
+			if (const size_t count = count_unset_bits(i, needed_chunks); count < needed_chunks)
+			{
+				i += count + 1;
+				continue;
+			}
+
+			for (size_t j = 0; j < needed_chunks; j++)
+				set_bit(i + j, true);
+
+			auto& header = header_from_chunk(i);
+			header = {
+				.chunks = needed_chunks,
+			};
+
+			free_chunks -= header.chunks;
+			allocations++;
+
+			return &header + 1;
+		}
+
+		return nullptr;
+	}
+
+	bool resize(void* ptr, size_t size)
+	{
+		assert(contains(ptr));
+
+		const size_t first_chunk = get_first_chunk(ptr);
+		auto& header = header_from_chunk(first_chunk);
+
+		const size_t needed_chunks = this->needed_chunks(size);
+		if (needed_chunks <= header.chunks)
+		{
+			for (size_t i = needed_chunks; i < header.chunks; i++)
+				set_bit(first_chunk + i, false);
+			free_chunks += header.chunks - needed_chunks;
+		}
+		else
+		{
+			const size_t extra_chunks = header.chunks - needed_chunks;
+			if (count_unset_bits(first_chunk + header.chunks, extra_chunks) < extra_chunks)
+				return false;
+			for (size_t i = header.chunks; i < needed_chunks; i++)
+				set_bit(first_chunk + i, true);
+			free_chunks -= needed_chunks - header.chunks;
+		}
+
+		header = {
+			.chunks = needed_chunks,
+		};
+		return true;
+	}
+
+	void free(void* ptr)
+	{
+		assert(contains(ptr));
+
+		const size_t first_chunk = get_first_chunk(ptr);
+
+		auto& header = header_from_chunk(first_chunk);
+		for (size_t i = 0; i < header.chunks; i++)
+			set_bit(first_chunk + i, false);
+
+		free_chunks += header.chunks;
+		allocations--;
+	}
+
+	size_t allocation_size(void* ptr)
+	{
+		assert(contains(ptr));
+		return header_from_chunk(get_first_chunk(ptr)).chunks * s_allocator_chunk_size - sizeof(Header);
+	}
+};
+
+static size_t s_allocator_count { 0 };
+static size_t s_allocator_capacity { 0 };
+
+static BitmapAllocator* s_allocators { nullptr };
+static pthread_mutex_t s_allocator_lock = PTHREAD_MUTEX_INITIALIZER;
+
+void* malloc(size_t total_size)
+{
+	if (total_size >= s_mmap_threshold)
+	{
+		const size_t mmap_size = sizeof(MmapAllocationHeader) + total_size;
+
+		void* address = mmap(nullptr, mmap_size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+		if (address == MAP_FAILED)
+			return nullptr;
+
+		auto& header = static_cast<MmapAllocationHeader*>(address)[0];
+		header = {
+			.mmap_size = mmap_size,
+			.offset = sizeof(MmapAllocationHeader),
+		};
+		return &header + 1;
+	}
+
+	constexpr size_t allocators_per_page = PAGE_SIZE / sizeof(BitmapAllocator);
+
+	void* result = nullptr;
+
+	pthread_mutex_lock(&s_allocator_lock);
+
+	for (size_t i = 0; i < s_allocator_count; i++)
+		if ((result = s_allocators[i].allocate(total_size)))
+			goto malloc_return;
+
+	if (s_allocator_capacity % allocators_per_page == 0)
+	{
+		void* new_allocators = mmap(nullptr, (s_allocator_capacity + allocators_per_page) * sizeof(BitmapAllocator), PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+		if (new_allocators == MAP_FAILED)
+			goto malloc_return;
+
+		static_assert(BAN::is_trivially_copyable_v<BitmapAllocator>);
+		memcpy(new_allocators, s_allocators, s_allocator_count * sizeof(BitmapAllocator));
+
+		munmap(s_allocators, s_allocator_capacity * sizeof(BitmapAllocator));
+
+		s_allocators = static_cast<BitmapAllocator*>(new_allocators);
+		s_allocator_capacity = s_allocator_capacity + allocators_per_page;
+	}
+
+	if (!s_allocators[s_allocator_count].initialize())
+		goto malloc_return;
+	result = s_allocators[s_allocator_count++].allocate(total_size);
+
+malloc_return:
+	pthread_mutex_unlock(&s_allocator_lock);
+
+	if (result == nullptr)
+		errno = ENOMEM;
 	return result;
 }
 
-static constexpr size_t s_malloc_pool_size_initial = 4096;
-static constexpr size_t s_malloc_pool_size_multiplier = 2;
-static constexpr size_t s_malloc_pool_count = sizeof(size_t) * 8 - log_size_t(s_malloc_pool_size_initial, s_malloc_pool_size_multiplier);
-static constexpr size_t s_malloc_default_align = alignof(max_align_t);
-// This is indirectly smallest allowed allocation
-static constexpr size_t s_malloc_shrink_threshold = 64;
-
-struct malloc_node_t
+void free(void* ptr)
 {
-	// TODO: these two pointers could be put into data region
-	malloc_node_t* prev_free;
-	malloc_node_t* next_free;
-	size_t size;
-	bool allocated;
-	bool last;
-	alignas(s_malloc_default_align) uint8_t data[0];
-
-	size_t data_size() const { return size - sizeof(malloc_node_t); }
-	malloc_node_t* next() { return (malloc_node_t*)(data + data_size()); }
-};
-
-struct malloc_pool_t
-{
-	uint8_t* start;
-	size_t size;
-
-	malloc_node_t* free_list;
-
-	uint8_t* end() const { return start + size; }
-	bool contains(malloc_node_t* node) const { return start <= (uint8_t*)node && (uint8_t*)node->next() <= end(); }
-};
-
-struct malloc_info_t
-{
-	consteval malloc_info_t()
-	{
-		size_t pool_size = s_malloc_pool_size_initial;
-		for (auto& pool : pools)
-		{
-			pool = {
-				.start = nullptr,
-				.size = pool_size,
-				.free_list = nullptr,
-			};
-			pool_size *= s_malloc_pool_size_multiplier;
-		}
-	}
-
-	malloc_pool_t pools[s_malloc_pool_count];
-};
-
-static malloc_info_t s_malloc_info;
-static auto& s_malloc_pools = s_malloc_info.pools;
-
-static pthread_mutex_t s_malloc_mutex = PTHREAD_MUTEX_INITIALIZER;
-
-static bool allocate_pool(size_t pool_index)
-{
-	auto& pool = s_malloc_pools[pool_index];
-	assert(pool.start == nullptr);
-
-	// allocate memory for pool
-	void* new_pool = mmap(nullptr, pool.size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
-	if (new_pool == MAP_FAILED)
-		return false;
-
-	pool.start = (uint8_t*)new_pool;
-
-	// initialize pool to single unallocated node
-	auto* node = (malloc_node_t*)pool.start;
-	node->allocated = false;
-	node->size = pool.size;
-	node->last = true;
-	node->prev_free = nullptr;
-	node->next_free = nullptr;
-
-	pool.free_list = node;
-
-	return true;
-}
-
-static void remove_node_from_pool_free_list(malloc_pool_t& pool, malloc_node_t* node)
-{
-	if (node == pool.free_list)
-	{
-		pool.free_list = pool.free_list->next_free;
-		if (pool.free_list)
-			pool.free_list->prev_free = nullptr;
-	}
-	else
-	{
-		if (node->next_free)
-			node->next_free->prev_free = node->prev_free;
-		if (node->prev_free)
-			node->prev_free->next_free = node->next_free;
-	}
-}
-
-static void merge_following_free_nodes(malloc_pool_t& pool, malloc_node_t* node)
-{
-	while (!node->last && !node->next()->allocated)
-	{
-		auto* next = node->next();
-		remove_node_from_pool_free_list(pool, next);
-		node->last = next->last;
-		node->size += next->size;
-	}
-}
-
-static void shrink_node_if_needed(malloc_pool_t& pool, malloc_node_t* node, size_t size)
-{
-	assert(size <= node->data_size());
-	if (node->data_size() - size < sizeof(malloc_node_t) + s_malloc_shrink_threshold)
+	if (ptr == nullptr)
 		return;
 
-	uint8_t* node_end = (uint8_t*)node->next();
-
-	node->size = sizeof(malloc_node_t) + size;
-	if (auto rem = (node->size + sizeof(malloc_node_t)) % s_malloc_default_align)
-		node->size += s_malloc_default_align - rem;
-
-	auto* next = node->next();
-	next->allocated = false;
-	next->size = node_end - (uint8_t*)next;
-	next->last = node->last;
-
-	node->last = false;
-
-	// insert excess node to free list
-	if (pool.free_list)
-		pool.free_list->prev_free = next;
-	next->next_free = pool.free_list;
-	next->prev_free = nullptr;
-	pool.free_list = next;
-}
-
-static void* allocate_from_pool(size_t pool_index, size_t size)
-{
-	assert(size % s_malloc_default_align == 0);
-
-	auto& pool = s_malloc_pools[pool_index];
-	assert(pool.start != nullptr);
-
-	if (!pool.free_list)
-		return nullptr;
-
-	for (auto* node = pool.free_list; node; node = node->next_free)
+	pthread_mutex_lock(&s_allocator_lock);
+	for (size_t i = 0; i < s_allocator_count; i++)
 	{
-		assert(!node->allocated);
-
-		merge_following_free_nodes(pool, node);
-		if (node->data_size() < size)
+		if (!s_allocators[i].contains(ptr))
 			continue;
-
-		node->allocated = true;
-		remove_node_from_pool_free_list(pool, node);
-
-		shrink_node_if_needed(pool, node, size);
-
-		assert(((uintptr_t)node->data & (s_malloc_default_align - 1)) == 0);
-		return node->data;
+		s_allocators[i].free(ptr);
+		pthread_mutex_unlock(&s_allocator_lock);
+		return;
 	}
+	pthread_mutex_unlock(&s_allocator_lock);
 
-	return nullptr;
+	const auto& header = static_cast<MmapAllocationHeader*>(ptr)[-1];
+	munmap(static_cast<uint8_t*>(ptr) - header.offset, header.mmap_size);
 }
 
-static malloc_node_t* node_from_data_pointer(void* data_pointer)
+static size_t allocation_size(void* ptr)
 {
-	return (malloc_node_t*)((uint8_t*)data_pointer - sizeof(malloc_node_t));
-}
-
-static malloc_pool_t& pool_from_node(malloc_node_t* node)
-{
-	for (size_t i = 0; i < s_malloc_pool_count; i++)
-		if (s_malloc_pools[i].start && s_malloc_pools[i].contains(node))
-			return s_malloc_pools[i];
-	assert(false);
-}
-
-void* malloc(size_t size)
-{
-	dprintln_if(DEBUG_MALLOC, "malloc({})", size);
-
-	// align size to s_malloc_default_align boundary
-	if (size_t ret = size % s_malloc_default_align)
-		size += s_malloc_default_align - ret;
-
-	// find the first pool with size atleast size
-	size_t first_usable_pool = 0;
-	while (s_malloc_pools[first_usable_pool].size - sizeof(malloc_node_t) < size)
-		first_usable_pool++;
-
-	pthread_mutex_lock(&s_malloc_mutex);
-
-	// try to find any already existing pools that we can allocate in
-	for (size_t i = first_usable_pool; i < s_malloc_pool_count; i++)
+	pthread_mutex_lock(&s_allocator_lock);
+	for (size_t i = 0; i < s_allocator_count; i++)
 	{
-		if (s_malloc_pools[i].start == nullptr)
+		if (!s_allocators[i].contains(ptr))
 			continue;
-		void* ret = allocate_from_pool(i, size);
-		if (ret == nullptr)
-			continue;
-		pthread_mutex_unlock(&s_malloc_mutex);
-		return ret;
+		const size_t size = s_allocators[i].allocation_size(ptr);
+		pthread_mutex_unlock(&s_allocator_lock);
+		return size;
 	}
+	pthread_mutex_unlock(&s_allocator_lock);
 
-	// allocate new pool
-	for (size_t i = first_usable_pool; i < s_malloc_pool_count; i++)
-	{
-		if (s_malloc_pools[i].start != nullptr)
-			continue;
-		void* ret = allocate_pool(i)
-			? allocate_from_pool(i, size)
-			: nullptr;
-		if (ret == nullptr)
-			break;
-		pthread_mutex_unlock(&s_malloc_mutex);
-		return ret;
-	}
-
-	pthread_mutex_unlock(&s_malloc_mutex);
-
-	errno = ENOMEM;
-	return nullptr;
+	const auto& header = static_cast<MmapAllocationHeader*>(ptr)[-1];
+	return header.mmap_size - sizeof(MmapAllocationHeader);
 }
 
 void* realloc(void* ptr, size_t size)
 {
-	dprintln_if(DEBUG_MALLOC, "realloc({}, {})", ptr, size);
-
 	if (ptr == nullptr)
 		return malloc(size);
 
-	// align size to s_malloc_default_align boundary
-	if (size_t ret = size % s_malloc_default_align)
-		size += s_malloc_default_align - ret;
-
-	pthread_mutex_lock(&s_malloc_mutex);
-
-	auto* node = node_from_data_pointer(ptr);
-	auto& pool = pool_from_node(node);
-
-	assert(node->allocated);
-
-	const size_t oldsize = node->data_size();
-
-	// try to grow the node if needed
-	if (size > oldsize)
-		merge_following_free_nodes(pool, node);
-
-	const bool needs_allocation = node->data_size() < size;
-
-	shrink_node_if_needed(pool, node, needs_allocation ? oldsize : size);
-
-	pthread_mutex_unlock(&s_malloc_mutex);
-
-	if (!needs_allocation)
+	pthread_mutex_lock(&s_allocator_lock);
+	for (size_t i = 0; i < s_allocator_count; i++)
+	{
+		if (!s_allocators[i].contains(ptr))
+			continue;
+		if (!s_allocators[i].resize(ptr, size))
+			break;
+		pthread_mutex_unlock(&s_allocator_lock);
 		return ptr;
+	}
+	pthread_mutex_unlock(&s_allocator_lock);
 
-	// allocate new pointer
+	// TODO: maybe an in-place realloc for mmap-backed allocations?
+
 	void* new_ptr = malloc(size);
 	if (new_ptr == nullptr)
 		return nullptr;
 
-	// move data to the new pointer
-	const size_t bytes_to_copy = (oldsize < size) ? oldsize : size;
-	memcpy(new_ptr, ptr, bytes_to_copy);
+	memcpy(new_ptr, ptr, BAN::Math::min(allocation_size(ptr), size));
+
 	free(ptr);
 
 	return new_ptr;
 }
 
-void free(void* ptr)
-{
-	dprintln_if(DEBUG_MALLOC, "free({})", ptr);
-
-	if (ptr == nullptr)
-		return;
-
-	pthread_mutex_lock(&s_malloc_mutex);
-
-	auto* node = node_from_data_pointer(ptr);
-	auto& pool = pool_from_node(node);
-
-	assert(node->allocated);
-	node->allocated = false;
-
-	merge_following_free_nodes(pool, node);
-
-	// add node to free list
-	if (pool.free_list)
-		pool.free_list->prev_free = node;
-	node->prev_free = nullptr;
-	node->next_free = pool.free_list;
-	pool.free_list = node;
-
-	pthread_mutex_unlock(&s_malloc_mutex);
-}
-
 void* calloc(size_t nmemb, size_t size)
 {
-	dprintln_if(DEBUG_MALLOC, "calloc({}, {})", nmemb, size);
-
 	const size_t total = nmemb * size;
 	if (size != 0 && total / size != nmemb)
 	{
@@ -340,66 +361,44 @@ void* calloc(size_t nmemb, size_t size)
 
 void* aligned_alloc(size_t alignment, size_t size)
 {
-	dprintln_if(DEBUG_MALLOC, "aligned_alloc({}, {})", alignment, size);
-
-	if (alignment < sizeof(void*) || alignment % sizeof(void*) || !BAN::Math::is_power_of_two(alignment / sizeof(void*)))
+	if (!BAN::Math::is_power_of_two(alignment))
 	{
 		errno = EINVAL;
 		return nullptr;
 	}
 
-	if (alignment < s_malloc_default_align)
-		alignment = s_malloc_default_align;
+	if (alignment <= alignof(max_align_t))
+		return malloc(size);
 
-	void* unaligned = malloc(size + alignment + sizeof(malloc_node_t));
-	if (unaligned == nullptr)
+	static_assert(sizeof(MmapAllocationHeader) <= alignof(max_align_t));
+
+	const size_t mmap_size = alignment + size;
+
+	void* address = mmap(nullptr, mmap_size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+	if (address == MAP_FAILED)
 		return nullptr;
 
-	pthread_mutex_lock(&s_malloc_mutex);
+	uintptr_t data = reinterpret_cast<uintptr_t>(address) + sizeof(MmapAllocationHeader);
+	if (auto rem = data % alignment)
+		data += alignment - rem;
 
-	auto* node = node_from_data_pointer(unaligned);
-	auto& pool = pool_from_node(node);
+	// TODO: unmap possible unused pages in alignment, they are only allocated when accessed so doesn't really matter :^)
 
-// NOTE: gcc does not like accessing the node from pointer returned by malloc
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Warray-bounds"
-	if (reinterpret_cast<uintptr_t>(unaligned) % alignment)
-	{
-		uintptr_t curr_data_address = reinterpret_cast<uintptr_t>(unaligned);
-
-		uintptr_t next_data_address = curr_data_address + sizeof(malloc_node_t);
-		if (auto rem = next_data_address % alignment)
-			next_data_address += alignment - rem;
-
-		auto* next = node_from_data_pointer(reinterpret_cast<void*>(next_data_address));
-		next->size = reinterpret_cast<uintptr_t>(node->next()) - reinterpret_cast<uintptr_t>(next);
-		next->allocated = true;
-		assert(next->data_size() >= size);
-
-		node->size = reinterpret_cast<uintptr_t>(next) - reinterpret_cast<uintptr_t>(node);
-		node->allocated = false;
-
-		// add node to free list
-		if (pool.free_list)
-			pool.free_list->prev_free = node;
-		node->prev_free = nullptr;
-		node->next_free = pool.free_list;
-		pool.free_list = node;
-
-		node = next;
-	}
-#pragma GCC diagnostic pop
-
-	shrink_node_if_needed(pool, node, size);
-
-	pthread_mutex_unlock(&s_malloc_mutex);
-
-	assert(((uintptr_t)node->data & (alignment - 1)) == 0);
-	return node->data;
+	auto& header = reinterpret_cast<MmapAllocationHeader*>(data)[-1];
+	header = {
+		.mmap_size = mmap_size,
+		.offset = data - reinterpret_cast<uintptr_t>(address),
+	};
+	return &header + 1;
 }
 
 int posix_memalign(void** memptr, size_t alignment, size_t size)
 {
-	dprintln_if(DEBUG_MALLOC, "posix_memalign({}, {})", alignment, size);
+	if (alignment < sizeof(void*) || !BAN::Math::is_power_of_two(alignment))
+	{
+		errno = EINVAL;
+		return -1;
+	}
+
 	return (*memptr = aligned_alloc(alignment, size)) ? 0 : -1;
 }
