@@ -21,23 +21,23 @@ namespace Kernel
 		void notify(BAN::RefPtr<Inode> inode, uint32_t event);
 
 	private:
-		Epoll() = default;
+		Epoll() {
+			m_ino = 0;
+			m_mode = Mode::IRUSR | Mode::IWUSR;
+			m_nlink = 0;
+			m_uid = 0;
+			m_gid = 0;
+			m_size = 0;
+			m_atime = {};
+			m_mtime = {};
+			m_ctime = {};
+			m_blksize = PAGE_SIZE;
+			m_blocks = 0;
+			m_dev = 0;
+			m_rdev = 0;
+		}
 
 	public:
-		ino_t ino() const override         { return 0; }
-		Mode mode() const override         { return { Mode::IRUSR | Mode::IWUSR }; }
-		nlink_t nlink() const override     { return 0; }
-		uid_t uid() const override         { return 0; }
-		gid_t gid() const override         { return 0; }
-		off_t size() const override        { return 0; }
-		timespec atime() const override    { return {}; }
-		timespec mtime() const override    { return {}; }
-		timespec ctime() const override    { return {}; }
-		blksize_t blksize() const override { return PAGE_SIZE; }
-		blkcnt_t blocks() const override   { return 0; }
-		dev_t dev() const override         { return 0; }
-		dev_t rdev() const override        { return 0; }
-
 		bool is_epoll() const override { return true; }
 
 		const FileSystem* filesystem() const override { return nullptr; }

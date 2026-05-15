@@ -14,7 +14,6 @@ namespace Kernel
 	public:
 		static BAN::ErrorOr<void> create(PCI::Device& pci_device);
 
-		dev_t rdev() const override { return m_rdev; }
 		BAN::StringView name() const override { return m_name; }
 
 	protected:
@@ -51,7 +50,6 @@ namespace Kernel
 		snd_volume_info m_volume_info {};
 
 	private:
-		const dev_t m_rdev;
 		char m_name[10] {};
 	};
 

@@ -12,8 +12,8 @@ namespace Kernel
 {
 
 	detail::ATABaseDevice::ATABaseDevice()
-		: m_rdev(scsi_get_rdev())
 	{
+		m_rdev = scsi_get_rdev();
 		strcpy(m_name, "sda");
 		m_name[2] += minor(m_rdev);
 	}

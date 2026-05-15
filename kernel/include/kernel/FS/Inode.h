@@ -69,19 +69,19 @@ namespace Kernel
 
 		bool operator==(const Inode& other) const { return dev() == other.dev() && ino() == other.ino(); }
 
-		virtual ino_t ino() const = 0;
-		virtual Mode mode() const = 0;
-		virtual nlink_t nlink() const = 0;
-		virtual uid_t uid() const = 0;
-		virtual gid_t gid() const = 0;
-		virtual off_t size() const = 0;
-		virtual timespec atime() const = 0;
-		virtual timespec mtime() const = 0;
-		virtual timespec ctime() const = 0;
-		virtual blksize_t blksize() const = 0;
-		virtual blkcnt_t blocks() const = 0;
-		virtual dev_t dev() const = 0;
-		virtual dev_t rdev() const = 0;
+		ino_t ino() const { return m_ino; }
+		Mode mode() const { return Mode(m_mode); }
+		nlink_t nlink() const { return m_nlink; }
+		uid_t uid() const { return m_uid; }
+		gid_t gid() const { return m_gid; }
+		off_t size() const { return m_size; }
+		timespec atime() const { return m_atime; }
+		timespec mtime() const { return m_mtime; }
+		timespec ctime() const { return m_ctime; }
+		blksize_t blksize() const { return m_blksize; }
+		blkcnt_t blocks() const { return m_blocks; }
+		dev_t dev() const { return m_dev; }
+		dev_t rdev() const { return m_rdev; }
 
 		virtual bool is_device() const { return false; }
 		virtual bool is_epoll() const { return false; }
@@ -182,6 +182,21 @@ namespace Kernel
 
 		virtual BAN::ErrorOr<long> ioctl_impl(int, void*) { return BAN::Error::from_errno(ENOTSUP); }
 
+	protected:
+		BAN::Atomic<ino_t>     m_ino;
+		BAN::Atomic<mode_t>    m_mode;
+		BAN::Atomic<nlink_t>   m_nlink;
+		BAN::Atomic<uid_t>     m_uid;
+		BAN::Atomic<gid_t>     m_gid;
+		BAN::Atomic<off_t>     m_size;
+		// TODO: make these guys atomic :)
+		timespec m_atime;
+		timespec m_mtime;
+		timespec m_ctime;
+		BAN::Atomic<blksize_t> m_blksize;
+		BAN::Atomic<blkcnt_t>  m_blocks;
+		BAN::Atomic<dev_t>     m_dev;
+		BAN::Atomic<dev_t>     m_rdev;
 	private:
 		SpinLock m_shared_region_lock;
 		BAN::WeakPtr<SharedFileData> m_shared_region;

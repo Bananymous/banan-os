@@ -131,7 +131,7 @@ namespace Kernel
 		PageTable::with_fast_page(inode_location.paddr, [&] {
 			auto& inode_info = PageTable::fast_page_as_sized<TmpInodeInfo>(inode_location.index);
 			ASSERT(inode_info.nlink == 0);
-			for (auto paddr : inode_info.block)
+			for (auto paddr : inode_info.tmp_blocks.block)
 				ASSERT(paddr == 0);
 			inode_info = {};
 		});

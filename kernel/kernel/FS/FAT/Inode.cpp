@@ -23,27 +23,30 @@ namespace Kernel
 		return BAN::to_unix_time(ban_time);
 	}
 
-	blksize_t FATInode::blksize() const
+	static timespec fat_date_to_timespec(FAT::Date date, FAT::Time time)
 	{
-		return m_fs.inode_block_size(this);
-	}
-
-	timespec FATInode::atime() const
-	{
-		const time_t epoch = fat_date_to_epoch(m_entry.last_access_date, {});
+		const time_t epoch = fat_date_to_epoch(date, time);
 		return timespec { .tv_sec = epoch, .tv_nsec = 0 };
 	}
 
-	timespec FATInode::mtime() const
+	FATInode::FATInode(FATFS& fs, const FAT::DirectoryEntry& entry, ino_t ino, uint32_t block_count)
+		: m_fs(fs)
+		, m_entry(entry)
+		, m_block_count(block_count)
 	{
-		const time_t epoch = fat_date_to_epoch(m_entry.write_date, m_entry.write_time);
-		return timespec { .tv_sec = epoch, .tv_nsec = 0 };
-	}
-
-	timespec FATInode::ctime() const
-	{
-		const time_t epoch = fat_date_to_epoch(m_entry.creation_date, m_entry.creation_time);
-		return timespec { .tv_sec = epoch, .tv_nsec = 0 };
+		m_ino = ino;
+		m_mode = ((m_entry.attr & FAT::FileAttr::DIRECTORY) ? Mode::IFDIR : Mode::IFREG) | 0777;
+		m_nlink = 1;
+		m_uid = 0;
+		m_gid = 0;
+		m_size = m_entry.file_size;
+		m_blksize = fs.inode_block_size(this);
+		m_atime = fat_date_to_timespec(m_entry.last_access_date, {});
+		m_mtime = fat_date_to_timespec(m_entry.write_date, m_entry.write_time);
+		m_ctime = fat_date_to_timespec(m_entry.creation_date, m_entry.creation_time);
+		m_blocks = m_block_count;
+		m_dev = 0;
+		m_rdev = 0;
 	}
 
 	const FileSystem* FATInode::filesystem() const

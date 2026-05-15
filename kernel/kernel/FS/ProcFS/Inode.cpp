@@ -28,8 +28,9 @@ namespace Kernel
 
 	ProcPidInode::ProcPidInode(Process& process, TmpFileSystem& fs, const TmpInodeInfo& inode_info)
 		: TmpDirectoryInode(fs, MUST(fs.allocate_inode(inode_info)), inode_info)
-		, m_process(process)
 	{
+		m_uid = process.credentials().ruid();
+		m_gid = process.credentials().rgid();
 	}
 
 	void ProcPidInode::cleanup()
@@ -57,7 +58,9 @@ namespace Kernel
 		, m_process(process)
 		, m_callback(callback)
 	{
-		m_inode_info.mode |= Inode::Mode::IFREG;
+		m_mode |= Inode::Mode::IFREG;
+		m_uid = process.credentials().ruid();
+		m_gid = process.credentials().rgid();
 	}
 
 	BAN::ErrorOr<size_t> ProcROProcessInode::read_impl(off_t offset, BAN::ByteSpan buffer)
@@ -82,7 +85,9 @@ namespace Kernel
 		, m_process(process)
 		, m_callback(callback)
 	{
-		m_inode_info.mode |= Inode::Mode::IFLNK;
+		m_mode |= Inode::Mode::IFLNK;
+		m_uid = process.credentials().ruid();
+		m_gid = process.credentials().rgid();
 	}
 
 	BAN::ErrorOr<BAN::String> ProcSymlinkProcessInode::link_target_impl()
@@ -104,7 +109,7 @@ namespace Kernel
 		: TmpInode(fs, MUST(fs.allocate_inode(inode_info)), inode_info)
 		, m_callback(callback)
 	{
-		m_inode_info.mode |= Inode::Mode::IFREG;
+		m_mode |= Inode::Mode::IFREG;
 	}
 
 	BAN::ErrorOr<size_t> ProcROInode::read_impl(off_t offset, BAN::ByteSpan buffer)
@@ -130,7 +135,7 @@ namespace Kernel
 		, m_destructor(destructor)
 		, m_data(data)
 	{
-		m_inode_info.mode |= Inode::Mode::IFLNK;
+		m_mode |= Inode::Mode::IFLNK;
 	}
 
 	ProcSymlinkInode::~ProcSymlinkInode()
@@ -158,6 +163,8 @@ namespace Kernel
 		: TmpInode(fs, MUST(fs.allocate_inode(inode_info)), inode_info)
 		, m_process(process)
 	{
+		m_uid = process.credentials().ruid();
+		m_gid = process.credentials().rgid();
 		ASSERT(mode().ifdir());
 	}
 

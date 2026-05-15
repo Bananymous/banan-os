@@ -27,8 +27,8 @@ namespace Kernel
 	NetworkInterface::NetworkInterface(Type type)
 		: CharacterDevice(0400, 0, 0)
 		, m_type(type)
-		, m_rdev(get_rdev(type))
 	{
+		m_rdev = get_rdev(type);
 		switch (type)
 		{
 			case Type::Ethernet:

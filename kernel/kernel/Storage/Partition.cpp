@@ -24,8 +24,8 @@ namespace Kernel
 		, m_last_block(last_block)
 		, m_attributes(attr)
 		, m_name(MUST(BAN::String::formatted("{}{}", name_prefix, index)))
-		, m_rdev(makedev(major(device->rdev()), index))
 	{
+		m_rdev = makedev(major(device->rdev()), index);
 		memcpy(m_label, label, sizeof(m_label));
 	}
 

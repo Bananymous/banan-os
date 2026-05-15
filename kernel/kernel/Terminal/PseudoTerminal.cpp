@@ -65,8 +65,9 @@ namespace Kernel
 	PseudoTerminalMaster::PseudoTerminalMaster(BAN::UniqPtr<VirtualRange> buffer, mode_t mode, uid_t uid, gid_t gid)
 		: CharacterDevice(mode, uid, gid)
 		, m_buffer(BAN::move(buffer))
-		, m_rdev(makedev(DeviceNumber::PTSMaster, s_pts_master_minor++))
-	{ }
+	{
+		m_rdev = makedev(DeviceNumber::PTSMaster, s_pts_master_minor++);
+	}
 
 	PseudoTerminalMaster::~PseudoTerminalMaster()
 	{

@@ -79,6 +79,12 @@ namespace Kernel::Ext2
 		uint8_t __reserved[12];
 	};
 
+	struct InodeBlocks {
+		uint32_t block[15];
+	};
+	struct Osd2 {
+		uint32_t osd2[3];
+	};
 	struct Inode
 	{
 		uint16_t mode;
@@ -93,12 +99,12 @@ namespace Kernel::Ext2
 		uint32_t blocks;
 		uint32_t flags;
 		uint32_t osd1;
-		uint32_t block[15];
+		InodeBlocks block;
 		uint32_t generation;
 		uint32_t file_acl;
 		uint32_t dir_acl;
 		uint32_t faddr;
-		uint32_t osd2[3];
+		Osd2 osd2;
 	};
 
 	struct LinkedDirectoryEntry

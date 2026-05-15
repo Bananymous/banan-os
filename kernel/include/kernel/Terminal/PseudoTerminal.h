@@ -13,7 +13,6 @@ namespace Kernel
 	public:
 		static BAN::ErrorOr<BAN::RefPtr<PseudoTerminalMaster>> create(mode_t, uid_t, gid_t);
 
-		dev_t rdev() const override { return m_rdev; }
 		BAN::StringView name() const override { return "<ptmx>"_sv; }
 
 		BAN::ErrorOr<BAN::RefPtr<PseudoTerminalSlave>> slave();
@@ -47,8 +46,6 @@ namespace Kernel
 		BAN::UniqPtr<VirtualRange> m_buffer;
 		size_t m_buffer_tail { 0 };
 		size_t m_buffer_size { 0 };
-
-		const dev_t m_rdev;
 
 		friend class PseudoTerminalSlave;
 		friend class BAN::RefPtr<PseudoTerminalMaster>;

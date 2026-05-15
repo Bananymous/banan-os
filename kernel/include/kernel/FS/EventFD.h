@@ -11,20 +11,6 @@ namespace Kernel
 	public:
 		static BAN::ErrorOr<BAN::RefPtr<Inode>> create(uint64_t initval, bool semaphore);
 
-		ino_t ino() const override { return 0; }
-		Mode mode() const override { return { Mode::IFCHR | Mode::IRUSR | Mode::IWUSR }; }
-		nlink_t nlink() const override { return ref_count(); }
-		uid_t uid() const override { return 0; }
-		gid_t gid() const override { return 0; }
-		off_t size() const override { return 0; }
-		timespec atime() const override { return {}; }
-		timespec mtime() const override { return {}; }
-		timespec ctime() const override { return {}; }
-		blksize_t blksize() const override { return 8; }
-		blkcnt_t blocks() const override { return 0; }
-		dev_t dev() const override { return 0; }
-		dev_t rdev() const override { return 0; }
-
 		const FileSystem* filesystem() const override { return nullptr; }
 
 	protected:
@@ -41,7 +27,21 @@ namespace Kernel
 		EventFD(uint64_t initval, bool is_semaphore)
 			: m_is_semaphore(is_semaphore)
 			, m_value(initval)
-		{ }
+		{
+			m_ino = 0;
+			m_mode = { Mode::IFCHR | Mode::IRUSR | Mode::IWUSR };
+			m_nlink = 0;
+			m_uid = 0;
+			m_gid = 0;
+			m_size = 0;
+			m_atime = {};
+			m_mtime = {};
+			m_ctime = {};
+			m_blksize = 8;
+			m_blocks = 0;
+			m_dev = 0;
+			m_rdev = 0;
+		}
 
 	private:
 		const bool m_is_semaphore;

@@ -132,9 +132,10 @@ namespace Kernel
 		, m_lun(lun)
 		, m_block_count(block_count)
 		, m_block_size(block_size)
-		, m_rdev(scsi_get_rdev())
 		, m_name { 's', 'd', (char)('a' + minor(m_rdev)), '\0' }
-	{ }
+	{
+		m_rdev = scsi_get_rdev();
+	}
 
 	USBSCSIDevice::~USBSCSIDevice()
 	{

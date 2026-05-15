@@ -16,6 +16,7 @@ namespace Kernel
 	public:
 		~Ext2Inode();
 
+#if 0
 		virtual ino_t ino() const override { return m_ino; };
 		virtual Mode mode() const override { return { m_inode.mode }; }
 		virtual nlink_t nlink() const override { return m_inode.links_count; }
@@ -29,6 +30,7 @@ namespace Kernel
 		virtual blkcnt_t blocks() const override;
 		virtual dev_t dev() const override { return 0; }
 		virtual dev_t rdev() const override { return 0; }
+#endif
 
 		virtual const FileSystem* filesystem() const override;
 
@@ -84,11 +86,8 @@ namespace Kernel
 		BAN::ErrorOr<void> cleanup_from_fs_no_lock();
 
 	private:
-		Ext2Inode(Ext2FS& fs, Ext2::Inode inode, uint32_t ino)
-			: m_fs(fs)
-			, m_inode(inode)
-			, m_ino(ino)
-		{}
+		Ext2Inode(Ext2FS& fs, Ext2::Inode inode, uint32_t ino);
+
 		static BAN::ErrorOr<BAN::RefPtr<Ext2Inode>> create(Ext2FS&, uint32_t);
 
 	private:
@@ -96,27 +95,34 @@ namespace Kernel
 		{
 			ScopedSync(Ext2Inode& inode)
 				: inode(inode)
-				, inode_info(inode.m_inode)
 			{ }
 
 			~ScopedSync()
 			{
-				if (memcmp(&inode.m_inode, &inode_info, sizeof(Ext2::Inode)) == 0)
-					return;
+				// TODO: there was some memcmp smarty pants stuff here.
+				// How do we wanna approach it?
 				if (auto ret = inode.sync_no_lock(); ret.is_error())
 					dwarnln("failed to sync inode: {}", ret.error());
 			}
 
 			Ext2Inode& inode;
-			Ext2::Inode inode_info;
 		};
 
 	private:
 		Ext2FS& m_fs;
-		Ext2::Inode m_inode;
-		const uint32_t m_ino;
-
 		RWLock m_lock;
+
+		Ext2::InodeBlocks m_ext2_blocks;
+		// NOTE: some fields from the original disk inode
+		// that we do not use, but we keep for serialise.
+		const uint32_t m_og_dtime;
+		const uint32_t m_og_flags;
+		const uint32_t m_og_osd1;
+		const uint32_t m_og_generation;
+		const uint32_t m_og_file_acl;
+		const uint32_t m_og_dir_acl;
+		const uint32_t m_og_faddr;
+		const Ext2::Osd2 m_og_osd2;
 
 		friend class Ext2FS;
 		friend class BAN::RefPtr<Ext2Inode>;

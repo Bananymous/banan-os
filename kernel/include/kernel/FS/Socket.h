@@ -30,31 +30,19 @@ namespace Kernel
 		};
 
 	public:
-		ino_t		ino()		const final override { ASSERT_NOT_REACHED(); }
-		Mode		mode()		const final override { return Mode(m_info.mode); }
-		nlink_t		nlink()		const final override { ASSERT_NOT_REACHED(); }
-		uid_t		uid()		const final override { return m_info.uid; }
-		gid_t		gid()		const final override { return m_info.gid; }
-		off_t		size()		const final override { ASSERT_NOT_REACHED(); }
-		timespec	atime()		const final override { ASSERT_NOT_REACHED(); }
-		timespec	mtime()		const final override { ASSERT_NOT_REACHED(); }
-		timespec	ctime()		const final override { ASSERT_NOT_REACHED(); }
-		blksize_t	blksize()	const final override { ASSERT_NOT_REACHED(); }
-		blkcnt_t	blocks()	const final override { ASSERT_NOT_REACHED(); }
-		dev_t		dev()		const final override { ASSERT_NOT_REACHED(); }
-		dev_t		rdev()		const final override { ASSERT_NOT_REACHED(); }
-
 		const FileSystem* filesystem() const final override { return nullptr; }
 
 	protected:
 		Socket(const Info& info)
-			: m_info(info)
-		{}
+		{
+			m_mode = info.mode;
+			m_uid = info.uid;
+			m_gid = info.gid;
+		}
 
 		BAN::ErrorOr<void> fsync_impl() final override { return {}; }
 
 	private:
-		const Info m_info;
 	};
 
 }

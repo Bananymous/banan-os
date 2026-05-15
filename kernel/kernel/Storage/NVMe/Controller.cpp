@@ -29,8 +29,8 @@ namespace Kernel
 	NVMeController::NVMeController(PCI::Device& pci_device)
 		: CharacterDevice(0600, 0, 0)
 		, m_pci_device(pci_device)
-		, m_rdev(makedev(DeviceNumber::NVMeController, get_ctrl_dev_minor()))
 	{
+		m_rdev = makedev(DeviceNumber::NVMeController, get_ctrl_dev_minor());
 		ASSERT(minor(m_rdev) < 10);
 		strcpy(m_name, "nvmeX");
 		m_name[4] = '0' + minor(m_rdev);

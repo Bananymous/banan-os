@@ -16,7 +16,6 @@ namespace Kernel
 		virtual uint32_t sector_size() const override { return m_block_size; }
 		virtual uint64_t total_size() const override { return m_block_size * m_block_count; }
 
-		virtual dev_t rdev() const override { return m_rdev; }
 		virtual BAN::StringView name() const override { return m_name; }
 
 	private:
@@ -35,7 +34,6 @@ namespace Kernel
 		const uint64_t m_block_count;
 
 		char m_name[10] {};
-		const dev_t m_rdev;
 	};
 
 }

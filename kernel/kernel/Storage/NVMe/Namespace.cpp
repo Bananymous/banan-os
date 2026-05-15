@@ -29,8 +29,8 @@ namespace Kernel
 		, m_nsid(nsid)
 		, m_block_size(block_size)
 		, m_block_count(block_count)
-		, m_rdev(makedev(DeviceNumber::NVMeNamespace, get_ns_dev_minor()))
 	{
+		m_rdev = makedev(DeviceNumber::NVMeNamespace, get_ns_dev_minor());
 		ASSERT(minor(m_rdev) < 10);
 		ASSERT(m_controller.name().size() + 2 < sizeof(m_name));
 		memcpy(m_name, m_controller.name().data(), m_controller.name().size());

@@ -11,18 +11,8 @@
 namespace Kernel
 {
 
-	struct TmpInodeInfo
+	struct TmpBlocks
 	{
-		mode_t		mode	{ 0 };
-		uid_t		uid		{ 0 };
-		gid_t		gid		{ 0 };
-		timespec	atime	{ 0, 0 };
-		timespec	ctime	{ 0, 0 };
-		timespec	mtime	{ 0, 0 };
-		nlink_t		nlink	{ 0 };
-		size_t		size	{ 0 };
-		blkcnt_t	blocks	{ 0 };
-
 #if ARCH(x86_64)
 		// 2x direct blocks
 		// 1x singly indirect
@@ -41,8 +31,23 @@ namespace Kernel
 #else
 	#error
 #endif
+	};
+
+	struct TmpInodeInfo
+	{
+		mode_t		mode	{ 0 };
+		uid_t		uid		{ 0 };
+		gid_t		gid		{ 0 };
+		timespec	atime	{ 0, 0 };
+		timespec	ctime	{ 0, 0 };
+		timespec	mtime	{ 0, 0 };
+		nlink_t		nlink	{ 0 };
+		size_t		size	{ 0 };
+		blkcnt_t	blocks	{ 0 };
+		TmpBlocks   tmp_blocks;
+
 		static constexpr size_t max_size =
-			direct_block_count * PAGE_SIZE +
+			TmpBlocks::direct_block_count * PAGE_SIZE +
 			(PAGE_SIZE / sizeof(paddr_t)) * PAGE_SIZE +
 			(PAGE_SIZE / sizeof(paddr_t)) * (PAGE_SIZE / sizeof(paddr_t)) * PAGE_SIZE +
 			(PAGE_SIZE / sizeof(paddr_t)) * (PAGE_SIZE / sizeof(paddr_t)) * (PAGE_SIZE / sizeof(paddr_t)) * PAGE_SIZE;

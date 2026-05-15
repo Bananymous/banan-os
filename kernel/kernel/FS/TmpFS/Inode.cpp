@@ -48,11 +48,6 @@ namespace Kernel
 		return &m_fs;
 	}
 
-	dev_t TmpInode::dev() const
-	{
-		return m_fs.rdev();
-	}
-
 	BAN::ErrorOr<BAN::RefPtr<TmpInode>> TmpInode::create_from_existing(TmpFileSystem& fs, ino_t ino, const TmpInodeInfo& info)
 	{
 		TmpInode* inode_ptr = nullptr;
@@ -74,9 +69,21 @@ namespace Kernel
 
 	TmpInode::TmpInode(TmpFileSystem& fs, ino_t ino, const TmpInodeInfo& info)
 		: m_fs(fs)
-		, m_inode_info(info)
-		, m_ino(ino)
 	{
+		m_ino = ino;
+		m_rdev = 0;
+		m_blksize = PAGE_SIZE;
+		m_mode = info.mode;
+		m_nlink = info.nlink;
+		m_uid = info.uid;
+		m_gid = info.gid;
+		m_size = info.size;
+		m_atime = info.atime;
+		m_mtime = info.mtime;
+		m_ctime = info.ctime;
+		m_blocks = info.blocks;
+		m_dev = fs.rdev();
+		m_tmp_blocks = info.tmp_blocks;
 		// FIXME: this should be able to fail
 		MUST(fs.add_to_cache(this));
 	}
@@ -96,16 +103,16 @@ namespace Kernel
 	{
 		// FIXME: make this atomic
 		ASSERT(!(new_mode & Inode::Mode::TYPE_MASK));
-		m_inode_info.mode &= Inode::Mode::TYPE_MASK;
-		m_inode_info.mode |= new_mode;
+		m_mode &= Inode::Mode::TYPE_MASK;
+		m_mode |= new_mode;
 		return {};
 	}
 
 	BAN::ErrorOr<void> TmpInode::chown_impl(uid_t new_uid, gid_t new_gid)
 	{
 		// FIXME: make this atomic
-		m_inode_info.uid = new_uid;
-		m_inode_info.gid = new_gid;
+		m_uid = new_uid;
+		m_gid = new_gid;
 		return {};
 	}
 
@@ -113,33 +120,45 @@ namespace Kernel
 	{
 		// FIXME: make this atomic
 		if (times[0].tv_nsec != UTIME_OMIT)
-			m_inode_info.atime = times[0];
+			m_atime = times[0];
 		if (times[1].tv_nsec != UTIME_OMIT)
-			m_inode_info.atime = times[1];
+			m_atime = times[1];
 		return {};
 	}
 
 	void TmpInode::sync()
 	{
-		m_fs.write_inode(m_ino, m_inode_info);
+		TmpInodeInfo info = {
+			.mode   = m_mode.load(),
+			.uid    = m_uid.load(),
+			.gid    = m_gid.load(),
+			.atime  = m_atime,
+			.ctime  = m_ctime,
+			.mtime  = m_mtime,
+			.nlink  = m_nlink.load(),
+			.size   = static_cast<size_t>(size()),
+			.blocks = m_blocks.load(),
+			.tmp_blocks = m_tmp_blocks,
+		};
+		m_fs.write_inode(m_ino, info);
 	}
 
 	void TmpInode::free_all_blocks()
 	{
 		LockGuard _(m_lock);
-		if (mode().iflnk() && m_inode_info.size <= sizeof(TmpInodeInfo::block))
+		if (mode().iflnk() && static_cast<size_t>(size()) <= sizeof(TmpBlocks::block))
 			goto free_all_blocks_done;
-		for (size_t i = 0; i < TmpInodeInfo::direct_block_count; i++)
-			if (m_inode_info.block[i])
-				m_fs.free_block(m_inode_info.block[i]);
-		if (size_t block = m_inode_info.block[TmpInodeInfo::direct_block_count + 0])
+		for (size_t i = 0; i < TmpBlocks::direct_block_count; i++)
+			if (m_tmp_blocks.block[i])
+				m_fs.free_block(m_tmp_blocks.block[i]);
+		if (size_t block = m_tmp_blocks.block[TmpBlocks::direct_block_count + 0])
 			free_indirect_blocks_no_lock(block, 1);
-		if (size_t block = m_inode_info.block[TmpInodeInfo::direct_block_count + 1])
+		if (size_t block = m_tmp_blocks.block[TmpBlocks::direct_block_count + 1])
 			free_indirect_blocks_no_lock(block, 2);
-		if (size_t block = m_inode_info.block[TmpInodeInfo::direct_block_count + 2])
+		if (size_t block = m_tmp_blocks.block[TmpBlocks::direct_block_count + 2])
 			free_indirect_blocks_no_lock(block, 3);
 	free_all_blocks_done:
-		for (auto& block : m_inode_info.block)
+		for (auto& block : m_tmp_blocks.block)
 			block = 0;
 	}
 
@@ -174,26 +193,26 @@ namespace Kernel
 	{
 		LockGuard _(m_lock);
 
-		if (data_block_index < TmpInodeInfo::direct_block_count)
+		if (data_block_index < TmpBlocks::direct_block_count)
 		{
-			if (m_inode_info.block[data_block_index] == 0)
+			if (m_tmp_blocks.block[data_block_index] == 0)
 				return {};
-			return m_inode_info.block[data_block_index];
+			return m_tmp_blocks.block[data_block_index];
 		}
-		data_block_index -= TmpInodeInfo::direct_block_count;
+		data_block_index -= TmpBlocks::direct_block_count;
 
 		const size_t indices_per_block = blksize() / sizeof(size_t);
 
 		if (data_block_index < indices_per_block)
-			return block_index_from_indirect_no_lock(m_inode_info.block[TmpInodeInfo::direct_block_count + 0], data_block_index, 1);
+			return block_index_from_indirect_no_lock(m_tmp_blocks.block[TmpBlocks::direct_block_count + 0], data_block_index, 1);
 		data_block_index -= indices_per_block;
 
 		if (data_block_index < indices_per_block * indices_per_block)
-			return block_index_from_indirect_no_lock(m_inode_info.block[TmpInodeInfo::direct_block_count + 1], data_block_index, 2);
+			return block_index_from_indirect_no_lock(m_tmp_blocks.block[TmpBlocks::direct_block_count + 1], data_block_index, 2);
 		data_block_index -= indices_per_block * indices_per_block;
 
 		if (data_block_index < indices_per_block * indices_per_block * indices_per_block)
-			return block_index_from_indirect_no_lock(m_inode_info.block[TmpInodeInfo::direct_block_count + 2], data_block_index, 3);
+			return block_index_from_indirect_no_lock(m_tmp_blocks.block[TmpBlocks::direct_block_count + 2], data_block_index, 3);
 
 		ASSERT_NOT_REACHED();
 	}
@@ -228,29 +247,29 @@ namespace Kernel
 	{
 		LockGuard _(m_lock);
 
-		if (data_block_index < TmpInodeInfo::direct_block_count)
+		if (data_block_index < TmpBlocks::direct_block_count)
 		{
-			if (m_inode_info.block[data_block_index] == 0)
+			if (m_tmp_blocks.block[data_block_index] == 0)
 			{
-				m_inode_info.block[data_block_index] = TRY(m_fs.allocate_block());
-				m_inode_info.blocks++;
+				m_tmp_blocks.block[data_block_index] = TRY(m_fs.allocate_block());
+				m_blocks++;
 			}
-			return m_inode_info.block[data_block_index];
+			return m_tmp_blocks.block[data_block_index];
 		}
-		data_block_index -= TmpInodeInfo::direct_block_count;
+		data_block_index -= TmpBlocks::direct_block_count;
 
 		const size_t indices_per_block = blksize() / sizeof(size_t);
 
 		if (data_block_index < indices_per_block)
-			return block_index_from_indirect_with_allocation_no_lock(m_inode_info.block[TmpInodeInfo::direct_block_count + 0], data_block_index, 1);
+			return block_index_from_indirect_with_allocation_no_lock(m_tmp_blocks.block[TmpBlocks::direct_block_count + 0], data_block_index, 1);
 		data_block_index -= indices_per_block;
 
 		if (data_block_index < indices_per_block * indices_per_block)
-			return block_index_from_indirect_with_allocation_no_lock(m_inode_info.block[TmpInodeInfo::direct_block_count + 1], data_block_index, 2);
+			return block_index_from_indirect_with_allocation_no_lock(m_tmp_blocks.block[TmpBlocks::direct_block_count + 1], data_block_index, 2);
 		data_block_index -= indices_per_block * indices_per_block;
 
 		if (data_block_index < indices_per_block * indices_per_block * indices_per_block)
-			return block_index_from_indirect_with_allocation_no_lock(m_inode_info.block[TmpInodeInfo::direct_block_count + 2], data_block_index, 3);
+			return block_index_from_indirect_with_allocation_no_lock(m_tmp_blocks.block[TmpBlocks::direct_block_count + 2], data_block_index, 3);
 
 		ASSERT_NOT_REACHED();
 	}
@@ -260,7 +279,7 @@ namespace Kernel
 		if (block == 0)
 		{
 			block = TRY(m_fs.allocate_block());
-			m_inode_info.blocks++;
+			m_blocks++;
 		}
 		ASSERT(depth >= 1);
 
@@ -278,7 +297,7 @@ namespace Kernel
 		if (next_block == 0)
 		{
 			next_block = TRY(m_fs.allocate_block());
-			m_inode_info.blocks++;
+			m_blocks++;
 
 			m_fs.with_block_buffer(block, [&](BAN::ByteSpan block_buffer) {
 				block_buffer.as_span<size_t>()[(index / divisor) % indices_per_block] = next_block;
@@ -385,9 +404,7 @@ namespace Kernel
 	{
 		// FIXME: if size is decreased, we should probably free
 		//        unused blocks
-		// FIXME: make this atomic
-
-		m_inode_info.size = new_size;
+		m_size = new_size;
 		return {};
 	}
 
@@ -446,12 +463,12 @@ namespace Kernel
 		LockGuard _(m_lock);
 
 		free_all_blocks();
-		m_inode_info.size = 0;
+		m_size = 0;
 
-		if (new_target.size() <= sizeof(TmpInodeInfo::block))
+		if (new_target.size() <= sizeof(TmpBlocks::block))
 		{
-			memcpy(m_inode_info.block.data(), new_target.data(), new_target.size());
-			m_inode_info.size = new_target.size();
+			memcpy(m_tmp_blocks.block.data(), new_target.data(), new_target.size());
+			m_size = new_target.size();
 			return {};
 		}
 
@@ -465,7 +482,7 @@ namespace Kernel
 				memcpy(bytespan.data(), new_target.data() + i * blksize(), byte_count);
 			});
 
-			m_inode_info.size += byte_count;
+			m_size += byte_count;
 		}
 
 		return {};
@@ -478,9 +495,9 @@ namespace Kernel
 		BAN::String result;
 		TRY(result.resize(size()));
 
-		if ((size_t)size() <= sizeof(TmpInodeInfo::block))
+		if ((size_t)size() <= sizeof(TmpBlocks::block))
 		{
-			memcpy(result.data(), m_inode_info.block.data(), size());
+			memcpy(result.data(), m_tmp_blocks.block.data(), size());
 			return result;
 		}
 
@@ -569,14 +586,14 @@ namespace Kernel
 		{
 			auto inode = TRY(m_fs.open_inode(dot_ino));
 			ASSERT(inode->nlink() > 0);
-			inode->m_inode_info.nlink--;
+			inode->m_nlink--;
 		}
 
 		if (dotdot_ino)
 		{
 			auto inode = TRY(m_fs.open_inode(dotdot_ino));
 			ASSERT(inode->nlink() > 0);
-			inode->m_inode_info.nlink--;
+			inode->m_nlink--;
 		}
 
 		return {};
@@ -754,7 +771,7 @@ namespace Kernel
 
 		if (cleanup)
 			TRY(inode->prepare_unlink_no_lock());
-		inode->m_inode_info.nlink--;
+		inode->m_nlink--;
 
 		if (inode->nlink() == 0)
 			m_fs.remove_from_cache(inode);
@@ -837,7 +854,7 @@ namespace Kernel
 			if (done)
 			{
 				// add link to linked inode
-				inode.m_inode_info.nlink++;
+				inode.m_nlink++;
 				return {};
 			}
 		}
@@ -866,10 +883,10 @@ namespace Kernel
 		});
 
 		// increase current size
-		m_inode_info.size += blksize();
+		m_size += blksize();
 
 		// add link to linked inode
-		inode.m_inode_info.nlink++;
+		inode.m_nlink++;
 
 		return {};
 	}

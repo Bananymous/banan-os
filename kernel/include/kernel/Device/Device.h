@@ -22,8 +22,6 @@ namespace Kernel
 			return BAN::Error::from_errno(ENOTSUP);
 		}
 
-		virtual dev_t rdev() const override = 0;
-
 		virtual BAN::StringView name() const = 0;
 
 	protected:
@@ -45,7 +43,7 @@ namespace Kernel
 		BlockDevice(mode_t mode, uid_t uid, gid_t gid)
 			: Device(mode, uid, gid)
 		{
-			m_inode_info.mode |= Inode::Mode::IFBLK;
+			m_mode |= Inode::Mode::IFBLK;
 		}
 	};
 
@@ -55,7 +53,7 @@ namespace Kernel
 		CharacterDevice(mode_t mode, uid_t uid, gid_t gid)
 			: Device(mode, uid, gid)
 		{
-			m_inode_info.mode |= Inode::Mode::IFCHR;
+			m_mode |= Inode::Mode::IFCHR;
 		}
 	};
 

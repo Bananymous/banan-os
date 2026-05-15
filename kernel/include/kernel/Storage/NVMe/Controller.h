@@ -20,7 +20,6 @@ namespace Kernel
 
 		NVMeQueue& io_queue() { return *m_io_queue; }
 
-		virtual dev_t rdev() const override { return m_rdev; }
 		virtual BAN::StringView name() const override { return m_name; }
 
 	protected:
@@ -51,7 +50,6 @@ namespace Kernel
 		BAN::Vector<BAN::RefPtr<NVMeNamespace>> m_namespaces;
 
 		char m_name[20];
-		const dev_t m_rdev;
 	};
 
 }

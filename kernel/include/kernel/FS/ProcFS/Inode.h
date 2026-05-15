@@ -9,34 +9,27 @@ namespace Kernel
 
 	class ProcPidInode final : public TmpDirectoryInode
 	{
+		// FIXME: dynamically update ruid/rgid.
+		// Possibly just have a magic uid/gid of -1 or something
+		// which means use current process ID
 	public:
 		static BAN::ErrorOr<BAN::RefPtr<ProcPidInode>> create_new(Process&, TmpFileSystem&, mode_t);
 		~ProcPidInode() = default;
 
-		virtual uid_t uid() const override { return m_process.credentials().ruid(); }
-		virtual gid_t gid() const override { return m_process.credentials().rgid(); }
-
 		void cleanup();
-
 	protected:
 		virtual BAN::ErrorOr<void> unlink_impl(BAN::StringView) override { return BAN::Error::from_errno(EPERM); }
 
 	private:
 		ProcPidInode(Process&, TmpFileSystem&, const TmpInodeInfo&);
-
-	private:
-		Process& m_process;
 	};
 
 	class ProcROProcessInode final : public TmpInode
 	{
+		//FIXME: dynamically update ruid/rgid
 	public:
 		static BAN::ErrorOr<BAN::RefPtr<ProcROProcessInode>> create_new(Process&, size_t (Process::*callback)(off_t, BAN::ByteSpan) const, TmpFileSystem&, mode_t);
 		~ProcROProcessInode() = default;
-
-		virtual uid_t uid() const override { return m_process.credentials().ruid(); }
-		virtual gid_t gid() const override { return m_process.credentials().rgid(); }
-
 	protected:
 		virtual BAN::ErrorOr<size_t> read_impl(off_t, BAN::ByteSpan) override;
 
@@ -59,12 +52,10 @@ namespace Kernel
 
 	class ProcSymlinkProcessInode final : public TmpInode
 	{
+		//FIXME: dynamically update ruid/rgid
 	public:
 		static BAN::ErrorOr<BAN::RefPtr<ProcSymlinkProcessInode>> create_new(Process& process, BAN::ErrorOr<BAN::String> (Process::*callback)() const, TmpFileSystem&, mode_t);
 		~ProcSymlinkProcessInode() = default;
-
-		virtual uid_t uid() const override { return m_process.credentials().ruid(); }
-		virtual gid_t gid() const override { return m_process.credentials().rgid(); }
 
 	protected:
 		virtual BAN::ErrorOr<BAN::String> link_target_impl() override;
@@ -132,13 +123,10 @@ namespace Kernel
 
 	class ProcFDDirectoryInode final : public TmpInode
 	{
+		//FIXME: dynamically update ruid/rgid
 	public:
 		static BAN::ErrorOr<BAN::RefPtr<ProcFDDirectoryInode>> create_new(Process&, TmpFileSystem&, mode_t);
 		~ProcFDDirectoryInode() = default;
-
-		virtual uid_t uid() const override { return m_process.credentials().ruid(); }
-		virtual gid_t gid() const override { return m_process.credentials().rgid(); }
-
 	protected:
 		virtual BAN::ErrorOr<BAN::RefPtr<Inode>> find_inode_impl(BAN::StringView) override;
 		virtual BAN::ErrorOr<size_t> list_next_inodes_impl(off_t, struct dirent*, size_t) override;

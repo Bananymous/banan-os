@@ -15,20 +15,6 @@ namespace Kernel
 	class FATInode final : public Inode, public BAN::Weakable<FATInode>
 	{
 	public:
-		virtual ino_t ino() const override { return m_ino; };
-		virtual Mode mode() const override { return Mode { ((m_entry.attr & FAT::FileAttr::DIRECTORY) ? Mode::IFDIR : Mode::IFREG) | 0777 }; }
-		virtual nlink_t nlink() const override { return 1; }
-		virtual uid_t uid() const override { return 0; }
-		virtual gid_t gid() const override { return 0; }
-		virtual off_t size() const override { return m_entry.file_size; }
-		virtual timespec atime() const override;
-		virtual timespec mtime() const override;
-		virtual timespec ctime() const override;
-		virtual blksize_t blksize() const override;
-		virtual blkcnt_t blocks() const override { return m_block_count; }
-		virtual dev_t dev() const override { return 0; }
-		virtual dev_t rdev() const override { return 0; }
-
 		virtual const FileSystem* filesystem() const override;
 
 		const FAT::DirectoryEntry& entry() const { return m_entry; }
@@ -53,12 +39,8 @@ namespace Kernel
 		virtual bool has_hungup_impl() const override { return false; }
 
 	private:
-		FATInode(FATFS& fs, const FAT::DirectoryEntry& entry, ino_t ino, uint32_t block_count)
-			: m_fs(fs)
-			, m_entry(entry)
-			, m_ino(ino)
-			, m_block_count(block_count)
-		{ }
+		FATInode(FATFS& fs, const FAT::DirectoryEntry& entry, ino_t ino, uint32_t block_count);
+
 		~FATInode()	{}
 
 		BAN::ErrorOr<void> for_each_directory_entry(BAN::ConstByteSpan, BAN::Function<BAN::Iteration(const FAT::DirectoryEntry&)>);
@@ -67,7 +49,6 @@ namespace Kernel
 	private:
 		FATFS& m_fs;
 		FAT::DirectoryEntry m_entry;
-		const ino_t m_ino;
 		uint32_t m_block_count;
 
 		friend class Ext2FS;

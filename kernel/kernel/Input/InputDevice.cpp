@@ -86,11 +86,11 @@ namespace Kernel
 
 	InputDevice::InputDevice(Type type)
 		: CharacterDevice(0440, 0, 901)
-		, m_rdev(get_rdev(type))
-		, m_name(MUST(BAN::String::formatted(get_name_format(type), minor(m_rdev) - 1)))
 		, m_type(type)
 		, m_event_size(get_event_size(type))
 	{
+		m_rdev = get_rdev(type);
+		m_name = MUST(BAN::String::formatted(get_name_format(type), minor(m_rdev) - 1));
 		MUST(m_event_buffer.resize(m_event_size * m_max_event_count, 0));
 
 		switch (m_type)
@@ -270,9 +270,10 @@ namespace Kernel
 
 	KeyboardDevice::KeyboardDevice(mode_t mode, uid_t uid, gid_t gid)
 		: CharacterDevice(mode, uid, gid)
-		, m_rdev(makedev(DeviceNumber::Keyboard, 0))
 		, m_name("keyboard"_sv)
-	{}
+	{
+		m_rdev = makedev(DeviceNumber::Keyboard, 0);
+	}
 
 	void KeyboardDevice::notify()
 	{
@@ -326,9 +327,10 @@ namespace Kernel
 
 	MouseDevice::MouseDevice(mode_t mode, uid_t uid, gid_t gid)
 		: CharacterDevice(mode, uid, gid)
-		, m_rdev(makedev(DeviceNumber::Mouse, 0))
 		, m_name("mouse"_sv)
-	{}
+	{
+		m_rdev = makedev(DeviceNumber::Mouse, 0);
+	}
 
 	void MouseDevice::notify()
 	{

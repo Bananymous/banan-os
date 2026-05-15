@@ -31,8 +31,6 @@ namespace Kernel
 			BAN::StringView model() const { return m_model; }
 			BAN::StringView name() const override { return m_name; }
 
-			dev_t rdev() const override { return m_rdev; }
-
 		protected:
 			ATABaseDevice();
 			BAN::ErrorOr<void> initialize(BAN::Span<const uint16_t> identify_data);
@@ -46,8 +44,6 @@ namespace Kernel
 			bool m_has_lba;
 			char m_model[41];
 			char m_name[4] {};
-
-			const dev_t m_rdev;
 		};
 
 	}

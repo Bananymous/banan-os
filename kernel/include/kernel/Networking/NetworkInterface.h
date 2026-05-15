@@ -57,7 +57,6 @@ namespace Kernel
 
 		virtual size_t payload_mtu() const = 0;
 
-		virtual dev_t rdev() const override { return m_rdev; }
 		virtual BAN::StringView name() const override { return m_name; }
 
 		BAN::ErrorOr<void> send_bytes(BAN::MACAddress destination, EtherType protocol, BAN::ConstByteSpan payload)
@@ -68,8 +67,6 @@ namespace Kernel
 
 	private:
 		const Type m_type;
-
-		const dev_t m_rdev;
 		char m_name[10];
 
 		BAN::IPv4Address m_ipv4_address { 0 };

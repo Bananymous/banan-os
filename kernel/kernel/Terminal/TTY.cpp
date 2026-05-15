@@ -72,9 +72,9 @@ namespace Kernel
 
 	TTY::TTY(termios termios, mode_t mode, uid_t uid, gid_t gid)
 		: CharacterDevice(mode, uid, gid)
-		, m_rdev(next_tty_rdev())
 		, m_termios(termios)
 	{
+		m_rdev = next_tty_rdev();
 		m_output.buffer = MUST(ByteRingBuffer::create(PAGE_SIZE));
 	}
 
@@ -158,16 +158,15 @@ namespace Kernel
 	{
 		// FIXME: make this atomic
 		ASSERT((mode & Inode::Mode::TYPE_MASK) == 0);
-		m_inode_info.mode &= Inode::Mode::TYPE_MASK;
-		m_inode_info.mode |= mode;
+		m_mode &= Inode::Mode::TYPE_MASK;
+		m_mode |= mode;
 		return {};
 	}
 
 	BAN::ErrorOr<void> TTY::chown_impl(uid_t uid, gid_t gid)
 	{
-		// FIXME: make this atomic
-		m_inode_info.uid = uid;
-		m_inode_info.gid = gid;
+		m_uid = uid;
+		m_gid = gid;
 		return {};
 	}
 

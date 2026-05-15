@@ -15,8 +15,8 @@ namespace Kernel
 
 	AudioController::AudioController()
 		: CharacterDevice(0644, 0, 0)
-		, m_rdev(makedev(DeviceNumber::AudioController, s_next_audio_minor++))
 	{
+		m_rdev = makedev(DeviceNumber::AudioController, s_next_audio_minor++);
 		char* ptr = m_name;
 		BAN::Formatter::print([&ptr](char c) { *ptr++ = c; }, "audio{}", minor(m_rdev));
 	}

@@ -200,7 +200,7 @@ namespace Kernel
 		rctrl |= RCTL_BAM;
 		rctrl |= RCTL_SECRC;
 		rctrl |= RCTL_BSIZE_8192;
-   		write32(REG_RCTL, rctrl);
+		write32(REG_RCTL, rctrl);
 
 		return {};
 	}

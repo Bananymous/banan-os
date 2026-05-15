@@ -281,7 +281,7 @@ namespace Kernel
 		auto& inode = inode_buffer.span().slice(inode_location.offset).as<Ext2::Inode>();
 #if EXT2_VERIFY_NO_BLOCKS
 		static const char zero_buffer[sizeof(inode.block)] {};
-		ASSERT(memcmp(inode.block, zero_buffer, sizeof(inode.block)) == 0);
+		ASSERT(memcmp(inode.block.block, zero_buffer, sizeof(inode.block)) == 0);
 #endif
 		bool is_directory = Inode::Mode(inode.mode).ifdir();
 		memset(&inode, 0x00, m_superblock.inode_size);

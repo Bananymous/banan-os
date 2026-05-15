@@ -22,8 +22,6 @@ namespace Kernel
 		InputDevice(Type type);
 
 		BAN::StringView name() const final override { return m_name; }
-		dev_t rdev() const final override { return m_rdev; }
-
 	protected:
 		void add_event(BAN::ConstByteSpan);
 
@@ -38,8 +36,7 @@ namespace Kernel
 		BAN::ErrorOr<size_t> read_non_block(BAN::ByteSpan);
 
 	private:
-		const dev_t m_rdev;
-		const BAN::String m_name;
+		BAN::String m_name;
 
 		const Type m_type;
 
@@ -77,10 +74,8 @@ namespace Kernel
 		bool has_hungup_impl() const override { return false; }
 
 		BAN::StringView name() const final override { return m_name; }
-		dev_t rdev() const final override { return m_rdev; }
 
 	private:
-		const dev_t m_rdev;
 		const BAN::StringView m_name;
 		ThreadBlocker m_thread_blocker;
 
@@ -104,10 +99,7 @@ namespace Kernel
 		bool has_hungup_impl() const override { return false; }
 
 		BAN::StringView name() const final override { return m_name; }
-		dev_t rdev() const final override { return m_rdev; }
-
 	private:
-		const dev_t m_rdev;
 		const BAN::StringView m_name;
 		ThreadBlocker m_thread_blocker;
 

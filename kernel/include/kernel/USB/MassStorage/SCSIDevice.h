@@ -15,7 +15,6 @@ namespace Kernel
 		uint32_t sector_size() const override { return m_block_size; }
 		uint64_t total_size() const override { return m_block_size * m_block_count; }
 
-		dev_t rdev() const override { return m_rdev; }
 		BAN::StringView name() const override { return m_name; }
 
 	private:
@@ -34,7 +33,6 @@ namespace Kernel
 		const uint64_t m_block_count;
 		const uint32_t m_block_size;
 
-		const dev_t m_rdev;
 		const char m_name[4];
 
 		friend class BAN::RefPtr<USBSCSIDevice>;

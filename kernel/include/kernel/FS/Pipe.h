@@ -18,20 +18,6 @@ namespace Kernel
 		void on_close(int status_flags) override;
 		void on_clone(int status_flags) override;
 
-		virtual ino_t ino() const override { return 0; } // FIXME
-		virtual Mode mode() const override { return { Mode::IFIFO | Mode::IRUSR | Mode::IWUSR }; }
-		virtual nlink_t nlink() const override { return 1; }
-		virtual uid_t uid() const override { return m_uid; }
-		virtual gid_t gid() const override { return m_gid; }
-		virtual off_t size() const override { return 0; }
-		virtual timespec atime() const override { return m_atime; }
-		virtual timespec mtime() const override { return m_mtime; }
-		virtual timespec ctime() const override { return m_ctime; }
-		virtual blksize_t blksize() const override { return 4096; }
-		virtual blkcnt_t blocks() const override { return 0; }
-		virtual dev_t dev() const override { return 0; } // FIXME
-		virtual dev_t rdev() const override { return 0; } // FIXME
-
 		virtual const FileSystem* filesystem() const override { return nullptr; }
 
 	protected:
@@ -50,12 +36,6 @@ namespace Kernel
 		Pipe(const Credentials&);
 
 	private:
-		const uid_t m_uid;
-		const gid_t m_gid;
-		timespec m_atime {};
-		timespec m_mtime {};
-		timespec m_ctime {};
-
 		Mutex m_mutex;
 		ThreadBlocker m_thread_blocker;
 

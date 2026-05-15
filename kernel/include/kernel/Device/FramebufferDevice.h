@@ -30,7 +30,6 @@ namespace Kernel
 
 		virtual BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> mmap_region(PageTable&, off_t offset, size_t len, AddressRange, MemoryRegion::Type, PageTable::flags_t, int status_flags) override;
 
-		virtual dev_t rdev() const override { return m_rdev; }
 		virtual BAN::StringView name() const override { return m_name.sv(); }
 
 	protected:
@@ -50,7 +49,6 @@ namespace Kernel
 
 	private:
 		const BAN::String m_name;
-		const dev_t m_rdev;
 
 		vaddr_t			m_video_memory_vaddr { 0 };
 		const paddr_t	m_video_memory_paddr;
