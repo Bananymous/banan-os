@@ -141,6 +141,10 @@ namespace Kernel
 		{
 			case TIOCGWINSZ:
 			case TIOCSWINSZ:
+			case TCGETS:
+			case TCSETS:
+			case TCSETSW:
+			case TCSETSF:
 				return BAN::Error::from_errno(EINVAL);
 		}
 		return Inode::ioctl_impl(cmd, arg);
