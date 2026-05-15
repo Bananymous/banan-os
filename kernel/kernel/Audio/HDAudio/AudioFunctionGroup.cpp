@@ -255,6 +255,8 @@ namespace Kernel
 		m_bdl_head = 0;
 		m_bdl_tail = 0;
 		m_stream_running = false;
+
+		return {};
 	}
 
 	BAN::ErrorOr<void> HDAudioFunctionGroup::initialize_output()
