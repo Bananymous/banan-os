@@ -6,25 +6,20 @@
 #include <kernel/Lock/SpinLock.h>
 #include <kernel/Memory/MemoryRegion.h>
 
-#include <fcntl.h>
+#include <sys/shm.h>
 
 namespace Kernel
 {
 
-	class SharedMemoryObject;
-
 	class SharedMemoryObjectManager
 	{
-	public:
-		using Key = size_t;
-
 	public:
 		static BAN::ErrorOr<void> initialize();
 		static SharedMemoryObjectManager& get();
 
-		BAN::ErrorOr<Key> create_object(size_t size, PageTable::flags_t);
-		BAN::ErrorOr<void> delete_object(Key);
-		BAN::ErrorOr<BAN::UniqPtr<SharedMemoryObject>> map_object(Key, PageTable&, AddressRange);
+		BAN::ErrorOr<int> shmget(key_t key, size_t size, int shmflg);
+		BAN::ErrorOr<void> shmctl(int shmid, int cmd, struct shmid_ds* user_buf);
+		BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> shmat(int shmid, const void* shmaddr, int shmflg);
 
 	private:
 		SharedMemoryObjectManager() {}
@@ -32,49 +27,29 @@ namespace Kernel
 	private:
 		struct Object : public BAN::RefCounted<Object>
 		{
+			Object(key_t key, shmid_ds info)
+				: key(key)
+				, info(info)
+			{ }
 			~Object();
 
-			Key key;
-			size_t size;
-			PageTable::flags_t flags;
+			bool can_current_process_access(int flags) const;
+
+			const key_t key;
+			shmid_ds info;
+
+			Mutex mutex;
 			BAN::Vector<paddr_t> paddrs;
-			SpinLock spin_lock;
+			bool marked_for_deletion { false };
 		};
 
 	private:
 		Mutex m_mutex;
-		BAN::HashMap<Key, BAN::RefPtr<Object>> m_objects;
+		BAN::HashMap<key_t, int> m_ids;
+		BAN::HashMap<int, BAN::RefPtr<Object>> m_objects;
 
 		friend class SharedMemoryObject;
 		friend class BAN::UniqPtr<SharedMemoryObjectManager>;
-	};
-
-	class SharedMemoryObject : public MemoryRegion
-	{
-		BAN_NON_COPYABLE(SharedMemoryObject);
-		BAN_NON_MOVABLE(SharedMemoryObject);
-
-	public:
-		static BAN::ErrorOr<BAN::UniqPtr<SharedMemoryObject>> create(BAN::RefPtr<SharedMemoryObjectManager::Object>, PageTable&, AddressRange);
-
-		BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> clone(PageTable& new_page_table) override;
-		BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> split(size_t offset) override;
-
-		BAN::ErrorOr<void> msync(vaddr_t, size_t, int) override { return {}; }
-
-	protected:
-		BAN::ErrorOr<bool> allocate_page_containing_impl(vaddr_t vaddr, bool wants_write) override;
-
-	private:
-		SharedMemoryObject(BAN::RefPtr<SharedMemoryObjectManager::Object> object, PageTable& page_table)
-			: MemoryRegion(page_table, object->size, MemoryRegion::Type::SHARED, object->flags, O_EXEC | O_RDWR)
-			, m_object(object)
-		{ }
-
-	private:
-		BAN::RefPtr<SharedMemoryObjectManager::Object> m_object;
-
-		friend class BAN::UniqPtr<SharedMemoryObject>;
 	};
 
 }

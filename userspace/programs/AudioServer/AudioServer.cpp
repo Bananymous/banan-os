@@ -1,8 +1,7 @@
 #include "AudioServer.h"
 
-#include <sys/banan-os.h>
 #include <sys/ioctl.h>
-#include <sys/mman.h>
+#include <sys/shm.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
@@ -23,10 +22,7 @@ void AudioServer::on_client_disconnect(int fd)
 	ASSERT(it != m_audio_buffers.end());
 
 	if (it->value.buffer != nullptr)
-	{
-		const size_t bytes = sizeof(LibAudio::AudioBuffer) + it->value.buffer->capacity * sizeof(LibAudio::AudioBuffer::sample_t);
-		munmap(it->value.buffer, bytes);
-	}
+		shmdt(it->value.buffer);
 
 	m_audio_buffers.remove(it);
 
@@ -54,9 +50,9 @@ bool AudioServer::on_client_packet(int fd, LibAudio::Packet packet)
 				dwarnln("Client tried to map second audio buffer??");
 				return false;
 			}
-			audio_buffer.buffer = static_cast<LibAudio::AudioBuffer*>(smo_map(packet.parameter));
+			audio_buffer.buffer = static_cast<LibAudio::AudioBuffer*>(shmat(packet.parameter, nullptr, 0));
 			audio_buffer.queued_head = audio_buffer.buffer->tail;
-			if (audio_buffer.buffer == nullptr)
+			if (audio_buffer.buffer == SHM_FAILED)
 			{
 				dwarnln("Failed to map audio buffer: {}", strerror(errno));
 				return false;

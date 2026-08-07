@@ -4,9 +4,8 @@
 
 #include <fcntl.h>
 #include <stdlib.h>
-#include <sys/banan-os.h>
 #include <sys/epoll.h>
-#include <sys/mman.h>
+#include <sys/shm.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <time.h>
@@ -165,7 +164,7 @@ namespace LibGUI
 		if (width == m_width)
 		{
 			copy_func(
-				&m_framebuffer_smo[y * m_width],
+				&m_framebuffer_shm[y * m_width],
 				&m_texture.pixels()[y * m_width],
 				width * height * sizeof(uint32_t)
 			);
@@ -173,7 +172,7 @@ namespace LibGUI
 		else for (uint32_t y_off = 0; y_off < height; y_off++)
 		{
 			copy_func(
-				&m_framebuffer_smo[(y + y_off) * m_width + x],
+				&m_framebuffer_shm[(y + y_off) * m_width + x],
 				&m_texture.pixels()[(y + y_off) * m_width + x],
 				width * sizeof(uint32_t)
 			);
@@ -311,31 +310,31 @@ namespace LibGUI
 
 	void Window::cleanup()
 	{
-		munmap(m_framebuffer_smo, m_width * m_height * 4);
+		shmdt(m_framebuffer_shm);
 		close(m_server_fd);
 		close(m_epoll_fd);
 	}
 
 	BAN::ErrorOr<bool> Window::handle_resize_event(const EventPacket::ResizeWindowEvent& event)
 	{
-		void* framebuffer_addr = smo_map(event.smo_key);
-		if (framebuffer_addr == nullptr)
+		void* framebuffer_addr = shmat(event.shmid, nullptr, 0);
+		if (framebuffer_addr == SHM_FAILED)
 		{
 			if (errno == ENOENT)
 				return false;
 			return BAN::Error::from_errno(errno);
 		}
 
-		if (m_framebuffer_smo)
-			munmap(m_framebuffer_smo, m_width * m_height * 4);
-		m_framebuffer_smo = nullptr;
+		if (m_framebuffer_shm)
+			shmdt(m_framebuffer_shm);
+		m_framebuffer_shm = nullptr;
 
 		TRY(m_texture.resize(event.width, event.height));
 
 		if (m_root_widget)
 			TRY(m_root_widget->set_fixed_geometry({ 0, 0, event.width, event.height }));
 
-		m_framebuffer_smo = static_cast<uint32_t*>(framebuffer_addr);
+		m_framebuffer_shm = static_cast<uint32_t*>(framebuffer_addr);
 		m_width = event.width;
 		m_height = event.height;
 

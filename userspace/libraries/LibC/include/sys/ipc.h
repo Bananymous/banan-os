@@ -22,13 +22,15 @@ struct ipc_perm
 	mode_t	mode;	/* Read/write permission. */
 };
 
-#define IPC_CREAT	0x01
-#define IPC_EXCL	0x02
-#define IPC_NOWAIT	0x04
-#define IPC_PRIVATE	0x08
-#define IPC_RMID	0x10
-#define IPC_SET		0x20
-#define IPC_STAT	0x40
+#define IPC_CREAT  01000
+#define IPC_EXCL   02000
+#define IPC_NOWAIT 04000
+
+#define IPC_PRIVATE 0
+
+#define IPC_RMID 1
+#define IPC_SET  2
+#define IPC_STAT 3
 
 key_t ftok(const char* path, int id);
 

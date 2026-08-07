@@ -12,14 +12,14 @@ __BEGIN_DECLS
 #define __need_time_t
 #include <sys/types.h>
 
+#include <stdint.h>
 #include <sys/ipc.h>
-
 #include <unistd.h>
 
 #define SHM_RDONLY 0x01
 #define SHM_RND    0x02
-
-#define SHMLBA (sysconf(_SC_PAGE_SIZE))
+#define SHM_FAILED ((void*)(intptr_t)-1)
+#define SHMLBA     (getpagesize())
 
 typedef unsigned int shmatt_t;
 

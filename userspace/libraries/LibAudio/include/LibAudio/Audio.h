@@ -62,8 +62,7 @@ namespace LibAudio
 
 		BAN::UniqPtr<AudioLoader> m_audio_loader;
 
-		long m_smo_key { -1 };
-		size_t m_smo_size { 0 };
+		int m_shmid { -1 };
 		AudioBuffer* m_audio_buffer { nullptr };
 	};
 

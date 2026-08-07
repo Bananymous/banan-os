@@ -59,7 +59,7 @@ signal_trampoline:
 	addl $24, %esp
 
 	// restore sigmask
-	movl $78, %eax      // SYS_SIGPROCMASK
+	movl $79, %eax      // SYS_SIGPROCMASK
 	movl $3,  %ebx      // SIG_SETMASK
 	leal 72(%esp), %ecx // set
 	xorl %edx, %edx     // oset

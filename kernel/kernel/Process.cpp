@@ -2928,46 +2928,44 @@ namespace Kernel
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_smo_create(size_t len, int prot)
+	BAN::ErrorOr<long> Process::sys_shmget(key_t key, size_t size, int shmflg)
 	{
-		if (len == 0)
-			return BAN::Error::from_errno(EINVAL);
-		if (prot & ~(PROT_READ | PROT_WRITE | PROT_EXEC | PROT_NONE))
-			return BAN::Error::from_errno(EINVAL);
-
-		if (auto rem = len % PAGE_SIZE)
-			len += PAGE_SIZE - rem;
-
-		PageTable::flags_t page_flags = 0;
-		if (prot & PROT_READ)
-			page_flags |= PageTable::Flags::Present;
-		if (prot & PROT_WRITE)
-			page_flags |= PageTable::Flags::ReadWrite | PageTable::Flags::Present;
-		if (prot & PROT_EXEC)
-			page_flags |= PageTable::Flags::Execute | PageTable::Flags::Present;
-
-		if (page_flags == 0)
-			page_flags |= PageTable::Flags::Reserved;
-		else
-			page_flags |= PageTable::Flags::UserSupervisor;
-
-		return TRY(SharedMemoryObjectManager::get().create_object(len, page_flags));
+		return TRY(SharedMemoryObjectManager::get().shmget(key, size, shmflg));
 	}
 
-	BAN::ErrorOr<long> Process::sys_smo_delete(SharedMemoryObjectManager::Key key)
+	BAN::ErrorOr<long> Process::sys_shmctl(int shmid, int cmd, struct shmid_ds* user_buf)
 	{
-		TRY(SharedMemoryObjectManager::get().delete_object(key));
+		TRY(SharedMemoryObjectManager::get().shmctl(shmid, cmd, user_buf));
 		return 0;
 	}
 
-	BAN::ErrorOr<long> Process::sys_smo_map(SharedMemoryObjectManager::Key key)
+	BAN::ErrorOr<long> Process::sys_shmat(int shmid, const void* shmaddr, int shmflg)
 	{
-		auto region = TRY(SharedMemoryObjectManager::get().map_object(key, page_table(), { .start = 0x400000, .end = USERSPACE_END }));
+		RWLockWRGuard _(m_memory_region_lock);
 
-		LockGuard _(m_process_lock);
+		auto region = TRY(SharedMemoryObjectManager::get().shmat(shmid, shmaddr, shmflg));
+
 		const vaddr_t region_vaddr = region->vaddr();
+
 		TRY(add_mapped_region(BAN::move(region)));
+
 		return region_vaddr;
+	}
+
+	BAN::ErrorOr<long> Process::sys_shmdt(const void* shmaddr)
+	{
+		const vaddr_t vaddr = reinterpret_cast<vaddr_t>(shmaddr);
+
+		RWLockWRGuard _(m_memory_region_lock);
+
+		const size_t idx = find_mapped_region(vaddr);
+		if (idx >= m_mapped_regions.size() || m_mapped_regions[idx]->vaddr() != vaddr)
+			return BAN::Error::from_errno(ENOENT);
+
+		m_mapped_regions[idx]->wait_not_pinned();
+		m_mapped_regions.remove(idx);
+
+		return 0;
 	}
 
 	BAN::ErrorOr<long> Process::sys_ttyname(int fildes, char* user_buffer, size_t buffer_size)

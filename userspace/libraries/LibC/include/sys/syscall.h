@@ -72,9 +72,10 @@ __BEGIN_DECLS
 	O(SYS_PSELECT,			pselect)		\
 	O(SYS_PPOLL,			ppoll)			\
 	O(SYS_FTRUNCATE,		ftruncate)		\
-	O(SYS_SMO_CREATE,		smo_create)		\
-	O(SYS_SMO_DELETE,		smo_delete)		\
-	O(SYS_SMO_MAP,			smo_map)		\
+	O(SYS_SHMAT,			shmat)			\
+	O(SYS_SHMDT,			shmdt)			\
+	O(SYS_SHMGET,			shmget)			\
+	O(SYS_SHMCTL,			shmctl)			\
 	O(SYS_GETSOCKNAME,		getsockname)	\
 	O(SYS_GETPEERNAME,		getpeername)	\
 	O(SYS_GETSOCKOPT,		getsockopt)		\

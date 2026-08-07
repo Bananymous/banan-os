@@ -8,13 +8,13 @@
 #include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/Process.h>
 #else
-#include <fcntl.h>
 #include <limits.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #endif
 
 #include <ctype.h>
+#include <fcntl.h>
 
 namespace LibInput
 {

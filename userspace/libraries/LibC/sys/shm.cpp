@@ -1,11 +1,26 @@
-#include <BAN/Debug.h>
-
-#include <errno.h>
 #include <sys/shm.h>
+#include <sys/syscall.h>
+#include <unistd.h>
 
-#define TODO_FUNC(type, name, ...) type name(__VA_ARGS__) { dwarnln("TODO: " #name); errno = ENOTSUP; return (type)-1; }
+void* shmat(int shmid, const void* shmaddr, int shmflg)
+{
+	const auto result = syscall(SYS_SHMAT, shmid, shmaddr, shmflg);
+	if (result == -1)
+		return SHM_FAILED;
+	return reinterpret_cast<void*>(result);
+}
 
-TODO_FUNC(void*, shmat, int, const void*, int)
-TODO_FUNC(int,   shmctl, int, int, struct shmid_ds*)
-TODO_FUNC(int,   shmdt, const void*)
-TODO_FUNC(int,   shmget, key_t, size_t, int)
+int shmctl(int shmid, int cmd, struct shmid_ds* buf)
+{
+	return syscall(SYS_SHMCTL, shmid, cmd, buf);
+}
+
+int shmdt(const void* shmaddr)
+{
+	return syscall(SYS_SHMDT, shmaddr);
+}
+
+int shmget(key_t key, size_t size, int shmflg)
+{
+	return syscall(SYS_SHMGET, key, size, shmflg);
+}

@@ -115,7 +115,7 @@ namespace LibGUI
 
 		Attributes m_attributes;
 
-		uint32_t* m_framebuffer_smo { nullptr };
+		uint32_t* m_framebuffer_shm { nullptr };
 		uint32_t m_width { 0 };
 		uint32_t m_height { 0 };
 

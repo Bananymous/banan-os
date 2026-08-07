@@ -61,7 +61,7 @@ signal_trampoline:
 	addq $40, %rsp
 
 	// restore sigmask
-	movq $78, %rdi       // SYS_SIGPROCMASK
+	movq $79, %rdi       // SYS_SIGPROCMASK
 	movq $3,  %rsi       // SIG_SETMASK
 	leaq 192(%rsp), %rdx // set
 	xorq %r10, %r10      // oset

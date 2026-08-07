@@ -5,8 +5,7 @@
 
 #include <fcntl.h>
 #include <stdlib.h>
-#include <sys/banan-os.h>
-#include <sys/mman.h>
+#include <sys/shm.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 
@@ -49,12 +48,10 @@ namespace LibAudio
 	void Audio::clear()
 	{
 		if (m_audio_buffer)
-			munmap(m_audio_buffer, m_smo_size);
+			shmdt(m_audio_buffer);
 		m_audio_buffer = nullptr;
 
-		if (m_smo_key != -1)
-			smo_delete(m_smo_key);
-		m_smo_key = -1;
+		m_shmid = -1;
 
 		if (m_server_fd != -1)
 			close(m_server_fd);
@@ -68,14 +65,12 @@ namespace LibAudio
 		clear();
 
 		m_server_fd    = other.m_server_fd;
-		m_smo_key      = other.m_smo_key;
-		m_smo_size     = other.m_smo_size;
+		m_shmid        = other.m_shmid;
 		m_audio_buffer = other.m_audio_buffer;
 		m_audio_loader = BAN::move(other.m_audio_loader);
 
 		other.m_server_fd    = -1;
-		other.m_smo_key      = -1;
-		other.m_smo_size     = 0;
+		other.m_shmid        = -1;
 		other.m_audio_buffer = nullptr;
 
 		return *this;
@@ -83,14 +78,16 @@ namespace LibAudio
 
 	BAN::ErrorOr<void> Audio::initialize(uint32_t total_samples)
 	{
-		m_smo_size = sizeof(AudioBuffer) + total_samples * sizeof(AudioBuffer::sample_t);
+		const size_t shm_size = sizeof(AudioBuffer) + total_samples * sizeof(AudioBuffer::sample_t);
 
-		m_smo_key = smo_create(m_smo_size, PROT_READ | PROT_WRITE);
-		if (m_smo_key == -1)
+		m_shmid = shmget(IPC_PRIVATE, shm_size, 0666);
+		if (m_shmid == -1)
 			return BAN::Error::from_errno(errno);
 
-		m_audio_buffer = static_cast<AudioBuffer*>(smo_map(m_smo_key));
-		if (m_audio_buffer == nullptr)
+		m_audio_buffer = static_cast<AudioBuffer*>(shmat(m_shmid, nullptr, 0));
+		shmctl(m_shmid, IPC_RMID, nullptr);
+
+		if (m_audio_buffer == SHM_FAILED)
 			return BAN::Error::from_errno(errno);
 		new (m_audio_buffer) AudioBuffer();
 		memset(m_audio_buffer->samples, 0, total_samples * sizeof(AudioBuffer::sample_t));
@@ -124,7 +121,7 @@ namespace LibAudio
 
 		const LibAudio::Packet packet {
 			.type = LibAudio::Packet::RegisterBuffer,
-			.parameter = static_cast<uint64_t>(m_smo_key),
+			.parameter = static_cast<uint64_t>(m_shmid),
 		};
 
 		const ssize_t nsend = send(m_server_fd, &packet, sizeof(packet), 0);

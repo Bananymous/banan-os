@@ -333,7 +333,7 @@ namespace LibGUI
 			ResizeWindowEvent,
 			uint32_t, width,
 			uint32_t, height,
-			long, smo_key
+			long, shmid
 		);
 
 		DEFINE_PACKET_EXTRA(

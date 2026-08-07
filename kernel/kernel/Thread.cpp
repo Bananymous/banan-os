@@ -15,7 +15,7 @@
 namespace Kernel
 {
 
-	static_assert(SYS_SIGPROCMASK == 78, "this is hard coded in arch/*/Signal.S");
+	static_assert(SYS_SIGPROCMASK == 79, "this is hard coded in arch/*/Signal.S");
 	static_assert(SIG_SETMASK     ==  3, "this is hard coded in arch/*/Signal.S");
 
 	extern "C" [[noreturn]] void start_kernel_thread();

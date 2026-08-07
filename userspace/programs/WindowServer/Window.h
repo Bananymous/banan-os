@@ -42,7 +42,7 @@ public:
 	}
 
 	int client_fd() const { return m_client_fd; }
-	long smo_key() const { return m_smo_key; }
+	int shmid() const { return m_shmid; }
 
 	int32_t client_x() const { return m_client_area.min_x; }
 	int32_t client_y() const { return m_client_area.min_y; }
@@ -113,7 +113,7 @@ private:
 	Rectangle   m_client_area    { 0, 0, 0, 0 };
 	Rectangle   m_min_size       { 0, 0, m_title_bar_height, 0 };
 	Rectangle   m_max_size       { 0, 0, 10'000, 10'000 };
-	long        m_smo_key        { 0 };
+	int         m_shmid          { -1 };
 	uint32_t*   m_fb_addr        { nullptr };
 	BAN::String m_title;
 

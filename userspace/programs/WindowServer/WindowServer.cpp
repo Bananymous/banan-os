@@ -10,7 +10,6 @@
 #include <stdlib.h>
 #include <sys/banan-os.h>
 #include <sys/ioctl.h>
-#include <sys/mman.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
@@ -128,7 +127,7 @@ void WindowServer::on_window_create(int fd, const LibGUI::WindowPacket::WindowCr
 	const LibGUI::EventPacket::ResizeWindowEvent event_packet {
 		.width  = static_cast<uint32_t>(window->client_width()),
 		.height = static_cast<uint32_t>(window->client_height()),
-		.smo_key = window->smo_key(),
+		.shmid  = window->shmid(),
 	};
 	if (auto ret = append_serialized_packet(event_packet, fd); ret.is_error())
 	{
@@ -731,7 +730,7 @@ void WindowServer::on_mouse_button(LibInput::MouseButtonEvent event)
 				const LibGUI::EventPacket::ResizeWindowEvent event_packet {
 					.width  = static_cast<uint32_t>(m_focused_window->client_width()),
 					.height = static_cast<uint32_t>(m_focused_window->client_height()),
-					.smo_key = m_focused_window->smo_key(),
+					.shmid  = m_focused_window->shmid(),
 				};
 				if (auto ret = append_serialized_packet(event_packet, m_focused_window->client_fd()); ret.is_error())
 				{
@@ -1771,7 +1770,7 @@ bool WindowServer::resize_window(BAN::RefPtr<Window> window, uint32_t width, uin
 	const LibGUI::EventPacket::ResizeWindowEvent event_packet {
 		.width  = static_cast<uint32_t>(window->client_width()),
 		.height = static_cast<uint32_t>(window->client_height()),
-		.smo_key = window->smo_key(),
+		.shmid  = window->shmid(),
 	};
 	if (auto ret = append_serialized_packet(event_packet, window->client_fd()); ret.is_error())
 	{

@@ -1,19 +1,16 @@
 #include "Window.h"
 
 #include <BAN/Debug.h>
-#include <BAN/ScopeGuard.h>
 
 #include <LibGUI/Window.h>
 
-#include <sys/banan-os.h>
-#include <sys/mman.h>
+#include <sys/shm.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
 Window::~Window()
 {
-	munmap(m_fb_addr, client_width() * client_height() * 4);
-	smo_delete(m_smo_key);
+	shmdt(m_fb_addr);
 
 	LibGUI::EventPacket::DestroyWindowEvent packet;
 
@@ -45,16 +42,16 @@ BAN::ErrorOr<void> Window::resize(uint32_t width, uint32_t height)
 {
 	const size_t fb_bytes = width * height * 4;
 
-	long smo_key = smo_create(fb_bytes, PROT_READ | PROT_WRITE);
-	if (smo_key == -1)
+	const int shmid = shmget(IPC_PRIVATE, fb_bytes, 0666);
+	if (shmid == -1)
 		return BAN::Error::from_errno(errno);
-	BAN::ScopeGuard smo_deleter([&]() { smo_delete(smo_key); });
 
-	uint32_t* fb_addr = static_cast<uint32_t*>(smo_map(smo_key));
-	if (fb_addr == nullptr)
+	uint32_t* fb_addr = static_cast<uint32_t*>(shmat(shmid, nullptr, 0));
+	shmctl(shmid, IPC_RMID, nullptr);
+
+	if (fb_addr == SHM_FAILED)
 		return BAN::Error::from_errno(errno);
 	memset(fb_addr, 0xFF, fb_bytes);
-	BAN::ScopeGuard smo_unmapper([&]() { munmap(fb_addr, fb_bytes); });
 
 	{
 		const auto old_area = m_client_area;
@@ -65,19 +62,17 @@ BAN::ErrorOr<void> Window::resize(uint32_t width, uint32_t height)
 		m_client_area = old_area;
 
 		if (title_bar_ret.is_error())
+		{
+			shmdt(fb_addr);
 			return title_bar_ret.release_error();
+		}
 	}
 
-	smo_deleter.disable();
-	smo_unmapper.disable();
-
-	if (m_fb_addr)
-		munmap(m_fb_addr, client_width() * client_height() * 4);
-	if (m_smo_key)
-		smo_delete(m_smo_key);
+	if (m_fb_addr != nullptr)
+		shmdt(m_fb_addr);
 
 	m_fb_addr = fb_addr;
-	m_smo_key = smo_key;
+	m_shmid   = shmid;
 
 	m_client_area.max_x = m_client_area.min_x + width;
 	m_client_area.max_y = m_client_area.min_y + height;

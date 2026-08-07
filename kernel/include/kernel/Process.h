@@ -179,9 +179,10 @@ namespace Kernel
 		BAN::ErrorOr<long> sys_mprotect(void* addr, size_t len, int prot);
 		BAN::ErrorOr<long> sys_msync(void* addr, size_t len, int flags);
 
-		BAN::ErrorOr<long> sys_smo_create(size_t len, int prot);
-		BAN::ErrorOr<long> sys_smo_delete(SharedMemoryObjectManager::Key);
-		BAN::ErrorOr<long> sys_smo_map(SharedMemoryObjectManager::Key);
+		BAN::ErrorOr<long> sys_shmget(key_t key, size_t size, int shmflg);
+		BAN::ErrorOr<long> sys_shmctl(int shmid, int cmd, struct shmid_ds* buf);
+		BAN::ErrorOr<long> sys_shmat(int shmid, const void* shmaddr, int shmflg);
+		BAN::ErrorOr<long> sys_shmdt(const void* shmaddr);
 
 		BAN::ErrorOr<long> sys_ttyname(int fildes, char* name, size_t namesize);
 		BAN::ErrorOr<long> sys_posix_openpt(int flags);
@@ -255,6 +256,8 @@ namespace Kernel
 		const VirtualFileSystem::File& working_directory() const { return m_working_directory; }
 		const VirtualFileSystem::File& root_file() const { return m_root_file; }
 
+		BAN::ErrorOr<AddressRange> find_free_address_range(size_t size);
+
 	private:
 		Process(const Credentials&, pid_t pid, pid_t parent, pid_t sid, pid_t pgrp);
 		static Process* create_process(const Credentials&, pid_t parent, pid_t sid = 0, pid_t pgrp = 0);
@@ -279,8 +282,6 @@ namespace Kernel
 		// Otherwise returns the address of the first region after this address.
 		// You must hold reader end of m_mapped_region_lock when calling this.
 		size_t find_mapped_region(vaddr_t) const;
-
-		BAN::ErrorOr<AddressRange> find_free_address_range(size_t size);
 
 		BAN::ErrorOr<VirtualFileSystem::File> find_file(int fd, const char* path, int flags) const;
 		BAN::ErrorOr<FileParent> find_parent_file(int fd, const char* path, int flags) const;
