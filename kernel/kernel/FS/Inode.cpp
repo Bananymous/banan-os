@@ -11,18 +11,18 @@
 namespace Kernel
 {
 
-	bool Inode::can_access(const Credentials& credentials, int flags) const
+	bool Inode::can_access(uid_t uid, gid_t gid, mode_t mode, const Credentials& credentials, int flags)
 	{
 		if (credentials.is_superuser())
 			return true;
 
 		if (flags & O_RDONLY)
 		{
-			if (mode().mode & S_IROTH)
+			if (mode & S_IROTH)
 			{ }
-			else if ((mode().mode & S_IRUSR) && credentials.euid() == uid())
+			else if ((mode & S_IRUSR) && credentials.euid() == uid)
 			{ }
-			else if ((mode().mode & S_IRGRP) && credentials.has_egid(gid()))
+			else if ((mode & S_IRGRP) && credentials.has_egid(gid))
 			{ }
 			else
 			{
@@ -32,11 +32,11 @@ namespace Kernel
 
 		if (flags & O_WRONLY)
 		{
-			if (mode().mode & S_IWOTH)
+			if (mode & S_IWOTH)
 			{ }
-			else if ((mode().mode & S_IWUSR) && credentials.euid() == uid())
+			else if ((mode & S_IWUSR) && credentials.euid() == uid)
 			{ }
-			else if ((mode().mode & S_IWGRP) && credentials.has_egid(gid()))
+			else if ((mode & S_IWGRP) && credentials.has_egid(gid))
 			{ }
 			else
 			{
@@ -44,13 +44,13 @@ namespace Kernel
 			}
 		}
 
-		if ((flags & O_EXEC) || (mode().ifdir() && (flags & O_SEARCH)))
+		if ((flags & O_EXEC) || (Mode { mode }.ifdir() && (flags & O_SEARCH)))
 		{
-			if (mode().mode & S_IXOTH)
+			if (mode & S_IXOTH)
 			{ }
-			else if ((mode().mode & S_IXUSR) && credentials.euid() == uid())
+			else if ((mode & S_IXUSR) && credentials.euid() == uid)
 			{ }
-			else if ((mode().mode & S_IXGRP) && credentials.has_egid(gid()))
+			else if ((mode & S_IXGRP) && credentials.has_egid(gid))
 			{ }
 			else
 			{
@@ -59,6 +59,11 @@ namespace Kernel
 		}
 
 		return true;
+	}
+
+	bool Inode::can_access(const Credentials& credentials, int flags) const
+	{
+		return can_access(uid(), gid(), mode().mode, credentials, flags);
 	}
 
 	BAN::ErrorOr<BAN::RefPtr<Inode>> Inode::find_inode(BAN::StringView name)
