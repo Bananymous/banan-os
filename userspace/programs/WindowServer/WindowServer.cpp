@@ -227,14 +227,7 @@ void WindowServer::on_window_set_position(int fd, const LibGUI::WindowPacket::Wi
 		return;
 	}
 
-	const auto old_client_area = target_window->full_area();
 	move_window(target_window, packet.x, packet.y);
-
-	if (!target_window->get_attributes().shown)
-		return;
-
-	add_damaged_area(old_client_area);
-	add_damaged_area(target_window->full_area());
 }
 
 void WindowServer::on_window_set_attributes(int fd, const LibGUI::WindowPacket::WindowSetAttributes& packet)
@@ -718,7 +711,6 @@ void WindowServer::on_mouse_button(LibInput::MouseButtonEvent event)
 				m_state = State::Normal;
 
 				add_damaged_area(resize_area);
-				add_damaged_area(m_focused_window->full_area());
 
 				if (auto ret = m_focused_window->resize(resize_area.width(), resize_area.height() - m_focused_window->title_bar_height()); ret.is_error())
 				{
@@ -737,8 +729,6 @@ void WindowServer::on_mouse_button(LibInput::MouseButtonEvent event)
 					dwarnln("could not respond to window resize request: {}", ret.error());
 					return;
 				}
-
-				add_damaged_area(m_focused_window->full_area());
 			}
 			break;
 	}
@@ -790,23 +780,16 @@ void WindowServer::on_mouse_move_impl(int32_t new_x, int32_t new_y)
 			break;
 		}
 		case State::Moving:
-		{
-			const auto old_window_area = m_focused_window->full_area();
 			move_window(
 				m_focused_window,
 				m_focused_window->client_x() + event.rel_x,
 				m_focused_window->client_y() + event.rel_y
 			);
-			add_damaged_area(old_window_area);
-			add_damaged_area(m_focused_window->full_area());
 			break;
-		}
 		case State::Resizing:
-		{
 			add_damaged_area(resize_area({ .x = old_cursor_area.min_x, .y = old_cursor_area.min_y }));
 			add_damaged_area(resize_area(m_cursor));
 			break;
-		}
 	}
 }
 
@@ -1641,16 +1624,11 @@ void WindowServer::sync()
 		static int32_t dir_x = 7;
 		static int32_t dir_y = 4;
 
-		auto old_window = m_focused_window->full_area();
-
 		move_window(
 			m_focused_window,
 			m_focused_window->client_x() + dir_x,
 			m_focused_window->client_y() + dir_y
 		);
-
-		add_damaged_area(old_window);
-		add_damaged_area(m_focused_window->full_area());
 
 		if ((m_focused_window->full_x() < 0 && dir_x < 0) || (m_focused_window->full_x() + m_focused_window->full_width() >= m_framebuffer.width && dir_x > 0))
 			dir_x = -dir_x;
@@ -1783,7 +1761,13 @@ bool WindowServer::resize_window(BAN::RefPtr<Window> window, uint32_t width, uin
 
 void WindowServer::move_window(BAN::RefPtr<Window> window, int32_t x, int32_t y)
 {
+	if (window->get_attributes().shown)
+		add_damaged_area(window->full_area());
+
 	window->set_position({ x, y });
+
+	if (window->get_attributes().shown)
+		add_damaged_area(window->full_area());
 
 	const LibGUI::EventPacket::WindowMoveEvent event_packet {
 		.event = {
