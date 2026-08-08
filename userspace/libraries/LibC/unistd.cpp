@@ -676,7 +676,9 @@ int chroot(const char* path)
 
 int getpagesize(void)
 {
-	static int auxv_page_size = getauxval(AT_PAGESZ);
+	static int auxv_page_size = -1;
+	if (auxv_page_size == -1)
+		auxv_page_size = getauxval(AT_PAGESZ);
 	if (auxv_page_size)
 		return auxv_page_size;
 	return PAGE_SIZE;
