@@ -131,7 +131,8 @@ build_gcc () {
 		--enable-lto \
 		--disable-nls \
 		--enable-languages=c,c++ \
-		CXXFLAGS='-fno-char8_t'
+		CFLAGS='-O2' \
+		CXXFLAGS='-O2 -fno-char8_t'
 
 	XCFLAGS=""
 	if [ $BANAN_ARCH = "x86_64" ]; then
