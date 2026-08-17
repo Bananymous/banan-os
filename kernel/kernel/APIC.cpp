@@ -511,9 +511,12 @@ namespace Kernel
 		redir.lo_dword = ioapic->read(IOAPIC_REDIRS + pin * 2);
 		redir.hi_dword = ioapic->read(IOAPIC_REDIRS + pin * 2 + 1);
 
-		redir.trigger_mode = level_triggered;
 		redir.vector = IRQ_VECTOR_BASE + irq;
+		redir.delivery_mode = 0; // fixed
+		redir.pin_polarity  = 0; // active high
+		redir.trigger_mode = level_triggered;
 		redir.mask = 0;
+		redir.destination_mode = 0; // physical
 		// FIXME: distribute IRQs more evenly?
 		redir.destination = Kernel::Processor::bsp_id().as_u32();
 
