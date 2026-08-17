@@ -4,7 +4,7 @@
 #include <BAN/StringView.h>
 #include <BAN/Vector.h>
 
-#include <LibAudio/AudioLoader.h>
+#include <LibAudio/AudioStream.h>
 
 namespace LibAudio
 {
@@ -49,8 +49,8 @@ namespace LibAudio
 
 	private:
 		Audio() = default;
-		Audio(BAN::UniqPtr<AudioLoader>&& audio_loader)
-			: m_audio_loader(BAN::move(audio_loader))
+		Audio(BAN::UniqPtr<AudioStream>&& audio_stream)
+			: m_audio_stream(BAN::move(audio_stream))
 		{ }
 
 		void clear();
@@ -60,7 +60,7 @@ namespace LibAudio
 	private:
 		int m_server_fd { -1 };
 
-		BAN::UniqPtr<AudioLoader> m_audio_loader;
+		BAN::UniqPtr<AudioStream> m_audio_stream;
 
 		int m_shmid { -1 };
 		AudioBuffer* m_audio_buffer { nullptr };

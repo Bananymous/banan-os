@@ -25,7 +25,7 @@ namespace LibAudio
 
 	BAN::ErrorOr<Audio> Audio::load(BAN::StringView path)
 	{
-		Audio result(TRY(AudioLoader::load(path)));
+		Audio result(TRY(AudioStream::load(path)));
 		TRY(result.initialize(256 * 1024));
 		return result;
 	}
@@ -57,7 +57,7 @@ namespace LibAudio
 			close(m_server_fd);
 		m_server_fd = -1;
 
-		m_audio_loader.clear();
+		m_audio_stream.clear();
 	}
 
 	Audio& Audio::operator=(Audio&& other)
@@ -67,7 +67,7 @@ namespace LibAudio
 		m_server_fd    = other.m_server_fd;
 		m_shmid        = other.m_shmid;
 		m_audio_buffer = other.m_audio_buffer;
-		m_audio_loader = BAN::move(other.m_audio_loader);
+		m_audio_stream = BAN::move(other.m_audio_stream);
 
 		other.m_server_fd    = -1;
 		other.m_shmid        = -1;
@@ -93,10 +93,10 @@ namespace LibAudio
 		memset(m_audio_buffer->samples, 0, total_samples * sizeof(AudioBuffer::sample_t));
 
 		m_audio_buffer->capacity = total_samples;
-		if (m_audio_loader)
+		if (m_audio_stream)
 		{
-			m_audio_buffer->channels = m_audio_loader->channels();
-			m_audio_buffer->sample_rate = m_audio_loader->sample_rate();
+			m_audio_buffer->channels = m_audio_stream->channels();
+			m_audio_buffer->sample_rate = m_audio_stream->sample_rate();
 		}
 
 		update();
@@ -170,15 +170,15 @@ namespace LibAudio
 
 	void Audio::update()
 	{
-		if (!m_audio_loader)
+		if (!m_audio_stream)
 			return;
 
-		if (!m_audio_loader->samples_remaining() && !is_playing())
+		if (!m_audio_stream->samples_remaining() && !is_playing())
 			return set_paused(true);
 
 		for (;;)
 		{
-			const uint32_t sample_count = BAN::Math::min<uint32_t>(queueable_samples(), m_audio_loader->samples_remaining());
+			const uint32_t sample_count = BAN::Math::min<uint32_t>(queueable_samples(), m_audio_stream->samples_remaining());
 			if (sample_count == 0)
 				break;
 
@@ -186,7 +186,7 @@ namespace LibAudio
 			const uint32_t capacity = m_audio_buffer->capacity;
 
 			for (size_t i = 0; i < sample_count; i++)
-				m_audio_buffer->samples[(head + i) % capacity] = m_audio_loader->get_sample();
+				m_audio_buffer->samples[(head + i) % capacity] = m_audio_stream->get_sample();
 			m_audio_buffer->head = (head + sample_count) % capacity;
 		}
 	}

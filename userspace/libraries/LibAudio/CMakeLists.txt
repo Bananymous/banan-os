@@ -1,7 +1,7 @@
 set(LIBAUDIO_SOURCES
 	Audio.cpp
-	AudioLoader.cpp
-	AudioLoaders/WAVLoader.cpp
+	AudioStream.cpp
+	AudioStreams/WAVAudioStream.cpp
 )
 
 add_library(libaudio ${LIBAUDIO_SOURCES})

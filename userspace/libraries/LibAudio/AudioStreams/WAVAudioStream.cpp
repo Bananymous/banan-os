@@ -1,4 +1,4 @@
-#include <LibAudio/AudioLoaders/WAVLoader.h>
+#include <LibAudio/AudioStreams/WAVAudioStream.h>
 
 namespace LibAudio
 {
@@ -24,7 +24,7 @@ namespace LibAudio
 		uint16_t wBitsPerSample;
 	};
 
-	bool WAVAudioLoader::can_load_from(BAN::ConstByteSpan data)
+	bool WAVAudioStream::can_load_from(BAN::ConstByteSpan data)
 	{
 		if (data.size() < sizeof(RIFFChunk))
 			return false;
@@ -37,7 +37,7 @@ namespace LibAudio
 		return true;
 	}
 
-	BAN::ErrorOr<BAN::UniqPtr<AudioLoader>> WAVAudioLoader::create(BAN::ConstByteSpan data)
+	BAN::ErrorOr<BAN::UniqPtr<AudioStream>> WAVAudioStream::create(BAN::ConstByteSpan data)
 	{
 		ASSERT(can_load_from(data));
 
@@ -93,15 +93,15 @@ namespace LibAudio
 		if (bps / 8 * channels != format_chunk->nBlockAlign)
 			return BAN::Error::from_errno(EINVAL);
 
-		auto loader = TRY(BAN::UniqPtr<WAVAudioLoader>::create());
-		loader->m_bits_per_sample = bps;
-		loader->m_sample_format = format;
-		loader->m_channels = channels;
-		loader->m_sample_rate = format_chunk->nSamplePerSec;
-		loader->m_sample_data = sample_data;
-		loader->m_total_samples = sample_data.size() / (bps / 8);
-		loader->m_current_sample = 0;
-		return BAN::UniqPtr<AudioLoader>(BAN::move(loader));
+		auto stream = TRY(BAN::UniqPtr<WAVAudioStream>::create());
+		stream->m_bits_per_sample = bps;
+		stream->m_sample_format = format;
+		stream->m_channels = channels;
+		stream->m_sample_rate = format_chunk->nSamplePerSec;
+		stream->m_sample_data = sample_data;
+		stream->m_total_samples = sample_data.size() / (bps / 8);
+		stream->m_current_sample = 0;
+		return BAN::UniqPtr<AudioStream>(BAN::move(stream));
 	}
 
 	template<typename T>
@@ -115,7 +115,7 @@ namespace LibAudio
 			return data.as<const T>() / (BAN::numeric_limits<T>::max() / 2.0f) - 1.0f;
 	}
 
-	float WAVAudioLoader::get_sample()
+	float WAVAudioStream::get_sample()
 	{
 		ASSERT(samples_remaining() > 0);
 

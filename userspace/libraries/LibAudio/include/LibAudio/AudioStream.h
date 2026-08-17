@@ -6,14 +6,14 @@
 namespace LibAudio
 {
 
-	class AudioLoader
+	class AudioStream
 	{
-		BAN_NON_COPYABLE(AudioLoader);
-		BAN_NON_MOVABLE(AudioLoader);
+		BAN_NON_COPYABLE(AudioStream);
+		BAN_NON_MOVABLE(AudioStream);
 
 	public:
-		static BAN::ErrorOr<BAN::UniqPtr<AudioLoader>> load(BAN::StringView path);
-		virtual ~AudioLoader();
+		static BAN::ErrorOr<BAN::UniqPtr<AudioStream>> load(BAN::StringView path);
+		virtual ~AudioStream();
 
 		virtual uint32_t channels() const = 0;
 		virtual uint32_t sample_rate() const = 0;
@@ -22,7 +22,7 @@ namespace LibAudio
 		virtual float get_sample() = 0;
 
 	protected:
-		AudioLoader() = default;
+		AudioStream() = default;
 
 	private:
 		void* m_mmap_addr { nullptr };

@@ -1,5 +1,5 @@
-#include <LibAudio/AudioLoader.h>
-#include <LibAudio/AudioLoaders/WAVLoader.h>
+#include <LibAudio/AudioStream.h>
+#include <LibAudio/AudioStreams/WAVAudioStream.h>
 
 #include <fcntl.h>
 #include <sys/mman.h>
@@ -9,7 +9,7 @@
 namespace LibAudio
 {
 
-	BAN::ErrorOr<BAN::UniqPtr<AudioLoader>> AudioLoader::load(BAN::StringView path)
+	BAN::ErrorOr<BAN::UniqPtr<AudioStream>> AudioStream::load(BAN::StringView path)
 	{
 		if (path.empty())
 			return BAN::Error::from_errno(ENOENT);
@@ -37,11 +37,11 @@ namespace LibAudio
 		if (mmap_addr == MAP_FAILED)
 			return BAN::Error::from_errno(errno);
 
-		BAN::ErrorOr<BAN::UniqPtr<AudioLoader>> result_or_error { BAN::Error::from_errno(ENOTSUP) };
+		BAN::ErrorOr<BAN::UniqPtr<AudioStream>> result_or_error { BAN::Error::from_errno(ENOTSUP) };
 
 		auto file_span = BAN::ConstByteSpan(mmap_addr, st.st_size);
-		if (WAVAudioLoader::can_load_from(file_span))
-			result_or_error = WAVAudioLoader::create(file_span);
+		if (WAVAudioStream::can_load_from(file_span))
+			result_or_error = WAVAudioStream::create(file_span);
 
 		if (result_or_error.is_error())
 		{
@@ -55,7 +55,7 @@ namespace LibAudio
 		return result;
 	}
 
-	AudioLoader::~AudioLoader()
+	AudioStream::~AudioStream()
 	{
 		if (m_mmap_addr)
 			munmap(m_mmap_addr, m_mmap_size);

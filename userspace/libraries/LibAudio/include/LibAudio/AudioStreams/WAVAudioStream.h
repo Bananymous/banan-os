@@ -1,13 +1,13 @@
 #pragma once
 
-#include <LibAudio/AudioLoader.h>
+#include <LibAudio/AudioStream.h>
 
 #include <BAN/ByteSpan.h>
 
 namespace LibAudio
 {
 
-	class WAVAudioLoader : public AudioLoader
+	class WAVAudioStream : public AudioStream
 	{
 	public:
 		enum FormatCode : uint16_t
@@ -18,7 +18,7 @@ namespace LibAudio
 
 	public:
 		static bool can_load_from(BAN::ConstByteSpan data);
-		static BAN::ErrorOr<BAN::UniqPtr<AudioLoader>> create(BAN::ConstByteSpan data);
+		static BAN::ErrorOr<BAN::UniqPtr<AudioStream>> create(BAN::ConstByteSpan data);
 
 		uint32_t channels() const override { return m_channels; }
 		uint32_t sample_rate() const override { return m_sample_rate; }
