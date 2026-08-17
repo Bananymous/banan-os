@@ -710,6 +710,7 @@ void WindowServer::on_mouse_button(LibInput::MouseButtonEvent event)
 				const auto resize_area = this->resize_area(m_cursor);
 				m_state = State::Normal;
 
+				add_damaged_area(m_focused_window->full_area());
 				add_damaged_area(resize_area);
 
 				if (auto ret = m_focused_window->resize(resize_area.width(), resize_area.height() - m_focused_window->title_bar_height()); ret.is_error())
