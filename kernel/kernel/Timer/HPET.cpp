@@ -240,24 +240,34 @@ namespace Kernel
 
 		// set timer period to 1000 Hz
 		const uint64_t ticks_per_ms = m_ticks_per_s / 1000;
-		timer0.configuration = timer0.configuration | Tn_VAL_SET_CNF;
-		timer0.comparator.low = ticks_per_ms;
+
 		if (timer0.configuration & Tn_SIZE_CAP)
 		{
+#if ARCH(x86_64)
 			timer0.configuration = timer0.configuration | Tn_VAL_SET_CNF;
+			timer0.comparator.full = ticks_per_ms;
+#else
+			timer0.configuration   = timer0.configuration | Tn_VAL_SET_CNF;
+			timer0.comparator.low  = ticks_per_ms;
+			timer0.configuration   = timer0.configuration | Tn_VAL_SET_CNF;
 			timer0.comparator.high = ticks_per_ms >> 32;
+#endif
 		}
-		else if (ticks_per_ms > 0xFFFFFFFF)
+		else if (ticks_per_ms <= 0xFFFFFFFF)
+		{
+			timer0.configuration = timer0.configuration | Tn_VAL_SET_CNF;
+			timer0.comparator.low = ticks_per_ms;
+		}
+		else
 		{
 			dprintln("HPET: cannot create 1 kHz timer");
 			return BAN::Error::from_errno(ENOTSUP);
 		}
 
-		// enable main counter
-		regs.configuration.low = regs.configuration.low | ENABLE_CNF;
-
 		set_irq(irq);
 		InterruptController::get().enable_irq(irq);
+
+		regs.configuration.low = regs.configuration.low | ENABLE_CNF;
 
 		return {};
 	}
