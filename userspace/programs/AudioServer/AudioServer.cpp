@@ -1,5 +1,6 @@
 #include "AudioServer.h"
 
+#include <alloca.h>
 #include <sys/ioctl.h>
 #include <sys/shm.h>
 #include <sys/socket.h>
@@ -306,9 +307,10 @@ void AudioServer::send_samples()
 
 	while (m_samples_sent < m_samples.size())
 	{
-		const size_t samples_to_send = BAN::Math::min(m_send_buffer.size() / sizeof(kernel_sample_t), m_samples.size() - m_samples_sent);
+		const auto channels = device().channels;
+		const size_t samples_to_send = BAN::Math::min<size_t>(device().sample_rate * channels, m_samples.size() - m_samples_sent) / channels * channels;
 
-		auto buffer = BAN::ByteSpan(m_send_buffer.data(), samples_to_send * sizeof(kernel_sample_t));
+		auto buffer = BAN::ByteSpan(static_cast<uint8_t*>(alloca(samples_to_send * sizeof(kernel_sample_t))), samples_to_send * sizeof(kernel_sample_t));
 
 		{
 			auto sample_buffer = buffer.as_span<kernel_sample_t>();
