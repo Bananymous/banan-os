@@ -26,6 +26,7 @@ export BANAN_SYSROOT="$BANAN_BUILD_DIR/sysroot"
 export BANAN_FAKEROOT="$BANAN_BUILD_DIR/fakeroot-context"
 
 export BANAN_DISK_IMAGE_PATH="$BANAN_BUILD_DIR/banan-os.img"
+export BANAN_ISO_PATH="$BANAN_BUILD_DIR/banan-os.iso"
 
 if [[ -z $BANAN_UEFI_BOOT ]]; then
 	export BANAN_UEFI_BOOT=0

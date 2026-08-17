@@ -56,6 +56,12 @@ create_image () {
 	$BANAN_SCRIPT_DIR/image.sh "$1"
 }
 
+create_iso () {
+	build_target all
+	build_target install
+	$BANAN_SCRIPT_DIR/iso.sh
+}
+
 run_qemu () {
 	create_image
 	$BANAN_SCRIPT_DIR/qemu.sh $@
@@ -102,6 +108,9 @@ case $1 in
 		;;
 	image-full)
 		create_image full
+		;;
+	iso)
+		create_iso
 		;;
 	qemu)
 		run_qemu -serial stdio $QEMU_ACCEL
