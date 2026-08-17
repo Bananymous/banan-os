@@ -789,7 +789,7 @@ acpi_release_global_lock:
 			auto [gpe_path, gpe_obj] = TRY(m_namespace->find_named_object(embedded_controller, TRY(AML::NameString::from_string("_GPE"_sv)), true));
 			if (gpe_obj == nullptr)
 			{
-				dwarnln("EC {} does have _GPE", embedded_controller);
+				dwarnln("EC {} does not have _GPE", embedded_controller);
 				break;
 			}
 
@@ -806,7 +806,7 @@ acpi_release_global_lock:
 		auto [crs_path, crs_obj] = TRY(m_namespace->find_named_object(embedded_controller, TRY(AML::NameString::from_string("_CRS"_sv)), true));
 		if (crs_obj == nullptr)
 		{
-			dwarnln("EC {} does have _CRS", embedded_controller);
+			dwarnln("EC {} does not have _CRS", embedded_controller);
 			return BAN::Error::from_errno(ENOENT);
 		}
 
@@ -1198,6 +1198,8 @@ acpi_release_global_lock:
 			continue;
 
 handle_event:
+			IO::outw(sts_port, pending);
+
 			if (pending & PM1_EVN_PWRBTN)
 			{
 				dprintln("Power button pressed");
@@ -1208,8 +1210,6 @@ handle_event:
 			{
 				dwarnln("Unhandled ACPI fixed event {H}", pending);
 			}
-
-			IO::outw(sts_port, pending);
 		}
 	}
 
