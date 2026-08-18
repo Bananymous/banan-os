@@ -47,9 +47,8 @@ namespace Kernel
 		  }, 0600, 0, 0)
 		, m_name(MUST(BAN::String::formatted("tty{}", s_next_tty_number++)))
 		, m_terminal_driver(driver)
-		, m_palette(driver->palette())
-		, m_foreground(m_palette[15])
-		, m_background(m_palette[0])
+		, m_foreground(driver->palette()[15])
+		, m_background(driver->palette()[0])
 	{
 		m_width = m_terminal_driver->width();
 		m_height = m_terminal_driver->height();
@@ -122,11 +121,14 @@ namespace Kernel
 	void VirtualTTY::handle_ansi_csi_color(uint8_t value)
 	{
 		ASSERT(m_write_lock.is_locked_by_current_thread());
+
+		auto& palette = m_terminal_driver->palette();
+
 		switch (value)
 		{
 			case 0:
-				m_foreground = m_palette[15];
-				m_background = m_palette[0];
+				m_foreground = palette[15];
+				m_background = palette[0];
 				m_colors_inverted = false;
 				break;
 
@@ -138,25 +140,25 @@ namespace Kernel
 			case 27: m_colors_inverted = false; break;
 
 			case 30 ... 37:
-				m_foreground = m_palette[value - 30];
+				m_foreground = palette[value - 30];
 				break;
 			case 39:
-				m_foreground = m_palette[15];
+				m_foreground = palette[15];
 				break;
 
 			case 40 ... 47:
-				m_background = m_palette[value - 40];
+				m_background = palette[value - 40];
 				break;
 			case 49:
-				m_background = m_palette[0];
+				m_background = palette[0];
 				break;
 
 			case 90 ... 97:
-				m_foreground = m_palette[value - 90 + 8];
+				m_foreground = palette[value - 90 + 8];
 				break;
 
 			case 100 ... 107:
-				m_background = m_palette[value - 100 + 8];
+				m_background = palette[value - 100 + 8];
 				break;
 
 			default:
@@ -173,7 +175,7 @@ namespace Kernel
 
 		const uint8_t code = BAN::Math::min(m_ansi_state.nums[2], 255);
 		if (code < 16)
-			return m_palette[code];
+			return m_terminal_driver->palette()[code];
 
 		if (code < 232)
 		{

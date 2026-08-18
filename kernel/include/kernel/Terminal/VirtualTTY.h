@@ -96,8 +96,6 @@ namespace Kernel
 		uint32_t m_last_cursor_row { static_cast<uint32_t>(-1) };
 		uint32_t m_last_cursor_column { static_cast<uint32_t>(-1) };
 
-		const Palette& m_palette;
-
 		TerminalDriver::Color m_foreground;
 		TerminalDriver::Color m_background;
 		bool m_colors_inverted { false };

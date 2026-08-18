@@ -237,8 +237,6 @@ namespace Kernel
 		if (ch == _POSIX_VDISABLE)
 			return;
 
-		LockGuard _(m_mutex);
-
 		const auto termios = get_termios();
 
 		if ((termios.c_iflag & ISTRIP))
@@ -270,6 +268,8 @@ namespace Kernel
 		bool should_append = true;
 		bool should_flush = false;
 		bool force_echo = false;
+
+		LockGuard _(m_mutex);
 
 		if (!(termios.c_lflag & ICANON))
 			should_flush = true;
