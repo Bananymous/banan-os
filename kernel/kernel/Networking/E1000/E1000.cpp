@@ -6,6 +6,8 @@
 #include <kernel/MMIO.h>
 #include <kernel/Networking/E1000/E1000.h>
 #include <kernel/Networking/NetworkManager.h>
+#include <kernel/Scheduler.h>
+#include <kernel/Thread.h>
 
 namespace Kernel
 {

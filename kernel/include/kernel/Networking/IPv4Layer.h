@@ -11,7 +11,6 @@
 #include <kernel/Networking/NetworkInterface.h>
 #include <kernel/Networking/NetworkLayer.h>
 #include <kernel/Networking/NetworkSocket.h>
-#include <kernel/Thread.h>
 
 namespace Kernel
 {

@@ -2,10 +2,11 @@
 
 #include <kernel/FS/TmpFS/FileSystem.h>
 #include <kernel/FS/TmpFS/Inode.h>
-#include <kernel/Process.h>
 
 namespace Kernel
 {
+
+	class Process;
 
 	class ProcFileSystem final : public TmpFileSystem
 	{

@@ -5,6 +5,7 @@
 #include <kernel/FS/FAT/Definitions.h>
 #include <kernel/FS/FAT/Inode.h>
 #include <kernel/FS/FileSystem.h>
+#include <kernel/Lock/Mutex.h>
 
 namespace Kernel
 {

@@ -1,10 +1,11 @@
 #pragma once
 
-#include <kernel/Device/Device.h>
 #include <kernel/FS/Inode.h>
 
 namespace Kernel
 {
+
+	class BlockDevice;
 
 	class FileSystem : public BAN::RefCounted<FileSystem>
 	{

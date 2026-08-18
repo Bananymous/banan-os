@@ -1,5 +1,6 @@
 #pragma once
 
+#include <BAN/Vector.h>
 #include <kernel/Memory/MemoryRegion.h>
 
 namespace Kernel

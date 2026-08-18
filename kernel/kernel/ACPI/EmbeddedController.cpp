@@ -4,6 +4,8 @@
 #include <kernel/ACPI/EmbeddedController.h>
 #include <kernel/IO.h>
 #include <kernel/Lock/LockGuard.h>
+#include <kernel/Scheduler.h>
+#include <kernel/Thread.h>
 #include <kernel/Timer/Timer.h>
 
 namespace Kernel::ACPI

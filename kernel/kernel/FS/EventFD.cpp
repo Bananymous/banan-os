@@ -1,5 +1,6 @@
 #include <kernel/FS/EventFD.h>
 #include <kernel/Lock/LockGuard.h>
+#include <kernel/Thread.h>
 
 #include <sys/epoll.h>
 

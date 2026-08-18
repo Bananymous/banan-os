@@ -8,6 +8,7 @@
 #include <kernel/IO.h>
 #include <kernel/Memory/PageTable.h>
 #include <kernel/Process.h>
+#include <kernel/Scheduler.h>
 #include <kernel/Timer/Timer.h>
 
 #define RSPD_SIZE	20

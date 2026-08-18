@@ -2,6 +2,8 @@
 #include <kernel/Networking/NetworkManager.h>
 #include <kernel/Networking/RTL8169/Definitions.h>
 #include <kernel/Networking/RTL8169/RTL8169.h>
+#include <kernel/Scheduler.h>
+#include <kernel/Thread.h>
 #include <kernel/Timer/Timer.h>
 
 namespace Kernel

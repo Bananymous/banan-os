@@ -1,6 +1,7 @@
 #include <BAN/Optional.h>
 #include <BAN/Sort.h>
 #include <kernel/APIC.h>
+#include <kernel/GDT.h>
 #include <kernel/InterruptController.h>
 #include <kernel/Lock/Mutex.h>
 #include <kernel/Process.h>

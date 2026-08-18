@@ -1,6 +1,7 @@
 #include <kernel/BootInfo.h>
 #include <kernel/FS/ProcFS/FileSystem.h>
 #include <kernel/FS/ProcFS/Inode.h>
+#include <kernel/Process.h>
 
 namespace Kernel
 {

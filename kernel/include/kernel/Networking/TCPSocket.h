@@ -7,7 +7,6 @@
 #include <kernel/Memory/ByteRingBuffer.h>
 #include <kernel/Networking/NetworkInterface.h>
 #include <kernel/Networking/NetworkSocket.h>
-#include <kernel/Thread.h>
 #include <kernel/ThreadBlocker.h>
 
 namespace Kernel

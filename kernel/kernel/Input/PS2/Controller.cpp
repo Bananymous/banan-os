@@ -8,6 +8,8 @@
 #include <kernel/Input/PS2/Keyboard.h>
 #include <kernel/Input/PS2/Mouse.h>
 #include <kernel/IO.h>
+#include <kernel/Scheduler.h>
+#include <kernel/Thread.h>
 #include <kernel/Timer/Timer.h>
 
 namespace Kernel::Input

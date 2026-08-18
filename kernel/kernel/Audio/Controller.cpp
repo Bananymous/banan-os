@@ -4,6 +4,7 @@
 #include <kernel/Device/DeviceNumbers.h>
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/Lock/BlockableSpinLock.h>
+#include <kernel/Thread.h>
 
 #include <sys/ioctl.h>
 #include <sys/sysmacros.h>

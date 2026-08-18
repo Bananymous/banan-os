@@ -4,7 +4,9 @@
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/Input/InputDevice.h>
 #include <kernel/Lock/BlockableSpinLock.h>
+#include <kernel/Scheduler.h>
 #include <kernel/Terminal/TTY.h>
+#include <kernel/Thread.h>
 
 #include <LibInput/Joystick.h>
 #include <LibInput/KeyEvent.h>

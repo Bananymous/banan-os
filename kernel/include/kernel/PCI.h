@@ -3,6 +3,8 @@
 #include <BAN/UniqPtr.h>
 #include <BAN/Vector.h>
 #include <kernel/ACPI/AML/Node.h>
+#include <kernel/InterruptNumbers.h>
+#include <kernel/Interruptable.h>
 #include <kernel/Memory/Types.h>
 
 #include <sys/types.h>

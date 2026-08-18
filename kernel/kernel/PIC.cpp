@@ -1,4 +1,5 @@
 #include <kernel/IDT.h>
+#include <kernel/InterruptNumbers.h>
 #include <kernel/IO.h>
 #include <kernel/PIC.h>
 

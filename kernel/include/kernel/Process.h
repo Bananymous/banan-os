@@ -19,14 +19,13 @@
 
 #include <poll.h>
 #include <sys/banan-os.h>
+#include <sys/epoll.h>
 #include <sys/mman.h>
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/statvfs.h>
 #include <sys/time.h>
 #include <termios.h>
-
-struct epoll_event;
 
 namespace Kernel
 {

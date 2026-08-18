@@ -1,6 +1,5 @@
 #pragma once
 
-#include <kernel/Process.h>
 #include <kernel/USB/Device.h>
 
 namespace Kernel

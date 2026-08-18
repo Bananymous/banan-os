@@ -1,6 +1,8 @@
 #include <kernel/Lock/BlockableSpinLock.h>
 #include <kernel/Networking/Loopback.h>
 #include <kernel/Networking/NetworkManager.h>
+#include <kernel/Scheduler.h>
+#include <kernel/Thread.h>
 
 namespace Kernel
 {

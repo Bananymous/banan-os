@@ -2,8 +2,9 @@
 
 #include <BAN/HashMap.h>
 #include <kernel/Device/Device.h>
-#include <kernel/FS/FileSystem.h>
 #include <kernel/FS/Ext2/Inode.h>
+#include <kernel/FS/FileSystem.h>
+#include <kernel/Memory/VirtualRange.h>
 
 namespace Kernel
 {

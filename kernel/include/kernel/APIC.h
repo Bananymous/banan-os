@@ -2,6 +2,7 @@
 
 #include <BAN/Vector.h>
 #include <kernel/InterruptController.h>
+#include <kernel/InterruptNumbers.h>
 #include <kernel/Lock/SpinLock.h>
 #include <kernel/Memory/Types.h>
 

@@ -1,6 +1,7 @@
 #include <kernel/Epoll.h>
 #include <kernel/Lock/BlockableSpinLock.h>
 #include <kernel/Lock/LockGuard.h>
+#include <kernel/Thread.h>
 #include <kernel/Timer/Timer.h>
 
 namespace Kernel

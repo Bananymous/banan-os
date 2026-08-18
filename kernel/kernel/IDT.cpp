@@ -1,7 +1,9 @@
 #include <BAN/Array.h>
 #include <BAN/Errors.h>
+#include <kernel/GDT.h>
 #include <kernel/IDT.h>
 #include <kernel/InterruptController.h>
+#include <kernel/InterruptNumbers.h>
 #include <kernel/InterruptStack.h>
 #include <kernel/Memory/kmalloc.h>
 #include <kernel/Panic.h>

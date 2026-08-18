@@ -1,3 +1,4 @@
+#include <kernel/Device/Device.h>
 #include <kernel/FS/FAT/FileSystem.h>
 #include <kernel/Lock/LockGuard.h>
 

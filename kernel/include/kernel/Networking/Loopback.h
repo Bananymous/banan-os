@@ -1,6 +1,7 @@
 #pragma once
 
 #include <kernel/Networking/NetworkInterface.h>
+#include <kernel/Memory/VirtualRange.h>
 
 namespace Kernel
 {

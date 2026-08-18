@@ -1,8 +1,12 @@
 #include <kernel/CPUID.h>
+#include <kernel/GDT.h>
+#include <kernel/IDT.h>
 #include <kernel/InterruptController.h>
+#include <kernel/IO.h>
 #include <kernel/Memory/Heap.h>
 #include <kernel/Memory/kmalloc.h>
 #include <kernel/Processor.h>
+#include <kernel/Scheduler.h>
 #include <kernel/Terminal/TerminalDriver.h>
 #include <kernel/Thread.h>
 #include <kernel/Timer/Timer.h>

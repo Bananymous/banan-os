@@ -51,6 +51,8 @@ set(KERNEL_SOURCES
 	kernel/Interruptable.cpp
 	kernel/InterruptController.cpp
 	kernel/kernel.cpp
+	kernel/Lock/Mutex.cpp
+	kernel/Lock/RWLock.cpp
 	kernel/Lock/SpinLock.cpp
 	kernel/Memory/ByteRingBuffer.cpp
 	kernel/Memory/DMARegion.cpp

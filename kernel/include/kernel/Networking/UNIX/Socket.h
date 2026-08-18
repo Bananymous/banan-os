@@ -6,6 +6,7 @@
 #include <kernel/FS/Socket.h>
 #include <kernel/FS/TmpFS/Inode.h>
 #include <kernel/FS/VirtualFileSystem.h>
+#include <kernel/Memory/VirtualRange.h>
 #include <kernel/OpenFileDescriptorSet.h>
 
 namespace Kernel

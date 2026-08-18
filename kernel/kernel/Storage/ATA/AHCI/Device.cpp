@@ -1,3 +1,4 @@
+#include <kernel/Lock/BlockableSpinLock.h>
 #include <kernel/Lock/LockGuard.h>
 #include <kernel/Scheduler.h>
 #include <kernel/Storage/ATA/AHCI/Controller.h>

@@ -3,6 +3,7 @@
 #include <BAN/HashMap.h>
 #include <kernel/FS/Inode.h>
 #include <kernel/Lock/Mutex.h>
+#include <kernel/ThreadBlocker.h>
 
 #include <sys/epoll.h>
 

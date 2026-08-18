@@ -1,7 +1,9 @@
 #include <BAN/ScopeGuard.h>
+#include <kernel/Scheduler.h>
+#include <kernel/Thread.h>
+#include <kernel/Timer/Timer.h>
 #include <kernel/USB/Hub/Definitions.h>
 #include <kernel/USB/Hub/HubDriver.h>
-#include <kernel/Timer/Timer.h>
 
 namespace Kernel
 {
@@ -192,7 +194,7 @@ namespace Kernel
 			auto result = m_device.send_request(request, m_data_region->paddr());
 			if (result.is_error() || result.value() != sizeof(USBHub::PortStatus))
 			{
-				dwarnln("Failed to get port {} status");
+				dwarnln("Failed to get port {} status", port_id);
 				continue;
 			}
 

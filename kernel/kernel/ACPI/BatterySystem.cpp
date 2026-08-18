@@ -1,5 +1,6 @@
 #include <kernel/ACPI/BatterySystem.h>
-#include <kernel/FS/DevFS//FileSystem.h>
+#include <kernel/Device/Device.h>
+#include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/Timer/Timer.h>
 
 namespace Kernel::ACPI

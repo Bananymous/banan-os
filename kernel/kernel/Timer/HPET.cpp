@@ -6,6 +6,7 @@
 #include <kernel/Memory/PageTable.h>
 #include <kernel/MMIO.h>
 #include <kernel/Processor.h>
+#include <kernel/Scheduler.h>
 #include <kernel/Timer/HPET.h>
 
 #define HPET_PERIOD_MAX 0x05F5E100

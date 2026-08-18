@@ -1,11 +1,13 @@
 #pragma once
 
 #include <BAN/Math.h>
+#include <kernel/Lock/Mutex.h>
 #include <kernel/Lock/SpinLock.h>
-#include <kernel/Scheduler.h>
 
 namespace Kernel
 {
+
+	class SchedulerQueueNode;
 
 	class ThreadBlocker
 	{
@@ -27,11 +29,11 @@ namespace Kernel
 		}
 
 	private:
-		void add_thread_to_block_queue(SchedulerQueue::Node*);
-		void remove_thread_from_block_queue(SchedulerQueue::Node*);
+		void add_thread_to_block_queue(SchedulerQueueNode*);
+		void remove_thread_from_block_queue(SchedulerQueueNode*);
 
 	private:
-		SchedulerQueue::Node* m_block_chain { nullptr };
+		SchedulerQueueNode* m_block_chain { nullptr };
 		SpinLock m_lock;
 
 		friend class Scheduler;

@@ -1,13 +1,14 @@
 #pragma once
 
 #include <BAN/Vector.h>
-#include <kernel/Device/Device.h>
 #include <kernel/FS/TmpFS/FileSystem.h>
 #include <kernel/Lock/Mutex.h>
 #include <kernel/ThreadBlocker.h>
 
 namespace Kernel
 {
+
+	class Device;
 
 	class DevFileSystem final : public TmpFileSystem
 	{

@@ -2,6 +2,7 @@
 #include <kernel/FS/DevFS/FileSystem.h>
 #include <kernel/Lock/BlockableSpinLock.h>
 #include <kernel/Terminal/PseudoTerminal.h>
+#include <kernel/Thread.h>
 
 #include <BAN/ScopeGuard.h>
 

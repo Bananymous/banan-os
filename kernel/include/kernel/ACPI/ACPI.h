@@ -4,6 +4,7 @@
 #include <kernel/ACPI/AML/Namespace.h>
 #include <kernel/ACPI/EmbeddedController.h>
 #include <kernel/ACPI/Headers.h>
+#include <kernel/Interruptable.h>
 #include <kernel/Memory/Types.h>
 #include <kernel/ThreadBlocker.h>
 

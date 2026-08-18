@@ -1,11 +1,12 @@
 #pragma once
 
 #include <BAN/Atomic.h>
+#include <BAN/Optional.h>
 #include <BAN/UniqPtr.h>
 
 #include <kernel/ACPI/AML/Scope.h>
 #include <kernel/Lock/Mutex.h>
-#include <kernel/Thread.h>
+#include <kernel/ThreadBlocker.h>
 
 namespace Kernel::ACPI
 {

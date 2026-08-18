@@ -5,8 +5,8 @@
 #include <BAN/RefPtr.h>
 #include <BAN/UniqPtr.h>
 #include <kernel/InterruptStack.h>
+#include <kernel/Lock/Mutex.h>
 #include <kernel/Memory/VirtualRange.h>
-#include <kernel/ThreadBlocker.h>
 
 #include <LibELF/AuxiliaryVector.h>
 
@@ -18,6 +18,7 @@ namespace Kernel
 
 	class MemoryBackedRegion;
 	class Process;
+	class ThreadBlocker;
 
 	class Thread
 	{
@@ -191,7 +192,7 @@ namespace Kernel
 		vaddr_t                    m_fsbase               { 0 };
 		vaddr_t                    m_gsbase               { 0 };
 
-		SchedulerQueue::Node*      m_scheduler_node       { nullptr };
+		SchedulerQueueNode*        m_scheduler_node       { nullptr };
 
 		YieldRegisters             m_yield_registers      { };
 

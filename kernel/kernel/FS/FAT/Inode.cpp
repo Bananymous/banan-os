@@ -1,5 +1,6 @@
 #include <BAN/Time.h>
 
+#include <kernel/Device/Device.h>
 #include <kernel/FS/FAT/FileSystem.h>
 #include <kernel/FS/FAT/Inode.h>
 

@@ -2,6 +2,7 @@
 #include <BAN/Sort.h>
 #include <kernel/FS/Ext2/FileSystem.h>
 #include <kernel/Lock/LockGuard.h>
+#include <kernel/Thread.h>
 
 #define EXT2_DEBUG_PRINT 0
 #define EXT2_VERIFY_INODE 0

@@ -3,6 +3,7 @@
 #include <kernel/Networking/TCPSocket.h>
 #include <kernel/Process.h>
 #include <kernel/Random.h>
+#include <kernel/Scheduler.h>
 #include <kernel/Timer/Timer.h>
 
 #include <fcntl.h>

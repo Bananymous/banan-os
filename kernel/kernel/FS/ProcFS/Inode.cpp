@@ -1,4 +1,5 @@
 #include <kernel/FS/ProcFS/Inode.h>
+#include <kernel/Process.h>
 
 #include <ctype.h>
 

@@ -2,6 +2,7 @@
 
 #include <kernel/FS/Inode.h>
 #include <kernel/Lock/Mutex.h>
+#include <kernel/ThreadBlocker.h>
 
 namespace Kernel
 {

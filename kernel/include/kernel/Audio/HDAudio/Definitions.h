@@ -1,5 +1,6 @@
 #pragma once
 
+#include <BAN/Optional.h>
 #include <BAN/Vector.h>
 
 namespace Kernel::HDAudio

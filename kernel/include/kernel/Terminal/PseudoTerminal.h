@@ -1,6 +1,7 @@
 #pragma once
 
 #include <BAN/WeakPtr.h>
+#include <kernel/Memory/VirtualRange.h>
 #include <kernel/Terminal/TTY.h>
 
 namespace Kernel

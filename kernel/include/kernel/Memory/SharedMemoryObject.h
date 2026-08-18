@@ -1,7 +1,9 @@
 #pragma once
 
 #include <BAN/HashMap.h>
+#include <BAN/RefPtr.h>
 #include <BAN/UniqPtr.h>
+#include <BAN/Vector.h>
 #include <kernel/Lock/Mutex.h>
 #include <kernel/Lock/SpinLock.h>
 #include <kernel/Memory/MemoryRegion.h>

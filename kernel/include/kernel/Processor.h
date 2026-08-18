@@ -1,17 +1,14 @@
 #pragma once
 
+#include <BAN/Array.h>
 #include <BAN/Atomic.h>
-#include <BAN/ForwardList.h>
+#include <BAN/NoCopyMove.h>
 #include <BAN/Math.h>
 
 #include <kernel/API/SharedPage.h>
 #include <kernel/Arch.h>
-#include <kernel/GDT.h>
-#include <kernel/IDT.h>
-#include <kernel/InterruptStack.h>
 #include <kernel/Memory/Types.h>
 #include <kernel/ProcessorID.h>
-#include <kernel/Scheduler.h>
 
 namespace Kernel
 {
@@ -21,6 +18,12 @@ namespace Kernel
 		Disabled,
 		Enabled,
 	};
+
+	class GDT;
+	class IDT;
+	class Scheduler;
+	class SchedulerQueueNode;
+	class Thread;
 
 #if ARCH(x86_64) || ARCH(i686)
 	class Processor
@@ -51,8 +54,8 @@ namespace Kernel
 			union
 			{
 				TLBEntry flush_tlb;
-				SchedulerQueue::Node* new_thread;
-				SchedulerQueue::Node* unblock_thread;
+				SchedulerQueueNode* new_thread;
+				SchedulerQueueNode* unblock_thread;
 				bool dummy;
 			};
 		};

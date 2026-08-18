@@ -2,6 +2,7 @@
 #include <kernel/InterruptController.h>
 #include <kernel/IO.h>
 #include <kernel/Processor.h>
+#include <kernel/Scheduler.h>
 #include <kernel/Timer/PIT.h>
 
 #define PIT_IRQ 0

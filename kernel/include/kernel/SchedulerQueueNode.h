@@ -1,7 +1,7 @@
 #pragma once
 
+#include <BAN/Atomic.h>
 #include <kernel/ProcessorID.h>
-#include <kernel/Lock/SpinLock.h>
 
 namespace Kernel
 {

@@ -4,8 +4,6 @@
 #include <BAN/HashMap.h>
 #include <BAN/UniqPtr.h>
 #include <kernel/Networking/NetworkInterface.h>
-#include <kernel/Thread.h>
-#include <kernel/ThreadBlocker.h>
 
 namespace Kernel
 {

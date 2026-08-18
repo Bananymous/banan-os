@@ -3,6 +3,7 @@
 
 #include <kernel/Lock/LockGuard.h>
 #include <kernel/Process.h>
+#include <kernel/Scheduler.h>
 #include <kernel/Timer/Timer.h>
 #include <kernel/USB/XHCI/Controller.h>
 #include <kernel/USB/XHCI/Device.h>
