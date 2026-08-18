@@ -93,7 +93,15 @@ namespace Kernel
 		const pid_t pid = process.pid();
 		const mode_t mode = shmflg & 0777;
 
-		auto object = TRY(BAN::RefPtr<Object>::create(key, shmid_ds {
+		const int shmid = ({
+			int id;
+			do {
+				id = Random::get<unsigned>() & BAN::numeric_limits<int>::max();
+			} while (m_ids.contains(shmid));
+			id;
+		});
+
+		auto object = TRY(BAN::RefPtr<Object>::create(key, shmid, shmid_ds {
 				.shm_perm = {
 					.uid = uid,
 					.gid = gid,
@@ -110,12 +118,6 @@ namespace Kernel
 				.shm_ctime = SystemTimer::get().real_time().tv_sec,
 		}));
 		TRY(object->paddrs.resize(BAN::Math::div_round_up(size, PAGE_SIZE), 0));
-
-		auto generate_id = []() { return Random::get<unsigned>() & BAN::numeric_limits<int>::max(); };
-
-		int shmid = generate_id();
-		while (m_ids.contains(shmid))
-			shmid = generate_id();
 
 		if (key != IPC_PRIVATE)
 			TRY(m_ids.insert(key, shmid));
@@ -222,14 +224,16 @@ namespace Kernel
 		LockGuard _(m_object->mutex);
 		m_object->info.shm_nattch++;
 		m_object->info.shm_atime = SystemTimer::get().real_time().tv_sec;
+		m_object->info.shm_lpid = Process::current().pid();
 	}
 
 	SharedMemoryObject::~SharedMemoryObject()
 	{
 		LockGuard _(m_object->mutex);
 		if (--m_object->info.shm_nattch == 0 && m_object->marked_for_deletion)
-			SharedMemoryObjectManager::get().m_objects.remove(m_object->key);
+			SharedMemoryObjectManager::get().m_objects.remove(m_object->id);
 		m_object->info.shm_dtime = SystemTimer::get().real_time().tv_sec;
+		m_object->info.shm_lpid = Process::current().pid();
 	}
 
 	BAN::ErrorOr<BAN::UniqPtr<MemoryRegion>> SharedMemoryObject::clone(PageTable& new_page_table)

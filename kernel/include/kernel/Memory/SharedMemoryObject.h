@@ -27,8 +27,9 @@ namespace Kernel
 	private:
 		struct Object : public BAN::RefCounted<Object>
 		{
-			Object(key_t key, shmid_ds info)
+			Object(key_t key, int id, shmid_ds info)
 				: key(key)
+				, id(id)
 				, info(info)
 			{ }
 			~Object();
@@ -36,6 +37,7 @@ namespace Kernel
 			bool can_current_process_access(int flags) const;
 
 			const key_t key;
+			const int id;
 			shmid_ds info;
 
 			Mutex mutex;
