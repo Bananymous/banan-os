@@ -124,9 +124,13 @@ namespace Kernel
 
 		bool is_userspace() const { return m_is_userspace; }
 
-		uint64_t cpu_time_ns() const;
+		uint64_t cpu_time_total_ns() const;
+		void cpu_time_ns(uint64_t& user_ns, uint64_t& system_ns) const;
 		void set_cpu_time_start();
 		void set_cpu_time_stop();
+
+		void set_is_in_syscall(bool is_in_syscall);
+		bool is_in_syscall() const { return m_is_in_syscall; }
 
 		void update_processor_index_address();
 
@@ -200,8 +204,10 @@ namespace Kernel
 		static_assert(_SIGMAX < 64);
 
 		mutable SpinLock           m_cpu_time_lock;
-		uint64_t                   m_cpu_time_ns          { 0 };
+		uint64_t                   m_cpu_time_user_ns     { 0 };
+		uint64_t                   m_cpu_time_system_ns   { 0 };
 		uint64_t                   m_cpu_time_start_ns    { UINT64_MAX };
+		BAN::Atomic<bool>          m_is_in_syscall        { false };
 
 		BAN::Atomic<uint32_t>      m_spinlock_count       { 0 };
 		BAN::Atomic<uint32_t>      m_mutex_count          { 0 };

@@ -285,12 +285,22 @@ namespace Kernel
 		}
 	}
 
-	uint64_t Thread::cpu_time_ns() const
+	uint64_t Thread::cpu_time_total_ns() const
 	{
 		SpinLockGuard _(m_cpu_time_lock);
-		if (m_cpu_time_start_ns == UINT64_MAX)
-			return m_cpu_time_ns;
-		return m_cpu_time_ns + (SystemTimer::get().ns_since_boot() - m_cpu_time_start_ns);
+		uint64_t offset = 0;
+		if (m_cpu_time_start_ns != UINT64_MAX)
+			offset += SystemTimer::get().ns_since_boot() - m_cpu_time_start_ns;
+		return m_cpu_time_user_ns + m_cpu_time_system_ns + offset;
+	}
+
+	void Thread::cpu_time_ns(uint64_t& user_ns, uint64_t& system_ns) const
+	{
+		SpinLockGuard _(m_cpu_time_lock);
+		user_ns = m_cpu_time_user_ns;
+		system_ns = m_cpu_time_system_ns;
+		if (m_cpu_time_start_ns != UINT64_MAX)
+			system_ns += SystemTimer::get().ns_since_boot() - m_cpu_time_start_ns;
 	}
 
 	void Thread::set_cpu_time_start()
@@ -304,8 +314,19 @@ namespace Kernel
 	{
 		SpinLockGuard _(m_cpu_time_lock);
 		ASSERT(m_cpu_time_start_ns != UINT64_MAX);
-		m_cpu_time_ns += SystemTimer::get().ns_since_boot() - m_cpu_time_start_ns;
+		uint64_t& value = m_is_in_syscall ? m_cpu_time_system_ns : m_cpu_time_user_ns;
+		value += SystemTimer::get().ns_since_boot() - m_cpu_time_start_ns;
 		m_cpu_time_start_ns = UINT64_MAX;
+	}
+
+	void Thread::set_is_in_syscall(bool is_in_syscall)
+	{
+		SpinLockGuard _(m_cpu_time_lock);
+		const uint64_t current_ns = SystemTimer::get().ns_since_boot();
+		uint64_t& value = m_is_in_syscall ? m_cpu_time_system_ns : m_cpu_time_user_ns;
+		value += current_ns - m_cpu_time_start_ns;
+		m_is_in_syscall = is_in_syscall;
+		m_cpu_time_start_ns = current_ns;
 	}
 
 	void Thread::update_processor_index_address()

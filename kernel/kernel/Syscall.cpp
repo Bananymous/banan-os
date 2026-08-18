@@ -43,6 +43,8 @@ namespace Kernel
 
 	extern "C" long cpp_syscall_handler(int syscall, uintptr_t arg1, uintptr_t arg2, uintptr_t arg3, uintptr_t arg4, uintptr_t arg5)
 	{
+		Thread::current().set_is_in_syscall(true);
+
 		Processor::set_interrupt_state(InterruptState::Enabled);
 
 		Process::current().wait_while_stopped();
@@ -100,6 +102,8 @@ namespace Kernel
 				ret = BAN::Error::from_errno(ERESTART);
 
 		Processor::set_interrupt_state(InterruptState::Disabled);
+
+		Thread::current().set_is_in_syscall(false);
 
 		ASSERT(Kernel::Thread::current().state() == Kernel::Thread::State::Executing);
 

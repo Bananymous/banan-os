@@ -696,19 +696,24 @@ namespace Kernel
 
 	size_t Process::proc_cputime(off_t offset, BAN::ByteSpan buffer) const
 	{
-		const uint64_t cpu_time_ns = [this] {
-			uint64_t cpu_time_ns { 0 };
+		uint64_t user_ns { 0 }, system_ns { 0 };
+
+		{
 			LockGuard _(m_process_lock);
 			for (auto* thread : m_threads)
-				cpu_time_ns += thread->cpu_time_ns();
-			return cpu_time_ns;
-		}();
+			{
+				uint64_t u, s;
+				thread->cpu_time_ns(u, s);
+				user_ns   += u;
+				system_ns += s;
+			}
+		}
 
-		auto data = MUST(BAN::String::formatted("{}", cpu_time_ns));
-		if (static_cast<size_t>(offset) >= data.size() + 1)
+		auto data = MUST(BAN::String::formatted("{} {} {}", user_ns + system_ns, user_ns, system_ns));
+		if (static_cast<size_t>(offset) >= data.size())
 			return 0;
 
-		const size_t to_copy = BAN::Math::min<size_t>(data.size() - offset + 1, buffer.size());
+		const size_t to_copy = BAN::Math::min<size_t>(data.size() - offset, buffer.size());
 		memcpy(buffer.data(), data.data(), to_copy);
 		return to_copy;
 	}
@@ -3054,7 +3059,7 @@ namespace Kernel
 				LockGuard _(m_process_lock);
 				uint64_t cpu_time_ns { 0 };
 				for (auto* thread : m_threads)
-					cpu_time_ns += thread->cpu_time_ns();
+					cpu_time_ns += thread->cpu_time_total_ns();
 				tp = {
 					.tv_sec = static_cast<time_t>(cpu_time_ns / 1'000'000'000),
 					.tv_nsec = static_cast<long>(cpu_time_ns % 1'000'000'000),
@@ -3063,7 +3068,7 @@ namespace Kernel
 			}
 			case CLOCK_THREAD_CPUTIME_ID:
 			{
-				const auto cpu_time_ns = Thread::current().cpu_time_ns();
+				const auto cpu_time_ns = Thread::current().cpu_time_total_ns();
 				tp = {
 					.tv_sec = static_cast<time_t>(cpu_time_ns / 1'000'000'000),
 					.tv_nsec = static_cast<long>(cpu_time_ns % 1'000'000'000),
