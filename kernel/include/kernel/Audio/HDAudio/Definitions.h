@@ -65,6 +65,7 @@ namespace Kernel::HDAudio
 		};
 
 		BAN::Optional<Amplifier> output_amplifier;
+		BAN::Optional<Amplifier> input_amplifier;
 
 		BAN::Vector<uint16_t> connections;
 	};

@@ -342,6 +342,7 @@ namespace Kernel
 			{
 				using HDAudio::AFGWidget;
 				case AFGWidget::Type::OutputConverter:
+				case AFGWidget::Type::Mixer:
 				case AFGWidget::Type::PinComplex:
 					break;
 				default:
@@ -363,7 +364,7 @@ namespace Kernel
 			}));
 
 			// set connection index
-			if (i + 1 < path.size() && path[i]->connections.size() > 1)
+			if (i + 1 < path.size() && path[i]->connections.size() > 1 && path[i]->type != HDAudio::AFGWidget::Type::Mixer)
 			{
 				uint8_t index = 0;
 				for (; index < path[i]->connections.size(); index++)
@@ -417,6 +418,25 @@ namespace Kernel
 						.node_index = path[i]->id,
 						.codec_address = m_cid,
 					}));
+					break;
+
+				case AFGWidget::Type::Mixer:
+					if (path[i]->input_amplifier.has_value())
+					{
+						for (size_t idx = 0; idx < path[i]->connections.size(); idx++)
+						{
+							const uint8_t step = (path[i]->connections[idx] == path[i + 1]->id)
+								? path[i]->input_amplifier->offset
+								: 0b1'0000000;
+							const uint32_t volume = 0b0'1'1'1'0000'0'0000000 | (idx << 8) | step;
+							TRY(m_controller->send_command({
+								.data = static_cast<uint8_t>(volume & 0xFF),
+								.command = static_cast<uint16_t>(0x300 | (volume >> 8)),
+								.node_index = path[i]->id,
+								.codec_address = m_cid,
+							}));
+						}
+					}
 					break;
 
 				case AFGWidget::Type::PinComplex:
@@ -504,6 +524,7 @@ namespace Kernel
 				using HDAudio::AFGWidget;
 
 				case AFGWidget::Type::OutputConverter:
+				case AFGWidget::Type::Mixer:
 					break;
 
 				case AFGWidget::Type::PinComplex:
