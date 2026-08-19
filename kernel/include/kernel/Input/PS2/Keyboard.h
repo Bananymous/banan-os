@@ -36,6 +36,7 @@ namespace Kernel::Input
 		uint8_t m_byte_index { 0 };
 		bool m_basic { false };
 
+		bool m_scancode_set_uncertain { false };
 		uint8_t m_scancode_set { 0xFF };
 		uint16_t m_modifiers { 0 };
 

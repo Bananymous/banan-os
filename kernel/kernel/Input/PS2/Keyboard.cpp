@@ -53,8 +53,9 @@ namespace Kernel::Input
 
 		if (command_data[0] == Command::CONFIG_SCANCODE_SET && m_scancode_set >= 0xFE)
 		{
-			dwarnln("Could not detect scancode set, assuming 2");
-			m_scancode_set = 2;
+			dwarnln("Could not detect scancode set, assuming 1");
+			m_scancode_set_uncertain = true;
+			m_scancode_set = 1;
 			m_keymap.initialize(m_scancode_set);
 			append_command_queue(PS2::DeviceCommand::ENABLE_SCANNING, 0);
 		}
@@ -89,6 +90,7 @@ namespace Kernel::Input
 			else
 			{
 				dwarnln("Could not detect scancode set, assuming 1");
+				m_scancode_set_uncertain = true;
 				m_scancode_set = 1;
 			}
 			m_keymap.initialize(m_scancode_set);
@@ -101,6 +103,17 @@ namespace Kernel::Input
 			dwarnln("PS/2 corrupted key packet");
 			m_byte_index = 0;
 			return;
+		}
+
+		// If we could not detect scancode set, we assume it to be 1
+		// If we get byte 0xF0 which is indicates release in scancode set 2
+		// and nothing in scancode set 1, switch to scancode set 2
+		if (m_scancode_set_uncertain && byte == 0xF0)
+		{
+			dprintln("Switching to scancode set 2");
+			m_scancode_set_uncertain = false;
+			m_scancode_set = 2;
+			m_keymap.initialize(m_scancode_set);
 		}
 
 		m_byte_buffer[m_byte_index++] = byte;
