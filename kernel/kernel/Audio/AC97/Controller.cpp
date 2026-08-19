@@ -224,7 +224,12 @@ namespace Kernel
 	BAN::ErrorOr<void> AC97AudioController::set_volume_mdB(int32_t mdB)
 	{
 		m_volume_info.mdB = BAN::Math::clamp(mdB, m_volume_info.min_mdB, m_volume_info.max_mdB);
-		m_mixer->write16(AudioMixerRegister::MasterVolume, get_volume_data());
+
+		const uint32_t volume_data = get_volume_data();
+		m_mixer->write16(AudioMixerRegister::MasterVolume, volume_data);
+
+		m_volume_info.mdB = -(volume_data & 0xFF) * m_volume_info.step_mdB;
+
 		return {};
 	}
 
