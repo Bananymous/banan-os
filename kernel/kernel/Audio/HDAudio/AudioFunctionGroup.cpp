@@ -139,31 +139,27 @@ namespace Kernel
 
 	BAN::ErrorOr<void> HDAudioFunctionGroup::set_volume_mdB(int32_t mdB)
 	{
+		if (m_amplifier_idx == SIZE_MAX)
+			return BAN::Error::from_errno(ENOTSUP);
+
 		mdB = BAN::Math::clamp(mdB, m_volume_info.min_mdB, m_volume_info.max_mdB);
 
-		const auto& path = m_output_paths[m_output_path_index];
-		for (size_t i = 0; i < path.size(); i++)
-		{
-			if (!path[i]->output_amplifier.has_value())
-				continue;
+		const auto* node = m_output_paths[m_output_path_index][m_amplifier_idx];
 
-			const int32_t step_round = (mdB >= 0)
-				? +m_volume_info.step_mdB / 2
-				: -m_volume_info.step_mdB / 2;
-			const uint32_t step = (mdB + step_round) / m_volume_info.step_mdB + path[i]->output_amplifier->offset;
-			const uint32_t volume = 0b1'0'1'1'0000'0'0000000 | step;
+		const int32_t step_round = (mdB >= 0)
+			? +m_volume_info.step_mdB / 2
+			: -m_volume_info.step_mdB / 2;
+		const uint32_t step = (mdB + step_round) / m_volume_info.step_mdB + node->output_amplifier->offset;
+		const uint32_t volume = 0b1'0'1'1'0000'0'0000000 | step;
 
-			TRY(m_controller->send_command({
-				.data = static_cast<uint8_t>(volume & 0xFF),
-				.command = static_cast<uint16_t>(0x300 | (volume >> 8)),
-				.node_index = path[i]->id,
-				.codec_address = m_cid,
-			}));
+		TRY(m_controller->send_command({
+			.data = static_cast<uint8_t>(volume & 0xFF),
+			.command = static_cast<uint16_t>(0x300 | (volume >> 8)),
+			.node_index = node->id,
+			.codec_address = m_cid,
+		}));
 
-			break;
-		}
-
-		m_volume_info.mdB = mdB;
+		m_volume_info.mdB = (mdB + step_round) / m_volume_info.step_mdB * m_volume_info.step_mdB;
 
 		return {};
 	}
@@ -331,8 +327,8 @@ namespace Kernel
 	uint16_t HDAudioFunctionGroup::get_format_data() const
 	{
 		// TODO: don't hardcode this
-		// format: PCM, 48 kHz, 16 bit, 2 channels
-		return 0b0'0'000'000'0'001'0001;
+		// format: PCM, 48 kHz, 16 bit
+		return 0b0'0'000'000'0'001'0000 | (get_channels() - 1);
 	}
 
 	BAN::ErrorOr<void> HDAudioFunctionGroup::enable_output_path(uint8_t index)
@@ -438,15 +434,25 @@ namespace Kernel
 			}
 		}
 
-		// update volume info to this path
-		m_volume_info.min_mdB = 0;
-		m_volume_info.max_mdB = 0;
-		m_volume_info.step_mdB = 0;
+		int32_t max_steps { 0 };
+		m_amplifier_idx = SIZE_MAX;
+
 		for (size_t i = 0; i < path.size(); i++)
 		{
 			if (!path[i]->output_amplifier.has_value())
 				continue;
-			const auto& amp = path[i]->output_amplifier.value();
+			if (auto steps = path[i]->output_amplifier->num_steps; steps > max_steps)
+			{
+				max_steps = steps;
+				m_amplifier_idx = i;
+			}
+		}
+
+		if (m_amplifier_idx == SIZE_MAX)
+			m_volume_info = {};
+		else
+		{
+			const auto& amp = path[m_amplifier_idx]->output_amplifier.value();
 
 			const int32_t step_mdB = (amp.step_size + 1) * 250;
 			m_volume_info.step_mdB = step_mdB;
@@ -463,15 +469,10 @@ namespace Kernel
 			TRY(m_controller->send_command({
 				.data = static_cast<uint8_t>(volume & 0xFF),
 				.command = static_cast<uint16_t>(0x300 | (volume >> 8)),
-				.node_index = path[i]->id,
+				.node_index = path[m_amplifier_idx]->id,
 				.codec_address = m_cid,
 			}));
-
-			break;
 		}
-
-		if (m_volume_info.min_mdB == 0 && m_volume_info.max_mdB == 0)
-			m_volume_info.mdB = 0;
 
 		return {};
 	}

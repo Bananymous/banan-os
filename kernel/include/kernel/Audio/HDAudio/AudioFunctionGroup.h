@@ -67,6 +67,7 @@ namespace Kernel
 		BAN::Vector<BAN::Vector<const HDAudio::AFGWidget*>> m_output_paths;
 		BAN::Vector<const HDAudio::AFGWidget*> m_output_pins;
 		size_t m_output_path_index { SIZE_MAX };
+		size_t m_amplifier_idx { SIZE_MAX };
 
 		uint8_t m_stream_id    { 0xFF };
 		uint8_t m_stream_index { 0xFF };
