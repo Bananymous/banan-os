@@ -5,6 +5,7 @@
 #include <BAN/NoCopyMove.h>
 #include <kernel/InterruptStack.h>
 #include <kernel/ProcessorID.h>
+#include <kernel/SchedulerThreadNode.h>
 
 #include <sys/types.h>
 
@@ -14,29 +15,6 @@ namespace Kernel
 	class BaseMutex;
 	class Thread;
 	class ThreadBlocker;
-	struct SchedulerQueueNode;
-
-	class SchedulerQueue
-	{
-	public:
-		using Node = SchedulerQueueNode;
-
-	public:
-		void add_thread_to_back(Node*);
-		bool add_thread_with_wake_time(Node*); // return true if node was inserted as the first element
-		template<typename F>
-		Node* remove_with_condition(F callback);
-		void remove_node(Node*);
-		Node* front();
-		Node* pop_front();
-
-		bool empty() const { return m_head == nullptr; }
-
-	private:
-		Node* m_head { nullptr };
-		Node* m_tail { nullptr };
-	};
-
 	class Scheduler
 	{
 		BAN_NON_COPYABLE(Scheduler);
@@ -45,12 +23,12 @@ namespace Kernel
 	public:
 		struct NewThreadRequest
 		{
-			SchedulerQueue::Node* node;
+			SchedulerThreadNode* node;
 		};
 
 		struct UnblockRequest
 		{
-			SchedulerQueue::Node* node;
+			SchedulerThreadNode* node;
 		};
 
 	public:
@@ -79,9 +57,9 @@ namespace Kernel
 	private:
 		Scheduler() = default;
 
-		void add_current_to_most_loaded(SchedulerQueue* target_queue);
-		void update_most_loaded_node_queue(SchedulerQueue::Node*, SchedulerQueue* target_queue);
-		void remove_node_from_most_loaded(SchedulerQueue::Node*);
+		void add_current_to_most_loaded(void* target_list);
+		void update_most_loaded_node_list(SchedulerThreadNode*, void* target_list);
+		void remove_node_from_most_loaded(SchedulerThreadNode*);
 
 		void update_wake_up_deadline();
 		void wake_up_sleeping_threads();
@@ -90,13 +68,13 @@ namespace Kernel
 
 		class ProcessorID find_least_loaded_processor() const;
 
-		void add_thread(SchedulerQueue::Node*);
-		void unblock_thread(SchedulerQueue::Node*);
+		void add_thread(SchedulerThreadNode*);
+		void unblock_thread(SchedulerThreadNode*);
 
 	private:
-		SchedulerQueue m_run_queue;
-		SchedulerQueue m_block_queue;
-		SchedulerQueue::Node* m_current { nullptr };
+		SchedulerQueue m_run_list;
+		SchedulerHeap m_block_list;
+		SchedulerThreadNode* m_current { nullptr };
 
 		uint32_t m_thread_count { 0 };
 
@@ -108,8 +86,8 @@ namespace Kernel
 
 		struct ThreadInfo
 		{
-			SchedulerQueue*       queue { nullptr };
-			SchedulerQueue::Node* node  { nullptr };
+			void*                list { nullptr };
+			SchedulerThreadNode* node { nullptr };
 		};
 		BAN::Array<ThreadInfo, 10> m_most_loaded_threads;
 

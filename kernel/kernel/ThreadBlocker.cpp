@@ -1,6 +1,6 @@
 #include <kernel/Processor.h>
 #include <kernel/Scheduler.h>
-#include <kernel/SchedulerQueueNode.h>
+#include <kernel/SchedulerThreadNode.h>
 #include <kernel/ThreadBlocker.h>
 #include <kernel/Timer/Timer.h>
 
@@ -45,7 +45,7 @@ namespace Kernel
 		m_block_chain = nullptr;
 	}
 
-	void ThreadBlocker::add_thread_to_block_queue(SchedulerQueueNode* node)
+	void ThreadBlocker::add_thread_to_block_queue(SchedulerThreadNode* node)
 	{
 		SpinLockGuard _(m_lock);
 
@@ -61,7 +61,7 @@ namespace Kernel
 		m_block_chain = node;
 	}
 
-	void ThreadBlocker::remove_thread_from_block_queue(SchedulerQueueNode* node)
+	void ThreadBlocker::remove_thread_from_block_queue(SchedulerThreadNode* node)
 	{
 		SpinLockGuard _(m_lock);
 

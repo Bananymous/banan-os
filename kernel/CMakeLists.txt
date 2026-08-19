@@ -85,6 +85,7 @@ set(KERNEL_SOURCES
 	kernel/Processor.cpp
 	kernel/Random.cpp
 	kernel/Scheduler.cpp
+	kernel/SchedulerThreadNode.cpp
 	kernel/SSP.cpp
 	kernel/Storage/ATA/AHCI/Controller.cpp
 	kernel/Storage/ATA/AHCI/Device.cpp

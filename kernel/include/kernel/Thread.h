@@ -192,7 +192,7 @@ namespace Kernel
 		vaddr_t                    m_fsbase               { 0 };
 		vaddr_t                    m_gsbase               { 0 };
 
-		SchedulerQueueNode*        m_scheduler_node       { nullptr };
+		SchedulerThreadNode*       m_scheduler_node       { nullptr };
 
 		YieldRegisters             m_yield_registers      { };
 

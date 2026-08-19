@@ -22,7 +22,7 @@ namespace Kernel
 	class GDT;
 	class IDT;
 	class Scheduler;
-	class SchedulerQueueNode;
+	class SchedulerThreadNode;
 	class Thread;
 
 #if ARCH(x86_64) || ARCH(i686)
@@ -54,8 +54,8 @@ namespace Kernel
 			union
 			{
 				TLBEntry flush_tlb;
-				SchedulerQueueNode* new_thread;
-				SchedulerQueueNode* unblock_thread;
+				SchedulerThreadNode* new_thread;
+				SchedulerThreadNode* unblock_thread;
 				bool dummy;
 			};
 		};

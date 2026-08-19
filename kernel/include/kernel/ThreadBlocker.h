@@ -7,7 +7,7 @@
 namespace Kernel
 {
 
-	class SchedulerQueueNode;
+	class SchedulerThreadNode;
 
 	class ThreadBlocker
 	{
@@ -29,11 +29,11 @@ namespace Kernel
 		}
 
 	private:
-		void add_thread_to_block_queue(SchedulerQueueNode*);
-		void remove_thread_from_block_queue(SchedulerQueueNode*);
+		void add_thread_to_block_queue(SchedulerThreadNode*);
+		void remove_thread_from_block_queue(SchedulerThreadNode*);
 
 	private:
-		SchedulerQueueNode* m_block_chain { nullptr };
+		SchedulerThreadNode* m_block_chain { nullptr };
 		SpinLock m_lock;
 
 		friend class Scheduler;
