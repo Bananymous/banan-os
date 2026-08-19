@@ -664,11 +664,8 @@ namespace Kernel
 			m_bdl_tail = (m_bdl_tail + 1) % m_bdl_entry_count;
 			if (m_bdl_tail == m_bdl_head)
 			{
-				if (auto ret = reset_stream(); ret.is_error())
-				{
-					dwarnln("failed to reset HDA stream: {}", ret.error());
-					return;
-				}
+				bar.write8(base + Regs::SDCTL, bar.read8(base + Regs::SDCTL) & 0xFD);
+				m_stream_running = false;
 			}
 
 			queue_bdl_data();
