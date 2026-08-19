@@ -17,6 +17,7 @@ struct AudioDevice
 	uint32_t sample_rate;
 	uint32_t total_pins;
 	uint32_t current_pin;
+	double volume_mult;
 	snd_volume_info volume;
 };
 

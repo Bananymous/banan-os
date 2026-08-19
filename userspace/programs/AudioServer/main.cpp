@@ -60,6 +60,7 @@ static BAN::Optional<AudioDevice> initialize_audio_device(int fd)
 {
 	AudioDevice result {};
 	result.fd = fd;
+	result.volume_mult = 1.0;
 	if (ioctl(fd, SND_GET_CHANNELS, &result.channels) != 0)
 		return {};
 	if (ioctl(fd, SND_GET_SAMPLE_RATE, &result.sample_rate) != 0)
