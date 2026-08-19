@@ -388,14 +388,11 @@ namespace Kernel::Input
 			}
 
 			dprintln("Found {} PS/2 devices from ACPI namespace", acpi_devices.size());
-			if (acpi_devices.empty())
-				return {};
 
 			if (acpi_devices.size() > 2)
 			{
 				dwarnln("TODO: over 2 PS/2 devices");
-				while (acpi_devices.size() > 2)
-					acpi_devices.pop_back();
+				MUST(acpi_devices.resize(2));
 			}
 
 			if (acpi_devices.size() == 2)
@@ -421,34 +418,35 @@ namespace Kernel::Input
 				}
 			}
 
-			BAN::Optional<uint16_t> command_port;
-			command_port = acpi_devices[0].command_port;
-			if (!command_port.has_value() && acpi_devices.size() >= 2)
-				command_port = acpi_devices[1].command_port;
-			if (command_port.has_value())
-				m_command_port = command_port.value();
-
-			BAN::Optional<uint16_t> data_port;
-			data_port = acpi_devices[0].data_port;
-			if (!data_port.has_value() && acpi_devices.size() >= 2)
-				data_port = acpi_devices[1].data_port;
-			if (data_port.has_value())
-				m_data_port = data_port.value();
-
-			devices[0] = {
-				.type      = acpi_devices[0].type,
-				.interrupt = acpi_devices[0].irq.value_or(PS2::IRQ::DEVICE0)
-			};
-
-			if (acpi_devices.size() > 1)
+			if (!acpi_devices.empty())
 			{
-				devices[1] = {
-					.type      = acpi_devices[1].type,
-					.interrupt = acpi_devices[1].irq.value_or(PS2::IRQ::DEVICE1)
+				BAN::Optional<uint16_t> command_port;
+				command_port = acpi_devices[0].command_port;
+				if (!command_port.has_value() && acpi_devices.size() >= 2)
+					command_port = acpi_devices[1].command_port;
+				if (command_port.has_value())
+					m_command_port = command_port.value();
+
+				BAN::Optional<uint16_t> data_port;
+				data_port = acpi_devices[0].data_port;
+				if (!data_port.has_value() && acpi_devices.size() >= 2)
+					data_port = acpi_devices[1].data_port;
+				if (data_port.has_value())
+					m_data_port = data_port.value();
+			}
+
+			for (size_t i = 0; i < acpi_devices.size(); i++)
+			{
+				devices[i] = {
+					.type      = acpi_devices[i].type,
+					.interrupt = acpi_devices[i].irq.value_or(i == 0 ? PS2::IRQ::DEVICE0 : PS2::IRQ::DEVICE1),
 				};
 			}
 		}
-		else if (has_legacy_8042())
+
+		if (devices[0].type != DeviceType::None)
+			;
+		else if (scancode_set || has_legacy_8042())
 		{
 			devices[0] = {
 				.type = DeviceType::Unknown,
