@@ -403,6 +403,13 @@ namespace Kernel
 						.node_index = path[i]->id,
 						.codec_address = m_cid,
 					}));
+					// set channel count
+					TRY(m_controller->send_command({
+						.data = static_cast<uint8_t>(get_channels() - 1),
+						.command = 0x72D,
+						.node_index = path[i]->id,
+						.codec_address = m_cid,
+					}));
 					// set format
 					TRY(m_controller->send_command({
 						.data = static_cast<uint8_t>(format & 0xFF),
