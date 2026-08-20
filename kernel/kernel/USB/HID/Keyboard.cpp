@@ -14,19 +14,10 @@ namespace Kernel
 	static void initialize_scancode_to_keycode();
 	static constexpr bool is_repeatable_scancode(uint8_t scancode);
 
-	USBKeyboard::USBKeyboard(USBHIDDriver& driver, BAN::Vector<USBHID::Report>&& outputs)
+	USBKeyboard::USBKeyboard(USBHIDDriver& driver)
 		: USBHIDDevice(InputDevice::Type::Keyboard)
 		, m_driver(driver)
-		, m_outputs(BAN::move(outputs))
-	{
-		set_leds(0);
-	}
-
-	BAN::ErrorOr<void> USBKeyboard::initialize()
-	{
-		m_led_region = TRY(DMARegion::create(PAGE_SIZE, PageTable::MemoryType::Normal));
-		return {};
-	}
+	{ }
 
 	void USBKeyboard::start_report()
 	{
@@ -173,8 +164,19 @@ namespace Kernel
 		const auto toggle_mask = ({ SpinLockGuard _(m_keyboard_lock); m_toggle_mask; });
 
 		if (m_led_mask != toggle_mask)
-			set_leds(toggle_mask);
-		m_led_mask = toggle_mask;
+		{
+			uint32_t usb_led_mask { 0 };
+			if (toggle_mask & KeyModifier::NumLock)
+				usb_led_mask |= 1 << 1;
+			if (toggle_mask & KeyModifier::CapsLock)
+				usb_led_mask |= 1 << 2;
+			if (toggle_mask & KeyModifier::ScrollLock)
+				usb_led_mask |= 1 << 3;
+
+			m_driver.device().update_led_mask(usb_led_mask);
+
+			m_led_mask = toggle_mask;
+		}
 
 		SpinLockGuard _(m_keyboard_lock);
 
@@ -191,88 +193,6 @@ namespace Kernel
 		add_event(BAN::ConstByteSpan::from(event));
 
 		m_next_repeat_event_ms += s_repeat_interval_ms;
-	}
-
-	void USBKeyboard::set_leds(uint16_t mask)
-	{
-		uint8_t report_ids_done[0x100 / 8] {};
-
-		for (const auto& report : m_outputs)
-		{
-			if (report.usage_page != 0x08)
-				continue;
-
-			const auto byte = report.report_id / 8;
-			const auto bit  = report.report_id % 8;
-			if (report_ids_done[byte] & (1u << bit))
-				continue;
-
-			set_leds(report.report_id, mask);
-			report_ids_done[byte] |= (1u << bit);
-		}
-	}
-
-	void USBKeyboard::set_leds(uint8_t report_id, uint16_t mask)
-	{
-		using KeyModifier = LibInput::KeyEvent::Modifier;
-
-		if (!m_led_region)
-			return;
-
-		size_t report_bits = 0;
-		for (const auto& report : m_outputs)
-		{
-			if (report.report_id != report_id)
-				continue;
-			report_bits += report.report_size * report.report_count;
-		}
-
-		const size_t report_bytes = (report_bits + 7) / 8;
-		ASSERT(report_bytes <= PAGE_SIZE);
-
-		PageTable::with_fast_page(m_led_region->paddr(), [&] {
-			uint8_t* data = &PageTable::fast_page_as<uint8_t>();
-
-			memset(data, 0, report_bytes);
-
-			size_t bit_offset = 0;
-			for (const auto& report : m_outputs)
-			{
-				if (report.report_id != report_id)
-					continue;
-
-				for (size_t i = 0; report.report_size == 1 && i < report.report_count; i++, bit_offset++)
-				{
-					const size_t usage = (report.usage_id ? report.usage_id : report.usage_minimum) + bit_offset;
-					switch (usage)
-					{
-						case 0x01:
-							if (mask & KeyModifier::NumLock)
-								data[bit_offset / 8] |= 1u << (bit_offset % 8);
-							break;
-						case 0x02:
-							if (mask & KeyModifier::CapsLock)
-								data[bit_offset / 8] |= 1u << (bit_offset % 8);
-							break;
-						case 0x03:
-							if (mask & KeyModifier::ScrollLock)
-								data[bit_offset / 8] |= 1u << (bit_offset % 8);
-							break;
-					}
-				}
-
-				bit_offset += report.report_size * report.report_count;
-			}
-		});
-
-		USBDeviceRequest request;
-		request.bmRequestType = USB::RequestType::HostToDevice | USB::RequestType::Class | USB::RequestType::Interface;
-		request.bRequest = 0x09;
-		request.wValue = 0x0200 | report_id;
-		request.wIndex = m_driver.interface().descriptor.bInterfaceNumber;
-		request.wLength = report_bytes;
-		if (auto ret = m_driver.device().send_request(request, m_led_region->paddr()); ret.is_error())
-			dprintln_if(DEBUG_USB_KEYBOARD, "Failed to update LEDs: {}", ret.error());
 	}
 
 	void initialize_scancode_to_keycode()

@@ -252,14 +252,19 @@ namespace Kernel
 					dwarnln("Could not initialize USB interface {}", ret.error());
 					m_class_drivers.remove(i--);
 				}
+				else if (m_class_drivers[i]->is_hid_driver() && static_cast<USBHIDDriver*>(m_class_drivers[i].ptr())->has_led_control())
+					TRY(m_hid_info.led_controls.push_back(m_class_drivers[i].ptr()));
 			}
 
 			if (!m_class_drivers.empty())
 			{
+				update_led_mask(m_hid_info.led_mask);
+
 				dprintln("Successfully initialized USB device with {}/{} interfaces",
 					m_class_drivers.size(),
 					configuration.interfaces.size()
 				);
+
 				return {};
 			}
 		}
@@ -361,6 +366,15 @@ namespace Kernel
 	{
 		for (auto& driver : m_class_drivers)
 			driver->handle_input_data(byte_count, endpoint_id);
+	}
+
+	void USBDevice::update_led_mask(uint32_t led_mask)
+	{
+		const uint32_t old_mask = m_hid_info.led_mask.exchange(led_mask);
+		if (old_mask == led_mask)
+			return;
+		for (auto* led_control : m_hid_info.led_controls)
+			static_cast<USBHIDDriver*>(led_control)->set_leds(led_mask);
 	}
 
 }

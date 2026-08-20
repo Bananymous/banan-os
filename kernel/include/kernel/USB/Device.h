@@ -23,6 +23,8 @@ namespace Kernel
 
 		virtual void handle_stall(uint8_t endpoint_id) = 0;
 		virtual void handle_input_data(size_t byte_count, uint8_t endpoint_id) = 0;
+
+		virtual bool is_hid_driver() const { return false; }
 	};
 
 	class USBDevice
@@ -62,6 +64,12 @@ namespace Kernel
 			uint8_t tt_think_time;
 		};
 
+		struct HIDInfo
+		{
+			BAN::Atomic<uint32_t> led_mask { 0 };
+			BAN::Vector<USBClassDriver*> led_controls;
+		};
+
 	public:
 		USBDevice(USBController& controller, USB::SpeedClass speed_class, uint8_t depth)
 			: m_controller(controller)
@@ -92,6 +100,8 @@ namespace Kernel
 		void register_hub_to_init() { m_controller.register_hub_to_init(m_depth + 1); };
 		void mark_hub_init_done() { m_controller.mark_hub_init_done(m_depth + 1); };
 
+		void update_led_mask(uint32_t led_mask);
+
 	protected:
 		void handle_stall(uint8_t endpoint_id);
 		void handle_input_data(size_t byte_count, uint8_t endpoint_id);
@@ -112,6 +122,7 @@ namespace Kernel
 		BAN::UniqPtr<DMARegion> m_dma_buffer;
 
 		BAN::Vector<BAN::UniqPtr<USBClassDriver>> m_class_drivers;
+		HIDInfo m_hid_info;
 	};
 
 }

@@ -77,9 +77,9 @@ namespace Kernel
 
 	USBHIDDriver::~USBHIDDriver()
 	{
-		for (auto& device_input : m_device_inputs)
-			if (device_input.device)
-				DevFileSystem::get().remove_device(device_input.device);
+		for (auto& device_report : m_device_reports)
+			if (device_report.device)
+				DevFileSystem::get().remove_device(device_report.device);
 	}
 
 	BAN::ErrorOr<void> USBHIDDriver::initialize()
@@ -184,7 +184,10 @@ namespace Kernel
 			return BAN::Error::from_errno(EFAULT);
 		}
 
-		m_device_inputs = TRY(initializes_device_reports(collections));
+		TRY(initializes_device_reports(collections));
+
+		if (has_led_control())
+			m_led_region = TRY(DMARegion::create(PAGE_SIZE, PageTable::MemoryType::Normal));
 
 		for (const auto& endpoint : m_interface.endpoints)
 		{
@@ -196,7 +199,7 @@ namespace Kernel
 				continue;
 
 			TRY(m_device.configure_endpoint(desc));
-			m_data_buffer = TRY(DMARegion::create(desc.wMaxPacketSize & 0x07FF));
+			m_data_buffer = TRY(DMARegion::create(desc.wMaxPacketSize & 0x07FF, PageTable::MemoryType::Normal));
 
 			m_data_endpoint_id = (desc.bEndpointAddress & 0x0F) * 2 + !!(desc.bEndpointAddress & 0x80);
 
@@ -209,7 +212,7 @@ namespace Kernel
 			return BAN::Error::from_errno(EINVAL);
 		}
 
-		for (auto& report : m_device_inputs)
+		for (auto& report : m_device_reports)
 			if (report.device && report.device->initialize().is_error())
 				report.device.clear();
 
@@ -238,10 +241,9 @@ namespace Kernel
 		return {};
 	}
 
-	BAN::ErrorOr<BAN::Vector<USBHIDDriver::DeviceReport>> USBHIDDriver::initializes_device_reports(const BAN::Vector<USBHID::Collection>& collection_list)
+	BAN::ErrorOr<void> USBHIDDriver::initializes_device_reports(const BAN::Vector<USBHID::Collection>& collection_list)
 	{
-		BAN::Vector<USBHIDDriver::DeviceReport> result;
-		TRY(result.reserve(collection_list.size()));
+		TRY(m_device_reports.reserve(collection_list.size()));
 
 		for (size_t i = 0; i < collection_list.size(); i++)
 		{
@@ -249,9 +251,7 @@ namespace Kernel
 
 			USBHIDDriver::DeviceReport report;
 			TRY(gather_collection_reports(collection, report.inputs,  USBHID::Report::Type::Input));
-
-			BAN::Vector<USBHID::Report> outputs;
-			TRY(gather_collection_reports(collection, outputs, USBHID::Report::Type::Output));
+			TRY(gather_collection_reports(collection, report.outputs, USBHID::Report::Type::Output));
 
 			switch (collection.usage_page)
 			{
@@ -267,7 +267,7 @@ namespace Kernel
 						dprintln("Initialized an USB Joystick");
 						break;
 					case 0x06:
-						report.device = TRY(BAN::RefPtr<USBKeyboard>::create(*this, BAN::move(outputs)));
+						report.device = TRY(BAN::RefPtr<USBKeyboard>::create(*this));
 						dprintln("Initialized an USB Keyboard");
 						break;
 					default:
@@ -279,19 +279,47 @@ namespace Kernel
 				switch (collection.usage_id)
 				{
 					case 0x01:
-						report.device = TRY(BAN::RefPtr<USBKeyboard>::create(*this, BAN::move(outputs)));
+						report.device = TRY(BAN::RefPtr<USBKeyboard>::create(*this));
 						dprintln("Initialized an USB Consumer Control");
 						break;
 				}
 			}
 
-			TRY(result.push_back(BAN::move(report)));
+			TRY(m_device_reports.push_back(BAN::move(report)));
 		}
 
-		for (auto& report : result)
-			if (report.device)
-				DevFileSystem::get().add_device(report.device);
-		return BAN::move(result);
+		for (auto& report : m_device_reports)
+		{
+			if (!report.device)
+				continue;
+			DevFileSystem::get().add_device(report.device);
+
+			uint8_t led_report_ids[0x100 / 8] {};
+			for (const auto& output : report.outputs)
+			{
+				if (output.usage_page != 0x08)
+					continue;
+
+				const auto byte = output.report_id / 8;
+				const auto bit  = output.report_id % 8;
+				if (led_report_ids[byte] & (1u << bit))
+					continue;
+				led_report_ids[byte] |= (1u << bit);
+
+				uint32_t report_bits = 0;
+				for (const auto& temp : report.outputs)
+					if (temp.report_id == output.report_id)
+						report_bits += temp.report_size * temp.report_count;
+
+				TRY(m_led_controls.push_back({
+					.report = &m_device_reports.back(),
+					.report_id = output.report_id,
+					.report_bits = report_bits,
+				}));
+			}
+		}
+
+		return {};
 	}
 
 	void USBHIDDriver::handle_stall(uint8_t endpoint_id)
@@ -368,19 +396,19 @@ namespace Kernel
 		}
 
 		size_t bit_offset = 0;
-		for (auto& device_input : m_device_inputs)
+		for (auto& device_report : m_device_reports)
 		{
-			if (device_input.device)
-				device_input.device->start_report();
+			if (device_report.device)
+				device_report.device->start_report();
 
-			for (const auto& input : device_input.inputs)
+			for (const auto& input : device_report.inputs)
 			{
 				if (report_id.value_or(input.report_id) != input.report_id)
 					continue;
 
 				ASSERT(input.report_size <= 32);
 
-				if (!device_input.device || (input.usage_id == 0 && input.usage_minimum == 0 && input.usage_maximum == 0))
+				if (!device_report.device || (input.usage_id == 0 && input.usage_minimum == 0 && input.usage_maximum == 0))
 				{
 					bit_offset += input.report_size * input.report_count;
 					continue;
@@ -401,7 +429,7 @@ namespace Kernel
 					const auto usage = input.usage_id ? input.usage_id : (input.usage_minimum + (variable ? i : logical));
 
 					if (!variable)
-						device_input.device->handle_array(input.usage_page, usage);
+						device_report.device->handle_array(input.usage_page, usage);
 					else
 					{
 						const int64_t physical =
@@ -411,17 +439,51 @@ namespace Kernel
 							input.physical_minimum;
 
 						if (relative)
-							device_input.device->handle_variable(input.usage_page, usage, physical);
+							device_report.device->handle_variable(input.usage_page, usage, physical);
 						else
-							device_input.device->handle_variable_absolute(input.usage_page, usage, physical, input.physical_minimum, input.physical_maximum);
+							device_report.device->handle_variable_absolute(input.usage_page, usage, physical, input.physical_minimum, input.physical_maximum);
 					}
 
 					bit_offset += input.report_size;
 				}
 			}
 
-			if (device_input.device)
-				device_input.device->stop_report();
+			if (device_report.device)
+				device_report.device->stop_report();
+		}
+	}
+
+	void USBHIDDriver::set_leds(uint32_t led_mask)
+	{
+		for (const auto& led_control : m_led_controls)
+		{
+			const size_t report_bytes = BAN::Math::div_round_up<uint32_t>(led_control.report_bits, 8);
+
+			auto led_data = BAN::ByteSpan(reinterpret_cast<uint8_t*>(m_led_region->vaddr()), report_bytes);
+			memset(led_data.data(), 0, report_bytes);
+
+			size_t bit_offset = 0;
+			for (const auto& output : led_control.report->outputs)
+			{
+				if (output.report_id != led_control.report_id)
+					continue;
+
+				const size_t usage_base = output.usage_id ? output.usage_id : output.usage_minimum;
+				for (size_t i = 0; output.report_size == 1 && i < output.report_count; i++, bit_offset++)
+					if (led_mask & (1u << (usage_base + bit_offset)))
+						led_data[bit_offset / 8] |= 1u << (bit_offset % 8);
+
+				bit_offset += output.report_size * output.report_count;
+			}
+
+			USBDeviceRequest request;
+			request.bmRequestType = USB::RequestType::HostToDevice | USB::RequestType::Class | USB::RequestType::Interface;
+			request.bRequest = 0x09;
+			request.wValue = 0x0200 | led_control.report_id;
+			request.wIndex = m_interface.descriptor.bInterfaceNumber;
+			request.wLength = report_bytes;
+			if (auto ret = m_device.send_request(request, m_led_region->paddr()); ret.is_error())
+				dprintln_if(DEBUG_USB_HID, "Failed to update LEDs: {}", ret.error());
 		}
 	}
 

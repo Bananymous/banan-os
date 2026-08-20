@@ -11,8 +11,6 @@ namespace Kernel
 		BAN_NON_MOVABLE(USBKeyboard);
 
 	public:
-		BAN::ErrorOr<void> initialize() override;
-
 		void start_report() override;
 		void stop_report() override;
 
@@ -23,11 +21,8 @@ namespace Kernel
 		void update() override;
 
 	private:
-		USBKeyboard(USBHIDDriver& driver, BAN::Vector<USBHID::Report>&& outputs);
+		USBKeyboard(USBHIDDriver& driver);
 		~USBKeyboard() = default;
-
-		void set_leds(uint16_t mask);
-		void set_leds(uint8_t report_id, uint16_t mask);
 
 	private:
 		USBHIDDriver& m_driver;
@@ -38,11 +33,7 @@ namespace Kernel
 		BAN::Array<bool, 0x100> m_keyboard_state      { false };
 		BAN::Array<bool, 0x100> m_keyboard_state_temp { false };
 		uint16_t m_toggle_mask { 0 };
-
 		uint16_t m_led_mask { 0 };
-		BAN::UniqPtr<DMARegion> m_led_region;
-
-		BAN::Vector<USBHID::Report> m_outputs;
 
 		BAN::Optional<uint8_t> m_repeat_scancode;
 		uint8_t m_repeat_modifier { 0 };
