@@ -375,6 +375,33 @@ namespace Kernel::XHCI
 
 			struct
 			{
+				uint32_t             : 32;
+				uint32_t             : 32;
+				uint32_t             : 32;
+				uint32_t cycle_bit   : 1;
+				uint32_t             : 8;
+				uint32_t tsp         : 1;
+				uint32_t trb_type    : 6;
+				uint32_t endpoint_id : 5;
+				uint32_t             : 3;
+				uint32_t slot_id     : 8;
+			} reset_endpoint_command;
+
+			struct
+			{
+				uint64_t new_tr_deque_pointer : 64;
+				uint32_t                      : 16;
+				uint32_t stream_id            : 16;
+				uint32_t cycle_bit            : 1;
+				uint32_t                      : 9;
+				uint32_t trb_type             : 6;
+				uint32_t endpoint_id          : 5;
+				uint32_t                      : 3;
+				uint32_t slot_id              : 8;
+			} set_tr_deque_pointer_command;
+
+			struct
+			{
 				uint64_t ring_segment_ponter     : 64;
 
 				uint32_t                         : 22;

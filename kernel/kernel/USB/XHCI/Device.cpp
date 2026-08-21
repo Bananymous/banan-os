@@ -273,19 +273,14 @@ namespace Kernel
 
 		if (!endpoint.transfer_ring)
 		{
-			endpoint.transfer_ring   = TRY(DMARegion::create(m_transfer_ring_trb_count * sizeof(XHCI::TRB)));
+			endpoint.transfer_ring   = TRY(DMARegion::create(m_transfer_ring_trb_count * sizeof(XHCI::TRB), PageTable::MemoryType::Normal));
 			endpoint.max_packet_size = max_packet_size;
-			endpoint.dequeue_index   = 0;
-			endpoint.enqueue_index   = 0;
-			endpoint.cycle_bit       = 1;
 			endpoint.callback        = (is_interrupt || is_bulk) ? &XHCIDevice::on_interrupt_or_bulk_endpoint_event : nullptr;
 		}
-		else
-		{
-			endpoint.dequeue_index = 0;
-			endpoint.enqueue_index = 0;
-			endpoint.cycle_bit = 1;
-		}
+
+		endpoint.dequeue_index = 0;
+		endpoint.enqueue_index = 0;
+		endpoint.cycle_bit = 1;
 
 		memset(reinterpret_cast<void*>(endpoint.transfer_ring->vaddr()), 0, endpoint.transfer_ring->size());
 
@@ -421,7 +416,8 @@ namespace Kernel
 
 		const bool status_stage_dir = !((request.wLength > 0) && (request.bmRequestType & USB::RequestType::DeviceToHost));
 
-		auto& endpoint = m_endpoints[0];
+		const uint32_t endpoint_id = 1;
+		auto& endpoint = m_endpoints[endpoint_id - 1];
 
 		LockGuard _(endpoint.mutex);
 
@@ -496,9 +492,37 @@ namespace Kernel
 
 		endpoint.dequeue_index = endpoint.enqueue_index;
 
-		if (completion_trb.transfer_event.completion_code != 1)
+		if (const uint32_t completion_code = completion_trb.transfer_event.completion_code; completion_code != 1)
 		{
-			dwarnln("Completion error: {}", +completion_trb.transfer_event.completion_code);
+			if (completion_code != 6)
+				dwarnln("Completion code: {}", completion_code);
+			else
+			{
+				dprintln_if(DEBUG_XHCI, "Completion error: {}", completion_code);
+
+				XHCI::TRB command;
+
+				command.reset_endpoint_command = {};
+				command.reset_endpoint_command.slot_id     = m_info.slot_id;
+				command.reset_endpoint_command.endpoint_id = endpoint_id;
+				command.reset_endpoint_command.trb_type    = XHCI::TRBType::ResetEndpointCommand;
+				command.reset_endpoint_command.tsp         = 0;
+				TRY(m_controller.send_command(command));
+
+				uint64_t tr_dequeue_pointer = endpoint.transfer_ring->paddr();
+				tr_dequeue_pointer += endpoint.dequeue_index * sizeof(XHCI::TRB);
+				tr_dequeue_pointer |= endpoint.cycle_bit;
+
+				// FIXME: streams
+				command.set_tr_deque_pointer_command = {};
+				command.set_tr_deque_pointer_command.new_tr_deque_pointer = tr_dequeue_pointer;
+				command.set_tr_deque_pointer_command.stream_id            = 0;
+				command.set_tr_deque_pointer_command.slot_id              = m_info.slot_id;
+				command.set_tr_deque_pointer_command.endpoint_id          = endpoint_id;
+				command.set_tr_deque_pointer_command.trb_type             = XHCI::TRBType::SetTRDequeuePointerCommand;
+				TRY(m_controller.send_command(command));
+			}
+
 			return BAN::Error::from_errno(EFAULT);
 		}
 
