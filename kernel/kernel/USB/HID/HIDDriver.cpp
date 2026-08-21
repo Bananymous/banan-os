@@ -14,6 +14,7 @@ namespace Kernel
 
 	enum HIDRequest : uint8_t
 	{
+		GET_PROTOCOL = 0x03,
 		SET_PROTOCOL = 0x0B,
 	};
 
@@ -84,7 +85,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> USBHIDDriver::initialize()
 	{
-		auto dma_buffer = TRY(DMARegion::create(1024));
+		auto dma_buffer = TRY(DMARegion::create(1024, PageTable::MemoryType::Normal));
 
 		ASSERT(static_cast<USB::InterfaceBaseClass>(m_interface.descriptor.bInterfaceClass) == USB::InterfaceBaseClass::HID);
 
@@ -119,13 +120,14 @@ namespace Kernel
 		// If this device supports boot protocol, make sure it is not used
 		if (m_interface.descriptor.bInterfaceSubClass == 0x01)
 		{
-			USBDeviceRequest request;
-			request.bmRequestType = USB::RequestType::HostToDevice | USB::RequestType::Class | USB::RequestType::Interface;
-			request.bRequest      = HIDRequest::SET_PROTOCOL;
-			request.wValue        = 1; // report protocol
-			request.wIndex        = m_interface.descriptor.bInterfaceNumber;
-			request.wLength       = 0;
-			TRY(m_device.send_request(request, 0));
+			const auto request = USBDeviceRequest {
+				.bmRequestType = USB::RequestType::HostToDevice | USB::RequestType::Class | USB::RequestType::Interface,
+				.bRequest      = HIDRequest::SET_PROTOCOL,
+				.wValue        = 1, // report protocol
+				.wIndex        = m_interface.descriptor.bInterfaceNumber,
+				.wLength       = 0,
+			};
+			(void)m_device.send_request(request, 0);
 		}
 
 		const auto& hid_descriptor = *reinterpret_cast<const HIDDescriptor*>(m_interface.misc_descriptors[hid_descriptor_index].data());
