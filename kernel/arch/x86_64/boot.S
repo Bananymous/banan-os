@@ -161,12 +161,10 @@ is_64_bit:
 
 check_requirements:
 	call has_cpuid
-	jz .exit
+	jz system_halt
 	call is_64_bit
-	jz .exit
+	jz system_halt
 	ret
-.exit:
-	jmp system_halt
 
 enable_sse:
 	movl %cr0, %eax
@@ -226,10 +224,10 @@ _start:
 
 	# flush gdt and jump to 64 bit
 	lgdt V2P(boot_gdtr)
-	ljmpl $0x08, $V2P(long_mode)
+	ljmpl $0x08, $V2P(.Llong_mode)
 
 .code64
-long_mode:
+.Llong_mode:
 	movw $0x10, %ax
 	movw %ax, %ds
 	movw %ax, %ss
@@ -240,10 +238,10 @@ long_mode:
 	addq $KERNEL_OFFSET, %rsp
 
 	# jump to higher half
-	movabsq $higher_half, %rcx
+	movabsq $.Lhigher_half, %rcx
 	jmp *%rcx
 
-higher_half:
+.Lhigher_half:
 	# call global constuctors
 	call _init
 
@@ -293,18 +291,18 @@ ap_ready:
 	.skip 8
 
 1:	cli; cld
-	ljmpl $0x00, $AP_REL(ap_cs_clear)
+	ljmpl $0x00, $AP_REL(.Lap_cs_clear)
 
-ap_cs_clear:
+.Lap_cs_clear:
 	# load ap gdt and enter protected mode
 	lgdt AP_REL(ap_gdtr)
 	movl %cr0, %eax
 	orb $1, %al
 	movl %eax, %cr0
-	ljmpl $0x08, $AP_REL(ap_protected_mode)
+	ljmpl $0x08, $AP_REL(.Lap_protected_mode)
 
 .code32
-ap_protected_mode:
+.Lap_protected_mode:
 	movw $0x10, %ax
 	movw %ax, %ds
 	movw %ax, %ss
@@ -318,14 +316,14 @@ ap_protected_mode:
 
 	# load boot gdt and enter long mode
 	lgdt V2P(boot_gdtr)
-	ljmpl $0x08, $AP_REL(ap_long_mode)
+	ljmpl $0x08, $AP_REL(.Lap_long_mode)
 
 .code64
-ap_long_mode:
-	movq $ap_higher_half, %rax
+.Lap_long_mode:
+	movq $.Lap_higher_half, %rax
 	jmp *%rax
 
-ap_higher_half:
+.Lap_higher_half:
 	movq AP_REL(ap_prepare_paging), %rax
 	call *%rax
 

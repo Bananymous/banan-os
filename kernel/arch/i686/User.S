@@ -28,27 +28,26 @@ safe_user_strncpy:
 	testl %ecx, %ecx
 	jz safe_user_strncpy_fault
 
- .safe_user_strncpy_loop:
+ .Lsafe_user_strncpy_loop:
 	movb (%esi), %al
 	movb %al, (%edi)
 	testb %al, %al
-	jz .safe_user_strncpy_done
+	jz .Lsafe_user_strncpy_done
 
 	incl %edi
 	incl %esi
 	decl %ecx
-	jnz .safe_user_strncpy_loop
+	jnz .Lsafe_user_strncpy_loop
 
  safe_user_strncpy_fault:
 	xorl %eax, %eax
-	jmp .safe_user_strncpy_return
+	jmp .Lsafe_user_strncpy_return
 
- .safe_user_strncpy_done:
+ .Lsafe_user_strncpy_done:
 	movl $1, %eax
 
- .safe_user_strncpy_return:
+ .Lsafe_user_strncpy_return:
 	movl 4(%esp), %edi
 	movl 8(%esp), %esi
 	ret
-
 safe_user_strncpy_end:

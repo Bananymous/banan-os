@@ -168,14 +168,12 @@ has_sse:
 
 check_requirements:
 	call has_cpuid
-	jz .exit
+	jz system_halt
 	call has_pae
-	jz .exit
+	jz system_halt
 	call has_sse
-	jz .exit
+	jz system_halt
 	ret
-.exit:
-	jmp system_halt
 
 enable_sse:
 	movl %cr0, %eax
@@ -225,8 +223,8 @@ _start:
 
 	# load boot GDT
 	lgdt V2P(boot_gdtr)
-	ljmpl $0x08, $V2P(gdt_flush)
-gdt_flush:
+	ljmpl $0x08, $V2P(.Lgdt_flush)
+.Lgdt_flush:
 	# set correct segment registers
 	movw $0x10, %ax
 	movw %ax, %ds
@@ -243,10 +241,10 @@ gdt_flush:
 	movl $g_boot_stack_top, %esp
 
 	# jump to higher half
-	leal higher_half, %ecx
+	leal .Lhigher_half, %ecx
 	jmp *%ecx
 
-higher_half:
+.Lhigher_half:
 	# call global constuctors
 	call _init
 
@@ -298,18 +296,18 @@ ap_ready:
 	.skip 4
 
 1:	cli; cld
-	ljmpl $0x00, $AP_REL(ap_cs_clear)
+	ljmpl $0x00, $AP_REL(.Lap_cs_clear)
 
-ap_cs_clear:
+.Lap_cs_clear:
 	# load ap gdt and enter protected mode
 	lgdt AP_REL(ap_gdtr)
 	movl %cr0, %eax
 	orb $1, %al
 	movl %eax, %cr0
-	ljmpl $0x08, $AP_REL(ap_protected_mode)
+	ljmpl $0x08, $AP_REL(.Lap_protected_mode)
 
 .code32
-ap_protected_mode:
+.Lap_protected_mode:
 	movw $0x10, %ax
 	movw %ax, %ds
 	movw %ax, %ss
@@ -323,13 +321,13 @@ ap_protected_mode:
 
 	# load boot gdt and enter long mode
 	lgdt V2P(boot_gdtr)
-	ljmpl $0x08, $AP_REL(ap_flush_gdt)
+	ljmpl $0x08, $AP_REL(.Lap_flush_gdt)
 
-ap_flush_gdt:
-	movl $ap_higher_half, %ecx
+.Lap_flush_gdt:
+	movl $.Lap_higher_half, %ecx
 	jmp *%ecx
 
-ap_higher_half:
+.Lap_higher_half:
 	movl AP_REL(ap_prepare_paging), %eax
 	call *%eax
 

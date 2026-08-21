@@ -33,13 +33,13 @@ sys_fork_trampoline:
 
 	call read_ip
 	testq %rax, %rax
-	jz .done
+	jz .Lsys_fork_trampoline_done
 
 	movq %rax, %rsi
 	movq %rsp, %rdi
 	call sys_fork
 
- .done:
+ .Lsys_fork_trampoline_done:
 	popq %r15
 	popq %r14
 	popq %r13

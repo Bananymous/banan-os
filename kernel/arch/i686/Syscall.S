@@ -63,7 +63,7 @@ sys_fork_trampoline:
 
 	call read_ip
 	testl %eax, %eax
-	jz .done
+	jz .Lsys_fork_trampoline_done
 
 	movl %esp, %ebx
 
@@ -73,7 +73,7 @@ sys_fork_trampoline:
 	call sys_fork
 	addl $16, %esp
 
- .done:
+ .Lsys_fork_trampoline_done:
 	popl %edi
 	popl %esi
 	popl %ebx

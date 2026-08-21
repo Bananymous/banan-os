@@ -19,20 +19,20 @@ memmove:
 	movl 12(%esp), %ecx
 	movl %edi, %edx
 	cmpl %edi, %esi
-	jb .memmove_slow
+	jb .Lmemmove_slow
 	rep movsb
- .memmove_done:
+ .Lmemmove_done:
 	movl 4(%esp), %edi
 	movl 8(%esp), %esi
 	movl %edx, %eax
 	ret
- .memmove_slow:
+ .Lmemmove_slow:
 	leal -1(%edi, %ecx), %edi
 	leal -1(%esi, %ecx), %esi
 	std
 	rep movsb
 	cld
-	jmp .memmove_done
+	jmp .Lmemmove_done
 
 .align 16
 .global memset
