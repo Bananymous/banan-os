@@ -82,6 +82,37 @@ namespace BAN::Math
 		return x + 1;
 	}
 
+	template<unsigned_integral T>
+	requires is_same_v<T, unsigned int> || is_same_v<T, unsigned long> || is_same_v<T, unsigned long long>
+	inline constexpr int clz(T x)
+	{
+		if constexpr (is_same_v<T, unsigned int>)
+			return __builtin_clz(x);
+		if constexpr (is_same_v<T, unsigned long>)
+			return __builtin_clzl(x);
+		return __builtin_clzll(x);
+	}
+
+	template<unsigned_integral T> requires(sizeof(T) <= sizeof(unsigned long long))
+	inline constexpr int ctz(T x)
+	{
+		if constexpr (sizeof(T) <= sizeof(unsigned int))
+			return __builtin_ctz(x);
+		if constexpr (sizeof(T) <= sizeof(unsigned long))
+			return __builtin_ctzl(x);
+		return __builtin_ctzll(x);
+	}
+
+	template<unsigned_integral T> requires(sizeof(T) <= sizeof(unsigned long long))
+	inline constexpr int popcount(T x)
+	{
+		if constexpr (sizeof(T) <= sizeof(unsigned int))
+			return __builtin_popcount(x);
+		if constexpr (sizeof(T) <= sizeof(unsigned long))
+			return __builtin_popcountl(x);
+		return __builtin_popcountll(x);
+	}
+
 	template<integral T>
 	__attribute__((always_inline))
 	inline constexpr bool will_multiplication_overflow(T a, T b)
@@ -102,11 +133,7 @@ namespace BAN::Math
 	requires is_same_v<T, unsigned int> || is_same_v<T, unsigned long> || is_same_v<T, unsigned long long>
 	inline constexpr T ilog2(T x)
 	{
-		if constexpr(is_same_v<T, unsigned int>)
-			return sizeof(T) * 8 - __builtin_clz(x) - 1;
-		if constexpr(is_same_v<T, unsigned long>)
-			return sizeof(T) * 8 - __builtin_clzl(x) - 1;
-		return sizeof(T) * 8 - __builtin_clzll(x) - 1;
+		return sizeof(T) * 8 - clz(x) - 1;
 	}
 
 // This is ugly but my clangd does not like including
