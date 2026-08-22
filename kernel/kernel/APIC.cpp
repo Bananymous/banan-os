@@ -351,17 +351,17 @@ namespace Kernel
 			// give processor upto 100 * 100 us + 200 us to boot
 			PageTable::with_fast_page(ap_init_paddr, [&] {
 				for (int i = 0; i < 100; i++, udelay(100))
-					if (__atomic_load_n(&PageTable::fast_page_as<ap_init_info_t>(8).ready, __ATOMIC_SEQ_CST))
+					if (BAN::atomic_load(PageTable::fast_page_as<ap_init_info_t>(8).ready))
 						break;
 			});
 
 			initialized_aps++;
 		}
 
-		__atomic_store_n(&g_ap_startup_done[0], 1, __ATOMIC_SEQ_CST);
+		BAN::atomic_store(g_ap_startup_done[0], 1);
 
 		const size_t timeout_ms = SystemTimer::get().ms_since_boot() + 500;
-		while (__atomic_load_n(&g_ap_running_count[0], __ATOMIC_SEQ_CST) < initialized_aps)
+		while (BAN::atomic_load(g_ap_running_count[0]) < initialized_aps)
 		{
 			if (SystemTimer::get().ms_since_boot() >= timeout_ms)
 				Kernel::panic("Could not start all APs ({}/{} started)", g_ap_running_count[0], initialized_aps);

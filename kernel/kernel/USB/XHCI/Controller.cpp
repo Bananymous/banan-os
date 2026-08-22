@@ -514,7 +514,7 @@ namespace Kernel
 		doorbell_reg(0) = 0;
 
 		uint64_t timeout_ms = SystemTimer::get().ms_since_boot() + 1000;
-		while ((__atomic_load_n(&completion_trb.raw.dword2, __ATOMIC_SEQ_CST) >> 24) == 0)
+		while ((BAN::atomic_load(completion_trb.raw.dword2, BAN::memory_order_acquire) >> 24) == 0)
 			if (SystemTimer::get().ms_since_boot() > timeout_ms)
 				return BAN::Error::from_errno(ETIMEDOUT);
 
@@ -592,7 +592,7 @@ namespace Kernel
 					completion_trb.raw.dword0 = trb.raw.dword0;
 					completion_trb.raw.dword1 = trb.raw.dword1;
 					completion_trb.raw.dword3 = trb.raw.dword3;
-					__atomic_store_n(&completion_trb.raw.dword2, trb.raw.dword2, __ATOMIC_SEQ_CST);
+					BAN::atomic_store(completion_trb.raw.dword2, trb.raw.dword2, BAN::memory_order_release);
 
 					break;
 				}
