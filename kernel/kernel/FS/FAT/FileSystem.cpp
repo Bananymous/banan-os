@@ -124,18 +124,6 @@ namespace Kernel
 	{
 		LockGuard _(m_mutex);
 
-		uint32_t block_count = 0;
-		{
-			uint32_t cluster = entry.first_cluster_lo;
-			if (m_type == Type::FAT32)
-				cluster |= static_cast<uint32_t>(entry.first_cluster_hi) << 16;
-			while (cluster >= 2 && cluster < cluster_count())
-			{
-				block_count++;
-				cluster = TRY(get_next_cluster(cluster));
-			}
-		}
-
 		uint32_t entry_cluster;
 		switch (m_type)
 		{
@@ -144,25 +132,34 @@ namespace Kernel
 				if (parent == m_root_inode)
 					entry_cluster = 1;
 				else
-				{
 					entry_cluster = parent->entry().first_cluster_lo;
-					for (uint32_t i = 0; i < cluster_index; i++)
-						entry_cluster = TRY(get_next_cluster(entry_cluster));
-				}
 				break;
 			case Type::FAT32:
 				if (parent == m_root_inode)
 					entry_cluster = m_bpb.ext_32.root_cluster;
 				else
 					entry_cluster = (static_cast<uint32_t>(parent->entry().first_cluster_hi) << 16) | parent->entry().first_cluster_lo;
-				for (uint32_t i = 0; i < cluster_index; i++)
-					entry_cluster = TRY(get_next_cluster(entry_cluster));
 				break;
 			default:
 				ASSERT_NOT_REACHED();
 		}
 
-		const ino_t ino = (static_cast<ino_t>(entry_cluster) << 32) | entry_index;
+		uint32_t block_count = 0;
+		for (uint32_t i = 0; i < cluster_index; i++)
+		{
+			block_count++;
+			entry_cluster = TRY(get_next_cluster(entry_cluster));
+		}
+
+		const uint32_t dirent_per_cluster = m_bpb.bytes_per_sector * m_bpb.sectors_per_cluster / sizeof(FAT::DirectoryEntry);
+		ASSERT(BAN::Math::is_power_of_two(dirent_per_cluster));
+		ASSERT(entry_index < dirent_per_cluster);
+
+		const uint32_t ino_cluster_shift = BAN::Math::ctz(dirent_per_cluster);
+		const ino_t ino = (static_cast<ino_t>(entry_cluster) << ino_cluster_shift) | entry_index;
+		if (ino >> ino_cluster_shift != entry_cluster)
+			dwarnln("FAT ino mapping not unique");
+
 		auto it = m_inode_cache.find(ino);
 		if (it != m_inode_cache.end())
 		{
