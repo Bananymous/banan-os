@@ -396,14 +396,6 @@ namespace Kernel
 					dwarnln("FIXME: Using incorrect speed id, {} instead of {}", temp, speed_id);
 				if (auto ret = initialize_device(i + 1, 0, speed_id_to_class(speed_id), nullptr, 0); !ret.is_error())
 					my_port.slot_id = ret.value();
-				else
-				{
-					dwarnln("Could not initialize USB {H}.{H} device: {}",
-						my_port.revision_major,
-						my_port.revision_minor >> 4,
-						ret.error()
-					);
-				}
 			}
 		}
 
@@ -425,15 +417,14 @@ namespace Kernel
 			return BAN::Error::from_errno(EFAULT);
 		}
 
-#if DEBUG_XHCI
-		const auto& root_port = m_ports[(route_string & 0x0F) - 1];
+		const uint8_t root_port_id = route_string & 0x0F;
+		const auto& root_port = m_ports[root_port_id - 1];
 
-		dprintln("Initializing USB {H}.{H} device on slot {}",
+		dprintln_if(DEBUG_XHCI, "Initializing USB {H}.{H} device on slot {}",
 			root_port.revision_major,
-			root_port.revision_minor,
+			root_port.revision_minor >> 4,
 			slot_id
 		);
-#endif
 
 		const XHCIDevice::Info info {
 			.parent_hub = parent_hub,
@@ -447,18 +438,21 @@ namespace Kernel
 		m_slots[slot_id - 1] = TRY(XHCIDevice::create(*this, info));
 		if (auto ret = m_slots[slot_id - 1]->initialize(); ret.is_error())
 		{
-			dwarnln("Could not initialize device on slot {}: {}", slot_id, ret.error());
+			dwarnln("Could not initialize USB {H}.{H} device on slot {}: {}",
+				root_port.revision_major,
+				root_port.revision_minor >> 4,
+				slot_id,
+				ret.error()
+			);
 			m_slots[slot_id - 1].clear();
 			return ret.release_error();
 		}
 
-#if DEBUG_XHCI
-		dprintln("USB {H}.{H} device on slot {} initialized",
+		dprintln_if(DEBUG_XHCI, "USB {H}.{H} device on slot {} initialized",
 			root_port.revision_major,
-			root_port.revision_minor,
+			root_port.revision_minor >> 4,
 			slot_id
 		);
-#endif
 
 		return slot_id;
 	}
