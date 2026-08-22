@@ -75,7 +75,7 @@ namespace Kernel
 		if (flags & ~(O_ACCMODE | O_NOFOLLOW | O_APPEND | O_TRUNC | O_CLOEXEC | O_TTY_INIT | O_NOCTTY | O_DIRECTORY | O_CREAT | O_EXCL | O_NONBLOCK))
 			return BAN::Error::from_errno(ENOTSUP);
 
-		if ((flags & O_ACCMODE) != O_RDWR && __builtin_popcount(flags & O_ACCMODE) != 1)
+		if ((flags & O_ACCMODE) != O_RDWR && BAN::Math::popcount<unsigned>(flags & O_ACCMODE) != 1)
 			return BAN::Error::from_errno(EINVAL);
 
 		if ((flags & O_DIRECTORY) && !file.inode->mode().ifdir())

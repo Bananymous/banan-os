@@ -94,7 +94,7 @@ namespace Kernel
 
 			while (is != 0)
 			{
-				const size_t idx = __builtin_ctz(is);
+				const size_t idx = BAN::Math::ctz(is);
 				if (auto& device = m_devices[idx])
 					device->handle_irq();
 				else

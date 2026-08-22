@@ -121,7 +121,7 @@ namespace Kernel
 			for (size_t i = 0; i < 16; i++)
 				if (page_size_bits & (1 << i))
 					dwarnln("    {} bytes", 1 << (12 + i));
-			if (__builtin_popcount(page_size_bits) != 1)
+			if (BAN::Math::popcount(page_size_bits) != 1)
 				dwarnln("  ... XHCI spec only allows a single supported page size???");
 			return BAN::Error::from_errno(ENOTSUP);
 		}

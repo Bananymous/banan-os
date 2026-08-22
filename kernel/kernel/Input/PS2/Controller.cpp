@@ -347,7 +347,7 @@ namespace Kernel::Input
 									result.command_port = data->as.fixed_io_port.range_base;
 								break;
 							case ACPI::ResourceData::Type::IRQ:
-								if (__builtin_popcount(data->as.irq.irq_mask) != 1)
+								if (BAN::Math::popcount(data->as.irq.irq_mask) != 1)
 									break;
 								for (int i = 0; i < 16; i++)
 									if (data->as.irq.irq_mask & (1 << i))

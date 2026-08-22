@@ -43,11 +43,10 @@ namespace Kernel
 			PageTable::with_per_cpu_fast_page(current_paddr, [&page_matched_bit](void* addr) {
 				for (size_t j = 0; j < PAGE_SIZE / sizeof(size_t); j++)
 				{
-					static_assert(sizeof(size_t) == sizeof(long));
 					auto& current = static_cast<size_t*>(addr)[j];
 					if (current == BAN::numeric_limits<size_t>::max())
 						continue;
-					const int ctz = __builtin_ctzl(~current);
+					const int ctz = BAN::Math::ctz(~current);
 					current |= static_cast<size_t>(1) << ctz;
 					page_matched_bit = j * sizeof(size_t) * 8 + ctz;
 					return;

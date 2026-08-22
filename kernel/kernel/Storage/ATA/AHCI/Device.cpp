@@ -425,7 +425,7 @@ namespace Kernel
 		{
 			if (const uint32_t usable_slots = ~(m_port->sact | m_port->ci) & m_free_slots)
 			{
-				const uint32_t slot = __builtin_ctz(usable_slots);
+				const uint32_t slot = BAN::Math::ctz(usable_slots);
 				m_free_slots &= ~(1u << slot);
 				return slot;
 			}
