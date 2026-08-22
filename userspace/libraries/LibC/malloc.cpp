@@ -96,8 +96,6 @@ struct BitmapAllocator
 		// NOTE: We could optimize other bitmap functions than this
 		//       but this one is the bottle neck so it doesn't matter
 
-		static_assert(sizeof(unsigned long long) == sizeof(uint64_t));
-
 		if (index >= total_chunks)
 			return index;
 
@@ -105,7 +103,7 @@ struct BitmapAllocator
 		{
 			const uint64_t qword = *reinterpret_cast<const uint64_t*>(base + (index - rem) / 8) >> rem;
 			if (qword != UINT64_MAX >> rem)
-				return index + __builtin_ctzll(~qword);
+				return index + BAN::Math::ctz(~qword);
 			index += 64 - rem;
 		}
 
@@ -113,7 +111,7 @@ struct BitmapAllocator
 		{
 			const uint64_t qword = *reinterpret_cast<const uint64_t*>(base + index / 8);
 			if (qword != UINT64_MAX)
-				return index + __builtin_ctzll(~qword);
+				return index + BAN::Math::ctz(~qword);
 			index += 64;
 		}
 

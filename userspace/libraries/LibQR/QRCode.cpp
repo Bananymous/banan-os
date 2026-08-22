@@ -771,9 +771,9 @@ namespace LibQR
 		const auto mod2_remainder =
 			[](uint32_t data, uint32_t generator, uint32_t degree)
 			{
-				constexpr auto bits = [](uint32_t val) -> uint32_t { return 31 - __builtin_clz(val | 1); };
-				while (bits(data) >= degree)
-					data ^= generator << (bits(data) - degree);
+				uint32_t bits;
+				while ((bits = BAN::Math::ilog2(data | 1)) >= degree)
+					data ^= generator << (bits - degree);
 				return data;
 			};
 
