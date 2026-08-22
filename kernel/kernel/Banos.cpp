@@ -14,6 +14,8 @@
 #include <kernel/Lock/SpinLock.h>
 #include <kernel/UserCopy.h>
 
+#if ARCH(x86_64)
+
 using namespace LibELF;
 using namespace Kernel;
 
@@ -204,7 +206,7 @@ BAN::ErrorOr<size_t> Banos::load_driver_from_image(const char* u_image) {
 // NOTE: should be more than plenty ;)
 extern char g_drv_builtin_begin[];
 extern char g_drv_builtin_end[];
-void Banos::initialize_initial_drivers(void) {
+void Banos::initialize_initial_drivers() {
 	import_symbols(g_banos_export, g_banos_export_end - g_banos_export);
 	char* head = g_drv_builtin_begin;
 	while(head < g_drv_builtin_end) {
@@ -213,3 +215,14 @@ void Banos::initialize_initial_drivers(void) {
 		head += drv->driver_size;
 	}
 }
+
+#else
+void Banos::initialize_initial_drivers()
+{
+}
+BAN::ErrorOr<size_t> Banos::load_driver_from_image(const char* u_image)
+{
+	(void)u_image;
+	return BAN::Error::from_errno(ENOTSUP);
+}
+#endif

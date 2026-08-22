@@ -36,34 +36,11 @@ namespace Kernel::ACPI
 			if (offset < 0)
 				return BAN::Error::from_errno(EINVAL);
 
-			if (SystemTimer::get().ms_since_boot() > m_last_read_ms + 1000)
-			{
-				auto [method_path, method_ref] = TRY(m_acpi_namespace.find_named_object(m_battery_path, m_method_name));
-				if (method_ref == nullptr)
-					return BAN::Error::from_errno(EFAULT);
-
-				auto result = TRY(AML::method_call(method_path, method_ref->node, BAN::Array<AML::Reference*, 7>{}));
-				if (result.type != AML::Node::Type::Package || result.as.package->num_elements < m_result_index)
-					return BAN::Error::from_errno(EFAULT);
-
-				auto& target_elem = result.as.package->elements[m_result_index];
-				if (!target_elem.resolved || !target_elem.value.node)
-					return BAN::Error::from_errno(EFAULT);
-
-				auto target_conv = AML::convert_node(TRY(target_elem.value.node->copy()), AML::ConvInteger, sizeof(uint64_t));
-				if (target_conv.is_error())
-					return BAN::Error::from_errno(EFAULT);
-
-				m_last_read_ms = SystemTimer::get().ms_since_boot();
-				m_last_value = target_conv.value().as.integer.value;
-			}
-
-			auto target_str = TRY(BAN::String::formatted("{}", m_last_value.load()));
-
+			auto target_str = TRY(BAN::String::formatted("{}", TRY(get_value())));
 			if (static_cast<size_t>(offset) >= target_str.size())
 				return 0;
 
-			const size_t ncopy = BAN::Math::min(buffer.size(), target_str.size() - offset);
+			const size_t ncopy = BAN::Math::min<size_t>(buffer.size(), target_str.size() - offset);
 			memcpy(buffer.data(), target_str.data() + offset, ncopy);
 			return ncopy;
 		}
@@ -85,14 +62,44 @@ namespace Kernel::ACPI
 			, m_result_index(index)
 		{ }
 
+		BAN::ErrorOr<uint64_t> get_value()
+		{
+			LockGuard _(m_mutex);
+
+			if (SystemTimer::get().ms_since_boot() < m_last_read_ms + 1000)
+				return m_last_value;
+
+			auto [method_path, method_ref] = TRY(m_acpi_namespace.find_named_object(m_battery_path, m_method_name));
+			if (method_ref == nullptr)
+				return BAN::Error::from_errno(EFAULT);
+
+			auto result = TRY(AML::method_call(method_path, method_ref->node, BAN::Array<AML::Reference*, 7>{}));
+			if (result.type != AML::Node::Type::Package || result.as.package->num_elements < m_result_index)
+				return BAN::Error::from_errno(EFAULT);
+
+			auto& target_elem = result.as.package->elements[m_result_index];
+			if (!target_elem.resolved || !target_elem.value.node)
+				return BAN::Error::from_errno(EFAULT);
+
+			auto target_conv = AML::convert_node(TRY(target_elem.value.node->copy()), AML::ConvInteger, sizeof(uint64_t));
+			if (target_conv.is_error())
+				return BAN::Error::from_errno(EFAULT);
+
+			m_last_read_ms = SystemTimer::get().ms_since_boot();
+			m_last_value = target_conv.value().as.integer.value;
+
+			return m_last_value;
+		}
+
 	private:
 		AML::Namespace& m_acpi_namespace;
 		AML::Scope m_battery_path;
 		AML::NameString m_method_name;
 		size_t m_result_index;
 
-		BAN::Atomic<uint64_t> m_last_read_ms = 0;
-		BAN::Atomic<uint64_t> m_last_value = 0;
+		Mutex m_mutex;
+		uint64_t m_last_read_ms = 0;
+		uint64_t m_last_value = 0;
 	};
 
 	BAN::ErrorOr<void> BatterySystem::initialize(AML::Namespace& acpi_namespace)

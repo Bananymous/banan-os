@@ -182,17 +182,23 @@ namespace Kernel
 		}
 
 		template<typename T>
-		static T read_gs_sized(uintptr_t offset) requires(sizeof(T) <= 8 && BAN::Math::is_power_of_two(sizeof(T)))
+		static T read_gs_sized(uintptr_t offset) requires(sizeof(T) <= sizeof(uintptr_t) && BAN::Math::is_power_of_two(sizeof(T)))
 		{
 			T value;
-			asm volatile("mov %%gs:%a[offset], %[value]" : [value]"=r"(value) : [offset]"ir"(offset));
+			if constexpr (sizeof(T) == 1 && ARCH(i686))
+				asm volatile("mov %%gs:%a[offset], %[value]" : [value]"=q"(value) : [offset]"ir"(offset) : "memory");
+			else
+				asm volatile("mov %%gs:%a[offset], %[value]" : [value]"=r"(value) : [offset]"ir"(offset) : "memory");
 			return value;
 		}
 
 		template<typename T>
-		static void write_gs_sized(uintptr_t offset, T value) requires(sizeof(T) <= 8 && BAN::Math::is_power_of_two(sizeof(T)))
+		static void write_gs_sized(uintptr_t offset, T value) requires(sizeof(T) <= sizeof(uintptr_t) && BAN::Math::is_power_of_two(sizeof(T)))
 		{
-			asm volatile("mov %[value], %%gs:%a[offset]" :: [value]"r"(value), [offset]"ir"(offset) : "memory");
+			if constexpr (sizeof(T) == 1 && ARCH(i686))
+				asm volatile("mov %[value], %%gs:%a[offset]" :: [value]"q"(value), [offset]"ir"(offset) : "memory");
+			else
+				asm volatile("mov %[value], %%gs:%a[offset]" :: [value]"r"(value), [offset]"ir"(offset) : "memory");
 		}
 
 		void lock_tlb_lock();

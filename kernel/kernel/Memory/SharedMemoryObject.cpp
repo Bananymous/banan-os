@@ -117,7 +117,7 @@ namespace Kernel
 				.shm_dtime = 0,
 				.shm_ctime = SystemTimer::get().real_time().tv_sec,
 		}));
-		TRY(object->paddrs.resize(BAN::Math::div_round_up(size, PAGE_SIZE), 0));
+		TRY(object->paddrs.resize(BAN::Math::div_round_up<size_t>(size, PAGE_SIZE), 0));
 
 		if (key != IPC_PRIVATE)
 			TRY(m_ids.insert(key, shmid));

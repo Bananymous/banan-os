@@ -44,7 +44,7 @@ namespace Kernel
 		while (m_value == 0)
 			TRY(Thread::current().block_or_eintr_indefinite(m_thread_blocker, &m_mutex));
 
-		const uint64_t read_value = m_is_semaphore ? 1 : m_value.load();
+		const uint64_t read_value = m_is_semaphore ? 1 : m_value;
 		m_value -= read_value;
 
 		buffer.as<uint64_t>() = read_value;
@@ -78,6 +78,18 @@ namespace Kernel
 		m_thread_blocker.unblock();
 
 		return sizeof(uint64_t);
+	}
+
+	bool EventFD::can_read_impl() const
+	{
+		LockGuard _(m_mutex);
+		return m_value > 0;
+	}
+
+	bool EventFD::can_write_impl() const
+	{
+		LockGuard _(m_mutex);
+		return m_value < UINT64_MAX - 1;
 	}
 
 }

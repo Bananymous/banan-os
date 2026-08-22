@@ -302,7 +302,7 @@ namespace Kernel
 			const vaddr_t buffer_vaddr = reinterpret_cast<vaddr_t>(buffer.data());
 			const paddr_t buffer_paddr = to_paddr(buffer_vaddr);
 
-			const size_t bytes = BAN::Math::min(buffer.size(), PAGE_SIZE - buffer_vaddr % PAGE_SIZE);
+			const size_t bytes = BAN::Math::min<size_t>(buffer.size(), PAGE_SIZE - buffer_vaddr % PAGE_SIZE);
 
 			bool can_extend = true;
 			if (prdt_count == 0)

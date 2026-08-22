@@ -115,7 +115,7 @@ namespace Kernel
 			return {};
 
 		const vaddr_t first_page = BAN::Math::max(m_vaddr, address) & PAGE_ADDR_MASK;
-		const vaddr_t last_page = BAN::Math::div_round_up(BAN::Math::min(m_vaddr + m_size, address + size), PAGE_SIZE) * PAGE_SIZE;
+		const vaddr_t last_page = BAN::Math::div_round_up<vaddr_t>(BAN::Math::min(m_vaddr + m_size, address + size), PAGE_SIZE) * PAGE_SIZE;
 
 		RWLockRDGuard _(m_shared_data->rw_lock);
 		for (vaddr_t page_addr = first_page; page_addr < last_page; page_addr += PAGE_SIZE)
