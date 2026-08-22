@@ -197,17 +197,36 @@ namespace Kernel
 			return BAN::Error::from_errno(ENOTSUP);
 		}
 
+		// set timer period to 1000 Hz
+		const uint64_t ticks_per_ms = m_ticks_per_s / 1000;
+
+#if ARCH(x86_64)
+		const bool use_64bit_timer = !!(timer0.configuration & Tn_SIZE_CAP);
+#else
+		// Spec recommends using 32 bit timers when the cpu can't do atomic 64 bit accesses
+		const bool use_64bit_timer = !!(timer0.configuration & Tn_SIZE_CAP) && (ticks_per_ms > 0xFFFFFFFF);
+#endif
+
+		if (!use_64bit_timer && ticks_per_ms >= 0x100000000)
+		{
+			dprintln("HPET: cannot create 1 kHz timer");
+			return BAN::Error::from_errno(ENOTSUP);
+		}
+
 		// enable interrupts
-		timer0.configuration = timer0.configuration |  Tn_INT_ENB_CNF;
+		timer0.configuration |=  Tn_INT_ENB_CNF;
 		// edge triggered interrupts
-		timer0.configuration = timer0.configuration & ~Tn_INT_TYPE_CNF;
+		timer0.configuration &= ~Tn_INT_TYPE_CNF;
 		// periodic timer
-		timer0.configuration = timer0.configuration |  Tn_TYPE_CNF;
-		// disable 32 bit mode
-		timer0.configuration = timer0.configuration & ~Tn_32MODE_CNF;
+		timer0.configuration |=  Tn_TYPE_CNF;
+		// set 32 bit mode
+		if (use_64bit_timer)
+			timer0.configuration &= ~Tn_32MODE_CNF;
+		else
+			timer0.configuration |=  Tn_32MODE_CNF;
 		// disable FSB interrupts
 		if (timer0.configuration & Tn_FSB_INT_DEL_CAP)
-			timer0.configuration = timer0.configuration & ~Tn_FSB_EN_CNF;
+			timer0.configuration &= ~Tn_FSB_EN_CNF;
 
 		uint16_t irq;
 		if (header->legacy_replacement_irq_routing_cable)
@@ -244,10 +263,7 @@ namespace Kernel
 			timer0.configuration = (timer0.configuration & ~Tn_INT_ROUTE_CNF_MASK) | (gsi << Tn_INT_ROUTE_CNF_SHIFT);
 		}
 
-		// set timer period to 1000 Hz
-		const uint64_t ticks_per_ms = m_ticks_per_s / 1000;
-
-		if (timer0.configuration & Tn_SIZE_CAP)
+		if (use_64bit_timer)
 		{
 #if ARCH(x86_64)
 			timer0.configuration = timer0.configuration | Tn_VAL_SET_CNF;
@@ -259,15 +275,10 @@ namespace Kernel
 			timer0.comparator.high = ticks_per_ms >> 32;
 #endif
 		}
-		else if (ticks_per_ms <= 0xFFFFFFFF)
+		else
 		{
 			timer0.configuration = timer0.configuration | Tn_VAL_SET_CNF;
 			timer0.comparator.low = ticks_per_ms;
-		}
-		else
-		{
-			dprintln("HPET: cannot create 1 kHz timer");
-			return BAN::Error::from_errno(ENOTSUP);
 		}
 
 		set_irq(irq);
