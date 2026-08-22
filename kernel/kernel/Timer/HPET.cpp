@@ -136,8 +136,7 @@ namespace Kernel
 		auto* header = static_cast<const ACPI::HPET*>(ACPI::ACPI::get().get_header("HPET"_sv, 0));
 		if (header == nullptr)
 			return BAN::Error::from_errno(ENODEV);
-
-		if (header->hardware_rev_id == 0)
+		if (header->length < sizeof(ACPI::HPET))
 			return BAN::Error::from_errno(EINVAL);
 
 		if (!InterruptController::get().is_using_apic() && !header->legacy_replacement_irq_routing_cable)
@@ -152,6 +151,12 @@ namespace Kernel
 		PageTable::kernel().map_page_at(header->base_address.address, m_mmio_base, PageTable::Flags::ReadWrite | PageTable::Flags::Present);
 
 		auto& regs = registers();
+
+		if ((regs.capabilities & 0xFF) == 0)
+		{
+			dwarnln("HPET: Invalid revision");
+			return BAN::Error::from_errno(EINVAL);
+		}
 
 #if ARCH(x86_64)
 		m_is_64bit = regs.capabilities & COUNT_SIZE_CAP;
