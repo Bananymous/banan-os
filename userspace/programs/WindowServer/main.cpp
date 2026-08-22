@@ -244,6 +244,13 @@ int main()
 		}
 	}
 
+	auto config = parse_config();
+
+	WindowServer window_server(framebuffer, config.corner_radius);
+	if (config.background_image)
+		if (auto ret = window_server.set_background_image(BAN::move(config.background_image)); ret.is_error())
+			dwarnln("Could not set background image: {}", ret.error());
+
 	dprintln("Window server started");
 
 	if (access("/usr/bin/xbanan", X_OK) == 0)
@@ -257,12 +264,17 @@ int main()
 		}
 	}
 
-	auto config = parse_config();
+	if (fork() == 0)
+	{
+		execl("/usr/bin/TaskBar", "TaskBar", NULL);
+		exit(1);
+	}
 
-	WindowServer window_server(framebuffer, config.corner_radius);
-	if (config.background_image)
-		if (auto ret = window_server.set_background_image(BAN::move(config.background_image)); ret.is_error())
-			dwarnln("Could not set background image: {}", ret.error());
+	if (fork() == 0)
+	{
+		execl("/usr/bin/Terminal", "Terminal", NULL);
+		exit(1);
+	}
 
 	const auto get_current_us =
 		[]() -> uint64_t
