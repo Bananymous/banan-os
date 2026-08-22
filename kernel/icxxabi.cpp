@@ -38,25 +38,39 @@ extern "C" void __cxa_finalize(void* f)
 	}
 };
 
-namespace __cxxabiv1
+extern "C" int __cxa_guard_acquire(uint64_t* g)
 {
-	using __guard = uint64_t;
+	uint8_t* guard = reinterpret_cast<uint8_t*>(g);
 
-	extern "C" int __cxa_guard_acquire (__guard* g)
+	for (;;)
 	{
-		uint8_t* byte = reinterpret_cast<uint8_t*>(g);
-		uint8_t zero = 0;
-		return __atomic_compare_exchange_n(byte, &zero, 1, false, __ATOMIC_ACQUIRE, __ATOMIC_ACQUIRE);
-	}
+		if (BAN::atomic_load(guard[0], BAN::memory_order_acquire))
+			return 0;
 
-	extern "C" void __cxa_guard_release (__guard* g)
-	{
-		uint8_t* byte = reinterpret_cast<uint8_t*>(g);
-		__atomic_store_n(byte, 0, __ATOMIC_RELEASE);
-	}
+		uint8_t expected = 0;
+		if (BAN::atomic_compare_exchange(guard[1], expected, 1, BAN::memory_order_acquire))
+		{
+			if (BAN::atomic_load(guard[0], BAN::memory_order_acquire))
+			{
+				BAN::atomic_store(guard[1], 0, BAN::memory_order_release);
+				return 0;
+			}
+			return 1;
+		}
 
-	extern "C" void __cxa_guard_abort (__guard*)
-	{
-		Kernel::panic("__cxa_guard_abort");
+		while (BAN::atomic_load(guard[1], BAN::memory_order_acquire))
+			Kernel::Processor::pause();
 	}
+}
+
+extern "C" void __cxa_guard_release(uint64_t* g)
+{
+	uint8_t* guard = reinterpret_cast<uint8_t*>(g);
+	BAN::atomic_store(guard[0], 1, BAN::memory_order_release);
+	BAN::atomic_store(guard[1], 0, BAN::memory_order_release);
+}
+
+extern "C" void __cxa_guard_abort(uint64_t*)
+{
+	Kernel::panic("__cxa_guard_abort");
 }
