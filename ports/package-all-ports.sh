@@ -15,7 +15,7 @@ package_standalone() {
 
 	local xbps_file="$BANAN_XBPS_REPO/${version_string}.xbps"
 	if [[ -f "$xbps_file" ]]; then
-		[[ 'build.sh' -ot "$xbps_file" ]] && [[ ! -d 'patches' || -z "$(find patches -newer "$xbps_file" -quit)" ]] && return
+		[[ 'build.sh' -ot "$xbps_file" ]] && [[ ! -d 'patches' || 'patches' -ot "$xbps_file" ]] && return
 		rm "$xbps_file"
 	fi
 
