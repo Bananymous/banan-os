@@ -43,6 +43,8 @@ namespace Kernel
 		LockGuard _(m_mutex);
 		for (size_t i = 0; i < m_open_files.size(); i++)
 			m_open_files[i] = BAN::move(other.m_open_files[i]);
+		for (size_t i = 0; i < m_cloexec_files.size(); i++)
+			m_cloexec_files[i] = other.m_cloexec_files[i];
 		return *this;
 	}
 
@@ -332,7 +334,7 @@ namespace Kernel
 				return new_fd;
 			}
 			case F_GETFD:
-				return is_cloexec(fd) ? O_CLOEXEC : 0;
+				return is_cloexec(fd) ? FD_CLOEXEC : 0;
 			case F_SETFD:
 				if (extra & FD_CLOEXEC)
 					add_cloexec(fd);
