@@ -1,14 +1,19 @@
 #include <stdio.h>
 #include <unistd.h>
+#include <pwd.h>
 
 int main()
 {
-	char* login = getlogin();
-	if (login == nullptr)
+	const uid_t euid = geteuid();
+
+	const auto* pw = getpwuid(euid);
+	if (pw == nullptr)
 	{
-		printf("unknown user %d\n", geteuid());
+		fprintf(stderr, "unknown user id %d\n", euid);
 		return 1;
 	}
-	printf("%s\n", login);
+
+	printf("%s\n", pw->pw_name);
+
 	return 0;
 }
