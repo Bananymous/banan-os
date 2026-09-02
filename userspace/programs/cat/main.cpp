@@ -1,17 +1,15 @@
 #include <fcntl.h>
 #include <stdio.h>
+#include <string.h>
 
-bool cat_file(int fd)
+static bool cat_file(int fd)
 {
-	char last = '\0';
+	char last = '\n';
 	char buffer[1024];
 	while (ssize_t n_read = read(fd, buffer, sizeof(buffer)))
 	{
 		if (n_read == -1)
-		{
-			perror("read");
 			return false;
-		}
 		write(STDOUT_FILENO, buffer, n_read);
 		last = buffer[n_read - 1];
 	}
@@ -20,30 +18,29 @@ bool cat_file(int fd)
 	return true;
 }
 
-int main(int argc, char** argv)
+int main(int argc, const char** argv)
 {
-	int ret = 0;
-
-	if (argc > 1)
+	if (argc < 2)
 	{
-		for (int i = 1; i < argc; i++)
-		{
-			int fd = open(argv[i], O_RDONLY);
-			if (fd == -1)
-			{
-				perror(argv[i]);
-				ret = 1;
-				continue;
-			}
-			if (!cat_file(fd))
-				ret = 1;
-			close(fd);
-		}
+		argv[1] = "-";
+		argc = 2;
 	}
-	else
+
+	int ret = 0;
+	for (int i = 1; i < argc; i++)
 	{
-		if (!cat_file(STDIN_FILENO))
+		int fd = (strcmp(argv[i], "-") == 0)
+			? STDIN_FILENO
+			: open(argv[i], O_RDONLY);
+
+		if (fd == -1 || !cat_file(fd))
+		{
+			printf("%s: %s: %m\n", argv[0], argv[i]);
 			ret = 1;
+		}
+
+		if (fd != STDIN_FILENO)
+			close(fd);
 	}
 
 	return ret;
