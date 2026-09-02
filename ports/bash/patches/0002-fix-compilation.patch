@@ -1,0 +1,80 @@
+diff -ruN bash-5.3/bashline.c bash-5.3-banan_os/bashline.c
+--- bash-5.3/bashline.c	2025-06-25 22:53:44.000000000 +0300
++++ bash-5.3-banan_os/bashline.c	2026-09-04 20:07:52.674776670 +0300
+@@ -4142,7 +4142,7 @@
+ 	}
+     }
+ #else
+-    rl_point++:
++    rl_point++;
+ #endif
+   return point;
+ }
+diff -ruN bash-5.3/builtins/printf.def bash-5.3-banan_os/builtins/printf.def
+--- bash-5.3/builtins/printf.def	2025-03-17 17:49:35.000000000 +0200
++++ bash-5.3-banan_os/builtins/printf.def	2026-09-04 20:07:52.678532467 +0300
+@@ -355,7 +355,9 @@
+ 
+   garglist = orig_arglist = list->next;
+ 
++#if defined (HANDLE_MULTIBYTE)
+   mb_cur_max = MB_CUR_MAX;
++#endif
+ 
+   /* Basic algorithm is to scan the format string for conversion
+      specifications -- once one is found, find out if the field
+@@ -1175,8 +1177,8 @@
+ static char *
+ bexpand (char *string, size_t len, int *sawc, size_t *lenp)
+ {
+-  int temp, c;
+-  char *ret, *r, *s, *send;
++  int temp;
++  char *ret, *r, *s, *send, c;
+ #if defined (HANDLE_MULTIBYTE)
+   char mbch[25];
+   int mbind, mblen;
+diff -ruN bash-5.3/lib/glob/smatch.c bash-5.3-banan_os/lib/glob/smatch.c
+--- bash-5.3/lib/glob/smatch.c	2023-05-29 21:15:17.000000000 +0300
++++ bash-5.3-banan_os/lib/glob/smatch.c	2026-09-04 20:07:52.687471481 +0300
+@@ -285,8 +285,10 @@
+   enum char_class char_class;
+   int result;
+ 
++#if HANDLE_MULTIBYTE
+   if (locale_utf8locale && UTF8_SINGLEBYTE (c) == 0)
+     return -1;
++#endif
+ 
+   char_class = is_valid_cclass (name);
+   if (char_class == CC_NO_CLASS)
+@@ -298,10 +300,17 @@
+ 
+ /* Now include `sm_loop.c' for single-byte characters. */
+ /* The result of FOLD is an `unsigned char' */
++#if HANDLE_MULTIBYTE
+ # define FOLD(c) \
+   (((flags & FNM_CASEFOLD) && (locale_utf8locale == 0 || UTF8_SINGLEBYTE (c))) \
+     ? TOLOWER ((unsigned char)c) \
+     : ((unsigned char)c))
++#else
++# define FOLD(c) \
++  ((flags & FNM_CASEFOLD) \
++   ? TOLOWER((unsigned char)c) \
++   : ((unsigned char)c))
++#endif
+ 
+ #if !defined (__CYGWIN__)
+ #  define ISDIRSEP(c)	((c) == '/')
+diff -ruN bash-5.3/lib/sh/fpurge.c bash-5.3-banan_os/lib/sh/fpurge.c
+--- bash-5.3/lib/sh/fpurge.c	2022-12-28 22:06:02.000000000 +0200
++++ bash-5.3-banan_os/lib/sh/fpurge.c	2026-09-04 20:07:52.683446376 +0300
+@@ -31,7 +31,7 @@
+ #endif
+ extern int fpurge (FILE *stream);
+ 
+-#if HAVE___FPURGE                   /* glibc >= 2.2, Haiku, Solaris >= 7 */
++#if HAVE___FPURGE && !defined(__banan_os__) /* glibc >= 2.2, Haiku, Solaris >= 7 */
+ # include <stdio_ext.h>
+ #endif
+ #include <stdlib.h>

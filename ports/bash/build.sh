@@ -1,8 +1,8 @@
 #!/bin/bash ../install.sh
 
 NAME='bash'
-VERSION='5.2.37'
-DOWNLOAD_URL="https://ftpmirror.gnu.org/gnu/bash/bash-$VERSION.tar.gz#9599b22ecd1d5787ad7d3b7bf0c59f312b3396d1e281175dd1f8a4014da621ff"
+VERSION='5.3'
+DOWNLOAD_URL="https://ftpmirror.gnu.org/gnu/bash/bash-$VERSION.tar.gz#0d5cd86965f869a26cf64f4b71be7b96f90a3ba8b3d74e27e8e9d9d5550f31ba"
 DEPENDENCIES=('ncurses')
 CONFIG_SUB=('support/config.sub')
 CONFIGURE_OPTIONS=(
@@ -10,13 +10,8 @@ CONFIGURE_OPTIONS=(
 	'--without-bash-malloc'
 	'--with-curses'
 	'bash_cv_unusable_rtsigs=no'
-	'bash_cv_struct_winsize_termios=yes' # configure checks for sys/termios.h? code uses termios.h correctly
-	'CFLAGS=-std=c17 -Wno-discarded-qualifiers'
-	'CFLAGS_FOR_BUILD=-std=c17'
 )
 
 post_install() {
-	if [ ! -L "$DESTDIR/usr/bin/sh" ]; then
-		ln -sv "bash $DESTDIR/usr/bin/sh"
-	fi
+	ln -svf bash "$DESTDIR/usr/bin/sh"
 }

@@ -1,0 +1,11 @@
+diff -ruN bash-5.3/configure bash-5.3-banan_os/configure
+--- bash-5.3/configure	2025-06-30 17:05:30.000000000 +0300
++++ bash-5.3-banan_os/configure	2026-09-04 21:12:40.007492595 +0300
+@@ -23163,6 +23163,7 @@
+ case "${host_os}-${CC}" in
+ aix4.2*-*gcc*)	LOCAL_LDFLAGS="-Xlinker -bexpall -Xlinker -brtl" ;;
+ aix4.2*)	LOCAL_LDFLAGS="-bexpall -brtl" ;;
++banan_os*-*gcc*)	LOCAL_LDFLAGS="-Wl,-E" ;;	# allow dynamic loading
+ bsdi4*-*gcc*)	LOCAL_LDFLAGS="-rdynamic" ;;	# allow dynamic loading, like Linux
+ bsdi5*-*gcc*)	LOCAL_LDFLAGS="-rdynamic" ;;	# allow dynamic loading, like Linux
+ hpux11*-gcc*)	LOCAL_LDFLAGS="-Wl,-E" ;;	# allow dynamic loading
