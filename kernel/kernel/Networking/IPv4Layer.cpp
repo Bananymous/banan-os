@@ -172,7 +172,7 @@ namespace Kernel
 				continue;
 			// FIXME: sockets should have bound address
 			in_addr->sin_family = AF_INET;
-			in_addr->sin_port = bound_port;
+			in_addr->sin_port = BAN::host_to_network_endian<uint16_t>(bound_port);
 			in_addr->sin_addr.s_addr = INADDR_ANY;
 			return {};
 		}
