@@ -117,6 +117,7 @@ static constexpr size_t s_max_tls_modules { sizeof(uthread::dtv) / sizeof(*uthre
 static LoadedObject* s_global_scope { nullptr };
 static BAN::HashMap<BAN::String, LoadedObject*> s_loaded_objects;
 static const char* s_ld_library_path { nullptr };
+static const char* s_ld_preload { nullptr };
 
 template<typename T> concept Elf_Rel_c = BAN::is_same_v<T, Elf_Rel> || BAN::is_same_v<T, Elf_RelA>;
 
@@ -937,22 +938,35 @@ static LoadedObject* load_object(char* full_path, int fd, bool load_local)
 		pltgot[2] = reinterpret_cast<uintptr_t>(_resolve_symbol_trampoline);
 	}
 
+	const auto load_dependency = [object, load_local](BAN::StringView name) -> bool {
+		if (char* full_path = find_library(*object, name); full_path == nullptr)
+			return false;
+		else if (auto* dependency = load_object(full_path, -1, load_local); dependency == nullptr)
+			return false;
+		else if (object->dependencies.push_back(dependency).is_error())
+			return false;
+		return true;
+	};
+
+	const char* preload = s_ld_preload;
+	s_ld_preload = nullptr;
+
+	for (const char* ptr = preload; preload; ptr++)
+	{
+		if (*ptr != ':' && *ptr != ' ' && *ptr != '\0')
+			continue;
+		if (!load_dependency({ preload, static_cast<size_t>(ptr - preload) }))
+			fprintf(stderr, "could not preload library %*s\n", static_cast<int>(ptr - preload), preload);
+		if (*ptr == '\0')
+			break;
+		preload = ptr + 1;
+	}
+
 	for (const auto& dynamic : dynamics)
 	{
 		if (dynamic.d_tag != DT_NEEDED)
 			continue;
-
-		const char* needed_name = reinterpret_cast<const char*>(object->dynamic.strtab + dynamic.d_un.d_val);
-
-		char* full_path = find_library(*object, needed_name);
-		if (full_path == nullptr)
-			return nullptr;
-
-		auto* dependency = load_object(full_path, -1, load_local);
-		if (dependency == nullptr)
-			return nullptr;
-
-		if (object->dependencies.push_back(dependency).is_error())
+		if (!load_dependency(reinterpret_cast<const char*>(object->dynamic.strtab + dynamic.d_un.d_val)))
 			return nullptr;
 	}
 
@@ -1609,22 +1623,12 @@ static void initialize_tls_stage2(MasterTLS master_tls)
 #endif
 }
 
-static void copy_relocate_main_object(LoadedObject& object)
+static void rerelocate_self()
 {
-	if (object.dynamic.rel && object.dynamic.relent)
-		for (size_t i = 0; i < object.dynamic.relsz / object.dynamic.relent; i++)
-			handle_copy_relocation(object, *reinterpret_cast<Elf_Rel*>(object.dynamic.rel + i * object.dynamic.relent));
-	if (object.dynamic.rela && object.dynamic.relaent)
-		for (size_t i = 0; i < object.dynamic.relasz / object.dynamic.relaent; i++)
-			handle_copy_relocation(object, *reinterpret_cast<Elf_RelA*>(object.dynamic.rela + i * object.dynamic.relaent));
-
-	// NOTE: copy relocations can move symbols from libc -> main executable, so we need to re-relocate some of our symbols.
-	//       technically we have to do all relocations that depend on symbol addresses but GLOB_DAT should be enough for us.
-	// FIXME: validate that all copy relocations only have GLOB_DAT relocations in libc during runtime
-
 	auto it = s_loaded_objects.find(BAN::StringView(s_self.full_path));
 	if (it == s_loaded_objects.end())
-		return; // main executable did not link against us
+		return;
+	const auto& self = *it->value;
 
 #if defined(__x86_64__)
 	constexpr uint32_t glob_dat = R_X86_64_GLOB_DAT;
@@ -1632,7 +1636,6 @@ static void copy_relocate_main_object(LoadedObject& object)
 	constexpr uint32_t glob_dat = R_386_GLOB_DAT;
 #endif
 
-	const auto& self = *it->value;
 	if (self.dynamic.rel && self.dynamic.relent)
 		for (size_t i = 0; i < self.dynamic.relsz / self.dynamic.relent; i++)
 			if (const auto& reloc = *reinterpret_cast<Elf_Rel*>(self.dynamic.rel + i * self.dynamic.relent); ELF_R_TYPE(reloc.r_info) == glob_dat)
@@ -1641,6 +1644,33 @@ static void copy_relocate_main_object(LoadedObject& object)
 		for (size_t i = 0; i < self.dynamic.relasz / self.dynamic.relaent; i++)
 			if (const auto& reloc = *reinterpret_cast<Elf_RelA*>(self.dynamic.rela + i * self.dynamic.relaent); ELF_R_TYPE(reloc.r_info) == glob_dat)
 				handle_relocation(self, reloc, true);
+
+	if (self.dynamic.jmprel && self.dynamic.pltrelsz)
+	{
+		switch (self.dynamic.pltrel)
+		{
+			case DT_REL:
+				for (size_t i = 0; i < self.dynamic.pltrelsz / sizeof(Elf_Rel); i++)
+					handle_relocation(self, reinterpret_cast<Elf_Rel*>(self.dynamic.jmprel)[i], true);
+				break;
+			case DT_RELA:
+				for (size_t i = 0; i < self.dynamic.pltrelsz / sizeof(Elf_RelA); i++)
+					handle_relocation(self, reinterpret_cast<Elf_RelA*>(self.dynamic.jmprel)[i], true);
+				break;
+			default:
+				ASSERT_NOT_REACHED();
+		}
+	}
+}
+
+static void copy_relocate_main_object(LoadedObject& object)
+{
+	if (object.dynamic.rel && object.dynamic.relent)
+		for (size_t i = 0; i < object.dynamic.relsz / object.dynamic.relent; i++)
+			handle_copy_relocation(object, *reinterpret_cast<Elf_Rel*>(object.dynamic.rel + i * object.dynamic.relent));
+	if (object.dynamic.rela && object.dynamic.relaent)
+		for (size_t i = 0; i < object.dynamic.relasz / object.dynamic.relaent; i++)
+			handle_copy_relocation(object, *reinterpret_cast<Elf_RelA*>(object.dynamic.rela + i * object.dynamic.relaent));
 }
 
 static void relocate_self()
@@ -1841,9 +1871,15 @@ static uintptr_t _libc_main(int argc, char* argv[], char* envp[])
 
 	// set-uid and set-gid should not search LD_LIBRARY_PATH
 	if (struct stat st; stat(realpath, &st) == 0 && !(st.st_mode & (S_ISUID | S_ISGID)))
+	{
 		for (size_t i = 0; envp[i]; i++)
+		{
 			if (strncmp(envp[i], "LD_LIBRARY_PATH=", 16) == 0)
 				s_ld_library_path = envp[i] + 16;
+			if (strncmp(envp[i], "LD_PRELOAD=", 11) == 0)
+				s_ld_preload = envp[i] + 11;
+		}
+	}
 
 	auto* object = load_object(realpath, execfd.value(), false);
 	if (object == nullptr)
@@ -1865,6 +1901,8 @@ static uintptr_t _libc_main(int argc, char* argv[], char* envp[])
 	relocate_object(*object, bind_now);
 
 	copy_relocate_main_object(*object);
+
+	rerelocate_self();
 
 	initialize_tls_stage2(master_tls);
 
