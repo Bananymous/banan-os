@@ -1,0 +1,21 @@
+diff -ruN wget-1.25.0/lib/getprogname.c wget-1.25.0-banan_os/lib/getprogname.c
+--- wget-1.25.0/lib/getprogname.c	2024-11-10 23:27:18.000000000 +0200
++++ wget-1.25.0-banan_os/lib/getprogname.c	2026-09-03 08:54:02.809058304 +0300
+@@ -50,7 +50,7 @@
+ # include <sys/procfs.h>
+ #endif
+ 
+-#if defined __SCO_VERSION__ || defined __sysv5__
++#if defined __SCO_VERSION__ || defined __sysv5__ || defined __banan_os__
+ # include <fcntl.h>
+ # include <string.h>
+ #endif
+@@ -265,7 +265,7 @@
+         }
+     }
+   return NULL;
+-# elif defined __SCO_VERSION__ || defined __sysv5__                /* SCO OpenServer6/UnixWare */
++# elif defined __SCO_VERSION__ || defined __sysv5__ || defined __banan_os__                /* SCO OpenServer6/UnixWare */
+   char buf[80];
+   int fd;
+   sprintf (buf, "/proc/%d/cmdline", getpid());
