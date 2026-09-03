@@ -729,6 +729,18 @@ char* strptime(const char* buf, const char* format, struct tm* tm) {
             if(sec < 0 || sec > 60) return NULL;
             tm->tm_sec = sec;
         } break;
+        case 'D': {
+            buf = strptime(buf, "%m/%d/%y", tm);
+            if (buf == NULL) return NULL;
+        } break;
+        case 'R': {
+            buf = strptime(buf, "%H:%M", tm);
+            if (buf == NULL) return NULL;
+        } break;
+        case 'T': {
+            buf = strptime(buf, "%H:%M:%S", tm);
+            if (buf == NULL) return NULL;
+        } break;
         default:
             derrorln("TODO: strptime fmt {}", fmt_chr);
             ASSERT_NOT_REACHED();
