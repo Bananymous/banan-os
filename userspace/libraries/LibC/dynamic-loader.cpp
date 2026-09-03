@@ -217,15 +217,11 @@ static FindSymbolInScopeResult find_symbol_in_scope(const LoadedObject& object, 
 static FindSymbolInScopeResult find_symbol_in_scope(const LoadedObject& object, uint32_t symbol_index)
 {
 	const auto& symbol = *reinterpret_cast<Elf_Sym*>(object.dynamic.symtab + symbol_index * object.dynamic.syment);
-	BAN::StringView symbol_name = reinterpret_cast<const char*>(object.dynamic.strtab + symbol.st_name);
-
 	if (ELF_ST_BIND(symbol.st_info) == STB_LOCAL && symbol.st_shndx)
 		return { &object, object.base_address + symbol.st_value };
 
-	const auto result = find_symbol_in_scope(object, symbol_name);
-	if (result.object == nullptr)
-		ASSERT(ELF_ST_BIND(symbol.st_info) == STB_WEAK);
-	return result;
+	const char* symbol_name = reinterpret_cast<const char*>(object.dynamic.strtab + symbol.st_name);
+	return find_symbol_in_scope(object, symbol_name);
 }
 
 template<Elf_Rel_c RelocT>
@@ -386,7 +382,19 @@ static uintptr_t handle_relocation(const LoadedObject& object, const RelocT& rel
 
 	uintptr_t symbol_address = 0;
 	if (symbol_index != 0)
-		symbol_address = find_symbol_in_scope(object, symbol_index).address;
+	{
+		const auto& symbol = *reinterpret_cast<Elf_Sym*>(object.dynamic.symtab + symbol_index * object.dynamic.syment);
+		const auto result = find_symbol_in_scope(object, symbol_index);
+		if (result.object == nullptr && ELF_ST_BIND(symbol.st_info) != STB_WEAK)
+		{
+			// FIXME: propagate errors, this is non fatal for dlopen
+			const char* symbol_name = reinterpret_cast<const char*>(object.dynamic.strtab + symbol.st_name);
+			fprintf(stderr, "symbol '%s' not found\n", symbol_name);
+			_exit(1);
+		}
+
+		symbol_address = result.address;
+	}
 
 	size_t size = 0;
 	uintptr_t value = 0;
@@ -775,6 +783,8 @@ static LoadedObject* load_object(char* full_path, int fd, bool load_local)
 		if (uintptr_t* pltgot = reinterpret_cast<uintptr_t*>(object->dynamic.pltgot))
 			pltgot[1] = reinterpret_cast<uintptr_t>(&object);
 
+		path_deleter.to_free = nullptr;
+
 		return object;
 	}
 
@@ -978,9 +988,6 @@ static void relocate_object(LoadedObject& object, bool bind_now)
 			handle_tls_relocation(object, *reinterpret_cast<Elf_RelA*>(object.dynamic.rela + i * object.dynamic.relaent));
 	}
 
-	if (strcmp(object.full_path, s_self.full_path) == 0)
-		return;
-
 	// do jumprel relocations
 	if (object.dynamic.jmprel && object.dynamic.pltrelsz)
 	{
@@ -1179,7 +1186,7 @@ void* dlopen(const char* file, int mode)
 	char* full_path = find_library(*source_object, file);
 	if (full_path == nullptr)
 	{
-		s_dlerror_string = "Could not find file";
+		s_dlerror_string = "could not find file";
 		return nullptr;
 	}
 
