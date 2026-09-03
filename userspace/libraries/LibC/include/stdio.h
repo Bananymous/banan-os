@@ -129,6 +129,9 @@ int		vsscanf(const char* __restrict s, const char* __restrict format, va_list ar
 
 size_t __fpending(FILE* stream);
 void __fseterr(FILE* stream);
+void __fpurge(FILE* stream);
+int __freading(FILE* stream);
+int __fwriting(FILE* stream);
 
 __END_DECLS
 

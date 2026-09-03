@@ -146,6 +146,34 @@ void __fseterr(FILE* file)
 	file->error = true;
 }
 
+void __fpurge(FILE* file)
+{
+	ScopeLock _(file);
+	if (file->buffer_rd_size)
+		(void)drop_read_buffer(file);
+	file->buffer_idx = 0;
+}
+
+int __freading(FILE* file)
+{
+	ScopeLock _(file);
+	if (!(file->mode & O_RDONLY))
+		return 0;
+	if (!(file->mode & O_WRONLY))
+		return 1;
+	return file->buffer_rd_size > 0;
+}
+
+int __fwriting(FILE* file)
+{
+	ScopeLock _(file);
+	if (!(file->mode & O_WRONLY))
+		return 0;
+	if (!(file->mode & O_RDONLY))
+		return 1;
+	return file->buffer_rd_size == 0 && file->buffer_idx;
+}
+
 char* ctermid(char* buffer)
 {
 	static char s_buffer[L_ctermid];
