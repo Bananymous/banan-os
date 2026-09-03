@@ -323,6 +323,9 @@ static Node* compile_or(BAN::Span<const Token>& tokens)
 
 static Node* compile_expr(BAN::Span<const Token>& tokens)
 {
+	if (tokens[0].type == Token::TOK_END)
+		return nullptr;
+
 	return compile_or(tokens);
 }
 
@@ -331,22 +334,24 @@ Node* compile_tokens(BAN::Span<const Token> tokens)
 	s_needs_implicit_print = true;
 
 	Node* node = compile_expr(tokens);
+
 	if (tokens[0].type != Token::TOK_END)
 		print_error_and_exit("unexpected token '%s'\n", tokens[0].string);
 
-	if (s_needs_implicit_print)
-	{
-		node = new Node {
-			Node::Type::NOD_AND, {
-				.bin_op = {
-					.lhs = node,
-					.rhs = new Node { Node::Type::NOD_PRINT },
-				},
-			},
-		};
-	}
+	if (!s_needs_implicit_print)
+		return node;
 
-	return node;
+	if (node == nullptr)
+		return new Node { Node::Type::NOD_PRINT };
+
+	return new Node {
+		Node::Type::NOD_AND, {
+			.bin_op = {
+				.lhs = node,
+				.rhs = new Node { Node::Type::NOD_PRINT },
+			},
+		},
+	};
 }
 
 bool evaluate_node(Node* node, const char* path, struct stat& st)
