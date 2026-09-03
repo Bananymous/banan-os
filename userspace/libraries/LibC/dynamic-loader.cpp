@@ -1258,37 +1258,63 @@ void* dlsym(void* __restrict handle, const char* __restrict name)
 		return nullptr;
 	}
 
+
+	void* weak_address { nullptr };
+	bool found_weak { false };
+
 	const auto name_sv = BAN::StringView { name };
+	const auto check_object = [&weak_address, &found_weak, name_sv](const LoadedObject* object) -> void* {
+		const auto* match = find_symbol_in_object(*object, name_sv);
+		if (match == nullptr)
+			return nullptr;
+		if (ELF_ST_BIND(match->st_info) != STB_WEAK)
+			return reinterpret_cast<void*>(object->base_address + match->st_value);
+		if (!found_weak && match->st_value != 0)
+			weak_address = reinterpret_cast<void*>(object->base_address + match->st_value);
+		found_weak = true;
+		return nullptr;
 
-	BAN::Vector<const LoadedObject*> current_level, checked;
-	MUST(current_level.push_back(static_cast<LoadedObject*>(handle)));
+	};
 
-	bool found_weak = false;
-	uintptr_t weak_address = 0;
-
-	while (!current_level.empty())
+	if (handle == RTLD_NEXT)
 	{
-		BAN::Vector<const LoadedObject*> next_level;
-		for (const auto* lookup : current_level)
+		const auto* object = find_object_containing(__builtin_return_address(0));
+		if (object == nullptr)
 		{
-			if (checked.contains(lookup))
-				continue;
-
-			const auto* match = find_symbol_in_object(*lookup, name_sv);
-			if (match != nullptr)
-			{
-				if (ELF_ST_BIND(match->st_info) != STB_WEAK)
-					return reinterpret_cast<void*>(lookup->base_address + match->st_value);
-				found_weak = true;
-				if (match->st_value)
-					weak_address = lookup->base_address + match->st_value;
-			}
-
-			if (!next_level.contains(lookup))
-				MUST(next_level.push_back(lookup));
-			MUST(checked.push_back(lookup));
+			s_dlerror_string = "could not determine which object called";
+			return nullptr;
 		}
-		current_level = BAN::move(next_level);
+
+		for (const auto* root : object->scope_roots)
+		{
+			size_t i = 0;
+			for (; i < root->lookup_scope.size(); i++)
+				if (root->lookup_scope[i] == object)
+					break;
+			for (i = i + 1; i < root->lookup_scope.size(); i++)
+				if (void* result = check_object(root->lookup_scope[i]))
+					return result;
+		}
+	}
+	else
+	{
+		BAN::Vector<const LoadedObject*> current_level, checked;
+		MUST(current_level.push_back(static_cast<LoadedObject*>(handle)));
+
+		while (!current_level.empty())
+		{
+			BAN::Vector<const LoadedObject*> next_level;
+			for (const auto* object : current_level)
+			{
+				if (void* result = check_object(object))
+					return result;
+				MUST(checked.push_back(object));
+				for (const auto* dependency : object->dependencies)
+					if (!current_level.contains(dependency) && !next_level.contains(dependency) && !checked.contains(dependency))
+						MUST(next_level.push_back(dependency));
+			}
+			current_level = BAN::move(next_level);
+		}
 	}
 
 	if (found_weak)
