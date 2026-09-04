@@ -17,11 +17,12 @@ namespace LibQR
 
 			while (bits > 0)
 			{
-				const size_t copy = BAN::Math::min(bits, 8 - m_length % 8);
-				const uint8_t mask = (1u << copy) - 1;
+				const size_t  rem   = m_length % 8;
+				const size_t  copy  = BAN::Math::min(bits, 8 - rem);
+				const uint8_t mask  = (1u << copy) - 1;
+				const uint8_t shift = 8 - rem - copy;
 
-				m_data[m_length / 8] <<= copy;
-				m_data[m_length / 8] |= (value >> (bits - copy)) & mask;
+				m_data[m_length / 8] |= ((value >> (bits - copy)) & mask) << shift;
 
 				m_length += copy;
 				bits -= copy;
@@ -31,21 +32,14 @@ namespace LibQR
 		void append_zeroes(size_t bits)
 		{
 			ASSERT(m_length + bits <= m_data.size() * 8);
-			if (const size_t rem = m_length % 8)
-				m_data[m_length / 8] <<= BAN::Math::min(bits, 8 - rem);
 			m_length += bits;
 		}
 
 		bool operator[](size_t index) const
 		{
 			ASSERT(index < m_length);
-
 			const size_t byte = index / 8;
 			const size_t bit  = index % 8;
-
-			if (byte == m_length / 8)
-				return (m_data[byte] & (1u << (m_length % 8 - bit - 1))) != 0;
-
 			return (m_data[byte] & (0x80 >> bit)) != 0;
 		}
 
