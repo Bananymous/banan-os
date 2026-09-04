@@ -11,6 +11,7 @@
 #include <kernel/Process.h>
 #include <kernel/Terminal/TTY.h>
 #include <kernel/Timer/Timer.h>
+#include <kernel/UserCopy.h>
 #include <LibInput/KeyboardLayout.h>
 
 #include <fcntl.h>
@@ -145,52 +146,41 @@ namespace Kernel
 			}
 			case FIONREAD:
 			{
-				*static_cast<int*>(argument) = m_output.flush ? m_output.buffer->size() : 0;
+				const int value = m_output.flush ? m_output.buffer->size() : 0;
+				TRY(write_to_user(argument, &value, sizeof(value)));
 				return 0;
 			}
 			case TIOCGWINSZ:
-			{
 				// FIXME: make this atomic
-				auto* winsize = static_cast<struct winsize*>(argument);
-				*winsize = m_winsize;
+				TRY(write_to_user(argument, &m_winsize, sizeof(winsize)));
 				return 0;
-			}
 			case TIOCSWINSZ:
-			{
 				// FIXME: make this atomic
-				const auto* winsize = static_cast<const struct winsize*>(argument);
-				m_winsize = *winsize;
+				TRY(read_from_user(argument, &m_winsize, sizeof(winsize)));
 				(void)Process::kill(-m_foreground_pgrp, SIGWINCH);
 				return 0;
-			}
 			case TCGETS:
 			{
-				SpinLockGuard _(m_termios_lock);
-				auto* termios = static_cast<struct termios*>(argument);
-				*termios = m_termios;
+				const auto termios = get_termios();
+				TRY(write_to_user(argument, &termios, sizeof(termios)));
 				return 0;
 			}
 			case TCSETSW:
 			case TCSETSF:
-				dwarnln("TODO: proper TCSETSW/TCSETSWF");
-				[[fallthrough]];
 			case TCSETS:
-			{
-				// FIXME: do some validation
-				SpinLockGuard _(m_termios_lock);
-				const auto* termios = static_cast<const struct termios*>(argument);
-				m_termios = *termios;
+				// FIXME: validate
+				TRY(read_from_user(argument, &m_termios, sizeof(m_termios)));
 				return 0;
-			}
 			case TIOCGPGRP:
 			{
-				pid_t* pgrp = static_cast<pid_t*>(argument);
-				*pgrp = m_foreground_pgrp.load();
+				const pid_t pgrp = m_foreground_pgrp.load();
+				TRY(write_to_user(argument, &pgrp, sizeof(pgrp)));
 				return 0;
 			}
 			case TIOCSPGRP:
 			{
-				const pid_t pgrp = *static_cast<const pid_t*>(argument);
+				pid_t pgrp;
+				TRY(read_from_user(argument, &pgrp, sizeof(pgrp)));
 
 				if (!Process::current().is_pgrpg_in_this_session(pgrp))
 					return BAN::Error::from_errno(EPERM);
