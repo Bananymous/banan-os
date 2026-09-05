@@ -57,7 +57,7 @@ int sem_timedwait(sem_t* __restrict sem, const struct timespec* __restrict absti
 		}
 
 		const int op = FUTEX_WAIT | (sem->shared ? 0 : FUTEX_PRIVATE) | FUTEX_REALTIME;
-		if (const int err = futex(op, &sem->value, expected, abstime); err != EAGAIN)
+		if (const int err = futex(op, &sem->value, expected, abstime); err && err != EAGAIN)
 		{
 			errno = err;
 			return -1;
