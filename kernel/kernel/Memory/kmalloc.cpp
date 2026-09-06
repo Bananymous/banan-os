@@ -2,7 +2,7 @@
 #include <kernel/Memory/kmalloc.h>
 #include <kernel/Memory/PageTable.h>
 
-#define KMALLOC_FILL_WITH_GARBAGE 1
+#define KMALLOC_FILL_WITH_GARBAGE 0
 
 static constexpr size_t s_allocator_chunk_size { 64 };
 static constexpr size_t s_allocator_align      { alignof(max_align_t) };
