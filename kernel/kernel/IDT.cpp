@@ -265,7 +265,9 @@ namespace Kernel
 			}
 			case ISR::DeviceNotAvailable:
 			{
-				if (pid == 0 || !Thread::current().is_userspace())
+				auto& current_thread = Thread::current();
+
+				if (pid == 0 || !current_thread.is_userspace())
 					break;
 
 				const auto state = Processor::get_interrupt_state();
@@ -273,12 +275,10 @@ namespace Kernel
 
 				Processor::enable_sse();
 
-				if (auto* sse_thread = Processor::get_current_sse_thread())
-					sse_thread->save_sse();
+				if (auto* sse_thread = Processor::current_sse_thread())
+					Processor::save_sse_state(*sse_thread);
 
-				auto* current_thread = &Thread::current();
-				current_thread->load_sse();
-				Processor::set_current_sse_thread(current_thread);
+				Processor::load_sse_state(current_thread);
 
 				Processor::set_interrupt_state(state);
 

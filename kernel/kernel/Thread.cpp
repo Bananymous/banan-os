@@ -32,48 +32,6 @@ namespace Kernel
 
 	static pid_t s_next_tid = 1;
 
-	alignas(16) static uint8_t s_default_sse_storage[512];
-	static BAN::Atomic<bool> s_default_sse_storage_initialized = false;
-
-	static void initialize_default_sse_storage()
-	{
-		static BAN::Atomic<bool> is_initializing { false };
-		bool expected { false };
-		if (!is_initializing.compare_exchange(expected, true))
-		{
-			while (!s_default_sse_storage_initialized)
-				__builtin_ia32_pause();
-			asm volatile("" ::: "memory");
-			return;
-		}
-
-		const auto state = Processor::get_interrupt_state();
-		Processor::set_interrupt_state(InterruptState::Disabled);
-
-		Processor::enable_sse();
-
-		const uint32_t mxcsr = 0x1F80;
-		asm volatile(
-			"finit;"
-			"ldmxcsr %[mxcsr];"
-#if ARCH(x86_64)
-			"fxsave64 %[storage];"
-#elif ARCH(i686)
-			"fxsave %[storage];"
-#else
-#error
-#endif
-			: [storage]"=m"(s_default_sse_storage)
-			: [mxcsr]"m"(mxcsr)
-		);
-
-		Processor::disable_sse();
-
-		Processor::set_interrupt_state(state);
-
-		s_default_sse_storage_initialized = true;
-	}
-
 	bool Thread::is_stopping_signal(int signal)
 	{
 		switch(signal)
@@ -212,9 +170,6 @@ namespace Kernel
 			true
 		));
 
-		thread->m_userspace_stack_vaddr = userspace_stack_vaddr;
-		thread->m_userspace_stack_size  = userspace_stack_size;
-
 		// Initialize stack for returning
 		PageTable::with_fast_page(thread->kernel_stack().paddr_of(thread->kernel_stack_top() - PAGE_SIZE), [=] {
 			uintptr_t cur_sp = PageTable::fast_page() + PAGE_SIZE;
@@ -229,6 +184,22 @@ namespace Kernel
 			write_to_stack(cur_sp, entry_point);
 		});
 
+		// TODO: support aligned kmalloc?
+		uint8_t* new_sse_storage = static_cast<uint8_t*>(kmalloc(Processor::sse_area_size() + 64));
+		if (new_sse_storage == nullptr)
+			return BAN::Error::from_errno(ENOMEM);
+		if (const size_t rem = reinterpret_cast<uintptr_t>(new_sse_storage) % 64)
+			thread->m_sse_storage_align = 64 - rem;
+		thread->m_sse_storage = new_sse_storage + thread->m_sse_storage_align;
+
+		const auto state = Processor::get_interrupt_state();
+		Processor::set_interrupt_state(InterruptState::Disabled);
+		memcpy(thread->m_sse_storage, Processor::default_sse_area(), Processor::sse_area_size());
+		Processor::set_interrupt_state(state);
+
+		thread->m_userspace_stack_vaddr = userspace_stack_vaddr;
+		thread->m_userspace_stack_size  = userspace_stack_size;
+
 		thread->m_yield_registers = {};
 		thread->m_yield_registers.ip = reinterpret_cast<vaddr_t>(start_userspace_thread);
 		thread->m_yield_registers.sp = thread->kernel_stack_top() - 5 * sizeof(uintptr_t);
@@ -241,11 +212,7 @@ namespace Kernel
 	Thread::Thread(pid_t tid, Process* process)
 		: m_tid(tid), m_process(process)
 		, m_scheduler_node(this)
-	{
-		if (!s_default_sse_storage_initialized)
-			initialize_default_sse_storage();
-		memcpy(m_sse_storage, s_default_sse_storage, sizeof(m_sse_storage));
-	}
+	{ }
 
 	Thread& Thread::current()
 	{
@@ -273,11 +240,15 @@ namespace Kernel
 
 	Thread::~Thread()
 	{
-		if (Processor::get_current_sse_thread() == this)
-		{
-			Processor::set_current_sse_thread(nullptr);
-			Processor::disable_sse();
-		}
+		const auto state = Processor::get_interrupt_state();
+		Processor::set_interrupt_state(InterruptState::Disabled);
+		if (Processor::current_sse_thread() == this)
+			Processor::reset_sse_thread();
+		Processor::disable_sse();
+		Processor::set_interrupt_state(state);
+
+		if (m_sse_storage)
+			kfree(m_sse_storage - m_sse_storage_align);
 
 		if (m_delete_process)
 		{
@@ -368,6 +339,21 @@ namespace Kernel
 			);
 		});
 
+		// TODO: support aligned kmalloc?
+		uint8_t* new_sse_storage = static_cast<uint8_t*>(kmalloc(Processor::sse_area_size() + 64));
+		if (new_sse_storage == nullptr)
+			return BAN::Error::from_errno(ENOMEM);
+		if (const size_t rem = reinterpret_cast<uintptr_t>(new_sse_storage) % 64)
+			thread->m_sse_storage_align = 64 - rem;
+		thread->m_sse_storage = new_sse_storage + thread->m_sse_storage_align;
+
+		const auto state = Processor::get_interrupt_state();
+		Processor::set_interrupt_state(InterruptState::Disabled);
+		if (Processor::current_sse_thread() == this)
+			Processor::save_sse_state(*this);
+		memcpy(thread->m_sse_storage, m_sse_storage, Processor::sse_area_size());
+		Processor::set_interrupt_state(state);
+
 		thread->m_userspace_stack_vaddr = m_userspace_stack_vaddr;
 		thread->m_userspace_stack_size  = m_userspace_stack_size;
 
@@ -375,10 +361,6 @@ namespace Kernel
 		thread->m_gsbase = m_gsbase;
 
 		thread->m_state = State::NotStarted;
-
-		if (Processor::get_current_sse_thread() == this)
-			save_sse();
-		memcpy(thread->m_sse_storage, m_sse_storage, sizeof(m_sse_storage));
 
 		thread->m_yield_registers = {};
 		thread->m_yield_registers.ip = ip;
@@ -811,30 +793,6 @@ namespace Kernel
 		m_state = State::Terminated;
 		Processor::yield();
 		ASSERT_NOT_REACHED();
-	}
-
-	void Thread::save_sse()
-	{
-#if ARCH(x86_64)
-		__builtin_ia32_fxsave64(m_sse_storage);
-#elif ARCH(i686)
-		// no idea why the builtin don't work
-		asm volatile("fxsave %0" :: "m"(m_sse_storage));
-#else
-#error
-#endif
-	}
-
-	void Thread::load_sse()
-	{
-#if ARCH(x86_64)
-		__builtin_ia32_fxrstor64(m_sse_storage);
-#elif ARCH(i686)
-		// no idea why the builtin don't work
-		asm volatile("fxrstor %0" :: "m"(m_sse_storage));
-#else
-#error
-#endif
 	}
 
 }

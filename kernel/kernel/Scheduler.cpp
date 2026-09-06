@@ -181,7 +181,7 @@ namespace Kernel
 			Processor::load_segments();
 		}
 
-		(Processor::get_current_sse_thread() == thread)
+		(Processor::current_sse_thread() == thread)
 			? Processor::enable_sse()
 			: Processor::disable_sse();
 
@@ -446,11 +446,11 @@ namespace Kernel
 				dprintln_if(DEBUG_SCHEDULER, "CPU {}: sending tid {} to CPU {}", current_id, heavy_thread->thread->tid(), least_loaded_id);
 			}
 
-			if (auto* thread = heavy_thread->thread; thread == Processor::get_current_sse_thread())
+			if (auto* thread = heavy_thread->thread; thread == Processor::current_sse_thread())
 			{
 				Processor::enable_sse();
-				thread->save_sse();
-				Processor::set_current_sse_thread(nullptr);
+				Processor::save_sse_state(*thread);
+				Processor::reset_sse_thread();
 				Processor::disable_sse();
 			}
 

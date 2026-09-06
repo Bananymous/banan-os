@@ -1,3 +1,4 @@
+#include <BAN/ScopeGuard.h>
 #include <kernel/CPUID.h>
 #include <kernel/GDT.h>
 #include <kernel/IDT.h>
@@ -10,6 +11,20 @@
 #include <kernel/Terminal/TerminalDriver.h>
 #include <kernel/Thread.h>
 #include <kernel/Timer/Timer.h>
+
+#if ARCH(x86_64)
+# define xsave    __builtin_ia32_xsave64
+# define xsaveopt __builtin_ia32_xsaveopt64
+# define xrstor   __builtin_ia32_xrstor64
+# define fxsave   __builtin_ia32_fxsave64
+# define fxrstor  __builtin_ia32_fxrstor64
+#elif ARCH(i686)
+# define xsave    __builtin_ia32_xsave
+# define xsaveopt __builtin_ia32_xsaveopt
+# define xrstor   __builtin_ia32_xrstor
+# define fxsave   __builtin_ia32_fxsave
+# define fxrstor  __builtin_ia32_fxrstor
+#endif
 
 namespace Kernel
 {
@@ -32,6 +47,9 @@ namespace Kernel
 	BAN::Atomic<bool>    Processor::s_is_smp_enabled             { false };
 	paddr_t              Processor::s_shared_page_paddr          { 0 };
 	vaddr_t              Processor::s_shared_page_vaddr          { 0 };
+
+	uint32_t Processor::s_sse_area_size    { 0 };
+	void*    Processor::s_default_sse_area { nullptr };
 
 	static BAN::Atomic<uint8_t>  s_processors_created { 0 };
 
@@ -152,12 +170,181 @@ namespace Kernel
 		}
 #endif
 
+		{
+			// allow userspace to use RDTSC
+			uintptr_t dummy;
+			asm volatile(
+				"mov %%cr4, %0;"
+				"and $-4, %0;"
+				"mov %0, %%cr4;"
+				: "=r"(dummy)
+			);
+		}
+
+		processor.initialize_sse();
+
 		ASSERT(processor.m_idt);
 		processor.idt().load();
 
-		disable_sse();
-
 		return processor;
+	}
+
+	void Processor::initialize_sse()
+	{
+		BAN::ScopeGuard _([this] {
+			if (!current_is_bsp())
+				return disable_sse();
+
+			// TODO: support aligned kmalloc?
+			uint8_t* default_sse_area = static_cast<uint8_t*>(kmalloc(s_sse_area_size + 64));
+			ASSERT(default_sse_area);
+			if (const size_t rem = reinterpret_cast<uintptr_t>(default_sse_area) % 64)
+				default_sse_area += 64 - rem;
+			s_default_sse_area = default_sse_area;
+
+			memset(s_default_sse_area, 0, s_sse_area_size);
+
+			enable_sse();
+
+			asm volatile("finit");
+
+			const uint32_t mxcsr = 0x1F80;
+			asm volatile("ldmxcsr %0" :: "m"(mxcsr));
+
+			if (m_has_xsave)
+				xsave(s_default_sse_area, m_xsave_feat);
+			else
+				fxsave(s_default_sse_area);
+
+			disable_sse();
+		});
+
+		uintptr_t dummy;
+		uint32_t eax, ebx, ecx, edx;
+
+		CPUID::get_features(ecx, edx);
+
+		if (!(edx & CPUID::EDX_FXSR))
+			panic("FXSR support required");
+
+		// enable x87 and CR0.TS support
+		asm volatile(
+			"mov %%cr0, %0;"
+			"and $~4, %0;"
+			"or  $2, %0;"
+			"mov %0, %%cr0"
+			: "=r"(dummy)
+		);
+
+		// enable FXSR
+		asm volatile(
+			"mov %%cr4, %0;"
+			"or  $0x0200, %0;"
+			"mov %0, %%cr4"
+			: "=r"(dummy)
+		);
+
+		if (edx & CPUID::EDX_SSE)
+		{
+			asm volatile(
+				"mov %%cr4, %0;"
+				"or  $0x0400, %0;"
+				"mov %0, %%cr4"
+				: "=r"(dummy)
+			);
+		}
+
+		if (!(ecx & CPUID::ECX_XSAVE))
+		{
+			s_sse_area_size = 512;
+			return;
+		}
+
+		m_has_xsave = true;
+
+		// set CR4.OSXSAVE
+		asm volatile(
+			"mov %%cr4, %0;"
+			"or $(1 << 18), %0;"
+			"mov %0, %%cr4"
+			: "=r"(dummy)
+		);
+
+		// get xsave features
+		asm volatile(
+			"cpuid"
+			: "=a"(eax), "=b"(ebx), "=c"(ecx), "=d"(edx)
+			: "a"(0x0D), "c"(0x00)
+		);
+
+		// enable wanted xsave features
+		const uint64_t all_features = (static_cast<uint64_t>(edx) << 32) | eax;
+		const uint64_t wanted_features =
+			(1u << 0) | // x87
+			(1u << 1) | // sse
+			(1u << 2) | // avx
+			(1u << 5) | // avx-512 k0-k7
+			(1u << 6) | // avx-512 top halves of zmm
+			(1u << 7) | // avx-512 zmm16-zmm31
+			0;
+		m_xsave_feat = all_features & wanted_features;
+		__builtin_ia32_xsetbv(0, m_xsave_feat);
+
+		// get xsave area size
+		asm volatile(
+			"cpuid"
+			: "=a"(eax), "=b"(ebx), "=c"(ecx), "=d"(edx)
+			: "a"(0x0D), "c"(0x00)
+		);
+		s_sse_area_size = ebx;
+
+		// get xsaveopt support
+		asm volatile(
+			"cpuid"
+			: "=a"(eax), "=b"(ebx), "=c"(ecx), "=d"(edx)
+			: "a"(0x0D), "c"(0x01)
+		);
+		m_has_xsaveopt = !!(eax & (1u << 0));
+	}
+
+	void Processor::save_sse_state(Thread& thread)
+	{
+		ASSERT(thread.m_sse_storage);
+
+		const auto state = get_interrupt_state();
+		set_interrupt_state(InterruptState::Disabled);
+
+		const auto& processor = s_processors[current_id().as_u32()];
+		ASSERT(processor.m_sse_thread == &thread);
+
+		if (processor.m_has_xsaveopt)
+			xsaveopt(thread.m_sse_storage, processor.m_xsave_feat);
+		else if (processor.m_has_xsave)
+			xsave(thread.m_sse_storage, processor.m_xsave_feat);
+		else
+			fxsave(thread.m_sse_storage);
+
+		set_interrupt_state(state);
+	}
+
+	void Processor::load_sse_state(Thread& thread)
+	{
+		ASSERT(thread.m_sse_storage);
+
+		const auto state = get_interrupt_state();
+		set_interrupt_state(InterruptState::Disabled);
+
+		auto& processor = s_processors[current_id().as_u32()];
+		ASSERT(processor.m_sse_thread != &thread);
+
+		if (processor.m_has_xsave)
+			xrstor(thread.m_sse_storage, processor.m_xsave_feat);
+		else
+			fxrstor(thread.m_sse_storage);
+
+		processor.m_sse_thread = &thread;
+
+		set_interrupt_state(state);
 	}
 
 	// NOTE: I don't like this being a separate function but we need heap and page tables for this :)

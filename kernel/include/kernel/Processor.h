@@ -135,9 +135,6 @@ namespace Kernel
 		static void update_tsc();
 		static uint64_t ns_since_boot_tsc();
 
-		static Thread* get_current_sse_thread() { return read_gs_sized<Thread*>(offsetof(Processor, m_sse_thread)); };
-		static void set_current_sse_thread(Thread* thread) { write_gs_sized<Thread*>(offsetof(Processor, m_sse_thread), thread); };
-
 		static paddr_t shared_page_paddr() { return s_shared_page_paddr; }
 		static volatile API::SharedPage& shared_page() { return *reinterpret_cast<API::SharedPage*>(s_shared_page_vaddr); }
 
@@ -150,6 +147,14 @@ namespace Kernel
 		static void load_segments();
 		static void load_fsbase();
 		static void load_gsbase();
+
+		static uint32_t sse_area_size() { return s_sse_area_size; }
+		static void* default_sse_area() { return s_default_sse_area; }
+
+		static Thread* current_sse_thread() { return read_gs_sized<Thread*>(offsetof(Processor, m_sse_thread)); }
+		static void reset_sse_thread() { write_gs_sized<Thread*>(offsetof(Processor, m_sse_thread), nullptr); }
+		static void save_sse_state(Thread&);
+		static void load_sse_state(Thread&);
 
 		static void disable_sse()
 		{
@@ -168,6 +173,7 @@ namespace Kernel
 
 		static ProcessorID read_processor_id();
 
+		void initialize_sse();
 		static void initialize_smp();
 		static void initialize_shared_page();
 
@@ -202,11 +208,14 @@ namespace Kernel
 		void unlock_tlb_lock();
 
 	private:
-		static ProcessorID s_bsp_id;
+		static ProcessorID          s_bsp_id;
 		static BAN::Atomic<uint8_t> s_processor_count;
 		static BAN::Atomic<bool>    s_is_smp_enabled;
 		static paddr_t              s_shared_page_paddr;
 		static vaddr_t              s_shared_page_vaddr;
+
+		static uint32_t s_sse_area_size;
+		static void*    s_default_sse_area;
 
 		ProcessorID m_id { 0 };
 		uint8_t m_index { 0 };
@@ -216,6 +225,10 @@ namespace Kernel
 		vaddr_t m_thread_syscall_stack;
 
 		Thread* m_sse_thread { nullptr };
+
+		bool m_has_xsave { false };
+		bool m_has_xsaveopt { false };
+		uint64_t m_xsave_feat { 0 };
 
 		static constexpr size_t s_stack_size { PAGE_SIZE };
 		vaddr_t m_stack_vaddr { 0 };

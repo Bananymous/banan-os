@@ -220,6 +220,7 @@ target_compile_options(kernel PRIVATE
 	-fno-omit-frame-pointer
 	-fstrict-volatile-bitfields
 	-mgeneral-regs-only
+	-mfxsr -mxsave -mxsaveopt # should not affect codegen but enables builtins
 	-Wall -Wextra -Werror -Wstack-usage=1024
 )
 

@@ -160,36 +160,11 @@ has_pae:
 	testl $(1 << 6), %edx
 	ret
 
-has_sse:
-	movl $1, %eax
-	cpuid
-	testl $(1 << 25), %edx
-	ret
-
 check_requirements:
 	call has_cpuid
 	jz system_halt
 	call has_pae
 	jz system_halt
-	call has_sse
-	jz system_halt
-	ret
-
-enable_sse:
-	movl %cr0, %eax
-	andw $0xFFFB, %ax
-	orw $0x0002, %ax
-	movl %eax, %cr0
-	movl %cr4, %eax
-	orw $0x0600, %ax
-	movl %eax, %cr4
-	ret
-
-enable_tsc:
-	# allow userspace to use RDTSC
-	movl %cr4, %ecx
-	andl $0xFFFFFFFB, %ecx
-	movl %ecx, %cr4
 	ret
 
 initialize_paging:
@@ -233,8 +208,6 @@ _start:
 
 	# do processor initialization
 	call check_requirements
-	call enable_sse
-	call enable_tsc
 	call initialize_paging
 
 	# load higher half stack pointer
@@ -315,8 +288,6 @@ ap_ready:
 
 	movl AP_REL(ap_stack_paddr), %esp
 
-	leal V2P(enable_sse),        %ecx; call *%ecx
-	leal V2P(enable_tsc),        %ecx; call *%ecx
 	leal V2P(initialize_paging), %ecx; call *%ecx
 
 	# load boot gdt and enter long mode

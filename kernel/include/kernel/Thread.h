@@ -146,9 +146,6 @@ namespace Kernel
 
 		YieldRegisters& yield_registers() { return m_yield_registers; }
 
-		void save_sse();
-		void load_sse();
-
 		void add_spinlock() { m_spinlock_count++; }
 		void remove_spinlock() { m_spinlock_count--; }
 		bool has_spinlock() const { return !!m_spinlock_count; }
@@ -214,9 +211,11 @@ namespace Kernel
 		BAN::Atomic<uint32_t>      m_spinlock_count       { 0 };
 		BAN::Atomic<uint32_t>      m_mutex_count          { 0 };
 
-		alignas(16) uint8_t m_sse_storage[512] {};
+		uint8_t* m_sse_storage { nullptr };
+		size_t m_sse_storage_align { 0 };
 
 		friend class Process;
+		friend class Processor;
 		friend class Scheduler;
 	};
 
