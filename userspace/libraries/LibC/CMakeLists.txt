@@ -71,7 +71,6 @@ set(LIBC_SOURCES
 	icxxabi.cpp
 
 	arch/${BANAN_ARCH}/setjmp.S
-	arch/${BANAN_ARCH}/string.S
 
 	../../../BAN/BAN/Assert.cpp
 )
@@ -80,7 +79,7 @@ add_library(objlibc OBJECT ${LIBC_SOURCES})
 
 target_compile_definitions(objlibc PRIVATE __arch=${BANAN_ARCH} __is_libc)
 
-target_compile_options(objlibc PRIVATE -O2 -g -Wstack-usage=8192 -fno-exceptions -fno-rtti -fpic)
+target_compile_options(objlibc PRIVATE -O2 -g -Wstack-usage=8192 -fno-exceptions -fno-rtti -fpic -msse -msse2)
 target_compile_options(objlibc PUBLIC -Wall -Wextra -Werror -Wno-error=stack-usage=)
 
 banan_include_headers(objlibc ban)

@@ -1,6 +1,9 @@
 #include <BAN/Assert.h>
+#include <BAN/Math.h>
+#include <BAN/Optional.h>
 #include <BAN/UTF8.h>
 
+#include <cpuid.h>
 #include <errno.h>
 #include <locale.h>
 #include <signal.h>
@@ -9,150 +12,526 @@
 #include <string.h>
 #include <sys/weak_alias.h>
 
-#if defined(__GNUC__) && !defined(__clang__)
+#include <emmintrin.h>
+
 #pragma GCC optimize "no-tree-loop-distribute-patterns"
-#endif
 
-extern "C" void* _memccpy(void* __restrict s1, const void* __restrict s2, int c, size_t n)
+static bool s_has_ermsb { false };
+static constexpr size_t s_ermsb_threshold = 1024;
+
+__attribute__((constructor))
+static void check_ermsb()
 {
-	unsigned char* dst = static_cast<unsigned char*>(s1);
-	const unsigned char* src = static_cast<const unsigned char*>(s2);
-	for (size_t i = 0; i < n; i++)
-		if ((dst[i] = src[i]) == c)
-			return dst + i + 1;
-	return nullptr;
+	unsigned int eax, ebx, ecx, edx;
+	if (!__get_cpuid(7, &eax, &ebx, &ecx, &edx))
+		return;
+	s_has_ermsb = !!(ebx & (1 << 9));
 }
-weak_alias(_memccpy, memccpy);
 
-extern "C" void* _memchr(const void* s, int c, size_t n)
+void* memset(void* s, int c, size_t n)
 {
-	const unsigned char* u = static_cast<const unsigned char*>(s);
-	for (size_t i = 0; i < n; i++)
-		if (u[i] == c)
-			return const_cast<unsigned char*>(u + i);
-	return nullptr;
-}
-weak_alias(_memchr, memchr);
+	uint8_t* dst_u8 = static_cast<uint8_t*>(s);
 
-extern "C" int _memcmp(const void* s1, const void* s2, size_t n)
-{
-	const unsigned char* a = static_cast<const unsigned char*>(s1);
-	const unsigned char* b = static_cast<const unsigned char*>(s2);
-	for (size_t i = 0; i < n; i++)
-		if (a[i] != b[i])
-			return a[i] - b[i];
-	return 0;
-}
-weak_alias(_memcmp, memcmp);
-
-extern "C" void* _memcpy(void* __restrict__ dstp, const void* __restrict__ srcp, size_t n)
-{
-	unsigned char* dst = static_cast<unsigned char*>(dstp);
-	const unsigned char* src = static_cast<const unsigned char*>(srcp);
-	for (size_t i = 0; i < n; i++)
-		dst[i] = src[i];
-	return dstp;
-}
-weak_alias(_memcpy, memcpy);
-
-extern "C" void* _memmove(void* destp, const void* srcp, size_t n)
-{
-	unsigned char* dest = static_cast<unsigned char*>(destp);
-	const unsigned char* src = static_cast<const unsigned char*>(srcp);
-	if (dest < src)
+	if (s_has_ermsb && n >= s_ermsb_threshold)
 	{
-		for (size_t i = 0; i < n; i++)
-			dest[i] = src[i];
+		asm volatile(
+			"rep stosb"
+			: "+D"(dst_u8), "+c"(n)
+			: "a"(c)
+			: "memory"
+		);
+		return s;
 	}
-	else
-	{
-		for (size_t i = 1; i <= n; i++)
-			dest[n - i] = src[n - i];
-	}
-	return destp;
-}
-weak_alias(_memmove, memmove);
 
-extern "C" void* _memset(void* s, int c, size_t n)
-{
-	unsigned char* p = static_cast<unsigned char*>(s);
+	const uint8_t byte = c;
+	const __m128i value = _mm_set1_epi8(byte);
+
+	if (const size_t rem = reinterpret_cast<uintptr_t>(dst_u8) % 64; rem && n >= 64)
+	{
+		for (size_t i = 0; i * 16 < 64 - rem; i++)
+			_mm_storeu_si128(reinterpret_cast<__m128i*>(dst_u8) + i, value);
+		dst_u8 += 64 - rem;
+		n      -= 64 - rem;
+	}
+
+	for (; n >= 64; n -= 64, dst_u8 += 64)
+	{
+		__m128i* dst = reinterpret_cast<__m128i*>(dst_u8);
+		_mm_store_si128(dst + 0, value);
+		_mm_store_si128(dst + 1, value);
+		_mm_store_si128(dst + 2, value);
+		_mm_store_si128(dst + 3, value);
+	}
+
 	for (size_t i = 0; i < n; i++)
-		p[i] = c;
+		dst_u8[i] = byte;
+
 	return s;
 }
-weak_alias(_memset, memset);
 
-extern "C" int _strcmp(const char* s1, const char* s2)
+void* memcpy(void* __restrict__ s1, const void* __restrict__ s2, size_t n)
 {
-	const unsigned char* u1 = (unsigned char*)s1;
-	const unsigned char* u2 = (unsigned char*)s2;
-	for (; *u1 && *u2; u1++, u2++)
-		if (*u1 != *u2)
+	      uint8_t* dst_u8 = static_cast<      uint8_t*>(s1);
+	const uint8_t* src_u8 = static_cast<const uint8_t*>(s2);
+
+	if (s_has_ermsb && n >= s_ermsb_threshold)
+	{
+		asm volatile(
+			"rep movsb"
+			: "+D"(dst_u8), "+S"(src_u8), "+c"(n)
+			:
+			: "memory"
+		);
+		return s1;
+	}
+
+	if (const size_t rem = reinterpret_cast<uintptr_t>(dst_u8) % 64; rem && n >= 64)
+	{
+		      __m128i* dst = reinterpret_cast<      __m128i*>(dst_u8);
+		const __m128i* src = reinterpret_cast<const __m128i*>(src_u8);
+
+		for (size_t i = 0; i * 16 < 64 - rem; i++)
+			_mm_storeu_si128(dst + i, _mm_loadu_si128(src + i));
+
+		dst_u8 += 64 - rem;
+		src_u8 += 64 - rem;
+		n      -= 64 - rem;
+	}
+
+	for (; n >= 64; n -= 64, dst_u8 += 64, src_u8 += 64)
+	{
+		      __m128i* dst = reinterpret_cast<      __m128i*>(dst_u8);
+		const __m128i* src = reinterpret_cast<const __m128i*>(src_u8);
+
+		const __m128i value0 = _mm_loadu_si128(src + 0);
+		const __m128i value1 = _mm_loadu_si128(src + 1);
+		const __m128i value2 = _mm_loadu_si128(src + 2);
+		const __m128i value3 = _mm_loadu_si128(src + 3);
+
+		_mm_store_si128(dst + 0, value0);
+		_mm_store_si128(dst + 1, value1);
+		_mm_store_si128(dst + 2, value2);
+		_mm_store_si128(dst + 3, value3);
+	}
+
+	for (; n > 0; n--)
+		*dst_u8++ = *src_u8++;
+
+	return s1;
+}
+
+void* memmove(void* s1, const void* s2, size_t n)
+{
+	if (s1 < s2)
+		return memcpy(s1, s2, n);
+
+	      uint8_t* dst_u8 = static_cast<      uint8_t*>(s1) + n;
+	const uint8_t* src_u8 = static_cast<const uint8_t*>(s2) + n;
+
+	if (s_has_ermsb && n >= s_ermsb_threshold)
+	{
+		asm volatile(
+			"std; rep movsb; cld"
+			: "+D"(--dst_u8), "+S"(--src_u8), "+c"(n)
+			:
+			: "memory"
+		);
+		return s1;
+	}
+
+	if (const size_t rem = reinterpret_cast<uintptr_t>(dst_u8) % 64; rem && n >= 64)
+	{
+		      __m128i* dst = reinterpret_cast<      __m128i*>(dst_u8 - 16);
+		const __m128i* src = reinterpret_cast<const __m128i*>(src_u8 - 16);
+
+		for (size_t i = 0; i * 16 < rem; i++)
+			_mm_storeu_si128(dst - i, _mm_loadu_si128(src - i));
+
+		dst_u8 -= rem;
+		src_u8 -= rem;
+		n      -= rem;
+	}
+
+	for (; n >= 64; n -= 64, dst_u8 -= 64, src_u8 -= 64)
+	{
+		      __m128i* dst = reinterpret_cast<      __m128i*>(dst_u8 - 64);
+		const __m128i* src = reinterpret_cast<const __m128i*>(src_u8 - 64);
+
+		const __m128i value0 = _mm_loadu_si128(src + 0);
+		const __m128i value1 = _mm_loadu_si128(src + 1);
+		const __m128i value2 = _mm_loadu_si128(src + 2);
+		const __m128i value3 = _mm_loadu_si128(src + 3);
+
+		_mm_store_si128(dst + 0, value0);
+		_mm_store_si128(dst + 1, value1);
+		_mm_store_si128(dst + 2, value2);
+		_mm_store_si128(dst + 3, value3);
+	}
+
+	for (; n > 0; n--)
+		*--dst_u8 = *--src_u8;
+
+	return s1;
+}
+
+int memcmp(const void* s1, const void* s2, size_t n)
+{
+	const uint8_t* src1_u8 = static_cast<const uint8_t*>(s1);
+	const uint8_t* src2_u8 = static_cast<const uint8_t*>(s2);
+
+	for (; n >= 16; n -= 16, src1_u8 += 16, src2_u8 += 16)
+	{
+		const __m128i* src1 = reinterpret_cast<const __m128i*>(src1_u8);
+		const __m128i* src2 = reinterpret_cast<const __m128i*>(src2_u8);
+
+		const __m128i comp = _mm_cmpeq_epi8(_mm_loadu_si128(src1), _mm_loadu_si128(src2));
+		if (const uint16_t mask = _mm_movemask_epi8(comp) ^ 0xFFFF)
+		{
+			const size_t diff_bit = BAN::Math::ctz(mask);
+			return src1_u8[diff_bit] - src2_u8[diff_bit];
+		}
+	}
+
+	for (size_t i = 0; i < n; i++)
+		if (src1_u8[i] != src2_u8[i])
+			return src1_u8[i] - src2_u8[i];
+
+	return 0;
+}
+
+void* memchr(const void* s, int c, size_t n)
+{
+	const uint8_t* src_u8 = static_cast<const uint8_t*>(s);
+
+	const __m128i equal = _mm_set1_epi8(c);
+
+	// NOTE: align to not cross into an invalid page boundary on last load
+	if (const size_t rem = reinterpret_cast<uintptr_t>(src_u8) % 16)
+	{
+		const __m128i value = _mm_load_si128(reinterpret_cast<const __m128i*>(src_u8 - rem));
+		if (const uint16_t mask = _mm_movemask_epi8(_mm_cmpeq_epi8(value, equal)) >> rem)
+			if (const size_t bit = BAN::Math::ctz(mask); bit < n)
+				return const_cast<uint8_t*>(src_u8 + bit);
+
+		if (n <= 16 - rem)
+			return nullptr;
+		src_u8 += 16 - rem;
+		n      -= 16 - rem;
+	}
+
+	for (; n >= 16; n -= 16, src_u8 += 16)
+	{
+		const __m128i value = _mm_load_si128(reinterpret_cast<const __m128i*>(src_u8));
+		if (const uint16_t mask = _mm_movemask_epi8(_mm_cmpeq_epi8(value, equal)))
+			return const_cast<uint8_t*>(src_u8 + BAN::Math::ctz(mask));
+	}
+
+	if (n > 0)
+	{
+		const __m128i value = _mm_load_si128(reinterpret_cast<const __m128i*>(src_u8));
+		if (const uint16_t mask = _mm_movemask_epi8(_mm_cmpeq_epi8(value, equal)))
+			if (const size_t bit = BAN::Math::ctz(mask); bit < n)
+				return const_cast<uint8_t*>(src_u8 + bit);
+	}
+
+	return nullptr;
+}
+
+void* memccpy(void* __restrict s1, const void* __restrict s2, int c, size_t n)
+{
+	      uint8_t* dst_u8 = static_cast<      uint8_t*>(s1);
+	const uint8_t* src_u8 = static_cast<const uint8_t*>(s2);
+
+	const uint8_t byte = c;
+	const __m128i equal = _mm_set1_epi8(byte);
+
+	// NOTE: align src so we don't load from `s2` past `c`
+	if (const auto rem = reinterpret_cast<uintptr_t>(src_u8) % 16; rem && n >= 16)
+	{
+		for (size_t i = 0; i < 16 - rem; i++)
+			if ((dst_u8[i] = src_u8[i]) == byte)
+				return dst_u8 + i + 1;
+		dst_u8 += 16 - rem;
+		src_u8 += 16 - rem;
+		n      -= 16 - rem;
+	}
+
+	for (; n >= 16; n -= 16, dst_u8 += 16, src_u8 += 16)
+	{
+		      __m128i* dst = reinterpret_cast<      __m128i*>(dst_u8);
+		const __m128i* src = reinterpret_cast<const __m128i*>(src_u8);
+
+		const __m128i value = _mm_load_si128(src);
+		if (_mm_movemask_epi8(_mm_cmpeq_epi8(value, equal)))
 			break;
-	return *u1 - *u2;
-}
-weak_alias(_strcmp, strcmp);
 
-extern "C" int _strncmp(const char* s1, const char* s2, size_t n)
-{
-	if (n == 0)
-		return 0;
-	const unsigned char* u1 = (unsigned char*)s1;
-	const unsigned char* u2 = (unsigned char*)s2;
-	for (; --n && *u1 && *u2; u1++, u2++)
-		if (*u1 != *u2)
-			break;
-	return *u1 - *u2;
-}
-weak_alias(_strncmp, strncmp);
+		_mm_storeu_si128(dst, value);
+	}
 
-extern "C" char* _stpcpy(char* __restrict__ dest, const char* __restrict__ src)
-{
-	size_t i = 0;
-	for (; src[i]; i++)
-		dest[i] = src[i];
-	dest[i] = '\0';
-	return &dest[i];
-}
-weak_alias(_stpcpy, stpcpy);
+	for (size_t i = 0; i < n; i++)
+		if ((dst_u8[i] = src_u8[i]) == byte)
+			return dst_u8 + i + 1;
 
-extern "C" char* _stpncpy(char* __restrict__ dest, const char* __restrict__ src, size_t n)
-{
-	size_t i = 0;
-	for (; src[i] && n; i++, n--)
-		dest[i] = src[i];
-	for (; n; i++, n--)
-		dest[i] = '\0';
-	return &dest[i];
-}
-weak_alias(_stpncpy, stpncpy);
-
-char* strcpy(char* __restrict__ dest, const char* __restrict__ src)
-{
-	stpcpy(dest, src);
-	return dest;
+	return nullptr;
 }
 
-char* strncpy(char* __restrict__ dest, const char* __restrict__ src, size_t n)
+int strncmp(const char* s1, const char* s2, size_t n)
 {
-	stpncpy(dest, src, n);
-	return dest;
+	const auto handle_page_boundary = [&s1, &s2]() -> BAN::Optional<int> {
+		const size_t rem_s1 = reinterpret_cast<uintptr_t>(s1) & 0xFFF;
+		const size_t rem_s2 = reinterpret_cast<uintptr_t>(s2) & 0xFFF;
+		if (rem_s1 <= 0xFF0 && rem_s2 <= 0xFF0)
+			return {};
+
+		const size_t bytes = BAN::Math::min(0x1000 - rem_s1, 0x1000 - rem_s2);
+		for (size_t i = 0; i < bytes; i++, s1++, s2++)
+			if (*s1 == '\0' || *s2 == '\0' || *s1 != *s2)
+				return *s1 - *s2;
+
+		return {};
+	};
+
+	const __m128i zero = _mm_setzero_si128();
+
+	for (; n >= 16; n -= 16, s1 += 16, s2 += 16)
+	{
+		if (const auto ret = handle_page_boundary(); ret.has_value())
+			return ret.value();
+
+		const __m128i value1 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(s1));
+		const __m128i value2 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(s2));
+
+		const uint16_t mask_zero1 = _mm_movemask_epi8(_mm_cmpeq_epi8(value1, zero));
+		const uint16_t mask_zero2 = _mm_movemask_epi8(_mm_cmpeq_epi8(value2, zero));
+		const uint16_t mask_equal = _mm_movemask_epi8(_mm_cmpeq_epi8(value1, value2));
+		if (const uint16_t mask = mask_zero1 | mask_zero2 | (mask_equal ^ 0xFFFF))
+		{
+			const size_t diff_bit = BAN::Math::ctz(mask);
+			return s1[diff_bit] - s2[diff_bit];
+		}
+	}
+
+	for (size_t i = 0; i < n; i++, s1++, s2++)
+		if (*s1 == '\0' || *s2 == '\0' || *s1 != *s2)
+			return *s1 - *s2;
+
+	return 0;
 }
 
-char* strcat(char* __restrict__ dest, const char* __restrict__ src)
+char* strchrnul(const char* s, int c)
 {
-	strcpy(dest + strlen(dest), src);
-	return dest;
+	if (static_cast<char>(c) == '\0')
+		return const_cast<char*>(s) + strlen(s);
+
+	const __m128i equal = _mm_set1_epi8(c);
+	const __m128i zero = _mm_setzero_si128();
+
+	// NOTE: align to not cross into an invalid page boundary on last load
+	if (const size_t rem = reinterpret_cast<uintptr_t>(s) % 16)
+	{
+		const __m128i value = _mm_load_si128(reinterpret_cast<const __m128i*>(s - rem));
+
+		const uint16_t mask_zero  = _mm_movemask_epi8(_mm_cmpeq_epi8(value, zero )) >> rem;
+		const uint16_t mask_equal = _mm_movemask_epi8(_mm_cmpeq_epi8(value, equal)) >> rem;
+		if (const uint16_t mask = mask_zero | mask_equal)
+			return const_cast<char*>(s + BAN::Math::ctz(mask));
+
+		s += 16 - rem;
+	}
+
+	for (;; s += 16)
+	{
+		const __m128i value = _mm_load_si128(reinterpret_cast<const __m128i*>(s));
+
+		const uint16_t mask_zero  = _mm_movemask_epi8(_mm_cmpeq_epi8(value, zero ));
+		const uint16_t mask_equal = _mm_movemask_epi8(_mm_cmpeq_epi8(value, equal));
+		if (const uint16_t mask = mask_zero | mask_equal)
+			return const_cast<char*>(s + BAN::Math::ctz(mask));
+	}
 }
 
-char* strncat(char* __restrict__ dest, const char* __restrict__ src, size_t n)
+char* strrchr(const char* s, int c)
 {
-	char* ret = dest;
-	dest += strlen(dest);
-	while (*src && n--)
-		*dest++ = *src++;
-	*dest = '\0';
-	return ret;
+	if (static_cast<char>(c) == '\0')
+		return const_cast<char*>(s + strlen(s));
+
+	const __m128i equal = _mm_set1_epi8(c);
+	const __m128i zero = _mm_setzero_si128();
+
+	const char* last = nullptr;
+
+	// NOTE: align to not cross into an invalid page boundary on last load
+	if (const size_t rem = reinterpret_cast<uintptr_t>(s) % 16)
+	{
+		const __m128i value = _mm_load_si128(reinterpret_cast<const __m128i*>(s - rem));
+
+		const uint16_t mask_zero  = _mm_movemask_epi8(_mm_cmpeq_epi8(value, zero )) >> rem;
+		      uint16_t mask_equal = _mm_movemask_epi8(_mm_cmpeq_epi8(value, equal)) >> rem;
+
+		if (mask_zero != 0)
+		{
+			mask_equal &= (1u << BAN::Math::ctz(mask_zero)) - 1;
+			if (mask_equal != 0)
+				last = s + 16 - BAN::Math::clz(mask_equal) - 1;
+			return const_cast<char*>(last);
+		}
+
+		if (mask_equal != 0)
+			last = s + 16 - BAN::Math::clz<uint16_t>(mask_equal) - 1;
+
+		s += 16 - rem;
+	}
+
+	for (;; s += 16)
+	{
+		const __m128i value = _mm_load_si128(reinterpret_cast<const __m128i*>(s));
+
+		const uint16_t mask_zero  = _mm_movemask_epi8(_mm_cmpeq_epi8(value, zero ));
+		      uint16_t mask_equal = _mm_movemask_epi8(_mm_cmpeq_epi8(value, equal));
+
+		if (mask_zero != 0)
+		{
+			mask_equal &= (1u << BAN::Math::ctz(mask_zero)) - 1;
+			if (mask_equal != 0)
+				last = s + 16 - BAN::Math::clz(mask_equal) - 1;
+			return const_cast<char*>(last);
+		}
+
+		if (mask_equal != 0)
+			last = s + 16 - BAN::Math::clz<uint16_t>(mask_equal) - 1;
+	}
+}
+
+int strcmp(const char* s1, const char* s2)
+{
+	return strncmp(s1, s2, -1);
+}
+
+char* stpcpy(char* __restrict__ s1, const char* __restrict__ s2)
+{
+	return static_cast<char*>(memccpy(s1, s2, '\0', -1));
+}
+
+char* stpncpy(char* __restrict__ s1, const char* __restrict__ s2, size_t n)
+{
+	char* end = static_cast<char*>(memccpy(s1, s2, '\0', n));
+	if (end == nullptr)
+		return s1 + n;
+	memset(end, '\0', n - (end - s1));
+	return end - 1;
+}
+
+char* strcpy(char* __restrict__ s1, const char* __restrict__ s2)
+{
+	stpcpy(s1, s2);
+	return s1;
+}
+
+char* strncpy(char* __restrict__ s1, const char* __restrict__ s2, size_t n)
+{
+	stpncpy(s1, s2, n);
+	return s1;
+}
+
+char* strcat(char* __restrict__ s1, const char* __restrict__ s2)
+{
+	stpcpy(s1 + strlen(s1), s2);
+	return s1;
+}
+
+char* strncat(char* __restrict__ s1, const char* __restrict__ s2, size_t n)
+{
+	char* dst = s1 + strlen(s1);
+	if (memccpy(dst, s2, '\0', n) == nullptr)
+		dst[n] = '\0';
+	return s1;
+}
+
+char* strdup(const char* str)
+{
+	const size_t size = strlen(str);
+
+	char* new_str = static_cast<char*>(malloc(size + 1));
+	if (new_str == nullptr)
+		return nullptr;
+
+	memcpy(new_str, str, size + 1);
+	return new_str;
+}
+
+char* strndup(const char* str, size_t size)
+{
+	size = strnlen(str, size);
+
+	char* new_str = static_cast<char*>(malloc(size + 1));
+	if (new_str == nullptr)
+		return nullptr;
+
+	memcpy(new_str, str, size);
+	new_str[size] = '\0';
+	return new_str;
+}
+
+size_t strlen(const char* str)
+{
+	return static_cast<const char*>(memchr(str, '\0', -1)) - str;
+}
+
+size_t strnlen(const char* str, size_t maxlen)
+{
+	const char* null = static_cast<const char*>(memchr(str, '\0', maxlen));
+	if (null == nullptr)
+		return maxlen;
+	return null - str;
+}
+
+char* strchr(const char* str, int c)
+{
+	if (c == '\0')
+		return const_cast<char*>(str + strlen(str));
+	char* result = strchrnul(str, c);
+	return *result ? result : nullptr;
+}
+
+char* strsep(char** __restrict stringp, const char* __restrict delim)
+{
+	if (*stringp == nullptr)
+		return nullptr;
+
+	char* original = *stringp;
+
+	char* match = strpbrk(*stringp, delim);
+	if (match == nullptr)
+		*stringp = nullptr;
+	else
+	{
+		*stringp = match + 1;
+		*match = '\0';
+	}
+
+	return original;
+}
+
+char* strstr(const char* haystack, const char* needle)
+{
+	const size_t needle_len = strlen(needle);
+	if (needle_len == 0)
+		return const_cast<char*>(haystack);
+	for (size_t i = 0; haystack[i]; i++)
+		if (strncmp(haystack + i, needle, needle_len) == 0)
+			return const_cast<char*>(haystack + i);
+	return nullptr;
+}
+
+char* strcasestr(const char* haystack, const char* needle)
+{
+	const size_t needle_len = strlen(needle);
+	if (needle_len == 0)
+		return const_cast<char*>(haystack);
+	for (size_t i = 0; haystack[i]; i++)
+		if (strncasecmp(haystack + i, needle, needle_len) == 0)
+			return const_cast<char*>(haystack + i);
+	return nullptr;
 }
 
 int strcoll(const char* s1, const char* s2)
@@ -195,123 +574,6 @@ int strcoll_l(const char *s1, const char *s2, locale_t locale)
 	}
 
 	ASSERT_NOT_REACHED();
-}
-
-char* strdup(const char* str)
-{
-	const size_t size = strlen(str);
-
-	char* new_str = (char*)malloc(size + 1);
-	if (new_str == nullptr)
-		return nullptr;
-
-	memcpy(new_str, str, size);
-	new_str[size] = '\0';
-	return new_str;
-}
-
-char* strndup(const char* str, size_t size)
-{
-	if (size_t len = strlen(str); len < size)
-		size = len;
-
-	char* new_str = (char*)malloc(size + 1);
-	if (new_str == nullptr)
-		return nullptr;
-
-	memcpy(new_str, str, size);
-	new_str[size] = '\0';
-	return new_str;
-}
-
-extern "C" size_t _strlen(const char* str)
-{
-	size_t len = 0;
-	while (str[len])
-		len++;
-	return len;
-}
-weak_alias(_strlen, strlen);
-
-extern "C" size_t _strnlen(const char* str, size_t maxlen)
-{
-	size_t len = 0;
-	while (len < maxlen && str[len])
-		len++;
-	return len;
-}
-weak_alias(_strnlen, strnlen);
-
-char* strchr(const char* str, int c)
-{
-	if (c == '\0')
-		return const_cast<char*>(str + strlen(str));
-	char* result = strchrnul(str, c);
-	return *result ? result : nullptr;
-}
-
-char* strchrnul(const char* str, int c)
-{
-	while (*str)
-	{
-		if (*str == (char)c)
-			return (char*)str;
-		str++;
-	}
-	return const_cast<char*>(str);
-}
-
-char* strrchr(const char* str, int c)
-{
-	size_t len = strlen(str);
-	while (len > 0)
-	{
-		if (str[len] == (char)c)
-			return (char*)str + len;
-		len--;
-	}
-	return (*str == c) ? (char*)str : nullptr;
-}
-
-char* strsep(char** __restrict stringp, const char* __restrict delim)
-{
-	if (*stringp == nullptr)
-		return nullptr;
-
-	char* original = *stringp;
-
-	char* match = strpbrk(*stringp, delim);
-	if (match == nullptr)
-		*stringp = nullptr;
-	else
-	{
-		*stringp = match + 1;
-		*match = '\0';
-	}
-
-	return original;
-}
-
-char* strstr(const char* haystack, const char* needle)
-{
-	const size_t needle_len = strlen(needle);
-	if (needle_len == 0)
-		return const_cast<char*>(haystack);
-	for (size_t i = 0; haystack[i]; i++)
-		if (strncmp(haystack + i, needle, needle_len) == 0)
-			return const_cast<char*>(haystack + i);
-	return nullptr;
-}
-
-char* strcasestr(const char* haystack, const char* needle)
-{
-	const size_t needle_len = strlen(needle);
-	if (needle_len == 0)
-		return const_cast<char*>(haystack);
-	for (size_t i = 0; haystack[i]; i++)
-		if (strncasecmp(haystack + i, needle, needle_len) == 0)
-			return const_cast<char*>(haystack + i);
-	return nullptr;
 }
 
 #define CHAR_UCHAR(ch) \
