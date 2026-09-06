@@ -1,5 +1,6 @@
 #include <BAN/ScopeGuard.h>
 #include <kernel/CPUID.h>
+#include <kernel/CriticalScope.h>
 #include <kernel/GDT.h>
 #include <kernel/IDT.h>
 #include <kernel/InterruptController.h>
@@ -311,8 +312,7 @@ namespace Kernel
 	{
 		ASSERT(thread.m_sse_storage);
 
-		const auto state = get_interrupt_state();
-		set_interrupt_state(InterruptState::Disabled);
+		CriticalScope _;
 
 		const auto& processor = s_processors[current_id().as_u32()];
 		ASSERT(processor.m_sse_thread == &thread);
@@ -323,16 +323,13 @@ namespace Kernel
 			xsave(thread.m_sse_storage, processor.m_xsave_feat);
 		else
 			fxsave(thread.m_sse_storage);
-
-		set_interrupt_state(state);
 	}
 
 	void Processor::load_sse_state(Thread& thread)
 	{
 		ASSERT(thread.m_sse_storage);
 
-		const auto state = get_interrupt_state();
-		set_interrupt_state(InterruptState::Disabled);
+		CriticalScope _;
 
 		auto& processor = s_processors[current_id().as_u32()];
 		ASSERT(processor.m_sse_thread != &thread);
@@ -343,8 +340,6 @@ namespace Kernel
 			fxrstor(thread.m_sse_storage);
 
 		processor.m_sse_thread = &thread;
-
-		set_interrupt_state(state);
 	}
 
 	// NOTE: I don't like this being a separate function but we need heap and page tables for this :)
@@ -564,8 +559,7 @@ namespace Kernel
 		const auto& shared_page = Processor::shared_page();
 		const auto& lgettime = shared_page.cpus[current_index()].gettime_local;
 
-		auto state = get_interrupt_state();
-		set_interrupt_state(InterruptState::Disabled);
+		CriticalScope _;
 
 		uint64_t current_ns = __builtin_ia32_rdtsc() - lgettime.last_tsc;
 		if (lgettime.shift >= 0)
@@ -574,8 +568,6 @@ namespace Kernel
 			current_ns >>= -lgettime.shift;
 		current_ns = (current_ns * lgettime.mult) >> 32;
 		current_ns += lgettime.last_ns;
-
-		set_interrupt_state(state);
 
 		return current_ns;
 	}
@@ -632,8 +624,7 @@ namespace Kernel
 
 	void Processor::handle_smp_messages()
 	{
-		auto state = get_interrupt_state();
-		set_interrupt_state(InterruptState::Disabled);
+		CriticalScope _;
 
 		auto processor_id = current_id();
 		auto& processor = s_processors[processor_id.m_id];
@@ -642,7 +633,7 @@ namespace Kernel
 
 		auto* pending = processor.m_smp_pending.exchange(nullptr);
 		if (pending == nullptr)
-			return set_interrupt_state(state);
+			return;
 
 		// reverse smp message queue from LIFO to FIFO
 		{
@@ -717,14 +708,11 @@ namespace Kernel
 				if (tlb_entries[i].page_table == nullptr || tlb_entries[i].page_table == &page_table)
 					page_table.invalidate_range(tlb_entries[i].vaddr, tlb_entries[i].page_count, false);
 		}
-
-		set_interrupt_state(state);
 	}
 
 	bool Processor::send_smp_message(ProcessorID processor_id, const SMPMessage& message, bool send_ipi)
 	{
-		auto state = get_interrupt_state();
-		set_interrupt_state(InterruptState::Disabled);
+		CriticalScope _;
 
 		auto& processor = s_processors[processor_id.m_id];
 
@@ -748,7 +736,6 @@ namespace Kernel
 			}
 
 			processor.unlock_tlb_lock();
-			set_interrupt_state(state);
 
 			return is_first_entry;
 		}
@@ -796,8 +783,6 @@ namespace Kernel
 				InterruptController::get().send_ipi(processor_id);
 		}
 
-		set_interrupt_state(state);
-
 		return needs_ipi;
 	}
 
@@ -806,8 +791,7 @@ namespace Kernel
 		if (!is_smp_enabled())
 			return;
 
-		const auto state = get_interrupt_state();
-		set_interrupt_state(InterruptState::Disabled);
+		CriticalScope _;
 
 		bool needs_ipi = false;
 
@@ -821,8 +805,6 @@ namespace Kernel
 
 		if (needs_ipi)
 			InterruptController::get().broadcast_ipi();
-
-		set_interrupt_state(state);
 	}
 
 	Processor::LoadStats Processor::get_load_stats(size_t index)
@@ -856,15 +838,11 @@ namespace Kernel
 
 	void Processor::yield()
 	{
-		const auto state = get_interrupt_state();
-		set_interrupt_state(InterruptState::Disabled);
-
 		ASSERT(!Thread::current().has_spinlock());
 
-		auto& processor = s_processors[current_id().as_u32()];
+		CriticalScope _;
+		const auto& processor = s_processors[current_id().as_u32()];
 		asm_yield_trampoline(processor.stack_top_vaddr());
-
-		Processor::set_interrupt_state(state);
 	}
 
 }

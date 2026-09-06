@@ -1,5 +1,6 @@
 #include <BAN/Array.h>
 #include <BAN/Errors.h>
+#include <kernel/CriticalScope.h>
 #include <kernel/GDT.h>
 #include <kernel/IDT.h>
 #include <kernel/InterruptController.h>
@@ -197,7 +198,7 @@ namespace Kernel
 			dprintln("Processor {} halted", Processor::current_id());
 			if (InterruptController::is_initialized())
 				InterruptController::get().broadcast_ipi();
-			asm volatile("cli; 1: hlt; jmp 1b");
+			asm volatile("1: hlt; jmp 1b");
 		}
 
 		const pid_t tid = Thread::current_tid();
@@ -270,17 +271,12 @@ namespace Kernel
 				if (pid == 0 || !current_thread.is_userspace())
 					break;
 
-				const auto state = Processor::get_interrupt_state();
-				Processor::set_interrupt_state(InterruptState::Disabled);
+				CriticalScope _;
 
 				Processor::enable_sse();
-
 				if (auto* sse_thread = Processor::current_sse_thread())
 					Processor::save_sse_state(*sse_thread);
-
 				Processor::load_sse_state(current_thread);
-
-				Processor::set_interrupt_state(state);
 
 				return;
 			}

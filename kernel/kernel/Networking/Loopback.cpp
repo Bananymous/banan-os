@@ -1,3 +1,4 @@
+#include <kernel/CriticalScope.h>
 #include <kernel/Lock/BlockableSpinLock.h>
 #include <kernel/Networking/Loopback.h>
 #include <kernel/Networking/NetworkManager.h>
@@ -55,8 +56,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> LoopbackInterface::send_raw_bytes(BAN::Span<const BAN::ConstByteSpan> buffers)
 	{
-		const auto interrupt_state = Processor::get_interrupt_state();
-		Processor::set_interrupt_state(InterruptState::Disabled);
+		CriticalScope _;
 
 		auto& descriptor =
 			[&]() -> Descriptor&
@@ -88,7 +88,7 @@ namespace Kernel
 		descriptor.size = packet_size;
 		descriptor.state = 2;
 		m_thread_blocker.unblock();
-		m_buffer_lock.unlock(interrupt_state);
+		m_buffer_lock.unlock(InterruptState::Disabled);
 
 		return {};
 	}

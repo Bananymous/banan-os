@@ -1,3 +1,4 @@
+#include <kernel/CriticalScope.h>
 #include <kernel/Lock/SpinLock.h>
 #include <kernel/Processor.h>
 #include <kernel/Thread.h>
@@ -50,7 +51,8 @@ namespace Kernel
 		m_locker.store(PROCESSOR_NONE.as_u32(), BAN::MemoryOrder::memory_order_release);
 		if (Thread::current_tid())
 			Thread::current().remove_spinlock();
-		Processor::set_interrupt_state(state);
+		if (state != InterruptState::Disabled)
+			Processor::set_interrupt_state(state);
 	}
 
 	uint32_t SpinLock::lock_depth() const
@@ -117,7 +119,8 @@ namespace Kernel
 			m_locker.store(PROCESSOR_NONE.as_u32(), BAN::MemoryOrder::memory_order_release);
 		if (Thread::current_tid())
 			Thread::current().remove_spinlock();
-		Processor::set_interrupt_state(state);
+		if (state != InterruptState::Disabled)
+			Processor::set_interrupt_state(state);
 	}
 
 	uint32_t RecursiveSpinLock::lock_depth() const

@@ -2,6 +2,7 @@
 #include <BAN/ScopeGuard.h>
 #include <BAN/Sort.h>
 #include <kernel/APIC.h>
+#include <kernel/CriticalScope.h>
 #include <kernel/GDT.h>
 #include <kernel/InterruptController.h>
 #include <kernel/Lock/Mutex.h>
@@ -526,8 +527,7 @@ namespace Kernel
 			return;
 		}
 
-		const auto state = Processor::get_interrupt_state();
-		Processor::set_interrupt_state(InterruptState::Disabled);
+		CriticalScope _;
 
 		ASSERT(!thread->m_scheduler_node.blocked);
 		m_run_list.push(&thread->m_scheduler_node);
@@ -536,8 +536,6 @@ namespace Kernel
 			thread->update_processor_index_address();
 
 		m_thread_count++;
-
-		Processor::set_interrupt_state(state);
 	}
 
 	void Scheduler::block_current_thread(ThreadBlocker* blocker, uint64_t wake_time_ns, BaseMutex* mutex)
@@ -545,38 +543,38 @@ namespace Kernel
 		if (SystemTimer::get().ns_since_boot() >= wake_time_ns)
 			return;
 
-		const auto state = Processor::get_interrupt_state();
-		Processor::set_interrupt_state(InterruptState::Disabled);
+		uint32_t lock_depth { 0 };
 
-		ASSERT(m_current->processor_id == Processor::current_id());
-		ASSERT(!m_current->blocked);
-
-		Processor::set_disable_smp_messages(true);
-
-		m_current->blocked = true;
-		m_current->wake_time_ns = wake_time_ns;
-
-		if (blocker != nullptr)
-			blocker->add_thread_to_block_queue(m_current);
-
-		uint32_t lock_depth = 0;
-		if (mutex != nullptr)
 		{
-			ASSERT(mutex->is_locked_by_current_thread());
-			lock_depth = mutex->lock_depth();
+			CriticalScope _;
+
+			ASSERT(m_current->processor_id == Processor::current_id());
+			ASSERT(!m_current->blocked);
+
+			Processor::set_disable_smp_messages(true);
+
+			m_current->blocked = true;
+			m_current->wake_time_ns = wake_time_ns;
+
+			if (blocker != nullptr)
+				blocker->add_thread_to_block_queue(m_current);
+
+			if (mutex != nullptr)
+			{
+				ASSERT(mutex->is_locked_by_current_thread());
+				lock_depth = mutex->lock_depth();
+			}
+
+			for (uint32_t i = 0; i < lock_depth; i++)
+				mutex->unlock();
+
+			Processor::set_disable_smp_messages(false);
+
+			Processor::yield();
+
+			// NOTE: we cannot touch `this` after yield as we may have been moved to another CPU
+			//       and thus another Scheduler instance
 		}
-
-		for (uint32_t i = 0; i < lock_depth; i++)
-			mutex->unlock();
-
-		Processor::set_disable_smp_messages(false);
-
-		Processor::yield();
-
-		// NOTE: we cannot touch `this` after yield as we may have been moved to another CPU
-		//       and thus another Scheduler instance
-
-		Processor::set_interrupt_state(state);
 
 		for (uint32_t i = 0; i < lock_depth; i++)
 			mutex->lock();
@@ -584,8 +582,7 @@ namespace Kernel
 
 	void Scheduler::unblock_thread(Thread* thread)
 	{
-		const auto state = Processor::get_interrupt_state();
-		Processor::set_interrupt_state(InterruptState::Disabled);
+		CriticalScope _;
 
 		if (const auto proc_id = thread->m_scheduler_node.processor_id; proc_id != Processor::current_id())
 		{
@@ -593,11 +590,11 @@ namespace Kernel
 				.type = Processor::SMPMessage::Type::UnblockThread,
 				.unblock_thread = thread
 			});
-			return Processor::set_interrupt_state(state);
+			return;
 		}
 
 		if (!thread->m_scheduler_node.blocked)
-			return Processor::set_interrupt_state(state);
+			return;
 
 		Processor::set_disable_smp_messages(true);
 
@@ -609,8 +606,6 @@ namespace Kernel
 		m_run_list.push(&thread->m_scheduler_node);
 
 		Processor::set_disable_smp_messages(false);
-
-		Processor::set_interrupt_state(state);
 	}
 
 	Thread& Scheduler::current_thread()

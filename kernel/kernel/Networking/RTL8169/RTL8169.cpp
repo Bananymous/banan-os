@@ -1,3 +1,4 @@
+#include <kernel/CriticalScope.h>
 #include <kernel/Lock/BlockableSpinLock.h>
 #include <kernel/Networking/NetworkManager.h>
 #include <kernel/Networking/RTL8169/Definitions.h>
@@ -205,8 +206,7 @@ namespace Kernel
 		if (!link_up())
 			return BAN::Error::from_errno(EADDRNOTAVAIL);
 
-		const auto interrupt_state = Processor::get_interrupt_state();
-		Processor::set_interrupt_state(InterruptState::Disabled);
+		CriticalScope _;
 
 		const uint32_t tx_current_nowrap = m_tx_head.fetch_add(1);
 		const uint32_t tx_current = tx_current_nowrap % m_tx_descriptor_count;
@@ -245,8 +245,6 @@ namespace Kernel
 		while (tx_current_nowrap != m_tx_commit.load())
 			Processor::pause();
 		m_tx_commit.add_fetch(1);
-
-		Processor::set_interrupt_state(interrupt_state);
 
 		return {};
 	}

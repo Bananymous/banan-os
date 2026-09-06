@@ -2,6 +2,7 @@
 
 #include <BAN/Errors.h>
 #include <BAN/Traits.h>
+#include <kernel/CriticalScope.h>
 #include <kernel/Lock/SpinLock.h>
 #include <kernel/Memory/Types.h>
 #include <kernel/Processor.h>
@@ -86,13 +87,11 @@ namespace Kernel
 		template<with_per_cpu_fast_page_callback F>
 		static void with_per_cpu_fast_page(paddr_t paddr, F callback)
 		{
-			const auto state = Processor::get_interrupt_state();
-			Processor::set_interrupt_state(InterruptState::Disabled);
+			CriticalScope _;
 			const size_t index = Processor::current_index() + reserved_fast_pages;
 			void* addr = map_fast_page(index, paddr);
 			callback(addr);
 			unmap_fast_page(index);
-			Processor::set_interrupt_state(state);
 		}
 
 		template<with_fast_page_callback_error F>

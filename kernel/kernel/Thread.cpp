@@ -1,5 +1,6 @@
 #include <BAN/Errors.h>
 #include <BAN/ScopeGuard.h>
+#include <kernel/CriticalScope.h>
 #include <kernel/GDT.h>
 #include <kernel/InterruptController.h>
 #include <kernel/InterruptStack.h>
@@ -191,11 +192,7 @@ namespace Kernel
 		if (const size_t rem = reinterpret_cast<uintptr_t>(new_sse_storage) % 64)
 			thread->m_sse_storage_align = 64 - rem;
 		thread->m_sse_storage = new_sse_storage + thread->m_sse_storage_align;
-
-		const auto state = Processor::get_interrupt_state();
-		Processor::set_interrupt_state(InterruptState::Disabled);
 		memcpy(thread->m_sse_storage, Processor::default_sse_area(), Processor::sse_area_size());
-		Processor::set_interrupt_state(state);
 
 		thread->m_userspace_stack_vaddr = userspace_stack_vaddr;
 		thread->m_userspace_stack_size  = userspace_stack_size;
@@ -240,12 +237,11 @@ namespace Kernel
 
 	Thread::~Thread()
 	{
-		const auto state = Processor::get_interrupt_state();
-		Processor::set_interrupt_state(InterruptState::Disabled);
-		if (Processor::current_sse_thread() == this)
+		if (CriticalScope _; Processor::current_sse_thread() == this)
+		{
 			Processor::reset_sse_thread();
-		Processor::disable_sse();
-		Processor::set_interrupt_state(state);
+			Processor::disable_sse();
+		}
 
 		if (m_sse_storage)
 			kfree(m_sse_storage - m_sse_storage_align);
@@ -347,12 +343,9 @@ namespace Kernel
 			thread->m_sse_storage_align = 64 - rem;
 		thread->m_sse_storage = new_sse_storage + thread->m_sse_storage_align;
 
-		const auto state = Processor::get_interrupt_state();
-		Processor::set_interrupt_state(InterruptState::Disabled);
-		if (Processor::current_sse_thread() == this)
+		if (CriticalScope _; Processor::current_sse_thread() == this)
 			Processor::save_sse_state(*this);
 		memcpy(thread->m_sse_storage, m_sse_storage, Processor::sse_area_size());
-		Processor::set_interrupt_state(state);
 
 		thread->m_userspace_stack_vaddr = m_userspace_stack_vaddr;
 		thread->m_userspace_stack_size  = m_userspace_stack_size;

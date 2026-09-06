@@ -1,3 +1,4 @@
+#include <kernel/CriticalScope.h>
 #include <kernel/IDT.h>
 #include <kernel/InterruptController.h>
 #include <kernel/IO.h>
@@ -282,8 +283,7 @@ namespace Kernel
 
 	BAN::ErrorOr<void> E1000::send_raw_bytes(BAN::Span<const BAN::ConstByteSpan> buffers)
 	{
-		const auto interrupt_state = Processor::get_interrupt_state();
-		Processor::set_interrupt_state(InterruptState::Disabled);
+		CriticalScope _;
 
 		const uint32_t tx_current_nowrap = m_tx_head.fetch_add(1);
 		const uint32_t tx_current = tx_current_nowrap % E1000_TX_DESCRIPTOR_COUNT;
@@ -310,8 +310,6 @@ namespace Kernel
 			Processor::pause();
 		write32(REG_TDT, (tx_current + 1) % E1000_TX_DESCRIPTOR_COUNT);
 		m_tx_commit.add_fetch(1);
-
-		Processor::set_interrupt_state(interrupt_state);
 
 		dprintln_if(DEBUG_E1000, "sent {} bytes", packet_size);
 

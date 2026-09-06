@@ -65,9 +65,8 @@ namespace Kernel
 	public:
 		SpinLockGuard(Lock& lock)
 			: m_lock(lock)
-		{
-			m_state = m_lock.lock();
-		}
+			, m_state(lock.lock())
+		{ }
 
 		~SpinLockGuard()
 		{
@@ -76,7 +75,7 @@ namespace Kernel
 
 	private:
 		Lock& m_lock;
-		InterruptState m_state;
+		const InterruptState m_state;
 	};
 
 }
