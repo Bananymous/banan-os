@@ -506,10 +506,7 @@ namespace Kernel
 
 		last_handled->next = processor.m_smp_free;
 		while (!processor.m_smp_free.compare_exchange(last_handled->next, pending))
-		{
 			__builtin_ia32_pause();
-			last_handled->next = processor.m_smp_free;
-		}
 
 		{
 			processor.lock_tlb_lock();
@@ -590,10 +587,7 @@ namespace Kernel
 
 				last->next = processor.m_smp_free;
 				while (!processor.m_smp_free.compare_exchange(last->next, base))
-				{
 					__builtin_ia32_pause();
-					last->next = processor.m_smp_free;
-				}
 			}
 		}
 
@@ -603,10 +597,7 @@ namespace Kernel
 		// push message to pending queue
 		storage->next = processor.m_smp_pending;
 		while (!processor.m_smp_pending.compare_exchange(storage->next, storage))
-		{
 			__builtin_ia32_pause();
-			storage->next = processor.m_smp_pending;
-		}
 
 		const bool needs_ipi = (storage->next == nullptr);
 
