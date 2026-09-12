@@ -1,6 +1,0 @@
-diff -ruN xbps-0.60.7/data/repod-main.conf xbps-0.60.7-banan_os/data/repod-main.conf
---- xbps-0.60.7/data/repod-main.conf	2026-02-09 22:23:08.000000000 +0200
-+++ xbps-0.60.7-banan_os/data/repod-main.conf	2026-04-18 14:07:59.005131620 +0300
-@@ -1 +1 @@
--repository=https://repo-default.voidlinux.org/current
-+repository=https://packages.bananymous.com/banan-os

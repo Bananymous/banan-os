@@ -43,6 +43,10 @@ fi
 export BANAN_CMAKE="$BANAN_TOOLCHAIN_PREFIX/bin/cmake"
 
 run_xbps() {
+	if ! [ -d "$BANAN_SYSROOT/var/db/xbps/keys" ]; then
+		mkdir -p "$BANAN_SYSROOT/var/db/xbps/keys"
+		cp "$BANAN_TOOLCHAIN_DIR/xbps-keys"/* "$BANAN_SYSROOT/var/db/xbps/keys/"
+	fi
 	PATH="$BANAN_TOOLCHAIN_PREFIX/bin:$PATH" LD_LIBRARY_PATH="$BANAN_TOOLCHAIN_PREFIX/lib" "$@"
 }
 export -f run_xbps
