@@ -335,6 +335,9 @@ namespace Kernel
 					case SO_RCVBUF:
 						result = m_recv_window.buffer->capacity();
 						break;
+					case SO_TYPE:
+						result = SOCK_STREAM;
+						break;
 					default:
 						dwarnln("getsockopt(SOL_SOCKET, {})", option);
 						return BAN::Error::from_errno(ENOPROTOOPT);

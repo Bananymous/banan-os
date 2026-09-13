@@ -295,6 +295,9 @@ namespace Kernel
 					case SO_RCVBUF:
 						result = m_packet_buffer->size();
 						break;
+					case SO_TYPE:
+						result = SOCK_DGRAM;
+						break;
 					default:
 						dwarnln("getsockopt(SOLSOCKET, {})", option);
 						return BAN::Error::from_errno(ENOPROTOOPT);
