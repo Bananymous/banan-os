@@ -1236,7 +1236,11 @@ void* dlopen(const char* file, int mode)
 			return nullptr;
 		}
 
-		object = load_object(full_path, -1, load_local);
+		if (!(object = load_object(full_path, -1, load_local)))
+		{
+			s_dlerror_string = "failed to load?";
+			return nullptr;
+		}
 
 		add_scope_root(*object, s_global_scope);
 
