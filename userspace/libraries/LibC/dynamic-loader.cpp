@@ -73,6 +73,7 @@ struct DynamicInfo
 	uintptr_t fini_array;
 	uint32_t fini_arraysz;
 
+	bool symbolic;
 	bool textrel;
 };
 
@@ -198,6 +199,17 @@ static FindSymbolInScopeResult find_symbol_in_scope(const LoadedObject& object, 
 
 	FindSymbolInScopeResult weak = { nullptr , 0 };
 
+	if (object.dynamic.symbolic)
+	{
+		if (const auto* match = find_symbol_in_object(object, symbol_name))
+		{
+			if (ELF_ST_BIND(match->st_info) != STB_WEAK)
+				return { &object, object.base_address + match->st_value };
+			if (weak.object == nullptr)
+				weak = { &object, match->st_value ? object.base_address + match->st_value : 0 };
+		}
+	}
+
 	for (const auto& scope_root : object.scope_roots)
 	{
 		for (const auto* lookup : scope_root->lookup_scope)
@@ -208,7 +220,7 @@ static FindSymbolInScopeResult find_symbol_in_scope(const LoadedObject& object, 
 			if (ELF_ST_BIND(match->st_info) != STB_WEAK)
 				return { lookup, lookup->base_address + match->st_value };
 			if (weak.object == nullptr)
-				weak = { lookup, lookup->base_address + match->st_value };
+				weak = { lookup, match->st_value ? lookup->base_address + match->st_value : 0 };
 		}
 	}
 
@@ -519,6 +531,7 @@ static void parse_dynamic_info(LoadedObject& object, BAN::Span<const Elf_Dyn> dy
 			case DT_FINI_ARRAYSZ: info.fini_arraysz = dynamic.d_un.d_val;        break;
 			case DT_RPATH:        info.rpath        = dynamic.d_un.d_val;        break;
 			case DT_RUNPATH:      info.runpath      = dynamic.d_un.d_val;        break;
+			case DT_SYMBOLIC:     info.symbolic     = true;                      break;
 			case DT_TEXTREL:      info.textrel      = true;                      break;
 		}
 	}
