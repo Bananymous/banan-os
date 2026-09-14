@@ -227,7 +227,7 @@ int main()
 		}
 	}
 
-	int mouse_fd = open("/dev/mouse", O_RDONLY | O_CLOEXEC);
+	int mouse_fd = open("/dev/mouse", O_RDONLY | O_NONBLOCK | O_CLOEXEC);
 	if (mouse_fd == -1)
 		dwarnln("open mouse: {}", strerror(errno));
 	else
@@ -364,27 +364,71 @@ int main()
 			{
 				ASSERT(events[i].events & EPOLLIN);
 
-				LibInput::MouseEvent event;
-				if (read(mouse_fd, &event, sizeof(event)) == -1)
+				const auto handle_event = [&window_server](const LibInput::MouseEvent& event) {
+					switch (event.type)
+					{
+						case LibInput::MouseEventType::MouseButtonEvent:
+							window_server.on_mouse_button(event.button_event);
+							break;
+						case LibInput::MouseEventType::MouseMoveEvent:
+							window_server.on_mouse_move(event.move_event);
+							break;
+						case LibInput::MouseEventType::MouseMoveAbsEvent:
+							window_server.on_mouse_move_abs(event.move_abs_event);
+							break;
+						case LibInput::MouseEventType::MouseScrollEvent:
+							window_server.on_mouse_scroll(event.scroll_event);
+							break;
+					}
+				};
+
+				BAN::Optional<LibInput::MouseEvent> coalesced_event;
+
+				for (;;)
 				{
-					dwarnln("read mouse: {}", strerror(errno));
-					continue;
+					LibInput::MouseEvent event;
+					if (ssize_t nread = read(mouse_fd, &event, sizeof(event)); nread < static_cast<ssize_t>(sizeof(LibInput::MouseEvent)))
+					{
+						if (nread == -1 && errno != EWOULDBLOCK && errno != EAGAIN)
+							dwarnln("read mouse: {}", strerror(errno));
+						break;
+					}
+
+					const bool coalescable =
+						(event.type == LibInput::MouseEventType::MouseMoveEvent) ||
+						(event.type == LibInput::MouseEventType::MouseMoveAbsEvent);
+
+					if (!coalescable)
+					{
+						if (coalesced_event.has_value())
+							handle_event(coalesced_event.release_value());
+						handle_event(event);
+					}
+					else
+					{
+						if (coalesced_event.has_value() && coalesced_event->type != event.type)
+							handle_event(coalesced_event.release_value());
+
+						if (!coalesced_event.has_value())
+							coalesced_event = event;
+						else switch (event.type)
+						{
+							case LibInput::MouseEventType::MouseMoveEvent:
+								coalesced_event->move_event.rel_x += event.move_event.rel_x;
+								coalesced_event->move_event.rel_y += event.move_event.rel_y;
+								break;
+							case LibInput::MouseEventType::MouseMoveAbsEvent:
+								coalesced_event = event;
+								break;
+							default:
+								ASSERT_NOT_REACHED();
+						}
+					}
 				}
-				switch (event.type)
-				{
-					case LibInput::MouseEventType::MouseButtonEvent:
-						window_server.on_mouse_button(event.button_event);
-						break;
-					case LibInput::MouseEventType::MouseMoveEvent:
-						window_server.on_mouse_move(event.move_event);
-						break;
-					case LibInput::MouseEventType::MouseMoveAbsEvent:
-						window_server.on_mouse_move_abs(event.move_abs_event);
-						break;
-					case LibInput::MouseEventType::MouseScrollEvent:
-						window_server.on_mouse_scroll(event.scroll_event);
-						break;
-				}
+
+				if (coalesced_event.has_value())
+					handle_event(coalesced_event.release_value());
+
 				continue;
 			}
 
