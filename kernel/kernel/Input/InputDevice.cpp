@@ -133,71 +133,51 @@ namespace Kernel
 
 	void InputDevice::add_event(BAN::ConstByteSpan event)
 	{
+		ASSERT(event.size() == m_event_size);
+
+		SpinLockGuard _(m_event_lock);
+
+		if (m_type == Type::Keyboard)
 		{
-			SpinLockGuard _(m_event_lock);
-			ASSERT(event.size() == m_event_size);
+			using KeyModified = LibInput::KeyEvent::Modifier;
 
-			if (m_type == Type::Mouse && m_event_count > 0)
+			auto& key_event = event.as<const LibInput::RawKeyEvent>();
+			if (key_event.modifier & KeyModified::Pressed)
 			{
-				const size_t last_index = (m_event_head + m_max_event_count - 1) % m_max_event_count;
-
-				auto& last_event = *reinterpret_cast<LibInput::MouseEvent*>(&m_event_buffer[last_index * m_event_size]);
-				auto& curr_event = event.as<const LibInput::MouseEvent>();
-				if (last_event.type == LibInput::MouseEventType::MouseMoveEvent && curr_event.type == LibInput::MouseEventType::MouseMoveEvent)
+				if (key_event.modifier & (KeyModified::LCtrl | KeyModified::RCtrl))
 				{
-					last_event.move_event.rel_x += curr_event.move_event.rel_x;
-					last_event.move_event.rel_y += curr_event.move_event.rel_y;
-					return;
-				}
-				if (last_event.type == LibInput::MouseEventType::MouseMoveAbsEvent && curr_event.type == LibInput::MouseEventType::MouseMoveAbsEvent)
-				{
-					last_event.move_abs_event.abs_x = curr_event.move_abs_event.abs_x;
-					last_event.move_abs_event.abs_y = curr_event.move_abs_event.abs_y;
-					return;
-				}
-				if (last_event.type == LibInput::MouseEventType::MouseScrollEvent && curr_event.type == LibInput::MouseEventType::MouseScrollEvent)
-				{
-					last_event.scroll_event.scroll += curr_event.scroll_event.scroll;
-					return;
-				}
-			}
-
-			if (m_type == Type::Keyboard)
-			{
-				auto& key_event = event.as<const LibInput::RawKeyEvent>();
-				if (key_event.modifier & LibInput::KeyEvent::Modifier::Pressed)
-				{
-					if (key_event.modifier & LibInput::KeyEvent::Modifier::LCtrl)
+					const auto processor_count = Processor::count();
+					switch (key_event.keycode)
 					{
-						const auto processor_count = Processor::count();
-						switch (key_event.keycode)
-						{
 #define DUMP_CPU_STACK_TRACE(idx) \
-							case LibInput::keycode_function(idx + 1): \
-								if (idx >= processor_count) \
-									break; \
-								Processor::send_smp_message(Processor::id_from_index(idx), { \
-									.type = Processor::SMPMessage::Type::StackTrace, \
-									.dummy = false, \
-								}); \
-								break
-							// F1-F12
-							DUMP_CPU_STACK_TRACE(0);
-							DUMP_CPU_STACK_TRACE(1);
-							DUMP_CPU_STACK_TRACE(2);
-							DUMP_CPU_STACK_TRACE(3);
-							DUMP_CPU_STACK_TRACE(4);
-							DUMP_CPU_STACK_TRACE(5);
-							DUMP_CPU_STACK_TRACE(6);
-							DUMP_CPU_STACK_TRACE(7);
-							DUMP_CPU_STACK_TRACE(8);
-							DUMP_CPU_STACK_TRACE(9);
-							DUMP_CPU_STACK_TRACE(10);
-							DUMP_CPU_STACK_TRACE(11);
+						case LibInput::keycode_function(idx + 1): \
+							if (idx >= processor_count) \
+								break; \
+							Processor::send_smp_message(Processor::id_from_index(idx), { \
+								.type = Processor::SMPMessage::Type::StackTrace, \
+								.dummy = false, \
+							}); \
+							break
+						// F1-F12
+						DUMP_CPU_STACK_TRACE(0);
+						DUMP_CPU_STACK_TRACE(1);
+						DUMP_CPU_STACK_TRACE(2);
+						DUMP_CPU_STACK_TRACE(3);
+						DUMP_CPU_STACK_TRACE(4);
+						DUMP_CPU_STACK_TRACE(5);
+						DUMP_CPU_STACK_TRACE(6);
+						DUMP_CPU_STACK_TRACE(7);
+						DUMP_CPU_STACK_TRACE(8);
+						DUMP_CPU_STACK_TRACE(9);
+						DUMP_CPU_STACK_TRACE(10);
+						DUMP_CPU_STACK_TRACE(11);
 #undef DUMP_CPU_STACK_TRACE
-						}
 					}
-					else switch (key_event.keycode)
+				}
+
+				if (key_event.modifier & (KeyModified::LShift | KeyModified::RShift))
+				{
+					switch (key_event.keycode)
 					{
 						case LibInput::keycode_function(11):
 							DevFileSystem::get().initiate_disk_cache_drop();
@@ -207,27 +187,27 @@ namespace Kernel
 							break;
 					}
 				}
-
-				if (TTY::current()->should_receive_input())
-				{
-					SpinLockGuard _(s_tty_keyboard_event_lock);
-					if (!s_tty_keyboard_events.full())
-						s_tty_keyboard_events.push(key_event);
-					s_tty_keyboard_event_blocker.unblock();
-					return;
-				}
 			}
 
-			if (m_event_count == m_max_event_count)
+			if (TTY::current()->should_receive_input())
 			{
-				m_event_tail = (m_event_tail + 1) % m_max_event_count;
-				m_event_count--;
+				SpinLockGuard _(s_tty_keyboard_event_lock);
+				if (!s_tty_keyboard_events.full())
+					s_tty_keyboard_events.push(key_event);
+				s_tty_keyboard_event_blocker.unblock();
+				return;
 			}
-
-			memcpy(&m_event_buffer[m_event_head * m_event_size], event.data(), m_event_size);
-			m_event_head = (m_event_head + 1) % m_max_event_count;
-			m_event_count++;
 		}
+
+		if (m_event_count == m_max_event_count)
+		{
+			m_event_tail = (m_event_tail + 1) % m_max_event_count;
+			m_event_count--;
+		}
+
+		memcpy(&m_event_buffer[m_event_head * m_event_size], event.data(), m_event_size);
+		m_event_head = (m_event_head + 1) % m_max_event_count;
+		m_event_count++;
 
 		epoll_notify(EPOLLIN);
 
