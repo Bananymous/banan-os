@@ -409,7 +409,7 @@ int strcmp(const char* s1, const char* s2)
 
 char* stpcpy(char* __restrict__ s1, const char* __restrict__ s2)
 {
-	return static_cast<char*>(memccpy(s1, s2, '\0', -1));
+	return static_cast<char*>(memccpy(s1, s2, '\0', -1)) - 1;
 }
 
 char* stpncpy(char* __restrict__ s1, const char* __restrict__ s2, size_t n)
