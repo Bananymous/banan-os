@@ -992,7 +992,8 @@ int pthread_rwlockattr_setpshared(pthread_rwlockattr_t* attr, int pshared)
 
 int pthread_rwlock_destroy(pthread_rwlock_t* rwlock)
 {
-	(void)rwlock;
+	pthread_mutex_destroy(&rwlock->lock);
+	pthread_cond_destroy(&rwlock->cond);
 	return 0;
 }
 
@@ -1172,37 +1173,24 @@ int pthread_cond_init(pthread_cond_t* __restrict cond, const pthread_condattr_t*
 		attr = &default_attr;
 	*cond = {
 		.attr = *attr,
-		.lock = PTHREAD_SPIN_INITIALIZER,
-		.block_list = nullptr,
+		.futex = 0,
 	};
 	return 0;
 }
 
 int pthread_cond_broadcast(pthread_cond_t* cond)
 {
-	pthread_spin_lock(&cond->lock);
-	for (auto* block = cond->block_list; block; block = block->next)
-	{
-		BAN::atomic_store(block->futex, 1);
-
-		const int op = FUTEX_WAKE | (cond->attr.shared ? 0 : FUTEX_PRIVATE);
-		futex(op, &block->futex, 1, nullptr);
-	}
-	pthread_spin_unlock(&cond->lock);
+	BAN::atomic_fetch_add(cond->futex, 1);
+	const int op = FUTEX_WAKE | (cond->attr.shared ? 0 : FUTEX_PRIVATE);
+	futex(op, &cond->futex, -1, nullptr);
 	return 0;
 }
 
 int pthread_cond_signal(pthread_cond_t* cond)
 {
-	pthread_spin_lock(&cond->lock);
-	if (auto* block = cond->block_list)
-	{
-		BAN::atomic_store(block->futex, 1);
-
-		const int op = FUTEX_WAKE | (cond->attr.shared ? 0 : FUTEX_PRIVATE);
-		futex(op, &block->futex, 1, nullptr);
-	}
-	pthread_spin_unlock(&cond->lock);
+	BAN::atomic_fetch_add(cond->futex, 1);
+	const int op = FUTEX_WAKE | (cond->attr.shared ? 0 : FUTEX_PRIVATE);
+	futex(op, &cond->futex, 1, nullptr);
 	return 0;
 }
 
@@ -1216,37 +1204,19 @@ int pthread_cond_timedwait(pthread_cond_t* __restrict cond, pthread_mutex_t* __r
 {
 	pthread_testcancel();
 
-	pthread_spin_lock(&cond->lock);
-	_pthread_cond_block block = {
-		.next = cond->block_list,
-		.futex = 0,
-	};
-	cond->block_list = &block;
-	pthread_spin_unlock(&cond->lock);
+	const uint32_t seq = BAN::atomic_load(cond->futex);
 
 	pthread_mutex_unlock(mutex);
 
 	int ret = 0;
-	while (ret == 0 && BAN::atomic_load(block.futex) == 0)
+	while (ret == 0 && BAN::atomic_load(cond->futex) == seq)
 	{
 		const int op = FUTEX_WAIT
 			| (cond->attr.shared ? 0 : FUTEX_PRIVATE)
 			| (cond->attr.clock == CLOCK_REALTIME ? FUTEX_REALTIME : 0);
-		if (const int err = futex(op, &block.futex, 0, abstime); err != EAGAIN)
+		if (const int err = futex(op, &cond->futex, seq, abstime); err != EAGAIN)
 			ret = err;
 	}
-
-	pthread_spin_lock(&cond->lock);
-	if (&block == cond->block_list)
-		cond->block_list = block.next;
-	else
-	{
-		_pthread_cond_block* prev = cond->block_list;
-		while (prev->next != &block)
-			prev = prev->next;
-		prev->next = block.next;
-	}
-	pthread_spin_unlock(&cond->lock);
 
 	pthread_mutex_lock(mutex);
 
@@ -1289,7 +1259,8 @@ int pthread_barrierattr_setpshared(pthread_barrierattr_t* attr, int pshared)
 
 int pthread_barrier_destroy(pthread_barrier_t* barrier)
 {
-	(void)barrier;
+	pthread_mutex_destroy(&barrier->lock);
+	pthread_cond_destroy(&barrier->cond);
 	return 0;
 }
 

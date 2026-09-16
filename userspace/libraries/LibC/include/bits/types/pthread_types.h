@@ -35,16 +35,10 @@ typedef struct
 	int clock;
 	int shared;
 } pthread_condattr_t;
-struct _pthread_cond_block
-{
-	struct _pthread_cond_block* next;
-	uint32_t futex;
-};
 typedef struct
 {
 	pthread_condattr_t attr;
-	pthread_spinlock_t lock;
-	struct _pthread_cond_block* block_list;
+	uint32_t futex;
 } pthread_cond_t;
 
 typedef struct
