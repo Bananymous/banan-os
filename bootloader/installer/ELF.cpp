@@ -1,7 +1,5 @@
 #include "ELF.h"
 
-#include <LibELF/Values.h>
-
 #include <cassert>
 #include <cerrno>
 #include <cstring>
@@ -9,8 +7,6 @@
 #include <iostream>
 #include <sys/mman.h>
 #include <unistd.h>
-
-using namespace LibELF;
 
 ELFFile::ELFFile(std::string_view path)
 	: m_path(path)
@@ -53,14 +49,14 @@ ELFFile::~ELFFile()
 	m_fd = -1;
 }
 
-const ElfNativeFileHeader& ELFFile::elf_header() const
+const ElfW(Ehdr)& ELFFile::elf_header() const
 {
-	return *reinterpret_cast<LibELF::ElfNativeFileHeader*>(m_mmap);
+	return *reinterpret_cast<ElfW(Ehdr)*>(m_mmap);
 }
 
 bool ELFFile::validate_elf_header() const
 {
-	if (m_stat.st_size < sizeof(ElfNativeFileHeader))
+	if (m_stat.st_size < sizeof(ElfW(Ehdr)))
 	{
 		std::cerr << m_path << " is too small to be a ELF executable" << std::endl;
 		return false;
@@ -79,9 +75,9 @@ bool ELFFile::validate_elf_header() const
 		return false;
 	}
 
-#if ARCH(x86_64)
+#if defined(__x86_64__)
 	if (elf_header.e_ident[EI_CLASS] != ELFCLASS64)
-#elif ARCH(i686)
+#elif defined(__i686__)
 	if (elf_header.e_ident[EI_CLASS] != ELFCLASS32)
 #endif
 	{
@@ -110,15 +106,15 @@ bool ELFFile::validate_elf_header() const
 	return true;
 }
 
-const ElfNativeSectionHeader& ELFFile::section_header(std::size_t index) const
+const ElfW(Shdr)& ELFFile::section_header(std::size_t index) const
 {
 	const auto& elf_header = this->elf_header();
 	assert(index < elf_header.e_shnum);
 	const uint8_t* section_array_start = m_mmap + elf_header.e_shoff;
-	return *reinterpret_cast<const ElfNativeSectionHeader*>(section_array_start + index * elf_header.e_shentsize);
+	return *reinterpret_cast<const ElfW(Shdr)*>(section_array_start + index * elf_header.e_shentsize);
 }
 
-std::string_view ELFFile::section_name(const ElfNativeSectionHeader& section_header) const
+std::string_view ELFFile::section_name(const ElfW(Shdr)& section_header) const
 {
 	const auto& elf_header = this->elf_header();
 	assert(elf_header.e_shstrndx != SHN_UNDEF);

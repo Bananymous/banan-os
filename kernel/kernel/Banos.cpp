@@ -1,22 +1,21 @@
-#include <kernel/Debug.h>
-#include <kernel/Banos.h>
 #include <BAN/Assert.h>
-#include <banos/driver.h>
-#include <banos/print.h>
-#include <banos/export.h>
-#include <kernel/FS/VirtualFileSystem.h>
-#include <kernel/Memory/PageTable.h>
-#include <kernel/ELF.h>
-#include <LibELF/Types.h>
-#include <LibELF/Values.h>
-#include <kernel/Process.h>
 #include <BAN/HashMap.h>
+#include <banos/driver.h>
+#include <banos/export.h>
+#include <banos/print.h>
+#include <kernel/Banos.h>
+#include <kernel/Debug.h>
+#include <kernel/ELF.h>
+#include <kernel/FS/VirtualFileSystem.h>
 #include <kernel/Lock/SpinLock.h>
+#include <kernel/Memory/PageTable.h>
+#include <kernel/Process.h>
 #include <kernel/UserCopy.h>
+
+#include <elf.h>
 
 #if ARCH(x86_64)
 
-using namespace LibELF;
 using namespace Kernel;
 
 extern "C" {
@@ -62,19 +61,8 @@ static void load_drv(Banos_Driver* drv) {
 BAN::ErrorOr<size_t> Banos::load_driver_from_image(const char* u_image) {
 	if(!Process::current().credentials().is_superuser()) return BAN::Error::from_errno(EPERM);
 	// TODO: permission verification. Only root should be allowed to do this
-	LibELF::ElfNativeFileHeader header;
+	Elf64_Ehdr header;
 
-	const unsigned char elf_class =
-		#if ARCH(i686)
-			ELFCLASS32;
-		#elif ARCH(x86_64)
-			ELFCLASS64;
-		#else
-		#   error update elf class
-		#endif
-
-	// TODO: is banan-os really ever gonna be running on MSB machines?
-	const unsigned char elf_data = ELFDATA2LSB;
 	// TODO: do we need to verify e_machine? I mean we do not really care.
 	// But I'm leaving this todo:
 	//   Look up EM_X86_64 and EM_360|EM_860|EM_960
@@ -83,28 +71,28 @@ BAN::ErrorOr<size_t> Banos::load_driver_from_image(const char* u_image) {
 		header.e_ident[EI_MAG1]	   != ELFMAG1        ||
 		header.e_ident[EI_MAG2]	   != ELFMAG2        ||
 		header.e_ident[EI_MAG3]	   != ELFMAG3        ||
-		header.e_ident[EI_CLASS]   != elf_class	     ||
-		header.e_ident[EI_DATA]	   != elf_data       ||
+		header.e_ident[EI_CLASS]   != ELFCLASS64     ||
+		header.e_ident[EI_DATA]	   != ELFDATA2LSB    ||
 		header.e_ident[EI_VERSION] != EV_CURRENT     ||
 		header.e_type			   != ET_REL         ||
 		header.e_version		   != EV_CURRENT     ||
 		header.e_ehsize			   != sizeof(header) ||
-		header.e_shentsize		   != sizeof(ElfNativeSectionHeader))
+		header.e_shentsize		   != sizeof(Elf64_Shdr))
 		return BAN::Error::from_errno(EINVAL);
 
 
-	BAN::Vector<LibELF::ElfNativeSectionHeader> secs(header.e_shnum);
+	BAN::Vector<Elf64_Shdr> secs(header.e_shnum);
 	TRY(read_from_user(u_image + header.e_shoff, secs.data(), secs.size() * sizeof(*secs.data())));
 	auto shstr = secs[header.e_shstrndx];
 
 	size_t total_size = 0;
 
-	LibELF::ElfNativeSectionHeader  *strtab = nullptr,
-									*symtab = nullptr,
-									*driver_section = nullptr;
+	Elf64_Shdr *strtab = nullptr,
+	           *symtab = nullptr,
+	           *driver_section = nullptr;
 
 	for(auto& sec : secs) {
-		if(sec.sh_flags & LibELF::SHF_ALLOC) {
+		if(sec.sh_flags & SHF_ALLOC) {
 			sec.sh_addr = total_size;
 			total_size += sec.sh_size;
 		}
@@ -113,7 +101,7 @@ BAN::ErrorOr<size_t> Banos::load_driver_from_image(const char* u_image) {
 		TRY(read_string_from_user(u_image + shstr.sh_offset + sec.sh_name, name, sizeof name));
 		BAN::StringView name_sv(name);
 
-		if(sec.sh_type == LibELF::SHT_SYMTAB) {
+		if(sec.sh_type == SHT_SYMTAB) {
 			symtab = &sec;
 		}
 		// TODO: verify sh_type for both of these?
@@ -130,20 +118,20 @@ BAN::ErrorOr<size_t> Banos::load_driver_from_image(const char* u_image) {
 	auto driver = TRY(VirtualRange::create_to_vaddr_range(PageTable::kernel(), { KERNEL_OFFSET, UINTPTR_MAX }, total_size, PageTable::Execute | PageTable::ReadWrite | PageTable::Present, true));
 
 	for(auto& sec : secs) {
-		if(sec.sh_flags & LibELF::SHF_ALLOC) {
+		if(sec.sh_flags & SHF_ALLOC) {
 			sec.sh_addr += driver->vaddr();
 		}
 	}
 	Banos_Driver* banos_driver = reinterpret_cast<Banos_Driver*>(driver_section->sh_addr);
 	for(auto& sec : secs) {
 		if(sec.sh_name == 0) continue;
-		if(sec.sh_flags & LibELF::SHF_ALLOC) {
+		if(sec.sh_flags & SHF_ALLOC) {
 			TRY(read_from_user(u_image + sec.sh_offset, reinterpret_cast<char*>(sec.sh_addr), sec.sh_size));
 		}
-		if(sec.sh_type == LibELF::SHT_RELA) {
+		if(sec.sh_type == SHT_RELA) {
 			auto& link_sec = secs[sec.sh_info];
-			size_t rela_count = sec.sh_size/sizeof(LibELF::ElfNativeRelocationA);
-			BAN::Vector<LibELF::ElfNativeRelocationA> rela_data(rela_count);
+			size_t rela_count = sec.sh_size/sizeof(Elf64_RelA);
+			BAN::Vector<Elf64_RelA> rela_data(rela_count);
 			TRY(read_from_user(u_image + sec.sh_offset, rela_data.data(), rela_count * sizeof *rela_data.data()));
 
 			for(auto rela : rela_data) {
@@ -152,7 +140,7 @@ BAN::ErrorOr<size_t> Banos::load_driver_from_image(const char* u_image) {
 
 				vaddr_t value = 0;
 
-				LibELF::ElfNativeSymbol sym;
+				Elf64_Sym sym;
 				TRY(read_from_user(u_image + symtab->sh_offset + sizeof(sym) * symbol, &sym, sizeof sym));
 
 				if(sym.st_shndx) {
@@ -170,16 +158,16 @@ BAN::ErrorOr<size_t> Banos::load_driver_from_image(const char* u_image) {
 				vaddr_t at = link_sec.sh_addr + rela.r_offset;
 				size_t size = 0;
 				switch(type) {
-				case LibELF::R_X86_64_PLT32:
-				case LibELF::R_X86_64_PC32:
+				case R_X86_64_PLT32:
+				case R_X86_64_PC32:
 					value -= at;
 					// fallthrough
-				case LibELF::R_X86_64_32:
-				case LibELF::R_X86_64_32S:
+				case R_X86_64_32:
+				case R_X86_64_32S:
 					value += rela.r_addend;
 					size = sizeof(uint32_t);
 					break;
-				case LibELF::R_X86_64_64:
+				case R_X86_64_64:
 					value += rela.r_addend;
 					size = sizeof(uint64_t);
 					break;

@@ -266,7 +266,6 @@ add_custom_command(
 banan_include_headers(kernel ban)
 banan_include_headers(kernel libc)
 banan_include_headers(kernel libdeflate)
-banan_include_headers(kernel libelf)
 banan_include_headers(kernel libfont)
 banan_include_headers(kernel libinput)
 banan_include_headers(kernel libqr)

@@ -23,7 +23,6 @@
 #include <kernel/UserCopy.h>
 
 #include <kernel/Banos.h>
-#include <LibELF/AuxiliaryVector.h>
 
 #include <LibInput/KeyboardLayout.h>
 
@@ -152,44 +151,44 @@ namespace Kernel
 			O_RDWR
 		));
 
-		BAN::Vector<LibELF::AuxiliaryVector> auxiliary_vector;
+		BAN::Vector<Elf_auxv_t> auxiliary_vector;
 		TRY(auxiliary_vector.reserve(5 + 2 * executable.interp_base.has_value()));
 
 		if (executable.interp_base.has_value())
 		{
 			const int execfd = TRY(process->m_open_file_descriptors.open(BAN::move(executable_file), O_RDONLY));
 			TRY(auxiliary_vector.push_back({
-				.a_type = LibELF::AT_EXECFD,
+				.a_type = AT_EXECFD,
 				.a_un = { .a_val = static_cast<uint32_t>(execfd) },
 			}));
 			TRY(auxiliary_vector.push_back({
-				.a_type = LibELF::AT_BASE,
+				.a_type = AT_BASE,
 				.a_un = { .a_ptr = reinterpret_cast<void*>(executable.interp_base.value()) },
 			}));
 		}
 
 		TRY(auxiliary_vector.push_back({
-			.a_type = LibELF::AT_PAGESZ,
+			.a_type = AT_PAGESZ,
 			.a_un = { .a_val = PAGE_SIZE },
 		}));
 
 		TRY(auxiliary_vector.push_back({
-			.a_type = LibELF::AT_SHARED_PAGE,
+			.a_type = AT_SHARED_PAGE,
 			.a_un = { .a_ptr = reinterpret_cast<void*>(process->m_shared_page_vaddr) },
 		}));
 
 		TRY(auxiliary_vector.push_back({
-			.a_type = LibELF::AT_STACK_BASE,
+			.a_type = AT_STACK_BASE,
 			.a_un = { .a_ptr = reinterpret_cast<void*>(userspace_stack->vaddr()) },
 		}));
 
 		TRY(auxiliary_vector.push_back({
-			.a_type = LibELF::AT_STACK_SIZE,
+			.a_type = AT_STACK_SIZE,
 			.a_un = { .a_ptr = reinterpret_cast<void*>(userspace_stack->size()) },
 		}));
 
 		TRY(auxiliary_vector.push_back({
-			.a_type = LibELF::AT_NULL,
+			.a_type = AT_NULL,
 			.a_un = { .a_val = 0 },
 		}));
 
@@ -254,7 +253,7 @@ namespace Kernel
 		return process;
 	}
 
-	BAN::ErrorOr<vaddr_t> Process::setup_initial_process_stack(MemoryBackedRegion& stack_region, BAN::Span<BAN::String> argv, BAN::Span<BAN::String> envp, BAN::Span<LibELF::AuxiliaryVector> auxv)
+	BAN::ErrorOr<vaddr_t> Process::setup_initial_process_stack(MemoryBackedRegion& stack_region, BAN::Span<BAN::String> argv, BAN::Span<BAN::String> envp, BAN::Span<Elf_auxv_t> auxv)
 	{
 		// System V ABI: Initial process stack
 
@@ -274,7 +273,7 @@ namespace Kernel
 			needed_size += env.size() + 1;
 
 		// auxv
-		needed_size += auxv.size() * sizeof(LibELF::AuxiliaryVector);
+		needed_size += auxv.size() * sizeof(Elf_auxv_t);
 
 		if (auto rem = needed_size % alignof(char*))
 			needed_size += alignof(char*) - rem;
@@ -990,13 +989,13 @@ namespace Kernel
 				O_RDWR
 			));
 
-			BAN::Vector<LibELF::AuxiliaryVector> auxiliary_vector;
+			BAN::Vector<Elf_auxv_t> auxiliary_vector;
 			TRY(auxiliary_vector.reserve(5 + 2 * executable.interp_base.has_value()));
 
 			BAN::ScopeGuard execfd_guard([this, &auxiliary_vector] {
 				if (auxiliary_vector.empty())
 					return;
-				if (auxiliary_vector.front().a_type != LibELF::AT_EXECFD)
+				if (auxiliary_vector.front().a_type != AT_EXECFD)
 					return;
 				MUST(m_open_file_descriptors.close(auxiliary_vector.front().a_un.a_val));
 			});
@@ -1005,36 +1004,37 @@ namespace Kernel
 			{
 				const int execfd = TRY(m_open_file_descriptors.open(BAN::move(executable_file), O_RDONLY));
 				TRY(auxiliary_vector.push_back({
-					.a_type = LibELF::AT_EXECFD,
+					.a_type = AT_EXECFD,
 					.a_un = { .a_val = static_cast<uint32_t>(execfd) },
 				}));
 				TRY(auxiliary_vector.push_back({
-					.a_type = LibELF::AT_BASE,
+					.a_type = AT_BASE,
 					.a_un = { .a_ptr = reinterpret_cast<void*>(executable.interp_base.value()) },
 				}));
 			}
+
 			TRY(auxiliary_vector.push_back({
-				.a_type = LibELF::AT_PAGESZ,
+				.a_type = AT_PAGESZ,
 				.a_un = { .a_val = PAGE_SIZE },
 			}));
 
 			TRY(auxiliary_vector.push_back({
-				.a_type = LibELF::AT_SHARED_PAGE,
+				.a_type = AT_SHARED_PAGE,
 				.a_un = { .a_ptr = reinterpret_cast<void*>(shared_page_vaddr) },
 			}));
 
 			TRY(auxiliary_vector.push_back({
-				.a_type = LibELF::AT_STACK_BASE,
+				.a_type = AT_STACK_BASE,
 				.a_un = { .a_ptr = reinterpret_cast<void*>(userspace_stack->vaddr()) },
 			}));
 
 			TRY(auxiliary_vector.push_back({
-				.a_type = LibELF::AT_STACK_SIZE,
+				.a_type = AT_STACK_SIZE,
 				.a_un = { .a_ptr = reinterpret_cast<void*>(userspace_stack->size()) },
 			}));
 
 			TRY(auxiliary_vector.push_back({
-				.a_type = LibELF::AT_NULL,
+				.a_type = AT_NULL,
 				.a_un = { .a_val = 0 },
 			}));
 

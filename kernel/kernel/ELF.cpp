@@ -3,26 +3,28 @@
 #include <kernel/Memory/FileBackedRegion.h>
 #include <kernel/Memory/MemoryBackedRegion.h>
 
-#include <LibELF/Types.h>
-#include <LibELF/Values.h>
-
 #include <ctype.h>
+#include <elf.h>
 #include <fcntl.h>
 
 namespace Kernel::ELF
 {
 
-	using namespace LibELF;
+#if ARCH(x86_64)
+# define ElfW(name) Elf64_##name
+#elif ARCH(i686)
+# define ElfW(name) Elf32_##name
+#endif
 
-	static BAN::ErrorOr<ElfNativeFileHeader> read_and_validate_file_header(BAN::RefPtr<Inode> inode)
+	static BAN::ErrorOr<ElfW(Ehdr)> read_and_validate_file_header(BAN::RefPtr<Inode> inode)
 	{
-		if ((size_t)inode->size() < sizeof(ElfNativeFileHeader))
+		if (inode->size() < static_cast<off_t>(sizeof(ElfW(Ehdr))))
 		{
 			dprintln("File is too small to be ELF");
 			return BAN::Error::from_errno(ENOEXEC);
 		}
 
-		ElfNativeFileHeader file_header;
+		ElfW(Ehdr) file_header;
 
 		size_t nread = TRY(inode->read(0, BAN::ByteSpan::from(file_header)));
 		ASSERT(nread == sizeof(file_header));
@@ -70,7 +72,7 @@ namespace Kernel::ELF
 			return BAN::Error::from_errno(EINVAL);
 		}
 
-		if (file_header.e_phentsize < sizeof(ElfNativeProgramHeader))
+		if (file_header.e_phentsize < sizeof(ElfW(Phdr)))
 		{
 			dprintln("Too small program header size ({} bytes)", file_header.e_phentsize);
 			return BAN::Error::from_errno(EINVAL);
@@ -79,18 +81,18 @@ namespace Kernel::ELF
 		return file_header;
 	}
 
-	static BAN::ErrorOr<BAN::Vector<ElfNativeProgramHeader>> read_program_headers(BAN::RefPtr<Inode> inode, const ElfNativeFileHeader& file_header)
+	static BAN::ErrorOr<BAN::Vector<ElfW(Phdr)>> read_program_headers(BAN::RefPtr<Inode> inode, const ElfW(Ehdr)& file_header)
 	{
 		BAN::Vector<uint8_t> program_header_buffer;
 		TRY(program_header_buffer.resize(file_header.e_phnum * file_header.e_phentsize));
 		TRY(inode->read(file_header.e_phoff, BAN::ByteSpan(program_header_buffer.span())));
 
-		BAN::Vector<ElfNativeProgramHeader> program_headers;
+		BAN::Vector<ElfW(Phdr)> program_headers;
 		TRY(program_headers.reserve(file_header.e_phnum));
 
 		for (size_t i = 0; i < file_header.e_phnum; i++)
 		{
-			const auto& pheader = *reinterpret_cast<ElfNativeProgramHeader*>(program_header_buffer.data() + i * file_header.e_phentsize);
+			const auto& pheader = *reinterpret_cast<ElfW(Phdr)*>(program_header_buffer.data() + i * file_header.e_phentsize);
 			if (pheader.p_memsz < pheader.p_filesz)
 			{
 				dprintln("Invalid program header, memsz less than filesz");

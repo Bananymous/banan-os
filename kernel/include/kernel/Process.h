@@ -17,6 +17,7 @@
 #include <kernel/Terminal/TTY.h>
 #include <kernel/Thread.h>
 
+#include <elf.h>
 #include <poll.h>
 #include <sys/banan-os.h>
 #include <sys/epoll.h>
@@ -43,7 +44,7 @@ namespace Kernel
 		~Process();
 		void cleanup_function(Thread*);
 
-		BAN::ErrorOr<vaddr_t> setup_initial_process_stack(MemoryBackedRegion&, BAN::Span<BAN::String> argv, BAN::Span<BAN::String> envp, BAN::Span<LibELF::AuxiliaryVector> auxv);
+		BAN::ErrorOr<vaddr_t> setup_initial_process_stack(MemoryBackedRegion&, BAN::Span<BAN::String> argv, BAN::Span<BAN::String> envp, BAN::Span<Elf_auxv_t> auxv);
 
 		void exit(int status, int signal);
 

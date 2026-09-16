@@ -3,7 +3,6 @@ set(USERSPACE_LIBRARIES
 	LibC
 	LibClipboard
 	LibDEFLATE
-	LibELF
 	LibFont
 	LibGUI
 	LibImage

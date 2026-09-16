@@ -84,7 +84,6 @@ target_compile_options(objlibc PUBLIC -Wall -Wextra -Werror -Wno-error=stack-usa
 
 banan_include_headers(objlibc ban)
 banan_include_headers(objlibc kernel)
-banan_include_headers(objlibc libelf)
 
 banan_install_headers(objlibc)
 

@@ -9,8 +9,6 @@
 #include <kernel/Memory/VirtualRange.h>
 #include <kernel/SchedulerThreadNode.h>
 
-#include <LibELF/AuxiliaryVector.h>
-
 #include <signal.h>
 #include <sys/types.h>
 
