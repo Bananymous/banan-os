@@ -2691,7 +2691,10 @@ namespace Kernel
 			};
 
 			if (args.flags & MAP_FIXED_NOREPLACE)
-				;
+			{
+				if (!page_table().is_range_free(vaddr, args.len))
+					return BAN::Error::from_errno(ENOMEM);
+			}
 			else
 			{
 				const size_t first_index = find_mapped_region(vaddr);
