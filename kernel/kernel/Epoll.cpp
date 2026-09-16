@@ -180,6 +180,7 @@ namespace Kernel
 						CHECK_EVENT_BIT(EPOLLERR, has_error);
 						CHECK_EVENT_BIT(EPOLLHUP, has_hungup);
 #undef CHECK_EVENT_BIT
+						events &= EPOLLIN | EPOLLOUT | EPOLLERR | EPOLLHUP;
 					}
 
 					if (events == 0)
