@@ -87,15 +87,10 @@ void* memcpy(void* __restrict__ s1, const void* __restrict__ s2, size_t n)
 
 	if (const size_t rem = reinterpret_cast<uintptr_t>(dst_u8) % 64; rem && n >= 64)
 	{
-		      __m128i* dst = reinterpret_cast<      __m128i*>(dst_u8);
-		const __m128i* src = reinterpret_cast<const __m128i*>(src_u8);
-
-		for (size_t i = 0; i * 16 < 64 - rem; i++)
-			_mm_storeu_si128(dst + i, _mm_loadu_si128(src + i));
-
-		dst_u8 += 64 - rem;
-		src_u8 += 64 - rem;
-		n      -= 64 - rem;
+		const size_t bytes = 64 - rem;
+		for (size_t i = 0; i < bytes; i++)
+			*dst_u8++ = *src_u8++;
+		n -= bytes;
 	}
 
 	for (; n >= 64; n -= 64, dst_u8 += 64, src_u8 += 64)
@@ -141,15 +136,10 @@ void* memmove(void* s1, const void* s2, size_t n)
 
 	if (const size_t rem = reinterpret_cast<uintptr_t>(dst_u8) % 64; rem && n >= 64)
 	{
-		      __m128i* dst = reinterpret_cast<      __m128i*>(dst_u8 - 16);
-		const __m128i* src = reinterpret_cast<const __m128i*>(src_u8 - 16);
-
-		for (size_t i = 0; i * 16 < rem; i++)
-			_mm_storeu_si128(dst - i, _mm_loadu_si128(src - i));
-
-		dst_u8 -= rem;
-		src_u8 -= rem;
-		n      -= rem;
+		const size_t bytes = rem;
+		for (size_t i = 0; i < bytes; i++)
+			*--dst_u8 = *--src_u8;
+		n -= bytes;
 	}
 
 	for (; n >= 64; n -= 64, dst_u8 -= 64, src_u8 -= 64)
