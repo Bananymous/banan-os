@@ -267,29 +267,27 @@ void* memccpy(void* __restrict s1, const void* __restrict s2, int c, size_t n)
 
 int strncmp(const char* s1, const char* s2, size_t n)
 {
-	const auto handle_page_boundary = [&s1, &s2]() -> BAN::Optional<int> {
-		const size_t rem_s1 = reinterpret_cast<uintptr_t>(s1) & 0xFFF;
-		const size_t rem_s2 = reinterpret_cast<uintptr_t>(s2) & 0xFFF;
-		if (rem_s1 <= 0xFF0 && rem_s2 <= 0xFF0)
-			return {};
-
-		const size_t bytes = BAN::Math::min(0x1000 - rem_s1, 0x1000 - rem_s2);
-		for (size_t i = 0; i < bytes; i++, s1++, s2++)
-			if (*s1 == '\0' || *s2 == '\0' || *s1 != *s2)
-				return *s1 - *s2;
-
-		return {};
-	};
+	const uint8_t* src1_u8 = reinterpret_cast<const uint8_t*>(s1);
+	const uint8_t* src2_u8 = reinterpret_cast<const uint8_t*>(s2);
 
 	const __m128i zero = _mm_setzero_si128();
 
-	for (; n >= 16; n -= 16, s1 += 16, s2 += 16)
+	while (n >= 16)
 	{
-		if (const auto ret = handle_page_boundary(); ret.has_value())
-			return ret.value();
+		const size_t rem_src1 = 0x1000 - (reinterpret_cast<uintptr_t>(src1_u8) & 0xFFF);
+		const size_t rem_src2 = 0x1000 - (reinterpret_cast<uintptr_t>(src2_u8) & 0xFFF);
+		if (rem_src1 < 16 || rem_src2 < 16)
+		{
+			const size_t bytes = BAN::Math::max(rem_src1, rem_src2);
+			for (size_t i = 0; i < bytes; i++, src1_u8++, src2_u8++)
+				if (*src1_u8 == '\0' || *src2_u8 == '\0' || *src1_u8 != *src2_u8)
+					return *src1_u8 - *src2_u8;
+			n -= bytes;
+			continue;
+		}
 
-		const __m128i value1 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(s1));
-		const __m128i value2 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(s2));
+		const __m128i value1 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(src1_u8));
+		const __m128i value2 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(src2_u8));
 
 		const uint16_t mask_zero1 = _mm_movemask_epi8(_mm_cmpeq_epi8(value1, zero));
 		const uint16_t mask_zero2 = _mm_movemask_epi8(_mm_cmpeq_epi8(value2, zero));
@@ -297,13 +295,17 @@ int strncmp(const char* s1, const char* s2, size_t n)
 		if (const uint16_t mask = mask_zero1 | mask_zero2 | (mask_equal ^ 0xFFFF))
 		{
 			const size_t diff_bit = BAN::Math::ctz(mask);
-			return s1[diff_bit] - s2[diff_bit];
+			return src1_u8[diff_bit] - src2_u8[diff_bit];
 		}
+
+		src1_u8 += 16;
+		src2_u8 += 16;
+		n       -= 16;
 	}
 
-	for (size_t i = 0; i < n; i++, s1++, s2++)
-		if (*s1 == '\0' || *s2 == '\0' || *s1 != *s2)
-			return *s1 - *s2;
+	for (size_t i = 0; i < n; i++, src1_u8++, src2_u8++)
+		if (*src1_u8 == '\0' || *src2_u8 == '\0' || *src1_u8 != *src2_u8)
+			return *src1_u8 - *src2_u8;
 
 	return 0;
 }
